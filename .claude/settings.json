@@ -1,0 +1,7 @@
+{
+  "sandbox": {
+    "excludedCommands": [
+      "bash .claude/skills/summarize-pr-comments/get-pr-comments.sh*"
+    ]
+  }
+}
