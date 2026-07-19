@@ -53,10 +53,45 @@ pnpm --filter mobile exec eas build --profile development --platform android
 pnpm --filter mobile exec expo start --dev-client
 ```
 
+- ローカルの Android は Windows 側で動作させる想定（WSL2 では一部ユーザーの協力が必要）。エミュレータ/adb server は Windows 側、Expo CLI/Metro は WSL2 側という役割分担にする。
+
+#### WSL2 から Windows 版 adb を使う（初回のみ）
+
+Expo CLI が `adb` コマンドを呼んだときも常にWindows版adbが使われるよう、ラッパースクリプトを `~/.local/bin` に配置する。
+
+```bash
+mkdir -p ~/.local/bin
+cp scripts/mobile-tools/adb ~/.local/bin/adb
+chmod +x ~/.local/bin/adb
+
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+export PATH="$HOME/.local/bin:$PATH"
+
+# 確認
+adb version
+adb devices
+```
+
+- WSLにLinux版`adb`がすでに入っている場合でも、`~/.local/bin`が先にPATHへ来ていればこのラッパーが優先される。
+- ラッパーの実体は `scripts/mobile-tools/adb`（Windows側の `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe` を呼び出す）。SDKの場所が異なる場合はコピー後のファイルを直接編集する。
+
+#### Windows側のAndroid Emulatorを起動する
+
+Android Studio（Device Manager）から起動する他、WSL2からコマンドで起動・AVD一覧の確認ができる（[android-emulator skill](../../../.claude/skills/android-emulator/SKILL.md)からも呼び出し可能）。
+
+```bash
+bash scripts/mobile-tools/list-avds.sh              # 利用可能なAVD一覧
+bash scripts/mobile-tools/start-emulator.sh         # デフォルトAVD(Pixel_4_API_33)を起動
+bash scripts/mobile-tools/start-emulator.sh Pixel_8_API_35  # AVDを指定して起動
+```
+
+- デフォルトAVDを変更したい場合は `scripts/mobile-tools/start-emulator.sh` 冒頭の `DEFAULT_AVD` を編集する。
+
+#### Metroへのポート転送
+
 - WSL2 上の Metro に端末を到達させる:
-  - 実機(USB): `adb reverse tcp:8081 tcp:8081`
+  - `adb reverse tcp:8081 tcp:8081`（`adb reverse`の設定はエミュレータを再起動すると消えるため、エミュレータ起動後に毎回実行する）
   - うまくいかない場合: `expo start --dev-client --tunnel`
-- ローカルの Android は Windows 側で動作させる想定（WSL2 では一部ユーザーの協力が必要）。
 
 ## よく使うコマンド
 
