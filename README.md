@@ -13,8 +13,13 @@
 - [マイルストーン計画](./docs/milestones.md) — MVP達成までの M1〜M5
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
 - ADR（アーキテクチャ決定記録）
+  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
   - backend: TBD
-  - mobile: [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
+  - mobile:
+    - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
+    - [ADR-002 技術スタック（Unistyles / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
+    - [ADR-003 development build 前提と開発ループ](./packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
+    - [ADR-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
 - backend
   - [フォルダ構造](./packages/backend/docs/folder-structure.md) / [命名規則](./packages/backend/docs/naming-convention.md)
   - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env-design.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)

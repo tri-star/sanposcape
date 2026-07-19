@@ -38,17 +38,24 @@ pnpm --filter mobile orval
 - 生成物は `src/api/generated/`（gitignore 済み）。
 - **backend の API を変更したら、backend で `openapi.yaml` を再出力 → 本コマンドを再実行**する。
 
-### 3. 開発ビルドの作成と起動
+### 3. development build の作成（EAS）と起動
+
+方針: **EAS で development build(APK) を1回作り、以降は Metro の Fast Refresh で Expo Go 同等**の体験を得る。
+再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)。
 
 ```bash
-# ネイティブプロジェクトを生成（初回・ネイティブ依存追加時）
-pnpm --filter mobile prebuild
+# 初回だけ: EAS で Android の development build(APK) を作成
+#   （eas アカウント連携が必要。実行はユーザーが行う）
+pnpm --filter mobile exec eas build --profile development --platform android
+#   → 生成された APK を Windows 側のエミュレータ / 実機にインストール
 
-# 開発サーバー起動
-pnpm --filter mobile start
+# 以降は毎回これだけ（dev build を端末で開いた状態で）
+pnpm --filter mobile exec expo start --dev-client
 ```
 
-- 端末（実機/エミュレータ）に development build を入れて起動する。
+- WSL2 上の Metro に端末を到達させる:
+  - 実機(USB): `adb reverse tcp:8081 tcp:8081`
+  - うまくいかない場合: `expo start --dev-client --tunnel`
 - ローカルの Android は Windows 側で動作させる想定（WSL2 では一部ユーザーの協力が必要）。
 
 ## よく使うコマンド
@@ -65,11 +72,17 @@ pnpm --filter mobile orval          # API クライアント再生成
 ## E2E（Maestro）
 
 - フローは `.maestro/` に置く（例: `.maestro/smoke.yaml`）。
-- 実行には Android エミュレータ/実機 + development build が必要。
+- E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)。
+- 実行には Android エミュレータ/実機 + preview APK が必要。
 
 ```bash
+# ローカル: preview APK を作成（EASクラウド枠を使わないローカルビルド）
+pnpm --filter mobile exec eas build --local --profile preview --platform android --output e2e-build/app-preview.apk
+adb install -r e2e-build/app-preview.apk
 maestro test packages/mobile/.maestro/
 ```
+
+- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。
 
 ## Google Maps（react-native-maps）
 

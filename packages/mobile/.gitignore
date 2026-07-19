@@ -43,3 +43,6 @@ yarn-error.*
 
 # Orval / generated API client (regenerated from backend openapi.yaml)
 src/api/generated/
+
+# E2E 用にビルドした APK（CIでfingerprintキャッシュ管理）
+e2e-build/
