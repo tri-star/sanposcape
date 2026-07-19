@@ -1,0 +1,53 @@
+name: mobile E2E (Maestro)
+
+# Maestro E2E は Android エミュレータ + development build（APK）が必要なため、
+# 現時点では手動トリガ（workflow_dispatch）のスキャフォルドとして用意している。
+# 実運用に載せる際は下記 TODO を解消すること。
+#
+# 前提として必要なもの:
+#   - development build の APK（EAS Build もしくは `expo prebuild` + gradle build で生成）
+#   - Android エミュレータ（reactivecircus/android-emulator-runner を利用）
+#   - Maestro CLI
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate API client (Orval)
+        run: pnpm --filter mobile orval
+
+      # TODO: development build(APK)の生成
+      #   例) EAS Build のアーティファクトを取得、または prebuild + ./gradlew assembleDebug
+      # - name: Build Android dev client
+      #   run: ...
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      # TODO: エミュレータ上に APK をインストールしてから Maestro を実行する
+      - name: Run Maestro flows
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          script: |
+            # adb install path/to/app.apk
+            maestro test packages/mobile/.maestro/
