@@ -1,0 +1,50 @@
+[project]
+name = "sanposcape-backend"
+version = "0.1.0"
+description = "sanposcape backend API (FastAPI)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "pyyaml>=6.0",
+]
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sanposcape"]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+target-version = "py312"
+# Alembic の自動生成マイグレーションは lint 対象外にする
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI の Depends() を引数デフォルトに置くのは公式の慣習のため許可
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+testpaths = ["src"]
+python_files = ["test_*.py"]
+pythonpath = ["src"]

@@ -1,0 +1,69 @@
+name: backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "packages/backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: packages/backend
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.7.13"
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Ruff check (lint)
+        run: uv run ruff check
+      - name: Ruff format check
+        run: uv run ruff format --check
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d app"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: app
+      DB_PASSWORD: password
+      DB_NAME: app
+      # CI ではサービスの既定DBをテスト用に流用（各テストで create_all/drop_all）
+      TEST_DB_NAME: app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.7.13"
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Run migrations (smoke check)
+        run: uv run alembic upgrade head
+      - name: Run tests
+        run: uv run pytest -q
