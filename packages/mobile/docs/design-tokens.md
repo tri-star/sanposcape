@@ -61,9 +61,9 @@ src/theme/
 - `tokens.ts`: `generated` の primitive を `adapters` で変換しつつ、**用途名(semantic)へマッピング**して
   `lightTheme` / `darkTheme` を組み立てる。コンポーネント側はここだけを参照する。
 
-> **現状(SS-1 Phase 0 完了時点)**: `generated/` `adapters/` `tokens.ts` の実装は後続の Phase 1 で行う。
-> Phase 0 ではスナップショットの取得(`design/tokens/*.css`)と codegen スクリプト
-> (`scripts/generate-tokens.ts`, `scripts/design-tokens/**`)、CI の drift check までを完了している。
+> **現状(SS-1 完了時点)**: `generated/` `adapters/` `tokens.ts` および `src/components/ui/` の
+> 全 primitive・開発用カタログ画面(`/(dev)/catalog`)まで実装済み。設計判断の詳細は
+> [ADR-005](../adr/ADR-005-design-system-import.md) を参照。
 
 ## codegen が実データから確定させたトークン構造
 
