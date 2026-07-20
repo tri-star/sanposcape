@@ -15,17 +15,24 @@ export type InputAppearance = {
  * focused/disabled/hasError から Input の見た目を解決する純粋関数。
  * 優先順位は **error > disabled > focused**(3つが同時に true でも1つの見た目に確定させるため)。
  * フォーカスリングは持ち込まず、フォーカス時は枠色を primary 系(`borderFocus`)に変えるだけ。
+ *
+ * DS: 枠線幅は状態に関わらず常に 1.5px 固定で、色だけを変える(design/components/DS-COMPONENT-SPECS.md)。
+ * RN では `borderWidth` が変わると内側のコンテンツ領域が縮むため、以前の実装(1px↔2px)は
+ * フォーカスするたびにテキストが跳ねる不具合があった(B-7)。
  */
+const BORDER_WIDTH_FACTOR = 1.5;
+
 export function resolveInputAppearance(
   theme: AppTheme,
   args: { focused: boolean; disabled: boolean; hasError: boolean },
 ): InputAppearance {
   const { focused, disabled, hasError } = args;
+  const borderWidth = theme.sizing.hairline * BORDER_WIDTH_FACTOR;
 
   if (hasError) {
     return {
       borderColor: theme.colors.danger,
-      borderWidth: theme.sizing.hairline * 2,
+      borderWidth,
       backgroundColor: theme.colors.surface,
       textColor: theme.colors.text,
       placeholderColor: theme.colors.textTertiary,
@@ -38,7 +45,7 @@ export function resolveInputAppearance(
   if (disabled) {
     return {
       borderColor: theme.colors.border,
-      borderWidth: theme.sizing.hairline,
+      borderWidth,
       backgroundColor: theme.colors.surfaceSunken,
       textColor: theme.colors.textDisabled,
       placeholderColor: theme.colors.textDisabled,
@@ -50,7 +57,7 @@ export function resolveInputAppearance(
 
   return {
     borderColor: focused ? theme.colors.borderFocus : theme.colors.border,
-    borderWidth: focused ? theme.sizing.hairline * 2 : theme.sizing.hairline,
+    borderWidth,
     backgroundColor: theme.colors.surface,
     textColor: theme.colors.text,
     placeholderColor: theme.colors.textTertiary,

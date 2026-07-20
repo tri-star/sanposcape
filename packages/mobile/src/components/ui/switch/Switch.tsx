@@ -8,13 +8,12 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { resolveSwitchAppearance, type SwitchSize } from "@/components/ui/switch/switchStyles";
+import { resolveSwitchAppearance } from "@/components/ui/switch/switchStyles";
 
 export type SwitchProps = {
   value: boolean;
   onValueChange: (value: boolean) => void;
   disabled?: boolean;
-  size?: SwitchSize;
   /** 必須。スクリーンリーダー用 */
   accessibilityLabel: string;
   testID?: string;
@@ -23,6 +22,7 @@ export type SwitchProps = {
 /**
  * RN 標準の `Switch` はスタイル自由度が低いため、`Pressable` + Reanimated で自前実装する。
  * ノブの移動は `theme.motion.base` の duration/bezier を使う。
+ * DS のトラック/ノブは単一サイズのみのため `size` prop は持たない(B-5)。
  *
  * `useUnistyles()` は hitSlop の計算、および Reanimated の `withTiming` に渡す
  * duration/easing(スタイルではなく JS 側のアニメーション設定値)を得るためだけに使う。
@@ -32,12 +32,11 @@ export function Switch({
   value,
   onValueChange,
   disabled = false,
-  size = "md",
   accessibilityLabel,
   testID,
 }: SwitchProps) {
   const { theme } = useUnistyles();
-  const appearance = resolveSwitchAppearance(theme, { value, disabled, size });
+  const appearance = resolveSwitchAppearance(theme, { value, disabled });
   const translateX = useSharedValue(appearance.knobTranslateX);
 
   useEffect(() => {
@@ -74,15 +73,15 @@ export function Switch({
             }
           : undefined
       }
-      style={styles.track({ value, disabled, size })}
+      style={styles.track({ value, disabled })}
     >
-      <Animated.View style={[styles.knob({ value, disabled, size }), knobStyle]} />
+      <Animated.View style={[styles.knob({ value, disabled }), knobStyle]} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
-  track: (args: { value: boolean; disabled: boolean; size: SwitchSize }) => {
+  track: (args: { value: boolean; disabled: boolean }) => {
     const appearance = resolveSwitchAppearance(theme, args);
     return {
       width: appearance.trackWidth,
@@ -93,7 +92,7 @@ const styles = StyleSheet.create((theme) => ({
       justifyContent: "center",
     };
   },
-  knob: (args: { value: boolean; disabled: boolean; size: SwitchSize }) => {
+  knob: (args: { value: boolean; disabled: boolean }) => {
     const appearance = resolveSwitchAppearance(theme, args);
     return {
       position: "absolute",
@@ -102,6 +101,7 @@ const styles = StyleSheet.create((theme) => ({
       height: appearance.knobSize,
       borderRadius: theme.radius.pill,
       backgroundColor: appearance.knobColor,
+      boxShadow: appearance.knobBoxShadow,
     };
   },
 }));

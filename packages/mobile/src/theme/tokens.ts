@@ -81,12 +81,24 @@ function buildColors(colors: GeneratedColors) {
     borderStrong: colors["border-strong"],
     borderFocus: colors["border-focus"],
     divider: colors["border-subtle"],
+    /** ProgressBar のトラック等、枠線より一段薄い塗り(DS の `--ink-100`)。border(`--ink-200`)とは別値 */
+    neutralFill: colors["ink-100"],
+    /**
+     * Dialog/BottomSheet の背面スクリム。DS 実物(design/components/DS-COMPONENT-SPECS.md の
+     * Dialog 表)が固定値 `rgba(27, 36, 48, 0.45)` を返しており、light/dark で変わらない
+     * (影を意図的に純黒へ切り替える dark の規律とは異なり、スクリムは theme非依存)。
+     * 以前は `surfaceInverse + 固定alpha` で代用していたが、dark の `surfaceInverse` は
+     * ほぼ白(`#eef1f4`)のため誤り(C-6 でも重複していた `OVERLAY_ALPHA` を統合)。
+     */
+    overlay: "rgba(27, 36, 48, 0.45)",
 
     // --- ブランド ---
     primary: colors.primary,
     primaryHover: colors["primary-hover"],
     primaryPressed: colors["primary-press"],
     primaryTint: colors["primary-tint"],
+    /** Button secondary 押下時用(DS の `--blue-300`)。secondary の既定背景は primaryTint */
+    secondaryPressed: colors["blue-300"],
     onPrimary: colors["on-primary"],
     accent: colors.accent,
     accentHover: colors["accent-hover"],
@@ -95,6 +107,8 @@ function buildColors(colors: GeneratedColors) {
     // --- セマンティック状態(装飾には使わない) ---
     danger: colors.danger,
     dangerTint: colors["danger-tint"],
+    /** Button danger 押下時の「暗くする」表現用(DS の `--red-600`)。B-3 対応 */
+    dangerPressed: colors["red-600"],
     success: colors.success,
     successTint: colors["success-tint"],
     warning: colors.warning,
@@ -209,7 +223,9 @@ type TypographyRoleName =
   | "caption"
   | "label"
   | "data"
-  | "dataSm";
+  | "dataSm"
+  | "dataUnit"
+  | "badgeLabel";
 
 /**
  * 用途名 → (サイズ/太さ/行高/字間/フォント) の組み立て表。
@@ -279,21 +295,52 @@ const TYPOGRAPHY_ROLES: Record<TypographyRoleName, TypographyRoleConfig> = {
     trackingKey: "tracking-wide",
     fontFamilyKey: "label",
   },
-  /** StatBlock 等の大きな数値表示。tabular-nums 必須 */
+  /**
+   * StatBlock(md サイズ)等の大きな数値表示。tabular-nums 必須。
+   * DS: weight-heavy / tracking-tight(design/components/DS-COMPONENT-SPECS.md の StatBlock 表)。
+   */
   data: {
     sizeKey: "text-4xl",
     weightKey: "weight-heavy",
     leadingKey: "leading-tight",
+    trackingKey: "tracking-tight",
     fontFamilyKey: "data",
     tabularNums: true,
   },
-  /** 小さめの数値表示(タイマー等) */
+  /**
+   * StatBlock(sm サイズ)等の小さめの数値表示。DS は `data` と同じ weight-heavy/tracking-tight で
+   * サイズのみ text-2xl(以前は text-lg/weight-bold で DS と不一致だった。B 追加分)。
+   */
   dataSm: {
-    sizeKey: "text-lg",
-    weightKey: "weight-bold",
+    sizeKey: "text-2xl",
+    weightKey: "weight-heavy",
     leadingKey: "leading-tight",
+    trackingKey: "tracking-tight",
     fontFamilyKey: "data",
     tabularNums: true,
+  },
+  /**
+   * StatBlock の単位表示(例: "km")用。DS: font-data / text-sm / weight-medium。
+   * 数値本体(`data`/`dataSm`)と同じ `font-data` ファミリーを使うが太さ・tracking・tabular-nums は
+   * 持たない(以前の実装は `bodySm`(font-body/weight-regular)を流用しており DS と不一致だった)。
+   */
+  dataUnit: {
+    sizeKey: "text-sm",
+    weightKey: "weight-medium",
+    leadingKey: "leading-normal",
+    fontFamilyKey: "data",
+  },
+  /**
+   * Badge のラベル用。DS: font-label / text-xs / weight-bold / tracking-wide
+   * (design/components/DS-COMPONENT-SPECS.md の Badge 表)。共通の `label` ロール(text-sm/
+   * weight-medium。Tag 等が使う)とはサイズ・太さが異なるため専用ロールにした。
+   */
+  badgeLabel: {
+    sizeKey: "text-xs",
+    weightKey: "weight-bold",
+    leadingKey: "leading-normal",
+    trackingKey: "tracking-wide",
+    fontFamilyKey: "label",
   },
 };
 

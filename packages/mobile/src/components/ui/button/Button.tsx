@@ -107,6 +107,7 @@ const styles = StyleSheet.create((theme) => ({
       minHeight: appearance.minHeight,
       opacity: appearance.opacity,
       transform: [{ scale: appearance.scale }],
+      boxShadow: appearance.boxShadow,
     };
   },
   label: (args: {

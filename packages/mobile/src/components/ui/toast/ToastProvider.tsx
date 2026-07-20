@@ -77,7 +77,7 @@ export function ToastProvider({ children, testID = "toast-overlay" }: ToastProvi
       const item: ToastItem = {
         id: `toast-${idCounter.current}`,
         message,
-        variant: options?.variant ?? "info",
+        variant: options?.variant ?? "default",
         durationMs: options?.durationMs ?? DEFAULT_DURATION_MS,
       };
       setState((prev) => enqueueToast(prev, item, MAX_VISIBLE));
@@ -133,7 +133,7 @@ function ToastCard({
       onPress={onDismiss}
       style={styles.card(args)}
     >
-      <Icon name={appearance.iconName} size={18} color={appearance.iconColor} />
+      <Icon name={appearance.iconName} size={17} color={appearance.textColor} />
       <Text style={styles.message(args)}>{item.message}</Text>
     </Pressable>
   );
@@ -152,13 +152,14 @@ const styles = StyleSheet.create((theme) => ({
     return {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing[8],
+      // DS: アイコンとの間隔 10、パディング 12px 18px、影は shadow-lg(design/components/DS-COMPONENT-SPECS.md)
+      gap: 10,
       maxWidth: "90%",
-      paddingHorizontal: theme.spacing[16],
-      paddingVertical: theme.spacing[12],
+      paddingHorizontal: appearance.paddingHorizontal,
+      paddingVertical: appearance.paddingVertical,
       borderRadius: theme.radius.pill,
       backgroundColor: appearance.backgroundColor,
-      boxShadow: theme.shadow.md,
+      boxShadow: theme.shadow.lg,
     };
   },
   message: (args: { variant: ToastVariant }) => {

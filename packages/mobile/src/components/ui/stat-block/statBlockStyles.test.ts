@@ -16,6 +16,16 @@ describe("resolveStatBlockAppearance", () => {
     expect(appearance.valueTextStyle.fontVariant).toEqual(["tabular-nums"]);
   });
 
+  it("dataSm は DS 実寸の text-2xl(以前は text-lg で DS と不一致だった)", () => {
+    expect(lightTheme.typography.dataSm.fontSize).toBe(24);
+  });
+
+  it("unit は theme.typography.dataUnit を使う(font-data/weight-medium)", () => {
+    const appearance = resolveStatBlockAppearance(lightTheme, { size: "lg", align: "left" });
+    expect(appearance.unitTextStyle).toEqual(lightTheme.typography.dataUnit);
+    expect(appearance.unitTextStyle.fontWeight).toBe(lightTheme.typography.label.fontWeight);
+  });
+
   it("lg の fontSize が md より大きい", () => {
     const lg = resolveStatBlockAppearance(lightTheme, { size: "lg", align: "left" });
     const md = resolveStatBlockAppearance(lightTheme, { size: "md", align: "left" });

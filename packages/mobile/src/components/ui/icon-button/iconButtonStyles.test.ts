@@ -7,14 +7,14 @@ import {
 } from "@/components/ui/icon-button/iconButtonStyles";
 import { lightTheme } from "@/theme/tokens";
 
-const VARIANTS: IconButtonVariant[] = ["primary", "secondary", "ghost"];
+const VARIANTS: IconButtonVariant[] = ["filled", "tinted", "surface", "ghost"];
 const SIZES: IconButtonSize[] = ["sm", "md", "lg"];
 
 describe("resolveIconButtonAppearance", () => {
   it("全 size で実タップ領域(boxSize + hitSlop*2)が 44 以上", () => {
     for (const size of SIZES) {
       const appearance = resolveIconButtonAppearance(lightTheme, {
-        variant: "primary",
+        variant: "filled",
         size,
         disabled: false,
         pressed: false,
@@ -23,18 +23,17 @@ describe("resolveIconButtonAppearance", () => {
     }
   });
 
-  it("size ごとに boxSize / iconSize が単調増加する", () => {
-    const boxSizes = SIZES.map(
-      (size) =>
-        resolveIconButtonAppearance(lightTheme, {
-          variant: "primary",
-          size,
-          disabled: false,
-          pressed: false,
-        }).boxSize,
+  it("DS 実寸(sm 32 / md 44 / lg 54、アイコン 16/20/22)に一致する", () => {
+    const sizes = SIZES.map((size) =>
+      resolveIconButtonAppearance(lightTheme, {
+        variant: "filled",
+        size,
+        disabled: false,
+        pressed: false,
+      }),
     );
-    expect(boxSizes[0]).toBeLessThan(boxSizes[1]);
-    expect(boxSizes[1]).toBeLessThan(boxSizes[2]);
+    expect(sizes.map((s) => s.boxSize)).toEqual([32, 44, 54]);
+    expect(sizes.map((s) => s.iconSize)).toEqual([16, 20, 22]);
   });
 
   it.each(VARIANTS)("%s variant で backgroundColor/iconColor が定義される", (variant) => {
@@ -48,44 +47,37 @@ describe("resolveIconButtonAppearance", () => {
     expect(appearance.iconColor).toBeTruthy();
   });
 
-  it("secondary は borderWidth > 0、primary/ghost は 0", () => {
-    const secondary = resolveIconButtonAppearance(lightTheme, {
-      variant: "secondary",
-      size: "md",
-      disabled: false,
-      pressed: false,
-    });
-    const primary = resolveIconButtonAppearance(lightTheme, {
-      variant: "primary",
-      size: "md",
-      disabled: false,
-      pressed: false,
-    });
-    const ghost = resolveIconButtonAppearance(lightTheme, {
-      variant: "ghost",
-      size: "md",
-      disabled: false,
-      pressed: false,
-    });
-    expect(secondary.borderWidth).toBeGreaterThan(0);
-    expect(primary.borderWidth).toBe(0);
-    expect(ghost.borderWidth).toBe(0);
+  it("surface variant のみ非 disabled で boxShadow を持つ", () => {
+    for (const variant of VARIANTS) {
+      const appearance = resolveIconButtonAppearance(lightTheme, {
+        variant,
+        size: "md",
+        disabled: false,
+        pressed: false,
+      });
+      if (variant === "surface") {
+        expect(appearance.boxShadow).toBe(lightTheme.shadow.sm);
+      } else {
+        expect(appearance.boxShadow).toBeUndefined();
+      }
+    }
   });
 
-  it("disabled: true で opacity が下がり iconColor が textDisabled になる", () => {
+  it("disabled: true で opacity が下がり iconColor が textDisabled になる(shadow も消える)", () => {
     const appearance = resolveIconButtonAppearance(lightTheme, {
-      variant: "primary",
+      variant: "surface",
       size: "md",
       disabled: true,
       pressed: false,
     });
     expect(appearance.opacity).toBeLessThan(1);
     expect(appearance.iconColor).toBe(lightTheme.colors.textDisabled);
+    expect(appearance.boxShadow).toBeUndefined();
   });
 
   it("pressed: true で scale が 0.97", () => {
     const appearance = resolveIconButtonAppearance(lightTheme, {
-      variant: "primary",
+      variant: "filled",
       size: "md",
       disabled: false,
       pressed: true,

@@ -57,7 +57,7 @@ export function Select<T extends string>({
         <Text numberOfLines={1} style={styles.triggerText({ disabled, hasValue: value !== null })}>
           {displayLabel}
         </Text>
-        <Icon name="chevron-down" size={18} color={styles.triggerIcon({ disabled }).color} />
+        <Icon name="chevron-down" size={16} color={styles.triggerIcon({ disabled }).color} />
       </Pressable>
 
       <BottomSheet
@@ -101,6 +101,7 @@ const styles = StyleSheet.create((theme) => ({
     fontFamily: theme.fontFamily.label,
     ...theme.typography.label,
   },
+  // DS: Input と同じ左パディング14、右はシェブロン用に40確保(design/components/DS-COMPONENT-SPECS.md)
   trigger: (args: { disabled: boolean; pressed: boolean }) => {
     const appearance = resolveSelectAppearance(theme, args);
     return {
@@ -109,9 +110,10 @@ const styles = StyleSheet.create((theme) => ({
       justifyContent: "space-between",
       gap: theme.spacing[8],
       minHeight: theme.sizing.controlMd,
-      paddingHorizontal: theme.spacing[16],
+      paddingLeft: 14,
+      paddingRight: 40,
       borderRadius: theme.radius.md,
-      borderWidth: theme.sizing.hairline,
+      borderWidth: appearance.borderWidth,
       borderColor: appearance.borderColor,
       backgroundColor: appearance.backgroundColor,
       opacity: appearance.opacity,

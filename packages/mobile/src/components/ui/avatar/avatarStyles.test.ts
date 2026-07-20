@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/avatar/avatarStyles";
 import { lightTheme } from "@/theme/tokens";
 
-const SIZES: AvatarSize[] = ["sm", "md", "lg", "xl"];
+const SIZES: AvatarSize[] = ["sm", "md", "lg"];
 
 describe("getAvatarInitial", () => {
   it("先頭1文字を大文字で返す", () => {
@@ -44,7 +44,18 @@ describe("resolveAvatarAppearance", () => {
     const boxSizes = SIZES.map((size) => resolveAvatarAppearance(lightTheme, { size }).boxSize);
     expect(boxSizes[0]).toBeLessThan(boxSizes[1]);
     expect(boxSizes[1]).toBeLessThan(boxSizes[2]);
-    expect(boxSizes[2]).toBeLessThan(boxSizes[3]);
+  });
+
+  it("DS 実寸(sm 32 / md 44 / lg 64)に一致する", () => {
+    expect(resolveAvatarAppearance(lightTheme, { size: "sm" }).boxSize).toBe(32);
+    expect(resolveAvatarAppearance(lightTheme, { size: "md" }).boxSize).toBe(44);
+    expect(resolveAvatarAppearance(lightTheme, { size: "lg" }).boxSize).toBe(64);
+  });
+
+  it("文字サイズはサイズ × 0.4、フォールバックアイコンはサイズ × 0.5", () => {
+    const appearance = resolveAvatarAppearance(lightTheme, { size: "md" });
+    expect(appearance.initialFontSize).toBeCloseTo(44 * 0.4);
+    expect(appearance.fallbackIconSize).toBeCloseTo(44 * 0.5);
   });
 
   it("常に円形(borderRadius が pill)", () => {

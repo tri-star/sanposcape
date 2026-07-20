@@ -38,13 +38,19 @@ export function MapPin({ category, selected = false, variant = "category", testI
   return (
     <View testID={testID} accessibilityRole="image" style={styles.box(args)}>
       <Svg width={appearance.size} height={height} viewBox="0 0 32 40">
-        <Path d={PIN_PATH} fill={appearance.fillColor} />
+        <Path
+          d={PIN_PATH}
+          fill={appearance.fillColor}
+          stroke={appearance.strokeColor}
+          strokeWidth={appearance.strokeWidth}
+        />
       </Svg>
       <View style={styles.iconWrap(args)}>
         <Icon
           name={appearance.iconName}
-          size={appearance.size * 0.4}
+          size={appearance.iconSize}
           color={appearance.iconColor}
+          strokeWidth={appearance.iconStrokeWidth}
         />
       </View>
     </View>
@@ -58,6 +64,7 @@ const styles = StyleSheet.create((theme) => ({
       width: appearance.size,
       height: Math.round(appearance.size * VIEWBOX_ASPECT_RATIO),
       alignItems: "center",
+      boxShadow: appearance.boxShadow,
     };
   },
   iconWrap: (args: { category: MapPinCategory; selected: boolean; variant: MapPinVariant }) => {

@@ -20,13 +20,16 @@ function createNoopIcon(name: string) {
 }
 
 export const Activity = createNoopIcon("Activity");
+export const AlertCircle = createNoopIcon("AlertCircle");
 export const AlertTriangle = createNoopIcon("AlertTriangle");
 export const ArrowLeft = createNoopIcon("ArrowLeft");
 export const Award = createNoopIcon("Award");
 export const Bell = createNoopIcon("Bell");
 export const Bookmark = createNoopIcon("Bookmark");
+export const BookOpen = createNoopIcon("BookOpen");
 export const Calendar = createNoopIcon("Calendar");
 export const Check = createNoopIcon("Check");
+export const CheckCircle2 = createNoopIcon("CheckCircle2");
 export const ChevronDown = createNoopIcon("ChevronDown");
 export const ChevronRight = createNoopIcon("ChevronRight");
 export const Clock = createNoopIcon("Clock");
@@ -37,7 +40,6 @@ export const Footprints = createNoopIcon("Footprints");
 export const Heart = createNoopIcon("Heart");
 export const House = createNoopIcon("House");
 export const Info = createNoopIcon("Info");
-export const Library = createNoopIcon("Library");
 export const LogOut = createNoopIcon("LogOut");
 export const MapPin = createNoopIcon("MapPin");
 export const Minus = createNoopIcon("Minus");
@@ -49,7 +51,7 @@ export const Settings = createNoopIcon("Settings");
 export const Share = createNoopIcon("Share");
 export const Star = createNoopIcon("Star");
 export const TrainFront = createNoopIcon("TrainFront");
-export const Trees = createNoopIcon("Trees");
+export const TreePine = createNoopIcon("TreePine");
 export const TrendingUp = createNoopIcon("TrendingUp");
 export const User = createNoopIcon("User");
 export const Users = createNoopIcon("Users");

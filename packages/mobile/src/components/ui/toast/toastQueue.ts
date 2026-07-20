@@ -1,4 +1,5 @@
-export type ToastVariant = "info" | "success" | "warning" | "danger";
+/** DS の Toast tone は `default`/`success`/`danger` の3種(`warning` は無い) */
+export type ToastVariant = "default" | "success" | "danger";
 
 export type ToastItem = {
   id: string;

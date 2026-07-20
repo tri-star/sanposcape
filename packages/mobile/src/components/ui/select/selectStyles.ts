@@ -7,6 +7,7 @@ export type SelectOptionLike<T extends string> = {
 
 export type SelectAppearance = {
   borderColor: string;
+  borderWidth: number;
   backgroundColor: string;
   textColor: string;
   placeholderColor: string;
@@ -14,7 +15,10 @@ export type SelectAppearance = {
   opacity: number;
 };
 
-/** disabled から Select トリガーの見た目を解決する純粋関数(見た目は Input に揃える) */
+/**
+ * disabled から Select トリガーの見た目を解決する純粋関数(見た目は Input に揃える)。
+ * DS: 枠線は Input と同じく常に 1.5px 固定(design/components/DS-COMPONENT-SPECS.md)。
+ */
 export function resolveSelectAppearance(
   theme: AppTheme,
   args: { disabled: boolean },
@@ -22,6 +26,7 @@ export function resolveSelectAppearance(
   const { disabled } = args;
   return {
     borderColor: theme.colors.border,
+    borderWidth: theme.sizing.hairline * 1.5,
     backgroundColor: disabled ? theme.colors.surfaceSunken : theme.colors.surface,
     textColor: disabled ? theme.colors.textDisabled : theme.colors.text,
     placeholderColor: theme.colors.textTertiary,

@@ -1,4 +1,4 @@
-export type CatalogGroup = "core" | "data" | "forms" | "feedback" | "overlays" | "map";
+export type CatalogGroup = "core" | "data" | "forms" | "feedback" | "overlays" | "map" | "content";
 
 export type CatalogEntry = {
   /** セクション見出し。例: "Button"(コンポーネントの PascalCase 名と一致させる) */
@@ -17,12 +17,16 @@ export type CatalogEntry = {
  */
 export const CATALOG_ENTRIES: CatalogEntry[] = [
   { title: "Icon", group: "core", variants: ["home", "map-pin", "search", "settings"] },
-  { title: "Button", group: "core", variants: ["primary", "secondary", "ghost", "danger"] },
-  { title: "IconButton", group: "core", variants: ["primary", "secondary", "ghost"] },
+  {
+    title: "Button",
+    group: "core",
+    variants: ["primary", "secondary", "outline", "ghost", "danger"],
+  },
+  { title: "IconButton", group: "core", variants: ["filled", "tinted", "surface", "ghost"] },
   { title: "Card", group: "data", variants: ["none", "sm", "md", "lg"] },
-  { title: "Avatar", group: "data", variants: ["sm", "md", "lg", "xl"] },
+  { title: "Avatar", group: "data", variants: ["sm", "md", "lg"] },
   { title: "StatBlock", group: "data", variants: ["md", "lg"] },
-  { title: "ProgressBar", group: "data", variants: ["sm", "md"] },
+  { title: "ProgressBar", group: "data", variants: ["default"] },
   { title: "Input", group: "forms", variants: ["default", "error", "disabled"] },
   { title: "Switch", group: "forms", variants: ["on", "off", "disabled"] },
   { title: "Checkbox", group: "forms", variants: ["unchecked", "checked", "indeterminate"] },
@@ -30,10 +34,10 @@ export const CATALOG_ENTRIES: CatalogEntry[] = [
   {
     title: "Badge",
     group: "feedback",
-    variants: ["neutral", "primary", "success", "warning", "danger"],
+    variants: ["neutral", "info", "success", "warning", "danger"],
   },
   { title: "Tag", group: "feedback", variants: ["park", "cafe", "culture", "station"] },
-  { title: "Toast", group: "feedback", variants: ["info", "success", "warning", "danger"] },
+  { title: "Toast", group: "feedback", variants: ["default", "success", "danger"] },
   { title: "Dialog", group: "overlays", variants: ["default", "destructive"] },
   { title: "BottomSheet", group: "overlays", variants: ["default"] },
   { title: "Select", group: "overlays", variants: ["default"] },
@@ -43,8 +47,9 @@ export const CATALOG_ENTRIES: CatalogEntry[] = [
     variants: ["park", "cafe", "culture", "station", "current", "destination"],
   },
   {
+    // 地図と無関係のため "content"(装飾・空状態向けプレースホルダ)に分類する(D-3)
     title: "IllustrationSlot",
-    group: "map",
+    group: "content",
     variants: ["home-hero", "empty-walks", "empty-spots", "nav-idle"],
   },
 ];

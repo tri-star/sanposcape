@@ -59,9 +59,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   unit: (args: { size: StatBlockSize; align: StatBlockAlign }) => {
     const appearance = resolveStatBlockAppearance(theme, args);
+    // DS: 単位は font-data(数値本体と同じファミリー)。以前は font-body を使っていた
     return {
       color: theme.colors.textMuted,
-      fontFamily: theme.fontFamily.body,
+      fontFamily: theme.fontFamily.data,
       ...appearance.unitTextStyle,
     };
   },

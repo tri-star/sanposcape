@@ -40,4 +40,13 @@ describe("resolveSelectAppearance", () => {
     expect(appearance.opacity).toBeLessThan(1);
     expect(appearance.textColor).toBe(theme.colors.textDisabled);
   });
+
+  it.each([lightTheme, darkTheme])(
+    "borderWidth は Input と同じく常に hairline の1.5倍で固定",
+    (theme) => {
+      const expected = theme.sizing.hairline * 1.5;
+      expect(resolveSelectAppearance(theme, { disabled: false }).borderWidth).toBe(expected);
+      expect(resolveSelectAppearance(theme, { disabled: true }).borderWidth).toBe(expected);
+    },
+  );
 });

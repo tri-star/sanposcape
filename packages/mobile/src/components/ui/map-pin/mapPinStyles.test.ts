@@ -62,4 +62,40 @@ describe("resolveMapPinAppearance", () => {
     });
     expect(selected.size).toBeGreaterThan(unselected.size);
   });
+
+  it("アイコンは常に #fff(テーマ非依存)で、サイズは size × 0.42(DS 差異)", () => {
+    const light = resolveMapPinAppearance(lightTheme, {
+      category: "park",
+      selected: false,
+      variant: "category",
+    });
+    const dark = resolveMapPinAppearance(darkTheme, {
+      category: "park",
+      selected: false,
+      variant: "category",
+    });
+    expect(light.iconColor).toBe("#fff");
+    expect(dark.iconColor).toBe("#fff");
+    expect(light.iconSize).toBeCloseTo(light.size * 0.42);
+    expect(light.iconStrokeWidth).toBe(2.4);
+  });
+
+  it("縁取りは 2.5px の surface-card(DS 差異)", () => {
+    const appearance = resolveMapPinAppearance(lightTheme, {
+      category: "park",
+      selected: false,
+      variant: "category",
+    });
+    expect(appearance.strokeColor).toBe(lightTheme.colors.surface);
+    expect(appearance.strokeWidth).toBe(2.5);
+  });
+
+  it("影は theme.shadow.pin を使う", () => {
+    const appearance = resolveMapPinAppearance(lightTheme, {
+      category: "park",
+      selected: false,
+      variant: "category",
+    });
+    expect(appearance.boxShadow).toBe(lightTheme.shadow.pin);
+  });
 });

@@ -11,9 +11,10 @@ describe("resolveBottomSheetAppearance", () => {
     expect(appearance.boxShadow).toBe(theme.shadow.sheet);
   });
 
-  it.each([lightTheme, darkTheme])("overlayColor は rgba 形式で不透明度を持つ", (theme) => {
+  it.each([lightTheme, darkTheme])("overlayColor は Dialog と共通の固定値(C-6)", (theme) => {
     const appearance = resolveBottomSheetAppearance(theme);
-    expect(appearance.overlayColor).toMatch(/^rgba\(\d+, \d+, \d+, 0\.48\)$/);
+    expect(appearance.overlayColor).toBe("rgba(27, 36, 48, 0.45)");
+    expect(appearance.overlayColor).toBe(theme.colors.overlay);
   });
 
   it("4px 未満の角丸にならない", () => {

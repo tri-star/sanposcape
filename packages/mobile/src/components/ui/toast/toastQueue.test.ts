@@ -11,7 +11,7 @@ function makeItem(overrides: Partial<ToastItem> = {}): ToastItem {
   return {
     id: overrides.id ?? "toast-1",
     message: overrides.message ?? "保存しました",
-    variant: overrides.variant ?? "info",
+    variant: overrides.variant ?? "default",
     durationMs: overrides.durationMs ?? 3000,
   };
 }

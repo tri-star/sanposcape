@@ -188,27 +188,30 @@ const styles = StyleSheet.create((theme) => {
       boxShadow: appearance.boxShadow,
       paddingBottom: args.insetBottom,
     }),
+    // DS: パディング 上10 / 左右20 / 下24、ハンドル 36×5(下マージン14)、
+    // タイトル text-lg/font-heading(下マージン12)。design/components/DS-COMPONENT-SPECS.md
     handleRow: {
       alignItems: "center",
-      paddingVertical: theme.spacing[12],
+      paddingTop: 10,
+      paddingBottom: 14,
     },
     handle: {
-      width: 40,
-      height: 4,
+      width: 36,
+      height: 5,
       borderRadius: theme.radius.pill,
       backgroundColor: appearance.handleColor,
     },
     title: {
       color: theme.colors.text,
-      paddingHorizontal: theme.spacing[16],
-      paddingBottom: theme.spacing[12],
+      paddingHorizontal: 20,
+      marginBottom: 12,
       fontFamily: theme.fontFamily.heading,
-      ...theme.typography.headingSm,
+      ...theme.typography.title,
     },
     scroll: { flex: 1 },
     scrollContent: {
-      paddingHorizontal: theme.spacing[16],
-      paddingBottom: theme.spacing[16],
+      paddingHorizontal: 20,
+      paddingBottom: 24,
     },
   };
 });

@@ -38,9 +38,8 @@ export function Radio({ selected, onSelect, label, disabled = false, testID }: R
       }
       style={styles.row(args)}
     >
-      <View style={styles.box(args)}>
-        {appearance.showDot ? <View style={styles.dot(args)} /> : null}
-      </View>
+      {/* DS: 選択状態は枠線を 6px に太らせて中央ドットを表現する(別要素のドットではない) */}
+      <View style={styles.box(args)} />
       {label ? <Text style={styles.label}>{label}</Text> : null}
     </Pressable>
   );
@@ -64,17 +63,7 @@ const styles = StyleSheet.create((theme) => ({
       borderRadius: theme.radius.pill,
       borderWidth: appearance.borderWidth,
       borderColor: appearance.borderColor,
-      alignItems: "center",
-      justifyContent: "center",
-    };
-  },
-  dot: (args: { selected: boolean; disabled: boolean }) => {
-    const appearance = resolveRadioAppearance(theme, args);
-    return {
-      width: appearance.dotSize,
-      height: appearance.dotSize,
-      borderRadius: theme.radius.pill,
-      backgroundColor: appearance.dotColor,
+      backgroundColor: appearance.backgroundColor,
     };
   },
   label: {

@@ -55,6 +55,25 @@ describe("resolveCardAppearance", () => {
     }
   });
 
+  it("elevation: none のとき 1px の border を持つ(B-2)", () => {
+    const appearance = resolveCardAppearance(lightTheme, {
+      elevation: "none",
+      padding: "md",
+      pressed: false,
+    });
+    expect(appearance.borderWidth).toBe(lightTheme.sizing.hairline);
+    expect(appearance.borderColor).toBe(lightTheme.colors.border);
+  });
+
+  it.each(["sm", "md", "lg"] as const)("elevation: %s のとき borderWidth が 0", (elevation) => {
+    const appearance = resolveCardAppearance(lightTheme, {
+      elevation,
+      padding: "md",
+      pressed: false,
+    });
+    expect(appearance.borderWidth).toBe(0);
+  });
+
   it("pressed: true で scale が 0.97、非押下で 1", () => {
     const pressed = resolveCardAppearance(lightTheme, {
       elevation: "md",

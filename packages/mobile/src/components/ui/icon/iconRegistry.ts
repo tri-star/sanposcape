@@ -1,12 +1,15 @@
 import {
   Activity,
+  AlertCircle,
   AlertTriangle,
   Award,
   ArrowLeft,
   Bell,
   Bookmark,
+  BookOpen,
   Calendar,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -17,7 +20,6 @@ import {
   Heart,
   House,
   Info,
-  Library,
   LogOut,
   MapPin,
   Minus,
@@ -29,7 +31,7 @@ import {
   Share,
   Star,
   TrainFront,
-  Trees,
+  TreePine,
   TrendingUp,
   User,
   Users,
@@ -41,19 +43,23 @@ import {
  * `lucide-react-native` はこのファイル以外から import してはならない
  * (バンドルサイズの棚卸しのため、単一入口に集約する)。
  *
- * 収録アイコンは DesignSync が未接続のため DS の `components/core/Icon.d.ts` を
- * 直接確認できておらず、現時点で必要になったもの・想定される用途から選定した暫定セット。
- * 今後 DesignSync が利用可能になった時点で DS の実際のアイコン一覧と突き合わせること。
+ * `MapPin` のカテゴリアイコン(tree-pine/coffee/book-open/train-front)は
+ * `design/components/DS-COMPONENT-SPECS.md` の MapPin 表と突き合わせ済み(B-6)。
+ * それ以外は DesignSync 未接続時に現時点で必要になったもの・想定される用途から選定した暫定セット。
+ * 今後 DS の実際のアイコン一覧と突き合わせること。
  */
 export const ICON_REGISTRY = {
   activity: Activity,
+  "alert-circle": AlertCircle,
   "alert-triangle": AlertTriangle,
   "arrow-left": ArrowLeft,
   award: Award,
   bell: Bell,
   bookmark: Bookmark,
+  "book-open": BookOpen,
   calendar: Calendar,
   check: Check,
+  "check-circle-2": CheckCircle2,
   "chevron-down": ChevronDown,
   "chevron-right": ChevronRight,
   clock: Clock,
@@ -64,7 +70,6 @@ export const ICON_REGISTRY = {
   heart: Heart,
   home: House,
   info: Info,
-  library: Library,
   "log-out": LogOut,
   "map-pin": MapPin,
   minus: Minus,
@@ -75,8 +80,8 @@ export const ICON_REGISTRY = {
   settings: Settings,
   share: Share,
   star: Star,
-  train: TrainFront,
-  trees: Trees,
+  "train-front": TrainFront,
+  "tree-pine": TreePine,
   "trending-up": TrendingUp,
   user: User,
   users: Users,

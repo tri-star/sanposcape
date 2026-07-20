@@ -41,7 +41,11 @@ export function Avatar({ source, name, size = "md", testID }: AvatarProps) {
       ) : initial ? (
         <Text style={initialStyle}>{initial}</Text>
       ) : (
-        <Icon name="user" size={initialStyle.fontSize} color={initialStyle.color} />
+        <Icon
+          name="user"
+          size={styles.fallbackIcon({ size }).fontSize}
+          color={initialStyle.color}
+        />
       )}
     </View>
   );
@@ -68,5 +72,10 @@ const styles = StyleSheet.create((theme) => ({
       fontSize: appearance.initialFontSize,
       fontWeight: theme.typography.label.fontWeight,
     };
+  },
+  // `fontSize` は有効な TextStyle キーのため、Icon の `size` prop を得る値の入れ物として使う
+  fallbackIcon: (args: { size: AvatarSize }) => {
+    const appearance = resolveAvatarAppearance(theme, args);
+    return { fontSize: appearance.fallbackIconSize };
   },
 }));

@@ -50,14 +50,19 @@ describe("resolveInputAppearance", () => {
   );
 
   it.each([lightTheme, darkTheme])(
-    "focused でない既定状態の borderWidth は hairline 1本分",
+    "borderWidth は状態に関わらず常に hairline の1.5倍で固定(B-7。レイアウトが揺れないように)",
     (theme) => {
-      const appearance = resolveInputAppearance(theme, {
-        focused: false,
-        disabled: false,
-        hasError: false,
-      });
-      expect(appearance.borderWidth).toBe(theme.sizing.hairline);
+      const expected = theme.sizing.hairline * 1.5;
+      const combinations = [
+        { focused: false, disabled: false, hasError: false },
+        { focused: true, disabled: false, hasError: false },
+        { focused: false, disabled: true, hasError: false },
+        { focused: false, disabled: false, hasError: true },
+        { focused: true, disabled: true, hasError: true },
+      ];
+      for (const args of combinations) {
+        expect(resolveInputAppearance(theme, args).borderWidth).toBe(expected);
+      }
     },
   );
 });

@@ -74,4 +74,26 @@ describe("resolveCheckboxAppearance", () => {
     });
     expect(appearance.boxSize + appearance.hitSlop * 2).toBeGreaterThanOrEqual(44);
   });
+
+  it.each([lightTheme, darkTheme])(
+    "borderWidth は Radio/Input と同じく 1.5px 固定(以前は hairline 1x で僅かに細かった)",
+    (theme) => {
+      const appearance = resolveCheckboxAppearance(theme, {
+        checked: false,
+        indeterminate: false,
+        disabled: false,
+      });
+      expect(appearance.borderWidth).toBe(theme.sizing.hairline * 1.5);
+    },
+  );
+
+  it("アイコンは DS 実寸(14px、strokeWidth 3)", () => {
+    const appearance = resolveCheckboxAppearance(lightTheme, {
+      checked: true,
+      indeterminate: false,
+      disabled: false,
+    });
+    expect(appearance.iconSize).toBe(14);
+    expect(appearance.iconStrokeWidth).toBe(3);
+  });
 });

@@ -23,7 +23,7 @@ export type IconButtonProps = {
 export function IconButton({
   iconName,
   accessibilityLabel,
-  variant = "primary",
+  variant = "surface",
   size = "md",
   disabled = false,
   onPress,
@@ -73,11 +73,10 @@ const styles = StyleSheet.create((theme) => ({
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: appearance.backgroundColor,
-      borderColor: appearance.borderColor,
-      borderWidth: appearance.borderWidth,
       borderRadius: theme.radius.pill,
       opacity: appearance.opacity,
       transform: [{ scale: appearance.scale }],
+      boxShadow: appearance.boxShadow,
     };
   },
 }));

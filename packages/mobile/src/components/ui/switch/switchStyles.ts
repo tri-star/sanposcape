@@ -1,10 +1,11 @@
+import { resolveHitSlop } from "@/lib/resolveHitSlop";
 import type { AppTheme } from "@/theme/tokens";
-
-export type SwitchSize = "sm" | "md";
 
 export type SwitchAppearance = {
   trackColor: string;
   knobColor: string;
+  /** DS: ノブは `shadow-xs` を持つ */
+  knobBoxShadow: string;
   trackWidth: number;
   trackHeight: number;
   knobSize: number;
@@ -17,47 +18,39 @@ export type SwitchAppearance = {
   opacity: number;
 };
 
-const MIN_TOUCH_TARGET = 44;
-
-type SwitchSizeConfig = {
-  trackWidth: number;
-  trackHeight: number;
-  knobSize: number;
-  knobInset: number;
-};
-
 /**
- * Switch のトラック/ノブ寸法。DS にスイッチ専用のスケールトークンが無いため、
- * `Avatar` と同様に「トラック高さ = ノブ + 余白×2」となる実用的な値をこのコンポーネント内に
- * 定義する(SS-1 実装時点で確定値ではない。実データが確認できた時点で見直すこと)。
+ * DS の Switch はトラック 44×26 / ノブ 20 / インセット3 の単一サイズのみ
+ * (design/components/DS-COMPONENT-SPECS.md)。以前の実装は `sm`/`md` のサイズバリアントを
+ * 独自に発明し、どちらも DS の実寸と一致していなかった。画面側での利用実績も無い(YAGNI)ため、
+ * サイズ切り替えの `size` prop 自体を削除し、DS 実寸の単一サイズに統一する(B-5)。
  */
-const SIZE_CONFIG: Record<SwitchSize, SwitchSizeConfig> = {
-  sm: { trackWidth: 40, trackHeight: 24, knobSize: 20, knobInset: 2 },
-  md: { trackWidth: 48, trackHeight: 28, knobSize: 24, knobInset: 2 },
-};
+const TRACK_WIDTH = 44;
+const TRACK_HEIGHT = 26;
+const KNOB_SIZE = 20;
+const KNOB_INSET = 3;
 
 /**
- * value/disabled/size から Switch の見た目を解決する純粋関数。
+ * value/disabled から Switch の見た目を解決する純粋関数。
  * `react-native` / `react-native-reanimated` を import しない
  * (アニメーションの発火は呼び出し側の `Switch.tsx` の責務)。
  */
 export function resolveSwitchAppearance(
   theme: AppTheme,
-  args: { value: boolean; disabled: boolean; size: SwitchSize },
+  args: { value: boolean; disabled: boolean },
 ): SwitchAppearance {
-  const { value, disabled, size } = args;
-  const config = SIZE_CONFIG[size];
-  const minDimension = Math.min(config.trackWidth, config.trackHeight);
-  const hitSlop = Math.max(0, Math.ceil((MIN_TOUCH_TARGET - minDimension) / 2));
+  const { value, disabled } = args;
+  const hitSlop = resolveHitSlop(Math.min(TRACK_WIDTH, TRACK_HEIGHT));
 
   return {
     trackColor: value ? theme.colors.primary : theme.colors.border,
-    knobColor: theme.colors.surface,
-    trackWidth: config.trackWidth,
-    trackHeight: config.trackHeight,
-    knobSize: config.knobSize,
-    knobInset: config.knobInset,
-    knobTranslateX: value ? config.trackWidth - config.knobSize - config.knobInset * 2 : 0,
+    // DS: ノブは常に #fff(テーマ非依存の固定値。design/components/DS-COMPONENT-SPECS.md)
+    knobColor: "#fff",
+    knobBoxShadow: theme.shadow.xs,
+    trackWidth: TRACK_WIDTH,
+    trackHeight: TRACK_HEIGHT,
+    knobSize: KNOB_SIZE,
+    knobInset: KNOB_INSET,
+    knobTranslateX: value ? TRACK_WIDTH - KNOB_SIZE - KNOB_INSET * 2 : 0,
     hitSlop,
     opacity: disabled ? 0.4 : 1,
   };

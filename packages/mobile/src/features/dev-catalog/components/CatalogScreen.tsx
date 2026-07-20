@@ -27,10 +27,10 @@ import { CatalogSection } from "@/features/dev-catalog/components/CatalogSection
 
 const ICON_SAMPLE: IconName[] = ["home", "map-pin", "search", "settings", "heart", "footprints"];
 const SPOT_OPTIONS: SelectOption<"park" | "cafe" | "culture" | "station">[] = [
-  { value: "park", label: "公園", iconName: "trees" },
+  { value: "park", label: "公園", iconName: "tree-pine" },
   { value: "cafe", label: "カフェ", iconName: "coffee" },
-  { value: "culture", label: "文化施設", iconName: "library" },
-  { value: "station", label: "駅", iconName: "train" },
+  { value: "culture", label: "文化施設", iconName: "book-open" },
+  { value: "station", label: "駅", iconName: "train-front" },
 ];
 
 /**
@@ -105,6 +105,7 @@ export function CatalogScreen() {
               onPress={() => show("primary が押されました")}
             />
             <Button label="secondary" variant="secondary" onPress={() => {}} />
+            <Button label="outline" variant="outline" onPress={() => {}} />
             <Button label="ghost" variant="ghost" onPress={() => {}} />
             <Button label="danger" variant="danger" onPress={() => {}} />
             <Button label="disabled" variant="primary" disabled onPress={() => {}} />
@@ -117,13 +118,19 @@ export function CatalogScreen() {
             <IconButton
               iconName="heart"
               accessibilityLabel="お気に入り"
-              variant="primary"
+              variant="filled"
+              onPress={() => {}}
+            />
+            <IconButton
+              iconName="star"
+              accessibilityLabel="ブックマーク"
+              variant="tinted"
               onPress={() => {}}
             />
             <IconButton
               iconName="share"
               accessibilityLabel="共有"
-              variant="secondary"
+              variant="surface"
               onPress={() => {}}
             />
             <IconButton
@@ -151,7 +158,7 @@ export function CatalogScreen() {
             <Avatar name="桜" size="sm" />
             <Avatar name="桜" size="md" />
             <Avatar name="桜" size="lg" />
-            <Avatar size="xl" />
+            <Avatar size="lg" />
           </Row>
         </CatalogSection>
 
@@ -164,8 +171,8 @@ export function CatalogScreen() {
 
         <CatalogSection title="ProgressBar">
           <View style={{ gap: theme.spacing[8] }}>
-            <ProgressBar value={0.3} size="sm" testID="catalog-progress-sm" />
-            <ProgressBar value={0.7} size="md" testID="catalog-progress-md" />
+            <ProgressBar value={0.3} testID="catalog-progress-30" />
+            <ProgressBar value={0.7} testID="catalog-progress-70" />
           </View>
         </CatalogSection>
 
@@ -238,7 +245,7 @@ export function CatalogScreen() {
         <CatalogSection title="Badge">
           <Row>
             <Badge label="neutral" variant="neutral" />
-            <Badge label="primary" variant="primary" />
+            <Badge label="info" variant="info" />
             <Badge label="success" variant="success" />
             <Badge label="warning" variant="warning" />
             <Badge label="danger" variant="danger" />
@@ -258,7 +265,7 @@ export function CatalogScreen() {
         <CatalogSection title="Toast" description="タップすると画面下にトーストが表示されます">
           <Row>
             <Button
-              label="info"
+              label="default"
               variant="secondary"
               size="sm"
               onPress={() => show("保存しました")}

@@ -46,6 +46,8 @@ const styles = StyleSheet.create((theme) => ({
     return {
       backgroundColor: appearance.backgroundColor,
       borderRadius: appearance.borderRadius,
+      borderWidth: appearance.borderWidth,
+      borderColor: appearance.borderColor,
       padding: appearance.padding,
       boxShadow: appearance.boxShadow,
       transform: [{ scale: appearance.scale }],

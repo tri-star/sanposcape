@@ -21,8 +21,8 @@ describe("ICON_REGISTRY", () => {
     }
   });
 
-  it("全キーが kebab-case", () => {
-    const kebabCasePattern = /^[a-z]+(-[a-z]+)*$/;
+  it("全キーが kebab-case(Lucide の実名に合わせ末尾の数字は許容する。例: check-circle-2)", () => {
+    const kebabCasePattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
     for (const name of Object.keys(ICON_REGISTRY)) {
       expect(name).toMatch(kebabCasePattern);
     }

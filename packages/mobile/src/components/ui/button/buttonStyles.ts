@@ -1,6 +1,6 @@
 import type { AppTheme } from "@/theme/tokens";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export type ButtonAppearance = {
@@ -15,15 +15,22 @@ export type ButtonAppearance = {
   hitSlop: number;
   opacity: number;
   scale: number;
+  /** `primary` かつ非 disabled のときのみ `shadow-sm`。他 variant は undefined(影なし) */
+  boxShadow: string | undefined;
 };
 
+/**
+ * 水平パディングは DS 実物(components/core/Button.jsx)の値(16/22/28)。
+ * DS の spacing スケールに厳密には乗らない値のため、theme.spacing のキーではなく
+ * リテラル値で持つ(design/components/DS-COMPONENT-SPECS.md の Button 表を参照)。
+ */
 const SIZE_CONFIG: Record<
   ButtonSize,
-  { minHeightKey: keyof AppTheme["sizing"]; paddingHorizontal: keyof AppTheme["spacing"] }
+  { minHeightKey: keyof AppTheme["sizing"]; paddingHorizontal: number }
 > = {
   sm: { minHeightKey: "controlSm", paddingHorizontal: 16 },
-  md: { minHeightKey: "controlMd", paddingHorizontal: 20 },
-  lg: { minHeightKey: "controlLg", paddingHorizontal: 24 },
+  md: { minHeightKey: "controlMd", paddingHorizontal: 22 },
+  lg: { minHeightKey: "controlLg", paddingHorizontal: 28 },
 };
 
 /** RN の推奨タップ領域(44px)。DS の `--control-md`(44px)が「min touch target」とコメントされている値と同じ */
@@ -46,7 +53,7 @@ export function resolveButtonAppearance(
   const { variant, size, disabled, pressed } = args;
   const sizeConfig = SIZE_CONFIG[size];
   const minHeight = theme.sizing[sizeConfig.minHeightKey];
-  const paddingHorizontal = theme.spacing[sizeConfig.paddingHorizontal];
+  const paddingHorizontal = sizeConfig.paddingHorizontal;
   const hitSlop = Math.max(0, Math.ceil((MIN_TOUCH_TARGET - minHeight) / 2));
 
   const palette = resolveVariantPalette(theme, variant, pressed);
@@ -62,6 +69,8 @@ export function resolveButtonAppearance(
     hitSlop,
     opacity: disabled ? 0.4 : 1,
     scale: pressed ? 0.97 : 1,
+    // DS: primary かつ非 disabled のときのみ shadow-sm(design/components/DS-COMPONENT-SPECS.md)
+    boxShadow: variant === "primary" && !disabled ? theme.shadow.sm : undefined,
   };
 }
 
@@ -86,11 +95,21 @@ function resolveVariantPalette(
         borderWidth: 0,
       };
     case "secondary":
+      // DS: 背景 primary-tint(枠線なし)。secondary は outline と違い枠を持たない。
+      // 押下時は secondaryPressed(`--blue-300`)まで一段暗くする。
       return {
-        backgroundColor: pressed ? theme.colors.surfaceSunken : theme.colors.surface,
+        backgroundColor: pressed ? theme.colors.secondaryPressed : theme.colors.primaryTint,
+        textColor: theme.colors.primary,
+        borderColor: "transparent",
+        borderWidth: 0,
+      };
+    case "outline":
+      // DS: 透明背景 + 1.5px border-strong(B-4。DS は primary/secondary/outline/ghost/danger の5種)
+      return {
+        backgroundColor: pressed ? theme.colors.surfaceSunken : "transparent",
         textColor: theme.colors.text,
         borderColor: theme.colors.borderStrong,
-        borderWidth: theme.sizing.hairline,
+        borderWidth: theme.sizing.hairline * 1.5,
       };
     case "ghost":
       return {
@@ -100,9 +119,10 @@ function resolveVariantPalette(
         borderWidth: 0,
       };
     case "danger":
+      // DS: 押下は red-600 に「暗く」する(readme の press 原則)。文字は白のまま(B-3)。
       return {
-        backgroundColor: pressed ? theme.colors.dangerTint : theme.colors.danger,
-        textColor: pressed ? theme.colors.danger : theme.colors.onPrimary,
+        backgroundColor: pressed ? theme.colors.dangerPressed : theme.colors.danger,
+        textColor: theme.colors.onPrimary,
         borderColor: "transparent",
         borderWidth: 0,
       };

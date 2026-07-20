@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/button/buttonStyles";
 import { darkTheme, lightTheme } from "@/theme/tokens";
 
-const VARIANTS: ButtonVariant[] = ["primary", "secondary", "ghost", "danger"];
+const VARIANTS: ButtonVariant[] = ["primary", "secondary", "outline", "ghost", "danger"];
 const SIZES: ButtonSize[] = ["sm", "md", "lg"];
 
 describe("resolveButtonAppearance", () => {
@@ -34,18 +34,19 @@ describe("resolveButtonAppearance", () => {
     expect(appearance.backgroundColor).toBe("transparent");
   });
 
-  it("secondary は borderWidth > 0", () => {
+  it("outline は borderWidth > 0(1.5px 固定)", () => {
     const appearance = resolveButtonAppearance(lightTheme, {
-      variant: "secondary",
+      variant: "outline",
       size: "md",
       disabled: false,
       pressed: false,
     });
     expect(appearance.borderWidth).toBeGreaterThan(0);
+    expect(appearance.borderWidth).toBe(lightTheme.sizing.hairline * 1.5);
   });
 
-  it("primary/ghost/danger は borderWidth が 0", () => {
-    for (const variant of ["primary", "ghost", "danger"] as const) {
+  it("primary/secondary/ghost/danger は borderWidth が 0", () => {
+    for (const variant of ["primary", "secondary", "ghost", "danger"] as const) {
       const appearance = resolveButtonAppearance(lightTheme, {
         variant,
         size: "md",
@@ -54,6 +55,75 @@ describe("resolveButtonAppearance", () => {
       });
       expect(appearance.borderWidth).toBe(0);
     }
+  });
+
+  it("secondary は背景が primaryTint、文字が primary", () => {
+    const appearance = resolveButtonAppearance(lightTheme, {
+      variant: "secondary",
+      size: "md",
+      disabled: false,
+      pressed: false,
+    });
+    expect(appearance.backgroundColor).toBe(lightTheme.colors.primaryTint);
+    expect(appearance.textColor).toBe(lightTheme.colors.primary);
+  });
+
+  it("danger は押下時に背景が dangerPressed へ暗くなり、文字は白のまま", () => {
+    const notPressed = resolveButtonAppearance(lightTheme, {
+      variant: "danger",
+      size: "md",
+      disabled: false,
+      pressed: false,
+    });
+    const pressed = resolveButtonAppearance(lightTheme, {
+      variant: "danger",
+      size: "md",
+      disabled: false,
+      pressed: true,
+    });
+    expect(notPressed.backgroundColor).toBe(lightTheme.colors.danger);
+    expect(pressed.backgroundColor).toBe(lightTheme.colors.dangerPressed);
+    expect(pressed.textColor).toBe(lightTheme.colors.onPrimary);
+    expect(notPressed.textColor).toBe(lightTheme.colors.onPrimary);
+  });
+
+  it("primary かつ非 disabled のときのみ boxShadow を持つ", () => {
+    const primary = resolveButtonAppearance(lightTheme, {
+      variant: "primary",
+      size: "md",
+      disabled: false,
+      pressed: false,
+    });
+    const primaryDisabled = resolveButtonAppearance(lightTheme, {
+      variant: "primary",
+      size: "md",
+      disabled: true,
+      pressed: false,
+    });
+    expect(primary.boxShadow).toBe(lightTheme.shadow.sm);
+    expect(primaryDisabled.boxShadow).toBeUndefined();
+    for (const variant of ["secondary", "outline", "ghost", "danger"] as const) {
+      const appearance = resolveButtonAppearance(lightTheme, {
+        variant,
+        size: "md",
+        disabled: false,
+        pressed: false,
+      });
+      expect(appearance.boxShadow).toBeUndefined();
+    }
+  });
+
+  it("水平パディングは sm 16 / md 22 / lg 28(DS 実寸)", () => {
+    const paddings = SIZES.map(
+      (size) =>
+        resolveButtonAppearance(lightTheme, {
+          variant: "primary",
+          size,
+          disabled: false,
+          pressed: false,
+        }).paddingHorizontal,
+    );
+    expect(paddings).toEqual([16, 22, 28]);
   });
 
   it("全 variant で borderRadius が pill", () => {

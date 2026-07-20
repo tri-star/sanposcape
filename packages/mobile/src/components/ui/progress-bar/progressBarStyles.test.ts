@@ -39,42 +39,40 @@ describe("clampProgress", () => {
 
 describe("resolveProgressBarAppearance", () => {
   it("value を 0〜100 の fillWidthPercent に変換する", () => {
-    expect(
-      resolveProgressBarAppearance(lightTheme, { value: 0.5, size: "md" }).fillWidthPercent,
-    ).toBe(50);
+    expect(resolveProgressBarAppearance(lightTheme, { value: 0.5 }).fillWidthPercent).toBe(50);
   });
 
   it("範囲外の value もクランプされる", () => {
-    expect(
-      resolveProgressBarAppearance(lightTheme, { value: -1, size: "md" }).fillWidthPercent,
-    ).toBe(0);
-    expect(
-      resolveProgressBarAppearance(lightTheme, { value: 2, size: "md" }).fillWidthPercent,
-    ).toBe(100);
+    expect(resolveProgressBarAppearance(lightTheme, { value: -1 }).fillWidthPercent).toBe(0);
+    expect(resolveProgressBarAppearance(lightTheme, { value: 2 }).fillWidthPercent).toBe(100);
   });
 
   it("color 未指定は theme.colors.primary", () => {
-    const appearance = resolveProgressBarAppearance(lightTheme, { value: 0.5, size: "md" });
+    const appearance = resolveProgressBarAppearance(lightTheme, { value: 0.5 });
     expect(appearance.fillColor).toBe(lightTheme.colors.primary);
   });
 
   it("color 指定時はそれを使う", () => {
     const appearance = resolveProgressBarAppearance(lightTheme, {
       value: 0.5,
-      size: "md",
       color: lightTheme.colors.success,
     });
     expect(appearance.fillColor).toBe(lightTheme.colors.success);
   });
 
-  it("size: sm は size: md より height が小さい", () => {
-    const sm = resolveProgressBarAppearance(lightTheme, { value: 0.5, size: "sm" });
-    const md = resolveProgressBarAppearance(lightTheme, { value: 0.5, size: "md" });
-    expect(sm.height).toBeLessThan(md.height);
+  it("高さは DS 実寸の 10px 固定(B-11)", () => {
+    const appearance = resolveProgressBarAppearance(lightTheme, { value: 0.5 });
+    expect(appearance.height).toBe(10);
+  });
+
+  it("トラック色は neutralFill(`--ink-100`)。border(`--ink-200`)とは異なる(B-10)", () => {
+    const appearance = resolveProgressBarAppearance(lightTheme, { value: 0.5 });
+    expect(appearance.trackColor).toBe(lightTheme.colors.neutralFill);
+    expect(appearance.trackColor).not.toBe(lightTheme.colors.border);
   });
 
   it("borderRadius が pill", () => {
-    const appearance = resolveProgressBarAppearance(lightTheme, { value: 0.5, size: "md" });
+    const appearance = resolveProgressBarAppearance(lightTheme, { value: 0.5 });
     expect(appearance.borderRadius).toBe(lightTheme.radius.pill);
   });
 });

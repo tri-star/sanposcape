@@ -50,7 +50,12 @@ export function Checkbox({
     >
       <View style={styles.box(args)}>
         {appearance.iconName ? (
-          <Icon name={appearance.iconName} size={16} color={appearance.iconColor} />
+          <Icon
+            name={appearance.iconName}
+            size={appearance.iconSize}
+            color={appearance.iconColor}
+            strokeWidth={appearance.iconStrokeWidth}
+          />
         ) : null}
       </View>
       {label ? <Text style={styles.label}>{label}</Text> : null}

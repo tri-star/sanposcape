@@ -11,12 +11,15 @@ describe("resolveDialogAppearance", () => {
     expect(appearance.messageColor).toBe(theme.colors.textMuted);
   });
 
-  it.each([lightTheme, darkTheme])("overlayColor は rgba 形式", (theme) => {
-    const appearance = resolveDialogAppearance(theme);
-    expect(appearance.overlayColor).toMatch(/^rgba\(\d+, \d+, \d+, 0\.48\)$/);
-  });
+  it.each([lightTheme, darkTheme])(
+    "overlayColor は DS 実物の固定値(light/dark で変わらない)",
+    (theme) => {
+      const appearance = resolveDialogAppearance(theme);
+      expect(appearance.overlayColor).toBe("rgba(27, 36, 48, 0.45)");
+    },
+  );
 
-  it("角丸が4px未満にならない", () => {
-    expect(resolveDialogAppearance(lightTheme).borderRadius).toBeGreaterThanOrEqual(4);
+  it("角丸が radius-xl(DS 実物。以前は radius-lg で不一致だった)", () => {
+    expect(resolveDialogAppearance(lightTheme).borderRadius).toBe(lightTheme.radius.xl);
   });
 });

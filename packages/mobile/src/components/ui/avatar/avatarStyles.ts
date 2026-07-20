@@ -1,6 +1,6 @@
 import type { AppTheme } from "@/theme/tokens";
 
-export type AvatarSize = "sm" | "md" | "lg" | "xl";
+export type AvatarSize = "sm" | "md" | "lg";
 
 export type AvatarAppearance = {
   boxSize: number;
@@ -8,27 +8,24 @@ export type AvatarAppearance = {
   backgroundColor: string;
   initialColor: string;
   initialFontSize: number;
+  /** name が無い場合のフォールバック(`user` アイコン)のサイズ。DS: サイズ × 0.5 */
+  fallbackIconSize: number;
 };
 
 /**
- * Avatar の直径。DS のトークン(色/寸法/角丸/影/タイポグラフィ)には
- * アバターサイズ専用のスケールが無いため、`--control-*` に近い実用的な値として
- * このコンポーネント内で定義する(SS-1 実装時点で DesignSync 未接続のため確定値ではない。
- * 実データが確認できた時点で見直すこと)。
+ * Avatar の直径。DS 実物(design/components/DS-COMPONENT-SPECS.md)は sm 32 / md 44 / lg 64 の
+ * 3サイズで、以前の実装(28/36/48 + 独自の `xl` 64)とは一致していなかった。
+ * `xl` は DS に対応が無いため削除し、DS の3サイズに揃える(Avatar の DS 差異。B 追加分)。
  */
 const BOX_SIZE: Record<AvatarSize, number> = {
-  sm: 28,
-  md: 36,
-  lg: 48,
-  xl: 64,
+  sm: 32,
+  md: 44,
+  lg: 64,
 };
 
-const INITIAL_FONT_SIZE: Record<AvatarSize, number> = {
-  sm: 12,
-  md: 14,
-  lg: 18,
-  xl: 24,
-};
+/** DS: 文字サイズはサイズ × 0.4、フォールバックアイコンはサイズ × 0.5 */
+const INITIAL_FONT_SIZE_FACTOR = 0.4;
+const FALLBACK_ICON_SIZE_FACTOR = 0.5;
 
 /** name の先頭1文字を大文字で返す。サロゲートペア(絵文字等)を壊さないよう Array.from を使う */
 export function getAvatarInitial(name?: string): string | null {
@@ -48,12 +45,14 @@ export function resolveAvatarAppearance(
   args: { size: AvatarSize },
 ): AvatarAppearance {
   const { size } = args;
+  const boxSize = BOX_SIZE[size];
   return {
-    boxSize: BOX_SIZE[size],
+    boxSize,
     // 常に円形(borderRadius が boxSize/2 以上あれば十分)
     borderRadius: theme.radius.pill,
     backgroundColor: theme.colors.primaryTint,
     initialColor: theme.colors.primary,
-    initialFontSize: INITIAL_FONT_SIZE[size],
+    initialFontSize: boxSize * INITIAL_FONT_SIZE_FACTOR,
+    fallbackIconSize: boxSize * FALLBACK_ICON_SIZE_FACTOR,
   };
 }
