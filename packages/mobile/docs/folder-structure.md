@@ -68,6 +68,11 @@ packages/mobile/
   - 目的: 「UIとロジックの分離」を成立させ、ロジックを Vitest でテスト可能にするため。
 - `app/` 配下には**画面（ルート）以外を置かない**。再利用するコンポーネントは必ず `src/` に置く。
 - 予約ファイル: `_layout.tsx`（レイアウト）、`+not-found.tsx`、`(group)/`（URLに出ないグループ）、`[param].tsx`（動的ルート）。
+- **`app/` 配下で `react-native-unistyles` の `StyleSheet.create` を使わない**。
+  `babel.config.js` の Unistyles プラグインは `root: "src"` のみを処理するため、`app/` に置くと
+  テーマ依存の検出が効かずテーマ切替時に再レンダされない。スタイルを持つ実体は必ず
+  `src/features/<feature>/components/` に置き、`app/` の画面ファイルはそれを import するだけにする
+  （詳細は [design-tokens.md](./design-tokens.md) 参照）。
 
 ### `src/components/` — 機能に依存しない再利用UI
 - `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。
