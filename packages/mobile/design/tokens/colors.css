@@ -1,0 +1,177 @@
+/* ============================================================
+   Sanpo — Color tokens
+   Light mode: white + sky-blue base, blue primary, orange accent.
+   Extended hues (green/purple/red) drive map & semantic states.
+   Dark mode: inverted, illustrations are not used there.
+   ============================================================ */
+
+:root {
+  /* ---- Brand primitives ---- */
+  --blue-900: #0b3f86;
+  --blue-700: #0e6fd9;
+  --blue-600: #1585fe;   /* PRIMARY — route line, buttons, active nav */
+  --blue-500: #3d97fe;
+  --blue-300: #90c6fd;
+  --blue-200: #c3e0ff;
+  --blue-100: #def2ff;   /* light pill / tint */
+  --blue-050: #eaf4ff;   /* sky base wash */
+
+  --orange-600: #ef8a3c;
+  --orange-500: #f89e57;  /* ACCENT — cafe/bakery pins, highlights */
+  --orange-100: #ffe8d3;
+
+  --green-600: #2fa85f;
+  --green-500: #35b36b;   /* park pins, success-ish */
+  --green-100: #d7f2e2;
+
+  --purple-600: #7a5fd6;
+  --purple-500: #8b6fe0;  /* library / culture pins */
+  --purple-100: #e7defb;
+
+  --red-600: #e0393f;
+  --red-500: #e6484d;     /* goal pin, destructive */
+  --red-100: #fde0e1;
+
+  --gps-green: #37c873;
+
+  /* ---- Neutral ramp ---- */
+  --ink-900: #1b2430;   /* primary text */
+  --ink-700: #3a4453;
+  --ink-500: #6b7684;   /* secondary text */
+  --ink-400: #8a94a0;   /* tertiary / captions */
+  --ink-300: #b7bfc9;   /* disabled text, hairlines */
+  --ink-200: #e2e6eb;   /* borders */
+  --ink-100: #eef1f4;   /* subtle fills */
+  --ink-050: #f5f7f9;   /* app / map background */
+  --white: #ffffff;
+
+  /* ---- Semantic aliases (light) ---- */
+  --surface-app: var(--ink-050);
+  --surface-card: var(--white);
+  --surface-raised: var(--white);
+  --surface-sunken: var(--ink-050);
+  --surface-tint: var(--blue-050);
+  --surface-tint-strong: var(--blue-100);
+  --surface-inverse: var(--ink-900);
+
+  --text-primary: var(--ink-900);
+  --text-secondary: var(--ink-500);
+  --text-tertiary: var(--ink-400);
+  --text-disabled: var(--ink-300);
+  --text-on-primary: var(--white);
+  --text-link: var(--blue-600);
+
+  --border-subtle: var(--ink-200);
+  --border-strong: var(--ink-300);
+  --border-focus: var(--blue-600);
+
+  --primary: var(--blue-600);
+  --primary-hover: var(--blue-700);
+  --primary-press: var(--blue-900);
+  --primary-tint: var(--blue-100);
+  --on-primary: var(--white);
+
+  --accent: var(--orange-500);
+  --accent-hover: var(--orange-600);
+  --accent-tint: var(--orange-100);
+
+  --success: var(--green-500);
+  --success-tint: var(--green-100);
+  --warning: var(--orange-500);
+  --warning-tint: var(--orange-100);
+  --danger: var(--red-500);
+  --danger-tint: var(--red-100);
+  --info: var(--blue-600);
+  --info-tint: var(--blue-100);
+
+  /* ---- Map category colors (light) ---- */
+  --map-park: var(--green-500);
+  --map-cafe: var(--orange-500);
+  --map-culture: var(--purple-500);
+  --map-station: var(--red-500);
+  --map-route: var(--blue-600);
+  --map-canvas: #f5f6f7;
+  --map-water: #cae7fd;
+  --map-greenspace: #e6f2e4;
+  --map-road: #ffffff;
+
+  /* ---- Illustration palette (light only) ---- */
+  --ill-sky: #eaf4ff;
+  --ill-building: #dce9f5;
+  --ill-building-2: #cadcf0;
+  --ill-tree: #a7dcc6;
+  --ill-tree-2: #7fcbb0;
+  --ill-ground: #e8f4e8;
+  --ill-figure: #3d6fd6;
+  --ill-figure-dark: #2a3550;
+  --ill-skin: #f2c9a8;
+}
+
+/* ============================================================
+   Dark mode — inverted. No illustrations here.
+   Toggle with [data-theme="dark"] or system preference.
+   Scoped as a plain attribute selector (not `:root[...]`) so dark
+   mode can apply at the document root OR on any nested container —
+   this is what lets a single page show light/dark side-by-side
+   (e.g. every Components card in this system does this).
+   ============================================================ */
+[data-theme="dark"] {
+  --surface-app: #0f1621;
+  --surface-card: #182231;
+  --surface-raised: #1f2b3c;
+  --surface-sunken: #0b111a;
+  --surface-tint: #14304f;
+  --surface-tint-strong: #1a3f66;
+  --surface-inverse: #eef1f4;
+
+  --text-primary: #eaf1f8;
+  --text-secondary: #9fb0c2;
+  --text-tertiary: #7d8da0;
+  --text-disabled: #4d5a6b;
+  --text-on-primary: #ffffff;
+  --text-link: #6fb2ff;
+
+  --border-subtle: #2a3648;
+  --border-strong: #3a4a60;
+  --border-focus: #3d97fe;
+
+  --primary: #3d97fe;
+  --primary-hover: #5aa8ff;
+  --primary-press: #90c6fd;
+  --primary-tint: #14304f;
+  --on-primary: #06121f;
+
+  --accent: #f89e57;
+  --accent-hover: #ffb173;
+  --accent-tint: #3a2a18;
+
+  --success: #43c47c;
+  --success-tint: #12321f;
+  --warning: #f89e57;
+  --warning-tint: #3a2a18;
+  --danger: #f2686d;
+  --danger-tint: #3a1a1c;
+  --info: #3d97fe;
+  --info-tint: #14304f;
+
+  --map-park: #43c47c;
+  --map-cafe: #f89e57;
+  --map-culture: #a98cf0;
+  --map-station: #f2686d;
+  --map-route: #3d97fe;
+  --map-canvas: #131c28;
+  --map-water: #16344f;
+  --map-greenspace: #172a20;
+  --map-road: #223044;
+}
+
+/* NOTE: system-preference auto-detection is intentionally handled in JS,
+   not CSS — set `document.documentElement.dataset.theme = 'dark' | 'light'`
+   on load (e.g. from `matchMedia('(prefers-color-scheme: dark)')`) and on
+   any in-app toggle. Keeping the switch to a single [data-theme="dark"]
+   selector (vs. a `:not()`-based media override) keeps every dark token
+   registrable by the design-system compiler.
+   Because the selector is a plain attribute selector (not `:root[...]`),
+   `data-theme="dark"` also works on any nested element — every component
+   is dark-mode-ready by default (they only ever read the semantic
+   tokens above, never hardcode light-mode colors). */

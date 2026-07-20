@@ -1,0 +1,9 @@
+/* ============================================================
+   Sanpo — Web fonts.
+   Noto Sans / Noto Sans JP → all UI text (body, headings, labels,
+   buttons, data numerals) per brand direction.
+   M PLUS Rounded 1c → reserved for the Sanpo logo/wordmark ONLY,
+   never general UI text.
+   (Google-hosted — see readme for note.)
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700;800&family=Noto+Sans+JP:wght@400;500;700;800&family=M+PLUS+Rounded+1c:wght@700;800&display=swap');

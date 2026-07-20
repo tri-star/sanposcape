@@ -1,0 +1,55 @@
+/* ============================================================
+   Sanpo — Typography tokens
+   Noto Sans / Noto Sans JP → ALL UI text (headings, body, labels,
+   buttons, data numerals). This is the only font used in product UI.
+   M PLUS Rounded 1c → reserved exclusively for the Sanpo logo/wordmark
+   (see guidelines/brand-wordmark.card.html) — never used for UI text.
+   (Google-hosted substitutes — see readme for note.)
+   ============================================================ */
+
+:root {
+  --font-sans: "Noto Sans", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+    system-ui, -apple-system, sans-serif;
+  --font-rounded: "M PLUS Rounded 1c", "Noto Sans JP",
+    system-ui, sans-serif; /* logo/wordmark only — do not use for UI text */
+  --font-numeric: "Noto Sans", "Noto Sans JP", system-ui, sans-serif;
+
+  /* Type scale (px) — mobile-first */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 15px;   /* base body */
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 38px;   /* big data numerals (e.g. 00:28:34) */
+  --text-5xl: 48px;
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+
+  /* Line heights */
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.75;
+
+  /* Letter spacing — JP text sits a touch open */
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.08em;
+
+  /* Semantic roles — all Noto Sans. --font-rounded (M PLUS Rounded 1c)
+     is intentionally not wired to any semantic role; reach for it only
+     on the literal logo/wordmark. */
+  --font-display: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --font-body: var(--font-sans);
+  --font-label: var(--font-sans);
+  --font-data: var(--font-numeric);
+}
