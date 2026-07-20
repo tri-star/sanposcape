@@ -8,13 +8,13 @@ router = APIRouter(prefix="/spots", tags=["spots"])
 
 
 @router.get("", response_model=list[SpotRead])
-def list_spots(service: SpotService = Depends(get_spot_service)) -> list[SpotRead]:
-    return [SpotRead.model_validate(spot) for spot in service.list_spots()]
+def list_spots(service: SpotService = Depends(get_spot_service)):
+    return service.list_spots()
 
 
 @router.post("", response_model=SpotRead, status_code=status.HTTP_201_CREATED)
 def create_spot(
     payload: SpotCreate,
     service: SpotService = Depends(get_spot_service),
-) -> SpotRead:
-    return SpotRead.model_validate(service.create_spot(payload))
+):
+    return service.create_spot(payload)

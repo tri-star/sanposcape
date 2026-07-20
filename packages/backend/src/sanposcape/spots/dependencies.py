@@ -7,4 +7,4 @@ from sanposcape.spots.service import SpotService
 
 
 def get_spot_service(db: Session = Depends(get_db)) -> SpotService:
-    return SpotService(SpotRepository(db))
+    return SpotService(db, SpotRepository(db))

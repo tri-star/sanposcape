@@ -21,3 +21,11 @@ def test_list_spots_empty(client: TestClient) -> None:
     res = client.get("/spots")
     assert res.status_code == 200
     assert res.json() == []
+
+
+def test_create_spot_invalid_latitude(client: TestClient) -> None:
+    payload = {"name": "不正な緯度", "latitude": 91.0, "longitude": 139.0}
+
+    res = client.post("/spots", json=payload)
+
+    assert res.status_code == 422

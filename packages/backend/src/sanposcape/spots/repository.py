@@ -19,6 +19,6 @@ class SpotRepository:
     def create(self, data: SpotCreate) -> Spot:
         spot = Spot(**data.model_dump())
         self._db.add(spot)
-        self._db.commit()
+        self._db.flush()
         self._db.refresh(spot)
         return spot
