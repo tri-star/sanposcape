@@ -1,0 +1,8 @@
+{
+  "name": "sanposcape",
+  "private": true,
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

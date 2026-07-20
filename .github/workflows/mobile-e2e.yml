@@ -1,0 +1,112 @@
+name: mobile E2E (Maestro)
+
+# Maestro E2E は「実際にインストールした standalone APK」をエミュレータ上で操作する。
+# コスト方針:
+#   - EAS の *クラウド* ビルドは使わない（`eas build --local` でランナー上でビルド＝クラウド枠を消費しない）
+#   - @expo/fingerprint でネイティブ影響入力のハッシュを取り、APK をキャッシュ
+#     → fingerprint が変わらない限り再ビルドしない（JSのみの変更では走らない）
+#   - 実行頻度を分離: 常時CI(lint/typecheck/unit)は mobile-ci.yml、E2Eは下記トリガのみ
+#
+# 初回運用時に必要な準備(TODO):
+#   - リポジトリ Secrets に EXPO_TOKEN を設定（`eas build --local` のアカウント連携）
+#   - Android の署名情報（credentials.json もしくは EAS のクレデンシャル）を用意
+#   - .maestro/smoke.yaml の appId をビルドの applicationId に合わせて更新
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 18 * * *" # 毎日 03:00 JST 相当（nightly）
+  push:
+    branches: [main]
+    # ネイティブに影響する変更があったときだけ E2E を走らせる
+    paths:
+      - "packages/mobile/package.json"
+      - "packages/mobile/app.json"
+      - "packages/mobile/eas.json"
+      - "packages/mobile/babel.config.js"
+      - "pnpm-lock.yaml"
+
+concurrency:
+  group: mobile-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate API client (Orval)
+        run: pnpm --filter mobile orval
+
+      # ネイティブ影響入力のハッシュ = APK キャッシュのキー
+      - name: Compute native fingerprint
+        id: fp
+        run: |
+          HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore APK cache
+        id: apk-cache
+        uses: actions/cache@v4
+        with:
+          path: packages/mobile/e2e-build/app-preview.apk
+          key: mobile-apk-${{ steps.fp.outputs.hash }}
+
+      # fingerprint 一致時はここをスキップ（＝ネイティブ未変更なら再ビルドしない）
+      - name: Build preview APK (local, no EAS cloud minutes)
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        working-directory: packages/mobile
+        run: |
+          mkdir -p e2e-build
+          npx eas-cli build --local --non-interactive \
+            --profile preview --platform android \
+            --output e2e-build/app-preview.apk
+
+      # backend(実API)をエミュレータから 10.0.2.2:8000 で到達可能に起動
+      - name: Start backend
+        working-directory: packages/backend
+        run: |
+          cp .env.example .env
+          sed -i 's/{%BACKEND_API_PORT%}/8000/; s/{%DB_PORT%}/5432/' .env
+          BACKEND_API_PORT=8000 DB_PORT=5432 docker compose up -d --build
+          for i in $(seq 1 30); do
+            if docker compose exec -T api python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null; then
+              echo "backend healthy"; break
+            fi
+            sleep 3
+          done
+          docker compose exec -T api uv run alembic upgrade head
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run Maestro flows on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          script: |
+            adb install -r packages/mobile/e2e-build/app-preview.apk
+            maestro test packages/mobile/.maestro/

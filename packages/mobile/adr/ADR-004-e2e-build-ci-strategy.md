@@ -1,0 +1,88 @@
+# ADR-004: モバイル E2E(Maestro) のビルド方式と CI コスト戦略
+
+## 日付
+
+2026-07-19
+
+## コンテキスト
+
+[ADR-003](./ADR-003-development-build-and-dev-loop.md) により本アプリは development build 前提になった。E2E(Maestro) は**実際にインストールしたアプリ**をエミュレータ/実機上で操作するため、E2E 用のビルド成果物が必要になる。ここで次の懸念がある。
+
+- **どのビルドを E2E に使うか**: development build は Metro からJSを取得する前提で、Metro が動いていないと起動しない → CI で不安定。
+- **コスト**: EAS の**クラウドビルドを CI で毎回実行すると課金**が気になる。
+- 本プロジェクトの E2E 方針（`architecture-guideline`）: **認証=スタブ / backend API=実物 / モバイル機能は Maestro で再現可能なら実物、不可なら stub**。
+
+## 決定
+
+- **E2E には standalone な preview ビルド**（JS 埋め込み・スタブ用 env 焼き込み）を使う。日常開発の development build とは別プロファイルにする（`eas.json` の `preview`）。
+  - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=stub`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`）を焼き込む。
+- **CI では EAS クラウドビルドを使わない**。ランナー上で `eas build --local` を実行し、**クラウドビルド枠を消費しない**。
+- **`@expo/fingerprint` でネイティブ影響入力のハッシュを計算し、APK をキャッシュ**する。fingerprint が変わらない限り再ビルドしない（＝JSのみの変更では APK を作り直さない）。
+- **E2E の実行頻度を分離**する:
+  - 常時（PR毎・安価）: lint / typecheck / **Vitest**（`mobile-ci.yml`、ビルド不要）。
+  - E2E（重い）: **nightly / 手動 / ネイティブ変更時（native影響パスへの push）のみ**（`mobile-e2e.yml`）。
+
+## 検討した選択肢
+
+### E2E に使うビルド
+
+#### 選択肢1: standalone preview ビルド（採用）
+
+- **メリット**: Metro 不要で自己完結。CI で決定的に動く。スタブ設定を焼き込める。
+- **デメリット**: development build とは別にビルドが要る。
+
+#### 選択肢2: development build を E2E にも流用
+
+- **メリット**: ビルドが1種類。
+- **デメリット**: Metro 依存で CI が不安定。E2E 用のスタブ設定の切替が煩雑。
+
+### CI のビルド方式
+
+#### 選択肢1: `eas build --local` + fingerprint キャッシュ（採用）
+
+- **メリット**: **EAS クラウド枠を消費しない**。署名/バンドルは EAS CLI が面倒を見る。fingerprint で再ビルドを最小化。
+- **デメリット**: ランナーに Android ビルド環境が要り CI 時間は増える。初回にクレデンシャル準備が必要。
+
+#### 選択肢2: EAS クラウドビルドを毎回実行
+
+- **メリット**: 設定が単純。
+- **デメリット**: **課金**が読みにくく、頻度が上がると高コスト。今回の懸念そのもの。
+
+#### 選択肢3: 素の `expo prebuild` + Gradle
+
+- **メリット**: EAS 非依存。
+- **デメリット**: 署名・バンドル設定を自前で用意する必要があり手間。`eas build --local` の方が楽。
+
+## 決定理由
+
+- E2E は**再現性**が命なので、Metro に依存しない standalone(preview) を使うのが妥当。
+- コスト懸念に対し、`eas build --local`（クラウド枠を使わない）＋ **fingerprint による APK キャッシュ**＋**実行頻度の分離**で、「ほとんどの PR ではビルドが走らない・E2E も回る」を両立できる。
+- fingerprint は「ネイティブに影響する入力」のハッシュなので、JS のみの変更ではキャッシュヒットし再ビルドを避けられる（本質的に正しいキャッシュキー）。
+
+## 影響
+
+### ポジティブな影響
+
+- E2E がネットワーク/Metro 非依存で決定的に動く。
+- EAS クラウドビルドの課金を基本的に発生させない。
+- ネイティブ未変更なら APK を再利用でき、CI が速く・安くなる。
+
+### ネガティブな影響・トレードオフ
+
+- E2E 用に `preview` プロファイルとビルド経路を別途保守する必要がある。
+- `eas build --local` のためランナーに Android ビルド環境が必要で、キャッシュミス時の CI 時間は長い。
+- 初回運用に EAS アカウント連携（`EXPO_TOKEN`）と Android クレデンシャルの準備が要る。
+
+### 移行・対応が必要な事項
+
+- リポジトリ Secrets に `EXPO_TOKEN` を設定し、Android クレデンシャル（credentials.json 等）を用意する。
+- `.maestro/smoke.yaml` の `appId` をビルドの applicationId に合わせて更新する。
+- 認証などの stub 切り替えを `EXPO_PUBLIC_*` で読む実装は M3 で行う（`preview` の env はその受け皿）。
+- backend を E2E ジョブ内で `10.0.2.2:8000` に到達可能な形で起動する（`mobile-e2e.yml` に実装済み）。
+
+## 関連情報
+
+- [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
+- CI: `.github/workflows/mobile-e2e.yml` / `.github/workflows/mobile-ci.yml`
+- [mobile ローカル環境構築手順](../docs/local-env.md)
+- E2E 方針: [アーキテクチャガイドライン](../docs/architecture-guideline.md)

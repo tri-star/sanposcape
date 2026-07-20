@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# =============================================================================
+# adb (WSL2 -> Windows adb.exe ラッパー)
+#
+# WSL2からWindows側のAndroid SDKに含まれる adb.exe を透過的に呼び出す。
+# エミュレータ/adb serverはWindows側で動作させる構成のため、WSL側にLinux版adbが
+# 入っていても、本スクリプトを ~/.local/bin/adb として配置しPATHで優先させることで
+# 常にWindows版adbが使われるようにする。
+#
+# セットアップ手順は packages/mobile/docs/local-env.md を参照。
+# =============================================================================
+
+resolve_adb_exe() {
+  local win_localappdata
+  win_localappdata="$(cmd.exe /d /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r')"
+  echo "$(wslpath -u "$win_localappdata")/Android/Sdk/platform-tools/adb.exe"
+}
+
+adb_exe="$(resolve_adb_exe)"
+
+if [[ ! -f "$adb_exe" ]]; then
+  echo "エラー: adb.exe が見つかりません: ${adb_exe}" >&2
+  echo "Windows側のAndroid SDKの場所を確認してください（Android Studio > SDK Manager > Android SDK Location）。" >&2
+  exit 1
+fi
+
+# adb install/push などにWSL側の実在パスが渡された場合、
+# Windowsから読めるパスへ変換してから adb.exe に渡す
+converted=()
+for arg in "$@"; do
+  if [[ -e "$arg" ]]; then
+    arg="$(wslpath -w "$(realpath "$arg")")"
+  fi
+  converted+=("$arg")
+done
+
+exec "$adb_exe" "${converted[@]}"
