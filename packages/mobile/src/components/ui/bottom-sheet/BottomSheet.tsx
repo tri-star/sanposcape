@@ -97,6 +97,20 @@ export function BottomSheet({
     transform: [{ translateY: containerHeightPx - visibleHeight.value }],
   }));
 
+  // `height`/`paddingBottom` はスナップ位置(`snapPoints` prop × 画面高)と safe area inset
+  // という「実行時のレイアウト値」であり、Unistyles のテーマ値ではない。そのため
+  // `StyleSheet.create` の動的関数スタイル(`styles.sheet({...})`)にはせず、ここで
+  // プレーンなスタイルオブジェクトとして組み立てる。
+  //
+  // 理由: `Animated.View` は Unistyles v3 の babel プラグインの処理対象外
+  // (RN コア以外のサードパーティコンポーネントのため)なので、`styles.xxx({...})` の
+  // 呼び出し結果は空オブジェクトに解決され、Reanimated 側で
+  // "empty object is not a valid style value" になる。一方この `sheetLayoutStyle` は
+  // Unistyles を経由しないただの JS オブジェクトなので、Unistyles の静的スタイル
+  // (`styles.sheet`)や Reanimated の `sheetStyle` と並べて配列で渡す分には問題ない
+  // (Unistyles 公式「Separate Unistyles and Reanimated styles」に倣った形)。
+  const sheetLayoutStyle = { height: containerHeightPx, paddingBottom: insets.bottom };
+
   if (!mounted) {
     return null;
   }
@@ -142,9 +156,7 @@ export function BottomSheet({
           onPress={dismissOnBackdropPress ? onClose : undefined}
           style={styles.overlay}
         />
-        <Animated.View
-          style={[styles.sheet({ containerHeightPx, insetBottom: insets.bottom }), sheetStyle]}
-        >
+        <Animated.View style={[styles.sheet, sheetLayoutStyle, sheetStyle]}>
           <GestureDetector gesture={pan}>
             <View style={styles.handleRow}>
               <View style={styles.handle} />
@@ -176,18 +188,19 @@ const styles = StyleSheet.create((theme) => {
       bottom: 0,
       backgroundColor: appearance.overlayColor,
     },
-    sheet: (args: { containerHeightPx: number; insetBottom: number }) => ({
+    // `height`/`paddingBottom` は含めない(コンポーネント側の `sheetLayoutStyle` を参照。
+    // 理由はそちらのコメント参照)。ここは Unistyles のテーマ値のみで決まる静的スタイルであり、
+    // 関数ではなく直接のオブジェクトなので `Animated.View` にそのまま渡せる。
+    sheet: {
       position: "absolute",
       left: 0,
       right: 0,
       bottom: 0,
-      height: args.containerHeightPx,
       backgroundColor: appearance.backgroundColor,
       borderTopLeftRadius: appearance.borderRadius,
       borderTopRightRadius: appearance.borderRadius,
       boxShadow: appearance.boxShadow,
-      paddingBottom: args.insetBottom,
-    }),
+    },
     // DS: パディング 上10 / 左右20 / 下24、ハンドル 36×5(下マージン14)、
     // タイトル text-lg/font-heading(下マージン12)。design/components/DS-COMPONENT-SPECS.md
     handleRow: {

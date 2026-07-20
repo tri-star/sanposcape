@@ -55,6 +55,38 @@ src/components/ui/button/
 - `Xxx.tsx` 自体は render テストを持たない(ADR-005 決定4)。ロジックはできる限り
   `xxxStyles.ts` 側に寄せ、`Xxx.tsx` は「値を JSX に配線するだけ」の状態を保つ。
 
+#### Reanimated と組み合わせる場合(`Animated.View` 等)の注意(SS-1 実機確認で判明)
+
+- **`Animated.*`(`Animated.View` / `Animated.Text` 等)に Unistyles の「動的関数スタイル」
+  (`styles.xxx({...})` という呼び出し形式)を渡してはいけない。** Unistyles v3 の babel
+  プラグインは RN コアコンポーネント(`View`/`Text`/`Pressable` 等)のみを処理対象にしてスタイル
+  バインドを張るが、`Animated.View` は Reanimated 側のサードパーティコンポーネントのため処理対象外。
+  バインドが張られないまま動的関数を呼ぶと解決結果が**空オブジェクト**になり、実機で
+  `[Reanimated] Invalid value for "unistyles_xxxx": an empty object is not a valid style value.`
+  というクラッシュになる(型チェック/Lint/Vitest では検出できない実行時エラー)。
+- 一方、**関数ではない「静的な」`StyleSheet.create` のプロパティ**(`styles.xxx` を直接参照する形)は
+  babel 処理が無くても正しく解決されるため、`Animated.View` にそのまま渡してよい
+  (Unistyles 公式ドキュメント「Separate Unistyles and Reanimated styles」の Good 例と同じ形。
+  `<Animated.View style={[styles.container, animatedStyle]} />`)。
+- 回避パターン(状況に応じて選ぶ。実例は `src/components/ui/switch/Switch.tsx` と
+  `src/components/ui/bottom-sheet/BottomSheet.tsx`):
+  1. **見た目が props/state に依存しても、実は値が不変(定数)なら静的プロパティにする。**
+     `Switch` のノブは `value`/`disabled` を引数に取る関数だったが、実際に返す色・サイズ・影は
+     常に同じ値だった(`value` による差分は `useAnimatedStyle` 側の `translateX` が、
+     `disabled` による差分は親 `Pressable` の `opacity` が既に担っていたため)。関数を廃止し
+     `styles.knob` という直接のオブジェクトにして解決した。
+  2. **テーマ値ではなく実行時のレイアウト値(画面サイズ・safe area inset 等)が必要な場合は、
+     Unistyles を経由しないプレーンな JS オブジェクトとして組み、スタイル配列に並べる。**
+     `BottomSheet` の `height`/`paddingBottom` はスナップ位置や safe area inset に依存する
+     実行時の値であり、そもそも Unistyles のテーマ値ではないため、コンポーネント側で
+     `{ height: containerHeightPx, paddingBottom: insets.bottom }` という素のオブジェクトを作り、
+     `[styles.sheet, sheetLayoutStyle, sheetStyle]` のように Unistyles の静的スタイル・
+     Reanimated の `useAnimatedStyle` の結果と並べて渡す。
+  3. 上記で表現できない(本当にテーマ依存かつ値が可変)場合は、`useUnistyles()` の `theme` から
+     JS 側でスタイルオブジェクトを組む、または `withUnistyles()` で対象コンポーネントをラップする。
+- どの形を採るにせよ、**なぜ動的関数スタイルを避けたのか**をコード上にコメントで残すこと
+  (同じ罠を踏まないため)。
+
 ### 3. トークン参照の規律
 
 - 色・寸法・角丸・影・タイポグラフィは必ず `theme.colors` / `theme.spacing` / `theme.radius` /

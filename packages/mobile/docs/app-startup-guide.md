@@ -13,11 +13,11 @@
 
 ## 全体像（3つのフェーズ）
 
-| フェーズ | いつ | 何をする |
-|---|---|---|
-| A. 初回セットアップ | 最初の1回 | APK をビルドしてエミュレータにインストール |
-| B. 毎回の起動 | 開発を始めるたび | エミュレータ起動 → adb reverse → Metro → アプリを開く |
-| C. 再ビルド | **ネイティブが変わったとき**だけ | APK を作り直して入れ直す |
+| フェーズ            | いつ                             | 何をする                                              |
+| ------------------- | -------------------------------- | ----------------------------------------------------- |
+| A. 初回セットアップ | 最初の1回                        | APK をビルドしてエミュレータにインストール            |
+| B. 毎回の起動       | 開発を始めるたび                 | エミュレータ起動 → adb reverse → Metro → アプリを開く |
+| C. 再ビルド         | **ネイティブが変わったとき**だけ | APK を作り直して入れ直す                              |
 
 日々の開発は **B だけ**。JS/スタイル/ロジックの変更は Fast Refresh で即反映され、再ビルド不要。
 
@@ -141,15 +141,16 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 
 ## 困ったとき（トラブルシュート）
 
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| 白画面 / `java.net.ConnectException: failed to connect to /192.168.x.x:8081` | Metro が LAN IP を配信し、エミュレータから届かない | 手順3（`adb reverse`）＋手順4（`--host localhost`）＋手順5でやり直す |
-| `AVD 'xxx' が見つかりません`（一覧には見える） | `emulator -list-avds` 出力の CR(`\r`) 問題 | `list-avds.sh` は修正済み。再取得して再実行 |
-| `Failed to resolve the Android SDK path` が大量に出る | Expo が WSL に Android SDK を見つけられない | **無視してよい**。adb 操作は手動で行う前提（`Press a` は使わない） |
-| `eas build:run` が `spawn emulator ENOENT` | Linux 版エミュレータを自前起動しようとする | 使わない。A-2 の `adb install` を使う |
-| `adb devices` にエミュレータが出ない | 起動途中 / adb 未接続 | 起動完了を待つ（`sys.boot_completed` が 1）。それでも出なければエミュレータ再起動 |
-| localhost 経路でどうしても繋がらない | ネットワーク構成の問題 | フォールバックで `expo start --dev-client --tunnel`（`@expo/ngrok` 導入を聞かれたら y）。tunnel なら `adb reverse` 不要 |
-| バンドルは成功（`Android Bundled`）したのに白い | JS 実行時エラー | `adb shell input keyevent 82` で開発メニュー → または Metro ログの赤いエラーを確認 |
+| 症状                                                                           | 原因                                                                                                                                                                                                                                                                                                          | 対処                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 白画面 / `java.net.ConnectException: failed to connect to /192.168.x.x:8081`   | Metro が LAN IP を配信し、エミュレータから届かない                                                                                                                                                                                                                                                            | 手順3（`adb reverse`）＋手順4（`--host localhost`）＋手順5でやり直す                                                                                                                         |
+| `AVD 'xxx' が見つかりません`（一覧には見える）                                 | `emulator -list-avds` 出力の CR(`\r`) 問題                                                                                                                                                                                                                                                                    | `list-avds.sh` は修正済み。再取得して再実行                                                                                                                                                  |
+| `Failed to resolve the Android SDK path` が大量に出る                          | Expo が WSL に Android SDK を見つけられない                                                                                                                                                                                                                                                                   | **無視してよい**。adb 操作は手動で行う前提（`Press a` は使わない）                                                                                                                           |
+| `eas build:run` が `spawn emulator ENOENT`                                     | Linux 版エミュレータを自前起動しようとする                                                                                                                                                                                                                                                                    | 使わない。A-2 の `adb install` を使う                                                                                                                                                        |
+| `adb devices` にエミュレータが出ない                                           | 起動途中 / adb 未接続                                                                                                                                                                                                                                                                                         | 起動完了を待つ（`sys.boot_completed` が 1）。それでも出なければエミュレータ再起動                                                                                                            |
+| localhost 経路でどうしても繋がらない                                           | ネットワーク構成の問題                                                                                                                                                                                                                                                                                        | フォールバックで `expo start --dev-client --tunnel`（`@expo/ngrok` 導入を聞かれたら y）。tunnel なら `adb reverse` 不要                                                                      |
+| バンドルは成功（`Android Bundled`）したのに白い                                | JS 実行時エラー                                                                                                                                                                                                                                                                                               | `adb shell input keyevent 82` で開発メニュー → または Metro ログの赤いエラーを確認                                                                                                           |
+| `Can't find ViewManager 'RNSVGPath' nor 'RCTRNSVGPath' in ViewManagerRegistry` | ネイティブモジュール（`react-native-svg` 等）を追加したのに development build を作り直していない。JS のみの変更なら Fast Refresh で足りるが、ネイティブ依存の追加/削除は再ビルドが要る（[ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)「再ビルドが必要なのはネイティブが変わるときだけ」を参照） | A. 初回セットアップと同じ手順で APK を作り直して入れ替える: `pnpm --filter mobile exec eas build --profile development --platform android` → 生成された APK を `adb install -r` で入れ替える |
 
 ---
 
