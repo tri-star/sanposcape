@@ -31,3 +31,11 @@ DesignSync へ書き込む)は行わない。
 **Design → コードの一方向。** コード側の実装(`src/theme/`, `src/components/ui/` 等)を
 DesignSync へ push することはしない。詳細な運用は
 [`docs/design-tokens.md`](../docs/design-tokens.md) を参照。
+
+## `components/` について
+
+`design/tokens/*.css` とは別に、`design/components/DS-COMPONENT-SPECS.md` に
+DS コンポーネントの視覚仕様(パディング・枠線・variant・アイコン名等)を蒸留した
+ローカルスナップショットを置いている。**こちらは `tokens/*.css` と違い drift check の対象外**で、
+DS 側のコンポーネント実装が更新されたら手動で追随させる必要がある。
+詳細は [`docs/design-tokens.md`](../docs/design-tokens.md) を参照。

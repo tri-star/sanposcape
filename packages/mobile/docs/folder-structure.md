@@ -22,10 +22,11 @@ packages/mobile/
 │
 ├── src/
 │   ├── components/            # 横断的に再利用するUI（機能に依存しない）
-│   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
+│   │   ├── ui/                #   Primitive: Button, Card, Input ...（各 Xxx.tsx/xxxStyles.ts/xxxStyles.test.ts の3点セット）
 │   │   └── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
+│   │   ├── dev-catalog/       #   primitive を一覧する開発用カタログ（app/(dev)/ から参照）
 │   │   └── <feature>/         #   例: walk, profile
 │   │       ├── components/    #     その機能でしか使わないUI
 │   │       ├── hooks/         #     その機能のロジック（Vitestでテスト）
@@ -47,9 +48,17 @@ packages/mobile/
 │   ├── lib/                  # 汎用ユーティリティ（純粋関数中心＝テスト容易）
 │   ├── config/              # 環境変数の読み取り・定数
 │   ├── store/               # Zustand ストア（横断的なクライアント状態）
-│   ├── theme/               # Unistyles のデザイントークン・テーマ定義
+│   ├── theme/               # Unistyles のデザイントークン・テーマ定義（3層構造。後述）
+│   │   ├── generated/         #   DS の primitive 値そのまま（codegen 出力。手編集禁止）
+│   │   ├── adapters/          #   CSS→RN の値変換（純粋関数。react-native 非依存）
+│   │   └── tokens.ts          #   generated + adapters を合成し用途名(semantic)へマッピング
 │   └── types/               # 横断的な型定義
 │
+├── design/                   # Claude Design からの生スナップショット（詳細は design/README.md）
+│   ├── tokens/                #   DesignSync 取得の生 CSS（手編集禁止。codegen の入力）
+│   └── components/            #   DS コンポーネントの視覚仕様のローカルスナップショット
+│                                   （drift check 対象外。詳細は docs/design-tokens.md）
+├── scripts/                  # デザイントークン codegen 等のビルドスクリプト
 ├── assets/                   # 画像・フォント等の静的アセット
 ├── .maestro/                 # E2Eテストフロー（Maestro）
 ├── docs/                     # 設計ドキュメント
@@ -59,6 +68,10 @@ packages/mobile/
 ├── vitest.config.ts
 └── package.json
 ```
+
+`app/` 配下には開発用カタログ画面のルートグループ `(dev)/` もある
+（`app/(dev)/catalog.tsx` など。`__DEV__` または `EXPO_PUBLIC_ENABLE_CATALOG=true` のときのみ
+到達可能。詳細は [ADR-005](../adr/ADR-005-design-system-import.md) 決定7を参照）。
 
 ## 各ディレクトリの役割と配置ルール
 
@@ -108,7 +121,14 @@ packages/mobile/
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
-- `src/theme/`: Unistyles のデザイントークン（primitive / semantic）とテーマ定義。スタイルは各コンポーネントで `StyleSheet`（Unistyles）を通してテーマトークンを参照する。
+- `src/theme/`: Unistyles のデザイントークンとテーマ定義。`generated/`（DS の primitive 値そのまま。
+  手編集禁止）→ `adapters/`（CSS→RN の値変換。純粋関数）→ `tokens.ts`（用途名(semantic)への
+  マッピング。`lightTheme`/`darkTheme` を export）の**3層構造**（詳細は
+  [design-tokens.md](./design-tokens.md) を参照）。コンポーネントは `tokens.ts` が export する
+  semantic 層のみを参照し、`generated/` を直接 import しない。スタイルは各コンポーネントで
+  `StyleSheet.create`(Unistyles) を通してテーマトークンを参照する
+  （`useUnistyles()` は原則使わない。詳細は
+  [pages-components-guideline.md](./pages-components-guideline.md) を参照）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け
@@ -127,7 +147,10 @@ packages/mobile/
 ## テストファイルの配置
 
 - **テスト対象と同じ場所に併置（co-location）** する。
-  - 例: `Button.tsx` と同じフォルダに `Button.test.tsx`。
+  - 例: `src/components/ui/button/` に `Button.tsx` / `buttonStyles.ts` / `buttonStyles.test.ts` を
+    併置する。render テスト環境が未整備のため、テスト対象は主に `xxxStyles.ts`（見た目を決める
+    純粋関数）や `hooks/` になる（詳細は [pages-components-guideline.md](./pages-components-guideline.md)、
+    [architecture-guideline.md](./architecture-guideline.md) を参照）。
 - E2E（Maestro）のフローのみ、ルートの `.maestro/` に集約する。
 
 ## 環境固有の注意（WSL2 / Linux）

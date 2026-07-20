@@ -17,7 +17,13 @@
   - モバイル機能: Maestro経由で利用可能な機能はそのまま利用する。利用できない機能はスタブ実装を利用する。
 
 - 単体テスト
-  - 方針: コンポーネント単位での動作をテストする。
+  - 方針: コンポーネントから切り出した**純粋関数と hook**をテストする。
+    `<Button />` 等を実際に render するテストは現時点では書かない
+    (render テスト環境が未整備。[ADR-005](../adr/ADR-005-design-system-import.md) 決定4を参照)。
+    UI コンポーネントは「見た目を決めるロジック(`resolveXxxAppearance` 等)」と
+    「JSX を組み立てる薄い層」に分離し、前者を `xxxStyles.test.ts` で
+    `lightTheme`/`darkTheme` を直接渡してテストする(詳細は
+    [ページ・コンポーネントガイドライン](./pages-components-guideline.md) を参照)。
   - 認証: スタブ実装を利用
   - Backend API: スタブ実装を利用(Orvalの生成物を利用)
   - モバイル機能: スタブ実装を利用

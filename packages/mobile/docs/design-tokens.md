@@ -95,9 +95,72 @@ DS の実 CSS を読んだ結果、`scripts/design-tokens/buildThemes.ts` の `G
   意匠判断を持ち込まない。判断は `tokens.ts`(semantic 層)の責務にする。
 - 除外すると DS がイラストパレットを更新した際に codegen が無言で追従しなくなる。
 - IllustrationSlot は「tint パネル + Lucide アイコン」方式を採用する決定
-  ([design-import-proposal.md](../../../tmp/SS-1/design-import-proposal.md) 3.2)のため、
-  `--ill-*` を実際に semantic トークンへ昇格させる予定はない。Phase 1 の `tokens.ts` では
-  これらを `lightTheme` / `darkTheme` の用途名にマッピングしない(生成はされるが未参照のまま)想定。
+  ([ADR-005](../adr/ADR-005-design-system-import.md) 決定6)のため、
+  `--ill-*` を実際に semantic トークンへ昇格させる予定はない。`tokens.ts` では
+  これらを `lightTheme` / `darkTheme` の用途名にマッピングしない(生成はされるが未参照のまま)。
+
+> **補足(E-6)**: 以前このセクションは `tmp/SS-1/design-import-proposal.md` を参照していたが、
+> `tmp/` はリポジトリの `.gitignore` 対象のため、この参照は他の開発者の環境では必ず切れていた。
+> リポジトリ内で完結する [ADR-005](../adr/ADR-005-design-system-import.md) を参照するよう修正した。
+
+## DS の生キー → semantic キーの対応表
+
+[ADR-005](../adr/ADR-005-design-system-import.md) が「詳細は design-tokens.md に対応表を残す」と
+約束していたが記載が漏れていた(E-6)。`src/theme/tokens.ts` の `build*` 関数が行っている
+主なマッピングを以下にまとめる。**正確な対応は `tokens.ts` のソースを正とする**(このセクションは
+理解のための要約であり、`tokens.ts` の変更に追随して更新すること)。
+
+### colors(抜粋。全対応は `buildColors` を参照)
+
+| DS の生キー(kebab-case) | semantic キー(`theme.colors.*`) | 備考 |
+| --- | --- | --- |
+| `surface-app` | `background` | |
+| `surface-card` | `surface` | Card・Input・Dialog 等の既定背景 |
+| `surface-raised` | `surfaceElevated` | |
+| `surface-sunken` | `surfaceSunken` | |
+| `surface-inverse` | `surfaceInverse` | Toast(default tone)の背景等 |
+| `text-primary` | `text` | |
+| `text-secondary` | `textMuted` | |
+| `border-subtle` | `border` | `--ink-200` と同値 |
+| `border-strong` | `borderStrong` | |
+| `primary-press` | `primaryPressed` | |
+| `primary-tint` | `primaryTint` | Button `secondary` の既定背景 |
+| `red-600` | `dangerPressed` | Button `danger` 押下時(B-3 対応で追加) |
+| `blue-300` | `secondaryPressed` | Button `secondary` 押下時(B-3 対応で追加) |
+| `ink-100` | `neutralFill` | ProgressBar のトラック色(B-10 対応で追加。`border`(`ink-200`)とは別値) |
+| なし(DS 実物の固定値 `rgba(27, 36, 48, 0.45)`) | `overlay` | Dialog/BottomSheet の背面スクリム(C-6 対応で追加。light/dark で変わらない) |
+| `map-park` / `map-cafe` / `map-culture` / `map-station` | `category.park` / `category.cafe` / `category.culture` / `category.station` | Tag・MapPin のカテゴリ色 |
+| `--ill-*` | (マッピングしない) | 上記のとおり未参照 |
+
+### spacing / radius / sizing
+
+- `spacing`: DS の `--space-N`(インデックス)を **px 値そのもの**をキーにした
+  `{ 0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64 }` へ正規化(決定8を参照。`buildSpacing` が対応表を持つ)。
+- `radius`: DS の命名(`xs`/`sm`/`md`/`lg`/`xl`/`pill`)をそのまま踏襲。
+- `sizing`: `control-sm`/`control-md`/`control-lg`/`page-gutter`/`tabbar-height`/`safe-top`/`hairline` を
+  camelCase 化(`controlSm` 等)。
+
+### typography
+
+DS の `text-*`/`weight-*`/`leading-*`/`tracking-*` の生スケール値から、用途別ロール
+(`display`/`heading`/`headingSm`/`title`/`body`/`bodySm`/`caption`/`label`/`data`/`dataSm`/
+`dataUnit`/`badgeLabel`)を組み立てる。各ロールがどの生キーを使うかは `tokens.ts` の
+`TYPOGRAPHY_ROLES` を参照(表にすると DS 側の更新のたびに追随漏れが起きやすいため、
+表は持たずソースを直接参照する方針とする)。
+
+## 見た目に迷ったら: `design/components/DS-COMPONENT-SPECS.md`
+
+トークン(色・寸法等の値)は上記の codegen で機械的に同期されるが、**コンポーネントの視覚仕様
+(パディング・枠線・variant の組み合わせ・アイコン名等)は自動化されていない**。
+実装エージェントが DesignSync に接続できない状況で primitive を実装した結果、
+DS 実物との差異が複数見つかった(`ds-fidelity-review.md`)ことを受け、
+[`design/components/DS-COMPONENT-SPECS.md`](../design/components/DS-COMPONENT-SPECS.md) に
+DS の視覚仕様を蒸留したローカルスナップショットを追加した。
+
+- **見た目に迷ったらこの文書を確認する。** ここに無い寸法を発明する前に、DS を再確認すること。
+- `design/tokens/*.css` と異なり **drift check の対象外**。DS 側のコンポーネント実装が
+  更新されたら、手動でこの文書を追随させる必要がある。
+- 出典は Claude Design プロジェクト「Sanpo Design System」の `components/**/*.jsx`。
 
 ## デザイン規律(破ると移植した意味が失われる)
 
