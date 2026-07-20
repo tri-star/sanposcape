@@ -42,11 +42,11 @@ src/theme/
 DesignSync はエージェントの MCP ツールであり、GitHub Actions のランナーからは呼べない。
 そのため以下のように分離する。
 
-| ステップ | 実行者 | 内容 |
-| --- | --- | --- |
-| fetch | 実装エージェント(手動) | DesignSync で `tokens/*.css` を取得し `design/tokens/*.css` として無加工でコミット |
-| transform | `scripts/generate-tokens.ts`(ネットワーク不要) | `design/tokens/*.css` → `src/theme/generated/tokens.generated.ts` |
-| drift check | CI(`design:tokens:check`) | transform を再実行し `git diff --exit-code` |
+| ステップ    | 実行者                                         | 内容                                                                               |
+| ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| fetch       | 実装エージェント(手動)                         | DesignSync で `tokens/*.css` を取得し `design/tokens/*.css` として無加工でコミット |
+| transform   | `scripts/generate-tokens.ts`(ネットワーク不要) | `design/tokens/*.css` → `src/theme/generated/tokens.generated.ts`                  |
+| drift check | CI(`design:tokens:check`)                      | transform を再実行し `git diff --exit-code`                                        |
 
 これにより CI は完全に再現可能になり、かつ「デザイン変更が PR の diff に出る」という要件を
 (生の CSS diff + 生成 TS diff の両方が出る形で)満たす。
@@ -147,6 +147,63 @@ DS の CSS は `--space-4` のような**インデックス**(`4` ≠ 16px)で�
 知識が無くても直感的に扱える。生成層(`generated/tokens.generated.ts`)は DS のキー
 (`"0"`, `"1"`, `"2"`, ...)をそのまま保持し、`tokens.ts` の `buildSpacing` がインデックス→px の
 対応表を1箇所に集約する(DS 側の刻み方が変わった場合もこの1関数を直すだけで済む)。
+
+### 9. primitive のスタイル実装は `useUnistyles()` ではなく `StyleSheet.create` を使う(レビュー対応で追記)
+
+**この決定は当初の実装で漏れており、レビュー(`mobile-local-review.md` A-1)で指摘されて
+事後的に追記したものである。** SS-1 の 19 primitive は初期実装時点で全て
+`useUnistyles()` + インラインスタイルで書かれていた。Unistyles v3 の公式ドキュメントは
+明確に警告している。
+
+> **Warning:** This hook triggers re-renders. Prefer `StyleSheet.create(theme => ...)` or
+> `withUnistyles` for better performance.
+
+`useUnistyles()` はテーマ/ランタイム変更のたびにコンポーネントを再レンダーするが、
+`StyleSheet.create(theme => ...)` は Unistyles のコンパイラ(`babel.config.js` の
+`react-native-unistyles/plugin`)がスタイル更新を直接ネイティブ側に差し込むため
+ゼロ再レンダーで済む。`Tag` / `Card` を多数並べる一覧画面で、テーマ変更のたびに
+全件再レンダーが走るのは決定4(render テスト環境を持たない代わりにロジックを
+純粋関数化する方針)とも相性が悪く、`docs/folder-structure.md` が既に述べていた
+「スタイルは `StyleSheet`(Unistyles)を通してテーマトークンを参照する」という記述にも反していた。
+
+**対応**: `resolveXxxAppearance(theme, args)` という純粋関数群(テスト容易性の要。決定4参照)は
+変更せず、`Xxx.tsx` 側を Unistyles v3 の「関数を値に持つ StyleSheet」で包む形に移行した。
+
+```ts
+const styles = StyleSheet.create((theme) => ({
+  root: (args) => resolveButtonAppearance(theme, args),
+}));
+```
+
+`useUnistyles()` は、ネイティブ `style` プロパティではなく **コンポーネント props**
+(`Pressable` の `hitSlop`、`Icon`/`Svg` の `color`/`name`/`fill`、
+Reanimated `withTiming` に渡す duration/easing 等)としてテーマ値が必要な箇所にのみ残した。
+これらは対象コンポーネントの再レンダーが必要になる頻度が低い(テーマ切替はアプリ全体で稀にしか
+起きない)値であり、全19コンポーネントで完全に `useUnistyles()` を排除できたわけではないが、
+背景色・枠線・パディング等の視覚的なスタイルツリー全体は `StyleSheet.create` 側に移った。
+どの箇所に `useUnistyles()` が残っているかは各コンポーネントファイル内のコメントで明記している。
+
+### 10. Toast のキュー状態は Context + `useState` のまま維持する(D-1)
+
+`docs/folder-structure.md` の「クライアント状態(UI・一時状態)= Zustand。横断的なものだけ
+`src/store/`」という規約に対し、`ToastProvider` のキュー状態(表示中のトースト一覧)は
+Context + `useState` のまま実装されており、規約との接続が記録されていなかった(D-1)。
+
+**検討**: Zustand ストアに載せ替える案も検討したが、以下の理由で見送った。
+
+- Toast のキューは `<ToastProvider>` という**単一の書き込み元**からしか状態が変わらない
+  (`show`/`remove` はどちらも Provider 内部の関数)。Zustand が主に解決する「複数の
+  離れたコンポーネントから同じ状態を読み書きしたい」という問題がそもそも発生しない。
+- Provider ツリーの生存期間だけに閉じたローカル UI 状態であり、画面をまたいだ永続化・
+  他 store との合成が必要ない。
+- `useToast()` フック経由でどこからでも `show()` を呼べる点は Context でも Zustand でも
+  変わらず、Zustand化のメリットが薄い。
+
+**結論**: Context + `useState` のまま維持する。ただし「横断的なクライアント状態は Zustand」
+という規約の**唯一の例外**として本 ADR に明記し、今後同様の「単一の書き込み元に閉じた
+UI 状態」を実装する際の判断基準(Zustand を使うかどうかは複数箇所からの読み書きが
+実際に発生するかで判断する)として参照できるようにする。判断理由は
+`ToastProvider.tsx` のコンポーネントコメントにも記載している。
 
 ## 検討した選択肢
 

@@ -156,7 +156,11 @@ function buildRadius(radius: WidenedGeneratedTokens["radius"]) {
   return {
     xs: radius.xs,
     sm: radius.sm,
-    /** コントロール(Input/Button 以外の枠)の既定角丸 */
+    /**
+     * コントロールの既定角丸。Input/Select の枠はこれを使う(D-2。以前のコメントは
+     * 「Input/Button 以外」と誤記していたが、実際には Input が使用している。
+     * Button/Tag/Badge/IconButton は常に `pill` を使う)。
+     */
     md: radius.md,
     /** カードの既定角丸 */
     lg: radius.lg,
