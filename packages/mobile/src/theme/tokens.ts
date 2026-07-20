@@ -213,17 +213,21 @@ type TypographyRoleName =
 
 /**
  * 用途名 → (サイズ/太さ/行高/字間/フォント) の組み立て表。
- * DS の `guidelines/type*.card.html` 相当の役割分担を、実データ(typography.css)から
- * 妥当な組み合わせとして構成した(DesignSync 未接続のため、Type ガイドラインの実物は
- * 参照できていない。今後 DesignSync が利用可能になったら突き合わせて調整すること)。
+ * DS の `guidelines/type-scale.card.html` と照合済み(6ロールの実際の用途割り当てを確認した)。
+ * `data`(4xl/heavy/font-data)・`heading`(2xl相当の補間ロール)・`headingSm`(xl/bold)・
+ * `body`(md/regular)・`label`(sm/medium/font-label)・`caption`(xs) は DS のカード記載と一致。
+ * `display` は DS が 4xl+heavy を数値表示(`data`)専用としているため、DS が画面見出しとして
+ * 明示する `3xl/bold` に振り直した(4xl+heavy を見出しにも使うと `data` と寸法が重複するため)。
+ * `title`/`bodySm`/`dataSm` は DS のカードに直接の記載がないが、スケールに存在する値を用いた
+ * 補間ロールとして維持する。
  */
 const TYPOGRAPHY_ROLES: Record<TypographyRoleName, TypographyRoleConfig> = {
-  /** ヒーロー領域の大見出し */
+  /** 画面見出し(例: 「ゴール：川辺駅」)。DS の `3xl / bold` */
   display: {
-    sizeKey: "text-4xl",
-    weightKey: "weight-heavy",
+    sizeKey: "text-3xl",
+    weightKey: "weight-bold",
     leadingKey: "leading-tight",
-    fontFamilyKey: "display",
+    fontFamilyKey: "heading",
   },
   /** 画面見出し */
   heading: {

@@ -1,0 +1,63 @@
+import { describe, expect, it } from "vitest";
+
+import { resolveInputAppearance } from "@/components/ui/input/inputStyles";
+import { darkTheme, lightTheme } from "@/theme/tokens";
+
+describe("resolveInputAppearance", () => {
+  it.each([lightTheme, darkTheme])("既定状態は border 色を使う", (theme) => {
+    const appearance = resolveInputAppearance(theme, {
+      focused: false,
+      disabled: false,
+      hasError: false,
+    });
+    expect(appearance.borderColor).toBe(theme.colors.border);
+    expect(appearance.opacity).toBe(1);
+  });
+
+  it.each([lightTheme, darkTheme])("focused で枠色が borderFocus になる", (theme) => {
+    const appearance = resolveInputAppearance(theme, {
+      focused: true,
+      disabled: false,
+      hasError: false,
+    });
+    expect(appearance.borderColor).toBe(theme.colors.borderFocus);
+    expect(appearance.iconColor).toBe(theme.colors.primary);
+  });
+
+  it.each([lightTheme, darkTheme])("hasError は focused/disabled より優先される", (theme) => {
+    const appearance = resolveInputAppearance(theme, {
+      focused: true,
+      disabled: true,
+      hasError: true,
+    });
+    expect(appearance.borderColor).toBe(theme.colors.danger);
+    expect(appearance.helperColor).toBe(theme.colors.danger);
+    expect(appearance.opacity).toBe(1);
+  });
+
+  it.each([lightTheme, darkTheme])(
+    "disabled は hasError が無ければ focused より優先される",
+    (theme) => {
+      const appearance = resolveInputAppearance(theme, {
+        focused: true,
+        disabled: true,
+        hasError: false,
+      });
+      expect(appearance.backgroundColor).toBe(theme.colors.surfaceSunken);
+      expect(appearance.textColor).toBe(theme.colors.textDisabled);
+      expect(appearance.opacity).toBeLessThan(1);
+    },
+  );
+
+  it.each([lightTheme, darkTheme])(
+    "focused でない既定状態の borderWidth は hairline 1本分",
+    (theme) => {
+      const appearance = resolveInputAppearance(theme, {
+        focused: false,
+        disabled: false,
+        hasError: false,
+      });
+      expect(appearance.borderWidth).toBe(theme.sizing.hairline);
+    },
+  );
+});
