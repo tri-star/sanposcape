@@ -18,6 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      "lucide-react-native": path.resolve(__dirname, "src/test/mocks/lucide-react-native.ts"),
+      "react-native-svg": path.resolve(__dirname, "src/test/mocks/react-native-svg.ts"),
       "react-native": path.resolve(__dirname, "src/test/mocks/react-native.ts"),
     },
   },
