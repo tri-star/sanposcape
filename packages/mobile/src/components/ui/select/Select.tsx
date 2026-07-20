@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet/BottomSheet";
 import { Icon } from "@/components/ui/icon/Icon";
@@ -39,25 +39,12 @@ export function Select<T extends string>({
   disabled = false,
   testID,
 }: SelectProps<T>) {
-  const { theme } = useUnistyles();
   const [open, setOpen] = useState(false);
-  const appearance = resolveSelectAppearance(theme, { disabled });
   const displayLabel = resolveSelectDisplayLabel(value, options, placeholder);
 
   return (
     <View testID={testID}>
-      {label ? (
-        <Text
-          style={{
-            color: theme.colors.textMuted,
-            marginBottom: theme.spacing[4],
-            fontFamily: theme.fontFamily.label,
-            ...theme.typography.label,
-          }}
-        >
-          {label}
-        </Text>
-      ) : null}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label ?? displayLabel}
@@ -65,33 +52,12 @@ export function Select<T extends string>({
         disabled={disabled}
         onPress={() => setOpen(true)}
         testID={testID ? `${testID}-trigger` : undefined}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: theme.spacing[8],
-          minHeight: theme.sizing.controlMd,
-          paddingHorizontal: theme.spacing[16],
-          borderRadius: theme.radius.md,
-          borderWidth: theme.sizing.hairline,
-          borderColor: appearance.borderColor,
-          backgroundColor: appearance.backgroundColor,
-          opacity: appearance.opacity,
-          transform: [{ scale: pressed && !disabled ? 0.99 : 1 }],
-        })}
+        style={({ pressed }) => styles.trigger({ disabled, pressed })}
       >
-        <Text
-          numberOfLines={1}
-          style={{
-            flex: 1,
-            color: value === null ? appearance.placeholderColor : appearance.textColor,
-            fontFamily: theme.fontFamily.body,
-            ...theme.typography.body,
-          }}
-        >
+        <Text numberOfLines={1} style={styles.triggerText({ disabled, hasValue: value !== null })}>
           {displayLabel}
         </Text>
-        <Icon name="chevron-down" size={18} color={appearance.iconColor} />
+        <Icon name="chevron-down" size={18} color={styles.triggerIcon({ disabled }).color} />
       </Pressable>
 
       <BottomSheet
@@ -113,28 +79,13 @@ export function Select<T extends string>({
                 setOpen(false);
               }}
               testID={testID ? `${testID}-option-${option.value}` : undefined}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: theme.spacing[12],
-                paddingVertical: theme.spacing[12],
-                opacity: option.disabled ? 0.4 : 1,
-              }}
+              style={styles.option({ disabled: option.disabled ?? false })}
             >
               {option.iconName ? (
-                <Icon name={option.iconName} size={18} color={theme.colors.text} />
+                <Icon name={option.iconName} size={18} color={styles.optionText.color} />
               ) : null}
-              <Text
-                style={{
-                  flex: 1,
-                  color: theme.colors.text,
-                  fontFamily: theme.fontFamily.body,
-                  ...theme.typography.body,
-                }}
-              >
-                {option.label}
-              </Text>
-              {selected ? <Icon name="check" size={18} color={theme.colors.primary} /> : null}
+              <Text style={styles.optionText}>{option.label}</Text>
+              {selected ? <Icon name="check" size={18} color={styles.selectedIcon.color} /> : null}
             </Pressable>
           );
         })}
@@ -142,3 +93,58 @@ export function Select<T extends string>({
     </View>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  label: {
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing[4],
+    fontFamily: theme.fontFamily.label,
+    ...theme.typography.label,
+  },
+  trigger: (args: { disabled: boolean; pressed: boolean }) => {
+    const appearance = resolveSelectAppearance(theme, args);
+    return {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing[8],
+      minHeight: theme.sizing.controlMd,
+      paddingHorizontal: theme.spacing[16],
+      borderRadius: theme.radius.md,
+      borderWidth: theme.sizing.hairline,
+      borderColor: appearance.borderColor,
+      backgroundColor: appearance.backgroundColor,
+      opacity: appearance.opacity,
+      transform: [{ scale: args.pressed && !args.disabled ? 0.99 : 1 }],
+    };
+  },
+  triggerText: (args: { disabled: boolean; hasValue: boolean }) => {
+    const appearance = resolveSelectAppearance(theme, { disabled: args.disabled });
+    return {
+      flex: 1,
+      color: args.hasValue ? appearance.textColor : appearance.placeholderColor,
+      fontFamily: theme.fontFamily.body,
+      ...theme.typography.body,
+    };
+  },
+  triggerIcon: (args: { disabled: boolean }) => {
+    const appearance = resolveSelectAppearance(theme, args);
+    return { color: appearance.iconColor };
+  },
+  option: (args: { disabled: boolean }) => ({
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[12],
+    paddingVertical: theme.spacing[12],
+    opacity: args.disabled ? 0.4 : 1,
+  }),
+  optionText: {
+    flex: 1,
+    color: theme.colors.text,
+    fontFamily: theme.fontFamily.body,
+    ...theme.typography.body,
+  },
+  selectedIcon: {
+    color: theme.colors.primary,
+  },
+}));

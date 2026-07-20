@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Pressable } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { useUnistyles, StyleSheet } from "react-native-unistyles";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -23,6 +23,10 @@ export type SwitchProps = {
 /**
  * RN 標準の `Switch` はスタイル自由度が低いため、`Pressable` + Reanimated で自前実装する。
  * ノブの移動は `theme.motion.base` の duration/bezier を使う。
+ *
+ * `useUnistyles()` は hitSlop の計算、および Reanimated の `withTiming` に渡す
+ * duration/easing(スタイルではなく JS 側のアニメーション設定値)を得るためだけに使う。
+ * トラック/ノブの見た目そのものは StyleSheet.create 側で解決する。
  */
 export function Switch({
   value,
@@ -70,28 +74,34 @@ export function Switch({
             }
           : undefined
       }
-      style={{
-        width: appearance.trackWidth,
-        height: appearance.trackHeight,
-        borderRadius: theme.radius.pill,
-        backgroundColor: appearance.trackColor,
-        opacity: appearance.opacity,
-        justifyContent: "center",
-      }}
+      style={styles.track({ value, disabled, size })}
     >
-      <Animated.View
-        style={[
-          {
-            position: "absolute",
-            left: appearance.knobInset,
-            width: appearance.knobSize,
-            height: appearance.knobSize,
-            borderRadius: theme.radius.pill,
-            backgroundColor: appearance.knobColor,
-          },
-          knobStyle,
-        ]}
-      />
+      <Animated.View style={[styles.knob({ value, disabled, size }), knobStyle]} />
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  track: (args: { value: boolean; disabled: boolean; size: SwitchSize }) => {
+    const appearance = resolveSwitchAppearance(theme, args);
+    return {
+      width: appearance.trackWidth,
+      height: appearance.trackHeight,
+      borderRadius: theme.radius.pill,
+      backgroundColor: appearance.trackColor,
+      opacity: appearance.opacity,
+      justifyContent: "center",
+    };
+  },
+  knob: (args: { value: boolean; disabled: boolean; size: SwitchSize }) => {
+    const appearance = resolveSwitchAppearance(theme, args);
+    return {
+      position: "absolute",
+      left: appearance.knobInset,
+      width: appearance.knobSize,
+      height: appearance.knobSize,
+      borderRadius: theme.radius.pill,
+      backgroundColor: appearance.knobColor,
+    };
+  },
+}));

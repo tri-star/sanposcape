@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Pressable, View, type ViewStyle } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { Pressable, View } from "react-native";
+import { StyleSheet } from "react-native-unistyles";
 
 import {
   resolveCardAppearance,
@@ -20,12 +20,9 @@ export type CardProps = {
 };
 
 export function Card({ children, elevation = "md", padding = "md", onPress, testID }: CardProps) {
-  const { theme } = useUnistyles();
-
   if (!onPress) {
-    const appearance = resolveCardAppearance(theme, { elevation, padding, pressed: false });
     return (
-      <View style={buildCardStyle(appearance)} testID={testID}>
+      <View style={styles.root({ elevation, padding, pressed: false })} testID={testID}>
         {children}
       </View>
     );
@@ -36,21 +33,22 @@ export function Card({ children, elevation = "md", padding = "md", onPress, test
       accessibilityRole="button"
       onPress={onPress}
       testID={testID}
-      style={({ pressed }) =>
-        buildCardStyle(resolveCardAppearance(theme, { elevation, padding, pressed }))
-      }
+      style={({ pressed }) => styles.root({ elevation, padding, pressed })}
     >
       {children}
     </Pressable>
   );
 }
 
-function buildCardStyle(appearance: ReturnType<typeof resolveCardAppearance>): ViewStyle {
-  return {
-    backgroundColor: appearance.backgroundColor,
-    borderRadius: appearance.borderRadius,
-    padding: appearance.padding,
-    boxShadow: appearance.boxShadow,
-    transform: [{ scale: appearance.scale }],
-  };
-}
+const styles = StyleSheet.create((theme) => ({
+  root: (args: { elevation: CardElevation; padding: CardPadding; pressed: boolean }) => {
+    const appearance = resolveCardAppearance(theme, args);
+    return {
+      backgroundColor: appearance.backgroundColor,
+      borderRadius: appearance.borderRadius,
+      padding: appearance.padding,
+      boxShadow: appearance.boxShadow,
+      transform: [{ scale: appearance.scale }],
+    };
+  },
+}));

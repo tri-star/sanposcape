@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, Text } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { useUnistyles, StyleSheet } from "react-native-unistyles";
 
 import { Icon } from "@/components/ui/icon/Icon";
 import type { IconName } from "@/components/ui/icon/iconRegistry";
@@ -33,6 +33,9 @@ export function Button({
   onPress,
   testID,
 }: ButtonProps) {
+  // `useUnistyles()` はここでは hitSlop(タップ領域を44pxまで補う非スタイル値)の計算にのみ使う。
+  // 見た目のスタイル自体は下の `StyleSheet.create` 側で解決するため、テーマ切替時の再レンダーは
+  // この数値計算だけに限定される(スタイルツリー全体は再レンダーされない)。
   const { theme } = useUnistyles();
   const isDisabled = disabled || loading;
 
@@ -54,29 +57,9 @@ export function Button({
       hitSlop={
         hitSlop > 0 ? { top: hitSlop, bottom: hitSlop, left: hitSlop, right: hitSlop } : undefined
       }
-      style={({ pressed }) => {
-        const appearance = resolveButtonAppearance(theme, {
-          variant,
-          size,
-          disabled: isDisabled,
-          pressed,
-        });
-        return {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: theme.spacing[8],
-          alignSelf: fullWidth ? "stretch" : "flex-start",
-          backgroundColor: appearance.backgroundColor,
-          borderColor: appearance.borderColor,
-          borderWidth: appearance.borderWidth,
-          borderRadius: appearance.borderRadius,
-          paddingHorizontal: appearance.paddingHorizontal,
-          minHeight: appearance.minHeight,
-          opacity: appearance.opacity,
-          transform: [{ scale: appearance.scale }],
-        };
-      }}
+      style={({ pressed }) =>
+        styles.root({ variant, size, disabled: isDisabled, pressed, fullWidth })
+      }
     >
       {({ pressed }) => {
         const appearance = resolveButtonAppearance(theme, {
@@ -91,13 +74,7 @@ export function Button({
         return (
           <>
             {iconName ? <Icon name={iconName} color={appearance.textColor} size={18} /> : null}
-            <Text
-              style={{
-                color: appearance.textColor,
-                fontFamily: theme.fontFamily.label,
-                ...theme.typography.label,
-              }}
-            >
+            <Text style={styles.label({ variant, size, disabled: isDisabled, pressed })}>
               {label}
             </Text>
           </>
@@ -106,3 +83,43 @@ export function Button({
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  root: (args: {
+    variant: ButtonVariant;
+    size: ButtonSize;
+    disabled: boolean;
+    pressed: boolean;
+    fullWidth: boolean;
+  }) => {
+    const appearance = resolveButtonAppearance(theme, args);
+    return {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing[8],
+      alignSelf: args.fullWidth ? "stretch" : "flex-start",
+      backgroundColor: appearance.backgroundColor,
+      borderColor: appearance.borderColor,
+      borderWidth: appearance.borderWidth,
+      borderRadius: appearance.borderRadius,
+      paddingHorizontal: appearance.paddingHorizontal,
+      minHeight: appearance.minHeight,
+      opacity: appearance.opacity,
+      transform: [{ scale: appearance.scale }],
+    };
+  },
+  label: (args: {
+    variant: ButtonVariant;
+    size: ButtonSize;
+    disabled: boolean;
+    pressed: boolean;
+  }) => {
+    const appearance = resolveButtonAppearance(theme, args);
+    return {
+      color: appearance.textColor,
+      fontFamily: theme.fontFamily.label,
+      ...theme.typography.label,
+    };
+  },
+}));

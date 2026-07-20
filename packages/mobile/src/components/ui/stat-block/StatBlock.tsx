@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 
 import {
   resolveStatBlockAppearance,
@@ -25,46 +25,53 @@ export function StatBlock({
   align = "left",
   testID,
 }: StatBlockProps) {
-  const { theme } = useUnistyles();
-  const appearance = resolveStatBlockAppearance(theme, { size, align });
+  const args = { size, align };
 
   return (
-    <View testID={testID} style={{ alignItems: appearance.alignItems }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: theme.spacing[4] }}>
-        <Text
-          style={{
-            color: theme.colors.text,
-            fontFamily: theme.fontFamily.data,
-            textAlign: appearance.textAlign,
-            ...appearance.valueTextStyle,
-          }}
-        >
-          {value}
-        </Text>
-        {unit ? (
-          <Text
-            style={{
-              color: theme.colors.textMuted,
-              fontFamily: theme.fontFamily.body,
-              ...appearance.unitTextStyle,
-            }}
-          >
-            {unit}
-          </Text>
-        ) : null}
+    <View testID={testID} style={styles.container(args)}>
+      <View style={styles.row}>
+        <Text style={styles.value(args)}>{value}</Text>
+        {unit ? <Text style={styles.unit(args)}>{unit}</Text> : null}
       </View>
-      {label ? (
-        <Text
-          style={{
-            color: theme.colors.textTertiary,
-            fontFamily: theme.fontFamily.body,
-            textAlign: appearance.textAlign,
-            ...appearance.labelTextStyle,
-          }}
-        >
-          {label}
-        </Text>
-      ) : null}
+      {label ? <Text style={styles.label(args)}>{label}</Text> : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  container: (args: { size: StatBlockSize; align: StatBlockAlign }) => {
+    const appearance = resolveStatBlockAppearance(theme, args);
+    return { alignItems: appearance.alignItems };
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: theme.spacing[4],
+  },
+  value: (args: { size: StatBlockSize; align: StatBlockAlign }) => {
+    const appearance = resolveStatBlockAppearance(theme, args);
+    return {
+      color: theme.colors.text,
+      fontFamily: theme.fontFamily.data,
+      textAlign: appearance.textAlign,
+      ...appearance.valueTextStyle,
+    };
+  },
+  unit: (args: { size: StatBlockSize; align: StatBlockAlign }) => {
+    const appearance = resolveStatBlockAppearance(theme, args);
+    return {
+      color: theme.colors.textMuted,
+      fontFamily: theme.fontFamily.body,
+      ...appearance.unitTextStyle,
+    };
+  },
+  label: (args: { size: StatBlockSize; align: StatBlockAlign }) => {
+    const appearance = resolveStatBlockAppearance(theme, args);
+    return {
+      color: theme.colors.textTertiary,
+      fontFamily: theme.fontFamily.body,
+      textAlign: appearance.textAlign,
+      ...appearance.labelTextStyle,
+    };
+  },
+}));

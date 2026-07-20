@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 import { Image } from "expo-image";
 
 import { Icon } from "@/components/ui/icon/Icon";
@@ -19,47 +19,54 @@ export type AvatarProps = {
 };
 
 export function Avatar({ source, name, size = "md", testID }: AvatarProps) {
-  const { theme } = useUnistyles();
   const [imageFailed, setImageFailed] = useState(false);
-  const appearance = resolveAvatarAppearance(theme, { size });
   const showImage = source !== undefined && !imageFailed;
   const initial = getAvatarInitial(name);
+  const boxStyle = styles.root({ size });
+  const initialStyle = styles.initial({ size });
 
   return (
     <View
       testID={testID}
       accessibilityRole="image"
       accessibilityLabel={name ?? "アバター"}
-      style={{
-        width: appearance.boxSize,
-        height: appearance.boxSize,
-        borderRadius: appearance.borderRadius,
-        backgroundColor: appearance.backgroundColor,
-        alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
-      }}
+      style={boxStyle}
     >
       {showImage ? (
         <Image
           source={source}
-          style={{ width: appearance.boxSize, height: appearance.boxSize }}
+          style={{ width: boxStyle.width, height: boxStyle.height }}
           onError={() => setImageFailed(true)}
         />
       ) : initial ? (
-        <Text
-          style={{
-            color: appearance.initialColor,
-            fontFamily: theme.fontFamily.label,
-            fontSize: appearance.initialFontSize,
-            fontWeight: theme.typography.label.fontWeight,
-          }}
-        >
-          {initial}
-        </Text>
+        <Text style={initialStyle}>{initial}</Text>
       ) : (
-        <Icon name="user" size={appearance.initialFontSize} color={appearance.initialColor} />
+        <Icon name="user" size={initialStyle.fontSize} color={initialStyle.color} />
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  root: (args: { size: AvatarSize }) => {
+    const appearance = resolveAvatarAppearance(theme, args);
+    return {
+      width: appearance.boxSize,
+      height: appearance.boxSize,
+      borderRadius: appearance.borderRadius,
+      backgroundColor: appearance.backgroundColor,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    };
+  },
+  initial: (args: { size: AvatarSize }) => {
+    const appearance = resolveAvatarAppearance(theme, args);
+    return {
+      color: appearance.initialColor,
+      fontFamily: theme.fontFamily.label,
+      fontSize: appearance.initialFontSize,
+      fontWeight: theme.typography.label.fontWeight,
+    };
+  },
+}));

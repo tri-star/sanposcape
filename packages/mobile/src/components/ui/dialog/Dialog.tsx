@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 
 import { Button, type ButtonProps } from "@/components/ui/button/Button";
 import { resolveDialogAppearance } from "@/components/ui/dialog/dialogStyles";
@@ -37,9 +37,6 @@ export function Dialog({
   destructive = false,
   testID,
 }: DialogProps) {
-  const { theme } = useUnistyles();
-  const appearance = resolveDialogAppearance(theme);
-
   if (__DEV__ && actions.length > MAX_RECOMMENDED_ACTIONS) {
     console.warn(
       `Dialog: actions は最大${MAX_RECOMMENDED_ACTIONS}つを推奨します(現在 ${actions.length}件)`,
@@ -54,70 +51,24 @@ export function Dialog({
       onRequestClose={onClose}
       testID={testID}
     >
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: theme.spacing[24],
-        }}
-      >
+      <View style={styles.overlayContainer}>
         <Pressable
           accessibilityLabel="閉じる"
           accessibilityRole="button"
           onPress={onClose}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: appearance.overlayColor,
-          }}
+          style={styles.overlay}
         />
         <View
           // iOS: モーダルであることを支援技術に伝える。Android: importantForAccessibility で同等の効果
           accessibilityViewIsModal
           importantForAccessibility="yes"
-          style={{
-            width: "100%",
-            maxWidth: 360,
-            borderRadius: appearance.borderRadius,
-            backgroundColor: appearance.backgroundColor,
-            padding: theme.spacing[24],
-            gap: theme.spacing[12],
-          }}
+          style={styles.panel}
         >
-          <Text
-            style={{
-              color: appearance.titleColor,
-              fontFamily: theme.fontFamily.heading,
-              ...theme.typography.headingSm,
-            }}
-          >
-            {title}
-          </Text>
-          {message ? (
-            <Text
-              style={{
-                color: appearance.messageColor,
-                fontFamily: theme.fontFamily.body,
-                ...theme.typography.body,
-              }}
-            >
-              {message}
-            </Text>
-          ) : null}
+          <Text style={styles.title}>{title}</Text>
+          {message ? <Text style={styles.message}>{message}</Text> : null}
           {children}
           {actions.length > 0 ? (
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                gap: theme.spacing[8],
-                marginTop: theme.spacing[8],
-              }}
-            >
+            <View style={styles.actions}>
               {actions.map((action, index) => {
                 const isPrimary = index === actions.length - 1;
                 const variant =
@@ -139,3 +90,47 @@ export function Dialog({
     </Modal>
   );
 }
+
+const styles = StyleSheet.create((theme) => {
+  const appearance = resolveDialogAppearance(theme);
+  return {
+    overlayContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: theme.spacing[24],
+    },
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: appearance.overlayColor,
+    },
+    panel: {
+      width: "100%",
+      maxWidth: 360,
+      borderRadius: appearance.borderRadius,
+      backgroundColor: appearance.backgroundColor,
+      padding: theme.spacing[24],
+      gap: theme.spacing[12],
+    },
+    title: {
+      color: appearance.titleColor,
+      fontFamily: theme.fontFamily.heading,
+      ...theme.typography.headingSm,
+    },
+    message: {
+      color: appearance.messageColor,
+      fontFamily: theme.fontFamily.body,
+      ...theme.typography.body,
+    },
+    actions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: theme.spacing[8],
+      marginTop: theme.spacing[8],
+    },
+  };
+});

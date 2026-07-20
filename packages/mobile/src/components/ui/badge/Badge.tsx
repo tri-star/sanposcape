@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 
 import {
   resolveBadgeAppearance,
@@ -16,8 +16,7 @@ export type BadgeProps = {
 };
 
 export function Badge({ label, variant = "neutral", size = "md", testID }: BadgeProps) {
-  const { theme } = useUnistyles();
-  const appearance = resolveBadgeAppearance(theme, { variant, size });
+  const args = { variant, size };
 
   if (label === undefined) {
     return (
@@ -26,38 +25,45 @@ export function Badge({ label, variant = "neutral", size = "md", testID }: Badge
         // ドットバッジは装飾(通知の有無を色で示すのみ)のため、スクリーンリーダーからは隠す
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        style={{
-          width: appearance.dotSize,
-          height: appearance.dotSize,
-          borderRadius: appearance.borderRadius,
-          backgroundColor: appearance.textColor,
-        }}
+        style={styles.dot(args)}
       />
     );
   }
 
   return (
-    <View
-      testID={testID}
-      accessibilityRole="text"
-      style={{
-        height: appearance.height,
-        paddingHorizontal: appearance.paddingHorizontal,
-        borderRadius: appearance.borderRadius,
-        backgroundColor: appearance.backgroundColor,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text
-        style={{
-          color: appearance.textColor,
-          fontFamily: theme.fontFamily.label,
-          ...theme.typography.label,
-        }}
-      >
-        {label}
-      </Text>
+    <View testID={testID} accessibilityRole="text" style={styles.root(args)}>
+      <Text style={styles.label(args)}>{label}</Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  root: (args: { variant: BadgeVariant; size: BadgeSize }) => {
+    const appearance = resolveBadgeAppearance(theme, args);
+    return {
+      height: appearance.height,
+      paddingHorizontal: appearance.paddingHorizontal,
+      borderRadius: appearance.borderRadius,
+      backgroundColor: appearance.backgroundColor,
+      alignItems: "center",
+      justifyContent: "center",
+    };
+  },
+  dot: (args: { variant: BadgeVariant; size: BadgeSize }) => {
+    const appearance = resolveBadgeAppearance(theme, args);
+    return {
+      width: appearance.dotSize,
+      height: appearance.dotSize,
+      borderRadius: appearance.borderRadius,
+      backgroundColor: appearance.textColor,
+    };
+  },
+  label: (args: { variant: BadgeVariant; size: BadgeSize }) => {
+    const appearance = resolveBadgeAppearance(theme, args);
+    return {
+      color: appearance.textColor,
+      fontFamily: theme.fontFamily.label,
+      ...theme.typography.label,
+    };
+  },
+}));

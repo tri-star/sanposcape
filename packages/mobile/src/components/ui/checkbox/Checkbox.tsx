@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { useUnistyles, StyleSheet } from "react-native-unistyles";
 
 import { Icon } from "@/components/ui/icon/Icon";
 import { resolveCheckboxAppearance } from "@/components/ui/checkbox/checkboxStyles";
@@ -23,8 +23,10 @@ export function Checkbox({
   indeterminate = false,
   testID,
 }: CheckboxProps) {
+  // `useUnistyles()` は hitSlop の計算にのみ使う。見た目は StyleSheet.create 側で解決する。
   const { theme } = useUnistyles();
-  const appearance = resolveCheckboxAppearance(theme, { checked, indeterminate, disabled });
+  const args = { checked, indeterminate, disabled };
+  const appearance = resolveCheckboxAppearance(theme, args);
 
   return (
     <Pressable
@@ -44,40 +46,44 @@ export function Checkbox({
             }
           : undefined
       }
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: theme.spacing[8],
-        opacity: appearance.opacity,
-      }}
+      style={styles.row(args)}
     >
-      <View
-        style={{
-          width: appearance.boxSize,
-          height: appearance.boxSize,
-          borderRadius: appearance.borderRadius,
-          borderWidth: appearance.borderWidth,
-          borderColor: appearance.borderColor,
-          backgroundColor: appearance.backgroundColor,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <View style={styles.box(args)}>
         {appearance.iconName ? (
           <Icon name={appearance.iconName} size={16} color={appearance.iconColor} />
         ) : null}
       </View>
-      {label ? (
-        <Text
-          style={{
-            color: theme.colors.text,
-            fontFamily: theme.fontFamily.body,
-            ...theme.typography.body,
-          }}
-        >
-          {label}
-        </Text>
-      ) : null}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  row: (args: { checked: boolean; indeterminate: boolean; disabled: boolean }) => {
+    const appearance = resolveCheckboxAppearance(theme, args);
+    return {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing[8],
+      opacity: appearance.opacity,
+    };
+  },
+  box: (args: { checked: boolean; indeterminate: boolean; disabled: boolean }) => {
+    const appearance = resolveCheckboxAppearance(theme, args);
+    return {
+      width: appearance.boxSize,
+      height: appearance.boxSize,
+      borderRadius: appearance.borderRadius,
+      borderWidth: appearance.borderWidth,
+      borderColor: appearance.borderColor,
+      backgroundColor: appearance.backgroundColor,
+      alignItems: "center",
+      justifyContent: "center",
+    };
+  },
+  label: {
+    color: theme.colors.text,
+    fontFamily: theme.fontFamily.body,
+    ...theme.typography.body,
+  },
+}));

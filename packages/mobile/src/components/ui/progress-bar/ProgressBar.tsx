@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 
 import {
   clampProgress,
@@ -17,30 +17,37 @@ export type ProgressBarProps = {
 };
 
 export function ProgressBar({ value, size = "md", color, testID }: ProgressBarProps) {
-  const { theme } = useUnistyles();
-  const appearance = resolveProgressBarAppearance(theme, { value, size, color });
-  const now = Math.round(clampProgress(value) * 100);
+  const args = { value, size, color };
 
   return (
     <View
       testID={testID}
       accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 100, now }}
-      style={{
-        height: appearance.height,
-        borderRadius: appearance.borderRadius,
-        backgroundColor: appearance.trackColor,
-        overflow: "hidden",
-      }}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(clampProgress(value) * 100) }}
+      style={styles.track(args)}
     >
-      <View
-        style={{
-          height: "100%",
-          width: `${appearance.fillWidthPercent}%`,
-          borderRadius: appearance.borderRadius,
-          backgroundColor: appearance.fillColor,
-        }}
-      />
+      <View style={styles.fill(args)} />
     </View>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  track: (args: { value: number; size: ProgressBarSize; color?: string }) => {
+    const appearance = resolveProgressBarAppearance(theme, args);
+    return {
+      height: appearance.height,
+      borderRadius: appearance.borderRadius,
+      backgroundColor: appearance.trackColor,
+      overflow: "hidden",
+    };
+  },
+  fill: (args: { value: number; size: ProgressBarSize; color?: string }) => {
+    const appearance = resolveProgressBarAppearance(theme, args);
+    return {
+      height: "100%",
+      width: `${appearance.fillWidthPercent}%`,
+      borderRadius: appearance.borderRadius,
+      backgroundColor: appearance.fillColor,
+    };
+  },
+}));

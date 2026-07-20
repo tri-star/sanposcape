@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Modal, Pressable, Text, useWindowDimensions, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useUnistyles } from "react-native-unistyles";
+import { useUnistyles, StyleSheet } from "react-native-unistyles";
 import Animated, {
   Easing,
   runOnJS,
@@ -36,6 +36,14 @@ const DEFAULT_SNAP_POINTS = [0.5, 0.9];
  * Android の戻るボタン(`onRequestClose`)を無料で得る。開閉アニメーションと
  * ドラッグ操作は Reanimated の共有値で駆動し、スナップ判定は `snapPoints.ts` の
  * 純粋関数(`resolveSnapTarget`)に委ねる。
+ *
+ * `useUnistyles()` は Reanimated の `withTiming` に渡す duration/easing
+ * (スタイルではなく JS 側のアニメーション設定値)を得るためだけに使う。
+ * 静的な見た目(背景色・角丸等)は `StyleSheet.create` 側で解決する。
+ *
+ * children が固定高を超える場合に備え、本体を `ScrollView` で包む(C-3)。
+ * ハンドル部分の `GestureDetector` は ScrollView の外に置き、ドラッグと
+ * スクロールジェスチャが競合しないようにする。
  */
 export function BottomSheet({
   visible,
@@ -49,7 +57,6 @@ export function BottomSheet({
   const { theme } = useUnistyles();
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const appearance = resolveBottomSheetAppearance(theme);
 
   const snapPointsPx = toAbsoluteSnapPoints(snapPoints, screenHeight);
   const containerHeightPx = snapPointsPx[snapPointsPx.length - 1] as number;
@@ -122,67 +129,86 @@ export function BottomSheet({
       animationType="none"
       onRequestClose={onClose}
       testID={testID}
+      // iOS: モーダルであることを支援技術に伝える。Android: importantForAccessibility で同等の効果
+      // (Dialog と挙動を揃える。C-4)
+      accessibilityViewIsModal
+      importantForAccessibility="yes"
     >
-      <View style={{ flex: 1 }}>
+      <View style={styles.container}>
         {/* 背面(スクリム)。シートとは兄弟要素にして、シート本体へのタップが背面へ伝播しないようにする */}
         <Pressable
           accessibilityLabel="閉じる"
           accessibilityRole="button"
           onPress={dismissOnBackdropPress ? onClose : undefined}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: appearance.overlayColor,
-          }}
+          style={styles.overlay}
         />
         <Animated.View
-          style={[
-            {
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: containerHeightPx,
-              backgroundColor: appearance.backgroundColor,
-              borderTopLeftRadius: appearance.borderRadius,
-              borderTopRightRadius: appearance.borderRadius,
-              boxShadow: appearance.boxShadow,
-              paddingBottom: insets.bottom,
-            },
-            sheetStyle,
-          ]}
+          style={[styles.sheet({ containerHeightPx, insetBottom: insets.bottom }), sheetStyle]}
         >
           <GestureDetector gesture={pan}>
-            <View style={{ alignItems: "center", paddingVertical: theme.spacing[12] }}>
-              <View
-                style={{
-                  width: 40,
-                  height: 4,
-                  borderRadius: theme.radius.pill,
-                  backgroundColor: appearance.handleColor,
-                }}
-              />
+            <View style={styles.handleRow}>
+              <View style={styles.handle} />
             </View>
           </GestureDetector>
-          {title ? (
-            <Text
-              style={{
-                color: theme.colors.text,
-                paddingHorizontal: theme.spacing[16],
-                paddingBottom: theme.spacing[12],
-                fontFamily: theme.fontFamily.heading,
-                ...theme.typography.headingSm,
-              }}
-            >
-              {title}
-            </Text>
-          ) : null}
-          <View style={{ flex: 1, paddingHorizontal: theme.spacing[16] }}>{children}</View>
+          {title ? <Text style={styles.title}>{title}</Text> : null}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create((theme) => {
+  const appearance = resolveBottomSheetAppearance(theme);
+  return {
+    container: { flex: 1 },
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: appearance.overlayColor,
+    },
+    sheet: (args: { containerHeightPx: number; insetBottom: number }) => ({
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: args.containerHeightPx,
+      backgroundColor: appearance.backgroundColor,
+      borderTopLeftRadius: appearance.borderRadius,
+      borderTopRightRadius: appearance.borderRadius,
+      boxShadow: appearance.boxShadow,
+      paddingBottom: args.insetBottom,
+    }),
+    handleRow: {
+      alignItems: "center",
+      paddingVertical: theme.spacing[12],
+    },
+    handle: {
+      width: 40,
+      height: 4,
+      borderRadius: theme.radius.pill,
+      backgroundColor: appearance.handleColor,
+    },
+    title: {
+      color: theme.colors.text,
+      paddingHorizontal: theme.spacing[16],
+      paddingBottom: theme.spacing[12],
+      fontFamily: theme.fontFamily.heading,
+      ...theme.typography.headingSm,
+    },
+    scroll: { flex: 1 },
+    scrollContent: {
+      paddingHorizontal: theme.spacing[16],
+      paddingBottom: theme.spacing[16],
+    },
+  };
+});

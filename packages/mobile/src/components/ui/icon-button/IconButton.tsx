@@ -1,5 +1,5 @@
 import { Pressable } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { useUnistyles, StyleSheet } from "react-native-unistyles";
 
 import { Icon } from "@/components/ui/icon/Icon";
 import type { IconName } from "@/components/ui/icon/iconRegistry";
@@ -29,6 +29,7 @@ export function IconButton({
   onPress,
   testID,
 }: IconButtonProps) {
+  // `useUnistyles()` は hitSlop(非スタイル値)の計算にのみ使う。見た目は StyleSheet.create 側で解決する。
   const { theme } = useUnistyles();
   const { hitSlop } = resolveIconButtonAppearance(theme, {
     variant,
@@ -48,21 +49,7 @@ export function IconButton({
       hitSlop={
         hitSlop > 0 ? { top: hitSlop, bottom: hitSlop, left: hitSlop, right: hitSlop } : undefined
       }
-      style={({ pressed }) => {
-        const appearance = resolveIconButtonAppearance(theme, { variant, size, disabled, pressed });
-        return {
-          width: appearance.boxSize,
-          height: appearance.boxSize,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: appearance.backgroundColor,
-          borderColor: appearance.borderColor,
-          borderWidth: appearance.borderWidth,
-          borderRadius: theme.radius.pill,
-          opacity: appearance.opacity,
-          transform: [{ scale: appearance.scale }],
-        };
-      }}
+      style={({ pressed }) => styles.root({ variant, size, disabled, pressed })}
     >
       {({ pressed }) => {
         const appearance = resolveIconButtonAppearance(theme, { variant, size, disabled, pressed });
@@ -71,3 +58,26 @@ export function IconButton({
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  root: (args: {
+    variant: IconButtonVariant;
+    size: IconButtonSize;
+    disabled: boolean;
+    pressed: boolean;
+  }) => {
+    const appearance = resolveIconButtonAppearance(theme, args);
+    return {
+      width: appearance.boxSize,
+      height: appearance.boxSize,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: appearance.backgroundColor,
+      borderColor: appearance.borderColor,
+      borderWidth: appearance.borderWidth,
+      borderRadius: theme.radius.pill,
+      opacity: appearance.opacity,
+      transform: [{ scale: appearance.scale }],
+    };
+  },
+}));
