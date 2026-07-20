@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Platform } from "react-native";
 
-import { getApiBaseUrl } from "@/config/env";
+import { getApiBaseUrl, isCatalogEnabled } from "@/config/env";
 
 describe("getApiBaseUrl", () => {
   afterEach(() => {
@@ -28,5 +28,38 @@ describe("getApiBaseUrl", () => {
     Platform.OS = "android";
 
     expect(getApiBaseUrl()).toBe("https://api.example.com");
+  });
+});
+
+describe("isCatalogEnabled", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("EXPO_PUBLIC_ENABLE_CATALOG=true なら true", () => {
+    vi.stubEnv("EXPO_PUBLIC_ENABLE_CATALOG", "true");
+    vi.stubGlobal("__DEV__", false);
+
+    expect(isCatalogEnabled()).toBe(true);
+  });
+
+  it("未設定 + __DEV__=false なら false", () => {
+    vi.stubGlobal("__DEV__", false);
+
+    expect(isCatalogEnabled()).toBe(false);
+  });
+
+  it("未設定 + __DEV__=true なら true", () => {
+    vi.stubGlobal("__DEV__", true);
+
+    expect(isCatalogEnabled()).toBe(true);
+  });
+
+  it('"false" などの文字列は true と厳密比較されず false 扱いになる', () => {
+    vi.stubEnv("EXPO_PUBLIC_ENABLE_CATALOG", "false");
+    vi.stubGlobal("__DEV__", false);
+
+    expect(isCatalogEnabled()).toBe(false);
   });
 });

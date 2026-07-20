@@ -16,3 +16,14 @@ export function getApiBaseUrl(): string {
   }
   return url;
 }
+
+/**
+ * 開発用カタログ画面(`/(dev)/catalog`)を有効にするか。
+ * `__DEV__`(RN のグローバル)か、`EXPO_PUBLIC_ENABLE_CATALOG=true` のとき有効。
+ * preview ビルド(E2E用)でも確認したいことがあるため env でも開けるようにする。
+ * `__DEV__` は vitest(node)には存在しないため、`src/test/setup.ts` で
+ * `globalThis.__DEV__ = false` を定義し、テスト側は `vi.stubGlobal` で上書きする。
+ */
+export function isCatalogEnabled(): boolean {
+  return process.env.EXPO_PUBLIC_ENABLE_CATALOG === "true" || __DEV__ === true;
+}
