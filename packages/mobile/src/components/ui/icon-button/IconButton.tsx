@@ -1,0 +1,73 @@
+import { Pressable } from "react-native";
+import { useUnistyles } from "react-native-unistyles";
+
+import { Icon } from "@/components/ui/icon/Icon";
+import type { IconName } from "@/components/ui/icon/iconRegistry";
+import {
+  resolveIconButtonAppearance,
+  type IconButtonSize,
+  type IconButtonVariant,
+} from "@/components/ui/icon-button/iconButtonStyles";
+
+export type IconButtonProps = {
+  iconName: IconName;
+  /** 必須。スクリーンリーダー用 */
+  accessibilityLabel: string;
+  variant?: IconButtonVariant;
+  size?: IconButtonSize;
+  disabled?: boolean;
+  onPress: () => void;
+  testID?: string;
+};
+
+export function IconButton({
+  iconName,
+  accessibilityLabel,
+  variant = "primary",
+  size = "md",
+  disabled = false,
+  onPress,
+  testID,
+}: IconButtonProps) {
+  const { theme } = useUnistyles();
+  const { hitSlop } = resolveIconButtonAppearance(theme, {
+    variant,
+    size,
+    disabled,
+    pressed: false,
+  });
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      testID={testID}
+      hitSlop={
+        hitSlop > 0 ? { top: hitSlop, bottom: hitSlop, left: hitSlop, right: hitSlop } : undefined
+      }
+      style={({ pressed }) => {
+        const appearance = resolveIconButtonAppearance(theme, { variant, size, disabled, pressed });
+        return {
+          width: appearance.boxSize,
+          height: appearance.boxSize,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: appearance.backgroundColor,
+          borderColor: appearance.borderColor,
+          borderWidth: appearance.borderWidth,
+          borderRadius: theme.radius.pill,
+          opacity: appearance.opacity,
+          transform: [{ scale: appearance.scale }],
+        };
+      }}
+    >
+      {({ pressed }) => {
+        const appearance = resolveIconButtonAppearance(theme, { variant, size, disabled, pressed });
+        return <Icon name={iconName} size={appearance.iconSize} color={appearance.iconColor} />;
+      }}
+    </Pressable>
+  );
+}
