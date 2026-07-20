@@ -1,3 +1,4 @@
+import { resolveHitSlop } from "@/lib/resolveHitSlop";
 import type { AppTheme } from "@/theme/tokens";
 
 export type CheckboxState = "unchecked" | "checked" | "indeterminate";
@@ -18,7 +19,6 @@ export type CheckboxAppearance = {
   opacity: number;
 };
 
-const MIN_TOUCH_TARGET = 44;
 /** チェックボックスの一辺。DS 実物と一致(22×22。design/components/DS-COMPONENT-SPECS.md) */
 const BOX_SIZE = 22;
 const ICON_SIZE = 14;
@@ -43,7 +43,7 @@ export function resolveCheckboxAppearance(
   const { checked, indeterminate, disabled } = args;
   const state = resolveCheckboxState({ checked, indeterminate });
   const filled = state !== "unchecked";
-  const hitSlop = Math.max(0, Math.ceil((MIN_TOUCH_TARGET - BOX_SIZE) / 2));
+  const hitSlop = resolveHitSlop(BOX_SIZE);
 
   return {
     backgroundColor: filled ? theme.colors.primary : theme.colors.surface,

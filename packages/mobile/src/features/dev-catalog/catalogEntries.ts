@@ -1,57 +1,40 @@
-export type CatalogGroup = "core" | "data" | "forms" | "feedback" | "overlays" | "map" | "content";
-
 export type CatalogEntry = {
   /** セクション見出し。例: "Button"(コンポーネントの PascalCase 名と一致させる) */
   title: string;
-  group: CatalogGroup;
-  /** 各バリエーションの表示名 */
-  variants: string[];
 };
 
 /**
- * `src/components/ui/` の primitive を一覧するカタログの構成データ。
- * コンポーネントを追加したら、ここへ1行足すだけで良いようにする。
- * `catalogEntries.test.ts` が `src/components/ui/` の全フォルダとの突き合わせで
- * 登録漏れを検出する(`title` の PascalCase → フォルダの kebab-case への変換は
- * `toCatalogFolderName` を使う)。
+ * `src/components/ui/` の primitive 一覧(登録漏れ検出専用)。
+ *
+ * 以前はここに `group`/`variants` も持たせていたが、`CatalogScreen.tsx` の実際の JSX
+ * (バリエーションごとの props・testID・インタラクティブな state)から独立して手で
+ * 二重管理する形になっており、コンポーネントの variant を変更するたびに両方を更新する必要が
+ * あった(C-7)。実際の見た目・バリエーションの一覧は `CatalogScreen.tsx` の JSX を参照する
+ * こととし、ここは「`src/components/ui/` の全フォルダに対応するセクションが
+ * `CatalogScreen.tsx` に存在するか」を `catalogEntries.test.ts` で機械検証するための
+ * 最小限のマニフェストに絞った。コンポーネントを追加したら、ここへ1行足すだけで良い
+ * (`title` の PascalCase → フォルダの kebab-case への変換は `toCatalogFolderName` を使う)。
  */
 export const CATALOG_ENTRIES: CatalogEntry[] = [
-  { title: "Icon", group: "core", variants: ["home", "map-pin", "search", "settings"] },
-  {
-    title: "Button",
-    group: "core",
-    variants: ["primary", "secondary", "outline", "ghost", "danger"],
-  },
-  { title: "IconButton", group: "core", variants: ["filled", "tinted", "surface", "ghost"] },
-  { title: "Card", group: "data", variants: ["none", "sm", "md", "lg"] },
-  { title: "Avatar", group: "data", variants: ["sm", "md", "lg"] },
-  { title: "StatBlock", group: "data", variants: ["md", "lg"] },
-  { title: "ProgressBar", group: "data", variants: ["default"] },
-  { title: "Input", group: "forms", variants: ["default", "error", "disabled"] },
-  { title: "Switch", group: "forms", variants: ["on", "off", "disabled"] },
-  { title: "Checkbox", group: "forms", variants: ["unchecked", "checked", "indeterminate"] },
-  { title: "Radio", group: "forms", variants: ["unselected", "selected"] },
-  {
-    title: "Badge",
-    group: "feedback",
-    variants: ["neutral", "info", "success", "warning", "danger"],
-  },
-  { title: "Tag", group: "feedback", variants: ["park", "cafe", "culture", "station"] },
-  { title: "Toast", group: "feedback", variants: ["default", "success", "danger"] },
-  { title: "Dialog", group: "overlays", variants: ["default", "destructive"] },
-  { title: "BottomSheet", group: "overlays", variants: ["default"] },
-  { title: "Select", group: "overlays", variants: ["default"] },
-  {
-    title: "MapPin",
-    group: "map",
-    variants: ["park", "cafe", "culture", "station", "current", "destination"],
-  },
-  {
-    // 地図と無関係のため "content"(装飾・空状態向けプレースホルダ)に分類する(D-3)
-    title: "IllustrationSlot",
-    group: "content",
-    variants: ["home-hero", "empty-walks", "empty-spots", "nav-idle"],
-  },
+  { title: "Icon" },
+  { title: "Button" },
+  { title: "IconButton" },
+  { title: "Card" },
+  { title: "Avatar" },
+  { title: "StatBlock" },
+  { title: "ProgressBar" },
+  { title: "Input" },
+  { title: "Switch" },
+  { title: "Checkbox" },
+  { title: "Radio" },
+  { title: "Badge" },
+  { title: "Tag" },
+  { title: "Toast" },
+  { title: "Dialog" },
+  { title: "BottomSheet" },
+  { title: "Select" },
+  { title: "MapPin" },
+  { title: "IllustrationSlot" },
 ];
 
 /** PascalCase のコンポーネント名を `src/components/ui/` のフォルダ名(kebab-case)に変換する */

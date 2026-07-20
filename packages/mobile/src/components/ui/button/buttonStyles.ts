@@ -1,3 +1,4 @@
+import { resolveHitSlop } from "@/lib/resolveHitSlop";
 import type { AppTheme } from "@/theme/tokens";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
@@ -33,9 +34,6 @@ const SIZE_CONFIG: Record<
   lg: { minHeightKey: "controlLg", paddingHorizontal: 28 },
 };
 
-/** RN の推奨タップ領域(44px)。DS の `--control-md`(44px)が「min touch target」とコメントされている値と同じ */
-const MIN_TOUCH_TARGET = 44;
-
 /**
  * variant/size/状態(disabled/pressed) から Button の見た目を解決する純粋関数。
  * `react-native` / `react-native-unistyles` を import しない(Vitest で直接テストするため)。
@@ -54,7 +52,7 @@ export function resolveButtonAppearance(
   const sizeConfig = SIZE_CONFIG[size];
   const minHeight = theme.sizing[sizeConfig.minHeightKey];
   const paddingHorizontal = sizeConfig.paddingHorizontal;
-  const hitSlop = Math.max(0, Math.ceil((MIN_TOUCH_TARGET - minHeight) / 2));
+  const hitSlop = resolveHitSlop(minHeight);
 
   const palette = resolveVariantPalette(theme, variant, pressed);
 
