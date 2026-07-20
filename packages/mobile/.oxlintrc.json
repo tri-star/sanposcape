@@ -7,6 +7,7 @@
   },
   "ignorePatterns": [
     "src/api/generated/**",
+    "src/theme/generated/**",
     "dist/**",
     ".expo/**",
     "node_modules/**"

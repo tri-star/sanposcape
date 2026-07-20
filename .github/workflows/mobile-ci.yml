@@ -43,5 +43,8 @@ jobs:
       - name: Format check (oxfmt)
         run: pnpm --filter mobile format:check
 
+      - name: Design token drift check
+        run: pnpm --filter mobile design:tokens:check
+
       - name: Unit tests (Vitest)
         run: pnpm --filter mobile test
