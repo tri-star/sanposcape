@@ -43,6 +43,7 @@
     "orval": "^8.22.0",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.74.0",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.3",
     "vitest": "^4.1.10"
   },
@@ -53,12 +54,14 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "orval": "orval --config ./orval.config.ts",
+    "design:tokens": "tsx scripts/generate-tokens.ts",
+    "design:tokens:check": "tsx scripts/generate-tokens.ts && git diff --exit-code -- src/theme/generated",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
-    "format": "oxfmt src app index.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts",
-    "format:check": "oxfmt --check src app index.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts"
+    "format": "oxfmt src app scripts index.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts",
+    "format:check": "oxfmt --check src app scripts index.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts"
   },
   "private": true
 }

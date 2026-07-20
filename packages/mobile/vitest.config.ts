@@ -12,7 +12,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     exclude: ["src/api/generated/**", "node_modules/**"],
   },
   resolve: {
