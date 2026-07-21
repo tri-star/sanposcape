@@ -1,8 +1,8 @@
 /**
  * アプリのエントリポイント。
- * Expo Router を読み込む前に Unistyles の設定を初期化する必要があるため、
- * expo-router/entry ではなくこのファイルを main に指定している。
+ *
+ * 現状は Expo Router を読み込むだけだが、起動前に初期化が必要な処理
+ * （ポリフィル・計測の初期化など）を差し込めるよう `package.json` の
+ * `main` はこのファイルを指したままにしている。
  */
-import "./src/theme/unistyles";
-
 import "expo-router/entry";
