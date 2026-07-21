@@ -1,0 +1,1 @@
+- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__` と globalThis の型、Rules of Hooks(早期return)
