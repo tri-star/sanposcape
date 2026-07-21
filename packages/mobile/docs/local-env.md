@@ -11,7 +11,7 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 ## 重要: Expo Go ではなく development build を使う
 
-本アプリは **Unistyles v3** と **react-native-maps** という **ネイティブモジュール**を利用する。
+本アプリは **react-native-maps** と **react-native-svg**（アイコン描画）という **ネイティブモジュール**を利用する。
 これらは **Expo Go では動作しない**ため、動作確認には Expo の **development build**（dev client）が必要。
 
 - Expo 公式でも、ネイティブモジュールを使うアプリは development build が推奨されている。
@@ -130,4 +130,4 @@ maestro test packages/mobile/.maestro/
 
 - サーバー状態: TanStack Query（`src/api/generated` の生成 hook を利用）
 - クライアント状態: Zustand（`src/store`）
-- スタイル: Unistyles（`src/theme`。エントリ `index.ts` で初期化）
+- スタイル: RN の `StyleSheet` + テーマ Context（`src/theme`。`app/_layout.tsx` の `ThemeProvider` で配布）

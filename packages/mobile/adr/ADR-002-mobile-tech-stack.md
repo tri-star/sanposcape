@@ -4,6 +4,10 @@
 
 2026-07-19
 
+## ステータス
+
+一部を置き換え済み。**スタイルの決定（react-native-unistyles）は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤回**した。状態管理・地図・API クライアントの決定は有効。
+
 ## コンテキスト
 
 [ADR-001](./ADR-001-folder-structure.md) でフォルダ構造を決めた際、スタイルライブラリは「未定」、状態管理も未確定だった。実装を始めるにあたり以下を確定する必要がある。
@@ -111,5 +115,6 @@
 - [ADR-001: フォルダ構造](./ADR-001-folder-structure.md)
 - [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
+- [ADR-005: スタイルは Unistyles をやめる](./ADR-005-styling-without-unistyles.md)
 - [ツール・ライブラリ](../docs/toolsets-libraries.md) / [フォルダ構造](../docs/folder-structure.md)
 - [ADR-001(横断): 地図・POI に Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)

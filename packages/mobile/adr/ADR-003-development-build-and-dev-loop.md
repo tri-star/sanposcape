@@ -9,6 +9,8 @@
 当初、mobile の動作確認は **Expo Go** で行う想定だった（`expo start` → Expo Go アプリで確認）。しかし技術スタック確定後、次が判明した。
 
 - **Unistyles v3** は Nitro（ネイティブ C++/JSI）に依存し、**Expo Go では動作しない**。
+  （※ Unistyles は後に [ADR-005](./ADR-005-styling-without-unistyles.md) で撤去したが、`react-native-maps` と
+  アイコン描画の `react-native-svg` がネイティブモジュールのため、**本 ADR の結論は変わらない**。）
 - **react-native-maps** もネイティブモジュールで、**Expo Go では動作しない**。
 
 つまり本アプリは、スタイルと地図という中核の2要素がいずれもネイティブ依存であり、**Expo Go では成立しない**。動作確認の方法を決め直す必要がある。同時に「Expo Go のような手軽な HMR 体験を失いたくない」という要望がある。
@@ -23,7 +25,7 @@
   2. 以降は **`expo start --dev-client`** で Metro に接続し、**Fast Refresh** で JS/スタイル/ロジックを即時反映（＝Expo Go 同等の体験）。
   3. **再ビルドが必要なのはネイティブが変わるときだけ**（native 依存の追加/削除・`app.json` のネイティブ設定・config plugin・SDK 更新）。JS のみの変更では再ビルド不要。
 - WSL2 上の Metro に端末を到達させる: 実機は `adb reverse tcp:8081 tcp:8081`、難しい場合は `expo start --dev-client --tunnel`。
-- エントリは `index.ts`（`expo-router/entry` の前に Unistyles を初期化する必要があるため）。
+- エントリは `index.ts`（Unistyles 撤去後は起動前処理の差し込み口として残している。[ADR-005](./ADR-005-styling-without-unistyles.md)）。
 
 ## 検討した選択肢
 
@@ -75,4 +77,5 @@
 
 - [ADR-002: モバイル技術スタック](./ADR-002-mobile-tech-stack.md)
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
+- [ADR-005: スタイルは Unistyles をやめる](./ADR-005-styling-without-unistyles.md)
 - [mobile ローカル環境構築手順](../docs/local-env.md)
