@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, type StyleProp, Text, type ViewStyle } from "react-native";
+import { Pressable, type StyleProp, Text, View, type ViewStyle } from "react-native";
 
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import { hitSlopFor } from "@/lib/hitSlop";
@@ -17,6 +17,12 @@ export type TagProps = {
   icon?: IconName;
   category?: TagCategory;
   selected?: boolean;
+  /**
+   * 省略した場合は静的なラベルとして描画する（スポットのカテゴリ表示など）。
+   * このとき `Pressable` を使わず `accessibilityRole` も付けないため、
+   * 「押せるように見えて何も起きない」状態にはならない。
+   * disabled（＝今は利用できない）とは別物なので、そちらの表現には使わないこと。
+   */
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -41,6 +47,27 @@ export function Tag({
   const categoryColor = category === "neutral" ? theme.colors.textSecondary : theme.map[category];
   const foreground = selected ? theme.colors.onColor : theme.colors.textPrimary;
 
+  const surface = {
+    backgroundColor: selected ? categoryColor : theme.colors.surfaceCard,
+    borderColor: selected ? "transparent" : theme.colors.borderSubtle,
+  };
+
+  const content = (
+    <>
+      {icon ? <Icon name={icon} size={14} color={selected ? foreground : categoryColor} /> : null}
+      <Text style={[styles.label, { color: foreground }]}>{children}</Text>
+    </>
+  );
+
+  // 押せないタグをボタンとして露出させないため、onPress の有無で要素ごと切り替える。
+  if (!onPress) {
+    return (
+      <View testID={testID} style={[styles.base, surface, style]}>
+        {content}
+      </View>
+    );
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -48,18 +75,9 @@ export function Tag({
       onPress={onPress}
       testID={testID}
       hitSlop={hitSlopFor(TAG_HEIGHT)}
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: selected ? categoryColor : theme.colors.surfaceCard,
-          borderColor: selected ? "transparent" : theme.colors.borderSubtle,
-          opacity: pressed ? 0.85 : 1,
-        },
-        style,
-      ]}
+      style={({ pressed }) => [styles.base, surface, { opacity: pressed ? 0.85 : 1 }, style]}
     >
-      {icon ? <Icon name={icon} size={14} color={selected ? foreground : categoryColor} /> : null}
-      <Text style={[styles.label, { color: foreground }]}>{children}</Text>
+      {content}
     </Pressable>
   );
 }

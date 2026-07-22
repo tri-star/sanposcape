@@ -20,7 +20,12 @@ export type ButtonProps = {
   disabled?: boolean;
   /** `pill`（既定）は完全な角丸、`rounded` は `--radius-md`。 */
   shape?: "pill" | "rounded";
-  onPress?: () => void;
+  /**
+   * 必須。省略できると「操作できるように見えて何も起きない」ボタンを作れてしまうため
+   * （押下フィードバックは出るのに何も起きず、スクリーンリーダーにも有効なボタンとして露出する）。
+   * 一時的に無効化したい場合は `disabled` を使う。
+   */
+  onPress: () => void;
   style?: StyleProp<ViewStyle>;
   /** E2E / テスト用のラベル。 */
   testID?: string;

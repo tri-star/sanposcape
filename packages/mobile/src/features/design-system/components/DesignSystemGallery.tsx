@@ -33,6 +33,21 @@ const PERIOD_ITEMS = [
   { label: "1ヶ月", value: "month" },
 ] as const;
 
+const TAG_ITEMS = [
+  { label: "公園", category: "park", icon: "trees" },
+  { label: "カフェ", category: "cafe", icon: "coffee" },
+  { label: "施設", category: "culture", icon: "landmark" },
+  { label: "駅", category: "station", icon: "train-front" },
+] as const;
+
+const SPOT_FILTERS = ["コンビニ", "スーパー", "公園", "駅"] as const;
+
+/**
+ * 見た目の確認だけが目的で、押しても何も起きないのが正しいコントロール用。
+ * プロダクトのコードでは使わないこと（ハンドラを必須にしている意味が無くなる）。
+ */
+const noop = () => {};
+
 /**
  * デザインシステムの一覧。取り込んだトークンとUIプリミティブを実機で確認するための画面。
  * 画面フローが実装されるまでの動作確認用で、プロダクトの画面ではない。
@@ -46,6 +61,13 @@ export function DesignSystemGallery() {
   const [tab, setTab] = useState<(typeof TAB_ITEMS)[number]["value"]>("nav");
   const [period, setPeriod] = useState<(typeof PERIOD_ITEMS)[number]["value"]>("week");
   const [checked, setChecked] = useState(true);
+  const [stationChecked, setStationChecked] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string>("公園");
+  const [visibleSpots, setVisibleSpots] = useState<readonly string[]>([
+    "コンビニ",
+    "スーパー",
+    "公園",
+  ]);
   const [name, setName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -103,11 +125,12 @@ export function DesignSystemGallery() {
 
         <Section title="IconButton">
           <Row>
-            <IconButton icon="crosshair" label="現在地" />
-            <IconButton icon="settings-2" label="設定" variant="tinted" />
-            <IconButton icon="footprints" label="ナビ" variant="filled" />
-            <IconButton icon="x" label="閉じる" variant="ghost" />
-            <IconButton icon="crosshair" label="現在地(小)" size="sm" />
+            <IconButton icon="crosshair" label="現在地" onPress={noop} />
+            <IconButton icon="settings-2" label="設定" variant="tinted" onPress={noop} />
+            <IconButton icon="footprints" label="ナビ" variant="filled" onPress={noop} />
+            <IconButton icon="x" label="閉じる" variant="ghost" onPress={noop} />
+            <IconButton icon="crosshair" label="現在地(小)" size="sm" onPress={noop} />
+            <IconButton icon="plus" label="追加(無効)" disabled onPress={noop} />
           </Row>
         </Section>
 
@@ -120,17 +143,22 @@ export function DesignSystemGallery() {
             <Badge tone="neutral">下書き</Badge>
           </Row>
           <Row>
-            <Tag category="park" icon="trees" selected>
-              公園
-            </Tag>
-            <Tag category="cafe" icon="coffee">
-              カフェ
-            </Tag>
-            <Tag category="culture" icon="landmark">
-              施設
-            </Tag>
-            <Tag category="station" icon="train-front">
-              駅
+            {TAG_ITEMS.map((item) => (
+              <Tag
+                key={item.label}
+                category={item.category}
+                icon={item.icon}
+                selected={selectedTag === item.label}
+                onPress={() => setSelectedTag(item.label)}
+              >
+                {item.label}
+              </Tag>
+            ))}
+          </Row>
+          {/* onPress を渡さない静的なタグ（Pressable を使わず role も付かない） */}
+          <Row>
+            <Tag category="park" icon="trees">
+              静的タグ
             </Tag>
           </Row>
         </Section>
@@ -168,8 +196,8 @@ export function DesignSystemGallery() {
           <Input label="タグ" placeholder="タグを追加" icon="tag" error="同じタグがあります" />
           <Row>
             <Checkbox label="公園" checked={checked} onChange={setChecked} />
-            <Checkbox label="駅" checked={false} />
-            <Checkbox label="施設" checked disabled />
+            <Checkbox label="駅" checked={stationChecked} onChange={setStationChecked} />
+            <Checkbox label="施設" checked disabled onChange={noop} />
           </Row>
         </Section>
 
@@ -228,12 +256,20 @@ export function DesignSystemGallery() {
       </Dialog>
 
       <BottomSheet open={sheetOpen} title="表示するスポット" onClose={() => setSheetOpen(false)}>
-        <Checkbox label="コンビニ" checked />
-        <Checkbox label="スーパー" checked />
-        <Checkbox label="公園" checked />
-        <Checkbox label="駅" />
+        {SPOT_FILTERS.map((spot) => (
+          <Checkbox
+            key={spot}
+            label={spot}
+            checked={visibleSpots.includes(spot)}
+            onChange={(next) =>
+              setVisibleSpots((prev) =>
+                next ? [...prev, spot] : prev.filter((item) => item !== spot),
+              )
+            }
+          />
+        ))}
         <Button fullWidth onPress={() => setSheetOpen(false)}>
-          5件のスポットを表示
+          {visibleSpots.length}件のスポットを表示
         </Button>
       </BottomSheet>
     </View>

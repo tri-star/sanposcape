@@ -14,7 +14,11 @@ export type TabItem<T extends string = string> = {
 export type TabsProps<T extends string = string> = {
   items: readonly TabItem<T>[];
   value: T;
-  onChange?: (value: T) => void;
+  /**
+   * 必須。省略できると「切り替えられるように見えて何も起きない」タブを作れてしまうため。
+   * 読み取り専用の表示が必要になったら、ハンドラの有無から推論せず専用の prop を足す。
+   */
+  onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -41,7 +45,7 @@ export function Tabs<T extends string = string>({
             key={item.value}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
-            onPress={() => onChange?.(item.value)}
+            onPress={() => onChange(item.value)}
             hitSlop={hitSlopFor(TAB_HEIGHT)}
             style={({ pressed }) => [
               styles.item,

@@ -10,7 +10,11 @@ const BOX_SIZE = 22;
 
 export type CheckboxProps = {
   checked?: boolean;
-  onChange?: (checked: boolean) => void;
+  /**
+   * 必須。省略できると「切り替えられるように見えて状態が変わらない」チェックボックスを
+   * 作れてしまうため。読み取り専用にしたい場合は `disabled` を明示する。
+   */
+  onChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
   /** label を省略する場合に指定する。スクリーンリーダー用。 */
@@ -41,7 +45,7 @@ export function Checkbox({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ checked, disabled }}
       disabled={disabled}
-      onPress={() => onChange?.(!checked)}
+      onPress={() => onChange(!checked)}
       testID={testID}
       hitSlop={hitSlopFor(BOX_SIZE)}
       style={[styles.root, disabled ? styles.disabled : null, style]}

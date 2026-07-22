@@ -17,7 +17,11 @@ export type IconButtonProps = {
   /** 選択中（トグル）状態。true のとき primary で塗る。 */
   active?: boolean;
   disabled?: boolean;
-  onPress?: () => void;
+  /**
+   * 必須。省略できると「操作できるように見えて何も起きない」ボタンを作れてしまうため。
+   * 一時的に無効化したい場合は `disabled` を使う。
+   */
+  onPress: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };

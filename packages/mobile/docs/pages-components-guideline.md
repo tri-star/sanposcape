@@ -68,6 +68,14 @@ ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
    使いたいアイコンが無ければ `src/components/ui/icon/iconRegistry.ts` に1行追加する。**絵文字は使わない**。
 6. **`accessibilityRole` / `accessibilityLabel` / `accessibilityState` を必ず設定する**。
 7. **`testID` を prop で受け取れるようにする**（Maestro の E2E 用）。
+8. **操作ハンドラ（`onPress` / `onChange`）は必須にする**。optional にすると
+   「押せるように見えて何も起きない」コントロールを作れてしまい、押下フィードバックも出るうえ
+   スクリーンリーダーにも有効なコントロールとして露出する。
+   - 一時的に操作させたくないだけなら `disabled` を明示的に渡す。
+     **ハンドラの有無から disabled を推論しない**（呼び出し側から挙動が見えなくなるため）。
+   - Tag のように「静的な表示」が正当な用途としてある場合のみ optional にしてよい。
+     その場合は disabled ではなく、`Pressable` を使わず `accessibilityRole` も付けない
+     **非インタラクティブな要素として描画する**（disabled は「今は利用できない」の意味なので別物）。
 
 ### テストの書き方（RN の render テストは書けない）
 

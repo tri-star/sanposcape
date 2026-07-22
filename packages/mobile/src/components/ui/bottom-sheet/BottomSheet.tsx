@@ -28,9 +28,19 @@ export function BottomSheet({ open, title, children, onClose, testID }: BottomSh
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable accessibilityLabel="閉じる" style={styles.scrim} onPress={onClose} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="閉じる"
+        style={styles.scrim}
+        onPress={onClose}
+      />
       <View testID={testID} style={[styles.panel, { paddingBottom: insets.bottom + 24 }]}>
-        <Pressable accessibilityLabel="閉じる" onPress={onClose} style={styles.handleHitArea}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="閉じる"
+          onPress={onClose}
+          style={styles.handleHitArea}
+        >
           <View style={styles.handle} />
         </Pressable>
         {title ? <Text style={styles.title}>{title}</Text> : null}

@@ -7,7 +7,11 @@ import { useTheme } from "@/theme/useTheme";
 
 export type SwitchProps = {
   checked?: boolean;
-  onChange?: (checked: boolean) => void;
+  /**
+   * 必須。省略できると「切り替えられるように見えて状態が変わらない」スイッチを
+   * 作れてしまうため。読み取り専用にしたい場合は `disabled` を明示する。
+   */
+  onChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
   /** label を省略する場合に指定する。スクリーンリーダー用。 */
@@ -58,7 +62,7 @@ export function Switch({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ checked, disabled }}
       disabled={disabled}
-      onPress={() => onChange?.(!checked)}
+      onPress={() => onChange(!checked)}
       testID={testID}
       hitSlop={hitSlopFor(TRACK_HEIGHT)}
       style={[styles.root, disabled ? styles.disabled : null, style]}

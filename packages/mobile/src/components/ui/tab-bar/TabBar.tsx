@@ -13,7 +13,10 @@ export type TabBarItem<T extends string = string> = {
 export type TabBarProps<T extends string = string> = {
   items: readonly TabBarItem<T>[];
   value: T;
-  onChange?: (value: T) => void;
+  /**
+   * 必須。省略できると「切り替えられるように見えて何も起きない」タブを作れてしまうため。
+   */
+  onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -42,7 +45,7 @@ export function TabBar<T extends string = string>({
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={item.label}
-            onPress={() => onChange?.(item.value)}
+            onPress={() => onChange(item.value)}
             style={styles.item}
           >
             <View style={[styles.iconCircle, active ? styles.iconCircleActive : null]}>
