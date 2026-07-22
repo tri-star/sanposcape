@@ -39,7 +39,7 @@ export function Tag({
   const styles = useStyles();
 
   const categoryColor = category === "neutral" ? theme.colors.textSecondary : theme.map[category];
-  const foreground = selected ? "#ffffff" : theme.colors.textPrimary;
+  const foreground = selected ? theme.colors.onColor : theme.colors.textPrimary;
 
   return (
     <Pressable
@@ -58,7 +58,7 @@ export function Tag({
         style,
       ]}
     >
-      {icon ? <Icon name={icon} size={14} color={selected ? "#ffffff" : categoryColor} /> : null}
+      {icon ? <Icon name={icon} size={14} color={selected ? foreground : categoryColor} /> : null}
       <Text style={[styles.label, { color: foreground }]}>{children}</Text>
     </Pressable>
   );

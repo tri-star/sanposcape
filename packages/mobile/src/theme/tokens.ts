@@ -191,7 +191,6 @@ export type ThemeColors = {
   textSecondary: string;
   textTertiary: string;
   textDisabled: string;
-  textOnPrimary: string;
   /** surfaceInverse の上に載せる文字色（Toast など）。 */
   textOnInverse: string;
   textLink: string;
@@ -204,7 +203,17 @@ export type ThemeColors = {
   primaryHover: string;
   primaryPress: string;
   primaryTint: string;
+  /**
+   * `primary` の面に載せるコンテンツ色。
+   * ダークでは primary 自体が明るい青になるため、near-black になる点に注意
+   * （`onColor` と取り違えないこと）。
+   */
   onPrimary: string;
+  /**
+   * primary 以外の彩度の高い面（danger / success / 地図カテゴリ色）に載せるコンテンツ色。
+   * これらの面はライト/ダークどちらでも十分に濃い色なので、両テーマとも白で固定する。
+   */
+  onColor: string;
 
   accent: string;
   accentHover: string;
@@ -284,7 +293,6 @@ const lightColors: ThemeColors = {
   textSecondary: palette.ink500,
   textTertiary: palette.ink400,
   textDisabled: palette.ink300,
-  textOnPrimary: palette.white,
   textOnInverse: palette.white,
   textLink: palette.blue600,
 
@@ -297,6 +305,7 @@ const lightColors: ThemeColors = {
   primaryPress: palette.blue900,
   primaryTint: palette.blue100,
   onPrimary: palette.white,
+  onColor: palette.white,
 
   accent: palette.orange500,
   accentHover: palette.orange600,
@@ -334,7 +343,6 @@ const darkColors: ThemeColors = {
   textSecondary: "#9fb0c2",
   textTertiary: "#7d8da0",
   textDisabled: "#4d5a6b",
-  textOnPrimary: "#ffffff",
   textOnInverse: "#0f1621",
   textLink: "#6fb2ff",
 
@@ -347,6 +355,7 @@ const darkColors: ThemeColors = {
   primaryPress: "#90c6fd",
   primaryTint: "#14304f",
   onPrimary: "#06121f",
+  onColor: "#ffffff",
 
   accent: "#f89e57",
   accentHover: "#ffb173",

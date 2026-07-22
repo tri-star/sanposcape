@@ -52,6 +52,14 @@ describe("themes", () => {
   it("地図カテゴリの色がライトとダークの両方で定義されている", () => {
     expect(Object.keys(darkTheme.map).sort()).toEqual(Object.keys(lightTheme.map).sort());
   });
+
+  it("onColor は彩度の高い面に載せる色なので両テーマとも白", () => {
+    // primary の面に載せる onPrimary と役割が違う。混同すると
+    // ダークで primary(明るい青) の上に白文字が乗りコントラストが落ちる。
+    expect(lightTheme.colors.onColor).toBe("#ffffff");
+    expect(darkTheme.colors.onColor).toBe("#ffffff");
+    expect(darkTheme.colors.onPrimary).not.toBe(darkTheme.colors.onColor);
+  });
 });
 
 describe("タイポグラフィの換算", () => {

@@ -25,6 +25,11 @@ export type IconButtonProps = {
 const BOX_SIZE: Record<IconButtonSize, number> = { sm: 32, md: 44, lg: 54 };
 const ICON_SIZE: Record<IconButtonSize, number> = { sm: 16, md: 20, lg: 22 };
 
+/**
+ * 状態の優先順位は disabled → active → pressed → variant。
+ * disabled を最優先にしないと「押せないのに有効に見える」状態が生まれ、
+ * active より pressed を後に見ないとトグル選択中の押下フィードバックが消える。
+ */
 function resolveColors(
   theme: Theme,
   variant: IconButtonVariant,
@@ -32,7 +37,20 @@ function resolveColors(
 ): { background: string; foreground: string } {
   const { colors } = theme;
 
-  if (state.active) return { background: colors.primary, foreground: colors.onPrimary };
+  // Button と同じく、無効時は面を落として「押せない」ことを色でも示す。
+  if (state.disabled) {
+    return {
+      background: variant === "ghost" ? "transparent" : colors.disabledSurface,
+      foreground: colors.textDisabled,
+    };
+  }
+
+  if (state.active) {
+    return {
+      background: state.pressed ? colors.primaryPress : colors.primary,
+      foreground: colors.onPrimary,
+    };
+  }
 
   const base: Record<IconButtonVariant, { background: string; foreground: string }> = {
     filled: { background: colors.primary, foreground: colors.onPrimary },
@@ -42,8 +60,12 @@ function resolveColors(
   };
 
   const resolved = base[variant];
-  if (state.disabled) return { background: resolved.background, foreground: colors.textDisabled };
-  if (state.pressed) return { background: colors.neutralPress, foreground: resolved.foreground };
+  if (state.pressed) {
+    return {
+      background: variant === "filled" ? colors.primaryPress : colors.neutralPress,
+      foreground: resolved.foreground,
+    };
+  }
   return resolved;
 }
 
@@ -85,8 +107,9 @@ export function IconButton({
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: c.background,
+            transform: [{ scale: pressed && !disabled ? 0.97 : 1 }],
           },
-          variant === "surface" ? theme.shadows.sm : null,
+          variant === "surface" && !disabled ? theme.shadows.sm : null,
           style,
         ];
       }}

@@ -101,7 +101,8 @@ const useStyles = makeStyles((theme) => ({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
-    backgroundColor: "#ffffff",
+    // ON(primary) / OFF(trackStrong) どちらのトラック上でも見えるよう、両テーマで白固定。
+    backgroundColor: theme.colors.onColor,
     ...theme.shadows.xs,
   },
 }));

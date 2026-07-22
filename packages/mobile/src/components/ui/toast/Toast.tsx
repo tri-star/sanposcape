@@ -43,8 +43,8 @@ export function Toast({ message, tone = "default", visible = true, style, testID
 
   const toneStyle: Record<ToastTone, { background: string; foreground: string }> = {
     default: { background: theme.colors.surfaceInverse, foreground: theme.colors.textOnInverse },
-    success: { background: theme.colors.success, foreground: "#ffffff" },
-    danger: { background: theme.colors.danger, foreground: "#ffffff" },
+    success: { background: theme.colors.success, foreground: theme.colors.onColor },
+    danger: { background: theme.colors.danger, foreground: theme.colors.onColor },
   };
   const { background, foreground } = toneStyle[tone];
 

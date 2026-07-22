@@ -1,6 +1,10 @@
 import { Pressable, type StyleProp, Text, View, type ViewStyle } from "react-native";
 
+import { hitSlopFor } from "@/lib/hitSlop";
 import { makeStyles } from "@/theme/makeStyles";
+
+/** paddingVertical(8*2) + 本文の行高(約18) の実測に基づく概算。 */
+const TAB_HEIGHT = 34;
 
 export type TabItem<T extends string = string> = {
   label: string;
@@ -38,7 +42,12 @@ export function Tabs<T extends string = string>({
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             onPress={() => onChange?.(item.value)}
-            style={[styles.item, active ? styles.itemActive : null]}
+            hitSlop={hitSlopFor(TAB_HEIGHT)}
+            style={({ pressed }) => [
+              styles.item,
+              active ? styles.itemActive : null,
+              pressed ? styles.itemPressed : null,
+            ]}
           >
             <Text style={[styles.label, active ? styles.labelActive : null]}>{item.label}</Text>
           </Pressable>
@@ -65,6 +74,10 @@ const useStyles = makeStyles((theme) => ({
   itemActive: {
     backgroundColor: theme.colors.surfaceCard,
     ...theme.shadows.sm,
+  },
+  itemPressed: {
+    backgroundColor: theme.colors.neutralPress,
+    transform: [{ scale: 0.97 }],
   },
   label: {
     fontSize: theme.typography.size.sm,

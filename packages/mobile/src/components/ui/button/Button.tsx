@@ -84,7 +84,7 @@ function resolveColors(
     case "danger":
       return {
         background: state.pressed ? colors.dangerPress : colors.danger,
-        foreground: "#ffffff",
+        foreground: colors.onColor,
         borderColor: "transparent",
         borderWidth: 0,
       };

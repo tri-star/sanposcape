@@ -15,6 +15,8 @@ export type InputProps = {
   helper?: string;
   error?: string;
   icon?: IconName;
+  /** label を省略する場合に指定する。スクリーンリーダー用。 */
+  accessibilityLabel?: string;
   size?: "sm" | "md";
   disabled?: boolean;
   /** 複数行入力（メモ・コメント欄）。 */
@@ -37,6 +39,7 @@ export function Input({
   helper,
   error,
   icon,
+  accessibilityLabel,
   size = "md",
   disabled = false,
   multiline = false,
@@ -72,6 +75,10 @@ export function Input({
         {icon ? <Icon name={icon} size={18} color={theme.colors.textTertiary} /> : null}
         <TextInput
           testID={testID}
+          // label は見た目のテキストでしかないため、読み上げ用に明示的に結び付ける。
+          accessibilityLabel={accessibilityLabel ?? label}
+          accessibilityHint={error || helper || undefined}
+          accessibilityState={{ disabled }}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -83,8 +90,12 @@ export function Input({
           style={[styles.input, multiline ? styles.inputMultiline : null]}
         />
       </View>
+      {/*
+        `error` は「エラー無し」を空文字で返すバリデーションもあるため、
+        表示条件と本文の判定を truthy で揃える（`??` だと空文字が helper を上書きしてしまう）。
+      */}
       {error || helper ? (
-        <Text style={[styles.helper, error ? styles.helperError : null]}>{error ?? helper}</Text>
+        <Text style={[styles.helper, error ? styles.helperError : null]}>{error || helper}</Text>
       ) : null}
     </View>
   );

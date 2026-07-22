@@ -37,6 +37,9 @@ const useStyles = makeStyles((theme) => ({
 - 押下状態など、レンダリング中に値が決まるものは `useTheme()` で `theme` を直接読み、インラインスタイルで合成する。
 - `theme.colors` は用途名（`surfaceCard` / `textSecondary` など）。`theme.palette` は生のカラーランプで、
   用途名で表現できないときの最後の手段。
+- **色付きの面に載せる文字・アイコンの色は2種類あるので取り違えないこと**。
+  - `onPrimary` … `primary` の面の上（ダークでは primary が明るい青になるため near-black になる）
+  - `onColor` … `danger` / `success` / 地図カテゴリ色など、primary 以外の彩度の高い面の上（両テーマとも白）
 - 地図のカテゴリ色は `theme.map`（`park` / `cafe` / `culture` / `station` …）を使う。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
   `lineHeight()` / `letterSpacing()` で px に換算して指定する。
@@ -56,7 +59,7 @@ ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
    でも表現できないケースのみ）。
 2. **タップ領域は最低 44×44 を確保する**。見た目が 44px 未満のコントロールは
    `hitSlopFor(見た目のサイズ)`（`src/lib/hitSlop.ts`）で不足分を補う。
-   適用済み: Button(sm=34) / IconButton(sm=32) / Switch(26) / Checkbox(22) / Tag(36)。
+   適用済み: Button(sm=34) / IconButton(sm=32) / Switch(26) / Checkbox(22) / Tag(36) / Tabs(34)。
 3. **押下フィードバックは `scale: 0.97` + 色変化**で表現する。Web 由来のフォーカスリングは持ち込まない。
 4. **角丸の規律**: コントロール `radius.md`(14) / カード `radius.lg`(20) / ヒーロー・シート `radius.xl`(28) /
    ボタン・タグ・バッジは常に `radius.pill`。**4px 未満の角丸は作らない**（`radius.xs`=6 が下限）。

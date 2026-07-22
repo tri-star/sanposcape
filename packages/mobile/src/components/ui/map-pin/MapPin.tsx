@@ -63,7 +63,7 @@ export function MapPin({ category = "cafe", icon, label, size = 40, style, testI
           <Icon
             name={icon ?? DEFAULT_ICON[category]}
             size={Math.round(size * 0.42)}
-            color="#ffffff"
+            color={theme.colors.onColor}
             strokeWidth={2.4}
           />
         </View>

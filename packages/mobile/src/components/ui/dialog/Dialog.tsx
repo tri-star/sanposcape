@@ -29,16 +29,31 @@ export function Dialog({ open, title, children, onClose, actions, testID }: Dial
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable accessibilityLabel="閉じる" style={styles.scrim} onPress={onClose}>
-        {/* 中身のタップでは閉じない */}
-        <Pressable testID={testID} style={styles.panel} onPress={() => {}}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="閉じる"
+        style={styles.scrim}
+        onPress={onClose}
+      >
+        {/*
+          中身のタップではスクリムに伝播させない。
+          Pressable にすると本体が1つのボタンとしてアクセシビリティツリーに露出し、
+          iOS では子要素（タイトル・本文・アクション）が読み上げから到達できなくなるため、
+          View + responder で伝播だけを止める。
+        */}
+        <View
+          testID={testID}
+          accessibilityViewIsModal
+          onStartShouldSetResponder={() => true}
+          style={styles.panel}
+        >
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <IconButton icon="x" label="閉じる" variant="ghost" size="sm" onPress={onClose} />
           </View>
           {children ? <View style={styles.body}>{children}</View> : null}
           {actions ? <View style={styles.actions}>{actions}</View> : null}
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );

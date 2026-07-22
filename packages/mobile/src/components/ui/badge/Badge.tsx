@@ -27,7 +27,7 @@ export function Badge({ children, tone = "info", dot = false, style, testID }: B
   const tones: Record<BadgeTone, { background: string; foreground: string }> = {
     info: { background: theme.colors.infoTint, foreground: theme.colors.info },
     success: { background: theme.colors.successTint, foreground: theme.colors.success },
-    warning: { background: theme.colors.warningTint, foreground: theme.colors.accentHover },
+    warning: { background: theme.colors.warningTint, foreground: theme.colors.warning },
     danger: { background: theme.colors.dangerTint, foreground: theme.colors.danger },
     neutral: { background: theme.colors.trackSubtle, foreground: theme.colors.textSecondary },
   };
