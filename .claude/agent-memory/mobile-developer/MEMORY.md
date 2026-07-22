@@ -1,0 +1,3 @@
+- [tsx CLI EPERM in sandbox](sandbox-tsx-cli-workaround.md) — `tsx <file>` fails on IPC socket in this sandbox; use `pnpm --filter <pkg> exec node --import tsx <file>` to verify locally instead.
+- [Mobile docs map mismatch](docs-map-mismatch.md) — troubleshoot table lives in `app-startup-guide.md`, not `local-env.md`.
+- [Sandbox format:check stray files](sandbox-format-check-stray-files.md) — run `oxfmt --check` on specific changed files when the full script chokes on stray `.mcp.json`/`.claude/` files.

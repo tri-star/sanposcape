@@ -7,7 +7,7 @@
 - この構成の要点:
   - **エミュレータ / adb は Windows 側**、**Expo CLI / Metro は WSL2 側**で動かす。
   - Expo は WSL 側に Android SDK が無いため、`adb` 操作（reverse・起動）は**自分たちで手動実行**する。
-  - Unistyles / react-native-maps を使うため **Expo Go は不可**（development build 必須）。
+  - react-native-maps / react-native-svg を使うため **Expo Go は不可**（development build 必須）。
 
 ---
 

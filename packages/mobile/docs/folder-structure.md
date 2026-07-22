@@ -47,7 +47,7 @@ packages/mobile/
 │   ├── lib/                  # 汎用ユーティリティ（純粋関数中心＝テスト容易）
 │   ├── config/              # 環境変数の読み取り・定数
 │   ├── store/               # Zustand ストア（横断的なクライアント状態）
-│   ├── theme/               # Unistyles のデザイントークン・テーマ定義
+│   ├── theme/               # デザイントークン・テーマ定義（StyleSheet + Context）
 │   └── types/               # 横断的な型定義
 │
 ├── assets/                   # 画像・フォント等の静的アセット
@@ -103,7 +103,7 @@ packages/mobile/
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
-- `src/theme/`: Unistyles のデザイントークン（primitive / semantic）とテーマ定義。スタイルは各コンポーネントで `StyleSheet`（Unistyles）を通してテーマトークンを参照する。
+- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け
