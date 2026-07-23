@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/tokens/base.css">
+  <link rel="stylesheet" href="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/styles.css">
+  <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+  <script src="_ds/sanpo-design-system-ea6ab024-4c09-45b2-94f5-0a6a0315a88d/_ds_bundle.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:#e7ecf1;font-family:"Noto Sans","Noto Sans JP",system-ui,sans-serif}
+    .sanpo-scroll::-webkit-scrollbar{width:0;height:0}
+    .sanpo-scroll{scrollbar-width:none}
+    .sanpo-range{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:999px;outline:none}
+    .sanpo-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;background:var(--primary);border:3px solid #fff;box-shadow:0 2px 8px rgba(27,36,48,.28);cursor:pointer;margin-top:-10px}
+    .sanpo-range::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:var(--primary);border:3px solid #fff;box-shadow:0 2px 8px rgba(27,36,48,.28);cursor:pointer}
+    @keyframes sanpo-confetti{0%{transform:translateY(-24px) rotate(0);opacity:0}12%{opacity:1}100%{transform:translateY(560px) rotate(760deg);opacity:0}}
+    @keyframes sanpo-pop{0%{transform:scale(.3);opacity:0}62%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+    @keyframes sanpo-rise{0%{transform:translateY(14px);opacity:0}100%{transform:translateY(0);opacity:1}}
+    @keyframes sanpo-fade{from{opacity:0}to{opacity:1}}
+    @keyframes sanpo-toast{0%{transform:translate(-50%,20px);opacity:0}100%{transform:translate(-50%,0);opacity:1}}
+    @keyframes sanpo-bar{from{transform:scaleY(.02)}to{transform:scaleY(1)}}
+  </style>
+</helmet>
+
+<div style="min-height:100vh;width:100%;display:flex;justify-content:center;align-items:flex-start;gap:34px;padding:40px 32px 80px;background:radial-gradient(1200px 600px at 30% -10%, #f2f6fb, #e2e8ef)">
+
+  <!-- ============ SCREEN NAVIGATOR ============ -->
+  <div style="position:sticky;top:40px;width:224px;flex:none;display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:'M PLUS Rounded 1c','Noto Sans JP',sans-serif;font-weight:800;font-size:26px;color:#1585fe;letter-spacing:-.01em;margin-bottom:2px">Sanpo</div>
+    <div style="font-size:12px;color:#6b7684;margin-bottom:16px;line-height:1.5">ウォーキングコース検索アプリ<br>プロトタイプ</div>
+    <div style="font-size:11px;font-weight:700;color:#8a94a0;letter-spacing:.06em;padding:0 4px 4px">画面を選ぶ</div>
+    <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="8">
+      <button onClick="{{ n.onClick }}" style="{{ n.style }}">
+        <span style="width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:none;background:{{ n.badgeBg }};color:{{ n.badgeColor }}">{{ n.num }}</span>
+        <span>{{ n.label }}</span>
+      </button>
+    </sc-for>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:12px 14px;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(27,36,48,.06)">
+      <span style="font-size:13px;color:#3a4453;font-weight:600">ダークモード</span>
+      <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Switch" checked="{{ dark }}" onChange="{{ onToggleDark }}" hint-size="46px,28px"></x-import>
+    </div>
+    <div style="font-size:11px;color:#9aa3ad;line-height:1.6;margin-top:14px;padding:0 4px">端末内のボタンやタブも実際に動きます。左のリストで各画面へ直接ジャンプできます。</div>
+  </div>
+
+  <!-- ============ PHONE FRAME ============ -->
+  <div style="flex:none;width:398px;height:812px;background:#0d141c;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(15,25,40,.5),0 0 0 2px #232c38;position:sticky;top:40px">
+    <div data-theme="{{ themeAttr }}" data-screen-label="{{ screenLabel }}" style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:var(--surface-app);display:flex;flex-direction:column">
+
+      <!-- status bar -->
+      <div style="position:absolute;top:0;left:0;right:0;height:46px;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:16px 26px 0;pointer-events:none">
+        <span style="font-size:13px;font-weight:700;color:var(--text-primary)">9:41</span>
+        <div style="position:absolute;left:50%;top:9px;transform:translateX(-50%);width:104px;height:28px;background:#0d141c;border-radius:999px"></div>
+        <div style="display:flex;gap:5px;align-items:center;color:var(--text-primary)">
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="signal" size="{{ 15 }}" hint-size="15px,15px"></x-import>
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="wifi" size="{{ 15 }}" hint-size="15px,15px"></x-import>
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="battery-full" size="{{ 17 }}" hint-size="17px,17px"></x-import>
+        </div>
+      </div>
+
+      <!-- SCREEN BODY -->
+      <div class="sanpo-scroll" style="flex:1;overflow-y:auto;overflow-x:hidden;position:relative">
+
+        <!-- ===== LOGIN ===== -->
+        <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+          <div style="min-height:790px;display:flex;flex-direction:column;background:linear-gradient(180deg,#def2ff 0%,#eaf4ff 40%,#f5f7f9 100%);padding:64px 30px 40px">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+              <img src="assets/walker.png" alt="" style="width:210px;height:auto;margin-bottom:26px;filter:drop-shadow(0 12px 24px rgba(27,54,96,.16))">
+              <div style="font-family:'M PLUS Rounded 1c','Noto Sans JP',sans-serif;font-weight:800;font-size:52px;color:#1585fe;letter-spacing:-.02em;line-height:1">Sanpo</div>
+              <div style="font-size:16px;color:#3a4453;font-weight:600;margin-top:14px;line-height:1.6">いつもの道を、<br>ちょっと楽しい寄り道に。</div>
+              <div style="font-size:13px;color:#6b7684;margin-top:12px;line-height:1.7">往復の時間を決めるだけ。<br>歩いて行けるスポットへ案内します。</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <button onClick="{{ onLogin }}" style="display:flex;align-items:center;justify-content:center;gap:12px;width:100%;height:54px;background:#fff;border:1.5px solid #e2e6eb;border-radius:999px;font-size:15px;font-weight:700;color:#3a4453;cursor:pointer;box-shadow:0 4px 14px rgba(27,36,48,.08)">
+                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.2 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.6 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-16z"/><path fill="#FBBC05" d="M10.4 28.3c-.5-1.4-.7-2.9-.7-4.3s.3-3 .7-4.3l-7.8-6.1C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.4l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.5l-7.1-5.5c-2 1.3-4.6 2.1-8.2 2.1-6.4 0-11.8-3.7-13.6-8.9l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+                Google でログイン
+              </button>
+              <button onClick="{{ onLogin }}" style="width:100%;height:48px;background:transparent;border:none;font-size:14px;font-weight:600;color:#6b7684;cursor:pointer">ゲストで試す</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== START (散歩スタート) ===== -->
+        <sc-if value="{{ isStart }}" hint-placeholder-val="{{ true }}">
+          <div style="min-height:100%;display:flex;flex-direction:column;background:var(--surface-app)">
+            <div style="display:flex;align-items:center;gap:10px;padding:52px 18px 10px">
+              <div style="flex:1">
+                <div style="font-size:12px;color:var(--text-tertiary);font-weight:600">コースを決める</div>
+                <div style="font-family:var(--font-heading);font-weight:800;font-size:22px;color:var(--text-primary);letter-spacing:-.01em">どこまで歩く？</div>
+              </div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.IconButton" icon="crosshair" label="現在地" variant="tinted" hint-size="40px,40px"></x-import>
+            </div>
+
+            <!-- MAP -->
+            <div style="position:relative;height:296px;margin:4px 14px 0;border-radius:22px;overflow:hidden;background:var(--map-canvas);box-shadow:inset 0 0 0 1px var(--border-subtle)">
+              <div style="position:absolute;inset:0;background-image:linear-gradient(var(--map-road) 2px,transparent 2px),linear-gradient(90deg,var(--map-road) 2px,transparent 2px);background-size:13% 16%;opacity:.8"></div>
+              <div style="position:absolute;left:0;top:0;width:36%;height:42%;background:var(--map-greenspace);border-radius:0 0 60% 0"></div>
+              <div style="position:absolute;left:-8%;bottom:-12%;width:44%;height:56%;background:var(--map-water);border-radius:50%"></div>
+              <sc-if value="{{ hasSelected }}" hint-placeholder-val="{{ false }}">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                  <path d="{{ startRoute }}" fill="none" stroke="var(--map-route)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="3 2.4" vector-effect="non-scaling-stroke"></path>
+                </svg>
+              </sc-if>
+              <!-- current location -->
+              <div style="position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:rgba(21,133,254,.22);display:flex;align-items:center;justify-content:center">
+                <div style="width:13px;height:13px;border-radius:50%;background:var(--primary);border:2.5px solid #fff;box-shadow:0 1px 4px rgba(27,36,48,.3)"></div>
+              </div>
+              <!-- spot pins -->
+              <sc-for list="{{ reachable }}" as="p" hint-placeholder-count="5">
+                <div onClick="{{ p.onSelect }}" style="position:absolute;left:{{ p.left }};top:{{ p.top }};transform:translate(-50%,-100%);cursor:pointer;z-index:{{ p.z }}">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.MapPin" category="{{ p.pinCat }}" icon="{{ p.icon }}" size="{{ p.size }}" hint-size="34px,44px"></x-import>
+                </div>
+              </sc-for>
+            </div>
+
+            <!-- reachable count + list -->
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding:16px 20px 8px">
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary)">歩いて行けるスポット</div>
+              <div style="font-size:12px;color:var(--text-secondary)"><span style="font-family:var(--font-data);font-weight:800;color:var(--primary);font-size:15px">{{ reachCount }}</span> 件</div>
+            </div>
+            <div class="sanpo-scroll" style="display:flex;gap:10px;overflow-x:auto;padding:2px 14px 6px">
+              <sc-for list="{{ reachable }}" as="p" hint-placeholder-count="4">
+                <div onClick="{{ p.onSelect }}" style="{{ p.cardStyle }}">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                    <span style="width:22px;height:22px;border-radius:7px;background:{{ p.tintBg }};display:flex;align-items:center;justify-content:center">
+                      <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="{{ p.icon }}" size="{{ 13 }}" color="{{ p.iconColor }}" hint-size="13px,13px"></x-import>
+                    </span>
+                    <span style="font-size:11px;color:var(--text-tertiary);font-weight:600">{{ p.catLabel }}</span>
+                  </div>
+                  <div style="font-size:13px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:6px">{{ p.name }}</div>
+                  <div style="font-size:11px;color:var(--text-secondary)">往復 <span style="font-family:var(--font-data);font-weight:700;color:var(--text-primary)">{{ p.time }}</span>分・約{{ p.dist }}km</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <!-- controls -->
+            <div style="margin-top:auto;background:var(--surface-card);border-radius:26px 26px 0 0;box-shadow:0 -6px 24px rgba(27,36,48,.08);padding:20px 20px 26px;display:flex;flex-direction:column;gap:16px">
+              <div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+                  <span style="font-size:13px;font-weight:700;color:var(--text-primary)">往復の時間</span>
+                  <span style="display:flex;align-items:baseline;gap:4px"><span style="font-family:var(--font-data);font-weight:800;font-size:26px;color:var(--primary)">{{ duration }}</span><span style="font-size:13px;color:var(--text-secondary)">分（約{{ durationKm }}km）</span></span>
+                </div>
+                <input type="range" class="sanpo-range" min="10" max="120" step="5" value="{{ duration }}" onChange="{{ onSlider }}" onInput="{{ onSlider }}" style="background:{{ rangeBg }}">
+                <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text-tertiary)"><span>10分</span><span>120分</span></div>
+              </div>
+              <button onClick="{{ openCatSheet }}" style="display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;background:var(--surface-sunken);border:1.5px solid var(--border-subtle);border-radius:14px;cursor:pointer;text-align:left">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="sliders-horizontal" size="{{ 17 }}" color="var(--primary)" hint-size="17px,17px"></x-import>
+                <span style="flex:1;font-size:13px;font-weight:600;color:var(--text-primary)">表示するスポット</span>
+                <span style="font-size:12px;color:var(--text-secondary)">{{ catsSummary }}</span>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="chevron-right" size="{{ 16 }}" color="var(--text-tertiary)" hint-size="16px,16px"></x-import>
+              </button>
+              <sc-if value="{{ hasSelected }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface-tint);border-radius:14px;animation:sanpo-rise .3s ease-out">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="flag" size="{{ 18 }}" color="var(--primary)" hint-size="18px,18px"></x-import>
+                  <div style="flex:1"><div style="font-size:11px;color:var(--text-secondary)">目的地</div><div style="font-size:14px;font-weight:700;color:var(--text-primary)">{{ selectedName }}</div></div>
+                  <div style="font-size:12px;color:var(--text-secondary)">往復 {{ selectedTime }}分</div>
+                </div>
+              </sc-if>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="primary" icon="footprints" full-width="{{ true }}" disabled="{{ startDisabled }}" onClick="{{ onStartWalk }}" hint-size="100%,50px">{{ startLabel }}</x-import>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== MAIN (メイン / ナビ) ===== -->
+        <sc-if value="{{ isMain }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:100%;display:flex;flex-direction:column;background:var(--surface-app)">
+            <div style="display:flex;align-items:center;gap:12px;padding:52px 16px 10px">
+              <sc-if value="{{ showIllus }}" hint-placeholder-val="{{ true }}">
+                <img src="assets/walker.png" alt="" style="width:88px;height:48px;object-fit:cover;border-radius:14px">
+              </sc-if>
+              <sc-if value="{{ dark }}" hint-placeholder-val="{{ false }}">
+                <div style="width:88px;height:48px;border-radius:14px;background:var(--surface-tint);display:flex;align-items:center;justify-content:center">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="footprints" size="{{ 24 }}" color="var(--primary)" hint-size="24px,24px"></x-import>
+                </div>
+              </sc-if>
+              <div style="flex:1">
+                <div style="font-size:11px;color:var(--text-tertiary)">往復の目安</div>
+                <div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:var(--font-data);font-weight:800;font-size:26px;color:var(--primary)">{{ selectedTimeMain }}</span><span style="font-size:12px;color:var(--text-secondary)">分（約{{ selectedKmMain }}km）</span></div>
+                <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:1px">ゴール：{{ goalName }}</div>
+              </div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.IconButton" icon="settings-2" label="設定" variant="tinted" hint-size="40px,40px"></x-import>
+            </div>
+
+            <!-- MAP -->
+            <div style="position:relative;height:322px;margin:2px 0 0;background:var(--map-canvas);overflow:hidden">
+              <div style="position:absolute;inset:0;background-image:linear-gradient(var(--map-road) 2px,transparent 2px),linear-gradient(90deg,var(--map-road) 2px,transparent 2px);background-size:13% 16%;opacity:.8"></div>
+              <div style="position:absolute;left:0;top:0;width:34%;height:40%;background:var(--map-greenspace);border-radius:0 0 60% 0"></div>
+              <div style="position:absolute;left:-6%;bottom:-10%;width:40%;height:55%;background:var(--map-water);border-radius:50%"></div>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                <path d="M50,60 L36,79 L14,66 L14,21 L37,15 L58,19 L68,16 L62,35 L57,52 L64,90" fill="none" stroke="var(--map-route)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+              </svg>
+              <div style="position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;background:rgba(21,133,254,.24);display:flex;align-items:center;justify-content:center">
+                <div style="width:14px;height:14px;border-radius:50%;background:var(--primary);border:2.5px solid #fff;box-shadow:0 1px 5px rgba(27,36,48,.35)"></div>
+              </div>
+              <div style="position:absolute;left:64%;top:90%;transform:translate(-50%,-100%)">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.MapPin" category="goal" icon="flag" label="{{ goalName }}" size="{{ 34 }}" hint-size="34px,44px"></x-import>
+              </div>
+              <sc-for list="{{ mainPins }}" as="p" hint-placeholder-count="5">
+                <div onClick="{{ p.onClick }}" style="position:absolute;left:{{ p.left }};top:{{ p.top }};transform:translate(-50%,-100%);cursor:pointer;z-index:{{ p.z }}">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.MapPin" category="{{ p.pinCat }}" icon="{{ p.icon }}" size="{{ p.size }}" hint-size="30px,40px"></x-import>
+                </div>
+              </sc-for>
+              <!-- pin popup -->
+              <sc-if value="{{ popupOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute;left:14px;right:14px;bottom:12px;z-index:60;animation:sanpo-rise .28s ease-out">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Card" elevated="{{ true }}" hint-size="100%,120px">
+                    <div style="display:flex;gap:12px">
+                      <div style="display:flex;gap:5px">
+                        <sc-for list="{{ popupThumbs }}" as="t" hint-placeholder-count="0">
+                          <div style="width:48px;height:48px;border-radius:10px;background:var(--surface-sunken) center/cover no-repeat;background-image:url({{ t.src }})"></div>
+                        </sc-for>
+                      </div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:14px;font-weight:700;color:var(--text-primary)">{{ popupName }}</div>
+                        <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">{{ popupDate }}</div>
+                      </div>
+                      <button onClick="{{ closePinPopup }}" style="border:none;background:transparent;cursor:pointer;color:var(--text-tertiary);align-self:flex-start">
+                        <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x" size="{{ 18 }}" hint-size="18px,18px"></x-import>
+                      </button>
+                    </div>
+                    <div style="margin-top:10px">
+                      <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="secondary" icon="maximize-2" full-width="{{ true }}" onClick="{{ popupDetail }}" hint-size="100%,40px">詳細画面を開く</x-import>
+                    </div>
+                  </x-import>
+                </div>
+              </sc-if>
+              <!-- map tools -->
+              <div style="position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.IconButton" icon="crosshair" label="現在地" variant="surface" size="sm" hint-size="34px,34px"></x-import>
+              </div>
+            </div>
+
+            <!-- stats + controls -->
+            <div style="margin:12px;display:flex;flex-direction:column;gap:14px;background:var(--surface-card);border-radius:24px;box-shadow:0 6px 22px rgba(27,36,48,.08);padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Badge" tone="{{ statusTone }}" dot="{{ true }}" hint-size="90px,24px">{{ statusText }}</x-import>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Badge" tone="success" hint-size="80px,24px">GPS良好</x-import>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.StatBlock" size="sm" value="{{ elapsedStr }}" label="経過時間" hint-size="90px,50px"></x-import>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.StatBlock" size="sm" value="{{ distStr }}" unit="km" label="歩行距離" hint-size="70px,50px"></x-import>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.StatBlock" size="sm" value="{{ stepsStr }}" unit="歩" label="歩数" hint-size="70px,50px"></x-import>
+              </div>
+              <div style="display:flex;gap:8px">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="secondary" icon="{{ pauseIcon }}" onClick="{{ togglePause }}" style="{{ flex1 }}" hint-size="90px,44px">{{ pauseLabel }}</x-import>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="primary" icon="square" onClick="{{ openEnd }}" style="{{ flex14 }}" hint-size="90px,44px">終了する</x-import>
+              </div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="outline" icon="map-pin" full-width="{{ true }}" onClick="{{ openAddPin }}" hint-size="100%,44px">この場所にピンを追加</x-import>
+            </div>
+            <div style="height:8px"></div>
+          </div>
+        </sc-if>
+
+        <!-- ===== PIN DETAIL ===== -->
+        <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:100%;background:var(--surface-app);display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:10px;padding:52px 14px 12px;background:var(--surface-card);box-shadow:0 1px 0 var(--border-subtle)">
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.IconButton" icon="chevron-left" label="戻る" variant="ghost" onClick="{{ backFromDetail }}" hint-size="40px,40px"></x-import>
+              <div style="flex:1;font-size:16px;font-weight:800;color:var(--text-primary)">ピンの詳細</div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.IconButton" icon="pencil" label="編集" variant="tinted" onClick="{{ openEdit }}" hint-size="40px,40px"></x-import>
+            </div>
+            <div style="padding:18px 18px 40px;display:flex;flex-direction:column;gap:18px">
+              <div>
+                <div style="font-family:var(--font-heading);font-weight:800;font-size:24px;color:var(--text-primary);letter-spacing:-.01em">{{ detailName }}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--text-tertiary)">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="calendar" size="{{ 14 }}" hint-size="14px,14px"></x-import>
+                  <span style="font-size:12px">{{ detailDate }}</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <sc-for list="{{ detailTags }}" as="t" hint-placeholder-count="2">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Tag" category="neutral" icon="tag" hint-size="60px,30px">{{ t.label }}</x-import>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <sc-for list="{{ detailPhotos }}" as="ph" hint-placeholder-count="0">
+                  <div onClick="{{ ph.onClick }}" style="position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;cursor:pointer;box-shadow:0 2px 10px rgba(27,36,48,.1)">
+                    <div style="position:absolute;inset:0;background:var(--surface-sunken) center/cover no-repeat;background-image:url({{ ph.src }})"></div>
+                    <sc-if value="{{ ph.hasComment }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:absolute;left:8px;bottom:8px;width:24px;height:24px;border-radius:8px;background:rgba(13,20,28,.6);display:flex;align-items:center;justify-content:center;color:#fff">
+                        <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="message-circle" size="{{ 13 }}" hint-size="13px,13px"></x-import>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Card" elevated="{{ true }}" hint-size="100%,90px">
+                <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);margin-bottom:6px">メモ</div>
+                <div style="font-size:14px;color:var(--text-primary);line-height:1.7">{{ detailComment }}</div>
+              </x-import>
+              <div style="font-size:11px;color:var(--text-tertiary);text-align:center;line-height:1.6">写真をタップすると拡大表示・コメントの追加ができます</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== PIN EDIT ===== -->
+        <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:100%;background:var(--surface-app);display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:10px;padding:52px 14px 12px;background:var(--surface-card);box-shadow:0 1px 0 var(--border-subtle)">
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.IconButton" icon="x" label="キャンセル" variant="ghost" onClick="{{ backFromDetail }}" hint-size="40px,40px"></x-import>
+              <div style="flex:1;font-size:16px;font-weight:800;color:var(--text-primary)">ピンを編集</div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="primary" size="sm" onClick="{{ saveEdit }}" hint-size="64px,36px">保存</x-import>
+            </div>
+            <div style="padding:18px 18px 40px;display:flex;flex-direction:column;gap:18px">
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Input" label="名前" value="{{ editName }}" onChange="{{ onEditName }}" placeholder="ピンの名前" hint-size="100%,64px"></x-import>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">写真</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                  <sc-for list="{{ editPhotos }}" as="ph" hint-placeholder-count="0">
+                    <div style="position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden">
+                      <div style="position:absolute;inset:0;background:var(--surface-sunken) center/cover no-repeat;background-image:url({{ ph.src }})"></div>
+                      <button onClick="{{ ph.onRemove }}" style="position:absolute;right:4px;top:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(13,20,28,.6);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+                        <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x" size="{{ 12 }}" hint-size="12px,12px"></x-import>
+                      </button>
+                    </div>
+                  </sc-for>
+                  <button onClick="{{ addEditPhoto }}" style="aspect-ratio:1;border-radius:12px;border:1.5px dashed var(--border-strong);background:var(--surface-sunken);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text-tertiary);cursor:pointer">
+                    <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="image-plus" size="{{ 20 }}" hint-size="20px,20px"></x-import>
+                    <span style="font-size:10px">追加</span>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">タグ</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+                  <sc-for list="{{ editTags }}" as="t" hint-placeholder-count="2">
+                    <button onClick="{{ t.onRemove }}" style="display:flex;align-items:center;gap:5px;padding:6px 12px;border:none;border-radius:999px;background:var(--surface-tint-strong);color:var(--primary);font-size:12px;font-weight:600;cursor:pointer">{{ t.label }}<x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x" size="{{ 12 }}" hint-size="12px,12px"></x-import></button>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <input value="{{ editTagInput }}" onChange="{{ onEditTagInput }}" onInput="{{ onEditTagInput }}" placeholder="タグを追加" style="flex:1;height:44px;padding:0 14px;border:1.5px solid var(--border-subtle);border-radius:14px;font-size:14px;background:var(--surface-card);color:var(--text-primary);outline:none">
+                  <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="secondary" onClick="{{ addEditTag }}" hint-size="56px,44px">追加</x-import>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">メモ</div>
+                <textarea value="{{ editComment }}" onChange="{{ onEditComment }}" onInput="{{ onEditComment }}" placeholder="コメントを入力" style="width:100%;min-height:96px;padding:12px 14px;border:1.5px solid var(--border-subtle);border-radius:14px;font-size:14px;line-height:1.6;background:var(--surface-card);color:var(--text-primary);outline:none;resize:none;font-family:inherit"></textarea>
+              </div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="danger" icon="trash-2" full-width="{{ true }}" onClick="{{ deletePin }}" hint-size="100%,44px">このピンを削除</x-import>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== SEARCH ===== -->
+        <sc-if value="{{ isSearch }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:100%;background:var(--surface-app)">
+            <div style="padding:52px 16px 12px;background:var(--surface-card);box-shadow:0 1px 0 var(--border-subtle);position:sticky;top:0;z-index:10">
+              <div style="font-size:20px;font-weight:800;color:var(--text-primary);margin-bottom:12px">ピンを検索</div>
+              <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 14px;background:var(--surface-sunken);border-radius:14px">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="search" size="{{ 18 }}" color="var(--text-tertiary)" hint-size="18px,18px"></x-import>
+                <input value="{{ searchQuery }}" onChange="{{ onSearch }}" onInput="{{ onSearch }}" placeholder="名前・メモ・タグで検索" style="flex:1;border:none;background:transparent;font-size:14px;color:var(--text-primary);outline:none">
+                <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ clearSearch }}" style="border:none;background:transparent;cursor:pointer;color:var(--text-tertiary);display:flex;padding:0"><x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x-circle" size="{{ 18 }}" hint-size="18px,18px"></x-import></button>
+                </sc-if>
+              </div>
+              <div class="sanpo-scroll" style="display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding-bottom:2px">
+                <sc-for list="{{ searchTagChips }}" as="c" hint-placeholder-count="5">
+                  <button onClick="{{ c.onToggle }}" style="{{ c.style }}">{{ c.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="padding:14px 16px 40px">
+              <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px"><span style="font-weight:700;color:var(--text-primary)">{{ resultCount }}</span> 件のピン</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ searchResults }}" as="r" hint-placeholder-count="0">
+                  <div onClick="{{ r.onOpen }}" style="display:flex;gap:12px;align-items:center;padding:10px;background:var(--surface-card);border-radius:18px;box-shadow:0 2px 10px rgba(27,36,48,.06);cursor:pointer">
+                    <div style="width:64px;height:64px;border-radius:14px;background:var(--surface-sunken) center/cover no-repeat;background-image:url({{ r.thumb }});flex:none"></div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:15px;font-weight:700;color:var(--text-primary)">{{ r.name }}</div>
+                      <div style="font-size:11px;color:var(--text-tertiary);margin:2px 0 6px">{{ r.date }}</div>
+                      <div style="display:flex;gap:5px;flex-wrap:wrap">
+                        <sc-for list="{{ r.tags }}" as="t" hint-placeholder-count="2">
+                          <span style="font-size:10px;font-weight:600;color:var(--primary);background:var(--surface-tint-strong);padding:2px 8px;border-radius:999px">{{ t.label }}</span>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="chevron-right" size="{{ 18 }}" color="var(--text-tertiary)" hint-size="18px,18px"></x-import>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+                  <div style="text-align:center;padding:50px 20px;color:var(--text-tertiary)">
+                    <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="search-x" size="{{ 40 }}" hint-size="40px,40px"></x-import>
+                    <div style="font-size:14px;margin-top:12px">一致するピンがありません</div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== RECORD ===== -->
+        <sc-if value="{{ isRecord }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:100%;background:var(--surface-app)">
+            <div style="padding:52px 18px 14px">
+              <div style="font-size:20px;font-weight:800;color:var(--text-primary)">歩いた記録</div>
+              <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">田中さん、今日も歩きましょう</div>
+            </div>
+            <div style="padding:0 16px 40px;display:flex;flex-direction:column;gap:16px">
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Tabs" value="{{ recordPeriod }}" onChange="{{ setPeriod }}" items="{{ periodItems }}" hint-size="100%,40px"></x-import>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Card" elevated="{{ true }}" hint-size="100%,240px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+                  <span style="font-size:13px;color:var(--text-secondary)">合計ウォーキング時間</span>
+                </div>
+                <div style="margin-bottom:18px;white-space:nowrap"><span style="font-family:var(--font-data);font-weight:800;font-size:34px;color:var(--text-primary);letter-spacing:-.01em">{{ totalWalk }}</span></div>
+                <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:150px">
+                  <sc-for list="{{ chartBars }}" as="b" hint-placeholder-count="7">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+                      <span style="font-size:9px;color:var(--text-tertiary);font-family:var(--font-data)">{{ b.value }}</span>
+                      <div style="width:100%;max-width:26px;height:{{ b.height }};background:{{ b.color }};border-radius:8px;transform-origin:bottom;animation:sanpo-bar .5s ease-out"></div>
+                      <span style="font-size:10px;color:{{ b.labelColor }};font-weight:{{ b.labelWeight }}">{{ b.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </x-import>
+              <div style="display:flex;gap:10px">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Card" elevated="{{ true }}" style="{{ flex1 }}" hint-size="48%,90px">
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">合計距離</div>
+                  <div style="display:flex;align-items:baseline;gap:3px"><span style="font-family:var(--font-data);font-weight:800;font-size:24px;color:var(--text-primary)">{{ totalDist }}</span><span style="font-size:12px;color:var(--text-secondary)">km</span></div>
+                </x-import>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Card" elevated="{{ true }}" style="{{ flex1 }}" hint-size="48%,90px">
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">連続日数</div>
+                  <div style="display:flex;align-items:baseline;gap:3px"><span style="font-family:var(--font-data);font-weight:800;font-size:24px;color:var(--text-primary)">{{ streak }}</span><span style="font-size:12px;color:var(--text-secondary)">日連続</span></div>
+                </x-import>
+              </div>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Card" elevated="{{ true }}" hint-size="100%,80px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px;font-weight:600;color:var(--text-primary)">今日の目標歩数</span><span style="font-size:12px;color:var(--text-secondary)"><span style="font-family:var(--font-data);font-weight:700;color:var(--text-primary)">{{ todaySteps }}</span> / 8,000歩</span></div>
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.ProgressBar" value="{{ stepGoalPct }}" tone="primary" hint-size="100%,10px"></x-import>
+              </x-import>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <!-- TAB BAR -->
+      <sc-if value="{{ showTabBar }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.TabBar" value="{{ tabValue }}" onChange="{{ onTab }}" items="{{ tabItems }}" hint-size="100%,64px"></x-import>
+      </sc-if>
+
+      <!-- CATEGORY BOTTOM SHEET -->
+      <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.BottomSheet" open="{{ catSheetOpen }}" title="表示するスポット" onClose="{{ closeCatSheet }}" hint-size="100%,auto">
+        <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:8px">
+          <sc-for list="{{ catList }}" as="c" hint-placeholder-count="6">
+            <button onClick="{{ c.onToggle }}" style="{{ c.rowStyle }}">
+              <span style="width:34px;height:34px;border-radius:11px;background:{{ c.tintBg }};display:flex;align-items:center;justify-content:center">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="{{ c.icon }}" size="{{ 18 }}" color="{{ c.iconColor }}" hint-size="18px,18px"></x-import>
+              </span>
+              <span style="flex:1;text-align:left;font-size:15px;font-weight:600;color:var(--text-primary)">{{ c.label }}</span>
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Checkbox" checked="{{ c.checked }}" hint-size="24px,24px"></x-import>
+            </button>
+          </sc-for>
+        </div>
+        <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="primary" full-width="{{ true }}" onClick="{{ closeCatSheet }}" hint-size="100%,48px">{{ catDoneLabel }}</x-import>
+      </x-import>
+
+      <!-- PIN REGISTER DIALOG -->
+      <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.BottomSheet" open="{{ pinRegOpen }}" title="ピンを登録" onClose="{{ closeReg }}" hint-size="100%,auto">
+        <div style="display:flex;flex-direction:column;gap:16px;padding-bottom:6px">
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Input" label="名前" value="{{ regName }}" onChange="{{ onRegName }}" placeholder="例：桜のトンネル" hint-size="100%,64px"></x-import>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">写真</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+              <sc-for list="{{ regPhotos }}" as="ph" hint-placeholder-count="0">
+                <div style="position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden">
+                  <div style="position:absolute;inset:0;background:var(--surface-sunken) center/cover no-repeat;background-image:url({{ ph.src }})"></div>
+                  <button onClick="{{ ph.onRemove }}" style="position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(13,20,28,.6);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0"><x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x" size="{{ 11 }}" hint-size="11px,11px"></x-import></button>
+                </div>
+              </sc-for>
+              <button onClick="{{ addRegPhoto }}" style="aspect-ratio:1;border-radius:12px;border:1.5px dashed var(--border-strong);background:var(--surface-sunken);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-tertiary);cursor:pointer">
+                <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="camera" size="{{ 18 }}" hint-size="18px,18px"></x-import>
+                <span style="font-size:9px">追加</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">タグ</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+              <sc-for list="{{ regTags }}" as="t" hint-placeholder-count="2">
+                <button onClick="{{ t.onRemove }}" style="display:flex;align-items:center;gap:5px;padding:6px 12px;border:none;border-radius:999px;background:var(--surface-tint-strong);color:var(--primary);font-size:12px;font-weight:600;cursor:pointer">{{ t.label }}<x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x" size="{{ 12 }}" hint-size="12px,12px"></x-import></button>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:8px">
+              <input value="{{ regTagInput }}" onChange="{{ onRegTagInput }}" onInput="{{ onRegTagInput }}" placeholder="タグを追加" style="flex:1;height:44px;padding:0 14px;border:1.5px solid var(--border-subtle);border-radius:14px;font-size:14px;background:var(--surface-card);color:var(--text-primary);outline:none">
+              <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="secondary" onClick="{{ addRegTag }}" hint-size="56px,44px">追加</x-import>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">コメント</div>
+            <textarea value="{{ regComment }}" onChange="{{ onRegComment }}" onInput="{{ onRegComment }}" placeholder="この場所のメモ" style="width:100%;min-height:80px;padding:12px 14px;border:1.5px solid var(--border-subtle);border-radius:14px;font-size:14px;line-height:1.6;background:var(--surface-card);color:var(--text-primary);outline:none;resize:none;font-family:inherit"></textarea>
+          </div>
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="primary" icon="check" full-width="{{ true }}" onClick="{{ saveReg }}" hint-size="100%,50px">ピンを保存</x-import>
+        </div>
+      </x-import>
+
+      <!-- END DIALOG -->
+      <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Dialog" open="{{ endDialogOpen }}" title="散歩を終了しますか？" onClose="{{ cancelEnd }}" hint-size="300px,180px">
+        <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:18px">経過時間 {{ elapsedStr }} を今日の記録に保存します。</div>
+        <div style="display:flex;gap:8px">
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="secondary" full-width="{{ true }}" onClick="{{ cancelEnd }}" hint-size="100%,44px">続ける</x-import>
+          <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Button" variant="primary" full-width="{{ true }}" onClick="{{ confirmEnd }}" hint-size="100%,44px">終了して記録</x-import>
+        </div>
+      </x-import>
+
+      <!-- LIGHTBOX -->
+      <sc-if value="{{ lightboxOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:80;background:rgba(13,20,28,.94);display:flex;flex-direction:column;animation:sanpo-fade .2s ease-out">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:52px 16px 10px;color:#fff">
+            <span style="font-size:13px;opacity:.8">{{ lbCounter }}</span>
+            <button onClick="{{ closeLightbox }}" style="border:none;background:transparent;cursor:pointer;color:#fff;display:flex;padding:0"><x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="x" size="{{ 26 }}" hint-size="26px,26px"></x-import></button>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 12px;position:relative">
+            <button onClick="{{ lbPrev }}" style="position:absolute;left:10px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.16);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="chevron-left" size="{{ 22 }}" hint-size="22px,22px"></x-import></button>
+            <div style="width:100%;height:440px;border-radius:16px;background:center/contain no-repeat;background-image:url({{ lbSrc }})"></div>
+            <button onClick="{{ lbNext }}" style="position:absolute;right:10px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.16);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="chevron-right" size="{{ 22 }}" hint-size="22px,22px"></x-import></button>
+          </div>
+          <div style="padding:16px 16px 30px">
+            <div style="font-size:11px;color:rgba(255,255,255,.6);margin-bottom:8px">この写真へのコメント</div>
+            <textarea value="{{ lbComment }}" onChange="{{ onLbComment }}" onInput="{{ onLbComment }}" placeholder="コメントを追加" style="width:100%;min-height:64px;padding:12px 14px;border:1px solid rgba(255,255,255,.2);border-radius:14px;font-size:14px;line-height:1.6;background:rgba(255,255,255,.08);color:#fff;outline:none;resize:none;font-family:inherit"></textarea>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- START EFFECT -->
+      <sc-if value="{{ fxActive }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:90;overflow:hidden;background:radial-gradient(circle at 50% 40%, rgba(21,133,254,.32), rgba(13,20,28,.7));display:flex;flex-direction:column;align-items:center;justify-content:center;animation:sanpo-fade .2s ease-out">
+          <sc-for list="{{ confetti }}" as="c" hint-placeholder-count="0">
+            <div style="position:absolute;top:-24px;left:{{ c.left }};width:{{ c.size }};height:{{ c.size }};background:{{ c.color }};border-radius:2px;animation:sanpo-confetti {{ c.dur }} ease-in {{ c.delay }} forwards"></div>
+          </sc-for>
+          <div style="width:96px;height:96px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 40px rgba(21,133,254,.5);animation:sanpo-pop .5s cubic-bezier(.34,1.56,.64,1)">
+            <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="footprints" size="{{ 48 }}" color="var(--primary)" hint-size="48px,48px"></x-import>
+          </div>
+          <div style="margin-top:22px;font-family:'M PLUS Rounded 1c','Noto Sans JP',sans-serif;font-weight:800;font-size:30px;color:#fff;animation:sanpo-pop .5s cubic-bezier(.34,1.56,.64,1) .1s both">散歩スタート！</div>
+          <div style="margin-top:6px;font-size:14px;color:rgba(255,255,255,.85);animation:sanpo-rise .5s ease-out .3s both">いってらっしゃい</div>
+        </div>
+      </sc-if>
+
+      <!-- TOAST -->
+      <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:50%;bottom:96px;z-index:95;transform:translateX(-50%);animation:sanpo-toast .3s ease-out">
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;background:var(--surface-inverse);color:var(--surface-card);border-radius:999px;box-shadow:0 8px 28px rgba(13,20,28,.4);white-space:nowrap;font-size:13px;font-weight:600">
+            <x-import component-from-global-scope="SanpoDesignSystem_ea6ab0.Icon" name="check-circle-2" size="{{ 16 }}" hint-size="16px,16px"></x-import>
+            {{ toastMsg }}
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:720,&quot;height&quot;:880},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;light&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;表示&quot;},&quot;defaultDuration&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:60,&quot;min&quot;:10,&quot;max&quot;:120,&quot;step&quot;:5,&quot;unit&quot;:&quot;分&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;表示&quot;}}">
+class Component extends DCLogic {
+  PHOTOS = ['sakura','river','cafe','bench','sunset','cat','flowers','shrine'];
+  CATS = {
+    konbini:  { label:'コンビニ', icon:'store',          pin:'cafe',    color:'var(--map-cafe)' },
+    super:    { label:'スーパー', icon:'shopping-cart',  pin:'culture', color:'var(--map-culture)' },
+    shop:     { label:'店舗',     icon:'shopping-bag',   pin:'cafe',    color:'var(--map-cafe)' },
+    facility: { label:'施設',     icon:'building-2',     pin:'culture', color:'var(--map-culture)' },
+    park:     { label:'公園',     icon:'trees',          pin:'park',    color:'var(--map-park)' },
+    station:  { label:'駅',       icon:'train-front',    pin:'station', color:'var(--map-station)' },
+  };
+  SPOTS = [
+    { id:'s1', name:'緑町公園',        cat:'park',     time:20, dist:1.3, x:22, y:20 },
+    { id:'s2', name:'ブックカフェ みどり', cat:'shop',  time:30, dist:2.0, x:34, y:40 },
+    { id:'s3', name:'コンビニ ハーモニー', cat:'konbini', time:15, dist:1.0, x:54, y:58 },
+    { id:'s4', name:'さくら駅',        cat:'station',  time:40, dist:2.6, x:72, y:22 },
+    { id:'s5', name:'中央図書館',      cat:'facility', time:50, dist:3.3, x:60, y:32 },
+    { id:'s6', name:'川沿い遊歩道',    cat:'park',     time:60, dist:4.0, x:20, y:66 },
+    { id:'s7', name:'スーパー フレッシュ', cat:'super', time:75, dist:4.8, x:80, y:74 },
+    { id:'s8', name:'雑貨店 そらいろ', cat:'shop',     time:35, dist:2.3, x:44, y:82 },
+    { id:'s9', name:'川辺駅',          cat:'station',  time:85, dist:5.4, x:66, y:92 },
+    { id:'s10',name:'あおぞら公園',    cat:'park',     time:100,dist:6.4, x:14, y:90 },
+  ];
+
+  state = {
+    screen: 'login',
+    duration: this.props.defaultDuration ?? 60,
+    cats: ['konbini','super','shop','facility','park','station'],
+    catSheetOpen: false,
+    selectedSpotId: null,
+    elapsedSec: 1714,
+    paused: false,
+    pins: [
+      { id:'pin1', name:'桜のトンネル',   cat:'park',    datetime:'2026-07-02 09:14', tags:['桜','景色'],   comment:'満開！毎年ここが一番好きな道。', photos:['sakura','flowers'], x:24, y:22 },
+      { id:'pin2', name:'川沿いのベンチ', cat:'park',    datetime:'2026-06-28 17:40', tags:['休憩','川'],   comment:'風が気持ちいい、お気に入りの休憩スポット。', photos:['river','bench'], x:58, y:64 },
+      { id:'pin3', name:'角のカフェ',     cat:'cafe',    datetime:'2026-06-25 10:05', tags:['カフェ','ラテ'], comment:'ラテアートが可愛い。朝の一杯にぴったり。', photos:['cafe'], x:36, y:44 },
+      { id:'pin4', name:'夕焼けの土手',   cat:'park',    datetime:'2026-06-20 18:52', tags:['夕焼け','景色'], comment:'空がオレンジ色に染まる時間帯が最高。', photos:['sunset'], x:70, y:34 },
+      { id:'pin5', name:'看板猫',         cat:'cafe',    datetime:'2026-06-18 15:30', tags:['猫'],         comment:'今日も店先でお昼寝していた。', photos:['cat'], x:48, y:78 },
+      { id:'pin6', name:'小さな神社',     cat:'culture', datetime:'2026-06-12 08:20', tags:['神社','景色'], comment:'静かで落ち着く、隠れた名所。', photos:['shrine'], x:82, y:52 },
+    ],
+    activePinId: 'pin1',
+    pinPopupId: null,
+    endDialogOpen: false,
+    pinRegOpen: false,
+    regName:'', regTags:[], regTagInput:'', regComment:'', regPhotos:[],
+    editName:'', editTags:[], editTagInput:'', editComment:'', editPhotos:[],
+    lightboxOpen:false, lightboxPinId:null, lightboxIndex:0,
+    photoComments:{},
+    searchQuery:'', searchTags:[],
+    recordPeriod:'week',
+    fxActive:false,
+    dark: this.props.theme === 'dark',
+    toast:{ visible:false, msg:'' },
+  };
+
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      if (this.state.screen === 'main' && !this.state.paused) {
+        this.setState(s => ({ elapsedSec: s.elapsedSec + 1 }));
+      }
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this._toastT); }
+
+  // ---- helpers ----
+  photoUrl = (k) => 'photos/' + k + '.jpg';
+  getPin = (id) => this.state.pins.find(p => p.id === id);
+  fmt = (sec) => { const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60; const p=n=>String(n).padStart(2,'0'); return p(h)+':'+p(m)+':'+p(s); };
+  nowStr = () => { const d=new Date(); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); };
+  pinCat = (c) => (c==='park'||c==='cafe'||c==='culture'||c==='station') ? c : 'cafe';
+  pinIcon = (c) => ({ park:'trees', cafe:'coffee', culture:'landmark', station:'train-front' }[c] || 'map-pin');
+  showToast = (msg) => { this.setState({ toast:{visible:true,msg} }); clearTimeout(this._toastT); this._toastT=setTimeout(()=>this.setState(s=>({toast:{...s.toast,visible:false}})),1900); };
+
+  // ---- navigation ----
+  go = (screen) => this.setState({ screen, pinPopupId:null, endDialogOpen:false, catSheetOpen:false, pinRegOpen:false, lightboxOpen:false });
+  onLogin = () => this.go('start');
+  goAddPin = () => { this.setState({ screen:'main', pinPopupId:null }); this.openAddPin(); };
+
+  // ---- start screen ----
+  onSlider = (e) => this.setState({ duration:+e.target.value, selectedSpotId:null });
+  toggleCat = (k) => this.setState(s => ({ cats: s.cats.includes(k) ? s.cats.filter(x=>x!==k) : [...s.cats,k], selectedSpotId:null }));
+  openCatSheet = () => this.setState({ catSheetOpen:true });
+  closeCatSheet = () => this.setState({ catSheetOpen:false });
+  selectSpot = (id) => this.setState({ selectedSpotId:id });
+  onStartWalk = () => { this.setState({ fxActive:true }); setTimeout(()=>this.setState({ fxActive:false, screen:'main', elapsedSec:0, paused:false }), 1900); };
+
+  // ---- main screen ----
+  togglePause = () => this.setState(s => ({ paused: !s.paused }));
+  openEnd = () => this.setState({ endDialogOpen:true });
+  cancelEnd = () => this.setState({ endDialogOpen:false });
+  confirmEnd = () => { this.setState({ endDialogOpen:false, screen:'record' }); this.showToast('散歩を記録しました'); };
+  openPinPopup = (id) => this.setState({ pinPopupId:id });
+  closePinPopup = () => this.setState({ pinPopupId:null });
+  openDetail = (id) => this.setState({ activePinId:id, screen:'pinDetail', pinPopupId:null });
+
+  // ---- register ----
+  openAddPin = () => this.setState({ pinRegOpen:true, regName:'', regTags:[], regTagInput:'', regComment:'', regPhotos:[] });
+  closeReg = () => this.setState({ pinRegOpen:false });
+  addRegPhoto = () => this.setState(s => { const pool=this.PHOTOS.filter(p=>!s.regPhotos.includes(p)); const next=pool.length?pool[0]:this.PHOTOS[s.regPhotos.length%this.PHOTOS.length]; return { regPhotos:[...s.regPhotos,next] }; });
+  addRegTag = () => this.setState(s => { const t=s.regTagInput.trim(); if(!t||s.regTags.includes(t)) return {regTagInput:''}; return { regTags:[...s.regTags,t], regTagInput:'' }; });
+  saveReg = () => {
+    const st=this.state;
+    const pin={ id:'pin'+Date.now(), name:st.regName.trim()||'無題のピン', cat:'park', datetime:this.nowStr(), tags:st.regTags, comment:st.regComment.trim()||'（メモなし）', photos:st.regPhotos.length?st.regPhotos:['flowers'], x:42+Math.random()*16, y:46+Math.random()*16 };
+    this.setState(s => ({ pins:[pin,...s.pins], pinRegOpen:false }));
+    this.showToast('ピンを保存しました');
+  };
+
+  // ---- edit ----
+  openEdit = () => { const p=this.getPin(this.state.activePinId); if(!p) return; this.setState({ screen:'pinEdit', editName:p.name, editTags:[...p.tags], editComment:p.comment, editPhotos:[...p.photos], editTagInput:'' }); };
+  addEditPhoto = () => this.setState(s => { const pool=this.PHOTOS.filter(p=>!s.editPhotos.includes(p)); const next=pool.length?pool[0]:this.PHOTOS[s.editPhotos.length%this.PHOTOS.length]; return { editPhotos:[...s.editPhotos,next] }; });
+  addEditTag = () => this.setState(s => { const t=s.editTagInput.trim(); if(!t||s.editTags.includes(t)) return {editTagInput:''}; return { editTags:[...s.editTags,t], editTagInput:'' }; });
+  saveEdit = () => { this.setState(s => ({ pins:s.pins.map(p=>p.id===s.activePinId?{...p,name:s.editName.trim()||p.name,tags:s.editTags,comment:s.editComment,photos:s.editPhotos}:p), screen:'pinDetail' })); this.showToast('変更を保存しました'); };
+  deletePin = () => { this.setState(s => ({ pins:s.pins.filter(p=>p.id!==s.activePinId), screen:'search' })); this.showToast('ピンを削除しました'); };
+
+  // ---- lightbox ----
+  openLightbox = (pinId,i) => this.setState({ lightboxOpen:true, lightboxPinId:pinId, lightboxIndex:i });
+  closeLightbox = () => this.setState({ lightboxOpen:false });
+  lbStep = (d) => this.setState(s => { const p=this.getPin(s.lightboxPinId); if(!p) return {}; const n=p.photos.length; return { lightboxIndex:(s.lightboxIndex+d+n)%n }; });
+  onLbComment = (e) => { const v=e.target.value; this.setState(s => ({ photoComments:{ ...s.photoComments, [s.lightboxPinId+'_'+s.lightboxIndex]:v } })); };
+
+  // ---- search ----
+  onSearch = (e) => this.setState({ searchQuery:e.target.value });
+  clearSearch = () => this.setState({ searchQuery:'', searchTags:[] });
+  toggleSearchTag = (t) => this.setState(s => ({ searchTags: s.searchTags.includes(t) ? s.searchTags.filter(x=>x!==t) : [...s.searchTags,t] }));
+
+  // ---- record ----
+  setPeriod = (p) => this.setState({ recordPeriod:p });
+
+  onToggleDark = () => this.setState(s => ({ dark: !s.dark }));
+
+  renderVals() {
+    const st = this.state;
+    const C = this.CATS;
+    const tint = (c) => 'color-mix(in srgb, ' + c + ' 16%, transparent)';
+
+    // ---- navigator ----
+    const navDefs = [
+      ['login','ログイン'],['start','スタート'],['main','メイン（ナビ）'],
+      ['pinReg','ピン登録'],['pinDetail','ピン詳細'],['pinEdit','ピン編集'],
+      ['search','ピン検索'],['record','記録・グラフ'],
+    ];
+    const navItems = navDefs.map((d,i) => {
+      const key=d[0];
+      const active = (key==='pinReg') ? (st.screen==='main'&&st.pinRegOpen) : st.screen===key;
+      return {
+        num:i+1, label:d[1],
+        badgeBg: active?'#1585fe':'#e2e8ef', badgeColor: active?'#fff':'#6b7684',
+        style: 'display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:none;border-radius:13px;cursor:pointer;font-size:13.5px;font-weight:'+(active?700:600)+';text-align:left;transition:all .15s;background:'+(active?'#fff':'transparent')+';color:'+(active?'#1585fe':'#3a4453')+';box-shadow:'+(active?'0 3px 12px rgba(21,133,254,.14)':'none'),
+        onClick: key==='pinReg' ? this.goAddPin : () => this.go(key),
+      };
+    });
+
+    // ---- screen booleans ----
+    const isLogin=st.screen==='login', isStart=st.screen==='start', isMain=st.screen==='main',
+          isDetail=st.screen==='pinDetail', isEdit=st.screen==='pinEdit', isSearch=st.screen==='search', isRecord=st.screen==='record';
+    const screenLabel = { login:'ログイン', start:'散歩スタート', main:'メイン', pinDetail:'ピン詳細', pinEdit:'ピン編集', search:'検索', record:'記録' }[st.screen];
+
+    // ---- start: reachable spots ----
+    const reach = this.SPOTS.filter(sp => sp.time <= st.duration && st.cats.includes(sp.cat));
+    const sel = this.SPOTS.find(sp => sp.id === st.selectedSpotId) || null;
+    const reachable = reach.map(sp => {
+      const meta=C[sp.cat]; const selected = sp.id===st.selectedSpotId;
+      return {
+        id:sp.id, name:sp.name, catLabel:meta.label, icon:meta.icon,
+        pinCat: selected?'goal':meta.pin, iconColor:meta.color, tintBg:tint(meta.color),
+        dist:sp.dist.toFixed(1), time:sp.time, size:selected?42:30, z:selected?20:5,
+        left:sp.x+'%', top:sp.y+'%',
+        onSelect: () => this.selectSpot(sp.id),
+        cardStyle: 'flex:none;width:132px;padding:12px;border-radius:16px;cursor:pointer;background:var(--surface-card);transition:all .15s;box-shadow:'+(selected?'0 0 0 2px var(--primary),0 4px 14px rgba(21,133,254,.16)':'0 2px 8px rgba(27,36,48,.06)'),
+      };
+    });
+    const durKm = (st.duration*0.066).toFixed(1);
+    const pct = (st.duration-10)/(120-10)*100;
+    const catsSummary = st.cats.length===6 ? 'すべて' : (st.cats.length===0 ? 'なし' : st.cats.length+'種類');
+
+    // ---- main ----
+    const goalName = sel ? sel.name : '川辺駅';
+    const km = (st.elapsedSec/720).toFixed(1);
+    const steps = Math.round(st.elapsedSec/720*1450);
+    const mainPins = st.pins.map(p => ({
+      id:p.id, name:p.name, left:p.x+'%', top:p.y+'%', size:30, z:6,
+      pinCat:this.pinCat(p.cat), icon:this.pinIcon(p.cat),
+      onClick: () => this.openPinPopup(p.id),
+    }));
+    const popupPin = st.pinPopupId ? this.getPin(st.pinPopupId) : null;
+
+    // ---- detail ----
+    const ap = this.getPin(st.activePinId) || st.pins[0];
+    const detailPhotos = ap ? ap.photos.map((k,i) => ({ src:this.photoUrl(k), hasComment: !!st.photoComments[ap.id+'_'+i], onClick: () => this.openLightbox(ap.id,i) })) : [];
+
+    // ---- lightbox ----
+    const lbPin = st.lightboxPinId ? this.getPin(st.lightboxPinId) : null;
+    const lbKey = lbPin ? (lbPin.id+'_'+st.lightboxIndex) : '';
+
+    // ---- edit ----
+    const editPhotos = st.editPhotos.map(k => ({ src:this.photoUrl(k), onRemove: () => this.setState(s=>({editPhotos:s.editPhotos.filter(x=>x!==k)})) }));
+    const editTags = st.editTags.map(t => ({ label:t, onRemove: () => this.setState(s=>({editTags:s.editTags.filter(x=>x!==t)})) }));
+
+    // ---- register ----
+    const regPhotos = st.regPhotos.map(k => ({ src:this.photoUrl(k), onRemove: () => this.setState(s=>({regPhotos:s.regPhotos.filter(x=>x!==k)})) }));
+    const regTags = st.regTags.map(t => ({ label:t, onRemove: () => this.setState(s=>({regTags:s.regTags.filter(x=>x!==t)})) }));
+
+    // ---- search ----
+    const q = st.searchQuery.trim();
+    const allTags = [...new Set(st.pins.flatMap(p=>p.tags))];
+    const searchTagChips = allTags.map(t => {
+      const on=st.searchTags.includes(t);
+      return { label:'#'+t, onToggle:()=>this.toggleSearchTag(t),
+        style:'flex:none;padding:7px 14px;border:none;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;background:'+(on?'var(--primary)':'var(--surface-sunken)')+';color:'+(on?'var(--on-primary)':'var(--text-secondary)') };
+    });
+    const results = st.pins.filter(p => {
+      const mq = !q || p.name.includes(q) || p.comment.includes(q) || p.tags.some(t=>t.includes(q));
+      const mt = st.searchTags.length===0 || st.searchTags.every(t=>p.tags.includes(t));
+      return mq && mt;
+    });
+    const searchResults = results.map(p => ({ id:p.id, name:p.name, date:p.datetime, thumb:this.photoUrl(p.photos[0]), tags:p.tags.map(t=>({label:'#'+t})), onOpen:()=>this.openDetail(p.id) }));
+
+    // ---- record chart ----
+    const week = [['月',32],['火',0],['水',48],['木',26],['金',55],['土',72],['日',41]];
+    const month = [['第1週',185],['第2週',240],['第3週',162],['第4週',298]];
+    const raw = st.recordPeriod==='week' ? week : month;
+    const todayIdx = st.recordPeriod==='week' ? 6 : 3;
+    const max = Math.max(...raw.map(r=>r[1]),1);
+    const chartBars = raw.map((r,i) => {
+      const hl = i===todayIdx;
+      return { label:r[0], value:r[1], height: Math.max(r[1]/max*100,2)+'%',
+        color: hl?'var(--primary)':(r[1]===0?'var(--ink-200)':'var(--blue-300)'),
+        labelColor: hl?'var(--primary)':'var(--text-tertiary)', labelWeight: hl?700:500 };
+    });
+    const totalMin = raw.reduce((a,r)=>a+r[1],0);
+    const totalWalk = Math.floor(totalMin/60)+'時間'+(totalMin%60)+'分';
+    const totalDist = (totalMin*0.083).toFixed(1);
+
+    return {
+      navItems, dark:st.dark, showIllus: !st.dark, onToggleDark:this.onToggleDark, themeAttr: st.dark?'dark':'light', screenLabel,
+      isLogin, isStart, isMain, isDetail, isEdit, isSearch, isRecord,
+      onLogin:this.onLogin,
+
+      // start
+      reachable, reachCount:reach.length, duration:st.duration, durationKm:durKm,
+      rangeBg:'linear-gradient(90deg, var(--primary) '+pct+'%, var(--ink-200) '+pct+'%)',
+      onSlider:this.onSlider, openCatSheet:this.openCatSheet, catsSummary,
+      hasSelected: !!sel, startRoute: sel ? ('M50,55 Q'+((50+sel.x)/2+6)+','+((55+sel.y)/2-8)+' '+sel.x+','+sel.y) : '',
+      selectedName: sel?sel.name:'', selectedTime: sel?sel.time:'',
+      startDisabled: !sel, startLabel: sel?'散歩を始める':'目的地を選んでください', onStartWalk:this.onStartWalk,
+
+      // category sheet
+      catSheetOpen:st.catSheetOpen, closeCatSheet:this.closeCatSheet, catDoneLabel: reach.length+'件のスポットを表示',
+      catList: Object.keys(C).map(k => { const m=C[k]; const checked=st.cats.includes(k); return {
+        label:m.label, icon:m.icon, iconColor:m.color, tintBg:tint(m.color), checked, onToggle:()=>this.toggleCat(k),
+        rowStyle:'display:flex;align-items:center;gap:12px;width:100%;padding:12px 6px;border:none;background:transparent;cursor:pointer' }; }),
+
+      // main
+      selectedTimeMain: sel?sel.time:60, selectedKmMain: sel?(sel.dist*2).toFixed(1):'4.0', goalName,
+      elapsedStr:this.fmt(st.elapsedSec), distStr:km, stepsStr:steps.toLocaleString(),
+      statusTone: st.paused?'warning':'info', statusText: st.paused?'一時停止中':'ナビゲーション中',
+      pauseIcon: st.paused?'play':'pause', pauseLabel: st.paused?'再開':'一時停止',
+      togglePause:this.togglePause, openEnd:this.openEnd, openAddPin:this.openAddPin,
+      flex1:{flex:1}, flex14:{flex:1.4},
+      mainPins, popupOpen:!!popupPin, popupName:popupPin?popupPin.name:'', popupDate:popupPin?popupPin.datetime:'',
+      popupThumbs: popupPin?popupPin.photos.map(k=>({src:this.photoUrl(k)})):[],
+      closePinPopup:this.closePinPopup, popupDetail: popupPin?()=>this.openDetail(popupPin.id):()=>{},
+
+      // end dialog
+      endDialogOpen:st.endDialogOpen, cancelEnd:this.cancelEnd, confirmEnd:this.confirmEnd,
+
+      // register
+      pinRegOpen:st.pinRegOpen, closeReg:this.closeReg,
+      regName:st.regName, onRegName:e=>this.setState({regName:e.target.value}),
+      regPhotos, addRegPhoto:this.addRegPhoto,
+      regTags, regTagInput:st.regTagInput, onRegTagInput:e=>this.setState({regTagInput:e.target.value}), addRegTag:this.addRegTag,
+      regComment:st.regComment, onRegComment:e=>this.setState({regComment:e.target.value}), saveReg:this.saveReg,
+
+      // detail
+      detailName: ap?ap.name:'', detailDate: ap?ap.datetime:'', detailComment: ap?ap.comment:'',
+      detailTags: ap?ap.tags.map(t=>({label:t})):[], detailPhotos,
+      backFromDetail:()=>this.setState({screen: st.screen==='pinEdit'?'pinDetail':'search'}),
+      openEdit:this.openEdit,
+
+      // edit
+      editName:st.editName, onEditName:e=>this.setState({editName:e.target.value}),
+      editPhotos, addEditPhoto:this.addEditPhoto,
+      editTags, editTagInput:st.editTagInput, onEditTagInput:e=>this.setState({editTagInput:e.target.value}), addEditTag:this.addEditTag,
+      editComment:st.editComment, onEditComment:e=>this.setState({editComment:e.target.value}),
+      saveEdit:this.saveEdit, deletePin:this.deletePin,
+
+      // lightbox
+      lightboxOpen:st.lightboxOpen, closeLightbox:this.closeLightbox,
+      lbSrc: lbPin?this.photoUrl(lbPin.photos[st.lightboxIndex]):'',
+      lbCounter: lbPin?((st.lightboxIndex+1)+' / '+lbPin.photos.length):'',
+      lbPrev:()=>this.lbStep(-1), lbNext:()=>this.lbStep(1),
+      lbComment: st.photoComments[lbKey]||'', onLbComment:this.onLbComment,
+
+      // search
+      searchQuery:st.searchQuery, onSearch:this.onSearch, hasQuery: q.length>0||st.searchTags.length>0, clearSearch:this.clearSearch,
+      searchTagChips, searchResults, resultCount:results.length, noResults: results.length===0,
+
+      // record
+      recordPeriod:st.recordPeriod, setPeriod:this.setPeriod,
+      periodItems:[{label:'1週間',value:'week'},{label:'1ヶ月',value:'month'}],
+      chartBars, totalWalk, totalUnit:'分', totalDist, streak:12,
+      todaySteps:'6,240', stepGoalPct:78,
+
+      // tab bar
+      showTabBar: isMain||isSearch||isRecord, tabValue:st.screen, onTab:v=>this.go(v),
+      tabItems:[{label:'ナビ',value:'main',icon:'footprints'},{label:'検索',value:'search',icon:'search'},{label:'記録',value:'record',icon:'bar-chart-2'}],
+
+      // fx + toast
+      fxActive:st.fxActive,
+      confetti: Array.from({length:46},(_,i)=>{ const r=n=>((Math.sin(i*97.13+n*1.7)*10000)%1+1)%1; const cols=['#f6a8c0','#f8c65a','#8b6fe0','#f89e57','#35b36b','#1585fe','#e6484d']; return { left:(r(1)*100).toFixed(1)+'%', color:cols[i%cols.length], size:(6+r(2)*8).toFixed(0)+'px', dur:(1.1+r(3)*1.0).toFixed(2)+'s', delay:(r(4)*0.55).toFixed(2)+'s' }; }),
+      toastVisible:st.toast.visible, toastMsg:st.toast.msg,
+    };
+  }
+}
+</script>
+</body>
+</html>
+
