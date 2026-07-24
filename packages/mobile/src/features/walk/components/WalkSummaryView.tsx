@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
 import { StatBlock } from "@/components/ui/stat-block/StatBlock";
+import { SAMPLE_WALK_RESULT } from "@/features/walk/data/defaults";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -37,10 +38,13 @@ export function WalkSummaryView() {
     goalName?: string;
   }>();
   // router param は文字列かつ未検証のため、formatClock が例外を投げる負値/非有限値をガードする。
-  const elapsedSec = toNonNegInt(params.elapsedSec);
-  const distKm = params.distKm ?? "0.0";
-  const steps = toNonNegInt(params.steps);
-  const goalName = params.goalName;
+  // params 未指定時（画面カタログ等からの単独表示）は SAMPLE_WALK_RESULT の代表値を使う。
+  const elapsedSec = params.elapsedSec
+    ? toNonNegInt(params.elapsedSec)
+    : SAMPLE_WALK_RESULT.elapsedSec;
+  const distKm = params.distKm ?? SAMPLE_WALK_RESULT.distKm;
+  const steps = params.steps ? toNonNegInt(params.steps) : SAMPLE_WALK_RESULT.steps;
+  const goalName = params.goalName ?? SAMPLE_WALK_RESULT.goalName;
 
   return (
     <View

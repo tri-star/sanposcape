@@ -11,16 +11,13 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { MapCanvas } from "@/features/walk/components/MapCanvas";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
+import { DEFAULT_WALK_GOAL } from "@/features/walk/data/defaults";
 import { useWalkSession } from "@/features/walk/hooks/useWalkSession";
 import { walkStatsFromElapsed } from "@/features/walk/lib/walkStats";
 import { useToast } from "@/hooks/useToast";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
-
-const DEFAULT_GOAL_NAME = "川辺駅";
-const DEFAULT_GOAL_TIME_MIN = "60";
-const DEFAULT_GOAL_DIST_KM = "4.0";
 
 /**
  * 散歩中（ナビタブ）画面。mock `isMain` を1:1で再現する。
@@ -40,9 +37,9 @@ export function WalkActiveView() {
     goalTimeMin?: string;
     goalDistKm?: string;
   }>();
-  const goalName = params.goalName ?? DEFAULT_GOAL_NAME;
-  const goalTimeMin = params.goalTimeMin ?? DEFAULT_GOAL_TIME_MIN;
-  const goalDistKm = params.goalDistKm ?? DEFAULT_GOAL_DIST_KM;
+  const goalName = params.goalName ?? DEFAULT_WALK_GOAL.name;
+  const goalTimeMin = params.goalTimeMin ?? String(DEFAULT_WALK_GOAL.time);
+  const goalDistKm = params.goalDistKm ?? DEFAULT_WALK_GOAL.dist.toFixed(1);
 
   const stats = walkStatsFromElapsed(session.elapsedSec);
   const isDark = theme.name === "dark";
