@@ -11,6 +11,15 @@ import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 /**
+ * router param（文字列・未検証）を非負整数へ変換する。
+ * 非有限値（"Infinity" 等）や負値は 0 に丸め、formatClock 側の例外を防ぐ。
+ */
+function toNonNegInt(value: string | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/**
  * 散歩終了サマリ画面。mock に直接該当なし。
  * `isMain` の終了導線＋`isRecord` の StatBlock/Card トーンで補完する。
  * 経過時間・距離・歩数は散歩中画面から router params で受け取る（静的実装）。
@@ -28,9 +37,9 @@ export function WalkSummaryView() {
     goalName?: string;
   }>();
   // router param は文字列かつ未検証のため、formatClock が例外を投げる負値/非有限値をガードする。
-  const elapsedSec = Math.max(0, Number(params.elapsedSec ?? 0) || 0);
+  const elapsedSec = toNonNegInt(params.elapsedSec);
   const distKm = params.distKm ?? "0.0";
-  const steps = Math.max(0, Number(params.steps ?? 0) || 0);
+  const steps = toNonNegInt(params.steps);
   const goalName = params.goalName;
 
   return (
