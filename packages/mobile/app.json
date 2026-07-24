@@ -8,6 +8,7 @@
     "scheme": "sanposcape",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.sanposcape.app",
       "icon": "./assets/expo.icon"
     },
     "android": {
