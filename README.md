@@ -26,6 +26,7 @@
 - mobile
   - [フォルダ構造](./packages/mobile/docs/folder-structure.md) / [命名規則](./packages/mobile/docs/naming-conventions.md)
   - [ツール・ライブラリ](./packages/mobile/docs/toolsets-libraries.md) / [アーキテクチャガイドライン](./packages/mobile/docs/architecture-guideline.md) / [ページ・コンポーネント](./packages/mobile/docs/pages-components-guideline.md) / [ローカル環境構築](./packages/mobile/docs/local-env-design.md)
+  - [iPhone実機 development build手順](./packages/mobile/docs/iphone-device-development.md)
 
 ## 技術スタック
 
