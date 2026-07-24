@@ -2,3 +2,8 @@ node_modules
 
 tmp
 
+# Python
+__pycache__/
+
+# Windows filesystem metadata
+*:Zone.Identifier
