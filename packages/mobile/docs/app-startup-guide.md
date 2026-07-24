@@ -1,17 +1,19 @@
-# モバイルアプリ 起動手順ガイド（WSL2 + Windows エミュレータ）
+# モバイルアプリ 起動手順ガイド（WSL2 + Androidエミュレータ / iPhone実機）
 
-エミュレータ上で development build を起動して開発するための、**手動実行**の手順をまとめる。
+AndroidエミュレータまたはiPhone実機でdevelopment buildを起動して開発するための、
+**手動実行**の手順をまとめる。
 （将来は1コマンド化したいが、慣れるまでは本手順を手で実行する想定）
 
 - 背景・設計の詳細は [ローカル環境構築手順](./local-env.md) と [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md) を参照。
 - この構成の要点:
-  - **エミュレータ / adb は Windows 側**、**Expo CLI / Metro は WSL2 側**で動かす。
+  - Androidでは、**エミュレータ / adb は Windows 側**、**Expo CLI / Metro は WSL2 側**で動かす。
   - Expo は WSL 側に Android SDK が無いため、`adb` 操作（reverse・起動）は**自分たちで手動実行**する。
+  - iPhoneでは、iPhoneとPCを同じLANへ接続し、WSL2上のMetroを`--host lan`で公開する。
   - react-native-maps / react-native-svg を使うため **Expo Go は不可**（development build 必須）。
 
 ---
 
-## 全体像（3つのフェーズ）
+## Androidの全体像（3つのフェーズ）
 
 | フェーズ | いつ | 何をする |
 |---|---|---|
@@ -23,7 +25,7 @@
 
 ---
 
-## B. 毎回の起動手順（いちばんよく使う）
+## B. Android: 毎回の起動手順（いちばんよく使う）
 
 > 前提: 初回セットアップ（A）が済んでいて、エミュレータに「sanposcape」アプリが入っている状態。
 
@@ -61,7 +63,7 @@ adb reverse --list                     # 「... tcp:8081 tcp:8081」が出れば
 pnpm --filter mobile exec expo start --dev-client --host localhost
 ```
 
-- `--host localhost` が重要。これが無いと Metro が LAN IP（例: `192.168.0.92:8081`）を配信し、
+- `--host localhost` が重要。これが無いと Metro が LAN IP（例: `<PC_LAN_IP>:8081`）を配信し、
   エミュレータから届かず**白画面 / `java.net.ConnectException` になる**。
 
 ### 5. アプリを開く（localhost:8081 を読ませる）
@@ -103,7 +105,66 @@ adb shell am start -a android.intent.action.VIEW -d "sanposcape://dev-screens"
 
 ---
 
-## A. 初回セットアップ（最初の1回だけ）
+## iPhone実機: 毎回の起動手順
+
+> 前提: [iPhone実機 development build手順](./iphone-device-development.md)に従い、
+> development buildのインストールとDeveloper Modeの有効化が済んでいること。
+
+### 1. iPhoneとPCを同じLANへ接続する
+
+iPhoneを、PCと同じLANに属するWi-Fiへ接続する。ゲストWi-Fiなど、端末間通信を遮断する
+AP isolation / client isolationが有効なネットワークは使用しない。
+
+### 2. Hyper-VファイアウォールでMetroを許可する（PCごとに初回のみ）
+
+WSL2のmirrored networkingでは、LANからWSLへの受信通信をHyper-Vファイアウォールが制御する。
+[iPhone実機 development build手順の手順6](./iphone-device-development.md#6-hyper-vファイアウォールでmetroを許可する)
+に従い、開発中にMetroが使うポートをローカルサブネットからだけ許可する。
+すでにルールを作成済みの場合、この手順は不要。
+
+### 3. MetroをLAN配信で起動する
+
+リポジトリルートで次を実行する。
+
+```bash
+pnpm --filter mobile exec expo start --dev-client --host lan
+```
+
+Metroに表示されるURLが`http://<PC_LAN_IP>:8081`のようなLANアドレスになっていることを確認する。
+8081が使用中の場合は、Expoの確認に`yes`と回答して次のポートを使用し、そのターミナルに表示された
+QRコードを読み取る。PCの現在のLAN IPは`hostname -I`で確認できる。
+
+> Androidの`--host localhost`は、`adb reverse`で端末側のlocalhostをMetroへ転送しているから利用できる。
+> iPhoneにはこの転送がないため、`localhost`ではなく`lan`を指定する。
+
+### 4. iPhoneでdevelopment buildを開く
+
+1. iPhoneのカメラでMetroのQRコードを読み取る。
+2. 表示されたdevelopment build用リンクを開く。
+3. または、`sanposcape`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
+
+### 5. 成功の目印
+
+- Metroのコンソールに**`iOS Bundled 1234ms index.ts (N modules)`**のようなログが出る。
+- iPhoneに**`Sanpo` / `いつもの道を、ちょっと楽しい寄り道に。`**のスプラッシュ画面が表示され、
+  まもなく自動でサインイン画面へ遷移する。
+- JS、TypeScript、スタイルの変更がFast Refreshで反映される。
+
+### 6. LAN接続できない場合
+
+次の順に確認する。
+
+1. iPhoneとPCが同じLANに接続されているか。
+2. Metroに表示されたLAN IPとポートのQRコードを読み取っているか。
+3. 手順2のHyper-Vファイアウォールルールが作成され、有効になっているか。
+4. Wi-FiのAP isolation / client isolationが有効になっていないか。
+
+LAN経路を利用できない環境に限り、フォールバックとして
+`pnpm --filter mobile exec expo start --dev-client --tunnel`を使用する。
+
+---
+
+## A. Android: 初回セットアップ（最初の1回だけ）
 
 ### A-1. development build(APK) を作る
 
@@ -144,7 +205,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 
 ---
 
-## C. 再ビルドが必要になるとき
+## C. Android: 再ビルドが必要になるとき
 
 以下を変更したときは APK を作り直して入れ直す（A-1 → A-2）。それ以外（JSのみ）は不要:
 
@@ -165,6 +226,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 | `adb devices` にエミュレータが出ない | 起動途中 / adb 未接続 | 起動完了を待つ（`sys.boot_completed` が 1）。それでも出なければエミュレータ再起動 |
 | localhost 経路でどうしても繋がらない | ネットワーク構成の問題 | フォールバックで `expo start --dev-client --tunnel`（`@expo/ngrok` 導入を聞かれたら y）。tunnel なら `adb reverse` 不要 |
 | バンドルは成功（`Android Bundled`）したのに白い | JS 実行時エラー | `adb shell input keyevent 82` で開発メニュー → または Metro ログの赤いエラーを確認 |
+| iPhoneでdevelopment serverが見つからない | LAN経路またはファイアウォールの問題 | iPhone手順6を確認し、解消できない場合だけ`--tunnel`を使う |
 
 ---
 
@@ -180,6 +242,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 ## 関連ドキュメント
 
 - [ローカル環境構築手順](./local-env.md)
+- [iPhone実機 development build手順](./iphone-device-development.md)
 - [ADR-003: development build 前提と開発ループ](../adr/ADR-003-development-build-and-dev-loop.md)
 - [ADR-004: E2E ビルド・CI 戦略](../adr/ADR-004-e2e-build-ci-strategy.md)
 - ツール: `scripts/mobile-tools/`（adb ラッパー / エミュレータ起動 / AVD一覧）

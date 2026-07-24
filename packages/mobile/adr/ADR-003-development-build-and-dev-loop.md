@@ -16,15 +16,26 @@
 つまり本アプリは、スタイルと地図という中核の2要素がいずれもネイティブ依存であり、**Expo Go では成立しない**。動作確認の方法を決め直す必要がある。同時に「Expo Go のような手軽な HMR 体験を失いたくない」という要望がある。
 
 - 開発環境は WSL2。ローカルの Android エミュレータ/実機は Windows 側で動作させる想定。
+- iPhone実機も開発対象とするが、ローカルにmacOS/Xcode環境はない。iOSネイティブビルドと
+  Ad Hoc署名はEAS Buildへ委ね、登録済み端末へ配布する必要がある。
 
 ## 決定
 
 - **development build（`expo-dev-client` を含むデバッグ版アプリ）を前提とする**。Expo Go は使わない。
 - ローカル開発ループ:
-  1. **EAS で Android の development build(APK) を1回作成**し、Windows 側のエミュレータ/実機にインストールする。
+  1. **EASでdevelopment buildを1回作成**し、対象端末へインストールする。
+     - Android: APKをWindows側のエミュレータまたは実機へインストールする。
+     - iOS: Apple Developer ProgramでiPhoneのUDIDを登録し、Ad Hoc署名したIPAを
+       登録済みiPhoneへインストールする。
   2. 以降は **`expo start --dev-client`** で Metro に接続し、**Fast Refresh** で JS/スタイル/ロジックを即時反映（＝Expo Go 同等の体験）。
   3. **再ビルドが必要なのはネイティブが変わるときだけ**（native 依存の追加/削除・`app.json` のネイティブ設定・config plugin・SDK 更新）。JS のみの変更では再ビルド不要。
-- WSL2 上の Metro に端末を到達させる: 実機は `adb reverse tcp:8081 tcp:8081`、難しい場合は `expo start --dev-client --tunnel`。
+- WSL2 上の Metro に端末を到達させる:
+  - Android: `adb reverse tcp:8081 tcp:8081`で端末側のlocalhostをMetroへ転送し、
+    `expo start --dev-client --host localhost`を使う。
+  - iPhone: Androidの`adb reverse`相当がないため、iPhoneとPCを同じネットワークへ接続し、
+    `expo start --dev-client --host lan`を使う。WSL2のmirrored networkingを使うPCでは、
+    Hyper-VファイアウォールでMetro用ポートをローカルサブネットから許可する。
+    LAN経路を利用できない場合のみTunnelへフォールバックする。
 - エントリは `index.ts`（Unistyles 撤去後は起動前処理の差し込み口として残している。[ADR-005](./ADR-005-styling-without-unistyles.md)）。
 
 ## 検討した選択肢
@@ -33,7 +44,8 @@
 
 - **概要**: ネイティブは焼き込み、JS は Metro から取得。dev-client 経由で起動。
 - **メリット**: Unistyles/地図が動く。**Fast Refresh は Expo Go と同等**で、日常のループはほぼ変わらない。再ビルドはネイティブ変更時のみ。
-- **デメリット**: 初回とネイティブ変更時にビルドが要る。WSL2↔端末の到達設定（adb reverse / tunnel）が要る。
+- **デメリット**: 初回とネイティブ変更時にビルドが要る。WSL2↔端末の到達設定
+  （Androidのadb reverse / iPhoneのLAN接続）が要る。
 
 ### 選択肢2: Expo Go を維持し、スタイル/地図をネイティブ非依存に置き換える
 
@@ -51,7 +63,8 @@
 
 - react-native-maps が必須である以上、**この app は Expo Go では動かない**。よって development build は選択ではなく前提。
 - development build でも **Metro/Fast Refresh はそのまま効く**ため、「Expo Go 同等の体験」を維持できる。失うのは Expo Go アプリを入れるだけの手軽さと、初回/ネイティブ変更時のビルド時間のみ。
-- ビルドは EAS を使うことで、ローカルにネイティブtoolchainを完全整備しなくても APK を得られる（WSL2 環境と相性が良い）。
+- ビルドはEASを使うことで、ローカルにネイティブtoolchainを完全整備しなくても
+  AndroidのAPKとiOSの署名済みIPAを得られる（WSL2環境と相性が良い）。
 
 ## 影響
 
@@ -65,12 +78,18 @@
 
 - Expo Go の「アプリを入れるだけ」の手軽さは失われる。
 - 初回およびネイティブ変更時にビルド時間が発生する。
-- WSL2↔Windows 端末の到達設定（`adb reverse` / `--tunnel`）が必要。
+- WSL2と端末間の到達設定（Androidの`adb reverse`またはiPhoneのLAN接続）が必要。
+- iPhoneのLAN接続では、Hyper-VファイアウォールにMetro用の限定的な受信ルールが必要。
+- iPhoneとPCを同じLANへ接続できない環境では、Tunnelへフォールバックする必要がある。
+- iPhoneではApple Developer Programへの加入、端末UDIDの登録、証明書と
+  Provisioning Profileの期限管理が必要。
 
 ### 移行・対応が必要な事項
 
 - `expo-dev-client` を導入済み。`eas.json` に `development` プロファイルを用意済み。
-- EAS アカウント連携・Android クレデンシャルの用意（ユーザーが実施）。
+- EASアカウント連携と各プラットフォームの署名資格情報を用意する。
+- iOSのBundle Identifierは`com.sanposcape.app`とし、EASでApple Distribution Certificateと
+  Ad Hoc Provisioning Profileを管理する。
 - E2E は development build ではなく standalone な preview ビルドを使う（[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）。
 
 ## 関連情報
@@ -79,3 +98,4 @@
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
 - [ADR-005: スタイルは Unistyles をやめる](./ADR-005-styling-without-unistyles.md)
 - [mobile ローカル環境構築手順](../docs/local-env.md)
+- [iPhone実機 development build 手順](../docs/iphone-device-development.md)

@@ -41,7 +41,7 @@ pnpm --filter mobile orval
 
 ### 3. development build の作成（EAS）と起動
 
-方針: **EAS で development build(APK) を1回作り、以降は Metro の Fast Refresh で Expo Go 同等**の体験を得る。
+方針: **EASで端末向けdevelopment buildを1回作り、以降はMetroのFast RefreshでExpo Go同等**の体験を得る。
 再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)。
 
 ```bash
@@ -55,6 +55,11 @@ pnpm --filter mobile exec expo start --dev-client
 ```
 
 - ローカルの Android は Windows 側で動作させる想定（WSL2 では一部ユーザーの協力が必要）。エミュレータ/adb server は Windows 側、Expo CLI/Metro は WSL2 側という役割分担にする。
+- iPhone実機ではEASのAd Hoc署名付きdevelopment buildをインストールし、WSL2上のMetroへ
+  `expo start --dev-client --host lan`で接続する。iPhoneをPCと同じLANに属するWi-Fiへ接続し、
+  Hyper-VファイアウォールでMetro用ポートを許可する。LAN経路を利用できない場合のみ
+  Tunnelへフォールバックする。初回の端末登録、ビルド、インストール、ファイアウォール設定は
+  [iPhone実機 development build手順](./iphone-device-development.md)を参照。
 
 #### WSL2 から Windows 版 adb を使う（初回のみ）
 
@@ -91,8 +96,9 @@ bash scripts/mobile-tools/start-emulator.sh Pixel_8_API_35  # AVDを指定して
 #### Metroへのポート転送
 
 - WSL2 上の Metro に端末を到達させる:
-  - `adb reverse tcp:8081 tcp:8081`（`adb reverse`の設定はエミュレータを再起動すると消えるため、エミュレータ起動後に毎回実行する）
-  - うまくいかない場合: `expo start --dev-client --tunnel`
+  - Android: `adb reverse tcp:8081 tcp:8081`（`adb reverse`の設定はエミュレータを再起動すると消えるため、エミュレータ起動後に毎回実行する）
+  - iPhone: `expo start --dev-client --host lan`（iPhoneとPCを同じLANへ接続する）
+  - LAN経路を利用できない場合のみ: `expo start --dev-client --tunnel`
 
 ## よく使うコマンド
 
