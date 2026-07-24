@@ -1,13 +1,10 @@
-import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { PeriodChart } from "@/features/history/components/PeriodChart";
 import { StepGoalCard } from "@/features/history/components/StepGoalCard";
-import { STEP_GOAL, STREAK_DAYS, TODAY_STEPS } from "@/features/history/data/records";
-import { buildPeriodChart } from "@/features/history/lib/periodChart";
-import type { Period } from "@/features/history/types";
+import { useHistorySummary } from "@/features/history/hooks/useHistorySummary";
 import { makeStyles } from "@/theme/makeStyles";
 
 /**
@@ -16,8 +13,8 @@ import { makeStyles } from "@/theme/makeStyles";
 export function HistoryView() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const [period, setPeriod] = useState<Period>("week");
-  const chart = buildPeriodChart(period);
+  const { userName, period, setPeriod, chart, streakDays, todaySteps, stepGoal } =
+    useHistorySummary();
 
   return (
     <View testID="history-screen" style={styles.root}>
@@ -30,7 +27,7 @@ export function HistoryView() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>歩いた記録</Text>
-          <Text style={styles.subtitle}>田中さん、今日も歩きましょう</Text>
+          <Text style={styles.subtitle}>{`${userName}、今日も歩きましょう`}</Text>
         </View>
 
         <PeriodChart period={period} onChangePeriod={setPeriod} chart={chart} />
@@ -46,13 +43,13 @@ export function HistoryView() {
           <Card style={styles.halfCard}>
             <Text style={styles.cardLabel}>連続日数</Text>
             <View style={styles.cardValueRow}>
-              <Text style={styles.cardValue}>{STREAK_DAYS}</Text>
+              <Text style={styles.cardValue}>{streakDays}</Text>
               <Text style={styles.cardUnit}>日連続</Text>
             </View>
           </Card>
         </View>
 
-        <StepGoalCard todaySteps={TODAY_STEPS} goal={STEP_GOAL} />
+        <StepGoalCard todaySteps={todaySteps} goal={stepGoal} />
       </ScrollView>
     </View>
   );

@@ -1,5 +1,10 @@
 import type { Period } from "@/features/history/types";
 
+/**
+ * このファイルの値は暫定の静的スタブ（mock の `week` / `month` 等を移植したもの）。
+ * 将来 `features/history/api/`（Orval生成物 + TanStack Query）に置き換わる差し替え点。
+ */
+
 /** 曜日/週ラベルと合計時間(分)のペア。mock の `week` / `month` を静的に移植。 */
 export type PeriodRecord = readonly [label: string, minutes: number];
 

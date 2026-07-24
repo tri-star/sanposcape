@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
 import { StatBlock } from "@/components/ui/stat-block/StatBlock";
+import { SAMPLE_WALK_RESULT } from "@/features/walk/data/defaults";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -37,10 +38,14 @@ export function WalkSummaryView() {
     goalName?: string;
   }>();
   // router param は文字列かつ未検証のため、formatClock が例外を投げる負値/非有限値をガードする。
-  const elapsedSec = toNonNegInt(params.elapsedSec);
-  const distKm = params.distKm ?? "0.0";
-  const steps = toNonNegInt(params.steps);
-  const goalName = params.goalName;
+  // params 未指定時（画面カタログ等からの単独表示）は SAMPLE_WALK_RESULT の代表値を使う。
+  const elapsedSec = params.elapsedSec
+    ? toNonNegInt(params.elapsedSec)
+    : SAMPLE_WALK_RESULT.elapsedSec;
+  const distKm = params.distKm ?? SAMPLE_WALK_RESULT.distKm;
+  const steps = params.steps ? toNonNegInt(params.steps) : SAMPLE_WALK_RESULT.steps;
+  // "" は `??` で弾けないため、空文字列も未指定として扱いフォールバックさせる。
+  const goalName = params.goalName?.trim() ? params.goalName : SAMPLE_WALK_RESULT.goalName;
 
   return (
     <View
@@ -52,9 +57,7 @@ export function WalkSummaryView() {
           <Icon name="footprints" size={40} color={theme.colors.primary} />
         </View>
         <Text style={styles.title}>おつかれさまでした</Text>
-        <Text style={styles.subtitle}>
-          {goalName ? `${goalName}までの散歩を記録しました。` : "今日の散歩を記録しました。"}
-        </Text>
+        <Text style={styles.subtitle}>{`${goalName}までの散歩を記録しました。`}</Text>
       </View>
 
       <Card style={styles.statsCard}>
