@@ -44,7 +44,8 @@ export function WalkSummaryView() {
     : SAMPLE_WALK_RESULT.elapsedSec;
   const distKm = params.distKm ?? SAMPLE_WALK_RESULT.distKm;
   const steps = params.steps ? toNonNegInt(params.steps) : SAMPLE_WALK_RESULT.steps;
-  const goalName = params.goalName ?? SAMPLE_WALK_RESULT.goalName;
+  // "" は `??` で弾けないため、空文字列も未指定として扱いフォールバックさせる。
+  const goalName = params.goalName?.trim() ? params.goalName : SAMPLE_WALK_RESULT.goalName;
 
   return (
     <View
@@ -56,9 +57,7 @@ export function WalkSummaryView() {
           <Icon name="footprints" size={40} color={theme.colors.primary} />
         </View>
         <Text style={styles.title}>おつかれさまでした</Text>
-        <Text style={styles.subtitle}>
-          {goalName ? `${goalName}までの散歩を記録しました。` : "今日の散歩を記録しました。"}
-        </Text>
+        <Text style={styles.subtitle}>{`${goalName}までの散歩を記録しました。`}</Text>
       </View>
 
       <Card style={styles.statsCard}>

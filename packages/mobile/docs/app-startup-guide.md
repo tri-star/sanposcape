@@ -82,6 +82,19 @@ adb shell am start -a android.intent.action.VIEW \
 - エミュレータに **`Sanpo` / `いつもの道を、ちょっと楽しい寄り道に。`** のスプラッシュ画面が表示され、
   まもなく自動でサインイン画面へ遷移する。
 
+### 6.5 開発確認用の画面カタログを開く（表示確認）
+
+各主要画面はプロダクト導線を辿らないと単独で開けないため、development build 上で
+`/dev-screens`（`ScreenCatalog`）を直接開くとスタブデータ付きで一覧から確認できる（SS-9）。
+本番ビルドでは `__DEV__` ガードにより `/` へリダイレクトされ開けない。
+
+```bash
+adb shell am start -a android.intent.action.VIEW -d "sanposcape://dev-screens"
+```
+
+同様に `/design-system`（デザイントークン/UIプリミティブ一覧）も
+`sanposcape://design-system` で開ける。
+
 ### 7. Fast Refresh を使う（動作確認）
 
 - `packages/mobile/src/features/auth/components/SplashView.tsx`（スプラッシュの実文言を持つファイル。
@@ -157,7 +170,8 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 
 ## backend と繋ぐ場合（現時点は任意）
 
-- 現在のホーム画面は静的なプレースホルダで backend を呼ばないため、起動確認だけなら backend 不要。
+- 現在の各画面は `src/features/*/data/` の静的スタブで表示するため backend を呼ばない。
+  起動確認だけなら backend 不要。
 - 今後 backend と通信する画面を触るときは、backend を起動しておく（[backend ローカル環境構築手順](../../backend/docs/local-env.md)）。
 - エミュレータからホストの backend へは、ビルドの `EXPO_PUBLIC_BACKEND_API_URL` を通じて到達する（`10.0.2.2` はエミュレータからホストを指すアドレス）。詳細は結線時（M4 前後）に整理する。
 

@@ -55,6 +55,23 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
   実機確認できる。プロダクトの起動画面（`app/index.tsx`）は SS-8 でスプラッシュ（`SplashView`）に
   置き換わったため、ギャラリーはこの専用ルートから開く。
 
+### 開発確認用ルート（プロダクト導線外）
+
+各主要画面はプロダクトの操作フロー（サインイン→散歩開始→…）を経ないと単独で開けないため、
+開発・レビュー時にスタブデータ付きで直接開くための専用ルートを用意している。
+いずれも `app/_layout.tsx` のプロダクト導線には含めず、`__DEV__` でガードして本番ビルドでは
+`/`（トップ）へ `Redirect` する（SS-9）。
+
+| ルート | 実体 | 用途 |
+|---|---|---|
+| `/dev-screens` | `app/dev-screens.tsx` → `ScreenCatalog` | 各主要画面をスタブデータ付きで直接開く画面カタログ |
+| `/design-system` | `app/design-system.tsx` → `DesignSystemGallery` | デザイントークン/UIプリミティブ一覧 |
+
+画面の見た目を確認したいときは、development build で `/dev-screens` を開く
+（URL直打ちの手順は [app-startup-guide](./app-startup-guide.md) を参照）。
+**新しい主要画面（`app/` 配下のルート）を追加したら、`ScreenCatalog` の `links` にリンクを1件追加する**
+ことを実装のセットとする。追加を怠るとカタログが陳腐化し、表示確認の抜け漏れに繋がる。
+
 ### 共通UIコンポーネントを追加・変更するときのルール
 
 1. **色・フォントサイズをハードコードしない**。必ず `theme` 経由（例外はスクリムなど `theme.colors.scrim`
@@ -88,4 +105,10 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
 代わりに、**判定ロジックを `react-native` を値として import しない純粋関数に切り出して `.test.ts` でテストする**
 （`src/lib/hitSlop.ts` / `src/lib/toPercent.ts` / `src/theme/tokens.ts` の `resolveTheme` がこの形）。
 `docs/architecture-guideline.md` の「UIとロジックの分離」方針と同じ考え方。
+
+また、`features/<feature>/data/` の静的スタブは「壊れていないこと」を `.test.ts` で守る。
+例: id の一意性、参照先メタ情報とのキー整合、値域（`data/spots.test.ts`）、
+代表値が計算ロジックと矛盾しないこと（`data/defaults.test.ts`）。
+スタブを手で書き換えたときの取りこぼしを CI で検知できるようにする（SS-9）。
+表示そのものの確認は上記の開発確認用ルート（`/dev-screens`）での目視に委ねる。
 

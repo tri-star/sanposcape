@@ -2,7 +2,8 @@ import type { Spot } from "@/features/walk/data/types";
 
 /**
  * router params 欠落時に散歩中画面が使う既定ゴール（mock の川辺駅相当）。
- * 将来 API 由来（直近の散歩プラン）に差し替わる可能性のある暫定スタブ。
+ * 実データ化の見込みが薄いフォールバック定数のため、View（WalkActiveView/ScreenCatalog）
+ * からの直接 import を許容する（`docs/folder-structure.md` の `data/` 参照規律を参照）。
  */
 export const DEFAULT_WALK_GOAL: Pick<Spot, "name" | "time" | "dist"> = {
   name: "川辺駅",

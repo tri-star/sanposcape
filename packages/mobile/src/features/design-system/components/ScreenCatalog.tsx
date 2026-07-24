@@ -127,7 +127,7 @@ export function ScreenCatalog() {
             <Pressable
               key={link.key}
               accessibilityRole="button"
-              accessibilityLabel={link.label}
+              accessibilityLabel={`${link.label}。${link.description}`}
               testID={`catalog-link-${link.key}`}
               onPress={link.onPress}
               style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
