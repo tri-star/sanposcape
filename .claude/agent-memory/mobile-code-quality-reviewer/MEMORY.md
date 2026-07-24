@@ -1,0 +1,5 @@
+- [pointerEvents=none a11y pitfall](pressable-pointerevents-a11y-pitfall.md) — RNの pointerEvents="none" はa11yツリーから消さない。行+装飾Checkbox等の二重読み上げに注意。
+- [services stub error-handling gap](services-stub-error-handling-gap.md) — stubは常に成功するため、hookの.catch/エラーフィードバック欠如が隠れがち。real実装はthrowする設計。
+- [review scope: verify git state](review-scope-verify-git-state.md) — 依頼文のブランチ名/コミット/「未コミット」表記は実際のgit状態とズレることがある。都度確認する。
+- [accessibilityLabel overrides children text](accessibility-label-overrides-children-text.md) — 明示的なaccessibilityLabelは子Textの自動読み上げを上書きし、隣接する説明文が読まれなくなることがある。
+- [mock .dc.html as review evidence](mock-dc-html-as-review-evidence.md) — スタブ値の食い違いを見つけたら docs/mock/*.dc.html をgrepし、元mock仕様由来か新規バグかを判定してから指摘する。

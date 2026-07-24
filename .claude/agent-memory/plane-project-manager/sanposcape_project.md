@@ -44,3 +44,59 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - priorityは全WorkItemが `none` のまま未設定。Plane標準の固定値は `urgent/high/medium/low/none`（プロジェクト固有のカスタム値ではない）。
 - モジュール別WorkItem件数（2026-07-21時点、全25件）: M1=5件（SS-2,3,4,5,22）, M2=8件（SS-1,6,7,8,9,23,24,25）, M3=4件（SS-10〜13）, M4=4件（SS-14〜17）, M5=4件（SS-18〜21）。SS-1はM2所属でState=Review、SS-6はM2所属でState=Cancelled。SS-23〜25はSS-1の実機確認で見つかった残課題（Unistyles×Reanimated非互換／ロゴ・イラスト実アセット差し替え／DS軽微差異）としてBacklogで追加。
 - **画面実装タスクの割り振り方針**: 横断的なUI基盤・共通コンポーネント・静的画面実装はM2、機能固有の画面（認証系→M3、探索/地図/散歩開始系→M4、記録/履歴系→M5）はそれぞれの機能モジュールに割り当てるのが一貫性がある。
+
+## 2026-07-23確認: SS-1完了・ADR-005によるUnistyles撤去とSS-23の陳腐化リスク
+
+- SS-1（PR #3 `feat/ss-1-design-import-stylesheet` マージ済み）は本日付でState=Doneに更新済み（更新日時2026-07-23T08:53、対応時点で既にDone化されており追加のupdate_work_itemは不要だった）。
+- リポジトリ確認の結果、`packages/mobile/src/components/ui/` 配下に badge/bottom-sheet/button/card/checkbox/dialog/icon/icon-button/input/map-pin/progress-bar/stat-block/switch/tab-bar/tabs/tag/toast が既に実装済み（SS-7の対象範囲がSS-1のPRでほぼ完了している）。ただしTextコンポーネント単体は未確認（見当たらず）。`packages/mobile/app/` はまだ `_layout.tsx` と `index.tsx` のみでMVP画面・ルーティングは未着手（SS-8は未着手）。
+- **重要**: `packages/mobile/adr/ADR-005-styling-without-unistyles.md`（2026-07-22採用）により react-native-unistyles は**完全に撤去**され、RN標準StyleSheet + テーマContext(`src/theme/makeStyles.ts`等)に置き換わった。現行コードに`unistyles`/`useUnistyles`の参照はゼロ（`git grep`で確認）。
+- この結果、SS-23「mobile: Unistyles × Reanimated の非互換を根本解決する」は**問題の前提（Unistyles使用）自体が消滅しており事実上陳腐化している可能性が高い**。SS-23/SS-24の本文は、破棄されたブランチ `feat/ss-1-design-tokens`（Unistylesベースの別実装、同一目的の別ADR-005文書を含む）を情報源に書かれた可能性がある。特にSS-24が前提とする`IllustrationSlot`コンポーネントは現行mainには存在しない（`feat/ss-1-design-tokens`ブランチのコミット3c3b5acのみに存在、mainの祖先ではない）。
+- **How to apply**: 今後SS-23/SS-24を扱う際は、まず現行コードで前提が今も成り立つか（Unistyles使用の有無、IllustrationSlotの実在）を確認すること。ユーザーに「ADR-005によりSS-23は陳腐化の可能性がある」「SS-24の本文はUnistyles版ブランチの記述を引き継いでいる可能性がある」と伝え、内容の見直し（Cancelled化や本文修正）を提案するのが望ましい。SS-25（DSとの軽微差異）はスタイリング方式に依存しない内容なので陳腐化の懸念は無い。
+
+## 2026-07-25確認: トリアージ時点のState別内訳とSS-26〜28の新規発見
+
+- 全28件（前回2026-07-21確認時は25件）。State別: Review=1（SS-8のみ）、In Progress=0、Todo=0（未使用のstate）、Backlog=21、Done=5（SS-1〜5）、Cancelled=1（SS-6）。
+- **SS-26/27/28が新規に追加されていた**（いずれもBacklog・優先度low・5モジュールのどれにも未所属）: SS-26「spacingトークンに無い10pxが5ファイルに複製」(30047c93-bb5e-41b7-afb4-35d703e0cac0)、SS-27「BottomSheetのスクリムがシートと一緒にせり上がる」(9bb76f1c-dfe6-469d-8f34-1af023f40647)、SS-28「Badgeのトーン別配色のコントラスト比を検証」(d1f6922d-6774-40c2-8ddf-e86d6a82c966)。SS-1系のPRレビューで見つかった軽微な改善項目と推測される。
+- SS-8（M2「MVP主要画面の静的実装・ルーティング配線」）はState=ReviewでPR #4のリンク登録済み（`https://github.com/tri-star/sanposcape/pull/4`）、コメント0件。ブランチ`feat/ss-8-mvp-screens`の最新コミット（散歩サマリ画面のelapsedSec/stepsクラッシュ修正）はこのPR #4に対応するフォローアップ修正。
+- **2026-07-25 01:49追記**: GitHub側確認でPR #4は2026-07-24T16:45:11Z（JST 01:45）マージ済み、フォローアップ修正コミット(1a7922a)もマージ時刻より前でPR #4に含まれると判明したため、SS-8をDone（`1e596b34-de54-46e1-a9c4-b61c21cc8ef0`）に更新済み。以後M2の残BacklogタスクはSs-7/SS-9/SS-23〜25のみで、Review/In Progressは0件に戻った。
+- **How to apply**: 今後のトリアージ依頼では、モジュール未所属のBacklogタスクが存在しうる点に注意（`list_module_work_items`を5モジュール分呼ぶだけでは全件を捕捉できない。必ず`list_work_items`の総数と突き合わせること）。Review状態のPRがマージ済みと判明した場合はDone化して報告する運用（task-triageルール）。
+
+## 2026-07-25確認: 「関連付け(relates to)」等のカスタムリレーションは402で利用不可
+
+- `list_work_item_relation_definitions` はこのワークスペースで **HTTP 402 Payment Required** を返す（`list_work_item_types` と同じプラン制約）。カスタムリレーション定義（「関連する」等）は取得も利用も不可。
+- `create_work_item_relation` の `relation_type` に組み込み値以外（例: `relates_to`）を渡すとツール側バリデーションで拒否される。使える`relation_type`は `blocking / blocked_by / start_before / start_after / finish_before / finish_after` の6種類のみで、いずれも「関連する(relates to)」の意味には合わない。
+- **How to apply**: 「SS-XXと関連付けて」等の依頼が来ても、本プロジェクトでは緩い関連付け（relates to）を表現する手段がない。依存関係が明確な場合のみ`blocking`/`blocked_by`等の6種を検討し、それ以外は本文中に関連課題番号を明記する運用で代替する（実際にSS-29ではSS-9/SS-4/SS-12/SS-14/SS-18への言及を本文に記載する形にした）。
+
+## 2026-07-25追加: SS-29「data/スタブ→Orval生成MSWモック移行」をM1に追加
+
+- SS-29（work_item_id: `888431fa-1105-4cc6-ba8a-c8bfdba2740b`）を新規作成し、M1「開発基盤の整備」(`5b415687-70f1-44d3-9f17-dffa2d66363a`)に追加、State=Backlog。SS-9/SS-4/SS-12/SS-14/SS-18への言及を本文に含む横断的なテスト基盤整備タスク。
+- **Why**: 手書きスタブ(SS-9)からOrval生成MSWモックへの移行が各機能課題に埋もれるリスクを避けるため独立課題として起票（ユーザー指示）。
+
+## 2026-07-25追加: SS-30/SS-31（doc-maintainer発見のドキュメント乖離）をM1に追加
+
+- SS-30「docs: ADR-005(スタイリング方針)決定後もUnistyles前提の記述が全面的に残存している」(work_item_id: `39795435-1af8-46c5-bf41-df22ded042f5`) と SS-31「docs: ローカル環境構築のドキュメントリンクが古い設計メモを指している」(work_item_id: `cdb487a7-5e06-4ca3-b5c7-4855d0b95575`) を新規作成し、いずれもM1「開発基盤の整備」に追加、State=Backlog。
+- **Why**: SS-9のドキュメント整合性チェック（doc-maintainerエージェント）で発見された、SS-9の変更範囲外だが放置すべきでない既存の乖離（README.md/docs/milestones.md等のUnistyles残存記述、local-env-design.mdへの古いリンク）を独立課題として起票（ユーザー指示）。
+- モジュール別件数の更新: M1は本追加でSS-2,3,4,5,22,29,30,31の8件になった（2026-07-25 02:57時点のSS-29追加に続く追加）。
+
+## 2026-07-25確認: PR URLの記録先はカスタムプロパティではなく標準Link機能
+
+- `list_work_item_properties(project_id=...)` は空配列を返す（work_item_types機能が無効なプロジェクトのため、URL型等のカスタムプロパティは未整備・作成不可の可能性が高い）。
+- PRのURLなど外部リンクを記録したい場合は、カスタムプロパティではなく **`create_work_item_link` / `list_work_item_links`**（work itemの標準Link機能）を使うこと。SS-8にPR #4のURLをこの方法で登録済み（link_id: `36999d74-c648-4724-a180-f0ec793bd32e`）。
+- **How to apply**: 今後「PRのURLを記録して」等の依頼が来たら、まずカスタムプロパティを探すより先に標準Link機能の利用を検討する（本プロジェクトではこちらが実質唯一の選択肢）。
+
+## 2026-07-25確認: Milestone機能は0件・「マイルストーン」呼称はModuleのM1〜M5を指す
+
+- `list_milestones(project_id)` は空配列を返す。本プロジェクトではPlaneの「Milestone」機能は使われておらず、ユーザーが「マイルストーンM-2」等と呼ぶ場合は実体としてはModule「M2: デザイン取り込み・UI基盤」等を指している。
+- **How to apply**: 「マイルストーンM-N」の依頼が来たら、まず`list_milestones`が空であることを確認しつつ、`list_modules`で名称が近い「M-N: ...」のModuleを提示する（今回はM-2→module_id `d850d555-b5f3-41bb-99a9-15088e79885b` で正しく解決できた）。
+- 2026-07-25時点でのM2内訳（再確認）: SS-1=Done, SS-6=Cancelled, SS-7=Backlog, SS-8=Done, SS-9=Review, SS-23=**Cancelled**(前回メモの「陳腐化リスク」懸念は解消済み・キャンセル済みだった), SS-24=Backlog, SS-25=Backlog。つまりM2のBacklogは SS-7 / SS-24 / SS-25 の3件のみ。
+
+## 2026-07-25追加: SS-9をReview化・PR #5リンク登録
+
+- SS-9（work_item_id: `aa81b4f0-686b-44e0-92e4-8a86b1039ff3`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #5（`https://github.com/tri-star/sanposcape/pull/5`）を登録（link_id: `0e1943fa-08de-4cd2-add2-62dd80313a84`）。`list_work_item_properties`は再確認時も空配列で、SS-8の時と同じく標準Link機能が唯一の選択肢だった。
+
+## 2026-07-25追加: SS-7・SS-25をDoneに更新（実質完了判断）
+
+- SS-7（work_item_id: `e4ee3cbe-28b4-46e0-9599-0f732528541c`）: `src/components/ui/`に必要なプリミティブが実装済みで、DS一覧のAvatar/Select/Radio/TooltipはMVPスコープ外のため実質完了と判断しDone化。
+- SS-25（work_item_id: `c86a7219-5320-40ea-9d9f-4cd398aadaba`）: 本文に記載の3点の差異（Toast文字太さ/StatBlock prop名/IconButton active配色）はSS-1レビュー対応コミット(4c6a538, d131020, 1b3871f)で解消済みと確認しDone化。
+- **Why**: どちらもユーザー確認済みの背景説明があり、コメント（`create_work_item_comment`）にも同内容を記録済み。
+- **How to apply**: これによりM2「デザイン取り込み・UI基盤」の残Backlogは **SS-24のみ**（SS-1,7,8,9=Done, SS-6,23=Cancelled, SS-25=Done）。update_work_item直後のレスポンスは`state`がUUID更新済みでも`state_group`が旧グループのまま返ることがある（キャッシュ遅延）。確証が必要な場合は`retrieve_work_item(expand="state")`で再取得すると正しい`state_group`が返る。

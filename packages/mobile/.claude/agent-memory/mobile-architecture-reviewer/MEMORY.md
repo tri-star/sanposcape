@@ -1,0 +1,1 @@
+- [SS-8 MVP画面レビュー状況](project_ss8_mvp_screens.md) — app薄い/lib純粋関数/services-auth/router params設計の良好例と既知残課題(auth stub fail-open, useToast配置, hitSlop)
