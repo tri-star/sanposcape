@@ -1,0 +1,37 @@
+/* ============================================================
+   Sanpo — Spacing, radii, sizing.  4px base grid.
+   ============================================================ */
+:root {
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;   /* default gutter / card padding */
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii — friendly, generously rounded */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;   /* default control / small card */
+  --radius-lg: 20px;   /* cards, sheets */
+  --radius-xl: 28px;   /* hero cards, bottom sheet */
+  --radius-pill: 999px;
+
+  /* Control heights */
+  --control-sm: 34px;
+  --control-md: 44px;   /* min touch target */
+  --control-lg: 54px;
+
+  /* Layout */
+  --page-gutter: 16px;
+  --tabbar-height: 64px;
+  --safe-top: 8px;
+
+  /* Hairline */
+  --hairline: 1px;
+}

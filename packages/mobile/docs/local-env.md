@@ -11,7 +11,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 ## 重要: Expo Go ではなく development build を使う
 
-本アプリは **react-native-maps** と **react-native-svg**（アイコン描画）という **ネイティブモジュール**を利用する。
+本アプリは **react-native-maps**、**react-native-svg**（アイコン描画）、
+**@react-native-community/slider**（往復時間スライダー）という **ネイティブモジュール**を利用する。
 これらは **Expo Go では動作しない**ため、動作確認には Expo の **development build**（dev client）が必要。
 
 - Expo 公式でも、ネイティブモジュールを使うアプリは development build が推奨されている。
@@ -103,6 +104,18 @@ pnpm --filter mobile format         # oxfmt（書き込み）
 pnpm --filter mobile format:check   # oxfmt（チェックのみ）
 pnpm --filter mobile orval          # API クライアント再生成
 ```
+
+### typedRoutes（`.expo/types/router.d.ts`）について
+
+- `app.json` で `experiments.typedRoutes: true` を有効化しているため、`router.push("/walk-start")` 等のルート文字列は
+  `.expo/types/router.d.ts`（gitignore対象・自動生成）を見て型検査される。
+- この型は通常 `expo start`（B. 毎回の起動手順）を一度実行すると自動生成される。
+- **`expo start` を起動せずに `typecheck` だけ実行したい場合**（新しいルートを追加した直後、CIなど）は、
+  以下のコマンドで生成できる（[Expo公式ドキュメント](https://docs.expo.dev/router/reference/typed-routes/#ci)）:
+  ```bash
+  pnpm --filter mobile exec expo customize tsconfig.json
+  ```
+  CI（`mobile-ci.yml`）でも `typecheck` の前にこのコマンドを実行している。
 
 ## E2E（Maestro）
 
