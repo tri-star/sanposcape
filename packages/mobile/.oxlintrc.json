@@ -9,7 +9,8 @@
     "src/api/generated/**",
     "dist/**",
     ".expo/**",
-    "node_modules/**"
+    "node_modules/**",
+    "docs/mock/**"
   ],
   "rules": {
     "no-unused-vars": "error",

@@ -26,9 +26,11 @@ packages/mobile/
 │   │   └── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
-│   │   └── <feature>/         #   例: walk, profile
+│   │   └── <feature>/         #   例: walk, history
 │   │       ├── components/    #     その機能でしか使わないUI
-│   │       ├── hooks/         #     その機能のロジック（Vitestでテスト）
+│   │       ├── hooks/         #     RN依存の副作用・状態（useState/useEffect等。Vitest対象外）
+│   │       ├── lib/           #     判定・整形などの純粋関数（react-native非依存＝Vitestでテスト）
+│   │       ├── data/          #     静的データ（ダミーデータ・定数）
 │   │       ├── api/           #     その機能のAPI呼び出しラッパ
 │   │       └── types.ts
 │   │
@@ -74,7 +76,13 @@ packages/mobile/
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
-- 1つの機能に属する `components` / `hooks` / `api` / `types` をこの配下に凝集させる。
+- 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `types` をこの配下に凝集させる。
+- **`hooks/` は RN 依存の副作用・状態**（`useState`/`useEffect`/`setInterval` など）を持つ層。
+  Vitest は `react-native` を最小スタブに差し替えた node 環境のためコンポーネント同様に
+  レンダリング/フックのテストはできない（詳細は [pages-components-guideline](./pages-components-guideline.md)）。
+- **判定・整形ロジックは `lib/` の純粋関数に切り出す**（`react-native` を値 import しない）。
+  こちらが Vitest でのテスト対象になる（`.test.ts` を併置）。
+- **`data/`** には静的データ・定数（ダミーデータ、選択肢一覧など）を置く。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）

@@ -1,10 +1,8 @@
-import { DesignSystemGallery } from "@/features/design-system/components/DesignSystemGallery";
+import { SplashView } from "@/features/auth/components/SplashView";
 
 /**
- * 動作確認用の暫定ホーム画面。
- * 取り込んだデザイントークン/UIプリミティブの一覧を表示する。
- * 画面フロー（ログイン・散歩スタート・ナビ …）の実装時に置き換える。
+ * 起動時のスプラッシュ画面。表示後、自動的にサインイン画面へ遷移する。
  */
-export default function HomeScreen() {
-  return <DesignSystemGallery />;
+export default function Splash() {
+  return <SplashView />;
 }

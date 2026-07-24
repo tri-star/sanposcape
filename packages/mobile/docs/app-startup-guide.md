@@ -79,11 +79,13 @@ adb shell am start -a android.intent.action.VIEW \
 ### 6. 成功の目印
 
 - Metro のコンソールに **`Android Bundled 1234ms index.ts (N modules)`** が出る。
-- エミュレータに **`sanposcape` / `散歩を、もっと自由に。`** のホーム画面が表示される。
+- エミュレータに **`Sanpo` / `いつもの道を、ちょっと楽しい寄り道に。`** のスプラッシュ画面が表示され、
+  まもなく自動でサインイン画面へ遷移する。
 
 ### 7. Fast Refresh を使う（動作確認）
 
-- `packages/mobile/app/index.tsx` の文言などを編集して保存 → エミュレータに**即時反映**される。
+- `packages/mobile/src/features/auth/components/SplashView.tsx`（スプラッシュの実文言を持つファイル。
+  `app/index.tsx` はこれを呼ぶだけの薄いルート）を編集して保存 → エミュレータに**即時反映**される。
 - 手動リロード: Metro のターミナルで `r`。開発メニュー: `adb shell input keyevent 82`。
 
 ---

@@ -34,6 +34,11 @@ jobs:
       - name: Generate API client (Orval)
         run: pnpm --filter mobile orval
 
+      - name: Generate Expo Router typed routes
+        # `expo start` を起動せずに `.expo/types/router.d.ts`（gitignore対象）を生成する。
+        # 参考: https://docs.expo.dev/router/reference/typed-routes/#ci
+        run: pnpm --filter mobile exec expo customize tsconfig.json
+
       - name: Typecheck
         run: pnpm --filter mobile typecheck
 

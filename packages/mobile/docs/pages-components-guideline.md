@@ -47,11 +47,13 @@ const useStyles = makeStyles((theme) => ({
 ## 共通UIコンポーネント
 
 デザインシステム由来の primitive は `src/components/ui/<kebab-case>/<PascalCase>.tsx` に置いている
-（Button / IconButton / Card / Badge / Tag / Input / Checkbox / Switch / Tabs / TabBar / StatBlock /
-ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
+（Button / IconButton / Card / Badge / Tag / Input / Checkbox / Switch / Slider / Tabs / TabBar /
+StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
 まずはこれらを組み合わせて画面を作り、足りないものが出たら追加する。
 
-- 一覧は暫定ホーム画面（`app/index.tsx` → `DesignSystemGallery`）で実機確認できる。
+- 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で
+  実機確認できる。プロダクトの起動画面（`app/index.tsx`）は SS-8 でスプラッシュ（`SplashView`）に
+  置き換わったため、ギャラリーはこの専用ルートから開く。
 
 ### 共通UIコンポーネントを追加・変更するときのルール
 
