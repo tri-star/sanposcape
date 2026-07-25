@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from sanposcape.auth.dependencies import get_auth_service
-from sanposcape.auth.router import _to_session_read
+from sanposcape.auth.mappers import to_session_read
 from sanposcape.auth.schemas import DevSessionCreate, SessionRead
 from sanposcape.auth.service import AuthService
 
@@ -17,4 +17,4 @@ def create_dev_session(
     service: AuthService = Depends(get_auth_service),
 ) -> SessionRead:
     result = service.create_dev_session(payload.user_key)
-    return _to_session_read(result)
+    return to_session_read(result)

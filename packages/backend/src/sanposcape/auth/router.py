@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 
 from sanposcape.auth.dependencies import get_auth_service
+from sanposcape.auth.mappers import to_session_read
 from sanposcape.auth.schemas import (
     AuthUserRead,
     SessionCreate,
@@ -8,20 +9,11 @@ from sanposcape.auth.schemas import (
     SessionRead,
     SessionRefreshRequest,
 )
-from sanposcape.auth.service import AuthService, SessionResult
+from sanposcape.auth.service import AuthService
 from sanposcape.dependencies import get_current_user
 from sanposcape.users.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _to_session_read(result: SessionResult) -> SessionRead:
-    return SessionRead(
-        access_token=result.access_token,
-        expires_in=result.expires_in,
-        refresh_token=result.refresh_token,
-        user=AuthUserRead.model_validate(result.user),
-    )
 
 
 @router.post("/session", response_model=SessionRead)
@@ -30,7 +22,7 @@ def create_session(
     service: AuthService = Depends(get_auth_service),
 ) -> SessionRead:
     result = service.create_session(payload.provider, payload.id_token)
-    return _to_session_read(result)
+    return to_session_read(result)
 
 
 @router.post("/refresh", response_model=SessionRead)
@@ -39,7 +31,7 @@ def refresh_session(
     service: AuthService = Depends(get_auth_service),
 ) -> SessionRead:
     result = service.refresh(payload.refresh_token)
-    return _to_session_read(result)
+    return to_session_read(result)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
