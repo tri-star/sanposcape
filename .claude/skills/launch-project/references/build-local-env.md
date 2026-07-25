@@ -19,6 +19,9 @@ STORYBOOK_DEV_PORT={%STORYBOOK_DEV_PORT%}
 ```env
 BACKEND_API_PORT={%BACKEND_API_PORT%}
 DB_PORT={%DB_PORT%}
+# Docker build 時に app_user へ設定する UID/GID。WSL2 では id -u / id -g に合わせる。
+APP_UID=1000
+APP_GID=1000
 DB_USER=app
 DB_PASSWORD=password
 DB_NAME=app
