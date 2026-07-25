@@ -89,7 +89,7 @@ class AuthService:
     def refresh(self, refresh_token: str) -> SessionResult:
         """refresh token のローテーション + 再利用検知。
 
-        DB と HMAC(sha256) のみを扱い、外部 I/O（JWKS 等）は一切行わない
+        DB と sha256 ハッシュ計算のみを扱い、外部 I/O（JWKS 等）は一切行わない
         （`/auth/refresh` が 500 を返さない設計上の前提）。
 
         注意（契約上のグレーゾーン）: これは「このメソッドが正常に処理できる入力に対しては

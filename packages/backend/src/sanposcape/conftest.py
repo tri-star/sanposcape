@@ -39,7 +39,9 @@ def db_session() -> Generator[Session, None, None]:
         session.close()
 
 
-def _override_get_db() -> Generator[Session, None, None]:
+def override_get_db() -> Generator[Session, None, None]:
+    """`get_db` の差し替え用。`auth/tests/test_dev_router.py` からも import される
+    共有ヘルパーのため、モジュール内専用を示す `_` 接頭辞は付けない。"""
     session = TestSessionLocal()
     try:
         yield session
@@ -49,7 +51,7 @@ def _override_get_db() -> Generator[Session, None, None]:
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -99,7 +101,7 @@ def dev_settings() -> Settings:
 def dev_client(dev_settings: Settings) -> Generator[TestClient, None, None]:
     """`AUTH_MODE=dev` で組み立てたアプリのクライアント。"""
     dev_app = create_app(dev_settings)
-    dev_app.dependency_overrides[get_db] = _override_get_db
+    dev_app.dependency_overrides[get_db] = override_get_db
     dev_app.dependency_overrides[get_settings] = lambda: dev_settings
     with TestClient(dev_app) as test_client:
         yield test_client

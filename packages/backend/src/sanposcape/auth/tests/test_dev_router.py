@@ -7,7 +7,7 @@ from sanposcape.auth.dependencies import get_identity_providers
 from sanposcape.auth.providers.google import GoogleIdentityProvider
 from sanposcape.auth.tests.conftest import FakeJWKSClient
 from sanposcape.config import Settings, get_settings
-from sanposcape.conftest import _override_get_db
+from sanposcape.conftest import override_get_db
 from sanposcape.database import get_db
 from sanposcape.main import create_app
 
@@ -20,7 +20,7 @@ def real_client(test_settings: Settings) -> Generator[TestClient, None, None]:
     テストコード内で明示構築した設定を使うことで、CI とローカルで結果が変わらないようにする。
     """
     real_app = create_app(test_settings)
-    real_app.dependency_overrides[get_db] = _override_get_db
+    real_app.dependency_overrides[get_db] = override_get_db
     real_app.dependency_overrides[get_settings] = lambda: test_settings
     with TestClient(real_app) as test_client:
         yield test_client
