@@ -1,2 +1,3 @@
-- [Auth stub/real switch is fail-open + env var name mismatch](project_auth_stub_switch.md) — src/services/auth/index.ts vs eas.json、将来のreal実装時に要再確認
+- [Auth stub/real switch is fail-open + env var name mismatch [解決済みSS-10]](project_auth_stub_switch.md) — SS-10で fail-safe 3モードに是正済み。歴史的経緯として保持
 - [Dev-only routes (design-system/dev-screens) have no build-time guard](project_dev_only_routes_no_guard.md) — app/直下でexpo-router自動ルート化、__DEV__分岐なし。認証ガード実装時に要再確認
+- [SS-10: tokenStore.clear() 例外がsignOut/doRefreshで未捕捉](project_ss10_token_clear_exception_safety.md) — SecureStore削除失敗時にsetCurrentUser(null)がスキップされ得る。Medium、要再確認

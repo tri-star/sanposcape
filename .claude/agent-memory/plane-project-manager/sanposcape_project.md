@@ -112,3 +112,11 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-10（work_item_id: `3bc2b4d4-2a17-46a1-9611-d3f2517372e2`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #7（`https://github.com/tri-star/sanposcape/pull/7`、link_id: `cbe87556-b289-4f2a-9ed0-be75d13f93b2`）を登録。コメントにスコープ（backendのみ、mobileは別PRで後続対応）・ADR-002概要・実装内容・レビュー対応結果（Security High 1件含む）を記録済み。
 - **Why**: SS-10はbackend/mobileの2PR分割方針（前回メモ参照）。backend側PRが先行してレビュー待ちに入ったための状態更新（ユーザー指示、Doneにはしない）。
 - **How to apply**: mobile側PRが出た際は、同じSS-10に追加のリンク・コメントを積み増す運用になる見込み（別work_itemを立てる指示は出ていない）。両PRがマージされた時点でDone化を検討する。
+
+## 2026-07-26確認: SS-10 backend PR #7マージ済みだがPlane未更新／SS-32を新規発見
+
+- git log確認でPR #7は既にmainへマージ済み（コミット`7cd8272`）と判明したが、SS-10のPlane上の状態はReviewのまま・コメントにもmobile側PRへの言及なし（`list_work_item_comments`で確認）。**mobile側は未着手**（着手コメント・PRリンクとも無し）。ユーザー指示により状態更新（Done化等）は保留し、現状報告のみ実施。
+- **SS-32「backend: Dockerコンテナを非rootのapp_userで実行する」**（work_item_id: `4676b762-23d3-4d25-a2d1-6dae2c824784`）を新規発見。State=In Progress、モジュール未所属、priority=none。created_at 2026-07-25T16:10、updated_at 2026-07-26T00:17と直近更新あり。過去のメモリに記録が無く、本エージェント経由でない（ユーザー自身か別経路での）作成・着手と推測される。
+- 2026-07-26時点のstate_group="started"（In Progress+Review）は SS-32とSS-10の2件のみ。Backlog総数18件（`list_work_items(pql='state_group = "backlog"')`で確認、total_count=18）。
+- M3「認証・アプリ骨格」のBacklog残り3件はSS-11（mobile サインイン/サインアップ画面）、SS-12（backend ユーザーモデル・認証API）、SS-13（認証状態と探索ロジックの分離）で、SS-10 backend完了を受けた次の着手候補。
+- **How to apply**: 今後のトリアージでは、SS-32のようにモジュール未所属かつ本エージェント経由でない新規タスクが増える可能性があるため、`list_work_items`の総数を都度確認し、モジュール別集計だけに頼らないこと（既存メモの注意点を再確認）。
