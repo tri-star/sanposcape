@@ -84,4 +84,30 @@ describe("createTokenStore", () => {
 
     expect(store.getAccessToken()).toBeNull();
   });
+
+  it("setRefreshToken で persistence.save が reject してもメモリキャッシュは新しい値に更新される", async () => {
+    const persistence: RefreshTokenPersistence = {
+      load: vi.fn().mockResolvedValue(null),
+      save: vi.fn().mockRejectedValue(new Error("save failed")),
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+    const store = createTokenStore(persistence);
+
+    await expect(store.setRefreshToken("new-token")).rejects.toThrow("save failed");
+
+    expect(await store.getRefreshToken()).toBe("new-token");
+  });
+
+  it("setRefreshToken(null) で persistence.remove が reject してもメモリキャッシュは null になる", async () => {
+    const persistence: RefreshTokenPersistence = {
+      load: vi.fn().mockResolvedValue("r1"),
+      save: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockRejectedValue(new Error("remove failed")),
+    };
+    const store = createTokenStore(persistence);
+
+    await expect(store.setRefreshToken(null)).rejects.toThrow("remove failed");
+
+    expect(await store.getRefreshToken()).toBeNull();
+  });
 });

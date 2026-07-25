@@ -39,10 +39,10 @@ export function createMockAuthService(options?: {
       return currentUser;
     },
     async getAccessToken() {
-      return accessToken;
+      return currentUser === null ? null : accessToken;
     },
     async refreshAccessToken() {
-      return accessToken;
+      return currentUser === null ? null : accessToken;
     },
   };
 }

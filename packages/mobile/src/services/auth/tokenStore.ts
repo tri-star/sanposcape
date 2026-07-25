@@ -25,15 +25,18 @@ export function createTokenStore(persistence: RefreshTokenPersistence): TokenSto
       return refreshTokenCache;
     },
     async setRefreshToken(token: string | null) {
-      if (token === null) {
-        await persistence.remove();
-        refreshTokenCache = null;
+      // persistence の save/remove が失敗しても、同一プロセス内では最新値を使えるよう
+      // メモリキャッシュは必ず更新する（clear() と同じ考え方）。
+      try {
+        if (token === null) {
+          await persistence.remove();
+        } else {
+          await persistence.save(token);
+        }
+      } finally {
+        refreshTokenCache = token;
         refreshTokenLoaded = true;
-        return;
       }
-      await persistence.save(token);
-      refreshTokenCache = token;
-      refreshTokenLoaded = true;
     },
     async clear() {
       // persistence が失敗しても access token のクリアは必ず行う。
