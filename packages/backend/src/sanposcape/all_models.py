@@ -5,6 +5,7 @@ Alembic の autogenerate がスキーマ全体を認識できるようにする�
 新しいドメインのモデルを追加したら、ここに import を足すこと。
 """
 
+from sanposcape.auth.models import RefreshToken  # noqa: F401
 from sanposcape.database import Base
 from sanposcape.spots.models import Spot  # noqa: F401
 from sanposcape.users.models import User  # noqa: F401
