@@ -106,3 +106,9 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-10（work_item_id: `3bc2b4d4-2a17-46a1-9611-d3f2517372e2`、M3「認証・アプリ骨格」所属）をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新し、認証方式確定の設計サマリをコメントに記録。
 - 決定内容: IdPはGoogle直結（Auth0不採用）、モバイルはpublic clientとしてGoogle ID token取得→backendで自前セッショントークン（短命access JWT + opaque refresh token）に交換。スタブは`real/dev/mock`の3モードで継ぎ目はトークン発行元のみ。ADRは`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md`。作業ブランチは`feat/ss-10-auth-real-stub`、PRはbackend先行→mobileの2本に分割方針。
 - **Why**: 設計議論の結論を課題側にも残し、進捗状況（着手中）を可視化するため（ユーザー指示）。
+
+## 2026-07-25追加: SS-10をReview化・PR #7(backend側)リンク登録
+
+- SS-10（work_item_id: `3bc2b4d4-2a17-46a1-9611-d3f2517372e2`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #7（`https://github.com/tri-star/sanposcape/pull/7`、link_id: `cbe87556-b289-4f2a-9ed0-be75d13f93b2`）を登録。コメントにスコープ（backendのみ、mobileは別PRで後続対応）・ADR-002概要・実装内容・レビュー対応結果（Security High 1件含む）を記録済み。
+- **Why**: SS-10はbackend/mobileの2PR分割方針（前回メモ参照）。backend側PRが先行してレビュー待ちに入ったための状態更新（ユーザー指示、Doneにはしない）。
+- **How to apply**: mobile側PRが出た際は、同じSS-10に追加のリンク・コメントを積み増す運用になる見込み（別work_itemを立てる指示は出ていない）。両PRがマージされた時点でDone化を検討する。

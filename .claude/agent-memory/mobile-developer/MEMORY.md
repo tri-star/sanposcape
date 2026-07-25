@@ -1,3 +1,7 @@
 - [tsx CLI EPERM in sandbox](sandbox-tsx-cli-workaround.md) — `tsx <file>` fails on IPC socket in this sandbox; use `pnpm --filter <pkg> exec node --import tsx <file>` to verify locally instead.
 - [Mobile docs map mismatch](docs-map-mismatch.md) — troubleshoot table lives in `app-startup-guide.md`, not `local-env.md`.
 - [Sandbox format:check stray files](sandbox-format-check-stray-files.md) — run `oxfmt --check` on specific changed files when the full script chokes on stray `.mcp.json`/`.claude/` files.
+- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__` と globalThis の型、Rules of Hooks(早期return)
+- [Expo Router のアプリ構造](expo-router-app-structure.md) — typedRoutes生成、index.tsx+(tabs)/index.tsx共存、非推奨Tabsとカスタムタブバー
+- [ネストしたPressable+Checkbox](nested-pressable-checkbox.md) — 行全体Pressable+内側Checkboxはpointer Events="none"で表示専用に
+- [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
