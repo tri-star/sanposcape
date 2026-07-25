@@ -9,7 +9,10 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
   - Androidでは、**エミュレータ / adb は Windows 側**、**Expo CLI / Metro は WSL2 側**で動かす。
   - Expo は WSL 側に Android SDK が無いため、`adb` 操作（reverse・起動）は**自分たちで手動実行**する。
   - iPhoneでは、iPhoneとPCを同じLANへ接続し、WSL2上のMetroを`--host lan`で公開する。
-  - react-native-maps / react-native-svg を使うため **Expo Go は不可**（development build 必須）。
+  - react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
+    expo-secure-store（refresh token の永続化）を使うため **Expo Go は不可**（development build 必須）。
+    **SS-10（認証まわりのネイティブ依存を追加）適用後は development build の作り直しが必要**
+    （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
 ---
 
@@ -230,12 +233,15 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 
 ---
 
-## backend と繋ぐ場合（現時点は任意）
+## backend と繋ぐ場合
 
-- 現在の各画面は `src/features/*/data/` の静的スタブで表示するため backend を呼ばない。
-  起動確認だけなら backend 不要。
-- 今後 backend と通信する画面を触るときは、backend を起動しておく（[backend ローカル環境構築手順](../../backend/docs/local-env.md)）。
-- エミュレータからホストの backend へは、ビルドの `EXPO_PUBLIC_BACKEND_API_URL` を通じて到達する（`10.0.2.2` はエミュレータからホストを指すアドレス）。詳細は結線時（M4 前後）に整理する。
+- **`app/_layout.tsx` が起動時に `initAuth()` を呼び、`dev` モードのサインインは backend の
+  `POST /auth/dev-session`（`AUTH_MODE=dev` で起動した backend）を叩く**。そのため
+  「起動確認だけなら backend 不要」だったのは M3(SS-10) より前の話で、現在は認証を通す・
+  サインインを試す場合は backend の起動が必要（[backend ローカル環境構築手順](../../backend/docs/local-env.md)）。
+  画面カタログ等の一部は静的スタブのままなので、backend を起動せずに画面表示だけを確認することは
+  引き続き可能。
+- エミュレータからホストの backend へは、ビルドの `EXPO_PUBLIC_BACKEND_API_URL` を通じて到達する（`10.0.2.2` はエミュレータからホストを指すアドレス）。
 
 ---
 

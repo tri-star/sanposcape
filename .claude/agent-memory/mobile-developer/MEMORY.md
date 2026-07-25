@@ -5,3 +5,6 @@
 - [Expo Router のアプリ構造](expo-router-app-structure.md) — typedRoutes生成、index.tsx+(tabs)/index.tsx共存、非推奨Tabsとカスタムタブバー
 - [ネストしたPressable+Checkbox](nested-pressable-checkbox.md) — 行全体Pressable+内側Checkboxはpointer Events="none"で表示専用に
 - [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
+- [expo CLIのHOME書き込みEROFS](sandbox-expo-home-workaround.md) — `expo install`/`expo customize`は`HOME="$TMPDIR/fakehome" EXPO_NO_TELEMETRY=1`で回避
+- [Nitro Google Signinのconfig plugin必須項目](native-config-plugins.md) — `iosUrlScheme`未設定だとAndroid専用でも`expo`コマンド全てが失敗、プレースホルダーで回避
+- [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — real/stubの2値ではない。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)

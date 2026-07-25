@@ -12,11 +12,16 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 ## 重要: Expo Go ではなく development build を使う
 
 本アプリは **react-native-maps**、**react-native-svg**（アイコン描画）、
-**@react-native-community/slider**（往復時間スライダー）という **ネイティブモジュール**を利用する。
-これらは **Expo Go では動作しない**ため、動作確認には Expo の **development build**（dev client）が必要。
+**@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
+（Google サインイン）、**expo-secure-store**（refresh token の永続化）という
+**ネイティブモジュール**を利用する。これらは **Expo Go では動作しない**ため、動作確認には Expo の
+**development build**（dev client）が必要。
 
 - Expo 公式でも、ネイティブモジュールを使うアプリは development build が推奨されている。
 - 純粋なロジック（`src/lib` など）は development build なしで Vitest でテストできる。
+- **SS-10（`EXPO_PUBLIC_AUTH_MODE` の real/dev/mock 切り替え）の適用後は、
+  `react-native-nitro-google-signin` / `expo-secure-store` が新規追加されたネイティブ依存のため、
+  development build の作り直しが必要**（Fast Refresh では反映されない）。
 
 ## セットアップ
 
@@ -100,6 +105,35 @@ bash scripts/mobile-tools/start-emulator.sh Pixel_8_API_35  # AVDを指定して
   - iPhone: `expo start --dev-client --host lan`（iPhoneとPCを同じLANへ接続する）
   - LAN経路を利用できない場合のみ: `expo start --dev-client --tunnel`
 
+### 4. 環境変数（`.env`）
+
+**単純に `cp packages/mobile/.env.example packages/mobile/.env` してはいけない。**
+`.env.example` の `EXPO_PUBLIC_BACKEND_API_URL` は `{%BACKEND_API_PORT%}` のようなプレースホルダを
+含んでおり、`cp` だけでは置換されないまま空でない値として残るため、`getApiBaseUrl()` の既定値
+フォールバックも効かず、`dev` モードのサインインを含む全API呼び出しが失敗する。
+
+リポジトリルートで以下を実行し、プレースホルダを置換した `.env` を生成する
+（README のクイックスタート手順1と同じ）:
+
+```bash
+bash scripts/initialize-dotenv.sh
+```
+
+- 同スクリプトは `packages/**/.env.example` を探索し、空きポートを自動検出してプレースホルダを
+  置換した `.env` を各パッケージに生成する（`packages/mobile/.env` もこれで作られる）。
+- 最低限 `EXPO_PUBLIC_AUTH_MODE=dev` で始めるのを推奨する（Google Cloud のクライアントID設定が
+  終わるまでは `real` は使えないため）。`dev` は backend の `POST /auth/dev-session`（`AUTH_MODE=dev`
+  で起動した backend が必要）を使い、Google には一切触れない。
+- モード・各変数の意味は `.env.example` のコメント、または
+  [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
+- `EXPO_PUBLIC_AUTH_MODE` が未設定・不正値の場合は自動的に `real` にフォールバックする
+  （`src/config/authMode.ts`。fail-safe）。
+
+**注意**: `scripts/initialize-dotenv.sh` は `.env` を**無条件に上書き**し、実行のたびにポートを
+再抽選する。`EXPO_PUBLIC_AUTH_MODE` や `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` などを `.env` に
+手で追記・変更した場合、**同スクリプトを再実行すると手で追記した値は失われる**（プレースホルダが
+入った状態に戻る）。再実行後は認証まわりの値を入れ直すこと。
+
 ## よく使うコマンド
 
 ```bash
@@ -144,6 +178,55 @@ maestro test packages/mobile/.maestro/
 - キーは `app.json` の `expo.android.config.googleMaps.apiKey` /
   `expo.ios.config.googleMapsApiKey` に設定する（M4「探索・散歩開始」で結線）。
 - キーはリポジトリにコミットしない（環境ごとに管理）。
+
+## Google サインイン
+
+`real` モード（実 Google サインイン）を使うには、Google Cloud Console 側の設定が必要。
+詳細な決定事項は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
+未設定でも `dev` / `mock` モードでの開発は可能。
+
+1. **Web アプリケーション用 OAuth クライアント**を作成し、client ID を
+   `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` に設定する（backend 側の許容 audience にも同じ値を設定する）。
+   ネイティブサインインでも ID token の `aud` はこの Web クライアント ID になる。
+2. **Android 用 OAuth クライアント**をパッケージ名 `com.sanposcape.app` で作成し、
+   **署名鍵ごとの SHA-1 を登録**する（必要な鍵は4種）:
+
+   | 用途 | SHA-1 の取得方法 |
+   | --- | --- |
+   | ローカル debug（`expo run:android`） | `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android` |
+   | EAS development | `pnpm --filter mobile exec eas credentials`（Android → development） |
+   | EAS preview（E2E APK） | 同上（preview プロファイル） |
+   | EAS production | 同上（production。Play App Signing 利用時は Play Console 側の SHA-1 も登録） |
+
+   - SHA-1 未登録は Android で `DEVELOPER_ERROR` という分かりにくいエラーになる（アプリ側では
+     `AuthError("configuration")` に分類される）。
+3. **iOS 用 OAuth クライアント**を bundle id `com.sanposcape.app` で作成し、
+   `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` と `app.json` の `plugins` の
+   `react-native-nitro-google-signin` オプション `iosUrlScheme`（逆ドメイン形式、
+   `com.googleusercontent.apps.<IOS_CLIENT_ID>`）に設定する。
+   - **現状 `app.json` にはプレースホルダー値**（`com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID`）
+     が入っている。config plugin が `iosUrlScheme`（または Firebase の `google-services.json` /
+     `GoogleService-Info.plist`）を必須で要求するため、未設定のままだと `expo prebuild` /
+     `eas build` が失敗する。iOS 用クライアントを作成した時点で実際の値に置き換えること。
+4. **App Store 審査**: iOS で Google ログインを提供する場合、Sign in with Apple の併設が要求される
+   （MVP のリリース計画に織り込む）。
+
+### リリース前チェックリスト（production ビルド）
+
+`eas.json` の `production` プロファイルには `env` ブロックが無く、`EXPO_PUBLIC_AUTH_MODE` 等は
+未設定時 `real` にフォールバックする（fail-safe だが、これは「production では EAS 側で環境変数を
+注入する」運用が前提になっているということでもある）。**production ビルドを作る前に、EAS
+ダッシュボード（またはビルドコマンドの `--env-file` 等）で以下が注入されることを必ず確認する**:
+
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`（未設定だと `signInWithGoogle()` が
+  `AuthError("configuration")` を返し、実質サインイン不能になる。起動時クラッシュはしないが
+  ユーザー体験としては全滅する点に注意）
+- `EXPO_PUBLIC_BACKEND_API_URL`（本番 backend の HTTPS URL。未注入だと `src/config/env.ts` の
+  既定値 `http://localhost:8000`（平文HTTP）にフォールバックし、実質すべてのAPI呼び出しが失敗する）
+
+クライアントID自体は秘密情報ではないため `eas.json` へ直書きする選択肢もあるが、本タスク時点では
+値が未確定のため、上記チェックリストとしてここに明記する運用とした。値が確定した時点で
+`eas.json` の `production.env` に追記することも検討する。
 
 ## 状態管理・スタイルの方針
 

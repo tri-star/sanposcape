@@ -10,6 +10,7 @@
   - サーバー状態: TanStack Query（Orval生成物と組み合わせる）
   - クライアント状態: Zustand（少量のグローバル状態）
 - 地図: react-native-maps（Android=Google Maps / iOS=Apple Maps）
+- 認証: react-native-nitro-google-signin（Google サインイン。[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token の永続化）
 - APIクライアント生成: Orval（backendのOpenAPIから生成）+ MSWモック（HTTPクライアントは fetch/customFetch）
 - ユニットテスト: Vitest
 - E2Eテスト: Maestro

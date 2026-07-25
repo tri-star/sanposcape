@@ -1,18 +1,24 @@
-import type { AuthService } from "@/services/auth/types";
+import type { AuthApi } from "@/services/auth/authApi";
+import { createSessionAuthService } from "@/services/auth/createSessionAuthService";
+import { signInWithGoogle, signOutFromGoogle } from "@/services/auth/googleSignIn";
+import type { AuthService, TokenStore } from "@/services/auth/types";
 
 /**
- * 認証の本番実装（TODO）。
- * 実際の OAuth/OIDC 連携は別タスクで実装する。それまでは呼び出されても
- * 分かりやすく失敗させ、real/stub の切り替え漏れに気づけるようにする。
+ * real: Google のネイティブサインイン → POST /auth/session でアプリ自前トークンへ交換する。
+ *
+ * 従来の `export const authServiceReal` （オブジェクト定数）ではなくファクトリ関数にしている。
+ * `index.ts` で `tokenStore` / `api` を組み立てて注入するための DI であり、
+ * 既存の「オブジェクト定数を export」する規約からの逸脱だが、
+ * テスト容易性（`createSessionAuthService` へのフェイク注入）を優先した判断。
  */
-export const authServiceReal: AuthService = {
-  async signIn() {
-    throw new Error("authServiceReal.signIn is not implemented yet");
-  },
-  async signUp() {
-    throw new Error("authServiceReal.signUp is not implemented yet");
-  },
-  async signOut() {
-    throw new Error("authServiceReal.signOut is not implemented yet");
-  },
-};
+export function createRealAuthService(deps: { tokenStore: TokenStore; api: AuthApi }): AuthService {
+  return createSessionAuthService({
+    issueSession: async (provider) => {
+      const idToken = await signInWithGoogle();
+      return deps.api.createSession({ provider, idToken });
+    },
+    api: deps.api,
+    tokenStore: deps.tokenStore,
+    onSignOut: signOutFromGoogle,
+  });
+}

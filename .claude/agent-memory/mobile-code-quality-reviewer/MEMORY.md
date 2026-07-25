@@ -3,3 +3,5 @@
 - [review scope: verify git state](review-scope-verify-git-state.md) — 依頼文のブランチ名/コミット/「未コミット」表記は実際のgit状態とズレることがある。都度確認する。
 - [accessibilityLabel overrides children text](accessibility-label-overrides-children-text.md) — 明示的なaccessibilityLabelは子Textの自動読み上げを上書きし、隣接する説明文が読まれなくなることがある。
 - [mock .dc.html as review evidence](mock-dc-html-as-review-evidence.md) — スタブ値の食い違いを見つけたら docs/mock/*.dc.html をgrepし、元mock仕様由来か新規バグかを判定してから指摘する。
+- [no-bash-tool review approach](no-bash-tool-review-approach.md) — Bash無しセッションではgit diffが取れない。実装プランのファイル一覧をGlob+Readで突き合わせ最終状態レビューに切替える。
+- [auth cleanup asymmetric error swallow](auth-cleanup-asymmetric-error-swallow.md) — signOut等のクリーンアップで一部の失敗だけtry/catchし残りが無防備というasymmetryは頻出。横並びで機械チェックする。

@@ -33,7 +33,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | スキーマ管理 | Pydantic | |
 | データベース | PostgreSQL | ローカル用DB + テスト用DBを分離 |
 | 地図・POI・ルーティング | Google Maps Platform (Maps / Places / Routes) | 往復可能範囲・徒歩時間/距離・スポット候補の取得 |
-| 認証 | Auth0（backend: authlib / mobile: OIDC、テスト時はスタブ差し替え） | |
+| 認証 | Google サインイン直結（mobile: public client / backend: 自前セッショントークン発行。テスト時は dev/mock モードへ差し替え） | 詳細は [ADR-002](./adr/ADR-002-auth-google-signin-and-stub-strategy.md) |
 | インフラ / ホスティング | TBD（backend/DBのホスティング先は未定） | mobileはExpo経由で配布想定 |
 | CI/CD | GitHub Actions | Lint/Format・ユニットテスト・Maestro E2E |
 | パッケージマネージャ | pnpm (mobile) / uv (backend) | mobileは minimumReleaseAge=2日 |
@@ -56,7 +56,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | # | 機能名 | 概要 | 優先度 |
 | --- | --- | --- | --- |
 | 1 | スプラッシュ画面 | 起動時の初期化・認証状態判定と遷移振り分け | Must |
-| 2 | サインアップ / サインイン | Auth0 による新規登録・ログイン（テストはスタブ差し替え） | Must |
+| 2 | サインアップ / サインイン | Google サインインによるログイン（初回は backend が JIT でユーザー作成） | Must |
 | 3 | ログアウト | セッション破棄しサインイン画面へ戻る | Must |
 | 4 | アカウント削除 | ユーザーと関連データを削除する（backend側の削除APIを含む） | Must |
 | 5 | 現在地取得・地図表示 | 位置情報を取得し地図上に現在地を表示（services層でスタブ差し替え可能に） | Must |
@@ -84,7 +84,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | --- | --- | --- | --- |
 | M1 | 開発基盤の整備 | モノレポ・CI・Lint/Format・Docker Compose・Orval連携・Expo起動・E2E土台 | 立ち上げ |
 | M2 | デザイン取り込み・UI基盤 | Claude Design からインポート → デザイントークン(Unistyles) → MVP主要画面を静的に実装 | 基盤第2弾 |
-| M3 | 認証・アプリ骨格 | スプラッシュ→サインイン/サインアップ→ログアウト→アカウント削除（Auth0結線） | コア第1弾 |
+| M3 | 認証・アプリ骨格 | スプラッシュ→サインイン/サインアップ→ログアウト→アカウント削除（Google サインイン結線） | コア第1弾 |
 | M4 | 探索・散歩開始 | 現在地/地図・往復範囲のスポット検索・選択で開始・散歩中表示（Google Maps連携） | コア第2弾 |
 | M5 | 散歩記録・履歴 | 散歩終了時のルート記録・履歴画面・仕上げ、MVP達成 | MVP達成 |
 
@@ -113,7 +113,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 - ローカルのE2E（Maestro）で Android を使う場合、WSL2 ではなく Windows 側で動作させる必要があり、一部ユーザーの協力が前提。
 - 開発環境は WSL2/Linux（大文字小文字を区別）。import パスは実ファイル名と case まで完全一致させる。
 - mobile の依存追加は minimumReleaseAge を設定し、公開から2日以上経過したバージョンのみ利用する。
-- Google Maps Platform / Auth0 の利用にはアカウント・APIキー・課金設定が必要（キーは環境変数管理、リポジトリにコミットしない）。
+- Google Maps Platform / Google Cloud（Maps・OAuth クライアント）の利用にはアカウント・APIキー・課金設定が必要（キーは環境変数管理、リポジトリにコミットしない）。Android は署名鍵ごとに SHA-1 の登録が必要。
 - 初期化・セットアップは各ツールの公式ドキュメントを参照した手順で行う。
 
 ## 7. 用語集

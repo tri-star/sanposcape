@@ -1,8 +1,15 @@
 ---
 name: project_auth_stub_switch
-description: src/services/auth の real/stub 切替ロジックが fail-open（既定 stub）で、eas.json の env 変数名とも不一致
+description: [解決済み・SS-10] src/services/auth の real/stub 切替は SS-8 時点で fail-open だったが、SS-10 (2026-07-26 確認) で fail-safe な3モード実装に是正された
 type: project
 ---
+
+**2026-07-26 追記（SS-10 レビューで確認・解決済み）**: 本メモリが指摘していた問題は ADR-002 と SS-10 実装で解消された。
+`packages/mobile/src/config/authMode.ts` の `parseAuthMode()` が `"dev"`/`"mock"` 完全一致のみ許可し、
+未設定・空文字・旧値`"stub"`・大文字はすべて `"real"` にフォールバックする（fail-safe、テストで担保済み）。
+`eas.json` の変数名は `EXPO_PUBLIC_AUTH_MODE` に統一され、コード側と完全一致した。
+`mock` モードは `src/services/auth/index.ts` で `!__DEV__ && NODE_ENV !== "test"` のとき起動時に throw するガードあり。
+**以下は SS-8 時点の記録（歴史的経緯として保持）**。
 
 `packages/mobile/src/services/auth/index.ts` の real/stub 切替は次の実装（SS-8 時点、2026-07-24 確認）:
 
