@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy.orm import Session
 
 from sanposcape.users.repository import UserRepository
@@ -6,6 +8,28 @@ from sanposcape.users.service import UserService
 
 def _make_service(db_session: Session) -> UserService:
     return UserService(db_session, UserRepository(db_session))
+
+
+def test_get_by_id_returns_existing_user(db_session: Session) -> None:
+    service = _make_service(db_session)
+    created = service.find_or_create(
+        provider="google",
+        subject="google-sub-1",
+        email="user@example.com",
+        display_name="山田太郎",
+        photo_url=None,
+    )
+
+    found = service.get_by_id(created.id)
+
+    assert found is not None
+    assert found.id == created.id
+
+
+def test_get_by_id_returns_none_for_unknown_id(db_session: Session) -> None:
+    service = _make_service(db_session)
+
+    assert service.get_by_id(uuid.uuid4()) is None
 
 
 def test_find_or_create_creates_new_user(db_session: Session) -> None:

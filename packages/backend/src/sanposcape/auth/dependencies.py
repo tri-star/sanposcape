@@ -23,11 +23,9 @@ def get_auth_service(
     settings: Settings = Depends(get_settings),
     providers: dict[str, IdentityProvider] = Depends(get_identity_providers),
 ) -> AuthService:
-    user_repository = UserRepository(db)
     return AuthService(
         db,
-        UserService(db, user_repository),
-        user_repository,
+        UserService(db, UserRepository(db)),
         RefreshTokenRepository(db),
         providers,
         settings,

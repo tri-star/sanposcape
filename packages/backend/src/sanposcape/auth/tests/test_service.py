@@ -43,7 +43,6 @@ def _make_service(
     return AuthService(
         db_session,
         UserService(db_session, user_repository),
-        user_repository,
         RefreshTokenRepository(db_session),
         {"google": _FakeGoogleProvider()},
         settings,
@@ -77,6 +76,39 @@ def test_rotation_sets_used_at(db_session: Session) -> None:
     rows = db_session.scalars(select(RefreshToken)).all()
     used_rows = [r for r in rows if r.used_at is not None]
     assert len(used_rows) == 1
+
+
+def test_auth_service_has_no_direct_user_repository(db_session: Session) -> None:
+    """A-3: `AuthService` は `UserRepository` を直接持たない（`auth -> users` へのアクセスは
+    常に `UserService` 経由という単一境界を回復する）。
+
+    以前は `AuthService.__init__` に `user_repository` が渡され、`refresh()` が
+    `self._user_repository.get_by_id(...)` を直接呼んでいた。これ自体は動くが、SS-12 で
+    「退会済み/BAN済みユーザーを弾く」判定を `get_current_user` にだけ足すと、`refresh()` は
+    素通りしてトークンを発行し続けてしまう認可漏れリスクがあった。
+    """
+    service = _make_service(db_session)
+
+    assert not hasattr(service, "_user_repository")
+
+
+def test_refresh_resolves_user_via_user_service(db_session: Session) -> None:
+    """A-3: `refresh()` はユーザー引き当てを `UserService.get_by_id()` 経由で行う。
+
+    SS-12 で `UserService.get_by_id()` に「削除済みなら None を返す」等の判定を足すだけで、
+    `get_current_user` と `AuthService.refresh()` の双方に効くことの前提を保証する。
+    """
+    service = _make_service(db_session)
+    session = service.create_session("google", "google-sub-1")
+
+    with mock.patch.object(
+        UserService, "get_by_id", autospec=True, side_effect=UserService.get_by_id
+    ) as get_by_id_spy:
+        service.refresh(session.refresh_token)
+
+    get_by_id_spy.assert_called_once()
+    _self_arg, called_user_id = get_by_id_spy.call_args.args
+    assert called_user_id == session.user.id
 
 
 def test_create_dev_session_raises_when_auth_mode_is_real(db_session: Session) -> None:

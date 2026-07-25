@@ -16,7 +16,6 @@ from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.tokens import create_access_token, generate_refresh_token, hash_refresh_token
 from sanposcape.config import Settings
 from sanposcape.users.models import User
-from sanposcape.users.repository import UserRepository
 from sanposcape.users.service import UserService
 
 logger = logging.getLogger(__name__)
@@ -49,7 +48,6 @@ class AuthService:
         self,
         db: Session,
         user_service: UserService,
-        user_repository: UserRepository,
         refresh_repo: RefreshTokenRepository,
         providers: dict[str, IdentityProvider],
         settings: Settings,
@@ -57,7 +55,6 @@ class AuthService:
     ) -> None:
         self._db = db
         self._user_service = user_service
-        self._user_repository = user_repository
         self._refresh_repo = refresh_repo
         self._providers = providers
         self._settings = settings
@@ -119,7 +116,10 @@ class AuthService:
             raise InvalidRefreshTokenError("Refresh token expired")
 
         self._refresh_repo.mark_used(row, now)
-        user = self._user_repository.get_by_id(row.user_id)
+        # `auth` から `users` へのアクセスは常に `UserService` 経由に統一する（A-3）。
+        # `UserRepository` を直接持たないことで、「削除済み/BAN済みユーザーを弾く」判定を
+        # 将来 `UserService.get_by_id()` に足すだけで、ここにも自動的に効くようにしておく。
+        user = self._user_service.get_by_id(row.user_id)
         if user is None:
             # ユーザーが削除済み等。通常運用では起こり得ないが、念のため 401 に倒す。
             raise InvalidRefreshTokenError("User not found")
