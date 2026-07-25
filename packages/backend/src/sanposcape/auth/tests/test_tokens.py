@@ -47,10 +47,18 @@ def test_access_token_expired_is_rejected(settings: Settings) -> None:
 def test_access_token_tampered_is_rejected(settings: Settings) -> None:
     token, _ = create_access_token(uuid.uuid4(), settings)
     header, payload, signature = token.split(".")
-    # 署名の末尾数文字（24bit分）を書き換える。1文字だけの置換だと base64url の
-    # 端数ビットの都合でごく稀に元と同じバイト列にデコードされることがあるため、
-    # 複数文字を確実に変える。
-    tampered_signature = signature[:-4] + ("AAAA" if signature[-4:] != "AAAA" else "BBBB")
+    # 署名の「先頭」の1文字を反転させて改ざんする。
+    #
+    # 末尾の1文字を変える方式（`signature[:-1] + X`）だと、base64url は4文字で24bitを
+    # 表現するため、デコードした最後のバイト境界に「元のバイト列に使われない余りビット」が
+    # 生じることがある。末尾1文字の変化がちょうどその余りビットの範囲内に収まると、
+    # デコード結果のバイト列（実際の署名バイト列）が元と同じになってしまい、
+    # 「改ざんしたのに検証が通ってしまう」という理論上ごく低確率のflakyテストになる
+    # （実際に一度再現した）。
+    # 一方、先頭寄りの1文字はデコード後のバイト列の先頭バイトに直接影響するため、
+    # 元の文字と異なる文字に変えれば確定的にバイト列が変化し、100%検証エラーになる。
+    tampered_char = "A" if signature[0] != "A" else "B"
+    tampered_signature = tampered_char + signature[1:]
     tampered = ".".join([header, payload, tampered_signature])
 
     with pytest.raises(InvalidAccessTokenError):
