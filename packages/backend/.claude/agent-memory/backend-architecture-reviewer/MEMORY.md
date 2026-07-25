@@ -1,0 +1,3 @@
+- [ADR-002 auth real/dev shared code path](adr002-auth-shared-codepath.md) — create_session/create_dev_sessionの共有パターンと崩れやすい箇所
+- [users/auth ドメイン境界の逸脱パターン](users-auth-domain-boundary.md) — AuthServiceがUserRepositoryを直接持つ問題、SS-12前に要修正
+- [backend レイヤー規約](backend-layering-conventions.md) — folder-structure.mdの要点とテスト規約の要約

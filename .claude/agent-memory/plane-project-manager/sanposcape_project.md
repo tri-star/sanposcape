@@ -100,3 +100,9 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-25（work_item_id: `c86a7219-5320-40ea-9d9f-4cd398aadaba`）: 本文に記載の3点の差異（Toast文字太さ/StatBlock prop名/IconButton active配色）はSS-1レビュー対応コミット(4c6a538, d131020, 1b3871f)で解消済みと確認しDone化。
 - **Why**: どちらもユーザー確認済みの背景説明があり、コメント（`create_work_item_comment`）にも同内容を記録済み。
 - **How to apply**: これによりM2「デザイン取り込み・UI基盤」の残Backlogは **SS-24のみ**（SS-1,7,8,9=Done, SS-6,23=Cancelled, SS-25=Done）。update_work_item直後のレスポンスは`state`がUUID更新済みでも`state_group`が旧グループのまま返ることがある（キャッシュ遅延）。確証が必要な場合は`retrieve_work_item(expand="state")`で再取得すると正しい`state_group`が返る。
+
+## 2026-07-25追加: SS-10をIn Progressに更新（認証方式ADR確定）
+
+- SS-10（work_item_id: `3bc2b4d4-2a17-46a1-9611-d3f2517372e2`、M3「認証・アプリ骨格」所属）をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新し、認証方式確定の設計サマリをコメントに記録。
+- 決定内容: IdPはGoogle直結（Auth0不採用）、モバイルはpublic clientとしてGoogle ID token取得→backendで自前セッショントークン（短命access JWT + opaque refresh token）に交換。スタブは`real/dev/mock`の3モードで継ぎ目はトークン発行元のみ。ADRは`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md`。作業ブランチは`feat/ss-10-auth-real-stub`、PRはbackend先行→mobileの2本に分割方針。
+- **Why**: 設計議論の結論を課題側にも残し、進捗状況（着手中）を可視化するため（ユーザー指示）。
