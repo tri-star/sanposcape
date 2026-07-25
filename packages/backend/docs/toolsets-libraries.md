@@ -7,7 +7,7 @@
 - ユニットテスト: pytest
 - Lint, Formatter: ruff
 - スキーマ管理: Pydantic
-- 認証: Auth0。 authlib
+- 認証: Google Sign-In（モバイルが public client として Google と直接対話）+ backend 自前セッショントークン。ID token 検証・自前 JWT 発行ともに `pyjwt[crypto]` を使用（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
 - OpenAPI定義生成: Fast APIの機能を利用
 
 ## 環境
