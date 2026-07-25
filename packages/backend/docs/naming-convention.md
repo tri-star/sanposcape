@@ -35,14 +35,23 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `dependencies.py` | ドメイン固有の依存（`Depends` で使う関数） |
 | `exceptions.py` | ドメイン固有の例外 |
 
+上記はどのドメインにも共通する基本セット。ドメイン固有の事情がある場合は、役割が一目で分かる名前で追加してよい（固定セットに無理に詰め込まない）。
+例: `auth/` ドメインでは以下を追加している。
+
+| ファイル | 役割 |
+|---|---|
+| `tokens.py` | 自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化 |
+| `dev_router.py` | `AUTH_MODE=dev` 限定エンドポイントの `APIRouter`。本番相当の `router.py` と分離し、`include_in_schema=False` の制御をここに閉じ込める |
+| `providers/` | IdP（Google 等）ごとの ID token 検証実装を隔離するサブパッケージ。プロバイダ追加時はここに1ファイル足すだけで済む |
+
 ## FastAPI / API 関連
 
 - `APIRouter` のインスタンス変数名は `router` に統一する。
   ```python
   router = APIRouter(prefix="/walks", tags=["walks"])
   ```
-- URL パス・パスパラメータは **kebab を使わず snake は使わない**。RESTのリソース名は**複数形・小文字**にする。
-  - 例: `/walks`, `/walks/{walk_id}`, `/spots`
+- URL パスの単語区切りには **ハイフン（kebab-case）を使い、アンダースコア（snake_case）は使わない**。RESTのリソース名は**複数形・小文字**にする。
+  - 例: `/walks`, `/walks/{walk_id}`, `/spots`, `/auth/dev-session`（`AUTH_MODE=dev` 限定エンドポイント）
 - パスパラメータ名は snake_case（`{walk_id}`）。
 - エンドポイント関数名は操作を表す snake_case（`create_walk`, `list_walks`, `get_walk`, `delete_walk`）。
 

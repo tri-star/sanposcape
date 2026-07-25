@@ -37,11 +37,24 @@ packages/backend/
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
 │       │
 │       ├── core/              # 横断的関心事（ドメインに属さない土台）
-│       │   ├── security/      #   Auth0/authlib: JWT検証・スコープ・現在ユーザー
 │       │   └── ...            #   ページング等の汎用ユーティリティ
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   └── google_maps/   #   Places / Routes クライアント + キャッシュ
+│       │
+│       ├── auth/              # ドメイン: 認証・セッション（Google ID token検証・自前トークン）
+│       │   ├── __init__.py
+│       │   ├── router.py      #   APIRouter（/auth/session, /auth/refresh, /auth/logout, /auth/me）
+│       │   ├── dev_router.py  #   AUTH_MODE=dev 限定の /auth/dev-session（include_in_schema=False）
+│       │   ├── schemas.py     #   Pydantic（リクエスト/レスポンス）
+│       │   ├── models.py      #   SQLAlchemy モデル（RefreshToken）
+│       │   ├── service.py     #   ビジネスロジック（AuthService）
+│       │   ├── repository.py  #   DBアクセス（RefreshTokenRepository）
+│       │   ├── dependencies.py#   ドメイン固有の依存（get_auth_service 等）
+│       │   ├── exceptions.py  #   ドメイン固有の例外
+│       │   ├── tokens.py      #   自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化
+│       │   ├── providers/     #   IdP ごとの ID token 検証実装（google.py 等）を隔離する層
+│       │   └── tests/         #   このドメインのテスト（併置）
 │       │
 │       ├── users/             # ドメイン: ユーザー・アカウント
 │       │   ├── __init__.py
@@ -79,8 +92,9 @@ packages/backend/
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
 
 ### `core/` — 横断的関心事
-- どのドメインにも属さない土台。認証（Auth0/authlib のJWT検証）、ページングなどの汎用処理。
+- どのドメインにも属さない土台。ページングなどの汎用処理。
 - ドメインを import しない（依存の向きは `domain → core`）。
+- 認証（Google ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
 ### `integrations/` — 外部API連携（隔離層）
 - Google Maps Platform（Places / Routes）などの外部クライアントとキャッシュをここに閉じ込める。

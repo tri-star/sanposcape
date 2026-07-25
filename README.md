@@ -14,7 +14,7 @@
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
 - ADR（アーキテクチャ決定記録）
   - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
-  - backend: TBD
+  - backend: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
     - [ADR-002 技術スタック（Unistyles / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
@@ -53,7 +53,7 @@
 | ORM / マイグレーション | SQLAlchemy + Alembic |
 | スキーマ | Pydantic |
 | データベース | PostgreSQL（開発用DB + テスト用DBを分離） |
-| 認証 | Auth0（authlib） |
+| 認証 | Google Sign-In 直結 + 自前セッショントークン（pyjwt[crypto]） |
 | テスト | pytest |
 | Lint / Format | ruff |
 | パッケージ管理 | uv |

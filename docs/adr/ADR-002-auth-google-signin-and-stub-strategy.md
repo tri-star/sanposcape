@@ -50,7 +50,7 @@ M3「認証・アプリ骨格」の起点となる [SS-10](https://github.com/tr
 [real]
 app --native Google Sign-In (Credential Manager)--> Google
     => Google ID token (JWT)
-app --POST /auth/session { provider: "google", idToken }--> backend
+app --POST /auth/session { provider: "google", id_token }--> backend
     backend: Google JWKS で ID token を検証 (iss/aud/exp)
              sub -> users テーブルを JIT 作成/引き当て
     => 自前 access token (短命JWT) + 自前 refresh token (opaque, ローテーション)
@@ -78,10 +78,10 @@ app --Authorization: Bearer <自前 access token>--> 以降の全 API
 | モード | モバイル実装 | トークン取得元 | backend API | 用途 |
 |---|---|---|---|---|
 | `real` | `auth.real.ts` | Google → `POST /auth/session` | 実物 | 本番 |
-| `dev` | `auth.dev.ts` | `POST /auth/dev-session { userKey }` | **実物** | ローカル開発 / Maestro E2E |
+| `dev` | `auth.dev.ts` | `POST /auth/dev-session { user_key }` | **実物** | ローカル開発 / Maestro E2E |
 | `mock` | `auth.mock.ts` | メモリ上の固定ダミー | **Orval MSW** | vitest |
 
-**設計の中核**: 継ぎ目を「トークンの発行元」だけに置き、`Authorization: Bearer` を運ぶ HTTP 通信そのものは real/dev で一切変えない。`dev` モードでも **backend のトークン発行コードと `get_current_user` によるユーザー識別は real と完全に同一のコードパスを通る**。異なるのは「Google ID token を検証して `sub` を得る」か「`userKey` から開発用ユーザーを引き当てる」かの入口だけ。
+**設計の中核**: 継ぎ目を「トークンの発行元」だけに置き、`Authorization: Bearer` を運ぶ HTTP 通信そのものは real/dev で一切変えない。`dev` モードでも **backend のトークン発行コードと `get_current_user` によるユーザー識別は real と完全に同一のコードパスを通る**。異なるのは「Google ID token を検証して `sub` を得る」か「`user_key` から開発用ユーザーを引き当てる」かの入口だけ。
 
 ### 4. backend 側の fail-safe
 
@@ -181,7 +181,7 @@ app --Authorization: Bearer <自前 access token>--> 以降の全 API
 - `packages/mobile/eas.json` の `preview.env.EXPO_PUBLIC_AUTH_MODE` を `"stub"` から **`"dev"`** に修正する。ADR-004 の該当記述も併せて更新する。
 - mobile に `react-native-nitro-google-signin` と `expo-secure-store` を追加する。access token はメモリ、refresh token は SecureStore に保管し、`mock` モードでは in-memory 実装に差し替えられるよう `TokenStore` を抽象化する（vitest の node 環境では SecureStore が動かないため）。
 - `packages/mobile/src/api/client.ts` に `Authorization` ヘッダ付与と、401 → refresh → 1回だけリトライを実装する。**同時多発リクエストに備えて refresh は single-flight にする**こと。
-- backend に `src/sanposcape/auth/` を新設し、`POST /auth/session` / `POST /auth/refresh` / `POST /auth/logout` と、`AUTH_MODE=dev` 限定の `POST /auth/dev-session` を実装する。`get_current_user` を `dependencies.py` に追加する（既に TODO コメントあり）。
+- backend に `src/sanposcape/auth/` を新設し、`POST /auth/session` / `POST /auth/refresh` / `POST /auth/logout` / `GET /auth/me` と、`AUTH_MODE=dev` 限定の `POST /auth/dev-session` を実装する。`get_current_user` を `dependencies.py` に追加する（既に TODO コメントあり）。
 - backend に JWT/JWKS 依存（`pyjwt[crypto]` 等）と `users` / `refresh_tokens` のマイグレーションを追加する。
 - backend の OpenAPI 更新後、`pnpm --filter mobile orval` を再実行する。
 - **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が要求される**。MVP のリリース計画に織り込む必要がある。
