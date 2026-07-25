@@ -88,7 +88,9 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/{%BACKEND_API_PORT%}/8000/; s/{%DB_PORT%}/5432/' .env
-          BACKEND_API_PORT=8000 DB_PORT=5432 docker compose up -d --build
+          BACKEND_API_PORT=8000 DB_PORT=5432 \
+          ENV=test AUTH_MODE=dev AUTH_JWT_SECRET=e2e-insecure-secret-0123456789abcdef \
+            docker compose up -d --build
           for i in $(seq 1 30); do
             if docker compose exec -T api python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null; then
               echo "backend healthy"; break

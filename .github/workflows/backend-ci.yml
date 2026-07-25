@@ -55,6 +55,10 @@ jobs:
       DB_NAME: app
       # CI ではサービスの既定DBをテスト用に流用（各テストで create_all/drop_all）
       TEST_DB_NAME: app
+      ENV: test
+      AUTH_MODE: real # 既定が real であることを CI でも踏襲（dev router 404 のテストが成立する）
+      AUTH_JWT_SECRET: ci-insecure-secret-0123456789abcdef
+      GOOGLE_ALLOWED_AUDIENCES: test-audience
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
