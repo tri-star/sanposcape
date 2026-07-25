@@ -7,5 +7,6 @@ Alembic の autogenerate がスキーマ全体を認識できるようにする�
 
 from sanposcape.database import Base
 from sanposcape.spots.models import Spot  # noqa: F401
+from sanposcape.users.models import User  # noqa: F401
 
 __all__ = ["Base"]
