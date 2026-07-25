@@ -58,8 +58,122 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /auth/session:
+    post:
+      tags:
+      - auth
+      summary: Create Session
+      operationId: create_session_auth_session_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionCreate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/refresh:
+    post:
+      tags:
+      - auth
+      summary: Refresh Session
+      operationId: refresh_session_auth_refresh_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRefreshRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Logout
+      operationId: logout_auth_logout_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionLogoutRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/me:
+    get:
+      tags:
+      - auth
+      summary: Get Me
+      operationId: get_me_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserRead'
+      security:
+      - HTTPBearer: []
 components:
   schemas:
+    AuthUserRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        photo_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Url
+      type: object
+      required:
+      - id
+      - email
+      - display_name
+      - photo_url
+      title: AuthUserRead
     HTTPValidationError:
       properties:
         detail:
@@ -78,6 +192,58 @@ components:
       required:
       - status
       title: HealthStatus
+    SessionCreate:
+      properties:
+        provider:
+          type: string
+          const: google
+          title: Provider
+        id_token:
+          type: string
+          title: Id Token
+      type: object
+      required:
+      - provider
+      - id_token
+      title: SessionCreate
+    SessionLogoutRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - refresh_token
+      title: SessionLogoutRequest
+    SessionRead:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        expires_in:
+          type: integer
+          title: Expires In
+        refresh_token:
+          type: string
+          title: Refresh Token
+        user:
+          $ref: '#/components/schemas/AuthUserRead'
+      type: object
+      required:
+      - access_token
+      - expires_in
+      - refresh_token
+      - user
+      title: SessionRead
+    SessionRefreshRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - refresh_token
+      title: SessionRefreshRequest
     SpotCreate:
       properties:
         name:
@@ -85,9 +251,13 @@ components:
           title: Name
         latitude:
           type: number
+          maximum: 90.0
+          minimum: -90.0
           title: Latitude
         longitude:
           type: number
+          maximum: 180.0
+          minimum: -180.0
           title: Longitude
         category:
           anyOf:
@@ -158,3 +328,7 @@ components:
       - msg
       - type
       title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
