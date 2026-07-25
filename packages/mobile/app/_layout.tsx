@@ -4,7 +4,12 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { queryClient } from "@/api/queryClient";
+import { initAuth } from "@/services/auth";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+
+// Provider の生成より前に、api クライアントへトークン供給者を登録する。
+// モジュールスコープで1回だけ実行する（initAuth は冪等）。
+initAuth();
 
 export default function RootLayout() {
   return (

@@ -1,1 +1,1 @@
-export type { AuthMethod } from "@/services/auth";
+export type { AuthProvider, AuthUser } from "@/services/auth";

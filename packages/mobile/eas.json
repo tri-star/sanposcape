@@ -19,7 +19,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_AUTH_MODE": "stub",
+        "EXPO_PUBLIC_AUTH_MODE": "dev",
+        "EXPO_PUBLIC_DEV_USER_KEY": "e2e-user-1",
         "EXPO_PUBLIC_BACKEND_API_URL": "http://10.0.2.2:8000"
       }
     },
