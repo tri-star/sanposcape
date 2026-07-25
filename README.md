@@ -111,6 +111,8 @@ pnpm install
 pnpm --filter mobile orval
 ```
 
+WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合は、[backend ローカル環境構築手順](./packages/backend/docs/local-env.md#wsl2-の-uidgid-を合わせる) を参照。
+
 > **⚠️ mobile は Expo Go ではなく development build が必要**
 > Unistyles / react-native-maps / react-native-nitro-google-signin（Google サインイン）/
 > expo-secure-store（refresh token の永続化）などのネイティブモジュールを使うため、

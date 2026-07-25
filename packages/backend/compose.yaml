@@ -5,6 +5,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    user: app_user
     ports:
       - "${BACKEND_API_PORT:-8000}:8000"
     environment:
@@ -23,7 +27,7 @@ services:
     volumes:
       - ./:/app
       # コンテナ内で構築した .venv をホストのコピーで潰さないよう分離
-      - venv:/app/.venv
+      - venv-app-user:/app/.venv
     depends_on:
       db:
         condition: service_healthy
@@ -55,4 +59,4 @@ services:
 
 volumes:
   db-data:
-  venv:
+  venv-app-user:
