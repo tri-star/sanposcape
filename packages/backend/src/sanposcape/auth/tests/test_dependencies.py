@@ -48,9 +48,12 @@ class TestGetCurrentUser:
         self, auth_client: TestClient, make_google_id_token
     ) -> None:
         session = _create_session(auth_client, make_google_id_token)
-        tampered = session["access_token"][:-1] + (
-            "A" if session["access_token"][-1] != "A" else "B"
-        )
+        header, payload, signature = session["access_token"].split(".")
+        # 署名の末尾数文字（24bit分）を書き換える。1文字だけの置換だと base64url の
+        # 端数ビットの都合でごく稀に元と同じバイト列にデコードされることがあるため、
+        # 複数文字を確実に変える（test_tokens.py の同種テストと同じ理由）。
+        tampered_signature = signature[:-4] + ("AAAA" if signature[-4:] != "AAAA" else "BBBB")
+        tampered = ".".join([header, payload, tampered_signature])
 
         res = auth_client.get("/auth/me", headers={"Authorization": f"Bearer {tampered}"})
 
