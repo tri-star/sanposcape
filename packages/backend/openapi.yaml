@@ -200,6 +200,7 @@ components:
           title: Provider
         id_token:
           type: string
+          maxLength: 4096
           title: Id Token
       type: object
       required:
@@ -210,6 +211,7 @@ components:
       properties:
         refresh_token:
           type: string
+          maxLength: 512
           title: Refresh Token
       type: object
       required:
@@ -239,6 +241,7 @@ components:
       properties:
         refresh_token:
           type: string
+          maxLength: 512
           title: Refresh Token
       type: object
       required:

@@ -64,6 +64,16 @@ class TestSessionEndpoint:
         res = auth_client.post("/auth/session", json={"provider": "google"})
         assert res.status_code == 422
 
+    def test_oversized_id_token_returns_422(self, auth_client: TestClient) -> None:
+        """B-1: 上限の無い `str` は、巨大な文字列を送りつけてパース・デコードに
+        CPU/メモリを浪費させる低コストDoSの入り口になり得るため、上限超過は422で弾く。
+        """
+        res = auth_client.post(
+            "/auth/session",
+            json={"provider": "google", "id_token": "a" * 4097},
+        )
+        assert res.status_code == 422
+
 
 class TestRefreshEndpoint:
     def test_rotates_refresh_token(self, auth_client: TestClient, make_google_id_token) -> None:
@@ -112,6 +122,11 @@ class TestRefreshEndpoint:
     def test_unknown_refresh_token_returns_401(self, auth_client: TestClient) -> None:
         res = auth_client.post("/auth/refresh", json={"refresh_token": "unknown-token"})
         assert res.status_code == 401
+
+    def test_oversized_refresh_token_returns_422(self, auth_client: TestClient) -> None:
+        """B-1: `generate_refresh_token()` は約43文字なので、上限超過は不正な入力として弾く。"""
+        res = auth_client.post("/auth/refresh", json={"refresh_token": "a" * 513})
+        assert res.status_code == 422
 
     def test_expired_refresh_token_returns_401(
         self, auth_client: TestClient, make_google_id_token, db_session: Session

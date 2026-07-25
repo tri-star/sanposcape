@@ -47,6 +47,12 @@ def test_dev_session_returns_200_on_dev_mode(dev_client: TestClient) -> None:
     assert body["user"]["email"] == "dev-user-1@dev.local"
 
 
+def test_dev_session_oversized_user_key_returns_422(dev_client: TestClient) -> None:
+    """B-1: `user_key` にも上限が無いと、巨大な文字列によるDoSの入り口になり得る。"""
+    res = dev_client.post("/auth/dev-session", json={"user_key": "a" * 257})
+    assert res.status_code == 422
+
+
 def test_dev_session_same_user_key_returns_same_user_id(dev_client: TestClient) -> None:
     first = dev_client.post("/auth/dev-session", json={"user_key": "dev-user-1"}).json()
     second = dev_client.post("/auth/dev-session", json={"user_key": "dev-user-1"}).json()
