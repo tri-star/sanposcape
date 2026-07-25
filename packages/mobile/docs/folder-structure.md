@@ -36,10 +36,15 @@ packages/mobile/
 │   │
 │   ├── services/            # スタブ差し替えの層（認証・実機依存機能）
 │   │   └── <service>/
-│   │       ├── index.ts       #   環境に応じて real/stub を選択して export
+│   │       ├── index.ts       #   環境変数（例: EXPO_PUBLIC_AUTH_MODE）で real/dev/mock を
+│   │       │                   #   選択して export（既定 real）
 │   │       ├── types.ts       #   インターフェース定義
 │   │       ├── xxx.real.ts    #   本番実装
-│   │       └── xxx.stub.ts    #   テスト用スタブ
+│   │       ├── xxx.dev.ts     #   実装は本物に近いが実機/外部IdPに依存しない実装
+│   │       │                   #   （例: backend の dev 専用エンドポイントを使う）
+│   │       └── xxx.mock.ts    #   テスト用の最小スタブ（メモリ上のダミー実装等）
+│   │       # 複雑なサービスは上記に加え、トークン生存管理・エラー分類などの補助ファイルを
+│   │       # 持つことがある（例: services/auth の tokenStore.ts / authError.ts）。
 │   │
 │   ├── api/                  # Orval生成物 & 共通APIクライアント設定
 │   │   ├── generated/         #   自動生成物（手編集禁止）
@@ -100,11 +105,19 @@ packages/mobile/
 
 ### `src/services/` — スタブ差し替えの層
 - 認証(OAuth/OIDC)や実機依存機能（カメラ・位置情報など）を抽象化する層。
-- 呼び出し側は `index.ts` が公開する**インターフェースのみ**を参照し、real/stub の実体を知らない。
-- 実装の選択は環境変数で切り替える（例: `EXPO_PUBLIC_*`）。
+- 呼び出し側は `index.ts` が公開する**インターフェースのみ**を参照し、real/dev/mock の実体を知らない。
+- 実装の選択は環境変数で切り替える（例: `EXPO_PUBLIC_AUTH_MODE`。`real` | `dev` | `mock`、既定 `real`）。
+- `real` / `dev` / `mock` の3モードが基本形。`dev` は「本物に近いが実機/外部IdPに依存しない」実装
+  （例: `services/auth` の `auth.dev.ts` は backend の `/auth/dev-session` を使い Google には触れない）、
+  `mock` はユニットテスト向けの最小スタブ（メモリ上のダミー実装等）という役割分担にする。
 - テスト方針との対応:
-  - **ユニットテスト**: 常に stub を利用。
-  - **E2Eテスト(Maestro)**: 実機に近い動作を優先。**Maestroで再現可能な機能は real のまま**利用し、再現できない機能のみ stub にフォールバックする。
+  - **ユニットテスト**: `mock`（または個別モジュールへの直接フェイク注入）を利用する。
+    ただし `index.ts`（バレル）はネイティブ依存に到達しうるため、バレルを import せず
+    個別モジュール／ファクトリ関数を直接 import するのが安全な場合がある
+    （具体例は [architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
+  - **E2Eテスト(Maestro)**: 実機に近い動作を優先。**Maestroで再現可能な機能は real のまま**利用し、
+    再現できない機能は `dev` または `mock` にフォールバックする。
+- 実例として `src/services/auth` を参照。
 - 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
 
 ### `src/api/` — バックエンドAPIクライアント

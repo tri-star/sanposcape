@@ -112,6 +112,9 @@ pnpm --filter mobile orval
 ```
 
 > **⚠️ mobile は Expo Go ではなく development build が必要**
-> Unistyles / react-native-maps などのネイティブモジュールを使うため、
+> Unistyles / react-native-maps / react-native-nitro-google-signin（Google サインイン）/
+> expo-secure-store（refresh token の永続化）などのネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
+> **SS-10（認証まわりのネイティブ依存を追加）適用後は development build の作り直しが必要**
+> （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。
