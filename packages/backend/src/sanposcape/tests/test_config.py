@@ -54,6 +54,56 @@ def test_production_with_valid_config_starts() -> None:
     assert settings.auth_mode == "real"
 
 
+def test_staging_with_non_real_auth_mode_fails_to_start() -> None:
+    """A-1: 許可リスト方式であれば staging も production と同じ fail-safe バリデーションを受ける。
+
+    以前の実装は `if self.env == "production"` という否定リスト方式だったため、
+    ENV=staging はこのチェックを素通りし、AUTH_MODE=dev で /auth/dev-session が
+    有効になったまま起動できてしまっていた（認証バイパスの脆弱性）。
+    """
+    with pytest.raises(ValidationError):
+        Settings(
+            env="staging",
+            auth_mode="dev",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+        )
+
+
+def test_staging_without_secret_fails_to_start() -> None:
+    """A-1: staging で AUTH_JWT_SECRET 未設定だと、以前はリポジトリ内の固定ダミー鍵に
+    フォールバックしてしまっていた（署名鍵が GitHub 上で読める状態での起動）。許可リスト方式では
+    production と同様に起動失敗するべき。
+    """
+    with pytest.raises(ValidationError):
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="",
+            google_allowed_audiences=["aud"],
+        )
+
+
+def test_staging_without_allowed_audiences_fails_to_start() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=[],
+        )
+
+
+def test_staging_with_valid_config_starts() -> None:
+    settings = Settings(
+        env="staging",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["aud"],
+    )
+    assert settings.auth_mode == "real"
+
+
 def test_csv_google_allowed_audiences_is_parsed_to_list() -> None:
     settings = Settings(google_allowed_audiences="aaa.example.com, bbb.example.com")
     assert settings.google_allowed_audiences == ["aaa.example.com", "bbb.example.com"]

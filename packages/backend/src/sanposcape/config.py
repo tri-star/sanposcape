@@ -63,13 +63,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_auth_settings(self) -> "Settings":
-        if self.env == "production":
+        # 許可リスト方式: 「fail-safe な検証をスキップしてよい環境」だけを明示的に列挙する。
+        # `env == "production"` のような否定リスト方式だと、新しい env 値（例: staging）を
+        # 追加した瞬間にバリデーションの対象外へ静かに落ちてしまう
+        # （実際に staging がこの罠を踏み、AUTH_JWT_SECRET 未設定時にリポジトリ内の固定文字列が
+        # 署名鍵になり、AUTH_MODE=dev も阻止されないという認証バイパスの脆弱性になっていた）。
+        if self.env not in ("local", "test"):
             if self.auth_mode != "real":
-                raise ValueError("AUTH_MODE must be 'real' when ENV=production")
+                raise ValueError(f"AUTH_MODE must be 'real' when ENV={self.env}")
             if len(self.auth_jwt_secret) < 32:
-                raise ValueError("AUTH_JWT_SECRET must be set (>=32 chars) in production")
+                raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
             if not self.google_allowed_audiences:
-                raise ValueError("GOOGLE_ALLOWED_AUDIENCES must be set in production")
+                raise ValueError(f"GOOGLE_ALLOWED_AUDIENCES must be set when ENV={self.env}")
         elif not self.auth_jwt_secret:
             # 非本番はゼロ設定でも動かせるようダミー鍵にフォールバックする（決定1）。
             # 本番安全性は上記のバリデーションで別途担保する。
