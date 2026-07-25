@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from sanposcape.auth.dev_router import router as auth_dev_router
 from sanposcape.auth.exceptions import (
+    AuthenticationError,
     IdentityProviderUnavailableError,
     InvalidAccessTokenError,
     InvalidIdTokenError,
@@ -62,6 +63,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: IdentityProviderUnavailableError
     ) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": "Identity provider unavailable"})
+
+    @app.exception_handler(AuthenticationError)
+    async def _unclassified_authentication_error(
+        request: Request, exc: AuthenticationError
+    ) -> JSONResponse:
+        """保険ハンドラ: 上記の具象サブクラスに対するハンドラは Starlette が MRO で
+        最も具体的なものを優先して呼ぶため、通常はここに落ちない。将来 `auth/exceptions.py`
+        に新しいサブクラスを追加したのにここへの登録を忘れても、素の 500 ではなく
+        「認証失敗は必ず 401」という規約を維持したまま安全側に倒すためのフォールバック。
+        """
+        return _unauthorized_response("Authentication failed")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
