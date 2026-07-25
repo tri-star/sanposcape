@@ -1,6 +1,15 @@
+import logging
 from functools import lru_cache
+from typing import Annotated, Literal
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+# 非本番環境で AUTH_JWT_SECRET が未設定のときに使うダミー鍵。
+# 本番でこの値が使われることはない（起動時バリデーションで別途弾く）。
+_INSECURE_DEV_JWT_SECRET = "insecure-local-development-secret-do-not-use-in-prod"
 
 
 class Settings(BaseSettings):
@@ -14,6 +23,67 @@ class Settings(BaseSettings):
     db_password: str = "password"
     db_name: str = "app"
     test_db_name: str = "app_test"
+
+    # --- 実行環境 ---
+    env: Literal["local", "test", "staging", "production"] = "local"
+
+    # --- 認証モード（ADR-002 決定4。既定は fail-safe な real） ---
+    auth_mode: Literal["real", "dev"] = "real"
+
+    # --- 自前セッショントークン ---
+    auth_jwt_secret: str = ""  # HS256 の対称鍵。production では必須（32文字以上）
+    auth_token_issuer: str = "sanposcape"
+    auth_token_audience: str = "sanposcape-api"
+    auth_access_token_ttl_seconds: int = 900  # 15分（mobile 想定 5〜15分）
+    auth_refresh_token_ttl_days: int = 30
+
+    # --- Google ID token 検証 ---
+    # NoDecode: pydantic-settings は既定で list[str] を環境変数から JSON としてパースしようとする。
+    # `GOOGLE_ALLOWED_AUDIENCES=aaa,bbb` のようなカンマ区切りを書くと JSON デコードに失敗し、
+    # 下の `_split_csv` バリデータに到達する前に SettingsError で起動が落ちる。
+    # NoDecode を付けて自動 JSON デコードを無効化し、生の文字列を素通しさせる。
+    google_allowed_audiences: Annotated[list[str], NoDecode] = []  # Android=Web ID / iOS=iOS ID
+    google_jwks_url: str = "https://www.googleapis.com/oauth2/v3/certs"
+    google_allowed_issuers: Annotated[list[str], NoDecode] = [
+        "https://accounts.google.com",
+        "accounts.google.com",
+    ]
+    google_jwks_cache_lifespan_seconds: int = 3600
+
+    @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
+    @classmethod
+    def _split_csv(cls, v: object) -> object:
+        """`.env` のカンマ区切り記法（GOOGLE_ALLOWED_AUDIENCES=aaa,bbb）を受け付ける。
+        `list[str]` フィールドの既定では JSON パースが必要になり、カンマ区切りだと
+        SettingsError で起動に失敗するため（NoDecode と併用して回避）。
+        """
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
+
+    @model_validator(mode="after")
+    def _validate_auth_settings(self) -> "Settings":
+        # 許可リスト方式: 「fail-safe な検証をスキップしてよい環境」だけを明示的に列挙する。
+        # `env == "production"` のような否定リスト方式だと、新しい env 値（例: staging）を
+        # 追加した瞬間にバリデーションの対象外へ静かに落ちてしまう
+        # （実際に staging がこの罠を踏み、AUTH_JWT_SECRET 未設定時にリポジトリ内の固定文字列が
+        # 署名鍵になり、AUTH_MODE=dev も阻止されないという認証バイパスの脆弱性になっていた）。
+        if self.env not in ("local", "test"):
+            if self.auth_mode != "real":
+                raise ValueError(f"AUTH_MODE must be 'real' when ENV={self.env}")
+            if len(self.auth_jwt_secret) < 32:
+                raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
+            if not self.google_allowed_audiences:
+                raise ValueError(f"GOOGLE_ALLOWED_AUDIENCES must be set when ENV={self.env}")
+        elif not self.auth_jwt_secret:
+            # 非本番はゼロ設定でも動かせるようダミー鍵にフォールバックする（決定1）。
+            # 本番安全性は上記のバリデーションで別途担保する。
+            logger.warning(
+                "AUTH_JWT_SECRET is not set; falling back to an insecure development secret. "
+                "This must never happen in production."
+            )
+            self.auth_jwt_secret = _INSECURE_DEV_JWT_SECRET
+        return self
 
     @property
     def database_url(self) -> str:

@@ -19,7 +19,7 @@ FastAPI + PostgreSQL を Docker Compose（`api` / `db` コンテナ）で立ち�
 bash scripts/initialize-dotenv.sh
 ```
 
-- `packages/backend/.env`（`BACKEND_API_PORT` / `DB_PORT` / DB接続情報）が生成される。
+- `packages/backend/.env`（`BACKEND_API_PORT` / `DB_PORT` / DB接続情報に加え、`ENV` / `AUTH_MODE` / `AUTH_JWT_SECRET` などの認証系設定。詳細は後述の「認証」節を参照）が生成される。
 - Git worktree など複数環境でもポートが衝突しないよう、実行のたびに空きポートを割り当てる。
 
 ### 2. コンテナのビルド・起動
@@ -86,3 +86,35 @@ docker compose exec api uv run python scripts/export_openapi.py
 
 - 開発用DB（`DB_NAME`）とテスト用DB（`TEST_DB_NAME`）を分離している。
 - テスト用DBは `db` コンテナ初回起動時に `scripts/init-test-db.sh` で作成される。
+
+## 認証（`AUTH_MODE` と関連 env）
+
+設計の詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
+
+- `ENV`: 実行環境（`local` / `test` / `staging` / `production`）。`local` / `test` 以外（`staging` / `production`）では厳格な起動時バリデーションが有効になる（許可リスト方式。新しい `env` 値を追加してもデフォルトで安全側になる）。
+- `AUTH_MODE`: `real`（既定・fail-safe）または `dev`。
+  - `real`: `POST /auth/session` で Google ID token を検証するモード。
+  - `dev`: `real` に加えて `POST /auth/dev-session`（`{"user_key": "..."}` で任意のユーザーを JIT 作成してセッションを発行）が有効になる。ローカル開発・Maestro E2E 専用。
+  - `.env.example` は開発者の利便性のため `AUTH_MODE=dev` を既定にしている。**本番デプロイでは絶対に `dev` にしないこと**（`ENV=production` かつ `AUTH_MODE != real` の場合はプロセスが起動しない）。
+  - **重要**: `AUTH_MODE=dev` で `docker compose up` していても、`POST /auth/dev-session` は Swagger UI（`/docs`）や `openapi.yaml` には一切現れない（`include_in_schema=False` を指定しているため）。「Swagger UI に出ない」ことは「無効である」ことの証明にはならないので注意する。実際に有効かどうかは `curl` で直接 `POST /auth/dev-session` を叩いて確認すること。
+- `AUTH_JWT_SECRET`: 自前 access token(HS256) の署名鍵。`local` / `test` 以外（`staging` / `production`）では 32 文字以上必須。`local` / `test` で未設定の場合はダミー鍵にフォールバックする（起動時に WARNING ログが出る）。
+- `AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE`: 自前 access token の `iss` / `aud` クレーム。既定値（`sanposcape` / `sanposcape-api`）があり、通常は変更不要。
+- `AUTH_ACCESS_TOKEN_TTL_SECONDS` / `AUTH_REFRESH_TOKEN_TTL_DAYS`: トークンの有効期限。
+- `GOOGLE_ALLOWED_AUDIENCES`: Google ID token の許容 audience（カンマ区切り可）。`local` / `test` 以外では必須。
+- `GOOGLE_JWKS_URL`: Google の JWKS エンドポイント。既定値（`https://www.googleapis.com/oauth2/v3/certs`）があり、通常は変更不要。
+- `GOOGLE_ALLOWED_ISSUERS`: Google ID token の許容 issuer（カンマ区切り可）。既定値（`https://accounts.google.com`, `accounts.google.com`）があり、通常は変更不要。
+- `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`: JWKS の `lru_cache` を破棄して再取得するまでの秒数。既定値（3600）があり、通常は変更不要。
+
+**`AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE` / `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` /
+`GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS` は `compose.yaml` の `environment:` には列挙していない**（他の
+認証系 env とは扱いが非対称に見えるが意図的）。`config.py` の `Settings` は `env_file=".env"` を
+指定しており、`api` コンテナにバインドマウントされた `packages/backend/.env` を直接読む。
+`compose.yaml` の `environment:` はホストの env（CI 等、`.env` ファイルを使わない実行環境）から
+値を渡すための経路であり、**上記5つは妥当な既定値を持つため意図的に省略している**。既定値を
+上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
+必要になった場合は `compose.yaml` の `environment:` にも追加すること。
+
+### 運用上の TODO（SS-10 のスコープ外）
+
+- `AUTH_JWT_SECRET` をローテーションすると、発行済みの access token は全て即時無効になる（refresh token は DB 側で生存しているため、クライアントは 401 → refresh で自動復帰する）。ローテーション手順は別途ドキュメント化する。
+- `refresh_tokens` テーブルは失効済み行が蓄積していく。`expires_at` にインデックス済みだが、定期的なクリーンアップ運用（例: 期限切れから30日経過した行の削除）は未実装。
