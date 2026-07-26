@@ -1,10 +1,13 @@
 from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.auth.models import RefreshToken
+from sanposcape.auth.repository import RefreshTokenRepository
 
 
 def _create_session(auth_client: TestClient, make_google_id_token, **token_kwargs) -> dict:
@@ -122,6 +125,27 @@ class TestRefreshEndpoint:
     def test_unknown_refresh_token_returns_401(self, auth_client: TestClient) -> None:
         res = auth_client.post("/auth/refresh", json={"refresh_token": "unknown-token"})
         assert res.status_code == 401
+
+    def test_refresh_returns_401_when_account_deletion_wins_race(
+        self, auth_client: TestClient, make_google_id_token
+    ) -> None:
+        """退会により user が消えた後の refresh token INSERT の FK 違反は 500 にしない。"""
+        session = _create_session(auth_client, make_google_id_token)
+        foreign_key_error = IntegrityError(
+            "INSERT INTO refresh_tokens ...",
+            {},
+            Exception("foreign key constraint violation"),
+        )
+
+        # 実DBでの race をタイミング依存にせず、削除側が先に commit した結果として
+        # 新 token 作成が FK 制約で失敗する境界を再現する。
+        with mock.patch.object(RefreshTokenRepository, "create", side_effect=foreign_key_error):
+            res = auth_client.post(
+                "/auth/refresh", json={"refresh_token": session["refresh_token"]}
+            )
+
+        assert res.status_code == 401
+        assert res.headers["WWW-Authenticate"] == "Bearer"
 
     def test_oversized_refresh_token_returns_422(self, auth_client: TestClient) -> None:
         """B-1: `generate_refresh_token()` は約43文字なので、上限超過は不正な入力として弾く。"""

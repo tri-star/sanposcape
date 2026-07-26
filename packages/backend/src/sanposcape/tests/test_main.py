@@ -5,6 +5,16 @@ from sanposcape.auth.exceptions import AuthenticationError
 from sanposcape.main import register_exception_handlers
 
 
+def test_users_router_registers_delete_me_operation() -> None:
+    from sanposcape.main import app
+
+    schema = app.openapi()
+    operation = schema["paths"]["/users/me"]["delete"]
+
+    assert "204" in operation["responses"]
+    assert operation["security"] == [{"HTTPBearer": []}]
+
+
 class _UnregisteredAuthError(AuthenticationError):
     """テスト専用のサブクラス。`main.py` への個別ハンドラ登録を忘れたケースを模す。"""
 

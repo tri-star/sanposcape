@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.auth.exceptions import (
@@ -123,18 +124,27 @@ class AuthService:
             self._db.commit()
             raise InvalidRefreshTokenError("Refresh token expired")
 
-        self._refresh_repo.mark_used(row, now)
-        # `auth` から `users` へのアクセスは常に `UserService` 経由に統一する（A-3）。
-        # `UserRepository` を直接持たないことで、「削除済み/BAN済みユーザーを弾く」判定を
-        # 将来 `UserService.get_by_id()` に足すだけで、ここにも自動的に効くようにしておく。
-        user = self._user_service.get_by_id(row.user_id)
-        if user is None:
-            # ユーザーが削除済み等。通常運用では起こり得ないが、念のため 401 に倒す。
-            raise InvalidRefreshTokenError("User not found")
+        try:
+            self._refresh_repo.mark_used(row, now)
+            # `auth` から `users` へのアクセスは常に `UserService` 経由に統一する（A-3）。
+            # `UserRepository` を直接持たないことで、「削除済み/BAN済みユーザーを弾く」判定を
+            # 将来 `UserService.get_by_id()` に足すだけで、ここにも自動的に効くようにしておく。
+            user = self._user_service.get_by_id(row.user_id)
+            if user is None:
+                # ユーザーが削除済み等。通常運用では起こり得ないが、念のため 401 に倒す。
+                self._db.rollback()
+                raise InvalidRefreshTokenError("User not found")
 
-        result = self._issue_session(user, family_id=row.family_id)
-        self._db.commit()
-        return result
+            result = self._issue_session(user, family_id=row.family_id)
+            self._db.commit()
+            return result
+        except IntegrityError as exc:
+            # 退会との競合で user が先に削除されると、ローテーション後の refresh token INSERT
+            # （または commit）が FK 制約違反になることがある。この場合は部分更新を残さず、
+            # 通常の無効 refresh token と同じ 401 に正規化する。接続断などの非 IntegrityError は
+            # 可用性障害として従来どおり 500 に伝播させる。
+            self._db.rollback()
+            raise InvalidRefreshTokenError("Refresh token is no longer valid") from exc
 
     def logout(self, refresh_token: str) -> None:
         """冪等: 未知/失効済みトークンでも例外を投げず正常終了する。"""
