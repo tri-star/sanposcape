@@ -144,6 +144,18 @@ paths:
                 $ref: '#/components/schemas/AuthUserRead'
       security:
       - HTTPBearer: []
+  /users/me:
+    delete:
+      tags:
+      - users
+      summary: Delete Me
+      description: Bearer token で解決した本人のアカウントを削除する。
+      operationId: delete_me_users_me_delete
+      responses:
+        '204':
+          description: Successful Response
+      security:
+      - HTTPBearer: []
 components:
   schemas:
     AuthUserRead:
