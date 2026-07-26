@@ -11,8 +11,8 @@ from sanposcape.database import Base
 class User(Base):
     """認証済みユーザー（Google 等の IdP または dev モードで JIT 作成される）。
 
-    SS-10 では認証に必要な最小限のカラムのみを持つ。プロフィール取得/更新/削除等の
-    ユースケースは SS-12 で追加する。
+    認証に必要な最小限のカラムを持つ。SS-12 では、認証済み本人による物理削除を
+    サポートし、紐づく refresh token は DB の cascade で同一トランザクション内に削除する。
     """
 
     __tablename__ = "users"

@@ -7,14 +7,14 @@ import uuid
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
 
 from sanposcape.auth.exceptions import InvalidAccessTokenError
 from sanposcape.auth.tokens import decode_access_token
 from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
+from sanposcape.users.dependencies import get_user_service
 from sanposcape.users.models import User
-from sanposcape.users.repository import UserRepository
+from sanposcape.users.service import UserService
 
 # auto_error=False は必須。HTTPBearer(auto_error=True) はヘッダ欠落時に 403 を返してしまい、
 # モバイルの「401 のときだけ refresh -> 1回リトライ」契約が壊れる。
@@ -31,7 +31,7 @@ def _unauthorized() -> HTTPException:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    db: Session = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
     settings: Settings = Depends(get_settings),
 ) -> User:
     """access token を検証し、認証済みユーザーを返す。
@@ -52,7 +52,7 @@ def get_current_user(
     except ValueError as exc:
         raise _unauthorized() from exc
 
-    user = UserRepository(db).get_by_id(user_id)
+    user = user_service.get_by_id(user_id)
     if user is None:
         raise _unauthorized()  # 削除済みユーザーのトークン
     return user
