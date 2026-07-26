@@ -26,6 +26,11 @@ class UserService:
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return self._repository.get_by_id(user_id)
 
+    def delete_current_user(self, current_user: User) -> None:
+        """認証済み本人のアカウントとセッション情報を削除する。"""
+        self._repository.delete(current_user)
+        self._db.commit()
+
     def find_or_create(
         self,
         *,

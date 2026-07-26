@@ -23,6 +23,15 @@ class UserRepository:
         )
         return self._db.scalars(stmt).first()
 
+    def delete(self, user: User) -> None:
+        """ユーザーを削除する。
+
+        `refresh_tokens.user_id` の ON DELETE CASCADE により、紐づく refresh token も
+        同じトランザクションで削除される。commit はユースケース境界の service が担う。
+        """
+        self._db.delete(user)
+        self._db.flush()
+
     def create(
         self,
         *,

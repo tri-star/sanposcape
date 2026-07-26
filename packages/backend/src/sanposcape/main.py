@@ -15,6 +15,7 @@ from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
 from sanposcape.health.router import router as health_router
 from sanposcape.spots.router import router as spots_router
+from sanposcape.users.router import router as users_router
 
 
 def _unauthorized_response(detail: str) -> JSONResponse:
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(spots_router)
     app.include_router(auth_router)
+    app.include_router(users_router)
     if settings.auth_mode == "dev":
         # 本番ではエンドポイント自体が存在しない（ADR-002 決定4）。
         # dev_router 側で include_in_schema=False を指定しているため、

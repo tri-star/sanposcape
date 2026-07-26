@@ -1,11 +1,13 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 import jwt
 from fastapi.testclient import TestClient
 
 from sanposcape.auth.tokens import ACCESS_TOKEN_TYPE, create_access_token
 from sanposcape.config import Settings
+from sanposcape.users.service import UserService
 
 
 def _create_session(auth_client: TestClient, make_google_id_token) -> dict:
@@ -29,6 +31,21 @@ class TestGetCurrentUser:
 
         assert res.status_code == 200
         assert res.json()["id"] == session["user"]["id"]
+
+    def test_valid_access_token_resolves_user_through_user_service(
+        self, auth_client: TestClient, make_google_id_token
+    ) -> None:
+        session = _create_session(auth_client, make_google_id_token)
+
+        with mock.patch.object(
+            UserService, "get_by_id", autospec=True, side_effect=UserService.get_by_id
+        ) as get_by_id_spy:
+            res = auth_client.get(
+                "/auth/me", headers={"Authorization": f"Bearer {session['access_token']}"}
+            )
+
+        assert res.status_code == 200
+        get_by_id_spy.assert_called_once()
 
     def test_missing_authorization_header_returns_401_not_403(
         self, auth_client: TestClient

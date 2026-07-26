@@ -1,5 +1,7 @@
 import uuid
+from unittest import mock
 
+import pytest
 from sqlalchemy.orm import Session
 
 from sanposcape.users.repository import UserRepository
@@ -141,3 +143,42 @@ def test_find_or_create_different_provider_same_subject_is_different_user(
     )
 
     assert google_user.id != dev_user.id
+
+
+def test_delete_current_user_deletes_user_and_commits(db_session: Session) -> None:
+    service = _make_service(db_session)
+    user = service.find_or_create(
+        provider="google",
+        subject="delete-me",
+        email=None,
+        display_name=None,
+        photo_url=None,
+    )
+
+    with mock.patch.object(db_session, "commit", wraps=db_session.commit) as commit_spy:
+        service.delete_current_user(user)
+
+    commit_spy.assert_called_once()
+    assert service.get_by_id(user.id) is None
+
+
+def test_delete_current_user_does_not_commit_when_delete_fails(db_session: Session) -> None:
+    service = _make_service(db_session)
+    user = service.find_or_create(
+        provider="google",
+        subject="delete-fails",
+        email=None,
+        display_name=None,
+        photo_url=None,
+    )
+
+    with (
+        mock.patch.object(
+            service._repository, "delete", side_effect=RuntimeError("database error")
+        ),
+        mock.patch.object(db_session, "commit", wraps=db_session.commit) as commit_spy,
+        pytest.raises(RuntimeError, match="database error"),
+    ):
+        service.delete_current_user(user)
+
+    commit_spy.assert_not_called()

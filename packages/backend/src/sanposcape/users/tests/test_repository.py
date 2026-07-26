@@ -1,5 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from sanposcape.auth.models import RefreshToken
 from sanposcape.users.repository import UserRepository
 
 
@@ -67,3 +71,54 @@ def test_create_conflict_does_not_roll_back_outer_transaction(db_session: Sessio
     assert other.provider_subject == "other-sub"
     # 外側のトランザクションがまだ有効であることの証明（壊れていれば commit で例外になる）
     db_session.commit()
+
+
+def test_delete_cascades_only_deleted_users_refresh_tokens(db_session: Session) -> None:
+    repo = UserRepository(db_session)
+    deleted_user = repo.create(
+        provider="google",
+        provider_subject="delete-me",
+        email=None,
+        display_name=None,
+        photo_url=None,
+    )
+    remaining_user = repo.create(
+        provider="google",
+        provider_subject="keep-me",
+        email=None,
+        display_name=None,
+        photo_url=None,
+    )
+    expiry = datetime.now(UTC) + timedelta(days=1)
+    deleted_token = RefreshToken(
+        user_id=deleted_user.id,
+        token_hash="a" * 64,
+        family_id=deleted_user.id,
+        expires_at=expiry,
+    )
+    remaining_token = RefreshToken(
+        user_id=remaining_user.id,
+        token_hash="b" * 64,
+        family_id=remaining_user.id,
+        expires_at=expiry,
+    )
+    db_session.add_all([deleted_token, remaining_token])
+    db_session.commit()
+
+    repo.delete(deleted_user)
+    db_session.commit()
+
+    assert db_session.get(type(deleted_user), deleted_user.id) is None
+    assert db_session.get(type(remaining_user), remaining_user.id) is not None
+    assert (
+        db_session.scalars(
+            select(RefreshToken).where(RefreshToken.user_id == deleted_user.id)
+        ).all()
+        == []
+    )
+    assert (
+        db_session.scalars(select(RefreshToken).where(RefreshToken.user_id == remaining_user.id))
+        .one()
+        .id
+        == remaining_token.id
+    )
