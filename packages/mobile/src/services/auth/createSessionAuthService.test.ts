@@ -45,7 +45,11 @@ function rawSession(overrides?: {
   };
 }
 
-function setup(options?: { persistence?: RefreshTokenPersistence; initialTime?: number }) {
+function setup(options?: {
+  persistence?: RefreshTokenPersistence;
+  initialTime?: number;
+  restoreTimeoutMs?: number;
+}) {
   const persistence = options?.persistence ?? createMemoryRefreshTokenPersistence();
   const tokenStore = createTokenStore(persistence);
   let currentTime = options?.initialTime ?? 0;
@@ -62,6 +66,7 @@ function setup(options?: { persistence?: RefreshTokenPersistence; initialTime?: 
     now: () => currentTime,
     onSignOut,
     onSessionChange,
+    restoreTimeoutMs: options?.restoreTimeoutMs,
   });
 
   return {
@@ -245,6 +250,46 @@ describe("createSessionAuthService", () => {
       const user = await service.restoreSession();
 
       expect(user).toBeNull();
+    });
+
+    it("上限時間を超えた通信を abort し、認証状態を更新せず null を返す", async () => {
+      vi.useFakeTimers();
+      const persistence = createMemoryRefreshTokenPersistence("refresh-1");
+      const { service, api } = setup({ persistence, restoreTimeoutMs: 1_000 });
+      let signal: AbortSignal | undefined;
+      api.refresh.mockImplementation((_refreshToken, options) => {
+        signal = options?.signal;
+        return new Promise(() => {});
+      });
+
+      const restored = service.restoreSession();
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(restored).resolves.toBeNull();
+      expect(signal?.aborted).toBe(true);
+      expect(service.getCurrentUser()).toBeNull();
+      vi.useRealTimers();
+    });
+
+    it("呼び出し元の abort 後に遅れて返った結果で認証状態を更新しない", async () => {
+      const persistence = createMemoryRefreshTokenPersistence("refresh-1");
+      const { service, api } = setup({ persistence });
+      let resolveRefresh: (value: unknown) => void = () => {};
+      api.refresh.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve;
+          }),
+      );
+      const controller = new AbortController();
+
+      const restored = service.restoreSession({ signal: controller.signal });
+      controller.abort();
+      resolveRefresh(rawSession());
+
+      await expect(restored).resolves.toBeNull();
+      expect(service.getCurrentUser()).toBeNull();
+      expect(await persistence.load()).toBe("refresh-1");
     });
   });
 

@@ -16,7 +16,11 @@ export type SessionAuthDeps = {
   onSignOut?: () => Promise<void>;
   /** セッション変化の通知（SS-13 の継ぎ目。本タスクでは未使用でよい）。 */
   onSessionChange?: (user: AuthUser | null) => void;
+  /** 起動時セッション復元の上限時間（ms）。テストでは短縮できる。 */
+  restoreTimeoutMs?: number;
 };
+
+const DEFAULT_RESTORE_TIMEOUT_MS = 10_000;
 
 /**
  * real / dev で完全に共通のトークン生存管理を実装する。
@@ -26,6 +30,7 @@ export type SessionAuthDeps = {
 export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
   const { issueSession, api, tokenStore, onSignOut, onSessionChange } = deps;
   const now = deps.now ?? (() => Date.now());
+  const restoreTimeoutMs = deps.restoreTimeoutMs ?? DEFAULT_RESTORE_TIMEOUT_MS;
 
   let currentUser: AuthUser | null = null;
 
@@ -34,21 +39,27 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
     onSessionChange?.(user);
   }
 
-  async function doRefresh(): Promise<string | null> {
+  async function doRefresh(signal?: AbortSignal): Promise<string | null> {
     const refreshToken = await tokenStore.getRefreshToken();
-    if (refreshToken === null) {
+    if (refreshToken === null || signal?.aborted) {
       return null;
     }
 
     // refreshAccessToken() は throw しない契約（client.ts はこの戻り値のみを見てリトライを諦める）。
     // そのため api.refresh の通信/検証エラーをすべてここで吸収する。
     try {
-      const raw = await api.refresh(refreshToken);
+      const raw = signal
+        ? await api.refresh(refreshToken, { signal })
+        : await api.refresh(refreshToken);
+      // fetch 実装が abort を遅れて処理しても、切断済みの復元が後から状態を書き換えないようにする。
+      if (signal?.aborted) return null;
       const session = toSession(raw, now());
+      if (signal?.aborted) return null;
 
       tokenStore.setAccessToken(session.accessToken);
       // ローテーションされた refresh token を必ず保存する。
       await tokenStore.setRefreshToken(session.refreshToken);
+      if (signal?.aborted) return null;
       setCurrentUser(session.user);
 
       return session.accessToken.value;
@@ -78,7 +89,7 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
     }
   }
 
-  const refreshSingleFlight = createSingleFlight(doRefresh);
+  const refreshSingleFlight = createSingleFlight(() => doRefresh());
 
   return {
     async signIn(provider: AuthProvider): Promise<AuthUser> {
@@ -106,8 +117,32 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
       return refreshSingleFlight();
     },
 
-    async restoreSession(): Promise<AuthUser | null> {
-      const token = await refreshSingleFlight();
+    async restoreSession(options): Promise<AuthUser | null> {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      options?.signal?.addEventListener("abort", abort, { once: true });
+      if (options?.signal?.aborted) abort();
+      const timeout = setTimeout(abort, restoreTimeoutMs);
+
+      // 起動時復元は中断可能な専用経路にする。通常の API refresh と共有すると、画面破棄後にも
+      // single-flight の完了が認証状態を書き換えられるためである。
+      let token: string | null;
+      let removeAbortListener: (() => void) | undefined;
+      const aborted = new Promise<null>((resolve) => {
+        const onAbort = () => resolve(null);
+        controller.signal.addEventListener("abort", onAbort, { once: true });
+        removeAbortListener = () => controller.signal.removeEventListener("abort", onAbort);
+        if (controller.signal.aborted) onAbort();
+      });
+      try {
+        // signal を無視する fetch 実装でも、起動遷移そのものは上限時間で必ず進める。
+        // doRefresh 側の aborted 判定により、後から返った通信結果は状態を更新できない。
+        token = await Promise.race([doRefresh(controller.signal), aborted]);
+      } finally {
+        clearTimeout(timeout);
+        options?.signal?.removeEventListener("abort", abort);
+        removeAbortListener?.();
+      }
       if (token === null) {
         return null;
       }

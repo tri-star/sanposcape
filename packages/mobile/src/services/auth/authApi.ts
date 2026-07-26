@@ -15,7 +15,7 @@ import type { AuthProvider } from "@/services/auth/types";
 export type AuthApi = {
   createSession(input: { provider: AuthProvider; idToken: string }): Promise<unknown>;
   createDevSession(input: { userKey: string }): Promise<unknown>;
-  refresh(refreshToken: string): Promise<unknown>;
+  refresh(refreshToken: string, options?: { signal?: AbortSignal }): Promise<unknown>;
   logout(refreshToken: string): Promise<void>;
 };
 
@@ -23,11 +23,16 @@ export function createAuthApi(deps?: { baseUrl?: () => string; fetchFn?: typeof 
   const baseUrl = deps?.baseUrl ?? getApiBaseUrl;
   const fetchFn = deps?.fetchFn ?? fetch;
 
-  async function post(path: string, body: unknown): Promise<Response> {
+  async function post(
+    path: string,
+    body: unknown,
+    options?: { signal?: AbortSignal },
+  ): Promise<Response> {
     const response = await fetchFn(`${baseUrl()}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
     if (!response.ok) {
       throw new ApiError(response.status);
@@ -46,8 +51,8 @@ export function createAuthApi(deps?: { baseUrl?: () => string; fetchFn?: typeof 
       const response = await post("/auth/dev-session", { user_key: userKey });
       return response.json();
     },
-    async refresh(refreshToken) {
-      const response = await post("/auth/refresh", { refresh_token: refreshToken });
+    async refresh(refreshToken, options) {
+      const response = await post("/auth/refresh", { refresh_token: refreshToken }, options);
       return response.json();
     },
     async logout(refreshToken) {

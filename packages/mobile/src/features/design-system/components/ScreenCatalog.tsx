@@ -95,6 +95,13 @@ export function ScreenCatalog() {
       onPress: () => router.push("/(tabs)/search"),
     },
     {
+      key: "settings",
+      label: "設定",
+      description: "ログアウト導線（サインイン後に確認）",
+      icon: "settings-2",
+      onPress: () => router.push("/settings"),
+    },
+    {
       key: "design-system",
       label: "デザインシステム",
       description: "トークン/UIプリミティブの一覧",

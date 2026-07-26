@@ -12,13 +12,23 @@ export type DialogProps = {
   /** 下部に並べるアクション（Button など）。 */
   actions?: ReactNode;
   testID?: string;
+  /** 非同期処理中など、スクリム・閉じるボタン・戻る操作で閉じられないようにする。 */
+  dismissDisabled?: boolean;
 };
 
 /**
  * Dialog — 中央に出る確認モーダル（例:「散歩を終了しますか？」）。
  * デザイン: Sanpo Design System / components/overlays/Dialog
  */
-export function Dialog({ open, title, children, onClose, actions, testID }: DialogProps) {
+export function Dialog({
+  open,
+  title,
+  children,
+  onClose,
+  actions,
+  testID,
+  dismissDisabled = false,
+}: DialogProps) {
   const styles = useStyles();
 
   return (
@@ -26,12 +36,16 @@ export function Dialog({ open, title, children, onClose, actions, testID }: Dial
       visible={open}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      // Android の戻る操作も送信中にモーダルを閉じないようにする。スクリム/アイコンは disabled
+      // として実際に無効化されるため、これは OS 固有の閉じる要求を抑止するためだけのハンドラ。
+      onRequestClose={dismissDisabled ? () => {} : onClose}
       statusBarTranslucent
     >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="閉じる"
+        accessibilityState={{ disabled: dismissDisabled }}
+        disabled={dismissDisabled}
         style={styles.scrim}
         onPress={onClose}
       >
@@ -49,7 +63,14 @@ export function Dialog({ open, title, children, onClose, actions, testID }: Dial
         >
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
-            <IconButton icon="x" label="閉じる" variant="ghost" size="sm" onPress={onClose} />
+            <IconButton
+              icon="x"
+              label="閉じる"
+              variant="ghost"
+              size="sm"
+              disabled={dismissDisabled}
+              onPress={onClose}
+            />
           </View>
           {children ? <View style={styles.body}>{children}</View> : null}
           {actions ? <View style={styles.actions}>{actions}</View> : null}
