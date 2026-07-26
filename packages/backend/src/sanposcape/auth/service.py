@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from sanposcape.auth.exceptions import (
@@ -20,6 +20,19 @@ from sanposcape.users.models import User
 from sanposcape.users.service import UserService
 
 logger = logging.getLogger(__name__)
+
+_POSTGRES_FOREIGN_KEY_VIOLATION_SQLSTATE = "23503"
+_POSTGRES_DEADLOCK_DETECTED_SQLSTATE = "40P01"
+
+
+def _is_postgres_foreign_key_violation(exc: IntegrityError) -> bool:
+    """SQLAlchemy が保持する psycopg 例外から FK 違反だけを識別する。"""
+    return getattr(exc.orig, "sqlstate", None) == _POSTGRES_FOREIGN_KEY_VIOLATION_SQLSTATE
+
+
+def _is_postgres_deadlock_detected(exc: OperationalError) -> bool:
+    """SQLAlchemy が保持する psycopg 例外から deadlock だけを識別する。"""
+    return getattr(exc.orig, "sqlstate", None) == _POSTGRES_DEADLOCK_DETECTED_SQLSTATE
 
 
 @dataclass
@@ -101,50 +114,65 @@ class AuthService:
         という規約が両立しない領域が存在することを認識した上での意図的な選択であり、
         catch-all の実装は行わない（ローカルレビュー C-3）。
         """
-        now = self._now()
         token_hash = hash_refresh_token(refresh_token)
-        row = self._refresh_repo.get_by_hash_for_update(token_hash)
+        for attempt in range(2):
+            now = self._now()
+            try:
+                row = self._refresh_repo.get_by_hash_for_update(token_hash)
 
-        if row is None:
-            raise InvalidRefreshTokenError("Unknown refresh token")
+                if row is None:
+                    raise InvalidRefreshTokenError("Unknown refresh token")
 
-        if row.used_at is not None or row.revoked_at is not None:
-            # 再利用検知: family_id 全体を即時失効させる（攻撃者・正規ユーザーの双方をログアウト）。
-            self._refresh_repo.revoke_family(row.family_id, "reuse_detected", now)
-            self._db.commit()
-            logger.warning(
-                "Refresh token reuse detected (user_id=%s, family_id=%s)",
-                row.user_id,
-                row.family_id,
-            )
-            raise RefreshTokenReuseDetectedError("Refresh token reuse detected")
+                if row.used_at is not None or row.revoked_at is not None:
+                    # 再利用検知: family_id 全体を即時失効させる。
+                    # 攻撃者・正規ユーザーの双方をログアウトする。
+                    self._refresh_repo.revoke_family(row.family_id, "reuse_detected", now)
+                    self._db.commit()
+                    logger.warning(
+                        "Refresh token reuse detected (user_id=%s, family_id=%s)",
+                        row.user_id,
+                        row.family_id,
+                    )
+                    raise RefreshTokenReuseDetectedError("Refresh token reuse detected")
 
-        if row.expires_at <= now:
-            self._refresh_repo.revoke(row, "expired", now)
-            self._db.commit()
-            raise InvalidRefreshTokenError("Refresh token expired")
+                if row.expires_at <= now:
+                    self._refresh_repo.revoke(row, "expired", now)
+                    self._db.commit()
+                    raise InvalidRefreshTokenError("Refresh token expired")
 
-        try:
-            self._refresh_repo.mark_used(row, now)
-            # `auth` から `users` へのアクセスは常に `UserService` 経由に統一する（A-3）。
-            # `UserRepository` を直接持たないことで、「削除済み/BAN済みユーザーを弾く」判定を
-            # 将来 `UserService.get_by_id()` に足すだけで、ここにも自動的に効くようにしておく。
-            user = self._user_service.get_by_id(row.user_id)
-            if user is None:
-                # ユーザーが削除済み等。通常運用では起こり得ないが、念のため 401 に倒す。
+                self._refresh_repo.mark_used(row, now)
+                # `auth` から `users` へのアクセスは常に `UserService` 経由に統一する（A-3）。
+                # `UserRepository` を直接持たないことで、「削除済み/BAN済みユーザーを弾く」判定を
+                # 将来 `UserService.get_by_id()` に足すだけで、ここにも自動的に効くようにしておく。
+                user = self._user_service.get_by_id(row.user_id)
+                if user is None:
+                    # ユーザーが削除済み等。通常運用では起こり得ないが、念のため 401 に倒す。
+                    self._db.rollback()
+                    raise InvalidRefreshTokenError("User not found")
+
+                result = self._issue_session(user, family_id=row.family_id)
+                self._db.commit()
+                return result
+            except IntegrityError as exc:
+                # FK 制約違反は削除済みユーザーに対する token 発行などを防御的に分類し、部分更新を
+                # 残さず通常の無効 refresh token と同じ 401 に正規化する。通常の削除競合は 40P01
+                # の再試行で扱う。ほかの IntegrityError は実装・DB整合性の問題として可視化するため、
+                # rollback 後に 500 へ伝播させる。
                 self._db.rollback()
-                raise InvalidRefreshTokenError("User not found")
+                if _is_postgres_foreign_key_violation(exc):
+                    raise InvalidRefreshTokenError("Refresh token is no longer valid") from exc
+                raise
+            except OperationalError as exc:
+                # PostgreSQL は deadlock の犠牲側を 40P01 で中断する。トランザクション全体を
+                # rollback して一度だけ最初からやり直す。
+                # それでも失敗すれば可用性問題として伝播する。
+                self._db.rollback()
+                if _is_postgres_deadlock_detected(exc) and attempt == 0:
+                    logger.warning("Refresh token rotation deadlocked; retrying once")
+                    continue
+                raise
 
-            result = self._issue_session(user, family_id=row.family_id)
-            self._db.commit()
-            return result
-        except IntegrityError as exc:
-            # 退会との競合で user が先に削除されると、ローテーション後の refresh token INSERT
-            # （または commit）が FK 制約違反になることがある。この場合は部分更新を残さず、
-            # 通常の無効 refresh token と同じ 401 に正規化する。接続断などの非 IntegrityError は
-            # 可用性障害として従来どおり 500 に伝播させる。
-            self._db.rollback()
-            raise InvalidRefreshTokenError("Refresh token is no longer valid") from exc
+        raise AssertionError("unreachable")
 
     def logout(self, refresh_token: str) -> None:
         """冪等: 未知/失効済みトークンでも例外を投げず正常終了する。"""

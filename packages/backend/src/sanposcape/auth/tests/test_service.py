@@ -3,14 +3,17 @@ from datetime import UTC, datetime
 from unittest import mock
 
 import pytest
+from psycopg.errors import DeadlockDetected, ForeignKeyViolation
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from sanposcape.auth.exceptions import RefreshTokenReuseDetectedError
+from sanposcape.auth.exceptions import InvalidRefreshTokenError, RefreshTokenReuseDetectedError
 from sanposcape.auth.models import RefreshToken
 from sanposcape.auth.providers.base import ProviderIdentity
 from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.service import AuthService
+from sanposcape.auth.tokens import hash_refresh_token
 from sanposcape.config import Settings
 from sanposcape.users.repository import UserRepository
 from sanposcape.users.service import UserService
@@ -76,6 +79,105 @@ def test_rotation_sets_used_at(db_session: Session) -> None:
     rows = db_session.scalars(select(RefreshToken)).all()
     used_rows = [r for r in rows if r.used_at is not None]
     assert len(used_rows) == 1
+
+
+def test_refresh_foreign_key_failure_rolls_back_and_leaves_original_token_usable(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+    session = service.create_session("google", "google-sub-1")
+    foreign_key_error = IntegrityError("INSERT INTO refresh_tokens ...", {}, ForeignKeyViolation())
+
+    with (
+        mock.patch.object(RefreshTokenRepository, "create", side_effect=foreign_key_error),
+        pytest.raises(InvalidRefreshTokenError),
+    ):
+        service.refresh(session.refresh_token)
+
+    original = db_session.scalar(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == hash_refresh_token(session.refresh_token)
+        )
+    )
+    assert original is not None
+    assert original.used_at is None
+    assert db_session.scalar(select(RefreshToken).where(RefreshToken.id == original.id)) is original
+
+    rotated = service.refresh(session.refresh_token)
+    assert rotated.refresh_token != session.refresh_token
+
+
+def test_refresh_retries_once_after_deadlock_and_rotates_token_once(db_session: Session) -> None:
+    service = _make_service(db_session)
+    session = service.create_session("google", "google-sub-1")
+    deadlock_error = OperationalError("INSERT INTO refresh_tokens ...", {}, DeadlockDetected())
+    original_create = RefreshTokenRepository.create
+    create_calls = 0
+
+    def _create_with_one_deadlock(repository: RefreshTokenRepository, *args, **kwargs) -> None:
+        nonlocal create_calls
+        create_calls += 1
+        if create_calls == 1:
+            raise deadlock_error
+        original_create(repository, *args, **kwargs)
+
+    with mock.patch.object(
+        RefreshTokenRepository, "create", autospec=True, side_effect=_create_with_one_deadlock
+    ):
+        rotated = service.refresh(session.refresh_token)
+
+    rows = db_session.scalars(select(RefreshToken)).all()
+    assert create_calls == 2
+    assert len(rows) == 2
+    assert len([row for row in rows if row.used_at is not None]) == 1
+    assert rotated.refresh_token != session.refresh_token
+
+
+def test_refresh_reraises_non_deadlock_operational_error_after_rollback(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+    session = service.create_session("google", "google-sub-1")
+    operational_error = OperationalError(
+        "INSERT INTO refresh_tokens ...", {}, OSError("network down")
+    )
+
+    with (
+        mock.patch.object(RefreshTokenRepository, "create", side_effect=operational_error),
+        pytest.raises(OperationalError),
+    ):
+        service.refresh(session.refresh_token)
+
+    original = db_session.scalar(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == hash_refresh_token(session.refresh_token)
+        )
+    )
+    assert original is not None
+    assert original.used_at is None
+
+
+def test_refresh_reraises_second_deadlock_after_rollback(db_session: Session) -> None:
+    service = _make_service(db_session)
+    session = service.create_session("google", "google-sub-1")
+    deadlock_error = OperationalError("INSERT INTO refresh_tokens ...", {}, DeadlockDetected())
+
+    with (
+        mock.patch.object(
+            RefreshTokenRepository, "create", side_effect=deadlock_error
+        ) as create_mock,
+        pytest.raises(OperationalError),
+    ):
+        service.refresh(session.refresh_token)
+
+    assert create_mock.call_count == 2
+    original = db_session.scalar(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == hash_refresh_token(session.refresh_token)
+        )
+    )
+    assert original is not None
+    assert original.used_at is None
 
 
 def test_auth_service_has_no_direct_user_repository(db_session: Session) -> None:

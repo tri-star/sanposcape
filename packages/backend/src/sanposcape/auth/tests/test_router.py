@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from fastapi.testclient import TestClient
+from psycopg.errors import ForeignKeyViolation, UniqueViolation
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -126,19 +127,19 @@ class TestRefreshEndpoint:
         res = auth_client.post("/auth/refresh", json={"refresh_token": "unknown-token"})
         assert res.status_code == 401
 
-    def test_refresh_returns_401_when_account_deletion_wins_race(
+    def test_refresh_returns_401_for_foreign_key_integrity_error(
         self, auth_client: TestClient, make_google_id_token
     ) -> None:
-        """退会により user が消えた後の refresh token INSERT の FK 違反は 500 にしない。"""
+        """防御的に分類した FK 違反は、既存の無効 token 401 契約へ正規化する。"""
         session = _create_session(auth_client, make_google_id_token)
         foreign_key_error = IntegrityError(
             "INSERT INTO refresh_tokens ...",
             {},
-            Exception("foreign key constraint violation"),
+            ForeignKeyViolation(),
         )
 
-        # 実DBでの race をタイミング依存にせず、削除側が先に commit した結果として
-        # 新 token 作成が FK 制約で失敗する境界を再現する。
+        # 実際のロック競合はサービス層で retry する。このテストは、最終的に発生した
+        # FK 制約違反を正しく分類する防御的な境界だけを検証する。
         with mock.patch.object(RefreshTokenRepository, "create", side_effect=foreign_key_error):
             res = auth_client.post(
                 "/auth/refresh", json={"refresh_token": session["refresh_token"]}
@@ -146,6 +147,28 @@ class TestRefreshEndpoint:
 
         assert res.status_code == 401
         assert res.headers["WWW-Authenticate"] == "Bearer"
+
+    def test_refresh_reraises_non_foreign_key_integrity_error_as_500(
+        self, auth_client: TestClient, make_google_id_token
+    ) -> None:
+        """一意制約違反などは無効 token として握り潰さず、500 として検知できる。"""
+        session = _create_session(auth_client, make_google_id_token)
+        unique_violation = IntegrityError(
+            "INSERT INTO refresh_tokens ...",
+            {},
+            UniqueViolation(),
+        )
+
+        # TestClient の既定はサーバー例外を再送出するため、HTTP 500 を検証する専用 client を使う。
+        with (
+            TestClient(auth_client.app, raise_server_exceptions=False) as server_error_client,
+            mock.patch.object(RefreshTokenRepository, "create", side_effect=unique_violation),
+        ):
+            res = server_error_client.post(
+                "/auth/refresh", json={"refresh_token": session["refresh_token"]}
+            )
+
+        assert res.status_code == 500
 
     def test_oversized_refresh_token_returns_422(self, auth_client: TestClient) -> None:
         """B-1: `generate_refresh_token()` は約43文字なので、上限超過は不正な入力として弾く。"""
