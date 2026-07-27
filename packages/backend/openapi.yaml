@@ -156,6 +156,72 @@ paths:
           description: Successful Response
       security:
       - HTTPBearer: []
+  /explore/places:
+    post:
+      tags:
+      - explore
+      summary: Search Places
+      operationId: search_explore_places
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceSearchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceSearchResponse'
+        '401':
+          description: Not authenticated
+        '429':
+          description: Map provider quota exceeded
+        '503':
+          description: Map provider unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /explore/routes/walking:
+    post:
+      tags:
+      - explore
+      summary: Get Walking Route
+      operationId: get_walking_route_explore_routes_walking
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalkingRouteRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkingRouteResponse'
+        '401':
+          description: Not authenticated
+        '429':
+          description: Map provider quota exceeded
+        '503':
+          description: Map provider unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
 components:
   schemas:
     AuthUserRead:
@@ -186,6 +252,33 @@ components:
       - display_name
       - photo_url
       title: AuthUserRead
+    ExploreCategory:
+      type: string
+      enum:
+      - convenience_store
+      - supermarket
+      - retail
+      - facility
+      - park
+      - station
+      title: ExploreCategory
+    GeoPoint:
+      properties:
+        latitude:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Latitude
+        longitude:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Longitude
+      type: object
+      required:
+      - latitude
+      - longitude
+      title: GeoPoint
     HTTPValidationError:
       properties:
         detail:
@@ -204,6 +297,134 @@ components:
       required:
       - status
       title: HealthStatus
+    MapBounds:
+      properties:
+        north_east:
+          $ref: '#/components/schemas/GeoPoint'
+        south_west:
+          $ref: '#/components/schemas/GeoPoint'
+      type: object
+      required:
+      - north_east
+      - south_west
+      title: MapBounds
+    PlaceCandidate:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        category:
+          $ref: '#/components/schemas/ExploreCategory'
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        round_trip_duration_seconds:
+          type: integer
+          minimum: 0.0
+          title: Round Trip Duration Seconds
+        round_trip_distance_meters:
+          type: integer
+          minimum: 0.0
+          title: Round Trip Distance Meters
+      type: object
+      required:
+      - id
+      - name
+      - category
+      - location
+      - round_trip_duration_seconds
+      - round_trip_distance_meters
+      title: PlaceCandidate
+    PlaceSearchRequest:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        round_trip_duration_minutes:
+          type: integer
+          multipleOf: 5.0
+          maximum: 120.0
+          minimum: 10.0
+          title: Round Trip Duration Minutes
+        categories:
+          items:
+            $ref: '#/components/schemas/ExploreCategory'
+          type: array
+          maxItems: 6
+          minItems: 1
+          title: Categories
+        limit:
+          type: integer
+          maximum: 20.0
+          minimum: 1.0
+          title: Limit
+          default: 20
+      type: object
+      required:
+      - origin
+      - round_trip_duration_minutes
+      - categories
+      title: PlaceSearchRequest
+    PlaceSearchResponse:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        round_trip_duration_minutes:
+          type: integer
+          title: Round Trip Duration Minutes
+        candidates:
+          items:
+            $ref: '#/components/schemas/PlaceCandidate'
+          type: array
+          title: Candidates
+      type: object
+      required:
+      - origin
+      - round_trip_duration_minutes
+      - candidates
+      title: PlaceSearchResponse
+    RouteDestination:
+      properties:
+        place_id:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Place Id
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        name:
+          anyOf:
+          - type: string
+            maxLength: 256
+            minLength: 1
+          - type: 'null'
+          title: Name
+          description: Optional display metadata copied from the selected PlaceCandidate.
+            It is echoed as destination.name and is not used for authorization.
+      type: object
+      required:
+      - place_id
+      - location
+      title: RouteDestination
+    RouteDestinationRead:
+      properties:
+        place_id:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Place Id
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - place_id
+      - location
+      - name
+      title: RouteDestinationRead
     SessionCreate:
       properties:
         provider:
@@ -343,6 +564,48 @@ components:
       - msg
       - type
       title: ValidationError
+    WalkingRouteRequest:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        destination:
+          $ref: '#/components/schemas/RouteDestination'
+      type: object
+      required:
+      - origin
+      - destination
+      title: WalkingRouteRequest
+    WalkingRouteResponse:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        destination:
+          $ref: '#/components/schemas/RouteDestinationRead'
+        duration_seconds:
+          type: integer
+          minimum: 0.0
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          minimum: 0.0
+          title: Distance Meters
+        path:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          minItems: 2
+          title: Path
+        bounds:
+          $ref: '#/components/schemas/MapBounds'
+      type: object
+      required:
+      - origin
+      - destination
+      - duration_seconds
+      - distance_meters
+      - path
+      - bounds
+      title: WalkingRouteResponse
   securitySchemes:
     HTTPBearer:
       type: http

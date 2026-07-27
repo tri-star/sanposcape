@@ -1,5 +1,9 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from sanposcape.auth.dev_router import router as auth_dev_router
 from sanposcape.auth.exceptions import (
@@ -14,6 +18,10 @@ from sanposcape.auth.exceptions import (
 from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
 from sanposcape.health.router import router as health_router
+from sanposcape.integrations.google_maps.client import build_google_maps_provider
+from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
+from sanposcape.maps.rate_limit import ExploreRateLimiter
+from sanposcape.maps.router import router as maps_router
 from sanposcape.spots.router import router as spots_router
 from sanposcape.users.router import router as users_router
 
@@ -26,6 +34,53 @@ def _unauthorized_response(detail: str) -> JSONResponse:
     )
 
 
+class ExploreRequestBodyTooLargeError(Exception):
+    """Raised before an oversized chunked body can be fully buffered."""
+
+
+class ExploreRequestSizeLimitMiddleware:
+    """Streaming request-size guard for /explore; works without Content-Length."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+        self.app = app
+        self._max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not scope["path"].startswith("/explore"):
+            await self.app(scope, receive, send)
+            return
+        content_length = dict(scope.get("headers", [])).get(b"content-length")
+        if (
+            content_length is not None
+            and content_length.isdigit()
+            and int(content_length) > self._max_bytes
+        ):
+            await self._send_too_large(scope, receive, send)
+            return
+
+        received_bytes = 0
+
+        async def limited_receive() -> Message:
+            nonlocal received_bytes
+            message = await receive()
+            if message["type"] == "http.request":
+                received_bytes += len(message.get("body", b""))
+                if received_bytes > self._max_bytes:
+                    raise ExploreRequestBodyTooLargeError()
+            return message
+
+        try:
+            await self.app(scope, limited_receive, send)
+        except ExploreRequestBodyTooLargeError:
+            await self._send_too_large(scope, receive, send)
+
+    @staticmethod
+    async def _send_too_large(scope: Scope, receive: Receive, send: Send) -> None:
+        await JSONResponse(status_code=413, content={"detail": "Request body too large"})(
+            scope, receive, send
+        )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """auth ドメインの例外を HTTP レスポンスへ変換する。
 
@@ -35,6 +90,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidIdTokenError)
     async def _invalid_id_token(request: Request, exc: InvalidIdTokenError) -> JSONResponse:
         return _unauthorized_response("Invalid ID token")
+
+    @app.exception_handler(ExploreRequestBodyTooLargeError)
+    async def _explore_request_too_large(
+        request: Request, exc: ExploreRequestBodyTooLargeError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=413, content={"detail": "Request body too large"})
 
     @app.exception_handler(InvalidAccessTokenError)
     async def _invalid_access_token(request: Request, exc: InvalidAccessTokenError) -> JSONResponse:
@@ -76,6 +137,31 @@ def register_exception_handlers(app: FastAPI) -> None:
         """
         return _unauthorized_response("Authentication failed")
 
+    @app.exception_handler(MapsQuotaError)
+    async def _maps_quota(request: Request, exc: MapsQuotaError) -> JSONResponse:
+        return JSONResponse(status_code=429, content={"detail": "Map provider quota exceeded"})
+
+    @app.exception_handler(MapsUnavailableError)
+    async def _maps_unavailable(request: Request, exc: MapsUnavailableError) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": "Map provider unavailable"})
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Keep the Maps HTTP client and its process-local cache alive across requests."""
+    provider = build_google_maps_provider(app.state.settings)
+    app.state.google_maps_provider = provider
+    app.state.explore_rate_limiter = ExploreRateLimiter(
+        app.state.settings.google_maps_rate_limit_requests,
+        app.state.settings.google_maps_rate_limit_window_seconds,
+    )
+    try:
+        yield
+    finally:
+        close = getattr(provider, "close", None)
+        if callable(close):
+            close()
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
@@ -83,11 +169,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="sanposcape API",
         version="0.1.0",
         description="散歩支援アプリ sanposcape のバックエンド API",
+        lifespan=_lifespan,
+    )
+    app.state.settings = settings
+    app.add_middleware(
+        ExploreRequestSizeLimitMiddleware,
+        max_bytes=settings.google_maps_explore_request_max_bytes,
     )
     app.include_router(health_router)
     app.include_router(spots_router)
     app.include_router(auth_router)
     app.include_router(users_router)
+    app.include_router(maps_router)
     if settings.auth_mode == "dev":
         # 本番ではエンドポイント自体が存在しない（ADR-002 決定4）。
         # dev_router 側で include_in_schema=False を指定しているため、
