@@ -21,8 +21,9 @@ export function SplashView() {
   useEffect(() => {
     let active = true;
     const restoreController = new AbortController();
+    let minimumDisplayTimeout: ReturnType<typeof setTimeout> | undefined;
     const minimumDisplay = new Promise<void>((resolve) => {
-      setTimeout(resolve, SPLASH_MS);
+      minimumDisplayTimeout = setTimeout(resolve, SPLASH_MS);
     });
 
     void Promise.all([
@@ -38,6 +39,7 @@ export function SplashView() {
     return () => {
       active = false;
       restoreController.abort();
+      clearTimeout(minimumDisplayTimeout);
     };
   }, [router]);
 
