@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   LocationServiceError,
@@ -17,17 +17,22 @@ export function useCurrentLocation(service: LocationService): CurrentLocationSta
   const [coordinates, setCoordinates] = useState<LocationCoordinates | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<CurrentLocationState["error"]>(null);
+  const requestGeneration = useRef(0);
 
   const refresh = useCallback(async () => {
+    const generation = ++requestGeneration.current;
     setIsLoading(true);
     setError(null);
     try {
-      setCoordinates(await service.getCurrentLocation());
+      const nextCoordinates = await service.getCurrentLocation();
+      if (generation !== requestGeneration.current) return;
+      setCoordinates(nextCoordinates);
     } catch (caught) {
+      if (generation !== requestGeneration.current) return;
       setCoordinates(null);
       setError(caught instanceof LocationServiceError ? caught.code : "unavailable");
     } finally {
-      setIsLoading(false);
+      if (generation === requestGeneration.current) setIsLoading(false);
     }
   }, [service]);
 

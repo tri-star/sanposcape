@@ -11,8 +11,8 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
   - iPhoneでは、iPhoneとPCを同じLANへ接続し、WSL2上のMetroを`--host lan`で公開する。
   - react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
     expo-secure-store（refresh token の永続化）を使うため **Expo Go は不可**（development build 必須）。
-    **SS-10（認証まわりのネイティブ依存を追加）適用後は development build の作り直しが必要**
-    （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
+    native 依存、config plugin、Android Maps SDK key の注入など native 設定を変えた場合は
+    development build の作り直しが必要（C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
 ---
 
@@ -25,6 +25,10 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
 | C. 再ビルド | **ネイティブが変わったとき**だけ | APK を作り直して入れ直す |
 
 日々の開発は **B だけ**。JS/スタイル/ロジックの変更は Fast Refresh で即反映され、再ビルド不要。
+
+`EXPO_PUBLIC_LOCATION_MODE=dev` では `services/location` が東京駅周辺の固定座標を返すため、
+位置情報の許可状態を問わず探索画面の API 接続を確認できる。実機の permission 導線は
+`EXPO_PUBLIC_LOCATION_MODE=real` の development build で確認する。
 
 ---
 
@@ -215,6 +219,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 - ネイティブ依存（npm の native モジュール）の追加/削除
 - `app.json` のネイティブ設定・config plugin の変更
 - Expo SDK / ネイティブ関連バージョンの更新
+- `ANDROID_GOOGLE_MAPS_API_KEY` の追加・更新（`app.config.ts` が Android Maps SDK に build 時注入するため）
 
 ---
 

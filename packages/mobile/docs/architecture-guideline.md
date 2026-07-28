@@ -3,6 +3,9 @@
 ## スマホアプリ固有機能の扱い
 - Expo GoやCI上で利用できない可能性のある機能は起動時にスタブ実装で差し替える仕組みを用意することを検討する。
   初回実装時に実装手段を検討し、ユーザーと相談の上決定する。
+- 位置情報は `src/services/location` に interface と real / dev / mock 実装を置き、
+  `EXPO_PUBLIC_LOCATION_MODE`（`real` | `dev` | `mock`、既定 `real`）で切り替える。
+  `real` は foreground permission と実機位置情報を利用し、`dev` / `mock` は東京駅周辺の固定座標を返す。
 
 ## 認証の扱い
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
@@ -32,6 +35,8 @@
     （`createSessionAuthService.test.ts` 等を参照）。
   - Backend API: スタブ実装を利用(Orvalの生成物を利用)
   - モバイル機能: スタブ実装を利用
+    - 位置情報は `createMockLocationService()` 等の個別モジュールを直接利用する。`locationService`
+      バレルは環境モードに応じてネイティブ実装へ到達しうるため、単体テストでは直接 import しない。
 
 ## テスト容易性
 vitestによるユニットテストでもなるべく広い範囲をテスト可能にするため、

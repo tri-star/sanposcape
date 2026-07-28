@@ -2,6 +2,7 @@ import { ExploreCategory } from "@/api/generated/model/exploreCategory";
 import type { PlaceCandidate } from "@/api/generated/model/placeCandidate";
 import type { PlaceSearchRequest } from "@/api/generated/model/placeSearchRequest";
 import type { WalkingRouteRequest } from "@/api/generated/model/walkingRouteRequest";
+import type { WalkingRouteResponse } from "@/api/generated/model/walkingRouteResponse";
 import type { LocationCoordinates } from "@/services/location/types";
 import type { SpotCategory } from "@/features/walk/data/types";
 
@@ -13,6 +14,15 @@ export type ExploreSpot = {
   longitude: number;
   roundTripDurationMinutes: number;
   roundTripDistanceKm: number;
+};
+
+/** 地図表示が必要とする徒歩経路の表示モデル。 */
+export type ExploreRoute = {
+  path: LocationCoordinates[];
+  bounds: {
+    southWest: LocationCoordinates;
+    northEast: LocationCoordinates;
+  };
 };
 
 const API_CATEGORY_BY_UI_CATEGORY: Record<
@@ -74,6 +84,22 @@ export function toWalkingRouteRequest(
       place_id: spot.id,
       location: { latitude: spot.latitude, longitude: spot.longitude },
       name: spot.name,
+    },
+  };
+}
+
+export function toExploreRoute(route: WalkingRouteResponse): ExploreRoute {
+  return {
+    path: route.path.map(({ latitude, longitude }) => ({ latitude, longitude })),
+    bounds: {
+      southWest: {
+        latitude: route.bounds.south_west.latitude,
+        longitude: route.bounds.south_west.longitude,
+      },
+      northEast: {
+        latitude: route.bounds.north_east.latitude,
+        longitude: route.bounds.north_east.longitude,
+      },
     },
   };
 }

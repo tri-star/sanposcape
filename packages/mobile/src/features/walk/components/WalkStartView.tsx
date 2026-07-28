@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { useEffect } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -51,6 +52,8 @@ export function WalkStartView() {
   });
   const places = placesQuery.data;
   const displayedPlaces = places ?? [];
+  const isPlacesLoading =
+    location.coordinates !== null && (placesQuery.isPending || placesQuery.isFetching);
   const selectedSpot = displayedPlaces.find((spot) => spot.id === selectedSpotId) ?? null;
   const routeQuery = useWalkingRoute(location.coordinates, selectedSpot);
 
@@ -122,6 +125,11 @@ export function WalkStartView() {
             <Button variant="secondary" onPress={() => void location.refresh()}>
               再試行
             </Button>
+            {location.error === "permission-denied" ? (
+              <Button variant="outline" onPress={() => void Linking.openSettings()}>
+                設定を開く
+              </Button>
+            ) : null}
           </View>
         ) : null}
 
@@ -146,8 +154,10 @@ export function WalkStartView() {
               testID={`spot-card-${spot.id}`}
             />
           ))}
+          {isPlacesLoading ? <Text style={styles.status}>スポットを検索しています…</Text> : null}
           {!location.isLoading &&
           !location.error &&
+          !isPlacesLoading &&
           displayedPlaces.length === 0 &&
           !placesQuery.isError ? (
             <Text style={styles.status}>条件に合うスポットがありません。</Text>
@@ -155,14 +165,22 @@ export function WalkStartView() {
         </ScrollView>
 
         {placesQuery.isError ? (
-          <Text style={styles.errorText}>
-            {exploreErrorMessage(classifyExploreError(placesQuery.error))}
-          </Text>
+          <View style={styles.errorState}>
+            <Text style={styles.errorText}>
+              {exploreErrorMessage(classifyExploreError(placesQuery.error))}
+            </Text>
+            <Button variant="secondary" onPress={() => void placesQuery.refetch()}>
+              スポットを再試行
+            </Button>
+          </View>
         ) : null}
         {routeQuery.isError ? (
-          <Text style={styles.errorText}>
-            徒歩経路を取得できませんでした。目的地を選び直してください。
-          </Text>
+          <View style={styles.errorState}>
+            <Text style={styles.errorText}>徒歩経路を取得できませんでした。</Text>
+            <Button variant="secondary" onPress={() => void routeQuery.refetch()}>
+              経路を再試行
+            </Button>
+          </View>
         ) : null}
 
         <View style={[styles.controls, { paddingBottom: insets.bottom + 26 }]}>

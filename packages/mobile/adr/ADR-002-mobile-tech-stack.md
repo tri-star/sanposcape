@@ -21,7 +21,7 @@
 
 - チームは React Native の経験が浅く、**長期保守**を重視する。
 - backend は OpenAPI を出力する。型安全に連携したい。
-- 地図・POI・ルーティングは Google Maps Platform を backend 経由で使う（[ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)）。
+- 地図描画は `react-native-maps`、POI・ルーティングのデータ API は Google Maps Platform を backend 経由で使う（[ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)）。
 
 ## 決定
 
@@ -29,7 +29,7 @@
 - **状態管理**:
   - サーバー状態 = **TanStack Query**（Orval 生成物と組み合わせる）。`src/store` には複製しない。
   - クライアント状態（UI・一時状態）= **Zustand**（`src/store`）。
-- **地図描画: react-native-maps**（Android=Google Maps / iOS=Apple Maps）。
+- **地図描画: react-native-maps**（Android=Google Maps SDK / iOS=Apple Maps）。Android の SDK key は `ANDROID_GOOGLE_MAPS_API_KEY` を `app.config.ts` で build 時にだけ注入する。iOS は Apple Maps のため不要であり、Places / Routes 用 server key を mobile に配布しない。
 - **API クライアント: Orval**。backend の `openapi.yaml` から TanStack Query 用フックと MSW モックを生成（`src/api/generated/`、httpClient=fetch、mutator=`src/api/client.ts`）。
 - パッケージ管理は pnpm、`minimumReleaseAge=2880`（2日）でサプライチェーン対策。
 
@@ -108,7 +108,7 @@
 
 - `src/theme/tokens.ts` は暫定値。M2「デザイン取り込み」で Claude Design の値に差し替える。
 - backend API を変更したら `openapi.yaml` 再出力 → `pnpm --filter mobile orval` を再実行する。
-- Google Maps の API キー設定は M4 で `app.json` に結線する。
+- Android Maps SDK key は `ANDROID_GOOGLE_MAPS_API_KEY` を `app.config.ts` 経由で build 時注入する。キーの追加・更新は native 設定変更なので development / preview build を再作成する。iOS は Apple Maps のためこのキーを使わない。
 
 ## 関連情報
 

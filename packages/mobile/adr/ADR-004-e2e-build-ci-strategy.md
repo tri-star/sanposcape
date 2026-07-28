@@ -15,7 +15,7 @@
 ## 決定
 
 - **E2E には standalone な preview ビルド**（JS 埋め込み・スタブ用 env 焼き込み）を使う。日常開発の development build とは別プロファイルにする（`eas.json` の `preview`）。
-  - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=dev`、`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`）を焼き込む。`dev` は backend の `POST /auth/dev-session` を使う＝**backend API は実物**であり、認証の入口だけを差し替える（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。
+  - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=dev`、`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1`、`EXPO_PUBLIC_LOCATION_MODE=dev`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`）を焼き込む。`dev` は backend の `POST /auth/dev-session` を使う＝**backend API は実物**であり、認証の入口だけを差し替える。位置情報は `services/location` の dev 実装が東京駅周辺の固定座標を返す（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。
 - **CI では EAS クラウドビルドを使わない**。ランナー上で `eas build --local` を実行し、**クラウドビルド枠を消費しない**。
 - **`@expo/fingerprint` でネイティブ影響入力のハッシュを計算し、APK をキャッシュ**する。fingerprint が変わらない限り再ビルドしない（＝JSのみの変更では APK を作り直さない）。
 - **E2E の実行頻度を分離**する:
@@ -77,7 +77,7 @@
 
 - リポジトリ Secrets に `EXPO_TOKEN` を設定し、Android クレデンシャル（credentials.json 等）を用意する。
 - `.maestro/smoke.yaml` の `appId` をビルドの applicationId に合わせて更新する。
-- 認証などのモード切り替えを `EXPO_PUBLIC_AUTH_MODE` で読む実装は **SS-10 で実装済み**（`src/config/authMode.ts`）。`preview` の env はその受け皿。
+- 認証のモード切り替えを `EXPO_PUBLIC_AUTH_MODE` で読む実装は **SS-10 で実装済み**（`src/config/authMode.ts`）。位置情報は `services/location` を `EXPO_PUBLIC_LOCATION_MODE`（`real` / `dev` / `mock`）で切り替える。`preview` では `dev` の固定座標を使い、Maestro の位置情報権限や端末位置に依存しない。
 - backend を E2E ジョブ内で `10.0.2.2:8000` に到達可能な形で起動する（`mobile-e2e.yml` に実装済み）。E2E ジョブは backend を **`AUTH_MODE=dev`** で起動する必要がある（`/auth/dev-session` を有効化するため）。`mobile-e2e.yml` は既に `AUTH_MODE=dev` を設定済み。
 
 ## 関連情報

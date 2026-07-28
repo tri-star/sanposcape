@@ -19,9 +19,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 - Expo 公式でも、ネイティブモジュールを使うアプリは development build が推奨されている。
 - 純粋なロジック（`src/lib` など）は development build なしで Vitest でテストできる。
-- **SS-10（`EXPO_PUBLIC_AUTH_MODE` の real/dev/mock 切り替え）の適用後は、
-  `react-native-nitro-google-signin` / `expo-secure-store` が新規追加されたネイティブ依存のため、
-  development build の作り直しが必要**（Fast Refresh では反映されない）。
+- ネイティブ依存の追加・削除、config plugin、Android Maps SDK key の注入など native 設定を変更した場合は、
+  development build の作り直しが必要（Fast Refresh では反映されない）。
 
 ## セットアップ
 
@@ -128,6 +127,14 @@ bash scripts/initialize-dotenv.sh
   [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 - `EXPO_PUBLIC_AUTH_MODE` が未設定・不正値の場合は自動的に `real` にフォールバックする
   （`src/config/authMode.ts`。fail-safe）。
+
+位置情報は `src/services/location` が `EXPO_PUBLIC_LOCATION_MODE`（`real` / `dev` / `mock`）で切り替える。
+`real` は foreground permission と実機位置情報を使い、`dev` / `mock` は東京駅周辺の固定座標を返す。
+preview E2E build は `dev` を焼き込むため、Maestro 実行で端末の位置情報権限や実位置には依存しない。
+
+Android の地図表示には `ANDROID_GOOGLE_MAPS_API_KEY` が必要で、`app.config.ts` が native build 時にだけ
+Google Maps SDK へ注入する。`EXPO_PUBLIC_` を付けず、Android application restriction を設定し、
+リポジトリへコミットしない。iOS の既定 provider は Apple Maps のため、この key は不要である。
 
 **注意**: `scripts/initialize-dotenv.sh` は `.env` を**無条件に上書き**し、実行のたびにポートを
 再抽選する。`EXPO_PUBLIC_AUTH_MODE` や `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` などを `.env` に

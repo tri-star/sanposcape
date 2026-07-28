@@ -63,7 +63,7 @@
 
 | カテゴリ | 技術 |
 | --- | --- |
-| 地図・POI・ルーティング | Google Maps Platform（Maps / Places / Routes） |
+| 地図・POI・ルーティング | 地図描画: react-native-maps（Android: Google Maps SDK / iOS: Apple Maps）、POI・徒歩経路: Google Maps Platform の Places / Routes を backend 経由で利用 |
 | CI/CD | GitHub Actions（Lint/Format・ユニットテスト・Maestro E2E） |
 | OpenAPI | FastAPI の機能で出力し、mobile の Orval が消費 |
 
@@ -73,7 +73,8 @@
 
 - mobile: Expo 経由で配布（想定）
 - backend / DB: ホスティング先 **TBD**
-- Google Maps Platform 連携は **backend 経由**（キャッシュ/プロキシ層）で行い、クライアントから直接叩かない方針。
+- 地図の描画は `react-native-maps` が担う（Android は Google Maps SDK、iOS は Apple Maps）。
+  **Places / Routes のデータ API** は backend のキャッシュ/プロキシ層を経由し、クライアントから直接叩かない。
 
 > 確定後に構成図とともに更新する。
 
@@ -117,6 +118,6 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > Unistyles / react-native-maps / react-native-nitro-google-signin（Google サインイン）/
 > expo-secure-store（refresh token の永続化）などのネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
-> **SS-10（認証まわりのネイティブ依存を追加）適用後は development build の作り直しが必要**
+> ネイティブ依存、config plugin、SDK key 注入などの native 設定を変更した場合は development build の作り直しが必要です
 > （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。

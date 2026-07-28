@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ExploreCategory } from "@/api/generated/model/exploreCategory";
 import {
   toExploreSpot,
+  toExploreRoute,
   toPlaceSearchRequest,
   toWalkingRouteRequest,
 } from "@/features/walk/lib/exploreMapping";
@@ -44,6 +45,38 @@ describe("exploreMapping", () => {
         place_id: "place-1",
         location: { latitude: 35.1, longitude: 139.1 },
         name: "公園",
+      },
+    });
+  });
+
+  it("converts the generated walking route contract into a map display model", () => {
+    expect(
+      toExploreRoute({
+        origin: { latitude: 35, longitude: 139 },
+        destination: {
+          place_id: "place-1",
+          location: { latitude: 35.1, longitude: 139.1 },
+          name: "公園",
+        },
+        duration_seconds: 600,
+        distance_meters: 800,
+        path: [
+          { latitude: 35, longitude: 139 },
+          { latitude: 35.1, longitude: 139.1 },
+        ],
+        bounds: {
+          south_west: { latitude: 35, longitude: 139 },
+          north_east: { latitude: 35.1, longitude: 139.1 },
+        },
+      }),
+    ).toEqual({
+      path: [
+        { latitude: 35, longitude: 139 },
+        { latitude: 35.1, longitude: 139.1 },
+      ],
+      bounds: {
+        southWest: { latitude: 35, longitude: 139 },
+        northEast: { latitude: 35.1, longitude: 139.1 },
       },
     });
   });

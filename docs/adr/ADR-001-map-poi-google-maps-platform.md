@@ -20,18 +20,18 @@ sanposcape の中核体験は「現在地から指定時間で往復できる範
 
 ## 決定
 
-- **地図・POI・ルーティングの基盤に Google Maps Platform を採用する**（Maps / Places / Routes）。
+- **POI・ルーティングのデータ基盤に Google Maps Platform を採用する**（Places / Routes）。
 - **Places / Routes のデータ API 呼び出しは backend 経由（キャッシュ/プロキシ層）で行い、クライアントから直接叩かない**。
   - mobile は backend の API を叩き、backend が Google Maps Platform を呼ぶ。
   - backend 側にキャッシュを差し込み、コスト・レート制限を制御する。
-- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。タイル／SDK 通信と mobile 用に制限した SDK key は SS-15 で管理し、Places / Routes 用 server key と混在させない。
+- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。Android は `app.config.ts` が build 時に `ANDROID_GOOGLE_MAPS_API_KEY` を Google Maps SDK にだけ注入する。iOS は Apple Maps を既定 provider とするため、この SDK key は不要である。いずれも Places / Routes 用の server key と混在させない。
 - スポット/記録の位置データは MVP では緯度経度カラム + 単純検索とし、将来の地理検索に備え PostGIS 等への移行余地を残す。
 
 ## 検討した選択肢
 
 ### 選択肢1: Google Maps Platform（採用）
 
-- **概要**: Places API でスポット取得、Routes API で徒歩の時間/距離を算出。地図は Google/Apple ネイティブ地図。
+- **概要**: Places API でスポット取得、Routes API で徒歩の時間/距離を算出。地図表示は mobile のネイティブ地図（Android: Google Maps SDK、iOS: Apple Maps）を使う。
 - **メリット**: データ品質が高く、POI・ルーティングが単一ベンダーで揃い MVP に最短。無料枠あり。ドキュメント・実績が豊富。
 - **デメリット**: 従量課金でコスト管理が必要。ベンダーロックイン。
 
@@ -69,7 +69,7 @@ sanposcape の中核体験は「現在地から指定時間で往復できる範
 ### 移行・対応が必要な事項
 
 - backend に Google Maps Platform 連携（Places/Routes）と**キャッシュ/プロキシ層**を実装した（M4）。実装は `integrations/google_maps/` に隔離する。
-- Google Maps Platform の API キー発行・課金設定・利用制限（リファラ/IP制限等）を用意する。キーはリポジトリにコミットしない。
+- Places / Routes 用 server key と、Android の Maps SDK 用 `ANDROID_GOOGLE_MAPS_API_KEY` は用途を分けて発行・制限する。server key は backend だけに置き、SDK key は build 時にのみ注入し、Android application restriction（package name と署名証明書）を設定する。キーはリポジトリにコミットしない。
 - 往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。
 - 地理検索の要件が育った段階で PostGIS 等への移行を検討する。
 

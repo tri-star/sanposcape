@@ -3,8 +3,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import MapView, { Marker, Polyline, type Region } from "react-native-maps";
 
 import { IconButton } from "@/components/ui/icon-button/IconButton";
-import type { WalkingRouteResponse } from "@/api/generated/model/walkingRouteResponse";
-import type { ExploreSpot } from "@/features/walk/lib/exploreMapping";
+import type { ExploreRoute, ExploreSpot } from "@/features/walk/lib/exploreMapping";
 import type { LocationCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -20,7 +19,7 @@ export type ExploreMapCanvasProps = {
   origin: LocationCoordinates | null;
   spots: readonly ExploreSpot[];
   selectedSpotId: string | null;
-  route: WalkingRouteResponse | undefined;
+  route: ExploreRoute | undefined;
   onSelectSpot: (id: string) => void;
   onCurrentLocation: () => void;
   style?: StyleProp<ViewStyle>;
@@ -54,7 +53,7 @@ export function ExploreMapCanvas({
 
   useEffect(() => {
     if (!route) return;
-    mapRef.current?.fitToCoordinates([route.bounds.south_west, route.bounds.north_east], {
+    mapRef.current?.fitToCoordinates([route.bounds.southWest, route.bounds.northEast], {
       animated: true,
       edgePadding: { top: 44, right: 44, bottom: 44, left: 44 },
     });
