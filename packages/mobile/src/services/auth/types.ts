@@ -19,8 +19,11 @@ export type AuthUser = {
 export type AuthService = {
   /** サインイン（新規登録との区別なし。backend が JIT でユーザーを作る）。 */
   signIn(provider: AuthProvider): Promise<AuthUser>;
-  /** 起動時のセッション復元。保存済み refresh token が無効/不在なら null。 */
-  restoreSession(): Promise<AuthUser | null>;
+  /**
+   * 起動時のセッション復元。保存済み refresh token が無効/不在なら null。
+   * signal を abort すると、通信が後から完了しても認証状態を更新しない。
+   */
+  restoreSession(options?: { signal?: AbortSignal }): Promise<AuthUser | null>;
   /** サインアウト。backend の refresh token 失効 + ローカル破棄。 */
   signOut(): Promise<void>;
   /** 現在のユーザー（同期）。未認証なら null。 */

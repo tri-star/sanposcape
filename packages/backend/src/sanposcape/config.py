@@ -2,7 +2,7 @@ import logging
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,20 @@ class Settings(BaseSettings):
     ]
     google_jwks_cache_lifespan_seconds: int = 3600
 
+    # --- Google Maps Platform (server-side only) ---
+    google_maps_server_api_key: str = ""
+    google_maps_connect_timeout_seconds: float = Field(default=3.0, gt=0)
+    google_maps_read_timeout_seconds: float = Field(default=8.0, gt=0)
+    google_maps_search_deadline_seconds: float = Field(default=10.0, gt=0)
+    google_maps_cache_ttl_seconds: int = Field(default=300, gt=0)
+    google_maps_cache_max_entries: int = Field(default=256, gt=0)
+    # Nearby Search (New) supports at most 20 results; enforce the provider boundary here.
+    google_maps_max_place_candidates: int = Field(default=20, ge=1, le=20)
+    google_maps_max_route_requests_per_search: int = Field(default=20, ge=1, le=20)
+    google_maps_rate_limit_requests: int = Field(default=30, gt=0)
+    google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
+    google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
+
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod
     def _split_csv(cls, v: object) -> object:
@@ -75,6 +89,8 @@ class Settings(BaseSettings):
                 raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
             if not self.google_allowed_audiences:
                 raise ValueError(f"GOOGLE_ALLOWED_AUDIENCES must be set when ENV={self.env}")
+            if not self.google_maps_server_api_key:
+                raise ValueError(f"GOOGLE_MAPS_SERVER_API_KEY must be set when ENV={self.env}")
         elif not self.auth_jwt_secret:
             # 非本番はゼロ設定でも動かせるようダミー鍵にフォールバックする（決定1）。
             # 本番安全性は上記のバリデーションで別途担保する。

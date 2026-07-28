@@ -50,8 +50,35 @@ def test_production_with_valid_config_starts() -> None:
         auth_mode="real",
         auth_jwt_secret="x" * 32,
         google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
     )
     assert settings.auth_mode == "real"
+
+
+def test_production_without_google_maps_server_key_fails_to_start() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            env="production",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+        )
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("google_maps_connect_timeout_seconds", 0),
+        ("google_maps_cache_ttl_seconds", 0),
+        ("google_maps_rate_limit_requests", 0),
+        ("google_maps_rate_limit_window_seconds", 0),
+        ("google_maps_explore_request_max_bytes", 0),
+        ("google_maps_max_place_candidates", 21),
+    ],
+)
+def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, value: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**{field: value})
 
 
 def test_staging_with_non_real_auth_mode_fails_to_start() -> None:
@@ -100,6 +127,7 @@ def test_staging_with_valid_config_starts() -> None:
         auth_mode="real",
         auth_jwt_secret="x" * 32,
         google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
     )
     assert settings.auth_mode == "real"
 

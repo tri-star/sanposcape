@@ -1,8 +1,10 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sanposcape.auth.exceptions import AuthenticationError
-from sanposcape.main import register_exception_handlers
+from sanposcape.main import ExploreRequestSizeLimitMiddleware, register_exception_handlers
 
 
 def test_users_router_registers_delete_me_operation() -> None:
@@ -55,3 +57,33 @@ def test_known_authentication_error_subclass_still_uses_specific_handler() -> No
 
     assert res.status_code == 401
     assert res.json() == {"detail": "Invalid ID token"}
+
+
+def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
+    received_by_app: list[bytes] = []
+    sent: list[dict] = []
+    chunks = iter(
+        [
+            {"type": "http.request", "body": b"1234", "more_body": True},
+            {"type": "http.request", "body": b"5678", "more_body": False},
+        ]
+    )
+
+    async def inner_app(scope, receive, send) -> None:
+        while True:
+            message = await receive()
+            received_by_app.append(message.get("body", b""))
+            if not message.get("more_body", False):
+                break
+
+    async def receive() -> dict:
+        return next(chunks)
+
+    async def send(message: dict) -> None:
+        sent.append(message)
+
+    scope = {"type": "http", "path": "/explore/places", "headers": []}
+    asyncio.run(ExploreRequestSizeLimitMiddleware(inner_app, max_bytes=6)(scope, receive, send))
+
+    assert received_by_app == [b"1234"]
+    assert sent[0]["status"] == 413

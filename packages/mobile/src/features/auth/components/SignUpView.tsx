@@ -11,7 +11,7 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
  */
 export function SignUpView() {
   const router = useRouter();
-  const { signUpWithGoogle, continueAsGuest, toast } = useAuthActions();
+  const { signUpWithGoogle, continueAsGuest, isSubmitting, toast } = useAuthActions();
 
   return (
     <AuthScreenLayout
@@ -20,17 +20,28 @@ export function SignUpView() {
       heroCaption={"往復の時間を決めるだけ。\n歩いて行けるスポットへ案内します。"}
       toast={toast}
     >
-      <AuthProviderButton testID="sign-up-google-button" onPress={signUpWithGoogle}>
-        Google で登録
+      <AuthProviderButton
+        testID="sign-up-google-button"
+        disabled={isSubmitting}
+        onPress={signUpWithGoogle}
+      >
+        {isSubmitting ? "登録中..." : "Google で登録"}
       </AuthProviderButton>
-      <Button testID="sign-up-guest-button" variant="ghost" fullWidth onPress={continueAsGuest}>
+      <Button
+        testID="sign-up-guest-button"
+        variant="ghost"
+        fullWidth
+        disabled={isSubmitting}
+        onPress={continueAsGuest}
+      >
         ゲストで試す
       </Button>
       <Button
         testID="sign-up-to-sign-in-link"
         variant="ghost"
         size="sm"
-        onPress={() => router.back()}
+        disabled={isSubmitting}
+        onPress={() => router.replace("/(auth)/sign-in")}
       >
         すでにアカウントをお持ちですか？ サインイン
       </Button>

@@ -1,0 +1,29 @@
+# preview E2E ビルド（EXPO_PUBLIC_AUTH_MODE=dev）で実行するログアウトフロー。
+appId: com.sanposcape.app
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "splash-screen"
+- assertVisible:
+    id: "sign-in-google-button"
+- tapOn:
+    id: "sign-in-google-button"
+- assertVisible:
+    id: "walk-start-screen"
+- tapOn:
+    id: "walk-start-begin"
+- assertVisible:
+    id: "walk-active-screen"
+- tapOn:
+    text: "設定"
+- assertVisible:
+    id: "settings-screen"
+- tapOn:
+    id: "settings-open-logout-dialog"
+- assertVisible:
+    id: "logout-dialog"
+- tapOn:
+    id: "settings-confirm-logout"
+- assertVisible:
+    id: "sign-in-google-button"

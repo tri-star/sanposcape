@@ -79,7 +79,7 @@ export function WalkActiveView() {
           icon="settings-2"
           label="設定"
           variant="tinted"
-          onPress={() => toast.show("準備中の機能です")}
+          onPress={() => router.push("/settings")}
         />
       </View>
 
