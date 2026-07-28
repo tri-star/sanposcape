@@ -21,10 +21,10 @@ sanposcape の中核体験は「現在地から指定時間で往復できる範
 ## 決定
 
 - **地図・POI・ルーティングの基盤に Google Maps Platform を採用する**（Maps / Places / Routes）。
-- **外部 API 呼び出しは backend 経由（キャッシュ/プロキシ層）で行い、クライアントから直接叩かない**。
+- **Places / Routes のデータ API 呼び出しは backend 経由（キャッシュ/プロキシ層）で行い、クライアントから直接叩かない**。
   - mobile は backend の API を叩き、backend が Google Maps Platform を呼ぶ。
   - backend 側にキャッシュを差し込み、コスト・レート制限を制御する。
-- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。
+- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。タイル／SDK 通信と mobile 用に制限した SDK key は SS-15 で管理し、Places / Routes 用 server key と混在させない。
 - スポット/記録の位置データは MVP では緯度経度カラム + 単純検索とし、将来の地理検索に備え PostGIS 等への移行余地を残す。
 
 ## 検討した選択肢
@@ -68,9 +68,9 @@ sanposcape の中核体験は「現在地から指定時間で往復できる範
 
 ### 移行・対応が必要な事項
 
-- backend に Google Maps Platform 連携（Places/Routes）と**キャッシュ/プロキシ層**を実装する（M4）。実装は `integrations/google_maps/` に隔離する。
+- backend に Google Maps Platform 連携（Places/Routes）と**キャッシュ/プロキシ層**を実装した（M4）。実装は `integrations/google_maps/` に隔離する。
 - Google Maps Platform の API キー発行・課金設定・利用制限（リファラ/IP制限等）を用意する。キーはリポジトリにコミットしない。
-- 「往復“時間”範囲」の算出方式（Routes / Distance Matrix 等）を実装時に選定する。
+- 往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。
 - 地理検索の要件が育った段階で PostGIS 等への移行を検討する。
 
 ## 関連情報
