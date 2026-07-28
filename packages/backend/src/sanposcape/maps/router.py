@@ -13,7 +13,8 @@ router = APIRouter(prefix="/explore", tags=["explore"])
 
 _ERROR_RESPONSES = {
     401: {"description": "Not authenticated"},
-    429: {"description": "Map provider quota exceeded"},
+    413: {"description": "Explore request body too large"},
+    429: {"description": "Map provider quota exceeded or explore rate limit reached"},
     503: {"description": "Map provider unavailable"},
 }
 

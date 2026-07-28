@@ -19,24 +19,27 @@ class TtlCache[T]:
         self._ttl_seconds = ttl_seconds
         self._max_entries = max_entries
         self._entries: OrderedDict[str, _CacheEntry[T]] = OrderedDict()
+        self._lock = Lock()
 
     def get(self, key: str) -> T | None:
-        entry = self._entries.get(key)
-        if entry is None:
-            return None
-        if entry.expires_at <= monotonic():
-            del self._entries[key]
-            return None
-        self._entries.move_to_end(key)
-        return entry.value
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None
+            if entry.expires_at <= monotonic():
+                del self._entries[key]
+                return None
+            self._entries.move_to_end(key)
+            return entry.value
 
     def put(self, key: str, value: T) -> None:
         if self._max_entries <= 0 or self._ttl_seconds <= 0:
             return
-        self._entries[key] = _CacheEntry(monotonic() + self._ttl_seconds, value)
-        self._entries.move_to_end(key)
-        while len(self._entries) > self._max_entries:
-            self._entries.popitem(last=False)
+        with self._lock:
+            self._entries[key] = _CacheEntry(monotonic() + self._ttl_seconds, value)
+            self._entries.move_to_end(key)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
 
 
 class SingleFlight[T]:

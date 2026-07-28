@@ -107,4 +107,5 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
 def test_openapi_declares_security_and_documented_error_responses() -> None:
     operation = app.openapi()["paths"]["/explore/routes/walking"]["post"]
     assert operation["security"] == [{"HTTPBearer": []}]
-    assert {"401", "422", "429", "503"} <= set(operation["responses"])
+    assert {"401", "413", "422", "429", "503"} <= set(operation["responses"])
+    assert "rate limit" in operation["responses"]["429"]["description"]

@@ -177,8 +177,10 @@ paths:
                 $ref: '#/components/schemas/PlaceSearchResponse'
         '401':
           description: Not authenticated
+        '413':
+          description: Explore request body too large
         '429':
-          description: Map provider quota exceeded
+          description: Map provider quota exceeded or explore rate limit reached
         '503':
           description: Map provider unavailable
         '422':
@@ -210,8 +212,10 @@ paths:
                 $ref: '#/components/schemas/WalkingRouteResponse'
         '401':
           description: Not authenticated
+        '413':
+          description: Explore request body too large
         '429':
-          description: Map provider quota exceeded
+          description: Map provider quota exceeded or explore rate limit reached
         '503':
           description: Map provider unavailable
         '422':

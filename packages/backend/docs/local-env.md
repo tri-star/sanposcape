@@ -145,9 +145,9 @@ docker compose up -d --build
 - `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: 認証済みユーザーと接続元IPの両方に適用する process-local の `/explore` リクエスト上限。`GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES` は JSON 解析前に拒否する本文サイズ上限である。
 - cache miss は同じ正規化 key ごとに single-flight 化され、同時の同一 Places/Routes 呼び出しを1件へまとめる。
 - これらは**単一インスタンス限定**の緩和策である。水平スケールを開始する前に、Redis 等の共有 limiter と edge/proxy の request-size / IP rate-limit を必ず導入すること。共有 limiter は運用・識別子方針の別設計が必要なため、このタスクでは導入しない。
-- `GOOGLE_MAPS_PLACES_BASE_URL` / `GOOGLE_MAPS_ROUTES_BASE_URL`: Google の Places API (New) / Routes API の base URL。通常は既定値を使い、テスト用の fake endpoint 以外で上書きしない。
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`: 上流への接続／読取 timeout（既定 3 秒／8 秒）。超過時は API に 503 を返す。
-- `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`: 1 回の探索で取得・経路計算する候補数の上限（いずれも既定 30）。上流のコストとレートを抑えるための安全弁である。
+- `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`: 1 回の探索で取得・経路計算する候補数の上限（いずれも既定・最大 20）。Google Places Nearby Search の provider 上限と、上流のコスト・レート対策に合わせた安全弁である。
+- Places / Routes の endpoint は Google の HTTPS API に固定しており、server API key の送信先を環境変数で変更することはできない。テストは HTTP client の差し替えで行う。
 - server key は Google Cloud Console で API 制限（Places API (New)、Routes API）と環境別の制限を設定する。地図タイルに使う mobile SDK key は別の key として SS-15 で管理する。
 
 **`AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE` / `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` /
