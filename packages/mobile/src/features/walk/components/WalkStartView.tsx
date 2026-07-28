@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useEffect } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -8,12 +9,21 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { CategorySheet } from "@/features/walk/components/CategorySheet";
 import { DurationSlider } from "@/features/walk/components/DurationSlider";
-import { MapCanvas, type MapCanvasPin } from "@/features/walk/components/MapCanvas";
+import { ExploreMapCanvas } from "@/features/walk/components/ExploreMapCanvas";
 import { SpotCard } from "@/features/walk/components/SpotCard";
 import { CATEGORY_META, CATEGORY_ORDER } from "@/features/walk/data/spots";
 import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
+import {
+  classifyExploreError,
+  exploreErrorMessage,
+  shouldKeepSelectedSpot,
+} from "@/features/walk/lib/exploreState";
+import { useCurrentLocation } from "@/features/walk/hooks/useCurrentLocation";
+import { useExplorePlaces } from "@/features/walk/hooks/useExplorePlaces";
+import { useWalkingRoute } from "@/features/walk/hooks/useWalkingRoute";
 import { useToast } from "@/hooks/useToast";
+import { locationService } from "@/services/location";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -32,32 +42,40 @@ export function WalkStartView() {
   const router = useRouter();
   const toast = useToast();
   const plan = useWalkPlan();
+  const { clearSelectedSpot, selectedSpotId } = plan;
+  const location = useCurrentLocation(locationService);
+  const placesQuery = useExplorePlaces({
+    origin: location.coordinates,
+    durationMinutes: plan.durationMin,
+    categories: plan.activeCategories,
+  });
+  const places = placesQuery.data;
+  const displayedPlaces = places ?? [];
+  const selectedSpot = displayedPlaces.find((spot) => spot.id === selectedSpotId) ?? null;
+  const routeQuery = useWalkingRoute(location.coordinates, selectedSpot);
 
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
-  const pins: MapCanvasPin[] = plan.reachable.map((spot) => {
-    const meta = CATEGORY_META[spot.category];
-    const selected = spot.id === plan.selectedSpotId;
-    return {
-      id: spot.id,
-      category: selected ? "goal" : meta.pin,
-      accessibilityLabel: spot.name,
-      size: selected ? 42 : 30,
-      zIndex: selected ? 20 : 5,
-      x: spot.x,
-      y: spot.y,
-      onPress: () => plan.selectSpot(spot.id),
-    };
-  });
+  useEffect(() => {
+    if (
+      places &&
+      !shouldKeepSelectedSpot(
+        selectedSpotId,
+        places.map((spot) => spot.id),
+      )
+    ) {
+      clearSelectedSpot();
+    }
+  }, [clearSelectedSpot, places, selectedSpotId]);
 
   const handleStartWalk = () => {
-    if (!plan.selectedSpot) return;
+    if (!selectedSpot) return;
     router.replace({
       pathname: "/(tabs)",
       params: {
-        goalName: plan.selectedSpot.name,
-        goalTimeMin: String(plan.selectedSpot.time),
-        goalDistKm: plan.selectedSpot.dist.toFixed(1),
+        goalName: selectedSpot.name,
+        goalTimeMin: String(selectedSpot.roundTripDurationMinutes),
+        goalDistKm: selectedSpot.roundTripDistanceKm.toFixed(1),
       },
     });
   };
@@ -78,16 +96,39 @@ export function WalkStartView() {
             icon="crosshair"
             label="現在地"
             variant="tinted"
-            onPress={() => toast.show("準備中の機能です")}
+            onPress={() => void location.refresh()}
           />
         </View>
 
-        <MapCanvas pins={pins} style={styles.map} testID="walk-start-map" />
+        <ExploreMapCanvas
+          origin={location.coordinates}
+          spots={displayedPlaces}
+          selectedSpotId={selectedSpotId}
+          route={routeQuery.data}
+          onSelectSpot={plan.selectSpot}
+          onCurrentLocation={() => void location.refresh()}
+          style={styles.map}
+          testID="walk-start-map"
+        />
+
+        {location.isLoading ? <Text style={styles.status}>現在地を取得しています…</Text> : null}
+        {location.error ? (
+          <View style={styles.errorState}>
+            <Text style={styles.errorText}>
+              {location.error === "permission-denied"
+                ? "現在地の利用が許可されていません。許可して再試行してください。"
+                : "現在地を取得できませんでした。"}
+            </Text>
+            <Button variant="secondary" onPress={() => void location.refresh()}>
+              再試行
+            </Button>
+          </View>
+        ) : null}
 
         <View style={styles.spotsHeader}>
           <Text style={styles.spotsTitle}>歩いて行けるスポット</Text>
           <Text style={styles.spotsCount}>
-            <Text style={styles.spotsCountValue}>{plan.reachable.length}</Text> 件
+            <Text style={styles.spotsCountValue}>{displayedPlaces.length}</Text> 件
           </Text>
         </View>
         <ScrollView
@@ -95,17 +136,34 @@ export function WalkStartView() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.spotList}
         >
-          {plan.reachable.map((spot) => (
+          {displayedPlaces.map((spot) => (
             <SpotCard
               key={spot.id}
               spot={spot}
               meta={CATEGORY_META[spot.category]}
-              selected={spot.id === plan.selectedSpotId}
+              selected={spot.id === selectedSpotId}
               onPress={() => plan.selectSpot(spot.id)}
               testID={`spot-card-${spot.id}`}
             />
           ))}
+          {!location.isLoading &&
+          !location.error &&
+          displayedPlaces.length === 0 &&
+          !placesQuery.isError ? (
+            <Text style={styles.status}>条件に合うスポットがありません。</Text>
+          ) : null}
         </ScrollView>
+
+        {placesQuery.isError ? (
+          <Text style={styles.errorText}>
+            {exploreErrorMessage(classifyExploreError(placesQuery.error))}
+          </Text>
+        ) : null}
+        {routeQuery.isError ? (
+          <Text style={styles.errorText}>
+            徒歩経路を取得できませんでした。目的地を選び直してください。
+          </Text>
+        ) : null}
 
         <View style={[styles.controls, { paddingBottom: insets.bottom + 26 }]}>
           <DurationSlider
@@ -132,14 +190,16 @@ export function WalkStartView() {
             <Icon name="chevron-right" size={16} color={theme.colors.textTertiary} />
           </Pressable>
 
-          {plan.selectedSpot ? (
+          {selectedSpot ? (
             <View style={styles.selectedRow} testID="walk-start-selected-summary">
               <Icon name="flag" size={18} color={theme.colors.primary} />
               <View style={styles.selectedText}>
                 <Text style={styles.selectedLabel}>目的地</Text>
-                <Text style={styles.selectedName}>{plan.selectedSpot.name}</Text>
+                <Text style={styles.selectedName}>{selectedSpot.name}</Text>
               </View>
-              <Text style={styles.selectedTime}>往復 {plan.selectedSpot.time}分</Text>
+              <Text style={styles.selectedTime}>
+                往復 {selectedSpot.roundTripDurationMinutes}分
+              </Text>
             </View>
           ) : null}
 
@@ -147,11 +207,15 @@ export function WalkStartView() {
             variant="primary"
             icon="footprints"
             fullWidth
-            disabled={!plan.selectedSpot}
+            disabled={!selectedSpot || routeQuery.isLoading || routeQuery.isError}
             onPress={handleStartWalk}
             testID="walk-start-begin"
           >
-            {plan.selectedSpot ? "散歩を始める" : "目的地を選んでください"}
+            {routeQuery.isLoading
+              ? "経路を取得しています"
+              : selectedSpot
+                ? "散歩を始める"
+                : "目的地を選んでください"}
           </Button>
         </View>
       </ScrollView>
@@ -161,7 +225,7 @@ export function WalkStartView() {
         onClose={plan.closeCatSheet}
         activeCategories={plan.activeCategories}
         onToggle={plan.toggleCategory}
-        doneLabel={`${plan.reachable.length}件のスポットを表示`}
+        doneLabel={`${displayedPlaces.length}件のスポットを表示`}
       />
 
       <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
@@ -260,6 +324,26 @@ const useStyles = makeStyles((theme) => ({
   },
   catsSummaryText: {
     fontSize: theme.typography.size.xs,
+    color: theme.colors.textSecondary,
+  },
+  status: {
+    paddingHorizontal: theme.layout.pageGutter + 4,
+    paddingTop: theme.spacing[2],
+    fontSize: theme.typography.size.sm,
+    color: theme.colors.textSecondary,
+  },
+  errorState: {
+    gap: theme.spacing[2],
+    marginHorizontal: theme.layout.pageGutter - 2,
+    marginTop: theme.spacing[3],
+    padding: theme.spacing[3],
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surfaceTint,
+  },
+  errorText: {
+    paddingHorizontal: theme.layout.pageGutter + 4,
+    paddingTop: theme.spacing[2],
+    fontSize: theme.typography.size.sm,
     color: theme.colors.textSecondary,
   },
   selectedRow: {

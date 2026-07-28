@@ -1,8 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
-import { SPOTS } from "@/features/walk/data/spots";
-import type { Spot, SpotCategory } from "@/features/walk/data/types";
-import { reachableSpots } from "@/features/walk/lib/reachableSpots";
+import type { SpotCategory } from "@/features/walk/data/types";
 
 const ALL_CATEGORIES: SpotCategory[] = ["konbini", "super", "shop", "facility", "park", "station"];
 const DEFAULT_DURATION_MIN = 60;
@@ -14,8 +12,7 @@ export type UseWalkPlanResult = {
   toggleCategory: (category: SpotCategory) => void;
   selectedSpotId: string | null;
   selectSpot: (id: string) => void;
-  reachable: Spot[];
-  selectedSpot: Spot | null;
+  clearSelectedSpot: () => void;
   catSheetOpen: boolean;
   openCatSheet: () => void;
   closeCatSheet: () => void;
@@ -23,7 +20,7 @@ export type UseWalkPlanResult = {
 
 /**
  * 散歩開始画面のローカル状態。
- * duration/表示カテゴリを変えると、mock と同様に選択中の目的地を解除する。
+ * duration/表示カテゴリを変えると、古い API 応答に紐付く目的地を解除する。
  */
 export function useWalkPlan(): UseWalkPlanResult {
   const [durationMin, setDurationMinState] = useState(DEFAULT_DURATION_MIN);
@@ -44,21 +41,13 @@ export function useWalkPlan(): UseWalkPlanResult {
   }, []);
 
   const selectSpot = useCallback((id: string) => {
-    setSelectedSpotId(id);
+    setSelectedSpotId((previous) => (previous === id ? null : id));
   }, []);
+
+  const clearSelectedSpot = useCallback(() => setSelectedSpotId(null), []);
 
   const openCatSheet = useCallback(() => setCatSheetOpen(true), []);
   const closeCatSheet = useCallback(() => setCatSheetOpen(false), []);
-
-  const reachable = useMemo(
-    () => reachableSpots(SPOTS, durationMin, activeCategories),
-    [durationMin, activeCategories],
-  );
-
-  const selectedSpot = useMemo(
-    () => reachable.find((spot) => spot.id === selectedSpotId) ?? null,
-    [reachable, selectedSpotId],
-  );
 
   return {
     durationMin,
@@ -67,8 +56,7 @@ export function useWalkPlan(): UseWalkPlanResult {
     toggleCategory,
     selectedSpotId,
     selectSpot,
-    reachable,
-    selectedSpot,
+    clearSelectedSpot,
     catSheetOpen,
     openCatSheet,
     closeCatSheet,

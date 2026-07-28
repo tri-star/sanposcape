@@ -15,6 +15,10 @@
       }
     },
     "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -39,6 +43,12 @@
         }
       ],
       "react-native-edge-to-edge",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "現在地から歩いて行けるスポットを検索するために位置情報を使用します。"
+        }
+      ],
       [
         "react-native-nitro-google-signin",
         {

@@ -1,0 +1,25 @@
+# preview E2E build（EXPO_PUBLIC_AUTH_MODE=dev / LOCATION_MODE=dev）用。
+# backend は実 API、現在地だけ固定 dev service を使う。
+# 実行時には、開発 backend が返す候補の place id を PLACE_ID に渡す。
+#   PLACE_ID=<place-id> maestro test .maestro/explore-walk.yaml
+appId: com.sanposcape.app
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "sign-in-google-button"
+- tapOn:
+    id: "sign-in-google-button"
+- assertVisible:
+    id: "walk-start-screen"
+- assertVisible:
+    id: "walk-start-map"
+# 開発 backend で候補が返ることを前提に、marker/card から目的地を選ぶ。
+- tapOn:
+    id: "spot-card-${PLACE_ID}"
+- assertVisible:
+    id: "walking-route-polyline"
+- tapOn:
+    id: "walk-start-begin"
+- assertVisible:
+    id: "walk-active-screen"

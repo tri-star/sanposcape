@@ -2,12 +2,13 @@ import { Pressable, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon/Icon";
 import type { CategoryMeta, Spot } from "@/features/walk/data/types";
+import type { ExploreSpot } from "@/features/walk/lib/exploreMapping";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 import { withAlpha } from "@/theme/withAlpha";
 
 export type SpotCardProps = {
-  spot: Spot;
+  spot: Spot | ExploreSpot;
   meta: CategoryMeta;
   selected: boolean;
   onPress: () => void;
@@ -22,6 +23,8 @@ export function SpotCard({ spot, meta, selected, onPress, testID }: SpotCardProp
   const theme = useTheme();
   const styles = useStyles();
   const categoryColor = theme.map[meta.mapColorKey];
+  const time = "roundTripDurationMinutes" in spot ? spot.roundTripDurationMinutes : spot.time;
+  const distance = "roundTripDistanceKm" in spot ? spot.roundTripDistanceKm : spot.dist;
 
   return (
     <Pressable
@@ -45,7 +48,7 @@ export function SpotCard({ spot, meta, selected, onPress, testID }: SpotCardProp
         {spot.name}
       </Text>
       <Text style={styles.meta}>
-        往復 <Text style={styles.metaStrong}>{spot.time}</Text>分・約{spot.dist.toFixed(1)}km
+        往復 <Text style={styles.metaStrong}>{time}</Text>分・約{distance.toFixed(1)}km
       </Text>
     </Pressable>
   );

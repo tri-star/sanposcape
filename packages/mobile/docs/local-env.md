@@ -175,9 +175,20 @@ maestro test packages/mobile/.maestro/
 ## Google Maps（react-native-maps）
 
 - Android で地図を表示するには Google Maps API キーが必要。
-- キーは `app.json` の `expo.android.config.googleMaps.apiKey` /
-  `expo.ios.config.googleMapsApiKey` に設定する（M4「探索・散歩開始」で結線）。
-- キーはリポジトリにコミットしない（環境ごとに管理）。
+- `ANDROID_GOOGLE_MAPS_API_KEY` を development / preview / production build 時に注入する。
+  `app.config.ts` がこの値を `android.config.googleMaps.apiKey` にだけ渡すため、
+  `EXPO_PUBLIC_*` にしてはならない。キーは Android application restriction（package name と
+  signing certificate）を設定し、リポジトリにコミットしない。
+- iOS は Apple Map を既定 provider とするため、この SDK key は不要。
+- キーの追加・更新、`expo-location` の追加、`app.json` の plugin変更は native 変更である。
+  Fast Refresh では反映されないため、development build を再作成して端末へ再インストールする。
+
+## 現在地と散歩開始画面
+
+- `EXPO_PUBLIC_LOCATION_MODE=real` は foreground permission を要求して現在地を取得する。
+  拒否・取得失敗時はスポット検索を実行せず、画面内の再試行で復帰できる。
+- `dev` / `mock` は東京駅周辺の固定座標を返す。開発時や Maestro preview build では
+  `dev` を使う。実機位置情報の許可・拒否表示は development build で個別に確認する。
 
 ## Google サインイン
 
