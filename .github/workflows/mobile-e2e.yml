@@ -21,6 +21,7 @@ on:
     paths:
       - "packages/mobile/package.json"
       - "packages/mobile/app.json"
+      - "packages/mobile/app.config.ts"
       - "packages/mobile/eas.json"
       - "packages/mobile/babel.config.js"
       - "pnpm-lock.yaml"

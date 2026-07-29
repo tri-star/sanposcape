@@ -10,8 +10,10 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
   - Expo は WSL 側に Android SDK が無いため、`adb` 操作（reverse・起動）は**自分たちで手動実行**する。
   - iPhoneでは、iPhoneとPCを同じLANへ接続し、WSL2上のMetroを`--host lan`で公開する。
   - react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
-    expo-secure-store（refresh token の永続化）を使うため **Expo Go は不可**（development build 必須）。
-    **SS-10（認証まわりのネイティブ依存を追加）適用後は development build の作り直しが必要**
+    expo-secure-store（refresh token の永続化）/ **expo-location（現在地取得）** を使うため
+    **Expo Go は不可**（development build 必須）。
+    **SS-10（認証まわりのネイティブ依存を追加）および SS-15（expo-location の追加・Maps キー注入）
+    適用後は development build の作り直しが必要**
     （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
 ---
@@ -213,7 +215,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 以下を変更したときは APK を作り直して入れ直す（A-1 → A-2）。それ以外（JSのみ）は不要:
 
 - ネイティブ依存（npm の native モジュール）の追加/削除
-- `app.json` のネイティブ設定・config plugin の変更
+- `app.json` / `app.config.ts` のネイティブ設定・config plugin の変更（Maps SDK キーの注入も含む）
 - Expo SDK / ネイティブ関連バージョンの更新
 
 ---
@@ -241,6 +243,12 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
   サインインを試す場合は backend の起動が必要（[backend ローカル環境構築手順](../../backend/docs/local-env.md)）。
   画面カタログ等の一部は静的スタブのままなので、backend を起動せずに画面表示だけを確認することは
   引き続き可能。
+- **SS-15 以降、散歩開始画面（`/walk-start`）は backend の `POST /explore/places` に依存する**ため、
+  静的スタブでの確認はできない。backend 未起動、または backend の `GOOGLE_MAPS_SERVER_API_KEY`
+  未設定（＝常に 503）の場合は、エラー文言 + 再試行ボタンの表示になる（アプリ側のバグではない）。
+- 同じ画面は現在地の取得も行う。エミュレータで位置が取れない場合は
+  `adb shell` 経由の `adb emu geo fix <経度> <緯度>` で位置を与えるか、`.env` の
+  `EXPO_PUBLIC_LOCATION_MODE=mock`（東京駅固定）で起動する。
 - エミュレータからホストの backend へは、ビルドの `EXPO_PUBLIC_BACKEND_API_URL` を通じて到達する（`10.0.2.2` はエミュレータからホストを指すアドレス）。
 
 ---

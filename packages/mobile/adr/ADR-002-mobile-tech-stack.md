@@ -108,7 +108,11 @@
 
 - `src/theme/tokens.ts` は暫定値。M2「デザイン取り込み」で Claude Design の値に差し替える。
 - backend API を変更したら `openapi.yaml` 再出力 → `pnpm --filter mobile orval` を再実行する。
-- Google Maps の API キー設定は M4 で `app.json` に結線する。
+- ~~Google Maps の API キー設定は M4 で `app.json` に結線する。~~
+  → M4（SS-15）で対応済み。ただし `app.json` への直書きではなく、新設した `app.config.ts` が
+  環境変数 `GOOGLE_MAPS_ANDROID_SDK_KEY` を `android.config.googleMaps.apiKey` へ注入する方式にした
+  （キーをリポジトリにコミットしないため）。詳細は
+  [ADR-007: Expo 設定と Maps キー注入](./ADR-007-expo-config-and-maps-key-injection.md)。
 
 ## 関連情報
 
@@ -116,5 +120,7 @@
 - [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
 - [ADR-005: スタイルは Unistyles をやめる](./ADR-005-styling-without-unistyles.md)
+- [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
+- [ADR-007: Expo 設定と Maps キー注入](./ADR-007-expo-config-and-maps-key-injection.md)
 - [ツール・ライブラリ](../docs/toolsets-libraries.md) / [フォルダ構造](../docs/folder-structure.md)
 - [ADR-001(横断): 地図・POI に Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)

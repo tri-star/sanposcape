@@ -174,10 +174,54 @@ maestro test packages/mobile/.maestro/
 
 ## Google Maps（react-native-maps）
 
-- Android で地図を表示するには Google Maps API キーが必要。
-- キーは `app.json` の `expo.android.config.googleMaps.apiKey` /
-  `expo.ios.config.googleMapsApiKey` に設定する（M4「探索・散歩開始」で結線）。
-- キーはリポジトリにコミットしない（環境ごとに管理）。
+- Android で地図を表示するには Google Maps API キーが必要（iOS は既定の Apple Maps を使うためキー不要）。
+- キーはリポジトリにコミットしないため `app.json` に直書きせず、`app.config.ts` が
+  環境変数 `GOOGLE_MAPS_ANDROID_SDK_KEY`（`EXPO_PUBLIC_` ではない＝JSバンドルに焼き込まない）を読んで
+  `android.config.googleMaps.apiKey` に注入する。
+- **Maps SDK for Android のキー（mobile）と `/explore/*` 用の server key（backend の
+  `GOOGLE_MAPS_SERVER_API_KEY`）は必ず別のキーにする**（ADR-001）。
+- 手順:
+  1. Google Cloud Console で **Maps SDK for Android** を有効化し、Android 用の API キーを作成する。
+  2. アプリ制限（パッケージ名 `com.sanposcape.app` + 署名鍵ごとの SHA-1。認証と同じ4種。
+     [Google サインイン](#google-サインイン) の表を参照）を設定する。
+  3. **ローカル実行の場合**: `.env` に `GOOGLE_MAPS_ANDROID_SDK_KEY=<キー>` を設定する
+     （`expo prebuild` / `expo start` / `expo config` は `.env` を読む。
+     `scripts/initialize-dotenv.sh` 再実行で消えるのは他の変数と同じ注意点）。
+     `.env` を経由できない/確認したい場合は、シェル変数で明示的に渡すこともできる:
+     `GOOGLE_MAPS_ANDROID_SDK_KEY=xxx pnpm --filter mobile exec expo prebuild`。
+  3-b. **EAS ビルド（development / preview / production）では `.env` は使われない**。
+     `.env` は gitignore 済みでビルドコンテキストにアップロードされないため、
+     `.env` に入れただけでは EAS 製の APK で地図が灰色のままになる。次のいずれかで注入する:
+     - EAS の環境変数に登録する:
+       `pnpm --filter mobile exec eas env:create --name GOOGLE_MAPS_ANDROID_SDK_KEY --value <キー>`
+     - `eas build --local` の場合はシェル環境変数として渡す
+     未注入でもビルド・起動は成功し**地図が灰色になるだけ**なので気付きにくい点に注意
+     （`app.config.ts` はキーが無いとき `android.config` を付けない設計）。
+     なお CI の E2E（`preview` プロファイル）ではキーを注入していないため地図は常に灰色であり、
+     Maestro は地図描画を assert しない（ADR-004）。
+  4. 反映確認: `pnpm --filter mobile exec expo config --type prebuild` の出力に
+     `android.config.googleMaps.apiKey` が載っているか確認する（キー未設定時は `config` フィールド
+     自体が付かず、地図はネットワーク的には動くが Android では灰色のまま描画されない）。
+  5. **ネイティブ設定（`expo-location` の追加・Maps キーの注入）を反映するには development build
+     の作り直しが必要**（Fast Refresh では反映されない。ADR-004 の E2E APK キャッシュも
+     `@expo/fingerprint` の変化により1回はミスする）。
+
+## 位置情報（expo-location）
+
+- `EXPO_PUBLIC_LOCATION_MODE`（`real` | `mock`。既定 `real`）で現在地取得の実装を切り替える
+  （`src/config/locationMode.ts`）。認証と異なり `dev` モードは無い（位置情報は
+  Android エミュレータ / 実機の位置設定・`adb emu geo fix` で real のまま再現できるため）。
+  - `real` = `expo-location`（実機/エミュレータの現在地。フォアグラウンド権限が必要）。
+  - `mock` = 東京駅の固定座標（`src/services/location/location.mock.ts`。vitest や、位置情報が
+    フレークになりやすい E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは既定でこれ）。
+- 権限文言は `app.json` の `expo-location` プラグイン（`locationWhenInUsePermission`）で設定済み。
+
+## `/explore/places` がローカルで常に失敗する場合
+
+- backend の `GOOGLE_MAPS_SERVER_API_KEY` が未設定だと、`/explore/places` は
+  `UnconfiguredGoogleMapsProvider` により **常に 503** を返す（mobile 実装のバグではない）。
+  mobile 側は `provider_unavailable` として文言 + 再試行ボタンを表示する。
+- backend 側で `GOOGLE_MAPS_SERVER_API_KEY` を設定してから確認すること。
 
 ## Google サインイン
 
@@ -223,6 +267,12 @@ maestro test packages/mobile/.maestro/
   ユーザー体験としては全滅する点に注意）
 - `EXPO_PUBLIC_BACKEND_API_URL`（本番 backend の HTTPS URL。未注入だと `src/config/env.ts` の
   既定値 `http://localhost:8000`（平文HTTP）にフォールバックし、実質すべてのAPI呼び出しが失敗する）
+- `GOOGLE_MAPS_ANDROID_SDK_KEY`（未注入だと Android で地図が灰色のまま描画されない。
+  `EXPO_PUBLIC_` ではないため JS バンドルには焼き込まれず、`app.config.ts` がビルド時に
+  `android.config.googleMaps.apiKey` へ注入する。詳細は
+  [Google Maps（react-native-maps）](#google-mapsreact-native-maps)）
+- `EXPO_PUBLIC_LOCATION_MODE` は **production では未設定のままでよい**（未設定＝`real`。
+  誤って `mock` が入ると全ユーザーの現在地が東京駅固定になるため、production には設定しない）
 
 クライアントID自体は秘密情報ではないため `eas.json` へ直書きする選択肢もあるが、本タスク時点では
 値が未確定のため、上記チェックリストとしてここに明記する運用とした。値が確定した時点で

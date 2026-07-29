@@ -10,6 +10,8 @@
   - サーバー状態: TanStack Query（Orval生成物と組み合わせる）
   - クライアント状態: Zustand（少量のグローバル状態）
 - 地図: react-native-maps（Android=Google Maps / iOS=Apple Maps）
+- 位置情報: expo-location（現在地取得。`src/services/location` で real/mock を切り替える。詳細は [ADR-006](../adr/ADR-006-location-service-real-mock.md)）
+- スライダー: @react-native-community/slider（往復時間の指定UI）
 - 認証: react-native-nitro-google-signin（Google サインイン。[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token の永続化）
 - APIクライアント生成: Orval（backendのOpenAPIから生成）+ MSWモック（HTTPクライアントは fetch/customFetch）
 - ユニットテスト: Vitest
