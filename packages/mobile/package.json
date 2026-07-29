@@ -14,6 +14,7 @@
     "expo-glass-effect": "~57.0.1",
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.3",
+    "expo-location": "~57.0.6",
     "expo-router": "~57.0.7",
     "expo-secure-store": "~57.0.1",
     "expo-splash-screen": "~57.0.4",
@@ -61,8 +62,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
-    "format": "oxfmt src app index.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts",
-    "format:check": "oxfmt --check src app index.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts"
+    "format": "oxfmt src app index.ts app.config.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts",
+    "format:check": "oxfmt --check src app index.ts app.config.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts"
   },
   "private": true
 }

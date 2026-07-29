@@ -40,12 +40,13 @@ export const customFetch = async <T>(url: string, options: RequestInit): Promise
   }
 
   // 204 No Content など本文が無い場合に配慮
-  if (response.status === 204) {
-    return undefined as T;
-  }
+  const text = response.status === 204 ? "" : await response.text();
+  const data = text ? JSON.parse(text) : undefined;
 
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  // Orval の fetch client は mutator が { status, data, headers } を返す前提で型を生成する。
+  // 非2xx は throw する方針（TanStack Query の error に載せる）なので、
+  // ここに到達するのは 2xx のみ。
+  return { status: response.status, data, headers: response.headers } as T;
 };
 
 export default customFetch;

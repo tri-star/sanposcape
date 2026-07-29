@@ -2,14 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { categorySummary } from "@/features/walk/lib/categorySummary";
 
-const ALL: readonly ["konbini", "super", "shop", "facility", "park", "station"] = [
-  "konbini",
-  "super",
-  "shop",
-  "facility",
-  "park",
-  "station",
-];
+const ALL: readonly ["convenience_store", "supermarket", "retail", "facility", "park", "station"] =
+  ["convenience_store", "supermarket", "retail", "facility", "park", "station"];
 
 describe("categorySummary", () => {
   it("全カテゴリ選択なら「すべて」", () => {

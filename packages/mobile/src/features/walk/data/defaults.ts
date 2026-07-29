@@ -1,11 +1,12 @@
-import type { Spot } from "@/features/walk/data/types";
+/** 散歩中画面が router params 欠落時に使う既定ゴール。 */
+export type WalkGoalFallback = { name: string; time: number; dist: number };
 
 /**
  * router params 欠落時に散歩中画面が使う既定ゴール（mock の川辺駅相当）。
  * 実データ化の見込みが薄いフォールバック定数のため、View（WalkActiveView/ScreenCatalog）
  * からの直接 import を許容する（`docs/folder-structure.md` の `data/` 参照規律を参照）。
  */
-export const DEFAULT_WALK_GOAL: Pick<Spot, "name" | "time" | "dist"> = {
+export const DEFAULT_WALK_GOAL: WalkGoalFallback = {
   name: "川辺駅",
   time: 60, // 往復の目安（分）
   dist: 4.0, // 往復の目安距離（km）

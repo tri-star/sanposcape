@@ -11,13 +11,20 @@ describe("customFetch", () => {
     setAuthTokenProvider(null);
   });
 
-  it("成功時は JSON をパースして返す", async () => {
+  it("成功時は { status, data, headers } を返す", async () => {
     server.use(
       http.get("http://localhost:8000/spots", () => HttpResponse.json([{ id: 1, name: "公園" }])),
     );
 
-    const data = await customFetch<{ id: number; name: string }[]>("/spots", { method: "GET" });
-    expect(data).toEqual([{ id: 1, name: "公園" }]);
+    const result = await customFetch<{
+      status: number;
+      data: { id: number; name: string }[];
+      headers: Headers;
+    }>("/spots", { method: "GET" });
+
+    expect(result.status).toBe(200);
+    expect(result.data).toEqual([{ id: 1, name: "公園" }]);
+    expect(result.headers).toBeInstanceOf(Headers);
   });
 
   it("エラーステータスは例外を投げる", async () => {
@@ -76,9 +83,13 @@ describe("customFetch", () => {
       }),
     );
 
-    const data = await customFetch<{ id: number; name: string }[]>("/spots", { method: "GET" });
+    const result = await customFetch<{
+      status: number;
+      data: { id: number; name: string }[];
+      headers: Headers;
+    }>("/spots", { method: "GET" });
 
-    expect(data).toEqual([{ id: 1, name: "公園" }]);
+    expect(result.data).toEqual([{ id: 1, name: "公園" }]);
     expect(provider.refreshAccessToken).toHaveBeenCalledTimes(1);
     expect(callCount).toBe(2);
   });

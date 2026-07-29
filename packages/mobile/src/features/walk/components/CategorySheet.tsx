@@ -4,17 +4,20 @@ import { BottomSheet } from "@/components/ui/bottom-sheet/BottomSheet";
 import { Button } from "@/components/ui/button/Button";
 import { Checkbox } from "@/components/ui/checkbox/Checkbox";
 import { Icon } from "@/components/ui/icon/Icon";
-import { CATEGORY_META, CATEGORY_ORDER } from "@/features/walk/data/spots";
-import type { SpotCategory } from "@/features/walk/data/types";
+import { CATEGORY_META, CATEGORY_ORDER } from "@/features/walk/data/categories";
+import type { ExploreCategory } from "@/features/walk/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 import { withAlpha } from "@/theme/withAlpha";
 
 export type CategorySheetProps = {
   open: boolean;
+  /** 破棄して閉じる。 */
   onClose: () => void;
-  activeCategories: readonly SpotCategory[];
-  onToggle: (category: SpotCategory) => void;
+  activeCategories: readonly ExploreCategory[];
+  onToggle: (category: ExploreCategory) => void;
+  /** draft を確定して閉じる（＝再探索）。0件のときは呼ばれない（ボタンを disabled にする）。 */
+  onApply: () => void;
   doneLabel: string;
 };
 
@@ -27,10 +30,12 @@ export function CategorySheet({
   onClose,
   activeCategories,
   onToggle,
+  onApply,
   doneLabel,
 }: CategorySheetProps) {
   const theme = useTheme();
   const styles = useStyles();
+  const canApply = activeCategories.length > 0;
 
   return (
     <BottomSheet open={open} title="表示するスポット" onClose={onClose} testID="category-sheet">
@@ -71,7 +76,8 @@ export function CategorySheet({
           );
         })}
       </View>
-      <Button fullWidth onPress={onClose} testID="category-sheet-done">
+      {canApply ? null : <Text style={styles.note}>1つ以上選んでください</Text>}
+      <Button fullWidth onPress={onApply} disabled={!canApply} testID="category-sheet-done">
         {doneLabel}
       </Button>
     </BottomSheet>
@@ -102,5 +108,10 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.size.md,
     fontWeight: theme.typography.weight.bold,
     color: theme.colors.textPrimary,
+  },
+  note: {
+    marginBottom: theme.spacing[2],
+    fontSize: theme.typography.size.xs,
+    color: theme.colors.textTertiary,
   },
 }));

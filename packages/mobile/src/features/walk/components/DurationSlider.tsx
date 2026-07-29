@@ -13,6 +13,8 @@ export type DurationSliderProps = {
    * 必須。省略できると「動かせるように見えて値が変わらない」スライダーを作れてしまうため。
    */
   onChange: (value: number) => void;
+  /** 指を離した（ドラッグ完了）時に一度だけ呼ばれる。`Slider` へそのまま透過する。 */
+  onCommit?: (value: number) => void;
   testID?: string;
 };
 
@@ -21,7 +23,15 @@ export type DurationSliderProps = {
  * デザイン: mock `isStart` の「往復の時間」ブロック。
  * `WalkStartView` から切り出し、`estimateRoundTripKm` を内包する（プラン§5.4の当初想定）。
  */
-export function DurationSlider({ value, min, max, step, onChange, testID }: DurationSliderProps) {
+export function DurationSlider({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  onCommit,
+  testID,
+}: DurationSliderProps) {
   const styles = useStyles();
   const roundTripKm = estimateRoundTripKm(value);
 
@@ -40,6 +50,7 @@ export function DurationSlider({ value, min, max, step, onChange, testID }: Dura
         max={max}
         step={step}
         onChange={onChange}
+        onCommit={onCommit}
         accessibilityLabel="往復の時間"
         testID={testID}
       />
