@@ -21,12 +21,15 @@ metadata:
 
 **services 層の seam パターン**: `src/services/<svc>/{types.ts,index.ts,<svc>.stub.ts,<svc>.real.ts}`。index が `process.env.EXPO_PUBLIC_*` で real/stub 選択。呼び出し側は index/types のみ参照。単体テストは常に stub、E2E(Maestro)は再現可能なら real。`src/services/auth/` は実在（SS-10 で real/dev/mock の3モードへ再設計）。`location` は未実装。認証の確定設計は [認証アーキテクチャ](auth-architecture.md) を参照。
 
-**API**: Orval 生成物は `src/api/generated/`（手編集禁止、`pnpm --filter mobile orval` で再生成）。現状 `health` と `spots` のみ生成済み。**walks/履歴・散歩記録保存の API は未定義**（履歴/保存を実データ化するなら backend 伝達が必要）。クライアントは `src/api/client.ts`（customFetch）+ `queryClient.ts`。
+**API**: Orval 生成物は `src/api/generated/`（**gitignore 済み**。手編集禁止、`pnpm --filter mobile orval` で再生成＝プラン作成前に一度実行して現物を確認する）。生成済み: `health` / `spots` / `auth` / `users` / `explore`。**walks/履歴・散歩記録保存の API は未定義**（履歴/保存を実データ化するなら backend 伝達が必要）。クライアントは `src/api/client.ts`（customFetch）+ `queryClient.ts`（既定 `retry:1` / `staleTime:30s`）。
+**落とし穴**: `customFetch` は成功時にパース済み本文をそのまま返すが、Orval の生成型は `{data,status,headers}` を期待する（=`res.data` が実行時 undefined）。生成エンドポイントを初めて実利用するタスクで mutator 側を直す必要がある（SS-15 プランで対応）。
 
 **msw は使う（重要な訂正）**: orval.config.ts が `mock: true` で MSW ハンドラを生成し、`src/test/setup.ts` が `setupServer()` を全テスト共通で起動（`onUnhandledRequest: "error"`）。`src/api/client.test.ts` が実例。エージェント定義ファイルの「mobile では msw を使わない」は**この repo の実態と食い違う**ので、プランでは msw 利用を前提にしてよい。
 
 **状態**: サーバ状態=TanStack Query、クライアント状態=Zustand（横断は `src/store/useAppStore.ts`、機能限定は features 内）。
 
 **既存ユーティリティ**: `@/lib/formatDuration`(分→「◯時間◯分」), `@/lib/toPercent`, `@/lib/hitSlop`(hitSlopFor)。
+
+**ネイティブ設定**: `/ios` `/android` は gitignore（CNG 前提）→ ネイティブ設定は app config で行う。`react-native-maps@1.27.2` は依存にあるだけで未使用・キー未設定。Android の Maps キーは `expo.android.config.googleMaps.apiKey`（@expo/config-plugins が読む）に app.config.ts 経由で env から注入する。react-native-maps 同梱の config plugin は**プロパティ未指定だと manifest からキーを削除する**ので併用しない。iOS は既定 Apple Maps でキー不要。ネイティブ追加は `@expo/fingerprint` を変え、ADR-004 の E2E APK キャッシュを1回ミスさせる。
 
 **フルスクリーンのデザインモック(.pen等)はリポジトリに無い**（`src/features/design-system/components/DesignSystemGallery.tsx` がプリミティブ一覧＝実質のUI見本）。画面は既存プリミティブ＋各コンポーネントのJSDocが示す用途から構成する。

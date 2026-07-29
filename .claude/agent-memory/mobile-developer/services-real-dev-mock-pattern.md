@@ -23,6 +23,14 @@ metadata:
 `.codex/agents/*.toml`）にはまだ旧 real/stub 前提の記述が残っている箇所があるので注意
 （doc-maintainer への申し送り事項。mobile-developer 側で書き換える対象ではない）。
 
+### 例外: 2モード（real/mock）で正当な場合もある
+
+`src/services/location/`（SS-15, 2026-07-30）は `dev` を持たず `real`/`mock` の2モードのみ。
+理由は JSDoc に明記した設計判断で、「本物に近いが実機/外部IdPに依存しない中間実装」に相当する
+ものが位置情報には無いため（Android エミュレータ/実機の位置設定・`adb emu geo fix` で
+`real` のまま十分に再現できる）。3モードは既定形だが唯一の正解ではなく、
+「`dev` に対応する中間実装が存在するか」で判断してよい。
+
 ## 起動時クラッシュ連鎖を避ける（configure 系関数）
 
 `app/_layout.tsx` のようにモジュールスコープ（React外・エラーバウンダリ不可）で呼ばれる
