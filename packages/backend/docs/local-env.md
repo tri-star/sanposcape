@@ -148,6 +148,34 @@ docker compose up -d --build
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`: 上流への接続／読取 timeout（既定 3 秒／8 秒）。超過時は API に 503 を返す。
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`: 1 回の探索で取得・経路計算する候補数の上限（いずれも既定・最大 20）。Google Places Nearby Search の provider 上限と、上流のコスト・レート対策に合わせた安全弁である。
 - Places / Routes の endpoint は Google の HTTPS API に固定しており、server API key の送信先を環境変数で変更することはできない。テストは HTTP client の差し替えで行う。
+
+### `/explore/places` が 503 を返すときの切り分け
+
+外部の詳細をクライアントへ漏らさないため、上流の失敗は理由を問わず **429（quota）か 503** に丸められる。**503 は「Google が落ちている」を意味しない**ので、原因はサーバーログで確認する。
+
+```bash
+docker compose logs -f api | grep "Google Maps"
+```
+
+| ログ | 原因 | 対処 |
+| --- | --- | --- |
+| 何も出ない（かつ即座に 503） | `GOOGLE_MAPS_SERVER_API_KEY` が未設定。`UnconfiguredGoogleMapsProvider` が選ばれ、外部リクエスト自体が発生していない | `.env` にキーを設定して `docker compose up -d`。**`restart` では反映されない**（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため） |
+| `HTTP 403 status=PERMISSION_DENIED reasons=API_KEY_ANDROID_APP_BLOCKED` | mobile 用の **Android アプリ制限付きキー**を backend に設定している。サーバーからのリクエストにはパッケージ名・SHA-1 が無いため拒否される | アプリケーションの制限が「なし」または「IPアドレス」の**サーバー用キーを別途作成**する。mobile 側の `GOOGLE_MAPS_ANDROID_SDK_KEY` とは必ず別キーにする（[ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)） |
+| `reasons=SERVICE_DISABLED` | Places API (New) / Routes API が有効化されていない | Google Cloud Console で両APIを有効化する |
+| `reasons=API_KEY_SERVICE_BLOCKED` | キーのAPI制限で Places/Routes が許可されていない | キーのAPI制限に両APIを追加する |
+| `status=PERMISSION_DENIED` で請求関連の message | 請求先アカウント未設定（両APIとも課金必須） | プロジェクトに請求先アカウントを紐づける |
+| `request timed out` / `ConnectError` | コンテナから外部 HTTPS に到達できない | ネットワーク・プロキシ設定を確認する |
+
+キーが正しいかは、コンテナ内から直接 Google を叩くのが早い。
+
+```bash
+docker compose exec api python -c "
+import os, httpx
+r = httpx.post('https://places.googleapis.com/v1/places:searchNearby',
+  json={'includedTypes':['park'],'maxResultCount':1,'locationRestriction':{'circle':{'center':{'latitude':35.681236,'longitude':139.767125},'radius':500}}},
+  headers={'X-Goog-Api-Key':os.environ['GOOGLE_MAPS_SERVER_API_KEY'],'X-Goog-FieldMask':'places.id'}, timeout=15)
+print(r.status_code); print(r.text[:800])"
+```
 - server key は Google Cloud Console で API 制限（Places API (New)、Routes API）と環境別の制限を設定する。地図タイルに使う mobile SDK key は別の key として SS-15 で管理する。
 
 **`AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE` / `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` /

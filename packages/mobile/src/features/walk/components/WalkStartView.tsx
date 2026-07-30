@@ -8,22 +8,21 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { CategorySheet } from "@/features/walk/components/CategorySheet";
 import { DurationSlider } from "@/features/walk/components/DurationSlider";
-import { MapCanvas, type MapCanvasPin } from "@/features/walk/components/MapCanvas";
-import { SpotCard } from "@/features/walk/components/SpotCard";
-import { CATEGORY_META, CATEGORY_ORDER } from "@/features/walk/data/spots";
+import { LocationPermissionNotice } from "@/features/walk/components/LocationPermissionNotice";
+import { SpotListSection } from "@/features/walk/components/SpotListSection";
+import { SpotMapView } from "@/features/walk/components/SpotMapView";
+import { CATEGORY_ORDER } from "@/features/walk/data/categories";
 import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
+import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
 import { useToast } from "@/hooks/useToast";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
-const DURATION_MIN = 10;
-const DURATION_MAX = 120;
-const DURATION_STEP = 5;
-
 /**
- * 散歩開始画面。mock `isStart` を1:1で再現する。
- * 「散歩を始める」→ 散歩中（ナビタブ）へ遷移し、目的地/往復時間を router params で渡す。
+ * 散歩開始画面。実地図（`SpotMapView`）+ 現在地 + `/explore/places` 由来の候補を表示する。
+ * 「散歩を始める」→ 散歩中（ナビタブ）へ遷移し、目的地/往復時間/place id/座標を router params で渡す
+ * （SS-16 のルート提示の接続点）。
  */
 export function WalkStartView() {
   const theme = useTheme();
@@ -35,29 +34,20 @@ export function WalkStartView() {
 
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
-  const pins: MapCanvasPin[] = plan.reachable.map((spot) => {
-    const meta = CATEGORY_META[spot.category];
-    const selected = spot.id === plan.selectedSpotId;
-    return {
-      id: spot.id,
-      category: selected ? "goal" : meta.pin,
-      accessibilityLabel: spot.name,
-      size: selected ? 42 : 30,
-      zIndex: selected ? 20 : 5,
-      x: spot.x,
-      y: spot.y,
-      onPress: () => plan.selectSpot(spot.id),
-    };
-  });
-
   const handleStartWalk = () => {
     if (!plan.selectedSpot) return;
     router.replace({
       pathname: "/(tabs)",
       params: {
         goalName: plan.selectedSpot.name,
-        goalTimeMin: String(plan.selectedSpot.time),
-        goalDistKm: plan.selectedSpot.dist.toFixed(1),
+        goalTimeMin: String(plan.selectedSpot.roundTripMinutes),
+        goalDistKm: plan.selectedSpot.roundTripKm.toFixed(1),
+        // SS-16（ルート提示）で使う接続点。現時点の WalkActiveView は未使用でも害はない。
+        goalPlaceId: plan.selectedSpot.id,
+        goalLat: String(plan.selectedSpot.location.latitude),
+        goalLng: String(plan.selectedSpot.location.longitude),
+        originLat: plan.origin ? String(plan.origin.latitude) : "",
+        originLng: plan.origin ? String(plan.origin.longitude) : "",
       },
     });
   };
@@ -78,34 +68,45 @@ export function WalkStartView() {
             icon="crosshair"
             label="現在地"
             variant="tinted"
-            onPress={() => toast.show("準備中の機能です")}
+            onPress={plan.retryLocation}
+            disabled={plan.isLocating}
           />
         </View>
 
-        <MapCanvas pins={pins} style={styles.map} testID="walk-start-map" />
-
-        <View style={styles.spotsHeader}>
-          <Text style={styles.spotsTitle}>歩いて行けるスポット</Text>
-          <Text style={styles.spotsCount}>
-            <Text style={styles.spotsCountValue}>{plan.reachable.length}</Text> 件
-          </Text>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.spotList}
-        >
-          {plan.reachable.map((spot) => (
-            <SpotCard
-              key={spot.id}
-              spot={spot}
-              meta={CATEGORY_META[spot.category]}
-              selected={spot.id === plan.selectedSpotId}
-              onPress={() => plan.selectSpot(spot.id)}
-              testID={`spot-card-${spot.id}`}
+        {/*
+          位置情報が取れていない間は地図・候補リストの代わりに通知だけを出す。
+          候補は現在地起点でしか出せないため、リストを併置すると「権限エラー」と
+          「スポットが見つかりません」が同時に出て矛盾した案内になる。
+        */}
+        {plan.locationErrorCode !== null ? (
+          <LocationPermissionNotice
+            errorCode={plan.locationErrorCode}
+            onRetry={plan.retryLocation}
+          />
+        ) : (
+          <>
+            <SpotMapView
+              origin={plan.origin}
+              durationMin={plan.durationMin}
+              candidates={plan.candidates}
+              selectedSpotId={plan.selectedSpotId}
+              onSelectSpot={plan.selectSpot}
+              testID="walk-start-map"
+              style={styles.map}
             />
-          ))}
-        </ScrollView>
+
+            <SpotListSection
+              candidates={plan.candidates}
+              selectedSpotId={plan.selectedSpotId}
+              onSelectSpot={plan.selectSpot}
+              isLoading={plan.isLoadingCandidates}
+              isRefetching={plan.isRefetchingCandidates}
+              errorCode={plan.exploreErrorCode}
+              onRetry={plan.retryExplore}
+              testID="walk-start-spot-list"
+            />
+          </>
+        )}
 
         <View style={[styles.controls, { paddingBottom: insets.bottom + 26 }]}>
           <DurationSlider
@@ -114,6 +115,7 @@ export function WalkStartView() {
             max={DURATION_MAX}
             step={DURATION_STEP}
             onChange={plan.setDurationMin}
+            onCommit={plan.commitDurationMin}
             testID="walk-start-duration-slider"
           />
 
@@ -139,7 +141,7 @@ export function WalkStartView() {
                 <Text style={styles.selectedLabel}>目的地</Text>
                 <Text style={styles.selectedName}>{plan.selectedSpot.name}</Text>
               </View>
-              <Text style={styles.selectedTime}>往復 {plan.selectedSpot.time}分</Text>
+              <Text style={styles.selectedTime}>往復 {plan.selectedSpot.roundTripMinutes}分</Text>
             </View>
           ) : null}
 
@@ -159,9 +161,10 @@ export function WalkStartView() {
       <CategorySheet
         open={plan.catSheetOpen}
         onClose={plan.closeCatSheet}
-        activeCategories={plan.activeCategories}
+        activeCategories={plan.draftCategories}
         onToggle={plan.toggleCategory}
-        doneLabel={`${plan.reachable.length}件のスポットを表示`}
+        onApply={plan.applyCategories}
+        doneLabel="この条件で探す"
       />
 
       <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
@@ -203,33 +206,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.radius.lg,
     borderWidth: theme.layout.hairline,
     borderColor: theme.colors.borderSubtle,
-  },
-  spotsHeader: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    paddingHorizontal: theme.layout.pageGutter + 4,
-    paddingTop: theme.spacing[4],
-    paddingBottom: theme.spacing[2],
-  },
-  spotsTitle: {
-    fontSize: theme.typography.size.sm,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textPrimary,
-  },
-  spotsCount: {
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textSecondary,
-  },
-  spotsCountValue: {
-    fontSize: theme.typography.size.md,
-    fontWeight: theme.typography.weight.heavy,
-    color: theme.colors.primary,
-  },
-  spotList: {
-    gap: theme.spacing[2] + 2,
-    paddingHorizontal: theme.layout.pageGutter - 2,
-    paddingVertical: theme.spacing[1],
+    overflow: "hidden",
   },
   controls: {
     marginTop: theme.spacing[6],

@@ -120,3 +120,15 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - 2026-07-26時点のstate_group="started"（In Progress+Review）は SS-32とSS-10の2件のみ。Backlog総数18件（`list_work_items(pql='state_group = "backlog"')`で確認、total_count=18）。
 - M3「認証・アプリ骨格」のBacklog残り3件はSS-11（mobile サインイン/サインアップ画面）、SS-12（backend ユーザーモデル・認証API）、SS-13（認証状態と探索ロジックの分離）で、SS-10 backend完了を受けた次の着手候補。
 - **How to apply**: 今後のトリアージでは、SS-32のようにモジュール未所属かつ本エージェント経由でない新規タスクが増える可能性があるため、`list_work_items`の総数を都度確認し、モジュール別集計だけに頼らないこと（既存メモの注意点を再確認）。
+
+## 2026-07-30確認: SS-14/SS-15（M4）が共にReview化・PR #14リンク登録済み
+
+- SS-14「backend: Places/Routesプロキシ・キャッシュ層」(work_item_id: `bc6398ac-ac08-4716-bcb6-71f2daeadc08`)、SS-15「mobile: 地図表示・往復範囲指定UI・候補表示」(work_item_id: `ed2ed727-bb29-41d3-887e-05c968343871`)がいずれもState=Review。SS-15にはPR #14（`https://github.com/tri-star/sanposcape/pull/14`、link_id `647a7d53-adac-4929-ba2c-d6cb8e4ae64f`）がリンク済み、コメント0件、親子関係・リレーションなし。
+- 本エージェント経由の更新記録がないため、ユーザー自身か別経路での更新と推測。M4の残Backlogは本確認時点でSS-16・SS-17のみの可能性が高い（要再確認）。
+
+## 2026-07-30追加: SS-15にPR #15を追加リンク・並行実装比較コメントを記録
+
+- SS-15（work_item_id: `ed2ed727-bb29-41d3-887e-05c968343871`）は本作業時点で既にState=Review（更新不要）。既存のPR #14リンク（link_id `647a7d53-adac-4929-ba2c-d6cb8e4ae64f`）は削除せず残したまま、`create_work_item_link`でPR #15（`https://github.com/tri-star/sanposcape/pull/15`、branch: tri-star/ss-15-claude、link_id `3b0b08b1-79ed-4876-9137-5ee55a9ad97b`）を追加登録。
+- コメント（comment_id `999438e3-cc11-4f2c-ba39-96f7e33fe953`）で、SS-15にPR #14（branch: feat/ss-15-google-map）とPR #15の2つの独立した並行実装が存在すること、比較検討の上どちらか一方をクローズする必要があることを記録。
+- **Why**: ユーザー指示による並行実装比較のため、同一work itemに複数PRリンクを併存させる運用（ユーザー指示）。
+- **How to apply**: 今後SS-15を扱う際は、まず`list_work_item_links`でPR #14/#15双方の存在を確認してから作業すること。どちらかがクローズされた後は、残った方のPRリンクのみを残す/コメントで結果を追記する運用になる見込み。

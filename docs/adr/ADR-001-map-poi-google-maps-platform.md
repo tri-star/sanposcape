@@ -24,7 +24,7 @@ sanposcape の中核体験は「現在地から指定時間で往復できる範
 - **Places / Routes のデータ API 呼び出しは backend 経由（キャッシュ/プロキシ層）で行い、クライアントから直接叩かない**。
   - mobile は backend の API を叩き、backend が Google Maps Platform を呼ぶ。
   - backend 側にキャッシュを差し込み、コスト・レート制限を制御する。
-- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。タイル／SDK 通信と mobile 用に制限した SDK key は SS-15 で管理し、Places / Routes 用 server key と混在させない。
+- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。タイル／SDK 通信と mobile 用に制限した SDK key は mobile 側で管理し、Places / Routes 用 server key と混在させない（SS-15 で実装。`packages/mobile/app.config.ts` が `GOOGLE_MAPS_ANDROID_SDK_KEY` を注入し、backend の `GOOGLE_MAPS_SERVER_API_KEY` とは別キーにする。詳細は [mobile ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)）。
 - スポット/記録の位置データは MVP では緯度経度カラム + 単純検索とし、将来の地理検索に備え PostGIS 等への移行余地を残す。
 
 ## 検討した選択肢

@@ -7,4 +7,6 @@
 - [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
 - [expo CLIのHOME書き込みEROFS](sandbox-expo-home-workaround.md) — `expo install`/`expo customize`は`HOME="$TMPDIR/fakehome" EXPO_NO_TELEMETRY=1`で回避
 - [Nitro Google Signinのconfig plugin必須項目](native-config-plugins.md) — `iosUrlScheme`未設定だとAndroid専用でも`expo`コマンド全てが失敗、プレースホルダーで回避
-- [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — real/stubの2値ではない。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)
+- [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — real/stubの2値ではない。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)。ただしlocationのように2モード(real/mock)が正当な例外もある
+- [Orval customFetchの契約](orval-customfetch-contract.md) — mutatorは`{status,data,headers}`を返す必要がある。生本文返却のままだと実利用時に`res.data`がundefined
+- [react-native-mapsの実装メモ](react-native-maps-notes.md) — MapViewはref+animateToRegion、Marker tracksViewChanges=falseはkeyに選択状態を含めて再マウント、Maps keyは`.env`のみで注入可

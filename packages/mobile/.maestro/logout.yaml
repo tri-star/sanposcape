@@ -1,4 +1,11 @@
 # preview E2E ビルド（EXPO_PUBLIC_AUTH_MODE=dev）で実行するログアウトフロー。
+#
+# SS-15 以降、walk-start の候補はネットワーク由来（/explore/places）になり、
+# CI 環境には Google の server key が無いため候補が0件（503）になり得る。
+# 「目的地を選ぶ→散歩を始める→散歩中画面の設定ボタン」という導線に依存すると
+# 候補の有無でこのフローがフレークするため、walk-start からは
+# ディープリンク（`sanposcape://settings`）で直接 /settings へ遷移する。
+# ログアウト検証の本質（サインイン→ログアウト）は候補の存在に依存しない。
 appId: com.sanposcape.app
 ---
 - launchApp:
@@ -11,12 +18,7 @@ appId: com.sanposcape.app
     id: "sign-in-google-button"
 - assertVisible:
     id: "walk-start-screen"
-- tapOn:
-    id: "walk-start-begin"
-- assertVisible:
-    id: "walk-active-screen"
-- tapOn:
-    text: "設定"
+- openLink: "sanposcape://settings"
 - assertVisible:
     id: "settings-screen"
 - tapOn:

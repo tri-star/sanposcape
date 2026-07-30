@@ -1,13 +1,13 @@
 import { Pressable, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon/Icon";
-import type { CategoryMeta, Spot } from "@/features/walk/data/types";
+import type { CategoryMeta, SpotCandidate } from "@/features/walk/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 import { withAlpha } from "@/theme/withAlpha";
 
 export type SpotCardProps = {
-  spot: Spot;
+  spot: SpotCandidate;
   meta: CategoryMeta;
   selected: boolean;
   onPress: () => void;
@@ -45,7 +45,8 @@ export function SpotCard({ spot, meta, selected, onPress, testID }: SpotCardProp
         {spot.name}
       </Text>
       <Text style={styles.meta}>
-        往復 <Text style={styles.metaStrong}>{spot.time}</Text>分・約{spot.dist.toFixed(1)}km
+        往復 <Text style={styles.metaStrong}>{spot.roundTripMinutes}</Text>分・約
+        {spot.roundTripKm.toFixed(1)}km
       </Text>
     </Pressable>
   );

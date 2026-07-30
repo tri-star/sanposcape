@@ -36,7 +36,8 @@ packages/mobile/
 │   │
 │   ├── services/            # スタブ差し替えの層（認証・実機依存機能）
 │   │   └── <service>/
-│   │       ├── index.ts       #   環境変数（例: EXPO_PUBLIC_AUTH_MODE）で real/dev/mock を
+│   │       ├── index.ts       #   環境変数（例: EXPO_PUBLIC_AUTH_MODE /
+│   │       │                   #   EXPO_PUBLIC_LOCATION_MODE）で real/dev/mock を
 │   │       │                   #   選択して export（既定 real）
 │   │       ├── types.ts       #   インターフェース定義
 │   │       ├── xxx.real.ts    #   本番実装
@@ -110,6 +111,10 @@ packages/mobile/
 - `real` / `dev` / `mock` の3モードが基本形。`dev` は「本物に近いが実機/外部IdPに依存しない」実装
   （例: `services/auth` の `auth.dev.ts` は backend の `/auth/dev-session` を使い Google には触れない）、
   `mock` はユニットテスト向けの最小スタブ（メモリ上のダミー実装等）という役割分担にする。
+- ただし**必要なモードだけ用意してよい**。例: `services/location` は real/mock の2モードのみ
+  （Android エミュレータ / 実機の位置設定・`adb emu geo fix` で real のまま再現できるため、
+  「本物に近いが実機依存しない中間実装」= `dev` に相当するものが無い。
+  詳細は [ADR-006](../adr/ADR-006-location-service-real-mock.md)）。
 - テスト方針との対応:
   - **ユニットテスト**: `mock`（または個別モジュールへの直接フェイク注入）を利用する。
     ただし `index.ts`（バレル）はネイティブ依存に到達しうるため、バレルを import せず
@@ -117,7 +122,7 @@ packages/mobile/
     （具体例は [architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
   - **E2Eテスト(Maestro)**: 実機に近い動作を優先。**Maestroで再現可能な機能は real のまま**利用し、
     再現できない機能は `dev` または `mock` にフォールバックする。
-- 実例として `src/services/auth` を参照。
+- 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）。
 - 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
 
 ### `src/api/` — バックエンドAPIクライアント

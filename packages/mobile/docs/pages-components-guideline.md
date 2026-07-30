@@ -107,7 +107,7 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
 `docs/architecture-guideline.md` の「UIとロジックの分離」方針と同じ考え方。
 
 また、`features/<feature>/data/` の静的スタブは「壊れていないこと」を `.test.ts` で守る。
-例: id の一意性、参照先メタ情報とのキー整合、値域（`data/spots.test.ts`）、
+例: キーの網羅と表示メタ情報との整合（`data/categories.test.ts`）、
 代表値が計算ロジックと矛盾しないこと（`data/defaults.test.ts`）。
 スタブを手で書き換えたときの取りこぼしを CI で検知できるようにする（SS-9）。
 表示そのものの確認は上記の開発確認用ルート（`/dev-screens`）での目視に委ねる。

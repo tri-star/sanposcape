@@ -1,25 +1,25 @@
 ---
 name: project_dev_only_routes_no_guard
-description: app/design-system.tsx と app/dev-screens.tsx は開発確認用ルートだが本番ビルドで除外する仕組みがなく、__DEV__ ガードや env 分岐も一切ない（SS-9 時点）
+description: app/ 配下の大半のルートに認証ガードがない（SS-15時点でも再確認済み）。settings.tsx のみ画面内チェックあり
 type: project
 ---
 
-`packages/mobile/app/design-system.tsx`（SS-8）と `packages/mobile/app/dev-screens.tsx`（SS-9、`ScreenCatalog` を表示）は
-コメントで「開発確認用ルート」「プロダクト導線には含めない」と明記されているが、実装上は:
+`packages/mobile/app/design-system.tsx` と `app/dev-screens.tsx`（SS-9）に加え、`app/walk-start.tsx` /
+`app/(tabs)/index.tsx`（`WalkActiveView`）/ `app/(tabs)/history.tsx` / `app/(tabs)/search.tsx` /
+`app/walk-summary.tsx` も、SS-15 時点（2026-07-30 確認）で認証ガードが一切ない。
+`app/_layout.tsx` はレイアウト単位のガードを持たず、`QueryClientProvider`/`ThemeProvider`/`Stack` を積むだけ。
 
-- `__DEV__` や `EXPO_PUBLIC_*` による分岐なし
-- `app/_layout.tsx` にも認証ガード自体が一切ない（`(auth)`/`(tabs)` どちらも無条件到達可能）
-- Expo Router はファイルベースなので `app/` 配下に置かれたファイルは自動的にルートになり、
-  `sanposcape://dev-screens` / `sanposcape://design-system` のカスタムスキームで本番アプリからも到達可能
+唯一 `src/features/settings/components/SettingsView.tsx` だけが画面内で
+`authService.getCurrentUser() === null` を見て `/(auth)/sign-in` へ `router.replace` する
+個別実装のガードを持つ（コメント「認証全体のルートガードは SS-13 で扱う」とあるが、SS-15 の作業ブランチ時点でも
+レイアウト単位のガードは未実装のまま）。
 
-**Why:** 現時点（SS-9）ではアプリ全体に認証ガードが存在しないため、`/dev-screens` 経由で新たに到達可能になる画面は
-実質ゼロ（history や walk-summary は元々ディープリンクで直接開ける）。つまり増分リスクは「開発者向けカタログ画面の存在が
-本番ユーザー/リバースエンジニアリングに見える」という情報漏洩・見た目の問題に留まる。ただし認証ガードが将来実装された際、
-これらのルートが依然として `app/` 直下に残っていると、ガード実装場所（レイアウト単位か個別画面かによる）次第で
-バイパス経路になり得る。
+**Why:** `features/walk/**` が `services/auth` を import しない設計（M4 完了条件、認証と探索ロジックの分離）と、
+グローバル認証ガードの不在は別問題。後者が無いことで、未サインインのままディープリンク
+（例: `sanposcape://walk-start`）から地図・現在地取得 UI に到達できる。ただし `/explore/places` は
+backend が Bearer 必須で 401 を返すため、候補データ自体は漏れない（[[project_auth_stub_switch]] とは独立の論点）。
+影響は「UI 到達性」止まりで、他ユーザーのデータや認可データの漏洩には直結しない（Low〜Medium 相当）。
 
-**How to apply:** 今後の認証実装レビューでは、ガードが `app/_layout.tsx` などレイアウト単位で全ルート共通に効くよう
-実装されているか（個別画面に条件分岐を書く方式だと dev-screens/design-system が漏れやすい）を確認する。
-また、リリースビルド前に dev 専用ルートを除外する仕組み（`app.json` の `router.exclude` 相当、ビルドスクリプトでの
-ファイル除外、あるいは最低限 `if (!__DEV__) return null` 的なガード）の導入を推奨事項として毎回指摘する。
-[[project_auth_stub_switch]] とあわせて、認証実装タスクが来たときにまとめて確認する。
+**How to apply:** 今後 SS-13 相当（認証ルートガード）が実装されたら、`app/_layout.tsx` または `(tabs)/_layout.tsx`
+のようなレイアウト単位で全ルートに効いているか、`settings.tsx` の個別実装が二重実装のまま残っていないかを確認する。
+それまでは「グローバルガード不在」を継続指摘する（新規ルート追加のたびに増分は小さいが、累積すると見落としやすい）。

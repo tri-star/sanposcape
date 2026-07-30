@@ -109,14 +109,20 @@ docker compose exec api uv run python scripts/seed.py
 # 3. mobile 依存インストール & API クライアント生成
 pnpm install
 pnpm --filter mobile orval
+
+# 4. （Android で地図を表示する場合）Maps SDK キーを設定
+#    packages/mobile/.env の GOOGLE_MAPS_ANDROID_SDK_KEY に値を入れる
+#    ※ EAS ビルドでは .env は使われないため EAS の環境変数に登録すること
+#    詳細: packages/mobile/docs/local-env.md の「Google Maps（react-native-maps）」
 ```
 
 WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合は、[backend ローカル環境構築手順](./packages/backend/docs/local-env.md#wsl2-の-uidgid-を合わせる) を参照。
 
 > **⚠️ mobile は Expo Go ではなく development build が必要**
-> Unistyles / react-native-maps / react-native-nitro-google-signin（Google サインイン）/
-> expo-secure-store（refresh token の永続化）などのネイティブモジュールを使うため、
+> react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
+> expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）などの
+> ネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
-> **SS-10（認証まわりのネイティブ依存を追加）適用後は development build の作り直しが必要**
-> （Fast Refresh では反映されない）。
+> **SS-10（認証まわりのネイティブ依存を追加）および SS-15（expo-location の追加・Maps キー注入）
+> 適用後は development build の作り直しが必要**（Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。

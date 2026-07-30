@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -15,6 +16,8 @@ from sanposcape.integrations.google_maps.provider import (
     ProviderPoint,
     ProviderRoute,
 )
+
+logger = logging.getLogger(__name__)
 
 _CATEGORY_TYPES = {
     "convenience_store": "convenience_store",
@@ -168,19 +171,56 @@ class HttpGoogleMapsProvider:
                 **kwargs,
             )
         except httpx.TimeoutException as exc:
+            logger.warning("Google Maps request timed out: %s %s", method, _endpoint(url))
             raise GoogleMapsUnavailableError() from exc
         except httpx.HTTPError as exc:
+            logger.warning(
+                "Google Maps request failed: %s %s (%s)",
+                method,
+                _endpoint(url),
+                type(exc).__name__,
+            )
             raise GoogleMapsUnavailableError() from exc
         if response.status_code == 429:
+            self._log_error_response(method, url, response)
             raise GoogleMapsQuotaError()
         if response.status_code >= 500:
+            self._log_error_response(method, url, response)
             raise GoogleMapsUnavailableError()
         try:
             response.raise_for_status()
             body = response.json()
         except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
+            self._log_error_response(method, url, response)
             raise GoogleMapsUnavailableError() from exc
         return body if isinstance(body, dict) else {}
+
+    def _log_error_response(self, method: str, url: str, response: httpx.Response) -> None:
+        """Google のエラー応答の要点をサーバーログに残す。
+
+        クライアントには 429/503 しか返さない（外部の詳細を漏らさない）方針だが、サーバー側にも
+        何も残らないと「なぜ 503 なのか」を追えない。設定ミス（APIキーのアプリケーション制限違反・
+        API未有効化・請求先未設定）はいずれも Google からは 403 で返り、原因は `error.status` と
+        `error.details[].reason` にしか出ないため、その2つを必ず記録する。
+
+        APIキーはリクエストヘッダにしか載せていないので本来ログには現れないが、
+        万一 Google の文言に含まれても出力されないよう `_redact_key()` を通す。
+        """
+        status, reasons, message = _parse_google_error(response)
+        logger.warning(
+            "Google Maps API error: %s %s -> HTTP %s status=%s reasons=%s message=%s",
+            method,
+            _endpoint(url),
+            response.status_code,
+            status or "-",
+            ",".join(reasons) if reasons else "-",
+            self._redact_key(message) if message else "-",
+        )
+
+    def _redact_key(self, text: str) -> str:
+        if self._key and self._key in text:
+            return text.replace(self._key, "***")
+        return text
 
     def close(self) -> None:
         if self._owns_client:
@@ -258,6 +298,43 @@ class HttpGoogleMapsProvider:
             f"route:{origin.latitude:.5f}:{origin.longitude:.5f}:"
             f"{destination.latitude:.5f}:{destination.longitude:.5f}"
         )
+
+
+def _endpoint(url: str) -> str:
+    """ログ用にURLのパス部分だけを取り出す（クエリを落とし、値が紛れ込むのを防ぐ）。"""
+    return url.split("?", 1)[0]
+
+
+_MAX_LOGGED_MESSAGE_CHARS = 200
+
+
+def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str], str | None]:
+    """Google のエラー応答から `error.status` / `reason` の一覧 / `message` を取り出す。
+
+    ログ用途なので、本文が JSON でない・想定の形をしていない場合も例外にせず空で返す。
+    """
+    try:
+        body = response.json()
+    except (json.JSONDecodeError, ValueError):
+        return None, [], None
+    if not isinstance(body, dict):
+        return None, [], None
+    error = body.get("error")
+    if not isinstance(error, dict):
+        return None, [], None
+
+    status = error.get("status")
+    message = error.get("message")
+    reasons = [
+        detail["reason"]
+        for detail in error.get("details", [])
+        if isinstance(detail, dict) and isinstance(detail.get("reason"), str)
+    ]
+    return (
+        status if isinstance(status, str) else None,
+        reasons,
+        message[:_MAX_LOGGED_MESSAGE_CHARS] if isinstance(message, str) else None,
+    )
 
 
 def build_google_maps_provider(settings: Settings) -> GoogleMapsProvider:

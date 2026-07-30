@@ -26,8 +26,9 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 言語 | TypeScript (mobile) / Python (backend) | |
 | フレームワーク | React Native (Expo) + Expo Router / FastAPI | |
 | 状態管理 (mobile) | TanStack Query + Zustand | サーバー状態=TanStack Query、クライアント状態=Zustand |
-| スタイリング (mobile) | react-native-unistyles | デザイントークン・テーマを型安全に管理 |
-| 地図 (mobile) | react-native-maps | Android=Google Maps / iOS=Apple Maps |
+| スタイリング (mobile) | React Native 標準 `StyleSheet` + テーマ Context | デザイントークン・テーマ（ライト/ダーク）を `src/theme` で管理。Unistyles は [mobile ADR-005](../packages/mobile/adr/ADR-005-styling-without-unistyles.md) で撤回 |
+| 地図 (mobile) | react-native-maps | Android=Google Maps / iOS=Apple Maps。SDKキーは `app.config.ts` が環境変数から注入 |
+| 位置情報 (mobile) | expo-location | 現在地取得。services 層で real/mock を切り替え |
 | APIクライアント生成 (mobile) | Orval（OpenAPIから生成）+ MSWモック | HTTPクライアントは fetch/customFetch |
 | ORM / マイグレーション | SQLAlchemy + Alembic | |
 | スキーマ管理 | Pydantic | |
@@ -105,7 +106,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 
 - **ゲスト（未認証）での散歩を見据えた設計** — MVPでは「スプラッシュ→認証」を必須ゲートとするが、将来「サインインせず記録なしで散歩開始」を追加する構想がある。そのため、散歩の探索・開始・散歩中表示のロジックが**ユーザー認証に不可分に依存しない**よう分離しておく（記録・履歴の永続化のみが認証を要求する形にする）。認証状態は services 層で判定し、画面遷移のゲートは差し替え可能にしておく。
 - スポット/記録データは位置情報を持つため、将来の地理検索を見据え PostGIS 等の地理空間拡張への移行余地を残す（MVPは緯度経度カラム + 単純検索でも可）。
-- Places / Routes のデータ API はコスト・レート制限があるため、backend 側のキャッシュ・プロキシ層を通す。地図描画の native SDK 通信は SS-15 の mobile 側責務として分離する。
+- Places / Routes のデータ API はコスト・レート制限があるため、backend 側のキャッシュ・プロキシ層を通す（SS-14 で実装）。地図描画の native SDK 通信は mobile 側の責務として分離している（SS-15。`app.config.ts` が mobile 用の Maps SDK キーを注入し、backend の server key とは別キーにする）。
 - 実機依存機能（位置情報・カメラ）と認証は services 層でスタブ差し替え可能にし、テスト容易性とCI実行性を維持する。
 
 ## 6. 制約・前提条件
