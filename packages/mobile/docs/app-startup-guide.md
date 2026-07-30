@@ -232,6 +232,8 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 | localhost 経路でどうしても繋がらない | ネットワーク構成の問題 | フォールバックで `expo start --dev-client --tunnel`（`@expo/ngrok` 導入を聞かれたら y）。tunnel なら `adb reverse` 不要 |
 | バンドルは成功（`Android Bundled`）したのに白い | JS 実行時エラー | `adb shell input keyevent 82` で開発メニュー → または Metro ログの赤いエラーを確認 |
 | iPhoneでdevelopment serverが見つからない | LAN経路またはファイアウォールの問題 | iPhone手順6を確認し、解消できない場合だけ`--tunnel`を使う |
+| エミュレータで、権限を許可し Extended controls の "Set Location" もしたのに、数十秒待って現在地の取得に失敗する | `getCurrentPositionAsync` の精度指定が `Balanced` だと `PRIORITY_BALANCED_POWER_ACCURACY` になり、fused provider が GPS を起動せずネットワーク測位に頼る。エミュレータの "Set Location" は **GPS プロバイダ**に fix を注入するため拾われず、内部タイムアウトまで待って `ERR_CURRENT_LOCATION_IS_UNAVAILABLE` になる | `Accuracy.High` 以上を使う（`src/services/location/location.real.ts` で対応済み）。あわせて権限ダイアログで**「正確な位置情報」**が選ばれているか確認する（「おおよその位置情報」だと `GRANULARITY_PERMISSION_LEVEL` により coarse に制限され同様に失敗する）。位置を与え直すには `adb emu geo fix <経度> <緯度>` も使える |
+| AVD で位置情報が全く動かない | AOSP イメージには Google Play services が無く `FusedLocationProviderClient` を使えない | `adb shell pm list packages \| grep com.google.android.gms` で確認する。何も出ない場合は Google APIs / Google Play 入りのシステムイメージで AVD を作り直す（`adb shell getprop ro.product.name` が `sdk_gphone...` なら Google イメージ） |
 
 ---
 

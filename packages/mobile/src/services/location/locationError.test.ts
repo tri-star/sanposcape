@@ -9,30 +9,64 @@ import {
 import type { LocationErrorCode } from "@/services/location/types";
 
 describe("toLocationError", () => {
-  it("E_NO_PERMISSIONS は permission_denied になる", () => {
-    expect(toLocationError({ code: "E_NO_PERMISSIONS" }).code).toBe("permission_denied");
+  // expo-location が実際に投げるコード（例外クラス名から自動導出される）。
+  // Android: node_modules/expo-location/android/.../LocationExceptions.kt
+  // iOS:     node_modules/expo-location/ios/LocationExceptions.swift
+  // 導出規則: "ERR_" + クラス名から "Exception" を除去 → UPPER_SNAKE
+  //           （expo-modules-core の CodedException.inferCode）
+  describe("expo-location の現行コード（ERR_*）", () => {
+    it.each([
+      ["ERR_LOCATION_UNAUTHORIZED", "permission_denied"],
+      ["ERR_LOCATION_BACKGROUND_UNAUTHORIZED", "permission_denied"],
+      ["ERR_NO_PERMISSION_IN_MANIFEST", "permission_denied"],
+      ["ERR_DENIED_FOREGROUND_LOCATION_PERMISSION", "permission_denied"],
+      ["ERR_DENIED_BACKGROUND_LOCATION_PERMISSION", "permission_denied"],
+      ["ERR_LOCATION_SETTINGS_UNSATISFIED", "services_disabled"],
+      ["ERR_LOCATION_SERVICES_DISABLED", "services_disabled"],
+      // 実測できなかったとき Android で最も多く飛んでくるコード。
+      // 回帰: これが unknown に落ちると「もう一度お試しください」しか出せなくなる。
+      ["ERR_CURRENT_LOCATION_IS_UNAVAILABLE", "unavailable"],
+      ["ERR_LOCATION_UNAVAILABLE", "unavailable"],
+      ["ERR_LOCATION_UNKNOWN", "unavailable"],
+      ["ERR_LOCATION_REQUEST_REJECTED", "unavailable"],
+      ["ERR_LOCATION_REQUEST_CANCELLED", "unavailable"],
+      ["ERR_LOCATION_REQUEST_CANCELED", "unavailable"],
+      ["ERR_LOCATION_UPDATES_UNAVAILABLE", "unavailable"],
+    ] as const)("%s は %s になる", (code, expected) => {
+      expect(toLocationError({ code }).code).toBe(expected);
+    });
+
+    it("expo-location のどのコードも unknown に落ちない", () => {
+      // 分類漏れがあると、権限拒否も位置情報オフも同じ汎用文言になってしまう。
+      const androidCodes = [
+        "ERR_NO_PERMISSIONS_MODULE",
+        "ERR_NO_PERMISSION_IN_MANIFEST",
+        "ERR_LOCATION_BACKGROUND_UNAUTHORIZED",
+        "ERR_LOCATION_REQUEST_REJECTED",
+        "ERR_CURRENT_LOCATION_IS_UNAVAILABLE",
+        "ERR_LOCATION_REQUEST_CANCELLED",
+        "ERR_LOCATION_SETTINGS_UNSATISFIED",
+        "ERR_LOCATION_UNAUTHORIZED",
+        "ERR_LOCATION_UNAVAILABLE",
+        "ERR_LOCATION_UNKNOWN",
+      ];
+      for (const code of androidCodes) {
+        expect(toLocationError({ code }).code, code).not.toBe("unknown");
+      }
+    });
   });
 
-  it("ERR_NO_PERMISSIONS は permission_denied になる", () => {
-    expect(toLocationError({ code: "ERR_NO_PERMISSIONS" }).code).toBe("permission_denied");
-  });
-
-  it("E_LOCATION_SERVICES_DISABLED は services_disabled になる", () => {
-    expect(toLocationError({ code: "E_LOCATION_SERVICES_DISABLED" }).code).toBe(
-      "services_disabled",
-    );
-  });
-
-  it("E_LOCATION_TIMEOUT は timeout になる", () => {
-    expect(toLocationError({ code: "E_LOCATION_TIMEOUT" }).code).toBe("timeout");
-  });
-
-  it("E_LOCATION_UNAVAILABLE は unavailable になる", () => {
-    expect(toLocationError({ code: "E_LOCATION_UNAVAILABLE" }).code).toBe("unavailable");
-  });
-
-  it("E_LOCATION_SETTINGS_UNSATISFIED は unavailable になる", () => {
-    expect(toLocationError({ code: "E_LOCATION_SETTINGS_UNSATISFIED" }).code).toBe("unavailable");
+  describe("unimodules 時代の旧コード（E_*。互換のため残している）", () => {
+    it.each([
+      ["E_NO_PERMISSIONS", "permission_denied"],
+      ["ERR_NO_PERMISSIONS", "permission_denied"],
+      ["E_LOCATION_SERVICES_DISABLED", "services_disabled"],
+      ["E_LOCATION_TIMEOUT", "timeout"],
+      ["E_LOCATION_UNAVAILABLE", "unavailable"],
+      ["E_LOCATION_SETTINGS_UNSATISFIED", "unavailable"],
+    ] as const)("%s は %s になる", (code, expected) => {
+      expect(toLocationError({ code }).code).toBe(expected);
+    });
   });
 
   it("未知の code は unknown になる", () => {

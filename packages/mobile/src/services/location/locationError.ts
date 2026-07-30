@@ -21,11 +21,53 @@ export function isLocationError(error: unknown): error is LocationError {
   );
 }
 
-/** expo-location のエラーコード → LocationErrorCode。 */
-const PERMISSION_DENIED_CODES = new Set(["E_NO_PERMISSIONS", "ERR_NO_PERMISSIONS"]);
-const SERVICES_DISABLED_CODES = new Set(["E_LOCATION_SERVICES_DISABLED"]);
+/**
+ * expo-location のエラーコード → LocationErrorCode。
+ *
+ * expo-location は Expo Modules API の `CodedException` を使っており、コードは**例外クラス名から
+ * 自動導出**される（`"ERR_" + クラス名から "Exception" を除いて UPPER_SNAKE` 化）。
+ * 例: `CurrentLocationIsUnavailableException` → `ERR_CURRENT_LOCATION_IS_UNAVAILABLE`。
+ * Android は `android/.../LocationExceptions.kt`、iOS は `ios/LocationExceptions.swift` が定義元。
+ *
+ * `E_` で始まるものは unimodules 時代の旧コード。現行版では飛んでこないが、
+ * 古い環境との互換のために残している。
+ */
+const PERMISSION_DENIED_CODES = new Set([
+  // Android
+  "ERR_LOCATION_UNAUTHORIZED",
+  "ERR_LOCATION_BACKGROUND_UNAUTHORIZED",
+  "ERR_NO_PERMISSION_IN_MANIFEST",
+  // iOS
+  "ERR_DENIED_FOREGROUND_LOCATION_PERMISSION",
+  "ERR_DENIED_BACKGROUND_LOCATION_PERMISSION",
+  // 旧コード
+  "E_NO_PERMISSIONS",
+  "ERR_NO_PERMISSIONS",
+]);
+const SERVICES_DISABLED_CODES = new Set([
+  // Android: 位置情報の端末設定が要件を満たしていない（位置情報オフ等）
+  "ERR_LOCATION_SETTINGS_UNSATISFIED",
+  // iOS
+  "ERR_LOCATION_SERVICES_DISABLED",
+  // 旧コード
+  "E_LOCATION_SERVICES_DISABLED",
+]);
 const TIMEOUT_CODES = new Set(["E_LOCATION_TIMEOUT"]);
-const UNAVAILABLE_CODES = new Set(["E_LOCATION_UNAVAILABLE", "E_LOCATION_SETTINGS_UNSATISFIED"]);
+const UNAVAILABLE_CODES = new Set([
+  // Android
+  "ERR_CURRENT_LOCATION_IS_UNAVAILABLE",
+  "ERR_LOCATION_UNAVAILABLE",
+  "ERR_LOCATION_UNKNOWN",
+  "ERR_LOCATION_REQUEST_REJECTED",
+  "ERR_LOCATION_REQUEST_CANCELLED",
+  "ERR_NO_PERMISSIONS_MODULE",
+  // iOS
+  "ERR_LOCATION_REQUEST_CANCELED",
+  "ERR_LOCATION_UPDATES_UNAVAILABLE",
+  // 旧コード
+  "E_LOCATION_UNAVAILABLE",
+  "E_LOCATION_SETTINGS_UNSATISFIED",
+]);
 
 /**
  * 任意の例外を LocationError へ正規化する（純粋。expo-location を import しない）。

@@ -1,5 +1,17 @@
 /** vitest(node環境) 用の expo-location 最小モック。実装は services/location の mock を使うこと。 */
-export const Accuracy = { Balanced: 3 } as const;
+export const Accuracy = {
+  Lowest: 1,
+  Low: 2,
+  Balanced: 3,
+  High: 4,
+  Highest: 5,
+  BestForNavigation: 6,
+} as const;
+
+export type LocationObject = {
+  coords: { latitude: number; longitude: number };
+  timestamp: number;
+};
 
 export async function getForegroundPermissionsAsync() {
   return { status: "granted", canAskAgain: true };
