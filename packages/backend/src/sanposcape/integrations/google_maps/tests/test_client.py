@@ -85,3 +85,75 @@ def test_upstream_errors_are_sanitized(status, exception) -> None:
     provider = _provider(lambda request: httpx.Response(status, json={"sensitive": "not exposed"}))
     with pytest.raises(exception):
         provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+
+def test_upstream_error_is_logged_with_status_and_reason(caplog) -> None:
+    """403 の原因（APIキーの制限違反・API未有効化等）はサーバーログから追えること。
+
+    クライアントには 503 しか返さないため、ここを記録しないと原因究明の手段が無くなる。
+    実際に SS-15 の動作確認で、mobile 用の Android 制限付きキーを backend に設定してしまい
+    503 だけが出続けて原因が分からない、という事象が起きた。
+    """
+    provider = _provider(
+        lambda request: httpx.Response(
+            403,
+            json={
+                "error": {
+                    "code": 403,
+                    "message": "Requests from this Android client application <empty> are blocked.",
+                    "status": "PERMISSION_DENIED",
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                            "reason": "API_KEY_ANDROID_APP_BLOCKED",
+                        }
+                    ],
+                }
+            },
+        )
+    )
+    with caplog.at_level("WARNING"), pytest.raises(GoogleMapsUnavailableError):
+        provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+    record = caplog.text
+    assert "HTTP 403" in record
+    assert "PERMISSION_DENIED" in record
+    assert "API_KEY_ANDROID_APP_BLOCKED" in record
+    assert "places:searchNearby" in record
+
+
+def test_error_log_never_contains_the_api_key(caplog) -> None:
+    """Google の文言にキーが含まれていてもログには出さない。"""
+    provider = _provider(
+        lambda request: httpx.Response(
+            400,
+            json={"error": {"status": "INVALID_ARGUMENT", "message": "API key server-key invalid"}},
+        )
+    )
+    with caplog.at_level("WARNING"), pytest.raises(GoogleMapsUnavailableError):
+        provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+    assert "server-key" not in caplog.text
+    assert "***" in caplog.text
+
+
+def test_non_json_error_body_still_logs_status_without_raising(caplog) -> None:
+    """本文が JSON でなくてもログ処理自体が落ちないこと。"""
+    provider = _provider(lambda request: httpx.Response(502, text="<html>Bad Gateway</html>"))
+    with caplog.at_level("WARNING"), pytest.raises(GoogleMapsUnavailableError):
+        provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+    assert "HTTP 502" in caplog.text
+
+
+def test_transport_failure_is_logged(caplog) -> None:
+    """接続不可・タイムアウトもログに残ること（コンテナから外部に出られない等の切り分け用）。"""
+
+    def handler(request):
+        raise httpx.ConnectError("connection refused")
+
+    provider = _provider(handler)
+    with caplog.at_level("WARNING"), pytest.raises(GoogleMapsUnavailableError):
+        provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+    assert "ConnectError" in caplog.text
