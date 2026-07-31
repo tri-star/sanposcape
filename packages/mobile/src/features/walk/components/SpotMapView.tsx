@@ -5,7 +5,8 @@ import MapView, { Marker } from "react-native-maps";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { WalkRoutePolyline } from "@/features/walk/components/WalkRoutePolyline";
 import { CATEGORY_META } from "@/features/walk/data/categories";
-import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
+import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
+import { regionForRoundTrip } from "@/features/walk/lib/mapRegion";
 import type { SpotCandidate, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -52,17 +53,14 @@ export function SpotMapView({
 
   useEffect(() => {
     // ルート表示中は往復半径での再センタリングをしない（線が画面外に出るのを防ぐ）。
+    // この抑止は WalkRouteMapView には無い SpotMapView 固有の挙動のため、共通 hook には含めない。
     if (walkRoute) return;
     if (!origin) return;
     mapRef.current?.animateToRegion(regionForRoundTrip(origin, durationMin), RECENTER_ANIMATION_MS);
   }, [origin, durationMin, walkRoute]);
 
-  // 依存は walkRoute.destination.placeId のみ（ルートが変わった時だけフィットし直す）。
-  useEffect(() => {
-    if (!walkRoute) return;
-    mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), RECENTER_ANIMATION_MS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく placeId の変化だけを見る
-  }, [walkRoute?.destination.placeId]);
+  // ルートが届いたときの bounds フィット（`WalkRouteMapView` と共通の hook）。
+  useMapRouteFit(mapRef, walkRoute, RECENTER_ANIMATION_MS);
 
   if (!origin || !initialRegion) {
     return (

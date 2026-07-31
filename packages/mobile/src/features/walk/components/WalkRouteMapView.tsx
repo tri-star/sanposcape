@@ -5,6 +5,7 @@ import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { WalkRoutePolyline } from "@/features/walk/components/WalkRoutePolyline";
+import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
 import type { WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
@@ -58,12 +59,8 @@ export function WalkRouteMapView({
       ? regionForRoundTrip(currentPosition, FALLBACK_DURATION_MIN)
       : null;
 
-  // ルートが後から届いたときの初回フィット。
-  useEffect(() => {
-    if (!walkRoute) return;
-    mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), ROUTE_FIT_ANIMATION_MS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく placeId の変化だけを見る
-  }, [walkRoute?.destination.placeId]);
+  // ルートが後から届いたときの初回フィット（`SpotMapView` と共通の hook）。
+  useMapRouteFit(mapRef, walkRoute, ROUTE_FIT_ANIMATION_MS);
 
   // 現在地への再センタリング（初回の 0 は除く）。
   useEffect(() => {
