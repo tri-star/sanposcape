@@ -32,6 +32,7 @@ packages/mobile/
 │   │       ├── lib/           #     判定・整形などの純粋関数（react-native非依存＝Vitestでテスト）
 │   │       ├── data/          #     静的データ（ダミーデータ・定数）
 │   │       ├── api/           #     その機能のAPI呼び出しラッパ
+│   │       ├── store/         #     その機能に閉じたZustandストア（横断化したらsrc/store/へ昇格）
 │   │       └── types.ts
 │   │
 │   ├── services/            # スタブ差し替えの層（認証・実機依存機能）
@@ -82,7 +83,7 @@ packages/mobile/
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
-- 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `types` をこの配下に凝集させる。
+- 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `store` / `types` をこの配下に凝集させる。
 - **`hooks/` は RN 依存の副作用・状態**（`useState`/`useEffect`/`setInterval` など）を持つ層。
   Vitest は `react-native` を最小スタブに差し替えた node 環境のためコンポーネント同様に
   レンダリング/フックのテストはできない（詳細は [pages-components-guideline](./pages-components-guideline.md)）。
@@ -94,6 +95,11 @@ packages/mobile/
     View から `data/` を直接 import しない。差し替え時の影響範囲を hook に閉じるため。
   - router params 欠落時のフォールバック定数や、画面カタログ等の開発用途で使う代表値のように、
     実データ化の見込みが薄い値は View からの直接 import を許容する。
+- **`store/`** はその機能に閉じたクライアント状態（Zustand）。**サーバー由来のデータは置かない**
+  （TanStack Query が保持する。二重管理を避けるため）。
+  2つ以上の機能から参照されるようになったら `src/store/` へ昇格させる（コンポーネントの昇格ルールと同じ判断基準）。
+  - 実例: `features/walk/store/useActiveWalkStore.ts`（進行中の散歩。永続化はせず、保存は M5 の責務）。
+    判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
@@ -141,7 +147,9 @@ packages/mobile/
 
 - **サーバー状態（API由来）= TanStack Query**。取得・キャッシュ・再検証はすべて Query に任せ、`src/store/` に複製しない。
   - ドメインのデータ取得hookは `src/features/<feature>/hooks/`（例: `useWalkHistory`）に置き、内部で Orval生成物 + TanStack Query を使う。
-- **クライアント状態（UI・一時状態）= Zustand**。横断的なものだけ `src/store/`、機能限定のものは `src/features/<feature>/` 内に閉じる。
+- **クライアント状態（UI・一時状態）= Zustand**。横断的なものだけ `src/store/`、機能限定のものは `src/features/<feature>/store/` に置く。
+  - ただし**1画面に閉じる一時状態は store にせず `hooks/` の `useState` に留める**（例: `useWalkPlan` の往復時間・カテゴリ・選択スポット）。
+    画面をまたいで保持する必要が出た時点で store 化する（例: `useActiveWalkStore` — 散歩開始画面と散歩中画面をまたぐため）。
 - **認証・位置情報などの実機依存**は状態管理ではなく `src/services/` のスタブ差し替え層で扱う。
 
 ## パスエイリアス

@@ -29,7 +29,8 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 ## 決定
 
 - `src/services/location/` を新設し、`LocationService` インターフェース（`getPermissionStatus` /
-  `requestPermission` / `getCurrentPosition`）を定義する。呼び出し側はこのインターフェースのみを参照する。
+  `requestPermission` / `getCurrentPosition`。**SS-16 で `watchPosition` を追加**。下記「移行・対応が必要な事項」参照）
+  を定義する。呼び出し側はこのインターフェースのみを参照する。
 - 座標は**自前の `GeoCoordinates`**（`{ latitude, longitude }`）で表現し、`expo-location` /
   `react-native-maps` のどちらの型にも依存しない。地図の表示領域も `lib/mapRegion.ts` に
   構造的互換な `MapRegion` を自前定義し、`react-native-maps` を値 import しない純粋関数として扱う。
