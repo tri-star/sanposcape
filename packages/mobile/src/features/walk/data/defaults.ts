@@ -1,11 +1,14 @@
 import type { ActiveWalk } from "@/features/walk/types";
 
-/** 散歩中画面が router params 欠落時に使う既定ゴール。 */
+/** 画面カタログ（`ScreenCatalog`）から散歩中画面を単独表示するときに使う代表的なゴール。 */
 export type WalkGoalFallback = { name: string; time: number; dist: number };
 
 /**
- * router params 欠落時に散歩中画面が使う既定ゴール（mock の川辺駅相当）。
- * 実データ化の見込みが薄いフォールバック定数のため、View（WalkActiveView/ScreenCatalog）
+ * 画面カタログから散歩中画面を単独表示するときに使う代表的なゴール（mock の川辺駅相当）。
+ * SS-16 以降 `WalkActiveView` は router params ではなく `useActiveWalkStore` を参照するため、
+ * この値は `ScreenCatalog` が `startWalk()` に渡す「代表値」としてのみ使われる
+ * （router params 欠落時のフォールバックではない）。
+ * 実データ化の見込みが薄いフォールバック定数のため、View（ScreenCatalog）
  * からの直接 import を許容する（`docs/folder-structure.md` の `data/` 参照規律を参照）。
  */
 export const DEFAULT_WALK_GOAL: WalkGoalFallback = {

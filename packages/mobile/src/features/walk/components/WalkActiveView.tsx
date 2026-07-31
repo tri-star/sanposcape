@@ -77,6 +77,14 @@ export function WalkActiveView() {
           <Image source={walkerImage} resizeMode="cover" style={styles.illustration} />
         )}
         <View style={styles.headerText}>
+          {/*
+            ヘッダーの「往復の目安」（activeWalk.roundTripMinutes/roundTripKm）は散歩開始時点の
+            探索結果スナップショット（/explore/places 由来）で、`ActiveWalk` はサーバーデータの
+            コピーを持たない設計上、散歩中に再取得はしない。直下の「片道」は walkRoute
+            （/explore/routes/walking の実ルート値）から都度計算しているため、算出元の異なる
+            2つの「往復」相当の数値が近いが一致しない場面がありうる（`SpotCard`/`WalkRouteSummary`
+            と同じ理由。プランが明示的に選んだ設計でありバグではない）。
+          */}
           <Text style={styles.eyebrow}>往復の目安</Text>
           <View style={styles.headerValueRow}>
             <Text style={styles.headerValue}>{activeWalk.roundTripMinutes}</Text>

@@ -52,6 +52,13 @@ export function useWalkTracking(input: {
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
+  // `paused` は依存配列に含めない（＝一時停止しても watchPosition の購読は解除しない）。
+  // これは意図した挙動: 一時停止中も現在地マーカーは更新し続けたいため（地図上で自分の位置が
+  // 止まって見えると「アプリが固まった」と誤解されやすい）、購読自体は維持し、
+  // `pausedRef` で距離加算・軌跡への追加だけを止める。トレードオフとして、一時停止中も
+  // GPS 受信（バッテリー消費）は止まらない。「一時停止＝GPS取得も止める」設計にする場合は
+  // ここで `subscription.remove()` して `paused` を依存に加える必要があるが、SS-16 では
+  // 現在地表示の継続を優先しこの形にしている。
   useEffect(() => {
     setErrorCode(null);
     if (!enabled) return;
