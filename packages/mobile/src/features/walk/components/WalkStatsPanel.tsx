@@ -49,7 +49,12 @@ export function WalkStatsPanel({
 
       <View style={styles.statRow}>
         <StatBlock size="sm" value={formatClock(elapsedSec)} label="経過時間" />
-        <StatBlock size="sm" value={(distanceMeters / 1000).toFixed(1)} unit="km" label="歩行距離" />
+        <StatBlock
+          size="sm"
+          value={(distanceMeters / 1000).toFixed(1)}
+          unit="km"
+          label="歩行距離"
+        />
         <StatBlock size="sm" value={steps.toLocaleString()} unit="歩" label="歩数" />
       </View>
 

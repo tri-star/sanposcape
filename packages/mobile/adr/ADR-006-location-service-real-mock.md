@@ -99,6 +99,9 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   E2E の APK キャッシュも1回はミスする）。
 - 散歩中の位置トラッキング（`watchPositionAsync` 相当）は SS-16 以降で `LocationService` に
   メソッドを追加する形で拡張する。`mock` 側は連続した座標列を返す実装になる想定。
+- （SS-16 で対応）`LocationService.watchPosition(listener, options)` を追加。`real` は
+  `Location.watchPositionAsync`、`mock` は `MOCK_TRACK` を一定間隔で通知するスクリプト実装。
+  バックグラウンド測位は引き続き対象外。
 
 ## 関連情報
 

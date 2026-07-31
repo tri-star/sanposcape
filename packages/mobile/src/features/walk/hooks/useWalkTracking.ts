@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-import { INITIAL_WALK_TRACK, appendWalkTrackPoint, resumeWalkTrack } from "@/features/walk/lib/walkTrack";
+import {
+  INITIAL_WALK_TRACK,
+  appendWalkTrackPoint,
+  resumeWalkTrack,
+} from "@/features/walk/lib/walkTrack";
 import type { WalkTrackState } from "@/features/walk/lib/walkTrack";
 import type { WalkTrackingStatus } from "@/features/walk/lib/walkTrackingStatus";
 import { locationService } from "@/services/location";

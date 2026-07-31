@@ -106,6 +106,7 @@ export function WalkRouteMapView({
           <Marker
             coordinate={walkRoute.destination.location}
             identifier="goal"
+            title={destinationName}
             anchor={{ x: 0.5, y: 1 }}
             tracksViewChanges={false}
             testID="walk-active-goal-marker"

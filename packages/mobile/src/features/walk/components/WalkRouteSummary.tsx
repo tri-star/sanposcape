@@ -45,12 +45,7 @@ export function WalkRouteSummary({
         <Icon name="alert-circle" size={18} color={theme.colors.danger} />
         <Text style={styles.errorText}>{walkRouteErrorMessage(errorCode)}</Text>
         {isRetriableExploreError(errorCode) ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={onRetry}
-            testID="walk-start-route-retry"
-          >
+          <Button variant="secondary" size="sm" onPress={onRetry} testID="walk-start-route-retry">
             再試行
           </Button>
         ) : null}

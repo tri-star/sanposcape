@@ -11,8 +11,9 @@ const BADGES: Record<WalkTrackingStatus, { label: string; tone: WalkTrackingBadg
 };
 
 /** トラッキング状態 → バッジ表示への写像。`WalkStatsPanel` の見た目テストが書けない分、判定だけでも守る。 */
-export function walkTrackingBadge(
-  status: WalkTrackingStatus,
-): { label: string; tone: WalkTrackingBadgeTone } {
+export function walkTrackingBadge(status: WalkTrackingStatus): {
+  label: string;
+  tone: WalkTrackingBadgeTone;
+} {
   return BADGES[status];
 }

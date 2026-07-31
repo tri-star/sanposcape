@@ -1,3 +1,5 @@
+import type { ActiveWalk } from "@/features/walk/types";
+
 /** 散歩中画面が router params 欠落時に使う既定ゴール。 */
 export type WalkGoalFallback = { name: string; time: number; dist: number };
 
@@ -11,6 +13,23 @@ export const DEFAULT_WALK_GOAL: WalkGoalFallback = {
   time: 60, // 往復の目安（分）
   dist: 4.0, // 往復の目安距離（km）
 };
+
+/**
+ * 画面カタログから散歩中画面を単独表示するときに store へ入れる代表値。
+ * origin は東京駅（services/location の mock 現在地と同じ）、destination は北西約 900m の地点。
+ * 実データ化の見込みが薄い開発用フォールバックのため、View からの直接 import を許容する。
+ * startedAtMs は開くたびに Date.now() を入れるためここには持たない。
+ */
+export const DEFAULT_ACTIVE_WALK = {
+  origin: { latitude: 35.681236, longitude: 139.767125 },
+  destination: {
+    placeId: "stub-default-goal",
+    name: DEFAULT_WALK_GOAL.name,
+    location: { latitude: 35.6875, longitude: 139.7625 },
+  },
+  roundTripMinutes: DEFAULT_WALK_GOAL.time,
+  roundTripKm: DEFAULT_WALK_GOAL.dist,
+} as const satisfies Omit<ActiveWalk, "startedAtMs">;
 
 /**
  * サマリ画面を単独表示（画面カタログ等）した時の代表的なスタブ結果。
