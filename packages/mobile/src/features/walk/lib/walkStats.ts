@@ -6,20 +6,11 @@ export function estimateRoundTripKm(durationMin: number): number {
   return Math.round(durationMin * 0.066 * 10) / 10;
 }
 
-/** 散歩中の経過秒から距離(km)・歩数を見積もった結果。 */
-export type WalkStats = {
-  /** 小数1桁に丸めた距離(km)。 */
-  km: number;
-  /** 四捨五入した歩数。 */
-  steps: number;
-};
+/** 1km あたりの歩数（歩幅 69cm 相当）。 */
+export const STEPS_PER_KILOMETER = 1450;
 
-/**
- * 経過秒から距離(km)・歩数を見積もる純粋関数（mock の `km` / `steps`）。
- * `km = elapsedSec / 720`、`steps = round(elapsedSec / 720 * 1450)`。
- */
-export function walkStatsFromElapsed(elapsedSec: number): WalkStats {
-  const km = Math.round((elapsedSec / 720) * 10) / 10;
-  const steps = Math.round((elapsedSec / 720) * 1450);
-  return { km, steps };
+/** 実測の移動距離(m)から歩数を見積もる純粋関数（歩数計は非スコープ）。 */
+export function estimateStepsFromMeters(meters: number): number {
+  const safeMeters = Number.isFinite(meters) && meters >= 0 ? meters : 0;
+  return Math.round((safeMeters / 1000) * STEPS_PER_KILOMETER);
 }

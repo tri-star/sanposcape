@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { radiusMetersForRoundTrip, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
+import {
+  radiusMetersForRoundTrip,
+  regionForBounds,
+  regionForRoundTrip,
+} from "@/features/walk/lib/mapRegion";
+import type { WalkRouteBounds } from "@/features/walk/types";
 
 /** mapRegion.ts の内部下限（MIN_DELTA）と同じ値。公開APIではないため直値で持つ。 */
 const MIN_DELTA = 0.004;
@@ -43,5 +48,44 @@ describe("regionForRoundTrip", () => {
     const region = regionForRoundTrip(center, 10);
     expect(region.latitudeDelta).toBeGreaterThanOrEqual(MIN_DELTA);
     expect(region.longitudeDelta).toBeGreaterThanOrEqual(MIN_DELTA);
+  });
+});
+
+describe("regionForBounds", () => {
+  const bounds: WalkRouteBounds = {
+    northEast: { latitude: 35.6875, longitude: 139.7671 },
+    southWest: { latitude: 35.6812, longitude: 139.7625 },
+  };
+
+  it("中心が bounds の中点になる", () => {
+    const region = regionForBounds(bounds);
+    expect(region.latitude).toBeCloseTo((35.6875 + 35.6812) / 2);
+    expect(region.longitude).toBeCloseTo((139.7671 + 139.7625) / 2);
+  });
+
+  it("span が大きいほど delta が大きい", () => {
+    const small = regionForBounds(bounds);
+    const large = regionForBounds({
+      northEast: { latitude: 35.72, longitude: 139.8 },
+      southWest: { latitude: 35.6812, longitude: 139.7625 },
+    });
+    expect(large.latitudeDelta).toBeGreaterThan(small.latitudeDelta);
+    expect(large.longitudeDelta).toBeGreaterThan(small.longitudeDelta);
+  });
+
+  it("1点に潰れた bounds でも MIN_DELTA を下回らない", () => {
+    const point = { latitude: 35.6812, longitude: 139.7671 };
+    const region = regionForBounds({ northEast: point, southWest: point });
+    expect(region.latitudeDelta).toBe(MIN_DELTA);
+    expect(region.longitudeDelta).toBe(MIN_DELTA);
+  });
+
+  it("bounds が反転していても正の delta になる", () => {
+    const region = regionForBounds({
+      northEast: { latitude: 35.6812, longitude: 139.7625 },
+      southWest: { latitude: 35.6875, longitude: 139.7671 },
+    });
+    expect(region.latitudeDelta).toBeGreaterThan(0);
+    expect(region.longitudeDelta).toBeGreaterThan(0);
   });
 });

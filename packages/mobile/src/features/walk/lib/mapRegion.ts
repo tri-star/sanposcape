@@ -1,3 +1,4 @@
+import type { WalkRouteBounds } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** react-native-maps の Region と構造的に互換な型（ライブラリを import しないための自前定義）。 */
@@ -49,4 +50,30 @@ export function regionForRoundTrip(center: GeoCoordinates, durationMin: number):
     latitudeDelta,
     longitudeDelta,
   };
+}
+
+/** bounds に対して持たせる余白係数（ルート全体を少し引いて表示する）。 */
+const BOUNDS_PADDING_FACTOR = 1.35;
+
+/**
+ * ルートの bounds から地図の表示領域を求める。
+ * delta は既存の MIN_DELTA で下限クランプする（1点に潰れた bounds でも壊れないように）。
+ * 日付変更線をまたぐケースは対象外（日本国内前提）。
+ */
+export function regionForBounds(bounds: WalkRouteBounds): MapRegion {
+  const { northEast, southWest } = bounds;
+
+  const latitude = (northEast.latitude + southWest.latitude) / 2;
+  const longitude = (northEast.longitude + southWest.longitude) / 2;
+
+  const latitudeDelta = Math.max(
+    MIN_DELTA,
+    Math.abs(northEast.latitude - southWest.latitude) * BOUNDS_PADDING_FACTOR,
+  );
+  const longitudeDelta = Math.max(
+    MIN_DELTA,
+    Math.abs(northEast.longitude - southWest.longitude) * BOUNDS_PADDING_FACTOR,
+  );
+
+  return { latitude, longitude, latitudeDelta, longitudeDelta };
 }
