@@ -5,3 +5,5 @@
 - [mock .dc.html as review evidence](mock-dc-html-as-review-evidence.md) — スタブ値の食い違いを見つけたら docs/mock/*.dc.html をgrepし、元mock仕様由来か新規バグかを判定してから指摘する。
 - [no-bash-tool review approach](no-bash-tool-review-approach.md) — Bash無しセッションではgit diffが取れない。実装プランのファイル一覧をGlob+Readで突き合わせ最終状態レビューに切替える。
 - [auth cleanup asymmetric error swallow](auth-cleanup-asymmetric-error-swallow.md) — signOut等のクリーンアップで一部の失敗だけtry/catchし残りが無防備というasymmetryは頻出。横並びで機械チェックする。
+- [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(往復)とroutes/walking(片道)を型・関数名で区別。「往復の目安」は出典が複数ある点に注意。
+- [reused component static testID risk](reused-component-static-testid-risk.md) — 内部要素が固定testIDの共有コンポーネントを複数画面から使うと同時マウント時に重複し得る（LocationPermissionNoticeで発見）。
