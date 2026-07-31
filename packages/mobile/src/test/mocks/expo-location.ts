@@ -28,3 +28,14 @@ export async function getLastKnownPositionAsync() {
 export async function getCurrentPositionAsync() {
   return { coords: { latitude: 35.681236, longitude: 139.767125 }, timestamp: 0 };
 }
+
+/**
+ * `location.real.ts` が vitest 上で import されても壊れないようにするためだけのスタブ。
+ * 実際の通知を再現したテストは `createMockLocationService()` を使うこと（ADR-006 の規律）。
+ */
+export async function watchPositionAsync(
+  _options: unknown,
+  _callback: (position: LocationObject) => void,
+) {
+  return { remove() {} };
+}
