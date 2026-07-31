@@ -4,14 +4,18 @@ import { Badge } from "@/components/ui/badge/Badge";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { StatBlock } from "@/components/ui/stat-block/StatBlock";
+import type { WalkTrackingStatus } from "@/features/walk/lib/walkTrackingStatus";
+import { walkTrackingBadge } from "@/features/walk/lib/walkTrackingStatus";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type WalkStatsPanelProps = {
   elapsedSec: number;
-  distKm: number;
+  /** 実測の移動距離（m）。 */
+  distanceMeters: number;
   steps: number;
   paused: boolean;
+  trackingStatus: WalkTrackingStatus;
   onTogglePause: () => void;
   onEnd: () => void;
   onAddPin: () => void;
@@ -23,14 +27,16 @@ export type WalkStatsPanelProps = {
  */
 export function WalkStatsPanel({
   elapsedSec,
-  distKm,
+  distanceMeters,
   steps,
   paused,
+  trackingStatus,
   onTogglePause,
   onEnd,
   onAddPin,
 }: WalkStatsPanelProps) {
   const styles = useStyles();
+  const gps = walkTrackingBadge(trackingStatus);
 
   return (
     <Card style={styles.root} testID="walk-stats-panel">
@@ -38,12 +44,12 @@ export function WalkStatsPanel({
         <Badge tone={paused ? "warning" : "info"} dot>
           {paused ? "一時停止中" : "ナビゲーション中"}
         </Badge>
-        <Badge tone="success">GPS良好</Badge>
+        <Badge tone={gps.tone}>{gps.label}</Badge>
       </View>
 
       <View style={styles.statRow}>
         <StatBlock size="sm" value={formatClock(elapsedSec)} label="経過時間" />
-        <StatBlock size="sm" value={distKm.toFixed(1)} unit="km" label="歩行距離" />
+        <StatBlock size="sm" value={(distanceMeters / 1000).toFixed(1)} unit="km" label="歩行距離" />
         <StatBlock size="sm" value={steps.toLocaleString()} unit="歩" label="歩数" />
       </View>
 

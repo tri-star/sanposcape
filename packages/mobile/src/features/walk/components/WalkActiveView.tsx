@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,19 +9,23 @@ import { Dialog } from "@/components/ui/dialog/Dialog";
 import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
-import { MapCanvas } from "@/features/walk/components/MapCanvas";
+import { LocationPermissionNotice } from "@/features/walk/components/LocationPermissionNotice";
+import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
+import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
-import { DEFAULT_WALK_GOAL } from "@/features/walk/data/defaults";
-import { useWalkSession } from "@/features/walk/hooks/useWalkSession";
-import { walkStatsFromElapsed } from "@/features/walk/lib/walkStats";
+import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
+import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
+import { toKilometers, toOneWayMinutes } from "@/features/walk/lib/walkRoute";
+import { walkRouteErrorMessage } from "@/features/walk/lib/walkRouteError";
 import { useToast } from "@/hooks/useToast";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 /**
- * 散歩中（ナビタブ）画面。mock `isMain` を1:1で再現する。
- * 目的地情報は walk-start から router params で受け取る。
+ * 散歩中（ナビタブ）画面。
+ * 進行中の散歩が無ければ `WalkIdleNotice` を出し、あれば実地図・実位置トラッキング・
+ * 実時刻ベースの経過時間を `useActiveWalk` から受けて表示する。
  */
 export function WalkActiveView() {
   const theme = useTheme();
@@ -29,33 +33,38 @@ export function WalkActiveView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
-  const session = useWalkSession();
+  const walk = useActiveWalk();
   const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const [recenterNonce, setRecenterNonce] = useState(0);
 
-  const params = useLocalSearchParams<{
-    goalName?: string;
-    goalTimeMin?: string;
-    goalDistKm?: string;
-  }>();
-  const goalName = params.goalName ?? DEFAULT_WALK_GOAL.name;
-  const goalTimeMin = params.goalTimeMin ?? String(DEFAULT_WALK_GOAL.time);
-  const goalDistKm = params.goalDistKm ?? DEFAULT_WALK_GOAL.dist.toFixed(1);
-
-  const stats = walkStatsFromElapsed(session.elapsedSec);
   const isDark = theme.name === "dark";
 
   const handleConfirmEnd = () => {
     setEndDialogOpen(false);
-    router.push({
-      pathname: "/walk-summary",
-      params: {
-        elapsedSec: String(session.elapsedSec),
-        distKm: stats.km.toFixed(1),
-        steps: String(stats.steps),
-        goalName,
-      },
-    });
+    const goalName = walk.activeWalk?.destination.name ?? "";
+    const params = {
+      elapsedSec: String(walk.elapsedSec),
+      distKm: (walk.distanceMeters / 1000).toFixed(1),
+      steps: String(walk.steps),
+      goalName,
+    };
+    // store をクリアしてからナビゲーションする（先にナビゲーションすると
+    // ナビタブが一瞬 idle 表示になる前に画面が離れるのを避けるため）。
+    walk.finishWalk();
+    router.push({ pathname: "/walk-summary", params });
   };
+
+  if (walk.activeWalk === null) {
+    return (
+      <View testID="walk-active-screen" style={styles.root}>
+        <WalkIdleNotice onStart={() => router.replace("/walk-start")} />
+      </View>
+    );
+  }
+
+  const { activeWalk } = walk;
+  const oneWayMinutes = walk.walkRoute ? toOneWayMinutes(walk.walkRoute.durationSeconds) : null;
+  const oneWayKm = walk.walkRoute ? toKilometers(walk.walkRoute.distanceMeters) : null;
 
   return (
     <View testID="walk-active-screen" style={styles.root}>
@@ -70,10 +79,15 @@ export function WalkActiveView() {
         <View style={styles.headerText}>
           <Text style={styles.eyebrow}>往復の目安</Text>
           <View style={styles.headerValueRow}>
-            <Text style={styles.headerValue}>{goalTimeMin}</Text>
-            <Text style={styles.headerUnit}>分（約{goalDistKm}km）</Text>
+            <Text style={styles.headerValue}>{activeWalk.roundTripMinutes}</Text>
+            <Text style={styles.headerUnit}>分（約{activeWalk.roundTripKm.toFixed(1)}km）</Text>
           </View>
-          <Text style={styles.goalName}>ゴール：{goalName}</Text>
+          <Text style={styles.goalName}>ゴール：{activeWalk.destination.name}</Text>
+          {oneWayMinutes !== null && oneWayKm !== null ? (
+            <Text style={styles.oneWay}>
+              片道 {oneWayMinutes}分・{oneWayKm}km
+            </Text>
+          ) : null}
         </View>
         <IconButton
           icon="settings-2"
@@ -83,10 +97,13 @@ export function WalkActiveView() {
         />
       </View>
 
-      <MapCanvas
+      <WalkRouteMapView
+        walkRoute={walk.walkRoute}
+        currentPosition={walk.currentPosition}
+        destinationName={activeWalk.destination.name}
+        recenterNonce={recenterNonce}
         height={322}
         testID="walk-active-map"
-        pins={[{ id: "goal", category: "goal", icon: "flag", label: goalName, x: 64, y: 90 }]}
       >
         <View style={styles.mapTools}>
           <IconButton
@@ -94,18 +111,47 @@ export function WalkActiveView() {
             label="現在地"
             variant="surface"
             size="sm"
-            onPress={() => toast.show("準備中の機能です")}
+            testID="walk-active-recenter"
+            onPress={() => setRecenterNonce((n) => n + 1)}
           />
         </View>
-      </MapCanvas>
+      </WalkRouteMapView>
+
+      {walk.walkRouteErrorCode !== null ? (
+        <View style={styles.routeNotice}>
+          <Icon name="alert-circle" size={16} color={theme.colors.danger} />
+          <Text style={styles.routeNoticeText}>
+            {walkRouteErrorMessage(walk.walkRouteErrorCode)}
+          </Text>
+          {isRetriableExploreError(walk.walkRouteErrorCode) ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={walk.retryWalkRoute}
+              testID="walk-active-route-retry"
+            >
+              再試行
+            </Button>
+          ) : null}
+        </View>
+      ) : null}
+
+      {walk.trackingErrorCode !== null ? (
+        <LocationPermissionNotice
+          errorCode={walk.trackingErrorCode}
+          onRetry={walk.retryTracking}
+          testID="walk-active-location-notice"
+        />
+      ) : null}
 
       <View style={styles.statsWrap}>
         <WalkStatsPanel
-          elapsedSec={session.elapsedSec}
-          distKm={stats.km}
-          steps={stats.steps}
-          paused={session.paused}
-          onTogglePause={session.togglePause}
+          elapsedSec={walk.elapsedSec}
+          distanceMeters={walk.distanceMeters}
+          steps={walk.steps}
+          paused={walk.paused}
+          trackingStatus={walk.trackingStatus}
+          onTogglePause={walk.togglePause}
           onEnd={() => setEndDialogOpen(true)}
           onAddPin={() => toast.show("準備中の機能です")}
         />
@@ -133,7 +179,7 @@ export function WalkActiveView() {
         }
       >
         <Text style={styles.dialogBody}>
-          経過時間 {formatClock(session.elapsedSec)} を今日の記録に保存します。
+          経過時間 {formatClock(walk.elapsedSec)} を今日の記録に保存します。
         </Text>
       </Dialog>
 
@@ -194,11 +240,31 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: theme.typography.weight.bold,
     color: theme.colors.textPrimary,
   },
+  oneWay: {
+    marginTop: 1,
+    fontSize: theme.typography.size["2xs"],
+    color: theme.colors.textTertiary,
+  },
   mapTools: {
     position: "absolute",
     right: theme.spacing[3],
     top: theme.spacing[3],
     gap: theme.spacing[2],
+  },
+  routeNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    marginHorizontal: theme.spacing[3],
+    marginTop: theme.spacing[2],
+    padding: theme.spacing[3],
+    backgroundColor: theme.colors.dangerTint,
+    borderRadius: theme.radius.md,
+  },
+  routeNoticeText: {
+    flex: 1,
+    fontSize: theme.typography.size.xs,
+    color: theme.colors.textPrimary,
   },
   statsWrap: {
     margin: theme.spacing[3],
