@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { fetchWalkRoute } from "@/features/walk/api/walkRouteApi";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
@@ -34,7 +34,13 @@ export function useWalkRoute(input: {
   origin: GeoCoordinates | null;
   destination: WalkDestination | null;
 }): UseWalkRouteResult {
-  const request = buildWalkingRouteRequest(input);
+  // queryKey は構造的ハッシュのため request の参照が毎回変わっても実害は無いが、
+  // 将来 queryFn 以外の場所で request の参照同一性に依存するコードが増えても壊れないよう
+  // useMemo で明示的に安定させておく（`input.origin`/`input.destination` が変わったときだけ作り直す）。
+  const request = useMemo(
+    () => buildWalkingRouteRequest({ origin: input.origin, destination: input.destination }),
+    [input.origin, input.destination],
+  );
 
   const query = useQuery({
     queryKey: ["explore", "routeWalking", request],
