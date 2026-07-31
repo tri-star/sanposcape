@@ -71,6 +71,113 @@ describe("toWalkRoute", () => {
     expect(result.durationSeconds).toBe(0);
     expect(result.distanceMeters).toBe(0);
   });
+
+  it("origin が NaN なら throw する（代替が立てられないため取得失敗として扱う）", () => {
+    expect(() =>
+      toWalkRoute({
+        ...RESPONSE,
+        origin: { latitude: Number.NaN, longitude: 139.7671 },
+      }),
+    ).toThrow();
+  });
+
+  it("origin が緯度範囲外（91度）なら throw する", () => {
+    expect(() =>
+      toWalkRoute({
+        ...RESPONSE,
+        origin: { latitude: 91, longitude: 139.7671 },
+      }),
+    ).toThrow();
+  });
+
+  it("destination.location が Infinity なら throw する", () => {
+    expect(() =>
+      toWalkRoute({
+        ...RESPONSE,
+        destination: {
+          ...RESPONSE.destination,
+          location: { latitude: 35.6875, longitude: Number.POSITIVE_INFINITY },
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("destination.location が経度範囲外（181度）なら throw する", () => {
+    expect(() =>
+      toWalkRoute({
+        ...RESPONSE,
+        destination: {
+          ...RESPONSE.destination,
+          location: { latitude: 35.6875, longitude: 181 },
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("path の異常点だけを除外する（正常点は維持する）", () => {
+    const result = toWalkRoute({
+      ...RESPONSE,
+      path: [
+        { latitude: 35.6812, longitude: 139.7671 },
+        { latitude: Number.NaN, longitude: 139.77 },
+        { latitude: 35.6875, longitude: 139.7625 },
+      ],
+    });
+    expect(result.path).toEqual([
+      { latitude: 35.6812, longitude: 139.7671 },
+      { latitude: 35.6875, longitude: 139.7625 },
+    ]);
+  });
+
+  it("除外の結果 path が2点未満になったら空配列にする（ルート線なし扱い）", () => {
+    const result = toWalkRoute({
+      ...RESPONSE,
+      path: [
+        { latitude: 35.6812, longitude: 139.7671 },
+        { latitude: Number.NaN, longitude: 139.77 },
+      ],
+    });
+    expect(result.path).toEqual([]);
+  });
+
+  it("path が空でも duration/distance/destination は変わらず返る", () => {
+    const result = toWalkRoute({
+      ...RESPONSE,
+      path: [{ latitude: Number.NaN, longitude: Number.NaN }],
+    });
+    expect(result.path).toEqual([]);
+    expect(result.durationSeconds).toBe(1200);
+    expect(result.distanceMeters).toBe(1600);
+    expect(result.destination.name).toBe("緑町公園");
+  });
+
+  it("bounds が不正なら、検証済みの座標群から矩形を計算し直す", () => {
+    const result = toWalkRoute({
+      ...RESPONSE,
+      bounds: {
+        north_east: { latitude: Number.NaN, longitude: 139.7671 },
+        south_west: { latitude: 35.6812, longitude: 139.7625 },
+      },
+    });
+    // origin(35.6812,139.7671) / destination(35.6875,139.7625) / path の2点から再計算される。
+    expect(result.bounds.northEast.latitude).toBe(35.6875);
+    expect(result.bounds.northEast.longitude).toBe(139.7671);
+    expect(result.bounds.southWest.latitude).toBe(35.6812);
+    expect(result.bounds.southWest.longitude).toBe(139.7625);
+    expect(Number.isFinite(result.bounds.northEast.latitude)).toBe(true);
+    expect(Number.isFinite(result.bounds.southWest.longitude)).toBe(true);
+  });
+
+  it("bounds の south_west が範囲外（経度-181度）でも矩形を計算し直す", () => {
+    const result = toWalkRoute({
+      ...RESPONSE,
+      bounds: {
+        north_east: { latitude: 35.6875, longitude: 139.7671 },
+        south_west: { latitude: 35.6812, longitude: -181 },
+      },
+    });
+    expect(Number.isFinite(result.bounds.southWest.longitude)).toBe(true);
+  });
 });
 
 describe("toOneWayMinutes", () => {

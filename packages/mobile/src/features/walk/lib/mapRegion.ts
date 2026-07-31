@@ -1,3 +1,4 @@
+import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
 import type { WalkRouteBounds } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
@@ -56,12 +57,28 @@ export function regionForRoundTrip(center: GeoCoordinates, durationMin: number):
 const BOUNDS_PADDING_FACTOR = 1.35;
 
 /**
+ * bounds が不正な場合に使うフォールバック領域（東京駅付近・往復20分相当の広さ）。
+ * `toWalkRoute()` 側で既に座標検証済みのため通常はここに来ないが、`regionForBounds` は
+ * 純粋関数として他からも呼ばれ得るため、二重の安全網として NaN の Region を返さないようにする。
+ */
+const FALLBACK_REGION: MapRegion = {
+  latitude: 35.681236,
+  longitude: 139.767125,
+  latitudeDelta: 0.02,
+  longitudeDelta: 0.02,
+};
+
+/**
  * ルートの bounds から地図の表示領域を求める。
  * delta は既存の MIN_DELTA で下限クランプする（1点に潰れた bounds でも壊れないように）。
  * 日付変更線をまたぐケースは対象外（日本国内前提）。
  */
 export function regionForBounds(bounds: WalkRouteBounds): MapRegion {
   const { northEast, southWest } = bounds;
+
+  if (!isValidCoordinate(northEast) || !isValidCoordinate(southWest)) {
+    return { ...FALLBACK_REGION };
+  }
 
   const latitude = (northEast.latitude + southWest.latitude) / 2;
   const longitude = (northEast.longitude + southWest.longitude) / 2;

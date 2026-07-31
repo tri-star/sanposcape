@@ -88,4 +88,37 @@ describe("regionForBounds", () => {
     expect(region.latitudeDelta).toBeGreaterThan(0);
     expect(region.longitudeDelta).toBeGreaterThan(0);
   });
+
+  it("north_east が NaN でも NaN の region を返さない（フォールバック領域になる）", () => {
+    const region = regionForBounds({
+      northEast: { latitude: Number.NaN, longitude: 139.7671 },
+      southWest: { latitude: 35.6812, longitude: 139.7625 },
+    });
+    expect(Number.isFinite(region.latitude)).toBe(true);
+    expect(Number.isFinite(region.longitude)).toBe(true);
+    expect(Number.isFinite(region.latitudeDelta)).toBe(true);
+    expect(Number.isFinite(region.longitudeDelta)).toBe(true);
+  });
+
+  it("south_west が範囲外（緯度-91度）でも NaN の region を返さない", () => {
+    const region = regionForBounds({
+      northEast: { latitude: 35.6875, longitude: 139.7671 },
+      southWest: { latitude: -91, longitude: 139.7625 },
+    });
+    expect(Number.isFinite(region.latitude)).toBe(true);
+    expect(Number.isFinite(region.longitude)).toBe(true);
+    expect(Number.isFinite(region.latitudeDelta)).toBe(true);
+    expect(Number.isFinite(region.longitudeDelta)).toBe(true);
+  });
+
+  it("Infinity の座標でも NaN の region を返さない", () => {
+    const region = regionForBounds({
+      northEast: { latitude: 35.6875, longitude: Number.POSITIVE_INFINITY },
+      southWest: { latitude: 35.6812, longitude: 139.7625 },
+    });
+    expect(Number.isFinite(region.latitude)).toBe(true);
+    expect(Number.isFinite(region.longitude)).toBe(true);
+    expect(Number.isFinite(region.latitudeDelta)).toBe(true);
+    expect(Number.isFinite(region.longitudeDelta)).toBe(true);
+  });
 });
