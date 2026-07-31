@@ -24,6 +24,8 @@ export type UseActiveWalkResult = {
 
   currentPosition: GeoCoordinates | null;
   distanceMeters: number;
+  /** 実際に歩いた軌跡（M5 の散歩記録保存で使う。SS-16 時点では表示・保存のどちらにも未使用）。 */
+  points: GeoCoordinates[];
   steps: number;
   trackingStatus: WalkTrackingStatus;
   trackingErrorCode: LocationErrorCode | null;
@@ -78,6 +80,7 @@ export function useActiveWalk(): UseActiveWalkResult {
 
     currentPosition: tracking.currentPosition,
     distanceMeters: tracking.distanceMeters,
+    points: tracking.points,
     steps,
     trackingStatus: tracking.status,
     trackingErrorCode: tracking.errorCode,
