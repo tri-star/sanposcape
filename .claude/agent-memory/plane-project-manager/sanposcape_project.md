@@ -132,3 +132,13 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - コメント（comment_id `999438e3-cc11-4f2c-ba39-96f7e33fe953`）で、SS-15にPR #14（branch: feat/ss-15-google-map）とPR #15の2つの独立した並行実装が存在すること、比較検討の上どちらか一方をクローズする必要があることを記録。
 - **Why**: ユーザー指示による並行実装比較のため、同一work itemに複数PRリンクを併存させる運用（ユーザー指示）。
 - **How to apply**: 今後SS-15を扱う際は、まず`list_work_item_links`でPR #14/#15双方の存在を確認してから作業すること。どちらかがクローズされた後は、残った方のPRリンクのみを残す/コメントで結果を追記する運用になる見込み。
+
+## 2026-08-01追加: SS-16をIn Progress→Review化・PR #16リンク登録
+
+- SS-16「mobile: スポット選択→散歩ルート提示→散歩開始・散歩中表示」(work_item_id: `0f60a14d-33d9-46f1-88c4-ea23991ba11f`、M4所属)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`list_work_item_properties`は空配列（変わらず）、`list_work_item_links`も0件だったため、`create_work_item_link`でPR #16（`https://github.com/tri-star/sanposcape/pull/16`、link_id: `413975ad-8ea9-4193-9612-a55a99d04abf`）を新規登録（コメントではなく標準Link機能を優先する既存方針を継続）。
+
+## 2026-08-01確認: 作成時の命名・Module 割り当て方針
+
+- WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。
+- M4/M5 などのマイルストーンは Plane の Module で表現する。MVP を直接ブロックしない課題（例: SS-33）は Module を未設定とすることがあり、設定漏れとは限らない。
+- 通常の SS 作業では既知の project/state ID を利用できるが、長期間隔が空いた場合や API が失敗した場合は、状態とプロジェクトを再取得して確認する。
