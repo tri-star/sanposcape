@@ -8,3 +8,7 @@
 - [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所／mockのonClick等をRN props(onPress)に読み替える
 - [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
 - [探索APIの制約](project_explore_api_constraints.md) — /explore/places の契約・コスト・呼び出し抑制ルール（M4）
+- [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
+- [探索 API 契約の非対称性](project-explore-api-contract.md) — places は往復、walking route は片道の値
+- [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro と Maps/Google キーの制約
+- [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSW 利用と純粋関数テストの方針

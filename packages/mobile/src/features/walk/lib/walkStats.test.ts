@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateRoundTripKm, walkStatsFromElapsed } from "@/features/walk/lib/walkStats";
+import { estimateRoundTripKm, estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
 
 describe("estimateRoundTripKm", () => {
   it("0分は0km", () => {
@@ -17,18 +17,17 @@ describe("estimateRoundTripKm", () => {
   });
 });
 
-describe("walkStatsFromElapsed", () => {
-  it("0秒は0km・0歩", () => {
-    expect(walkStatsFromElapsed(0)).toEqual({ km: 0, steps: 0 });
+describe("estimateStepsFromMeters", () => {
+  it("0mは0歩", () => {
+    expect(estimateStepsFromMeters(0)).toBe(0);
   });
 
-  it("既知値: 720秒 → 1.0km・1450歩", () => {
-    expect(walkStatsFromElapsed(720)).toEqual({ km: 1, steps: 1450 });
+  it("1000m → 1450歩", () => {
+    expect(estimateStepsFromMeters(1000)).toBe(1450);
   });
 
-  it("端数を丸める", () => {
-    const result = walkStatsFromElapsed(1714);
-    expect(result.km).toBeCloseTo(2.4);
-    expect(result.steps).toBe(3452);
+  it("負値・NaNは0歩", () => {
+    expect(estimateStepsFromMeters(-100)).toBe(0);
+    expect(estimateStepsFromMeters(NaN)).toBe(0);
   });
 });

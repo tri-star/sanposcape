@@ -1,1 +1,2 @@
 - [SS-8 MVP画面レビュー状況](project_ss8_mvp_screens.md) — app薄い/lib純粋関数/services-auth/router params設計の良好例と既知残課題(auth stub fail-open, useToast配置, hitSlop)
+- [SS-16 徒歩ルート提示・散歩中トラッキング](project_ss16_walk_route.md) — Query/Zustand使い分け・queryKeyキャッシュ共有・location real/mock2モードの良好例と残課題(points未配線・destination重複・カメラeffect重複)

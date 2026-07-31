@@ -4,7 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
-import { DEFAULT_WALK_GOAL, SAMPLE_WALK_RESULT } from "@/features/walk/data/defaults";
+import {
+  DEFAULT_ACTIVE_WALK,
+  DEFAULT_WALK_GOAL,
+  SAMPLE_WALK_RESULT,
+} from "@/features/walk/data/defaults";
+import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -54,15 +59,12 @@ export function ScreenCatalog() {
       label: "散歩中",
       description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（往復${DEFAULT_WALK_GOAL.time}分）`,
       icon: "navigation",
-      onPress: () =>
-        router.push({
-          pathname: "/(tabs)",
-          params: {
-            goalName: DEFAULT_WALK_GOAL.name,
-            goalTimeMin: String(DEFAULT_WALK_GOAL.time),
-            goalDistKm: DEFAULT_WALK_GOAL.dist.toFixed(1),
-          },
-        }),
+      onPress: () => {
+        useActiveWalkStore
+          .getState()
+          .startWalk({ ...DEFAULT_ACTIVE_WALK, startedAtMs: Date.now() });
+        router.push("/(tabs)");
+      },
     },
     {
       key: "walk-summary",

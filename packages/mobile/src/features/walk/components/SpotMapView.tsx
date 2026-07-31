@@ -3,9 +3,11 @@ import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-n
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
+import { WalkRoutePolyline } from "@/features/walk/components/WalkRoutePolyline";
 import { CATEGORY_META } from "@/features/walk/data/categories";
+import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForRoundTrip } from "@/features/walk/lib/mapRegion";
-import type { SpotCandidate } from "@/features/walk/types";
+import type { SpotCandidate, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -16,6 +18,8 @@ export type SpotMapViewProps = {
   candidates: readonly SpotCandidate[];
   selectedSpotId: string | null;
   onSelectSpot: (id: string) => void;
+  /** 選択中スポットへの徒歩ルート。null ならルートを描かない。 */
+  walkRoute?: WalkRoute | null;
   style?: StyleProp<ViewStyle>;
   height?: number;
   testID?: string;
@@ -34,6 +38,7 @@ export function SpotMapView({
   candidates,
   selectedSpotId,
   onSelectSpot,
+  walkRoute = null,
   style,
   height = 296,
   testID,
@@ -47,9 +52,15 @@ export function SpotMapView({
   const initialRegion = origin ? regionForRoundTrip(origin, durationMin) : null;
 
   useEffect(() => {
+    // ルート表示中は往復半径での再センタリングをしない（線が画面外に出るのを防ぐ）。
+    // この抑止は WalkRouteMapView には無い SpotMapView 固有の挙動のため、共通 hook には含めない。
+    if (walkRoute) return;
     if (!origin) return;
     mapRef.current?.animateToRegion(regionForRoundTrip(origin, durationMin), RECENTER_ANIMATION_MS);
-  }, [origin, durationMin]);
+  }, [origin, durationMin, walkRoute]);
+
+  // ルートが届いたときの bounds フィット（`WalkRouteMapView` と共通の hook）。
+  useMapRouteFit(mapRef, walkRoute, RECENTER_ANIMATION_MS);
 
   if (!origin || !initialRegion) {
     return (
@@ -73,6 +84,7 @@ export function SpotMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
       >
+        {walkRoute ? <WalkRoutePolyline path={walkRoute.path} /> : null}
         {candidates.map((spot, index) => {
           const selected = spot.id === selectedSpotId;
           const meta = CATEGORY_META[spot.category];

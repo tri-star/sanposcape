@@ -44,6 +44,14 @@ export function SpotCard({ spot, meta, selected, onPress, testID }: SpotCardProp
       <Text numberOfLines={2} style={styles.name}>
         {spot.name}
       </Text>
+      {/*
+        `spot.roundTripMinutes`/`roundTripKm` は /explore/places のレスポンス（backend が返す
+        往復値のスナップショット）をそのまま表示している。選択後に `WalkRouteSummary` が出す
+        「往復の目安」は /explore/routes/walking の実ルート片道値 × 2 の近似値で、算出元の API が
+        異なるため、同じスポットでもこのカードの数値と選択後の数値がわずかにズレることがある
+        （プランが明示的に選んだ設計。「一覧は概算・選択後はより実測に近い値」として両方「目安」の
+        語感で許容する）。
+      */}
       <Text style={styles.meta}>
         往復 <Text style={styles.metaStrong}>{spot.roundTripMinutes}</Text>分・約
         {spot.roundTripKm.toFixed(1)}km

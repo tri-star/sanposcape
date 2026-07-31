@@ -19,6 +19,11 @@ const LAST_KNOWN_MAX_AGE_MS = 60_000;
  */
 const CURRENT_POSITION_ACCURACY = Location.Accuracy.High;
 
+/** watchPosition の既定の通知間隔（distanceInterval）。 */
+const WATCH_DISTANCE_INTERVAL_METERS = 10;
+/** watchPosition の既定の最短通知間隔（ms）。 */
+const WATCH_TIME_INTERVAL_MS = 3000;
+
 function toCoordinates(position: Location.LocationObject): GeoCoordinates {
   return { latitude: position.coords.latitude, longitude: position.coords.longitude };
 }
@@ -71,6 +76,22 @@ export function createRealLocationService(): LocationService {
         if (stale) {
           return toCoordinates(stale);
         }
+        throw toLocationError(error);
+      }
+    },
+
+    async watchPosition(listener, options) {
+      try {
+        const subscription = await Location.watchPositionAsync(
+          {
+            accuracy: CURRENT_POSITION_ACCURACY,
+            distanceInterval: options?.distanceIntervalMeters ?? WATCH_DISTANCE_INTERVAL_METERS,
+            timeInterval: options?.timeIntervalMs ?? WATCH_TIME_INTERVAL_MS,
+          },
+          (position) => listener(toCoordinates(position)),
+        );
+        return { remove: () => subscription.remove() };
+      } catch (error) {
         throw toLocationError(error);
       }
     },

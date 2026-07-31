@@ -11,18 +11,20 @@ import { DurationSlider } from "@/features/walk/components/DurationSlider";
 import { LocationPermissionNotice } from "@/features/walk/components/LocationPermissionNotice";
 import { SpotListSection } from "@/features/walk/components/SpotListSection";
 import { SpotMapView } from "@/features/walk/components/SpotMapView";
+import { WalkRouteSummary } from "@/features/walk/components/WalkRouteSummary";
 import { CATEGORY_ORDER } from "@/features/walk/data/categories";
 import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
 import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
+import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useToast } from "@/hooks/useToast";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 /**
  * 散歩開始画面。実地図（`SpotMapView`）+ 現在地 + `/explore/places` 由来の候補を表示する。
- * 「散歩を始める」→ 散歩中（ナビタブ）へ遷移し、目的地/往復時間/place id/座標を router params で渡す
- * （SS-16 のルート提示の接続点）。
+ * スポットを選択すると `/explore/routes/walking` で徒歩ルートを取得して地図に重ね、
+ * 「散歩を始める」を押すと `useActiveWalkStore` に開始情報を積んで散歩中（ナビタブ）へ遷移する。
  */
 export function WalkStartView() {
   const theme = useTheme();
@@ -31,26 +33,29 @@ export function WalkStartView() {
   const router = useRouter();
   const toast = useToast();
   const plan = useWalkPlan();
+  const startWalk = useActiveWalkStore((state) => state.startWalk);
 
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
   const handleStartWalk = () => {
-    if (!plan.selectedSpot) return;
-    router.replace({
-      pathname: "/(tabs)",
-      params: {
-        goalName: plan.selectedSpot.name,
-        goalTimeMin: String(plan.selectedSpot.roundTripMinutes),
-        goalDistKm: plan.selectedSpot.roundTripKm.toFixed(1),
-        // SS-16（ルート提示）で使う接続点。現時点の WalkActiveView は未使用でも害はない。
-        goalPlaceId: plan.selectedSpot.id,
-        goalLat: String(plan.selectedSpot.location.latitude),
-        goalLng: String(plan.selectedSpot.location.longitude),
-        originLat: plan.origin ? String(plan.origin.latitude) : "",
-        originLng: plan.origin ? String(plan.origin.longitude) : "",
-      },
+    if (!plan.selectedSpot || !plan.origin || !plan.destination || !plan.walkRoute) return;
+    startWalk({
+      origin: plan.origin,
+      // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
+      // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
+      destination: plan.destination,
+      roundTripMinutes: plan.selectedSpot.roundTripMinutes,
+      roundTripKm: plan.selectedSpot.roundTripKm,
+      startedAtMs: Date.now(),
     });
+    router.replace("/(tabs)");
   };
+
+  const startLabel = !plan.selectedSpot
+    ? "目的地を選んでください"
+    : plan.isLoadingWalkRoute
+      ? "ルートを確認しています…"
+      : "散歩を始める";
 
   return (
     <View testID="walk-start-screen" style={styles.root}>
@@ -82,6 +87,7 @@ export function WalkStartView() {
           <LocationPermissionNotice
             errorCode={plan.locationErrorCode}
             onRetry={plan.retryLocation}
+            testID="walk-start-location-notice"
           />
         ) : (
           <>
@@ -91,6 +97,7 @@ export function WalkStartView() {
               candidates={plan.candidates}
               selectedSpotId={plan.selectedSpotId}
               onSelectSpot={plan.selectSpot}
+              walkRoute={plan.walkRoute}
               testID="walk-start-map"
               style={styles.map}
             />
@@ -135,25 +142,24 @@ export function WalkStartView() {
           </Pressable>
 
           {plan.selectedSpot ? (
-            <View style={styles.selectedRow} testID="walk-start-selected-summary">
-              <Icon name="flag" size={18} color={theme.colors.primary} />
-              <View style={styles.selectedText}>
-                <Text style={styles.selectedLabel}>目的地</Text>
-                <Text style={styles.selectedName}>{plan.selectedSpot.name}</Text>
-              </View>
-              <Text style={styles.selectedTime}>往復 {plan.selectedSpot.roundTripMinutes}分</Text>
-            </View>
+            <WalkRouteSummary
+              spot={plan.selectedSpot}
+              walkRoute={plan.walkRoute}
+              isLoading={plan.isLoadingWalkRoute}
+              errorCode={plan.walkRouteErrorCode}
+              onRetry={plan.retryWalkRoute}
+            />
           ) : null}
 
           <Button
             variant="primary"
             icon="footprints"
             fullWidth
-            disabled={!plan.selectedSpot}
+            disabled={!plan.canStartWalk}
             onPress={handleStartWalk}
             testID="walk-start-begin"
           >
-            {plan.selectedSpot ? "散歩を始める" : "目的地を選んでください"}
+            {startLabel}
           </Button>
         </View>
       </ScrollView>
@@ -236,30 +242,6 @@ const useStyles = makeStyles((theme) => ({
     color: theme.colors.textPrimary,
   },
   catsSummaryText: {
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textSecondary,
-  },
-  selectedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[3] - 2,
-    padding: theme.spacing[3] + 2,
-    backgroundColor: theme.colors.surfaceTint,
-    borderRadius: theme.radius.md,
-  },
-  selectedText: {
-    flex: 1,
-  },
-  selectedLabel: {
-    fontSize: theme.typography.size["2xs"],
-    color: theme.colors.textSecondary,
-  },
-  selectedName: {
-    fontSize: theme.typography.size.md,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textPrimary,
-  },
-  selectedTime: {
     fontSize: theme.typography.size.xs,
     color: theme.colors.textSecondary,
   },
