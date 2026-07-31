@@ -12,6 +12,14 @@ export type LocationPermissionNoticeProps = {
   errorCode: LocationErrorCode;
   onRetry: () => void;
   testID?: string;
+  /**
+   * 再試行ボタンの testID。省略時は `${testID ?? "location-permission-notice"}-retry`。
+   * 散歩開始・散歩中の2画面から使われるため、root の testID から自動的に画面ごとに
+   * 一意な値が導出される（明示的に上書きしたい場合のみ指定すればよい）。
+   */
+  retryTestID?: string;
+  /** 「設定を開く」ボタンの testID。省略時は `${testID ?? "location-permission-notice"}-open-settings`。 */
+  openSettingsTestID?: string;
 };
 
 /**
@@ -22,23 +30,27 @@ export function LocationPermissionNotice({
   errorCode,
   onRetry,
   testID,
+  retryTestID,
+  openSettingsTestID,
 }: LocationPermissionNoticeProps) {
   const theme = useTheme();
   const styles = useStyles();
 
+  const rootTestID = testID ?? "location-permission-notice";
+
   return (
-    <Card style={styles.root} testID={testID ?? "location-permission-notice"}>
+    <Card style={styles.root} testID={rootTestID}>
       <Icon name="crosshair" size={22} color={theme.colors.textTertiary} />
       <Text style={styles.message}>{locationErrorMessage(errorCode)}</Text>
       <View style={styles.actions}>
-        <Button variant="secondary" onPress={onRetry} testID="location-permission-notice-retry">
+        <Button variant="secondary" onPress={onRetry} testID={retryTestID ?? `${rootTestID}-retry`}>
           再試行
         </Button>
         {errorCode === "permission_denied" ? (
           <Button
             variant="outline"
             onPress={() => Linking.openSettings()}
-            testID="location-permission-notice-open-settings"
+            testID={openSettingsTestID ?? `${rootTestID}-open-settings`}
           >
             設定を開く
           </Button>

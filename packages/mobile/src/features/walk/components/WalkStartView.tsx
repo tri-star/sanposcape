@@ -89,6 +89,7 @@ export function WalkStartView() {
           <LocationPermissionNotice
             errorCode={plan.locationErrorCode}
             onRetry={plan.retryLocation}
+            testID="walk-start-location-notice"
           />
         ) : (
           <>
