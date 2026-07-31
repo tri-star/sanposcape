@@ -5,9 +5,10 @@ import { DEFAULT_CATEGORIES, DEFAULT_DURATION_MIN } from "@/features/walk/data/c
 import { isCandidateListLoading } from "@/features/walk/lib/candidateListState";
 import { useCurrentLocation } from "@/features/walk/hooks/useCurrentLocation";
 import { useSpotCandidates } from "@/features/walk/hooks/useSpotCandidates";
+import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { clampRoundTripMinutes } from "@/features/walk/lib/placeSearchRequest";
-import type { SpotCandidate } from "@/features/walk/types";
+import type { SpotCandidate, WalkDestination, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates, LocationErrorCode } from "@/services/location/types";
 
 export type UseWalkPlanResult = {
@@ -43,6 +44,13 @@ export type UseWalkPlanResult = {
   selectedSpotId: string | null;
   selectSpot: (id: string) => void;
   selectedSpot: SpotCandidate | null;
+
+  walkRoute: WalkRoute | null;
+  isLoadingWalkRoute: boolean;
+  walkRouteErrorCode: ExploreErrorCode | null;
+  retryWalkRoute: () => void;
+  /** 目的地が確定し、ルートも提示できている（＝散歩を始められる）。 */
+  canStartWalk: boolean;
 };
 
 /**
@@ -115,6 +123,17 @@ export function useWalkPlan(): UseWalkPlanResult {
     [explore.candidates, selectedSpotId],
   );
 
+  const destination = useMemo<WalkDestination | null>(
+    () =>
+      selectedSpot === null
+        ? null
+        : { placeId: selectedSpot.id, name: selectedSpot.name, location: selectedSpot.location },
+    [selectedSpot],
+  );
+
+  const route = useWalkRoute({ origin, destination });
+  const canStartWalk = selectedSpot !== null && route.walkRoute !== null;
+
   const retryLocation = useCallback(() => {
     setSelectedSpotId(null);
     retryCurrentLocation();
@@ -154,5 +173,11 @@ export function useWalkPlan(): UseWalkPlanResult {
     selectedSpotId,
     selectSpot,
     selectedSpot,
+
+    walkRoute: route.walkRoute,
+    isLoadingWalkRoute: route.isLoading,
+    walkRouteErrorCode: route.errorCode,
+    retryWalkRoute: route.retry,
+    canStartWalk,
   };
 }
