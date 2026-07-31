@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import * as geoDistance from "@/features/walk/lib/geoDistance";
 import {
   INITIAL_WALK_TRACK,
   MIN_MOVE_METERS,
@@ -7,6 +8,16 @@ import {
   resumeWalkTrack,
 } from "@/features/walk/lib/walkTrack";
 import type { GeoCoordinates } from "@/services/location/types";
+
+// 実際の測地計算（Haversine）では、緯度経度から「移動量がちょうど MIN_MOVE_METERS」となる
+// 座標を作っても浮動小数点誤差で 4.999999999... 等にずれてしまい、`<` と `<=` の境界を
+// 確実には検証できない。そのため `distanceMeters` だけをスパイして境界値ちょうどを返させ、
+// 判定ロジック（`appendWalkTrackPoint`）側の境界仕様だけを切り出してテストする。
+// 他のテストでは実装（`actual`）をそのまま使うため、既存の挙動には影響しない。
+vi.mock("@/features/walk/lib/geoDistance", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/walk/lib/geoDistance")>();
+  return { ...actual, distanceMeters: vi.fn(actual.distanceMeters) };
+});
 
 const ORIGIN: GeoCoordinates = { latitude: 35.681236, longitude: 139.767125 };
 /** ORIGIN からおおよそ 30m 北東（appendWalkTrackPoint.ts の MOCK_TRACK と同じ刻み幅）。 */
@@ -34,6 +45,18 @@ describe("appendWalkTrackPoint", () => {
     expect(second).not.toBe(first);
     expect(second.distanceMeters).toBeGreaterThanOrEqual(MIN_MOVE_METERS);
     expect(second.points).toEqual([ORIGIN, NEXT]);
+  });
+
+  it("MIN_MOVE_METERS ちょうどの移動は加算される（判定は `delta < MIN_MOVE_METERS` であり `<=` ではない）", () => {
+    vi.mocked(geoDistance.distanceMeters).mockReturnValueOnce(MIN_MOVE_METERS);
+
+    const first = appendWalkTrackPoint(INITIAL_WALK_TRACK, ORIGIN);
+    const second = appendWalkTrackPoint(first, NEXT);
+
+    expect(second).not.toBe(first);
+    expect(second.distanceMeters).toBe(MIN_MOVE_METERS);
+    expect(second.points).toEqual([ORIGIN, NEXT]);
+    expect(second.lastPoint).toEqual(NEXT);
   });
 
   it("連続追加で距離が単調増加する", () => {
