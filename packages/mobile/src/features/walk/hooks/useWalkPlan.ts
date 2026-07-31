@@ -44,6 +44,8 @@ export type UseWalkPlanResult = {
   selectedSpotId: string | null;
   selectSpot: (id: string) => void;
   selectedSpot: SpotCandidate | null;
+  /** `selectedSpot` から組み立てた `WalkDestination`（`useWalkRoute` にもこの値を渡す）。散歩開始時の引き渡し用。 */
+  destination: WalkDestination | null;
 
   walkRoute: WalkRoute | null;
   isLoadingWalkRoute: boolean;
@@ -173,6 +175,7 @@ export function useWalkPlan(): UseWalkPlanResult {
     selectedSpotId,
     selectSpot,
     selectedSpot,
+    destination,
 
     walkRoute: route.walkRoute,
     isLoadingWalkRoute: route.isLoading,

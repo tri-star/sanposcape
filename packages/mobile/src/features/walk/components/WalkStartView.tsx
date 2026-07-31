@@ -38,14 +38,12 @@ export function WalkStartView() {
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
   const handleStartWalk = () => {
-    if (!plan.selectedSpot || !plan.origin || !plan.walkRoute) return;
+    if (!plan.selectedSpot || !plan.origin || !plan.destination || !plan.walkRoute) return;
     startWalk({
       origin: plan.origin,
-      destination: {
-        placeId: plan.selectedSpot.id,
-        name: plan.selectedSpot.name,
-        location: plan.selectedSpot.location,
-      },
+      // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
+      // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
+      destination: plan.destination,
       roundTripMinutes: plan.selectedSpot.roundTripMinutes,
       roundTripKm: plan.selectedSpot.roundTripKm,
       startedAtMs: Date.now(),
