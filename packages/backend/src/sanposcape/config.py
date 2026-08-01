@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
 
+    # --- walks ---
+    # 軌跡は最大で数百KBになり得るため /explore より大きい上限にするが、無制限にはしない
+    # （低コスト DoS 対策）。
+    walks_request_max_bytes: int = Field(default=1_048_576, gt=0, le=4_194_304)
+
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod
     def _split_csv(cls, v: object) -> object:

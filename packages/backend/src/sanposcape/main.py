@@ -17,6 +17,7 @@ from sanposcape.auth.exceptions import (
 )
 from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
+from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
@@ -24,6 +25,8 @@ from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
 from sanposcape.spots.router import router as spots_router
 from sanposcape.users.router import router as users_router
+from sanposcape.walks.exceptions import WalkNotFoundError
+from sanposcape.walks.router import router as walks_router
 
 
 def _unauthorized_response(detail: str) -> JSONResponse:
@@ -34,19 +37,26 @@ def _unauthorized_response(detail: str) -> JSONResponse:
     )
 
 
-class ExploreRequestBodyTooLargeError(Exception):
+class RequestBodyTooLargeError(Exception):
     """Raised before an oversized chunked body can be fully buffered."""
 
 
-class ExploreRequestSizeLimitMiddleware:
-    """Streaming request-size guard for /explore; works without Content-Length."""
+class RequestSizeLimitMiddleware:
+    """Streaming request-size guard for a given path prefix; works without Content-Length.
 
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    Originally `/explore` 専用だったが、`/walks`（軌跡を含むため上限が異なる）にも
+    同じ仕組みが必要になったため `path_prefix` を引数化して汎用化した（D9）。
+    複数の path_prefix に別々の上限を掛けたい場合は、`app.add_middleware()` を
+    prefix ごとに複数回呼び出す。
+    """
+
+    def __init__(self, app: ASGIApp, path_prefix: str, max_bytes: int) -> None:
         self.app = app
+        self._path_prefix = path_prefix
         self._max_bytes = max_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith("/explore"):
+        if scope["type"] != "http" or not scope["path"].startswith(self._path_prefix):
             await self.app(scope, receive, send)
             return
         content_length = dict(scope.get("headers", [])).get(b"content-length")
@@ -66,12 +76,12 @@ class ExploreRequestSizeLimitMiddleware:
             if message["type"] == "http.request":
                 received_bytes += len(message.get("body", b""))
                 if received_bytes > self._max_bytes:
-                    raise ExploreRequestBodyTooLargeError()
+                    raise RequestBodyTooLargeError()
             return message
 
         try:
             await self.app(scope, limited_receive, send)
-        except ExploreRequestBodyTooLargeError:
+        except RequestBodyTooLargeError:
             await self._send_too_large(scope, receive, send)
 
     @staticmethod
@@ -91,9 +101,9 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _invalid_id_token(request: Request, exc: InvalidIdTokenError) -> JSONResponse:
         return _unauthorized_response("Invalid ID token")
 
-    @app.exception_handler(ExploreRequestBodyTooLargeError)
-    async def _explore_request_too_large(
-        request: Request, exc: ExploreRequestBodyTooLargeError
+    @app.exception_handler(RequestBodyTooLargeError)
+    async def _request_body_too_large(
+        request: Request, exc: RequestBodyTooLargeError
     ) -> JSONResponse:
         return JSONResponse(status_code=413, content={"detail": "Request body too large"})
 
@@ -145,6 +155,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _maps_unavailable(request: Request, exc: MapsUnavailableError) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": "Map provider unavailable"})
 
+    @app.exception_handler(WalkNotFoundError)
+    async def _walk_not_found(request: Request, exc: WalkNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "Walk not found"})
+
+    @app.exception_handler(InvalidCursorError)
+    async def _invalid_cursor(request: Request, exc: InvalidCursorError) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": "Invalid cursor"})
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -172,8 +190,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=_lifespan,
     )
     app.state.settings = settings
+    # add_middleware は登録順と逆順に実行される。path_prefix で対象を絞っているため
+    # 2回登録しても互いの対象パスには影響しない。
     app.add_middleware(
-        ExploreRequestSizeLimitMiddleware,
+        RequestSizeLimitMiddleware,
+        path_prefix="/walks",
+        max_bytes=settings.walks_request_max_bytes,
+    )
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
+        path_prefix="/explore",
         max_bytes=settings.google_maps_explore_request_max_bytes,
     )
     app.include_router(health_router)
@@ -181,6 +207,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(maps_router)
+    app.include_router(walks_router)
     if settings.auth_mode == "dev":
         # 本番ではエンドポイント自体が存在しない（ADR-002 決定4）。
         # dev_router 側で include_in_schema=False を指定しているため、

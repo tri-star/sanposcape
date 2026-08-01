@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sanposcape.auth.exceptions import AuthenticationError
-from sanposcape.main import ExploreRequestSizeLimitMiddleware, register_exception_handlers
+from sanposcape.main import RequestSizeLimitMiddleware, register_exception_handlers
 
 
 def test_users_router_registers_delete_me_operation() -> None:
@@ -83,7 +83,11 @@ def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
         sent.append(message)
 
     scope = {"type": "http", "path": "/explore/places", "headers": []}
-    asyncio.run(ExploreRequestSizeLimitMiddleware(inner_app, max_bytes=6)(scope, receive, send))
+    asyncio.run(
+        RequestSizeLimitMiddleware(inner_app, path_prefix="/explore", max_bytes=6)(
+            scope, receive, send
+        )
+    )
 
     assert received_by_app == [b"1234"]
     assert sent[0]["status"] == 413
