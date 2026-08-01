@@ -1,10 +1,19 @@
 import { create } from "zustand";
 
 import type { FinishedWalk } from "@/features/walk/types";
+import { registerSessionCleanup } from "@/lib/sessionCleanup";
 
 type FinishedWalkState = {
   finishedWalk: FinishedWalk | null;
-  /** 保存成功時のサーバー側 walk id。200 replay で本文が取れなければ null のまま。 */
+  /**
+   * 保存成功時のサーバー側 walk id。
+   * backend の `POST /walks` は 200（冪等再送）/201（新規）のどちらでも `WalkRead` を返す契約になっており
+   * （`packages/backend/src/sanposcape/walks/router.py`）、Orval が生成する
+   * `createWalkWalksPostResponse200`/`201` もいずれも `data: WalkRead` を持つ。
+   * `saveWalk()`（`api/walkApi.ts`）は常に非 null の `WalkRead` を返すため、
+   * `markSaved` に渡る id が実質的に null になるケースは現状のコードパスには存在しない。
+   * 型を `string | null` のまま維持しているのは、将来 backend の契約が変わった場合の防御のため。
+   */
   savedWalkId: string | null;
   /** 保存済みかどうか（savedWalkId が取れないケースがあるので独立させる）。 */
   saved: boolean;
@@ -30,6 +39,10 @@ type FinishedWalkState = {
  *
  * 画面外（`ScreenCatalog` のような非 React コンテキスト）からは
  * `useFinishedWalkStore.getState().finishWalk(...)` を使える。
+ *
+ * サインアウト時は `clearFinishedWalk()` で必ずクリアする（`@/lib/sessionCleanup` に登録済み）。
+ * 共有端末でアカウントを切り替えたとき、保存待ちの軌跡（機微な位置情報）が次のユーザーの
+ * トークンで送信・上書きされる事故を防ぐため。
  */
 export const useFinishedWalkStore = create<FinishedWalkState>((set) => ({
   finishedWalk: null,
@@ -40,3 +53,5 @@ export const useFinishedWalkStore = create<FinishedWalkState>((set) => ({
   markSaved: (walkId) => set({ saved: true, savedWalkId: walkId }),
   clearFinishedWalk: () => set({ finishedWalk: null, savedWalkId: null, saved: false }),
 }));
+
+registerSessionCleanup(() => useFinishedWalkStore.getState().clearFinishedWalk());
