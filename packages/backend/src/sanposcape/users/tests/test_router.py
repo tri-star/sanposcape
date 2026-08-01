@@ -9,6 +9,8 @@ from sanposcape.auth.models import RefreshToken
 from sanposcape.auth.tokens import create_access_token
 from sanposcape.config import Settings
 from sanposcape.users.models import User
+from sanposcape.walks.models import Walk
+from sanposcape.walks.repository import WalkRepository
 
 
 def _create_session(auth_client: TestClient, make_google_id_token, *, sub: str) -> dict:
@@ -86,3 +88,60 @@ class TestDeleteMeEndpoint:
         assert access_response.status_code == 401
         assert refresh_response.status_code == 401
         assert retry_response.status_code == 401
+
+    def test_deletion_cascades_to_walks_and_keeps_other_users_walks(
+        self, auth_client: TestClient, make_google_id_token, db_session: Session
+    ) -> None:
+        """SS-18 回帰テスト: `walks.user_id` の `ON DELETE CASCADE` が壊れていないこと。
+
+        CASCADE が欠けていると `DELETE /users/me` は refresh_tokens 削除の直後、
+        walks の FK 違反で 500 になる（walks/models.py の設計メモ参照）。
+        """
+        deleted = _create_session(auth_client, make_google_id_token, sub="deleted-walks-user")
+        remaining = _create_session(auth_client, make_google_id_token, sub="remaining-walks-user")
+        deleted_user_id = uuid.UUID(deleted["user"]["id"])
+        remaining_user_id = uuid.UUID(remaining["user"]["id"])
+
+        repo = WalkRepository(db_session)
+        started_at = datetime.now(UTC) - timedelta(hours=1)
+        deleted_walk, _ = repo.create(
+            user_id=deleted_user_id,
+            client_walk_id=uuid.uuid4(),
+            started_at=started_at,
+            ended_at=started_at + timedelta(minutes=10),
+            duration_seconds=600,
+            distance_meters=1000,
+            destination_place_id="place-1",
+            destination_name="テスト公園",
+            destination_latitude=35.68,
+            destination_longitude=139.76,
+            track_points=[],
+        )
+        remaining_walk, _ = repo.create(
+            user_id=remaining_user_id,
+            client_walk_id=uuid.uuid4(),
+            started_at=started_at,
+            ended_at=started_at + timedelta(minutes=10),
+            duration_seconds=600,
+            distance_meters=1000,
+            destination_place_id="place-1",
+            destination_name="テスト公園",
+            destination_latitude=35.68,
+            destination_longitude=139.76,
+            track_points=[],
+        )
+        # commit() は expire_on_commit によりインスタンスの属性を失効させるため、
+        # WHERE 句で参照する前に id を素の UUID として控えておく。
+        deleted_walk_id = deleted_walk.id
+        remaining_walk_id = remaining_walk.id
+        db_session.commit()
+
+        response = auth_client.delete(
+            "/users/me", headers={"Authorization": f"Bearer {deleted['access_token']}"}
+        )
+
+        assert response.status_code == 204
+        assert db_session.scalars(select(Walk).where(Walk.id == deleted_walk_id)).first() is None
+        assert (
+            db_session.scalars(select(Walk).where(Walk.id == remaining_walk_id)).first() is not None
+        )

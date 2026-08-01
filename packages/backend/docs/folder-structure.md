@@ -33,11 +33,14 @@ packages/backend/
 │       ├── config.py          # pydantic-settings で環境変数を型安全に読む
 │       ├── database.py        # engine / SessionLocal / Base
 │       ├── dependencies.py    # 横断的な依存（DBセッション, 認証済みユーザー取得 等）
-│       ├── exceptions.py      # 共通例外・APIエラー表現・ハンドラ
+│       ├── all_models.py      # 全ドメインの models を import して Base.metadata に集約（Alembic autogenerate 用）
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
 │       │
 │       ├── core/              # 横断的関心事（ドメインに属さない土台）
-│       │   └── ...            #   ページング等の汎用ユーティリティ
+│       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
+│       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
+│       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
+│       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   └── google_maps/   #   Places / Routes クライアント + キャッシュ
@@ -69,12 +72,12 @@ packages/backend/
 │       │       ├── test_service.py
 │       │       └── test_router.py
 │       │
-│       ├── walks/             # ドメイン: 散歩開始・散歩ルート・履歴
+│       ├── walks/             # ドメイン: 終了済み散歩の記録・履歴（散歩開始の探索・経路提示は maps/ の責務）
 │       ├── spots/             # ドメイン: スポット候補（Google Maps由来）
 │       └── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
 │
 ├── alembic/
-│   ├── env.py                 # 全モデルを import してメタデータを集約
+│   ├── env.py                 # all_models.py の Base を参照してメタデータを集約
 │   └── versions/              # マイグレーションスクリプト
 │
 ├── scripts/
@@ -92,7 +95,7 @@ packages/backend/
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
 
 ### `core/` — 横断的関心事
-- どのドメインにも属さない土台。ページングなどの汎用処理。
+- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
 - ドメインを import しない（依存の向きは `domain → core`）。
 - 認証（Google ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
@@ -105,6 +108,10 @@ packages/backend/
 - 1つのドメインに属する `router / schemas / models / service / repository / dependencies / exceptions` をまとめる。
 - **層をまたぐ呼び出しは一方向**にする: `router → service → repository`。逆流させない。
 - 他ドメインから使う必要が出たものは `core/` へ昇格させる（ドメイン間の直接依存を増やさない）。
+  - 昇格時は、**旧 import 位置に再エクスポートを残して段階移行する**（OpenAPI のコンポーネント名を変えないため）。
+    実例: `GeoPoint` は `maps/schemas.py` から `core/geo.py` へ昇格したが、`maps/schemas.py` は
+    `from sanposcape.core.geo import GeoPoint` を再エクスポートし続けている。クラス名を変えていない
+    ため、生成される OpenAPI のコンポーネント名（`GeoPoint`）にも変化はない。
 
 ### レイヤーの配置判断
 > - HTTPの入出力・依存解決だけ → `router.py`
@@ -116,7 +123,8 @@ packages/backend/
 
 ### `models.py` の配置と Alembic
 - SQLAlchemy モデルは**各ドメインの `models.py` に併置**する。
-- Alembic の autogenerate が全モデルを認識できるよう、`alembic/env.py`（または集約モジュール）で**全ドメインの models を import** して `Base.metadata` に載せる。
+- 集約モジュール `all_models.py` が全ドメインの models を import して `Base.metadata` に載せ、`alembic/env.py` はこの `all_models.py` の `Base` を参照する。
+- **新しいドメインの models を追加したら、`all_models.py` に import を足すこと**（追加しないと Alembic の autogenerate がそのモデルを認識できず、マイグレーションが生成されない）。
 
 ## テストファイルの配置（co-location）
 

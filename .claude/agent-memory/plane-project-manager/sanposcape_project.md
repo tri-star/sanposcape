@@ -137,6 +137,26 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-16「mobile: スポット選択→散歩ルート提示→散歩開始・散歩中表示」(work_item_id: `0f60a14d-33d9-46f1-88c4-ea23991ba11f`、M4所属)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`list_work_item_properties`は空配列（変わらず）、`list_work_item_links`も0件だったため、`create_work_item_link`でPR #16（`https://github.com/tri-star/sanposcape/pull/16`、link_id: `413975ad-8ea9-4193-9612-a55a99d04abf`）を新規登録（コメントではなく標準Link機能を優先する既存方針を継続）。
 
+## 2026-08-01追加: トリアージ結果 — SS-16/SS-32とも既にDone、Review/In Progressは0件
+
+- SS-16（`0f60a14d-33d9-46f1-88c4-ea23991ba11f`）は本トリアージ開始時点で既にState=Done（completed_at 2026-08-01T03:57:58）だった。直前メモ（同日早い時刻）の「Review化・PR #16リンク登録」の後、別セッションでDone化済みだったと推測される。追加のupdate_work_itemは不要だった。
+- **SS-32「backend: Dockerコンテナを非rootのapp_userで実行する」も既にDone**（`4676b762-23d3-4d25-a2d1-6dae2c824784`、completed_at 2026-07-26T11:04:50、モジュール未所属のまま）。2026-07-26メモの「In Progressのまま要再確認」は解消済み——本トリアージ時点でIn Progress/Reviewの2状態はどちらも0件（`list_work_items(pql='state = "<state_id>"')`で確認）。
+- 全35件のState内訳（2026-08-01時点）: Backlog=15, Done=17, Cancelled=3, Review=0, In Progress=0。
+- Backlog内訳: M1=SS-22,29,30,31, M3=SS-13, M4=SS-33(モジュール未所属)/34/35, M5=SS-18,19,20,21, モジュール未所属=SS-26,27,28,33。
+- **M4「探索・散歩開始」はコア4件（SS-14,15,16,17）が全てDone**。残るSS-33/34/35はSS-16の後続改善タスクで、SS-33は本文に明記の通り「MVP（M5完了）のブロッカーではない」。
+- **M5「散歩記録・履歴」はSS-18/19/20/21の4件が全てBacklogのまま未着手** — MVP完成に向けて残る最後の主要モジュール。SS-18（backend: Walkモデル・ルート保存・履歴取得API）が他2件（SS-19 mobile終了処理、SS-20 履歴画面）の土台となる。
+- **How to apply**: 次回トリアージでは、まずReview/In Progressの2状態を`list_work_items(pql='state = "<id>"')`で確認するのが確実（過去のメモリの「要再確認」項目は都度この方法で解消できる）。M5が未着手のままだとMVP完成に至らないため、次の着手優先度はM5 > M4残タスク（SS-34/35）> その他、という認識で良い。
+
+## 2026-08-01確認: mcp_tooling_changes.md（issue系ツール名・403エラー）は本セッションで再現せず
+
+- 同日過去のセッションで報告された「`list_work_items`等が使えず`get_issue_using_readable_identifier`等のissue系ツールに置き換わっていた／全ツール呼び出しがHTTP 403」という状況は、本セッション（2026-08-01、時刻が進んだ後）では**再現しなかった**。`retrieve_work_item`/`list_work_items`等の従来のwork_item系ツールが正常に動作した。
+- **How to apply**: 一時的な認証エラーだった可能性が高い。`mcp_tooling_changes.md`の内容は鵜呑みにせず、まず通常通り`list_work_items`等を試し、実際に失敗した場合のみ代替手段を検討すること。
+
+## 2026-08-01追加: SS-18をIn Progressに更新（backend実装着手）
+
+- SS-18「backend: 散歩(Walk)モデル・散歩ルート保存・履歴取得API（ユーザー紐付け・認可）」(work_item_id: `dfde4093-08cb-45aa-bae9-bb3aa2ddab6d`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。M5の4件(SS-18〜21)のうち最初の着手。
+- **Why**: M5「散歩記録・履歴」はMVP完成に向けて残る最後の主要モジュール（2026-08-01トリアージメモ参照）。SS-18は他2件(SS-19/20)の土台となるため優先着手（ユーザー指示）。
+
 ## 2026-08-01確認: 作成時の命名・Module 割り当て方針
 
 - WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。

@@ -35,7 +35,13 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `dependencies.py` | ドメイン固有の依存（`Depends` で使う関数） |
 | `exceptions.py` | ドメイン固有の例外 |
 
-上記はどのドメインにも共通する基本セット。ドメイン固有の事情がある場合は、役割が一目で分かる名前で追加してよい（固定セットに無理に詰め込まない）。
+上記はどのドメインにも共通する基本セット。加えて、以下も共通の基本セット側に含める（複数ドメインで採用済みのため）。
+
+| ファイル | 役割 |
+|---|---|
+| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/` と `walks/` で採用 |
+
+ドメイン固有の事情がある場合は、役割が一目で分かる名前で追加してよい（固定セットに無理に詰め込まない）。
 例: `auth/` ドメインでは以下を追加している。
 
 | ファイル | 役割 |
@@ -62,6 +68,8 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `...Create` | 作成リクエストのボディ |
 | `...Update` | 更新リクエストのボディ |
 | `...Read` | レスポンス（クライアントへ返す表現） |
+| `...DetailRead` | 詳細取得用のレスポンス。一覧には含めない重い項目を追加する（例: `WalkDetailRead` は `WalkRead` に `track` を追加） |
+| `...ListRead` | 一覧レスポンスのラッパ。`items`（`...Read` の配列）+ `next_cursor` を持つ（例: `WalkListRead`） |
 
 - 内部（service間）で使う DTO 的なものは用途が分かる名前を付ける（例: `WalkRouteSummary`）。
 
@@ -71,6 +79,9 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 - カラム名は snake_case（`round_trip_minutes`, `created_at`）。
 - 外部キーは `<単数リソース>_id`（`user_id`, `walk_id`）。
 - 中間テーブルは関連する2リソースを snake_case で連結（`walk_spots` 等）。
+- index / constraint 名は `<種別接頭辞>_<table>_<cols>` にする（`cols` はアンダースコア連結）。
+  - unique constraint: `uq_<table>_<cols>`（例: `uq_walks_user_client_walk_id`）
+  - index: `ix_<table>_<cols>`（例: `ix_walks_user_id_started_at_id`）
 
 ## Alembic マイグレーション
 
@@ -80,10 +91,17 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 ## 「散歩ルート」に関する命名の注意
 
-- **散歩の道のり（歩いたルート／提示ルート）** を表す語は、コード上で `walking_route` / `walk_route` などと表記し、
-  Web フレームワークの route（画面/URL/`APIRouter`）と混同しない。
-  - 例: モデル `WalkRoute`、カラム `route_polyline`、スキーマ `WalkRouteRead`。
-  - `router`（FastAPIのルーティング）とは別物である点を、レビュー時にも意識する。
+散歩の「道のり」は意味が2つに分かれるため、コード上でも語を使い分ける（Web フレームワークの
+route（画面/URL/`APIRouter`）とも混同しない）。
+
+| 意味 | 語 | 実例 |
+|---|---|---|
+| ①提示される徒歩経路（散歩前に候補として示すルート） | `walking_route` | `maps/schemas.py` の `WalkingRouteRequest` / `WalkingRouteResponse` |
+| ②実際に歩いた軌跡（散歩の記録として保存する座標列） | `track` | `Walk.track_points`（モデル）/ `WalkDetailRead.track`（スキーマ）/ `track_to_storage` / `track_from_storage`（`walks/mappers.py`） |
+| ③散歩の記録そのもの | `Walk` | モデル `Walk` / テーブル `walks` |
+
+- ①（`walking_route`）は `maps/` ドメインの責務（探索・経路提案）、②（`track`）は `walks/` ドメインの責務（終了済み散歩の記録）で、実装上も別ドメインに分かれている。
+- `router`（FastAPIのルーティング）とは別物である点を、レビュー時にも意識する。
 
 ## import の注意（WSL2 / Linux）
 

@@ -15,6 +15,7 @@
 - ADR（アーキテクチャ決定記録）
   - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
   - backend: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
+  - backend: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
     - [ADR-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
@@ -38,7 +39,7 @@
 | 言語 | TypeScript |
 | フレームワーク | React Native (Expo) + Expo Router |
 | 状態管理 | TanStack Query（サーバー状態）+ Zustand（クライアント状態） |
-| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（`src/theme` のデザイントークン・テーマ） |
+| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（デザイントークン・テーマは `src/theme` で管理。Unistyles は [mobile ADR-005](./packages/mobile/adr/ADR-005-styling-without-unistyles.md) で撤回） |
 | 地図 | react-native-maps |
 | APIクライアント | Orval（OpenAPIから生成）+ MSWモック |
 | テスト | Vitest（ユニット）/ Maestro（E2E） |

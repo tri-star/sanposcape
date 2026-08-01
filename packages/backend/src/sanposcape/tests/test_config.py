@@ -103,6 +103,12 @@ def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, 
         Settings(**{field: value})
 
 
+@pytest.mark.parametrize("value", [0, 4_194_305])
+def test_walks_request_max_bytes_must_be_within_bounds(value: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(walks_request_max_bytes=value)
+
+
 def test_staging_with_non_real_auth_mode_fails_to_start() -> None:
     """A-1: 許可リスト方式であれば staging も production と同じ fail-safe バリデーションを受ける。
 

@@ -2,10 +2,23 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
+# GeoPoint は core/geo.py へ昇格済み。既存 import (`from sanposcape.maps.schemas import
+# GeoPoint`) を壊さないよう、ここでは再エクスポートのみ行う（クラス名は不変なので
+# OpenAPI のコンポーネント名 `GeoPoint` にも変化はない）。
+from sanposcape.core.geo import GeoPoint
 
-class GeoPoint(BaseModel):
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+__all__ = [
+    "GeoPoint",
+    "ExploreCategory",
+    "PlaceSearchRequest",
+    "PlaceCandidate",
+    "PlaceSearchResponse",
+    "RouteDestination",
+    "WalkingRouteRequest",
+    "RouteDestinationRead",
+    "MapBounds",
+    "WalkingRouteResponse",
+]
 
 
 class ExploreCategory(StrEnum):

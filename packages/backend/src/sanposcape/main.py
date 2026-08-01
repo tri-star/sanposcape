@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from sanposcape.auth.dev_router import router as auth_dev_router
 from sanposcape.auth.exceptions import (
@@ -17,6 +16,8 @@ from sanposcape.auth.exceptions import (
 )
 from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
+from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimitMiddleware
+from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
@@ -24,6 +25,8 @@ from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
 from sanposcape.spots.router import router as spots_router
 from sanposcape.users.router import router as users_router
+from sanposcape.walks.exceptions import WalkNotFoundError
+from sanposcape.walks.router import router as walks_router
 
 
 def _unauthorized_response(detail: str) -> JSONResponse:
@@ -34,66 +37,22 @@ def _unauthorized_response(detail: str) -> JSONResponse:
     )
 
 
-class ExploreRequestBodyTooLargeError(Exception):
-    """Raised before an oversized chunked body can be fully buffered."""
-
-
-class ExploreRequestSizeLimitMiddleware:
-    """Streaming request-size guard for /explore; works without Content-Length."""
-
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
-        self.app = app
-        self._max_bytes = max_bytes
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith("/explore"):
-            await self.app(scope, receive, send)
-            return
-        content_length = dict(scope.get("headers", [])).get(b"content-length")
-        if (
-            content_length is not None
-            and content_length.isdigit()
-            and int(content_length) > self._max_bytes
-        ):
-            await self._send_too_large(scope, receive, send)
-            return
-
-        received_bytes = 0
-
-        async def limited_receive() -> Message:
-            nonlocal received_bytes
-            message = await receive()
-            if message["type"] == "http.request":
-                received_bytes += len(message.get("body", b""))
-                if received_bytes > self._max_bytes:
-                    raise ExploreRequestBodyTooLargeError()
-            return message
-
-        try:
-            await self.app(scope, limited_receive, send)
-        except ExploreRequestBodyTooLargeError:
-            await self._send_too_large(scope, receive, send)
-
-    @staticmethod
-    async def _send_too_large(scope: Scope, receive: Receive, send: Send) -> None:
-        await JSONResponse(status_code=413, content={"detail": "Request body too large"})(
-            scope, receive, send
-        )
-
-
 def register_exception_handlers(app: FastAPI) -> None:
     """auth ドメインの例外を HTTP レスポンスへ変換する。
 
     router には try/except を書かず、ここに一元化する（folder-structure.md の方針）。
+    `RequestBodyTooLargeError` / `RequestSizeLimitMiddleware` の実体は
+    `core/middleware.py` にある（413を返す経路の定義とハンドラ登録がファイルを
+    跨ぐため、両者を見比べたい場合は必ず両方を確認すること）。
     """
 
     @app.exception_handler(InvalidIdTokenError)
     async def _invalid_id_token(request: Request, exc: InvalidIdTokenError) -> JSONResponse:
         return _unauthorized_response("Invalid ID token")
 
-    @app.exception_handler(ExploreRequestBodyTooLargeError)
-    async def _explore_request_too_large(
-        request: Request, exc: ExploreRequestBodyTooLargeError
+    @app.exception_handler(RequestBodyTooLargeError)
+    async def _request_body_too_large(
+        request: Request, exc: RequestBodyTooLargeError
     ) -> JSONResponse:
         return JSONResponse(status_code=413, content={"detail": "Request body too large"})
 
@@ -145,6 +104,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _maps_unavailable(request: Request, exc: MapsUnavailableError) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": "Map provider unavailable"})
 
+    @app.exception_handler(WalkNotFoundError)
+    async def _walk_not_found(request: Request, exc: WalkNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "Walk not found"})
+
+    @app.exception_handler(InvalidCursorError)
+    async def _invalid_cursor(request: Request, exc: InvalidCursorError) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": "Invalid cursor"})
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -172,8 +139,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=_lifespan,
     )
     app.state.settings = settings
+    # add_middleware は登録順と逆順に実行される。path_prefix で対象を絞っているため
+    # 2回登録しても互いの対象パスには影響しない。
     app.add_middleware(
-        ExploreRequestSizeLimitMiddleware,
+        RequestSizeLimitMiddleware,
+        path_prefix="/walks",
+        max_bytes=settings.walks_request_max_bytes,
+    )
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
+        path_prefix="/explore",
         max_bytes=settings.google_maps_explore_request_max_bytes,
     )
     app.include_router(health_router)
@@ -181,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(maps_router)
+    app.include_router(walks_router)
     if settings.auth_mode == "dev":
         # 本番ではエンドポイント自体が存在しない（ADR-002 決定4）。
         # dev_router 側で include_in_schema=False を指定しているため、

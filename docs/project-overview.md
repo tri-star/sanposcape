@@ -123,7 +123,8 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | --- | --- |
 | スポット (Spot) | 散歩の目的地候補・記録対象となる地点（店・景色・史跡など） |
 | 往復範囲 | 現在地から指定時間内に徒歩で往復できる地理的範囲 |
-| 散歩ルート (Walking Route) | 散歩の道のり。①スポット選択時に提示される徒歩の推奨経路、②実際に歩いた軌跡（履歴に保存する経路）の両方を指す。**Expo Router / React Router の「ルート(route＝画面/URL)」とは別概念**。コード上は walking-route / walkRoute 等と表記し、画面遷移の route と混同しない |
+| 散歩ルート (Walking Route) | スポット選択時に提示される徒歩の推奨経路。実際に歩いた軌跡は「軌跡 (Track)」として別語に分ける（SS-18 でコード上も分離）。**Expo Router / React Router の「ルート(route＝画面/URL)」とは別概念**。コード上は walking-route / walkingRoute 等と表記し、画面遷移の route と混同しない |
+| 軌跡 (Track) | 実際に歩いた経路。散歩の記録として履歴に保存する。コード上は track / track_points と表記し、提示経路の walking-route と区別する |
 | 記録 (Record) | ユーザーが散歩中に残したスポットの記録（位置・写真・メモ・日時）。※MVPでは散歩ルートの記録が対象で、スポット単位の記録は将来機能 |
 | services層 | 認証・位置情報・カメラ等の実機依存機能を抽象化し real/stub を差し替える層 |
 | Orval | OpenAPI定義からAPIクライアントとMSWモックを生成するツール |

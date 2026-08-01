@@ -226,6 +226,140 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /walks:
+    post:
+      tags:
+      - walks
+      summary: Create Walk
+      description: '散歩の記録を保存する。
+
+
+        `client_walk_id` の再送は同じ散歩として扱い、新規作成のみ 201、
+
+        冪等な再送は 200 を返す（軌跡はエコーバックしない: モバイルは送信済みの値を持つ）。'
+      operationId: create_walk_walks_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalkCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '200':
+          description: 'Idempotent replay: an existing walk with the same client_walk_id'
+        '422':
+          description: Validation error
+    get:
+      tags:
+      - walks
+      summary: List Walks
+      description: 散歩履歴の一覧を `started_at DESC` の keyset ページネーションで返す。
+      operationId: list_walks_walks_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50
+          minimum: 1
+          default: 20
+          title: Limit
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - name: started_after
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started After
+      - name: started_before
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started Before
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkListRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '400':
+          description: Invalid cursor
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /walks/{walk_id}:
+    get:
+      tags:
+      - walks
+      summary: Get Walk
+      description: 散歩1件の詳細（軌跡付き）を返す。他ユーザーの散歩・存在しない ID は 404（D6）。
+      operationId: get_walk_walks__walk_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: walk_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Walk Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkDetailRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Walk not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AuthUserRead:
@@ -568,6 +702,189 @@ components:
       - msg
       - type
       title: ValidationError
+    WalkCreate:
+      properties:
+        client_walk_id:
+          type: string
+          format: uuid
+          title: Client Walk Id
+        started_at:
+          type: string
+          format: date-time
+          title: Started At
+        ended_at:
+          type: string
+          format: date-time
+          title: Ended At
+        duration_seconds:
+          type: integer
+          maximum: 86400.0
+          minimum: 0.0
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          maximum: 200000.0
+          minimum: 0.0
+          title: Distance Meters
+        destination:
+          $ref: '#/components/schemas/WalkDestinationCreate'
+        track:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          maxItems: 10000
+          title: Track
+      type: object
+      required:
+      - client_walk_id
+      - started_at
+      - ended_at
+      - duration_seconds
+      - distance_meters
+      - destination
+      - track
+      title: WalkCreate
+    WalkDestinationCreate:
+      properties:
+        place_id:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Place Id
+        name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Name
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+      type: object
+      required:
+      - place_id
+      - name
+      - location
+      title: WalkDestinationCreate
+    WalkDestinationRead:
+      properties:
+        place_id:
+          type: string
+          title: Place Id
+        name:
+          type: string
+          title: Name
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+      type: object
+      required:
+      - place_id
+      - name
+      - location
+      title: WalkDestinationRead
+    WalkDetailRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        client_walk_id:
+          type: string
+          format: uuid
+          title: Client Walk Id
+        started_at:
+          type: string
+          format: date-time
+          title: Started At
+        ended_at:
+          type: string
+          format: date-time
+          title: Ended At
+        duration_seconds:
+          type: integer
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          title: Distance Meters
+        destination:
+          $ref: '#/components/schemas/WalkDestinationRead'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        track:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          title: Track
+      type: object
+      required:
+      - id
+      - client_walk_id
+      - started_at
+      - ended_at
+      - duration_seconds
+      - distance_meters
+      - destination
+      - created_at
+      - track
+      title: WalkDetailRead
+    WalkListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/WalkRead'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: WalkListRead
+    WalkRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        client_walk_id:
+          type: string
+          format: uuid
+          title: Client Walk Id
+        started_at:
+          type: string
+          format: date-time
+          title: Started At
+        ended_at:
+          type: string
+          format: date-time
+          title: Ended At
+        duration_seconds:
+          type: integer
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          title: Distance Meters
+        destination:
+          $ref: '#/components/schemas/WalkDestinationRead'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - client_walk_id
+      - started_at
+      - ended_at
+      - duration_seconds
+      - distance_meters
+      - destination
+      - created_at
+      title: WalkRead
     WalkingRouteRequest:
       properties:
         origin:

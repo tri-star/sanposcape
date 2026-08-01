@@ -9,5 +9,6 @@ from sanposcape.auth.models import RefreshToken  # noqa: F401
 from sanposcape.database import Base
 from sanposcape.spots.models import Spot  # noqa: F401
 from sanposcape.users.models import User  # noqa: F401
+from sanposcape.walks.models import Walk  # noqa: F401
 
 __all__ = ["Base"]
