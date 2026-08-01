@@ -1,7 +1,7 @@
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
+from pydantic import AwareDatetime
 
 from sanposcape.dependencies import get_current_user
 from sanposcape.users.models import User
@@ -52,8 +52,8 @@ def create_walk(
 def list_walks(
     limit: int = Query(default=20, ge=1, le=50),
     cursor: str | None = Query(default=None),
-    started_after: datetime | None = Query(default=None),
-    started_before: datetime | None = Query(default=None),
+    started_after: AwareDatetime | None = Query(default=None),
+    started_before: AwareDatetime | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     service: WalkService = Depends(get_walk_service),
 ) -> WalkListRead:

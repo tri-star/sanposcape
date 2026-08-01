@@ -208,6 +208,25 @@ class TestListWalks:
 
         assert response.status_code == 400
 
+    def test_naive_started_after_returns_422(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """A-1: tz オフセットなしのクエリパラメータはサイレントに誤変換されず 422 で弾く。"""
+        response = walks_client.get(
+            "/walks?started_after=2026-08-01T09:00:00", headers=auth_headers
+        )
+
+        assert response.status_code == 422
+
+    def test_naive_started_before_returns_422(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = walks_client.get(
+            "/walks?started_before=2026-08-01T09:00:00", headers=auth_headers
+        )
+
+        assert response.status_code == 422
+
 
 class TestGetWalk:
     def test_returns_detail_with_track(
