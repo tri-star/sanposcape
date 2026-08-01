@@ -63,6 +63,8 @@ export type WalkRoute = {
  * （ルート本体は TanStack Query が保持する）。
  */
 export type ActiveWalk = {
+  /** 保存の冪等キー。**散歩開始時**に採番し、終了・再送でも変えない（ADR-003 D3）。 */
+  clientWalkId: string;
   /** 散歩の起点。散歩中もこの値でルートを引き続けるため、現在地の更新では書き換えない。 */
   origin: GeoCoordinates;
   destination: WalkDestination;
@@ -72,3 +74,31 @@ export type ActiveWalk = {
   /** 開始時刻（`Date.now()`）。経過時間はこの値から計算する。 */
   startedAtMs: number;
 };
+
+/**
+ * 終了して保存待ちの散歩。サーバー由来の値は一切含まない（保存前の端末側の事実だけ）。
+ * track は「生の軌跡」で保持し、送信時の丸め・間引きは walkTrackPayload が行う。
+ */
+export type FinishedWalk = {
+  clientWalkId: string;
+  startedAtMs: number;
+  endedAtMs: number;
+  /** 一時停止を除いた実活動秒（= duration_seconds）。 */
+  elapsedSec: number;
+  /** GPS ノイズ除去後の実測距離（m）。 */
+  distanceMeters: number;
+  destination: WalkDestination;
+  track: GeoCoordinates[];
+};
+
+/** サマリ画面の表示値（FinishedWalk から導出、または画面カタログ用の代表値）。 */
+export type WalkSummaryStats = {
+  elapsedSec: number;
+  /** 小数1桁に丸めた km。 */
+  distanceKm: number;
+  steps: number;
+  goalName: string;
+};
+
+/** 散歩記録の保存状態。 */
+export type WalkSaveStatus = "idle" | "saving" | "saved" | "error";

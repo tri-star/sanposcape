@@ -4,6 +4,7 @@ import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import type { ActiveWalk } from "@/features/walk/types";
 
 const WALK: ActiveWalk = {
+  clientWalkId: "11111111-1111-4111-8111-111111111111",
   origin: { latitude: 35.681236, longitude: 139.767125 },
   destination: {
     placeId: "place-1",

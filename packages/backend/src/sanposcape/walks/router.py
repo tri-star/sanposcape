@@ -23,7 +23,10 @@ _ERROR_RESPONSES = {
     status_code=status.HTTP_201_CREATED,
     responses={
         **_ERROR_RESPONSES,
-        200: {"description": "Idempotent replay: an existing walk with the same client_walk_id"},
+        200: {
+            "model": WalkRead,
+            "description": "Idempotent replay: an existing walk with the same client_walk_id",
+        },
         422: {"description": "Validation error"},
     },
 )

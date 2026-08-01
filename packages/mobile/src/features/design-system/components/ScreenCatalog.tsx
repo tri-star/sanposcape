@@ -7,9 +7,11 @@ import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import {
   DEFAULT_ACTIVE_WALK,
   DEFAULT_WALK_GOAL,
-  SAMPLE_WALK_RESULT,
+  buildSampleFinishedWalk,
 } from "@/features/walk/data/defaults";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
+import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
+import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -60,27 +62,25 @@ export function ScreenCatalog() {
       description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（往復${DEFAULT_WALK_GOAL.time}分）`,
       icon: "navigation",
       onPress: () => {
-        useActiveWalkStore
-          .getState()
-          .startWalk({ ...DEFAULT_ACTIVE_WALK, startedAtMs: Date.now() });
+        useActiveWalkStore.getState().startWalk({
+          ...DEFAULT_ACTIVE_WALK,
+          clientWalkId: randomUuidV4(),
+          startedAtMs: Date.now(),
+        });
         router.push("/(tabs)");
       },
     },
     {
       key: "walk-summary",
       label: "散歩サマリ",
-      description: "代表的なスタブ結果で単独表示",
+      description: "代表的なスタブ結果で単独表示（保存も実行される）",
       icon: "flag",
-      onPress: () =>
-        router.push({
-          pathname: "/walk-summary",
-          params: {
-            elapsedSec: String(SAMPLE_WALK_RESULT.elapsedSec),
-            distKm: SAMPLE_WALK_RESULT.distKm,
-            steps: String(SAMPLE_WALK_RESULT.steps),
-            goalName: SAMPLE_WALK_RESULT.goalName,
-          },
-        }),
+      onPress: () => {
+        useFinishedWalkStore
+          .getState()
+          .finishWalk(buildSampleFinishedWalk({ nowMs: Date.now(), clientWalkId: randomUuidV4() }));
+        router.push("/walk-summary");
+      },
     },
     {
       key: "history",

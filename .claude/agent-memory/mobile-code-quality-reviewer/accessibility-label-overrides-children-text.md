@@ -22,3 +22,21 @@ metadata:
 `accessibilityLabel` にその内容も含める（テンプレートリテラルで連結するなど）か、
 明示自体をやめて子テキストの自動読み上げに委ねる方が良いことが多い。
 [[pressable-pointerevents-a11y-pitfall]] と同じ「RN の a11y は見た目のUIと連動しない」系の罠。
+
+**追記（SS-19, 2026-08-02）:** より深刻な変種として、`WalkSaveStatus.tsx`（error 分岐）が
+コンテナ `View` に `accessibilityLabel`/`accessibilityRole="alert"` を付け、その内側に
+「メッセージ Text」だけでなく**独立した操作可能な `Button`（再試行）**まで含めていた。
+テキストが隠れるだけでなく、**インタラクティブな子要素そのものがスクリーンリーダーの
+操作対象から外れる**リスクがある（`ScreenCatalog`/`CategorySheet` の例は `Pressable`
+自体に label を付けているだけで、内部に別の独立した Button を持たないため実害が出にくいが、
+今回のケースは「コンテナ + 別の操作可能な子」という組み合わせで一段階リスクが高い）。
+同じ「エラーメッセージ＋再試行ボタン」パターンの既存実装（`WalkActiveView.tsx` の
+`routeNotice`、`LocationPermissionNotice.tsx`）はどちらもコンテナに
+accessibilityLabel/Role を付けていない、という対照的な「安全な先例」が同一コードベースに
+既にあった。**新しい「エラー+アクション」表示コンポーネントをレビューするときは、
+コンテナに accessibilityLabel/Role を付けていないか、かつ内部に Button 等の独立した
+操作要素が無いかを確認する。** RN の plain `View` はデフォルト `accessible=false` なので
+実際に子を隠すかはプラットフォーム挙動次第で断定しにくい（Pressable/Touchable は
+デフォルト `accessible=true` なので `ScreenCatalog`/`CategorySheet` の方が挙動を確信しやすい）。
+断定できない場合は「要検証」として Warning 相当で指摘し、既存の安全な先例に揃えることを
+提案するのが無難。

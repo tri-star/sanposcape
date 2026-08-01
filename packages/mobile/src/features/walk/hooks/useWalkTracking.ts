@@ -18,7 +18,7 @@ import type {
 export type UseWalkTrackingResult = {
   currentPosition: GeoCoordinates | null;
   distanceMeters: number;
-  /** 実際に歩いた軌跡（表示用。保存は M5）。 */
+  /** 実際に歩いた軌跡（表示・散歩記録の保存に使う）。 */
   points: GeoCoordinates[];
   status: WalkTrackingStatus;
   errorCode: LocationErrorCode | null;

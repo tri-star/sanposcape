@@ -1,4 +1,4 @@
-import type { ActiveWalk } from "@/features/walk/types";
+import type { ActiveWalk, FinishedWalk, WalkSummaryStats } from "@/features/walk/types";
 
 /** 画面カタログ（`ScreenCatalog`）から散歩中画面を単独表示するときに使う代表的なゴール。 */
 export type WalkGoalFallback = { name: string; time: number; dist: number };
@@ -21,7 +21,7 @@ export const DEFAULT_WALK_GOAL: WalkGoalFallback = {
  * 画面カタログから散歩中画面を単独表示するときに store へ入れる代表値。
  * origin は東京駅（services/location の mock 現在地と同じ）、destination は北西約 900m の地点。
  * 実データ化の見込みが薄い開発用フォールバックのため、View からの直接 import を許容する。
- * startedAtMs は開くたびに Date.now() を入れるためここには持たない。
+ * startedAtMs / clientWalkId は開くたびに Date.now() / randomUuidV4() を入れるためここには持たない。
  */
 export const DEFAULT_ACTIVE_WALK = {
   origin: { latitude: 35.681236, longitude: 139.767125 },
@@ -32,7 +32,7 @@ export const DEFAULT_ACTIVE_WALK = {
   },
   roundTripMinutes: DEFAULT_WALK_GOAL.time,
   roundTripKm: DEFAULT_WALK_GOAL.dist,
-} as const satisfies Omit<ActiveWalk, "startedAtMs">;
+} as const satisfies Omit<ActiveWalk, "startedAtMs" | "clientWalkId">;
 
 /**
  * サマリ画面を単独表示（画面カタログ等）した時の代表的なスタブ結果。
@@ -44,3 +44,50 @@ export const SAMPLE_WALK_RESULT = {
   steps: 3240,
   goalName: DEFAULT_WALK_GOAL.name,
 } as const;
+
+/**
+ * サマリ画面のフォールバック表示値（`SAMPLE_WALK_RESULT` を `WalkSummaryStats` の形へ揃えたもの）。
+ * `useWalkSummary` がドラフト無し（deep link・画面カタログ直叩き）のときに使う。
+ */
+export const SAMPLE_WALK_SUMMARY_STATS = {
+  elapsedSec: SAMPLE_WALK_RESULT.elapsedSec,
+  distanceKm: Number(SAMPLE_WALK_RESULT.distKm),
+  steps: SAMPLE_WALK_RESULT.steps,
+  goalName: SAMPLE_WALK_RESULT.goalName,
+} as const satisfies WalkSummaryStats;
+
+/**
+ * 画面カタログから散歩サマリを単独表示するときに store へ入れる代表値。
+ * 呼び出し側が Date.now() と randomUuidV4() を渡す（この関数自体は純粋に保つ）。
+ * これを積んで /walk-summary を開くと **実際に POST /walks が走る**ため、
+ * 屋外に出ずに保存経路と SS-20 の履歴反映を手元で確認できる。
+ */
+export function buildSampleFinishedWalk(input: {
+  nowMs: number;
+  clientWalkId: string;
+}): FinishedWalk {
+  const { nowMs, clientWalkId } = input;
+  const startedAtMs = nowMs - SAMPLE_WALK_RESULT.elapsedSec * 1000;
+  const origin = DEFAULT_ACTIVE_WALK.origin;
+  const destination = DEFAULT_ACTIVE_WALK.destination;
+
+  // origin → destination を結ぶ4点の直線補間（表示・送信整形の確認に足りる程度で十分）。
+  const steps = 3;
+  const track = Array.from({ length: steps + 1 }, (_, i) => {
+    const ratio = i / steps;
+    return {
+      latitude: origin.latitude + (destination.location.latitude - origin.latitude) * ratio,
+      longitude: origin.longitude + (destination.location.longitude - origin.longitude) * ratio,
+    };
+  });
+
+  return {
+    clientWalkId,
+    startedAtMs,
+    endedAtMs: nowMs,
+    elapsedSec: SAMPLE_WALK_RESULT.elapsedSec,
+    distanceMeters: Number(SAMPLE_WALK_RESULT.distKm) * 1000,
+    destination,
+    track,
+  };
+}

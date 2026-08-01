@@ -72,6 +72,23 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
 **新しい主要画面（`app/` 配下のルート）を追加したら、`ScreenCatalog` の `links` にリンクを1件追加する**
 ことを実装のセットとする。追加を怠るとカタログが陳腐化し、表示確認の抜け漏れに繋がる。
 
+#### 副作用を伴うカタログエントリに注意する
+
+「状態を前提に描画する画面」は単純な `router.push` では確認できないため、`ScreenCatalog` の
+`onPress` が**遷移前にストアへ代表値を積む**エントリがある。その中には、開いただけで
+**バックエンドへの書き込みが走るもの**が含まれる。
+
+| エントリ | 遷移前の副作用 | 開くと起きること |
+|---|---|---|
+| `walk-active`（散歩中） | `useActiveWalkStore.startWalk(DEFAULT_ACTIVE_WALK ...)` | ローカル状態のみ。散歩が「進行中」になる |
+| `walk-summary`（散歩サマリ） | `useFinishedWalkStore.finishWalk(buildSampleFinishedWalk(...))` | サマリ画面の `useWalkSave` が発火し、**実サーバーへ `POST /walks` が飛んでスタブの散歩レコードが作られる**（履歴にも並ぶ） |
+
+- カタログの `description` にも副作用を明記する（例: 「保存も実行される」）。
+- **副作用を伴うエントリを追加するときは、この表にも1行足す**。バックエンドに書き込むものは
+  特に、レビュー時に気づけるよう `description` と本表の両方に残す。
+- 見た目だけを確認したいときは、書き込みが起きるエントリを避けるか、backend を
+  ローカル環境に向けた状態で開く。
+
 ### 共通UIコンポーネントを追加・変更するときのルール
 
 1. **色・フォントサイズをハードコードしない**。必ず `theme` 経由（例外はスクリムなど `theme.colors.scrim`

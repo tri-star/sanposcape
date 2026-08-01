@@ -49,6 +49,9 @@ components/ui/button/
 - ストアはフック形式で公開するため、hook 規則に従い `use` 始まりの camelCase とする。
   - 例: `useWalkStore.ts`（横断的なら `src/store/`、機能限定なら `src/features/<feature>/`）。
 - サーバー由来のデータはストアに置かない（TanStack Query が保持する）。
+  - ただし**識別子1つに限った例外**を認める場合がある（現状は `useFinishedWalkStore.savedWalkId` のみ）。
+    許容条件と例外の範囲は [フォルダ構造](./folder-structure.md) の `store/` の節を正とし、
+    背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照する。
 
 ## 「散歩ルート」に関する命名の注意
 

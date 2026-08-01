@@ -7,3 +7,4 @@
 - [auth cleanup asymmetric error swallow](auth-cleanup-asymmetric-error-swallow.md) — signOut等のクリーンアップで一部の失敗だけtry/catchし残りが無防備というasymmetryは頻出。横並びで機械チェックする。
 - [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(往復)とroutes/walking(片道)を型・関数名で区別。「往復の目安」は出典が複数ある点に注意。
 - [reused component static testID risk](reused-component-static-testid-risk.md) — 内部要素が固定testIDの共有コンポーネントを複数画面から使うと同時マウント時に重複し得る（LocationPermissionNoticeで発見）。
+- [verify generated types vs plan assumptions](verify-generated-types-vs-plan-assumptions.md) — プランの「backendの型がまだ甘い」前提はOrval再生成/backend修正で覆っていることがある。生成物とrouter.pyを直接読んで判断する。

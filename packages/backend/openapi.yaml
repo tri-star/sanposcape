@@ -259,6 +259,10 @@ paths:
           description: Request body too large
         '200':
           description: 'Idempotent replay: an existing walk with the same client_walk_id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkRead'
         '422':
           description: Validation error
     get:

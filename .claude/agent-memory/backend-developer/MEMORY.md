@@ -9,3 +9,4 @@
 - [project-ss18-review-followup](project_ss18_review_followup.md) — SS-18ローカルレビューの承認4項目対応（tz-aware化・境界値テスト・middleware移動・docs更新）の実装場所と判断ログ
 - [feedback-commit-splitting](feedback_commit_splitting.md) — 同一ファイルへの複数レビュー指摘は`git add -p`でhunk単位にコミット分割する
 - [reference-stray-claude-dir](reference_stray_claude_dir.md) — エージェントメモリがpackages配下に誤生成される既知のバグ。正しい置き場所は常にリポジトリルート
+- [ruff-cache-root-owned-permission-denied](feedback_ruff_cache_root_owned.md) — `.ruff_cache`/`.pytest_cache`がroot/nobody所有になりapp_userから書けない時は`docker compose exec -u root api sh -c 'chown -R app_user:app_user ...'`で復旧

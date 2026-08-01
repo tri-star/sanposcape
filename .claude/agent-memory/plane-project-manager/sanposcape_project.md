@@ -157,6 +157,11 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-18「backend: 散歩(Walk)モデル・散歩ルート保存・履歴取得API（ユーザー紐付け・認可）」(work_item_id: `dfde4093-08cb-45aa-bae9-bb3aa2ddab6d`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。M5の4件(SS-18〜21)のうち最初の着手。
 - **Why**: M5「散歩記録・履歴」はMVP完成に向けて残る最後の主要モジュール（2026-08-01トリアージメモ参照）。SS-18は他2件(SS-19/20)の土台となるため優先着手（ユーザー指示）。
 
+## 2026-08-02追加: SS-19をIn Progressに更新（mobile側着手）
+
+- SS-19「mobile: 散歩終了処理・散歩ルート保存」(work_item_id: `e91c7a28-a58e-4ea3-898c-5c804bf0fdcc`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-18(backend: Walkモデル・保存API、2026-08-01にIn Progress化)に続くM5の2件目の着手。
+- update_work_item直後のレスポンスは`state`は新IDになっているが`state_group`は旧グループ("backlog")のまま返るキャッシュ遅延を再確認（既知の挙動、SS-7/SS-25メモ参照）。
+
 ## 2026-08-01確認: 作成時の命名・Module 割り当て方針
 
 - WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。

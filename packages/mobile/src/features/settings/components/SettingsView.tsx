@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { runSessionCleanup } from "@/lib/sessionCleanup";
 import { authService } from "@/services/auth";
 import { makeStyles } from "@/theme/makeStyles";
 
@@ -34,6 +35,10 @@ export function SettingsView() {
     setIsSigningOut(true);
 
     void authService.signOut().finally(() => {
+      // 共有端末でのアカウント切り替え時、前のユーザーの散歩ドラフト（位置情報の軌跡）や
+      // キャッシュ済みの散歩履歴が次のユーザーに引き継がれないよう、サインアウト確定後に
+      // クリアする（登録済みの後始末は `@/lib/sessionCleanup` に集約されている）。
+      runSessionCleanup();
       // 設定画面より前の認証済み画面へ戻れないよう、スタックを畳んでから置換する。
       router.dismissAll();
       router.replace("/(auth)/sign-in");
