@@ -121,21 +121,21 @@ class TestGetWalk:
     def test_returns_walk_detail_with_track(self, db_session: Session) -> None:
         service = _make_service(db_session)
         user = _make_user(db_session, subject="u1")
-        created, _ = service.record_walk(user, _make_payload())
+        walk, _ = service.record_walk(user, _make_payload())
 
-        detail = service.get_walk(user, created.id)
+        detail = service.get_walk(user, walk.id)
 
-        assert detail.id == created.id
+        assert detail.id == walk.id
         assert detail.track == [GeoPoint(latitude=35.68, longitude=139.76)]
 
     def test_raises_not_found_for_other_users_walk(self, db_session: Session) -> None:
         service = _make_service(db_session)
         owner = _make_user(db_session, subject="owner")
         other = _make_user(db_session, subject="other")
-        created, _ = service.record_walk(owner, _make_payload())
+        walk, _ = service.record_walk(owner, _make_payload())
 
         with pytest.raises(WalkNotFoundError):
-            service.get_walk(other, created.id)
+            service.get_walk(other, walk.id)
 
     def test_raises_not_found_for_unknown_id(self, db_session: Session) -> None:
         service = _make_service(db_session)

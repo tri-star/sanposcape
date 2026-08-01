@@ -24,6 +24,8 @@ def decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
         raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
         started_at_raw, item_id_raw = raw.split("|", 1)
         started_at = datetime.fromisoformat(started_at_raw)
+        if started_at.tzinfo is None or started_at.utcoffset() is None:
+            raise ValueError("Cursor timestamp must be timezone-aware")
         item_id = uuid.UUID(item_id_raw)
     except (
         ValueError,

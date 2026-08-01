@@ -18,6 +18,14 @@ def test_encode_decode_cursor_round_trips() -> None:
     assert decoded_item_id == item_id
 
 
+def test_decode_cursor_with_naive_timestamp_raises_invalid_cursor_error() -> None:
+    started_at = datetime(2026, 8, 1, 9, 0, 0)
+    cursor = encode_cursor(started_at, uuid.uuid4())
+
+    with pytest.raises(InvalidCursorError):
+        decode_cursor(cursor)
+
+
 def test_decode_empty_cursor_raises_invalid_cursor_error() -> None:
     with pytest.raises(InvalidCursorError):
         decode_cursor("")
