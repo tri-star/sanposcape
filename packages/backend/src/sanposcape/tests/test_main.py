@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sanposcape.auth.exceptions import AuthenticationError
-from sanposcape.main import RequestSizeLimitMiddleware, register_exception_handlers
+from sanposcape.core.middleware import RequestSizeLimitMiddleware
+from sanposcape.main import register_exception_handlers
 
 
 def test_users_router_registers_delete_me_operation() -> None:

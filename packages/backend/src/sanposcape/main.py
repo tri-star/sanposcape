@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from sanposcape.auth.dev_router import router as auth_dev_router
 from sanposcape.auth.exceptions import (
@@ -17,6 +16,7 @@ from sanposcape.auth.exceptions import (
 )
 from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
+from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimitMiddleware
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
@@ -37,64 +37,13 @@ def _unauthorized_response(detail: str) -> JSONResponse:
     )
 
 
-class RequestBodyTooLargeError(Exception):
-    """Raised before an oversized chunked body can be fully buffered."""
-
-
-class RequestSizeLimitMiddleware:
-    """Streaming request-size guard for a given path prefix; works without Content-Length.
-
-    Originally `/explore` 専用だったが、`/walks`（軌跡を含むため上限が異なる）にも
-    同じ仕組みが必要になったため `path_prefix` を引数化して汎用化した（D9）。
-    複数の path_prefix に別々の上限を掛けたい場合は、`app.add_middleware()` を
-    prefix ごとに複数回呼び出す。
-    """
-
-    def __init__(self, app: ASGIApp, path_prefix: str, max_bytes: int) -> None:
-        self.app = app
-        self._path_prefix = path_prefix
-        self._max_bytes = max_bytes
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith(self._path_prefix):
-            await self.app(scope, receive, send)
-            return
-        content_length = dict(scope.get("headers", [])).get(b"content-length")
-        if (
-            content_length is not None
-            and content_length.isdigit()
-            and int(content_length) > self._max_bytes
-        ):
-            await self._send_too_large(scope, receive, send)
-            return
-
-        received_bytes = 0
-
-        async def limited_receive() -> Message:
-            nonlocal received_bytes
-            message = await receive()
-            if message["type"] == "http.request":
-                received_bytes += len(message.get("body", b""))
-                if received_bytes > self._max_bytes:
-                    raise RequestBodyTooLargeError()
-            return message
-
-        try:
-            await self.app(scope, limited_receive, send)
-        except RequestBodyTooLargeError:
-            await self._send_too_large(scope, receive, send)
-
-    @staticmethod
-    async def _send_too_large(scope: Scope, receive: Receive, send: Send) -> None:
-        await JSONResponse(status_code=413, content={"detail": "Request body too large"})(
-            scope, receive, send
-        )
-
-
 def register_exception_handlers(app: FastAPI) -> None:
     """auth ドメインの例外を HTTP レスポンスへ変換する。
 
     router には try/except を書かず、ここに一元化する（folder-structure.md の方針）。
+    `RequestBodyTooLargeError` / `RequestSizeLimitMiddleware` の実体は
+    `core/middleware.py` にある（413を返す経路の定義とハンドラ登録がファイルを
+    跨ぐため、両者を見比べたい場合は必ず両方を確認すること）。
     """
 
     @app.exception_handler(InvalidIdTokenError)
