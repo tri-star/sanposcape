@@ -30,10 +30,20 @@
 - 単体テスト
   - 方針: `vitest.config.ts` は node 環境 + `react-native` の最小スタブ差し替えのため、
     **コンポーネントのレンダリングテストは書けない**（詳細は
-    [pages-components-guideline](./pages-components-guideline.md)）。そのため以下の3層で担保する。
+    [pages-components-guideline](./pages-components-guideline.md)）。そのため以下の層で担保する。
     - 純粋ロジック（`lib/`）: `react-native` を値 import しない判定・整形関数を vitest でテスト。
     - 静的スタブの不変条件（`data/`）: id の一意性・値域・代表値の整合などを vitest でテスト。
+    - ストア（`store/`）: Zustand ストアは React 非依存（`create()` の戻り値を
+      `useXxxStore.getState()` / `setState()` で直接操作できる）ため、初期値・状態遷移・
+      リセットの不変条件を vitest でテストする（例: `useFinishedWalkStore.test.ts`）。
+      各テストの冒頭で `setState` により初期状態へ戻し、テスト間で状態を持ち越さないこと。
+    - API 呼び出し（`api/`）: 生成 hook ではなく素の fetcher をラップしているため
+      `react-native` に到達せず、msw（`src/test/setup.ts` の `server`）でレスポンスを
+      差し替えて vitest でテストできる（例: `walkApi.test.ts`）。成功時の戻り値・送信ボディ・
+      ステータス別の `ApiError` を検証する。
     - 画面の見た目: 開発確認用ルート（`/dev-screens` の `ScreenCatalog`）で目視確認する。
+    - `hooks/` と `components/` は上記のいずれにも入らない（レンダリングテストが書けないため）。
+      **テストしたいロジックは `lib/` の純粋関数へ切り出す**のが原則。
   - 認証: `services/auth` のバレル（`index.ts`）は import しない。バレルはモード判定
     (`getAuthMode()`) の結果に応じて `googleSignIn.ts`（ネイティブ依存
     `react-native-nitro-google-signin`。エイリアス未設定）へ到達しうるため、テスト環境の

@@ -98,8 +98,19 @@ packages/mobile/
 - **`store/`** はその機能に閉じたクライアント状態（Zustand）。**サーバー由来のデータは置かない**
   （TanStack Query が保持する。二重管理を避けるため）。
   2つ以上の機能から参照されるようになったら `src/store/` へ昇格させる（コンポーネントの昇格ルールと同じ判断基準）。
-  - 実例: `features/walk/store/useActiveWalkStore.ts`（進行中の散歩。永続化はせず、保存は M5 の責務）。
-    判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
+  - 実例1: `features/walk/store/useActiveWalkStore.ts`（進行中の散歩 `ActiveWalk`。「今どの散歩をしているか」の識別情報だけを持ち、ルート本体は持たない）。
+  - 実例2: `features/walk/store/useFinishedWalkStore.ts`（終了したが保存が確定していない散歩 `FinishedWalk` と保存状態）。
+    散歩中画面 → サマリ画面をまたいで保存対象を渡すために、`useActiveWalkStore` とは責務を分けて別ファイルにしている。
+  - **いずれも永続化しない**（AsyncStorage / SecureStore を使わない）。保存前にアプリを落とすと記録は失われる。
+    ローカル永続化（起動時の再送・散歩の復帰）は SS-19 のスコープ外でフォローアップ課題に送っており、
+    着手時は ADR-008 の再追補が必要。
+  - **「サーバー由来のデータを置かない」の例外は `useFinishedWalkStore.savedWalkId` の1つだけ**。
+    サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
+    散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
+  - 判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
+  - **サインアウト時にクリアが必要な store は、`src/lib/sessionCleanup.ts` の `registerSessionCleanup()` に
+    自分の後始末を登録する**（ストアのファイル末尾で1回）。サインアウト導線（`SettingsView`）は
+    `runSessionCleanup()` を1回呼ぶだけにして、store が増えるたびに導線を編集しなくて済むようにする。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
@@ -137,7 +148,7 @@ packages/mobile/
 
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。
-- `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。
+- `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み（例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`）もここに置く。
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
 - `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
@@ -147,6 +158,19 @@ packages/mobile/
 
 - **サーバー状態（API由来）= TanStack Query**。取得・キャッシュ・再検証はすべて Query に任せ、`src/store/` に複製しない。
   - ドメインのデータ取得hookは `src/features/<feature>/hooks/`（例: `useWalkHistory`）に置き、内部で Orval生成物 + TanStack Query を使う。
+  - **更新系（mutation）も同じく `hooks/` に置く**（例: `features/walk/hooks/useWalkSave.ts` — `POST /walks`）。
+    `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは
+    「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる。
+  - **`features/<feature>/api/` には Orval が生成した「素の fetcher」を薄くラップした関数を置き、
+    生成 hook（`useXxx...`）は使わない**（例: `walkApi.ts` の `saveWalk`、`walkRouteApi.ts` の `fetchWalkRoute`）。
+    理由は2つ:
+    1. queryKey / `enabled` / `retry` / `staleTime`（mutation なら再試行条件）を hooks 層で自前に制御したいため。
+    2. 生成 hook は `react-native` を値 import する経路に乗るが、素の fetcher なら乗らないため
+       **node 環境の Vitest でテストできる**（msw でレスポンスを差し替えて検証する）。
+  - この層は `services/auth` を import しない（認証は `customFetch` が `authTokenProvider` 経由で付ける）。
+  - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
+    `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
+    保存直後の一覧が更新されない。
 - **クライアント状態（UI・一時状態）= Zustand**。横断的なものだけ `src/store/`、機能限定のものは `src/features/<feature>/store/` に置く。
   - ただし**1画面に閉じる一時状態は store にせず `hooks/` の `useState` に留める**（例: `useWalkPlan` の往復時間・カテゴリ・選択スポット）。
     画面をまたいで保持する必要が出た時点で store 化する（例: `useActiveWalkStore` — 散歩開始画面と散歩中画面をまたぐため）。
