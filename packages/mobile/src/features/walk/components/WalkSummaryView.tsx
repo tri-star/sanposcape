@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -6,24 +6,17 @@ import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
 import { StatBlock } from "@/components/ui/stat-block/StatBlock";
-import { SAMPLE_WALK_RESULT } from "@/features/walk/data/defaults";
+import { WalkSaveStatus } from "@/features/walk/components/WalkSaveStatus";
+import { useWalkSummary } from "@/features/walk/hooks/useWalkSummary";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 /**
- * router param（文字列・未検証）を非負整数へ変換する。
- * 非有限値（"Infinity" 等）や負値は 0 に丸め、formatClock 側の例外を防ぐ。
- */
-function toNonNegInt(value: string | undefined): number {
-  const n = Number(value ?? 0);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
-/**
  * 散歩終了サマリ画面。mock に直接該当なし。
  * `isMain` の終了導線＋`isRecord` の StatBlock/Card トーンで補完する。
- * 経過時間・距離・歩数は散歩中画面から router params で受け取る（静的実装）。
+ * 表示値・保存状態は `useWalkSummary`（`useFinishedWalkStore` + `useWalkSave` の合成）から受け取る。
+ * ドラフトが無い（deep link・画面カタログ直叩き）場合は代表値を表示し、保存は行わない。
  */
 export function WalkSummaryView() {
   const theme = useTheme();
@@ -31,21 +24,8 @@ export function WalkSummaryView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const params = useLocalSearchParams<{
-    elapsedSec?: string;
-    distKm?: string;
-    steps?: string;
-    goalName?: string;
-  }>();
-  // router param は文字列かつ未検証のため、formatClock が例外を投げる負値/非有限値をガードする。
-  // params 未指定時（画面カタログ等からの単独表示）は SAMPLE_WALK_RESULT の代表値を使う。
-  const elapsedSec = params.elapsedSec
-    ? toNonNegInt(params.elapsedSec)
-    : SAMPLE_WALK_RESULT.elapsedSec;
-  const distKm = params.distKm ?? SAMPLE_WALK_RESULT.distKm;
-  const steps = params.steps ? toNonNegInt(params.steps) : SAMPLE_WALK_RESULT.steps;
-  // "" は `??` で弾けないため、空文字列も未指定として扱いフォールバックさせる。
-  const goalName = params.goalName?.trim() ? params.goalName : SAMPLE_WALK_RESULT.goalName;
+  const summary = useWalkSummary();
+  const { stats } = summary;
 
   return (
     <View
@@ -57,16 +37,23 @@ export function WalkSummaryView() {
           <Icon name="footprints" size={40} color={theme.colors.primary} />
         </View>
         <Text style={styles.title}>おつかれさまでした</Text>
-        <Text style={styles.subtitle}>{`${goalName}までの散歩を記録しました。`}</Text>
+        <Text style={styles.subtitle}>{`${stats.goalName}までの散歩を記録しました。`}</Text>
       </View>
 
       <Card style={styles.statsCard}>
         <View style={styles.statRow}>
-          <StatBlock value={formatClock(elapsedSec)} label="経過時間" />
-          <StatBlock value={distKm} unit="km" label="歩行距離" />
-          <StatBlock value={steps.toLocaleString()} unit="歩" label="歩数" />
+          <StatBlock value={formatClock(stats.elapsedSec)} label="経過時間" />
+          <StatBlock value={stats.distanceKm.toFixed(1)} unit="km" label="歩行距離" />
+          <StatBlock value={stats.steps.toLocaleString()} unit="歩" label="歩数" />
         </View>
       </Card>
+
+      <WalkSaveStatus
+        status={summary.saveStatus}
+        errorCode={summary.saveErrorCode}
+        onRetry={summary.retrySave}
+        testID="walk-summary-save-status"
+      />
 
       <View style={styles.actions}>
         <Button

@@ -41,17 +41,10 @@ export function WalkActiveView() {
 
   const handleConfirmEnd = () => {
     setEndDialogOpen(false);
-    const goalName = walk.activeWalk?.destination.name ?? "";
-    const params = {
-      elapsedSec: String(walk.elapsedSec),
-      distKm: (walk.distanceMeters / 1000).toFixed(1),
-      steps: String(walk.steps),
-      goalName,
-    };
-    // store をクリアしてからナビゲーションする（先にナビゲーションすると
-    // ナビタブが一瞬 idle 表示になる前に画面が離れるのを避けるため）。
+    // ドラフトを確定（useFinishedWalkStore へ積む）してから進行中の散歩を終了する。
+    // 保存（POST /walks）はサマリ画面（useWalkSummary）が行う。
     walk.finishWalk();
-    router.push({ pathname: "/walk-summary", params });
+    router.push("/walk-summary");
   };
 
   if (walk.activeWalk === null) {
@@ -187,7 +180,8 @@ export function WalkActiveView() {
         }
       >
         <Text style={styles.dialogBody}>
-          経過時間 {formatClock(walk.elapsedSec)} を今日の記録に保存します。
+          経過時間 {formatClock(walk.elapsedSec)}・約{(walk.distanceMeters / 1000).toFixed(1)}
+          km を今日の記録に保存します。
         </Text>
       </Dialog>
 
