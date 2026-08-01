@@ -18,15 +18,16 @@
   - backend: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
-    - [ADR-002 技術スタック（Unistyles / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
+    - [ADR-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
     - [ADR-003 development build 前提と開発ループ](./packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
     - [ADR-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+    - [ADR-005 スタイルは Unistyles をやめる](./packages/mobile/adr/ADR-005-styling-without-unistyles.md)
 - backend
   - [フォルダ構造](./packages/backend/docs/folder-structure.md) / [命名規則](./packages/backend/docs/naming-convention.md)
-  - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env-design.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)
+  - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)
 - mobile
   - [フォルダ構造](./packages/mobile/docs/folder-structure.md) / [命名規則](./packages/mobile/docs/naming-conventions.md)
-  - [ツール・ライブラリ](./packages/mobile/docs/toolsets-libraries.md) / [アーキテクチャガイドライン](./packages/mobile/docs/architecture-guideline.md) / [ページ・コンポーネント](./packages/mobile/docs/pages-components-guideline.md) / [ローカル環境構築](./packages/mobile/docs/local-env-design.md)
+  - [ツール・ライブラリ](./packages/mobile/docs/toolsets-libraries.md) / [アーキテクチャガイドライン](./packages/mobile/docs/architecture-guideline.md) / [ページ・コンポーネント](./packages/mobile/docs/pages-components-guideline.md) / [ローカル環境構築](./packages/mobile/docs/local-env.md)
   - [iPhone実機 development build手順](./packages/mobile/docs/iphone-device-development.md)
 
 ## 技術スタック

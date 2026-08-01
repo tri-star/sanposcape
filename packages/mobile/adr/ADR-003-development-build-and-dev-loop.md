@@ -13,7 +13,7 @@
   アイコン描画の `react-native-svg` がネイティブモジュールのため、**本 ADR の結論は変わらない**。）
 - **react-native-maps** もネイティブモジュールで、**Expo Go では動作しない**。
 
-つまり本アプリは、スタイルと地図という中核の2要素がいずれもネイティブ依存であり、**Expo Go では成立しない**。動作確認の方法を決め直す必要がある。同時に「Expo Go のような手軽な HMR 体験を失いたくない」という要望がある。
+つまり当初の技術スタックでは、スタイルと地図という中核の2要素がいずれもネイティブ依存であり、**Expo Go では成立しなかった**。Unistyles は後に撤去したが、react-native-maps は引き続きネイティブ依存であるため、development build 前提の結論は維持する。動作確認の方法を決め直す必要がある。同時に「Expo Go のような手軽な HMR 体験を失いたくない」という要望がある。
 
 - 開発環境は WSL2。ローカルの Android エミュレータ/実機は Windows 側で動作させる想定。
 - iPhone実機も開発対象とするが、ローカルにmacOS/Xcode環境はない。iOSネイティブビルドと
@@ -43,7 +43,7 @@
 ### 選択肢1: development build + Fast Refresh（採用）
 
 - **概要**: ネイティブは焼き込み、JS は Metro から取得。dev-client 経由で起動。
-- **メリット**: Unistyles/地図が動く。**Fast Refresh は Expo Go と同等**で、日常のループはほぼ変わらない。再ビルドはネイティブ変更時のみ。
+- **メリット**: react-native-maps などのネイティブ機能が動く。**Fast Refresh は Expo Go と同等**で、日常のループはほぼ変わらない。再ビルドはネイティブ変更時のみ。
 - **デメリット**: 初回とネイティブ変更時にビルドが要る。WSL2↔端末の到達設定
   （Androidのadb reverse / iPhoneのLAN接続）が要る。
 
@@ -70,7 +70,7 @@
 
 ### ポジティブな影響
 
-- Unistyles・react-native-maps が動作し、[ADR-002](./ADR-002-mobile-tech-stack.md) の技術選定を活かせる。
+- react-native-maps などのネイティブ機能が動作し、[ADR-002](./ADR-002-mobile-tech-stack.md) の技術選定を活かせる。Unistyles は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤去済み。
 - 日常の開発ループは Fast Refresh で Expo Go 同等。
 - dev build はチームで使い回せる（各自インストールするだけ）。
 

@@ -25,7 +25,7 @@
 
 ## 決定
 
-- **スタイル: react-native-unistyles（v3）**。デザイントークン/テーマを型安全に扱い、`src/theme/` に primitive/semantic を定義。エントリ `index.ts` で `StyleSheet.configure` を初期化。
+- **スタイル: React Native 標準 `StyleSheet` + テーマ Context**。当初採用した react-native-unistyles（v3）は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤回済み。デザイントークン/テーマは `src/theme/` に primitive/semantic を定義し、`ThemeProvider` と `makeStyles` から参照する。
 - **状態管理**:
   - サーバー状態 = **TanStack Query**（Orval 生成物と組み合わせる）。`src/store` には複製しない。
   - クライアント状態（UI・一時状態）= **Zustand**（`src/store`）。
@@ -37,7 +37,7 @@
 
 ### スタイル
 
-#### 選択肢1: Unistyles（採用）
+#### 選択肢1: Unistyles（当初採用、ADR-005で撤回）
 
 - **概要**: テーマ/デザイントークンを型安全に扱う高性能スタイルライブラリ。
 - **メリット**: デザイントークン運用・テーマ切替に強く、純粋な RN スタイルに近い。長期保守向き。
@@ -49,7 +49,7 @@
 - **メリット**: Web の Tailwind と語感が揃う。学習が早い。
 - **デメリット**: バージョン変遷の履歴があり、長期運用の安定性に懸念。
 
-#### 選択肢3: StyleSheet + 独自トークン
+#### 選択肢3: StyleSheet + 独自トークン（ADR-005で採用）
 
 - **概要**: ライブラリを足さず素の StyleSheet + トークン。
 - **メリット**: 依存最小。
@@ -87,7 +87,7 @@
 
 ## 決定理由
 
-- **長期保守**とデザイントークン運用を重視し、テーマを型安全に扱える Unistyles を採用。地図が元々ネイティブ依存（react-native-maps）で **Expo Go を使えない**ため、Unistyles のネイティブ依存も追加の制約にならない（どのみち development build 前提）。
+- スタイルは当初、**長期保守**とデザイントークン運用を重視して Unistyles を採用したが、実装時の環境起因エラーとテスト負荷を踏まえ、[ADR-005](./ADR-005-styling-without-unistyles.md) で React Native 標準 `StyleSheet` + テーマ Context へ置き換えた。
 - 状態管理は、サーバー状態を Query に一元化し、少量のクライアント状態を Zustand で持つのが**責務が明確で学習コストも低い**。
 - API は OpenAPI からの自動生成（Orval）で**型安全＆手書き削減**。MSW モックも同時生成でき、テスト容易性の要件に合致。
 
@@ -95,13 +95,13 @@
 
 ### ポジティブな影響
 
-- デザイントークン運用・テーマ切替が型安全に行える（[ADR-001](./ADR-001-folder-structure.md) の暫定だった `src/theme/` を確定）。
+- デザイントークン運用・テーマ切替を `src/theme/` に集約できる（[ADR-001](./ADR-001-folder-structure.md) の暫定だった `src/theme/` を確定）。
 - サーバー/クライアント状態の分離がコード構造に表現される。
 - backend の API 変更が OpenAPI→Orval 再生成で mobile に型として反映される。
 
 ### ネガティブな影響・トレードオフ
 
-- Unistyles・react-native-maps が**ネイティブモジュール**のため Expo Go が使えず、development build が必要（[ADR-003](./ADR-003-development-build-and-dev-loop.md)）。
+- react-native-maps が**ネイティブモジュール**のため Expo Go が使えず、development build が必要（[ADR-003](./ADR-003-development-build-and-dev-loop.md)）。Unistyles のネイティブ依存は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤去済み。
 - Orval 生成物は再生成前提のため、backend の OpenAPI 更新時に再生成の運用が必要。
 
 ### 移行・対応が必要な事項
