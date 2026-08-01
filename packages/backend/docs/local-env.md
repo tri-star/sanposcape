@@ -142,12 +142,21 @@ docker compose up -d --build
 - `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New) と Routes API のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
 - `GOOGLE_MAPS_SEARCH_DEADLINE_SECONDS`: `/explore/places` の Places 検索から徒歩経路による候補絞り込みまでの合計時間上限。期限までに評価できなかった候補は返さない。Nearby Search の上限に合わせ、1探索で評価する候補・Routes 呼び出しは最大20件である。
-- `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: 認証済みユーザーと接続元IPの両方に適用する process-local の `/explore` リクエスト上限。`GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES` は JSON 解析前に拒否する本文サイズ上限である。
+- `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: 認証済みユーザーと接続元IPの両方に適用する process-local の `/explore` リクエスト上限。
 - cache miss は同じ正規化 key ごとに single-flight 化され、同時の同一 Places/Routes 呼び出しを1件へまとめる。
 - これらは**単一インスタンス限定**の緩和策である。水平スケールを開始する前に、Redis 等の共有 limiter と edge/proxy の request-size / IP rate-limit を必ず導入すること。共有 limiter は運用・識別子方針の別設計が必要なため、このタスクでは導入しない。
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`: 上流への接続／読取 timeout（既定 3 秒／8 秒）。超過時は API に 503 を返す。
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`: 1 回の探索で取得・経路計算する候補数の上限（いずれも既定・最大 20）。Google Places Nearby Search の provider 上限と、上流のコスト・レート対策に合わせた安全弁である。
 - Places / Routes の endpoint は Google の HTTPS API に固定しており、server API key の送信先を環境変数で変更することはできない。テストは HTTP client の差し替えで行う。
+
+## リクエストサイズ制限
+
+`RequestSizeLimitMiddleware`（`core/middleware.py`）が JSON 解析前に本文サイズを拒否する ASGI ミドルウェアで、path prefix ごとに別々の上限を掛けられるよう汎用化されている（SS-18 で `/explore` 専用から拡張）。`main.py` の `create_app()` で prefix ごとに `app.add_middleware()` を複数回呼び出しており、現在は以下の2系統が有効。
+
+- `GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES`: `/explore` 配下の本文サイズ上限（既定 32,768 / 上限 1,048,576）。
+- `WALKS_REQUEST_MAX_BYTES`: `/walks` 配下の本文サイズ上限（既定 1,048,576 / 上限 4,194,304）。軌跡（`track`）を含むため `/explore` より大きい上限にしているが、無制限にはしていない（低コスト DoS 対策）。
+
+超過時はいずれも 413 を返す。
 
 ### `/explore/places` が 503 を返すときの切り分け
 
@@ -178,14 +187,21 @@ print(r.status_code); print(r.text[:800])"
 ```
 - server key は Google Cloud Console で API 制限（Places API (New)、Routes API）と環境別の制限を設定する。地図タイルに使う mobile SDK key は別の key として SS-15 で管理する。
 
-**`AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE` / `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` /
-`GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS` は `compose.yaml` の `environment:` には列挙していない**（他の
-認証系 env とは扱いが非対称に見えるが意図的）。`config.py` の `Settings` は `env_file=".env"` を
-指定しており、`api` コンテナにバインドマウントされた `packages/backend/.env` を直接読む。
-`compose.yaml` の `environment:` はホストの env（CI 等、`.env` ファイルを使わない実行環境）から
-値を渡すための経路であり、**上記5つは妥当な既定値を持つため意図的に省略している**。既定値を
-上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
-必要になった場合は `compose.yaml` の `environment:` にも追加すること。
+**既定値を持つ以下の env は `compose.yaml` の `environment:` には列挙していない**（他の env とは
+扱いが非対称に見えるが意図的）。`config.py` の `Settings` は `env_file=".env"` を指定しており、
+`api` コンテナにバインドマウントされた `packages/backend/.env` を直接読む。`compose.yaml` の
+`environment:` はホストの env（CI 等、`.env` ファイルを使わない実行環境）から値を渡すための経路
+であり、以下は妥当な既定値を持つため意図的に省略している。
+
+- `AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE`
+- `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` / `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`
+- `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`
+- `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
+- `WALKS_REQUEST_MAX_BYTES`
+
+既定値を上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
+必要になった場合は `compose.yaml` の `environment:` にも追加すること（このリストは追加のたびに
+更新すること）。
 
 ### 運用上の TODO（SS-10 のスコープ外）
 
