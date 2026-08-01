@@ -54,8 +54,8 @@ export function WalkSaveStatus({
         accessibilityRole="text"
         accessibilityLabel="記録を保存しました"
       >
-        <Icon name="check" size={18} color={theme.colors.primary} />
-        <Text style={[styles.text, { color: theme.colors.primary }]}>記録を保存しました</Text>
+        <Icon name="check" size={18} color={theme.colors.success} />
+        <Text style={[styles.text, { color: theme.colors.success }]}>記録を保存しました</Text>
       </View>
     );
   }
@@ -63,14 +63,14 @@ export function WalkSaveStatus({
   const message = walkSaveErrorMessage(errorCode ?? "unknown");
   const retriable = isRetriableWalkSaveError(errorCode ?? "unknown");
 
+  // 外側コンテナには accessibilityLabel/Role を付けない（`WalkActiveView` の
+  // `routeNotice` / `LocationPermissionNotice` と同じ方針）。コンテナに付けると
+  // プラットフォームによって1個の accessibility element として扱われ、
+  // 内側の「再試行」ボタンがスクリーンリーダーから独立して操作できなくなるため、
+  // アラートの読み上げ対象はメッセージ行だけに絞る。
   return (
-    <View
-      testID={testID}
-      style={[styles.container, styles.errorBox]}
-      accessibilityRole="alert"
-      accessibilityLabel={message}
-    >
-      <View style={styles.row}>
+    <View testID={testID} style={[styles.container, styles.errorBox]}>
+      <View style={styles.row} accessibilityRole="alert" accessibilityLabel={message}>
         <Icon name="alert-circle" size={18} color={theme.colors.danger} />
         <Text style={styles.errorText}>{message}</Text>
       </View>
