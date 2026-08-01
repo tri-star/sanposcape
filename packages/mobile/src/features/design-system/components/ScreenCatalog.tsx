@@ -10,6 +10,7 @@ import {
   SAMPLE_WALK_RESULT,
 } from "@/features/walk/data/defaults";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
+import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -60,9 +61,11 @@ export function ScreenCatalog() {
       description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（往復${DEFAULT_WALK_GOAL.time}分）`,
       icon: "navigation",
       onPress: () => {
-        useActiveWalkStore
-          .getState()
-          .startWalk({ ...DEFAULT_ACTIVE_WALK, startedAtMs: Date.now() });
+        useActiveWalkStore.getState().startWalk({
+          ...DEFAULT_ACTIVE_WALK,
+          clientWalkId: randomUuidV4(),
+          startedAtMs: Date.now(),
+        });
         router.push("/(tabs)");
       },
     },

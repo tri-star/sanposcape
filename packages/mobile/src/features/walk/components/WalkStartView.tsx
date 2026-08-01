@@ -18,6 +18,7 @@ import { categorySummary } from "@/features/walk/lib/categorySummary";
 import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useToast } from "@/hooks/useToast";
+import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -40,6 +41,8 @@ export function WalkStartView() {
   const handleStartWalk = () => {
     if (!plan.selectedSpot || !plan.origin || !plan.destination || !plan.walkRoute) return;
     startWalk({
+      // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
+      clientWalkId: randomUuidV4(),
       origin: plan.origin,
       // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
       // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
