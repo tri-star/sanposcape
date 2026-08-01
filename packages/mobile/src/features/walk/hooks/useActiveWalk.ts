@@ -4,9 +4,11 @@ import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
 import { useWalkSession } from "@/features/walk/hooks/useWalkSession";
 import { useWalkTracking } from "@/features/walk/hooks/useWalkTracking";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
+import { buildFinishedWalk } from "@/features/walk/lib/finishedWalk";
 import { estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
 import type { WalkTrackingStatus } from "@/features/walk/lib/walkTrackingStatus";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
+import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import type { ActiveWalk, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates, LocationErrorCode } from "@/services/location/types";
 
@@ -24,7 +26,7 @@ export type UseActiveWalkResult = {
 
   currentPosition: GeoCoordinates | null;
   distanceMeters: number;
-  /** 実際に歩いた軌跡（M5 の散歩記録保存で使う。SS-16 時点では表示・保存のどちらにも未使用）。 */
+  /** 実際に歩いた軌跡（散歩記録の保存に使う）。 */
   points: GeoCoordinates[];
   steps: number;
   trackingStatus: WalkTrackingStatus;
@@ -32,7 +34,11 @@ export type UseActiveWalkResult = {
   /** 位置トラッキングを貼り直す（権限エラーからの復帰用）。 */
   retryTracking: () => void;
 
-  /** store をクリアする。終了ダイアログの確定時に呼ぶ。 */
+  /**
+   * 軌跡・時間・距離を確定してドラフトを積み（`useFinishedWalkStore`）、
+   * 進行中の散歩を終了する（`useActiveWalkStore`）。終了ダイアログの確定時に呼ぶ。
+   * 保存自体はサマリ画面（`useWalkSummary`）が行う。
+   */
   finishWalk: () => void;
 };
 
@@ -45,6 +51,7 @@ export type UseActiveWalkResult = {
 export function useActiveWalk(): UseActiveWalkResult {
   const activeWalk = useActiveWalkStore((state) => state.activeWalk);
   const endWalk = useActiveWalkStore((state) => state.endWalk);
+  const finishWalkDraft = useFinishedWalkStore((state) => state.finishWalk);
 
   // 散歩開始画面と同じ入力（origin, destination）になるため、TanStack Query のキャッシュに
   // 当たり追加の API 呼び出しは発生しない。
@@ -66,6 +73,22 @@ export function useActiveWalk(): UseActiveWalkResult {
 
   const steps = estimateStepsFromMeters(tracking.distanceMeters);
 
+  // elapsedSec/distanceMeters/points は毎秒変わるため useCallback で固定しない
+  // （onPress からの単発呼び出しなので実害はない）。
+  function finishWalk(): void {
+    if (activeWalk === null) return;
+    finishWalkDraft(
+      buildFinishedWalk({
+        activeWalk,
+        elapsedSec: session.elapsedSec,
+        distanceMeters: tracking.distanceMeters,
+        points: tracking.points,
+        endedAtMs: Date.now(),
+      }),
+    );
+    endWalk();
+  }
+
   return {
     activeWalk,
 
@@ -86,6 +109,6 @@ export function useActiveWalk(): UseActiveWalkResult {
     trackingErrorCode: tracking.errorCode,
     retryTracking,
 
-    finishWalk: endWalk,
+    finishWalk,
   };
 }

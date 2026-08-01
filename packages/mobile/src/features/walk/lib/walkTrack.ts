@@ -2,7 +2,7 @@ import { distanceMeters } from "@/features/walk/lib/geoDistance";
 import type { GeoCoordinates } from "@/services/location/types";
 
 export type WalkTrackState = {
-  /** 採用した軌跡（表示・将来の保存用）。 */
+  /** 採用した軌跡（表示・散歩記録の保存に使う）。 */
   points: GeoCoordinates[];
   /** 累積の実測距離（m）。 */
   distanceMeters: number;
