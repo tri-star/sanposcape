@@ -119,6 +119,24 @@ class TestCreateWalk:
 
         assert response.status_code == 422
 
+    def test_track_at_max_points_returns_201(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """B-1: `Field(max_length=MAX_TRACK_POINTS)` の off-by-one を固定する境界値テスト。"""
+        track = [{"latitude": 35.68, "longitude": 139.76}] * MAX_TRACK_POINTS
+
+        response = walks_client.post("/walks", json=_payload(track=track), headers=auth_headers)
+
+        assert response.status_code == 201, response.text
+
+    def test_empty_track_returns_201(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """B-1: 位置情報の権限拒否・取得失敗時も記録は残す仕様（D2/D5の前提）を e2e で固定する。"""
+        response = walks_client.post("/walks", json=_payload(track=[]), headers=auth_headers)
+
+        assert response.status_code == 201, response.text
+
     def test_future_ended_at_returns_422(
         self, walks_client: TestClient, auth_headers: dict[str, str]
     ) -> None:
