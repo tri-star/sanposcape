@@ -1,3 +1,4 @@
+import { toNonNegative } from "@/features/walk/lib/numberGuard";
 import { estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
 import { toKilometers } from "@/features/walk/lib/walkRoute";
 import type { ActiveWalk, FinishedWalk, WalkSummaryStats } from "@/features/walk/types";
@@ -8,11 +9,6 @@ const FALLBACK_GOAL_NAME = "目的地";
 
 /** 即終了時（endedAtMs と startedAtMs が同値以下）に確保する最小の経過（ms）。 */
 const MIN_DURATION_MS = 1000;
-
-/** 非有限値・負値を 0 にフォールバックする（`walkRoute.ts` の `toNonNegative` と同じ考え方）。 */
-function toNonNegative(value: number): number {
-  return Number.isFinite(value) && value >= 0 ? value : 0;
-}
 
 /**
  * 散歩終了時のドラフトを組み立てる純粋関数。

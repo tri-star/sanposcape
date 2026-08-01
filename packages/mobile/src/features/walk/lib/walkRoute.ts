@@ -1,12 +1,8 @@
 import type { WalkingRouteResponse } from "@/api/generated/model";
 import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
+import { toNonNegative } from "@/features/walk/lib/numberGuard";
 import type { WalkRoute, WalkRouteBounds } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
-
-/** 非有限値・負値を 0 にフォールバックする（`spotCandidate.ts` の `toNonNegative` と同じ考え方）。 */
-function toNonNegative(value: number): number {
-  return Number.isFinite(value) && value >= 0 ? value : 0;
-}
 
 /**
  * レスポンス由来の座標を検証済みで取得できなかったことを示すエラー。
