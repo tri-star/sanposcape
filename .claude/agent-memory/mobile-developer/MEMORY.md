@@ -10,3 +10,6 @@
 - [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — real/stubの2値ではない。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)。ただしlocationのように2モード(real/mock)が正当な例外もある
 - [Orval customFetchの契約](orval-customfetch-contract.md) — mutatorは`{status,data,headers}`を返す必要がある。生本文返却のままだと実利用時に`res.data`がundefined
 - [react-native-mapsの実装メモ](react-native-maps-notes.md) — MapViewはref+animateToRegion、Marker tracksViewChanges=falseはkeyに選択状態を含めて再マウント、Maps keyは`.env`のみで注入可
+- [oxfmt個別ファイル実行のズレ](oxfmt-individual-file-drift.md) — 個別`oxfmt`実行だけで満足せず、コミット前に必ず`pnpm --filter mobile format:check`のフルコマンドで確認する
+- [useMutationの初導入パターン](tanstack-mutation-pattern.md) — SS-19 useWalkSaveが最初の例。null検証→ApiError(422)throw、useRefで冪等発火、retryDelay指数バックオフ
+- [サインアウト時クリアの一元化パターン](session-cleanup-registry.md) — `src/lib/sessionCleanup.ts`。store側で自分の後始末を登録、signOut側は`runSessionCleanup()`を呼ぶだけ

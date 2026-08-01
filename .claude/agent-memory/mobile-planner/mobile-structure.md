@@ -21,8 +21,10 @@ metadata:
 
 **services 層の seam パターン**: `src/services/<svc>/{types.ts,index.ts,<svc>.stub.ts,<svc>.real.ts}`。index が `process.env.EXPO_PUBLIC_*` で real/stub 選択。呼び出し側は index/types のみ参照。単体テストは常に stub、E2E(Maestro)は再現可能なら real。`src/services/auth/` は実在（SS-10 で real/dev/mock の3モードへ再設計）。`location` は未実装。認証の確定設計は [認証アーキテクチャ](auth-architecture.md) を参照。
 
-**API**: Orval 生成物は `src/api/generated/`（**gitignore 済み**。手編集禁止、`pnpm --filter mobile orval` で再生成＝プラン作成前に一度実行して現物を確認する）。生成済み: `health` / `spots` / `auth` / `users` / `explore`。**walks/履歴・散歩記録保存の API は未定義**（履歴/保存を実データ化するなら backend 伝達が必要）。クライアントは `src/api/client.ts`（customFetch）+ `queryClient.ts`（既定 `retry:1` / `staleTime:30s`）。
-**落とし穴**: `customFetch` は成功時にパース済み本文をそのまま返すが、Orval の生成型は `{data,status,headers}` を期待する（=`res.data` が実行時 undefined）。生成エンドポイントを初めて実利用するタスクで mutator 側を直す必要がある（SS-15 プランで対応）。
+**API**: Orval 生成物は `src/api/generated/`（**gitignore 済み**。手編集禁止、`pnpm --filter mobile orval` で再生成＝プラン作成前に一度実行して現物を確認する。**作業ツリーの生成物は古いことが多い**: 2026-08 時点で openapi.yaml には walks があるのに生成物には無かった）。backend 定義済み: `health`/`spots`/`auth`/`users`/`explore`/`walks`(SS-18)。クライアントは `src/api/client.ts`（customFetch）+ `queryClient.ts`（既定 `retry:1` / `staleTime:30s`）。
+**customFetch は修正済み**（`{status, data, headers}` を返し、401→refresh→1回リトライも実装済み）。旧「res.data が undefined」問題は解消。
+**Orval の落とし穴**: OpenAPI で content スキーマを書いていないレスポンスは `{ data: void; status: N }` になる。FastAPI が `responses={200: {"description": ...}}` だけ書いて実際は本文を返すケース（例: `POST /walks` の冪等再送 200）で型が付かない → mobile 側で narrowing、backend へ `model` 追記を依頼する。
+**素の fetcher 方式**: `features/<f>/api/*.ts` は生成 hook ではなく生成関数（`searchExplorePlaces(req, {signal})` 等）を直接呼ぶラッパにする。queryKey/enabled/retry を自前制御でき、`react-native` を値 import しないので vitest で msw テストできる。
 
 **msw は使う（重要な訂正）**: orval.config.ts が `mock: true` で MSW ハンドラを生成し、`src/test/setup.ts` が `setupServer()` を全テスト共通で起動（`onUnhandledRequest: "error"`）。`src/api/client.test.ts` が実例。エージェント定義ファイルの「mobile では msw を使わない」は**この repo の実態と食い違う**ので、プランでは msw 利用を前提にしてよい。
 
