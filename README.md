@@ -17,9 +17,10 @@
   - backend: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
-    - [ADR-002 技術スタック（Unistyles / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
+    - [ADR-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
     - [ADR-003 development build 前提と開発ループ](./packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
     - [ADR-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+    - [ADR-005 スタイルは Unistyles をやめる](./packages/mobile/adr/ADR-005-styling-without-unistyles.md)
 - backend
   - [フォルダ構造](./packages/backend/docs/folder-structure.md) / [命名規則](./packages/backend/docs/naming-convention.md)
   - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)
@@ -37,7 +38,7 @@
 | 言語 | TypeScript |
 | フレームワーク | React Native (Expo) + Expo Router |
 | 状態管理 | TanStack Query（サーバー状態）+ Zustand（クライアント状態） |
-| スタイリング | react-native-unistyles（デザイントークン・テーマ） |
+| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（`src/theme` のデザイントークン・テーマ） |
 | 地図 | react-native-maps |
 | APIクライアント | Orval（OpenAPIから生成）+ MSWモック |
 | テスト | Vitest（ユニット）/ Maestro（E2E） |
