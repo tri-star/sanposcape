@@ -32,8 +32,8 @@ export function buildWalkCreateRequest(finished: FinishedWalk): WalkCreate | nul
     return null;
   }
 
-  const wallClockSeconds = (endedAtMs - startedAtMs) / 1000;
-  if (wallClockSeconds > MAX_WALK_DURATION_SECONDS) {
+  const wallClockDurationMs = endedAtMs - startedAtMs;
+  if (wallClockDurationMs > MAX_WALK_DURATION_SECONDS * 1000) {
     return null;
   }
 

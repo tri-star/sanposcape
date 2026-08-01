@@ -63,6 +63,14 @@ describe("buildWalkCreateRequest", () => {
     expect(buildWalkCreateRequest(finished)).not.toBeNull();
   });
 
+  it("wall-clock が 24 時間と 1ms なら null になる", () => {
+    const finished: FinishedWalk = {
+      ...FINISHED_WALK,
+      endedAtMs: STARTED_AT_MS + MAX_WALK_DURATION_SECONDS * 1000 + 1,
+    };
+    expect(buildWalkCreateRequest(finished)).toBeNull();
+  });
+
   it("ended_at <= started_at のとき null になる", () => {
     expect(buildWalkCreateRequest({ ...FINISHED_WALK, endedAtMs: STARTED_AT_MS })).toBeNull();
     expect(

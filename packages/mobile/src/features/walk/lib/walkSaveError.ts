@@ -15,7 +15,8 @@ export type WalkSaveErrorCode =
 
 /**
  * 任意の例外を WalkSaveErrorCode に分類する（純粋。`isApiError()` で status を見る。
- * `instanceof` は使わない — Hermes/トランスパイル環境で不安定になるため）。
+ * ApiError の判定では `instanceof` を使わない — Hermes/トランスパイル環境で不安定になるため。
+ * ただし fetch の通信失敗を表す TypeError の分類だけは `instanceof` を使用する。
  */
 export function toWalkSaveErrorCode(error: unknown): WalkSaveErrorCode {
   if (isApiError(error)) {

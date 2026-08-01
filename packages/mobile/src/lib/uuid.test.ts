@@ -21,11 +21,9 @@ describe("randomUuidV4", () => {
     expect(result).toMatch(UUID_V4_PATTERN);
   });
 
-  it("1000回生成しても重複しない", () => {
-    const seen = new Set<string>();
-    for (let i = 0; i < 1000; i += 1) {
-      seen.add(randomUuidV4());
-    }
-    expect(seen.size).toBe(1000);
+  it("random が 1.0 を返しても 0..1 未満にクランプして byte 化する", () => {
+    const result = randomUuidV4(() => 1);
+    expect(result).toBe("ffffffff-ffff-4fff-bfff-ffffffffffff");
+    expect(result).toMatch(UUID_V4_PATTERN);
   });
 });

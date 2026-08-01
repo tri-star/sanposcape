@@ -31,3 +31,8 @@ export function runSessionCleanup(): void {
     }
   }
 }
+
+/** @internal テスト間で登録済みの後始末関数を隔離する。 */
+export function resetSessionCleanupForTest(): void {
+  cleanups.clear();
+}

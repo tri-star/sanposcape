@@ -1,5 +1,7 @@
 /** UUID v4 のバイト長。 */
 const UUID_BYTE_LENGTH = 16;
+/** `random` の取り得る最大値。1.0 は含めない。 */
+const MAX_RANDOM_VALUE = 1 - Number.EPSILON;
 
 /**
  * RFC 4122 v4 形式の UUID 文字列を生成する純粋関数。
@@ -16,7 +18,8 @@ const UUID_BYTE_LENGTH = 16;
 export function randomUuidV4(random: () => number = Math.random): string {
   const bytes = new Array<number>(UUID_BYTE_LENGTH);
   for (let i = 0; i < UUID_BYTE_LENGTH; i += 1) {
-    bytes[i] = Math.floor(random() * 256) & 0xff;
+    const randomValue = Math.min(Math.max(random(), 0), MAX_RANDOM_VALUE);
+    bytes[i] = Math.floor(randomValue * 256);
   }
 
   // version 4: 上位4ビットを 0100 にする。

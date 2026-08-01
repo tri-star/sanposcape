@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { registerSessionCleanup, runSessionCleanup } from "@/lib/sessionCleanup";
+import {
+  registerSessionCleanup,
+  resetSessionCleanupForTest,
+  runSessionCleanup,
+} from "@/lib/sessionCleanup";
 
 describe("sessionCleanup", () => {
+  beforeEach(() => {
+    resetSessionCleanupForTest();
+  });
+
   it("登録した後始末関数をすべて実行する", () => {
     const cleanupA = vi.fn();
     const cleanupB = vi.fn();
