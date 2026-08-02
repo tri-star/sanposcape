@@ -13,3 +13,8 @@
 - [oxfmt個別ファイル実行のズレ](oxfmt-individual-file-drift.md) — 個別`oxfmt`実行だけで満足せず、コミット前に必ず`pnpm --filter mobile format:check`のフルコマンドで確認する
 - [useMutationの初導入パターン](tanstack-mutation-pattern.md) — SS-19 useWalkSaveが最初の例。null検証→ApiError(422)throw、useRefで冪等発火、retryDelay指数バックオフ
 - [サインアウト時クリアの一元化パターン](session-cleanup-registry.md) — `src/lib/sessionCleanup.ts`。store側で自分の後始末を登録、signOut側は`runSessionCleanup()`を呼ぶだけ
+- [共有層への昇格手順](promotion-workflow.md) — `features/<x>/lib|components` から `src/lib`/`src/components/ui` へ安全に移す順序
+- [Orval `/walks` cursor=null の落とし穴](orval-cursor-null-pitfall.md) — `cursor: null` をそのまま `ListWalksWalksGetParams` に渡すと `?cursor=null` が飛ぶ
+- [巨大な座標配列の計算](large-point-array-pitfall.md) — 軌跡(最大1万点)に `Math.max(...points)` を使わない
+- [RNのflexレイアウトの落とし穴](rn-flex-layout-pitfall.md) — flex column内のFlatList/ScrollViewには明示的な`flex:1`が要る
+- [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`と`api/`のみ。hooks/componentsは設計上テストしない
