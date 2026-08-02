@@ -151,6 +151,7 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
     - 留保: 保存はメモリ上のドラフトを終了直後に送る方式で、**保存が確定する前にアプリが強制終了されると記録は失われる**（ローカル永続化は SS-19 スコープ外。フォローアップ課題へ）
   - [x] 保存した散歩がユーザーに紐付く（backend は SS-18 で完了。`walks.user_id` + `ON DELETE CASCADE`、repository の全メソッドが `user_id` 必須。mobile は SS-19 で認証付きの `POST /walks` を結線）
   - [x] 散歩履歴の一覧・詳細を閲覧できる（backend API は SS-18、mobile 結線は SS-20 で完了。`/walk-history`・`/walk-history/[walkId]` + 記録タブの「最近の散歩」）
+    - 留保: 記録タブの集計表示（週/月の合計距離チャート・連続日数・歩数目標）は `useHistorySummary` のスタブのまま。期間フィルタ（`started_after`/`started_before`）・週月チャートの実データ化、連続日数（streak）のサーバー化判断は SS-20 のスコープ外で次タスクへ持ち越し（ADR-003 参照）
   - [ ] MVP スコープの主要フローが E2E で通る
 
 ### 含まれるタスク（概要レベル）

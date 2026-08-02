@@ -56,6 +56,9 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 - 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で
   実機確認できる。プロダクトの起動画面（`app/index.tsx`）は SS-8 でスプラッシュ（`SplashView`）に
   置き換わったため、ギャラリーはこの専用ルートから開く。
+  - **例外**: `MapPin` / `RoutePolyline` などの地図オーバーレイは `MapView` の子としてしか
+    描画されないため、`DesignSystemGallery` に単体で並べることができない。ギャラリーには載せず、
+    実際に使われている画面（散歩開始・散歩中・履歴詳細の各地図）や `/dev-screens` で見た目を確認する。
 
 ### 開発確認用ルート（プロダクト導線外）
 
@@ -73,6 +76,9 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 （URL直打ちの手順は [app-startup-guide](./app-startup-guide.md) を参照）。
 **新しい主要画面（`app/` 配下のルート）を追加したら、`ScreenCatalog` の `links` にリンクを1件追加する**
 ことを実装のセットとする。追加を怠るとカタログが陳腐化し、表示確認の抜け漏れに繋がる。
+- **例外**: 動的ルート（`[param].tsx`、id が無いと開けない画面）は直リンクを張らない。親の一覧画面
+  のエントリで代替する（例: `/walk-history/[walkId]` は単独のエントリを持たず、`walk-history`
+  エントリの `description` に「一覧から開く」旨を書き、一覧 → 詳細のタップで確認する）。
 
 #### 副作用を伴うカタログエントリに注意する
 
@@ -105,7 +111,13 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
    （バンドルサイズを1箇所で棚卸しするため）。名前はデザインと同じ kebab-case（例: `chevron-right`）で、
    使いたいアイコンが無ければ `src/components/ui/icon/iconRegistry.ts` に1行追加する。**絵文字は使わない**。
 6. **`accessibilityRole` / `accessibilityLabel` / `accessibilityState` を必ず設定する**。
+   - **例外**: 地図オーバーレイ（`MapPin` / `RoutePolyline`）は `react-native-maps` の
+     `Marker`/`Polyline` の子として描画される装飾要素で、単体のスクリーンリーダー操作対象にならない
+     ため対象外とする。地図全体としての a11y は `MapView` 側（またはそれを包む画面）で担保する。
 7. **`testID` を prop で受け取れるようにする**（Maestro の E2E 用）。
+   - **例外**: 同じ理由で地図オーバーレイ（`MapPin` / `RoutePolyline`）は対象外とする。`MapView` 自体や
+     `Marker` に `testID` を付ける形で E2E から参照する（例: `WalkTrackMapView` の
+     `walk-detail-start-marker` / `walk-detail-goal-marker` は `Marker` 側に付けている）。
 8. **操作ハンドラ（`onPress` / `onChange`）は必須にする**。optional にすると
    「押せるように見えて何も起きない」コントロールを作れてしまい、押下フィードバックも出るうえ
    スクリーンリーダーにも有効なコントロールとして露出する。
