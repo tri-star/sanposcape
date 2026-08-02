@@ -150,7 +150,7 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
   - [x] 散歩終了時に実際に歩いたルート（軌跡・所要時間・距離）を保存できる（backend API は SS-18、mobile 結線は SS-19 で完了）
     - 留保: 保存はメモリ上のドラフトを終了直後に送る方式で、**保存が確定する前にアプリが強制終了されると記録は失われる**（ローカル永続化は SS-19 スコープ外。フォローアップ課題へ）
   - [x] 保存した散歩がユーザーに紐付く（backend は SS-18 で完了。`walks.user_id` + `ON DELETE CASCADE`、repository の全メソッドが `user_id` 必須。mobile は SS-19 で認証付きの `POST /walks` を結線）
-  - [ ] 散歩履歴の一覧・詳細を閲覧できる（backend API は SS-18 で完了。mobile 結線は SS-20 で未着手）
+  - [x] 散歩履歴の一覧・詳細を閲覧できる（backend API は SS-18、mobile 結線は SS-20 で完了。`/walk-history`・`/walk-history/[walkId]` + 記録タブの「最近の散歩」）
   - [ ] MVP スコープの主要フローが E2E で通る
 
 ### 含まれるタスク（概要レベル）
@@ -159,7 +159,7 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
 | --- | --- | --- |
 | 1 | backend: 散歩(Walk)モデル・ルート保存・履歴取得API | ユーザー紐付け・認可（SS-18 完了） |
 | 2 | mobile: 散歩終了処理・ルート保存 | features/walk（SS-19 完了。冪等キーは散歩開始時に採番、保存失敗は手動再試行。未送信ドラフトの永続化はフォローアップ課題） |
-| 3 | mobile: 散歩履歴一覧・詳細画面 | features/history（SS-20。queryKey は `["walks", ...]` 始まりにすること） |
+| 3 | mobile: 散歩履歴一覧・詳細画面 | features/history（SS-20 完了。queryKey は `["walks", ...]` 始まり） |
 | 4 | MVP主要フローのE2E（Maestro）・仕上げ | |
 
 ### 依存関係・前提

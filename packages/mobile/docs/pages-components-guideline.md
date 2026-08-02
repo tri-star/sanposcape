@@ -48,7 +48,9 @@ const useStyles = makeStyles((theme) => ({
 
 デザインシステム由来の primitive は `src/components/ui/<kebab-case>/<PascalCase>.tsx` に置いている
 （Button / IconButton / Card / Badge / Tag / Input / Checkbox / Switch / Slider / Tabs / TabBar /
-StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / Icon）。
+StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline / Icon）。
+`RoutePolyline` は SS-20 で `features/walk` から昇格した地図オーバーレイ（`MapPin` と同じカテゴリ）で、
+散歩開始・散歩中・履歴詳細の3つの地図でルート線・軌跡線の見た目を揃えるための極薄ラッパ。
 まずはこれらを組み合わせて画面を作り、足りないものが出たら追加する。
 
 - 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で
