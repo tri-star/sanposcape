@@ -1,6 +1,7 @@
 import { ApiError } from "@/api/apiError";
 import { getWalkWalksWalkIdGet, listWalksWalksGet } from "@/api/generated/endpoints/walks/walks";
 import type { ListWalksWalksGetParams, WalkDetailRead, WalkListRead } from "@/api/generated/model";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * 散歩履歴の一覧を取得する。
@@ -22,11 +23,21 @@ export async function fetchWalkList(
   return response.data;
 }
 
-/** 散歩1件の詳細（軌跡付き）を取得する。 */
+/**
+ * 散歩1件の詳細（軌跡付き）を取得する。
+ *
+ * `walkId` が UUID 形式でなければ通信せず 404 相当で失敗させる（多層防御）。
+ * 生成コードの URL ビルダーは `` `/walks/${walkId}` `` にエスケープなしで埋めるため、
+ * ここを通さないと `../` を含む値で別エンドポイントへ Bearer 付きリクエストが飛びうる。
+ * 呼び出し側（`app/walk-history/[walkId].tsx`）でも同じ検証を行っている。
+ */
 export async function fetchWalkDetail(
   walkId: string,
   options?: { signal?: AbortSignal },
 ): Promise<WalkDetailRead> {
+  if (!isUuid(walkId)) {
+    throw new ApiError(404, "walkId is not a UUID");
+  }
   const response = await getWalkWalksWalkIdGet(walkId, { signal: options?.signal });
   if (response.status !== 200) {
     throw new ApiError(response.status);

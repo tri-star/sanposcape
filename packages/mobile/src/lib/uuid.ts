@@ -1,5 +1,10 @@
 /** UUID v4 のバイト長。 */
 const UUID_BYTE_LENGTH = 16;
+/**
+ * RFC 4122 の 8-4-4-4-12 形式。version/variant は縛らない
+ * — サーバー生成の id を弾かないため（受け入れ判定であり生成の検証ではない）。
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** `random` の取り得る最大値。1.0 は含めない。 */
 const MAX_RANDOM_VALUE = 1 - Number.EPSILON;
 
@@ -35,4 +40,16 @@ export function randomUuidV4(random: () => number = Math.random): string {
     hex.slice(8, 10).join(""),
     hex.slice(10, 16).join(""),
   ].join("-");
+}
+
+/**
+ * UUID 形式の文字列か判定する。
+ *
+ * 外部から来た値（ディープリンク経由のルートパラメータなど）を API のパスへ埋める前に通すこと。
+ * Orval 生成の URL ビルダーは `` `/walks/${walkId}` `` のようにテンプレートリテラルで組み立てる
+ * だけでエスケープしないため、`../` を含む文字列がそのまま届くと dot-segment 正規化で
+ * 別エンドポイントへリクエストが差し替わる（Authorization ヘッダは付いたまま）。
+ */
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
 }

@@ -10,6 +10,9 @@ import type { WalkDetailRead, WalkListRead } from "@/api/generated/model";
 import { fetchWalkDetail, fetchWalkList } from "@/features/history/api/walkHistoryApi";
 import { server } from "@/test/setup";
 
+/** UUID形式の有効なテスト用 walkId。`fetchWalkDetail` は非UUIDを通信前に弾くため通常系のIDはUUIDにする。 */
+const VALID_WALK_ID = "123e4567-e89b-12d3-a456-426614174000";
+
 const LIST_RESPONSE: WalkListRead = {
   items: [
     {
@@ -31,7 +34,7 @@ const LIST_RESPONSE: WalkListRead = {
 };
 
 const DETAIL_RESPONSE: WalkDetailRead = {
-  id: "walk-1",
+  id: VALID_WALK_ID,
   client_walk_id: "client-1",
   started_at: "2026-08-02T14:30:00.000Z",
   ended_at: "2026-08-02T15:02:00.000Z",
@@ -117,7 +120,7 @@ describe("fetchWalkDetail", () => {
   it("200で WalkDetailRead（track付き）が返る", async () => {
     server.use(getGetWalkWalksWalkIdGetMockHandler(DETAIL_RESPONSE));
 
-    const result = await fetchWalkDetail("walk-1");
+    const result = await fetchWalkDetail(VALID_WALK_ID);
 
     expect(result).toEqual(DETAIL_RESPONSE);
   });
@@ -126,7 +129,7 @@ describe("fetchWalkDetail", () => {
     server.use(http.get("*/walks/:walkId", () => new HttpResponse(null, { status: 404 })));
 
     try {
-      await fetchWalkDetail("walk-1");
+      await fetchWalkDetail(VALID_WALK_ID);
       expect.unreachable("throw されるはず");
     } catch (error) {
       expect(error).toBeInstanceOf(ApiError);
@@ -141,9 +144,29 @@ describe("fetchWalkDetail", () => {
     );
 
     const list = await fetchWalkList({ limit: 20 });
-    const detail = await fetchWalkDetail("walk-1");
+    const detail = await fetchWalkDetail(VALID_WALK_ID);
 
     expect(list).toEqual(LIST_RESPONSE);
     expect(detail).toEqual(DETAIL_RESPONSE);
+  });
+
+  it("walkId が UUID 形式でなければ通信せず 404 の ApiError で失敗する（多層防御）", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get("*/walks/:walkId", () => {
+        requestCount += 1;
+        return HttpResponse.json(DETAIL_RESPONSE);
+      }),
+    );
+
+    try {
+      await fetchWalkDetail("../../users/me");
+      expect.unreachable("throw されるはず");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(404);
+    }
+    // ネットワークに到達していないこと（confused deputy 対策の要）を確認する。
+    expect(requestCount).toBe(0);
   });
 });
