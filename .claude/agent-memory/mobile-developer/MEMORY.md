@@ -1,7 +1,7 @@
 - [tsx CLI EPERM in sandbox](sandbox-tsx-cli-workaround.md) — `tsx <file>` fails on IPC socket in this sandbox; use `pnpm --filter <pkg> exec node --import tsx <file>` to verify locally instead.
 - [Mobile docs map mismatch](docs-map-mismatch.md) — troubleshoot table lives in `app-startup-guide.md`, not `local-env.md`.
 - [Sandbox format:check stray files](sandbox-format-check-stray-files.md) — run `oxfmt --check` on specific changed files when the full script chokes on stray `.mcp.json`/`.claude/` files.
-- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__` と globalThis の型、Rules of Hooks(早期return)
+- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__`とglobalThisの型、Rules of Hooks(早期return)、派生指標は生値から計算、バリデーション後付け時の既存テストfixture確認
 - [Expo Router のアプリ構造](expo-router-app-structure.md) — typedRoutes生成、index.tsx+(tabs)/index.tsx共存、非推奨Tabsとカスタムタブバー
 - [ネストしたPressable+Checkbox](nested-pressable-checkbox.md) — 行全体Pressable+内側Checkboxはpointer Events="none"で表示専用に
 - [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
@@ -18,3 +18,4 @@
 - [巨大な座標配列の計算](large-point-array-pitfall.md) — 軌跡(最大1万点)に `Math.max(...points)` を使わない
 - [RNのflexレイアウトの落とし穴](rn-flex-layout-pitfall.md) — flex column内のFlatList/ScrollViewには明示的な`flex:1`が要る
 - [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`と`api/`のみ。hooks/componentsは設計上テストしない
+- [renderBody の中央寄せ判定パターン](render-body-centered-pattern.md) — `{content, centered}`を返す形で判定条件を1箇所に閉じる（features/history一覧・詳細）
