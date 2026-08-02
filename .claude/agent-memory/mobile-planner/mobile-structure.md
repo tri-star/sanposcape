@@ -23,7 +23,8 @@ metadata:
 
 **API**: Orval 生成物は `src/api/generated/`（**gitignore 済み**。手編集禁止、`pnpm --filter mobile orval` で再生成＝プラン作成前に一度実行して現物を確認する。**作業ツリーの生成物は古いことが多い**: 2026-08 時点で openapi.yaml には walks があるのに生成物には無かった）。backend 定義済み: `health`/`spots`/`auth`/`users`/`explore`/`walks`(SS-18)。クライアントは `src/api/client.ts`（customFetch）+ `queryClient.ts`（既定 `retry:1` / `staleTime:30s`）。
 **customFetch は修正済み**（`{status, data, headers}` を返し、401→refresh→1回リトライも実装済み）。旧「res.data が undefined」問題は解消。
-**Orval の落とし穴**: OpenAPI で content スキーマを書いていないレスポンスは `{ data: void; status: N }` になる。FastAPI が `responses={200: {"description": ...}}` だけ書いて実際は本文を返すケース（例: `POST /walks` の冪等再送 200）で型が付かない → mobile 側で narrowing、backend へ `model` 追記を依頼する。
+**Orval の落とし穴1（クエリの null）**: 生成される `getXxxUrl(params)` は `if (value !== undefined) append(key, value === null ? 'null' : String(value))`。→ **`{ cursor: null }` を渡すと `?cursor=null` というリテラル文字列が飛ぶ**（backend は 400）。省略したいキーは `undefined` にする＝params 組み立ての純粋関数（`buildXxxParams`）を lib に置き、そこでキーごと落とす。
+**Orval の落とし穴2**: OpenAPI で content スキーマを書いていないレスポンスは `{ data: void; status: N }` になる。FastAPI が `responses={200: {"description": ...}}` だけ書いて実際は本文を返すケース（例: `POST /walks` の冪等再送 200）で型が付かない → mobile 側で narrowing、backend へ `model` 追記を依頼する。
 **素の fetcher 方式**: `features/<f>/api/*.ts` は生成 hook ではなく生成関数（`searchExplorePlaces(req, {signal})` 等）を直接呼ぶラッパにする。queryKey/enabled/retry を自前制御でき、`react-native` を値 import しないので vitest で msw テストできる。
 
 **msw は使う（重要な訂正）**: orval.config.ts が `mock: true` で MSW ハンドラを生成し、`src/test/setup.ts` が `setupServer()` を全テスト共通で起動（`onUnhandledRequest: "error"`）。`src/api/client.test.ts` が実例。エージェント定義ファイルの「mobile では msw を使わない」は**この repo の実態と食い違う**ので、プランでは msw 利用を前提にしてよい。

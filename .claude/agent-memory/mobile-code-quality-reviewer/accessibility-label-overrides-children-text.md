@@ -40,3 +40,13 @@ accessibilityLabel/Role を付けていない、という対照的な「安全�
 デフォルト `accessible=true` なので `ScreenCatalog`/`CategorySheet` の方が挙動を確信しやすい）。
 断定できない場合は「要検証」として Warning 相当で指摘し、既存の安全な先例に揃えることを
 提案するのが無難。
+
+**追記（SS-20, 2026-08-02）:** `WalkHistoryCard.tsx`（`features/history`）がまた別の変種。
+行全体の `Pressable` に `accessibilityLabel={`${item.dateLabel} ${item.destinationName} の散歩の詳細`}`
+を明示しているが、同じ行内には `timeLabel` / `distanceKm` / `durationLabel` という**ラベルに含まれない
+追加のテキスト**が並んでいる。晴眼者はカードを見ただけで距離・所要時間まで分かるのに、スクリーンリーダー
+利用者は「日付 目的地名 の散歩の詳細」しか読み上げられず、詳細画面を開かないと距離・時間を知れない。
+`SpotCard.tsx` は対照的に `accessibilityLabel` を明示せず子 `Text` の自動読み上げに委ねている
+（このコードベースの「安全な先例」）。**リスト行コンポーネントで `accessibilityLabel` を書くときは、
+同じ行に表示されている数値・時刻などの補助情報をラベル文字列にすべて含めるか、それが煩雑なら
+明示自体をやめる**ことをレビューで確認する。

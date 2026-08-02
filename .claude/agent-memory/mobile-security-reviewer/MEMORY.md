@@ -4,3 +4,4 @@
 - [SS-15: 地図・位置情報レビューの要点](project_ss15_location_maps.md) — Mapsキー分離/座標丸め/fail-safe env は良好。router paramsの生座標渡しは軽微指摘
 - [SS-16: 散歩ルート提示・散歩中トラッキングの要点](project_ss16_walk_tracking.md) — watchPositionリークガード模範実装/認証境界維持/place_id非露出。座標NaN未検証とpaused中GPS継続がLow
 - [SS-19: 散歩終了処理・散歩ルート保存(POST /walks)の要点](project_ss19_walk_finish_save.md) — signOutでuseFinishedWalkStore等が未クリア(Medium)。client_walk_idのuser scope一意制約は確認済みで妥当
+- [SS-20: walk-history/[walkId] のwalkId未検証パストラバーサル(High)](project_ss20_walk_history_walkid_traversal.md) — 初の動的ルート。encodeURIComponent/形式検証なしでAPIパスに埋込。座標検証/place_id非露出/404の扱いは良好
