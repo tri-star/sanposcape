@@ -3,7 +3,7 @@ import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-n
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
-import { WalkRoutePolyline } from "@/features/walk/components/WalkRoutePolyline";
+import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
 import { CATEGORY_META } from "@/features/walk/data/categories";
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForRoundTrip } from "@/features/walk/lib/mapRegion";
@@ -84,7 +84,7 @@ export function SpotMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
       >
-        {walkRoute ? <WalkRoutePolyline path={walkRoute.path} /> : null}
+        {walkRoute ? <RoutePolyline path={walkRoute.path} /> : null}
         {candidates.map((spot, index) => {
           const selected = spot.id === selectedSpotId;
           const meta = CATEGORY_META[spot.category];
