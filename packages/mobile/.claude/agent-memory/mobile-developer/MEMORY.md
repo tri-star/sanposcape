@@ -1,0 +1,5 @@
+- [Feature promotion workflow](promotion-workflow.md) — how to move code from `features/<x>/lib|components` to `src/lib`/`src/components/ui` safely
+- [Orval `/walks` cursor=null pitfall](orval-cursor-null-pitfall.md) — never pass `cursor: null` straight into `ListWalksWalksGetParams`
+- [Large point-array math pitfall](large-point-array-pitfall.md) — never `Math.max(...points)` on walk tracks (up to 10k points)
+- [RN flex layout pitfall](rn-flex-layout-pitfall.md) — FlatList/ScrollView need explicit `flex:1` style when nested in a flex column
+- [Test scope for hooks/components](test-scope-hooks-components.md) — only `lib/` and `api/` get `.test.ts`; hooks/components are untestable by design
