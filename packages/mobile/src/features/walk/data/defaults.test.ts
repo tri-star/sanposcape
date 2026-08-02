@@ -7,8 +7,8 @@ import {
   SAMPLE_WALK_SUMMARY_STATS,
   buildSampleFinishedWalk,
 } from "@/features/walk/data/defaults";
-import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
 import { estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
+import { isValidCoordinate } from "@/lib/geoCoordinate";
 
 describe("DEFAULT_WALK_GOAL", () => {
   it("time/dist は正の値、name は非空文字列", () => {

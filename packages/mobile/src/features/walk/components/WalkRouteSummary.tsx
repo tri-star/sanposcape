@@ -4,13 +4,10 @@ import { Button } from "@/components/ui/button/Button";
 import { Icon } from "@/components/ui/icon/Icon";
 import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
-import {
-  estimateRoundTripMinutes,
-  toKilometers,
-  toOneWayMinutes,
-} from "@/features/walk/lib/walkRoute";
+import { estimateRoundTripMinutes, toOneWayMinutes } from "@/features/walk/lib/walkRoute";
 import { walkRouteErrorMessage } from "@/features/walk/lib/walkRouteError";
 import type { SpotCandidate, WalkRoute } from "@/features/walk/types";
+import { toKilometers } from "@/lib/units";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 

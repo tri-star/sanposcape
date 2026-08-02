@@ -15,10 +15,11 @@ import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
 import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
-import { toKilometers, toOneWayMinutes } from "@/features/walk/lib/walkRoute";
+import { toOneWayMinutes } from "@/features/walk/lib/walkRoute";
 import { walkRouteErrorMessage } from "@/features/walk/lib/walkRouteError";
 import { useToast } from "@/hooks/useToast";
 import { formatClock } from "@/lib/formatClock";
+import { toKilometers } from "@/lib/units";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 

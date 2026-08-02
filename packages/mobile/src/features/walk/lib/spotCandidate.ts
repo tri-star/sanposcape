@@ -1,6 +1,6 @@
 import type { PlaceCandidate } from "@/api/generated/model";
-import { toNonNegative } from "@/features/walk/lib/numberGuard";
 import type { SpotCandidate } from "@/features/walk/types";
+import { toNonNegative } from "@/lib/numberGuard";
 
 /** 秒 → 分（四捨五入。0秒でも最低1分にはしない＝0を許容）。 */
 export function toRoundTripMinutes(seconds: number): number {

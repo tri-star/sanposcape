@@ -10,8 +10,9 @@ const MAX_LONGITUDE = 180;
 /**
  * 座標が地理的に妥当か判定する純粋関数（NaN/Infinity・緯度±90度／経度±180度超えを弾く）。
  * backend（Pydantic）側で検証済みのはずだが、バグ混入や将来のフォールバック値の伝播に備え、
- * react-native-maps（Marker/Polyline/Region）に渡る直前の最終防波堤として `walkRoute.ts` /
- * `mapRegion.ts` の両方から使う。
+ * `react-native-maps`（Marker/Polyline/Region）に渡る直前の共通の防波堤として使う
+ * （元は `features/walk/lib/geoCoordinate.ts`。SS-20 で `features/history` の
+ * `walkDetail.ts` / `mapRegion.ts` からも使うため `src/lib` へ昇格した）。
  */
 export function isValidCoordinate(point: GeoCoordinates): boolean {
   return (

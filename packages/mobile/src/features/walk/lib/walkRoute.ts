@@ -1,7 +1,7 @@
 import type { WalkingRouteResponse } from "@/api/generated/model";
-import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
-import { toNonNegative } from "@/features/walk/lib/numberGuard";
 import type { WalkRoute, WalkRouteBounds } from "@/features/walk/types";
+import { isValidCoordinate } from "@/lib/geoCoordinate";
+import { toNonNegative } from "@/lib/numberGuard";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /**
@@ -103,9 +103,4 @@ export function toOneWayMinutes(durationSeconds: number): number {
  */
 export function estimateRoundTripMinutes(durationSeconds: number): number {
   return Math.round((toNonNegative(durationSeconds) * 2) / 60);
-}
-
-/** メートル → km（小数1桁）。 */
-export function toKilometers(meters: number): number {
-  return Math.round(toNonNegative(meters) / 100) / 10;
 }

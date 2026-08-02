@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toNonNegative } from "@/features/walk/lib/numberGuard";
+import { toNonNegative } from "@/lib/numberGuard";
 
 describe("toNonNegative", () => {
   it("正の有限値はそのまま返す", () => {
