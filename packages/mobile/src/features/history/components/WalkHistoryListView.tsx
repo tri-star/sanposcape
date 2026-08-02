@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -7,11 +8,23 @@ import { HistoryStateCard } from "@/features/history/components/HistoryStateCard
 import { WalkHistoryCard } from "@/features/history/components/WalkHistoryCard";
 import { useWalkHistory } from "@/features/history/hooks/useWalkHistory";
 import {
+  WALK_HISTORY_EMPTY_DESCRIPTION,
+  WALK_HISTORY_EMPTY_TITLE,
+} from "@/features/history/lib/walkHistoryEmptyState";
+import {
   isRetriableWalkHistoryError,
   walkHistoryErrorMessage,
 } from "@/features/history/lib/walkHistoryError";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
+
+/**
+ * `renderBody()` の戻り値。「どの状態のときに中央寄せラッパーで包むか」の判断を
+ * ここ1箇所に閉じ、呼び出し側で同じ条件をもう一度書かないようにする
+ * （判定条件と分岐内容が2箇所に分かれると、状態を増減したときに片方だけ更新して
+ * 表示崩れを起こしやすいため）。
+ */
+type HistoryBody = { content: ReactNode; centered: boolean };
 
 /** WalkHistoryListView — `/walk-history` の実体。全履歴を無限スクロールで表示する。 */
 export function WalkHistoryListView() {
@@ -29,80 +42,94 @@ export function WalkHistoryListView() {
     }
   };
 
-  const renderBody = () => {
+  const renderBody = (): HistoryBody => {
     if (history.errorCode !== null) {
-      return (
-        <HistoryStateCard
-          testID="walk-history-error"
-          icon="alert-circle"
-          tone="danger"
-          title={walkHistoryErrorMessage(history.errorCode)}
-          action={
-            isRetriableWalkHistoryError(history.errorCode)
-              ? { label: "再試行", onPress: history.reload, testID: "walk-history-retry" }
-              : undefined
-          }
-        />
-      );
+      return {
+        centered: true,
+        content: (
+          <HistoryStateCard
+            testID="walk-history-error"
+            icon="alert-circle"
+            tone="danger"
+            title={walkHistoryErrorMessage(history.errorCode)}
+            action={
+              isRetriableWalkHistoryError(history.errorCode)
+                ? { label: "再試行", onPress: history.reload, testID: "walk-history-retry" }
+                : undefined
+            }
+          />
+        ),
+      };
     }
 
     if (history.isLoading) {
-      return (
-        <View style={styles.centerState} testID="walk-history-loading">
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      );
+      return {
+        centered: true,
+        content: (
+          <View style={styles.centerState} testID="walk-history-loading">
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        ),
+      };
     }
 
     if (history.items.length === 0) {
-      return (
-        <HistoryStateCard
-          testID="walk-history-empty"
-          icon="footprints"
-          title="まだ散歩の記録がありません"
-          description="散歩を終えると、ここに記録が並びます。"
-          action={{ label: "散歩を始める", onPress: () => router.push("/walk-start") }}
-        />
-      );
+      return {
+        centered: true,
+        content: (
+          <HistoryStateCard
+            testID="walk-history-empty"
+            icon="footprints"
+            title={WALK_HISTORY_EMPTY_TITLE}
+            description={WALK_HISTORY_EMPTY_DESCRIPTION}
+            action={{ label: "散歩を始める", onPress: () => router.push("/walk-start") }}
+          />
+        ),
+      };
     }
 
-    return (
-      <FlatList
-        style={styles.flatList}
-        data={history.items}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <WalkHistoryCard
-            item={item}
-            testID={`walk-history-item-${index}`}
-            onPress={() =>
-              router.push({ pathname: "/walk-history/[walkId]", params: { walkId: item.id } })
+    return {
+      centered: false,
+      content: (
+        <FlatList
+          style={styles.flatList}
+          data={history.items}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <WalkHistoryCard
+              item={item}
+              testID={`walk-history-item-${index}`}
+              onPress={() =>
+                router.push({ pathname: "/walk-history/[walkId]", params: { walkId: item.id } })
+              }
+            />
+          )}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + theme.spacing[6] }]}
+          onEndReachedThreshold={0.4}
+          onEndReached={() => {
+            if (history.hasNextPage && !history.isFetchingNextPage) {
+              history.fetchNextPage();
             }
-          />
-        )}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + theme.spacing[6] }]}
-        onEndReachedThreshold={0.4}
-        onEndReached={() => {
-          if (history.hasNextPage && !history.isFetchingNextPage) {
-            history.fetchNextPage();
+          }}
+          ListFooterComponent={
+            history.isFetchingNextPage ? (
+              <ActivityIndicator color={theme.colors.primary} style={styles.footerLoading} />
+            ) : null
           }
-        }}
-        ListFooterComponent={
-          history.isFetchingNextPage ? (
-            <ActivityIndicator color={theme.colors.primary} style={styles.footerLoading} />
-          ) : null
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={history.isRefetching}
-            onRefresh={history.reload}
-            tintColor={theme.colors.primary}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      />
-    );
+          refreshControl={
+            <RefreshControl
+              refreshing={history.isRefetching}
+              onRefresh={history.reload}
+              tintColor={theme.colors.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      ),
+    };
   };
+
+  const body = renderBody();
 
   return (
     <View testID="walk-history-screen" style={styles.root}>
@@ -111,11 +138,7 @@ export function WalkHistoryListView() {
         <Text style={styles.title}>散歩の記録</Text>
         <View style={styles.headerSpacer} />
       </View>
-      {history.errorCode !== null || history.isLoading || history.items.length === 0 ? (
-        <View style={styles.centerContent}>{renderBody()}</View>
-      ) : (
-        renderBody()
-      )}
+      {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
     </View>
   );
 }

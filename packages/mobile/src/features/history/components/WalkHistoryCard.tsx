@@ -20,7 +20,7 @@ export function WalkHistoryCard({ item, onPress, testID }: WalkHistoryCardProps)
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${item.dateLabel} ${item.destinationName} の散歩の詳細`}
+      accessibilityLabel={`${item.dateLabel} ${item.timeLabel} ${item.destinationName} ${item.distanceKm.toFixed(1)}km ${item.durationLabel} の散歩の詳細`}
       testID={testID}
       onPress={onPress}
       style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}

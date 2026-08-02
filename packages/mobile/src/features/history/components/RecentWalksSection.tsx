@@ -6,6 +6,10 @@ import { HistoryStateCard } from "@/features/history/components/HistoryStateCard
 import { WalkHistoryCard } from "@/features/history/components/WalkHistoryCard";
 import { useWalkHistory } from "@/features/history/hooks/useWalkHistory";
 import {
+  WALK_HISTORY_EMPTY_DESCRIPTION,
+  WALK_HISTORY_EMPTY_TITLE,
+} from "@/features/history/lib/walkHistoryEmptyState";
+import {
   isRetriableWalkHistoryError,
   walkHistoryErrorMessage,
 } from "@/features/history/lib/walkHistoryError";
@@ -61,8 +65,8 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
         <HistoryStateCard
           testID="recent-walks-empty"
           icon="footprints"
-          title="まだ散歩の記録がありません"
-          description="散歩を終えると、ここに記録が並びます。"
+          title={WALK_HISTORY_EMPTY_TITLE}
+          description={WALK_HISTORY_EMPTY_DESCRIPTION}
         />
       );
     }

@@ -60,7 +60,7 @@ const FALLBACK_REGION: MapRegion = {
 
 /**
  * ルートの bounds から地図の表示領域を求める。
- * delta は既存の MIN_DELTA で下限クランプする（1点に潰れた bounds でも壊れないように）。
+ * delta は `@/lib/mapRegion` の MIN_REGION_DELTA で下限クランプする（1点に潰れた bounds でも壊れないように）。
  * 日付変更線をまたぐケースは対象外（日本国内前提）。
  */
 export function regionForBounds(bounds: WalkRouteBounds): MapRegion {

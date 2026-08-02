@@ -26,6 +26,8 @@ export function useWalkDetail(walkId: string | null): UseWalkDetailResult {
 
   const query = useQuery({
     queryKey: ["walks", "detail", walkId],
+    // `enabled` が false のとき（walkId が null または空文字）は TanStack Query が queryFn を
+    // 呼ばないため、この時点で walkId は非 null・非空であることが保証されている。
     queryFn: ({ signal }) => fetchWalkDetail(walkId as string, { signal }),
     enabled,
     staleTime: STALE_TIME_MS,

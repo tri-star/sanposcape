@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,6 +21,14 @@ export type WalkDetailViewProps = {
   walkId: string | null;
 };
 
+/**
+ * `renderBody()` の戻り値。「どの状態のときに中央寄せラッパーで包むか」の判断を
+ * ここ1箇所に閉じ、呼び出し側で同じ条件をもう一度書かないようにする
+ * （判定条件と分岐内容が2箇所に分かれると、状態を増減したときに片方だけ更新して
+ * 表示崩れを起こしやすいため）。
+ */
+type WalkDetailBody = { content: ReactNode; centered: boolean };
+
 /** WalkDetailView — `/walk-history/<walkId>` の実体。散歩1件の詳細（軌跡付き）を表示する。 */
 export function WalkDetailView({ walkId }: WalkDetailViewProps) {
   const theme = useTheme();
@@ -36,89 +45,111 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
     }
   };
 
-  const renderBody = () => {
+  const renderBody = (): WalkDetailBody => {
     if (walkId === null) {
-      return (
-        <HistoryStateCard
-          testID="walk-detail-error"
-          icon="alert-circle"
-          tone="danger"
-          title="散歩の記録を特定できませんでした"
-          action={{ label: "一覧へ戻る", onPress: () => router.replace("/walk-history") }}
-        />
-      );
+      return {
+        centered: true,
+        content: (
+          <HistoryStateCard
+            testID="walk-detail-error"
+            icon="alert-circle"
+            tone="danger"
+            title="散歩の記録を特定できませんでした"
+            action={{
+              label: "一覧へ戻る",
+              onPress: () => router.replace("/walk-history"),
+              testID: "walk-detail-back-to-list",
+            }}
+          />
+        ),
+      };
     }
 
     if (detail.errorCode !== null) {
       if (detail.errorCode === "not_found") {
-        return (
+        return {
+          centered: true,
+          content: (
+            <HistoryStateCard
+              testID="walk-detail-error"
+              icon="alert-circle"
+              tone="danger"
+              title={walkHistoryErrorMessage(detail.errorCode)}
+              action={{
+                label: "一覧へ戻る",
+                onPress: () => router.replace("/walk-history"),
+                testID: "walk-detail-back-to-list",
+              }}
+            />
+          ),
+        };
+      }
+
+      return {
+        centered: true,
+        content: (
           <HistoryStateCard
             testID="walk-detail-error"
             icon="alert-circle"
             tone="danger"
             title={walkHistoryErrorMessage(detail.errorCode)}
-            action={{ label: "一覧へ戻る", onPress: () => router.replace("/walk-history") }}
+            action={
+              isRetriableWalkHistoryError(detail.errorCode)
+                ? { label: "再試行", onPress: detail.retry, testID: "walk-detail-retry" }
+                : undefined
+            }
           />
-        );
-      }
-
-      return (
-        <HistoryStateCard
-          testID="walk-detail-error"
-          icon="alert-circle"
-          tone="danger"
-          title={walkHistoryErrorMessage(detail.errorCode)}
-          action={
-            isRetriableWalkHistoryError(detail.errorCode)
-              ? { label: "再試行", onPress: detail.retry, testID: "walk-detail-retry" }
-              : undefined
-          }
-        />
-      );
+        ),
+      };
     }
 
     if (detail.isLoading || detail.walk === null) {
-      return (
-        <View style={styles.centerState} testID="walk-detail-loading">
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      );
+      return {
+        centered: true,
+        content: (
+          <View style={styles.centerState} testID="walk-detail-loading">
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        ),
+      };
     }
 
     const walk = detail.walk;
 
-    return (
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + theme.spacing[6] },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <WalkTrackMapView
-          testID="walk-detail-map"
-          track={walk.track}
-          destination={walk.destination}
-          destinationName={walk.destinationName}
-          height={260}
-          style={styles.map}
-        />
-        <Card>
-          <Text style={styles.destinationName}>{walk.destinationName}</Text>
-          <Text style={styles.dateTime}>{`${walk.dateLabel} ${walk.timeRangeLabel}`}</Text>
-        </Card>
-        <Card style={styles.statsRow}>
-          <StatBlock value={walk.elapsedLabel} label="経過時間" size="sm" />
-          <StatBlock value={walk.distanceKm.toFixed(1)} unit="km" label="歩行距離" size="sm" />
-          <StatBlock value={walk.paceLabel} label="平均ペース" size="sm" />
-        </Card>
-      </ScrollView>
-    );
+    return {
+      centered: false,
+      content: (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: insets.bottom + theme.spacing[6] },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <WalkTrackMapView
+            testID="walk-detail-map"
+            track={walk.track}
+            destination={walk.destination}
+            destinationName={walk.destinationName}
+            height={260}
+            style={styles.map}
+          />
+          <Card>
+            <Text style={styles.destinationName}>{walk.destinationName}</Text>
+            <Text style={styles.dateTime}>{`${walk.dateLabel} ${walk.timeRangeLabel}`}</Text>
+          </Card>
+          <Card style={styles.statsRow}>
+            <StatBlock value={walk.elapsedLabel} label="経過時間" size="sm" />
+            <StatBlock value={walk.distanceKm.toFixed(1)} unit="km" label="歩行距離" size="sm" />
+            <StatBlock value={walk.paceLabel} label="平均ペース" size="sm" />
+          </Card>
+        </ScrollView>
+      ),
+    };
   };
 
-  const showCentered =
-    walkId === null || detail.errorCode !== null || detail.isLoading || detail.walk === null;
+  const body = renderBody();
 
   return (
     <View testID="walk-detail-screen" style={styles.root}>
@@ -127,7 +158,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
         <Text style={styles.title}>散歩の記録</Text>
         <View style={styles.headerSpacer} />
       </View>
-      {showCentered ? <View style={styles.centerContent}>{renderBody()}</View> : renderBody()}
+      {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
     </View>
   );
 }
