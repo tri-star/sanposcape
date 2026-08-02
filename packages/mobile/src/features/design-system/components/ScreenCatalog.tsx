@@ -90,6 +90,13 @@ export function ScreenCatalog() {
       onPress: () => router.push("/(tabs)/history"),
     },
     {
+      key: "walk-history",
+      label: "散歩の記録一覧",
+      description: "保存済みの散歩履歴（タップで詳細へ）。副作用なし",
+      icon: "footprints",
+      onPress: () => router.push("/walk-history"),
+    },
+    {
       key: "search",
       label: "検索（準備中）",
       description: "プレースホルダ画面",
