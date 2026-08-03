@@ -188,6 +188,18 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-44（work_item_id: `71feef70-803f-40e1-b61a-0bdf976177c0`）を新規作成、M5「散歩記録・履歴」に追加、State=Backlog、priority=medium。SS-21（MVP主要フローのE2E・Maestro）のブロッカーとして起票（ユーザー指示のMarkdown本文をそのままHTML変換して登録）。
 - `create_work_item`のURLはPlaneのweb UIパス`https://app.plane.so/sanposcape/projects/<project_id>/issues/<work_item_id>`形式で報告している（workspace slugは`sanposcape`と推測、実際のURL形式は未検証——ワークスペースslugを確実に知りたい場合は今後`retrieve_project`等のレスポンスやユーザー提示のURLで確認すること）。
 
+## 2026-08-04追加: SS-21をIn Progressに、SS-20をDoneに更新
+
+- SS-21「MVP主要フローのE2E（Maestro）・仕上げ」(work_item_id: `9a72fd30-cb14-4072-be71-d127ded98b5c`、M5所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。実装着手のため（ユーザー指示）。start_date=2026-08-05, target_date=2026-08-07が既に設定済みだった。
+- SS-20「mobile: 散歩履歴一覧・詳細画面」(work_item_id: `c321f2f2-48ea-4a88-ae07-072302ef30c8`)をReview→Done（`1e596b34-de54-46e1-a9c4-b61c21cc8ef0`）に更新。PR #21マージ済み（`gh pr view`でMERGED確認済みとユーザーから報告）を根拠にユーザー指示で実施。
+- これによりM5「散歩記録・履歴」4件(SS-18〜21)の状況: SS-18=In Progress, SS-19=Review, SS-20=Done, SS-21=In Progress。M5の未着手はゼロになった。
+- SS-21のレスポンスで`state`は新IDに更新されているが`state_group`が旧グループ("unstarted")のまま返るキャッシュ遅延を再確認（既知の挙動、繰り返しなので今後は都度断りを入れず簡潔に触れる程度でよい）。
+
+## 2026-08-04追加: SS-45「mobile: 認証ガードの無いルートをディープリンクから直接開ける」をM3に追加
+
+- SS-45（work_item_id: `1b140724-8e63-44fe-a2a4-682f5dfd51db`）を新規作成、State=Backlog、priority=low。SS-21のセキュリティレビュー（mobile-security-reviewer）で発見された既存ギャップ、対応はSS-13スコープに委ねる方針。
+- 「SS-13と同じモジュールがあれば」という指示だったため、まず`retrieve_work_item_by_identifier`でSS-13の所属を確認（M3「認証・アプリ骨格」、module_id `fcafdb25-b598-4883-8388-c0526949fbef`）してから同モジュールに追加した。
+
 ## 2026-08-01確認: 作成時の命名・Module 割り当て方針
 
 - WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。
