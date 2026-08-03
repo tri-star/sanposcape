@@ -10,7 +10,7 @@
 - [探索APIの制約](project_explore_api_constraints.md) — /explore/places の契約・コスト・呼び出し抑制ルール（M4）
 - [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
 - [探索 API 契約の非対称性](project-explore-api-contract.md) — places は往復、walking route は片道の値
-- [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro と Maps/Google キーの制約
+- [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSW 利用と純粋関数テストの方針
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置

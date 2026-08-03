@@ -179,6 +179,15 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-20「mobile: 散歩履歴一覧・詳細画面」(work_item_id: `c321f2f2-48ea-4a88-ae07-072302ef30c8`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-18(In Progress)・SS-19(Review)に続くM5の3件目の着手。update_work_item直後のレスポンスは`state`は新IDだが`state_group`は`backlog`のままの既知キャッシュ遅延を再確認。
 
+## 2026-08-02追加: SS-20をReview化・PR #21登録
+
+- SS-20（work_item_id: `c321f2f2-48ea-4a88-ae07-072302ef30c8`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #21（`https://github.com/tri-star/sanposcape/pull/21`、link_id: `5ae93e6c-acbc-417d-840d-1dc648c2dfab`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。M5の4件中SS-18(In Progress)・SS-19(Review)・SS-20(Review)まで着手、残るSS-21が未着手。
+
+## 2026-08-04追加: SS-44「backend: E2E用fake Maps provider(MAPS_MODE)」をM5に追加
+
+- SS-44（work_item_id: `71feef70-803f-40e1-b61a-0bdf976177c0`）を新規作成、M5「散歩記録・履歴」に追加、State=Backlog、priority=medium。SS-21（MVP主要フローのE2E・Maestro）のブロッカーとして起票（ユーザー指示のMarkdown本文をそのままHTML変換して登録）。
+- `create_work_item`のURLはPlaneのweb UIパス`https://app.plane.so/sanposcape/projects/<project_id>/issues/<work_item_id>`形式で報告している（workspace slugは`sanposcape`と推測、実際のURL形式は未検証——ワークスペースslugを確実に知りたい場合は今後`retrieve_project`等のレスポンスやユーザー提示のURLで確認すること）。
+
 ## 2026-08-01確認: 作成時の命名・Module 割り当て方針
 
 - WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。
