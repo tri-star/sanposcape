@@ -167,8 +167,9 @@ pnpm --filter mobile orval          # API クライアント再生成
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）:
   - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー。CI で常時実行する。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
-  - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake` もしくは実
-    `GOOGLE_MAPS_SERVER_API_KEY`）が前提のフロー。無い環境では `--exclude-tags` で除外する。
+  - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`。
+    **SS-44 で対応予定・現時点は未実装**のため、当面は実の `GOOGLE_MAPS_SERVER_API_KEY` を
+    設定する必要がある）が前提のフロー。無い環境では `--exclude-tags` で除外する。
 
 ```bash
 # ローカル: preview APK を作成（EASクラウド枠を使わないローカルビルド）
@@ -240,6 +241,10 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   `UnconfiguredGoogleMapsProvider` により **常に 503** を返す（mobile 実装のバグではない）。
   mobile 側は `provider_unavailable` として文言 + 再試行ボタンを表示する。
 - backend 側で `GOOGLE_MAPS_SERVER_API_KEY` を設定してから確認すること。
+- E2E（Maestro）の `maps-required` タグが前提とする `MAPS_MODE=fake` は **SS-44 で対応予定・
+  現時点は未実装**のため、ローカルで `maps-required` フローを動かしたい場合も当面は上記の
+  実キー設定が唯一の手段（[E2E（Maestro）](#e2emaestro) の `maps-required` 節も参照）。
+  SS-44 完了後はこの節を「`MAPS_MODE=fake` で決定的に再現できる」形に更新すること。
 
 ## Google サインイン
 

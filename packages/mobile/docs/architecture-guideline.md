@@ -23,9 +23,11 @@
   - 位置情報: `EXPO_PUBLIC_LOCATION_MODE=mock`（エミュレータの位置がフレークになりやすいため）
   - Backennd API: 実際のAPIを利用する
   - 地図タイルの描画は assert しない（CI の preview APK には Maps SDK キーを注入しないため地図は灰色）。
-    `/explore/places` は backend の `MAPS_MODE=fake`（E2E 用の決定的 provider）で候補を返せるように
-    し、候補の**件数・内容は assert せず**存在のみを見る。フローは tag（`maps-required`）で
-    外部データへの依存の有無を切り替える（詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。
+    `/explore/places` は backend の `MAPS_MODE=fake`（決定的な fake provider。**SS-44 で対応予定・
+    現時点は未実装**）を前提とするフローには `maps-required` タグを付け、**CI では
+    `--exclude-tags=maps-required` で除外している**（現状 CI では `/explore/places` は常に 503）。
+    SS-44 完了後は候補の**件数・内容は assert せず**存在のみを見る形で有効化する（詳細は
+    [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。
   - 履歴などデータ件数に依存する assert は行わない（同一 CI ラン内で他フローの記録が残るため）。
   - モバイル機能: Maestro経由で利用可能な機能はそのまま利用する。利用できない機能はスタブ実装を利用する。
 
