@@ -24,6 +24,7 @@ export type WalkRouteSummaryProps = {
 /**
  * WalkRouteSummary — 散歩開始画面の「目的地＋ルート」サマリ。
  * `WalkStartView` にインラインで書かれていた選択サマリを切り出したもの。
+ * ready 状態でのみ `${testID}-ready` が存在する（E2E が「散歩を始める」を押せる状態を待つために使う）。
  */
 export function WalkRouteSummary({
   spot,
@@ -67,7 +68,7 @@ export function WalkRouteSummary({
           <Text style={styles.label}>目的地</Text>
           <Text style={styles.name}>{spot.name}</Text>
         </View>
-        <View style={styles.timeColumn}>
+        <View style={styles.timeColumn} testID={`${testID}-ready`}>
           <Text style={styles.time}>
             片道 {toOneWayMinutes(walkRoute.durationSeconds)}分・
             {toKilometers(walkRoute.distanceMeters)}km

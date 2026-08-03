@@ -40,6 +40,7 @@ export function AppTabBar({ state, navigation, insets }: AppTabBarProps) {
       value={currentRouteName}
       onChange={(value) => navigation.navigate(value)}
       testID="app-tab-bar"
+      itemTestIDPrefix="app-tab"
       style={{
         height: theme.layout.tabBarHeight + insets.bottom,
         paddingBottom: insets.bottom,
