@@ -3,7 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
   WALK_HISTORY_PAGE_SIZE,
   buildWalkListParams,
+  normalizeWalkHistoryLimit,
 } from "@/features/history/lib/walkHistoryParams";
+
+describe("normalizeWalkHistoryLimit", () => {
+  it("同じ実リクエストになる値を同じ limit に正規化する", () => {
+    expect(normalizeWalkHistoryLimit(100)).toBe(50);
+    expect(normalizeWalkHistoryLimit(50)).toBe(50);
+  });
+
+  it("未指定と非有限値を既定値に正規化する", () => {
+    expect(normalizeWalkHistoryLimit(undefined)).toBe(WALK_HISTORY_PAGE_SIZE);
+    expect(normalizeWalkHistoryLimit(Number.NaN)).toBe(WALK_HISTORY_PAGE_SIZE);
+  });
+});
 
 describe("buildWalkListParams", () => {
   it("limit 未指定なら既定の20になる", () => {

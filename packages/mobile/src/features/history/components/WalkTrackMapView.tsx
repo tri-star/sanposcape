@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { type StyleProp, Text, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
@@ -33,7 +34,10 @@ export function WalkTrackMapView({
   const theme = useTheme();
   const styles = useStyles();
 
-  const initialRegion = regionForCoordinates([...track, destination]);
+  const initialRegion = useMemo(
+    () => regionForCoordinates([...track, destination]),
+    [track, destination],
+  );
 
   if (initialRegion === null) {
     return (

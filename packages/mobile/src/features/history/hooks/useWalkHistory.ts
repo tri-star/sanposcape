@@ -7,7 +7,10 @@ import {
   type WalkHistoryErrorCode,
 } from "@/features/history/lib/walkHistoryError";
 import { dedupeWalkHistoryItems, toWalkHistoryItems } from "@/features/history/lib/walkHistoryItem";
-import { buildWalkListParams } from "@/features/history/lib/walkHistoryParams";
+import {
+  buildWalkListParams,
+  normalizeWalkHistoryLimit,
+} from "@/features/history/lib/walkHistoryParams";
 import type { WalkHistoryItem } from "@/features/history/types";
 
 /** サーバー状態の鮮度（30秒。`queryClient` の既定と同値。意図を明示するために書く）。 */
@@ -34,7 +37,7 @@ export type UseWalkHistoryResult = {
  * `invalidateQueries({ queryKey: ["walks"] })` に載せて、保存直後に一覧を更新するため）。
  */
 export function useWalkHistory(options?: { limit?: number }): UseWalkHistoryResult {
-  const limit = options?.limit;
+  const limit = normalizeWalkHistoryLimit(options?.limit);
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["walks", "list", { limit }] as const, [limit]);
 

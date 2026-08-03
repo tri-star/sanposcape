@@ -7,7 +7,13 @@ export const WALK_HISTORY_PAGE_SIZE = 20;
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 
-function clampLimit(limit: number | undefined): number {
+/**
+ * 履歴一覧の limit を backend の受け入れ範囲に正規化する。
+ *
+ * リクエストだけでなく TanStack Query の queryKey もこの値を使い、同じ実リクエストなのに
+ * 異なるキャッシュエントリが作られないようにする。
+ */
+export function normalizeWalkHistoryLimit(limit: number | undefined): number {
   if (limit === undefined || !Number.isFinite(limit)) {
     return WALK_HISTORY_PAGE_SIZE;
   }
@@ -31,7 +37,7 @@ export function buildWalkListParams(input: {
   cursor?: string | null;
 }): ListWalksWalksGetParams {
   const params: ListWalksWalksGetParams = {
-    limit: clampLimit(input.limit),
+    limit: normalizeWalkHistoryLimit(input.limit),
   };
 
   if (typeof input.cursor === "string" && input.cursor.length > 0) {
