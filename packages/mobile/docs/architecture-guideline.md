@@ -21,7 +21,7 @@
   - 方針: 実機に近い体験、backendとの統合をテストする。
   - 認証: `EXPO_PUBLIC_AUTH_MODE=dev`（backend の `/auth/dev-session` を利用。backend API は実物）
   - 位置情報: `EXPO_PUBLIC_LOCATION_MODE=mock`（エミュレータの位置がフレークになりやすいため）
-  - Backennd API: 実際のAPIを利用する
+  - Backend API: 実際のAPIを利用する
   - 地図タイルの描画は assert しない（CI の preview APK には Maps SDK キーを注入しないため地図は灰色）。
     `/explore/places` は backend の `MAPS_MODE=fake`（決定的な fake provider。**SS-44 で対応予定・
     現時点は未実装**）を前提とするフローには `maps-required` タグを付け、**CI では
