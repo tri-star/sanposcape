@@ -1,0 +1,25 @@
+# 共通 subflow: スポット選択 → 徒歩ルート取得待ち → 散歩開始。
+# /explore/places が候補を返す環境（backend の MAPS_MODE=fake もしくは実 server key）が前提。
+appId: com.sanposcape.app
+---
+# 候補の「件数」は assert しない（外部データ由来のため）。先頭カードの存在だけを待つ。
+- extendedWaitUntil:
+    visible:
+      id: "spot-card-0"
+    timeout: 30000
+- tapOn:
+    id: "spot-card-0"
+# ルート取得が完了するまで「散歩を始める」は disabled。disabled のボタンをタップしても
+# Maestro は成功扱いで進んでしまうため、ready 状態の testID を待ってからタップする。
+- extendedWaitUntil:
+    visible:
+      id: "walk-start-route-summary-ready"
+    timeout: 30000
+- tapOn:
+    id: "walk-start-begin"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-screen"
+    timeout: 15000
+- assertVisible:
+    id: "walk-stats-panel"

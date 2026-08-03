@@ -1,0 +1,25 @@
+# 履歴一覧の到達性。候補（/explore/places）に依存しないよう、記録タブ経由ではなく
+# ディープリンクで /walk-history へ入る（logout.yaml と同じ手法）。
+# 履歴の「件数」は assert しない: dev ユーザーキーは e2e-user-1 固定で、同一 CI ラン内で
+# 先に走ったフローの記録が残るため、0 件も N 件もあり得る。
+# 「ローディングが終わり、エラーになっていない」ことだけを検証する。
+appId: com.sanposcape.app
+tags:
+  - smoke
+---
+- runFlow: subflows/sign-in.yaml
+- openLink: "sanposcape://walk-history"
+- extendedWaitUntil:
+    visible:
+      id: "walk-history-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "walk-history-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "walk-history-error"
+- tapOn:
+    id: "walk-history-back"
+- assertVisible:
+    id: "walk-start-screen"

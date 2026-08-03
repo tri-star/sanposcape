@@ -7,17 +7,10 @@
 # ディープリンク（`sanposcape://settings`）で直接 /settings へ遷移する。
 # ログアウト検証の本質（サインイン→ログアウト）は候補の存在に依存しない。
 appId: com.sanposcape.app
+tags:
+  - smoke
 ---
-- launchApp:
-    clearState: true
-- assertVisible:
-    id: "splash-screen"
-- assertVisible:
-    id: "sign-in-google-button"
-- tapOn:
-    id: "sign-in-google-button"
-- assertVisible:
-    id: "walk-start-screen"
+- runFlow: subflows/sign-in.yaml
 - openLink: "sanposcape://settings"
 - assertVisible:
     id: "settings-screen"

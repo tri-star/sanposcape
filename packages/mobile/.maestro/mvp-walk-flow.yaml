@@ -1,0 +1,102 @@
+# MVP 主要フロー: 認証 → スポット探索 → 散歩開始 → 散歩終了・保存 → 履歴確認（タブ/一覧/詳細）。
+#
+# 前提:
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）
+#   - backend が起動しており、/explore/places が候補を返せること
+#     （MAPS_MODE=fake もしくは実の GOOGLE_MAPS_SERVER_API_KEY）
+#   → 候補に依存するため `maps-required` タグを付ける。CI は当面 --exclude-tags=maps-required で除外する。
+#
+# assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数。
+appId: com.sanposcape.app
+tags:
+  - mvp
+  - maps-required
+---
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/start-walk-from-spot.yaml
+
+# --- 散歩中 ---
+# mock の位置トラッキング（MOCK_TRACK）は 1 秒間隔で通知される。
+# 軌跡が数点たまる時間を稼ぐ（ended_at == started_at だと保存が 422 になるため）。
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# --- 散歩終了 ---
+- tapOn:
+    id: "walk-active-end"
+- assertVisible:
+    id: "walk-end-dialog"
+- tapOn:
+    id: "walk-end-confirm"
+
+# --- サマリ・保存 ---
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-screen"
+    timeout: 15000
+# POST /walks の完了（saved）を待ってから遷移する。
+# saving のまま「記録を見る」を押すと savedWalkId が無く /(tabs)/history に落ちる。
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-save-status-saved"
+    timeout: 30000
+- tapOn:
+    id: "walk-summary-view-history"
+
+# --- 履歴詳細（保存した散歩へ直行）---
+- extendedWaitUntil:
+    visible:
+      id: "walk-detail-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "walk-detail-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "walk-detail-error"
+- assertVisible:
+    id: "walk-detail-map"
+
+# --- 戻る → 記録タブ → 最近の散歩 ---
+# 詳細はサマリを replace して開いているため、戻り先はタブ（散歩は終了済みなので idle 表示）。
+- tapOn:
+    id: "walk-detail-back"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+- tapOn:
+    id: "app-tab-history"
+- assertVisible:
+    id: "history-screen"
+- extendedWaitUntil:
+    notVisible:
+      id: "recent-walks-loading"
+    timeout: 20000
+# 直前に保存した散歩が「最近の散歩」に出る（useWalkSave の invalidateQueries の検証）。
+- assertVisible:
+    id: "recent-walk-0"
+
+# --- 履歴一覧 → 詳細 ---
+- tapOn:
+    id: "history-see-all-walks"
+- extendedWaitUntil:
+    visible:
+      id: "walk-history-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "walk-history-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "walk-history-error"
+- assertVisible:
+    id: "walk-history-item-0"
+- tapOn:
+    id: "walk-history-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "walk-detail-screen"
+    timeout: 15000
+- assertVisible:
+    id: "walk-detail-map"
