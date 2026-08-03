@@ -1,7 +1,7 @@
 import type { WalkingRouteResponse } from "@/api/generated/model";
-import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
-import { toNonNegative } from "@/features/walk/lib/numberGuard";
 import type { WalkRoute, WalkRouteBounds } from "@/features/walk/types";
+import { isValidCoordinate } from "@/lib/geoCoordinate";
+import { toNonNegative } from "@/lib/numberGuard";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /**
@@ -40,7 +40,7 @@ function computeBoundsFromPoints(points: readonly GeoCoordinates[]): WalkRouteBo
  * 座標の妥当性検証（NaN・非有限値・緯度±90度／経度±180度超え）を行う:
  * - `origin`/`destination.location` が不正なら `InvalidWalkRouteError` を throw する（代替が立てられないため）。
  * - `path[]` は不正な点だけを除外する（折れ線の一部が欠けるだけで済むため、ルート全体は失敗にしない）。
- *   除外の結果2点未満になった場合は空配列にする。`WalkRoutePolyline` は元々 `path.length < 2` を
+ *   除外の結果2点未満になった場合は空配列にする。`RoutePolyline` は元々 `path.length < 2` を
  *   描画スキップの条件にしているため、この扱いは「ルート線なし」として自然に吸収される。
  * - `bounds` が不正なら、検証済みの座標群から矩形を計算し直してフォールバックする。
  */
@@ -103,9 +103,4 @@ export function toOneWayMinutes(durationSeconds: number): number {
  */
 export function estimateRoundTripMinutes(durationSeconds: number): number {
   return Math.round((toNonNegative(durationSeconds) * 2) / 60);
-}
-
-/** メートル → km（小数1桁）。 */
-export function toKilometers(meters: number): number {
-  return Math.round(toNonNegative(meters) / 100) / 10;
 }

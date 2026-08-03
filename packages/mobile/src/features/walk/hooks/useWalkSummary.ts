@@ -12,6 +12,8 @@ export type UseWalkSummaryResult = {
   saveStatus: WalkSaveStatus;
   saveErrorCode: WalkSaveErrorCode | null;
   retrySave: () => void;
+  /** 保存成功時のサーバー側 walk id。「記録を見る」からその散歩の詳細へ遷移するために使う（SS-20）。 */
+  savedWalkId: string | null;
 };
 
 /**
@@ -20,6 +22,7 @@ export type UseWalkSummaryResult = {
  */
 export function useWalkSummary(): UseWalkSummaryResult {
   const finishedWalk = useFinishedWalkStore((state) => state.finishedWalk);
+  const savedWalkId = useFinishedWalkStore((state) => state.savedWalkId);
   const save = useWalkSave(finishedWalk);
 
   const stats =
@@ -31,5 +34,6 @@ export function useWalkSummary(): UseWalkSummaryResult {
     saveStatus: save.status,
     saveErrorCode: save.errorCode,
     retrySave: save.retry,
+    savedWalkId,
   };
 }

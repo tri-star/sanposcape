@@ -80,6 +80,10 @@ packages/mobile/
 
 ### `src/components/` — 機能に依存しない再利用UI
 - `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。
+  - **地図オーバーレイ**も `ui/` の1カテゴリとして扱う（例: `ui/map-pin/MapPin.tsx`、
+    `ui/route-polyline/RoutePolyline.tsx`）。`MapView` の子としてしか描画できない・単体では
+    見た目が確認できないという点で他の Primitive と性質が異なるため、開発確認用ギャラリーの
+    扱いも異なる（[pages-components-guideline](./pages-components-guideline.md) 参照）。
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
@@ -149,6 +153,21 @@ packages/mobile/
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み（例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`）もここに置く。
+  - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
+    純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
+    使っていないうちは `features/<feature>/lib/` に置いたままにする。
+  - SS-20（`features/history` 追加）で `features/walk/lib/` から実際に昇格した4本:
+    - `numberGuard.ts`（`toNonNegative`）— `features/history` と `src/lib/units.ts` の両方から使うため。
+    - `geoCoordinate.ts`（`isValidCoordinate`）— ルート・軌跡を `react-native-maps` に渡す直前の
+      共通の防波堤。
+    - `units.ts`（`toKilometers`）— 散歩ルート・散歩記録の距離表示で共通に使う。
+    - `mapRegion.ts`（`MapRegion` 型 / `MIN_REGION_DELTA` / `regionForCoordinates`）— 座標集合から
+      地図の表示領域を求める汎用計算。
+  - **汎用計算と機能固有の計算は分けたまま昇格する**: 例えば `mapRegion.ts` は「座標集合から表示領域を
+    求める」汎用部分（`regionForCoordinates`）だけを `src/lib/mapRegion.ts` へ昇格し、「往復時間から
+    到達半径を見積もる」walk 固有の計算（`regionForRoundTrip` / `regionForBounds` /
+    `radiusMetersForRoundTrip`）は `features/walk/lib/mapRegion.ts` に残す。同名ファイルが2箇所に
+    あること自体は問題ではなく、共有側は汎用型（`MapRegion` / `MIN_REGION_DELTA`）だけを import する。
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
 - `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
@@ -171,6 +190,19 @@ packages/mobile/
   - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
     `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
     保存直後の一覧が更新されない。
+  - **カーソルページネーション（`useInfiniteQuery`）を使う一覧系 hook は、次の規約に従う**
+    （実例: `features/history/hooks/useWalkHistory.ts`、`queryKey: ["walks","list",{limit}]`）:
+    - `getNextPageParam` は backend レスポンスの `next_cursor` をそのまま返す（`null` なら
+      TanStack v5 が「次ページ無し」と解釈する）。
+    - **cursor に `null` を渡すクエリパラメータを直接組み立てない**。Orval 生成の URL ビルダー
+      （`if (value !== undefined) params.append(key, value === null ? 'null' : String(value))`）は
+      `cursor: null` を渡すとリテラル文字列 `"null"` を付けてしまい、backend が 400（Invalid cursor）
+      を返す。`cursor` は「文字列かつ空文字でない」ときだけキーを立てる純粋関数
+      （例: `features/history/lib/walkHistoryParams.ts` の `buildWalkListParams`）を必ず通し、
+      それ以外は `undefined`（＝キーごと作らない）にする。
+    - 先頭ページから読み直したいとき（`invalid_cursor` からの復旧・pull-to-refresh）は
+      `refetch()` ではなく `resetQueries({ queryKey })` を使う。`refetch()` は同じ壊れたカーソルで
+      再取得してしまい復旧できない。
 - **クライアント状態（UI・一時状態）= Zustand**。横断的なものだけ `src/store/`、機能限定のものは `src/features/<feature>/store/` に置く。
   - ただし**1画面に閉じる一時状態は store にせず `hooks/` の `useState` に留める**（例: `useWalkPlan` の往復時間・カテゴリ・選択スポット）。
     画面をまたいで保持する必要が出た時点で store 化する（例: `useActiveWalkStore` — 散歩開始画面と散歩中画面をまたぐため）。

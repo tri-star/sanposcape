@@ -61,7 +61,14 @@ export function WalkSummaryView() {
           variant="primary"
           fullWidth
           icon="bar-chart-2"
-          onPress={() => router.replace("/(tabs)/history")}
+          onPress={() =>
+            summary.savedWalkId !== null
+              ? router.replace({
+                  pathname: "/walk-history/[walkId]",
+                  params: { walkId: summary.savedWalkId },
+                })
+              : router.replace("/(tabs)/history")
+          }
         >
           記録を見る
         </Button>

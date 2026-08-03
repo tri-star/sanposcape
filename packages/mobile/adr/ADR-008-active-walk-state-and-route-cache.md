@@ -2,13 +2,15 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）
 
 ## ステータス
 
 採用（SS-16）。[ADR-002](./ADR-002-mobile-tech-stack.md) の「クライアント状態 = Zustand（`src/store`）」および [folder-structure](../docs/folder-structure.md) の状態管理の使い分けを、**機能スコープのストアという形で具体化**する。
 
 **SS-19「散歩終了処理・散歩ルート保存」で追補**した（決定1 にフィールドを追加、決定4〜6 を新規追加、「影響」を書き直し）。追補部分には `（SS-19 追補）` を付けている。
+
+**SS-20「散歩履歴一覧・詳細画面」で追補**した（決定4 の「SS-20 の履歴詳細へ遷移するために id が要る」という見込みの記述を実現済みの事実に更新し、「移行・対応が必要な事項」の SS-20 への申し送りをクローズした）。追補部分には `（SS-20 追補）` を付けている。
 
 ## コンテキスト
 
@@ -68,7 +70,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 **`savedWalkId` は「サーバー由来データを store に入れない」規律に対する意図的な例外**とする。
 
 - 例外の範囲は**サーバーが採番した識別子1つだけ**。散歩の内容そのもの（`WalkRead`）は入れない。
-- 許容する理由: SS-20 の履歴詳細（`/walks/{id}`）へ遷移するために id が要るが、そのために Query キャッシュへ「保存結果」を積むと、履歴一覧の queryKey とは別系統のサーバー状態が二重に生まれる。識別子1つを保存状態と一緒に持つほうが二重管理が小さい。
+- 許容する理由: SS-20 の履歴詳細（`/walks/{id}`）へ遷移するために id が要るため（**SS-20 追補**: 実際に `WalkSummaryView` の「記録を見る」が `savedWalkId` を使って `/walk-history/[walkId]` へ直行する形になった）。そのために Query キャッシュへ「保存結果」を積むと、履歴一覧の queryKey とは別系統のサーバー状態が二重に生まれる。識別子1つを保存状態と一緒に持つほうが二重管理が小さい。
 - `saved`（真偽）を `savedWalkId` と独立に持つのは、id が取れないケース（将来 backend の契約が変わった場合）でも「保存は済んだ」を表せるようにするため。
 
 ### 5. 「永続化しない」判断は SS-19 でも維持し、アプリ再起動からの復帰はフォローアップ課題に送る（SS-19 追補）
@@ -143,7 +145,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 ### SS-19 追補分の決定理由
 
 - **ストアを2つに分けたのは、状態の性質で置き場所を分けるという初版の判断基準をそのまま適用した結果**。「今どの散歩をしているか」と「サーバーへ送る対象そのもの」は寿命も更新頻度も異なり、1つのストアに畳むと決定1 の「識別情報だけ」という不変条件が壊れる（選択肢5）。ストアが2つになる代償より、それぞれの不変条件が単純なまま保たれる利得を採った。
-- **`savedWalkId` だけを例外にしたのは、例外の範囲を最小に固定するため**。「サーバー由来データを入れない」を厳格に守ると、SS-20 の詳細遷移のために保存結果を Query キャッシュへ積むことになり、履歴一覧とは別系統のサーバー状態が生まれる。識別子1つに限定し、それ以外は入れないと ADR とコードのコメント両方に書くことで、なし崩し的な拡大を防ぐ。
+- **`savedWalkId` だけを例外にしたのは、例外の範囲を最小に固定するため**。「サーバー由来データを入れない」を厳格に守ると、SS-20 の詳細遷移のために保存結果を Query キャッシュへ積むことになり、履歴一覧とは別系統のサーバー状態が生まれる（**SS-20 追補**: 実際に SS-20 では `useWalkDetail`/`useWalkHistory` の queryKey とは別に、`savedWalkId` という識別子1つだけを経路に使う形で実装された）。識別子1つに限定し、それ以外は入れないと ADR とコードのコメント両方に書くことで、なし崩し的な拡大を防ぐ。
 - **「永続化しない」を維持したのは、依存追加のコストと設計の独立性が判断を分けたため**。復帰の実装そのものが不要になったわけではなく、SS-19 のスコープ（終了処理・保存）と一緒に決めるべき問題ではないという判断。ADR の TODO を「未決のまま放置」ではなく「維持と結論し、覆すには再追補が必要」と明示することで、次に触る人が同じ調査を繰り返さずに済む。
 - **後始末をレジストリにしたのは、クリア漏れを規律ではなく構造で防ぐため**。サインアウト導線に「あれもこれもクリアする」と列挙する形にすると、feature 側でストアが増えるたびに同じレビュー指摘が繰り返される。クリアされる側が自分で登録する形なら、ストアの追加とクリアの追加が同じファイルの中で完結する。
 
@@ -173,7 +175,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 
 - ~~**M5（SS-18〜SS-20）で散歩記録の保存を実装する際**、この ADR の「永続化しない」判断を見直す。~~ → **SS-19 で対応済み**。`WalkTrackState.points` / `elapsedSec` / `distanceMeters` は `buildFinishedWalk`（`lib/finishedWalk.ts`）で `FinishedWalk` にまとめ、`buildWalkCreateRequest` 経由で `POST /walks` に渡す形になった。persist ミドルウェアの追加は**見送り**と結論した（決定5）。
 - **フォローアップ課題（未着手）**: 「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」。着手時は決定5 を覆すことになるため、本 ADR の再追補が必要。
-- **SS-20（履歴一覧・詳細）への申し送り**: `useWalkSave` の成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼んでいるため、**履歴一覧・詳細の queryKey は `["walks", ...]` 始まりにする**こと。保存直後の履歴に新しい散歩が出ない不具合を防ぐ。詳細遷移には `useFinishedWalkStore.savedWalkId` を使える。
+- ~~**SS-20（履歴一覧・詳細）への申し送り**: `useWalkSave` の成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼んでいるため、履歴一覧・詳細の queryKey は `["walks", ...]` 始まりにすること。保存直後の履歴に新しい散歩が出ない不具合を防ぐ。詳細遷移には `useFinishedWalkStore.savedWalkId` を使える。~~ → **SS-20 で対応済み**。`features/history/hooks/useWalkHistory.ts` は `queryKey: ["walks","list",{limit}]`、`useWalkDetail.ts` は `["walks","detail",walkId]` で統一し、`useWalkSave` の `invalidateQueries({ queryKey: ["walks"] })` に載る。`WalkSummaryView` の「記録を見る」は `useFinishedWalkStore.savedWalkId` を使って `/walk-history/[walkId]` へ直行する。
 - **SS-33（往路と復路が異なる周回ルート）** では `WalkRoute` に往路/復路の区別（`legs` 等）が入る見込み。ルートを Query キャッシュで共有する構造自体は維持できるが、API 呼び出しが増える場合は `staleTime` / レート制限の再検討が必要。
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 
@@ -186,4 +188,4 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）

@@ -1,7 +1,7 @@
-import { toNonNegative } from "@/features/walk/lib/numberGuard";
 import { estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
-import { toKilometers } from "@/features/walk/lib/walkRoute";
 import type { ActiveWalk, FinishedWalk, WalkSummaryStats } from "@/features/walk/types";
+import { toNonNegative } from "@/lib/numberGuard";
+import { toKilometers } from "@/lib/units";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** ゴール名が空文字のときのフォールバック表示。 */

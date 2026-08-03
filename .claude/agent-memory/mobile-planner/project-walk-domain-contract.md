@@ -13,6 +13,8 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
 - **軌跡の制約**: 最大 10,000 点、小数6桁、`/walks` の本文上限 1MiB。`watchPosition` は 10m/3秒間隔なので、実運用でこの上限には届かない（10,000点 ≒ 100km）。
 - **`/walks` は `/explore/*` のレート制限バケット対象外**（`walks/router.py` に `enforce_explore_rate_limit` が無い）。終了時のリトライで 429 を気にしなくてよい。
 - **履歴の queryKey は `["walks", ...]` 始まり**で統一する（保存成功時の `invalidateQueries` がこのプレフィックスを使う）。
-- 一覧 `WalkRead` は軌跡を含まない。軌跡は `GET /walks/{walk_id}`（`WalkDetailRead`）のみ。
+- 一覧 `WalkRead` は軌跡を含まない。軌跡は `GET /walks/{walk_id}`（`WalkDetailRead`）のみ → **一覧行にミニ地図は出せない**（サムネイルが欲しくなったら backend に代表点/bounds の追加を依頼する）。
+- `GET /walks` は keyset カーソル（`next_cursor: string | null`、`limit` 1..50・既定20）。不正カーソルは 400。**`cursor` を明示的に `null` で送ると 400 になる**（[[mobile-structure]] の Orval 落とし穴1）。
+- `useFinishedWalkStore.savedWalkId` は SS-19 時点でプロダクトコード未参照。SS-20 の「サマリ → その散歩の詳細」遷移で消費される想定（ADR-008 決定4）。
 
 Related: [[project-explore-api-contract]], [[mobile-structure]]

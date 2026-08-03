@@ -2,7 +2,9 @@
 
 ## 日付
 
-2026-08-01
+2026-08-01（初版）、2026-08-02 追補（SS-20）
+
+**SS-20「散歩履歴一覧・詳細画面」で追補**した（「移行・対応が必要な事項」の SS-20 への申し送りを実績に更新）。追補部分には `（SS-20 追補）` を付けている。
 
 ## コンテキスト
 
@@ -169,8 +171,11 @@ SS-16 が提示する経路（`path`）は保存しない。`destination_place_i
   - **対応済み**: `client_walk_id` は散歩開始時（`WalkStartView` の散歩開始時）に `randomUuidV4()` で採番し、`ActiveWalk.clientWalkId` → `FinishedWalk.clientWalkId` と持ち回る（再送でも変えない）。`duration_seconds` には一時停止を除いた `elapsedSec` を送る（`lib/finishedWalk.ts` で wall-clock 秒を超えないようクランプ済み。300 秒のスキュー許容には頼らない）。リクエストは `lib/walkCreateRequest.ts` が snake_case の `WalkCreate` に組み立てる。
   - **未対応（フォローアップ課題へ）**: ローカル永続化。SS-19 はドラフトをメモリ上の Zustand（`useFinishedWalkStore`）にしか持たない。
   - 追加の実装事実: 軌跡は送信直前に `lib/walkTrackPayload.ts` で小数6桁へ丸め・連続重複除去・上限超過時のみ等間隔間引きを行う（記録中の間引き 10m/3秒 + 5m フィルタで通常は上限に達しない）。保存成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼ぶ。
-- SS-20 への申し送り: 履歴一覧は `next_cursor` を使った無限スクロール。週/月チャートは `started_after` / `started_before`（半開区間）で絞って取得し、集計はクライアント側で行う。
-- 集計 API（`GET /walks/stats`）と削除 API（`DELETE /walks/{id}`）は今回スコープ外。連続日数（streak）は全履歴の走査が必要なため、必要になった時点でサーバー側に持たせるかを SS-20 で判断する。
+- SS-20 への申し送り（**一部クローズ**、SS-20 追補）: 実績は以下のとおり。
+  - **対応済み**: 履歴一覧の無限スクロールは `next_cursor` ベースの `useInfiniteQuery`（`features/history/hooks/useWalkHistory.ts`）で実装した。記録タブの「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）から閲覧できる。
+  - **非スコープで据え置き（スタブ継続）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のまま（`docs/milestones.md` に留保を明記）。
+  - **保留（次タスクへ再送り）**: 連続日数（streak）をサーバー側に持たせるかどうかの判断は、期間フィルタ・週/月集計と合わせて着手するタスクへ持ち越す。
+- 集計 API（`GET /walks/stats`）と削除 API（`DELETE /walks/{id}`）は今回スコープ外。連続日数（streak）は全履歴の走査が必要なため、必要になった時点でサーバー側に持たせるかを判断する（未着手）。
 
 ## 関連情報
 

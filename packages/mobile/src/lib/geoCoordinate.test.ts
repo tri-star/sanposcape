@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
+import { isValidCoordinate } from "@/lib/geoCoordinate";
 
 describe("isValidCoordinate", () => {
   it("通常の座標は妥当と判定する", () => {

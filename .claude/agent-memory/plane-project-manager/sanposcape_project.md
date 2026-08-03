@@ -162,6 +162,23 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-19「mobile: 散歩終了処理・散歩ルート保存」(work_item_id: `e91c7a28-a58e-4ea3-898c-5c804bf0fdcc`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-18(backend: Walkモデル・保存API、2026-08-01にIn Progress化)に続くM5の2件目の着手。
 - update_work_item直後のレスポンスは`state`は新IDになっているが`state_group`は旧グループ("backlog")のまま返るキャッシュ遅延を再確認（既知の挙動、SS-7/SS-25メモ参照）。
 
+## 2026-08-02追加: SS-19をReview化・PR #20登録、フォローアップSS-36を新規作成
+
+- SS-19（work_item_id: `e91c7a28-a58e-4ea3-898c-5c804bf0fdcc`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #20（`https://github.com/tri-star/sanposcape/pull/20`、link_id: `9af9b0c0-4204-44f0-9753-e01f3c72240b`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+- SS-36「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」(work_item_id: `c9d51cbc-bb59-4e67-b773-297263845245`)を新規作成、M5「散歩記録・履歴」に追加、State=Backlog。SS-19からのフォローアップ（ADR-003/ADR-008のスコープ外事項）。
+- `list_work_item_relation_definitions`は本日も**HTTP 402再現**（`relation_definitions_402.md`の内容は引き続き有効）。SS-36↔SS-19の関連は本文中の「派生元: SS-19」記載で代替。
+
+## 2026-08-02追加: SS-19フォローアップ3件(SS-37/38/39)を新規作成・SS-36に追記
+
+- SS-36（`c9d51cbc-bb59-4e67-b773-297263845245`）に「SS-19のsessionCleanup.ts追加」を踏まえた追記セクションを追加（永続化データもサインアウト時の後始末対象に含める必要がある旨）。
+- SS-37「mobile: 散歩保存が unauthorized で失敗した際にサインイン画面へ導く CTA を追加する」(`99bf40df-6398-4e03-b98e-fc7409262ba2`)、SS-38「backend: /walks エンドポイントにレート制限を追加する」(`6346228e-537a-43f5-b1f8-5c0829a7b604`、labelは`ready`)、SS-39「backend: 冪等キー衝突時に内容差分を検知してサーバーログに警告を出す」(`1d575b61-fa24-4952-a41d-f9e52d9ecf9c`、labelは`ready`)を新規作成。いずれもM5「散歩記録・履歴」に追加、State=Backlog、priority=low。
+- ラベル`ready`のlabel_id: `c55d541f-4c4b-4516-8832-ff151225f4e9`（プロジェクトに既存）。
+- `list_work_item_relation_definitions`は本日も**HTTP 402再現**（2回目の確認、`relation_definitions_402.md`参照）。SS-19との関連は全て本文中の「派生元: SS-19 / PR: ...」記載で代替（実際のrelates_to設定は不可のため実施せず、ユーザーに報告）。
+
+## 2026-08-02追加: SS-20をIn Progressに更新（mobile側着手）
+
+- SS-20「mobile: 散歩履歴一覧・詳細画面」(work_item_id: `c321f2f2-48ea-4a88-ae07-072302ef30c8`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-18(In Progress)・SS-19(Review)に続くM5の3件目の着手。update_work_item直後のレスポンスは`state`は新IDだが`state_group`は`backlog`のままの既知キャッシュ遅延を再確認。
+
 ## 2026-08-01確認: 作成時の命名・Module 割り当て方針
 
 - WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。

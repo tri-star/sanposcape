@@ -248,6 +248,12 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 - **SS-15 以降、散歩開始画面（`/walk-start`）は backend の `POST /explore/places` に依存する**ため、
   静的スタブでの確認はできない。backend 未起動、または backend の `GOOGLE_MAPS_SERVER_API_KEY`
   未設定（＝常に 503）の場合は、エラー文言 + 再試行ボタンの表示になる（アプリ側のバグではない）。
+- **SS-19 以降、散歩サマリ画面（`/walk-summary`）の保存確定は backend の `POST /walks` に依存する**。
+  サマリ自体の表示はローカルのドラフト（`useFinishedWalkStore`）だけで完結するため backend 未起動でも
+  開けるが、保存は失敗し `WalkSaveStatus` に再試行導線が出る。
+- **SS-20 以降、記録タブの「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）は
+  backend の `GET /walks` / `GET /walks/{walk_id}` に依存する**ため、静的スタブでの確認はできない。
+  backend 未起動、または未認証（401）の場合はエラー文言 + 再試行導線（一覧・詳細とも）になる。
 - 同じ画面は現在地の取得も行う。エミュレータで位置が取れない場合は
   `adb shell` 経由の `adb emu geo fix <経度> <緯度>` で位置を与えるか、`.env` の
   `EXPO_PUBLIC_LOCATION_MODE=mock`（東京駅固定）で起動する。

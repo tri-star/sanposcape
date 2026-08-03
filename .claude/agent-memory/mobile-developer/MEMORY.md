@@ -1,7 +1,7 @@
 - [tsx CLI EPERM in sandbox](sandbox-tsx-cli-workaround.md) — `tsx <file>` fails on IPC socket in this sandbox; use `pnpm --filter <pkg> exec node --import tsx <file>` to verify locally instead.
 - [Mobile docs map mismatch](docs-map-mismatch.md) — troubleshoot table lives in `app-startup-guide.md`, not `local-env.md`.
 - [Sandbox format:check stray files](sandbox-format-check-stray-files.md) — run `oxfmt --check` on specific changed files when the full script chokes on stray `.mcp.json`/`.claude/` files.
-- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__` と globalThis の型、Rules of Hooks(早期return)
+- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__`とglobalThisの型、Rules of Hooks(早期return)、派生指標は生値から計算、バリデーション後付け時の既存テストfixture確認
 - [Expo Router のアプリ構造](expo-router-app-structure.md) — typedRoutes生成、index.tsx+(tabs)/index.tsx共存、非推奨Tabsとカスタムタブバー
 - [ネストしたPressable+Checkbox](nested-pressable-checkbox.md) — 行全体Pressable+内側Checkboxはpointer Events="none"で表示専用に
 - [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
@@ -13,3 +13,9 @@
 - [oxfmt個別ファイル実行のズレ](oxfmt-individual-file-drift.md) — 個別`oxfmt`実行だけで満足せず、コミット前に必ず`pnpm --filter mobile format:check`のフルコマンドで確認する
 - [useMutationの初導入パターン](tanstack-mutation-pattern.md) — SS-19 useWalkSaveが最初の例。null検証→ApiError(422)throw、useRefで冪等発火、retryDelay指数バックオフ
 - [サインアウト時クリアの一元化パターン](session-cleanup-registry.md) — `src/lib/sessionCleanup.ts`。store側で自分の後始末を登録、signOut側は`runSessionCleanup()`を呼ぶだけ
+- [共有層への昇格手順](promotion-workflow.md) — `features/<x>/lib|components` から `src/lib`/`src/components/ui` へ安全に移す順序
+- [Orval `/walks` cursor=null の落とし穴](orval-cursor-null-pitfall.md) — `cursor: null` をそのまま `ListWalksWalksGetParams` に渡すと `?cursor=null` が飛ぶ
+- [巨大な座標配列の計算](large-point-array-pitfall.md) — 軌跡(最大1万点)に `Math.max(...points)` を使わない
+- [RNのflexレイアウトの落とし穴](rn-flex-layout-pitfall.md) — flex column内のFlatList/ScrollViewには明示的な`flex:1`が要る
+- [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`と`api/`のみ。hooks/componentsは設計上テストしない
+- [renderBody の中央寄せ判定パターン](render-body-centered-pattern.md) — `{content, centered}`を返す形で判定条件を1箇所に閉じる（features/history一覧・詳細）

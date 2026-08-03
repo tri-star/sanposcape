@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { PeriodChart } from "@/features/history/components/PeriodChart";
+import { RecentWalksSection } from "@/features/history/components/RecentWalksSection";
 import { StepGoalCard } from "@/features/history/components/StepGoalCard";
 import { useHistorySummary } from "@/features/history/hooks/useHistorySummary";
 import { makeStyles } from "@/theme/makeStyles";
@@ -50,6 +51,8 @@ export function HistoryView() {
         </View>
 
         <StepGoalCard todaySteps={todaySteps} goal={stepGoal} />
+
+        <RecentWalksSection />
       </ScrollView>
     </View>
   );

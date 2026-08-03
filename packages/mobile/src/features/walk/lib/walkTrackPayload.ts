@@ -1,6 +1,6 @@
 import type { GeoPoint } from "@/api/generated/model";
-import { isValidCoordinate } from "@/features/walk/lib/geoCoordinate";
 import { roundCoordinate } from "@/features/walk/lib/placeSearchRequest";
+import { isValidCoordinate } from "@/lib/geoCoordinate";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** backend の MAX_TRACK_POINTS と同値（schemas.py）。 */
