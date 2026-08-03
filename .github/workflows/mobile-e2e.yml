@@ -18,7 +18,8 @@ name: mobile E2E (Maestro)
 #       1. 下記 "Run Maestro flows on emulator" ステップの --exclude-tags=maps-required を外し、
 #          コメントアウトしている --include-tags=maps-required の行と合わせて
 #          `maestro test packages/mobile/.maestro/` の1コマンドに統合する。
-#       2. このブロックと下記 :123 付近の TODO コメントを削除する（この TODO 自体も陳腐化するため）。
+#       2. このブロックと、同ステップ内の TODO(SS-44) コメントを削除する
+#          （この TODO 自体も陳腐化するため）。
 on:
   workflow_dispatch:
   schedule:
