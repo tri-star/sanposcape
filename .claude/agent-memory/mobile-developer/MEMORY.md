@@ -19,3 +19,4 @@
 - [RNのflexレイアウトの落とし穴](rn-flex-layout-pitfall.md) — flex column内のFlatList/ScrollViewには明示的な`flex:1`が要る
 - [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`と`api/`のみ。hooks/componentsは設計上テストしない
 - [renderBody の中央寄せ判定パターン](render-body-centered-pattern.md) — `{content, centered}`を返す形で判定条件を1箇所に閉じる（features/history一覧・詳細）
+- [Maestro E2Eのフロー設計パターン](maestro-e2e-patterns.md) — subflows分離、tagでのCI除外、disabled誤タップ対策、状態別testID(root据え置き+内側`${testID}-<state>`)、itemTestIDPrefix
