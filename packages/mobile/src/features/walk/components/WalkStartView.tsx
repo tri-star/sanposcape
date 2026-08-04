@@ -17,6 +17,7 @@ import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
 import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
+import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
@@ -36,22 +37,38 @@ export function WalkStartView() {
   const plan = useWalkPlan();
   const startWalk = useActiveWalkStore((state) => state.startWalk);
 
+  // 戻り先は (tabs)。ナビタブ経由で検索・記録・スポット一覧のすべてに届く既定ホーム
+  // （`WalkSummaryView` の「ホームへ」と同じ）。「散歩を始める」とラッチを共有し、
+  // 戻る連打・戻る＋開始の同時押しでも遷移は1回に収まる。
+  const back = useScreenBack({
+    fallbackHref: "/(tabs)",
+    // カテゴリシートが開いているときの「戻る」はシートを閉じるだけにする。
+    // closeCatSheet は draft を破棄して閉じる＝キャンセルの意味と一致する。
+    onIntercept: () => {
+      if (!plan.catSheetOpen) return false;
+      plan.closeCatSheet();
+      return true;
+    },
+  });
+
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
   const handleStartWalk = () => {
     if (!plan.selectedSpot || !plan.origin || !plan.destination || !plan.walkRoute) return;
-    startWalk({
-      // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
-      clientWalkId: randomUuidV4(),
-      origin: plan.origin,
-      // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
-      // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
-      destination: plan.destination,
-      roundTripMinutes: plan.selectedSpot.roundTripMinutes,
-      roundTripKm: plan.selectedSpot.roundTripKm,
-      startedAtMs: Date.now(),
+    back.runOnce(() => {
+      startWalk({
+        // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
+        clientWalkId: randomUuidV4(),
+        origin: plan.origin!,
+        // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
+        // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
+        destination: plan.destination!,
+        roundTripMinutes: plan.selectedSpot!.roundTripMinutes,
+        roundTripKm: plan.selectedSpot!.roundTripKm,
+        startedAtMs: Date.now(),
+      });
+      router.replace("/(tabs)");
     });
-    router.replace("/(tabs)");
   };
 
   const startLabel = !plan.selectedSpot
@@ -68,6 +85,13 @@ export function WalkStartView() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <IconButton
+            icon="chevron-left"
+            label="戻る"
+            variant="ghost"
+            onPress={back.goBack}
+            testID="walk-start-back"
+          />
           <View style={styles.headerText}>
             <Text style={styles.eyebrow}>コースを決める</Text>
             <Text style={styles.title}>どこまで歩く？</Text>
@@ -193,7 +217,8 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[3] - 2,
-    paddingHorizontal: theme.layout.pageGutter + 2,
+    // 戻るボタンが増えたぶん左右のガターを詰める（IconButton 2つ + タイトルの3分割バランス）。
+    paddingHorizontal: theme.layout.pageGutter,
     paddingBottom: theme.spacing[2] + 2,
   },
   headerText: {
