@@ -200,8 +200,17 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-45（work_item_id: `1b140724-8e63-44fe-a2a4-682f5dfd51db`）を新規作成、State=Backlog、priority=low。SS-21のセキュリティレビュー（mobile-security-reviewer）で発見された既存ギャップ、対応はSS-13スコープに委ねる方針。
 - 「SS-13と同じモジュールがあれば」という指示だったため、まず`retrieve_work_item_by_identifier`でSS-13の所属を確認（M3「認証・アプリ骨格」、module_id `fcafdb25-b598-4883-8388-c0526949fbef`）してから同モジュールに追加した。
 
+## 2026-08-04追加: SS-21をReview化・PR #22リンク登録
+
+- SS-21（work_item_id: `9a72fd30-cb14-4072-be71-d127ded98b5c`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #22（`https://github.com/tri-star/sanposcape/pull/22`、link_id: `a233a55d-2d49-4120-a439-163eb3f085be`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+- M5「散歩記録・履歴」4件(SS-18〜21)の状況: SS-18=In Progress, SS-19=Review, SS-20=Done, SS-21=Review。
+
 ## 2026-08-01確認: 作成時の命名・Module 割り当て方針
 
 - WorkItem は対象領域を明示する `mobile:` / `backend:` 接頭辞を用い、本文は「背景」「ゴール」「技術的な検討事項」「前提」「位置づけ」「スコープ外」の見出しで記述する。
 - M4/M5 などのマイルストーンは Plane の Module で表現する。MVP を直接ブロックしない課題（例: SS-33）は Module を未設定とすることがあり、設定漏れとは限らない。
 - 通常の SS 作業では既知の project/state ID を利用できるが、長期間隔が空いた場合や API が失敗した場合は、状態とプロジェクトを再取得して確認する。
+
+## 2026-08-05追加: SS-34をIn Progressに更新（mobile側着手）
+
+- SS-34「mobile: 散歩開始前に探索・記録へ戻れる導線を追加」(work_item_id: `ad15c9d5-3076-4f59-90bb-47faefb86673`、M4所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-16の後続タスク。start_date=2026-08-10, target_date=2026-08-11が既に設定済みだった。
