@@ -1,14 +1,21 @@
 # Maestro E2E スモークフロー
-# 実行には Android エミュレータ/実機 + development build（Expo Go 不可）が必要。
+# 実行には Android エミュレータ/実機 + preview ビルド（standalone APK。Expo Go 不可）が必要。
 # ローカル(Windows側 Android)やCIでのエミュレータ上で実行する。
+# フローの分類（smoke / mvp）は tags で管理する。詳細は docs/local-env.md を参照。
 #
 #   maestro test .maestro/smoke.yaml
 #
 appId: com.sanposcape.app
+tags:
+  - smoke
 ---
 - launchApp:
     clearState: true
 - assertVisible:
     id: "splash-screen"
-- assertVisible:
-    id: "sign-in-google-button"
+# スプラッシュは最低 900ms 表示 + restoreSession() の通信を待つため extendedWaitUntil を使う
+# （subflows/sign-in.yaml と同じ待ち方針に揃える）。
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-google-button"
+    timeout: 15000

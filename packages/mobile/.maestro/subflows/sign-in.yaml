@@ -1,0 +1,21 @@
+# 共通 subflow: 起動 → サインイン → 散歩開始画面。
+# `subflows/` 配下のファイルは Maestro の既定（ワークスペース直下のみ実行）により
+# 単体では実行されず、runFlow からのみ呼ばれる。
+appId: com.sanposcape.app
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "splash-screen"
+# スプラッシュは最低 900ms 表示 + restoreSession() の通信を待つため extendedWaitUntil を使う。
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-google-button"
+    timeout: 15000
+- tapOn:
+    id: "sign-in-google-button"
+# EXPO_PUBLIC_AUTH_MODE=dev → POST /auth/dev-session の往復を待つ。
+- extendedWaitUntil:
+    visible:
+      id: "walk-start-screen"
+    timeout: 20000

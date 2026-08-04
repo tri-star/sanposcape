@@ -61,6 +61,7 @@ packages/mobile/
 │
 ├── assets/                   # 画像・フォント等の静的アセット
 ├── .maestro/                 # E2Eテストフロー（Maestro）
+│   └── subflows/              #   `runFlow` からのみ呼ばれる共通手順（単体では実行されない）
 ├── docs/                     # 設計ドキュメント
 ├── adr/                      # ADR（設計判断の記録）
 ├── app.json / app.config.ts  # Expo設定
@@ -219,6 +220,9 @@ packages/mobile/
 - **テスト対象と同じ場所に併置（co-location）** する。
   - 例: `Button.tsx` と同じフォルダに `Button.test.tsx`。
 - E2E（Maestro）のフローのみ、ルートの `.maestro/` に集約する。
+  - `.maestro/` 直下＝実行対象のフロー。`.maestro/subflows/`＝複数フローで共有する手順を
+    `runFlow` から呼ぶ専用の置き場（Maestro は既定でワークスペース直下の yaml のみ自動実行する
+    ため、`subflows/` 配下は単体では実行されない）。
 
 ## 環境固有の注意（WSL2 / Linux）
 

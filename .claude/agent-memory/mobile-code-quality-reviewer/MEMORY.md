@@ -8,3 +8,4 @@
 - [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(往復)とroutes/walking(片道)を型・関数名で区別。「往復の目安」は出典が複数ある点に注意。
 - [reused component static testID risk](reused-component-static-testid-risk.md) — 内部要素が固定testIDの共有コンポーネントを複数画面から使うと同時マウント時に重複し得る（LocationPermissionNoticeで発見）。
 - [verify generated types vs plan assumptions](verify-generated-types-vs-plan-assumptions.md) — プランの「backendの型がまだ甘い」前提はOrval再生成/backend修正で覆っていることがある。生成物とrouter.pyを直接読んで判断する。
+- [Maestro E2E review approach](maestro-e2e-review-approach.md) — .maestro/*.yamlのコメント主張（戻り先画面/canGoBack挙動）はrouter.push/replaceの実装を追跡して裏取りする。waitForAnimationToEndの時間稼ぎ用法は非自明。

@@ -134,7 +134,13 @@ export function WalkHistoryListView() {
   return (
     <View testID="walk-history-screen" style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing[2] }]}>
-        <IconButton icon="chevron-left" label="戻る" variant="ghost" onPress={handleBack} />
+        <IconButton
+          icon="chevron-left"
+          label="戻る"
+          variant="ghost"
+          onPress={handleBack}
+          testID="walk-history-back"
+        />
         <Text style={styles.title}>散歩の記録</Text>
         <View style={styles.headerSpacer} />
       </View>

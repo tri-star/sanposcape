@@ -159,18 +159,37 @@ pnpm --filter mobile orval          # API クライアント再生成
 
 ## E2E（Maestro）
 
-- フローは `.maestro/` に置く（例: `.maestro/smoke.yaml`）。
+- フローは `.maestro/` に置く（例: `.maestro/smoke.yaml`）。Maestro は既定でワークスペース直下の
+  yaml だけを自動実行するため、`.maestro/subflows/` は `runFlow` からのみ呼ばれる共通手順の置き場
+  になっている（単体では実行されない）。
 - E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)。
 - 実行には Android エミュレータ/実機 + preview APK が必要。
+- フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）:
+  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー。CI で常時実行する。
+  - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
+  - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`。
+    **SS-44 で対応予定・現時点は未実装**のため、当面は実の `GOOGLE_MAPS_SERVER_API_KEY` を
+    設定する必要がある）が前提のフロー。無い環境では `--exclude-tags` で除外する。
 
 ```bash
 # ローカル: preview APK を作成（EASクラウド枠を使わないローカルビルド）
 pnpm --filter mobile exec eas build --local --profile preview --platform android --output e2e-build/app-preview.apk
 adb install -r e2e-build/app-preview.apk
-maestro test packages/mobile/.maestro/
+
+# 外部データに依存しないフローだけ（CI と同じ範囲）
+maestro test --exclude-tags=maps-required packages/mobile/.maestro/
+
+# MVP 主要フローだけ（backend が MAPS_MODE=fake か実キーで /explore/places に応答できる場合のみ）
+maestro test --include-tags=maps-required packages/mobile/.maestro/
+
+# 個別フローを名指しで実行（デバッグ時）
+maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 ```
 
-- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。
+- MVP フロー（`maps-required`）を動かすには、backend を `AUTH_MODE=dev` に加えて
+  `MAPS_MODE=fake`（未対応の間は実の `GOOGLE_MAPS_SERVER_API_KEY` を `.env` に設定）で起動する必要がある。
+- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。backend の `MAPS_MODE=fake` が入るまでは `--exclude-tags=maps-required` で MVP フローを除外する。
+- 失敗時は `~/.maestro/tests/<最新のディレクトリ>/` に実行ログ・スクリーンショット・階層ダンプ（`.json`）が残る。CI では失敗時に `maestro-debug-output` artifact としてアップロードされる。
 
 ## Google Maps（react-native-maps）
 
@@ -222,6 +241,10 @@ maestro test packages/mobile/.maestro/
   `UnconfiguredGoogleMapsProvider` により **常に 503** を返す（mobile 実装のバグではない）。
   mobile 側は `provider_unavailable` として文言 + 再試行ボタンを表示する。
 - backend 側で `GOOGLE_MAPS_SERVER_API_KEY` を設定してから確認すること。
+- E2E（Maestro）の `maps-required` タグが前提とする `MAPS_MODE=fake` は **SS-44 で対応予定・
+  現時点は未実装**のため、ローカルで `maps-required` フローを動かしたい場合も当面は上記の
+  実キー設定が唯一の手段（[E2E（Maestro）](#e2emaestro) の `maps-required` 節も参照）。
+  SS-44 完了後はこの節を「`MAPS_MODE=fake` で決定的に再現できる」形に更新すること。
 
 ## Google サインイン
 

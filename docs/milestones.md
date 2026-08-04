@@ -153,6 +153,15 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
   - [x] 散歩履歴の一覧・詳細を閲覧できる（backend API は SS-18、mobile 結線は SS-20 で完了。`/walk-history`・`/walk-history/[walkId]` + 記録タブの「最近の散歩」）
     - 留保: 記録タブの集計表示（週/月の合計距離チャート・連続日数・歩数目標）は `useHistorySummary` のスタブのまま。期間フィルタ（`started_after`/`started_before`）・週月チャートの実データ化、連続日数（streak）のサーバー化判断は SS-20 のスコープ外で次タスクへ持ち越し（ADR-003 参照）
   - [ ] MVP スコープの主要フローが E2E で通る
+    - 状態（SS-21）: `.maestro/mvp-walk-flow.yaml`（認証→探索→散歩開始→終了・保存→履歴一覧・
+      詳細を1本で通す）を追加済み。地図タイルの描画・候補件数・履歴件数は assert しない
+      （ADR-004 追補）。backend の `MAPS_MODE=fake`（決定的な fake Maps provider。SS-44・別タスク）
+      が未対応のため `maps-required` タグで CI（`--exclude-tags=maps-required`）から除外している。
+      yaml の構文と参照 testID の実在は確認済みだが、**実機/エミュレータでのローカル実行による
+      通しの確認はまだ行っていない**（development/preview build 環境が必要）。SS-44 完了後、
+      backend 起動に `MAPS_MODE=fake` を追加し CI の `--include-tags` 行を有効化した上で、
+      ローカル実行の確認を経てチェックを付ける。記録タブの集計表示（週/月チャート・連続日数・
+      歩数目標）はスタブのままで、実データ化は別課題
 
 ### 含まれるタスク（概要レベル）
 

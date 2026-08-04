@@ -18,6 +18,8 @@ export type WalkSaveStatusProps = {
 /**
  * 散歩記録の保存状態の表示と再試行導線。View から条件分岐を追い出す表示専用コンポーネント。
  * `idle` のときは何も表示しない（ドラフトが無い＝画面カタログ等からの単独表示）。
+ * 状態の判別が必要な E2E のために、saving/saved は内側の Text に `${testID}-saving` /
+ * `${testID}-saved` を持つ。error 状態は既存の `walk-summary-save-retry` で判別できる。
  */
 export function WalkSaveStatus({
   status,
@@ -41,7 +43,9 @@ export function WalkSaveStatus({
         accessibilityLabel="記録を保存しています"
       >
         <ActivityIndicator color={theme.colors.textSecondary} />
-        <Text style={styles.text}>記録を保存しています…</Text>
+        <Text style={styles.text} testID={`${testID}-saving`}>
+          記録を保存しています…
+        </Text>
       </View>
     );
   }
@@ -55,7 +59,9 @@ export function WalkSaveStatus({
         accessibilityLabel="記録を保存しました"
       >
         <Icon name="check" size={18} color={theme.colors.success} />
-        <Text style={[styles.text, { color: theme.colors.success }]}>記録を保存しました</Text>
+        <Text style={[styles.text, { color: theme.colors.success }]} testID={`${testID}-saved`}>
+          記録を保存しました
+        </Text>
       </View>
     );
   }

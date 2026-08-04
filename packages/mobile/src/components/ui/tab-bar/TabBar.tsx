@@ -19,6 +19,12 @@ export type TabBarProps<T extends string = string> = {
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /**
+   * 各タブ項目に付与する testID の接頭辞。指定すると `${itemTestIDPrefix}-${item.value}` になる。
+   * 共有プリミティブに固定 testID を埋め込まず、呼び出し側から注入する形にしている
+   * （複数箇所から使われたときに testID が重複しないようにするため）。
+   */
+  itemTestIDPrefix?: string;
 };
 
 /**
@@ -31,6 +37,7 @@ export function TabBar<T extends string = string>({
   onChange,
   style,
   testID,
+  itemTestIDPrefix,
 }: TabBarProps<T>) {
   const theme = useTheme();
   const styles = useStyles();
@@ -47,6 +54,7 @@ export function TabBar<T extends string = string>({
             accessibilityLabel={item.label}
             onPress={() => onChange(item.value)}
             style={styles.item}
+            testID={itemTestIDPrefix ? `${itemTestIDPrefix}-${item.value}` : undefined}
           >
             <View style={[styles.iconCircle, active ? styles.iconCircleActive : null]}>
               <Icon
