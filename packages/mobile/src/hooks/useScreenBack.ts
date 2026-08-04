@@ -1,6 +1,6 @@
 import type { Href } from "expo-router";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { BackHandler } from "react-native";
 
 import { resolveBackAction } from "@/lib/backNavigation";
@@ -60,10 +60,37 @@ export function useScreenBack({
       navigating: navigatingRef.current,
       canGoBack: router.canGoBack(),
     });
-    if (action === "intercepted" || action === "ignored") return;
-    navigatingRef.current = true;
-    if (action === "pop") router.back();
-    else router.replace(fallbackRef.current);
+
+    // switch + default の never アサーションで網羅性を保証する。`BackAction` に
+    // バリアントが増えたときに黙って既存の分岐へ吸い込まれる（if/else の落とし穴）のを防ぐ。
+    switch (action) {
+      case "intercepted":
+      case "ignored":
+        return;
+      case "pop":
+        navigatingRef.current = true;
+        try {
+          router.back();
+        } catch {
+          // 遷移の発行自体が失敗した場合はラッチを戻す。フォーカス復帰でも解除されるが、
+          // フォーカスが変わらないまま失敗するケースに備えた保険。失敗の詳細は握りつぶし、
+          // ユーザーはもう一度戻る操作をやり直せる状態に戻すことだけを保証する。
+          navigatingRef.current = false;
+        }
+        return;
+      case "replace-fallback":
+        navigatingRef.current = true;
+        try {
+          router.replace(fallbackRef.current);
+        } catch {
+          navigatingRef.current = false;
+        }
+        return;
+      default: {
+        const exhaustiveCheck: never = action;
+        return exhaustiveCheck;
+      }
+    }
   }, [router]);
 
   const runOnce = useCallback((navigate: () => void) => {
@@ -88,5 +115,7 @@ export function useScreenBack({
     }, [goBack]),
   );
 
-  return { goBack, runOnce };
+  // 呼び出し側（画面）が useEffect の依存配列に含めても毎レンダー発火しないよう、
+  // 戻り値のオブジェクト自体を安定させる。
+  return useMemo(() => ({ goBack, runOnce }), [goBack, runOnce]);
 }
