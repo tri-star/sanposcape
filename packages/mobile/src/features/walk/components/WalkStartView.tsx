@@ -23,6 +23,9 @@ import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
+/** 戻り先/開始後の遷移先の既定ホーム（ナビタブ）。2箇所で直書きしないよう定数化する。 */
+const HOME_HREF = "/(tabs)";
+
 /**
  * 散歩開始画面。実地図（`SpotMapView`）+ 現在地 + `/explore/places` 由来の候補を表示する。
  * スポットを選択すると `/explore/routes/walking` で徒歩ルートを取得して地図に重ね、
@@ -41,7 +44,7 @@ export function WalkStartView() {
   // （`WalkSummaryView` の「ホームへ」と同じ）。「散歩を始める」とラッチを共有し、
   // 戻る連打・戻る＋開始の同時押しでも遷移は1回に収まる。
   const back = useScreenBack({
-    fallbackHref: "/(tabs)",
+    fallbackHref: HOME_HREF,
     // カテゴリシートが開いているときの「戻る」はシートを閉じるだけにする。
     // closeCatSheet は draft を破棄して閉じる＝キャンセルの意味と一致する。
     onIntercept: () => {
@@ -53,21 +56,25 @@ export function WalkStartView() {
 
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
+  // 意図的に onIntercept を経由しない: カテゴリシートが開いている間は「散歩を始める」ボタン自体を
+  // 押せない（シートがコンテンツを覆う）ため、シートを閉じる分岐と衝突する実害が無い。
+  // runOnce のラッチだけを goBack と共有し、戻る連打・戻る＋開始の同時押しでも遷移は1回にする。
   const handleStartWalk = () => {
-    if (!plan.selectedSpot || !plan.origin || !plan.destination || !plan.walkRoute) return;
+    const { selectedSpot, origin, destination, walkRoute } = plan;
+    if (!selectedSpot || !origin || !destination || !walkRoute) return;
     back.runOnce(() => {
       startWalk({
         // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
         clientWalkId: randomUuidV4(),
-        origin: plan.origin!,
+        origin,
         // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
         // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
-        destination: plan.destination!,
-        roundTripMinutes: plan.selectedSpot!.roundTripMinutes,
-        roundTripKm: plan.selectedSpot!.roundTripKm,
+        destination,
+        roundTripMinutes: selectedSpot.roundTripMinutes,
+        roundTripKm: selectedSpot.roundTripKm,
         startedAtMs: Date.now(),
       });
-      router.replace("/(tabs)");
+      router.replace(HOME_HREF);
     });
   };
 
