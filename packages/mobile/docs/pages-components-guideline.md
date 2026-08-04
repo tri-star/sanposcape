@@ -119,15 +119,15 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
      `Marker` に `testID` を付ける形で E2E から参照する（例: `WalkTrackMapView` の
      `walk-detail-start-marker` / `walk-detail-goal-marker` は `Marker` 側に付けている）。
    - **同じ項目を繰り返し描画する共有プリミティブ（一覧・タブなど）は、固定の `testID` を内部に
-     埋め込まない**。呼び出し側から接頭辞を prop で受け取り、各項目に `${prefix}-${index}` のように
+     埋め込まない**。呼び出し側から接頭辞を prop で受け取り、各項目に `${prefix}-${item.value}` のように
      付与する形にする（例: `TabBar` の `itemTestIDPrefix?: string`。未指定時は `testID={undefined}`
      のまま何も付かない）。固定 testID を埋め込むと、同じプリミティブを複数箇所で使ったときに
      testID が衝突する。
    - **状態によって表示が切り替わるコンポーネントは、root の `testID` を状態ごとに付け替えない**。
      root は同じ `testID` のまま据え置き、その状態でしか描画されない内側の要素にだけ
-     `${testID}-<state>` を追加する（例: `WalkSaveStatus` の `walk-summary-save-status-saved` /
-     `-error`）。root を付け替えると、Maestro 側で「まだ表示されていること」を確認するための
-     安定した参照先が無くなる。
+     `${testID}-<state>` を追加する（例: `WalkSaveStatus` の `walk-summary-save-status-saved`。error は
+     状態時にのみ描画される `walk-summary-save-retry` で判別する）。root を付け替えると、Maestro
+     側で「まだ表示されていること」を確認するための安定した参照先が無くなる。
 8. **操作ハンドラ（`onPress` / `onChange`）は必須にする**。optional にすると
    「押せるように見えて何も起きない」コントロールを作れてしまい、押下フィードバックも出るうえ
    スクリーンリーダーにも有効なコントロールとして露出する。
@@ -152,4 +152,3 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 代表値が計算ロジックと矛盾しないこと（`data/defaults.test.ts`）。
 スタブを手で書き換えたときの取りこぼしを CI で検知できるようにする（SS-9）。
 表示そのものの確認は上記の開発確認用ルート（`/dev-screens`）での目視に委ねる。
-

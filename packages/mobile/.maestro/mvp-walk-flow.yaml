@@ -16,9 +16,10 @@ tags:
 - runFlow: subflows/start-walk-from-spot.yaml
 
 # --- 散歩中 ---
-# mock の位置トラッキング（MOCK_TRACK）は 1 秒間隔で通知される。
-# 軌跡が数点たまる時間を稼ぐ（ended_at == started_at だと保存が 422 になるため）。
-- waitForAnimationToEnd:
+# 経過時間が進むまで待つ。アニメーションの有無ではなく、保存に必要な started_at / ended_at の
+# 差分が生じたことを確認するため、初期表示の 00:00:00 が消えることを条件にする。
+- extendedWaitUntil:
+    notVisible: "00:00:00"
     timeout: 5000
 
 # --- 散歩終了 ---
