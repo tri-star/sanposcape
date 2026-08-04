@@ -1,0 +1,35 @@
+# 散歩開始画面からの離脱導線（SS-34）。
+# 候補（/explore/places）に依存しないため maps-required は付けない。
+# `- back` は Android のシステムバック。CI は Android エミュレータで実行する。
+appId: com.sanposcape.app
+tags:
+  - smoke
+---
+- runFlow: subflows/sign-in.yaml
+
+# 画面上のキャンセル/戻る → タブ（ナビ/検索/記録にアクセスできるホーム）へ
+- tapOn:
+    id: "walk-start-back"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+- assertVisible:
+    id: "app-tab-bar"
+
+# 戻ったあとに再度スポットを選び直せる（開始状態が残っていない＝idle 表示から入り直せる）
+- tapOn:
+    id: "walk-active-start-cta"
+- extendedWaitUntil:
+    visible:
+      id: "walk-start-screen"
+    timeout: 10000
+
+# Android のシステムバックでも同じ遷移になる（アプリ終了しない）
+- back
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+- assertVisible:
+    id: "app-tab-bar"
