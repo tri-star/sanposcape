@@ -2,11 +2,14 @@
 
 ## 日付
 
-2026-07-30
+2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）
 
 ## ステータス
 
 採用（SS-15）。[ADR-002](./ADR-002-mobile-tech-stack.md) の「移行・対応が必要な事項」にあった「Google Maps の API キー設定は M4 で `app.json` に結線する」という予定を**置き換える**。
+
+**SS-34「画面の『戻る』導線」で追補**した（`android.predictiveBackGestureEnabled: false` が
+`useScreenBack` の前提になっていることを「決定」に明記した）。追補部分には `（SS-34 追補）` を付けている。
 
 ## コンテキスト
 
@@ -38,6 +41,12 @@ Android で `react-native-maps` の地図タイルを描画するには、Maps S
   （`eas env:create`）か `eas build --local` のシェル環境変数で注入する運用とする。
 - `app.config.ts` はネイティブ設定に影響するため、
   **`.github/workflows/mobile-e2e.yml` のネイティブ変更トリガ（`paths`）と `oxfmt` の対象に含める。**
+- （SS-34 追補）`app.json` の `expo.android.predictiveBackGestureEnabled: false` は、画面の「戻る」導線
+  （`src/hooks/useScreenBack.ts`）が Android の `hardwareBackPress` イベントを直接ハンドルする方式の
+  前提になっている。`true` に変更する場合は predictive back（ジェスチャーで戻る）に切り替わり
+  `hardwareBackPress` で `true` を返して既定動作を止める方式が効かなくなるため、
+  [pages-components-guideline](../docs/pages-components-guideline.md) の「画面の『戻る』導線の規約」と
+  `useScreenBack` 自体の見直しが必要。
 
 ## 検討した選択肢
 
