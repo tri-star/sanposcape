@@ -152,8 +152,12 @@ packages/mobile/
 - `client.ts`: 共通のクライアント設定（ベースURL、インターセプタ等）。
 
 ### その他
-- `src/hooks/`: 機能に依存しない汎用hook。
-- `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み（例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`）もここに置く。
+- `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useScreenBack.ts`（画面の「戻る」導線を
+  一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
+  `react-native` の `BackHandler` に依存するため Vitest 対象外）。
+- `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
+  （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
+  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34）もここに置く。
   - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
     純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
     使っていないうちは `features/<feature>/lib/` に置いたままにする。
