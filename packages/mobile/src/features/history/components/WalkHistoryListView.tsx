@@ -76,7 +76,10 @@ export function WalkHistoryListView() {
             icon="footprints"
             title={WALK_HISTORY_EMPTY_TITLE}
             description={WALK_HISTORY_EMPTY_DESCRIPTION}
-            action={{ label: "散歩を始める", onPress: () => router.push("/walk-start") }}
+            action={{
+              label: "散歩を始める",
+              onPress: () => back.runOnce(() => router.push("/walk-start")),
+            }}
           />
         ),
       };

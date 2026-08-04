@@ -51,7 +51,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
             title="散歩の記録を特定できませんでした"
             action={{
               label: "一覧へ戻る",
-              onPress: () => router.replace("/walk-history"),
+              onPress: () => back.runOnce(() => router.replace("/walk-history")),
               testID: "walk-detail-back-to-list",
             }}
           />
@@ -71,7 +71,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
               title={walkHistoryErrorMessage(detail.errorCode)}
               action={{
                 label: "一覧へ戻る",
-                onPress: () => router.replace("/walk-history"),
+                onPress: () => back.runOnce(() => router.replace("/walk-history")),
                 testID: "walk-detail-back-to-list",
               }}
             />
