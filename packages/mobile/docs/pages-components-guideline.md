@@ -60,6 +60,20 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
     描画されないため、`DesignSystemGallery` に単体で並べることができない。ギャラリーには載せず、
     実際に使われている画面（散歩開始・散歩中・履歴詳細の各地図）や `/dev-screens` で見た目を確認する。
 
+### 画面の「戻る」導線の規約
+
+- 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
+  画面ごとに `BackHandler` を直接触らない。
+- 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
+  判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
+- 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
+  遷移は1回。
+- BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
+- 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
+  この規約と `useScreenBack` を見直す。
+- 戻るボタンの見た目は `IconButton` の `icon="chevron-left" / label="戻る" / variant="ghost"` で
+  統一する。
+
 ### 開発確認用ルート（プロダクト導線外）
 
 各主要画面はプロダクトの操作フロー（サインイン→散歩開始→…）を経ないと単独で開けないため、
