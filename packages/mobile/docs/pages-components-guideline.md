@@ -62,17 +62,29 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 
 ### 画面の「戻る」導線の規約
 
+**適用範囲**: 現時点で `useScreenBack` を使っているのは `WalkStartView`（`walk-start`）/
+`WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）の3画面のみ
+（SS-34）。`SettingsView` と `(tabs)` 配下の各画面は未適用で、素の `router.back()` のまま
+（`SettingsView` は常に push で開かれるためスタックの戻り先が保証されており、実害は無い）。
+新しい画面を追加するとき、および `SettingsView` / `(tabs)` 配下を触るときは、この規約に順次
+寄せることを検討する。
+
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。
 - 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
   判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
 - 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
-  遷移は1回。
+  遷移は1回。適用済み3画面では、戻る以外でその画面から出る遷移（例:
+  `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」）も
+  すべて `runOnce` 経由にする。
 - BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
 - 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
-  この規約と `useScreenBack` を見直す。
+  この規約と `useScreenBack` を見直す（[ADR-007](../adr/ADR-007-expo-config-and-maps-key-injection.md)
+  の SS-34 追補も参照）。
 - 戻るボタンの見た目は `IconButton` の `icon="chevron-left" / label="戻る" / variant="ghost"` で
   統一する。
+- 戻るボタンには `<画面>-back` の `testID` を付ける（例: `walk-start-back` / `walk-history-back` /
+  `walk-detail-back`）。Maestro からの参照に使う。
 
 ### 開発確認用ルート（プロダクト導線外）
 
@@ -158,7 +170,8 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 そのため**コンポーネントをレンダリングするテストは現状書けない**。
 
 代わりに、**判定ロジックを `react-native` を値として import しない純粋関数に切り出して `.test.ts` でテストする**
-（`src/lib/hitSlop.ts` / `src/lib/toPercent.ts` / `src/theme/tokens.ts` の `resolveTheme` がこの形）。
+（`src/lib/hitSlop.ts` / `src/lib/toPercent.ts` / `src/theme/tokens.ts` の `resolveTheme` /
+`src/lib/backNavigation.ts` の `resolveBackAction` がこの形）。
 `docs/architecture-guideline.md` の「UIとロジックの分離」方針と同じ考え方。
 
 また、`features/<feature>/data/` の静的スタブは「壊れていないこと」を `.test.ts` で守る。
