@@ -15,6 +15,7 @@ import {
   isRetriableWalkHistoryError,
   walkHistoryErrorMessage,
 } from "@/features/history/lib/walkHistoryError";
+import { useScreenBack } from "@/hooks/useScreenBack";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -33,14 +34,7 @@ export function WalkHistoryListView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const history = useWalkHistory();
-
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(tabs)/history");
-    }
-  };
+  const back = useScreenBack({ fallbackHref: "/(tabs)/history" });
 
   const renderBody = (): HistoryBody => {
     if (history.errorCode !== null) {
@@ -82,7 +76,10 @@ export function WalkHistoryListView() {
             icon="footprints"
             title={WALK_HISTORY_EMPTY_TITLE}
             description={WALK_HISTORY_EMPTY_DESCRIPTION}
-            action={{ label: "散歩を始める", onPress: () => router.push("/walk-start") }}
+            action={{
+              label: "散歩を始める",
+              onPress: () => back.runOnce(() => router.push("/walk-start")),
+            }}
           />
         ),
       };
@@ -138,7 +135,7 @@ export function WalkHistoryListView() {
           icon="chevron-left"
           label="戻る"
           variant="ghost"
-          onPress={handleBack}
+          onPress={back.goBack}
           testID="walk-history-back"
         />
         <Text style={styles.title}>散歩の記録</Text>

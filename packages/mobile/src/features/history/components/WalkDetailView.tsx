@@ -13,6 +13,7 @@ import {
   isRetriableWalkHistoryError,
   walkHistoryErrorMessage,
 } from "@/features/history/lib/walkHistoryError";
+import { useScreenBack } from "@/hooks/useScreenBack";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -36,14 +37,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const detail = useWalkDetail(walkId);
-
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(tabs)/history");
-    }
-  };
+  const back = useScreenBack({ fallbackHref: "/(tabs)/history" });
 
   const renderBody = (): WalkDetailBody => {
     if (walkId === null) {
@@ -57,7 +51,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
             title="散歩の記録を特定できませんでした"
             action={{
               label: "一覧へ戻る",
-              onPress: () => router.replace("/walk-history"),
+              onPress: () => back.runOnce(() => router.replace("/walk-history")),
               testID: "walk-detail-back-to-list",
             }}
           />
@@ -77,7 +71,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
               title={walkHistoryErrorMessage(detail.errorCode)}
               action={{
                 label: "一覧へ戻る",
-                onPress: () => router.replace("/walk-history"),
+                onPress: () => back.runOnce(() => router.replace("/walk-history")),
                 testID: "walk-detail-back-to-list",
               }}
             />
@@ -158,7 +152,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
           icon="chevron-left"
           label="戻る"
           variant="ghost"
-          onPress={handleBack}
+          onPress={back.goBack}
           testID="walk-detail-back"
         />
         <Text style={styles.title}>散歩の記録</Text>

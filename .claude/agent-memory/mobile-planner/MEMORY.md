@@ -14,3 +14,4 @@
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSW 利用と純粋関数テストの方針
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置
+- [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／開始前に副作用が無い根拠

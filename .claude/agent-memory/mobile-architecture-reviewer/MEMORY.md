@@ -2,3 +2,4 @@
 - [SS-16 徒歩ルート提示・散歩中トラッキング](project_ss16_walk_route.md) — Query/Zustand使い分け・queryKeyキャッシュ共有・location real/mock2モードの良好例と残課題(points未配線・destination重複・カメラeffect重複)
 - [SS-19 散歩終了処理・POST /walks保存](project_ss19_walk_finish.md) — サマリ画面で1回保存(useMutation自動発火+冪等)の良好例と残課題(savedWalkIdコメント陳腐化・clearFinishedWalk未使用・保存中remount二重POST許容)
 - [SS-21 MVP E2E(Maestro)仕上げ](project_ss21_e2e_finish.md) — TabBar itemTestIDPrefix注入・状態別testID付与方針の良好例、navigation stack前提の裏取り、milestones.mdに残る「ローカル実行未確認」の申し送り
+- [SS-34 散歩開始前の戻る導線](project_ss34_back_navigation.md) — resolveBackAction/useScreenBackの良好な純粋関数分離、SettingsView未移行という規約と実装の乖離の申し送り
