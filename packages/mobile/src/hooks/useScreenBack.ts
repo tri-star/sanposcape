@@ -96,7 +96,13 @@ export function useScreenBack({
   const runOnce = useCallback((navigate: () => void) => {
     if (navigatingRef.current) return;
     navigatingRef.current = true;
-    navigate();
+    try {
+      navigate();
+    } catch {
+      // 遷移の発行自体が失敗した場合、同じ画面からの以後の戻る・離脱操作を
+      // 不必要にブロックしないようラッチを復旧する。
+      navigatingRef.current = false;
+    }
   }, []);
 
   useFocusEffect(
