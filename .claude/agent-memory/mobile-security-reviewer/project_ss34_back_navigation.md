@@ -20,11 +20,11 @@ false になり `fallbackHref` へ固定 replace されるだけで、任意遷�
 
 **How to apply:** 今後 `useScreenBack` の呼び出し箇所が増えるたびに、`fallbackHref` が
 動的（route params / API レスポンス由来）に変わっていないかだけ確認すればよい
-（ハードコードのままなら再監査不要）。一方で、[[project_dev_only_routes_no_guard]]
-（app/ 配下の大半のルートに認証ガードがない、SS-15時点）は本PRでも変化なし。
-`walk-start.tsx` に戻るボタンが付いたことで到達性は上がっていない（元々ディープリンクで
-到達可能だった）ため指摘ランクは変えていないが、SS-13相当の認証ガード実装時には
-`useScreenBack` 呼び出し全画面が対象に含まれているか確認すること。
+（ハードコードのままなら再監査不要）。**2026-08-06 追記**: [[project_dev_only_routes_no_guard]]
+（app/ 配下の大半のルートに認証ガードがない、SS-15時点）は SS-13 の `AuthGate` 導入
+（[[project_ss13_auth_gate]]）で解消済み。`useScreenBack` 呼び出し全画面（`WalkStartView` /
+`WalkHistoryListView` / `WalkDetailView`）はいずれも `AuthGate` の保護ルート判定
+（`canEnterProtectedRoutes`）の対象に含まれることを確認済み。
 E2E (`packages/mobile/.maestro/walk-start-back.yaml`) は `subflows/sign-in.yaml` 経由で
 testID タップのみを使い、認証情報のハードコードなし（`EXPO_PUBLIC_AUTH_MODE=dev` 依存、
 既存パターンと同様）。

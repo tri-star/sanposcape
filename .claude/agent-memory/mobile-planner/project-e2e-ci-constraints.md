@@ -29,7 +29,10 @@ ADR-004 により CI の preview APK には Maps SDK キーが無く（地図は
 - 地図タイルの描画・候補の件数/名称・距離や時間の具体値（ADR-004）。
 - **履歴の件数・空状態**。`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1` 固定 + DB は CI ラン単位で共有のため、先に走ったフローの記録が残る。
   「`*-loading` が消える」＋「`*-error` が出ない」の2段で “取得が成功して落ち着いた” ことだけを見る。空状態の文言は Vitest（純粋関数）の責務。
-- ゲスト導線（`sign-in-guest-button`）。トークン非保持のまま `/explore/places` が 401 になる（認証ゲートの統合は SS-13）。
+- ゲスト導線。SS-13 で `SignInView` / `SignUpView` の「ゲストで試す」ボタン（旧 `sign-in-guest-button` /
+  `sign-up-guest-button`）ごと実装から削除済み（認証ゲート `AuthGate` 導入により、押しても即座に
+  サインイン画面へ弾き返される導線になるため）。E2E で参照する testID としてはもう存在しない。
+  復活手順は [mobile ADR-009](../../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md) 参照。
 
 ## 既存 testID（**リネーム禁止**。現行フローが依存）
 
