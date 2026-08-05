@@ -24,6 +24,12 @@ type AuthGateProps = { children: ReactNode };
  *   「Attempted to navigate before mounting the Root Layout」は発生しない。
  * - **レンダリングテストは書けない**（`vitest.config.ts` が node 環境 + `react-native` スタブのため）。
  *   判定は `lib/authGate.ts` に切り出してあるので、テストはそちらで担保する。
+ * - **サインアウト時に二重遷移が起きない前提について**: `SettingsView` の
+ *   `authService.signOut().finally(...)` は `router.dismissAll()` + `router.replace("/(auth)/sign-in")`
+ *   を明示的に呼ぶ。これがこの `AuthGate` の `useEffect`（`status` が `guest` に落ちたことで
+ *   再評価される redirect）より先に完了するのは、「`.finally` のマイクロタスクは React の
+ *   `useEffect` のフラッシュより先に走る」という JS/React のスケジューリング特性に依存しており、
+ *   フレームワークが保証する契約ではない（`SettingsView.tsx` にも同旨のコメントあり）。
  */
 export function AuthGate({ children }: AuthGateProps) {
   const router = useRouter();

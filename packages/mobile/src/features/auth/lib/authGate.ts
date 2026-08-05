@@ -9,12 +9,20 @@ export type AuthGateRedirectHref = "/(auth)/sign-in";
 
 export type AuthGateDecision = { type: "allow" } | { type: "redirect"; href: AuthGateRedirectHref };
 
-/** 未認証でも到達してよいルートの先頭セグメント。 */
+/**
+ * 未認証でも到達してよいルートの先頭セグメント。
+ *
+ * **運用ルール**: 未認証で到達させたい開発用ルートを新設したら、ここにも追加すること
+ * （`pages-components-guideline.md`「開発確認用ルート」節も参照）。
+ */
 export const PUBLIC_ROOT_SEGMENTS: readonly string[] = [
   "(auth)", // サインイン / サインアップ
   "dev-screens", // 開発用の画面カタログ（__DEV__ でのみ描画される）
   "design-system", // 開発用のデザインシステム一覧
-  "_sitemap", // Expo Router が開発時に提供するルート一覧
+  // Expo Router が提供するルート一覧。`sitemap: false` を明示しない限り expo-router 57 は
+  // 本番ビルドにも `/_sitemap` を含める＝「開発時のみ」ではなく本番でも到達可能（ADR-009 参照）。
+  // 内容はルート一覧のみで、RN アプリはバンドル解析で同等の情報が得られるため MVP では許容する。
+  "_sitemap",
 ];
 
 /**

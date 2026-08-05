@@ -60,7 +60,8 @@ let initialized = false;
  * アプリ起動時に1回だけ呼ぶ初期化。
  * - api クライアントへトークン供給者を登録する（これを呼ばないと Bearer が付かない）
  * - real モードなら Google SDK を configure する
- * 冪等。セッション復元（restoreSession）は呼び出し側の責務（SS-11 のスプラッシュ）。
+ * 冪等。セッション復元（restoreSession）は `features/auth/hooks/useAuthSessionBootstrap.ts`
+ * （`app/_layout.tsx` の `AuthGate`）の責務（SS-13 / ADR-009。SS-11 時点はスプラッシュの責務だった）。
  */
 export function initAuth(): void {
   if (initialized) return;
