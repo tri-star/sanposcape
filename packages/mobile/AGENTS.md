@@ -33,3 +33,4 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 | [ADR-006](./adr/ADR-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード |
 | [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入 |
 | [ADR-008](./adr/ADR-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有 |
+| [ADR-009](./adr/ADR-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート |

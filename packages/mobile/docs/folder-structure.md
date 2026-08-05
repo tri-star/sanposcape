@@ -114,8 +114,9 @@ packages/mobile/
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
   - 判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
   - **サインアウト時にクリアが必要な store は、`src/lib/sessionCleanup.ts` の `registerSessionCleanup()` に
-    自分の後始末を登録する**（ストアのファイル末尾で1回）。サインアウト導線（`SettingsView`）は
-    `runSessionCleanup()` を1回呼ぶだけにして、store が増えるたびに導線を編集しなくて済むようにする。
+    自分の後始末を登録する**（ストアのファイル末尾で1回）。`runSessionCleanup()` を呼ぶ実行側は
+    `src/store/useAuthSessionStore.ts` の `setSession()`（認証状態が `authenticated → guest` に
+    落ちる時点。SS-13 追補）で、store が増えるたびにサインアウト導線を編集しなくて済むようにする。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
@@ -175,6 +176,14 @@ packages/mobile/
     あること自体は問題ではなく、共有側は汎用型（`MapRegion` / `MIN_REGION_DELTA`）だけを import する。
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
+  - 実例: `useAuthSessionStore.ts`（認証セッション状態 `loading | authenticated | guest`。SS-13）。
+    参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線）・
+    `app/_layout.tsx`（アプリ全体のゲート）にまたがるため、最初から `src/store/` に置いた
+    （コンポーネントの昇格ルールと同じ判断基準）。
+  - **例外**: `useAuthSessionStore` だけは `registerSessionCleanup()` に自分自身を登録しない
+    （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
+    `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
+    詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
 - `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
