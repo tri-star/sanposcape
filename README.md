@@ -14,14 +14,18 @@
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
 - ADR（アーキテクチャ決定記録）
   - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
-  - backend: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
-  - backend: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
+  - 横断: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
+  - 横断: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
     - [ADR-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
     - [ADR-003 development build 前提と開発ループ](./packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
     - [ADR-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
     - [ADR-005 スタイルは Unistyles をやめる](./packages/mobile/adr/ADR-005-styling-without-unistyles.md)
+    - [ADR-006 位置情報サービスは real/mock の2モード](./packages/mobile/adr/ADR-006-location-service-real-mock.md)
+    - [ADR-007 Expo 設定と Maps SDK キーの注入](./packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
+    - [ADR-008 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有](./packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md)
+    - [ADR-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)
 - backend
   - [フォルダ構造](./packages/backend/docs/folder-structure.md) / [命名規則](./packages/backend/docs/naming-convention.md)
   - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)

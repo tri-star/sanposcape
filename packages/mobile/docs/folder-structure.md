@@ -180,6 +180,11 @@ packages/mobile/
     参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線）・
     `app/_layout.tsx`（アプリ全体のゲート）にまたがるため、最初から `src/store/` に置いた
     （コンポーネントの昇格ルールと同じ判断基準）。
+  - **「サーバー由来のデータを置かない」の例外は `useAuthSessionStore.user` も対象**。
+    `user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、
+    TanStack Query が管理する一般的なドメインデータとは性質が異なるため許容する
+    （`authenticated ⟺ user !== null` の不変条件を保つための判断。詳細は
+    [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
   - **例外**: `useAuthSessionStore` だけは `registerSessionCleanup()` に自分自身を登録しない
     （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
     `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
@@ -201,6 +206,9 @@ packages/mobile/
     2. 生成 hook は `react-native` を値 import する経路に乗るが、素の fetcher なら乗らないため
        **node 環境の Vitest でテストできる**（msw でレスポンスを差し替えて検証する）。
   - この層は `services/auth` を import しない（認証は `customFetch` が `authTokenProvider` 経由で付ける）。
+    `features/walk/**` / `features/history/**` については `.oxlintrc.json` の `no-restricted-imports`
+    override（`@/services/auth` 系・`@/store/useAuthSessionStore` への import を禁止）で機械的に
+    強制される（SS-13 / [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) 決定8）。
   - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
     `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
     保存直後の一覧が更新されない。

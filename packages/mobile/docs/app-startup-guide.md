@@ -95,6 +95,11 @@ adb shell am start -a android.intent.action.VIEW \
 `/dev-screens`（`ScreenCatalog`）を直接開くとスタブデータ付きで一覧から確認できる（SS-9）。
 本番ビルドでは `__DEV__` ガードにより `/` へリダイレクトされ開けない。
 
+`/dev-screens` 自体は未認証でも開ける公開ルートだが、そこから開く散歩開始・履歴・設定などの
+保護画面は認証ゲート（`AuthGate`）の対象のため、**未認証のままではサインイン画面へ弾かれる**
+（`EXPO_PUBLIC_AUTH_MODE=dev` の development build なら `sign-in-google-button` を1タップで
+サインインできる。詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
+
 ```bash
 adb shell am start -a android.intent.action.VIEW -d "sanposcape://dev-screens"
 ```
