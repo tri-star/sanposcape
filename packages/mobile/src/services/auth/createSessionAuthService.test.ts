@@ -252,6 +252,16 @@ describe("createSessionAuthService", () => {
       expect(user).toBeNull();
     });
 
+    it("成功すると onSessionChange(user) が呼ばれる（起動時復元 → ストア更新の経路）", async () => {
+      const persistence = createMemoryRefreshTokenPersistence("refresh-1");
+      const { service, api, onSessionChange } = setup({ persistence });
+      api.refresh.mockResolvedValue(rawSession());
+
+      const user = await service.restoreSession();
+
+      expect(onSessionChange).toHaveBeenCalledWith(user);
+    });
+
     it("上限時間を超えた通信を abort し、認証状態を更新せず null を返す", async () => {
       vi.useFakeTimers();
       const persistence = createMemoryRefreshTokenPersistence("refresh-1");

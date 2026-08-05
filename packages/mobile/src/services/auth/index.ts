@@ -8,7 +8,8 @@ import { configureGoogleSignIn } from "@/services/auth/googleSignIn";
 import { createMemoryRefreshTokenPersistence } from "@/services/auth/tokenStore.memory";
 import { secureRefreshTokenPersistence } from "@/services/auth/tokenStore.secure";
 import { createTokenStore } from "@/services/auth/tokenStore";
-import type { AuthService } from "@/services/auth/types";
+import type { AuthService, AuthUser } from "@/services/auth/types";
+import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 export type { AuthProvider, AuthService, AuthUser } from "@/services/auth/types";
 export { AuthError, isAuthError } from "@/services/auth/authError";
@@ -26,6 +27,18 @@ const tokenStore = createTokenStore(
 const api = createAuthApi();
 
 /**
+ * サービス層のセッション変化をアプリ状態へ橋渡しする（SS-13 / ADR-009）。
+ * ここが唯一の配線点なので、401 → refresh 失敗によるセッション破棄も UI に届く。
+ * `initAuth()` が `@/api/authTokenProvider` へトークン供給者を登録するのと同じ
+ * 「バレル＝認証の合成ルート」という役割に沿う。
+ * `useAuthSessionStore` は zustand のみに依存する純粋モジュールで、
+ * `AuthUser` を型のみ import しているため実行時の循環参照は生じない。
+ */
+const notifySessionChange = (user: AuthUser | null): void => {
+  useAuthSessionStore.getState().setSession(user);
+};
+
+/**
  * real/dev/mock の選択。モード判定は `getAuthMode()` の1箇所に集約する
  * （他ファイルで `process.env.EXPO_PUBLIC_AUTH_MODE` を読まない）。
  *
@@ -36,10 +49,10 @@ const api = createAuthApi();
  */
 export const authService: AuthService =
   mode === "mock"
-    ? createMockAuthService()
+    ? createMockAuthService({ onSessionChange: notifySessionChange })
     : mode === "dev"
-      ? createDevAuthService({ tokenStore, api })
-      : createRealAuthService({ tokenStore, api });
+      ? createDevAuthService({ tokenStore, api, onSessionChange: notifySessionChange })
+      : createRealAuthService({ tokenStore, api, onSessionChange: notifySessionChange });
 
 let initialized = false;
 

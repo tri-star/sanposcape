@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createMockAuthService } from "@/services/auth/auth.mock";
 
@@ -28,5 +28,16 @@ describe("createMockAuthService", () => {
 
     expect(await service.getAccessToken()).toBeNull();
     expect(await service.refreshAccessToken()).toBeNull();
+  });
+
+  it("onSessionChange を渡すと signIn で user、signOut で null が通知される", async () => {
+    const onSessionChange = vi.fn();
+    const service = createMockAuthService({ onSessionChange });
+
+    const user = await service.signIn("google");
+    expect(onSessionChange).toHaveBeenCalledWith(user);
+
+    await service.signOut();
+    expect(onSessionChange).toHaveBeenLastCalledWith(null);
   });
 });
