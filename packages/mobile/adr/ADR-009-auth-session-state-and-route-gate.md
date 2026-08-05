@@ -32,6 +32,8 @@ SS-10（services 層の認証）・SS-11（認証画面・スプラッシュ）�
 
 不変条件: `status === "authenticated"` ⟺ `user !== null`。`status === "guest"` ⟺ `user === null`。永続化しない（`persist` ミドルウェアを使わない）。
 
+**`folder-structure.md` の `src/store/` 原則（「サーバー由来のデータを置かない」）の例外**: `user`（`/auth/session` レスポンス由来）はこの原則の例外として扱う。`user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、TanStack Query が管理する一般的なドメインデータ（散歩記録・履歴など、複数箇所からフェッチ・再検証されうるもの）とは性質が異なるため。`user` をストアから外してセッション状態だけを持たせる案は採らなかった。`authenticated ⟺ user !== null` という不変条件を弱めることになり、UI が「認証済みだがユーザー情報が無い」中間状態を扱う必要が生まれてしまうため（[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) が `useFinishedWalkStore.savedWalkId` に認めている例外と同種の判断）。
+
 ### 2. ストアへの書き込み経路は2つだけにする
 
 1. `services/auth/index.ts` が `onSessionChange` として配線するコールバック（サインイン・サインアウト・401 → refresh 失敗のすべてがここを通る）。
@@ -57,6 +59,8 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 
 認証済みユーザーを `(auth)` から追い出さない（片方向のゲート）。双方向にすると `/dev-screens` からサインイン画面を開けなくなり、遷移が往復して読みづらくなるため。サインイン成功後の遷移は `useAuthActions` が `router.replace("/walk-start")` で行う。
 
+**`PUBLIC_ROOT_SEGMENTS` に `_sitemap` を含む前提について**: expo-router 57 は `app.json` の expo-router config plugin に `sitemap: false` を明示しない限り、本番ビルドにも `/_sitemap`（ルート一覧）を含める。「開発時のみ提供される」という前提は誤りで、`_sitemap` は本番でも到達可能である。本 ADR ではこれを無効化せず公開ルート扱いのままにする判断をした。理由は、`_sitemap` の内容がルート一覧へのリンクのみでアプリの機微データを含まないこと、RN アプリ自体はバンドル解析によって同等のルート構造情報を得られること、の2点から実害が小さいと判断したため。無効化する場合は `app.json` の expo-router config plugin に `sitemap: false` を設定し、`PUBLIC_ROOT_SEGMENTS` から `_sitemap` を外す（本ブランチでは対応せず申し送りとする）。
+
 ### 4. 復元中（`loading`）は絶対に弾かない
 
 `resolveAuthGateDecision` は `status === "loading"` を最優先で `allow` にする。復元は数百 ms で終わり、終われば再評価される。誤ってサインインへ飛ばさないことをテストで固定する。
@@ -72,6 +76,8 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 実行側を、サインアウト導線（`SettingsView`）から「認証状態が `authenticated → guest` に落ちた時点」（`useAuthSessionStore.setSession`）へ移す。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走るようになる。詳細は [ADR-008](./ADR-008-active-walk-state-and-route-cache.md) の追補を参照。
 
 **`useAuthSessionStore` 自身を `registerSessionCleanup()` に登録してはいけない**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すとゲートがスプラッシュへ送り返してしまう。
+
+**サインアウト時に二重遷移（`SettingsView` の明示的な `router.replace` と `AuthGate` の redirect の両方）が起きない前提について**: `SettingsView` は `authService.signOut().finally(...)` で `dismissAll()` + `replace("/(auth)/sign-in")` を明示的に呼び、これが `setSession(null)` を契機に再評価される `AuthGate` の `useEffect` より先に完了する。これは「`.finally` のマイクロタスクは React の `useEffect` のフラッシュより先に走る」という JS/React のスケジューリング特性に依存しており、**フレームワークが保証する契約ではない**。両ファイル（`SettingsView.tsx` / `AuthGate.tsx`）にこの前提をコメントで明記している。仮にこの前提が崩れても、`AuthGate` の redirect 先は同じ `/(auth)/sign-in` であり、`router.replace` が冪等な操作である（同一 href への reset）ため実害は小さい。
 
 ### 7. MVP ではゲスト導線（「ゲストで試す」）を外す
 
