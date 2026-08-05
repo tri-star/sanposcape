@@ -7,7 +7,6 @@ import { authService, isAuthError } from "@/services/auth";
 export type UseAuthActionsResult = {
   signInWithGoogle: () => void;
   signUpWithGoogle: () => void;
-  continueAsGuest: () => void;
   /** サインイン処理中かどうか。ボタンの `disabled` 制御に使う（多重タップ防止）。 */
   isSubmitting: boolean;
   /** 失敗時のフィードバック用トースト状態（呼び出し側の画面で描画する）。 */
@@ -21,6 +20,12 @@ export type UseAuthActionsResult = {
  * （`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md` 決定5: signIn/signUp は区別しない）。
  * キャンセル（`AuthError("cancelled")`）はユーザー操作なのでトーストを出さない。
  * 判定ロジックは持たない（純粋関数化する対象なし）。
+ *
+ * ゲスト導線（`continueAsGuest`）は SS-13 で一旦外した。認証ゲートが入ると
+ * `router.replace("/walk-start")` は即座にサインインへ弾き返され、「押しても何も起きない
+ * （一瞬だけ画面が点滅する）」導線になるため。復活させるときは
+ * `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` に "guest" を許可として足し、
+ * SignInView / SignUpView のゲストボタンを戻す（ADR-009 参照）。
  */
 export function useAuthActions(): UseAuthActionsResult {
   const router = useRouter();
@@ -64,16 +69,9 @@ export function useAuthActions(): UseAuthActionsResult {
     runSignIn("登録に失敗しました。もう一度お試しください。");
   }, [runSignIn]);
 
-  const continueAsGuest = useCallback(() => {
-    // ゲストは「トークン非保持状態」として表現するため authService を呼ばない
-    // （ADR-002 決定6）。TODO: SS-13（認証状態と探索ロジックの分離）で認証ゲートと統合する。
-    router.replace("/walk-start");
-  }, [router]);
-
   return {
     signInWithGoogle,
     signUpWithGoogle,
-    continueAsGuest,
     isSubmitting,
     toast: { visible: toast.visible, message: toast.message },
   };
