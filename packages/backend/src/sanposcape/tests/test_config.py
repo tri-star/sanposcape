@@ -179,3 +179,44 @@ def test_non_production_falls_back_to_insecure_secret_when_unset() -> None:
 def test_non_production_keeps_explicit_secret() -> None:
     settings = Settings(env="local", auth_jwt_secret="my-secret")
     assert settings.auth_jwt_secret == "my-secret"
+
+
+def test_production_with_fake_maps_mode_fails_to_start() -> None:
+    """SS-44: MAPS_MODE も AUTH_MODE と同じ許可リスト方式で検証されること。
+
+    `match="MAPS_MODE"` を付けているのは、他の必須項目（secret 等）の欠落でも
+    ValidationError にはなるため、それだけでは「MAPS_MODE を検証している」証明に
+    ならないため。
+    """
+    with pytest.raises(ValidationError, match="MAPS_MODE"):
+        Settings(
+            env="production",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            maps_mode="fake",
+        )
+
+
+def test_staging_with_fake_maps_mode_fails_to_start() -> None:
+    """A-1 と対になる固定: 許可リスト方式は新しい env（staging）にも一律で効く。"""
+    with pytest.raises(ValidationError, match="MAPS_MODE"):
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            maps_mode="fake",
+        )
+
+
+@pytest.mark.parametrize("env", ["local", "test"])
+def test_local_and_test_env_allow_fake_maps_mode(env: str) -> None:
+    settings = Settings(env=env, maps_mode="fake")
+    assert settings.maps_mode == "fake"
+
+
+def test_maps_mode_defaults_to_real() -> None:
+    assert Settings().maps_mode == "real"
