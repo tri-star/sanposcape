@@ -31,6 +31,7 @@ _PLACE_OFFSET_STEP_METERS = 200.0  # 200 / 400 / 600 / 800 / 1000m
 _ROUTE_PATH_POINTS = 5
 # 極付近で cos(latitude) がゼロに潰れて経度オフセットが発散するのを防ぐガード。
 _MIN_COS_LATITUDE = 1e-6
+_SQRT_2 = 2**0.5
 _CATEGORY_LABELS = {
     "convenience_store": "テストコンビニ",
     "supermarket": "テストスーパー",
@@ -71,7 +72,7 @@ class FakeGoogleMapsProvider:
         count = max(0, min(limit, _PLACE_COUNT))
         places: list[ProviderPlace] = []
         for index in range(count):
-            component_meters = (_PLACE_OFFSET_STEP_METERS * (index + 1)) / 2**0.5
+            component_meters = (_PLACE_OFFSET_STEP_METERS * (index + 1)) / _SQRT_2
             location = _offset(origin, component_meters, component_meters)
             category = categories[index % len(categories)]
             label = _CATEGORY_LABELS.get(category, _DEFAULT_CATEGORY_LABEL)
