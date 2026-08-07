@@ -139,6 +139,10 @@ docker compose up -d --build
 
 ## Google Maps Platform（探索・徒歩経路）
 
+- `MAPS_MODE`: `real`（既定・fail-safe） | `fake`。`ENV=local` / `test` 限定で、それ以外（`staging` / `production`）で `fake` を指定すると `AUTH_MODE` と同じ許可リスト方式の検証で起動に失敗する。
+  - `real`: `GOOGLE_MAPS_SERVER_API_KEY` の有無に応じて `HttpGoogleMapsProvider`（キー有）/ `UnconfiguredGoogleMapsProvider`（キー無・`/explore/*` は 503）を使う。
+  - `fake`: `FakeGoogleMapsProvider`（`integrations/google_maps/fake.py`）を使う。Places / Routes への外部リクエストを一切行わないため課金は発生しない。origin から北東方向へ等間隔に並ぶ決定的な候補を返す。用途は Maestro E2E（`/explore/places` が常に候補を返す必要がある）と、Google Maps API キーを持たない開発者のローカル動作確認。
+  - `docker compose restart` では反映されない。`MAPS_MODE=fake docker compose up -d` のように `up -d` でコンテナを作り直すこと（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため）。
 - `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New) と Routes API のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
 - `GOOGLE_MAPS_SEARCH_DEADLINE_SECONDS`: `/explore/places` の Places 検索から徒歩経路による候補絞り込みまでの合計時間上限。期限までに評価できなかった候補は返さない。Nearby Search の上限に合わせ、1探索で評価する候補・Routes 呼び出しは最大20件である。
@@ -169,6 +173,7 @@ docker compose logs -f api | grep "Google Maps"
 | ログ | 原因 | 対処 |
 | --- | --- | --- |
 | 何も出ない（かつ即座に 503） | `GOOGLE_MAPS_SERVER_API_KEY` が未設定。`UnconfiguredGoogleMapsProvider` が選ばれ、外部リクエスト自体が発生していない | `.env` にキーを設定して `docker compose up -d`。**`restart` では反映されない**（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため） |
+| 候補は返るが名前が「テスト◯◯」・座標が origin の北東に等間隔 | `MAPS_MODE=fake` で起動している（`docker compose logs api \| grep MAPS_MODE` で WARNING を確認） | Maestro E2E / キー未所持のローカル開発ではこれが意図した挙動。実 API の疎通確認をしたい場合は `MAPS_MODE` を外して `docker compose up -d` し直す |
 | `HTTP 403 status=PERMISSION_DENIED reasons=API_KEY_ANDROID_APP_BLOCKED` | mobile 用の **Android アプリ制限付きキー**を backend に設定している。サーバーからのリクエストにはパッケージ名・SHA-1 が無いため拒否される | アプリケーションの制限が「なし」または「IPアドレス」の**サーバー用キーを別途作成**する。mobile 側の `GOOGLE_MAPS_ANDROID_SDK_KEY` とは必ず別キーにする（[ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)） |
 | `reasons=SERVICE_DISABLED` | Places API (New) / Routes API が有効化されていない | Google Cloud Console で両APIを有効化する |
 | `reasons=API_KEY_SERVICE_BLOCKED` | キーのAPI制限で Places/Routes が許可されていない | キーのAPI制限に両APIを追加する |
