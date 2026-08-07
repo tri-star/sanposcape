@@ -11,6 +11,7 @@ from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsQuotaError,
     GoogleMapsUnavailableError,
 )
+from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     GoogleMapsProvider,
     ProviderPlace,
@@ -369,6 +370,15 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
 
 
 def build_google_maps_provider(settings: Settings) -> GoogleMapsProvider:
+    if settings.maps_mode == "fake":
+        # ENV=local/test 以外では Settings のバリデーションで到達しない（config.py）。
+        # キー有無より先に判定することで、fake を明示指定した実行でキーが設定されていても
+        # 実 API を呼ばない（安全側に倒す）。
+        logger.warning(
+            "MAPS_MODE=fake: using FakeGoogleMapsProvider. "
+            "No Google Maps request will be made and all candidates are synthetic."
+        )
+        return FakeGoogleMapsProvider()
     if not settings.google_maps_server_api_key:
         return UnconfiguredGoogleMapsProvider()
     return HttpGoogleMapsProvider(settings)
