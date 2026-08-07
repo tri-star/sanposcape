@@ -1,47 +1,38 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 
 import { AuthHero } from "@/features/auth/components/AuthHero";
 import { getSplashDestination } from "@/features/auth/lib/splashDestination";
-import { authService } from "@/services/auth";
+import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { makeStyles } from "@/theme/makeStyles";
 
 /** スプラッシュの最低表示時間（ms）。 */
 const SPLASH_MS = 900;
 
 /**
- * 起動ブランド画面。`AuthHero` を最低表示時間だけ中央表示しつつ、保存済みセッションを復元する。
+ * 起動ブランド画面。`AuthHero` を最低表示時間だけ中央表示しつつ、認証状態が確定するのを待つ。
+ * セッション復元は `AuthGate` の `useAuthSessionBootstrap` が担う（ディープリンクのコールド
+ * スタートでも復元されるようにするため）。この画面は `useAuthSessionStore` の `status` を
+ * 購読し、「最低表示時間の経過」と「復元完了（`status !== "loading"`）」の**両方**が揃ったら
+ * 遷移する（SS-13 / ADR-009）。
  * デザイン: mock `isLogin` のロゴ＋キャッチのトーンを流用した起動ブランド画面（mock に直接該当なし）。
  */
 export function SplashView() {
   const router = useRouter();
   const styles = useStyles();
+  const status = useAuthSessionStore((state) => state.status);
+  const [minimumDisplayElapsed, setMinimumDisplayElapsed] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    const restoreController = new AbortController();
-    let minimumDisplayTimeout: ReturnType<typeof setTimeout> | undefined;
-    const minimumDisplay = new Promise<void>((resolve) => {
-      minimumDisplayTimeout = setTimeout(resolve, SPLASH_MS);
-    });
+    const timeout = setTimeout(() => setMinimumDisplayElapsed(true), SPLASH_MS);
+    return () => clearTimeout(timeout);
+  }, []);
 
-    void Promise.all([
-      minimumDisplay,
-      // 一時的な通信失敗時も起動を止めず、今回の起動ではサインインへ案内する。
-      authService.restoreSession({ signal: restoreController.signal }).catch(() => null),
-    ]).then(([, user]) => {
-      if (active) {
-        router.replace(getSplashDestination(user));
-      }
-    });
-
-    return () => {
-      active = false;
-      restoreController.abort();
-      clearTimeout(minimumDisplayTimeout);
-    };
-  }, [router]);
+  useEffect(() => {
+    if (!minimumDisplayElapsed || status === "loading") return;
+    router.replace(getSplashDestination(status));
+  }, [minimumDisplayElapsed, status, router]);
 
   return (
     <View testID="splash-screen" style={styles.root}>

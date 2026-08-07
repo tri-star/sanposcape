@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { queryClient } from "@/api/queryClient";
+import { AuthGate } from "@/features/auth/components/AuthGate";
 import { initAuth } from "@/services/auth";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
@@ -16,7 +17,9 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <SafeAreaProvider>
-          <Stack screenOptions={{ headerShown: false }} />
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false }} />
+          </AuthGate>
           <StatusBar style="auto" />
         </SafeAreaProvider>
       </ThemeProvider>

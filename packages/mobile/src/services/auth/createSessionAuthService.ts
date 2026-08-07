@@ -14,7 +14,7 @@ export type SessionAuthDeps = {
   now?: () => number;
   /** サインアウト時の追加処理（real は Google のネイティブセッションも破棄）。 */
   onSignOut?: () => Promise<void>;
-  /** セッション変化の通知（SS-13 の継ぎ目。本タスクでは未使用でよい）。 */
+  /** セッション変化の通知。`services/auth/index.ts` が `useAuthSessionStore` へ配線する（SS-13 / ADR-009）。 */
   onSessionChange?: (user: AuthUser | null) => void;
   /** 起動時セッション復元の上限時間（ms）。テストでは短縮できる。 */
   restoreTimeoutMs?: number;

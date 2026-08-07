@@ -7,11 +7,12 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
 
 /**
  * サインアップ画面。mock に直接該当なし。`isLogin` の様式を流用した新規登録画面。
- * 「Google で登録」「ゲストで試す」は静的スタブで、押下後は散歩開始画面へ遷移する。
+ * 「Google で登録」は押下後に散歩開始画面へ遷移する。
+ * ゲスト導線は SS-13 で一旦外した（`useAuthActions` の JSDoc / ADR-009 参照）。
  */
 export function SignUpView() {
   const router = useRouter();
-  const { signUpWithGoogle, continueAsGuest, isSubmitting, toast } = useAuthActions();
+  const { signUpWithGoogle, isSubmitting, toast } = useAuthActions();
 
   return (
     <AuthScreenLayout
@@ -27,15 +28,6 @@ export function SignUpView() {
       >
         {isSubmitting ? "登録中..." : "Google で登録"}
       </AuthProviderButton>
-      <Button
-        testID="sign-up-guest-button"
-        variant="ghost"
-        fullWidth
-        disabled={isSubmitting}
-        onPress={continueAsGuest}
-      >
-        ゲストで試す
-      </Button>
       <Button
         testID="sign-up-to-sign-in-link"
         variant="ghost"

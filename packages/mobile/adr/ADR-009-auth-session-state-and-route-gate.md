@@ -1,0 +1,200 @@
+# ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く
+
+## 日付
+
+2026-08-06
+
+## ステータス
+
+採用（SS-13）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。
+
+## コンテキスト
+
+SS-10（services 層の認証）・SS-11（認証画面・スプラッシュ）の時点で、認証状態の参照と未認証の扱いが画面ごとに閉じていた。
+
+- `SplashView` は `authService.restoreSession()` の戻り値を直接見て遷移先を決め、`SettingsView` は `authService.getCurrentUser()` を自前で読んで未認証なら `router.replace("/(auth)/sign-in")` していた。**認証状態の参照元が画面ごとに分散**していた。
+- **認証ゲートが存在しなかった**。`sanposcape://settings` のようなディープリンクや `/dev-screens` からの直接遷移で、未認証のまま保護画面に入れてしまう（画面ごとの自衛に依存していた）。
+- **セッション復元がスプラッシュ画面に閉じていた**。`SplashView` の `useEffect` でしか `restoreSession()` を呼んでいなかったため、**ディープリンクでのコールドスタートでは復元が走らなかった**（`/` を経由しないため）。
+- `createSessionAuthService` には `onSessionChange` という継ぎ目（「SS-13 の継ぎ目。本タスクでは未使用でよい」と JSDoc に明記されていた）が用意されていたが、誰にも配線されていなかった。そのため 401 → refresh 失敗（refresh token 失効・再利用検知）でサービス層がセッションを破棄しても、**UI は何も気付けなかった**。
+- `useAuthActions.continueAsGuest` が `router.replace("/walk-start")` するだけで、「TODO: SS-13（認証状態と探索ロジックの分離）で認証ゲートと統合する」という TODO が残っていた。
+
+**MVP では未認証（＝ゲスト＝トークン非保持）はゲートで弾く。** ゲスト散歩そのものは実装しない。将来ゲスト散歩を許可するときに純粋関数1本を変えるだけで済む形にすることをスコープに含めた。
+
+## 決定
+
+### 1. 認証状態は `src/store/useAuthSessionStore.ts`（Zustand）に集約する
+
+`loading | authenticated | guest` の3状態で表す。
+
+- `loading`: 起動時のセッション復元中。まだ「認証済み/未認証」を判定してはいけない。
+- `authenticated`: 自前セッショントークンを保持している。
+- `guest`: トークン非保持（ADR-002 決定6 の「ゲスト」はこの状態を指す）。`guest` は `AuthService` のメソッドとしては持たない。
+
+不変条件: `status === "authenticated"` ⟺ `user !== null`。`status === "guest"` ⟺ `user === null`。永続化しない（`persist` ミドルウェアを使わない）。
+
+**`folder-structure.md` の `src/store/` 原則（「サーバー由来のデータを置かない」）の例外**: `user`（`/auth/session` レスポンス由来）はこの原則の例外として扱う。`user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、TanStack Query が管理する一般的なドメインデータ（散歩記録・履歴など、複数箇所からフェッチ・再検証されうるもの）とは性質が異なるため。`user` をストアから外してセッション状態だけを持たせる案は採らなかった。`authenticated ⟺ user !== null` という不変条件を弱めることになり、UI が「認証済みだがユーザー情報が無い」中間状態を扱う必要が生まれてしまうため（[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) が `useFinishedWalkStore.savedWalkId` に認めている例外と同種の判断）。
+
+### 2. ストアへの書き込み経路は2つだけにする
+
+1. `services/auth/index.ts` が `onSessionChange` として配線するコールバック（サインイン・サインアウト・401 → refresh 失敗のすべてがここを通る）。
+2. `features/auth/hooks/useAuthSessionBootstrap.ts`（起動時のセッション復元）。
+
+UI（features / app）は `authService.getCurrentUser()` を直接呼ばない。`AuthService.getCurrentUser()` の JSDoc に「UI からは呼ばない」旨を明記した。
+
+`useAuthSessionStore` は `@/services/auth`（バレル）を**実行時 import しない**。`AuthUser` は `import type` で `@/services/auth/types` から取る。バレルは `getAuthMode()` の結果次第で `expo-secure-store` / `react-native-nitro-google-signin` に到達し、node 環境の vitest（このストアのテスト）を壊すため。逆向き（`services/auth/index.ts` → `@/store/useAuthSessionStore`）は許可する。バレルは既に `@/api/authTokenProvider` へ自分を登録しており、「認証の合成ルート」という同じ役割の延長にあたる。ストア側は純粋なので循環参照にならない。
+
+### 3. 認証ゲートは `app/_layout.tsx` に置いた `AuthGate` の1箇所だけにする
+
+判定は純粋関数 `resolveAuthGateDecision`（`features/auth/lib/authGate.ts`）に切り出し、弾く条件は `canEnterProtectedRoutes` の1関数に閉じる。
+
+```typescript
+export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): boolean {
+  return status === "authenticated";
+}
+```
+
+将来ゲスト散歩を許可するときは、ここに `"guest"` を許可として足すのが唯一の変更点（併せて `SignInView` / `SignUpView` のゲスト導線を復活させる）。
+
+`AuthGate` は「起動時のセッション復元の起動」（`useAuthSessionBootstrap`）と「ゲート判定に基づく遷移」を担う、UI を持たないコンポーネント。`children` を条件分岐で差し替えず（`<Stack>` のアンマウント＝ナビゲータ再生成を避けるため）、`useEffect` の依存には `segments`（配列。レンダーごとに同一性が変わりうる）ではなく `redirectHref: string | null` を置く。
+
+認証済みユーザーを `(auth)` から追い出さない（片方向のゲート）。双方向にすると `/dev-screens` からサインイン画面を開けなくなり、遷移が往復して読みづらくなるため。サインイン成功後の遷移は `useAuthActions` が `router.replace("/walk-start")` で行う。
+
+**`PUBLIC_ROOT_SEGMENTS` に `_sitemap` を含む前提について**: expo-router 57 は `app.json` の expo-router config plugin に `sitemap: false` を明示しない限り、本番ビルドにも `/_sitemap`（ルート一覧）を含める。「開発時のみ提供される」という前提は誤りで、`_sitemap` は本番でも到達可能である。本 ADR ではこれを無効化せず公開ルート扱いのままにする判断をした。理由は、`_sitemap` の内容がルート一覧へのリンクのみでアプリの機微データを含まないこと、RN アプリ自体はバンドル解析によって同等のルート構造情報を得られること、の2点から実害が小さいと判断したため。無効化する場合は `app.json` の expo-router config plugin に `sitemap: false` を設定し、`PUBLIC_ROOT_SEGMENTS` から `_sitemap` を外す（本ブランチでは対応せず申し送りとする）。
+
+### 4. 復元中（`loading`）は絶対に弾かない
+
+`resolveAuthGateDecision` は `status === "loading"` を最優先で `allow` にする。復元は数百 ms で終わり、終われば再評価される。誤ってサインインへ飛ばさないことをテストで固定する。
+
+復元は `SplashView` ではなく `AuthGate`（ルートレイアウト）で走らせる。`useAuthSessionBootstrap` はモジュールスコープのラッチで1回だけ実行し、StrictMode の二重実行でも復元が重複しないようにする。**cleanup では `AbortController.abort()` しない**（`AuthGate` はルートに常駐しアンマウントされないため中断の必要が無く、中断するとラッチにより2回目の実行がブロックされ `status` が永久に `loading` のままになる）。これによりディープリンクのコールドスタートでも復元が成立する。
+
+### 5. 401 → refresh 失敗はストア経由でゲートに届く
+
+`onSessionChange(null)` でストアへ届き、ゲートがサインインへ戻す。**ネットワーク起因の refresh 失敗ではセッションを保持する**（`createSessionAuthService` の既存の挙動をそのまま利用する。変更しない）。
+
+### 6. サインアウト時の後始末（`runSessionCleanup()`）の実行側を移す（ADR-008 決定6 の追補）
+
+実行側を、サインアウト導線（`SettingsView`）から「認証状態が `authenticated → guest` に落ちた時点」（`useAuthSessionStore.setSession`）へ移す。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走るようになる。詳細は [ADR-008](./ADR-008-active-walk-state-and-route-cache.md) の追補を参照。
+
+**`useAuthSessionStore` 自身を `registerSessionCleanup()` に登録してはいけない**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すとゲートがスプラッシュへ送り返してしまう。
+
+**サインアウト時に二重遷移（`SettingsView` の明示的な `router.replace` と `AuthGate` の redirect の両方）が起きない前提について**: `SettingsView` は `authService.signOut().finally(...)` で `dismissAll()` + `replace("/(auth)/sign-in")` を明示的に呼び、これが `setSession(null)` を契機に再評価される `AuthGate` の `useEffect` より先に完了する。これは「`.finally` のマイクロタスクは React の `useEffect` のフラッシュより先に走る」という JS/React のスケジューリング特性に依存しており、**フレームワークが保証する契約ではない**。両ファイル（`SettingsView.tsx` / `AuthGate.tsx`）にこの前提をコメントで明記している。仮にこの前提が崩れても、`AuthGate` の redirect 先は同じ `/(auth)/sign-in` であり、`router.replace` が冪等な操作である（同一 href への reset）ため実害は小さい。
+
+### 7. MVP ではゲスト導線（「ゲストで試す」）を外す
+
+認証ゲート導入後は `router.replace("/walk-start")` が即座にサインインへ弾き返され、「押しても何も起きない（一瞬だけ画面が点滅する）」導線になるため。復活手順は決定3 の1関数（`canEnterProtectedRoutes`）+ `SignInView` / `SignUpView` のゲストボタンを戻す2画面。
+
+### 8. `features/walk` / `features/history` から認証への import を oxlint で禁止する
+
+`.oxlintrc.json` に `no-restricted-imports` の override を追加し、`@/services/auth` / `@/services/auth/*` / `@/store/useAuthSessionStore` への import をエラーにする。既存コードはこれらに一切依存していなかったため、新規違反の追加を禁止するだけで既存コードの修正は不要だった。
+
+## 検討した選択肢
+
+### ゲートの実装方式
+
+#### 選択肢1: `AuthGate` + `useSegments()` + effect で `router.replace`（採用）
+
+- **概要**: `app/_layout.tsx` に1つだけ配置し、判定を純粋関数に切り出す。
+- **メリット**: 弾く条件を1関数に閉じられる。`loading` を素通しにする分岐を明示的に書ける。未認証時のディープリンクの落ち先を「サインイン画面」と明示できる。
+- **デメリット**: `useSegments()` の戻り値の同一性に注意が必要（依存配列の扱いを誤ると redirect が連打されうる）。
+
+#### 選択肢2: `Stack.Protected`（expo-router 57 に存在する）で保護ルートを列挙
+
+- **概要**: `_layout.tsx` で保護ルートを列挙し、ガードの真偽で navigator から出し入れする。
+- **メリット**: Expo Router 標準機能で、`router.replace` を自前で呼ぶ必要が無い。
+- **デメリット**: ルート一覧を `_layout.tsx` に列挙する必要があり、機能が増えるたびに一覧を更新し忘れるリスクがある。ガードが false に変わると**アンカールート（＝スプラッシュ）へ飛ばされる**ため、サインアウト直後にスプラッシュの最低表示 900ms を挟む挙動になる。保護ルートが navigator から消えるため、未認証時のディープリンクの落ち先が「サインイン画面」ではなくアンカールートになり、意図を表現しづらい。
+
+#### 選択肢3: 画面ごとの自衛（現状・不採用）
+
+- **概要**: 各画面が `authService.getCurrentUser()` を読んで自分で退避する（SS-11 時点の実装）。
+- **メリット**: 追加の仕組みが不要。
+- **デメリット**: ディープリンクや `/dev-screens` からの直接遷移で防げない画面が生まれうる。画面が増えるたびに同じガードコードを書く必要があり、書き漏れが構造的に起こりうる。
+
+MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせるため、選択肢1 を採用した。
+
+### ゲスト導線の扱い
+
+#### 選択肢1: ボタン削除（採用）
+
+- **概要**: `SignInView` / `SignUpView` の「ゲストで試す」ボタンを削除する。
+- **メリット**: 動かない導線がコード上に残らない。
+- **デメリット**: デザインモック（`isLogin`）との差分が生まれる。
+
+#### 選択肢2: ボタンを残して「準備中」トースト（不採用）
+
+- **概要**: ボタンは残し、押下時に「ゲスト散歩は準備中です」のようなトーストを出す。
+- **メリット**: デザインモックとの見た目の一致を保てる。
+- **デメリット**: 実装できない機能の導線を残すと、後から「なぜ動かないのか」の調査コストが繰り返し発生する。復活時期が未定な機能のためだけに専用の分岐を持つコストも生じる。
+
+デザインモックとの差分は本 ADR に記録して復活手順を残すほうが安全と判断し、選択肢1 を採用した。
+
+### ストアの置き場
+
+#### 選択肢1: `src/store/`（採用）
+
+- **概要**: `useAuthSessionStore` を横断的なストアとして `src/store/` に置く。
+- **メリット**: `folder-structure.md` の昇格ルール（2つ以上の機能から参照されるなら `src/store/`）に合致する。参照元は `features/auth`（ゲート・スプラッシュ）と `features/settings`（サインアウト導線）、`app/_layout.tsx`（アプリ全体のゲート）にまたがり、将来のゲスト散歩では `features/walk` からも参照されうる。
+
+#### 選択肢2: `src/features/auth/store/`（不採用）
+
+- **概要**: `auth` 機能に閉じたストアとして配置する。
+- **デメリット**: 参照元が auth / settings / ルートレイアウトにまたがる＝すでに横断状態であり、最初から `features/auth` に閉じるのは実態に合わない。
+
+最初から横断状態であることが確定していたため、選択肢1 を採用した。
+
+### セッション失効時に walk 系ストアをクリアするか
+
+#### 選択肢1: クリアする（採用）
+
+- **概要**: `authenticated → guest` の遷移（サインアウトだけでなく非自発的失効も含む）で `runSessionCleanup()` を実行する。
+- **メリット**: 共有端末でのアカウント切り替え時に前ユーザーの軌跡が次ユーザーのトークンで送信される事故を防ぐという ADR-008 決定6 の目的を、非自発的失効にも広げられる。
+- **デメリット**: セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（下記「影響」に残存リスクとして明記）。
+
+#### 選択肢2: 保持する（不採用）
+
+- **概要**: `authenticated → guest` では何もクリアしない。
+- **メリット**: 未保存の散歩を再サインイン後に救える可能性がある。
+- **デメリット**: ADR-008 が守ろうとしたセキュリティ上の性質（前ユーザーのデータが次ユーザーのトークンで送信される事故の防止）を、非自発的失効の経路では守れないままになる。
+
+セキュリティ上の性質を一貫させることを優先し、選択肢1 を採用した。
+
+## 決定理由
+
+- **弾く条件を1関数に閉じることを最優先した**。将来ゲスト散歩を許可する際の変更点を最小化し、レビューしやすくするため。
+- **状態遷移の起点をストアの1箇所に集約することで、UI 側の認証状態参照を構造的に一本化した**。画面ごとに `authService.getCurrentUser()` を読む実装が増えるたびに同じ穴（ディープリンクでの弾き漏れ）が繰り返されるのを防ぐ。
+- **復元をルートレイアウトへ移したのは、ディープリンクのコールドスタートという既存の欠落を同時に埋めるため**。スプラッシュに閉じたままでは、ゲートを追加しても「保護ルートへ直接遷移したときだけ復元が走らない」という別の穴が残ってしまう。
+- **`onSessionChange` の配線を`services/auth/index.ts`に置いたのは、`initAuth()` と同じ「認証の合成ルート」という役割に沿わせるため**。DI を deps 経由で real/dev/mock へ配ることで、`createSessionAuthService` 自体は SS-13 のためのロジックを一切持たずに済む。
+- **セキュリティ上の性質（後始末が走ること）を非自発的失効にも一貫させることを優先し、未保存データが失われるリスクは許容した**。前ユーザーのデータ漏出という重大なリスクと比べ、未保存の散歩が失われるリスクの方が小さいと判断した（恒久対応は ADR-008 のローカル永続化フォローアップ課題に依存する）。
+
+## 影響
+
+### ポジティブな影響
+
+- ディープリンクのコールドスタートでセッションが復元されるようになった。
+- セッション失効（401 → refresh 失敗）が UI に届くようになった。ゲートが自動的にサインインへ戻す。
+- 画面ごとの自衛コード（`SettingsView` の未認証退避）が消えた。
+- 探索/散歩ロジック（`features/walk` / `features/history`）の認証非依存が oxlint で構造的に担保された。
+- `useAuthActions.continueAsGuest` の SS-13 向け TODO が解消された。
+
+### ネガティブな影響・トレードオフ
+
+- `/dev-screens` から保護画面を開くには先にサインインが必要になった（`EXPO_PUBLIC_AUTH_MODE=dev` なら1タップで済む）。
+- ゲスト導線（「ゲストで試す」）が一時的に消えた。デザインモックとの差分が生まれている。
+- セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（決定8 参照。ADR-008 の「アプリを落とすと散歩状態が消える」という既存の残存リスクに、非自発的セッション失効というトリガーが新たに加わった形）。
+- ゲートは `loading` 中は素通しのため、ディープリンクで開いた保護画面が復元完了までの数百 ms だけ描画されうる（機微データはサーバー由来で、トークンが無ければ API が 401 になるため実害は小さいと判断している）。
+
+### 移行・対応が必要な事項
+
+- 将来ゲスト散歩を実装する際、`features/walk` が認証状態（`guest` かどうか）を見る必要が出たら、`.oxlintrc.json` の override を外すのではなく「ゲスト可否」を props / 引数で受け取る形に寄せること。
+- ゲスト導線を復活させる際は、`canEnterProtectedRoutes` に `"guest"` を許可として足し、`SignInView` / `SignUpView` のゲストボタンを戻す。
+- backend との合意が必要になる論点（今回は決めない）:
+  - `/explore/places` `/explore/routes/walking` を未認証で呼べるようにするか（現状は `get_current_user` 必須。レート制限がユーザー単位のため、未認証の識別子・制限方式を決める必要がある）。
+  - 未認証時に `POST /walks`（散歩記録の保存）をどう扱うか（保存不可 → サインイン促し、が素直な案）。
+
+## 関連情報
+
+- [横断 ADR-002: 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」
+- [ADR-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する](./ADR-008-active-walk-state-and-route-cache.md) — 決定6（サインアウト時の後始末）を本 ADR で追補
+- [architecture-guideline](../docs/architecture-guideline.md) — 認証の扱い
+- [folder-structure](../docs/folder-structure.md) — `src/store/` の配置ルール
+- 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`
+- Plane: SS-13（本 ADR の発生元）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）

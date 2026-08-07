@@ -7,11 +7,12 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
 
 /**
  * サインイン画面。mock `isLogin` をほぼ1:1で再現する。
- * 「Google でログイン」「ゲストで試す」は静的スタブで、押下後は散歩開始画面へ遷移する。
+ * 「Google でログイン」は押下後に散歩開始画面へ遷移する。
+ * ゲスト導線は SS-13 で一旦外した（`useAuthActions` の JSDoc / ADR-009 参照）。
  */
 export function SignInView() {
   const router = useRouter();
-  const { signInWithGoogle, continueAsGuest, isSubmitting, toast } = useAuthActions();
+  const { signInWithGoogle, isSubmitting, toast } = useAuthActions();
 
   return (
     <AuthScreenLayout
@@ -27,15 +28,6 @@ export function SignInView() {
       >
         {isSubmitting ? "ログイン中..." : "Google でログイン"}
       </AuthProviderButton>
-      <Button
-        testID="sign-in-guest-button"
-        variant="ghost"
-        fullWidth
-        disabled={isSubmitting}
-        onPress={continueAsGuest}
-      >
-        ゲストで試す
-      </Button>
       <Button
         testID="sign-in-to-sign-up-link"
         variant="ghost"

@@ -38,7 +38,7 @@ export function ScreenCatalog() {
     {
       key: "sign-in",
       label: "サインイン",
-      description: "Google/ゲストで開始する画面",
+      description: "Googleサインインで開始する画面",
       icon: "user",
       onPress: () => router.push("/(auth)/sign-in"),
     },

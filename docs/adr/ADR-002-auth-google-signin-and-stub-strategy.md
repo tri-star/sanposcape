@@ -95,7 +95,7 @@ app --Authorization: Bearer <自前 access token>--> 以降の全 API
 
 ### 6. ゲストは「トークンを持たない状態」として表現する
 
-`AuthService` のメソッドとしての `guest` は持たせず、認証状態（トークン非保持）として表現する。これにより [SS-13](https://github.com/tri-star/sanposcape)「認証状態と探索ロジックの分離」で、探索ロジックが認証に不可分に依存しない形を取りやすくなる。MVP では未認証はゲートで弾く。
+`AuthService` のメソッドとしての `guest` は持たせず、認証状態（トークン非保持）として表現する。これは [SS-13](https://github.com/tri-star/sanposcape)「認証状態と探索ロジックの分離」で実装に落とされ、探索ロジックが認証に不可分に依存しない形が `.oxlintrc.json` の import 制限により構造的に担保されている（詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)）。MVP では未認証はゲートで弾く。
 
 ## 検討した選択肢
 
@@ -191,6 +191,7 @@ app --Authorization: Bearer <自前 access token>--> 以降の全 API
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
 - [ADR-003: development build 前提と開発ループ](../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
 - [ADR-004: E2E ビルド・CI 戦略](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+- [mobile ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」を実装に落とした ADR
 - [モバイルのアーキテクチャガイドライン](../../packages/mobile/docs/architecture-guideline.md)
 - [プロジェクト概要](../project-overview.md)
 - [RFC 8252: OAuth 2.0 for Native Apps](https://datatracker.ietf.org/doc/html/rfc8252)

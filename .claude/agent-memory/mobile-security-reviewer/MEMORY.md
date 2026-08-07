@@ -1,8 +1,9 @@
 - [Auth stub/real switch is fail-open + env var name mismatch [解決済みSS-10]](project_auth_stub_switch.md) — SS-10で fail-safe 3モードに是正済み。歴史的経緯として保持
-- [Dev-only / 未ガードルート一覧（SS-15時点で再確認）](project_dev_only_routes_no_guard.md) — app/直下の大半のルートに認証ガードなし。settings.tsxのみ画面内チェック。SS-13相当の実装時に要再確認
+- [Dev-only / 未ガードルート一覧（SS-15時点。SS-13で解消済み）](project_dev_only_routes_no_guard.md) — 旧問題。[[project_ss13_auth_gate]] のAuthGate導入で解消
+- [SS-13: AuthGate導入によるグローバル認証ガードのレビュー](project_ss13_auth_gate.md) — app/_layout.tsxのAuthGateで全ルート保護。oxlint importガードも発火確認済み。_sitemap未無効化はLow nits
 - [SS-10: tokenStore.clear() 例外がsignOut/doRefreshで未捕捉](project_ss10_token_clear_exception_safety.md) — SecureStore削除失敗時にsetCurrentUser(null)がスキップされ得る。Medium、要再確認
 - [SS-15: 地図・位置情報レビューの要点](project_ss15_location_maps.md) — Mapsキー分離/座標丸め/fail-safe env は良好。router paramsの生座標渡しは軽微指摘
 - [SS-16: 散歩ルート提示・散歩中トラッキングの要点](project_ss16_walk_tracking.md) — watchPositionリークガード模範実装/認証境界維持/place_id非露出。座標NaN未検証とpaused中GPS継続がLow
 - [SS-19: 散歩終了処理・散歩ルート保存(POST /walks)の要点](project_ss19_walk_finish_save.md) — signOutでuseFinishedWalkStore等が未クリア(Medium)。client_walk_idのuser scope一意制約は確認済みで妥当
 - [SS-20: walk-history/[walkId] のwalkId未検証パストラバーサル(High)](project_ss20_walk_history_walkid_traversal.md) — 初の動的ルート。encodeURIComponent/形式検証なしでAPIパスに埋込。座標検証/place_id非露出/404の扱いは良好
-- [SS-34: 戻る導線一元化(useScreenBack)レビュー](project_ss34_back_navigation.md) — fallbackHrefは全箇所ハードコードでopen redirect不成立。認証ガード不在は継続課題(SS-13待ち)
+- [SS-34: 戻る導線一元化(useScreenBack)レビュー](project_ss34_back_navigation.md) — fallbackHrefは全箇所ハードコードでopen redirect不成立。認証ガード不在はSS-13のAuthGateで解消済み（[[project_ss13_auth_gate]]参照）

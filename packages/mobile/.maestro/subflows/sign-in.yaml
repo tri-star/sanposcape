@@ -7,7 +7,9 @@ appId: com.sanposcape.app
     clearState: true
 - assertVisible:
     id: "splash-screen"
-# スプラッシュは最低 900ms 表示 + restoreSession() の通信を待つため extendedWaitUntil を使う。
+# スプラッシュは最低 900ms 表示 + AuthGate（useAuthSessionBootstrap）が走らせる
+# restoreSession() の通信完了を待つため extendedWaitUntil を使う（SS-13以降、復元の実行主体は
+# スプラッシュ自身ではなくルートレイアウトの AuthGate）。
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"

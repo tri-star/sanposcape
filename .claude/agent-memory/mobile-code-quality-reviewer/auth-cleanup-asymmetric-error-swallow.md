@@ -25,5 +25,10 @@ SS-10（`packages/mobile/src/services/auth/createSessionAuthService.ts` の `sig
 どれか1つが失敗しても後続は必ず実行したい」意図のメソッドをレビューするときは、各ステップの
 try/catch の有無を横並びで確認し、一部だけ無防備になっていないかを機械的にチェックする。
 指摘時は「このステップだけ他と扱いが違う理由があるか」を確認質問として投げるとよい（意図的な差別化かもしれない）。
-なお、この具体的な指摘（SS-10, 2026-07-26時点）は次回レビュー時点で既に修正されている可能性があるため、
-再レビュー時は現在のコードで再確認すること。
+
+**解決済み（SS-13, 2026-08-06時点で確認）**: `createSessionAuthService.ts` の `signOut()` は
+`tokenStore.clear()` も他のステップと同じく try/catch で握りつぶすよう修正済み（コメント「SecureStore
+側の削除失敗で signOut() 自体を失敗させない」）。`doRefresh()` の 401 経路も同様に対称化されている。
+回帰テスト（`createSessionAuthService.test.ts` の「H2回帰」ケース）で固定済み。
+このパターン自体（非対称な try/catch）は他の signOut/cleanup 系メソッドで再発しうるため、
+チェック観点としては引き続き有効。再レビュー時は必ず現在のコードで再確認すること。

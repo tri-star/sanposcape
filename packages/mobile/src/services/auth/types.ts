@@ -26,7 +26,12 @@ export type AuthService = {
   restoreSession(options?: { signal?: AbortSignal }): Promise<AuthUser | null>;
   /** サインアウト。backend の refresh token 失効 + ローカル破棄。 */
   signOut(): Promise<void>;
-  /** 現在のユーザー（同期）。未認証なら null。 */
+  /**
+   * 現在のユーザー（同期）。未認証なら null。
+   * **UI（features / app）からは呼ばない**。画面が参照する認証状態は
+   * `@/store/useAuthSessionStore` に一本化する（SS-13 / ADR-009）。
+   * 同期取得が必要なサービス層内部・デバッグ用途に限る。
+   */
   getCurrentUser(): AuthUser | null;
   /** 有効な access token。期限切れなら内部で refresh する。未認証なら null。 */
   getAccessToken(): Promise<string | null>;

@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）
 
 ## ステータス
 
@@ -11,6 +11,8 @@
 **SS-19「散歩終了処理・散歩ルート保存」で追補**した（決定1 にフィールドを追加、決定4〜6 を新規追加、「影響」を書き直し）。追補部分には `（SS-19 追補）` を付けている。
 
 **SS-20「散歩履歴一覧・詳細画面」で追補**した（決定4 の「SS-20 の履歴詳細へ遷移するために id が要る」という見込みの記述を実現済みの事実に更新し、「移行・対応が必要な事項」の SS-20 への申し送りをクローズした）。追補部分には `（SS-20 追補）` を付けている。
+
+**SS-13「認証状態と探索ロジックの分離」で追補**した（決定6 の「実行側」を `SettingsView` から `useAuthSessionStore` へ変更した）。追補部分には `（SS-13 追補）` を付けている。
 
 ## コンテキスト
 
@@ -87,9 +89,11 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 `src/lib/sessionCleanup.ts` に後始末レジストリ（`registerSessionCleanup` / `runSessionCleanup`）を置き、**クリアされる側が自分の後始末を登録する**形にする。
 
 - 登録側: `useActiveWalkStore`（`endWalk()`）、`useFinishedWalkStore`（`clearFinishedWalk()`）、`src/api/queryClient.ts`（`queryClient.clear()`）。各モジュールの末尾で読み込み時に1回登録する。
-- 実行側: `features/settings/components/SettingsView.tsx` の `handleConfirmLogout` が、`authService.signOut()` の確定後に `runSessionCleanup()` を呼ぶ。
+- 実行側: **`src/store/useAuthSessionStore.ts` の `setSession()` が、認証状態を `authenticated → guest` に落とす時点で `runSessionCleanup()` を呼ぶ（SS-13 追補）**。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走る。
+  - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。`SettingsView` は現在、`router.dismissAll()` + `router.replace("/(auth)/sign-in")` によるスタックを畳む導線のみを担う。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
 - サインアウト導線が呼ぶのは `runSessionCleanup()` の1行だけにする。feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）ため。
+- **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-009](./ADR-009-auth-session-state-and-route-gate.md) を参照。
 
 ## 検討した選択肢
 
@@ -186,6 +190,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md) — SS-16 で `watchPosition` を追加
 - [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由、片道値2倍で往復算出
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
+- [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
-- 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）
+- 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）

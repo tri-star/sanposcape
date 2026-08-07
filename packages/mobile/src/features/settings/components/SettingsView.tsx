@@ -1,18 +1,17 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
-import { runSessionCleanup } from "@/lib/sessionCleanup";
 import { authService } from "@/services/auth";
 import { makeStyles } from "@/theme/makeStyles";
 
 /**
  * 設定画面。SS-11 時点ではログアウト導線のみを提供する。
- * 認証全体のルートガードは SS-13 で扱うため、この画面単体で未認証を退避させる。
+ * 認証全体のルートガードは `AuthGate`（`app/_layout.tsx`）が担う（SS-13 / ADR-009）。
  */
 export function SettingsView() {
   const router = useRouter();
@@ -20,13 +19,6 @@ export function SettingsView() {
   const styles = useStyles();
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const user = authService.getCurrentUser();
-
-  useEffect(() => {
-    if (user === null) {
-      router.replace("/(auth)/sign-in");
-    }
-  }, [router, user]);
 
   const closeLogoutDialog = () => setLogoutDialogOpen(false);
 
@@ -34,20 +26,28 @@ export function SettingsView() {
     if (isSigningOut) return;
     setIsSigningOut(true);
 
-    void authService.signOut().finally(() => {
-      // 共有端末でのアカウント切り替え時、前のユーザーの散歩ドラフト（位置情報の軌跡）や
-      // キャッシュ済みの散歩履歴が次のユーザーに引き継がれないよう、サインアウト確定後に
-      // クリアする（登録済みの後始末は `@/lib/sessionCleanup` に集約されている）。
-      runSessionCleanup();
-      // 設定画面より前の認証済み画面へ戻れないよう、スタックを畳んでから置換する。
-      router.dismissAll();
-      router.replace("/(auth)/sign-in");
-    });
+    void authService
+      .signOut()
+      .catch(() => {
+        // signOut() の型は Promise<void> だが reject しないことは型で保証されていない。
+        // 失敗時もクライアント側は先へ進める（`useAuthActions.ts` の signIn 系と同様、
+        // unhandled promise rejection を避けるため明示的に catch する）。
+      })
+      .finally(() => {
+        // 後始末（walk 系ストア / Query キャッシュ）は認証状態が guest に落ちた時点で
+        // useAuthSessionStore が実行する（ADR-008 決定6 の追補 / ADR-009）。
+        // ここは「設定画面より前の認証済み画面へ戻れないようスタックを畳む」導線だけを担う。
+        //
+        // 二重遷移が起きない前提（保証ではない）: `authService.signOut()` の内部で
+        // `setSession(null)` → `AuthGate` の `useEffect` が積まれるより先に、この
+        // `.finally`（マイクロタスク）が実行され `dismissAll()` + `replace()` で
+        // 先に `(auth)`（公開ルート）へ遷移し終える。これは「`.finally` のマイクロタスクは
+        // React の `useEffect` のフラッシュより先に走る」という JS/React のスケジューリング
+        // 特性に依存しており、フレームワークが保証する契約ではない（`AuthGate.tsx` にも同旨）。
+        router.dismissAll();
+        router.replace("/(auth)/sign-in");
+      });
   };
-
-  if (user === null) {
-    return null;
-  }
 
   return (
     <View testID="settings-screen" style={styles.root}>

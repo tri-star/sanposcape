@@ -102,6 +102,14 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 （URL直打ちの手順は [app-startup-guide](./app-startup-guide.md) を参照）。
 **新しい主要画面（`app/` 配下のルート）を追加したら、`ScreenCatalog` の `links` にリンクを1件追加する**
 ことを実装のセットとする。追加を怠るとカタログが陳腐化し、表示確認の抜け漏れに繋がる。
+
+`/dev-screens` 自体と `/design-system` は未認証でも開ける公開ルートだが、そこから開く先の
+散歩開始・履歴・設定などの保護画面は認証ゲート（`AuthGate`）の対象であり、**未認証のままでは
+サインイン画面へ弾かれる**（`EXPO_PUBLIC_AUTH_MODE=dev` の development build なら1タップで
+サインインできる）。**未認証で到達させたい開発用ルートを新設したら、
+`features/auth/lib/authGate.ts` の `PUBLIC_ROOT_SEGMENTS` にも先頭セグメントを追加する**こと
+（追加を怠るとゲートに弾かれて開けない。詳細は
+[ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
 - **例外**: 動的ルート（`[param].tsx`、id が無いと開けない画面）は直リンクを張らない。親の一覧画面
   のエントリで代替する（例: `/walk-history/[walkId]` は単独のエントリを持たず、`walk-history`
   エントリの `description` に「一覧から開く」旨を書き、一覧 → 詳細のタップで確認する）。

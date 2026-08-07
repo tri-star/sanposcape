@@ -21,3 +21,4 @@
 - [renderBody の中央寄せ判定パターン](render-body-centered-pattern.md) — `{content, centered}`を返す形で判定条件を1箇所に閉じる（features/history一覧・詳細）
 - [Maestro E2Eのフロー設計パターン](maestro-e2e-patterns.md) — subflows分離、tagでのCI除外、disabled誤タップ対策、状態別testID(root据え置き+内側`${testID}-<state>`)、itemTestIDPrefix
 - [画面の戻る導線パターン](screen-back-navigation-pattern.md) — `useScreenBack`+`resolveBackAction`に一本化。intercepted>navigating>canGoBackの優先順位、戻る処理でストアを触らない
+- [認証セッション状態の集約とゲートパターン](auth-session-gate-pattern.md) — SS-13。`useAuthSessionStore`+`AuthGate`+`useAuthSessionBootstrap`。storeバレル非import・segments配列を依存に入れない・ラッチをcleanupで中断しない等の構造上の制約

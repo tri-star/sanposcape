@@ -24,9 +24,14 @@ SS-19 のローカルレビュー対応で `packages/mobile/src/lib/sessionClean
   を呼ぶ（`useFinishedWalkStore.ts` / `useActiveWalkStore.ts` が実例）。
 - `queryClient.clear()`（キャッシュ済みサーバー由来データの残留防止）も同じレジストリに
   登録済み（`src/api/queryClient.ts`）。
-- `services/auth` には `onSessionChange` という継ぎ目（SS-13 用、現状未配線）があるが、
-  今回はそこに繋がず、実際に signOut() を呼んでいる唯一の箇所（`SettingsView`）で
-  `runSessionCleanup()` を呼ぶ最小構成にした。SS-13 で認証状態監視層ができたら、
-  そちらに一本化する方が筋が良い可能性がある（申し送り）。
 - `runSessionCleanup()` は登録済み関数を順に実行し、1つが例外を投げても他を止めない
   （try/catch で個別に握りつぶす）。
+
+**追記（SS-13, 2026-08-06）**: `runSessionCleanup()` の実行側は `SettingsView` から
+`src/store/useAuthSessionStore.ts` の `setSession()`（`authenticated → guest` に落ちる時点）へ
+移した。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも
+後始末が走るようになった。`SettingsView` は現在 `router.dismissAll()` +
+`router.replace("/(auth)/sign-in")` のスタックを畳む導線のみを担う。
+`useAuthSessionStore` 自身は登録側に加えてはいけない（[[auth-session-gate-pattern]] 参照）。
+詳細は `packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md` 決定6 の SS-13 追補、
+`packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md` を参照。

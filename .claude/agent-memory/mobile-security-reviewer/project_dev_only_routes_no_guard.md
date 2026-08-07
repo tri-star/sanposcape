@@ -1,8 +1,12 @@
 ---
 name: project_dev_only_routes_no_guard
-description: app/ 配下の大半のルートに認証ガードがない（SS-15時点でも再確認済み）。settings.tsx のみ画面内チェックあり
+description: [解決済み・SS-13] app/ 配下の大半のルートに認証ガードが無かった問題。AuthGate導入で解消（project_ss13_auth_gate参照）
 type: project
 ---
+
+**2026-08-06 追記（SS-13 レビューで確認・解決済み）**: 本メモリが指摘していたグローバル認証ガード不在は
+`app/_layout.tsx` の `AuthGate` 導入で解消された。詳細は [[project_ss13_auth_gate]] を参照。
+以下は SS-15 時点の記録（歴史的経緯として保持）。
 
 `packages/mobile/app/design-system.tsx` と `app/dev-screens.tsx`（SS-9）に加え、`app/walk-start.tsx` /
 `app/(tabs)/index.tsx`（`WalkActiveView`）/ `app/(tabs)/history.tsx` / `app/(tabs)/search.tsx` /
