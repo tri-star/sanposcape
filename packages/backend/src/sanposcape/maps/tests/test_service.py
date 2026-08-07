@@ -11,6 +11,14 @@ from sanposcape.maps.service import MapsService
 
 
 class FakeProvider:
+    """`GoogleMapsProvider` のローカルテストダブル。
+
+    `integrations/google_maps/fake.py` の `FakeGoogleMapsProvider`（幾何計算で決定的な
+    値を作る「公式」の fake）とは別物。こちらは `MapsService` のソート順・タイムアウト
+    打ち切りロジックを検証するために、応答値（`duration_seconds` 等）を明示的に固定
+    したいテスト専用のスタブで、`FakeGoogleMapsProvider` では代替できない。
+    """
+
     def __init__(self) -> None:
         self.places = (
             ProviderPlace("far", "遠い公園", "park", ProviderPoint(35.1, 139.1)),
