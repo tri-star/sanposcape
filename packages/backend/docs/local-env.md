@@ -142,6 +142,9 @@ docker compose up -d --build
 - `MAPS_MODE`: `real`（既定・fail-safe） | `fake`。`ENV=local` / `test` 限定で、それ以外（`staging` / `production`）で `fake` を指定すると `AUTH_MODE` と同じ許可リスト方式の検証で起動に失敗する。
   - `real`: `GOOGLE_MAPS_SERVER_API_KEY` の有無に応じて `HttpGoogleMapsProvider`（キー有）/ `UnconfiguredGoogleMapsProvider`（キー無・`/explore/*` は 503）を使う。
   - `fake`: `FakeGoogleMapsProvider`（`integrations/google_maps/fake.py`）を使う。Places / Routes への外部リクエストを一切行わないため課金は発生しない。origin から北東方向へ等間隔に並ぶ決定的な候補を返す。用途は Maestro E2E（`/explore/places` が常に候補を返す必要がある）と、Google Maps API キーを持たない開発者のローカル動作確認。
+    - **`fake` の判定は `GOOGLE_MAPS_SERVER_API_KEY` の有無より優先される**。キーを設定していても `MAPS_MODE=fake` なら実 API は呼ばれない（E2E で意図せず課金が走らないようにするための安全側の設計）。実 API の疎通を確認したいときは `MAPS_MODE` を外すこと。
+    - 候補は既定で 5 件（リクエストの `limit` が 5 未満ならその件数）。`category` はリクエストの `categories` を先頭から循環割り当てし、`name` は category に対応する「テストコンビニ1」のような固定名 + 連番になる。
+    - 起動時に `MAPS_MODE=fake: using FakeGoogleMapsProvider` の WARNING をログに出すので、`docker compose logs api | grep MAPS_MODE` でどちらの provider で動いているか確認できる。
   - `docker compose restart` では反映されない。`MAPS_MODE=fake docker compose up -d` のように `up -d` でコンテナを作り直すこと（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため）。
 - `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New) と Routes API のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
