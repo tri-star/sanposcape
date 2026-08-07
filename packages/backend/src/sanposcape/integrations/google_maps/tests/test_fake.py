@@ -1,4 +1,8 @@
-from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
+from sanposcape.integrations.google_maps.fake import (
+    FakeGoogleMapsProvider,
+    _clamp,
+    _distance_meters,
+)
 from sanposcape.integrations.google_maps.provider import ProviderPoint
 from sanposcape.maps.schemas import PlaceSearchRequest
 from sanposcape.maps.service import MapsService
@@ -67,7 +71,10 @@ def test_walking_route_is_deterministic_and_map_ready() -> None:
     assert len(first.path) == 5
     assert first.path[0] == _ORIGIN
     assert first.path[-1] == destination
-    assert first.duration_seconds == round(first.distance_meters / 1.25)
+    # 丸め前の distance から直接計算する（実装と同じ式）。first.distance_meters は
+    # 既に round() 済みの int なので、そこから再計算すると二重丸めになり実装式の
+    # 変更を検知できなくなる。
+    assert first.duration_seconds == round(_distance_meters(_ORIGIN, destination) / 1.25)
 
 
 def test_walking_route_handles_degenerate_same_point_case() -> None:
