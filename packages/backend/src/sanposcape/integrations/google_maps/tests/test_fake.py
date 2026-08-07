@@ -56,8 +56,34 @@ def test_search_places_cycles_categories_when_fewer_than_place_count() -> None:
 
     assert len(places) == 5
     assert all(place.category == "park" for place in places)
-    # categories が1種類でも name は連番のおかげで衝突しない（D-6）。
+    # name は category ではなく index（連番）から作られるため、categories が1種類に
+    # 縮退しても衝突しない。
     assert len({place.name for place in places}) == len(places)
+
+
+def test_search_places_near_pole_origin_does_not_diverge_or_go_out_of_bounds() -> None:
+    """cos(latitude) が極付近でゼロに潰れても _MIN_COS_LATITUDE ガードにより発散しない。
+
+    さらに、オフセット後の座標が緯度 ±90・経度 ±180 の範囲を超える場合でも、
+    _clamp により GeoPoint の ge/le 制約（ValidationError → 500）を破らないこと。
+    """
+    provider = FakeGoogleMapsProvider()
+    origin = ProviderPoint(89.999999, 179.999999)
+
+    places = provider.search_places(origin, _ALL_CATEGORIES, 20, timeout_seconds=1)
+
+    assert len(places) == 5
+    for place in places:
+        assert -90.0 <= place.location.latitude <= 90.0
+        assert -180.0 <= place.location.longitude <= 180.0
+
+
+def test_clamp_bounds_latitude_and_longitude_to_geo_point_limits() -> None:
+    over_the_pole_and_dateline = ProviderPoint(120.0, 250.0)
+    under_the_pole_and_dateline = ProviderPoint(-120.0, -250.0)
+
+    assert _clamp(over_the_pole_and_dateline) == ProviderPoint(90.0, 180.0)
+    assert _clamp(under_the_pole_and_dateline) == ProviderPoint(-90.0, -180.0)
 
 
 def test_walking_route_is_deterministic_and_map_ready() -> None:
