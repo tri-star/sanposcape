@@ -3,3 +3,4 @@
 - [backend レイヤー規約](backend-layering-conventions.md) — folder-structure.mdの要点とテスト規約の要約
 - [backend実装プランの場所](reference_backend_plan_docs.md) — `tmp/SS-<ID>/backend-plan.md` にスコープ外事項・決定事項がある。レビュー前に確認
 - [M5 walksドメインのスコープ決定](project_m5_walks_domain.md) — SS-18で削除APIはスコープ外。集計APIはSS-42で新設(SS-18決定を上書き済み、再指摘しない)
+- [SS-44 fake Mapsプロバイダ](project_ss44_fake_maps_provider.md) — mode+許可リストfail-safeパターンのMaps版、FakeProvider命名混同リスク

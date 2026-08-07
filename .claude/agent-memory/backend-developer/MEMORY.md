@@ -12,3 +12,4 @@
 - [ruff-cache-root-owned-permission-denied](feedback_ruff_cache_root_owned.md) — `.ruff_cache`/`.pytest_cache`がroot/nobody所有になりapp_userから書けない時は`docker compose exec -u root api sh -c 'chown -R app_user:app_user ...'`で復旧
 - [project-ss42-walks-stats-backend-complete](project_ss42_walks_stats_backend_complete.md) — SS-42 backend（GET /walks/stats: 週/月集計・連続日数）は実装完了。次はmobile側実装
 - [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
+- [project-ss44-fake-maps-provider-complete](project_ss44_fake_maps_provider_complete.md) — SS-44 backend（MAPS_MODE=fake・決定的provider）は実装完了。SS-21 E2Eブロッカー解消
