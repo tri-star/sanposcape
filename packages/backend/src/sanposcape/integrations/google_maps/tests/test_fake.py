@@ -47,6 +47,7 @@ def test_search_places_respects_limit() -> None:
 
     assert len(provider.search_places(_ORIGIN, _ALL_CATEGORIES, 2, timeout_seconds=1)) == 2
     assert provider.search_places(_ORIGIN, _ALL_CATEGORIES, 0, timeout_seconds=1) == ()
+    assert provider.search_places(_ORIGIN, _ALL_CATEGORIES, -1, timeout_seconds=1) == ()
     assert provider.search_places(_ORIGIN, (), 20, timeout_seconds=1) == ()
 
 
