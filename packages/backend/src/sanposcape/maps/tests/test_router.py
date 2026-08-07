@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
 
+from sanposcape.config import Settings, get_settings
 from sanposcape.dependencies import get_current_user
 from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
-from sanposcape.main import app
+from sanposcape.main import app, create_app
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.service import MapsService
@@ -102,6 +103,45 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
         app.dependency_overrides.clear()
     assert unavailable.status_code == 503
     assert unavailable.json() == {"detail": "Map provider unavailable"}
+
+
+def test_explore_places_returns_candidates_when_maps_mode_is_fake() -> None:
+    """SS-44: E2E で実際に通る経路（lifespan で fake provider を生成 → dependency →
+    service → 200 応答）を通しで固定する。mobile が送るボディ（60分・全6カテゴリ・limit 20）
+    を使う。"""
+    settings = Settings(env="test", maps_mode="fake", auth_jwt_secret="x" * 32)
+    fake_app = create_app(settings)
+    fake_app.dependency_overrides[get_current_user] = lambda: object()
+    fake_app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        with TestClient(fake_app) as fake_client:
+            response = fake_client.post(
+                "/explore/places",
+                json={
+                    "origin": {"latitude": 35.6812, "longitude": 139.7671},
+                    "round_trip_duration_minutes": 60,
+                    "categories": [
+                        "convenience_store",
+                        "facility",
+                        "park",
+                        "retail",
+                        "station",
+                        "supermarket",
+                    ],
+                    "limit": 20,
+                },
+            )
+    finally:
+        fake_app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    candidates = response.json()["candidates"]
+    assert len(candidates) >= 3
+    for candidate in candidates:
+        assert candidate["id"]
+        assert candidate["name"]
+        assert candidate["category"]
+        assert isinstance(candidate["round_trip_duration_seconds"], int)
 
 
 def test_openapi_declares_security_and_documented_error_responses() -> None:
