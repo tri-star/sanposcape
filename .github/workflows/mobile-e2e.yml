@@ -10,16 +10,18 @@ name: mobile E2E (Maestro)
 # 初回運用時に必要な準備(TODO):
 #   - リポジトリ Secrets に EXPO_TOKEN を設定（`eas build --local` のアカウント連携）
 #   - Android の署名情報（credentials.json もしくは EAS のクレデンシャル）を用意
-#   - TODO(SS-44): MVP フロー（maps-required タグ）を CI で常時実行するには、backend に
-#     Settings.maps_mode と FakeGoogleMapsProvider（決定的な fake Maps provider）の実装が必要。
-#     下記 backend 起動ステップの MAPS_MODE=fake は SS-21 時点で既にコンテナへ渡している
-#     （compose.yaml の environment: にも受け口を追加済み）が、backend 側が未対応のため
-#     現状は無視されるだけ（Settings の extra="ignore"）。SS-44 完了後にすること:
+#   - TODO: MVP フロー（maps-required タグ）を CI で常時実行する。
+#     backend 側の前提（Settings.maps_mode と FakeGoogleMapsProvider＝決定的な fake Maps
+#     provider）は SS-44 で実装済みで、下記 backend 起動ステップが渡している MAPS_MODE=fake は
+#     実際に効いている（ENV=test なので許可リスト検証も通る）。つまり CI の backend は既に
+#     /explore/places で決定的な候補を返す。残っているのは Maestro 側の切り替えだけ:
 #       1. 下記 "Run Maestro flows on emulator" ステップの --exclude-tags=maps-required を外し、
 #          コメントアウトしている --include-tags=maps-required の行と合わせて
 #          `maestro test packages/mobile/.maestro/` の1コマンドに統合する。
-#       2. このブロックと、同ステップ内の TODO(SS-44) コメントを削除する
+#       2. このブロックと、同ステップ内の TODO コメントを削除する
 #          （この TODO 自体も陳腐化するため）。
+#     未了の理由: MVP フローは実機/エミュレータでの通し実行がまだ確認できていないため、
+#     有効化は SS-21 側またはその後続 issue で、ローカル実行の確認とセットで行う。
 on:
   workflow_dispatch:
   schedule:
@@ -100,9 +102,9 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/{%BACKEND_API_PORT%}/8000/; s/{%DB_PORT%}/5432/' .env
-          # MAPS_MODE=fake はコンテナには届く（compose.yaml の environment: に受け口を追加済み、
-          # SS-21）。ただし backend の Settings に maps_mode フィールドが無いため、現状は
-          # extra="ignore" により無視されるだけで害は無い。provider 本体は SS-44 で対応する。
+          # MAPS_MODE=fake は compose.yaml の environment: 経由でコンテナに届き（SS-21）、
+          # backend の Settings.maps_mode で実際に解釈される（SS-44）。ENV=test なので
+          # 許可リスト検証も通り、/explore/places は FakeGoogleMapsProvider の決定的な候補を返す。
           BACKEND_API_PORT=8000 DB_PORT=5432 \
           ENV=test AUTH_MODE=dev MAPS_MODE=fake AUTH_JWT_SECRET=e2e-insecure-secret-0123456789abcdef \
             docker compose up -d --build
@@ -128,10 +130,11 @@ jobs:
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # 外部データ（/explore/places の候補）に依存しないフロー。常時実行する。
             maestro test --exclude-tags=maps-required packages/mobile/.maestro/
-            # TODO(SS-44): backend に Settings.maps_mode / FakeGoogleMapsProvider が入ったら
-            #              上の --exclude-tags=maps-required を外し、次の行を
-            #              `maestro test packages/mobile/.maestro/` に統合する
-            #              （このコメントと次のコメントアウト行は削除する）。
+            # TODO: backend 側の前提（Settings.maps_mode / FakeGoogleMapsProvider）は SS-44 で
+            #       対応済み。実機/エミュレータでの通し実行を確認したら上の
+            #       --exclude-tags=maps-required を外し、次の行を
+            #       `maestro test packages/mobile/.maestro/` に統合する
+            #       （このコメントと次のコメントアウト行は削除する）。
             # maestro test --include-tags=maps-required packages/mobile/.maestro/
 
       - name: Upload Maestro debug output
