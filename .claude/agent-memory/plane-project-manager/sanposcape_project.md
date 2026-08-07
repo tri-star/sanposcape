@@ -215,6 +215,11 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-34「mobile: 散歩開始前に探索・記録へ戻れる導線を追加」(work_item_id: `ad15c9d5-3076-4f59-90bb-47faefb86673`、M4所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-16の後続タスク。start_date=2026-08-10, target_date=2026-08-11が既に設定済みだった。
 
+## 2026-08-08追加: SS-44をReview化・PR #25リンク登録
+
+- SS-44（work_item_id: `71feef70-803f-40e1-b61a-0bdf976177c0`、M5所属）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #25（`https://github.com/tri-star/sanposcape/pull/25`、link_id: `5ed256cb-8047-40d3-8372-add546424ed5`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+- コメント（comment_id: `e5988133-0b85-4a7a-ba25-6763ad13204a`）に実装内容・チケット記載との差分・申し送り事項を記録。**申し送り要点**: `.github/workflows/mobile-e2e.yml`の`--exclude-tags=maps-required`はSS-44では未解除（MVPフローが実機/エミュレータで未検証のため）。解除はSS-21または後続issue側の対応が必要——次回SS-21関連のトリアージ時に要確認。
+
 ## 2026-08-09追加: SS-42をIn Progressに更新（mobile側着手）
 
 - SS-42「mobile: 記録タブの週/月集計・連続日数・歩数を実装する」(work_item_id: `144b7ef8-9ad0-4181-a99c-9f79c492ad5d`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-20（PR #21）で見送られたフォローアップタスク。
