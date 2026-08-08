@@ -76,6 +76,24 @@
     実質不要になったが、害はないため残置している。
   - `.easignore` で `.gitignore` の再適用自体を無効化する案は採らなかった
     （`.git`/`node_modules` 以外の除外ルールを全て手動で再定義する必要があり保守コストが高いため）。
+
+  **（SS-44 追補: GradleのMetaspace OOMとCIハングへの対応）**
+  - Orval生成物の問題を解消した後、`eas build --local` が Gradle の `assembleRelease` に
+    自動付随する `lintVitalAnalyzeRelease`（多数のネイティブモジュールに対して並行実行される）
+    で JVM の **Metaspace が枯渇し `OutOfMemoryError`** となり、`BUILD FAILED` になる事象が発生した。
+  - さらに悪いことに、Gradle自体は失敗して終了しているのに **Javaのワーカー子プロセスが
+    後片付けされず残存**し、`eas-cli-local-build-plugin`（親のNodeプロセス）がその終了を
+    待ち続けて**ステップが完了しないままハングする**（GitHub Actions上は `in_progress` の
+    まま数十分〜居座る）という二次的な問題も確認した。
+  - 対応:
+    - `app.config.ts` に config plugin（`withAppBuildGradle`）を追加し、
+      `android/app/build.gradle` の `android { }` ブロックへ `lint { checkReleaseBuilds = false }`
+      を注入。`lintVitalAnalyzeRelease` タスク自体を `assembleRelease` の依存グラフから外し、
+      OOMの原因を根本から取り除いた。**E2E用のpreviewビルド（内部配布専用）にリリース品質ゲートの
+      Lintは不要**という判断による（本番配布用ビルドではこの限りではない）。
+    - `mobile-e2e.yml` の「Build preview APK」ステップに `timeout-minutes: 40` を設定。
+      lint-vital無効化後は通常10分台で終わる想定だが、**別の原因で同種のハングが再発しても
+      CIが自動で失敗し、手動キャンセルなしにログを回収できる**ようにする安全策。
 - **CI では EAS クラウドビルドを使わない**。ランナー上で `eas build --local` を実行し、**クラウドビルド枠を消費しない**。
 - **`@expo/fingerprint` でネイティブ影響入力のハッシュを計算し、APK をキャッシュ**する。fingerprint が変わらない限り再ビルドしない（＝JSのみの変更では APK を作り直さない）。
 - **E2E の実行頻度を分離**する:

@@ -87,8 +87,11 @@ jobs:
           key: mobile-apk-${{ steps.fp.outputs.hash }}
 
       # fingerprint 一致時はここをスキップ（＝ネイティブ未変更なら再ビルドしない）
+      # timeout-minutes: Gradleの子プロセスが後片付けされずハングする事象があったため、
+      # 失敗時に無限に居座らせず確実に完了させる安全策（SS-44）。通常は10分台で終わる想定。
       - name: Build preview APK (local, no EAS cloud minutes)
         if: steps.apk-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 40
         working-directory: packages/mobile
         run: |
           mkdir -p e2e-build
