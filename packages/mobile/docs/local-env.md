@@ -167,9 +167,10 @@ pnpm --filter mobile orval          # API クライアント再生成
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）:
   - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー。CI で常時実行する。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
-  - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`。
-    **SS-44 で対応予定・現時点は未実装**のため、当面は実の `GOOGLE_MAPS_SERVER_API_KEY` を
-    設定する必要がある）が前提のフロー。無い環境では `--exclude-tags` で除外する。
+  - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
+    または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
+    `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、
+    **Google Maps のキーを持っていなくてもローカルで実行できる**。
 
 ```bash
 # ローカル: preview APK を作成（EASクラウド枠を使わないローカルビルド）
@@ -187,8 +188,17 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 ```
 
 - MVP フロー（`maps-required`）を動かすには、backend を `AUTH_MODE=dev` に加えて
-  `MAPS_MODE=fake`（未対応の間は実の `GOOGLE_MAPS_SERVER_API_KEY` を `.env` に設定）で起動する必要がある。
-- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。backend の `MAPS_MODE=fake` が入るまでは `--exclude-tags=maps-required` で MVP フローを除外する。
+  `MAPS_MODE=fake` で起動する必要がある（実の `GOOGLE_MAPS_SERVER_API_KEY` を `.env` に
+  設定してもよい）。
+
+  ```bash
+  cd packages/backend
+  ENV=local AUTH_MODE=dev MAPS_MODE=fake docker compose up -d
+  ```
+
+  `docker compose restart` では反映されない（`compose.yaml` の `${...}` はコンテナ生成時に
+  展開されるため）。必ず `up -d` でコンテナを作り直すこと。
+- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。CI の backend は `MAPS_MODE=fake` で起動しており候補を返せる状態だが、`--exclude-tags=maps-required` を外す作業が未了のため MVP フローは現在も CI から除外されている。
 - 失敗時は `~/.maestro/tests/<最新のディレクトリ>/` に実行ログ・スクリーンショット・階層ダンプ（`.json`）が残る。CI では失敗時に `maestro-debug-output` artifact としてアップロードされる。
 
 ## Google Maps（react-native-maps）

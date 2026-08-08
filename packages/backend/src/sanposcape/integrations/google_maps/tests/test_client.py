@@ -2,11 +2,16 @@ import httpx
 import pytest
 
 from sanposcape.config import Settings
-from sanposcape.integrations.google_maps.client import HttpGoogleMapsProvider
+from sanposcape.integrations.google_maps.client import (
+    HttpGoogleMapsProvider,
+    UnconfiguredGoogleMapsProvider,
+    build_google_maps_provider,
+)
 from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsQuotaError,
     GoogleMapsUnavailableError,
 )
+from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import ProviderPoint
 
 
@@ -157,3 +162,29 @@ def test_transport_failure_is_logged(caplog) -> None:
         provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
 
     assert "ConnectError" in caplog.text
+
+
+# 注意: このファイルには test_config.py のような env 隔離フィクスチャが無い。
+# `Settings(...)` を作るときは env / maps_mode / google_maps_server_api_key を
+# すべて明示的に渡すこと。省略すると開発者の `.env`（実キーを設定している人）で
+# テスト結果が変わってしまう（同じ罠を踏んだ記録が tests/test_config.py にある）。
+
+
+@pytest.mark.parametrize("server_api_key", ["", "server-key"])
+def test_build_provider_returns_fake_when_maps_mode_is_fake(server_api_key: str) -> None:
+    settings = Settings(env="test", maps_mode="fake", google_maps_server_api_key=server_api_key)
+    assert isinstance(build_google_maps_provider(settings), FakeGoogleMapsProvider)
+
+
+def test_build_provider_returns_unconfigured_when_real_mode_without_key() -> None:
+    settings = Settings(env="test", maps_mode="real", google_maps_server_api_key="")
+    assert isinstance(build_google_maps_provider(settings), UnconfiguredGoogleMapsProvider)
+
+
+def test_build_provider_returns_http_when_real_mode_with_key() -> None:
+    settings = Settings(env="test", maps_mode="real", google_maps_server_api_key="server-key")
+    provider = build_google_maps_provider(settings)
+    try:
+        assert isinstance(provider, HttpGoogleMapsProvider)
+    finally:
+        provider.close()

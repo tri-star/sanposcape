@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     ]
     google_jwks_cache_lifespan_seconds: int = 3600
 
+    # --- Maps provider モード（ADR-002 決定4 と同じ fail-safe 方針。既定は real） ---
+    # fake = ネットワークを使わない決定的な provider（Maestro E2E / キー未所持の開発者用）。
+    # ENV=local / test 以外で fake を選ぶと下の許可リスト検証で起動に失敗する。
+    maps_mode: Literal["real", "fake"] = "real"
+
     # --- Google Maps Platform (server-side only) ---
     google_maps_server_api_key: str = ""
     google_maps_connect_timeout_seconds: float = Field(default=3.0, gt=0)
@@ -81,7 +86,7 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def _validate_auth_settings(self) -> "Settings":
+    def _validate_environment_settings(self) -> "Settings":
         # 許可リスト方式: 「fail-safe な検証をスキップしてよい環境」だけを明示的に列挙する。
         # `env == "production"` のような否定リスト方式だと、新しい env 値（例: staging）を
         # 追加した瞬間にバリデーションの対象外へ静かに落ちてしまう
@@ -90,6 +95,8 @@ class Settings(BaseSettings):
         if self.env not in ("local", "test"):
             if self.auth_mode != "real":
                 raise ValueError(f"AUTH_MODE must be 'real' when ENV={self.env}")
+            if self.maps_mode != "real":
+                raise ValueError(f"MAPS_MODE must be 'real' when ENV={self.env}")
             if len(self.auth_jwt_secret) < 32:
                 raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
             if not self.google_allowed_audiences:

@@ -17,9 +17,9 @@
 - **E2E には standalone な preview ビルド**（JS 埋め込み・スタブ用 env 焼き込み）を使う。日常開発の development build とは別プロファイルにする（`eas.json` の `preview`）。
   - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=dev`、`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`、`EXPO_PUBLIC_LOCATION_MODE=mock`）を焼き込む。`dev` は backend の `POST /auth/dev-session` を使う＝**backend API は実物**であり、認証の入口だけを差し替える（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。位置情報はエミュレータの位置設定がフレークになりやすいため `mock`（東京駅固定）にする（[ADR-006](./ADR-006-location-service-real-mock.md)）。
 - **地図の描画と外部データは E2E の assert 対象にしない**（SS-15 で確立）。CI の preview APK には
-  Maps SDK キーを注入していないため Android の地図は灰色のままであり、CI の backend にも
-  Google の server key が無いため `/explore/places` は常に 503 を返す（→ 下記 SS-21 追補で
-  見直し予定。SS-44 完了までは本記述が現状）。したがって Maestro は
+  Maps SDK キーを注入していないため Android の地図は灰色のままである。`/explore/places` も
+  当初は CI の backend に Google の server key が無く常に 503 を返していた（→ 下記 SS-21 追補・
+  SS-44 追補で解消済み）。したがって Maestro は
   「画面と主要コントロールが表示されること」までを検証し、**候補件数・地図タイルの描画は検証しない**。
   同じ理由で、ログアウトのフローは散歩開始画面からの候補選択に依存させず
   `sanposcape://settings` のディープリンクで `/settings` に入る形にする。
@@ -28,22 +28,66 @@
   - **地図タイルの描画を assert しない方針は維持**する（CI の preview APK には Maps SDK キーを
     注入しない）。
   - 一方で **`/explore/places` が常に 503 という前提は、backend に `MAPS_MODE=fake`（決定的な
-    fake provider）を入れることで解消する予定**（SS-44）。**SS-44 完了までは CI で 503 の
-    ままであり、MVP 主要フロー（探索 → 散歩開始 → 終了 → 保存 → 履歴）は `maps-required` タグ
-    により CI から除外されている**。SS-21 時点で入れたのは `compose.yaml` の `environment:` に
-    `MAPS_MODE` の受け口を追加するところまでで、backend の `Settings.maps_mode` と
-    `FakeGoogleMapsProvider` 本体（提供元切り替えのロジック）は未実装（backend 対応は SS-44 と
-    して別タスクに切り出し済み）。
-  - **候補の件数・名称・距離/時間の値は引き続き assert しない**（SS-44 完了後）。assert するのは
-    「候補が 1 件以上ある（`spot-card-0` が存在する）」までとする。
+    fake provider）を入れることで解消する**（SS-44）。SS-21 時点で入れたのは `compose.yaml` の
+    `environment:` に `MAPS_MODE` の受け口を追加するところまでで、backend の `Settings.maps_mode`
+    と `FakeGoogleMapsProvider` 本体（提供元切り替えのロジック）は当時未実装だった（backend 対応
+    は SS-44 として別タスクに切り出し）。
+  - **候補の件数・名称・距離/時間の値は引き続き assert しない**（SS-44 完了後も維持）。assert
+    するのは「候補が 1 件以上ある（`spot-card-0` が存在する）」までとする。
   - 実キーを CI に置く案は却下（課金とシークレット管理。ADR-004 の当初のコスト方針を維持する
     ため）。
+
+  **（SS-44 追補: backend 側は対応済み）**
+  - backend に `Settings.maps_mode` と `FakeGoogleMapsProvider`
+    （`packages/backend/src/sanposcape/integrations/google_maps/fake.py`）を実装済み。
+    `mobile-e2e.yml` は SS-21 時点から `ENV=test MAPS_MODE=fake` を渡しているため、
+    **CI の backend は既に決定的な候補を返す**（`/explore/places` は 503 ではない）。
+  - **残っているのは Maestro 側の切り替えのみ**: `mobile-e2e.yml` の
+    `--exclude-tags=maps-required` を外し、MVP 主要フローを CI で常時実行する作業は未了。
+    したがって「MVP 主要フローが CI から除外されている」状態自体は現時点でも継続している。
+    理由が「backend 未対応」から「workflow の更新が未了」に変わった点に注意。
   - フロー構成: `.maestro/` 直下＝実行対象のフロー、`.maestro/subflows/`＝`runFlow` 専用
     （Maestro は既定でワークスペース直下のみ実行する）。外部データに依存するフローには
     `maps-required` タグを付け、依存を用意できない環境では `--exclude-tags=maps-required` で
     除外できるようにする。
   - **履歴の件数・空状態は E2E で assert しない**（dev ユーザーキーが固定で、同一 CI ラン内の
     他フローの記録が残るため）。空状態の検証は Vitest（純粋関数）の責務。
+
+  **（SS-44 追補: `eas build --local` が Orval 生成物を除外する問題への対応）**
+  - `mobile-e2e.yml` の「Generate API client (Orval)」ステップでチェックアウト先には
+    `src/api/generated/` を正しく生成できていても、次の `eas build --local` 実行時に
+    ビルドが失敗する事象があった（`Unable to resolve module @/api/generated/...`）。
+  - 原因: `eas build --local` はサンドボックス用の一時ディレクトリへプロジェクトをコピーする際、
+    `.easignore` が無ければ**リポジトリ内の全 `.gitignore` ルールを再適用してファイルを除外する**
+    （`eas-cli` の `src/vcs/local.ts` の挙動）。`packages/mobile/.gitignore` は
+    `src/api/generated/` を除外しているため、生成済みの API クライアントが untracked ファイルとして
+    アーカイブから丸ごと落とされていた。入力側の `packages/backend/openapi.yaml` は
+    git 管理下のため問題なくコピーされる。
+  - 対応: `packages/mobile/package.json` に EAS Build の npm hook
+    `eas-build-post-install`（`pnpm install` 直後、サンドボックス内で実行される）を追加し、
+    そこで `pnpm run orval` を再実行するようにした。これによりサンドボックス内で
+    生成物が確実に揃う。`mobile-e2e.yml` 側の「Generate API client (Orval)」ステップは
+    実質不要になったが、害はないため残置している。
+  - `.easignore` で `.gitignore` の再適用自体を無効化する案は採らなかった
+    （`.git`/`node_modules` 以外の除外ルールを全て手動で再定義する必要があり保守コストが高いため）。
+
+  **（SS-44 追補: GradleのMetaspace OOMとCIハングへの対応）**
+  - Orval生成物の問題を解消した後、`eas build --local` が Gradle の `assembleRelease` に
+    自動付随する `lintVitalAnalyzeRelease`（多数のネイティブモジュールに対して並行実行される）
+    で JVM の **Metaspace が枯渇し `OutOfMemoryError`** となり、`BUILD FAILED` になる事象が発生した。
+  - さらに悪いことに、Gradle自体は失敗して終了しているのに **Javaのワーカー子プロセスが
+    後片付けされず残存**し、`eas-cli-local-build-plugin`（親のNodeプロセス）がその終了を
+    待ち続けて**ステップが完了しないままハングする**（GitHub Actions上は `in_progress` の
+    まま数十分〜居座る）という二次的な問題も確認した。
+  - 対応:
+    - `app.config.ts` に config plugin（`withAppBuildGradle`）を追加し、
+      `android/app/build.gradle` の `android { }` ブロックへ `lint { checkReleaseBuilds = false }`
+      を注入。`lintVitalAnalyzeRelease` タスク自体を `assembleRelease` の依存グラフから外し、
+      OOMの原因を根本から取り除いた。**E2E用のpreviewビルド（内部配布専用）にリリース品質ゲートの
+      Lintは不要**という判断による（本番配布用ビルドではこの限りではない）。
+    - `mobile-e2e.yml` の「Build preview APK」ステップに `timeout-minutes: 40` を設定。
+      lint-vital無効化後は通常10分台で終わる想定だが、**別の原因で同種のハングが再発しても
+      CIが自動で失敗し、手動キャンセルなしにログを回収できる**ようにする安全策。
 - **CI では EAS クラウドビルドを使わない**。ランナー上で `eas build --local` を実行し、**クラウドビルド枠を消費しない**。
 - **`@expo/fingerprint` でネイティブ影響入力のハッシュを計算し、APK をキャッシュ**する。fingerprint が変わらない限り再ビルドしない（＝JSのみの変更では APK を作り直さない）。
 - **E2E の実行頻度を分離**する:
@@ -106,11 +150,15 @@
 - リポジトリ Secrets に `EXPO_TOKEN` を設定し、Android クレデンシャル（credentials.json 等）を用意する。
 - 認証などのモード切り替えを `EXPO_PUBLIC_AUTH_MODE` で読む実装は **SS-10 で実装済み**（`src/config/authMode.ts`）。`preview` の env はその受け皿。
 - backend を E2E ジョブ内で `10.0.2.2:8000` に到達可能な形で起動する（`mobile-e2e.yml` に実装済み）。E2E ジョブは backend を **`AUTH_MODE=dev`** で起動する必要がある（`/auth/dev-session` を有効化するため）。`mobile-e2e.yml` は既に `AUTH_MODE=dev` を設定済み。
-- `MAPS_MODE=fake` を backend に届けるには2段階が要る。**SS-21 時点で完了しているのは
-  `packages/backend/compose.yaml` の `environment:` に `MAPS_MODE: ${MAPS_MODE:-real}` の受け口を
-  追加したところまで**（`mobile-e2e.yml` はすでに `MAPS_MODE=fake` を渡している）。backend の
-  `Settings` に `maps_mode` フィールドが無いため現状は `extra="ignore"` で無視されるだけで、
-  `FakeGoogleMapsProvider` 本体もまだ存在しない。この provider 本体の実装は **SS-44** で行う。
+- `MAPS_MODE=fake` を backend に届ける経路は **SS-21（`packages/backend/compose.yaml` の
+  `environment:` に `MAPS_MODE: ${MAPS_MODE:-real}` の受け口を追加、`mobile-e2e.yml` から
+  `MAPS_MODE=fake` を渡す）と SS-44（backend の `Settings.maps_mode` と
+  `FakeGoogleMapsProvider` 本体を実装）で完了済み**。CI の backend は既に fake provider で
+  決定的な候補を返す。
+  - **残作業（SS-21 側または後続 issue）**: `mobile-e2e.yml` の
+    `--exclude-tags=maps-required` を外し、コメントアウト中の `--include-tags=maps-required`
+    行と統合して `maestro test packages/mobile/.maestro/` の1コマンドにする。あわせて同ファイル
+    冒頭の `TODO(SS-44)` ブロックと "Start backend" ステップ内の陳腐化コメントを削除する。
 
 ## 関連情報
 

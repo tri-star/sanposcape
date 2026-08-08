@@ -87,7 +87,13 @@ app --Authorization: Bearer <自前 access token>--> 以降の全 API
 
 - backend にも `AUTH_MODE`（既定 `real`）を持たせる。
 - `POST /auth/dev-session` は `AUTH_MODE=dev` のときだけ **router ごと include する**（本番ではエンドポイント自体が存在しない）。
-- **`ENV=production` かつ `AUTH_MODE != real` なら起動を失敗させる**。
+- **`ENV` が `local` / `test` 以外なら `AUTH_MODE != real` で起動を失敗させる**。
+
+  検証は否定リスト（`env == "production"`）ではなく**許可リスト方式**（「fail-safe な検証をスキップしてよい環境」だけを列挙する）にする。否定リストだと `staging` のような新しい `env` 値を追加した瞬間に、検証対象から静かに漏れるため。
+
+  この許可リストのブロックは **`AUTH_MODE` 専用ではなく、モード系 env と本番必須設定をまとめて検証する唯一の場所**とする（実装: `packages/backend/src/sanposcape/config.py` の `_validate_environment_settings`）。新しい fail-safe 項目は必ずこのブロックに追加し、別バリデータを新設しない（許可リストが分裂すると片方だけ更新される事故が起きる）。
+
+  2026-08 時点でこのブロックが検証しているのは `AUTH_MODE` / `MAPS_MODE`（SS-44 で追加。Maps provider を決定的な fake に差し替えるモード）/ `AUTH_JWT_SECRET` / `GOOGLE_ALLOWED_AUDIENCES` / `GOOGLE_MAPS_SERVER_API_KEY`。
 
 ### 5. signUp / signIn は services 層では区別しない
 

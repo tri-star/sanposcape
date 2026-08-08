@@ -58,6 +58,7 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "orval": "orval --config ./orval.config.ts",
+    "eas-build-post-install": "pnpm run orval",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
