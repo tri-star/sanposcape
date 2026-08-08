@@ -58,6 +58,24 @@
   JST の日付境界をまたぐと値が変わるため。assert するのは「集計のロードが完了し
   `history-stats-error` が出ていないこと」+ `history-period-chart` / `history-step-goal-card`
   が表示されることまで。
+
+  **（SS-44 追補: `eas build --local` が Orval 生成物を除外する問題への対応）**
+  - `mobile-e2e.yml` の「Generate API client (Orval)」ステップでチェックアウト先には
+    `src/api/generated/` を正しく生成できていても、次の `eas build --local` 実行時に
+    ビルドが失敗する事象があった（`Unable to resolve module @/api/generated/...`）。
+  - 原因: `eas build --local` はサンドボックス用の一時ディレクトリへプロジェクトをコピーする際、
+    `.easignore` が無ければ**リポジトリ内の全 `.gitignore` ルールを再適用してファイルを除外する**
+    （`eas-cli` の `src/vcs/local.ts` の挙動）。`packages/mobile/.gitignore` は
+    `src/api/generated/` を除外しているため、生成済みの API クライアントが untracked ファイルとして
+    アーカイブから丸ごと落とされていた。入力側の `packages/backend/openapi.yaml` は
+    git 管理下のため問題なくコピーされる。
+  - 対応: `packages/mobile/package.json` に EAS Build の npm hook
+    `eas-build-post-install`（`pnpm install` 直後、サンドボックス内で実行される）を追加し、
+    そこで `pnpm run orval` を再実行するようにした。これによりサンドボックス内で
+    生成物が確実に揃う。`mobile-e2e.yml` 側の「Generate API client (Orval)」ステップは
+    実質不要になったが、害はないため残置している。
+  - `.easignore` で `.gitignore` の再適用自体を無効化する案は採らなかった
+    （`.git`/`node_modules` 以外の除外ルールを全て手動で再定義する必要があり保守コストが高いため）。
 - **CI では EAS クラウドビルドを使わない**。ランナー上で `eas build --local` を実行し、**クラウドビルド枠を消費しない**。
 - **`@expo/fingerprint` でネイティブ影響入力のハッシュを計算し、APK をキャッシュ**する。fingerprint が変わらない限り再ビルドしない（＝JSのみの変更では APK を作り直さない）。
 - **E2E の実行頻度を分離**する:
