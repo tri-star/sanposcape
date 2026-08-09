@@ -30,7 +30,8 @@ export function normalizeWalkHistoryLimit(limit: number | undefined): number {
  * backend が 400（Invalid cursor）を返す。`cursor` は「文字列かつ空文字でない」ときだけ
  * キー自体を立て、それ以外は `undefined`（＝キーを作らない）にする。
  *
- * `started_after` / `started_before` は SS-20 では使わない（期間フィルタは非スコープ）。
+ * `started_after` / `started_before` は使わない。週/月の集計は `GET /walks/stats`
+ * （SS-42）がサーバー側で行うため、一覧 API に期間フィルタを掛ける必要が無い。
  */
 export function buildWalkListParams(input: {
   limit?: number;
