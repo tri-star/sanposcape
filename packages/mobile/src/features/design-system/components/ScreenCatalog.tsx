@@ -85,7 +85,7 @@ export function ScreenCatalog() {
     {
       key: "history",
       label: "記録",
-      description: "週/月タブ・歩数進捗",
+      description: "週/月タブ・歩数進捗（集計は GET /walks/stats に依存。backend 起動が必要）",
       icon: "bar-chart-2",
       onPress: () => router.push("/(tabs)/history"),
     },

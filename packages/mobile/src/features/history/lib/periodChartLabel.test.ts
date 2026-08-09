@@ -17,12 +17,16 @@ describe("weekdayLabelFromIsoDate", () => {
     expect(weekdayLabelFromIsoDate("2026-08-01")).toBe("土");
   });
 
-  it.each(["", "2026-13-45", "August 3", "2026/08/03", "2026-08-3"])(
+  it.each(["", "2026-13-45", "August 3", "2026/08/03", "2026-08-3", "2027-02-29"])(
     "不正な入力 %s は空文字",
     (input) => {
       expect(weekdayLabelFromIsoDate(input)).toBe("");
     },
   );
+
+  it("2028-02-29（うるう年に実在するうるう日）→ 火", () => {
+    expect(weekdayLabelFromIsoDate("2028-02-29")).toBe("火");
+  });
 });
 
 describe("weekBucketLabel", () => {

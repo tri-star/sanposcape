@@ -6,7 +6,8 @@
 #     （MAPS_MODE=fake もしくは実の GOOGLE_MAPS_SERVER_API_KEY）
 #   → 候補に依存するため `maps-required` タグを付ける。CI は当面 --exclude-tags=maps-required で除外する。
 #
-# assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数。
+# assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数・
+# 記録タブの集計値。
 appId: com.sanposcape.app
 tags:
   - mvp
