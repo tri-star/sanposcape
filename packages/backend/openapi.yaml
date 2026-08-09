@@ -457,7 +457,10 @@ components:
           title: Id
         name:
           type: string
+          minLength: 1
           title: Name
+          description: Japanese-preferred display name supplied by the provider; falls
+            back to another provider-available language when Japanese is unavailable.
         category:
           $ref: '#/components/schemas/ExploreCategory'
         location:

@@ -13,8 +13,8 @@ from sanposcape.maps.service import MapsService
 class FakeProvider:
     def __init__(self) -> None:
         self.places = (
-            ProviderPlace("far", "Far", "park", ProviderPoint(35.1, 139.1)),
-            ProviderPlace("near", "Near", "park", ProviderPoint(35.2, 139.2)),
+            ProviderPlace("far", "遠い公園", "park", ProviderPoint(35.1, 139.1)),
+            ProviderPlace("near", "近い公園", "park", ProviderPoint(35.2, 139.2)),
         )
         self.routes = {
             (35.1, 139.1): ProviderRoute(
@@ -44,6 +44,7 @@ def test_search_filters_and_sorts_by_round_trip_then_distance() -> None:
         )
     )
     assert [candidate.id for candidate in result.candidates] == ["near"]
+    assert result.candidates[0].name == "近い公園"
     assert result.candidates[0].round_trip_duration_seconds == 400
 
 

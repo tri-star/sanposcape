@@ -109,3 +109,12 @@ def test_openapi_declares_security_and_documented_error_responses() -> None:
     assert operation["security"] == [{"HTTPBearer": []}]
     assert {"401", "413", "422", "429", "503"} <= set(operation["responses"])
     assert "rate limit" in operation["responses"]["429"]["description"]
+
+
+def test_openapi_declares_non_empty_japanese_preferred_place_names() -> None:
+    name = app.openapi()["components"]["schemas"]["PlaceCandidate"]["properties"]["name"]
+
+    assert name["type"] == "string"
+    assert name["minLength"] == 1
+    assert "Japanese-preferred" in name["description"]
+    assert "falls back" in name["description"]
