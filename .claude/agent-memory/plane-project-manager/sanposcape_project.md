@@ -214,3 +214,7 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 ## 2026-08-05追加: SS-34をIn Progressに更新（mobile側着手）
 
 - SS-34「mobile: 散歩開始前に探索・記録へ戻れる導線を追加」(work_item_id: `ad15c9d5-3076-4f59-90bb-47faefb86673`、M4所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-16の後続タスク。start_date=2026-08-10, target_date=2026-08-11が既に設定済みだった。
+
+## 2026-08-09追加: SS-42をIn Progressに更新（mobile側着手）
+
+- SS-42「mobile: 記録タブの週/月集計・連続日数・歩数を実装する」(work_item_id: `144b7ef8-9ad0-4181-a99c-9f79c492ad5d`、M5所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-20（PR #21）で見送られたフォローアップタスク。

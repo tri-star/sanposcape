@@ -2,4 +2,4 @@
 - [users/auth ドメイン境界の逸脱パターン](users-auth-domain-boundary.md) — AuthServiceがUserRepositoryを直接持つ問題、SS-12前に要修正
 - [backend レイヤー規約](backend-layering-conventions.md) — folder-structure.mdの要点とテスト規約の要約
 - [backend実装プランの場所](reference_backend_plan_docs.md) — `tmp/SS-<ID>/backend-plan.md` にスコープ外事項・決定事項がある。レビュー前に確認
-- [M5 walksドメインのスコープ決定](project_m5_walks_domain.md) — SS-18で集計/削除API等は意図的にスコープ外。再指摘しない
+- [M5 walksドメインのスコープ決定](project_m5_walks_domain.md) — SS-18で削除APIはスコープ外。集計APIはSS-42で新設(SS-18決定を上書き済み、再指摘しない)
