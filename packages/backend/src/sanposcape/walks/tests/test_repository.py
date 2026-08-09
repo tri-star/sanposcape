@@ -1,10 +1,11 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from sanposcape.walks.repository import WalkRepository
+from sanposcape.walks.stats import WALK_STATS_TIMEZONE
 from sanposcape.walks.tests.conftest import make_user as _make_user
 
 
@@ -198,3 +199,204 @@ class TestListForUser:
 
         state = inspect(rows[0])
         assert "track_points" in state.unloaded
+
+
+class TestAggregateDailyForUser:
+    def test_r1_only_returns_the_scoped_users_rows(self, db_session: Session) -> None:
+        owner = _make_user(db_session, subject="owner")
+        other = _make_user(db_session, subject="other")
+        repo = WalkRepository(db_session)
+        started_at = datetime(2026, 3, 15, 3, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=owner.id, started_at=started_at)
+        _create_walk(repo, user_id=other.id, started_at=started_at)
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=owner.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=started_at - timedelta(days=1),
+            started_at_until=started_at + timedelta(days=1),
+        )
+
+        assert len(rows) == 1
+
+    def test_r2_utc_1500_boundary_is_attributed_to_the_next_jst_day(
+        self, db_session: Session
+    ) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        # 2026-03-15T15:00:00Z == 2026-03-16T00:00:00+09:00
+        started_at = datetime(2026, 3, 15, 15, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=user.id, started_at=started_at)
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=started_at - timedelta(days=1),
+            started_at_until=started_at + timedelta(days=1),
+        )
+
+        assert len(rows) == 1
+        assert rows[0].day == date(2026, 3, 16)
+
+    def test_r3_attributed_to_start_date_not_end_date(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        # JST 23:59 開始（UTC 14:59）・翌 00:30 終了。開始日に計上されるはず。
+        started_at = datetime(2026, 3, 15, 14, 59, 0, tzinfo=UTC)
+        repo.create(
+            user_id=user.id,
+            client_walk_id=uuid.uuid4(),
+            started_at=started_at,
+            ended_at=started_at + timedelta(minutes=31),
+            duration_seconds=1800,
+            distance_meters=1000,
+            destination_place_id="place-1",
+            destination_name="テスト公園",
+            destination_latitude=35.68,
+            destination_longitude=139.76,
+            track_points=[],
+        )
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=started_at - timedelta(days=1),
+            started_at_until=started_at + timedelta(days=1),
+        )
+
+        assert len(rows) == 1
+        assert rows[0].day == date(2026, 3, 15)
+
+    def test_r4_same_day_walks_are_summed_into_one_row(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        base = datetime(2026, 3, 15, 1, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=user.id, started_at=base)
+        _create_walk(repo, user_id=user.id, started_at=base + timedelta(hours=2))
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=base - timedelta(days=1),
+            started_at_until=base + timedelta(days=1),
+        )
+
+        assert len(rows) == 1
+        assert rows[0].walk_count == 2
+        assert rows[0].duration_seconds == 1200
+        assert rows[0].distance_meters == 2000
+
+    def test_r5_window_bounds_are_a_half_open_interval(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        window_from = datetime(2026, 3, 15, 0, 0, 0, tzinfo=UTC)
+        window_until = datetime(2026, 3, 16, 0, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=user.id, started_at=window_from)  # 下端: 含む
+        _create_walk(repo, user_id=user.id, started_at=window_until)  # 上端: 含まない
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=window_from,
+            started_at_until=window_until,
+        )
+
+        total_walk_count = sum(row.walk_count for row in rows)
+        assert total_walk_count == 1
+
+    def test_r6_no_walks_returns_empty_list(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=datetime(2026, 3, 1, tzinfo=UTC),
+            started_at_until=datetime(2026, 3, 31, tzinfo=UTC),
+        )
+
+        assert rows == []
+
+    def test_r7_does_not_select_track_points(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        started_at = datetime(2026, 3, 15, 1, 0, 0, tzinfo=UTC)
+        big_track = [[35.0 + i * 0.0001, 139.0] for i in range(500)]
+        _create_walk(repo, user_id=user.id, started_at=started_at, track_points=big_track)
+
+        rows = repo.aggregate_daily_for_user(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            started_at_from=started_at - timedelta(days=1),
+            started_at_until=started_at + timedelta(days=1),
+        )
+
+        assert len(rows) == 1
+        assert rows[0].walk_count == 1  # track の大きさに関わらず値が壊れず返る
+
+
+class TestListWalkDatesDesc:
+    def test_r8_returns_jst_dates_desc_with_duplicates(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        base = datetime(2026, 3, 15, 1, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=user.id, started_at=base)
+        _create_walk(repo, user_id=user.id, started_at=base + timedelta(hours=1))
+        _create_walk(repo, user_id=user.id, started_at=base - timedelta(days=1))
+
+        dates = repo.list_walk_dates_desc(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            before=base + timedelta(days=1),
+            limit=10,
+        )
+
+        assert dates == [date(2026, 3, 15), date(2026, 3, 15), date(2026, 3, 14)]
+
+    def test_r9_limit_truncates_results(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        base = datetime(2026, 3, 1, 1, 0, 0, tzinfo=UTC)
+        for i in range(5):
+            _create_walk(repo, user_id=user.id, started_at=base + timedelta(days=i))
+
+        dates = repo.list_walk_dates_desc(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            before=base + timedelta(days=10),
+            limit=2,
+        )
+
+        assert len(dates) == 2
+
+    def test_r10_before_is_exclusive(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        started_at = datetime(2026, 3, 15, 1, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=user.id, started_at=started_at)
+
+        dates = repo.list_walk_dates_desc(
+            user_id=user.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            before=started_at,
+            limit=10,
+        )
+
+        assert dates == []
+
+    def test_r11_only_returns_the_scoped_users_rows(self, db_session: Session) -> None:
+        owner = _make_user(db_session, subject="owner")
+        other = _make_user(db_session, subject="other")
+        repo = WalkRepository(db_session)
+        started_at = datetime(2026, 3, 15, 1, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=owner.id, started_at=started_at)
+        _create_walk(repo, user_id=other.id, started_at=started_at)
+
+        dates = repo.list_walk_dates_desc(
+            user_id=owner.id,
+            timezone_name=WALK_STATS_TIMEZONE,
+            before=started_at + timedelta(days=1),
+            limit=10,
+        )
+
+        assert len(dates) == 1

@@ -2,9 +2,11 @@
 
 ## 日付
 
-2026-08-01（初版）、2026-08-02 追補（SS-20）
+2026-08-01（初版）、2026-08-02 追補（SS-20）、2026-08-09 追補（SS-42）
 
 **SS-20「散歩履歴一覧・詳細画面」で追補**した（「移行・対応が必要な事項」の SS-20 への申し送りを実績に更新）。追補部分には `（SS-20 追補）` を付けている。
+
+**SS-42「mobile: 記録タブの週/月集計・連続日数・歩数を実装する」で追補**した。記録タブの週/月チャート・連続日数（streak）・歩数がスタブのまま残っていた件（SS-20 の「対応を見送った事項」）に決着を付け、専用の集計 API `GET /walks/stats` を新設した。「保留（次タスクへ再送り）」としていた streak のサーバー保持判断もここでクローズする。追補部分には `（SS-42 追補）` を付けている。
 
 ## コンテキスト
 
@@ -69,6 +71,22 @@ SS-16 が提示する経路（`path`）は保存しない。`destination_place_i
 ### 9. クライアント申告の距離・時刻を採用する（範囲バリデーションのみ）
 
 `distance_meters` / `started_at` / `ended_at` はクライアント由来の値をそのまま保存する。軌跡からのサーバー再計算はしない。異常値は範囲・整合性のバリデーション（`ended_at > started_at`、24h 上限、未来日付の排除、時計ずれ 300 秒の許容）で弾く。時計ずれの許容値は `walks/schemas.py` の `CLOCK_SKEW_TOLERANCE_SECONDS`（`duration_seconds` が wall-clock を超える分の許容）と `FUTURE_ENDED_AT_TOLERANCE_SECONDS`（未来日付の猶予）で、いずれも 300 秒。
+
+### 10. 週/月集計・連続日数は専用の集計 API `GET /walks/stats` で返す（SS-42 追補）
+
+週/月の集計と連続日数は専用の集計 API `GET /walks/stats` で返す。期間境界・暦日の帰属はすべて JST（Asia/Tokyo）固定。散歩の帰属日は `started_at` の JST 暦日（`ended_at` ではない）。week は今日を末尾とする直近7日（1日 × 7バケット）、month は直近28日（7日 × 4バケット）のローリング。散歩0件の期間もゼロ埋めして返す。クエリパラメータは持たず、1レスポンスに week / month / today / streak をまとめる（タブ切り替えでキャッシュが割れて日付をまたいだ瞬間に値が食い違う、という事態を避けるため）。
+
+集計クエリは期間の絞り込みを `AT TIME ZONE` を使わない素の `timestamptz` 比較で行い（式にすると `ix_walks_user_id_started_at_id` が効かなくなるため）、暦日への変換は `SELECT` / `GROUP BY` にのみ使う。歩数（steps）はこの API に含めない（決定12参照）。
+
+### 11. streak は非正規化カラムを持たず、`started_at` の JST 暦日からクエリで算出する（SS-42 追補）
+
+streak は非正規化カラムを持たず、`started_at` の JST 暦日からクエリで算出する。起点は「今日」。今日に散歩が無ければ昨日を起点に数える（今日まだ歩いていないだけで連続を途切れた扱いにしない）。今日も昨日も無ければ0。
+
+走査は `(user_id, started_at DESC, id DESC)` インデックス順のチャンク読み（既定200行）+ ギャップ検出による早期打ち切りで行い、全件読みをしない。安全弁として `WALK_STATS_STREAK_MAX_DAYS = 3660`（10年）で打ち切る（異常データや将来のバルクインポートで走査が無限に伸びるのを防ぐため。現実的には到達しない）。
+
+### 12. 歩数はドメインデータとして持たない（SS-42 追補）
+
+歩数はドメインデータとして持たない。API に `steps` を含めず、mobile が `distance_meters` から歩幅0.7m固定で推定し（`steps = round(distance_meters / 0.7)`）、UI上で「推定」であることを明示する。端末の歩数センサー（expo-sensors 等）は導入しない。
 
 ## 検討した選択肢
 
@@ -144,14 +162,20 @@ SS-16 が提示する経路（`path`）は保存しない。`destination_place_i
 
 **クライアント申告値を採用したのは、サーバー再計算のほうが値の食い違いを生むため。** mobile の距離は GPS ノイズを除去した後の値で、サーバーが軌跡から素朴に再計算すると別の数字になる。ランキングや報酬のような competitive な用途がなく改竄インセンティブが無い現状では、範囲バリデーションで異常値だけを弾くのが妥当と判断した。
 
+**（SS-42 追補）集計を専用 API に寄せたのは、streak がクライアントで畳めないため。** 週/月チャートだけなら期間フィルタ付き一覧をクライアントで畳む案も成立したが、streak は「途切れるまで遡る」必要があり keyset ページングでは不定回数のリクエストになる。streak だけサーバー・チャートだけクライアントと分割すると JST の期間境界ロジックが2箇所に散り、どちらかが先に仕様変更で置いていかれるリスクがある。1本の API に寄せることでロジックの置き場所を一意にした。
+
+**（SS-42 追補）streak を非正規化カラムにしなかったのは、更新漏れ・再計算コストを避けるため。** 保存すると散歩の追加・（将来の）削除・編集のたびに再計算が必要になり、更新を1箇所でも忘れると値が腐る。`(user_id, started_at DESC, id DESC)` インデックスの順序が JST 暦日の降順と単調に一致することを利用し、チャンク読み + 早期打ち切りで実用的なコストに抑えられると判断した。
+
+**（SS-42 追補）歩数を API に含めなかったのは、歩幅固定の推定値をドメインデータに見せないため。** `steps` フィールドを持たせると「サーバーが計測した歩数」に見えてしまう。表示上の推定ヒューリスティックとして mobile 側に置くことで、換算式とその UI 文言（「推定」の明示）を同じ層に閉じ込められる。
+
 ## 影響
 
 ### ポジティブな影響
 
 - mobile は散歩終了時に1リクエスト送るだけでよく、失敗してもそのまま再送すれば二重登録にならない。
 - 履歴一覧は軌跡を読まないため、散歩が増えてもレスポンスサイズと I/O が膨らまない。
-- `(user_id, started_at DESC, id DESC)` の複合インデックス1本で、一覧・keyset 比較・期間フィルタ・アカウント削除時の CASCADE 検索をすべて賄える。
-- 週/月の集計は期間フィルタ付き一覧をクライアントで畳めば足り、専用の集計 API を持たずに SS-20 を組める。
+- `(user_id, started_at DESC, id DESC)` の複合インデックス1本で、一覧・keyset 比較・期間フィルタ・アカウント削除時の CASCADE 検索・**streak のチャンク走査（SS-42 追補、決定11）**をすべて賄える。
+- 週/月の集計は期間フィルタ付き一覧をクライアントで畳めば足り、専用の集計 API を持たずに SS-20 を組める。**（SS-42 追補）この見立ては覆った。** streak は「途切れるまで遡る」性質上クライアントで畳めず（keyset ページングの不定回数リクエストが必要）、週/月チャートだけクライアント畳み込み・streak だけサーバーと分けると JST 境界ロジックが2箇所に散る。そのため集計はすべてサーバーに寄せた専用 API `GET /walks/stats` を新設した（決定10）。
 - 認可漏れが「書き忘れ」では起こせない構造になっている。
 
 ### ネガティブな影響・トレードオフ
@@ -161,6 +185,11 @@ SS-16 が提示する経路（`path`）は保存しない。`destination_place_i
 - cursor は `started_at` が不変であることを前提にしている。「散歩の編集」で開始時刻を変更可能にすると前提が崩れる。
 - 目的地メタを非正規化しているため、Google Places 側で名称が変わっても履歴の表示名は当時のスナップショットのまま。
 - `destination_name` の保存は Google Maps Platform の利用規約上、Place コンテンツの長期キャッシュ制限に触れうる。表示用途に限定し、識別子や認可の入力には使わない運用で扱う。
+- **（SS-42 追補）** JST 固定のため、国外での利用時に期間境界がユーザーの体感とズレる（MVP は日本国内向けの前提）。
+- **（SS-42 追補）** month が28日固定で暦月と一致しない（最終週が可変幅になるとバーの高さが比較できなくなるための等幅バケット化。決定10）。
+- **（SS-42 追補）** 歩幅固定（0.7m）の推定歩数は個人差（身長・歩幅）を反映しない。
+- **（SS-42 追補）** streak は安全弁として3660日（10年）で打ち切るため、それ以上の連続は頭打ちになる（決定11）。
+- **（SS-42 追補）** 集計クエリは `AT TIME ZONE` を `SELECT`/`GROUP BY` に使うため、Postgres の tz データベースに依存する（公式 postgres イメージには同梱されている）。
 
 ### 移行・対応が必要な事項
 
@@ -171,11 +200,13 @@ SS-16 が提示する経路（`path`）は保存しない。`destination_place_i
   - **対応済み**: `client_walk_id` は散歩開始時（`WalkStartView` の散歩開始時）に `randomUuidV4()` で採番し、`ActiveWalk.clientWalkId` → `FinishedWalk.clientWalkId` と持ち回る（再送でも変えない）。`duration_seconds` には一時停止を除いた `elapsedSec` を送る（`lib/finishedWalk.ts` で wall-clock 秒を超えないようクランプ済み。300 秒のスキュー許容には頼らない）。リクエストは `lib/walkCreateRequest.ts` が snake_case の `WalkCreate` に組み立てる。
   - **未対応（フォローアップ課題へ）**: ローカル永続化。SS-19 はドラフトをメモリ上の Zustand（`useFinishedWalkStore`）にしか持たない。
   - 追加の実装事実: 軌跡は送信直前に `lib/walkTrackPayload.ts` で小数6桁へ丸め・連続重複除去・上限超過時のみ等間隔間引きを行う（記録中の間引き 10m/3秒 + 5m フィルタで通常は上限に達しない）。保存成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼ぶ。
-- SS-20 への申し送り（**一部クローズ**、SS-20 追補）: 実績は以下のとおり。
+- SS-20 への申し送り（**クローズ**、SS-42 追補で決着）: 実績は以下のとおり。
   - **対応済み**: 履歴一覧の無限スクロールは `next_cursor` ベースの `useInfiniteQuery`（`features/history/hooks/useWalkHistory.ts`）で実装した。記録タブの「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）から閲覧できる。
-  - **非スコープで据え置き（スタブ継続）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のまま（`docs/milestones.md` に留保を明記）。
-  - **保留（次タスクへ再送り）**: 連続日数（streak）をサーバー側に持たせるかどうかの判断は、期間フィルタ・週/月集計と合わせて着手するタスクへ持ち越す。
-- 集計 API（`GET /walks/stats`）と削除 API（`DELETE /walks/{id}`）は今回スコープ外。連続日数（streak）は全履歴の走査が必要なため、必要になった時点でサーバー側に持たせるかを判断する（未着手）。
+  - **非スコープで据え置き（スタブ継続、SS-20 時点）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のままだった（`docs/milestones.md` に留保を明記）。**SS-42 で実データ化した**（`GET /walks/stats` + mobile 側の配線）。期間フィルタ（`started_after`/`started_before`）自体は SS-42 でも使わない方針を維持（集計はサーバー側の専用 API に一本化したため、一覧 API 側に期間フィルタを掛ける必要が無い）。
+  - **クローズ（SS-42 追補）**: 連続日数（streak）をサーバー側に持たせるかどうかの判断は、**サーバー側でクエリ算出し、非正規化カラムは持たない**ことで決着した（決定11）。
+- 集計 API（`GET /walks/stats`）は**実績**（SS-42 で実装。決定10〜12）。削除 API（`DELETE /walks/{id}`）は引き続き未着手。
+- **（SS-42 追補）** 実装事実: `GET /walks/stats` の追加に新規の Alembic マイグレーション・新規インデックスは不要だった（既存 `ix_walks_user_id_started_at_id` が集計クエリの range scan と streak の index-order + LIMIT の両方を賄う）。
+- **（SS-42 追補）** 実装事実: `WalkService` にクロック注入（`now: Callable[[], datetime]`、既定 `datetime.now(UTC)`）を追加した。「今日」の判定をテストから固定できるようにするための変更で、`auth/service.py` の `AuthService` と同じ形。
 
 ## 関連情報
 
@@ -186,3 +217,5 @@ SS-16 が提示する経路（`path`）は保存しない。`destination_place_i
 - `packages/backend/docs/folder-structure.md` — ドメイン単位の凝集 × `router → service → repository` の3層、`core/` への昇格ルール
 - `packages/backend/docs/naming-convention.md` — 「提示経路 = `walking_route`」「歩いた軌跡 = `track`」の使い分け
 - 実装: `packages/backend/src/sanposcape/walks/`、`core/geo.py`、`core/pagination.py`、`core/middleware.py`
+- **（SS-42 追補）** `packages/backend/src/sanposcape/walks/stats.py` — 集計の日付ロジック・streak 判定の純粋関数（DB / Pydantic に非依存）
+- **（SS-42 追補）** mobile 側の実装: `packages/mobile/src/features/history/`（週/月チャート・連続日数・推定歩数の画面配線）。mobile 側は決定10〜12を前提にした横断的な UI 判断のため、**新規の mobile ADR は作らない**方針とした（歩数推定・streak 表示は「API とセットで初めて意味を持つ決定」であり、ADR-003 に一本化したほうが後から読むときに追いやすいため）。

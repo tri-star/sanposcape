@@ -328,6 +328,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /walks/stats:
+    get:
+      tags:
+      - walks
+      summary: Get Walk Stats
+      description: '記録タブ向けの集計（今日 / 直近7日 / 直近28日 / 連続日数）を JST 基準で返す。
+
+
+        クエリパラメータは持たず、散歩 0 件でも 200 + 全ゼロを返す（404 にしない）。'
+      operationId: get_walk_stats_walks_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkStatsRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+      security:
+      - HTTPBearer: []
   /walks/{walk_id}:
     get:
       tags:
@@ -889,6 +912,123 @@ components:
       - destination
       - created_at
       title: WalkRead
+    WalkStatsBucketRead:
+      properties:
+        start_date:
+          type: string
+          format: date
+          title: Start Date
+        end_date:
+          type: string
+          format: date
+          title: End Date
+        walk_count:
+          type: integer
+          title: Walk Count
+        duration_seconds:
+          type: integer
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          title: Distance Meters
+        is_current:
+          type: boolean
+          title: Is Current
+      type: object
+      required:
+      - start_date
+      - end_date
+      - walk_count
+      - duration_seconds
+      - distance_meters
+      - is_current
+      title: WalkStatsBucketRead
+      description: 週/月チャートの1バケット（JST 暦日、両端含む）。
+    WalkStatsPeriodRead:
+      properties:
+        start_date:
+          type: string
+          format: date
+          title: Start Date
+        end_date:
+          type: string
+          format: date
+          title: End Date
+        total_walk_count:
+          type: integer
+          title: Total Walk Count
+        total_duration_seconds:
+          type: integer
+          title: Total Duration Seconds
+        total_distance_meters:
+          type: integer
+          title: Total Distance Meters
+        buckets:
+          items:
+            $ref: '#/components/schemas/WalkStatsBucketRead'
+          type: array
+          title: Buckets
+      type: object
+      required:
+      - start_date
+      - end_date
+      - total_walk_count
+      - total_duration_seconds
+      - total_distance_meters
+      - buckets
+      title: WalkStatsPeriodRead
+      description: 週 or 月の集計期間（ローリング）。
+    WalkStatsRead:
+      properties:
+        timezone:
+          type: string
+          title: Timezone
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        today:
+          $ref: '#/components/schemas/WalkStatsTodayRead'
+        streak_days:
+          type: integer
+          title: Streak Days
+        week:
+          $ref: '#/components/schemas/WalkStatsPeriodRead'
+        month:
+          $ref: '#/components/schemas/WalkStatsPeriodRead'
+      type: object
+      required:
+      - timezone
+      - generated_at
+      - today
+      - streak_days
+      - week
+      - month
+      title: WalkStatsRead
+      description: '`GET /walks/stats` のレスポンス。集計境界はすべて JST（Asia/Tokyo）固定。'
+    WalkStatsTodayRead:
+      properties:
+        date:
+          type: string
+          format: date
+          title: Date
+        walk_count:
+          type: integer
+          title: Walk Count
+        duration_seconds:
+          type: integer
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          title: Distance Meters
+      type: object
+      required:
+      - date
+      - walk_count
+      - duration_seconds
+      - distance_meters
+      title: WalkStatsTodayRead
+      description: 今日（JST 暦日）の集計。
     WalkingRouteRequest:
       properties:
         origin:

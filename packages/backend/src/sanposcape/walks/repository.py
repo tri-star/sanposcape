@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import Date, cast, func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer
 
 from sanposcape.walks.models import Walk
+from sanposcape.walks.stats import DailyWalkTotals
 
 
 class WalkRepository:
@@ -110,3 +111,63 @@ class WalkRepository:
             return existing, False
         self._db.refresh(walk)
         return walk, True
+
+    def aggregate_daily_for_user(
+        self,
+        *,
+        user_id: uuid.UUID,
+        timezone_name: str,
+        started_at_from: datetime,
+        started_at_until: datetime,
+    ) -> list[DailyWalkTotals]:
+        """JST 暦日ごとの件数・実活動秒・距離を集計して古い順に返す。
+
+        - 期間の絞り込み（`started_at_from` 以上・`started_at_until` 未満、いずれも UTC
+          aware）は素の timestamptz 比較で行う。式にすると
+          `ix_walks_user_id_started_at_id` が効かなくなるため。
+        - 帰属日は `started_at` の JST 暦日（`ended_at` ではない: 日跨ぎは開始日に計上）。
+        - 散歩が 0 件の日は行が返らない（ゼロ埋めは呼び出し側の責務）。
+        - ORM エンティティ（`select(Walk)`）ではなく列指定の集計クエリのため、
+          `track_points`（JSONB）は SELECT に一切現れない。
+        """
+        day = cast(func.timezone(timezone_name, Walk.started_at), Date).label("day")
+        stmt = (
+            select(
+                day,
+                func.count().label("walk_count"),
+                func.sum(Walk.duration_seconds).label("duration_seconds"),
+                func.sum(Walk.distance_meters).label("distance_meters"),
+            )
+            .where(
+                Walk.user_id == user_id,
+                Walk.started_at >= started_at_from,
+                Walk.started_at < started_at_until,
+            )
+            .group_by(day)
+            .order_by(day)
+        )
+        return [DailyWalkTotals(*row) for row in self._db.execute(stmt).all()]
+
+    def list_walk_dates_desc(
+        self,
+        *,
+        user_id: uuid.UUID,
+        timezone_name: str,
+        before: datetime,
+        limit: int,
+    ) -> list[date]:
+        """散歩の JST 暦日を新しい順に最大 `limit` 件返す（同日重複を含む）。
+
+        streak 算出の走査用。並び順を式ではなく `started_at`（`before` は UTC aware
+        の排他的上限）にすることで `ix_walks_user_id_started_at_id` の順序をそのまま
+        使い、`LIMIT` でインデックススキャンを早期に打ち切る（全件読みを避ける）。
+        JST 暦日 DESC と `started_at` DESC は単調に一致するため順序は等価。
+        """
+        day = cast(func.timezone(timezone_name, Walk.started_at), Date)
+        stmt = (
+            select(day)
+            .where(Walk.user_id == user_id, Walk.started_at < before)
+            .order_by(Walk.started_at.desc())
+            .limit(limit)
+        )
+        return list(self._db.scalars(stmt).all())
