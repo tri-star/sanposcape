@@ -162,12 +162,15 @@ class WalkRepository:
         の排他的上限）にすることで `ix_walks_user_id_started_at_id` の順序をそのまま
         使い、`LIMIT` でインデックススキャンを早期に打ち切る（全件読みを避ける）。
         JST 暦日 DESC と `started_at` DESC は単調に一致するため順序は等価。
+        `id.desc()` は `list_for_user` と同じ副ソートキーで、インデックス
+        `(user_id, started_at DESC, id DESC)` の順序に厳密に一致させるためのもの
+        （`started_at` の同値時にページング結果が安定する）。
         """
         day = cast(func.timezone(timezone_name, Walk.started_at), Date)
         stmt = (
             select(day)
             .where(Walk.user_id == user_id, Walk.started_at < before)
-            .order_by(Walk.started_at.desc())
+            .order_by(Walk.started_at.desc(), Walk.id.desc())
             .limit(limit)
         )
         return list(self._db.scalars(stmt).all())

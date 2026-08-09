@@ -267,6 +267,36 @@ class TestGetWalkStats:
 
         assert result.streak_days == 10
 
+    def test_s9b_safety_valve_stops_scan_within_overshoot_bound(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """安全弁 (`WALK_STATS_STREAK_MAX_DAYS`) が実際に走査を打ち切ることを検証する。
+
+        `WALK_STATS_STREAK_CHUNK_SIZE` / `WALK_STATS_STREAK_MAX_DAYS` を小さい値へ
+        monkeypatch し、それより多い連続日数を投入する。安全弁が効かなければ
+        `streak_days` は投入した全日数（20）になるはずだが、実際にはチャンク境界
+        でしか判定しないため `max_days` ちょうどにはならず、最大
+        `chunk_size - 1` 日分オーバーシュートし得る（ADR-003 決定11参照）。
+        許容範囲内で止まることを確認することで、無限ループしないこと・安全弁が
+        ソフトキャップとして機能することの両方を検証する。
+        """
+        chunk_size = 3
+        max_days = 5
+        monkeypatch.setattr(service_module, "WALK_STATS_STREAK_CHUNK_SIZE", chunk_size)
+        monkeypatch.setattr(service_module, "WALK_STATS_STREAK_MAX_DAYS", max_days)
+        service = _make_stats_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        seeded_days = 20  # max_days + chunk_size よりも十分多く投入する
+        for i in range(seeded_days):
+            seed_walk(db_session, user_id=user.id, started_at=_jst(ANCHOR_DATE - timedelta(days=i)))
+
+        result = service.get_walk_stats(user)
+
+        assert max_days <= result.streak_days <= max_days + chunk_size - 1
+        # 安全弁が効かなければ投入した全日数分連続するはずなので、それより
+        # 少ないことを確認して「データ枯渇ではなく安全弁で止まった」ことを担保する。
+        assert result.streak_days < seeded_days
+
     def test_s10_week_totals_match_bucket_sums(self, db_session: Session) -> None:
         service = _make_stats_service(db_session)
         user = _make_user(db_session, subject="u1")

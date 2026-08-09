@@ -81,7 +81,8 @@ def seed_walk(
 
     `POST /walks` を使わないのは、`WalkCreate` の未来日付バリデーションが
     実時刻 `datetime.now()` を直接見ており、固定アンカーと噛み合わないため
-    （3.3 節）。stats テストのデータ投入は必ずこのヘルパーを使う。
+    （ADR-003 決定9の未来日付バリデーション）。stats テストのデータ投入は必ずこの
+    ヘルパーを使う。
     """
     repo = WalkRepository(db_session)
     walk, _ = repo.create(

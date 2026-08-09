@@ -28,6 +28,7 @@ from sanposcape.walks.stats import (
     WALK_STATS_TIMEZONE,
     extend_streak,
     jst_day_start_utc,
+    should_continue_streak_scan,
     to_jst_date,
 )
 
@@ -142,10 +143,15 @@ class WalkService:
         while True:
             counted, expected, stopped = extend_streak(chunk, expected=expected)
             total += counted
-            if stopped or len(chunk) < WALK_STATS_STREAK_CHUNK_SIZE:
+            # break 条件（ギャップ検出 / データ枯渇 / 安全弁）は stats.py に集約している。
+            if not should_continue_streak_scan(
+                stopped=stopped,
+                chunk_len=len(chunk),
+                chunk_size=WALK_STATS_STREAK_CHUNK_SIZE,
+                total=total,
+                max_days=WALK_STATS_STREAK_MAX_DAYS,
+            ):
                 break
-            if total >= WALK_STATS_STREAK_MAX_DAYS:
-                break  # 安全弁（4.4 節参照）
             # 直近に見た日の 00:00 JST より前へ進む。before は必ず単調減少するので無限ループしない
             before = jst_day_start_utc(chunk[-1])
             chunk = self._repository.list_walk_dates_desc(
@@ -154,6 +160,4 @@ class WalkService:
                 before=before,
                 limit=WALK_STATS_STREAK_CHUNK_SIZE,
             )
-            if not chunk:
-                break
         return total

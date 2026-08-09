@@ -121,6 +121,16 @@ packages/backend/
 >
 > 迷ったらまず `service.py` に書き、DBアクセスが増えたら `repository.py` に切り出す。
 
+### 現在時刻の扱い（クロック注入）
+- **現在時刻に依存する service は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
+  コンストラクタ引数で注入可能にする**。採用済み: `auth/service.py` の `AuthService`（トークンの有効期限）、
+  `walks/service.py` の `WalkService`（集計の「今日」判定）。
+- service 内に `datetime.now()` を直接書かない。テストから時刻を固定できず、日付境界の検証が書けなくなる
+  （書けたとしても実行日に依存する不安定なテストになる）。
+- `dependencies.py` の `get_xxx_service()` は既定値のまま生成し、注入はテストからのみ行う。
+- 日付計算そのものは DB / Pydantic に依存しない純粋関数モジュールへ切り出す（実例: `walks/stats.py`）。
+  こうすると DB を立てずに境界条件のテストが書ける。
+
 ### `models.py` の配置と Alembic
 - SQLAlchemy モデルは**各ドメインの `models.py` に併置**する。
 - 集約モジュール `all_models.py` が全ドメインの models を import して `Base.metadata` に載せ、`alembic/env.py` はこの `all_models.py` の `Base` を参照する。

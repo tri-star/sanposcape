@@ -151,7 +151,8 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
     - 留保: 保存はメモリ上のドラフトを終了直後に送る方式で、**保存が確定する前にアプリが強制終了されると記録は失われる**（ローカル永続化は SS-19 スコープ外。フォローアップ課題へ）
   - [x] 保存した散歩がユーザーに紐付く（backend は SS-18 で完了。`walks.user_id` + `ON DELETE CASCADE`、repository の全メソッドが `user_id` 必須。mobile は SS-19 で認証付きの `POST /walks` を結線）
   - [x] 散歩履歴の一覧・詳細を閲覧できる（backend API は SS-18、mobile 結線は SS-20 で完了。`/walk-history`・`/walk-history/[walkId]` + 記録タブの「最近の散歩」）
-    - 留保: 記録タブの集計表示（週/月の合計距離チャート・連続日数・歩数目標）は `useHistorySummary` のスタブのまま。期間フィルタ（`started_after`/`started_before`）・週月チャートの実データ化、連続日数（streak）のサーバー化判断は SS-20 のスコープ外で次タスクへ持ち越し（ADR-003 参照）
+    - 実績（SS-42）: 記録タブの集計表示（週/月チャート・合計距離・連続日数・今日の歩数）を実データ化した。backend に集計 API `GET /walks/stats`（JST 固定。今日 / 直近7日=1日×7バケット / 直近28日=7日×4バケット + `streak_days`）を新設し、mobile の `useHistorySummary` が `queryKey: ["walks","stats"]` で参照する（ADR-003 決定10〜12）。streak は非正規化カラムを持たずサーバーのクエリで算出する形で決着し（決定11）、歩数は API に持たせず mobile が距離から歩幅 0.7m で推定して UI に「推定」と明示する（決定12）
+    - 留保: 目標歩数（`features/history/data/stepGoal.ts` の 8,000 歩）と記録タブのユーザー名（`data/profile.ts`）はスタブのまま。目標歩数のユーザー設定は別課題。期間フィルタ（`started_after`/`started_before`）は集計を専用 API に一本化したため使わない方針（ADR-003 決定10）
   - [ ] MVP スコープの主要フローが E2E で通る
     - 状態（SS-21）: `.maestro/mvp-walk-flow.yaml`（認証→探索→散歩開始→終了・保存→履歴一覧・
       詳細を1本で通す）を追加済み。地図タイルの描画・候補件数・履歴件数は assert しない
@@ -160,16 +161,18 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
       yaml の構文と参照 testID の実在は確認済みだが、**実機/エミュレータでのローカル実行による
       通しの確認はまだ行っていない**（development/preview build 環境が必要）。SS-44 完了後、
       backend 起動に `MAPS_MODE=fake` を追加し CI の `--include-tags` 行を有効化した上で、
-      ローカル実行の確認を経てチェックを付ける。記録タブの集計表示（週/月チャート・連続日数・
-      歩数目標）はスタブのままで、実データ化は別課題
+      ローカル実行の確認を経てチェックを付ける。記録タブの集計表示は SS-42 で実データ化され、
+      本フローにも `GET /walks/stats` のロード完了待ち（`history-stats-loading` の消失）と
+      `history-period-chart` / `history-step-goal-card` の表示 assert を追加済み
+      （値そのものは assert しない）
 
 ### 含まれるタスク（概要レベル）
 
 | # | タスク概要 | 備考 |
 | --- | --- | --- |
-| 1 | backend: 散歩(Walk)モデル・ルート保存・履歴取得API | ユーザー紐付け・認可（SS-18 完了） |
+| 1 | backend: 散歩(Walk)モデル・ルート保存・履歴取得API | ユーザー紐付け・認可（SS-18 完了）。記録タブ向け集計 API `GET /walks/stats` は SS-42 で追加 |
 | 2 | mobile: 散歩終了処理・ルート保存 | features/walk（SS-19 完了。冪等キーは散歩開始時に採番、保存失敗は手動再試行。未送信ドラフトの永続化はフォローアップ課題） |
-| 3 | mobile: 散歩履歴一覧・詳細画面 | features/history（SS-20 完了。queryKey は `["walks", ...]` 始まり） |
+| 3 | mobile: 散歩履歴一覧・詳細画面 | features/history（SS-20 完了。queryKey は `["walks", ...]` 始まり）。記録タブの週/月集計・連続日数・推定歩数の実データ化は SS-42 完了（queryKey `["walks","stats"]`） |
 | 4 | MVP主要フローのE2E（Maestro）・仕上げ | |
 
 ### 依存関係・前提

@@ -20,7 +20,7 @@ MONTH_BUCKET_DAYS = 7
 STATS_WINDOW_DAYS = MONTH_BUCKET_COUNT * MONTH_BUCKET_DAYS  # 28。集計クエリの窓
 
 WALK_STATS_STREAK_CHUNK_SIZE = 200  # streak 走査 1 回あたりの行数
-WALK_STATS_STREAK_MAX_DAYS = 3660  # 安全弁（4.4 節参照。10年で打ち切る）
+WALK_STATS_STREAK_MAX_DAYS = 3660  # 安全弁（ADR-003 決定11参照。10年で打ち切る）
 
 
 class DailyWalkTotals(NamedTuple):
@@ -82,3 +82,26 @@ def extend_streak(dates_desc: Sequence[date], *, expected: date) -> tuple[int, d
             continue
         return counted, expected, True  # d < expected -> ギャップ
     return counted, expected, False
+
+
+def should_continue_streak_scan(
+    *, stopped: bool, chunk_len: int, chunk_size: int, total: int, max_days: int
+) -> bool:
+    """streak 走査ループが次のチャンクを読みに行くべきかを判定する。
+
+    `_count_streak_days` の break 条件（ギャップ検出 / チャンク未満 = データ枯渇 /
+    安全弁到達）を1箇所に集約する。呼び出し側は `False` が返ったら走査を止める。
+
+    安全弁（`total >= max_days`）はチャンクを1回処理し終えた後にしか判定しないため、
+    `total` は `max_days` をちょうど超えるとは限らず、最大 `chunk_size - 1` 日分
+    オーバーシュートし得る（ADR-003 決定11参照）。チャンク内で厳密に打ち切ろうとすると
+    `extend_streak` がチャンク途中で日数上限を意識する必要が生まれ、責務が増える
+    割に実益が薄い（10年連続は実データでは起きず、安全弁の目的はあくまで
+    異常データ・将来のバルクインポートによる無限走査の防止であって、日数の
+    厳密な打ち切りではない）ため、この程度のオーバーシュートは許容する設計にしている。
+    """
+    if stopped:
+        return False
+    if chunk_len < chunk_size:
+        return False
+    return total < max_days
