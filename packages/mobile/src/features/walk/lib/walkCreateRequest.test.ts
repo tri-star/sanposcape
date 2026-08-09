@@ -6,6 +6,8 @@ import {
   MAX_WALK_DURATION_SECONDS,
   buildWalkCreateRequest,
 } from "@/features/walk/lib/walkCreateRequest";
+import { buildWalkingRouteRequest } from "@/features/walk/lib/walkRouteRequest";
+import { resolveSpotDisplayName } from "@/features/walk/lib/spotCandidate";
 import { toTrackPayload } from "@/features/walk/lib/walkTrackPayload";
 import type { FinishedWalk } from "@/features/walk/types";
 
@@ -102,6 +104,26 @@ describe("buildWalkCreateRequest", () => {
     expect(result?.destination.name.length).toBe(DESTINATION_NAME_MAX_LENGTH);
     expect(result?.destination.name).toBe(longName.slice(0, DESTINATION_NAME_MAX_LENGTH));
   });
+
+  it.each([256, 257])(
+    "絵文字 %i Unicode code point の名前は候補表示・ルート送信と一致する",
+    (length) => {
+      const name = "😀".repeat(length);
+      const finished: FinishedWalk = {
+        ...FINISHED_WALK,
+        destination: { ...FINISHED_WALK.destination, name },
+      };
+      const saved = buildWalkCreateRequest(finished);
+      const routed = buildWalkingRouteRequest({
+        origin: FINISHED_WALK.destination.location,
+        destination: finished.destination,
+      });
+
+      expect(saved?.destination.name).toBe(resolveSpotDisplayName(name));
+      expect(saved?.destination.name).toBe(routed?.destination.name);
+      expect(Array.from(saved?.destination.name ?? "")).toHaveLength(DESTINATION_NAME_MAX_LENGTH);
+    },
+  );
 
   it("name が空文字ならフォールバック文言になる", () => {
     const finished: FinishedWalk = {
