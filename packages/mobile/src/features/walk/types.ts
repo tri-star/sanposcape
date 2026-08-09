@@ -21,7 +21,7 @@ export type SpotCandidate = {
   id: string;
   /**
    * 日本語優先の表示名。日本語が無い場合は provider の別言語名、
-   * 値が空・不正なら「目的地」。trim 済みかつ最大256文字。
+   * 値が空・不正なら「目的地」。trim 済みかつ最大256 Unicode code point。
    */
   name: string;
   category: ExploreCategory;
