@@ -140,6 +140,11 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
+          # target 未指定時の既定 "default" は Google Play Services 非搭載の AOSP イメージで、
+          # react-native-maps が "won't run without Google Play services" のエラーバナーを表示し、
+          # そのぶんレイアウトが押し下げられて walk-start-duration-slider がアサート不可視になっていた
+          # （SS-44追補、KVM/cleartext 修正後に判明）。google_apis イメージに切り替えて解消する。
+          target: google_apis
           script: |
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # 外部データ（/explore/places の候補）に依存しないフロー。常時実行する。
