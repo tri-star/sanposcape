@@ -46,6 +46,9 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    # GOOGLE_MAPS_ANDROID_SDK_KEY は ci-e2e environment の secret として管理する
+    # （public repo のため、環境のブランチ制限でこの secret への到達経路を絞る）。
+    environment: ci-e2e
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
@@ -73,8 +76,14 @@ jobs:
         run: pnpm --filter mobile orval
 
       # ネイティブ影響入力のハッシュ = APK キャッシュのキー
+      # GOOGLE_MAPS_ANDROID_SDK_KEY はビルドステップと同じ値を渡す。app.config.ts が
+      # このキーの有無で android.config.googleMaps.apiKey を出し分ける（ADR-007）ため、
+      # ここで渡さないとキーの有無がキャッシュキーに反映されず、キー注入前にキャッシュされた
+      # APK（クラッシュする）がキー注入後も使い回されてしまう。
       - name: Compute native fingerprint
         id: fp
+        env:
+          GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
           HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
@@ -93,6 +102,12 @@ jobs:
         if: steps.apk-cache.outputs.cache-hit != 'true'
         timeout-minutes: 40
         working-directory: packages/mobile
+        env:
+          # app.config.ts が android.config.googleMaps.apiKey へ注入する（ADR-007）。
+          # 未注入だと Maps SDK 初期化時に RuntimeException でアプリがクラッシュし、
+          # walk-start 系の Maestro フローが軒並み失敗していた（SS-44追補、google_apis
+          # イメージへの切り替えで判明）。
+          GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
           mkdir -p e2e-build
           npx eas-cli build --local --non-interactive \
