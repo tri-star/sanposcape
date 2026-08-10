@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）
 
 ## ステータス
 
@@ -13,6 +13,8 @@
 **SS-20「散歩履歴一覧・詳細画面」で追補**した（決定4 の「SS-20 の履歴詳細へ遷移するために id が要る」という見込みの記述を実現済みの事実に更新し、「移行・対応が必要な事項」の SS-20 への申し送りをクローズした）。追補部分には `（SS-20 追補）` を付けている。
 
 **SS-13「認証状態と探索ロジックの分離」で追補**した（決定6 の「実行側」を `SettingsView` から `useAuthSessionStore` へ変更した）。追補部分には `（SS-13 追補）` を付けている。
+
+**SS-35「散歩開始後の現在地起点ルート再計算」で追補**した（決定2 に例外を追記、決定7 を新規追加）。追補部分には `（SS-35 追補）` を付けている。
 
 ## コンテキスト
 
@@ -54,6 +56,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - `staleTime = 1 時間` / `gcTime = 2 時間` / `retry: false`。固定2点間の徒歩ルートは実質不変で、往復最大120分の散歩でもキャッシュを生かしきれる。
 - **`origin` は「散歩の起点」で固定**し、現在地の更新でこの hook の入力を変えない。
 - queryKey の安定性のため、`buildWalkingRouteRequest` が `origin` を**小数4桁に丸める**（GPS の揺れで毎回別のキーになるのを防ぐ。backend 側のキャッシュキー `route:{lat:.5f}:{lng:.5f}:...` にも当たるようになる）。
+- **（SS-35 追補）この規律に例外を1つ追加する**: 「`origin` は散歩の起点で固定」という規律は**初期ルートについては維持**する。SS-35 で追加する「現在地起点の再計算」は Query を経由しない別経路（決定7）であり、`useWalkRoute` の queryKey は変えない。初期ルートのキャッシュ共有はそのまま残る。
 
 ### 3. 経過時間は開始時刻からの実時刻差で算出する
 
@@ -94,6 +97,16 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
 - サインアウト導線が呼ぶのは `runSessionCleanup()` の1行だけにする。feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）ため。
 - **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-009](./ADR-009-auth-session-state-and-route-gate.md) を参照。
+
+### 7. 再計算後のルートは Query キャッシュではなく `useWalkRouteRecalculation` のローカル state で持つ（SS-35 追補）
+
+散歩中に現在地が表示中のルートから逸脱したら、現在地を起点に目的地までの徒歩ルートを引き直す（`src/features/walk/hooks/useWalkRouteRecalculation.ts`）。この再計算ルートは決定2 の Query キャッシュには載せない。
+
+- **理由**: 取得中・失敗時に直前のルートを表示し続ける必要がある。`useWalkRoute`（決定2）の入力（`origin`）を現在地に差し替えると queryKey が変わり、取得中・失敗時に `data` が `undefined` に落ちて直前のルートが画面から消える（受け入れ条件「ルート取得失敗時は直前の正常ルートと進行状態を維持する」に反する）。`placeholderData: keepPreviousData` は pending 中しか効かず、error 状態は救えない。
+- **古い応答の追い越し防止**のため、`AbortController` + 単調増加の `sequence` を hook 内で自前で持つ（`beginRecalculation` が新しい `sequence` を発行し、`applyRecalculationSuccess`/`applyRecalculationFailure` は一致しない `sequence` の応答を無視する）。連続操作・連続測位でも同時リクエストは1つに保たれ、古い応答が新しいルートを上書きしない。
+- **呼び出し抑制**: 逸脱 80m（`ROUTE_DEVIATION_THRESHOLD_METERS`）× 連続2測位（`REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES`）+ 最小間隔60秒（`RECALCULATION_MIN_INTERVAL_MS`）+ 連続失敗2回（`MAX_CONSECUTIVE_AUTO_FAILURES`）で自動停止する。目的地から50m以内（`DESTINATION_NEAR_RADIUS_METERS`）では再計算しない。`/explore/*` の共有レート制限（既定30 req/60秒/ユーザー）に対し、1散歩あたり最大 1 req/分に収まる（手動再計算・再試行はこの抑制の対象外だが、ユーザー操作1回につき最大1リクエストのため実害は小さい）。
+- **例外の範囲を「同じ目的地へ現在地から引き直す1本のルート」に限定する**。`ActiveWalk.origin`（決定1）は書き換えない — 散歩の起点であり、`useWalkTracking.initialPosition` にも使われているため。
+- 判定ロジック（折れ線までの距離・状態遷移）は `src/features/walk/lib/routeDeviation.ts` / `src/features/walk/lib/routeRecalculation.ts` の純粋関数に置き、副作用（fetch・Abort・世代管理）は hook 側に閉じる（`docs/architecture-guideline.md` の単体テスト方針どおり）。
 
 ## 検討した選択肢
 
@@ -174,13 +187,14 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - 画面カタログ（`/dev-screens`）から散歩中画面を開く場合、**ストアに代表値を仕込んでから遷移する**必要が生じた（`DEFAULT_ACTIVE_WALK`）。「状態を前提に描画する画面」は単純な `router.push` では確認できない。
 - `staleTime` が長いため、**同じ2点のルートは1時間再取得されない**。backend 側でルートが改善されても即座には反映されない（徒歩ルートの性質上、実害は小さいと判断）。
 - 散歩中画面の「往復の目安」（探索結果のスナップショット）と「片道◯分」（実ルート値）が**異なる API 由来の数値**になる。前者は候補一覧との一貫性、後者は正確性を優先した結果で、両者が僅かにずれうる。
+- （SS-35 追補）サーバー由来データが Query キャッシュ外（`useWalkRouteRecalculation` の hook state）に1箇所生まれる。画面をアンマウントすると再計算結果は失われ、初期ルート表示に戻る（散歩中画面はタブ画面で通常アンマウントされないため実害は小さい）。
 
 ### 移行・対応が必要な事項
 
 - ~~**M5（SS-18〜SS-20）で散歩記録の保存を実装する際**、この ADR の「永続化しない」判断を見直す。~~ → **SS-19 で対応済み**。`WalkTrackState.points` / `elapsedSec` / `distanceMeters` は `buildFinishedWalk`（`lib/finishedWalk.ts`）で `FinishedWalk` にまとめ、`buildWalkCreateRequest` 経由で `POST /walks` に渡す形になった。persist ミドルウェアの追加は**見送り**と結論した（決定5）。
 - **フォローアップ課題（未着手）**: 「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」。着手時は決定5 を覆すことになるため、本 ADR の再追補が必要。
 - ~~**SS-20（履歴一覧・詳細）への申し送り**: `useWalkSave` の成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼んでいるため、履歴一覧・詳細の queryKey は `["walks", ...]` 始まりにすること。保存直後の履歴に新しい散歩が出ない不具合を防ぐ。詳細遷移には `useFinishedWalkStore.savedWalkId` を使える。~~ → **SS-20 で対応済み**。`features/history/hooks/useWalkHistory.ts` は `queryKey: ["walks","list",{limit}]`、`useWalkDetail.ts` は `["walks","detail",walkId]` で統一し、`useWalkSave` の `invalidateQueries({ queryKey: ["walks"] })` に載る。`WalkSummaryView` の「記録を見る」は `useFinishedWalkStore.savedWalkId` を使って `/walk-history/[walkId]` へ直行する。
-- **SS-33（往路と復路が異なる周回ルート）** では `WalkRoute` に往路/復路の区別（`legs` 等）が入る見込み。ルートを Query キャッシュで共有する構造自体は維持できるが、API 呼び出しが増える場合は `staleTime` / レート制限の再検討が必要。
+- **SS-33（往路と復路が異なる周回ルート）** では `WalkRoute` に往路/復路の区別（`legs` 等）が入る見込み。ルートを Query キャッシュで共有する構造自体は維持できるが、API 呼び出しが増える場合は `staleTime` / レート制限の再検討が必要。（SS-35 追補）その場合、決定7 の `walkRouteFitKey` と `isOffRoute` の判定対象（どの leg の折れ線を使うか）も見直しが必要になる。
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 
 ## 関連情報
@@ -193,4 +207,5 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）
+- （SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/components/WalkRouteNotice.tsx`
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）
