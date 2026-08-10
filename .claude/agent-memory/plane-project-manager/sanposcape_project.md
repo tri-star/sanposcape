@@ -222,3 +222,7 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 ## 2026-08-11追加: SS-35をIn Progressに更新（mobile側着手）
 
 - SS-35「mobile: 散歩開始後の現在地起点ルート再計算を追加」(work_item_id: `568ff048-400a-45d9-8c62-3a10b5c4afec`、M4所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-16・SS-17の後続タスク。start_date=2026-08-12, target_date=2026-08-14が既に設定済みだった。
+
+## 2026-08-11追加: SS-35をReview化・PR #28リンク登録
+
+- SS-35（work_item_id: `568ff048-400a-45d9-8c62-3a10b5c4afec`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #28（`https://github.com/tri-star/sanposcape/pull/28`、link_id: `6fe7e7f0-a363-48ac-b3b1-547f626127ab`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
