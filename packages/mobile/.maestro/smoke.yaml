@@ -11,8 +11,8 @@ tags:
 ---
 - launchApp:
     clearState: true
-- assertVisible:
-    id: "splash-screen"
+# スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照:
+# 表示窓が約900msしかなく、Maestroのポーリング間隔次第で見逃す構造的フレークになる）。
 # スプラッシュは最低 900ms 表示 + restoreSession() の通信を待つため extendedWaitUntil を使う
 # （subflows/sign-in.yaml と同じ待ち方針に揃える）。
 - extendedWaitUntil:

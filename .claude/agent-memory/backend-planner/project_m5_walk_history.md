@@ -17,4 +17,9 @@ M5 は SS-18(backend: Walk モデル・保存/履歴 API) → SS-19(mobile: 散�
 
 SS-16（提示ルート）の成果は backend に永続化されていない（`place_id` から都度 Routes API を叩く形）ため、履歴には目的地メタのみを非正規化保存する方針。
 
+**この M5 では「後続 issue の受け口だけ先行タスクで仕込む」運用が実際に行われている**（例: SS-44 の `MAPS_MODE` は、SS-21 の時点で `compose.yaml` / `.env.example` / `mobile-e2e.yml` に受け口とコメントが先に入っていた）。
+
+**Why:** E2E を止めないために、backend 実装より先に env の受け渡し経路だけ通しておく判断がされたため。
+**How to apply:** issue 本文が「◯◯を追加する」と書いていても、対象ファイルを開いて**既に存在しないか必ず確認する**。存在する場合の作業は「追加」ではなく「先行タスク時に書かれた TODO/暫定コメントの解消」になる（この陳腐化コメントの掃除もプランに入れる）。
+
 関連: [[project-auth-architecture-ss10]] / [[feedback-settled-design-and-api-conventions]]

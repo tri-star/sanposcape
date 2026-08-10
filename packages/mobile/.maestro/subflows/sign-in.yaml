@@ -5,8 +5,14 @@ appId: com.sanposcape.app
 ---
 - launchApp:
     clearState: true
-- assertVisible:
-    id: "splash-screen"
+# スプラッシュ（id: splash-screen）は意図的に assert しない。
+# clearState 後は復元すべきセッションが無く status がすぐ確定するため、表示窓は
+# SplashView の最低表示時間（約900ms）にほぼ等しい。Maestro のビューヒエラルキ取得は
+# 1回あたり数百ms〜数秒かかるので、この窓がポーリングの合間に丸ごと収まることがあり、
+# 「アプリが速いほど落ちる」構造的なフレークになる（CIで実際に発生し、失敗時の
+# スクリーンショットには既にサインイン画面が写っていた）。extendedWaitUntil で待ち時間を
+# 伸ばしても、消え去った要素は二度と現れないため原理的に解決しない。
+# 直下の sign-in-google-button の待機がアプリ起動と初回描画の成功を十分に保証する。
 # スプラッシュは最低 900ms 表示 + AuthGate（useAuthSessionBootstrap）が走らせる
 # restoreSession() の通信完了を待つため extendedWaitUntil を使う（SS-13以降、復元の実行主体は
 # スプラッシュ自身ではなくルートレイアウトの AuthGate）。

@@ -7,8 +7,8 @@ tags:
 ---
 - launchApp:
     clearState: true
-- assertVisible:
-    id: "splash-screen"
+# スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照:
+# 表示窓が約900msしかなく、Maestroのポーリング間隔次第で見逃す構造的フレークになる）。
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"
