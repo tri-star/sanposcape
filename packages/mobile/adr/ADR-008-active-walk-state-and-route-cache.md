@@ -103,7 +103,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 散歩中に現在地が表示中のルートから逸脱したら、現在地を起点に目的地までの徒歩ルートを引き直す（`src/features/walk/hooks/useWalkRouteRecalculation.ts`）。この再計算ルートは決定2 の Query キャッシュには載せない。
 
 - **理由**: 取得中・失敗時に直前のルートを表示し続ける必要がある。`useWalkRoute`（決定2）の入力（`origin`）を現在地に差し替えると queryKey が変わり、取得中・失敗時に `data` が `undefined` に落ちて直前のルートが画面から消える（受け入れ条件「ルート取得失敗時は直前の正常ルートと進行状態を維持する」に反する）。`placeholderData: keepPreviousData` は pending 中しか効かず、error 状態は救えない。
-- **古い応答の追い越し防止**のため、`AbortController` + 単調増加の `sequence` を hook 内で自前で持つ（`beginRecalculation` が新しい `sequence` を発行し、`applyRecalculationSuccess`/`applyRecalculationFailure` は一致しない `sequence` の応答を無視する）。連続操作・連続測位でも同時リクエストは1つに保たれ、古い応答が新しいルートを上書きしない。
+- **古い応答の追い越し防止**のため、`AbortController` + 単調増加の `sequence` を hook 内で自前で持つ（hook の `sequenceRef` が新しい `sequence` を採番して `beginRecalculation` に渡し、`applyRecalculationSuccess`/`applyRecalculationFailure` は一致しない `sequence` の応答を無視する）。**採番は散歩の切り替え時にも巻き戻さない** — `resetRecalculation` が state 側の `sequence` を 0 に戻すため、リセット前に飛んだリクエストは必ず不一致になって捨てられる。連続操作・連続測位でも同時リクエストは1つに保たれ、古い応答が新しいルートを上書きしない。
 - **呼び出し抑制**: 逸脱 80m（`ROUTE_DEVIATION_THRESHOLD_METERS`）× 連続2測位（`REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES`）+ 最小間隔60秒（`RECALCULATION_MIN_INTERVAL_MS`）+ 連続失敗2回（`MAX_CONSECUTIVE_AUTO_FAILURES`）で自動停止する。目的地から50m以内（`DESTINATION_NEAR_RADIUS_METERS`）では再計算しない。`/explore/*` の共有レート制限（既定30 req/60秒/ユーザー）に対し、1散歩あたり最大 1 req/分に収まる（手動再計算・再試行はこの抑制の対象外だが、ユーザー操作1回につき最大1リクエストのため実害は小さい）。
 - **例外の範囲を「同じ目的地へ現在地から引き直す1本のルート」に限定する**。`ActiveWalk.origin`（決定1）は書き換えない — 散歩の起点であり、`useWalkTracking.initialPosition` にも使われているため。
 - 判定ロジック（折れ線までの距離・状態遷移）は `src/features/walk/lib/routeDeviation.ts` / `src/features/walk/lib/routeRecalculation.ts` の純粋関数に置き、副作用（fetch・Abort・世代管理）は hook 側に閉じる（`docs/architecture-guideline.md` の単体テスト方針どおり）。
@@ -155,7 +155,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 ## 決定理由
 
 - **状態の性質で置き場所を分けるのが最も破綻しにくい**。「サーバー由来 = Query、クライアント状態 = Zustand」という既存方針をそのまま適用すると、選択肢2・3は自動的に外れる。ルートは backend が返すデータであり、`ActiveWalk` は端末側の「今の状況」である。
-- **API コストが設計を強く制約した**。`/explore/places` とレート制限バケットを共有する以上、ルートを1回しか引かない構造が必須だった。「2画面が同じ queryKey で呼ぶ」という形にすると、キャッシュ共有が**副作用ではなく設計の主目的**になり、意図が明示される。`origin` を丸めて固定するという規律もここから導かれる。
+- **API コストが設計を強く制約した**。`/explore/places` とレート制限バケットを共有する以上、ルートを1回しか引かない構造が必須だった（SS-35 の決定7 で「散歩中の逸脱時に引き直す」例外を足したが、そこでも抑制条件を重ねて1散歩あたり最大 1 req/分に収めている。制約自体は緩んでいない）。「2画面が同じ queryKey で呼ぶ」という形にすると、キャッシュ共有が**副作用ではなく設計の主目的**になり、意図が明示される。`origin` を丸めて固定するという規律もここから導かれる。
 - **選択肢4より feature スコープを選んだ**のは、横断化の必要が生じてから昇格させる方が、逆（先に横断に置いて後から降格）より安全なため。コンポーネントの昇格ルールと同じ判断基準で一貫させた。
 - **経過時間を実時刻から算出する**のは、`setInterval` のカウントアップだと画面の再マウント・端末スリープでずれるため。純粋関数に切り出せて Vitest でテストできる副次効果もある（RN のレンダリングテストが書けない制約下では重要）。
 

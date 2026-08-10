@@ -179,7 +179,8 @@ adb install -r e2e-build/app-preview.apk
 # 外部データに依存しないフローだけ（CI と同じ範囲）
 maestro test --exclude-tags=maps-required packages/mobile/.maestro/
 
-# MVP 主要フローだけ（backend が MAPS_MODE=fake か実キーで /explore/places に応答できる場合のみ）
+# 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー）
+# backend が MAPS_MODE=fake か実キーで /explore/places に応答できる場合のみ
 maestro test --include-tags=maps-required packages/mobile/.maestro/
 
 # 個別フローを名指しで実行（デバッグ時）

@@ -196,6 +196,12 @@ packages/mobile/
 
 - **サーバー状態（API由来）= TanStack Query**。取得・キャッシュ・再検証はすべて Query に任せ、`src/store/` に複製しない。
   - ドメインのデータ取得hookは `src/features/<feature>/hooks/`（例: `useWalkHistory`）に置き、内部で Orval生成物 + TanStack Query を使う。
+  - **例外が1つある**: `features/walk/hooks/useWalkRouteRecalculation.ts` は、散歩中の現在地起点ルートを
+    Query ではなく hook のローカル state に持つ。Query の入力（`origin`）を動かすと、取得中・失敗時に
+    `data` が `undefined` に落ちて**直前まで表示していたルートが画面から消える**ため（`keepPreviousData`
+    は pending 中しか効かず error 状態を救えない）。許容範囲は「同じ目的地へ現在地から引き直す1本の
+    ルート」に限定し、それ以外のサーバー状態を hook state に持ち出さない。背景は
+    [ADR-008 決定7](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
   - **更新系（mutation）も同じく `hooks/` に置く**（例: `features/walk/hooks/useWalkSave.ts` — `POST /walks`）。
     `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは
     「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる。
