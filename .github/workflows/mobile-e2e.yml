@@ -175,17 +175,21 @@ jobs:
           api-level: 34
           arch: x86_64
           # target 未指定時の既定 "default" は Google Play Services 非搭載の AOSP イメージで、
-          # react-native-maps が "won't run without Google Play services" のエラーバナーを表示し、
-          # そのぶんレイアウトが押し下げられて walk-start-duration-slider がアサート不可視になっていた
-          # （SS-44追補、KVM/cleartext 修正後に判明）。google_apis イメージに切り替えて解消する。
+          # react-native-maps が地図を描画できず "won't run without Google Play services" の
+          # エラーバナーに置き換わる。地図の描画自体が前提のアプリなので google_apis が必要。
+          #
+          # 訂正: 以前このコメントには「そのバナーでレイアウトが押し下げられて
+          # walk-start-duration-slider がアサート不可視になっていた」と書かれていたが、
+          # これは誤った原因特定だった。google_apis に切り替えた後の実行でも同じアサーションは
+          # 失敗し続けており、真因は下の profile（エミュレータの画面サイズ）だった。
           target: google_apis
           # profile 未指定時の既定AVDは 320x640dp（160dpi）と実機よりかなり小さく、
           # 散歩開始画面の walk-start-duration-slider が画面外に押し出されて
           # 「Assertion is false: id: walk-start-duration-slider is visible」で失敗していた
           # （デバッグ用スクリーンショットで「往復の時間」が最下端で見切れているのを確認）。
-          # pixel_6 は 411x914dp 相当で、実機に近い縦幅が得られる。
-          # 注: ソフトウェアGPU(swiftshader)で描画するピクセル数は増えるため、
-          #     描画が重くなる兆候が出たら profile の見直しを検討する。
+          # pixel_6 は 1080x2400 @420dpi = 411x914dp 相当で、実機に近い縦幅が得られる。
+          # ソフトウェアGPU(swiftshader)で描画するピクセル数は約12倍になるが、実測では
+          # ブート 48,985ms（既定AVD時 52,047ms）・6フロー完走 1m55s と悪化しなかった。
           profile: pixel_6
           # ランナーは 4 vCPU / 16GB。既定の cores: 2 に対し、エミュレータ側の余裕を増やす
           # （Maestro 本体のJVM用に1コア残す）。RAMも既定の自動割り当て(2560MB)から引き上げる。
