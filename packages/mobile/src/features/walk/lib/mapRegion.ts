@@ -6,8 +6,11 @@ import type { GeoCoordinates } from "@/services/location/types";
 /** 徒歩の平均速度（m/分）。往復時間から片道の到達半径を見積もる。 */
 export const WALKING_METERS_PER_MINUTE = 80;
 
-/** 緯度1度あたりのおおよその距離（m）。 */
-const METERS_PER_DEGREE_LATITUDE = 111_320;
+/**
+ * 緯度1度あたりのおおよその距離（m）。
+ * `routeDeviation.ts` の局所平面近似でも同じ換算を使うため export する（SS-35）。
+ */
+export const METERS_PER_DEGREE_LATITUDE = 111_320;
 
 /** 表示領域に持たせる余白係数（到達半径ぴったりだと窮屈になるため）。 */
 const REGION_PADDING_FACTOR = 1.6;
