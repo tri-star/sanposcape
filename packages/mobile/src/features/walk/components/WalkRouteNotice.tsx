@@ -85,10 +85,15 @@ export function WalkRouteNotice({
     const message = walkRouteErrorMessage(baseErrorCode ?? "unknown");
     const retriable = isRetriableExploreError(baseErrorCode ?? "unknown");
 
+    // a11y の構造は recalc_failed と揃える（エラー行だけを alert にし、ボタンはその外に置く）。
+    // SS-16 の移植元はコンテナ直下に並べていて role が無かったが、同じコンポーネント内で
+    // 分岐ごとにスクリーンリーダーの挙動が変わるのを避けるためこちらに合わせた。
     return (
-      <View testID={testID} style={[styles.container, styles.dangerBox, styles.row]}>
-        <Icon name="alert-circle" size={16} color={theme.colors.danger} />
-        <Text style={styles.dangerText}>{message}</Text>
+      <View testID={testID} style={[styles.container, styles.dangerBox]}>
+        <View style={styles.row} accessibilityRole="alert" accessibilityLabel={message}>
+          <Icon name="alert-circle" size={16} color={theme.colors.danger} />
+          <Text style={styles.dangerText}>{message}</Text>
+        </View>
         {retriable ? (
           <Button
             variant="secondary"
