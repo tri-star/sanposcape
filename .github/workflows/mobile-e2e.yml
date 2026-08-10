@@ -150,6 +150,40 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # AVD スナップショットのキャッシュ（android-emulator-runner 公式推奨パターン）。
+      # 既定の force-avd-creation: true + -no-snapshot は毎回コールドブートになり、
+      # 「ブート完了 → 約20秒後に Maestro 実行開始」という並びのため、google_apis イメージの
+      # Google Play Services 初回セットアップがバックグラウンドで走っている最中に
+      # アプリのコールドスタート（launchApp: clearState: true）を6フロー分繰り返すことになる。
+      # これが splash-screen アサーションの断続的な失敗（3/6 flows）の負荷要因だったため、
+      # 起動済みスナップショットから復帰させて競合を減らす。
+      # キャッシュキーには AVD 構成（api-level/target/arch/cores/ram）を含める。構成を変えたら
+      # 末尾の -v1 を上げてキャッシュを捨てること（古い config.ini が復元され設定が効かなくなるため）。
+      - name: AVD cache
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-google_apis-x86_64-c3-r4096-v1
+
+      # キャッシュミス時のみ AVD を作ってスナップショットを保存する。
+      # 実行ステップと違い -no-snapshot-save を付けない（＝終了時にスナップショットを保存する）。
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: false
+          cores: 3
+          ram-size: 4096M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
       - name: Run Maestro flows on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -160,6 +194,16 @@ jobs:
           # そのぶんレイアウトが押し下げられて walk-start-duration-slider がアサート不可視になっていた
           # （SS-44追補、KVM/cleartext 修正後に判明）。google_apis イメージに切り替えて解消する。
           target: google_apis
+          # 上の AVD cache ステップで復元/生成した AVD をそのまま使う（再作成しない）。
+          force-avd-creation: false
+          # ランナーは 4 vCPU / 16GB。既定の cores: 2 だとエミュレータ側の余裕が乏しく、
+          # アプリのコールドスタート（JSバンドルのロード〜初回描画）が伸びてアサーションが
+          # タイムアウトしやすい。Maestro 本体(JVM)の分を残して 3 コアに引き上げる。
+          # RAM も既定の自動割り当て(2560MB)から引き上げる。
+          cores: 3
+          ram-size: 4096M
+          # -no-snapshot-save: キャッシュしたスナップショットをテスト実行結果で上書きしない。
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # 外部データ（/explore/places の候補）に依存しないフロー。常時実行する。
