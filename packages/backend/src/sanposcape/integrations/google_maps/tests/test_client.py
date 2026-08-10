@@ -1,3 +1,6 @@
+import json
+import math
+
 import httpx
 import pytest
 
@@ -28,13 +31,22 @@ def test_search_normalizes_places_and_caches_successes() -> None:
             request.headers["x-goog-fieldmask"]
             == "places.id,places.displayName,places.location,places.types"
         )
+        assert json.loads(request.content) == {
+            "includedTypes": ["park"],
+            "languageCode": "ja",
+            "maxResultCount": 20,
+            "locationRestriction": {
+                "circle": {"center": {"latitude": 35, "longitude": 139}, "radius": 2000.0}
+            },
+            "regionCode": "JP",
+        }
         return httpx.Response(
             200,
             json={
                 "places": [
                     {
                         "id": "opaque",
-                        "displayName": {"text": "Park"},
+                        "displayName": {"text": "  芝公園  "},
                         "location": {"latitude": 35, "longitude": 139},
                         "types": ["park"],
                     }
@@ -47,8 +59,149 @@ def test_search_normalizes_places_and_caches_successes() -> None:
     first = provider.search_places(origin, ("park",), 20, timeout_seconds=2)
     second = provider.search_places(origin, ("park",), 20, timeout_seconds=2)
     assert first == second
+    assert first[0].name == "芝公園"
     assert first[0].category == "park"
     assert calls == 1
+
+
+def test_search_keeps_provider_language_fallback_name() -> None:
+    provider = _provider(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "places": [
+                    {
+                        "id": "opaque",
+                        "displayName": {"text": "Tokyo Station"},
+                        "location": {"latitude": 35, "longitude": 139},
+                        "types": ["train_station"],
+                    }
+                ]
+            },
+        )
+    )
+
+    places = provider.search_places(ProviderPoint(35, 139), ("station",), 20, timeout_seconds=2)
+
+    assert [place.name for place in places] == ["Tokyo Station"]
+
+
+@pytest.mark.parametrize(
+    "display_name",
+    [{"text": ""}, {"text": "   "}, {}, {"text": 123}, None],
+)
+def test_search_skips_only_candidates_without_usable_display_name(display_name: object) -> None:
+    provider = _provider(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "places": [
+                    {
+                        "id": "invalid-name",
+                        "displayName": display_name,
+                        "location": {"latitude": 35, "longitude": 139},
+                        "types": ["park"],
+                    },
+                    {
+                        "id": "valid-name",
+                        "displayName": {"text": "有効な公園"},
+                        "location": {"latitude": 35.1, "longitude": 139.1},
+                        "types": ["park"],
+                    },
+                ]
+            },
+        )
+    )
+
+    places = provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+    assert [place.id for place in places] == ["valid-name"]
+
+
+def test_search_returns_empty_tuple_when_all_candidates_have_unusable_display_names() -> None:
+    provider = _provider(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "places": [
+                    {
+                        "id": "empty-name",
+                        "displayName": {"text": " "},
+                        "location": {"latitude": 35, "longitude": 139},
+                        "types": ["park"],
+                    }
+                ]
+            },
+        )
+    )
+
+    assert provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2) == ()
+
+
+@pytest.mark.parametrize(
+    "place",
+    [
+        {
+            "displayName": {"text": "有効名"},
+            "location": {"latitude": 35, "longitude": 139},
+            "types": ["park"],
+        },
+        {
+            "id": "missing-location",
+            "displayName": {"text": "有効名"},
+            "types": ["park"],
+        },
+        {
+            "id": "invalid-coordinate",
+            "displayName": {"text": "有効名"},
+            "location": {"latitude": "not-a-number", "longitude": 139},
+            "types": ["park"],
+        },
+        {
+            "id": "invalid-types",
+            "displayName": {"text": "有効名"},
+            "location": {"latitude": 35, "longitude": 139},
+            "types": [{}],
+        },
+        {
+            "id": "out-of-range-latitude",
+            "displayName": {"text": "有効名"},
+            "location": {"latitude": 90.1, "longitude": 139},
+            "types": ["park"],
+        },
+        {
+            "id": "out-of-range-longitude",
+            "displayName": {"text": "有効名"},
+            "location": {"latitude": 35, "longitude": -180.1},
+            "types": ["park"],
+        },
+    ],
+)
+def test_search_keeps_non_name_place_structure_errors_unavailable(place: dict[str, object]) -> None:
+    provider = _provider(lambda request: httpx.Response(200, json={"places": [place]}))
+
+    with pytest.raises(GoogleMapsUnavailableError):
+        provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
+
+
+def test_search_normalizes_non_finite_coordinates_to_unavailable() -> None:
+    body = json.dumps(
+        {
+            "places": [
+                {
+                    "id": "nan-coordinate",
+                    "displayName": {"text": "有効名"},
+                    "location": {"latitude": math.nan, "longitude": 139},
+                    "types": ["park"],
+                }
+            ]
+        },
+        allow_nan=True,
+    )
+    provider = _provider(lambda request: httpx.Response(200, content=body))
+
+    with pytest.raises(GoogleMapsUnavailableError):
+        provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=2)
 
 
 def test_route_decodes_polyline() -> None:

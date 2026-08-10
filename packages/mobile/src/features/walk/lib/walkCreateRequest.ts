@@ -1,13 +1,16 @@
 import type { WalkCreate } from "@/api/generated/model";
 import { toTrackPayload } from "@/features/walk/lib/walkTrackPayload";
+import {
+  DESTINATION_NAME_MAX_LENGTH,
+  truncateUnicodeCodePoints,
+} from "@/features/walk/lib/unicodeText";
 import type { FinishedWalk } from "@/features/walk/types";
 
 /** backend の定数と同値（schemas.py）。 */
 export const MAX_WALK_DURATION_SECONDS = 86_400;
 /** backend の定数と同値（schemas.py）。 */
 export const MAX_DISTANCE_METERS = 200_000;
-/** backend の定数と同値（schemas.py）。 */
-export const DESTINATION_NAME_MAX_LENGTH = 256;
+export { DESTINATION_NAME_MAX_LENGTH } from "@/features/walk/lib/unicodeText";
 
 /** destination.name が空のときのフォールバック（`finishedWalk.ts` の表示用フォールバックと揃える）。 */
 const FALLBACK_DESTINATION_NAME = "目的地";
@@ -53,8 +56,8 @@ export function buildWalkCreateRequest(finished: FinishedWalk): WalkCreate | nul
     distance_meters: Math.min(finished.distanceMeters, MAX_DISTANCE_METERS),
     destination: {
       place_id: placeId,
-      name: (name.length === 0 ? FALLBACK_DESTINATION_NAME : name).slice(
-        0,
+      name: truncateUnicodeCodePoints(
+        name.length === 0 ? FALLBACK_DESTINATION_NAME : name,
         DESTINATION_NAME_MAX_LENGTH,
       ),
       // destination.location は /explore/places 由来で安定しているため丸めない（walkRouteRequest.ts と同じ判断）。

@@ -46,7 +46,13 @@ class PlaceSearchRequest(BaseModel):
 
 class PlaceCandidate(BaseModel):
     id: str
-    name: str
+    name: str = Field(
+        min_length=1,
+        description=(
+            "Japanese-preferred display name supplied by the provider; falls back to another "
+            "provider-available language when Japanese is unavailable."
+        ),
+    )
     category: ExploreCategory
     location: GeoPoint
     round_trip_duration_seconds: int = Field(ge=0)

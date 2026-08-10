@@ -19,6 +19,10 @@ export type CategoryMeta = {
 export type SpotCandidate = {
   /** Google の place id。SS-16 の /explore/routes/walking に渡す。 */
   id: string;
+  /**
+   * 日本語優先の表示名。日本語が無い場合は provider の別言語名、
+   * 値が空・不正なら「目的地」。trim 済みかつ最大256 Unicode code point。
+   */
   name: string;
   category: ExploreCategory;
   location: GeoCoordinates;

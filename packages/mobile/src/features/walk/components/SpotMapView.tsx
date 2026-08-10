@@ -95,6 +95,8 @@ export function SpotMapView({
               key={`${spot.id}:${selected}`}
               identifier={spot.id}
               coordinate={spot.location}
+              title={spot.name}
+              accessibilityLabel={spot.name}
               onPress={() => onSelectSpot(spot.id)}
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 1 }}

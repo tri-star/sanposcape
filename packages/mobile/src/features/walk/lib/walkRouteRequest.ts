@@ -1,10 +1,13 @@
 import type { WalkingRouteRequest } from "@/api/generated/model";
 import { roundCoordinate } from "@/features/walk/lib/placeSearchRequest";
+import {
+  DESTINATION_NAME_MAX_LENGTH,
+  truncateUnicodeCodePoints,
+} from "@/features/walk/lib/unicodeText";
 import type { WalkDestination } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** destination.name の上限（backend の max_length=256 に合わせる）。 */
-export const DESTINATION_NAME_MAX_LENGTH = 256;
+export { DESTINATION_NAME_MAX_LENGTH } from "@/features/walk/lib/unicodeText";
 
 /**
  * ルート取得リクエストを組み立てる。送信できない条件なら null を返す。
@@ -39,7 +42,10 @@ export function buildWalkingRouteRequest(input: {
         latitude: destination.location.latitude,
         longitude: destination.location.longitude,
       },
-      name: name.length === 0 ? undefined : name.slice(0, DESTINATION_NAME_MAX_LENGTH),
+      name:
+        name.length === 0
+          ? undefined
+          : truncateUnicodeCodePoints(name, DESTINATION_NAME_MAX_LENGTH),
     },
   };
 }

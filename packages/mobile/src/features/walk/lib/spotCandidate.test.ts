@@ -2,11 +2,43 @@ import { describe, expect, it } from "vitest";
 
 import type { PlaceCandidate } from "@/api/generated/model";
 import {
+  resolveSpotDisplayName,
   toRoundTripKm,
   toRoundTripMinutes,
   toSpotCandidate,
   toSpotCandidates,
 } from "@/features/walk/lib/spotCandidate";
+
+describe("resolveSpotDisplayName", () => {
+  it("日本語名の前後空白を除去する", () => {
+    expect(resolveSpotDisplayName("  緑町公園  ")).toBe("緑町公園");
+  });
+
+  it("日本語名がない場合の別言語名を維持する", () => {
+    expect(resolveSpotDisplayName("Tokyo Station")).toBe("Tokyo Station");
+  });
+
+  it.each([undefined, null, 42, "   "])(
+    "空または不正な値を目的地へフォールバックする: %j",
+    (value) => {
+      expect(resolveSpotDisplayName(value)).toBe("目的地");
+    },
+  );
+
+  it("256 Unicode code point に切り詰め、絵文字を分断しない", () => {
+    const result = resolveSpotDisplayName("😀".repeat(257));
+
+    expect(Array.from(result)).toHaveLength(256);
+    expect(result).toBe("😀".repeat(256));
+  });
+
+  it("極端に長い入力でも先頭256 Unicode code point だけを返す", () => {
+    const result = resolveSpotDisplayName("😀".repeat(100_000));
+
+    expect(Array.from(result)).toHaveLength(256);
+    expect(result).toBe("😀".repeat(256));
+  });
+});
 
 describe("toRoundTripMinutes", () => {
   it("90秒 → 2分", () => {
@@ -59,6 +91,10 @@ describe("toSpotCandidate", () => {
       roundTripMinutes: 20,
       roundTripKm: 1.6,
     });
+  });
+
+  it("空白のみの名前を目的地へフォールバックする", () => {
+    expect(toSpotCandidate({ ...CANDIDATE, name: "  " }).name).toBe("目的地");
   });
 });
 

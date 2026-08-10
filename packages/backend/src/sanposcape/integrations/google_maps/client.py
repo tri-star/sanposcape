@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from typing import Any
 
 import httpx
@@ -98,8 +99,10 @@ class HttpGoogleMapsProvider:
             return cached
         payload = {
             "includedTypes": [_CATEGORY_TYPES[category] for category in categories],
+            "languageCode": "ja",
             "maxResultCount": limit,
             "locationRestriction": {"circle": {"center": self._lat_lng(origin), "radius": 2000.0}},
+            "regionCode": "JP",
         }
         response = self._request(
             "POST",
@@ -110,9 +113,14 @@ class HttpGoogleMapsProvider:
             },
             timeout_seconds=timeout_seconds,
         )
-        places = tuple(self._parse_place(place, categories) for place in response.get("places", []))
-        self._places_cache.put(key, places)
-        return places
+        places: list[ProviderPlace] = []
+        for place in response.get("places", []):
+            parsed_place = self._parse_place(place, categories)
+            if parsed_place is not None:
+                places.append(parsed_place)
+        result = tuple(places)
+        self._places_cache.put(key, result)
+        return result
 
     def get_walking_route(
         self, origin: ProviderPoint, destination: ProviderPoint, *, timeout_seconds: float
@@ -240,27 +248,50 @@ class HttpGoogleMapsProvider:
             raise GoogleMapsUnavailableError() from exc
 
     @staticmethod
-    def _parse_place(place: object, requested_categories: tuple[str, ...]) -> ProviderPlace:
+    def _parse_place(place: object, requested_categories: tuple[str, ...]) -> ProviderPlace | None:
         if not isinstance(place, dict):
             raise GoogleMapsUnavailableError()
         location = place.get("location")
-        name = place.get("displayName")
-        if not isinstance(location, dict) or not isinstance(name, dict):
+        if not isinstance(location, dict):
             raise GoogleMapsUnavailableError()
-        types = set(place.get("types", []))
+        raw_types = place.get("types", [])
+        if not isinstance(raw_types, list) or not all(isinstance(item, str) for item in raw_types):
+            raise GoogleMapsUnavailableError()
+        types = set(raw_types)
         category = next(
             (item for item in requested_categories if _CATEGORY_TYPES[item] in types),
             requested_categories[0],
         )
         try:
-            return ProviderPlace(
-                id=str(place["id"]),
-                name=str(name["text"]),
-                category=category,
-                location=ProviderPoint(float(location["latitude"]), float(location["longitude"])),
-            )
+            place_id = str(place["id"])
+            latitude = float(location["latitude"])
+            longitude = float(location["longitude"])
         except (KeyError, TypeError, ValueError) as exc:
             raise GoogleMapsUnavailableError() from exc
+        if (
+            not math.isfinite(latitude)
+            or not math.isfinite(longitude)
+            or not -90 <= latitude <= 90
+            or not -180 <= longitude <= 180
+        ):
+            raise GoogleMapsUnavailableError()
+        point = ProviderPoint(latitude, longitude)
+
+        display_name = place.get("displayName")
+        if not isinstance(display_name, dict):
+            return None
+        name = display_name.get("text")
+        if not isinstance(name, str):
+            return None
+        normalized_name = name.strip()
+        if not normalized_name:
+            return None
+        return ProviderPlace(
+            id=place_id,
+            name=normalized_name,
+            category=category,
+            location=point,
+        )
 
     @staticmethod
     def _decode_polyline(encoded: str) -> list[ProviderPoint]:

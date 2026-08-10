@@ -4,6 +4,7 @@ import {
   DESTINATION_NAME_MAX_LENGTH,
   buildWalkingRouteRequest,
 } from "@/features/walk/lib/walkRouteRequest";
+import { resolveSpotDisplayName } from "@/features/walk/lib/spotCandidate";
 import type { WalkDestination } from "@/features/walk/types";
 
 const ORIGIN = { latitude: 35.68123456, longitude: 139.76712345 };
@@ -63,6 +64,26 @@ describe("buildWalkingRouteRequest", () => {
       destination: { ...DESTINATION, name: longName },
     });
     expect(result?.destination.name).toHaveLength(DESTINATION_NAME_MAX_LENGTH);
+  });
+
+  it("絵文字を含む長い候補名は表示名と同じ256 Unicode code pointで送信する", () => {
+    const name = "😀".repeat(257);
+    const result = buildWalkingRouteRequest({
+      origin: ORIGIN,
+      destination: { ...DESTINATION, name },
+    });
+
+    expect(result?.destination.name).toBe(resolveSpotDisplayName(name));
+    expect(Array.from(result?.destination.name ?? "")).toHaveLength(DESTINATION_NAME_MAX_LENGTH);
+  });
+
+  it("極端に長い入力でも先頭256 Unicode code pointだけを送信する", () => {
+    const result = buildWalkingRouteRequest({
+      origin: ORIGIN,
+      destination: { ...DESTINATION, name: "😀".repeat(100_000) },
+    });
+
+    expect(result?.destination.name).toBe("😀".repeat(DESTINATION_NAME_MAX_LENGTH));
   });
 
   it("同じ入力から同値のオブジェクトが返る（queryKey とキャッシュの安定性）", () => {
