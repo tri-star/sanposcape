@@ -7,12 +7,8 @@ tags:
 ---
 - launchApp:
     clearState: true
-# 初回描画までの待ちは subflows/sign-in.yaml と同じ理由で extendedWaitUntil にする
-# （launchApp はJSの初回描画完了を保証せず、CIでは assertVisible の既定7秒を超え得る）。
-- extendedWaitUntil:
-    visible:
-      id: "splash-screen"
-    timeout: 15000
+# スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照:
+# 表示窓が約900msしかなく、Maestroのポーリング間隔次第で見逃す構造的フレークになる）。
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"
