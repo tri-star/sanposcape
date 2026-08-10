@@ -1,0 +1,30 @@
+# 散歩中の「ルートを再計算」導線が画面を壊さないことだけを見るフロー（SS-35）。
+#
+# 前提: preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）。
+#       スポット候補に依存するため maps-required（CI では --exclude-tags=maps-required で除外）。
+# assert しないもの: 再計算の成功可否・ルートの形・所要時間/距離の値
+#   （CI では /explore/* が 503 になりうるため。ADR-004）。
+appId: com.sanposcape.app
+tags:
+  - maps-required
+---
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/start-walk-from-spot.yaml
+- assertVisible:
+    id: "walk-active-route-recalc"
+- tapOn:
+    id: "walk-active-route-recalc"
+# 成否にかかわらず散歩中画面が生き続けること（既存ルート・進行状態が壊れない）。
+- assertVisible:
+    id: "walk-stats-panel"
+- assertVisible:
+    id: "walk-active-map"
+# 後始末: 散歩を終了して次のフローに状態を持ち越さない。
+- tapOn:
+    id: "walk-active-end"
+- tapOn:
+    id: "walk-end-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-screen"
+    timeout: 15000
