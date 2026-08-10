@@ -1,5 +1,8 @@
-/** 曜日の日本語表記（`Date.getDay()` の 0=日曜 始まりと対応）。 */
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
+/**
+ * 曜日の日本語表記（`Date.getDay()` の 0=日曜 始まりと対応）。
+ * `periodChartLabel.ts`（週バケットの曜日ラベル生成）とも共有するため export する。
+ */
+export const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
 function pad2(value: number): string {
   return String(value).padStart(2, "0");

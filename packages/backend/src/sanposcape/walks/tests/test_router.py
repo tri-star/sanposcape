@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 
 from sanposcape.auth.tokens import create_access_token
 from sanposcape.config import Settings
+from sanposcape.main import app
+from sanposcape.users.models import User
 from sanposcape.walks.schemas import MAX_TRACK_POINTS
-from sanposcape.walks.tests.conftest import make_user
+from sanposcape.walks.tests.conftest import STATS_ANCHOR_JST, make_user, seed_walk
 
 
 def _iso(dt: datetime) -> str:
@@ -289,3 +291,67 @@ class TestGetWalk:
         )
 
         assert response.status_code == 404
+
+
+class TestGetWalkStats:
+    def test_t1_returns_200_not_swallowed_by_walk_id_route(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """回帰テスト: `/stats` が `/{walk_id}` の UUID 検証に落ちて 422 にならないこと
+        （router.py の宣言順に依存する。詳細は router.py のコメント参照）。"""
+        response = walks_client.get("/walks/stats", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+
+    def test_t2_openapi_contract(self) -> None:
+        operation = app.openapi()["paths"]["/walks/stats"]["get"]
+
+        assert operation["operationId"] == "get_walk_stats_walks_stats_get"
+        assert operation["security"] == [{"HTTPBearer": []}]
+        assert "401" in operation["responses"]
+
+    def test_t3_missing_authorization_returns_401(self, walks_client: TestClient) -> None:
+        response = walks_client.get("/walks/stats")
+
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == "Bearer"
+
+    def test_t4_response_shape(
+        self,
+        frozen_stats_client: TestClient,
+        auth_headers: dict[str, str],
+        db_session: Session,
+        authenticated_user: User,
+    ) -> None:
+        seed_walk(db_session, user_id=authenticated_user.id, started_at=STATS_ANCHOR_JST)
+
+        response = frozen_stats_client.get("/walks/stats", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert len(body["week"]["buckets"]) == 7
+        assert len(body["month"]["buckets"]) == 4
+        assert body["timezone"] == "Asia/Tokyo"
+        assert body["today"]["date"] == "2026-03-15"
+        assert isinstance(body["streak_days"], int)
+
+    def test_t5_only_returns_own_data(
+        self,
+        frozen_stats_client: TestClient,
+        auth_headers: dict[str, str],
+        db_session: Session,
+    ) -> None:
+        other_user = make_user(db_session, subject="other-stats-user")
+        seed_walk(db_session, user_id=other_user.id, started_at=STATS_ANCHOR_JST)
+
+        response = frozen_stats_client.get("/walks/stats", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["today"]["walk_count"] == 0
+
+    def test_t6_no_walks_still_returns_200(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = walks_client.get("/walks/stats", headers=auth_headers)
+
+        assert response.status_code == 200, response.text

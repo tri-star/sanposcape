@@ -6,7 +6,8 @@
 #     （MAPS_MODE=fake もしくは実の GOOGLE_MAPS_SERVER_API_KEY）
 #   → 候補に依存するため `maps-required` タグを付ける。CI は当面 --exclude-tags=maps-required で除外する。
 #
-# assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数。
+# assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数・
+# 記録タブの集計値。
 appId: com.sanposcape.app
 tags:
   - mvp
@@ -70,6 +71,18 @@ tags:
     id: "app-tab-history"
 - assertVisible:
     id: "history-screen"
+# 集計（GET /walks/stats）のロード完了を待つ。値は assert しない（同一 CI ラン内で
+# 他フローの記録が残るため、日数・距離・歩数は不定）。
+- extendedWaitUntil:
+    notVisible:
+      id: "history-stats-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "history-stats-error"
+- assertVisible:
+    id: "history-period-chart"
+- assertVisible:
+    id: "history-step-goal-card"
 - extendedWaitUntil:
     notVisible:
       id: "recent-walks-loading"

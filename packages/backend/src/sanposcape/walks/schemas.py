@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
@@ -83,3 +83,45 @@ class WalkDetailRead(WalkRead):
 class WalkListRead(BaseModel):
     items: list[WalkRead]
     next_cursor: str | None
+
+
+class WalkStatsBucketRead(BaseModel):
+    """週/月チャートの1バケット（JST 暦日、両端含む）。"""
+
+    start_date: date
+    end_date: date
+    walk_count: int
+    duration_seconds: int
+    distance_meters: int
+    is_current: bool  # 「今日」を含むバケットか（ハイライト用）
+
+
+class WalkStatsPeriodRead(BaseModel):
+    """週 or 月の集計期間（ローリング）。"""
+
+    start_date: date
+    end_date: date
+    total_walk_count: int
+    total_duration_seconds: int
+    total_distance_meters: int
+    buckets: list[WalkStatsBucketRead]
+
+
+class WalkStatsTodayRead(BaseModel):
+    """今日（JST 暦日）の集計。"""
+
+    date: date
+    walk_count: int
+    duration_seconds: int
+    distance_meters: int
+
+
+class WalkStatsRead(BaseModel):
+    """`GET /walks/stats` のレスポンス。集計境界はすべて JST（Asia/Tokyo）固定。"""
+
+    timezone: str  # 集計に使ったタイムゾーン（現状は常に "Asia/Tokyo"）
+    generated_at: AwareDatetime  # 集計基準時刻（UTC）
+    today: WalkStatsTodayRead
+    streak_days: int
+    week: WalkStatsPeriodRead
+    month: WalkStatsPeriodRead

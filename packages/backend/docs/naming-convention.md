@@ -50,6 +50,12 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `dev_router.py` | `AUTH_MODE=dev` 限定エンドポイントの `APIRouter`。本番相当の `router.py` と分離し、`include_in_schema=False` の制御をここに閉じ込める |
 | `providers/` | IdP（Google 等）ごとの ID token 検証実装を隔離するサブパッケージ。プロバイダ追加時はここに1ファイル足すだけで済む |
 
+`walks/` ドメインでは以下を追加している。
+
+| ファイル | 役割 |
+|---|---|
+| `stats.py` | 集計（`GET /walks/stats`）で使う日付ロジックと定数。DB / Pydantic に依存しない純粋関数だけを置き、現在時刻は必ず引数で受け取る |
+
 ## FastAPI / API 関連
 
 - `APIRouter` のインスタンス変数名は `router` に統一する。
@@ -57,9 +63,13 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
   router = APIRouter(prefix="/walks", tags=["walks"])
   ```
 - URL パスの単語区切りには **ハイフン（kebab-case）を使い、アンダースコア（snake_case）は使わない**。RESTのリソース名は**複数形・小文字**にする。
-  - 例: `/walks`, `/walks/{walk_id}`, `/spots`, `/auth/dev-session`（`AUTH_MODE=dev` 限定エンドポイント）
+  - 例: `/walks`, `/walks/{walk_id}`, `/walks/stats`, `/spots`, `/auth/dev-session`（`AUTH_MODE=dev` 限定エンドポイント）
+  - コレクション配下に固定セグメントのサブリソースを足すときは、**必ず `/{id}` より前に宣言する**
+    （例: `/walks/stats` は `/walks/{walk_id}` より前）。FastAPI は宣言順にマッチするため、後ろに
+    置くと `stats` が `walk_id: UUID` のバリデーションに落ちて 422 になる。宣言順が壊れたことに
+    気付けるよう、回帰テスト（そのパスが 200 を返すこと）もあわせて置く。
 - パスパラメータ名は snake_case（`{walk_id}`）。
-- エンドポイント関数名は操作を表す snake_case（`create_walk`, `list_walks`, `get_walk`, `delete_walk`）。
+- エンドポイント関数名は操作を表す snake_case（`create_walk`, `list_walks`, `get_walk`, `get_walk_stats`, `delete_walk`）。
 
 ## Pydantic スキーマの接尾辞
 

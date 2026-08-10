@@ -259,6 +259,10 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 - **SS-20 以降、記録タブの「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）は
   backend の `GET /walks` / `GET /walks/{walk_id}` に依存する**ため、静的スタブでの確認はできない。
   backend 未起動、または未認証（401）の場合はエラー文言 + 再試行導線（一覧・詳細とも）になる。
+- **SS-42 以降、記録タブ上部の集計（週/月チャート・合計距離・連続日数・今日の推定歩数）は
+  backend の `GET /walks/stats` に依存する**。backend 未起動・未認証（401）の場合は集計セクション
+  だけがエラーカード（`history-stats-error`）+ 再試行導線になり、「最近の散歩」セクションは
+  別クエリのため独立して表示される。目標歩数（8,000）と記録タブのユーザー名は引き続き静的スタブ。
 - 同じ画面は現在地の取得も行う。エミュレータで位置が取れない場合は
   `adb shell` 経由の `adb emu geo fix <経度> <緯度>` で位置を与えるか、`.env` の
   `EXPO_PUBLIC_LOCATION_MODE=mock`（東京駅固定）で起動する。

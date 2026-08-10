@@ -26,3 +26,8 @@ type: project
   （`test_openapi_output_is_identical_regardless_of_auth_mode` 等）。
 - pytestは `--import-mode=importlib` 設定済みなので同名 `test_*.py` の衝突は
   ドメイン間で起きない。
+- クロック注入パターン（`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
+  service の `__init__` に生やし、`dependencies.py` 側は既定値のまま渡さない）は
+  `auth/service.py::AuthService` が最初の前例、`walks/service.py::WalkService`
+  （SS-42、`GET /walks/stats` の「今日」判定用）が2例目。新しいドメインで「現在時刻
+  に依存する service」が出てきたら、独自の仕組みを作らずこの形に合わせる。

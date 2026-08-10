@@ -16,8 +16,8 @@ export type PeriodChartProps = {
   period: Period;
   onChangePeriod: (period: Period) => void;
   /**
-   * `buildPeriodChart(period)` の算出済み結果。呼び出し側（`HistoryView`）と二重計算にならないよう、
-   * ここでは受け取るだけで再計算しない（単一情報源化）。
+   * `buildPeriodChart(period, stats)` の算出済み結果。呼び出し側（`HistoryView`）と
+   * 二重計算にならないよう、ここでは受け取るだけで再計算しない（単一情報源化）。
    */
   chart: PeriodChartResult;
 };
@@ -51,7 +51,7 @@ export function PeriodChart({ period, onChangePeriod, chart }: PeriodChartProps)
                 : theme.palette.blue300;
             const labelColor = bar.highlight ? theme.colors.primary : theme.colors.textTertiary;
             return (
-              <View key={bar.label} style={styles.barColumn}>
+              <View key={bar.key} style={styles.barColumn}>
                 <Text style={styles.barValue}>{bar.value}</Text>
                 <View style={styles.barTrack}>
                   <View

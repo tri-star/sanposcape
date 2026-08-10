@@ -10,3 +10,5 @@
 - [feedback-commit-splitting](feedback_commit_splitting.md) — 同一ファイルへの複数レビュー指摘は`git add -p`でhunk単位にコミット分割する
 - [reference-stray-claude-dir](reference_stray_claude_dir.md) — エージェントメモリがpackages配下に誤生成される既知のバグ。正しい置き場所は常にリポジトリルート
 - [ruff-cache-root-owned-permission-denied](feedback_ruff_cache_root_owned.md) — `.ruff_cache`/`.pytest_cache`がroot/nobody所有になりapp_userから書けない時は`docker compose exec -u root api sh -c 'chown -R app_user:app_user ...'`で復旧
+- [project-ss42-walks-stats-backend-complete](project_ss42_walks_stats_backend_complete.md) — SS-42 backend（GET /walks/stats: 週/月集計・連続日数）は実装完了。次はmobile側実装
+- [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
