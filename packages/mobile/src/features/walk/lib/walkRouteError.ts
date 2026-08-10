@@ -18,3 +18,11 @@ const MESSAGES: Record<ExploreErrorCode, string> = {
 export function walkRouteErrorMessage(code: ExploreErrorCode): string {
   return MESSAGES[code];
 }
+
+/**
+ * 再計算失敗時の文言。「既存のルート表示は維持されている」ことが伝わるよう、
+ * 更新に失敗した旨を先頭に置き、原因は既存の walkRouteErrorMessage を再利用する。
+ */
+export function walkRouteRecalcErrorMessage(code: ExploreErrorCode): string {
+  return `現在地からのルートに更新できませんでした。${walkRouteErrorMessage(code)}`;
+}
