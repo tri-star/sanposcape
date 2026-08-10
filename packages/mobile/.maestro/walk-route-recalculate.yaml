@@ -1,9 +1,10 @@
 # 散歩中の「ルートを再計算」導線が画面を壊さないことだけを見るフロー（SS-35）。
 #
 # 前提: preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）。
-#       スポット候補に依存するため maps-required（CI では --exclude-tags=maps-required で除外）。
+#       スポット候補に依存するため maps-required（CI は MAPS_MODE=fake で前提を満たすため
+#       絞り込まずに実行する。SS-54）。
 # assert しないもの: 再計算の成功可否・ルートの形・所要時間/距離の値
-#   （CI では /explore/* が 503 になりうるため。ADR-004）。
+#   （再計算は現在地起点で /explore/routes を引き直すため、環境によって結果が変わりうる。ADR-004）。
 appId: com.sanposcape.app
 tags:
   - maps-required
