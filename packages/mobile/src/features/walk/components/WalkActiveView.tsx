@@ -12,11 +12,10 @@ import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { LocationPermissionNotice } from "@/features/walk/components/LocationPermissionNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
 import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
+import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
-import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
 import { toOneWayMinutes } from "@/features/walk/lib/walkRoute";
-import { walkRouteErrorMessage } from "@/features/walk/lib/walkRouteError";
 import { useToast } from "@/hooks/useToast";
 import { formatClock } from "@/lib/formatClock";
 import { toKilometers } from "@/lib/units";
@@ -87,7 +86,7 @@ export function WalkActiveView() {
           <Text style={styles.goalName}>ゴール：{activeWalk.destination.name}</Text>
           {oneWayMinutes !== null && oneWayKm !== null ? (
             <Text style={styles.oneWay}>
-              片道 {oneWayMinutes}分・{oneWayKm}km
+              {walk.isRouteRecalculated ? "ここから" : "片道"} {oneWayMinutes}分・{oneWayKm}km
             </Text>
           ) : null}
         </View>
@@ -116,27 +115,25 @@ export function WalkActiveView() {
             testID="walk-active-recenter"
             onPress={() => setRecenterNonce((n) => n + 1)}
           />
+          <IconButton
+            icon="navigation"
+            label="ルートを再計算"
+            variant="surface"
+            size="sm"
+            testID="walk-active-route-recalc"
+            disabled={!walk.canRecalculateRoute || walk.routeRecalcStatus === "recalculating"}
+            onPress={walk.recalculateRoute}
+          />
         </View>
       </WalkRouteMapView>
 
-      {walk.walkRouteErrorCode !== null ? (
-        <View style={styles.routeNotice}>
-          <Icon name="alert-circle" size={16} color={theme.colors.danger} />
-          <Text style={styles.routeNoticeText}>
-            {walkRouteErrorMessage(walk.walkRouteErrorCode)}
-          </Text>
-          {isRetriableExploreError(walk.walkRouteErrorCode) ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={walk.retryWalkRoute}
-              testID="walk-active-route-retry"
-            >
-              再試行
-            </Button>
-          ) : null}
-        </View>
-      ) : null}
+      <WalkRouteNotice
+        kind={walk.routeNoticeKind}
+        baseErrorCode={walk.walkRouteErrorCode}
+        recalcErrorCode={walk.routeRecalcErrorCode}
+        onRetryBaseRoute={walk.retryWalkRoute}
+        onRetryRecalculation={walk.recalculateRoute}
+      />
 
       {walk.trackingErrorCode !== null ? (
         <LocationPermissionNotice
@@ -253,21 +250,6 @@ const useStyles = makeStyles((theme) => ({
     right: theme.spacing[3],
     top: theme.spacing[3],
     gap: theme.spacing[2],
-  },
-  routeNotice: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    marginHorizontal: theme.spacing[3],
-    marginTop: theme.spacing[2],
-    padding: theme.spacing[3],
-    backgroundColor: theme.colors.dangerTint,
-    borderRadius: theme.radius.md,
-  },
-  routeNoticeText: {
-    flex: 1,
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textPrimary,
   },
   statsWrap: {
     margin: theme.spacing[3],
