@@ -1,24 +1,36 @@
 import { useCallback, useState } from "react";
 
 import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
+import { useWalkRouteRecalculation } from "@/features/walk/hooks/useWalkRouteRecalculation";
 import { useWalkSession } from "@/features/walk/hooks/useWalkSession";
 import { useWalkTracking } from "@/features/walk/hooks/useWalkTracking";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { buildFinishedWalk } from "@/features/walk/lib/finishedWalk";
+import { walkRouteNoticeKind } from "@/features/walk/lib/walkRouteNotice";
+import type { WalkRouteNoticeKind } from "@/features/walk/lib/walkRouteNotice";
 import { estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
 import type { WalkTrackingStatus } from "@/features/walk/lib/walkTrackingStatus";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
-import type { ActiveWalk, WalkRoute } from "@/features/walk/types";
+import type { ActiveWalk, WalkRoute, WalkRouteRecalcStatus } from "@/features/walk/types";
 import type { GeoCoordinates, LocationErrorCode } from "@/services/location/types";
 
 export type UseActiveWalkResult = {
   activeWalk: ActiveWalk | null;
 
+  /** 表示すべき実効ルート（再計算成功後は現在地起点の新ルート）。 */
   walkRoute: WalkRoute | null;
+  /** 実効ルートが再計算由来か（ヘッダーの表記を「片道」→「ここから」に切り替える）。 */
+  isRouteRecalculated: boolean;
   isLoadingWalkRoute: boolean;
   walkRouteErrorCode: ExploreErrorCode | null;
   retryWalkRoute: () => void;
+  routeRecalcStatus: WalkRouteRecalcStatus;
+  routeRecalcErrorCode: ExploreErrorCode | null;
+  canRecalculateRoute: boolean;
+  recalculateRoute: () => void;
+  /** どの通知を出すか（純粋関数の結果）。 */
+  routeNoticeKind: WalkRouteNoticeKind;
 
   elapsedSec: number;
   paused: boolean;
@@ -71,6 +83,15 @@ export function useActiveWalk(): UseActiveWalkResult {
   });
   const retryTracking = useCallback(() => setTrackingAttempt((n) => n + 1), []);
 
+  // tracking（useWalkTracking）と session（useWalkSession）より後に置く必要がある
+  // （現在地・一時停止状態が確定してから合成するため）。
+  const recalc = useWalkRouteRecalculation({
+    activeWalk,
+    baseRoute: route.walkRoute,
+    currentPosition: tracking.currentPosition,
+    paused: session.paused,
+  });
+
   const steps = estimateStepsFromMeters(tracking.distanceMeters);
 
   // elapsedSec/distanceMeters/points は毎秒変わるため useCallback で固定しない
@@ -92,10 +113,21 @@ export function useActiveWalk(): UseActiveWalkResult {
   return {
     activeWalk,
 
-    walkRoute: route.walkRoute,
+    walkRoute: recalc.route,
+    isRouteRecalculated: recalc.isRecalculated,
     isLoadingWalkRoute: route.isLoading,
     walkRouteErrorCode: route.errorCode,
     retryWalkRoute: route.retry,
+    routeRecalcStatus: recalc.status,
+    routeRecalcErrorCode: recalc.errorCode,
+    canRecalculateRoute: recalc.canRecalculate,
+    recalculateRoute: recalc.recalculate,
+    routeNoticeKind: walkRouteNoticeKind({
+      hasRoute: recalc.route !== null,
+      baseErrorCode: route.errorCode,
+      recalcStatus: recalc.status,
+      canRecalculate: recalc.canRecalculate,
+    }),
 
     elapsedSec: session.elapsedSec,
     paused: session.paused,
