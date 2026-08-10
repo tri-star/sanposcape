@@ -5,8 +5,14 @@ appId: com.sanposcape.app
 ---
 - launchApp:
     clearState: true
-- assertVisible:
-    id: "splash-screen"
+# launchApp は Android が「アプリを起動した」と報告した時点で返るだけで、JSバンドルのロード〜
+# 初回描画の完了は保証しない。CI のエミュレータ（ソフトウェアGPU）では、この初回描画が
+# assertVisible の既定タイムアウト(7秒)を超えることがあり、フローが断続的に落ちていた。
+# 他の待機箇所と同じく extendedWaitUntil で明示的に余裕を持たせる。
+- extendedWaitUntil:
+    visible:
+      id: "splash-screen"
+    timeout: 15000
 # スプラッシュは最低 900ms 表示 + AuthGate（useAuthSessionBootstrap）が走らせる
 # restoreSession() の通信完了を待つため extendedWaitUntil を使う（SS-13以降、復元の実行主体は
 # スプラッシュ自身ではなくルートレイアウトの AuthGate）。
