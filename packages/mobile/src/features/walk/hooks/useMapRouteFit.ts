@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type MapView from "react-native-maps";
 
 import { regionForBounds } from "@/features/walk/lib/mapRegion";
+import { walkRouteFitKey } from "@/features/walk/lib/walkRoute";
 import type { WalkRoute } from "@/features/walk/types";
 
 /**
@@ -17,9 +18,9 @@ import type { WalkRoute } from "@/features/walk/types";
  * - `WalkRouteMapView` の「現在地への再センタリング」（`recenterNonce` 起点で
  *   `regionForRoundTrip(currentPosition, ...)` を呼ぶ別系統の effect）。
  *
- * 依存は `walkRoute?.destination.placeId` のみ（ルートオブジェクトの参照ではなく
- * 「別ルートに変わったか」だけを見る。duration/distance 等の再取得で walkRoute の参照が
- * 変わっても再フィットしない）。
+ * 依存は `walkRouteFitKey`（placeId + origin）。SS-35 の再計算では目的地が同じまま起点だけが
+ * 変わるため、placeId だけを見ていると新ルートに地図がフィットしない（`SpotMapView` は起点が
+ * 固定なのでキーは実質変わらず、挙動は従来どおり）。
  */
 export function useMapRouteFit(
   mapRef: RefObject<MapView | null>,
@@ -29,6 +30,6 @@ export function useMapRouteFit(
   useEffect(() => {
     if (!walkRoute) return;
     mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), animationDurationMs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく placeId の変化だけを見る
-  }, [walkRoute?.destination.placeId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく walkRouteFitKey（placeId+origin）の変化だけを見る
+  }, [walkRouteFitKey(walkRoute)]);
 }

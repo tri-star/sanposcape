@@ -5,7 +5,9 @@ import {
   estimateRoundTripMinutes,
   toOneWayMinutes,
   toWalkRoute,
+  walkRouteFitKey,
 } from "@/features/walk/lib/walkRoute";
+import type { WalkRoute } from "@/features/walk/types";
 
 const RESPONSE: WalkingRouteResponse = {
   origin: { latitude: 35.6812, longitude: 139.7671 },
@@ -188,5 +190,26 @@ describe("toOneWayMinutes", () => {
 describe("estimateRoundTripMinutes", () => {
   it("1200秒(片道) → 往復40分（片道×2）", () => {
     expect(estimateRoundTripMinutes(1200)).toBe(40);
+  });
+});
+
+describe("walkRouteFitKey", () => {
+  const BASE_ROUTE: WalkRoute = toWalkRoute(RESPONSE);
+
+  it("null なら null", () => {
+    expect(walkRouteFitKey(null)).toBeNull();
+  });
+
+  it("同じ目的地でも origin が違えば別のキーになる（再計算後に地図が再フィットする根拠）", () => {
+    const recalculated: WalkRoute = {
+      ...BASE_ROUTE,
+      origin: { latitude: 35.69, longitude: 139.76 },
+    };
+    expect(walkRouteFitKey(BASE_ROUTE)).not.toBe(walkRouteFitKey(recalculated));
+  });
+
+  it("同じ origin / placeId なら同じキー", () => {
+    const same: WalkRoute = { ...BASE_ROUTE };
+    expect(walkRouteFitKey(BASE_ROUTE)).toBe(walkRouteFitKey(same));
   });
 });

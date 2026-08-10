@@ -92,6 +92,17 @@ export function toWalkRoute(response: WalkingRouteResponse, fallbackName?: strin
   };
 }
 
+/**
+ * 地図の再フィット要否を判定するためのキー。
+ * 目的地が同じでも **起点が変われば別ルート** として扱う（SS-35 の現在地起点の再計算）。
+ * 起点は `buildWalkingRouteRequest` により小数4桁に丸められて送られ、レスポンスの origin も
+ * その値が返るため、同じ地点からの再計算では同一キーになる（無駄な再フィットが起きない）。
+ */
+export function walkRouteFitKey(route: WalkRoute | null): string | null {
+  if (route === null) return null;
+  return `${route.destination.placeId}:${route.origin.latitude},${route.origin.longitude}`;
+}
+
 /** 片道秒数 → 片道の分（四捨五入）。 */
 export function toOneWayMinutes(durationSeconds: number): number {
   return Math.round(toNonNegative(durationSeconds) / 60);

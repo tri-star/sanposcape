@@ -106,3 +106,11 @@ export type WalkSummaryStats = {
 
 /** 散歩記録の保存状態。 */
 export type WalkSaveStatus = "idle" | "saving" | "saved" | "error";
+
+/**
+ * 現在地起点のルート再計算の状態（SS-35）。
+ * `idle`   … 再計算していない／直近の再計算は成功済み
+ * `recalculating` … リクエスト中（同時に1つだけ）
+ * `failed` … 直近のリクエストが失敗し、表示は直前の正常ルートのまま
+ */
+export type WalkRouteRecalcStatus = "idle" | "recalculating" | "failed";

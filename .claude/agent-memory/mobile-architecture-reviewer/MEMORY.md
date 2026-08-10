@@ -5,3 +5,4 @@
 - [SS-34 散歩開始前の戻る導線](project_ss34_back_navigation.md) — resolveBackAction/useScreenBackの良好な純粋関数分離、SettingsView未移行という規約と実装の乖離の申し送り
 - [SS-13 認証状態集約とAuthGate](project_ss13_auth_session_gate.md) — 依存の向き/segments依存配列/latch設計は良好。sessionCleanup.tsコメント陳腐化・store内AuthUserがサーバーデータ規律と未整理・logoutのAuthGate競合が暗黙のJSスケジューリング依存という3残課題
 - [SS-42 記録タブ集計の実データ化](project_ss42_history_stats.md) — api/lib/hooks層がwalkHistoryApiパターンを忠実踏襲、queryKey["walks","stats"]設計良好、残課題はdocs/milestones.md未更新（スタブ記述が陳腐化）のみ
+- [SS-35 散歩開始後の現在地起点ルート再計算](project_ss35_route_recalculation.md) — Query外ローカルstate+sequence世代管理+純粋関数状態機械の参照実装。プラン完全準拠、指摘は手動再計算ボタンのdisabled非対称のみ（P3）

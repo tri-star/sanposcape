@@ -17,4 +17,23 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
 - `GET /walks` は keyset カーソル（`next_cursor: string | null`、`limit` 1..50・既定20）。不正カーソルは 400。**`cursor` を明示的に `null` で送ると 400 になる**（[[mobile-structure]] の Orval 落とし穴1）。
 - `useFinishedWalkStore.savedWalkId` は SS-19 時点でプロダクトコード未参照。SS-20 の「サマリ → その散歩の詳細」遷移で消費される想定（ADR-008 決定4）。
 
+## 散歩中ルートまわりで毎回引っかかる制約（SS-35 の調査）
+
+- **ルートの取得は ADR-008 決定2 で「`origin` = 散歩の起点で固定」**。散歩開始画面と散歩中画面が同じ
+  `useWalkRoute({origin, destination})` を呼んで queryKey を一致させ、API 1回で済ませるのが設計の主目的。
+  **現在地でルートを引き直す提案は決定2 の例外**にあたり、ADR-008 の追補が要る（AGENTS.md の規約）。
+- `useWalkRoute` は `staleTime 1h / gcTime 2h / retry:false`、かつ **`keepPreviousData` を意図的に使わない**。
+  → queryKey（origin）を動かす設計にすると、取得中・失敗時に `data` が `undefined` に落ちて
+  **表示中のルートが消える**。「失敗しても直前のルートを保つ」要件とは両立しない。
+- `useMapRouteFit` の依存は **`walkRoute?.destination.placeId` だけ**。目的地が同じままルートだけ
+  差し替わるケース（起点変更・周回ルート）では**地図が再フィットしない**。キーを変える必要がある。
+- `buildWalkingRouteRequest`（`lib/walkRouteRequest.ts`）が origin を小数4桁に丸め、placeId 空文字を
+  null にし、目的地名を Unicode 切り詰めする。新しいルート取得経路でも必ずこれを通す。
+- `WalkRoute.duration/distance` は片道値。現在地起点で引き直すと意味が「残り」に変わるため、
+  画面の「片道◯分」表記をそのまま使い回さない。
+- `services/location` の mock 軌跡（`MOCK_TRACK`）は東京駅から**北東**へ 40m × 10点。
+  `DEFAULT_ACTIVE_WALK` の目的地は**北西**約900m。→ /dev-screens の「散歩中」は
+  「ルートから外れていく」状況を屋外に出ずに再現できる（ただし placeId が `stub-default-goal` なので
+  実 API は失敗する＝失敗系UIの確認向け）。
+
 Related: [[project-explore-api-contract]], [[mobile-structure]]
