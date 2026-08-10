@@ -26,13 +26,13 @@
   - 認証: `EXPO_PUBLIC_AUTH_MODE=dev`（backend の `/auth/dev-session` を利用。backend API は実物）
   - 位置情報: `EXPO_PUBLIC_LOCATION_MODE=mock`（エミュレータの位置がフレークになりやすいため）
   - Backend API: 実際のAPIを利用する
-  - 地図タイルの描画は assert しない（CI の preview APK には Maps SDK キーを注入しないため地図は灰色）。
-    `/explore/places` を前提とするフローには `maps-required` タグを付け、**CI では
-    `--exclude-tags=maps-required` で除外している**。backend 側は SS-44 で `MAPS_MODE=fake`
-    （決定的な fake provider）に対応済みで、`mobile-e2e.yml` も `MAPS_MODE=fake` を渡しているため
-    **CI の backend は既に候補を返す**（503 ではない）。除外が残っているのは workflow の
-    `--exclude-tags` を外す作業が未了なため。有効化後も候補の**件数・内容は assert せず**
-    存在のみを見る（詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。
+  - 地図タイルの描画は assert しない（描画自体はキー注入により CI でも行われるが、外部タイルの
+    取得結果に E2E の成否を依存させないため）。`/explore/places` を前提とするフローには
+    `maps-required` タグを付けるが、**CI では SS-54 でタグの絞り込みをやめ `.maestro/` 配下の
+    全フローを実行している**。backend 側は SS-44 の `MAPS_MODE=fake`（決定的な fake provider）
+    で候補を返すため、外部データへの依存はない。タグは依存を用意できないローカル環境向けの
+    絞り込み手段として残している。候補の**件数・内容は assert せず**存在のみを見る
+    （詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。
   - 履歴などデータ件数に依存する assert は行わない（同一 CI ラン内で他フローの記録が残るため）。
   - モバイル機能: Maestro経由で利用可能な機能はそのまま利用する。利用できない機能はスタブ実装を利用する。
 

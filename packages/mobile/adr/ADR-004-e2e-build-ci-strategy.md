@@ -42,14 +42,12 @@
     （`packages/backend/src/sanposcape/integrations/google_maps/fake.py`）を実装済み。
     `mobile-e2e.yml` は SS-21 時点から `ENV=test MAPS_MODE=fake` を渡しているため、
     **CI の backend は既に決定的な候補を返す**（`/explore/places` は 503 ではない）。
-  - **残っているのは Maestro 側の切り替えのみ**: `mobile-e2e.yml` の
-    `--exclude-tags=maps-required` を外し、MVP 主要フローを CI で常時実行する作業は未了。
-    したがって「MVP 主要フローが CI から除外されている」状態自体は現時点でも継続している。
-    理由が「backend 未対応」から「workflow の更新が未了」に変わった点に注意。
+  - **（SS-54 で完了）** Maestro 側の切り替えも済み、`mobile-e2e.yml` は
+    `maestro test packages/mobile/.maestro/` で MVP 主要フローを含む全フローを常時実行する。
   - フロー構成: `.maestro/` 直下＝実行対象のフロー、`.maestro/subflows/`＝`runFlow` 専用
     （Maestro は既定でワークスペース直下のみ実行する）。外部データに依存するフローには
-    `maps-required` タグを付け、依存を用意できない環境では `--exclude-tags=maps-required` で
-    除外できるようにする。
+    `maps-required` タグを付ける。CI は fake provider で依存を満たせるため絞り込まずに全フローを
+    実行し、タグは依存を用意できないローカル環境向けの `--exclude-tags` 用に残す。
   - **履歴の件数・空状態は E2E で assert しない**（dev ユーザーキーが固定で、同一 CI ラン内の
     他フローの記録が残るため）。空状態の検証は Vitest（純粋関数）の責務。
 
@@ -161,10 +159,10 @@
   `MAPS_MODE=fake` を渡す）と SS-44（backend の `Settings.maps_mode` と
   `FakeGoogleMapsProvider` 本体を実装）で完了済み**。CI の backend は既に fake provider で
   決定的な候補を返す。
-  - **残作業（SS-21 側または後続 issue）**: `mobile-e2e.yml` の
-    `--exclude-tags=maps-required` を外し、コメントアウト中の `--include-tags=maps-required`
-    行と統合して `maestro test packages/mobile/.maestro/` の1コマンドにする。あわせて同ファイル
-    冒頭の `TODO(SS-44)` ブロックと "Start backend" ステップ内の陳腐化コメントを削除する。
+  - **SS-54 で完了**: `mobile-e2e.yml` の Maestro 実行を
+    `maestro test packages/mobile/.maestro/` の1コマンドに統合し（タグによる絞り込みを廃止）、
+    同ファイル冒頭の TODO ブロックと実行ステップ内の陳腐化コメントを削除した。
+    これにより MVP 主要フローが CI で常時実行される。
 
 ## 関連情報
 
