@@ -228,6 +228,17 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-35「mobile: 散歩開始後の現在地起点ルート再計算を追加」(work_item_id: `568ff048-400a-45d9-8c62-3a10b5c4afec`、M4所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-16・SS-17の後続タスク。start_date=2026-08-12, target_date=2026-08-14が既に設定済みだった。
 
+## 2026-08-11確認: 5モジュール(M1〜M5)はいずれもstart_date/target_date未設定
+
+- `retrieve_module`で全5モジュール(M1〜M5)を確認したところ、statusはいずれも`"planned"`固定、`start_date`/`target_date`は全てnull（モジュール自体の期間は運用上使われていない）。日程管理はモジュール単位ではなくWorkItem個別のstart_date/target_dateで行われている模様（例: SS-22等一部のTodoタスクには日付設定あり、大半のBacklogタスクは未設定）。
+- **How to apply**: 「モジュールの開始日・終了日」を尋ねられたら、全てnullである旨をそのまま報告してよい（取得漏れではない）。日程確認が必要な場合はWorkItem側のstart_date/target_dateを見るよう案内する。
+
 ## 2026-08-11追加: SS-35をReview化・PR #28リンク登録
 
 - SS-35（work_item_id: `568ff048-400a-45d9-8c62-3a10b5c4afec`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #28（`https://github.com/tri-star/sanposcape/pull/28`、link_id: `6fe7e7f0-a363-48ac-b3b1-547f626127ab`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+
+## 2026-08-11追加: SS-54「CI: MVP主要フロー（maps-required）のE2E常時実行を有効化する」をM5に新規発見（本エージェント経由でない作成）
+
+- SS-54（work_item_id: `b047bc3f-8879-45a6-be08-dc0083a71569`）はState=Todo、priority=medium、M5「散歩記録・履歴」所属、担当者・ラベル・親子・コメントいずれも無し。SS-21（Done）の後続でCIワークフロー(`mobile-e2e.yml`)の`--exclude-tags=maps-required`解除が主目的。SS-44コメントの申し送り（2026-08-08メモ参照）に対応する形の課題と推測される。
+- **`list_work_item_relations`は`custom`キーに`relates to`/`duplicate`/`implements`/`implemented by`のラベルを返すようになっていた**（値はいずれも空配列）。ただし`list_work_item_relation_definitions`自体は本日も引き続きHTTP 402（`relation_definitions_402.md`の内容は変わらず有効）。個別work itemの`list_work_item_relations`はエラーにならず定義ラベルの枠だけ見えている状態と判明——実際に`create_work_item_relation`でこれらのカスタムラベルが使えるかは未検証。
+- PQLで`parent = "<uuid>"`によるフィルタは`HTTP 400 Filtering on field 'parent' is not allowed`で拒否される。子タスク一覧取得は`pql='childOf("SS-54")'`（識別子形式）を使うこと。
