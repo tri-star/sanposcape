@@ -1,0 +1,108 @@
+# 依存関係の自動アップデート設定 (SS-55)
+#
+# 受け入れ側の運用は `.claude/skills/dependabot-update-workflow/` にある既存ワークフロー
+# (Dependabot PR の解消・説明) に任せる。ここは「供給側」の設定のみを持つ。
+#
+# cooldown について:
+#   このリポジトリは pnpm-workspace.yaml の `minimumReleaseAge: 2880` (2日) で
+#   「公開直後のバージョンを掴まない」サプライチェーン対策を取っている。Dependabot 側も
+#   同じ意図で cooldown を設定するが、日数は 2 日ではなく 3 日にしている。
+#   Dependabot には 2026-07 以降「cooldown 未設定でも3日待つ」という既定があり、
+#   ここで 2 日と書くと既定より*緩める*ことになってしまうため。
+#   破壊的変更が入りうる major だけはさらに長く寝かせる。
+version: 2
+updates:
+  # ---------------------------------------------------------------------------
+  # GitHub Actions: .github/workflows/*.yml の `uses:`
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    # github-actions は cooldown 非対応 (GitHub のサポート表で default-days も対象外)。
+    # 書いても効かないので設定しない。
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      # minor/patch は1本のPRにまとめる。major は group から外れて1件ずつ個別PRになり、
+      # 影響範囲を個別に見極められる (setup-java v4→v5 のような移行が該当)。
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # backend: packages/backend の pyproject.toml / uv.lock
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "uv"
+    directory: "/packages/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+    groups:
+      backend-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ---------------------------------------------------------------------------
+  # mobile: ルートの pnpm-lock.yaml
+  # pnpm workspace はワークスペース全体をルートのロックファイルで一括管理するため、
+  # directory はリポジトリルートを指す (packages/mobile ではない)。
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    # pnpm-lock.yaml が変わると @expo/fingerprint のハッシュが変わり、main への push で
+    # mobile-e2e.yml の APK キャッシュが失効して約35分のローカルビルドが走る。
+    # マージのたびにこれが発生するため、更新頻度は monthly に抑える。
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+    ignore:
+      # Expo SDK はこれらのパッケージのバージョンを SDK 側で固定している。Dependabot が
+      # 個別に上げると組み合わせが壊れるため、SDK アップグレード時の `expo install --fix`
+      # による一括更新に委ねる。
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "@types/react"
+      - dependency-name: "react-native"
+      - dependency-name: "@react-native-community/*"
+      # react-native-* は Expo が固定しているもの (maps / reanimated / screens /
+      # safe-area-context / gesture-handler / svg / web / worklets / edge-to-edge) が大半。
+      # 残る react-native-nitro-* も native module なので、上げれば fingerprint が変わり
+      # APK の再ビルドと E2E での確認が要る。いずれにせよ手動で扱う対象なので一括で除外する。
+      - dependency-name: "react-native-*"
+    groups:
+      mobile-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
