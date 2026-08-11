@@ -242,3 +242,10 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-54（work_item_id: `b047bc3f-8879-45a6-be08-dc0083a71569`）はState=Todo、priority=medium、M5「散歩記録・履歴」所属、担当者・ラベル・親子・コメントいずれも無し。SS-21（Done）の後続でCIワークフロー(`mobile-e2e.yml`)の`--exclude-tags=maps-required`解除が主目的。SS-44コメントの申し送り（2026-08-08メモ参照）に対応する形の課題と推測される。
 - **`list_work_item_relations`は`custom`キーに`relates to`/`duplicate`/`implements`/`implemented by`のラベルを返すようになっていた**（値はいずれも空配列）。ただし`list_work_item_relation_definitions`自体は本日も引き続きHTTP 402（`relation_definitions_402.md`の内容は変わらず有効）。個別work itemの`list_work_item_relations`はエラーにならず定義ラベルの枠だけ見えている状態と判明——実際に`create_work_item_relation`でこれらのカスタムラベルが使えるかは未検証。
 - PQLで`parent = "<uuid>"`によるフィルタは`HTTP 400 Filtering on field 'parent' is not allowed`で拒否される。子タスク一覧取得は`pql='childOf("SS-54")'`（識別子形式）を使うこと。
+- SS-54は2026-08-11中にTodo→In Progress→Reviewまで進行。PR #29（link_id: `f7620ba9-669e-4e87-a68a-12412bb95cba`）登録、コメント（comment_id: `01febf5f-e663-434a-b549-f60c780eb128`）に実装内容・申し送り事項を記録。申し送り: mvp-walk-flow.yaml/walk-route-recalculate.yamlの通し実行が未確認のままレビュー着手（マージ前に手動ワークフロー起動が必要）。
+- PQLで`name icontains "..."`は無効（`title ~ "..."`または`text ~ "..."`を使うこと。`text`はtitle+description対象）。
+
+## 2026-08-11追加: SS-55「ci: Dependabotで依存関係の自動アップデートを導入する」を新規作成
+
+- SS-55（work_item_id: `dff028fd-f26a-41bd-b43a-b3ed9896016a`）をState=Backlog、priority=medium、モジュール未所属で新規作成。SS-54(PR #29)のCI実行で発覚したactions非推奨警告がきっかけ。Dependabot設定（github-actions/uv/npm 3ecosystem、cooldown default-days:2でpnpm-workspace.yamlのminimumReleaseAge方針と統一）が主内容。
+- **Why**: ユーザーからの直接依頼。重複確認は`search_work_items`＋`list_work_items(title~/text~)`でSSプロジェクト内に該当なしを確認済み（他プロジェクトTCH/CHASEには類似のDependabot課題が存在するが無関係）。
