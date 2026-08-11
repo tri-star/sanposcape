@@ -185,16 +185,16 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 ### 移行・対応が必要な事項
 
 - 将来ゲスト散歩を実装する際、`features/walk` が認証状態（`guest` かどうか）を見る必要が出たら、`.oxlintrc.json` の override を外すのではなく「ゲスト可否」を props / 引数で受け取る形に寄せること。
-- ゲスト導線を復活させる際は、`canEnterProtectedRoutes` に `"guest"` を許可として足し、`SignInView` / `SignUpView` のゲストボタンを戻す。
-- backend との合意が必要になる論点（今回は決めない）:
-  - `/explore/places` `/explore/routes/walking` を未認証で呼べるようにするか（現状は `get_current_user` 必須。レート制限がユーザー単位のため、未認証の識別子・制限方式を決める必要がある）。
-  - 未認証時に `POST /walks`（散歩記録の保存）をどう扱うか（保存不可 → サインイン促し、が素直な案）。
+- ゲスト導線を復活させる際は、`canEnterProtectedRoutes` に `"guest"` を許可として足し、`SignInView` / `SignUpView` のゲストボタンを戻す（SS-57 で実装）。
+- backend との合意が必要になる論点（今回は決めない）としていた2点は、SS-49 で決定済み。決定内容は [横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6-1 を参照。
+  - `/explore/places` `/explore/routes/walking` は認証を任意化し、未認証でも呼べるようにする（レート制限は既存の IP バケットを流用。backend 実装は SS-56）。
+  - `POST /walks`（散歩記録の保存）は未認証では許可せずサインインを促す。ゲスト記録のマージ機能は作らない。
 
 ## 関連情報
 
-- [横断 ADR-002: 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」
+- [横断 ADR-002: 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」、決定6-1（SS-49 追補、backend のゲスト API 契約）
 - [ADR-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する](./ADR-008-active-walk-state-and-route-cache.md) — 決定6（サインアウト時の後始末）を本 ADR で追補
 - [architecture-guideline](../docs/architecture-guideline.md) — 認証の扱い
 - [folder-structure](../docs/folder-structure.md) — `src/store/` の配置ルール
 - 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`
-- Plane: SS-13（本 ADR の発生元）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）
+- Plane: SS-13（本 ADR の発生元）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）
