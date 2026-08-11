@@ -268,6 +268,18 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - **スコープ外として残したもの**: Docker ecosystem（backendのDockerfile / compose.yamlのイメージ）、Dependabot security updatesの有効化。別課題化の候補。
 - **How to apply**: 今後Dependabot関連の課題（別ecosystem追加やcooldown調整）を扱う際は、本項の(a)(b)を前提として引き継ぐこと。特に「pnpm-workspace.yamlの日数とDependabotのcooldownを完全一致させる」という単純な発想は誤りになりやすい（Dependabot側の既定値・ecosystem別サポート状況を都度確認する）。
 
+## 2026-08-11追加: SS-29をIn Progressに更新（着手）
+
+- SS-29「mobile: data/スタブから Orval生成MSWモックへの移行と単体テスト整備」(work_item_id: `888431fa-1105-4cc6-ba8a-c8bfdba2740b`、M1所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。start_date=2026-08-17/target_date=2026-08-20は既存設定のまま。
+
+## 2026-08-11確認: SS-12/SS-14/SS-18は全てDone
+
+- SS-12(9ce6a916-53b6-4e15-8fdd-bf2d05ced095, M3所属)はcompleted_at 2026-07-26、SS-14(bc6398ac..., M4所属)はcompleted_at 2026-07-31、SS-18(dfde4093..., M5所属)はcompleted_at 2026-08-02でいずれもDone確認済み。SS-18は2026-08-04メモ時点でIn Progressだったが、その後別セッションでDone化されていた。
+
+## 2026-08-11追加: SS-29をReview化・PR #45リンク登録
+
+- SS-29（work_item_id: `888431fa-1105-4cc6-ba8a-c8bfdba2740b`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #45（`https://github.com/tri-star/sanposcape/pull/45`、link_id: `ac8097df-305f-4b62-aba0-de8cb9312bd4`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+
 ## 2026-08-11追加: スケジュール反映（SS-46/47/50/51/52/53/55）
 
 - SS-55を Todo・start=2026-08-11/target=2026-08-13・M1に追加。SS-47をBacklog→Todo、start=2026-08-11/target=2026-08-13（M1のまま）。SS-50をBacklog→Todo、start=2026-08-24/target=2026-08-26（M3のまま）。SS-46はBacklogのまま、start=2026-09-03/target=2026-09-05（参考日程、M2のまま）。SS-51/52/53（いずれもM5）は状態Todoのまま、start=2026-09-03/target=2026-09-10で統一設定。

@@ -67,6 +67,18 @@ redirect effect では `router.canDismiss()` が true のときだけ `router.di
 Promise callback と React effect の実行順に依存する二重遷移を作らない。401 → refresh 失敗も同じ
 ゲート経路を通るため、設定画面を経由しないセッション失効でもスタックを整理できる。
 
+## 「認証×feature」の合成はルート（app/）でprop注入する(SS-29で確立)
+
+`features/walk|history` は `no-restricted-imports` で認証store importが禁止されているため、
+認証済みユーザーの表示名などをfeature内のUIに出したい場合は、横断hookを新設して間に挟む
+のではなく、**`app/` 配下のルートが `useAuthSessionStore` を読み、feature の View に props で渡す**。
+SS-29 で `app/(tabs)/history.tsx` が最初の事例になった（`useAuthSessionStore((s) => s.user?.displayName ?? null)`
+→ `HistoryView` props → `useHistorySummary({ displayName })` 引数）。
+横断hookを作る案は「間に1枚挟むことで形式的にだけ規約を回避する」ことになり却下した
+（採用するならADR-009の追補が必要という整理）。セレクタは必ずプリミティブを返すこと
+（オブジェクトを返すとzustand v5で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
+文言の組み立て自体はViewに書かず、feature内の`lib/`の純粋関数（例: `greeting.ts`）に閉じる。
+
 ## oxlintでの構造的な依存禁止パターン
 
 `.oxlintrc.json` の `overrides`（`files` + `no-restricted-imports`）で
