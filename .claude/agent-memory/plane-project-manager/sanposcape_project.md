@@ -249,10 +249,24 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-55（work_item_id: `dff028fd-f26a-41bd-b43a-b3ed9896016a`）をState=Backlog、priority=medium、モジュール未所属で新規作成。SS-54(PR #29)のCI実行で発覚したactions非推奨警告がきっかけ。Dependabot設定（github-actions/uv/npm 3ecosystem、cooldown default-days:2でpnpm-workspace.yamlのminimumReleaseAge方針と統一）が主内容。
 - **Why**: ユーザーからの直接依頼。重複確認は`search_work_items`＋`list_work_items(title~/text~)`でSSプロジェクト内に該当なしを確認済み（他プロジェクトTCH/CHASEには類似のDependabot課題が存在するが無関係）。
+- **【2026-08-11実装完了に伴う訂正】起票時の本文にあった`cooldown default-days: 2`（pnpm-workspace.yamlのminimumReleaseAge 2日と揃える意図）は、実装では採用されず**3日**になった。詳細は下記「SS-55実装完了」の項を参照。
 
 ## 2026-08-11追加: SS-55をIn Progressに更新（実装着手）
 
 - SS-55（work_item_id: `dff028fd-f26a-41bd-b43a-b3ed9896016a`、M1「開発基盤の整備」所属）をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。実装着手のため（ユーザー指示）。
+
+## 2026-08-11追加: SS-55実装完了・PR #30登録（Review化）
+
+- SS-55（work_item_id: `dff028fd-f26a-41bd-b43a-b3ed9896016a`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #30（`https://github.com/tri-star/sanposcape/pull/30`、link_id: `a74c7a7d-e746-42df-9ef0-e0dd52cc3b3a`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+- PR #30で`.github/dependabot.yml`を新規追加し、github-actions / uv / npm の3 ecosystemを有効化した。
+- **起票時の本文にあった技術的前提のうち2点が、実際のDependabot仕様と食い違っていたため実装では採用しなかった**（起票時メモの該当箇所を参照、本項が訂正内容）:
+  - (a) `cooldown: default-days: 2`（pnpm-workspace.yamlのminimumReleaseAge 2日と揃える意図）は採用せず**3日**にした。Dependabotには2026-07-14以降「cooldown未設定でも3日待つ」という既定があり、2日と書くと既定より緩めることになるため。majorのみ`semver-major-days: 7`。
+  - (b) `github-actions`のecosystemは**cooldown非対応**（GitHubのoptions referenceのサポート表で`default-days`自体が×）。課題本文では「default-daysのみ対応」としていたが誤り。そのためgithub-actions entryにはcooldownを書いていない。
+- npmはmonthly（pnpm-lock.yamlの変更が@expo/fingerprintのハッシュを変え、mainへのpushでmobile-e2e.ymlの約35分のAPKフルビルドを誘発するため）。Expo SDKが固定するパッケージ群（expo* / react* / react-native* / @react-native-community/*）はignoreし`expo install --fix`に委ねる。
+- あわせてmobile-ci.ymlのpathsに`pnpm-lock.yaml`を追加した（推移的依存のみの更新ではCIが1つも走らず、Dependabot PRが無検証でマージできる穴があったため）。
+- **マージ後にリポジトリ側で確認が必要**: Insights > Dependency graph > DependabotでのGSC設定パース結果、初回PRの量、Dependabot PRでのCI通過。
+- **スコープ外として残したもの**: Docker ecosystem（backendのDockerfile / compose.yamlのイメージ）、Dependabot security updatesの有効化。別課題化の候補。
+- **How to apply**: 今後Dependabot関連の課題（別ecosystem追加やcooldown調整）を扱う際は、本項の(a)(b)を前提として引き継ぐこと。特に「pnpm-workspace.yamlの日数とDependabotのcooldownを完全一致させる」という単純な発想は誤りになりやすい（Dependabot側の既定値・ecosystem別サポート状況を都度確認する）。
 
 ## 2026-08-11追加: スケジュール反映（SS-46/47/50/51/52/53/55）
 
