@@ -6,11 +6,15 @@ on:
     paths:
       - "packages/mobile/**"
       - "packages/backend/openapi.yaml"
+      # 推移的依存だけの更新 (Dependabot の npm PR など) は packages/mobile/ に触れず
+      # ルートのロックファイルだけが変わる。それでも検証が走るようにする。
+      - "pnpm-lock.yaml"
       - ".github/workflows/mobile-ci.yml"
   pull_request:
     paths:
       - "packages/mobile/**"
       - "packages/backend/openapi.yaml"
+      - "pnpm-lock.yaml"
       - ".github/workflows/mobile-ci.yml"
 
 jobs:
