@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）
 
 ## ステータス
 
@@ -15,6 +15,8 @@
 **SS-13「認証状態と探索ロジックの分離」で追補**した（決定6 の「実行側」を `SettingsView` から `useAuthSessionStore` へ変更した）。追補部分には `（SS-13 追補）` を付けている。
 
 **SS-35「散歩開始後の現在地起点ルート再計算」で追補**した（決定2 に例外を追記、決定7 を新規追加）。追補部分には `（SS-35 追補）` を付けている。
+
+**SS-50「サインアウト時の遷移をAuthGateに一本化」で追補**した（決定6 の退避と履歴スタック整理を `AuthGate` に集約した）。
 
 ## コンテキスト
 
@@ -93,9 +95,9 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 
 - 登録側: `useActiveWalkStore`（`endWalk()`）、`useFinishedWalkStore`（`clearFinishedWalk()`）、`src/api/queryClient.ts`（`queryClient.clear()`）。各モジュールの末尾で読み込み時に1回登録する。
 - 実行側: **`src/store/useAuthSessionStore.ts` の `setSession()` が、認証状態を `authenticated → guest` に落とす時点で `runSessionCleanup()` を呼ぶ（SS-13 追補）**。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走る。
-  - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。`SettingsView` は現在、`router.dismissAll()` + `router.replace("/(auth)/sign-in")` によるスタックを畳む導線のみを担う。
+  - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。**SS-50 では退避と履歴スタックの破棄も `AuthGate` に移した。** `SettingsView` は `authService.signOut()` の起動だけを担い、サインアウト callback と React effect の実行順に依存しない。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
-- サインアウト導線が呼ぶのは `runSessionCleanup()` の1行だけにする。feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）ため。
+- サインアウト導線は `authService.signOut()` を起動するだけにする。後始末は認証状態遷移、退避と履歴スタックの破棄は `AuthGate` が担うため、feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）。
 - **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-009](./ADR-009-auth-session-state-and-route-gate.md) を参照。
 
 ### 7. 再計算後のルートは Query キャッシュではなく `useWalkRouteRecalculation` のローカル state で持つ（SS-35 追補）
@@ -208,4 +210,4 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
 - （SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/components/WalkRouteNotice.tsx`
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）、SS-50（本追補の発生元）

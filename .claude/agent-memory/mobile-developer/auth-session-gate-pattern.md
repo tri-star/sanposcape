@@ -61,6 +61,12 @@ real/dev/mock 全てのファクトリに `deps.onSessionChange` として渡す
 開けなくなり遷移が往復する。サインイン成功後の遷移は `useAuthActions` の
 `router.replace("/walk-start")` に任せる。
 
+**SS-50**: `authenticated → guest` の保護ルートからの退避と履歴スタック整理も `AuthGate` に集約する。
+redirect effect では `router.canDismiss()` が true のときだけ `router.dismissAll()` を実行し、その後
+`router.replace(redirectHref)` を呼ぶ。`SettingsView` は `authService.signOut()` の起動だけを担わせ、
+Promise callback と React effect の実行順に依存する二重遷移を作らない。401 → refresh 失敗も同じ
+ゲート経路を通るため、設定画面を経由しないセッション失効でもスタックを整理できる。
+
 ## oxlintでの構造的な依存禁止パターン
 
 `.oxlintrc.json` の `overrides`（`files` + `no-restricted-imports`）で
