@@ -249,3 +249,12 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-55（work_item_id: `dff028fd-f26a-41bd-b43a-b3ed9896016a`）をState=Backlog、priority=medium、モジュール未所属で新規作成。SS-54(PR #29)のCI実行で発覚したactions非推奨警告がきっかけ。Dependabot設定（github-actions/uv/npm 3ecosystem、cooldown default-days:2でpnpm-workspace.yamlのminimumReleaseAge方針と統一）が主内容。
 - **Why**: ユーザーからの直接依頼。重複確認は`search_work_items`＋`list_work_items(title~/text~)`でSSプロジェクト内に該当なしを確認済み（他プロジェクトTCH/CHASEには類似のDependabot課題が存在するが無関係）。
+
+## 2026-08-11追加: SS-55をIn Progressに更新（実装着手）
+
+- SS-55（work_item_id: `dff028fd-f26a-41bd-b43a-b3ed9896016a`、M1「開発基盤の整備」所属）をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。実装着手のため（ユーザー指示）。
+
+## 2026-08-11追加: スケジュール反映（SS-46/47/50/51/52/53/55）
+
+- SS-55を Todo・start=2026-08-11/target=2026-08-13・M1に追加。SS-47をBacklog→Todo、start=2026-08-11/target=2026-08-13（M1のまま）。SS-50をBacklog→Todo、start=2026-08-24/target=2026-08-26（M3のまま）。SS-46はBacklogのまま、start=2026-09-03/target=2026-09-05（参考日程、M2のまま）。SS-51/52/53（いずれもM5）は状態Todoのまま、start=2026-09-03/target=2026-09-10で統一設定。
+- **How to apply**: `manage_module_work_items`でモジュール追加した直後は、その`update_work_item`のレスポンスに`min_module_name`が反映されない（別呼び出しのため）。モジュール反映確認は必ず`retrieve_work_item_by_identifier`等で再取得すること。
