@@ -51,3 +51,15 @@ metadata:
 - ネイティブモジュール追加は `@expo/fingerprint` を変える → ADR-004 の E2E APK キャッシュが必ず1回ミスし、
   開発者全員が development build を作り直す必要がある。Android は署名鍵ごと（debug/development/preview/production）に
   **SHA-1 登録**が要る（未登録は `DEVELOPER_ERROR` という分かりにくい失敗になる）。
+
+## 機能側から「サインイン中のユーザー」を使いたくなった時（SS-13 / ADR-009 決定8）
+
+- `.oxlintrc.json` の `no-restricted-imports` override が **`src/features/walk/**` と `src/features/history/**` から
+  `@/services/auth` / `@/services/auth/*` / `@/store/useAuthSessionStore` への import を機械的に禁止**している。
+  → これらの feature の hook/lib で認証状態を読む設計は書けない（lint で落ちる）。
+- ユーザーの identity（`displayName` 等）の**単一の情報源は `useAuthSessionStore.user`**
+  （ADR-009 決定1 が「store にサーバー由来データを置かない」原則の明示的な例外として許容した identity snapshot）。
+  `GET /auth/me` で取り直す設計にしない（[[project_screens_and_stub_layer]] の記述と併せて、情報源を二重化しない）。
+- したがって供給経路は「**ルート（`app/**`。override 対象外）で store を読み、View → hook へ props で注入**」。
+  横断 hook（`src/hooks/useSessionDisplayName` 等）を挟んで feature から読む案は、ルールを形式的に回避する形なので
+  採るなら ADR-009 の追補が要る。

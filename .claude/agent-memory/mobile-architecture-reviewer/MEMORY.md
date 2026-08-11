@@ -3,6 +3,7 @@
 - [SS-19 散歩終了処理・POST /walks保存](project_ss19_walk_finish.md) — サマリ画面で1回保存(useMutation自動発火+冪等)の良好例と残課題(savedWalkIdコメント陳腐化・clearFinishedWalk未使用・保存中remount二重POST許容)
 - [SS-21 MVP E2E(Maestro)仕上げ](project_ss21_e2e_finish.md) — TabBar itemTestIDPrefix注入・状態別testID付与方針の良好例、navigation stack前提の裏取り、milestones.mdに残る「ローカル実行未確認」の申し送り
 - [SS-34 散歩開始前の戻る導線](project_ss34_back_navigation.md) — resolveBackAction/useScreenBackの良好な純粋関数分離、SettingsView未移行という規約と実装の乖離の申し送り
-- [SS-13 認証状態集約とAuthGate](project_ss13_auth_session_gate.md) — 依存の向き/segments依存配列/latch設計は良好。sessionCleanup.tsコメント陳腐化・store内AuthUserがサーバーデータ規律と未整理・logoutのAuthGate競合が暗黙のJSスケジューリング依存という3残課題
+- [SS-13 認証状態集約とAuthGate](project_ss13_auth_session_gate.md) — 依存の向き/segments依存配列/latch設計は良好。sessionCleanup.tsコメント陳腐化・store内AuthUserがサーバーデータ規律と未整理・logoutのAuthGate競合が暗黙のJSスケジューリング依存という3残課題（2026-08-06にレビュー対応で解消済み）
 - [SS-42 記録タブ集計の実データ化](project_ss42_history_stats.md) — api/lib/hooks層がwalkHistoryApiパターンを忠実踏襲、queryKey["walks","stats"]設計良好、残課題はdocs/milestones.md未更新（スタブ記述が陳腐化）のみ
 - [SS-35 散歩開始後の現在地起点ルート再計算](project_ss35_route_recalculation.md) — Query外ローカルstate+sequence世代管理+純粋関数状態機械の参照実装。プラン完全準拠、指摘は手動再計算ボタンのdisabled非対称のみ（P3）
+- [SS-29 app/がauthストア読取→propsでfeature注入する新パターン](project_ss29_route_as_composition_root.md) — ADR-009決定8の想定通り・却下した代替案の判断は妥当。ただし設計根拠がgitignore対象のtmp/にしか残らずdocs/ADRに痕跡なし

@@ -156,7 +156,8 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
   - [x] 保存した散歩がユーザーに紐付く（backend は SS-18 で完了。`walks.user_id` + `ON DELETE CASCADE`、repository の全メソッドが `user_id` 必須。mobile は SS-19 で認証付きの `POST /walks` を結線）
   - [x] 散歩履歴の一覧・詳細を閲覧できる（backend API は SS-18、mobile 結線は SS-20 で完了。`/walk-history`・`/walk-history/[walkId]` + 記録タブの「最近の散歩」）
     - 実績（SS-42）: 記録タブの集計表示（週/月チャート・合計距離・連続日数・今日の歩数）を実データ化した。backend に集計 API `GET /walks/stats`（JST 固定。今日 / 直近7日=1日×7バケット / 直近28日=7日×4バケット + `streak_days`）を新設し、mobile の `useHistorySummary` が `queryKey: ["walks","stats"]` で参照する（ADR-003 決定10〜12）。streak は非正規化カラムを持たずサーバーのクエリで算出する形で決着し（決定11）、歩数は API に持たせず mobile が距離から歩幅 0.7m で推定して UI に「推定」と明示する（決定12）
-    - 留保: 目標歩数（`features/history/data/stepGoal.ts` の 8,000 歩）と記録タブのユーザー名（`data/profile.ts`）はスタブのまま。目標歩数のユーザー設定は別課題。期間フィルタ（`started_after`/`started_before`）は集計を専用 API に一本化したため使わない方針（ADR-003 決定10）
+    - 留保: 目標歩数（`features/history/data/stepGoal.ts` の 8,000 歩）はスタブのまま。目標歩数のユーザー設定は別課題。期間フィルタ（`started_after`/`started_before`）は集計を専用 API に一本化したため使わない方針（ADR-003 決定10）
+    - 実績（SS-29）: 記録タブのユーザー名は認証セッション（`useAuthSessionStore.user.displayName`）から供給するようになり、静的スタブ（`data/profile.ts`）は廃止した。あいさつ文は `app/(tabs)/history.tsx` → `HistoryView` → `useHistorySummary` の経路で表示名を受け取り、`features/history/lib/greeting.ts` の純粋関数が組み立てる。
   - [x] MVP スコープの主要フローが E2E で通る
     - 実績（SS-21・SS-54）: `.maestro/mvp-walk-flow.yaml`（認証→探索→散歩開始→終了・保存→
       履歴一覧・詳細を1本で通す）を SS-21 で追加し、SS-54 で CI の常時実行対象にした
