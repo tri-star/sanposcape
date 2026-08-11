@@ -164,8 +164,9 @@ pnpm --filter mobile orval          # API クライアント再生成
   になっている（単体では実行されない）。
 - E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)。
 - 実行には Android エミュレータ/実機 + preview APK が必要。
-- フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）:
-  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー。CI で常時実行する。
+- フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。
+  **CI は絞り込まず全フローを実行する**（SS-54）ため、タグはローカルでの部分実行用:
+  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
   - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
@@ -177,11 +178,13 @@ pnpm --filter mobile orval          # API クライアント再生成
 pnpm --filter mobile exec eas build --local --profile preview --platform android --output e2e-build/app-preview.apk
 adb install -r e2e-build/app-preview.apk
 
-# 外部データに依存しないフローだけ（CI と同じ範囲）
+# 全フロー（CI と同じ範囲）。backend が MAPS_MODE=fake か実キーで応答できることが前提
+maestro test packages/mobile/.maestro/
+
+# 外部データに依存しないフローだけ（backend の候補を用意できない環境向け）
 maestro test --exclude-tags=maps-required packages/mobile/.maestro/
 
 # 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー）
-# backend が MAPS_MODE=fake か実キーで /explore/places に応答できる場合のみ
 maestro test --include-tags=maps-required packages/mobile/.maestro/
 
 # 個別フローを名指しで実行（デバッグ時）
@@ -199,7 +202,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
   `docker compose restart` では反映されない（`compose.yaml` の `${...}` はコンテナ生成時に
   展開されるため）。必ず `up -d` でコンテナを作り直すこと。
-- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。CI の backend は `MAPS_MODE=fake` で起動しており候補を返せる状態だが、`--exclude-tags=maps-required` を外す作業が未了のため MVP フローは現在も CI から除外されている。
+- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。CI の backend は `MAPS_MODE=fake` で起動して候補を返すため、MVP フローを含む `.maestro/` 配下の全フローを常時実行する（SS-54）。
 - 失敗時は `~/.maestro/tests/<最新のディレクトリ>/` に実行ログ・スクリーンショット・階層ダンプ（`.json`）が残る。CI では失敗時に `maestro-debug-output` artifact としてアップロードされる。
 
 ## Google Maps（react-native-maps）
@@ -252,10 +255,10 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   `UnconfiguredGoogleMapsProvider` により **常に 503** を返す（mobile 実装のバグではない）。
   mobile 側は `provider_unavailable` として文言 + 再試行ボタンを表示する。
 - backend 側で `GOOGLE_MAPS_SERVER_API_KEY` を設定してから確認すること。
-- E2E（Maestro）の `maps-required` タグが前提とする `MAPS_MODE=fake` は **SS-44 で対応予定・
-  現時点は未実装**のため、ローカルで `maps-required` フローを動かしたい場合も当面は上記の
-  実キー設定が唯一の手段（[E2E（Maestro）](#e2emaestro) の `maps-required` 節も参照）。
-  SS-44 完了後はこの節を「`MAPS_MODE=fake` で決定的に再現できる」形に更新すること。
+- E2E（Maestro）の `maps-required` タグが前提とする候補は、実キーが無くても
+  `MAPS_MODE=fake`（SS-44 で実装済みの `FakeGoogleMapsProvider`）で**決定的に再現できる**。
+  backend を `ENV=local AUTH_MODE=dev MAPS_MODE=fake docker compose up -d` で起動すること
+  （[E2E（Maestro）](#e2emaestro) の `maps-required` 節も参照）。
 
 ## Google サインイン
 

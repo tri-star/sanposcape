@@ -7,21 +7,14 @@ name: mobile E2E (Maestro)
 #     → fingerprint が変わらない限り再ビルドしない（JSのみの変更では走らない）
 #   - 実行頻度を分離: 常時CI(lint/typecheck/unit)は mobile-ci.yml、E2Eは下記トリガのみ
 #
-# 初回運用時に必要な準備(TODO):
+# 初回運用時に必要な準備:
 #   - リポジトリ Secrets に EXPO_TOKEN を設定（`eas build --local` のアカウント連携）
 #   - Android の署名情報（credentials.json もしくは EAS のクレデンシャル）を用意
-#   - TODO: MVP フロー（maps-required タグ）を CI で常時実行する。
-#     backend 側の前提（Settings.maps_mode と FakeGoogleMapsProvider＝決定的な fake Maps
-#     provider）は SS-44 で実装済みで、下記 backend 起動ステップが渡している MAPS_MODE=fake は
-#     実際に効いている（ENV=test なので許可リスト検証も通る）。つまり CI の backend は既に
-#     /explore/places で決定的な候補を返す。残っているのは Maestro 側の切り替えだけ:
-#       1. 下記 "Run Maestro flows on emulator" ステップの --exclude-tags=maps-required を外し、
-#          コメントアウトしている --include-tags=maps-required の行と合わせて
-#          `maestro test packages/mobile/.maestro/` の1コマンドに統合する。
-#       2. このブロックと、同ステップ内の TODO コメントを削除する
-#          （この TODO 自体も陳腐化するため）。
-#     未了の理由: MVP フローは実機/エミュレータでの通し実行がまだ確認できていないため、
-#     有効化は SS-21 側またはその後続 issue で、ローカル実行の確認とセットで行う。
+#
+# 実行対象のフロー: `.maestro/` 直下の全フロー（タグによる絞り込みはしない）。
+# MVP 主要フロー（maps-required タグ）が依存する /explore/places の決定的な候補は、
+# 下記 "Start backend" ステップの MAPS_MODE=fake（SS-44 の FakeGoogleMapsProvider、
+# ENV=test なので許可リスト検証も通る）で供給される（SS-54 で常時実行を有効化）。
 on:
   workflow_dispatch:
   schedule:
@@ -197,14 +190,9 @@ jobs:
           ram-size: 4096M
           script: |
             adb install -r packages/mobile/e2e-build/app-preview.apk
-            # 外部データ（/explore/places の候補）に依存しないフロー。常時実行する。
-            maestro test --exclude-tags=maps-required packages/mobile/.maestro/
-            # TODO: backend 側の前提（Settings.maps_mode / FakeGoogleMapsProvider）は SS-44 で
-            #       対応済み。実機/エミュレータでの通し実行を確認したら上の
-            #       --exclude-tags=maps-required を外し、次の行を
-            #       `maestro test packages/mobile/.maestro/` に統合する
-            #       （このコメントと次のコメントアウト行は削除する）。
-            # maestro test --include-tags=maps-required packages/mobile/.maestro/
+            # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
+            # /explore/places の候補を決定的に返すため、外部データへの依存はない）。
+            maestro test packages/mobile/.maestro/
 
       - name: Upload Maestro debug output
         if: failure()
