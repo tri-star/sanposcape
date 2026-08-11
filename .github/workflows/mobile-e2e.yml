@@ -89,7 +89,7 @@ jobs:
       # APKのビルド成否とE2Eの成否は無関係なので、ビルド直後に明示的に保存する。
       - name: Restore APK cache
         id: apk-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: packages/mobile/e2e-build/app-preview.apk
           key: mobile-apk-${{ steps.fp.outputs.hash }}
@@ -116,7 +116,7 @@ jobs:
       # ビルド直後に保存する（E2Eの成否に依存させない）。
       - name: Save APK cache
         if: steps.apk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: packages/mobile/e2e-build/app-preview.apk
           key: mobile-apk-${{ steps.fp.outputs.hash }}
