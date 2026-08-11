@@ -276,6 +276,10 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-12(9ce6a916-53b6-4e15-8fdd-bf2d05ced095, M3所属)はcompleted_at 2026-07-26、SS-14(bc6398ac..., M4所属)はcompleted_at 2026-07-31、SS-18(dfde4093..., M5所属)はcompleted_at 2026-08-02でいずれもDone確認済み。SS-18は2026-08-04メモ時点でIn Progressだったが、その後別セッションでDone化されていた。
 
+## 2026-08-11追加: SS-29をReview化・PR #45リンク登録
+
+- SS-29（work_item_id: `888431fa-1105-4cc6-ba8a-c8bfdba2740b`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #45（`https://github.com/tri-star/sanposcape/pull/45`、link_id: `ac8097df-305f-4b62-aba0-de8cb9312bd4`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+
 ## 2026-08-11追加: スケジュール反映（SS-46/47/50/51/52/53/55）
 
 - SS-55を Todo・start=2026-08-11/target=2026-08-13・M1に追加。SS-47をBacklog→Todo、start=2026-08-11/target=2026-08-13（M1のまま）。SS-50をBacklog→Todo、start=2026-08-24/target=2026-08-26（M3のまま）。SS-46はBacklogのまま、start=2026-09-03/target=2026-09-05（参考日程、M2のまま）。SS-51/52/53（いずれもM5）は状態Todoのまま、start=2026-09-03/target=2026-09-10で統一設定。
