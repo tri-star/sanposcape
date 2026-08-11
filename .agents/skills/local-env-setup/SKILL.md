@@ -1,6 +1,6 @@
 ---
 name: local-env-setup
-description: リポジトリの新規clone直後やgit worktreeで新しい環境を作成した直後に開発をスタートするための初期セットアップを実行するスキル。「開発環境をセットアップして」「cloneしたばかりなので初期化して」「dev setupして」などのリクエストで使用する。.envファイル生成、Dockerコンテナ起動、DBマイグレーション、seed投入、pnpm installを一括で行う。
+description: "リポジトリの新規clone直後やgit worktreeで新しい環境を作成した直後に開発をスタートするための初期セットアップを実行するスキル。「開発環境をセットアップして」「cloneしたばかりなので初期化して」「dev setupして」などのリクエストで使用する。.envファイル生成、Dockerコンテナ起動、DBマイグレーション、seed投入、pnpm installを一括で行う。また、テスト実行や動作確認の途中で `.env` が存在しないことに気づいた場合にも、手動で `.env` を作成せずこのスキルを呼び出すこと。"
 metadata:
   claude:
     user-invokable: true
