@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-08-06
+2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）
 
 ## ステータス
 
-採用（SS-13）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。
+採用（SS-13、SS-50 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。
 
 ## コンテキスト
 
@@ -77,7 +77,7 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 
 **`useAuthSessionStore` 自身を `registerSessionCleanup()` に登録してはいけない**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すとゲートがスプラッシュへ送り返してしまう。
 
-**サインアウト時に二重遷移（`SettingsView` の明示的な `router.replace` と `AuthGate` の redirect の両方）が起きない前提について**: `SettingsView` は `authService.signOut().finally(...)` で `dismissAll()` + `replace("/(auth)/sign-in")` を明示的に呼び、これが `setSession(null)` を契機に再評価される `AuthGate` の `useEffect` より先に完了する。これは「`.finally` のマイクロタスクは React の `useEffect` のフラッシュより先に走る」という JS/React のスケジューリング特性に依存しており、**フレームワークが保証する契約ではない**。両ファイル（`SettingsView.tsx` / `AuthGate.tsx`）にこの前提をコメントで明記している。仮にこの前提が崩れても、`AuthGate` の redirect 先は同じ `/(auth)/sign-in` であり、`router.replace` が冪等な操作である（同一 href への reset）ため実害は小さい。
+**サインアウト・セッション失効の退避は `AuthGate` に一本化する（SS-50 追補）**: `SettingsView` は `authService.signOut()` の起動だけを担う。`authenticated → guest` を受けた `AuthGate` は保護ルート上で `router.canDismiss()` を確認し、可能な場合だけ `router.dismissAll()` を実行してから `router.replace("/(auth)/sign-in")` する。これにより設定画面の Promise callback と React effect の実行順、または二重の `replace` に依存しない。401 → refresh 失敗のように設定画面を経由しない失効にも同じ退避・スタック整理を適用できる。
 
 ### 7. MVP ではゲスト導線（「ゲストで試す」）を外す
 
@@ -172,6 +172,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - ディープリンクのコールドスタートでセッションが復元されるようになった。
 - セッション失効（401 → refresh 失敗）が UI に届くようになった。ゲートが自動的にサインインへ戻す。
 - 画面ごとの自衛コード（`SettingsView` の未認証退避）が消えた。
+- サインアウト導線と非自発的なセッション失効で、退避と履歴スタック整理が同じ `AuthGate` の処理に集約された（SS-50 追補）。
 - 探索/散歩ロジック（`features/walk` / `features/history`）の認証非依存が oxlint で構造的に担保された。
 - `useAuthActions.continueAsGuest` の SS-13 向け TODO が解消された。
 
@@ -196,5 +197,5 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - [ADR-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する](./ADR-008-active-walk-state-and-route-cache.md) — 決定6（サインアウト時の後始末）を本 ADR で追補
 - [architecture-guideline](../docs/architecture-guideline.md) — 認証の扱い
 - [folder-structure](../docs/folder-structure.md) — `src/store/` の配置ルール
-- 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`
-- Plane: SS-13（本 ADR の発生元）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）
+- 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`
+- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）
