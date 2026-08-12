@@ -442,3 +442,98 @@ class TestGetWalkStats:
 
         assert result.generated_at == STATS_ANCHOR_UTC
         assert result.timezone == "Asia/Tokyo"
+
+    def test_d_s6_deleting_todays_only_walk_zeroes_today_and_week_bucket(
+        self, db_session: Session
+    ) -> None:
+        service = _make_stats_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        walk = seed_walk(
+            db_session,
+            user_id=user.id,
+            started_at=_jst(ANCHOR_DATE),
+            duration_seconds=300,
+            distance_meters=500,
+        )
+        before = service.get_walk_stats(user)
+        assert before.today.walk_count == 1
+
+        service.delete_walk(user, walk.id)
+        after = service.get_walk_stats(user)
+
+        assert after.today.walk_count == 0
+        assert _bucket_for(after.week, ANCHOR_DATE).walk_count == 0
+        assert after.week.total_walk_count == before.week.total_walk_count - 1
+        assert after.week.total_duration_seconds == before.week.total_duration_seconds - 300
+        assert after.week.total_distance_meters == before.week.total_distance_meters - 500
+
+    def test_d_s7_deleting_a_middle_day_breaks_the_streak(self, db_session: Session) -> None:
+        service = _make_stats_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        seed_walk(db_session, user_id=user.id, started_at=_jst(ANCHOR_DATE))
+        yesterday_walk = seed_walk(
+            db_session, user_id=user.id, started_at=_jst(ANCHOR_DATE - timedelta(days=1))
+        )
+        seed_walk(db_session, user_id=user.id, started_at=_jst(ANCHOR_DATE - timedelta(days=2)))
+        assert service.get_walk_stats(user).streak_days == 3
+
+        service.delete_walk(user, yesterday_walk.id)
+
+        assert service.get_walk_stats(user).streak_days == 1
+
+    def test_d_s8_deleting_today_falls_back_to_yesterday_as_the_anchor(
+        self, db_session: Session
+    ) -> None:
+        service = _make_stats_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        today_walk = seed_walk(db_session, user_id=user.id, started_at=_jst(ANCHOR_DATE))
+        seed_walk(db_session, user_id=user.id, started_at=_jst(ANCHOR_DATE - timedelta(days=1)))
+        assert service.get_walk_stats(user).streak_days == 2
+
+        service.delete_walk(user, today_walk.id)
+
+        assert service.get_walk_stats(user).streak_days == 1
+
+    def test_d_s9_deleting_one_of_two_same_day_walks_keeps_streak(
+        self, db_session: Session
+    ) -> None:
+        service = _make_stats_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        walk_1 = seed_walk(
+            db_session,
+            user_id=user.id,
+            started_at=_jst(ANCHOR_DATE, 8, 0),
+            duration_seconds=300,
+            distance_meters=500,
+        )
+        seed_walk(
+            db_session,
+            user_id=user.id,
+            started_at=_jst(ANCHOR_DATE, 18, 0),
+            duration_seconds=700,
+            distance_meters=900,
+        )
+
+        service.delete_walk(user, walk_1.id)
+        result = service.get_walk_stats(user)
+
+        assert result.today.walk_count == 1
+        assert result.today.duration_seconds == 700
+        assert result.today.distance_meters == 900
+        assert result.streak_days == 1
+
+    def test_d_s10_deleting_own_walk_does_not_affect_other_users_stats(
+        self, db_session: Session
+    ) -> None:
+        service = _make_stats_service(db_session)
+        owner = _make_user(db_session, subject="owner")
+        other = _make_user(db_session, subject="other")
+        seed_walk(db_session, user_id=other.id, started_at=_jst(ANCHOR_DATE))
+        owner_walk = seed_walk(db_session, user_id=owner.id, started_at=_jst(ANCHOR_DATE))
+        before_other = service.get_walk_stats(other)
+
+        service.delete_walk(owner, owner_walk.id)
+        after_other = service.get_walk_stats(other)
+
+        assert after_other.today.walk_count == before_other.today.walk_count
+        assert after_other.streak_days == before_other.streak_days
