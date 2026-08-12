@@ -284,3 +284,7 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-55を Todo・start=2026-08-11/target=2026-08-13・M1に追加。SS-47をBacklog→Todo、start=2026-08-11/target=2026-08-13（M1のまま）。SS-50をBacklog→Todo、start=2026-08-24/target=2026-08-26（M3のまま）。SS-46はBacklogのまま、start=2026-09-03/target=2026-09-05（参考日程、M2のまま）。SS-51/52/53（いずれもM5）は状態Todoのまま、start=2026-09-03/target=2026-09-10で統一設定。
 - **How to apply**: `manage_module_work_items`でモジュール追加した直後は、その`update_work_item`のレスポンスに`min_module_name`が反映されない（別呼び出しのため）。モジュール反映確認は必ず`retrieve_work_item_by_identifier`等で再取得すること。
+
+## 2026-08-12追加: SS-53をIn Progressに更新（実装着手）
+
+- SS-53「backend: 散歩記録の削除API（DELETE /walks/{walk_id}）を追加する」(work_item_id: `c6d79e92-46c8-4521-a0e6-0ad9cf305788`、M5所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。start_date=2026-09-03/target_date=2026-09-10は既存設定のまま。SS-42/PR #26のフォローアップ課題。
