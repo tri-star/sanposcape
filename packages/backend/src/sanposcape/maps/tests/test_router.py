@@ -1,4 +1,8 @@
+import json
+from pathlib import Path
+
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from sanposcape.config import Settings, get_settings
@@ -180,6 +184,34 @@ def test_openapi_declares_public_explore_endpoints_and_documented_error_response
     assert "security" not in operation
     assert {"401", "413", "422", "429", "503"} <= set(operation["responses"])
     assert "rate limit" in operation["responses"]["429"]["description"]
+
+
+@pytest.mark.parametrize("file_name", ["openapi.json", "openapi.yaml"])
+def test_committed_openapi_keeps_public_explore_contract(file_name: str) -> None:
+    openapi_path = Path(__file__).parents[4] / file_name
+    if openapi_path.suffix == ".json":
+        document = json.loads(openapi_path.read_text())
+    else:
+        document = yaml.safe_load(openapi_path.read_text())
+
+    expected_contract = {
+        "/explore/places": ("search_explore_places", "PlaceSearchRequest", "PlaceSearchResponse"),
+        "/explore/routes/walking": (
+            "get_walking_route_explore_routes_walking",
+            "WalkingRouteRequest",
+            "WalkingRouteResponse",
+        ),
+    }
+    for path, (operation_id, request_schema, response_schema) in expected_contract.items():
+        operation = document["paths"][path]["post"]
+        assert "security" not in operation
+        assert operation["operationId"] == operation_id
+        assert operation["requestBody"]["content"]["application/json"]["schema"] == {
+            "$ref": f"#/components/schemas/{request_schema}"
+        }
+        assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+            "$ref": f"#/components/schemas/{response_schema}"
+        }
 
 
 def test_openapi_declares_non_empty_japanese_preferred_place_names() -> None:

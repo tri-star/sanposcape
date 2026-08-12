@@ -6,15 +6,23 @@ from sanposcape.config import Settings
 from sanposcape.dependencies import get_current_user_optional
 from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
 from sanposcape.main import create_app
+from sanposcape.maps import rate_limit
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.service import MapsService
 
 
-def test_rate_limiter_enforces_both_user_and_ip_buckets() -> None:
+def test_authenticated_rate_limit_rejects_same_user_across_ips() -> None:
     limiter = ExploreRateLimiter(max_requests=1, anonymous_max_requests=1, window_seconds=60)
+
     assert limiter.allow(user_id="user-1", client_ip="127.0.0.1")
-    assert not limiter.allow(user_id="user-1", client_ip="127.0.0.1")
+    assert not limiter.allow(user_id="user-1", client_ip="127.0.0.2")
+
+
+def test_authenticated_rate_limit_rejects_different_users_on_same_ip() -> None:
+    limiter = ExploreRateLimiter(max_requests=1, anonymous_max_requests=1, window_seconds=60)
+
+    assert limiter.allow(user_id="user-1", client_ip="127.0.0.1")
     assert not limiter.allow(user_id="user-2", client_ip="127.0.0.1")
 
 
@@ -25,6 +33,28 @@ def test_anonymous_requests_use_only_their_lower_ip_bucket() -> None:
     assert not limiter.allow(user_id=None, client_ip="127.0.0.1")
     # 匿名の低い上限が、同じ NAT 配下の認証済みリクエストを消費・制限しない。
     assert limiter.allow(user_id="user-1", client_ip="127.0.0.1")
+
+
+def test_rate_limiter_removes_expired_buckets_and_bounds_new_keys(
+    monkeypatch,
+) -> None:
+    now = 100.0
+    monkeypatch.setattr(rate_limit, "monotonic", lambda: now)
+    limiter = ExploreRateLimiter(max_requests=2, anonymous_max_requests=1, window_seconds=60)
+
+    assert limiter.allow(user_id=None, client_ip="expired")
+    now = 161.0
+    assert limiter.allow(user_id=None, client_ip="current")
+    assert "anonymous-ip:expired" not in limiter._buckets
+
+    for index in range(limiter._MAX_BUCKETS - 1):
+        assert limiter.allow(user_id=None, client_ip=f"ip-{index}")
+    assert len(limiter._buckets) == limiter._MAX_BUCKETS
+
+    assert limiter.allow(user_id=None, client_ip="overflow")
+    assert len(limiter._buckets) == limiter._MAX_BUCKETS
+    assert "anonymous-ip:current" not in limiter._buckets
+    assert "anonymous-ip:overflow" in limiter._buckets
 
 
 def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
@@ -64,7 +94,7 @@ def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
         Settings(
             env="test",
             google_maps_rate_limit_requests=1,
-            google_maps_anonymous_rate_limit_requests=2,
+            google_maps_anonymous_rate_limit_requests=1,
         )
     )
     app.dependency_overrides[get_current_user_optional] = lambda: SimpleNamespace(id="user-1")

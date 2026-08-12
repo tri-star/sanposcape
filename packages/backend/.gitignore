@@ -3,5 +3,4 @@
 .ruff_cache
 .venv
 __pycache__
-# openapi.yaml は Orval が消費する契約として commit する。JSON は生成物として無視
-openapi.json
+# OpenAPI の YAML / JSON は公開契約として commit する。

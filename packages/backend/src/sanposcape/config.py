@@ -88,6 +88,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_environment_settings(self) -> "Settings":
+        if self.google_maps_anonymous_rate_limit_requests > self.google_maps_rate_limit_requests:
+            raise ValueError(
+                "GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS must not exceed "
+                "GOOGLE_MAPS_RATE_LIMIT_REQUESTS"
+            )
         # 許可リスト方式: 「fail-safe な検証をスキップしてよい環境」だけを明示的に列挙する。
         # `env == "production"` のような否定リスト方式だと、新しい env 値（例: staging）を
         # 追加した瞬間にバリデーションの対象外へ静かに落ちてしまう

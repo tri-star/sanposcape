@@ -104,6 +104,14 @@ def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, 
         Settings(**{field: value})
 
 
+def test_anonymous_maps_rate_limit_must_not_exceed_authenticated_limit() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            google_maps_rate_limit_requests=10,
+            google_maps_anonymous_rate_limit_requests=11,
+        )
+
+
 @pytest.mark.parametrize("value", [0, 4_194_305])
 def test_walks_request_max_bytes_must_be_within_bounds(value: int) -> None:
     with pytest.raises(ValidationError):
