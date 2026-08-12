@@ -176,7 +176,7 @@ M1 ─────► M2 ─────► M3 ─────► M4 ───�
 
 | # | タスク概要 | 備考 |
 | --- | --- | --- |
-| 1 | backend: 散歩(Walk)モデル・ルート保存・履歴取得API | ユーザー紐付け・認可（SS-18 完了）。記録タブ向け集計 API `GET /walks/stats` は SS-42 で追加 |
+| 1 | backend: 散歩(Walk)モデル・ルート保存・履歴取得API | ユーザー紐付け・認可（SS-18 完了）。記録タブ向け集計 API `GET /walks/stats` は SS-42 で追加。削除 API `DELETE /walks/{walk_id}` は SS-53 で追加（mobile の削除導線は未実装） |
 | 2 | mobile: 散歩終了処理・ルート保存 | features/walk（SS-19 完了。冪等キーは散歩開始時に採番、保存失敗は手動再試行。未送信ドラフトの永続化はフォローアップ課題） |
 | 3 | mobile: 散歩履歴一覧・詳細画面 | features/history（SS-20 完了。queryKey は `["walks", ...]` 始まり）。記録タブの週/月集計・連続日数・推定歩数の実データ化は SS-42 完了（queryKey `["walks","stats"]`） |
 | 4 | MVP主要フローのE2E（Maestro）・仕上げ | |
