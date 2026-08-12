@@ -1,9 +1,12 @@
 import uuid
+import warnings
 from datetime import date, datetime
 
 from sqlalchemy import Date, cast, func, select, tuple_
+from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer
+from sqlalchemy.orm.exc import StaleDataError
 
 from sanposcape.walks.models import Walk
 from sanposcape.walks.stats import DailyWalkTotals
@@ -122,6 +125,24 @@ class WalkRepository:
         ORM の `session.delete()` を使い、`sqlalchemy.delete()` の一括 DELETE 文は使わない
         （一括 DELETE は `synchronize_session` の挙動に依存し、同一セッションの identity map
         に載っている行が失効せず、削除したはずの行を後続処理が掴み続ける事故が起きうるため）。
+
+        select → delete → flush の2段階処理のため、同一 `walk_id` への真に同時な2重DELETE
+        （通信不安定時のリトライ・連打）では、後発側が select 時点では行を見つけて delete まで
+        進むものの、flush 時点では先発側が既に commit 済みで対象行が消えている、という競合が
+        起きうる（DB の行ロックにより、後発側の DELETE は先発側の commit までブロックされ、
+        commit 後に 0 行ヒットで再開する）。
+
+        `Walk` に `version_id_col`（楽観的排他制御用のバージョン列）は無いため、SQLAlchemy の
+        `confirm_deleted_rows`（既定 True）はこのケースを `sqlalchemy.orm.exc.StaleDataError`
+        ではなく `sqlalchemy.exc.SAWarning` の warning としてのみ報告する（バージョン列がある
+        場合は例外になるが、無い場合は「削除できたか確認できない」という扱いで警告に留まる、
+        という SQLAlchemy 自身の仕様）。警告のままだと後発側の `flush()` は例外を投げずに
+        成功したように見え、`delete()` が実際には0行しか消していないのに `True` を返してしまう
+        （ADR-003 決定13「2回目の DELETE は404」に反する誤った成功応答になる）。
+        そのため、この `flush()` 呼び出しの間だけ `SAWarning` を例外に昇格させ、
+        `StaleDataError`（将来 `version_id_col` を足した場合に備える）と合わせて捕捉し、
+        `False` を返す。これにより後発側も「対象が無い」（= 呼び出し元が404に変換する、D6）
+        という通常の未検出パスに揃う。
         """
         stmt = (
             select(Walk)
@@ -131,8 +152,13 @@ class WalkRepository:
         walk = self._db.scalars(stmt).first()
         if walk is None:
             return False
-        self._db.delete(walk)
-        self._db.flush()
+        try:
+            self._db.delete(walk)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", sa_exc.SAWarning)
+                self._db.flush()
+        except (StaleDataError, sa_exc.SAWarning):
+            return False
         return True
 
     def aggregate_daily_for_user(

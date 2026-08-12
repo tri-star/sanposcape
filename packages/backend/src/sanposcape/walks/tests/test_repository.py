@@ -1,12 +1,17 @@
+import threading
+import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
+from sanposcape.conftest import TestSessionLocal
 from sanposcape.walks.repository import WalkRepository
 from sanposcape.walks.stats import WALK_STATS_TIMEZONE
 from sanposcape.walks.tests.conftest import make_user as _make_user
+
+_LOCK_WAIT_TIMEOUT = 5.0
 
 
 def _create_walk(
@@ -150,6 +155,90 @@ class TestDelete:
 
         assert result is True
         assert db_session.get(type(walk), walk.id) is None
+
+
+class TestDeleteConcurrentRace:
+    """真に同時な2重DELETEで後発が `StaleDataError` を投げず `False` を返すことの回帰テスト。
+
+    `WalkRepository.delete()` は select → `session.delete()` → `flush()` の2段階処理のため、
+    先発側が flush 済み・未コミットの間（行ロックを保持中）に後発側が同じ行を select すると
+    “存在する” と見なして delete + flush まで進み、DB の行ロックでブロックされる。先発側の
+    commit 後にブロックが解け、対象行は既に消えているため 0 行ヒットとなり、後発側の flush が
+    `sqlalchemy.orm.exc.StaleDataError` を送出しうる。`threading.Thread` + 別 `Session`
+    （= 別コネクション）で実DB（PostgreSQL）上の真の競合を再現する
+    （`auth/tests/test_repository.py::test_get_by_hash_for_update_blocks_concurrent_transaction`
+    と同じ手法）。
+    """
+
+    def test_second_deleter_returns_false_without_raising_stale_data_error(
+        self, db_session: Session
+    ) -> None:
+        user = _make_user(db_session, subject="race-user")
+        repo = WalkRepository(db_session)
+        walk, _ = _create_walk(
+            repo, user_id=user.id, started_at=datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC)
+        )
+        db_session.commit()
+        walk_id, user_id = walk.id, user.id
+
+        holder_flushed = threading.Event()
+        holder_may_commit = threading.Event()
+        results: dict[str, bool] = {}
+        errors: list[BaseException] = []
+
+        def _holder() -> None:
+            session = TestSessionLocal()
+            try:
+                repo_a = WalkRepository(session)
+                # select + delete + flush まで進める（未コミット。行ロックを保持したまま待機）。
+                results["holder"] = repo_a.delete(user_id=user_id, walk_id=walk_id)
+                holder_flushed.set()
+                holder_may_commit.wait(timeout=_LOCK_WAIT_TIMEOUT)
+                session.commit()  # ここで行ロック解放
+            except BaseException as exc:  # noqa: BLE001 - スレッド内例外をテスト本体に伝える
+                errors.append(exc)
+                holder_flushed.set()
+            finally:
+                session.close()
+
+        def _waiter() -> None:
+            session = TestSessionLocal()
+            try:
+                repo_b = WalkRepository(session)
+                # select 時点では holder 未コミットのため行が見え、delete + flush まで進むが、
+                # 行ロックで holder の commit までブロックされる。ブロック解除後、対象行は
+                # 既に消えているため repo.delete() は False を返す。この時点で session は
+                # flush 時の例外により rollback 済みの状態になっている（`WalkService.delete_walk`
+                # と同じく、False の場合は commit しないのが正しい呼び出し方）。
+                results["waiter"] = repo_b.delete(user_id=user_id, walk_id=walk_id)
+                if results["waiter"]:
+                    session.commit()
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+            finally:
+                session.close()
+
+        holder_thread = threading.Thread(target=_holder)
+        waiter_thread = threading.Thread(target=_waiter)
+
+        holder_thread.start()
+        assert holder_flushed.wait(timeout=_LOCK_WAIT_TIMEOUT), "holder が flush できなかった"
+        waiter_thread.start()
+
+        # waiter が holder の行ロックで実際にブロックされていることを確認する
+        # （早期完了は行ロックによる競合再現に失敗している証拠）。
+        time.sleep(0.3)
+        assert "waiter" not in results, "waiter が holder の commit 前に完了した(競合の再現に失敗)"
+
+        holder_may_commit.set()
+        holder_thread.join(timeout=_LOCK_WAIT_TIMEOUT)
+        waiter_thread.join(timeout=_LOCK_WAIT_TIMEOUT)
+
+        assert not holder_thread.is_alive(), "holder スレッドがタイムアウトした"
+        assert not waiter_thread.is_alive(), "waiter スレッドがタイムアウトした"
+        assert not errors, f"スレッド内で例外が発生した: {errors}"
+        assert results["holder"] is True
+        assert results["waiter"] is False  # StaleDataError を送出せず False を返す
 
 
 class TestGetById:
