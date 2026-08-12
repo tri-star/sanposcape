@@ -387,6 +387,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - walks
+      summary: Delete Walk
+      description: '散歩1件を削除する。他ユーザーの散歩・存在しない ID は 404（D6）。
+
+
+        削除済み ID への再送も 404（冪等にはしない）。クライアントは 404 を
+
+        「既に存在しない」として成功同様に扱ってよい。'
+      operationId: delete_walk_walks__walk_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: walk_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Walk Id
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Walk not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AuthUserRead:
