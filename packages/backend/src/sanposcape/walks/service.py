@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
@@ -31,6 +32,8 @@ from sanposcape.walks.stats import (
     should_continue_streak_scan,
     to_jst_date,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class WalkService:
@@ -109,6 +112,7 @@ class WalkService:
         if not self._repository.delete(user_id=current_user.id, walk_id=walk_id):
             raise WalkNotFoundError()
         self._db.commit()
+        logger.info("Walk deleted (user_id=%s, walk_id=%s)", current_user.id, walk_id)
 
     def get_walk_stats(self, current_user: User) -> WalkStatsRead:
         """記録タブ向けの集計（今日 / 直近7日 / 直近28日 / 連続日数）を返す。

@@ -203,6 +203,33 @@ class TestDeleteWalk:
         with pytest.raises(WalkNotFoundError):
             service.get_walk(user, walk.id)
 
+    def test_d_s6_logs_deletion_with_user_id_and_walk_id(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """監査・障害調査のため、削除成功時に user_id / walk_id を含む INFO ログを出す。"""
+        service = _make_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        walk, _ = service.record_walk(user, _make_payload())
+
+        with caplog.at_level("INFO"):
+            service.delete_walk(user, walk.id)
+
+        assert str(user.id) in caplog.text
+        assert str(walk.id) in caplog.text
+
+    def test_d_s7_does_not_log_on_not_found(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """見つからず404になる場合はログを出さない(削除に成功した場合のみのログにする)。"""
+        service = _make_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        unknown_id = uuid.uuid4()
+
+        with caplog.at_level("INFO"), pytest.raises(WalkNotFoundError):
+            service.delete_walk(user, unknown_id)
+
+        assert str(unknown_id) not in caplog.text
+
 
 ANCHOR_DATE = STATS_ANCHOR_JST.date()  # 2026-03-15（日曜）
 
