@@ -147,6 +147,63 @@ class TestGetWalk:
             service.get_walk(user, uuid.uuid4())
 
 
+class TestDeleteWalk:
+    def test_d_s1_deletes_own_walk_then_get_walk_raises_not_found(
+        self, db_session: Session
+    ) -> None:
+        service = _make_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        walk, _ = service.record_walk(user, _make_payload())
+
+        service.delete_walk(user, walk.id)
+
+        with pytest.raises(WalkNotFoundError):
+            service.get_walk(user, walk.id)
+
+    def test_d_s2_other_users_walk_raises_not_found_and_owner_can_still_get_it(
+        self, db_session: Session
+    ) -> None:
+        service = _make_service(db_session)
+        owner = _make_user(db_session, subject="owner")
+        other = _make_user(db_session, subject="other")
+        walk, _ = service.record_walk(owner, _make_payload())
+
+        with pytest.raises(WalkNotFoundError):
+            service.delete_walk(other, walk.id)
+
+        assert service.get_walk(owner, walk.id).id == walk.id
+
+    def test_d_s3_unknown_id_raises_not_found(self, db_session: Session) -> None:
+        service = _make_service(db_session)
+        user = _make_user(db_session, subject="u1")
+
+        with pytest.raises(WalkNotFoundError):
+            service.delete_walk(user, uuid.uuid4())
+
+    def test_d_s4_deleted_walk_disappears_from_list_walks(self, db_session: Session) -> None:
+        service = _make_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        walk, _ = service.record_walk(user, _make_payload())
+
+        service.delete_walk(user, walk.id)
+
+        result = service.list_walks(
+            user, limit=10, cursor=None, started_after=None, started_before=None
+        )
+        assert walk.id not in {item.id for item in result.items}
+
+    def test_d_s5_commit_survives_rollback(self, db_session: Session) -> None:
+        service = _make_service(db_session)
+        user = _make_user(db_session, subject="u1")
+        walk, _ = service.record_walk(user, _make_payload())
+
+        service.delete_walk(user, walk.id)
+        db_session.rollback()
+
+        with pytest.raises(WalkNotFoundError):
+            service.get_walk(user, walk.id)
+
+
 ANCHOR_DATE = STATS_ANCHOR_JST.date()  # 2026-03-15（日曜）
 
 

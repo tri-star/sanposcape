@@ -100,6 +100,16 @@ class WalkService:
             raise WalkNotFoundError()
         return to_walk_detail_read(walk)
 
+    def delete_walk(self, current_user: User, walk_id: uuid.UUID) -> None:
+        """自分の散歩を1件削除する。他ユーザーの散歩・存在しない ID はいずれも 404（D6）。
+
+        削除に成功した場合のみ commit する。見つからなかった場合は repository 側で
+        flush していないので rollback は不要（セッションは get_db の finally で破棄される）。
+        """
+        if not self._repository.delete(user_id=current_user.id, walk_id=walk_id):
+            raise WalkNotFoundError()
+        self._db.commit()
+
     def get_walk_stats(self, current_user: User) -> WalkStatsRead:
         """記録タブ向けの集計（今日 / 直近7日 / 直近28日 / 連続日数）を返す。
 
