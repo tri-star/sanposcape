@@ -92,6 +92,9 @@ def get_walk_stats(
 # 必ずこの "/{walk_id}" より前に置くこと。後ろに置くと "stats" が walk_id: UUID の
 # 検証に落ちて 422 になる（tests/test_router.py::TestGetWalkStats が回帰を検知する）。
 # 将来 "/walks/xxx" のような固定セグメントを足すときも同じ罠があるので注意。
+# この制約は同一 HTTP メソッド内で効く（GET の宣言順は DELETE の宣言順に影響しない）。
+# 例えば DELETE /walks/stats のようなエンドポイントを将来追加する場合も、
+# 同じ理由で DELETE "/{walk_id}" より前に宣言する必要がある。
 @router.get(
     "/{walk_id}",
     response_model=WalkDetailRead,
@@ -104,3 +107,21 @@ def get_walk(
 ) -> WalkDetailRead:
     """散歩1件の詳細（軌跡付き）を返す。他ユーザーの散歩・存在しない ID は 404（D6）。"""
     return service.get_walk(current_user, walk_id)
+
+
+@router.delete(
+    "/{walk_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**_ERROR_RESPONSES, 404: {"description": "Walk not found"}},
+)
+def delete_walk(
+    walk_id: UUID,
+    current_user: User = Depends(get_current_user),
+    service: WalkService = Depends(get_walk_service),
+) -> None:
+    """散歩1件を削除する。他ユーザーの散歩・存在しない ID は 404（D6）。
+
+    削除済み ID への再送も 404（冪等にはしない）。クライアントは 404 を
+    「既に存在しない」として成功同様に扱ってよい。
+    """
+    service.delete_walk(current_user, walk_id)
