@@ -85,6 +85,73 @@ class TestCreate:
         assert walk_a.id != walk_b.id
 
 
+class TestDelete:
+    def test_d_r1_deletes_own_walk_and_returns_true(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        walk, _ = _create_walk(
+            repo, user_id=user.id, started_at=datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC)
+        )
+
+        result = repo.delete(user_id=user.id, walk_id=walk.id)
+
+        assert result is True
+        assert db_session.get(type(walk), walk.id) is None
+
+    def test_d_r2_other_users_walk_returns_false_and_row_remains(self, db_session: Session) -> None:
+        owner = _make_user(db_session, subject="owner")
+        other = _make_user(db_session, subject="other")
+        repo = WalkRepository(db_session)
+        walk, _ = _create_walk(
+            repo, user_id=owner.id, started_at=datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC)
+        )
+
+        result = repo.delete(user_id=other.id, walk_id=walk.id)
+
+        assert result is False
+        assert db_session.get(type(walk), walk.id) is not None
+
+    def test_d_r3_unknown_walk_id_returns_false(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+
+        result = repo.delete(user_id=user.id, walk_id=uuid.uuid4())
+
+        assert result is False
+
+    def test_d_r4_only_deletes_the_targeted_row(self, db_session: Session) -> None:
+        owner = _make_user(db_session, subject="owner")
+        other = _make_user(db_session, subject="other")
+        repo = WalkRepository(db_session)
+        base = datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC)
+        target, _ = _create_walk(repo, user_id=owner.id, started_at=base)
+        sibling, _ = _create_walk(repo, user_id=owner.id, started_at=base + timedelta(minutes=1))
+        others_walk, _ = _create_walk(repo, user_id=other.id, started_at=base)
+
+        result = repo.delete(user_id=owner.id, walk_id=target.id)
+
+        assert result is True
+        assert db_session.get(type(target), target.id) is None
+        assert db_session.get(type(sibling), sibling.id) is not None
+        assert db_session.get(type(others_walk), others_walk.id) is not None
+
+    def test_d_r5_deletes_walk_with_large_track_points(self, db_session: Session) -> None:
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        big_track = [[35.0 + i * 0.0001, 139.0] for i in range(500)]
+        walk, _ = _create_walk(
+            repo,
+            user_id=user.id,
+            started_at=datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC),
+            track_points=big_track,
+        )
+
+        result = repo.delete(user_id=user.id, walk_id=walk.id)
+
+        assert result is True
+        assert db_session.get(type(walk), walk.id) is None
+
+
 class TestGetById:
     def test_returns_none_for_other_users_walk(self, db_session: Session) -> None:
         owner = _make_user(db_session, subject="owner")
