@@ -1,11 +1,11 @@
 """横断的な FastAPI 依存をまとめるモジュール。
 
-DB セッション供給に加え、`get_current_user` で認証済みユーザーを取得する。
+DB セッション供給に加え、認証済みユーザーを取得する。
 """
 
 import uuid
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from sanposcape.auth.exceptions import InvalidAccessTokenError
@@ -29,21 +29,15 @@ def _unauthorized() -> HTTPException:
     )
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+def _authenticate_access_token(
+    access_token: str,
     user_service: UserService = Depends(get_user_service),
     settings: Settings = Depends(get_settings),
 ) -> User:
-    """access token を検証し、認証済みユーザーを返す。
-
-    認証失敗（ヘッダ欠落・スキーム不正・署名不正・期限切れ・ユーザー不在）は
-    すべて 401（`WWW-Authenticate: Bearer` 付き）に正規化する。403 は返さない。
-    """
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise _unauthorized()
+    """access token を検証し、認証済みユーザーを返す。"""
 
     try:
-        claims = decode_access_token(credentials.credentials, settings)
+        claims = decode_access_token(access_token, settings)
     except InvalidAccessTokenError as exc:
         raise _unauthorized() from exc
 
@@ -58,7 +52,35 @@ def get_current_user(
     return user
 
 
-# TODO(SS-13): ゲスト対応に向けて get_current_user_optional を追加できる形にしておく。
-# SS-10 では YAGNI のため未実装。
+def get_current_user_optional(
+    request: Request,
+    user_service: UserService = Depends(get_user_service),
+    settings: Settings = Depends(get_settings),
+) -> User | None:
+    """Authorization ヘッダーがない場合だけ ``None``、それ以外は token を検証する。
 
-__all__ = ["get_current_user", "get_db"]
+    探索 API を OpenAPI 上も公開 endpoint として表現するため、ここでは
+    ``HTTPBearer`` を依存に含めずリクエストヘッダーを直接読む。不正なヘッダーを
+    匿名利用へフォールバックさせないため、ヘッダーがある認証失敗は常に 401 にする。
+    """
+    authorization = request.headers.get("Authorization")
+    if authorization is None:
+        return None
+    scheme, separator, access_token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not separator or not access_token:
+        raise _unauthorized()
+    return _authenticate_access_token(access_token, user_service, settings)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    user_service: UserService = Depends(get_user_service),
+    settings: Settings = Depends(get_settings),
+) -> User:
+    """認証必須 API 用に access token を検証する。"""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise _unauthorized()
+    return _authenticate_access_token(credentials.credentials, user_service, settings)
+
+
+__all__ = ["get_current_user", "get_current_user_optional", "get_db"]

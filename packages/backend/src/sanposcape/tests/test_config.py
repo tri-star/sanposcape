@@ -93,6 +93,7 @@ def test_production_without_google_maps_server_key_fails_to_start() -> None:
         ("google_maps_connect_timeout_seconds", 0),
         ("google_maps_cache_ttl_seconds", 0),
         ("google_maps_rate_limit_requests", 0),
+        ("google_maps_anonymous_rate_limit_requests", 0),
         ("google_maps_rate_limit_window_seconds", 0),
         ("google_maps_explore_request_max_bytes", 0),
         ("google_maps_max_place_candidates", 21),

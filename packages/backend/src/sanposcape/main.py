@@ -120,6 +120,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.google_maps_provider = provider
     app.state.explore_rate_limiter = ExploreRateLimiter(
         app.state.settings.google_maps_rate_limit_requests,
+        app.state.settings.google_maps_anonymous_rate_limit_requests,
         app.state.settings.google_maps_rate_limit_window_seconds,
     )
     try:

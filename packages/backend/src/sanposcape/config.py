@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     google_maps_max_place_candidates: int = Field(default=20, ge=1, le=20)
     google_maps_max_route_requests_per_search: int = Field(default=20, ge=1, le=20)
     google_maps_rate_limit_requests: int = Field(default=30, gt=0)
+    google_maps_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
 

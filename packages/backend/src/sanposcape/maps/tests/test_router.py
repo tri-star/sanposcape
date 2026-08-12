@@ -1,7 +1,8 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from sanposcape.config import Settings, get_settings
-from sanposcape.dependencies import get_current_user
+from sanposcape.dependencies import get_current_user_optional
 from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
 from sanposcape.main import app, create_app
 from sanposcape.maps.dependencies import get_maps_service
@@ -28,8 +29,38 @@ def _payload() -> dict:
     }
 
 
-def test_maps_endpoints_require_bearer_auth(client: TestClient) -> None:
-    assert client.post("/explore/routes/walking", json=_payload()).status_code == 401
+def test_maps_endpoints_allow_requests_without_authorization_header(client: TestClient) -> None:
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
+    try:
+        route_response = client.post("/explore/routes/walking", json=_payload())
+        places_response = client.post(
+            "/explore/places",
+            json={
+                "origin": {"latitude": 35, "longitude": 139},
+                "round_trip_duration_minutes": 10,
+                "categories": ["park"],
+                "limit": 1,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert route_response.status_code == 200
+    assert places_response.status_code == 200
+
+
+@pytest.mark.parametrize("authorization", ["Basic dXNlcjpwYXNz", "Bearer invalid-token"])
+def test_maps_endpoints_reject_invalid_authorization_header(
+    client: TestClient, authorization: str
+) -> None:
+    response = client.post(
+        "/explore/routes/walking",
+        json=_payload(),
+        headers={"Authorization": authorization},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_explore_body_size_is_limited_before_auth_or_parsing(client: TestClient) -> None:
@@ -48,7 +79,7 @@ def test_explore_body_size_is_limited_before_auth_or_parsing(client: TestClient)
 
 
 def test_walking_route_uses_normalized_response_contract(client: TestClient) -> None:
-    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
     try:
         response = client.post("/explore/routes/walking", json=_payload())
@@ -60,7 +91,7 @@ def test_walking_route_uses_normalized_response_contract(client: TestClient) -> 
 
 
 def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
-    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
     try:
         response = client.post("/explore/routes/walking", json={"origin": {}})
@@ -68,7 +99,7 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
         app.dependency_overrides.clear()
     assert response.status_code == 422
 
-    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
     try:
         invalid_search = client.post(
@@ -84,7 +115,7 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
         app.dependency_overrides.clear()
     assert invalid_search.status_code == 422
 
-    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: (_ for _ in ()).throw(MapsQuotaError())
     try:
         quota = client.post("/explore/routes/walking", json=_payload())
@@ -93,7 +124,7 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
     assert quota.status_code == 429
     assert quota.json() == {"detail": "Map provider quota exceeded"}
 
-    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: (_ for _ in ()).throw(
         MapsUnavailableError()
     )
@@ -111,7 +142,7 @@ def test_explore_places_returns_candidates_when_maps_mode_is_fake() -> None:
     を使う。"""
     settings = Settings(env="test", maps_mode="fake", auth_jwt_secret="x" * 32)
     fake_app = create_app(settings)
-    fake_app.dependency_overrides[get_current_user] = lambda: object()
+    fake_app.dependency_overrides[get_current_user_optional] = lambda: object()
     fake_app.dependency_overrides[get_settings] = lambda: settings
     try:
         with TestClient(fake_app) as fake_client:
@@ -144,9 +175,9 @@ def test_explore_places_returns_candidates_when_maps_mode_is_fake() -> None:
         assert isinstance(candidate["round_trip_duration_seconds"], int)
 
 
-def test_openapi_declares_security_and_documented_error_responses() -> None:
+def test_openapi_declares_public_explore_endpoints_and_documented_error_responses() -> None:
     operation = app.openapi()["paths"]["/explore/routes/walking"]["post"]
-    assert operation["security"] == [{"HTTPBearer": []}]
+    assert "security" not in operation
     assert {"401", "413", "422", "429", "503"} <= set(operation["responses"])
     assert "rate limit" in operation["responses"]["429"]["description"]
 
