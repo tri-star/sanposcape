@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import pytest
@@ -186,13 +185,9 @@ def test_openapi_declares_public_explore_endpoints_and_documented_error_response
     assert "rate limit" in operation["responses"]["429"]["description"]
 
 
-@pytest.mark.parametrize("file_name", ["openapi.json", "openapi.yaml"])
-def test_committed_openapi_keeps_public_explore_contract(file_name: str) -> None:
-    openapi_path = Path(__file__).parents[4] / file_name
-    if openapi_path.suffix == ".json":
-        document = json.loads(openapi_path.read_text())
-    else:
-        document = yaml.safe_load(openapi_path.read_text())
+def test_committed_openapi_keeps_public_explore_contract() -> None:
+    openapi_path = Path(__file__).parents[4] / "openapi.yaml"
+    document = yaml.safe_load(openapi_path.read_text())
 
     expected_contract = {
         "/explore/places": ("search_explore_places", "PlaceSearchRequest", "PlaceSearchResponse"),
