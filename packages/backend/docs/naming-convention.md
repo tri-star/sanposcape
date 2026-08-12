@@ -68,6 +68,11 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
     （例: `/walks/stats` は `/walks/{walk_id}` より前）。FastAPI は宣言順にマッチするため、後ろに
     置くと `stats` が `walk_id: UUID` のバリデーションに落ちて 422 になる。宣言順が壊れたことに
     気付けるよう、回帰テスト（そのパスが 200 を返すこと）もあわせて置く。
+    この制約は**同一 HTTP メソッド内**で効く（例: `GET /walks/stats` の宣言順は
+    `DELETE /walks/{walk_id}` の宣言順に影響しない。GET と DELETE は別々にマッチングされるため）。
+    将来 `DELETE /walks/stats` のような固定セグメントのエンドポイントを追加する場合は、
+    それを DELETE の中で `/{walk_id}` より前に宣言する必要があるが、既存の GET 側の宣言順とは
+    無関係（`walks/router.py` のコメントも参照）。
 - パスパラメータ名は snake_case（`{walk_id}`）。
 - エンドポイント関数名は操作を表す snake_case（`create_walk`, `list_walks`, `get_walk`, `get_walk_stats`, `delete_walk`）。
 
