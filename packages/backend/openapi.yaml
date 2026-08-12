@@ -318,8 +318,6 @@ paths:
                 $ref: '#/components/schemas/WalkListRead'
         '401':
           description: Not authenticated
-        '413':
-          description: Request body too large
         '400':
           description: Invalid cursor
         '422':
@@ -347,8 +345,6 @@ paths:
                 $ref: '#/components/schemas/WalkStatsRead'
         '401':
           description: Not authenticated
-        '413':
-          description: Request body too large
       security:
       - HTTPBearer: []
   /walks/{walk_id}:
@@ -377,8 +373,6 @@ paths:
                 $ref: '#/components/schemas/WalkDetailRead'
         '401':
           description: Not authenticated
-        '413':
-          description: Request body too large
         '404':
           description: Walk not found
         '422':
@@ -413,8 +407,6 @@ paths:
           description: Successful Response
         '401':
           description: Not authenticated
-        '413':
-          description: Request body too large
         '404':
           description: Walk not found
         '422':
