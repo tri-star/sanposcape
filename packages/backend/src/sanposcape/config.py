@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     google_maps_max_place_candidates: int = Field(default=20, ge=1, le=20)
     google_maps_max_route_requests_per_search: int = Field(default=20, ge=1, le=20)
     google_maps_rate_limit_requests: int = Field(default=30, gt=0)
+    google_maps_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
 
@@ -87,6 +88,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_environment_settings(self) -> "Settings":
+        if self.google_maps_anonymous_rate_limit_requests > self.google_maps_rate_limit_requests:
+            raise ValueError(
+                "GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS must not exceed "
+                "GOOGLE_MAPS_RATE_LIMIT_REQUESTS"
+            )
         # 許可リスト方式: 「fail-safe な検証をスキップしてよい環境」だけを明示的に列挙する。
         # `env == "production"` のような否定リスト方式だと、新しい env 値（例: staging）を
         # 追加した瞬間にバリデーションの対象外へ静かに落ちてしまう

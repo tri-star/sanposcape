@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, Request
 
 from sanposcape.config import Settings, get_settings
-from sanposcape.dependencies import get_current_user
+from sanposcape.dependencies import get_current_user_optional
 from sanposcape.integrations.google_maps.provider import GoogleMapsProvider
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.service import MapsService
@@ -18,10 +18,10 @@ def get_explore_rate_limiter(request: Request) -> ExploreRateLimiter:
 
 def enforce_explore_rate_limit(
     request: Request,
-    current_user: object = Depends(get_current_user),
+    current_user: object | None = Depends(get_current_user_optional),
     limiter: ExploreRateLimiter = Depends(get_explore_rate_limiter),
 ) -> None:
-    user_id = str(getattr(current_user, "id", "unknown"))
+    user_id = str(getattr(current_user, "id", "unknown")) if current_user is not None else None
     client_ip = request.client.host if request.client else "unknown"
     if not limiter.allow(user_id=user_id, client_ip=client_ip):
         raise HTTPException(status_code=429, detail="Explore request rate limit exceeded")

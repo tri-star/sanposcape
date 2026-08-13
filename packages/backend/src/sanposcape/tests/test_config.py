@@ -93,6 +93,7 @@ def test_production_without_google_maps_server_key_fails_to_start() -> None:
         ("google_maps_connect_timeout_seconds", 0),
         ("google_maps_cache_ttl_seconds", 0),
         ("google_maps_rate_limit_requests", 0),
+        ("google_maps_anonymous_rate_limit_requests", 0),
         ("google_maps_rate_limit_window_seconds", 0),
         ("google_maps_explore_request_max_bytes", 0),
         ("google_maps_max_place_candidates", 21),
@@ -101,6 +102,14 @@ def test_production_without_google_maps_server_key_fails_to_start() -> None:
 def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, value: int) -> None:
     with pytest.raises(ValidationError):
         Settings(**{field: value})
+
+
+def test_anonymous_maps_rate_limit_must_not_exceed_authenticated_limit() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            google_maps_rate_limit_requests=10,
+            google_maps_anonymous_rate_limit_requests=11,
+        )
 
 
 @pytest.mark.parametrize("value", [0, 4_194_305])
