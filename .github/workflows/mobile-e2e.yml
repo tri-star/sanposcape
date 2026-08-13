@@ -51,7 +51,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          # mobile-ci.yml と同じ理由で 24 に揃える（Expo SDK 57 の最低 Node は 22.13.x）。
+          # `eas build --local` も内部で app.config.ts を読むため、こちら側の引き上げも必須。
+          node-version: 24
           cache: pnpm
 
       - name: Setup JDK
