@@ -19,13 +19,11 @@ router = APIRouter(prefix="/walks", tags=["walks"])
 
 _ERROR_RESPONSES = {
     401: {"description": "Not authenticated"},
+    # `RequestSizeLimitMiddleware`（core/middleware.py）は `/walks` 配下の全 HTTP
+    # メソッドの Content-Length をチェックするため、GET / DELETE のようにボディを
+    # 送らないエンドポイントでも（不正な Content-Length ヘッダーが付与されれば）413
+    # になり得る。そのため全エンドポイントで一律にこのレスポンスセットを使う。
     413: {"description": "Request body too large"},
-}
-
-# ボディを持たないエンドポイント（GET / DELETE）用。413（Request body too large）は
-# リクエストボディを送るエンドポイント（POST /walks）にしか起こり得ないため含めない。
-_ERROR_RESPONSES_NO_BODY = {
-    401: {"description": "Not authenticated"},
 }
 
 
@@ -62,7 +60,7 @@ def create_walk(
 @router.get(
     "",
     response_model=WalkListRead,
-    responses={**_ERROR_RESPONSES_NO_BODY, 400: {"description": "Invalid cursor"}},
+    responses={**_ERROR_RESPONSES, 400: {"description": "Invalid cursor"}},
 )
 def list_walks(
     limit: int = Query(default=20, ge=1, le=50),
@@ -82,7 +80,7 @@ def list_walks(
     )
 
 
-@router.get("/stats", response_model=WalkStatsRead, responses={**_ERROR_RESPONSES_NO_BODY})
+@router.get("/stats", response_model=WalkStatsRead, responses={**_ERROR_RESPONSES})
 def get_walk_stats(
     current_user: User = Depends(get_current_user),
     service: WalkService = Depends(get_walk_service),
@@ -104,7 +102,7 @@ def get_walk_stats(
 @router.get(
     "/{walk_id}",
     response_model=WalkDetailRead,
-    responses={**_ERROR_RESPONSES_NO_BODY, 404: {"description": "Walk not found"}},
+    responses={**_ERROR_RESPONSES, 404: {"description": "Walk not found"}},
 )
 def get_walk(
     walk_id: UUID,
@@ -118,7 +116,7 @@ def get_walk(
 @router.delete(
     "/{walk_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={**_ERROR_RESPONSES_NO_BODY, 404: {"description": "Walk not found"}},
+    responses={**_ERROR_RESPONSES, 404: {"description": "Walk not found"}},
 )
 def delete_walk(
     walk_id: UUID,
