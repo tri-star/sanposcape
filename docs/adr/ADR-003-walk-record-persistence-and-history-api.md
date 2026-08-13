@@ -241,6 +241,7 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
 - **（SS-42 追補）** 実装事実: `GET /walks/stats` の追加に新規の Alembic マイグレーション・新規インデックスは不要だった（既存 `ix_walks_user_id_started_at_id` が集計クエリの range scan と streak の index-order + LIMIT の両方を賄う）。
 - **（SS-42 追補）** 実装事実: `WalkService` にクロック注入（`now: Callable[[], datetime]`、既定 `datetime.now(UTC)`）を追加した。「今日」の判定をテストから固定できるようにするための変更で、`auth/service.py` の `AuthService` と同じ形。
 - **（SS-53 追補）** 実装事実: DB スキーマ変更が無いため新規 Alembic マイグレーションは不要。`main.py` の例外ハンドラも既存の `WalkNotFoundError` に相乗りしたため変更なし。
+- **（SS-53 追補）** 実装事実: `RequestSizeLimitMiddleware` は `/walks` 配下の**全 HTTP メソッド**の `Content-Length` を検査するため、GET / DELETE でも 413 が起こり得る。当初は「ボディを持たないエンドポイントは 413 を返さない」前提で OpenAPI から 413 を除いていたが、PR レビューで実装との不整合を指摘され、**ミドルウェア側にメソッド分岐を足すのではなく OpenAPI を実態に合わせる**方向で解消した（`walks/router.py` の全エンドポイントが 401 + 413 を持つ）。ミドルウェア側を直すと `/explore` にも影響が及ぶうえ、防御を弱める変更になるため。
 - **（SS-53 追補）mobile への申し送り（未着手）**: 削除導線（履歴一覧/詳細からの削除操作・確認ダイアログ・失敗時の扱い）は未実装。実装時は (1) 削除成功後に `invalidateQueries({ queryKey: ["walks"] })` を呼べば一覧・詳細・集計がまとめて更新される（query key はすべて `["walks", ...]` 始まり）、(2) DELETE の 404 はエラー表示せず「既に削除済み」として成功扱いにする、(3) 削除した散歩の `client_walk_id` を保持したまま再送しない、の3点に注意する。
 
 ## 関連情報
