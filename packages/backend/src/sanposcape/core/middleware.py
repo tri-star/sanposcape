@@ -22,6 +22,14 @@ class RequestSizeLimitMiddleware:
 
     413 を実際に返す経路（例外ハンドラの登録）は `main.py` 側にあるので、
     このミドルウェアだけを直そうとしても 413 が返らない（500 になる）ことに注意する。
+
+    HTTP メソッドによる分岐は**意図的に持たない**（GET / DELETE のようにボディを送らない
+    リクエストでも、不正な `Content-Length` が付いていれば 413 で弾く）。SS-53 で
+    「GET/DELETE を対象外にするか、OpenAPI 側を実装の実態に合わせるか」を検討した際、
+    (1) `scope["method"]` による分岐は `/explore` と `/walks` の両 prefix と既存テストに
+    影響が及ぶ一方、router 側の `responses` を揃えるだけなら数行で済むこと、
+    (2) 対象外化は防御を弱める方向の変更であること、から**実態に合わせる側**を採った。
+    したがって `/walks`・`/explore` 配下の全エンドポイントは OpenAPI 上も 413 を持つ。
     """
 
     def __init__(self, app: ASGIApp, path_prefix: str, max_bytes: int) -> None:
