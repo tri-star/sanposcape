@@ -293,6 +293,163 @@ class TestGetWalk:
         assert response.status_code == 404
 
 
+class TestDeleteWalk:
+    def test_d_t1_deletes_own_walk_and_returns_204_with_empty_body(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        create_response = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        walk_id = create_response.json()["id"]
+
+        response = walks_client.delete(f"/walks/{walk_id}", headers=auth_headers)
+
+        assert response.status_code == 204, response.text
+        assert response.content == b""
+
+    def test_d_t2_get_after_delete_returns_404(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        create_response = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        walk_id = create_response.json()["id"]
+
+        walks_client.delete(f"/walks/{walk_id}", headers=auth_headers)
+        response = walks_client.get(f"/walks/{walk_id}", headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_d_t3_deleted_walk_disappears_from_list(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        create_response = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        walk_id = create_response.json()["id"]
+
+        walks_client.delete(f"/walks/{walk_id}", headers=auth_headers)
+        response = walks_client.get("/walks", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert walk_id not in {item["id"] for item in response.json()["items"]}
+
+    def test_d_t4_delete_reflected_in_stats(
+        self,
+        frozen_stats_client: TestClient,
+        auth_headers: dict[str, str],
+        db_session: Session,
+        authenticated_user: User,
+    ) -> None:
+        walk = seed_walk(db_session, user_id=authenticated_user.id, started_at=STATS_ANCHOR_JST)
+        before = frozen_stats_client.get("/walks/stats", headers=auth_headers)
+        assert before.json()["today"]["walk_count"] == 1
+
+        delete_response = frozen_stats_client.delete(f"/walks/{walk.id}", headers=auth_headers)
+        after = frozen_stats_client.get("/walks/stats", headers=auth_headers)
+
+        assert delete_response.status_code == 204
+        assert after.json()["today"]["walk_count"] == 0
+
+    def test_d_t5_other_users_walk_returns_404_and_owner_can_still_get_it(
+        self,
+        walks_client: TestClient,
+        auth_headers: dict[str, str],
+        test_settings: Settings,
+        db_session: Session,
+    ) -> None:
+        create_response = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        walk_id = create_response.json()["id"]
+
+        other_user = make_user(db_session, subject="other-delete-user")
+        other_token, _ = create_access_token(user_id=other_user.id, settings=test_settings)
+
+        delete_response = walks_client.delete(
+            f"/walks/{walk_id}", headers={"Authorization": f"Bearer {other_token}"}
+        )
+        get_response = walks_client.get(f"/walks/{walk_id}", headers=auth_headers)
+
+        assert delete_response.status_code == 404
+        assert get_response.status_code == 200
+
+    def test_d_t6_unknown_walk_id_returns_404(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = walks_client.delete(f"/walks/{uuid.uuid4()}", headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_d_t7_second_delete_returns_404_not_idempotent(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        create_response = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        walk_id = create_response.json()["id"]
+
+        first = walks_client.delete(f"/walks/{walk_id}", headers=auth_headers)
+        second = walks_client.delete(f"/walks/{walk_id}", headers=auth_headers)
+
+        assert first.status_code == 204
+        assert second.status_code == 404
+
+    def test_d_t8_missing_authorization_returns_401(self, walks_client: TestClient) -> None:
+        response = walks_client.delete(f"/walks/{uuid.uuid4()}")
+
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == "Bearer"
+
+    def test_d_t9_non_uuid_walk_id_returns_422(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = walks_client.delete("/walks/not-a-uuid", headers=auth_headers)
+
+        assert response.status_code == 422
+
+    def test_d_t10_openapi_contract(self) -> None:
+        operation = app.openapi()["paths"]["/walks/{walk_id}"]["delete"]
+
+        assert "204" in operation["responses"]
+        assert "401" in operation["responses"]
+        assert "404" in operation["responses"]
+        assert operation["security"] == [{"HTTPBearer": []}]
+
+    def test_d_t11_resending_the_same_client_walk_id_after_delete_recreates_it(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        client_walk_id = uuid.uuid4()
+        payload = _payload(client_walk_id=client_walk_id)
+        create_response = walks_client.post("/walks", json=payload, headers=auth_headers)
+        walk_id = create_response.json()["id"]
+
+        walks_client.delete(f"/walks/{walk_id}", headers=auth_headers)
+        resend_response = walks_client.post("/walks", json=payload, headers=auth_headers)
+
+        assert resend_response.status_code == 201, resend_response.text
+        assert resend_response.json()["id"] != walk_id
+
+    def test_d_t12_cursor_survives_deletion_of_the_walk_it_pointed_to(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        base = datetime.now(UTC) - timedelta(days=1)
+        created_ids = []
+        for i in range(3):
+            res = walks_client.post(
+                "/walks",
+                json=_payload(started_at=base + timedelta(minutes=i)),
+                headers=auth_headers,
+            )
+            created_ids.append(res.json()["id"])
+
+        first_page = walks_client.get("/walks?limit=2", headers=auth_headers)
+        first_body = first_page.json()
+        cursor_walk_id = first_body["items"][-1]["id"]  # cursor の基準になった散歩
+
+        delete_response = walks_client.delete(f"/walks/{cursor_walk_id}", headers=auth_headers)
+        second_page = walks_client.get(
+            f"/walks?limit=2&cursor={first_body['next_cursor']}", headers=auth_headers
+        )
+
+        assert delete_response.status_code == 204
+        assert second_page.status_code == 200
+        remaining_ids = {item["id"] for item in second_page.json()["items"]}
+        assert remaining_ids == set(created_ids) - {cursor_walk_id} - {
+            item["id"] for item in first_body["items"]
+        }
+
+
 class TestGetWalkStats:
     def test_t1_returns_200_not_swallowed_by_walk_id_route(
         self, walks_client: TestClient, auth_headers: dict[str, str]

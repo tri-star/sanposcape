@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
@@ -31,6 +32,8 @@ from sanposcape.walks.stats import (
     should_continue_streak_scan,
     to_jst_date,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class WalkService:
@@ -99,6 +102,23 @@ class WalkService:
         if walk is None:
             raise WalkNotFoundError()
         return to_walk_detail_read(walk)
+
+    def delete_walk(self, current_user: User, walk_id: uuid.UUID) -> None:
+        """自分の散歩を1件削除する。他ユーザーの散歩・存在しない ID はいずれも 404（D6）。
+
+        削除に成功した場合（`repository.delete()` が True）のみ commit する。False の
+        場合は2通りある: (1) 対象が見つからず repository 側で flush していないケース、
+        (2) 対象は見つかったが同時実行競合（真に同時な2重DELETE、詳細は
+        `WalkRepository.delete()` docstring 参照）により flush 自体は行われたものの
+        0行しか消せず失敗として扱われるケース。どちらの場合も明示的な rollback は
+        呼ばない: このメソッドは commit せずに WalkNotFoundError を送出するだけで、
+        未コミットの変更（あれば）はセッションが get_db の finally で `close()` される
+        際に暗黙にロールバックされるため。
+        """
+        if not self._repository.delete(user_id=current_user.id, walk_id=walk_id):
+            raise WalkNotFoundError()
+        self._db.commit()
+        logger.info("Walk deleted (user_id=%s, walk_id=%s)", current_user.id, walk_id)
 
     def get_walk_stats(self, current_user: User) -> WalkStatsRead:
         """記録タブ向けの集計（今日 / 直近7日 / 直近28日 / 連続日数）を返す。
