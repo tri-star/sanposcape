@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
+import { getPostSignInDestination } from "@/features/auth/lib/postSignInDestination";
+import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useToast } from "@/hooks/useToast";
 import { authService, isAuthError } from "@/services/auth";
 
@@ -17,21 +19,28 @@ export type UseAuthActionsResult = {
 
 /**
  * 認証アクションと遷移を1箇所にまとめる hook。
- * UI からロジックを分離し、成功後は常に散歩開始画面へ遷移する。
+ * UI からロジックを分離し、成功後の遷移先は `getPostSignInDestination`（`features/auth/lib/`）が
+ * 進行中の散歩の有無から決める。
  * `AuthService.signIn("google")` を real/dev/mock いずれのモードでも同じ形で呼ぶ
  * （`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md` 決定5: signIn/signUp は区別しない）。
  * キャンセル（`AuthError("cancelled")`）はユーザー操作なのでトーストを出さない。
- * 判定ロジックは持たない（純粋関数化する対象なし）。
  *
  * ゲスト導線（`continueAsGuest`）は SS-13 で一旦外し、SS-57 で復活した（SS-49 で `/explore/*` が
  * 任意認証になったため）。`POST /walks`（散歩の保存）は未認証では 401 になり保存できない
  * （サインイン誘導 CTA は SS-37 で対応）。
+ *
+ * **散歩中に設定画面経由でサインインするケースへの対応（SS-57 ローカルレビュー対応）**:
+ * ゲスト散歩の解禁により、「散歩中タブの歯車 → 設定 → guest向けサインイン導線 → Google サインイン
+ * 成功」という経路が生まれた。無条件に `/walk-start` へ `replace` すると、進行中の散歩が見えない
+ * 画面に飛ばされ、気づかず「散歩を始める」を押すと進行中の散歩が無警告で上書きされてしまう。
+ * `useActiveWalkStore` の `activeWalk` を見て遷移先を分岐する。
  */
 export function useAuthActions(): UseAuthActionsResult {
   const router = useRouter();
   const toast = useToast();
   const { show } = toast;
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
 
   const runSignIn = useCallback(
     (failureMessage: string) => {
@@ -42,7 +51,7 @@ export function useAuthActions(): UseAuthActionsResult {
       setIsSubmitting(true);
       authService
         .signIn("google")
-        .then(() => router.replace("/walk-start"))
+        .then(() => router.replace(getPostSignInDestination(hasActiveWalk)))
         .catch((error: unknown) => {
           if (isAuthError(error)) {
             if (error.code === "cancelled") {
@@ -58,7 +67,7 @@ export function useAuthActions(): UseAuthActionsResult {
         })
         .finally(() => setIsSubmitting(false));
     },
-    [isSubmitting, router, show],
+    [isSubmitting, router, show, hasActiveWalk],
   );
 
   const signInWithGoogle = useCallback(() => {

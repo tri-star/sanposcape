@@ -82,7 +82,7 @@ export function SettingsView() {
               variant="primary"
               fullWidth
               testID="settings-sign-in"
-              onPress={() => router.push("/(auth)/sign-in")}
+              onPress={() => router.replace("/(auth)/sign-in")}
             >
               サインイン
             </Button>
@@ -90,38 +90,43 @@ export function SettingsView() {
         )}
       </ScrollView>
 
-      {isAuthenticated ? (
-        <Dialog
-          open={logoutDialogOpen}
-          title="ログアウトしますか？"
-          onClose={closeLogoutDialog}
-          dismissDisabled={isSigningOut}
-          testID="logout-dialog"
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                fullWidth
-                disabled={isSigningOut}
-                onPress={closeLogoutDialog}
-              >
-                キャンセル
-              </Button>
-              <Button
-                variant="danger"
-                fullWidth
-                disabled={isSigningOut}
-                onPress={handleConfirmLogout}
-                testID="settings-confirm-logout"
-              >
-                {isSigningOut ? "ログアウト中..." : "ログアウト"}
-              </Button>
-            </>
-          }
-        >
-          <Text style={styles.dialogBody}>再度利用するには、もう一度サインインが必要です。</Text>
-        </Dialog>
-      ) : null}
+      {/*
+        マウント条件は `open` の boolean（`logoutDialogOpen`）だけにする。`isAuthenticated` の
+        反転で条件付きマウントすると、ログアウト成功で isAuthenticated が false に変わった瞬間
+        Dialog 自体がアンマウントされ、AuthGate の退避（router.replace）が完了するまでの一瞬
+        ちらつきうる（SS-57 ローカルレビュー対応）。guest はこの Dialog を開く導線（
+        `settings-open-logout-dialog`）自体を持たないため、常にマウントしても実害は無い。
+      */}
+      <Dialog
+        open={logoutDialogOpen}
+        title="ログアウトしますか？"
+        onClose={closeLogoutDialog}
+        dismissDisabled={isSigningOut}
+        testID="logout-dialog"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={isSigningOut}
+              onPress={closeLogoutDialog}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              disabled={isSigningOut}
+              onPress={handleConfirmLogout}
+              testID="settings-confirm-logout"
+            >
+              {isSigningOut ? "ログアウト中..." : "ログアウト"}
+            </Button>
+          </>
+        }
+      >
+        <Text style={styles.dialogBody}>再度利用するには、もう一度サインインが必要です。</Text>
+      </Dialog>
     </View>
   );
 }

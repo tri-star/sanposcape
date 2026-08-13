@@ -8,10 +8,27 @@ import {
   resolveAuthGateDecision,
   shouldEvacuateOnSessionEnd,
 } from "@/features/auth/lib/authGate";
+import type { AuthGateRedirectHref } from "@/features/auth/lib/authGate";
 import type { AuthSessionStatus } from "@/store/useAuthSessionStore";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 type AuthGateProps = { children: ReactNode };
+
+/**
+ * 「可能なら履歴スタックを破棄してから置き換える」処理を1箇所にまとめるヘルパー。
+ * ゲート判定による redirect（下記 effect 1）とセッション終了時の退避（下記 effect 2）の
+ * どちらも同じ `dismissAll()` → `replace()` の手順を踏むため、重複を避けるために括り出した
+ * （SS-57 ローカルレビュー対応）。
+ */
+function dismissAllAndReplace(
+  router: ReturnType<typeof useRouter>,
+  href: AuthGateRedirectHref,
+): void {
+  if (router.canDismiss()) {
+    router.dismissAll();
+  }
+  router.replace(href);
+}
 
 /**
  * 「起動時のセッション復元の起動」と「ゲート判定に基づく遷移」を担う、UI を持たないコンポーネント。
@@ -49,10 +66,7 @@ export function AuthGate({ children }: AuthGateProps) {
 
   useEffect(() => {
     if (redirectHref === null) return;
-    if (router.canDismiss()) {
-      router.dismissAll();
-    }
-    router.replace(redirectHref);
+    dismissAllAndReplace(router, redirectHref);
   }, [redirectHref, router]);
 
   // 依存配列には boolean（isPublicRoute の結果）を置く（segments 配列の同一性に依存させない）。
@@ -67,10 +81,7 @@ export function AuthGate({ children }: AuthGateProps) {
     if (!shouldEvacuateOnSessionEnd({ previousStatus, status, isPublicRoute: publicRoute })) {
       return;
     }
-    if (router.canDismiss()) {
-      router.dismissAll();
-    }
-    router.replace("/(auth)/sign-in");
+    dismissAllAndReplace(router, "/(auth)/sign-in");
   }, [status, publicRoute, router]);
 
   return <>{children}</>;

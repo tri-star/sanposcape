@@ -60,7 +60,9 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
  *
  * 意図的にしないこと: 認証済みユーザーを `(auth)` から追い出さない（片方向ゲート）。
  * `/dev-screens` からサインイン画面を開けなくなる／遷移が往復するのを避けるため。
- * サインイン成功後の遷移は `useAuthActions` が `router.replace("/walk-start")` で行う。
+ * サインイン成功後の遷移先は `useAuthActions` が `getPostSignInDestination`（進行中の散歩の
+ * 有無で `/walk-start` と `/(tabs)` を分岐する。SS-57 ローカルレビュー対応）を使って決め、
+ * `router.replace` で遷移する。
  *
  * SS-57 で `canEnterProtectedRoutes` が guest も許可するようになったため、現状この関数が
  * `redirect` を返す経路は無い（`loading` は 1. で allow、`guest`/`authenticated` は 3. で allow）。

@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）
+2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）
 
 ## ステータス
 
@@ -49,17 +49,28 @@ UI（features / app）は `authService.getCurrentUser()` を直接呼ばない�
 
 判定は純粋関数 `resolveAuthGateDecision`（`features/auth/lib/authGate.ts`）に切り出し、弾く条件は `canEnterProtectedRoutes` の1関数に閉じる。
 
+初版（SS-13）時点の実装は以下だった:
+
 ```typescript
+// 初版（SS-13）。SS-57 で下記のとおり変更済み（このコードブロックは経緯を示す当時のスナップショット）。
 export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): boolean {
   return status === "authenticated";
 }
 ```
 
-初版では「将来ゲスト散歩を許可するときは、ここに `"guest"` を許可として足すのが唯一の変更点」としていたが、**この記述は不正確だった（SS-57 追補）**。実際には `canEnterProtectedRoutes` はゲート以外に `splashDestination.ts`（決定3の下記）からも参照されており、1行変更だけでは未サインインの起動が `/walk-start` に直行し、サインイン画面（ゲスト導線と Google サインインの唯一の入口）に到達できなくなる。詳細は下記「SS-57 追補: ゲスト散歩の解禁」を参照。
+初版では「将来ゲスト散歩を許可するときは、ここに `"guest"` を許可として足すのが唯一の変更点」としていたが、**この記述は不正確だった（SS-57 追補）**。実際には `canEnterProtectedRoutes` はゲート以外に `splashDestination.ts`（決定3の下記）からも参照されており、1行変更だけでは未サインインの起動が `/walk-start` に直行し、サインイン画面（ゲスト導線と Google サインインの唯一の入口）に到達できなくなる。SS-57 時点の実装は以下（`status === "authenticated" || status === "guest"` と明示的に列挙し、`return true` にはしていない）:
+
+```typescript
+export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): boolean {
+  return status === "authenticated" || status === "guest";
+}
+```
+
+詳細は下記「SS-57 追補: ゲスト散歩の解禁」を参照。
 
 `AuthGate` は「起動時のセッション復元の起動」（`useAuthSessionBootstrap`）と「ゲート判定に基づく遷移」を担う、UI を持たないコンポーネント。`children` を条件分岐で差し替えず（`<Stack>` のアンマウント＝ナビゲータ再生成を避けるため）、`useEffect` の依存には `segments`（配列。レンダーごとに同一性が変わりうる）ではなく `redirectHref: string | null` を置く。
 
-認証済みユーザーを `(auth)` から追い出さない（片方向のゲート）。双方向にすると `/dev-screens` からサインイン画面を開けなくなり、遷移が往復して読みづらくなるため。サインイン成功後の遷移は `useAuthActions` が `router.replace("/walk-start")` で行う。
+認証済みユーザーを `(auth)` から追い出さない（片方向のゲート）。双方向にすると `/dev-screens` からサインイン画面を開けなくなり、遷移が往復して読みづらくなるため。サインイン成功後の遷移は `useAuthActions` が `router.replace(...)` で行う（遷移先は `/walk-start` 固定ではなく、`getPostSignInDestination` が進行中の散歩の有無で `/walk-start` と `/(tabs)` を分岐する。SS-57 ローカルレビュー対応。詳細は下記「SS-57 追補」を参照）。
 
 **`PUBLIC_ROOT_SEGMENTS` に `_sitemap` を含む前提について**: expo-router 57 は `app.json` の expo-router config plugin に `sitemap: false` を明示しない限り、本番ビルドにも `/_sitemap`（ルート一覧）を含める。「開発時のみ提供される」という前提は誤りで、`_sitemap` は本番でも到達可能である。本 ADR ではこれを無効化せず公開ルート扱いのままにする判断をした。理由は、`_sitemap` の内容がルート一覧へのリンクのみでアプリの機微データを含まないこと、RN アプリ自体はバンドル解析によって同等のルート構造情報を得られること、の2点から実害が小さいと判断したため。無効化する場合は `app.json` の expo-router config plugin に `sitemap: false` を設定し、`PUBLIC_ROOT_SEGMENTS` から `_sitemap` を外す（本ブランチでは対応せず申し送りとする）。
 
@@ -102,6 +113,13 @@ SS-49 の合意（2026-08-11）で `/explore/places` `/explore/routes/walking` �
 - **影響**: ゲストは記録タブ・履歴・設定にも入れるようになった。`/walks` 系（保存・履歴・統計）は 401 になり、既存のエラー分類（`walkSaveError.ts` / `walkHistoryError.ts` / `walkStatsError.ts`）の文言で degrade する。ルート単位の allowlist で guest を一部ルートから締め出す案（記録タブ等は引き続き弾く）も検討したが、タブバーの「記録」タブは散歩中でも常に見えているため、ゲストが記録タブを踏んだ瞬間に `dismissAll()` で進行中の散歩から強制退去させる導線になってしまい、全ルート開放より明確に体験が悪いため不採用にした。保存失敗時のサインイン誘導 CTA（現状は再試行ボタン無しの「サインインし直すと、記録を保存できます。」）の改善は SS-37 のスコープとする。
 - **設定画面（`SettingsView`）はゲストのときログアウトの代わりにサインイン導線（`settings-sign-in`）を出す**。ゲストのまま `/settings` に到達できるようになったため、押しても何も起きない・固まる「ログアウト」を見せないための対応。`features/settings` は `.oxlintrc.json` の `no-restricted-imports` override の対象外（対象は `features/walk` / `features/history` のみ）なので、`useAuthSessionStore` を直接参照する（決定2 の「UI は `authService.getCurrentUser()` を見ない」は維持）。
 
+### SS-57 ローカルレビュー追補: mid-walk 中の設定経由サインインへの対応
+
+SS-57 のローカルレビューで、「散歩中タブの歯車 → 設定 → guest向けサインイン導線 → Google サインイン成功」という経路が生まれたことが指摘された。上記「ゲスト導線を復活させた」時点の実装は `useAuthActions.runSignIn` の成功後に無条件で `router.replace("/walk-start")` していたため、進行中の散歩が見えない画面に飛ばされ、気づかず「散歩を始める」を押すと**進行中の散歩が無警告で上書きされる**問題があった。
+
+- **サインイン成功後の遷移先を、進行中の散歩の有無で分岐するようにした**。純粋関数 `getPostSignInDestination`（`features/auth/lib/postSignInDestination.ts`）を新設し、`useActiveWalkStore.activeWalk !== null` のときは `/(tabs)`（`WalkActiveView` が引き続き表示される既定ホーム）、無ければ従来どおり `/walk-start` へ `router.replace` する。`continueAsGuest`（サインイン画面の「ゲストで試す」）はこの分岐の対象外（サインイン画面から到達する時点で進行中の散歩は無い正規の導線のため、従来どおり `/walk-start` 固定）。
+- **`SettingsView` のサインイン導線（`settings-sign-in`）を `router.push` から `router.replace` に変更した**。他の全遷移（スプラッシュ→サインイン、サインイン成功→walk-start/(tabs) 等）が `replace` 連鎖前提であるのに対しここだけ `push` だったため、サインイン後に「戻る」で一瞬 settings 画面を経由しうる不整合があった。
+
 ## 検討した選択肢
 
 ### ゲートの実装方式
@@ -128,7 +146,9 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 
 ### ゲスト導線の扱い
 
-#### 選択肢1: ボタン削除（採用）
+**（SS-57 追補）** 本節は初版（SS-13）時点の判断であり、**SS-57 でこの判断は覆された**。SS-49 の合意で「ゲストボタンを押しても何も起きない」という選択肢1採用の前提（下記デメリット参照）が解消されたため、削除していたボタンを復活させた（詳細は上記「SS-57 追補: ゲスト散歩の解禁」）。以下は初版時点の記録として残す。
+
+#### 選択肢1: ボタン削除（初版時点で採用。SS-57 で覆した）
 
 - **概要**: `SignInView` / `SignUpView` の「ゲストで試す」ボタンを削除する。
 - **メリット**: 動かない導線がコード上に残らない。
@@ -174,7 +194,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 
 ## 決定理由
 
-- **弾く条件を1関数に閉じることを最優先した**。将来ゲスト散歩を許可する際の変更点を最小化し、レビューしやすくするため。
+- **「保護ルートに誰が入れるか」の判断を1関数（`canEnterProtectedRoutes`）に閉じることを最優先した**。将来ゲスト散歩を許可する際の変更点を最小化し、レビューしやすくするための狙いだったが、**SS-57 での実装時にこの想定は不正確だったと判明した**（`splashDestination.ts` が同関数に委譲していたため、実際には委譲の解消・退避条件の変更を含む複数箇所の変更が必要になった。詳細は「SS-57 追補」）。それでも「判断を1関数に閉じる」という設計自体は維持する価値があると判断し、`canEnterProtectedRoutes` を器として残した。
 - **状態遷移の起点をストアの1箇所に集約することで、UI 側の認証状態参照を構造的に一本化した**。画面ごとに `authService.getCurrentUser()` を読む実装が増えるたびに同じ穴（ディープリンクでの弾き漏れ）が繰り返されるのを防ぐ。
 - **復元をルートレイアウトへ移したのは、ディープリンクのコールドスタートという既存の欠落を同時に埋めるため**。スプラッシュに閉じたままでは、ゲートを追加しても「保護ルートへ直接遷移したときだけ復元が走らない」という別の穴が残ってしまう。
 - **`onSessionChange` の配線を`services/auth/index.ts`に置いたのは、`initAuth()` と同じ「認証の合成ルート」という役割に沿わせるため**。DI を deps 経由で real/dev/mock へ配ることで、`createSessionAuthService` 自体は SS-13 のためのロジックを一切持たずに済む。
@@ -195,7 +215,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 ### ネガティブな影響・トレードオフ
 
 - `/dev-screens` から保護画面を開くには先にサインインが必要になった（`EXPO_PUBLIC_AUTH_MODE=dev` なら1タップで済む）。
-- セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（決定8 参照。ADR-008 の「アプリを落とすと散歩状態が消える」という既存の残存リスクに、非自発的セッション失効というトリガーが新たに加わった形）。
+- セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（決定6 参照。ADR-008 の「アプリを落とすと散歩状態が消える」という既存の残存リスクに、非自発的セッション失効というトリガーが新たに加わった形）。
 - ゲートは `loading` 中は素通しのため、ディープリンクで開いた保護画面が復元完了までの数百 ms だけ描画されうる（機微データはサーバー由来で、トークンが無ければ API が 401 になるため実害は小さいと判断している）。
 - **（SS-57 追補）** ゲストは記録タブ・履歴・設定にも入れるようになり、`/walks` 系は 401 のエラーカードで degrade する（保存誘導 CTA の改善は SS-37）。
 
@@ -218,5 +238,5 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - [ADR-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する](./ADR-008-active-walk-state-and-route-cache.md) — 決定6（サインアウト時の後始末）を本 ADR で追補
 - [architecture-guideline](../docs/architecture-guideline.md) — 認証の扱い
 - [folder-structure](../docs/folder-structure.md) — `src/store/` の配置ルール
-- 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例）
+- 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/lib/postSignInDestination.ts`（SS-57 ローカルレビュー対応）、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例）
 - Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）

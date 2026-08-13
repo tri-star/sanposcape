@@ -101,7 +101,7 @@ app --Authorization: Bearer <自前 access token>--> 以降の全 API
 
 ### 6. ゲストは「トークンを持たない状態」として表現する
 
-`AuthService` のメソッドとしての `guest` は持たせず、認証状態（トークン非保持）として表現する。これは [SS-13](https://github.com/tri-star/sanposcape)「認証状態と探索ロジックの分離」で実装に落とされ、探索ロジックが認証に不可分に依存しない形が `.oxlintrc.json` の import 制限により構造的に担保されている（詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)）。MVP では未認証はゲートで弾く。
+`AuthService` のメソッドとしての `guest` は持たせず、認証状態（トークン非保持）として表現する。これは [SS-13](https://github.com/tri-star/sanposcape)「認証状態と探索ロジックの分離」で実装に落とされ、探索ロジックが認証に不可分に依存しない形が `.oxlintrc.json` の import 制限により構造的に担保されている（詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)）。SS-13 時点では未認証をゲートで弾いていたが、SS-49 の合意（下記 6-1）を受けて SS-57 でゲスト散歩を解禁し、`guest` のまま保護ルート（探索・散歩・記録タブ・設定）に入れるようになった。
 
 ### 6-1. ゲスト時の backend API 契約（SS-49 追補）
 
@@ -115,7 +115,7 @@ mobile ADR-009 が「今回は決めない」として持ち越していた、�
 
 **決定理由**: `docs/project-overview.md` が当初から明記していた「記録・履歴の永続化のみが認証を要求する」「ゲストでの散歩開始（記録なし）」という構想に、この2点がそのまま合致するため。マージ機能（ゲストの記録を後からアカウントへ紐付ける案）は、所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さを伴い、MVP のスコープでは必要性が無いと判断して見送った。
 
-**影響**: mobile 側は `canEnterProtectedRoutes`（`features/auth/lib/authGate.ts`、決定3参照）に `"guest"` を許可として追加し、`SignInView` / `SignUpView` のゲスト導線を復活させる実装が必要になる（SS-57）。backend 側の実装は SS-56。実装順序は backend（SS-56）が先行し、mobile（SS-57）はその API 変更を前提とする。
+**影響**: mobile 側は `canEnterProtectedRoutes`（`features/auth/lib/authGate.ts`、決定3参照）に `"guest"` を許可として追加し、`SignInView` / `SignUpView` のゲスト導線を復活させた（SS-57 で実装済み）。backend 側の実装は SS-56（先行して main にマージ済み）。詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)「SS-57 追補」を参照。
 
 ## 検討した選択肢
 

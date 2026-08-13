@@ -106,7 +106,7 @@ export function ScreenCatalog() {
     {
       key: "settings",
       label: "設定",
-      description: "ログアウト導線（サインイン後に確認）",
+      description: "ログアウト導線（サインイン後）/ サインイン導線（guest。SS-57）",
       icon: "settings-2",
       onPress: () => router.push("/settings"),
     },

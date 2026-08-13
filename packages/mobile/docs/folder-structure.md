@@ -182,9 +182,9 @@ packages/mobile/
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
   - 実例: `useAuthSessionStore.ts`（認証セッション状態 `loading | authenticated | guest`。SS-13）。
-    参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線）・
-    `app/_layout.tsx`（アプリ全体のゲート）にまたがるため、最初から `src/store/` に置いた
-    （コンポーネントの昇格ルールと同じ判断基準）。
+    参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線 /
+    guest 向けサインイン導線の出し分け。SS-57）・`app/_layout.tsx`（アプリ全体のゲート）にまたがる
+    ため、最初から `src/store/` に置いた（コンポーネントの昇格ルールと同じ判断基準）。
   - **「サーバー由来のデータを置かない」の例外は `useAuthSessionStore.user` も対象**。
     `user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、
     TanStack Query が管理する一般的なドメインデータとは性質が異なるため許容する
