@@ -1,9 +1,14 @@
 import { useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 
 import { useAuthSessionBootstrap } from "@/features/auth/hooks/useAuthSessionBootstrap";
-import { resolveAuthGateDecision } from "@/features/auth/lib/authGate";
+import {
+  isPublicRoute,
+  resolveAuthGateDecision,
+  shouldEvacuateOnSessionEnd,
+} from "@/features/auth/lib/authGate";
+import type { AuthSessionStatus } from "@/store/useAuthSessionStore";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 type AuthGateProps = { children: ReactNode };
@@ -24,9 +29,12 @@ type AuthGateProps = { children: ReactNode };
  *   「Attempted to navigate before mounting the Root Layout」は発生しない。
  * - **レンダリングテストは書けない**（`vitest.config.ts` が node 環境 + `react-native` スタブのため）。
  *   判定は `lib/authGate.ts` に切り出してあるので、テストはそちらで担保する。
- * - 認証状態が guest になった保護ルートからの退避と履歴スタックの破棄はここだけが担う
- *   （SS-50）。`dismissAll()` は呼べる場合だけ実行し、その後にサインイン画面へ置き換える。
- *   これにより、設定画面側の Promise callback と React effect の実行順へ依存しない。
+ * - `authenticated → guest` **の遷移**（サインアウト / refresh token 失効）で保護ルートから退避し、
+ *   履歴スタックを破棄するのはここだけが担う（SS-50 / SS-57）。SS-57 で guest 自体は保護ルートに
+ *   入れるようになったため、退避条件は「guest かどうか」ではなく「authenticated から guest へ
+ *   落ちたかどうか」（`shouldEvacuateOnSessionEnd`）に変わった。`dismissAll()` は呼べる場合だけ
+ *   実行し、その後にサインイン画面へ置き換える。これにより、設定画面側の Promise callback と
+ *   React effect の実行順へ依存しない。
  */
 export function AuthGate({ children }: AuthGateProps) {
   const router = useRouter();
@@ -46,6 +54,24 @@ export function AuthGate({ children }: AuthGateProps) {
     }
     router.replace(redirectHref);
   }, [redirectHref, router]);
+
+  // 依存配列には boolean（isPublicRoute の結果）を置く（segments 配列の同一性に依存させない）。
+  const publicRoute = isPublicRoute(segments);
+  const previousStatusRef = useRef<AuthSessionStatus>(status);
+
+  useEffect(() => {
+    // 前回 status は ref で持ち、effect の中で読んで即更新する（レンダー中にミューテートしない）。
+    // ルート変更で effect が再実行されても、ref は既に現在の status に更新済みなので二重退避しない。
+    const previousStatus = previousStatusRef.current;
+    previousStatusRef.current = status;
+    if (!shouldEvacuateOnSessionEnd({ previousStatus, status, isPublicRoute: publicRoute })) {
+      return;
+    }
+    if (router.canDismiss()) {
+      router.dismissAll();
+    }
+    router.replace("/(auth)/sign-in");
+  }, [status, publicRoute, router]);
 
   return <>{children}</>;
 }

@@ -7,7 +7,7 @@ describe("getSplashDestination", () => {
     expect(getSplashDestination("authenticated")).toBe("/walk-start");
   });
 
-  it("guest の場合はサインイン画面へ遷移する", () => {
+  it("guest はゲートを通れるようになった後もサインイン画面へ送る（ゲスト導線の入口を必ず見せる。SS-57）", () => {
     expect(getSplashDestination("guest")).toBe("/(auth)/sign-in");
   });
 });

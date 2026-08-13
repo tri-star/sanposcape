@@ -26,7 +26,7 @@
 
 | 状態フラグ | 画面 | 概要 |
 | --- | --- | --- |
-| `isLogin` | ログイン | ロゴ＋キャッチ、Googleログイン / ゲスト（**ゲスト導線は SS-13 で実装から削除済み**。認証ゲート導入により「押しても何も起きない」導線になるため。復活手順は [mobile ADR-009](../../adr/ADR-009-auth-session-state-and-route-gate.md) 参照） |
+| `isLogin` | ログイン | ロゴ＋キャッチ、Googleログイン / ゲスト（ゲスト導線は SS-13 で一旦削除 → **SS-57 で復活**（`sign-in-guest-button` / `sign-up-guest-button`）。経緯は [mobile ADR-009](../../adr/ADR-009-auth-session-state-and-route-gate.md) 参照） |
 | `isStart` | 散歩スタート（どこまで歩く？） | 地図＋往復時間スライダー＋カテゴリシート＋開始ボタン |
 | `isMain` | メイン（ナビ） | 地図・ルート・ピン、経過時間/距離/歩数のライブstats、一時停止/終了/ピン追加 |
 | `isDetail` | ピン詳細 | 名前・日付・タグ・写真グリッド・メモ |

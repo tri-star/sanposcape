@@ -1,5 +1,5 @@
-# 認証ゲート（SS-13 / ADR-009）の到達性フロー。
-# 未認証でのディープリンクがサインイン画面へ弾かれ、サインイン後は同じリンクが通ることを見る。
+# ゲスト導線と認証状態の到達性フロー（SS-57 / ADR-009 SS-57 追補）。
+# ゲストのまま保護ルートに入れること、ゲストからサインインへ戻れることを見る。
 # preview E2E ビルド（EXPO_PUBLIC_AUTH_MODE=dev）前提。外部データ（/explore/*）には依存しない。
 appId: com.sanposcape.app
 tags:
@@ -7,29 +7,39 @@ tags:
 ---
 - launchApp:
     clearState: true
-# スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照:
-# 表示窓が約900msしかなく、Maestroのポーリング間隔次第で見逃す構造的フレークになる）。
+# スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照）。
+# 未サインインの起動はサインイン画面に着く（getSplashDestination は guest を通さない）。
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"
     timeout: 15000
-# 未認証で保護ルートへディープリンク → ゲートがサインインへ戻す。
-- openLink: "sanposcape://walk-start"
+# 「ゲストで試す」で保護ルート（散歩開始画面）に入れる。
+- tapOn:
+    id: "sign-in-guest-button"
+- extendedWaitUntil:
+    visible:
+      id: "walk-start-screen"
+    timeout: 15000
+# ゲストのまま設定画面に入ると、ログアウトではなくサインイン導線が出る。
+- openLink: "sanposcape://settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 10000
+- assertVisible:
+    id: "settings-sign-in"
+- assertNotVisible:
+    id: "settings-open-logout-dialog"
+# ゲストからサインインへ戻り、サインインできる。
+- tapOn:
+    id: "settings-sign-in"
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"
     timeout: 10000
-- assertNotVisible:
-    id: "walk-start-screen"
-# サインイン後は同じ導線が通る。
 - tapOn:
     id: "sign-in-google-button"
 - extendedWaitUntil:
     visible:
       id: "walk-start-screen"
     timeout: 20000
-- openLink: "sanposcape://settings"
-- extendedWaitUntil:
-    visible:
-      id: "settings-screen"
-    timeout: 10000
