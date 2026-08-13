@@ -288,3 +288,9 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 ## 2026-08-12追加: SS-53をIn Progressに更新（実装着手）
 
 - SS-53「backend: 散歩記録の削除API（DELETE /walks/{walk_id}）を追加する」(work_item_id: `c6d79e92-46c8-4521-a0e6-0ad9cf305788`、M5所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。start_date=2026-09-03/target_date=2026-09-10は既存設定のまま。SS-42/PR #26のフォローアップ課題。
+- その後同日中にReview化・PR #47リンク登録済み（link_id: `08ed8323-72ba-433c-9f85-b3a7a9332dfc`）。
+
+## 2026-08-13追加: SS-53をReview→In Progressに再更新（PR #47レビュー指摘対応）
+
+- SS-53をReview→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に再更新し、コメント（comment_id: `7a4017ad-1e42-4936-a456-dd6dd526a415`）に「PR #47へのレビュー指摘対応のための再着手」である旨を記録。PR #47のリンクは既存のまま維持（削除・追加操作なし）。
+- **Why**: レビュー指摘を受けた再着手であることを状態変更だけでは残せないため、理由をコメントに明記する運用（Review→In Progress等の“出戻り”系更新では毎回コメントで理由を残すのが望ましい）。
