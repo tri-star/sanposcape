@@ -16,6 +16,25 @@ appId: com.sanposcape.app
 # スプラッシュは最低 900ms 表示 + AuthGate（useAuthSessionBootstrap）が走らせる
 # restoreSession() の通信完了を待つため extendedWaitUntil を使う（SS-13以降、復元の実行主体は
 # スプラッシュ自身ではなくルートレイアウトの AuthGate）。
+#
+# CI のエミュレータはリソースが逼迫しやすく、起動直後にホームランチャー(Pixel Launcher)が
+# ANR（「〜isn't responding」）を起こし、正常に描画済みのアプリの上にダイアログが被さって
+# visibility判定を塞ぐことがある（アプリ側のバグではない。CIで実際に発生し、失敗時の
+# スクリーンショットには既にサインイン画面が写っていた）。出ていたら「Wait」で閉じてから待機を続ける。
+- repeat:
+    times: 6
+    while:
+      notVisible:
+        id: "sign-in-google-button"
+    commands:
+      - tapOn:
+          id: "android:id/aerr_wait"
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: "sign-in-google-button"
+          timeout: 3000
+          optional: true
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"
