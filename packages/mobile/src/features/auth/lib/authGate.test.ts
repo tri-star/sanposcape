@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { canEnterProtectedRoutes, resolveAuthGateDecision } from "@/features/auth/lib/authGate";
+import {
+  canEnterProtectedRoutes,
+  resolveAuthGateDecision,
+  shouldEvacuateOnSessionEnd,
+} from "@/features/auth/lib/authGate";
 
 describe("resolveAuthGateDecision", () => {
   it("loading 中は保護ルートでも弾かない（復元中は未認証扱いしない）", () => {
@@ -45,34 +49,30 @@ describe("resolveAuthGateDecision", () => {
     });
   });
 
-  it("guest は walk-start を弾き、サインイン画面へ redirect する", () => {
+  it("guest は walk-start を許可する（SS-57 でゲスト散歩を解禁）", () => {
     expect(resolveAuthGateDecision({ status: "guest", segments: ["walk-start"] })).toEqual({
-      type: "redirect",
-      href: "/(auth)/sign-in",
+      type: "allow",
     });
   });
 
-  it("guest は (tabs) / (tabs)/history を弾く", () => {
+  it("guest は (tabs) / (tabs)/history を許可する（SS-57）", () => {
     expect(resolveAuthGateDecision({ status: "guest", segments: ["(tabs)"] })).toEqual({
-      type: "redirect",
-      href: "/(auth)/sign-in",
+      type: "allow",
     });
     expect(resolveAuthGateDecision({ status: "guest", segments: ["(tabs)", "history"] })).toEqual({
-      type: "redirect",
-      href: "/(auth)/sign-in",
+      type: "allow",
     });
   });
 
-  it("guest は walk-history/[walkId] を弾く", () => {
+  it("guest は walk-history/[walkId] を許可する（SS-57）", () => {
     expect(
       resolveAuthGateDecision({ status: "guest", segments: ["walk-history", "[walkId]"] }),
-    ).toEqual({ type: "redirect", href: "/(auth)/sign-in" });
+    ).toEqual({ type: "allow" });
   });
 
-  it("guest は settings を弾く", () => {
+  it("guest は settings を許可する（SS-57）", () => {
     expect(resolveAuthGateDecision({ status: "guest", segments: ["settings"] })).toEqual({
-      type: "redirect",
-      href: "/(auth)/sign-in",
+      type: "allow",
     });
   });
 
@@ -93,11 +93,73 @@ describe("resolveAuthGateDecision", () => {
 });
 
 describe("canEnterProtectedRoutes", () => {
-  it("guest は false（将来のゲスト散歩で変える1箇所）", () => {
-    expect(canEnterProtectedRoutes("guest")).toBe(false);
+  it("guest は true（SS-57 でゲスト散歩を解禁）", () => {
+    expect(canEnterProtectedRoutes("guest")).toBe(true);
   });
 
   it("authenticated は true", () => {
     expect(canEnterProtectedRoutes("authenticated")).toBe(true);
+  });
+});
+
+describe("shouldEvacuateOnSessionEnd", () => {
+  it("authenticated → guest かつ保護ルート上では退避する（サインアウト / 401 失効）", () => {
+    expect(
+      shouldEvacuateOnSessionEnd({
+        previousStatus: "authenticated",
+        status: "guest",
+        isPublicRoute: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("authenticated → guest でも公開ルート上では退避しない（移動先が現在地と同じ）", () => {
+    expect(
+      shouldEvacuateOnSessionEnd({
+        previousStatus: "authenticated",
+        status: "guest",
+        isPublicRoute: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("loading → guest では退避しない（起動時にゲストのままディープリンクで入る正規導線）", () => {
+    expect(
+      shouldEvacuateOnSessionEnd({
+        previousStatus: "loading",
+        status: "guest",
+        isPublicRoute: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("guest → guest では退避しない（暴発しない）", () => {
+    expect(
+      shouldEvacuateOnSessionEnd({
+        previousStatus: "guest",
+        status: "guest",
+        isPublicRoute: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("guest → authenticated では退避しない（サインイン直後に飛ばさない）", () => {
+    expect(
+      shouldEvacuateOnSessionEnd({
+        previousStatus: "guest",
+        status: "authenticated",
+        isPublicRoute: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("authenticated → authenticated では退避しない", () => {
+    expect(
+      shouldEvacuateOnSessionEnd({
+        previousStatus: "authenticated",
+        status: "authenticated",
+        isPublicRoute: false,
+      }),
+    ).toBe(false);
   });
 });
