@@ -15,23 +15,6 @@ tags:
 # 表示窓が約900msしかなく、Maestroのポーリング間隔次第で見逃す構造的フレークになる）。
 # スプラッシュは最低 900ms 表示 + restoreSession() の通信を待つため extendedWaitUntil を使う
 # （subflows/sign-in.yaml と同じ待ち方針に揃える）。
-#
-# CI環境のリソース逼迫によるホームランチャーANRダイアログ対策（詳細は subflows/sign-in.yaml
-# のコメントを参照。アプリ側のバグではない）。出ていたら閉じてから待機を続ける。
-- repeat:
-    times: 6
-    while:
-      notVisible:
-        id: "sign-in-google-button"
-    commands:
-      - tapOn:
-          id: "android:id/aerr_wait"
-          optional: true
-      - extendedWaitUntil:
-          visible:
-            id: "sign-in-google-button"
-          timeout: 3000
-          optional: true
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"

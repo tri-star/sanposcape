@@ -190,6 +190,16 @@ jobs:
           ram-size: 4096M
           script: |
             adb install -r packages/mobile/e2e-build/app-preview.apk
+            # CIランナーの負荷で Pixel Launcher が ANR を起こすことがあり、その
+            # 「〜isn't responding」ダイアログがシステムモーダルとして前面を塞ぐと、
+            # 背後のアプリのウィンドウが accessibility 経由のビュー階層から丸ごと消え、
+            # 全フローが sign-in-google-button のアサーションで失敗していた。
+            # ダイアログを閉じる方式（Wait のタップ）は、ランチャーが応答不能なままなので
+            # 約5秒周期で再表示され効果がなかった。ダイアログの表示自体を抑止する。
+            # AppErrors が表示のたびにこの設定を参照するため、ブート後の設定で有効になる。
+            # アプリ自身がクラッシュした場合もダイアログは出なくなるが、要素が見えず
+            # アサーションが失敗するので不具合の握り潰しにはならない（logcat も残る）。
+            adb shell settings put global hide_error_dialogs 1
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
             # /explore/places の候補を決定的に返すため、外部データへの依存はない）。
             maestro test packages/mobile/.maestro/
