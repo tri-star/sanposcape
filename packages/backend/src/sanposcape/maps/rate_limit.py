@@ -34,7 +34,10 @@ class ExploreRateLimiter:
                     return False
 
             new_bucket_count = sum(key not in self._buckets for key, _ in bucket_limits)
-            self._evict_oldest_buckets(new_bucket_count)
+            if len(self._buckets) + new_bucket_count > self._MAX_BUCKETS:
+                # 未期限切れの履歴を捨てると、上限到達を誘発した後に同一キーで
+                # 追加リクエストできてしまう。既存バケットを保持して新規キーだけ拒否する。
+                return False
             for key, _ in bucket_limits:
                 self._buckets.setdefault(key, deque()).append(now)
         return True
@@ -47,9 +50,3 @@ class ExploreRateLimiter:
                 bucket.popleft()
             if not bucket:
                 del self._buckets[key]
-
-    def _evict_oldest_buckets(self, new_bucket_count: int) -> None:
-        """新規キーの追加前に、最古のアクティブなバケットを必要数だけ追い出す。"""
-        while len(self._buckets) + new_bucket_count > self._MAX_BUCKETS:
-            oldest_key = min(self._buckets, key=lambda key: self._buckets[key][0])
-            del self._buckets[oldest_key]

@@ -51,10 +51,15 @@ def test_rate_limiter_removes_expired_buckets_and_bounds_new_keys(
         assert limiter.allow(user_id=None, client_ip=f"ip-{index}")
     assert len(limiter._buckets) == limiter._MAX_BUCKETS
 
-    assert limiter.allow(user_id=None, client_ip="overflow")
+    assert not limiter.allow(user_id=None, client_ip="overflow")
     assert len(limiter._buckets) == limiter._MAX_BUCKETS
-    assert "anonymous-ip:current" not in limiter._buckets
-    assert "anonymous-ip:overflow" in limiter._buckets
+    assert "anonymous-ip:current" in limiter._buckets
+    assert "anonymous-ip:overflow" not in limiter._buckets
+    # 新規キーが満杯状態で拒否されても、既存キーの未期限切れ履歴は保持する。
+    assert not limiter.allow(user_id=None, client_ip="current")
+
+    now = 222.0
+    assert limiter.allow(user_id=None, client_ip="overflow")
 
 
 def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
