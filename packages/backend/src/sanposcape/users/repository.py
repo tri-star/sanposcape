@@ -28,6 +28,14 @@ class UserRepository:
 
         `refresh_tokens.user_id` の ON DELETE CASCADE により、紐づく refresh token も
         同じトランザクションで削除される。commit はユースケース境界の service が担う。
+
+        既知の未対応事項（SS-53 の調査結果から）: `User` にも `version_id_col` が無いため、
+        真に同時な2重削除では SQLAlchemy の `confirm_deleted_rows` が
+        `StaleDataError` ではなく `SAWarning` としてのみ報告し、この `flush()` は
+        例外を投げずに「成功したように見える」（実際には0行削除）。
+        対処が必要になった場合は `walks/repository.py::delete()` が採った
+        「`flush()` の間だけ `SAWarning` を例外に昇格させて捕捉する」形を参照すること。
+        アカウント削除は連打されにくく、成否の呼び分けも無いため現時点では未対応。
         """
         self._db.delete(user)
         self._db.flush()

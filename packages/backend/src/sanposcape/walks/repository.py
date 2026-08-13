@@ -121,7 +121,9 @@ class WalkRepository:
         他ユーザーの散歩・存在しない ID をここで区別しない（呼び出し元が 404 に変換する、D6）。
         `user_id` を必須キーワード引数に取る規約（D6）はこのメソッドにも適用する。
         commit はユースケース境界の service が持つ（users/repository.py:delete() と同じ分担）。
-        track_points（JSONB）は削除に不要なので defer する。
+        track_points（JSONB）は削除に不要なので defer する。`get_by_id()` は詳細取得用に
+        track_points を読む前提のメソッドなので再利用せず、ここで専用の SELECT を発行する
+        （`get_by_id()` に defer を足すと `GET /walks/{walk_id}` の挙動が変わってしまう）。
         ORM の `session.delete()` を使い、`sqlalchemy.delete()` の一括 DELETE 文は使わない
         （一括 DELETE は `synchronize_session` の挙動に依存し、同一セッションの identity map
         に載っている行が失効せず、削除したはずの行を後続処理が掴み続ける事故が起きうるため）。
