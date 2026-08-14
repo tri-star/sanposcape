@@ -11,3 +11,4 @@
 - [Maestro E2E review approach](maestro-e2e-review-approach.md) — .maestro/*.yamlのコメント主張（戻り先画面/canGoBack挙動）はrouter.push/replaceの実装を追跡して裏取りする。waitForAnimationToEndの時間稼ぎ用法は非自明。
 - [callback caller JSDoc drift](callback-caller-jsdoc-drift.md) — 呼び出し元を移すリファクタで、呼ばれる側関数のJSDoc内「現状の呼び出し元」記述が更新漏れになりやすい（sessionCleanup.tsで発見）。
 - [notice branch inconsistent alert role](notice-component-inconsistent-alert-role-across-branches.md) — 複数kind分岐の通知コンポーネントは新分岐だけa11y対応され「そのまま移植」の旧分岐が取り残されがち。全分岐を横並び比較する。
+- [SS-57 guest→settings sign-in push breaks canGoBack invariant](ss57-guest-settings-signin-push-breaks-canGoBack-invariant.md) — 保護ルート発の新規サインイン導線はpush/replaceの組み合わせをwalk-startのcanGoBack前提と突き合わせて確認する。

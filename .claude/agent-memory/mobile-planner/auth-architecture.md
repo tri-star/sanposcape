@@ -52,6 +52,23 @@ metadata:
   開発者全員が development build を作り直す必要がある。Android は署名鍵ごと（debug/development/preview/production）に
   **SHA-1 登録**が要る（未登録は `DEVELOPER_ERROR` という分かりにくい失敗になる）。
 
+## 認証ゲートの「1関数だけ変えればいい」は嘘（SS-57 の調査で判明・2026-08-13）
+
+ADR-009 決定3 は「ゲスト散歩の解禁は `canEnterProtectedRoutes` に `"guest"` を足すのが唯一の変更点」と
+書いているが、**同関数はゲート以外からも参照されており、1行変更だけでは壊れる**。
+**Why:** 実際にプランを書くまで気付けない結合で、気付かないと「起動したらサインイン画面に行けない」
+「ログアウトしても画面が固まる」という致命的な回帰になる。
+**How to apply:** 認証ゲート/ゲスト可否に触るタスクでは、次の2点を必ず確認する。
+
+- `features/auth/lib/splashDestination.ts` が `canEnterProtectedRoutes` に**委譲**している
+  → guest を許可すると未サインインの起動が `/walk-start` 直行になり、サインイン画面（ゲスト導線と
+  Google サインインの唯一の入口）に到達できなくなる。E2E も全滅（全フローが起動直後に
+  `sign-in-google-button` を待つ）。
+- サインアウト/401失効の退避（ADR-009 決定6 / SS-50）は「ゲートが guest を保護ルートで弾く」ことに
+  依存している → guest を許可すると遷移せず、`SettingsView` の `isSigningOut` は成功時にリセットされない
+  設計なのでダイアログが「ログアウト中...」で固まる。退避は**状態遷移（authenticated → guest）**で
+  判定する形に寄せる必要がある。
+
 ## 機能側から「サインイン中のユーザー」を使いたくなった時（SS-13 / ADR-009 決定8）
 
 - `.oxlintrc.json` の `no-restricted-imports` override が **`src/features/walk/**` と `src/features/history/**` から
