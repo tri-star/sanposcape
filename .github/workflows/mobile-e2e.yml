@@ -3,9 +3,19 @@ name: mobile E2E (Maestro)
 # Maestro E2E は「実際にインストールした standalone APK」をエミュレータ上で操作する。
 # コスト方針:
 #   - EAS の *クラウド* ビルドは使わない（`eas build --local` でランナー上でビルド＝クラウド枠を消費しない）
-#   - @expo/fingerprint でネイティブ影響入力のハッシュを取り、APK をキャッシュ
-#     → fingerprint が変わらない限り再ビルドしない（JSのみの変更では走らない）
+#   - APK は packages/mobile 配下の内容ハッシュ（ネイティブ影響入力 + ソース全体）でキャッシュし、
+#     ハッシュが変わらない限り再ビルドしない（詳細は "Compute build cache key" ステップのコメント）
 #   - 実行頻度を分離: 常時CI(lint/typecheck/unit)は mobile-ci.yml、E2Eは下記トリガのみ
+#
+# 実行頻度についての追補（2026-08-14, ADR-004追補）:
+# 当初は「ネイティブ影響パスへの push」でも自動実行していたが、APKキャッシュのキーが
+# ネイティブ影響入力のみのハッシュだったため、JSのみの変更（例: SS-57のゲスト導線ボタン追加）が
+# 反映されないまま古いAPKがキャッシュヒットし続け、Maestroフロー側だけが新しいUI要素を
+# アサートするように更新されて「アプリのバグではないのに落ち続ける」E2Eになっていた
+# （run 31811792167 / 31813105115 で確認）。対応として、キャッシュキーに packages/mobile の
+# ソース全体を含めて「JSの変更でも必ず再ビルドする」方針に倒した。一方でこれは
+# 「JSのみの変更ではビルドしない」というコスト最適化を無効化するため、その埋め合わせとして
+# 自動実行を毎週末（土曜 08:00 JST）+ 手動実行のみに絞った（mainへのpush毎の自動実行は廃止）。
 #
 # 初回運用時に必要な準備:
 #   - リポジトリ Secrets に EXPO_TOKEN を設定（`eas build --local` のアカウント連携）
@@ -18,19 +28,7 @@ name: mobile E2E (Maestro)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 18 * * *" # 毎日 03:00 JST 相当（nightly）
-  push:
-    branches: [main]
-    # ネイティブに影響する変更があったときだけ E2E を走らせる
-    paths:
-      - "packages/mobile/package.json"
-      - "packages/mobile/app.json"
-      - "packages/mobile/app.config.ts"
-      - "packages/mobile/eas.json"
-      - "packages/mobile/babel.config.js"
-      - "pnpm-lock.yaml"
-      - "packages/mobile/.maestro/**"
-      - ".github/workflows/mobile-e2e.yml"
+    - cron: "0 23 * * 5" # 毎週土曜 08:00 JST 相当（weekly）
 
 concurrency:
   group: mobile-e2e-${{ github.ref }}
@@ -68,18 +66,28 @@ jobs:
       - name: Generate API client (Orval)
         run: pnpm --filter mobile orval
 
-      # ネイティブ影響入力のハッシュ = APK キャッシュのキー
+      # APK キャッシュのキー = ネイティブ影響入力のハッシュ + packages/mobile ソース全体のハッシュ。
       # GOOGLE_MAPS_ANDROID_SDK_KEY はビルドステップと同じ値を渡す。app.config.ts が
       # このキーの有無で android.config.googleMaps.apiKey を出し分ける（ADR-007）ため、
       # ここで渡さないとキーの有無がキャッシュキーに反映されず、キー注入前にキャッシュされた
       # APK（クラッシュする）がキー注入後も使い回されてしまう。
-      - name: Compute native fingerprint
+      #
+      # ソース全体のハッシュを合成している理由（2026-08-14 追補、ADR-004追補）:
+      # @expo/fingerprint 単体はネイティブに影響する入力しか見ないため、UIやロジックなど
+      # JSのみの変更ではキャッシュキーが変わらず、古いJSを埋め込んだAPKが使われ続けていた
+      # （standalone preview ビルドはJSを実行時取得ではなくビルド時に埋め込むため、
+      # Metro前提のdevelopment buildと違いこれがそのままバグになる）。`git ls-files -s` は
+      # 追跡対象ファイルのパス+blobハッシュの一覧なので、内容が変われば決定的に変わり、
+      # mtimeやビルド環境には依存しない。E2Eの実行頻度を週次+手動に絞った（このファイル冒頭の
+      # コメント参照）ことで、JS変更のたびに再ビルドが発生するコスト増は許容できると判断した。
+      - name: Compute build cache key
         id: fp
         env:
           GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
-          HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          NATIVE_HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
+          SRC_HASH=$(git ls-files -s packages/mobile | git hash-object --stdin)
+          echo "hash=${NATIVE_HASH}-${SRC_HASH:0:16}" >> "$GITHUB_OUTPUT"
 
       # restore/save を分離している理由: 統合版 actions/cache の保存(post)ステップは
       # `post-if: success()` で定義されており、後続の Maestro ステップが失敗すると
@@ -94,7 +102,7 @@ jobs:
           path: packages/mobile/e2e-build/app-preview.apk
           key: mobile-apk-${{ steps.fp.outputs.hash }}
 
-      # fingerprint 一致時はここをスキップ（＝ネイティブ未変更なら再ビルドしない）
+      # キャッシュキー一致時はここをスキップ（＝ネイティブ・ソースともに未変更なら再ビルドしない）
       # timeout-minutes: Gradleの子プロセスが後片付けされずハングする事象があったため、
       # 失敗時に無限に居座らせず確実に完了させる安全策（SS-44）。通常は10分台で終わる想定。
       - name: Build preview APK (local, no EAS cloud minutes)
