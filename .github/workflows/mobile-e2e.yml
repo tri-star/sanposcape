@@ -215,6 +215,17 @@ jobs:
             # アプリ自身がクラッシュした場合もダイアログは出なくなるが、要素が見えず
             # アサーションが失敗するので不具合の握り潰しにはならない（logcat も残る）。
             adb shell settings put global hide_error_dialogs 1
+            # システムの位置情報サービス自体を無効化する。preview ビルドは
+            # EXPO_PUBLIC_LOCATION_MODE=mock（ADR-006）でアプリ自身は expo-location/GNSSに
+            # 一切触れないが、Google Play Services 側が裏でバックグラウンドの位置取得を
+            # 行うことがあり、これが system_server の GNSS サービスをデッドロックさせて
+            # OSごとクラッシュする事象を確認した（2026-08-14 調査、run 31819288121。
+            # Watchdog ログ: `Blocked in handler on foreground thread (android.fg) for 71s` /
+            # `GnssStatusProvider.onReportStatus` で lock 待ちのまま停止 → Watchdogが
+            # system_server を強制終了 → 以降の全 adb 操作が失敗し、実行中だったフロー以降
+            # 全てが巻き添えで失敗した）。アプリが位置情報を実際には使わない E2E 環境では
+            # 無効化しても副作用がないため、発生源を断つ。
+            adb shell cmd location set-location-enabled false
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
             # /explore/places の候補を決定的に返すため、外部データへの依存はない）。
