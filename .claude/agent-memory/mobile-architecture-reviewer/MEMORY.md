@@ -8,3 +8,4 @@
 - [SS-35 散歩開始後の現在地起点ルート再計算](project_ss35_route_recalculation.md) — Query外ローカルstate+sequence世代管理+純粋関数状態機械の参照実装。プラン完全準拠、指摘は手動再計算ボタンのdisabled非対称のみ（P3）
 - [SS-29 app/がauthストア読取→propsでfeature注入する新パターン](project_ss29_route_as_composition_root.md) — ADR-009決定8の想定通り・却下した代替案の判断は妥当。ただし設計根拠がgitignore対象のtmp/にしか残らずdocs/ADRに痕跡なし
 - [SS-57 ゲスト散歩解禁・canEnterProtectedRoutesにguest許可](project_ss57_guest_route_gate.md) — ADR追補の質は高評価。mid-walk中にsettings経由でサインイン→walk-startへ強制遷移し進行中散歩を無確認で上書きしうる新規ギャップを発見（未検証・要手動確認）
+- [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認
