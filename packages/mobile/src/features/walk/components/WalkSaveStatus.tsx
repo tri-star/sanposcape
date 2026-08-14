@@ -3,7 +3,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { Button } from "@/components/ui/button/Button";
 import { Icon } from "@/components/ui/icon/Icon";
 import type { WalkSaveErrorCode } from "@/features/walk/lib/walkSaveError";
-import { isRetriableWalkSaveError, walkSaveErrorMessage } from "@/features/walk/lib/walkSaveError";
+import { walkSaveErrorAction, walkSaveErrorMessage } from "@/features/walk/lib/walkSaveError";
 import type { WalkSaveStatus as WalkSaveStatusValue } from "@/features/walk/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -12,6 +12,8 @@ export type WalkSaveStatusProps = {
   status: WalkSaveStatusValue;
   errorCode: WalkSaveErrorCode | null;
   onRetry: () => void;
+  /** unauthorized のときに出すサインイン CTA の押下ハンドラ（SS-37）。 */
+  onSignIn: () => void;
   testID?: string;
 };
 
@@ -19,12 +21,14 @@ export type WalkSaveStatusProps = {
  * 散歩記録の保存状態の表示と再試行導線。View から条件分岐を追い出す表示専用コンポーネント。
  * `idle` のときは何も表示しない（ドラフトが無い＝画面カタログ等からの単独表示）。
  * 状態の判別が必要な E2E のために、saving/saved は内側の Text に `${testID}-saving` /
- * `${testID}-saved` を持つ。error 状態は既存の `walk-summary-save-retry` で判別できる。
+ * `${testID}-saved` を持つ。error 状態は `walk-summary-save-retry` / `walk-summary-save-sign-in`
+ * のいずれかで判別できる（`unauthorized` は後者）。
  */
 export function WalkSaveStatus({
   status,
   errorCode,
   onRetry,
+  onSignIn,
   testID = "walk-summary-save-status",
 }: WalkSaveStatusProps) {
   const theme = useTheme();
@@ -67,7 +71,7 @@ export function WalkSaveStatus({
   }
 
   const message = walkSaveErrorMessage(errorCode ?? "unknown");
-  const retriable = isRetriableWalkSaveError(errorCode ?? "unknown");
+  const action = walkSaveErrorAction(errorCode ?? "unknown");
 
   // 外側コンテナには accessibilityLabel/Role を付けない（`WalkActiveView` の
   // `routeNotice` / `LocationPermissionNotice` と同じ方針）。コンテナに付けると
@@ -80,9 +84,14 @@ export function WalkSaveStatus({
         <Icon name="alert-circle" size={18} color={theme.colors.danger} />
         <Text style={styles.errorText}>{message}</Text>
       </View>
-      {retriable ? (
+      {action === "retry" ? (
         <Button variant="secondary" size="sm" onPress={onRetry} testID="walk-summary-save-retry">
           再試行
+        </Button>
+      ) : null}
+      {action === "sign_in" ? (
+        <Button variant="primary" size="sm" onPress={onSignIn} testID="walk-summary-save-sign-in">
+          サインインして保存
         </Button>
       ) : null}
     </View>
