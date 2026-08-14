@@ -17,9 +17,25 @@ type FinishedWalkState = {
   savedWalkId: string | null;
   /** 保存済みかどうか（savedWalkId が取れないケースがあるので独立させる）。 */
   saved: boolean;
+  /**
+   * サマリ画面の CTA（`walk-summary-save-sign-in`）から「保存目的でサインインした」という
+   * 明示的な意思表示。初期値 false。
+   *
+   * なぜこのフラグが要るか: `runSignIn` はどこから来たサインインかを直接は知らないため、
+   * 何もガードが無いと「共有端末でゲストが散歩を保存できず放置 → 全く別の人物が無関係な導線
+   * （設定画面など）からサインイン」しただけで、放置されていた他人の軌跡（機微な位置情報）が
+   * そのサインインしたユーザーのアカウントへ無確認で保存されてしまう
+   * （SS-37 ローカルレビュー Security High 対応）。このフラグは「サマリの CTA を押した」という
+   * 事実だけを記録し、`nextWalkSaveFireKey`（`lib/walkSaveTrigger.ts`）・
+   * `getPostSignInDestination`（`features/auth/lib/postSignInDestination.ts`）が
+   * 「認証状態の変化による自動再送・サマリへの強制復帰」を許可するかどうかの唯一のゲートに使う。
+   */
+  signInForSaveRequested: boolean;
   finishWalk: (walk: FinishedWalk) => void;
   markSaved: (walkId: string | null) => void;
   clearFinishedWalk: () => void;
+  /** サマリ画面の CTA から呼ぶ。保存目的のサインインであることを記録する（SS-37）。 */
+  requestSignInForSave: () => void;
 };
 
 /**
@@ -48,10 +64,15 @@ export const useFinishedWalkStore = create<FinishedWalkState>((set) => ({
   finishedWalk: null,
   savedWalkId: null,
   saved: false,
-  // 前回の保存結果を持ち越さない（新しい散歩を積んだら常にリセットする）。
-  finishWalk: (walk) => set({ finishedWalk: walk, savedWalkId: null, saved: false }),
-  markSaved: (walkId) => set({ saved: true, savedWalkId: walkId }),
-  clearFinishedWalk: () => set({ finishedWalk: null, savedWalkId: null, saved: false }),
+  signInForSaveRequested: false,
+  // 前回の保存結果・意思表示を持ち越さない（新しい散歩を積んだら常にリセットする）。
+  finishWalk: (walk) =>
+    set({ finishedWalk: walk, savedWalkId: null, saved: false, signInForSaveRequested: false }),
+  // 保存が完了したら意思表示も役目を終えるのでリセットする（次にドラフトが積まれるまで再送は起きない）。
+  markSaved: (walkId) => set({ saved: true, savedWalkId: walkId, signInForSaveRequested: false }),
+  clearFinishedWalk: () =>
+    set({ finishedWalk: null, savedWalkId: null, saved: false, signInForSaveRequested: false }),
+  requestSignInForSave: () => set({ signInForSaveRequested: true }),
 }));
 
 registerSessionCleanup(() => useFinishedWalkStore.getState().clearFinishedWalk());

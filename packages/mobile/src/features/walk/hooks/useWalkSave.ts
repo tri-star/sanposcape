@@ -36,6 +36,9 @@ const RETRY_DELAY_MAX_MS = 8000;
  * 自動発火する（`nextWalkSaveFireKey` が判定する。`useRef` に発火済みキーを記録して
  * StrictMode の二重実行を防ぐ。万一二重発火しても `client_walk_id` の冪等性で履歴は増えない）。
  * ゲストで 401 になった後にサインインすると、認証状態が変わるのでもう一度だけ発火する（SS-37）。
+ * ただしこの再発火は、サマリ画面の CTA から明示的にサインインした場合（`signInForSaveRequested`）
+ * に限る。無関係な導線（設定画面など）からのサインインでは再発火しない（共有端末での誤混入防止。
+ * SS-37 ローカルレビュー Security High 対応）。
  *
  * `buildWalkCreateRequest` が null を返すケース（保存不能）は `ApiError(422)` を投げて
  * ネットワークに出さずに即エラーにする（既存の分類関数をそのまま使えるため）。
@@ -51,6 +54,9 @@ export function useWalkSave(
 ): UseWalkSaveResult {
   const saved = useFinishedWalkStore((state) => state.saved);
   const markSaved = useFinishedWalkStore((state) => state.markSaved);
+  // サマリの CTA から来たサインインかどうか（SS-37 ローカルレビュー対応）。
+  // 認証状態の変化による自動再発火を許可するかどうかの唯一のゲートとして `nextWalkSaveFireKey` に渡す。
+  const signInForSaveRequested = useFinishedWalkStore((state) => state.signInForSaveRequested);
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -81,11 +87,12 @@ export function useWalkSave(
       saved,
       isSignedIn,
       lastFiredKey: firedKeyRef.current,
+      signInForSaveRequested,
     });
     if (key === null) return;
     firedKeyRef.current = key;
     mutate(finishedWalk);
-  }, [finishedWalk, saved, isSignedIn, mutate]);
+  }, [finishedWalk, saved, isSignedIn, signInForSaveRequested, mutate]);
 
   const retry = () => {
     if (finishedWalk === null) return;
