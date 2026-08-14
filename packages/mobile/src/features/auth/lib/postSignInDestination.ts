@@ -1,18 +1,33 @@
-export type PostSignInDestination = "/walk-start" | "/(tabs)";
+export type PostSignInDestination =
+  | { type: "replace"; href: "/walk-start" | "/(tabs)" }
+  | { type: "dismissTo"; href: "/walk-summary" };
+
+export type PostSignInInput = {
+  /** 進行中の散歩がある（`useActiveWalkStore.activeWalk !== null`）。 */
+  hasActiveWalk: boolean;
+  /** 保存待ちのドラフトがある（`finishedWalk !== null && !saved`）。SS-37。 */
+  hasUnsavedFinishedWalk: boolean;
+};
 
 /**
- * サインイン成功後の遷移先を、進行中の散歩の有無から決める（SS-57 ローカルレビュー対応）。
+ * サインイン成功後の遷移先と遷移方法を決める（純粋）。
  *
- * SS-57 でゲスト散歩を解禁するまでは無条件に `/walk-start`（散歩開始前の計画画面）へ `replace`
- * していたが、guest が保護ルート全体（散歩中画面・設定画面を含む）に入れるようになった結果、
- * 「散歩中タブの歯車 → 設定 → guest向けサインイン導線 → Google サインイン成功」という経路が
- * 新たに生まれた。`WalkStartView.handleStartWalk` は既存の `activeWalk` の有無チェックや確認
- * ダイアログなしに `startWalk()` するため、無条件に `/walk-start` へ送ると、進行中の散歩が
- * 見えない画面に飛ばされ、気づかず「散歩を始める」を押すと**進行中の散歩が無警告で上書きされる**。
+ * 優先順:
+ * 1. 進行中の散歩がある → `/(tabs)`（`WalkActiveView` を隠さない。SS-57 ローカルレビュー対応）。
+ *    保存待ちドラフトより優先する。散歩の最中にユーザーを別画面へ連れて行かないため
+ *    （この2つが同時に立つのは「保存待ちのまま次の散歩を始めた」稀なケース）。
+ * 2. 保存待ちのドラフトがある → `/walk-summary` へ `dismissTo` で戻す（SS-37）。
+ *    `replace` を使わないのは、サマリ画面から CTA で `push` して来た場合に
+ *    スタックへサマリが二重に積まれるのを避けるため。`dismissTo` はスタックに
+ *    対象が無ければ現在の画面を置き換えるので、設定画面からサインインした場合も破綻しない。
+ * 3. それ以外 → 従来どおり `/walk-start` へ `replace`。
  *
- * 進行中の散歩があるときは `/(tabs)`（`WalkStartView.HOME_HREF` と同じ既定ホーム）へ戻す。
- * `WalkActiveView`（散歩中画面）がそのまま表示され、進行中の散歩を隠さない。
+ * SS-57 の背景（進行中の散歩があるとき無条件に `/walk-start` へ送ると、進行中の散歩が
+ * 見えない画面に飛ばされ、気づかず「散歩を始める」を押すと無警告で上書きされる）は
+ * 引き続き有効。
  */
-export function getPostSignInDestination(hasActiveWalk: boolean): PostSignInDestination {
-  return hasActiveWalk ? "/(tabs)" : "/walk-start";
+export function getPostSignInDestination(input: PostSignInInput): PostSignInDestination {
+  if (input.hasActiveWalk) return { type: "replace", href: "/(tabs)" };
+  if (input.hasUnsavedFinishedWalk) return { type: "dismissTo", href: "/walk-summary" };
+  return { type: "replace", href: "/walk-start" };
 }

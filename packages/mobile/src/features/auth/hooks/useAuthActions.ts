@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 
 import { getPostSignInDestination } from "@/features/auth/lib/postSignInDestination";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
+import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import { useToast } from "@/hooks/useToast";
 import { authService, isAuthError } from "@/services/auth";
 
@@ -26,14 +27,15 @@ export type UseAuthActionsResult = {
  * キャンセル（`AuthError("cancelled")`）はユーザー操作なのでトーストを出さない。
  *
  * ゲスト導線（`continueAsGuest`）は SS-13 で一旦外し、SS-57 で復活した（SS-49 で `/explore/*` が
- * 任意認証になったため）。`POST /walks`（散歩の保存）は未認証では 401 になり保存できない
- * （サインイン誘導 CTA は SS-37 で対応）。
+ * 任意認証になったため）。`POST /walks`（散歩の保存）は未認証では 401 になり保存できないが、
+ * サインイン誘導 CTA（`walk-summary-save-sign-in`）から来た場合はサインイン後に保存待ちドラフト
+ * があればサマリ画面（`/walk-summary`）へ戻して自動再送させる（SS-37）。
  *
  * **散歩中に設定画面経由でサインインするケースへの対応（SS-57 ローカルレビュー対応）**:
  * ゲスト散歩の解禁により、「散歩中タブの歯車 → 設定 → guest向けサインイン導線 → Google サインイン
  * 成功」という経路が生まれた。無条件に `/walk-start` へ `replace` すると、進行中の散歩が見えない
  * 画面に飛ばされ、気づかず「散歩を始める」を押すと進行中の散歩が無警告で上書きされてしまう。
- * `useActiveWalkStore` の `activeWalk` を見て遷移先を分岐する。
+ * `useActiveWalkStore` の `activeWalk` を見て遷移先を分岐する（保存待ちドラフトより優先）。
  */
 export function useAuthActions(): UseAuthActionsResult {
   const router = useRouter();
@@ -41,6 +43,10 @@ export function useAuthActions(): UseAuthActionsResult {
   const { show } = toast;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
+  // セレクタはプリミティブを返す（zustand v5 の再レンダー対策）。
+  const hasUnsavedFinishedWalk = useFinishedWalkStore(
+    (state) => state.finishedWalk !== null && !state.saved,
+  );
 
   const runSignIn = useCallback(
     (failureMessage: string) => {
@@ -51,7 +57,18 @@ export function useAuthActions(): UseAuthActionsResult {
       setIsSubmitting(true);
       authService
         .signIn("google")
-        .then(() => router.replace(getPostSignInDestination(hasActiveWalk)))
+        .then(() => {
+          // 保存の再送はこの遷移に依存しない（多重防御）。`authService.signIn()` の中で
+          // `setSession(user)` が走った瞬間にサマリ画面（スタック下で mount 済み）の
+          // `isSignedIn` が true になり `useWalkSave` の effect が再発火する。ここでの
+          // `dismissTo` はユーザーを保存中の画面へ戻すだけで、遷移が失敗しても保存自体は走る。
+          const destination = getPostSignInDestination({ hasActiveWalk, hasUnsavedFinishedWalk });
+          if (destination.type === "dismissTo") {
+            router.dismissTo(destination.href);
+            return;
+          }
+          router.replace(destination.href);
+        })
         .catch((error: unknown) => {
           if (isAuthError(error)) {
             if (error.code === "cancelled") {
@@ -67,7 +84,7 @@ export function useAuthActions(): UseAuthActionsResult {
         })
         .finally(() => setIsSubmitting(false));
     },
-    [isSubmitting, router, show, hasActiveWalk],
+    [isSubmitting, router, show, hasActiveWalk, hasUnsavedFinishedWalk],
   );
 
   const signInWithGoogle = useCallback(() => {
