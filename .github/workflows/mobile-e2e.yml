@@ -189,17 +189,25 @@ jobs:
           cores: 3
           ram-size: 4096M
           script: |
-            adb install -r packages/mobile/e2e-build/app-preview.apk
             # CIランナーの負荷で Pixel Launcher が ANR を起こすことがあり、その
             # 「〜isn't responding」ダイアログがシステムモーダルとして前面を塞ぐと、
             # 背後のアプリのウィンドウが accessibility 経由のビュー階層から丸ごと消え、
             # 全フローが sign-in-google-button のアサーションで失敗していた。
             # ダイアログを閉じる方式（Wait のタップ）は、ランチャーが応答不能なままなので
             # 約5秒周期で再表示され効果がなかった。ダイアログの表示自体を抑止する。
-            # AppErrors が表示のたびにこの設定を参照するため、ブート後の設定で有効になる。
+            # AppErrors はダイアログを *これから表示する* 瞬間にこの設定を参照するだけで、
+            # 既に表示中のダイアログを閉じはしない。当初 `adb install` の後にこの設定を
+            # 入れていたところ、install 中の負荷（ブート直後で最もCPUが逼迫する区間）で
+            # Launcher が ANR し、設定が効く前にダイアログが出てしまい再発した
+            # （2026-08-14 調査、run 31813105115 / 31811792167 で同一現象を確認）。
+            # 設定適用をできるだけ早める（スクリプトの先頭に置く）ことで発生源となる
+            # install 中の負荷区間をこの対策の対象に含める。ただし、この行が実行される
+            # 前（アクション内部のブート待ち～disable-animations 処理中）に既に ANR が
+            # 起きた場合はダイアログを閉じられない残存リスクがある点は未解消。
             # アプリ自身がクラッシュした場合もダイアログは出なくなるが、要素が見えず
             # アサーションが失敗するので不具合の握り潰しにはならない（logcat も残る）。
             adb shell settings put global hide_error_dialogs 1
+            adb install -r packages/mobile/e2e-build/app-preview.apk
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
             # /explore/places の候補を決定的に返すため、外部データへの依存はない）。
             maestro test packages/mobile/.maestro/
