@@ -5,6 +5,7 @@ import {
   type WalkSaveErrorCode,
   isRetriableWalkSaveError,
   toWalkSaveErrorCode,
+  walkSaveErrorAction,
   walkSaveErrorMessage,
 } from "@/features/walk/lib/walkSaveError";
 
@@ -62,5 +63,19 @@ describe("isRetriableWalkSaveError", () => {
 
   it.each(["unauthorized", "too_large", "invalid_request"] as const)("%s は再試行不可", (code) => {
     expect(isRetriableWalkSaveError(code)).toBe(false);
+  });
+});
+
+describe("walkSaveErrorAction", () => {
+  it("unauthorized は sign_in", () => {
+    expect(walkSaveErrorAction("unauthorized")).toBe("sign_in");
+  });
+
+  it.each(["network", "server", "unknown"] as const)("%s は retry", (code) => {
+    expect(walkSaveErrorAction(code)).toBe("retry");
+  });
+
+  it.each(["too_large", "invalid_request"] as const)("%s は none", (code) => {
+    expect(walkSaveErrorAction(code)).toBe("none");
   });
 });
