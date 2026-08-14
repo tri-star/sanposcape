@@ -12,8 +12,11 @@
 - `src/features/walk/` / `src/features/history/`（探索・散歩・履歴のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
-  （実例: `app/(tabs)/history.tsx` が `state.user?.displayName ?? null` を読み `HistoryView` →
-  `useHistorySummary` へ渡す。SS-29）。セレクタは必ずプリミティブを返すこと
+  （実例1: `app/(tabs)/history.tsx` が `state.user?.displayName ?? null` を読み `HistoryView` →
+  `useHistorySummary` へ渡す。SS-29。
+  実例2: `app/walk-summary.tsx` が `state.status === "authenticated"` を読み、`WalkSummaryView` →
+  `useWalkSummary` → `useWalkSave` へ渡す。401 のときのサインイン CTA のハンドラも同じくルートが
+  注入する。SS-37）。セレクタは必ずプリミティブを返すこと
   （オブジェクトを返すと zustand v5 で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
 - 詳細は [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
 
