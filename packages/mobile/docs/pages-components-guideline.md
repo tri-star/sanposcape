@@ -127,7 +127,7 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 | エントリ | 遷移前の副作用 | 開くと起きること |
 |---|---|---|
 | `walk-active`（散歩中） | `useActiveWalkStore.startWalk(DEFAULT_ACTIVE_WALK ...)` | ローカル状態のみ。散歩が「進行中」になる |
-| `walk-summary`（散歩サマリ） | `useFinishedWalkStore.finishWalk(buildSampleFinishedWalk(...))` | サマリ画面の `useWalkSave` が発火し、**実サーバーへ `POST /walks` が飛んでスタブの散歩レコードが作られる**（履歴にも並ぶ） |
+| `walk-summary`（散歩サマリ） | `useFinishedWalkStore.finishWalk(buildSampleFinishedWalk(...))` | サマリ画面の `useWalkSave` が発火し、**実サーバーへ `POST /walks` が飛んでスタブの散歩レコードが作られる**（履歴にも並ぶ。**サインイン済みの状態で開いた場合に限る**。ゲスト状態で開くと 401 になりサインイン CTA が表示される。SS-37） |
 
 - カタログの `description` にも副作用を明記する（例: 「保存も実行される」）。
 - **副作用を伴うエントリを追加するときは、この表にも1行足す**。バックエンドに書き込むものは
@@ -164,7 +164,11 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
    - **状態によって表示が切り替わるコンポーネントは、root の `testID` を状態ごとに付け替えない**。
      root は同じ `testID` のまま据え置き、その状態でしか描画されない内側の要素にだけ
      `${testID}-<state>` を追加する（例: `WalkSaveStatus` の `walk-summary-save-status-saved`。error は
-     状態時にのみ描画される `walk-summary-save-retry` で判別する）。root を付け替えると、Maestro
+     `walk-summary-save-retry` / `walk-summary-save-sign-in` のいずれかで判別する
+     — `unauthorized` は再試行しても意味が無いため後者、`network`/`server`/`unknown` は前者
+     （`walkSaveErrorAction` の分岐、SS-37）。`too_large` / `invalid_request` は
+     `walkSaveErrorAction` が `"none"` を返しどちらのボタンも描画されないため、
+     この2ケースは E2E から error 状態を判別する要素が存在しない）。root を付け替えると、Maestro
      側で「まだ表示されていること」を確認するための安定した参照先が無くなる。
 8. **操作ハンドラ（`onPress` / `onChange`）は必須にする**。optional にすると
    「押せるように見えて何も起きない」コントロールを作れてしまい、押下フィードバックも出るうえ
