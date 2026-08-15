@@ -51,7 +51,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          # mobile-ci.yml と同じ理由で 24 に揃える（Expo SDK 57 の最低 Node は 22.13.x）。
+          # `eas build --local` も内部で app.config.ts を読むため、こちら側の引き上げも必須。
+          node-version: 24
           cache: pnpm
 
       - name: Setup JDK
@@ -86,7 +88,20 @@ jobs:
           GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
           NATIVE_HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
-          SRC_HASH=$(git ls-files -s packages/mobile | git hash-object --stdin)
+          # `.maestro/`（Maestroのフロー定義）・`docs/`・`adr/` は APK の中身に一切入らない
+          # （いずれもソースから import/require されておらず、Metro のバンドル対象外）のに、
+          # ソース全体のハッシュに含めるとフローを1行直しただけで約30分の再ビルドが走っていた
+          # （run 31884618163 で実測29分30秒）。ここだけ除外することでフロー修正やドキュメント
+          # 更新のイテレーションをキャッシュヒットで回せるようにする
+          # （run 31898755204 でビルドがスキップされ、ジョブ全体が36分53秒→6分35秒になった）。
+          # 注意: APK に影響しうるものを安易にここへ足すと、51d6696 で直した「古いAPKが
+          # 使い回される」バグが再発する。除外の追加は「ソースから参照されないこと」を
+          # 確認してから行うこと。
+          SRC_HASH=$(git ls-files -s packages/mobile \
+            ':(exclude)packages/mobile/.maestro' \
+            ':(exclude)packages/mobile/docs' \
+            ':(exclude)packages/mobile/adr' \
+            | git hash-object --stdin)
           echo "hash=${NATIVE_HASH}-${SRC_HASH:0:16}" >> "$GITHUB_OUTPUT"
 
       # restore/save を分離している理由: 統合版 actions/cache の保存(post)ステップは
@@ -215,17 +230,82 @@ jobs:
             # アプリ自身がクラッシュした場合もダイアログは出なくなるが、要素が見えず
             # アサーションが失敗するので不具合の握り潰しにはならない（logcat も残る）。
             adb shell settings put global hide_error_dialogs 1
-            # システムの位置情報サービス自体を無効化する。preview ビルドは
-            # EXPO_PUBLIC_LOCATION_MODE=mock（ADR-006）でアプリ自身は expo-location/GNSSに
-            # 一切触れないが、Google Play Services 側が裏でバックグラウンドの位置取得を
-            # 行うことがあり、これが system_server の GNSS サービスをデッドロックさせて
-            # OSごとクラッシュする事象を確認した（2026-08-14 調査、run 31819288121。
-            # Watchdog ログ: `Blocked in handler on foreground thread (android.fg) for 71s` /
-            # `GnssStatusProvider.onReportStatus` で lock 待ちのまま停止 → Watchdogが
-            # system_server を強制終了 → 以降の全 adb 操作が失敗し、実行中だったフロー以降
-            # 全てが巻き添えで失敗した）。アプリが位置情報を実際には使わない E2E 環境では
-            # 無効化しても副作用がないため、発生源を断つ。
+            # --- GNSS デッドロック対策（発生源を断つ） ---
+            # 事象: Google Play Services 側の裏での位置取得が system_server の GNSS サービスを
+            # デッドロックさせ、Watchdog が system_server ごと強制終了する
+            # （`Blocked in handler on foreground thread (android.fg) for 71s` /
+            # `GnssStatusProvider.onReportStatus` で lock 待ち → `WATCHDOG KILLING SYSTEM PROCESS`）。
+            # 以降の全 adb 操作が `Can't find service: package` で失敗し、実行中のフロー以降が
+            # 巻き添えで落ちる（run 31819288121 / 31829640836 で同一スタックを確認）。
+            #
+            # 当初 `cmd location set-location-enabled false` だけを入れたが、これでは止まらない
+            # ことが判明した（run 31829640836）。設定投入後も GNSS HAL
+            # `android.hardware.gnss-service.ranchu` が `Gnss:onGnssLocationCb` を出し続けて
+            # 実際に測位しており、`GnssLocationProvider` の start/stop がフロー境界ごとに
+            # 繰り返されていた。GNSS への要求元は Play Services 側の位置プロバイダなので、
+            # そちらのコンポーネントを止めないと要求の往復自体が消えない。
+            #
+            # fused / GoogleLocationManager は system_server が ServiceWatcher 経由で bind する
+            # 位置プロバイダの実体（ログ上も両者が繰り返しクラッシュ→再起動していた）。地図の
+            # 描画は Maps SDK 側の機能で位置プロバイダに依存しないため、無効化しても
+            # react-native-maps の描画には影響しない。
+            #
+            # root が必要な理由（run 31884618163 で判明）:
+            # shell UID のままだと `SecurityException: Shell cannot change component state` で
+            # 拒否される。AOSP の PackageManagerService.setEnabledSettings は、shell からの
+            # 操作を「パッケージ単位（className == null）の ENABLED / DISABLED_USER 切り替え」に
+            # 限定しており、コンポーネント単位の指定は TEST_ONLY パッケージ以外一律で禁止される。
+            # google_apis イメージは userdebug なので `adb root` でこの制限を回避できる
+            # （playstore 付きイメージでは不可）。
+            # 影響範囲を最小化するため、この2コマンドの前後だけ root にして即座に戻す。
+            # コンポーネントの無効化は PackageManager 側の状態なので unroot しても維持される。
+            # `adb root` / `adb unroot` は adbd を再起動させ接続が一時的に切れるため、
+            # 後続を実行する前に wait-for-device で復帰を待つ（無応答で居座らないよう timeout 付き）。
+            adb root || true
+            timeout 120 adb wait-for-device || true
+            # root になれたかをログに残す（uid=0 でなければ下の2行はまた拒否される）。
+            adb shell id || true
+            # `disable-user` ではなく `disable` を使う理由（run 31891552311 で判明）:
+            # PackageManagerService はコンポーネント単位の状態変更を ENABLED / DISABLED /
+            # DEFAULT の3つでしか switch しておらず、`disable-user` が送る DISABLED_USER(3) は
+            # default 節に落ちて `Failed setComponentEnabledSetting: ... invalid new component
+            # state` として黙って捨てられる。実際 root 化には成功して SecurityException は
+            # 消えたのに、結果は `new state: default`（＝無効化されていない）だった。
+            # 下のパッケージ単位の無効化が `disable-user` のままなのは、そちらはアプリ単位の
+            # 状態として正しく扱われるため（実際に `new state: disabled-user` になっている）。
+            adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.fused.FusedLocationService || true
+            adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.internal.GoogleLocationManagerService || true
+            # Maestro 本体は shell adbd の状態で 8/8 通っている実績があるため、元に戻してから実行する。
+            adb unroot || true
+            timeout 120 adb wait-for-device || true
+            # ユーザー側の位置情報トグルも併せて落とす（単体では不十分だが、要求元を減らす方向には効く）。
+            # preview ビルドは EXPO_PUBLIC_LOCATION_MODE=mock（ADR-006）でアプリ自身は
+            # expo-location/GNSS に触れないため、無効化してもフローの前提は壊れない。
             adb shell cmd location set-location-enabled false
+            # トグルの状態をログに残す（false が出ること）。ただしこれはユーザー設定の状態でしかなく、
+            # GNSS が実際に止まったかは logcat の `Gnss:onGnssLocationCb` が消えたかで判断すること。
+            adb shell cmd location is-location-enabled || true
+
+            # --- エミュレータの負荷を下げる ---
+            # 描画が約1fpsまで落ちる・`pm clear` が13分54秒かかる、といった飢餓が
+            # タップの取りこぼしや Watchdog タイムアウトの温床になっていた（run 31824150888）。
+            # logcat の行数で負荷源を測ったところ、上位は GMS(約4700行) / GSA(2369) /
+            # settings.intelligence(1599) / GNSS HAL(933) / Bugle(898) / AiAi(592) だった。
+            # このうち E2E に不要なものを止める。ネットワークには一切触らない
+            # （backend へ 10.0.2.2:8000 で到達する必要があるため）。
+            # `pm disable-user` は対象プロセスの kill も伴うので force-stop は不要。
+            # AVD は毎回 force-avd-creation: true で作り直すため、この無効化は実行ごとに適用される。
+            #
+            # googlequicksearchbox は Pixel Launcher の検索ウィジェットの提供元でもあるが、
+            # Maestro はランチャーを経由せず am start でアプリを直接起動するため経路上不要。
+            # 仮にランチャーが不安定になっても、上の hide_error_dialogs がダイアログを抑止する。
+            adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox || true
+            adb shell pm disable-user --user 0 com.google.android.apps.messaging || true
+            adb shell pm disable-user --user 0 com.google.android.as || true
+            adb shell pm disable-user --user 0 com.google.android.settings.intelligence || true
+            # バックグラウンドの dexopt がブート直後の CPU を奪うため止める。
+            adb shell cmd package bg-dexopt-job --disable || true
+
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
             # /explore/places の候補を決定的に返すため、外部データへの依存はない）。

@@ -21,8 +21,14 @@ tags:
 - assertVisible:
     id: "walk-active-map"
 # 後始末: 散歩を終了して次のフローに状態を持ち越さない。
-- tapOn:
-    id: "walk-active-end"
+# retry で包む理由は mvp-walk-flow.yaml の同じ箇所のコメントを参照（タップの取りこぼし対策）。
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "walk-active-end"
+      - assertVisible:
+          id: "walk-end-dialog"
 - tapOn:
     id: "walk-end-confirm"
 - extendedWaitUntil:
