@@ -2,7 +2,8 @@
 
 ## 日付
 
-2026-07-19
+2026-07-19（初版）、2026-08-14 追補（fingerprint キャッシュの前提不整合）、
+2026-08-15 追補（エミュレータ環境に起因する不安定性・キャッシュキーの絞り込み）
 
 ## コンテキスト
 
@@ -186,6 +187,8 @@ Maestro フロー（`.maestro/**`）は当時の `push` トリガー対象に含
   合成**し、ネイティブ影響入力に限らずどんな変更でも再ビルドされるようにした
   （`mobile-e2e.yml` の "Compute build cache key" ステップ）。「JSのみの変更ではキャッシュヒット」
   という当初の設計方針は撤回する。
+  （**2026-08-15 追補**: 「ソース全体」から `.maestro/` / `docs/` / `adr/` の3ディレクトリを
+  除外した。詳細は下記「追補: エミュレータ環境に起因する不安定性への対応」の問題3を参照。）
 - 上記によりコスト最適化（JSのみのPRでは再ビルドしない）が失われる埋め合わせとして、
   **自動実行トリガーを `push`（ネイティブ影響パスへの変更時）から廃止し、毎週土曜 08:00 JST の
   定期実行 + 手動実行（`workflow_dispatch`）のみ**に変更した。E2E 自体の実行頻度が
@@ -199,6 +202,127 @@ Maestro フロー（`.maestro/**`）は当時の `push` トリガー対象に含
 - E2E は main への push で自動実行されなくなったため、**ネイティブ影響のある変更をマージしてから
   実際に E2E で検証されるまで最大1週間のタイムラグが生じる**。検証を急ぐ場合は
   `workflow_dispatch` での手動実行を都度行う必要がある。
+
+## 追補: エミュレータ環境に起因する不安定性への対応（2026-08-15）
+
+本ADRは当初「E2E は再現性が命」としてビルド方式の決定的さに注力していたが、実際に E2E を
+定常運用してみると、**不安定性の主因はアプリでもビルドでもなく CI エミュレータ環境そのもの**
+だった。ここでは調査で判明した事実と、それに対する決定を残す。以下はいずれも
+「アプリの不具合ではないのに E2E が落ちる」類の問題であり、放置すると
+[SS-57 のときと同様に E2E の信頼性が失われる](#追補-fingerprint-キャッシュと-e2e-の前提の不整合2026-08-14)。
+
+### 問題1: GNSS デッドロックによる system_server の強制終了
+
+`google_apis` イメージでは Play Services 側の位置プロバイダが GNSS を start/stop し続け、
+これがエミュレータの GNSS HAL をデッドロックさせる。Watchdog が `android.fg` スレッドの
+ブロックを検知して **system_server ごと強制終了**するため、以降の全 adb 操作が
+`Can't find service: package` で失敗し、実行中のフロー以降がすべて巻き添えで落ちる
+（run 31819288121 / 31829640836 で同一スタックを確認）。
+
+```
+W/Watchdog: *** WATCHDOG KILLING SYSTEM PROCESS: Blocked in handler on foreground thread (android.fg) for 76s
+    at GnssStatusProvider.onReportStatus / GnssNative.native_stop
+    at GnssLocationProvider.stopNavigating / updateRequirements / onSetRequest
+```
+
+**決定: `adb root` した上で `pm disable` により GMS の位置プロバイダを無効化する。**
+
+```
+adb root && adb wait-for-device
+adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.fused.FusedLocationService
+adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.internal.GoogleLocationManagerService
+adb unroot && adb wait-for-device
+```
+
+ここに至るまでに3つの誤った対策を経ており、**同じ轍を踏まないよう失敗した理由を残す**。
+
+1. **`cmd location set-location-enabled false` だけでは止まらない**（run 31829640836）。
+   ユーザー向けの位置情報トグルを落としても GNSS HAL
+   `android.hardware.gnss-service.ranchu` は `Gnss:onGnssLocationCb` を出し続けて実際に測位しており、
+   `GnssLocationProvider` の start/stop はフロー境界ごとに繰り返されていた。要求元を断つ必要がある。
+2. **shell UID のままではコンポーネントを無効化できない**（run 31884618163）。
+   `SecurityException: Shell cannot change component state` で拒否される。AOSP の
+   `PackageManagerService.setEnabledSettings` は、`callingUid == SHELL_UID` のとき
+   「パッケージ単位（`className == null`）の ENABLED / DISABLED_USER 切り替え」のみを許可し、
+   コンポーネント単位の指定は TEST_ONLY パッケージ以外一律で禁止する。
+   `google_apis` イメージは userdebug なので `adb root` でこの分岐ごと回避できる。
+3. **コンポーネントに `pm disable-user` は使えない**（run 31891552311）。root 化して
+   SecurityException が消えても結果は `new state: default` のままだった。同関数のコンポーネント
+   処理は ENABLED / DISABLED / DEFAULT の3つでしか `switch` しておらず、`disable-user` が送る
+   `DISABLED_USER`(3) は `default` 節に落ちて
+   `Failed setComponentEnabledSetting: ... requested an invalid new component state` を
+   ログに出すだけで捨てられる。**コンポーネントには `pm disable`（DISABLED=2）を使う。**
+   一方パッケージ単位（下記の問題2）はアプリ単位の状態として正しく扱われるため
+   `disable-user` のままでよい。この非対称性が紛らわしい。
+
+**検証方法**: ジョブログに `Component {...} new state: disabled` が出ること。`default` は
+「無効化されなかった」を意味するので、成功と読み違えないこと。GNSS が実際に止まったかは
+失敗時 artifact の logcat から `Gnss:onGnssLocationCb` が消えたかで確認する。
+
+### 問題2: エミュレータの飢餓（CPU/IO 逼迫）
+
+Play Services 群のバックグラウンド処理でランナーが飽和し、アプリの描画が約1fpsまで低下
+（`EGL app_time_stats avg≈1000ms`）、`pm clear` が13分54秒かかるといった状態になっていた。
+これは問題1の Watchdog タイムアウトを誘発するだけでなく、**タップの取りこぼし**も引き起こす
+（run 31824150888: 正しい座標に MotionEvent が届いているのに終了ダイアログが開かなかった）。
+
+**決定: E2E に不要な Google アプリと background dexopt を無効化する。**
+logcat の行数で負荷源を実測して対象を決めた（GMS 約4700行 / GSA 2369 /
+settings.intelligence 1599 / GNSS HAL 933 / Bugle 898 / AiAi 592）。
+
+```
+adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox
+adb shell pm disable-user --user 0 com.google.android.apps.messaging
+adb shell pm disable-user --user 0 com.google.android.as
+adb shell pm disable-user --user 0 com.google.android.settings.intelligence
+adb shell cmd package bg-dexopt-job --disable
+```
+
+**ネットワークには触れない**こと。backend へ `10.0.2.2:8000` で到達する必要がある。
+
+**決定: タップの取りこぼしは Maestro の `retry` コマンドで吸収する。**
+Maestro 側の再タップ機構（`retryTapIfNoChange`）には頼れない。現行版では既定で無効な上、
+有効化しても `hierarchyBasedTap` は「タップ前後でビュー階層が変化した＝効いた」と解釈するため、
+経過時間・距離・歩数が毎秒書き換わる散歩中画面では常に真になり再タップされないためである。
+`retry` は `MaestroException`（アサーション失敗・要素が見つからない）でのみ再試行して他は
+伝播させるので、アプリが実際に壊れている場合はきちんと失敗する（不具合の握り潰しにはならない）。
+
+### 問題3: キャッシュキーが広すぎた
+
+2026-08-14 の追補で「`packages/mobile` のソース全体」をキーに含めた結果、**APK の中身に一切
+影響しないファイルの変更でも約30分の再ビルド**が走るようになっていた
+（run 31884618163: Maestro フローを1行直しただけで29分30秒のビルド。E2E 本体は3分46秒）。
+
+**決定: `packages/mobile` のうち `.maestro/` / `docs/` / `adr/` をキーから除外する。**
+いずれもソースから `import`/`require` されておらず Metro のバンドル対象外であることを確認済み。
+run 31898755204 でビルドがスキップされ、ジョブ全体が 36分53秒 → **6分35秒**になった。
+
+ただしこの除外は 2026-08-14 の追補で直した「古い APK が使い回される」バグを再発させうる操作でも
+ある。**除外を追加する際は必ず「そのパスがソースから参照されないこと」を確認する。**
+
+### 影響
+
+#### ポジティブな影響
+
+- E2E の実行時間が短縮された（Maestro 実行 3m11s / ジョブ全体 6m35s）。
+- フロー定義やドキュメントの修正がキャッシュヒットで回せるようになり、E2E の
+  イテレーションコストが下がった。
+
+#### ネガティブな影響・トレードオフ
+
+- **`google_apis`（userdebug）イメージ前提の構成になった**。`adb root` が使えない
+  `google_apis_playstore` へ切り替える場合、問題1の対策が成立しなくなる。
+- エミュレータを「素の状態」から遠ざけたため、**実機との乖離が広がった**。ここで無効化した
+  コンポーネントに依存する機能は E2E で検証できない（現状のアプリは依存していない）。
+- CI 環境を整えるための adb 操作が増え、`mobile-e2e.yml` の script が長くなった。
+  イメージやAPIレベルを上げる際は、これらのコマンドが依然有効かの再確認が要る。
+
+#### 未解決の事項
+
+- 問題1の対策が入った状態での成功は run 31898755204 の1回のみ。この事象はもともと断続的
+  （直近の失敗は4ランのうち2回）なので、**再発しないと断定できる段階にはない**。
+- 再発した場合は、失敗時 artifact の logcat に `Gnss:onGnssLocationCb` が残っているかを見れば、
+  GNSS 経路がまだ生きているのか別要因なのかを切り分けられる。
 
 ## 関連情報
 
