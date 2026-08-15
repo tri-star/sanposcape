@@ -247,9 +247,27 @@ jobs:
             # 位置プロバイダの実体（ログ上も両者が繰り返しクラッシュ→再起動していた）。地図の
             # 描画は Maps SDK 側の機能で位置プロバイダに依存しないため、無効化しても
             # react-native-maps の描画には影響しない。
-            # 失敗しても実行は継続させる（イメージ差でコンポーネント名が無い場合に落とさない）。
+            #
+            # root が必要な理由（run 31884618163 で判明）:
+            # shell UID のままだと `SecurityException: Shell cannot change component state` で
+            # 拒否される。AOSP の PackageManagerService.setEnabledSettings は、shell からの
+            # 操作を「パッケージ単位（className == null）の ENABLED / DISABLED_USER 切り替え」に
+            # 限定しており、コンポーネント単位の指定は TEST_ONLY パッケージ以外一律で禁止される。
+            # google_apis イメージは userdebug なので `adb root` でこの制限を回避できる
+            # （playstore 付きイメージでは不可）。
+            # 影響範囲を最小化するため、この2コマンドの前後だけ root にして即座に戻す。
+            # コンポーネントの無効化は PackageManager 側の状態なので unroot しても維持される。
+            # `adb root` / `adb unroot` は adbd を再起動させ接続が一時的に切れるため、
+            # 後続を実行する前に wait-for-device で復帰を待つ（無応答で居座らないよう timeout 付き）。
+            adb root || true
+            timeout 120 adb wait-for-device || true
+            # root になれたかをログに残す（uid=0 でなければ下の2行はまた拒否される）。
+            adb shell id || true
             adb shell pm disable-user --user 0 com.google.android.gms/com.google.android.location.fused.FusedLocationService || true
             adb shell pm disable-user --user 0 com.google.android.gms/com.google.android.location.internal.GoogleLocationManagerService || true
+            # Maestro 本体は shell adbd の状態で 8/8 通っている実績があるため、元に戻してから実行する。
+            adb unroot || true
+            timeout 120 adb wait-for-device || true
             # ユーザー側の位置情報トグルも併せて落とす（単体では不十分だが、要求元を減らす方向には効く）。
             # preview ビルドは EXPO_PUBLIC_LOCATION_MODE=mock（ADR-006）でアプリ自身は
             # expo-location/GNSS に触れないため、無効化してもフローの前提は壊れない。
