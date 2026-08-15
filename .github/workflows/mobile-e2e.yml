@@ -88,17 +88,19 @@ jobs:
           GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
           NATIVE_HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
-          # `.maestro/`（Maestroのフロー定義）と `docs/` は APK の中身に一切入らない
-          # （どちらもソースから import/require されておらず、Metro のバンドル対象外）のに、
+          # `.maestro/`（Maestroのフロー定義）・`docs/`・`adr/` は APK の中身に一切入らない
+          # （いずれもソースから import/require されておらず、Metro のバンドル対象外）のに、
           # ソース全体のハッシュに含めるとフローを1行直しただけで約30分の再ビルドが走っていた
-          # （run 31884618163 で実測29分30秒）。ここだけ除外することでフロー修正のイテレーションを
-          # キャッシュヒットで回せるようにする。
+          # （run 31884618163 で実測29分30秒）。ここだけ除外することでフロー修正やドキュメント
+          # 更新のイテレーションをキャッシュヒットで回せるようにする
+          # （run 31898755204 でビルドがスキップされ、ジョブ全体が36分53秒→6分35秒になった）。
           # 注意: APK に影響しうるものを安易にここへ足すと、51d6696 で直した「古いAPKが
           # 使い回される」バグが再発する。除外の追加は「ソースから参照されないこと」を
           # 確認してから行うこと。
           SRC_HASH=$(git ls-files -s packages/mobile \
             ':(exclude)packages/mobile/.maestro' \
             ':(exclude)packages/mobile/docs' \
+            ':(exclude)packages/mobile/adr' \
             | git hash-object --stdin)
           echo "hash=${NATIVE_HASH}-${SRC_HASH:0:16}" >> "$GITHUB_OUTPUT"
 
