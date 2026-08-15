@@ -263,8 +263,16 @@ jobs:
             timeout 120 adb wait-for-device || true
             # root になれたかをログに残す（uid=0 でなければ下の2行はまた拒否される）。
             adb shell id || true
-            adb shell pm disable-user --user 0 com.google.android.gms/com.google.android.location.fused.FusedLocationService || true
-            adb shell pm disable-user --user 0 com.google.android.gms/com.google.android.location.internal.GoogleLocationManagerService || true
+            # `disable-user` ではなく `disable` を使う理由（run 31891552311 で判明）:
+            # PackageManagerService はコンポーネント単位の状態変更を ENABLED / DISABLED /
+            # DEFAULT の3つでしか switch しておらず、`disable-user` が送る DISABLED_USER(3) は
+            # default 節に落ちて `Failed setComponentEnabledSetting: ... invalid new component
+            # state` として黙って捨てられる。実際 root 化には成功して SecurityException は
+            # 消えたのに、結果は `new state: default`（＝無効化されていない）だった。
+            # 下のパッケージ単位の無効化が `disable-user` のままなのは、そちらはアプリ単位の
+            # 状態として正しく扱われるため（実際に `new state: disabled-user` になっている）。
+            adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.fused.FusedLocationService || true
+            adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.internal.GoogleLocationManagerService || true
             # Maestro 本体は shell adbd の状態で 8/8 通っている実績があるため、元に戻してから実行する。
             adb unroot || true
             timeout 120 adb wait-for-device || true
