@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-16 追補（SS-60）
 
 ## ステータス
 
@@ -17,6 +17,8 @@
 **SS-35「散歩開始後の現在地起点ルート再計算」で追補**した（決定2 に例外を追記、決定7 を新規追加）。追補部分には `（SS-35 追補）` を付けている。
 
 **SS-50「サインアウト時の遷移をAuthGateに一本化」で追補**した（決定6 の退避と履歴スタック整理を `AuthGate` に集約した）。
+
+**SS-60「mobile: 散歩履歴を削除するUIを実装」で追補**した（決定4 の `savedWalkId` に2つ目の用途が生まれたこと、決定6 と同型の後始末レジストリが2本目になったことを記録。決定そのものは変更していない）。追補部分には `（SS-60 追補）` を付けている。
 
 ## コンテキスト
 
@@ -77,7 +79,8 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 **`savedWalkId` は「サーバー由来データを store に入れない」規律に対する意図的な例外**とする。
 
 - 例外の範囲は**サーバーが採番した識別子1つだけ**。散歩の内容そのもの（`WalkRead`）は入れない。
-- 許容する理由: SS-20 の履歴詳細（`/walks/{id}`）へ遷移するために id が要るため（**SS-20 追補**: 実際に `WalkSummaryView` の「記録を見る」が `savedWalkId` を使って `/walk-history/[walkId]` へ直行する形になった）。そのために Query キャッシュへ「保存結果」を積むと、履歴一覧の queryKey とは別系統のサーバー状態が二重に生まれる。識別子1つを保存状態と一緒に持つほうが二重管理が小さい。
+- 許容する理由: SS-20 の履歴詳細（`/walks/{id}`）へ遷移するために id が要るため（**SS-20 追補**: 実際に `WalkSummaryView` の「記録を見る」が `savedWalkId` を使って `/walk-history/[walkId]` へ直行する形になった）。
+- **（SS-60 追補）`savedWalkId` に2つ目の用途が生まれた**: 「サーバー上で削除された散歩と、ローカルに残っているドラフトを同定するキー」として、決定8 のレジストリから参照する。例外の範囲（サーバー由来の識別子1つだけ。散歩の内容そのものは入れない）は変わっていないため、決定4 自体は据え置く。ただしこの ADR は「例外を最小に固定する」ことを設計意図としているため、用途が増えた事実をここに残す。そのために Query キャッシュへ「保存結果」を積むと、履歴一覧の queryKey とは別系統のサーバー状態が二重に生まれる。識別子1つを保存状態と一緒に持つほうが二重管理が小さい。
 - `saved`（真偽）を `savedWalkId` と独立に持つのは、id が取れないケース（将来 backend の契約が変わった場合）でも「保存は済んだ」を表せるようにするため。
 
 ### 5. 「永続化しない」判断は SS-19 でも維持し、アプリ再起動からの復帰はフォローアップ課題に送る（SS-19 追補）
@@ -109,6 +112,21 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - **呼び出し抑制**: 逸脱 80m（`ROUTE_DEVIATION_THRESHOLD_METERS`）× 連続2測位（`REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES`）+ 最小間隔60秒（`RECALCULATION_MIN_INTERVAL_MS`）+ 連続失敗2回（`MAX_CONSECUTIVE_AUTO_FAILURES`）で自動停止する。目的地から50m以内（`DESTINATION_NEAR_RADIUS_METERS`）では再計算しない。`/explore/*` の共有レート制限（既定30 req/60秒/ユーザー）に対し、1散歩あたり最大 1 req/分に収まる（手動再計算・再試行はこの抑制の対象外だが、ユーザー操作1回につき最大1リクエストのため実害は小さい）。
 - **例外の範囲を「同じ目的地へ現在地から引き直す1本のルート」に限定する**。`ActiveWalk.origin`（決定1）は書き換えない — 散歩の起点であり、`useWalkTracking.initialPosition` にも使われているため。
 - 判定ロジック（折れ線までの距離・状態遷移）は `src/features/walk/lib/routeDeviation.ts` / `src/features/walk/lib/routeRecalculation.ts` の純粋関数に置き、副作用（fetch・Abort・世代管理）は hook 側に閉じる（`docs/architecture-guideline.md` の単体テスト方針どおり）。
+
+### 8. 散歩がサーバーから削除されたときの後始末も、決定6 と同型のレジストリで行う（SS-60 追補）
+
+SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除の成功時に `useFinishedWalkStore` のドラフトを捨てる必要が生まれた（ドラフトを残すと、同じ `client_walk_id` の再送で削除した散歩が復活しうる。[ADR-003](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) の決定13）。
+
+`src/lib/walkDeletionCleanup.ts` を新設し、決定6（`sessionCleanup`）と同じ「クリアされる側が自分の後始末を登録し、実行側は1関数を呼ぶだけ」の形にする。
+
+- 登録側: `useFinishedWalkStore`（モジュール末尾。`registerSessionCleanup` と並べて2つ登録する形になる）。
+- 実行側: `features/history/hooks/useWalkDelete.ts` の `onSuccess`。
+- **決定6 との差分**:
+  - 後始末が**引数（削除された walk id）を取る**（`(walkId: string) => void`）。サインアウトは「全部消す」だが、削除は「その散歩に対応するドラフトだけ消す」ため。
+  - 登録側が**条件付きでクリアする**。`savedWalkId === walkId` のときだけ `clearFinishedWalk()` を呼び、一致しない場合・保存前（`savedWalkId === null`）の場合は何もしない（別の散歩のドラフトを巻き添えにしないため）。
+- 共通の性質: 1つの後始末が例外を投げても他は止めない。登録はモジュール読み込み時に走るため、対象ストアが未ロードなら後始末も走らないが、ストアは非永続（メモリのみ）なので「未ロード = ドラフトも存在しない」が成立する。
+
+**なぜ直接 import にしなかったか**: `features/history` から `features/walk/store/useFinishedWalkStore` を直接 import するのは [folder-structure](../docs/folder-structure.md) の「その機能の外から import されるものは置かない」に反する。`useFinishedWalkStore` を `src/store/` へ昇格させる案は決定4（`features/walk/store/` に置く理由を明記している）を覆すことになり、差分も本タスクの範囲を超える。決定6 が既に同じ問題（クリア対象が増えるたびに呼び出し側を編集しない）をレジストリで解いているため、その適用にとどめた。
 
 ## 検討した選択肢
 
@@ -209,5 +227,6 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
+- **（SS-60 追補）** 実装: `src/lib/walkDeletionCleanup.ts`（決定8 のレジストリ）、`src/features/history/hooks/useWalkDelete.ts`（実行側）
 - （SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/components/WalkRouteNotice.tsx`
 - Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）、SS-50（本追補の発生元）
