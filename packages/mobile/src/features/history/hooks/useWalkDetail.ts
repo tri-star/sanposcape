@@ -20,7 +20,13 @@ export type UseWalkDetailResult = {
   retry: () => void;
 };
 
-/** 散歩履歴1件の詳細（軌跡付き）を提供する hook。 */
+/**
+ * 散歩履歴1件の詳細（軌跡付き）を提供する hook。
+ *
+ * `queryKey`（`["walks","detail",walkId]`）は `useWalkDelete.ts` の
+ * `removeQueries({ queryKey: ["walks","detail",walkId], exact: true })` と必ず一致させること
+ * （片方だけ変えると削除成功後にこのキャッシュが消えず、消したはずの内容が一瞬出る）。
+ */
 export function useWalkDetail(walkId: string | null): UseWalkDetailResult {
   const enabled = walkId !== null && walkId.length > 0;
 
