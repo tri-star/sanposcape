@@ -17,6 +17,21 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
 - `GET /walks` は keyset カーソル（`next_cursor: string | null`、`limit` 1..50・既定20）。不正カーソルは 400。**`cursor` を明示的に `null` で送ると 400 になる**（[[mobile-structure]] の Orval 落とし穴1）。
 - `useFinishedWalkStore.savedWalkId` は SS-19 時点でプロダクトコード未参照。SS-20 の「サマリ → その散歩の詳細」遷移で消費される想定（ADR-008 決定4）。
 
+## 削除 API（SS-53 backend / SS-60 mobile 導線）
+
+- `DELETE /walks/{walk_id}` は **204 / 冪等ではない**（削除済み・他人・存在しない ID はすべて 404）。
+  ADR-003 決定13 が「クライアントは 404 を成功同様に扱ってよい」と明言している。
+  → mobile の API ラッパ側で 404 を成功に読み替えるのが正解（msw でテストできる層に閉じる）。
+  ただし**非 UUID の入口ガードだけは 404 にしない**（`fetchWalkDetail` は 404 を使っている）。
+  404 を成功に読み替える関数で 404 を投げると「失敗しているのに成功」になる → 422 を使う。
+- **物理削除なので `(user_id, client_walk_id)` の UNIQUE が解放される**。同じ `client_walk_id` を
+  再送すると散歩が復活する。ADR-003 決定13 が mobile に「削除後にドラフト／client_walk_id を
+  保持し続けないこと」を要求している（＝ `useFinishedWalkStore` を `savedWalkId` 一致時にクリアする）。
+- **`invalidateQueries({queryKey:["walks"]})` はマウント中の詳細 query も再取得させる**。
+  削除直後に呼ぶと自分が消した記録に 404 を引き、遷移する直前に「見つかりませんでした」が一瞬出る。
+  → 画面の表示状態を決める純粋関数で「削除済み」をエラーより優先させて覆い隠す。
+  `useWalkDetail` は `staleTime 1h / gcTime 2h` なので、`removeQueries(["walks","detail",id])` も併せて呼ぶ。
+
 ## 散歩中ルートまわりで毎回引っかかる制約（SS-35 の調査）
 
 - **ルートの取得は ADR-008 決定2 で「`origin` = 散歩の起点で固定」**。散歩開始画面と散歩中画面が同じ

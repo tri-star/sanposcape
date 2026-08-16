@@ -31,6 +31,17 @@ metadata:
 
 **状態**: サーバ状態=TanStack Query、クライアント状態=Zustand（横断は `src/store/useAppStore.ts`、機能限定は features 内）。
 
+**feature 境界の抜け道**: `docs/folder-structure.md` は「その機能の外から import されるものは features に置かない」。
+機能 A が機能 B の store を触りたくなったら、昇格（ADR 追補が要る）より **`src/lib/` の後始末レジストリ**
+（`sessionCleanup.ts` = `register*` + `run*` + `reset*ForTest`、クリアされる側がモジュール末尾で自己登録）を
+真似るのが既存方針に沿う。ADR-008 決定6 が同じ問題をこれで解いている。登録がモジュールロード依存な点は
+「未ロード＝そのメモリ状態も存在しない」で許容されている。
+
+**Dialog + `useScreenBack` の同居は要注意**: RN `Modal` の `onRequestClose` と `BackHandler` 購読が
+両方生きる。`useScreenBack({ onIntercept })` でダイアログを閉じる（送信中は何もしない）に一本化すること。
+確認ダイアログの手本は `features/settings/components/SettingsView.tsx`（`dismissDisabled` + ボタン disabled +
+ラベル差し替え、マウント条件は `open` の boolean だけ）。
+
 **既存ユーティリティ**: `@/lib/formatDuration`(分→「◯時間◯分」), `@/lib/toPercent`, `@/lib/hitSlop`(hitSlopFor)。
 
 **ネイティブ設定**: `/ios` `/android` は gitignore（CNG 前提）→ ネイティブ設定は app config で行う。`react-native-maps@1.27.2` は依存にあるだけで未使用・キー未設定。Android の Maps キーは `expo.android.config.googleMaps.apiKey`（@expo/config-plugins が読む）に app.config.ts 経由で env から注入する。react-native-maps 同梱の config plugin は**プロパティ未指定だと manifest からキーを削除する**ので併用しない。iOS は既定 Apple Maps でキー不要。ネイティブ追加は `@expo/fingerprint` を変え、ADR-004 の E2E APK キャッシュを1回ミスさせる。
