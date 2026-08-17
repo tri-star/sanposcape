@@ -103,12 +103,16 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 **新しい主要画面（`app/` 配下のルート）を追加したら、`ScreenCatalog` の `links` にリンクを1件追加する**
 ことを実装のセットとする。追加を怠るとカタログが陳腐化し、表示確認の抜け漏れに繋がる。
 
-`/dev-screens` 自体と `/design-system` は未認証でも開ける公開ルートだが、そこから開く先の
-散歩開始・履歴・設定などの保護画面は認証ゲート（`AuthGate`）の対象であり、**未認証のままでは
-サインイン画面へ弾かれる**（`EXPO_PUBLIC_AUTH_MODE=dev` の development build なら1タップで
-サインインできる）。**未認証で到達させたい開発用ルートを新設したら、
-`features/auth/lib/authGate.ts` の `PUBLIC_ROOT_SEGMENTS` にも先頭セグメントを追加する**こと
-（追加を怠るとゲートに弾かれて開けない。詳細は
+`/dev-screens` 自体と `/design-system` は未認証でも開ける公開ルートで、そこから開く先の
+散歩開始・履歴・設定などの保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を
+解禁したため**未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`canEnterProtectedRoutes`
+が `guest` も許可する。`/walks` 系 API だけは 401 になり各画面のエラーカードで degrade する）。
+将来「ゲストは入れないルート」（例: アカウント設定の一部）を追加する場合は、
+`features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` / `resolveAuthGateDecision` に
+判定を足す（保護ルートに誰が入れるかの判断を1箇所に閉じる器はそのまま残っている）。
+`PUBLIC_ROOT_SEGMENTS` は「認証状態にかかわらず常に到達できるルート」（サインイン画面・開発用
+カタログなど）の先頭セグメント一覧であり、**未認証で到達させたい開発用ルートを新設したら
+ここにも先頭セグメントを追加する**こと（詳細は
 [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
 - **例外**: 動的ルート（`[param].tsx`、id が無いと開けない画面）は直リンクを張らない。親の一覧画面
   のエントリで代替する（例: `/walk-history/[walkId]` は単独のエントリを持たず、`walk-history`

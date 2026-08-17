@@ -1,7 +1,7 @@
 # mobile-planner メモリ索引
 
 - [mobile 構造の要点](mobile-structure.md) — packages/mobile の確定した規約・既存資産・落とし穴
-- [認証アーキテクチャ](auth-architecture.md) — ADR-002 の確定事項と、認証プランで外せない構造上の制約
+- [認証アーキテクチャ](auth-architecture.md) — ADR-002 の確定事項／認証ゲートの隠れた結合（ゲスト可否は1関数では変えられない）
 - [デザインシステムの SSoT](project_design_system_ssot.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向
 - [MCP と CI の制約](project_codegen_ci_constraint.md) — MCP は CI から呼べない。codegen は fetch/transform を分離する
 - [テストの構造的制約](project_test_and_styling_constraints.md) — RN の render テストは書けない。純粋関数に切り出す

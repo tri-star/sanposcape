@@ -1,22 +1,41 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { resolveSettingsSection } from "@/features/settings/lib/settingsSection";
 import { authService } from "@/services/auth";
+import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { makeStyles } from "@/theme/makeStyles";
+import { useTheme } from "@/theme/useTheme";
 
 /**
- * 設定画面。SS-11 時点ではログアウト導線のみを提供する。
+ * 設定画面。SS-11 時点ではログアウト導線のみを提供していたが、SS-57 でゲスト散歩を解禁した
+ * ことで `/settings` にゲストも到達できるようになったため、ゲストのときはログアウトの代わりに
+ * サインイン導線を出す（押しても何も起きない「ログアウト」を見せない）。
  * 認証全体のルートガードは `AuthGate`（`app/_layout.tsx`）が担う（SS-13 / ADR-009）。
+ *
+ * `features/settings` は `.oxlintrc.json` の `no-restricted-imports` override 対象外
+ * （対象は `src/features/walk/**` / `src/features/history/**` のみ）なので、
+ * `useAuthSessionStore` を直接参照してよい（`authService.getCurrentUser()` は見ない。ADR-009 決定2）。
+ *
+ * `status` は `"loading" | "authenticated" | "guest"` の3値（`loading` はまだ「認証済み/未認証」
+ * を判定してはいけない起動時のセッション復元中）。これを `status === "authenticated"` の boolean
+ * に潰すと `loading` が `guest` 扱いになり、復元完了前に一瞬サインイン導線が出てしまう
+ * （PR #50 Copilot レビュー指摘）。そのため `resolveSettingsSection()` で3値のまま分岐する。
+ * `AuthGate` は `loading` を最優先で `allow` にするため、ディープリンクや歯車ボタンからの直後
+ * 遷移では `SettingsView` が `loading` のままレンダリングされうる（実害の窓は数百ms程度）。
  */
 export function SettingsView() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   const styles = useStyles();
+  const status = useAuthSessionStore((state) => state.status);
+  const section = resolveSettingsSection(status);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -26,27 +45,11 @@ export function SettingsView() {
     if (isSigningOut) return;
     setIsSigningOut(true);
 
-    void authService
-      .signOut()
-      .catch(() => {
-        // signOut() の型は Promise<void> だが reject しないことは型で保証されていない。
-        // 失敗時もクライアント側は先へ進める（`useAuthActions.ts` の signIn 系と同様、
-        // unhandled promise rejection を避けるため明示的に catch する）。
-      })
-      .finally(() => {
-        // 後始末（walk 系ストア / Query キャッシュ）は認証状態が guest に落ちた時点で
-        // useAuthSessionStore が実行する（ADR-008 決定6 の追補 / ADR-009）。
-        // ここは「設定画面より前の認証済み画面へ戻れないようスタックを畳む」導線だけを担う。
-        //
-        // 二重遷移が起きない前提（保証ではない）: `authService.signOut()` の内部で
-        // `setSession(null)` → `AuthGate` の `useEffect` が積まれるより先に、この
-        // `.finally`（マイクロタスク）が実行され `dismissAll()` + `replace()` で
-        // 先に `(auth)`（公開ルート）へ遷移し終える。これは「`.finally` のマイクロタスクは
-        // React の `useEffect` のフラッシュより先に走る」という JS/React のスケジューリング
-        // 特性に依存しており、フレームワークが保証する契約ではない（`AuthGate.tsx` にも同旨）。
-        router.dismissAll();
-        router.replace("/(auth)/sign-in");
-      });
+    // signOut() は認証状態を guest に更新する。遷移と履歴スタックの破棄は AuthGate に一元化する。
+    // 現在の実装は失敗を吸収するが、将来の実装が reject してもダイアログを操作不能にしない。
+    void authService.signOut().catch(() => {
+      setIsSigningOut(false);
+    });
   };
 
   return (
@@ -69,19 +72,46 @@ export function SettingsView() {
           <View style={styles.headerSpacer} />
         </View>
 
-        <View style={styles.logoutSection}>
-          <Text style={styles.logoutDescription}>この端末からサインアウトします。</Text>
-          <Button
-            variant="danger"
-            fullWidth
-            onPress={() => setLogoutDialogOpen(true)}
-            testID="settings-open-logout-dialog"
-          >
-            ログアウト
-          </Button>
-        </View>
+        {section === "loading" ? (
+          <View style={styles.loadingSection} testID="settings-loading">
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        ) : section === "authenticated" ? (
+          <View style={styles.logoutSection}>
+            <Text style={styles.logoutDescription}>この端末からサインアウトします。</Text>
+            <Button
+              variant="danger"
+              fullWidth
+              onPress={() => setLogoutDialogOpen(true)}
+              testID="settings-open-logout-dialog"
+            >
+              ログアウト
+            </Button>
+          </View>
+        ) : (
+          <View style={styles.logoutSection}>
+            <Text style={styles.logoutDescription}>
+              ゲストで利用中です。サインインすると、歩いた記録を保存できます。
+            </Text>
+            <Button
+              variant="primary"
+              fullWidth
+              testID="settings-sign-in"
+              onPress={() => router.replace("/(auth)/sign-in")}
+            >
+              サインイン
+            </Button>
+          </View>
+        )}
       </ScrollView>
 
+      {/*
+        マウント条件は `open` の boolean（`logoutDialogOpen`）だけにする。`section` の値で
+        条件付きマウントすると、ログアウト成功で section が "authenticated" から "guest" に
+        変わった瞬間 Dialog 自体がアンマウントされ、AuthGate の退避（router.replace）が完了する
+        までの一瞬ちらつきうる（SS-57 ローカルレビュー対応）。guest / loading はこの Dialog を
+        開く導線（`settings-open-logout-dialog`）自体を持たないため、常にマウントしても実害は無い。
+      */}
       <Dialog
         open={logoutDialogOpen}
         title="ログアウトしますか？"
@@ -137,6 +167,11 @@ const useStyles = makeStyles((theme) => ({
   },
   headerSpacer: {
     width: theme.control.md,
+  },
+  loadingSection: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoutSection: {
     flex: 1,

@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 
 import { fetchWalkStats } from "@/features/history/api/walkStatsApi";
-import { STUB_USER_PROFILE } from "@/features/history/data/profile";
 import { STUB_DAILY_STEP_GOAL } from "@/features/history/data/stepGoal";
+import { buildHistoryGreeting } from "@/features/history/lib/greeting";
 import {
   EMPTY_PERIOD_CHART,
   buildPeriodChart,
@@ -20,8 +20,14 @@ import type { Period } from "@/features/history/types";
 const STALE_TIME_MS = 30_000;
 const GC_TIME_MS = 5 * 60_000;
 
+export type UseHistorySummaryInput = {
+  /** サインイン中ユーザーの表示名。未サインイン/復元中は null。ルート（app/(tabs)/history.tsx）から渡す。 */
+  displayName: string | null;
+};
+
 export type UseHistorySummaryResult = {
-  userName: string;
+  /** `{名前}さん、今日も歩きましょう`。表示名が無ければ名前部分を落とした文言。 */
+  greeting: string;
   period: Period;
   setPeriod: (period: Period) => void;
   chart: PeriodChartResult;
@@ -41,16 +47,21 @@ export type UseHistorySummaryResult = {
 /**
  * 記録画面が表示するデータを1本化する hook。
  * `data/`（stub）・`api/`（サーバー状態）を読むのはこの hook のみで、View は戻り値だけを参照する。
+ * ユーザーの表示名だけは例外で、この hook 自身は認証ストアを読まない
+ * （`features/history/**` から `@/store/useAuthSessionStore` を import しない規約。SS-13 / ADR-009 決定8）。
+ * ルート（`app/(tabs)/history.tsx`）が `useAuthSessionStore` から読み取り、`displayName` として注入する。
  *
  * `queryKey` は `["walks", "stats"]`（`["walks", ...]` 始まり）にする。`useWalkSave` が
  * 保存成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、これで
  * 「散歩を保存 → 記録タブに戻ると集計が更新されている」が自動的に成立する。
  *
  * `hooks/` 層は Vitest 対象外（`react-native` に到達しうる）。テストしたいロジックは
- * すべて `lib/`（`buildPeriodChart` / `estimateSteps` / `toWalkStatsErrorCode`）へ
+ * すべて `lib/`（`buildHistoryGreeting` / `buildPeriodChart` / `estimateSteps` / `toWalkStatsErrorCode`）へ
  * 切り出してあるので、hook には配線しか残さない。
  */
-export function useHistorySummary(): UseHistorySummaryResult {
+export function useHistorySummary({
+  displayName,
+}: UseHistorySummaryInput): UseHistorySummaryResult {
   const [period, setPeriod] = useState<Period>("week");
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["walks", "stats"] as const, []);
@@ -74,7 +85,7 @@ export function useHistorySummary(): UseHistorySummaryResult {
   }, [queryClient, queryKey]);
 
   return {
-    userName: STUB_USER_PROFILE.displayName,
+    greeting: buildHistoryGreeting(displayName),
     period,
     setPeriod,
     chart,

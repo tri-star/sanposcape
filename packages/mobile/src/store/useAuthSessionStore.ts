@@ -12,7 +12,9 @@ import type { AuthUser } from "@/services/auth/types";
  * - loading: 起動時のセッション復元中。まだ「認証済み/未認証」を判定してはいけない。
  * - authenticated: 自前セッショントークンを保持している。
  * - guest: トークン非保持（＝未認証）。ADR-002 決定6 の「ゲスト」はこの状態を指す。
- *          MVP ではゲートで弾く（将来のゲスト散歩ではこの状態のまま探索を許可する）。
+ *          SS-57 でゲスト散歩を解禁したため、このままの状態で保護ルート（探索・散歩・記録タブ・
+ *          設定）に入れる（`canEnterProtectedRoutes`）。`/walks`（保存・履歴・統計）は認証必須の
+ *          ままで、未認証は 401 になり各 feature のエラー分類で degrade する。
  */
 export type AuthSessionStatus = "loading" | "authenticated" | "guest";
 

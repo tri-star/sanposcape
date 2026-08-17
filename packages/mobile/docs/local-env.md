@@ -5,7 +5,10 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 ## 前提
 
-- Node.js 20+ / pnpm がインストール済みであること
+- Node.js 22.13 以上（**24 系の最新を推奨**）/ pnpm がインストール済みであること
+  - Expo SDK 57 の最低 Node は 22.13.x。metro が要求する範囲は
+    `^22.13.0 || ^24.3.0 || >= 26.0.0` なので、24 系を使う場合は **24.3 以上**にすること
+    （24.0〜24.2 は範囲外）。CI も Node 24 で動かしている。
 - **開発ビルド（development build）が必要**（下記「重要」を参照）
 - リポジトリルートで `pnpm install` 済みであること
 
@@ -181,8 +184,8 @@ adb install -r e2e-build/app-preview.apk
 # 全フロー（CI と同じ範囲）。backend が MAPS_MODE=fake か実キーで応答できることが前提
 maestro test packages/mobile/.maestro/
 
-# 外部データに依存しないフローだけ（backend の候補を用意できない環境向け）
-maestro test --exclude-tags=maps-required packages/mobile/.maestro/
+# smoke タグのフローだけ（外部データに依存せず、backend の候補を用意できない環境向け）
+maestro test --include-tags=smoke packages/mobile/.maestro/
 
 # 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー）
 maestro test --include-tags=maps-required packages/mobile/.maestro/
@@ -202,7 +205,30 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
   `docker compose restart` では反映されない（`compose.yaml` の `${...}` はコンテナ生成時に
   展開されるため）。必ず `up -d` でコンテナを作り直すこと。
-- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドし、`@expo/fingerprint` で APK をキャッシュ（ネイティブ未変更なら再ビルドしない）。実行は nightly / 手動 / ネイティブ変更時のみ。CI の backend は `MAPS_MODE=fake` で起動して候補を返すため、MVP フローを含む `.maestro/` 配下の全フローを常時実行する（SS-54）。
+- CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドする。
+  起動条件は次の3系統:
+  - **nightly**: 毎日 03:00 JST 相当のスケジュール実行。
+  - **手動実行**: GitHub Actions の `workflow_dispatch`。
+  - **対象パス変更時**: `main` への push のうち、ネイティブに影響し得る設定・依存ファイル、
+    Maestro フロー、または E2E workflow 自身が変更された場合。通常の PR 作成時には起動せず、
+    対象変更が `main` に push（マージ）された後に起動する。
+- CI が起動した後はタグで絞り込まず、MVP フローを含む `.maestro/` 配下の全フローを実行する
+  （SS-54）。`smoke` / `maps-required` タグはローカルでの部分実行用であり、CI の起動条件ではない。
+  CI の backend は `MAPS_MODE=fake` で起動するため、外部データに依存せず全フローを実行できる。
+- `@expo/fingerprint` は CI の起動条件ではなく、起動後に APK を再ビルドするかの判定に使う。
+  ネイティブ影響入力が変わらなければ、キャッシュ済み APK を再利用する。
+- CI 設定と本項の整合は、次のコマンドで起動条件、実行範囲、タグ定義を確認する:
+
+  ```bash
+  # nightly・手動実行・mainへの対象パス変更を確認
+  sed -n '18,34p' .github/workflows/mobile-e2e.yml
+
+  # CIがタグで絞り込まず全フローを実行することを確認
+  rg -n 'maestro test packages/mobile/\.maestro/' .github/workflows/mobile-e2e.yml
+
+  # ローカルで選択できるフローのタグを確認
+  rg -n '^tags:|^  - (smoke|mvp|maps-required)$' packages/mobile/.maestro/*.yaml
+  ```
 - 失敗時は `~/.maestro/tests/<最新のディレクトリ>/` に実行ログ・スクリーンショット・階層ダンプ（`.json`）が残る。CI では失敗時に `maestro-debug-output` artifact としてアップロードされる。
 
 ## Google Maps（react-native-maps）

@@ -8,8 +8,13 @@
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
-- 未認証を弾くゲートは `app/_layout.tsx` の `AuthGate` の1箇所。弾く条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。
+- 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する。
 - `src/features/walk/` / `src/features/history/`（探索・散歩・履歴のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる。
+- これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
+  **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
+  （実例: `app/(tabs)/history.tsx` が `state.user?.displayName ?? null` を読み `HistoryView` →
+  `useHistorySummary` へ渡す。SS-29）。セレクタは必ずプリミティブを返すこと
+  （オブジェクトを返すと zustand v5 で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
 - 詳細は [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
 
 ## 位置情報の扱い
@@ -60,6 +65,12 @@
     `createMockAuthService()`（`src/services/auth/auth.mock.ts`）や `createSessionAuthService()`
     などの個別モジュールを直接 import し、フェイクを注入してテストする
     （`createSessionAuthService.test.ts` 等を参照）。
+    - 例外: `services/auth/authApi.ts` は HTTP を直接叩くモジュール（401→refresh の再帰を避けるため
+      生成クライアント `customFetch` を意図的に使わない）。ここは個別 import した上で、
+      **レスポンスのモックには Orval 生成 MSW ハンドラ（`endpoints/auth/auth.msw.ts`）を流用**し、
+      `server.use(...)` で登録して「実際に飛ぶ HTTP の形」（snake_case 変換・`Authorization` を
+      付けないこと・204 の body を読まないこと等）を固定する（`authApi.test.ts` 参照）。
+      `include_in_schema=False` で OpenAPI に載らない `/auth/dev-session` のみ手書き `http.post` を使う。
   - 位置情報: `services/location` も同じ規律で、バレル（`index.ts`）を単体テストから import
     しない（`getLocationMode()` の結果次第で `location.real.ts` 経由の `expo-location`
     （ネイティブ依存）に到達しうるため）。単体テストでは `createMockLocationService()`

@@ -3,11 +3,6 @@ import type { GeoCoordinates } from "@/services/location/types";
 /** 履歴画面の期間タブ。 */
 export type Period = "week" | "month";
 
-/** 記録画面が表示するユーザープロフィール（スタブ層/将来API共通の形）。 */
-export type UserProfile = {
-  displayName: string;
-};
-
 /**
  * 履歴一覧の1件。表示ラベルまで lib の純粋関数で確定させ、コンポーネント側では整形しない
  * （RN のレンダリングテストが書けないため、表示文言の検証を Vitest に寄せる）。

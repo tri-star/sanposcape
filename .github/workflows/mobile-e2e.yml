@@ -3,9 +3,19 @@ name: mobile E2E (Maestro)
 # Maestro E2E は「実際にインストールした standalone APK」をエミュレータ上で操作する。
 # コスト方針:
 #   - EAS の *クラウド* ビルドは使わない（`eas build --local` でランナー上でビルド＝クラウド枠を消費しない）
-#   - @expo/fingerprint でネイティブ影響入力のハッシュを取り、APK をキャッシュ
-#     → fingerprint が変わらない限り再ビルドしない（JSのみの変更では走らない）
+#   - APK は packages/mobile 配下の内容ハッシュ（ネイティブ影響入力 + ソース全体）でキャッシュし、
+#     ハッシュが変わらない限り再ビルドしない（詳細は "Compute build cache key" ステップのコメント）
 #   - 実行頻度を分離: 常時CI(lint/typecheck/unit)は mobile-ci.yml、E2Eは下記トリガのみ
+#
+# 実行頻度についての追補（2026-08-14, ADR-004追補）:
+# 当初は「ネイティブ影響パスへの push」でも自動実行していたが、APKキャッシュのキーが
+# ネイティブ影響入力のみのハッシュだったため、JSのみの変更（例: SS-57のゲスト導線ボタン追加）が
+# 反映されないまま古いAPKがキャッシュヒットし続け、Maestroフロー側だけが新しいUI要素を
+# アサートするように更新されて「アプリのバグではないのに落ち続ける」E2Eになっていた
+# （run 31811792167 / 31813105115 で確認）。対応として、キャッシュキーに packages/mobile の
+# ソース全体を含めて「JSの変更でも必ず再ビルドする」方針に倒した。一方でこれは
+# 「JSのみの変更ではビルドしない」というコスト最適化を無効化するため、その埋め合わせとして
+# 自動実行を毎週末（土曜 08:00 JST）+ 手動実行のみに絞った（mainへのpush毎の自動実行は廃止）。
 #
 # 初回運用時に必要な準備:
 #   - リポジトリ Secrets に EXPO_TOKEN を設定（`eas build --local` のアカウント連携）
@@ -18,19 +28,7 @@ name: mobile E2E (Maestro)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 18 * * *" # 毎日 03:00 JST 相当（nightly）
-  push:
-    branches: [main]
-    # ネイティブに影響する変更があったときだけ E2E を走らせる
-    paths:
-      - "packages/mobile/package.json"
-      - "packages/mobile/app.json"
-      - "packages/mobile/app.config.ts"
-      - "packages/mobile/eas.json"
-      - "packages/mobile/babel.config.js"
-      - "pnpm-lock.yaml"
-      - "packages/mobile/.maestro/**"
-      - ".github/workflows/mobile-e2e.yml"
+    - cron: "0 23 * * 5" # 毎週土曜 08:00 JST 相当（weekly）
 
 concurrency:
   group: mobile-e2e-${{ github.ref }}
@@ -45,19 +43,21 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          # mobile-ci.yml と同じ理由で 24 に揃える（Expo SDK 57 の最低 Node は 22.13.x）。
+          # `eas build --local` も内部で app.config.ts を読むため、こちら側の引き上げも必須。
+          node-version: 24
           cache: pnpm
 
       - name: Setup JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: "17"
@@ -68,18 +68,41 @@ jobs:
       - name: Generate API client (Orval)
         run: pnpm --filter mobile orval
 
-      # ネイティブ影響入力のハッシュ = APK キャッシュのキー
+      # APK キャッシュのキー = ネイティブ影響入力のハッシュ + packages/mobile ソース全体のハッシュ。
       # GOOGLE_MAPS_ANDROID_SDK_KEY はビルドステップと同じ値を渡す。app.config.ts が
       # このキーの有無で android.config.googleMaps.apiKey を出し分ける（ADR-007）ため、
       # ここで渡さないとキーの有無がキャッシュキーに反映されず、キー注入前にキャッシュされた
       # APK（クラッシュする）がキー注入後も使い回されてしまう。
-      - name: Compute native fingerprint
+      #
+      # ソース全体のハッシュを合成している理由（2026-08-14 追補、ADR-004追補）:
+      # @expo/fingerprint 単体はネイティブに影響する入力しか見ないため、UIやロジックなど
+      # JSのみの変更ではキャッシュキーが変わらず、古いJSを埋め込んだAPKが使われ続けていた
+      # （standalone preview ビルドはJSを実行時取得ではなくビルド時に埋め込むため、
+      # Metro前提のdevelopment buildと違いこれがそのままバグになる）。`git ls-files -s` は
+      # 追跡対象ファイルのパス+blobハッシュの一覧なので、内容が変われば決定的に変わり、
+      # mtimeやビルド環境には依存しない。E2Eの実行頻度を週次+手動に絞った（このファイル冒頭の
+      # コメント参照）ことで、JS変更のたびに再ビルドが発生するコスト増は許容できると判断した。
+      - name: Compute build cache key
         id: fp
         env:
           GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
-          HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          NATIVE_HASH=$(node -e "require('@expo/fingerprint').createFingerprintAsync('packages/mobile').then(f=>console.log(f.hash))")
+          # `.maestro/`（Maestroのフロー定義）・`docs/`・`adr/` は APK の中身に一切入らない
+          # （いずれもソースから import/require されておらず、Metro のバンドル対象外）のに、
+          # ソース全体のハッシュに含めるとフローを1行直しただけで約30分の再ビルドが走っていた
+          # （run 31884618163 で実測29分30秒）。ここだけ除外することでフロー修正やドキュメント
+          # 更新のイテレーションをキャッシュヒットで回せるようにする
+          # （run 31898755204 でビルドがスキップされ、ジョブ全体が36分53秒→6分35秒になった）。
+          # 注意: APK に影響しうるものを安易にここへ足すと、51d6696 で直した「古いAPKが
+          # 使い回される」バグが再発する。除外の追加は「ソースから参照されないこと」を
+          # 確認してから行うこと。
+          SRC_HASH=$(git ls-files -s packages/mobile \
+            ':(exclude)packages/mobile/.maestro' \
+            ':(exclude)packages/mobile/docs' \
+            ':(exclude)packages/mobile/adr' \
+            | git hash-object --stdin)
+          echo "hash=${NATIVE_HASH}-${SRC_HASH:0:16}" >> "$GITHUB_OUTPUT"
 
       # restore/save を分離している理由: 統合版 actions/cache の保存(post)ステップは
       # `post-if: success()` で定義されており、後続の Maestro ステップが失敗すると
@@ -89,12 +112,12 @@ jobs:
       # APKのビルド成否とE2Eの成否は無関係なので、ビルド直後に明示的に保存する。
       - name: Restore APK cache
         id: apk-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: packages/mobile/e2e-build/app-preview.apk
           key: mobile-apk-${{ steps.fp.outputs.hash }}
 
-      # fingerprint 一致時はここをスキップ（＝ネイティブ未変更なら再ビルドしない）
+      # キャッシュキー一致時はここをスキップ（＝ネイティブ・ソースともに未変更なら再ビルドしない）
       # timeout-minutes: Gradleの子プロセスが後片付けされずハングする事象があったため、
       # 失敗時に無限に居座らせず確実に完了させる安全策（SS-44）。通常は10分台で終わる想定。
       - name: Build preview APK (local, no EAS cloud minutes)
@@ -116,7 +139,7 @@ jobs:
       # ビルド直後に保存する（E2Eの成否に依存させない）。
       - name: Save APK cache
         if: steps.apk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: packages/mobile/e2e-build/app-preview.apk
           key: mobile-apk-${{ steps.fp.outputs.hash }}
@@ -163,7 +186,7 @@ jobs:
       # 現れないため、以後の全実行がそれを引き継ぎ続ける（APKキャッシュと違い fingerprint に
       # よる自己修復が効かない）。リスクに対してリターンが見合わないと判断した。
       - name: Run Maestro flows on emulator
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 34
           arch: x86_64
@@ -189,6 +212,100 @@ jobs:
           cores: 3
           ram-size: 4096M
           script: |
+            # CIランナーの負荷で Pixel Launcher が ANR を起こすことがあり、その
+            # 「〜isn't responding」ダイアログがシステムモーダルとして前面を塞ぐと、
+            # 背後のアプリのウィンドウが accessibility 経由のビュー階層から丸ごと消え、
+            # 全フローが sign-in-google-button のアサーションで失敗していた。
+            # ダイアログを閉じる方式（Wait のタップ）は、ランチャーが応答不能なままなので
+            # 約5秒周期で再表示され効果がなかった。ダイアログの表示自体を抑止する。
+            # AppErrors はダイアログを *これから表示する* 瞬間にこの設定を参照するだけで、
+            # 既に表示中のダイアログを閉じはしない。当初 `adb install` の後にこの設定を
+            # 入れていたところ、install 中の負荷（ブート直後で最もCPUが逼迫する区間）で
+            # Launcher が ANR し、設定が効く前にダイアログが出てしまい再発した
+            # （2026-08-14 調査、run 31813105115 / 31811792167 で同一現象を確認）。
+            # 設定適用をできるだけ早める（スクリプトの先頭に置く）ことで発生源となる
+            # install 中の負荷区間をこの対策の対象に含める。ただし、この行が実行される
+            # 前（アクション内部のブート待ち～disable-animations 処理中）に既に ANR が
+            # 起きた場合はダイアログを閉じられない残存リスクがある点は未解消。
+            # アプリ自身がクラッシュした場合もダイアログは出なくなるが、要素が見えず
+            # アサーションが失敗するので不具合の握り潰しにはならない（logcat も残る）。
+            adb shell settings put global hide_error_dialogs 1
+            # --- GNSS デッドロック対策（発生源を断つ） ---
+            # 事象: Google Play Services 側の裏での位置取得が system_server の GNSS サービスを
+            # デッドロックさせ、Watchdog が system_server ごと強制終了する
+            # （`Blocked in handler on foreground thread (android.fg) for 71s` /
+            # `GnssStatusProvider.onReportStatus` で lock 待ち → `WATCHDOG KILLING SYSTEM PROCESS`）。
+            # 以降の全 adb 操作が `Can't find service: package` で失敗し、実行中のフロー以降が
+            # 巻き添えで落ちる（run 31819288121 / 31829640836 で同一スタックを確認）。
+            #
+            # 当初 `cmd location set-location-enabled false` だけを入れたが、これでは止まらない
+            # ことが判明した（run 31829640836）。設定投入後も GNSS HAL
+            # `android.hardware.gnss-service.ranchu` が `Gnss:onGnssLocationCb` を出し続けて
+            # 実際に測位しており、`GnssLocationProvider` の start/stop がフロー境界ごとに
+            # 繰り返されていた。GNSS への要求元は Play Services 側の位置プロバイダなので、
+            # そちらのコンポーネントを止めないと要求の往復自体が消えない。
+            #
+            # fused / GoogleLocationManager は system_server が ServiceWatcher 経由で bind する
+            # 位置プロバイダの実体（ログ上も両者が繰り返しクラッシュ→再起動していた）。地図の
+            # 描画は Maps SDK 側の機能で位置プロバイダに依存しないため、無効化しても
+            # react-native-maps の描画には影響しない。
+            #
+            # root が必要な理由（run 31884618163 で判明）:
+            # shell UID のままだと `SecurityException: Shell cannot change component state` で
+            # 拒否される。AOSP の PackageManagerService.setEnabledSettings は、shell からの
+            # 操作を「パッケージ単位（className == null）の ENABLED / DISABLED_USER 切り替え」に
+            # 限定しており、コンポーネント単位の指定は TEST_ONLY パッケージ以外一律で禁止される。
+            # google_apis イメージは userdebug なので `adb root` でこの制限を回避できる
+            # （playstore 付きイメージでは不可）。
+            # 影響範囲を最小化するため、この2コマンドの前後だけ root にして即座に戻す。
+            # コンポーネントの無効化は PackageManager 側の状態なので unroot しても維持される。
+            # `adb root` / `adb unroot` は adbd を再起動させ接続が一時的に切れるため、
+            # 後続を実行する前に wait-for-device で復帰を待つ（無応答で居座らないよう timeout 付き）。
+            adb root || true
+            timeout 120 adb wait-for-device || true
+            # root になれたかをログに残す（uid=0 でなければ下の2行はまた拒否される）。
+            adb shell id || true
+            # `disable-user` ではなく `disable` を使う理由（run 31891552311 で判明）:
+            # PackageManagerService はコンポーネント単位の状態変更を ENABLED / DISABLED /
+            # DEFAULT の3つでしか switch しておらず、`disable-user` が送る DISABLED_USER(3) は
+            # default 節に落ちて `Failed setComponentEnabledSetting: ... invalid new component
+            # state` として黙って捨てられる。実際 root 化には成功して SecurityException は
+            # 消えたのに、結果は `new state: default`（＝無効化されていない）だった。
+            # 下のパッケージ単位の無効化が `disable-user` のままなのは、そちらはアプリ単位の
+            # 状態として正しく扱われるため（実際に `new state: disabled-user` になっている）。
+            adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.fused.FusedLocationService || true
+            adb shell pm disable --user 0 com.google.android.gms/com.google.android.location.internal.GoogleLocationManagerService || true
+            # Maestro 本体は shell adbd の状態で 8/8 通っている実績があるため、元に戻してから実行する。
+            adb unroot || true
+            timeout 120 adb wait-for-device || true
+            # ユーザー側の位置情報トグルも併せて落とす（単体では不十分だが、要求元を減らす方向には効く）。
+            # preview ビルドは EXPO_PUBLIC_LOCATION_MODE=mock（ADR-006）でアプリ自身は
+            # expo-location/GNSS に触れないため、無効化してもフローの前提は壊れない。
+            adb shell cmd location set-location-enabled false
+            # トグルの状態をログに残す（false が出ること）。ただしこれはユーザー設定の状態でしかなく、
+            # GNSS が実際に止まったかは logcat の `Gnss:onGnssLocationCb` が消えたかで判断すること。
+            adb shell cmd location is-location-enabled || true
+
+            # --- エミュレータの負荷を下げる ---
+            # 描画が約1fpsまで落ちる・`pm clear` が13分54秒かかる、といった飢餓が
+            # タップの取りこぼしや Watchdog タイムアウトの温床になっていた（run 31824150888）。
+            # logcat の行数で負荷源を測ったところ、上位は GMS(約4700行) / GSA(2369) /
+            # settings.intelligence(1599) / GNSS HAL(933) / Bugle(898) / AiAi(592) だった。
+            # このうち E2E に不要なものを止める。ネットワークには一切触らない
+            # （backend へ 10.0.2.2:8000 で到達する必要があるため）。
+            # `pm disable-user` は対象プロセスの kill も伴うので force-stop は不要。
+            # AVD は毎回 force-avd-creation: true で作り直すため、この無効化は実行ごとに適用される。
+            #
+            # googlequicksearchbox は Pixel Launcher の検索ウィジェットの提供元でもあるが、
+            # Maestro はランチャーを経由せず am start でアプリを直接起動するため経路上不要。
+            # 仮にランチャーが不安定になっても、上の hide_error_dialogs がダイアログを抑止する。
+            adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox || true
+            adb shell pm disable-user --user 0 com.google.android.apps.messaging || true
+            adb shell pm disable-user --user 0 com.google.android.as || true
+            adb shell pm disable-user --user 0 com.google.android.settings.intelligence || true
+            # バックグラウンドの dexopt がブート直後の CPU を奪うため止める。
+            adb shell cmd package bg-dexopt-job --disable || true
+
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
             # /explore/places の候補を決定的に返すため、外部データへの依存はない）。
@@ -196,7 +313,7 @@ jobs:
 
       - name: Upload Maestro debug output
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: maestro-debug-output
           path: ~/.maestro/tests/

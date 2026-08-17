@@ -268,7 +268,34 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - **スコープ外として残したもの**: Docker ecosystem（backendのDockerfile / compose.yamlのイメージ）、Dependabot security updatesの有効化。別課題化の候補。
 - **How to apply**: 今後Dependabot関連の課題（別ecosystem追加やcooldown調整）を扱う際は、本項の(a)(b)を前提として引き継ぐこと。特に「pnpm-workspace.yamlの日数とDependabotのcooldownを完全一致させる」という単純な発想は誤りになりやすい（Dependabot側の既定値・ecosystem別サポート状況を都度確認する）。
 
+## 2026-08-11追加: SS-29をIn Progressに更新（着手）
+
+- SS-29「mobile: data/スタブから Orval生成MSWモックへの移行と単体テスト整備」(work_item_id: `888431fa-1105-4cc6-ba8a-c8bfdba2740b`、M1所属)をBacklog→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。start_date=2026-08-17/target_date=2026-08-20は既存設定のまま。
+
+## 2026-08-11確認: SS-12/SS-14/SS-18は全てDone
+
+- SS-12(9ce6a916-53b6-4e15-8fdd-bf2d05ced095, M3所属)はcompleted_at 2026-07-26、SS-14(bc6398ac..., M4所属)はcompleted_at 2026-07-31、SS-18(dfde4093..., M5所属)はcompleted_at 2026-08-02でいずれもDone確認済み。SS-18は2026-08-04メモ時点でIn Progressだったが、その後別セッションでDone化されていた。
+
+## 2026-08-11追加: SS-29をReview化・PR #45リンク登録
+
+- SS-29（work_item_id: `888431fa-1105-4cc6-ba8a-c8bfdba2740b`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #45（`https://github.com/tri-star/sanposcape/pull/45`、link_id: `ac8097df-305f-4b62-aba0-de8cb9312bd4`）を登録。`list_work_item_properties`は今回も空配列で、標準Link機能が唯一の選択肢という既存方針を継続。
+
 ## 2026-08-11追加: スケジュール反映（SS-46/47/50/51/52/53/55）
 
 - SS-55を Todo・start=2026-08-11/target=2026-08-13・M1に追加。SS-47をBacklog→Todo、start=2026-08-11/target=2026-08-13（M1のまま）。SS-50をBacklog→Todo、start=2026-08-24/target=2026-08-26（M3のまま）。SS-46はBacklogのまま、start=2026-09-03/target=2026-09-05（参考日程、M2のまま）。SS-51/52/53（いずれもM5）は状態Todoのまま、start=2026-09-03/target=2026-09-10で統一設定。
 - **How to apply**: `manage_module_work_items`でモジュール追加した直後は、その`update_work_item`のレスポンスに`min_module_name`が反映されない（別呼び出しのため）。モジュール反映確認は必ず`retrieve_work_item_by_identifier`等で再取得すること。
+
+## 2026-08-12追加: SS-53をIn Progressに更新（実装着手）
+
+- SS-53「backend: 散歩記録の削除API（DELETE /walks/{walk_id}）を追加する」(work_item_id: `c6d79e92-46c8-4521-a0e6-0ad9cf305788`、M5所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。start_date=2026-09-03/target_date=2026-09-10は既存設定のまま。SS-42/PR #26のフォローアップ課題。
+- その後同日中にReview化・PR #47リンク登録済み（link_id: `08ed8323-72ba-433c-9f85-b3a7a9332dfc`）。
+
+## 2026-08-13追加: SS-53をReview→In Progressに再更新（PR #47レビュー指摘対応）
+
+- SS-53をReview→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に再更新し、コメント（comment_id: `7a4017ad-1e42-4936-a456-dd6dd526a415`）に「PR #47へのレビュー指摘対応のための再着手」である旨を記録。PR #47のリンクは既存のまま維持（削除・追加操作なし）。
+- **Why**: レビュー指摘を受けた再着手であることを状態変更だけでは残せないため、理由をコメントに明記する運用（Review→In Progress等の“出戻り”系更新では毎回コメントで理由を残すのが望ましい）。
+
+## 2026-08-13追加: SS-53をIn Progress→Reviewに再更新（レビュー指摘対応完了）
+
+- SS-53をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に再更新し、コメント（comment_id: `b332702d-8863-46eb-8ed0-f006c6377293`）に「PR #47のレビュー指摘対応完了・レビュースレッド2件返信/resolve済み」を記録。PR #47のリンク（link_id: `08ed8323-72ba-433c-9f85-b3a7a9332dfc`）は既存のまま流用（重複登録なし、事前確認のみ実施）。
+- **How to apply**: Review→In Progress→Review のような出戻り往復では、都度コメントで理由・完了報告を残す運用を継続する（前回メモと同じ方針）。PRリンクが既に登録済みか毎回`list_work_item_links`で確認してから、無ければ追加・あれば流用する。

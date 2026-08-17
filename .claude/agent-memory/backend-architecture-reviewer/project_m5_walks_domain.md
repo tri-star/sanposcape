@@ -28,3 +28,14 @@ SS-18 では「集計エンドポイントは作らない（クライアント�
 - 純粋ロジックは `walks/stats.py`（DB・Pydantic非依存）に切り出し、`repository.py`/`service.py`/`mappers.py` がそれぞれ import する一方向依存。
 - `WalkService.__init__` に `now: Callable[[], datetime] = lambda: datetime.now(UTC)` を追加した。`auth/service.py` の `AuthService` と同じクロック注入パターンで、これが2例目の前例になった（→ [[backend-layering-conventions]]）。
 - 詳細実装ファイル: `packages/backend/src/sanposcape/walks/{stats,service,repository,mappers,schemas,router}.py`。ADR: `docs/adr/ADR-003-walk-record-persistence-and-history-api.md` の決定10〜12（SS-42追補）。
+
+### SS-53 追補（2026-08-12）: `DELETE /walks/{walk_id}` を新設（SS-18のスコープ外決定を覆した・2度目）
+
+SS-18 では「削除APIは作らない（CASCADEのみ対応）」としていたが、SS-53 でこれも覆り、物理削除の `DELETE /walks/{walk_id}` を追加した（ADR-003 決定13）。**以後のレビューでは「SS-18で削除APIは作らない方針だったはず」という指摘はしないこと**。
+
+- 物理削除（論理削除カラムなし）。理由: 一覧/詳細/日次集計/streak走査の4読み取り経路すべてに除外条件を配ると1箇所の漏れで集計が腐るリスクがあり、決定11（非正規化を避けた理由）と同種の判断。
+- `WalkRepository.delete(*, user_id, walk_id) -> bool`。ORM `session.delete()` を使用（`sqlalchemy.delete()` の一括DELETEは identity map 不整合のリスクがあるため不採用）。`users/repository.py::delete()` と同じ「serviceがcommitを持つ・repositoryはbool/Noneで結果を返し例外を投げない」分担を踏襲。
+- 2回目の削除は404（冪等にしない）。tombstoneを作らないトレードオフとしてADRに明記済み。削除後は `(user_id, client_walk_id)` のUNIQUEが解放され、同じ`client_walk_id`で再送すると再作成される（これも仕様として許容・テスト固定済み）。
+- mobileの削除導線はSS-53のスコープ外（backend APIのみ）。
+- 実装は `tmp/SS-53/backend-plan.md` に極めて詳細（設計理由・リスク表・テストID D-R1〜5/D-S1〜10/D-T1〜12）があり、実装はこのプラン通りに完了している（2026-08-12時点でレビュー済み）。
+- 気づいた点（2026-08-13追記・解消済み）: `WalkRepository.delete()` は「SELECTで存在確認→`session.delete()`→`flush()`」というTOCTOUパターンで、`users/repository.py::delete()`と同型。当初「真に同時な2重DELETEでStaleDataError（未捕捉→500）になり得るのでは」と懸念していたが、SS-53追加コミット（b585bfa/36cec95）のレビュー時に`repository.py::delete()`のdocstringを読んだところ既に手当て済みと判明: `Walk`に`version_id_col`が無いため`confirm_deleted_rows`はSQLAlchemyの仕様上`StaleDataError`ではなく`SAWarning`にしかならず、実装は`flush()`呼び出し区間だけ`SAWarning`を例外に昇格させて`StaleDataError`と合わせて捕捉し`False`を返す設計になっている（→呼び出し元は通常の404扱いに揃う）。**以後、この「真の同時実行でのStaleDataError化」を未解決リスクとして再指摘しないこと**。`walks/service.py::delete_walk()`のdocstring（同コミットで更新）もこの2パターン（未検出/競合による0件失敗）を明記しており、実装とdocstringは整合している。

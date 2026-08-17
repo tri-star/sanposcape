@@ -51,3 +51,32 @@ metadata:
 - ネイティブモジュール追加は `@expo/fingerprint` を変える → ADR-004 の E2E APK キャッシュが必ず1回ミスし、
   開発者全員が development build を作り直す必要がある。Android は署名鍵ごと（debug/development/preview/production）に
   **SHA-1 登録**が要る（未登録は `DEVELOPER_ERROR` という分かりにくい失敗になる）。
+
+## 認証ゲートの「1関数だけ変えればいい」は嘘（SS-57 の調査で判明・2026-08-13）
+
+ADR-009 決定3 は「ゲスト散歩の解禁は `canEnterProtectedRoutes` に `"guest"` を足すのが唯一の変更点」と
+書いているが、**同関数はゲート以外からも参照されており、1行変更だけでは壊れる**。
+**Why:** 実際にプランを書くまで気付けない結合で、気付かないと「起動したらサインイン画面に行けない」
+「ログアウトしても画面が固まる」という致命的な回帰になる。
+**How to apply:** 認証ゲート/ゲスト可否に触るタスクでは、次の2点を必ず確認する。
+
+- `features/auth/lib/splashDestination.ts` が `canEnterProtectedRoutes` に**委譲**している
+  → guest を許可すると未サインインの起動が `/walk-start` 直行になり、サインイン画面（ゲスト導線と
+  Google サインインの唯一の入口）に到達できなくなる。E2E も全滅（全フローが起動直後に
+  `sign-in-google-button` を待つ）。
+- サインアウト/401失効の退避（ADR-009 決定6 / SS-50）は「ゲートが guest を保護ルートで弾く」ことに
+  依存している → guest を許可すると遷移せず、`SettingsView` の `isSigningOut` は成功時にリセットされない
+  設計なのでダイアログが「ログアウト中...」で固まる。退避は**状態遷移（authenticated → guest）**で
+  判定する形に寄せる必要がある。
+
+## 機能側から「サインイン中のユーザー」を使いたくなった時（SS-13 / ADR-009 決定8）
+
+- `.oxlintrc.json` の `no-restricted-imports` override が **`src/features/walk/**` と `src/features/history/**` から
+  `@/services/auth` / `@/services/auth/*` / `@/store/useAuthSessionStore` への import を機械的に禁止**している。
+  → これらの feature の hook/lib で認証状態を読む設計は書けない（lint で落ちる）。
+- ユーザーの identity（`displayName` 等）の**単一の情報源は `useAuthSessionStore.user`**
+  （ADR-009 決定1 が「store にサーバー由来データを置かない」原則の明示的な例外として許容した identity snapshot）。
+  `GET /auth/me` で取り直す設計にしない（[[project_screens_and_stub_layer]] の記述と併せて、情報源を二重化しない）。
+- したがって供給経路は「**ルート（`app/**`。override 対象外）で store を読み、View → hook へ props で注入**」。
+  横断 hook（`src/hooks/useSessionDisplayName` 等）を挟んで feature から読む案は、ルールを形式的に回避する形なので
+  採るなら ADR-009 の追補が要る。

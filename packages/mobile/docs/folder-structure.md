@@ -94,8 +94,13 @@ packages/mobile/
   レンダリング/フックのテストはできない（詳細は [pages-components-guideline](./pages-components-guideline.md)）。
 - **判定・整形ロジックは `lib/` の純粋関数に切り出す**（`react-native` を値 import しない）。
   こちらが Vitest でのテスト対象になる（`.test.ts` を併置）。
-- **`data/`** には静的データ・定数（ダミーデータ、選択肢一覧など）を置く。
-  ここは将来 `api/`（Orval + TanStack Query）へ差し替わる**暫定スタブの置き場**。
+- **`data/`** には静的データ・定数（ダミーデータ、選択肢一覧など）を置く。用途は2種類ある。
+  - サーバー由来データを代用する**暫定スタブ**: 将来 `api/`（Orval + TanStack Query）へ差し替わったら削除する
+    （SS-29 でこの用途のファイルは解消済み。新たに追加する場合も同様に一時的なものとして扱う）。
+  - **恒久的に残る静的データ**: API の enum に対する表示メタ・選択肢一覧（例:
+    `features/walk/data/categories.ts`）、開発確認用の代表値（例: `features/walk/data/defaults.ts`）、
+    対応する backend API がまだ存在しない設定値（例: `features/history/data/stepGoal.ts`）など、
+    API 化される種類のデータではないもの。これらは差し替え対象ではないので残置理由を JSDoc に書く。
   - 画面の主データ（一覧・詳細など、将来 API 化される可能性が高いもの）は、`hooks/` 経由でのみ参照させ、
     View から `data/` を直接 import しない。差し替え時の影響範囲を hook に閉じるため。
   - router params 欠落時のフォールバック定数や、画面カタログ等の開発用途で使う代表値のように、
@@ -177,9 +182,9 @@ packages/mobile/
 - `src/config/`: 環境変数の読み取りと定数。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
   - 実例: `useAuthSessionStore.ts`（認証セッション状態 `loading | authenticated | guest`。SS-13）。
-    参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線）・
-    `app/_layout.tsx`（アプリ全体のゲート）にまたがるため、最初から `src/store/` に置いた
-    （コンポーネントの昇格ルールと同じ判断基準）。
+    参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線 /
+    guest 向けサインイン導線の出し分け。SS-57）・`app/_layout.tsx`（アプリ全体のゲート）にまたがる
+    ため、最初から `src/store/` に置いた（コンポーネントの昇格ルールと同じ判断基準）。
   - **「サーバー由来のデータを置かない」の例外は `useAuthSessionStore.user` も対象**。
     `user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、
     TanStack Query が管理する一般的なドメインデータとは性質が異なるため許容する

@@ -95,10 +95,12 @@ adb shell am start -a android.intent.action.VIEW \
 `/dev-screens`（`ScreenCatalog`）を直接開くとスタブデータ付きで一覧から確認できる（SS-9）。
 本番ビルドでは `__DEV__` ガードにより `/` へリダイレクトされ開けない。
 
-`/dev-screens` 自体は未認証でも開ける公開ルートだが、そこから開く散歩開始・履歴・設定などの
-保護画面は認証ゲート（`AuthGate`）の対象のため、**未認証のままではサインイン画面へ弾かれる**
-（`EXPO_PUBLIC_AUTH_MODE=dev` の development build なら `sign-in-google-button` を1タップで
-サインインできる。詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
+`/dev-screens` 自体は未認証でも開ける公開ルートで、そこから開く散歩開始・履歴・設定などの
+保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を解禁したため
+**未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`/walks` 系 API だけは 401 になり
+各画面のエラーカードで degrade する）。サインイン後の見た目を確認したい場合は
+`EXPO_PUBLIC_AUTH_MODE=dev` の development build で `sign-in-google-button` を1タップする
+（詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
 
 ```bash
 adb shell am start -a android.intent.action.VIEW -d "sanposcape://dev-screens"
@@ -262,7 +264,11 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 - **SS-42 以降、記録タブ上部の集計（週/月チャート・合計距離・連続日数・今日の推定歩数）は
   backend の `GET /walks/stats` に依存する**。backend 未起動・未認証（401）の場合は集計セクション
   だけがエラーカード（`history-stats-error`）+ 再試行導線になり、「最近の散歩」セクションは
-  別クエリのため独立して表示される。目標歩数（8,000）と記録タブのユーザー名は引き続き静的スタブ。
+  別クエリのため独立して表示される。目標歩数（8,000）は引き続き静的スタブ。
+- **SS-29 以降、記録タブのあいさつ文はサインイン中ユーザーの表示名を反映する**（静的スタブ廃止）。
+  `EXPO_PUBLIC_AUTH_MODE=mock` なら「モックユーザーさん、今日も歩きましょう」、`dev` なら
+  「{user_key}さん、今日も歩きましょう」になる。`display_name` が `null`（Google が name を返さない場合）
+  なら名前部分を落として「今日も歩きましょう」になる。
 - 同じ画面は現在地の取得も行う。エミュレータで位置が取れない場合は
   `adb shell` 経由の `adb emu geo fix <経度> <緯度>` で位置を与えるか、`.env` の
   `EXPO_PUBLIC_LOCATION_MODE=mock`（東京駅固定）で起動する。

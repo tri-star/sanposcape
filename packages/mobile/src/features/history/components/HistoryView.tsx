@@ -14,18 +14,23 @@ import {
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
+export type HistoryViewProps = {
+  /** サインイン中ユーザーの表示名。未サインイン/復元中は null。 */
+  displayName: string | null;
+};
+
 /**
  * 履歴（記録）画面。mock `isRecord` を1:1で再現する。
  * 集計（`GET /walks/stats`）のローディング/エラーは集計セクションだけに閉じ、
  * 「最近の散歩」（別クエリの `RecentWalksSection`）は常に独立して表示する
  * （集計 API が落ちても履歴一覧は見られるようにするため）。
  */
-export function HistoryView() {
+export function HistoryView({ displayName }: HistoryViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const {
-    userName,
+    greeting,
     period,
     setPeriod,
     chart,
@@ -35,7 +40,7 @@ export function HistoryView() {
     isLoading,
     errorCode,
     reload,
-  } = useHistorySummary();
+  } = useHistorySummary({ displayName });
 
   const renderStats = () => {
     if (errorCode !== null) {
@@ -97,7 +102,9 @@ export function HistoryView() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>歩いた記録</Text>
-          <Text style={styles.subtitle}>{`${userName}、今日も歩きましょう`}</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {greeting}
+          </Text>
         </View>
 
         {renderStats()}
