@@ -299,3 +299,7 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-53をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に再更新し、コメント（comment_id: `b332702d-8863-46eb-8ed0-f006c6377293`）に「PR #47のレビュー指摘対応完了・レビュースレッド2件返信/resolve済み」を記録。PR #47のリンク（link_id: `08ed8323-72ba-433c-9f85-b3a7a9332dfc`）は既存のまま流用（重複登録なし、事前確認のみ実施）。
 - **How to apply**: Review→In Progress→Review のような出戻り往復では、都度コメントで理由・完了報告を残す運用を継続する（前回メモと同じ方針）。PRリンクが既に登録済みか毎回`list_work_item_links`で確認してから、無ければ追加・あれば流用する。
+
+## 2026-08-16追加: SS-60をIn Progressに更新(実装着手)
+
+- SS-60「mobile: 散歩履歴を削除するUIを実装」(work_item_id: `a25a601b-a6a2-4f67-98fa-303ff16c1352`、M5所属)をTodo→In Progress(`81c7939b-725c-4c0b-bb92-77b24ec48377`)に更新。SS-53(backend: DELETE /walks/{walk_id})を受けたmobile側削除導線の実装着手。ADR-003のSS-53追補を参照する課題。
