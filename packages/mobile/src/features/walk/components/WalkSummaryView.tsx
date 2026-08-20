@@ -12,19 +12,29 @@ import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
+export type WalkSummaryViewProps = {
+  /**
+   * 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から読んで渡す。
+   * `features/walk` は認証状態を直接 import できない（ADR-009 決定8 / .oxlintrc.json）。
+   */
+  isSignedIn: boolean;
+  /** 保存が 401 で失敗したときの CTA。サインイン画面へ送る（遷移先の知識は app/ 側が持つ）。 */
+  onSignIn: () => void;
+};
+
 /**
  * 散歩終了サマリ画面。mock に直接該当なし。
  * `isMain` の終了導線＋`isRecord` の StatBlock/Card トーンで補完する。
  * 表示値・保存状態は `useWalkSummary`（`useFinishedWalkStore` + `useWalkSave` の合成）から受け取る。
  * ドラフトが無い（deep link・画面カタログ直叩き）場合は代表値を表示し、保存は行わない。
  */
-export function WalkSummaryView() {
+export function WalkSummaryView({ isSignedIn, onSignIn }: WalkSummaryViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const summary = useWalkSummary();
+  const summary = useWalkSummary({ isSignedIn });
   const { stats } = summary;
 
   return (
@@ -52,6 +62,7 @@ export function WalkSummaryView() {
         status={summary.saveStatus}
         errorCode={summary.saveErrorCode}
         onRetry={summary.retrySave}
+        onSignIn={onSignIn}
         testID="walk-summary-save-status"
       />
 

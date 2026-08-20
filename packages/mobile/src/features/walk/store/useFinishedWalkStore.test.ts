@@ -18,22 +18,32 @@ const FINISHED_WALK: FinishedWalk = {
   track: [],
 };
 
-const INITIAL_STATE = { finishedWalk: null, savedWalkId: null, saved: false };
+const INITIAL_STATE = {
+  finishedWalk: null,
+  savedWalkId: null,
+  saved: false,
+  signInForSaveRequested: false,
+};
 
 describe("useFinishedWalkStore", () => {
   beforeEach(() => {
     useFinishedWalkStore.setState(INITIAL_STATE);
   });
 
-  it("初期値は null / saved:false", () => {
+  it("初期値は null / saved:false / signInForSaveRequested:false", () => {
     const state = useFinishedWalkStore.getState();
     expect(state.finishedWalk).toBeNull();
     expect(state.savedWalkId).toBeNull();
     expect(state.saved).toBe(false);
+    expect(state.signInForSaveRequested).toBe(false);
   });
 
-  it("finishWalk で保持され saved がリセットされる", () => {
-    useFinishedWalkStore.setState({ saved: true, savedWalkId: "previous-id" });
+  it("finishWalk で保持され saved / signInForSaveRequested がリセットされる", () => {
+    useFinishedWalkStore.setState({
+      saved: true,
+      savedWalkId: "previous-id",
+      signInForSaveRequested: true,
+    });
 
     useFinishedWalkStore.getState().finishWalk(FINISHED_WALK);
 
@@ -41,6 +51,33 @@ describe("useFinishedWalkStore", () => {
     expect(state.finishedWalk).toEqual(FINISHED_WALK);
     expect(state.saved).toBe(false);
     expect(state.savedWalkId).toBeNull();
+    expect(state.signInForSaveRequested).toBe(false);
+  });
+
+  it("requestSignInForSave で signInForSaveRequested が true になる（SS-37）", () => {
+    useFinishedWalkStore.getState().finishWalk(FINISHED_WALK);
+
+    useFinishedWalkStore.getState().requestSignInForSave();
+
+    expect(useFinishedWalkStore.getState().signInForSaveRequested).toBe(true);
+  });
+
+  it("markSaved で signInForSaveRequested がリセットされる（SS-37）", () => {
+    useFinishedWalkStore.getState().finishWalk(FINISHED_WALK);
+    useFinishedWalkStore.getState().requestSignInForSave();
+
+    useFinishedWalkStore.getState().markSaved("walk-id-1");
+
+    expect(useFinishedWalkStore.getState().signInForSaveRequested).toBe(false);
+  });
+
+  it("clearFinishedWalk で signInForSaveRequested がリセットされる（SS-37）", () => {
+    useFinishedWalkStore.getState().finishWalk(FINISHED_WALK);
+    useFinishedWalkStore.getState().requestSignInForSave();
+
+    useFinishedWalkStore.getState().clearFinishedWalk();
+
+    expect(useFinishedWalkStore.getState().signInForSaveRequested).toBe(false);
   });
 
   it("markSaved(id) で saved:true / savedWalkId が入る", () => {

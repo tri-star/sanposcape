@@ -10,3 +10,4 @@
 - [SS-57 ゲスト散歩解禁・canEnterProtectedRoutesにguest許可](project_ss57_guest_route_gate.md) — ADR追補の質は高評価。mid-walk中にsettings経由でサインイン→walk-startへ強制遷移し進行中散歩を無確認で上書きしうる新規ギャップを発見（未検証・要手動確認）
 - [SS-60 履歴削除UI](project_ss60_walk_delete.md) — 後始末レジストリパターンが2例目(walkDeletionCleanup)になった経緯。folder-structure.md と ADR-008 決定8 に追記済み
 - [Modal + useScreenBack の同居](pattern_modal_backhandler_coexistence.md) — Android では Modal が hardwareBackPress を奪うため onIntercept が実質到達しない疑い。次に同居コードを見たら要検証（実機未確認）
+- [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認

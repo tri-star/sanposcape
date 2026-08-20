@@ -187,7 +187,8 @@ maestro test packages/mobile/.maestro/
 # smoke タグのフローだけ（外部データに依存せず、backend の候補を用意できない環境向け）
 maestro test --include-tags=smoke packages/mobile/.maestro/
 
-# 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー）
+# 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー +
+# ゲスト保存 → サインイン CTA フロー）
 maestro test --include-tags=maps-required packages/mobile/.maestro/
 
 # 個別フローを名指しで実行（デバッグ時）

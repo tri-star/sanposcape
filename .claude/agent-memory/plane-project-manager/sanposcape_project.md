@@ -303,3 +303,9 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 ## 2026-08-16追加: SS-60をIn Progressに更新(実装着手)
 
 - SS-60「mobile: 散歩履歴を削除するUIを実装」(work_item_id: `a25a601b-a6a2-4f67-98fa-303ff16c1352`、M5所属)をTodo→In Progress(`81c7939b-725c-4c0b-bb92-77b24ec48377`)に更新。SS-53(backend: DELETE /walks/{walk_id})を受けたmobile側削除導線の実装着手。ADR-003のSS-53追補を参照する課題。
+
+## 2026-08-21追加: SS-61「散歩サマリ画面の未保存ドラフト離脱時に破棄確認ダイアログを出す」をSS-37の子として新規作成
+
+- SS-61（work_item_id: `db269916-4d21-49a6-b221-33e42ee16a5b`）を新規作成、State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-37（work_item_id: `99bf40df-6398-4e03-b98e-fc7409262ba2`、当時State=Review）のPRセキュリティレビュー修正方針2のフォローアップとして起票（ユーザー指示）。
+- SS-37との関連付けは、402で使えないカスタムリレーション（[[relation_definitions_402|relates_to等]]）の代替として**親子関係（`workitem create`の`parent`パラメータにSS-37のwork_item_idを指定）**を採用。SS-36/37/38/39では本文中の言及のみで済ませていたが、今回はユーザー指示で「親子関係が自然ならparentでも可」と明示されたため親子関係を実際に設定した。SS-37側は`parent`を持たない性質上、子を持たせても type/state 等は一切変更されない。
+- **How to apply**: 今後も「SS-XXと関連付けて」の依頼で緩い関連(relates to)が使えない場面では、まず親子関係が自然かどうかをユーザーに確認するか指示に従い、自然なら`parent`で対応するのが本文言及より確実（Plane UI上でも視覚的にリンクされる）。

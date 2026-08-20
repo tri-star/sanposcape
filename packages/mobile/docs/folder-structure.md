@@ -221,7 +221,10 @@ packages/mobile/
     [ADR-008 決定7](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
   - **更新系（mutation）も同じく `hooks/` に置く**（例: `features/walk/hooks/useWalkSave.ts` — `POST /walks`）。
     `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは
-    「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる。
+    「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる
+    （認証など feature が直接見られない値が必要な場合は `app/` のルートから引数で注入する。
+    例: `useWalkSave` は `isSignedIn` を必須引数で受け取る。`architecture-guideline.md`
+    「認証の扱い」参照）。
   - **`features/<feature>/api/` には Orval が生成した「素の fetcher」を薄くラップした関数を置き、
     生成 hook（`useXxx...`）は使わない**（例: `walkApi.ts` の `saveWalk`、`walkRouteApi.ts` の `fetchWalkRoute`）。
     理由は2つ:

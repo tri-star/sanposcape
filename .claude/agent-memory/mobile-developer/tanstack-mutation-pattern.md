@@ -15,9 +15,19 @@ SS-19（散歩終了処理・散歩ルート保存）まで、mobile には `use
 - 自動発火は `useEffect` + `useRef<string | null>`（発火済みキーの記録）で1回だけ行い、
   React 18 StrictMode の二重実行を吸収する。冪等キー（`client_walk_id` 相当）がある操作
   でないとこの手法は安全でない点に注意。
-- `retry` / `retryDelay` は独自の「再試行可能なエラーコードか」判定関数
-  （`isRetriableWalkSaveError` 相当）に委譲し、TanStack Query 側の指数バックオフ機構
-  （`retryDelay: (n) => Math.min(base * 2 ** n, max)`）をそのまま使う。
+  - **SS-37 追補**: 発火済みキーは「冪等キーだけ」ではなく「冪等キー＋関連する外部状態」の
+    複合キーにできる。`useWalkSave` は `${clientWalkId}:${isSignedIn ? "signed-in" : "guest"}`
+    という形にし、外部状態（認証）が変わったら「もう一度だけ」自動再発火するようにした
+    （ゲストで401→サインイン→自動再送）。判定は `useEffect` の中に書かず
+    `features/walk/lib/walkSaveTrigger.ts` の純粋関数 `nextWalkSaveFireKey` に切り出し、
+    vitest で固定する（[[test-scope-hooks-components]] の方針どおり、hookはテストしない）。
+- `retry`（TanStack Query の自動リトライ可否）は独自の「再試行可能なエラーコードか」判定関数
+  （`isRetriableWalkSaveError`）に委譲し、指数バックオフ（`retryDelay: (n) => Math.min(base * 2 ** n, max)`）
+  をそのまま使う。**「自動リトライしてよいか」と「UIに何を提示するか」は別関数に分ける**
+  （SS-37）: `unauthorized` は自動リトライ不可（`isRetriableWalkSaveError` → false）だが、
+  UIには「サインインして保存」CTAを出したい（`walkSaveErrorAction` → `"sign_in"`）。
+  1つの関数に両方の意味を持たせると将来のエラーコード追加で必ず食い違う。
+  `Record<ErrorCode, Action>` にすると新しいコード追加時に型で網羅漏れに気づける。
 - `useQueryClient()` を hook 内で取得し、成功時に `invalidateQueries({ queryKey: [...] })`
   する（`@/api/queryClient` のシングルトンを直接 import しない）。
 

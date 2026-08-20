@@ -1,0 +1,77 @@
+# ゲスト散歩 → 保存 401 → サインイン CTA → サインイン → サマリへ戻って自動再送 → 保存成功（SS-37）。
+#
+# 前提:
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）
+#   - backend が起動しており /explore/places が候補を返せること（MAPS_MODE=fake など）
+#   → 候補に依存するため maps-required タグを付ける（CI は絞り込まず全フロー実行。SS-54）。
+# assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値。
+appId: com.sanposcape.app
+tags:
+  - maps-required
+---
+- launchApp:
+    clearState: true
+# スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照）。
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-guest-button"
+    timeout: 15000
+- tapOn:
+    id: "sign-in-guest-button"
+- extendedWaitUntil:
+    visible:
+      id: "walk-start-screen"
+    timeout: 15000
+- runFlow: subflows/start-walk-from-spot.yaml
+
+# --- 散歩中 → 終了 ---
+- extendedWaitUntil:
+    notVisible: "00:00:00"
+    timeout: 5000
+- tapOn:
+    id: "walk-active-end"
+- assertVisible:
+    id: "walk-end-dialog"
+- tapOn:
+    id: "walk-end-confirm"
+
+# --- サマリ: ゲストなので POST /walks が 401 になり、サインイン CTA が出る ---
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-save-sign-in"
+    timeout: 30000
+- assertNotVisible:
+    id: "walk-summary-save-retry"
+
+# --- CTA → サインイン（dev セッション）---
+- tapOn:
+    id: "walk-summary-save-sign-in"
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-google-button"
+    timeout: 15000
+- tapOn:
+    id: "sign-in-google-button"
+
+# --- サマリへ戻り、ドラフトが自動で再送されて保存が完了する ---
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-screen"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "walk-summary-save-status-saved"
+    timeout: 30000
+# 保存された散歩の詳細まで開けることを確認する（savedWalkId が入っている＝再送が成功している）。
+- tapOn:
+    id: "walk-summary-view-history"
+- extendedWaitUntil:
+    visible:
+      id: "walk-detail-screen"
+    timeout: 15000
+- assertNotVisible:
+    id: "walk-detail-error"
