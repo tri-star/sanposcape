@@ -118,10 +118,22 @@ packages/mobile/
     サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
   - 判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
-  - **サインアウト時にクリアが必要な store は、`src/lib/sessionCleanup.ts` の `registerSessionCleanup()` に
-    自分の後始末を登録する**（ストアのファイル末尾で1回）。`runSessionCleanup()` を呼ぶ実行側は
-    `src/store/useAuthSessionStore.ts` の `setSession()`（認証状態が `authenticated → guest` に
-    落ちる時点。SS-13 追補）で、store が増えるたびにサインアウト導線を編集しなくて済むようにする。
+  - **feature をまたぐイベントで他 feature の store をクリアしたくなったら、直接 import せず
+    `src/lib/` に後始末レジストリを置き、クリアされる側（store）が自分の後始末を登録する**
+    （ストアのファイル末尾で1回）。呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに
+    実行関数を1つ呼ぶだけにする。こうすることで、クリア対象の store が増えるたびに呼び出し側を
+    編集せずに済み、かつ「その機能の外から import されるものは置かない」（下記）を破らずに済む。
+    現在2種類ある:
+    - **サインアウト時**: `src/lib/sessionCleanup.ts` の `registerSessionCleanup()` / `runSessionCleanup()`。
+      実行側は `src/store/useAuthSessionStore.ts` の `setSession()`（認証状態が `authenticated → guest` に
+      落ちる時点。SS-13 追補）。
+    - **散歩の削除時**: `src/lib/walkDeletionCleanup.ts` の `registerWalkDeletionCleanup()` /
+      `runWalkDeletionCleanup(walkId)`（SS-60）。実行側は `features/history/hooks/useWalkDelete.ts` の
+      `onSuccess`。サインアウト用と違い**引数（削除された walk id）を取り**、登録側は
+      `savedWalkId` が一致するときだけクリアする（保存前の別ドラフトを巻き添えにしないため）。
+    - 共通の性質: 1つの後始末が例外を投げても他は止めない。登録はモジュール読み込み時に走るため、
+      対象 store が未ロードなら後始末も走らないが、いずれの store も非永続（メモリのみ）のため
+      「未ロード = クリアすべきデータも無い」が成立する。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
@@ -209,7 +221,10 @@ packages/mobile/
     [ADR-008 決定7](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
   - **更新系（mutation）も同じく `hooks/` に置く**（例: `features/walk/hooks/useWalkSave.ts` — `POST /walks`）。
     `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは
-    「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる。
+    「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる
+    （認証など feature が直接見られない値が必要な場合は `app/` のルートから引数で注入する。
+    例: `useWalkSave` は `isSignedIn` を必須引数で受け取る。`architecture-guideline.md`
+    「認証の扱い」参照）。
   - **`features/<feature>/api/` には Orval が生成した「素の fetcher」を薄くラップした関数を置き、
     生成 hook（`useXxx...`）は使わない**（例: `walkApi.ts` の `saveWalk`、`walkRouteApi.ts` の `fetchWalkRoute`）。
     理由は2つ:

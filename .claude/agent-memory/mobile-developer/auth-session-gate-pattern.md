@@ -58,8 +58,10 @@ real/dev/mock 全てのファクトリに `deps.onSessionChange` として渡す
 ## AuthGate は片方向ゲート
 
 認証済みユーザーを `(auth)` から追い出さない。双方向にすると `/dev-screens` からサインイン画面を
-開けなくなり遷移が往復する。サインイン成功後の遷移は `useAuthActions` の
-`router.replace("/walk-start")` に任せる。
+開けなくなり遷移が往復する。サインイン成功後の遷移は `useAuthActions` が
+`getPostSignInDestination()`（`features/auth/lib/postSignInDestination.ts`）の戻り値に従う
+（SS-37 で `replace("/walk-start")` 固定から「遷移アクション」を返す形に拡張済み。
+詳細は [[post-sign-in-destination-action]]）。
 
 **SS-50**: `authenticated → guest` の保護ルートからの退避と履歴スタック整理も `AuthGate` に集約する。
 redirect effect では `router.canDismiss()` が true のときだけ `router.dismissAll()` を実行し、その後
@@ -74,6 +76,9 @@ Promise callback と React effect の実行順に依存する二重遷移を作�
 のではなく、**`app/` 配下のルートが `useAuthSessionStore` を読み、feature の View に props で渡す**。
 SS-29 で `app/(tabs)/history.tsx` が最初の事例になった（`useAuthSessionStore((s) => s.user?.displayName ?? null)`
 → `HistoryView` props → `useHistorySummary({ displayName })` 引数）。
+SS-37 で2例目: `app/walk-summary.tsx` が `isSignedIn`（`state.status === "authenticated"`）と
+`onSignIn`（`router.push("/(auth)/sign-in")`）を `WalkSummaryView` props →
+`useWalkSummary({ isSignedIn })` → `useWalkSave(draft, { isSignedIn })` へ注入する。
 横断hookを作る案は「間に1枚挟むことで形式的にだけ規約を回避する」ことになり却下した
 （採用するならADR-009の追補が必要という整理）。セレクタは必ずプリミティブを返すこと
 （オブジェクトを返すとzustand v5で毎レンダー新しい参照になり無駄な再レンダーが起きる）。

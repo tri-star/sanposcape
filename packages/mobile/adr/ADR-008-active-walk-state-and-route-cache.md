@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）
 
 ## ステータス
 
@@ -17,6 +17,12 @@
 **SS-35「散歩開始後の現在地起点ルート再計算」で追補**した（決定2 に例外を追記、決定7 を新規追加）。追補部分には `（SS-35 追補）` を付けている。
 
 **SS-50「サインアウト時の遷移をAuthGateに一本化」で追補**した（決定6 の退避と履歴スタック整理を `AuthGate` に集約した）。
+
+**SS-37「散歩サマリの保存失敗時にサインインへ導くCTAを追加」で追補**した（決定4 の「1回だけ発火」を「同じドラフト×同じ認証状態につき1回だけ」に緩めた）。追補部分には `（SS-37 追補）` を付けている。
+
+**SS-37 ローカルレビュー対応で追補**した（認証状態の変化による自動再発火を、サマリ画面の CTA から明示的にサインインした場合に限定した。共有端末で無関係な後続のサインインに他人のドラフトが混入する事故を防ぐため）。追補部分には `（SS-37 ローカルレビュー対応）` を付けている。
+
+**SS-60「mobile: 散歩履歴を削除するUIを実装」で追補**した（決定4 の `savedWalkId` に2つ目の用途が生まれたこと、決定6 と同型の後始末レジストリが2本目になったことを記録。決定そのものは変更していない）。追補部分には `（SS-60 追補）` を付けている。
 
 ## コンテキスト
 
@@ -74,10 +80,33 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - `useActiveWalkStore` に相乗りさせず**ファイルを分ける**。前者は「今どの散歩をしているか」、後者は「サーバーへ送る対象そのもの」で、寿命も責務も異なるため。
 - 画面間の受け渡しに Expo Router の params を使わない方針は、終了 → サマリの遷移にもそのまま適用する（決定1 と同じ理由）。
 
+#### SS-37 追補: サインイン後の自動再送
+
+決定4 の「サマリ画面で `useWalkSave` が `POST /walks` を**1回だけ**発火する」を、**「同じドラフト × 同じ認証状態につき1回だけ」に緩める**。
+
+- **理由**: SS-57 でゲスト散歩を解禁した結果、「ゲストのまま `POST /walks` を叩いて 401 → サインイン → 再送」が正規の導線になった。ゲストは refresh token を持たないため `customFetch` の refresh 再送も走らず、`toWalkSaveErrorCode` は確実に `unauthorized` に分類される（`isRetriableWalkSaveError` は false のまま自動リトライしない）。以前は `firedClientWalkIdRef` が `clientWalkId` だけを見ていたため、サインイン後にサマリ画面へ戻っても再発火せず、ユーザーは「サインインしたのにもう一度ボタンを押す」必要があった。
+- **実装**: 判定を `src/features/walk/lib/walkSaveTrigger.ts` の純粋関数 `nextWalkSaveFireKey` に切り出す。発火済みキーを `${clientWalkId}:${isSignedIn ? "signed-in" : "guest"}` の形で `useRef`（`firedKeyRef`）に持ち、キーが変わったときだけ再発火する。vitest（`walkSaveTrigger.test.ts`）で「guest → signed-in で再発火する」「同一状態では二重発火しない」「saved なら発火しない」を固定している。**SS-37 ローカルレビュー対応でこの判定に条件が1つ加わった。下記「SS-37 ローカルレビュー追補」を参照。**
+- **二重送信の安全性**: `client_walk_id` による冪等性（決定4 の前提）は変わらない。逆向き（signed-in → guest）の遷移でキーが変わっても、**SS-37 ローカルレビュー追補で加えた意思表示ゲート（`signInForSaveRequested`）により再発火しない**（実際にはこの遷移は下記の理由でそもそも到達しない）。規則を「認証状態が変われば1回だけ再発火する」の1本にまとめることを、例外を作るより優先した。
+- **決定6（サインアウト時の sessionCleanup）は変更しない**。ゲスト散歩の保存待ちドラフトは `authenticated → guest` 遷移を経ないため `runSessionCleanup()` の対象にならず消えない。共有端末で前ユーザーの軌跡が次ユーザーのトークンで送信される事故の防止（決定6 の意図）は、この追補後も従来どおり成立する。
+- **決定5（永続化しない）との関係**: `authenticated → guest`（セッション失効）でドラフトが消える問題は本追補では解かない。これは決定5 のフォローアップ課題（ローカル永続化）でのみ解ける。SS-37 が対応するのはゲストのまま保存に失敗するケース（**状態遷移**が起きないためドラフトが無傷で残る）に限る。
+
+#### SS-37 ローカルレビュー追補: サインインの起点限定（Security High 対応）
+
+SS-37 初版のセキュリティレビューで、上記の自動再発火・後述の `getPostSignInDestination` によるサマリ画面への強制復帰が、**「どこから来たサインインか」を一切見ずグローバルな保存待ちドラフトの有無だけで発火する**ことが指摘された。
+
+- **実害シナリオ（共有端末）**: 人物A がゲストのまま散歩を記録し、電波不良などで保存に失敗（401）、CTA を無視して「ホームへ」で離脱する（`useFinishedWalkStore` の `finishedWalk` は `saved: false` のままメモリに残留する。「記録を見る」「ホームへ」はいずれも `clearFinishedWalk()` を呼ばない）。後刻、人物B が同じ端末・同じアプリプロセスで、散歩の保存とは無関係に設定画面からサインインする。起点を見ていないと、この時点で人物Aの軌跡（機微な位置情報）が人物Bのアカウントへ無確認で `POST /walks` され、人物Bは強制的にサマリ画面へ連れて行かれてその内容を目にしてしまう。
+- **対応**: `useFinishedWalkStore` に明示的な意思表示フラグ `signInForSaveRequested`（初期値 false）と action `requestSignInForSave()` を追加した。`app/walk-summary.tsx` の CTA ハンドラ（`handleSignIn`）が `router.push("/(auth)/sign-in")` の**前**にこれを呼ぶ。`finishWalk()` / `markSaved()` / `clearFinishedWalk()` のいずれでも false にリセットする（「前回の結果を持ち越さない」という既存方針に揃えた）。
+  - `nextWalkSaveFireKey`（`walkSaveTrigger.ts`）: 初回発火（`lastFiredKey === null`）は従来どおり無条件。**同じドラフトへの認証状態変化による再発火だけ** `signInForSaveRequested === true` を要求する。別ドラフトへの切り替わりは意思表示の対象外（新しいドラフトの初回発火に相当するため）。
+  - `getPostSignInDestination`（`features/auth/lib/postSignInDestination.ts`）: 入力を `hasUnsavedFinishedWalk` から `wantsToSaveFinishedWalk`（`finishedWalk !== null && !saved && signInForSaveRequested`）へ変更した。CTA を経由しない無関係なサインインでは `dismissTo("/walk-summary")` を選ばず、従来どおり `/walk-start` へ `replace` する。
+  - `useAuthActions.ts` のセレクタも同じ条件に合わせて変更した（プリミティブを返す）。
+- **ADR-002（横断）決定6-1 との関係を明確化する**: 決定6-1 は「`POST /walks` は未認証では許可しない。サインインを促す導線に倒し、ゲスト記録を後からアカウントへマージする機能は作らない」としている。本追補（および SS-37 初版）はこの決定と矛盾しない。「サインインを促す導線」は SS-37 の CTA そのものであり、決定6-1 はむしろこれを指示している。決定6-1 が禁じる「マージ機能」は**既にサーバーに永続化されたゲスト記録の所有権付け替え**（決定理由に「所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さ」と明記）を指すが、ゲストの散歩はそもそも `POST /walks` が 401 で弾かれサーバーに永続化されない。SS-37 が扱うのは「未保存のままクライアント側に残ったドラフトを、CTA を押した本人が明示的にサインインして保存する」という決定6-1 が推奨する導線そのものであり、ADR-002 の修正は不要と判断した。
+- **見送った代替案**: 「未保存ドラフト離脱時（『記録を見る』『ホームへ』）に確認ダイアログを出し、`clearFinishedWalk()` を呼ぶ」という案も提示されたが、UX 変更（離脱ダイアログの新設）を伴い SS-37 のスコープ（行き止まり解消）を超えるため見送った。起点限定（本追補）だけでも実害シナリオ（無関係な後続サインインへの混入）は解消できる。「同一端末で CTA を押したのが別人」という残余リスク（人物Aが CTA を押した直後に人物Bが横から代わりにサインインする等）は本追補の対象外とし、フォローアップ課題として離脱時の明示的破棄を起票することを推奨する。
+
 **`savedWalkId` は「サーバー由来データを store に入れない」規律に対する意図的な例外**とする。
 
 - 例外の範囲は**サーバーが採番した識別子1つだけ**。散歩の内容そのもの（`WalkRead`）は入れない。
-- 許容する理由: SS-20 の履歴詳細（`/walks/{id}`）へ遷移するために id が要るため（**SS-20 追補**: 実際に `WalkSummaryView` の「記録を見る」が `savedWalkId` を使って `/walk-history/[walkId]` へ直行する形になった）。そのために Query キャッシュへ「保存結果」を積むと、履歴一覧の queryKey とは別系統のサーバー状態が二重に生まれる。識別子1つを保存状態と一緒に持つほうが二重管理が小さい。
+- 許容する理由: SS-20 の履歴詳細（`/walks/{id}`）へ遷移するために id が要るため（**SS-20 追補**: 実際に `WalkSummaryView` の「記録を見る」が `savedWalkId` を使って `/walk-history/[walkId]` へ直行する形になった）。
+- **（SS-60 追補）`savedWalkId` に2つ目の用途が生まれた**: 「サーバー上で削除された散歩と、ローカルに残っているドラフトを同定するキー」として、決定8 のレジストリから参照する。例外の範囲（サーバー由来の識別子1つだけ。散歩の内容そのものは入れない）は変わっていないため、決定4 自体は据え置く。ただしこの ADR は「例外を最小に固定する」ことを設計意図としているため、用途が増えた事実をここに残す。そのために Query キャッシュへ「保存結果」を積むと、履歴一覧の queryKey とは別系統のサーバー状態が二重に生まれる。識別子1つを保存状態と一緒に持つほうが二重管理が小さい。
 - `saved`（真偽）を `savedWalkId` と独立に持つのは、id が取れないケース（将来 backend の契約が変わった場合）でも「保存は済んだ」を表せるようにするため。
 
 ### 5. 「永続化しない」判断は SS-19 でも維持し、アプリ再起動からの復帰はフォローアップ課題に送る（SS-19 追補）
@@ -109,6 +138,21 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - **呼び出し抑制**: 逸脱 80m（`ROUTE_DEVIATION_THRESHOLD_METERS`）× 連続2測位（`REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES`）+ 最小間隔60秒（`RECALCULATION_MIN_INTERVAL_MS`）+ 連続失敗2回（`MAX_CONSECUTIVE_AUTO_FAILURES`）で自動停止する。目的地から50m以内（`DESTINATION_NEAR_RADIUS_METERS`）では再計算しない。`/explore/*` の共有レート制限（既定30 req/60秒/ユーザー）に対し、1散歩あたり最大 1 req/分に収まる（手動再計算・再試行はこの抑制の対象外だが、ユーザー操作1回につき最大1リクエストのため実害は小さい）。
 - **例外の範囲を「同じ目的地へ現在地から引き直す1本のルート」に限定する**。`ActiveWalk.origin`（決定1）は書き換えない — 散歩の起点であり、`useWalkTracking.initialPosition` にも使われているため。
 - 判定ロジック（折れ線までの距離・状態遷移）は `src/features/walk/lib/routeDeviation.ts` / `src/features/walk/lib/routeRecalculation.ts` の純粋関数に置き、副作用（fetch・Abort・世代管理）は hook 側に閉じる（`docs/architecture-guideline.md` の単体テスト方針どおり）。
+
+### 8. 散歩がサーバーから削除されたときの後始末も、決定6 と同型のレジストリで行う（SS-60 追補）
+
+SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除の成功時に `useFinishedWalkStore` のドラフトを捨てる必要が生まれた（ドラフトを残すと、同じ `client_walk_id` の再送で削除した散歩が復活しうる。[ADR-003](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) の決定13）。
+
+`src/lib/walkDeletionCleanup.ts` を新設し、決定6（`sessionCleanup`）と同じ「クリアされる側が自分の後始末を登録し、実行側は1関数を呼ぶだけ」の形にする。
+
+- 登録側: `useFinishedWalkStore`（モジュール末尾。`registerSessionCleanup` と並べて2つ登録する形になる）。
+- 実行側: `features/history/hooks/useWalkDelete.ts` の `onSuccess`。
+- **決定6 との差分**:
+  - 後始末が**引数（削除された walk id）を取る**（`(walkId: string) => void`）。サインアウトは「全部消す」だが、削除は「その散歩に対応するドラフトだけ消す」ため。
+  - 登録側が**条件付きでクリアする**。`savedWalkId === walkId` のときだけ `clearFinishedWalk()` を呼び、一致しない場合・保存前（`savedWalkId === null`）の場合は何もしない（別の散歩のドラフトを巻き添えにしないため）。
+- 共通の性質: 1つの後始末が例外を投げても他は止めない。登録はモジュール読み込み時に走るため、対象ストアが未ロードなら後始末も走らないが、ストアは非永続（メモリのみ）なので「未ロード = ドラフトも存在しない」が成立する。
+
+**なぜ直接 import にしなかったか**: `features/history` から `features/walk/store/useFinishedWalkStore` を直接 import するのは [folder-structure](../docs/folder-structure.md) の「その機能の外から import されるものは置かない」に反する。`useFinishedWalkStore` を `src/store/` へ昇格させる案は決定4（`features/walk/store/` に置く理由を明記している）を覆すことになり、差分も本タスクの範囲を超える。決定6 が既に同じ問題（クリア対象が増えるたびに呼び出し側を編集しない）をレジストリで解いているため、その適用にとどめた。
 
 ## 検討した選択肢
 
@@ -183,7 +227,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 ### ネガティブな影響・トレードオフ
 
 - **アプリを落とすと散歩状態が消える（残存リスク）。** M5 の保存機能（SS-19）が入っても解消していない。むしろ**影響範囲は広がった**: 進行中の散歩に加えて、**終了済み・保存前のドラフト**（`useFinishedWalkStore` の `FinishedWalk`）も同じく失われる。保存が失敗したままサマリ画面を離れる／アプリが OS に落とされると、その散歩は再送手段が無くなる。
-  - 現状の緩和策は、保存失敗時にサマリ画面上で手動再試行できることだけ（`WalkSaveStatus`）。
+  - 現状の緩和策は、保存失敗時にサマリ画面上で手動再試行できること（`network` / `server` / `unknown`。`WalkSaveStatus`）と、ゲストの 401（`unauthorized`）に対するサインイン CTA → サインイン後の自動再送（SS-37。起点限定については同ファイルの「SS-37 ローカルレビュー追補」を参照）だけ。いずれもアプリが落ちてドラフトごと失われるケースは救えない。
   - 恒久対応は決定5 のフォローアップ課題（ローカル永続化と起動時の再送・復帰）に送っている。**「M5 が入るまで」という期限付きの割り切りではなく、その課題が着手されるまで残り続けるリスク**として扱う。
 - （SS-19 追補）`useFinishedWalkStore.savedWalkId` により、「ストアにサーバー由来データを入れない」という規律に例外が1つ存在する状態になった。規律を読むだけでは例外の存在が分からないため、[folder-structure](../docs/folder-structure.md) と本 ADR の両方に許容条件を明記して補っている。
 - 画面カタログ（`/dev-screens`）から散歩中画面を開く場合、**ストアに代表値を仕込んでから遷移する**必要が生じた（`DEFAULT_ACTIVE_WALK`）。「状態を前提に描画する画面」は単純な `router.push` では確認できない。
@@ -209,5 +253,8 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
+- **（SS-60 追補）** 実装: `src/lib/walkDeletionCleanup.ts`（決定8 のレジストリ）、`src/features/history/hooks/useWalkDelete.ts`（実行側）
 - （SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/components/WalkRouteNotice.tsx`
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）、SS-50（本追補の発生元）
+- （SS-37 追補）実装: `src/features/walk/lib/walkSaveTrigger.ts`、`src/features/walk/lib/walkSaveError.ts`（`walkSaveErrorAction`）、`src/features/auth/lib/postSignInDestination.ts`
+- （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）、SS-50（本追補の発生元）、SS-37（本追補の発生元）
