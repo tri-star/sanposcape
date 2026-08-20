@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { FinishedWalk } from "@/features/walk/types";
 import { registerSessionCleanup } from "@/lib/sessionCleanup";
+import { registerWalkDeletionCleanup } from "@/lib/walkDeletionCleanup";
 
 type FinishedWalkState = {
   finishedWalk: FinishedWalk | null;
@@ -59,6 +60,7 @@ type FinishedWalkState = {
  * サインアウト時は `clearFinishedWalk()` で必ずクリアする（`@/lib/sessionCleanup` に登録済み）。
  * 共有端末でアカウントを切り替えたとき、保存待ちの軌跡（機微な位置情報）が次のユーザーの
  * トークンで送信・上書きされる事故を防ぐため。
+ * 削除時は `@/lib/walkDeletionCleanup` 経由で `savedWalkId` 一致時のみクリアする（下記参照）。
  */
 export const useFinishedWalkStore = create<FinishedWalkState>((set) => ({
   finishedWalk: null,
@@ -76,3 +78,15 @@ export const useFinishedWalkStore = create<FinishedWalkState>((set) => ({
 }));
 
 registerSessionCleanup(() => useFinishedWalkStore.getState().clearFinishedWalk());
+
+// 保存済みの散歩がサーバーから削除されたら、同じ散歩のドラフト（= client_walk_id）を捨てる。
+// 残したままだと再送で削除した散歩が復活しうる（ADR-003 決定13）。
+// 比較対象は savedWalkId（サーバー採番 id）— DELETE のパスパラメータはサーバー id のため。
+// savedWalkId が別の散歩の id、または null のときは何もしない
+// （保存前の別ドラフトを巻き添えで消さない）。
+registerWalkDeletionCleanup((walkId) => {
+  const state = useFinishedWalkStore.getState();
+  if (state.savedWalkId === walkId) {
+    state.clearFinishedWalk();
+  }
+});

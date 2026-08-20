@@ -28,7 +28,7 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 | [ADR-001](./adr/ADR-001-folder-structure.md) | フォルダ構造と命名規則 |
 | [ADR-002](./adr/ADR-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント） |
 | [ADR-003](./adr/ADR-003-development-build-and-dev-loop.md) | development build 前提の開発ループ |
-| [ADR-004](./adr/ADR-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く） |
+| [ADR-004](./adr/ADR-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化 |
 | [ADR-005](./adr/ADR-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context |
 | [ADR-006](./adr/ADR-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード |
 | [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入 |

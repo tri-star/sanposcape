@@ -25,10 +25,21 @@ tags:
     timeout: 5000
 
 # --- 散歩終了 ---
-- tapOn:
-    id: "walk-active-end"
-- assertVisible:
-    id: "walk-end-dialog"
+# 「タップ→ダイアログ確認」を retry の単位にする理由（2026-08-15 追補）:
+# CIランナーが逼迫して描画が約1fpsまで落ちたとき、正しい座標に MotionEvent が届いている
+# のにダイアログが開かない（タップの取りこぼし）事象を確認した（run 31824150888）。
+# Maestro の再タップ（`retryTapIfNoChange`）は現在の版では既定で無効な上、有効にしても
+# 散歩中画面は経過時間が毎秒書き換わるため「階層が変化した＝効いた」と判定されて
+# 再タップされない。よってタップ自体を retry で包む必要がある。
+# retry は MaestroException（アサーション失敗・要素が見つからない）でのみ再試行するため、
+# アプリが本当に壊れている場合は maxRetries 消費後にきちんと落ちる。
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "walk-active-end"
+      - assertVisible:
+          id: "walk-end-dialog"
 - tapOn:
     id: "walk-end-confirm"
 

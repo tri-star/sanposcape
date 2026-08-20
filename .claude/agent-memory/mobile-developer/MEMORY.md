@@ -23,4 +23,5 @@
 - [画面の戻る導線パターン](screen-back-navigation-pattern.md) — `useScreenBack`+`resolveBackAction`に一本化。intercepted>navigating>canGoBackの優先順位、戻る処理でストアを触らない
 - [認証セッション状態の集約とゲートパターン](auth-session-gate-pattern.md) — SS-13。`useAuthSessionStore`+`AuthGate`+`useAuthSessionBootstrap`。storeバレル非import・segments配列を依存に入れない・ラッチをcleanupで中断しない等の構造上の制約
 - [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
+- [sandboxでgit worktreeがread-only](sandbox-git-worktree-readonly.md) — `git add/commit`がindex.lock作成でRead-only file system失敗。リトライ無駄、ユーザーに報告する
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定

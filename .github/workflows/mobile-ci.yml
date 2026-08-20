@@ -29,7 +29,21 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          # Node 20 は現行の依存関係のサポート範囲を既に下回っている:
+          #   - Expo SDK 57 の最低 Node は 22.13.x
+          #   - metro@0.86 の engines は ^22.13.0 || ^24.3.0 || >= 26.0.0
+          #   - orval@8.22 の engines は >=22.18.0
+          # engine-strict を有効にしていないため動いていただけで、公式にはサポート外だった。
+          #
+          # さらに TypeScript 7 系は Go 製 tsgo への刷新に伴い ts.transpileModule 等の
+          # 公開APIを提供しなくなった（復活は 7.1 予定）。そのため @expo/require-utils は
+          # app.config.ts の読み込みを Node の module.stripTypeScriptTypes へフォールバック
+          # するが、これは Node 22.13+ にしか存在しない。Node 20 では両方の手段が無くなり、
+          # 生のTSがCJSローダーに渡って "Generate Expo Router typed routes" が
+          # SyntaxError で落ちる。
+          #
+          # ローカル開発環境も 24 系のため、CI も 24 に揃える。
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
