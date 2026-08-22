@@ -16,9 +16,11 @@ import { CATEGORY_ORDER } from "@/features/walk/data/categories";
 import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
 import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
+import { toRouteMinutes } from "@/features/walk/lib/walkRoute";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
+import { toKilometers } from "@/lib/units";
 import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -70,8 +72,10 @@ export function WalkStartView() {
         // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
         // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
         destination,
-        roundTripMinutes: selectedSpot.roundTripMinutes,
-        roundTripKm: selectedSpot.roundTripKm,
+        // SS-33: 探索スナップショット（片道×2 の概算）ではなく、実際に提示した周回ルートの実値を持たせる。
+        // ここでは walkRoute が非 null であることが上のガードで保証されている。
+        roundTripMinutes: toRouteMinutes(walkRoute.durationSeconds),
+        roundTripKm: toKilometers(walkRoute.distanceMeters),
         startedAtMs: Date.now(),
       });
       router.replace(HOME_HREF);

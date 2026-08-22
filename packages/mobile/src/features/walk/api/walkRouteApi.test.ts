@@ -15,6 +15,7 @@ const REQUEST: WalkingRouteRequest = {
     location: { latitude: 35.6875, longitude: 139.7625 },
     name: "緑町公園",
   },
+  route_type: "loop",
 };
 
 const RESPONSE: WalkingRouteResponse = {
@@ -24,6 +25,7 @@ const RESPONSE: WalkingRouteResponse = {
     location: { latitude: 35.6875, longitude: 139.7625 },
     name: "緑町公園",
   },
+  route_type: "loop",
   duration_seconds: 1200,
   distance_meters: 1600,
   path: [
@@ -34,6 +36,27 @@ const RESPONSE: WalkingRouteResponse = {
     north_east: { latitude: 35.6875, longitude: 139.7671 },
     south_west: { latitude: 35.6812, longitude: 139.7625 },
   },
+  legs: [
+    {
+      kind: "outbound",
+      duration_seconds: 600,
+      distance_meters: 800,
+      path: [
+        { latitude: 35.6812, longitude: 139.7671 },
+        { latitude: 35.6875, longitude: 139.7625 },
+      ],
+    },
+    {
+      kind: "return",
+      duration_seconds: 600,
+      distance_meters: 800,
+      path: [
+        { latitude: 35.6875, longitude: 139.7625 },
+        { latitude: 35.6812, longitude: 139.7671 },
+      ],
+    },
+  ],
+  return_is_same_path: false,
 };
 
 describe("fetchWalkRoute", () => {
@@ -55,6 +78,27 @@ describe("fetchWalkRoute", () => {
         { latitude: 35.6812, longitude: 139.7671 },
         { latitude: 35.6875, longitude: 139.7625 },
       ],
+      legs: [
+        {
+          kind: "outbound",
+          durationSeconds: 600,
+          distanceMeters: 800,
+          path: [
+            { latitude: 35.6812, longitude: 139.7671 },
+            { latitude: 35.6875, longitude: 139.7625 },
+          ],
+        },
+        {
+          kind: "return",
+          durationSeconds: 600,
+          distanceMeters: 800,
+          path: [
+            { latitude: 35.6875, longitude: 139.7625 },
+            { latitude: 35.6812, longitude: 139.7671 },
+          ],
+        },
+      ],
+      returnIsSamePath: false,
       bounds: {
         northEast: { latitude: 35.6875, longitude: 139.7671 },
         southWest: { latitude: 35.6812, longitude: 139.7625 },
@@ -97,6 +141,34 @@ describe("fetchWalkRoute", () => {
     } catch (error) {
       expect(toExploreErrorCode(error)).toBe("rate_limited");
     }
+  });
+
+  it("route_type: 'one_way' のリクエストボディがそのまま送信される", async () => {
+    let receivedBody: WalkingRouteRequest | undefined;
+    server.use(
+      getGetWalkingRouteExploreRoutesWalkingMockHandler(async (info) => {
+        receivedBody = (await info.request.json()) as WalkingRouteRequest;
+        return { ...RESPONSE, route_type: "one_way", legs: [], return_is_same_path: false };
+      }),
+    );
+
+    const oneWayRequest: WalkingRouteRequest = { ...REQUEST, route_type: "one_way" };
+    await fetchWalkRoute(oneWayRequest);
+
+    expect(receivedBody).toEqual(oneWayRequest);
+  });
+
+  it("destination.name が空文字のレスポンスでも WalkRoute.destination.name が空にならない", async () => {
+    server.use(
+      getGetWalkingRouteExploreRoutesWalkingMockHandler({
+        ...RESPONSE,
+        destination: { ...RESPONSE.destination, place_id: null, name: "" },
+      }),
+    );
+
+    const result = await fetchWalkRoute(REQUEST);
+
+    expect(result.destination.name).toBe("目的地");
   });
 
   it("401（未サインイン）でもリトライせず ApiError(401) になる（呼び出し回数1）", async () => {
