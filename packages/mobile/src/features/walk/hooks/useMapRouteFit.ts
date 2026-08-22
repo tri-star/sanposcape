@@ -32,6 +32,6 @@ export function useMapRouteFit(
   useEffect(() => {
     if (!walkRoute) return;
     mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), animationDurationMs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく walkRouteFitKey（placeId+origin）の変化だけを見る
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく walkRouteFitKey（placeId + origin + destination 座標）の変化だけを見る
   }, [walkRouteFitKey(walkRoute)]);
 }

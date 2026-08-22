@@ -344,6 +344,9 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
 ## 状態管理・スタイルの方針
 
-- サーバー状態: TanStack Query（`src/api/generated` の生成 hook を利用）
+- サーバー状態: TanStack Query。`features/<feature>/api/` が Orval 生成物（`src/api/generated`）の
+  「素の fetcher」を薄くラップし、`features/<feature>/hooks/` で `useQuery`/`useMutation` に載せる
+  （生成 hook（`useXxx...`）はそのままでは使わない。詳細は
+  [フォルダ構造](./folder-structure.md) の「状態管理の使い分け」参照）
 - クライアント状態: Zustand（`src/store`）
 - スタイル: RN の `StyleSheet` + テーマ Context（`src/theme`。`app/_layout.tsx` の `ThemeProvider` で配布）

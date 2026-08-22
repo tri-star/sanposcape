@@ -59,6 +59,13 @@ components/ui/button/
   Expo Router / React Router の route（画面/URL）と混同しない。
   - 例: 型 `WalkRoute`、hook `useWalkRoute.ts`、変数 `walkRoutePolyline`。
   - backend 側の命名規則とも揃える（`packages/backend/docs/naming-convention.md` 参照）。
+- **周回ルートの往路/復路（SS-33）** は `leg` と表記する（用語の定義は
+  [`docs/project-overview.md`](../../../docs/project-overview.md) 用語集を参照）。
+  - 例: 型 `WalkRouteLeg` / `WalkRouteLegKind`、状態 `WalkLegPhase`、変数 `legPhase` / `activeLeg`、
+    ファイル `walkRouteLeg.ts` / `useWalkLegPhase.ts` / `WalkRouteLegPolylines.tsx`。
+  - `WalkRouteLeg` は名前に "Route" を含むが、これは上記の「散歩の道のり」の一部（1本の leg も
+    道のりであることに変わりはない）を表すためであり、Expo Router の route と混同しないという
+    この節の規約の延長線上にある。
 
 ## テストファイル
 

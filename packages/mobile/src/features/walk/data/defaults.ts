@@ -13,8 +13,11 @@ export type WalkGoalFallback = { name: string; time: number; dist: number };
  */
 export const DEFAULT_WALK_GOAL: WalkGoalFallback = {
   name: "川辺駅",
-  time: 60, // 往復の目安（分）
-  dist: 4.0, // 往復の目安距離（km）
+  // SS-33 で ActiveWalk.roundTripMinutes/roundTripKm の出所が /explore/places の概算から
+  // 周回ルートの実値（/explore/routes/walking 由来）に変わったため、ここも「実値相当」の
+  // 代表値として扱う（画面カタログ用の固定値であり実際のルート取得は行わない）。
+  time: 60, // 周回ルート実値相当の代表値（分）
+  dist: 4.0, // 同、距離（km）
 };
 
 /**

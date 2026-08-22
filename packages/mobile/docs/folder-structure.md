@@ -216,8 +216,10 @@ packages/mobile/
   - **例外が1つある**: `features/walk/hooks/useWalkRouteRecalculation.ts` は、散歩中の現在地起点ルートを
     Query ではなく hook のローカル state に持つ。Query の入力（`origin`）を動かすと、取得中・失敗時に
     `data` が `undefined` に落ちて**直前まで表示していたルートが画面から消える**ため（`keepPreviousData`
-    は pending 中しか効かず error 状態を救えない）。許容範囲は「同じ目的地へ現在地から引き直す1本の
-    ルート」に限定し、それ以外のサーバー状態を hook state に持ち出さない。背景は
+    は pending 中しか効かず error 状態を救えない）。許容範囲は「**往路は同じ目的地への周回、復路は
+    出発地への片道**」に限定し（SS-33。往路は `route_type: "loop"` で目的地への周回を、復路は
+    `route_type: "one_way"` で `ActiveWalk.origin` への片道を引き直す）、それ以外のサーバー状態を
+    hook state に持ち出さない。背景は
     [ADR-008 決定7](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
   - **更新系（mutation）も同じく `hooks/` に置く**（例: `features/walk/hooks/useWalkSave.ts` — `POST /walks`）。
     `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは

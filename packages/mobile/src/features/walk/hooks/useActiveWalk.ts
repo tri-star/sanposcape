@@ -87,10 +87,22 @@ export function useActiveWalk(): UseActiveWalkResult {
   });
   const retryTracking = useCallback(() => setTrackingAttempt((n) => n + 1), []);
 
-  // legPhase は「どの leg を歩いているか」であり、再計算の有無に関わらず
-  // 目的地座標と往路/復路の折れ線から決まる。初期ルート（route.walkRoute）を入力にすれば
-  // 再計算との循環参照を避けられる（再計算後の片道ルートには legs が無く、
-  // 判定は目的地到達のラッチだけで足りるため実害が無い）。
+  // legPhase には常に初期ルート（route.walkRoute）を渡し、再計算後の実効ルート
+  // （recalc.route）は渡さない。これは意図的な選択で、下の recalc が legPhase を
+  // 入力に取っている（recalc は legPhase で往路/復路の送り分けをする）ため、
+  // legPhase 側にも recalc.route を渡すと循環参照になってしまう。
+  //
+  // トレードオフ（ローカルレビュー A-1）: 復路（route_type: "one_way"）の再計算では
+  // 再計算後のルートに legs が無いため、目的地到達ラッチ（主判定）だけで判定が成立し実害は無い。
+  // しかし往路で逸脱して route_type: "loop" により現在地起点の新ルートを引き直した場合、
+  // 新ルートは新しい legs を持つにもかかわらず、`observeWalkLeg`（walkRouteLeg.ts）は
+  // 依然として古い baseRoute（初期ルート）の leg 折れ線に投影距離を計算し続ける。
+  // その結果、逸脱〜目的地到達までの間、往路/復路バッジ（WalkActiveView）と地図の強調表示
+  // （WalkRouteLegPolylines）が、実際に表示中の新ルートとは無関係な折れ線との比較で決まりうる。
+  // 目的地到達ラッチが最終的に上書きするため機能破綻には至らないが、「再計算後のバッジも
+  // 常に正確」というわけではない点に注意すること。
+  //
+  // 恒久対応（hook 合成の再設計による循環参照の解消）はスコープが大きいため別課題に切り出し済み。
   const legPhase = useWalkLegPhase({
     route: route.walkRoute,
     currentPosition: tracking.currentPosition,
