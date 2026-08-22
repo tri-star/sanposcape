@@ -14,7 +14,12 @@ import {
   shouldStartRecalculation,
   type RouteRecalcState,
 } from "@/features/walk/lib/routeRecalculation";
-import { buildWalkingRouteRequest } from "@/features/walk/lib/walkRouteRequest";
+import type { WalkLegPhase } from "@/features/walk/lib/walkRouteLeg";
+import {
+  buildReturnToStartRouteRequest,
+  buildWalkingRouteRequest,
+  RETURN_TO_START_DESTINATION_NAME,
+} from "@/features/walk/lib/walkRouteRequest";
 import type { ActiveWalk, WalkRoute, WalkRouteRecalcStatus } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
@@ -24,6 +29,8 @@ export type UseWalkRouteRecalculationInput = {
   baseRoute: WalkRoute | null;
   currentPosition: GeoCoordinates | null;
   paused: boolean;
+  /** 往路なら「現在地起点の周回」、復路なら「現在地 → 出発地の片道」を引き直す（SS-33）。 */
+  legPhase: WalkLegPhase;
 };
 
 export type UseWalkRouteRecalculationResult = {
@@ -57,11 +64,16 @@ export type UseWalkRouteRecalculationResult = {
  *   `ActiveWalk.origin` で引くため、投入しても誰も読まない。
  * - `ActiveWalk.origin` は更新しない（散歩の起点であり、`useWalkTracking.initialPosition` にも
  *   使われている）。
+ * - **復路で周回を引き直さない**。復路の逸脱で `route_type: "loop"` を投げると
+ *   「もう一度目的地へ行って戻る」ルートが返り、ユーザーを来た方向へ引き返させてしまう。
+ *   復路は「現在地 → 出発地」の片道（`route_type: "one_way"`）で引き直す。
+ *   この片道ルートは `legs` が空・`returnIsSamePath` が false になるため、地図は
+ *   `WalkRouteLegPolylines` の単線分岐で描かれる（往路/復路バッジは「復路」のままラッチされる）。
  */
 export function useWalkRouteRecalculation(
   input: UseWalkRouteRecalculationInput,
 ): UseWalkRouteRecalculationResult {
-  const { activeWalk, baseRoute, currentPosition, paused } = input;
+  const { activeWalk, baseRoute, currentPosition, paused, legPhase } = input;
 
   const [state, setState] = useState<RouteRecalcState>(INITIAL_ROUTE_RECALC_STATE);
 
@@ -82,6 +94,9 @@ export function useWalkRouteRecalculation(
   const destinationRef = useRef(activeWalk?.destination ?? null);
   destinationRef.current = activeWalk?.destination ?? null;
 
+  const legPhaseRef = useRef(legPhase);
+  legPhaseRef.current = legPhase;
+
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
@@ -90,20 +105,29 @@ export function useWalkRouteRecalculation(
 
   const request = useMemo(
     () =>
-      buildWalkingRouteRequest({
-        origin: currentPosition,
-        destination: activeWalk?.destination ?? null,
-      }),
-    [currentPosition, activeWalk?.destination],
+      legPhase === "return"
+        ? buildReturnToStartRouteRequest({
+            origin: currentPosition,
+            start: activeWalk?.origin ?? null,
+          })
+        : buildWalkingRouteRequest({
+            origin: currentPosition,
+            destination: activeWalk?.destination ?? null,
+            routeType: "loop",
+          }),
+    [currentPosition, activeWalk?.destination, activeWalk?.origin, legPhase],
   );
   const requestRef = useRef(request);
   requestRef.current = request;
   const canRecalculate = request !== null;
 
   const start = useCallback((nowMs: number) => {
-    const dest = destinationRef.current;
     const req = requestRef.current;
-    if (req === null || dest === null) return;
+    const isReturn = legPhaseRef.current === "return";
+    // 往路は目的地（destinationRef）が要る。復路は出発地（activeWalkOriginRef）を使うため
+    // destination の有無をガードにしない（復路は destination.placeId を使わない）。
+    if (req === null) return;
+    if (!isReturn && destinationRef.current === null) return;
 
     abortRef.current?.abort(); // 保留中があれば捨てる
     const controller = new AbortController();
@@ -113,7 +137,11 @@ export function useWalkRouteRecalculation(
     const sequence = sequenceRef.current;
     setState((prev) => beginRecalculation(prev, { nowMs, sequence }));
 
-    fetchWalkRoute(req, { signal: controller.signal, destinationName: dest.name })
+    const destinationName = isReturn
+      ? RETURN_TO_START_DESTINATION_NAME
+      : destinationRef.current!.name;
+
+    fetchWalkRoute(req, { signal: controller.signal, destinationName })
       .then((newRoute) => {
         if (!mountedRef.current || controller.signal.aborted) return;
         setState((prev) => applyRecalculationSuccess(prev, { sequence, route: newRoute }));

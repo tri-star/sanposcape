@@ -1,11 +1,13 @@
 import { useCallback, useState } from "react";
 
+import { useWalkLegPhase } from "@/features/walk/hooks/useWalkLegPhase";
 import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
 import { useWalkRouteRecalculation } from "@/features/walk/hooks/useWalkRouteRecalculation";
 import { useWalkSession } from "@/features/walk/hooks/useWalkSession";
 import { useWalkTracking } from "@/features/walk/hooks/useWalkTracking";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { buildFinishedWalk } from "@/features/walk/lib/finishedWalk";
+import type { WalkLegPhase } from "@/features/walk/lib/walkRouteLeg";
 import { walkRouteNoticeKind } from "@/features/walk/lib/walkRouteNotice";
 import type { WalkRouteNoticeKind } from "@/features/walk/lib/walkRouteNotice";
 import { estimateStepsFromMeters } from "@/features/walk/lib/walkStats";
@@ -20,8 +22,10 @@ export type UseActiveWalkResult = {
 
   /** 表示すべき実効ルート（再計算成功後は現在地起点の新ルート）。 */
   walkRoute: WalkRoute | null;
-  /** 実効ルートが再計算由来か（ヘッダーの表記を「片道」→「ここから」に切り替える）。 */
+  /** 実効ルートが再計算由来か（ヘッダーの往路/復路の表記を「ここから」に切り替える）。 */
   isRouteRecalculated: boolean;
+  /** 現在が往路/復路のどちらか（SS-33。バッジ表示と再計算先の切り替えに使う）。 */
+  legPhase: WalkLegPhase;
   isLoadingWalkRoute: boolean;
   walkRouteErrorCode: ExploreErrorCode | null;
   retryWalkRoute: () => void;
@@ -83,6 +87,16 @@ export function useActiveWalk(): UseActiveWalkResult {
   });
   const retryTracking = useCallback(() => setTrackingAttempt((n) => n + 1), []);
 
+  // legPhase は「どの leg を歩いているか」であり、再計算の有無に関わらず
+  // 目的地座標と往路/復路の折れ線から決まる。初期ルート（route.walkRoute）を入力にすれば
+  // 再計算との循環参照を避けられる（再計算後の片道ルートには legs が無く、
+  // 判定は目的地到達のラッチだけで足りるため実害が無い）。
+  const legPhase = useWalkLegPhase({
+    route: route.walkRoute,
+    currentPosition: tracking.currentPosition,
+    walkKey: activeWalk?.clientWalkId ?? null,
+  });
+
   // tracking（useWalkTracking）と session（useWalkSession）より後に置く必要がある
   // （現在地・一時停止状態が確定してから合成するため）。
   const recalc = useWalkRouteRecalculation({
@@ -90,6 +104,7 @@ export function useActiveWalk(): UseActiveWalkResult {
     baseRoute: route.walkRoute,
     currentPosition: tracking.currentPosition,
     paused: session.paused,
+    legPhase,
   });
 
   const steps = estimateStepsFromMeters(tracking.distanceMeters);
@@ -115,6 +130,7 @@ export function useActiveWalk(): UseActiveWalkResult {
 
     walkRoute: recalc.route,
     isRouteRecalculated: recalc.isRecalculated,
+    legPhase,
     isLoadingWalkRoute: route.isLoading,
     walkRouteErrorCode: route.errorCode,
     retryWalkRoute: route.retry,
