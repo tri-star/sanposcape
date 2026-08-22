@@ -126,6 +126,26 @@ describe("observeWalkLeg", () => {
     expect(result.phase).toBe("outbound");
   });
 
+  it("投影判定だけで復路へ切り替わった後、往路の折れ線の真上に戻っても復路のまま（単調性）", () => {
+    // 目的地未到達のまま投影判定だけで復路へ切り替わる（reachedDestination は false のまま）。
+    const onReturnPath = eastOffset(northOffset(O, 500), 100);
+    const switchedToReturn = observeWalkLeg(INITIAL_WALK_LEG_STATE, {
+      position: onReturnPath,
+      route: ROUTE,
+    });
+    expect(switchedToReturn.phase).toBe("return");
+    expect(switchedToReturn.reachedDestination).toBe(false);
+
+    // 往路の折れ線の真上（投影だけなら outbound と判定されうる位置）に戻っても、
+    // `if (state.phase === "return")` のガードにより復路のまま。
+    const backOnOutboundPath = northOffset(O, 500);
+    const result = observeWalkLeg(switchedToReturn, {
+      position: backOnOutboundPath,
+      route: ROUTE,
+    });
+    expect(result.phase).toBe("return");
+  });
+
   it("returnIsSamePath: true で復路側にいる測位 → phase: outbound（投影は使わない。目的地ラッチのみ）", () => {
     const fallbackRoute: WalkRoute = { ...ROUTE, returnIsSamePath: true };
     const onReturnPath = eastOffset(northOffset(O, 500), 100);
