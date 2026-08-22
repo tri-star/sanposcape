@@ -34,8 +34,22 @@ export type SpotCandidate = {
 
 /** 散歩ルートの目的地（Expo Router の route と混同しないよう walkRoute 系の語彙で統一する）。 */
 export type WalkDestination = {
-  /** Google の place id（SpotCandidate.id）。 */
+  /**
+   * Google の place id（SpotCandidate.id）。
+   * SS-33 の「復路の再計算（現在地 → 出発地）」だけは place id を持たない地点を目的地にするため
+   * 空文字になりうる（`buildReturnToStartRouteRequest` が組み立てる）。
+   * backend は SS-33 で `destination.place_id` を **`route_type` によらず常に任意**（`str | None`）にしたため、
+   * レスポンスの `place_id` は null で返りうる（`toWalkRoute` が空文字へ写像する）。
+   */
   placeId: string;
+  /**
+   * 画面に出す表示名。**必ず非空**であることを `toWalkRoute` が保証する。
+   * backend は SS-33 で `destination.name` に**空文字を返しうる**（place_id も name も無いリクエスト＝
+   * 「出発地へ帰る片道」では `""` を返す。backend は日本語の表示文言を発明しない方針）。
+   * 空文字をそのまま持つと地図のピンのラベルやヘッダーが空になるため、
+   * `toWalkRoute` が「呼び出し側指定 → レスポンスの name → `"目的地"`」の順で解決する
+   * （`lib/walkRoute.ts` の `resolveDestinationName`）。
+   */
   name: string;
   location: GeoCoordinates;
 };
@@ -46,19 +60,62 @@ export type WalkRouteBounds = {
   southWest: GeoCoordinates;
 };
 
+/** 周回ルートの区間種別。API の `legs[].kind` の語彙をそのまま使う。 */
+export type WalkRouteLegKind = "outbound" | "return";
+
+/** 周回ルートの1区間（往路 or 復路）。 */
+export type WalkRouteLeg = {
+  kind: WalkRouteLegKind;
+  /** この区間の所要時間（秒）。 */
+  durationSeconds: number;
+  /** この区間の距離（m）。 */
+  distanceMeters: number;
+  /**
+   * この区間の折れ線（2点以上）。
+   * backend は 2点未満の leg を含む応答を**周回不成立とみなしてフォールバックに落とす**契約なので、
+   * 2点未満の leg がここに入ることは無い（`toWalkRoute` の除外は起きない前提の最終防衛）。
+   */
+  path: GeoCoordinates[];
+};
+
 /**
  * 提示する徒歩ルート（/explore/routes/walking のレスポンスを画面用に整形したもの）。
- * duration/distance は **片道** の値である点に注意（PlaceCandidate は往復値）。
+ *
+ * SS-33 以降、`durationSeconds` / `distanceMeters` / `path` / `bounds` は
+ * **周回ルート全体（現在地 → 目的地 → 現在地）** の値である（SS-16〜SS-32 の片道値ではない）。
+ * backend は周回時に `path` を legs の連結で構築するため、
+ * `durationSeconds === Σ legs[].durationSeconds` / `path === legs[].path の連結` が**恒等的に成立する**
+ * （丸め差も出ない。backend の実装が legs から総計・折れ線を構築しているため）。ただし mobile はこの
+ * 恒等性に依存した計算を書かない（one_way・フォールバック・将来の契約変更で崩れうるため、
+ * 常に「全体は全体、leg は leg」から読む）。
+ * 往路・復路それぞれの値は `legs` を `lib/walkRouteLeg.ts` のセレクタ経由で参照する。
+ *
+ * 例外: SS-35 の復路側の再計算（`routeType: "one_way"` で「現在地 → 出発地」を引き直したもの）だけは
+ * 周回ではなく片道であり、その場合 `legs` は空配列・`returnIsSamePath` は false になる。
+ * 呼び出し側は `legs` の有無で分岐せず、必ず `hasDistinctLegs()` を通して判定すること。
  */
 export type WalkRoute = {
   origin: GeoCoordinates;
   destination: WalkDestination;
-  /** 片道の所要時間（秒）。 */
+  /** 周回全体の所要時間（秒）。 */
   durationSeconds: number;
-  /** 片道の距離（m）。 */
+  /** 周回全体の距離（m）。 */
   distanceMeters: number;
-  /** 道のりの折れ線（2点以上）。 */
+  /** 周回全体の折れ線（2点以上。往路+復路を連結したもの）。 */
   path: GeoCoordinates[];
+  /**
+   * 区間の内訳。**backend の契約では `route_type: "loop"` なら必ず2件、`"one_way"` なら空配列**
+   * （周回を作れなかった場合もフォールバックとして2件返る）。
+   * mobile 側の座標検証で leg が落ちた場合だけ1件になりうるが、これは起きない前提の防御であり、
+   * 呼び出し側は件数を直接見ずに `hasDistinctLegs()` / `findWalkRouteLeg()` を通すこと。
+   */
+  legs: WalkRouteLeg[];
+  /**
+   * backend が周回を作れず「同じ道を戻る」フォールバックをした場合に true。
+   * この時 `legs` は2件返るが往路と復路の折れ線は同一なので、描き分け・投影による
+   * 往路/復路判定は意味を持たない（`hasDistinctLegs()` が false になる）。
+   */
+  returnIsSamePath: boolean;
   bounds: WalkRouteBounds;
 };
 
@@ -72,7 +129,11 @@ export type ActiveWalk = {
   /** 散歩の起点。散歩中もこの値でルートを引き続けるため、現在地の更新では書き換えない。 */
   origin: GeoCoordinates;
   destination: WalkDestination;
-  /** 探索結果由来の往復目安（表示用）。 */
+  /**
+   * 散歩開始時に確定した**周回ルートの実値**（表示用のスナップショット）。
+   * SS-32 までは /explore/places 由来の「片道×2」概算だったが、SS-33 で
+   * `WalkStartView` が `walkRoute`（/explore/routes/walking の周回実値）から採るように変更した。
+   */
   roundTripMinutes: number;
   roundTripKm: number;
   /** 開始時刻（`Date.now()`）。経過時間はこの値から計算する。 */
