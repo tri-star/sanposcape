@@ -146,6 +146,12 @@ docker compose up -d --build
     - 候補は既定で 5 件（リクエストの `limit` が 5 未満ならその件数）。`category` はリクエストの `categories` を先頭から循環割り当てし、`name` は category に対応する「テストコンビニ1」のような固定名 + 連番になる。
     - 起動時に `MAPS_MODE=fake: using FakeGoogleMapsProvider` の WARNING をログに出すので、`docker compose logs api | grep MAPS_MODE` でどちらの provider で動いているか確認できる。
   - `docker compose restart` では反映されない。`MAPS_MODE=fake docker compose up -d` のように `up -d` でコンテナを作り直すこと（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため）。
+- `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`: `true`（既定・fail-safe） | `false`。周回ルート生成（SS-33）の kill switch で、`AUTH_MODE` / `MAPS_MODE` と同じ「デフォルトは安全側、明示的に切り替える」作法。
+  - `true`: `POST /explore/routes/walking` の `route_type=loop`（既定）で、実際に経由点を使った周回を Google Routes API から取得する。
+  - `false`: `route_type=loop` の要求でも周回の経由点生成はせず、`intermediates` なしの片道呼び出し1回だけを行い、その往路を逆順にした復路で「同じ道を戻る」応答（`return_is_same_path: true`）に組み立てる。SS-32 相当の挙動に戻すためのもので、周回が実地で破綻した場合や Google の課金が跳ねた場合に再デプロイなしで切り戻せる。
+  - `docker compose restart` では反映されない（`MAPS_MODE` と同様、`up -d` でコンテナを作り直すこと）。
+- `GOOGLE_MAPS_LOOP_DURATION_FACTOR`: 既定 `1.15`（`ge=1.0, le=2.0`）。`/explore/places` の候補絞り込みで使う「片道×2」を周回相当へ補正する係数（LOOP_FACTOR）。2026-08-22 の実 API スパイクの実測中央値は 1.10 だが、過小評価（往復時間の見積もりが短すぎる）は体験劣化に直結する一方、過大評価は候補が少し減るだけという非対称性から、中央値より上を既定にしている。
+- `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`: 既定 `12.0` 秒（`gt=0`）。`POST /explore/routes/walking` が周回を組み立てる際の end-to-end デッドライン。品質基準での不採用時は追加呼び出しをしないため Google 呼び出しは最大2回、両経由点とも使える応答が得られなかった場合のみ `intermediates` なしの片道呼び出しが1回追加され最大3回になる（詳細は [ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) の SS-33 追補を参照）。
 - `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New) と Routes API のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
 - `GOOGLE_MAPS_SEARCH_DEADLINE_SECONDS`: `/explore/places` の Places 検索から徒歩経路による候補絞り込みまでの合計時間上限。期限までに評価できなかった候補は返さない。Nearby Search の上限に合わせ、1探索で評価する候補・Routes 呼び出しは最大20件である。
