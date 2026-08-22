@@ -38,14 +38,37 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - （SS-33 追補）`POST /explore/routes/walking` のルート提示を、片道から**周回（現在地→目的地→
   別経路→現在地）**へ変更した。`computeRoutes` に `intermediates=[目的地(stopover),
   復路用経由点(via)]` を渡す1リクエストで往路・復路の2 legを取得する（Essentials SKU 据え置き）。
-  経由点は backend が `bearing(origin→destination)` を軸にした決定的な幾何規則
-  （1回目=進行方向の右90°・2回目=左90°・オフセット係数 α=0.25×直線距離）で生成し、
-  候補分布や乱数などの非決定的な入力は使わない。
+  経由点は backend が `bearing(origin→destination)` を軸にした決定的な幾何規則で生成し、
+  候補分布や乱数などの非決定的な入力は使わない。起点は origin と destination の中点
+  （`midpoint(origin, destination)`）とし、そこから 1回目=進行方向の右90°・2回目=左90°の
+  方向へ、オフセット係数 α=0.25×直線距離（`haversine(origin, destination)`）だけ離れた点を
+  経由点にする。origin と destination の直線距離が `MIN_LOOP_BASE_DISTANCE_METERS`（50.0m）
+  未満（O≒D）の場合は経由点を作らず、周回にはせず片道の往復（`return_is_same_path: true`）
+  にする。
 - （SS-33 追補）生成した周回は迂回率・復路/往路の時間比・往路復路の折れ線重複率
   （20mグリッドのJaccard）の3指標で妥当性を判定し、いずれか1つでも基準を外れたら
-  反対側の経由点で再試行、それも不採用なら**追加のGoogle呼び出しをせず**往路を逆順にした
-  復路で「同じ道を戻る」応答にフォールバックする（`return_is_same_path: true`）。
+  反対側の経由点で再試行する。再試行後の扱いは2通りに分かれる。
+  - **品質基準を満たす応答が得られたが不採用（reject）だった場合**は、追加の Google
+    呼び出しをせず、直近の試行で得た往路 leg を逆順にした復路で「同じ道を戻る」応答に
+    フォールバックする（`return_is_same_path: true`）。
+  - **両経由点の試行が例外／「200 + `routes` 空」／`legs` 不足のいずれかで、使える応答が
+    1件も得られなかった場合**のみ、`intermediates` を付けない素の片道呼び出しを1回追加する。
+    このケースに限り Google 呼び出しは1リクエストあたり最大3回になる。
   周回が作れない・品質基準を満たさない場合も HTTP 200 で返し、エラーにはしない。
+- （SS-33 追補）`POST /explore/routes/walking` の API 契約を次のとおり変更した。
+  - リクエストに `route_type: "loop" | "one_way"`（既定 `loop`）を追加した。`one_way` は
+    SS-35「復路にいる時に出発地へ帰るルートを引き直す」用途のために用意したもので、
+    `legs: []` / `return_is_same_path: false` の片道応答を返す。
+  - `destination.place_id` を**必須から任意へ緩和**した。`route_type` によらず常に任意にする
+    （place_id はルーティングに使っておらず必須にする技術的根拠が無いうえ、条件付き必須にすると
+    クライアント側の 422 リスクだけが増えるため）。
+  - レスポンスに `legs: [{kind: "outbound" | "return", duration_seconds, distance_meters, path}]`
+    を追加した。`route_type=loop` では必ず `[outbound, return]` の2件、`one_way` では空になる。
+  - **破壊的変更**: 既存の `duration_seconds` / `distance_meters` / `path` / `bounds` の意味を、
+    `route_type=loop` のときは片道の値ではなく**周回全体（往路+復路）の値**に変更した。
+    `duration_seconds` / `distance_meters` は Σ`legs[].{duration_seconds,distance_meters}` と
+    恒等的に一致する。`path` は往路→復路の折れ線を接合点を重複させずに連結した全体の折れ線、
+    `bounds` はその全体 `path` を包む矩形になる。`route_type=one_way` では従来どおり片道の値。
 - （SS-33 追補）候補絞り込み（`POST /explore/places`）は引き続き Routes の片道呼び出し
   1回のまま据え置くが、`round_trip_duration_seconds`/`round_trip_distance_meters` は
   「片道×2×LOOP_FACTOR」（実測に基づく補正係数、既定 1.15）で算出する。一覧は「目安」、
@@ -109,14 +132,22 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 - backend に Google Maps Platform 連携（Places/Routes）と**キャッシュ/プロキシ層**を実装した（M4）。実装は `integrations/google_maps/` に隔離する。
 - Google Maps Platform の API キー発行・課金設定・利用制限（リファラ/IP制限等）を用意する。キーはリポジトリにコミットしない。
-- 往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。
-  （**SS-33 追補**: `POST /explore/routes/walking` は片道ではなく周回の実値を返すようになった。
-  `POST /explore/places` の候補絞り込みは片道×2の構造的な過小評価を補正するため、
-  実測係数 LOOP_FACTOR を掛けた「片道×2×LOOP_FACTOR」に変更した。詳細は「決定」節を参照）。
+- ~~往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。~~
+  → **SS-33 で方式を分離**。`POST /explore/routes/walking` は片道ではなく周回（往路+復路）の
+  実値を `duration_seconds` / `distance_meters` に返すようになった（片道×2 の近似はしていない）。
+  `POST /explore/places` の候補絞り込みは引き続き Routes の片道呼び出し1回のままだが、
+  片道×2 の構造的な過小評価を補正するため実測係数 LOOP_FACTOR を掛けた
+  「片道×2×LOOP_FACTOR」（既定 1.15）に変更した。一覧は「目安」、
+  `POST /explore/routes/walking` が「実値」という非対称は意図的に残す。詳細は「決定」節を参照。
 - SS-43 で Places の日本語優先指定、backend の非空表示名契約、mobile の防御的フォールバックを実装した。
 - 地理検索の要件が育った段階で PostGIS 等への移行を検討する。
-- （SS-33 追補）周回1ルートあたりの Google 呼び出しは最大2回（経由点の右→左の再試行）に収まる設計
-  にした。2026-08-22 の実 API スパイク（出発地3点×目的地3件×α6値×左右2方向、108試行）では、
+- （SS-33 追補）周回1ルートあたりの Google 呼び出しは、品質基準での不採用（経由点の右→左の
+  再試行を尽くしても reject）なら追加呼び出しをしないため最大2回に収まる。両経由点の試行が
+  例外／「200 + `routes` 空」／`legs` 不足のいずれかで使える応答が1件も得られなかった場合
+  のみ、3回目として `intermediates` を付けない素の片道呼び出しに落ちるため最大3回になる。
+  この3回目は直前の `POST /explore/places` が同じ (origin, destination) をキャッシュに
+  載せている可能性が高く（キーは小数5桁丸めで一致する）、実際には Google に出ないことが多い。
+  2026-08-22 の実 API スパイク（出発地3点×目的地3件×α6値×左右2方向、108試行）では、
   採用値 α=0.25 で重複率中央値 0.147〜0.203・迂回率中央値 1.08〜1.15・復路/往路時間比が
   1.8以下の割合100%・p95レイテンシ約230msだった。最悪ケースは郊外・短距離（道の選択肢が少ない
   条件）で、3指標のしきい値（迂回率≤1.4・時間比≤1.8・重複率≤0.6）はこの最悪ケースを
