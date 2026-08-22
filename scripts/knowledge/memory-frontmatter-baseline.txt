@@ -48,6 +48,7 @@
 .claude/agent-memory/mobile-architecture-reviewer/project_ss29_route_as_composition_root.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss34_back_navigation.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss35_route_recalculation.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss37_save_sign_in_cta.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss42_history_stats.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss57_guest_route_gate.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss60_walk_delete.md
@@ -68,6 +69,8 @@
 .claude/agent-memory/mobile-code-quality-reviewer/review-scope-verify-git-state.md
 .claude/agent-memory/mobile-code-quality-reviewer/services-stub-error-handling-gap.md
 .claude/agent-memory/mobile-code-quality-reviewer/ss57-guest-settings-signin-push-breaks-canGoBack-invariant.md
+.claude/agent-memory/mobile-code-quality-reviewer/string-concat-dedup-key-fragility.md
+.claude/agent-memory/mobile-code-quality-reviewer/table-driven-test-style-reference.md
 .claude/agent-memory/mobile-code-quality-reviewer/testing-constraints.md
 .claude/agent-memory/mobile-code-quality-reviewer/verify-generated-types-vs-plan-assumptions.md
 .claude/agent-memory/mobile-developer/asset-and-lint-setup.md
@@ -83,6 +86,7 @@
 .claude/agent-memory/mobile-developer/orval-customfetch-contract.md
 .claude/agent-memory/mobile-developer/oxfmt-individual-file-drift.md
 .claude/agent-memory/mobile-developer/pitfalls.md
+.claude/agent-memory/mobile-developer/post-sign-in-destination-action.md
 .claude/agent-memory/mobile-developer/promotion-workflow.md
 .claude/agent-memory/mobile-developer/react-native-maps-notes.md
 .claude/agent-memory/mobile-developer/render-body-centered-pattern.md
@@ -97,8 +101,10 @@
 .claude/agent-memory/mobile-developer/tanstack-mutation-pattern.md
 .claude/agent-memory/mobile-developer/test-scope-hooks-components.md
 .claude/agent-memory/mobile-planner/auth-architecture.md
+.claude/agent-memory/mobile-planner/auth-scenarios.md
 .claude/agent-memory/mobile-planner/feedback-mobile-testing-reality.md
 .claude/agent-memory/mobile-planner/mobile-structure.md
+.claude/agent-memory/mobile-planner/planning-constraints.md
 .claude/agent-memory/mobile-planner/project-e2e-ci-constraints.md
 .claude/agent-memory/mobile-planner/project-explore-api-contract.md
 .claude/agent-memory/mobile-planner/project-navigation-model.md
@@ -111,6 +117,7 @@
 .claude/agent-memory/mobile-planner/project_test_and_styling_constraints.md
 .claude/agent-memory/mobile-planner/reference-planning-inputs.md
 .claude/agent-memory/mobile-planner/reference_mock_and_prop_divergence.md
+.claude/agent-memory/mobile-planner/workflow-preferences.md
 .claude/agent-memory/mobile-security-reviewer/project_auth_stub_switch.md
 .claude/agent-memory/mobile-security-reviewer/project_dev_only_routes_no_guard.md
 .claude/agent-memory/mobile-security-reviewer/project_ss10_token_clear_exception_safety.md
@@ -121,6 +128,7 @@
 .claude/agent-memory/mobile-security-reviewer/project_ss20_walk_history_walkid_traversal.md
 .claude/agent-memory/mobile-security-reviewer/project_ss34_back_navigation.md
 .claude/agent-memory/mobile-security-reviewer/project_ss35_route_recalculation.md
+.claude/agent-memory/mobile-security-reviewer/project_ss37_guest_walk_signin_merge.md
 .claude/agent-memory/mobile-security-reviewer/project_ss42_walk_stats.md
 .claude/agent-memory/mobile-security-reviewer/project_ss57_guest_walk_start.md
 .claude/agent-memory/plane-project-manager/mcp_tooling_changes.md

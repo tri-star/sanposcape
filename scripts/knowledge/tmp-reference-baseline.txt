@@ -20,11 +20,14 @@
 .claude/agent-memory/mobile-architecture-reviewer/project_ss19_walk_finish.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss29_route_as_composition_root.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss35_route_recalculation.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss37_save_sign_in_cta.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss42_history_stats.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss57_guest_route_gate.md
 .claude/agent-memory/mobile-architecture-reviewer/project_ss8_mvp_screens.md
 .claude/agent-memory/mobile-code-quality-reviewer/no-bash-tool-review-approach.md
 .claude/agent-memory/mobile-code-quality-reviewer/verify-generated-types-vs-plan-assumptions.md
 .claude/agent-memory/mobile-planner/reference-planning-inputs.md
+.claude/agent-memory/mobile-planner/workflow-preferences.md
 .claude/agent-memory/mobile-security-reviewer/project_ss19_walk_finish_save.md
 .claude/agent-memory/mobile-security-reviewer/project_ss35_route_recalculation.md
+.claude/agent-memory/mobile-security-reviewer/project_ss37_guest_walk_signin_merge.md
