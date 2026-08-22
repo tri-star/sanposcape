@@ -69,15 +69,16 @@ class PlaceSearchResponse(BaseModel):
 
 
 class WalkingRouteType(StrEnum):
-    """SS-33: 提示するルートの形。既定は周回で、SS-35 の復路再計算が出発地への片道を明示する。"""
-
+    # SS-33: 提示するルートの形。既定は周回で、SS-35 の復路再計算が出発地への片道を明示する。
+    # docstring は付けない: StrEnum の docstring は OpenAPI の description にそのまま出るため、
+    # description は英語で書く方針(既存の PlaceCandidate.name に統一)に反してしまう。
+    # 意味は WalkingRouteRequest.route_type の Field(description=...) 側に書く。
     LOOP = "loop"
     ONE_WAY = "one_way"
 
 
 class WalkingRouteLegKind(StrEnum):
-    """周回ルートを構成する leg の種別。綴りは Orval / mobile 側の契約として固定する。"""
-
+    # 周回ルートを構成する leg の種別。綴りは Orval / mobile 側の契約として固定する。
     OUTBOUND = "outbound"
     RETURN = "return"
 

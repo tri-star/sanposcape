@@ -6,7 +6,11 @@ from fastapi.testclient import TestClient
 
 from sanposcape.config import Settings, get_settings
 from sanposcape.dependencies import get_current_user_optional
-from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
+from sanposcape.integrations.google_maps.provider import (
+    ProviderPoint,
+    ProviderRoute,
+    ProviderRouteLeg,
+)
 from sanposcape.main import app, create_app
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
@@ -14,6 +18,15 @@ from sanposcape.maps.service import MapsService
 
 
 class FakeProvider:
+    """SS-33: `intermediates` には未対応(常に単一の片道を返す)。
+
+    router 層のテストは主に auth/バリデーション/エラーマッピングの配線を見るもので、
+    周回の中身(legs の採否等)は `maps/tests/test_service.py` が担当するため、
+    ここでは `_payload()` が既定で `route_type=one_way` を送ることで単純化する。
+    周回特有のレスポンス形(legs / return_is_same_path)を見るテストは `LoopFakeProvider`
+    を使う。
+    """
+
     def search_places(self, origin, categories, limit, **kwargs):
         return ()
 
@@ -21,7 +34,35 @@ class FakeProvider:
         return ProviderRoute(120, 300, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
 
 
-def _payload() -> dict:
+class LoopFakeProvider:
+    """`intermediates` があれば、品質基準を満たす決定的な2 leg を返す(常に採用される)。"""
+
+    def search_places(self, origin, categories, limit, **kwargs):
+        return ()
+
+    def get_walking_route(self, origin, destination, **kwargs):
+        intermediates = kwargs.get("intermediates", ())
+        if not intermediates:
+            return ProviderRoute(120, 300, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
+        outbound = ProviderRouteLeg(
+            duration_seconds=300,
+            distance_meters=400,
+            path=(ProviderPoint(35.0, 139.0), ProviderPoint(35.01, 139.0)),
+        )
+        inbound = ProviderRouteLeg(
+            duration_seconds=300,
+            distance_meters=400,
+            path=(ProviderPoint(35.0, 139.0), ProviderPoint(35.0, 139.02)),
+        )
+        return ProviderRoute(
+            duration_seconds=outbound.duration_seconds + inbound.duration_seconds,
+            distance_meters=outbound.distance_meters + inbound.distance_meters,
+            path=outbound.path + inbound.path[1:],
+            legs=(outbound, inbound),
+        )
+
+
+def _payload(route_type: str = "one_way") -> dict:
     return {
         "origin": {"latitude": 35, "longitude": 139},
         "destination": {
@@ -29,6 +70,7 @@ def _payload() -> dict:
             "name": "Park",
             "location": {"latitude": 35.1, "longitude": 139.1},
         },
+        "route_type": route_type,
     }
 
 
@@ -91,6 +133,51 @@ def test_walking_route_uses_normalized_response_contract(client: TestClient) -> 
     assert response.status_code == 200
     assert response.json()["destination"]["name"] == "Park"
     assert len(response.json()["path"]) == 2
+    assert response.json()["route_type"] == "one_way"
+    assert response.json()["legs"] == []
+    assert response.json()["return_is_same_path"] is False
+
+
+def test_walking_route_loop_response_includes_legs_and_return_is_same_path(
+    client: TestClient,
+) -> None:
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        LoopFakeProvider(), 20, 20, 10, 8
+    )
+    try:
+        response = client.post("/explore/routes/walking", json=_payload(route_type="loop"))
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route_type"] == "loop"
+    assert body["return_is_same_path"] is False
+    assert [leg["kind"] for leg in body["legs"]] == ["outbound", "return"]
+    assert body["duration_seconds"] == sum(leg["duration_seconds"] for leg in body["legs"])
+    assert body["distance_meters"] == sum(leg["distance_meters"] for leg in body["legs"])
+
+
+def test_walking_route_destination_place_id_can_be_omitted(client: TestClient) -> None:
+    """SS-33 決定: place_id は route_type によらず常に任意(422にならない)。"""
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
+    try:
+        response = client.post(
+            "/explore/routes/walking",
+            json={
+                "origin": {"latitude": 35, "longitude": 139},
+                "destination": {"location": {"latitude": 35.1, "longitude": 139.1}},
+                "route_type": "one_way",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["destination"]["place_id"] is None
+    assert response.json()["destination"]["name"] == ""
 
 
 def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
@@ -178,6 +265,31 @@ def test_explore_places_returns_candidates_when_maps_mode_is_fake() -> None:
         assert isinstance(candidate["round_trip_duration_seconds"], int)
 
 
+def test_walking_route_returns_loop_when_maps_mode_is_fake() -> None:
+    """MAPS_MODE=fake でも周回(2 leg)が返ること(mobile の E2E の前提。完了条件チェックリスト)。"""
+    settings = Settings(env="test", maps_mode="fake", auth_jwt_secret="x" * 32)
+    fake_app = create_app(settings)
+    fake_app.dependency_overrides[get_current_user_optional] = lambda: object()
+    fake_app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        with TestClient(fake_app) as fake_client:
+            response = fake_client.post(
+                "/explore/routes/walking",
+                json={
+                    "origin": {"latitude": 35.6812, "longitude": 139.7671},
+                    "destination": {"location": {"latitude": 35.69, "longitude": 139.78}},
+                },
+            )
+    finally:
+        fake_app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route_type"] == "loop"
+    assert len(body["legs"]) == 2
+    assert [leg["kind"] for leg in body["legs"]] == ["outbound", "return"]
+
+
 def test_openapi_declares_public_explore_endpoints_and_documented_error_responses() -> None:
     operation = app.openapi()["paths"]["/explore/routes/walking"]["post"]
     assert "security" not in operation
@@ -216,3 +328,21 @@ def test_openapi_declares_non_empty_japanese_preferred_place_names() -> None:
     assert name["minLength"] == 1
     assert "Japanese-preferred" in name["description"]
     assert "falls back" in name["description"]
+
+
+def test_walking_route_leg_kind_enum_values_are_fixed() -> None:
+    """mobile 要求 §8.6-3: `kind` の綴りを固定する。Orval が生成する型の元。"""
+    schema = app.openapi()["components"]["schemas"]["WalkingRouteLegKind"]
+    assert schema["enum"] == ["outbound", "return"]
+
+
+def test_walking_route_type_enum_values_are_fixed() -> None:
+    schema = app.openapi()["components"]["schemas"]["WalkingRouteType"]
+    assert schema["enum"] == ["loop", "one_way"]
+
+
+def test_openapi_route_response_descriptions_mention_entire_loop() -> None:
+    """mobile 要求 §8.6-7 の回帰防止: 周回全体を指すフィールドにその旨の記述があること。"""
+    properties = app.openapi()["components"]["schemas"]["WalkingRouteResponse"]["properties"]
+    for field in ("duration_seconds", "distance_meters", "path", "bounds"):
+        assert "entire loop" in properties[field]["description"]

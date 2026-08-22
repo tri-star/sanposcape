@@ -1097,7 +1097,6 @@ components:
       - outbound
       - return
       title: WalkingRouteLegKind
-      description: 周回ルートを構成する leg の種別。綴りは Orval / mobile 側の契約として固定する。
     WalkingRouteRequest:
       properties:
         origin:
@@ -1183,7 +1182,6 @@ components:
       - loop
       - one_way
       title: WalkingRouteType
-      description: 'SS-33: 提示するルートの形。既定は周回で、SS-35 の復路再計算が出発地への片道を明示する。'
   securitySchemes:
     HTTPBearer:
       type: http
