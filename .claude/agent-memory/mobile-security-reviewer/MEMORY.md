@@ -11,3 +11,4 @@
 - [SS-42: 記録タブ集計実データ化(GET /walks/stats)レビュー](project_ss42_walk_stats.md) — 問題なし。customFetch経由/エラーメッセージ定型文言/生成物手編集なしを確認
 - [SS-35: 現在地起点ルート再計算レビュー](project_ss35_route_recalculation.md) — 問題なし。sequence+AbortControllerの二重多重起動防御、4層レート抑制がテストで担保済み。自動リクエスト発火系の模範実装として参照
 - [SS-37: 保存失敗401サインインCTA・自動再送レビュー](project_ss37_guest_walk_signin_merge.md) — High: 未保存ゲストドラフトが起点を問わない後続サインインに自動添付・強制dismissToされる。明示的破棄導線なしが根本原因
+- [SS-33: 散歩ルート周回化(往路/復路)レビュー](project_ss33_loop_route.md) — 問題なし。座標ログ漏洩なし/API送信内容妥当/認証境界・永続化方針とも維持。表示名256cp制限は上流依存のLow

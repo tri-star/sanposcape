@@ -9,7 +9,8 @@
 - [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
 - [探索APIの制約](project_explore_api_constraints.md) — /explore/places の契約・コスト・呼び出し抑制ルール（M4）
 - [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
-- [探索 API 契約の非対称性](project-explore-api-contract.md) — places は往復、walking route は片道の値
+- [探索 API 契約の非対称性](project-explore-api-contract.md) — places は往復、walking route は片道の値（SS-33 で周回へ変わる）
+- [表示文言の所在](project-display-text-ownership.md) — backend は日本語文言を発明しない。name は空文字で返りうる
 - [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSW 利用と純粋関数テストの方針
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト

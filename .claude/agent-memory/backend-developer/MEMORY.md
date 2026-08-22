@@ -14,3 +14,5 @@
 - [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
 - [project-ss44-fake-maps-provider-complete](project_ss44_fake_maps_provider_complete.md) — SS-44 backend（MAPS_MODE=fake・決定的provider）は実装完了。SS-21 E2Eブロッカー解消
 - [project-ss53-pr47-review-followup](project_ss53_pr47_review_followup.md) — SS-53 PR #47のCopilotレビュー指摘2件（413のOpenAPI不整合・delete_walk docstring不正確）への対応と判断ログ
+- [project-ss33-loop-route-backend-complete](project_ss33_loop_route_backend_complete.md) — SS-33 backend（周回ルート: /explore/routes/walkingの往路復路化）は実装完了。次はmobile側実装
+- [project-ss14-places-503-near-origin-candidate-fixed](project_ss14_places_503_near_origin_candidate_fixed.md) — 起点直近候補でPOST /explore/placesが503になるSS-14由来バグは修正済み（コミット9e4719f）。search_places()は候補ごとにtry/except
