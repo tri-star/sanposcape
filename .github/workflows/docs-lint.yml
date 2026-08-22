@@ -1,0 +1,36 @@
+name: docs lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "packages/*/docs/**"
+      - ".claude/agent-memory/**"
+      - "*.md"
+      - "scripts/knowledge/**"
+      - ".github/workflows/docs-lint.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "packages/*/docs/**"
+      - ".claude/agent-memory/**"
+      - "*.md"
+      - "scripts/knowledge/**"
+      - ".github/workflows/docs-lint.yml"
+
+jobs:
+  tmp-references:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # 恒久ドキュメント(ADR・docs・agent-memory)が .gitignore 対象の tmp/ を
+      # 参照していないか検査する。tmp/ 参照は別環境でリンク切れになるため。
+      - name: Check references into tmp/
+        run: scripts/knowledge/check-tmp-references.sh
+
+      # agent-memory の front-matter 規約（scope / source_issue / ADR 転記先）を検査する。
+      # ベースラインに載っている既存メモリは対象外で、新規流入のみを止める。
+      - name: Check agent-memory front-matter
+        run: python3 scripts/knowledge/check-memory-frontmatter.py --all
