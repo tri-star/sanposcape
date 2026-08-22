@@ -15,7 +15,10 @@ from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsUnavailableError,
 )
 from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
-from sanposcape.integrations.google_maps.provider import ProviderPoint
+from sanposcape.integrations.google_maps.provider import (
+    ProviderIntermediate,
+    ProviderPoint,
+)
 
 
 def _provider(handler):
@@ -229,6 +232,276 @@ def test_route_decodes_polyline() -> None:
     )
     assert route.duration_seconds == 123
     assert len(route.path) == 3
+
+
+def _loop_response_json(
+    outbound_duration: str = "300s",
+    outbound_distance: int = 400,
+    outbound_polyline: str = "_p~iF~ps|U_ulLnnqC",
+    inbound_duration: str = "360s",
+    inbound_distance: int = 420,
+    inbound_polyline: str = "_p~iF~ps|U_mqNvxq`@",
+) -> dict:
+    return {
+        "routes": [
+            {
+                "duration": "660s",
+                "distanceMeters": outbound_distance + inbound_distance,
+                "legs": [
+                    {
+                        "duration": outbound_duration,
+                        "distanceMeters": outbound_distance,
+                        "polyline": {"encodedPolyline": outbound_polyline},
+                    },
+                    {
+                        "duration": inbound_duration,
+                        "distanceMeters": inbound_distance,
+                        "polyline": {"encodedPolyline": inbound_polyline},
+                    },
+                ],
+            }
+        ]
+    }
+
+
+def test_loop_route_sends_intermediates_in_order_with_via_flag_only_on_waypoint() -> None:
+    captured: dict = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        captured["field_mask"] = request.headers["x-goog-fieldmask"]
+        return httpx.Response(200, json=_loop_response_json())
+
+    provider = _provider(handler)
+    origin = ProviderPoint(35.0, 139.0)
+    stopover = ProviderPoint(35.1, 139.1)
+    waypoint = ProviderPoint(35.05, 139.2)
+
+    provider.get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=2,
+        intermediates=(
+            ProviderIntermediate(point=stopover, via=False),
+            ProviderIntermediate(point=waypoint, via=True),
+        ),
+    )
+
+    assert captured["body"]["intermediates"] == [
+        {"location": {"latLng": {"latitude": 35.1, "longitude": 139.1}}},
+        {"location": {"latLng": {"latitude": 35.05, "longitude": 139.2}}, "via": True},
+    ]
+
+
+def test_loop_route_field_mask_includes_legs_and_excludes_polyline() -> None:
+    captured: dict = {}
+
+    def handler(request):
+        captured["field_mask"] = request.headers["x-goog-fieldmask"]
+        return httpx.Response(200, json=_loop_response_json())
+
+    provider = _provider(handler)
+    origin = ProviderPoint(35.0, 139.0)
+
+    provider.get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=2,
+        intermediates=(
+            ProviderIntermediate(point=ProviderPoint(35.1, 139.1), via=False),
+            ProviderIntermediate(point=ProviderPoint(35.05, 139.2), via=True),
+        ),
+    )
+
+    assert captured["field_mask"] == (
+        "routes.duration,routes.distanceMeters,"
+        "routes.legs.duration,routes.legs.distanceMeters,routes.legs.polyline.encodedPolyline"
+    )
+    # 全体 polyline(routes.polyline.encodedPolyline)は要求しない(決定3: legs だけを取る)。
+    assert "routes.polyline" not in captured["field_mask"]
+
+
+def test_one_way_route_field_mask_is_unchanged_and_has_no_intermediates() -> None:
+    """探索(候補ごとの片道呼び出し)の payload が SS-33 で太らないことの回帰防止。"""
+    captured: dict = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        captured["field_mask"] = request.headers["x-goog-fieldmask"]
+        return httpx.Response(
+            200,
+            json={
+                "routes": [
+                    {
+                        "duration": "123.4s",
+                        "distanceMeters": 456,
+                        "polyline": {"encodedPolyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@"},
+                    }
+                ]
+            },
+        )
+
+    provider = _provider(handler)
+    provider.get_walking_route(
+        ProviderPoint(35.0, 139.0), ProviderPoint(35.1, 139.1), timeout_seconds=2
+    )
+
+    assert "intermediates" not in captured["body"]
+    assert captured["field_mask"] == (
+        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+    )
+
+
+def test_loop_route_parses_legs_duration_distance_and_concatenates_path() -> None:
+    provider = _provider(lambda request: httpx.Response(200, json=_loop_response_json()))
+    origin = ProviderPoint(35.0, 139.0)
+
+    result = provider.get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=2,
+        intermediates=(
+            ProviderIntermediate(point=ProviderPoint(35.1, 139.1), via=False),
+            ProviderIntermediate(point=ProviderPoint(35.05, 139.2), via=True),
+        ),
+    )
+
+    assert len(result.legs) == 2
+    outbound, inbound = result.legs
+    assert outbound.duration_seconds == 300
+    assert outbound.distance_meters == 400
+    assert inbound.duration_seconds == 360
+    assert inbound.distance_meters == 420
+    # 全体 path は legs の連結。inbound の先頭点(接合点)は重複させないため落とす。
+    assert result.path == outbound.path + inbound.path[1:]
+
+
+def test_loop_route_with_return_leg_shorter_than_two_points_keeps_outbound_only() -> None:
+    """復路 leg が壊れていても例外は投げず、往路(legs[0])だけの1件をserviceへ届ける(決定6)。
+
+    service 側はこの「1件だけ返った」応答を、`len(route.legs) == 2` の場合のみ
+    evaluate_loop で評価し、`len(route.legs) >= 1` であれば直近の使える往路として
+    フォールバック候補に更新する。
+    """
+    body = _loop_response_json(inbound_polyline="")  # デコード結果が0点になる不正な polyline
+    provider = _provider(lambda request: httpx.Response(200, json=body))
+    origin = ProviderPoint(35.0, 139.0)
+
+    result = provider.get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=2,
+        intermediates=(
+            ProviderIntermediate(point=ProviderPoint(35.1, 139.1), via=False),
+            ProviderIntermediate(point=ProviderPoint(35.05, 139.2), via=True),
+        ),
+    )
+
+    assert len(result.legs) == 1
+    assert result.legs[0].duration_seconds == 300
+    assert result.path == result.legs[0].path  # 全体pathはoutboundのpathのまま
+
+
+def test_loop_route_raises_unavailable_when_outbound_leg_itself_is_broken() -> None:
+    body = _loop_response_json(outbound_polyline="")
+    provider = _provider(lambda request: httpx.Response(200, json=body))
+    origin = ProviderPoint(35.0, 139.0)
+
+    with pytest.raises(GoogleMapsUnavailableError):
+        provider.get_walking_route(
+            origin,
+            origin,
+            timeout_seconds=2,
+            intermediates=(
+                ProviderIntermediate(point=ProviderPoint(35.1, 139.1), via=False),
+                ProviderIntermediate(point=ProviderPoint(35.05, 139.2), via=True),
+            ),
+        )
+
+
+def test_loop_route_raises_unavailable_when_routes_is_present_but_empty() -> None:
+    """2026-08-22 実 API スモークテストで実在を確認した
+    「200 + routes 空」応答(handover-notes.md)。"""
+    provider = _provider(lambda request: httpx.Response(200, json={}))
+    origin = ProviderPoint(35.0, 139.0)
+
+    with pytest.raises(GoogleMapsUnavailableError):
+        provider.get_walking_route(
+            origin,
+            origin,
+            timeout_seconds=2,
+            intermediates=(
+                ProviderIntermediate(point=ProviderPoint(35.1, 139.1), via=False),
+                ProviderIntermediate(point=ProviderPoint(35.05, 139.2), via=True),
+            ),
+        )
+
+
+def test_loop_route_cache_key_distinguishes_left_and_right_waypoints() -> None:
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=_loop_response_json())
+
+    provider = _provider(handler)
+    origin = ProviderPoint(35.0, 139.0)
+    stopover = ProviderPoint(35.1, 139.1)
+    right = ProviderPoint(35.05, 139.2)
+    left = ProviderPoint(35.05, 138.9)
+
+    provider.get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=2,
+        intermediates=(
+            ProviderIntermediate(point=stopover, via=False),
+            ProviderIntermediate(point=right, via=True),
+        ),
+    )
+    provider.get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=2,
+        intermediates=(
+            ProviderIntermediate(point=stopover, via=False),
+            ProviderIntermediate(point=left, via=True),
+        ),
+    )
+
+    assert calls == 2  # 左右で別キーになり、どちらもキャッシュに当たらない
+
+
+def test_one_way_route_cache_key_is_unchanged_by_ss33() -> None:
+    """SS-32 と同一のキー形式を保つことで、/explore/places が温めたキャッシュを
+    共有できる(決定7)。"""
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "routes": [
+                    {
+                        "duration": "120s",
+                        "distanceMeters": 300,
+                        "polyline": {"encodedPolyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@"},
+                    }
+                ]
+            },
+        )
+
+    provider = _provider(handler)
+    origin = ProviderPoint(35.0, 139.0)
+    destination = ProviderPoint(35.1, 139.1)
+
+    provider.get_walking_route(origin, destination, timeout_seconds=2)
+    provider.get_walking_route(origin, destination, timeout_seconds=2)
+
+    assert calls == 1  # intermediates なしは従来どおりキャッシュが効く
 
 
 @pytest.mark.parametrize(
