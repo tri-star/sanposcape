@@ -68,7 +68,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - **`origin` は「散歩の起点」で固定**し、現在地の更新でこの hook の入力を変えない。
 - queryKey の安定性のため、`buildWalkingRouteRequest` が `origin` を**小数4桁に丸める**（GPS の揺れで毎回別のキーになるのを防ぐ。backend 側のキャッシュキー `route:{lat:.5f}:{lng:.5f}:...` にも当たるようになる）。
 - **（SS-35 追補）この規律に例外を1つ追加する**: 「`origin` は散歩の起点で固定」という規律は**初期ルートについては維持**する。SS-35 で追加する「現在地起点の再計算」は Query を経由しない別経路（決定7）であり、`useWalkRoute` の queryKey は変えない。初期ルートのキャッシュ共有はそのまま残る。
-- **（SS-33 追補）** `staleTime = 1時間` / `gcTime = 2時間` / `retry: false` は**維持**する。SS-33 で `WalkRoute` に `legs`/`returnIsSamePath` が入り、リクエストに `route_type` が追加されたが、mobile 側の呼び出し回数は変わらない（初期1回 + 逸脱時 最大1回/分のまま）。`route_type` は `buildWalkingRouteRequest`/`buildReturnToStartRouteRequest` が組み立てるリクエストオブジェクトの一部として `useWalkRoute` の queryKey（`["explore","routeWalking",request]`）に自動的に載るため、loop と one_way が同一キーに混ざることもない。「SS-33 では API 呼び出しが増える場合は `staleTime`/レート制限の再検討が必要」という旧申し送りへの結論として、**再検討は不要**と確定させる（増えたのは backend 内部の Google Routes API 呼び出し回数だけで、mobile から見たリクエスト数は変わらない）。
+- **（SS-33 追補）** `staleTime = 1時間` / `gcTime = 2時間` / `retry: false` は**維持**する。SS-33 で `WalkRoute` に `legs`/`returnIsSamePath` が入り、リクエストに `route_type` が追加されたが、mobile 側の呼び出し回数は変わらない（初期1回 + 逸脱時 最大1回/分のまま）。`buildWalkingRouteRequest`（`route_type: "loop"`）が組み立てるリクエストは `useWalkRoute` の queryKey（`["explore","routeWalking",request]`）に載るため、loop 同士が混ざることはない。`buildReturnToStartRouteRequest`（`route_type: "one_way"`）は決定7のとおり `useWalkRouteRecalculation` 専用で **`useWalkRoute`（TanStack Query）を一切経由しない**（`fetchWalkRoute` を直接呼ぶ）ため、そもそも **one_way はこの queryKey に載らず、loop のキャッシュと混ざりようがない**。「SS-33 では API 呼び出しが増える場合は `staleTime`/レート制限の再検討が必要」という旧申し送りへの結論として、**再検討は不要**と確定させる（増えたのは backend 内部の Google Routes API 呼び出し回数だけで、mobile から見たリクエスト数は変わらない）。
 
 ### 3. 経過時間は開始時刻からの実時刻差で算出する
 
