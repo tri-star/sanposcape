@@ -3,7 +3,7 @@ from sanposcape.integrations.google_maps.fake import (
     _clamp,
     _distance_meters,
 )
-from sanposcape.integrations.google_maps.provider import ProviderPoint
+from sanposcape.integrations.google_maps.provider import ProviderIntermediate, ProviderPoint
 from sanposcape.maps.schemas import PlaceSearchRequest
 from sanposcape.maps.service import MapsService
 
@@ -112,6 +112,55 @@ def test_walking_route_handles_degenerate_same_point_case() -> None:
     assert route.duration_seconds == 0
     assert len(route.path) == 5
     assert all(point == _ORIGIN for point in route.path)
+
+
+def test_walking_route_without_intermediates_is_unchanged_by_ss33() -> None:
+    """intermediates 引数を追加する前と完全に同じ値を返すこと(既存テストの固定値を壊さない)。"""
+    provider = FakeGoogleMapsProvider()
+    destination = ProviderPoint(35.69, 139.78)
+
+    result = provider.get_walking_route(_ORIGIN, destination, timeout_seconds=1)
+
+    assert result.legs == ()
+    assert len(result.path) == 5
+    assert result.path[0] == _ORIGIN
+    assert result.path[-1] == destination
+
+
+def test_walking_route_with_via_waypoint_returns_two_deterministic_legs() -> None:
+    origin = _ORIGIN
+    stopover = ProviderPoint(35.69, 139.78)
+    waypoint = ProviderPoint(35.685, 139.79)
+
+    first = FakeGoogleMapsProvider().get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=1,
+        intermediates=(
+            ProviderIntermediate(point=stopover, via=False),
+            ProviderIntermediate(point=waypoint, via=True),
+        ),
+    )
+    second = FakeGoogleMapsProvider().get_walking_route(
+        origin,
+        origin,
+        timeout_seconds=1,
+        intermediates=(
+            ProviderIntermediate(point=stopover, via=False),
+            ProviderIntermediate(point=waypoint, via=True),
+        ),
+    )
+
+    assert first == second  # 決定的(乱数・時刻を使わない)。別インスタンス間でも一致する
+    assert len(first.legs) == 2
+    outbound, inbound = first.legs
+    assert len(outbound.path) == 5
+    assert len(inbound.path) == 9
+    assert first.path[0] == origin
+    assert first.path[-1] == origin
+    assert first.duration_seconds == outbound.duration_seconds + inbound.duration_seconds
+    assert first.distance_meters == outbound.distance_meters + inbound.distance_meters
+    assert first.path == outbound.path + inbound.path[1:]
 
 
 def test_candidates_survive_round_trip_filter() -> None:

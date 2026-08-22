@@ -14,9 +14,11 @@ from sanposcape.integrations.google_maps.exceptions import (
 from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     GoogleMapsProvider,
+    ProviderIntermediate,
     ProviderPlace,
     ProviderPoint,
     ProviderRoute,
+    ProviderRouteLeg,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,21 @@ _CATEGORY_TYPES = {
 }
 _PLACES_BASE_URL = "https://places.googleapis.com/v1"
 _ROUTES_BASE_URL = "https://routes.googleapis.com/directions/v2"
+
+# SS-33: FieldMask はリクエストの形で切り替える(決定3)。intermediates 無し(従来の片道・
+# 探索の候補ごとの呼び出し)は routes.polyline を取り、legs は取らない(探索の最大20回の
+# 呼び出しで同じ折れ線を二重に受け取らないため)。intermediates あり(周回)は逆に
+# routes.polyline を落とし legs.* だけを取る(全体 path は legs の連結で構築する)。
+_ROUTE_FIELD_MASK_WITHOUT_INTERMEDIATES = (
+    "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+)
+_ROUTE_FIELD_MASK_WITH_INTERMEDIATES = (
+    "routes.duration,routes.distanceMeters,"
+    "routes.legs.duration,routes.legs.distanceMeters,routes.legs.polyline.encodedPolyline"
+)
+# routes.duration(スカラー) と Σlegs.duration の差がこれを超えたら異常としてログに残す
+# (応答自体は Σlegs を採用する。決定3)。
+_ROUTE_DURATION_DISCREPANCY_WARNING_SECONDS = 5
 
 
 class UnconfiguredGoogleMapsProvider:
@@ -47,7 +64,12 @@ class UnconfiguredGoogleMapsProvider:
         raise GoogleMapsUnavailableError()
 
     def get_walking_route(
-        self, origin: ProviderPoint, destination: ProviderPoint, *, timeout_seconds: float
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderIntermediate, ...] = (),
     ) -> ProviderRoute:
         raise GoogleMapsUnavailableError()
 
@@ -124,33 +146,57 @@ class HttpGoogleMapsProvider:
         return result
 
     def get_walking_route(
-        self, origin: ProviderPoint, destination: ProviderPoint, *, timeout_seconds: float
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderIntermediate, ...] = (),
     ) -> ProviderRoute:
-        key = self._route_key(origin, destination)
+        key = self._route_key(origin, destination, intermediates)
         cached = self._routes_cache.get(key)
         if cached is not None:
             return cached
         return self._routes_flight.do(
-            key, lambda: self._load_route(key, origin, destination, timeout_seconds)
+            key,
+            lambda: self._load_route(key, origin, destination, timeout_seconds, intermediates),
         )
 
     def _load_route(
-        self, key: str, origin: ProviderPoint, destination: ProviderPoint, timeout_seconds: float
+        self,
+        key: str,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderIntermediate, ...],
     ) -> ProviderRoute:
         cached = self._routes_cache.get(key)
         if cached is not None:
             return cached
+        payload: dict[str, Any] = {
+            "origin": {"location": {"latLng": self._lat_lng(origin)}},
+            "destination": {"location": {"latLng": self._lat_lng(destination)}},
+            "travelMode": "WALK",
+        }
+        if intermediates:
+            # stopover(via=False) には "via" を付けない。Routes API は via:true の
+            # ときだけ leg を分割しない(backend-plan.md 決定2/Step4)。
+            payload["intermediates"] = [
+                {
+                    "location": {"latLng": self._lat_lng(item.point)},
+                    **({"via": True} if item.via else {}),
+                }
+                for item in intermediates
+            ]
         response = self._request(
             "POST",
             f"{_ROUTES_BASE_URL}:computeRoutes",
-            json={
-                "origin": {"location": {"latLng": self._lat_lng(origin)}},
-                "destination": {"location": {"latLng": self._lat_lng(destination)}},
-                "travelMode": "WALK",
-            },
+            json=payload,
             headers={
                 "X-Goog-FieldMask": (
-                    "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+                    _ROUTE_FIELD_MASK_WITH_INTERMEDIATES
+                    if intermediates
+                    else _ROUTE_FIELD_MASK_WITHOUT_INTERMEDIATES
                 )
             },
             timeout_seconds=timeout_seconds,
@@ -159,15 +205,78 @@ class HttpGoogleMapsProvider:
         if not routes:
             raise GoogleMapsUnavailableError()
         route = routes[0]
-        result = ProviderRoute(
-            duration_seconds=self._duration_seconds(route.get("duration")),
-            distance_meters=int(route.get("distanceMeters", 0)),
-            path=tuple(self._decode_polyline(route.get("polyline", {}).get("encodedPolyline", ""))),
+        result = (
+            self._parse_route_with_legs(route)
+            if intermediates
+            else self._parse_route_without_legs(route)
         )
         if len(result.path) < 2:
             raise GoogleMapsUnavailableError()
         self._routes_cache.put(key, result)
         return result
+
+    def _parse_route_without_legs(self, route: dict[str, Any]) -> ProviderRoute:
+        return ProviderRoute(
+            duration_seconds=self._duration_seconds(route.get("duration")),
+            distance_meters=int(route.get("distanceMeters", 0)),
+            path=tuple(self._decode_polyline(route.get("polyline", {}).get("encodedPolyline", ""))),
+        )
+
+    def _parse_route_with_legs(self, route: dict[str, Any]) -> ProviderRoute:
+        """SS-33: `intermediates` ありの応答から往路/復路の2 legをパースする。
+
+        2点未満の leg があれば、その leg 以降を欠けたものとして扱う(`legs` の一貫性を
+        壊さないため)。**例外は投げない**: 決定6のフォールバックのために「復路 leg は
+        壊れているが往路は使える」応答も service に届ける必要がある。outbound(legs[0])
+        自体が壊れている(または legs が丸ごと無い)場合のみ、全体として使い物にならない
+        ので `_load_route` 側の `len(result.path) < 2` チェックで従来どおり
+        `GoogleMapsUnavailableError` になる。
+        """
+        legs_data = route.get("legs", [])
+        legs: list[ProviderRouteLeg] = []
+        if len(legs_data) >= 1:
+            outbound_path = tuple(self._decode_leg_polyline(legs_data[0]))
+            if len(outbound_path) >= 2:
+                legs.append(self._route_leg(legs_data[0], outbound_path))
+                if len(legs_data) >= 2:
+                    inbound_path = tuple(self._decode_leg_polyline(legs_data[1]))
+                    if len(inbound_path) >= 2:
+                        legs.append(self._route_leg(legs_data[1], inbound_path))
+
+        if len(legs) == 2:
+            path = legs[0].path + legs[1].path[1:]
+        elif len(legs) == 1:
+            path = legs[0].path
+        else:
+            path = ()
+
+        top_duration = self._duration_seconds(route.get("duration"))
+        if len(legs) == 2:
+            leg_duration_sum = legs[0].duration_seconds + legs[1].duration_seconds
+            if abs(top_duration - leg_duration_sum) > _ROUTE_DURATION_DISCREPANCY_WARNING_SECONDS:
+                logger.warning(
+                    "SS-33: routes.duration(%ss) diverges from Σlegs.duration(%ss) by >%ss",
+                    top_duration,
+                    leg_duration_sum,
+                    _ROUTE_DURATION_DISCREPANCY_WARNING_SECONDS,
+                )
+
+        return ProviderRoute(
+            duration_seconds=top_duration,
+            distance_meters=int(route.get("distanceMeters", 0)),
+            path=path,
+            legs=tuple(legs),
+        )
+
+    def _route_leg(self, leg: dict[str, Any], path: tuple[ProviderPoint, ...]) -> ProviderRouteLeg:
+        return ProviderRouteLeg(
+            duration_seconds=self._duration_seconds(leg.get("duration")),
+            distance_meters=int(leg.get("distanceMeters", 0)),
+            path=path,
+        )
+
+    def _decode_leg_polyline(self, leg: dict[str, Any]) -> list[ProviderPoint]:
+        return self._decode_polyline(leg.get("polyline", {}).get("encodedPolyline", ""))
 
     def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
         timeout_seconds = kwargs.pop("timeout_seconds")
@@ -325,11 +434,22 @@ class HttpGoogleMapsProvider:
         )
 
     @staticmethod
-    def _route_key(origin: ProviderPoint, destination: ProviderPoint) -> str:
-        return (
+    def _route_key(
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        intermediates: tuple[ProviderIntermediate, ...] = (),
+    ) -> str:
+        # SS-33 決定7: intermediates が空(one_way)のときは従来と完全に同一のキーになるよう、
+        # サフィックスを一切追加しない(探索が温めたキャッシュをそのまま共有できるため)。
+        base = (
             f"route:{origin.latitude:.5f}:{origin.longitude:.5f}:"
             f"{destination.latitude:.5f}:{destination.longitude:.5f}"
         )
+        suffix = "".join(
+            f":{'v' if item.via else 's'}{item.point.latitude:.5f},{item.point.longitude:.5f}"
+            for item in intermediates
+        )
+        return base + suffix
 
 
 def _endpoint(url: str) -> str:
