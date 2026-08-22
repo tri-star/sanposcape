@@ -2,6 +2,12 @@ node_modules
 
 tmp
 
+# 環境変数ファイル（秘密値を含む）。テンプレートの .env.example は追跡対象に残すため
+# `.env*` のような広いパターンは使わない。packages/backend・packages/mobile にも
+# 同等の設定があるが、ルート直下や新規パッケージでの取り込み事故を防ぐ多重防御として置く。
+.env
+.env*.local
+
 # Python
 __pycache__/
 
