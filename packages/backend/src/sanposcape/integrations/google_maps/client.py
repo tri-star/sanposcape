@@ -210,6 +210,14 @@ class HttpGoogleMapsProvider:
             if intermediates
             else self._parse_route_without_legs(route)
         )
+        # origin と destination がほぼ同一地点だと、Google は「1点だけのポリライン」
+        # ("duration": "0s"、"distanceMeters" キー自体が欠落)を 200 で返してくることが
+        # ある(例: 探索の起点の目の前にある駅がそのまま候補地点になったケース)。
+        # `WalkingRouteResponse.path` / `WalkingRouteLeg.path` はどちらも
+        # `min_length=2` を契約にしているため、ここで弾いておかないと下流の
+        # response モデル構築でバリデーションエラーになる。呼び出し元
+        # (`maps/service.py`)は `GoogleMapsUnavailableError` を「この経路は使えない」
+        # として扱い、候補ごとにスキップするか 503 にマップする。
         if len(result.path) < 2:
             raise GoogleMapsUnavailableError()
         self._routes_cache.put(key, result)

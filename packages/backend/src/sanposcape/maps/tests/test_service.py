@@ -49,6 +49,32 @@ class FakeProvider:
         return self.routes[(destination.latitude, destination.longitude)]
 
 
+class PartiallyFailingRouteProvider:
+    """既存バグ回帰テスト用: 特定の候補地点への経路取得だけを失敗させる。
+
+    再現条件(SS-33 目視確認で発見, SS-14 由来のバグ): 起点とほぼ同一地点にある候補
+    (例: 起点=駅の目の前で `station` を検索したときのその駅自身)への `computeRoutes`
+    は、Google からは 200 が返るが折れ線が1点に退化しており、
+    `HttpGoogleMapsProvider._load_route` が `GoogleMapsUnavailableError` を投げる。
+    その1件の失敗で探索全体が 503 になってはいけない、という契約を固定する。
+    """
+
+    def __init__(self, places: tuple[ProviderPlace, ...], failing_locations: set[ProviderPoint]):
+        self.places = places
+        self._failing_locations = failing_locations
+        self.route_calls: list[ProviderPoint] = []
+
+    def search_places(self, origin, categories, limit, **kwargs):
+        return self.places[:limit]
+
+    def get_walking_route(self, origin, destination, **kwargs):
+        self.route_calls.append(destination)
+        if destination in self._failing_locations:
+            # 退化したポリラインしか返らない候補(起点とほぼ同一地点)を模す。
+            raise GoogleMapsUnavailableError()
+        return ProviderRoute(200, 200, (ProviderPoint(35, 139), destination))
+
+
 class RecordingRouteProvider:
     """SS-33 周回テスト専用: 呼び出しを記録し、あらかじめ用意した応答/例外を順番に返す。
 
@@ -199,6 +225,73 @@ def test_provider_failures_are_mapped(error, expected) -> None:
                 }
             )
         )
+
+
+def test_search_skips_candidate_with_unavailable_route_and_returns_remaining_candidates(
+    caplog,
+) -> None:
+    """既存バグ回帰テスト(SS-33目視確認で発見、SS-14由来)。
+
+    起点とほぼ同一地点にある候補(例: 起点=駅の目の前でstationを検索したときの
+    その駅自身)への経路取得が `GoogleMapsUnavailableError` で失敗しても、
+    `/explore/places` 全体を 503 にせず、その候補だけ除外して残りを 200 で返す。
+    """
+    degenerate_location = ProviderPoint(35.0001, 139.0001)  # 起点とほぼ同一
+    places = (
+        ProviderPlace("self", "起点そのもの", "station", degenerate_location),
+        ProviderPlace("near", "近い駅", "station", ProviderPoint(35.2, 139.2)),
+    )
+    provider = PartiallyFailingRouteProvider(places, failing_locations={degenerate_location})
+    service = MapsService(provider, 20, 20, 10, 8, loop_duration_factor=1.0)
+
+    with caplog.at_level("WARNING"):
+        result = service.search_places(
+            PlaceSearchRequest.model_validate(
+                {
+                    "origin": {"latitude": 35, "longitude": 139},
+                    "round_trip_duration_minutes": 20,
+                    "categories": ["station"],
+                }
+            )
+        )
+
+    assert [candidate.id for candidate in result.candidates] == ["near"]
+    assert len(provider.route_calls) == 2  # 失敗した候補も試行はされ、次の候補へ進む
+    assert "candidate" in caplog.text  # スキップした事実がログから追える
+    # 座標・APIキー等の生の値はログに出さない(既存方針)
+    assert "35.0001" not in caplog.text
+    assert "139.0001" not in caplog.text
+
+
+def test_search_quota_error_during_route_fan_out_aborts_entire_search() -> None:
+    """クォータエラー(429)は個別候補の失敗として握りつぶさず、探索全体を打ち切る。"""
+
+    class QuotaErrorOnSecondCallProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__()
+            self.route_calls = 0
+
+        def get_walking_route(self, origin, destination, **kwargs):
+            self.route_calls += 1
+            if self.route_calls == 1:
+                raise GoogleMapsQuotaError()
+            return super().get_walking_route(origin, destination, **kwargs)
+
+    provider = QuotaErrorOnSecondCallProvider()
+    service = MapsService(provider, 20, 20, 10, 8)
+
+    with pytest.raises(MapsQuotaError):
+        service.search_places(
+            PlaceSearchRequest.model_validate(
+                {
+                    "origin": {"latitude": 35, "longitude": 139},
+                    "round_trip_duration_minutes": 20,
+                    "categories": ["park"],
+                }
+            )
+        )
+
+    assert provider.route_calls == 1  # 2件目の候補へは進まない
 
 
 def test_route_returns_map_ready_path_bounds_and_destination_name() -> None:

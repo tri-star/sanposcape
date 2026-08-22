@@ -69,13 +69,32 @@ class MapsService:
             )
             candidates: list[PlaceCandidate] = []
             maximum_seconds = request.round_trip_duration_minutes * 60
-            for place in places[:candidate_limit]:
+            limited_places = places[:candidate_limit]
+            for index, place in enumerate(limited_places):
                 remaining_seconds = deadline - monotonic()
                 if remaining_seconds <= 0:
                     break
-                route = self._provider.get_walking_route(
-                    origin, place.location, timeout_seconds=remaining_seconds
-                )
+                try:
+                    route = self._provider.get_walking_route(
+                        origin, place.location, timeout_seconds=remaining_seconds
+                    )
+                except GoogleMapsUnavailableError:
+                    # 既存バグ修正(SS-14由来、SS-33目視確認で発見): 起点とほぼ同一地点の
+                    # 候補(例: 起点=駅の目の前で station を検索すると、その駅自身が候補に
+                    # 入り経路が1点に退化する。_load_route の min_length チェック参照)や、
+                    # 個別のタイムアウト・5xxはこの候補1件の失敗として扱い、探索全体は
+                    # 継続する。ここで拾わない GoogleMapsQuotaError(429)は外側の except で
+                    # 探索全体を打ち切る(クォータ逼迫時に残り候補を叩き続けるのは有害)。
+                    # なお全体の探索デッドライン超過は、この try に入る前の
+                    # `remaining_seconds <= 0` チェックで既にループを打ち切っているため、
+                    # ここでの continue は次周のその判定に委ねられ、無関係な候補への
+                    # 余計な呼び出しは発生しない。
+                    logger.warning(
+                        "MapsService.search_places: candidate %d/%d skipped (route unavailable)",
+                        index + 1,
+                        len(limited_places),
+                    )
+                    continue
                 # SS-33: 片道×2は周回に対して構造的な過小評価になるため、実測係数
                 # (LOOP_FACTOR)で補正する(決定8)。ルートは片道のまま1回しか引かない。
                 duration = round(route.duration_seconds * 2 * self._loop_duration_factor)
