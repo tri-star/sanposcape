@@ -251,6 +251,8 @@ export type ThemeMapColors = {
   culture: string;
   station: string;
   route: string;
+  /** 復路（往路と異なる帰り道）の線色。往路と同系色で明度を変え、破線と併用して区別する。 */
+  routeReturn: string;
   canvas: string;
   water: string;
   greenspace: string;
@@ -386,6 +388,8 @@ const lightMap: ThemeMapColors = {
   culture: palette.purple500,
   station: palette.red500,
   route: palette.blue600,
+  // SS-33 暫定: Sanpo Design System に復路色の定義が無いため palette から流用。デザイン確定時に差し替える。
+  routeReturn: palette.blue900,
   canvas: "#f5f6f7",
   water: "#cae7fd",
   greenspace: "#e6f2e4",
@@ -398,6 +402,8 @@ const darkMap: ThemeMapColors = {
   culture: "#a98cf0",
   station: "#f2686d",
   route: "#3d97fe",
+  // SS-33 暫定: Sanpo Design System に復路色の定義が無いため palette から流用。デザイン確定時に差し替える。
+  routeReturn: palette.blue300,
   canvas: "#131c28",
   water: "#16344f",
   greenspace: "#172a20",

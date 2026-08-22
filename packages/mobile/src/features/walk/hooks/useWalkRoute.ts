@@ -8,7 +8,11 @@ import { buildWalkingRouteRequest } from "@/features/walk/lib/walkRouteRequest";
 import type { WalkDestination, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** 固定2点間の徒歩ルートは実質不変。散歩中に再取得させないため1時間。 */
+/**
+ * 固定2点間の周回ルートは実質不変（経由点の生成が backend 側で決定的である前提。
+ * 非決定的なら backend のキャッシュで吸収される）。散歩中に再取得させないため1時間。
+ * `routeType` は既定の `loop` を使う（`buildWalkingRouteRequest` の省略時の挙動）。
+ */
 const STALE_TIME_MS = 60 * 60_000;
 /** 散歩開始画面のアンマウントから散歩中画面のマウントまでの間、キャッシュを確実に生かすため（往復最大120分の散歩も想定）。 */
 const GC_TIME_MS = 2 * 60 * 60_000;
