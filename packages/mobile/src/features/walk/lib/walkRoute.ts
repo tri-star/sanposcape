@@ -1,5 +1,9 @@
 import type { WalkingRouteLeg, WalkingRouteResponse } from "@/api/generated/model";
 import type { WalkRoute, WalkRouteBounds, WalkRouteLeg } from "@/features/walk/types";
+import {
+  DESTINATION_NAME_MAX_LENGTH,
+  truncateUnicodeCodePoints,
+} from "@/features/walk/lib/unicodeText";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import { toNonNegative } from "@/lib/numberGuard";
 import type { GeoCoordinates } from "@/services/location/types";
@@ -73,10 +77,18 @@ function toWalkRouteLeg(raw: WalkingRouteLeg): WalkRouteLeg | null {
  * 日本語を出し分けると backend のフィールドに mobile の文言が結合してしまうため
  * （backend が「表示文言を発明しない」方針を採ったのと同じ理屈をクライアント側でも守る）。
  * 呼び出し側（`useWalkRouteRecalculation` 等）が `fallbackName` として明示的に渡すことで出し分ける。
+ *
+ * `explicit`（呼び出し側が渡した名前）にも `truncateUnicodeCodePoints` を通す。呼び出し元は
+ * 現状すべて固定文字列（`RETURN_TO_START_DESTINATION_NAME`）か、探索APIから取得した時点で
+ * 既に `DESTINATION_NAME_MAX_LENGTH` に切り詰め済みの値（`spotCandidate.ts`）しか渡さないため
+ * 実害は無いが、将来呼び出し元が増えたときの多層防御として、ここでも上限を再適用しておく
+ * （ローカルレビュー C-1）。
  */
 function resolveDestinationName(fallbackName: string | undefined, responseName: string): string {
   const explicit = fallbackName?.trim() ?? "";
-  if (explicit.length > 0) return explicit;
+  if (explicit.length > 0) {
+    return truncateUnicodeCodePoints(explicit, DESTINATION_NAME_MAX_LENGTH);
+  }
   const fromResponse = responseName.trim();
   return fromResponse.length > 0 ? fromResponse : FALLBACK_DESTINATION_NAME;
 }
