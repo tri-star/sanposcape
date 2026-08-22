@@ -20,3 +20,5 @@
 - [reference-sam-cli-location](reference_sam_cli_location.md) — sam CLIはPATHに無くmise管理。絶対パスで呼ぶ。sam validate --lintはDocker不要
 - [reference-sandbox-blocks-sam-build-docker](reference_sandbox_blocks_sam_build_docker.md) — sandboxがsam build --use-container/local invokeのDockerソケットを遮断。docker info成功だけでは判断できない
 - [reference-aws-credentials-sandbox-denied](reference_aws_credentials_sandbox_denied.md) — AWS認証情報は存在する。sandboxが~/.aws(→/mnt/c/Users)を禁止して見えないだけ。dangerouslyDisableSandboxで使える
+- [project-ss33-loop-route-backend-complete](project_ss33_loop_route_backend_complete.md) — SS-33 backend（周回ルート: /explore/routes/walkingの往路復路化）は実装完了。次はmobile側実装
+- [project-ss14-places-503-near-origin-candidate-fixed](project_ss14_places_503_near_origin_candidate_fixed.md) — 起点直近候補でPOST /explore/placesが503になるSS-14由来バグは修正済み（コミット9e4719f）。search_places()は候補ごとにtry/except

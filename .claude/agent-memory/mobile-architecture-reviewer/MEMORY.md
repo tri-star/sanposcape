@@ -12,3 +12,4 @@
 - [Modal + useScreenBack の同居](pattern_modal_backhandler_coexistence.md) — Android では Modal が hardwareBackPress を奪うため onIntercept が実質到達しない疑い。次に同居コードを見たら要検証（実機未確認）
 - [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認
 - [SS-70 CloudFront/SigV4対応(x-amz-content-sha256, X-App-Authorization)](project_ss70_cloudfront_http_headers.md) — HTTP出口2箇所パターン確立、api/層への初のネイティブ依存混入(expo-crypto)、mobile内2種のADR-005番号衝突に注意
+- [SS-33 散歩ルート周回化](project_ss33_loop_route.md) — 判定入口一本化/表示文言二重化/SS-35整合は実装どおり。outbound再計算時にlegPhaseが古いlegで判定される設計ギャップ(P2)を発見

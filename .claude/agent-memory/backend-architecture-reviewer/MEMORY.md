@@ -5,3 +5,4 @@
 - [M5 walksドメインのスコープ決定](project_m5_walks_domain.md) — SS-18の「集計/削除API無し」決定はSS-42/SS-53で覆り実装済み。再指摘しない。delete()のTOCTOU注記あり
 - [SS-44 fake Mapsプロバイダ](project_ss44_fake_maps_provider.md) — mode+許可リストfail-safeパターンのMaps版、FakeProvider命名混同リスク
 - [RequestSizeLimitMiddlewareはmethod非依存](ss53-request-size-limit-middleware-method-agnostic.md) — GET/DELETEでも413はあり得る設計。router.py側で413を書くのは正しい、再指摘しない
+- [SS-33周回ルートのGoogle呼び出し回数の食い違い](ss33-loop-route-max-calls-discrepancy.md) — 実装は最大3回だがADR-001/config.pyは「最大2回」と記述。未解決(task-local)

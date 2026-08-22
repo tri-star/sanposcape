@@ -1,29 +1,39 @@
 ---
 name: oneway-roundtrip-naming-convention
-description: sanposcape mobile の探索/散歩機能では片道値と往復値を別のフィールド名・関数名で厳密に区別する設計になっている（SS-16で確認）。今後この境界を跨ぐ実装をレビューする際のチェックポイント
+description: sanposcape mobile の探索/散歩機能で「片道 vs 往復（周回）」をどう区別しているか。SS-16時点の契約はSS-33で覆っているので必ず最新のtypes.ts/walkRoute.tsを確認すること
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
 ---
 
-`packages/mobile/src/features/walk/` では、`/explore/places`（backend）が返す `PlaceCandidate.round_trip_duration_seconds`
-/ `round_trip_distance_meters` は片道値を2倍した**往復値**、`/explore/routes/walking` が返す
-`duration_seconds` / `distance_meters` は**片道値**という非対称な契約になっている
-（`packages/backend/src/sanposcape/maps/service.py:57-58` と `:107-108`）。
+**SS-33（2026-08-23マージ）で契約が変わった。以下は現行（SS-33以降）の状態。**
 
-mobile 側はこれを型・関数名で明示的に区別している:
-- `SpotCandidate.roundTripMinutes` / `roundTripKm`（往復、`/explore/places` 由来）
-- `WalkRoute.durationSeconds` / `distanceMeters`（片道、`/explore/routes/walking` 由来）
-- `toOneWayMinutes()` / `toKilometers()`（片道のまま変換）と `estimateRoundTripMinutes()`
-  （片道×2の**近似**であることをJSDocとUI文言「往復の目安」の両方で明記）は
-  `src/features/walk/lib/walkRoute.ts` に分離されている。
+- `SpotCandidate.roundTripMinutes` / `roundTripKm`（`/explore/places` 由来のスナップショット・概算。
+  backend が `片道 × 2 × LOOP_FACTOR` で補正した値を返す。mobile 側では再補正しない）。
+- `WalkRoute.durationSeconds` / `distanceMeters`（**周回ルート全体**の実値。SS-33 以降は片道ではない。
+  `/explore/routes/walking` が `route_type: "loop"` のとき往路+復路の連結値を返す）。
+- `WalkRoute.legs: WalkRouteLeg[]`（往路/復路それぞれの区間値。`kind: "outbound" | "return"`）。
+  セレクタは `src/features/walk/lib/walkRouteLeg.ts` の `findWalkRouteLeg` / `hasDistinctLegs` を必ず通す
+  （`legs` の件数を直接見ない）。
+- 分換算は `toRouteMinutes()`（`src/features/walk/lib/walkRoute.ts`）に一本化された。
+  **`estimateRoundTripMinutes()` / `toOneWayMinutes()` は SS-33 で削除済み**（もし見かけたら復活したリグレッションを疑う）。
+- 「同じ道を戻る」フォールバック（backend が周回を作れなかった場合）は `returnIsSamePath: true` で表現し、
+  `hasDistinctLegs()` が false になる。この場合 UI は「同じ道を戻ります」に degrade する
+  （`WalkRouteSummary.tsx`）。kill switch（backend `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`）OFF 時は常にこの状態。
+- SS-35 の復路再計算（`route_type: "one_way"`、現在地→出発地）は周回ではなく片道。
+  この場合のみ `legs: []` で `WalkRoute.durationSeconds` は片道の実値になる（例外パターン）。
 
-**Why:** 周回ルート（往路と復路が別経路）は SS-33 に切り出し済みで、SS-16 時点では
-「同じ道を戻る」前提の片道×2で往復を近似している。この前提が崩れる（実際の周回ルートに
-置き換わる）と `estimateRoundTripMinutes` の実装・呼び出し箇所すべてが見直し対象になる。
+**Why:** SS-16 時点は「往路と復路が同じ道」前提で `WalkRoute` の値は片道、往復は
+`estimateRoundTripMinutes()`（片道×2の近似）で表示していた。SS-33 で「往路と復路が異なる周回ルート」が
+MVP必須になり、backend が周回全体の実値を返すようになったため、上記の意味論が全面的に変わった。
+このメモリを更新せずに「`WalkRoute.durationSeconds` は片道」という古い前提でレビューすると、
+SS-33 以降のコードに対して的外れな指摘をすることになる（実際に一度、誤った前提のままレビュー依頼が来た）。
 
-**How to apply:** 今後この機能領域（探索・散歩ルート・SS-33以降の周回ルート等）のレビューでは、
-(1) 表示文言に「片道」「往復」「目安」のどれが使われているか、(2) その値がどちらの API由来か、
-(3) 往復値を独自に2倍/半分にする処理が新設されていないか、を機械的に横断チェックする。
-特に「往復の目安」という文言は複数箇所（`SpotCard` の一覧表示は `/explore/places` 由来、
-`WalkRouteSummary`/`WalkActiveView` はルートAPI由来を2倍）で**出典が異なる**ため、
-数字がわずかに食い違って見えても即座にバグと判断せず、まずどちらの出典か確認すること。
+**How to apply:** この機能領域をレビューする際は、まず `src/features/walk/types.ts` の `WalkRoute` の
+JSDoc（「SS-33 以降、durationSeconds/distanceMeters/path/bounds は周回ルート全体」）と
+`src/features/walk/lib/walkRouteLeg.ts` の実装を直接読んで現状の契約を確認すること。
+「往復の目安」（一覧・`SpotCard`・`spot.roundTripMinutes` 由来）と「往復」（選択後・`WalkRouteSummary`/
+`WalkActiveView`・`walkRoute.durationSeconds` 由来）は語彙で意図的に区別されており、
+数字がズレて見えても出典が異なるだけで即座にバグと判断しない（LOOP_FACTOR 補正で構造的なズレは
+縮んでいるが解消はしていない）。
