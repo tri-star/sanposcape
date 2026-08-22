@@ -5,6 +5,9 @@
 #       絞り込まずに実行する。SS-54）。
 # assert しないもの: 再計算の成功可否・ルートの形・所要時間/距離の値
 #   （再計算は現在地起点で /explore/routes を引き直すため、環境によって結果が変わりうる。ADR-004）。
+# SS-33 以降: 往路にいる間は周回（route_type: loop）、復路にいる間は出発地への片道
+#   （route_type: one_way）を引き直すようになったが、フロー開始直後は必ず往路のため
+#   この assert の対象・挙動は変わらない。
 appId: com.sanposcape.app
 tags:
   - maps-required
