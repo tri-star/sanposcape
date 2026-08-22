@@ -237,7 +237,7 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
   - 追加の実装事実: 軌跡は送信直前に `lib/walkTrackPayload.ts` で小数6桁へ丸め・連続重複除去・上限超過時のみ等間隔間引きを行う（記録中の間引き 10m/3秒 + 5m フィルタで通常は上限に達しない）。保存成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼ぶ。
 - SS-20 への申し送り（**クローズ**、SS-42 追補で決着）: 実績は以下のとおり。
   - **対応済み**: 履歴一覧の無限スクロールは `next_cursor` ベースの `useInfiniteQuery`（`features/history/hooks/useWalkHistory.ts`）で実装した。記録タブの「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）から閲覧できる。
-  - **非スコープで据え置き（スタブ継続、SS-20 時点）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のままだった（`docs/milestones.md` に留保を明記）。**SS-42 で実データ化した**（`GET /walks/stats` + mobile 側の配線）。期間フィルタ（`started_after`/`started_before`）自体は SS-42 でも使わない方針を維持（集計はサーバー側の専用 API に一本化したため、一覧 API 側に期間フィルタを掛ける必要が無い）。
+  - **非スコープで据え置き（スタブ継続、SS-20 時点）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のままだった。**SS-42 で実データ化した**（`GET /walks/stats` + mobile 側の配線）。期間フィルタ（`started_after`/`started_before`）自体は SS-42 でも使わない方針を維持（集計はサーバー側の専用 API に一本化したため、一覧 API 側に期間フィルタを掛ける必要が無い）。
   - **クローズ（SS-42 追補）**: 連続日数（streak）をサーバー側に持たせるかどうかの判断は、**サーバー側でクエリ算出し、非正規化カラムは持たない**ことで決着した（決定11）。
 - 集計 API（`GET /walks/stats`）は**実績**（SS-42 で実装。決定10〜12）。削除 API（`DELETE /walks/{walk_id}`）も**実績**（SS-53 で実装。決定13）。
 - **（SS-42 追補）** 実装事実: `GET /walks/stats` の追加に新規の Alembic マイグレーション・新規インデックスは不要だった（既存 `ix_walks_user_id_started_at_id` が集計クエリの range scan と streak の index-order + LIMIT の両方を賄う）。
@@ -256,7 +256,6 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
 - [ADR-001: 地図・POI は Google Maps Platform を使う](./ADR-001-map-poi-google-maps-platform.md) — 提示経路を永続化せず `place_id` から都度取得する方針の出典
 - [ADR-002: 認証は Google 直結 + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md) — `get_current_user` を single choke point とする方針、401 への正規化
 - [mobile ADR-008: 進行中の散歩の状態管理とルートキャッシュ](../../packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md) — SS-19 追補で「永続化しない」判断を維持した経緯（決定5）と、保存待ちドラフトの持ち方（決定4）
-- [マイルストーン M5: 散歩記録・履歴](../milestones.md)
 - `packages/backend/docs/folder-structure.md` — ドメイン単位の凝集 × `router → service → repository` の3層、`core/` への昇格ルール
 - `packages/backend/docs/naming-convention.md` — 「提示経路 = `walking_route`」「歩いた軌跡 = `track`」の使い分け
 - 実装: `packages/backend/src/sanposcape/walks/`、`core/geo.py`、`core/pagination.py`、`core/middleware.py`

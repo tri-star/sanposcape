@@ -1,8 +1,9 @@
 ---
 name: sanposcape_project
-description: Plane上のSanposcapeプロジェクトの識別子・IDと立ち上げ計画（Module/WorkItem）の構成
+description: Plane上のSanposcapeプロジェクトの識別子・ID（project/state/現行モジュールA・B・C）と運用上の注意点
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情報。
@@ -21,6 +22,8 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - M3: 認証・アプリ骨格 (module_id: fcafdb25-b598-4883-8388-c0526949fbef)
 - M4: 探索・散歩開始 (module_id: 6c344907-195f-45b2-bb9e-09b37e980eaa)
 - M5: 散歩記録・履歴 (module_id: a59e23c2-590e-4ae9-81d0-d9f7bc6ae63d)
+
+> **⚠️ 2026-08-22 に M1〜M5 は全てアーカイブ済み。現行のモジュールは A/B/C の3つ。最下部の「2026-08-22 再編成」を参照。**
 
 **Why:** MVPまでの開発ロードマップをPlaneのModule/WorkItemとして可視化し、AI・人間双方が進捗を追えるようにするため。
 **How to apply:** 今後この計画に対するタスク追加・進捗更新・状態変更の依頼が来たら、上記のmodule_idを使って `list_module_work_items` 等で現状を確認してから操作する。「散歩ルート」はExpo Router等のroute概念とは別（歩いた道のり）である点に注意（ユーザーからの明示的注意事項）。
@@ -309,3 +312,46 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-61（work_item_id: `db269916-4d21-49a6-b221-33e42ee16a5b`）を新規作成、State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-37（work_item_id: `99bf40df-6398-4e03-b98e-fc7409262ba2`、当時State=Review）のPRセキュリティレビュー修正方針2のフォローアップとして起票（ユーザー指示）。
 - SS-37との関連付けは、402で使えないカスタムリレーション（[[relation_definitions_402|relates_to等]]）の代替として**親子関係（`workitem create`の`parent`パラメータにSS-37のwork_item_idを指定）**を採用。SS-36/37/38/39では本文中の言及のみで済ませていたが、今回はユーザー指示で「親子関係が自然ならparentでも可」と明示されたため親子関係を実際に設定した。SS-37側は`parent`を持たない性質上、子を持たせても type/state 等は一切変更されない。
 - **How to apply**: 今後も「SS-XXと関連付けて」の依頼で緩い関連(relates to)が使えない場面では、まず親子関係が自然かどうかをユーザーに確認するか指示に従い、自然なら`parent`で対応するのが本文言及より確実（Plane UI上でも視覚的にリンクされる）。
+
+## 2026-08-22 再編成: M1〜M5をアーカイブし、A/B/Cの3モジュール体制へ移行
+
+ユーザー依頼により、モジュールを「マイルストーン(M1〜M5)」から「課題の性質(A/B/C)」による分類へ再編成した。
+
+現行モジュール（オープン18件を全て紐付け済み）:
+
+- **A: MVP達成に必要な残課題** (module_id: `a3a26330-14f9-4c4c-8617-5f9fb1e46af0`, status=in-progress) — SS-33 / SS-62 の2件
+- **B: MVP後の機能充実・改善** (module_id: `bc9c1a8c-cc48-4624-8b19-8fbf88bd5e00`, status=planned) — SS-26/27/28/36/37/38/39/45/46/51/61 の11件
+- **C: 開発体験の改善（アプリ公開と非直結）** (module_id: `6df56d08-8bfe-405b-af99-93e9cb62f53a`, status=planned) — SS-22/40/41/48/59 の5件
+
+旧M1〜M5は status=completed にしたうえで **archive**（delete ではない）。**モジュールは completed か cancelled でないと archive できない**（`Only completed or cancelled modules can be archived` で400が返る）ので、archive 前に必ず status を更新すること。完了・中止済み43件の紐付けはアーカイブ側に保持されている（`module list` に `archived=true` を渡すと参照可能、`unarchive` で復帰可能）。再編成前にオープン11件は旧モジュールから remove 済みで、アーカイブ側には closed な課題のみが残る。
+
+ユーザー判断による分類の変更（初回の振り分け案からの修正）:
+
+- SS-33（周回ルート提示）… 課題本文には「MVPのブロッカーではない」と書かれているが、**ユーザーがMVP必須と判断**。本文の「位置づけ」節が実態と食い違ったままなので、着手時は本文を鵜呑みにしないこと。
+- SS-36（ドラフトのローカル永続化）/ SS-37（保存401時のサインインCTA）… **MVP後**に降格。
+
+**Why:** MVPの機能面がほぼ完了し、マイルストーン単位の管理よりも「公開に必要か / 後回しでよいか / アプリ非直結か」の軸で残課題を見たいというフェーズに移ったため。
+
+**How to apply:** 今後モジュール関連の依頼が来たら A/B/C の module_id を使う。このファイル内で M1〜M5 の module_id を参照している過去の記述は全てアーカイブ済みモジュールを指すので、そのまま使わないこと。新規課題も M1〜M5 ではなく A/B/C のいずれかに紐付ける。
+
+## 2026-08-22 発見・起票: SS-62「mobile: 設定画面にアカウント削除の導線を実装する」
+
+課題棚卸しの過程で、MVPに必要なのに**Planeに一切起票されていない**作業を発見し、SS-62（work_item_id: `ca486f5b-6a9a-4b35-9a93-d5460f33d2b2`、State=Todo、priority=high、モジュールA）として起票した。
+
+- backend: `DELETE /users/me` は実装済み（`packages/backend/src/sanposcape/users/router.py`）
+- mobile: `packages/mobile/src/features/settings/components/SettingsView.tsx` にログアウトのみで削除導線なし
+- SS-11 はログアウトまで、SS-12 は backend 側のみが対象で、その隙間に落ちていた
+
+**Why:** 「Planeのオープン課題＝残作業の全量」とは限らない実例。完了済み課題の対象範囲の隙間に、誰も起票していない作業が残ることがある。
+
+**How to apply:** 「MVPまでの残りは何か」を問われたら、Planeのオープン課題を数えるだけで答えない。仕様側（ADR・プロジェクト概要）の要件と実装の実体を突き合わせて、未起票の抜けが無いか確認すること。
+
+## 2026-08-22 変更: `docs/milestones.md` を削除。残作業の情報源はPlaneに一本化
+
+ユーザー判断で `docs/milestones.md` を削除した（「今後はPlaneを軸にしたい」）。M1〜M5の完了条件チェックボックスと各SS課題の実績記録がそこにあったが、決定事項は各ADRに、進捗はPlaneのアーカイブ済みモジュールに残っている。
+
+参照していた箇所は同時に修正済み: `README.md` のドキュメント一覧、`docs/adr/ADR-001` / `ADR-003` の関連情報リンク、`docs/project-overview.md` の「4. マイルストーン概要」のコメント、`.claude/agent-memory/mobile-planner/reference-planning-inputs.md`。
+
+**Why:** 残作業の情報源が Plane と `docs/milestones.md` の2箇所にあり、片方が陳腐化する状態（実際にM2/M3のチェックボックスが実態より古かった）を解消するため。
+
+**How to apply:** 「マイルストーン」「MVPの残り」を問われたら `docs/milestones.md` を探さない（存在しない）。Planeのモジュール A/B/C と各課題本文、および `docs/adr/` を情報源にすること。
