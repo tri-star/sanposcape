@@ -28,6 +28,8 @@ const NEW_ROUTE: WalkRoute = {
     { latitude: 35.7, longitude: 139.75 },
     { latitude: 35.71, longitude: 139.76 },
   ],
+  legs: [],
+  returnIsSamePath: false,
   bounds: {
     northEast: { latitude: 35.71, longitude: 139.76 },
     southWest: { latitude: 35.7, longitude: 139.75 },

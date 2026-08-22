@@ -30,6 +30,8 @@ const ROUTE: WalkRoute = {
   durationSeconds: 600,
   distanceMeters: 900,
   path: PATH,
+  legs: [],
+  returnIsSamePath: false,
   bounds: { northEast: B, southWest: A },
 };
 
