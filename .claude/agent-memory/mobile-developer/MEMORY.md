@@ -25,3 +25,4 @@
 - [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
 - [sandboxでgit worktreeがread-only](sandbox-git-worktree-readonly.md) — `git add/commit`がindex.lock作成でRead-only file system失敗。リトライ無駄、ユーザーに報告する
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
+- [共有型への必須フィールド追加とfixture波及](shared-type-required-field-fixture-fanout.md) — SS-33。プランの「変更しないテスト」を鵜呑みにせずgrep/typecheckで全構築箇所を洗い出す

@@ -2,7 +2,8 @@
 name: react-native-maps-notes
 description: react-native-maps 1.27.2 の型・実装メモ（MapView ref, Marker tracksViewChanges, Maps キー注入）。SS-16 のルート描画（Polyline/fitToCoordinates）でも参照する
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 ## 導入（SS-15, 2026-07-30）
@@ -40,3 +41,22 @@ metadata:
 `fitToCoordinates`/`MapBounds` へのフィットが必要になる見込み（`docs/mobile-plan.md` SS-15 の
 スコープ外セクション参照）。`MapView` インスタンスの `fitToCoordinates(coordinates, options)` /
 `fitToElements(options)` が使える（`node_modules/react-native-maps/dist/src/MapView.d.ts` で型確認済み）。
+
+## 複数区間のPolyline描き分けパターン（SS-33、実装済み）
+
+周回ルート（往路+復路）を別経路として描き分ける実装で使ったパターン。同様に「1本のルートを
+複数区間に分けて別スタイルで描く」要件があれば再利用できる。
+
+- `RoutePolyline`（`src/components/ui/route-polyline/RoutePolyline.tsx`）に
+  `color`/`dashPattern`/`strokeWidth`/`zIndex` を任意 props として追加し、既定値は元のまま維持
+  （既存の呼び出し元は無改修で動く）。`lineDashPattern` prop が破線を作る
+  （`[線分長, 間隔]` の px 配列）。
+- 「1本で描くか複数本で描き分けるか」の分岐は、区間データを持つ feature 側の薄いコンポーネント
+  （`WalkRouteLegPolylines.tsx`）に1箇所へ閉じる。**Fragment（`<>...</>`）を返す**こと
+  （`View` で包むと `Polyline` は `MapView` の直下でなくなり描画されない。カスタムコンポーネントは
+  RN ツリーで平坦化されるため Fragment なら問題ない）。
+- 「今どちらの区間を進行中か」の判定（GPS ヒステリシス）はコンポーネントではなく `lib/` の純粋関数
+  （`observeWalkLeg`）に置き、hook（`useWalkLegPhase`）は state 保持だけを担う薄い層にする
+  （RN 依存の hooks/components は Vitest でテストできないため、判定ロジックだけ切り出してテストする）。
+  ヒステリシス（切り替えマージン）と「一度到達したら戻さない」ラッチの2つを組み合わせると、
+  GPS の揺れによる表示のちらつきを防げる。
