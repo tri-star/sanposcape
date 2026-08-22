@@ -36,7 +36,9 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
   Place ID を表示名の代わりには使わない。mobile は旧 backend や実行時の契約逸脱に備える最終防衛として、
   空・不正な表示名を「目的地」へ置き換え、表示用文字列を最大256 Unicode code pointに制限する。
 - （SS-33 追補）`POST /explore/routes/walking` のルート提示を、片道から**周回（現在地→目的地→
-  別経路→現在地）**へ変更した。`computeRoutes` に `intermediates=[目的地(stopover),
+  別経路→現在地）**へ変更した。**周回の生成方式そのもの（検討した5案の比較・実 API スパイクの実測・
+  α やしきい値をその値にした根拠）は [ADR-005](./ADR-005-loop-route-generation-with-generated-waypoint.md)
+  に分離してある。** 本 ADR には Routes API の使い方と API 契約への影響のみを残す。`computeRoutes` に `intermediates=[目的地(stopover),
   復路用経由点(via)]` を渡す1リクエストで往路・復路の2 legを取得する（Essentials SKU 据え置き）。
   経由点は backend が `bearing(origin→destination)` を軸にした決定的な幾何規則で生成し、
   候補分布や乱数などの非決定的な入力は使わない。起点は origin と destination の中点
@@ -158,6 +160,8 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 ## 関連情報
 
+- [ADR-005: 散歩ルートの周回生成に「復路用経由点の自動生成」を採用する](./ADR-005-loop-route-generation-with-generated-waypoint.md)
+  — SS-33 の周回生成方式の決定。検討した5案の比較と、実 API スパイク（108試行）の実測に基づく定数の根拠を持つ
 - [プロジェクト概要](../project-overview.md) / [マイルストーン](../milestones.md)（M4: 探索・散歩開始）
 - [ADR-002: モバイル技術スタック](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)
 - backend フォルダ構造（`integrations/` 隔離層）: [folder-structure](../../packages/backend/docs/folder-structure.md)

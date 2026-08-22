@@ -257,6 +257,9 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md) — 依存追加が `@expo/fingerprint` 経由で APK キャッシュに効く（決定5 の理由）
 - [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md) — SS-16 で `watchPosition` を追加
 - [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由。~~片道値2倍で往復算出~~ → **（SS-33 追補）** `POST /explore/routes/walking` は周回（往路+復路）の実値を返すようになった。ADR-001 の SS-33 追補（API 契約・経由点生成・kill switch）を参照
+- [ADR-005: 散歩ルートの周回生成に「復路用経由点の自動生成」を採用する](../../../docs/adr/ADR-005-loop-route-generation-with-generated-waypoint.md)
+  — 周回生成方式の決定（検討した5案・実 API スパイクの実測）。**本 ADR の `staleTime = 1時間` が
+  「同一入力で決定的な周回が返ること」を backend に要求している**という依存関係の相手側
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
 - [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
