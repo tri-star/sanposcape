@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-08-23 追補（SS-33）
 
 ## ステータス
 
@@ -23,6 +23,8 @@
 **SS-37 ローカルレビュー対応で追補**した（認証状態の変化による自動再発火を、サマリ画面の CTA から明示的にサインインした場合に限定した。共有端末で無関係な後続のサインインに他人のドラフトが混入する事故を防ぐため）。追補部分には `（SS-37 ローカルレビュー対応）` を付けている。
 
 **SS-60「mobile: 散歩履歴を削除するUIを実装」で追補**した（決定4 の `savedWalkId` に2つ目の用途が生まれたこと、決定6 と同型の後始末レジストリが2本目になったことを記録。決定そのものは変更していない）。追補部分には `（SS-60 追補）` を付けている。
+
+**SS-33「散歩ルートの周回化」で追補**した（決定2 の申し送りを消化し `staleTime`/レート制限は維持と結論、決定7 の `walkRouteFitKey`/`isOffRoute` の判定対象と再計算先の範囲を更新、決定1 の `roundTripMinutes`/`roundTripKm` の出所変更、表示文言の所在、kill switch による degrade を追記した）。追補部分には `（SS-33 追補）` を付けている。
 
 ## コンテキスト
 
@@ -53,6 +55,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 
 - 保持するのは `ActiveWalk` = `{ clientWalkId, origin, destination, roundTripMinutes, roundTripKm, startedAtMs }` の**識別情報だけ**。
   - `clientWalkId` は**SS-19 追補**。保存の冪等キー（`client_walk_id`）を**散歩開始時**に `randomUuidV4()`（`src/lib/uuid.ts`）で採番し、終了・再送でも変えない（ADR-003 の決定3）。サーバーから受け取った値ではなく端末が採番したクライアント状態なので、「サーバー由来データを入れない」規律には抵触しない。
+  - **（SS-33 追補）** `roundTripMinutes` / `roundTripKm` の出所が `/explore/places` のスナップショットから `/explore/routes/walking` の**周回ルートの実値**へ変わった（`WalkStartView` が `walkRoute.durationSeconds`/`distanceMeters` から算出して渡す）。「サーバー由来データをストアに入れない」規律には抵触しない — どちらの出所でも「表示用の数値2つのスナップショット」である点は不変。
 - **サーバー由来のデータ（ルート本体）はストアに入れない。**
 - 置き場所は `src/store/` ではなく **`src/features/walk/store/`**（`walk` 機能に閉じるため）。
 - **永続化しない**（AsyncStorage / SecureStore を使わない）。アプリを落としたら散歩は終わる。
@@ -65,6 +68,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 - **`origin` は「散歩の起点」で固定**し、現在地の更新でこの hook の入力を変えない。
 - queryKey の安定性のため、`buildWalkingRouteRequest` が `origin` を**小数4桁に丸める**（GPS の揺れで毎回別のキーになるのを防ぐ。backend 側のキャッシュキー `route:{lat:.5f}:{lng:.5f}:...` にも当たるようになる）。
 - **（SS-35 追補）この規律に例外を1つ追加する**: 「`origin` は散歩の起点で固定」という規律は**初期ルートについては維持**する。SS-35 で追加する「現在地起点の再計算」は Query を経由しない別経路（決定7）であり、`useWalkRoute` の queryKey は変えない。初期ルートのキャッシュ共有はそのまま残る。
+- **（SS-33 追補）** `staleTime = 1時間` / `gcTime = 2時間` / `retry: false` は**維持**する。SS-33 で `WalkRoute` に `legs`/`returnIsSamePath` が入り、リクエストに `route_type` が追加されたが、mobile 側の呼び出し回数は変わらない（初期1回 + 逸脱時 最大1回/分のまま）。`route_type` は `buildWalkingRouteRequest`/`buildReturnToStartRouteRequest` が組み立てるリクエストオブジェクトの一部として `useWalkRoute` の queryKey（`["explore","routeWalking",request]`）に自動的に載るため、loop と one_way が同一キーに混ざることもない。「SS-33 では API 呼び出しが増える場合は `staleTime`/レート制限の再検討が必要」という旧申し送りへの結論として、**再検討は不要**と確定させる（増えたのは backend 内部の Google Routes API 呼び出し回数だけで、mobile から見たリクエスト数は変わらない）。
 
 ### 3. 経過時間は開始時刻からの実時刻差で算出する
 
@@ -136,8 +140,10 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 - **理由**: 取得中・失敗時に直前のルートを表示し続ける必要がある。`useWalkRoute`（決定2）の入力（`origin`）を現在地に差し替えると queryKey が変わり、取得中・失敗時に `data` が `undefined` に落ちて直前のルートが画面から消える（受け入れ条件「ルート取得失敗時は直前の正常ルートと進行状態を維持する」に反する）。`placeholderData: keepPreviousData` は pending 中しか効かず、error 状態は救えない。
 - **古い応答の追い越し防止**のため、`AbortController` + 単調増加の `sequence` を hook 内で自前で持つ（hook の `sequenceRef` が新しい `sequence` を採番して `beginRecalculation` に渡し、`applyRecalculationSuccess`/`applyRecalculationFailure` は一致しない `sequence` の応答を無視する）。**採番は散歩の切り替え時にも巻き戻さない** — `resetRecalculation` が state 側の `sequence` を 0 に戻すため、リセット前に飛んだリクエストは必ず不一致になって捨てられる。連続操作・連続測位でも同時リクエストは1つに保たれ、古い応答が新しいルートを上書きしない。
 - **呼び出し抑制**: 逸脱 80m（`ROUTE_DEVIATION_THRESHOLD_METERS`）× 連続2測位（`REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES`）+ 最小間隔60秒（`RECALCULATION_MIN_INTERVAL_MS`）+ 連続失敗2回（`MAX_CONSECUTIVE_AUTO_FAILURES`）で自動停止する。目的地から50m以内（`DESTINATION_NEAR_RADIUS_METERS`）では再計算しない。`/explore/*` の共有レート制限（既定30 req/60秒/ユーザー）に対し、1散歩あたり最大 1 req/分に収まる（手動再計算・再試行はこの抑制の対象外だが、ユーザー操作1回につき最大1リクエストのため実害は小さい）。
-- **例外の範囲を「同じ目的地へ現在地から引き直す1本のルート」に限定する**。`ActiveWalk.origin`（決定1）は書き換えない — 散歩の起点であり、`useWalkTracking.initialPosition` にも使われているため。
-- 判定ロジック（折れ線までの距離・状態遷移）は `src/features/walk/lib/routeDeviation.ts` / `src/features/walk/lib/routeRecalculation.ts` の純粋関数に置き、副作用（fetch・Abort・世代管理）は hook 側に閉じる（`docs/architecture-guideline.md` の単体テスト方針どおり）。
+- ~~**例外の範囲を「同じ目的地へ現在地から引き直す1本のルート」に限定する**。~~ → **（SS-33 追補）範囲を「往路は同じ目的地への周回、復路は出発地への片道」に更新する**。散歩が周回（往路+復路）になったことで、復路にいる間に `route_type: "loop"` で引き直すと「もう一度目的地へ行って戻る」ルートが返り、ユーザーを来た方向へ引き返させてしまう。`useWalkRouteRecalculation` は `legPhase`（`lib/walkRouteLeg.ts` の `observeWalkLeg` が判定する往路/復路）に応じて、往路なら `buildWalkingRouteRequest({ routeType: "loop" })`、復路なら `buildReturnToStartRouteRequest`（destination = `ActiveWalk.origin`）を送り分ける。`ActiveWalk.origin`（決定1）は依然として書き換えない — 散歩の起点であり、`useWalkTracking.initialPosition` にも使われているため。
+- **（SS-33 追補）`walkRouteFitKey` に目的地座標を追加する**。復路の再計算では目的地が「散歩の出発地」に変わり、place id を持たない（`placeId` が空文字になる）ため、placeId + origin だけでは「目的地が変わったのに同じキー」になりうる。`lib/walkRoute.ts` の `walkRouteFitKey` は `placeId:origin:destination座標` の3要素をキーにするよう変更した。
+- **（SS-33 追補）`isOffRoute` の判定対象は周回全体の `route.path`（leg 単位に絞らない）**。往路と復路は出発地・目的地の周辺で必ず接近しており、leg 単位に絞ると「もう一方の leg の上を歩いている」だけで逸脱と判定され、無駄な再計算が増えるため。トレードオフ（復路にいるのに往路の折れ線の近くを歩いている間は逸脱と判定されない）は「進行済み区間を除かない」という初版の設計判断と同じ理屈で MVP では許容する。詳細は `src/features/walk/lib/routeDeviation.ts` の JSDoc を参照。
+- 判定ロジック（折れ線までの距離・状態遷移）は `src/features/walk/lib/routeDeviation.ts` / `src/features/walk/lib/routeRecalculation.ts` の純粋関数に置き、副作用（fetch・Abort・世代管理）は hook 側に閉じる（`docs/architecture-guideline.md` の単体テスト方針どおり）。往路/復路の判定自体（`observeWalkLeg`）も同じ理由で `src/features/walk/lib/walkRouteLeg.ts` の純粋関数に置き、`src/features/walk/hooks/useWalkLegPhase.ts` は状態保持のみを担う（**SS-33 追補**）。
 
 ### 8. 散歩がサーバーから削除されたときの後始末も、決定6 と同型のレジストリで行う（SS-60 追補）
 
@@ -232,15 +238,17 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - （SS-19 追補）`useFinishedWalkStore.savedWalkId` により、「ストアにサーバー由来データを入れない」という規律に例外が1つ存在する状態になった。規律を読むだけでは例外の存在が分からないため、[folder-structure](../docs/folder-structure.md) と本 ADR の両方に許容条件を明記して補っている。
 - 画面カタログ（`/dev-screens`）から散歩中画面を開く場合、**ストアに代表値を仕込んでから遷移する**必要が生じた（`DEFAULT_ACTIVE_WALK`）。「状態を前提に描画する画面」は単純な `router.push` では確認できない。
 - `staleTime` が長いため、**同じ2点のルートは1時間再取得されない**。backend 側でルートが改善されても即座には反映されない（徒歩ルートの性質上、実害は小さいと判断）。
-- 散歩中画面の「往復の目安」（探索結果のスナップショット）と「片道◯分」（実ルート値）が**異なる API 由来の数値**になる。前者は候補一覧との一貫性、後者は正確性を優先した結果で、両者が僅かにずれうる。
+- ~~散歩中画面の「往復の目安」（探索結果のスナップショット）と「片道◯分」（実ルート値）が**異なる API 由来の数値**になる。前者は候補一覧との一貫性、後者は正確性を優先した結果で、両者が僅かにずれうる。~~ → **（SS-33 追補）解消した**。`WalkStartView` が `ActiveWalk.roundTripMinutes`/`roundTripKm` に `/explore/places` のスナップショットではなく `walkRoute`（`/explore/routes/walking` の**周回ルートの実値**）を入れるようになったため、散歩中ヘッダーの周回時間・距離と直下の往路/復路（または「ここから」）の表示は**同じ実効ルートから算出した数値**になった。ただし `SpotCard`（一覧）と選択後の値のズレは残る（一覧は `/explore/places` の概算のまま。LOOP_FACTOR 補正で構造的なズレは縮んだが解消はしていない。`WalkRouteSummary` の JSDoc を参照）。
 - （SS-35 追補）サーバー由来データが Query キャッシュ外（`useWalkRouteRecalculation` の hook state）に1箇所生まれる。画面をアンマウントすると再計算結果は失われ、初期ルート表示に戻る（散歩中画面はタブ画面で通常アンマウントされないため実害は小さい）。
+- **（SS-33 追補）** kill switch（backend の `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`）が OFF のとき、`POST /explore/routes/walking` は常に `return_is_same_path: true` を返す。mobile はこの degrade を**無改修で受けられる**（`hasDistinctLegs()` が false になり、`WalkRouteLegPolylines` が単線描画・往路/復路バッジは目的地到達ラッチのみで判定する SS-32 相当の見た目になる）。この degrade 経路は実運用で常時使われうる前提で実装している。
 
 ### 移行・対応が必要な事項
 
 - ~~**M5（SS-18〜SS-20）で散歩記録の保存を実装する際**、この ADR の「永続化しない」判断を見直す。~~ → **SS-19 で対応済み**。`WalkTrackState.points` / `elapsedSec` / `distanceMeters` は `buildFinishedWalk`（`lib/finishedWalk.ts`）で `FinishedWalk` にまとめ、`buildWalkCreateRequest` 経由で `POST /walks` に渡す形になった。persist ミドルウェアの追加は**見送り**と結論した（決定5）。
 - **フォローアップ課題（未着手）**: 「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」。着手時は決定5 を覆すことになるため、本 ADR の再追補が必要。
 - ~~**SS-20（履歴一覧・詳細）への申し送り**: `useWalkSave` の成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼んでいるため、履歴一覧・詳細の queryKey は `["walks", ...]` 始まりにすること。保存直後の履歴に新しい散歩が出ない不具合を防ぐ。詳細遷移には `useFinishedWalkStore.savedWalkId` を使える。~~ → **SS-20 で対応済み**。`features/history/hooks/useWalkHistory.ts` は `queryKey: ["walks","list",{limit}]`、`useWalkDetail.ts` は `["walks","detail",walkId]` で統一し、`useWalkSave` の `invalidateQueries({ queryKey: ["walks"] })` に載る。`WalkSummaryView` の「記録を見る」は `useFinishedWalkStore.savedWalkId` を使って `/walk-history/[walkId]` へ直行する。
-- **SS-33（往路と復路が異なる周回ルート）** では `WalkRoute` に往路/復路の区別（`legs` 等）が入る見込み。ルートを Query キャッシュで共有する構造自体は維持できるが、API 呼び出しが増える場合は `staleTime` / レート制限の再検討が必要。（SS-35 追補）その場合、決定7 の `walkRouteFitKey` と `isOffRoute` の判定対象（どの leg の折れ線を使うか）も見直しが必要になる。
+- ~~**SS-33（往路と復路が異なる周回ルート）** では `WalkRoute` に往路/復路の区別（`legs` 等）が入る見込み。ルートを Query キャッシュで共有する構造自体は維持できるが、API 呼び出しが増える場合は `staleTime` / レート制限の再検討が必要。（SS-35 追補）その場合、決定7 の `walkRouteFitKey` と `isOffRoute` の判定対象（どの leg の折れ線を使うか）も見直しが必要になる。~~ → **SS-33 で対応済み**。`WalkRoute` に `legs`/`returnIsSamePath` が入り、ルートを Query キャッシュで共有する構造（決定2）はそのまま維持された。API 呼び出し回数は増えないため `staleTime`/レート制限の再検討は不要と結論した（決定2 の SS-33 追補）。決定7 の `walkRouteFitKey`/`isOffRoute` の判定対象・再計算先の範囲も見直し済み（決定7 の SS-33 追補）。
+- **（SS-33 追補）表示文言の所在**: backend は `destination.name` に空文字を返しうる（`place_id` も `name` も無いリクエスト＝ SS-33 の「出発地へ帰る片道」。backend は日本語の表示文言を発明しない方針）ため、**目的地の表示文言は mobile が持つ**。`WalkDestination.name` は `src/features/walk/lib/walkRoute.ts` の `toWalkRoute`（内部の `resolveDestinationName`）が**必ず非空を返す**不変条件とし、優先順は「①呼び出し側が渡した名前 → ②レスポンスの `destination.name` → ③`"目的地"`（最終フォールバック）」の三段構え。「出発地へ帰るルート」の文言（`RETURN_TO_START_DESTINATION_NAME = "出発地点"`、`src/features/walk/lib/walkRouteRequest.ts`）は**呼び出し側（`useWalkRouteRecalculation`）が `destinationName` として明示的に渡す**ことで出し分け、`toWalkRoute` 内で `route_type` を見て日本語を出し分けることはしない（API の値の形と表示文言を結合させないため。backend が「表示文言を発明しない」方針を採ったのと同じ理屈をクライアント側でも守る）。
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 
 ## 関連情報
@@ -248,7 +256,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - [ADR-002: mobile の技術スタック](./ADR-002-mobile-tech-stack.md) — クライアント状態 = Zustand の原則
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md) — 依存追加が `@expo/fingerprint` 経由で APK キャッシュに効く（決定5 の理由）
 - [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md) — SS-16 で `watchPosition` を追加
-- [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由、片道値2倍で往復算出
+- [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由。~~片道値2倍で往復算出~~ → **（SS-33 追補）** `POST /explore/routes/walking` は周回（往路+復路）の実値を返すようになった。ADR-001 の SS-33 追補（API 契約・経由点生成・kill switch）を参照
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
 - [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
@@ -257,4 +265,5 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - （SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/components/WalkRouteNotice.tsx`
 - （SS-37 追補）実装: `src/features/walk/lib/walkSaveTrigger.ts`、`src/features/walk/lib/walkSaveError.ts`（`walkSaveErrorAction`）、`src/features/auth/lib/postSignInDestination.ts`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
+- **（SS-33 追補）** 実装: `src/features/walk/lib/walkRouteLeg.ts`（`hasDistinctLegs`/`findWalkRouteLeg`/`observeWalkLeg`）、`src/features/walk/hooks/useWalkLegPhase.ts`、`src/features/walk/components/WalkRouteLegPolylines.tsx`、`src/features/walk/lib/walkRoute.ts`（`resolveDestinationName`/`toRouteMinutes`/`walkRouteFitKey`）、`src/features/walk/lib/walkRouteRequest.ts`（`buildReturnToStartRouteRequest`/`RETURN_TO_START_DESTINATION_NAME`）
 - Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）、SS-50（本追補の発生元）、SS-37（本追補の発生元）
