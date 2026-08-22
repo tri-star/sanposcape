@@ -48,7 +48,7 @@
     "orval": "^8.22.0",
     "oxfmt": "^0.62.0",
     "oxlint": "^1.74.0",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "vitest": "^4.1.10"
   },
   "scripts": {
