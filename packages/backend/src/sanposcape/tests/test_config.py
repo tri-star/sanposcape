@@ -97,11 +97,23 @@ def test_production_without_google_maps_server_key_fails_to_start() -> None:
         ("google_maps_rate_limit_window_seconds", 0),
         ("google_maps_explore_request_max_bytes", 0),
         ("google_maps_max_place_candidates", 21),
+        ("google_maps_loop_duration_factor", 0.99),
+        ("google_maps_loop_duration_factor", 2.01),
+        ("google_maps_route_deadline_seconds", 0),
     ],
 )
 def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, value: int) -> None:
     with pytest.raises(ValidationError):
         Settings(**{field: value})
+
+
+def test_loop_route_settings_default_to_ss33_spike_values() -> None:
+    """SS-33: kill switch は既定 ON、LOOP_FACTOR は実測中央値(1.10)ではなく1.15（誤差の非対称性を
+    優先した値）、デッドラインは12秒。`routes-api-spike.md` / `config.py` のコメント参照。"""
+    settings = Settings()
+    assert settings.google_maps_loop_route_enabled is True
+    assert settings.google_maps_loop_duration_factor == 1.15
+    assert settings.google_maps_route_deadline_seconds == 12.0
 
 
 def test_anonymous_maps_rate_limit_must_not_exceed_authenticated_limit() -> None:

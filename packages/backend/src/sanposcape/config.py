@@ -70,6 +70,24 @@ class Settings(BaseSettings):
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
 
+    # --- 周回ルート（SS-33） ---
+    # kill switch: 周回が実地で破綻した／課金が跳ねた場合に、再デプロイなしで SS-32 相当の
+    # 「同じ道を戻る」挙動へ戻すための fail-safe（AUTH_MODE / MAPS_MODE と同じ作法）。
+    # false のとき get_walking_route は route_type=loop の要求でも常に片道を1回だけ引き、
+    # return_is_same_path=True で組み立てる。
+    google_maps_loop_route_enabled: bool = True
+    # `/explore/places` の候補絞り込みで「片道×2」を周回相当に補正する係数。
+    # 2026-08-22 実 API スパイク（routes-api-spike.md）の実測: 中央値 1.10 / p75 1.17 / p90 1.19。
+    # ここでは中央値ではなく 1.15 を既定にする。この係数は「往復◯分で選べるか」の足切りに使われ、
+    # 過小評価（係数が低すぎる）は「往復30分のつもりで選んだのに実際は35分だった」という体験劣化に
+    # 直結する一方、過大評価は「候補が少し減る」だけで済む非対称なコストがあるため、中央値より
+    # 上（p75 弱）を安全側として採る。実運用の観測次第で env から調整できるよう ge/le を設ける。
+    google_maps_loop_duration_factor: float = Field(default=1.15, ge=1.0, le=2.0)
+    # 周回ルート1リクエストの end-to-end デッドライン（最大2回の Google 呼び出しを含む）。
+    # 2026-08-22 スパイク実測は p95 ≈ 230ms と桁で余裕があるが、実運用のレイテンシ変動に
+    # 備えて安全側の値を据え置く。
+    google_maps_route_deadline_seconds: float = Field(default=12.0, gt=0)
+
     # --- walks ---
     # 軌跡は最大で数百KBになり得るため /explore より大きい上限にするが、無制限にはしない
     # （低コスト DoS 対策）。
