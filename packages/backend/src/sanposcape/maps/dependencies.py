@@ -37,4 +37,7 @@ def get_maps_service(
         max_route_requests=settings.google_maps_max_route_requests_per_search,
         search_deadline_seconds=settings.google_maps_search_deadline_seconds,
         route_timeout_seconds=settings.google_maps_read_timeout_seconds,
+        loop_enabled=settings.google_maps_loop_route_enabled,
+        loop_duration_factor=settings.google_maps_loop_duration_factor,
+        route_deadline_seconds=settings.google_maps_route_deadline_seconds,
     )
