@@ -154,6 +154,15 @@ class MapsService:
             if index > 0 and remaining < self._route_timeout_seconds / 2:
                 break
             try:
+                # SS-33 (A-2): GoogleMapsQuotaError は GoogleMapsUnavailableError の
+                # 兄弟例外であり、意図的にここで捕捉しない。1回目の試行が成功したが
+                # 品質不採用で best_outbound_leg を保持している状態で、2回目以降に
+                # クォータエラーが出た場合も、その保持済みの往路 leg は使わずに即座に
+                # 429 (MapsQuotaError) へ伝播させる。クォータ逼迫時に反対側の経由点へ
+                # もう1回リクエストして状況を悪化させないための判断で、1回目で
+                # クォータエラーが出るケース(handover-notes.md #31)だけでなく、
+                # この「1回目成功・品質不採用 → 2回目でクォータエラー」という中間ケース
+                # にも同じ理由で適用される(local-review.md A-2)。
                 route = self._provider.get_walking_route(
                     origin,
                     origin,

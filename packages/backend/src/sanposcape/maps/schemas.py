@@ -93,7 +93,8 @@ class WalkingRouteLeg(BaseModel):
 class RouteDestination(BaseModel):
     # SS-33: route_type によらず常に任意にする。place_id はルーティングに使っておらず必須にする
     # 技術的根拠が無く、条件付き必須にすると mobile 側の 422 リスクだけが増える
-    # (backend-plan.md 決定 §8.3)。「出発地へ帰る」one_way リクエストは place_id を持たない。
+    # (docs/adr/ADR-001-map-poi-google-maps-platform.md の SS-33 追補参照)。
+    # 「出発地へ帰る」one_way リクエストは place_id を持たない。
     place_id: str | None = Field(default=None, min_length=1, max_length=256)
     location: GeoPoint
     # Optional compatibility field: SS-15 can preserve the name shown on the selected card

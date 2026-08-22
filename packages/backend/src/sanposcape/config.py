@@ -83,7 +83,10 @@ class Settings(BaseSettings):
     # 直結する一方、過大評価は「候補が少し減る」だけで済む非対称なコストがあるため、中央値より
     # 上（p75 弱）を安全側として採る。実運用の観測次第で env から調整できるよう ge/le を設ける。
     google_maps_loop_duration_factor: float = Field(default=1.15, ge=1.0, le=2.0)
-    # 周回ルート1リクエストの end-to-end デッドライン（最大2回の Google 呼び出しを含む）。
+    # 周回ルート1リクエストの end-to-end デッドライン。品質不採用時は追加呼び出し無しで
+    # 最大2回、両経由点とも使える応答が得られなかった場合のみ intermediates なしの片道
+    # 呼び出しが1回追加され最大3回になる（後者はほとんどの場合 /explore/places のキャッシュ
+    # に載っており実際には Google に出ない。詳細は ADR-001 の SS-33 追補を参照）。
     # 2026-08-22 スパイク実測は p95 ≈ 230ms と桁で余裕があるが、実運用のレイテンシ変動に
     # 備えて安全側の値を据え置く。
     google_maps_route_deadline_seconds: float = Field(default=12.0, gt=0)
