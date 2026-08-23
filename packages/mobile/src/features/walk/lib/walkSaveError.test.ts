@@ -5,6 +5,7 @@ import {
   type WalkSaveErrorCode,
   isRetriableWalkSaveError,
   toWalkSaveErrorCode,
+  walkSaveErrorAction,
   walkSaveErrorMessage,
 } from "@/features/walk/lib/walkSaveError";
 
@@ -63,4 +64,37 @@ describe("isRetriableWalkSaveError", () => {
   it.each(["unauthorized", "too_large", "invalid_request"] as const)("%s は再試行不可", (code) => {
     expect(isRetriableWalkSaveError(code)).toBe(false);
   });
+});
+
+describe("walkSaveErrorAction", () => {
+  it("unauthorized は sign_in", () => {
+    expect(walkSaveErrorAction("unauthorized")).toBe("sign_in");
+  });
+
+  it.each(["network", "server", "unknown"] as const)("%s は retry", (code) => {
+    expect(walkSaveErrorAction(code)).toBe("retry");
+  });
+
+  it.each(["too_large", "invalid_request"] as const)("%s は none", (code) => {
+    expect(walkSaveErrorAction(code)).toBe("none");
+  });
+});
+
+describe("isRetriableWalkSaveError と walkSaveErrorAction の食い違い（設計の要点。CQ Low 対応）", () => {
+  it("unauthorized だけが、自動リトライ不可（false）なのにサインイン CTA（sign_in）を出す", () => {
+    // `isRetriableWalkSaveError` は「自動リトライしてよいか」、`walkSaveErrorAction` は
+    // 「ユーザーに何を提示するか」で意味が異なる。401 は再試行しても同じ結果になるため
+    // 自動リトライはしないが、サインインという別の前進手段があるため CTA は出す（SS-37）。
+    expect(isRetriableWalkSaveError("unauthorized")).toBe(false);
+    expect(walkSaveErrorAction("unauthorized")).toBe("sign_in");
+  });
+
+  it.each(["too_large", "invalid_request", "network", "server", "unknown"] as const)(
+    "%s は isRetriableWalkSaveError と walkSaveErrorAction が食い違わない（none/none または retry/retry）",
+    (code) => {
+      const retriable = isRetriableWalkSaveError(code);
+      const action = walkSaveErrorAction(code);
+      expect(action).toBe(retriable ? "retry" : "none");
+    },
+  );
 });

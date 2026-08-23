@@ -43,7 +43,7 @@ export function toWalkSaveErrorCode(error: unknown): WalkSaveErrorCode {
 }
 
 const MESSAGES: Record<WalkSaveErrorCode, string> = {
-  unauthorized: "サインインし直すと、記録を保存できます。",
+  unauthorized: "サインインすると、この散歩の記録を保存できます。",
   too_large: "記録が大きすぎて保存できませんでした。",
   invalid_request: "この散歩は記録できませんでした。",
   network: "通信に失敗しました。電波状況を確認して再試行してください。",
@@ -57,7 +57,33 @@ export function walkSaveErrorMessage(code: WalkSaveErrorCode): string {
 
 const RETRIABLE_CODES = new Set<WalkSaveErrorCode>(["network", "server", "unknown"]);
 
-/** ユーザーが手で再試行して意味があるか（＝再試行ボタンを出すか）。 */
+/**
+ * ユーザーが手で再試行して意味があるか（＝再試行ボタンを出すか）。
+ * `useWalkSave` の TanStack Query `retry` 述語（自動リトライ可否）でのみ使う。
+ * UI が「何を提示するか」の判断には `walkSaveErrorAction` を使うこと（SS-37）。
+ * unauthorized はここでは false のまま（再試行しても 401 のままなので自動リトライはしない）。
+ */
 export function isRetriableWalkSaveError(code: WalkSaveErrorCode): boolean {
   return RETRIABLE_CODES.has(code);
+}
+
+/** エラー表示に添えるユーザー操作。UI の分岐をここに集約する（SS-37）。 */
+export type WalkSaveErrorAction = "retry" | "sign_in" | "none";
+
+const ERROR_ACTIONS: Record<WalkSaveErrorCode, WalkSaveErrorAction> = {
+  unauthorized: "sign_in", // 401: 再試行しても同じ。サインインが唯一の前進手段（SS-37）
+  too_large: "none",
+  invalid_request: "none",
+  network: "retry",
+  server: "retry",
+  unknown: "retry",
+};
+
+/**
+ * 保存失敗時に UI が出すべき操作を返す（純粋）。
+ * `isRetriableWalkSaveError` は「自動リトライしてよいか」（`useWalkSave` の `retry` 述語）で、
+ * こちらは「ユーザーに何を提示するか」。unauthorized だけが両者で食い違う（SS-37）。
+ */
+export function walkSaveErrorAction(code: WalkSaveErrorCode): WalkSaveErrorAction {
+  return ERROR_ACTIONS[code];
 }

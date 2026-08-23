@@ -10,7 +10,6 @@
 ## ドキュメント
 
 - [プロジェクト概要](./docs/project-overview.md) — 目的・MVP・技術スタック・ビジョン・用語集
-- [マイルストーン計画](./docs/milestones.md) — MVP達成までの M1〜M5
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
 - ADR（アーキテクチャ決定記録）
   - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)

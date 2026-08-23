@@ -100,6 +100,6 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 ## 関連情報
 
-- [プロジェクト概要](../project-overview.md) / [マイルストーン](../milestones.md)（M4: 探索・散歩開始）
+- [プロジェクト概要](../project-overview.md)
 - [ADR-002: モバイル技術スタック](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)
 - backend フォルダ構造（`integrations/` 隔離層）: [folder-structure](../../packages/backend/docs/folder-structure.md)

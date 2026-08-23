@@ -2,13 +2,15 @@
 
 ## 日付
 
-2026-08-01（初版）、2026-08-02 追補（SS-20）、2026-08-09 追補（SS-42）、2026-08-12 追補（SS-53）
+2026-08-01（初版）、2026-08-02 追補（SS-20）、2026-08-09 追補（SS-42）、2026-08-12 追補（SS-53）、2026-08-16 追補（SS-60）
 
 **SS-20「散歩履歴一覧・詳細画面」で追補**した（「移行・対応が必要な事項」の SS-20 への申し送りを実績に更新）。追補部分には `（SS-20 追補）` を付けている。
 
 **SS-42「mobile: 記録タブの週/月集計・連続日数・歩数を実装する」で追補**した。記録タブの週/月チャート・連続日数（streak）・歩数がスタブのまま残っていた件（SS-20 の「対応を見送った事項」）に決着を付け、専用の集計 API `GET /walks/stats` を新設した。「保留（次タスクへ再送り）」としていた streak のサーバー保持判断もここでクローズする。追補部分には `（SS-42 追補）` を付けている。
 
 **SS-53「backend: 散歩記録の削除API」で追補**した。初版で「今回スコープ外」としていた削除 API `DELETE /walks/{walk_id}` を追加し、「移行・対応が必要な事項」に残っていた未着手項目をクローズした。追補部分には `（SS-53 追補）` を付けている。
+
+**SS-60「mobile: 散歩履歴を削除するUIを実装」で追補**した。SS-53 が残した「mobile への申し送り（未着手）」をクローズし、決定13 の内容自体は変更せず、mobile 側の実装実績と、そこで新たに判明した事項（削除成功直後の再取得で自分が消した記録の 404 を引く点）を記録した。追補部分には `（SS-60 追補）` を付けている。
 
 ## コンテキスト
 
@@ -97,7 +99,7 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
 - 冪等にはしない（2回目の DELETE は 404）。クライアントは DELETE の 404 を「既に存在しない」として成功同様に扱ってよい。
 - 集計（決定10・11）は非正規化を持たない都度クエリのため、削除に追加実装なしで追従する。**連続日数はユーザー操作で減りうる**（従来は単調増加のみだった）。
 - 削除により `(user_id, client_walk_id)` の UNIQUE が解放されるため、同じ `client_walk_id` を再送すると散歩が再作成される（決定3の冪等性は「未削除の散歩に対する再送」に限って成立する）。
-- mobile の削除導線は SS-53 のスコープ外（API のみ）。
+- mobile の削除導線は SS-53 のスコープ外（API のみ）。**（SS-60 追補）** mobile 側の削除導線は履歴詳細画面（`/walk-history/[walkId]`）に実装済み。一覧側からの削除は引き続き非スコープ。
 
 ## 検討した選択肢
 
@@ -177,7 +179,7 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
 
 **軌跡を JSONB にしたのは、mobile への依存追加を避けつつ調査可能性を確保するため。** polyline は行サイズでは優れるが、`minimumReleaseAge` 制約のあるモバイル側にデコーダを増やす代償と、「DB を見ても軌跡が読めない」ことの調査コストが、MVP 段階では利得を上回ると判断した。6桁丸め（約 0.11m）は GPS 精度より十分細かく、精度を犠牲にしていない。
 
-**冪等化を最初から入れたのは、散歩終了時の保存が最も失敗しやすい瞬間だから。** 屋外・電波不良の状況で送信するため SS-19 は必ずリトライする。冪等でなければ同じ散歩が履歴に二重に並び、しかもユーザーには削除手段がない（削除 API は今回スコープ外）（**SS-53 追補**: API としては `DELETE /walks/{walk_id}` を追加したが、mobile の削除導線は未実装のため、エンドユーザー視点では依然として削除手段が無い。二重登録を防ぐ責務は引き続き冪等キーが持つ）。冪等キーを**保存直前でなく散歩開始時に採番する**のは、リトライのたびに値が変わると冪等性が効かないため。
+**冪等化を最初から入れたのは、散歩終了時の保存が最も失敗しやすい瞬間だから。** 屋外・電波不良の状況で送信するため SS-19 は必ずリトライする。冪等でなければ同じ散歩が履歴に二重に並び、しかもユーザーには削除手段がない（削除 API は今回スコープ外）（**SS-53 追補**: API としては `DELETE /walks/{walk_id}` を追加した。**SS-60 追補**: mobile の削除導線が履歴詳細に入り、エンドユーザー視点でも削除手段が存在するようになった。ただし二重登録を防ぐ責務は引き続き冪等キーが持つ —— 削除は取り消せないため、「二重登録されたら消せばよい」とは考えない）。冪等キーを**保存直前でなく散歩開始時に採番する**のは、リトライのたびに値が変わると冪等性が効かないため。
 
 **`duration_seconds` を別カラムにしたのは、表示値の不一致を防ぐため。** サーバーで `ended_at - started_at` を計算すると一時停止時間が混入し、終了サマリ（mobile が計算した値）と履歴（サーバーが計算した値）で異なる時間が表示される。ドメイン上「散歩した時間」は実活動秒であり、wall-clock はその近似でしかない。
 
@@ -222,7 +224,7 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
 - **（SS-42 追補）** 集計クエリは `AT TIME ZONE` を `SELECT`/`GROUP BY` に使うため、Postgres の tz データベースに依存する（公式 postgres イメージには同梱されている）。
 - **（SS-53 追補）** 削除は取り消せない（物理削除・復元手段なし）。
 - **（SS-53 追補）** 連続日数がユーザー操作で減りうる。
-- **（SS-53 追補）** 削除すると `(user_id, client_walk_id)` の UNIQUE が解放されるため、mobile が同じ `client_walk_id` を保持したまま再送すると削除した散歩が復活する。mobile 側は削除後に該当ドラフト／`client_walk_id` を保持し続けないこと。
+- **（SS-53 追補）** 削除すると `(user_id, client_walk_id)` の UNIQUE が解放されるため、mobile が同じ `client_walk_id` を保持したまま再送すると削除した散歩が復活する。mobile 側は削除後に該当ドラフト／`client_walk_id` を保持し続けないこと。**（SS-60 追補）** この復活経路は mobile 側で塞いだ。`src/lib/walkDeletionCleanup.ts` のレジストリ経由で、`useFinishedWalkStore` が `savedWalkId` と削除された walk id が一致するときだけドラフト（`client_walk_id` を含む）を破棄する（一致しない場合・保存前の場合は別の散歩のドラフトを巻き添えにしないため何もしない）。
 
 ### 移行・対応が必要な事項
 
@@ -235,23 +237,28 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
   - 追加の実装事実: 軌跡は送信直前に `lib/walkTrackPayload.ts` で小数6桁へ丸め・連続重複除去・上限超過時のみ等間隔間引きを行う（記録中の間引き 10m/3秒 + 5m フィルタで通常は上限に達しない）。保存成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼ぶ。
 - SS-20 への申し送り（**クローズ**、SS-42 追補で決着）: 実績は以下のとおり。
   - **対応済み**: 履歴一覧の無限スクロールは `next_cursor` ベースの `useInfiniteQuery`（`features/history/hooks/useWalkHistory.ts`）で実装した。記録タブの「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）から閲覧できる。
-  - **非スコープで据え置き（スタブ継続、SS-20 時点）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のままだった（`docs/milestones.md` に留保を明記）。**SS-42 で実データ化した**（`GET /walks/stats` + mobile 側の配線）。期間フィルタ（`started_after`/`started_before`）自体は SS-42 でも使わない方針を維持（集計はサーバー側の専用 API に一本化したため、一覧 API 側に期間フィルタを掛ける必要が無い）。
+  - **非スコープで据え置き（スタブ継続、SS-20 時点）**: 期間フィルタ（`started_after`/`started_before`）と週/月チャートの実データ化は SS-20 のスコープに含めなかった。記録タブの集計表示（週/月チャート・連続日数・歩数目標）は `useHistorySummary` のスタブ値のままだった。**SS-42 で実データ化した**（`GET /walks/stats` + mobile 側の配線）。期間フィルタ（`started_after`/`started_before`）自体は SS-42 でも使わない方針を維持（集計はサーバー側の専用 API に一本化したため、一覧 API 側に期間フィルタを掛ける必要が無い）。
   - **クローズ（SS-42 追補）**: 連続日数（streak）をサーバー側に持たせるかどうかの判断は、**サーバー側でクエリ算出し、非正規化カラムは持たない**ことで決着した（決定11）。
 - 集計 API（`GET /walks/stats`）は**実績**（SS-42 で実装。決定10〜12）。削除 API（`DELETE /walks/{walk_id}`）も**実績**（SS-53 で実装。決定13）。
 - **（SS-42 追補）** 実装事実: `GET /walks/stats` の追加に新規の Alembic マイグレーション・新規インデックスは不要だった（既存 `ix_walks_user_id_started_at_id` が集計クエリの range scan と streak の index-order + LIMIT の両方を賄う）。
 - **（SS-42 追補）** 実装事実: `WalkService` にクロック注入（`now: Callable[[], datetime]`、既定 `datetime.now(UTC)`）を追加した。「今日」の判定をテストから固定できるようにするための変更で、`auth/service.py` の `AuthService` と同じ形。
 - **（SS-53 追補）** 実装事実: DB スキーマ変更が無いため新規 Alembic マイグレーションは不要。`main.py` の例外ハンドラも既存の `WalkNotFoundError` に相乗りしたため変更なし。
 - **（SS-53 追補）** 実装事実: `RequestSizeLimitMiddleware` は `/walks` 配下の**全 HTTP メソッド**の `Content-Length` を検査するため、GET / DELETE でも 413 が起こり得る。当初は「ボディを持たないエンドポイントは 413 を返さない」前提で OpenAPI から 413 を除いていたが、PR レビューで実装との不整合を指摘され、**ミドルウェア側にメソッド分岐を足すのではなく OpenAPI を実態に合わせる**方向で解消した（`walks/router.py` の全エンドポイントが 401 + 413 を持つ）。ミドルウェア側を直すと `/explore` にも影響が及ぶうえ、防御を弱める変更になるため。
-- **（SS-53 追補）mobile への申し送り（未着手）**: 削除導線（履歴一覧/詳細からの削除操作・確認ダイアログ・失敗時の扱い）は未実装。実装時は (1) 削除成功後に `invalidateQueries({ queryKey: ["walks"] })` を呼べば一覧・詳細・集計がまとめて更新される（query key はすべて `["walks", ...]` 始まり）、(2) DELETE の 404 はエラー表示せず「既に削除済み」として成功扱いにする、(3) 削除した散歩の `client_walk_id` を保持したまま再送しない、の3点に注意する。
+- **（SS-53 追補）mobile への申し送り（SS-60 でクローズ済み）**: 削除導線（履歴一覧/詳細からの削除操作・確認ダイアログ・失敗時の扱い）。申し送っていた3点の実績は以下のとおり。
+  - (1) 削除成功後に `invalidateQueries({ queryKey: ["walks"] })` を呼べば一覧・詳細・集計がまとめて更新される（query key はすべて `["walks", ...]` 始まり） → **対応済み**（`features/history/hooks/useWalkDelete.ts`）。あわせて削除した個票は `removeQueries({ queryKey: ["walks","detail",id], exact: true })` で捨てる。`useWalkDetail` の `staleTime` が1時間あるため、これをしないと後から同じ id を開いたときに消したはずの内容が一瞬出る。
+  - (2) DELETE の 404 はエラー表示せず「既に削除済み」として成功扱いにする → **対応済み**（`features/history/api/walkDeleteApi.ts` が 404 を `{ alreadyDeleted: true }` に読み替え、この解釈を API 層に閉じ込めている）。
+  - (3) 削除した散歩の `client_walk_id` を保持したまま再送しない → **対応済み**（`src/lib/walkDeletionCleanup.ts` + `useFinishedWalkStore`。上記「ネガティブな影響」の SS-60 追補を参照）。
+  - 追加の実装事実: 削除導線は**履歴詳細画面のみ**に置いた（一覧・記録タブの「最近の散歩」には置いていない）。削除後は `router.replace("/walk-history")` で一覧へ遷移する（`push` にすると戻る操作で削除済みの詳細に戻れてしまうため）。
+  - **新たに判明した事項**: (1) の `invalidateQueries` は、まだマウントされている `useWalkDetail` の active query を再取得させるため、**削除に成功した直後に自分が消した記録へ GET が飛んで 404 を引く**。素直に実装すると一覧へ遷移する直前に「見つかりませんでした」が一瞬表示される。mobile 側は `features/history/lib/walkDetailBodyState.ts` の純粋関数で「削除完了」を 404 より優先させて覆い隠している。削除1回につき最大1回の余分な GET が飛ぶが、画面離脱の直前であり許容した。
 
 ## 関連情報
 
 - [ADR-001: 地図・POI は Google Maps Platform を使う](./ADR-001-map-poi-google-maps-platform.md) — 提示経路を永続化せず `place_id` から都度取得する方針の出典
 - [ADR-002: 認証は Google 直結 + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md) — `get_current_user` を single choke point とする方針、401 への正規化
 - [mobile ADR-008: 進行中の散歩の状態管理とルートキャッシュ](../../packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md) — SS-19 追補で「永続化しない」判断を維持した経緯（決定5）と、保存待ちドラフトの持ち方（決定4）
-- [マイルストーン M5: 散歩記録・履歴](../milestones.md)
 - `packages/backend/docs/folder-structure.md` — ドメイン単位の凝集 × `router → service → repository` の3層、`core/` への昇格ルール
 - `packages/backend/docs/naming-convention.md` — 「提示経路 = `walking_route`」「歩いた軌跡 = `track`」の使い分け
 - 実装: `packages/backend/src/sanposcape/walks/`、`core/geo.py`、`core/pagination.py`、`core/middleware.py`
 - **（SS-42 追補）** `packages/backend/src/sanposcape/walks/stats.py` — 集計の日付ロジック・streak 判定の純粋関数（DB / Pydantic に非依存）
+- **（SS-60 追補）** mobile 側の削除導線の実装: `packages/mobile/src/features/history/api/walkDeleteApi.ts`（404 を成功に読み替える層）、`packages/mobile/src/features/history/hooks/useWalkDelete.ts`（mutation + キャッシュ更新）、`packages/mobile/src/features/history/lib/walkDetailBodyState.ts`（削除完了を 404 より優先する表示状態）、`packages/mobile/src/lib/walkDeletionCleanup.ts`（削除後のローカルドラフト破棄レジストリ）
 - **（SS-42 追補）** mobile 側の実装: `packages/mobile/src/features/history/`（週/月チャート・連続日数・推定歩数の画面配線）。mobile 側は決定10〜12を前提にした横断的な UI 判断のため、**新規の mobile ADR は作らない**方針とした（歩数推定・streak 表示は「API とセットで初めて意味を持つ決定」であり、ADR-003 に一本化したほうが後から読むときに追いやすいため）。

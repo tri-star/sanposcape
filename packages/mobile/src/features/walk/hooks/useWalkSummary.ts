@@ -5,6 +5,11 @@ import type { WalkSaveErrorCode } from "@/features/walk/lib/walkSaveError";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import type { WalkSaveStatus, WalkSummaryStats } from "@/features/walk/types";
 
+export type UseWalkSummaryOptions = {
+  /** 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から注入する（ADR-009 決定8）。 */
+  isSignedIn: boolean;
+};
+
 export type UseWalkSummaryResult = {
   stats: WalkSummaryStats;
   /** ドラフトが無い（deep link・画面カタログ直叩き）場合 true。 */
@@ -20,10 +25,10 @@ export type UseWalkSummaryResult = {
  * サマリ画面が必要とするものを1つに束ねる合成 hook（`useActiveWalk` と同じ役割）。
  * `useFinishedWalkStore` からドラフトを読み、`useWalkSave` に保存を委譲する。
  */
-export function useWalkSummary(): UseWalkSummaryResult {
+export function useWalkSummary({ isSignedIn }: UseWalkSummaryOptions): UseWalkSummaryResult {
   const finishedWalk = useFinishedWalkStore((state) => state.finishedWalk);
   const savedWalkId = useFinishedWalkStore((state) => state.savedWalkId);
-  const save = useWalkSave(finishedWalk);
+  const save = useWalkSave(finishedWalk, { isSignedIn });
 
   const stats =
     finishedWalk !== null ? toWalkSummaryStats(finishedWalk) : SAMPLE_WALK_SUMMARY_STATS;

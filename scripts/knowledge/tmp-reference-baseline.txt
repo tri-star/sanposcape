@@ -1,0 +1,32 @@
+# tmp/ 参照の既知違反（棚卸しで ADR/docs へ昇格させ、減らしていく対象）
+# 再生成: scripts/knowledge/check-tmp-references.sh --baseline
+# ここに無いファイルで新たに tmp/ 参照が発生した場合、CIが失敗する。
+.claude/agent-memory/backend-architecture-reviewer/MEMORY.md
+.claude/agent-memory/backend-architecture-reviewer/project_m5_walks_domain.md
+.claude/agent-memory/backend-architecture-reviewer/reference_backend_plan_docs.md
+.claude/agent-memory/backend-architecture-reviewer/users-auth-domain-boundary.md
+.claude/agent-memory/backend-code-quality-reviewer/antipattern_plan_decision_refs.md
+.claude/agent-memory/backend-code-quality-reviewer/project_ss18_walks_review.md
+.claude/agent-memory/backend-code-quality-reviewer/project_ss42_walks_stats_review.md
+.claude/agent-memory/backend-developer/project_ss18_review_followup.md
+.claude/agent-memory/backend-developer/project_ss18_walks_backend_complete.md
+.claude/agent-memory/backend-developer/project_ss42_walks_stats_backend_complete.md
+.claude/agent-memory/backend-developer/project_ss44_fake_maps_provider_complete.md
+.claude/agent-memory/backend-developer/project_ss53_pr47_review_followup.md
+.claude/agent-memory/backend-planner/project_m5_walk_history.md
+.claude/agent-memory/backend-security-reviewer/project_ss42_walks_stats_review.md
+.claude/agent-memory/backend-security-reviewer/project_ss44_maps_fake_review.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss16_walk_route.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss19_walk_finish.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss29_route_as_composition_root.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss35_route_recalculation.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss37_save_sign_in_cta.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss42_history_stats.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss57_guest_route_gate.md
+.claude/agent-memory/mobile-architecture-reviewer/project_ss8_mvp_screens.md
+.claude/agent-memory/mobile-code-quality-reviewer/no-bash-tool-review-approach.md
+.claude/agent-memory/mobile-code-quality-reviewer/verify-generated-types-vs-plan-assumptions.md
+.claude/agent-memory/mobile-planner/workflow-preferences.md
+.claude/agent-memory/mobile-security-reviewer/project_ss19_walk_finish_save.md
+.claude/agent-memory/mobile-security-reviewer/project_ss35_route_recalculation.md
+.claude/agent-memory/mobile-security-reviewer/project_ss37_guest_walk_signin_merge.md
