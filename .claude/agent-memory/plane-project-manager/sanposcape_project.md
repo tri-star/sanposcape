@@ -324,3 +324,8 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-61（work_item_id: `db269916-4d21-49a6-b221-33e42ee16a5b`）を新規作成、State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-37（work_item_id: `99bf40df-6398-4e03-b98e-fc7409262ba2`、当時State=Review）のPRセキュリティレビュー修正方針2のフォローアップとして起票（ユーザー指示）。
 - SS-37との関連付けは、402で使えないカスタムリレーション（[[relation_definitions_402|relates_to等]]）の代替として**親子関係（`workitem create`の`parent`パラメータにSS-37のwork_item_idを指定）**を採用。SS-36/37/38/39では本文中の言及のみで済ませていたが、今回はユーザー指示で「親子関係が自然ならparentでも可」と明示されたため親子関係を実際に設定した。SS-37側は`parent`を持たない性質上、子を持たせても type/state 等は一切変更されない。
 - **How to apply**: 今後も「SS-XXと関連付けて」の依頼で緩い関連(relates to)が使えない場面では、まず親子関係が自然かどうかをユーザーに確認するか指示に従い、自然なら`parent`で対応するのが本文言及より確実（Plane UI上でも視覚的にリンクされる）。
+
+## 2026-08-23追加: SS-33をReview化・PR #62リンク登録
+
+- SS-33（work_item_id: `62f9d861-9139-4b9c-ba34-7eba803b61c2`、モジュールA「MVP達成に必要な残課題」所属）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #62（`https://github.com/tri-star/sanposcape/pull/62`、link_id: `95812738-1142-4256-aa50-95836374618f`）を登録。`list_work_item_properties`は今回もHTTP相当のエラー（「Work item properties is not available on this workspace's plan」）で、標準Link機能が唯一の選択肢という既存方針を継続。
+- コメント（comment_id: `f23b2623-57f2-4e66-8124-e065a2d893d8`）にテスト結果(backend 393 passed / mobile 805 passed)、レビュー実施済み、フォローアップSS-63、SS-14由来の既存バグ(`/explore/places`が起点直近候補で503になる件)を同PRで修正した旨を記録。
