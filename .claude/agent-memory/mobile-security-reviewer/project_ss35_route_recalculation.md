@@ -3,6 +3,15 @@ name: project_ss35_route_recalculation
 description: SS-35（散歩中の現在地起点ルート再計算）セキュリティレビューの要点
 type: project
 ---
+> **2026-08-23 更新（SS-33 動作確認）**: **自動再計算は廃止された**。散歩開始時に往路・復路の
+> ルートを固定し、引き直しは地図右上の「ルートを再計算」ボタン（`walk-active-route-recalc`）を
+> 押したときだけ走る。`lib/routeDeviation.ts` の `isOffRoute` / `ROUTE_DEVIATION_THRESHOLD_METERS`、
+> `lib/routeRecalculation.ts` の `observeRoutePosition` / `shouldStartRecalculation` と
+> レート抑制の状態（`offRouteCount` / `lastRequestAtMs` / `consecutiveFailures`）は削除済み。
+> 以下の記述のうち**自動トリガとレート抑制に関する部分は現存しない**。多重起動防御のうち
+> 生き残っているのは `sequence` の世代管理と `status === "recalculating"` のガードのみ。
+> 経緯は mobile ADR-008 決定7 の「SS-33 動作確認 追補」を参照。
+
 
 SS-35（`tri-star/ss-35`、2026-08-11 レビュー）で `lib/routeDeviation.ts`（逸脱判定）/
 `lib/routeRecalculation.ts`（状態機械）/ `hooks/useWalkRouteRecalculation.ts`（副作用層。

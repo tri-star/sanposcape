@@ -49,7 +49,7 @@ export function hasDistinctLegs(route: WalkRoute | null): boolean {
 
 /**
  * 測位1件を取り込んでフェーズを更新する。値が変わらなければ同じ参照を返す
- * （`lib/routeRecalculation.ts` の `observeRoutePosition` と同じ規律。無駄な再レンダリングを避ける）。
+ * （`lib/walkTrack.ts` の `appendWalkTrackPoint` と同じ規律。無駄な再レンダリングを避ける）。
  *
  * 判定順（この順で評価する）:
  * 1. `route === null` → `state` をそのまま返す。
