@@ -329,3 +329,8 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-33（work_item_id: `62f9d861-9139-4b9c-ba34-7eba803b61c2`、モジュールA「MVP達成に必要な残課題」所属）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #62（`https://github.com/tri-star/sanposcape/pull/62`、link_id: `95812738-1142-4256-aa50-95836374618f`）を登録。`list_work_item_properties`は今回もHTTP相当のエラー（「Work item properties is not available on this workspace's plan」）で、標準Link機能が唯一の選択肢という既存方針を継続。
 - コメント（comment_id: `f23b2623-57f2-4e66-8124-e065a2d893d8`）にテスト結果(backend 393 passed / mobile 805 passed)、レビュー実施済み、フォローアップSS-63、SS-14由来の既存バグ(`/explore/places`が起点直近候補で503になる件)を同PRで修正した旨を記録。
+
+## 2026-08-23追加: SS-64（散歩サマリの統計はみ出し）を起票
+
+- SS-64（work_item_id: `47aa0ac0-331f-414d-85a8-c726786b5170`）を新規作成。State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-33 の動作確認中に見つかった表示崩れ（歩数が5桁になるとサマリ画面の StatBlock 3個が画面外へはみ出す）をユーザー指示で別課題として起票した。
+- **How to apply**: `description_html` に HTML エンティティ（`&lt;h2&gt;` 等）でエスケープした文字列を渡すと、Plane 側がそれをさらにエスケープして `<span>` で包み、UI に生タグがそのまま見える状態で保存される。**生の HTML タグをそのまま渡す**こと（正しく渡すと `<div>` で包まれて格納される）。今回は create 後に update でやり直した。
