@@ -370,6 +370,11 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 **How to apply:** 「マイルストーン」「MVPの残り」を問われたら `docs/milestones.md` を探さない（存在しない）。Planeのモジュール A/B/C と各課題本文、および `docs/adr/` を情報源にすること。
 
+## 2026-08-23追加: SS-33をReview化・PR #62リンク登録
+
+- SS-33（work_item_id: `62f9d861-9139-4b9c-ba34-7eba803b61c2`、モジュールA「MVP達成に必要な残課題」所属）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #62（`https://github.com/tri-star/sanposcape/pull/62`、link_id: `95812738-1142-4256-aa50-95836374618f`）を登録。`list_work_item_properties`は今回もHTTP相当のエラー（「Work item properties is not available on this workspace's plan」）で、標準Link機能が唯一の選択肢という既存方針を継続。
+- コメント（comment_id: `f23b2623-57f2-4e66-8124-e065a2d893d8`）にテスト結果(backend 393 passed / mobile 805 passed)、レビュー実施済み、フォローアップSS-63、SS-14由来の既存バグ(`/explore/places`が起点直近候補で503になる件)を同PRで修正した旨を記録。
+
 ## 2026-09-06追加: SS-67をReview化・PR #70リンク登録
 
 - SS-67「backend: AWS SAM で backend のサーバーレスデプロイ基盤を構築する」(work_item_id: `efd91397-d3fe-415b-b0fe-1d4f8fb3ca25`、モジュール未所属)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`workitem_property list`は今回もこのプロジェクトのプラン制約で使えず（`Work item properties is not available on this workspace's plan`）、`workitem_link`（標準Link機能）でPR #70（`https://github.com/tri-star/sanposcape/pull/70`、link_id: `d3e09fc7-40a9-41cc-a761-c60c10605515`）を登録。既存方針を継続。
