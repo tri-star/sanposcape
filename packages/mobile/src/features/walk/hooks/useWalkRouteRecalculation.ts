@@ -3,15 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchWalkRoute } from "@/features/walk/api/walkRouteApi";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { toExploreErrorCode } from "@/features/walk/lib/exploreError";
-import { isOffRoute } from "@/features/walk/lib/routeDeviation";
 import {
   applyRecalculationFailure,
   applyRecalculationSuccess,
   beginRecalculation,
   INITIAL_ROUTE_RECALC_STATE,
-  observeRoutePosition,
   resetRecalculation,
-  shouldStartRecalculation,
   type RouteRecalcState,
 } from "@/features/walk/lib/routeRecalculation";
 import type { WalkLegPhase } from "@/features/walk/lib/walkRouteLeg";
@@ -28,7 +25,6 @@ export type UseWalkRouteRecalculationInput = {
   /** useWalkRoute が返す初期ルート（散歩開始時の origin 起点）。 */
   baseRoute: WalkRoute | null;
   currentPosition: GeoCoordinates | null;
-  paused: boolean;
   /** 往路なら「現在地起点の周回」、復路なら「現在地 → 出発地の片道」を引き直す（SS-33）。 */
   legPhase: WalkLegPhase;
 };
@@ -48,14 +44,20 @@ export type UseWalkRouteRecalculationResult = {
 
 /**
  * 再計算の副作用層（SS-35）。`fetchWalkRoute` の実行・`AbortController`・世代採番・
- * アンマウント/散歩終了時のキャンセルを担う。判定は `lib/routeDeviation.ts` /
+ * アンマウント/散歩終了時のキャンセルを担う。状態遷移は
  * `lib/routeRecalculation.ts` の純粋関数に委譲し、この hook 自体には分岐ロジックを
  * ほとんど置かない（Vitest 対象外の層を薄くするため）。
+ *
+ * **再計算はユーザーが「ルートを再計算」を押したときだけ走る（SS-33 で自動再計算を廃止）**。
+ * 初版（SS-35）は現在地がルートから逸脱すると自動で引き直していたが、散歩中に地図のルートが
+ * 予告なく書き換わり「開始時に見せたルートを最後まで歩く」という体験が壊れていたため、
+ * 「散歩開始時に往路・復路のルートを固定し、引き直したいときだけユーザーが押す」に変更した。
+ * 経緯と却下した代替案は `adr/ADR-008-active-walk-state-and-route-cache.md` の決定7 を参照。
  *
  * やらないこと（レビューでの質問を先回りして書いておく）:
  * - **TanStack Query（useQuery / queryClient.fetchQuery）は使わない**。理由:
  *   (a) `useWalkRoute` の入力（origin）を現在地に変えると queryKey が変わり、取得中・失敗時に
- *       `data` が undefined に落ちて直前のルートが画面から消える（受け入れ条件3 に反する）。
+ *       `data` が undefined に落ちて直前のルートが画面から消える。
  *       `placeholderData: keepPreviousData` は pending 中しか効かず、error 状態は救えない。
  *   (b) 世代の追い越し制御を自前で持てない。
  *   → 再計算ルートだけを hook のローカル state に置き、初期ルートは従来どおり Query の
@@ -64,7 +66,7 @@ export type UseWalkRouteRecalculationResult = {
  *   `ActiveWalk.origin` で引くため、投入しても誰も読まない。
  * - `ActiveWalk.origin` は更新しない（散歩の起点であり、`useWalkTracking.initialPosition` にも
  *   使われている）。
- * - **復路で周回を引き直さない**。復路の逸脱で `route_type: "loop"` を投げると
+ * - **復路で周回を引き直さない**。復路で `route_type: "loop"` を投げると
  *   「もう一度目的地へ行って戻る」ルートが返り、ユーザーを来た方向へ引き返させてしまう。
  *   復路は「現在地 → 出発地」の片道（`route_type: "one_way"`）で引き直す。
  *   この片道ルートは `legs` が空・`returnIsSamePath` が false になるため、地図は
@@ -73,12 +75,11 @@ export type UseWalkRouteRecalculationResult = {
 export function useWalkRouteRecalculation(
   input: UseWalkRouteRecalculationInput,
 ): UseWalkRouteRecalculationResult {
-  const { activeWalk, baseRoute, currentPosition, paused, legPhase } = input;
+  const { activeWalk, baseRoute, currentPosition, legPhase } = input;
 
   const [state, setState] = useState<RouteRecalcState>(INITIAL_ROUTE_RECALC_STATE);
 
-  // effect 内で同一 tick の判定に使うため、レンダーのたびに最新値を代入する
-  // （`useWalkTracking` の `pausedRef` と同じ手法。依存配列を絞るための ref）。
+  // 連打ガードを onPress の同一 tick で判定するため、レンダーのたびに最新値を代入する。
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -88,20 +89,12 @@ export function useWalkRouteRecalculation(
   const mountedRef = useRef(true);
 
   const route = state.route ?? baseRoute;
-  const routeRef = useRef(route);
-  routeRef.current = route;
 
   const destinationRef = useRef(activeWalk?.destination ?? null);
   destinationRef.current = activeWalk?.destination ?? null;
 
   const legPhaseRef = useRef(legPhase);
   legPhaseRef.current = legPhase;
-
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
-
-  const activeWalkRef = useRef(activeWalk);
-  activeWalkRef.current = activeWalk;
 
   const request = useMemo(
     () =>
@@ -121,10 +114,10 @@ export function useWalkRouteRecalculation(
   requestRef.current = request;
   const canRecalculate = request !== null;
 
-  const start = useCallback((nowMs: number) => {
+  const start = useCallback(() => {
     const req = requestRef.current;
     const isReturn = legPhaseRef.current === "return";
-    // 往路は目的地（destinationRef）が要る。復路は出発地（activeWalkOriginRef）を使うため
+    // 往路は目的地（destinationRef）が要る。復路は出発地（activeWalk.origin）を使うため
     // destination の有無をガードにしない（復路は destination.placeId を使わない）。
     if (req === null) return;
     if (!isReturn && destinationRef.current === null) return;
@@ -135,7 +128,7 @@ export function useWalkRouteRecalculation(
 
     sequenceRef.current += 1;
     const sequence = sequenceRef.current;
-    setState((prev) => beginRecalculation(prev, { nowMs, sequence }));
+    setState((prev) => beginRecalculation(prev, { sequence }));
 
     const destinationName = isReturn
       ? RETURN_TO_START_DESTINATION_NAME
@@ -154,27 +147,6 @@ export function useWalkRouteRecalculation(
         );
       });
   }, []);
-
-  // 自動トリガの effect。依存を currentPosition だけにするのが要点。
-  // paused や activeWalk を依存に入れると、同じ測位で observeRoutePosition が二重に走り
-  // offRouteCount が水増しされる。useWalkTracking は測位ごとに新しいオブジェクトを
-  // currentPosition に入れるため、参照比較で1測位1回になる。
-  useEffect(() => {
-    if (activeWalkRef.current === null || currentPosition === null) return;
-    const currentRoute = routeRef.current;
-    const offRoute = currentRoute !== null && isOffRoute(currentPosition, currentRoute);
-    const observed = observeRoutePosition(stateRef.current, { offRoute });
-    stateRef.current = observed; // 同一 tick 内の判定に使うため同期的に反映する
-    setState(observed);
-
-    const nowMs = Date.now();
-    if (
-      shouldStartRecalculation(observed, { hasPosition: true, paused: pausedRef.current, nowMs })
-    ) {
-      start(nowMs);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 測位1件につき1回だけ評価する（paused 等は ref で読む）
-  }, [currentPosition]);
 
   // 散歩終了・別の散歩へ切り替わったときの初期化（受け入れ条件5）。
   // activeWalk が null になる（散歩終了 / サインアウトの sessionCleanup）と
@@ -195,12 +167,12 @@ export function useWalkRouteRecalculation(
     };
   }, []);
 
-  // 手動は RECALCULATION_MIN_INTERVAL_MS と MAX_CONSECUTIVE_AUTO_FAILURES をバイパスする
-  // （ユーザーの明示操作で、押下1回につき最大1リクエスト。lastRequestAtMs は更新されるので、
-  // 次の自動トリガは手動から60秒後になる）。
+  // ユーザーの明示操作。押下1回につき最大1リクエスト（recalculating 中はボタン自体も
+  // disabled だが、二重防御として state でも弾く）。一時停止中でも押せる
+  // （「休憩中に引き直してから再開する」を許すため）。
   const recalculate = useCallback(() => {
     if (stateRef.current.status === "recalculating") return; // 連打で多重起動しない
-    start(Date.now());
+    start();
   }, [start]);
 
   return {

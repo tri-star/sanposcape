@@ -1,15 +1,5 @@
-import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import type { WalkRoute, WalkRouteRecalcStatus } from "@/features/walk/types";
-
-/** 自動再計算の最小間隔（ms）。手動再計算には適用しない。 */
-export const RECALCULATION_MIN_INTERVAL_MS = 60_000;
-
-/** 自動再計算を発火させるのに必要な、連続して「逸脱」と判定された測位の回数。 */
-export const REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES = 2;
-
-/** 自動再計算を止めるまでの連続失敗回数（以降は手動のみ）。 */
-export const MAX_CONSECUTIVE_AUTO_FAILURES = 2;
 
 export type RouteRecalcState = {
   status: WalkRouteRecalcStatus;
@@ -19,12 +9,6 @@ export type RouteRecalcState = {
   errorCode: ExploreErrorCode | null;
   /** 反映を受け付けるリクエスト世代。0 は未発行。 */
   sequence: number;
-  /** 連続で「逸脱」と判定された測位の回数。 */
-  offRouteCount: number;
-  /** 直近にリクエストを開始した時刻（自動/手動どちらでも更新）。 */
-  lastRequestAtMs: number | null;
-  /** 連続失敗回数。成功で 0 に戻る。 */
-  consecutiveFailures: number;
 };
 
 export const INITIAL_ROUTE_RECALC_STATE: RouteRecalcState = {
@@ -32,70 +16,28 @@ export const INITIAL_ROUTE_RECALC_STATE: RouteRecalcState = {
   route: null,
   errorCode: null,
   sequence: 0,
-  offRouteCount: 0,
-  lastRequestAtMs: null,
-  consecutiveFailures: 0,
 };
 
 /**
- * 測位1件を取り込み、逸脱カウントだけを更新する（offRoute が false なら 0 にリセット）。
- * 値が変わらない場合は同じ参照を返す（`walkTrack.appendWalkTrackPoint` と同じ規律。
- * 不要な再レンダリングを避ける）。
+ * 再計算の状態遷移（純粋関数）。
+ *
+ * SS-33 で**自動再計算を廃止**した。再計算はユーザーが「ルートを再計算」を押したときだけ走る
+ * ため、逸脱カウント・最小間隔・連続失敗による自動停止といった「呼び出し抑制」の状態は
+ * すべて不要になった（押下1回につき最大1リクエストで、多重起動は status === "recalculating"
+ * のガードと sequence の世代管理だけで防げる）。経緯は
+ * `packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md` の決定7 を参照。
  */
-export function observeRoutePosition(
-  state: RouteRecalcState,
-  input: { offRoute: boolean },
-): RouteRecalcState {
-  const nextOffRouteCount = input.offRoute ? state.offRouteCount + 1 : 0;
-  if (nextOffRouteCount === state.offRouteCount) {
-    return state;
-  }
-  return { ...state, offRouteCount: nextOffRouteCount };
-}
-
-/**
- * 自動再計算を開始してよいか。すべて満たす場合のみ true:
- * 1. 多重起動防止（受け入れ条件4の一次防御）
- * 2. 現在地がある
- * 3. 一時停止していない（API を使わない）
- * 4. 連続逸脱が REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES 回以上
- * 5. 前回リクエストから RECALCULATION_MIN_INTERVAL_MS 以上経過（または初回）
- * 6. 連続失敗が MAX_CONSECUTIVE_AUTO_FAILURES 未満
- * 7. 直近の失敗が再試行しても無駄な分類でない（401/422 など）
- */
-export function shouldStartRecalculation(
-  state: RouteRecalcState,
-  input: { hasPosition: boolean; paused: boolean; nowMs: number },
-): boolean {
-  if (state.status === "recalculating") return false;
-  if (!input.hasPosition) return false;
-  if (input.paused) return false;
-  if (state.offRouteCount < REQUIRED_CONSECUTIVE_OFF_ROUTE_FIXES) return false;
-  if (
-    state.lastRequestAtMs !== null &&
-    input.nowMs - state.lastRequestAtMs < RECALCULATION_MIN_INTERVAL_MS
-  ) {
-    return false;
-  }
-  if (state.consecutiveFailures >= MAX_CONSECUTIVE_AUTO_FAILURES) return false;
-  if (state.status === "failed" && !isRetriableExploreError(state.errorCode ?? "unknown")) {
-    return false;
-  }
-  return true;
-}
 
 /** リクエスト開始。sequence は呼び出し側（hook）が単調増加で採番して渡す。取得中も直前のルートを表示し続ける。 */
 export function beginRecalculation(
   state: RouteRecalcState,
-  input: { nowMs: number; sequence: number },
+  input: { sequence: number },
 ): RouteRecalcState {
   return {
     ...state,
     status: "recalculating",
     errorCode: null,
     sequence: input.sequence,
-    lastRequestAtMs: input.nowMs,
-    offRouteCount: 0,
   };
 }
 
@@ -112,8 +54,6 @@ export function applyRecalculationSuccess(
     status: "idle",
     route: input.route,
     errorCode: null,
-    consecutiveFailures: 0,
-    offRouteCount: 0,
   };
 }
 
@@ -129,7 +69,6 @@ export function applyRecalculationFailure(
     ...state,
     status: "failed",
     errorCode: input.errorCode,
-    consecutiveFailures: state.consecutiveFailures + 1,
   };
 }
 

@@ -21,7 +21,8 @@ SS-33（`tri-star/SS-33` ブランチ、mobile側7コミット）は「/explore/
   `fetchWalkRoute`の`destinationName`の両方に渡す二重化も実装どおり。
 - SS-35整合: `useWalkRouteRecalculation` は `legPhase` で `buildWalkingRouteRequest({routeType:"loop"})` と
   `buildReturnToStartRouteRequest`（one_way, destination=ActiveWalk.origin）を送り分け。
-  `isOffRoute` は周回全体の`route.path`、`walkRouteFitKey`に目的地座標を追加、ADR-008決定7に反映済み。
+  ~~`isOffRoute` は周回全体の`route.path`~~（2026-08-23 更新: 自動再計算の廃止に伴い `isOffRoute` ごと削除）、
+  `walkRouteFitKey`に目的地座標を追加、ADR-008決定7に反映済み。
 - `observeWalkLeg`（`lib/walkRouteLeg.ts`）: 目的地到達ラッチを主・両leg投影を従、フェーズ単調という
   設計どおりの実装。参照透過性（値不変なら同一参照を返す）もテストで固定。
 
