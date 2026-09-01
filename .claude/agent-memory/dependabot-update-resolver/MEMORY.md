@@ -1,0 +1,1 @@
+- [mobile ecosystem 誤判定への対処](feedback_mobile_ecosystem_detection.md) — detect-ecosystem.shがmobileをfrontend誤判定。orval生成→typecheck等の手順込み

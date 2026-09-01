@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Inspects a Dependabot PR's head branch name and changed files to determine
 # which part of the repository it targets, and outputs a JSON object:
-#   {"ecosystem": "frontend|backend|github-actions", "package_manager": "...", "directory": "..."}
+#   {"ecosystem": "mobile|frontend|backend|github-actions", "package_manager": "...", "directory": "..."}
 
 PR_NUMBER=${1:?"Usage: $0 <pr-number>"}
 
@@ -30,9 +30,25 @@ if [[ "$HEAD_REF" == dependabot/uv/* ]]; then
   PACKAGE_MANAGER="uv"
   DIRECTORY="packages/backend"
 elif [[ "$HEAD_REF" == dependabot/npm_and_yarn/* || "$HEAD_REF" == dependabot/npm/* ]]; then
-  ECOSYSTEM="frontend"
+  # pnpm workspace のため、npm 系の更新は対象パッケージに関わらずルートの pnpm-lock.yaml を
+  # 書き換える (.github/dependabot.yml の npm ecosystem も directory: "/" を指す)。
+  # ブランチ名だけでは対象パッケージを判別できないので、変更ファイルで切り分ける。
   PACKAGE_MANAGER="npm"
-  DIRECTORY="/"
+  if echo "$FILES" | grep -q '^packages/mobile/'; then
+    ECOSYSTEM="mobile"
+    DIRECTORY="packages/mobile"
+  elif echo "$FILES" | grep -q '^packages/frontend/'; then
+    ECOSYSTEM="frontend"
+    DIRECTORY="packages/frontend"
+  elif [[ "$HEAD_REF" == *mobile* ]]; then
+    # caret 範囲内の更新で package.json に差分が出ず、pnpm-lock.yaml だけが変わるケース。
+    # グループ名 (mobile-dependencies) がブランチ名に含まれるので、そこから判定する。
+    ECOSYSTEM="mobile"
+    DIRECTORY="packages/mobile"
+  else
+    ECOSYSTEM="frontend"
+    DIRECTORY="/"
+  fi
 elif [[ "$HEAD_REF" == dependabot/github_actions/* ]]; then
   ECOSYSTEM="github-actions"
   PACKAGE_MANAGER="github-actions"
@@ -50,6 +66,10 @@ if [[ -z "$ECOSYSTEM" ]]; then
     ECOSYSTEM="backend"
     PACKAGE_MANAGER="uv"
     DIRECTORY="packages/backend"
+  elif echo "$FILES" | grep -q '^packages/mobile/'; then
+    ECOSYSTEM="mobile"
+    PACKAGE_MANAGER="npm"
+    DIRECTORY="packages/mobile"
   elif echo "$FILES" | grep -qE '^(package\.json|pnpm-lock\.yaml|packages/frontend/)'; then
     ECOSYSTEM="frontend"
     PACKAGE_MANAGER="npm"
