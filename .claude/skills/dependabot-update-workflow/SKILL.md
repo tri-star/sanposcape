@@ -9,7 +9,7 @@ argument-hint: "[PR番号] [action: resolve|explain]"
 ## スキルで利用するフォルダ・スクリプト
 
 - `<project-root>` : `.git` ファイル/フォルダが存在するプロジェクトのルートディレクトリ
-- `scripts/detect-ecosystem.sh` : PR のブランチ名・変更ファイルから ecosystem(frontend/backend/github-actions)を判定し JSON を出力する。
+- `scripts/detect-ecosystem.sh` : PR のブランチ名・変更ファイルから ecosystem(mobile/frontend/backend/github-actions)を判定し JSON を出力する。
 
   ```bash
   bash .claude/skills/dependabot-update-workflow/scripts/detect-ecosystem.sh <PR番号>
@@ -52,7 +52,7 @@ bash .claude/skills/dependabot-update-workflow/scripts/detect-ecosystem.sh <PR�
 {"ecosystem": "backend", "package_manager": "uv", "directory": "packages/backend"}
 ```
 
-判定結果の `ecosystem` は `frontend` / `backend` / `github-actions` のいずれかです。以降の手順で、この判定結果をサブエージェントへのプロンプトに含めてください。
+判定結果の `ecosystem` は `mobile` / `frontend` / `backend` / `github-actions` のいずれかです。以降の手順で、この判定結果をサブエージェントへのプロンプトに含めてください。
 
 ### 3. action = `explain` の場合
 
