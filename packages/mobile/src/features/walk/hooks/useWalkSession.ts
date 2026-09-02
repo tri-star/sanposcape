@@ -24,9 +24,14 @@ export function useWalkSession(startedAtMs: number): UseWalkSessionResult {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   // 別の散歩が始まったら（startedAtMs が変わったら）時計を作り直す。
-  useEffect(() => {
+  // effect ではなくレンダー中に更新する（React 公式の「props 変更時に state を調整する」手法）。
+  // effect でやると「前の散歩の経過時間を表示した 1 フレーム」を挟んでしまうが、
+  // レンダー中なら React が DOM を確定させる前にもう一度レンダーし直すためちらつかない。
+  // 「今どの散歩の時計か」は clock.startedAtMs が持っているので、比較用の state は要らない
+  // （pause / resume は startedAtMs を保存するため、この不変条件は崩れない）。
+  if (clock.startedAtMs !== startedAtMs) {
     setClock(createWalkClock(startedAtMs));
-  }, [startedAtMs]);
+  }
 
   useEffect(() => {
     const interval = setInterval(() => setNowMs(Date.now()), 1000);
