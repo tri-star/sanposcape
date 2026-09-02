@@ -14,7 +14,13 @@
   ],
   "rules": {
     "no-unused-vars": "error",
-    "eqeqeq": "error"
+    "eqeqeq": "error",
+    // oxlint 1.79.0 で react プラグインに追加された React Compiler 由来のルール。
+    // React Native の `useRef(new Animated.Value(...)).current` は公式イディオムだが
+    // レンダー中の ref アクセスとして必ず検出されるうえ、
+    // 「最新のコールバックを毎レンダー ref に載せる」手法（useScreenBack / useWalkDelete）も
+    // 同様に検出される。このリポジトリでは意図的に使っている手法なので無効化する。
+    "react/refs": "off"
   },
   "overrides": [
     {
