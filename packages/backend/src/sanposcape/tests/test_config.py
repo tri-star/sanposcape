@@ -356,3 +356,32 @@ def test_sqlalchemy_engine_kwargs_reflects_custom_pool_settings() -> None:
     kwargs = settings.sqlalchemy_engine_kwargs
     assert kwargs["pool_size"] == 1
     assert kwargs["max_overflow"] == 0
+
+
+# --- M-2: マイグレーション専用 direct DSN (`migrate_database_url`) ---
+
+
+def test_migrate_database_url_is_none_when_dsn_unset() -> None:
+    assert Settings(migrate_database_dsn="").migrate_database_url is None
+
+
+def test_migrate_database_url_normalizes_dsn() -> None:
+    settings = Settings(migrate_database_dsn="postgres://user:pw@direct-host.example.com/db")
+    assert settings.migrate_database_url == (
+        "postgresql+psycopg://user:pw@direct-host.example.com/db?sslmode=require"
+    )
+
+
+def test_migrate_database_dsn_is_not_required_for_non_local_env() -> None:
+    """`migrate_database_dsn` は API 本体の `_validate_environment_settings` の対象外
+    （neon_dsn_unpooled が未投入でも Phase 1〜2 は完了できる必要があるため。M-2）。"""
+    settings = Settings(
+        env="production",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://user:pw@host.example.com/db",
+        migrate_database_dsn="",
+    )
+    assert settings.migrate_database_url is None

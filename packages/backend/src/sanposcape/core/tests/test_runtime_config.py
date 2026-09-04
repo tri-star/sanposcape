@@ -4,7 +4,12 @@ import pytest
 
 from sanposcape.config import get_settings
 from sanposcape.core import runtime_config
-from sanposcape.core.runtime_config import SECRET_KEY_TO_ENV, hydrate_environment_from_secret
+from sanposcape.core.runtime_config import (
+    MIGRATE_SECRET_KEY_TO_ENV,
+    SECRET_KEY_TO_ENV,
+    hydrate_environment_from_secret,
+    hydrate_migration_environment_from_secret,
+)
 
 _SECRET_ARN = "arn:aws:secretsmanager:ap-southeast-1:111111111111:secret:x"
 
@@ -22,6 +27,8 @@ def _isolate_secret_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """このモジュールが読み書きする環境変数を確実にテストごとへ隔離する。"""
     monkeypatch.delenv("APP_SECRET_ARN", raising=False)
     for env_name in SECRET_KEY_TO_ENV.values():
+        monkeypatch.delenv(env_name, raising=False)
+    for env_name in MIGRATE_SECRET_KEY_TO_ENV.values():
         monkeypatch.delenv(env_name, raising=False)
     get_settings.cache_clear()
     yield
@@ -127,3 +134,61 @@ def test_calls_get_settings_cache_clear(monkeypatch: pytest.MonkeyPatch) -> None
     hydrate_environment_from_secret()
 
     assert calls == [True]
+
+
+# --- migrate Lambda 専用ハイドレーション (M-2) ---
+
+
+def test_migration_hydration_is_noop_when_secret_arn_is_not_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fail_if_called(secret_arn: str) -> dict[str, str]:
+        raise AssertionError("get_secret_json must not be called without APP_SECRET_ARN")
+
+    monkeypatch.setattr(runtime_config, "get_secret_json", _fail_if_called)
+
+    hydrate_migration_environment_from_secret()  # 例外が飛ばなければ OK
+
+
+def test_migration_hydration_writes_migrate_database_dsn(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_SECRET_ARN", _SECRET_ARN)
+    secret = {"neon_dsn_unpooled": "postgresql://user:pw@direct-host.neon.tech/db"}
+    monkeypatch.setattr(runtime_config, "get_secret_json", lambda secret_arn: dict(secret))
+
+    hydrate_migration_environment_from_secret()
+
+    import os
+
+    assert os.environ["MIGRATE_DATABASE_DSN"] == secret["neon_dsn_unpooled"]
+
+
+def test_migration_hydration_logs_missing_key_without_raising(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`neon_dsn_unpooled` が未投入でも Phase 1〜2 は完了できる必要がある（例外を出さない）。"""
+    monkeypatch.setenv("APP_SECRET_ARN", _SECRET_ARN)
+    monkeypatch.setattr(runtime_config, "get_secret_json", lambda secret_arn: {})
+
+    with caplog.at_level(logging.INFO, logger="sanposcape.core.runtime_config"):
+        hydrate_migration_environment_from_secret()  # 例外が飛ばなければ OK
+
+    import os
+
+    assert "MIGRATE_DATABASE_DSN" not in os.environ
+    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert any("neon_dsn_unpooled" in r.getMessage() for r in error_records)
+
+
+def test_migration_hydration_does_not_touch_api_secret_env_vars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """API 用のマッピング（`SECRET_KEY_TO_ENV`）とは独立していることの回帰テスト。"""
+    monkeypatch.setenv("APP_SECRET_ARN", _SECRET_ARN)
+    monkeypatch.setattr(runtime_config, "get_secret_json", lambda secret_arn: dict(_FULL_SECRET))
+
+    hydrate_migration_environment_from_secret()
+
+    import os
+
+    assert "DATABASE_DSN" not in os.environ
+    assert "AUTH_JWT_SECRET" not in os.environ

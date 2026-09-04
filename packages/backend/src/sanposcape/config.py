@@ -46,10 +46,20 @@ class Settings(BaseSettings):
     db_name: str = "app"
     test_db_name: str = "app_test"
 
-    # DSN 文字列を直接受ける経路（Lambda ではシークレットの `neon_dsn` をここへ写す）。
+    # DSN 文字列を直接受ける経路（Lambda ではシークレットの `neon_dsn`（pooled）をここへ写す）。
     # 空文字なら従来どおり上の db_* から組み立てる（`database_url` 参照）。
     # local/test 以外では必須（下の `_validate_environment_settings` 参照）。
     database_dsn: str = ""
+    # マイグレーション専用の direct（非pooled）DSN。Neon 公式は pooled 接続（PgBouncer
+    # transaction mode）を使ってはいけない用途として Schema migrations を明示している
+    # （`SET search_path` などセッションレベルの機能がトランザクションごとにリセットされるため）。
+    # シークレットの `neon_dsn_unpooled` をここへ写す（`core/runtime_config.py` の
+    # `hydrate_migration_environment_from_secret()`）。API 本体は使わない値なので、
+    # 上の `database_dsn` とは異なり `_validate_environment_settings` の必須チェックには
+    # 含めない（API Lambda のコールドスタートを `neon_dsn_unpooled` 未投入で失敗させないため。
+    # 欠けている場合は `aws_lambda/migrate.py` が実行前ガードで明示的に失敗させる。
+    # tmp/SS-67/handover-notes.md M-2）。
+    migrate_database_dsn: str = ""
     # 接続プール設定。既定値は SQLAlchemy 標準相当（pool_size=5 / max_overflow=10）で
     # ローカル/CI の挙動は変えない。Lambda では pool_size=1 / max_overflow=0 に絞り、
     # Neon への同時接続数を `ReservedConcurrentExecutions` と合わせて有界化する
@@ -196,6 +206,18 @@ class Settings(BaseSettings):
             f"postgresql+psycopg://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.test_db_name}"
         )
+
+    @property
+    def migrate_database_url(self) -> str | None:
+        """マイグレーション用の direct DB 接続 URL。`migrate_database_dsn` 未設定なら `None`。
+
+        `database_url` と違い db_* へのフォールバックを持たない（ローカル開発の
+        `alembic upgrade head` は引き続き `database_url`（= db_* から組み立てた URL）を使う。
+        `alembic/env.py` は無変更）。この property は `aws_lambda/migrate.py` 専用。
+        """
+        if not self.migrate_database_dsn:
+            return None
+        return _to_sqlalchemy_url(self.migrate_database_dsn)
 
     @property
     def sqlalchemy_engine_kwargs(self) -> dict[str, object]:

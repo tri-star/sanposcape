@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: sanposcape backend API on Lambda (Function URL origin for CloudFront)
+
+# ★ Terraform（別リポジトリ sanposcape-infra）との契約:
+#   - スタック名 sanposcape-backend-<env> / 関数名 sanposcape-<env>-backend-* は変更しない
+#   - CloudFront / WAF / Route53 / ACM / Secrets Manager の器 / アクセスログ S3 は
+#     ここでは一切作らない（Terraform 所有）
+#   - CloudFront からの呼び出し許可（lambda:InvokeFunctionUrl / lambda:InvokeFunction）は
+#     Terraform 側が付ける。AWS::Lambda::Permission をここに書かない（二重管理防止）
+#   デプロイ順は常に SAM → Terraform。詳細: tmp/SS-67/backend-plan.md
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Terraform 側と共有するデプロイ環境識別子（アプリの ENV とは別物。下の Mappings 参照）
+
+Conditions:
+  IsProd: !Equals [!Ref Env, prod]
+
+Mappings:
+  # スタックパラメータ Env(dev/prod) は Terraform との契約。
+  # アプリの ENV(staging/production) は config.py の許可リスト方式 fail-safe 検証の契約で、
+  # 値域を安易に広げると過去に staging が検証から漏れて認証バイパスになった罠を再演するリスクがある
+  # ため、config.py 側の Literal は変えずここで変換する（tmp/SS-67/backend-plan.md 決定4）。
+  EnvToAppEnv:
+    dev: { AppEnv: staging }
+    prod: { AppEnv: production }
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+    MemorySize: 1024
+    # CloudFront のオリジン読み取りタイムアウトが 30 秒。超えると CloudFront が 504 を返す。
+    Timeout: 29
+    # ★ VpcConfig は付けない。Neon / Google JWKS / Google Maps API はすべてインターネット経由で、
+    #   VPC に入れると NAT Gateway の固定費と ENI 起因のコールドスタートが乗るだけ（決定5）。
+    Environment:
+      Variables:
+        ENV: !FindInMap [EnvToAppEnv, !Ref Env, AppEnv]
+        AUTH_MODE: real
+        MAPS_MODE: real
+        # Neon への同時接続数を ReservedConcurrentExecutions と合わせて有界化する（決定5）。
+        DB_POOL_SIZE: '1'
+        DB_MAX_OVERFLOW: '0'
+        DB_POOL_RECYCLE_SECONDS: '280'
+        # DB_DISABLE_PREPARED_STATEMENTS は意図的に設定しない（既定 false のまま）。
+        # Neon の PgBouncer はプロトコルレベルの prepared statement に対応済みのため、
+        # psycopg3 の既定（prepare_threshold=5）のままで問題ない。
+        # "prepared statement ... already exists" 系のエラーが実際に出た場合のみ
+        # true に変更する（docs/deployment.md のトラブルシュート参照）。
+        # 値ではなく ARN を渡す。deploy 時に CloudFormation が SSM から解決する
+        # （実行ロールに ssm:GetParameter は不要。account ID がリポジトリに出ないようにするため）。
+        APP_SECRET_ARN: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'
+    Tags:
+      # ★ dev アカウントは他プロジェクトと共有。Budget が Project=sanposcape でコストを切り出す。
+      Project: sanposcape
+      Env: !Ref Env
+      ManagedBy: sam
+      Repo: sanposcape
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub "sanposcape-${Env}-backend-api"  # ★ sanposcape- 始まりが必須（契約）
+      CodeUri: .
+      Handler: sanposcape.aws_lambda.api.handler
+      # in-process キャッシュ / レート制限の実効倍率と Neon への接続数をここで有界化する。
+      # prod は Lambda 同時実行数クォータが初期値10のままで、予約すると必ず
+      # InvalidParameterValueException になる（クォータ引き上げが通るまで）。
+      # 引き上げが通ったら dev と同じ値を入れる（tmp/SS-67/handover-notes.md N-1）。
+      ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 5]
+      FunctionUrlConfig:
+        AuthType: AWS_IAM  # ★ NONE にしない（Function URL の直叩きを構造的に塞ぐ）
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'
+        # kms:Decrypt は不要（AWS 管理キー + kms:ViaService で同一アカウントを許可済み）
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/sanposcape-${Env}-backend-api"
+      RetentionInDays: !If [IsProd, 400, 30]
+
+  Migrate:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: !Sub "sanposcape-${Env}-backend-migrate"
+      CodeUri: .
+      Handler: sanposcape.aws_lambda.migrate.handler
+      Timeout: 300  # Function URL を持たないので CloudFront 由来の 29 秒制約の対象外
+      # alembic upgrade head の同時実行を防ぐ（prod はクォータの都合で未予約。Api と同じ理由）。
+      ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 1]
+      # FunctionUrlConfig は付けない（外から叩けない。手動 invoke のみ）
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'
+
+  MigrateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/sanposcape-${Env}-backend-migrate"
+      RetentionInDays: !If [IsProd, 400, 30]
+
+Outputs:
+  FunctionUrl:
+    Description: CloudFront のオリジンになる Function URL（末尾スラッシュ付き）
+    Value: !GetAtt ApiUrl.FunctionUrl
+  FunctionName:
+    Description: Terraform が lambda:AddPermission を付ける対象
+    Value: !Ref Api

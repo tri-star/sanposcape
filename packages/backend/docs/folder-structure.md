@@ -25,6 +25,10 @@ packages/backend/
 ├── uv.lock
 ├── alembic.ini
 ├── .env / .env.example        # ポート・DB接続・プロジェクト名など
+├── template.yaml               # AWS SAM テンプレート（Lambda / Function URL / ロググループ。SS-67）
+├── samconfig.toml              # SAM の dev/prod config-env（stack_name / region / tags 等。SS-67）
+├── Makefile                    # SAM `BuildMethod: makefile` のビルドターゲット（SS-67）
+├── events/                     # `sam local invoke` / `aws lambda invoke` 用の payload・env-vars（SS-67）
 │
 ├── src/
 │   └── sanposcape/            # アプリ本体パッケージ
