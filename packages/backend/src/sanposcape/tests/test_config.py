@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from sanposcape.config import Settings
+from sanposcape.config import Settings, _to_sqlalchemy_url
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +73,7 @@ def test_production_with_valid_config_starts() -> None:
         auth_jwt_secret="x" * 32,
         google_allowed_audiences=["aud"],
         google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://user:pw@host.example.com/db",
     )
     assert settings.auth_mode == "real"
 
@@ -165,6 +166,7 @@ def test_staging_with_valid_config_starts() -> None:
         auth_jwt_secret="x" * 32,
         google_allowed_audiences=["aud"],
         google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://user:pw@host.example.com/db",
     )
     assert settings.auth_mode == "real"
 
@@ -229,3 +231,128 @@ def test_local_and_test_env_allow_fake_maps_mode(env: str) -> None:
 
 def test_maps_mode_defaults_to_real() -> None:
     assert Settings().maps_mode == "real"
+
+
+# --- 決定3: DSN の正規化 (`_to_sqlalchemy_url`) と `database_url` の優先順位 ---
+
+
+def test_to_sqlalchemy_url_rewrites_postgres_scheme() -> None:
+    result = _to_sqlalchemy_url("postgres://user:pw@host.example.com/db")
+    assert result == "postgresql+psycopg://user:pw@host.example.com/db?sslmode=require"
+
+
+def test_to_sqlalchemy_url_rewrites_postgresql_scheme() -> None:
+    result = _to_sqlalchemy_url("postgresql://user:pw@host.example.com/db")
+    assert result == "postgresql+psycopg://user:pw@host.example.com/db?sslmode=require"
+
+
+def test_to_sqlalchemy_url_does_not_touch_explicit_driver() -> None:
+    """`+driver` が既に指定されている場合は scheme を触らない。"""
+    result = _to_sqlalchemy_url("postgresql+psycopg://user:pw@host.example.com/db")
+    assert result == "postgresql+psycopg://user:pw@host.example.com/db?sslmode=require"
+
+
+def test_to_sqlalchemy_url_keeps_existing_sslmode() -> None:
+    result = _to_sqlalchemy_url("postgres://user:pw@host.example.com/db?sslmode=verify-full")
+    assert "sslmode=verify-full" in result
+    assert result.count("sslmode=") == 1
+
+
+def test_to_sqlalchemy_url_passes_through_other_query_params() -> None:
+    """`channel_binding` のような Neon 固有パラメータは素通しする。"""
+    result = _to_sqlalchemy_url(
+        "postgres://user:pw@host-pooler.example.com/db?channel_binding=require"
+    )
+    assert "channel_binding=require" in result
+    assert "sslmode=require" in result
+
+
+def test_database_dsn_takes_priority_over_db_star_fields() -> None:
+    settings = Settings(
+        db_host="ignored-host",
+        database_dsn="postgres://dsn-user:dsn-pw@dsn-host.example.com/dsn-db",
+    )
+    assert settings.database_url == (
+        "postgresql+psycopg://dsn-user:dsn-pw@dsn-host.example.com/dsn-db?sslmode=require"
+    )
+
+
+def test_database_url_falls_back_to_db_star_fields_when_dsn_unset() -> None:
+    settings = Settings(db_host="db", db_port=5432, db_user="app", db_password="pw", db_name="app")
+    assert settings.database_url == "postgresql+psycopg://app:pw@db:5432/app"
+
+
+def test_test_database_url_is_unaffected_by_database_dsn() -> None:
+    """テスト用DBの接続先がシークレット由来のDSNになってはいけない（誤って本番DBを触る事故防止）。"""
+    settings = Settings(
+        database_dsn="postgres://dsn-user:dsn-pw@dsn-host.example.com/dsn-db",
+        db_host="db",
+        db_user="app",
+        db_password="pw",
+        test_db_name="app_test",
+    )
+    assert settings.test_database_url == "postgresql+psycopg://app:pw@db:5432/app_test"
+    assert "dsn-host" not in settings.test_database_url
+
+
+@pytest.mark.parametrize("env", ["staging", "production"])
+def test_non_local_env_without_database_dsn_fails_to_start(env: str) -> None:
+    with pytest.raises(ValidationError, match="DATABASE_DSN"):
+        Settings(
+            env=env,
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            database_dsn="",
+        )
+
+
+@pytest.mark.parametrize("env", ["staging", "production"])
+def test_non_local_env_with_database_dsn_starts(env: str) -> None:
+    settings = Settings(
+        env=env,
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://dsn-user:dsn-pw@dsn-host.example.com/dsn-db",
+    )
+    assert settings.database_dsn
+
+
+@pytest.mark.parametrize("env", ["local", "test"])
+def test_local_and_test_env_do_not_require_database_dsn(env: str) -> None:
+    settings = Settings(env=env, database_dsn="")
+    assert settings.database_url  # db_* からの組み立てで例外にならない
+
+
+# --- 決定5: 接続プール設定 (`sqlalchemy_engine_kwargs`) ---
+
+
+def test_sqlalchemy_engine_kwargs_defaults_do_not_disable_prepared_statements() -> None:
+    settings = Settings()
+    kwargs = settings.sqlalchemy_engine_kwargs
+    assert kwargs["pool_size"] == 5
+    assert kwargs["max_overflow"] == 10
+    assert kwargs["pool_recycle"] == 280
+    assert kwargs["pool_pre_ping"] is True
+    assert "prepare_threshold" not in kwargs["connect_args"]
+
+
+def test_sqlalchemy_engine_kwargs_can_disable_prepared_statements() -> None:
+    """`DB_DISABLE_PREPARED_STATEMENTS=true` は `connect_args={"prepare_threshold": None}` になる。
+
+    psycopg3 の生の意味では `prepare_threshold=0` は「初回実行から即座に prepare する」であり、
+    これは無効化ではない（意味が逆）。この設定名がその混同を避けるためにあることの回帰テスト。
+    """
+    settings = Settings(db_disable_prepared_statements=True)
+    connect_args = settings.sqlalchemy_engine_kwargs["connect_args"]
+    assert connect_args["prepare_threshold"] is None
+
+
+def test_sqlalchemy_engine_kwargs_reflects_custom_pool_settings() -> None:
+    settings = Settings(db_pool_size=1, db_max_overflow=0, db_pool_recycle_seconds=280)
+    kwargs = settings.sqlalchemy_engine_kwargs
+    assert kwargs["pool_size"] == 1
+    assert kwargs["max_overflow"] == 0

@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.10",
     "httpx>=0.27",
+    "mangum>=0.22",
 ]
 
 [dependency-groups]
@@ -20,6 +21,10 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.16.3",
     "pyyaml>=6.0",
+    # ランタイムには含めない（Lambda の python3.12 管理ランタイムに同梱されているため zip に
+    # 含める必要がない）。ユニットテスト・型解決のためだけに dev 依存として追加する
+    # （tmp/SS-67/backend-plan.md 決定2）。
+    "boto3>=1.34",
 ]
 
 [tool.uv]
