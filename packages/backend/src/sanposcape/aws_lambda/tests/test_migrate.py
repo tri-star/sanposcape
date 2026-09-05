@@ -57,7 +57,7 @@ def test_handler_runs_alembic_upgrade_with_absolute_script_location(
     assert len(captured_configs) == 1
     config = captured_configs[0]
     assert config.get_main_option("script_location") == "/var/task/alembic_migrations"
-    assert config.get_main_option("sqlalchemy.url") == (
+    assert config.attributes[migrate.DATABASE_URL_ATTRIBUTE] == (
         "postgresql+psycopg://user:pw@direct-host.example.com/db?sslmode=require"
     )
     assert result == {"head": "fake-head-revision"}
@@ -112,3 +112,66 @@ def test_script_location_matches_makefile_copy_destination() -> None:
         f"Makefile のコピー先 '{dest_name}' と "
         f"_ALEMBIC_SCRIPT_LOCATION '{migrate._ALEMBIC_SCRIPT_LOCATION}' が一致していない"
     )
+
+
+def test_url_with_percent_encoded_password_does_not_break_configparser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """パスワードに `%` が含まれていても Config の組み立てが壊れないこと。
+
+    Neon が生成するパスワードは URL エンコードされていることがある（`!` → `%21`）。
+    `config.set_main_option("sqlalchemy.url", ...)` は値を configparser に書き込むため、
+    `%` が変数補間として解釈され `ValueError: invalid interpolation syntax` で落ちる。
+    実際に dev で踏んだため、`config.attributes` 経由に変更した回帰テスト。
+    """
+    monkeypatch.setenv(
+        "MIGRATE_DATABASE_DSN",
+        "postgresql://user:pw%21with%25percent@direct-host.example.com/db",
+    )
+    get_settings.cache_clear()
+
+    monkeypatch.setattr(migrate.command, "upgrade", lambda config, revision: None)
+    monkeypatch.setattr(
+        migrate.ScriptDirectory, "from_config", lambda config: _FakeScriptDirectory()
+    )
+
+    result = migrate.handler({}, None)
+
+    assert result == {"head": "fake-head-revision"}
+
+
+def test_handler_rejects_pooled_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`neon_dsn_unpooled` に pooled の DSN が入っていたら実行前に止めること。
+
+    pooled でも単純な DDL は通ってしまい、壊れていることに気付けないため
+    （実際に dev で `-pooler` を指していた）。
+    """
+    monkeypatch.setenv(
+        "MIGRATE_DATABASE_DSN",
+        "postgresql://user:pw@ep-example-123-pooler.c-3.ap-southeast-1.aws.neon.tech/db",
+    )
+    get_settings.cache_clear()
+
+    def _fail_if_called(*args: object, **kwargs: object) -> None:
+        raise AssertionError("alembic upgrade must not run against a pooled endpoint")
+
+    monkeypatch.setattr(migrate.command, "upgrade", _fail_if_called)
+
+    with pytest.raises(migrate.MigrationConfigError, match="pooled endpoint"):
+        migrate.handler({}, None)
+
+
+def test_handler_accepts_direct_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`-pooler` を含まない direct ホストは通ること（ガードの誤検知が無いこと）。"""
+    monkeypatch.setenv(
+        "MIGRATE_DATABASE_DSN",
+        "postgresql://user:pw@ep-example-123.c-3.ap-southeast-1.aws.neon.tech/db",
+    )
+    get_settings.cache_clear()
+
+    monkeypatch.setattr(migrate.command, "upgrade", lambda config, revision: None)
+    monkeypatch.setattr(
+        migrate.ScriptDirectory, "from_config", lambda config: _FakeScriptDirectory()
+    )
+
+    assert migrate.handler({}, None) == {"head": "fake-head-revision"}
