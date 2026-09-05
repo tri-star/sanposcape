@@ -13,7 +13,8 @@
 > | `sam deploy --config-env dev` | ✅ 検証済み（dev スタック `CREATE_COMPLETE`。契約値・タグ・ログ保持期間まで確認） |
 > | `aws lambda invoke`（直接）で `/health` | ✅ 200 `{"status":"ok"}`。シークレット取得の実経路も通過 |
 > | Function URL 直叩き | ✅ 403 `{"Message":"Forbidden"}` |
-> | マイグレーション Lambda（§5.2） | ⚠️ **未検証**（初回実行で成果物の配置不備が判明し修正済み。再デプロイ後に要確認） |
+> | マイグレーション Lambda（§5.2） | ✅ 検証済み（`{"head": "ecd8f161fedb"}`。2 回目の invoke が no-op になる冪等性も確認） |
+> | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200。psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことも確認（§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
 > | CloudFront 経由（§6.2） | ⚠️ **未検証**。インフラ側の `enable_distribution = true` 待ち |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
