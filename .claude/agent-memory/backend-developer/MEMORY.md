@@ -14,3 +14,6 @@
 - [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
 - [project-ss44-fake-maps-provider-complete](project_ss44_fake_maps_provider_complete.md) — SS-44 backend（MAPS_MODE=fake・決定的provider）は実装完了。SS-21 E2Eブロッカー解消
 - [project-ss53-pr47-review-followup](project_ss53_pr47_review_followup.md) — SS-53 PR #47のCopilotレビュー指摘2件（413のOpenAPI不整合・delete_walk docstring不正確）への対応と判断ログ
+- [project-ss67-backend-sam-deploy-phase1-2-complete](project_ss67_backend_sam_deploy_phase1_2_complete.md) — SS-67 backend Phase1/2（DB engine遅延生成・シークレット受け皿・Lambdaハンドラ・SAM資材）は実装完了。Phase3以降（実デプロイ）は未着手
+- [reference-sam-cli-not-installed](reference_sam_cli_not_installed.md) — aws-sam-cliはこの開発環境に未インストール。指示に反してインストールせず、代替検証手段（YAML/TOML構文チェック・手動ビルド疎通確認等）を使う
+- [feedback-import-order-and-lru-cache-test-techniques](feedback_import_order_and_lru_cache_test_techniques.md) — import順序契約やlru_cacheのcache_clear呼び出しを回帰テストするテクニック（sys.modules退避・別名fresh import・属性spy）

@@ -3,3 +3,4 @@
 - [認証アーキテクチャ (ADR-002) と M3 の分担](project_auth_architecture_ss10.md) — Google 直結 + 自前セッショントークン。SS-10/SS-12 の線引き
 - [確定済み設計の扱いと API 命名規約](feedback_settled_design_and_api_conventions.md) — 確定 ADR は再検討しない / フィールド名は snake_case 統一
 - [M5「散歩記録・履歴」の分担と ADR-003 追補運用](project_m5_walk_history.md) — SS-18〜21 の順序 / walks の設計は ADR-003 に一本化し追補し続ける（残タスクもそこに載る）
+- [CloudFront OAC は Authorization を上書きする](feedback_cloudfront_oac_authorization_header.md) — Lambda Function URL 構成では認証ヘッダー名の設計を必ず立てる。/health では露見しない
