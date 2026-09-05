@@ -1,8 +1,9 @@
 ---
-name: project-sandbox-blocks-sam-build-docker
+name: reference-sandbox-blocks-sam-build-docker
 description: sandbox内ではsam build --use-container / sam local invokeがDockerソケット遮断で失敗する。dangerouslyDisableSandboxが必要
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `sam build --use-container` や `sam local invoke` は内部で Docker デーモンに接続するが、
@@ -21,4 +22,4 @@ Error: Running AWS SAM projects locally requires a container runtime. Do you hav
 最初から `dangerouslyDisableSandbox: true` を使う（エラーを一度見てから切り替えるのでもよい）。
 `sam validate --lint` は Docker を使わないため sandbox 内でも成功する。
 
-関連: [[reference-sam-cli-location]], [[project-ss67-no-aws-credentials-in-sandbox]]
+関連: [[reference-sam-cli-location]], [[reference-aws-credentials-sandbox-denied]]

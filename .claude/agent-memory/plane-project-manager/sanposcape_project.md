@@ -355,3 +355,17 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 **Why:** 残作業の情報源が Plane と `docs/milestones.md` の2箇所にあり、片方が陳腐化する状態（実際にM2/M3のチェックボックスが実態より古かった）を解消するため。
 
 **How to apply:** 「マイルストーン」「MVPの残り」を問われたら `docs/milestones.md` を探さない（存在しない）。Planeのモジュール A/B/C と各課題本文、および `docs/adr/` を情報源にすること。
+
+## 2026-09-06追加: SS-67をReview化・PR #70リンク登録
+
+- SS-67「backend: AWS SAM で backend のサーバーレスデプロイ基盤を構築する」(work_item_id: `efd91397-d3fe-415b-b0fe-1d4f8fb3ca25`、モジュール未所属)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`workitem_property list`は今回もこのプロジェクトのプラン制約で使えず（`Work item properties is not available on this workspace's plan`）、`workitem_link`（標準Link機能）でPR #70（`https://github.com/tri-star/sanposcape/pull/70`、link_id: `d3e09fc7-40a9-41cc-a761-c60c10605515`）を登録。既存方針を継続。
+- コメント（comment_id: `f743ec33-12ff-4aa6-89fd-3b656472e941`）に、本PRはPhase 1・2・6（アプリ側の受け皿/SAM資材/ドキュメント）まででAWS実デプロイ(Phase3〜5)は未実施であること、チケット本文の「Lambda+API Gateway」「SAMでカスタムドメイン・ACM証明書・Route53を設定」という記述はインフラチームの申し送りにより**Terraform所有**に変更され、実際は**Lambda Function URL(AuthType=AWS_IAM)+CloudFront(OAC)**・ホスト名`app-api.<zone>`で決定済みであること（API Gateway廃止）、フォローアップ3件（mobile CloudFront対応/外部ストアへのキャッシュ・レート制限移行/SAMデプロイCI化）の起票が必要であることを記録。
+- **How to apply**: SS-67本文自体はまだ旧記述（Lambda+API Gateway、SAM側でカスタムドメイン設定）のまま未更新。今後SS-67を扱う際は本文とコメントの記述が食い違っている点に注意し、本文更新やフォローアップ課題の起票依頼があれば上記コメント内容を踏まえて対応すること。
+
+## 2026-09-06追加: SS-67フォローアップ3件を新規作成（SS-70/71/72）
+
+- SS-70「mobile: CloudFront 経由の API 通信に対応する（x-amz-content-sha256 / X-App-Authorization）」(work_item_id: `f4b574c2-c0e4-4f37-ac91-fcbb2701bda2`)、priority=high。
+- SS-71「backend: Google Maps のキャッシュとレート制限を外部ストアへ移行する」(work_item_id: `c71d38ce-117c-4b31-83b2-39707217102a`)、priority=medium。
+- SS-72「infra/backend: SAM デプロイを GitHub Actions から実行できるようにする」(work_item_id: `4ca0dcd2-08c2-417e-917c-2aeb3cd05792`)、priority=low。
+- いずれもState=Backlog（デフォルト）、モジュール未所属、SS-67のコメント（2026-09-06付）で予告されていた3件のフォローアップに対応。SS-67とのリレーションは[[relation_definitions_402]]の制約（custom relationがHTTP 402）により設定不可のため、本文の「関連」節にSS-67識別子を記載するのみに留めた。
+- **How to apply**: 今後SS-70/71/72を扱う際は上記work_item_idを使うこと。特にSS-70は`EXPO_PUBLIC_BACKEND_API_URL`をCloudFrontホスト名に切り替える（SS-67 Phase5）前に完了が必須、SS-71は「prodのLambda同時実行数クォータ引き上げ承認」のタイミングに要注意（インフラチームとの合意事項がタスク本文にあり）。
