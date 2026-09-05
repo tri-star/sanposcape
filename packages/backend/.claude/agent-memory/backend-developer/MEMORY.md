@@ -1,0 +1,3 @@
+- [sam CLI の場所](reference_sam_cli_location.md) — PATHに無くmise管理。絶対パスで呼ぶ
+- [この環境にAWS認証情報が無い](project_ss67_no_aws_credentials_in_sandbox.md) — sam deploy/実シークレット経由の検証は不可。SSO再ログイン等は指示無く行わない
+- [sandboxがsam build/local invokeのDockerを遮断](project_sandbox_blocks_sam_build_docker.md) — dangerouslyDisableSandbox必須。docker info成功だけでは判断できない
