@@ -4,7 +4,7 @@
 # `make build-<論理ID>` を呼ぶ。本プロジェクトは src レイアウト + uv 依存管理のため、
 # SAM 標準の python-pip ワークフロー（CodeUri 直下の requirements.txt 前提）ではハンドラの
 # モジュールパスが解決できない。ここで成果物を明示的に組み立てる
-# （tmp/SS-67/backend-plan.md 決定8）。
+# （詳細: docs/deployment.md）。
 #
 # 事前準備: `make lambda-requirements` を `sam build` より前に1回実行しておくこと。
 # ビルドコンテナ（public.ecr.aws/sam/build-python3.12）には uv が無いため、

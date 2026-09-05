@@ -58,12 +58,12 @@ class Settings(BaseSettings):
     # 上の `database_dsn` とは異なり `_validate_environment_settings` の必須チェックには
     # 含めない（API Lambda のコールドスタートを `neon_dsn_unpooled` 未投入で失敗させないため。
     # 欠けている場合は `aws_lambda/migrate.py` が実行前ガードで明示的に失敗させる。
-    # tmp/SS-67/handover-notes.md M-2）。
+    # docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定9）。
     migrate_database_dsn: str = ""
     # 接続プール設定。既定値は SQLAlchemy 標準相当（pool_size=5 / max_overflow=10）で
     # ローカル/CI の挙動は変えない。Lambda では pool_size=1 / max_overflow=0 に絞り、
     # Neon への同時接続数を `ReservedConcurrentExecutions` と合わせて有界化する
-    # （tmp/SS-67/backend-plan.md 決定5）。
+    # （docs/deployment.md §9 Neon 接続設定）。
     db_pool_size: int = Field(default=5, ge=1)
     db_max_overflow: int = Field(default=10, ge=0)
     db_pool_recycle_seconds: int = Field(default=280, ge=1)
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # 出た場合のフォールバックとして無効化できるようにしておく（docs/deployment.md 参照）。
     # ★ psycopg3 の生の意味では `prepare_threshold=0` は「初回実行から即座に prepare する」で
     #   あり「無効化」ではない（意味が逆）。読み手の誤読を避けるため bool 名にしている
-    #  （tmp/SS-67/handover-notes.md M-3）。
+    #  （docs/deployment.md §9 Neon 接続設定）。
     db_disable_prepared_statements: bool = False
 
     # --- 実行環境 ---
@@ -81,7 +81,9 @@ class Settings(BaseSettings):
     # Mappings で Env=dev→ENV=staging / Env=prod→ENV=production に変換して渡す。
     # `Literal` に "dev"/"prod" を追加しない（許可リスト方式の fail-safe を壊さないため。
     # 過去に staging が抜けて認証バイパスになった経緯があり、値域を安易に増やすと同じ罠を
-    # 再演するリスクがある。tmp/SS-67/backend-plan.md 決定4 / docs/deployment.md）。
+    # 再演するリスクがある
+    # （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定6 /
+    # docs/deployment.md）。
     env: Literal["local", "test", "staging", "production"] = "local"
 
     # --- 認証モード（ADR-002 決定4。既定は fail-safe な real） ---

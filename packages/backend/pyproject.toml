@@ -23,7 +23,7 @@ dev = [
     "pyyaml>=6.0",
     # ランタイムには含めない（Lambda の python3.12 管理ランタイムに同梱されているため zip に
     # 含める必要がない）。ユニットテスト・型解決のためだけに dev 依存として追加する
-    # （tmp/SS-67/backend-plan.md 決定2）。
+    # （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定5）。
     "boto3>=1.34",
 ]
 

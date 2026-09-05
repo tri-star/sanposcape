@@ -37,7 +37,8 @@ def get_secret_json(secret_arn: str) -> dict[str, str]:
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code", "")
         if error_code == "ResourceNotFoundException":
-            # prod はシークレットの器のみ存在し値が未投入のことがある（tmp/SS-67 参照）。
+            # prod はシークレットの器のみ存在し値が未投入のことがある
+            # （docs/deployment.md §7 参照）。
             # ARN・値のどちらも出さず、切り分けのヒントだけをログに残す。
             logger.error(
                 "secretsmanager.get_secret_value returned ResourceNotFoundException; "

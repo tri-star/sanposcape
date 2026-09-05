@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # シークレット JSON のキー → 環境変数名のマッピング。
 # `google_oauth_client_secret` は backend では未使用（ADR-002 の public client 方式）なので
-# 意図的にここへ含めない（tmp/SS-67/handover-notes.md 参照）。
+# 意図的にここへ含めない。
 SECRET_KEY_TO_ENV: dict[str, str] = {
     "neon_dsn": "DATABASE_DSN",
     "jwt_signing_key": "AUTH_JWT_SECRET",
@@ -30,8 +30,9 @@ SECRET_KEY_TO_ENV: dict[str, str] = {
 
 # マイグレーション Lambda 専用のマッピング。意図的に `SECRET_KEY_TO_ENV` へ含めない:
 # 含めてしまうと API Lambda のコールドスタートのたびに「まだ投入されていないキー」として
-# ERROR ログが出てしまう（`neon_dsn_unpooled` は tmp/SS-67/handover-notes.md M-2 のとおり
-# Phase 4 までにシークレットへ追加投入される予定で、それまでは欠けているのが正常な状態）。
+# ERROR ログが出てしまう（`neon_dsn_unpooled` は
+# docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定9のとおり
+# 追加投入されるまでは欠けているのが正常な状態）。
 # migrate Lambda（`aws_lambda/migrate.py`）だけが `hydrate_migration_environment_from_secret()`
 # を呼ぶことで、この鍵の要否をその呼び出し元に閉じ込める。
 MIGRATE_SECRET_KEY_TO_ENV: dict[str, str] = {
@@ -58,7 +59,8 @@ def hydrate_environment_from_secret() -> None:
 
     - `APP_SECRET_ARN` が未設定なら何もしない（no-op）。ローカル開発 / ECS
       （タスク定義の `secrets` で環境変数が事前に注入される）/ 単体テストで
-      安全に呼び出せるようにするための設計（tmp/SS-67/backend-plan.md 決定1）。
+      安全に呼び出せるようにするための設計
+      （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定3）。
     - 既に環境変数が設定されている項目は上書きしない（明示設定を優先する）。
     - 取得できたキー名のリストを INFO ログに出す（値は絶対に出さない）。
     - `SECRET_KEY_TO_ENV` に対して欠けているキーがあれば、キー名だけを ERROR ログに出す。

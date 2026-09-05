@@ -8,7 +8,7 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #     ここでは一切作らない（Terraform 所有）
 #   - CloudFront からの呼び出し許可（lambda:InvokeFunctionUrl / lambda:InvokeFunction）は
 #     Terraform 側が付ける。AWS::Lambda::Permission をここに書かない（二重管理防止）
-#   デプロイ順は常に SAM → Terraform。詳細: tmp/SS-67/backend-plan.md
+#   デプロイ順は常に SAM → Terraform。詳細: docs/deployment.md
 
 Parameters:
   Env:
@@ -23,7 +23,8 @@ Mappings:
   # スタックパラメータ Env(dev/prod) は Terraform との契約。
   # アプリの ENV(staging/production) は config.py の許可リスト方式 fail-safe 検証の契約で、
   # 値域を安易に広げると過去に staging が検証から漏れて認証バイパスになった罠を再演するリスクがある
-  # ため、config.py 側の Literal は変えずここで変換する（tmp/SS-67/backend-plan.md 決定4）。
+  # ため、config.py 側の Literal は変えずここで変換する
+  # （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定6）。
   EnvToAppEnv:
     dev: { AppEnv: staging }
     prod: { AppEnv: production }
@@ -73,7 +74,8 @@ Resources:
       # in-process キャッシュ / レート制限の実効倍率と Neon への接続数をここで有界化する。
       # prod は Lambda 同時実行数クォータが初期値10のままで、予約すると必ず
       # InvalidParameterValueException になる（クォータ引き上げが通るまで）。
-      # 引き上げが通ったら dev と同じ値を入れる（tmp/SS-67/handover-notes.md N-1）。
+      # 引き上げが通ったら dev と同じ値を入れる
+      # （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定8 / docs/deployment.md）。
       ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 5]
       FunctionUrlConfig:
         AuthType: AWS_IAM  # ★ NONE にしない（Function URL の直叩きを構造的に塞ぐ）

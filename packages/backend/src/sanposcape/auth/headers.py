@@ -5,7 +5,8 @@ CloudFront + OAC（`SigningBehavior=always`）はオリジン（Lambda Function 
 アクセストークンを独自ヘッダー `X-App-Authorization` で運び、backend はそちらを優先して
 読む。ローカル開発 / CI は CloudFront を経由しないため、`Authorization` のままでも
 引き続き動く（フォールバック）。
-詳細: tmp/SS-67/backend-plan.md 決定9 / docs/deployment.md。
+詳細: docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定4 /
+docs/deployment.md。
 """
 
 from fastapi import Request

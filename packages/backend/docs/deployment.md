@@ -94,12 +94,30 @@ sam build --use-container
 # 4) 展開後サイズの確認（250MB 制限に対する余裕。uvicorn[standard] を含むため要注意）
 du -sh .aws-sam/build/Api
 
-# 5) ローカルでの疎通確認（任意。Neon やシークレットには繋がらないため上限は限定的）
+# 5) ローカルでの疎通確認（任意。dev の有効な AWS 認証情報が必要。下の注記を参照）
 sam local invoke Api --event events/health-get.json --env-vars events/local-env.json
 
 # 6) dev へデプロイ
 sam deploy --config-env dev
 ```
+
+> **`sam local invoke --env-vars` は `template.yaml` の `Environment.Variables` に
+> 宣言済みの変数しか上書きできない。** 未宣言のキーを `--env-vars` の JSON に書いても
+> **黙って無視される**（エラーにならないため気づきにくい）。`--container-env-vars`
+> も試したが、通常の `invoke`（デバッグセッションではない）には注入されない。
+>
+> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `DB_POOL_SIZE` /
+> `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 7 つだけ。
+> `AUTH_JWT_SECRET` や `DATABASE_DSN` のような未宣言の変数を `events/local-env.json` に
+> 書いても効かず、`ENV=staging` の起動時バリデーションが
+> `AUTH_JWT_SECRET must be set (>=32 chars) when ENV=staging` のようなエラーで失敗する。
+>
+> **対処**: 宣言済みの `APP_SECRET_ARN` に dev の実シークレット ARN を指定し、
+> `hydrate_environment_from_secret()` の実経路（デプロイ後と同じ経路）を通して値を取得させる。
+> これには **dev の有効な AWS 認証情報が必要**（`aws sts get-caller-identity` で確認できる）。
+> `events/local-env.json` の `APP_SECRET_ARN` はプレースホルダになっているので、
+> 各自の dev シークレット ARN に書き換えてから実行すること。**実 ARN はコミットしない**
+> （このリポジトリは public で、ARN に AWS アカウント ID が含まれるため）。
 
 - `samconfig.toml` の `[dev.deploy.parameters]` にスタック名・リージョン・タグを固定しているため、
   `--config-env dev` だけで完結する。`parameter_overrides = "Env=dev"` がテンプレートの `Env`
@@ -245,6 +263,40 @@ curl -i https://app-api.dev.sanposcape.com/walks \
 | `prepared statement "..." already exists` | Neon の PgBouncer とプロトコルレベルの prepared statement が想定外に衝突した | `DB_DISABLE_PREPARED_STATEMENTS=true` を該当関数の環境変数に設定して再デプロイする（§9 参照） |
 | CloudFront 経由だと全エンドポイントで 401（`/health` は 200） | mobile 側が `Authorization` ヘッダーで送っている（CloudFront に上書きされる） | mobile 側が `X-App-Authorization` を送るよう実装されているか確認する（ADR-005 決定4） |
 | CloudFront 経由が全部 403（`/health` を含む） | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`）が無い、または distribution ID が不一致 | 下記の `get-policy` で確認する。**この許可は Terraform 側が付与するもので、SAM 側の対応は無い** |
+| `Runtime exited with error: exit status 1` / `Init failed` としか見えず、原因が分からない | init 時の例外報告そのものが壊れている（下記「init 失敗時にエラー報告自体が壊れる」を参照） | **CloudWatch Logs の `INIT_START` 直後の `[ERROR]` 行を読む**。真の原因はそこに出ている |
+
+### init 失敗時にエラー報告自体が壊れる（日本語コメントを含むトレースバック）
+
+init（コールドスタート時の import）で例外が発生すると、Lambda の Python ランタイム
+（`awslambdaric`）は `post_init_error` で Lambda Runtime API にエラーを報告しようとするが、
+**トレースバックのソース行に日本語などの非 Latin-1 文字が含まれていると、この報告自体が
+`UnicodeEncodeError` で失敗する。**
+
+```
+File "awslambdaric/lambda_runtime_client.py", line 87, in call_rapid
+File "http/client.py", line 1431, in _send_request
+    body = _encode(body, 'body')
+UnicodeEncodeError: 'latin-1' codec can't encode character 'の' in position 1235: Body ('の') is not valid Latin-1
+```
+
+エラー報告の body に**トレースバックのソース行がそのまま入る**ため、日本語コメントを含む行が
+スタックフレームに混ざると latin-1 エンコードに失敗する。**このリポジトリはコメントが
+日本語なので踏みやすい。** 結果として真の例外が `Runtime exited with error: exit status 1` /
+`Init failed` に化けて見えなくなる。
+
+ただし**真の原因は stdout/stderr にログとして出力済み**であり、消えているわけではない。
+CloudWatch Logs の `INIT_START` の直後に出る次のような `[ERROR]` 行を読めば原因が分かる。
+
+```
+[ERROR] Settings validation failed at startup: [...]
+[ERROR] ValidationError: [...]
+```
+
+これは `src/sanposcape/aws_lambda/api.py` が `ValidationError` を捕捉した際に
+`exc.errors(include_input=False, include_url=False)` で**不足フィールド名だけを先に
+ERROR ログへ出してから再送出する**設計になっているため（値には秘密情報が含まれ得るので
+`include_input=False` にしている）。`post_init_error` の `UnicodeEncodeError` に惑わされず、
+まずこの ERROR ログを確認すること。
 
 ### CloudFront からの呼び出し許可の確認
 
@@ -283,7 +335,8 @@ aws secretsmanager get-secret-value --secret-id <ARN> --query SecretString --out
 - ビルド成果物（`--use-container`）でハンドラが解決し、依存が import できること
 - payload format 2.0 のイベント → FastAPI ルーティング → レスポンス変換（Mangum の疎通）
 - Lambda のメモリ / タイムアウト設定を反映した実行
-- `--env-vars` で注入した環境変数での起動時バリデーション
+- `--env-vars` で注入した環境変数での起動時バリデーション（ただし注入できるのは
+  `template.yaml` に宣言済みの変数だけ。§4 の注記を参照）
 
 **次は検証できない。** デプロイ後の `aws lambda invoke` + CloudWatch Logs、および
 CloudFront 経由の curl が唯一の検証手段になる。
@@ -293,7 +346,8 @@ CloudFront 経由の curl が唯一の検証手段になる。
   確認できない）
 - **`x-amz-content-sha256` 欠落による 403**（同上）
 - **決定4 の `Authorization` ヘッダー上書き**（CloudFront が存在しないため再現しない）
-- `{{resolve:ssm:}}` の解決（deploy 時解決。ローカルでは `--env-vars` で手動注入する）
+- `{{resolve:ssm:}}` の解決（deploy 時解決。ローカルでは `APP_SECRET_ARN` に実 ARN を
+  `--env-vars` で直接指定する。SSM パラメータ自体は引かない）
 - IAM ポリシー（`secretsmanager:GetSecretValue`）が実際に足りているか
 - Neon への実接続・レイテンシ・コールドスタート時間・29 秒タイムアウトの境界
 - `ReservedConcurrentExecutions` の効果
