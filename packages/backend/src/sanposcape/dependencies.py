@@ -8,7 +8,8 @@ import uuid
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from sanposcape.auth.exceptions import InvalidAccessTokenError
+from sanposcape.auth.exceptions import InvalidAccessTokenError, MalformedAuthorizationHeaderError
+from sanposcape.auth.headers import extract_bearer_token
 from sanposcape.auth.tokens import decode_access_token
 from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
@@ -57,30 +58,45 @@ def get_current_user_optional(
     user_service: UserService = Depends(get_user_service),
     settings: Settings = Depends(get_settings),
 ) -> User | None:
-    """Authorization ヘッダーがない場合だけ ``None``、それ以外は token を検証する。
+    """認証ヘッダーがない場合だけ ``None``、それ以外は token を検証する。
 
     探索 API を OpenAPI 上も公開 endpoint として表現するため、ここでは
     ``HTTPBearer`` を依存に含めずリクエストヘッダーを直接読む。不正なヘッダーを
     匿名利用へフォールバックさせないため、ヘッダーがある認証失敗は常に 401 にする。
+    ヘッダーの取り出しは ``X-App-Authorization`` → ``Authorization`` の優先順で読む
+    ``extract_bearer_token()`` に委譲している（CloudFront OAC がビューアの
+    ``Authorization`` を上書きするため。決定9）。
     """
-    authorization = request.headers.get("Authorization")
-    if authorization is None:
+    try:
+        access_token = extract_bearer_token(request)
+    except MalformedAuthorizationHeaderError as exc:
+        raise _unauthorized() from exc
+    if access_token is None:
         return None
-    scheme, separator, access_token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not separator or not access_token:
-        raise _unauthorized()
     return _authenticate_access_token(access_token, user_service, settings)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    request: Request,
+    _credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     user_service: UserService = Depends(get_user_service),
     settings: Settings = Depends(get_settings),
 ) -> User:
-    """認証必須 API 用に access token を検証する。"""
-    if credentials is None or credentials.scheme.lower() != "bearer":
+    """認証必須 API 用に access token を検証する。
+
+    ``_credentials``（``HTTPBearer`` 経由）は OpenAPI の security スキーム表現
+    （``operation["security"] == [{"HTTPBearer": []}]``）を維持するためだけに依存として
+    残しており、実際の値は使わない。実際のトークン取り出しは
+    ``X-App-Authorization`` → ``Authorization`` の優先順で読む
+    ``extract_bearer_token()`` を使う（決定9）。
+    """
+    try:
+        access_token = extract_bearer_token(request)
+    except MalformedAuthorizationHeaderError as exc:
+        raise _unauthorized() from exc
+    if access_token is None:
         raise _unauthorized()
-    return _authenticate_access_token(credentials.credentials, user_service, settings)
+    return _authenticate_access_token(access_token, user_service, settings)
 
 
 __all__ = ["get_current_user", "get_current_user_optional", "get_db"]

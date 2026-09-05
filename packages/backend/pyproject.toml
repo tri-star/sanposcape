@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.10",
     "httpx>=0.27",
+    "mangum>=0.22",
 ]
 
 [dependency-groups]
@@ -20,6 +21,10 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.16.3",
     "pyyaml>=6.0",
+    # ランタイムには含めない（Lambda の python3.12 管理ランタイムに同梱されているため zip に
+    # 含める必要がない）。ユニットテスト・型解決のためだけに dev 依存として追加する
+    # （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定5）。
+    "boto3>=1.34",
 ]
 
 [tool.uv]
@@ -37,7 +42,10 @@ src = ["src"]
 line-length = 100
 target-version = "py312"
 # Alembic の自動生成マイグレーションは lint 対象外にする
-extend-exclude = ["alembic/versions"]
+# `.aws-sam` は `sam build` の成果物（依存パッケージ一式が展開される）。
+# コンテナ内で ruff を実行すると .git が無く .gitignore 連動の除外が効かないため、
+# ここで明示的に除外する（`sam build` 後に lint すると数万件のエラーになる）。
+extend-exclude = ["alembic/versions", ".aws-sam"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

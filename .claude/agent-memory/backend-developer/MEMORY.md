@@ -14,3 +14,9 @@
 - [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
 - [project-ss44-fake-maps-provider-complete](project_ss44_fake_maps_provider_complete.md) — SS-44 backend（MAPS_MODE=fake・決定的provider）は実装完了。SS-21 E2Eブロッカー解消
 - [project-ss53-pr47-review-followup](project_ss53_pr47_review_followup.md) — SS-53 PR #47のCopilotレビュー指摘2件（413のOpenAPI不整合・delete_walk docstring不正確）への対応と判断ログ
+- [project-ss67-backend-sam-deploy-phase1-2-complete](project_ss67_backend_sam_deploy_phase1_2_complete.md) — SS-67 backend Phase1/2（DB engine遅延生成・シークレット受け皿・Lambdaハンドラ・SAM資材）は実装完了。Phase3以降（実デプロイ）は未着手
+- [feedback-import-order-and-lru-cache-test-techniques](feedback_import_order_and_lru_cache_test_techniques.md) — import順序契約やlru_cacheのcache_clear呼び出しを回帰テストするテクニック（sys.modules退避・別名fresh import・属性spy）
+- [reference-docs-lint-tmp-reference-check](reference_docs_lint_tmp_reference_check.md) — docs-lint CIがADR/packages*/docs/agent-memoryからのtmp/参照を検出し失敗させる。新規ADR作成後は`check-tmp-references.sh`で確認する
+- [reference-sam-cli-location](reference_sam_cli_location.md) — sam CLIはPATHに無くmise管理。絶対パスで呼ぶ。sam validate --lintはDocker不要
+- [reference-sandbox-blocks-sam-build-docker](reference_sandbox_blocks_sam_build_docker.md) — sandboxがsam build --use-container/local invokeのDockerソケットを遮断。docker info成功だけでは判断できない
+- [reference-aws-credentials-sandbox-denied](reference_aws_credentials_sandbox_denied.md) — AWS認証情報は存在する。sandboxが~/.aws(→/mnt/c/Users)を禁止して見えないだけ。dangerouslyDisableSandboxで使える
