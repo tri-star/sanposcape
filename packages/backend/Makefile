@@ -24,7 +24,13 @@ lambda-requirements:
 build-Api:
 	python3 -m pip install --no-cache-dir -r requirements-lambda.txt -t "$(ARTIFACTS_DIR)"
 	cp -r src/sanposcape "$(ARTIFACTS_DIR)/sanposcape"
-	cp -r alembic "$(ARTIFACTS_DIR)/alembic"
+# ★ マイグレーションの置き先を `alembic` にしてはいけない。pip が PyPI の `alembic`
+#   パッケージを `$(ARTIFACTS_DIR)/alembic` に展開済みのため、`cp -r alembic <dest>/alembic`
+#   は「既存ディレクトリの中へコピー」と解釈され、成果物が `<dest>/alembic/alembic/` に
+#   潜り込む（= script_location から env.py が見つからず ImportError になる）。
+#   ライブラリ名と衝突しない名前に置き、`aws_lambda/migrate.py` の
+#   `_ALEMBIC_SCRIPT_LOCATION` と対で管理する。
+	cp -r alembic "$(ARTIFACTS_DIR)/alembic_migrations"
 	cp alembic.ini "$(ARTIFACTS_DIR)/alembic.ini"
 	find "$(ARTIFACTS_DIR)" -type d -name "__pycache__" -exec rm -rf {} +
 

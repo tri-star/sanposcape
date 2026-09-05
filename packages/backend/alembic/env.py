@@ -12,8 +12,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 実行時に DB URL を設定から注入する
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# 実行時に DB URL を設定から注入する。
+# ★ 呼び出し側が既に URL を設定している場合は上書きしない。
+#   `aws_lambda/migrate.py` は direct(非 pooled) DSN を明示的に渡してくるが、ここで
+#   無条件に `database_url`（pooled）で上書きすると、マイグレーションが pooled 接続で
+#   走ってしまう。Neon 公式は Schema migrations に pooled を使わないよう明示しており
+#   （PgBouncer transaction mode では `SET search_path` 等がトランザクションごとに
+#   リセットされる）、しかも DDL は通ってしまうことがあるため気付きにくい。
+#   ローカル / CI は alembic.ini に sqlalchemy.url を持たないので、従来どおり
+#   `get_settings().database_url` にフォールバックする。
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = Base.metadata
 

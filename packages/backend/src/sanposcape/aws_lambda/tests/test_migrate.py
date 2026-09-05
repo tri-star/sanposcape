@@ -56,7 +56,7 @@ def test_handler_runs_alembic_upgrade_with_absolute_script_location(
 
     assert len(captured_configs) == 1
     config = captured_configs[0]
-    assert config.get_main_option("script_location") == "/var/task/alembic"
+    assert config.get_main_option("script_location") == "/var/task/alembic_migrations"
     assert config.get_main_option("sqlalchemy.url") == (
         "postgresql+psycopg://user:pw@direct-host.example.com/db?sslmode=require"
     )
@@ -82,3 +82,33 @@ def test_handler_calls_both_hydration_functions(monkeypatch: pytest.MonkeyPatch)
     migrate.handler({}, None)
 
     assert calls == ["api", "migrate"]
+
+
+def test_script_location_matches_makefile_copy_destination() -> None:
+    """Makefile のコピー先と `_ALEMBIC_SCRIPT_LOCATION` がズレていないこと。
+
+    この2つは別ファイルで対になっており、片方だけ変えると
+    `Can't find Python file /var/task/.../env.py` で**デプロイ後に初めて**落ちる。
+    さらに、コピー先を `alembic` にすると pip が展開した PyPI の `alembic` パッケージと
+    衝突し、`cp -r` が「既存ディレクトリの中へコピー」と解釈して成果物が
+    `/var/task/alembic/alembic/` に潜り込む（実際にこの事故が起きた）。
+    """
+    from pathlib import Path
+
+    makefile = (Path(__file__).resolve().parents[3].parent / "Makefile").read_text()
+
+    copy_lines = [
+        line.strip() for line in makefile.splitlines() if line.strip().startswith("cp -r alembic ")
+    ]
+    assert len(copy_lines) == 1, f"Makefile の alembic コピー行が想定と違う: {copy_lines}"
+
+    destination = copy_lines[0].split('"')[-2]
+    dest_name = destination.rsplit("/", 1)[-1]
+
+    assert dest_name != "alembic", (
+        "コピー先を 'alembic' にすると PyPI の alembic パッケージと衝突する"
+    )
+    assert migrate._ALEMBIC_SCRIPT_LOCATION.rsplit("/", 1)[-1] == dest_name, (
+        f"Makefile のコピー先 '{dest_name}' と "
+        f"_ALEMBIC_SCRIPT_LOCATION '{migrate._ALEMBIC_SCRIPT_LOCATION}' が一致していない"
+    )

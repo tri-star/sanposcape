@@ -34,8 +34,11 @@ from sanposcape.core.runtime_config import (
 
 logger = logging.getLogger(__name__)
 
-# Makefile が alembic/ と alembic.ini を Lambda の CWD（/var/task）へコピーする。
-_ALEMBIC_SCRIPT_LOCATION = "/var/task/alembic"
+# Makefile が alembic/ を Lambda の CWD（/var/task）へコピーする。
+# ★ コピー先が `alembic` ではないのは、pip が PyPI の `alembic` パッケージを
+#   `/var/task/alembic` に展開しており、同名にすると成果物が `/var/task/alembic/alembic/`
+#   に潜り込んでしまうため（Makefile の build-Api のコメント参照）。
+_ALEMBIC_SCRIPT_LOCATION = "/var/task/alembic_migrations"
 
 
 class MigrationConfigError(Exception):

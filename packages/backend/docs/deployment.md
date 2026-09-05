@@ -4,13 +4,19 @@
 載せ、AWS SAM で dev / prod の AWS アカウントへデプロイする手順。方式決定の背景・却下案は
 [ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) を参照。
 
-> **本手順は未検証。** この実装を行ったセッションでは `sam` CLI が環境に無く、
-> `sam validate --lint` / `sam build --use-container` / `sam local invoke` / `sam deploy` の
-> いずれも実行できていない（代わりに `uv export` + `pip install --target` によるビルド成果物の
-> 手動再現と、Mangum ハンドラの直接呼び出しで疎通のみ確認した）。**`sam` が使える環境での
-> 初回実行時に、本手順どおりに動くかを必ず確認すること。** 特に AWS 公式ビルドイメージによる
-> glibc/manylinux 互換性の担保と、SAM 自体のテンプレート意味検証（`Transform` の展開等）は
-> このセッションでは検証できていない。
+> **検証状況（2026-09-06 時点）**
+>
+> | 手順 | 状況 |
+> |---|---|
+> | `sam validate --lint` | ✅ 検証済み |
+> | `make lambda-requirements` → `sam build --use-container` | ✅ 検証済み（成果物 88MB。`psycopg_binary` の manylinux `.so` と `.env` 非混入も確認） |
+> | `sam deploy --config-env dev` | ✅ 検証済み（dev スタック `CREATE_COMPLETE`。契約値・タグ・ログ保持期間まで確認） |
+> | `aws lambda invoke`（直接）で `/health` | ✅ 200 `{"status":"ok"}`。シークレット取得の実経路も通過 |
+> | Function URL 直叩き | ✅ 403 `{"Message":"Forbidden"}` |
+> | マイグレーション Lambda（§5.2） | ⚠️ **未検証**（初回実行で成果物の配置不備が判明し修正済み。再デプロイ後に要確認） |
+> | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
+> | CloudFront 経由（§6.2） | ⚠️ **未検証**。インフラ側の `enable_distribution = true` 待ち |
+> | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 
 ## 1. 前提
 
@@ -162,9 +168,15 @@ aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
 
 ```bash
 aws lambda invoke --function-name sanposcape-dev-backend-migrate \
-  --region ap-southeast-1 --payload '{}' /dev/stdout
+  --region ap-southeast-1 \
+  --cli-binary-format raw-in-base64-out --payload '{}' \
+  --cli-read-timeout 360 /dev/stdout
 ```
 
+- **AWS CLI v2 では `--cli-binary-format raw-in-base64-out` が必須**（無いと `--payload` の
+  生 JSON を base64 と解釈して失敗する）。`--cli-read-timeout` は CLI 既定が 60 秒で
+  Lambda の `Timeout: 300` より短いため明示する（無いと**実際は成功しているのに
+  CLI だけタイムアウトする**）。
 - 成功すると `{"head": "<リビジョンID>"}` が返る。`alembic/versions/` の最新リビジョンと
   一致することを確認する。
 - API 本体と同じビルド成果物（同じ `CodeUri`）を使っているため、デプロイされたコードと
