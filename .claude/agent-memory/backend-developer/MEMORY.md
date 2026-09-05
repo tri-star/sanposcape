@@ -17,3 +17,4 @@
 - [project-ss67-backend-sam-deploy-phase1-2-complete](project_ss67_backend_sam_deploy_phase1_2_complete.md) — SS-67 backend Phase1/2（DB engine遅延生成・シークレット受け皿・Lambdaハンドラ・SAM資材）は実装完了。Phase3以降（実デプロイ）は未着手
 - [reference-sam-cli-not-installed](reference_sam_cli_not_installed.md) — aws-sam-cliはこの開発環境に未インストール。指示に反してインストールせず、代替検証手段（YAML/TOML構文チェック・手動ビルド疎通確認等）を使う
 - [feedback-import-order-and-lru-cache-test-techniques](feedback_import_order_and_lru_cache_test_techniques.md) — import順序契約やlru_cacheのcache_clear呼び出しを回帰テストするテクニック（sys.modules退避・別名fresh import・属性spy）
+- [reference-docs-lint-tmp-reference-check](reference_docs_lint_tmp_reference_check.md) — docs-lint CIがADR/packages*/docs/agent-memoryからのtmp/参照を検出し失敗させる。新規ADR作成後は`check-tmp-references.sh`で確認する

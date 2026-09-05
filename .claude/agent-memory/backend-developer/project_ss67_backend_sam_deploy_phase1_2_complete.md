@@ -1,6 +1,6 @@
 ---
 name: project-ss67-backend-sam-deploy-phase1-2-complete
-description: SS-67（backend: AWS SAM でサーバーレスデプロイ基盤を構築）の Phase 1・2 は実装完了。Phase 3以降（実デプロイ）は未着手
+description: SS-67（backend: AWS SAM でサーバーレスデプロイ基盤を構築）の Phase 1・2・6（ドキュメント）は実装完了。Phase 3〜5（実デプロイ）は未着手
 metadata:
   type: project
   scope: task-local
@@ -48,3 +48,13 @@ Phase 2（Lambda エントリポイント + SAM 資材）を実装完了（2026-
 - `docs/deployment.md`（新規）・ADR（Lambda + Function URL + CloudFront 構成の決定記録）・
   フォローアップチケット起票（mobile の CloudFront 対応 / in-process キャッシュの外部ストア
   移行 / SAM デプロイの CI 化）は未着手。
+
+**2026-09-06 追記（Phase 6 完了）**: `docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md`
+と `packages/backend/docs/deployment.md` を新規作成し、`packages/backend/AGENTS.md` にリンク追加
+（コミット `065605c`、コード変更なし）。両ドキュメントとも「`sam` CLI 未検証」を明記した。
+フォローアップチケット起票（mobile CloudFront対応 / 外部ストア移行 / CI化）は依然未実施。
+Phase 3〜5（実際の `sam deploy` 以降）も未着手のまま。
+ADR-writing のような恒久ドキュメント作成タスクでは `scripts/knowledge/check-tmp-references.sh`
+（`docs/` `packages/*/docs/` `.claude/agent-memory/` `*.md` から `tmp/` への参照を CI で検出する）
+に必ず抵触しないことを確認すること（詳細は [[reference-stray-claude-dir]] 隣接の
+knowledge-management ガイドライン参照）。
