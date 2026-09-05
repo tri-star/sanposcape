@@ -42,7 +42,10 @@ src = ["src"]
 line-length = 100
 target-version = "py312"
 # Alembic の自動生成マイグレーションは lint 対象外にする
-extend-exclude = ["alembic/versions"]
+# `.aws-sam` は `sam build` の成果物（依存パッケージ一式が展開される）。
+# コンテナ内で ruff を実行すると .git が無く .gitignore 連動の除外が効かないため、
+# ここで明示的に除外する（`sam build` 後に lint すると数万件のエラーになる）。
+extend-exclude = ["alembic/versions", ".aws-sam"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
