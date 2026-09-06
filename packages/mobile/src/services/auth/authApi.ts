@@ -10,7 +10,8 @@ import type { AuthProvider } from "@/services/auth/types";
  * 通ると 401 → refresh → 401 → refresh … の再帰になる。また `/auth/session` は Bearer 不要。
  *
  * `customFetch` を経由しないため、`x-amz-content-sha256` の付与もこのファイルが自前で行う
- * （ADR-005 決定4）。このファイルが扱う4本（session/dev-session/refresh/logout）はすべて
+ * （`docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md` 決定4）。
+ * このファイルが扱う4本（session/dev-session/refresh/logout）はすべて
  * ボディを伴う POST であり、付け忘れると CloudFront 経由でサインイン自体が 403 になる。
  *
  * 引数は camelCase（モバイル内部の規約）、送信するボディは snake_case（backend の規約）。
@@ -39,7 +40,18 @@ export function createAuthApi(deps?: { baseUrl?: () => string; fetchFn?: typeof 
       body: JSON.stringify(body),
       signal: options?.signal,
     });
-    const response = await fetchFn(`${baseUrl()}${path}`, init);
+    // `redirect: "error"` について:
+    // 標準の `Authorization` は WHATWG Fetch 仕様によりクロスオリジンリダイレクト時に自動削除されるが、
+    // 独自ヘッダーの `X-App-Authorization`（この関数は付けないが、呼び出し元が付けるケースを想定）は
+    // この保護の対象外。仕様準拠の意思表示として明示しているが、**RN 実機ではこのオプションは
+    // 実効的な防御にならない**。RN 0.86 の global fetch は
+    // `node_modules/react-native/Libraries/Network/fetch.js` が `whatwg-fetch`
+    // （XMLHttpRequest ベースのポリフィル）をそのまま re-export したもので、`whatwg-fetch` の
+    // `Request` コンストラクタは `options.redirect` を一切読まない（XHR ベースのため実際の
+    // リダイレクトは常に追従される）。`react-native-web` や将来 RN が spec 準拠 fetch に移行した
+    // 場合には効くため無害だが、「これで守られている」と誤解しないこと。実効的な防御は
+    // 「この API がリダイレクトを返さないこと」に依存し続ける。
+    const response = await fetchFn(`${baseUrl()}${path}`, { ...init, redirect: "error" });
     if (!response.ok) {
       throw new ApiError(response.status);
     }

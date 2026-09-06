@@ -6,7 +6,8 @@
 /**
  * アクセストークンを運ぶ独自ヘッダー。
  * CloudFront(OAC, SigningBehavior: always) はオリジンへの SigV4 署名を `Authorization` に入れるため、
- * ビューアが送った `Authorization` はオリジンに届かない（ADR-005 決定4）。
+ * ビューアが送った `Authorization` はオリジンに届かない
+ * （`docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md` 決定4）。
  * backend は `X-App-Authorization` → `Authorization` の順で読む
  * （`packages/backend/src/sanposcape/auth/headers.py`）。
  */

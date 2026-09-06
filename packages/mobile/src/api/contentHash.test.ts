@@ -20,6 +20,17 @@ function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+describe("EMPTY_BODY_SHA256", () => {
+  it(
+    "空文字列の SHA-256 と独立に一致する（自己参照テストにしない）。" +
+      "この定数が壊れると DELETE 系（/walks/{id}, /users/me）が CloudFront 経由で" +
+      "一斉に 403 になるが、他の手段ではローカルで検知できないため必ず値そのものを検証する",
+    () => {
+      expect(EMPTY_BODY_SHA256).toBe(sha256Hex(""));
+    },
+  );
+});
+
 describe("contentHashTarget", () => {
   it("GET は null（ボディを持てないため CloudFront 側で完結する）", () => {
     expect(contentHashTarget({ method: "GET" })).toBeNull();
