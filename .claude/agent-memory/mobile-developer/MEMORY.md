@@ -25,3 +25,4 @@
 - [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
 - [sandboxでgit worktreeがread-only](sandbox-git-worktree-readonly.md) — `git add/commit`がindex.lock作成でRead-only file system失敗。リトライ無駄、ユーザーに報告する
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
+- [mobileのHTTP出口は2箇所](mobile-two-http-exits.md) — SS-70。`client.ts`のcustomFetchと`authApi.ts`の生fetch。横断的関心事(認証ヘッダー等)は両方に適用必須
