@@ -125,9 +125,11 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 
 > **⚠️ mobile は Expo Go ではなく development build が必要**
 > react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
-> expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）などの
+> expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）/
+> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算）などの
 > ネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
-> **SS-10（認証まわりのネイティブ依存を追加）および SS-15（expo-location の追加・Maps キー注入）
-> 適用後は development build の作り直しが必要**（Fast Refresh では反映されない）。
+> **SS-10（認証まわりのネイティブ依存を追加）・SS-15（expo-location の追加・Maps キー注入）・
+> SS-70（expo-crypto の追加）適用後は development build の作り直しが必要**
+> （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。
