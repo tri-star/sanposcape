@@ -10,9 +10,11 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
   - Expo は WSL 側に Android SDK が無いため、`adb` 操作（reverse・起動）は**自分たちで手動実行**する。
   - iPhoneでは、iPhoneとPCを同じLANへ接続し、WSL2上のMetroを`--host lan`で公開する。
   - react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
-    expo-secure-store（refresh token の永続化）/ **expo-location（現在地取得）** を使うため
+    expo-secure-store（refresh token の永続化）/ **expo-location（現在地取得）** /
+    **expo-crypto（`x-amz-content-sha256` の計算）** を使うため
     **Expo Go は不可**（development build 必須）。
-    **SS-10（認証まわりのネイティブ依存を追加）および SS-15（expo-location の追加・Maps キー注入）
+    **SS-10（認証まわりのネイティブ依存を追加）、SS-15（expo-location の追加・Maps キー注入）
+    および SS-70（expo-crypto の追加）
     適用後は development build の作り直しが必要**
     （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 

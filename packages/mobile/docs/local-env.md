@@ -16,7 +16,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 本アプリは **react-native-maps**、**react-native-svg**（アイコン描画）、
 **@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
-（Google サインイン）、**expo-secure-store**（refresh token の永続化）という
+（Google サインイン）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
+（`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）という
 **ネイティブモジュール**を利用する。これらは **Expo Go では動作しない**ため、動作確認には Expo の
 **development build**（dev client）が必要。
 
@@ -25,6 +26,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 - **SS-10（`EXPO_PUBLIC_AUTH_MODE` の real/dev/mock 切り替え）の適用後は、
   `react-native-nitro-google-signin` / `expo-secure-store` が新規追加されたネイティブ依存のため、
   development build の作り直しが必要**（Fast Refresh では反映されない）。
+- **SS-70（CloudFront 経由の API 通信対応）の適用後も、`expo-crypto` が新規追加された
+  ネイティブ依存のため development build の作り直しが必要**（Fast Refresh では反映されない）。
 
 ## セットアップ
 
@@ -263,8 +266,9 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
      `android.config.googleMaps.apiKey` が載っているか確認する（キー未設定時は `config` フィールド
      自体が付かず、地図はネットワーク的には動くが Android では灰色のまま描画されない）。
   5. **ネイティブ設定（`expo-location` の追加・Maps キーの注入）を反映するには development build
-     の作り直しが必要**（Fast Refresh では反映されない。ADR-004 の E2E APK キャッシュも
-     `@expo/fingerprint` の変化により1回はミスする）。
+     の作り直しが必要**（Fast Refresh では反映されない。ADR-004 の 2026-08-14 追補以降、
+     E2E の APK キャッシュキーは `packages/mobile` のソース全体ハッシュ（`.maestro/` / `docs/` /
+     `adr/` を除く）になっているため、ネイティブ設定に限らずソースの変更があれば再ビルドされる）。
 
 ## 位置情報（expo-location）
 
