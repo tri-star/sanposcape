@@ -8,6 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "environment": "development",
       "android": {
         "buildType": "apk"
       }
@@ -15,6 +16,7 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       },
@@ -26,10 +28,12 @@
       }
     },
     "staging": {
-      "distribution": "internal",
+      "distribution": "store",
       "channel": "staging",
+      "environment": "preview",
+      "autoIncrement": true,
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "env": {
         "EXPO_PUBLIC_BACKEND_API_URL": "https://app-api.dev.sanposcape.com",
@@ -37,9 +41,18 @@
         "EXPO_PUBLIC_LOCATION_MODE": "real"
       }
     },
+    "staging-apk": {
+      "extends": "staging",
+      "distribution": "internal",
+      "autoIncrement": false,
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "production": {
       "distribution": "store",
       "channel": "production",
+      "environment": "production",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
@@ -52,6 +65,7 @@
     }
   },
   "submit": {
+    "staging": {},
     "production": {}
   }
 }
