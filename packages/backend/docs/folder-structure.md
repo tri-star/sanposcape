@@ -25,25 +25,36 @@ packages/backend/
 ├── uv.lock
 ├── alembic.ini
 ├── .env / .env.example        # ポート・DB接続・プロジェクト名など
+├── template.yaml               # AWS SAM テンプレート（Lambda / Function URL / ロググループ。SS-67）
+├── samconfig.toml              # SAM の dev/prod config-env（stack_name / region / tags 等。SS-67）
+├── Makefile                    # SAM `BuildMethod: makefile` のビルドターゲット（SS-67）
+├── events/                     # `sam local invoke` / `aws lambda invoke` 用の payload・env-vars（SS-67）
 │
 ├── src/
 │   └── sanposcape/            # アプリ本体パッケージ
 │       ├── __init__.py
 │       ├── main.py            # FastAPI app 生成・router 登録・例外ハンドラ配線
 │       ├── config.py          # pydantic-settings で環境変数を型安全に読む
-│       ├── database.py        # engine / SessionLocal / Base
+│       ├── database.py        # get_engine() / get_session_factory()（遅延生成・lru_cache）/ Base / get_db
 │       ├── dependencies.py    # 横断的な依存（DBセッション, 認証済みユーザー取得 等）
 │       ├── all_models.py      # 全ドメインの models を import して Base.metadata に集約（Alembic autogenerate 用）
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
+│       │
+│       ├── aws_lambda/        # AWS Lambda 固有の受け皿（ECS 移植性の境界。SS-67）
+│       │   ├── api.py         #   Mangum アダプタ。main.app の import 前にシークレットをハイドレーションする
+│       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
+│       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── core/              # 横断的関心事（ドメインに属さない土台）
 │       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
+│       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
-│       │   └── google_maps/   #   Places / Routes クライアント + キャッシュ
+│       │   ├── google_maps/   #   Places / Routes クライアント + キャッシュ
+│       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）
 │       │
 │       ├── auth/              # ドメイン: 認証・セッション（Google ID token検証・自前トークン）
 │       │   ├── __init__.py
@@ -55,6 +66,7 @@ packages/backend/
 │       │   ├── repository.py  #   DBアクセス（RefreshTokenRepository）
 │       │   ├── dependencies.py#   ドメイン固有の依存（get_auth_service 等）
 │       │   ├── exceptions.py  #   ドメイン固有の例外
+│       │   ├── headers.py     #   X-App-Authorization → Authorization の順で Bearer を読む（SS-67）
 │       │   ├── tokens.py      #   自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化
 │       │   ├── providers/     #   IdP ごとの ID token 検証実装（google.py 等）を隔離する層
 │       │   └── tests/         #   このドメインのテスト（併置）
@@ -91,7 +103,11 @@ packages/backend/
 ### `src/sanposcape/` 直下（アプリの土台）
 - `main.py`: FastAPI アプリの生成と各ドメイン router の登録、例外ハンドラの配線のみ。ロジックは書かない。
 - `config.py`: `pydantic-settings` で `.env` を型安全に読む。設定値はここ経由で参照する。
-- `database.py`: `engine` / `SessionLocal` / 宣言的 `Base` を定義。
+- `database.py`: `get_engine()` / `get_session_factory()`（ともに `lru_cache` で遅延生成・1プロセス1回）と、宣言的 `Base` / `get_db` を定義。
+  module の import 時点では `create_engine` を呼ばない（Lambda では起動時にシークレットを
+  環境変数へハイドレーションしてから `Settings` を確定させる必要があり、import 順に依存すると
+  ハイドレーション前の設定で接続してしまうため）。`Base` / `get_db` の名前と挙動は変えていないため、
+  呼び出し側（`models.py` / `dependencies.py` / 各 `tests/`）は無変更で動く。
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
 
 ### `core/` — 横断的関心事
@@ -103,6 +119,18 @@ packages/backend/
 - Google Maps Platform（Places / Routes）などの外部クライアントとキャッシュをここに閉じ込める。
 - ドメインの `service` からのみ呼び出す。router から直接呼ばない。
 - 差し替え・モックしやすいよう、インターフェースを介して公開する。
+- `integrations/aws/`: AWS SDK（boto3）連携を隔離する層。`secrets.py` が Secrets Manager から
+  シークレット JSON を取得し `lru_cache` でプロセス内キャッシュする。boto3 は Lambda の
+  python3.12 管理ランタイムに同梱されているため zip には含めず、`[dependency-groups] dev` に
+  のみ追加している（ユニットテスト・型解決用）。シークレットの値は絶対にログへ出さない。
+
+### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
+- Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
+- `api.py`: Mangum アダプタ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
+  import より**前**に実行してから `app` を import する（順序が意味を持つ 1 ファイルの責務）。
+- `migrate.py`: Alembic `upgrade head` を実行する専用 Lambda（API 本体のハンドラでは走らせない）。
+- `main.py` の `create_app()` / `app` はこのパッケージから独立しており無変更のまま。ECS では
+  従来どおり `uvicorn sanposcape.main:app` で動く。
 
 ### `<domain>/` — ドメイン単位の凝集
 - 1つのドメインに属する `router / schemas / models / service / repository / dependencies / exceptions` をまとめる。

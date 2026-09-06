@@ -1,0 +1,35 @@
+version = 0.1
+
+# `sam build --use-container` / `sam deploy --config-env dev|prod` から参照する設定。
+# デプロイ手順の詳細は docs/deployment.md（Phase 6 で追記予定）を参照。
+# ★ 実データ（AWS アカウント ID 等）はここに書かない。secret ARN は SSM から
+#   `{{resolve:ssm:...}}` で deploy 時解決するため、template.yaml 側にも現れない。
+
+[default.build.parameters]
+use_container = true
+
+[dev]
+[dev.deploy.parameters]
+stack_name = "sanposcape-backend-dev"
+region = "ap-southeast-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+parameter_overrides = "Env=dev"
+tags = "Project=sanposcape Env=dev ManagedBy=sam Repo=sanposcape"
+
+[dev.build.parameters]
+use_container = true
+
+[prod]
+[prod.deploy.parameters]
+stack_name = "sanposcape-backend-prod"
+region = "ap-southeast-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+parameter_overrides = "Env=prod"
+tags = "Project=sanposcape Env=prod ManagedBy=sam Repo=sanposcape"
+
+[prod.build.parameters]
+use_container = true

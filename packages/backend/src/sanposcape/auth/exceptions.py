@@ -10,6 +10,17 @@ class InvalidAccessTokenError(AuthenticationError):
     """自前 access token の検証に失敗した。"""
 
 
+class MalformedAuthorizationHeaderError(AuthenticationError):
+    """`X-App-Authorization` / `Authorization` ヘッダーが `Bearer <token>` 形式でない。
+
+    `auth/headers.py` の `extract_bearer_token()` が送出する。呼び出し側
+    （`dependencies.py`）で 401 に変換する。"""
+
+    def __init__(self, header_name: str) -> None:
+        super().__init__(f"Malformed authorization header: {header_name}")
+        self.header_name = header_name
+
+
 class InvalidRefreshTokenError(AuthenticationError):
     """refresh token が未知・失効・期限切れである。"""
 

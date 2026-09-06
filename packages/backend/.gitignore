@@ -5,3 +5,7 @@
 __pycache__
 # openapi.yaml は Orval が消費する契約として commit する。JSON は生成物として無視
 openapi.json
+
+# SAM ビルド成果物・`make lambda-requirements` の生成物（環境ごとに再生成する前提）
+.aws-sam/
+requirements-lambda.txt

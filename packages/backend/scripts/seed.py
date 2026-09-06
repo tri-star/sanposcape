@@ -6,7 +6,7 @@
 
 from sqlalchemy import select
 
-from sanposcape.database import SessionLocal
+from sanposcape.database import get_session_factory
 from sanposcape.spots.models import Spot
 
 SEED_SPOTS = [
@@ -17,7 +17,7 @@ SEED_SPOTS = [
 
 
 def main() -> None:
-    db = SessionLocal()
+    db = get_session_factory()()
     try:
         existing = db.scalar(select(Spot).limit(1))
         if existing is not None:
