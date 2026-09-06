@@ -20,6 +20,19 @@
   （オブジェクトを返すと zustand v5 で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
 - 詳細は [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
 
+### 送信側のヘッダー契約（CloudFront経由の通信）
+
+- アクセストークンは `Authorization` ではなく **`X-App-Authorization`** で送る。CloudFront(OAC) は
+  オリジンへの SigV4 署名を `Authorization` に入れるため、ビューア（mobile）が送った
+  `Authorization` はオリジンに届かない（詳細は
+  [docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定4）。
+- **mobile の HTTP 出口は `src/api/client.ts` の `customFetch` と
+  `src/services/auth/authApi.ts` の `post()` の2箇所**であり、認証ヘッダーや
+  `x-amz-content-sha256` のような横断的な送信ヘッダーは**両方に適用する**必要がある
+  （`authApi.ts` は 401 → refresh の再帰を避けるため `customFetch` を意図的に使わない）。
+  片方だけへの適用漏れは CloudFront 経由でのみ 403/401 を引き起こし、backend に直結する
+  ローカル環境では発覚しない。
+
 ## 位置情報の扱い
 - 実装方針は [ADR-006: 位置情報サービスは real/mock の2モード](../adr/ADR-006-location-service-real-mock.md) で確定済み。
 - `EXPO_PUBLIC_LOCATION_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/locationMode.ts`）。
@@ -58,6 +71,13 @@
       `react-native` に到達せず、msw（`src/test/setup.ts` の `server`）でレスポンスを
       差し替えて vitest でテストできる（例: `walkApi.test.ts`）。成功時の戻り値・送信ボディ・
       ステータス別の `ApiError` を検証する。
+      - **`src/api/` 層は原則ネイティブ非依存だが、real/mock の分岐を持たず振る舞いが
+        環境非依存な計算（暗号ハッシュ等）は例外として許容する**（`src/api/contentHash.ts` が
+        `expo-crypto` を使う実例。SS-70）。`api/` 層から到達する位置にこの種のネイティブ依存を
+        足したら、必ず `vitest.config.ts` の `resolve.alias` にモック（`src/test/mocks/`）を
+        追加すること。追加を怠ると `client.ts` を推移的に import する `features/*/api/*.test.ts`
+        が軒並み失敗する（現在のエイリアス対象: `react-native` / `expo-secure-store` /
+        `expo-location` / `expo-crypto`）。
     - 画面の見た目: 開発確認用ルート（`/dev-screens` の `ScreenCatalog`）で目視確認する。
     - `hooks/` と `components/` は上記のいずれにも入らない（レンダリングテストが書けないため）。
       **テストしたいロジックは `lib/` の純粋関数へ切り出す**のが原則。
@@ -71,8 +91,10 @@
     - 例外: `services/auth/authApi.ts` は HTTP を直接叩くモジュール（401→refresh の再帰を避けるため
       生成クライアント `customFetch` を意図的に使わない）。ここは個別 import した上で、
       **レスポンスのモックには Orval 生成 MSW ハンドラ（`endpoints/auth/auth.msw.ts`）を流用**し、
-      `server.use(...)` で登録して「実際に飛ぶ HTTP の形」（snake_case 変換・`Authorization` を
-      付けないこと・204 の body を読まないこと等）を固定する（`authApi.test.ts` 参照）。
+      `server.use(...)` で登録して「実際に飛ぶ HTTP の形」（snake_case 変換・認証ヘッダー
+      （`X-App-Authorization` / `Authorization`）を付けないこと・`x-amz-content-sha256` が付き
+      値がボディの SHA-256 と一致すること・204 の body を読まないこと等）を固定する
+      （`authApi.test.ts` 参照）。
       `include_in_schema=False` で OpenAPI に載らない `/auth/dev-session` のみ手書き `http.post` を使う。
   - 位置情報: `services/location` も同じ規律で、バレル（`index.ts`）を単体テストから import
     しない（`getLocationMode()` の結果次第で `location.real.ts` 経由の `expo-location`

@@ -182,8 +182,14 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 ### テストの書き方（RN の render テストは書けない）
 
 `vitest.config.ts` は `environment: "node"` / `include: ["src/**/*.test.ts"]`（`.tsx` は対象外）で、
-`resolve.alias` が `react-native` を最小スタブ（`src/test/mocks/react-native.ts`）に差し替えている。
+`resolve.alias` が `react-native` / `expo-secure-store` / `expo-location` / `expo-crypto` を
+それぞれ最小スタブ（`src/test/mocks/`）に差し替えている。
 そのため**コンポーネントをレンダリングするテストは現状書けない**。
+
+**`src/api/client.ts` から到達する位置にネイティブ依存を新たに足したら、`vitest.config.ts` の
+`resolve.alias` にモックを追加すること**。さもないと `client.ts` を推移的に import する
+`features/*/api/*.test.ts` が全滅する（許容条件・実例は
+[architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
 
 代わりに、**判定ロジックを `react-native` を値として import しない純粋関数に切り出して `.test.ts` でテストする**
 （`src/lib/hitSlop.ts` / `src/lib/toPercent.ts` / `src/theme/tokens.ts` の `resolveTheme` /

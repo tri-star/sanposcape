@@ -50,7 +50,13 @@ packages/mobile/
 │   │
 │   ├── api/                  # Orval生成物 & 共通APIクライアント設定
 │   │   ├── generated/         #   自動生成物（手編集禁止）
-│   │   └── client.ts
+│   │   ├── client.ts          #   customFetch（HTTP出口の1つ）
+│   │   ├── authHeaders.ts     #   X-App-Authorization 付与の純粋関数
+│   │   ├── contentHash.ts     #   x-amz-content-sha256 付与の純粋関数（expo-crypto を使用）
+│   │   ├── apiError.ts        #   ApiError
+│   │   ├── retryPolicy.ts     #   401→refresh のリトライ判定
+│   │   ├── authTokenProvider.ts #   services/auth と client.ts を疎結合にするレジストリ
+│   │   └── queryClient.ts     #   TanStack Query の QueryClient 設定
 │   │
 │   ├── hooks/                # 横断的な汎用hook（機能非依存）
 │   ├── lib/                  # 汎用ユーティリティ（純粋関数中心＝テスト容易）
@@ -167,7 +173,16 @@ packages/mobile/
 
 ### `src/api/` — バックエンドAPIクライアント
 - `generated/`: Orval による自動生成物。**手編集しない**。
-- `client.ts`: 共通のクライアント設定（ベースURL、インターセプタ等）。
+- `client.ts`: 共通のクライアント設定（ベースURL、インターセプタ等。Orval が使う `customFetch`）。
+- `authHeaders.ts` / `contentHash.ts`: リクエストへ横断的な送信ヘッダーを付与する純粋関数
+  （`X-App-Authorization` / `x-amz-content-sha256`。SS-70）。**mobile の HTTP 出口は
+  `client.ts` の `customFetch` と `src/services/auth/authApi.ts` の `post()` の2箇所**あり、
+  これらは両方の出口から共有される横断モジュールのため `src/api/` に置く（`services/auth/` へは
+  置かない）。新しい横断的な送信ヘッダーを追加する場合も同じ配置ルールに従うこと。
+- `apiError.ts` / `retryPolicy.ts`: `ApiError` と 401→refresh のリトライ判定。
+- `authTokenProvider.ts`: `client.ts` が `services/auth` を直接 import せずにトークンを
+  取得するためのレジストリ（循環参照回避）。
+- `queryClient.ts`: TanStack Query の `QueryClient` 設定。
 
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useScreenBack.ts`（画面の「戻る」導線を

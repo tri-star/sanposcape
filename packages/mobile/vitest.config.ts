@@ -21,6 +21,7 @@ export default defineConfig({
       "react-native": path.resolve(__dirname, "src/test/mocks/react-native.ts"),
       "expo-secure-store": path.resolve(__dirname, "src/test/mocks/expo-secure-store.ts"),
       "expo-location": path.resolve(__dirname, "src/test/mocks/expo-location.ts"),
+      "expo-crypto": path.resolve(__dirname, "src/test/mocks/expo-crypto.ts"),
     },
   },
 });

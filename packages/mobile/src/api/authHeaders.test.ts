@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { withAuthHeader } from "@/api/authHeaders";
 
 describe("withAuthHeader", () => {
-  it("token が null なら Authorization が付かず headers はそのまま", () => {
+  it("token が null なら X-App-Authorization が付かず headers はそのまま", () => {
     const options: RequestInit = { method: "GET", headers: { "Content-Type": "application/json" } };
 
     const result = withAuthHeader(options, null);
@@ -11,13 +11,22 @@ describe("withAuthHeader", () => {
     expect(result).toBe(options);
   });
 
-  it("token があれば Authorization: Bearer xxx が付く", () => {
+  it("token があれば X-App-Authorization: Bearer xxx が付く", () => {
     const options: RequestInit = { method: "GET" };
 
     const result = withAuthHeader(options, "abc123");
 
     const headers = new Headers(result.headers);
-    expect(headers.get("Authorization")).toBe("Bearer abc123");
+    expect(headers.get("X-App-Authorization")).toBe("Bearer abc123");
+  });
+
+  it("Authorization ヘッダーは付かない（CloudFront(OAC) が SigV4 署名に使うため併記しない）", () => {
+    const options: RequestInit = { method: "GET" };
+
+    const result = withAuthHeader(options, "abc123");
+
+    const headers = new Headers(result.headers);
+    expect(headers.get("Authorization")).toBeNull();
   });
 
   it("既存の Content-Type ヘッダ（素オブジェクト）が保持される", () => {
@@ -30,7 +39,7 @@ describe("withAuthHeader", () => {
 
     const headers = new Headers(result.headers);
     expect(headers.get("Content-Type")).toBe("application/json");
-    expect(headers.get("Authorization")).toBe("Bearer abc123");
+    expect(headers.get("X-App-Authorization")).toBe("Bearer abc123");
   });
 
   it("既存の Content-Type ヘッダ（Headers インスタンス）が保持される", () => {
@@ -43,7 +52,7 @@ describe("withAuthHeader", () => {
 
     const headers = new Headers(result.headers);
     expect(headers.get("Content-Type")).toBe("application/json");
-    expect(headers.get("Authorization")).toBe("Bearer abc123");
+    expect(headers.get("X-App-Authorization")).toBe("Bearer abc123");
   });
 
   it("元の options オブジェクトが変更されていない", () => {

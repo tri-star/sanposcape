@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
+
 import { HttpResponse, delay, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/apiError";
+import { CONTENT_SHA256_HEADER } from "@/api/contentHash";
 import {
   getCreateSessionAuthSessionPostMockHandler,
   getLogoutAuthLogoutPostMockHandler,
@@ -10,6 +13,10 @@ import {
 import type { SessionRead } from "@/api/generated/model";
 import { createAuthApi } from "@/services/auth/authApi";
 import { server } from "@/test/setup";
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
 
 /**
  * `createAuthApi()` は意図的に生成クライアント（`customFetch`）を使わない（401 → refresh の再帰を避けるため）。
@@ -77,6 +84,23 @@ describe("createAuthApi().createSession", () => {
     await authApi.createSession({ provider: "google", idToken: "id-token-1" });
 
     expect(authorization).toBeNull();
+  });
+
+  it("x-amz-content-sha256 が付き、値がボディの SHA-256 と一致する（customFetch を経由しない2つ目の HTTP 出口の回帰ガード）", async () => {
+    let contentHash: string | null = null;
+    let receivedBody: unknown;
+    server.use(
+      getCreateSessionAuthSessionPostMockHandler(async (info) => {
+        contentHash = info.request.headers.get(CONTENT_SHA256_HEADER);
+        receivedBody = await info.request.json();
+        return SESSION;
+      }),
+    );
+
+    const authApi = createAuthApi();
+    await authApi.createSession({ provider: "google", idToken: "id-token-1" });
+
+    expect(contentHash).toBe(sha256Hex(JSON.stringify(receivedBody)));
   });
 
   it("401 で ApiError(401) が throw される", async () => {

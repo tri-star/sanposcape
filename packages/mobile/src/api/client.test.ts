@@ -1,10 +1,17 @@
+import { createHash } from "node:crypto";
+
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthTokenProvider } from "@/api/authTokenProvider";
 import { setAuthTokenProvider } from "@/api/authTokenProvider";
+import { CONTENT_SHA256_HEADER } from "@/api/contentHash";
 import { customFetch } from "@/api/client";
 import { server } from "@/test/setup";
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
 
 describe("customFetch", () => {
   afterEach(() => {
@@ -35,10 +42,10 @@ describe("customFetch", () => {
     await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 500");
   });
 
-  it("provider 未登録なら Authorization ヘッダが付かず、401 でもリトライせず ApiError を投げる", async () => {
+  it("provider 未登録なら X-App-Authorization ヘッダが付かず、401 でもリトライせず ApiError を投げる", async () => {
     server.use(
       http.get("http://localhost:8000/spots", ({ request }) => {
-        expect(request.headers.get("Authorization")).toBeNull();
+        expect(request.headers.get("X-App-Authorization")).toBeNull();
         return new HttpResponse(null, { status: 401 });
       }),
     );
@@ -46,7 +53,7 @@ describe("customFetch", () => {
     await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 401");
   });
 
-  it("provider 登録済み・トークンありならリクエストに Bearer が付く", async () => {
+  it("provider 登録済み・トークンありならリクエストに X-App-Authorization: Bearer が付く", async () => {
     const provider: AuthTokenProvider = {
       getAccessToken: vi.fn().mockResolvedValue("token-1"),
       refreshAccessToken: vi.fn().mockResolvedValue("token-2"),
@@ -55,7 +62,7 @@ describe("customFetch", () => {
 
     server.use(
       http.get("http://localhost:8000/spots", ({ request }) => {
-        expect(request.headers.get("Authorization")).toBe("Bearer token-1");
+        expect(request.headers.get("X-App-Authorization")).toBe("Bearer token-1");
         return HttpResponse.json([]);
       }),
     );
@@ -75,10 +82,10 @@ describe("customFetch", () => {
       http.get("http://localhost:8000/spots", ({ request }) => {
         callCount += 1;
         if (callCount === 1) {
-          expect(request.headers.get("Authorization")).toBe("Bearer expired-token");
+          expect(request.headers.get("X-App-Authorization")).toBe("Bearer expired-token");
           return new HttpResponse(null, { status: 401 });
         }
-        expect(request.headers.get("Authorization")).toBe("Bearer new-token");
+        expect(request.headers.get("X-App-Authorization")).toBe("Bearer new-token");
         return HttpResponse.json([{ id: 1, name: "公園" }]);
       }),
     );
@@ -132,5 +139,61 @@ describe("customFetch", () => {
     await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 401");
     expect(provider.refreshAccessToken).toHaveBeenCalledTimes(1);
     expect(callCount).toBe(2);
+  });
+
+  it("POST に x-amz-content-sha256 が付き、値がボディの SHA-256 と一致する", async () => {
+    const body = JSON.stringify({ name: "代々木公園" });
+    let contentHash: string | null = null;
+    server.use(
+      http.post("http://localhost:8000/spots", ({ request }) => {
+        contentHash = request.headers.get(CONTENT_SHA256_HEADER);
+        return HttpResponse.json({ id: 1 });
+      }),
+    );
+
+    await customFetch("/spots", { method: "POST", body });
+
+    expect(contentHash).toBe(sha256Hex(body));
+  });
+
+  it("GET には x-amz-content-sha256 が付かない", async () => {
+    let contentHash: string | null | undefined;
+    server.use(
+      http.get("http://localhost:8000/spots", ({ request }) => {
+        contentHash = request.headers.get(CONTENT_SHA256_HEADER);
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await customFetch("/spots", { method: "GET" });
+
+    expect(contentHash).toBeNull();
+  });
+
+  it("401 → refresh → リトライした2回目のリクエストにも同じ x-amz-content-sha256 が付く", async () => {
+    const body = JSON.stringify({ name: "代々木公園" });
+    const provider: AuthTokenProvider = {
+      getAccessToken: vi.fn().mockResolvedValue("expired-token"),
+      refreshAccessToken: vi.fn().mockResolvedValue("new-token"),
+    };
+    setAuthTokenProvider(provider);
+
+    let callCount = 0;
+    const contentHashes: (string | null)[] = [];
+    server.use(
+      http.post("http://localhost:8000/spots", ({ request }) => {
+        callCount += 1;
+        contentHashes.push(request.headers.get(CONTENT_SHA256_HEADER));
+        if (callCount === 1) {
+          return new HttpResponse(null, { status: 401 });
+        }
+        return HttpResponse.json({ id: 1 });
+      }),
+    );
+
+    await customFetch("/spots", { method: "POST", body });
+
+    expect(callCount).toBe(2);
+    expect(contentHashes).toEqual([sha256Hex(body), sha256Hex(body)]);
   });
 });

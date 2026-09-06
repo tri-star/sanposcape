@@ -14,9 +14,14 @@ const MAX_RANDOM_VALUE = 1 - Number.EPSILON;
  * `crypto.randomUUID` / `expo-crypto` を使わない理由:
  * - Expo SDK 57 / RN 0.86 の実行時に `crypto.randomUUID` / `getRandomValues` は存在しない
  *   （`node_modules/expo`・`node_modules/react-native/Libraries` に実装なし）。
- * - `expo-crypto` を追加するとネイティブモジュールが1つ増え、`@expo/fingerprint` が変化して
- *   ADR-004 の E2E APK キャッシュを1回ミスさせる。
- * - 用途は保存の冪等キー（`client_walk_id`）であり暗号強度を要しない。
+ * - `expo-crypto` は SS-70 で `src/api/contentHash.ts`（`x-amz-content-sha256` の計算）用に
+ *   既に導入済みのため、追加コスト（ネイティブモジュール増）は理由にならない。
+ *   用途は保存の冪等キー（`client_walk_id`）で**暗号強度を要しない**上、既存の自前実装を
+ *   `expo-crypto` ベースへ置き換えるコストに見合わないため、自前実装のまま維持する。
+ * - なお ADR-004 は 2026-08-14 追補でネイティブ影響ベースの APK キャッシュ前提を撤回済み
+ *   （キャッシュキーは `packages/mobile` のソース全体ハッシュ。`.maestro/` / `docs/` / `adr/`
+ *   を除く。詳細は `packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md`）ため、
+ *   ネイティブモジュールの増減と APK キャッシュミスは現在では無関係。
  *
  * `random` はテストのために注入可能（既定 `Math.random`）。0..1 の一様乱数を返す関数を渡すこと。
  */
@@ -48,7 +53,7 @@ export function randomUuidV4(random: () => number = Math.random): string {
  * 外部から来た値（ディープリンク経由のルートパラメータなど）を API のパスへ埋める前に通すこと。
  * Orval 生成の URL ビルダーは `` `/walks/${walkId}` `` のようにテンプレートリテラルで組み立てる
  * だけでエスケープしないため、`../` を含む文字列がそのまま届くと dot-segment 正規化で
- * 別エンドポイントへリクエストが差し替わる（Authorization ヘッダは付いたまま）。
+ * 別エンドポイントへリクエストが差し替わる（認証ヘッダーは付いたまま）。
  */
 export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);

@@ -2,11 +2,16 @@
 
 ## 日付
 
-2026-09-06
+2026-09-06（初版）、2026-09-06 追補（SS-70）
 
 ## ステータス
 
 採用（SS-67 で実装）
+
+**SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定4 が mobile へ申し送っていた
+`x-amz-content-sha256` の付与と `X-App-Authorization` への切り替えを実装し、あわせて初版が前提として
+いた「mobile の HTTP 出口は `customFetch` 1 箇所」という**事実誤りを訂正**した（実際は 2 箇所ある）。
+追補部分には `（SS-70 追補）` を付けている。
 
 ## コンテキスト
 
@@ -25,6 +30,10 @@
   避ける）が要求されている。
 - クライアントは mobile（React Native / Expo）のみで、HTTP の出口は `src/api/client.ts` の
   `customFetch` 1 箇所に集約されている。frontend パッケージは存在しない。
+  （**SS-70 追補: これは誤り。** HTTP の出口は 2 箇所ある —— `src/api/client.ts` の `customFetch`
+  （Orval mutator）と、`src/services/auth/authApi.ts` の `post()`。後者は「refresh 自体が
+  `customFetch` を通ると 401 → refresh → 401 → refresh の再帰になる」ため意図的に分けてある。
+  下記 決定1 の副作用B・副作用C の対処は**両方**に入れる必要がある）
 - 本リポジトリ `sanposcape` は **public** である。
 
 ## 決定
@@ -68,6 +77,11 @@ Function URL の直叩きを IAM で構造的に塞げるため `AWS_IAM` を採
   署名対象のヘッダーであり、CloudFront は他の `x-amz-*` と違いこの値を上書きしない
   （＝ビューアが計算した値がそのままオリジンに届く）ため、クライアントが計算して付けなければならない。
   クライアントは mobile のみで `customFetch` 1 箇所に実装が集約できる。
+  （**SS-70 追補**: 実装箇所は 2 箇所だった。`src/services/auth/authApi.ts` の `post()` が
+  `customFetch` を経由しない 2 つ目の出口であり、そこが扱う `/auth/session` `/auth/dev-session`
+  `/auth/refresh` `/auth/logout` は**すべてボディを伴う POST**。`customFetch` だけに実装すると
+  CloudFront 経由でサインイン自体が 403 になり、症状が探索 API の不具合に見えて切り分けが難しくなる。
+  両方に付与する形で実装した）
 - **副作用 C（新事実。当初の判断材料に無かった）: CloudFront OAC(`SigningBehavior: always`) が
   ビューアの `Authorization` ヘッダーを上書きする。** インフラ側の OAC 設定は
   `signing_behavior = "always"` で、これは「CloudFront が常にオリジンへの送信リクエストへ
@@ -286,9 +300,16 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
 - [ ] prod の Lambda 同時実行数クォータ引き上げの承認を待ち、承認後速やかに
       `ReservedConcurrentExecutions` を prod にも投入する（決定8の「最も危険な時間帯」を作らない）。
 - [ ] prod のシークレット（`/sanposcape/prod/shared`）に値を投入する。
-- [ ] mobile 側の CloudFront 対応（`x-amz-content-sha256` の付与、`X-App-Authorization` への
-      切り替え）を別チケットで実施し、`EXPO_PUBLIC_BACKEND_API_URL` を CloudFront のホスト名に
-      切り替える前に完了させる。
+- [x] mobile 側の CloudFront 対応（`x-amz-content-sha256` の付与、`X-App-Authorization` への
+      切り替え）を別チケットで実施する。**（SS-70 追補）SS-70 で完了**。GET/HEAD 以外の全リクエストに
+      ボディの SHA-256 を付け、アクセストークンは `X-App-Authorization` 単独で送る（`Authorization`
+      は併記しない。ローカルでだけ通る経路差を残さないため）。ローカル / CloudFront で経路を分岐させない。
+- [ ] `EXPO_PUBLIC_BACKEND_API_URL` を CloudFront のホスト名に切り替える（インフラ側の
+      `enable_distribution = true` と合わせて実施）。**mobile 側の前提条件は SS-70 で解消済み。**
+      切り替え後は `packages/backend/docs/deployment.md` §6.2 のとおり、認証必須エンドポイント 1 本と
+      ボディを伴う POST 1 本を実際に踏んで確認する（`GET /health` では絶対に露見しない）。
+      なお `x-amz-content-sha256` の値が正しいことは、CloudFront を経由して初めて実証される
+      （ローカルの FastAPI はこのヘッダーを無視するため）。
 - [ ] in-process キャッシュ / レート制限の外部ストア（DynamoDB 等）への移行を別課題として検討する。
 - [ ] SAM デプロイの CI 化（OIDC ロールの整備後）。
 

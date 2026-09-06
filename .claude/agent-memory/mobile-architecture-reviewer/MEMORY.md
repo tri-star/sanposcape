@@ -11,3 +11,4 @@
 - [SS-60 履歴削除UI](project_ss60_walk_delete.md) — 後始末レジストリパターンが2例目(walkDeletionCleanup)になった経緯。folder-structure.md と ADR-008 決定8 に追記済み
 - [Modal + useScreenBack の同居](pattern_modal_backhandler_coexistence.md) — Android では Modal が hardwareBackPress を奪うため onIntercept が実質到達しない疑い。次に同居コードを見たら要検証（実機未確認）
 - [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認
+- [SS-70 CloudFront/SigV4対応(x-amz-content-sha256, X-App-Authorization)](project_ss70_cloudfront_http_headers.md) — HTTP出口2箇所パターン確立、api/層への初のネイティブ依存混入(expo-crypto)、mobile内2種のADR-005番号衝突に注意
