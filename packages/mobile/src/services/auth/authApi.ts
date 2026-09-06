@@ -1,4 +1,5 @@
 import { ApiError } from "@/api/apiError";
+import { withContentHashHeader } from "@/api/contentHash";
 import { getApiBaseUrl } from "@/config/env";
 import type { AuthProvider } from "@/services/auth/types";
 
@@ -7,6 +8,10 @@ import type { AuthProvider } from "@/services/auth/types";
  *
  * なぜ分けるか: `client.ts` は 401 で `refreshAccessToken()` を呼ぶ。refresh 自体が `client.ts` を
  * 通ると 401 → refresh → 401 → refresh … の再帰になる。また `/auth/session` は Bearer 不要。
+ *
+ * `customFetch` を経由しないため、`x-amz-content-sha256` の付与もこのファイルが自前で行う
+ * （ADR-005 決定4）。このファイルが扱う4本（session/dev-session/refresh/logout）はすべて
+ * ボディを伴う POST であり、付け忘れると CloudFront 経由でサインイン自体が 403 になる。
  *
  * 引数は camelCase（モバイル内部の規約）、送信するボディは snake_case（backend の規約）。
  * リクエスト側の命名変換はこのファイルが担う（レスポンス側は sessionMapper が担う）。
@@ -28,12 +33,13 @@ export function createAuthApi(deps?: { baseUrl?: () => string; fetchFn?: typeof 
     body: unknown,
     options?: { signal?: AbortSignal },
   ): Promise<Response> {
-    const response = await fetchFn(`${baseUrl()}${path}`, {
+    const init = await withContentHashHeader({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: options?.signal,
     });
+    const response = await fetchFn(`${baseUrl()}${path}`, init);
     if (!response.ok) {
       throw new ApiError(response.status);
     }
