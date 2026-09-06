@@ -55,6 +55,11 @@ pnpm --filter mobile orval
 方針: **EASで端末向けdevelopment buildを1回作り、以降はMetroのFast RefreshでExpo Go同等**の体験を得る。
 再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)。
 
+> `development` 以外のプロファイル（E2E の `preview`、dev AWS 環境の `staging`、ストア配信の
+> `production`）がどの backend を向くか、`eas.json` に書かない値をどう供給するかは
+> [ビルドプロファイルと環境変数](./build-profiles.md) にまとめてある。
+> **EAS ビルドでは下記の `.env` は読まれない**点に注意すること。
+
 ```bash
 # 初回だけ: EAS で Android の development build(APK) を作成
 #   （eas アカウント連携が必要。実行はユーザーが行う）

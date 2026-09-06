@@ -13,6 +13,8 @@
 - ローカル環境の構築手順は [ローカル環境構築](./docs/local-env.md) を参照
 - エミュレータ/実機での起動手順は [起動手順ガイド](./docs/app-startup-guide.md) を参照
 - iPhone実機での development build は [iPhone実機 development build 手順](./docs/iphone-device-development.md) を参照
+- EAS のビルドプロファイル（どの backend を向くか・環境変数の供給元）は
+  [ビルドプロファイルと環境変数](./docs/build-profiles.md) を参照
 
 ## ADR（設計判断の記録）
 
