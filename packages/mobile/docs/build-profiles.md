@@ -166,9 +166,16 @@ pnpm --filter mobile exec eas env:create \
 
 ## ストア配布に必要な残作業（SS-79）
 
-- **`app.json` の `iosUrlScheme` がプレースホルダのまま**
-  （`com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID`）。実体は iOS クライアント ID の
-  逆順表記で、ビルドした IPA の `Info.plist` に必ず入る公開値のため git にコミットしてよい。
+- **`app.json` の `iosUrlScheme` は dev の GCP プロジェクトの値でコミット済み。**
+  実体は iOS クライアント ID の逆順表記（`<ID>.apps.googleusercontent.com` →
+  `com.googleusercontent.apps.<ID>`）で、ビルドした IPA の `Info.plist` に必ず入る公開値のため
+  git に置いてよい（`client_secret` とは別物。ADR-004 の「公開される前提の値を秘匿ストアに
+  置くと誤った安心を生む」と同じ考え方）。
+  **`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` は、この逆順を戻した同一の値**を登録すること。
+  ずれると `aud` の検証に落ちる。
+  なお `app.json` は静的定義なので、**環境ごとに別の iOS クライアントを使う場合は
+  この方式では出し分けられない**（`app.config.ts` での注入が必要になる）。bundle ID を
+  環境で分けるかどうかと一体の論点で、SS-79 の判断待ち。
 - **Android の OAuth クライアントは署名鍵ごとに SHA-1 の登録が必要**（ADR-002）。
   Google Maps の SHA-1 登録と同じ作業が Google サインインにも要る。
 - **`submit` プロファイルは空定義**（`{}`）。`eas submit --profile staging` は対話で聞かれる。
