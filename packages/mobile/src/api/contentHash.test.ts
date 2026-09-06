@@ -113,7 +113,11 @@ describe("withContentHashHeader", () => {
   });
 
   it("元の options オブジェクトが変更されていない", async () => {
-    const options: RequestInit = { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } };
+    const options: RequestInit = {
+      method: "POST",
+      body: "{}",
+      headers: { "Content-Type": "application/json" },
+    };
 
     await withContentHashHeader(options);
 
