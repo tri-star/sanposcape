@@ -61,7 +61,9 @@ SS-35との整合等）。
   （保持済みのbest_outbound_legは使わない）ことをコメントで明記。
 - B-1〜B-6: `local-env.md`(新設定3つ)・ADR-001(呼び出し回数/往復時間の取り消し線+追補/
   API契約の転記/経由点幾何の起点・MIN_LOOP_BASE_DISTANCE_METERS明記)・`milestones.md`
-  (周回backend完了・mobile未着手を明示)・`project-overview.md`用語集を更新。
+  (周回backend完了・mobile未着手を明示。ただし `docs/milestones.md` はその後 2026-08-22 に
+  削除され、残作業の情報源は Plane に一本化された。探しに行かないこと)・
+  `project-overview.md`用語集を更新。
 - **教訓**: プランのある決定の見出しと本文が食い違っている場合、実装は本文に従うことが
   多いが、見出しだけを読んだ後続作業者・レビュアーが誤解する。プラン文書に見出し／本文の
   矛盾を見つけたら、実装完了後でも見出し側を本文に揃えて直しておくと再発を防げる。
