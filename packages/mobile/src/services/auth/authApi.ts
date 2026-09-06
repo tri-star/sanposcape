@@ -41,16 +41,12 @@ export function createAuthApi(deps?: { baseUrl?: () => string; fetchFn?: typeof 
       signal: options?.signal,
     });
     // `redirect: "error"` について:
-    // 標準の `Authorization` は WHATWG Fetch 仕様によりクロスオリジンリダイレクト時に自動削除されるが、
-    // 独自ヘッダーの `X-App-Authorization`（この関数は付けないが、呼び出し元が付けるケースを想定）は
-    // この保護の対象外。仕様準拠の意思表示として明示しているが、**RN 実機ではこのオプションは
-    // 実効的な防御にならない**。RN 0.86 の global fetch は
-    // `node_modules/react-native/Libraries/Network/fetch.js` が `whatwg-fetch`
-    // （XMLHttpRequest ベースのポリフィル）をそのまま re-export したもので、`whatwg-fetch` の
-    // `Request` コンストラクタは `options.redirect` を一切読まない（XHR ベースのため実際の
-    // リダイレクトは常に追従される）。`react-native-web` や将来 RN が spec 準拠 fetch に移行した
-    // 場合には効くため無害だが、「これで守られている」と誤解しないこと。実効的な防御は
-    // 「この API がリダイレクトを返さないこと」に依存し続ける。
+    // この関数は認証ヘッダーを付けないが、**ボディに refresh_token を載せる**（`/auth/refresh`
+    // `/auth/logout`）。リダイレクトに追従すると、その資格情報がそのまま転送先へ再送される。
+    // 仕様準拠の意思表示として明示しているが、**RN 実機ではこのオプションは実効的な防御にならない**
+    // （理由は `@/api/client` の同じ箇所のコメントを参照。RN の fetch は `whatwg-fetch` の
+    // ポリフィルで、`options.redirect` を一切読まない）。「これで守られている」と誤解しないこと。
+    // 実効的な防御は「この API がリダイレクトを返さないこと」に依存し続ける。
     const response = await fetchFn(`${baseUrl()}${path}`, { ...init, redirect: "error" });
     if (!response.ok) {
       throw new ApiError(response.status);

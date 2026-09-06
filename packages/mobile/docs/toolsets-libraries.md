@@ -37,6 +37,6 @@ APK キャッシュミスは論点にならない。用途が小さく、暗号�
 | UUID v4 生成 | `src/lib/uuid.ts` の `randomUuidV4()` | Expo SDK 57 / RN 0.86 の実行時に `crypto.randomUUID` / `crypto.getRandomValues` が存在しない。`expo-crypto` は SS-70 で `src/api/contentHash.ts`（`x-amz-content-sha256` の計算）用に既に導入済みだが、UUID生成の用途は保存の冪等キー（`client_walk_id`）で**暗号強度を要さない**上、既存の `Math.random` ベース実装を `expo-crypto` へ置き換えるコストに見合わないため、自前実装のまま維持する（乱数生成器はテストのため注入可能）。 |
 
 - **暗号鍵・トークン・推測されると危険な識別子には `Math.random` ベースの実装を使わないこと。**
-  そうした用途が出てきた場合は `expo-crypto` の追加を検討し、ADR で判断を残す。
+  そうした用途が出てきた場合は（既に導入済みの）`expo-crypto` の利用を検討し、ADR で判断を残す。
 - 自前実装を選んだ場合は、理由を実装ファイルの JSDoc とこの表の両方に残す
   （コードコメントだけだと依存追加の判断時に見つからないため）。
