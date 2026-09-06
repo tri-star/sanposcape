@@ -25,12 +25,29 @@
         "EXPO_PUBLIC_LOCATION_MODE": "mock"
       }
     },
+    "staging": {
+      "distribution": "internal",
+      "channel": "staging",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_API_URL": "https://app-api.dev.sanposcape.com",
+        "EXPO_PUBLIC_AUTH_MODE": "real",
+        "EXPO_PUBLIC_LOCATION_MODE": "real"
+      }
+    },
     "production": {
       "distribution": "store",
       "channel": "production",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_API_URL": "https://app-api.sanposcape.com",
+        "EXPO_PUBLIC_AUTH_MODE": "real",
+        "EXPO_PUBLIC_LOCATION_MODE": "real"
       }
     }
   },

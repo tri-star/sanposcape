@@ -2,11 +2,15 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）
 
 ## ステータス
 
 採用（SS-67 で実装）
+
+**SS-78「mobile: EAS ビルドが既定で CloudFront の backend を向くようにする」で追補**した。
+「移行・対応が必要な事項」の `EXPO_PUBLIC_BACKEND_API_URL` の切り替えについて、
+設定側（`eas.json` のプロファイル）を実施した記録を残している。
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定4 が mobile へ申し送っていた
 `x-amz-content-sha256` の付与と `X-App-Authorization` への切り替えを実装し、あわせて初版が前提として
@@ -310,6 +314,15 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
       ボディを伴う POST 1 本を実際に踏んで確認する（`GET /health` では絶対に露見しない）。
       なお `x-amz-content-sha256` の値が正しいことは、CloudFront を経由して初めて実証される
       （ローカルの FastAPI はこのヘッダーを無視するため）。
+      **（SS-78 追補）設定側は実施済み、実証は未完のためチェックは付けない。**
+      `packages/mobile/eas.json` に `staging`（`https://app-api.dev.sanposcape.com`）を追加し、
+      `production` に `env` を持たせた（従来 `production` は `env` 自体が無く、
+      `getApiBaseUrl()` の `http://localhost:8000` フォールバックが効いて
+      「ビルドは成功するが通信が全く成立しないアプリ」ができる状態だった）。
+      プロファイルごとの向き先と、`eas.json` に書かない値の供給経路は
+      [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) に集約した。
+      残るのは `enable_distribution = true` の apply 後に §6.2 の 3 本立てを実際に踏むこと。
+      prod のホスト名 `app-api.sanposcape.com` はホスト名規則からの導出値で、**未検証**。
 - [ ] in-process キャッシュ / レート制限の外部ストア（DynamoDB 等）への移行を別課題として検討する。
 - [ ] SAM デプロイの CI 化（OIDC ロールの整備後）。
 
