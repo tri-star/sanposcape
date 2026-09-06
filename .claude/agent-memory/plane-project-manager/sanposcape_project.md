@@ -369,3 +369,11 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - SS-72「infra/backend: SAM デプロイを GitHub Actions から実行できるようにする」(work_item_id: `4ca0dcd2-08c2-417e-917c-2aeb3cd05792`)、priority=low。
 - いずれもState=Backlog（デフォルト）、モジュール未所属、SS-67のコメント（2026-09-06付）で予告されていた3件のフォローアップに対応。SS-67とのリレーションは[[relation_definitions_402]]の制約（custom relationがHTTP 402）により設定不可のため、本文の「関連」節にSS-67識別子を記載するのみに留めた。
 - **How to apply**: 今後SS-70/71/72を扱う際は上記work_item_idを使うこと。特にSS-70は`EXPO_PUBLIC_BACKEND_API_URL`をCloudFrontホスト名に切り替える（SS-67 Phase5）前に完了が必須、SS-71は「prodのLambda同時実行数クォータ引き上げ承認」のタイミングに要注意（インフラチームとの合意事項がタスク本文にあり）。
+
+## 2026-09-06追加: SS-70をReview化・PR #72リンク登録
+
+- SS-70（work_item_id: `f4b574c2-c0e4-4f37-ac91-fcbb2701bda2`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`workitem_link`でPR #72（`https://github.com/tri-star/sanposcape/pull/72`、link_id: `891c10be-8a74-4562-8451-583d099ef545`）を登録。`workitem_property`はこのプロジェクトのプラン制約で従来通り使えず、標準Link機能が唯一の選択肢という既存方針を継続。
+
+## 2026-09-06追加: SS-76「mobile: 3つ目のHTTP出口が生えたときに横断ヘッダーの付け忘れを検知できるようにする」を新規作成
+
+- SS-76（work_item_id: `2278ccd9-cd02-42f7-8479-d4298090aa16`）をState=Backlog、priority=medium、モジュール未所属、担当者未割り当て、親タスクなしで新規作成。SS-70（CloudFront対応でHTTP出口が2箇所ある事実が判明）のアーキテクチャレビューSuggestion由来のフォローアップ。SS-70との関連は[[relation_definitions_402]]の制約により本文の「関連」節への記載のみで対応（親子関係は使わず、独立課題として位置づけ）。
