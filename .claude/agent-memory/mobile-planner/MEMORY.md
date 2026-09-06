@@ -18,3 +18,4 @@
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
 - [プラン作成時に必ず確認する制約](planning-constraints.md) — 読む順序と、毎回効いてくる mobile 固有の制約
 - [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）を取り違えないための整理
+- [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403

@@ -15,3 +15,4 @@
 - [Vitest のテスト対象制約](testing-constraints.md) — Vitestはnode+.tsのみ。hooks/componentsにテスト無しを指摘しない
 - [feature横断の後始末レジストリ](cross-feature-cleanup-registry.md) — sessionCleanup/walkDeletionCleanup型の後始末レジストリパターン
 - [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針。統合提案しない
+- [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
