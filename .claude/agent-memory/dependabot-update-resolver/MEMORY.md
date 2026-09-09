@@ -1,1 +1,2 @@
 - [mobile ecosystem 誤判定への対処](feedback_mobile_ecosystem_detection.md) — detect-ecosystem.shがmobileをfrontend誤判定。orval生成→typecheck等の手順込み
+- [action.yml直接diffでGitHub Actions更新を検証](technique_github_actions_action_yml_diff.md) — release notesだけでなくaction.ymlのdiffでinputデフォルト変更を確定的に確認する
