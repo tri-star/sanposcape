@@ -58,6 +58,9 @@
 CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**TestFlight で配れる形**
 （`distribution: "store"`）で出力する。
 
+**dev の CloudFront は既に稼働している**（2026-09-11 時点で `GET /health` が 200 `{"status":"ok"}` を返す）。
+`enable_distribution = true` は dev では apply 済みなので、**このプロファイルの疎通確認は今すぐ実施できる**。
+
 - **iOS の `internal` は TestFlight ではない。** EAS の internal distribution は iOS では
   Ad Hoc / Enterprise プロビジョニングを意味し、UDID 登録済みの端末にしか入らない。
   TestFlight に載せるには App Store Connect へ submit できる `store` ビルドが要る。
@@ -120,10 +123,25 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 
 本番のストア配信用。
 
-> **prod のホスト名は未検証。** `app-api.sanposcape.com` は、インフラ側が採用している
-> 「`app-api.<zone>`」というホスト名規則（dev = `app-api.dev.sanposcape.com`、
-> `packages/backend/docs/deployment.md` §6.2）から導いた値である。**prod 環境へ実際に
-> デプロイする前に、インフラ側（`sanposcape-infra`）の実際のホスト名と突き合わせること。**
+ホスト名 `app-api.sanposcape.com` は **infra 側の ADR-0001 §2.11「ホスト名の割り当て」で確定済み**
+（2026-09-11 に `sanposcape-infra` 側へ照会して確認）。ADR は
+「`app-api.sanposcape.com` はモバイルアプリに焼き込まれ後から変更が効かないため、本 ADR で確定とする」
+と明記しており、**mobile 側がビルドに埋め込むことを前提に固定された値**である。
+
+組み立ては `live/services/backend-api` の `host_label`（既定 `app-api`）と、
+`live/dns/envs/<env>.tfvars` の `zone_name`（prod = `sanposcape.com` / dev = `dev.sanposcape.com`）の連結。
+`live/account` の `default_app_record_names` と `route53:ChangeResourceRecordSets` の
+レコード名制限により、infra 側の変更なしにホスト名だけ変えることはできない。
+
+> **`app-api` と `api` は別ホストである。** モバイル用が `app-api.<zone>`、外部向けが `api.<zone>` で、
+> distribution / WAF / レート制限 / 認証方式を独立させるため意図的に分けられている。
+> **mobile からは必ず `app-api` 側を向けること。**
+
+> **ただし prod の実体はまだ存在しない。** `live/services/backend-api/envs/prod.tfvars` は
+> `enable_distribution = false` のままで、`app-api.sanposcape.com` は現時点で名前解決しない
+> （2026-09-11 時点で `curl` が `Could not resolve host`）。前提となる
+> SAM スタック `sanposcape-backend-prod` のデプロイが未実施で、**予定日も未定**。
+> prod ビルドの疎通確認は当面できないため、dev（`staging` プロファイル）での確認を先に進めること。
 
 ## `eas.json` に書かない値（EAS の環境変数で供給する）
 

@@ -16,7 +16,7 @@
 > | マイグレーション Lambda（§5.2） | ✅ 検証済み（`{"head": "ecd8f161fedb"}`。2 回目の invoke が no-op になる冪等性も確認） |
 > | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200。psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことも確認（§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
-> | CloudFront 経由（§6.2） | ⚠️ **未検証**。インフラ側の `enable_distribution = true` 待ち |
+> | CloudFront 経由（§6.2） | ⚠️ **一部のみ。** dev は `enable_distribution = true` が apply 済みで、`https://app-api.dev.sanposcape.com/health` は 200 `{"status":"ok"}` を返す（2026-09-11 確認）。**§6.2 の 3 本立て（認証必須エンドポイント + ボディを伴う POST）は未実施** —— `/health` だけでは決定4 の `Authorization` 上書き問題も `x-amz-content-sha256` も露見しない |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 
 ## 1. 前提
@@ -221,6 +221,15 @@ aws lambda list-tags --resource <上記で得た関数の ARN>
 ```
 
 ### 6.2 Phase 5（インフラ側 `enable_distribution = true` の apply 後）
+
+> **dev は既に apply 済み（2026-09-11 時点）。** この手順は「待ち」ではなく、いつでも実施できる。
+> prod は `enable_distribution = false` のままで `app-api.sanposcape.com` は名前解決しない
+> （前提の SAM スタック `sanposcape-backend-prod` のデプロイが未実施・予定日未定）。
+>
+> ホスト名は infra 側 ADR-0001 §2.11 で確定しており、mobile 用が `app-api.<zone>`、
+> 外部向けが `api.<zone>` で**別ホスト**（distribution / WAF / レート制限 / 認証方式を独立させるため）。
+> CI やスクリプトから参照する場合は SSM の
+> `/sanposcape/<env>/services/backend-api/api_base_url` と `.../distribution_id` が使える（dev のみ存在）。
 
 **完了確認は 3 本立てにする。** インフラ資料の当初案（`/health` 200 / 直叩き 403 の 2 本）
 だけでは**認証経路の破綻が露見しない**。`GET /health` は認証不要なので、

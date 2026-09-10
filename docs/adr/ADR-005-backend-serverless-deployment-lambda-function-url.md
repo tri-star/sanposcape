@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）
 
 ## ステータス
 
@@ -321,8 +321,20 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
       「ビルドは成功するが通信が全く成立しないアプリ」ができる状態だった）。
       プロファイルごとの向き先と、`eas.json` に書かない値の供給経路は
       [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) に集約した。
-      残るのは `enable_distribution = true` の apply 後に §6.2 の 3 本立てを実際に踏むこと。
-      prod のホスト名 `app-api.sanposcape.com` はホスト名規則からの導出値で、**未検証**。
+      残るのは §6.2 の 3 本立てを実際に踏むこと。
+      **（SS-78 追補その2 / 2026-09-11）`sanposcape-infra` 側へ照会して次を確定した。**
+      - **dev の CloudFront は既に稼働している。** `enable_distribution = true` は dev では apply 済みで、
+        `https://app-api.dev.sanposcape.com/health` が 200 `{"status":"ok"}` を返す。
+        「apply 待ち」ではなく「§6.2 を踏んでいないだけ」が正しい状態。
+      - **prod のホスト名 `app-api.sanposcape.com` は導出値ではなく確定値。**
+        infra 側 ADR-0001 §2.11 が「モバイルアプリに焼き込まれ後から変更が効かないため本 ADR で確定とする」
+        と明記している。ただし prod は `enable_distribution = false` のままで名前解決せず、
+        前提の SAM スタック `sanposcape-backend-prod` のデプロイも**未実施・予定日未定**。
+      - **`app-api` と `api` は別ホスト。** モバイル用が `app-api.<zone>`、外部向けが `api.<zone>` で、
+        distribution / WAF / レート制限 / 認証方式を独立させるため意図的に分けられている。
+      - CI やスクリプトから参照する場合は SSM の
+        `/sanposcape/<env>/services/backend-api/api_base_url`（公開 URL）と
+        `.../distribution_id`（invalidation 用）が使える（dev のみ存在）。
 - [ ] in-process キャッシュ / レート制限の外部ストア（DynamoDB 等）への移行を別課題として検討する。
 - [ ] SAM デプロイの CI 化（OIDC ロールの整備後）。
 
