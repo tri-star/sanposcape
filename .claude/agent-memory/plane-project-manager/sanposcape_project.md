@@ -374,32 +374,36 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-70（work_item_id: `f4b574c2-c0e4-4f37-ac91-fcbb2701bda2`）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`workitem_link`でPR #72（`https://github.com/tri-star/sanposcape/pull/72`、link_id: `891c10be-8a74-4562-8451-583d099ef545`）を登録。`workitem_property`はこのプロジェクトのプラン制約で従来通り使えず、標準Link機能が唯一の選択肢という既存方針を継続。
 
-## 2026-09-06追加: SS-78/79を新規作成、SS-77にコメント追加
-
-- SS-78「mobile: EAS ビルドが既定で CloudFront の backend を向くようにする」(work_item_id: `026f61c5-3508-44d6-be25-a2f26d812e1e`)をState=Todo、priority=highで新規作成。モジュール未所属、担当者未割り当て、親タスクなし。
-- SS-79「mobile: ストア公開前の配布経路を整える（Android=APKダウンロード / iOS=TestFlight）」(work_item_id: `e68b96bd-4a1e-4685-9a4e-176ff9389d6a`)をState=Backlog、priority=mediumで新規作成。SS-78の完了が前提と本文に明記。モジュール未所属、担当者未割り当て、親タスクなし。
-- SS-77「app: Web配信対象を確定し、SS-74向けのSAMデプロイを実装する」(work_item_id: `e2a27e62-4889-4de4-831b-2350a2852ea5`、モジュールA所属、State=Todo、priority=urgent)にmobile OTA配信面の論点をコメント（comment_id: `645fd206-9da7-46ea-a657-dddd60eb66de`）で追加。本文編集は行っていない。
-- SS-78/79ともSS-70/SS-74との関連は[[relation_definitions_402]]の制約により本文の「関連」節への記載のみで対応（親子関係も使わず独立課題として位置づけ、ユーザー指示通り）。
-
 ## 2026-09-06追加: SS-76「mobile: 3つ目のHTTP出口が生えたときに横断ヘッダーの付け忘れを検知できるようにする」を新規作成
 
 - SS-76（work_item_id: `2278ccd9-cd02-42f7-8479-d4298090aa16`）をState=Backlog、priority=medium、モジュール未所属、担当者未割り当て、親タスクなしで新規作成。SS-70（CloudFront対応でHTTP出口が2箇所ある事実が判明）のアーキテクチャレビューSuggestion由来のフォローアップ。SS-70との関連は[[relation_definitions_402]]の制約により本文の「関連」節への記載のみで対応（親子関係は使わず、独立課題として位置づけ）。
 
-## 2026-09-07追加: SS-77をCancelled、SS-74の前提を書き換え、SS-78をIn Progressへ
+## 2026-09-11追加: SS-77 の取り下げと SS-78 の完了（SS-74/79/81 への波及を含む）
 
-- SS-77（`e2a27e62-4889-4de4-831b-2350a2852ea5`）を **Cancelled**（`2abacd9b-3593-4423-a77f-d0eb64dde66a`）に変更。理由をコメント（comment_id: `133dde16-f33f-4d34-9e17-18db1ba06fb5`）に記録。本文は編集していない（前提が誤っていた経緯を残すため）。決定は `docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md` に転記済み。
-- SS-74（`07d228b8-fc21-4e14-928f-b8c4c1c33246`）の本文を「Next.js SSR + Lambda」前提から「静的サイト（S3 + OAC）」前提へ全面的に書き換えた。State は Todo のまま、日程・優先度も変更していない。
-- SS-78（`026f61c5-3508-44d6-be25-a2f26d812e1e`）を **In Progress**（`81c7939b-725c-4c0b-bb92-77b24ec48377`）へ変更。
-- **`workitem_comment` の `comment_html` は生のHTMLを渡すこと。** HTMLエンティティにエスケープして渡すとPlane側でタグが文字列として表示される（今回1度作り直した）。`workitem` の `description_html` も同様。
+前提が誤ったまま起票された SS-77 を取り下げ、実作業を SS-78 で完了させた一連の対応。
+経緯の詳細は各チケットのコメントと `docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md` にある。
 
-**Why:** 前提が誤ったまま起票されたチケットを消さずに残し、なぜ取り下げたかを追跡可能にするため。
-**How to apply:** 今後「前提が崩れたチケット」を扱う場合も、本文を書き換えて痕跡を消すのではなく、Cancelled + 理由コメント + ADR転記の3点セットにする。関連チケットの本文に前提変更が波及する場合は、そちらへ「★ YYYY-MM-DD 更新」の見出しで追記する。
+- SS-77「app: Web配信対象を確定し、SS-74向けのSAMデプロイを実装する」(`e2a27e62-4889-4de4-831b-2350a2852ea5`) → **Cancelled**。本文は編集せず、取り下げ理由をコメント(`133dde16-f33f-4d34-9e17-18db1ba06fb5`)に記録。
+- SS-78「mobile: EAS ビルドが既定で CloudFront の backend を向くようにする」(`026f61c5-3508-44d6-be25-a2f26d812e1e`) → **Done**。PR #73 / #75 を `workitem_link` で登録。
+- SS-79「mobile: ストア公開前の配布経路を整える」(`e68b96bd-4a1e-4685-9a4e-176ff9389d6a`) → 本文に SS-78 からの申し送りを追記。
+- SS-74「infra: frontend の配信面」(`07d228b8-fc21-4e14-928f-b8c4c1c33246`) → 本文を「Next.js SSR + Lambda」前提から「静的サイト(S3 + OAC)」前提へ書き換え。State・日程・優先度は変更なし。
+- SS-81「mobile: dev の AWS backend を向いた Android ビルドを作り、CloudFront 経由の疎通を実証する」(`a59e636d-e890-4810-bde9-f71577069fed`) → 新規作成(In Progress / high)。
+- SS-76 (`2278ccd9-cd02-42f7-8479-d4298090aa16`) も同時期の SS-70 由来のフォローアップとして Backlog に存在する。
 
-## 2026-09-07追加: SS-78 を Review 化し PR #73 を紐付け、SS-79 へ申し送りを追記
+### ★ `comment_html` / `description_html` は生の HTML を渡す
 
-- SS-78（`026f61c5-3508-44d6-be25-a2f26d812e1e`）を **Review**（`65b14f74-6fd7-4129-9fab-60908f844572`）へ更新し、`workitem_link` で PR #73（`https://github.com/tri-star/sanposcape/pull/73`、link_id: `76635055-44e0-4783-9a2b-2d95299efee8`）を登録。SS-70 と同じく標準 Link 機能を使用（`workitem_property` はプラン制約で不可）。
-- SS-79（`e68b96bd-4a1e-4685-9a4e-176ff9389d6a`）の本文に「★ SS-78 からの申し送り」節を追加。既存の「現状」見出しには `※ 起票時点` の注記を付け、「やること」の各項目には `（SS-78 で実施済み）` を注記した。本文の削除はしていない。
-- ブランチは `tri-star/SS-77-78`（SS-77 の ADR と SS-78 の実装が1本）。PR も1本にまとめている。
+HTMLエンティティにエスケープして渡すと、Plane 側でタグが文字列として表示される（実際に1度作り直した）。
+`workitem_comment` の `comment_html` も `workitem` の `description_html` も同じ。
 
-**Why:** 起票時点の記述を消すと「なぜこの手順が要ると書かれていたのか」が読めなくなるため、注記を足す方式で更新した。
-**How to apply:** 複数チケットを1ブランチで扱った場合、Review 化と Link 登録は「実作業を担ったチケット」側に付ける（今回は SS-78）。Cancelled 側（SS-77）には理由コメントのみを残し、PR は紐付けない。
+**Why:** ツール側がエスケープを解かないため、`&lt;p&gt;` がそのまま本文に出る。
+**How to apply:** HTML を組み立てる時はエスケープせずそのまま渡す。値の中に `<` を含めたい場合（例: `<projectId>`）は、角括弧など別の記法に置き換える。
+
+### ★ 前提が崩れたチケットは「消さずに Cancelled + 理由コメント + ADR転記」
+
+**Why:** 本文を書き換えて痕跡を消すと、なぜその手順が要ると書かれていたのかが後から読めなくなる。
+**How to apply:** 3点セット（Cancelled 化 / 取り下げ理由のコメント / 決定の ADR 転記）で残す。関連チケットへ前提変更が波及する場合は、そちらの本文を上書きせず「★ YYYY-MM-DD 更新」の見出しで追記し、既存の記述には「※ 起票時点」の注記を付ける。
+
+### ★ 複数チケットを1ブランチで扱った場合の紐付け先
+
+**Why:** どちらにも付けると、どちらが実作業だったのか後から分からなくなる。
+**How to apply:** Review 化と PR の `workitem_link` 登録は「実作業を担ったチケット」側だけに付ける（今回は SS-78）。Cancelled 側には理由コメントのみを残し、PR は紐付けない。なお `workitem_property` はプラン制約で使えないため、URL の保持は標準 Link 機能が唯一の手段（[[relation_definitions_402]] と同じ制約）。
