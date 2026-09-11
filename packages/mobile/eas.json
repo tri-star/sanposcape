@@ -49,6 +49,11 @@
         "buildType": "apk"
       }
     },
+    "staging-ios": {
+      "extends": "staging",
+      "distribution": "internal",
+      "autoIncrement": false
+    },
     "production": {
       "distribution": "store",
       "channel": "production",
