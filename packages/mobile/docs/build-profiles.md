@@ -33,6 +33,7 @@
 | `preview` | CI の Maestro E2E 専用 | internal | `preview` | apk | `http://10.0.2.2:8000`（ランナー上のローカル backend 直結） |
 | `staging` | dev AWS 環境向けの **TestFlight / ストア配布**ビルド | **store** | `preview` | app-bundle | `https://app-api.dev.sanposcape.com` |
 | `staging-apk` | `staging` と同じ中身の **Android APK**（サイドロード配布用） | internal | `preview`（継承） | apk | 同上 |
+| `staging-ios` | `staging` と同じ中身の **iOS Ad Hoc ビルド**（UDID 登録済み端末への直接配布用） | internal | `preview`（継承） | ―（iOS 専用） | 同上 |
 | `production` | 本番のストア配信 | store | `production` | app-bundle | `https://app-api.sanposcape.com` |
 
 ### `environment` は必ず明示する
@@ -66,7 +67,7 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
   TestFlight に載せるには App Store Connect へ submit できる `store` ビルドが要る。
 - **`distribution` はプラットフォーム別に指定できない**（eas.json の共通プロパティ）。
   そのため「iOS は TestFlight / Android は APK 直配布」を 1 プロファイルでは満たせず、
-  Android APK 用に `staging-apk` を分けている。
+  Android APK 用に `staging-apk` を、iOS の Ad Hoc 配布用に `staging-ios` を分けている。
 - `AUTH_MODE` / `LOCATION_MODE` は `real`。`real` はどちらも未設定時のフォールバック値でもあるが、
   「このビルドは本物の Google サインインと本物の位置情報で動く」という意図を読み取れるように
   明示している。
@@ -91,6 +92,24 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
 
 `autoIncrement` は `false` に落としてある。サイドロード用のビルドでバージョンを進める必要がなく、
 進めると `staging` / `production` と採番が絡むため。
+
+### `staging-ios`
+
+`extends: "staging"` で `env` / `channel` / `environment` を継承し、`distribution` だけを
+`internal`（iOS では **Ad Hoc**）へ差し替えたもの。`staging-apk` の iOS 版にあたる。
+`staging-apk` と同じ理由で、ここに `env` を書き足してはならない。
+
+**TestFlight より速く実機へ届けたいときの経路**である。EAS に登録済み（`eas device:create`）の
+UDID を持つ端末にだけインストールでき、**App Store Connect のアプリレコードも `eas submit` も
+審査もビルド処理待ちも不要**。SS-81 の疎通実証はこのプロファイルで行った。
+
+- 配布できるのは **UDID が Ad Hoc プロビジョニングプロファイルに含まれる端末のみ**。
+  端末を増やすときは `eas device:create` で登録し、**プロファイルを再生成して再ビルドする**
+  （既存ビルドには後から端末を足せない）。
+- **関係者へ広く配るなら TestFlight（`staging`）を使う。** UDID 管理が要らず、
+  外部テスターにも配れる（ただしプライバシーポリシー URL が必要。SS-79）。
+- `autoIncrement` は `staging-apk` と同じ理由で `false`。
+- iOS は既定で Apple Maps を使うため **Maps SDK キーの注入は不要**（ADR-007）。
 
 ### `preview`（E2E 専用。CloudFront へ向けないこと）
 
@@ -151,8 +170,8 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 | 変数 | 必要なプロファイル | 供給元 | 未設定時の症状 |
 |---|---|---|---|
 | `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **CI = GitHub Secrets / ローカル = `.env`**（EAS 環境変数には載せない） | ADR-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
-| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `production`） | EAS 環境変数 | サインイン時に `AuthError("configuration")` |
-| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド | EAS 環境変数 | 同上 |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `staging-ios` / `production`） | EAS 環境変数 | サインイン時に `AuthError("configuration")` |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド（`staging` / `staging-ios` / `production`） | EAS 環境変数 | 同上 |
 
 ### Maps キーを EAS 環境変数に載せない理由
 
@@ -187,14 +206,26 @@ backend が Google と直接やり取りする構成（confidential client）は
 **アプリがネイティブに Google ID token を取り、それを `POST /auth/session` へ渡して
 自前トークンに交換する**流れなので、ID token を取る 1 回のためにアプリ側にもクライアント ID が要る。
 
-`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` は **ID token の `aud` に使う値**であり、
-backend の `GOOGLE_ALLOWED_AUDIENCES` と**同じ値を共有する**（mobile 専用の別クレデンシャルではない）。
 `client_secret` は使わない（public client）ため、クライアント ID 自体は秘密情報ではない。
+
+> **訂正（SS-81, 2026-09-12）: `aud` は必ずしも Web クライアント ID ではない。**
+> 以前ここには「`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` が `aud` に使う値で、backend の
+> `GOOGLE_ALLOWED_AUDIENCES` と同じ値を共有する」と書かれていたが、**iOS では `aud` が
+> iOS クライアント ID になる**。`backend` の `.env.example` と `config.py` のコメントが正しい
+> （`Android=Web ID / iOS=iOS ID`）。
+>
+> そのため backend 側の許可リストには **Web / iOS の両方のクライアント ID をカンマ区切りで**
+> 設定する必要がある。片方しか無いと、そのプラットフォームだけが `InvalidAudienceError` で
+> 401 になり、アプリ側には原因の分からない汎用メッセージしか出ない（SS-82 / SS-84）。
+>
+> AWS 環境では Secrets Manager のキー **`google_oauth_client_id`**（単数形だが複数値）が
+> 環境変数 `GOOGLE_ALLOWED_AUDIENCES` へ写される（`core/runtime_config.py` の
+> `SECRET_KEY_TO_ENV`）。この命名の紛らわしさは SS-84 で扱う。
 
 ### 登録手順
 
 環境ごとに登録する。dev の GCP プロジェクトの値は **`preview`** 環境へ入れる
-（`staging` / `staging-apk` がこの環境を読む）。
+（`staging` / `staging-apk` / `staging-ios` がこの環境を読む）。
 
 ```bash
 pnpm --filter mobile exec eas env:create \
