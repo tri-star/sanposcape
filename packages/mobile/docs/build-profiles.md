@@ -58,6 +58,9 @@
 CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**TestFlight で配れる形**
 （`distribution: "store"`）で出力する。
 
+**dev の CloudFront は既に稼働している**（2026-09-11 時点で `GET /health` が 200 `{"status":"ok"}` を返す）。
+`enable_distribution = true` は dev では apply 済みなので、**このプロファイルの疎通確認は今すぐ実施できる**。
+
 - **iOS の `internal` は TestFlight ではない。** EAS の internal distribution は iOS では
   Ad Hoc / Enterprise プロビジョニングを意味し、UDID 登録済みの端末にしか入らない。
   TestFlight に載せるには App Store Connect へ submit できる `store` ビルドが要る。
@@ -105,9 +108,11 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 
 > **`preview` 環境は `staging` と共有される。** EAS の環境は 3 つしかないため、E2E 用の
 > `preview` プロファイルと配布用の `staging` プロファイルが同じ環境変数セットを読む。
-> Google のクライアント ID は E2E が `AUTH_MODE=dev` で使わないので無害だが、
-> `GOOGLE_MAPS_ANDROID_SDK_KEY` を `preview` に登録すると E2E ビルドにも渡る点は
-> 意識しておくこと（ADR-004 の E2E は地図描画を assert しないため機能上の問題は無い）。
+> Google のクライアント ID は無害（E2E は `AUTH_MODE=dev` で、`configureGoogleSignIn()` は
+> `src/services/auth/index.ts` で `mode === "real"` のときだけ呼ばれるため触られない）。
+>
+> **ただし `GOOGLE_MAPS_ANDROID_SDK_KEY` は `preview` 環境に登録してはならない。**
+> 理由は下記「Maps キーを EAS 環境変数に載せない理由」を参照。
 
 ### `development`
 
@@ -118,21 +123,62 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 
 本番のストア配信用。
 
-> **prod のホスト名は未検証。** `app-api.sanposcape.com` は、インフラ側が採用している
-> 「`app-api.<zone>`」というホスト名規則（dev = `app-api.dev.sanposcape.com`、
-> `packages/backend/docs/deployment.md` §6.2）から導いた値である。**prod 環境へ実際に
-> デプロイする前に、インフラ側（`sanposcape-infra`）の実際のホスト名と突き合わせること。**
+ホスト名 `app-api.sanposcape.com` は **infra 側の ADR-0001 §2.11「ホスト名の割り当て」で確定済み**
+（2026-09-11 に `sanposcape-infra` 側へ照会して確認）。ADR は
+「`app-api.sanposcape.com` はモバイルアプリに焼き込まれ後から変更が効かないため、本 ADR で確定とする」
+と明記しており、**mobile 側がビルドに埋め込むことを前提に固定された値**である。
+
+組み立ては `live/services/backend-api` の `host_label`（既定 `app-api`）と、
+`live/dns/envs/<env>.tfvars` の `zone_name`（prod = `sanposcape.com` / dev = `dev.sanposcape.com`）の連結。
+`live/account` の `default_app_record_names` と `route53:ChangeResourceRecordSets` の
+レコード名制限により、infra 側の変更なしにホスト名だけ変えることはできない。
+
+> **`app-api` と `api` は別ホストである。** モバイル用が `app-api.<zone>`、外部向けが `api.<zone>` で、
+> distribution / WAF / レート制限 / 認証方式を独立させるため意図的に分けられている。
+> **mobile からは必ず `app-api` 側を向けること。**
+
+> **ただし prod の実体はまだ存在しない。** `live/services/backend-api/envs/prod.tfvars` は
+> `enable_distribution = false` のままで、`app-api.sanposcape.com` は現時点で名前解決しない
+> （2026-09-11 時点で `curl` が `Could not resolve host`）。前提となる
+> SAM スタック `sanposcape-backend-prod` のデプロイが未実施で、**予定日も未定**。
+> prod ビルドの疎通確認は当面できないため、dev（`staging` プロファイル）での確認を先に進めること。
 
 ## `eas.json` に書かない値（EAS の環境変数で供給する）
 
 以下は `eas.json` に書いていないため、**`development` / `preview` プロファイル以外で
 ビルドする前に EAS 側へ登録が必要**になる。
 
-| 変数 | 必要なプロファイル | 未設定時の症状 |
-|---|---|---|
-| `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android の実機確認・配信ビルド全般 | 地図が灰色のまま描画されない（ADR-007） |
-| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `production`） | サインイン時に `AuthError("configuration")` |
-| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド | 同上 |
+| 変数 | 必要なプロファイル | 供給元 | 未設定時の症状 |
+|---|---|---|---|
+| `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **CI = GitHub Secrets / ローカル = `.env`**（EAS 環境変数には載せない） | ADR-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `production`） | EAS 環境変数 | サインイン時に `AuthError("configuration")` |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド | EAS 環境変数 | 同上 |
+
+### Maps キーを EAS 環境変数に載せない理由
+
+`GOOGLE_MAPS_ANDROID_SDK_KEY` だけは EAS の環境変数管理に載せず、
+**CI は GitHub Secrets（`ci-e2e` environment）、ローカルは `.env` / シェル環境変数**という
+現行の経路を維持する。理由は「同じキーの供給元が 2 つになると、CI が説明のつかない壊れ方をする」ため。
+
+1. **E2E は既にこのキーを受け取っており、しかも必須である。**
+   `.github/workflows/mobile-e2e.yml` がビルドステップへ `secrets.GOOGLE_MAPS_ANDROID_SDK_KEY`
+   を渡している。未注入だと Maps SDK 初期化時のクラッシュで walk-start 系の Maestro フローが
+   軒並み失敗する（SS-44 追補）。「E2E は地図を assert しないから無くてよい」ではない。
+2. **EAS 保管の非 secret 変数はローカルビルドでも読まれる。**
+   Expo 公式のローカルビルド文書は「'Secret' visibility の EAS 環境変数はローカルでは非対応
+   （ローカル環境に設定すること）」としており、裏返すと `plaintext` / `sensitive` は
+   `eas build --local` でも解決される。E2E はこのローカルビルドを使っている。
+3. **シェル環境変数と EAS 保管値の優先順位は公式ドキュメントに記載が無い。**
+   Overview / Usage / FAQ / local-builds のいずれにも明示が無く、未定義かつ未検証である。
+
+この 3 つが重なると、**`preview` 環境にキーを登録した瞬間、CI が渡している GitHub Secrets の値が
+黙って置き換わりうる**。Maps SDK のキーは署名鍵ごとの SHA-1 で制限するのが正しい運用
+（ADR-001「利用制限を用意する」）なので、配布用署名鍵の SHA-1 だけに絞ったキーが
+E2E の APK（ランナー上で `eas build --local` が生成する署名鍵で署名される）に適用されると、
+**Maps SDK の初期化で落ちて E2E が全面的に失敗する**。しかも `eas.json` にもワークフローにも
+差分が無いため、git を見ても原因に辿り着けない。
+
+どうしても EAS 側へ寄せる場合は、先に**シェル環境変数と EAS 保管値のどちらが勝つかを実測する**こと。
 
 ### なぜ mobile 側にもクライアント ID が要るのか
 
