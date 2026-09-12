@@ -4,7 +4,7 @@
 載せ、AWS SAM で dev / prod の AWS アカウントへデプロイする手順。方式決定の背景・却下案は
 [ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) を参照。
 
-> **検証状況（2026-09-06 時点）**
+> **検証状況（2026-09-12 時点）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -16,7 +16,7 @@
 > | マイグレーション Lambda（§5.2） | ✅ 検証済み（`{"head": "ecd8f161fedb"}`。2 回目の invoke が no-op になる冪等性も確認） |
 > | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200。psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことも確認（§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
-> | CloudFront 経由（§6.2） | ⚠️ **一部のみ。** dev は `enable_distribution = true` が apply 済みで、`https://app-api.dev.sanposcape.com/health` は 200 `{"status":"ok"}` を返す（2026-09-11 確認）。**§6.2 の 3 本立て（認証必須エンドポイント + ボディを伴う POST）は未実施** —— `/health` だけでは決定4 の `Authorization` 上書き問題も `x-amz-content-sha256` も露見しない |
+> | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は未実施 |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 
 ## 1. 前提
@@ -54,6 +54,16 @@ dev アカウントの CloudWatch Logs には `ENV=staging` と出る。
 
 **デプロイ順は常に SAM → Terraform。** SAM が Lambda 関数と Function URL を作った後でないと、
 Terraform 側が CloudFront のオリジンとして参照できない。
+
+> **Secrets Manager は「器」だけが Terraform 所有で、`SecretString` の中身は管理外**
+> （2026-09-12 / SS-81 に確認）。手で `put-secret-value` した値は **Terraform の apply で
+> 巻き戻らない**。`sanposcape-infra` 側で `terraform plan` を実行し、シークレット値を
+> 手動更新した後でも `No changes` になることを確認済み。
+>
+> これを確認せずに値を入れると「apply のたびに設定が消えるのでは」という不安が残り、
+> §5.1 の手順（`neon_dsn_unpooled` の投入など）を実行してよいかの判断が付かなくなる。
+> **ただし infra 側の実装が変われば前提は崩れる**ので、値を管理する変更が入った疑いがあるときは
+> 再確認すること。
 
 ## 3. 初回セットアップ
 
@@ -262,6 +272,38 @@ curl -i https://app-api.dev.sanposcape.com/walks \
 同時に確認できる。`FunctionUrl` の値は末尾スラッシュ付き
 （`https://xxxx.lambda-url.ap-southeast-1.on.aws/`）なので、上のコマンドのように
 パスを直に連結してよい。
+
+#### dev の実施結果（2026-09-12, SS-81）
+
+**dev では上記のうち 1) 2) と 3) の正常系が実証済み。** 3) は curl ではなく
+**iOS 実機（`staging-ios` プロファイルの Ad Hoc ビルド）から実際のアプリ操作で踏んだ**ため、
+ヘッダー付与・ハッシュ計算を含めて**本番と同じコードパス**を通っている。
+
+| §6.2 の項目 | 状況 |
+|---|---|
+| 1) CloudFront 経由 `/health` → 200 | ✅ 2026-09-11 |
+| 2) Function URL 直叩き → 403 | ✅（上の検証状況表「Function URL 直叩き」の行） |
+| 3) 認証必須エンドポイント + `X-App-Authorization` → 200 | ✅ 記録タブの履歴取得（認証必須 GET） |
+| 3) ボディを伴う POST（`x-amz-content-sha256` まで） | ✅ `POST /auth/session`（サインイン）/ `POST /walks`（散歩保存） |
+| 3) 対照: `Authorization` 単体 → 401 | ⚠️ **未実施**（下記） |
+
+CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラー・警告ゼロ**だった。
+これにより [ADR-005 決定4](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md#4-function-url-の-authtype-は-aws_iamアクセストークンは-x-app-authorization-ヘッダーで運ぶ)
+の呼び出し契約が**実機で初めて実証された**。
+
+> **対照実験（`Authorization` 単体 → 401）だけは踏んでいない。** アプリは
+> `X-App-Authorization` しか送らないため、実機操作では発生しない経路だからである。
+> 正常系が通っている以上、運用上の要件は満たされているが、**「なぜ `Authorization` を
+> 使ってはいけないか」を自分の目で確認したい場合は上の curl を 1 本実行すること**
+> （破壊的操作ではない）。
+>
+> **検証は iOS 実機のみ。** Android は Google サインインが端末側（Credential Manager 段階）で
+> 失敗しており、backend へ到達していない（SS-82）。ただし `X-App-Authorization` の付与と
+> `x-amz-content-sha256` の計算は JS 側の共有コードなので、**HTTP 契約としては
+> プラットフォームに依存しない**。
+>
+> **prod は未実施。** `enable_distribution = false` のままで `app-api.sanposcape.com` は
+> 名前解決せず、前提の SAM スタック `sanposcape-backend-prod` も未デプロイ。
 
 **あわせて確認する完了条件**:
 

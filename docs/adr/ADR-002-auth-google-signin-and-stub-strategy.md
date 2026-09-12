@@ -2,7 +2,8 @@
 
 ## 日付
 
-2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）
+2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
+2026-09-12 追補（SS-81）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -100,6 +101,33 @@ app --X-App-Authorization: Bearer <自前 access token>--> 以降の全 API
   この許可リストのブロックは **`AUTH_MODE` 専用ではなく、モード系 env と本番必須設定をまとめて検証する唯一の場所**とする（実装: `packages/backend/src/sanposcape/config.py` の `_validate_environment_settings`）。新しい fail-safe 項目は必ずこのブロックに追加し、別バリデータを新設しない（許可リストが分裂すると片方だけ更新される事故が起きる）。
 
   2026-08 時点でこのブロックが検証しているのは `AUTH_MODE` / `MAPS_MODE`（SS-44 で追加。Maps provider を決定的な fake に差し替えるモード）/ `AUTH_JWT_SECRET` / `GOOGLE_ALLOWED_AUDIENCES` / `GOOGLE_MAPS_SERVER_API_KEY`。
+
+### 4-1. `GOOGLE_ALLOWED_AUDIENCES` は必ず全プラットフォーム分を列挙する（SS-81 追補）
+
+**ID token の `aud` はプラットフォームごとに異なる。** Android は Web クライアント ID、
+iOS は iOS クライアント ID が `aud` に入る（`react-native-nitro-google-signin` が
+プラットフォーム別のクライアント ID で Google と対話するため）。
+
+したがって backend の `GOOGLE_ALLOWED_AUDIENCES` には、**そのビルドが動きうる全プラットフォームの
+クライアント ID をカンマ区切りで設定しなければならない**。片方しか無いと、
+**そのプラットフォームだけが `InvalidAudienceError` で 401 になる**。
+
+これは決定1（モバイルを public client にする）の直接の帰結である。却下した選択肢3
+（backend を confidential client にする）のメリットとして「Web クライアント1つで済み、
+プラットフォーム別クライアント ID が不要」を挙げていたが、その裏返しが実際に運用上の
+落とし穴として現れた形になる。
+
+**SS-81 で実際に踏んだ。** dev のシークレットに Web クライアント ID しか入っておらず、
+iOS 実機のサインインが 401 になった。しかも**アプリ側には原因の分からない汎用メッセージしか
+出ない**ため切り分けに時間がかかっている（診断性の改善は SS-82）。
+
+AWS 環境では Secrets Manager のキー `google_oauth_client_id`（**単数形だが複数値**）が
+`core/runtime_config.py` の `SECRET_KEY_TO_ENV` によって環境変数 `GOOGLE_ALLOWED_AUDIENCES`
+へ写される。この命名が設定漏れを誘発する点は SS-84 で扱う。
+
+> **`.env.example` と `config.py` のコメント（`Android=Web ID / iOS=iOS ID`）が正しい。**
+> `packages/mobile/docs/build-profiles.md` には「`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` が
+> `aud` に使う値」という誤った記述があり、SS-81 で訂正済み。
 
 ### 5. signUp / signIn は services 層では区別しない
 
@@ -215,6 +243,13 @@ mobile ADR-009 が「今回は決めない」として持ち越していた、�
 - backend に JWT/JWKS 依存（`pyjwt[crypto]` 等）と `users` / `refresh_tokens` のマイグレーションを追加する。
 - backend の OpenAPI 更新後、`pnpm --filter mobile orval` を再実行する。
 - **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が要求される**。MVP のリリース計画に織り込む必要がある。
+- （**SS-81 追補**）**Android の OAuth クライアントは署名鍵ごとに SHA-1 の登録が必要**。
+  EAS のビルドクレデンシャルは `build-credential-ci`（default）が E2E / `staging-apk` /
+  クラウドビルドのすべてで共通に使われるため、登録する SHA-1 は 1 つで足りる
+  （`eas build --local` もランナーで鍵を生成せず Expo サーバーの既定クレデンシャルを取得する）。
+  詳細は [build-profiles.md](../../packages/mobile/docs/build-profiles.md)。
+- （**SS-81 追補**）**Android の実機サインインは未達**。端末（AQUOS sense3 / Android 11）の
+  Credential Manager 段階で失敗し backend へ到達していない。iOS は実機で疎通済み（SS-82 で継続）。
 
 ## 関連情報
 
