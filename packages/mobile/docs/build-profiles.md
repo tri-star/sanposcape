@@ -106,6 +106,14 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 `withCleartextTrafficForHttpBackend` が `usesCleartextTraffic` を有効化する
 （ADR-004 の SS-44 追補）。
 
+> **`preview` の APK は x86_64 でしか動かない（SS-85）。** `mobile-e2e.yml` が
+> `REACT_NATIVE_ARCHITECTURES=x86_64` を渡し、`app.config.ts` の
+> `withAndroidGradleProperties` が `android/gradle.properties` の
+> `reactNativeArchitectures` を上書きするため、**arm 系の実機にはインストールできない**。
+> E2E のエミュレータが `arch: x86_64` 固定である以上ほかの ABI は無駄で、ビルド時間の半分と
+> Gradle の Java heap OOM の一因になっていたため意図的に絞っている（ADR-004 の SS-85 追補）。
+> **実機で確認したいときは `preview` を流用せず `staging-apk` を使うこと**（4 ABI のまま）。
+
 > **`preview` 環境は `staging` と共有される。** EAS の環境は 3 つしかないため、E2E 用の
 > `preview` プロファイルと配布用の `staging` プロファイルが同じ環境変数セットを読む。
 > Google のクライアント ID は無害（E2E は `AUTH_MODE=dev` で、`configureGoogleSignIn()` は
@@ -172,13 +180,50 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
    Overview / Usage / FAQ / local-builds のいずれにも明示が無く、未定義かつ未検証である。
 
 この 3 つが重なると、**`preview` 環境にキーを登録した瞬間、CI が渡している GitHub Secrets の値が
-黙って置き換わりうる**。Maps SDK のキーは署名鍵ごとの SHA-1 で制限するのが正しい運用
-（ADR-001「利用制限を用意する」）なので、配布用署名鍵の SHA-1 だけに絞ったキーが
-E2E の APK（ランナー上で `eas build --local` が生成する署名鍵で署名される）に適用されると、
-**Maps SDK の初期化で落ちて E2E が全面的に失敗する**。しかも `eas.json` にもワークフローにも
-差分が無いため、git を見ても原因に辿り着けない。
+黙って置き換わりうる**。しかも `eas.json` にもワークフローにも差分が無いため、
+git を見ても原因に辿り着けない。
 
-どうしても EAS 側へ寄せる場合は、先に**シェル環境変数と EAS 保管値のどちらが勝つかを実測する**こと。
+> **訂正（SS-81 / SS-85, 2026-09-12）: 上の懸念のうち「署名鍵が違うので E2E が壊れる」部分は誤り。**
+>
+> 以前ここには、この危険が現実化する筋道として
+> 「Maps SDK のキーは署名鍵ごとの SHA-1 で制限するのが正しい運用（ADR-001）なので、
+> 配布用署名鍵の SHA-1 だけに絞ったキーが **E2E の APK（ランナー上で `eas build --local` が
+> 生成する署名鍵で署名される）** に適用されると、Maps SDK の初期化で落ちて E2E が全面的に
+> 失敗する」と書かれていた。**括弧内が事実と異なる。**
+>
+> `eas build --local` は**ランナー上で署名鍵を生成しない**。ビルドログに
+> `✔ Using remote Android credentials (Expo server)` /
+> `✔ Using Keystore from configuration: build-credential-ci (default)` と出るとおり、
+> **Expo サーバーの既定クレデンシャルを取得して使う**（SS-81 でビルドログから確認）。
+> つまり **E2E / `staging-apk` / クラウドビルドはすべて同一の署名鍵 `build-credential-ci`**
+> （SHA-1 `D8:27:FB:D7:A5:83:77:AB:11:2E:96:07:80:45:DC:B1:9F:8A:2F:99`）で署名される。
+>
+> 署名鍵が同一である以上、**「配布用鍵の SHA-1 に絞ったキーが E2E の APK で弾かれる」
+> シナリオは構造上起こり得ない。**
+
+> **実測（SS-85, 2026-09-12 / run 34666684963）: 上の 2. は確定、3. は半分だけ埋まった。**
+>
+> `GOOGLE_MAPS_ANDROID_SDK_KEY` は 2026-09-08 に EAS の `preview` 環境へ登録済みで、
+> この run は**それ以降はじめて完走した E2E** だった。ビルドログに次が出る。
+>
+> ```
+> Environment variables with visibility "Plain text" and "Sensitive" loaded from the
+> "preview" environment on EAS: EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+> EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, GOOGLE_MAPS_ANDROID_SDK_KEY.
+> ```
+>
+> - **2.「EAS 保管の非 secret 変数はローカルビルドでも読まれる」は確定した**
+>   （公式ドキュメントからの推測ではなくなった）。
+> - **その状態で maps-required を含む 9 フローすべてが通った。** 未注入・誤キーなら
+>   Maps SDK 初期化時の `RuntimeException` でクラッシュするので、APK に有効なキーが
+>   入っていたことは確認できている。**懸念された「説明のつかない壊れ方」は起きなかった。**
+> - **3. の優先順位そのものは依然として未確定。** 両方が同値（または同じ SHA-1 制限のキー）
+>   なら結果は変わらないため、この成功は優先順位を決めない。片方だけ意図的に別の値にした
+>   比較でしか決まらない。
+>
+> なお**この節の見出しは実態と食い違っている**（「載せない」と書いてあるが既に載っている）。
+> 上記のとおり破綻シナリオは消えたので、供給元を EAS に寄せるか GitHub Secrets に戻すかは
+> **SS-79 で判断する**。ここでは現状を記録するにとどめ、方針は変更していない。
 
 ### なぜ mobile 側にもクライアント ID が要るのか
 

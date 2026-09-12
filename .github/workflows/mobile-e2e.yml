@@ -42,6 +42,14 @@ jobs:
     environment: ci-e2e
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # app.config.ts の withAndroidGradleProperties が android/gradle.properties の
+      # reactNativeArchitectures をこの値で上書きする（SS-85）。既定の4 ABI
+      # （armeabi-v7a,arm64-v8a,x86,x86_64）のうち下の emulator が使うのは x86_64 だけで、
+      # 残り3種は CMake ビルドだけで約10.5分を消費したうえ、mergeExtDexRelease 等の
+      # メモリ圧を4倍にして Gradle の Java heap OOM の一因になっていた（run 34657232761）。
+      # ここを変えるときは必ず下の "Compute build cache key" も一緒に見ること
+      # （この値はキャッシュキーに直接連結してある）。
+      REACT_NATIVE_ARCHITECTURES: x86_64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -82,6 +90,12 @@ jobs:
       # 追跡対象ファイルのパス+blobハッシュの一覧なので、内容が変われば決定的に変わり、
       # mtimeやビルド環境には依存しない。E2Eの実行頻度を週次+手動に絞った（このファイル冒頭の
       # コメント参照）ことで、JS変更のたびに再ビルドが発生するコスト増は許容できると判断した。
+      #
+      # REACT_NATIVE_ARCHITECTURES をキーへ直接連結している理由（SS-85）:
+      # この値は config plugin が prebuild 時に gradle.properties を書き換える形で効くため、
+      # @expo/fingerprint のハッシュにも SRC_HASH（packages/mobile 配下のみ）にも一切現れない。
+      # 連結しないと、ワークフロー側で ABI を変更しても古い ABI の APK がキャッシュヒットし続け、
+      # 51d6696 で直した「古いAPKが使い回される」バグと同じ形で再発する。
       - name: Compute build cache key
         id: fp
         env:
@@ -102,7 +116,7 @@ jobs:
             ':(exclude)packages/mobile/docs' \
             ':(exclude)packages/mobile/adr' \
             | git hash-object --stdin)
-          echo "hash=${NATIVE_HASH}-${SRC_HASH:0:16}" >> "$GITHUB_OUTPUT"
+          echo "hash=${NATIVE_HASH}-${SRC_HASH:0:16}-${REACT_NATIVE_ARCHITECTURES}" >> "$GITHUB_OUTPUT"
 
       # restore/save を分離している理由: 統合版 actions/cache の保存(post)ステップは
       # `post-if: success()` で定義されており、後続の Maestro ステップが失敗すると
@@ -119,7 +133,10 @@ jobs:
 
       # キャッシュキー一致時はここをスキップ（＝ネイティブ・ソースともに未変更なら再ビルドしない）
       # timeout-minutes: Gradleの子プロセスが後片付けされずハングする事象があったため、
-      # 失敗時に無限に居座らせず確実に完了させる安全策（SS-44）。通常は10分台で終わる想定。
+      # 失敗時に無限に居座らせず確実に完了させる安全策（SS-44）。
+      # フルリビルドの実測は 4 ABI 時代で約30分（run 34657232761 のGradle区間）だったため、
+      # 40分では余裕が乏しかった。x86_64 のみに絞った分（上の REACT_NATIVE_ARCHITECTURES、SS-85）
+      # 20分弱まで縮む見込みなので 40 のまま据え置く。実測して乖離があればここを見直すこと。
       - name: Build preview APK (local, no EAS cloud minutes)
         if: steps.apk-cache.outputs.cache-hit != 'true'
         timeout-minutes: 40
