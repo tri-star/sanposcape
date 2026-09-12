@@ -307,6 +307,20 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 - SS-60「mobile: 散歩履歴を削除するUIを実装」(work_item_id: `a25a601b-a6a2-4f67-98fa-303ff16c1352`、M5所属)をTodo→In Progress(`81c7939b-725c-4c0b-bb92-77b24ec48377`)に更新。SS-53(backend: DELETE /walks/{walk_id})を受けたmobile側削除導線の実装着手。ADR-003のSS-53追補を参照する課題。
 
+## 2026-08-22確認: SS-33は既にIn Progress・モジュール構成が刷新された可能性（要再確認）
+
+- SS-33（work_item_id: `62f9d861-9139-4b9c-ba34-7eba803b61c2`）は本確認時点で既にState=In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）。2026-08-22付けで本文の「位置づけ」が更新され、「MVPブロッカーではない後続タスク」という当初判断（2026-08-01メモ参照）は**撤回**、「MVP達成に必要な必須タスク」としてモジュール **「A: MVP達成に必要な残課題」** に移動済み（`min_module_name`で確認、module_idは未取得）。
+- 「A: MVP達成に必要な残課題」は過去メモにあるM1〜M5のいずれとも異なる新しい名称のモジュール。2026-08-11時点のメモとの間でモジュール構成が刷新（棚卸し・再編）された可能性が高い。
+- **How to apply**: 次回このプロジェクトを扱う際は、旧M1〜M5前提のまま進めず、まず`module list`で現行のモジュール一覧・IDを再取得して構成を確認すること。SS-33の本文中の「片道×2で許容」という記述は古い経緯であり、現在のスコープ判断ではない点に注意（本文中に明記あり）。
+
+## 2026-08-23追加: SS-63を新規作成・モジュール構成刷新(A/B/C)を再確認・組み込みrelationは技術的に作成可能だが意味的ミスマッチなら削除する判断
+
+- 2026-08-22の棚卸しでモジュールが完全に刷新されたことを再確認: 旧M1〜M5は廃止され、新モジュールは **A: MVP達成に必要な残課題**(`a3a26330-14f9-4c4c-8617-5f9fb1e46af0`)、**B: MVP後の機能充実・改善**(`bc9c1a8c-cc48-4624-8b19-8fbf88bd5e00`)、**C: 開発体験の改善（アプリ公開と非直結）**(`6df56d08-8bfe-405b-af99-93e9cb62f53a`) の3つのみ。「A」は「MVPフローを成立させるために必須のもののみ」を置く方針が`description`に明記されているため、MVPブロッカーでない課題をAに入れないこと。
+- SS-63「mobile: ルート再計算後も往路/復路の判定が実効ルートを見るようにする」(work_item_id: `a402153e-e3b9-486d-b94b-ee4c5e315bc5`)を新規作成、State=Backlog、priority=low、モジュールB。SS-33（周回ルート化、当時In Progress・モジュールA）のmobileローカルレビューで見つかった設計ギャップの後続課題（本文に明記の通りMVPブロッカーではない）。
+- **[[relation_definitions_402|402の理解を更新]]**: `workitem_relation create`で組み込み型`relation_type="blocked_by"`を指定したところ、402エラーにならず**正常に作成できた**。402が発生するのはカスタムrelation定義の一覧取得・作成(`list_work_item_relation_definitions`等)のみで、組み込み6種(`blocking/blocked_by/start_before/start_after/finish_before/finish_after`)自体はプラン制約なく使える模様（従来の理解と矛盾しないが、「組み込み型も使えない」という誤解をしないよう明記）。
+- ただし今回は`blocked_by`が実態（SS-63はSS-33に「ブロックされている」わけではなく、単なる後続課題）と意味的に合わなかったため、作成後すぐに`delete`で削除し、本文中の「関連」節への言及のみで代替した。`workitem_relation list`で個別work itemを見ると`custom`キーに`relates to`/`duplicate`/`implements`/`implemented by`のラベル枠は見えるが値は常に空配列（2026-08-11のSS-54メモと同じ挙動、実際にこれらのラベルでcreateできるかは依然未検証）。
+- **How to apply**: 「関連付けて」の依頼では、組み込みrelation_typeでの`create`自体はエラーにならない点を踏まえつつ、6種のいずれも「関連する」の意味に合わない場合は無理に使わず本文言及に留める（技術的に作成できることと、意味的に正しいことは別問題）。次回このプロジェクトを扱う際は必ず`module list`で現行のA/B/C構成を再確認すること（旧M1〜M5前提で進めない）。
+
 ## 2026-08-21追加: SS-61「散歩サマリ画面の未保存ドラフト離脱時に破棄確認ダイアログを出す」をSS-37の子として新規作成
 
 - SS-61（work_item_id: `db269916-4d21-49a6-b221-33e42ee16a5b`）を新規作成、State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-37（work_item_id: `99bf40df-6398-4e03-b98e-fc7409262ba2`、当時State=Review）のPRセキュリティレビュー修正方針2のフォローアップとして起票（ユーザー指示）。
@@ -355,6 +369,16 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 **Why:** 残作業の情報源が Plane と `docs/milestones.md` の2箇所にあり、片方が陳腐化する状態（実際にM2/M3のチェックボックスが実態より古かった）を解消するため。
 
 **How to apply:** 「マイルストーン」「MVPの残り」を問われたら `docs/milestones.md` を探さない（存在しない）。Planeのモジュール A/B/C と各課題本文、および `docs/adr/` を情報源にすること。
+
+## 2026-08-23追加: SS-33をReview化・PR #62リンク登録
+
+- SS-33（work_item_id: `62f9d861-9139-4b9c-ba34-7eba803b61c2`、モジュールA「MVP達成に必要な残課題」所属）をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`create_work_item_link`でPR #62（`https://github.com/tri-star/sanposcape/pull/62`、link_id: `95812738-1142-4256-aa50-95836374618f`）を登録。`list_work_item_properties`は今回もHTTP相当のエラー（「Work item properties is not available on this workspace's plan」）で、標準Link機能が唯一の選択肢という既存方針を継続。
+- コメント（comment_id: `f23b2623-57f2-4e66-8124-e065a2d893d8`）にテスト結果(backend 393 passed / mobile 805 passed)、レビュー実施済み、フォローアップSS-63、SS-14由来の既存バグ(`/explore/places`が起点直近候補で503になる件)を同PRで修正した旨を記録。
+
+## 2026-08-23追加: SS-64（散歩サマリの統計はみ出し）を起票
+
+- SS-64（work_item_id: `47aa0ac0-331f-414d-85a8-c726786b5170`）を新規作成。State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-33 の動作確認中に見つかった表示崩れ（歩数が5桁になるとサマリ画面の StatBlock 3個が画面外へはみ出す）をユーザー指示で別課題として起票した。
+- **How to apply**: `description_html` に HTML エンティティ（`&lt;h2&gt;` 等）でエスケープした文字列を渡すと、Plane 側がそれをさらにエスケープして `<span>` で包み、UI に生タグがそのまま見える状態で保存される。**生の HTML タグをそのまま渡す**こと（正しく渡すと `<div>` で包まれて格納される）。今回は create 後に update でやり直した。
 
 ## 2026-09-06追加: SS-67をReview化・PR #70リンク登録
 

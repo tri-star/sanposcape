@@ -17,6 +17,11 @@ tags:
 - runFlow: subflows/sign-in.yaml
 - runFlow: subflows/start-walk-from-spot.yaml
 
+# 往路/復路バッジ（SS-33）。ルートが取得できていれば必ず出る（往路 or 復路のどちらか）。
+# どちらの文言かは環境依存（周回が作れず同じ道を戻るフォールバックもある）ため assert しない。
+- assertVisible:
+    id: "walk-active-leg-badge"
+
 # --- 散歩中 ---
 # 経過時間が進むまで待つ。アニメーションの有無ではなく、保存に必要な started_at / ended_at の
 # 差分が生じたことを確認するため、初期表示の 00:00:00 が消えることを条件にする。

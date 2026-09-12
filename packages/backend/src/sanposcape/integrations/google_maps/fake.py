@@ -19,9 +19,11 @@ Maestro E2E と Google Maps API キーを持たないローカル開発者専用
 from math import cos, degrees, hypot, radians
 
 from sanposcape.integrations.google_maps.provider import (
+    ProviderIntermediate,
     ProviderPlace,
     ProviderPoint,
     ProviderRoute,
+    ProviderRouteLeg,
 )
 
 _EARTH_RADIUS_METERS = 6_371_008.8
@@ -29,6 +31,10 @@ _WALKING_SPEED_METERS_PER_SECOND = 1.25  # 約 4.5 km/h
 _PLACE_COUNT = 5
 _PLACE_OFFSET_STEP_METERS = 200.0  # 200 / 400 / 600 / 800 / 1000m
 _ROUTE_PATH_POINTS = 5
+# SS-33: 周回(intermediates あり)の復路 leg の点数。D→V→O の2区間を4分割ずつ(端点共有)
+# 補間するため 5 + 5 - 1 = 9 点になる。
+_LOOP_RETURN_LEG_POINTS = 9
+_LOOP_RETURN_LEG_HALF_STEPS = 4
 # 極付近で cos(latitude) がゼロに潰れて経度オフセットが発散するのを防ぐガード。
 _MIN_COS_LATITUDE = 1e-6
 _SQRT_2 = 2**0.5
@@ -87,18 +93,69 @@ class FakeGoogleMapsProvider:
         return tuple(places)
 
     def get_walking_route(
-        self, origin: ProviderPoint, destination: ProviderPoint, *, timeout_seconds: float
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderIntermediate, ...] = (),
     ) -> ProviderRoute:
         """2 点間の直線距離から徒歩所要時間を見積もり、等分割した直線経路を返す。
 
+        `intermediates` が空のときは従来どおり origin→destination の直線経路(片道)を返す。
+        `via` 経由点付きの `intermediates` があるとき(SS-33 の周回)は、決定的な2 leg
+        (往路 O→D・復路 D→V→O)を返す(mobile の E2E が `MAPS_MODE=fake` でも往路/復路の
+        描き分けを確認できるようにするため)。乱数・時刻は一切使わない(このモジュールの
+        決定性の契約)。
+
         `timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
         """
-        distance = _distance_meters(origin, destination)
-        path = tuple(
-            _interpolate(origin, destination, step / (_ROUTE_PATH_POINTS - 1))
-            for step in range(_ROUTE_PATH_POINTS)
+        via_points = tuple(item.point for item in intermediates if item.via)
+        stopover_points = tuple(item.point for item in intermediates if not item.via)
+        if not via_points or not stopover_points:
+            distance = _distance_meters(origin, destination)
+            path = tuple(
+                _interpolate(origin, destination, step / (_ROUTE_PATH_POINTS - 1))
+                for step in range(_ROUTE_PATH_POINTS)
+            )
+            return ProviderRoute(
+                duration_seconds=round(distance / _WALKING_SPEED_METERS_PER_SECOND),
+                distance_meters=round(distance),
+                path=path,
+            )
+
+        stopover = stopover_points[0]
+        via = via_points[0]
+        outbound_leg = self._loop_leg_from_straight_line(origin, stopover, _ROUTE_PATH_POINTS)
+        inbound_path = tuple(
+            _interpolate(stopover, via, step / _LOOP_RETURN_LEG_HALF_STEPS)
+            for step in range(_LOOP_RETURN_LEG_HALF_STEPS + 1)
+        ) + tuple(
+            _interpolate(via, origin, step / _LOOP_RETURN_LEG_HALF_STEPS)
+            for step in range(1, _LOOP_RETURN_LEG_HALF_STEPS + 1)
         )
+        inbound_distance = _distance_meters(stopover, via) + _distance_meters(via, origin)
+        inbound_leg = ProviderRouteLeg(
+            duration_seconds=round(inbound_distance / _WALKING_SPEED_METERS_PER_SECOND),
+            distance_meters=round(inbound_distance),
+            path=inbound_path,
+        )
+        # inbound_path は D→V(5点) + V→O(4点、Dとの重複を除く) = 9点(_LOOP_RETURN_LEG_POINTS)。
+        combined_path = outbound_leg.path + inbound_leg.path[1:]
         return ProviderRoute(
+            duration_seconds=outbound_leg.duration_seconds + inbound_leg.duration_seconds,
+            distance_meters=outbound_leg.distance_meters + inbound_leg.distance_meters,
+            path=combined_path,
+            legs=(outbound_leg, inbound_leg),
+        )
+
+    @staticmethod
+    def _loop_leg_from_straight_line(
+        start: ProviderPoint, end: ProviderPoint, points: int
+    ) -> ProviderRouteLeg:
+        distance = _distance_meters(start, end)
+        path = tuple(_interpolate(start, end, step / (points - 1)) for step in range(points))
+        return ProviderRouteLeg(
             duration_seconds=round(distance / _WALKING_SPEED_METERS_PER_SECOND),
             distance_meters=round(distance),
             path=path,

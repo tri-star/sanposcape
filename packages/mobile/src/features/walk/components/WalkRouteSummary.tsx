@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button/Button";
 import { Icon } from "@/components/ui/icon/Icon";
 import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
-import { estimateRoundTripMinutes, toOneWayMinutes } from "@/features/walk/lib/walkRoute";
+import { toRouteMinutes } from "@/features/walk/lib/walkRoute";
 import { walkRouteErrorMessage } from "@/features/walk/lib/walkRouteError";
+import { findWalkRouteLeg, hasDistinctLegs } from "@/features/walk/lib/walkRouteLeg";
 import type { SpotCandidate, WalkRoute } from "@/features/walk/types";
 import { toKilometers } from "@/lib/units";
 import { makeStyles } from "@/theme/makeStyles";
@@ -61,6 +62,10 @@ export function WalkRouteSummary({
   }
 
   if (walkRoute !== null) {
+    const distinctLegs = hasDistinctLegs(walkRoute);
+    const outboundLeg = findWalkRouteLeg(walkRoute, "outbound");
+    const returnLeg = findWalkRouteLeg(walkRoute, "return");
+
     return (
       <View style={styles.root} testID={testID}>
         <Icon name="flag" size={18} color={theme.colors.primary} />
@@ -69,20 +74,22 @@ export function WalkRouteSummary({
           <Text style={styles.name}>{spot.name}</Text>
         </View>
         <View style={styles.timeColumn} testID={`${testID}-ready`}>
-          <Text style={styles.time}>
-            片道 {toOneWayMinutes(walkRoute.durationSeconds)}分・
-            {toKilometers(walkRoute.distanceMeters)}km
-          </Text>
           {/*
-            「目安」の語を必ず残す: 同じ道を戻る前提の片道×2 の近似のため（実ルートは SS-33）。
-            算出元にも注意: ここは /explore/routes/walking の実ルート片道値（walkRoute.durationSeconds）
+            SS-33 で周回ルートの実値になったため「目安」を外した（実測ルートの値になったため）。
+            算出元にも注意: ここは /explore/routes/walking の実ルート周回値（walkRoute.durationSeconds）
             から計算しており、`SpotCard`（一覧）が表示する /explore/places 由来の
             `spot.roundTripMinutes` とは異なる API 呼び出し結果から来ている。そのため一覧時と
             選択後で「往復」の数値がわずかにズレ得るが、これはプランが明示的に選んだ設計であり
-            バグではない（一覧は概算、選択後はより実測に近い値、という位置づけ）。
+            バグではない（一覧は概算・LOOP_FACTOR 補正後、選択後は周回ルートの実値、という位置づけ）。
           */}
-          <Text style={styles.timeSecondary}>
-            往復の目安 {estimateRoundTripMinutes(walkRoute.durationSeconds)}分
+          <Text style={styles.time}>
+            往復 {toRouteMinutes(walkRoute.durationSeconds)}分・
+            {toKilometers(walkRoute.distanceMeters)}km
+          </Text>
+          <Text style={styles.timeSecondary} testID={`${testID}-legs`}>
+            {distinctLegs && outboundLeg && returnLeg
+              ? `往路 ${toRouteMinutes(outboundLeg.durationSeconds)}分 / 復路 ${toRouteMinutes(returnLeg.durationSeconds)}分`
+              : "同じ道を戻ります"}
           </Text>
         </View>
       </View>
@@ -90,7 +97,8 @@ export function WalkRouteSummary({
   }
 
   // walkRoute がまだ無い（未取得・エラー前の初期状態）ときは、探索結果由来の
-  // `spot.roundTripMinutes`（/explore/places のスナップショット）を暫定表示する。
+  // `spot.roundTripMinutes`（/explore/places のスナップショット。SS-33 で LOOP_FACTOR 補正後の値）
+  // を暫定表示する。実値表示（「往復」）と語彙で区別するため「目安」を付ける。
   return (
     <View style={styles.root} testID={testID}>
       <Icon name="flag" size={18} color={theme.colors.primary} />
@@ -98,7 +106,7 @@ export function WalkRouteSummary({
         <Text style={styles.label}>目的地</Text>
         <Text style={styles.name}>{spot.name}</Text>
       </View>
-      <Text style={styles.time}>往復 {spot.roundTripMinutes}分</Text>
+      <Text style={styles.time}>往復の目安 {spot.roundTripMinutes}分</Text>
     </View>
   );
 }

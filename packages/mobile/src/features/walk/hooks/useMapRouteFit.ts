@@ -18,9 +18,11 @@ import type { WalkRoute } from "@/features/walk/types";
  * - `WalkRouteMapView` の「現在地への再センタリング」（`recenterNonce` 起点で
  *   `regionForRoundTrip(currentPosition, ...)` を呼ぶ別系統の effect）。
  *
- * 依存は `walkRouteFitKey`（placeId + origin）。SS-35 の再計算では目的地が同じまま起点だけが
- * 変わるため、placeId だけを見ていると新ルートに地図がフィットしない（`SpotMapView` は起点が
- * 固定なのでキーは実質変わらず、挙動は従来どおり）。
+ * 依存は `walkRouteFitKey`（placeId + origin + destination 座標）。SS-35 の再計算では目的地が
+ * 同じまま起点だけが変わるため、placeId だけを見ていると新ルートに地図がフィットしない
+ * （`SpotMapView` は起点が固定なのでキーは実質変わらず、挙動は従来どおり）。
+ * SS-33 の復路再計算では目的地が「出発地」に変わるためキーが変わり、周回から片道への
+ * 切り替わりで地図が再フィットする。
  */
 export function useMapRouteFit(
   mapRef: RefObject<MapView | null>,
@@ -30,6 +32,6 @@ export function useMapRouteFit(
   useEffect(() => {
     if (!walkRoute) return;
     mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), animationDurationMs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく walkRouteFitKey（placeId+origin）の変化だけを見る
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- walkRoute 全体ではなく walkRouteFitKey（placeId + origin + destination 座標）の変化だけを見る
   }, [walkRouteFitKey(walkRoute)]);
 }

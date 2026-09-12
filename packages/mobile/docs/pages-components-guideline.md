@@ -50,7 +50,10 @@ const useStyles = makeStyles((theme) => ({
 （Button / IconButton / Card / Badge / Tag / Input / Checkbox / Switch / Slider / Tabs / TabBar /
 StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline / Icon）。
 `RoutePolyline` は SS-20 で `features/walk` から昇格した地図オーバーレイ（`MapPin` と同じカテゴリ）で、
-散歩開始・散歩中・履歴詳細の3つの地図でルート線・軌跡線の見た目を揃えるための極薄ラッパ。
+散歩開始・散歩中・履歴詳細の3つの地図でルート線・軌跡線の見た目を揃えるためのラッパ。
+既定値（色・線幅など）は揃えたまま、SS-33 で往路/復路の描き分けに使う `color` / `dashPattern` /
+`strokeWidth` / `zIndex` を任意 props として追加し、**呼び出し側だけが上書きできる**形にした
+（既定値は従来どおりで、`features/history` の呼び出しは無改修）。
 まずはこれらを組み合わせて画面を作り、足りないものが出たら追加する。
 
 - 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で

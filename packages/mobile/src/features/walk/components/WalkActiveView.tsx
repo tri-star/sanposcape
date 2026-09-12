@@ -4,6 +4,7 @@ import { Image, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import walkerImage from "@/assets/images/walker.png";
+import { Badge } from "@/components/ui/badge/Badge";
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { Icon } from "@/components/ui/icon/Icon";
@@ -15,7 +16,8 @@ import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
-import { toOneWayMinutes } from "@/features/walk/lib/walkRoute";
+import { toRouteMinutes } from "@/features/walk/lib/walkRoute";
+import { findWalkRouteLeg } from "@/features/walk/lib/walkRouteLeg";
 import { useToast } from "@/hooks/useToast";
 import { formatClock } from "@/lib/formatClock";
 import { toKilometers } from "@/lib/units";
@@ -56,8 +58,24 @@ export function WalkActiveView() {
   }
 
   const { activeWalk } = walk;
-  const oneWayMinutes = walk.walkRoute ? toOneWayMinutes(walk.walkRoute.durationSeconds) : null;
-  const oneWayKm = walk.walkRoute ? toKilometers(walk.walkRoute.distanceMeters) : null;
+  const activeLeg = walk.legPhase;
+  const leg = walk.walkRoute ? findWalkRouteLeg(walk.walkRoute, activeLeg) : null;
+  // 表示する分/km: 再計算後は実効ルート全体（=現在地からの残り）、通常は進行中 leg の値。
+  const subMinutes = walk.isRouteRecalculated
+    ? walk.walkRoute
+      ? toRouteMinutes(walk.walkRoute.durationSeconds)
+      : null
+    : leg
+      ? toRouteMinutes(leg.durationSeconds)
+      : null;
+  const subKm = walk.isRouteRecalculated
+    ? walk.walkRoute
+      ? toKilometers(walk.walkRoute.distanceMeters)
+      : null
+    : leg
+      ? toKilometers(leg.distanceMeters)
+      : null;
+  const subLabel = walk.isRouteRecalculated ? "ここから" : activeLeg === "return" ? "復路" : "往路";
 
   return (
     <View testID="walk-active-screen" style={styles.root}>
@@ -71,22 +89,20 @@ export function WalkActiveView() {
         )}
         <View style={styles.headerText}>
           {/*
-            ヘッダーの「往復の目安」（activeWalk.roundTripMinutes/roundTripKm）は散歩開始時点の
-            探索結果スナップショット（/explore/places 由来）で、`ActiveWalk` はサーバーデータの
-            コピーを持たない設計上、散歩中に再取得はしない。直下の「片道」は walkRoute
-            （/explore/routes/walking の実ルート値）から都度計算しているため、算出元の異なる
-            2つの「往復」相当の数値が近いが一致しない場面がありうる（`SpotCard`/`WalkRouteSummary`
-            と同じ理由。プランが明示的に選んだ設計でありバグではない）。
+            ヘッダーの周回時間・距離（activeWalk.roundTripMinutes/roundTripKm）は、散歩開始時に確定した
+            **周回ルートの実値**のスナップショット（SS-33 で /explore/places 由来の概算から変更）。
+            `ActiveWalk` はサーバーデータのコピーを持たない設計のため散歩中に再取得はしない。
+            直下の行は walkRoute（実効ルート）から都度計算しており、再計算が走ると値が変わる。
           */}
-          <Text style={styles.eyebrow}>往復の目安</Text>
+          <Text style={styles.eyebrow}>周回ルート</Text>
           <View style={styles.headerValueRow}>
             <Text style={styles.headerValue}>{activeWalk.roundTripMinutes}</Text>
             <Text style={styles.headerUnit}>分（約{activeWalk.roundTripKm.toFixed(1)}km）</Text>
           </View>
           <Text style={styles.goalName}>ゴール：{activeWalk.destination.name}</Text>
-          {oneWayMinutes !== null && oneWayKm !== null ? (
-            <Text style={styles.oneWay}>
-              {walk.isRouteRecalculated ? "ここから" : "片道"} {oneWayMinutes}分・{oneWayKm}km
+          {subMinutes !== null && subKm !== null ? (
+            <Text style={styles.legSummary}>
+              {subLabel} {subMinutes}分・{subKm}km
             </Text>
           ) : null}
         </View>
@@ -98,11 +114,20 @@ export function WalkActiveView() {
         />
       </View>
 
+      {walk.walkRoute !== null ? (
+        <View style={styles.legBadgeRow}>
+          <Badge tone="info" dot testID="walk-active-leg-badge">
+            {activeLeg === "return" ? "復路" : "往路"}
+          </Badge>
+        </View>
+      ) : null}
+
       <WalkRouteMapView
         walkRoute={walk.walkRoute}
         currentPosition={walk.currentPosition}
         destinationName={activeWalk.destination.name}
         recenterNonce={recenterNonce}
+        activeLeg={activeLeg}
         height={322}
         testID="walk-active-map"
       >
@@ -240,10 +265,14 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: theme.typography.weight.bold,
     color: theme.colors.textPrimary,
   },
-  oneWay: {
+  legSummary: {
     marginTop: 1,
     fontSize: theme.typography.size["2xs"],
     color: theme.colors.textTertiary,
+  },
+  legBadgeRow: {
+    paddingHorizontal: theme.layout.pageGutter,
+    paddingBottom: theme.spacing[2],
   },
   mapTools: {
     position: "absolute",

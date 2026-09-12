@@ -1,13 +1,14 @@
-import { distanceMeters } from "@/features/walk/lib/geoDistance";
 import { METERS_PER_DEGREE_LATITUDE } from "@/features/walk/lib/mapRegion";
-import type { WalkRoute } from "@/features/walk/types";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** 「ルートから外れた」と判定する、折れ線までの最短距離のしきい値（m）。 */
-export const ROUTE_DEVIATION_THRESHOLD_METERS = 80;
-
-/** 目的地にこの距離まで近づいたら再計算しない（m）。 */
+/**
+ * 「目的地に着いた」とみなす半径（m）。
+ * `lib/walkRouteLeg.ts` の往路/復路ラッチ（目的地に着いたら復路）が使う。
+ *
+ * SS-35 では「目的地に近いので再計算しない」という自動再計算の抑制条件でもあったが、
+ * SS-33 で自動再計算を廃止したためその用途は無くなった。
+ */
 export const DESTINATION_NEAR_RADIUS_METERS = 50;
 
 type LocalPoint = { x: number; y: number };
@@ -77,32 +78,4 @@ export function distanceToRoutePath(
     }
   }
   return minDistance;
-}
-
-/**
- * 現在地が表示中のルートから外れているか。
- * 判定順:
- * 1. `route.path.length < 2` → false（測る対象が無いルートで自動再計算ループに入らないため）。
- * 2. 目的地から `DESTINATION_NEAR_RADIUS_METERS` 以内 → false（ゴール直前で引き直さない）。
- * 3. 折れ線全体への最短距離が `ROUTE_DEVIATION_THRESHOLD_METERS` を超える → true。
- *
- * 「進行済み区間を除いた残りの折れ線」ではなく **折れ線全体** への距離で判定する。
- * 進捗を持たずに済み、来た道を戻る／近道して合流するケースで無駄な再計算が起きない
- * （トレードオフ: ルート上の別地点の近くを通っている限り再計算されない。MVP では許容）。
- */
-export function isOffRoute(position: GeoCoordinates, route: WalkRoute): boolean {
-  if (route.path.length < 2) {
-    return false;
-  }
-
-  if (distanceMeters(position, route.destination.location) <= DESTINATION_NEAR_RADIUS_METERS) {
-    return false;
-  }
-
-  const distance = distanceToRoutePath(position, route.path);
-  if (distance === null) {
-    return false;
-  }
-
-  return distance > ROUTE_DEVIATION_THRESHOLD_METERS;
 }

@@ -46,11 +46,12 @@ export function SpotCard({ spot, meta, selected, onPress, testID }: SpotCardProp
       </Text>
       {/*
         `spot.roundTripMinutes`/`roundTripKm` は /explore/places のレスポンス（backend が返す
-        往復値のスナップショット）をそのまま表示している。選択後に `WalkRouteSummary` が出す
-        「往復の目安」は /explore/routes/walking の実ルート片道値 × 2 の近似値で、算出元の API が
-        異なるため、同じスポットでもこのカードの数値と選択後の数値がわずかにズレることがある
-        （プランが明示的に選んだ設計。「一覧は概算・選択後はより実測に近い値」として両方「目安」の
-        語感で許容する）。
+        往復値のスナップショット。片道値 × 2 に LOOP_FACTOR で補正した近似値）をそのまま表示している。
+        選択後に `WalkRouteSummary`（`WalkRouteSummary.tsx`）が出す「往復の目安」は SS-33 以降、
+        /explore/routes/walking が返す**周回ルート全体の実値**（往路 leg + 復路 leg の実測合計）で、
+        算出元が異なるため、同じスポットでもこのカードの数値と選択後の数値がわずかにズレることがある
+        （プランが明示的に選んだ設計。「一覧は概算・選択後は実測値」として両方「目安」の語感で許容する。
+        ズレを縮める補正は backend の候補絞り込み側〈LOOP_FACTOR〉に一本化し、mobile では再補正しない）。
       */}
       <Text style={styles.meta}>
         往復 <Text style={styles.metaStrong}>{spot.roundTripMinutes}</Text>分・約

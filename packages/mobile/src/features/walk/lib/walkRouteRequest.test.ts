@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DESTINATION_NAME_MAX_LENGTH,
+  buildReturnToStartRouteRequest,
   buildWalkingRouteRequest,
+  DESTINATION_NAME_MAX_LENGTH,
+  RETURN_TO_START_DESTINATION_NAME,
 } from "@/features/walk/lib/walkRouteRequest";
 import { resolveSpotDisplayName } from "@/features/walk/lib/spotCandidate";
 import type { WalkDestination } from "@/features/walk/types";
@@ -90,5 +92,50 @@ describe("buildWalkingRouteRequest", () => {
     const first = buildWalkingRouteRequest({ origin: ORIGIN, destination: DESTINATION });
     const second = buildWalkingRouteRequest({ origin: ORIGIN, destination: DESTINATION });
     expect(first).toEqual(second);
+  });
+
+  it("routeType 省略なら route_type: 'loop' が入る", () => {
+    const result = buildWalkingRouteRequest({ origin: ORIGIN, destination: DESTINATION });
+    expect(result?.route_type).toBe("loop");
+  });
+
+  it("routeType: 'one_way' を明示するとそのまま入る", () => {
+    const result = buildWalkingRouteRequest({
+      origin: ORIGIN,
+      destination: DESTINATION,
+      routeType: "one_way",
+    });
+    expect(result?.route_type).toBe("one_way");
+  });
+});
+
+describe("buildReturnToStartRouteRequest", () => {
+  const START = { latitude: 35.68123456, longitude: 139.76712345 };
+
+  it("route_type: 'one_way' / destination.location = 出発地 / name: RETURN_TO_START_DESTINATION_NAME になる", () => {
+    const result = buildReturnToStartRouteRequest({ origin: ORIGIN, start: START });
+    expect(result?.route_type).toBe("one_way");
+    expect(result?.destination.location).toEqual({ latitude: 35.6812, longitude: 139.7671 });
+    expect(result?.destination.name).toBe(RETURN_TO_START_DESTINATION_NAME);
+  });
+
+  it("destination.place_id は undefined（JSON化するとキーごと落ちる。null を送らない）", () => {
+    const result = buildReturnToStartRouteRequest({ origin: ORIGIN, start: START });
+    expect(result?.destination.place_id).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain("place_id");
+  });
+
+  it("origin が null なら null", () => {
+    expect(buildReturnToStartRouteRequest({ origin: null, start: START })).toBeNull();
+  });
+
+  it("start が null なら null", () => {
+    expect(buildReturnToStartRouteRequest({ origin: ORIGIN, start: null })).toBeNull();
+  });
+
+  it("origin / start が小数4桁に丸められる", () => {
+    const result = buildReturnToStartRouteRequest({ origin: ORIGIN, start: START });
+    expect(result?.origin).toEqual({ latitude: 35.6812, longitude: 139.7671 });
+    expect(result?.destination.location).toEqual({ latitude: 35.6812, longitude: 139.7671 });
   });
 });

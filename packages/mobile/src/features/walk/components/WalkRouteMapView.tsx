@@ -4,9 +4,10 @@ import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-n
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
-import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
+import { WalkRouteLegPolylines } from "@/features/walk/components/WalkRouteLegPolylines";
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
+import type { WalkLegPhase } from "@/features/walk/lib/walkRouteLeg";
 import type { WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -19,6 +20,8 @@ export type WalkRouteMapViewProps = {
   destinationName: string;
   /** インクリメントされるたびに現在地へ再センタリングする。 */
   recenterNonce: number;
+  /** 進行中の区間（往路/復路の描き分けの強調に使う）。 */
+  activeLeg?: WalkLegPhase;
   height?: number;
   style?: StyleProp<ViewStyle>;
   /** 地図上に重ねる追加コンテンツ（ツールボタンなど）。 */
@@ -43,6 +46,7 @@ export function WalkRouteMapView({
   currentPosition,
   destinationName,
   recenterNonce,
+  activeLeg,
   height = 322,
   style,
   children,
@@ -98,7 +102,7 @@ export function WalkRouteMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
       >
-        {walkRoute ? <RoutePolyline path={walkRoute.path} /> : null}
+        {walkRoute ? <WalkRouteLegPolylines walkRoute={walkRoute} activeLeg={activeLeg} /> : null}
         {walkRoute ? (
           <Marker
             coordinate={walkRoute.destination.location}
