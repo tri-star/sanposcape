@@ -55,6 +55,16 @@ dev アカウントの CloudWatch Logs には `ENV=staging` と出る。
 **デプロイ順は常に SAM → Terraform。** SAM が Lambda 関数と Function URL を作った後でないと、
 Terraform 側が CloudFront のオリジンとして参照できない。
 
+> **Secrets Manager は「器」だけが Terraform 所有で、`SecretString` の中身は管理外**
+> （2026-09-12 / SS-81 に確認）。手で `put-secret-value` した値は **Terraform の apply で
+> 巻き戻らない**。`sanposcape-infra` 側で `terraform plan` を実行し、シークレット値を
+> 手動更新した後でも `No changes` になることを確認済み。
+>
+> これを確認せずに値を入れると「apply のたびに設定が消えるのでは」という不安が残り、
+> §5.1 の手順（`neon_dsn_unpooled` の投入など）を実行してよいかの判断が付かなくなる。
+> **ただし infra 側の実装が変われば前提は崩れる**ので、値を管理する変更が入った疑いがあるときは
+> 再確認すること。
+
 ## 3. 初回セットアップ
 
 - `sam --version` で AWS SAM CLI が利用可能であることを確認する。
