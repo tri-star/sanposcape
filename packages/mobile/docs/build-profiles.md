@@ -106,6 +106,14 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 `withCleartextTrafficForHttpBackend` が `usesCleartextTraffic` を有効化する
 （ADR-004 の SS-44 追補）。
 
+> **`preview` の APK は x86_64 でしか動かない（SS-85）。** `mobile-e2e.yml` が
+> `REACT_NATIVE_ARCHITECTURES=x86_64` を渡し、`app.config.ts` の
+> `withAndroidGradleProperties` が `android/gradle.properties` の
+> `reactNativeArchitectures` を上書きするため、**arm 系の実機にはインストールできない**。
+> E2E のエミュレータが `arch: x86_64` 固定である以上ほかの ABI は無駄で、ビルド時間の半分と
+> Gradle の Java heap OOM の一因になっていたため意図的に絞っている（ADR-004 の SS-85 追補）。
+> **実機で確認したいときは `preview` を流用せず `staging-apk` を使うこと**（4 ABI のまま）。
+
 > **`preview` 環境は `staging` と共有される。** EAS の環境は 3 つしかないため、E2E 用の
 > `preview` プロファイルと配布用の `staging` プロファイルが同じ環境変数セットを読む。
 > Google のクライアント ID は無害（E2E は `AUTH_MODE=dev` で、`configureGoogleSignIn()` は
