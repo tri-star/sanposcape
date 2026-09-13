@@ -503,7 +503,9 @@ dex/マージ段階にも効いたためと見られる。`Save APK cache` も�
 
 SS-79 では `GOOGLE_MAPS_ANDROID_SDK_KEY` の EAS 側 visibility を `secret` にすることで、
 **優先順位に依存しない構成**にした（`secret` は `eas build --local` で解決されないため、
-E2E には EAS 側の値がそもそも流れ込まない）。詳細は
+E2E には EAS 側の値がそもそも流れ込まない）。`secret` 化は 2026-09-14 に実施した。
+なお変更前に実測した優先順位は**「EAS が勝つ」**で、`sensitive` のままでは E2E の値が
+EAS の値に黙って置き換わる経路が実在した。詳細は
 [mobile ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) の SS-79 追補、
 実測記録は [build-profiles.md](../docs/build-profiles.md) を参照。
 

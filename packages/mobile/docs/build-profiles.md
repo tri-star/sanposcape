@@ -292,25 +292,51 @@ git を見ても原因に辿り着けない。
 >   入っていたことは確認できている。**懸念された「説明のつかない壊れ方」は起きなかった。**
 > - **3. の優先順位そのものは依然として未確定。** 両方が同値（または同じ SHA-1 制限のキー）
 >   なら結果は変わらないため、この成功は優先順位を決めない。片方だけ意図的に別の値にした
->   比較でしか決まらない。
+>   比較でしか決まらない。（→ **SS-79 で「EAS が勝つ」と実測した。** 下記「実測結果（8-2, SS-79）」）
 >
 > なお、この節はかつて見出しと実態が食い違っていた（「載せない」と書いてあるが既に載っている）。
 > **SS-79 でこの食い違いを解消した**（上記「結論（SS-79）」を参照）。
 
 **実測結果（8-2, SS-79）— シェル環境変数と EAS 保管値のどちらが勝つか**:
 
-> このドキュメント作成時点では実測未実施（欄を残す）。実施した場合は
-> `eas env:exec preview 'node -e "console.log(process.env.GOOGLE_MAPS_ANDROID_SDK_KEY)"'`
-> の結果（`SENTINEL-SHELL` が出れば「シェルが勝つ」、実キーが出れば「EAS が勝つ」）をここに記録する。
+> **実測（2026-09-14, eas-cli 21.0.2、visibility は `sensitive` の状態で測定）: EAS の値が勝つ。**
+>
+> シェル環境変数に目印の値 `SENTINEL-SHELL` を入れ、EAS の `preview` 環境を読み込んで実行した。
+>
+> 1. `GOOGLE_MAPS_ANDROID_SDK_KEY=SENTINEL-SHELL eas env:exec preview 'node -e "console.log(process.env.GOOGLE_MAPS_ANDROID_SDK_KEY)"'`
+>    → **EAS に保管された実キー**が表示された。
+> 2. 同じ条件で `npx expo config --type prebuild --json` を実行し、`app.config.ts` が注入する
+>    `android.config.googleMaps.apiKey` を確認 → **EAS に保管された実キー**だった。
+>    （`eas env:exec` は自身のログを標準出力に出すので、`expo config` の出力はファイルに書き出してから
+>    `jq` で読む。パイプで直接 `jq` に渡すと `parse error` になる）
+>
+> - **上の 3.（優先順位）は「EAS が勝つ」で確定した。** つまり `plaintext` / `sensitive` のままだと、
+>   `--local` のビルドで CI が GitHub Secrets から渡した値が **EAS の値に黙って上書きされる**。
+>   SS-85 の E2E が通っていたのは、両方に同じキーが入っていたからにすぎない。
+> - この結果は `secret` にする判断（上記「結論（SS-79）」）の根拠を補強する。`secret` は
+>   `--local` で解決されないので、E2E には EAS の値が流れ込まず、優先順位に依存しなくなる。
+> - 測定は `eas env:exec` によるもので、`eas build --local` そのものでの測定ではない。
+>   `eas build --local` での挙動は、`secret` 化後の E2E のビルドログで確認する（下記）。
+> - CI（`mobile-release-build.yml` の `npx eas-cli`）は最新版を使うため、手元の版（21.0.2）と
+>   異なる。eas-cli の版で優先順位が変わる可能性はゼロではない。
 
-**visibility の `secret` への変更（8-2, SS-79）— 未実施**:
+**visibility の `secret` への変更（8-2, SS-79）— 2026-09-14 実施済み**:
 
-> `eas env:update --variable-name GOOGLE_MAPS_ANDROID_SDK_KEY --variable-environment preview
-> --visibility secret` はまだ実行していない（EAS アカウント操作のためユーザー作業）。
-> 現状は `sensitive` のままなので、`--local` ビルドでも EAS 側の値が解決される状態が続いている
-> （上記 SS-85 の実測どおり）。**`secret` 化するまでは「供給元が経路ごとに1つ」という
-> 本節の結論は設定上まだ反映されていない**ことに注意する。実施後はこの節に実施日と
-> 実測結果を追記すること。
+> EAS の `preview` 環境の `GOOGLE_MAPS_ANDROID_SDK_KEY` を `sensitive` から **`secret`** に変更した
+> （ユーザー作業。変更前に値を控えてある）。これで「供給元は経路ごとに1つ」という本節の結論が
+> 設定に反映された:
+>
+> - クラウドビルド（`staging` / `staging-apk`）→ EAS の `secret`
+> - `--local` のビルド（E2E の `preview`）→ GitHub Secrets（`ci-e2e` environment）
+>
+> **`secret` にした値は EAS の画面でも CLI でも読み出せない。** キーを差し替える場合は
+> GCP で新しいキーを作り、EAS と GitHub Secrets の**両方**を更新すること（片方だけ更新すると、
+> 経路によって別のキーでビルドされる）。
+>
+> **確認が残っていること**: `secret` 化後の E2E（`mobile-e2e.yml`）のビルドログで、
+> `Environment variables with visibility "Plain text" and "Sensitive" loaded from the "preview"
+> environment on EAS:` の行に `GOOGLE_MAPS_ANDROID_SDK_KEY` が**出ない**こと、かつ 9 フローが
+> 通ること。確認できたらこの欄に run 番号を追記する。
 
 ### なぜ mobile 側にもクライアント ID が要るのか
 

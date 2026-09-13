@@ -227,9 +227,10 @@ GitHub Secrets からの撤去ではなく、**消費者が増えた**ことへ�
 [packages/mobile/adr/ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
 の SS-79 追補を参照。
 
-**未実施（2026-09-13 時点）**: `secret` visibility への変更自体はまだ実行していない
-（EAS アカウント操作のためユーザー作業）。現状は `sensitive` のままである。実施状況の記録は
-`packages/mobile/docs/build-profiles.md` の実測欄を参照。
+**実施（2026-09-14）**: `secret` visibility への変更を実施した（ユーザー作業）。
+`secret` にした値は EAS からも読み出せないため、キーを差し替える場合は EAS と GitHub Secrets の
+**両方**を更新する運用になる。変更前の実測で、`sensitive` のままではシェル環境変数（GitHub Secrets）
+より EAS の値が優先されることも確認した。記録は `packages/mobile/docs/build-profiles.md` の実測欄を参照。
 
 ### 訂正: 「E2E の preview APK にはこのキーを注入しない」は誤り（SS-44 / SS-78 以降）
 

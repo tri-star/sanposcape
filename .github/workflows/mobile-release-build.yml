@@ -86,8 +86,7 @@ jobs:
           # GOOGLE_MAPS_ANDROID_SDK_KEY はここで渡さない（渡せない）。
           # クラウドビルドはシェル環境変数を受け取らないため、EAS の `preview` 環境に
           # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-007 追補。
-          # secret 化自体はユーザー作業として実施予定でまだ未実施（現状は sensitive）。
-          # 実施済みかどうかは packages/mobile/docs/build-profiles.md の記録欄を参照。
+          # 2026-09-14 に secret 化済み。記録は packages/mobile/docs/build-profiles.md の実測欄）。
           set +e
           BUILD_JSON=$(npx eas-cli build \
             --platform android --profile staging-apk \

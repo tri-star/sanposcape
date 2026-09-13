@@ -157,10 +157,12 @@ EAS 側へ寄せる判断をする場合は、**先にシェル環境変数と E
 `--local` の経路（`.github/workflows/mobile-e2e.yml`）の供給元は **GitHub Secrets
 （`ci-e2e` environment）のまま維持する**。
 
-> **未実施（2026-09-13 時点）**: `secret` visibility への変更自体はまだ実行していない
-> （EAS アカウント操作のためユーザー作業）。現状は `sensitive` のままで、この節が
-> 想定する「経路ごとに供給元1つ」はまだ設定に反映されていない。実施状況の記録は
-> [build-profiles.md](../docs/build-profiles.md) の実測欄を参照。実施後にこの節を更新すること。
+> **実施（2026-09-14）**: `secret` visibility への変更を実施した（ユーザー作業）。
+> 変更の前に、`sensitive` の状態でシェル環境変数と EAS 保管値の優先順位を実測し、
+> **EAS の値が勝つ**ことを確認した（`eas env:exec` と、それ経由の `expo config --type prebuild`
+> の両方で。eas-cli 21.0.2）。つまり `sensitive` のままでは、`--local` の E2E で GitHub Secrets の
+> 値が EAS の値に黙って上書きされる経路が実在した。`eas build --local` そのものでの確認は、
+> `secret` 化後の E2E のビルドログで行う。記録は [build-profiles.md](../docs/build-profiles.md) の実測欄を参照。
 
 ### 覆した理由（SS-78 追補が挙げた 3 つの根拠が、それぞれ解消/無効化された）
 
@@ -177,8 +179,10 @@ EAS 側へ寄せる判断をする場合は、**先にシェル環境変数と E
    run 34666684963 で確定**したが、`secret` visibility はローカルビルドで**解決されない**
    ことが公式に明記されている。したがって `secret` を選べば衝突経路そのものが消える。
 3. 根拠 2.「シェル環境変数と EAS 保管値の優先順位が未定義」は、`secret` 化により
-   **そもそも両方が同時に存在しない**状態になるため、優先順位に依存しなくなる
-   （記録用に実測はする。`packages/mobile/docs/build-profiles.md` の実測欄）。
+   **そもそも両方が同時に存在しない**状態になるため、優先順位に依存しなくなる。
+   実測では優先順位は**「EAS が勝つ」**だった（2026-09-14。`packages/mobile/docs/build-profiles.md`
+   の実測欄）。`sensitive` のままなら E2E の値が黙って置き換わる経路が実在したことになり、
+   `secret` を選ぶ理由はむしろ強まった。
 
 **クラウドビルド（`mobile-release-build.yml`）には他に供給手段が無い**（シェル環境変数を
 渡せない）ため、載せない限り配布ビルドの地図がクラッシュする。
