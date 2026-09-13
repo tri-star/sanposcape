@@ -333,10 +333,21 @@ git を見ても原因に辿り着けない。
 > GCP で新しいキーを作り、EAS と GitHub Secrets の**両方**を更新すること（片方だけ更新すると、
 > 経路によって別のキーでビルドされる）。
 >
-> **確認が残っていること**: `secret` 化後の E2E（`mobile-e2e.yml`）のビルドログで、
-> `Environment variables with visibility "Plain text" and "Sensitive" loaded from the "preview"
-> environment on EAS:` の行に `GOOGLE_MAPS_ANDROID_SDK_KEY` が**出ない**こと、かつ 9 フローが
-> 通ること。確認できたらこの欄に run 番号を追記する。
+> **E2E での確認（2026-09-14 / run 34769324144、ブランチ `tri-star/SS-79`）: OK。**
+> APK キャッシュはミスし、変更を含む APK をフルビルドした。ビルドログで次を確認した。
+>
+> ```
+> Environment variables with visibility "Plain text" and "Sensitive" loaded from the
+> "preview" environment on EAS: EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID, EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.
+> ✔ Using Keystore from configuration: build-credentials-ci2 (default)
+> ```
+>
+> - **`GOOGLE_MAPS_ANDROID_SDK_KEY` が EAS から読み込まれていない。** `eas build --local` でも
+>   `secret` は解決されないことを、`env:exec` の測定ではなく実際のビルドで確認できた。
+> - 署名鍵は開発用識別子の既定 `build-credentials-ci2`（本番識別子の `build-credential-ci` ではない）。
+> - **9/9 Flows Passed。** 地図画面のフローもクラッシュしていないので、GitHub Secrets（`ci-e2e`）から
+>   キーが注入されている。ただし E2E は地図タイルを検証しないので、GCP のアプリ制限の登録は
+>   配布ビルドの実機確認で見る（上記「アプリ識別子の定義」）。
 
 ### なぜ mobile 側にもクライアント ID が要るのか
 
@@ -471,7 +482,7 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
   | 識別子 | 構成名 | SHA-1 | 既定 |
   |---|---|---|---|
   | `com.sanposcape.app`（本番） | `build-credential-ci` | `D8:27:FB:D7:A5:83:77:AB:11:2E:96:07:80:45:DC:B1:9F:8A:2F:99` | Default |
-  | `com.sanposcape.app.dev`（開発） | （EAS が生成した新規 Keystore） | `83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E` | Default |
+  | `com.sanposcape.app.dev`（開発） | `build-credentials-ci2`（EAS が生成した新規 Keystore） | `83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E` | Default |
 
   **既定ビルドクレデンシャルを識別子ごとに切り替えないこと。** 本番識別子側の
   `build-credential-ci` を切り替えると、Google Maps / Google サインインの登録と SHA-1 が
