@@ -8,7 +8,7 @@
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
-- 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する（保存だけはサインイン CTA を出し、サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。
+- 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する（保存だけはサインイン CTA を出し、サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
 - `src/features/walk/` / `src/features/history/`（探索・散歩・履歴のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
@@ -56,6 +56,12 @@
     （詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。
   - 履歴などデータ件数に依存する assert は行わない（同一 CI ラン内で他フローの記録が残るため）。
   - モバイル機能: Maestro経由で利用可能な機能はそのまま利用する。利用できない機能はスタブ実装を利用する。
+  - **共有 dev ユーザー（`e2e-user-1`）を壊す取り消し不能な破壊的操作（例: アカウント削除）は
+    E2E で実行しない**。dev ユーザーは全 E2E フローで共有される固定アカウントであり、あるフロー
+    がアカウントや記録を消すと、同じ CI ラン内の他フロー（履歴・散歩記録など）と干渉する。
+    「導線が出る/出ない」の assert（`assertVisible` / `assertNotVisible`）に留め、実行ステップは
+    追加しない（先例: `.maestro/auth-gate.yaml` のアカウント削除ボタンの `assertNotVisible`。
+    受け入れ条件自体は単体テスト（`lib/` の純粋関数）で担保する。SS-62）。
 
 - 単体テスト
   - 方針: `vitest.config.ts` は node 環境 + `react-native` の最小スタブ差し替えのため、

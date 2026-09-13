@@ -271,6 +271,12 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
   `EXPO_PUBLIC_AUTH_MODE=mock` なら「モックユーザーさん、今日も歩きましょう」、`dev` なら
   「{user_key}さん、今日も歩きましょう」になる。`display_name` が `null`（Google が name を返さない場合）
   なら名前部分を落として「今日も歩きましょう」になる。
+- **SS-62 以降、設定画面（`/settings`）からアカウントを削除できる（`DELETE /users/me`）。
+  `EXPO_PUBLIC_AUTH_MODE=dev` で実行すると、共有 dev ユーザー（`e2e-user-1`）とその散歩記録が
+  実際に削除される**。削除後に同じ Google アカウントで再サインインしても、backend の JIT 作成で
+  `provider_subject` は同じでも `user_id` は新規発行されるため、以前の散歩履歴は復元されない
+  （空の履歴になる）。`/dev-screens` の設定エントリから気軽に実行しないこと（
+  `ScreenCatalog` の `description` に「取り消し不能・実サーバーへ DELETE」と明記済み）。
 - 同じ画面は現在地の取得も行う。エミュレータで位置が取れない場合は
   `adb shell` 経由の `adb emu geo fix <経度> <緯度>` で位置を与えるか、`.env` の
   `EXPO_PUBLIC_LOCATION_MODE=mock`（東京駅固定）で起動する。

@@ -30,6 +30,9 @@ tags:
     id: "settings-sign-in"
 - assertNotVisible:
     id: "settings-open-logout-dialog"
+# アカウント削除の導線が出ないことだけを見る。実際に削除を実行するステップは追加しない
+# （dev ユーザー e2e-user-1 は全 E2E フローで共有される固定アカウントで、取り消し不能な削除は
+# 他フローと干渉するため。docs/architecture-guideline.md の E2E 方針を参照。SS-62）。
 - assertNotVisible:
     id: "settings-open-account-delete-dialog"
 # ゲストからサインインへ戻り、サインインできる。

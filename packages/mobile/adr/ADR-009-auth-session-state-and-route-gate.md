@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）
+2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-09-13 追補（SS-62）
 
 ## ステータス
 
-採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
+採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-62 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
 
 ## コンテキスト
 
@@ -93,6 +93,8 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 **サインアウト・セッション失効の退避は `AuthGate` に一本化する（SS-50 追補）**: `SettingsView` は `authService.signOut()` の起動だけを担う。`authenticated → guest` を受けた `AuthGate` は保護ルート上で `router.canDismiss()` を確認し、可能な場合だけ `router.dismissAll()` を実行してから `router.replace("/(auth)/sign-in")` する。これにより設定画面の Promise callback と React effect の実行順、または二重の `replace` に依存しない。401 → refresh 失敗のように設定画面を経由しない失効にも同じ退避・スタック整理を適用できる。
 
 **SS-57 追補: 退避条件を「ゲート判定（guest を弾く）」から「`authenticated → guest` の状態遷移」へ移した**。SS-57 でゲスト散歩を解禁し `canEnterProtectedRoutes` が guest も許可するようになったため、上記の退避ロジック（「`resolveAuthGateDecision` が guest を保護ルートで弾く」ことに依存していた）が成立しなくなった。移さない場合、ログアウトしても遷移せず `SettingsView` のダイアログが「ログアウト中...」で固まり、401 失効では `runSessionCleanup()` だけが走って画面が取り残される。判定は純粋関数 `shouldEvacuateOnSessionEnd`（`features/auth/lib/authGate.ts`）に切り出し、`AuthGate` は前回 `status` を `useRef` で保持して遷移を検出する。退避を `AuthGate` の1箇所に集約するという本決定の狙いは維持している。
+
+**SS-62 追補: アカウント削除が `runSessionCleanup()` の3つ目のトリガーになった**。`DELETE /users/me` 成功後に呼ぶ `authService.signOut()` も同じ `authenticated → guest` の遷移を経由するため、後始末（`queryClient.clear()` / `useFinishedWalkStore.clearFinishedWalk()` / `useActiveWalkStore.endWalk()`）と `AuthGate` の退避は、サインアウト・refresh 失効に加えてアカウント削除でも同一の経路でそのまま実行される。新しい決定を追加するものではなく、既存経路がそのまま適用されることの明記（詳細は本 ADR 末尾の「SS-62 追補」節を参照）。
 
 ### 7. ゲスト導線（「ゲストで試す」）
 
@@ -296,5 +298,5 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/lib/postSignInDestination.ts`（SS-57 ローカルレビュー対応、SS-37 追補）、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例）
 - （SS-37 追補）実装: `app/walk-summary.tsx`、`src/features/walk/components/WalkSummaryView.tsx`、`src/features/walk/components/WalkSaveStatus.tsx`、`src/features/walk/hooks/useWalkSummary.ts`、`src/features/walk/hooks/useWalkSave.ts`、`.maestro/guest-walk-save-sign-in.yaml`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/auth/lib/postSignInDestination.ts`（`wantsToSaveFinishedWalk`）
-- （SS-62 追補）実装: `src/features/settings/api/accountDeleteApi.ts`、`src/features/settings/lib/accountDeleteError.ts`、`src/features/settings/lib/accountDeleteCopy.ts`、`src/features/settings/lib/settingsSection.ts`（`canDeleteAccount`）、`src/features/settings/hooks/useAccountDeletion.ts`、`src/features/settings/components/AccountDeleteDialog.tsx`、`src/features/settings/components/SettingsView.tsx`、`.maestro/auth-gate.yaml`
-- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（本追補の発生元）
+- （SS-62 追補）実装: `src/features/settings/api/accountDeleteApi.ts`、`src/features/settings/lib/accountDeleteError.ts`、`src/features/settings/lib/accountDeleteCopy.ts`、`src/features/settings/lib/settingsSection.ts`（`canDeleteAccount`）、`src/features/settings/types.ts`（`AccountDeleteStatus`）、`src/features/settings/hooks/useAccountDeletion.ts`、`src/features/settings/components/AccountDeleteDialog.tsx`、`src/features/settings/components/SettingsView.tsx`、`app/settings.tsx`、`src/features/design-system/components/ScreenCatalog.tsx`、`.maestro/auth-gate.yaml`
+- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（前回追補の発生元）、SS-62（本追補の発生元）
