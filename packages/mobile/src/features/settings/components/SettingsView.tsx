@@ -190,8 +190,19 @@ export function SettingsView() {
         マウント条件は `open` の boolean（`accountDeleteDialogOpen`）だけにする。理由は上の
         ログアウトダイアログと同じ: 削除成功で section が "authenticated" から "guest" に
         変わった瞬間にアンマウントすると、AuthGate の退避（dismissAll + replace）が完了する
-        までの一瞬ちらつく。成功後 status は "deleted" のまま AuthGate の遷移でアンマウント
-        される（isSigningOut と同じで意図的にリセットしない）。
+        までの一瞬ちらつく。
+
+        成功後 status は "deleted" のまま AuthGate の遷移でアンマウントされるまでリセットしない
+        （ここは `isSigningOut` と同じ）。ただし `isSigningOut` とは異なり、"deleted" は
+        `useAccountDeletion` の mutation 状態から導出される値であり、ボタンの disabled 判定側
+        （`AccountDeleteDialog`）で明示的に busy 扱いしないと自動的には disabled のままにならない
+        （`isSigningOut` は boolean state で成功時に false へ戻すコードが無いため素朴に
+        disabled が続くが、"deleted" は "idle" 等と並ぶ状態値の1つに過ぎない）。
+        `AccountDeleteDialog` は `isAccountDeleteBusy(status)`（"deleting" | "deleted" の両方を
+        busy とする）で判定しており、これは削除成功から AuthGate の退避（signOut() →
+        onSessionChange(null) → setSession(null) → AuthGate の useEffect による dismissAll() +
+        replace）までが複数レンダーを挟む非同期チェーンであり、1フレームでは終わらないため
+        （SS-62 ローカルレビュー A-1。詳細は `isAccountDeleteBusy` の JSDoc 参照）。
       */}
       <AccountDeleteDialog
         open={accountDeleteDialogOpen}

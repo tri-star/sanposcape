@@ -14,7 +14,7 @@ import {
   accountDeleteErrorMessage,
   canRetryAccountDelete,
 } from "@/features/settings/lib/accountDeleteError";
-import type { AccountDeleteStatus } from "@/features/settings/types";
+import { isAccountDeleteBusy, type AccountDeleteStatus } from "@/features/settings/types";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type AccountDeleteDialogProps = {
@@ -37,6 +37,11 @@ export type AccountDeleteDialogProps = {
  * 一方、再試行しても結果が変わらない失敗（401 = サインインし直しが必要）では削除ボタンを
  * 出さない。押しても同じ失敗を繰り返すだけで、ユーザーに「あと1回押せば消えるかもしれない」と
  * 誤解させるため（`canRetryAccountDelete` 参照）。
+ *
+ * `isBusy`（`isAccountDeleteBusy`）は `"deleting"` に加えて `"deleted"`（削除成功後）も
+ * 操作不可扱いにする。成功後の後始末（`authService.signOut()` → `AuthGate` の退避）は複数
+ * レンダーを挟む非同期チェーンのため、"deleted" を busy から外すと成功直後の一瞬だけボタンが
+ * 再度押せる状態に戻ってしまう（SS-62 ローカルレビュー A-1。詳細は `isAccountDeleteBusy` 参照）。
  */
 export function AccountDeleteDialog({
   open,
@@ -47,7 +52,7 @@ export function AccountDeleteDialog({
   testID,
 }: AccountDeleteDialogProps) {
   const styles = useStyles();
-  const isDeleting = status === "deleting";
+  const isBusy = isAccountDeleteBusy(status);
   const canRetry = canRetryAccountDelete(errorCode);
 
   return (
@@ -55,14 +60,14 @@ export function AccountDeleteDialog({
       open={open}
       title={ACCOUNT_DELETE_DIALOG_TITLE}
       onClose={onCancel}
-      dismissDisabled={isDeleting}
+      dismissDisabled={isBusy}
       testID={testID ?? "account-delete-dialog"}
       actions={
         <>
           <Button
             variant="secondary"
             fullWidth
-            disabled={isDeleting}
+            disabled={isBusy}
             onPress={onCancel}
             testID="account-delete-cancel"
           >
@@ -72,11 +77,11 @@ export function AccountDeleteDialog({
             <Button
               variant="danger"
               fullWidth
-              disabled={isDeleting}
+              disabled={isBusy}
               onPress={onConfirm}
               testID="account-delete-confirm"
             >
-              {accountDeleteConfirmLabel(isDeleting)}
+              {accountDeleteConfirmLabel(isBusy)}
             </Button>
           ) : null}
         </>
