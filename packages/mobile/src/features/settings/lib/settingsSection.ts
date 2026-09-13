@@ -27,3 +27,19 @@ export function resolveSettingsSection(status: AuthSessionStatus): SettingsSecti
     }
   }
 }
+
+/**
+ * アカウント削除の導線を出してよい節か。
+ * - authenticated: 出す。
+ * - guest: 出さない。トークン非保持＝削除するアカウントが特定できず、押しても
+ *   `DELETE /users/me` が 401 になるだけ（「押せるのに必ず失敗する」導線を作らない。ログアウトを
+ *   guest に出さないのと同じ判断＝ ADR-009 SS-57 追補）。
+ * - loading: 出さない。セッション復元中はまだ authenticated/guest を判定してはいけない
+ *   （PR #50 Copilot 指摘）。破壊的操作なので「復元完了前に一瞬出る」を特に避ける。
+ *
+ * `.tsx` に条件を書かずここに置くのは、この repo の Vitest ではコンポーネントのレンダリング
+ * テストが書けないため（`docs/architecture-guideline.md`）。`canDeleteWalk`（history）と同じ手法。
+ */
+export function canDeleteAccount(section: SettingsSectionKind): boolean {
+  return section === "authenticated";
+}
