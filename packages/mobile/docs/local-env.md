@@ -305,26 +305,34 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 1. **Web アプリケーション用 OAuth クライアント**を作成し、client ID を
    `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` に設定する（backend 側の許容 audience にも同じ値を設定する）。
    ネイティブサインインでも ID token の `aud` はこの Web クライアント ID になる。
-2. **Android 用 OAuth クライアント**をパッケージ名 `com.sanposcape.app` で作成し、
-   **署名鍵ごとの SHA-1 を登録**する（必要な鍵は4種）:
+2. **Android 用 OAuth クライアントは「package 名 1 つ + SHA-1 1 つ」の組ごとに 1 つ作る**必要が
+   あり、既存クライアントに組を追加することはできない（Google の仕様）。**アプリ識別子を
+   本番/開発で分割した（SS-79）ため、package 名は対象の識別子で読み替えること**（識別子の
+   定義は [build-profiles.md](./build-profiles.md) の「アプリ識別子の定義」を参照）:
 
-   | 用途 | SHA-1 の取得方法 |
-   | --- | --- |
-   | ローカル debug（`expo run:android`） | `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android` |
-   | EAS development | `pnpm --filter mobile exec eas credentials`（Android → development） |
-   | EAS preview（E2E APK） | 同上（preview プロファイル） |
-   | EAS production | 同上（production。Play App Signing 利用時は Play Console 側の SHA-1 も登録） |
+   | 用途 | 対象の識別子 | SHA-1 の取得方法 |
+   | --- | --- | --- |
+   | ローカル debug（`expo run:android`） | `com.sanposcape.app.dev` | `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android` |
+   | EAS development | `com.sanposcape.app.dev` | `pnpm --filter mobile exec eas credentials`（Android → development） |
+   | EAS preview（E2E APK） | `com.sanposcape.app.dev` | 同上（preview プロファイル） |
+   | EAS production | `com.sanposcape.app` | `APP_VARIANT=production pnpm --filter mobile exec eas credentials`（production。Play App Signing 利用時は Play Console 側の SHA-1 も登録） |
 
+   - 開発用識別子（`com.sanposcape.app.dev`）の SHA-1 は EAS で生成済み:
+     `83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E`（2026-09-13）。
+   - 本番識別子（`com.sanposcape.app`）の EAS 既定クレデンシャルの SHA-1 は
+     `D8:27:FB:D7:A5:83:77:AB:11:2E:96:07:80:45:DC:B1:9F:8A:2F:99`（`build-credential-ci`）。
    - SHA-1 未登録は Android で `DEVELOPER_ERROR` という分かりにくいエラーになる（アプリ側では
      `AuthError("configuration")` に分類される）。
-3. **iOS 用 OAuth クライアント**を bundle id `com.sanposcape.app` で作成し、
+3. **iOS 用 OAuth クライアントは bundle ID ごとに作る。** 開発識別子
+   （`com.sanposcape.app.dev`）は既存クライアント（ID
+   `647949159303-53e8cedj7ochfqqhhccc9b9l77jvt7gq`）の bundle ID を GCP コンソールで編集する形で
+   割り当て済みで、**編集後もクライアント ID は変わらなかった**（2026-09-13 確認）。
    `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` と `app.json` の `plugins` の
    `react-native-nitro-google-signin` オプション `iosUrlScheme`（逆ドメイン形式、
-   `com.googleusercontent.apps.<IOS_CLIENT_ID>`）に設定する。
-   - **現状 `app.json` にはプレースホルダー値**（`com.googleusercontent.apps.REPLACE_WITH_IOS_CLIENT_ID`）
-     が入っている。config plugin が `iosUrlScheme`（または Firebase の `google-services.json` /
-     `GoogleService-Info.plist`）を必須で要求するため、未設定のままだと `expo prebuild` /
-     `eas build` が失敗する。iOS 用クライアントを作成した時点で実際の値に置き換えること。
+   `com.googleusercontent.apps.<IOS_CLIENT_ID>`）は変更不要だった。
+   - **本番識別子（`com.sanposcape.app`）用の iOS クライアントは未作成**。`production` を
+     使い始める段で新規作成し、`app.config.ts` の `PRODUCTION_VARIANT` に `iosUrlScheme` を
+     足す必要がある（build-profiles.md に未完了事項として記載）。
 4. **App Store 審査**: iOS で Google ログインを提供する場合、Sign in with Apple の併設が要求される
    （MVP のリリース計画に織り込む）。
 

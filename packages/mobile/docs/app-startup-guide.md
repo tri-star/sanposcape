@@ -105,11 +105,12 @@ adb shell am start -a android.intent.action.VIEW \
 （詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
 
 ```bash
-adb shell am start -a android.intent.action.VIEW -d "sanposcape://dev-screens"
+adb shell am start -a android.intent.action.VIEW -d "sanposcape-dev://dev-screens"
 ```
 
 同様に `/design-system`（デザイントークン/UIプリミティブ一覧）も
-`sanposcape://design-system` で開ける。
+`sanposcape-dev://design-system` で開ける（開発用ビルドの scheme は `sanposcape-dev`、
+本番は `sanposcape`。[build-profiles.md](./build-profiles.md) の「アプリ識別子の定義」参照）。
 
 ### 7. Fast Refresh を使う（動作確認）
 
