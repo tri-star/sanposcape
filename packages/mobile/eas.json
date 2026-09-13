@@ -31,7 +31,6 @@
       "distribution": "store",
       "channel": "staging",
       "environment": "preview",
-      "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
       },
@@ -63,6 +62,7 @@
         "buildType": "app-bundle"
       },
       "env": {
+        "APP_VARIANT": "production",
         "EXPO_PUBLIC_BACKEND_API_URL": "https://app-api.sanposcape.com",
         "EXPO_PUBLIC_AUTH_MODE": "real",
         "EXPO_PUBLIC_LOCATION_MODE": "real"
