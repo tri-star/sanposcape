@@ -51,8 +51,9 @@ open)
     adb_t shell am start -a android.intent.action.VIEW -d "${APP_SCHEME}://${route}"
   else
     # dev client に Metro の URL を渡して開く。`Press a` は WSL 構成では使えない。
+    # この URL の scheme は APP_SCHEME ではなく slug 由来（APP_SLUG。common.sh 参照）。
     adb_t shell am start -a android.intent.action.VIEW \
-      -d "exp+${APP_SCHEME}://expo-development-client/?url=http%3A%2F%2Flocalhost%3A${METRO_PORT}"
+      -d "exp+${APP_SLUG}://expo-development-client/?url=http%3A%2F%2Flocalhost%3A${METRO_PORT}"
   fi
   ;;
 
