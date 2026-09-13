@@ -1,7 +1,7 @@
 # 散歩開始画面からの離脱導線（SS-34）。
 # 候補（/explore/places）に依存しないため maps-required は付けない。
 # `- back` は Android のシステムバック。CI は Android エミュレータで実行する。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---

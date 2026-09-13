@@ -9,7 +9,7 @@
 #
 # assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数・
 # 記録タブの集計値。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - mvp
   - maps-required

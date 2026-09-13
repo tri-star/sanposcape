@@ -1,5 +1,5 @@
 # 探索画面の表示確認。候補件数・地図描画は backend/Google/端末の状態に依存するため assert しない。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---

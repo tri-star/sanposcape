@@ -4,14 +4,14 @@
 # CI 環境には Google の server key が無いため候補が0件（503）になり得る。
 # 「目的地を選ぶ→散歩を始める→散歩中画面の設定ボタン」という導線に依存すると
 # 候補の有無でこのフローがフレークするため、walk-start からは
-# ディープリンク（`sanposcape://settings`）で直接 /settings へ遷移する。
+# ディープリンク（`sanposcape-dev://settings`）で直接 /settings へ遷移する。
 # ログアウト検証の本質（サインイン→ログアウト）は候補の存在に依存しない。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---
 - runFlow: subflows/sign-in.yaml
-- openLink: "sanposcape://settings"
+- openLink: "sanposcape-dev://settings"
 - assertVisible:
     id: "settings-screen"
 - tapOn:
