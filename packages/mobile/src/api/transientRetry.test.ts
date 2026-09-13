@@ -1,10 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   parseRetryAfterMs,
+  sendWithTransientRetry,
   shouldRetryTransient,
   transientRetryDelayMs,
 } from "@/api/transientRetry";
+
+/** テスト用の最小 Response もどき。`headers.get` と任意の `status` だけ持てば十分。 */
+function fakeResponse(status: number, headers: Record<string, string> = {}): Response {
+  return {
+    status,
+    headers: { get: (name: string) => headers[name] ?? null },
+    // body は意図的に持たせない（`response.body?.cancel()` が no-op になることを確認する）。
+  } as unknown as Response;
+}
 
 describe("shouldRetryTransient", () => {
   it.each([1, 2])("GET / 429 / attempts=%i は再送する", (attempts) => {
@@ -173,5 +183,54 @@ describe("transientRetryDelayMs", () => {
 
   it("retryAfter が解釈できなければバックオフにフォールバックする", () => {
     expect(transientRetryDelayMs(1, { retryAfter: "abc", random: () => 1 })).toBe(500);
+  });
+});
+
+describe("sendWithTransientRetry", () => {
+  it("GET で TypeError が2回続いたあと成功すると、2回スリープして最後のレスポンスを返す", async () => {
+    const send = vi
+      .fn<() => Promise<Response>>()
+      .mockRejectedValueOnce(new TypeError("Network request failed"))
+      .mockRejectedValueOnce(new TypeError("Network request failed"))
+      .mockResolvedValueOnce(fakeResponse(200));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const result = await sendWithTransientRetry(send, { method: "GET", sleep });
+
+    expect(result.status).toBe(200);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it("GET で TypeError が上限回数まで続くと、最後は例外をそのまま投げる", async () => {
+    const networkError = new TypeError("Network request failed");
+    const send = vi.fn<() => Promise<Response>>().mockRejectedValue(networkError);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await expect(sendWithTransientRetry(send, { method: "GET", sleep })).rejects.toBe(networkError);
+    // MAX_ATTEMPTS_CHEAP = 3 回まで試行し、そのうち2回だけスリープを挟む。
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it("AbortError（DOMException）は1回で投げ、再送もスリープもしない", async () => {
+    const abortError = new DOMException("Aborted", "AbortError");
+    const send = vi.fn<() => Promise<Response>>().mockRejectedValue(abortError);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await expect(sendWithTransientRetry(send, { method: "GET", sleep })).rejects.toBe(abortError);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("POST の 503 は再送しない（send は1回・sleep は0回）", async () => {
+    const send = vi.fn<() => Promise<Response>>().mockResolvedValue(fakeResponse(503));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const result = await sendWithTransientRetry(send, { method: "POST", sleep });
+
+    expect(result.status).toBe(503);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 });

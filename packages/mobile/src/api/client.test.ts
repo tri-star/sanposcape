@@ -296,4 +296,39 @@ describe("customFetch", () => {
     expect(callCount).toBe(2);
     expect(authHeaders).toEqual(["Bearer token-1", "Bearer token-1"]);
   });
+
+  it("401 → refresh → 429 でも、refresh 後の再送で1回成功する（両方のリトライ軸の組み合わせ）", async () => {
+    const provider: AuthTokenProvider = {
+      getAccessToken: vi.fn().mockResolvedValue("expired-token"),
+      refreshAccessToken: vi.fn().mockResolvedValue("new-token"),
+    };
+    setAuthTokenProvider(provider);
+
+    let callCount = 0;
+    server.use(
+      http.get("http://localhost:8000/spots", ({ request }) => {
+        callCount += 1;
+        if (callCount === 1) {
+          expect(request.headers.get("X-App-Authorization")).toBe("Bearer expired-token");
+          return new HttpResponse(null, { status: 401 });
+        }
+        expect(request.headers.get("X-App-Authorization")).toBe("Bearer new-token");
+        if (callCount === 2) {
+          // refresh 後の1回目が一時障害（429）を踏む。再送は1回で成功させ、テスト時間を抑える。
+          return new HttpResponse(null, { status: 429 });
+        }
+        return HttpResponse.json([{ id: 1, name: "公園" }]);
+      }),
+    );
+
+    const result = await customFetch<{
+      status: number;
+      data: { id: number; name: string }[];
+      headers: Headers;
+    }>("/spots", { method: "GET" });
+
+    expect(result.data).toEqual([{ id: 1, name: "公園" }]);
+    expect(provider.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(callCount).toBe(3);
+  });
 });

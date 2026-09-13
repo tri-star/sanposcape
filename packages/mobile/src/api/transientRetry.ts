@@ -109,6 +109,14 @@ export function transientRetryDelayMs(
 /**
  * 再送を実際に回す薄いヘルパ。`send` は毎回新しい fetch を発行すること
  * （`Request` インスタンスは body が消費済みになるため再利用できない。`RequestInit` の使い回しはよい）。
+ *
+ * **バックオフの待機中（最大 `MAX_DELAY_MS`。`Retry-After` 指定時は `MAX_RETRY_AFTER_MS` まで）は、
+ * 呼び出し元の `AbortSignal` が中断されても打ち切らない（意図的）。** TanStack Query はクエリの
+ * キャンセル時に内部の promise を即座に reject して画面の状態を戻すため、この待機が残っていても
+ * 画面には影響しない。待機明けの次の送信は中断済みの signal によって即座に `AbortError` になり、
+ * 実際の通信は発生しない。残るのはタイマー1つ分だけで、待機を中断可能にする実装（リスナーの
+ * 登録・解除、呼び出し時点で既に中断済みの場合の扱い）を足すコストには見合わない。
+ * TanStack Query を経由しない呼び出し元が増え、待機の中断そのものが必要になったら見直すこと。
  */
 export async function sendWithTransientRetry(
   send: () => Promise<Response>,
@@ -143,6 +151,11 @@ export async function sendWithTransientRetry(
         attempts,
       })
     ) {
+      // 破棄するレスポンスのボディを明示的に読み捨てる。React Native の fetch 実装
+      // （whatwg-fetch ベース）は `Response.body`（ReadableStream）を持たないため、
+      // ここは実機では optional chaining により no-op になる。Node の Vitest 環境
+      // （msw が返す実際の Response）では効果があるため付けている。
+      await response.body?.cancel().catch(() => {});
       await sleep(
         transientRetryDelayMs(attempts, { retryAfter: response.headers.get("Retry-After") }),
       );
