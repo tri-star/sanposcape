@@ -3,6 +3,7 @@ import { getAuthTokenProvider } from "@/api/authTokenProvider";
 import { withAuthHeader } from "@/api/authHeaders";
 import { withContentHashHeader } from "@/api/contentHash";
 import { shouldRefreshAndRetry } from "@/api/retryPolicy";
+import { sendWithTransientRetry } from "@/api/transientRetry";
 import { getApiBaseUrl } from "@/config/env";
 
 /**
@@ -16,11 +17,19 @@ import { getApiBaseUrl } from "@/config/env";
  * real/mock の分岐を持たず振る舞いが環境非依存なもの（`expo-crypto` 等。vitest の alias で
  * モック可能）は許容する（`@/api/contentHash` が実例）。それ以外（`services/auth` 系）は
  * `@/api/authTokenProvider` のレジストリ経由でのみ連携する。
+ *
+ * 一時障害（429 / 502 / 503 / 504 / 通信断）の再送は `@/api/transientRetry` が担い、
+ * **GET / HEAD に限る**（理由は同ファイルの JSDoc を参照）。これは
+ * 「401 → refresh → 1回だけ再送」（`@/api/retryPolicy`）とは別の軸で、両者は独立に効く
+ * （401 を踏んだ GET が refresh 後に 429 を踏むケースは、双方の再送が重なって解決する）。
+ * `src/services/auth/authApi.ts` には意図的にこの再送を入れない。`/auth/refresh` は
+ * ローテーション + 再利用検知のため、再送がセッション全体の失効を招く（同ファイルの JSDoc 参照）。
  */
 export const customFetch = async <T>(url: string, options: RequestInit): Promise<T> => {
   const base = getApiBaseUrl();
   const provider = getAuthTokenProvider();
   const token = provider ? await provider.getAccessToken() : null;
+  const method = (options.method ?? "GET").toUpperCase();
 
   // ボディはリトライしても変わらないため、ハッシュ計算は1回だけにする。
   const signedOptions = await withContentHashHeader(options);
@@ -36,9 +45,9 @@ export const customFetch = async <T>(url: string, options: RequestInit): Promise
   // `react-native-web` や将来 RN が spec 準拠 fetch に移行した場合には効くため無害だが、
   // 「これで守られている」と誤解しないこと。実効的な防御は「この API がリダイレクトを
   // 返さないこと」に依存し続ける。
-  let response = await fetch(
-    `${base}${url}`,
-    withAuthHeader({ ...signedOptions, redirect: "error" }, token),
+  let response = await sendWithTransientRetry(
+    () => fetch(`${base}${url}`, withAuthHeader({ ...signedOptions, redirect: "error" }, token)),
+    { method },
   );
 
   // リトライは最大1回（alreadyRetried は固定で false を渡し、2回目の判定は行わない=ループにしない）。
@@ -52,9 +61,14 @@ export const customFetch = async <T>(url: string, options: RequestInit): Promise
   ) {
     const refreshed = await provider.refreshAccessToken();
     if (refreshed) {
-      response = await fetch(
-        `${base}${url}`,
-        withAuthHeader({ ...signedOptions, redirect: "error" }, refreshed),
+      // refresh 直後に 429 を踏むケースもここで拾う（一時障害の再送は独立に効く）。
+      response = await sendWithTransientRetry(
+        () =>
+          fetch(
+            `${base}${url}`,
+            withAuthHeader({ ...signedOptions, redirect: "error" }, refreshed),
+          ),
+        { method },
       );
     }
   }
