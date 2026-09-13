@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-22（初版）
+2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）
 
 ## ステータス
 
@@ -41,7 +41,8 @@ CD（SAM/Lambda のビルド・デプロイ）と dev/prod の AWS アカウン�
 | 値 | 消費者 | 保管先 |
 | --- | --- | --- |
 | `EXPO_TOKEN` | GitHub Actions のジョブ自身（ビルド時） | **GitHub Secrets** |
-| `GOOGLE_MAPS_ANDROID_SDK_KEY` | APK に焼き込まれエンドユーザー端末で動作 | **GitHub Secrets**（＋ GCP 側のキー制限が防御の本体） |
+| `GOOGLE_MAPS_ANDROID_SDK_KEY` | APK に焼き込まれエンドユーザー端末で動作 | **GitHub Secrets**（＋ GCP 側のキー制限が防御の本体）。**（SS-79 追補）** EAS のクラウドビルドワーカーも消費者に加わり、**EAS の環境変数（`preview` / `secret`）にも保管**するようになった |
+| App Store Connect API Key（`.p8` / Key ID / Issuer ID） | EAS のサーバー（`eas submit` の実行主体） | **（SS-79 追補）EAS の credentials**（GitHub には置かない） |
 | Lambda の DB パスワード・サーバ側 API キー等 | Lambda の**実行時** | **AWS Secrets Manager / SSM Parameter Store**（GitHub を一切通さない） |
 | AWS へのデプロイ権限 | GitHub Actions | **OIDC で都度発行**（そもそも secret として保管しない） |
 
@@ -194,9 +195,12 @@ public repo であることを踏まえると、長期キー方式に対する�
 
 以下は本 ADR では方針決定のみで、実施は別タスクとする。
 
-- [ ] `GOOGLE_MAPS_ANDROID_SDK_KEY` について、GCP 側の Application restriction
+- [x] `GOOGLE_MAPS_ANDROID_SDK_KEY` について、GCP 側の Application restriction
       （パッケージ名 + 署名証明書 SHA-1）・API restriction・予算アラートの設定状況を確認する。
       **未設定の場合はこれが最優先の対応事項**となる。
+      **（SS-79 追補）開発用識別子 `com.sanposcape.app.dev` については設定済み**（開発用 GCP
+      プロジェクトの制限を本番の組から上書きする形で更新した）。**本番識別子用は別の GCP
+      プロジェクトで登録し直す必要があり未完了**（`production` を使い始める段の対応事項）。
 - [ ] `ci-e2e` Environment の Deployment branches を main 限定に設定する（未設定の場合）。
 - [ ] `.github/workflows/` を CODEOWNERS の対象にする。
 - [ ] AWS アカウント新設時に、各アカウントへ GitHub OIDC プロバイダを登録し、
@@ -205,6 +209,36 @@ public repo であることを踏まえると、長期キー方式に対する�
 - [ ] SAM の `template.yaml` を作る際、Lambda 実行ロールに対象シークレットへの
       `secretsmanager:GetSecretValue` / `ssm:GetParameter` を最小権限で付与し、
       シークレット値を CFn パラメータや環境変数として渡さない構成にする。
+
+## SS-79 追補: Mapsキー保管先の拡張とApp Store Connect API Keyの扱い
+
+決定1（保管先は「誰が消費するか」で決める）と決定3
+（`GOOGLE_MAPS_ANDROID_SDK_KEY` は GitHub Secrets に置き続ける）の**範囲を拡張**する。
+
+### `GOOGLE_MAPS_ANDROID_SDK_KEY` の保管先に EAS の環境変数が加わる
+
+`GOOGLE_MAPS_ANDROID_SDK_KEY` の保管先に **EAS の環境変数（`preview` / `secret`）が加わる**。
+GitHub Secrets からの撤去ではなく、**消費者が増えた**ことへの対応である（消費者 = EAS の
+クラウドビルドワーカー。`.github/workflows/mobile-release-build.yml` が使う `staging` /
+`staging-apk` のビルドはシェル環境変数を受け取れないため）。決定1 の原則
+（消費者で決める）に沿った拡張であり、原則そのものは変えていない。
+
+詳細（visibility を `secret` にした理由・E2E への影響）は
+[packages/mobile/adr/ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
+の SS-79 追補を参照。
+
+### App Store Connect API Key は GitHub Secrets に置かない
+
+App Store Connect API Key（`.p8` / Key ID / Issuer ID）は **GitHub Secrets に置かない。**
+消費者は EAS のサーバー（`eas submit` の実行主体）であり、**EAS の credentials に保管させる**。
+GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-release-build.yml`）が
+`eas submit` まで実行できる。
+
+これも決定1 の原則の適用結果であり、`.p8` をランナーのファイルシステムへ書き出す手間と
+漏洩面を持ち込まないためでもある。ASC API Key は Apple Developer Team 単位で発行できる
+ため技術的には本番用アプリレコードにも同じキーを使い回せるが、**SS-79 では開発用として
+チームキーを1本発行し、本番用は本番配布を開始する段で別途発行する方針**にした（権限を
+用途ごとに分け、開発用の作業で本番配布のキーが不要に露出しないようにするため）。
 
 ## 関連情報
 
