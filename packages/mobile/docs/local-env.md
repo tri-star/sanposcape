@@ -250,8 +250,8 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   `GOOGLE_MAPS_SERVER_API_KEY`）は必ず別のキーにする**（ADR-001）。
 - 手順:
   1. Google Cloud Console で **Maps SDK for Android** を有効化し、Android 用の API キーを作成する。
-  2. アプリ制限（パッケージ名 `com.sanposcape.app` + 署名鍵ごとの SHA-1。認証と同じ4種。
-     [Google サインイン](#google-サインイン) の表を参照）を設定する。
+  2. アプリ制限（識別子ごとの package 名 + 署名鍵ごとの SHA-1。認証と同じ4種で
+     識別子は本番/開発で異なる。[Google サインイン](#google-サインイン) の表を参照）を設定する。
   3. **ローカル実行の場合**: `.env` に `GOOGLE_MAPS_ANDROID_SDK_KEY=<キー>` を設定する
      （`expo prebuild` / `expo start` / `expo config` は `.env` を読む。
      `scripts/initialize-dotenv.sh` 再実行で消えるのは他の変数と同じ注意点）。
