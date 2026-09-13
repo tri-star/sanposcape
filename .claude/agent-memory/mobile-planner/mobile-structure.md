@@ -15,7 +15,7 @@ metadata:
 
 **既存UIプリミティブ（`src/components/ui/<kebab>/<Pascal>.tsx`）**: Button/IconButton/Card/Badge/Tag/Input/Checkbox/Switch/Tabs/TabBar/StatBlock/ProgressBar/Dialog/BottomSheet/Toast/MapPin/Icon。操作ハンドラ(onPress/onChange)は基本**必須**設計（押せて何もしないを禁止、無効化は disabled 明示）。Tag のみ静的表示で onPress 省略可。アイコンは `Icon` 経由のみ、名前は `src/components/ui/icon/iconRegistry.ts` の kebab-case キー（無ければ1行追加）。
 
-**Expo Router v57 / `typedRoutes:true` / scheme "sanposcape"**（packages/mobile/app.json）。ルート文字列は型検査される。`app/index.tsx` は `/`。`(tabs)/index.tsx` を作ると `/` と衝突するので、スプラッシュを index に置くならタブは `home.tsx` 等の名前付きにする。ルート `app/_layout.tsx` が Provider（QueryClient→Theme→SafeArea→Stack）を配線済み。
+**Expo Router v57 / `typedRoutes:true` / scheme "sanposcape-dev"**（packages/mobile/app.json。開発用の値で、本番は `app.config.ts` が `APP_VARIANT=production` のときだけ `sanposcape` に上書きする。SS-79）。development client の起動 URL `exp+sanposcape://` は scheme ではなく slug 由来なので変わらない。ルート文字列は型検査される。`app/index.tsx` は `/`。`(tabs)/index.tsx` を作ると `/` と衝突するので、スプラッシュを index に置くならタブは `home.tsx` 等の名前付きにする。ルート `app/_layout.tsx` が Provider（QueryClient→Theme→SafeArea→Stack）を配線済み。
 
 **Vitest 制約（重要）**: `vitest.config.ts` は `environment:"node"` / `include:["src/**/*.test.ts"]`（**.tsx は対象外**）で `react-native` を最小スタブに差し替え。→ **コンポーネント/レンダリングのテストは書けない**。ロジックは `react-native` を値 import しない純粋関数 `.ts` に切り出して `.test.ts` でテスト（既存例: `src/lib/{formatDuration,toPercent,hitSlop}.test.ts`, `src/theme/tokens.test.ts`）。テストは co-location。
 
