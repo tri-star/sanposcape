@@ -26,8 +26,8 @@ const PRODUCTION_VARIANT = {
  * - `iosUrlScheme`（plugins 配列内）は上書きしない。本番用 iOS OAuth クライアントは
  *   未作成（スコープ外）で、上書きすべき値が存在しない。`production` を使い始める段で、
  *   本番用クライアントを作って PRODUCTION_VARIANT に足す（build-profiles.md に未完了事項として明記）。
- * - アイコンは分けない（6-1）。iOS の `expo.icon`（Icon Composer 形式）の variant を作るコストが
- *   見合わないため、後続課題にする。
+ * - アイコンは分けない（docs/build-profiles.md の「アプリ識別子の定義」参照）。iOS の
+ *   `expo.icon`（Icon Composer 形式）の variant を作るコストが見合わないため、後続課題にする。
  * - `slug` / `extra.eas.projectId` / `updates.url` / `runtimeVersion` は上書きしない
  *   （同一 EAS プロジェクトで variant を持つ）。
  */
@@ -51,7 +51,9 @@ function applyAppVariant(config: Partial<ExpoConfig>): Partial<ExpoConfig> {
 /**
  * app.json を拡張し、Google Maps の SDK キーを環境変数から注入する。
  * キーはリポジトリにコミットしない（ADR-001: mobile 用 SDK key と backend の server key は分離する）。
- * - Android: Maps SDK for Android のキーが無いと地図が灰色のまま描画されない。
+ * - Android: Maps SDK for Android のキーが未注入だと、地図が灰色になるのではなく、
+ *   Maps SDK の初期化時に RuntimeException が発生してアプリがクラッシュする
+ *   （SS-44 で実際に観測。ADR-007 の SS-78 追補も参照）。
  * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
