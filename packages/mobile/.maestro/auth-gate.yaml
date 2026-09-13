@@ -30,6 +30,8 @@ tags:
     id: "settings-sign-in"
 - assertNotVisible:
     id: "settings-open-logout-dialog"
+- assertNotVisible:
+    id: "settings-open-account-delete-dialog"
 # ゲストからサインインへ戻り、サインインできる。
 - tapOn:
     id: "settings-sign-in"
