@@ -138,7 +138,7 @@ iPhoneと同じLANに属するIPv4アドレスへ読み替える。
 
 1. Metroが表示するQRコードをiPhoneのカメラで読み取る。
 2. 表示されたdevelopment build用リンクを開く。
-3. または、`sanposcape`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
+3. または、`sanposcape (Dev)`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
 4. JS、TypeScript、スタイルの変更はFast Refreshで確認する。
 
 Androidでは`adb reverse`によって端末側のlocalhostをMetroへ転送できるため

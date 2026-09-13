@@ -105,8 +105,10 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
 継承であり、ここに `env` を書き足してはならない（`staging` と値がずれた瞬間に
 「どちらのビルドか分からない」状態になる）。
 
-`autoIncrement` は `false` に落としてある。サイドロード用のビルドでバージョンを進める必要がなく、
-進めると `staging` / `production` と採番が絡むため。
+`autoIncrement` は `false` に落としてある。`staging`（`extends` 元）も SS-79 で
+`autoIncrement` を外し `app.json` の静的なバージョン番号を使う運用になったため、この
+`false` は「継承元の値に依存しない」ことを明示する記述であり、実際の挙動（バージョンを
+進めない）は `staging` と同じになっている（下記「`autoIncrement` について」）。
 
 ### `staging-ios`
 
@@ -153,8 +155,9 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 > Google のクライアント ID は無害（E2E は `AUTH_MODE=dev` で、`configureGoogleSignIn()` は
 > `src/services/auth/index.ts` で `mode === "real"` のときだけ呼ばれるため触られない）。
 >
-> **ただし `GOOGLE_MAPS_ANDROID_SDK_KEY` は `preview` 環境に登録してはならない。**
-> 理由は下記「Maps キーを EAS 環境変数に載せない理由」を参照。
+> **`GOOGLE_MAPS_ANDROID_SDK_KEY` は `preview` 環境に `secret` visibility でのみ登録する**
+> （plaintext / sensitive での登録は禁止）。理由は下記「`GOOGLE_MAPS_ANDROID_SDK_KEY` の
+> 供給元は経路ごとに1つにする（SS-79 で決着）」を参照。
 
 ### `development`
 
@@ -260,6 +263,17 @@ git を見ても原因に辿り着けない。
 > SS-79 追補を参照）。しかもリポジトリには一切差分が出ないため、git からは原因に
 > 辿り着けない。**既定構成は変更しないこと。**
 
+> **訂正（2026-09-13, SS-79）: 上の「同一の署名鍵」「登録済み SHA-1」はどちらも
+> `com.sanposcape.app`（本番識別子）についての記述で、SS-81 時点のものである。**
+> SS-79 でアプリ識別子を分割した結果、**E2E（`preview`）/ `staging-apk` / クラウドビルドは
+> いずれも開発識別子 `com.sanposcape.app.dev` でビルドされる**ようになり、既定クレデンシャルも
+> 新しく生成した鍵（SHA-1 `83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E`）に
+> 切り替わった。**「全経路が同一鍵を使う」という構造上の結論自体は変わっていない**
+> （鍵の実値と、それが結びつく識別子が変わっただけ）。GCP 側の登録も本番の組
+> （`com.sanposcape.app` + `D8:27:...:99`）から開発の組
+> （`com.sanposcape.app.dev` + `83:1C:...:9E`）へ切り替えている。詳細・実測値は下記
+> 「アプリ識別子の定義」の表を参照。
+
 > **実測（SS-85, 2026-09-12 / run 34666684963）: 上の 2. は確定、3. は半分だけ埋まった。**
 >
 > `GOOGLE_MAPS_ANDROID_SDK_KEY` は 2026-09-08 に EAS の `preview` 環境へ登録済みで、
@@ -343,14 +357,19 @@ pnpm --filter mobile exec eas env:create \
 ## 配布手順（SS-79 で確定）
 
 - **Android**: `.github/workflows/mobile-release-build.yml` を `platform=android` でディスパッチ
-  → ジョブサマリの配布ページ（QR あり）からインストール。
+  → ジョブサマリに出る `BUILD_ID` を控え、expo.dev のプロジェクト（メンバーのみ閲覧可）の
+  ビルド一覧から該当ビルドを開いてインストールする。
 - **iOS**: `platform=ios` でディスパッチ → ビルド後 `eas submit`（`submit_ios: true` が既定）で
   TestFlight の内部テスターへ配布される。
 - **配布ビルド前に `app.json` の `ios.buildNumber` / `android.versionCode` を上げる PR を出すこと。**
   `autoIncrement` を外した（下記「`autoIncrement` について」）ため、これらの値は CI が自動では
   進めない。同じ `buildNumber` の IPA は App Store Connect が受け付けない。
-- **配布リンクは URL を知っていれば誰でもインストールできる**（EAS internal distribution は
-  認証を要求しない）。共有範囲を絞ること。
+- **配布リンク（internal distribution のページ）は認証不要なので、URL を知っていれば誰でも
+  インストールできる。** このリポジトリは public リポジトリのため、`mobile-release-build.yml`
+  の Job Summary / Actions ログには配布ページ・ビルドページの URL を一切出力しない
+  （`BUILD_ID` のみ）。共有するときも Slack 等の限定チャンネルに留め、public な場所に
+  貼らないこと。**`staging-apk`（Android internal distribution）と `staging-ios`（iOS Ad Hoc /
+  TestFlight 手前のビルド）の両方に適用する。**
 - `production` プロファイルには `autoIncrement: true` が残っている。`production` を使い始める際に
   同じ判断（下記）が必要になる（SS-80 Phase 4）。
 - **`ascAppId` / `appleTeamId` は `eas.json` の `submit.staging.ios` にコミット済み**（dev 用

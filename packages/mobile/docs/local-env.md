@@ -259,17 +259,36 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
      `GOOGLE_MAPS_ANDROID_SDK_KEY=xxx pnpm --filter mobile exec expo prebuild`。
   3-b. **EAS ビルド（development / preview / production）では `.env` は使われない**。
      `.env` は gitignore 済みでビルドコンテキストにアップロードされないため、
-     `.env` に入れただけでは EAS 製の APK で地図が灰色のままになる。次のいずれかで注入する:
-     - EAS の環境変数に登録する:
-       `pnpm --filter mobile exec eas env:create --name GOOGLE_MAPS_ANDROID_SDK_KEY --value <キー>`
-     - `eas build --local` の場合はシェル環境変数として渡す
-     未注入でもビルド・起動は成功し**地図が灰色になるだけ**なので気付きにくい点に注意
-     （`app.config.ts` はキーが無いとき `android.config` を付けない設計）。
-     なお CI の E2E（`preview` プロファイル）ではキーを注入していないため地図は常に灰色であり、
-     Maestro は地図描画を assert しない（ADR-004）。
+     `.env` に入れただけでは EAS 製の APK にキーが注入されない。次のいずれかで注入する:
+     - EAS の環境変数に登録する（environment / visibility / scope を必ず指定する。
+       省略すると意図しない environment に登録されたり、`secret` にならず二重供給に
+       なったりする）:
+       ```bash
+       pnpm --filter mobile exec eas env:create \
+         --environment preview \
+         --name GOOGLE_MAPS_ANDROID_SDK_KEY \
+         --value <キー> \
+         --visibility secret \
+         --scope project
+       ```
+       （`preview` 環境は `staging` / `staging-apk` / `staging-ios` とも共有される。
+       このキーだけは `secret` 一択で `plaintext` / `sensitive` にはしないこと。理由は
+       [build-profiles.md](./build-profiles.md) の「`GOOGLE_MAPS_ANDROID_SDK_KEY` の
+       供給元は経路ごとに1つにする」を参照）
+     - `eas build --local` の場合はシェル環境変数として渡す（`ci-e2e` の GitHub Secrets 経由。
+       `secret` visibility は `--local` では解決されないため、この経路の供給元は GitHub Secrets
+       のまま維持される）
+     **未注入だとビルド・起動には成功するが、起動直後に Maps SDK の初期化で
+     `RuntimeException` が発生してアプリがクラッシュする**（SS-44 で観測。「地図が灰色になる
+     だけ」ではない）。`app.config.ts` はキーが無いとき `android.config` 自体を付けない設計。
+     なお **CI の E2E（`preview` プロファイル）にはこのキーを注入している**
+     （`.github/workflows/mobile-e2e.yml` が `ci-e2e` environment の GitHub Secrets から渡す）。
+     未注入にすると `maps-required` タグの Maestro フローが軒並みクラッシュで失敗するため、
+     E2E にとってこのキーは必須である（地図タイルの描画自体は assert しない。ADR-004）。
   4. 反映確認: `pnpm --filter mobile exec expo config --type prebuild` の出力に
-     `android.config.googleMaps.apiKey` が載っているか確認する（キー未設定時は `config` フィールド
-     自体が付かず、地図はネットワーク的には動くが Android では灰色のまま描画されない）。
+     `android.config.googleMaps.apiKey` が載っているか確認する（キー未設定時は `config`
+     フィールド自体が付かない。この状態のビルドを実機・エミュレータで起動すると
+     Maps SDK 初期化時にクラッシュする）。
   5. **ネイティブ設定（`expo-location` の追加・Maps キーの注入）を反映するには development build
      の作り直しが必要**（Fast Refresh では反映されない。ADR-004 の 2026-08-14 追補以降、
      E2E の APK キャッシュキーは `packages/mobile` のソース全体ハッシュ（`.maestro/` / `docs/` /
@@ -304,7 +323,11 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
 1. **Web アプリケーション用 OAuth クライアント**を作成し、client ID を
    `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` に設定する（backend 側の許容 audience にも同じ値を設定する）。
-   ネイティブサインインでも ID token の `aud` はこの Web クライアント ID になる。
+   **ID token の `aud` はプラットフォームで異なる**: Android は Web クライアント ID、iOS は
+   iOS クライアント ID になる（`react-native-nitro-google-signin` がプラットフォーム別の
+   クライアント ID で Google と対話するため）。backend の `GOOGLE_ALLOWED_AUDIENCES` には
+   **両方**をカンマ区切りで設定する必要がある（[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
+   決定4-1）。
 2. **Android 用 OAuth クライアントは「package 名 1 つ + SHA-1 1 つ」の組ごとに 1 つ作る**必要が
    あり、既存クライアントに組を追加することはできない（Google の仕様）。**アプリ識別子を
    本番/開発で分割した（SS-79）ため、package 名は対象の識別子で読み替えること**（識別子の
@@ -323,6 +346,14 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
      `D8:27:FB:D7:A5:83:77:AB:11:2E:96:07:80:45:DC:B1:9F:8A:2F:99`（`build-credential-ci`）。
    - SHA-1 未登録は Android で `DEVELOPER_ERROR` という分かりにくいエラーになる（アプリ側では
      `AuthError("configuration")` に分類される）。
+   - **開発用 GCP プロジェクトに登録済みなのは EAS の開発用鍵 `83:1C:...:9E` のみ**
+     （2026-09-13 時点）。**上表の「ローカル debug」行の SHA-1（`~/.android/debug.keystore`）は
+     未登録である。** そのため `expo run:android` でのローカル debug ビルドは、Google Maps
+     のアプリ制限にも Android OAuth クライアントにも合致せず、**地図タイルが表示されず
+     Google サインインもできない**（`DEVELOPER_ERROR`）。ローカル debug ビルドでこれらを
+     使いたい場合は、上記手順でローカル debug 鍵の SHA-1 を取得し、Google Cloud Console で
+     Maps キーのアプリ制限と Android OAuth クライアントの両方に `com.sanposcape.app.dev` +
+     その SHA-1 の組を追加登録すること。
 3. **iOS 用 OAuth クライアントは bundle ID ごとに作る。** 開発識別子
    （`com.sanposcape.app.dev`）は既存クライアント（ID
    `647949159303-53e8cedj7ochfqqhhccc9b9l77jvt7gq`）の bundle ID を GCP コンソールで編集する形で
@@ -338,26 +369,33 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
 ### リリース前チェックリスト（production ビルド）
 
-`eas.json` の `production` プロファイルには `env` ブロックが無く、`EXPO_PUBLIC_AUTH_MODE` 等は
-未設定時 `real` にフォールバックする（fail-safe だが、これは「production では EAS 側で環境変数を
-注入する」運用が前提になっているということでもある）。**production ビルドを作る前に、EAS
-ダッシュボード（またはビルドコマンドの `--env-file` 等）で以下が注入されることを必ず確認する**:
+`eas.json` の `production` プロファイルには `env` ブロックがあり、`APP_VARIANT: "production"`
+（`app.config.ts` に本番の識別子・scheme・アプリ名で上書きさせる）/
+`EXPO_PUBLIC_BACKEND_API_URL`（本番 backend の HTTPS URL）/ `EXPO_PUBLIC_AUTH_MODE: "real"` /
+`EXPO_PUBLIC_LOCATION_MODE: "real"` を定義済みである（SS-79）。**production ビルドを作る前に、
+EAS ダッシュボード（`production` 環境）で以下が別途注入されることを必ず確認する**
+（`eas.json` にコミットしていないもの）:
 
-- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`（未設定だと `signInWithGoogle()` が
-  `AuthError("configuration")` を返し、実質サインイン不能になる。起動時クラッシュはしないが
-  ユーザー体験としては全滅する点に注意）
-- `EXPO_PUBLIC_BACKEND_API_URL`（本番 backend の HTTPS URL。未注入だと `src/config/env.ts` の
-  既定値 `http://localhost:8000`（平文HTTP）にフォールバックし、実質すべてのAPI呼び出しが失敗する）
-- `GOOGLE_MAPS_ANDROID_SDK_KEY`（未注入だと Android で地図が灰色のまま描画されない。
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`（未設定だと
+  `signInWithGoogle()` が `AuthError("configuration")` を返し、実質サインイン不能になる。
+  起動時クラッシュはしないがユーザー体験としては全滅する点に注意。**本番用 iOS OAuth クライアントは
+  2026-09-13 時点で未作成**。`production` を使い始める段で新規作成が必要。詳細は
+  [ADR-002 の SS-79 追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
+- `GOOGLE_MAPS_ANDROID_SDK_KEY`（未注入だと Android で Maps SDK 初期化時に
+  `RuntimeException` が発生してアプリがクラッシュする。「地図が灰色になるだけ」ではない。
   `EXPO_PUBLIC_` ではないため JS バンドルには焼き込まれず、`app.config.ts` がビルド時に
   `android.config.googleMaps.apiKey` へ注入する。詳細は
-  [Google Maps（react-native-maps）](#google-mapsreact-native-maps)）
-- `EXPO_PUBLIC_LOCATION_MODE` は **production では未設定のままでよい**（未設定＝`real`。
-  誤って `mock` が入ると全ユーザーの現在地が東京駅固定になるため、production には設定しない）
+  [Google Maps（react-native-maps）](#google-mapsreact-native-maps)）。**本番識別子用の
+  Maps キーのアプリ制限・GCP プロジェクトの用意も 2026-09-13 時点で未完了**（開発用 GCP
+  プロジェクトには本番識別子の登録が無い。[build-profiles.md](./build-profiles.md) の
+  「アプリ識別子の定義」参照）
 
-クライアントID自体は秘密情報ではないため `eas.json` へ直書きする選択肢もあるが、本タスク時点では
-値が未確定のため、上記チェックリストとしてここに明記する運用とした。値が確定した時点で
-`eas.json` の `production.env` に追記することも検討する。
+`EXPO_PUBLIC_LOCATION_MODE` は `eas.json` で既に `"real"` を明示している（未設定＝`real` への
+フォールバックに頼らない。誤って `mock` が入ると全ユーザーの現在地が東京駅固定になるため）。
+
+クライアントID自体は秘密情報ではないが、値が本番用に未確定な部分（iOS クライアント ID）が
+残っているため、`eas.json` の `production.env` には追記せず EAS の環境変数側で管理する。
+値が確定した時点で追記を検討する。
 
 ## 状態管理・スタイルの方針
 
