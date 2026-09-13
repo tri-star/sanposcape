@@ -1,0 +1,114 @@
+name: mobile release build (EAS)
+
+# 配布ビルド専用。E2E（mobile-e2e.yml）とは目的もコスト構造も異なる。
+#   - E2E:   `eas build --local` でランナー上でビルドし、EAS のクラウド枠を消費しない（ADR-004）
+#   - 本WF:  EAS の *クラウド* ビルドを使う。internal distribution の配布リンク/QR は EAS 側の
+#            成果物にしか発行されず、`--local` の成果物（ランナー上のファイル）では得られないため（SS-79）
+# EAS Free プラン: Android 15回 / iOS 15回（月）・同時実行1・low-priority キュー。
+# 自動実行しない（workflow_dispatch のみ）のはこの枠を守るため。
+# 3分以内に fast-fail した回は月10回まで枠を消費しないので、設定ミスの早期発見は比較的安全。
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "ビルド対象"
+        type: choice
+        options: [android, ios, all]
+        default: android
+        required: true
+      submit_ios:
+        description: "iOS を TestFlight へ submit する（false ならビルドのみ）"
+        type: boolean
+        default: true
+
+# EAS の同時実行は1なので、複数ディスパッチを並べても待つだけ。取り消さずに直列化する。
+concurrency:
+  group: mobile-release-build
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # low-priority キューの待ち + iOS のビルド処理を含むため長めに取る（GitHub の上限は 6 時間）。
+    timeout-minutes: 180
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_URL: https://expo.dev/accounts/tristar2nd/projects/sanposcape
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # クラウドビルドでは EAS のワーカーが `eas-build-post-install`（= pnpm run orval）で
+      # 生成し直すため必須ではない。ここで先に流すのは「OpenAPI 定義の破損や orval の失敗を
+      # EAS の枠を消費する前にランナー側で落とす」早期失敗ゲートのため。
+      - name: Generate API client (Orval)
+        run: pnpm --filter mobile orval
+
+      # 配布するバージョンをログに残す。autoIncrement を外した（SS-79）ため、
+      # buildNumber / versionCode は app.json の値がそのまま使われる。
+      # 同じ buildNumber の IPA は App Store Connect が受け付けないので、
+      # ディスパッチ前に上げる PR が出ているかをここで目視確認する。
+      - name: Show target version
+        run: |
+          node -e "const c=require('./packages/mobile/app.json').expo; console.log(JSON.stringify({version:c.version, buildNumber:c.ios.buildNumber, versionCode:c.android.versionCode}))" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Build Android APK (staging-apk)
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        working-directory: packages/mobile
+        run: |
+          # GOOGLE_MAPS_ANDROID_SDK_KEY はここで渡さない（渡せない）。
+          # クラウドビルドはシェル環境変数を受け取らないため、EAS の `preview` 環境に
+          # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-007 追補）。
+          BUILD_JSON=$(npx eas-cli build \
+            --platform android --profile staging-apk \
+            --non-interactive --json \
+            --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})")
+          echo "$BUILD_JSON" > "$RUNNER_TEMP/android-build.json"
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
+          {
+            echo "### Android (staging-apk)"
+            echo "- 配布ページ（QR あり）: ${EAS_PROJECT_URL}/builds/${BUILD_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build iOS (staging)
+        id: ios_build
+        if: inputs.platform == 'ios' || inputs.platform == 'all'
+        working-directory: packages/mobile
+        run: |
+          BUILD_JSON=$(npx eas-cli build \
+            --platform ios --profile staging \
+            --non-interactive --json \
+            --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})")
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
+          echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### iOS (staging)"
+            echo "- ビルド: ${EAS_PROJECT_URL}/builds/${BUILD_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # build --auto-submit-with-profile ではなく submit を分けている理由:
+      #   - ビルド失敗と submit 失敗をジョブのステップとして分離でき、ログの切り分けが早い
+      #   - submit だけをやり直したいときに再ビルド（= EAS 枠1回）を要求されない
+      - name: Submit iOS to TestFlight
+        if: (inputs.platform == 'ios' || inputs.platform == 'all') && inputs.submit_ios
+        working-directory: packages/mobile
+        run: |
+          npx eas-cli submit \
+            --platform ios --profile staging \
+            --id "${{ steps.ios_build.outputs.build_id }}" \
+            --non-interactive
