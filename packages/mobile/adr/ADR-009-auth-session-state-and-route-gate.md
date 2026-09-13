@@ -142,6 +142,36 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・`d
 - **ADR-002（横断）決定6-1 との関係**: 決定6-1（「`POST /walks` は未認証では許可しない。サインインを促す導線に倒し、ゲスト記録を後からアカウントへマージする機能は作らない」）と本追補・SS-37 初版は矛盾しない。「サインインを促す導線」は SS-37 の CTA そのものであり、決定6-1 はむしろこれを指示している。決定6-1 が禁じる「マージ機能」は**既にサーバーに永続化されたゲスト記録の所有権付け替え**（決定理由に「所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さ」と明記）を指すが、ゲストの散歩はそもそも `POST /walks` が 401 で弾かれサーバーに永続化されない。SS-37 が扱うのは「未保存のままクライアント側に残ったドラフトを、CTA を押した本人が明示的にサインインして保存する」という決定6-1 が推奨する導線そのものであり、ADR-002 の修正は不要と判断した。
 - **見送った代替案**: 「未保存ドラフト離脱時（`WalkSummaryView` の『記録を見る』『ホームへ』）に確認ダイアログを出し `clearFinishedWalk()` を呼ぶ」という案も提示されたが、UX 変更（離脱ダイアログの新設）を伴い SS-37 のスコープ（行き止まり解消）を超えるため見送った。起点限定だけでも実害シナリオ（無関係な後続サインインへの混入）は解消できる。「同一端末で CTA を押したのが別人」という残余リスクは本追補の対象外とし、フォローアップ課題として離脱時の明示的破棄を起票することを推奨する。
 
+### SS-62 追補: アカウント削除もセッション終了の一形態として同じ経路に乗せる
+
+SS-62（設定画面にアカウント削除の導線を実装する）で、`DELETE /users/me` 成功後のローカル後始末を
+どう配線するかを検討した。既存の決定を覆すものではなく、**範囲の明確化**として追補する。
+
+- **アカウント削除成功後は `authService.signOut()` を呼び、決定6 の経路にそのまま乗せる**。
+  `tokenStore.clear()` → `onSessionChange(null)` → `setSession(null)` → `runSessionCleanup()` →
+  `AuthGate` の `shouldEvacuateOnSessionEnd` による `dismissAll()` + `replace("/(auth)/sign-in")`、
+  という既存の後始末フローを再利用する。`AuthService` に `deleteAccount()` を足すことはしない
+  ——削除は `/auth/*` ではなくビジネス API であり、`customFetch`（`X-App-Authorization` /
+  `x-amz-content-sha256` 付与。SS-70）を通す必要がある。`services/auth/authApi.ts` は
+  401→refresh の再帰回避のため意図的に `customFetch` を通さない生 fetch であり、そこにビジネス
+  API を混ぜると3つ目の HTTP 出口になる（Backlog SS-76 が問題視している状態を再生産する）。
+  アカウント削除 API は `features/settings/api/accountDeleteApi.ts` に置き、Orval 生成の
+  `deleteMeUsersMeDelete()`（→ `customFetch`）を薄くラップする。
+- **削除 API が 401 を返した場合は、ローカルを掃除して成功扱いにしない**。エラー表示のみで、
+  非再試行（`unauthorized`）とする。401 は「アカウントが削除できていない」状態であり、成功扱いに
+  すると「削除後は再サインインで新規ユーザーになる」という受け入れ条件と矛盾する嘘の表示になる。
+  現実的な 401 経路（refresh token 失効）では `createSessionAuthService.doRefresh()` が既に
+  セッションを破棄しており、決定5 の経路で `AuthGate` が自動的に退避させるため、mobile 側が
+  明示的にローカルを掃除する必要は無い（もう一方の 401 経路＝トークン非保持のゲストは、
+  そもそも削除導線を出さないため発生しない）。
+- **ゲスト・`loading` には削除導線を出さない**（`canDeleteAccount`、
+  `features/settings/lib/settingsSection.ts`）。決定3 が扱う「保護ルートに誰が入れるか」を
+  変更するのではなく、**画面内の導線出し分け**で解決する（`/settings` 自体はゲストも到達可能な
+  まま。SS-57 追補の `settings-sign-in` と同じ扱い）。
+- **`features/settings` からストアへ直接書き込む（`setSession(null)`）実装は採らない**。
+  決定2（ストアへの書き込み経路は `services/auth` の `onSessionChange` と
+  `useAuthSessionBootstrap` の2つだけ）を維持する。
+
 ## 検討した選択肢
 
 ### ゲートの実装方式
@@ -266,4 +296,5 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/lib/postSignInDestination.ts`（SS-57 ローカルレビュー対応、SS-37 追補）、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例）
 - （SS-37 追補）実装: `app/walk-summary.tsx`、`src/features/walk/components/WalkSummaryView.tsx`、`src/features/walk/components/WalkSaveStatus.tsx`、`src/features/walk/hooks/useWalkSummary.ts`、`src/features/walk/hooks/useWalkSave.ts`、`.maestro/guest-walk-save-sign-in.yaml`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/auth/lib/postSignInDestination.ts`（`wantsToSaveFinishedWalk`）
+- （SS-62 追補）実装: `src/features/settings/api/accountDeleteApi.ts`、`src/features/settings/lib/accountDeleteError.ts`、`src/features/settings/lib/accountDeleteCopy.ts`、`src/features/settings/lib/settingsSection.ts`（`canDeleteAccount`）、`src/features/settings/hooks/useAccountDeletion.ts`、`src/features/settings/components/AccountDeleteDialog.tsx`、`src/features/settings/components/SettingsView.tsx`、`.maestro/auth-gate.yaml`
 - Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（本追補の発生元）
