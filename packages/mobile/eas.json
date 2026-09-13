@@ -70,7 +70,12 @@
     }
   },
   "submit": {
-    "staging": {},
+    "staging": {
+      "ios": {
+        "ascAppId": "6811599251",
+        "appleTeamId": "F946L3T4HH"
+      }
+    },
     "production": {}
   }
 }
