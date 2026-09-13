@@ -196,4 +196,139 @@ describe("customFetch", () => {
     expect(callCount).toBe(2);
     expect(contentHashes).toEqual([sha256Hex(body), sha256Hex(body)]);
   });
+
+  it("GET が 429 → 200 で成功する（一時障害の再送）", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("http://localhost:8000/spots", () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return new HttpResponse(null, { status: 429 });
+        }
+        return HttpResponse.json([{ id: 1, name: "公園" }]);
+      }),
+    );
+
+    const result = await customFetch<{
+      status: number;
+      data: { id: number; name: string }[];
+      headers: Headers;
+    }>("/spots", { method: "GET" });
+
+    expect(callCount).toBe(2);
+    expect(result.data).toEqual([{ id: 1, name: "公園" }]);
+  });
+
+  it("GET が 429 を返し続けると3回で諦めて ApiError を投げる", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("http://localhost:8000/spots", () => {
+        callCount += 1;
+        return new HttpResponse(null, { status: 429 });
+      }),
+    );
+
+    await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 429");
+    expect(callCount).toBe(3);
+  });
+
+  it("GET の 504 は2回で諦める（オリジン待ち30秒のコストを踏まえた上限）", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("http://localhost:8000/spots", () => {
+        callCount += 1;
+        return new HttpResponse(null, { status: 504 });
+      }),
+    );
+
+    await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 504");
+    expect(callCount).toBe(2);
+  });
+
+  it("POST の 429 は再送しない（副作用があるため）", async () => {
+    let callCount = 0;
+    server.use(
+      http.post("http://localhost:8000/spots", () => {
+        callCount += 1;
+        return new HttpResponse(null, { status: 429 });
+      }),
+    );
+
+    await expect(customFetch("/spots", { method: "POST" })).rejects.toThrow("status: 429");
+    expect(callCount).toBe(1);
+  });
+
+  it("GET の 500 は再送しない（既存の「エラーステータスは例外を投げる」の補強）", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("http://localhost:8000/spots", () => {
+        callCount += 1;
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+
+    await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 500");
+    expect(callCount).toBe(1);
+  });
+
+  it("再送後のリクエストにも X-App-Authorization が付く", async () => {
+    const provider: AuthTokenProvider = {
+      getAccessToken: vi.fn().mockResolvedValue("token-1"),
+      refreshAccessToken: vi.fn().mockResolvedValue("token-2"),
+    };
+    setAuthTokenProvider(provider);
+
+    let callCount = 0;
+    const authHeaders: (string | null)[] = [];
+    server.use(
+      http.get("http://localhost:8000/spots", ({ request }) => {
+        callCount += 1;
+        authHeaders.push(request.headers.get("X-App-Authorization"));
+        if (callCount === 1) {
+          return new HttpResponse(null, { status: 429 });
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await customFetch("/spots", { method: "GET" });
+
+    expect(callCount).toBe(2);
+    expect(authHeaders).toEqual(["Bearer token-1", "Bearer token-1"]);
+  });
+
+  it("401 → refresh → 429 でも、refresh 後の再送で1回成功する（両方のリトライ軸の組み合わせ）", async () => {
+    const provider: AuthTokenProvider = {
+      getAccessToken: vi.fn().mockResolvedValue("expired-token"),
+      refreshAccessToken: vi.fn().mockResolvedValue("new-token"),
+    };
+    setAuthTokenProvider(provider);
+
+    let callCount = 0;
+    server.use(
+      http.get("http://localhost:8000/spots", ({ request }) => {
+        callCount += 1;
+        if (callCount === 1) {
+          expect(request.headers.get("X-App-Authorization")).toBe("Bearer expired-token");
+          return new HttpResponse(null, { status: 401 });
+        }
+        expect(request.headers.get("X-App-Authorization")).toBe("Bearer new-token");
+        if (callCount === 2) {
+          // refresh 後の1回目が一時障害（429）を踏む。再送は1回で成功させ、テスト時間を抑える。
+          return new HttpResponse(null, { status: 429 });
+        }
+        return HttpResponse.json([{ id: 1, name: "公園" }]);
+      }),
+    );
+
+    const result = await customFetch<{
+      status: number;
+      data: { id: number; name: string }[];
+      headers: Headers;
+    }>("/spots", { method: "GET" });
+
+    expect(result.data).toEqual([{ id: 1, name: "公園" }]);
+    expect(provider.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(callCount).toBe(3);
+  });
 });

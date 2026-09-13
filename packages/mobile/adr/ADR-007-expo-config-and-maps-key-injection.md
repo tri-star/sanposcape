@@ -2,7 +2,8 @@
 
 ## 日付
 
-2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）、2026-09-11 追補（SS-78）
+2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）、2026-09-11 追補（SS-78）、
+2026-09-13 追補（SS-79）
 
 ## ステータス
 
@@ -16,6 +17,12 @@ EAS 側の供給経路について「**EAS の環境変数管理には載せな�
 初版が前提としていた「**キーが無い環境でもビルドと E2E が通る**」「**未注入の症状は地図が灰色**」
 という**事実誤りを訂正**した（実際は Maps SDK 初期化時にクラッシュする）。
 追補部分には `（SS-78 追補）` を付けている。
+
+**SS-79「ストア公開前の配布経路を整え、GitHub Actions から配布ビルドを実行できるようにする」で
+追補**した。SS-78 の決定「**EAS の環境変数管理には載せない**」を**覆し**、「EAS の `preview`
+環境に `secret` visibility で載せる（`--local` 経路の供給元は GitHub Secrets のまま維持する）」
+に更新した。あわせて `app.config.ts` の責務に `APP_VARIANT` による本番 variant の識別子上書きが
+加わったことを記録した。追補部分には `（SS-79 追補）` を付けている。
 
 ## コンテキスト
 
@@ -45,11 +52,13 @@ Android で `react-native-maps` の地図タイルを描画するには、Maps S
 - `.env` が有効なのは**ローカル実行時のみ**（`expo start` / `expo prebuild` / `expo config`）。
   **EAS Build では `.env` がビルドコンテキストに載らない**ため、EAS の環境変数
   （`eas env:create`）か `eas build --local` のシェル環境変数で注入する運用とする。
-- **（SS-78 追補）このキーは EAS の環境変数管理（`eas env:create`）には載せない。**
-  供給元は **CI = GitHub Secrets（`ci-e2e` environment）/ ローカル = `.env` またはシェル環境変数**の
-  2 経路に限定する。理由は下記「SS-78 追補: 供給元を 2 つにしない」。
-  他の `EXPO_PUBLIC_*`（Google OAuth のクライアント ID 等）は EAS 環境変数を使ってよく、
-  **このキーだけが例外**である。ビルドプロファイルごとの供給経路の一覧は
+- ~~**（SS-78 追補）このキーは EAS の環境変数管理（`eas env:create`）には載せない。**~~
+  **（SS-79 追補で更新）** EAS の `preview` 環境に **`secret` visibility** で載せる。
+  ただし **`--local` の経路（E2E）の供給元は GitHub Secrets（`ci-e2e` environment）のまま
+  維持する**。詳細は下記「SS-79 追補: EAS 環境変数へ載せる決定に更新する」。
+  他の `EXPO_PUBLIC_*`（Google OAuth のクライアント ID 等）は EAS 環境変数（`plaintext`）を
+  使ってよく、**このキーだけ `secret` visibility にする**という例外がある。
+  ビルドプロファイルごとの供給経路の一覧は
   [ビルドプロファイルと環境変数](../docs/build-profiles.md) に集約した。
 - `app.config.ts` はネイティブ設定に影響するため、
   **`.github/workflows/mobile-e2e.yml` のネイティブ変更トリガ（`paths`）と `oxfmt` の対象に含める。**
@@ -87,7 +96,7 @@ SS-15 の目的（地図表示）に対して変更範囲が不釣り合いな�
   **ビルドを壊さずに地図だけ灰色になる**という劣化の仕方を選ぶための決定。E2E が地図描画を
   assert しない方針（[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）と対になっている。
 
-## SS-78 追補: 供給元を 2 つにしない
+## SS-78 追補: 供給元を 2 つにしない（**SS-79 追補で「載せない」から「経路ごとに1つ」に更新**）
 
 `GOOGLE_MAPS_ANDROID_SDK_KEY` を EAS の環境変数管理へ載せない理由は、**CI が
 「差分を見ても原因に辿り着けない壊れ方」をするため**である。次の 3 つが重なる。
@@ -139,6 +148,78 @@ EAS 側へ寄せる判断をする場合は、**先にシェル環境変数と E
   必要な鍵の種類は Google サインインと同じ4種（[local-env](../docs/local-env.md) の表を参照）。
 - iOS で Google Maps を使いたくなった場合（`provider={PROVIDER_GOOGLE}`）は、
   iOS 用の Maps キーと `ios.config.googleMapsApiKey` の注入をこの `app.config.ts` に追加する。
+
+## SS-79 追補: EAS 環境変数へ載せる決定に更新する
+
+### 決定の更新
+
+`GOOGLE_MAPS_ANDROID_SDK_KEY` を **EAS の `preview` 環境に `secret` visibility で載せる**。
+`--local` の経路（`.github/workflows/mobile-e2e.yml`）の供給元は **GitHub Secrets
+（`ci-e2e` environment）のまま維持する**。
+
+> **実施（2026-09-14）**: `secret` visibility への変更を実施した（ユーザー作業）。
+> 変更の前に、`sensitive` の状態でシェル環境変数と EAS 保管値の優先順位を実測し、
+> **EAS の値が勝つ**ことを確認した（`eas env:exec` と、それ経由の `expo config --type prebuild`
+> の両方で。eas-cli 21.0.2）。つまり `sensitive` のままでは、`--local` の E2E で GitHub Secrets の
+> 値が EAS の値に黙って上書きされる経路が実在した。`eas build --local` そのものでの確認は、
+> `secret` 化後の E2E のビルドログで行う。記録は [build-profiles.md](../docs/build-profiles.md) の実測欄を参照。
+
+### 覆した理由（SS-78 追補が挙げた 3 つの根拠が、それぞれ解消/無効化された）
+
+1. 根拠 3.「配布用鍵の SHA-1 に絞ったキーが E2E の APK で弾かれる」は **SS-81 で事実誤認と
+   判明した**。`eas build --local` はランナーで鍵を生成せず、E2E / `staging-apk` / クラウド
+   ビルドはすべて同一の既定クレデンシャルで署名される（SS-81 時点では `build-credential-ci`）。
+   署名鍵が同一である以上このシナリオは起こり得ない。
+   **（訂正・本追補時点）**: SS-79 のアプリ識別子分割により、E2E / `staging-apk` / クラウド
+   ビルドは開発識別子 `com.sanposcape.app.dev` の新しい既定クレデンシャル（SHA-1
+   `83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E`）に切り替わっている。
+   「全経路が同一鍵」という構造上の結論は変わらない。詳細は
+   [build-profiles.md](../docs/build-profiles.md) の「アプリ識別子の定義」を参照。
+2. 根拠 1.「EAS 保管の非 secret 変数はローカルビルドでも読まれる」は **SS-85 の
+   run 34666684963 で確定**したが、`secret` visibility はローカルビルドで**解決されない**
+   ことが公式に明記されている。したがって `secret` を選べば衝突経路そのものが消える。
+3. 根拠 2.「シェル環境変数と EAS 保管値の優先順位が未定義」は、`secret` 化により
+   **そもそも両方が同時に存在しない**状態になるため、優先順位に依存しなくなる。
+   実測では優先順位は**「EAS が勝つ」**だった（2026-09-14。`packages/mobile/docs/build-profiles.md`
+   の実測欄）。`sensitive` のままなら E2E の値が黙って置き換わる経路が実在したことになり、
+   `secret` を選ぶ理由はむしろ強まった。
+
+**クラウドビルド（`mobile-release-build.yml`）には他に供給手段が無い**（シェル環境変数を
+渡せない）ため、載せない限り配布ビルドの地図がクラッシュする。
+
+### やってはいけないこと
+
+この変数の visibility を `plaintext` / `sensitive` に戻すこと。戻すと `--local` でも解決され、
+GitHub Secrets と二重供給になって「差分を見ても原因に辿り着けない壊れ方」が復活する
+（SS-78 追補が警告していた状態そのもの）。
+
+### `eas credentials` の既定クレデンシャルを識別子ごとに切り替えないこと
+
+本番識別子 `com.sanposcape.app` 側は `build-credential-ci`（SHA-1
+`D8:27:FB:D7:A5:83:77:AB:11:2E:96:07:80:45:DC:B1:9F:8A:2F:99`）が既定、開発識別子
+`com.sanposcape.app.dev` 側は SS-79 で生成した新しい鍵（SHA-1
+`83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E`）が既定になる。
+識別子ごとの既定クレデンシャルと登録先の対応は
+[build-profiles.md](../docs/build-profiles.md) の「アプリ識別子の定義」に集約した。
+
+### `app.config.ts` の責務が増えたことを記録する
+
+Maps キーの注入に加えて、`APP_VARIANT` による本番 variant の上書き（識別子・scheme・
+アプリ名）を担うようになった（`applyAppVariant` 関数）。未知の値（typo 等）は例外にする:
+本番ビルドが黙って開発識別子になる事故は、EAS の枠を消費してから発覚すると被害が大きいため、
+`expo config` の評価時点（ビルドを始める前）で止める。
+
+### 訂正: SHA-1 の不一致は地図が「クラッシュ」ではなく「表示されない」だけ
+
+**訂正（2026-09-13, SS-79）**: 「SHA-1 未登録なら Maps SDK 初期化の RuntimeException で
+クラッシュする」という記述が `packages/mobile/docs/build-profiles.md` に残っていたが誤り。
+SS-44 で実際に観測されたクラッシュは**キーが APK に未注入**のときであり、キーは注入されて
+いるが GCP のアプリ制限（package + SHA-1）と合わない場合は、Google Maps SDK の仕様上
+**認証エラーで地図タイルが表示されないだけでアプリは落ちない**（本プロジェクトでは未観測）。
+したがって **E2E は GCP 登録の漏れを検出できない**（`.maestro/` は地図タイルの描画を
+assert しない。[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）。同じ訂正を
+`packages/mobile/docs/build-profiles.md` と [ADR-004](./ADR-004-e2e-build-ci-strategy.md) の
+SS-79 追補にも反映した。
 
 ## 関連情報
 

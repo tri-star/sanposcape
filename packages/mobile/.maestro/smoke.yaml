@@ -5,7 +5,7 @@
 #
 #   maestro test .maestro/smoke.yaml
 #
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---

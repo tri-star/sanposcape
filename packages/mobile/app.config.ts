@@ -3,21 +3,70 @@ import type { AndroidConfig } from "expo/config-plugins";
 import { withAndroidManifest, withAppBuildGradle, withGradleProperties } from "expo/config-plugins";
 
 /**
+ * 本番ビルド（eas.json の production プロファイル）でだけ使う識別子。
+ * 開発用の値は app.json に実値で置いてある（scripts/mobile-tools/lib/common.sh が app.json を読むため）。
+ * 識別子の一覧と、識別子ごとに別セットになるもの（署名鍵・OAuth クライアント等）は
+ * docs/build-profiles.md の「アプリ識別子の定義」を参照。
+ */
+const PRODUCTION_VARIANT = {
+  name: "sanposcape",
+  scheme: "sanposcape",
+  bundleIdentifier: "com.sanposcape.app",
+  androidPackage: "com.sanposcape.app",
+} as const;
+
+/**
+ * APP_VARIANT が "production" のときだけ本番の識別子・scheme・アプリ名で上書きする。
+ * 未設定なら開発用（app.json の値）のまま。
+ * それ以外の値は例外にする: typo（"prod" 等）で本番ビルドが黙って開発識別子になると、
+ * 別アプリとしてストアに出る/クレデンシャルを取り違える事故になり、しかも EAS の枠を消費してから発覚する。
+ * expo config の評価時点で落とせば、ビルドを始める前に止まる。
+ *
+ * 意図的にやらないこと:
+ * - `iosUrlScheme`（plugins 配列内）は上書きしない。本番用 iOS OAuth クライアントは
+ *   未作成（スコープ外）で、上書きすべき値が存在しない。`production` を使い始める段で、
+ *   本番用クライアントを作って PRODUCTION_VARIANT に足す（build-profiles.md に未完了事項として明記）。
+ * - アイコンは分けない（docs/build-profiles.md の「アプリ識別子の定義」参照）。iOS の
+ *   `expo.icon`（Icon Composer 形式）の variant を作るコストが見合わないため、後続課題にする。
+ * - `slug` / `extra.eas.projectId` / `updates.url` / `runtimeVersion` は上書きしない
+ *   （同一 EAS プロジェクトで variant を持つ）。
+ */
+function applyAppVariant(config: Partial<ExpoConfig>): Partial<ExpoConfig> {
+  const variant = process.env.APP_VARIANT;
+  if (!variant) {
+    return config;
+  }
+  if (variant !== "production") {
+    throw new Error(`Unknown APP_VARIANT "${variant}". Expected "production" or unset.`);
+  }
+  return {
+    ...config,
+    name: PRODUCTION_VARIANT.name,
+    scheme: PRODUCTION_VARIANT.scheme,
+    ios: { ...config.ios, bundleIdentifier: PRODUCTION_VARIANT.bundleIdentifier },
+    android: { ...config.android, package: PRODUCTION_VARIANT.androidPackage },
+  };
+}
+
+/**
  * app.json を拡張し、Google Maps の SDK キーを環境変数から注入する。
  * キーはリポジトリにコミットしない（ADR-001: mobile 用 SDK key と backend の server key は分離する）。
- * - Android: Maps SDK for Android のキーが無いと地図が灰色のまま描画されない。
+ * - Android: Maps SDK for Android のキーが未注入だと、地図が灰色になるのではなく、
+ *   Maps SDK の初期化時に RuntimeException が発生してアプリがクラッシュする
+ *   （SS-44 で実際に観測。ADR-007 の SS-78 追補も参照）。
  * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
+  const base = applyAppVariant(config);
   const androidKey = process.env.GOOGLE_MAPS_ANDROID_SDK_KEY;
   return withCleartextTrafficForHttpBackend(
     withDisableAndroidLintVital(
       withAndroidGradleProperties({
-        ...config,
-        name: config.name ?? "sanposcape",
-        slug: config.slug ?? "sanposcape",
+        ...base,
+        name: base.name ?? "sanposcape",
+        slug: base.slug ?? "sanposcape",
         android: {
-          ...config.android,
+          ...base.android,
           ...(androidKey ? { config: { googleMaps: { apiKey: androidKey } } } : {}),
         },
       }),

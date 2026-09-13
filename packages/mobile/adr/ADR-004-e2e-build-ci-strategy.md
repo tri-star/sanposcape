@@ -4,7 +4,8 @@
 
 2026-07-19（初版）、2026-08-14 追補（fingerprint キャッシュの前提不整合）、
 2026-08-15 追補（エミュレータ環境に起因する不安定性・キャッシュキーの絞り込み）、
-2026-09-12 追補（Gradle の Java heap OOM と ABI の絞り込み、SS-85）
+2026-09-12 追補（Gradle の Java heap OOM と ABI の絞り込み、SS-85）、
+2026-09-13 追補（配布ビルドとの適用範囲の明確化、SS-79）
 
 ## コンテキスト
 
@@ -457,25 +458,72 @@ dex/マージ段階にも効いたためと見られる。`Save APK cache` も�
    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, GOOGLE_MAPS_ANDROID_SDK_KEY.
    ```
 
-2. **その状態で maps-required を含む 9 フローすべてが通った。** 未注入・誤キーなら Maps SDK の
+2. **その状態で maps-required を含む 9 フローすべてが通った。** 未注入なら Maps SDK の
    初期化で `RuntimeException` によりアプリがクラッシュし、walk-start 系が軒並み落ちるので、
-   APK に有効なキーが入っていたことは確認できている。
+   APK に有効なキーが入っていたことは確認できている（**訂正 [2026-09-13, SS-79]**:
+   「誤キー（GCP の制限が package/SHA-1 と合わない）」もクラッシュすると書かれていたが誤り。
+   誤キーは認証エラーで地図タイルが表示されないだけでアプリは落ちない。詳細は下記
+   「SS-79 追補: 配布ビルドとの適用範囲の明確化」を参照）。
 
 → **build-profiles.md が懸念した「E2E が説明のつかない壊れ方をする」事象は起きなかった。**
 これは SS-81 で判明した「E2E / staging-apk / クラウドビルドはすべて同一の署名鍵
 `build-credential-ci` を使う」事実と整合する。署名鍵が同一である以上、
 「配布用鍵の SHA-1 に絞ったキーが E2E の APK で弾かれる」シナリオは構造上起こり得ない。
+**（訂正・本追補時点）**: SS-79 のアプリ識別子分割により、E2E / `staging-apk` / クラウド
+ビルドは開発識別子 `com.sanposcape.app.dev` の新しい既定クレデンシャル（SHA-1
+`83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E`）へ切り替わっている。
+「全経路が同一鍵」という構造上の結論は変わらない。詳細は
+[build-profiles.md](../docs/build-profiles.md) の「アプリ識別子の定義」を参照。
 
 ### 未解決の事項
 
-- **シェル環境変数と EAS 保管値のどちらが最終的に採用されたかは、ログからは判別できない。**
-  両方が同じ値（または同じ SHA-1 制限のキー）であれば結果は変わらないため、上記の成功は
-  優先順位を確定させるものではない。片方だけを意図的に別の値にした比較でしか決まらない。
-  現時点で実害が出ないことは分かったので、判断は SS-79 に委ねる。
+- ~~**シェル環境変数と EAS 保管値のどちらが最終的に採用されたかは、ログからは判別できない。**~~
+  **（SS-79 で決着）** `GOOGLE_MAPS_ANDROID_SDK_KEY` の EAS 側 visibility を `secret` にする
+  ことで、この問いに依存しない構成にした。詳細は下記「SS-79 追補: 配布ビルドとの適用範囲の
+  明確化」を参照。
+
+## SS-79 追補: 配布ビルドとの適用範囲の明確化
+
+### 決定の適用範囲を明確化する（覆すのではなく、範囲を「E2E」に限定していることを明文化する）
+
+本 ADR の決定「**CI では EAS クラウドビルドを使わない**」の適用範囲は **E2E（`preview`
+プロファイル）に限る**。**配布ビルド（`staging` / `staging-apk`）は EAS のクラウドビルドを
+使う**（`.github/workflows/mobile-release-build.yml`、SS-79 で新設）。
+
+理由: EAS internal distribution の配布リンク / QR は **EAS 側の成果物にしか発行されない**
+ため、`--local` の成果物（ランナー上のファイル）では配布経路が成立しない。iOS の TestFlight も
+`eas submit` が EAS のビルドを前提にする。
+
+コスト: 実行頻度が低い（`workflow_dispatch` のみ）ため、Free プランの枠（Android 15 / iOS 15
+回/月・同時実行 1）で足りると判断した。自動トリガは張らない。
+
+`mobile-release-build.yml` の存在と役割をここに記録する（関連情報にも追加）。
+
+### 未解決だった「シェル環境変数と EAS 保管値のどちらが勝つか」に決着を付ける
+
+SS-79 では `GOOGLE_MAPS_ANDROID_SDK_KEY` の EAS 側 visibility を `secret` にすることで、
+**優先順位に依存しない構成**にした（`secret` は `eas build --local` で解決されないため、
+E2E には EAS 側の値がそもそも流れ込まない）。`secret` 化は 2026-09-14 に実施した。
+なお変更前に実測した優先順位は**「EAS が勝つ」**で、`sensitive` のままでは E2E の値が
+EAS の値に黙って置き換わる経路が実在した。詳細は
+[mobile ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) の SS-79 追補、
+実測記録は [build-profiles.md](../docs/build-profiles.md) を参照。
+
+### 訂正: SHA-1 の不一致は「クラッシュ」ではなく「地図タイルが表示されない」だけ
+
+**訂正（2026-09-13, SS-79）**: 上記「副産物」節の 2. に「未注入・誤キーなら…クラッシュし」と
+書かれていたが、**誤キー（GCP のアプリ制限が package + SHA-1 と合わない）の場合はクラッシュ
+しない**。Google Maps SDK の仕様上、認証エラーで地図タイルが表示されないだけである。
+クラッシュするのは APK にキー自体が**未注入**のときだけ。したがって **E2E は GCP 登録の
+漏れを検出できない**（`.maestro/` は地図タイルの描画を assert しないため）。同じ訂正を
+[mobile ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) と
+`packages/mobile/docs/build-profiles.md` にも反映した。
 
 ## 関連情報
 
 - [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
-- CI: `.github/workflows/mobile-e2e.yml` / `.github/workflows/mobile-ci.yml`
+- [ADR-007: Expo 設定と Maps SDK キーの注入](./ADR-007-expo-config-and-maps-key-injection.md)
+- CI: `.github/workflows/mobile-e2e.yml` / `.github/workflows/mobile-ci.yml` /
+  `.github/workflows/mobile-release-build.yml`（SS-79 で新設。配布ビルド専用）
 - [mobile ローカル環境構築手順](../docs/local-env.md)
 - E2E 方針: [アーキテクチャガイドライン](../docs/architecture-guideline.md)

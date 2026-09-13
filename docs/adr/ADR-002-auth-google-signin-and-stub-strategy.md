@@ -3,7 +3,7 @@
 ## 日付
 
 2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
-2026-09-12 追補（SS-81）
+2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -243,13 +243,47 @@ mobile ADR-009 が「今回は決めない」として持ち越していた、�
 - backend に JWT/JWKS 依存（`pyjwt[crypto]` 等）と `users` / `refresh_tokens` のマイグレーションを追加する。
 - backend の OpenAPI 更新後、`pnpm --filter mobile orval` を再実行する。
 - **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が要求される**。MVP のリリース計画に織り込む必要がある。
-- （**SS-81 追補**）**Android の OAuth クライアントは署名鍵ごとに SHA-1 の登録が必要**。
-  EAS のビルドクレデンシャルは `build-credential-ci`（default）が E2E / `staging-apk` /
-  クラウドビルドのすべてで共通に使われるため、登録する SHA-1 は 1 つで足りる
-  （`eas build --local` もランナーで鍵を生成せず Expo サーバーの既定クレデンシャルを取得する）。
-  詳細は [build-profiles.md](../../packages/mobile/docs/build-profiles.md)。
+- （**SS-81 追補。SS-79 でアプリ識別子分割に伴い更新: 下記「SS-79 追補」参照**）
+  **Android の OAuth クライアントは署名鍵ごとに SHA-1 の登録が必要**。
+  EAS のビルドクレデンシャルは1つの既定構成が E2E / `staging-apk` / クラウドビルドの
+  すべてで共通に使われるため、登録する SHA-1 は1つで足りる（`eas build --local` も
+  ランナーで鍵を生成せず Expo サーバーの既定クレデンシャルを取得する）。**SS-81 時点では
+  この既定構成が `build-credential-ci`（本番識別子 `com.sanposcape.app` 用）だったが、
+  SS-79 の識別子分割以降は開発識別子 `com.sanposcape.app.dev` 用の新しい鍵に切り替わって
+  いる**（「全経路が同一鍵」という構造は維持）。詳細は
+  [build-profiles.md](../../packages/mobile/docs/build-profiles.md)。
 - （**SS-81 追補**）**Android の実機サインインは未達**。端末（AQUOS sense3 / Android 11）の
   Credential Manager 段階で失敗し backend へ到達していない。iOS は実機で疎通済み（SS-82 で継続）。
+
+## SS-79 追補: アプリ識別子分割後の OAuth クライアントと GCP 登録状態
+
+SS-79 でアプリ識別子を本番（`com.sanposcape.app`）と開発（`com.sanposcape.app.dev`）に
+分割したことに伴い、Google OAuth クライアントと GCP の登録状態を記録する。
+
+- **OAuth クライアントは「識別子 + SHA-1」の組ごとに1つ必要**（Android）/
+  「bundle ID ごとに1つ」必要（iOS）。識別子を分割すると、開発用と本番用で別クライアントが
+  要るのはこのため。
+- **開発用 GCP プロジェクト（`647949159303`）に登録済みなのは開発識別子の組だけ**:
+  `com.sanposcape.app.dev` + SHA-1 `83:1C:84:C2:4D:1D:6E:99:13:B4:4A:CA:71:05:3B:B2:3D:00:B5:9E`
+  （EAS が生成した開発用の新規 Keystore）。**本番識別子 `com.sanposcape.app` の登録はこの
+  GCP プロジェクトには無い**（本番は別の GCP プロジェクトで登録し直す想定。上記
+  SS-81 追補の「Android の OAuth クライアントは署名鍵ごとに SHA-1 の登録が必要」の対象は
+  開発識別子に置き換わった）。
+- **iOS クライアント（`647949159303-53e8cedj7ochfqqhhccc9b9l77jvt7gq`）はクライアント ID が
+  不変のまま**。GCP コンソールでこのクライアントの bundle ID を `com.sanposcape.app` から
+  `com.sanposcape.app.dev` へ**編集**しただけで、クライアント ID 自体は変わらないことを
+  ユーザーが確認した。したがって `app.json` の `iosUrlScheme`・backend の
+  `GOOGLE_ALLOWED_AUDIENCES`（Secrets Manager `/sanposcape/dev/shared` の
+  `google_oauth_client_id`）はいずれも**無変更**で済んでいる。
+- **本番用 iOS OAuth クライアントは未作成**。既存クライアントを開発識別子に編集したため、
+  `production` プロファイルを使い始める段で本番識別子（`com.sanposcape.app`）用のクライアントを
+  新規作成し、`packages/mobile/app.config.ts` の `PRODUCTION_VARIANT` に `iosUrlScheme` を
+  追加し、本番の Secrets Manager（`/sanposcape/prod/shared`）の `google_oauth_client_id` に
+  Web クライアント ID + 本番用 iOS クライアント ID を設定する必要がある（**dev のクライアント
+  ID を入れないこと**）。
+- 識別子ごとの署名鍵・登録状態の一覧は
+  [build-profiles.md](../../packages/mobile/docs/build-profiles.md) の「アプリ識別子の定義」を
+  参照。
 
 ## 関連情報
 

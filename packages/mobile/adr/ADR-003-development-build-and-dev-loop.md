@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-07-19
+2026-07-19（初版）、2026-09-13 追補（アプリ識別子の本番/開発分割、SS-79）
 
 ## コンテキスト
 
@@ -88,9 +88,30 @@
 
 - `expo-dev-client` を導入済み。`eas.json` に `development` プロファイルを用意済み。
 - EASアカウント連携と各プラットフォームの署名資格情報を用意する。
-- iOSのBundle Identifierは`com.sanposcape.app`とし、EASでApple Distribution Certificateと
+- ~~iOSのBundle Identifierは`com.sanposcape.app`とし~~、**（SS-79 追補: `com.sanposcape.app.dev`
+  に変更）**、EASでApple Distribution Certificateと
   Ad Hoc Provisioning Profileを管理する。
 - E2E は development build ではなく standalone な preview ビルドを使う（[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）。
+
+## SS-79 追補: development build を含む開発用ビルドの識別子を本番から分割する
+
+**決定**: development build を含む**開発用ビルドの識別子は `com.sanposcape.app.dev`**、
+本番は `com.sanposcape.app`。scheme（`sanposcape-dev` / `sanposcape`）・アプリ名
+（`sanposcape (Dev)` / `sanposcape`）も分けた。
+
+**理由（要約）**: 同一識別子だと App Store Connect 上で本番と開発が同じアプリレコードになり、
+dev backend を向いた `staging` ビルドが本番ビルドと同じ TestFlight に並ぶ。まだ誰にも配って
+いない今が分割の最安のタイミングであり、配布後に分けると Apple のアプリレコード・EAS 鍵・
+TestFlight ビルドのやり直しとテスターの再インストールが発生する。詳細な検討経緯は
+[build-profiles.md](../docs/build-profiles.md) の「アプリ識別子の定義」を SSoT とする。
+
+**開発者向けの影響**:
+
+- **既存の development build はアンインストールして入れ直す必要がある**（別アプリになるため
+  上書きされない）。[iPhone実機 development build 手順](../docs/iphone-device-development.md)
+  を参照。
+- Android のローカル debug 鍵の SHA-1 を `.dev` の package 名（`com.sanposcape.app.dev`）で
+  Google サインイン / Maps に登録し直す必要がある（[local-env.md](../docs/local-env.md) 参照）。
 
 ## 関連情報
 
