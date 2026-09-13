@@ -227,6 +227,22 @@ GitHub Secrets からの撤去ではなく、**消費者が増えた**ことへ�
 [packages/mobile/adr/ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
 の SS-79 追補を参照。
 
+**未実施（2026-09-13 時点）**: `secret` visibility への変更自体はまだ実行していない
+（EAS アカウント操作のためユーザー作業）。現状は `sensitive` のままである。実施状況の記録は
+`packages/mobile/docs/build-profiles.md` の実測欄を参照。
+
+### 訂正: 「E2E の preview APK にはこのキーを注入しない」は誤り（SS-44 / SS-78 以降）
+
+決定3 の本文および下記「関連情報」に**「E2E の preview APK にはこのキーを注入しない」という
+記述が残っているが、SS-44 / SS-78 以降は事実と異なる**。SS-44 で `GOOGLE_MAPS_ANDROID_SDK_KEY`
+未注入時に Maps SDK 初期化の RuntimeException でアプリがクラッシュすることが判明したため、
+`.github/workflows/mobile-e2e.yml` は `ci-e2e` environment の GitHub Secrets からこのキーを
+`preview` ビルドへ注入するようになっている（`GOOGLE_MAPS_ANDROID_SDK_KEY` は maps-required な
+Maestro フローの前提であり、地図タイルの描画自体は assert しないが、キーが無いと起動時点で
+落ちるため必須になった）。詳細は
+[mobile ADR-004 の SS-44 / SS-78 追補](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+と `packages/mobile/adr/ADR-007` を参照。
+
 ### App Store Connect API Key は GitHub Secrets に置かない
 
 App Store Connect API Key（`.p8` / Key ID / Issuer ID）は **GitHub Secrets に置かない。**
@@ -245,7 +261,8 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
 - [ADR-001: 地図・POI・ルーティング基盤に Google Maps Platform を採用し backend 経由で利用する](./ADR-001-map-poi-google-maps-platform.md)
   — mobile の SDK key と backend の server key を分離する決定
 - [mobile ADR-004: E2E のビルド・CI 戦略](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
-  — E2E の preview APK に Maps SDK キーを注入しない方針
+  — E2E（`preview`）のビルド・CI 戦略。Maps SDK キーは SS-44 以降 `ci-e2e` の GitHub Secrets
+  から注入する（上記「訂正」を参照。「注入しない」は SS-44 以前の話）
 - [mobile ADR-007: Expo 設定と Maps SDK キーの注入](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
   — `app.config.ts` によるキー注入と `EXPO_PUBLIC_` を付けない理由
 - `.github/workflows/mobile-e2e.yml` — 現行の `ci-e2e` environment の利用箇所
