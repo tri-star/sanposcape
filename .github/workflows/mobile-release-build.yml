@@ -37,7 +37,6 @@ jobs:
     timeout-minutes: 180
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_PROJECT_URL: https://expo.dev/accounts/tristar2nd/projects/sanposcape
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -67,22 +66,53 @@ jobs:
         run: |
           node -e "const c=require('./packages/mobile/app.json').expo; console.log(JSON.stringify({version:c.version, buildNumber:c.ios.buildNumber, versionCode:c.android.versionCode}))" | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # このリポジトリは public。internal distribution の配布ページ（staging-apk）も
+      # TestFlight 内部テスターの前段となるビルドページも、URL を Job Summary / Actions
+      # ログに残さない（ADR-006 の SS-79 追補が GitHub Releases を不採用にした理由と同じ
+      # リスクを、別経路で再現しないため）。
+      #
+      # `eas-cli build --json` は進行ログ（ビルド URL を含む）を stdout ではなく stderr に
+      # 出す。CLI が --json 指定時に `process.stdout.write` を stderr へ付け替え、最終的な
+      # JSON 配列を書くときだけ一時的に stdout へ戻すため（eas-cli 24.3.0 のソースで確認:
+      # `commands/build/index.js` の `enableJsonOutput()` と `utils/json.js`）。加えて
+      # `build/runBuildAndSubmit.js` は `--local` を使わない限り `printLogsUrls()` を
+      # 無条件で呼び、ビルド URL（`.../builds/<id>` 形式）をログへ出す。
+      # そのため stderr はいったん $RUNNER_TEMP のファイルへ退避し、成功時は使わず捨て、
+      # 失敗時のみ URL を伏せ字にして出力する（診断性は保ちつつ URL は残さない）。
       - name: Build Android APK (staging-apk)
         if: inputs.platform == 'android' || inputs.platform == 'all'
         working-directory: packages/mobile
         run: |
           # GOOGLE_MAPS_ANDROID_SDK_KEY はここで渡さない（渡せない）。
           # クラウドビルドはシェル環境変数を受け取らないため、EAS の `preview` 環境に
-          # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-007 追補）。
+          # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-007 追補。
+          # secret 化自体はユーザー作業として実施予定でまだ未実施（現状は sensitive）。
+          # 実施済みかどうかは packages/mobile/docs/build-profiles.md の記録欄を参照。
+          set +e
           BUILD_JSON=$(npx eas-cli build \
             --platform android --profile staging-apk \
             --non-interactive --json \
-            --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})")
+            --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})" \
+            2>"$RUNNER_TEMP/android-build.stderr.log")
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::Android ビルド（eas-cli build）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+            sed -E 's#https://expo\.dev/[^[:space:]"]*#https://expo.dev/<redacted>#g' "$RUNNER_TEMP/android-build.stderr.log"
+            exit "$STATUS"
+          fi
           echo "$BUILD_JSON" > "$RUNNER_TEMP/android-build.json"
-          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id // empty')
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::Android ビルドの BUILD_ID を取得できませんでした（空または null）。$RUNNER_TEMP/android-build.json を確認してください。"
+            exit 1
+          fi
           {
             echo "### Android (staging-apk)"
-            echo "- 配布ページ（QR あり）: ${EAS_PROJECT_URL}/builds/${BUILD_ID}"
+            echo "- BUILD_ID: ${BUILD_ID}"
+            echo "- 配布ページ（internal distribution。URL を知っていれば誰でもインストール可）は"
+            echo "  expo.dev のプロジェクト（メンバーのみ閲覧可）のビルド一覧から開いてください。"
+            echo "  public リポジトリのため、このログに URL は出しません。"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build iOS (staging)
@@ -90,15 +120,30 @@ jobs:
         if: inputs.platform == 'ios' || inputs.platform == 'all'
         working-directory: packages/mobile
         run: |
+          set +e
           BUILD_JSON=$(npx eas-cli build \
             --platform ios --profile staging \
             --non-interactive --json \
-            --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})")
-          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
+            --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})" \
+            2>"$RUNNER_TEMP/ios-build.stderr.log")
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::iOS ビルド（eas-cli build）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+            sed -E 's#https://expo\.dev/[^[:space:]"]*#https://expo.dev/<redacted>#g' "$RUNNER_TEMP/ios-build.stderr.log"
+            exit "$STATUS"
+          fi
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id // empty')
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::iOS ビルドの BUILD_ID を取得できませんでした（空または null）。BUILD_JSON=${BUILD_JSON}"
+            exit 1
+          fi
           echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
           {
             echo "### iOS (staging)"
-            echo "- ビルド: ${EAS_PROJECT_URL}/builds/${BUILD_ID}"
+            echo "- BUILD_ID: ${BUILD_ID}"
+            echo "- ビルド詳細は expo.dev のプロジェクト（メンバーのみ閲覧可）のビルド一覧から開いてください。"
+            echo "  public リポジトリのため、このログに URL は出しません。"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # build --auto-submit-with-profile ではなく submit を分けている理由:
