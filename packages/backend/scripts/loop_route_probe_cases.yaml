@@ -1,0 +1,55 @@
+# scripts/loop_route_probe.py の検証セット（backend-plan.md B0/B7）。
+#
+# ここに挙げた座標は「弱点が出やすい地形」のおおよその見当をつけたものであり、
+# 実測（GeoJSON の目視確認）をしていない。B7 を実施する開発者は、実行前に地図で
+# 目視し、必要なら座標をより適切な地点に調整すること。検証セットは15組程度・
+# 約30呼び出しを目安に、以下の地形を必ず含める（backend-plan.md 4.3 節・7章 B0）。
+#
+#   - 川沿い（対岸に経由点が落ちる向き）
+#   - 線路沿い（踏切や跨線橋が少ない区間）
+#   - 大きな公園・大学キャンパスの縁（中に経由点が落ちる）
+#   - 行き止まりの多い住宅地
+#   - 郊外の短距離（200〜500m。W4 の回帰確認）
+#   - 都心の格子状の街路
+#   - 前回スパイクで最悪だった短距離（若葉台〜鶴川周辺。旧ブランチが無いため正確な
+#     座標は再現できない。近隣で同様の郊外短距離を代用する）
+cases:
+  - label: 多摩川沿い（世田谷区・対岸に経由点が落ちる向き）
+    origin: { latitude: 35.5871, longitude: 139.5372 }
+    destination: { latitude: 35.5854, longitude: 139.5410 }
+  - label: 多摩川沿い（郊外側・短距離バリエーション）
+    origin: { latitude: 35.5871, longitude: 139.5372 }
+    destination: { latitude: 35.5862, longitude: 139.5390 }
+  - label: 線路沿い（踏切少なめの区間）
+    origin: { latitude: 35.6580, longitude: 139.7016 }
+    destination: { latitude: 35.6605, longitude: 139.7040 }
+  - label: 線路沿い（短距離バリエーション）
+    origin: { latitude: 35.6580, longitude: 139.7016 }
+    destination: { latitude: 35.6592, longitude: 139.7028 }
+  - label: 大きな公園の縁（代々木公園）
+    origin: { latitude: 35.6720, longitude: 139.6946 }
+    destination: { latitude: 35.6702, longitude: 139.6980 }
+  - label: 大学キャンパスの縁
+    origin: { latitude: 35.6556, longitude: 139.4507 }
+    destination: { latitude: 35.6537, longitude: 139.4540 }
+  - label: 行き止まりの多い住宅地
+    origin: { latitude: 35.6203, longitude: 139.5758 }
+    destination: { latitude: 35.6218, longitude: 139.5780 }
+  - label: 行き止まりの多い住宅地（短距離バリエーション）
+    origin: { latitude: 35.6203, longitude: 139.5758 }
+    destination: { latitude: 35.6210, longitude: 139.5769 }
+  - label: 郊外の短距離（200m前後）
+    origin: { latitude: 35.6103, longitude: 139.3968 }
+    destination: { latitude: 35.6113, longitude: 139.3980 }
+  - label: 郊外の短距離（500m前後）
+    origin: { latitude: 35.6103, longitude: 139.3968 }
+    destination: { latitude: 35.6140, longitude: 139.4010 }
+  - label: 郊外の短距離（若葉台〜鶴川周辺・前回スパイク最悪値の代用）
+    origin: { latitude: 35.6103, longitude: 139.3968 }
+    destination: { latitude: 35.6082, longitude: 139.4010 }
+  - label: 都心の格子状の街路（銀座）
+    origin: { latitude: 35.6717, longitude: 139.7650 }
+    destination: { latitude: 35.6700, longitude: 139.7670 }
+  - label: 都心の格子状の街路（短距離バリエーション）
+    origin: { latitude: 35.6717, longitude: 139.7650 }
+    destination: { latitude: 35.6709, longitude: 139.7660 }
