@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     google_maps_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
+    # 周回ルート（SS-33, ADR-007）の kill switch。品質劣化時の緊急停止と、mobile の
+    # 同じ道フォールバック表示の手動確認に使う（real/fake いずれでも有効）。
+    google_maps_loop_route_enabled: bool = True
+    # 周回の左右経由点を並列取得する際の1候補あたりの待ち時間上限。Lambda の
+    # Timeout（29秒）より十分短くする（docs/adr/ADR-005-backend-serverless-deployment-...）。
+    google_maps_route_deadline_seconds: float = Field(default=12.0, gt=0, le=25)
 
     # --- walks ---
     # 軌跡は最大で数百KBになり得るため /explore より大きい上限にするが、無制限にはしない
