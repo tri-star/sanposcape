@@ -2,13 +2,13 @@
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）
-#   - backend が起動しており、/explore/places が候補を返せること
-#     （MAPS_MODE=fake もしくは実の GOOGLE_MAPS_SERVER_API_KEY）
+#   - backend が起動しており、/explore/places が候補を返し、/explore/routes/loop が
+#     周回ルートを返せること（MAPS_MODE=fake もしくは実の GOOGLE_MAPS_SERVER_API_KEY）
 #   → 候補に依存するため `maps-required` タグを付ける。CI は MAPS_MODE=fake で前提を満たせるため
 #     絞り込まずに実行する（SS-54）。タグは前提を用意できないローカル環境での除外用。
 #
 # assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値・履歴の件数・
-# 記録タブの集計値。
+# 記録タブの集計値・周回ルートの線の形/区間の数/同じ道フォールバックかどうか・凡例の文言。
 appId: com.sanposcape.app.dev
 tags:
   - mvp
@@ -16,6 +16,12 @@ tags:
 ---
 - runFlow: subflows/sign-in.yaml
 - runFlow: subflows/start-walk-from-spot.yaml
+
+# 周回ルートが散歩中画面にも描かれていること（凡例の存在だけを見る。線の形・区間の数・文言は assert しない。ADR-004）
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-route-legend"
+    timeout: 10000
 
 # --- 散歩中 ---
 # 経過時間が進むまで待つ。アニメーションの有無ではなく、保存に必要な started_at / ended_at の
