@@ -346,6 +346,20 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 
 **How to apply:** 「MVPまでの残りは何か」を問われたら、Planeのオープン課題を数えるだけで答えない。仕様側（ADR・プロジェクト概要）の要件と実装の実体を突き合わせて、未起票の抜けが無いか確認すること。
 
+## 2026-09-13確認: State別件数のスナップショットとモジュールA/B/Cの内訳拡大
+
+- 全体件数（Review/In Progress/Todo/Backlogの4状態）: Review=0, In Progress=1(SS-33), Todo=7(SS-22,62,66,72,79,80,86), Backlog=26。SS番号は86まで進んでいる（2026-08-22時点の記述より大幅増加）。
+- モジュールA/B/Cはこの時点で既にオープン34件では収まらず、Done/Cancelled分も含め A=8件・B=14件・C=11件（計33件）に拡大していた。A/B/C作成直後（2026-08-22）の「オープン18件のみ」という記述は古い。新規課題は継続してA/B/Cのいずれかに追加されている。
+- **モジュール未所属のオープン課題が今回も6件存在**（Todo: SS-79/80/86、Backlog: SS-82/83/84）。相変わらず全件走査（`list_work_items(pql='state=...')`）とモジュール別集計を突き合わせないと拾えない。
+- `workitem retrieve`の`fields`に`module_ids`を指定しても値が返らない（nullのまま）ことを確認。モジュール所属の確認は個々のwork item取得ではなく`module list_workitems`側から突き合わせる方が確実。
+- SS-33（周回ルート提示、モジュールA、In Progress）は2026-08-23付のコメントで「PR #62レビュー待ち」と書かれているが、状態は当時からIn Progressのまま変わっていない（3週間ほど更新が止まっている可能性、Doneし忘れかレビュー未完了かは要ユーザー確認）。
+- SS-79/80が新規の大型計画課題として発見: SS-80「デプロイフロー改善（リリースPR方式、backend-N/mobile-N識別子）」、SS-79「mobile: ストア公開前配布経路（EAS internal distribution / TestFlight）」。いずれも本文が非常に長く、設計メモの全文を課題本文に直接書き込む運用が新たに採られている（一時的な作業メモ置き場はgit管理外で他環境では参照できないため、という理由が本文に明記）。
+
+## 2026-09-13追加: SS-62をIn Progressに更新（mobile側着手）
+
+- SS-62「mobile: 設定画面にアカウント削除の導線を実装する」(work_item_id: `ca486f5b-6a9a-4b35-9a93-d5460f33d2b2`、モジュールA所属)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。start_date=2026-09-18/target_date=2026-09-21は既存設定のまま変更なし。コメント（comment_id: `11390fe0-f442-42f6-b971-5cc1f2d0b207`）に着手経緯（モジュールAでTodo唯一・priority=high、backend実装済み、SS-33のPR #62と競合しにくい）とSS-33の状況（PR #62レビュー待ち、ADR-005番号衝突・Lambda+CloudFront移行との整合確認が必要）を記録。
+- **How to apply**: これによりモジュールA「MVP達成に必要な残課題」はSS-33(In Progress、PR #62レビュー待ち)とSS-62(In Progress、今回着手)の両方がIn Progressになった。SS-62のPRリンクは未登録（実装未着手のため）、実装完了時にPRリンク登録・Review化の運用を継続する。
+
 ## 2026-08-22 変更: `docs/milestones.md` を削除。残作業の情報源はPlaneに一本化
 
 ユーザー判断で `docs/milestones.md` を削除した（「今後はPlaneを軸にしたい」）。M1〜M5の完了条件チェックボックスと各SS課題の実績記録がそこにあったが、決定事項は各ADRに、進捗はPlaneのアーカイブ済みモジュールに残っている。
