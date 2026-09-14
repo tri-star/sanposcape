@@ -1,0 +1,231 @@
+name: backend deploy (SAM)
+
+# packages/backend を AWS SAM で Lambda へデプロイする。手順・前提・トラブルシュートは
+# packages/backend/docs/deployment.md の「GitHub Actions からのデプロイ」を参照。
+#
+# ★ 認証は OIDC のみ（ADR-004 決定5）。GitHub に置くのはロール ARN（秘密ではない）だけで、
+#   Environment Variables `AWS_SAM_DEPLOY_ROLE_ARN` から読む。
+# ★ GitHub Environment（development / production）と AWS アカウントを 1:1 に対応させる
+#   （ADR-004 決定6）。デプロイロールの trust は `environment:<名前>` の subject だけを許すので、
+#   environment を付けない job からはそもそも AssumeRole できない。
+#   production は Required reviewers と Deployment branches（main 限定）で保護している。
+# ★ build と deploy を別 job に分けている。build は PyPI から依存を取得して任意のコード
+#   （パッケージのビルドスクリプト等）を実行し得るため、id-token: write も environment も
+#   持たせない。OIDC トークンを要求できるのは、ビルド済み成果物を受け取るだけの deploy job に限る。
+# ★ マイグレーション（migrate Lambda の invoke）は自動実行しない。デプロイロールに
+#   lambda:InvokeFunction が無く、スキーマ変更をデプロイと不可分にしない方針のため
+#   （ADR-005 決定9）。デプロイ後に手元から実行する（Job Summary に案内を出す）。
+# ★ デプロイ順は常に SAM → Terraform（sanposcape-infra）。このワークフローは Terraform を触らない。
+# ★ pull_request / pull_request_target トリガーを絶対に足さないこと。このリポジトリは public で、
+#   fork からの PR のワークフロー定義でデプロイ経路（environment と OIDC）に到達され得る。
+#   インフラ側のロールの trust も pull_request の subject を含めていない。
+
+on:
+  push:
+    branches: [main]
+    # デプロイ成果物に入るもの・デプロイ設定だけを明示列挙する（docs や tests だけの変更で
+    # dev へのデプロイを走らせないため）。否定パターンは読み違えやすいので使わない。
+    paths:
+      - "packages/backend/src/**"
+      - "packages/backend/alembic/**"
+      - "packages/backend/alembic.ini"
+      - "packages/backend/pyproject.toml"
+      - "packages/backend/uv.lock"
+      - "packages/backend/template.yaml"
+      - "packages/backend/samconfig.toml"
+      - "packages/backend/Makefile"
+      - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "デプロイ先（production は main からのみ・承認が必要）"
+        type: choice
+        options: [development, production]
+        default: development
+        required: true
+
+# 実行単位（ビルドを含む）で環境ごとに直列化する。deploy job 単位の直列化だけだと、
+# 後から来た run のビルドが先に終わった場合に古いコミットが後からデプロイされて巻き戻る。
+# 実行中のデプロイを途中で止めると CloudFormation が UPDATE_ROLLBACK に入るため取り消さない
+# （待機中の run は新しい run に置き換わる = 最新のコミットだけが残る）。
+concurrency:
+  group: backend-deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'development' }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      config-env: ${{ steps.resolve.outputs.config_env }}
+    steps:
+      - name: Resolve target environment
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          GIT_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "push" ]; then
+            environment=development
+          else
+            environment="$INPUT_ENVIRONMENT"
+          fi
+          case "$environment" in
+            development) config_env=dev ;;
+            production) config_env=prod ;;
+            *)
+              echo "::error::未知のデプロイ先です: $environment"
+              exit 1
+              ;;
+          esac
+          # Environment の Deployment branches（main 限定）でも弾かれるが、CI の実行や
+          # ビルドを始める前に落とす（承認待ちにも入れない）。
+          if [ "$environment" = "production" ] && [ "$GIT_REF" != "refs/heads/main" ]; then
+            echo "::error::production へのデプロイは main からのみ実行できます（ref: $GIT_REF）"
+            exit 1
+          fi
+          {
+            echo "environment=$environment"
+            echo "config_env=$config_env"
+          } >> "$GITHUB_OUTPUT"
+
+  # テスト（lint / test / マイグレーションのスモーク）を通ったコミットだけをデプロイする。
+  # main の ruleset は PR を必須にしていないため、push 時の backend CI とは別にここで担保する。
+  ci:
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/backend-ci.yml
+
+  build:
+    needs: [prepare, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # ★ id-token: write / environment を付けない（先頭コメント参照）。
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/backend
+    env:
+      SAM_CLI_TELEMETRY: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.7.13"
+
+      # ビルドコンテナ（public.ecr.aws/sam/build-python3.12）に uv が無いため、
+      # requirements-lambda.txt だけランナー上で生成する（Makefile 冒頭コメント参照）。
+      - name: Export Lambda requirements
+        run: make lambda-requirements
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        with:
+          version: "1.165.0"
+          use-installer: true
+
+      - name: Validate template
+        run: sam validate --lint --region ap-southeast-1
+
+      # --use-container は省略できない（psycopg[binary] の manylinux wheel がホストに依存するため）。
+      - name: Build
+        run: sam build --use-container
+
+      # upload-artifact は実行権限などのファイル属性を保持しないため tar で固めて渡す。
+      - name: Archive build output
+        run: tar -C .aws-sam -czf "$RUNNER_TEMP/sam-build.tgz" build
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sam-build
+          path: ${{ runner.temp }}/sam-build.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ needs.prepare.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/backend
+    env:
+      CONFIG_ENV: ${{ needs.prepare.outputs.config-env }}
+      SAM_CLI_TELEMETRY: "0"
+    steps:
+      - name: Check deploy role is configured
+        working-directory: .
+        env:
+          ROLE_ARN: ${{ vars.AWS_SAM_DEPLOY_ROLE_ARN }}
+          TARGET_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::error::Environment '$TARGET_ENVIRONMENT' に Variables 'AWS_SAM_DEPLOY_ROLE_ARN' が設定されていません（packages/backend/docs/deployment.md 参照）"
+            exit 1
+          fi
+
+      # samconfig.toml（スタック名・リージョン・タグ・parameter_overrides）を使うため。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sam-build
+          path: ${{ runner.temp }}
+
+      - name: Extract build output
+        run: |
+          mkdir -p .aws-sam
+          tar -C .aws-sam -xzf "$RUNNER_TEMP/sam-build.tgz"
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        with:
+          version: "1.165.0"
+          use-installer: true
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ vars.AWS_SAM_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
+          role-session-name: gha-sam-deploy-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      # samconfig.toml の confirm_changeset = true は手元での実行向け（changeset を目で確認する）。
+      # CI では承認を GitHub Environment の保護ルールで取るので、ここでだけ無効化する。
+      - name: Deploy
+        run: sam deploy --config-env "$CONFIG_ENV" --no-confirm-changeset --no-fail-on-empty-changeset
+
+      - name: Show next steps
+        run: |
+          {
+            echo "## デプロイ完了（$CONFIG_ENV）"
+            echo
+            echo "マイグレーションは自動実行していません（ADR-005 決定9）。スキーマ変更を含む場合は、"
+            echo "手元の AWS 認証情報で次を実行してください（packages/backend/docs/deployment.md §5.2）。"
+            echo
+            echo '```bash'
+            echo "aws lambda invoke --function-name sanposcape-${CONFIG_ENV}-backend-migrate \\"
+            echo "  --region ap-southeast-1 \\"
+            echo "  --cli-binary-format raw-in-base64-out --payload '{}' \\"
+            echo "  --cli-read-timeout 360 /dev/stdout"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
