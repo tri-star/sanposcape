@@ -139,7 +139,7 @@ _LOOP_RIGHT, _LOOP_LEFT = loop_waypoint_candidates(_LOOP_ORIGIN, _LOOP_DESTINATI
 class LoopFakeProvider:
     """`get_loop_walking_route` の並列取得・フォールバック分岐を検証するためのスタブ。
 
-    候補は経由点（via、小数5桁）で見分ける（backend-plan.md B4）。
+    候補は経由点（via、小数5桁）で見分ける（ADR-007 決定1・決定2）。
     """
 
     def __init__(
@@ -316,6 +316,46 @@ def test_get_loop_walking_route_uses_the_only_successful_side(failure: Exception
 
     assert result.return_is_same_path is False
     assert provider.walking_route_call_count == 0
+
+
+def test_get_loop_walking_route_logs_quota_for_the_failing_side_even_when_the_other_succeeds(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """QUALITY-1: 片方が Quota で片方が成功した場合でも、Quota は WARNING ログに残す
+    （決定5。以前は両側とも失敗したときの集約ログにしか出ていなかった）。"""
+    accepted_route = _loop_route(_LOOP_ORIGIN, _LOOP_DESTINATION, _LOOP_RIGHT.via, detour_ratio=1.1)
+    provider = LoopFakeProvider(
+        loop_by_via={
+            _via_key(_LOOP_RIGHT.via): accepted_route,
+            _via_key(_LOOP_LEFT.via): GoogleMapsQuotaError(),
+        }
+    )
+    service = MapsService(provider, 20, 20, 10, 8)
+
+    with caplog.at_level("WARNING"):
+        result = service.get_loop_walking_route(_loop_request())
+
+    assert result.return_is_same_path is False
+    assert any(
+        record.levelname == "WARNING" and "side=left" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_get_loop_walking_route_reraises_unexpected_provider_exceptions() -> None:
+    """QUALITY-2: `future.result()` は Quota/Unavailable 以外の例外（プログラムのバグ）を
+    握りつぶさずそのまま送出する（ADR-007「移行・対応が必要な事項」相当のリスク対策の回帰テスト）。"""
+    accepted_route = _loop_route(_LOOP_ORIGIN, _LOOP_DESTINATION, _LOOP_RIGHT.via, detour_ratio=1.1)
+    provider = LoopFakeProvider(
+        loop_by_via={
+            _via_key(_LOOP_RIGHT.via): accepted_route,
+            _via_key(_LOOP_LEFT.via): RuntimeError("boom"),
+        }
+    )
+    service = MapsService(provider, 20, 20, 10, 8)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        service.get_loop_walking_route(_loop_request())
 
 
 def test_get_loop_walking_route_falls_back_to_single_fetch_when_both_are_unavailable() -> None:

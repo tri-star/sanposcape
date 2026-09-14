@@ -15,6 +15,7 @@ from sanposcape.integrations.google_maps.provider import (
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.loop_route import (
     LoopEvaluation,
+    LoopSide,
     evaluate_loop,
     loop_waypoint_candidates,
     select_loop,
@@ -135,7 +136,7 @@ class MapsService:
     def get_loop_walking_route(self, request: WalkingRouteRequest) -> LoopWalkingRouteResponse:
         """SS-33: 現在地 → 目的地 → (往路と異なる道) → 現在地 の周回ルートを返す。
 
-        決定5（backend-plan.md）のフローをそのまま実装する。周回を作れない／候補がすべて
+        ADR-007 決定5のフローをそのまま実装する。周回を作れない／候補がすべて
         不合格のときも例外にせず、200 + `return_is_same_path=True`（同じ道で戻る）で返す。
         """
         origin = self._provider_point(request.origin)
@@ -154,7 +155,7 @@ class MapsService:
         deadline = monotonic() + self._route_deadline_seconds
         per_candidate_timeout = min(self._route_timeout_seconds, self._route_deadline_seconds)
 
-        outcomes: dict[str, _LoopOutcome] = {}
+        outcomes: dict[LoopSide, _LoopOutcome] = {}
         with ThreadPoolExecutor(max_workers=_LOOP_CANDIDATE_WORKERS) as executor:
             future_to_candidate = {
                 executor.submit(
@@ -169,8 +170,14 @@ class MapsService:
             for future, candidate in future_to_candidate.items():
                 try:
                     outcomes[candidate.side] = future.result()
-                except (GoogleMapsQuotaError, GoogleMapsUnavailableError) as exc:
+                except GoogleMapsQuotaError as exc:
                     outcomes[candidate.side] = exc
+                    # 他方が成功しても、この側のクォータ超過は最終ログに埋もれず必ず1行残す
+                    # （決定5: 片方成功時にクォータの予兆が運用ログから見えなくなるのを防ぐ）。
+                    logger.warning("Loop route candidate quota exceeded: side=%s", candidate.side)
+                except GoogleMapsUnavailableError as exc:
+                    outcomes[candidate.side] = exc
+                    logger.info("Loop route candidate unavailable: side=%s", candidate.side)
 
         evaluations: list[LoopEvaluation] = []
         first_success: ProviderLoopRoute | None = None
