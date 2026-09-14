@@ -145,6 +145,7 @@ docker compose up -d --build
     - **`fake` の判定は `GOOGLE_MAPS_SERVER_API_KEY` の有無より優先される**。キーを設定していても `MAPS_MODE=fake` なら実 API は呼ばれない（E2E で意図せず課金が走らないようにするための安全側の設計）。実 API の疎通を確認したいときは `MAPS_MODE` を外すこと。
     - 候補は既定で 5 件（リクエストの `limit` が 5 未満ならその件数）。`category` はリクエストの `categories` を先頭から循環割り当てし、`name` は category に対応する「テストコンビニ1」のような固定名 + 連番になる。
     - 起動時に `MAPS_MODE=fake: using FakeGoogleMapsProvider` の WARNING をログに出すので、`docker compose logs api | grep MAPS_MODE` でどちらの provider で動いているか確認できる。
+    - **（SS-33）`/explore/routes/loop` も対応する**: 往路は既存の直線ルートを再利用し、復路は `目的地 → 経由点 → 現在地` を直線で結んだ決定的な周回を返す（`return_is_same_path: false`）。経由点は `maps/loop_route.py`（実 provider と共通）が生成するため、fake でも周回の判定ロジック自体は本物と同じものを通る。
   - `docker compose restart` では反映されない。`MAPS_MODE=fake docker compose up -d` のように `up -d` でコンテナを作り直すこと（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため）。
 - `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New) と Routes API のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
@@ -156,6 +157,14 @@ docker compose up -d --build
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`: 上流への接続／読取 timeout（既定 3 秒／8 秒）。超過時は API に 503 を返す。
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`: 1 回の探索で取得・経路計算する候補数の上限（いずれも既定・最大 20）。Google Places Nearby Search の provider 上限と、上流のコスト・レート対策に合わせた安全弁である。
 - Places / Routes の endpoint は Google の HTTPS API に固定しており、server API key の送信先を環境変数で変更することはできない。テストは HTTP client の差し替えで行う。
+
+### 周回ルート（`/explore/routes/loop`、SS-33。ADR-007 参照）
+
+- `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`: 既定 `true`。`false` にすると周回の生成自体を行わず、常に往路を1回取得して**同じ道で戻る**（`return_is_same_path: true`）応答になる（real / fake のどちらでも有効）。用途は品質劣化時の緊急停止と、mobile 側で同じ道フォールバック表示を手動確認したいときの強制切り替え。
+  - `MAPS_MODE=fake docker compose up -d` と同様、`docker compose restart` では反映されない。値を変えたら `GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false docker compose up -d` のように `up -d` でコンテナを作り直すこと。
+- `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`: 既定 12 秒（上限 25 秒）。左右の経由点を並列取得する際の1候補あたりの待ち時間上限。Lambda の Function URL タイムアウト（29秒、[ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)）より十分短くしている。
+- 周回が作れない（O-D が近すぎる／候補がすべて判定で不合格）場合もエラーにはせず、200 + `return_is_same_path: true` で返す（往路 leg を逆順にしたものを復路として使う）。
+- 検証・しきい値調整用のスクリプト `scripts/loop_route_probe.py`（`scripts/loop_route_probe_cases.yaml` の O/D の組を使う）がある。`MAPS_MODE=real` かつ `GOOGLE_MAPS_SERVER_API_KEY` 設定時のみ動作し、`docker compose exec api uv run python scripts/loop_route_probe.py` で実行する。候補ごとの指標・合否・採用結果を標準出力に、往路/復路/経由点を `tmp-probe/<timestamp>.geojson`（`.gitignore` 済み）に出す。詳細は ADR-007 を参照。
 
 ## リクエストサイズ制限
 
@@ -206,7 +215,11 @@ print(r.status_code); print(r.text[:800])"
 - `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` / `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
+- `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`
 - `WALKS_REQUEST_MAX_BYTES`
+
+（`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、
+`compose.yaml` の `environment:` に含めている。）
 
 既定値を上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
 必要になった場合は `compose.yaml` の `environment:` にも追加すること（このリストは追加のたびに
