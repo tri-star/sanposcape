@@ -8,6 +8,8 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #     ここでは一切作らない（Terraform 所有）
 #   - CloudFront からの呼び出し許可（lambda:InvokeFunctionUrl / lambda:InvokeFunction）は
 #     Terraform 側が付ける。AWS::Lambda::Permission をここに書かない（二重管理防止）
+#   - 実行ロールには Terraform が作る Permission Boundary（SSM の lambda_boundary_arn）を必ず付ける。
+#     外すと CI のデプロイロールが CreateRole を拒否する（Globals.Function の PermissionsBoundary 参照）
 #   デプロイ順は常に SAM → Terraform。詳細: docs/deployment.md
 
 Parameters:
@@ -36,6 +38,21 @@ Globals:
     MemorySize: 1024
     # CloudFront のオリジン読み取りタイムアウトが 30 秒。超えると CloudFront が 504 を返す。
     Timeout: 29
+    # ★ SAM が作る Lambda 実行ロール（Api / Migrate）に付ける Permission Boundary。
+    #   - GitHub Actions のデプロイロール（sanposcape-infra の live/account/sam_deploy.tf）は
+    #     iam:CreateRole を「iam:PermissionsBoundary がこの ARN と一致する場合」だけ許可している。
+    #     ここを外すと CI からのデプロイが CreateRole の AccessDenied で止まる。
+    #   - 境界が許すのは自関数のログ書き込み・/sanposcape/<env>/* のシークレットと SSM の読み取り・
+    #     KMS Decrypt・X-Ray 程度。デプロイロールは PutRolePolicy / AttachRolePolicy も持つため、
+    #     境界が無いと「強い実行ロールを作って Lambda に渡す」経路で管理者へ昇格できてしまう。
+    #     実行時に新しい AWS 操作が要るようになったら、ここではなく infra 側の境界を先に広げること。
+    #   - 実行ロールの RoleName は明示しない。デプロイロールの許可は CFn の自動命名
+    #     （sanposcape-backend-<env>-<論理ID>-<乱数>）に一致するロールだけが対象。
+    #   - ARN はアカウント ID を含むため、SSM から deploy 時に解決する（APP_SECRET_ARN と同じ理由）。
+    #   - 既存の（境界の無い）ロールへ境界を後付けするには iam:PutRolePermissionsBoundary が要るが、
+    #     デプロイロールはこの操作を明示的に拒否している。境界を初めて入れるデプロイは
+    #     CI からは通らず、手元の管理者権限で 1 回流す必要がある（docs/deployment.md §7）。
+    PermissionsBoundary: !Sub '{{resolve:ssm:/sanposcape/${Env}/account/lambda_boundary_arn}}'
     # ★ VpcConfig は付けない。Neon / Google JWKS / Google Maps API はすべてインターネット経由で、
     #   VPC に入れると NAT Gateway の固定費と ENI 起因のコールドスタートが乗るだけ（決定5）。
     Environment:
