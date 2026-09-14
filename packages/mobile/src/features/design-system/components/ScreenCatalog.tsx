@@ -59,7 +59,7 @@ export function ScreenCatalog() {
     {
       key: "walk-active",
       label: "散歩中",
-      description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（往復${DEFAULT_WALK_GOAL.time}分）`,
+      description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（周回${DEFAULT_WALK_GOAL.time}分）`,
       icon: "navigation",
       onPress: () => {
         useActiveWalkStore.getState().startWalk({
