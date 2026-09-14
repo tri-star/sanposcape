@@ -1,7 +1,9 @@
 version = 0.1
 
 # `sam build --use-container` / `sam deploy --config-env dev|prod` から参照する設定。
-# デプロイ手順の詳細は docs/deployment.md（Phase 6 で追記予定）を参照。
+# デプロイ手順の詳細は docs/deployment.md を参照。
+# confirm_changeset = true は手元での実行向け。GitHub Actions（.github/workflows/backend-deploy.yml）は
+# --no-confirm-changeset で上書きし、承認は GitHub Environment の保護ルールで取る。
 # ★ 実データ（AWS アカウント ID 等）はここに書かない。secret ARN は SSM から
 #   `{{resolve:ssm:...}}` で deploy 時解決するため、template.yaml 側にも現れない。
 
