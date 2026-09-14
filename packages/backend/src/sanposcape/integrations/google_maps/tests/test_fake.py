@@ -5,7 +5,7 @@ from sanposcape.integrations.google_maps.fake import (
     _distance_meters,
 )
 from sanposcape.integrations.google_maps.provider import ProviderPoint
-from sanposcape.maps.schemas import PlaceSearchRequest
+from sanposcape.maps.schemas import PlaceSearchRequest, WalkingRouteRequest
 from sanposcape.maps.service import MapsService
 
 _ORIGIN = ProviderPoint(35.6812, 139.7671)
@@ -192,6 +192,38 @@ def test_loop_route_handles_degenerate_same_point_case() -> None:
     assert loop_route.inbound.distance_meters == 0
     assert loop_route.inbound.duration_seconds == 0
     assert all(point == _ORIGIN for point in loop_route.inbound.path)
+
+
+def test_fake_loop_is_accepted_for_every_fake_candidate() -> None:
+    """E2E の生命線（SS-33）: `MAPS_MODE=fake` の全候補（200〜1000m）で周回が作れること。
+
+    mobile の Maestro subflow は `spot-card-0`（= fake-place-1、origin から約200m）を選ぶ。
+    しきい値を調整してこのテストが落ちたら、fake ではなくしきい値の妥当性を疑う
+    （backend-plan.md 決定8）。
+    """
+    provider = FakeGoogleMapsProvider()
+    service = MapsService(provider, 20, 20, 10, 8)
+    places = provider.search_places(_ORIGIN, _ALL_CATEGORIES, 20, timeout_seconds=1)
+    assert len(places) == 5
+
+    for place in places:
+        request = WalkingRouteRequest.model_validate(
+            {
+                "origin": {"latitude": _ORIGIN.latitude, "longitude": _ORIGIN.longitude},
+                "destination": {
+                    "place_id": place.id,
+                    "name": place.name,
+                    "location": {
+                        "latitude": place.location.latitude,
+                        "longitude": place.location.longitude,
+                    },
+                },
+            }
+        )
+
+        result = service.get_loop_walking_route(request)
+
+        assert result.return_is_same_path is False, place.id
 
 
 def test_shortest_requested_duration_keeps_at_least_one_candidate() -> None:
