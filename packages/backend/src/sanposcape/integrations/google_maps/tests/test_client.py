@@ -379,6 +379,53 @@ def test_loop_route_and_walking_route_do_not_share_a_cache_entry() -> None:
     assert calls == {"route": 1, "loop": 1}
 
 
+def test_request_keeps_the_configured_connect_timeout_even_when_the_deadline_is_longer() -> None:
+    """ARCH-Warning: 単一の float を `timeout=` に渡すと httpx は connect/read/write/pool の
+    全フェーズに同じ値を適用してしまい、`google_maps_connect_timeout_seconds`（既定3秒）が
+    `route_deadline_seconds`（最大25秒）に実質上書きされる。connect フェーズだけは
+    `google_maps_connect_timeout_seconds` のまま短く保たれることを固定する。"""
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["timeout"] = request.extensions["timeout"]
+        return httpx.Response(200, json={"places": []})
+
+    transport = httpx.MockTransport(handler)
+    settings = Settings(
+        google_maps_server_api_key="server-key",
+        google_maps_connect_timeout_seconds=3.0,
+        google_maps_read_timeout_seconds=8.0,
+    )
+    provider = HttpGoogleMapsProvider(settings, client=httpx.Client(transport=transport))
+
+    # ここでは 20 秒という大きな timeout_seconds（route_deadline_seconds 相当）を渡す。
+    provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=20.0)
+
+    assert captured["timeout"]["connect"] == 3.0
+    assert captured["timeout"]["read"] == 20.0
+
+
+def test_request_caps_connect_timeout_to_the_deadline_when_the_deadline_is_shorter() -> None:
+    """呼び出し側の残り時間が connect_timeout_seconds より短いときは、その残り時間を超えない
+    （connect だけ長く待ってしまわないようにする）。"""
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["timeout"] = request.extensions["timeout"]
+        return httpx.Response(200, json={"places": []})
+
+    transport = httpx.MockTransport(handler)
+    settings = Settings(
+        google_maps_server_api_key="server-key", google_maps_connect_timeout_seconds=3.0
+    )
+    provider = HttpGoogleMapsProvider(settings, client=httpx.Client(transport=transport))
+
+    provider.search_places(ProviderPoint(35, 139), ("park",), 20, timeout_seconds=1.0)
+
+    assert captured["timeout"]["connect"] == 1.0
+    assert captured["timeout"]["read"] == 1.0
+
+
 @pytest.mark.parametrize(
     "status, exception",
     [

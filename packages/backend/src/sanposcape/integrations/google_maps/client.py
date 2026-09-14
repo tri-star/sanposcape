@@ -69,6 +69,7 @@ class UnconfiguredGoogleMapsProvider:
 class HttpGoogleMapsProvider:
     def __init__(self, settings: Settings, client: httpx.Client | None = None) -> None:
         self._key = settings.google_maps_server_api_key
+        self._connect_timeout_seconds = settings.google_maps_connect_timeout_seconds
         self._client = client or httpx.Client(
             timeout=httpx.Timeout(
                 settings.google_maps_read_timeout_seconds,
@@ -248,12 +249,19 @@ class HttpGoogleMapsProvider:
 
     def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
         timeout_seconds = kwargs.pop("timeout_seconds")
+        # ★ 単一の float を httpx に渡すと、それが connect/read/write/pool の全フェーズに
+        # 適用され、クライアント既定の `connect_timeout_seconds` が実質上書きされてしまう
+        # （`route_deadline_seconds` は最大25秒まで許容するため、接続詰まり時に本来より
+        # 大幅に長く待ってしまう）。connect フェーズだけは短いままにする。
+        timeout = httpx.Timeout(
+            timeout_seconds, connect=min(self._connect_timeout_seconds, timeout_seconds)
+        )
         try:
             response = self._client.request(
                 method,
                 url,
                 headers={"X-Goog-Api-Key": self._key, **kwargs.pop("headers", {})},
-                timeout=timeout_seconds,
+                timeout=timeout,
                 **kwargs,
             )
         except httpx.TimeoutException as exc:
