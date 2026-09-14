@@ -2,14 +2,17 @@
 
 ## 日付
 
-2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）
+2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）
 
 ## ステータス
 
 採用。既存のシークレット（`EXPO_TOKEN` / `GOOGLE_MAPS_ANDROID_SDK_KEY`）については
 **現状の GitHub Secrets 運用を維持する**ことの追認であり、コード変更を伴わない。
-CD（SAM/Lambda のビルド・デプロイ）と dev/prod の AWS アカウント分離は**未着手**であり、
+CD（SAM/Lambda のビルド・デプロイ）と dev/prod の AWS アカウント分離は初版時点で未着手であり、
 本 ADR はそれらを実装する際の前提方針を先に固定するものである。
+**SS-72 追補（2026-09-15）**: SAM のビルド・デプロイを `.github/workflows/backend-deploy.yml` として
+実装した（dev は GitHub Actions からデプロイ可能な構成まで。prod はインフラ側の apply 待ち）。
+決定5・6 の GitHub 側の構成と、実装で確定した事項は末尾の「SS-72 追補」を参照。
 
 ## コンテキスト
 
@@ -202,10 +205,18 @@ public repo であることを踏まえると、長期キー方式に対する�
       プロジェクトの制限を本番の組から上書きする形で更新した）。**本番識別子用は別の GCP
       プロジェクトで登録し直す必要があり未完了**（`production` を使い始める段の対応事項）。
 - [ ] `ci-e2e` Environment の Deployment branches を main 限定に設定する（未設定の場合）。
-- [ ] `.github/workflows/` を CODEOWNERS の対象にする。
+- [x] `.github/workflows/` を CODEOWNERS の対象にする。
+      **（SS-72 追補）`.github/CODEOWNERS` を設置した**（`/.github/workflows/` と `CODEOWNERS` 自身）。
+      ただし main の ruleset で「Require review from Code Owners」を有効にしていないため
+      **レビューは強制されない**（コラボレーターが 1 人の現状では意思表示と将来への備え）。
 - [ ] AWS アカウント新設時に、各アカウントへ GitHub OIDC プロバイダを登録し、
       `development` / `production` Environment に対応する IAM ロールを作成する。
-- [ ] `production` Environment に Required reviewers を設定する。
+      **（SS-72 追補）dev は完了、prod は未完了のためチェックは付けない。** SAM デプロイ用ロールは
+      `sanposcape-infra` の `live/account/sam_deploy.tf` が作る。dev は apply 済み、prod は
+      `live/account` の apply 待ち（ロールと SSM `lambda_boundary_arn` がまだ存在しない）。
+- [x] `production` Environment に Required reviewers を設定する。
+      **（SS-72 追補）2026-09-15 に設定した**（reviewers = tri-star、`can_admins_bypass=false`、
+      Deployment branches = `main` のみ）。
 - [ ] SAM の `template.yaml` を作る際、Lambda 実行ロールに対象シークレットへの
       `secretsmanager:GetSecretValue` / `ssm:GetParameter` を最小権限で付与し、
       シークレット値を CFn パラメータや環境変数として渡さない構成にする。
@@ -257,6 +268,43 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
 チームキーを1本発行し、本番用は本番配布を開始する段で別途発行する方針**にした（権限を
 用途ごとに分け、開発用の作業で本番配布のキーが不要に露出しないようにするため）。
 
+## SS-72 追補: SAM デプロイの CI 化で確定した GitHub 側の構成
+
+決定5（OIDC）・決定6（Environment と AWS アカウントの 1:1 対応）を
+`.github/workflows/backend-deploy.yml` として実装した際に確定した事項を記録する。
+手順・トラブルシュートは [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §4.1 / §7 に置く。
+
+### 決定（SS-72 追補）
+
+- **ロール ARN は Environment Variables `AWS_SAM_DEPLOY_ROLE_ARN` に置く**（Secrets ではない）。
+  決定5 のとおり ARN は秘密ではない。Environment ごとに値を持たせることで、決定6 の
+  「Environment と AWS アカウントの 1:1」がワークフロー側の分岐なしに成立する。
+  - **トレードオフ**: `role-to-assume: ${{ vars.* }}` はステップの入力として
+    **public リポジトリの Actions ログに ARN（アカウント ID を含む）が表示される。**
+    リポジトリ本体にアカウント ID を書かない方針（deployment.md §10）とは表示経路が異なるため
+    許容したが、気になる場合は Environment Secret に移せばログ上はマスクされる
+    （その場合も「秘密として守られている」わけではない点は変わらない）。
+- **`production` は `can_admins_bypass=false`。** 唯一のコラボレーターが admin であり、
+  バイパス可のままだと Required reviewers が実質的に効かない（承認画面を経ずに実行できる）ため。
+  `prevent_self_review` はコラボレーターが 1 人のため `false`（自分で承認する運用）。
+- **`development` にはブランチ制限を付けない。** dev は push（main）に加えて手動実行で
+  任意ブランチの確認に使えるようにするため。write 権限者が tri-star のみで、dev は
+  作り直せる環境であることを前提にした判断であり、**コラボレーターが増える場合は見直す**。
+- **ビルドとデプロイを別 job に分け、`id-token: write` と `environment` はデプロイ job にだけ付ける。**
+  ビルドは PyPI から依存を取得してビルドスクリプトを実行し得る。同じ job に OIDC トークンを
+  要求できる権限があると、依存経由で改ざんされたコードが AWS のクレデンシャルを取得できてしまう。
+  成果物は artifact（保持 1 日）で受け渡す。決定1 の「到達できる実行文脈を絞る」を job 単位に適用したもの。
+- **backend CI を `workflow_call` でデプロイ前のゲートにする。** main の ruleset は deletion /
+  non_fast_forward のみで PR を必須にしておらず、テスト未通過のコミットが main に載り得るため。
+  main への push では backend CI が 2 回走るコストを受け入れた。
+- **`pull_request` / `pull_request_target` をトリガーにしない。** インフラ側のロールの trust も
+  `environment:` の subject だけを許しており、二重に塞いでいる。
+
+### 残っている事項（SS-72 追補）
+
+- [ ] prod の `live/account` apply 後、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する。
+- [ ] ruleset で Code Owners のレビューを必須にするか判断する（コラボレーターが増える段で）。
+
 ## 関連情報
 
 - [ADR-001: 地図・POI・ルーティング基盤に Google Maps Platform を採用し backend 経由で利用する](./ADR-001-map-poi-google-maps-platform.md)
@@ -267,5 +315,6 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
 - [mobile ADR-007: Expo 設定と Maps SDK キーの注入](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
   — `app.config.ts` によるキー注入と `EXPO_PUBLIC_` を付けない理由
 - `.github/workflows/mobile-e2e.yml` — 現行の `ci-e2e` environment の利用箇所
+- `.github/workflows/backend-deploy.yml` — `development` / `production` environment の利用箇所（SS-72）
 - [Configuring OpenID Connect in Amazon Web Services (GitHub Docs)](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - [API キーの使用を制限する (Google Maps Platform)](https://developers.google.com/maps/api-security-best-practices)
