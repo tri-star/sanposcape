@@ -194,6 +194,9 @@ paths:
       tags:
       - explore
       summary: Get Walking Route
+      description: 'SS-33: `/explore/routes/loop` に置き換え。配布済みビルドの互換のため維持する
+
+        （意味・スキーマは変えない。片道の duration_seconds/distance_meters のまま）。'
       operationId: get_walking_route_explore_routes_walking
       requestBody:
         content:
@@ -208,6 +211,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WalkingRouteResponse'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Explore request body too large
+        '429':
+          description: Map provider quota exceeded or explore rate limit reached
+        '503':
+          description: Map provider unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      deprecated: true
+  /explore/routes/loop:
+    post:
+      tags:
+      - explore
+      summary: Get Loop Walking Route
+      description: 'SS-33: 現在地 → 目的地 → (往路と異なる道) → 現在地 の周回ルート。
+
+
+        周回を作れない場合も 200 + `return_is_same_path=true`（同じ道で戻る）で返す
+
+        （エラーにしない）。'
+      operationId: get_loop_walking_route_explore_routes_loop
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalkingRouteRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoopWalkingRouteResponse'
         '401':
           description: Not authenticated
         '413':
@@ -494,6 +537,52 @@ components:
       required:
       - status
       title: HealthStatus
+    LoopWalkingRouteResponse:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        destination:
+          $ref: '#/components/schemas/RouteDestinationRead'
+        duration_seconds:
+          type: integer
+          minimum: 0.0
+          title: Duration Seconds
+          description: Sum of both legs' duration_seconds (the whole loop, not one-way).
+        distance_meters:
+          type: integer
+          minimum: 0.0
+          title: Distance Meters
+          description: Sum of both legs' distance_meters (the whole loop, not one-way).
+        legs:
+          items:
+            $ref: '#/components/schemas/WalkingRouteLeg'
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Legs
+          description: Always exactly 2 legs, ordered [outbound, return]. When return_is_same_path
+            is true, the return leg's path is the outbound leg's path reversed, and
+            its duration/distance equal the outbound leg's.
+        return_is_same_path:
+          type: boolean
+          title: Return Is Same Path
+          description: True when no distinct return route could be produced (e.g.
+            origin and destination are too close, or every candidate route failed
+            validation) and the server falls back to retracing the outbound route.
+        bounds:
+          $ref: '#/components/schemas/MapBounds'
+          description: Covers both legs' paths as well as origin and destination.
+      type: object
+      required:
+      - origin
+      - destination
+      - duration_seconds
+      - distance_meters
+      - legs
+      - return_is_same_path
+      - bounds
+      title: LoopWalkingRouteResponse
+      description: 'SS-33: 現在地 → 目的地 → (往路と異なる、または同じ) 道 → 現在地 の周回ルート。'
     MapBounds:
       properties:
         north_east:
@@ -1064,6 +1153,37 @@ components:
       - distance_meters
       title: WalkStatsTodayRead
       description: 今日（JST 暦日）の集計。
+    WalkingRouteLeg:
+      properties:
+        kind:
+          $ref: '#/components/schemas/WalkingRouteLegKind'
+        duration_seconds:
+          type: integer
+          minimum: 0.0
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          minimum: 0.0
+          title: Distance Meters
+        path:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          minItems: 2
+          title: Path
+      type: object
+      required:
+      - kind
+      - duration_seconds
+      - distance_meters
+      - path
+      title: WalkingRouteLeg
+    WalkingRouteLegKind:
+      type: string
+      enum:
+      - outbound
+      - return
+      title: WalkingRouteLegKind
     WalkingRouteRequest:
       properties:
         origin:
