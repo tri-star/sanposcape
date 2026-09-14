@@ -8,9 +8,9 @@ import { buildWalkingRouteRequest } from "@/features/walk/lib/walkRouteRequest";
 import type { WalkDestination, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** 固定2点間の徒歩ルートは実質不変。散歩中に再取得させないため1時間。 */
+/** 固定2点間の周回ルートは実質不変。散歩中に再取得させないため1時間。 */
 const STALE_TIME_MS = 60 * 60_000;
-/** 散歩開始画面のアンマウントから散歩中画面のマウントまでの間、キャッシュを確実に生かすため（往復最大120分の散歩も想定）。 */
+/** 散歩開始画面のアンマウントから散歩中画面のマウントまでの間、キャッシュを確実に生かすため（周回最大120分の散歩も想定）。 */
 const GC_TIME_MS = 2 * 60 * 60_000;
 
 export type UseWalkRouteResult = {
@@ -22,10 +22,11 @@ export type UseWalkRouteResult = {
 };
 
 /**
- * ルート取得の TanStack Query ラッパ。
+ * 周回ルート取得の TanStack Query ラッパ。
  * 散歩開始画面と散歩中画面の両方から同じ入力（origin, destination）で呼ぶことで、
  * キャッシュ共有により API 呼び出しを1回に抑える（origin は散歩の起点で固定し、
  * 現在地の更新のたびにこの hook の入力を変えてはいけない。毎分ルートを引き直すと 429 になる）。
+ * 散歩開始時に取得した周回ルートは参考表示であり、散歩中に取り直さない（SS-33）。
  *
  * `placeholderData: keepPreviousData` は使わない — 別スポットを選んだ瞬間に前のルートが残ると、
  * 線と選択ピンが食い違うため。
@@ -43,7 +44,7 @@ export function useWalkRoute(input: {
   );
 
   const query = useQuery({
-    queryKey: ["explore", "routeWalking", request],
+    queryKey: ["explore", "routeLoop", request],
     queryFn: ({ signal }) =>
       fetchWalkRoute(request!, { signal, destinationName: input.destination!.name }),
     enabled: request !== null,

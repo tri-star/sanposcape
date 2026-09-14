@@ -46,19 +46,35 @@ export type WalkRouteBounds = {
   southWest: GeoCoordinates;
 };
 
+/** 周回ルートの区間。API の語彙（outbound / return）をそのまま使う。 */
+export type WalkRouteLegKind = "outbound" | "return";
+
+export type WalkRouteLeg = {
+  kind: WalkRouteLegKind;
+  /** この区間の所要時間（秒）。 */
+  durationSeconds: number;
+  /** この区間の距離（m）。 */
+  distanceMeters: number;
+  /** この区間の折れ線。不正点を除外した結果が2点未満なら空配列（線を描かない）。 */
+  path: GeoCoordinates[];
+};
+
 /**
- * 提示する徒歩ルート（/explore/routes/walking のレスポンスを画面用に整形したもの）。
- * duration/distance は **片道** の値である点に注意（PlaceCandidate は往復値）。
+ * 提示する周回ルート（現在地 → 目的地 → 往路と異なる道 → 現在地）を画面用に整形したもの。
+ * duration/distance は **周回全体** の値（SS-33 以降。PlaceCandidate の往復値は片道×2の近似のまま）。
  */
 export type WalkRoute = {
   origin: GeoCoordinates;
   destination: WalkDestination;
-  /** 片道の所要時間（秒）。 */
+  /** 周回全体の所要時間（秒）。 */
   durationSeconds: number;
-  /** 片道の距離（m）。 */
+  /** 周回全体の距離（m）。 */
   distanceMeters: number;
-  /** 道のりの折れ線（2点以上）。 */
-  path: GeoCoordinates[];
+  /** [往路, 復路] の順。toWalkRoute が kind で並べ替えて保証する。 */
+  legs: [WalkRouteLeg, WalkRouteLeg];
+  /** 別の帰り道を作れず、往路を逆向きに戻るフォールバックになったか。 */
+  returnIsSamePath: boolean;
+  /** 周回全体を覆う矩形。 */
   bounds: WalkRouteBounds;
 };
 
@@ -69,13 +85,13 @@ export type WalkRoute = {
 export type ActiveWalk = {
   /** 保存の冪等キー。**散歩開始時**に採番し、終了・再送でも変えない（ADR-003 D3）。 */
   clientWalkId: string;
-  /** 散歩の起点。散歩中もこの値でルートを引き続けるため、現在地の更新では書き換えない。 */
+  /** 散歩の起点（＝周回の終点）。現在地の更新では書き換えない。 */
   origin: GeoCoordinates;
   destination: WalkDestination;
-  /** 探索結果由来の往復目安（表示用）。 */
-  roundTripMinutes: number;
-  roundTripKm: number;
-  /** 開始時刻（`Date.now()`）。経過時間はこの値から計算する。 */
+  /** 散歩開始時点の周回ルート全体の目安（分・四捨五入）。/explore/routes の実ルート値。 */
+  loopMinutes: number;
+  /** 同上（km・小数1桁）。 */
+  loopKm: number;
   startedAtMs: number;
 };
 
@@ -106,11 +122,3 @@ export type WalkSummaryStats = {
 
 /** 散歩記録の保存状態。 */
 export type WalkSaveStatus = "idle" | "saving" | "saved" | "error";
-
-/**
- * 現在地起点のルート再計算の状態（SS-35）。
- * `idle`   … 再計算していない／直近の再計算は成功済み
- * `recalculating` … リクエスト中（同時に1つだけ）
- * `failed` … 直近のリクエストが失敗し、表示は直前の正常ルートのまま
- */
-export type WalkRouteRecalcStatus = "idle" | "recalculating" | "failed";
