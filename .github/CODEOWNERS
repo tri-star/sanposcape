@@ -1,0 +1,9 @@
+# ワークフローの改ざんにレビューを要求するための指定（ADR-004 決定7）。
+# ワークフローはデプロイ経路（GitHub Environment と AWS への OIDC）に直結するため対象にしている。
+#
+# ★ 現状は強制されていない。main の ruleset で「Require review from Code Owners」を
+#   有効にするまでは、ここに書いてもレビューなしでマージできる（コラボレーターが
+#   tri-star だけの間は意思表示と将来への備え）。
+
+/.github/workflows/ @tri-star
+/.github/CODEOWNERS @tri-star
