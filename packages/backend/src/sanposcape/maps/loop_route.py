@@ -43,6 +43,12 @@ _EXCLUSION_RADIUS_RATIO = 0.2
 _EXCLUSION_RADIUS_MIN_METERS = 30.0
 _EXCLUSION_RADIUS_MAX_METERS = 100.0
 
+# origin/destination の距離には上限を設けていない（`GeoPoint`/`WalkingRouteRequest` も同様、
+# 既存の `/explore/routes/walking` を踏襲）。そのため、万一 Google が極端に長い経路を返した
+# 場合でも resample() の点数が無限に増えないよう、1 leg あたりの点数に上限を設ける
+# （security review SEC-L1: 再標本化コストの増幅対策）。
+_MAX_RESAMPLE_POINTS_PER_LEG = 2000  # 既定ステップ(10m)なら20kmまでは従来どおりの解像度
+
 # score = return_overlap_ratio + _SCORE_DETOUR_WEIGHT * (detour_ratio - 1)
 _SCORE_DETOUR_WEIGHT = 0.5
 
@@ -112,8 +118,8 @@ def evaluate_loop(
     """往路・復路 leg の組を4指標で判定する（決定3）。"""
     detour_ratio = _detour_ratio(outbound, inbound)
 
-    outbound_samples = resample(outbound.path, _RESAMPLE_STEP_METERS)
-    inbound_samples = resample(inbound.path, _RESAMPLE_STEP_METERS)
+    outbound_samples = resample(outbound.path, _resample_step_meters(outbound))
+    inbound_samples = resample(inbound.path, _resample_step_meters(inbound))
 
     return_overlap_ratio = _return_overlap_ratio(
         outbound_samples, inbound_samples, origin, destination
@@ -153,6 +159,16 @@ def select_loop(evaluations: tuple[LoopEvaluation, ...]) -> LoopEvaluation | Non
 def _score(evaluation: LoopEvaluation) -> float:
     verdict = evaluation.verdict
     return verdict.return_overlap_ratio + _SCORE_DETOUR_WEIGHT * (verdict.detour_ratio - 1)
+
+
+def _resample_step_meters(route: ProviderRoute) -> float:
+    """`route` の距離に応じて resample() の刻み幅を広げ、1 leg あたりの点数を有界にする。
+
+    通常の散歩程度の距離（20km未満）では `_RESAMPLE_STEP_METERS` のまま変わらない。
+    """
+    if route.distance_meters <= 0:
+        return _RESAMPLE_STEP_METERS
+    return max(_RESAMPLE_STEP_METERS, route.distance_meters / _MAX_RESAMPLE_POINTS_PER_LEG)
 
 
 def _detour_ratio(outbound: ProviderRoute, inbound: ProviderRoute) -> float:

@@ -167,6 +167,44 @@ def test_evaluate_loop_rejects_via_far_from_return_leg() -> None:
     assert verdict.reason == "snap"
 
 
+def test_evaluate_loop_overlap_ratio_is_zero_when_route_too_short_for_eligible_cells() -> None:
+    """境界: O-D 間の距離が最小(50m超)に近いと、O・D の除外半径(30m)が経路全体を覆い、
+    `eligible_cells` が空になる。このとき復路が往路をそのまま逆になぞっていても
+    `return_overlap_ratio` は無条件で 0.0（合格側）になる（code-quality review の指摘どおりの
+    既知の境界挙動であることを固定する）。"""
+    destination = offset_point(_ORIGIN, 0, 51)  # 51m: 除外半径30m x2 > 51m なので全域が対象外になる
+    outbound = _route([_ORIGIN, destination])
+    inbound = _route([destination, _ORIGIN])  # 往路をそのまま逆順にたどる復路
+    via = offset_point(_ORIGIN, 90, 80)
+
+    verdict = evaluate_loop(outbound, inbound, via, _ORIGIN, destination)
+
+    assert verdict.return_overlap_ratio == 0.0
+
+
+def test_evaluate_loop_scales_resample_step_for_unusually_long_routes(monkeypatch) -> None:
+    """SEC-L1 対策: origin/destination の距離に上限が無いため、万一 Google が極端に長い
+    経路を返しても resample() の点数が無限に増えないことを固定する。"""
+    import sanposcape.maps.geometry as geometry_module
+
+    calls: list[float] = []
+    original_resample = geometry_module.resample
+
+    def spying_resample(path, step_meters):
+        calls.append(step_meters)
+        return original_resample(path, step_meters)
+
+    monkeypatch.setattr("sanposcape.maps.loop_route.resample", spying_resample)
+
+    destination = offset_point(_ORIGIN, 0, 300)
+    long_outbound = replace(_route([_ORIGIN, destination]), distance_meters=500_000)
+    long_inbound = replace(_route([destination, _ORIGIN]), distance_meters=500_000)
+
+    evaluate_loop(long_outbound, long_inbound, midpoint(_ORIGIN, destination), _ORIGIN, destination)
+
+    assert calls and all(step_meters > 10.0 for step_meters in calls)
+
+
 def test_evaluate_loop_detour_ratio_boundary() -> None:
     destination = offset_point(_ORIGIN, 0, 300)
     mark_100 = offset_point(_ORIGIN, 0, 100)
