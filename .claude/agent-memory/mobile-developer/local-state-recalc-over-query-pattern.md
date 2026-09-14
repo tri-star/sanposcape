@@ -1,11 +1,20 @@
 ---
 name: local-state-recalc-over-query-pattern
-description: 入力が変わるたびにqueryKeyが変わり直前データが消えるのを避けたいとき、TanStack Queryではなくhookのローカルstate + AbortController + 単調増加sequenceで持つパターン（SS-35 useWalkRouteRecalculation）
+description: 入力が変わるたびにqueryKeyが変わり直前データが消えるのを避けたいとき、TanStack Queryではなくhookのローカルstate + AbortController + 単調増加sequenceで持つパターン（SS-35で確立、SS-33で当該実装は撤去済み。技術パターンとして記録を残す）
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
 ---
 
-SS-35（散歩開始後の現在地起点ルート再計算）で確立したパターン。`useWalkRoute`（`useQuery`）は
+**注記（2026-09-15, SS-33）**: このパターンの具体的な実装（`useWalkRouteRecalculation.ts` /
+`routeRecalculation.ts` / `routeDeviation.ts`）は SS-33 で**ファイルごと削除済み**。
+ユーザー判断で「散歩中はルートを再計算しない」に変わったため（ADR-008 決定7 撤回）、
+現在の `packages/mobile` にはこのパターンの実例は存在しない。技術パターン自体は
+別の要件で再度必要になる可能性があるため、汎用知識として以下に残す。
+**再度実装する前に、対象ファイルが実在するか確認すること**（このメモは過去の実装を指している）。
+
+SS-35（散歩開始後の現在地起点ルート再計算。SS-33で撤去済み）で確立したパターン。`useWalkRoute`（`useQuery`）は
 `origin`/`destination` が変わると queryKey が変わり、pending・error 中は `data` が
 `undefined` に落ちる。「取得中・失敗時も直前の正常データを表示し続けたい」要件では
 `placeholderData: keepPreviousData` は pending 中しか効かず error 状態を救えないため、
