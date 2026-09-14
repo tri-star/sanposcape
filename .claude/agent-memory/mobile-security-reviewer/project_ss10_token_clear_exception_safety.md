@@ -1,8 +1,16 @@
 ---
 name: project_ss10_token_clear_exception_safety
-description: SS-10 (2026-07-26時点) createSessionAuthService の signOut / doRefresh unauthorized 節が tokenStore.clear() の reject を捕捉しておらず、setCurrentUser(null) がスキップされ得る（Medium指摘、要再確認）
-type: project
+description: SS-10 (2026-07-26時点) createSessionAuthService の signOut / doRefresh unauthorized 節が tokenStore.clear() の reject を捕捉しておらず、setCurrentUser(null) がスキップされ得る（Medium指摘）。SS-62レビュー(2026-09-13)で解消済みを確認
+metadata:
+  type: feedback
+  scope: durable
 ---
+
+**解消済み(2026-09-13, SS-62レビュー時点で確認)**: `packages/mobile/src/services/auth/createSessionAuthService.ts` を
+読んだところ、`doRefresh()` の unauthorized 節・`signOut()` の末尾ともに `tokenStore.clear()` が
+`try { await tokenStore.clear(); } catch { /* 意図的に握りつぶす */ }` で囲われ、`setCurrentUser(null)` が
+必ず実行される構造に修正済み。コード内コメントも「SecureStore側の削除失敗でsignOut()/doRefresh()自体を
+失敗させない」という意図を明記している。以下は当時（2026-07-26）の指摘内容（履歴として保持）。
 
 `packages/mobile/src/services/auth/tokenStore.ts` の `clear()` は `persistence.remove()`（SecureStore.deleteItemAsync）が
 reject すると、内部状態(access/refreshTokenCache)は `finally` でクリアしつつも **例外を再スローする**。

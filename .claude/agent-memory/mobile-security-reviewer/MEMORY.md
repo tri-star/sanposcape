@@ -12,3 +12,4 @@
 - [SS-35: 現在地起点ルート再計算レビュー](project_ss35_route_recalculation.md) — 問題なし。sequence+AbortControllerの二重多重起動防御、4層レート抑制がテストで担保済み。自動リクエスト発火系の模範実装として参照
 - [SS-37: 保存失敗401サインインCTA・自動再送レビュー](project_ss37_guest_walk_signin_merge.md) — High: 未保存ゲストドラフトが起点を問わない後続サインインに自動添付・強制dismissToされる。明示的破棄導線なしが根本原因
 - [SS-70: CloudFront経由API通信(X-App-Authorization/x-amz-content-sha256)レビュー](project_ss70_cloudfront_auth_header.md) — ハッシュ計算・リトライ整合性は正しい。Medium: fetchにredirectオプション未指定でトークン漏洩の潜在リスク
+- [SS-62: アカウント削除導線(DELETE /users/me)レビュー](project_ss62_account_deletion.md) — 問題なし。破壊的操作の確認ダイアログ/順序(token破棄→cache clear)/401非再試行/customFetch単一出口の模範実装として参照

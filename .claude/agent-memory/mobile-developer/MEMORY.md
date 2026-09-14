@@ -26,3 +26,4 @@
 - [sandboxでgit worktreeがread-only](sandbox-git-worktree-readonly.md) — `git add/commit`がindex.lock作成でRead-only file system失敗。リトライ無駄、ユーザーに報告する
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
 - [mobileのHTTP出口は2箇所](mobile-two-http-exits.md) — SS-70。`client.ts`のcustomFetchと`authApi.ts`の生fetch。横断的関心事(認証ヘッダー等)は両方に適用必須
+- [oxfmt --check のスコープ不一致](oxfmt-check-scope-mismatch.md) — `oxfmt --check .`は`docs/`/`adr/`等で素のツリーでも失敗する誤検知。必ず`pnpm run format:check`（package.json定義）を使う

@@ -16,3 +16,5 @@
 - [feature横断の後始末レジストリ](cross-feature-cleanup-registry.md) — sessionCleanup/walkDeletionCleanup型の後始末レジストリパターン
 - [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針。統合提案しない
 - [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
+- [mutation success state not treated as busy](mutation-success-state-not-treated-as-busy.md) — useMutationのisPendingだけでdisabled判定すると、成功後の非同期遷移待ちの間だけ操作可能に戻る窓ができる（SS-62で発見）
+- [copy constant trivial self-check convention](copy-constant-trivial-self-check-convention.md) — *Copy.test.tsの「非空文字列チェック」は低価値だが既存の踏襲パターン。ハッシュ自己参照問題とは別物として区別する
