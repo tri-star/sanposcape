@@ -13,8 +13,8 @@
 - ローカル環境の構築手順は [ローカル環境構築](./docs/local-env.md) を参照
 - エミュレータ/実機での起動手順は [起動手順ガイド](./docs/app-startup-guide.md) を参照
 - iPhone実機での development build は [iPhone実機 development build 手順](./docs/iphone-device-development.md) を参照
-- EAS のビルドプロファイル（どの backend を向くか・環境変数の供給元）は
-  [ビルドプロファイルと環境変数](./docs/build-profiles.md) を参照
+- EAS のビルドプロファイル（どの backend を向くか・環境変数の供給元・アプリ識別子の SSoT・
+  配布手順）は [ビルドプロファイルと環境変数](./docs/build-profiles.md) を参照
 
 ## ADR（設計判断の記録）
 
@@ -29,10 +29,10 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 |---|---|
 | [ADR-001](./adr/ADR-001-folder-structure.md) | フォルダ構造と命名規則 |
 | [ADR-002](./adr/ADR-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント） |
-| [ADR-003](./adr/ADR-003-development-build-and-dev-loop.md) | development build 前提の開発ループ |
-| [ADR-004](./adr/ADR-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化 |
+| [ADR-003](./adr/ADR-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
+| [ADR-004](./adr/ADR-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補） |
 | [ADR-005](./adr/ADR-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context |
 | [ADR-006](./adr/ADR-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード |
-| [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入 |
+| [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補） |
 | [ADR-008](./adr/ADR-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有 |
 | [ADR-009](./adr/ADR-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート |

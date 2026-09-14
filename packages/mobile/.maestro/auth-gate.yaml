@@ -1,7 +1,7 @@
 # ゲスト導線と認証状態の到達性フロー（SS-57 / ADR-009 SS-57 追補）。
 # ゲストのまま保護ルートに入れること、ゲストからサインインへ戻れることを見る。
 # preview E2E ビルド（EXPO_PUBLIC_AUTH_MODE=dev）前提。外部データ（/explore/*）には依存しない。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---
@@ -21,7 +21,7 @@ tags:
       id: "walk-start-screen"
     timeout: 15000
 # ゲストのまま設定画面に入ると、ログアウトではなくサインイン導線が出る。
-- openLink: "sanposcape://settings"
+- openLink: "sanposcape-dev://settings"
 - extendedWaitUntil:
     visible:
       id: "settings-screen"

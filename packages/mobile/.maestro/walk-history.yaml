@@ -3,12 +3,12 @@
 # 履歴の「件数」は assert しない: dev ユーザーキーは e2e-user-1 固定で、同一 CI ラン内で
 # 先に走ったフローの記録が残るため、0 件も N 件もあり得る。
 # 「ローディングが終わり、エラーになっていない」ことだけを検証する。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---
 - runFlow: subflows/sign-in.yaml
-- openLink: "sanposcape://walk-history"
+- openLink: "sanposcape-dev://walk-history"
 - extendedWaitUntil:
     visible:
       id: "walk-history-screen"

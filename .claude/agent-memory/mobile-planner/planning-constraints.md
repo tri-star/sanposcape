@@ -3,6 +3,8 @@ name: planning-constraints
 description: mobile プランを書くたびに効いてくる制約（ADR の位置づけ、テスト不能な層、oxlint の import 制限）と確認順序
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-001-folder-structure.md
 ---
 
 プラン作成前に読む順序: `packages/mobile/AGENTS.md`（ADR 一覧つき）→ 該当 ADR（`packages/mobile/adr/`）→ `docs/architecture-guideline.md` / `folder-structure.md` → 実コード。
@@ -18,4 +20,5 @@ metadata:
 - zustand のセレクタは**プリミティブを返す**（v5 で毎レンダー再生成を避ける）。
 - `features/<f>/api/` は Orval の**素の fetcher をラップ**する（生成 hook は使わない）。`queryKey` はドメイン名始まり（保存後の `invalidateQueries(["walks"])` に合わせる）。
 - 主要画面（`app/` のルート）を追加したら `ScreenCatalog`（`/dev-screens`）にエントリを1件足す。副作用があるエントリは `docs/pages-components-guideline.md` の表にも1行足す。
-- E2E は `.maestro/` 直下がフロー、`subflows/` は `runFlow` 専用。**依存パッケージを増やすと E2E の APK キャッシュを1回ミスする**（ADR-004）ので、フロー追加だけなら安い。
+- **EAS ビルド / 配布 / 環境変数の正本は `packages/mobile/docs/build-profiles.md`**（プロファイルごとの backend の向き先・値の供給元・既定ビルドクレデンシャルを変えるなという警告まで集約されている）。この領域のプランはコードより先にここを読む。
+- E2E は `.maestro/` 直下がフロー、`subflows/` は `runFlow` 専用。`appId` は開発用識別子 `com.sanposcape.app.dev` で**11 ファイルにハードコード**され、`openLink` の scheme `sanposcape-dev://` も 3 ファイルにある（SS-79 で本番と分割済み。識別子の SSoT は `docs/build-profiles.md` の「アプリ識別子の定義」）。識別子や scheme を変える案は必ずこことセットで見る。**依存パッケージを増やすと E2E の APK キャッシュを1回ミスする**（ADR-004）ので、フロー追加だけなら安い。

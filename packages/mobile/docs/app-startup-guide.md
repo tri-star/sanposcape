@@ -34,7 +34,8 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
 
 ## B. Android: 毎回の起動手順（いちばんよく使う）
 
-> 前提: 初回セットアップ（A）が済んでいて、エミュレータに「sanposcape」アプリが入っている状態。
+> 前提: 初回セットアップ（A）が済んでいて、エミュレータに「sanposcape (Dev)」アプリ
+> （開発用識別子 `com.sanposcape.app.dev`）が入っている状態。
 
 ### 1. エミュレータを起動する
 
@@ -105,11 +106,12 @@ adb shell am start -a android.intent.action.VIEW \
 （詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
 
 ```bash
-adb shell am start -a android.intent.action.VIEW -d "sanposcape://dev-screens"
+adb shell am start -a android.intent.action.VIEW -d "sanposcape-dev://dev-screens"
 ```
 
 同様に `/design-system`（デザイントークン/UIプリミティブ一覧）も
-`sanposcape://design-system` で開ける。
+`sanposcape-dev://design-system` で開ける（開発用ビルドの scheme は `sanposcape-dev`、
+本番は `sanposcape`。[build-profiles.md](./build-profiles.md) の「アプリ識別子の定義」参照）。
 
 ### 7. Fast Refresh を使う（動作確認）
 
@@ -155,7 +157,7 @@ QRコードを読み取る。PCの現在のLAN IPは`hostname -I`で確認でき
 
 1. iPhoneのカメラでMetroのQRコードを読み取る。
 2. 表示されたdevelopment build用リンクを開く。
-3. または、`sanposcape`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
+3. または、`sanposcape (Dev)`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
 
 ### 5. 成功の目印
 

@@ -12,9 +12,14 @@ Expo Goは使用せず、EAS Buildで作成したAd Hoc署名付きのdevelopmen
 - Expoの`<EXPO_ACCOUNT>`アカウント、または
   `@<EXPO_ACCOUNT>/<EXPO_PROJECT_SLUG>`へのアクセス権があること
 - リポジトリルートで`pnpm install`を実行済みであること
-- `app.json`の`ios.bundleIdentifier`は`com.sanposcape.app`
+- `app.json`の`ios.bundleIdentifier`は`com.sanposcape.app.dev`（開発用。本番は`com.sanposcape.app`で
+  別アプリになる。識別子の定義は[build-profiles.md](./build-profiles.md)の「アプリ識別子の定義」を参照）
 - `eas.json`の`development`プロファイルは`developmentClient: true`かつ
   `distribution: internal`
+
+> **SS-79 以前に `com.sanposcape.app`（本番識別子）でインストールした development build /
+> Ad Hoc ビルドは別アプリとして端末に残る**（上書きされない）。アンインストールしてよい。
+> 新しい development build は `com.sanposcape.app.dev` で入り直す。
 
 Apple Accountのパスワードや2要素認証コードは、EAS CLIの対話プロンプトへ直接入力する。
 チャット、Issue、ドキュメント、Git管理ファイルには記録しない。
@@ -133,7 +138,7 @@ iPhoneと同じLANに属するIPv4アドレスへ読み替える。
 
 1. Metroが表示するQRコードをiPhoneのカメラで読み取る。
 2. 表示されたdevelopment build用リンクを開く。
-3. または、`sanposcape`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
+3. または、`sanposcape (Dev)`のdevelopment buildを開き、Development Serversから起動中のサーバーを選ぶ。
 4. JS、TypeScript、スタイルの変更はFast Refreshで確認する。
 
 Androidでは`adb reverse`によって端末側のlocalhostをMetroへ転送できるため

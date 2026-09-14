@@ -5,7 +5,7 @@
 #       絞り込まずに実行する。SS-54）。
 # assert しないもの: 再計算の成功可否・ルートの形・所要時間/距離の値
 #   （再計算は現在地起点で /explore/routes を引き直すため、環境によって結果が変わりうる。ADR-004）。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - maps-required
 ---

@@ -5,7 +5,7 @@
 #   - backend が起動しており /explore/places が候補を返せること（MAPS_MODE=fake など）
 #   → 候補に依存するため maps-required タグを付ける（CI は絞り込まず全フロー実行。SS-54）。
 # assert しないもの（ADR-004）: 地図タイルの描画・候補件数・距離/時間の具体値。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 tags:
   - maps-required
 ---

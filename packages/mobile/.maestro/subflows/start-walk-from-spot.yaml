@@ -1,6 +1,6 @@
 # 共通 subflow: スポット選択 → 徒歩ルート取得待ち → 散歩開始。
 # /explore/places が候補を返す環境（backend の MAPS_MODE=fake もしくは実 server key）が前提。
-appId: com.sanposcape.app
+appId: com.sanposcape.app.dev
 ---
 # 候補の「件数」は assert しない（外部データ由来のため）。先頭カードの存在だけを待つ。
 - extendedWaitUntil:

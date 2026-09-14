@@ -51,10 +51,24 @@ app_json_value() {
     head -n 1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/'
 }
 
+# 既定値は開発用ビルドの識別子に揃える。mobile-tools は development / preview(E2E) /
+# staging 系の開発用ビルドしか扱わないため（本番は eas credentials / eas submit を
+# APP_VARIANT=production 付きで手元実行する運用で、これらのツールの対象外）。
+# app.json の grep が失敗した場合（キー名の変更・整形の変化など）に本番識別子へ
+# 黙ってフォールバックすると、「インストールされていない」「force-stop が効かない」といった
+# 原因の分かりにくい誤診断になる（docs/build-profiles.md の「アプリ識別子の定義」参照）。
 APP_ID="${MOBILE_APP_ID:-$(app_json_value package)}"
-APP_ID="${APP_ID:-com.sanposcape.app}"
+APP_ID="${APP_ID:-com.sanposcape.app.dev}"
 APP_SCHEME="${MOBILE_APP_SCHEME:-$(app_json_value scheme)}"
-APP_SCHEME="${APP_SCHEME:-sanposcape}"
+APP_SCHEME="${APP_SCHEME:-sanposcape-dev}"
+# development client（dev client）の起動 URL（`exp+<slug>://...`）は
+# APP_SCHEME（アプリ独自のディープリンク scheme）とは別物で、Expo の slug から
+# 決まる（expo-dev-client が slug を小文字化・URI 非許容文字除去して生成する。
+# `node_modules/expo-dev-client/plugin/build/getDefaultScheme.js`）。
+# アプリ識別子を分割しても slug は据え置きなので、APP_SCHEME を流用すると
+# `exp+sanposcape-dev://...` になり dev client が開かなくなる（要注意）。
+APP_SLUG="${MOBILE_APP_SLUG:-$(app_json_value slug)}"
+APP_SLUG="${APP_SLUG:-sanposcape}"
 METRO_PORT="${METRO_PORT:-8081}"
 
 # EXPO_PUBLIC_BACKEND_API_URL からポートを取り出す。

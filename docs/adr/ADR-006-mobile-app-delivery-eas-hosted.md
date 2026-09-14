@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-09-07（初版）
+2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）
 
 ## ステータス
 
@@ -57,7 +57,9 @@ EAS Update をそのまま使う。
 ### 決定3: ストアへのバイナリ配信も AWS を経由しない
 
 - iOS: EAS Build → `eas submit` → App Store Connect → TestFlight。バイナリは Apple 側にホストされる。
-- Android: 同様に Play Console。ストア公開前の APK 直配布の手段は SS-79 で別途決める。
+- Android: 同様に Play Console。~~ストア公開前の APK 直配布の手段は SS-79 で別途決める。~~
+  **（SS-79 追補: 決定した）** ストア公開前は EAS internal distribution（`staging-apk`）で
+  APK を直接配布する。詳細は下記「SS-79 追補: ストア公開前の配布経路を確定する」を参照。
 
 ### 決定4: 「mobile の Web 版を配信する」という選択肢は採らない
 
@@ -79,6 +81,9 @@ EAS Update をそのまま使う。
    S3 + CloudFront であり、SAM は関与しない。
 3. **Universal Links / App Links**（`apple-app-site-association` / `assetlinks.json`）
    現状 scheme は `sanposcape://` のみで未使用。将来採用する場合も静的ファイル配信で済む。
+   **（SS-79 追補）** scheme は開発用 `sanposcape-dev://` / 本番用 `sanposcape://` の2つに
+   なった。将来 AASA / assetlinks を配信する場合も、両 appID を1ファイルに列挙できるため
+   識別子分割は障害にならない（infra 照会 2026-09-13）。
 
 ## 検討した選択肢
 
@@ -159,6 +164,32 @@ EAS Update をそのまま使う。
 - [ ] プライバシーポリシー / サポートページの静的サイトをどこに置くかを SS-74 側と確定する。
       TestFlight の外部テストを始める前に必要になる。
 - [ ] EAS Update の MAU が無料枠に近づいた際の判断基準を決める（未着手。実利用者が付いてから）。
+
+## SS-79 追補: ストア公開前の配布経路を確定する
+
+決定3 に残っていた「Android のストア公開前の APK 直配布の手段は SS-79 で別途決める」に答える。
+
+### 決定
+
+- **Android のストア公開前の配布は EAS internal distribution（`staging-apk` プロファイル）
+  とする**（S3 + CloudFront / GitHub Releases は不採用）。
+  - **GitHub Releases 不採用の理由**: public リポジトリのため APK を誰でも入手でき、
+    dev backend（Google 認証は本物）を向いたバイナリが出回る。第三者が dev の DB にデータを
+    作り、dev Lambda の同時実行枠 5 を取り合う（infra Q4）。
+  - **S3 + CloudFront 不採用の理由**: AWS 側に資産・IAM ロール・鍵が増える。`staging-apk` が
+    既にあり、決定2（配信は EAS に委ねる）とも一貫する。工数に見合う便益が無い。
+- **iOS は TestFlight の内部テスターのみ**で開始する。外部テストはプライバシーポリシー URL が
+  必須で、その配信面（SS-74）がまだ存在しないため対象外。
+- 「移行・対応が必要な事項」のうち**「プライバシーポリシー / サポートページの静的サイト」は
+  依然として未消化**である。外部テストに進む段で infra へ依頼すること
+  （提案ホスト名 `https://sanposcape.com/privacy` / `/support`。未確定）。
+- 新設した `.github/workflows/mobile-release-build.yml`（`workflow_dispatch` 専用）が
+  Android の EAS ビルド起動と iOS の EAS ビルド + `eas submit` を担う。
+
+### 関連
+
+[docs/adr/ADR-004: シークレット管理](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
+の SS-79 追補（`GOOGLE_MAPS_ANDROID_SDK_KEY` の保管先拡張・ASC API Key の扱い）も参照。
 
 ## 関連情報
 

@@ -28,4 +28,19 @@ backend は Lambda Function URL(`AuthType=AWS_IAM`) + CloudFront(OAC, `SigningBe
   ユニットテストで固定できるのは「どの文字列をハッシュ対象に選ぶか」「ヘッダー名・小文字16進」まで。
 - 症状からの切り分け: 全 API 401 → 認証ヘッダー名 / 書き込み系だけ 403 → content hash / サインイン不能 → authApi 側の付け忘れ。
 
+## 再送してよい経路・いけない経路（dev の 429 / 504 対策を設計するとき）
+
+dev の API Lambda は `ReservedConcurrentExecutions: 5`（6 本目から 429）、CloudFront のオリジン待ちは 30 秒（超過で 504）。
+一時障害の再送を入れたくなるが、**安全なのは GET / HEAD だけ**である。
+
+- **`POST /explore/*` の 429 は backend 自身のレート制限**（`maps/dependencies.py` が `HTTPException(429, "Explore request rate limit exceeded")`）。
+  Lambda のスロットル由来の 429 と区別が付かず、再送は制限を悪化させるだけ。`useSpotCandidates` の `retry: false` は意図的（1 探索で外部呼び出し最大 21 回）。
+- **`POST /auth/refresh` の再送はセッションを壊す。** backend はトークンをローテーションし、`used_at` 済みトークンの再提示を
+  再利用検知として `revoke_family(..., "reuse_detected")` でファミリーごと失効させる（`auth/service.py`）。
+  「サーバーは成功したがレスポンスが届かなかった」場合の再送で**強制サインアウト**になる。
+- **`POST /walks` は `useWalkSave` が既にバックオフ再送を持つ**（最大 2 回 / `1000 * 2 ** n`、上限 8 秒）。transport 層で重ねない。
+
+→ ヘッダー契約は「出口 2 箇所（`client.ts` / `authApi.ts`）を必ず**両方**直す」だが、
+**再送は意図的に `client.ts` 側だけ**という非対称がある。両ファイルの JSDoc に理由を書かないと必ず取り違えられる。
+
 Related: [[auth-scenarios]], [[project-rn-runtime-capabilities]]

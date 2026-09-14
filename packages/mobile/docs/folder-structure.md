@@ -55,6 +55,7 @@ packages/mobile/
 │   │   ├── contentHash.ts     #   x-amz-content-sha256 付与の純粋関数（expo-crypto を使用）
 │   │   ├── apiError.ts        #   ApiError
 │   │   ├── retryPolicy.ts     #   401→refresh のリトライ判定
+│   │   ├── transientRetry.ts  #   一時障害（429/502/503/504/通信断）のGET/HEAD限定再送（SS-79）
 │   │   ├── authTokenProvider.ts #   services/auth と client.ts を疎結合にするレジストリ
 │   │   └── queryClient.ts     #   TanStack Query の QueryClient 設定
 │   │
@@ -180,6 +181,9 @@ packages/mobile/
   これらは両方の出口から共有される横断モジュールのため `src/api/` に置く（`services/auth/` へは
   置かない）。新しい横断的な送信ヘッダーを追加する場合も同じ配置ルールに従うこと。
 - `apiError.ts` / `retryPolicy.ts`: `ApiError` と 401→refresh のリトライ判定。
+- `transientRetry.ts`: 一時障害（429 / 502 / 503 / 504 / 通信断）に対する GET / HEAD 限定の
+  指数バックオフ再送（SS-79）。401→refresh のリトライ（`retryPolicy.ts`）とは独立した軸で、
+  `client.ts` の `customFetch` にのみ結線する（`services/auth/authApi.ts` には入れない）。
 - `authTokenProvider.ts`: `client.ts` が `services/auth` を直接 import せずにトークンを
   取得するためのレジストリ（循環参照回避）。
 - `queryClient.ts`: TanStack Query の `QueryClient` 設定。

@@ -27,3 +27,4 @@
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
 - [mobileのHTTP出口は2箇所](mobile-two-http-exits.md) — SS-70。`client.ts`のcustomFetchと`authApi.ts`の生fetch。横断的関心事(認証ヘッダー等)は両方に適用必須
 - [oxfmt --check のスコープ不一致](oxfmt-check-scope-mismatch.md) — `oxfmt --check .`は`docs/`/`adr/`等で素のツリーでも失敗する誤検知。必ず`pnpm run format:check`（package.json定義）を使う
+- [一時障害再送とAPP_VARIANT分岐](transient-retry-and-app-variant.md) — SS-79。再送はGET/HEAD限定(POST再送してはいけない3理由)。app.config.tsはapp.json=開発用実値/APP_VARIANT=production時だけ上書き、ConfigContext.configはPartial型。HOME=再設定はsandboxガードで拒否される

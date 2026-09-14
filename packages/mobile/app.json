@@ -1,20 +1,22 @@
 {
   "expo": {
-    "name": "sanposcape",
+    "name": "sanposcape (Dev)",
     "slug": "sanposcape",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "sanposcape",
+    "scheme": "sanposcape-dev",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.sanposcape.app",
+      "bundleIdentifier": "com.sanposcape.app.dev",
+      "buildNumber": "1",
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -22,7 +24,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.sanposcape.app"
+      "package": "com.sanposcape.app.dev"
     },
     "web": {
       "output": "static",
