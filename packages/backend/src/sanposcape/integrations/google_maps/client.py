@@ -14,6 +14,7 @@ from sanposcape.integrations.google_maps.exceptions import (
 from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     GoogleMapsProvider,
+    ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
     ProviderRoute,
@@ -31,6 +32,9 @@ _CATEGORY_TYPES = {
 }
 _PLACES_BASE_URL = "https://places.googleapis.com/v1"
 _ROUTES_BASE_URL = "https://routes.googleapis.com/directions/v2"
+_LOOP_ROUTE_FIELD_MASK = (
+    "routes.legs.duration,routes.legs.distanceMeters,routes.legs.polyline.encodedPolyline"
+)
 
 
 class UnconfiguredGoogleMapsProvider:
@@ -51,6 +55,16 @@ class UnconfiguredGoogleMapsProvider:
     ) -> ProviderRoute:
         raise GoogleMapsUnavailableError()
 
+    def get_walking_loop_route(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        via: ProviderPoint,
+        *,
+        timeout_seconds: float,
+    ) -> ProviderLoopRoute:
+        raise GoogleMapsUnavailableError()
+
 
 class HttpGoogleMapsProvider:
     def __init__(self, settings: Settings, client: httpx.Client | None = None) -> None:
@@ -68,8 +82,13 @@ class HttpGoogleMapsProvider:
         self._routes_cache: TtlCache[ProviderRoute] = TtlCache(
             settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
         )
+        # 周回ルートは往路単体（`route:`）とキーの名前空間を分ける（決定4）。
+        self._loop_cache: TtlCache[ProviderLoopRoute] = TtlCache(
+            settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
+        )
         self._places_flight: SingleFlight[tuple[ProviderPlace, ...]] = SingleFlight()
         self._routes_flight: SingleFlight[ProviderRoute] = SingleFlight()
+        self._loop_flight: SingleFlight[ProviderLoopRoute] = SingleFlight()
 
     def search_places(
         self,
@@ -167,6 +186,64 @@ class HttpGoogleMapsProvider:
         if len(result.path) < 2:
             raise GoogleMapsUnavailableError()
         self._routes_cache.put(key, result)
+        return result
+
+    def get_walking_loop_route(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        via: ProviderPoint,
+        *,
+        timeout_seconds: float,
+    ) -> ProviderLoopRoute:
+        key = self._loop_key(origin, destination, via)
+        cached = self._loop_cache.get(key)
+        if cached is not None:
+            return cached
+        return self._loop_flight.do(
+            key,
+            lambda: self._load_loop_route(key, origin, destination, via, timeout_seconds),
+        )
+
+    def _load_loop_route(
+        self,
+        key: str,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        via: ProviderPoint,
+        timeout_seconds: float,
+    ) -> ProviderLoopRoute:
+        cached = self._loop_cache.get(key)
+        if cached is not None:
+            return cached
+        response = self._request(
+            "POST",
+            f"{_ROUTES_BASE_URL}:computeRoutes",
+            json={
+                "origin": {"location": {"latLng": self._lat_lng(origin)}},
+                "destination": {"location": {"latLng": self._lat_lng(origin)}},
+                "intermediates": [
+                    {"location": {"latLng": self._lat_lng(destination)}},
+                    {"location": {"latLng": self._lat_lng(via)}, "via": True},
+                ],
+                "travelMode": "WALK",
+            },
+            headers={"X-Goog-FieldMask": _LOOP_ROUTE_FIELD_MASK},
+            timeout_seconds=timeout_seconds,
+        )
+        routes = response.get("routes", [])
+        if not routes:
+            raise GoogleMapsUnavailableError()
+        legs = routes[0].get("legs")
+        if not isinstance(legs, list) or len(legs) != 2:
+            # 経由点を stopover ではなく via（通過点）にしているので、正常時は必ず
+            # destination までの leg と origin まで戻る leg の 2 つになる。
+            raise GoogleMapsUnavailableError()
+        result = ProviderLoopRoute(
+            outbound=self._parse_loop_leg(legs[0]),
+            inbound=self._parse_loop_leg(legs[1]),
+        )
+        self._loop_cache.put(key, result)
         return result
 
     def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
@@ -295,6 +372,23 @@ class HttpGoogleMapsProvider:
         )
 
     @staticmethod
+    def _parse_loop_leg(leg: object) -> ProviderRoute:
+        if not isinstance(leg, dict):
+            raise GoogleMapsUnavailableError()
+        result = ProviderRoute(
+            duration_seconds=HttpGoogleMapsProvider._duration_seconds(leg.get("duration")),
+            distance_meters=int(leg.get("distanceMeters", 0)),
+            path=tuple(
+                HttpGoogleMapsProvider._decode_polyline(
+                    leg.get("polyline", {}).get("encodedPolyline", "")
+                )
+            ),
+        )
+        if len(result.path) < 2:
+            raise GoogleMapsUnavailableError()
+        return result
+
+    @staticmethod
     def _decode_polyline(encoded: str) -> list[ProviderPoint]:
         points: list[ProviderPoint] = []
         index = latitude = longitude = 0
@@ -329,6 +423,15 @@ class HttpGoogleMapsProvider:
         return (
             f"route:{origin.latitude:.5f}:{origin.longitude:.5f}:"
             f"{destination.latitude:.5f}:{destination.longitude:.5f}"
+        )
+
+    @staticmethod
+    def _loop_key(origin: ProviderPoint, destination: ProviderPoint, via: ProviderPoint) -> str:
+        """片道の `route:` とは名前空間を分ける（決定4）。"""
+        return (
+            f"loop:{origin.latitude:.5f}:{origin.longitude:.5f}:"
+            f"{destination.latitude:.5f}:{destination.longitude:.5f}:"
+            f"via:{via.latitude:.5f}:{via.longitude:.5f}"
         )
 
 
