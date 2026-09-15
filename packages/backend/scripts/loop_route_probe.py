@@ -1,4 +1,4 @@
-"""周回ルート生成の実 API 検証スクリプト（backend-plan.md B0/B7、開発者専用）。
+"""周回ルート生成の実 API 検証スクリプト（ADR-007「実 API 検証」、開発者専用）。
 
 `MAPS_MODE=real` で `GOOGLE_MAPS_SERVER_API_KEY` が設定されているときだけ動く
 （`HttpGoogleMapsProvider` と `maps/loop_route.py` をそのまま使う。しきい値・係数は
@@ -10,7 +10,11 @@
 
 入力: `scripts/loop_route_probe_cases.yaml`（O/D の組とラベル）。検証セットには
 川沿い・線路沿い・大きな公園やキャンパスの縁・行き止まりの多い住宅地・郊外の短距離・
-都心の格子状の街路など、`backend-plan.md` 4.3 節の弱点が出やすい地形を含めること。
+都心の格子状の街路など、ADR-007「前回試行の弱点」の表が出やすい地形を含めること。
+
+候補（右/左）の取得は本番の `MapsService.get_loop_walking_route`（決定1）と同じく
+`ThreadPoolExecutor` で並列に行う。1提示あたりの待ち時間は、この並列2呼び出し分の
+経過時間として計測する（本番の待ち時間と同じ条件にするため、逐次実行はしない）。
 
 出力:
     - 標準出力: 候補ごとの指標・合否・採用結果・呼び出し回数、末尾にサマリー
@@ -19,7 +23,7 @@
       geojson.io 等にドラッグ＆ドロップして採用ルートを目視確認する
       （ひげ・川の対岸への大回り・私有地の突っ切りが無いかを見る）
 
-B7 の実測結果（数値の表と、調整した定数と理由）は
+実測結果（数値の表と、調整した定数と理由）は
 `docs/adr/ADR-007-loop-route-generation.md` に転記すること（このスクリプトの出力や
 `tmp-probe/` を将来の参照先にしない — `tmp/` 配下と同様、恒久的な参照先にしてはいけない）。
 """
@@ -27,6 +31,7 @@ B7 の実測結果（数値の表と、調整した定数と理由）は
 import json
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -54,6 +59,8 @@ from sanposcape.maps.loop_route import (
 _CASES_PATH = Path(__file__).resolve().parent / "loop_route_probe_cases.yaml"
 _OUTPUT_DIR = Path(__file__).resolve().parent.parent / "tmp-probe"
 _TIMEOUT_SECONDS = 15.0
+# 本番の `MapsService._LOOP_CANDIDATE_WORKERS` と同じく、候補（右・左）は常に2つ。
+_LOOP_CANDIDATE_WORKERS = 2
 
 
 def main() -> None:
@@ -90,21 +97,37 @@ def main() -> None:
                 print("  O-D が近すぎるため周回を作らない（同じ道フォールバック相当）")
                 continue
 
+            call_count = len(candidates)
             started_at = time.monotonic()
+            outcomes: dict[str, object] = {}
+            with ThreadPoolExecutor(max_workers=_LOOP_CANDIDATE_WORKERS) as executor:
+                future_to_candidate = {
+                    executor.submit(
+                        provider.get_walking_loop_route,
+                        origin,
+                        destination,
+                        candidate.via,
+                        timeout_seconds=_TIMEOUT_SECONDS,
+                    ): candidate
+                    for candidate in candidates
+                }
+                for future, candidate in future_to_candidate.items():
+                    try:
+                        outcomes[candidate.side] = future.result()
+                    except (GoogleMapsQuotaError, GoogleMapsUnavailableError) as exc:
+                        outcomes[candidate.side] = exc
+            elapsed_seconds.append(time.monotonic() - started_at)
+
             evaluations: list[LoopEvaluation] = []
-            call_count = 0
-            for candidate in candidates:
-                call_count += 1
-                try:
-                    loop_route = provider.get_walking_loop_route(
-                        origin, destination, candidate.via, timeout_seconds=_TIMEOUT_SECONDS
-                    )
-                except GoogleMapsQuotaError:
+            for candidate in candidates:  # right -> left の順で表示する（本番の判定順と合わせる）
+                outcome = outcomes[candidate.side]
+                if isinstance(outcome, GoogleMapsQuotaError):
                     print(f"  [{candidate.side}] quota error")
                     continue
-                except GoogleMapsUnavailableError:
+                if isinstance(outcome, GoogleMapsUnavailableError):
                     print(f"  [{candidate.side}] unavailable")
                     continue
+                loop_route = outcome
                 verdict = evaluate_loop(
                     loop_route.outbound, loop_route.inbound, candidate.via, origin, destination
                 )
@@ -125,7 +148,6 @@ def main() -> None:
                 )
                 features.extend(_geojson_features(label, candidate, loop_route))
 
-            elapsed_seconds.append(time.monotonic() - started_at)
             selected = select_loop(tuple(evaluations))
             if selected is not None:
                 print(f"  -> 採用: side={selected.side}（呼び出し{call_count}回）")

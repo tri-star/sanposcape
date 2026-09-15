@@ -199,7 +199,7 @@ def test_fake_loop_is_accepted_for_every_fake_candidate() -> None:
 
     mobile の Maestro subflow は `spot-card-0`（= fake-place-1、origin から約200m）を選ぶ。
     しきい値を調整してこのテストが落ちたら、fake ではなくしきい値の妥当性を疑う
-    （backend-plan.md 決定8）。
+    （ADR-007 決定8）。
     """
     provider = FakeGoogleMapsProvider()
     service = MapsService(provider, 20, 20, 10, 8)
