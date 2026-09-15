@@ -22,3 +22,5 @@
 - [reference-aws-credentials-sandbox-denied](reference_aws_credentials_sandbox_denied.md) — AWS認証情報は存在する。sandboxが~/.aws(→/mnt/c/Users)を禁止して見えないだけ。dangerouslyDisableSandboxで使える
 - [project-ss33-loop-route-backend-complete](project_ss33_loop_route_backend_complete.md) — SS-33 backend（POST /explore/routes/loop）は実装完了。実API検証(B7)のみ未実施（キー無し）
 - [feedback-env-file-write-denied](feedback_env_file_write_denied.md) — `.env`はEdit/Bash(sed)で直接編集不可（deny設定）。一時的なMAPS_MODE切替等は`KEY=value docker compose up -d`のシェル環境変数プレフィックスで代替する（sandbox内でも動く）
+- [project-ss33-review-followup](project_ss33_review_followup.md) — SS-33ローカルレビュー「修正予定(自律対応)」全件対応（Quota/Unavailableログ・connect timeout・resample点数上限・DI配線テスト・並列化・ADR/docs整合）の実装場所と判断ログ
+- [feedback-verification-revert-without-git-checkout](feedback_verification_revert_without_git_checkout.md) — フィックス検証で一時的に壊したソースを`git checkout --`で戻すと未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
