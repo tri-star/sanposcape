@@ -104,7 +104,7 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 
 ### SS-57 追補: ゲスト散歩の解禁
 
-SS-49 の合意（2026-08-11）で `/explore/places` `/explore/routes/walking` が任意認証になり（未認証は IP バケットでレート制限、backend 実装は SS-56）、決定7 が MVP スコープとしていた前提（「ゲストボタンを押しても何も起きない」）が解消されたため、ゲスト散歩を解禁した。
+SS-49 の合意（2026-08-11）で `/explore/places` `/explore/routes/walking` が任意認証になり（未認証は IP バケットでレート制限、backend 実装は SS-56）、決定7 が MVP スコープとしていた前提（「ゲストボタンを押しても何も起きない」）が解消されたため、ゲスト散歩を解禁した。（**SS-33 追補**）`/explore/routes/walking` を置き換えた `/explore/routes/loop` も同じ任意認証・IP バケットの扱いを引き継いでいる。
 
 - **`canEnterProtectedRoutes` に `"guest"` を許可として追加した**（決定3）。`status === "authenticated" || status === "guest"` と明示的に列挙し、`return true` にはしていない。`resolveAuthGateDecision` と `AuthGateDecision` 型はそのまま残した。現状 `redirect` を返す経路は無いが、「保護ルートに誰が入れるか」の判断を1箇所に閉じる器を壊さないため、また将来「ゲストは入れないルート」が必要になったときの追加場所を固定するためである。
 - **`splashDestination.ts` はゲートへの委譲をやめ、`status === "authenticated"` を直接見る形に変えた**。当初（決定3 初版）の想定は「1行変更だけで済む」だったが、`splashDestination.ts` が `canEnterProtectedRoutes` に委譲していたため、1行変更では未サインインの起動が `/walk-start` に直行し、サインイン画面（ゲスト導線と Google サインインの唯一の入口）に到達できなくなる。委譲で防ぎたかった「スプラッシュが通した先でゲートが弾く」向きの食い違いは、送り先（サインイン画面）が公開ルート（`PUBLIC_ROOT_SEGMENTS` の `(auth)`）である限り発生しないため、委譲をやめても安全と判断した。
@@ -253,7 +253,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
   - SS-57 時点では `features/walk` / `features/history` に認証状態を見る必要は発生しなかった（ゲスト時の差異は API の 401 分類に吸収されている）。**SS-37 で2例目が実例化された**: `app/walk-summary.tsx` が `isSignedIn` / `onSignIn` を `WalkSummaryView` → `useWalkSummary` → `useWalkSave` へ注入する。
 - **（SS-37 追補）** シナリオA（散歩中のセッション失効による記録喪失）は本追補のスコープ外のまま残っている。解消するには ADR-008 決定5 のフォローアップ課題（ローカル永続化）の着手が必要。
 - backend との合意が必要になる論点（今回は決めない）としていた2点は、SS-49 で決定済み。決定内容は [横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6-1 を参照。
-  - `/explore/places` `/explore/routes/walking` は認証を任意化し、未認証でも呼べるようにする（レート制限は既存の IP バケットを流用。backend 実装は SS-56）。
+  - `/explore/places` `/explore/routes/walking` は認証を任意化し、未認証でも呼べるようにする（レート制限は既存の IP バケットを流用。backend 実装は SS-56）。（**SS-33 追補**）`/explore/routes/walking` を置き換えた `/explore/routes/loop` も同じ扱い。
   - `POST /walks`（散歩記録の保存）は未認証では許可せずサインインを促す。ゲスト記録のマージ機能は作らない。
   - ゲスト散歩そのものの解禁は SS-57 で実装済み（本追補）。
 
