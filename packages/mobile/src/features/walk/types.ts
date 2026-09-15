@@ -17,7 +17,7 @@ export type CategoryMeta = {
 
 /** 画面が扱うスポット候補（PlaceCandidate を camelCase + 表示単位に整形したもの）。 */
 export type SpotCandidate = {
-  /** Google の place id。SS-16 の /explore/routes/walking に渡す。 */
+  /** Google の place id。POST /explore/routes/loop に渡す（SS-33 で /explore/routes/walking から切替）。 */
   id: string;
   /**
    * 日本語優先の表示名。日本語が無い場合は provider の別言語名、
