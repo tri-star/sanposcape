@@ -1,49 +1,22 @@
 ---
 name: task-workflow
-description: "プロジェクト管理ツールに登録されたタスクを元にプランを作成->実装までの一連の流れを進める時に呼び出します。frontend/backendのタスクが混ざったタスクも遂行可能です。"
-metadata:
-  claude:
-    argument-hint: "[issue-id(option)] [instruction(option)]"
+description: 課題ID・URL・本文から開発を進める。計画のみ、実装、既存計画の再開に対応し、backend・React・mobileを横断する。
 ---
 
-## パラメータについて
+# 課題から開発する
 
-- `[issue-id]` : Issue ID (XXX-1などの形式であることが多い)
-- `[instruction]` : 追加の指示や情報
+メインが要件・計画・実装・検証を担当する。ユーザー指定の範囲を優先し、計画のみなら実装・課題更新・PR作成へ進まない。
 
-## スキル中で利用するフォルダ
+1. 課題ID/URLなら [issue-tracker](../issue-tracker/SKILL.md) で本文・受け入れ条件・関連課題・必要なコメントを取得し、取得完了後に計画する。本文が直接渡された場合はその本文で進め、未取得の外部情報を推測しない。
+2. 作業ツリーと対象packageを確認する。既存変更は保持する。Orca管理下のworktree操作が必要なら利用可能な `orca-cli` に従う。ディレクトリ名だけで課題・ブランチを変更しない。
+3. 関係する領域だけ読む: [backend](../backend-development/SKILL.md)、[React](../frontend-development/SKILL.md)、[mobile](../mobile-development/SKILL.md)。インフラ・CIは対象構成と既存ADRをメインで調べる。
+4. 受け入れ条件、変更ファイル、API/データ契約、実装順、必要な検証を計画する。複数領域では共通API契約を先に決め、backendスキーマ → OpenAPI生成 → Orval生成 → クライアント実装の依存順を守る。API変更のない画面は独立して進めてよい。
+5. 実装依頼では実際の着手時に課題の `start` を反映する。メインで実装し、関連テストと必須チェックを実施する。`.env` 不在に気づいたら [local-env-setup](../local-env-setup/SKILL.md)。
+6. [change-review](../change-review/SKILL.md) で独立レビューと文書乖離を確認する。範囲内の確かな不具合は修正し、関連する検証を実施する。仕様選択が必要なら選択肢と影響を提示する。
+7. コミット規約に従う。push・PR作成が依頼範囲に含まれる場合は実行し、成功を確認して `pr-created` を反映する。ローカル実装だけならその完了を報告し、PR作成済みや課題完了と扱わない。
 
-- `<project-root>` : プロジェクトのルートディレクトリ
-- `<task-root>` : タスクに関するファイルを配置するディレクトリ。
-  - タスクIDが与えられている場合: `<project-root>/tmp/<issue-id>`
-  - タスクIDが与えられていない場合: `<project-root>/tmp/<YYYYmmdd-HHMM>`
+## 記録と再開
 
-## プラン作成後の進め方について
+計画・レビュー・申し送りは `tmp/<issue-id>/`（IDなしなら `tmp/<YYYYmmdd-HHMM>/`）。IDはパス区切りや `..` を含まない安全な名前にする。小変更に複数の記録を強制しない。複雑な課題は `plan.md` に領域別の節を作り、`handover-notes.md` に決定・未完了・検証結果・外部更新の成否を残す。
 
-- プラン作成後は、ユーザーの指示を待たず、推奨のプランのまま実装まで自動的に進める。
-- ただしユーザーから「プラン作成まで進めて」「プランだけ確認したい」のように、明示的にプラン作成までで停止する指示があった場合は、プラン作成が完了した時点でワークフローを終了する。
-
-## 申し送り事項・ユーザー判断が必要だった事項の扱い
-
-- プラン作成・実装のいずれかのフェーズで、ユーザーの判断を要する事項(仕様解釈やトレードオフの選択など)が発生した場合や、後続作業への申し送り事項がある場合は、判断内容とその理由を含めて `<task-root>/handover-notes.md` に追記する(自律的に判断して進めた場合も、その判断内容を記録する)。
-- `backend-workflow` / `frontend-workflow` / `mobile-workflow` を呼び出す際も、各ワークフロー内で発生した同様の事項を同じファイルに追記するよう申し送る。
-- PR作成時(手順9)には、このファイルの内容を整理し、PR本文の末尾に「## 申し送り事項」として含める。ファイルが存在しない場合はこのセクションを省略する。
-
-## ワークフローの流れ
-
-- 1. プロジェクト管理ツールのエージェントを利用し、Issue IDからタスクの本文を取得、タスクの内容を確認する
-  - `[instruction]` にGitHubのPR番号が含まれていて、レビュー指摘に対応する指示内容の場合、
-    `summarize-pr-comments` skill を呼び出してPRの指摘事項をまとめ、結果を `<task-root>/pr-review-summary.md` に保存する。(既に存在する場合は内容を消去して上書き)
-    この場合、あわせて `task-status-sync` skill を `issue-id` `review-fix` で呼び出し、タスクを進行中の状態に更新する。
-  - 後続のステップで作業に着手する時は、タスク内容として `<task-root>/pr-review-summary.md` のパスを参照して対応するように指示する。
-- 2. タスクの内容を元に、frontend/mobile/backend/それ以外のどれに該当するかを判断する(複数に該当する可能性もある)
-  - frontend(web) と mobile(React Native / Expo) はどちらもbackendのAPIを利用するクライアントとして扱う。プロジェクトの構成に応じて存在する方(両方存在する場合は両方)を対象とする。以降のステップでは、該当するクライアント側について `frontend-workflow` / `mobile-workflow` skill をそれぞれ呼び出す。
-- 3. frontend/mobileのタスクの場合、該当する `frontend-workflow` / `mobile-workflow` skill を呼び出す。この時、必要なAPI情報を列挙してもらう(既存のAPIの何を使うか、どのAPIを新規作成・修正する必要があるか)
-- 4. backendのタスクの場合、 `backend-workflow` skill を呼び出す。この時、frontend-workflow / mobile-workflowから受け取ったAPI情報(planファイルのパスでも可)を渡し、APIを設計するように依頼する)
-  - backend-workflowの設計完了後、該当するクライアント側のworkflow(`frontend-workflow` / `mobile-workflow`)を再度呼び出して、API設計を再度確認、クライアント側のプランを必要に応じて修正する
-- 5. ここまでのプラン内容をユーザーに提示する。ユーザーから明示的にプラン作成までで停止する指示があった場合はここでワークフローを終了する。それ以外の場合は、ユーザーの承認を待たず、推奨プランのまま次のステップに自動的に進む。
-- 6. 該当するクライアント側の `frontend-workflow` / `mobile-workflow` skill を呼び出し、実装を開始する
-- 7. `backend-workflow` skillの完了後、該当するクライアント側の `frontend-workflow` / `mobile-workflow` skill を呼び出し、実装を開始する
-- 8. backend/frontendのどちらにも属さない場合(インフラの構築や、CI/CDの設定)、 `Plan` agent を呼び出してプランを作成する。ユーザーから明示的にプラン作成までで停止する指示がない限り、承認を待たずに汎用エージェントを使い作業を進める
-- 9. タスクが完了した場合は、testが通ることを確認、コミットも完了していることを確認し、git push、PRを作成する。この際、`<task-root>/handover-notes.md` が存在する場合は内容を整理し、PR本文の末尾に「## 申し送り事項」セクションとして含める。
-- 10. `task-status-sync` skill を `issue-id` `pr-created` `<作成したPRのURL>` で呼び出し、タスクの状態更新とPR URLの紐付けを行う。
+再開時は対象課題の記録と現状を照合する。重要な設計判断は [adr-writing](../adr-writing/SKILL.md)。永続文書から一時メモへリンクしない。レビュー修正の再着手は `review-fix`、マージによる完了は対象PRの実際のマージ確認後だけ反映する。

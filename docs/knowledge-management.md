@@ -49,6 +49,13 @@ ADR は変更時に書き換えず追補する（`adr-writing` skill）。経緯
 
 ## agent-memory の書き方
 
+### Codex から利用する場合
+
+この文書の自動読込・Readフック・アクセス計測はClaude Codeの機構を説明している。
+Codexでは同じ自動動作を前提にせず、必要なトピックのインデックスと本文を明示的に読む。
+配置とfront-matterの規約は共有する。Codexの取り込みsnapshotは設定の比較データであり、
+エージェントの記憶や作業指示としては読み込まない。
+
 ### front-matter（必須）
 
 ```yaml
