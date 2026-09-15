@@ -131,7 +131,10 @@ class Settings(BaseSettings):
     # 周回ルート（SS-33, ADR-007）の kill switch。品質劣化時の緊急停止と、mobile の
     # 同じ道フォールバック表示の手動確認に使う（real/fake いずれでも有効）。
     google_maps_loop_route_enabled: bool = True
-    # 周回の左右経由点を並列取得する際の1候補あたりの待ち時間上限。Lambda の
+    # 周回ルート1リクエスト全体（並列2候補＋両候補失敗時の同じ道フォールバックの単発取得まで
+    # 含む）の時間予算。1候補あたりの上限ではない。各候補は
+    # `min(google_maps_read_timeout_seconds, google_maps_route_deadline_seconds)` で打ち切り、
+    # 単発フォールバックは残り予算（`deadline - 経過時間`）で判定する（無ければ503）。Lambda の
     # Timeout（29秒）より十分短くする（docs/adr/ADR-005-backend-serverless-deployment-...）。
     google_maps_route_deadline_seconds: float = Field(default=12.0, gt=0, le=25)
 
