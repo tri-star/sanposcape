@@ -27,10 +27,14 @@ export function WalkRouteLegend({ walkRoute, testID }: WalkRouteLegendProps) {
   const accessibilityLabel = `地図の線: ${items.map((item) => item.label).join("、")}`;
 
   return (
+    // `accessible` を明示し、外側の要約ラベルだけを読み上げさせる。
+    // 明示しないと、Android の TalkBack が子の `Text`（「行き」「帰り」）も
+    // 個別にフォーカス可能とみなし、要約と個々のラベルを二重に読み上げることがある。
     <View
       testID={testID}
       style={styles.root}
       pointerEvents="none"
+      accessible
       accessibilityRole="text"
       accessibilityLabel={accessibilityLabel}
     >
