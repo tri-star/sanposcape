@@ -5,3 +5,4 @@
 - [M5 walksドメインのスコープ決定](project_m5_walks_domain.md) — SS-18の「集計/削除API無し」決定はSS-42/SS-53で覆り実装済み。再指摘しない。delete()のTOCTOU注記あり
 - [SS-44 fake Mapsプロバイダ](project_ss44_fake_maps_provider.md) — mode+許可リストfail-safeパターンのMaps版、FakeProvider命名混同リスク
 - [RequestSizeLimitMiddlewareはmethod非依存](ss53-request-size-limit-middleware-method-agnostic.md) — GET/DELETEでも413はあり得る設計。router.py側で413を書くのは正しい、再指摘しない
+- [SS-33周回ルートAPIレビュー](project_ss33_loop_route_review.md) — B7実API検証未実施のまましきい値が確定値化。後続PRで要再確認
