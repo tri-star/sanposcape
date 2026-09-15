@@ -1,0 +1,4 @@
+model = "gpt-6-astra"
+
+[agents]
+max_concurrent_threads_per_session = 1
