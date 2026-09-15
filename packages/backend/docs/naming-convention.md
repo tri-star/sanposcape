@@ -119,6 +119,12 @@ route（画面/URL/`APIRouter`）とも混同しない）。
 - ①（`walking_route`）は `maps/` ドメインの責務（探索・経路提案）、②（`track`）は `walks/` ドメインの責務（終了済み散歩の記録）で、実装上も別ドメインに分かれている。
 - `router`（FastAPIのルーティング）とは別物である点を、レビュー時にも意識する。
 
+### 周回ルート（SS-33, ADR-007）の命名
+
+- API 層（`maps/schemas.py`）: `LoopWalkingRouteResponse`（`WalkingRouteResponse` の周回版）は `legs: list[WalkingRouteLeg]`（`kind: WalkingRouteLegKind`、値は `outbound` / `return`）を持つ。`kind` は Pydantic の enum メンバー値（文字列）であり Python の識別子ではないため `return` を使っても構文上問題ない。
+- provider 層（`integrations/google_maps/provider.py`）: `ProviderLoopRoute` のフィールド名は `outbound` / `inbound`（`return` ではない）。**`return` は Python の予約語で、dataクラスのフィールド名（＝識別子）には使えない**ため、API 層の `kind="return"` とは異なる語を採用している。この差はレイヤーごとの制約の違いによるもので、表記揺れではない。
+- `maps/loop_route.py` の `LoopCandidate.side` / `LoopEvaluation.side` は `LoopSide = Literal["right", "left"]`。
+
 ## import の注意（WSL2 / Linux）
 
 - 開発環境は大文字小文字を区別するため、モジュールパスは実ファイル名と case まで一致させる。
