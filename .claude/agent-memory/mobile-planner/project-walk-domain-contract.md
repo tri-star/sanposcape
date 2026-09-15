@@ -3,6 +3,8 @@ name: project-walk-domain-contract
 description: How backend /walks maps onto mobile's active-walk state — the values that are NOT interchangeable and where the idempotency key is minted
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
 ---
 
 SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散歩まわりのプランで毎回効く。
@@ -32,23 +34,28 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
   → 画面の表示状態を決める純粋関数で「削除済み」をエラーより優先させて覆い隠す。
   `useWalkDetail` は `staleTime 1h / gcTime 2h` なので、`removeQueries(["walks","detail",id])` も併せて呼ぶ。
 
-## 散歩中ルートまわりで毎回引っかかる制約（SS-35 の調査）
+## 散歩中ルートまわりで毎回引っかかる制約（SS-33 時点）
 
-- **ルートの取得は ADR-008 決定2 で「`origin` = 散歩の起点で固定」**。散歩開始画面と散歩中画面が同じ
-  `useWalkRoute({origin, destination})` を呼んで queryKey を一致させ、API 1回で済ませるのが設計の主目的。
-  **現在地でルートを引き直す提案は決定2 の例外**にあたり、ADR-008 の追補が要る（AGENTS.md の規約）。
-- `useWalkRoute` は `staleTime 1h / gcTime 2h / retry:false`、かつ **`keepPreviousData` を意図的に使わない**。
-  → queryKey（origin）を動かす設計にすると、取得中・失敗時に `data` が `undefined` に落ちて
-  **表示中のルートが消える**。「失敗しても直前のルートを保つ」要件とは両立しない。
-- `useMapRouteFit` の依存は **`walkRoute?.destination.placeId` だけ**。目的地が同じままルートだけ
-  差し替わるケース（起点変更・周回ルート）では**地図が再フィットしない**。キーを変える必要がある。
+**SS-33 で「散歩中のルート再計算」「往路/復路の到達判定」を両方とも撤去した**（ADR-008 決定7 撤回・
+決定9 新設）。以下は SS-33 時点で有効な制約。SS-35 時点の再計算前提（現在地起点で引き直す、
+`isOffRoute` 判定など）はもう存在しない。
+
+- **ルートの取得は ADR-008 決定2 で「`origin` = 散歩の起点で固定」**（**例外なし**）。散歩開始画面と
+  散歩中画面が同じ `useWalkRoute({origin, destination})` を呼んで queryKey を一致させ、API 1回
+  （1散歩あたり生涯で1回。散歩中の呼び出しは0回）で済ませるのが設計の主目的。
+- `useWalkRoute` は `staleTime 1h / gcTime 2h / retry:false`。再計算が無くなったため
+  `keepPreviousData` を避ける理由（queryKeyを動かすと表示中のルートが消える問題）はそもそも発生しない。
+- `useMapRouteFit`（`lib/walkRoute.ts` の `walkRouteFitKey`）の依存は **`origin`/`placeId` の組**。
+  `legs`（往路/復路の区別）は見ない。地図のフィット範囲は起点と目的地だけで決まり、
+  周回ルートの区間の区別を必要としないため。
 - `buildWalkingRouteRequest`（`lib/walkRouteRequest.ts`）が origin を小数4桁に丸め、placeId 空文字を
-  null にし、目的地名を Unicode 切り詰めする。新しいルート取得経路でも必ずこれを通す。
-- `WalkRoute.duration/distance` は片道値。現在地起点で引き直すと意味が「残り」に変わるため、
-  画面の「片道◯分」表記をそのまま使い回さない。
-- `services/location` の mock 軌跡（`MOCK_TRACK`）は東京駅から**北東**へ 40m × 10点。
-  `DEFAULT_ACTIVE_WALK` の目的地は**北西**約900m。→ /dev-screens の「散歩中」は
-  「ルートから外れていく」状況を屋外に出ずに再現できる（ただし placeId が `stub-default-goal` なので
-  実 API は失敗する＝失敗系UIの確認向け）。
+  null にし、目的地名を Unicode 切り詰めする。この規律は継続。
+- **`WalkRoute` はもう片道値を持たない**。`legs: [outbound, return]` + `returnIsSamePath` になり、
+  `duration_seconds`/`distance_meters` の意味は「片道」から「周回全体（往路+復路の合計）」に変わった。
+  画面の「片道◯分」表記は撤去済み（`ActiveWalk.loopMinutes`/`loopKm` が周回全体の目安を表示する）。
+  往路/復路の描き分けは `lib/walkRouteLegs.ts` の純粋関数（`walkRoutePolylineSegments`/
+  `walkRouteLegendItems`）が担い、判定（現在どちらの区間にいるか）は行わない。
+- SS-35 時点にあった「`services/location` の mock 軌跡でルート逸脱を屋内から再現する」知見は、
+  逸脱判定そのものが撤去されたため不要になった（削除）。
 
 Related: [[project-explore-api-contract]], [[mobile-structure]]

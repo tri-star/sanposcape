@@ -1,12 +1,17 @@
 ---
 name: project_ss16_walk_tracking
-description: SS-16（散歩ルート提示・散歩中位置トラッキング）セキュリティレビューの要点
-type: project
+description: SS-16（散歩ルート提示・散歩中位置トラッキング）セキュリティレビューの要点。呼び出し先APIはSS-33でloopに切替済み
+metadata:
+  type: project
+  scope: task-local
+  source_issue: SS-16
 ---
 
 SS-16（`feat/ss-16-walk-route`、2026-08-01 レビュー）で `LocationService.watchPosition()`（real/mock）、
 `/explore/routes/walking` fetcher（`walkRouteApi.ts`）、`useActiveWalkStore`（Zustand・メモリのみ）、
 散歩中の実地図・実トラッキング画面（`WalkActiveView`/`WalkRouteMapView`）を追加。Critical/High 指摘なし。
+（**SS-33 追補**）`walkRouteApi.ts` の呼び出し先はその後 `/explore/routes/loop` に切り替わったが、
+`services/auth` を import しない・place_id を直接表示しないという下記の設計判断はそのまま維持されている。
 
 **Why**: このタスクで確認した設計判断・防御パターンは今後の位置情報系タスク（SS-33 周回ルート等）でも
 踏襲されるべき基準になるため、再レビュー時の比較対象として残す。

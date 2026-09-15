@@ -1,9 +1,19 @@
 ---
 name: notice-component-inconsistent-alert-role-across-branches
-description: 複数 kind を分岐する通知コンポーネントで、新しい分岐だけ accessibilityRole="alert" を付け古い分岐（そのまま移植した既存コード）には付いていない、という branch 間の不整合が起きやすい
+description: 複数 kind を分岐する通知コンポーネントで、新しい分岐だけ accessibilityRole="alert" を付け古い分岐（そのまま移植した既存コード）には付いていない、という branch 間の不整合が起きやすい（具体例は SS-33 で解消済み。パターンとしては今後も有効）
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
 ---
+
+**SS-33 追補**: 以下で参照している `kind` 分岐（`"recalculating"` 等、SS-35 の散歩中ルート再計算まわり）は
+SS-33 で `WalkRouteNotice.tsx` ごと縮小され、現在は「周回ルートの初期取得エラー表示専用」の
+単一分岐（`errorCode`/`onRetry` の props、成功時は `null` を返すだけ）になっている。
+指摘していた `base_error` 分岐の a11y ギャップ自体はもう存在しない。**このメモは具体例ではなく
+「新旧分岐が同居するとa11y実装が割れやすい」というレビュー観点として残す**。
+
+（以下は SS-35 時点の記録。具体的なコードはもう存在しない）
 
 SS-35 の `WalkRouteNotice.tsx`（`packages/mobile/src/features/walk/components/WalkRouteNotice.tsx`）は
 `kind`（`"recalculating" | "recalc_failed" | "base_error" | "recalc_unavailable"`）で分岐する1コンポーネント。
