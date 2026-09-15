@@ -392,6 +392,38 @@ aws lambda get-function-configuration --function-name sanposcape-dev-backend-api
 aws secretsmanager get-secret-value --secret-id <ARN> --query SecretString --output text | python3 -c "import sys,json; print(*sorted(json.load(sys.stdin)), sep='\n')"
 ```
 
+### 周回ルートの kill switch（緊急停止。SS-33, ADR-007）
+
+`GOOGLE_MAPS_LOOP_ROUTE_ENABLED`（既定 `true`）を `false` にすると、`/explore/routes/loop` は
+周回ルートの生成自体を行わず、常に往路を1回取得して「同じ道で戻る」
+（`return_is_same_path: true`）応答に固定される。周回ルートの品質が劣化した場合の緊急停止に使う。
+
+`template.yaml` にはこの変数を意図的に設定していない（既定 `true`。`DB_DISABLE_PREPARED_STATEMENTS`
+と同じ「フォールバック用の設定は既定では書かない」方針）。本番で止める必要が生じたら、次のいずれかで対応する。
+
+1. **即時停止（redeploy 不要）**: 該当関数の環境変数を直接更新する。Lambda の環境変数は
+   差分更新ではなく置換のため、まず現在値を控えてから更新する。
+
+   ```bash
+   # 1. 現在の環境変数を控える
+   aws lambda get-function-configuration --function-name sanposcape-<env>-backend-api \
+     --region ap-southeast-1 --query 'Environment.Variables'
+
+   # 2. 上記の内容に GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false を足して丸ごと渡す
+   aws lambda update-function-configuration --function-name sanposcape-<env>-backend-api \
+     --region ap-southeast-1 \
+     --environment 'Variables={ENV=...,AUTH_MODE=real,MAPS_MODE=real,...,GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false}'
+   ```
+
+   **次に `sam deploy` を実行すると `template.yaml` の内容（この変数は未設定）に巻き戻る**一時的な変更である点に注意。恒久的に固定したい場合は下記2を使う。
+2. **恒久的な変更（redeploy を伴う）**: `template.yaml` の `Globals.Function.Environment.Variables`
+   に `GOOGLE_MAPS_LOOP_ROUTE_ENABLED: 'false'` を追記し、`sam deploy --config-env <env>` で反映する。
+   IaC（このリポジトリ）側に変更を残したい場合はこちらを使う。
+
+解除する場合は、同じ手順を `true`（またはキーの削除 → 既定 `true` に戻す）で行う。ローカル開発での
+切り替え方法は [local-env.md](./local-env.md) を参照（`.env` の値を直接編集し `docker compose up -d`
+でコンテナを作り直す。`restart` では反映されない）。
+
 ## 8. `sam local` の限界
 
 `sam local invoke` / `sam local start-api` で検証できるのは次まで。
