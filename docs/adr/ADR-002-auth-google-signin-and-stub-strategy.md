@@ -151,6 +151,10 @@ mobile ADR-009 が「今回は決めない」として持ち越していた、�
 
 **影響**: mobile 側は `canEnterProtectedRoutes`（`features/auth/lib/authGate.ts`、決定3参照）に `"guest"` を許可として追加し、`SignInView` / `SignUpView` のゲスト導線を復活させた（SS-57 で実装済み）。backend 側の実装は SS-56（先行して main にマージ済み）。詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)「SS-57 追補」を参照。
 
+### 6-1 追補（SS-33）
+
+SS-33 で新設した `POST /explore/routes/loop` も、`/explore/places` `/explore/routes/walking` と同じ扱いにする。認証は任意（`get_current_user_optional`）で、レート制限も同じ `ExploreRateLimiter`（`/explore/places` と共有のバケット）を使う。新しいバケットは作らない。既存 `/explore/routes/walking` は挙動・スキーマを変えずに `deprecated=True` を付与しただけで、6-1 の扱いは変わらない（詳細は [ADR-007](./ADR-007-loop-route-generation.md) 決定4）。
+
 ## 検討した選択肢
 
 ### 実認証のアーキテクチャ
