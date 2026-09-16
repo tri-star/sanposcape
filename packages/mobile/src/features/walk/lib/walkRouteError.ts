@@ -6,6 +6,7 @@ import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
  * 再試行可否は既存の `isRetriableExploreError()` をそのまま使う（重複定義しない）。
  */
 const MESSAGES: Record<ExploreErrorCode, string> = {
+  round_trip_unavailable: "周回ルートが見つかりませんでした。別のスポットを選んでください。",
   unauthorized: "サインインすると、ルートを表示できます。",
   too_large: "目的地の情報を取得できませんでした。別のスポットを選んでください。",
   invalid_request: "目的地の情報を取得できませんでした。別のスポットを選んでください。",

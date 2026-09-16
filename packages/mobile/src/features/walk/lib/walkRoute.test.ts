@@ -44,6 +44,8 @@ describe("toWalkRoute", () => {
         { latitude: 35.6812, longitude: 139.7671 },
         { latitude: 35.6875, longitude: 139.7625 },
       ],
+      outboundPath: RESPONSE.path,
+      returnPath: [],
       bounds: {
         northEast: { latitude: 35.6875, longitude: 139.7671 },
         southWest: { latitude: 35.6812, longitude: 139.7625 },

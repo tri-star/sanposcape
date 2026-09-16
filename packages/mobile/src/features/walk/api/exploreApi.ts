@@ -24,3 +24,15 @@ export async function fetchSpotCandidates(
   }
   return toSpotCandidates(response.data.candidates);
 }
+
+export async function fetchSpotSearch(
+  request: PlaceSearchRequest,
+  options?: { signal?: AbortSignal },
+) {
+  const response = await searchExplorePlaces(request, { signal: options?.signal });
+  if (response.status !== 200) throw new ApiError(response.status);
+  return {
+    candidates: toSpotCandidates(response.data.candidates),
+    searchComplete: response.data.search_complete ?? true,
+  };
+}

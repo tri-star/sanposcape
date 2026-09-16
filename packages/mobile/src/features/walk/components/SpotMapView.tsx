@@ -84,7 +84,8 @@ export function SpotMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
       >
-        {walkRoute ? <RoutePolyline path={walkRoute.path} /> : null}
+        {walkRoute ? <RoutePolyline path={walkRoute.outboundPath} /> : null}
+        {walkRoute ? <RoutePolyline path={walkRoute.returnPath} returning /> : null}
         {candidates.map((spot, index) => {
           const selected = spot.id === selectedSpotId;
           const meta = CATEGORY_META[spot.category];

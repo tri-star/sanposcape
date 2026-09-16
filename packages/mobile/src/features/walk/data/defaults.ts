@@ -91,3 +91,27 @@ export function buildSampleFinishedWalk(input: {
     track,
   };
 }
+
+/** 画面カタログ専用。実道路を表すものではない。 */
+export const SAMPLE_ROUND_TRIP_ROUTE: import("@/features/walk/types").WalkRoute = {
+  origin: DEFAULT_ACTIVE_WALK.origin,
+  destination: DEFAULT_ACTIVE_WALK.destination,
+  durationSeconds: DEFAULT_WALK_GOAL.time * 60,
+  distanceMeters: DEFAULT_WALK_GOAL.dist * 1000,
+  outboundPath: [DEFAULT_ACTIVE_WALK.origin, DEFAULT_ACTIVE_WALK.destination.location],
+  returnPath: [
+    DEFAULT_ACTIVE_WALK.destination.location,
+    { latitude: 35.6812, longitude: 139.7625 },
+    DEFAULT_ACTIVE_WALK.origin,
+  ],
+  path: [
+    DEFAULT_ACTIVE_WALK.origin,
+    DEFAULT_ACTIVE_WALK.destination.location,
+    { latitude: 35.6812, longitude: 139.7625 },
+    DEFAULT_ACTIVE_WALK.origin,
+  ],
+  bounds: {
+    northEast: { latitude: 35.6875, longitude: 139.767125 },
+    southWest: { latitude: 35.6812, longitude: 139.7625 },
+  },
+};

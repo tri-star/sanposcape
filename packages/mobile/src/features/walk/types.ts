@@ -48,17 +48,19 @@ export type WalkRouteBounds = {
 
 /**
  * 提示する徒歩ルート（/explore/routes/walking のレスポンスを画面用に整形したもの）。
- * duration/distance は **片道** の値である点に注意（PlaceCandidate は往復値）。
+ * duration/distance は往路・復路の合計。
  */
 export type WalkRoute = {
   origin: GeoCoordinates;
   destination: WalkDestination;
-  /** 片道の所要時間（秒）。 */
+  /** 周回の予測所要時間（秒）。 */
   durationSeconds: number;
-  /** 片道の距離（m）。 */
+  /** 周回の距離（m）。 */
   distanceMeters: number;
   /** 道のりの折れ線（2点以上）。 */
   path: GeoCoordinates[];
+  outboundPath: GeoCoordinates[];
+  returnPath: GeoCoordinates[];
   bounds: WalkRouteBounds;
 };
 
@@ -72,7 +74,7 @@ export type ActiveWalk = {
   /** 散歩の起点。散歩中もこの値でルートを引き続けるため、現在地の更新では書き換えない。 */
   origin: GeoCoordinates;
   destination: WalkDestination;
-  /** 探索結果由来の往復目安（表示用）。 */
+  /** 開始時に確定した周回の予定値（表示用）。 */
   roundTripMinutes: number;
   roundTripKm: number;
   /** 開始時刻（`Date.now()`）。経過時間はこの値から計算する。 */
@@ -106,11 +108,3 @@ export type WalkSummaryStats = {
 
 /** 散歩記録の保存状態。 */
 export type WalkSaveStatus = "idle" | "saving" | "saved" | "error";
-
-/**
- * 現在地起点のルート再計算の状態（SS-35）。
- * `idle`   … 再計算していない／直近の再計算は成功済み
- * `recalculating` … リクエスト中（同時に1つだけ）
- * `failed` … 直近のリクエストが失敗し、表示は直前の正常ルートのまま
- */
-export type WalkRouteRecalcStatus = "idle" | "recalculating" | "failed";

@@ -258,3 +258,21 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - （SS-37 追補）実装: `src/features/walk/lib/walkSaveTrigger.ts`、`src/features/walk/lib/walkSaveError.ts`（`walkSaveErrorAction`）、`src/features/auth/lib/postSignInDestination.ts`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
 - Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-33（周回ルート）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元）、SS-50（本追補の発生元）、SS-37（本追補の発生元）
+
+## 2026-09-16 追補: SS-33 開始時に確定した参考ルート
+
+### 決定
+
+- ユーザーの方針変更により、決定7の現在地起点の再計算を廃止する。逸脱時の自動再計算・手動再計算・再計算通知を撤去する。
+- 散歩開始前は周回APIからプレビューを取得する。開始操作時に表示中の経路を `clientWalkId` ごとの `activeWalkRoute` Queryキャッシュへ同期的に登録してからActiveWalkを開始する。
+- active用キャッシュは取得関数を持たない（`skipToken`、`enabled:false`）。staleTime/gcTimeはInfinityとし、位置更新・無効化・通信復帰・画面再マウント・時間経過でネットワーク取得が起きない。
+- 終了・散歩の置き換え・サインアウトで専用キャッシュを破棄する。想定外にデータが欠落しても再探索せず、参考ルート表示不可として実測記録と手動終了を継続できる。
+- 往路は実線、復路は破線として凡例と現在地を表示する。折り返し地点の到着判定、往復フェーズの自動判定・手動切替を設けない。目的地を通らず終了してもよい。
+- 予定時間・距離は採用した2区間の合計で固定する。記録する実測時間・距離・軌跡とは分ける。
+
+### 理由・代替案・影響
+
+- ルートは参考として、ユーザーが自由に歩ける体験を優先する。期限付きの探索キャッシュを散歩中も参照するだけでは、期限や無効化で別ルートへ変わりうるため採用しない。
+- サーバー由来データをZustandへコピーする案も採用せず、既存のQuery/Zustandの責任分離を維持する。
+- プロセス終了後の散歩復元は引き続き対象外。位置記録・一時停止・終了・保存の既存契約は維持する。Google経路を記録データへ混ぜない。
+- 共通APIと周回判定は[ADR-001追補](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)を参照。

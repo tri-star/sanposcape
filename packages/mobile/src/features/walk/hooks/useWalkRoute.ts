@@ -8,10 +8,9 @@ import { buildWalkingRouteRequest } from "@/features/walk/lib/walkRouteRequest";
 import type { WalkDestination, WalkRoute } from "@/features/walk/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** 固定2点間の徒歩ルートは実質不変。散歩中に再取得させないため1時間。 */
-const STALE_TIME_MS = 60 * 60_000;
-/** 散歩開始画面のアンマウントから散歩中画面のマウントまでの間、キャッシュを確実に生かすため（往復最大120分の散歩も想定）。 */
-const GC_TIME_MS = 2 * 60 * 60_000;
+/** 開始前のプレビューだけをキャッシュする。開始後はactiveWalkRouteを参照する。 */
+const STALE_TIME_MS = 5 * 60_000;
+const GC_TIME_MS = 30 * 60_000;
 
 export type UseWalkRouteResult = {
   walkRoute: WalkRoute | null;
@@ -21,35 +20,30 @@ export type UseWalkRouteResult = {
   retry: () => void;
 };
 
-/**
- * ルート取得の TanStack Query ラッパ。
- * 散歩開始画面と散歩中画面の両方から同じ入力（origin, destination）で呼ぶことで、
- * キャッシュ共有により API 呼び出しを1回に抑える（origin は散歩の起点で固定し、
- * 現在地の更新のたびにこの hook の入力を変えてはいけない。毎分ルートを引き直すと 429 になる）。
- *
- * `placeholderData: keepPreviousData` は使わない — 別スポットを選んだ瞬間に前のルートが残ると、
- * 線と選択ピンが食い違うため。
- */
+/** 開始前の周回プレビュー。目的地変更時に以前のルートを表示しない。 */
 export function useWalkRoute(input: {
   origin: GeoCoordinates | null;
   destination: WalkDestination | null;
+  durationMin: number;
 }): UseWalkRouteResult {
   // queryKey は構造的ハッシュのため request の参照が毎回変わっても実害は無いが、
   // 将来 queryFn 以外の場所で request の参照同一性に依存するコードが増えても壊れないよう
   // useMemo で明示的に安定させておく（`input.origin`/`input.destination` が変わったときだけ作り直す）。
-  const request = useMemo(
-    () => buildWalkingRouteRequest({ origin: input.origin, destination: input.destination }),
-    [input.origin, input.destination],
-  );
+  const request = useMemo(() => {
+    const base = buildWalkingRouteRequest({ origin: input.origin, destination: input.destination });
+    return base ? { ...base, round_trip_duration_minutes: input.durationMin } : null;
+  }, [input.origin, input.destination, input.durationMin]);
 
   const query = useQuery({
-    queryKey: ["explore", "routeWalking", request],
+    queryKey: ["explore", "routeRoundTrip", request],
     queryFn: ({ signal }) =>
       fetchWalkRoute(request!, { signal, destinationName: input.destination!.name }),
     enabled: request !== null,
     staleTime: STALE_TIME_MS,
     gcTime: GC_TIME_MS,
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const { refetch: queryRefetch } = query;
@@ -59,7 +53,7 @@ export function useWalkRoute(input: {
 
   return {
     walkRoute: query.data ?? null,
-    isLoading: query.isPending && request !== null,
+    isLoading: query.isFetching && request !== null,
     errorCode: query.error ? toExploreErrorCode(query.error) : null,
     retry,
   };

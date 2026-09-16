@@ -1,3 +1,5 @@
+import { queryClient } from "@/api/queryClient";
+import { clearActiveWalkRoute } from "@/features/walk/lib/activeWalkRoute";
 import { create } from "zustand";
 
 import type { ActiveWalk } from "@/features/walk/types";
@@ -27,8 +29,18 @@ type ActiveWalkState = {
  */
 export const useActiveWalkStore = create<ActiveWalkState>((set) => ({
   activeWalk: null,
-  startWalk: (walk) => set({ activeWalk: walk }),
-  endWalk: () => set({ activeWalk: null }),
+  startWalk: (walk) =>
+    set((state) => {
+      if (state.activeWalk && state.activeWalk.clientWalkId !== walk.clientWalkId) {
+        clearActiveWalkRoute(queryClient, state.activeWalk.clientWalkId);
+      }
+      return { activeWalk: walk };
+    }),
+  endWalk: () =>
+    set((state) => {
+      if (state.activeWalk) clearActiveWalkRoute(queryClient, state.activeWalk.clientWalkId);
+      return { activeWalk: null };
+    }),
 }));
 
 registerSessionCleanup(() => useActiveWalkStore.getState().endWalk());

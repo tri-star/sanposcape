@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button/Button";
 import { Icon } from "@/components/ui/icon/Icon";
 import { isRetriableExploreError } from "@/features/walk/lib/exploreError";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
-import { estimateRoundTripMinutes, toOneWayMinutes } from "@/features/walk/lib/walkRoute";
+import { toOneWayMinutes } from "@/features/walk/lib/walkRoute";
 import { walkRouteErrorMessage } from "@/features/walk/lib/walkRouteError";
 import type { SpotCandidate, WalkRoute } from "@/features/walk/types";
 import { toKilometers } from "@/lib/units";
@@ -70,20 +70,10 @@ export function WalkRouteSummary({
         </View>
         <View style={styles.timeColumn} testID={`${testID}-ready`}>
           <Text style={styles.time}>
-            片道 {toOneWayMinutes(walkRoute.durationSeconds)}分・
+            周回 {toOneWayMinutes(walkRoute.durationSeconds)}分・
             {toKilometers(walkRoute.distanceMeters)}km
           </Text>
-          {/*
-            「目安」の語を必ず残す: 同じ道を戻る前提の片道×2 の近似のため（実ルートは SS-33）。
-            算出元にも注意: ここは /explore/routes/walking の実ルート片道値（walkRoute.durationSeconds）
-            から計算しており、`SpotCard`（一覧）が表示する /explore/places 由来の
-            `spot.roundTripMinutes` とは異なる API 呼び出し結果から来ている。そのため一覧時と
-            選択後で「往復」の数値がわずかにズレ得るが、これはプランが明示的に選んだ設計であり
-            バグではない（一覧は概算、選択後はより実測に近い値、という位置づけ）。
-          */}
-          <Text style={styles.timeSecondary}>
-            往復の目安 {estimateRoundTripMinutes(walkRoute.durationSeconds)}分
-          </Text>
+          <Text style={styles.timeSecondary}>往路：実線 ／ 復路：破線</Text>
         </View>
       </View>
     );

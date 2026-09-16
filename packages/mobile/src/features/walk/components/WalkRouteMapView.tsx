@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Text, type StyleProp, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
@@ -98,7 +98,8 @@ export function WalkRouteMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
       >
-        {walkRoute ? <RoutePolyline path={walkRoute.path} /> : null}
+        {walkRoute ? <RoutePolyline path={walkRoute.outboundPath} /> : null}
+        {walkRoute ? <RoutePolyline path={walkRoute.returnPath} returning /> : null}
         {walkRoute ? (
           <Marker
             coordinate={walkRoute.destination.location}
@@ -110,6 +111,9 @@ export function WalkRouteMapView({
           >
             <MapPin category="goal" icon="flag" size={38} />
           </Marker>
+        ) : null}
+        {walkRoute ? (
+          <Marker coordinate={walkRoute.origin} title="出発地点" identifier="origin" />
         ) : null}
         {currentPosition ? (
           <Marker
@@ -123,6 +127,9 @@ export function WalkRouteMapView({
           </Marker>
         ) : null}
       </MapView>
+      <Text style={{ color: theme.colors.textPrimary, backgroundColor: theme.colors.surfaceCard }}>
+        往路：実線 ／ 復路：破線
+      </Text>
       {children}
     </View>
   );

@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import type { ExploreCategory } from "@/api/generated/model";
-import { fetchSpotCandidates } from "@/features/walk/api/exploreApi";
+import { fetchSpotSearch } from "@/features/walk/api/exploreApi";
 import { toExploreErrorCode } from "@/features/walk/lib/exploreError";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { buildPlaceSearchRequest } from "@/features/walk/lib/placeSearchRequest";
@@ -16,6 +16,7 @@ const GC_TIME_MS = 30 * 60_000;
 
 export type UseSpotCandidatesResult = {
   candidates: SpotCandidate[];
+  searchComplete: boolean;
   /** 初回取得中（候補がまだ1件も無い）。 */
   isLoading: boolean;
   /** 条件変更による再取得中（前回結果を表示したまま）。 */
@@ -38,7 +39,7 @@ export function useSpotCandidates(input: {
 
   const query = useQuery({
     queryKey: ["explore", "places", request],
-    queryFn: ({ signal }) => fetchSpotCandidates(request!, { signal }),
+    queryFn: ({ signal }) => fetchSpotSearch(request!, { signal }),
     enabled: request !== null,
     staleTime: STALE_TIME_MS,
     gcTime: GC_TIME_MS,
@@ -52,7 +53,8 @@ export function useSpotCandidates(input: {
   }, [queryRefetch]);
 
   return {
-    candidates: query.data ?? [],
+    candidates: query.data?.candidates ?? [],
+    searchComplete: query.data?.searchComplete ?? true,
     isLoading: query.isPending && request !== null,
     isRefetching: query.isFetching && !query.isPending,
     errorCode: query.error ? toExploreErrorCode(query.error) : null,

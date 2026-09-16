@@ -5,6 +5,7 @@ import { useTheme } from "@/theme/useTheme";
 
 export type RoutePolylineProps = {
   path: readonly GeoCoordinates[];
+  returning?: boolean;
 };
 
 /**
@@ -13,7 +14,7 @@ export type RoutePolylineProps = {
  * 元は `features/walk/components/WalkRoutePolyline.tsx`。SS-20 で `features/history` からも
  * 使うため `src/components/ui` へ昇格した（`MapPin` と同じカテゴリ）。
  */
-export function RoutePolyline({ path }: RoutePolylineProps) {
+export function RoutePolyline({ path, returning = false }: RoutePolylineProps) {
   const theme = useTheme();
 
   if (path.length < 2) {
@@ -23,7 +24,8 @@ export function RoutePolyline({ path }: RoutePolylineProps) {
   return (
     <Polyline
       coordinates={[...path]}
-      strokeColor={theme.map.route}
+      strokeColor={returning ? theme.colors.textSecondary : theme.map.route}
+      lineDashPattern={returning ? [12, 8] : undefined}
       strokeWidth={5}
       lineCap="round"
       lineJoin="round"

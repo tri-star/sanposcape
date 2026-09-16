@@ -36,6 +36,7 @@ export type UseWalkPlanResult = {
   retryLocation: () => void;
 
   candidates: SpotCandidate[];
+  searchComplete: boolean;
   isLoadingCandidates: boolean;
   isRefetchingCandidates: boolean;
   exploreErrorCode: ExploreErrorCode | null;
@@ -133,8 +134,13 @@ export function useWalkPlan(): UseWalkPlanResult {
     [selectedSpot],
   );
 
-  const route = useWalkRoute({ origin, destination });
-  const canStartWalk = selectedSpot !== null && route.walkRoute !== null;
+  const route = useWalkRoute({ origin, destination, durationMin: searchDurationMin });
+  const canStartWalk =
+    selectedSpot !== null &&
+    route.walkRoute !== null &&
+    route.errorCode === null &&
+    !route.isLoading &&
+    !explore.isRefetching;
 
   const retryLocation = useCallback(() => {
     setSelectedSpotId(null);
@@ -167,6 +173,7 @@ export function useWalkPlan(): UseWalkPlanResult {
     retryLocation,
 
     candidates: explore.candidates,
+    searchComplete: explore.searchComplete,
     isLoadingCandidates,
     isRefetchingCandidates: explore.isRefetching,
     exploreErrorCode: explore.errorCode,

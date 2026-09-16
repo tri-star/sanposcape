@@ -48,5 +48,6 @@ export function buildPlaceSearchRequest(input: {
     // backend も sorted(categories) でキー化するため、同じ集合なら同じオブジェクトになるよう揃える。
     categories: [...categories].sort(),
     limit: CANDIDATE_LIMIT,
+    route_mode: "loop",
   };
 }

@@ -1,3 +1,5 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { pinActiveWalkRoute } from "@/features/walk/lib/activeWalkRoute";
 import { useRouter } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,6 +40,7 @@ export function WalkStartView() {
   const router = useRouter();
   const toast = useToast();
   const plan = useWalkPlan();
+  const queryClient = useQueryClient();
   const startWalk = useActiveWalkStore((state) => state.startWalk);
 
   // 戻り先は (tabs)。ナビタブ経由で検索・記録・スポット一覧のすべてに届く既定ホーム
@@ -61,17 +64,19 @@ export function WalkStartView() {
   // runOnce のラッチだけを goBack と共有し、戻る連打・戻る＋開始の同時押しでも遷移は1回にする。
   const handleStartWalk = () => {
     const { selectedSpot, origin, destination, walkRoute } = plan;
-    if (!selectedSpot || !origin || !destination || !walkRoute) return;
+    if (!plan.canStartWalk || !selectedSpot || !origin || !destination || !walkRoute) return;
     back.runOnce(() => {
+      const clientWalkId = randomUuidV4();
+      pinActiveWalkRoute(queryClient, clientWalkId, walkRoute);
       startWalk({
         // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
-        clientWalkId: randomUuidV4(),
-        origin,
+        clientWalkId,
+        origin: walkRoute.origin,
         // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
         // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
         destination,
-        roundTripMinutes: selectedSpot.roundTripMinutes,
-        roundTripKm: selectedSpot.roundTripKm,
+        roundTripMinutes: Math.round(walkRoute.durationSeconds / 60),
+        roundTripKm: walkRoute.distanceMeters / 1000,
         startedAtMs: Date.now(),
       });
       router.replace(HOME_HREF);
@@ -136,6 +141,9 @@ export function WalkStartView() {
               style={styles.map}
             />
 
+            {!plan.searchComplete ? (
+              <Text style={styles.eyebrow}>時間内に確認できた周回コースを表示しています。</Text>
+            ) : null}
             <SpotListSection
               candidates={plan.candidates}
               selectedSpotId={plan.selectedSpotId}

@@ -12,13 +12,10 @@ import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { LocationPermissionNotice } from "@/features/walk/components/LocationPermissionNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
 import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
-import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
-import { toOneWayMinutes } from "@/features/walk/lib/walkRoute";
 import { useToast } from "@/hooks/useToast";
 import { formatClock } from "@/lib/formatClock";
-import { toKilometers } from "@/lib/units";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -56,9 +53,6 @@ export function WalkActiveView() {
   }
 
   const { activeWalk } = walk;
-  const oneWayMinutes = walk.walkRoute ? toOneWayMinutes(walk.walkRoute.durationSeconds) : null;
-  const oneWayKm = walk.walkRoute ? toKilometers(walk.walkRoute.distanceMeters) : null;
-
   return (
     <View testID="walk-active-screen" style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -70,25 +64,13 @@ export function WalkActiveView() {
           <Image source={walkerImage} resizeMode="cover" style={styles.illustration} />
         )}
         <View style={styles.headerText}>
-          {/*
-            ヘッダーの「往復の目安」（activeWalk.roundTripMinutes/roundTripKm）は散歩開始時点の
-            探索結果スナップショット（/explore/places 由来）で、`ActiveWalk` はサーバーデータの
-            コピーを持たない設計上、散歩中に再取得はしない。直下の「片道」は walkRoute
-            （/explore/routes/walking の実ルート値）から都度計算しているため、算出元の異なる
-            2つの「往復」相当の数値が近いが一致しない場面がありうる（`SpotCard`/`WalkRouteSummary`
-            と同じ理由。プランが明示的に選んだ設計でありバグではない）。
-          */}
-          <Text style={styles.eyebrow}>往復の目安</Text>
+          <Text style={styles.eyebrow}>周回コースの目安</Text>
           <View style={styles.headerValueRow}>
             <Text style={styles.headerValue}>{activeWalk.roundTripMinutes}</Text>
             <Text style={styles.headerUnit}>分（約{activeWalk.roundTripKm.toFixed(1)}km）</Text>
           </View>
           <Text style={styles.goalName}>ゴール：{activeWalk.destination.name}</Text>
-          {oneWayMinutes !== null && oneWayKm !== null ? (
-            <Text style={styles.oneWay}>
-              {walk.isRouteRecalculated ? "ここから" : "片道"} {oneWayMinutes}分・{oneWayKm}km
-            </Text>
-          ) : null}
+          <Text style={styles.oneWay}>ルートは参考です。自由に歩いてください。</Text>
         </View>
         <IconButton
           icon="settings-2"
@@ -115,25 +97,12 @@ export function WalkActiveView() {
             testID="walk-active-recenter"
             onPress={() => setRecenterNonce((n) => n + 1)}
           />
-          <IconButton
-            icon="navigation"
-            label="ルートを再計算"
-            variant="surface"
-            size="sm"
-            testID="walk-active-route-recalc"
-            disabled={!walk.canRecalculateRoute || walk.routeRecalcStatus === "recalculating"}
-            onPress={walk.recalculateRoute}
-          />
         </View>
       </WalkRouteMapView>
 
-      <WalkRouteNotice
-        kind={walk.routeNoticeKind}
-        baseErrorCode={walk.walkRouteErrorCode}
-        recalcErrorCode={walk.routeRecalcErrorCode}
-        onRetryBaseRoute={walk.retryWalkRoute}
-        onRetryRecalculation={walk.recalculateRoute}
-      />
+      {!walk.walkRoute ? (
+        <Text style={styles.oneWay}>参考ルートを表示できません。散歩の記録は続けられます。</Text>
+      ) : null}
 
       {walk.trackingErrorCode !== null ? (
         <LocationPermissionNotice

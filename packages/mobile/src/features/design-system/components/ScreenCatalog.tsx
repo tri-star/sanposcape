@@ -1,3 +1,5 @@
+import { queryClient } from "@/api/queryClient";
+import { pinActiveWalkRoute } from "@/features/walk/lib/activeWalkRoute";
 import { useRouter } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,6 +8,7 @@ import { Card } from "@/components/ui/card/Card";
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import {
   DEFAULT_ACTIVE_WALK,
+  SAMPLE_ROUND_TRIP_ROUTE,
   DEFAULT_WALK_GOAL,
   buildSampleFinishedWalk,
 } from "@/features/walk/data/defaults";
@@ -62,9 +65,11 @@ export function ScreenCatalog() {
       description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（往復${DEFAULT_WALK_GOAL.time}分）`,
       icon: "navigation",
       onPress: () => {
+        const clientWalkId = randomUuidV4();
+        pinActiveWalkRoute(queryClient, clientWalkId, SAMPLE_ROUND_TRIP_ROUTE);
         useActiveWalkStore.getState().startWalk({
           ...DEFAULT_ACTIVE_WALK,
-          clientWalkId: randomUuidV4(),
+          clientWalkId,
           startedAtMs: Date.now(),
         });
         router.push("/(tabs)");

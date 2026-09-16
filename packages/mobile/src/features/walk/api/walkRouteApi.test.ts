@@ -1,114 +1,73 @@
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-
-import { ApiError } from "@/api/apiError";
-import { getGetWalkingRouteExploreRoutesWalkingMockHandler } from "@/api/generated/endpoints/explore/explore.msw";
-import type { WalkingRouteRequest, WalkingRouteResponse } from "@/api/generated/model";
+import type { RoundTripRouteRequest, RoundTripRouteResponse } from "@/api/generated/model";
 import { fetchWalkRoute } from "@/features/walk/api/walkRouteApi";
 import { toExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { server } from "@/test/setup";
 
-const REQUEST: WalkingRouteRequest = {
-  origin: { latitude: 35.6812, longitude: 139.7671 },
-  destination: {
-    place_id: "place-1",
-    location: { latitude: 35.6875, longitude: 139.7625 },
-    name: "緑町公園",
+const origin = { latitude: 35, longitude: 139 };
+const goal = { latitude: 35.005, longitude: 139 };
+const request: RoundTripRouteRequest = {
+  origin,
+  destination: { place_id: "park", name: "公園", location: goal },
+  round_trip_duration_minutes: 30,
+};
+const response: RoundTripRouteResponse = {
+  origin,
+  destination: { ...request.destination, name: "公園" },
+  outbound: { duration_seconds: 500, distance_meters: 600, path: [origin, goal] },
+  return: {
+    duration_seconds: 600,
+    distance_meters: 800,
+    path: [goal, { latitude: 35.003, longitude: 139.003 }, origin],
   },
+  duration_seconds: 1100,
+  distance_meters: 1400,
+  bounds: { north_east: { latitude: 35.005, longitude: 139.003 }, south_west: origin },
 };
 
-const RESPONSE: WalkingRouteResponse = {
-  origin: { latitude: 35.6812, longitude: 139.7671 },
-  destination: {
-    place_id: "place-1",
-    location: { latitude: 35.6875, longitude: 139.7625 },
-    name: "緑町公園",
-  },
-  duration_seconds: 1200,
-  distance_meters: 1600,
-  path: [
-    { latitude: 35.6812, longitude: 139.7671 },
-    { latitude: 35.6875, longitude: 139.7625 },
-  ],
-  bounds: {
-    north_east: { latitude: 35.6875, longitude: 139.7671 },
-    south_west: { latitude: 35.6812, longitude: 139.7625 },
-  },
-};
-
-describe("fetchWalkRoute", () => {
-  it("200 レスポンスが WalkRoute に整形される", async () => {
-    server.use(getGetWalkingRouteExploreRoutesWalkingMockHandler(RESPONSE));
-
-    const result = await fetchWalkRoute(REQUEST);
-
-    expect(result).toEqual({
-      origin: { latitude: 35.6812, longitude: 139.7671 },
-      destination: {
-        placeId: "place-1",
-        name: "緑町公園",
-        location: { latitude: 35.6875, longitude: 139.7625 },
-      },
-      durationSeconds: 1200,
-      distanceMeters: 1600,
-      path: [
-        { latitude: 35.6812, longitude: 139.7671 },
-        { latitude: 35.6875, longitude: 139.7625 },
-      ],
-      bounds: {
-        northEast: { latitude: 35.6875, longitude: 139.7671 },
-        southWest: { latitude: 35.6812, longitude: 139.7625 },
-      },
-    });
-  });
-
-  it("送信ボディが WalkingRouteRequest として期待どおり送信される", async () => {
-    let receivedBody: WalkingRouteRequest | undefined;
+describe("round trip route API", () => {
+  it("sends the duration constraint and maps both directed legs and totals", async () => {
     server.use(
-      getGetWalkingRouteExploreRoutesWalkingMockHandler(async (info) => {
-        receivedBody = (await info.request.json()) as WalkingRouteRequest;
-        return RESPONSE;
+      http.post("*/explore/routes/walking/round-trip", async ({ request: req }) => {
+        expect(await req.json()).toEqual(request);
+        return HttpResponse.json(response);
       }),
     );
-
-    await fetchWalkRoute(REQUEST);
-
-    expect(receivedBody).toEqual(REQUEST);
+    const result = await fetchWalkRoute(request, { destinationName: "選択した公園" });
+    expect(result.durationSeconds).toBe(1100);
+    expect(result.distanceMeters).toBe(1400);
+    expect(result.outboundPath).toEqual(response.outbound.path);
+    expect(result.returnPath).toEqual(response.return.path);
+    expect(result.destination.name).toBe("選択した公園");
   });
-
-  it("destinationName が name より優先される", async () => {
-    server.use(getGetWalkingRouteExploreRoutesWalkingMockHandler(RESPONSE));
-
-    const result = await fetchWalkRoute(REQUEST, { destinationName: "選択したスポット名" });
-
-    expect(result.destination.name).toBe("選択したスポット名");
-  });
-
-  it("429 を返すと ApiError(429) が throw され、rate_limited に分類される", async () => {
+  it.each([
+    [404, "round_trip_unavailable"],
+    [429, "rate_limited"],
+    [503, "provider_unavailable"],
+  ] as const)("classifies %s without retry", async (status, expected) => {
+    let calls = 0;
     server.use(
-      http.post("*/explore/routes/walking", () => new HttpResponse(null, { status: 429 })),
+      http.post("*/explore/routes/walking/round-trip", () => {
+        calls++;
+        return new HttpResponse(null, { status });
+      }),
     );
-
-    await expect(fetchWalkRoute(REQUEST)).rejects.toThrow(ApiError);
-
     try {
-      await fetchWalkRoute(REQUEST);
-      expect.unreachable("throw されるはず");
+      await fetchWalkRoute(request);
+      expect.unreachable();
     } catch (error) {
-      expect(toExploreErrorCode(error)).toBe("rate_limited");
+      expect(toExploreErrorCode(error)).toBe(expected);
     }
+    expect(calls).toBe(1);
   });
-
-  it("401（未サインイン）でもリトライせず ApiError(401) になる（呼び出し回数1）", async () => {
-    let callCount = 0;
-    server.use(
-      http.post("*/explore/routes/walking", () => {
-        callCount += 1;
-        return new HttpResponse(null, { status: 401 });
-      }),
-    );
-
-    await expect(fetchWalkRoute(REQUEST)).rejects.toThrow(ApiError);
-    expect(callCount).toBe(1);
+  it("rejects missing or invalid leg data and inconsistent totals", async () => {
+    for (const data of [
+      { ...response, duration_seconds: 1000 },
+      { ...response, return: { ...response.return, path: [] } },
+    ]) {
+      server.use(http.post("*/explore/routes/walking/round-trip", () => HttpResponse.json(data)));
+      await expect(fetchWalkRoute(request)).rejects.toThrow();
+    }
   });
 });

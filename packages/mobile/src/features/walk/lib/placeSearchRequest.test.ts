@@ -69,6 +69,7 @@ describe("buildPlaceSearchRequest", () => {
     expect(request).toEqual({
       origin: { latitude: 35.6812, longitude: 139.7671 },
       round_trip_duration_minutes: 65,
+      route_mode: "loop",
       categories: ["convenience_store", "park"],
       limit: 20,
     });

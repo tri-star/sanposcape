@@ -88,6 +88,8 @@ export function toWalkRoute(response: WalkingRouteResponse, fallbackName?: strin
     durationSeconds: toNonNegative(response.duration_seconds),
     distanceMeters: toNonNegative(response.distance_meters),
     path,
+    outboundPath: path,
+    returnPath: [],
     bounds,
   };
 }
@@ -114,4 +116,37 @@ export function toOneWayMinutes(durationSeconds: number): number {
  */
 export function estimateRoundTripMinutes(durationSeconds: number): number {
   return Math.round((toNonNegative(durationSeconds) * 2) / 60);
+}
+
+/** 周回APIの区間を検証する。壊れた点を間引いて道路を捏造しない。 */
+export function toRoundTripWalkRoute(
+  response: import("@/api/generated/model").RoundTripRouteResponse,
+  fallbackName?: string,
+): WalkRoute {
+  for (const leg of [response.outbound, response.return]) {
+    if (
+      !leg ||
+      leg.path.length < 2 ||
+      !leg.path.every(isValidCoordinate) ||
+      !Number.isFinite(leg.duration_seconds) ||
+      leg.duration_seconds <= 0 ||
+      !Number.isFinite(leg.distance_meters) ||
+      leg.distance_meters <= 0
+    ) {
+      throw new InvalidWalkRouteError("Invalid round trip leg");
+    }
+  }
+  if (
+    response.duration_seconds !==
+      response.outbound.duration_seconds + response.return.duration_seconds ||
+    response.distance_meters !== response.outbound.distance_meters + response.return.distance_meters
+  ) {
+    throw new InvalidWalkRouteError("Invalid round trip totals");
+  }
+  const path = [...response.outbound.path, ...response.return.path];
+  return {
+    ...toWalkRoute({ ...response, path }, fallbackName),
+    outboundPath: response.outbound.path.map((p) => ({ ...p })),
+    returnPath: response.return.path.map((p) => ({ ...p })),
+  };
 }

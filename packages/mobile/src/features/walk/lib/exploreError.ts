@@ -1,6 +1,7 @@
 import { isApiError } from "@/api/apiError";
 
 export type ExploreErrorCode =
+  | "round_trip_unavailable"
   | "unauthorized" // 401
   | "too_large" // 413
   | "invalid_request" // 422
@@ -18,6 +19,8 @@ export function toExploreErrorCode(error: unknown): ExploreErrorCode {
     switch (error.status) {
       case 401:
         return "unauthorized";
+      case 404:
+        return "round_trip_unavailable";
       case 413:
         return "too_large";
       case 422:
@@ -39,6 +42,7 @@ export function toExploreErrorCode(error: unknown): ExploreErrorCode {
 }
 
 const MESSAGES: Record<ExploreErrorCode, string> = {
+  round_trip_unavailable: "周回ルートが見つかりませんでした。別のスポットを選んでください。",
   unauthorized: "サインインすると、まわりのスポットを探せます。",
   too_large: "探索の条件を確認してください。",
   invalid_request: "探索の条件を確認してください。",
