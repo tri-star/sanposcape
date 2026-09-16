@@ -29,7 +29,7 @@
 
 | プロファイル | 用途 | `distribution` | `environment` | Android 成果物 | backend の向き先 |
 |---|---|---|---|---|---|
-| `development` | 日常の開発（dev client + Metro の Fast Refresh） | internal | `development` | apk | ビルド時は未指定。**実行時に Metro が読み込む `.env` の値**が効く |
+| `development` | 日常の開発（dev client + Metro の Fast Refresh） | internal | `development` | apk | ビルド時は未指定。**実行時に Metro が読み込む `.env` の値**が効く（効くのは JS 側の `EXPO_PUBLIC_*` だけ。Maps SDK キーはビルド時に埋め込まれる。下記 `development` 節を参照） |
 | `preview` | CI の Maestro E2E 専用 | internal | `preview` | apk | `http://10.0.2.2:8000`（ランナー上のローカル backend 直結） |
 | `staging` | dev AWS 環境向けの **TestFlight / ストア配布**ビルド | **store** | `preview` | app-bundle | `https://app-api.dev.sanposcape.com` |
 | `staging-apk` | `staging` と同じ中身の **Android APK**（サイドロード配布用） | internal | `preview`（継承） | apk | 同上 |
@@ -164,6 +164,15 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 `developmentClient: true` の dev client を作る。JS は Metro から配信されるため、
 `.env` の値がそのまま効く。**ネイティブ依存が変わったときだけ**作り直せばよい（ADR-003）。
 
+> **実測（2026-09-16 確認）: EAS の `development` 環境にも Maps キーが登録されている。**
+> `eas env:list development` の結果、`GOOGLE_MAPS_ANDROID_SDK_KEY`（secret）と
+> `ANDROID_GOOGLE_MAPS_API_KEY`（sensitive）が登録されており、
+> `eas build --profile development --platform android`（クラウド）で地図が表示される APK ができた。
+> Maps SDK キーはネイティブ側にビルド時に埋め込まれるため、`.env` が効くのは JS 側の
+> `EXPO_PUBLIC_*` だけで、Maps キーは実行時の `.env` では差し替わらない。
+> この登録が下記 SS-79 の決定（`preview` 環境に secret）と別に意図して行われたものかは未確認で、
+> ここでは事実の記録にとどめる。
+
 ### `production`
 
 本番のストア配信用。
@@ -195,7 +204,7 @@ backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:80
 
 | 変数 | 必要なプロファイル | 供給元 | 未設定時の症状 |
 |---|---|---|---|
-| `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **クラウドビルド = EAS 環境変数（`preview` / secret）/ `--local`・ローカル = GitHub Secrets・`.env`**（SS-79。経路ごとに供給元は1つ） | ADR-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
+| `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **クラウドビルド = EAS 環境変数（`preview` / secret）/ `--local`・ローカル = GitHub Secrets・`.env`**（SS-79。経路ごとに供給元は1つ）。実測: `development` 環境にも登録されている（2026-09-16 確認。`development` 節を参照） | ADR-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `staging-ios` / `production`） | EAS 環境変数 | サインイン時に `AuthError("configuration")` |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド（`staging` / `staging-ios` / `production`） | EAS 環境変数 | 同上 |
 
