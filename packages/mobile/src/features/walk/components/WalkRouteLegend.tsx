@@ -44,6 +44,7 @@ export function WalkRouteLegend({ walkRoute, testID }: WalkRouteLegendProps) {
           style={styles.item}
           testID={testID ? `${testID}-${item.kind}` : undefined}
         >
+          {/* 復路の破線見本（borderStyle: "dashed"）は Android 実機で描画されることを確認済み（2026-09-16）。 */}
           <View
             style={[
               styles.swatch,

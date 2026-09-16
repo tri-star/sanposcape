@@ -150,6 +150,8 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 **（SS-33 追補）この決定は撤回する。** 理由: ユーザー判断で、散歩中のルートを参考表示にした（開始時に決めた周回ルートを取り直さない）。再計算は往路/復路の区別（決定9 が禁じる判定）と組み合わせると状態が爆発し、前回試行（PR #62）で不具合源になった（SS-63「往路の再計算時に古いlegを参照」など）。今回はこの2つ（再計算・往路/復路判定）を最初から作らないことで設計を単純化した。
 
+撤回後の実機確認（SS-33 追補）: 2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で、GPS をルートから大きく外しても `/explore/routes/*` への追加リクエストが出ないことを確認した。
+
 削除したファイル: `src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/routeDeviation.ts`（+test）、`src/features/walk/lib/routeRecalculation.ts`（+test）、`src/features/walk/lib/walkRouteNotice.ts`（+test）、`.maestro/walk-route-recalculate.yaml`。`types.ts` の `WalkRouteRecalcStatus` と `WalkActiveView` の再計算ボタン（`walk-active-route-recalc`）も削除した。`WalkRouteNotice` は初期取得エラーだけを表示する単純なコンポーネントに縮小した（`errorCode`/`onRetry` の props）。
 
 以下、当時の決定内容（撤回済み・参考として残す）:
@@ -184,6 +186,12 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - **やること**: `WalkRoute.legs`（`[outbound, return]`）を `lib/walkRouteLegs.ts` の純粋関数（`walkRoutePolylineSegments`/`walkRouteLegendItems`/`walkRouteLoopNote`）で描画用に整形し、往路=実線（`theme.map.route`）・復路=破線＋明度違い（`theme.map.routeReturn`）で描き分け、地図に凡例「行き / 帰り」（`WalkRouteLegend`）を重ねる。現在地ピンと2本の線の位置関係を見て、ユーザー自身が判断できる状態にする。
 - **やらないこと**: 折り返し地点（目的地）への到着判定、現在地がどちらの leg に近いかの推定、進行区間のハイライト。理由はユーザー指示（「折り返し地点に着いたかの判定は不要」）に加え、前回試行（PR #62）で「往路/復路判定（ラッチ＋投影距離）」が再計算との組み合わせで不具合源になったため（決定7 の撤回理由と同じ）。
 - **将来この判定を入れる場合**は本 ADR の再追補が必要。「同じ道フォールバック」（`returnIsSamePath: true`）のときは凡例が1項目（「行き・帰り（同じ道）」）になり、判定の余地自体がないことにも留意する。
+- **検討した選択肢**（ユーザー確認で本決定の形に落ち着いた）:
+  - 凡例なし（線の描き分けだけ）: 最小だが、実線/破線の意味が伝わらないため不採用。
+  - 復路に進行方向の矢印マーカーを置く: 判定は不要だが、マーカーの間隔・向き・ズーム時の見た目調整が必要になるため見送り。
+  - 進行中区間の線を太くする（前回試行 PR #62 の案）: 現在の leg の判定が前提になるため不採用。
+  - 凡例の語彙を「往路・復路」にする: 散歩アプリの語彙として硬いため、平易な「行き・帰り」を採用。
+  - 復路の色を Claude Design で先に定義してから実装する: 着手が遅れるため、既存 primitive を使った semantic トークン（`routeReturn`）の追加で先行し、Design 側への反映は後追いにした（「移行・対応が必要な事項」を参照）。
 
 ## 検討した選択肢
 
@@ -275,6 +283,8 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - ~~**SS-33（往路と復路が異なる周回ルート）** では `WalkRoute` に往路/復路の区別（`legs` 等）が入る見込み。ルートを Query キャッシュで共有する構造自体は維持できるが、API 呼び出しが増える場合は `staleTime` / レート制限の再検討が必要。（SS-35 追補）その場合、決定7 の `walkRouteFitKey` と `isOffRoute` の判定対象（どの leg の折れ線を使うか）も見直しが必要になる。~~ → **SS-33 で対応済み**。`WalkRoute.legs`（`[outbound, return]`）と `returnIsSamePath` が入り、ルートを Query キャッシュで共有する構造（決定2）はそのまま維持した（API 呼び出し回数はむしろ減った。決定7 の撤去により散歩中の呼び出しが0回になったため）。`walkRouteFitKey` は `legs` を見ず引き続き `origin`/`placeId` だけで判定する（地図のフィット範囲は起点と目的地の組で一意に決まり、往路/復路の区別を必要としないため）。`isOffRoute` は決定7 の撤去に伴いファイルごと削除したため、判定対象の見直しは不要になった。
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 - **（SS-33 追補・未着手）`theme.map.routeReturn` の Claude Design 側への反映待ち**。今回はリポジトリ側（`src/theme/tokens.ts`）に semantic トークンを追加しただけで、値の SSoT である Claude Design 側には未反映。`tokens.ts` 冒頭の「デザイン側が更新されたらここを差し替える」運用と噛み合っていないため、次に Design 側のトークンを一括インポートし直すタイミングで `routeReturn` が上書き・欠落しないよう、Design 側への反映を別途依頼すること。
+- **（SS-33 追補）Android 実機での描画確認**: 2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で確認済み。帰りの線は `lineCap="round"` + `lineDashPattern` のため「丸い点の点線」に見え、凡例 `WalkRouteLegend` の破線見本（短い線）と見た目が少し違うが、ユーザー判断で許容し据え置いた。凡例の破線見本と同じ道フォールバック時の凡例は正常に描画された。揃えたくなったら復路だけ `lineCap="butt"` にする（`RoutePolyline` に `lineCap` props を追加する）。
+- **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。
 
 ## 関連情報
 

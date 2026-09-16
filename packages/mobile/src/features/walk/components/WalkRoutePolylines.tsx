@@ -5,7 +5,12 @@ import { useTheme } from "@/theme/useTheme";
 
 export type WalkRoutePolylinesProps = { walkRoute: WalkRoute };
 
-/** 復路の破線パターン（線の長さ, 間隔。px）。 */
+/**
+ * 復路の破線パターン（線の長さ, 間隔。px）。
+ * Android 実機確認（2026-09-16）: `RoutePolyline` の `lineCap="round"` と組み合わさり
+ * 「丸い点の点線」に見え、凡例の破線見本（短い線）と少し違うが、許容して据え置いた。
+ * 揃えたくなったら復路だけ `lineCap="butt"` にする（`RoutePolyline` に `lineCap` props を追加）。
+ */
 const RETURN_DASH_PATTERN = [12, 8];
 
 /** 往路を上に重ねて描画するための zIndex（現在地ピンとの前後関係を見やすくする）。 */
