@@ -27,3 +27,4 @@
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
 - [mobileのHTTP出口は2箇所](mobile-two-http-exits.md) — SS-70。`client.ts`のcustomFetchと`authApi.ts`の生fetch。横断的関心事(認証ヘッダー等)は両方に適用必須
 - [一時障害再送とAPP_VARIANT分岐](transient-retry-and-app-variant.md) — SS-79。再送はGET/HEAD限定(POST再送してはいけない3理由)。app.config.tsはapp.json=開発用実値/APP_VARIANT=production時だけ上書き、ConfigContext.configはPartial型。HOME=再設定はsandboxガードで拒否される
+- [EAS クラウドビルドは sandbox 外で](feedback-eas-cloud-build-outside-sandbox.md) — WSLにAndroid SDKなし→dev buildはEASクラウド。sandbox内はダミーdotfileでEACCES、実HOMEで実行。build:viewでポーリング、APKは/mnt/c/temp経由でadb install
