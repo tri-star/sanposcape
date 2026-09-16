@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -35,6 +36,7 @@ class PlaceSearchRequest(BaseModel):
     round_trip_duration_minutes: int = Field(ge=10, le=120, multiple_of=5)
     categories: list[ExploreCategory] = Field(min_length=1, max_length=6)
     limit: int = Field(default=20, ge=1, le=20)
+    route_mode: Literal["out_and_back", "loop"] = "out_and_back"
 
     @field_validator("categories")
     @classmethod
@@ -63,6 +65,7 @@ class PlaceSearchResponse(BaseModel):
     origin: GeoPoint
     round_trip_duration_minutes: int
     candidates: list[PlaceCandidate]
+    search_complete: bool = True
 
 
 class RouteDestination(BaseModel):
@@ -101,4 +104,24 @@ class WalkingRouteResponse(BaseModel):
     duration_seconds: int = Field(ge=0)
     distance_meters: int = Field(ge=0)
     path: list[GeoPoint] = Field(min_length=2)
+    bounds: MapBounds
+
+
+class RoundTripRouteRequest(WalkingRouteRequest):
+    round_trip_duration_minutes: int = Field(ge=10, le=120, multiple_of=5)
+
+
+class WalkingRouteLeg(BaseModel):
+    duration_seconds: int = Field(gt=0)
+    distance_meters: int = Field(gt=0)
+    path: list[GeoPoint] = Field(min_length=2)
+
+
+class RoundTripRouteResponse(BaseModel):
+    origin: GeoPoint
+    destination: RouteDestinationRead
+    outbound: WalkingRouteLeg
+    return_route: WalkingRouteLeg = Field(alias="return")
+    duration_seconds: int = Field(gt=0)
+    distance_meters: int = Field(gt=0)
     bounds: MapBounds

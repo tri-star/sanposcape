@@ -222,6 +222,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /explore/routes/walking/round-trip:
+    post:
+      tags:
+      - explore
+      summary: Get Round Trip Route
+      operationId: get_round_trip_route
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoundTripRouteRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoundTripRouteResponse'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Explore request body too large
+        '429':
+          description: Map provider quota exceeded or explore rate limit reached
+        '503':
+          description: Map provider unavailable
+        '404':
+          description: round_trip_unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /walks:
     post:
       tags:
@@ -560,6 +595,13 @@ components:
           minimum: 1.0
           title: Limit
           default: 20
+        route_mode:
+          type: string
+          enum:
+          - out_and_back
+          - loop
+          title: Route Mode
+          default: out_and_back
       type: object
       required:
       - origin
@@ -578,12 +620,64 @@ components:
             $ref: '#/components/schemas/PlaceCandidate'
           type: array
           title: Candidates
+        search_complete:
+          type: boolean
+          title: Search Complete
+          default: true
       type: object
       required:
       - origin
       - round_trip_duration_minutes
       - candidates
       title: PlaceSearchResponse
+    RoundTripRouteRequest:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        destination:
+          $ref: '#/components/schemas/RouteDestination'
+        round_trip_duration_minutes:
+          type: integer
+          multipleOf: 5.0
+          maximum: 120.0
+          minimum: 10.0
+          title: Round Trip Duration Minutes
+      type: object
+      required:
+      - origin
+      - destination
+      - round_trip_duration_minutes
+      title: RoundTripRouteRequest
+    RoundTripRouteResponse:
+      properties:
+        origin:
+          $ref: '#/components/schemas/GeoPoint'
+        destination:
+          $ref: '#/components/schemas/RouteDestinationRead'
+        outbound:
+          $ref: '#/components/schemas/WalkingRouteLeg'
+        return:
+          $ref: '#/components/schemas/WalkingRouteLeg'
+        duration_seconds:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Distance Meters
+        bounds:
+          $ref: '#/components/schemas/MapBounds'
+      type: object
+      required:
+      - origin
+      - destination
+      - outbound
+      - return
+      - duration_seconds
+      - distance_meters
+      - bounds
+      title: RoundTripRouteResponse
     RouteDestination:
       properties:
         place_id:
@@ -1064,6 +1158,28 @@ components:
       - distance_meters
       title: WalkStatsTodayRead
       description: 今日（JST 暦日）の集計。
+    WalkingRouteLeg:
+      properties:
+        duration_seconds:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Duration Seconds
+        distance_meters:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Distance Meters
+        path:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          minItems: 2
+          title: Path
+      type: object
+      required:
+      - duration_seconds
+      - distance_meters
+      - path
+      title: WalkingRouteLeg
     WalkingRouteRequest:
       properties:
         origin:

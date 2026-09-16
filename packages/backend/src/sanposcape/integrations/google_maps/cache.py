@@ -49,7 +49,7 @@ class SingleFlight[T]:
         self._lock = Lock()
         self._in_flight: dict[str, Future[T]] = {}
 
-    def do(self, key: str, loader: Callable[[], T]) -> T:
+    def do(self, key: str, loader: Callable[[], T], *, timeout: float | None = None) -> T:
         with self._lock:
             future = self._in_flight.get(key)
             leader = future is None
@@ -57,7 +57,7 @@ class SingleFlight[T]:
                 future = Future[T]()
                 self._in_flight[key] = future
         if not leader:
-            return future.result()
+            return future.result(timeout=timeout)
         try:
             value = loader()
         except BaseException as exc:

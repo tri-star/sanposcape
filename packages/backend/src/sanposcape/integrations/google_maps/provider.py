@@ -36,3 +36,13 @@ class GoogleMapsProvider(Protocol):
     def get_walking_route(
         self, origin: ProviderPoint, destination: ProviderPoint, *, timeout_seconds: float
     ) -> ProviderRoute: ...
+
+    def get_walking_routes(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderPoint, ...] = (),
+        alternatives: bool = False,
+    ) -> tuple[ProviderRoute, ...]: ...

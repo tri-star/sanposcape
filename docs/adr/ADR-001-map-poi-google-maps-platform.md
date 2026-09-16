@@ -103,3 +103,21 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - [プロジェクト概要](../project-overview.md)
 - [ADR-002: モバイル技術スタック](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)
 - backend フォルダ構造（`integrations/` 隔離層）: [folder-structure](../../packages/backend/docs/folder-structure.md)
+
+## 2026-09-16 追補: SS-33 周回ルート
+
+### 決定・理由
+
+- `POST /explore/routes/walking/round-trip` を追加する。起点・目的地・往復時間上限を受け、`outbound` / `return` の2区間と実経路の合計値・全体boundsを返す。従来の片道APIは互換性のため維持する。
+- `/explore/places` の `route_mode=loop` は同じ周回プランナーで候補を評価する。省略時は従来の片道×2。新mobileはloopを明示し、予測時間・距離を周回経路に揃える。
+- 往路を取得し、復路の代替候補を重複率→所要時間→距離の順に評価する。不成立なら起終点の左右に経由点を各1回試す。単一の往復リクエストでは異なる復路を保証できないため、この方式を採用する。
+- 判定は10m以下の間隔で距離加重サンプリングし、相手の線分から20m以内の共有率を両方向に測る。共有率50%以下、復路長は往路の2倍以下、合計予測時間はユーザー指定以内。Googleの道路へのスナップを考慮し、要求座標との端点差150m以内、往復の接続差30m以内とする。線を反転しただけの復路は成功としない。
+- Googleが返した道路の線だけを表示する。周回不成立は404 `round_trip_unavailable`、上流障害503、クォータ429を区別する。同じ道を戻る暗黙のフォールバックは、中核要件を満たさないため採用しない。
+
+### コストと影響
+
+- 1スポットは最大4回、検索全体は既存のRoutes呼び出し上限（既定20）まで。最悪4回分を予約できる候補数に絞り、基本の往復を先に評価してから追加経由点を試す。全候補を評価できない場合は `search_complete=false` でmobileに伝える。条件に合う候補が少ない場合がある。
+- 周回検索は既存の検索時間予算（既定10秒）を共有する。PlacesとRoutesの共有待機に残時間を適用する。HTTPはasyncio.timeoutで本文取得まで含めた総待機時間を制限し、リクエストごとに接続を閉じる（同期serviceからリクエスト専用イベントループで呼び、終了時にDNS executorの完了を待たずループを閉じる）。幾何評価中とキャッシュ登録前にも締切を確認し、超過結果は採用しない。
+- 外部応答のキャッシュは方向・経由点・代替指定を区別し、同時要求はSingleFlightでまとめる。選定済み周回はプロセス内の容量・TTL付きキャッシュに起終点・時間上限・選定方式バージョンをキーとして保持し、一覧と選択後の取得に共有する。名称は取得時のメタ情報として返す。
+- DBスキーマは変更しない。Google経路は永続化せず、散歩記録には従来どおり実測trackを保存する。
+- 根拠: [代替経路](https://developers.google.com/maps/documentation/routes/alternative-routes)、[経由点](https://developers.google.com/maps/documentation/routes/intermed_waypoints)。代替経路は取得できない場合があり、経由点との同時指定は使わない。

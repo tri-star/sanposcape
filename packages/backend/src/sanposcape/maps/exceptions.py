@@ -4,3 +4,7 @@ class MapsQuotaError(Exception):
 
 class MapsUnavailableError(Exception):
     pass
+
+
+class RoundTripUnavailableError(Exception):
+    pass

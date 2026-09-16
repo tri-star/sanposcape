@@ -4,6 +4,8 @@ from sanposcape.maps.dependencies import enforce_explore_rate_limit, get_maps_se
 from sanposcape.maps.schemas import (
     PlaceSearchRequest,
     PlaceSearchResponse,
+    RoundTripRouteRequest,
+    RoundTripRouteResponse,
     WalkingRouteRequest,
     WalkingRouteResponse,
 )
@@ -45,3 +47,17 @@ def get_walking_route(
     _rate_limit: None = Depends(enforce_explore_rate_limit),
 ) -> WalkingRouteResponse:
     return service.get_walking_route(payload)
+
+
+@router.post(
+    "/routes/walking/round-trip",
+    response_model=RoundTripRouteResponse,
+    operation_id="get_round_trip_route",
+    responses={**_ERROR_RESPONSES, 404: {"description": "round_trip_unavailable"}},
+)
+def get_round_trip_route(
+    payload: RoundTripRouteRequest,
+    service: MapsService = Depends(get_maps_service),
+    _rate_limit: None = Depends(enforce_explore_rate_limit),
+) -> RoundTripRouteResponse:
+    return service.get_round_trip_route(payload)

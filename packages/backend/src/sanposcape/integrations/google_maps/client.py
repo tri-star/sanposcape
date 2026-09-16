@@ -1,6 +1,9 @@
+import asyncio
 import json
 import logging
 import math
+import ssl
+from time import monotonic
 from typing import Any
 
 import httpx
@@ -51,23 +54,36 @@ class UnconfiguredGoogleMapsProvider:
     ) -> ProviderRoute:
         raise GoogleMapsUnavailableError()
 
+    def get_walking_routes(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderPoint, ...] = (),
+        alternatives: bool = False,
+    ) -> tuple[ProviderRoute, ...]:
+        raise GoogleMapsUnavailableError()
+
 
 class HttpGoogleMapsProvider:
-    def __init__(self, settings: Settings, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
         self._key = settings.google_maps_server_api_key
-        self._client = client or httpx.Client(
-            timeout=httpx.Timeout(
-                settings.google_maps_read_timeout_seconds,
-                connect=settings.google_maps_connect_timeout_seconds,
-            )
-        )
-        self._owns_client = client is None
+        self._transport = transport
+        # Reuse SSL configuration; each bounded request owns and closes its connections.
+        self._ssl_context = ssl.create_default_context()
         self._places_cache: TtlCache[tuple[ProviderPlace, ...]] = TtlCache(
             settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
         )
         self._routes_cache: TtlCache[ProviderRoute] = TtlCache(
             settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
         )
+        self._route_options_cache: TtlCache[tuple[ProviderRoute, ...]] = TtlCache(
+            settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
+        )
+        self._route_options_flight: SingleFlight[tuple[ProviderRoute, ...]] = SingleFlight()
         self._places_flight: SingleFlight[tuple[ProviderPlace, ...]] = SingleFlight()
         self._routes_flight: SingleFlight[ProviderRoute] = SingleFlight()
 
@@ -83,9 +99,15 @@ class HttpGoogleMapsProvider:
         cached = self._places_cache.get(key)
         if cached is not None:
             return cached
-        return self._places_flight.do(
-            key, lambda: self._load_places(key, origin, categories, limit, timeout_seconds)
-        )
+        deadline = monotonic() + timeout_seconds
+        try:
+            return self._places_flight.do(
+                key,
+                lambda: self._load_places(key, origin, categories, limit, deadline - monotonic()),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError as exc:
+            raise GoogleMapsUnavailableError() from exc
 
     def _load_places(
         self,
@@ -169,17 +191,116 @@ class HttpGoogleMapsProvider:
         self._routes_cache.put(key, result)
         return result
 
+    def get_walking_routes(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderPoint, ...] = (),
+        alternatives: bool = False,
+    ) -> tuple[ProviderRoute, ...]:
+        # Separate namespace: a default route must never satisfy an alternatives request.
+        key = repr(("walking-options-v1", origin, destination, intermediates, alternatives))
+        deadline = monotonic() + timeout_seconds
+
+        def load() -> tuple[ProviderRoute, ...]:
+            cached = self._route_options_cache.get(key)
+            if cached is not None:
+                return cached
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise GoogleMapsUnavailableError()
+            payload = {
+                "origin": {"location": {"latLng": self._lat_lng(origin)}},
+                "destination": {"location": {"latLng": self._lat_lng(destination)}},
+                "travelMode": "WALK",
+                "computeAlternativeRoutes": alternatives and not intermediates,
+                "polylineQuality": "HIGH_QUALITY",
+            }
+            if intermediates:
+                payload["intermediates"] = [
+                    {"location": {"latLng": self._lat_lng(point)}} for point in intermediates
+                ]
+            response = self._request(
+                "POST",
+                f"{_ROUTES_BASE_URL}:computeRoutes",
+                json=payload,
+                headers={
+                    "X-Goog-FieldMask": (
+                        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+                    )
+                },
+                timeout_seconds=remaining,
+            )
+            if monotonic() > deadline:
+                raise GoogleMapsUnavailableError()
+            raw = response.get("routes", [])
+            if not isinstance(raw, list):
+                raise GoogleMapsUnavailableError()
+            routes = []
+            for route in raw:
+                try:
+                    duration = self._duration_seconds(route["duration"])
+                    distance = int(route["distanceMeters"])
+                    path = tuple(self._decode_polyline(route["polyline"]["encodedPolyline"]))
+                except (KeyError, TypeError, ValueError, OverflowError) as exc:
+                    raise GoogleMapsUnavailableError() from exc
+                if (
+                    duration < 0
+                    or distance < 0
+                    or any(
+                        not -90 <= point.latitude <= 90 or not -180 <= point.longitude <= 180
+                        for point in path
+                    )
+                ):
+                    raise GoogleMapsUnavailableError()
+                # A route at the same point can legitimately be zero length.
+                if duration > 0 and distance > 0 and len(path) >= 2:
+                    routes.append(ProviderRoute(duration, distance, path))
+            result = tuple(routes)
+            if monotonic() > deadline:
+                raise GoogleMapsUnavailableError()
+            if result:
+                self._route_options_cache.put(key, result)
+            return result
+
+        try:
+            return self._route_options_flight.do(key, load, timeout=timeout_seconds)
+        except TimeoutError as exc:
+            raise GoogleMapsUnavailableError() from exc
+
     def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
         timeout_seconds = kwargs.pop("timeout_seconds")
+        deadline = monotonic() + timeout_seconds
+        if timeout_seconds <= 0:
+            raise GoogleMapsUnavailableError()
+
+        async def request() -> httpx.Response:
+            # Per-read timeouts do not stop slow trickle responses. Cancel the entire
+            # operation (including body consumption) when the wall-clock budget expires.
+            async with asyncio.timeout(timeout_seconds):
+                async with httpx.AsyncClient(
+                    transport=self._transport, verify=self._ssl_context
+                ) as client:
+                    return await client.request(
+                        method,
+                        url,
+                        headers={"X-Goog-Api-Key": self._key, **kwargs.pop("headers", {})},
+                        timeout=timeout_seconds,
+                        **kwargs,
+                    )
+
         try:
-            response = self._client.request(
-                method,
-                url,
-                headers={"X-Goog-Api-Key": self._key, **kwargs.pop("headers", {})},
-                timeout=timeout_seconds,
-                **kwargs,
-            )
-        except httpx.TimeoutException as exc:
+            loop = asyncio.new_event_loop()
+            try:
+                response = loop.run_until_complete(request())
+            finally:
+                # asyncio.run waits for DNS executor threads during shutdown, even
+                # after cancellation. Closing this request-owned loop releases its
+                # executor without waiting for a stalled system resolver.
+                loop.close()
+        except (TimeoutError, httpx.TimeoutException) as exc:
             logger.warning("Google Maps request timed out: %s %s", method, _endpoint(url))
             raise GoogleMapsUnavailableError() from exc
         except httpx.HTTPError as exc:
@@ -202,6 +323,8 @@ class HttpGoogleMapsProvider:
         except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
             self._log_error_response(method, url, response)
             raise GoogleMapsUnavailableError() from exc
+        if monotonic() > deadline:
+            raise GoogleMapsUnavailableError()
         return body if isinstance(body, dict) else {}
 
     def _log_error_response(self, method: str, url: str, response: httpx.Response) -> None:
@@ -232,8 +355,7 @@ class HttpGoogleMapsProvider:
         return text
 
     def close(self) -> None:
-        if self._owns_client:
-            self._client.close()
+        """Connections are closed inside each bounded request."""
 
     @staticmethod
     def _lat_lng(point: ProviderPoint) -> dict[str, float]:

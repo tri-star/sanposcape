@@ -216,3 +216,28 @@ def test_openapi_declares_non_empty_japanese_preferred_place_names() -> None:
     assert name["minLength"] == 1
     assert "Japanese-preferred" in name["description"]
     assert "falls back" in name["description"]
+
+
+def test_round_trip_endpoint_serializes_both_legs_and_no_route(client: TestClient):
+    from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
+
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeGoogleMapsProvider(), 20, 20, 10, 8
+    )
+    payload = _payload()
+    payload["destination"]["location"] = {"latitude": 35.005, "longitude": 139}
+    payload["round_trip_duration_minutes"] = 30
+    try:
+        response = client.post("/explore/routes/walking/round-trip", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert (
+            data["duration_seconds"]
+            == data["outbound"]["duration_seconds"] + data["return"]["duration_seconds"]
+        )
+        payload["destination"]["location"] = payload["origin"]
+        response = client.post("/explore/routes/walking/round-trip", json=payload)
+        assert response.status_code == 404
+        assert response.json() == {"detail": "round_trip_unavailable"}
+    finally:
+        app.dependency_overrides.clear()

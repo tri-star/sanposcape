@@ -28,11 +28,15 @@ def enforce_explore_rate_limit(
 
 
 def get_maps_service(
+    request: Request,
     settings: Settings = Depends(get_settings),
     provider: GoogleMapsProvider = Depends(get_google_maps_provider),
 ) -> MapsService:
     return MapsService(
         provider,
+        round_trip_planner=request.app.state.round_trip_planner
+        if request.app.state.round_trip_planner.provider is provider
+        else None,
         max_place_candidates=settings.google_maps_max_place_candidates,
         max_route_requests=settings.google_maps_max_route_requests_per_search,
         search_deadline_seconds=settings.google_maps_search_deadline_seconds,

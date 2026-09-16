@@ -21,7 +21,7 @@ from sanposcape.integrations.google_maps.provider import ProviderPoint
 def _provider(handler):
     transport = httpx.MockTransport(handler)
     return HttpGoogleMapsProvider(
-        Settings(google_maps_server_api_key="server-key"), client=httpx.Client(transport=transport)
+        Settings(google_maps_server_api_key="server-key"), transport=transport
     )
 
 
@@ -340,4 +340,134 @@ def test_build_provider_returns_http_when_real_mode_with_key() -> None:
     try:
         assert isinstance(provider, HttpGoogleMapsProvider)
     finally:
+        provider.close()
+
+
+def test_route_options_cache_separates_direction_alternatives_and_waypoints():
+    payloads = []
+
+    def handler(request):
+        payloads.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "routes": [
+                    {
+                        "duration": "100s",
+                        "distanceMeters": 120,
+                        "polyline": {"encodedPolyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@"},
+                    }
+                ]
+            },
+        )
+
+    provider = _provider(handler)
+    a, b = ProviderPoint(35, 139), ProviderPoint(35.01, 139)
+    provider.get_walking_routes(a, b, timeout_seconds=2)
+    provider.get_walking_routes(a, b, timeout_seconds=2)
+    provider.get_walking_routes(b, a, alternatives=True, timeout_seconds=2)
+    provider.get_walking_routes(
+        b, a, intermediates=(ProviderPoint(35.005, 139.002),), alternatives=True, timeout_seconds=2
+    )
+    assert len(payloads) == 3
+    assert payloads[1]["computeAlternativeRoutes"] is True
+    assert payloads[2]["computeAlternativeRoutes"] is False
+    assert len(payloads[2]["intermediates"]) == 1
+
+
+def test_route_options_empty_is_not_an_upstream_failure():
+    provider = _provider(lambda request: httpx.Response(200, json={}))
+    assert (
+        provider.get_walking_routes(
+            ProviderPoint(35, 139), ProviderPoint(35.01, 139), timeout_seconds=2
+        )
+        == ()
+    )
+
+
+@pytest.mark.parametrize(
+    "status,error", [(429, GoogleMapsQuotaError), (503, GoogleMapsUnavailableError)]
+)
+def test_route_options_upstream_failure_is_not_no_route(status, error):
+    provider = _provider(lambda request: httpx.Response(status))
+    with pytest.raises(error):
+        provider.get_walking_routes(
+            ProviderPoint(35, 139), ProviderPoint(35.01, 139), timeout_seconds=2
+        )
+
+
+def test_total_timeout_cancels_a_trickling_response_body():
+    import asyncio
+    from time import monotonic
+
+    class SlowBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            for _ in range(100):
+                await asyncio.sleep(0.01)
+                yield b" "
+            yield b"{}"
+
+    async def handler(request):
+        return httpx.Response(200, stream=SlowBody())
+
+    provider = _provider(handler)
+    started = monotonic()
+    with pytest.raises(GoogleMapsUnavailableError):
+        provider.get_walking_routes(
+            ProviderPoint(35, 139), ProviderPoint(35.01, 139), timeout_seconds=0.05
+        )
+    assert monotonic() - started < 0.5
+
+
+def test_places_singleflight_follower_has_its_own_timeout(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    provider = _provider(lambda request: httpx.Response(200, json={}))
+    entered, release = Event(), Event()
+
+    def load(*args):
+        entered.set()
+        release.wait(2)
+        return ()
+
+    monkeypatch.setattr(provider, "_load_places", load)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        leader = executor.submit(
+            provider.search_places, ProviderPoint(35, 139), ("park",), 1, timeout_seconds=1
+        )
+        assert entered.wait(1)
+        try:
+            with pytest.raises(GoogleMapsUnavailableError):
+                provider.search_places(ProviderPoint(35, 139), ("park",), 1, timeout_seconds=0.01)
+        finally:
+            release.set()
+        assert leader.result() == ()
+
+
+def test_total_timeout_does_not_wait_for_dns_executor(monkeypatch):
+    import socket
+    from threading import Event
+    from time import monotonic
+
+    entered, release = Event(), Event()
+
+    def stalled_dns(*args, **kwargs):
+        entered.set()
+        release.wait(2)
+        raise socket.gaierror("test resolver unavailable")
+
+    monkeypatch.setattr(socket, "getaddrinfo", stalled_dns)
+    provider = _provider(lambda request: httpx.Response(200, json={}))
+    provider._transport = httpx.AsyncHTTPTransport()
+    started = monotonic()
+    try:
+        with pytest.raises(GoogleMapsUnavailableError):
+            provider.get_walking_routes(
+                ProviderPoint(35, 139), ProviderPoint(35.01, 139), timeout_seconds=0.05
+            )
+        assert entered.is_set()
+        assert monotonic() - started < 0.5
+    finally:
+        release.set()
         provider.close()

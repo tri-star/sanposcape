@@ -104,6 +104,27 @@ class FakeGoogleMapsProvider:
             path=path,
         )
 
+    def get_walking_routes(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        *,
+        timeout_seconds: float,
+        intermediates: tuple[ProviderPoint, ...] = (),
+        alternatives: bool = False,
+    ) -> tuple[ProviderRoute, ...]:
+        direct = self.get_walking_route(origin, destination, timeout_seconds=timeout_seconds)
+        if intermediates:
+            path = (origin, *intermediates, destination)
+        elif alternatives:
+            middle = _interpolate(origin, destination, 0.5)
+            path = (origin, _offset(middle, direct.distance_meters * 0.45, 0), destination)
+        else:
+            return (direct,)
+        distance = sum(_distance_meters(a, b) for a, b in zip(path, path[1:], strict=False))
+        candidate = ProviderRoute(round(distance / 1.25), round(distance), path)
+        return (direct, candidate) if alternatives and not intermediates else (candidate,)
+
 
 def _offset(origin: ProviderPoint, north_meters: float, east_meters: float) -> ProviderPoint:
     """origin から北へ `north_meters`、東へ `east_meters` 移動した点を返す。

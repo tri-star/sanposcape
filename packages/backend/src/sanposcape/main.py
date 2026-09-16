@@ -20,8 +20,13 @@ from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimi
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
-from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
+from sanposcape.maps.exceptions import (
+    MapsQuotaError,
+    MapsUnavailableError,
+    RoundTripUnavailableError,
+)
 from sanposcape.maps.rate_limit import ExploreRateLimiter
+from sanposcape.maps.round_trip import RoundTripPlanner
 from sanposcape.maps.router import router as maps_router
 from sanposcape.spots.router import router as spots_router
 from sanposcape.users.router import router as users_router
@@ -100,6 +105,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _maps_quota(request: Request, exc: MapsQuotaError) -> JSONResponse:
         return JSONResponse(status_code=429, content={"detail": "Map provider quota exceeded"})
 
+    @app.exception_handler(RoundTripUnavailableError)
+    async def _round_trip_unavailable(
+        request: Request, exc: RoundTripUnavailableError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "round_trip_unavailable"})
+
     @app.exception_handler(MapsUnavailableError)
     async def _maps_unavailable(request: Request, exc: MapsUnavailableError) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": "Map provider unavailable"})
@@ -118,6 +129,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Keep the Maps HTTP client and its process-local cache alive across requests."""
     provider = build_google_maps_provider(app.state.settings)
     app.state.google_maps_provider = provider
+    app.state.round_trip_planner = RoundTripPlanner(
+        provider,
+        app.state.settings.google_maps_cache_ttl_seconds,
+        app.state.settings.google_maps_cache_max_entries,
+    )
     app.state.explore_rate_limiter = ExploreRateLimiter(
         app.state.settings.google_maps_rate_limit_requests,
         app.state.settings.google_maps_anonymous_rate_limit_requests,
