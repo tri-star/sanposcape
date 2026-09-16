@@ -1,15 +1,17 @@
 ---
 name: relation-definitions-402
-description: list_work_item_relation_definitions and non-built-in relation types (e.g. relates_to) fail with HTTP 402 on this workspace's Plane plan
+description: Custom "relates to" relation now works via mcp__plane__workitem_relation (list_definitions/create) as of 2026-09-17; the old 402 block on the legacy list_work_item_relation_definitions tool no longer applies
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
-`mcp__plane__list_work_item_relation_definitions` returns `HTTP 402: Payment Required` on this workspace (confirmed 2026-08-01, tried twice). This means custom relation definitions (which is where "relates_to" style labels live) are a paid-plan feature not available here.
+**Update 2026-09-17**: The current `mcp__plane__workitem_relation` tool's `list_definitions` action succeeds (no 402) and returns a default custom definition **"Relates to"** (id `d496b11b-a5c7-4804-a70d-130c8d4e9488`, outward/inward label both `"relates to"`) plus `"Duplicate"` (id `25a9827d-ca06-4727-9f2e-79d7b87d4c63`). Successfully created a `relates to` link between SS-92 and SS-33 using `workitem_relation create` with `relation_definition_id=d496b11b-a5c7-4804-a70d-130c8d4e9488`, `relation_definition_label="relates to"`.
 
-`create_work_item_relation` only accepts these built-in `relation_type` values without a custom definition:
-`blocking`, `blocked_by`, `start_before`, `start_after`, `finish_before`, `finish_after`.
+**How to apply now:** When a user asks to "関連付けて / relates to" two work items in this project, use `workitem_relation create` with `workitem_id`, `workitem_ids=[<other id>]`, `relation_definition_id="d496b11b-a5c7-4804-a70d-130c8d4e9488"`, `relation_definition_label="relates to"`. No need to fall back to comment/link-only anymore — try this first. If it ever fails again, re-run `workitem_relation list_definitions` to confirm the id is still valid before falling back to a description mention or `workitem_link`.
 
-**Why:** Attempted to link SS-33 to SS-16 with `relation_type="relates_to"` — rejected because relates_to isn't a built-in dependency type; falling back to `list_work_item_relation_definitions` to find/create a custom "relates to" definition then failed with 402 Payment Required (workspace plan limitation, not a transient error).
+---
 
-**How to apply:** Don't retry `list_work_item_relation_definitions` or custom relation creation on this workspace — it will keep failing until the Plane plan changes. If a user asks for a "relates_to" / non-dependency relation, explain this limitation upfront and offer alternatives: a built-in dependency relation if it actually fits (rare), a comment/description mention, or a work item link (`create_work_item_link`) pointing to the other item's URL.
+### Historical note (superseded, kept for context)
+
+Previously (confirmed 2026-08-01, tried twice through the older `list_work_item_relation_definitions` tool) custom relation definitions returned `HTTP 402: Payment Required`, and only built-in dependency `relation_type` values (`blocking`, `blocked_by`, `start_before`, `start_after`, `finish_before`, `finish_after`) worked. This was cited when linking SS-33↔SS-16, SS-36↔SS-19, SS-61↔SS-37 etc. via description text or parent/child instead. **This limitation no longer reproduces** as of 2026-09-17 — either the plan changed or the tool changed. Don't assume 402 anymore; try `workitem_relation list_definitions`/`create` first.
