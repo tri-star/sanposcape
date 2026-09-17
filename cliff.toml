@@ -5,11 +5,14 @@
 #   --include-path   そのアプリのディレクトリ（例: 'packages/backend/**'）
 #   --tag-pattern    そのアプリのタグ（例: '^backend/v[0-9]+\.[0-9]+\.[0-9]+$'）
 # 例（backend の次バージョンと、前回タグ以降のリリースノート）:
-#   git-cliff --offline --include-path 'packages/backend/**' \
+#   git-cliff --offline --unreleased --include-path 'packages/backend/**' \
 #     --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --bumped-version
-#   git-cliff --offline --include-path 'packages/backend/**' \
-#     --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --unreleased --strip all
+#   git-cliff --offline --unreleased --include-path 'packages/backend/**' \
+#     --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --strip all
 #
+# ★ `--include-path` を使うときは `--unreleased` を必ず付けること（`--bumped-version` でも）。
+#   付けないと、パス条件に当たらないコミット（マージコミット等）に付いた前回タグを見失い、
+#   全履歴を対象に bump してしまう（git-cliff 2.14.1 で確認）。
 # ★ `--offline` を付けること。GITHUB_TOKEN が環境にあると GitHub API から PR 情報などを
 #   取りに行くが、このリポジトリのテンプレートでは使っていない。
 
