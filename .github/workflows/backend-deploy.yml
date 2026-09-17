@@ -16,25 +16,18 @@ name: backend deploy (SAM)
 #   lambda:InvokeFunction が無く、スキーマ変更をデプロイと不可分にしない方針のため
 #   （ADR-005 決定9）。デプロイ後に手元から実行する（Job Summary に案内を出す）。
 # ★ デプロイ順は常に SAM → Terraform（sanposcape-infra）。このワークフローは Terraform を触らない。
+# ★ 起動は workflow_dispatch のみ（main への push による自動デプロイはしない）。
+#   - development: 任意の ref から起動できる（書き込み権限を持つ人が明示的に起動する）。
+#   - production: main からのみ。prepare の ref チェック + Environment の main 限定 + Required reviewers。
+# ★ production のデプロイに成功したときだけ、release job がデプロイした SHA に `backend/vX.Y.Z` タグと
+#   GitHub Release を作る（development ではバージョンを振らない）。バージョンとリリースノートは
+#   リポジトリ直下の cliff.toml（git-cliff）で、前回の backend/v* タグ以降の packages/backend/** の
+#   コミットから算出する。
 # ★ pull_request / pull_request_target トリガーを絶対に足さないこと。このリポジトリは public で、
 #   fork からの PR のワークフロー定義でデプロイ経路（environment と OIDC）に到達され得る。
 #   インフラ側のロールの trust も pull_request の subject を含めていない。
 
 on:
-  push:
-    branches: [main]
-    # デプロイ成果物に入るもの・デプロイ設定だけを明示列挙する（docs や tests だけの変更で
-    # dev へのデプロイを走らせないため）。否定パターンは読み違えやすいので使わない。
-    paths:
-      - "packages/backend/src/**"
-      - "packages/backend/alembic/**"
-      - "packages/backend/alembic.ini"
-      - "packages/backend/pyproject.toml"
-      - "packages/backend/uv.lock"
-      - "packages/backend/template.yaml"
-      - "packages/backend/samconfig.toml"
-      - "packages/backend/Makefile"
-      - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
     inputs:
       environment:
@@ -44,12 +37,13 @@ on:
         default: development
         required: true
 
-# 実行単位（ビルドを含む）で環境ごとに直列化する。deploy job 単位の直列化だけだと、
+# 実行単位（ビルド・リリースを含む）で環境ごとに直列化する。deploy job 単位の直列化だけだと、
 # 後から来た run のビルドが先に終わった場合に古いコミットが後からデプロイされて巻き戻る。
+# release job（タグの採番）も同じ run に含めることで、production の採番が並行しない。
 # 実行中のデプロイを途中で止めると CloudFormation が UPDATE_ROLLBACK に入るため取り消さない
-# （待機中の run は新しい run に置き換わる = 最新のコミットだけが残る）。
+# （待機中の run は新しい run に置き換わる = 最後に起動したものだけが残る）。
 concurrency:
-  group: backend-deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'development' }}
+  group: backend-deploy-${{ inputs.environment }}
   cancel-in-progress: false
 
 permissions: {}
@@ -66,16 +60,11 @@ jobs:
       - name: Resolve target environment
         id: resolve
         env:
-          EVENT_NAME: ${{ github.event_name }}
           INPUT_ENVIRONMENT: ${{ inputs.environment }}
           GIT_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [ "$EVENT_NAME" = "push" ]; then
-            environment=development
-          else
-            environment="$INPUT_ENVIRONMENT"
-          fi
+          environment="$INPUT_ENVIRONMENT"
           case "$environment" in
             development) config_env=dev ;;
             production) config_env=prod ;;
@@ -96,7 +85,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # テスト（lint / test / マイグレーションのスモーク）を通ったコミットだけをデプロイする。
-  # main の ruleset は PR を必須にしていないため、push 時の backend CI とは別にここで担保する。
+  # development は任意の ref から起動でき、main の ruleset も PR を必須にしていないため、
+  # デプロイする ref そのものでここで担保する。
   ci:
     needs: prepare
     permissions:
@@ -228,4 +218,118 @@ jobs:
             echo "  --cli-binary-format raw-in-base64-out --payload '{}' \\"
             echo "  --cli-read-timeout 360 /dev/stdout"
             echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # production へのデプロイ成功後に、デプロイした SHA へ backend/vX.Y.Z タグと GitHub Release を作る。
+  # - バージョン: git-cliff の bump 規則（cliff.toml の [bump]）。タグが無い初回は backend/v0.1.0。
+  # - 本文: 前回の backend/v* タグ以降で packages/backend/** に触れたコミット（Conventional Commits で分類）。
+  # 次の場合はタグを作らずにスキップし、理由を Job Summary に出す（デプロイ自体は成功扱いのまま）。
+  # - デプロイした SHA が既に backend/v* タグ付き（同じコミットの再デプロイ）
+  # - 最新の backend/v* タグがデプロイした SHA の祖先ではない（過去のコミットの再デプロイ = ロールバック。
+  #   ここで採番すると既存タグと番号が衝突し得る）
+  # - 前回タグ以降にリリースノートへ載るべき backend のコミットが無い
+  release:
+    needs: [prepare, deploy]
+    if: needs.prepare.outputs.environment == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # タグと Release の作成に contents: write が必要。AWS には触らないので id-token / environment は付けない。
+    permissions:
+      contents: write
+    env:
+      GIT_CLIFF_VERSION: "2.14.1"
+      # https://github.com/orhun/git-cliff/releases/download/v2.14.1/git-cliff-2.14.1-x86_64-unknown-linux-musl.tar.gz.sha512
+      GIT_CLIFF_SHA512: b5ce5da0189e50fe6c64753bb205b4c8a4a657b5ab9301d2690d7bb66238388e8146237ba0eb407a5b8ee49d9a1646ea02b392b470d8ca19f0b948cf8a62965f
+      TAG_PREFIX: backend/v
+      DEPLOYED_SHA: ${{ github.sha }}
+    steps:
+      # 前回タグの検出と差分の算出に全履歴とタグが要る。タグの作成は gh（API）で行うので git の認証情報は残さない。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install git-cliff
+        run: |
+          set -euo pipefail
+          archive="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/${archive}"
+          echo "${GIT_CLIFF_SHA512}  $RUNNER_TEMP/$archive" | sha512sum -c -
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
+          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
+
+      - name: Resolve release version and notes
+        id: version
+        env:
+          # タグが1つも無いときのバージョン（cliff.toml の initial_tag を接頭辞付きで上書き）。
+          GIT_CLIFF__BUMP__INITIAL_TAG: backend/v0.1.0
+        run: |
+          set -euo pipefail
+          # --unreleased を必ず付ける。付けないと、--include-path に当たらないコミット（マージコミット等）に
+          # 付いた前回タグを見失い、全履歴から bump してしまう（git-cliff 2.14.1 で確認）。
+          cliff=(git-cliff --offline --unreleased
+            --include-path 'packages/backend/**'
+            --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$')
+
+          skip() {
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## リリース作成をスキップしました"
+              echo
+              echo "$1"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          existing="$(git tag --points-at "$DEPLOYED_SHA" --list "${TAG_PREFIX}*" | head -n 1)"
+          if [ -n "$existing" ]; then
+            skip "デプロイしたコミット \`$DEPLOYED_SHA\` は既に \`$existing\` としてリリース済みです（再デプロイ）。"
+          fi
+
+          latest="$(git tag --list "${TAG_PREFIX}*" --sort=-v:refname | head -n 1)"
+          if [ -n "$latest" ] && ! git merge-base --is-ancestor "$latest" "$DEPLOYED_SHA"; then
+            skip "最新のタグ \`$latest\` がデプロイしたコミット \`$DEPLOYED_SHA\` の祖先ではありません（過去のコミットの再デプロイ）。バージョンは振りません。"
+          fi
+
+          commit_count="$("${cliff[@]}" --context | jq '[.[].commits | length] | add // 0')"
+          if [ "$commit_count" -eq 0 ]; then
+            skip "前回のタグ（${latest:-なし}）以降に、リリースノートに載る packages/backend のコミットがありません。"
+          fi
+
+          next="$("${cliff[@]}" --bumped-version)"
+          if ! [[ "$next" =~ ^backend/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::git-cliff が想定外のバージョンを返しました: $next"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$next" > /dev/null; then
+            echo "::error::タグ $next は既に存在します（前回タグ: ${latest:-なし}）"
+            exit 1
+          fi
+
+          "${cliff[@]}" --strip all --output "$RUNNER_TEMP/release-notes.md"
+          {
+            echo "skip=false"
+            echo "tag=$next"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and GitHub Release
+        if: steps.version.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # タグが無ければ --target の SHA に作られる。GITHUB_TOKEN で作ったタグは他のワークフローを起動しない。
+          gh release create "$RELEASE_TAG" \
+            --target "$DEPLOYED_SHA" \
+            --title "$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+          {
+            echo "## リリースを作成しました: $RELEASE_TAG"
+            echo
+            echo "対象コミット: \`$DEPLOYED_SHA\`"
+            echo
+            cat "$RUNNER_TEMP/release-notes.md"
           } >> "$GITHUB_STEP_SUMMARY"
