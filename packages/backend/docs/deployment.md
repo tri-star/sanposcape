@@ -19,7 +19,8 @@
 > | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は未実施 |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
-> | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提 |
+> | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
+> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
 
@@ -33,7 +34,7 @@
   境界付与（§7）・CI が使えない場合の緊急時・changeset を目で確認したい場合に限る。
 - `sanposcape-infra` の `live/account` が apply 済みで、次が存在すること（§3 Phase 0 で確認する）。
   - SSM `/sanposcape/<env>/account/lambda_boundary_arn`（実行ロールに付ける Permission Boundary の ARN）
-  - GitHub Actions 用のデプロイロール（`sam_deploy_role_arn` の output）。**prod は未 apply（2026-09-15 時点）**
+  - GitHub Actions 用のデプロイロール（`sam_deploy_role_arn` の output）。**prod はどちらも未 apply（infra タスク SS-97 で対応予定）。prod の初回デプロイは SS-97 の完了待ち**
 
 ### dev / prod の対応表
 
@@ -164,20 +165,26 @@ sam deploy --config-env dev
 
 | 環境 | 起動方法 | ゲート |
 |---|---|---|
-| dev（`development` Environment） | main への push（下記パスの変更時のみ）/ Actions 画面の手動実行（`environment: development`） | backend CI（lint / test / マイグレーションのスモーク）の通過 |
+| dev（`development` Environment） | 手動実行のみ（`environment: development`）。**任意のブランチ / ref から起動できる** | backend CI（lint / test / マイグレーションのスモーク）の通過 |
 | prod（`production` Environment） | 手動実行のみ（`environment: production`） | backend CI の通過 + **main からの実行のみ** + **Required reviewers（tri-star）の承認** |
 
-- push で dev デプロイが走るパス: `packages/backend/` の `src/**` / `alembic/**` / `alembic.ini` /
-  `pyproject.toml` / `uv.lock` / `template.yaml` / `samconfig.toml` / `Makefile`、および
-  `.github/workflows/backend-deploy.yml`。docs や tests だけの変更では走らない。
-- 手動実行は `gh workflow run backend-deploy.yml -f environment=production --ref main` でもよい。
-- 同じ環境へのデプロイは実行単位で直列化される（取り消さない。待機中の実行は新しい実行に置き換わる）。
+- **main への push による自動デプロイはしない**（SS-72 の途中で方針変更）。dev・prod とも、書き込み権限を
+  持つ人が Actions 画面または `gh` で明示的に起動する。
+  ```bash
+  gh workflow run backend-deploy.yml -f environment=development --ref <branch>
+  gh workflow run backend-deploy.yml -f environment=production --ref main
+  ```
+- 同じ環境へのデプロイは実行単位（ビルド・リリース作成を含む）で直列化される（取り消さない。
+  待機中の実行は新しい実行に置き換わる）。
+- dev は任意の ref から起動できるため、別々のブランチを続けてデプロイすると後に起動したものが残る。
+  検証中のブランチを dev に出したまま放置しないこと（main を再デプロイして戻す）。
 
 #### job 構成
 
 `prepare`（デプロイ先の決定・prod の ref チェック）→ `ci`（backend CI を呼び出す）→
 `build`（`make lambda-requirements` → `sam validate --lint` → `sam build --use-container`）→
-`deploy`（Environment に入り OIDC で AssumeRole → `sam deploy`）。
+`deploy`（Environment に入り OIDC で AssumeRole → `sam deploy`）→
+`release`（**production のみ**。デプロイした SHA にタグと GitHub Release を作る。下記）。
 
 **`build` には `id-token: write` も Environment も付けていない。** PyPI 依存の取得・ビルドの
 過程で任意のコードが動き得るため、OIDC トークンを要求できるのはビルド成果物を受け取るだけの
@@ -186,6 +193,52 @@ sam deploy --config-env dev
 CI では `sam deploy --no-confirm-changeset --no-fail-on-empty-changeset` で実行する
 （承認は Environment の保護ルールで取る）。`samconfig.toml` の `confirm_changeset = true` は
 手元での実行のために残している。
+
+#### production デプロイ後のタグと GitHub Release
+
+production へのデプロイが成功すると、`release` job がデプロイした SHA（`github.sha`）に
+**`backend/vX.Y.Z` タグと GitHub Release** を作る。**development ではタグも Release も作らない**
+（バージョンを振るのは本番に出したものだけ）。
+
+- **採番とリリースノートは git-cliff**（リポジトリ直下の `cliff.toml`。バージョン 2.14.1 を
+  sha512 で検証してインストール）。前回の `backend/v*` タグ以降で `packages/backend/**` に触れた
+  コミットを Conventional Commits の type で分類し、Release の本文にする。
+  ```bash
+  # 手元で次のリリースを確認する（タグは作られない）
+  GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0 git-cliff --offline --unreleased \
+    --include-path 'packages/backend/**' --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --bumped-version
+  GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0 git-cliff --offline --unreleased \
+    --include-path 'packages/backend/**' --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --strip all
+  ```
+  **`--unreleased` を外さないこと。** 外すと、`--include-path` に当たらないコミット（マージコミットなど）に
+  付いた前回タグを見失い、全履歴から bump してしまう（2.14.1 で確認）。
+- **バージョンの規則**（`cliff.toml` の `[bump]`）
+
+  | 前回タグ以降のコミット | 1.0.0 未満 | 1.0.0 以上 |
+  |---|---|---|
+  | 破壊的変更（`feat!:` / `BREAKING CHANGE:` フッター） | minor | major |
+  | `feat` | minor | minor |
+  | それ以外（`fix` / `perf` / `refactor` / `docs` / `test` / `chore` / `build` / `ci` / `style` / `revert`） | patch | patch |
+
+  - **初回（`backend/v*` タグが1つも無い）は `backend/v0.1.0`**。本文はそれまでの全履歴になる。
+  - 1.0.0 未満の間は、破壊的変更があっても 1.0.0 には上がらない。1.0.0 への移行は人が判断して行う（手順は未整備）。
+  - `Merge ...`、`chore(agent-memory)`、Conventional Commits 形式でないコミット、上表に無い type は
+    本文にも採番にも含めない。
+- **タグを作らずにスキップする場合**（デプロイ自体は成功扱い。理由は Job Summary に出る）
+
+  | 状況 | 理由 |
+  |---|---|
+  | デプロイした SHA に既に `backend/v*` タグがある（同じコミットの再デプロイ） | 同じコミットに別の番号を振らない |
+  | 最新の `backend/v*` タグがデプロイした SHA の祖先でない（過去のコミットの再デプロイ・ロールバック、古い実行の Re-run） | そこから採番すると既存タグと番号が衝突し得る |
+  | 前回タグ以降に、本文に載る `packages/backend/**` のコミットが無い | 中身の無いリリースを作らない |
+
+- `release` job の権限は `contents: write` のみ。AWS に触らないので `id-token` も Environment も
+  付けていない（Environment を付けると production の承認がもう一度求められる）。
+- タグは `gh release create --target <SHA>` が API で作る。`GITHUB_TOKEN` で作ったタグは
+  他のワークフローを起動しない。
+- **`CHANGELOG.md` はコミットしない**（Release 本文のみ）。
+- `release` job だけが失敗した場合（デプロイは成功済み）は、その job だけを Re-run すればよい。
+  Release が作られていればスキップされる。
 
 #### Environment と Variables
 
@@ -430,9 +483,14 @@ cd packages/backend
 make lambda-requirements && sam build --use-container && sam deploy --config-env dev
 ```
 
-dev は既存スタックがあるため必須。**GitHub Actions の最初の dev デプロイ（main への push）より前に
+dev は既存スタックがあるため必須。**GitHub Actions からの最初の dev デプロイより前に
 済ませること**（未実施だとそのデプロイは上表の `PutRolePermissionsBoundary` で失敗する）。
-prod はスタックが未作成なので、最初から境界付きで作られ、この手順は不要。
+（SS-72 の途中で main push による自動デプロイを廃止したため、PR のマージ自体はデプロイを起こさない。）
+
+prod はスタックが未作成の想定なので、最初から境界付きで作られ、この手順は不要。**ただし prod に
+境界の無い既存スタックがあった場合、prod では SCP でも `iam:PutRolePermissionsBoundary` を拒否して
+いるため、手元の管理者権限でも境界を後付けできない可能性がある**（infra タスク SS-97 の中で確認する）。
+prod の初回デプロイは、デプロイロールと `lambda_boundary_arn` の apply（SS-97）を待って行う。
 
 ### init 失敗時にエラー報告自体が壊れる（日本語コメントを含むトレースバック）
 
