@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）
+2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）、2026-09-18 追補（デプロイの手動起動化・release job の権限、SS-72）
 
 ## ステータス
 
@@ -287,8 +287,8 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
 - **`production` は `can_admins_bypass=false`。** 唯一のコラボレーターが admin であり、
   バイパス可のままだと Required reviewers が実質的に効かない（承認画面を経ずに実行できる）ため。
   `prevent_self_review` はコラボレーターが 1 人のため `false`（自分で承認する運用）。
-- **`development` にはブランチ制限を付けない。** dev は push（main）に加えて手動実行で
-  任意ブランチの確認に使えるようにするため。write 権限者が tri-star のみで、dev は
+- **`development` にはブランチ制限を付けない。** dev は手動実行で任意ブランチの確認に
+  使えるようにするため（main への push による自動デプロイはしない。ADR-005 の SS-72 追補を参照）。write 権限者が tri-star のみで、dev は
   作り直せる環境であることを前提にした判断であり、**コラボレーターが増える場合は見直す**。
 - **ビルドとデプロイを別 job に分け、`id-token: write` と `environment` はデプロイ job にだけ付ける。**
   ビルドは PyPI から依存を取得してビルドスクリプトを実行し得る。同じ job に OIDC トークンを
@@ -296,13 +296,18 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
   成果物は artifact（保持 1 日）で受け渡す。決定1 の「到達できる実行文脈を絞る」を job 単位に適用したもの。
 - **backend CI を `workflow_call` でデプロイ前のゲートにする。** main の ruleset は deletion /
   non_fast_forward のみで PR を必須にしておらず、テスト未通過のコミットが main に載り得るため。
-  main への push では backend CI が 2 回走るコストを受け入れた。
+  また dev は任意の ref から起動できるので、デプロイする ref そのものでテストを通す。
 - **`pull_request` / `pull_request_target` をトリガーにしない。** インフラ側のロールの trust も
   `environment:` の subject だけを許しており、二重に塞いでいる。
+- **production デプロイ後のタグ・GitHub Release 作成は別 job（`release`）に分け、
+  `contents: write` はその job にだけ付ける。** `release` job には `environment` も `id-token: write` も
+  付けない。AWS に触らないため OIDC は不要で、`environment: production` を付けると承認がもう一度
+  求められるため。逆に `deploy` job は `contents: read` + `id-token: write` のままにし、
+  AWS のクレデンシャルを持つ job がリポジトリへ書き込めないようにする（決定1 の job 単位の適用）。
 
 ### 残っている事項（SS-72 追補）
 
-- [ ] prod の `live/account` apply 後、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する。
+- [ ] prod の `live/account` apply（infra タスク SS-97）後、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する。
 - [ ] ruleset で Code Owners のレビューを必須にするか判断する（コラボレーターが増える段で）。
 
 ## 関連情報
