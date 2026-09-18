@@ -4,7 +4,8 @@ import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-n
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
-import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
+import { WalkRouteLegend } from "@/features/walk/components/WalkRouteLegend";
+import { WalkRoutePolylines } from "@/features/walk/components/WalkRoutePolylines";
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
 import type { WalkRoute } from "@/features/walk/types";
@@ -37,6 +38,7 @@ const FALLBACK_DURATION_MIN = 20;
  * WalkRouteMapView — 散歩中画面の実地図。ルート・目的地・現在地を描く。
  * `showsUserLocation` は使わない。`EXPO_PUBLIC_LOCATION_MODE=mock` のとき OS の青ドットは
  * mock 軌跡と食い違い、点が2つ出て混乱するため、現在地は必ず `locationService` 由来の値で描く。
+ * 周回ルートは参考表示。現在地がどちらの区間にいるかは判定しない（SS-33）。
  */
 export function WalkRouteMapView({
   walkRoute,
@@ -98,7 +100,7 @@ export function WalkRouteMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
       >
-        {walkRoute ? <RoutePolyline path={walkRoute.path} /> : null}
+        {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         {walkRoute ? (
           <Marker
             coordinate={walkRoute.destination.location}
@@ -123,6 +125,9 @@ export function WalkRouteMapView({
           </Marker>
         ) : null}
       </MapView>
+      {walkRoute ? (
+        <WalkRouteLegend walkRoute={walkRoute} testID="walk-active-route-legend" />
+      ) : null}
       {children}
     </View>
   );

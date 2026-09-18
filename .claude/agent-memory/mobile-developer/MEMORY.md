@@ -22,8 +22,9 @@
 - [Maestro E2Eのフロー設計パターン](maestro-e2e-patterns.md) — subflows分離、tagでのCI除外、disabled誤タップ対策、状態別testID(root据え置き+内側`${testID}-<state>`)、itemTestIDPrefix
 - [画面の戻る導線パターン](screen-back-navigation-pattern.md) — `useScreenBack`+`resolveBackAction`に一本化。intercepted>navigating>canGoBackの優先順位、戻る処理でストアを触らない
 - [認証セッション状態の集約とゲートパターン](auth-session-gate-pattern.md) — SS-13。`useAuthSessionStore`+`AuthGate`+`useAuthSessionBootstrap`。storeバレル非import・segments配列を依存に入れない・ラッチをcleanupで中断しない等の構造上の制約
-- [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
+- [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35で確立(SS-33で実装は撤去済み、技術パターンのみ記録)。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
 - [sandboxでgit worktreeがread-only](sandbox-git-worktree-readonly.md) — `git add/commit`がindex.lock作成でRead-only file system失敗。リトライ無駄、ユーザーに報告する
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
 - [mobileのHTTP出口は2箇所](mobile-two-http-exits.md) — SS-70。`client.ts`のcustomFetchと`authApi.ts`の生fetch。横断的関心事(認証ヘッダー等)は両方に適用必須
 - [一時障害再送とAPP_VARIANT分岐](transient-retry-and-app-variant.md) — SS-79。再送はGET/HEAD限定(POST再送してはいけない3理由)。app.config.tsはapp.json=開発用実値/APP_VARIANT=production時だけ上書き、ConfigContext.configはPartial型。HOME=再設定はsandboxガードで拒否される
+- [EAS クラウドビルドは sandbox 外で](feedback-eas-cloud-build-outside-sandbox.md) — WSLにAndroid SDKなし→dev buildはEASクラウド。sandbox内はダミーdotfileでEACCES、実HOMEで実行。build:viewでポーリング、APKは/mnt/c/temp経由でadb install

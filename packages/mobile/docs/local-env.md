@@ -183,6 +183,8 @@ pnpm --filter mobile orval          # API クライアント再生成
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
     `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、
     **Google Maps のキーを持っていなくてもローカルで実行できる**。
+    ただし fake provider は全候補で周回が合格するため、**同じ道フォールバック表示（凡例「行き・帰り（同じ道）」）は E2E では通らない**。
+    手動で確認するときは backend を `GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false` で作り直す（[backend の周回ルートの節](../../backend/docs/local-env.md#周回ルートexploreroutesloopss-33adr-007-参照)）。
 
 ```bash
 # ローカル: preview APK を作成（EASクラウド枠を使わないローカルビルド）
@@ -195,8 +197,7 @@ maestro test packages/mobile/.maestro/
 # smoke タグのフローだけ（外部データに依存せず、backend の候補を用意できない環境向け）
 maestro test --include-tags=smoke packages/mobile/.maestro/
 
-# 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー +
-# ゲスト保存 → サインイン CTA フロー）
+# 外部データに依存するフローだけ（MVP 主要フロー + ゲスト保存 → サインイン CTA フロー）
 maestro test --include-tags=maps-required packages/mobile/.maestro/
 
 # 個別フローを名指しで実行（デバッグ時）

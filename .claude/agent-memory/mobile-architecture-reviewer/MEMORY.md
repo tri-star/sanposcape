@@ -5,10 +5,10 @@
 - [SS-34 散歩開始前の戻る導線](project_ss34_back_navigation.md) — resolveBackAction/useScreenBackの良好な純粋関数分離、SettingsView未移行という規約と実装の乖離の申し送り
 - [SS-13 認証状態集約とAuthGate](project_ss13_auth_session_gate.md) — 依存の向き/segments依存配列/latch設計は良好。sessionCleanup.tsコメント陳腐化・store内AuthUserがサーバーデータ規律と未整理・logoutのAuthGate競合が暗黙のJSスケジューリング依存という3残課題（2026-08-06にレビュー対応で解消済み）
 - [SS-42 記録タブ集計の実データ化](project_ss42_history_stats.md) — api/lib/hooks層がwalkHistoryApiパターンを忠実踏襲、queryKey["walks","stats"]設計良好、残課題はdocs/milestones.md未更新（スタブ記述が陳腐化）のみ
-- [SS-35 散歩開始後の現在地起点ルート再計算](project_ss35_route_recalculation.md) — Query外ローカルstate+sequence世代管理+純粋関数状態機械の参照実装。プラン完全準拠、指摘は手動再計算ボタンのdisabled非対称のみ（P3）
 - [SS-29 app/がauthストア読取→propsでfeature注入する新パターン](project_ss29_route_as_composition_root.md) — ADR-009決定8の想定通り・却下した代替案の判断は妥当。ただし設計根拠がgitignore対象のtmp/にしか残らずdocs/ADRに痕跡なし
 - [SS-57 ゲスト散歩解禁・canEnterProtectedRoutesにguest許可](project_ss57_guest_route_gate.md) — ADR追補の質は高評価。mid-walk中にsettings経由でサインイン→walk-startへ強制遷移し進行中散歩を無確認で上書きしうる新規ギャップを発見（未検証・要手動確認）
 - [SS-60 履歴削除UI](project_ss60_walk_delete.md) — 後始末レジストリパターンが2例目(walkDeletionCleanup)になった経緯。folder-structure.md と ADR-008 決定8 に追記済み
 - [Modal + useScreenBack の同居](pattern_modal_backhandler_coexistence.md) — Android では Modal が hardwareBackPress を奪うため onIntercept が実質到達しない疑い。次に同居コードを見たら要検証（実機未確認）
 - [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認
 - [SS-70 CloudFront/SigV4対応(x-amz-content-sha256, X-App-Authorization)](project_ss70_cloudfront_http_headers.md) — HTTP出口2箇所パターン確立、api/層への初のネイティブ依存混入(expo-crypto)、mobile内2種のADR-005番号衝突に注意
+- [SS-33 周回ルート提示・SS-35再計算の撤去](project_ss33_loop_route.md) — legs+純粋関数分離が参照実装、再計算/往路復路判定の残骸なしを確認。Suggestionのみ3件（ADR実装一覧漏れ・Design反映未追跡・Android破線未検証）

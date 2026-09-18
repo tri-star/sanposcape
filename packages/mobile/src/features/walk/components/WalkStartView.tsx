@@ -16,9 +16,11 @@ import { CATEGORY_ORDER } from "@/features/walk/data/categories";
 import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
 import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
+import { toRouteMinutes } from "@/features/walk/lib/walkRoute";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
+import { toKilometers } from "@/lib/units";
 import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -28,7 +30,7 @@ const HOME_HREF = "/(tabs)";
 
 /**
  * 散歩開始画面。実地図（`SpotMapView`）+ 現在地 + `/explore/places` 由来の候補を表示する。
- * スポットを選択すると `/explore/routes/walking` で徒歩ルートを取得して地図に重ね、
+ * スポットを選択すると `/explore/routes/loop` で周回ルートを取得して地図に重ね、
  * 「散歩を始める」を押すと `useActiveWalkStore` に開始情報を積んで散歩中（ナビタブ）へ遷移する。
  */
 export function WalkStartView() {
@@ -70,8 +72,8 @@ export function WalkStartView() {
         // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
         // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
         destination,
-        roundTripMinutes: selectedSpot.roundTripMinutes,
-        roundTripKm: selectedSpot.roundTripKm,
+        loopMinutes: toRouteMinutes(walkRoute.durationSeconds),
+        loopKm: toKilometers(walkRoute.distanceMeters),
         startedAtMs: Date.now(),
       });
       router.replace(HOME_HREF);

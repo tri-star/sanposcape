@@ -23,6 +23,18 @@ class ProviderRoute:
     path: tuple[ProviderPoint, ...]
 
 
+@dataclass(frozen=True)
+class ProviderLoopRoute:
+    """周回ルートの往路・復路 leg の組（SS-33）。
+
+    往復1回の `computeRoutes`（`intermediates=[destination(stopover), via]`）から
+    得られる2つの leg を、既存の `ProviderRoute` のまま再利用する。
+    """
+
+    outbound: ProviderRoute
+    inbound: ProviderRoute
+
+
 class GoogleMapsProvider(Protocol):
     def search_places(
         self,
@@ -36,3 +48,12 @@ class GoogleMapsProvider(Protocol):
     def get_walking_route(
         self, origin: ProviderPoint, destination: ProviderPoint, *, timeout_seconds: float
     ) -> ProviderRoute: ...
+
+    def get_walking_loop_route(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        via: ProviderPoint,
+        *,
+        timeout_seconds: float,
+    ) -> ProviderLoopRoute: ...

@@ -87,13 +87,19 @@ packages/backend/
 │       ├── walks/             # ドメイン: 終了済み散歩の記録・履歴（散歩開始の探索・経路提示は maps/ の責務）
 │       ├── spots/             # ドメイン: スポット候補（Google Maps由来）
 │       └── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
+│           ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
+│           └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
 │
 ├── alembic/
 │   ├── env.py                 # all_models.py の Base を参照してメタデータを集約
 │   └── versions/              # マイグレーションスクリプト
 │
 ├── scripts/
-│   └── seed.py                # Seeder（初期データ投入）
+│   ├── seed.py                       # Seeder（初期データ投入）
+│   ├── export_openapi.py             # openapi.yaml/json の再生成（mobile の Orval が消費）
+│   ├── loop_route_probe.py           # 周回ルートの実API検証スクリプト（開発者専用。SS-33, ADR-007）
+│   └── loop_route_probe_cases.yaml   # ↑の検証セット（O/D の組とラベル）
+│                                      #   出力は `tmp-probe/<timestamp>.geojson`（.gitignore 済み）
 │
 └── docs/                      # 設計ドキュメント
 ```
@@ -157,7 +163,9 @@ packages/backend/
   （書けたとしても実行日に依存する不安定なテストになる）。
 - `dependencies.py` の `get_xxx_service()` は既定値のまま生成し、注入はテストからのみ行う。
 - 日付計算そのものは DB / Pydantic に依存しない純粋関数モジュールへ切り出す（実例: `walks/stats.py`）。
-  こうすると DB を立てずに境界条件のテストが書ける。
+  こうすると DB を立てずに境界条件のテストが書ける。同じ方針は現在時刻に限らず、DB・HTTP を
+  持たない計算全般に当てはまる（実例: `maps/geometry.py`・`maps/loop_route.py` の幾何計算・
+  周回ルートの妥当性判定。SS-33, ADR-007）。
 
 ### `models.py` の配置と Alembic
 - SQLAlchemy モデルは**各ドメインの `models.py` に併置**する。

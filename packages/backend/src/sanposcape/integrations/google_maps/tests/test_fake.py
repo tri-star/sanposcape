@@ -1,10 +1,11 @@
 from sanposcape.integrations.google_maps.fake import (
+    _WALKING_SPEED_METERS_PER_SECOND,
     FakeGoogleMapsProvider,
     _clamp,
     _distance_meters,
 )
 from sanposcape.integrations.google_maps.provider import ProviderPoint
-from sanposcape.maps.schemas import PlaceSearchRequest
+from sanposcape.maps.schemas import PlaceSearchRequest, WalkingRouteRequest
 from sanposcape.maps.service import MapsService
 
 _ORIGIN = ProviderPoint(35.6812, 139.7671)
@@ -134,6 +135,95 @@ def test_candidates_survive_round_trip_filter() -> None:
 
     assert len(result.candidates) == 5  # 3件以上を満たす
     assert all(candidate.round_trip_duration_seconds <= 3600 for candidate in result.candidates)
+
+
+def test_loop_route_is_deterministic() -> None:
+    provider = FakeGoogleMapsProvider()
+    destination = ProviderPoint(35.69, 139.78)
+    via = ProviderPoint(35.685, 139.775)
+
+    first = provider.get_walking_loop_route(_ORIGIN, destination, via, timeout_seconds=1)
+    second = provider.get_walking_loop_route(_ORIGIN, destination, via, timeout_seconds=1)
+    other_instance = FakeGoogleMapsProvider().get_walking_loop_route(
+        _ORIGIN, destination, via, timeout_seconds=1
+    )
+
+    assert first == second
+    assert first == other_instance
+
+
+def test_loop_route_outbound_is_origin_to_destination_and_inbound_passes_through_via() -> None:
+    provider = FakeGoogleMapsProvider()
+    destination = ProviderPoint(35.69, 139.78)
+    via = ProviderPoint(35.685, 139.775)
+
+    loop_route = provider.get_walking_loop_route(_ORIGIN, destination, via, timeout_seconds=1)
+
+    assert loop_route.outbound.path[0] == _ORIGIN
+    assert loop_route.outbound.path[-1] == destination
+    assert loop_route.inbound.path[0] == destination
+    assert loop_route.inbound.path[-1] == _ORIGIN
+    assert via in loop_route.inbound.path
+
+
+def test_loop_route_totals_equal_outbound_plus_inbound() -> None:
+    provider = FakeGoogleMapsProvider()
+    destination = ProviderPoint(35.69, 139.78)
+    via = ProviderPoint(35.685, 139.775)
+
+    loop_route = provider.get_walking_loop_route(_ORIGIN, destination, via, timeout_seconds=1)
+
+    outbound_distance = _distance_meters(_ORIGIN, destination)
+    inbound_distance = _distance_meters(destination, via) + _distance_meters(via, _ORIGIN)
+    assert loop_route.inbound.duration_seconds == round(
+        inbound_distance / _WALKING_SPEED_METERS_PER_SECOND
+    )
+    assert loop_route.inbound.distance_meters == round(inbound_distance)
+    assert loop_route.outbound.distance_meters == round(outbound_distance)
+
+
+def test_loop_route_handles_degenerate_same_point_case() -> None:
+    provider = FakeGoogleMapsProvider()
+
+    loop_route = provider.get_walking_loop_route(_ORIGIN, _ORIGIN, _ORIGIN, timeout_seconds=1)
+
+    assert loop_route.outbound.distance_meters == 0
+    assert loop_route.outbound.duration_seconds == 0
+    assert loop_route.inbound.distance_meters == 0
+    assert loop_route.inbound.duration_seconds == 0
+    assert all(point == _ORIGIN for point in loop_route.inbound.path)
+
+
+def test_fake_loop_is_accepted_for_every_fake_candidate() -> None:
+    """E2E の生命線（SS-33）: `MAPS_MODE=fake` の全候補（200〜1000m）で周回が作れること。
+
+    mobile の Maestro subflow は `spot-card-0`（= fake-place-1、origin から約200m）を選ぶ。
+    しきい値を調整してこのテストが落ちたら、fake ではなくしきい値の妥当性を疑う
+    （ADR-007 決定8）。
+    """
+    provider = FakeGoogleMapsProvider()
+    service = MapsService(provider, 20, 20, 10, 8)
+    places = provider.search_places(_ORIGIN, _ALL_CATEGORIES, 20, timeout_seconds=1)
+    assert len(places) == 5
+
+    for place in places:
+        request = WalkingRouteRequest.model_validate(
+            {
+                "origin": {"latitude": _ORIGIN.latitude, "longitude": _ORIGIN.longitude},
+                "destination": {
+                    "place_id": place.id,
+                    "name": place.name,
+                    "location": {
+                        "latitude": place.location.latitude,
+                        "longitude": place.location.longitude,
+                    },
+                },
+            }
+        )
+
+        result = service.get_loop_walking_route(request)
+
+        assert result.return_is_same_path is False, place.id
 
 
 def test_shortest_requested_duration_keeps_at_least_one_candidate() -> None:

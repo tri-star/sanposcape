@@ -14,11 +14,16 @@ Maestro E2E と Google Maps API キーを持たないローカル開発者専用
 
 `GoogleMapsProvider`（`provider.py`）のプロトコルを構造的に満たす
 （`UnconfiguredGoogleMapsProvider` と同様、Protocol を明示継承しない）。
+
+**周回にも対応する**（SS-33）: 経由点（`via`）は `maps/loop_route.py` を使う service 側が
+生成し、fake はそれを直線で結ぶだけ。往路は既存の `get_walking_route` を再利用し、
+復路は destination → via → origin を直線で結ぶ。ここでも乱数・時刻は使わない。
 """
 
 from math import cos, degrees, hypot, radians
 
 from sanposcape.integrations.google_maps.provider import (
+    ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
     ProviderRoute,
@@ -29,6 +34,7 @@ _WALKING_SPEED_METERS_PER_SECOND = 1.25  # 約 4.5 km/h
 _PLACE_COUNT = 5
 _PLACE_OFFSET_STEP_METERS = 200.0  # 200 / 400 / 600 / 800 / 1000m
 _ROUTE_PATH_POINTS = 5
+_LOOP_INBOUND_SEGMENT_POINTS = 3  # destination→via、via→origin それぞれの区間の点数
 # 極付近で cos(latitude) がゼロに潰れて経度オフセットが発散するのを防ぐガード。
 _MIN_COS_LATITUDE = 1e-6
 _SQRT_2 = 2**0.5
@@ -104,6 +110,30 @@ class FakeGoogleMapsProvider:
             path=path,
         )
 
+    def get_walking_loop_route(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        via: ProviderPoint,
+        *,
+        timeout_seconds: float,
+    ) -> ProviderLoopRoute:
+        """往路は `get_walking_route(origin, destination)` をそのまま再利用し、復路は
+        destination → via → origin を直線で結ぶ。`via` は呼び出し側（`maps/loop_route.py`）が
+        生成した経由点をそのまま渡す（fake は幾何生成をしない）。
+
+        `timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
+        """
+        outbound = self.get_walking_route(origin, destination, timeout_seconds=timeout_seconds)
+        inbound_path = _loop_inbound_path(destination, via, origin)
+        inbound_distance = _distance_meters(destination, via) + _distance_meters(via, origin)
+        inbound = ProviderRoute(
+            duration_seconds=round(inbound_distance / _WALKING_SPEED_METERS_PER_SECOND),
+            distance_meters=round(inbound_distance),
+            path=inbound_path,
+        )
+        return ProviderLoopRoute(outbound=outbound, inbound=inbound)
+
 
 def _offset(origin: ProviderPoint, north_meters: float, east_meters: float) -> ProviderPoint:
     """origin から北へ `north_meters`、東へ `east_meters` 移動した点を返す。
@@ -136,6 +166,25 @@ def _interpolate(
         latitude=origin.latitude + (destination.latitude - origin.latitude) * fraction,
         longitude=origin.longitude + (destination.longitude - origin.longitude) * fraction,
     )
+
+
+def _loop_inbound_path(
+    destination: ProviderPoint, via: ProviderPoint, origin: ProviderPoint
+) -> tuple[ProviderPoint, ...]:
+    """destination → via → origin を直線で結んだ経路（`via` を1回だけ通る）。
+
+    2区間をそれぞれ `_LOOP_INBOUND_SEGMENT_POINTS` 点で補間し、区間の継ぎ目（`via`）が
+    重複しないよう2区間目の先頭を落とす。
+    """
+    first_leg = [
+        _interpolate(destination, via, step / (_LOOP_INBOUND_SEGMENT_POINTS - 1))
+        for step in range(_LOOP_INBOUND_SEGMENT_POINTS)
+    ]
+    second_leg = [
+        _interpolate(via, origin, step / (_LOOP_INBOUND_SEGMENT_POINTS - 1))
+        for step in range(1, _LOOP_INBOUND_SEGMENT_POINTS)
+    ]
+    return tuple(first_leg + second_leg)
 
 
 def _clamp(point: ProviderPoint) -> ProviderPoint:

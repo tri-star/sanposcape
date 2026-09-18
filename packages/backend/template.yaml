@@ -69,6 +69,11 @@ Globals:
         # psycopg3 の既定（prepare_threshold=5）のままで問題ない。
         # "prepared statement ... already exists" 系のエラーが実際に出た場合のみ
         # true に変更する（docs/deployment.md のトラブルシュート参照）。
+        # GOOGLE_MAPS_LOOP_ROUTE_ENABLED（周回ルートの kill switch、SS-33/ADR-007）も同じ方針で
+        # 意図的に設定しない（既定 true のまま。config.py）。品質劣化時の緊急停止が必要なときだけ
+        # false に変更する（即時反映は `aws lambda update-function-configuration`、恒久化はここに
+        # `GOOGLE_MAPS_LOOP_ROUTE_ENABLED: 'false'` を追記して redeploy。docs/deployment.md
+        # 「周回ルートの kill switch」参照）。
         # 値ではなく ARN を渡す。deploy 時に CloudFormation が SSM から解決する
         # （実行ロールに ssm:GetParameter は不要。account ID がリポジトリに出ないようにするため）。
         APP_SECRET_ARN: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'

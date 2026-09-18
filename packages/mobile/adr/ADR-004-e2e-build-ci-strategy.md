@@ -5,7 +5,8 @@
 2026-07-19（初版）、2026-08-14 追補（fingerprint キャッシュの前提不整合）、
 2026-08-15 追補（エミュレータ環境に起因する不安定性・キャッシュキーの絞り込み）、
 2026-09-12 追補（Gradle の Java heap OOM と ABI の絞り込み、SS-85）、
-2026-09-13 追補（配布ビルドとの適用範囲の明確化、SS-79）
+2026-09-13 追補（配布ビルドとの適用範囲の明確化、SS-79）、
+2026-09-15 追補（周回ルートの assert 範囲、SS-33）
 
 ## コンテキスト
 
@@ -59,6 +60,15 @@
   JST の日付境界をまたぐと値が変わるため。assert するのは「集計のロードが完了し
   `history-stats-error` が出ていないこと」+ `history-period-chart` / `history-step-goal-card`
   が表示されることまで。
+
+  **（SS-33 追補）周回ルートの往路/復路描き分け・凡例も assert 範囲を絞る**。
+  `mvp-walk-flow.yaml` は散歩中画面で凡例（testID `walk-active-route-legend`）が
+  **存在すること**だけを待つ。線の形・区間数・`returnIsSamePath`（同じ道フォールバックかどうか）・
+  凡例の文言は assert しない（地図タイル・外部データを assert しない既存方針の延長）。これらの分岐は
+  `src/features/walk/lib/walkRouteLegs.ts` の純粋関数として Vitest（`walkRouteLegs.test.ts`）が
+  網羅する責務とし、E2E とテスト範囲を重複させない。散歩開始画面側の凡例
+  （`SpotMapView` の testID `walk-start-route-legend`）は既存の共有 subflow
+  （`subflows/start-walk-from-spot.yaml`）には足していない（他フローへの影響を避けるため）。
 
   **（SS-44 追補: `eas build --local` が Orval 生成物を除外する問題への対応）**
   - `mobile-e2e.yml` の「Generate API client (Orval)」ステップでチェックアウト先には
@@ -424,6 +434,8 @@ prebuild が生成する `android/gradle.properties` を書き換える。`withD
 
 通過フロー: guest-walk-save-sign-in / logout / walk-history / walk-route-recalculate /
 walk-start-back / smoke / mvp-walk-flow / auth-gate / walk-start。
+
+（**SS-33 追補**）`walk-route-recalculate.yaml` は SS-33（散歩中のルート再計算撤去）で削除した。この検証結果は当時の実測記録であり書き換えないが、現在の実行対象は8フローである。
 
 予測（20分弱）を上回って縮んだのは、ABI を 1/4 にした分に加えてヒープの余裕が
 dex/マージ段階にも効いたためと見られる。`Save APK cache` も成功しているので、

@@ -3,6 +3,8 @@ name: project-e2e-ci-constraints
 description: Maestro/CI の実行モデルと、E2E フローを計画するときに効く制約（503 の根本原因・タグ運用・件数依存の禁止）
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md
 ---
 
 ## CI の実行モデル（検証済み）
@@ -38,7 +40,10 @@ ADR-004 により CI の preview APK には Maps SDK キーが無く（地図は
 ## 既存 testID（**リネーム禁止**。現行フローが依存）
 
 `splash-screen` / `sign-in-google-button` / `walk-start-screen` / `walk-start-duration-slider` / `walk-start-begin` /
-`settings-screen` / `settings-open-logout-dialog` / `logout-dialog` / `settings-confirm-logout`。
+`settings-screen` / `settings-open-logout-dialog` / `logout-dialog` / `settings-confirm-logout` /
+`walk-start-route-summary-ready`（散歩開始画面。ルート取得完了まで `walk-start-begin` が disabled のため、
+タップ前にこの testID の出現を待つ必要がある） / `walk-active-route-legend`（散歩中画面。周回ルートの
+凡例。SS-33。線の形・区間数・文言は assert 対象外、存在だけを見る）。
 
 状態違いで root の testID を使い回している箇所（`WalkSaveStatus` / `WalkRouteSummary`）は、root を据え置いたまま
 **その状態でしか描画されない内側の要素**に `` `${testID}-<state>` `` を足す形で拡張する。

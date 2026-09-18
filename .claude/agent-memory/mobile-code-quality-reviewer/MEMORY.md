@@ -5,7 +5,7 @@
 - [mock .dc.html as review evidence](mock-dc-html-as-review-evidence.md) — スタブ値の食い違いを見つけたら docs/mock/*.dc.html をgrepし、元mock仕様由来か新規バグかを判定してから指摘する。
 - [no-bash-tool review approach](no-bash-tool-review-approach.md) — Bash無しセッションではgit diffが取れない。実装プランのファイル一覧をGlob+Readで突き合わせ最終状態レビューに切替える。
 - [auth cleanup asymmetric error swallow](auth-cleanup-asymmetric-error-swallow.md) — signOut等のクリーンアップで一部の失敗だけtry/catchし残りが無防備というasymmetryは頻出。横並びで機械チェックする。
-- [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(往復)とroutes/walking(片道)を型・関数名で区別。「往復の目安」は出典が複数ある点に注意。
+- [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(片道×2近似)とroutes/loop(周回実値)を型・関数名で区別(SS-33。旧walkingは非推奨)。「往復の目安」は出典が複数ある点に注意。
 - [reused component static testID risk](reused-component-static-testid-risk.md) — 内部要素が固定testIDの共有コンポーネントを複数画面から使うと同時マウント時に重複し得る（LocationPermissionNoticeで発見）。
 - [verify generated types vs plan assumptions](verify-generated-types-vs-plan-assumptions.md) — プランの「backendの型がまだ甘い」前提はOrval再生成/backend修正で覆っていることがある。生成物とrouter.pyを直接読んで判断する。
 - [Maestro E2E review approach](maestro-e2e-review-approach.md) — .maestro/*.yamlのコメント主張（戻り先画面/canGoBack挙動）はrouter.push/replaceの実装を追跡して裏取りする。waitForAnimationToEndの時間稼ぎ用法は非自明。
@@ -16,3 +16,4 @@
 - [feature横断の後始末レジストリ](cross-feature-cleanup-registry.md) — sessionCleanup/walkDeletionCleanup型の後始末レジストリパターン
 - [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針。統合提案しない
 - [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
+- [plan risk notes lost in tmp](plan-risk-notes-lost-in-tmp.md) — プランの「実機確認/既知の制約」注意書きが一時メモにしかなく、コード/ADRに転記漏れだと消える。転記有無を確認する

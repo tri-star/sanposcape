@@ -18,6 +18,9 @@ __all__ = [
     "RouteDestinationRead",
     "MapBounds",
     "WalkingRouteResponse",
+    "WalkingRouteLegKind",
+    "WalkingRouteLeg",
+    "LoopWalkingRouteResponse",
 ]
 
 
@@ -102,3 +105,47 @@ class WalkingRouteResponse(BaseModel):
     distance_meters: int = Field(ge=0)
     path: list[GeoPoint] = Field(min_length=2)
     bounds: MapBounds
+
+
+class WalkingRouteLegKind(StrEnum):
+    OUTBOUND = "outbound"
+    RETURN = "return"
+
+
+class WalkingRouteLeg(BaseModel):
+    kind: WalkingRouteLegKind
+    duration_seconds: int = Field(ge=0)
+    distance_meters: int = Field(ge=0)
+    path: list[GeoPoint] = Field(min_length=2)
+
+
+class LoopWalkingRouteResponse(BaseModel):
+    """SS-33: 現在地 → 目的地 → (往路と異なる、または同じ) 道 → 現在地 の周回ルート。"""
+
+    origin: GeoPoint
+    destination: RouteDestinationRead
+    duration_seconds: int = Field(
+        ge=0, description="Sum of both legs' duration_seconds (the whole loop, not one-way)."
+    )
+    distance_meters: int = Field(
+        ge=0, description="Sum of both legs' distance_meters (the whole loop, not one-way)."
+    )
+    legs: list[WalkingRouteLeg] = Field(
+        min_length=2,
+        max_length=2,
+        description=(
+            "Always exactly 2 legs, ordered [outbound, return]. When return_is_same_path is "
+            "true, the return leg's path is the outbound leg's path reversed, and its "
+            "duration/distance equal the outbound leg's."
+        ),
+    )
+    return_is_same_path: bool = Field(
+        description=(
+            "True when no distinct return route could be produced (e.g. origin and "
+            "destination are too close, or every candidate route failed validation) and the "
+            "server falls back to retracing the outbound route."
+        )
+    )
+    bounds: MapBounds = Field(
+        description="Covers both legs' paths as well as origin and destination."
+    )

@@ -1,8 +1,10 @@
 ---
 name: react-native-maps-notes
-description: react-native-maps 1.27.2 の型・実装メモ（MapView ref, Marker tracksViewChanges, Maps キー注入）。SS-16 のルート描画（Polyline/fitToCoordinates）でも参照する
+description: react-native-maps 1.27.2 の型・実装メモ（MapView ref, Marker tracksViewChanges, Maps キー注入）。ルート描画（Polyline/fitToCoordinates）は SS-16 で実装済み、SS-33 で legs（往路/復路）描画に拡張済み
 metadata:
   type: project
+  scope: durable
+  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
 ---
 
 ## 導入（SS-15, 2026-07-30）
@@ -34,9 +36,15 @@ metadata:
 `process.env` には無関係）。反映確認: `pnpm --filter mobile exec expo config --type prebuild --json`
 の `android.config.googleMaps.apiKey` を見る。
 
-## SS-16 で使う想定（未実装・参考情報）
+## SS-16 で実装、SS-33 で legs 描画に拡張
 
-`/explore/routes/walking` のルート描画では `Polyline`（`path` 座標列）と
-`fitToCoordinates`/`MapBounds` へのフィットが必要になる見込み（`docs/mobile-plan.md` SS-15 の
-スコープ外セクション参照）。`MapView` インスタンスの `fitToCoordinates(coordinates, options)` /
-`fitToElements(options)` が使える（`node_modules/react-native-maps/dist/src/MapView.d.ts` で型確認済み）。
+ルート描画は `Polyline`（`path` 座標列）と `fitToCoordinates`/`MapBounds` へのフィットで実装した。
+`MapView` インスタンスの `fitToCoordinates(coordinates, options)` / `fitToElements(options)` が使える
+（`node_modules/react-native-maps/dist/src/MapView.d.ts` で型確認済み）。
+
+**SS-33 追補**: `WalkRoute` が片道1本の `path` ではなく `legs: [outbound, return]` を持つ形に変わった
+ため、`Polyline` を1本ではなく往路/復路の2本（`returnIsSamePath` のときは1本）描画する形に拡張した。
+描き分け（どの区間をどの色・破線で描くか）は `features/walk/lib/walkRouteLegs.ts` の純粋関数、
+実際の描画は `features/walk/components/WalkRoutePolylines.tsx` が担う。地図フィット
+（`fitToCoordinates`）の対象範囲は API が返す `bounds`（origin/destination を含む）をそのまま使い、
+legs 単位で個別に計算し直すことはしていない。
