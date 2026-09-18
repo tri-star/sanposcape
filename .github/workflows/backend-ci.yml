@@ -10,6 +10,10 @@ on:
     paths:
       - "packages/backend/**"
       - ".github/workflows/backend-ci.yml"
+  # backend-deploy.yml がデプロイ前のゲートとして呼び出す（テストを通ったコミットだけを
+  # デプロイするため）。呼び出し時は paths フィルタが効かず、権限は呼び出し元の job の
+  # permissions（contents: read）が上限になる。secrets は受け取らない。
+  workflow_call:
 
 defaults:
   run:

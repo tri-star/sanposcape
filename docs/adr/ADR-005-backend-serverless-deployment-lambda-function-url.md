@@ -2,11 +2,16 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）
 
 ## ステータス
 
 採用（SS-67 で実装）
+
+**SS-72「SAM デプロイを GitHub Actions から実行できるようにする」で追補**した。
+「移行・対応が必要な事項」の SAM デプロイの CI 化を実施し、Lambda 実行ロールへの
+Permission Boundary の導入、デプロイのトリガー設計（手動起動のみ）、production デプロイ後の
+バージョンタグ・GitHub Release の作成を末尾の「SS-72 追補」に記録している。
 
 **SS-78「mobile: EAS ビルドが既定で CloudFront の backend を向くようにする」で追補**した。
 「移行・対応が必要な事項」の `EXPO_PUBLIC_BACKEND_API_URL` の切り替えについて、
@@ -336,7 +341,70 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
         `/sanposcape/<env>/services/backend-api/api_base_url`（公開 URL）と
         `.../distribution_id`（invalidation 用）が使える（dev のみ存在）。
 - [ ] in-process キャッシュ / レート制限の外部ストア（DynamoDB 等）への移行を別課題として検討する。
-- [ ] SAM デプロイの CI 化（OIDC ロールの整備後）。
+- [x] SAM デプロイの CI 化（OIDC ロールの整備後）。
+      **（SS-72 追補）`.github/workflows/backend-deploy.yml` を追加した。** 実行ロールへの
+      Permission Boundary の導入が前提になり、境界の無い既存 dev スタックへの初回付与だけは
+      手元の管理者権限で行う必要がある（末尾の「SS-72 追補」）。GitHub Actions からの実デプロイは
+      その初回付与と `development` Environment の Variables 設定の後に行うため、本追補の時点では未実証。
+      prod は infra 側のデプロイロールと SSM `lambda_boundary_arn` の apply（SS-97）待ち。
+
+## SS-72 追補: SAM デプロイの CI 化と Lambda 実行ロールの Permission Boundary
+
+GitHub 側の構成（Environment・Variables・job 分離）は
+[ADR-004 の SS-72 追補](./ADR-004-secrets-management-and-cicd-aws-credentials.md) に、手順は
+[packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §4.1 / §7 に置く。
+ここでは backend のデプロイ方式として加わった決定を記録する。
+
+### 決定（SS-72 追補）
+
+- **Lambda 実行ロール（`ApiRole` / `MigrateRole`）に Permission Boundary を付ける。**
+  `template.yaml` の `Globals.Function.PermissionsBoundary` に
+  `{{resolve:ssm:/sanposcape/<env>/account/lambda_boundary_arn}}` を指定する。
+  - 理由: CI のデプロイロール（`sanposcape-infra` の `live/account/sam_deploy.tf`）は
+    `iam:CreateRole` / `PutRolePolicy` / `PassRole` を持つ。境界が無いと「強い実行ロールを作って
+    Lambda に渡す」経路で管理者相当へ昇格できるため、infra 側は CreateRole を
+    「この境界が付く場合」に限って許可している。SAM 側はその契約を満たす。
+  - 境界が許すのは自関数のログ書き込み・`/sanposcape/<env>/*` のシークレットと SSM の読み取り・
+    KMS Decrypt・X-Ray まで。実行時に新しい AWS 操作が要るようになったら、
+    **境界を外すのではなく infra 側の境界を先に広げる。**
+  - ARN はアカウント ID を含むため、決定5 の `APP_SECRET_ARN` と同じく SSM から deploy 時に解決する。
+  - `RoleName` は明示しない（デプロイロールの権限は CFn の自動命名に一致するロールだけが対象）。
+- **境界を初めて入れるデプロイだけは手元の管理者権限で行う。** 既存ロールへの境界の後付けは
+  `iam:PutRolePermissionsBoundary` が必要だが、デプロイロールはこれを明示的に拒否している
+  （prod は SCP でも拒否）。境界の付け外しを CI から一切できないことが昇格防止の前提なので、
+  CI 側に例外を作らず、既存スタックのある dev で 1 回だけ、**GitHub Actions からの最初のデプロイより前に**
+  手元から流す運用にした。
+  prod はスタック未作成の想定のため最初から境界付きで作られ、この手順は不要。ただし prod に境界の無い
+  既存スタックがあった場合は、SCP の拒否により手元の管理者権限でも後付けできない可能性があり、
+  infra 側（SS-97）で確認する。
+- **トリガーは dev・prod とも手動実行（`workflow_dispatch`）のみ。** dev は任意の ref から、
+  prod は main からのみ（main 限定 + Required reviewers）。backend CI を通過したコミットだけをデプロイする。
+  `pull_request` 系のトリガーは付けない。
+  - 却下した代替: dev を main への push（デプロイ成果物に入るパスだけ）で自動デプロイする案。
+    当初はこれで実装したが、SS-72 の途中で廃止した。理由は、(1) マイグレーションが手動（決定9）で、
+    デプロイの時点を人が選べないとスキーマ変更を含むマージで気付かないまま新コードが旧スキーマで動くこと、
+    (2) 境界の初回付与のように手元の作業を先に要する変更で、マージしただけでデプロイが走って失敗すること、
+    (3) dev は任意ブランチの検証にも使うため、push のたびに main へ戻されると検証の邪魔になること。
+  - トレードオフ: 「main に載ったものが dev で動いている」ことは保証されなくなる。dev に何が出ているかは
+    Actions の実行履歴で確認する。
+- **production へのデプロイが成功したら、デプロイした SHA に `backend/vX.Y.Z` タグと GitHub Release を作る。**
+  本番に出ているコミットと、前回からの変更内容を後から追えるようにするため。dev ではバージョンを振らない。
+  - 採番とリリースノートは git-cliff（リポジトリ直下の `cliff.toml`）で、前回の `backend/v*` タグ以降の
+    `packages/backend/**` のコミットを Conventional Commits で分類して作る。設定はアプリ横断で共有し、
+    アプリ別の差分（パス・タグの接頭辞・初回バージョン）は CLI 引数と環境変数で渡す（mobile / LP でも使う予定）。
+  - バージョン規則: 破壊的変更 → major（1.0.0 未満では minor）、`feat` → minor、それ以外 → patch。
+    初回は `backend/v0.1.0`。0.x の間に破壊的変更のコミットだけで 1.0.0 に上がらないようにし、
+    1.0.0 への移行は人が判断する。
+  - 同じ SHA の再デプロイ、最新タグが祖先でない SHA のデプロイ（ロールバック）、前回タグ以降に backend の
+    変更が無い場合は、タグを作らずにスキップする（番号の衝突と空のリリースを避ける）。
+  - `CHANGELOG.md` はリポジトリにコミットせず、Release の本文だけにする。
+  - デプロイとリリース（利用者への機能の公開）の分離（AppConfig によるフィーチャーフラグ、ストアの手動リリース）は、
+    別途 ADR を起こす予定。
+- **マイグレーションは引き続き手動**（決定9 を維持）。CI は `sam deploy` までで止め、
+  Job Summary に §5.2 のコマンドを案内する。デプロイロールに `lambda:InvokeFunction` が無く、
+  スキーマ変更とデプロイを不可分にしない決定9 の理由がそのまま当てはまるため。
+  - トレードオフ: スキーマ変更を含むコミットでは、CI のデプロイ完了からマイグレーション実行までの間、
+    新しいコードが古いスキーマで動く。スキーマ変更は、旧スキーマのままでも新コードが壊れない形（expand → contract）で分けて入れる必要がある。
 
 ## 関連情報
 

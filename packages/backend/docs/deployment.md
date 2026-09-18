@@ -18,6 +18,9 @@
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
 > | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は未実施 |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
+> | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
+> | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
+> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
 
@@ -27,6 +30,11 @@
 - Docker が利用可能であること（`sam build --use-container` が内部で使う）。
 - ローカル開発用の `docker compose` 環境とは別物。デプロイ作業はホストで `sam` / `aws` CLI を
   直接実行する（`docker compose exec api ...` ではない）。
+- **（SS-72）通常のデプロイは GitHub Actions（§4.1）から行う。** 手元からのデプロイは、初回の
+  境界付与（§7）・CI が使えない場合の緊急時・changeset を目で確認したい場合に限る。
+- `sanposcape-infra` の `live/account` が apply 済みで、次が存在すること（§3 Phase 0 で確認する）。
+  - SSM `/sanposcape/<env>/account/lambda_boundary_arn`（実行ロールに付ける Permission Boundary の ARN）
+  - GitHub Actions 用のデプロイロール（`sam_deploy_role_arn` の output）。**prod はどちらも未 apply（infra タスク SS-97 で対応予定）。prod の初回デプロイは SS-97 の完了待ち**
 
 ### dev / prod の対応表
 
@@ -80,6 +88,10 @@ Terraform 側が CloudFront のオリジンとして参照できない。
 ```bash
 # SSM パラメータ（シークレットの ARN）が存在すること
 aws ssm get-parameter --name /sanposcape/dev/platform/secrets/shared/arn --region ap-southeast-1
+
+# 実行ロール用 Permission Boundary の ARN が存在すること（SS-72。無いと deploy 時の
+# {{resolve:ssm:}} が失敗する。infra の live/account が未 apply の環境では存在しない）
+aws ssm get-parameter --name /sanposcape/dev/account/lambda_boundary_arn --region ap-southeast-1
 
 # シークレットのキー名だけを確認する（値は絶対に出さない）
 aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
@@ -143,6 +155,130 @@ sam deploy --config-env dev
   クォータが引き上げ承認されるまでデプロイしない**（§9「Neon 接続設定」の下、および
   ADR-005 決定8を参照）。加えて prod のシークレットに値が未投入の間は Lambda が起動時に
   `ResourceNotFoundException` で落ちる。
+
+### 4.1 GitHub Actions からのデプロイ（SS-72）
+
+ワークフローは `.github/workflows/backend-deploy.yml`。認証は OIDC で、GitHub に長期クレデンシャルは
+置かない（[ADR-004 決定5・6](../../../docs/adr/ADR-004-secrets-management-and-cicd-aws-credentials.md)）。
+
+#### トリガー
+
+| 環境 | 起動方法 | ゲート |
+|---|---|---|
+| dev（`development` Environment） | 手動実行のみ（`environment: development`）。**任意のブランチ / ref から起動できる** | backend CI（lint / test / マイグレーションのスモーク）の通過 |
+| prod（`production` Environment） | 手動実行のみ（`environment: production`） | backend CI の通過 + **main からの実行のみ** + **Required reviewers（tri-star）の承認** |
+
+- **main への push による自動デプロイはしない**（SS-72 の途中で方針変更）。dev・prod とも、書き込み権限を
+  持つ人が Actions 画面または `gh` で明示的に起動する。
+  ```bash
+  gh workflow run backend-deploy.yml -f environment=development --ref <branch>
+  gh workflow run backend-deploy.yml -f environment=production --ref main
+  ```
+- 同じ環境へのデプロイは実行単位（ビルド・リリース作成を含む）で直列化される（取り消さない。
+  待機中の実行は新しい実行に置き換わる）。
+- dev は任意の ref から起動できるため、別々のブランチを続けてデプロイすると後に起動したものが残る。
+  検証中のブランチを dev に出したまま放置しないこと（main を再デプロイして戻す）。
+
+#### job 構成
+
+`prepare`（デプロイ先の決定・prod の ref チェック）→ `ci`（backend CI を呼び出す）→
+`build`（`make lambda-requirements` → `sam validate --lint` → `sam build --use-container`）→
+`deploy`（Environment に入り OIDC で AssumeRole → `sam deploy`）→
+`release`（**production のみ**。デプロイした SHA にタグと GitHub Release を作る。下記）。
+
+**`build` には `id-token: write` も Environment も付けていない。** PyPI 依存の取得・ビルドの
+過程で任意のコードが動き得るため、OIDC トークンを要求できるのはビルド成果物を受け取るだけの
+`deploy` に限っている。
+
+CI では `sam deploy --no-confirm-changeset --no-fail-on-empty-changeset` で実行する
+（承認は Environment の保護ルールで取る）。`samconfig.toml` の `confirm_changeset = true` は
+手元での実行のために残している。
+
+#### production デプロイ後のタグと GitHub Release
+
+production へのデプロイが成功すると、`release` job がデプロイした SHA（`github.sha`）に
+**`backend/vX.Y.Z` タグと GitHub Release** を作る。**development ではタグも Release も作らない**
+（バージョンを振るのは本番に出したものだけ）。
+
+- **採番とリリースノートは git-cliff**（リポジトリ直下の `cliff.toml`。バージョン 2.14.1 を
+  sha512 で検証してインストール）。前回の `backend/v*` タグ以降で `packages/backend/**` に触れた
+  コミットを Conventional Commits の type で分類し、Release の本文にする。
+  ```bash
+  # 手元で次のリリースを確認する（タグは作られない）
+  GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0 git-cliff --offline --unreleased \
+    --include-path 'packages/backend/**' --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --bumped-version
+  GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0 git-cliff --offline --unreleased \
+    --include-path 'packages/backend/**' --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --strip all
+  ```
+  **`--unreleased` を外さないこと。** 外すと、`--include-path` に当たらないコミット（マージコミットなど）に
+  付いた前回タグを見失い、全履歴から bump してしまう（2.14.1 で確認）。
+- **バージョンの規則**（`cliff.toml` の `[bump]`）
+
+  | 前回タグ以降のコミット | 1.0.0 未満 | 1.0.0 以上 |
+  |---|---|---|
+  | 破壊的変更（`feat!:` / `BREAKING CHANGE:` フッター） | minor | major |
+  | `feat` | minor | minor |
+  | それ以外（`fix` / `perf` / `refactor` / `docs` / `test` / `chore` / `build` / `ci` / `style` / `revert`） | patch | patch |
+
+  - **初回（`backend/v*` タグが1つも無い）は `backend/v0.1.0`**。本文はそれまでの全履歴になる。
+  - 1.0.0 未満の間は、破壊的変更があっても 1.0.0 には上がらない。1.0.0 への移行は人が判断して行う（手順は未整備）。
+  - `Merge ...`、`chore(agent-memory)`、Conventional Commits 形式でないコミット、上表に無い type は
+    本文にも採番にも含めない。
+- **タグを作らずにスキップする場合**（デプロイ自体は成功扱い。理由は Job Summary に出る）
+
+  | 状況 | 理由 |
+  |---|---|
+  | デプロイした SHA に既に `backend/v*` タグがある（同じコミットの再デプロイ） | 同じコミットに別の番号を振らない |
+  | 最新の `backend/v*` タグがデプロイした SHA の祖先でない（過去のコミットの再デプロイ・ロールバック、古い実行の Re-run） | そこから採番すると既存タグと番号が衝突し得る |
+  | 前回タグ以降に、本文に載る `packages/backend/**` のコミットが無い | 中身の無いリリースを作らない |
+
+- `release` job の権限は `contents: write` のみ。AWS に触らないので `id-token` も Environment も
+  付けていない（Environment を付けると production の承認がもう一度求められる）。
+- タグは `gh release create --target <SHA>` が API で作る。`GITHUB_TOKEN` で作ったタグは
+  他のワークフローを起動しない。
+- **`CHANGELOG.md` はコミットしない**（Release 本文のみ）。
+- `release` job だけが失敗した場合（デプロイは成功済み）は、その job だけを Re-run すればよい。
+  Release が作られていればスキップされる。
+
+#### Environment と Variables
+
+| Environment | Variables `AWS_SAM_DEPLOY_ROLE_ARN` | 保護ルール |
+|---|---|---|
+| `development` | `sanposcape-infra` の dev で `mise run output live/account -raw sam_deploy_role_arn` の値 | なし（ブランチ制限もなし） |
+| `production` | prod の `live/account` apply 後に同じ output の値（**未設定**） | Required reviewers = tri-star / Deployment branches = `main` のみ / 管理者によるバイパス不可 |
+
+```bash
+gh variable set AWS_SAM_DEPLOY_ROLE_ARN --env development --body '<arn>'
+```
+
+- 未設定のまま実行すると `deploy` job の最初のステップが `::error::` で落ちる（AssumeRole は試みない）。
+- **ARN をワークフローやドキュメントに直書きしない。** アカウント ID を含むため Variables に置く。
+  なお `role-to-assume` に渡した値はステップの入力として**公開リポジトリの Actions ログに表示される**
+  （ARN は秘密ではない前提。気になる場合は Environment Secret に移すとマスクされる）。
+- デプロイロールの trust は `repo:tri-star/sanposcape:environment:<development|production>` の
+  subject だけを許す。Environment を付けない job や `pull_request` からは AssumeRole できない。
+
+#### マイグレーションは手動
+
+CI はマイグレーションを実行しない。デプロイロールに `lambda:InvokeFunction` が無く、
+[ADR-005 決定9](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md#9-alembic-マイグレーションは専用-lambda-の手動-invoke-で実行するapi-本体では走らせない)
+でスキーマ変更とデプロイを不可分にしない方針のため。デプロイ完了後の Job Summary にコマンドが出るので、
+スキーマ変更を含む場合は手元の AWS 認証情報で §5.2 を実行する。
+
+#### デプロイロールでできないこと
+
+デプロイロール（`sanposcape-infra` の `live/account/sam_deploy.tf`）は、SAM が作るものの名前に
+合わせてリソースを絞っている。次の操作は CI からは通らない（手元の管理者権限で行う）。
+
+- **既存の実行ロールへの Permission Boundary の付け外し**（`iam:PutRolePermissionsBoundary` /
+  `DeleteRolePermissionsBoundary` を明示的に拒否。prod は SCP でも拒否）
+- **境界を付けない実行ロールの作成**、`RoleName` を明示した（CFn の自動命名でない）ロールの作成
+- `lambda:InvokeFunction`（migrate の実行を含む）、`lambda:AddPermission`（CloudFront の呼び出し許可は Terraform 所有）
+- `ap-southeast-1` 以外のリージョンへの操作
+- 命名規則（スタック `sanposcape-backend-<env>` / 関数 `sanposcape-<env>-backend-*` /
+  ロググループ `/aws/lambda/sanposcape-<env>-backend-*`）から外れるリソースの作成・変更
+- `template.yaml` に新しい種類のリソース（例: SQS、DynamoDB）を足すこと。足す場合は先に
+  infra 側のデプロイロールの権限を広げる
 
 ## 5. マイグレーション手順
 
@@ -328,6 +464,33 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 | CloudFront 経由だと全エンドポイントで 401（`/health` は 200） | mobile 側が `Authorization` ヘッダーで送っている（CloudFront に上書きされる） | mobile 側が `X-App-Authorization` を送るよう実装されているか確認する（ADR-005 決定4） |
 | CloudFront 経由が全部 403（`/health` を含む） | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`）が無い、または distribution ID が不一致 | 下記の `get-policy` で確認する。**この許可は Terraform 側が付与するもので、SAM 側の対応は無い** |
 | `Runtime exited with error: exit status 1` / `Init failed` としか見えず、原因が分からない | init 時の例外報告そのものが壊れている（下記「init 失敗時にエラー報告自体が壊れる」を参照） | **CloudWatch Logs の `INIT_START` 直後の `[ERROR]` 行を読む**。真の原因はそこに出ている |
+| （CI）`iam:CreateRole` の `AccessDenied` | 実行ロールに Permission Boundary が付いていない（`template.yaml` の `Globals.Function.PermissionsBoundary` が消えた）、SSM `lambda_boundary_arn` の値と infra 側の境界 ARN が不一致、または `RoleName` を明示した | `template.yaml` の境界指定を戻す / SSM の値を確認する / `RoleName` を外す（SS-72） |
+| （CI）`iam:PutRolePermissionsBoundary` の `AccessDenied`（`UPDATE_ROLLBACK`） | 境界の無い既存ロールへ、境界を後付けしようとした。デプロイロールはこの操作を明示的に拒否している | **手元の管理者権限で 1 回デプロイする**（下記「境界を初めて入れるデプロイ」）。以後は CI から通る |
+| （CI）`Environment '...' に Variables 'AWS_SAM_DEPLOY_ROLE_ARN' が設定されていません` | Environment に Variables が未設定（Repository Variables ではなく Environment 側に置く必要がある） | §4.1 の `gh variable set ... --env <環境>` で設定する |
+| （CI）`Not authorized to perform sts:AssumeRoleWithWebIdentity` | ロール ARN の誤り、Environment 名の不一致（trust の subject は `environment:development` / `environment:production`）、または infra 側が未 apply | ARN と Environment 名を確認する。prod は infra の `live/account` の apply が前提 |
+| （CI）`AccessDenied` で `aws:RequestedRegion` に関するメッセージ / 想定外のリソースで拒否 | `ap-southeast-1` 以外のリージョンを触ろうとした、または命名規則から外れたリソースを作ろうとした | `samconfig.toml` の `region` と `template.yaml` の名前を確認する（§4.1「デプロイロールでできないこと」） |
+
+### 境界を初めて入れるデプロイ（SS-72・環境ごとに 1 回だけ）
+
+`template.yaml` に `PermissionsBoundary` を追加する前にデプロイされたスタックでは、実行ロール
+（`ApiRole` / `MigrateRole`）に境界が付いていない。CloudFormation は既存ロールに境界を付けるために
+`iam:PutRolePermissionsBoundary` を呼ぶが、デプロイロールはこれを拒否しているため、**最初の
+1 回だけは手元の管理者権限でデプロイする。** 境界の付いたロールになった後は、CI から通常どおり
+更新できる。
+
+```bash
+cd packages/backend
+make lambda-requirements && sam build --use-container && sam deploy --config-env dev
+```
+
+dev は既存スタックがあるため必須。**GitHub Actions からの最初の dev デプロイより前に
+済ませること**（未実施だとそのデプロイは上表の `PutRolePermissionsBoundary` で失敗する）。
+（SS-72 の途中で main push による自動デプロイを廃止したため、PR のマージ自体はデプロイを起こさない。）
+
+prod はスタックが未作成の想定なので、最初から境界付きで作られ、この手順は不要。**ただし prod に
+境界の無い既存スタックがあった場合、prod では SCP でも `iam:PutRolePermissionsBoundary` を拒否して
+いるため、手元の管理者権限でも境界を後付けできない可能性がある**（infra タスク SS-97 の中で確認する）。
+prod の初回デプロイは、デプロイロールと `lambda_boundary_arn` の apply（SS-97）を待って行う。
 
 ### init 失敗時にエラー報告自体が壊れる（日本語コメントを含むトレースバック）
 
@@ -471,3 +634,13 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   `<account-id>` はプレースホルダ）。
 - **`sam build --use-container` を省略しない。** `psycopg[binary]` の manylinux wheel が
   ビルドホストの arch/glibc に依存するため、コンテナなしビルドは実行時にしか失敗が判明しない。
+- **（SS-72）`template.yaml` の `PermissionsBoundary` を削除しない。** 境界が無いと CI の
+  デプロイロールが `CreateRole` を拒否する。境界はデプロイロールが持つ `PutRolePolicy` /
+  `PassRole` による権限昇格を塞ぐ要であり、実行時に新しい AWS 操作が必要になった場合は
+  境界を外すのではなく infra 側の境界を先に広げる。
+- **（SS-72）実行ロールに `RoleName` を明示しない。** デプロイロールの IAM 権限は CloudFormation の
+  自動命名（`sanposcape-backend-<env>-<論理ID>-<乱数>`）に一致するロールだけが対象。
+- **（SS-72）`backend-deploy.yml` に `pull_request` / `pull_request_target` トリガーを足さない。**
+  このリポジトリは public で、fork の PR からデプロイ経路（Environment と OIDC）に到達され得る。
+- **（SS-72）ロール ARN をワークフロー・`samconfig.toml`・ドキュメントに直書きしない。**
+  アカウント ID を含むため、GitHub Environment の Variables（`AWS_SAM_DEPLOY_ROLE_ARN`）に置く。
