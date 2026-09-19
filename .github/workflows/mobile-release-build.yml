@@ -65,8 +65,10 @@ jobs:
       # リポジトリ側にはもう値が無いのでここでは表示できないし、ディスパッチ前に番号を
       # 上げる PR も不要になった。実際に採番された番号は下のビルドステップが EAS の応答
       # JSON から拾えた場合のみ Job Summary に出す（拾えなければ expo.dev 側で確認）。
-      # なお `eas build:version:get` のようなコマンドは EAS CLI に存在しないので、
-      # ここでサーバーへ問い合わせることもしない（存在しないコマンドに依存しない）。
+      # 現在値は `eas build:version:get` で読めるが（公式ドキュメント未記載・CLI には実在）、
+      # ここでは呼ばない。ビルド前に読めるのは「次に採番される値 - 1」でしかなく、
+      # 実際に採番された値は下のビルドステップの応答から取れるため、EAS への往復を増やす
+      # 価値がない。手元で現在値を知りたいときに使うコマンドであり、CI の依存先ではない。
       #
       # expo.version を表示する意味は残る: runtimeVersion.policy が "appVersion" なので
       # version はそのまま OTA の互換境界であり、「このディスパッチがどの runtimeVersion の
@@ -117,7 +119,8 @@ jobs:
             exit 1
           fi
           # EAS が採番した versionCode を Job Summary に出す（best-effort）。
-          # `eas-cli build --json` の要素にビルド番号がどのキー名で入るかは未検証のため、
+          # キー名 `appBuildVersion` は `eas-cli build:list --json` の実出力で確認した
+          # （同じ Build オブジェクトを返すので `build --json` でも同じはずだが、そちらは未実測）。
           # 取れなければ何も壊さずメッセージだけ差し替える（ここでワークフローを落とさない。
           # 番号を表示できないことより、ビルド済みの成果物を落とすことのほうが高くつく）。
           APP_BUILD_VERSION=$(echo "$BUILD_JSON" | jq -r '.[0].appBuildVersion // empty' 2>/dev/null || true)
@@ -158,7 +161,7 @@ jobs:
             exit 1
           fi
           echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
-          # Android 側と同じ best-effort。キー名は未検証なので取れなくても落とさない。
+          # Android 側と同じ best-effort。取れなくても落とさない。
           APP_BUILD_VERSION=$(echo "$BUILD_JSON" | jq -r '.[0].appBuildVersion // empty' 2>/dev/null || true)
           {
             echo "### iOS (staging)"

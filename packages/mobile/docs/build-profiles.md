@@ -463,16 +463,31 @@ pnpm --filter mobile exec eas env:create \
   倒してある。
 - **番号は絶対に後退させないこと。** ストア / TestFlight / サイドロード済み端末のいずれも、
   後退した番号を受け付けない。
-- **使うコマンドは 2 つだけ**:
+- **使うコマンド**（`eas-cli 24.7.0` で実測）:
+  - `eas build:version:get --platform <ios|android> --profile <profile>` — EAS サーバーの現在値を
+    **読むだけ**。未設定なら `No remote versions are configured for this project.` を返す。
   - `eas build:version:set` — ローカルの値を EAS サーバーへ反映する（初期化用）
-  - `eas build:version:sync` — EAS サーバーの値をローカルの app config へ取り込む（確認・切り戻し用）
+  - `eas build:version:sync` — EAS サーバーの値をローカルの app config へ取り込む（切り戻し用）
 
-  `eas build:version:get` のようなコマンドは**存在しない**。ワークフローやスクリプトで
-  参照先を増やさないこと。
+  > **`build:version:get` は Expo の公式ドキュメント（App versions / eas.json リファレンス）には
+  > 載っていないが、CLI には実在する**（`eas build:version --help` で確認できる）。
+  > 現在値を知りたいだけなら `sync`（app config を書き換える）ではなく `get` を使うこと。
 
 #### 初期化の実測（SS-89）
 
-<!-- 初期化と初回配布ビルドの実施後に、実際に投入した値と採番された番号をここに追記する -->
+**切り替え直前の状態（2026-09-20 実測、`eas-cli 24.7.0`）:**
+
+- `eas build:version:get` は iOS / Android とも
+  `No remote versions are configured for this project.` を返した。
+  **remote 化しただけでは値は作られない**ので、初期化が必要である。
+  - `--profile production` でも同じ応答だった。両方とも未設定なので、これは
+    「リモートバージョンがアプリ識別子ごとに分かれるか」の判断材料にはならない。
+- `eas build:list` で確認した**これまでの全ビルドの `appBuildVersion` は `1`**
+  （`development` / `staging` / `staging-apk` / `staging-ios`、iOS / Android とも。
+  最古 2026-07-19 〜 最新 2026-09-18）。`app.json` を一度も上げていない履歴と一致する。
+  したがって**使用済みの最大値は `1`**。
+
+<!-- 初期化と初回配布ビルドの実施後に、投入した値と採番された番号をここに追記する -->
 
 - `staging`（`com.sanposcape.app.dev`）に投入した初期値: iOS `buildNumber` = _（未記入）_ /
   Android `versionCode` = _（未記入）_
