@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 12.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -31,6 +31,7 @@
       "distribution": "store",
       "channel": "staging",
       "environment": "preview",
+      "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
       },
@@ -43,15 +44,13 @@
     "staging-apk": {
       "extends": "staging",
       "distribution": "internal",
-      "autoIncrement": false,
       "android": {
         "buildType": "apk"
       }
     },
     "staging-ios": {
       "extends": "staging",
-      "distribution": "internal",
-      "autoIncrement": false
+      "distribution": "internal"
     },
     "production": {
       "distribution": "store",
