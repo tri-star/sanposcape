@@ -191,6 +191,69 @@ EAS Update をそのまま使う。
 [docs/adr/ADR-004: シークレット管理](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
 の SS-79 追補（`GOOGLE_MAPS_ANDROID_SDK_KEY` の保管先拡張・ASC API Key の扱い）も参照。
 
+## SS-89 追補: ビルド番号の採番を EAS サーバー側（`appVersionSource: "remote"`）へ移す
+
+SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `workflow_dispatch`）に残っていた
+「配布ビルド前に `app.json` のビルド番号を上げる PR を出す」という手作業を廃止する。
+
+### 決定
+
+- **`packages/mobile/eas.json` の `cli.appVersionSource` を `"remote"` にし、`staging` /
+  `production` に `autoIncrement: true` を置く。** iOS の `buildNumber` / Android の
+  `versionCode` は EAS サーバーが保持し、ビルドのたびに自動で 1 つ進む。
+  - **`local` を採らない理由**: `local` では EAS CLI が採番結果をローカルのファイルへ書き戻すが、
+    CI のランナーはビルド後に破棄されるため書き戻しが失われ、次回も同じ番号でビルドされて
+    App Store Connect に弾かれる。書き戻しを永続化するには CI に `contents: write` と push が
+    必要で、`workflow_dispatch` 一本という単純さを崩す。**`remote` は番号の保持先がサーバー側に
+    あるため、この問題が構造的に発生しない。**
+  - **手動運用を採らない理由**: 上げ忘れ・並行 PR での番号衝突が起きやすく、上げ忘れると
+    EAS の無料ビルド枠（iOS/Android 各 15 回/月）を 1 回消費してから `submit` で失敗する。
+    枠を消費してから発覚するのが最も高い失敗の仕方である。
+- **`app.json` から `ios.buildNumber` / `android.versionCode` を削除する。** remote では
+  app config の値は無視され更新もされないと Expo が明記しており、無視される古い値（`1`）を
+  残すと「app.json を見れば配布中の番号が分かる」という SS-79 時代の読み方が誤った答えを返す。
+  `expo prebuild` / `expo run:*` は未指定時の既定値（`1`）で成立し、その成果物は配布しない。
+- **`expo.version` はリポジトリ側で手動管理を継続する。** `runtimeVersion.policy: "appVersion"`
+  により `version` は OTA の互換境界そのもの（上げた瞬間、既存端末はその後の新 version 向け
+  `eas update` を受け取らなくなる）であり、自動で動かしてよい値ではない。上げるタイミングの
+  ルールは `packages/mobile/docs/build-profiles.md` に記載する。
+- **`staging-apk` / `staging-ios` の `autoIncrement: false` は削除して `staging` の `true` を
+  継承させる。** 内部配布ビルドでも番号を進める。中身の違う成果物が同じ番号を名乗る曖昧さを
+  消すためで、番号自体は有限資源ではない（消費が痛いのは EAS のビルド枠であって整数ではない）。
+- **SS-80 Phase 4（`local` 管理方針の踏襲）は取り下げる。** SS-102 の「バージョンは app.json と
+  整合」という前提は、**表示用の `version` のみを指す**ものとして読み替える。
+
+### 未検証・未確認として残すもの
+
+- **`eas build --local`（`mobile-e2e.yml` の `preview` プロファイル）と `remote` の組み合わせは
+  Expo 公式ドキュメントに明記がない。** `appVersionSource` はプロファイル単位に上書きできない
+  ため E2E も remote から番号を読む。`preview` に `autoIncrement` を置かないことで「読み取り
+  だけ」に留めてある。`build:version:get --profile preview` が値を返すことは実測したが、
+  `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、切り替え PR のマージ前に
+  `mobile-e2e` を手動ディスパッチして実証する（`--local` なので EAS の枠を消費しない）。
+
+### 実測で確定したこと（2026-09-20）
+
+- **リモートバージョンはアプリ識別子ごとに保持される。** `staging` 系
+  （`com.sanposcape.app.dev`）を `1` に初期化したあとも `production`（`com.sanposcape.app`）は
+  `No remote versions are configured` のままだった。CLI の出力自体も
+  `with bundle identifier "..."` / `with application ID "..."` と識別子を名指しする。
+  同じ識別子を共有する `staging` / `staging-apk` / `staging-ios` / `preview` / `development` は
+  同じ値を読むため、**初期化は `staging` に対して 1 回行えば足りる**。
+  - この確認が取れたので、`production` は「触れない」のではなく
+    **本番ビルドを始める段で `--profile production` に対して初期化すればよい**。
+- **`eas build:version:get` は Expo 公式ドキュメントに載っていないが CLI には実在する**
+  （`eas-cli 24.7.0`）。現在値を知るだけなら app config を書き換える `sync` ではなく `get` を使う。
+- **`eas build:version:set` は非対話モードを持たない。** 値はプロンプトで聞かれ、パイプ入力は
+  `Input is required, but stdin is not readable` で失敗する。CI へ組み込める形ではない
+  （もっとも、初期化は移行時の 1 回だけなので組み込む必要もない）。
+
+### 関連
+
+運用手順・切り戻し手順の詳細は
+[packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) の
+「ビルド番号の採番」「表示用バージョン `version` の運用ルール」を参照。
+
 ## 関連情報
 
 - [ADR-005: backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする](./ADR-005-backend-serverless-deployment-lambda-function-url.md)

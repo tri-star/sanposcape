@@ -105,10 +105,14 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
 継承であり、ここに `env` を書き足してはならない（`staging` と値がずれた瞬間に
 「どちらのビルドか分からない」状態になる）。
 
-`autoIncrement` は `false` に落としてある。`staging`（`extends` 元）も SS-79 で
-`autoIncrement` を外し `app.json` の静的なバージョン番号を使う運用になったため、この
-`false` は「継承元の値に依存しない」ことを明示する記述であり、実際の挙動（バージョンを
-進めない）は `staging` と同じになっている（下記「`autoIncrement` について」）。
+`autoIncrement` は書かない。SS-89 で `staging` に `autoIncrement: true` を置いたため、
+`extends` 経由でそれを継承し、**このプロファイルのビルドでも EAS 側の `versionCode` が
+1 つ進む**（下記「ビルド番号の採番」）。
+
+番号を進めないための `false` はあえて残していない。内部配布の APK が直前のストアビルドと
+同じ `versionCode` を名乗ると、中身が違うのに「更新されたように見えない」状態になり、
+テスターが古い APK を入れたままの報告を上げる事故につながるため。番号自体は有限資源ではない
+（消費が痛いのは EAS のビルド枠であって整数ではない）。
 
 ### `staging-ios`
 
@@ -125,7 +129,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
   （既存ビルドには後から端末を足せない）。
 - **関係者へ広く配るなら TestFlight（`staging`）を使う。** UDID 管理が要らず、
   外部テスターにも配れる（ただしプライバシーポリシー URL が必要。SS-79）。
-- `autoIncrement` は `staging-apk` と同じ理由で `false`。
+- `autoIncrement` は書かない（`staging` の `true` を継承して番号が進む）。理由は `staging-apk` と同じ。
 - iOS は既定で Apple Maps を使うため **Maps SDK キーの注入は不要**（ADR-007）。
 
 ### `preview`（E2E 専用。CloudFront へ向けないこと）
@@ -407,40 +411,158 @@ pnpm --filter mobile exec eas env:create \
   ビルド一覧から該当ビルドを開いてインストールする。
 - **iOS**: `platform=ios` でディスパッチ → ビルド後 `eas submit`（`submit_ios: true` が既定）で
   TestFlight の内部テスターへ配布される。
-- **配布ビルド前に `app.json` の `ios.buildNumber` / `android.versionCode` を上げる PR を出すこと。**
-  `autoIncrement` を外した（下記「`autoIncrement` について」）ため、これらの値は CI が自動では
-  進めない。同じ `buildNumber` の IPA は App Store Connect が受け付けない。
+- **配布ビルド前にビルド番号を上げる PR は不要（SS-89）。** `buildNumber` / `versionCode` は
+  EAS サーバーが保持し、ディスパッチのたびに自動で 1 つ進む（下記「ビルド番号の採番」）。
+  ディスパッチ前に確認すべきなのは `app.json` の `version`（表示用・OTA 互換境界）だけで、
+  これはリリース単位でしか動かさない（下記「表示用バージョン `version` の運用ルール」）。
 - **配布リンク（internal distribution のページ）は認証不要なので、URL を知っていれば誰でも
   インストールできる。** このリポジトリは public リポジトリのため、`mobile-release-build.yml`
   の Job Summary / Actions ログには配布ページ・ビルドページの URL を一切出力しない
   （`BUILD_ID` のみ）。共有するときも Slack 等の限定チャンネルに留め、public な場所に
   貼らないこと。**`staging-apk`（Android internal distribution）と `staging-ios`（iOS Ad Hoc /
   TestFlight 手前のビルド）の両方に適用する。**
-- `production` プロファイルには `autoIncrement: true` が残っている。`production` を使い始める際に
-  同じ判断（下記）が必要になる（SS-80 Phase 4）。
+- `production` プロファイルの `autoIncrement: true` は SS-89 の方針（remote + autoIncrement）と
+  そのまま整合するため手を付けていない。ただし **`production` のリモートバージョンは未初期化**で、
+  本番ビルドを始める前に初期化の要否を確認する必要がある（下記「ビルド番号の採番」の未完了事項）。
+  SS-80 Phase 4（local 管理方針）は SS-89 で取り下げ済み。
 - **`ascAppId` / `appleTeamId` は `eas.json` の `submit.staging.ios` にコミット済み**（dev 用
   App Store Connect アプリレコードの値。秘密情報ではない）。App Store Connect API Key は
   GitHub Secrets に置かず EAS 側に保管させている（`docs/adr/ADR-004` の SS-79 追補）。
 
-### `autoIncrement` について
+### ビルド番号の採番（SS-89 で EAS サーバー側へ移行）
 
-`eas.json` の `build.staging` から `"autoIncrement": true` を削除し、`app.json` に
-`ios.buildNumber` / `android.versionCode` を明示する運用にした（SS-79）。バージョンの
-引き上げは配布ビルド前の PR で行う。
+`eas.json` の `cli.appVersionSource` を **`remote`** にし、`staging` に `autoIncrement: true` を
+置いた（`production` は元から `true`）。**ビルド番号（iOS の `buildNumber` / Android の
+`versionCode`）は EAS サーバーが保持し、ビルドのたびに自動で 1 つ進む。リポジトリ側には値を
+持たない。**
 
-- **理由**: `cli.appVersionSource: "local"` では EAS CLI がバージョンをローカルへ書き戻すが、
-  CI のランナーはビルド後に破棄されるため書き戻しが失われ、次回も同じ `buildNumber` で
-  ビルドされて App Store Connect に弾かれる。commit して戻すには CI に `contents: write` と
-  push 処理が必要で、`workflow_dispatch` の単純さと引き換えにするには重い。加えて
-  `app.config.ts`（動的コンフィグ）併用下での書き戻しは未検証で、非対話ビルドで失敗すると
-  EAS の枠を 1 回消費してから発覚する。
-- `staging-apk` / `staging-ios` の `"autoIncrement": false` は、`extends` 元から継承しないことを
-  明示する記述なのでそのまま残してある。
-- **`production` の `autoIncrement: true` は本課題のスコープ外で残っている。** `production` を
-  使い始める際は同じ検討（`autoIncrement` を外して `app.json` に静的な値を持たせる）が必要
-  （SS-80 Phase 4 が同じ方針を採る予定）。
-- 初期値は `buildNumber: "1"` / `versionCode: 1` でよい（開発識別子は新しいアプリレコード /
-  新しいパッケージになるため既存の番号と衝突しない）。**以後は値を後退させないこと。**
+- **`local` + `autoIncrement` をやめた理由（SS-79 の経緯）**: `appVersionSource: "local"` では
+  EAS CLI がバージョンをローカルのファイルへ書き戻すが、CI のランナーはビルド後に破棄されるため
+  書き戻しが失われ、次回も同じ `buildNumber` でビルドされて App Store Connect に弾かれる。
+  commit して戻すには CI に `contents: write` と push 処理が必要で、`workflow_dispatch` の
+  単純さと引き換えにするには重い。
+- **`remote` がこれを構造的に解決する理由**: 番号の保持先が EAS サーバーなので、**書き戻す先が
+  そもそも無い**。ランナーが破棄されても失われない。CI に `contents: write` も push も要らない。
+  並行 PR で番号が衝突することもない（採番はビルド起動時にサーバー側で行われる）。
+- **`app.json` から `ios.buildNumber` / `android.versionCode` を削除した理由**: remote 有効時、
+  Expo は app config のビルド番号を「無視し、更新もしない」と明記している。無視される古い値
+  （`1`）を残すと、「`app.json` を見れば配布中のビルド番号が分かる」という SS-79 時代の読み方が
+  **静かに間違った答えを返す**。削除しても `expo prebuild` / `expo run:*` は既定値
+  （`versionCode ?? 1` / `buildNumber ? ... : "1"`。`@expo/config-plugins` の
+  `build/android/Version.js` / `build/ios/Version.js`）で成立し、これらの成果物は adb / Xcode
+  経由のローカル debug ビルドにしか使われず配布されないため番号に意味がない。
+- **`staging-apk` / `staging-ios` に `autoIncrement` を書かない理由**: `staging` の `true` を
+  継承させ、内部配布ビルドでも番号を進める。中身の違う成果物が同じ番号を名乗る曖昧さを消すため
+  （各プロファイルの節を参照）。内部配布ビルドは submit しないので、App Store Connect が見る
+  番号列に飛び番号ができるだけで害はない（ASC が求めるのは同一 `version` 内での増加であって
+  連番であることではない）。
+- **`preview`（E2E）は `autoIncrement` を持たない**（既定の false）。`appVersionSource` は
+  `cli` 直下のグローバル設定で**プロファイル単位に上書きできない**ため、`eas build --local` を使う
+  E2E も remote からバージョンを読む。番号を進める必要はまったくない（使い捨てエミュレータに
+  入れる APK で `versionCode` はテスト結果に影響しない）ので、**読み取りだけが発生する形**に
+  倒してある。
+- **番号は絶対に後退させないこと。** ストア / TestFlight / サイドロード済み端末のいずれも、
+  後退した番号を受け付けない。
+- **使うコマンド**（`eas-cli 24.7.0` で実測）:
+  - `eas build:version:get --platform <ios|android> --profile <profile>` — EAS サーバーの現在値を
+    **読むだけ**。未設定なら `No remote versions are configured for this project.` を返す。
+  - `eas build:version:set` — ローカルの値を EAS サーバーへ反映する（初期化用）
+  - `eas build:version:sync` — EAS サーバーの値をローカルの app config へ取り込む（切り戻し用）
+
+  > **`build:version:get` は Expo の公式ドキュメント（App versions / eas.json リファレンス）には
+  > 載っていないが、CLI には実在する**（`eas build:version --help` で確認できる）。
+  > 現在値を知りたいだけなら `sync`（app config を書き換える）ではなく `get` を使うこと。
+
+#### 初期化の実測（SS-89）
+
+**切り替え直前の状態（2026-09-20 実測、`eas-cli 24.7.0`）:**
+
+- `eas build:version:get` は iOS / Android とも
+  `No remote versions are configured for this project.` を返した。
+  **remote 化しただけでは値は作られない**ので、初期化が必要である。
+- `eas build:list` で確認した**これまでの全ビルドの `appBuildVersion` は `1`**
+  （`development` / `staging` / `staging-apk` / `staging-ios`、iOS / Android とも。
+  最古 2026-07-19 〜 最新 2026-09-18）。`app.json` を一度も上げていない履歴と一致する。
+  したがって**使用済みの最大値は `1`**。
+
+**投入した初期値（2026-09-20 実施）:**
+
+- `staging` プロファイルに対し `eas build:version:set` で
+  **iOS `buildNumber` = `1` / Android `versionCode` = `1`** を投入した
+  （使用済みの最大値と同値。`autoIncrement` は「現在値 +1 でビルド」なので次のビルドが `2` になる）。
+- `production` には**投入していない**（`build:version:get --profile production` は
+  `No remote versions are configured` のまま。下記「未完了事項」）。
+
+> **`eas build:version:set` は非対話モードを持たない**（`--non-interactive` は存在せず、
+> 値はプロンプトで聞かれる）。パイプで流し込むと
+> `Input is required, but stdin is not readable` で失敗するので、端末から実行すること。
+
+**リモートバージョンはアプリ識別子ごとに保持される（実測で確定）:**
+
+- `build:version:set` / `get` の出力が
+  `Project @tristar2nd/sanposcape with bundle identifier "com.sanposcape.app.dev"`
+  （Android では `with application ID ...`）と識別子を名指しする。
+- `staging` 系（`com.sanposcape.app.dev`）を `1` にした後も、`production`
+  （`com.sanposcape.app`）は `No remote versions are configured` のままだった。
+  **同一 EAS プロジェクト内でも識別子ごとに別のカウンタを持つ。**
+- 同じ識別子を使う `staging` / `staging-apk` / `staging-ios` / `preview` / `development` は
+  すべて同じ値（`1`）を読む。**`staging` に対する初期化だけで足りる**のはこのため。
+
+<!-- 初回配布ビルドの実施後に、採番された番号をここに追記する -->
+
+- 切り替え後の初回配布ビルドで採番された値: iOS = _（未記入）_ / Android = _（未記入）_
+
+#### 未完了事項
+
+- **`production`（`com.sanposcape.app`）のリモートバージョンは初期化していない。** 本番の
+  アプリレコードがまだ存在せず、初期化すべき既存値が無いため。識別子ごとにカウンタが分かれることは
+  上記で確認済みなので、**本番ビルドを始める段で `--profile production` に対して
+  `build:version:set` を実行すればよい**（未初期化のまま最初のビルドを流すと、どこから
+  採番されるかがこのプロジェクトでは未実測になる）。
+- **`eas build --local`（`preview`）と remote の組み合わせは Expo 公式ドキュメントに記載がない。**
+  `build:version:get --profile preview` が `1` を返すことは確認済みで、**読み取り経路そのものは
+  成立している**。ただし `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、
+  切り替え時は `mobile-e2e.yml` を手動ディスパッチしてビルドステップの成功を確認すること
+  （`--local` なので EAS のクラウド枠を消費しない）。
+
+#### 切り戻し（remote → local）
+
+うまくいかなかった場合は次の順で戻す。**番号を後退させないため、必ず 1 を先に行うこと。**
+
+1. `pnpm --filter mobile exec eas build:version:sync --platform ios --profile staging`
+   （Android も同様）を実行し、EAS サーバーが保持している値を `app.json` へ取り込む。
+2. `eas.json` を `cli.appVersionSource: "local"` に戻し、`staging` の `autoIncrement: true` を
+   削除、`staging-apk` / `staging-ios` に `"autoIncrement": false` を戻す。
+3. `app.json` に取り込まれた `ios.buildNumber` / `android.versionCode` を**さらに 1 つ上げて**
+   コミットする（remote 時代に採番済みの番号と衝突させないため）。
+4. 本ドキュメントと `.github/workflows/mobile-release-build.yml` のコメントを SS-79 時点の
+   運用（配布前に番号を上げる PR を出す）に戻す。
+
+**git の revert だけでは 3 が抜けて番号が後退する。「revert すれば戻る」と考えないこと。**
+EAS サーバー側の保持値は local へ戻しても消えない。後で再び remote へ切り替えるときは、
+その時点の最大値以上で `eas build:version:set` をやり直す。
+
+### 表示用バージョン `version` の運用ルール（SS-89）
+
+`app.json` の `expo.version`（現在 `0.1.0`）は **リポジトリ側で手動管理を継続する**。
+自動化しない（`autoIncrement: "version"` は使わない）。
+
+- **上げる単位はリリース単位。** 「ユーザーに見せる版」を切り替えるときだけ、`version` だけを
+  変更する PR を出す。ビルド番号は EAS が自動で進めるので、配布のたびに触る必要はない。
+- **`runtimeVersion.policy: "appVersion"` により、`version` は OTA の互換境界そのものである。**
+  - `runtimeVersion` = `version` なので、`0.1.0` → `0.2.0` にした瞬間、**既存端末
+    （runtimeVersion `0.1.0`）はその後の `0.2.0` 向け `eas update` を一切受け取らなくなる**。
+  - したがって **`version` を上げたら、その version のネイティブバイナリを配布するまで
+    OTA の配信先が存在しない**。「version を上げる PR」と「配布ビルド」はセットで計画すること。
+  - 既存 `0.1.0` 端末に修正を届けたいだけなら、`version` は据え置いて `eas update` を出す。
+  - 逆に、**ネイティブモジュールの追加・削除や config plugin の変更を伴う変更では `version` を
+    上げて互換境界を切るべき**。古い JS バンドルが新しいネイティブ API を呼ぶ（またはその逆の）
+    組み合わせを防げる。
+- **番号の意味づけ（0.x 期）**: patch = 不具合修正リリース / minor = 機能追加リリース。
+  ストア一般公開の段で `1.0.0` にする。
+- **`version` を上げてもビルド番号はリセットしない。** EAS の remote 採番は単調増加で、
+  version をまたいでも番号は戻らない。App Store Connect が要求するのは「同一 `version` 内で
+  `buildNumber` が既存より大きいこと」なので、この挙動で常に要件を満たす。
 
 ## 一時障害の再送（SS-79）
 
