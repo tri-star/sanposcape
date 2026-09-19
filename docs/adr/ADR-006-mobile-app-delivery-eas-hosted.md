@@ -228,11 +228,25 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
 - **`eas build --local`（`mobile-e2e.yml` の `preview` プロファイル）と `remote` の組み合わせは
   Expo 公式ドキュメントに明記がない。** `appVersionSource` はプロファイル単位に上書きできない
   ため E2E も remote から番号を読む。`preview` に `autoIncrement` を置かないことで「読み取り
-  だけ」に留め、切り替え PR のマージ前に `mobile-e2e` を手動ディスパッチして実証する
-  （`--local` なので EAS のクラウド枠を消費しない）。
-- **リモートバージョンがアプリ識別子ごとに分かれて保持されるかは未確認。** そのため
-  `production`（`com.sanposcape.app`）のリモートバージョンには触らない。本番ビルドを始める段で
-  改めて確認する。
+  だけ」に留めてある。`build:version:get --profile preview` が値を返すことは実測したが、
+  `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、切り替え PR のマージ前に
+  `mobile-e2e` を手動ディスパッチして実証する（`--local` なので EAS の枠を消費しない）。
+
+### 実測で確定したこと（2026-09-20）
+
+- **リモートバージョンはアプリ識別子ごとに保持される。** `staging` 系
+  （`com.sanposcape.app.dev`）を `1` に初期化したあとも `production`（`com.sanposcape.app`）は
+  `No remote versions are configured` のままだった。CLI の出力自体も
+  `with bundle identifier "..."` / `with application ID "..."` と識別子を名指しする。
+  同じ識別子を共有する `staging` / `staging-apk` / `staging-ios` / `preview` / `development` は
+  同じ値を読むため、**初期化は `staging` に対して 1 回行えば足りる**。
+  - この確認が取れたので、`production` は「触れない」のではなく
+    **本番ビルドを始める段で `--profile production` に対して初期化すればよい**。
+- **`eas build:version:get` は Expo 公式ドキュメントに載っていないが CLI には実在する**
+  （`eas-cli 24.7.0`）。現在値を知るだけなら app config を書き換える `sync` ではなく `get` を使う。
+- **`eas build:version:set` は非対話モードを持たない。** 値はプロンプトで聞かれ、パイプ入力は
+  `Input is required, but stdin is not readable` で失敗する。CI へ組み込める形ではない
+  （もっとも、初期化は移行時の 1 回だけなので組み込む必要もない）。
 
 ### 関連
 

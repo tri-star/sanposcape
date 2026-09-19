@@ -480,27 +480,48 @@ pnpm --filter mobile exec eas env:create \
 - `eas build:version:get` は iOS / Android とも
   `No remote versions are configured for this project.` を返した。
   **remote 化しただけでは値は作られない**ので、初期化が必要である。
-  - `--profile production` でも同じ応答だった。両方とも未設定なので、これは
-    「リモートバージョンがアプリ識別子ごとに分かれるか」の判断材料にはならない。
 - `eas build:list` で確認した**これまでの全ビルドの `appBuildVersion` は `1`**
   （`development` / `staging` / `staging-apk` / `staging-ios`、iOS / Android とも。
   最古 2026-07-19 〜 最新 2026-09-18）。`app.json` を一度も上げていない履歴と一致する。
   したがって**使用済みの最大値は `1`**。
 
-<!-- 初期化と初回配布ビルドの実施後に、投入した値と採番された番号をここに追記する -->
+**投入した初期値（2026-09-20 実施）:**
 
-- `staging`（`com.sanposcape.app.dev`）に投入した初期値: iOS `buildNumber` = _（未記入）_ /
-  Android `versionCode` = _（未記入）_
+- `staging` プロファイルに対し `eas build:version:set` で
+  **iOS `buildNumber` = `1` / Android `versionCode` = `1`** を投入した
+  （使用済みの最大値と同値。`autoIncrement` は「現在値 +1 でビルド」なので次のビルドが `2` になる）。
+- `production` には**投入していない**（`build:version:get --profile production` は
+  `No remote versions are configured` のまま。下記「未完了事項」）。
+
+> **`eas build:version:set` は非対話モードを持たない**（`--non-interactive` は存在せず、
+> 値はプロンプトで聞かれる）。パイプで流し込むと
+> `Input is required, but stdin is not readable` で失敗するので、端末から実行すること。
+
+**リモートバージョンはアプリ識別子ごとに保持される（実測で確定）:**
+
+- `build:version:set` / `get` の出力が
+  `Project @tristar2nd/sanposcape with bundle identifier "com.sanposcape.app.dev"`
+  （Android では `with application ID ...`）と識別子を名指しする。
+- `staging` 系（`com.sanposcape.app.dev`）を `1` にした後も、`production`
+  （`com.sanposcape.app`）は `No remote versions are configured` のままだった。
+  **同一 EAS プロジェクト内でも識別子ごとに別のカウンタを持つ。**
+- 同じ識別子を使う `staging` / `staging-apk` / `staging-ios` / `preview` / `development` は
+  すべて同じ値（`1`）を読む。**`staging` に対する初期化だけで足りる**のはこのため。
+
+<!-- 初回配布ビルドの実施後に、採番された番号をここに追記する -->
+
 - 切り替え後の初回配布ビルドで採番された値: iOS = _（未記入）_ / Android = _（未記入）_
 
 #### 未完了事項
 
 - **`production`（`com.sanposcape.app`）のリモートバージョンは初期化していない。** 本番の
-  アプリレコードがまだ存在せず、初期化すべき既存値が無いため。加えて **EAS のリモートバージョンが
-  アプリ識別子ごとに分かれて保持されるかは公式ドキュメントに明記がなく未確認**なので、
-  分離を前提にした操作（`--profile production` での `build:version:set`）は本番ビルドを
-  始める段で改めて検討する。
+  アプリレコードがまだ存在せず、初期化すべき既存値が無いため。識別子ごとにカウンタが分かれることは
+  上記で確認済みなので、**本番ビルドを始める段で `--profile production` に対して
+  `build:version:set` を実行すればよい**（未初期化のまま最初のビルドを流すと、どこから
+  採番されるかがこのプロジェクトでは未実測になる）。
 - **`eas build --local`（`preview`）と remote の組み合わせは Expo 公式ドキュメントに記載がない。**
+  `build:version:get --profile preview` が `1` を返すことは確認済みで、**読み取り経路そのものは
+  成立している**。ただし `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、
   切り替え時は `mobile-e2e.yml` を手動ディスパッチしてビルドステップの成功を確認すること
   （`--local` なので EAS のクラウド枠を消費しない）。
 
