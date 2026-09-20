@@ -33,4 +33,4 @@ SS-16（`feat/ss-16-walk-route`、2026-08-01 レビュー）で `LocationService
      `toNonNegative` 済み）。Low。
   2. `useWalkTracking` は `paused` を effect 依存に含めないため、一時停止中も GPS 監視・現在地表示は継続する
      （距離加算のみ止まる）。仕様意図次第だが Low として記録。
-- グローバル認証ルートガード不在は [[project_dev_only_routes_no_guard]] と同一の継続課題（SS-16 で新規悪化なし）。
+- グローバル認証ルートガード不在は SS-13 の `AuthGate` 導入で解消済み（[[project_ss13_auth_gate]]）。SS-16 レビュー時点では継続課題で、SS-16 由来の新規悪化は無かった。

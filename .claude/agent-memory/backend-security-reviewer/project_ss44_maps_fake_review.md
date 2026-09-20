@@ -28,5 +28,5 @@ Reviewed 2026-08-08: `FakeGoogleMapsProvider` (`packages/backend/src/sanposcape/
   validation block is deliberate to avoid a second allowlist drifting out of sync). Worth
   re-flagging if/when staging or production deploy manifests are ever added to the repo (none
   exist yet as of this review).
-- Full report saved to `tmp/SS-44/review-security.md` (task-root, not memory — do not treat as
-  authoritative after the branch merges/changes).
+- The full report lived in the task's gitignored working directory and is already gone; the points
+  above are the durable summary.

@@ -33,4 +33,4 @@ CloudFrontのキャッシュポリシーは `Managed-CachingDisabled` でキャ�
 `X-App-Authorization` / `x-amz-content-sha256` は今後ロギング/クラッシュレポート導入時に
 マスク対象ヘッダーへ追加が必要（`Authorization`前提の自動マスキングの対象外になるため）。
 
-Related: [[project_ss10_token_clear_exception_safety]]
+Related: [[project_ss13_auth_gate]]

@@ -3,11 +3,13 @@ name: project_m5_walks_domain
 description: M5(散歩記録・履歴)マイルストーンにおける walks ドメインのスコープ決定と契約
 metadata:
   type: project
+  scope: durable
+  adr: docs/adr/ADR-003-walk-record-persistence-and-history-api.md
 ---
 
 M5「散歩記録・履歴」は SS-18（backend, walks ドメイン新設）→ SS-19/SS-20（mobile）の順で進む。SS-18 の PR は backend 単独で完結させ、mobile 側の orval 再生成は含まない。
 
-SS-18 で明示的にスコープ外と決定された事項（2026-08-01 ユーザー確認済み、`tmp/SS-18/backend-plan.md` Q1-Q5）:
+SS-18 で明示的にスコープ外と決定された事項（2026-08-01 ユーザー確認済み。決定の正本は ADR-003）:
 - `DELETE /walks/{id}` は作らない（アカウント削除時の CASCADE のみ対応）
 - 進行中の散歩をサーバーに永続化しない（mobile ローカル永続化で対応、SS-19）
 - 散歩は終了時に1回の `POST /walks` で完了済みとして登録する。状態カラム（`status`）は持たない
@@ -37,5 +39,5 @@ SS-18 では「削除APIは作らない（CASCADEのみ対応）」としてい�
 - `WalkRepository.delete(*, user_id, walk_id) -> bool`。ORM `session.delete()` を使用（`sqlalchemy.delete()` の一括DELETEは identity map 不整合のリスクがあるため不採用）。`users/repository.py::delete()` と同じ「serviceがcommitを持つ・repositoryはbool/Noneで結果を返し例外を投げない」分担を踏襲。
 - 2回目の削除は404（冪等にしない）。tombstoneを作らないトレードオフとしてADRに明記済み。削除後は `(user_id, client_walk_id)` のUNIQUEが解放され、同じ`client_walk_id`で再送すると再作成される（これも仕様として許容・テスト固定済み）。
 - mobileの削除導線はSS-53のスコープ外（backend APIのみ）。
-- 実装は `tmp/SS-53/backend-plan.md` に極めて詳細（設計理由・リスク表・テストID D-R1〜5/D-S1〜10/D-T1〜12）があり、実装はこのプラン通りに完了している（2026-08-12時点でレビュー済み）。
+- 設計理由とトレードオフは ADR-003 決定13 に転記済み。実装は計画どおり完了しレビュー済み（2026-08-12時点）。
 - 気づいた点（2026-08-13追記・解消済み）: `WalkRepository.delete()` は「SELECTで存在確認→`session.delete()`→`flush()`」というTOCTOUパターンで、`users/repository.py::delete()`と同型。当初「真に同時な2重DELETEでStaleDataError（未捕捉→500）になり得るのでは」と懸念していたが、SS-53追加コミット（b585bfa/36cec95）のレビュー時に`repository.py::delete()`のdocstringを読んだところ既に手当て済みと判明: `Walk`に`version_id_col`が無いため`confirm_deleted_rows`はSQLAlchemyの仕様上`StaleDataError`ではなく`SAWarning`にしかならず、実装は`flush()`呼び出し区間だけ`SAWarning`を例外に昇格させて`StaleDataError`と合わせて捕捉し`False`を返す設計になっている（→呼び出し元は通常の404扱いに揃う）。**以後、この「真の同時実行でのStaleDataError化」を未解決リスクとして再指摘しないこと**。`walks/service.py::delete_walk()`のdocstring（同コミットで更新）もこの2パターン（未検出/競合による0件失敗）を明記しており、実装とdocstringは整合している。

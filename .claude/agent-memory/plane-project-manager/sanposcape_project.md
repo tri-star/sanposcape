@@ -152,10 +152,10 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - **M5「散歩記録・履歴」はSS-18/19/20/21の4件が全てBacklogのまま未着手** — MVP完成に向けて残る最後の主要モジュール。SS-18（backend: Walkモデル・ルート保存・履歴取得API）が他2件（SS-19 mobile終了処理、SS-20 履歴画面）の土台となる。
 - **How to apply**: 次回トリアージでは、まずReview/In Progressの2状態を`list_work_items(pql='state = "<id>"')`で確認するのが確実（過去のメモリの「要再確認」項目は都度この方法で解消できる）。M5が未着手のままだとMVP完成に至らないため、次の着手優先度はM5 > M4残タスク（SS-34/35）> その他、という認識で良い。
 
-## 2026-08-01確認: mcp_tooling_changes.md（issue系ツール名・403エラー）は本セッションで再現せず
+## 2026-08-01確認: issue系ツール名の変化・403エラーは本セッションで再現せず
 
 - 同日過去のセッションで報告された「`list_work_items`等が使えず`get_issue_using_readable_identifier`等のissue系ツールに置き換わっていた／全ツール呼び出しがHTTP 403」という状況は、本セッション（2026-08-01、時刻が進んだ後）では**再現しなかった**。`retrieve_work_item`/`list_work_items`等の従来のwork_item系ツールが正常に動作した。
-- **How to apply**: 一時的な認証エラーだった可能性が高い。`mcp_tooling_changes.md`の内容は鵜呑みにせず、まず通常通り`list_work_items`等を試し、実際に失敗した場合のみ代替手段を検討すること。
+- **How to apply**: 一時的な認証エラーだった可能性が高い。ツール名が変わったように見えても鵜呑みにせず、まず通常通り`list_work_items`等を試し、実際に失敗した場合のみ代替手段を検討すること。
 
 ## 2026-08-01追加: SS-18をIn Progressに更新（backend実装着手）
 
@@ -312,7 +312,7 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 ## 2026-08-21追加: SS-61「散歩サマリ画面の未保存ドラフト離脱時に破棄確認ダイアログを出す」をSS-37の子として新規作成
 
 - SS-61（work_item_id: `db269916-4d21-49a6-b221-33e42ee16a5b`）を新規作成、State=Backlog、priority=medium、M5「散歩記録・履歴」所属。SS-37（work_item_id: `99bf40df-6398-4e03-b98e-fc7409262ba2`、当時State=Review）のPRセキュリティレビュー修正方針2のフォローアップとして起票（ユーザー指示）。
-- SS-37との関連付けは、402で使えないカスタムリレーション（[[relation_definitions_402|relates_to等]]）の代替として**親子関係（`workitem create`の`parent`パラメータにSS-37のwork_item_idを指定）**を採用。SS-36/37/38/39では本文中の言及のみで済ませていたが、今回はユーザー指示で「親子関係が自然ならparentでも可」と明示されたため親子関係を実際に設定した。SS-37側は`parent`を持たない性質上、子を持たせても type/state 等は一切変更されない。
+- SS-37との関連付けは、402で使えないカスタムリレーション（[[relation_definitions_402]]（relates to 等））の代替として**親子関係（`workitem create`の`parent`パラメータにSS-37のwork_item_idを指定）**を採用。SS-36/37/38/39では本文中の言及のみで済ませていたが、今回はユーザー指示で「親子関係が自然ならparentでも可」と明示されたため親子関係を実際に設定した。SS-37側は`parent`を持たない性質上、子を持たせても type/state 等は一切変更されない。
 - **How to apply**: 今後も「SS-XXと関連付けて」の依頼で緩い関連(relates to)が使えない場面では、まず親子関係が自然かどうかをユーザーに確認するか指示に従い、自然なら`parent`で対応するのが本文言及より確実（Plane UI上でも視覚的にリンクされる）。
 
 ## 2026-08-22 再編成: M1〜M5をアーカイブし、A/B/Cの3モジュール体制へ移行
@@ -431,3 +431,12 @@ HTMLエンティティにエスケープして渡すと、Plane 側でタグが�
 
 - SS-105（work_item_id: `6829af3d-d756-4ee6-8412-584928c0961b`、sequence_id=105）を新規作成。State=Todo、ラベル=`mobile`+`manual-required`、モジュール・優先度は未設定（SS-89 自体がモジュール未所属だったため揃えた）。SS-89（`79bfbf95-bb1f-43ae-b5a7-fd2880de363b`、PR #86 は2026-09-19マージ済みだがState=Reviewのまま）のコメントにしか残っていなかった申し送り（mobile-e2e の `--local` 実証、切り替え後の実測配布ビルド、`build-profiles.md` への実測値追記）を、SS-89 クローズ後も追跡できるよう独立課題として起票。
 - SS-89との「relates to」を`workitem_relation create`（`relation_definition_id=d496b11b-a5c7-4804-a70d-130c8d4e9488`）で設定成功（[[relation_definitions_402]]の手順どおり）。
+
+## 2026-09-20 トリアージ: SS-89をDone化、State別件数、CI/CDタスク棚卸し
+
+- **Review→Done**: SS-89（PR #86、`gh pr view`でMERGED確認）をDone化。SS-62（PR #81、work_item_id `ca486f5b-6a9a-4b35-9a93-d5460f33d2b2`）はPR #81が引き続きOPEN（レビュー待ち）のため未更新。トリアージ後のReviewはSS-62の1件のみ、In Progressは0件。
+- **State別件数（2026-09-20時点、全105件）**: Backlog=27, Todo=20, In Progress=0, Review=1(SS-62), Done=52, Cancelled=5。
+- **PQLで`label IN ("id1","id2")`が使える**ことを確認（複数ラベルのOR検索がIN句1個で書け、条件数カウントも1扱いになる模様）。`stateGroup IN openStates() AND label IN (ci_id, infra_id)`で一発検索できた。
+- **CI/CD関連の未完了タスク棚卸し（label ci/infra付き14件 + キーワード一致で追加3件=計17件）**: SS-22/59/66/68/69/71/74/75/94/95/96/97/99/102/103/104/105。うち多くはSS-72（backend SAM×GitHub Actionsデプロイ、Done）後継の「デプロイとリリースの分離」施策（フィーチャーフラグ基盤 AppConfig 化、SS-94〜99/102/103）に集中している。この一連は SS-94(AppConfig器,Todo) → SS-95/96(権限,Todo) → SS-98(backend endpoint,Todo,labelなし) → SS-99(ワークフロー,Todo) → SS-102/103(mobile CI,Todo) の依存チェーンで、末端まで**全てTodoで未着手**（2026-09-20時点）。
+- キーワード検索（`text ~ "CI"/"CD"/"GitHub Actions"/"ワークフロー"/"デプロイ"/"lint"/"テスト自動化"`）はSS-100/101/98/82/76/84等の**誤検出（アプリ機能・バグ修正がたまたま本文でCI/デプロイ/lintに言及しているだけ）が多い**。本文を読んで実際にCI/CDパイプライン・インフラ整備そのものが主題かどうかを判定する必要がある（label ci/infraが付いているかは信頼できる一次判定だが、それだけでは網羅できない＝SS-59/104/105はlabelなしでも真陽性だった）。
+- **How to apply**: 次回以降このCI/CD棚卸しを繰り返す場合、まず`label IN (ci_id, infra_id)`で確実な母集団を取り、次にキーワード検索で追加候補を出したうえで本文を読んで真偽判定する2段階が有効。

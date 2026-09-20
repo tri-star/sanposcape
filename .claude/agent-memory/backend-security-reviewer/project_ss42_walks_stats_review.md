@@ -6,8 +6,8 @@ metadata:
 ---
 
 Reviewed commit `49effbf` (`packages/backend/src/sanposcape/walks/{router,service,repository,
-schemas,mappers,stats}.py` + tests) against ADR-003 SS-42 addendum (決定10〜12) and
-`tmp/ss-42/backend-plan.md`.
+schemas,mappers,stats}.py` + tests) against ADR-003 SS-42 addendum (決定10〜12); the task's plan
+document was gitignored and is already gone.
 
 **Result: no Critical/High/Medium findings.**
 

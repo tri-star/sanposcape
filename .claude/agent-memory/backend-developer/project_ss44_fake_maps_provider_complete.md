@@ -34,8 +34,8 @@ Mapsに横展開した。新規ADRは作成していない（既存決定の適�
   同ファイル冒頭の `TODO(SS-44)` ブロック・「backendにmaps_modeが無いため無視される」
   コメント（104-105行付近）の削除・修正。CI側は既に `MAPS_MODE=fake` を渡しているため
   env追加作業は不要。
-- 詳細は `tmp/SS-44/backend-plan.md`（判断根拠D-1〜D-7）と `tmp/SS-44/session-recap.md`
-  を参照。
+- 判断根拠 D-1〜D-7 を記したプラン文書は gitignore 対象で既に消失している。
+  fail-safe な mode 検証パターンの正本は ADR-002 決定4（`config.py::_validate_environment_settings`）。
 
 **追記（2026-08-08 ローカルレビュー対応完了）**: `review-quality.md`/
 `review-architecture.md` の指摘7件（`limit>=3`前提のdocstring明記、極付近ガード/

@@ -20,6 +20,6 @@ RN の仕様上そう動作するはず）。
 `pointerEvents="none"` だけで無効化）を見つけたら、内側要素に
 `accessibilityElementsHidden`（iOS）+ `importantForAccessibility="no-hide-descendants"`
 （Android）も併せて付与されているか確認する。無ければ指摘する
-（[[mobile-code-quality-checklist]] のアクセシビリティ観点）。
+（アクセシビリティ観点。関連: [[accessibility-label-overrides-children-text]]）。
 根本対応としては、内側は Pressable を使わない「見た目だけのbox+icon」を直接描画する方が
 シンプルで安全なことが多い。

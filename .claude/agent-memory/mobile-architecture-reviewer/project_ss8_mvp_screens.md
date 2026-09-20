@@ -4,7 +4,7 @@ description: SS-8（MVP主要画面の静的実装・ルーティング配線）
 type: project
 ---
 
-`tmp/SS-8/mobile-plan.md`（§4/§5/§8.5）に基づき、`app/*`（スプラッシュ/認証/散歩開始/散歩中/散歩終了/履歴/タブ）
+SS-8 のプラン（プラン文書自体は gitignore 対象で既に消失）に基づき、`app/*`（スプラッシュ/認証/散歩開始/散歩中/散歩終了/履歴/タブ）
 と対応する `src/features/{auth,walk,history,navigation,search}/*` が実装済み（2026-07-24 時点でレビュー）。
 
 **確認できた良好パターン（今後のレビューでも踏襲を期待してよい）:**
@@ -18,7 +18,7 @@ type: project
   完結しており、プラン §8.5 の「まず params」方針と一致。単独で直接そのルートを開いても壊れないよう
   すべてのパラメータにフォールバック値がある点も良い。
 - `AppTabBar`（`src/features/navigation/components/`）は expo-router 内部型に直接依存せず、
-  実際に使うフィールドだけの構造的部分型を自前定義している（[[mobile-developer/expo-router-app-structure]] 参照）。
+  実際に使うフィールドだけの構造的部分型を自前定義している（mobile-developer の `expo-router-app-structure` メモリも参照。エージェントを跨ぐためウィキリンク記法では解決できない）。
 
 **既知の残課題（P2/Suggestion 相当、今後の関連PRで再確認すること）:**
 - `src/services/auth/index.ts` の real/stub 切替は fail-open（`EXPO_PUBLIC_USE_AUTH_STUB !== "false"` で既定 stub）で、

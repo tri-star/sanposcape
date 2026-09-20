@@ -18,7 +18,7 @@ metadata:
 
 レビューで見つけた主な指摘（詳細は各メモリ参照）:
 - `GET /walks` の `started_after`/`started_before` が `AwareDatetime` ではなく素の `datetime`（[[pattern_aware_datetime_query_params]]）。
-- `D1`〜`D11`/`Q1`〜`Q5` 等の決定コードがコメントに埋め込まれているが、由来の `tmp/SS-18/backend-plan.md` は gitignore 対象で追跡不能（[[antipattern_plan_decision_refs]]、`auth/mappers.py` の `B-3` と同系統の既存パターン）。
+- `D1`〜`D11`/`Q1`〜`Q5` 等の決定コードがコメントに埋め込まれているが、由来のプラン文書は gitignore 対象の作業ディレクトリにしか無く追跡不能（[[antipattern_plan_decision_refs]]、`auth/mappers.py` の `B-3` と同系統の既存パターン）。
 - track の境界値（0点・ちょうど10000点）の router レベルe2eテストが手薄（repository/mapper レベルでは空配列はカバー済み）。
 
 テスト構成: `walks/tests/conftest.py` に軽量認証フィクスチャ（`AUTH_MODE=real` の `test_settings` 経由、Google JWKS fakeを使わない `/auth/session` を通さない形）。`users/tests/test_router.py` に `DELETE /users/me` → walks の CASCADE 回帰テストを追加済み。

@@ -20,7 +20,7 @@ SS-42「mobile: 記録タブの週/月集計・連続日数・歩数を実装す
 - テスト 42 件追加（207→249 passed）。すべて固定アンカー（`STATS_ANCHOR_JST = 2026-03-15T12:00+09:00`）
   ベースで実行日時に非依存。
 
-**次のステップ:** mobile 側の実装（`tmp/ss-42/mobile-plan.md`）。backend は openapi.yaml を再生成済み
+**次のステップ:** mobile 側の実装（SS-42 の mobile 側タスク）。backend は openapi.yaml を再生成済み
 （`operationId: get_walk_stats_walks_stats_get`）。
 
 **2026-08-09 追記: ローカルレビュー指摘対応も完了。** streak 安全弁の break 条件を
@@ -29,6 +29,6 @@ monkeypatch で検証するテストを追加（[[feedback-walks-stats-test-gotc
 monkeypatch対象namespaceの注意が適用される）。ADR-003 決定11 は「ちょうど3660日」ではなく
 「チャンクサイズ未満のオーバーシュートを許容する概ねの上限」に文言修正。
 `list_walk_dates_desc` に `id.desc()` の副ソートキーを追加。テストは 249→261 passed。
-API契約変更なし（openapi.yaml diffなし）。詳細は `tmp/ss-42/session-recap.md` 参照。
+API契約変更なし（openapi.yaml diffなし）。決定の正本は ADR-003 SS-42 追補 決定10〜12。
 
 関連: [[project-ss18-walks-backend-complete]] [[feedback-walks-stats-test-gotchas]]

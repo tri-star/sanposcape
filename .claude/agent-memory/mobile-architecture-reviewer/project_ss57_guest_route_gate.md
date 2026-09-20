@@ -11,8 +11,8 @@ SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3�
 
 **良い点**:
 - ADR-009 に「唯一の変更点という記述は不正確だった」ことを含め、決定3・6・7それぞれに追補が
-  入っており、`tmp/SS-57/handover-notes.md` の調査過程（削除すると壊れる2箇所の特定）も
-  ADR 本文に要約が残っている。[[project_ss13_auth_session_gate]] や [[project_ss29_route_as_composition_root]]
+  入っており、引き継ぎメモに残した調査過程（削除すると壊れる2箇所の特定）も
+  ADR 本文に要約が残っている（引き継ぎメモ自体は gitignore 対象で既に消失）。[[project_ss13_auth_session_gate]] や [[project_ss29_route_as_composition_root]]
   で指摘した「判断根拠が tmp/ にしか残らない」問題がここでは再発していない。
 - `shouldEvacuateOnSessionEnd` は `AuthGate.tsx` で `useRef` に「前回 status」を持たせ、
   effect本体でミューテートする実装。React 18 StrictMode の effect 二重実行下でも
@@ -42,7 +42,7 @@ SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3�
   3. `canGoBack() === false` という設計前提も崩れる（`settings` は `push` で積まれているため、
      新しい `walk-start` の下に `settings` が残る）。`WalkStartView` は `useScreenBack({fallbackHref: "/(tabs)"})`
      を使っており、戻る操作が意図しない `settings` 画面への `pop` になりうる。
-  - ADR-009 SS-57 追補・`tmp/SS-57/handover-notes.md` はいずれも「記録タブを踏んだゲストが
+  - ADR-009 SS-57 追補は「記録タブを踏んだゲストが
     `dismissAll()` で強制退去させられる」シナリオ（不採用にした allowlist 案の理由）は検討しているが、
     この「mid-walk のまま設定からサインインする」シナリオは検討されていない。
   - 対応案: `useAuthActions.runSignIn` の成功後遷移を `useActiveWalkStore.getState().activeWalk` の有無で

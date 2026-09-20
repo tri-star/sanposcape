@@ -6,7 +6,7 @@ metadata:
 ---
 
 プラン作成は task-workflow オーケストレーターから Issue ID・作業範囲・事前調査結果つきで依頼される。
-成果物は `<project-root>/tmp/<ISSUE-ID>/mobile-plan.md`、判断の記録は同ディレクトリの `handover-notes.md`（追記式）。
+成果物は `<project-root>/tmp/<ISSUE-ID>/mobile-plan.md`、判断の記録は同ディレクトリの `handover-notes.md`（追記式）。 <!-- tmp-ref-ok: プラン成果物の置き場を定める運用規約そのもの -->
 
 **Why:** ユーザーは依頼後に離席していることが多く、承認待ちで止まるとワークフロー全体が止まる。
 

@@ -1,5 +1,5 @@
 ---
-name: screens-and-stub-layer
+name: project_screens_and_stub_layer
 description: MVP 画面 → View → データ供給の対応、data/ 層の現在の役割（API スタブは解消済み）、表示確認ルート
 metadata:
   type: project

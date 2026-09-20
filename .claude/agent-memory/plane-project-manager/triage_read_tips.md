@@ -35,3 +35,4 @@ ci=`ff51c67a-f0c5-4667-be48-641e40674ee2` / mobile=`8e0afc4a-3f8c-40fe-8ce4-bf2e
 ## その他
 
 - `get_pql_reference` は「requires an action. It takes: read.」を返して実行できなかった（2026-09-19）。PQLは `state = "<uuid>"` / `stateGroup IN openStates()` が動作確認済み。
+- **2026-09-20追記**: `label IN ("id1","id2")` も動作確認済み（複数ラベルのOR検索）。`stateGroup IN openStates() AND label IN (...)` の組み合わせでも「条件5個まで」の壁に引っかからなかった（IN句全体で1条件扱いの模様）。ラベル横断のタスク棚卸しはこれが第一候補。

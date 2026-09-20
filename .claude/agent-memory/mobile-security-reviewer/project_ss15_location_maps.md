@@ -19,7 +19,7 @@ SS-15（ブランチ `tri-star/ss-15-claude`、2026-07-30 レビュー）で `sr
 - `customFetch`（`src/api/client.ts`）は Orval 契約 `{status,data,headers}` への追随のみで、
   トークン付与・401→refresh→1回リトライのロジックは変更なし。ログ出力にトークン/座標なし。
 - `exploreError.ts` はステータスコードのみを見てユーザー文言に変換、サーバ内部情報の露出なし。
-- 唯一の要検討点は認証ルートガードの不在（[[project_dev_only_routes_no_guard]] 参照。SS-15 由来ではなく既存の
+- 唯一の要検討点は認証ルートガードの不在（SS-15 由来ではなく既存の
   ギャップ）と、`WalkStartView.handleStartWalk` が生の現在地座標（丸めなし）を router params
   （`originLat`/`originLng`）で `(tabs)` へ渡している点（Low: SS-16 で消費される接続点として計画済みだが、
   精度をそのまま渡す必要は薄い）。

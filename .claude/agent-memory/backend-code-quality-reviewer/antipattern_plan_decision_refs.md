@@ -5,11 +5,11 @@ metadata:
   type: feedback
 ---
 
-SS-18 (`walks/` ドメイン) のレビューで発見。`walks/models.py` / `walks/schemas.py` / `walks/repository.py` / `walks/exceptions.py` / `walks/router.py` に `（D1）` `（D3）` `（D6）` `（Q3）` のような決定コードが多数埋め込まれているが、その定義は `tmp/SS-18/backend-plan.md` にしかない。`tmp/` はリポジトリの `.gitignore` に含まれており（`/home/tristar/projects/sanposcape/.gitignore` の3行目）、コミットされない。
+SS-18 (`walks/` ドメイン) のレビューで発見。`walks/models.py` / `walks/schemas.py` / `walks/repository.py` / `walks/exceptions.py` / `walks/router.py` に `（D1）` `（D3）` `（D6）` `（Q3）` のような決定コードが多数埋め込まれているが、その定義は `tmp/SS-18/backend-plan.md` にしかない。`tmp/` はリポジトリの `.gitignore` に含まれており、コミットされない。 <!-- tmp-ref-ok: tmp/ 参照そのものを説明している箇所 -->
 
 同様のパターンが `auth/mappers.py` の `（B-3）` コメント（および `auth/tests/test_mappers.py`）にも既に存在する。SS-18 が最初の事例ではなく、既存の踏襲された書き方。
 
-SS-44（`integrations/google_maps/fake.py` 関連）でも再発を確認: `integrations/google_maps/tests/test_fake.py` の `# categories が1種類でも name は連番のおかげで衝突しない（D-6）。` というコメントが `tmp/SS-44/backend-plan.md`（同じく gitignore 対象）の決定コードを参照している。このコメントはコメント本文だけで意図が自己完結しているため実害は小さく Low 止まりで指摘した。
+SS-44（`integrations/google_maps/fake.py` 関連）でも再発を確認: `integrations/google_maps/tests/test_fake.py` の `# categories が1種類でも name は連番のおかげで衝突しない（D-6）。` というコメントが `tmp/SS-44/backend-plan.md`（同じく gitignore 対象）の決定コードを参照している。 <!-- tmp-ref-ok: tmp/ 参照そのものを説明している箇所 -->このコメントはコメント本文だけで意図が自己完結しているため実害は小さく Low 止まりで指摘した。
 
 **Why:** コメント自体は「なぜ」を一応説明しているので単体では読めるが、コード末尾の decision code は将来のレビュアー・新メンバーには何の情報も持たない記号でしかなく、由来を追跡する手段がない（plan doc がリポジトリに存在しないため）。
 

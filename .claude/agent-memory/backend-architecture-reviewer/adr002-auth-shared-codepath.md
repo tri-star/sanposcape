@@ -18,4 +18,5 @@ type: project
   変更するPRでは、これらのテストが依然として意味を持つ形で維持されているか確認すること。
 - 崩れやすい箇所: `_resolve_user`/`_issue_session` 以外の場所（例: `AuthService.refresh()`）
   でユーザー参照ロジックを別ルートで実装すると、この「単一コードパス」の前提が部分的に
-  崩れる。[[users-auth-domain-boundary]] を参照。
+  崩れる。SS-10 当時の `AuthService` → `UserRepository` 直接依存は解消済みで、
+  ユーザー参照は `UserService` 経由に一本化されている（[[backend-layering-conventions]]）。

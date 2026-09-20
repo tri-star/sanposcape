@@ -1,6 +1,6 @@
 ---
 name: project_ss13_auth_gate
-description: SS-13で認証ゲート(AuthGate)導入。以前指摘していたグローバルガード不在(project_dev_only_routes_no_guard)は解消
+description: SS-13で認証ゲート(AuthGate)導入。SS-15時点で app/ 配下の大半のルートに認証ガードが無かった問題は解消済み
 type: project
 ---
 
@@ -9,8 +9,8 @@ type: project
 （`src/features/auth/lib/authGate.ts`）が `useSegments()[0]` を `PUBLIC_ROOT_SEGMENTS`
 （`(auth)` / `dev-screens` / `design-system` / `_sitemap`）と照合、それ以外は
 `canEnterProtectedRoutes(status) === (status === "authenticated")` でないと
-`/(auth)/sign-in` へ `router.replace`。これにより [[project_dev_only_routes_no_guard]]
-（`walk-start` / `(tabs)` / `walk-history` / `settings` 等にガードが無かった問題）は解消された。
+`/(auth)/sign-in` へ `router.replace`。これにより SS-15 時点の問題（`walk-start` / `(tabs)` /
+`walk-history` / `settings` 等にガードが無かった）は解消された。
 oxlint override（`features/walk|history` → `@/services/auth` / `@/store/useAuthSessionStore` 禁止）
 も実際に発火することを確認済み（プローブファイルで検証）。
 

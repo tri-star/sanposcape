@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）
+2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-09-20 追補（SS-29。棚卸しで agent-memory から昇格）
 
 ## ステータス
 
-採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
+採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-29 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
 
 ## コンテキスト
 
@@ -101,6 +101,47 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 ### 8. `features/walk` / `features/history` から認証への import を oxlint で禁止する
 
 `.oxlintrc.json` に `no-restricted-imports` の override を追加し、`@/services/auth` / `@/services/auth/*` / `@/store/useAuthSessionStore` への import をエラーにする。既存コードはこれらに一切依存していなかったため、新規違反の追加を禁止するだけで既存コードの修正は不要だった。SS-57 でゲスト散歩を解禁した後もこの override は外していない（`features/walk` / `features/history` はゲスト時の差異を API の 401 分類に吸収しており、認証状態を直接見る必要が発生しなかったため）。
+
+### SS-29 追補: restricted な feature が認証情報を必要とする場合は `app/` ルートで合成する
+
+決定8 の「移行・対応が必要な事項」に置いていた想定（「将来 `features/walk` が認証状態を見る必要が
+出たら、ゲスト可否を props/引数で受け取る形に寄せる」）が SS-29 で実際に発生したため、その合成の
+形をここに固定する。決定8 を**覆す変更ではなく、想定していた延長線上の具体化**である。
+
+SS-29 は `features/history/data/profile.ts` の手書き `STUB_USER_PROFILE` を廃止し、記録タブの挨拶文を
+実際のサインインユーザーの `displayName` に差し替える課題だった。`features/history` は決定8 の
+`no-restricted-imports` の対象なので、feature 側から認証状態を読む手段が無い。
+
+### 決定
+
+- **`app/` のルートファイルが `useAuthSessionStore` からプリミティブ値だけを selector で読み、
+  restricted な feature へ props / 引数として渡す。** SS-29 の実装は
+  `app/(tabs)/history.tsx` が `useAuthSessionStore((state) => state.user?.displayName ?? null)` を読み、
+  `HistoryView` の props → `useHistorySummary` の引数へ渡す形。ストアやユーザーオブジェクトそのものを
+  渡さず、feature が必要とする最小のプリミティブに落として渡す。
+- **文言の組み立ては feature 側の純粋関数に閉じる**（SS-29 では `features/history/lib/greeting.ts`)。
+  ルートは値の受け渡しだけを担い、表示ロジックを持たない。
+- **`features/settings` はこの合成を必要としない。** `.oxlintrc.json` の override 対象は
+  `features/walk` / `features/history` のみなので、`SettingsView` は `useAuthSessionStore` を直接
+  参照でき、`app/settings.tsx` は `<SettingsView />` を返すだけで済む。この非対称性は意図的である。
+
+### 却下した代替案
+
+- **`GET /auth/me` を `features/history/api` から叩いて表示名を取得する** — 決定8 の趣旨（探索・散歩・
+  履歴のロジックを認証状態に依存させない）に正面から反する。加えて認証セッションストアが既に保持して
+  いる値をサーバーへ問い直すことになり、**情報源が二重化して食い違いうる**（決定1 の「認証状態は1箇所に
+  集約する」と衝突する）。
+- **横断 hook `useSessionDisplayName` を `src/hooks/` に置いて lint を形式的に回避する** —
+  `no-restricted-imports` は import パスを見るだけなので、間に1枚 hook を挟めばチェックは通る。
+  しかしそれは**依存関係を消すのではなく検査から隠すだけ**であり、決定8 が守ろうとしている
+  「feature が認証状態を知らない」という性質自体は失われる。lint を通すことが目的化した回避策なので不採用。
+
+### 残課題（SS-29 時点の指摘）
+
+- `useAuthSessionStore((state) => state.user?.displayName ?? null)` という selector は現状
+  `app/(tabs)/history.tsx` の1箇所のみ。同種の合成が増えると `app/` の複数ルートに同じ selector が
+  重複しうる。2箇所目が出た時点で `src/hooks/` への切り出しを検討する（**ただし上記の却下理由の通り、
+  切り出す動機は「重複の排除」でなければならない。lint 回避を目的にしてはいけない**）。
 
 ### SS-57 追補: ゲスト散歩の解禁
 

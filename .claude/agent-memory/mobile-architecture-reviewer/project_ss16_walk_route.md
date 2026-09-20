@@ -21,7 +21,7 @@ metadata:
 
 **確認できた良好パターン（今後のレビューでも踏襲を期待してよい）:**
 - サーバー状態（`WalkRoute` 本体）= TanStack Query、進行中の散歩の識別情報（`ActiveWalk`）= Zustand
-  という [[folder-structure]] の使い分けが実コードで徹底されている。`useActiveWalkStore` は
+  という `packages/mobile/docs/folder-structure.md` の使い分けが実コードで徹底されている。`useActiveWalkStore` は
   `origin`/`destination`/`roundTripMinutes`/`roundTripKm`/`startedAtMs` のみを持ち、ルート本体を
   複製しない（**SS-33 追補**: `roundTripMinutes`/`roundTripKm` は `loopMinutes`/`loopKm` へ rename 済み。
   値の出所が「往復の近似」→「周回ルートの実値」に変わったため）。
