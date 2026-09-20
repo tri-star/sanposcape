@@ -641,7 +641,7 @@ appconfig_read_timeout_seconds: float = 2.0
 ### D11: フラグ値の保持場所は TanStack Query、Zustand には複製しない
 
 `queryKey: ["app-config"]` の1本に一本化した。`/app-config` は未認証でも叩けるサーバー状態であり、
-[ADR-002（横断）](./ADR-002-auth-google-signin-and-stub-strategy.md) の「サーバー状態 = TanStack
+[mobile ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md) の「サーバー状態 = TanStack
 Query」、および `packages/mobile/docs/folder-structure.md` の「サーバー由来のデータは `src/store/`
 に置かない」に従う。`AuthGate` の `loading` 中でも取得を開始できることが、Zustand に持たせる理由が
 無いことの根拠になっている。
