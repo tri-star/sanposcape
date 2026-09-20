@@ -23,8 +23,9 @@ export function appConfigQueryOptions() {
     staleTime: APP_CONFIG_STALE_TIME_MS,
     // 一度取れた値は捨てない（再マウント時に「全 OFF」へ落ちてチラつかせないため）。
     gcTime: Number.POSITIVE_INFINITY,
-    // `customFetch` の transientRetry（429/5xx/通信断を GET に限り最大3試行）に加えて、
-    // TanStack 側でも 2 回まで（指数バックオフ）。起動直後の一時的な失敗から
+    // `customFetch` の transientRetry（GET に限り、失敗種別ごとに最大試行回数が異なる。
+    // 数値の二重管理を避けるため詳細は `src/api/transientRetry.ts` の `maxAttemptsFor` を参照）
+    // に加えて、TanStack 側でも 2 回まで（指数バックオフ）。起動直後の一時的な失敗から
     // アプリを再起動せずに回復させるため。
     retry: 2,
     // 画面遷移のたびに叩かない。更新の取り込みは staleTime とフォアグラウンド復帰に任せる。
