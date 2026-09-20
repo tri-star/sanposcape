@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-09-20 追補（SS-29。棚卸しで agent-memory から昇格）
+2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-09-20 追補（SS-29。棚卸しで agent-memory から昇格）、2026-09-20 追補（SS-100。サインアウト時のクリア対象から公開設定を除く）
 
 ## ステータス
 
-採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-29 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
+採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-29 追補、SS-100 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
 
 ## コンテキスト
 
@@ -183,6 +183,31 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・`d
 - **ADR-002（横断）決定6-1 との関係**: 決定6-1（「`POST /walks` は未認証では許可しない。サインインを促す導線に倒し、ゲスト記録を後からアカウントへマージする機能は作らない」）と本追補・SS-37 初版は矛盾しない。「サインインを促す導線」は SS-37 の CTA そのものであり、決定6-1 はむしろこれを指示している。決定6-1 が禁じる「マージ機能」は**既にサーバーに永続化されたゲスト記録の所有権付け替え**（決定理由に「所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さ」と明記）を指すが、ゲストの散歩はそもそも `POST /walks` が 401 で弾かれサーバーに永続化されない。SS-37 が扱うのは「未保存のままクライアント側に残ったドラフトを、CTA を押した本人が明示的にサインインして保存する」という決定6-1 が推奨する導線そのものであり、ADR-002 の修正は不要と判断した。
 - **見送った代替案**: 「未保存ドラフト離脱時（`WalkSummaryView` の『記録を見る』『ホームへ』）に確認ダイアログを出し `clearFinishedWalk()` を呼ぶ」という案も提示されたが、UX 変更（離脱ダイアログの新設）を伴い SS-37 のスコープ（行き止まり解消）を超えるため見送った。起点限定だけでも実害シナリオ（無関係な後続サインインへの混入）は解消できる。「同一端末で CTA を押したのが別人」という残余リスクは本追補の対象外とし、フォローアップ課題として離脱時の明示的破棄を起票することを推奨する。
 
+### 追補: サインアウト時のクリア対象から公開設定を除く（2026-09-20, SS-100）
+
+SS-100（mobile が `/app-config` のフィーチャーフラグで機能表示をガードする）の実装で、
+決定6（サインアウト時に `runSessionCleanup()` でサーバー由来キャッシュを捨てる）の対象範囲を
+明確化した。**決定6 自体は覆していない。**
+
+- **決定6 の目的は共有端末での情報漏れ防止**（前のユーザーの散歩履歴・軌跡が次のユーザーの
+  画面に一瞬でも出る事故を防ぐこと）である。`/app-config` はユーザーに紐づかない**公開設定**
+  であり、この目的の対象外である。[ADR-008（ルート、横断）](../../../docs/adr/ADR-008-deploy-release-separation.md)
+  追補 D2 がダークローンチ（ユーザー条件付きフラグ）を不採用としているため、`/app-config` の
+  応答は未認証でも認証後でも同一であることが構造的に保証されている。
+- `src/api/queryClient.ts` の `registerSessionCleanup(...)` を
+  `queryClient.clear()` から `queryClient.removeQueries({ predicate: (query) =>
+  !isAppConfigQueryKey(query.queryKey) })` + `queryClient.getMutationCache().clear()` に変更した。
+  `clear()` に巻き込むと、サインアウト直後に「フラグ不明 = 全 OFF」へ落ちる窓ができ、
+  公開済みの機能が一瞬消える不具合を生む。
+- **「新しいキャッシュは既定でクリア対象、除外は明示的な列挙」という fail-safe の向きは
+  変えていない。** 除外対象を `predicate` で明示的に1つだけ指定しており、今後新しいドメインの
+  クエリを足しても、明示的に除外しない限り自動的にクリア対象へ含まれる。
+- **除外してよい条件は「ユーザー非依存であること」に限る。** ADR-008 追補 D2 がユーザー条件付き
+  フラグを不採用としているためこの除外が成立している。将来 D2 を覆してダークローンチ
+  （ユーザーごとに異なる `/app-config` の応答）を採用する場合は、この除外も同時に見直す必要がある
+  （拡張点は [ADR-008（ルート、横断）](../../../docs/adr/ADR-008-deploy-release-separation.md)
+  の SS-100 追補を参照。実装上のファイルは `src/hooks/useAppConfigBootstrap.ts` の1箇所）。
+
 ## 検討した選択肢
 
 ### ゲートの実装方式
@@ -307,4 +332,6 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/lib/postSignInDestination.ts`（SS-57 ローカルレビュー対応、SS-37 追補）、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例）
 - （SS-37 追補）実装: `app/walk-summary.tsx`、`src/features/walk/components/WalkSummaryView.tsx`、`src/features/walk/components/WalkSaveStatus.tsx`、`src/features/walk/hooks/useWalkSummary.ts`、`src/features/walk/hooks/useWalkSave.ts`、`.maestro/guest-walk-save-sign-in.yaml`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/auth/lib/postSignInDestination.ts`（`wantsToSaveFinishedWalk`）
-- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（本追補の発生元）
+- （SS-100 追補）実装: `src/api/queryClient.ts`（`registerSessionCleanup` を `removeQueries(predicate)` へ変更）、`src/api/appConfigQueryKey.ts`（`isAppConfigQueryKey`）
+- [ADR-008（ルート、横断）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md) — SS-100 追補（mobile のフラグ受け皿）で本追補の拡張点を記録
+- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（本追補の発生元）、SS-100（本追補の発生元。mobile のフラグ受け皿）

@@ -3,13 +3,14 @@
 ## 日付
 
 2026-09-20（初版、SS-104）、2026-09-20 追補（SS-98: `/app-config` のレスポンススキーマと
-フラグ取得基盤）
+フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）
 
 ## ステータス
 
 採用（SS-104 で決定）。実装は SS-94 / SS-95 / SS-96 / SS-97 / SS-98 / SS-99 / SS-100 / SS-101 /
 SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfig の器）・SS-95（境界への
-読み取り権限追加）・SS-98（backend の取得基盤と `/app-config`）が完了し、残りは未着手である。
+読み取り権限追加）・SS-98（backend の取得基盤と `/app-config`）・SS-100（mobile のフラグ受け皿）が
+完了し、残りは未着手である。
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
 
@@ -353,7 +354,8 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
       （**フラグ定義ファイルのフォーマットと置き場所は SS-99 で決める。本 ADR では決めていない**。
       AppConfig に置く JSON の形自体は「SS-98 追補」§D7 で確定済みで、SS-99 はそこに書き込む
       ワークフローを作る）
-- [ ] SS-100: mobile が `/app-config` のフラグで機能表示をガードする
+- [x] SS-100: mobile が `/app-config` のフラグで機能表示をガードする（**完了**。詳細は下記
+      「SS-100 追補」を参照）
 - [ ] SS-101: 最低サポートバージョンを下回るアプリにアップデートを促す（決定7 の contract の前提）
 - [ ] SS-102: mobile の `mobile/vX.Y.Z` タグ・Release・CHANGELOG を自動生成する
 - [ ] SS-103: OTA の本番配信ワークフローを追加し、`EXPO_TOKEN` を Environment Secret へ移す
@@ -622,6 +624,99 @@ appconfig_read_timeout_seconds: float = 2.0
   スキーマにもレスポンス定義にも現れない。mobile（Orval で `openapi.yaml` を消費する側）から
   はこの契約が見えないため、キャッシュしない前提で実装する必要がある場合は本 ADR
   （またはコードコメント）を参照させること。
+
+## 追補: mobile のフラグ受け皿（2026-09-20, SS-100）
+
+決定2・決定9・追補 D1/D2/D9/D10 を mobile 側で実際に成立させた実装の記録。
+実装は `packages/mobile/src/api/`（`appConfigQueryKey.ts` / `appConfigApi.ts`）、
+`src/config/featureFlags.ts`（キー定数）、`src/lib/`（`appConfigSnapshot.ts` /
+`featureGate.ts` / `appConfigRefresh.ts`、いずれも純粋関数）、`src/hooks/`（`useAppConfig.ts` /
+`useAppConfigBootstrap.ts` / `useFeatureFlag.ts`）、`src/components/app-config/`
+（`AppConfigBootstrap.tsx` / `FeatureGate.tsx`）に分かれている。詳細な設計判断は
+[packages/mobile/docs/architecture-guideline.md](../../packages/mobile/docs/architecture-guideline.md)
+「フィーチャーフラグ（`/app-config`）の扱い」に譲り、ここでは ADR に残す価値のある決定のみを記す
+（節番号は D11 以降を使う。**D4 と D6 は欠番のまま**――既に SS-98 追補冒頭で明示済みの欠番であり、
+本追補でも詰めて振り直さない）。
+
+### D11: フラグ値の保持場所は TanStack Query、Zustand には複製しない
+
+`queryKey: ["app-config"]` の1本に一本化した。`/app-config` は未認証でも叩けるサーバー状態であり、
+[ADR-002（横断）](./ADR-002-auth-google-signin-and-stub-strategy.md) の「サーバー状態 = TanStack
+Query」、および `packages/mobile/docs/folder-structure.md` の「サーバー由来のデータは `src/store/`
+に置かない」に従う。`AuthGate` の `loading` 中でも取得を開始できることが、Zustand に持たせる理由が
+無いことの根拠になっている。
+
+### D12: キー定数は mobile 側で自前定義し、自動同期はしない
+
+D1 の申し送りどおり `packages/mobile/src/config/featureFlags.ts` に `FEATURE_FLAG_KEYS`
+（`as const` オブジェクト + `FeatureFlagKey` 型）を置いた。正典は backend のコード
+（D9 のとおり `core/feature_flags.py` の `FEATURE_FLAGS`）であり、このファイルは**その写し**で
+機械的な同期はしない（mobile のテストから Python を読むことはしない）。ズレても壊れないよう、
+未知キーは常に OFF に倒す（下記 D13）。**SS-100 では実フラグを1つも追加していない**
+（backend の登録簿にあるクライアント公開フラグが `app_config_probe`（疎通確認用）の1件のみで、
+mobile 側に隠したい未公開機能も現時点で存在しないため）。
+
+### D13: フェイルセーフの具体
+
+- ロード中 / 取得失敗 / 未知キー / 値が bool でない異常応答 → `isFeatureEnabled()` は常に `false`
+  （`flags[key] === true` の厳密比較で担保）。
+- **ロード中は直近の成功値を保持する。** 再取得（フォアグラウンド復帰）が失敗しても、
+  直近に成功した `data` がキャッシュに残っていれば `status: "ready"` のまま扱い、
+  画面のチラつき（公開済み機能が一瞬消えて戻る）を避ける。
+- 画面ごとフラグで隠す用途では、「まだ分からない（`loading`）」と「OFF が確定した
+  （`ready`/`unavailable` の OFF）」を区別できるよう `resolveFeatureGateDecision` が
+  `pending` / `enabled` / `disabled` の3値を返す。`loading` 中に確定的な OFF 扱い
+  （`<Redirect>` 等）をすると、「フラグ ON なのに起動直後は必ず弾かれる」不具合になるため。
+
+### D14: キャッシュ方針
+
+- `staleTime` 5分 / `gcTime` `Infinity`（一度取れた値は捨てない）/ `refetchOnMount: false`
+  （画面遷移のたびに叩かない）。更新の取り込みはフォアグラウンド復帰時の `invalidateQueries`
+  （最小間隔60秒）に任せる。
+- **永続キャッシュ（AsyncStorage 等）は持たない。** 理由は2つ。
+  ① 決定9 のフェイルセーフは「読めない時は OFF」であり、前回起動時の ON を永続化すると
+  kill switch が効かない端末が生まれ、フェイルセーフの向きが逆転する。
+  ② 依存追加（`@react-native-async-storage/async-storage` /
+  `@tanstack/react-query-persist-client`）は [ADR-004（mobile）](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+  の E2E APK キャッシュを1回ミスさせるコスト（development build の作り直しが必要）に見合わない。
+  得られるのは起動直後の数百 ms のチラつき低減のみ。
+- **サインイン完了後の `/app-config` 再取得は実装しない。** 追補 D2 が「サインイン完了後に
+  `/app-config` を再取得する」と mobile 側に申し送っていたが、D2 自体がダークローンチ
+  （ユーザー条件付きフラグ）を不採用としており、現状の応答は未認証/認証後で同一であるため、
+  今入れても「必ず同じ値が返ってくる再取得」を1本足すだけになり決定6 の精神（使われない分岐を
+  残さない）に反する。将来 D2 を覆す際の拡張点は `src/hooks/useAppConfigBootstrap.ts` の1箇所
+  （`useAuthSessionStore` の `status` が `authenticated` に遷移したら
+  `invalidateQueries({ queryKey: APP_CONFIG_QUERY_KEY })` を呼ぶ）に特定してある。
+
+### D15: サインアウト時のクリア対象から `/app-config` を除外する
+
+`src/api/queryClient.ts` のサインアウト時後始末（[ADR-009（mobile）](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)
+決定6）を `queryClient.clear()` から `removeQueries({ predicate: ... })` に変更し、
+`/app-config` のキャッシュだけを対象外にした。ユーザー非依存の公開設定を「共有端末での前ユーザーの
+データ漏れ防止」という決定6 の目的に巻き込む必要が無いため（除外できるのは D2 がダークローンチを
+不採用としているからで、D2 を覆す場合はこの除外も見直しが必要。詳細は ADR-009 の SS-100 追補）。
+
+### D16: `config_source` は mobile の内部型から落として分岐を構造的に禁止した
+
+mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図的に `config_source` を
+持たない。D1 が「クライアントはこの値で分岐してはいけない」と定めているため、プロダクトコードが
+参照できる型から落とすことで型システムに担保させた。診断表示が必要な `__DEV__` 画面
+（`/dev-screens` の `AppConfigDebugCard`）だけは別 hook（`useAppConfigDiagnostics()`）から読む。
+
+### D17: `minimum_supported_versions` は保持のみ
+
+`AppConfigSnapshot.minimumSupportedVersions`（`{ ios: string | null; android: string | null }`。
+`undefined` は `null` に畳み済み）として保持するところまでが SS-100 のスコープ。バージョン比較・
+アップデート促進 UI は SS-101 の責務（D1 の表の docstring どおり）。
+
+### D18: mobile 側に `services/` の real/mock 層は作らなかった
+
+フラグ取得は HTTP で完結し、ネイティブ機能にも認証にも依存しない
+（`packages/mobile/docs/folder-structure.md` は `services/` を「認証・実機依存機能」の器と
+定義している）。ユニットテストは Orval の msw ハンドラで、E2E は実 backend で足りる。
+ローカルで ON/OFF を試す手段も backend 側に既にある（D5 の `FEATURE_FLAG_MODE=stub` +
+`FEATURE_FLAG_STUB_DOCUMENT`）。mobile に3つ目のモード環境変数を増やすと、「端末側で ON にできる」
+抜け道を作ることになり、フラグの正典が2つになる。
 
 ## 関連情報
 
