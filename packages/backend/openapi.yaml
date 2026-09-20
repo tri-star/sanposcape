@@ -18,6 +18,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthStatus'
+  /app-config:
+    get:
+      tags:
+      - app-config
+      summary: Get App Config
+      description: 'mobile / LP が読む公開エンドポイント。認証不要（`/health` と同じ扱い）。
+
+
+        DB を触らない軽量経路にしている（DB 障害時にもフラグを配れるようにするため。
+
+        ADR-008 が選択肢4 を却下した理由と同じ発想）。取得層（`integrations/aws/appconfig.py`）が
+
+        ブロッキング I/O（boto3）を行うため、この関数は `async def` にしない
+
+        （sync def なら FastAPI がスレッドプールで実行し、イベントループを止めない）。'
+      operationId: get_app_config
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppConfigRead'
   /spots:
     get:
       tags:
@@ -464,6 +487,29 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    AppConfigRead:
+      properties:
+        flags:
+          additionalProperties:
+            type: boolean
+          type: object
+          title: Flags
+        minimum_supported_versions:
+          $ref: '#/components/schemas/MinimumSupportedVersionsRead'
+        config_source:
+          type: string
+          enum:
+          - appconfig
+          - default
+          - stub
+          title: Config Source
+      type: object
+      required:
+      - flags
+      - minimum_supported_versions
+      - config_source
+      title: AppConfigRead
+      description: '`GET /app-config` のレスポンス。'
     AuthUserRead:
       properties:
         id:
@@ -594,6 +640,26 @@ components:
       - north_east
       - south_west
       title: MapBounds
+    MinimumSupportedVersionsRead:
+      properties:
+        ios:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ios
+        android:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Android
+      type: object
+      title: MinimumSupportedVersionsRead
+      description: '`X.Y.Z` 形式のバージョン文字列、または `null`。
+
+
+        `null` は「最低バージョンの指定なし = 強制アップデートしない」を意味する
+
+        （AppConfig を読めない場合の安全側フォールバックも同じ値になる。ADR-008 追補 D1）。'
     PlaceCandidate:
       properties:
         id:

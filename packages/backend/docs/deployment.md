@@ -99,6 +99,14 @@ aws ssm get-parameter --name /sanposcape/dev/platform/secrets/shared/arn --regio
 # {{resolve:ssm:}} が失敗する。infra の live/account が未 apply の環境では存在しない）
 aws ssm get-parameter --name /sanposcape/dev/account/lambda_boundary_arn --region ap-southeast-1
 
+# AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID が3本とも存在すること。
+# 1本でも欠けると template.yaml の {{resolve:ssm:}} が解決できず、deploy 自体が失敗する
+# （backend が読むのは application_id / environment_id / configuration_profile_id の3本。
+# deployment_strategy_id は SS-99 のワークフロー側が読む）
+aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/application_id --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/environment_id --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/configuration_profile_id --region ap-southeast-1
+
 # シークレットのキー名だけを確認する（値は絶対に出さない）
 aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
   --query SecretString --output text | python3 -c "import sys,json; print(*sorted(json.load(sys.stdin)), sep='\n')"
@@ -682,3 +690,70 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   このリポジトリは public で、fork の PR からデプロイ経路（Environment と OIDC）に到達され得る。
 - **（SS-72）ロール ARN をワークフロー・`samconfig.toml`・ドキュメントに直書きしない。**
   アカウント ID を含むため、GitHub Environment の Variables（`AWS_SAM_DEPLOY_ROLE_ARN`）に置く。
+
+## 11. フィーチャーフラグ（AWS AppConfig, SS-98/ADR-008）
+
+デプロイとリリースの分離の詳細は [ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md)、
+実装の設計判断は同 ADR の「追補: `/app-config` のレスポンススキーマとフラグ取得基盤」を参照。
+ここでは運用手順のみをまとめる。
+
+### `/app-config` での確認方法
+
+```bash
+curl -s https://app-api.<env>.sanposcape.com/app-config | jq
+```
+
+```json
+{
+  "flags": { "app_config_probe": false },
+  "minimum_supported_versions": { "ios": null, "android": null },
+  "config_source": "default"
+}
+```
+
+`config_source` の読み方（クライアントはこの値で分岐してはいけない。診断専用）:
+
+| 値 | 意味 |
+|---|---|
+| `appconfig` | AppConfig から正常に取得できている |
+| `default` | 未配信（SS-99 のフラグ切り替えワークフローがまだ一度も流れていない。**デプロイ直後は必ずこの値になる正常な状態**）、または取得失敗（`APPCONFIG_*` 未設定・IAM 不備・タイムアウト等） |
+| `stub` | `FEATURE_FLAG_MODE=stub`（ローカル開発 / テスト専用。dev/prod では起動時バリデーションで弾かれる） |
+
+`default` と `appconfig` のどちらであるべきかは、SS-99 で実際にフラグ値を配信済みかどうかで決まる。
+`default` が続く場合は CloudWatch Logs（後述）で「未配信（INFO）」か「取得失敗（ERROR）」かを
+切り分ける。
+
+### 反映までの遅延要因
+
+フラグを ON にしてから `/app-config` に反映されるまでの時間は、次の合計になる。
+
+1. **AppConfig のデプロイのベイク時間**（Deployment Strategy が持つ待機時間。SS-99 側の設定）
+2. **ポーリング間隔**（`APPCONFIG_POLL_INTERVAL_SECONDS`、既定60秒。実行環境ごとに独立してカウントする）
+3. **実行環境（Lambda コンテナ）ごとのばらつき**（コールドスタート・コンテナの入れ替わりで
+   ポーリングのタイミングが揃わない）
+
+「フラグを ON にしたのに反映されない」と感じても、まず数分待ってから切り分けること
+（即座に反映されないのは仕様であり、`Cache-Control: no-store` にしているのは CDN 側の
+キャッシュを疑わなくて済むようにするためであって、AppConfig 側の遅延は無くならない）。
+
+### CloudWatch Logs で見るポイント
+
+```bash
+aws logs tail /aws/lambda/sanposcape-<env>-backend-api --since 15m --region ap-southeast-1
+```
+
+- `AppConfig has no deployed configuration yet; using default flags.`（INFO）: 未配信。
+  SS-99 が一度も流れていなければ正常。
+- `Failed to fetch AppConfig configuration: <ExceptionType>`（ERROR）: 取得失敗。
+  下記トラブルシュートを参照。
+- `APPCONFIG_* is not configured; all feature flags are OFF.`（ERROR、起動時1回）:
+  `APPCONFIG_*` の環境変数が1本でも空のまま起動した（`UnconfiguredFlagSource`）。
+  `template.yaml` の SSM 解決か SSM パラメータ自体を確認する。
+
+### トラブルシュート
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| `AccessDeniedException` on `StartConfigurationSession` / `GetLatestConfiguration` | 境界（SS-95）のアクション名が `appconfigdata:` になっている（正しくは `appconfig:`）、または `template.yaml` の `Resource` ARN と実際の AppConfig の ID が不一致 | 境界のポリシー（`sanposcape-infra`）のアクション名前空間を確認する。ARN は境界側がワイルドカード、`template.yaml` 側が完全 ARN（3本の SSM ID から組み立て）なので、両方を突き合わせる |
+| `/app-config` が常に `config_source: "default"` | `APPCONFIG_*` が未設定（CloudWatch Logs に ERROR）、または未配信（SS-99 が一度も流れていない。この場合は正常） | 上記「CloudWatch Logs で見るポイント」でログレベルを確認する |
+| デプロイ直後、`sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `/sanposcape/<env>/platform/appconfig/*` の SSM パラメータが存在しない（SS-94 が当該環境にまだ apply されていない） | Phase 0 の確認コマンドで存在を確認し、無ければ infra 側（SS-94）の apply を待つ |

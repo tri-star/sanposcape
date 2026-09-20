@@ -50,11 +50,13 @@ packages/backend/
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
 │       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
+│       │   ├── feature_flags.py  #   フィーチャーフラグの評価層（登録簿 + AppConfig 文書 → 判定。SS-98/ADR-008）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   ├── google_maps/   #   Places / Routes クライアント + キャッシュ
-│       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）
+│       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）。
+│       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）
 │       │
 │       ├── auth/              # ドメイン: 認証・セッション（Google ID token検証・自前トークン）
 │       │   ├── __init__.py
@@ -86,9 +88,14 @@ packages/backend/
 │       │
 │       ├── walks/             # ドメイン: 終了済み散歩の記録・履歴（散歩開始の探索・経路提示は maps/ の責務）
 │       ├── spots/             # ドメイン: スポット候補（Google Maps由来）
-│       └── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
-│           ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
-│           └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
+│       ├── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
+│       │   ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
+│       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
+│       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
+│       └── app_config/        # ドメイン: mobile / LP 向け公開設定（GET /app-config, SS-98/ADR-008）
+│           ├── router.py      #   service.py を置かない（ロジックは core/feature_flags.py 側にある。health/ と同じ判断）
+│           ├── schemas.py     #   AppConfigRead / MinimumSupportedVersionsRead
+│           └── dependencies.py #   get_feature_flags(request) -> FeatureFlags（app.state から取得。maps/dependencies.py と同じ形）
 │
 ├── alembic/
 │   ├── env.py                 # all_models.py の Base を参照してメタデータを集約
