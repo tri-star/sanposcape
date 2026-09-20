@@ -2,7 +2,8 @@
 name: ss10-auth-review-findings
 description: Findings from the SS-10 backend auth review (feat/ss-10-backend-auth) — track whether these get fixed in follow-up branches.
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 Reviewed `packages/backend/src/sanposcape/auth/` + `users/` + `config.py` + `dependencies.py` +

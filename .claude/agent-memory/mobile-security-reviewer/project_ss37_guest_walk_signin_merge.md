@@ -1,7 +1,9 @@
 ---
 name: project_ss37_guest_walk_signin_merge
 description: SS-37（保存失敗401時のサインインCTA・自動再送）レビューの要点。High指摘「未保存ゲストドラフトが無関係な後続サインインに自動添付される」は同PR内で解消済み
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-37（branch `tri-star/ss-37`、2026-08-15 レビュー）で `POST /walks` 401 時にサインイン CTA を追加し、

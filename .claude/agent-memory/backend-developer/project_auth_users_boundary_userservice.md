@@ -1,8 +1,9 @@
 ---
-name: auth-users-boundary-userservice
+name: project_auth_users_boundary_userservice
 description: authドメインからusersドメインへのアクセスは常にUserService経由に統一する（AuthServiceはUserRepositoryを直接持たない）
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `src/sanposcape/auth/` から `src/sanposcape/users/` へアクセスする経路は、常に `UserService`

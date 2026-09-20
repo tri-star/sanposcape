@@ -3,6 +3,7 @@ name: promotion-workflow
 description: Safe procedure for promoting code from features/<x>/lib|components to src/lib or src/components/ui when a second feature needs it
 metadata:
   type: feedback
+  scope: durable
 ---
 
 This project's `folder-structure.md` rule: code starts in `features/<feature>/`, and gets

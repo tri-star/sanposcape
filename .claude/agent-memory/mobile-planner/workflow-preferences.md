@@ -3,6 +3,7 @@ name: workflow-preferences
 description: task-workflow オーケストレーター経由でプランを作るときの進め方・成果物の置き場・承認の扱い
 metadata:
   type: feedback
+  scope: durable
 ---
 
 プラン作成は task-workflow オーケストレーターから Issue ID・作業範囲・事前調査結果つきで依頼される。

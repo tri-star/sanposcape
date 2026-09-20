@@ -3,6 +3,7 @@ name: no-bash-tool-review-approach
 description: このレビューエージェントのツールセットに Bash が無いセッションでは git diff が取れない。Glob+Read で計画書のファイル一覧を突き合わせて最終状態をレビューする
 metadata:
   type: feedback
+  scope: durable
 ---
 
 SS-10（認証 real/dev/mock 実装）のレビューでは、割り当てられたツールセットに Bash が含まれておらず、

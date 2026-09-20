@@ -1,7 +1,9 @@
 ---
 name: project_ss42_history_stats
 description: SS-42（記録タブの週/月集計・連続日数・歩数を GET /walks/stats の実データへ差し替え）レビュー時点の実装状況
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-42 のプラン（backend への API 依頼を含む。プラン文書自体は gitignore 対象で既に消失）に基づき、

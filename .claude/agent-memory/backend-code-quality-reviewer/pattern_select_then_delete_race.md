@@ -3,6 +3,7 @@ name: pattern_select_then_delete_race
 description: select→session.delete()→flush 方式の物理削除で起きうる StaleDataError レース（users/walks 両リポジトリに存在）。新しい delete() を見たら確認する。
 metadata:
   type: reference
+  scope: durable
 ---
 
 `users/repository.py:UserRepository.delete()` と `walks/repository.py:WalkRepository.delete()`（SS-53）は、どちらも次の形。

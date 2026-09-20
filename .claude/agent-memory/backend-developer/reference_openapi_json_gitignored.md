@@ -3,6 +3,7 @@ name: reference-openapi-json-gitignored
 description: packages/backend/openapi.json は.gitignore対象（openapi.yamlのみ追跡）。export後にgit statusで差分が出なくても異常ではない
 metadata:
   type: reference
+  scope: durable
 ---
 
 `packages/backend/.gitignore`（7行目）に `openapi.json` が指定されており、

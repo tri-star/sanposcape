@@ -2,7 +2,8 @@
 name: per-domain-error-classification
 description: API操作ごと(GET/POST/DELETE)に別のxxxError.tsを持つ方針。DRY違反として統合を提案しない
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 mobile の `features/*/lib/` には操作ごとに別々のエラー分類ファイルがある

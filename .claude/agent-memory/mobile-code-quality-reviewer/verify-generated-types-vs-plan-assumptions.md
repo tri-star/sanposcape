@@ -2,7 +2,8 @@
 name: verify-generated-types-vs-plan-assumptions
 description: 実装プランの「backendの型がまだ甘い」前提はOrval再生成やbackend修正で覆っていることがある。生成物/backendのresponsesを直接読んでからプランの妥当性を判断する
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-19（`packages/mobile/src/features/walk/api/walkApi.ts`）のレビューで発見。

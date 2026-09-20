@@ -1,7 +1,9 @@
 ---
 name: project_ss15_location_maps
 description: SS-15（地図表示・探索候補、react-native-maps/expo-location導入）のセキュリティレビュー結果の要点
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-15（ブランチ `tri-star/ss-15-claude`、2026-07-30 レビュー）で `src/services/location/`

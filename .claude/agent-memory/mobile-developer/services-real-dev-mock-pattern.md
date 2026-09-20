@@ -2,7 +2,8 @@
 name: services-real-dev-mock-pattern
 description: sanposcape の src/services/ は real/stub の2値ではなく real/dev/mock の3モード。tokenStore.clear() 等の永続化失敗は catch で握りつぶす。
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## 3モードパターン（real/dev/mock）

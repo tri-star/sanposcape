@@ -2,7 +2,8 @@
 name: project_ss42_walks_stats_review
 description: SS-42（GET /walks/stats 新設）のコード品質レビューで把握した実装の全体像と、streak安全弁のテスト未検証という指摘。以後 walks/stats.py・walks/service.py の streak ロジックを触るPRのレビュー時の前提知識。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 2026-08-09 時点、コミット `49effbf` で `walks/` ドメインに `GET /walks/stats`（週/月集計・連続日数）を追加。DB マイグレーション・新規インデックスなし（既存 `ix_walks_user_id_started_at_id` を流用）。[[project_ss18_walks_review]] の後続PR。

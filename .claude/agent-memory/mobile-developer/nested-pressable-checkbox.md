@@ -2,7 +2,8 @@
 name: nested-pressable-checkbox
 description: 行全体をPressableにして中にCheckbox/Switchを置くと二重タッチ/二重読み上げのリスクがある。内側は pointerEvents="none" + accessibilityElementsHidden/importantForAccessibility="no-hide-descendants" で表示専用にする
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 ## 行全体をタップ対象にする一覧行 + 内側の Checkbox/Switch

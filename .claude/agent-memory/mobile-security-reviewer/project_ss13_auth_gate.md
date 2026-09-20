@@ -1,7 +1,9 @@
 ---
 name: project_ss13_auth_gate
 description: SS-13で認証ゲート(AuthGate)導入。SS-15時点で app/ 配下の大半のルートに認証ガードが無かった問題は解消済み
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 **2026-08-06 SS-13 レビューで確認**: `app/_layout.tsx` の `AuthGate`

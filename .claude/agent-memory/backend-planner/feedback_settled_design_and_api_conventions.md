@@ -3,6 +3,7 @@ name: feedback-settled-design-and-api-conventions
 description: 確定済み ADR / API 契約は再検討しない。API フィールド名は snake_case 統一。開発専用エンドポイントは公開 OpenAPI 契約に載せない。
 metadata:
   type: feedback
+  scope: durable
 ---
 
 ### 1. 確定済みの設計・API 契約を再検討しない

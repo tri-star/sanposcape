@@ -2,7 +2,8 @@
 name: project-ss18-review-followup
 description: SS-18 (walks/散歩記録) のローカルレビュー指摘への対応履歴。承認された4項目の対応内容と判断ログ
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## 経緯

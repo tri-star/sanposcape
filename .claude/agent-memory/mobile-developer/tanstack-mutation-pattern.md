@@ -2,7 +2,8 @@
 name: tanstack-mutation-pattern
 description: このリポジトリで初めて useMutation を使った際に確立したパターン（SS-19 useWalkSave）
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-19（散歩終了処理・散歩ルート保存）まで、mobile には `useQuery` の利用例

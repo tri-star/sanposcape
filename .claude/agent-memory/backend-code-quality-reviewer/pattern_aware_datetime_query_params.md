@@ -3,6 +3,7 @@ name: pattern_aware_datetime_query_params
 description: リクエストボディのdatetimeはAwareDatetimeでtz-aware必須にしているが、クエリパラメータのdatetimeでは素のdatetime型になっていて非対称になりがちな箇所。
 metadata:
   type: feedback
+  scope: durable
 ---
 
 SS-18 (`walks/router.py`) で発見: `WalkCreate.started_at` / `ended_at` は `pydantic.AwareDatetime` で naive datetime を 422 で弾いているのに対し、`GET /walks` の `started_after` / `started_before` クエリパラメータ（`walks/router.py`）は素の `datetime | None = Query(default=None)` で、naive な日時文字列も通ってしまう。

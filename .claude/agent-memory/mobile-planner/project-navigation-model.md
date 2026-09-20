@@ -2,7 +2,8 @@
 name: project-navigation-model
 description: mobile のルートスタックの実態（どこで canGoBack が false になるか）と Android バック対応の前提
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ナビゲーション/導線まわりのプランで毎回効く、コードを読まないと分からない事実（2026-08 / SS-34 の調査で確認）。

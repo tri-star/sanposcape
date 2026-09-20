@@ -1,7 +1,9 @@
 ---
 name: project_ss13_auth_session_gate
 description: SS-13 認証状態集約(useAuthSessionStore)+AuthGate実装レビューの所見。良好な依存方向設計と、docドリフト/サーバーデータ混入という残課題
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-13（ブランチ `feat/ss-13-auth-walk-separation`）で `src/store/useAuthSessionStore.ts`

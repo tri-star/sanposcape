@@ -1,8 +1,9 @@
 ---
-name: mobile-codegen-ci-constraint
+name: project_codegen_ci_constraint
 description: MCP ツール(DesignSync等)は CI から呼べないため codegen は fetch と transform を分離する
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 DesignSync のような MCP ツールは**エージェントの実行環境にしか存在せず、GitHub Actions のランナーからは呼べない**。

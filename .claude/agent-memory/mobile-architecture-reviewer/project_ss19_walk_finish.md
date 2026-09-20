@@ -1,7 +1,9 @@
 ---
 name: project_ss19_walk_finish
 description: SS-19（散歩終了処理・散歩ルート保存/POST walks 保存フロー）レビュー時点の実装状況と確認済みの設計整合ポイント
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-19 のプラン（サマリ画面で1回保存する案A採用・軌跡整形・ローカル永続化はスコープ外。プラン文書自体は

@@ -1,7 +1,9 @@
 ---
 name: adr002-auth-shared-codepath
 description: ADR-002決定3(real/devが同一コードパスを通る認証設計)の実装場所と検証テスト、崩れやすい箇所
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 `packages/backend/src/sanposcape/auth/service.py` の `AuthService` が中核。

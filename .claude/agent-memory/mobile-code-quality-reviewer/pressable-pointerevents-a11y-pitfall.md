@@ -2,7 +2,8 @@
 name: pressable-pointerevents-a11y-pitfall
 description: RN の pointerEvents="none" はタッチだけ無効化し、アクセシビリティツリーからは要素を消さない（二重読み上げの原因になりうる）
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `packages/mobile` では、行全体をタップ領域にしつつ内側に見た目だけのプリミティブ（例:

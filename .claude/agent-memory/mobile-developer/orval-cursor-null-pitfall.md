@@ -3,6 +3,7 @@ name: orval-cursor-null-pitfall
 description: Orval-generated URL builders stringify null query params as the literal "null", breaking cursor-based pagination
 metadata:
   type: feedback
+  scope: durable
 ---
 
 Orval's generated `get<Xxx>Url(params)` helpers build query strings with:

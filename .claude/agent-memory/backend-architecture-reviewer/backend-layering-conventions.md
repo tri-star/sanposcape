@@ -1,7 +1,9 @@
 ---
 name: backend-layering-conventions
 description: packages/backend のレイヤー規約・命名・テスト方針の要点（folder-structure.md/SS-10実装から）
-type: project
+metadata:
+  type: reference
+  scope: durable
 ---
 
 `packages/backend/docs/folder-structure.md` が正典。要点:

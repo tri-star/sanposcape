@@ -3,6 +3,7 @@ name: conventions_reference
 description: backend の命名規則・フォルダ構造ドキュメントの場所と要点。レビュー時に毎回参照する。
 metadata:
   type: reference
+  scope: durable
 ---
 
 - 命名規則: `packages/backend/docs/naming-convention.md`

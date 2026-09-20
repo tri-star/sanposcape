@@ -2,7 +2,8 @@
 name: project-ss18-walks-backend-complete
 description: SS-18（backend: 散歩(Walk)モデル・記録保存・履歴取得API）はbackend側実装が完了済み。M5の次はmobile側SS-19/SS-20
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-18「backend: 散歩(Walk)モデル・散歩ルート保存・履歴取得API（ユーザー紐付け・認可）」は

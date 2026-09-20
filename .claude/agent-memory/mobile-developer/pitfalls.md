@@ -2,7 +2,8 @@
 name: pitfalls
 description: TypeScript/React/RN でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatListのflex:1)
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 ## `__DEV__` を `globalThis.__DEV__ = ...` で代入すると TS2339 になる

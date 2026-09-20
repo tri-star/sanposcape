@@ -3,6 +3,7 @@ name: feedback-commit-splitting
 description: 複数のレビュー指摘が同じファイルに対する修正になる場合、1指摘=1コミットに分割する具体的な手順
 metadata:
   type: feedback
+  scope: durable
 ---
 
 このプロジェクトの git commit ガイドライン（`docs/git-commit-guideline.md`）は「1ステップ完了ごとに

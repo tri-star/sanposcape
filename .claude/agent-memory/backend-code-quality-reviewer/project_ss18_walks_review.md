@@ -2,7 +2,8 @@
 name: project_ss18_walks_review
 description: SS-18（walksドメイン新設）のコード品質レビューで把握した全体像。今後 walks/ を触るPRのレビュー時の前提知識。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 2026-08-01 時点、ブランチ `feat/ss-18-walk-record`（10コミット、main未マージ）で `walks/` ドメインを新設。`POST /walks`（記録保存・冪等）/ `GET /walks`（keysetページネーション履歴一覧）/ `GET /walks/{walk_id}`（軌跡付き詳細）。

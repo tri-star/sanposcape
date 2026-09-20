@@ -2,7 +2,8 @@
 name: session-cleanup-registry
 description: サインアウト時にfeature store/queryClientをクリアする一元化パターン（src/lib/sessionCleanup.ts）
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-19 のローカルレビュー対応で `packages/mobile/src/lib/sessionCleanup.ts` を新設した。

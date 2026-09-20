@@ -1,7 +1,9 @@
 ---
 name: project_ss37_save_sign_in_cta
 description: SS-37（散歩サマリ保存401時のサインインCTA追加）レビュー所見。ADR追補の質・props注入パターン踏襲・状態二重管理無しの参照実装。Critical/Warning無し
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-37（ブランチ `tri-star/ss-37`、2026-08-15）は `POST /walks` が 401（ゲストのまま保存）で

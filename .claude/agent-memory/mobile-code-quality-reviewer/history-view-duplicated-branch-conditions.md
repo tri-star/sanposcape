@@ -2,7 +2,8 @@
 name: history-view-duplicated-branch-conditions
 description: WalkHistoryListView/WalkDetailView（features/history）は「中央寄せラッパーにするか」の判定条件と renderBody() 内部の状態分岐条件を2箇所に別々に書いており、片方だけ更新すると表示崩れを起こしうる
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-20 の `packages/mobile/src/features/history/components/WalkHistoryListView.tsx` と

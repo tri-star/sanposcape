@@ -2,7 +2,8 @@
 name: auth-scenarios
 description: mobile で 401 が起きる2つの経路（ゲストのまま / セッション失効）の違い。混同すると設計を誤る
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `/walks` 系 API の 401 には性質の違う2経路がある。**どちらの話をしているか毎回確認すること。**

@@ -3,6 +3,7 @@ name: feedback-walks-stats-test-gotchas
 description: 固定クロックのTestClient fixtureはtest_settingsベースのclientの上に組む。module定数のmonkeypatchはimport先のnamespaceを対象にする
 metadata:
   type: feedback
+  scope: durable
 ---
 
 SS-42 の `GET /walks/stats` 実装時にハマった2点（自己解決したが再発しやすいので記録）。
@@ -26,4 +27,4 @@ SS-42 の `GET /walks/stats` 実装時にハマった2点（自己解決した�
    `service.py` 側の namespace を書き換える必要がある: `monkeypatch.setattr(service_module, ...)`）。
    チャンク境界越えのテスト（S-9 相当）を書くときは要注意。
 
-関連: [[project-ss42-walks-stats-backend-complete]], [[backend-auth-mode-env-gotcha]]
+関連: [[project-ss42-walks-stats-backend-complete]], [[project_backend_auth_mode_env_gotcha]]

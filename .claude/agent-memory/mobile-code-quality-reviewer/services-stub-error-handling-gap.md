@@ -2,7 +2,8 @@
 name: services-stub-error-handling-gap
 description: src/services/*.stub.ts は常に成功するため、呼び出し側フックのエラーハンドリング欠如が単体テスト/実行時に顕在化しない
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `src/services/<service>/index.ts` は `EXPO_PUBLIC_USE_*_STUB` で real/stub を切り替える設計

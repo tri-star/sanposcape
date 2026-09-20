@@ -2,7 +2,8 @@
 name: project-m5-walk-history
 description: M5「散歩記録・履歴」の Issue 分担（SS-18〜21）、SS-18 で引いたスコープ境界、および walks ドメインの設計を ADR-003 に一本化して追補し続ける運用。
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 M5 は SS-18(backend: Walk モデル・保存/履歴 API) → SS-19(mobile: 散歩終了処理) → SS-20(mobile: 履歴画面) → SS-21(E2E・仕上げ) の順で、SS-18 が後続2件の土台になる。

@@ -1,7 +1,9 @@
 ---
 name: project_ss21_e2e_finish
 description: SS-21 MVP E2E(Maestro)仕上げの実装内容・良好パターン・確認事項（testID注入・subflow設計・tag運用）
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-21（`feat/ss-21-mvp-e2e`）は MVP 主要フロー（認証→探索→散歩開始→終了・保存→履歴一覧/詳細）を

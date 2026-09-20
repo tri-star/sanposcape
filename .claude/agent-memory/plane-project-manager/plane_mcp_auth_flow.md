@@ -2,7 +2,8 @@
 name: plane-mcp-auth-flow
 description: Plane MCPの認可フロー完了後もセッションによってはlist_work_items等のデータ系ツールが一切ツール一覧に現れないことがある観測
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 2026-08-21のトリアージ依頼時、ユーザーは事前に別セッション（または別画面）でPlane MCPのOAuth認可URLへリダイレクトされ、`http://localhost:xxxxx/callback?code=...`への実際の遷移を目視確認済みと報告した。しかし本セッションでは：

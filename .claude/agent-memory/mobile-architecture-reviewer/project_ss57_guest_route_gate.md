@@ -1,7 +1,9 @@
 ---
 name: project_ss57_guest_route_gate
 description: SS-57（ゲスト散歩解禁・canEnterProtectedRoutesにguest許可）レビュー所見。ADR-009追補の質は高い一方、mid-walk中のsettings経由サインインがwalk-startへ強制遷移し進行中の散歩を暗黙に上書きしうる新規ギャップを発見
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3「ゲート許可は

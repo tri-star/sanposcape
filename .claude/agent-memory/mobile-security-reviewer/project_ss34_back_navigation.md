@@ -1,7 +1,9 @@
 ---
 name: project_ss34_back_navigation
 description: SS-34 散歩開始/履歴一覧/履歴詳細の「戻る」導線一元化(useScreenBack)レビュー。fallbackHrefは全て呼び出し元でハードコードされたリテラルでopen redirect余地なし
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 `packages/mobile/src/hooks/useScreenBack.ts`（BackHandler購読+router.back()/replace一本化）と

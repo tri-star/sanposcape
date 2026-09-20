@@ -1,7 +1,9 @@
 ---
 name: string-concat-dedup-key-fragility
 description: 単純な文字列連結（`${a}:${b}`）で作る重複判定キーは、区切り文字が値に含まれると衝突しうる。型だけでは守られないので生成元を確認する。
-type: feedback
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 `${id}:${flag}` のような単純な文字列連結でキャッシュキー／発火済みキーを作るパターン

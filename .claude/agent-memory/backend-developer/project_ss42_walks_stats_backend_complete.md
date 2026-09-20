@@ -2,7 +2,8 @@
 name: project-ss42-walks-stats-backend-complete
 description: SS-42 backend（GET /walks/stats: 週/月集計・連続日数）は実装完了。次はmobile側の実装
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-42「mobile: 記録タブの週/月集計・連続日数・歩数を実装する」のうち、backend 側

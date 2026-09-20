@@ -2,7 +2,8 @@
 name: ss57-guest-settings-signin-push-breaks-canGoBack-invariant
 description: 保護ルートからのサインイン導線を router.push で開くと canGoBack()===false の設計不変条件が崩れる（SS-57で発見、同名の実例は解消済み）。認証導線レビューでの確認観点として有効
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `packages/mobile/src/features/auth/hooks/useAuthActions.ts` の `continueAsGuest` の実装コメントは

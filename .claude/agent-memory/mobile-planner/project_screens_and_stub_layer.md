@@ -2,7 +2,8 @@
 name: project_screens_and_stub_layer
 description: MVP 画面 → View → データ供給の対応、data/ 層の現在の役割（API スタブは解消済み）、表示確認ルート
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-8 で MVP 主要画面が静的実装され、その後 SS-11/15/16/19/20/42 で実 API へ移行済み。画面の構造は安定。

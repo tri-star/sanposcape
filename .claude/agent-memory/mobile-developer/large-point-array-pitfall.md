@@ -3,6 +3,7 @@ name: large-point-array-pitfall
 description: Never spread a walk track array into Math.max/Math.min — tracks can have up to 10,000 points (ADR-003) and risk a stack overflow
 metadata:
   type: feedback
+  scope: durable
 ---
 
 Walk tracks (`GeoCoordinates[]` from `WalkDetailRead.track`) can have up to `MAX_TRACK_POINTS =

@@ -2,7 +2,8 @@
 name: maestro-e2e-patterns
 description: Maestro E2E（.maestro/）のフロー構成・tag運用・状態別testIDの付け方（SS-21で確立）
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-21（MVP主要フローのE2E）で確立した `packages/mobile/.maestro/` の設計パターン。

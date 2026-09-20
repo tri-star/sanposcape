@@ -2,7 +2,8 @@
 name: project-ss44-maps-fake-review
 description: SS-44 (feat/ss-44-fake-maps-provider) security review outcome — MAPS_MODE fake provider fail-safe pattern, no Critical/High findings.
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 Reviewed 2026-08-08: `FakeGoogleMapsProvider` (`packages/backend/src/sanposcape/integrations/google_maps/fake.py`)

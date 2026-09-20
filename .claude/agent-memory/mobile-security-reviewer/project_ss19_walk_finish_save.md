@@ -1,7 +1,9 @@
 ---
 name: project_ss19_walk_finish_save
 description: SS-19（散歩終了処理・散歩ルート保存、POST /walks）セキュリティレビューの要点
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-19（`feat/ss-19-walk-finish`、2026-08-02 レビュー）で `useFinishedWalkStore` /

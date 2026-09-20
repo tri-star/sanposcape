@@ -1,8 +1,9 @@
 ---
-name: design-system-ssot
+name: project_design_system_ssot
 description: SS-1 で決めた Claude Design と mobile リポジトリ間の SSoT 切り分けと同期方向
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 デザイントークンの**値**の SSoT は Claude Design プロジェクト `ea6ab024-4c09-45b2-94f5-0a6a0315a88d`
@@ -17,4 +18,4 @@ metadata:
 `src/theme/generated/` を手編集する案を出さない(`src/api/generated/` と同じ扱い)。
 逆方向の同期(RN 実装を DS へ push)を提案しない。
 
-関連: [[mobile-codegen-ci-constraint]]
+関連: [[project_codegen_ci_constraint]]

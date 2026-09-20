@@ -2,7 +2,8 @@
 name: testing-constraints
 description: mobile の Vitest は node環境+.tsのみ対象。hooks/componentsに直接テストが無くても指摘しない
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `packages/mobile/vitest.config.ts` は `environment:"node"` / `include:["src/**/*.test.ts"]`。

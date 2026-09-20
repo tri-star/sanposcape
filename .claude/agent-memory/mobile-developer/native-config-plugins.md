@@ -2,7 +2,8 @@
 name: native-config-plugins
 description: react-native-nitro-google-signin's Expo config plugin unconditionally requires iosUrlScheme (or Firebase files), even for Android-only development
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 ## `react-native-nitro-google-signin` config plugin fails hard without `iosUrlScheme`

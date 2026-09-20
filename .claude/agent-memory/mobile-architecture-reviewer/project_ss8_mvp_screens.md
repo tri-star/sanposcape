@@ -1,7 +1,9 @@
 ---
 name: project_ss8_mvp_screens
 description: SS-8（MVP主要画面の静的実装・ルーティング配線）レビュー時点の実装状況と、確認済みの設計整合ポイント
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-8 のプラン（プラン文書自体は gitignore 対象で既に消失）に基づき、`app/*`（スプラッシュ/認証/散歩開始/散歩中/散歩終了/履歴/タブ）

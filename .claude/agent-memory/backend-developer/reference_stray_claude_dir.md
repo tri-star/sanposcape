@@ -3,6 +3,7 @@ name: reference-stray-claude-dir
 description: エージェントメモリが packages/backend 配下の誤った場所に書き込まれてしまう既知のバグと、その正しい置き場所
 metadata:
   type: reference
+  scope: durable
 ---
 
 エージェントメモリの正しい置き場所は常にリポジトリルート `<project-root>/.claude/agent-memory/<agent-name>/`

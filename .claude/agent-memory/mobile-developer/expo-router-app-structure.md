@@ -2,7 +2,8 @@
 name: expo-router-app-structure
 description: Expo Router (SDK 57 / expo-router 57) の型生成手順、index.tsx と (tabs)/index.tsx の共存、Tabs の非推奨警告
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## `.expo/types/router.d.ts` はCI/ローカルどちらも明示生成が必要

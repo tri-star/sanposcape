@@ -3,6 +3,7 @@ name: mock-dc-html-as-review-evidence
 description: docs/mock/*.dc.html の元mockソースを grep すると、スタブ値の「一見不整合に見える数値」が意図的な移植かどうか判定できる
 metadata:
   type: reference
+  scope: durable
 ---
 
 `packages/mobile/docs/mock/ウォーキングコース検索アプリ.dc.html` は元デザインの動くモック

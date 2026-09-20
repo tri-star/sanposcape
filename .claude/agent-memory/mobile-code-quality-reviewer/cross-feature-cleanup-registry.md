@@ -2,7 +2,8 @@
 name: cross-feature-cleanup-registry
 description: features間の直接importを避けるための後始末レジストリパターン（sessionCleanup/walkDeletionCleanup）
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `docs/folder-structure.md` は「その機能の外から import されるものは置かない」（feature間の

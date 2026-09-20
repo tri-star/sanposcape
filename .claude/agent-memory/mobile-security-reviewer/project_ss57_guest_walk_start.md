@@ -1,7 +1,9 @@
 ---
 name: project_ss57_guest_walk_start
 description: SS-57 ゲスト散歩解禁レビューの要点。canEnterProtectedRoutes に guest 追加、退避判定を状態遷移ベースに変更。問題なしと判定
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-57（branch `tri-star/ss-57`, commit `afeaae7`）で `canEnterProtectedRoutes` が

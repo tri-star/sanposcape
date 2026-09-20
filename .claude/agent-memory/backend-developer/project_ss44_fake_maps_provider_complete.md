@@ -2,7 +2,8 @@
 name: project-ss44-fake-maps-provider-complete
 description: SS-44（backend: MAPS_MODE=fakeで切り替える決定的なfake Maps provider）は実装完了。SS-21のMaestro E2Eブロッカー解消
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-44「backend: E2E用の決定的なfake Maps providerをMAPS_MODEで切り替えられるように

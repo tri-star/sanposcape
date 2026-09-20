@@ -2,7 +2,8 @@
 name: project-sanposcape-conventions
 description: Recurring backend security design patterns in sanposcape (IDOR handling, cursor pagination, request-size middleware, exception-handler style) — check these still hold before flagging as issues.
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 Observed conventions in `packages/backend/src/sanposcape/` as of the SS-18 (walks) review (2026-08-01):

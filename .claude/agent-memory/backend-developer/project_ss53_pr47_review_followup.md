@@ -2,7 +2,8 @@
 name: project-ss53-pr47-review-followup
 description: SS-53 (DELETE /walks/{walk_id}) PR #47のCopilotレビュー指摘2件への対応内容と判断ログ
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## 経緯

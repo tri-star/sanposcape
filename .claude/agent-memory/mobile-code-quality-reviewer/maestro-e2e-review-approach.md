@@ -2,7 +2,8 @@
 name: maestro-e2e-review-approach
 description: Maestro E2E フロー（.maestro/*.yaml）と testID 追加のレビューでは、コメントの前提（画面遷移・canGoBack 挙動）を実際の router.push/replace 呼び出しまで追跡して裏取りする
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-21（`.maestro/` の MVP フロー追加・testID 追加）のレビューで有効だった手順。

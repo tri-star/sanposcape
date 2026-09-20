@@ -2,7 +2,8 @@
 name: auth-cleanup-asymmetric-error-swallow
 description: signOut系のクリーンアップ処理で一部の失敗だけtry/catchで握りつぶし、残りは無防備というasymmetryが起きやすい（SS-10 createSessionAuthService.signOutで発見）
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-10（`packages/mobile/src/services/auth/createSessionAuthService.ts` の `signOut()`）で見つかったパターン。

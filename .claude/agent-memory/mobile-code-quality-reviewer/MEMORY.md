@@ -17,3 +17,6 @@
 - [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針。統合提案しない
 - [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
 - [plan risk notes lost in tmp](plan-risk-notes-lost-in-tmp.md) — プランの「実機確認/既知の制約」注意書きが一時メモにしかなく、コード/ADRに転記漏れだと消える。転記有無を確認する
+- [history系Viewの分岐条件の二重定義](history-view-duplicated-branch-conditions.md) — 中央寄せ判定とrenderBody内の状態分岐を2箇所に別々に書くと片方だけ更新して表示が崩れる
+- [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。型では守られないので生成元を確認する
+- [テーブル駆動テストの模範](table-driven-test-style-reference.md) — `src/lib/backNavigation.test.ts`のit.each形式が基準。個別it()の羅列との乖離をレビューで拾う

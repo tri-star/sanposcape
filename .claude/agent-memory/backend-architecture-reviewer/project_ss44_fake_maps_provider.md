@@ -1,7 +1,9 @@
 ---
 name: project_ss44_fake_maps_provider
 description: SS-44で確立された「mode + 許可リストfail-safe」パターンのMaps版と、fakeテストダブルの命名混同リスク
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-44（`feat/ss-44-fake-maps-provider`, 2026-08時点でレビュー）で、`AUTH_MODE`（ADR-002

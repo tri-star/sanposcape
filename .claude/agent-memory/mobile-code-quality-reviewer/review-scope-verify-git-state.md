@@ -3,6 +3,7 @@ name: review-scope-verify-git-state
 description: レビュー依頼で指定されたブランチ名/コミットハッシュ/「未コミット」という前提は、実際の git 状態と食い違うことがある
 metadata:
   type: feedback
+  scope: durable
 ---
 
 SS-8（MVP主要画面の静的実装）のレビュー依頼では「ブランチ `feat/ss-8-mvp-screens` の

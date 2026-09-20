@@ -1,7 +1,9 @@
 ---
 name: project_ss20_walk_history_walkid_traversal
 description: SS-20で指摘したwalkId未検証パストラバーサル(High)は解決済み。isUuid()で二重検証されている(SS-57時点で確認)
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 `packages/mobile/app/walk-history/[walkId].tsx` は Expo Router 動的ルート（`[param]` 形式）。

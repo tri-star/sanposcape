@@ -2,7 +2,8 @@
 name: orval-customfetch-contract
 description: Orval の react-query + fetch client は mutator が { status, data, headers } を返すことを前提に型生成する。src/api/client.ts の customFetch はこの契約に合わせる必要がある
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## `customFetch` は生の本文ではなく `{ status, data, headers }` を返す契約

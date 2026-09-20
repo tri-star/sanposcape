@@ -3,6 +3,7 @@ name: antipattern_plan_decision_refs
 description: 実装コードのコメントに「D3」「Q3」「B-3」のような計画ドキュメントの決定コードだけを埋め込み、その定義がgitignore対象のtmp/にしかなく将来追跡不能になる、このコードベース横断の再発パターン。
 metadata:
   type: feedback
+  scope: durable
 ---
 
 SS-18 (`walks/` ドメイン) のレビューで発見。`walks/models.py` / `walks/schemas.py` / `walks/repository.py` / `walks/exceptions.py` / `walks/router.py` に `（D1）` `（D3）` `（D6）` `（Q3）` のような決定コードが多数埋め込まれているが、その定義は `tmp/SS-18/backend-plan.md` にしかない。`tmp/` はリポジトリの `.gitignore` に含まれており、コミットされない。 <!-- tmp-ref-ok: tmp/ 参照そのものを説明している箇所 -->
