@@ -134,9 +134,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        close = getattr(provider, "close", None)
-        if callable(close):
-            close()
+        for closeable in (provider, app.state.feature_flag_source):
+            close = getattr(closeable, "close", None)
+            if callable(close):
+                close()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

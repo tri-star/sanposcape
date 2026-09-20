@@ -121,6 +121,10 @@ class AppConfigFlagSource:
         self._configuration_profile_id = settings.appconfig_configuration_profile_id
         self._poll_interval_seconds = settings.appconfig_poll_interval_seconds
         self._error_backoff_seconds = settings.appconfig_error_backoff_seconds
+        # テストが差し替えたフェイク/Stubber 付きクライアントまで close() しないよう、
+        # 自分で作った場合だけ close する（google_maps/client.py の HttpGoogleMapsProvider
+        # と同じ流儀）。
+        self._owns_client = client is None
         self._client = client or boto3.client(
             "appconfigdata",
             config=Config(
@@ -232,6 +236,14 @@ class AppConfigFlagSource:
         if self._document is None:
             self._document = FlagDocument({}, kind="default")
         return self._document
+
+    def close(self) -> None:
+        """`app.state` に長期保持される boto3 クライアント（内部に urllib3 コネクション
+        プールを持つ）を `_lifespan` の finally で閉じるためのフック。
+        `HttpGoogleMapsProvider.close()` と同じ形（`_owns_client` が真のときだけ閉じる）。
+        """
+        if self._owns_client:
+            self._client.close()
 
 
 def build_flag_document_source(settings: Settings) -> FlagDocumentSource:

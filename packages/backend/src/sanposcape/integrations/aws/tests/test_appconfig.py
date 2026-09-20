@@ -395,6 +395,34 @@ def test_resource_not_found_exception_is_treated_as_default_with_backoff() -> No
     assert len(fake_client.calls) == call_count
 
 
+def test_close_does_not_close_an_injected_client() -> None:
+    """テストが差し替えたフェイククライアント（`close()` を持たない）は close しない。
+    `_owns_client` は「自分で boto3.client() を呼んで作った場合だけ」を表す
+    （`HttpGoogleMapsProvider` と同じ流儀。local-review F-13）。
+    """
+    fake_client = _FakeAppConfigDataClient()  # close() を持たない
+    source = AppConfigFlagSource(_settings(), client=fake_client)
+
+    source.close()  # AttributeError が出ないことそのものがアサーション
+
+
+def test_close_closes_a_client_it_created_itself(monkeypatch: pytest.MonkeyPatch) -> None:
+    closed: list[bool] = []
+
+    class _FakeBotoClient:
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(
+        "sanposcape.integrations.aws.appconfig.boto3.client", lambda *a, **k: _FakeBotoClient()
+    )
+    source = AppConfigFlagSource(_settings())
+
+    source.close()
+
+    assert closed == [True]
+
+
 @pytest.mark.parametrize(
     "mode, application_id, environment_id, profile_id, expected_type",
     [
