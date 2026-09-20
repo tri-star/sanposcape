@@ -4,6 +4,13 @@
 どれをクライアントに見せるか」（ここ）は変更理由が別のため分離する（folder-structure.md、
 ADR-008 追補 D3。SS-98）。
 
+`FlagDocument` / `FlagDocumentSource`（下で import している型）を `core` 側ではなく
+`integrations/aws/appconfig.py` 側に置いているのは、**循環 import になるから**ではない
+（`FlagDocumentSource` は `Protocol` なので構造的部分型が効き、core 側に置いても
+`integrations → core` に依存の向きが反転するだけで循環にはならない。技術的にはどちらの
+配置も可能）。`core/runtime_config.py → integrations/aws/secrets.py` という既存の依存の
+向きとの一貫性を優先した設計判断であり、詳細は ADR-008 追補 D3 を参照。
+
 フラグの「クライアント公開可否」の正典はこのモジュールの `FEATURE_FLAGS`（本リポジトリの
 コード）が持つ。AppConfig 側の JSON は `AWS.AppConfig.FeatureFlags` の型で
 `additionalProperties: false`（独自メタ情報を置けない）ため、値の切替操作で内部専用フラグが

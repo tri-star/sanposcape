@@ -5,6 +5,10 @@ folder-structure.md の方針（外部 API / SDK は `integrations/` に隔離�
 ここに閉じ込め、「どのキーが存在し、どれをクライアントに見せるか」という評価ロジックは
 `core/feature_flags.py` の責務にする（ADR-008 追補 D3, SS-98）。
 
+`FlagDocument` / `FlagDocumentSource` をここ（`core` 側ではない）に置いているのは循環 import
+を避けるためではなく、`core/runtime_config.py → integrations/aws/secrets.py` という既存の
+依存の向きとの一貫性を優先した設計判断（ADR-008 追補 D3 に詳細）。
+
 boto3 は Lambda の python3.12 管理ランタイム同梱前提で、`pyproject.toml` の
 `[dependency-groups] dev` にのみ追加している（zip に含めない。`secrets.py` と同じ方針）。
 

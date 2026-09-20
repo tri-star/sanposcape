@@ -370,6 +370,11 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
 （HTTP エンドポイント）、`core/feature_flags.py`（評価層）、
 `integrations/aws/appconfig.py`（boto3 `appconfigdata` の取得層）に分かれている。
 
+節番号は D1, D2, D3, D5, D7, D8, D9, D10 の順。**D4 と D6 は欠番**（この2つの番号に対応する
+決定が本追補には無く、意図的に使用していない。今後この2つの番号を新設する決定が生じた場合は、
+この欠番を埋める形で追補すること。既存の節番号は他の節・本リポジトリのコード（後述）から
+参照されているため、詰めて振り直さない）。
+
 ### D1: `/app-config` のレスポンススキーマ
 
 ```http
@@ -436,6 +441,38 @@ GET /app-config            認証不要（/health と同じ扱い）。Cache-Con
 | フラグ JSON | `flags.<key>.attributes` に `allowed_user_keys` 等を定義し、`values.<key>` に値を入れる。**属性は `enabled: true` のときしか配信されない**ため「OFF だが特定ユーザーだけ ON」は表現できない（フラグの意味論が変わるため ADR 追補が別途必要） |
 | `/app-config` | 任意認証（既存の `get_current_user_optional` を使う）にする。`Cache-Control` は `no-store` のまま |
 | mobile | サインイン完了後に `/app-config` を再取得する（SS-100 に申し送り済み） |
+
+### D3: 層の分離と初期化タイミング
+
+**層の分離**: 「AppConfig からどう取るか」（`integrations/aws/appconfig.py`、取得層/transport）と
+「どのキーが存在し、どれをクライアントに見せるか」（`core/feature_flags.py`、評価層）を分ける。
+両者は変更理由が異なる（前者は AWS API の都合、後者はフラグの登録簿・公開ポリシーの都合）ため、
+1つのモジュールにまとめると変更のたびに無関係な差分が混ざる。
+
+**`FlagDocument` / `FlagDocumentSource`（Protocol）を `core` 側ではなく
+`integrations/aws/appconfig.py` 側に置いた理由**: 実装時の設計判断では「core 側に置くと
+循環 import になるため」としていたが、これは**技術的に不正確**だった。`FlagDocumentSource` は
+`Protocol` であり構造的部分型が効くため、`AppConfigFlagSource` 等の実装クラスは明示的に
+import/継承しなくても適合する。つまり型定義を `core/feature_flags.py` に移しても、依存の向きが
+`integrations → core` に反転するだけで**循環にはならない**。
+
+実際にこの配置を採った理由は、既存の前例（`core/runtime_config.py` が
+`integrations/aws/secrets.py` の型を使う、という `core → integrations` の依存の向き）との
+**一貫性を優先した**ためである。古典的なポート＆アダプタでは「ポート(Protocol)と DTO は
+評価ロジックを持つ側（`core`）が所有し、アダプタ（具象実装）がそれに依存する」向き
+（`integrations → core`）がより教科書的だが、本リポジトリでは逆方向（`core → integrations`）の
+前例が既にあり、この1箇所だけ向きを変えると一貫性が崩れる。動くものを実装終盤に配置し直す
+利得より、リポジトリ内で依存の向きを揃えておく利得を優先した。技術的な制約ではなく
+一貫性のためのトレードオフである、という点を後続の設計判断のために明記しておく。
+
+**初期化タイミング**: `main.py` の `_lifespan`（コールドスタート時に1回実行される）は
+`FlagDocumentSource` / `FeatureFlags` の**インスタンスを作るだけ**で、AppConfig への実際の
+取得（`get_document()` の呼び出し）は行わない。最初にフラグを参照したリクエスト（通常は
+`/app-config`）が初めて取得する。これにより、`/app-config` 以外のエンドポイントの
+コールドスタートに AppConfig 取得のレイテンシ（`APPCONFIG_CONNECT_TIMEOUT_SECONDS` +
+`APPCONFIG_READ_TIMEOUT_SECONDS` が最悪ケース）を乗せずに済む。同じ形は
+`google_maps_provider`（`HttpGoogleMapsProvider` も `_lifespan` でインスタンス化されるだけで、
+実際の Places/Routes 呼び出しはリクエスト時）にも使われている既存パターンである。
 
 ### D5: モード切替（`FEATURE_FLAG_MODE`）
 
