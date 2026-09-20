@@ -1,8 +1,9 @@
 ---
-name: project_settings-env-isolation
+name: feedback_settings_env_isolation
 description: backend の Settings(pydantic-settings) はテスト実行時に開発者ローカルの .env / OS 環境変数から構造的に隔離されている（SS-100）。テストで Settings(...) を明示構築するときの前提。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `src/sanposcape/config.py` の `Settings`（`pydantic_settings.BaseSettings`）は
