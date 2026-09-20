@@ -23,3 +23,4 @@
 - [一時障害再送とAPP_VARIANT分岐](transient-retry-and-app-variant.md) — SS-79。再送はGET/HEAD限定(POST再送してはいけない3理由)。app.config.tsはapp.json=開発用実値/APP_VARIANT=production時だけ上書き、ConfigContext.configはPartial型。HOME=再設定はsandboxガードで拒否される
 - [EAS クラウドビルドは sandbox 外で](feedback-eas-cloud-build-outside-sandbox.md) — WSLにAndroid SDKなし→dev buildはEASクラウド。sandbox内はダミーdotfileでEACCES、実HOMEで実行。build:viewでポーリング、APKは/mnt/c/temp経由でadb install
 - [sandboxで失敗するmobileコマンド](sandbox-constraints.md) — expo CLIのHOME書き込みEROFS / tsx CLIのIPC EPERM / oxfmtがstrayファイルで詰まる(個別実行だけで判断しない) / git worktreeがread-onlyでcommit不可
+- [フィーチャーフラグ(/app-config)受け皿パターン](feature-flag-app-config-pattern.md) — SS-100。TanStack Query一本化・キー定数は写し・pending/enabled/disabled・AppState購読はBootstrap1箇所・sessionCleanupの除外はpredicate明示列挙・queryClient.test.tsでresetSessionCleanupForTestを呼ばない
