@@ -149,8 +149,10 @@ sam deploy --config-env dev
 > **黙って無視される**（エラーにならないため気づきにくい）。`--container-env-vars`
 > も試したが、通常の `invoke`（デバッグセッションではない）には注入されない。
 >
-> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `DB_POOL_SIZE` /
-> `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 7 つだけ。
+> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `FEATURE_FLAG_MODE` /
+> `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 8 つだけ
+> （`Api` 関数はこれに加えて `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` /
+> `APPCONFIG_CONFIGURATION_PROFILE_ID` の 3 本が宣言済みで、計 11 本）。
 > `AUTH_JWT_SECRET` や `DATABASE_DSN` のような未宣言の変数を `events/local-env.json` に
 > 書いても効かず、`ENV=staging` の起動時バリデーションが
 > `AUTH_JWT_SECRET must be set (>=32 chars) when ENV=staging` のようなエラーで失敗する。

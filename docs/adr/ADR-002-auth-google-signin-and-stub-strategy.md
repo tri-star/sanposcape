@@ -100,7 +100,9 @@ app --X-App-Authorization: Bearer <自前 access token>--> 以降の全 API
 
   この許可リストのブロックは **`AUTH_MODE` 専用ではなく、モード系 env と本番必須設定をまとめて検証する唯一の場所**とする（実装: `packages/backend/src/sanposcape/config.py` の `_validate_environment_settings`）。新しい fail-safe 項目は必ずこのブロックに追加し、別バリデータを新設しない（許可リストが分裂すると片方だけ更新される事故が起きる）。
 
-  2026-08 時点でこのブロックが検証しているのは `AUTH_MODE` / `MAPS_MODE`（SS-44 で追加。Maps provider を決定的な fake に差し替えるモード）/ `AUTH_JWT_SECRET` / `GOOGLE_ALLOWED_AUDIENCES` / `GOOGLE_MAPS_SERVER_API_KEY`。
+  2026-09 時点でこのブロックが検証しているのは `AUTH_MODE` / `MAPS_MODE`（SS-44 で追加。Maps provider を決定的な fake に差し替えるモード）/ `FEATURE_FLAG_MODE`（SS-98。AppConfig フィーチャーフラグ取得を stub に差し替えるモード）/ `AUTH_JWT_SECRET` / `GOOGLE_ALLOWED_AUDIENCES` / `GOOGLE_MAPS_SERVER_API_KEY` / `DATABASE_DSN`（SS-67）。
+
+  real でない側の呼称はモードの性質に応じて用途別に使い分けている（`AUTH_MODE=dev` / `MAPS_MODE=fake` / `FEATURE_FLAG_MODE=stub`）。名称が揃っていないのは意図的な区別であり、統一漏れではない。
 
 ### 4-1. `GOOGLE_ALLOWED_AUDIENCES` は必ず全プラットフォーム分を列挙する（SS-81 追補）
 
