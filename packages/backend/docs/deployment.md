@@ -769,3 +769,27 @@ aws logs tail /aws/lambda/sanposcape-<env>-backend-api --since 15m --region ap-s
 | `AccessDeniedException` on `StartConfigurationSession` / `GetLatestConfiguration` | 境界（SS-95）のアクション名が `appconfigdata:` になっている（正しくは `appconfig:`）、または `template.yaml` の `Resource` ARN と実際の AppConfig の ID が不一致 | 境界のポリシー（`sanposcape-infra`）のアクション名前空間を確認する。ARN は境界側がワイルドカード、`template.yaml` 側が完全 ARN（3本の SSM ID から組み立て）なので、両方を突き合わせる |
 | `/app-config` が常に `config_source: "default"` | `APPCONFIG_*` が未設定（CloudWatch Logs に ERROR）、または未配信（SS-99 が一度も流れていない。この場合は正常） | 上記「CloudWatch Logs で見るポイント」でログレベルを確認する |
 | デプロイ直後、`sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `/sanposcape/<env>/platform/appconfig/*` の SSM パラメータが存在しない（SS-94 が当該環境にまだ apply されていない） | Phase 0 の確認コマンドで存在を確認し、無ければ infra 側（SS-94）の apply を待つ |
+
+#### 各環境への初回デプロイで 1 回だけ確認すること（SS-98 / PR #88）
+
+AppConfig 読み取りの IAM `Resource` は、入れ子の `!Sub` の変数マップに動的参照
+（`{{resolve:ssm:}}`）を埋める形で組み立てている。**`sam validate --lint` はこの解決が
+意図どおりかを検証できない**ため、環境ごとの初回デプロイ時に次を 1 回だけ確認する。
+
+```bash
+# 処理後テンプレートで Resource が完全な ARN に解決されているかを見る
+# （SSM 動的参照の AWS 公式ドキュメントが明示的に推奨している検証手順）
+aws cloudformation create-change-set --stack-name <stack> --change-set-name verify-appconfig-arn ... 
+# → マネジメントコンソールのチェンジセット > Template タブで Resource の最終値を目視
+```
+
+そのうえで、デプロイ後の CloudWatch Logs に
+`AccessDeniedException` on `StartConfigurationSession` が出ないことを確認する。
+
+この形が正しく解決されること自体は AWS 公式ドキュメントで裏取り済みである
+（`Fn::Sub` の Supported functions に `Fn::Sub` 自身が含まれる／動的参照の解決は
+transform と組み込み関数の評価が終わった**後**の独立したステップであり、解決対象は
+関数評価後の最終文字列である）。それでも実デプロイでの確認を残すのは、失敗した場合に
+`sam validate` を通過したまま実行時まで露見しないため。なお**失敗モードは安全側**で、
+解決が崩れれば ARN として無効な文字列が残り `AccessDeniedException` になるのであって、
+ワイルドカードや過剰権限の方向には倒れない。

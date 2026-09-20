@@ -43,3 +43,24 @@ AWS 公式ドキュメント（dynamic references）と CloudFormation の一般
 もう一段 `!Sub`（または該当する intrinsic function）で包むこと。`sam validate --lint` が
 通ってもこの種のバグは検出されないため、実デプロイ後に CloudWatch Logs で
 意図した値が解決されているかを確認する（例: `AccessDeniedException` が出ないこと）。
+
+## 補足: 包んだ結果（入れ子 `!Sub` + 動的参照）は正しく解決される
+
+上の「OK」の形は、内側の `!Sub` が `{{resolve:ssm:/sanposcape/dev/...}}` という**文字列**を返し、
+外側の `!Sub` がそれを ARN の途中に埋め込む。つまり中間状態として
+`arn:aws:appconfig:...:application/{{resolve:ssm:...}}/environment/...` という
+「文字列の途中に動的参照がある」形ができる。**これが解決されるか**は別途検証が必要な論点だが、
+SS-98 で AWS 公式ドキュメントにより裏取り済みなので再調査しないこと。
+
+- `Fn::Sub` の Supported functions に **`Fn::Sub` 自身が含まれる**（変数マップの値として
+  ネストしてよい）。CloudFormation は内側から外側へ再帰的に評価し、1 本のフラットな文字列にする。
+- 動的参照の解決は、transform と組み込み関数の評価が終わった**後**の独立したステップ。
+  公式の "Get values stored in other services using dynamic references" が、transform
+  （`AWS::Serverless` を含む）使用時は動的参照をリテラル文字列のまま transform へ渡し、
+  チェンジセット実行時に解決すると明記している。**解決対象は関数評価後の最終文字列**なので、
+  入れ子経由でもフラットに書いても、最終文字列が同じなら挙動は同じ。
+- 1 つの文字列に複数の動的参照を含めてよい。制限は「1 テンプレートあたり最大 60 個」の総数のみ。
+
+検証手順（環境ごとの初回デプロイで 1 回）は
+`packages/backend/docs/deployment.md` の §11 に書いた。**失敗モードは安全側**
+（無効な ARN → `AccessDeniedException`）で、過剰権限の方向には倒れない。
