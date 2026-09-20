@@ -325,6 +325,12 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - **B: MVP後の機能充実・改善** (module_id: `bc9c1a8c-cc48-4624-8b19-8fbf88bd5e00`, status=planned) — SS-26/27/28/36/37/38/39/45/46/51/61 の11件
 - **C: 開発体験の改善（アプリ公開と非直結）** (module_id: `6df56d08-8bfe-405b-af99-93e9cb62f53a`, status=planned) — SS-22/40/41/48/59 の5件
 
+## 2026-09-20追加: SS-104をReview化・PR #87リンク登録、ADR-008の後続チケットへの申し送りコメント
+
+- SS-104「docs: リリース戦略(デプロイとリリースの分離)の ADR と運用手順を作成する」(work_item_id: `f7fa8cff-4628-4ff8-a2ee-ed35050ff2b7`、M C所属、labelは`docs`)をState=Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新し、`workitem_link create`でPR #87（`https://github.com/tri-star/sanposcape/pull/87`、link_id: `3ddedcef-8615-4755-ae11-22b7448d4672`）を登録。`workitem_property list`は「Work item properties is not available on this workspace's plan」で再確認（[[relation_definitions_402]]の402問題とは別件、こちらは未解消のまま）。
+- ADR-008（デプロイとリリースを分離しフィーチャーフラグとストアの手動リリースで制御する）の内容のうち、後続チケット SS-103（backend `docs/adr` 完了時点でOTA=配信手段の制約）、SS-98/SS-99/SS-94（フラグ定義形式・`/app-config`スキーマ・ダークローンチ要否・ベイク時間の実値が未決定）へ、それぞれの work item にも申し送りコメントを個別投稿した（`workitem_comment create`、SS-104側にも要約コメントを残した）。
+- **How to apply**: 「PRのURLを記録して」の依頼では、まず`workitem_property list`で毎回一応確認しつつ（プラン制約は継続中なので基本失敗する前提）、`workitem_link`を使う既存方針を継続する。「後続チケットへの申し送り」のような複数チケットに影響する決定事項は、依頼元チケットだけでなく影響先の各チケットにもコメントを個別に残すと後で探しやすい。
+
 旧M1〜M5は status=completed にしたうえで **archive**（delete ではない）。**モジュールは completed か cancelled でないと archive できない**（`Only completed or cancelled modules can be archived` で400が返る）ので、archive 前に必ず status を更新すること。完了・中止済み43件の紐付けはアーカイブ側に保持されている（`module list` に `archived=true` を渡すと参照可能、`unarchive` で復帰可能）。再編成前にオープン11件は旧モジュールから remove 済みで、アーカイブ側には closed な課題のみが残る。
 
 ユーザー判断による分類の変更（初回の振り分け案からの修正）:
@@ -440,3 +446,8 @@ HTMLエンティティにエスケープして渡すと、Plane 側でタグが�
 - **CI/CD関連の未完了タスク棚卸し（label ci/infra付き14件 + キーワード一致で追加3件=計17件）**: SS-22/59/66/68/69/71/74/75/94/95/96/97/99/102/103/104/105。うち多くはSS-72（backend SAM×GitHub Actionsデプロイ、Done）後継の「デプロイとリリースの分離」施策（フィーチャーフラグ基盤 AppConfig 化、SS-94〜99/102/103）に集中している。この一連は SS-94(AppConfig器,Todo) → SS-95/96(権限,Todo) → SS-98(backend endpoint,Todo,labelなし) → SS-99(ワークフロー,Todo) → SS-102/103(mobile CI,Todo) の依存チェーンで、末端まで**全てTodoで未着手**（2026-09-20時点）。
 - キーワード検索（`text ~ "CI"/"CD"/"GitHub Actions"/"ワークフロー"/"デプロイ"/"lint"/"テスト自動化"`）はSS-100/101/98/82/76/84等の**誤検出（アプリ機能・バグ修正がたまたま本文でCI/デプロイ/lintに言及しているだけ）が多い**。本文を読んで実際にCI/CDパイプライン・インフラ整備そのものが主題かどうかを判定する必要がある（label ci/infraが付いているかは信頼できる一次判定だが、それだけでは網羅できない＝SS-59/104/105はlabelなしでも真陽性だった）。
 - **How to apply**: 次回以降このCI/CD棚卸しを繰り返す場合、まず`label IN (ci_id, infra_id)`で確実な母集団を取り、次にキーワード検索で追加候補を出したうえで本文を読んで真偽判定する2段階が有効。
+
+## 2026-09-20追加: SS-104をIn Progressに更新（着手）
+
+- SS-104「docs: リリース戦略(デプロイとリリースの分離)の ADR と運用手順を作成する」(work_item_id: `f7fa8cff-4628-4ff8-a2ee-ed35050ff2b7`、モジュールC「開発体験の改善（アプリ公開と非直結）」所属、label=`docs`)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-72のリリース戦略決定（デプロイ/リリース分離、AppConfigフィーチャーフラグ、backendタグ+GitHub Release+CHANGELOG自動生成）のADR化・運用手順書作成タスク。
+- update直後のレスポンスは`state_group`が旧グループ("unstarted")のまま返るキャッシュ遅延を再確認（既知の挙動）。`retrieve(expand="state")`で`state.group="started"`を確認済み。

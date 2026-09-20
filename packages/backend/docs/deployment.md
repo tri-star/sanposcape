@@ -4,6 +4,12 @@
 載せ、AWS SAM で dev / prod の AWS アカウントへデプロイする手順。方式決定の背景・却下案は
 [ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) を参照。
 
+> **デプロイ ≠ リリース。** 本ドキュメントが扱うのは「コードを本番環境に置く」ところまでである。
+> 「利用者に機能を見せる」のはフィーチャーフラグの ON（および mobile ではストアの公開）であり、
+> 別の操作として扱う（[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md)）。
+> リリース全体の流れ・フラグの操作・引き返し方は
+> [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
+
 > **検証状況（2026-09-12 時点）**
 >
 > | 手順 | 状況 |
