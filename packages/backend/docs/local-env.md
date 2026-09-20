@@ -168,6 +168,41 @@ docker compose up -d --build
   - スクリプトの結果を見て `maps/loop_route.py` のしきい値・係数を変えたら、E2E の生命線（fake の全候補で周回が合格すること。ADR-007 決定8）を `docker compose exec api uv run pytest src/sanposcape/integrations/google_maps/tests/test_fake.py::test_fake_loop_is_accepted_for_every_fake_candidate` で必ず再確認すること。
   - スクリプト実行のために `.env`（`MAPS_MODE` / `GOOGLE_MAPS_SERVER_API_KEY`）を変えた後は、`restart` ではなく `docker compose up -d` でコンテナを作り直すこと。
 
+## フィーチャーフラグ（`FEATURE_FLAG_MODE` と関連 env、AWS AppConfig, SS-98/ADR-008）
+
+設計の詳細は [ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) の
+「追補: `/app-config` のレスポンススキーマとフラグ取得基盤」を参照。運用手順は
+[deployment.md](./deployment.md) §11。
+
+- `FEATURE_FLAG_MODE`: `real`（既定・fail-safe） | `stub`。`ENV=local` / `test` 限定で、
+  それ以外（`staging` / `production`）で `stub` を指定すると `AUTH_MODE` / `MAPS_MODE` と
+  同じ許可リスト方式の検証で起動に失敗する。
+  - `real`: AWS AppConfig（boto3 `appconfigdata`）を実際に呼ぶ。`APPCONFIG_*` を1本でも
+    未設定にすると `UnconfiguredFlagSource`（AWS を一切呼ばない安全な既定。`/app-config` は
+    全フラグ `false` を返す）にフォールバックする。**ローカルではこれで十分動く**が、
+    起動時に `APPCONFIG_* is not configured; all feature flags are OFF.` の WARNING ログが
+    出る（`ENV=local` / `test` では WARNING、`staging` / `production` では設定漏れの
+    検知性を保つため ERROR になる）。
+  - `stub`: ネットワークを一切使わず `FEATURE_FLAG_STUB_DOCUMENT` を返す。`.env.example` は
+    開発者の利便性のためこちらを既定にしている。
+  - **`stub` の判定は `APPCONFIG_*` の有無より優先される**（`MAPS_MODE=fake` が
+    `GOOGLE_MAPS_SERVER_API_KEY` の有無より優先されるのと同じ設計）。
+- `FEATURE_FLAG_STUB_DOCUMENT`: `stub` モードで返す文書。`GetLatestConfiguration` が返す
+  簡略 JSON と同じ形の文字列（本番と同じパーサ（`integrations/aws/appconfig.py`）を通すため）。
+  不正な JSON や JSON オブジェクトでない値を渡しても起動は落ちず、WARNING ログ + 空の
+  ドキュメント（= 登録簿の全フラグ `false`）にフォールバックする。
+- `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`:
+  ローカルでは通常未設定でよい。`real` で dev の AppConfig への実疎通を試したい場合のみ、
+  3本とも dev の ID に設定する（1本でも空だと `UnconfiguredFlagSource` になる）。
+- `APPCONFIG_POLL_INTERVAL_SECONDS` / `APPCONFIG_ERROR_BACKOFF_SECONDS` /
+  `APPCONFIG_CONNECT_TIMEOUT_SECONDS` / `APPCONFIG_READ_TIMEOUT_SECONDS`: 妥当な既定値が
+  あり、通常は変更不要。
+- 動作確認: `curl http://localhost:<BACKEND_API_PORT>/app-config`。`config_source` が
+  `stub` / `default` / `appconfig` のどれになっているかで、どの経路が選ばれているか診断できる
+  （`unconfigured` のような別値にはならない点に注意。未設定・取得失敗はいずれも `default`）。
+- `MAPS_MODE` と同様、`docker compose restart` では反映されない。`.env` の値を変えたら
+  `docker compose up -d` でコンテナを作り直すこと。
+
 ## リクエストサイズ制限
 
 `RequestSizeLimitMiddleware`（`core/middleware.py`）が JSON 解析前に本文サイズを拒否する ASGI ミドルウェアで、path prefix ごとに別々の上限を掛けられるよう汎用化されている（SS-18 で `/explore` 専用から拡張）。`main.py` の `create_app()` で prefix ごとに `app.add_middleware()` を複数回呼び出しており、現在は以下の2系統が有効。
@@ -233,9 +268,15 @@ print(r.status_code); print(r.text[:800])"
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
 - `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`
 - `WALKS_REQUEST_MAX_BYTES`
+- `FEATURE_FLAG_STUB_DOCUMENT`
+- `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`
+- `APPCONFIG_POLL_INTERVAL_SECONDS` / `APPCONFIG_ERROR_BACKOFF_SECONDS`
+- `APPCONFIG_CONNECT_TIMEOUT_SECONDS` / `APPCONFIG_READ_TIMEOUT_SECONDS`
 
 （`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、
-`compose.yaml` の `environment:` に含めている。）
+`compose.yaml` の `environment:` に含めている。`FEATURE_FLAG_MODE` も `AUTH_MODE` /
+`MAPS_MODE` と同じ「開発中に切り替えるモード系」として `compose.yaml` の `environment:` に
+含めている。）
 
 既定値を上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
 必要になった場合は `compose.yaml` の `environment:` にも追加すること（このリストは追加のたびに
