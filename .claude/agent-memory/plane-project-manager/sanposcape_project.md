@@ -86,6 +86,8 @@ Plane上のプロジェクト「Sanposcape」（散歩支援アプリ）の情�
 - `list_work_item_properties(project_id=...)` は空配列を返す（work_item_types機能が無効なプロジェクトのため、URL型等のカスタムプロパティは未整備・作成不可の可能性が高い）。
 - PRのURLなど外部リンクを記録したい場合は、カスタムプロパティではなく **`create_work_item_link` / `list_work_item_links`**（work itemの標準Link機能）を使うこと。SS-8にPR #4のURLをこの方法で登録済み（link_id: `36999d74-c648-4724-a180-f0ec793bd32e`）。
 - **How to apply**: 今後「PRのURLを記録して」等の依頼が来たら、まずカスタムプロパティを探すより先に標準Link機能の利用を検討する（本プロジェクトではこちらが実質唯一の選択肢）。
+- **2026-09-20追記: カスタムプロパティが使えない状況は継続している。** `workitem_property list` は「Work item properties is not available on this workspace's plan」を返す（ワークスペースのプラン制約。[[relation_definitions_402]] の402問題とは別件で、こちらは未解消）。標準Link機能（`workitem_link create`）は問題なく使える。
+- **Link とコメントの併用パターン**: 実装は完了しているが人手の後続作業が残るPRでは、**URLは Link で登録し、「マージ前に必要な手作業」のような重要情報は別途コメントで残す**。Link はURLしか持てず本文を添えられないため、後続作業の内容が失われる。
 
 ## 2026-07-25確認: Milestone機能は0件・「マイルストーン」呼称はModuleのM1〜M5を指す
 
