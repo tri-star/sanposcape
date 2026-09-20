@@ -46,14 +46,29 @@ import グラフを検証したところ、根拠の一部が不正確だと分�
    コメントの正確性の問題として指摘した（2026-09-20のレビューではWarning級）。
    次にこのファイルを触る/似た設計をする時、同じ「循環import」根拠が再度出てきたら、
    まずgrepで実際にimport方向を確認すること。
-2. `AppConfigFlagSource`は永続的なboto3クライアント（urllib3コネクションプール保持）を
-   `self._client`に持つが、`_lifespan`のfinallyで`close()`されていない
-   （`HttpGoogleMapsProvider`は`provider.close()`されるのと非対称）。実害は小さい
-   （Lambdaはコンテナ凍結、ローカルはプロセス終了時にGC）が、対称性の観点でLow指摘。
-3. `FlagSourceKind`（`Literal["appconfig","default","stub"]`）が
-   `integrations/aws/appconfig.py`・`core/feature_flags.py`の`source_kind()`戻り値・
-   `app_config/schemas.py`の3箇所に同じLiteralとして重複している。型不一致は
-   テストで即座に露見するため実害は薄いが、DRY観点のLow指摘候補。
+   **なお SS-98 の PR #88 で、型の配置は変えずに ADR-008 追補 D3 の記述だけを
+   「core → integrations の既存の向きを踏襲した（core 側に置くことも技術的には可能）」
+   という正確な表現へ訂正済み。** 残すのは「根拠を鵜呑みにせず import グラフを見る」習慣の方。
+
+**以下は SS-98 の PR #88 で修正済み。再指摘しないこと**（同じ構造を持つ別の実装を
+レビューする際のチェック項目としてのみ使う）:
+
+2. ~~`AppConfigFlagSource`が永続的なboto3クライアントを`_lifespan`のfinallyで
+   `close()`していない~~ → `close()`を追加し`_lifespan`で呼ぶよう修正済み。
+   `app.state`に外部クライアントを持たせる実装を見たら、`HttpGoogleMapsProvider`と
+   同じく`close()`が`_lifespan`から呼ばれているかを確認する。
+3. ~~`FlagSourceKind`（`Literal["appconfig","default","stub"]`）が3箇所に重複~~
+   → `integrations/aws/appconfig.py`に定義を一本化し`core/feature_flags.py`が
+   re-exportする形に修正済み。
+
+4. **（PR #88 で外部レビューから出た指摘。同種の boto3 クライアント生成で必ず確認する）**
+   `Config(retries={"max_attempts": N})` の `max_attempts` は**初回を除く再試行回数**で、
+   `1` を指定すると `total_max_attempts: 2` に解決される（botocore が内部で変換する。
+   1.43.93 で確認）。「リトライしない」つもりなら **`total_max_attempts: 1`** を使う
+   （botocore 自身が `max_attempts` より `total_max_attempts` を推奨している）。
+   SS-98 では `max_attempts: 1` と書かれており、コード上のコメント「SDK 側のリトライに
+   任せない」「最悪ケースは Start + Get の2呼び出し」と食い違っていた。
+   タイムアウト予算の見積もりが 2 倍ずれるため、Lambda の 29 秒制約がある文脈では実害が出る。
 
 関連: [[backend-layering-conventions]]、[[adr002-auth-shared-codepath]]（同じ
 real/fail-safeモード切替の流儀の起源）。

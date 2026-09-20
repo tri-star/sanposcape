@@ -133,7 +133,11 @@ class AppConfigFlagSource:
                 # SDK 側のリトライに任せない。失敗しても次回以降はバックオフ中に即座に
                 # 既定値を返すため、1リクエスト内で粘る価値が無い
                 # （最悪ケースは Start + Get の2呼び出し x タイムアウト秒）。
-                retries={"max_attempts": 1, "mode": "standard"},
+                # ★ `max_attempts` ではなく `total_max_attempts` を使う。botocore の
+                #   `max_attempts` は「初回を除く再試行回数」で、1 を指定すると
+                #   `total_max_attempts: 2` に解決され上のコメントに反する（PR #88 の指摘）。
+                #   `total_max_attempts: 1` が「初回のみ・リトライなし」。
+                retries={"total_max_attempts": 1, "mode": "standard"},
             ),
         )
         self._now = now

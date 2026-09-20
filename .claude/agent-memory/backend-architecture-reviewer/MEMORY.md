@@ -4,5 +4,5 @@
 - [SS-44 fake Mapsプロバイダ](project_ss44_fake_maps_provider.md) — mode+許可リストfail-safeパターンのMaps版、FakeProvider命名混同リスク
 - [RequestSizeLimitMiddlewareはmethod非依存](ss53-request-size-limit-middleware-method-agnostic.md) — GET/DELETEでも413はあり得る設計。router.py側で413を書くのは正しい、再指摘しない
 - [SS-33周回ルートAPIレビュー](project_ss33_loop_route_review.md) — httpxに生floatのtimeoutを渡す罠・provider抽象の拡張パターン。実API検証は実施済み（フォールバック率69%で目標未達、改善はSS-92）
-- [SS-98 フィーチャーフラグ基盤の3層構成](project_ss98_feature_flags_architecture.md) — integrations/core/app_config分割の妥当性、「循環import」根拠の不正確さ、close()非対称・Literal重複
+- [SS-98 フィーチャーフラグ基盤の3層構成](project_ss98_feature_flags_architecture.md) — integrations/core/app_config分割の妥当性、「循環import」根拠は自分でgrepして確かめる、botocoreのmax_attemptsは再試行回数（total_max_attemptsを使う）
 - [CloudFormation Fn::Subのネスト変数罠](feedback_cloudformation_fn_sub_nested_variables.md) — 変数マップの値の中の${...}は再評価されない。template.yamlのIAM ARN組み立てレビュー時に確認

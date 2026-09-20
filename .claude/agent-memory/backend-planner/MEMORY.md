@@ -6,4 +6,3 @@
 - [CloudFront OAC は Authorization を上書きする](feedback_cloudfront_oac_authorization_header.md) — Lambda Function URL 構成では認証ヘッダー名の設計を必ず立てる。/health では露見しない
 - [SS-33 周回ルート再チャレンジの落とし穴](project_ss33_loop_route_pitfalls.md) — 前回PR#62の指標冗長性 / fake 200m候補がE2E生命線 / 旧ブランチADR-005番号衝突
 - [AWS AppConfig フィーチャーフラグ 4 つの罠](feedback_appconfig_feature_flag_gotchas.md) — OFF フラグの属性は配信されない / トークン1回限り24h / 空ボディ / IAM は appconfig 名前空間
-- [SS-98 で決めたフラグ基盤の設計判断](project_ss98_feature_flag_decisions.md) — ダークローンチ不採用 / kill switch は環境変数のまま / 公開可否はコード所有（ADR-008 追補待ち）

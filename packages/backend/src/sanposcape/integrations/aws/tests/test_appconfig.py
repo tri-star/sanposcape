@@ -282,6 +282,15 @@ def test_bad_request_exception_restarts_session_and_retries_once() -> None:
 
 
 def test_client_error_falls_back_to_previous_document_and_backs_off() -> None:
+    """known-good を取得済みの状態での取得失敗では、その値を維持する（ADR-008 決定9-1）。
+
+    「取得失敗＝全フラグ OFF」ではない点に注意。決定9 の目的は「未公開の機能が露出する」のを
+    防ぐことだが、known-good 上で OFF のフラグは維持されても OFF のままなので、維持によって
+    OFF が ON に変わる経路は無い。全 OFF に倒すのは known-good が無い場合のみで、そちらは
+    `test_missing_initial_configuration_token_falls_back_to_default_without_raising` 等が固定する。
+    逆に維持せず全 OFF に倒すと、一時的なスロットリングで公開済みの機能がバックオフ間隔の
+    あいだ消えるという実害だけが残る。
+    """
     fake_client = _FakeAppConfigDataClient()
     fake_client.queue_start_response({"InitialConfigurationToken": "token-1"})
     fake_client.queue_get_response(
