@@ -426,3 +426,8 @@ HTMLエンティティにエスケープして渡すと、Plane 側でタグが�
 
 - SS-92（work_item_id: `6fe69118-4634-4b52-b51a-8075eec4bec5`、sequence_id=92）を新規作成。State=Todo、ラベル・優先度・モジュール・担当者は未設定。SS-33（PR #83）の周回ルート生成の実API検証（フォールバック率69%でADR-007目標未達）を受けたフォローアップ課題。
 - SS-33（`62f9d861-9139-4b9c-ba34-7eba803b61c2`）との「relates to」リレーションを`workitem_relation create`で設定成功。詳細は[[relation_definitions_402]]（2026-09-17付で402問題は解消済みと判明、内容を全面更新済み）を参照。
+
+## 2026-09-20追加: SS-105「mobile: EAS remote バージョンソース切り替え後の検証を完了させる」を新規作成・SS-89とrelates to設定
+
+- SS-105（work_item_id: `6829af3d-d756-4ee6-8412-584928c0961b`、sequence_id=105）を新規作成。State=Todo、ラベル=`mobile`+`manual-required`、モジュール・優先度は未設定（SS-89 自体がモジュール未所属だったため揃えた）。SS-89（`79bfbf95-bb1f-43ae-b5a7-fd2880de363b`、PR #86 は2026-09-19マージ済みだがState=Reviewのまま）のコメントにしか残っていなかった申し送り（mobile-e2e の `--local` 実証、切り替え後の実測配布ビルド、`build-profiles.md` への実測値追記）を、SS-89 クローズ後も追跡できるよう独立課題として起票。
+- SS-89との「relates to」を`workitem_relation create`（`relation_definition_id=d496b11b-a5c7-4804-a70d-130c8d4e9488`）で設定成功（[[relation_definitions_402]]の手順どおり）。
