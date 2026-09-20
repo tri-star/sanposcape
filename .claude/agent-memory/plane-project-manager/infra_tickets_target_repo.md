@@ -2,7 +2,7 @@
 name: infra_tickets_target_repo
 description: infraラベルのチケットの作業対象は sanposcape 本体ではなく別リポジトリ sanposcape-infra である
 metadata:
-  type: project
+  type: feedback
   scope: durable
 ---
 

@@ -451,3 +451,7 @@ HTMLエンティティにエスケープして渡すと、Plane 側でタグが�
 
 - SS-104「docs: リリース戦略(デプロイとリリースの分離)の ADR と運用手順を作成する」(work_item_id: `f7fa8cff-4628-4ff8-a2ee-ed35050ff2b7`、モジュールC「開発体験の改善（アプリ公開と非直結）」所属、label=`docs`)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-72のリリース戦略決定（デプロイ/リリース分離、AppConfigフィーチャーフラグ、backendタグ+GitHub Release+CHANGELOG自動生成）のADR化・運用手順書作成タスク。
 - update直後のレスポンスは`state_group`が旧グループ("unstarted")のまま返るキャッシュ遅延を再確認（既知の挙動）。`retrieve(expand="state")`で`state.group="started"`を確認済み。
+
+## 2026-09-20追加: SS-98をReview化・PR #88リンク登録
+
+- SS-98「backend: AppConfig からフィーチャーフラグを読む基盤と `/app-config` エンドポイントを追加する」(work_item_id: `3c7a312c-ca2a-455f-aa86-9b68ab9aeeb3`、モジュールC所属、label=`backend`)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`workitem_property list`は今回も「Work item properties is not available on this workspace's plan」エラーで、標準Link機能（`workitem_link create`）でPR #88（`https://github.com/tri-star/sanposcape/pull/88`、link_id: `f77d06ed-f946-48b1-80a2-ebc2b10dffaa`）を登録（コメントではなくLinkを優先する既存方針を継続）。
