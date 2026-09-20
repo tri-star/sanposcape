@@ -23,7 +23,8 @@ packages/mobile/
 ├── src/
 │   ├── components/            # 横断的に再利用するUI（機能に依存しない）
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
-│   │   └── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
+│   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
+│   │   └── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
 │   │   └── <feature>/         #   例: walk, history
@@ -57,7 +58,9 @@ packages/mobile/
 │   │   ├── retryPolicy.ts     #   401→refresh のリトライ判定
 │   │   ├── transientRetry.ts  #   一時障害（429/502/503/504/通信断）のGET/HEAD限定再送（SS-79）
 │   │   ├── authTokenProvider.ts #   services/auth と client.ts を疎結合にするレジストリ
-│   │   └── queryClient.ts     #   TanStack Query の QueryClient 設定
+│   │   ├── queryClient.ts     #   TanStack Query の QueryClient 設定
+│   │   ├── appConfigQueryKey.ts #   /app-config の queryKey 定数（SS-100）
+│   │   └── appConfigApi.ts    #   /app-config の素の fetcher ラッパ（SS-100）
 │   │
 │   ├── hooks/                # 横断的な汎用hook（機能非依存）
 │   ├── lib/                  # 汎用ユーティリティ（純粋関数中心＝テスト容易）
@@ -96,6 +99,12 @@ packages/mobile/
 - **UI を持たない横断的な配線コンポーネント**も、ここのカテゴリに置く
   （例: `app-config/AppConfigBootstrap.tsx`。hook を `QueryClientProvider` の内側で1回だけ実行する
   ためのもの。SS-100。`AuthGate` のように機能固有の配線は `features/<feature>/components/` に置く）。
+- **`app-config/` は「UI を持たない配線コンポーネント」と「UI 付きコンポーネント」が同居する例外的な
+  カテゴリ**である。`AppConfigBootstrap.tsx`（配線・UI無し）に加えて `FeatureGate.tsx`（フラグで
+  子要素の描画を出し分ける、UI を持つコンポーネント）も同じフォルダに置く（SS-100）。理由は
+  「`/app-config` に関するコンポーネント」という凝集軸がドメイン別カテゴリ（`ui/`/`layout/` の
+  用途別軸とは異なる）を優先したため。**性質の異なる2つが同居してよい**唯一のカテゴリという扱いで、
+  次に3つ目のファイルを置く場合もこの軸（`/app-config` 関連かどうか）で判断すること。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
 - 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `store` / `types` をこの配下に凝集させる。
@@ -202,7 +211,8 @@ packages/mobile/
   `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
-  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34）もここに置く。
+  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34、`/app-config` のフラグ受け皿
+  `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100）もここに置く。
   - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
     純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
     使っていないうちは `features/<feature>/lib/` に置いたままにする。
