@@ -19,3 +19,5 @@
 - [project-ss33-review-followup](project_ss33_review_followup.md) — SS-33ローカルレビュー「修正予定(自律対応)」全件対応（Quota/Unavailableログ・connect timeout・resample点数上限・DI配線テスト・並列化・ADR/docs整合）の実装場所と判断ログ
 - [feedback-verification-revert-without-git-checkout](feedback_verification_revert_without_git_checkout.md) — フィックス検証で一時的に壊したソースを`git checkout --`で戻すと未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
 - [feedback-sandbox-constraints](feedback_sandbox_constraints.md) — sandboxが拒否する操作(.env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権)と回避策。「できない」と結論する前に読む
+- [project-ss98-appconfig-feature-flags-complete](project_ss98_appconfig_feature_flags_complete.md) — SS-98 backend(AppConfig取得層/評価層/GET /app-config)は実装完了。dev実デプロイ確認は未実施(オーケストレータ判断)
+- [feedback-cloudformation-sub-map-value-gotcha](feedback_cloudformation_sub_map_value_gotcha.md) — Fn::Subの変数マップの値に書いた${...}は再評価されない。値自体をさらに!Subで包む必要がある
