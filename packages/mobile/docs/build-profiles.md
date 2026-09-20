@@ -5,6 +5,11 @@
 [ローカル環境構築手順](./local-env.md)、development build の考え方は
 [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md) を参照。
 
+> **配布 ≠ リリース。** 本ドキュメントが扱うのは「ビルドを作って端末に届ける」ところまでである。
+> 「利用者に機能を見せる」のはストアの公開とフィーチャーフラグの ON であり、別の操作として扱う
+> （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md)）。
+> リリース全体の流れは [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
+
 ## 大前提: EAS ビルドでは `.env` が読まれない
 
 `packages/mobile/.env` は Metro をローカルで起動するときにしか効かない。
@@ -658,4 +663,6 @@ cleartext 許可が混入することはない。
 - [ADR-007: Expo 設定と Maps キーの注入](../adr/ADR-007-expo-config-and-maps-key-injection.md)
 - [ADR-005: backend のサーバーレスデプロイ](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)（決定4 / 決定6）
 - [ADR-006: mobile アプリの配信は EAS に委ねる](../../../docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)（`channel` が対応する EAS Update の配信面）
+- [ADR-008: デプロイとリリースの分離](../../../docs/adr/ADR-008-deploy-release-separation.md)（決定3: ストアの手動リリース / 決定8: OTA は配信の手段であってリリースの手段ではない）
+- [リリース運用手順](../../../docs/release-runbook.md)（配布ビルドをリリース全体の流れの中でどう位置づけるか）
 - [backend デプロイ手順](../../backend/docs/deployment.md) §6.2

@@ -36,7 +36,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 地図・POI・ルーティング | Google Maps Platform (Maps / Places / Routes) | 往復可能範囲・徒歩時間/距離・スポット候補の取得 |
 | 認証 | Google サインイン直結（mobile: public client / backend: 自前セッショントークン発行。テスト時は dev/mock モードへ差し替え） | 詳細は [ADR-002](./adr/ADR-002-auth-google-signin-and-stub-strategy.md) |
 | インフラ / ホスティング | TBD（backend/DBのホスティング先は未定） | mobileはExpo経由で配布想定 |
-| CI/CD | GitHub Actions | Lint/Format・ユニットテスト・Maestro E2E |
+| CI/CD | GitHub Actions | Lint/Format・ユニットテスト・Maestro E2E。デプロイとリリースは分離し、公開はフィーチャーフラグ（AWS AppConfig）とストアの手動リリースで制御する（[ADR-008](./adr/ADR-008-deploy-release-separation.md) / [リリース運用手順](./release-runbook.md)） |
 | パッケージマネージャ | pnpm (mobile) / uv (backend) | mobileは minimumReleaseAge=2日 |
 | Linter / Formatter | oxlint + oxfmt (mobile) / ruff (backend) | |
 | テスト | Vitest + Maestro (mobile) / pytest (backend) | E2EはMaestro（ローカルAndroidはWindows側） |
