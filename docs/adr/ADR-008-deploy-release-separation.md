@@ -442,7 +442,7 @@ GET /app-config            認証不要（/health と同じ扱い）。Cache-Con
 | 評価 API | `FeatureFlags.is_enabled(key)` に**キーワード引数**で `context=...` を足す。既存呼び出しは無変更で済む（現状のシグネチャは `def is_enabled(self, key: str) -> bool` で、`*, context=...` を後から追加できる形にしてある） |
 | フラグ JSON | `flags.<key>.attributes` に `allowed_user_keys` 等を定義し、`values.<key>` に値を入れる。**属性は `enabled: true` のときしか配信されない**ため「OFF だが特定ユーザーだけ ON」は表現できない（フラグの意味論が変わるため ADR 追補が別途必要） |
 | `/app-config` | 任意認証（既存の `get_current_user_optional` を使う）にする。`Cache-Control` は `no-store` のまま |
-| mobile | サインイン完了後に `/app-config` を再取得する（SS-100 に申し送り済み） |
+| mobile | サインイン完了後に `/app-config` を再取得する（**SS-100 では実装しない。理由と拡張点は D14 を参照**） |
 
 ### D3: 層の分離と初期化タイミング
 
