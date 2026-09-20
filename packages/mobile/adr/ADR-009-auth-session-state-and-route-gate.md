@@ -204,9 +204,17 @@ SS-100（mobile が `/app-config` のフィーチャーフラグで機能表示�
   クエリを足しても、明示的に除外しない限り自動的にクリア対象へ含まれる。
 - **除外してよい条件は「ユーザー非依存であること」に限る。** ADR-008 追補 D2 がユーザー条件付き
   フラグを不採用としているためこの除外が成立している。将来 D2 を覆してダークローンチ
-  （ユーザーごとに異なる `/app-config` の応答）を採用する場合は、この除外も同時に見直す必要がある
+  （ユーザーごとに異なる `/app-config` の応答）を採用する場合は、**除外の見直し対象**は
+  `src/api/queryClient.ts`（+ `appConfigQueryKey.ts` の `isAppConfigQueryKey`）である
   （拡張点は [ADR-008（ルート、横断）](../../../docs/adr/ADR-008-deploy-release-separation.md)
-  の SS-100 追補を参照。実装上のファイルは `src/hooks/useAppConfigBootstrap.ts` の1箇所）。
+  の SS-100 追補 D14 を参照）。
+- **（別軸: サインイン後再取得の拡張点）** D2 を覆した場合、除外の見直しに加えて
+  「サインイン完了後に `/app-config` を再取得する」対応も必要になる。この**再取得の拡張点**は
+  `src/hooks/useAppConfigBootstrap.ts` の1箇所に特定してある（`useAuthSessionStore` の `status` が
+  `authenticated` に遷移したら `invalidateQueries({ queryKey: APP_CONFIG_QUERY_KEY })` を呼ぶ形。
+  詳細は [ADR-008（ルート、横断）](../../../docs/adr/ADR-008-deploy-release-separation.md) の
+  SS-100 追補 D14 を参照）。**この再取得は SS-100 では実装していない**（D2 が不採用のため、
+  現状の応答は未認証/認証後で同一になり不要）。
 
 ## 検討した選択肢
 
