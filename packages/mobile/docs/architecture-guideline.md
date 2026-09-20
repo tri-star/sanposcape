@@ -40,6 +40,37 @@
 - 呼び出し側（`features/walk`）は `src/services/location` のインターフェースのみを参照し、
   `expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
 
+## フィーチャーフラグ（`/app-config`）の扱い
+
+- 実装方針の根拠は [ADR-008（ルート、横断）: デプロイとリリースを分離し、公開はフィーチャーフラグと
+  ストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md) の
+  決定2・決定9・追補 D1/D2/D9/D10 と、その SS-100 追補。
+- **フラグ値の保持は TanStack Query（`queryKey: ["app-config"]`）に一本化する。Zustand へ複製しない。**
+  `/app-config` は未認証でも叩けるサーバー状態であり、`docs/folder-structure.md`「サーバー状態（API由来）
+  = TanStack Query」に従う。
+- 参照は `useFeatureFlag(FEATURE_FLAG_KEYS.xxx)`（`src/hooks/useFeatureFlag.ts`）/
+  `<FeatureGate flag={...}>`（`src/components/app-config/FeatureGate.tsx`）のみ。
+  `fetchAppConfig()`（`src/api/appConfigApi.ts`）を画面から直接呼ばない。
+- キー定数は `src/config/featureFlags.ts` の `FEATURE_FLAG_KEYS`。正典は backend のコード
+  （`packages/backend/src/sanposcape/core/feature_flags.py` の `FEATURE_FLAGS`。ADR-008 追補 D9）で、
+  mobile 側はその写しを自前定義する（ADR-008 追補 D1 の申し送り）。自動同期はしない。
+- **`config_source` で分岐しない**（`src/lib/appConfigSnapshot.ts` の `AppConfigSnapshot` に
+  載せていないので型で防いでいる）。診断表示（`/dev-screens` の `AppConfigDebugCard`）だけが
+  `useAppConfigDiagnostics()` から読む。
+- 取得失敗・ロード中は全 OFF（ADR-008 決定9）。**取得完了を起動条件にしない**
+  （通信断でアプリが起動不能になることを避けるため）。ただし画面ごとフラグで隠す場合は
+  `resolveFeatureGateDecision`（`src/lib/featureGate.ts`）の `pending` を使い、
+  ロード中に確定的な OFF 扱い（`<Redirect>` 等）をしない。
+- **`src/services/` の real/mock 層は作らない**（HTTP で取れる値であり、実機依存でもネイティブ依存でもない。
+  ユニットテストは Orval 生成の msw ハンドラ、E2E は実 backend で足りる）。
+- **ローカルでフラグを ON にして試す手順**（AWS 不要）:
+  backend の `.env` に `FEATURE_FLAG_MODE=stub` と
+  `FEATURE_FLAG_STUB_DOCUMENT='{"app_config_probe":{"enabled":true}}'` を設定して起動する
+  （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
+  最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
+- フラグを削除するときは backend の登録簿・`src/config/featureFlags.ts`・分岐・テストを
+  同じ PR で消す（ADR-008 決定6）。
+
 ## テストの方針
 
 - E2Eテスト

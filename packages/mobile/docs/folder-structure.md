@@ -93,6 +93,9 @@ packages/mobile/
     見た目が確認できないという点で他の Primitive と性質が異なるため、開発確認用ギャラリーの
     扱いも異なる（[pages-components-guideline](./pages-components-guideline.md) 参照）。
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
+- **UI を持たない横断的な配線コンポーネント**も、ここのカテゴリに置く
+  （例: `app-config/AppConfigBootstrap.tsx`。hook を `QueryClientProvider` の内側で1回だけ実行する
+  ためのもの。SS-100。`AuthGate` のように機能固有の配線は `features/<feature>/components/` に置く）。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
 - 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `store` / `types` をこの配下に凝集させる。
@@ -175,6 +178,9 @@ packages/mobile/
 ### `src/api/` — バックエンドAPIクライアント
 - `generated/`: Orval による自動生成物。**手編集しない**。
 - `client.ts`: 共通のクライアント設定（ベースURL、インターセプタ等。Orval が使う `customFetch`）。
+- `appConfigQueryKey.ts`: `/app-config` の queryKey 定数（依存ゼロ。`queryClient.ts` から参照するため分離。SS-100）。
+- `appConfigApi.ts`: `/app-config` の素の fetcher ラッパ。**特定の機能に属さないアプリ基盤の取得なので
+  `features/<feature>/api/` ではなくここに置く**（SS-100）。
 - `authHeaders.ts` / `contentHash.ts`: リクエストへ横断的な送信ヘッダーを付与する純粋関数
   （`X-App-Authorization` / `x-amz-content-sha256`。SS-70）。**mobile の HTTP 出口は
   `client.ts` の `customFetch` と `src/services/auth/authApi.ts` の `post()` の2箇所**あり、
@@ -186,12 +192,14 @@ packages/mobile/
   `client.ts` の `customFetch` にのみ結線する（`services/auth/authApi.ts` には入れない）。
 - `authTokenProvider.ts`: `client.ts` が `services/auth` を直接 import せずにトークンを
   取得するためのレジストリ（循環参照回避）。
-- `queryClient.ts`: TanStack Query の `QueryClient` 設定。
+- `queryClient.ts`: TanStack Query の `QueryClient` 設定。サインアウト時のクリア対象から
+  `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-009 の SS-100 追補）。
 
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useScreenBack.ts`（画面の「戻る」導線を
   一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
-  `react-native` の `BackHandler` に依存するため Vitest 対象外）。
+  `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
+  `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
   純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34）もここに置く。
@@ -210,7 +218,9 @@ packages/mobile/
     到達半径を見積もる」walk 固有の計算（`regionForRoundTrip` / `regionForBounds` /
     `radiusMetersForRoundTrip`）は `features/walk/lib/mapRegion.ts` に残す。同名ファイルが2箇所に
     あること自体は問題ではなく、共有側は汎用型（`MapRegion` / `MIN_REGION_DELTA`）だけを import する。
-- `src/config/`: 環境変数の読み取りと定数。
+- `src/config/`: 環境変数の読み取りと定数。フィーチャーフラグのキー定数（`featureFlags.ts`。
+  `/app-config` の `flags` は map で返るためキーの型情報が OpenAPI に無く、mobile 側で自前定義する。
+  SS-100）も含む。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
   - 実例: `useAuthSessionStore.ts`（認証セッション状態 `loading | authenticated | guest`。SS-13）。
     参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線 /
