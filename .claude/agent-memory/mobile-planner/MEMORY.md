@@ -8,6 +8,7 @@
 - [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
 - [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
 - [探索API契約とコスト制約](project-explore-api-contract.md) — placesは片道×2近似/routes/loopは周回実値。1探索=Places1回+Routes最大20回・30req/60sなので再探索の抑制が必須
+- [フィーチャーフラグ / app-config](project-feature-flags.md) — `/app-config` の契約・全OFFのfail-safe・dev画面は`__DEV__`でE2E不可・clear()の巻き添え
 - [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
