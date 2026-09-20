@@ -1,4 +1,4 @@
-- [Auth stub/real switch is fail-open + env var name mismatch [解決済みSS-10]](project_auth_stub_switch.md) — SS-10で fail-safe 3モードに是正済み。歴史的経緯として保持
+- [認証モードenvのfail-safeパース](project_auth_stub_switch.md) — SS-8のfail-open実装はSS-10で是正済み。新しいmode系envを足すPRでは変数名一致・fail-closedな既定値・production指定を確認する
 - [SS-13: AuthGate導入によるグローバル認証ガードのレビュー](project_ss13_auth_gate.md) — app/_layout.tsxのAuthGateで全ルート保護。oxlint importガードも発火確認済み。_sitemap未無効化はLow nits
 - [SS-15: 地図・位置情報レビューの要点](project_ss15_location_maps.md) — Mapsキー分離/座標丸め/fail-safe env は良好。router paramsの生座標渡しは軽微指摘
 - [SS-16: 散歩ルート提示・散歩中トラッキングの要点](project_ss16_walk_tracking.md) — watchPositionリークガード模範実装/認証境界維持/place_id非露出。座標NaN未検証とpaused中GPS継続がLow

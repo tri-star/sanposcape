@@ -17,7 +17,7 @@ metadata:
   （`.bash_profile` 等）のコピーで `EACCES ... copyfile` になり、アップロードに失敗する。
   → **sandbox 外で実行する**。
 - `eas whoami` は実 HOME で実行すればログイン済み。HOME を tmp に向けると未ログイン扱いになる
-  （[[sandbox-expo-home-workaround]] の HOME 差し替えを EAS には流用しない）。
+  （[[sandbox-constraints]] の HOME 差し替えを EAS には流用しない）。
 - 完了確認は `eas build:view <id> --json` の `status` をポーリングする。
 - APK は `/mnt/c/temp/` に置き、`adb install -r 'C:\temp\xxx.apk'`（Windows 側 adb から見えるパス）で入れる。
 - エミュレータに旧アプリ（`sanposcape`）と Dev 版（`sanposcape (Dev)`）が共存していると、

@@ -45,7 +45,13 @@ SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3�
   - ADR-009 SS-57 追補は「記録タブを踏んだゲストが
     `dismissAll()` で強制退去させられる」シナリオ（不採用にした allowlist 案の理由）は検討しているが、
     この「mid-walk のまま設定からサインインする」シナリオは検討されていない。
-  - 対応案: `useAuthActions.runSignIn` の成功後遷移を `useActiveWalkStore.getState().activeWalk` の有無で
+  - **解消済み（2026-09-20 確認）。** 純粋関数 `getPostSignInDestination`
+    （`features/auth/lib/postSignInDestination.ts`）が新設され、`hasActiveWalk` を**最優先**で見て
+    `/(tabs)` を返す（保存待ちドラフトより優先。散歩の最中にユーザーを別画面へ連れて行かないため）。
+    `SettingsView` のサインイン導線も `router.replace("/(auth)/sign-in")` になっている。
+    決定は ADR-009「SS-57 ローカルレビュー追補」および「SS-37 ローカルレビュー追補」に記録済み。
+    **このギャップを未解決として再指摘しないこと。**
+  - 当時の対応案: `useAuthActions.runSignIn` の成功後遷移を `useActiveWalkStore.getState().activeWalk` の有無で
     分岐する（進行中なら `/(tabs)` に replace、無ければ従来通り `/walk-start`）か、そもそも
     `router.back()` 系で呼び出し元コンテキストへ戻す。手動確認 or Maestro での再現確認が望ましい
     （このレビューでは静的解析のみで、実機/シミュレータでの再現検証はしていない）。

@@ -20,11 +20,16 @@ ADR-007 に未転記であること（レビュー時点では開発環境に `G
 検証セット全体の評価の代わりにはならない。ADR-007（`docs/adr/ADR-007-loop-route-generation.md`）の
 「移行・対応が必要な事項」に、この状況としきい値が暫定値であることが明記されている。
 
+**2026-09-20 追補: 実API検証は実施済み。** 検証セット全体での同じ道フォールバック率は **69%** で
+ADR-007 の目標に未達であることが判明し、フォローアップ課題 **SS-92**（`backend: 周回ルートの生成品質を
+改善する`）が起票されている。**「検証が未実施」ではなく「検証済みで目標未達」が現状。**
+しきい値定数は依然として暫定値のままだが、それは検証をしていないからではなく、改善が SS-92 待ちだから。
+
 **How to apply:**
 - SS-33 後続PRで `maps/loop_route.py` のしきい値定数（`MAX_DETOUR_RATIO` /
   `MAX_RETURN_OVERLAP_RATIO` / `MAX_RETURN_BACKTRACK_RATIO` / `MAX_VIA_SNAP_DISTANCE_METERS` /
-  `MIN_WAYPOINT_OFFSET_METERS`）を扱う変更を見たら、実API検証が実施済みか・ADR-007に実測値が
-  転記されているかを確認する。未実施のまま値だけ変更していたら要指摘。
+  `MIN_WAYPOINT_OFFSET_METERS`）を扱う変更を見たら、SS-92 の一環かどうか・ADR-007 に実測値が
+  転記されているかを確認する。フォールバック率の再計測を伴わずに値だけ変更していたら要指摘。
 - レビュー時に Warning とした「`google_maps_route_deadline_seconds`（既定12秒・上限25秒）が
   `httpx.Client.request(timeout=...)` に生floatで渡り、`google_maps_connect_timeout_seconds`（既定3秒）を
   事実上上書きする（httpx は単一 float を connect/read/write/pool 全フェーズに適用する）」は、

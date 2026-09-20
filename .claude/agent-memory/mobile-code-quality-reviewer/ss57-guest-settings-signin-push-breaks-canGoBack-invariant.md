@@ -1,6 +1,6 @@
 ---
 name: ss57-guest-settings-signin-push-breaks-canGoBack-invariant
-description: SettingsView の「サインイン」導線が router.push で /(auth)/sign-in を開くと、ゲスト→認証成功後の walk-start で canGoBack()===false という設計不変条件が崩れる（SS-57で発見）
+description: 保護ルートからのサインイン導線を router.push で開くと canGoBack()===false の設計不変条件が崩れる（SS-57で発見、同名の実例は解消済み）。認証導線レビューでの確認観点として有効
 metadata:
   type: project
 ---
@@ -12,7 +12,9 @@ metadata:
 
 SS-57 で `SettingsView`（`src/features/settings/components/SettingsView.tsx`）にゲスト向け
 「サインイン」ボタン（`settings-sign-in`）が追加されたが、これは `router.push("/(auth)/sign-in")`
-を使っている。ゲストが `/settings`（保護ルート、SS-57 でゲストも到達可能になった）からこのボタンで
+を使っていた（**2026-09-20 確認: 現在は `router.replace("/(auth)/sign-in")` に修正済み。加えて
+サインイン成功後の遷移は `getPostSignInDestination` が進行中の散歩の有無で分岐するようになった。
+この実例は解消済みで、以下はパターンとしての記録**）。ゲストが `/settings`（保護ルート、SS-57 でゲストも到達可能になった）からこのボタンで
 サインインすると、スタックは `[..., settings, sign-in]` になり、サインイン成功時の
 `useAuthActions.signInWithGoogle` は `router.replace("/walk-start")`（dismissAll は伴わない）
 しか呼ばないため、`settings` がスタックに残ったまま `walk-start` に到達する＝

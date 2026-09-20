@@ -4,14 +4,12 @@
 - [認証アーキテクチャ](auth-architecture.md) — ADR-002 の確定事項／認証ゲートの隠れた結合（ゲスト可否は1関数では変えられない）
 - [デザインシステムの SSoT](project_design_system_ssot.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向
 - [MCP と CI の制約](project_codegen_ci_constraint.md) — MCP は CI から呼べない。codegen は fetch/transform を分離する
-- [テストの構造的制約](project_test_and_styling_constraints.md) — RN の render テストは書けない。純粋関数に切り出す
 - [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所／mockのonClick等をRN props(onPress)に読み替える
 - [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
-- [探索APIの制約](project_explore_api_constraints.md) — /explore/places の契約・コスト・呼び出し抑制ルール（M4）
 - [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
-- [探索 API 契約の非対称性](project-explore-api-contract.md) — places は片道×2近似、routes/loop は周回実値（SS-33。walking は非推奨・mobile未使用）
+- [探索API契約とコスト制約](project-explore-api-contract.md) — placesは片道×2近似/routes/loopは周回実値。1探索=Places1回+Routes最大20回・30req/60sなので再探索の抑制が必須
 - [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
-- [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSW 利用と純粋関数テストの方針
+- [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／開始前に副作用が無い根拠

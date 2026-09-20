@@ -17,6 +17,6 @@ metadata:
 ~/.local/share/mise/installs/aws-sam-cli/` で確認すること）
 
 `sam validate --lint` はネットワーク・Docker 不要で動く。`sam build --use-container` /
-`sam local invoke` は Docker が必要（[[reference-sandbox-blocks-sam-build-docker]] 参照）。
+`sam local invoke` は Docker が必要で、sandbox 内では失敗する（[[feedback_sandbox_constraints]] 参照）。
 
-関連: [[reference-aws-credentials-sandbox-denied]]
+関連: [[feedback_sandbox_constraints]]（AWS 認証情報が sandbox から見えない件もそちら）

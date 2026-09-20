@@ -1,15 +1,12 @@
 # Backend Developer Memory Index
 
-- [sandbox-network-docker-exec](feedback_sandbox_network_docker.md) — bashからhost/localhostのdockerポートに直接curlできない。疎通確認はdocker compose exec内から行う
 - [backend-auth-mode-env-gotcha](project_backend_auth_mode_env_gotcha.md) — .envのAUTH_MODE既定はdev。ambientなmain.appに依存するauth_modeテストはローカル/CIで結果が変わりうるので明示Settings構築を使う
-- [docker-exec-transient-permission-denied](feedback_docker_exec_transient_permission_denied.md) — サンドボックスで`docker compose exec`を短間隔で連続実行すると`~/.docker/config.json`のpermission deniedが散発する。1呼び出しずつ実行するか、コンテナ内でループさせる
 - [auth-users-boundary-userservice](project_auth_users_boundary_userservice.md) — `auth`ドメインから`users`ドメインへのアクセスは常に`UserService`経由に統一する設計（SS-10ローカルレビューA-3で確定）。SS-12実装時の choke point
 - [project-ss18-walks-backend-complete](project_ss18_walks_backend_complete.md) — SS-18 backend（walksドメイン: 記録保存/履歴/IDOR対策）は実装完了。次はmobile側SS-19/SS-20
 - [reference-openapi-json-gitignored](reference_openapi_json_gitignored.md) — `packages/backend/openapi.json`は.gitignore対象。exportしてもgit diffに出ないのは正常
 - [project-ss18-review-followup](project_ss18_review_followup.md) — SS-18ローカルレビューの承認4項目対応（tz-aware化・境界値テスト・middleware移動・docs更新）の実装場所と判断ログ
 - [feedback-commit-splitting](feedback_commit_splitting.md) — 同一ファイルへの複数レビュー指摘は`git add -p`でhunk単位にコミット分割する
 - [reference-stray-claude-dir](reference_stray_claude_dir.md) — エージェントメモリがpackages配下に誤生成される既知のバグ。正しい置き場所は常にリポジトリルート
-- [ruff-cache-root-owned-permission-denied](feedback_ruff_cache_root_owned.md) — `.ruff_cache`/`.pytest_cache`がroot/nobody所有になりapp_userから書けない時は`docker compose exec -u root api sh -c 'chown -R app_user:app_user ...'`で復旧
 - [project-ss42-walks-stats-backend-complete](project_ss42_walks_stats_backend_complete.md) — SS-42 backend（GET /walks/stats: 週/月集計・連続日数）は実装完了。次はmobile側実装
 - [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
 - [project-ss44-fake-maps-provider-complete](project_ss44_fake_maps_provider_complete.md) — SS-44 backend（MAPS_MODE=fake・決定的provider）は実装完了。SS-21 E2Eブロッカー解消
@@ -18,9 +15,7 @@
 - [feedback-import-order-and-lru-cache-test-techniques](feedback_import_order_and_lru_cache_test_techniques.md) — import順序契約やlru_cacheのcache_clear呼び出しを回帰テストするテクニック（sys.modules退避・別名fresh import・属性spy）
 - [reference-docs-lint-tmp-reference-check](reference_docs_lint_tmp_reference_check.md) — docs-lint CIがADR/packages*/docs/agent-memoryからのtmp/参照を検出し失敗させる。新規ADR作成後は`check-tmp-references.sh`で確認する
 - [reference-sam-cli-location](reference_sam_cli_location.md) — sam CLIはPATHに無くmise管理。絶対パスで呼ぶ。sam validate --lintはDocker不要
-- [reference-sandbox-blocks-sam-build-docker](reference_sandbox_blocks_sam_build_docker.md) — sandboxがsam build --use-container/local invokeのDockerソケットを遮断。docker info成功だけでは判断できない
-- [reference-aws-credentials-sandbox-denied](reference_aws_credentials_sandbox_denied.md) — AWS認証情報は存在する。sandboxが~/.aws(→/mnt/c/Users)を禁止して見えないだけ。dangerouslyDisableSandboxで使える
-- [project-ss33-loop-route-backend-complete](project_ss33_loop_route_backend_complete.md) — SS-33 backend（POST /explore/routes/loop）は実装完了。実API検証(B7)のみ未実施（キー無し）
-- [feedback-env-file-write-denied](feedback_env_file_write_denied.md) — `.env`はEdit/Bash(sed)で直接編集不可（deny設定）。一時的なMAPS_MODE切替等は`KEY=value docker compose up -d`のシェル環境変数プレフィックスで代替する（sandbox内でも動く）
+- [project-ss33-loop-route-backend-complete](project_ss33_loop_route_backend_complete.md) — SS-33 backend（POST /explore/routes/loop）は実装完了。実API検証も実施済みでフォールバック率69%＝ADR-007目標未達、改善はSS-92
 - [project-ss33-review-followup](project_ss33_review_followup.md) — SS-33ローカルレビュー「修正予定(自律対応)」全件対応（Quota/Unavailableログ・connect timeout・resample点数上限・DI配線テスト・並列化・ADR/docs整合）の実装場所と判断ログ
 - [feedback-verification-revert-without-git-checkout](feedback_verification_revert_without_git_checkout.md) — フィックス検証で一時的に壊したソースを`git checkout --`で戻すと未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
+- [feedback-sandbox-constraints](feedback_sandbox_constraints.md) — sandboxが拒否する操作(.env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権)と回避策。「できない」と結論する前に読む

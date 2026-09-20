@@ -22,12 +22,14 @@ SS-33 backend（`tri-star/SS-33-claude` ブランチ、2026-09-15完了）: `POS
   `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`（既定12秒）。
 - ADR: `docs/adr/ADR-007-loop-route-generation.md`（新規）、ADR-001 に SS-33 追補。
 
-**未完了（次回セッションへの引き継ぎ）:**
-- 実API検証（backend-plan.md B7）が未実施。この作業環境に `GOOGLE_MAPS_SERVER_API_KEY` が
-  無いため。しきい値（`maps/loop_route.py` のモジュール定数）は前回スパイク（PR#62）の実測値を
-  根拠にした暫定値のまま。検証手順は `scripts/loop_route_probe.py` + `scripts/loop_route_probe_cases.yaml`
-  として実装済み（実キーがあれば即実行できる）。実施後は ADR-07 に結果を追記し、
-  fake provider の E2E生命線テスト（`test_fake_loop_is_accepted_for_every_fake_candidate`）が
-  崩れていないか必ず再確認すること。
+**実API検証の結果（2026-09-20 時点）:**
+- 実API検証は**実施済み**（当初はこの環境に `GOOGLE_MAPS_SERVER_API_KEY` が無く未実施だった）。
+  検証セット全体での同じ道フォールバック率は **69%** で ADR-007 の目標に未達。フォローアップ課題
+  **SS-92**（`backend: 周回ルートの生成品質を改善する`）が起票されている。
+- しきい値（`maps/loop_route.py` のモジュール定数）は前回スパイク（PR#62）由来の暫定値のまま。
+  変更するのは SS-92 の範疇。
+- 検証手順は `scripts/loop_route_probe.py` + `scripts/loop_route_probe_cases.yaml`。
+  しきい値を動かしたら fake provider の E2E生命線テスト
+  （`test_fake_loop_is_accepted_for_every_fake_candidate`）が崩れていないか必ず再確認すること。
 
 関連: [[project-ss44-fake-maps-provider-complete]] / [[project-ss33-loop-route-pitfalls]]（backend-plannerの落とし穴メモ）
