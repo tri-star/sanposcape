@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from sanposcape.app_config.router import router as app_config_router
 from sanposcape.auth.dev_router import router as auth_dev_router
 from sanposcape.auth.exceptions import (
     AuthenticationError,
@@ -16,9 +17,11 @@ from sanposcape.auth.exceptions import (
 )
 from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
+from sanposcape.core.feature_flags import FeatureFlags
 from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimitMiddleware
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
+from sanposcape.integrations.aws.appconfig import build_flag_document_source
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.rate_limit import ExploreRateLimiter
@@ -123,6 +126,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings.google_maps_anonymous_rate_limit_requests,
         app.state.settings.google_maps_rate_limit_window_seconds,
     )
+    # コールドスタートでは AppConfig を取りに行かない（インスタンスを作るだけ）。
+    # 最初にフラグを参照したリクエスト（/app-config 等）が取得する。/app-config 以外の
+    # コールドスタートに AppConfig のレイテンシを乗せないため（ADR-008 追補 D3）。
+    app.state.feature_flag_source = build_flag_document_source(app.state.settings)
+    app.state.feature_flags = FeatureFlags(app.state.feature_flag_source)
     try:
         yield
     finally:
@@ -153,6 +161,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         max_bytes=settings.google_maps_explore_request_max_bytes,
     )
     app.include_router(health_router)
+    app.include_router(app_config_router)
     app.include_router(spots_router)
     app.include_router(auth_router)
     app.include_router(users_router)
