@@ -12,3 +12,4 @@
 - [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認
 - [SS-70 CloudFront/SigV4対応(x-amz-content-sha256, X-App-Authorization)](project_ss70_cloudfront_http_headers.md) — HTTP出口2箇所パターン確立、api/層への初のネイティブ依存混入(expo-crypto)、mobile内2種のADR-005番号衝突に注意
 - [SS-33 周回ルート提示・SS-35再計算の撤去](project_ss33_loop_route.md) — legs+純粋関数分離が参照実装、再計算/往路復路判定の残骸なしを確認。Suggestionのみ3件（ADR実装一覧漏れ・Design反映未追跡・Android破線未検証）
+- [SS-100 app-config フィーチャーフラグ受け皿](project_ss100_app_config_flags.md) — 横断ディレクトリ分散パターンの参照実装。src/api/肥大化リスクとFeatureGateの「画面ガードレシピ」dangling referenceに注意

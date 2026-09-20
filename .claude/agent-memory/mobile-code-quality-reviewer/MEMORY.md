@@ -20,3 +20,4 @@
 - [history系Viewの分岐条件の二重定義](history-view-duplicated-branch-conditions.md) — 中央寄せ判定とrenderBody内の状態分岐を2箇所に別々に書くと片方だけ更新して表示が崩れる
 - [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。型では守られないので生成元を確認する
 - [テーブル駆動テストの模範](table-driven-test-style-reference.md) — `src/lib/backNavigation.test.ts`のit.each形式が基準。個別it()の羅列との乖離をレビューで拾う
+- [ADR番号の重複(repo-root/mobile)](duplicate-adr-numbers-repo-root-vs-mobile.md) — ADR-008等は`packages/mobile/adr/`と`docs/adr/`に別内容で同番号存在。参照は両方確認してから裏取り

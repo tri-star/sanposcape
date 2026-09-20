@@ -10,3 +10,4 @@
 - [SS-37: 保存失敗401サインインCTA・自動再送レビュー](project_ss37_guest_walk_signin_merge.md) — High: 未保存ゲストドラフトが起点を問わない後続サインインに自動添付・強制dismissToされる。明示的破棄導線なしが根本原因
 - [SS-70: CloudFront経由API通信(X-App-Authorization/x-amz-content-sha256)レビュー](project_ss70_cloudfront_auth_header.md) — ハッシュ計算・リトライ整合性は正しい。Medium: fetchにredirectオプション未指定でトークン漏洩の潜在リスク
 - [SS-33: 周回ルート提示・散歩中自動再計算撤去のレビュー](project_ss33_loop_route_review.md) — 問題なし。legs検証は値マッチ＋件数チェックで模範的。自動API発火系統(SS-35)が完全撤去され攻撃対象面が純減
+- [SS-100: /app-configフィーチャーフラグ受け皿のレビュー](project_ss100_app_config_flags.md) — 問題なし。flags===true厳密比較でfail-safe、サインアウトclear()除外はapp-config1件のみ明示、config_sourceは型から構造的に非露出
