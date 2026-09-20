@@ -47,6 +47,31 @@ SS-100 で `packages/mobile/src/api/appConfigQueryKey.ts` / `appConfigApi.ts`、
 維持している**。除外してよい条件は「ユーザー非依存であること」に限る（ADR-008 追補 D2 が
 ダークローンチ＝ユーザー条件付きフラグを不採用としているために成立している前提）。
 
+## `shouldRefreshOnForeground` は `dataUpdatedAt` だけで判定しない（PR #89 Copilot 指摘で修正）
+
+`dataUpdatedAt` は TanStack Query の仕様上**成功時にしか更新されない**。フォアグラウンド復帰の
+再取得を絞る判定（`src/lib/appConfigRefresh.ts`）をこれ単体で行うと、取得が失敗し続けている間
+（初回失敗は永久に0、成功後の失敗は古い成功時刻のまま前進しない）は「最小間隔60秒」の絞りが
+**障害中にだけ無効化される**という壊れ方をする。1回の `invalidateQueries` は transport の
+retry（`transientRetry.ts` 最大3）× TanStack の `retry: 2`（最大3）で最悪9リクエストになりうる
+ため深刻。
+
+修正: 判定の起点を `lastAttemptedAt = Math.max(dataUpdatedAt, errorUpdatedAt)`
+（直近の**成功または失敗**の時刻）にし、`isFetching`（`fetchStatus === "fetching"`）なら
+実行中の再取得に重ねて発火しないよう false を返す。呼び出し側は `getQueryState()` から
+`dataUpdatedAt` / `errorUpdatedAt` / `fetchStatus` の3つを渡す。フェイルセーフの向き
+（値が読めない間は全フラグ OFF、ADR-008 決定9）は変えない — これは「無駄打ちを減らす」修正。
+**教訓: TanStack Query のポーリング/復帰系の間隔制御を書くときは、成功時刻だけでなく
+`errorUpdatedAt` と `fetchStatus` も必ず検討する。**
+
+## FeatureGate の `pending` は `??` ではなく `=== undefined` で判定する（PR #89 Copilot 指摘で修正）
+
+`ReactNode` の props で「未指定なら既定値」を実装するとき `??`（nullish coalescing）を使うと
+`null`（明示的に「何も描画しない」という有効な値）まで既定値に倒してしまう。
+`FeatureGate.tsx` の `pending` は `pending === undefined ? fallback : pending` のように
+`undefined` だけを明示チェックする必要がある。**教訓: `ReactNode` 型の optional prop で
+「未指定」と「明示的な null」を区別したい場合は `??` を使わない。**
+
 ## テストの落とし穴: `queryClient.test.ts` で `resetSessionCleanupForTest()` を呼ばない
 
 `queryClient.ts` はモジュール読み込み時の副作用として `registerSessionCleanup(...)` を実行する。

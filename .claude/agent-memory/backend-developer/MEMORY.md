@@ -20,3 +20,4 @@
 - [feedback-verification-revert-without-git-checkout](feedback_verification_revert_without_git_checkout.md) — フィックス検証で一時的に壊したソースを`git checkout --`で戻すと未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
 - [feedback-sandbox-constraints](feedback_sandbox_constraints.md) — sandboxが拒否する操作(.env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権)と回避策。「できない」と結論する前に読む
 - [feedback-cloudformation-sub-map-value-gotcha](feedback_cloudformation_sub_map_value_gotcha.md) — Fn::Subの変数マップの値に書いた${...}は再評価されない。値自体をさらに!Subで包む必要がある
+- [project-settings-env-isolation](project_settings-env-isolation.md) — テストのSettings(...)は.env/OS環境変数から隔離済み(conftestのautouse)。DB接続だけは例外でambientから解決される
