@@ -49,5 +49,5 @@ export function useAppConfig(): AppConfigSnapshot {
  */
 export function useAppConfigDiagnostics(): { configSource: string | null } {
   const query = useQuery(appConfigQueryOptions());
-  return { configSource: query.data?.config_source ?? null };
+  return useMemo(() => ({ configSource: query.data?.config_source ?? null }), [query.data?.config_source]);
 }
