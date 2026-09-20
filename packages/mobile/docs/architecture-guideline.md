@@ -77,6 +77,38 @@
 - フラグを削除するときは backend の登録簿・`src/config/featureFlags.ts`・分岐・テストを
   同じ PR で消す（ADR-008 決定6）。
 
+### 画面ガードレシピ
+
+`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う
+（SS-100 時点では実例が無いが、次に画面単位のガードが必要になったときのために手順を残す）。
+
+**単一ルート**（`app/` のルートファイルは薄いまま）:
+
+```tsx
+export default function SomeFeatureRoute() {
+  const snapshot = useAppConfig();
+  const decision = resolveFeatureGateDecision({
+    status: snapshot.status,
+    enabled: isFeatureEnabled(snapshot, FEATURE_FLAG_KEYS.someFeature),
+  });
+  if (decision === "pending") return null; // 取得中に弾かない（ON なのに追い出す事故を防ぐ）
+  if (decision === "disabled") return <Redirect href="/" />;
+  return <SomeFeatureView />;
+}
+```
+
+- **`pending` 中は `<Redirect>` しない**。取得中に確定的な OFF 扱いをすると、「フラグ ON なのに
+  起動直後は必ず弾かれる」不具合になる（上記「取得失敗・ロード中は全 OFF」の例外に当たる。
+  画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
+- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。
+
+**タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
+`options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。
+ルート自体は残るので、ディープリンク対策が要るなら上のルート側ガードと併用する。
+
+**いずれの場合も** `app/` にロジックを書かない。判定は `resolveFeatureGateDecision`
+（`src/lib/featureGate.ts`）を呼ぶだけに保つ。
+
 ## テストの方針
 
 - E2Eテスト
