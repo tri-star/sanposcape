@@ -47,7 +47,11 @@ E2E は実 backend を叩き、`APPCONFIG_*` の ID 未設定なら `config_sour
 - **Orval の faker モックは map 型のキーもランダム生成する**
   （`getGetAppConfigResponseMock()` は `flags` のキーを `faker.string.alphanumeric(5)` で作る）。
   → msw ハンドラには必ず明示的なレスポンスを渡す。
-- 依存追加（AsyncStorage / persist-client など）は ADR-004 の E2E APK キャッシュを1回ミスさせる。
-  「永続キャッシュを持つか」の判断ではこのコストを必ず天秤にかける。
+- 依存追加（AsyncStorage / persist-client など）のコストは
+  「E2E APK キャッシュを1回ミスさせる」ではない（この前提は mobile ADR-004 が 2026-08-14
+  追補で撤回済み。`toolsets-libraries.md` も「依存追加時の APK キャッシュミスは論点にならない」と
+  明記）。実際のコストは、AsyncStorage がネイティブモジュールのため development build の
+  作り直しが必要になること（mobile ADR-003）と、依存追加一般に伴う `minimumReleaseAge`（2日）の
+  待機コスト。「永続キャッシュを持つか」の判断ではこちらを天秤にかける（ADR-008 追補 D14 参照）。
 
 Related: [[mobile-structure]], [[planning-constraints]], [[project-e2e-ci-constraints]]

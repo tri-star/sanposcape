@@ -676,10 +676,17 @@ mobile 側に隠したい未公開機能も現時点で存在しないため）�
 - **永続キャッシュ（AsyncStorage 等）は持たない。** 理由は2つ。
   ① 決定9 のフェイルセーフは「読めない時は OFF」であり、前回起動時の ON を永続化すると
   kill switch が効かない端末が生まれ、フェイルセーフの向きが逆転する。
-  ② 依存追加（`@react-native-async-storage/async-storage` /
-  `@tanstack/react-query-persist-client`）は [ADR-004（mobile）](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
-  の E2E APK キャッシュを1回ミスさせるコスト（development build の作り直しが必要）に見合わない。
-  得られるのは起動直後の数百 ms のチラつき低減のみ。
+  ②（**2026-09-20 訂正**: 当初「依存追加は [ADR-004（mobile）](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+  の E2E APK キャッシュを1回ミスさせるコストに見合わない」としていたが、この前提は
+  ADR-004 自体が 2026-08-14 追補で撤回済みで誤りだった。`packages/mobile/docs/toolsets-libraries.md`
+  も「依存追加時の APK キャッシュミスは論点にならない」と明記しており、当時の根拠は成立しない）
+  候補である `@react-native-async-storage/async-storage` は**ネイティブモジュール**であり、
+  追加すると development build の作り直しが必要になる
+  （[mobile ADR-003](../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
+  「再ビルドが必要なのはネイティブが変わるときだけ（native 依存の追加/削除...）」）。
+  あわせて依存追加自体に `minimumReleaseAge`（2日）の待機コストも伴う
+  （`packages/mobile/docs/toolsets-libraries.md`）。得られるのは起動直後の数百 ms の
+  チラつき低減のみで、このコストに見合わない。**結論（永続キャッシュを持たない）自体は変わらない。**
 - **サインイン完了後の `/app-config` 再取得は実装しない。** 追補 D2 が「サインイン完了後に
   `/app-config` を再取得する」と mobile 側に申し送っていたが、D2 自体がダークローンチ
   （ユーザー条件付きフラグ）を不採用としており、現状の応答は未認証/認証後で同一であるため、
