@@ -9,6 +9,7 @@
 - スキーマ管理: Pydantic
 - 認証: Google Sign-In（モバイルが public client として Google と直接対話）+ backend 自前セッショントークン。ID token 検証・自前 JWT 発行ともに `pyjwt[crypto]` を使用（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
 - OpenAPI定義生成: Fast APIの機能を利用
+- AWS SDK: boto3。Secrets Manager（`integrations/aws/secrets.py`, SS-67）と AWS AppConfig（`integrations/aws/appconfig.py`, SS-98）の取得層で使用。Lambda の python3.12 管理ランタイムに同梱されるため zip には含めず、`[dependency-groups] dev` にのみ追加（ユニットテスト・型解決用）
 
 ## 環境
 

@@ -463,6 +463,7 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 - ロググループ `/aws/lambda/sanposcape-dev-backend-api` の `RetentionInDays` が 30
 - `docker compose up -d` からの既存ローカル開発フローが従来どおり動く
 - backend CI（lint / test / migration smoke）が緑
+- フィーチャーフラグ（AppConfig）の疎通確認は §11 も実施する
 
 ## 7. トラブルシューティング
 
@@ -623,7 +624,8 @@ CloudFront 経由の curl が唯一の検証手段になる。
 - **決定4 の `Authorization` ヘッダー上書き**（CloudFront が存在しないため再現しない）
 - `{{resolve:ssm:}}` の解決（deploy 時解決。ローカルでは `APP_SECRET_ARN` に実 ARN を
   `--env-vars` で直接指定する。SSM パラメータ自体は引かない）
-- IAM ポリシー（`secretsmanager:GetSecretValue`）が実際に足りているか
+- IAM ポリシー（`secretsmanager:GetSecretValue` / `appconfig:StartConfigurationSession` /
+  `appconfig:GetLatestConfiguration`）が実際に足りているか
 - Neon への実接続・レイテンシ・コールドスタート時間・29 秒タイムアウトの境界
 - `ReservedConcurrentExecutions` の効果
 
@@ -698,6 +700,14 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
 デプロイとリリースの分離の詳細は [ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md)、
 実装の設計判断は同 ADR の「追補: `/app-config` のレスポンススキーマとフラグ取得基盤」を参照。
 ここでは運用手順のみをまとめる。
+
+> **`/app-config` は未認証・レート制限なし**（`/health` と同じ扱い）。同一実行環境内の
+> 連打はポーリング間隔のキャッシュにより AWS API を叩かず、AWS 側がスロットリングした
+> 場合も `_handle_fetch_failure` が吸収して `config_source: "default"` に倒れるため、
+> フェイルセーフは機能する（実害は AWS API 呼び出しコストに留まる）。トラフィックが増えて
+> 対策が必要になった場合は、backend 側に実装を足すのではなく CloudFront / WAF 側のレート
+> 制限に委ねる方針とする（セキュリティレビュー S-1。過去の `/health` 等のレビューでも
+> 同様に Low 判定としている）。
 
 ### `/app-config` での確認方法
 

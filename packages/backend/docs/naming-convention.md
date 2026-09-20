@@ -65,6 +65,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
   ```
 - URL パスの単語区切りには **ハイフン（kebab-case）を使い、アンダースコア（snake_case）は使わない**。RESTのリソース名は**複数形・小文字**にする。
   - 例: `/walks`, `/walks/{walk_id}`, `/walks/stats`, `/spots`, `/auth/dev-session`（`AUTH_MODE=dev` 限定エンドポイント）
+  - `/health` や `/app-config` のように**リソース（複数取得できる集合）ではなく単一の設定・状態を返すトップレベルのパス**は、複数形ルールの例外として単数形のままにする（`/app-configs` にしない）
   - コレクション配下に固定セグメントのサブリソースを足すときは、**必ず `/{id}` より前に宣言する**
     （例: `/walks/stats` は `/walks/{walk_id}` より前）。FastAPI は宣言順にマッチするため、後ろに
     置くと `stats` が `walk_id: UUID` のバリデーションに落ちて 422 になる。宣言順が壊れたことに

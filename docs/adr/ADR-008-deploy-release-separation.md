@@ -617,6 +617,11 @@ appconfig_read_timeout_seconds: float = 2.0
 - 反映の遅延要因は **AppConfig のベイク時間 + ポーリング間隔（既定60秒）+ 実行環境ごとの
   ばらつき**に閉じる。後日トラフィックが増えたら `max-age` を入れる余地は残る
   （expand で足せる）。
+- **`Cache-Control: no-store` は OpenAPI（`openapi.yaml`）には出力されない。** FastAPI の
+  router が `Response.headers` 経由で実行時に付与するヘッダーであり、`response_model` の
+  スキーマにもレスポンス定義にも現れない。mobile（Orval で `openapi.yaml` を消費する側）から
+  はこの契約が見えないため、キャッシュしない前提で実装する必要がある場合は本 ADR
+  （またはコードコメント）を参照させること。
 
 ## 関連情報
 
