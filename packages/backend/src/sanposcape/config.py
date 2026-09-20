@@ -114,6 +114,28 @@ class Settings(BaseSettings):
     # ENV=local / test 以外で fake を選ぶと下の許可リスト検証で起動に失敗する。
     maps_mode: Literal["real", "fake"] = "real"
 
+    # --- フィーチャーフラグモード（ADR-002 決定4 と同じ fail-safe 方針。既定は real） ---
+    # real = AWS AppConfig（boto3 appconfigdata）から実際に取得する。
+    # stub = ネットワークを一切使わず FEATURE_FLAG_STUB_DOCUMENT を返す（ローカル開発 / テスト用）。
+    # ENV=local / test 以外で stub を選ぶと下の許可リスト検証で起動に失敗する。
+    # ADR-008 決定2 / SS-98。
+    feature_flag_mode: Literal["real", "stub"] = "real"
+    # stub モードで返す文書。`GetLatestConfiguration` が返す簡略 JSON と同じ形にする
+    # （integrations/aws/appconfig.py の同じパーサを本番と共有するため）。
+    # 型は str（dict にすると pydantic-settings の自動 JSON デコードが絡み、
+    # GOOGLE_ALLOWED_AUDIENCES で踏んだ「パース失敗で起動できない」罠を再演しうる）。
+    # パースは取得層で行い、失敗しても起動は落とさず警告 + 空ドキュメントにする。
+    feature_flag_stub_document: str = ""
+    # AppConfig の ID（SS-94 の SSM 契約から deploy 時に渡される）。1本でも空なら
+    # UnconfiguredFlagSource（AWS を一切呼ばない安全既定）にフォールバックする。
+    appconfig_application_id: str = ""
+    appconfig_environment_id: str = ""
+    appconfig_configuration_profile_id: str = ""
+    appconfig_poll_interval_seconds: int = Field(default=60, ge=15, le=86_400)
+    appconfig_error_backoff_seconds: int = Field(default=30, ge=1, le=3_600)
+    appconfig_connect_timeout_seconds: float = Field(default=1.0, gt=0)
+    appconfig_read_timeout_seconds: float = Field(default=2.0, gt=0)
+
     # --- Google Maps Platform (server-side only) ---
     google_maps_server_api_key: str = ""
     google_maps_connect_timeout_seconds: float = Field(default=3.0, gt=0)
@@ -171,6 +193,8 @@ class Settings(BaseSettings):
                 raise ValueError(f"AUTH_MODE must be 'real' when ENV={self.env}")
             if self.maps_mode != "real":
                 raise ValueError(f"MAPS_MODE must be 'real' when ENV={self.env}")
+            if self.feature_flag_mode != "real":
+                raise ValueError(f"FEATURE_FLAG_MODE must be 'real' when ENV={self.env}")
             if len(self.auth_jwt_secret) < 32:
                 raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
             if not self.google_allowed_audiences:
