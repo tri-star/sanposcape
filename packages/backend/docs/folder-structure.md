@@ -93,9 +93,11 @@ packages/backend/
 │       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
 │       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
 │       └── app_config/        # ドメイン: mobile / LP 向け公開設定（GET /app-config, SS-98/ADR-008）
+│           ├── __init__.py
 │           ├── router.py      #   service.py を置かない（ロジックは core/feature_flags.py 側にある。health/ と同じ判断）
 │           ├── schemas.py     #   AppConfigRead / MinimumSupportedVersionsRead
-│           └── dependencies.py #   get_feature_flags(request) -> FeatureFlags（app.state から取得。maps/dependencies.py と同じ形）
+│           ├── dependencies.py #   get_feature_flags(request) -> FeatureFlags（app.state から取得。maps/dependencies.py と同じ形）
+│           └── tests/         #   このドメインのテスト（併置）
 │
 ├── alembic/
 │   ├── env.py                 # all_models.py の Base を参照してメタデータを集約
@@ -124,7 +126,7 @@ packages/backend/
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
 
 ### `core/` — 横断的関心事
-- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
+- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
 - ドメインを import しない（依存の向きは `domain → core`）。
 - 認証（Google ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
@@ -136,6 +138,9 @@ packages/backend/
   シークレット JSON を取得し `lru_cache` でプロセス内キャッシュする。boto3 は Lambda の
   python3.12 管理ランタイムに同梱されているため zip には含めず、`[dependency-groups] dev` に
   のみ追加している（ユニットテスト・型解決用）。シークレットの値は絶対にログへ出さない。
+  `appconfig.py` は AWS AppConfig（boto3 `appconfigdata`）の取得層（transport）で、
+  「AppConfig からどう取るか」だけをここに閉じ込め、評価ロジックは `core/feature_flags.py`
+  に持たせる（ADR-008 追補 D3, SS-98）。
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
