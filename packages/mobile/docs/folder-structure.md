@@ -190,6 +190,12 @@ packages/mobile/
 - `appConfigQueryKey.ts`: `/app-config` の queryKey 定数（依存ゼロ。`queryClient.ts` から参照するため分離。SS-100）。
 - `appConfigApi.ts`: `/app-config` の素の fetcher ラッパ。**特定の機能に属さないアプリ基盤の取得なので
   `features/<feature>/api/` ではなくここに置く**（SS-100）。
+  - **肥大化の歯止め**: `src/api/` は元々 `client.ts` / `apiError.ts` のような機能非依存の
+    インフラだけを置く場所だったが、`appConfigApi.ts` で初めてドメイン形状を持つエンドポイント別
+    ラッパを受け入れた。「特定の機能に属さないアプリ基盤の取得」という採用基準はやや主観的で、
+    フラットに積み続けるとこのフォルダも `src/components/` と同じ肥大化リスクを持つ。
+    **2本目の横断的エンドポイントラッパが増えたら `src/api/endpoints/` のようなサブフォルダへ
+    分けること**（`components/` の「カテゴリのサブフォルダに分ける」ルールと同じ考え方）。
 - `authHeaders.ts` / `contentHash.ts`: リクエストへ横断的な送信ヘッダーを付与する純粋関数
   （`X-App-Authorization` / `x-amz-content-sha256`。SS-70）。**mobile の HTTP 出口は
   `client.ts` の `customFetch` と `src/services/auth/authApi.ts` の `post()` の2箇所**あり、
