@@ -233,6 +233,49 @@ def test_maps_mode_defaults_to_real() -> None:
     assert Settings().maps_mode == "real"
 
 
+def test_production_with_stub_feature_flag_mode_fails_to_start() -> None:
+    """SS-98: FEATURE_FLAG_MODE も AUTH_MODE / MAPS_MODE と同じ許可リスト方式で検証されること。"""
+    with pytest.raises(ValidationError, match="FEATURE_FLAG_MODE"):
+        Settings(
+            env="production",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            feature_flag_mode="stub",
+        )
+
+
+def test_staging_with_stub_feature_flag_mode_fails_to_start() -> None:
+    """A-1 と対になる固定: 許可リスト方式は新しい env（staging）にも一律で効く。"""
+    with pytest.raises(ValidationError, match="FEATURE_FLAG_MODE"):
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            feature_flag_mode="stub",
+        )
+
+
+@pytest.mark.parametrize("env", ["local", "test"])
+def test_local_and_test_env_allow_stub_feature_flag_mode(env: str) -> None:
+    settings = Settings(env=env, feature_flag_mode="stub")
+    assert settings.feature_flag_mode == "stub"
+
+
+def test_feature_flag_mode_defaults_to_real() -> None:
+    assert Settings().feature_flag_mode == "real"
+
+
+def test_appconfig_ids_default_to_empty_string() -> None:
+    settings = Settings()
+    assert settings.appconfig_application_id == ""
+    assert settings.appconfig_environment_id == ""
+    assert settings.appconfig_configuration_profile_id == ""
+
+
 # --- 決定3: DSN の正規化 (`_to_sqlalchemy_url`) と `database_url` の優先順位 ---
 
 

@@ -11,6 +11,9 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #   - 実行ロールには Terraform が作る Permission Boundary（SSM の lambda_boundary_arn）を必ず付ける。
 #     外すと CI のデプロイロールが CreateRole を拒否する（Globals.Function の PermissionsBoundary 参照）
 #   デプロイ順は常に SAM → Terraform。詳細: docs/deployment.md
+#   - AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID は SSM 契約（SS-94）から deploy 時解決。
+#     Lambda 実行ロールの Permission Boundary（SS-95）は ID までは絞れないワイルドカード ARN
+#     のため、完全 ARN への絞り込みは Api の Policies（このファイル）が唯一の場所（SS-98）。
 
 Parameters:
   Env:
@@ -60,6 +63,7 @@ Globals:
         ENV: !FindInMap [EnvToAppEnv, !Ref Env, AppEnv]
         AUTH_MODE: real
         MAPS_MODE: real
+        FEATURE_FLAG_MODE: real
         # Neon への同時接続数を ReservedConcurrentExecutions と合わせて有界化する（決定5）。
         DB_POOL_SIZE: '1'
         DB_MAX_OVERFLOW: '0'
@@ -101,13 +105,35 @@ Resources:
       ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 5]
       FunctionUrlConfig:
         AuthType: AWS_IAM  # ★ NONE にしない（Function URL の直叩きを構造的に塞ぐ）
+      # AppConfig の ID は Api だけに渡す（Migrate はフラグを読まない。最小権限）。
+      # Globals の Variables とマージされる。
+      Environment:
+        Variables:
+          APPCONFIG_APPLICATION_ID: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/application_id}}'
+          APPCONFIG_ENVIRONMENT_ID: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/environment_id}}'
+          APPCONFIG_CONFIGURATION_PROFILE_ID: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/configuration_profile_id}}'
       Policies:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
               Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'
-        # kms:Decrypt は不要（AWS 管理キー + kms:ViaService で同一アカウントを許可済み）
+            # kms:Decrypt は不要（AWS 管理キー + kms:ViaService で同一アカウントを許可済み）
+            # ★ IAM のアクション名前空間は appconfig:（エンドポイントは appconfigdata だが
+            #   IAM のアクションはこの綴り。境界（SS-95）もこの綴りで確認済み）。
+            #   境界はワイルドカードなので、完全 ARN への絞り込みはここが唯一の場所。
+            - Effect: Allow
+              Action:
+                - appconfig:StartConfigurationSession
+                - appconfig:GetLatestConfiguration
+              # ★ Fn::Sub の変数マップの値は素の文字列としてそのまま埋め込まれ、値の中の
+              #   ${Env} は再評価されない（マップ値自身を !Sub で包んだときだけ、その !Sub が
+              #   自分のスコープで ${Env} を解決する）。3本とも個別に !Sub で包む必要がある。
+              Resource: !Sub
+                - 'arn:aws:appconfig:ap-southeast-1:${AWS::AccountId}:application/${AppId}/environment/${EnvId}/configuration/${ProfileId}'
+                - AppId: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/application_id}}'
+                  EnvId: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/environment_id}}'
+                  ProfileId: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/configuration_profile_id}}'
 
   ApiLogGroup:
     Type: AWS::Logs::LogGroup

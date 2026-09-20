@@ -35,6 +35,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | データベース | PostgreSQL | ローカル用DB + テスト用DBを分離 |
 | 地図・POI・ルーティング | Google Maps Platform (Maps / Places / Routes) | 往復可能範囲・徒歩時間/距離・スポット候補の取得 |
 | 認証 | Google サインイン直結（mobile: public client / backend: 自前セッショントークン発行。テスト時は dev/mock モードへ差し替え） | 詳細は [ADR-002](./adr/ADR-002-auth-google-signin-and-stub-strategy.md) |
+| フィーチャーフラグ | AWS AppConfig（backend が boto3 `appconfigdata` で取得し `GET /app-config` で mobile / LP へ配る） | 取得失敗時は全フラグ OFF（fail-safe）。詳細は [ADR-008](./adr/ADR-008-deploy-release-separation.md) |
 | インフラ / ホスティング | TBD（backend/DBのホスティング先は未定） | mobileはExpo経由で配布想定 |
 | CI/CD | GitHub Actions | Lint/Format・ユニットテスト・Maestro E2E。デプロイとリリースは分離し、公開はフィーチャーフラグ（AWS AppConfig）とストアの手動リリースで制御する（[ADR-008](./adr/ADR-008-deploy-release-separation.md) / [リリース運用手順](./release-runbook.md)） |
 | パッケージマネージャ | pnpm (mobile) / uv (backend) | mobileは minimumReleaseAge=2日 |
@@ -131,3 +132,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 記録 (Record) | ユーザーが散歩中に残したスポットの記録（位置・写真・メモ・日時）。※MVPでは散歩ルートの記録が対象で、スポット単位の記録は将来機能 |
 | services層 | 認証・位置情報・カメラ等の実機依存機能を抽象化し real/stub を差し替える層 |
 | Orval | OpenAPI定義からAPIクライアントとMSWモックを生成するツール |
+| デプロイ / リリース | デプロイ＝コードを本番環境に置くこと、リリース＝利用者に機能を見せること。この2つを分離し、未完成の機能もフラグ OFF のまま本番にデプロイしてよいとする（[ADR-008](./adr/ADR-008-deploy-release-separation.md)） |
+| フィーチャーフラグ | 機能の公開・非公開を AWS AppConfig の値（ON/OFF）で切り替える仕組み。値は `GET /app-config` を通じて mobile / LP に配られ、取得に失敗した場合は全フラグ OFF に倒す（fail-safe。ADR-008） |
+| 最低サポートバージョン | `/app-config` の `minimum_supported_versions.{ios,android}` が返す `X.Y.Z` 形式のバージョン。これを下回るアプリにはアップデートを促す（backend の配信経路は SS-98 で実装済み、アプリ側の促進は SS-101）。`null` は「指定なし＝強制アップデートしない」を意味する（ADR-008） |
+| expand / contract | backend の API 変更を「新しいフィールド/エンドポイントを追加する（expand）→ 新しいクライアントへの移行を待つ → 古いものを削除する（contract）」の2段階で行う規約。配布済みの mobile ビルドが更新されないまま backend を叩き続けることに対応するため（ADR-008 決定7） |

@@ -19,6 +19,8 @@
   - 横断: [ADR-005 backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする](./docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)
   - 横断: [ADR-006 mobile アプリの配信は EAS（Expo ホスト）に委ね、mobile 用 SAM テンプレートを作らない](./docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)
   - 横断: [ADR-007 周回ルート（往路と異なる道で戻る）の生成方式](./docs/adr/ADR-007-loop-route-generation.md)
+  - 横断: [ADR-008 デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./docs/adr/ADR-008-deploy-release-separation.md)
+  - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
     - [ADR-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)

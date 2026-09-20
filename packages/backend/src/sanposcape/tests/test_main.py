@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -58,6 +59,40 @@ def test_known_authentication_error_subclass_still_uses_specific_handler() -> No
 
     assert res.status_code == 401
     assert res.json() == {"detail": "Invalid ID token"}
+
+
+def test_lifespan_closes_the_feature_flag_source_on_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """local-review F-13: `AppConfigFlagSource` の boto3 クライアント（内部に urllib3
+    コネクションプールを持つ）を `_lifespan` の finally で close することを固定する
+    （`HttpGoogleMapsProvider` と同じライフサイクル管理。今までは close されず非対称だった）。
+    """
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    closed: list[bool] = []
+
+    class _FakeBotoClient:
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(
+        "sanposcape.integrations.aws.appconfig.boto3.client", lambda *a, **k: _FakeBotoClient()
+    )
+    settings = Settings(
+        env="test",
+        feature_flag_mode="real",
+        appconfig_application_id="app",
+        appconfig_environment_id="env",
+        appconfig_configuration_profile_id="profile",
+    )
+    app = create_app(settings)
+
+    with TestClient(app):
+        assert closed == []
+
+    assert closed == [True]
 
 
 def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
