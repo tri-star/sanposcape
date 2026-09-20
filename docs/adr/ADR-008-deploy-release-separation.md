@@ -40,9 +40,11 @@ backend のデプロイが GitHub Actions から実行できるようになり�
 
 ### 現状のフィーチャーフラグとその限界（AppConfig を入れる直接の動機）
 
-現在のフラグは `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`（周回ルートの kill switch、SS-33 /
-[ADR-007](./ADR-007-loop-route-generation.md)）の 1 つだけで、`config.py` の `Settings` が読む
-Lambda 環境変数として実装されている。運用手順は
+利用者から見える挙動を制御するフラグは `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`
+（周回ルートの kill switch、SS-33 / [ADR-007](./ADR-007-loop-route-generation.md)）の 1 つだけで、
+`config.py` の `Settings` が読む Lambda 環境変数として実装されている
+（`DB_DISABLE_PREPARED_STATEMENTS` も同じ形だが、これはドライバ側の回避策であって
+機能のフラグではない）。運用手順は
 [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md)
 「周回ルートの kill switch」にあるが、そこに書かれているとおり次の限界がある。
 
