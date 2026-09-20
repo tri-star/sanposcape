@@ -95,6 +95,27 @@ docker compose exec api uv run ruff format
 docker compose exec api uv run python scripts/export_openapi.py
 ```
 
+## テストと `.env` の関係（SS-100）
+
+- **テストコードは手元の `.env` / OS 環境変数から独立している。** `src/sanposcape/conftest.py` の
+  `_isolate_settings_from_ambient_env`（autouse）が、各テストの実行前に `Settings` の全フィールド名に
+  対応する環境変数を削除し、カレントディレクトリを空の一時ディレクトリへ退避する。これにより
+  `Settings(...)` をテストコード内で明示構築するとき、**渡さなかったフィールドは常にコード上の
+  デフォルト値になる**（`.env` を生成済みかどうか、`.env` に何を書いたかに関わらず結果が変わらない）。
+- この隔離が無いと何が起きるか: `.env.example`（→ `scripts/initialize-dotenv.sh` が生成する `.env`）は
+  ローカル開発の利便性のため `FEATURE_FLAG_MODE=stub` を配っている。さらに `compose.yaml` はこの値を
+  `api` コンテナの **OS 環境変数** としても渡す。隔離が無ければ、`Settings(env="test")` のように一部の
+  フィールドだけを明示したテストは `.env` を生成した開発者の手元でだけ `feature_flag_mode` が
+  `stub` になり、コード既定の `real`（`APPCONFIG_*` 未設定時の挙動など）を前提にしたテストが
+  CI とローカルとで食い違う結果になっていた（CI には `.env` が無いため気付けなかった）。
+- **例外: テスト用DBの接続情報（`test_database_url`）はこの隔離の対象外。** `conftest.py` は
+  モジュール import 時（＝どのテストのフィクスチャよりも前）に `get_settings()` を呼んで
+  `test_engine` を組み立てるため、実際の `.env` / OS 環境変数（`DB_HOST` 等）から解決される。
+  `.env` を一律に無効化すると DB に繋がらなくなって全テストが落ちるため、意図的にここだけ対象外にしている。
+- 新しいテストで `Settings(...)` を構築するときも、この隔離の恩恵は自動的に効く。個別のテストで
+  `feature_flag_mode="real"` のような値を渡し回る対症療法は避け、テストが期待する挙動を検証したい
+  フィールドだけを明示すれば、それ以外は常にコード上のデフォルトになることを前提にしてよい。
+
 ## `.venv` volume の移行と UID/GID 変更
 
 - `.venv` は `venv-app-user` named volume に保存する。従来の `venv` volume は参照しないため、root 所有の旧 volume による権限エラーは引き継がれない。

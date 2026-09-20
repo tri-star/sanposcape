@@ -1,29 +1,12 @@
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
 from sanposcape.config import Settings, _to_sqlalchemy_url
 
-
-@pytest.fixture(autouse=True)
-def _isolate_settings_sources(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """`Settings` の外部入力（環境変数・`.env`）を遮断する。
-
-    ここのテストは「引数で渡さなかった項目は既定値になる」ことを前提に
-    バリデーションを検証している。しかし `Settings` は環境変数と `.env` も読むため、
-    開発者の手元でその項目が設定されていると既定値にならず、テストの意味が変わってしまう。
-
-    実際に `GOOGLE_MAPS_SERVER_API_KEY` を設定した環境では
-    `test_production_without_google_maps_server_key_fails_to_start` が
-    「キー未設定なのに起動できてしまう」ではなく「キーが設定されている」状態を
-    検証することになり、失敗していた（CI はキーを設定しないため気付けなかった）。
-
-    `env_file=".env"` は相対パスなので、カレントディレクトリを移すことで読み込みも防ぐ。
-    """
-    for name in Settings.model_fields:
-        monkeypatch.delenv(name.upper(), raising=False)
-    monkeypatch.chdir(tmp_path)
+# このモジュールのテストは「引数で渡さなかった項目は既定値になる」ことを前提に
+# バリデーションを検証している。`Settings(...)` を開発者ローカルの `.env` / OS 環境変数から
+# 隔離する処理は `conftest.py` の `_isolate_settings_from_ambient_env`（autouse, SS-100）で
+# スイート全体に対して行われているため、ここでの個別定義はしない。
 
 
 def test_production_with_non_real_auth_mode_fails_to_start() -> None:
