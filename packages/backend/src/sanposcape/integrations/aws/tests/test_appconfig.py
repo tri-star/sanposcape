@@ -321,6 +321,64 @@ def test_client_error_falls_back_to_previous_document_and_backs_off() -> None:
     assert len(fake_client.calls) == 4
 
 
+def test_missing_initial_configuration_token_falls_back_to_default_without_raising() -> None:
+    """`get_document()` は「絶対に例外を送出しない」不変条件を持つ。
+
+    AppConfig のレスポンスから `InitialConfigurationToken` が欠けているという
+    本来起きないはずの応答異常でも、素の `[]` アクセスなら `KeyError` が呼び出し元
+    （`/app-config`）まで伝播してしまう。`.get()` + 明示チェックで `ValueError` に
+    正規化し、他の取得失敗と同じフォールバック経路に倒れることを固定する。
+    """
+    fake_client = _FakeAppConfigDataClient()
+    fake_client.queue_start_response({})  # InitialConfigurationToken が無い
+    now = [0.0]
+    source = AppConfigFlagSource(_settings(), client=fake_client, now=lambda: now[0])
+
+    document = source.get_document()
+
+    assert document == FlagDocument({}, kind="default")
+
+
+def test_missing_next_poll_configuration_token_falls_back_without_raising() -> None:
+    fake_client = _FakeAppConfigDataClient()
+    fake_client.queue_start_response({"InitialConfigurationToken": "token-1"})
+    fake_client.queue_get_response(
+        {
+            # NextPollConfigurationToken が無い
+            "NextPollIntervalInSeconds": 60,
+            "Configuration": _body({"app_config_probe": {"enabled": True}}),
+        }
+    )
+    now = [0.0]
+    source = AppConfigFlagSource(_settings(), client=fake_client, now=lambda: now[0])
+
+    document = source.get_document()
+
+    assert document == FlagDocument({}, kind="default")
+
+
+def test_missing_configuration_key_falls_back_without_raising(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake_client = _FakeAppConfigDataClient()
+    fake_client.queue_start_response({"InitialConfigurationToken": "token-1"})
+    fake_client.queue_get_response(
+        {
+            "NextPollConfigurationToken": "token-2",
+            "NextPollIntervalInSeconds": 60,
+            # Configuration が無い
+        }
+    )
+    now = [0.0]
+    source = AppConfigFlagSource(_settings(), client=fake_client, now=lambda: now[0])
+
+    with caplog.at_level(logging.ERROR, logger="sanposcape.integrations.aws.appconfig"):
+        document = source.get_document()
+
+    assert document == FlagDocument({}, kind="default")
+    assert any(record.levelno == logging.ERROR for record in caplog.records)
+
+
 def test_resource_not_found_exception_is_treated_as_default_with_backoff() -> None:
     fake_client = _FakeAppConfigDataClient()
     fake_client.queue_start_response({"InitialConfigurationToken": "token-1"})

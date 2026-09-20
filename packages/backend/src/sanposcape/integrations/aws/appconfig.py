@@ -165,6 +165,13 @@ class AppConfigFlagSource:
             return self._handle_fetch_failure(exc)
 
     def _fetch_once(self) -> FlagDocument:
+        # `get_document()` の docstring どおり例外を外へ出さない不変条件を守るため、
+        # レスポンスの必須キーは `[]` で直接アクセスせず `.get()` + 明示チェックにする。
+        # 欠落は本来起こらないはずの応答異常だが、素の `[]` アクセスだと `KeyError` が
+        # 送出され、呼び出し元 `_refresh()` の except（ClientError/BotoCoreError/ValueError）
+        # を素通りして `/app-config` を 500 にしてしまう。`ValueError` に正規化することで
+        # 既存の「ValueError はパース失敗」という分類に合流させ、同じフォールバック経路
+        # （`_handle_fetch_failure`）に倒す。
         if self._token is None:
             session = self._client.start_configuration_session(
                 ApplicationIdentifier=self._application_id,
@@ -172,15 +179,30 @@ class AppConfigFlagSource:
                 ConfigurationProfileIdentifier=self._configuration_profile_id,
                 RequiredMinimumPollIntervalInSeconds=self._poll_interval_seconds,
             )
-            self._token = session["InitialConfigurationToken"]
+            initial_token = session.get("InitialConfigurationToken")
+            if not initial_token:
+                raise ValueError(
+                    "AppConfig start_configuration_session response is missing "
+                    "InitialConfigurationToken"
+                )
+            self._token = initial_token
         response = self._client.get_latest_configuration(ConfigurationToken=self._token)
+        next_token = response.get("NextPollConfigurationToken")
+        if not next_token:
+            raise ValueError(
+                "AppConfig get_latest_configuration response is missing "
+                "NextPollConfigurationToken"
+            )
         # ConfigurationToken は1回きり。応答の NextPollConfigurationToken で必ず置き換える。
-        self._token = response["NextPollConfigurationToken"]
+        self._token = next_token
         self._next_poll_at = self._now() + response.get(
             "NextPollIntervalInSeconds", self._poll_interval_seconds
         )
+        configuration = response.get("Configuration")
+        if configuration is None:
+            raise ValueError("AppConfig get_latest_configuration response is missing Configuration")
         # StreamingBody は1回しか読めない。必ずローカル変数で受ける。
-        body = response["Configuration"].read()
+        body = configuration.read()
         if not body:
             if self._document is None:
                 # 初回デプロイ直後は必ず未配信。通常経路として INFO 1回だけ記録する
