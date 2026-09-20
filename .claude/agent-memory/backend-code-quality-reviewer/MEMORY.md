@@ -9,3 +9,4 @@
 - [SS-44 fake maps providerの経緯](project_ss44_fake_maps_provider.md) — MAPS_MODE=fake追加の背景と意図的なスコープ外事項（mobile-e2e.ymlのTODOは指摘しない）
 - [select→delete→flushのStaleDataErrorレース](pattern_select_then_delete_race.md) — users/walks repository.delete()共通の未捕捉例外、新規delete()実装時に必ず確認
 - [SS-53 walks削除APIレビュー概要](project_ss53_walks_delete_review.md) — ADR-003決定13の背景。StaleDataErrorレースは対応済み確認(2026-08-13)。PR47フォローアップ(413統一/docstring)も指摘なし
+- [SS-98 AppConfig取得層レビュー概要](project_ss98_appconfig_review.md) — KeyError未捕捉でget_document()の無例外保証が破れる/Unconfigured時ERRORログがCI・ローカルの通常経路で鳴る

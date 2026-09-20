@@ -4,3 +4,4 @@
 - [カスタム relation の制約(2026-09-17更新: 解消済み)](relation_definitions_402.md) — `workitem_relation`の「Relates to」定義が使えるようになった。402の話は過去の話
 - [トリアージ読み取りTips](triage_read_tips.md) — workitem list巨大出力のjq要約法、relation取得法、現行ラベルID(9件)
 - [Plane MCP認可フローがセッションをまたがない事象](plane_mcp_auth_flow.md) — ブラウザ側で認可完了済みでも当該セッションのツール一覧にlist_work_items等が現れないことがある
+- [infraチケットの作業対象リポジトリ](infra_tickets_target_repo.md) — `infra` ラベルの作業対象は sanposcape 本体ではなく sanposcape-infra。フラグ配信チェーンのSS別対象リポジトリ表、SS-95のPermission Boundary注意点
