@@ -20,11 +20,15 @@ def get_app_config(
     """
     # CloudFront のキャッシュポリシーに挙動を依存させない（ADR-008 追補 D10）。
     response.headers["Cache-Control"] = "no-store"
-    versions = flags.minimum_supported_versions()
+    # get_document() を1回だけ呼び、各メソッドへ明示的に渡す（ロック取得回数を1回に抑え、
+    # ポーリング間隔の境界をまたいだ場合の flags / minimum_supported_versions 間の
+    # 世代不整合を避けるため。local-review F-12）。
+    document = flags.get_document()
+    versions = flags.minimum_supported_versions(document)
     return AppConfigRead(
-        flags=flags.client_flags(),
+        flags=flags.client_flags(document),
         minimum_supported_versions=MinimumSupportedVersionsRead(
             ios=versions.ios, android=versions.android
         ),
-        config_source=flags.source_kind(),
+        config_source=flags.source_kind(document),
     )

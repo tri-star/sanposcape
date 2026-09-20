@@ -101,22 +101,36 @@ class FeatureFlags:
     def __init__(self, source: FlagDocumentSource) -> None:
         self._source = source
 
-    def is_enabled(self, key: str) -> bool:
+    def get_document(self) -> FlagDocument:
+        """`FlagDocumentSource.get_document()` を1回だけ呼びたい呼び出し元
+        （`/app-config` の router 等）向けの薄いラッパー。
+
+        `client_flags()` / `minimum_supported_versions()` / `source_kind()` は
+        それぞれ独立に呼ぶと `get_document()`（`AppConfigFlagSource` では
+        `threading.Lock` を伴う）が1リクエストあたり3回走り、理論上ポーリング間隔の
+        境界をまたぐと `flags` と `minimum_supported_versions` が異なる世代の
+        ドキュメントに基づく極小の不整合が起こり得る。呼び出し元がここで1回だけ
+        取得し、各メソッドへ明示的に渡すことでロック取得回数と世代不整合の両方を防ぐ。
+        """
+        return self._source.get_document()
+
+    def is_enabled(self, key: str, document: FlagDocument | None = None) -> bool:
         """将来 `*, context=...`（ダークローンチ用）を足せる形にしておく
         （ADR-008 追補 D2。既存呼び出しはキーワード引数を渡していないため無変更で済む）。
         """
         if key not in _FLAGS_BY_KEY:
             logger.warning("is_enabled() called with an unregistered flag key: %s", key)
             return False
-        return self._flag_enabled(self._source.get_document(), key)
+        return self._flag_enabled(document if document is not None else self.get_document(), key)
 
-    def client_flags(self) -> dict[str, bool]:
+    def client_flags(self, document: FlagDocument | None = None) -> dict[str, bool]:
         """登録簿にある client 公開フラグを必ず全部返す（AppConfig 側に無ければ False）。
 
         AppConfig 側にある未知キー（登録簿にも予約キーにも無いもの）は無視する。
         これにより応答のキー集合が「デプロイされている backend のバージョン」だけで決まる。
         """
-        document = self._source.get_document()
+        if document is None:
+            document = self.get_document()
         known_keys = _FLAGS_BY_KEY.keys() | RESERVED_FLAG_KEYS
         unknown_keys = set(document.values) - known_keys
         if unknown_keys:
@@ -127,14 +141,18 @@ class FeatureFlags:
             if spec.audience == "client"
         }
 
-    def minimum_supported_versions(self) -> MinimumSupportedVersions:
+    def minimum_supported_versions(
+        self, document: FlagDocument | None = None
+    ) -> MinimumSupportedVersions:
         """`client_requirements` の属性から最低サポートバージョンを取り出す。
 
         AWS AppConfig の仕様: `enabled: false` のフラグの属性は `GetLatestConfiguration` の
         応答に含まれない。そのため OFF・属性欠落・形式不正のいずれも `None`
         （= 強制アップデートしない、安全側）に倒す。
         """
-        raw = self._source.get_document().values.get("client_requirements")
+        if document is None:
+            document = self.get_document()
+        raw = document.values.get("client_requirements")
         if not isinstance(raw, dict) or raw.get("enabled") is not True:
             return MinimumSupportedVersions(ios=None, android=None)
         return MinimumSupportedVersions(
@@ -142,9 +160,13 @@ class FeatureFlags:
             android=self._parse_version(raw.get("android_minimum_version")),
         )
 
-    def source_kind(self) -> Literal["appconfig", "default", "stub"]:
+    def source_kind(
+        self, document: FlagDocument | None = None
+    ) -> Literal["appconfig", "default", "stub"]:
         """診断用。`/app-config` の `config_source` にそのまま載る。"""
-        return self._source.get_document().kind
+        if document is None:
+            document = self.get_document()
+        return document.kind
 
     @staticmethod
     def _flag_enabled(document: FlagDocument, key: str) -> bool:

@@ -4,8 +4,23 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
+from sanposcape.app_config.dependencies import get_feature_flags
 from sanposcape.config import Settings
+from sanposcape.core.feature_flags import FeatureFlags
+from sanposcape.integrations.aws.appconfig import FlagDocument
 from sanposcape.main import create_app
+
+
+class _CountingFlagDocumentSource:
+    """`get_document()` の呼び出し回数を数える手書きフェイク。"""
+
+    def __init__(self, document: FlagDocument) -> None:
+        self._document = document
+        self.call_count = 0
+
+    def get_document(self) -> FlagDocument:
+        self.call_count += 1
+        return self._document
 
 
 @pytest.fixture
@@ -112,3 +127,26 @@ def test_get_app_config_falls_back_to_default_when_appconfig_unconfigured(
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "default",
     }
+
+
+def test_get_app_config_calls_get_document_only_once_per_request() -> None:
+    """`flags.minimum_supported_versions()` / `client_flags()` / `source_kind()` が
+    それぞれ独立に `get_document()` を呼ぶと、`AppConfigFlagSource` ではロック取得が
+    1リクエストあたり3回発生し、理論上ポーリング間隔の境界をまたぐと `flags` と
+    `minimum_supported_versions` が異なる世代のドキュメントに基づく不整合が起こり得た
+    （local-review F-12）。router が1回だけ取得して使い回すことを固定する。
+    """
+    settings = Settings(env="test", feature_flag_mode="stub")
+    app = create_app(settings)
+    source = _CountingFlagDocumentSource(
+        FlagDocument({"app_config_probe": {"enabled": True}}, kind="stub")
+    )
+    app.dependency_overrides[get_feature_flags] = lambda: FeatureFlags(source)
+    try:
+        with TestClient(app) as client:
+            response = client.get("/app-config")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert source.call_count == 1

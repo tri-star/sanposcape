@@ -16,8 +16,10 @@ from sanposcape.integrations.aws.appconfig import FlagDocument
 class _FakeFlagDocumentSource:
     def __init__(self, values: dict[str, Any], kind: str = "appconfig") -> None:
         self._document = FlagDocument(values, kind=kind)  # type: ignore[arg-type]
+        self.call_count = 0
 
     def get_document(self) -> FlagDocument:
+        self.call_count += 1
         return self._document
 
 
@@ -188,3 +190,43 @@ def test_is_enabled_returns_registered_flag_value() -> None:
 def test_source_kind_reflects_document_kind(kind: str) -> None:
     flags = FeatureFlags(_FakeFlagDocumentSource({}, kind=kind))
     assert flags.source_kind() == kind
+
+
+# --- get_document() の使い回し（local-review F-12） ---
+
+
+def test_get_document_delegates_to_source() -> None:
+    source = _FakeFlagDocumentSource({"app_config_probe": {"enabled": True}})
+    flags = FeatureFlags(source)
+    assert flags.get_document() == FlagDocument(
+        {"app_config_probe": {"enabled": True}}, kind="appconfig"
+    )
+    assert source.call_count == 1
+
+
+def test_client_flags_minimum_supported_versions_and_source_kind_accept_a_shared_document() -> None:
+    """呼び出し元が `get_document()` を1回だけ呼び、その結果を明示的に渡した場合は
+    `FlagDocumentSource.get_document()` を再度呼ばないことを固定する
+    （router 側の呼び出し回数削減が実際に効いていることの土台）。
+    """
+    source = _FakeFlagDocumentSource(
+        {
+            "app_config_probe": {"enabled": True},
+            "client_requirements": {
+                "enabled": True,
+                "ios_minimum_version": "1.2.3",
+                "android_minimum_version": "1.2.4",
+            },
+        }
+    )
+    flags = FeatureFlags(source)
+
+    document = flags.get_document()
+    assert source.call_count == 1
+
+    flags.client_flags(document)
+    flags.minimum_supported_versions(document)
+    flags.source_kind(document)
+    flags.is_enabled("app_config_probe", document)
+
+    assert source.call_count == 1
