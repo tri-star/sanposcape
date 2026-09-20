@@ -229,8 +229,15 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
   Expo 公式ドキュメントに明記がない。** `appVersionSource` はプロファイル単位に上書きできない
   ため E2E も remote から番号を読む。`preview` に `autoIncrement` を置かないことで「読み取り
   だけ」に留めてある。`build:version:get --profile preview` が値を返すことは実測したが、
-  `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、切り替え PR のマージ前に
-  `mobile-e2e` を手動ディスパッチして実証する（`--local` なので EAS の枠を消費しない）。
+  `eas build --local` がビルド実行時に同じ経路を使うかは未実測。
+  - **2026-09-20 追記: この実証はマージ前に行われなかった。** 当初「切り替え PR のマージ前に
+    `mobile-e2e` を手動ディスパッチして実証する」としていたが、PR #86 は手動ディスパッチを
+    経ずにマージされた（`tri-star/SS-89` ブランチに対する `workflow_dispatch` の実行記録が無く、
+    main の直近成功はマージ前の週次実行）。**したがって remote 化後の `eas build --local` は
+    いまだ未実証である。** `mobile-e2e.yml` は `workflow_dispatch` + 週次 schedule のみで
+    PR / push では走らないため、main に対して手動ディスパッチするか、週次実行の結果を待って
+    確認する（`--local` なので EAS の枠は消費しない）。失敗した場合の切り戻しは
+    `build-profiles.md` の「切り戻し（remote → local）」に従う。
 
 ### 実測で確定したこと（2026-09-20）
 
