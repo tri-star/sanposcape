@@ -48,9 +48,15 @@
 - **フラグ値の保持は TanStack Query（`queryKey: ["app-config"]`）に一本化する。Zustand へ複製しない。**
   `/app-config` は未認証でも叩けるサーバー状態であり、`docs/folder-structure.md`「サーバー状態（API由来）
   = TanStack Query」に従う。
-- 参照は `useFeatureFlag(FEATURE_FLAG_KEYS.xxx)`（`src/hooks/useFeatureFlag.ts`）/
-  `<FeatureGate flag={...}>`（`src/components/app-config/FeatureGate.tsx`）のみ。
-  `fetchAppConfig()`（`src/api/appConfigApi.ts`）を画面から直接呼ばない。
+- **禁止しているのは `fetchAppConfig()`（`src/api/appConfigApi.ts`）を画面から直接呼ぶことだけ。**
+  正規の参照経路は複数ある:
+  - `useFeatureFlag(FEATURE_FLAG_KEYS.xxx)`（`src/hooks/useFeatureFlag.ts`）/
+    `<FeatureGate flag={...}>`（`src/components/app-config/FeatureGate.tsx`）: 「導線・要素を
+    ON/OFF で出し分けたい」場合の基本形。`enabled`/`disabled` の2値しか見えない。
+  - `useAppConfig()` の `status`（`src/hooks/useAppConfig.ts`）: 「まだ分からない（`loading`）」と
+    「OFF が確定した（`ready`/`unavailable` の OFF）」を**区別したい**画面はこちらを使ってよい
+    （`useFeatureFlag.ts` の JSDoc、下記「画面ガードレシピ」、`AppConfigDebugCard.tsx` の
+    診断表示がいずれもこの経路を前提にしている）。
 - キー定数は `src/config/featureFlags.ts` の `FEATURE_FLAG_KEYS`。正典は backend のコード
   （`packages/backend/src/sanposcape/core/feature_flags.py` の `FEATURE_FLAGS`。ADR-008 追補 D9）で、
   mobile 側はその写しを自前定義する（ADR-008 追補 D1 の申し送り）。自動同期はしない。
