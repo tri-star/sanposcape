@@ -10,7 +10,11 @@ export type FeatureGateProps = {
   children: ReactNode;
   /** フラグ OFF（確定）のときに代わりに描画する要素。既定は何も描画しない。 */
   fallback?: ReactNode;
-  /** 取得中に描画する要素。未指定なら `fallback` と同じ（= OFF と同じ扱い = フェイルセーフ）。 */
+  /**
+   * 取得中に描画する要素。`undefined`（未指定）なら `fallback` と同じ
+   * （= OFF と同じ扱い = フェイルセーフ）。`null` を明示的に渡すと、
+   * ロード中は何も描画せず `fallback` にも倒さない（OFF 確定後に初めて `fallback` を出す）。
+   */
   pending?: ReactNode;
 };
 
@@ -31,6 +35,8 @@ export function FeatureGate({ flag, children, fallback = null, pending }: Featur
     enabled: isFeatureEnabled(snapshot, flag),
   });
   if (decision === "enabled") return <>{children}</>;
-  if (decision === "pending") return <>{pending ?? fallback}</>;
+  // `??` だと null と undefined を区別できず pending={null} が表現できないため、
+  // undefined のときだけ fallback へ倒す。
+  if (decision === "pending") return <>{pending === undefined ? fallback : pending}</>;
   return <>{fallback}</>;
 }
