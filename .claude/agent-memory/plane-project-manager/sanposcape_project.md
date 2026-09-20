@@ -440,3 +440,8 @@ HTMLエンティティにエスケープして渡すと、Plane 側でタグが�
 - **CI/CD関連の未完了タスク棚卸し（label ci/infra付き14件 + キーワード一致で追加3件=計17件）**: SS-22/59/66/68/69/71/74/75/94/95/96/97/99/102/103/104/105。うち多くはSS-72（backend SAM×GitHub Actionsデプロイ、Done）後継の「デプロイとリリースの分離」施策（フィーチャーフラグ基盤 AppConfig 化、SS-94〜99/102/103）に集中している。この一連は SS-94(AppConfig器,Todo) → SS-95/96(権限,Todo) → SS-98(backend endpoint,Todo,labelなし) → SS-99(ワークフロー,Todo) → SS-102/103(mobile CI,Todo) の依存チェーンで、末端まで**全てTodoで未着手**（2026-09-20時点）。
 - キーワード検索（`text ~ "CI"/"CD"/"GitHub Actions"/"ワークフロー"/"デプロイ"/"lint"/"テスト自動化"`）はSS-100/101/98/82/76/84等の**誤検出（アプリ機能・バグ修正がたまたま本文でCI/デプロイ/lintに言及しているだけ）が多い**。本文を読んで実際にCI/CDパイプライン・インフラ整備そのものが主題かどうかを判定する必要がある（label ci/infraが付いているかは信頼できる一次判定だが、それだけでは網羅できない＝SS-59/104/105はlabelなしでも真陽性だった）。
 - **How to apply**: 次回以降このCI/CD棚卸しを繰り返す場合、まず`label IN (ci_id, infra_id)`で確実な母集団を取り、次にキーワード検索で追加候補を出したうえで本文を読んで真偽判定する2段階が有効。
+
+## 2026-09-20追加: SS-104をIn Progressに更新（着手）
+
+- SS-104「docs: リリース戦略(デプロイとリリースの分離)の ADR と運用手順を作成する」(work_item_id: `f7fa8cff-4628-4ff8-a2ee-ed35050ff2b7`、モジュールC「開発体験の改善（アプリ公開と非直結）」所属、label=`docs`)をTodo→In Progress（`81c7939b-725c-4c0b-bb92-77b24ec48377`）に更新。SS-72のリリース戦略決定（デプロイ/リリース分離、AppConfigフィーチャーフラグ、backendタグ+GitHub Release+CHANGELOG自動生成）のADR化・運用手順書作成タスク。
+- update直後のレスポンスは`state_group`が旧グループ("unstarted")のまま返るキャッシュ遅延を再確認（既知の挙動）。`retrieve(expand="state")`で`state.group="started"`を確認済み。
