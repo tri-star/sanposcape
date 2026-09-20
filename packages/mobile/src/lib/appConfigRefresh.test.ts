@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { APP_CONFIG_MIN_REFRESH_INTERVAL_MS, shouldRefreshOnForeground } from "@/lib/appConfigRefresh";
+import {
+  APP_CONFIG_MIN_REFRESH_INTERVAL_MS,
+  shouldRefreshOnForeground,
+} from "@/lib/appConfigRefresh";
 
 describe("shouldRefreshOnForeground", () => {
   it("background→active かつ 60秒以上経過なら true", () => {

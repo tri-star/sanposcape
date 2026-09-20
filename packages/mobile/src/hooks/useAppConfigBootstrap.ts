@@ -31,7 +31,9 @@ export function useAppConfigBootstrap(): void {
     let previousState: AppStateStatus = AppState.currentState;
     const subscription = AppState.addEventListener("change", (nextState) => {
       const dataUpdatedAt = queryClient.getQueryState(APP_CONFIG_QUERY_KEY)?.dataUpdatedAt ?? 0;
-      if (shouldRefreshOnForeground({ previousState, nextState, dataUpdatedAt, nowMs: Date.now() })) {
+      if (
+        shouldRefreshOnForeground({ previousState, nextState, dataUpdatedAt, nowMs: Date.now() })
+      ) {
         void queryClient.invalidateQueries({ queryKey: APP_CONFIG_QUERY_KEY });
       }
       previousState = nextState;
