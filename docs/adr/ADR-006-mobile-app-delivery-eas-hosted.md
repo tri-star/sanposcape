@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）
+2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）
 
 ## ステータス
 
@@ -10,6 +10,12 @@
 
 SS-77「app: Web配信対象を確定し、SS-74向けのSAMデプロイを実装する」の調査結果として本 ADR を作成し、
 SS-77 自体は「作らない」決定に到達した時点で Cancelled とした。実作業は SS-78 / SS-79 が引き継ぐ。
+
+**SS-104「リリース戦略（デプロイとリリースの分離）の ADR と運用手順」で追補**した。
+本 ADR が決めた配信経路（ストア配信・EAS Update）を、
+[ADR-008](./ADR-008-deploy-release-separation.md) が「配信」と「公開」の 2 軸に整理し、
+ストアの手動リリース（決定3）と OTA の位置づけ（決定8）を決めている。
+本 ADR の決定は変わっていない。
 
 ## コンテキスト
 
@@ -263,6 +269,12 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
 
 ## 関連情報
 
+- [ADR-008: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./ADR-008-deploy-release-separation.md)
+  （**SS-104 追補**）—— 本 ADR が決めた配信経路を「配信（ストア / OTA）」と「公開（フラグ）」の
+  2 軸に整理している。ストアの手動リリース・段階的公開は決定3、
+  OTA を「リリースの手段ではなく配信の手段」と位置づけたのは決定8。
+  SS-89 追補で決めた `version` と `runtimeVersion` の関係が決定8 の前提になっている。
+  運用手順は [docs/release-runbook.md](../release-runbook.md)。
 - [ADR-005: backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする](./ADR-005-backend-serverless-deployment-lambda-function-url.md)
   —— SAM と Terraform の責務境界。本 ADR はこの境界に mobile の例外を作らないことを決めている。
 - [ADR-004: シークレット管理と CI/CD の AWS 認証情報](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
