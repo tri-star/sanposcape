@@ -15,7 +15,11 @@
  */
 export const APP_CONFIG_QUERY_KEY = ["app-config"] as const;
 
-/** `queryKey` が `/app-config` のものか（サインアウト時の一括削除から除外するために使う）。 */
+/**
+ * `queryKey` が `/app-config` のものか（サインアウト時の一括削除から除外するために使う）。
+ * **完全一致**で判定する（前方一致だと将来 `["app-config", ...]` で始まる別ドメインの
+ * queryKey が誤って追加された場合に、サインアウト時のクリア対象から意図せず除外されてしまう）。
+ */
 export function isAppConfigQueryKey(queryKey: readonly unknown[]): boolean {
-  return queryKey[0] === APP_CONFIG_QUERY_KEY[0];
+  return queryKey.length === APP_CONFIG_QUERY_KEY.length && queryKey[0] === APP_CONFIG_QUERY_KEY[0];
 }

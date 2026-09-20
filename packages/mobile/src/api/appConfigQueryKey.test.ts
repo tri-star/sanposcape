@@ -13,8 +13,8 @@ describe("isAppConfigQueryKey", () => {
     expect(isAppConfigQueryKey(["app-config"])).toBe(true);
   });
 
-  it("['app-config','x'] のような前方一致も true", () => {
-    expect(isAppConfigQueryKey(["app-config", "x"])).toBe(true);
+  it("['app-config','x'] のような前方一致は false（完全一致のみ true）", () => {
+    expect(isAppConfigQueryKey(["app-config", "x"])).toBe(false);
   });
 
   it("['walks'] は false", () => {
