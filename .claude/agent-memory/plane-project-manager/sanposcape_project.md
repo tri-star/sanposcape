@@ -455,3 +455,8 @@ HTMLエンティティにエスケープして渡すと、Plane 側でタグが�
 ## 2026-09-20追加: SS-98をReview化・PR #88リンク登録
 
 - SS-98「backend: AppConfig からフィーチャーフラグを読む基盤と `/app-config` エンドポイントを追加する」(work_item_id: `3c7a312c-ca2a-455f-aa86-9b68ab9aeeb3`、モジュールC所属、label=`backend`)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`workitem_property list`は今回も「Work item properties is not available on this workspace's plan」エラーで、標準Link機能（`workitem_link create`）でPR #88（`https://github.com/tri-star/sanposcape/pull/88`、link_id: `f77d06ed-f946-48b1-80a2-ebc2b10dffaa`）を登録（コメントではなくLinkを優先する既存方針を継続）。
+
+## 2026-09-20追加: SS-100をReview化・PR #89リンク登録
+
+- SS-100「mobile: `/app-config` からフィーチャーフラグを取得して機能表示をガードする」(work_item_id: `219a0b17-8d6f-4809-b5f8-671027673768`、モジュールC所属、label=`mobile`)をIn Progress→Review（`65b14f74-6fd7-4129-9fab-60908f844572`）に更新。`workitem_property list`は今回も「Work item properties is not available on this workspace's plan」エラーで、標準Link機能（`workitem_link create`）でPR #89（`https://github.com/tri-star/sanposcape/pull/89`、link_id: `a31df3dd-3ebb-483c-9445-ffc548197a77`）を登録。SS-98/SS-104と同型のパターン。
+- 補足情報（base=ss-98でSS-98にblocked_by済み、変更規模・テスト結果・スコープ外事項）はコメント（comment_id: `d3c3fbd2-0c61-419e-add3-ce0028039fb2`）に記録（Link機能はURLのみでコメント併用の既存パターンを踏襲）。
