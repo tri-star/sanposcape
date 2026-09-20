@@ -429,6 +429,48 @@ def test_build_flag_document_source_picks_implementation_by_mode_and_ids(
     assert isinstance(source, expected_type)
 
 
+def test_build_flag_document_source_logs_warning_when_unconfigured_in_local_or_test(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """local/test で `APPCONFIG_*` 未設定は既存開発者の .env や CI で最も起きやすい
+    正常経路（`UnconfiguredFlagSource` は AWS を一切呼ばない）なので WARNING に留める。
+    ERROR のままだと pytest 実行のたびにログが積み上がり、ERROR ベースのアラームの
+    誤検知の温床になる（local-review F-2）。
+    """
+    settings = Settings(env="test")
+
+    with caplog.at_level(logging.WARNING, logger="sanposcape.integrations.aws.appconfig"):
+        build_flag_document_source(settings)
+
+    assert any(
+        record.levelno == logging.WARNING and "APPCONFIG_*" in record.getMessage()
+        for record in caplog.records
+    )
+    assert not any(record.levelno >= logging.ERROR for record in caplog.records)
+
+
+def test_build_flag_document_source_logs_error_when_unconfigured_outside_local_or_test(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """staging/production では設定漏れの検知性を保つため ERROR のままにする。"""
+    settings = Settings(
+        env="staging",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://user:pw@host.example.com/db",
+    )
+
+    with caplog.at_level(logging.ERROR, logger="sanposcape.integrations.aws.appconfig"):
+        build_flag_document_source(settings)
+
+    assert any(
+        record.levelno == logging.ERROR and "APPCONFIG_*" in record.getMessage()
+        for record in caplog.records
+    )
+
+
 def test_build_flag_document_source_stub_reads_stub_document() -> None:
     settings = Settings(
         feature_flag_mode="stub",

@@ -190,8 +190,7 @@ class AppConfigFlagSource:
         next_token = response.get("NextPollConfigurationToken")
         if not next_token:
             raise ValueError(
-                "AppConfig get_latest_configuration response is missing "
-                "NextPollConfigurationToken"
+                "AppConfig get_latest_configuration response is missing NextPollConfigurationToken"
             )
         # ConfigurationToken は1回きり。応答の NextPollConfigurationToken で必ず置き換える。
         self._token = next_token
@@ -245,6 +244,13 @@ def build_flag_document_source(settings: Settings) -> FlagDocumentSource:
         and settings.appconfig_environment_id
         and settings.appconfig_configuration_profile_id
     ):
-        logger.error("APPCONFIG_* is not configured; all feature flags are OFF.")
+        # local/test では「未設定」が既存開発者の .env や CI で最も起きやすい正常な状態
+        # （UnconfiguredFlagSource は AWS を一切呼ばない安全な既定）であり、ここを ERROR に
+        # すると pytest 実行のたびにログが積み上がり、ERROR ベースのアラームの誤検知の
+        # 温床になる。staging/production では設定漏れの検知性を保つため ERROR のままにする。
+        if settings.env in ("local", "test"):
+            logger.warning("APPCONFIG_* is not configured; all feature flags are OFF.")
+        else:
+            logger.error("APPCONFIG_* is not configured; all feature flags are OFF.")
         return UnconfiguredFlagSource()
     return AppConfigFlagSource(settings)
