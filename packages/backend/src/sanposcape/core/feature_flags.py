@@ -22,7 +22,27 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from sanposcape.integrations.aws.appconfig import FlagDocument, FlagDocumentSource
+from sanposcape.integrations.aws.appconfig import (
+    FlagDocument,
+    FlagDocumentSource,
+    FlagSourceKind,
+)
+
+# `app_config/schemas.py` の `AppConfigRead.config_source` はここから再 import する
+# （`domain → core` という既存の依存の向きを保つため。`FlagSourceKind` 自体の定義元は
+# integrations/aws/appconfig.py の `FlagDocument.kind` と一致させる必要があるため据え置き。
+# local-review F-14: 同じ Literal がここ・schemas.py・appconfig.py の3箇所に独立に
+# 書かれていたのを1箇所に寄せた）。
+__all__ = [
+    "FEATURE_FLAGS",
+    "FLAG_KEY_PATTERN",
+    "RESERVED_FLAG_KEYS",
+    "FeatureFlagSpec",
+    "FeatureFlags",
+    "FlagAudience",
+    "FlagSourceKind",
+    "MinimumSupportedVersions",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -160,9 +180,7 @@ class FeatureFlags:
             android=self._parse_version(raw.get("android_minimum_version")),
         )
 
-    def source_kind(
-        self, document: FlagDocument | None = None
-    ) -> Literal["appconfig", "default", "stub"]:
+    def source_kind(self, document: FlagDocument | None = None) -> FlagSourceKind:
         """診断用。`/app-config` の `config_source` にそのまま載る。"""
         if document is None:
             document = self.get_document()

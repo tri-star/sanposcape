@@ -1,6 +1,6 @@
-from typing import Literal
-
 from pydantic import BaseModel
+
+from sanposcape.core.feature_flags import FlagSourceKind
 
 
 class MinimumSupportedVersionsRead(BaseModel):
@@ -20,4 +20,7 @@ class AppConfigRead(BaseModel):
     flags: dict[str, bool]
     minimum_supported_versions: MinimumSupportedVersionsRead
     # 診断用。値の出どころ。クライアントはこの値で分岐してはいけない（秘密情報は含まない）。
-    config_source: Literal["appconfig", "default", "stub"]
+    # `FlagSourceKind`（integrations/aws/appconfig.py 定義、core/feature_flags.py 経由で
+    # 再 import）で他2箇所（appconfig.py の FlagDocument.kind、feature_flags.py の
+    # source_kind() 戻り値）と型を揃える（local-review F-14）。
+    config_source: FlagSourceKind
