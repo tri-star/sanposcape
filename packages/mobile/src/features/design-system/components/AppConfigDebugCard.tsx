@@ -27,6 +27,10 @@ const STATUS_LABEL: Record<AppConfigStatus, string> = {
 export function AppConfigDebugCard() {
   const styles = useStyles();
   const queryClient = useQueryClient();
+  // useAppConfig() と useAppConfigDiagnostics() は同一 queryKey（["app-config"]）に
+  // 2本の observer を張るが、TanStack Query がキャッシュ・通信を共有するため実害は無い。
+  // config_source は分岐に使えない診断専用の値（ADR-008 追補 D1）なので、あえて別 hook に
+  // 分離したままにしている（意図的な設計。見落としではない）。
   const snapshot = useAppConfig();
   const { configSource } = useAppConfigDiagnostics();
 
@@ -94,7 +98,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.colors.textPrimary,
   },
   row: {
-    gap: 2,
+    gap: theme.spacing[1],
   },
   label: {
     fontSize: theme.typography.size.xs,
