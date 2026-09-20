@@ -30,9 +30,16 @@ export function useAppConfigBootstrap(): void {
   useEffect(() => {
     let previousState: AppStateStatus = AppState.currentState;
     const subscription = AppState.addEventListener("change", (nextState) => {
-      const dataUpdatedAt = queryClient.getQueryState(APP_CONFIG_QUERY_KEY)?.dataUpdatedAt ?? 0;
+      const state = queryClient.getQueryState(APP_CONFIG_QUERY_KEY);
       if (
-        shouldRefreshOnForeground({ previousState, nextState, dataUpdatedAt, nowMs: Date.now() })
+        shouldRefreshOnForeground({
+          previousState,
+          nextState,
+          dataUpdatedAt: state?.dataUpdatedAt ?? 0,
+          errorUpdatedAt: state?.errorUpdatedAt ?? 0,
+          isFetching: state?.fetchStatus === "fetching",
+          nowMs: Date.now(),
+        })
       ) {
         void queryClient.invalidateQueries({ queryKey: APP_CONFIG_QUERY_KEY });
       }

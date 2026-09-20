@@ -3,7 +3,8 @@
 ## 日付
 
 2026-09-20（初版、SS-104）、2026-09-20 追補（SS-98: `/app-config` のレスポンススキーマと
-フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）
+フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）、2026-09-21 追補
+（SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）
 
 ## ステータス
 
@@ -708,6 +709,18 @@ mobile 側に隠したい未公開機能も現時点で存在しないため）�
 - `staleTime` 5分 / `gcTime` `Infinity`（一度取れた値は捨てない）/ `refetchOnMount: false`
   （画面遷移のたびに叩かない）。更新の取り込みはフォアグラウンド復帰時の `invalidateQueries`
   （最小間隔60秒）に任せる。
+  （**2026-09-21 追補（SS-100、PR #89 レビュー対応）**: 「最小間隔60秒」の起点は当初
+  `dataUpdatedAt`（直近成功時刻）のみだったが、これは TanStack Query の仕様上**成功時にしか
+  更新されない**ため、取得が失敗し続けている間は起点が進まず絞りが効かなくなる不具合が
+  あった（初回失敗なら `dataUpdatedAt` は永久に 0 で毎回 true、成功後の失敗なら古い成功時刻の
+  まま前進しない）。`invalidateQueries` 1回は transport のリトライ（`src/api/transientRetry.ts`
+  最大3）× TanStack の `retry: 2`（最大3）で最悪9リクエストになりうるため、
+  「障害中にだけ絞りが外れる」という最も避けたい壊れ方になっていた。`shouldRefreshOnForeground`
+  （`src/lib/appConfigRefresh.ts`）の起点を `lastAttemptedAt = max(dataUpdatedAt, errorUpdatedAt)`
+  （直近の**成功または失敗**の時刻）に改め、加えて `isFetching`（実行中）のときは重ねて
+  `invalidateQueries` を呼ばないよう false を返すようにした。これは決定9 のフェイルセーフの
+  向きを変えるものではない。値が読めない間は従来どおり全フラグ OFF に倒れる。変わるのは
+  「無駄打ちを減らす」点のみである）。
 - **永続キャッシュ（AsyncStorage 等）は持たない。** 理由は2つ。
   ① 決定9 のフェイルセーフは「読めない時は OFF」であり、前回起動時の ON を永続化すると
   kill switch が効かない端末が生まれ、フェイルセーフの向きが逆転する。
