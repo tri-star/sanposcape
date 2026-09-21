@@ -69,8 +69,14 @@ type FakeServerHooks = {
 
 /** backend の未使用枠上限（30）を再現する模型サーバー。 */
 function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeServerHooks } = {}) {
-  let pending = options.otherPendingSlots ?? 0;
-  let maxPendingObserved = pending;
+  // 他所（別画面・別端末）の未使用枠。deleteUpload の対象にはならない（この模型サーバーが
+  // 発行した ID ではないため）。
+  const otherPending = options.otherPendingSlots ?? 0;
+  // このサーバーが発行し、まだ attached になっていない upload_id（PR #93 T11 の
+  // deleteUpload で個別に解放できるよう、単純なカウンタではなく Set で持つ）。
+  const pendingUploadIds = new Set<string>();
+  const pendingCount = () => otherPending + pendingUploadIds.size;
+  let maxPendingObserved = pendingCount();
   const attachedByPin = new Set<string>();
   let pinCreated = false;
   const pinId = "pin-1";
@@ -88,13 +94,14 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
     if (action === "throw_network") {
       throw new TypeError("Network request failed");
     }
-    if (pending >= BACKEND_PENDING_UPLOADS_MAX) {
+    if (pendingCount() >= BACKEND_PENDING_UPLOADS_MAX) {
       throw new ApiError(429);
     }
-    pending += 1;
-    maxPendingObserved = Math.max(maxPendingObserved, pending);
     uploadSeq += 1;
-    return `up-${item.localId}-${uploadSeq}`;
+    const uploadId = `up-${item.localId}-${uploadSeq}`;
+    pendingUploadIds.add(uploadId);
+    maxPendingObserved = Math.max(maxPendingObserved, pendingCount());
+    return uploadId;
   });
 
   const createPin: PinSaveRunnerDeps["createPin"] = vi.fn(async (request: PinCreate) => {
@@ -104,7 +111,7 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
       pinCreated = true;
       for (const id of request.photo_upload_ids ?? []) {
         attachedByPin.add(id);
-        pending -= 1;
+        pendingUploadIds.delete(id);
       }
       if (action === "throw_lost") {
         throw new TypeError("Network request failed");
@@ -125,7 +132,7 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
     for (const id of ids) {
       if (!attachedByPin.has(id)) {
         attachedByPin.add(id);
-        pending -= 1;
+        pendingUploadIds.delete(id);
         newlyAttached.push(id);
       } else {
         newlyAttached.push(id);
@@ -138,10 +145,19 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
     return { photoCount: attachedByPin.size, attachedUploadIds: [...ids] };
   });
 
+  /**
+   * `DELETE /pin-photo-uploads/{upload_id}`（PR #93 T11）の模型。本人の pending 枠のみ
+   * 解放する（attached は対象外＝呼び出し側の責務。この模型では単純に無視する）。
+   */
+  const deleteUpload = vi.fn((uploadId: string) => {
+    pendingUploadIds.delete(uploadId);
+  });
+
   return {
     transferPhoto,
     createPin,
     addPinPhotos,
+    deleteUpload,
     get maxPendingObserved() {
       return maxPendingObserved;
     },
@@ -152,7 +168,7 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
       return addPinPhotosCallCount;
     },
     get pending() {
-      return pending;
+      return pendingCount();
     },
   };
 }
@@ -381,6 +397,33 @@ describe("runPinSave", () => {
     }
     const last = progressSink.at(-1);
     expect(last).toMatchObject({ step: "sending_photos", sent: 25, total: 25 });
+  });
+
+  it("追加・削除を繰り返しても deleteUpload で pending が解放され、photo_slots_busy にならない（PR #93 T11）", async () => {
+    const server = createFakeServer();
+
+    // usePinPhotos.removePhoto と同じ手順（uploaded → removed の dispatch + deleteUpload の
+    // best-effort 呼び出し）を25回繰り返す。T11 以前は削除時に deleteUpload を呼ばなかった
+    // ため、この模型サーバー上の pending が解放されずリークし、最終的に
+    // BACKEND_PENDING_UPLOADS_MAX に達して保存が photo_slots_busy になっていた。
+    for (let i = 0; i < 25; i += 1) {
+      const ghost = makeItem(`ghost${i}`, "waiting");
+      const uploadId = await server.transferPhoto(ghost);
+      server.deleteUpload(uploadId);
+    }
+
+    expect(server.pending).toBe(0);
+    expect(server.maxPendingObserved).toBeLessThan(BACKEND_PENDING_UPLOADS_MAX);
+
+    // 削除しなかった5枚は最終的に保存できる（pending がリークしていれば photo_slots_busy になる）。
+    const remaining = Array.from({ length: 5 }, (_, i) => makeItem(`w${i}`, "waiting"));
+    const harness = createStateHarness(remaining);
+    const deps = buildDeps(harness, server);
+
+    const result = await runPinSave(deps);
+
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
+    expect(result.photoCount).toBe(5);
   });
 
   it(`不変条件: 1リクエストの紐付けは最大 ${PIN_PHOTOS_PER_REQUEST_MAX} 枚`, async () => {

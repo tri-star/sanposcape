@@ -181,6 +181,20 @@ describe("nextPreuploadWork", () => {
     expect(nextPreuploadWork(state, { limit: PIN_PHOTO_PREUPLOAD_MAX, paused: false })).toBeNull();
   });
 
+  it("extraHeldSlots（PR #93 T11: 削除に失敗した幽霊枠）を加算して上限判定する", () => {
+    const state = [
+      item({ localId: "a", status: "uploaded" }),
+      item({ localId: "waiting-1", status: "waiting" }),
+    ];
+    // 素の heldUploadSlots は1だが、extraHeldSlots(19) を加えると limit(20) に到達する。
+    expect(nextPreuploadWork(state, { limit: 20, paused: false, extraHeldSlots: 19 })).toBeNull();
+    // extraHeldSlots を渡さなければ（未指定=0扱い）通常どおり transfer を返す。
+    expect(nextPreuploadWork(state, { limit: 20, paused: false })).toEqual({
+      kind: "transfer",
+      item: state[1],
+    });
+  });
+
   it("paused なら transfer を返さない（prepare は返す）", () => {
     const withProcessing = [
       item({ localId: "a", status: "processing" }),

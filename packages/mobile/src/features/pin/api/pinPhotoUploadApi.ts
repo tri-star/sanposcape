@@ -1,5 +1,8 @@
 import { ApiError } from "@/api/apiError";
-import { createPinPhotoUpload as createPinPhotoUploadRequest } from "@/api/generated/endpoints/pins/pins";
+import {
+  createPinPhotoUpload as createPinPhotoUploadRequest,
+  deletePinPhotoUpload as deletePinPhotoUploadRequest,
+} from "@/api/generated/endpoints/pins/pins";
 import type { PinPhotoUploadRead } from "@/api/generated/model";
 import type { PinPhotoUploadTicket } from "@/features/pin/types";
 import type { PreparedPhoto } from "@/services/photo/types";
@@ -46,4 +49,20 @@ export async function requestPinPhotoUpload(
   }
   // customFetch は非2xx で ApiError を throw するため通常ここには来ない（型の網羅のため）。
   throw new ApiError(response.status);
+}
+
+/**
+ * `DELETE /pin-photo-uploads/{upload_id}`（PR #93 T11）。`uploaded`（未紐付け）の写真を
+ * 削除したときに best-effort で呼ぶ（`usePinPhotos.ts` の `removePhoto`）。
+ *
+ * 204 が成功。404（他人/存在しない/既に消滅）・409（既に attached）・422 は
+ * `customFetch` が `ApiError` として throw する。呼び出し側はこの関数の失敗を「backend の
+ * 枠がまだ残っているかもしれない」と解釈し、ローカルの未使用枠カウントを期限まで
+ * 保有中のまま数え続けること（呼び出し側の責務。この関数自体は薄いラッパーに留める）。
+ */
+export async function deletePinPhotoUpload(
+  uploadId: string,
+  options?: { signal?: AbortSignal },
+): Promise<void> {
+  await deletePinPhotoUploadRequest(uploadId, { signal: options?.signal });
 }

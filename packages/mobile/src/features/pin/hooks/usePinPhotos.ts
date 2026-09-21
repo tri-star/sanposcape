@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useReducer } from "react";
 
 import { getApiBaseUrl } from "@/config/env";
+import { deletePinPhotoUpload } from "@/features/pin/api/pinPhotoUploadApi";
 import { transferPinPhoto } from "@/features/pin/api/pinPhotoTransfer";
 import {
   nextPreuploadWork,
@@ -9,7 +10,7 @@ import {
 } from "@/features/pin/lib/photoDraft";
 import type { PhotoDraftAction } from "@/features/pin/lib/photoDraft";
 import {
-  PIN_PHOTO_MAX_BYTES_FALLBACK,
+  PIN_PHOTO_MAX_BYTES_HARD_CAP,
   PIN_PHOTO_PREUPLOAD_MAX,
 } from "@/features/pin/lib/pinLimits";
 import {
@@ -119,10 +120,23 @@ export function usePinPhotos(options: {
   const loopPromiseRef = useRef<Promise<void>>(Promise.resolve());
   /** 先行アップロードのキューが今まさに転送中のアイテム（MR5: 削除時に abort するため）。 */
   const activeTransferRef = useRef<{ localId: string; controller: AbortController } | null>(null);
+  /**
+   * PR #93 T11: `uploaded` の写真を削除したとき、`deletePinPhotoUpload` が成功するまで
+   * （または失敗して諦めるまで）backend の枠がまだ残っているとみなして数え続ける「幽霊枠」の
+   * 個数。`removed` で state からは消えるため `heldUploadSlots(items)` はこの分を数えなく
+   * なるが、backend 側は削除が確定するまで未使用枠を占有し続ける。この差分を
+   * `nextPreuploadWork` の `extraHeldSlots` に渡すことで、削除が失敗し続けても先行
+   * アップロードがローカルの上限（`PIN_PHOTO_PREUPLOAD_MAX`）を超えて枠を発行しないようにする。
+   */
+  const heldGhostSlotsRef = useRef(0);
 
   const getItems = useCallback((): readonly PhotoDraftItem[] => itemsRef.current, []);
 
   const dispatch = useCallback((action: PhotoDraftAction) => {
+    // PR #93 T10: アンマウント後（stoppedRef）に await から戻ってきた processWork が
+    // dispatch を呼ぶと、破棄済みコンポーネントの reactDispatch（useReducer 本来の dispatch）を
+    // 呼ぶことになる。React 18 では警告も実害も無いが、意図しない状態更新を避けるため抑止する。
+    if (stoppedRef.current) return;
     itemsRef.current = photoDraftReducer(itemsRef.current, action);
     reactDispatch(action);
     kick();
@@ -156,6 +170,7 @@ export function usePinPhotos(options: {
       const work = nextPreuploadWork(itemsRef.current, {
         limit: PIN_PHOTO_PREUPLOAD_MAX,
         paused: pausedRef.current,
+        extraHeldSlots: heldGhostSlotsRef.current,
       });
       if (work === null) return;
       await processWork(work);
@@ -172,7 +187,11 @@ export function usePinPhotos(options: {
       // 消えた localId に対して no-op になるので実害は無い）。
       try {
         const prepared = await photoService.prepareForUpload(work.item.picked);
-        if (prepared.byteSize > PIN_PHOTO_MAX_BYTES_FALLBACK) {
+        // PR #93 T9: 「上限の正は枠発行応答の max_byte_size」という設計（ADR-010 決定3）に
+        // 反して、ここで固定 10 MiB 判定をしていたため、backend の上限を引き上げても枠発行前に
+        // 失敗していた。ここでは極端な値だけを足切りし、通常の上限判定は枠発行後
+        // （`pinPhotoTransfer.ts`）に委ねる。
+        if (prepared.byteSize > PIN_PHOTO_MAX_BYTES_HARD_CAP) {
           dispatch({ type: "failed", localId: work.item.localId, errorCode: "too_large" });
         } else {
           dispatch({ type: "prepared", localId: work.item.localId, prepared });
@@ -279,6 +298,7 @@ export function usePinPhotos(options: {
 
   const removePhoto = useCallback(
     (localId: string) => {
+      const removedItem = itemsRef.current.find((item) => item.localId === localId);
       dispatch({ type: "removed", localId });
       // MR5: 削除した写真がまさに転送中なら fetch を中断する（通信量・バッテリーの節約。
       // reducer は既に存在しない localId への dispatch を no-op にするため、結果自体には
@@ -286,7 +306,28 @@ export function usePinPhotos(options: {
       if (activeTransferRef.current?.localId === localId) {
         activeTransferRef.current.controller.abort();
       }
+      // PR #93 T11: `uploaded`（未紐付け）の写真を削除したら backend の枠も best-effort で
+      // 解放する。呼んでおかないと backend 側は紐付け期限（6時間）まで枠を占有し続け、
+      // 追加・削除を繰り返すと実際にはどれも使っていないのに未使用枠の上限（429）に
+      // 達してしまう（handover-notes.md T11）。
+      if (removedItem?.status === "uploaded" && removedItem.uploadId !== null) {
+        const uploadId = removedItem.uploadId;
+        heldGhostSlotsRef.current += 1;
+        deletePinPhotoUpload(uploadId)
+          .then(() => {
+            // 解放できた分は幽霊枠から外し、先行アップロードのキューに再確認させる
+            // （直前まで上限で止まっていた場合、これで次の1件が動き出せる）。
+            heldGhostSlotsRef.current = Math.max(0, heldGhostSlotsRef.current - 1);
+            kick();
+          })
+          .catch(() => {
+            // 失敗時は諦めて幽霊枠のまま数え続ける（backend の紐付け期限＝6時間が
+            // 実質的な上限。この hook のライフサイクル中は楽観的に解放しない＝安全側）。
+          });
+      }
     },
+    // kick は ref だけを参照する安定した関数（上の dispatch と同じ理由）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dispatch],
   );
 

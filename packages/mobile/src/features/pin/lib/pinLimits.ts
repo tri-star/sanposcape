@@ -21,10 +21,13 @@ export const BACKEND_PENDING_UPLOADS_MAX = 30;
  */
 export const PIN_PHOTO_PREUPLOAD_MAX = 20;
 /**
- * 1枚の上限（加工後）の**フォールバック**。正は枠発行応答の `max_byte_size`（サーバーの設定値）。
- * 枠を申請する前に明らかな超過を弾くためだけに使う。
+ * 端末側の極端な超過だけを弾く安全弁（PR #93 T9）。正は枠発行応答の `max_byte_size`
+ * （`pinPhotoTransfer.ts` が枠発行後に比較する）で、サーバーの設定値が変わっても
+ * アプリの更新が要らない。ここでの足切りは「枠を申請するだけ無駄なほど明らかに大きい」
+ * ものに限る（バグで生の写真がそのまま渡った場合の保険）ため、通常の上限（10 MiB）より
+ * 十分に大きい値にする。
  */
-export const PIN_PHOTO_MAX_BYTES_FALLBACK = 10 * 1024 * 1024;
+export const PIN_PHOTO_MAX_BYTES_HARD_CAP = 50 * 1024 * 1024;
 export const UNTITLED_PIN_LABEL = "無題のピン";
 /** backend の FIRST_SANPO_MAP_NAME と一致させる。 */
 export const FIRST_SANPO_MAP_NAME = "最初の地図";

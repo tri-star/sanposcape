@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "@/api/apiError";
 import { getCreatePinPhotoUploadMockHandler } from "@/api/generated/endpoints/pins/pins.msw";
 import type { PinPhotoUploadCreate, PinPhotoUploadRead } from "@/api/generated/model";
-import { requestPinPhotoUpload } from "@/features/pin/api/pinPhotoUploadApi";
+import { deletePinPhotoUpload, requestPinPhotoUpload } from "@/features/pin/api/pinPhotoUploadApi";
 import { server } from "@/test/setup";
 
 const RESPONSE: PinPhotoUploadRead = {
@@ -77,5 +77,36 @@ describe("requestPinPhotoUpload", () => {
     await expect(
       requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg" }),
     ).rejects.toThrow(ApiError);
+  });
+});
+
+describe("deletePinPhotoUpload（PR #93 T11）", () => {
+  it("204 で解決する", async () => {
+    let receivedMethod: string | null = null;
+    server.use(
+      http.delete("*/pin-photo-uploads/:uploadId", ({ request }) => {
+        receivedMethod = request.method;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await expect(
+      deletePinPhotoUpload("55555555-5555-4555-8555-555555555555"),
+    ).resolves.toBeUndefined();
+    expect(receivedMethod).toBe("DELETE");
+  });
+
+  it.each([404, 409, 422])("%d は ApiError(status) になる", async (status) => {
+    server.use(
+      http.delete("*/pin-photo-uploads/:uploadId", () => new HttpResponse(null, { status })),
+    );
+
+    try {
+      await deletePinPhotoUpload("55555555-5555-4555-8555-555555555555");
+      expect.unreachable("throw されるはず");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(status);
+    }
   });
 });

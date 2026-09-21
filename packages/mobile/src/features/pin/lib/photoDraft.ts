@@ -107,12 +107,18 @@ export function heldUploadSlots(state: readonly PhotoDraftItem[]): number {
 /**
  * 先行アップロード（保存前のバックグラウンド処理）が次にやる仕事。
  * - 先頭から最初の processing → { kind: "prepare" }（加工は枠を使わないので常に進める）
- * - それが無く、paused でなく、heldUploadSlots < limit なら、先頭から最初の waiting → { kind: "transfer" }
+ * - それが無く、paused でなく、heldUploadSlots + extraHeldSlots < limit なら、先頭から
+ *   最初の waiting → { kind: "transfer" }
  * - それ以外 null（待機写真は保存フローが送る）
+ *
+ * `extraHeldSlots`（PR #93 T11）: この draft の state からは消えたが backend 側ではまだ
+ * 未使用枠として残っている可能性がある数（削除時の `DELETE /pin-photo-uploads/{id}` が
+ * 失敗した場合の「幽霊枠」）。呼び出し側（`usePinPhotos`）が管理し、素の
+ * `heldUploadSlots(state)` に加算してから上限判定する。
  */
 export function nextPreuploadWork(
   state: readonly PhotoDraftItem[],
-  options: { limit: number; paused: boolean },
+  options: { limit: number; paused: boolean; extraHeldSlots?: number },
 ): { kind: "prepare" | "transfer"; item: PhotoDraftItem } | null {
   const processing = state.find((item) => item.status === "processing");
   if (processing) {
@@ -122,7 +128,7 @@ export function nextPreuploadWork(
   if (options.paused) {
     return null;
   }
-  if (heldUploadSlots(state) >= options.limit) {
+  if (heldUploadSlots(state) + (options.extraHeldSlots ?? 0) >= options.limit) {
     return null;
   }
 
