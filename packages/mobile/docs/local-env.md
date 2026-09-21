@@ -305,6 +305,20 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
     フレークになりやすい E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは既定でこれ）。
 - 権限文言は `app.json` の `expo-location` プラグイン（`locationWhenInUsePermission`）で設定済み。
 
+## 写真（expo-image-picker / expo-image-manipulator / expo-file-system）
+
+- `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で写真の取得・加工の実装を切り替える
+  （`src/config/photoMode.ts`）。位置情報と同じく `dev` モードは無い（詳細は
+  [ADR-010](../adr/ADR-010-photo-service-and-direct-s3-upload.md)）。
+  - `real` = `expo-image-picker`（カメラ/写真ライブラリ）+ `expo-image-manipulator`（縮小・再圧縮）。
+  - `mock` = 固定のダミー写真（`src/services/photo/photo.mock.ts`。vitest や、システムのカメラ/
+    写真ピッカーを安定操作できない E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは
+    既定でこれ。ダミーは実ファイルではないためアップロードは失敗する＝写真付き E2E は別チケット）。
+- 権限文言は `app.json` の `expo-image-picker` プラグイン（`photosPermission` /
+  `cameraPermission`）で設定済み。
+- ピンの写真アップロード（presigned POST）を backend 経由で確認するには、backend を
+  `STORAGE_MODE=fake` で起動する（`packages/backend/.env.example` が既定でこの値）。
+
 ## `/explore/places` がローカルで常に失敗する場合
 
 - backend の `GOOGLE_MAPS_SERVER_API_KEY` が未設定だと、`/explore/places` は

@@ -26,12 +26,17 @@
   オリジンへの SigV4 署名を `Authorization` に入れるため、ビューア（mobile）が送った
   `Authorization` はオリジンに届かない（詳細は
   [docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定4）。
-- **mobile の HTTP 出口は `src/api/client.ts` の `customFetch` と
+- **mobile の「backend への」HTTP 出口は `src/api/client.ts` の `customFetch` と
   `src/services/auth/authApi.ts` の `post()` の2箇所**であり、認証ヘッダーや
   `x-amz-content-sha256` のような横断的な送信ヘッダーは**両方に適用する**必要がある
   （`authApi.ts` は 401 → refresh の再帰を避けるため `customFetch` を意図的に使わない）。
   片方だけへの適用漏れは CloudFront 経由でのみ 403/401 を引き起こし、backend に直結する
   ローカル環境では発覚しない。
+- これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`。
+  下記「写真の扱い」参照）が **S3 / fake storage への3箇所目の HTTP 出口**として存在する。
+  こちらは**意図的に** `customFetch` を通さない（認証ヘッダー・`x-amz-content-sha256` を
+  backend 以外のオリジンへ送らないため）。横断的な送信ヘッダーを追加するときは、
+  この経路には**入れてはいけない**ことに注意する（ADR-010）。
 
 ## 位置情報の扱い
 - 実装方針は [ADR-006: 位置情報サービスは real/mock の2モード](../adr/ADR-006-location-service-real-mock.md) で確定済み。
@@ -39,6 +44,20 @@
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
 - 呼び出し側（`features/walk`）は `src/services/location` のインターフェースのみを参照し、
   `expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
+
+## 写真の扱い
+
+- 実装方針は [ADR-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で
+  S3 直送](../adr/ADR-010-photo-service-and-direct-s3-upload.md) で確定済み。
+- `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/photoMode.ts`）。
+  位置情報と同じく `dev` モードは持たない（mock はダミー画像を返すだけで実ファイルの加工を伴わない）。
+- 写真の**取得・加工**（カメラ/ライブラリ・縮小・JPEG 再圧縮）は `src/services/photo/` に閉じる
+  （`expo-image-picker` / `expo-image-manipulator` / `expo-file-system` を import してよいのは
+  `photo.real.ts` のみ）。
+- 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
+  `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
+- 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
+  `src/features/pin/lib/pinSaveRunner.ts`（React 非依存の純粋関数）に閉じる。
 
 ## フィーチャーフラグ（`/app-config`）の扱い
 
@@ -71,8 +90,10 @@
   ユニットテストは Orval 生成の msw ハンドラ、E2E は実 backend で足りる）。
 - **ローカルでフラグを ON にして試す手順**（AWS 不要）:
   backend の `.env` に `FEATURE_FLAG_MODE=stub` と
-  `FEATURE_FLAG_STUB_DOCUMENT='{"app_config_probe":{"enabled":true}}'` を設定して起動する
+  `FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'` を設定して起動する
   （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
+  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値になっており、
+  ピン登録機能はローカル・CI とも追加設定なしで ON になる（SS-88）。
   最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
 - フラグを削除するときは backend の登録簿・`src/config/featureFlags.ts`・分岐・テストを
   同じ PR で消す（ADR-008 決定6）。
@@ -170,6 +191,10 @@ export default function SomeFeatureRoute() {
     （ネイティブ依存）に到達しうるため）。単体テストでは `createMockLocationService()`
     （`src/services/location/location.mock.ts`）を直接 import してフェイクを注入する
     （`location.mock.test.ts` を参照）。
+  - 写真: `services/photo` も同じ規律。バレル（`index.ts`）を単体テストから import せず、
+    `createMockPhotoService()`（`src/services/photo/photo.mock.ts`）を直接 import する
+    （`photo.mock.test.ts` を参照）。`features/pin/api/*` からのアップロード（presigned POST）は
+    実機依存でもネイティブ依存でもないため msw でテストする（`presignedPostUpload.test.ts`）。
   - Backend API: スタブ実装を利用(Orvalの生成物を利用)
   - モバイル機能: スタブ実装を利用
 

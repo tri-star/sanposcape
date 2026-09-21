@@ -73,9 +73,9 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
 - **`distribution` はプラットフォーム別に指定できない**（eas.json の共通プロパティ）。
   そのため「iOS は TestFlight / Android は APK 直配布」を 1 プロファイルでは満たせず、
   Android APK 用に `staging-apk` を、iOS の Ad Hoc 配布用に `staging-ios` を分けている。
-- `AUTH_MODE` / `LOCATION_MODE` は `real`。`real` はどちらも未設定時のフォールバック値でもあるが、
-  「このビルドは本物の Google サインインと本物の位置情報で動く」という意図を読み取れるように
-  明示している。
+- `AUTH_MODE` / `LOCATION_MODE` / `PHOTO_MODE` は `real`。`real` はいずれも未設定時のフォールバック値
+  でもあるが、「このビルドは本物の Google サインイン・本物の位置情報・本物のカメラ/写真ライブラリで
+  動く」という意図を読み取れるように明示している。
 
 プロファイル名を `staging` にしたのは、ADR-005 決定6 のとおり **SAM/Terraform の `Env=dev` は
 アプリの `ENV=staging` に対応する**ため。`development` プロファイルは
@@ -140,8 +140,10 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 ### `preview`（E2E 専用。CloudFront へ向けないこと）
 
 `.github/workflows/mobile-e2e.yml` が `eas build --local --profile preview` で使う。
-`EXPO_PUBLIC_AUTH_MODE=dev` / `EXPO_PUBLIC_LOCATION_MODE=mock` で外部依存を断ち、
-backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:8000` に届く前提になっている。
+`EXPO_PUBLIC_AUTH_MODE=dev` / `EXPO_PUBLIC_LOCATION_MODE=mock` / `EXPO_PUBLIC_PHOTO_MODE=mock`
+で外部依存を断ち、backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:8000` に届く
+前提になっている（`PHOTO_MODE=mock` の理由: システムのカメラ/写真ピッカーは Maestro から
+安定操作できないため。SS-88 / ADR-010）。
 
 **ここを CloudFront に向けてはならない。** E2E が外部環境への依存と課金対象になり、
 ワークフローの前提（ローカル backend 起動 + `adb reverse`）が崩れる。
