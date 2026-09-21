@@ -33,7 +33,13 @@ export function PinTagEditor({
       {tags.length > 0 ? (
         <View style={styles.chips}>
           {tags.map((tag, index) => (
-            <Tag key={tag} icon="x" onPress={() => onRemove(tag)} testID={`${testID}-${index}`}>
+            <Tag
+              key={tag}
+              icon="x"
+              onPress={() => onRemove(tag)}
+              accessibilityLabel={`${tag}を削除`}
+              testID={`${testID}-${index}`}
+            >
               {tag}
             </Tag>
           ))}

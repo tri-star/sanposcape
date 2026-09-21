@@ -19,7 +19,12 @@ export function PinLocationPreview({ location, testID }: PinLocationPreviewProps
   const styles = useStyles();
 
   return (
-    <View accessibilityLabel="ピンを置く位置の地図" style={styles.wrap}>
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel="ピンを置く位置の地図"
+      style={styles.wrap}
+    >
       <MapView
         testID={testID}
         style={styles.map}

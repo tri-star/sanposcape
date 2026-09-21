@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
-import { ActivityIndicator, Text, View } from "react-native";
+import { memo } from "react";
+import { ActivityIndicator, Text, useWindowDimensions, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { Icon } from "@/components/ui/icon/Icon";
@@ -23,6 +24,9 @@ export type PinPhotoGridProps = {
   testID: string;
 };
 
+/** グリッドの列数。タイルサイズの計算にも使う。 */
+const COLUMN_COUNT = 4;
+
 /** 表示中の failed アイテムから、重複を除いたエラー文言の一覧を作る。 */
 function distinctFailedMessages(items: readonly PhotoDraftItem[]): string[] {
   const seen = new Set<string>();
@@ -37,6 +41,102 @@ function distinctFailedMessages(items: readonly PhotoDraftItem[]): string[] {
   return messages;
 }
 
+type PinPhotoTileProps = {
+  item: PhotoDraftItem;
+  index: number;
+  tileSize: number;
+  disabled: boolean;
+  onRemove: (localId: string) => void;
+  onRetry: (localId: string) => void;
+  testID: string;
+};
+
+/**
+ * 写真タイル1枚分。`React.memo` で「変化した写真だけが再レンダーされる」ようにする
+ * （ローカルレビュー MR6）。`photoDraftReducer` は変化していないアイテムの参照を保つため
+ * （`state.map` で同一 localId 以外はそのまま返す）、`item` を丸ごと props にする
+ * デフォルトの浅い比較で正しくスキップされる。
+ */
+const PinPhotoTile = memo(function PinPhotoTile({
+  item,
+  index,
+  tileSize,
+  disabled,
+  onRemove,
+  onRetry,
+  testID,
+}: PinPhotoTileProps) {
+  const theme = useTheme();
+  const styles = useStyles();
+  const photoNumber = index + 1;
+
+  return (
+    <View style={[styles.tile, { width: tileSize, height: tileSize }]} testID={testID}>
+      <Image
+        source={{ uri: item.previewUri }}
+        style={styles.tileImage}
+        contentFit="cover"
+        recyclingKey={item.localId}
+      />
+
+      {item.status === "processing" || item.status === "uploading" ? (
+        <View style={styles.scrim}>
+          <ActivityIndicator color={theme.colors.onColor} />
+        </View>
+      ) : null}
+
+      {item.status === "waiting" ? (
+        <View
+          style={styles.badge}
+          accessible
+          accessibilityLabel={`写真${photoNumber}: 保存時に送信`}
+          testID={`${testID}-waiting`}
+        >
+          <Icon name="clock" size={12} color={theme.colors.onColor} />
+        </View>
+      ) : null}
+
+      {item.status === "attached" ? (
+        <View
+          style={[styles.badge, styles.badgeSuccess]}
+          accessible
+          accessibilityLabel={`写真${photoNumber}: 送信済み`}
+        >
+          <Icon name="check" size={12} color={theme.colors.onColor} />
+        </View>
+      ) : null}
+
+      {item.status === "failed" ? (
+        <View style={styles.failedOverlay}>
+          <Icon name="alert-circle" size={20} color={theme.colors.onColor} />
+          {!disabled && item.errorCode !== null && canRetryPhotoUpload(item.errorCode) ? (
+            <IconButton
+              icon="refresh-cw"
+              label={`写真${photoNumber}を再試行`}
+              size="sm"
+              variant="filled"
+              onPress={() => onRetry(item.localId)}
+              testID={`${testID}-retry`}
+            />
+          ) : null}
+        </View>
+      ) : null}
+
+      {!disabled && item.status !== "attached" ? (
+        <IconButton
+          icon="x"
+          label={`写真${photoNumber}を削除`}
+          size="sm"
+          variant="surface"
+          style={styles.removeButton}
+          onPress={() => onRemove(item.localId)}
+          testID={`${testID}-remove`}
+        />
+      ) : null}
+    </View>
+  );
+});
+
 /** PinPhotoGrid — 写真の4列グリッドと撮影/選択ボタン。 */
 export function PinPhotoGrid({
   items,
@@ -49,8 +149,15 @@ export function PinPhotoGrid({
 }: PinPhotoGridProps) {
   const theme = useTheme();
   const styles = useStyles();
+  const { width: windowWidth } = useWindowDimensions();
   const caption = photoGridCaption(summary);
   const failedMessages = distinctFailedMessages(items);
+
+  // タイルの実ピクセルサイズを計算する（MR6: expo-image に明示的な描画サイズを与え、
+  // 長辺2048pxの実写真をタイル解像度までダウンサンプリングしてデコードさせるため）。
+  // 4列 + 列間の gap(theme.spacing[2]) 3本ぶんを引いてから等分する。
+  const contentWidth = windowWidth - theme.layout.pageGutter * 2;
+  const tileSize = (contentWidth - theme.spacing[2] * (COLUMN_COUNT - 1)) / COLUMN_COUNT;
 
   return (
     <View testID={testID} style={styles.root}>
@@ -63,64 +170,16 @@ export function PinPhotoGrid({
       {items.length > 0 ? (
         <View style={styles.grid}>
           {items.map((item, index) => (
-            <View key={item.localId} style={styles.tile} testID={`${testID}-${index}`}>
-              <Image
-                source={{ uri: item.previewUri }}
-                style={styles.tileImage}
-                contentFit="cover"
-                recyclingKey={item.localId}
-              />
-
-              {item.status === "processing" || item.status === "uploading" ? (
-                <View style={styles.scrim}>
-                  <ActivityIndicator color={theme.colors.onColor} />
-                </View>
-              ) : null}
-
-              {item.status === "waiting" ? (
-                <View
-                  style={styles.badge}
-                  accessibilityLabel="保存時に送信"
-                  testID={`${testID}-${index}-waiting`}
-                >
-                  <Icon name="clock" size={12} color={theme.colors.onColor} />
-                </View>
-              ) : null}
-
-              {item.status === "attached" ? (
-                <View style={[styles.badge, styles.badgeSuccess]} accessibilityLabel="送信済み">
-                  <Icon name="check" size={12} color={theme.colors.onColor} />
-                </View>
-              ) : null}
-
-              {item.status === "failed" ? (
-                <View style={styles.failedOverlay}>
-                  <Icon name="alert-circle" size={20} color={theme.colors.onColor} />
-                  {!disabled && item.errorCode !== null && canRetryPhotoUpload(item.errorCode) ? (
-                    <IconButton
-                      icon="refresh-cw"
-                      label="再試行"
-                      size="sm"
-                      variant="filled"
-                      onPress={() => onRetry(item.localId)}
-                      testID={`${testID}-${index}-retry`}
-                    />
-                  ) : null}
-                </View>
-              ) : null}
-
-              {!disabled && item.status !== "attached" ? (
-                <IconButton
-                  icon="x"
-                  label="写真を削除"
-                  size="sm"
-                  variant="surface"
-                  style={styles.removeButton}
-                  onPress={() => onRemove(item.localId)}
-                  testID={`${testID}-${index}-remove`}
-                />
-              ) : null}
-            </View>
+            <PinPhotoTile
+              key={item.localId}
+              item={item}
+              index={index}
+              tileSize={tileSize}
+              disabled={disabled}
+              onRemove={onRemove}
+              onRetry={onRetry}
+              testID={`${testID}-${index}`}
+            />
           ))}
         </View>
       ) : null}
@@ -182,8 +241,6 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing[2],
   },
   tile: {
-    width: "23%",
-    aspectRatio: 1,
     borderRadius: theme.radius.md,
     overflow: "hidden",
     backgroundColor: theme.colors.trackSubtle,

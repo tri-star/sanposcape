@@ -40,6 +40,7 @@ export function SanpoMapSelector({ state, onSelect, onRetry, testID }: SanpoMapS
               icon={choice.isDraft ? "plus" : "map"}
               selected={choice.selected}
               onPress={() => onSelect(choice.selection)}
+              accessibilityLabel={`地図「${choice.label}」を選択`}
               testID={`${testID}-${choice.key}`}
             >
               {choice.label}
