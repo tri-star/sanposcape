@@ -684,6 +684,9 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   `<account-id>` はプレースホルダ）。
 - **`sam build --use-container` を省略しない。** `psycopg[binary]` の manylinux wheel が
   ビルドホストの arch/glibc に依存するため、コンテナなしビルドは実行時にしか失敗が判明しない。
+  Pillow（SS-88, `pins/thumbnails.py`）も同じ理由でコンテナビルドが必須（manylinux wheel が
+  約 4〜5 MB 増える程度で、zip 50 MB / 展開 250 MB の上限には十分収まる見込みだが、BK-1 の
+  実デプロイで一度は zip サイズを確認すること）。
 - **（SS-72）`template.yaml` の `PermissionsBoundary` を削除しない。** 境界が無いと CI の
   デプロイロールが `CreateRole` を拒否する。境界はデプロイロールが持つ `PutRolePolicy` /
   `PassRole` による権限昇格を塞ぐ要であり、実行時に新しい AWS 操作が必要になった場合は
@@ -717,7 +720,7 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 
 ```json
 {
-  "flags": { "app_config_probe": false },
+  "flags": { "pin_registration": false },
   "minimum_supported_versions": { "ios": null, "android": null },
   "config_source": "default"
 }
@@ -793,3 +796,68 @@ transform と組み込み関数の評価が終わった**後**の独立したス
 `sam validate` を通過したまま実行時まで露見しないため。なお**失敗モードは安全側**で、
 解決が崩れれば ARN として無効な文字列が残り `AccessDeniedException` になるのであって、
 ワイルドカードや過剰権限の方向には倒れない。
+
+## 12. 写真ストレージ（S3, SS-88/ADR-009。BK-1 未着手）
+
+設計の詳細は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+を参照。**このセクションは `template.yaml` に S3 を結線する別チケット（BK-1）の
+前提整理であり、現時点（SS-88 backend PR）では `template.yaml` を変更していない。**
+
+### 現状（BK-1 着手前）
+
+- `PIN_PHOTO_BUCKET_NAME` は dev/staging/production のいずれにも渡していない
+  （`template.yaml` に環境変数の宣言自体が無い）。`STORAGE_MODE` も渡していないため、
+  すべての環境でコード既定の `real` になる。
+- 結果として、dev/staging/production では `UnconfiguredObjectStorage` が選ばれる:
+  写真を含む `POST /pin-photo-uploads` と `POST /pins`（`photo_upload_ids` 指定時）は
+  503 を返すが、写真なしの `POST /pins` と `GET /sanpo-maps` は正常に動く。
+  フラグ `pin_registration` が OFF の間は mobile から呼ばれないため利用者影響は無い。
+- infra 側（`sanposcape-infra`）は SS-106（バケット, `live/platform`）と SS-107
+  （Lambda 実行ロールの境界に S3 アクションを追加, `live/account`）の PR を作成済みだが、
+  **どちらも dev への apply がまだ**（2026-09-21 時点）。BK-1 は両方の dev apply 後に着手する。
+
+### BK-1 で `template.yaml` に結線する際の確定事項（infra 側の調査結果を反映）
+
+| 項目 | 値・方針 |
+|---|---|
+| バケット名 | `sanposcape-<env>-pin-photos-<account_id>`（`ap-southeast-1`） |
+| SSM: バケット名 | `/sanposcape/<env>/platform/pin_photos/bucket_name` |
+| SSM: バケット ARN | `/sanposcape/<env>/platform/pin_photos/bucket_arn` |
+| 環境変数への渡し方 | `PIN_PHOTO_BUCKET_NAME: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_name}}'` |
+| 実行ロールへの付与方法 | **インライン `Statement` を使う（`S3CrudPolicy` 等の SAM ポリシーテンプレートは使わない）**。理由: ポリシーテンプレートは prefix で絞れず（`BucketName` 引数しか取らない）、境界の外のアクション（`PutObjectAcl` 等）まで一覧に入りテンプレートを読んでも実効権限が分からなくなる |
+| 付与するアクション（prefix ごと） | `staging/*`: `s3:PutObject`（presigned POST の署名者権限）/ `s3:GetObject` / `s3:DeleteObject`。`original/*`・`thumb/*`: 同じ3アクション。バケット全体: `s3:ListBucket`（`Resource` はバケット ARN そのもの、`/*` を付けない） |
+| **抜けやすい罠** | **`staging/*` への `s3:PutObject` を付け忘れると、presigned POST への実際のアップロードが全て 403 になる**（署名の発行自体は成功するため、デプロイでは検知できない）。`CopyObject`（staging→original）はコピー元の `GetObject` + コピー先の `PutObject` で足りる（追加アクション不要） |
+| ACL / 暗号化ヘッダー | presigned POST の `fields` に **`acl` を絶対に含めない**（バケットが `BucketOwnerEnforced` のため失敗する）。暗号化ヘッダーも送らない（デフォルト SSE-S3） |
+| Migrate 関数 | S3 ポリシーを付けない（写真操作を行わないため） |
+
+書き方の例（`sanposcape-infra` 側の調査で確認済み。動的参照の後ろに `/staging/*` のような
+文字列を続ける書き方は本リポジトリでまだ一度もデプロイで確かめられていない点に注意
+——SS-98 の AppConfig の ARN 解決と同じパターンだが、そちらも初回デプロイでの目視確認が
+必要, 上記「各環境への初回デプロイで1回だけ確認すること」と同じ手順を踏むこと）:
+
+```yaml
+Policies:
+  - Version: '2012-10-17'
+    Statement:
+      - Effect: Allow
+        Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+        Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/staging/*'
+      - Effect: Allow
+        Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+        Resource:
+          - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/original/*'
+          - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/thumb/*'
+      - Effect: Allow
+        Action: s3:ListBucket
+        Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}'
+```
+
+### BK-1 のトラブルシュート（先回りの整理）
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| 写真ありの `POST /pins` が常に 503 | `PIN_PHOTO_BUCKET_NAME` が未設定（`UnconfiguredObjectStorage`）、または SSM パラメータ未 apply | Phase 0 の確認コマンドで `pin_photos/bucket_name` の存在を確認する |
+| presigned POST の発行は成功するが実際のアップロードが 403 | 実行ロールに `staging/*` への `s3:PutObject` が付いていない（上表の「抜けやすい罠」） | `template.yaml` の `Policies` を確認する。デプロイ自体は成功するため気付きにくい |
+| 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が付いておらず、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `template.yaml` に `s3:ListBucket`（Resource はバケット ARN、`/*` 無し）を追加する |
+| `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | SS-106（バケット）が当該環境にまだ apply されていない | infra 側の dev/prod apply を待つ（`aws ssm get-parameter` で存在確認） |
+

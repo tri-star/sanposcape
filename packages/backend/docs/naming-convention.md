@@ -57,6 +57,23 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 |---|---|
 | `stats.py` | 集計（`GET /walks/stats`）で使う日付ロジックと定数。DB / Pydantic に依存しない純粋関数だけを置き、現在時刻は必ず引数で受け取る |
 
+`sanpo_maps/` ドメインでは以下を追加している。
+
+| ファイル | 役割 |
+|---|---|
+| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin` 等）。DB に依存しない純粋関数 |
+
+`pins/` ドメインでは以下を追加している（`upload_router.py` 以外は SS-88 で新設）。
+
+| ファイル | 役割 |
+|---|---|
+| `upload_router.py` | `POST /pin-photo-uploads`（写真アップロード枠の発行）専用の `APIRouter`。本体の `router.py`（`POST /pins` 等）と分離している |
+| `dev_storage_router.py` | `STORAGE_MODE=fake` 限定の `/dev-storage/*`。`include_in_schema=False`（`auth/dev_router.py` と同じ規律） |
+| `photo_attacher.py` | 写真の確定処理（検証・サムネイル生成・並列化・時間予算のガード）。DB に依存しない |
+| `thumbnails.py` | Pillow によるサムネイル生成（`bytes -> ThumbnailResult`）。DB/S3 に依存しない純粋関数 |
+| `tag_labels.py` | タグの正規化（trim・連続空白圧縮・先頭記号除去）と重複排除。DB に依存しない純粋関数 |
+| `photo_keys.py` | `staging`/`original`/`thumb` の S3 キー組み立て。DB/S3 に依存しない純粋関数 |
+
 ## FastAPI / API 関連
 
 - `APIRouter` のインスタンス変数名は `router` に統一する。
@@ -119,6 +136,22 @@ route（画面/URL/`APIRouter`）とも混同しない）。
 
 - ①（`walking_route`）は `maps/` ドメインの責務（探索・経路提案）、②（`track`）は `walks/` ドメインの責務（終了済み散歩の記録）で、実装上も別ドメインに分かれている。
 - `router`（FastAPIのルーティング）とは別物である点を、レビュー時にも意識する。
+
+## 「ピン」「スポット」「地図」に関する命名の注意（SS-88, ADR-009）
+
+散歩アプリのドメインでは似た語が2つの意味に分かれるため、コード上でも語を使い分ける。
+
+| 意味 | 語 | 実例 |
+|---|---|---|
+| ①ユーザーが地図に自由に登録する地点（名前・メモ・タグ・写真） | `Pin` | `pins/models.py` の `Pin` / テーブル `pins` / API `/pins`・`client_pin_id` |
+| ②散歩の目的地候補（Google Maps 由来。往復範囲探索で提示） | `SpotCandidate` | `maps/schemas.py`。`Spot`（単体）は使わない（① と衝突するサンプル実装だったため SS-88 で削除済み） |
+| ③ピンの入れ物（コレクション） | `SanpoMap` | `sanpo_maps/models.py` の `SanpoMap` / テーブル `sanpo_maps` / API `/sanpo-maps`・`sanpo_map_id`。`Map` 単体は使わない（`maps/` ドメイン＝探索・経路と衝突するため） |
+
+- **「スポット」という語は ② の意味に限定する。** ① を「スポット」と呼ぶ mobile 側の初期案があったが、
+  「散歩の目的地候補」と「地図に自由に登録する地点」の2つの意味で同じ語を使うと混乱するため、
+  ① は「ピン（Pin）」に統一した（ユーザー決定、ADR-009）。
+- 既存のサンプル API `GET/POST /spots`（`Spot` モデル）は ① の意味と衝突するため SS-88 で削除した。
+  配布済みの mobile ビルドは一度も呼んでいなかったため、expand → contract を経ずに削除している。
 
 ### 周回ルート（SS-33, ADR-007）の命名
 

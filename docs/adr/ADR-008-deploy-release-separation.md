@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-21（SS-93）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-21（SS-93、SS-88）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -40,6 +40,8 @@
 - **mobile は直近の成功値が無い間（初回ロード中・初回取得失敗）と、未知キー・bool 以外の値を OFF として扱う**。
   成功値があれば再取得の失敗中もその値を使い、画面を隠す判定は `pending` / `enabled` / `disabled` の3値で行う。
   キー定数は backend の登録簿の写しを自前で持ち、`config_source` は内部型から除き、`services/` の real/mock 層は作らない。（本文: SS-100 追補 D12、D13、D16、D18）
+- **最初の実フラグ `pin_registration`（ピン登録, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）が登録され、疎通確認用の `app_config_probe` は削除済み**。
+  backend の API 自体はこのフラグでガードしない（ADR-009 決定10）。（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
 
 ### 未解決・持ち越し
 
@@ -54,7 +56,6 @@
 - **mobile のタグ・Release・CHANGELOG の自動生成（SS-102）と、OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
   （本文: 決定4、決定8、移行・対応が必要な事項）
 - **ストア側の設定（App Store の手動リリース / Google Play の公開の管理）が未実施**で、`release-runbook.md` の該当記述は未検証。（本文: 移行・対応が必要な事項）
-- **疎通確認用フラグ `app_config_probe` が残っている**。最初の実フラグが入った時点で削除する。（本文: SS-98 追補 D7）
 
 ### 変更・撤回された決定
 
@@ -67,13 +68,16 @@
 - `FlagDocumentSource` を `integrations` 側に置く理由: 循環 import を避けるため → 既存の依存の向きに揃えるため（配置は不変。本文: SS-98 追補 D3）
 - 用語の注意（決定の変更ではない）: 本文の決定8・決定理由の「ダークローンチ」は「フラグ OFF で入る新機能」の意味で採用している。
   SS-98 追補 D2 以降の「ダークローンチ」は「ユーザー条件付きのフラグ」の意味で不採用。両者は別物
+- 疎通確認用フラグ `app_config_probe`: 「最初の実フラグが入った時点で削除する」（予定）→ **削除済み**。
+  `pin_registration`（ADR-009）が最初の実フラグとして登録された（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
 
 ## 日付
 
 2026-09-20（初版、SS-104）、2026-09-20 追補（SS-98: `/app-config` のレスポンススキーマと
 フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）、2026-09-21 追補
 （SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）、2026-09-21 追補
-（SS-93: SS-96 の完了を反映）
+（SS-93: SS-96 の完了を反映）、2026-09-21 追補（SS-88: `pin_registration` を最初の実フラグ
+として追加し `app_config_probe` を削除）
 
 ## ステータス
 
@@ -676,6 +680,13 @@ appconfig_read_timeout_seconds: float = 2.0
 （client 公開・既定 OFF・挙動なし）。**最初の実フラグが入った時点で削除する**
 （決定6 の「削除まで含めて1つ」に反する常駐フラグにしない。コード上のコメント
 （`core/feature_flags.py`）にも同じ注記がある）。
+
+**（2026-09-21 追記, SS-88）** ピン登録機能（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）の
+`pin_registration` が最初の実フラグとして登録され、同じ PR で `app_config_probe` を
+`core/feature_flags.py` の `FEATURE_FLAGS` から削除した。`app_config/tests/test_router.py` /
+`core/tests/test_feature_flags.py` のサンプルキーも `pin_registration` に置き換えている。
+本節・上の JSON 例にある `app_config_probe` は SS-98 時点の記録として残すが、
+**現在のコードには存在しない。**
 
 ### D8: `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は AppConfig へ移行しない
 
