@@ -201,6 +201,18 @@ class Settings(BaseSettings):
     # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。
     pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)
 
+    @property
+    def dev_storage_request_max_bytes(self) -> int:
+        """`STORAGE_MODE=fake` 専用の `/dev-storage/uploads` の本文上限（PR #93 T2）。
+
+        `pin_photo_max_bytes`（写真本体）に multipart の付随フィールド
+        （`key`/`Content-Type`/`x-fake-*` と boundary 諸々）の余裕を足す。
+        `file.read()` が本文全体を検証前にメモリへ読み込むため、この経路が
+        `RequestSizeLimitMiddleware` の対象外だと巨大な body で任意にメモリを
+        消費させられる（本番には存在しない router だが、local/test で有効）。
+        """
+        return self.pin_photo_max_bytes + 64 * 1024
+
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod
     def _split_csv(cls, v: object) -> object:

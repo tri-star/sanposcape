@@ -228,6 +228,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         path_prefix="/pin-photo-uploads",
         max_bytes=settings.pins_request_max_bytes,
     )
+    if settings.storage_mode == "fake":
+        # `/dev-storage/*` は本番に存在しない（router 自体が include されない）が、
+        # local/test では写真本体を受ける経路になるため `/pins` と同じ理由で上限を課す
+        # （PR #93 T2。`pins_dev_storage_router.py` の `file.read()` は検証前に本文全体を
+        # メモリへ読み込むため、この経路が対象外だと任意サイズの body でメモリを消費させられる）。
+        app.add_middleware(
+            RequestSizeLimitMiddleware,
+            path_prefix="/dev-storage",
+            max_bytes=settings.dev_storage_request_max_bytes,
+        )
     app.include_router(health_router)
     app.include_router(app_config_router)
     app.include_router(auth_router)

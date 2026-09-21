@@ -104,6 +104,53 @@ class TestUpload:
         assert "<Code>EntityTooLarge</Code>" in response.text
 
 
+class TestUploadBodySizeLimit:
+    """PR #93 T2: `/dev-storage/uploads` にも `RequestSizeLimitMiddleware` が効くこと。
+
+    `dev_storage_router.upload()` は署名検証の前に `file.read()` で本文全体を
+    メモリへ読み込むため、この経路が上限の対象外だと任意サイズの body でメモリを
+    消費させられる（`STORAGE_MODE=fake` は local/test 限定だが、対策自体は安価）。
+    """
+
+    def test_oversized_body_is_rejected_with_413(
+        self, fake_storage_small_limit_client: TestClient
+    ) -> None:
+        # fixture の pin_photo_max_bytes(1MiB) + マルチパートの余裕(64KiB) より大きい body。
+        oversized = b"a" * (2 * 1024 * 1024)
+
+        response = fake_storage_small_limit_client.post(
+            "/dev-storage/uploads",
+            data={
+                "key": "staging/pins/u1/up1.jpg",
+                "Content-Type": "image/jpeg",
+                "x-fake-max-bytes": "1048576",
+                "x-fake-expires": "9999999999",
+                "x-fake-signature": "irrelevant-because-size-check-runs-first",
+            },
+            files={"file": ("photo.jpg", oversized, "image/jpeg")},
+        )
+
+        assert response.status_code == 413
+
+    def test_body_within_limit_is_not_rejected_by_size_middleware(
+        self, fake_storage_small_limit_client: TestClient
+    ) -> None:
+        """上限内なら通常どおり署名検証まで到達する（403 = サイズでは弾かれていない証拠）。"""
+        response = fake_storage_small_limit_client.post(
+            "/dev-storage/uploads",
+            data={
+                "key": "staging/pins/u1/up1.jpg",
+                "Content-Type": "image/jpeg",
+                "x-fake-max-bytes": "1048576",
+                "x-fake-expires": "9999999999",
+                "x-fake-signature": "wrong-signature",
+            },
+            files={"file": ("photo.jpg", b"a" * 1024, "image/jpeg")},
+        )
+
+        assert response.status_code == 403
+
+
 class TestGetObject:
     def test_success_returns_200_with_content_type(
         self, fake_storage_client: tuple[TestClient, FakeObjectStorage]

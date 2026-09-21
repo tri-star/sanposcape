@@ -76,6 +76,31 @@ def fake_storage_client(
 
 
 @pytest.fixture
+def fake_storage_small_limit_client() -> Generator[TestClient, None, None]:
+    """`STORAGE_MODE=fake` + `pin_photo_max_bytes` を最小値(1MiB)にした設定の `TestClient`。
+
+    `/dev-storage/uploads` の本文上限テスト（PR #93 T2）で、巨大な body を実際に
+    アロケートせずに 413 を再現するために使う（`fake_storage_client` の既定
+    10MiB のままだと、413 を踏むためだけに10MiB超のバイト列をテストごとに
+    確保することになる）。
+    """
+    settings = Settings(
+        env="test",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["test-audience"],
+        storage_mode="fake",
+        pin_photo_max_bytes=1_048_576,
+    )
+    test_app = create_app(settings)
+    test_app.dependency_overrides[get_db] = override_get_db
+    test_app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(test_app) as test_client:
+        yield test_client
+    test_app.dependency_overrides.clear()
+
+
+@pytest.fixture
 def unconfigured_storage_client(test_settings: Settings) -> Generator[TestClient, None, None]:
     """`test_settings`（`STORAGE_MODE` 未指定 = real、バケット名未設定）で組み立てたアプリの
     `TestClient`。写真 API が 503 になる経路のテストに使う（ambient app は `.env` の
