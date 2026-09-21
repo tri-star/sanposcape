@@ -116,7 +116,14 @@ class S3ObjectStorage:
                 s3={"addressing_style": "virtual"},
                 connect_timeout=connect_timeout,
                 read_timeout=read_timeout,
-                retries={"mode": "standard", "max_attempts": 3},
+                # ★ `max_attempts` ではなく `total_max_attempts` を使う（`integrations/aws/
+                #   appconfig.py` と同じ罠）。`retries.mode="standard"` の `max_attempts` は
+                #   botocore 内部で「初回を除く再試行回数」として扱われ、指定値に + 1 された
+                #   ものが実際の合計試行回数になる。`total_max_attempts` は初回を含む合計回数を
+                #   そのまま表すので、確定処理の時間予算（`PIN_PHOTO_CONFIRM_DEADLINE_SECONDS`）
+                #   に対して1回のS3呼び出しが消費しうる最悪時間を見積もる際はこちらを使う
+                #   （合計3回 ×（connect_timeout + read_timeout + バックオフ）が上限になる）。
+                retries={"total_max_attempts": 3, "mode": "standard"},
                 max_pool_connections=10,
             ),
         )

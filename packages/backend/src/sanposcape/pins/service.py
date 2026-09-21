@@ -170,8 +170,24 @@ class PinService:
             raise SanpoMapPermissionDeniedError()
 
         prepared_photos: list[PreparedPhoto] = []
+        confirm_deadline_at: float | None = None
         if payload.photo_upload_ids:
-            prepared_photos = self._prepare_photos(current_user, payload.photo_upload_ids)
+            try:
+                prepared_photos, confirm_deadline_at = self._prepare_photos(
+                    current_user, payload.photo_upload_ids
+                )
+            except PinPhotoUploadNotReadyError:
+                # 真に同時な冪等リトライの可能性: このロック待ちの間に、同じ client_pin_id で
+                # 先着したリクエストが確定処理を終えて commit したかもしれない（ADR-003 決定3・
+                # backend-plan.md 5.5 手順3）。`lock_for_attach` の行ロック解放後に読むこの
+                # SELECT は、先着リクエストが commit していれば必ずそれを拾える。
+                existing = self._repository.get_by_client_pin_id(
+                    user_id=current_user.id, client_pin_id=payload.client_pin_id
+                )
+                if existing is None:
+                    raise
+                read_model = self._require_read_model(existing.id)
+                return self._to_pin_read(read_model, current_user, base_url), False
 
         pin, created = self._repository.create(
             sanpo_map_id=resolved_map.sanpo_map.id,
@@ -196,11 +212,16 @@ class PinService:
             )
 
         if prepared_photos:
+            if confirm_deadline_at is None:
+                raise AssertionError(
+                    "prepared_photos is non-empty but confirm_deadline_at is unset"
+                )
             self._commit_photos(
                 pin_id=pin.id,
                 uploaded_by_user_id=current_user.id,
                 prepared=prepared_photos,
                 start_position=0,
+                deadline_at=confirm_deadline_at,
             )
 
         self._sanpo_map_service.mark_used(resolved_map.sanpo_map.id)
@@ -228,29 +249,56 @@ class PinService:
         existing_photos_by_upload_id = {
             photo.upload_id: photo for photo in self._repository.list_photos(pin.id)
         }
+        remaining_ids = [
+            upload_id
+            for upload_id in payload.photo_upload_ids
+            if upload_id not in existing_photos_by_upload_id
+        ]
+        attachments = self._upload_repository.find_attachments(
+            user_id=current_user.id, upload_ids=remaining_ids
+        )
         to_process: list[uuid.UUID] = []
-        for upload_id in payload.photo_upload_ids:
-            if upload_id in existing_photos_by_upload_id:
-                continue  # 既にこのピンに紐付いている（再送は成功扱い）
-            attachment = self._upload_repository.find_attachment(upload_id=upload_id)
+        for upload_id in remaining_ids:
+            attachment = attachments.get(upload_id)
             if attachment is not None:
                 attached_pin_id, _client_pin_id = attachment
                 if attached_pin_id != pin.id:
                     raise PinPhotoUploadNotReadyError()  # 別のピンに紐付け済み
-                continue
+                continue  # 既にこのピンに紐付いている（再送は成功扱い）
             to_process.append(upload_id)
 
         prepared_photos: list[PreparedPhoto] = []
         if to_process:
-            prepared_photos = self._prepare_photos(current_user, to_process)
-            start_position = self._repository.next_photo_position(pin.id)
-            self._commit_photos(
-                pin_id=pin.id,
-                uploaded_by_user_id=current_user.id,
-                prepared=prepared_photos,
-                start_position=start_position,
-            )
-            self._sanpo_map_service.mark_used(pin.sanpo_map_id)
+            try:
+                prepared_photos, confirm_deadline_at = self._prepare_photos(
+                    current_user, to_process
+                )
+            except PinPhotoUploadNotReadyError:
+                # 真に同時な冪等リトライの可能性: ロック待ちの間に別リクエストが同じ枠を
+                # 「このピン」へ紐付け済みにしたかもしれない（R1 と同じ根本原因）。再確認して
+                # 全て対象ピンに紐付いていれば成功扱いに倒す。
+                recheck = self._upload_repository.find_attachments(
+                    user_id=current_user.id, upload_ids=to_process
+                )
+                still_unattached = [
+                    upload_id
+                    for upload_id in to_process
+                    if recheck.get(upload_id, (None, None))[0] != pin.id
+                ]
+                if still_unattached:
+                    raise
+                to_process = []
+
+            if to_process:
+                start_position = self._repository.next_photo_position(pin.id)
+                self._commit_photos(
+                    pin_id=pin.id,
+                    uploaded_by_user_id=current_user.id,
+                    prepared=prepared_photos,
+                    start_position=start_position,
+                    deadline_at=confirm_deadline_at,
+                )
+                self._sanpo_map_service.mark_used(pin.sanpo_map_id)
 
         self._db.commit()
 
@@ -277,8 +325,20 @@ class PinService:
 
     def _prepare_photos(
         self, current_user: User, upload_ids: list[uuid.UUID]
-    ) -> list[PreparedPhoto]:
+    ) -> tuple[list[PreparedPhoto], float]:
+        """検証・サムネイル生成まで終える。戻り値は `(prepared, confirm_deadline_at)`。
+
+        `confirm_deadline_at` は `prepare()` と `commit()` で共有する単一の締め切り
+        （`time.monotonic()` 基準）。呼び出し元はこれをそのまま `_commit_photos()` に渡す
+        （確定処理全体で `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` 以内に収める設計, R2）。
+        """
         now = self._now()
+        # ユーザー単位の advisory lock を、行ロック（`lock_for_attach`）より先に取る
+        # （`PinPhotoUploadService.create_upload` と同じ取得順序にして、advisory lock と
+        # 行ロックの取得順序が経路によって逆転しないようにする。順序が経路ごとに違うと
+        # デッドロックしうる）。確定時の実サイズ容量再チェックをこのロックで保護することで、
+        # 同時確定による合計クォータの先食い競合を防ぐ（R4）。
+        self._upload_repository.acquire_user_lock(user_id=current_user.id)
         uploads = self._upload_repository.lock_for_attach(
             user_id=current_user.id, upload_ids=upload_ids
         )
@@ -290,19 +350,22 @@ class PinService:
             if upload.status != "pending" or upload.expires_at <= now:
                 raise PinPhotoUploadNotReadyError()
 
+        confirm_deadline_at = self._photo_attacher.compute_deadline(self._confirm_deadline_seconds)
         inputs = [
             PhotoUploadInput(upload_id=upload_id, staging_key=uploads_by_id[upload_id].s3_key)
             for upload_id in upload_ids
         ]
         try:
             prepared = self._photo_attacher.prepare(
-                inputs, user_id=current_user.id, deadline_seconds=self._confirm_deadline_seconds
+                inputs, user_id=current_user.id, deadline_at=confirm_deadline_at
             )
         except InvalidPhotoError as exc:
             raise PinPhotoUploadNotReadyError() from exc
 
         # 実サイズで容量を再チェック（申告値ではなく実サイズ。自分自身の申告分は
         # reserved_total に含まれているため差し引き、実サイズに置き換えて判定する）。
+        # 上で取得した advisory lock により、同時に確定している他リクエストの
+        # 未コミット分と競合しても合計を二重に見逃さない（R4）。
         total_new_bytes = sum(item.byte_size for item in prepared)
         declared_total = sum(upload.declared_byte_size for upload in uploads_by_id.values())
         attached_total = self._upload_repository.sum_attached_bytes(user_id=current_user.id)
@@ -313,7 +376,7 @@ class PinService:
         if projected_usage > self._user_quota_bytes:
             raise StorageQuotaExceededError()
 
-        return prepared
+        return prepared, confirm_deadline_at
 
     def _commit_photos(
         self,
@@ -322,8 +385,9 @@ class PinService:
         uploaded_by_user_id: uuid.UUID,
         prepared: list[PreparedPhoto],
         start_position: int,
+        deadline_at: float,
     ) -> None:
-        self._photo_attacher.commit(prepared)
+        self._photo_attacher.commit(prepared, deadline_at=deadline_at)
         self._repository.add_photos(
             pin_id=pin_id,
             uploaded_by_user_id=uploaded_by_user_id,

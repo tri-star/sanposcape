@@ -59,12 +59,17 @@ class PreparedPhoto:
 class PhotoAttacher:
     """写真1〜10枚の確定処理を並列に行う。
 
-    時間予算のガード: `prepare()` はタスク開始前に残り時間を確認し、超過していれば
-    新規タスクを開始せず `ObjectStorageUnavailableError` にする（503。冪等なので
-    クライアントは再送してよい）。**既に実行中のタスクを強制中断するものではない**
+    時間予算のガード: `prepare()` / `commit()` はともにタスク開始前に残り時間を確認し、
+    超過していれば新規タスクを開始せず `ObjectStorageUnavailableError` にする（503。
+    冪等なのでクライアントは再送してよい）。**既に実行中のタスクを強制中断するものではない**
     （Python のスレッドは協調的にしか止められないため）。個々の S3 呼び出しは
     `Settings.object_storage_*_timeout_seconds` で有界なので、全体の遅延はそれらの
     積で抑えられる。
+
+    呼び出し元（`PinService`）は `compute_deadline()` で確定処理全体（`prepare()` と
+    `commit()` の両方）に共通の締め切りを1つだけ算出し、両メソッドに同じ `deadline_at`
+    を渡す。こうすることで「確定処理全体が `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` 以内」
+    という設計意図（backend-plan.md 5.5）を、Copy/サムネイル Put を含めて実現する。
     """
 
     def __init__(
@@ -86,20 +91,24 @@ class PhotoAttacher:
         self._concurrency = concurrency
         self._monotonic = monotonic
 
+    def compute_deadline(self, deadline_seconds: float) -> float:
+        """`prepare()`/`commit()` に共通で渡す締め切り（`monotonic()` 基準）を算出する。"""
+        return self._monotonic() + deadline_seconds
+
     def prepare(
         self,
         uploads: list[PhotoUploadInput],
         *,
         user_id: uuid.UUID,
-        deadline_seconds: float,
+        deadline_at: float,
     ) -> list[PreparedPhoto]:
         """全枚数の検証とサムネイル生成を終える（backend-plan.md 5.5 手順4）。
 
         `InvalidPhotoError` / `ObjectStorageUnavailableError` を送出しうる。片方でも
         エラーがあれば、他が成功していても例外を送出する（`PinService` 側で
-        ロールバックし、DB には何も書かない）。
+        ロールバックし、DB には何も書かない）。`deadline_at` は `compute_deadline()` で
+        算出した、`commit()` と共有する単一の締め切り。
         """
-        deadline_at = self._monotonic() + deadline_seconds
 
         def process_one(item: PhotoUploadInput) -> PreparedPhoto:
             if self._monotonic() > deadline_at:
@@ -157,17 +166,38 @@ class PhotoAttacher:
 
         return [results[item.upload_id] for item in uploads]
 
-    def commit(self, prepared: list[PreparedPhoto]) -> None:
+    def commit(self, prepared: list[PreparedPhoto], *, deadline_at: float) -> None:
         """検証済みの写真を確定する（サムネイル Put → staging から原本へ Copy）。
 
         コピー先・サムネイルのキーは upload_id から決定的なので、再送では同じキーに
-        上書きされるだけで冪等（backend-plan.md 5.5 手順5）。
+        上書きされるだけで冪等（backend-plan.md 5.5 手順5）。`prepare()` と同じ並列度・
+        締め切りチェックを適用する（R2: 以前は逐次・無期限で、S3 が劣化した状況で
+        Lambda の29秒ハード制限まで無制御に時間を消費しうる不具合があった）。
         """
-        for item in prepared:
+
+        def commit_one(item: PreparedPhoto) -> None:
+            if self._monotonic() > deadline_at:
+                raise ObjectStorageUnavailableError("Photo commit deadline exceeded")
             self._storage.put_bytes(
                 item.thumbnail_key, item.thumbnail_bytes, content_type="image/jpeg"
             )
             self._storage.copy(source_key=item.staging_key, dest_key=item.original_key)
+
+        errors: list[Exception] = []
+        with ThreadPoolExecutor(max_workers=self._concurrency) as executor:
+            futures = [executor.submit(commit_one, item) for item in prepared]
+            for future in futures:
+                try:
+                    future.result()
+                except Exception as exc:  # noqa: BLE001 - 種別ごとに下でまとめて優先度判定する
+                    errors.append(exc)
+
+        if errors:
+            # 503（ストレージ不調・時間切れ）を優先する。再送で回復しうるため。
+            for exc in errors:
+                if isinstance(exc, ObjectStorageUnavailableError):
+                    raise exc
+            raise errors[0]
 
     def cleanup_staging(self, prepared: list[PreparedPhoto]) -> None:
         """commit 後に staging を best-effort で削除する（失敗は WARNING ログのみ。
