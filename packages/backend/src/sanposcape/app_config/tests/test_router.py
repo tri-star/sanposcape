@@ -36,7 +36,7 @@ def stub_client() -> Generator[TestClient, None, None]:
         feature_flag_mode="stub",
         feature_flag_stub_document=json.dumps(
             {
-                "app_config_probe": {"enabled": True},
+                "pin_registration": {"enabled": True},
                 "client_requirements": {
                     "enabled": True,
                     "ios_minimum_version": "1.2.3",
@@ -79,7 +79,7 @@ def test_get_app_config_response_shape(stub_client: TestClient) -> None:
     response = stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {"app_config_probe": True},
+        "flags": {"pin_registration": True},
         "minimum_supported_versions": {"ios": "1.2.3", "android": "1.2.4"},
         "config_source": "stub",
     }
@@ -94,12 +94,12 @@ def test_get_app_config_reflects_changes_to_stub_document() -> None:
     settings = Settings(
         env="test",
         feature_flag_mode="stub",
-        feature_flag_stub_document=json.dumps({"app_config_probe": {"enabled": False}}),
+        feature_flag_stub_document=json.dumps({"pin_registration": {"enabled": False}}),
     )
     app = create_app(settings)
     with TestClient(app) as client:
         response = client.get("/app-config")
-    assert response.json()["flags"] == {"app_config_probe": False}
+    assert response.json()["flags"] == {"pin_registration": False}
 
 
 def test_get_app_config_with_empty_stub_document_returns_all_off(
@@ -108,7 +108,7 @@ def test_get_app_config_with_empty_stub_document_returns_all_off(
     response = empty_stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {"app_config_probe": False},
+        "flags": {"pin_registration": False},
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "stub",
     }
@@ -123,7 +123,7 @@ def test_get_app_config_falls_back_to_default_when_appconfig_unconfigured(
     response = unconfigured_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {"app_config_probe": False},
+        "flags": {"pin_registration": False},
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "default",
     }
@@ -139,7 +139,7 @@ def test_get_app_config_calls_get_document_only_once_per_request() -> None:
     settings = Settings(env="test", feature_flag_mode="stub")
     app = create_app(settings)
     source = _CountingFlagDocumentSource(
-        FlagDocument({"app_config_probe": {"enabled": True}}, kind="stub")
+        FlagDocument({"pin_registration": {"enabled": True}}, kind="stub")
     )
     app.dependency_overrides[get_feature_flags] = lambda: FeatureFlags(source)
     try:

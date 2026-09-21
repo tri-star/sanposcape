@@ -41,46 +41,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppConfigRead'
-  /spots:
-    get:
-      tags:
-      - spots
-      summary: List Spots
-      operationId: list_spots_spots_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/SpotRead'
-                type: array
-                title: Response List Spots Spots Get
-    post:
-      tags:
-      - spots
-      summary: Create Spot
-      operationId: create_spot_spots_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SpotCreate'
-        required: true
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SpotRead'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /auth/session:
     post:
       tags:
@@ -1360,64 +1320,6 @@ components:
       required:
       - refresh_token
       title: SessionRefreshRequest
-    SpotCreate:
-      properties:
-        name:
-          type: string
-          title: Name
-        latitude:
-          type: number
-          maximum: 90.0
-          minimum: -90.0
-          title: Latitude
-        longitude:
-          type: number
-          maximum: 180.0
-          minimum: -180.0
-          title: Longitude
-        category:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Category
-      type: object
-      required:
-      - name
-      - latitude
-      - longitude
-      title: SpotCreate
-    SpotRead:
-      properties:
-        id:
-          type: integer
-          title: Id
-        name:
-          type: string
-          title: Name
-        latitude:
-          type: number
-          title: Latitude
-        longitude:
-          type: number
-          title: Longitude
-        category:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Category
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-      type: object
-      required:
-      - id
-      - name
-      - latitude
-      - longitude
-      - category
-      - created_at
-      title: SpotRead
     ValidationError:
       properties:
         loc:

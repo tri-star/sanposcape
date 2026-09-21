@@ -39,7 +39,6 @@ from sanposcape.pins.router import router as pins_router
 from sanposcape.pins.upload_router import router as pin_photo_uploads_router
 from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
 from sanposcape.sanpo_maps.router import router as sanpo_maps_router
-from sanposcape.spots.router import router as spots_router
 from sanposcape.users.router import router as users_router
 from sanposcape.walks.exceptions import WalkNotFoundError
 from sanposcape.walks.router import router as walks_router
@@ -231,7 +230,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(app_config_router)
-    app.include_router(spots_router)
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(maps_router)

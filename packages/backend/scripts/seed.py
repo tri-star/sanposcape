@@ -2,33 +2,16 @@
 
 コンテナ内で実行する:
     docker compose exec api uv run python scripts/seed.py
+
+現時点では投入するデータが無い（骨組みのみ）。地図（SanpoMap）・ピン（Pin）は
+ユーザー（User）に紐づくため、認証済みユーザーが居ない状態では意味のある
+シードデータを作れない（サンプル `spots` テーブルは SS-88 で削除した）。
+将来、シードすべきデータが必要になったらここに追加する。
 """
-
-from sqlalchemy import select
-
-from sanposcape.database import get_session_factory
-from sanposcape.spots.models import Spot
-
-SEED_SPOTS = [
-    {"name": "近所の公園", "latitude": 35.681236, "longitude": 139.767125, "category": "park"},
-    {"name": "川沿いの遊歩道", "latitude": 35.685, "longitude": 139.752, "category": "nature"},
-    {"name": "老舗の喫茶店", "latitude": 35.69, "longitude": 139.7, "category": "cafe"},
-]
 
 
 def main() -> None:
-    db = get_session_factory()()
-    try:
-        existing = db.scalar(select(Spot).limit(1))
-        if existing is not None:
-            print("Spots already seeded. Skipping.")
-            return
-
-        db.add_all([Spot(**data) for data in SEED_SPOTS])
-        db.commit()
-        print(f"Seeded {len(SEED_SPOTS)} spots.")
-    finally:
-        db.close()
+    print("Nothing to seed.")
 
 
 if __name__ == "__main__":
