@@ -6,8 +6,8 @@
 
 ## ステータス
 
-採用（backend 実装済み）。`template.yaml` への S3 結線（BK-1）は infra 側（SS-106/107）の
-dev apply 待ちで未着手。mobile 側の実装（SS-89 系）は同じ PR で backend の後に実装する。
+採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は infra 側
+（SS-106/107）の dev apply 待ちで未着手。
 
 ## コンテキスト
 
@@ -393,7 +393,8 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       `pin_photos.thumbnail_*` の NULL 許容で列追加なしに移行できる）
 - [ ] **BK-10**: 原本の EXIF をサーバーで無劣化除去する（JPEG の APP1 セグメント除去）。
       **招待機能（BK-7）の前提**（招待前は本人しか原本を見られないため後回しにしている）
-- [ ] mobile 側の実装（Orval 再生成、`features/spot/` 相当の `pin` への読み替え）
+- [x] mobile 側の実装（Orval 再生成、`features/pin/` として実装済み。同じ PR で backend の
+      後に実装した）
 
 ## 関連情報
 
