@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -9,13 +9,17 @@ import { Dialog } from "@/components/ui/dialog/Dialog";
 import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { LocationPermissionNotice } from "@/features/walk/components/LocationPermissionNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
 import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
+import { resolveAddPinAction } from "@/features/walk/lib/addPinAction";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
+import { consumeFlashMessage } from "@/lib/flashMessage";
 import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -34,6 +38,7 @@ export function WalkActiveView() {
   const walk = useActiveWalk();
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [recenterNonce, setRecenterNonce] = useState(0);
+  const pinRegistrationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinRegistration);
 
   const isDark = theme.name === "dark";
 
@@ -44,6 +49,30 @@ export function WalkActiveView() {
     walk.finishWalk();
     router.push("/walk-summary");
   };
+
+  const handleAddPin = () => {
+    const action = resolveAddPinAction({
+      featureEnabled: pinRegistrationEnabled,
+      currentPosition: walk.currentPosition,
+      clientWalkId: walk.activeWalk?.clientWalkId ?? null,
+    });
+    if (action.type === "toast") {
+      toast.show(action.message);
+      return;
+    }
+    router.push({ pathname: "/pins/new", params: action.params });
+  };
+
+  // ピン登録画面から戻ってきたときの保存完了トースト（`useFinishedWalkStore` を経由しない
+  // 画面またぎのメッセージ受け渡し。`src/lib/flashMessage.ts` 参照）。
+  // 早期 return（`walk.activeWalk === null`）より前に置くことで、進行中の散歩が無い状態で
+  // 戻ってきた場合でもトーストを取りこぼさない。
+  useFocusEffect(
+    useCallback(() => {
+      const message = consumeFlashMessage();
+      if (message) toast.show(message);
+    }, [toast]),
+  );
 
   if (walk.activeWalk === null) {
     return (
@@ -123,7 +152,7 @@ export function WalkActiveView() {
           trackingStatus={walk.trackingStatus}
           onTogglePause={walk.togglePause}
           onEnd={() => setEndDialogOpen(true)}
-          onAddPin={() => toast.show("準備中の機能です")}
+          onAddPin={handleAddPin}
         />
       </View>
 
