@@ -16,6 +16,11 @@ export function computeResizeTarget(
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     return null;
   }
+  // PR #93 T16: `maxEdge` 自体の不正値（0以下・非有限）を検証していなかった。
+  // 呼び出し元の契約（JSDoc）は既に「不正値なら null」としていたため、実装を合わせる。
+  if (!Number.isFinite(maxEdge) || maxEdge <= 0) {
+    return null;
+  }
 
   const longEdge = Math.max(width, height);
   if (longEdge <= maxEdge) {

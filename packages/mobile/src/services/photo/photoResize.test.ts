@@ -34,4 +34,13 @@ describe("computeResizeTarget", () => {
   it("maxEdge を明示的に指定できる", () => {
     expect(computeResizeTarget(2000, 1000, 512)).toEqual({ width: 512 });
   });
+
+  it.each([
+    ["0", 0],
+    ["負", -100],
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+  ])("maxEdge が不正値（%s）なら null（PR #93 T16）", (_label, maxEdge) => {
+    expect(computeResizeTarget(4032, 3024, maxEdge)).toBeNull();
+  });
 });
