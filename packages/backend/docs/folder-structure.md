@@ -116,9 +116,12 @@ packages/backend/
 ├── scripts/
 │   ├── seed.py                       # Seeder（初期データ投入）
 │   ├── export_openapi.py             # openapi.yaml/json の再生成（mobile の Orval が消費）
+│   ├── feature_flags_document.py     # フラグ切り替えワークフローが AppConfig に投入する版の組み立て（SS-99。標準ライブラリのみ）
 │   ├── loop_route_probe.py           # 周回ルートの実API検証スクリプト（開発者専用。SS-33, ADR-007）
 │   └── loop_route_probe_cases.yaml   # ↑の検証セット（O/D の組とラベル）
 │                                      #   出力は `tmp-probe/<timestamp>.geojson`（.gitignore 済み）
+│
+├── feature-flags.json         # フラグ定義ファイル（AppConfig FeatureFlags 形式・既定値。キーは core/feature_flags.py と一致させる）
 │
 └── docs/                      # 設計ドキュメント
 ```

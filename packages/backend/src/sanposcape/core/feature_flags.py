@@ -71,6 +71,9 @@ class FeatureFlagSpec:
     audience: FlagAudience
 
 
+# キーを足す / 消すときは packages/backend/feature-flags.json（切り替えワークフローが使う
+# 定義ファイル）も合わせて変更する。キー集合の一致は core/tests/test_feature_flags_document.py
+# で検査している（SS-99, ADR-008 追補 D19）。
 FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
     FeatureFlagSpec(
         key="pin_registration",
