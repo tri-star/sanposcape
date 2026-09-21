@@ -26,6 +26,7 @@
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
+> | ピン写真バケット（S3）の結線（§12 / SS-108） | ⚠️ **未デプロイ**。`cfn-lint` は通過。動的参照の後ろに `/staging/*` を連結した `Resource` の解決と、写真付きピン登録の疎通は dev の初回デプロイで確認する（§12「初回デプロイで確認すること」） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -106,6 +107,11 @@ aws ssm get-parameter --name /sanposcape/dev/account/lambda_boundary_arn --regio
 aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/application_id --region ap-southeast-1
 aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/environment_id --region ap-southeast-1
 aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/configuration_profile_id --region ap-southeast-1
+
+# ピン写真バケット（SS-106/SS-108, §12）の名前と ARN が存在すること。
+# 無いと template.yaml の {{resolve:ssm:}} が解決できず、deploy 自体が失敗する
+aws ssm get-parameter --name /sanposcape/dev/platform/pin_photos/bucket_name --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/dev/platform/pin_photos/bucket_arn --region ap-southeast-1
 
 # シークレットのキー名だけを確認する（値は絶対に出さない）
 aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
@@ -685,8 +691,8 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
 - **`sam build --use-container` を省略しない。** `psycopg[binary]` の manylinux wheel が
   ビルドホストの arch/glibc に依存するため、コンテナなしビルドは実行時にしか失敗が判明しない。
   Pillow（SS-88, `pins/thumbnails.py`）も同じ理由でコンテナビルドが必須（manylinux wheel が
-  約 4〜5 MB 増える程度で、zip 50 MB / 展開 250 MB の上限には十分収まる見込みだが、BK-1 の
-  実デプロイで一度は zip サイズを確認すること）。
+  約 4〜5 MB 増える程度で、zip 50 MB / 展開 250 MB の上限には十分収まる見込みだが、SS-108 の
+  dev デプロイで一度は zip サイズを確認すること）。
 - **（SS-88）`template.yaml` の Lambda `MemorySize` を下げる変更を単独で入れない。** 写真の
   確定処理（`PhotoAttacher`）は `PIN_PHOTO_CONFIRM_CONCURRENCY`（既定3）並列で Pillow の
   デコード・リサイズを行う前提でメモリ予算を見積もっている（ADR-009 決定5）。
@@ -803,67 +809,117 @@ transform と組み込み関数の評価が終わった**後**の独立したス
 解決が崩れれば ARN として無効な文字列が残り `AccessDeniedException` になるのであって、
 ワイルドカードや過剰権限の方向には倒れない。
 
-## 12. 写真ストレージ（S3, SS-88/ADR-009。BK-1 未着手）
+## 12. 写真ストレージ（S3, SS-88/ADR-009。SS-108 で結線）
 
 設計の詳細は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
-を参照。**このセクションは `template.yaml` に S3 を結線する別チケット（BK-1）の
-前提整理であり、現時点（SS-88 backend PR）では `template.yaml` を変更していない。**
+を参照。`template.yaml` への結線は SS-108（旧称 BK-1）で行った。
 
-### 現状（BK-1 着手前）
-
-- `PIN_PHOTO_BUCKET_NAME` は dev/staging/production のいずれにも渡していない
-  （`template.yaml` に環境変数の宣言自体が無い）。`STORAGE_MODE` も渡していないため、
-  すべての環境でコード既定の `real` になる。
-- 結果として、dev/staging/production では `UnconfiguredObjectStorage` が選ばれる:
-  写真を含む `POST /pin-photo-uploads` と `POST /pins`（`photo_upload_ids` 指定時）は
-  503 を返すが、写真なしの `POST /pins` と `GET /sanpo-maps` は正常に動く。
-  フラグ `pin_registration` が OFF の間は mobile から呼ばれないため利用者影響は無い。
-- infra 側（`sanposcape-infra`）は SS-106（バケット, `live/platform`）と SS-107
-  （Lambda 実行ロールの境界に S3 アクションを追加, `live/account`）の PR を作成済みだが、
-  **どちらも dev への apply がまだ**（2026-09-21 時点）。BK-1 は両方の dev apply 後に着手する。
-
-### BK-1 で `template.yaml` に結線する際の確定事項（infra 側の調査結果を反映）
+### 結線の内容
 
 | 項目 | 値・方針 |
 |---|---|
-| バケット名 | `sanposcape-<env>-pin-photos-<account_id>`（`ap-southeast-1`） |
-| SSM: バケット名 | `/sanposcape/<env>/platform/pin_photos/bucket_name` |
-| SSM: バケット ARN | `/sanposcape/<env>/platform/pin_photos/bucket_arn` |
-| 環境変数への渡し方 | `PIN_PHOTO_BUCKET_NAME: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_name}}'` |
-| 実行ロールへの付与方法 | **インライン `Statement` を使う（`S3CrudPolicy` 等の SAM ポリシーテンプレートは使わない）**。理由: ポリシーテンプレートは prefix で絞れず（`BucketName` 引数しか取らない）、境界の外のアクション（`PutObjectAcl` 等）まで一覧に入りテンプレートを読んでも実効権限が分からなくなる |
-| 付与するアクション（prefix ごと） | `staging/*`: `s3:PutObject`（presigned POST の署名者権限）/ `s3:GetObject` / `s3:DeleteObject`。`original/*`・`thumb/*`: 同じ3アクション。バケット全体: `s3:ListBucket`（`Resource` はバケット ARN そのもの、`/*` を付けない） |
-| **抜けやすい罠** | **`staging/*` への `s3:PutObject` を付け忘れると、presigned POST への実際のアップロードが全て 403 になる**（署名の発行自体は成功するため、デプロイでは検知できない）。`CopyObject`（staging→original）はコピー元の `GetObject` + コピー先の `PutObject` で足りる（追加アクション不要） |
-| ACL / 暗号化ヘッダー | presigned POST の `fields` に **`acl` を絶対に含めない**（バケットが `BucketOwnerEnforced` のため失敗する）。暗号化ヘッダーも送らない（デフォルト SSE-S3） |
-| Migrate 関数 | S3 ポリシーを付けない（写真操作を行わないため） |
+| バケット | `sanposcape-<env>-pin-photos-<account_id>`（`ap-southeast-1`）。infra の `live/platform`（SS-106）所有で、SAM では作らない |
+| SSM: バケット名 | `/sanposcape/<env>/platform/pin_photos/bucket_name` → Api の環境変数 `PIN_PHOTO_BUCKET_NAME` |
+| SSM: バケット ARN | `/sanposcape/<env>/platform/pin_photos/bucket_arn` → Api の実行ロールポリシーの `Resource` |
+| `STORAGE_MODE` | Globals で `real` を明示（コード既定と同じ。`ENV=staging/production` では `real` 以外は起動失敗） |
+| 実行ロールへの付与方法 | **インライン `Statement`（`S3CrudPolicy` 等の SAM ポリシーテンプレートは使わない）**。ポリシーテンプレートは prefix で絞れず（`BucketName` 引数しか取らない）、境界の外のアクション（`PutObjectAcl` 等）まで一覧に入り、テンプレートを読んでも実効権限が分からなくなる |
+| 付与するアクション | `staging/*`・`original/*`・`thumb/*`: `s3:PutObject` / `s3:GetObject` / `s3:DeleteObject`。バケット: `s3:ListBucket`（`Resource` はバケット ARN そのもの、`/*` を付けない） |
+| 境界（SS-107） | `sanposcape-<env>-*` に Put/Get/Delete/AbortMultipartUpload + ListBucket。実効権限 = 境界 ∩ 付与。ここに無いアクション（タグ付け等）が要るときは先に infra 側の境界を広げる |
+| Migrate 関数 | S3 の環境変数・ポリシーとも付けない（写真操作を行わないため） |
 
-書き方の例（`sanposcape-infra` 側の調査で確認済み。動的参照の後ろに `/staging/*` のような
-文字列を続ける書き方は本リポジトリでまだ一度もデプロイで確かめられていない点に注意
-——SS-98 の AppConfig の ARN 解決と同じパターンだが、そちらも初回デプロイでの目視確認が
-必要, 上記「各環境への初回デプロイで1回だけ確認すること」と同じ手順を踏むこと）:
+**抜けやすい罠**:
 
-```yaml
-Policies:
-  - Version: '2012-10-17'
-    Statement:
-      - Effect: Allow
-        Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
-        Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/staging/*'
-      - Effect: Allow
-        Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
-        Resource:
-          - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/original/*'
-          - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/thumb/*'
-      - Effect: Allow
-        Action: s3:ListBucket
-        Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}'
+- **`staging/*` への `s3:PutObject` を外すと、presigned POST への実際のアップロードが全て 403 になる**
+  （署名の発行自体は成功するため、デプロイでは検知できない）。`CopyObject`（staging→original）は
+  コピー元の `GetObject` + コピー先の `PutObject` で足りる（追加アクション不要）。
+- presigned POST の `fields` に **`acl` を含めない**（バケットが `BucketOwnerEnforced` のため失敗する）。
+  暗号化ヘッダーも送らない（デフォルト SSE-S3）。実装は `integrations/aws/s3.py` の
+  `S3ObjectStorage.create_upload_form`。
+
+### 前提となる infra の apply（環境ごと）
+
+`{{resolve:ssm:}}` は存在しない SSM パラメータを参照すると **`sam deploy` 自体が失敗する**
+（写真と無関係な修正のデプロイも止まる）。
+
+| 環境 | 必要な apply | 状況（2026-09-22） |
+|---|---|---|
+| dev | `deployments/dev/account`（SS-107: 境界に S3）と `deployments/dev/platform`（SS-106: バケット + SSM） | ✅ どちらも apply 済み |
+| prod | `deployments/prod/account`（SS-97 + SS-107。1回の apply にまとまる）と `deployments/prod/platform`（SS-106 + AppConfig 一式 + フラグ切り替えロール） | ⚠️ **未 apply** |
+
+**prod を壊さないための整理**: `template.yaml` は dev/prod 共通で、環境による条件分岐は入れていない。
+prod の backend デプロイは、写真と関係なく既に `platform/appconfig/*`（SS-98）と
+`account/lambda_boundary_arn`（SS-72）の SSM を前提にしており、どちらも prod には未 apply のため
+**現時点で prod デプロイはそもそもできない**。`deployments/prod/platform` の apply で AppConfig と
+`pin_photos/*` の SSM が同時に作られる（SS-106 は main にマージ済み）ので、この結線で prod の
+前提が新たに増えることはない。prod の順序は次のとおり（infra 側の作業はユーザーの承認のうえで行う）:
+
+1. `deployments/prod/account` の apply（SS-97 + SS-107）→ `production` Environment の
+   `AWS_SAM_DEPLOY_ROLE_ARN` を設定（§4.1）
+2. `deployments/prod/platform` の apply（SS-106 + AppConfig）。1 と並行でよい
+3. Phase 0 の確認コマンドを `prod` に読み替えて、`pin_photos/*` を含む SSM が揃っていることを確認
+4. backend の prod デプロイ → マイグレーション（§5.2）
+5. 下の「初回デプロイで確認すること」を prod でも 1 回行う
+
+> **境界（SS-107）だけが抜けた場合**、デプロイは成功するが実行時に S3 がすべて 403 になり、
+> 写真 API が 503 を返す（写真なしのピン登録・地図の取得は動く）。prod で `pin_registration` を
+> ON にするのは BK-2（アカウント削除時の写真削除）の後なので、それまでは利用者影響は無い。
+
+Fn::If で prod だけ結線を外す案は採らなかった。prod のデプロイは上記のとおり `platform` の apply を
+待つ必要があり分岐の効果が無いこと、非選択分岐の動的参照が解決されないかを本リポジトリで
+確かめていない（分岐自体が新たな未検証点になる）こと、prod のデプロイは main 限定 +
+Required reviewers の手動起動（§4.1）で順序を人が守れることが理由。
+
+### 初回デプロイで確認すること（環境ごとに 1 回）
+
+**動的参照の後ろに `/staging/*` などの文字列を連結する書き方は、本リポジトリではまだ一度も
+デプロイで確かめられていない。** 動的参照の解決は組み込み関数の評価後の最終文字列に対して
+行われる（§11「各環境への初回デプロイで 1 回だけ確認すること」と同じ根拠）ため解決される見込みだが、
+失敗すると `cfn-lint` / `sam validate` を通ったまま実行時の 403 としてしか露見しない。
+失敗モードは安全側（無効な ARN が残り AccessDenied になる。過剰権限の方向には倒れない）。
+
+```bash
+ENV=dev  # prod のときは prod
+# 1) SSM が存在すること（Phase 0 と同じ）
+aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_name --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_arn --region ap-southeast-1
+
+# 2) Lambda の環境変数にバケット名が入っていること（空なら UnconfiguredObjectStorage で写真 API が 503）
+aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
+  --region ap-southeast-1 \
+  --query 'Environment.Variables.{STORAGE_MODE:STORAGE_MODE,PIN_PHOTO_BUCKET_NAME:PIN_PHOTO_BUCKET_NAME}'
+
+# 3) 実行ロールのインラインポリシーで Resource が完全な ARN + prefix に解決されていること
+ROLE=$(aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
+  --region ap-southeast-1 --query Role --output text | awk -F/ '{print $NF}')
+aws iam list-role-policies --role-name "$ROLE"
+aws iam get-role-policy --role-name "$ROLE" --policy-name <上で出た ApiRolePolicy0 等> \
+  --query 'PolicyDocument.Statement[?contains(to_string(Action), `s3:`)]'
+#    → Resource が arn:aws:s3:::sanposcape-<env>-pin-photos-<account_id>/staging/* 等になっていること
+#      （{{resolve:ssm:...}} の文字列が残っていないこと）。ListBucket は /* 無しのバケット ARN
 ```
 
-### BK-1 のトラブルシュート（先回りの整理）
+そのうえで、写真付きのピン登録を実際に 1 回通す（dev は mobile の実機 / エミュレータから。
+CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため、curl より mobile のほうが手早い）:
+
+1. マイグレーション（§5.2）で SS-88 のテーブルが入っていること（`{"head": ...}` が最新）
+2. フラグ `pin_registration` を当該環境で ON にする（ADR-008 のフラグ切り替えワークフロー, SS-99）。
+   `GET /app-config` の `flags.pin_registration` が `true` になるのを確認する
+3. mobile で散歩中画面 →「この場所にピンを追加」→ 写真を 1 枚以上付けて保存
+4. 確認する点:
+   - 保存が成功し、ピン詳細（または地図）でサムネイルが表示される（presigned GET が通っている）
+   - `aws s3 ls s3://<bucket>/original/ --recursive` と `.../thumb/` にオブジェクトが増えている
+     （`staging/` の分は確定時に削除される）
+   - CloudWatch Logs（`/aws/lambda/sanposcape-<env>-backend-api`）に `S3 operation failed` や
+     `PIN_PHOTO_BUCKET_NAME is not configured` が出ていない
+5. 失敗した場合は下のトラブルシュートで切り分ける。dev で確認できるまで prod の `pin_registration` は ON にしない
+
+### トラブルシュート
 
 | 症状 | 原因 | 対処 |
 |---|---|---|
-| 写真ありの `POST /pins` が常に 503 | `PIN_PHOTO_BUCKET_NAME` が未設定（`UnconfiguredObjectStorage`）、または SSM パラメータ未 apply | Phase 0 の確認コマンドで `pin_photos/bucket_name` の存在を確認する |
-| presigned POST の発行は成功するが実際のアップロードが 403 | 実行ロールに `staging/*` への `s3:PutObject` が付いていない（上表の「抜けやすい罠」） | `template.yaml` の `Policies` を確認する。デプロイ自体は成功するため気付きにくい |
-| 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が付いておらず、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `template.yaml` に `s3:ListBucket`（Resource はバケット ARN、`/*` 無し）を追加する |
-| `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | SS-106（バケット）が当該環境にまだ apply されていない | infra 側の dev/prod apply を待つ（`aws ssm get-parameter` で存在確認） |
-
+| 写真ありの `POST /pin-photo-uploads`・`POST /pins` が常に 503、ログに `PIN_PHOTO_BUCKET_NAME is not configured` | 環境変数が空（`UnconfiguredObjectStorage`） | 上の確認 2) で環境変数を確認する。空なら SSM の値を確認して再デプロイ |
+| presigned POST の発行は成功するが実際のアップロードが 403 | 実行ロールに `staging/*` への `s3:PutObject` が無い、境界（SS-107）が未 apply、または動的参照 + 連結が ARN に解決されていない | 上の確認 3) でポリシーの `Resource` を確認する。境界は infra 側で確認する。デプロイ自体は成功するため気付きにくい |
+| 確定（`POST /pins`）が 503、ログに `S3 operation failed: ClientError` | 上と同じ（`original/*`・`thumb/*` への Put、`staging/*` の Get/Delete の不足） | 同上 |
+| 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が無い（または Resource に `/*` を付けてしまった）ため、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `ListBucket` の Resource がバケット ARN そのものになっているか確認する |
+| `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `pin_photos/*` の SSM が当該環境に無い（SS-106 が未 apply） | infra 側の apply を待つ（上の確認 1)）。prod は「前提となる infra の apply」の順序を参照 |
+| 動的参照 + `/staging/*` の連結がどうしても ARN に解決されない | CloudFormation が連結を受け付けない（未検証の懸念） | infra 側に prefix ごとの ARN（`staging/*` 等）を SSM の契約値として追加してもらい、連結をやめる |
