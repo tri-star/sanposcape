@@ -336,7 +336,10 @@ class PinService:
 
     def _require_read_model(self, pin_id: uuid.UUID) -> PinReadModel:
         read_model = self._repository.load_read_model(pin_id, photos_limit=self._read_photos_limit)
-        assert read_model is not None  # 直前に存在を確認済みの pin_id なので必ず取れる
+        if read_model is None:
+            # 直前に存在を確認済みの pin_id のはずの不変条件違反。`assert` は `-O` 実行時に
+            # 除去されるため使わない（repository.py の load_read_model と同じ流儀）。
+            raise AssertionError(f"Pin {pin_id} disappeared between existence check and read")
         return read_model
 
     def _to_pin_read(self, read_model: PinReadModel, current_user: User, base_url: str) -> PinRead:

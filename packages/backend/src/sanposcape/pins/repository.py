@@ -206,7 +206,11 @@ class PinRepository:
         if pin is None:
             return None
         sanpo_map = self._db.get(SanpoMap, pin.sanpo_map_id)
-        assert sanpo_map is not None  # FK 制約により必ず存在する
+        if sanpo_map is None:
+            # FK 制約により必ず存在するはずの不変条件違反。`assert` は `-O`/`PYTHONOPTIMIZE`
+            # 実行時にバイトコードごと除去されるため使わない（auth/service.py の
+            # `raise AssertionError("unreachable")` と同じ流儀）。
+            raise AssertionError("Pin references a missing sanpo_map (FK integrity violated)")
         return PinReadModel(
             pin=pin,
             sanpo_map=sanpo_map,
