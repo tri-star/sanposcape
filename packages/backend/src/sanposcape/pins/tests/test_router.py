@@ -1,11 +1,18 @@
+import struct
 import uuid
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
+from sanposcape.pins.photo_keys import staging_key
 from sanposcape.pins.repository import PinRepository
-from sanposcape.pins.tests.conftest import create_upload_row, make_user, seed_staging_photo
+from sanposcape.pins.tests.conftest import (
+    create_upload_row,
+    make_jpeg_bytes,
+    make_user,
+    seed_staging_photo,
+)
 from sanposcape.sanpo_maps.repository import SanpoMapRepository
 from sanposcape.users.models import User
 
@@ -206,6 +213,45 @@ class TestCreatePin:
         thumb_response = client.get(photo["thumbnail"]["url"].replace("http://testserver", ""))
         assert thumb_response.status_code == 200
         assert thumb_response.headers["content-type"] == "image/jpeg"
+
+    def test_decompression_bomb_photo_returns_409_not_500(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        """PR #93 T6 回帰テスト: ヘッダーの寸法だけを Pillow の decompression bomb
+        しきい値の2倍超に改ざんした小さい JPEG（ピクセルデータ自体は小さいまま）を
+        staging に置いても、500 にならず 409（`photo_upload_not_ready`）になる。
+        """
+        client, storage = fake_storage_client
+        upload_id = uuid.uuid4()
+        data = bytearray(make_jpeg_bytes((16, 16)))
+        sof0_marker = data.find(b"\xff\xc0")
+        assert sof0_marker != -1
+        huge_dimension = 65_500
+        data[sof0_marker + 5 : sof0_marker + 7] = struct.pack(">H", huge_dimension)
+        data[sof0_marker + 7 : sof0_marker + 9] = struct.pack(">H", huge_dimension)
+        storage.put_bytes(
+            staging_key(user_id=authenticated_user.id, upload_id=upload_id),
+            bytes(data),
+            content_type="image/jpeg",
+        )
+        create_upload_row(db_session, user_id=authenticated_user.id, upload_id=upload_id)
+
+        response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "photo_upload_ids": [str(upload_id)],
+            },
+        )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "photo_upload_not_ready"
 
     def test_invalid_photo_upload_id_returns_409(
         self,

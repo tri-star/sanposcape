@@ -1,4 +1,5 @@
 import io
+import struct
 
 import pytest
 from PIL import Image
@@ -86,3 +87,26 @@ class TestMakeThumbnail:
         truncated = _jpeg_bytes((200, 200))[:100]
         with pytest.raises(InvalidImageError):
             make_thumbnail(truncated, max_edge=50, quality=80, max_pixels=1_000_000)
+
+    def test_decompression_bomb_header_raises_invalid_image_error(self) -> None:
+        """PR #93 T6 回帰テスト: `Image.open()` 自体が `Image.DecompressionBombError` を
+        投げる場合（ヘッダーの寸法だけを Pillow の `MAX_IMAGE_PIXELS` の2倍超に改ざんした
+        小さいファイル。ピクセルデータ自体は小さいままでよい）でも 500 にならず
+        `InvalidImageError` になる。`DecompressionBombError` は `Exception` の直接の
+        サブクラスで `OSError`/`ValueError` に該当しないため、以前はここで捕まらなかった。
+        """
+        data = bytearray(_jpeg_bytes((16, 16)))
+        sof0_marker = data.find(b"\xff\xc0")
+        assert sof0_marker != -1, "test JPEG is expected to use a baseline SOF0 marker"
+        # SOF0: FF C0, length(2), precision(1), height(2), width(2), ...
+        huge_dimension = 65_500  # Image.MAX_IMAGE_PIXELS(既定 ~89M) の2倍を大きく超える。
+        height_offset = sof0_marker + 5
+        width_offset = sof0_marker + 7
+        data[height_offset : height_offset + 2] = struct.pack(">H", huge_dimension)
+        data[width_offset : width_offset + 2] = struct.pack(">H", huge_dimension)
+
+        # max_pixels は極端に緩くし、この InvalidImageError が「独自の画素数上限
+        # チェック」ではなく `Image.open()` 自体の DecompressionBombError 由来である
+        # ことを明確にする。
+        with pytest.raises(InvalidImageError, match="Cannot decode image"):
+            make_thumbnail(bytes(data), max_edge=50, quality=80, max_pixels=10**13)

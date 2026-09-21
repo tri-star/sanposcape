@@ -43,7 +43,13 @@ def make_thumbnail(data: bytes, *, max_edge: int, quality: int, max_pixels: int)
     try:
         image = Image.open(io.BytesIO(data))
         image_format = image.format
-    except (OSError, PillowUnidentifiedImageError, ValueError) as exc:
+    except (OSError, PillowUnidentifiedImageError, ValueError, Image.DecompressionBombError) as exc:
+        # `Image.open()` はヘッダーだけから寸法を読み取り、`Image.MAX_IMAGE_PIXELS` の
+        # 2倍を超える寸法を宣言していれば `DecompressionBombError` を直接送出する
+        # （ピクセルデータ自体は小さくてもよく、寸法欄だけ改ざんした小さいファイルでも
+        # 再現できる。PR #93 T6: `DecompressionBombError` は `Exception` の直接の
+        # サブクラスで `OSError`/`ValueError` に該当しないため、以前はここで捕まらず
+        # 409 ではなく 500 になっていた）。
         raise InvalidImageError("Cannot decode image") from exc
 
     if image_format != "JPEG":
