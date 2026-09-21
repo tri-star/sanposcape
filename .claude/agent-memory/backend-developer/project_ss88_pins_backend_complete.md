@@ -41,3 +41,23 @@ S3抽象化層（real/fake/unconfigured, `STORAGE_MODE`）、Pillowによる同�
   find_attachment(upload_id)`は`find_attachments(user_id, upload_ids)`（バッチ・
   user_idスコープ）に置き換わった。API契約（openapi.yaml）は無変更（再生成してdiff無しを
   確認済み）。
+
+**追記（2026-09-21, PR #93 Copilotレビュー対応, backend分）:**
+- 対応済み: T2（`/dev-storage`本文サイズ制限）・T3（`PhotoAttacher.commit`のPut後/集約後の
+  締切チェック）・T4（`cleanup_staging`にも締切適用）・T5（タグ長を正規化後に検証、
+  `PinTagLabel.max_length` 20→200・公開上限20は`tag_labels.dedupe_tags()`側）・T6
+  （`Image.DecompressionBombError`を`InvalidImageError`に正規化）・T11（`DELETE
+  /pin-photo-uploads/{upload_id}`新設、`operationId: delete_pin_photo_upload`）・T15
+  （pins系409に機械可読`code`: `storage_quota_exceeded`|`photo_upload_not_ready`、
+  `PinConflictErrorRead`スキーマ追加）。コミットは`ss-88`に7個（T2→T3→T4→T5→T15→T11→T6の順。
+  T6の回帰テストがT15の`code`フィールドをアサートするため、T15を先にした）。
+  `pytest`は697→721件、`ruff`すべてgreen。設計判断はADR-009「追補（PR #93レビュー対応）」
+  （決定11・決定12）に記録済み。
+- 対応見送り（mobile側）: T1（RN fetchのredirect制約, コメント修正のみ）・T7（写真グリッド
+  仮想化, 別チケット）・T14（任意座標登録, SS-124で対応）。T8〜T10・T12・T13・T16・T17は
+  mobile-developer側の担当（本セッションでは`packages/mobile/**`に触れていない）。
+- mobile申し送り: `PinTagLabel`のOrval生成型`maxLength`が20→200に変わる（正規化後の20文字
+  制限はmobile側の実装のまま据え置きでよい）。`DELETE /pin-photo-uploads/{upload_id}`
+  （Orval生成名は恐らく`deletePinPhotoUpload`）を`usePinPhotos.ts`の`removePhoto`から
+  best-effortで呼ぶ想定。`pinSaveError.ts`の409分類を応答本体の`code`で分岐できるようになった
+  （`ApiError`/`customFetch`がJSON bodyを保持する改修が必要かはmobile側の実装次第）。
