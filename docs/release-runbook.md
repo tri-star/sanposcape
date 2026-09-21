@@ -123,6 +123,7 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
   `environment:production` を許す）。production の Required reviewers と Deployment branches（main 限定）が
   そのまま効く。
 - 前提: 当該環境の `live/platform`（AppConfig の器・ロール・SSM 契約）が apply 済みであること。
+  2026-09-21 時点で dev は apply 済み、**prod は未 apply**（prod のフラグはまだ切り替えられない）。
 
 ### フラグを切り替える
 

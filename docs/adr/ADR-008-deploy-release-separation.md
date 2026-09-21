@@ -56,6 +56,9 @@
 - **フラグ切り替えワークフロー（SS-99）は実行実績が無い**。dev の初回実行で `release-runbook.md` §3 の手順を検証する。
   最低サポートバージョン（`client_requirements` の属性）を変える入力はまだ無く、現在値を引き継ぐだけ（SS-101 で必要になったら足す）。
   （本文: SS-99 追補 D22、D23）
+- **production ではフラグ切り替えワークフローをまだ実行できない**。2026-09-21 時点で sanposcape-infra の prod の `live/platform` が
+  未 apply で、prod の AppConfig も `sanposcape-prod-feature-flags` ロールも存在しない（SS-97 の `live/account` とは別に必要）。
+  apply 後に `production` Environment へ `AWS_FEATURE_FLAGS_ROLE_ARN` を設定する。（本文: SS-99 追補 D21）
 - **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
   （本文: 決定7、SS-100 追補 D17）
 - **mobile のタグ・Release・CHANGELOG の自動生成（SS-102）と、OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
@@ -911,6 +914,8 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
   `AWS_FEATURE_FLAGS_ROLE_ARN`（`AWS_SAM_DEPLOY_ROLE_ARN` と同じ扱い。秘密ではない）。Secrets は使わない。
 - GitHub Environment は backend のデプロイと共用の `development` / `production`（infra のロールの trust の既定）。
   production の Required reviewers と main 限定がそのまま効き、ワークフロー側でも production は main 以外から起動すると落とす。
+- 2026-09-21 時点で dev はロールと AppConfig が揃っている（infra 側で確認済み）。prod は `live/platform` が未 apply で、
+  ロールも AppConfig も無い。
 - AppConfig の ID は SSM `/sanposcape/<env>/platform/appconfig/*` から読み、`::add-mask::` でログから隠す
   （public リポジトリの Actions ログは公開されるため。リポジトリに ID を置かないのと同じ理由）。
 - OIDC トークンを持つ job ではサードパーティの依存を入れない（aws CLI と python3 の標準ライブラリのみ）。
