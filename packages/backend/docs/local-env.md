@@ -57,6 +57,9 @@ docker compose exec api uv run alembic upgrade head
 docker compose exec api uv run python scripts/seed.py
 ```
 
+現時点では投入するデータが無い（`spots` サンプルは SS-88 で削除した。地図・ピンは
+ユーザーに紐づくため、認証済みユーザーが居ない状態でシードする意味のあるデータが無い）。
+
 ## 動作確認
 
 ```bash
@@ -224,12 +227,61 @@ docker compose up -d --build
 - `MAPS_MODE` と同様、`docker compose restart` では反映されない。`.env` の値を変えたら
   `docker compose up -d` でコンテナを作り直すこと。
 
+## 写真ストレージ（`STORAGE_MODE` と関連 env、SS-88/ADR-009）
+
+設計の詳細は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+を参照。
+
+- `STORAGE_MODE`: `real`（既定・fail-safe） | `fake`。`ENV=local` / `test` 限定で、
+  それ以外（`staging` / `production`）で `fake` を指定すると `AUTH_MODE` 等と同じ
+  許可リスト方式の検証で起動に失敗する。`.env.example` は開発者の利便性のため
+  `fake` を既定にしている。
+  - `real`: S3 に実際に接続する。`PIN_PHOTO_BUCKET_NAME` が空なら
+    `UnconfiguredObjectStorage`（写真関連 API は 503。写真を含まない `POST /pins` と
+    `GET /sanpo-maps` は影響を受けない）にフォールバックする。ローカルではバケットを
+    結線していない（バケットを結線しているのはデプロイ先の `template.yaml` だけ。
+    `deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）ため、`STORAGE_MODE=real` の
+    ままだと写真は一切試せない。
+  - `fake`: ネットワークを一切使わない開発用の実装。`POST /pin-photo-uploads` が返す
+    `upload.url` は backend 自身の `/dev-storage/uploads`（S3 の presigned POST 互換。
+    成功 204・サイズ超過や署名不正は S3 と同じ XML エラー）を指し、写真の presigned GET
+    も `/dev-storage/objects/{key}` を指す。**`/dev-storage/*` は `STORAGE_MODE=fake` の
+    ときだけ `include_in_schema=False` で include され、OpenAPI には一切現れない。**
+    実機・エミュレータからもリクエストされたホストで URL を組み立てるため、
+    LAN 越し・Android エミュレータ（`10.0.2.2`）でも届く。
+- `PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES`: 1枚あたりの上限（既定 10 MiB）と
+  ユーザー合計の上限（既定 1 GiB）。他の上限値（保有枠数・TTL・サムネイルサイズ・確定処理の
+  時間予算/並列度など）は妥当な既定値があり、通常は変更不要（`config.py` の `Settings` 参照）。
+- `MAPS_MODE` と同様、`docker compose restart` では反映されない。`.env` の値を変えたら
+  `docker compose up -d` でコンテナを作り直すこと。
+
+### `STORAGE_MODE=fake` での写真付きピン登録の試し方
+
+```bash
+# 1) 枠を発行する
+curl -s -X POST localhost:<BACKEND_API_PORT>/pin-photo-uploads \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"content_type":"image/jpeg","byte_size":<実ファイルのバイト数>}'
+
+# 2) 応答の upload.fields を -F で並べ、最後に -F file=@<写真.jpg> を付けて upload.url へ POST → 204
+curl -s -o /dev/null -w '%{http_code}\n' -X POST <upload.url> \
+  -F key=<fields.key> -F Content-Type=image/jpeg \
+  -F x-fake-max-bytes=<fields.x-fake-max-bytes> -F x-fake-expires=<fields.x-fake-expires> \
+  -F x-fake-signature=<fields.x-fake-signature> -F file=@photo.jpg
+
+# 3) POST /pins（sanpo_map_id 省略、photo_upload_ids に upload_id を含める）→ 201
+#    photos[0].thumbnail.url を curl / ブラウザで開くと長辺512pxのJPEGが返る
+```
+
+`AUTH_MODE=dev` の `POST /auth/dev-session`（`{"user_key":"..."}`）でトークンを取得できる。
+
 ## リクエストサイズ制限
 
-`RequestSizeLimitMiddleware`（`core/middleware.py`）が JSON 解析前に本文サイズを拒否する ASGI ミドルウェアで、path prefix ごとに別々の上限を掛けられるよう汎用化されている（SS-18 で `/explore` 専用から拡張）。`main.py` の `create_app()` で prefix ごとに `app.add_middleware()` を複数回呼び出しており、現在は以下の2系統が有効。
+`RequestSizeLimitMiddleware`（`core/middleware.py`）が JSON 解析前に本文サイズを拒否する ASGI ミドルウェアで、path prefix ごとに別々の上限を掛けられるよう汎用化されている（SS-18 で `/explore` 専用から拡張）。`main.py` の `create_app()` で prefix ごとに `app.add_middleware()` を複数回呼び出しており、現在は以下の3系統が有効。
 
 - `GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES`: `/explore` 配下の本文サイズ上限（既定 32,768 / 上限 1,048,576）。
 - `WALKS_REQUEST_MAX_BYTES`: `/walks` 配下の本文サイズ上限（既定 1,048,576 / 上限 4,194,304）。軌跡（`track`）を含むため `/explore` より大きい上限にしているが、無制限にはしていない（低コスト DoS 対策）。
+- `PINS_REQUEST_MAX_BYTES`: `/pins`・`/pins/{pin_id}/photos`・`/pin-photo-uploads` 配下の本文サイズ上限（既定 16,384 / 上限 65,536）。写真本体は presigned POST で直接 S3 へ送るため、これらのエンドポイントの JSON 本文はメタデータのみで小さい（SS-88）。
 
 超過時はいずれも 413 を返す。
 
@@ -289,15 +341,27 @@ print(r.status_code); print(r.text[:800])"
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
 - `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`
 - `WALKS_REQUEST_MAX_BYTES`
-- `FEATURE_FLAG_STUB_DOCUMENT`
+- `PINS_REQUEST_MAX_BYTES`
 - `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`
 - `APPCONFIG_POLL_INTERVAL_SECONDS` / `APPCONFIG_ERROR_BACKOFF_SECONDS`
 - `APPCONFIG_CONNECT_TIMEOUT_SECONDS` / `APPCONFIG_READ_TIMEOUT_SECONDS`
+- `PIN_PHOTO_BUCKET_NAME` / `PIN_PHOTO_BUCKET_REGION`（デプロイ先では `template.yaml` が
+  SSM から渡す。ローカルでは使わない。`STORAGE_MODE=fake` の間は無関係）
+- `PIN_PHOTO_MAX_PIXELS` / `PIN_PHOTO_MAX_PENDING_UPLOADS` / `PIN_PHOTO_UPLOAD_URL_TTL_SECONDS` /
+  `PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS` / `PIN_PHOTO_DOWNLOAD_URL_TTL_SECONDS` /
+  `PIN_PHOTO_THUMBNAIL_MAX_EDGE_PX` / `PIN_PHOTO_THUMBNAIL_JPEG_QUALITY` /
+  `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` / `PIN_PHOTO_CONFIRM_CONCURRENCY` /
+  `OBJECT_STORAGE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_READ_TIMEOUT_SECONDS`
 
 （`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、
 `compose.yaml` の `environment:` に含めている。`FEATURE_FLAG_MODE` も `AUTH_MODE` /
 `MAPS_MODE` と同じ「開発中に切り替えるモード系」として `compose.yaml` の `environment:` に
-含めている。）
+含めている。**`STORAGE_MODE` も同じ理由で含めている。`FEATURE_FLAG_STUB_DOCUMENT` /
+`PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES` は SS-88 で `compose.yaml` の
+`environment:` に追加した**（mobile が `mobile-e2e.yml` から `.env.example` の値をそのまま
+使えるようにするため。以前は「妥当な既定値を持つため省略」としていたが、E2E で
+`pin_registration` を確実に ON にする・写真の上限値を CI から上書きできるようにする目的で
+明示列挙に変更した）。
 
 既定値を上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
 必要になった場合は `compose.yaml` の `environment:` にも追加すること（このリストは追加のたびに

@@ -24,3 +24,8 @@
 - [EAS クラウドビルドは sandbox 外で](feedback-eas-cloud-build-outside-sandbox.md) — WSLにAndroid SDKなし→dev buildはEASクラウド。sandbox内はダミーdotfileでEACCES、実HOMEで実行。build:viewでポーリング、APKは/mnt/c/temp経由でadb install
 - [sandboxで失敗するmobileコマンド](sandbox-constraints.md) — expo CLIのHOME書き込みEROFS / tsx CLIのIPC EPERM / oxfmtがstrayファイルで詰まる(個別実行だけで判断しない) / git worktreeがread-onlyでcommit不可
 - [フィーチャーフラグ(/app-config)受け皿パターン](feature-flag-app-config-pattern.md) — SS-100。TanStack Query一本化・キー定数は写し・pending/enabled/disabled・AppState購読はBootstrap1箇所・shouldRefreshOnForegroundはdataUpdatedAtだけでなくerrorUpdatedAt/isFetchingも見る・ReactNode optional propの`??`は`null`を潰す
+- [presigned POST S3直送と枠上限吸収パターン](direct-s3-upload-and-slot-limit-pattern.md) — SS-88。customFetchを使わない3つ目のHTTP出口、429を「待機に戻す」合図にする設計、PinSaveErrorでwrite系失敗も包む、模型サーバーでのテスト手法
+- [React Compilerのpreserve-manual-memoization警告の直し方](react-compiler-manual-memo-warning.md) — reactCompiler有効時、軽量な計算はuseMemo/useCallbackごと外す
+- [effect依存配列駆動のキューが自己キャンセルする罠](effect-driven-queue-self-cancellation.md) — useEffect(deps:[items])で非同期キューを書くと自分のdispatchでcleanupが走り結果を握りつぶす。kick()駆動の自己完結ループに置き換える。eslint-disable-next-lineは閉じ括弧の直前に置く
+- [ApiErrorにbody/codeを持たせる拡張パターン](api-error-body-and-code.md) — SS-88 PR#93 T15。第3引数body?は既存呼び出し側と互換、customFetchがJSON本文をパースして渡す
+- [best-effort削除の幽霊枠会計パターン](best-effort-delete-ghost-slot-accounting.md) — SS-88 PR#93 T11。ローカルstateから消えてもbackend解放が失敗しうる資源はheldGhostSlotsRefで数え続け、上限判定関数にextraHeldSlotsを足す

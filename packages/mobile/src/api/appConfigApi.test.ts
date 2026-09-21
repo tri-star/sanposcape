@@ -8,7 +8,7 @@ import type { AppConfigRead } from "@/api/generated/model";
 import { server } from "@/test/setup";
 
 const RESPONSE: AppConfigRead = {
-  flags: { app_config_probe: true },
+  flags: { pin_registration: true },
   minimum_supported_versions: { ios: "0.1.0", android: "0.1.0" },
   config_source: "stub",
 };

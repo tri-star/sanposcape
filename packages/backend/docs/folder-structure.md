@@ -7,7 +7,7 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
 
 - **src レイアウト** を採用し、アプリ本体は `src/sanposcape/` 配下に置く。
 - **ドメイン単位の凝集 × レイヤー分離** をベースにする。
-  - ドメイン（`users` / `walks` / `spots` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
+  - ドメイン（`users` / `walks` / `sanpo_maps` / `pins` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
   - レイヤーは **router → service → repository** の3層。
     - `router`: HTTPの入出力の受け渡しのみ。**薄く保つ**（バリデーションと依存解決、serviceの呼び出し）。
     - `service`: ビジネスロジック。トランザクション境界・ユースケースを持つ。
@@ -56,7 +56,8 @@ packages/backend/
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   ├── google_maps/   #   Places / Routes クライアント + キャッシュ
 │       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）。
-│       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）
+│       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）。
+│       │                       #   s3.py は写真ストレージ（S3 / fake / unconfigured）の抽象化層（SS-88）
 │       │
 │       ├── auth/              # ドメイン: 認証・セッション（Google ID token検証・自前トークン）
 │       │   ├── __init__.py
@@ -87,10 +88,19 @@ packages/backend/
 │       │       └── test_router.py
 │       │
 │       ├── walks/             # ドメイン: 終了済み散歩の記録・履歴（散歩開始の探索・経路提示は maps/ の責務）
-│       ├── spots/             # ドメイン: スポット候補（Google Maps由来）
 │       ├── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
 │       │   ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
 │       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
+│       ├── sanpo_maps/        # ドメイン: 地図（ピンの入れ物）とメンバーシップ・権限（SS-88, ADR-009）
+│       │   └── permissions.py #   role による権限判定（can_add_pin 等）の純粋関数
+│       ├── pins/               # ドメイン: ピン・写真・タグ・写真アップロード枠（SS-88, ADR-009）
+│       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos
+│       │   ├── upload_router.py#   POST /pin-photo-uploads
+│       │   ├── dev_storage_router.py # STORAGE_MODE=fake 限定の /dev-storage/*（include_in_schema=False）
+│       │   ├── photo_attacher.py     # 写真の確定処理（検証・サムネイル生成・並列化・時間予算）
+│       │   ├── thumbnails.py         # Pillow によるサムネイル生成（純粋関数）
+│       │   ├── tag_labels.py         # タグの正規化・重複排除（純粋関数）
+│       │   └── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
 │       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
 │       └── app_config/        # ドメイン: mobile / LP 向け公開設定（GET /app-config, SS-98/ADR-008）
 │           ├── __init__.py
@@ -106,9 +116,12 @@ packages/backend/
 ├── scripts/
 │   ├── seed.py                       # Seeder（初期データ投入）
 │   ├── export_openapi.py             # openapi.yaml/json の再生成（mobile の Orval が消費）
+│   ├── feature_flags_document.py     # フラグ切り替えワークフローが AppConfig に投入する版の組み立て（SS-99。標準ライブラリのみ）
 │   ├── loop_route_probe.py           # 周回ルートの実API検証スクリプト（開発者専用。SS-33, ADR-007）
 │   └── loop_route_probe_cases.yaml   # ↑の検証セット（O/D の組とラベル）
 │                                      #   出力は `tmp-probe/<timestamp>.geojson`（.gitignore 済み）
+│
+├── feature-flags.json         # フラグ定義ファイル（AppConfig FeatureFlags 形式・既定値。キーは core/feature_flags.py と一致させる）
 │
 └── docs/                      # 設計ドキュメント
 ```
@@ -154,6 +167,11 @@ packages/backend/
 - 1つのドメインに属する `router / schemas / models / service / repository / dependencies / exceptions` をまとめる。
 - **層をまたぐ呼び出しは一方向**にする: `router → service → repository`。逆流させない。
 - 他ドメインから使う必要が出たものは `core/` へ昇格させる（ドメイン間の直接依存を増やさない）。
+- ただし、片方のドメインがもう片方に**構造的に依存する**関係（例: `auth → users`、
+  `pins → sanpo_maps`）は例外として一方向の直接依存を許容する。`pins`（ピン・写真・タグ）は
+  `sanpo_maps`（地図・メンバーシップ・権限）の `Service`/`Repository` を直接 import してよいが、
+  逆方向（`sanpo_maps` が `pins` を import する）は禁止する。これにより `GET /sanpo-maps` が
+  ピンの状態に依存せず、地図単体の権限判定を先に固められる（ADR-009）。
   - 昇格時は、**旧 import 位置に再エクスポートを残して段階移行する**（OpenAPI のコンポーネント名を変えないため）。
     実例: `GeoPoint` は `maps/schemas.py` から `core/geo.py` へ昇格したが、`maps/schemas.py` は
     `from sanposcape.core.geo import GeoPoint` を再エクスポートし続けている。クラス名を変えていない
@@ -170,7 +188,11 @@ packages/backend/
 ### 現在時刻の扱い（クロック注入）
 - **現在時刻に依存する service は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
   コンストラクタ引数で注入可能にする**。採用済み: `auth/service.py` の `AuthService`（トークンの有効期限）、
-  `walks/service.py` の `WalkService`（集計の「今日」判定）。
+  `walks/service.py` の `WalkService`（集計の「今日」判定）、`sanpo_maps/service.py` の
+  `SanpoMapService`・`pins/service.py` の `PinService`/`PinPhotoUploadService`（アップロード枠の
+  期限・確定時刻）。`pins/photo_attacher.py` の `PhotoAttacher` は `datetime` ではなく
+  `monotonic: Callable[[], float] = time.monotonic` を同じ発想で注入する（確定処理の時間予算の
+  締め切り判定。壁時計ではなく経過時間だけが必要なため）。
 - service 内に `datetime.now()` を直接書かない。テストから時刻を固定できず、日付境界の検証が書けなくなる
   （書けたとしても実行日に依存する不安定なテストになる）。
 - `dependencies.py` の `get_xxx_service()` は既定値のまま生成し、注入はテストからのみ行う。

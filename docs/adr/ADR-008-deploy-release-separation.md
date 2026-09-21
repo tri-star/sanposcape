@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-21（SS-93）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-21（SS-93、SS-88、SS-99）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -18,6 +18,10 @@
 - **フラグは「追加 → ON → 削除」の3段階で、削除まで終えて1つの機能追加とみなす**。
   定義はリポジトリ内のファイルで管理し、切り替えは GitHub Actions の `workflow_dispatch`（prod は承認あり）が hosted configuration version を作って `StartDeployment` する形でだけ行う。
   認証には sam-deploy とは別の OIDC ロール `sanposcape-<env>-feature-flags` を使う。（本文: 決定6）
+- **切り替えワークフローは `.github/workflows/feature-flags.yml`、定義ファイルは `packages/backend/feature-flags.json`（AppConfig FeatureFlags 形式そのもの、既定値入り）**。
+  フラグの現在値の正本は AppConfig（直近に配信を完了した版）で、ワークフローは現在値を引き継いで指定の1本だけを書き換えた版を作る。
+  入力は環境・フラグキー・on/off（と定義から消えたキーを削除する `prune`）、ロール ARN は Environment Variables `AWS_FEATURE_FLAGS_ROLE_ARN`、環境ごとに直列化して配信完了まで待つ。
+  定義ファイルのキー集合は登録簿 + 予約キーと一致させる（pytest）。（本文: SS-99 追補 D19〜D23）
 - **フラグキー・説明・クライアント公開の可否は backend のコード（`core/feature_flags.py` の `FEATURE_FLAGS`）、値と最低サポートバージョンは AppConfig が所有する**。
   キーは `_enabled` を付けない snake_case。`client_requirements` は最低サポートバージョンを属性で配る予約キーで、常に `enabled: true` に保つ。
   （本文: SS-98 追補 D7、D9）
@@ -40,21 +44,26 @@
 - **mobile は直近の成功値が無い間（初回ロード中・初回取得失敗）と、未知キー・bool 以外の値を OFF として扱う**。
   成功値があれば再取得の失敗中もその値を使い、画面を隠す判定は `pending` / `enabled` / `disabled` の3値で行う。
   キー定数は backend の登録簿の写しを自前で持ち、`config_source` は内部型から除き、`services/` の real/mock 層は作らない。（本文: SS-100 追補 D12、D13、D16、D18）
+- **最初の実フラグ `pin_registration`（ピン登録, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）が登録され、疎通確認用の `app_config_probe` は削除済み**。
+  backend の API 自体はこのフラグでガードしない（ADR-009 決定10）。（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
 
 ### 未解決・持ち越し
 
-課題ID付きの項目（SS-97 / SS-99 / SS-101 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
+課題ID付きの項目（SS-97 / SS-101 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
 
 - **prod が未構築**。前提の SS-97（prod の `live/account` の apply と `production` Environment への `AWS_SAM_DEPLOY_ROLE_ARN` の設定）が未完了で、
   本 ADR の手順は実運用で検証されていない。（本文: 前提となる制約、移行・対応が必要な事項）
-- **フラグ切り替えワークフローが未作成**（SS-99）。フラグ定義ファイルのフォーマットと置き場所も SS-99 で決める（本 ADR では未決定）。
-  （本文: 決定6、移行・対応が必要な事項、SS-98 追補 D9）
+- **フラグ切り替えワークフロー（SS-99）は実行実績が無い**。dev の初回実行で `release-runbook.md` §3 の手順を検証する。
+  最低サポートバージョン（`client_requirements` の属性）を変える入力はまだ無く、現在値を引き継ぐだけ（SS-101 で必要になったら足す）。
+  （本文: SS-99 追補 D22、D23）
+- **production ではフラグ切り替えワークフローをまだ実行できない**。2026-09-21 時点で sanposcape-infra の prod の `live/platform` が
+  未 apply で、prod の AppConfig も `sanposcape-prod-feature-flags` ロールも存在しない（SS-97 の `live/account` とは別に必要）。
+  apply 後に `production` Environment へ `AWS_FEATURE_FLAGS_ROLE_ARN` を設定する。（本文: SS-99 追補 D21）
 - **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
   （本文: 決定7、SS-100 追補 D17）
 - **mobile のタグ・Release・CHANGELOG の自動生成（SS-102）と、OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
   （本文: 決定4、決定8、移行・対応が必要な事項）
 - **ストア側の設定（App Store の手動リリース / Google Play の公開の管理）が未実施**で、`release-runbook.md` の該当記述は未検証。（本文: 移行・対応が必要な事項）
-- **疎通確認用フラグ `app_config_probe` が残っている**。最初の実フラグが入った時点で削除する。（本文: SS-98 追補 D7）
 
 ### 変更・撤回された決定
 
@@ -67,13 +76,17 @@
 - `FlagDocumentSource` を `integrations` 側に置く理由: 循環 import を避けるため → 既存の依存の向きに揃えるため（配置は不変。本文: SS-98 追補 D3）
 - 用語の注意（決定の変更ではない）: 本文の決定8・決定理由の「ダークローンチ」は「フラグ OFF で入る新機能」の意味で採用している。
   SS-98 追補 D2 以降の「ダークローンチ」は「ユーザー条件付きのフラグ」の意味で不採用。両者は別物
+- 疎通確認用フラグ `app_config_probe`: 「最初の実フラグが入った時点で削除する」（予定）→ **削除済み**。
+  `pin_registration`（ADR-009）が最初の実フラグとして登録された（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
 
 ## 日付
 
 2026-09-20（初版、SS-104）、2026-09-20 追補（SS-98: `/app-config` のレスポンススキーマと
 フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）、2026-09-21 追補
 （SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）、2026-09-21 追補
-（SS-93: SS-96 の完了を反映）
+（SS-93: SS-96 の完了を反映）、2026-09-21 追補（SS-88: `pin_registration` を最初の実フラグ
+として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
+定義ファイル）
 
 ## ステータス
 
@@ -83,6 +96,7 @@ SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfi
 完了し、残りは未着手である。
 （**SS-93 追補**: 2026-09-21 時点で SS-96（フラグ切り替え用 OIDC ロール）も完了している。
 残る SS-97 / SS-99 / SS-101 / SS-102 / SS-103 は未着手）
+（**SS-99 追補**: 2026-09-21 に SS-99（フラグ切り替えワークフロー）を実装した。実行実績はまだ無い）
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
 
@@ -454,10 +468,8 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
 - [x] SS-98: backend に AppConfig 読み取り基盤と `/app-config` エンドポイントを追加する（**完了**）。
       **（SS-98 追補）** レスポンススキーマ・ダークローンチの要否・
       `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の移行要否は下記「SS-98 追補」で決定した。
-- [ ] SS-99: フラグ切り替えワークフローを追加する
-      （**フラグ定義ファイルのフォーマットと置き場所は SS-99 で決める。本 ADR では決めていない**。
-      AppConfig に置く JSON の形自体は「SS-98 追補」§D7 で確定済みで、SS-99 はそこに書き込む
-      ワークフローを作る）
+- [x] SS-99: フラグ切り替えワークフローを追加する（**完了**。定義ファイルのフォーマットと置き場所は
+      下記「SS-99 追補」で決定した）
 - [x] SS-100: mobile が `/app-config` のフラグで機能表示をガードする（**完了**。詳細は下記
       「SS-100 追補」を参照）
 - [ ] SS-101: 最低サポートバージョンを下回るアプリにアップデートを促す（決定7 の contract の前提）
@@ -499,6 +511,11 @@ GET /app-config            認証不要（/health と同じ扱い）。Cache-Con
   "config_source": "appconfig"
 }
 ```
+
+（`app_config_probe` は最初の実フラグ導入まで用の暫定キー。SS-88 以降は `pin_registration` に
+置き換わっている——`app_config_probe` は SS-88 backend PR で削除済み。上の JSON 例は
+このドキュメントの記述時点のものなので、実際のキー集合は `core/feature_flags.py` の
+`FEATURE_FLAGS` を参照すること。）
 
 | フィールド | 型 | 意味 |
 |---|---|---|
@@ -677,6 +694,13 @@ appconfig_read_timeout_seconds: float = 2.0
 （決定6 の「削除まで含めて1つ」に反する常駐フラグにしない。コード上のコメント
 （`core/feature_flags.py`）にも同じ注記がある）。
 
+**（2026-09-21 追記, SS-88）** ピン登録機能（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）の
+`pin_registration` が最初の実フラグとして登録され、同じ PR で `app_config_probe` を
+`core/feature_flags.py` の `FEATURE_FLAGS` から削除した。`app_config/tests/test_router.py` /
+`core/tests/test_feature_flags.py` のサンプルキーも `pin_registration` に置き換えている。
+本節・上の JSON 例にある `app_config_probe` は SS-98 時点の記録として残すが、
+**現在のコードには存在しない。**
+
 ### D8: `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は AppConfig へ移行しない
 
 「移行・対応が必要な事項」の宿題への回答。**環境変数のまま残す。**
@@ -844,6 +868,78 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 ローカルで ON/OFF を試す手段も backend 側に既にある（D5 の `FEATURE_FLAG_MODE=stub` +
 `FEATURE_FLAG_STUB_DOCUMENT`）。mobile に3つ目のモード環境変数を増やすと、「端末側で ON にできる」
 抜け道を作ることになり、フラグの正典が2つになる。
+
+## 追補: フラグ切り替えワークフロー（2026-09-21, SS-99）
+
+決定6 と SS-98 追補 D7/D9 を満たす切り替え経路の実装記録。実装は
+`.github/workflows/feature-flags.yml`、`packages/backend/feature-flags.json`（定義ファイル）、
+`packages/backend/scripts/feature_flags_document.py`（投入する版の組み立て）。運用手順は
+[release-runbook.md](../release-runbook.md) §3 に置く。節番号は D19 以降を使う。
+
+### D19: 定義ファイルは AppConfig FeatureFlags 形式そのもので、既定値を `values` に持つ
+
+- 置き場所は `packages/backend/feature-flags.json`。登録簿（`core/feature_flags.py`）と同じ package に置き、
+  キー集合の一致（登録簿の全キー + 予約キー `client_requirements`）を pytest で検査する（D9 の推奨どおり）。
+- 形式は D7 の「書き込む側」の JSON そのもの（`version` / `flags` / `values`）。`values` は既定値で、
+  通常のフラグは `enabled: false`、`client_requirements` は `enabled: true` 以外を検査で弾く（決定9・D7）。
+  独自形式にしないのは、変換層を持たずに済み、未配信の環境への最初の版がこのファイルからそのまま作れるため。
+- 説明文は登録簿（Python）と定義ファイルの両方にある。一致は検査しない（キー集合だけ）。
+  AppConfig 側の `description` は運用者がコンソールで読む補助情報で、正典は登録簿のまま（D9）。
+
+### D20: フラグの現在値の正本は AppConfig。ワークフローは現在値を引き継いで1本だけ書き換える
+
+- hosted configuration version は文書全体を置き換えるため、「1本を切り替える」には他のフラグの現在値が要る。
+  値をリポジトリのファイルに持たせる案は、フラグを倒すたびに PR が要り、決定1（デプロイとリリースの分離）に反するので採らない。
+- 現在値は「その環境で直近に配信を完了した（`COMPLETE`）版」を `ListDeployments` → `GetHostedConfigurationVersion`
+  で読む。`ROLLED_BACK` の配信は飛ばす（実際に配信されている値ではないため）。未配信なら定義ファイルの既定値から始める。
+- 定義ファイルに増えたキーは既定値で足す。定義に無い属性は落とすが、`_` で始まる AppConfig の予約フィールド
+  （`_variants` 等）は残す。
+- **定義ファイルから消えたキーは、既定では定義ごと維持し、`prune` 入力を付けたときだけ落とす。**
+  prod の backend は main から手動でデプロイするので、フラグ削除 PR のマージ後もしばらくは古い backend が
+  そのキーを読んでいる。ここで自動で落とすと、無関係なフラグを切り替えただけで ON の機能が消える。
+  dev で古い ref から起動した場合も、新しいフラグの ON を黙って失わない。
+  （PR レビュー指摘による変更。当初案は「次の切り替えで自動的に消える」だった）
+- `client_requirements` は切り替え対象にせず、組み立て時に必ず `enabled: true` に戻す（D7）。
+- 現在の版と内容が同じなら配信しない（Job Summary に「変更なし」を出す）。比較では AppConfig が付けうる
+  `_createdAt` / `_updatedAt` を除く。
+- 定義ファイルは AppConfig のスキーマが弾くもの（未知のキー、`name` 64 文字超、`description` 1024 文字超、
+  属性 25 個超）を `prepare` job で先に弾く。prod では承認後に失敗させないため。
+
+### D21: 入力・認証・Environment
+
+- 入力は `environment`（development / production）・`flag`（自由入力。定義ファイルで検査）・`state`（`off` / `on`、既定 `off`）。
+  `flag` を choice にしないのは、フラグの追加・削除のたびにワークフロー定義まで変えることになるため。
+  検査は承認待ちに入る前の `prepare` job（AWS に触らない）で行う。
+- 認証は infra SS-96 のロール `sanposcape-<env>-feature-flags`。ARN は Environment Variables
+  `AWS_FEATURE_FLAGS_ROLE_ARN`（`AWS_SAM_DEPLOY_ROLE_ARN` と同じ扱い。秘密ではない）。Secrets は使わない。
+- GitHub Environment は backend のデプロイと共用の `development` / `production`（infra のロールの trust の既定）。
+  production の Required reviewers と main 限定がそのまま効き、ワークフロー側でも production は main 以外から起動すると落とす。
+- 2026-09-21 時点で dev はロールと AppConfig が揃っている（infra 側で確認済み）。prod は `live/platform` が未 apply で、
+  ロールも AppConfig も無い。
+- AppConfig の ID は SSM `/sanposcape/<env>/platform/appconfig/*` から読み、`::add-mask::` でログから隠す
+  （public リポジトリの Actions ログは公開されるため。リポジトリに ID を置かないのと同じ理由）。
+- OIDC トークンを持つ job ではサードパーティの依存を入れない（aws CLI と python3 の標準ライブラリのみ）。
+  組み立てスクリプトを標準ライブラリで書き、backend のパッケージ（`sanposcape`）を import しないのはこのため。
+  そのぶん `FLAG_KEY_PATTERN` / 予約キーをスクリプト側に写しており、一致は pytest で検査する。
+
+### D22: ベイク中の衝突は直列化と完了待ちで吸収し、`StopDeployment` は組み込まない
+
+- 同一環境で配信中（ベイク中を含む）は次の `StartDeployment` が `ConflictException` になる。
+  ワークフローは `concurrency: feature-flags-<environment>`（取り消さない）で直列化し、各 run が
+  `GetDeployment` で `COMPLETE` まで待つ（上限 20 分）ので、後の run は衝突しない。
+  ただし GitHub の仕様で待機できる run は group ごとに1つで、待機中にさらに起動すると待機していた run は
+  キャンセルされる。これは仕組みでは防がず、runbook で「run の成功を確認する」ことで扱う。
+  それでも進行中の配信が見つかった場合（ワークフロー外から始めた配信）は、何もせずに失敗させる。
+- 引き返しは逆の値での再実行で行う。`StopDeployment`（ロールには権限がある）はワークフローに入れていない。
+  prod のベイクは1分で、入れるとワークフローの入力と分岐が増える割に得るものが小さいため。必要になったら追加する。
+- hosted configuration version の作成に楽観ロック（`--latest-version-number`）は使っていない。
+  書き込み経路がこのワークフローだけで、環境ごとに直列化しているため。
+
+### D23: 最低サポートバージョンの変更入力は持たない（SS-101 に送る）
+
+`client_requirements` の属性値（`ios_minimum_version` / `android_minimum_version`）は現在値を引き継ぐだけで、
+変更する入力は無い。値を使う側（SS-101 のアップデート促進）が未実装で、今入れても検証できない入力を
+1つ増やすだけになるため。SS-101 で必要になったときに、同じワークフローへの入力追加か別ワークフローかを決める。
 
 ## 関連情報
 

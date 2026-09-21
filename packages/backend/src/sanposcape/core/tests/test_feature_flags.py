@@ -56,8 +56,8 @@ def test_client_flags_includes_registered_client_flags_missing_from_appconfig() 
 
 
 def test_client_flags_reflects_appconfig_value() -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"app_config_probe": {"enabled": True}}))
-    assert flags.client_flags()["app_config_probe"] is True
+    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": {"enabled": True}}))
+    assert flags.client_flags()["pin_registration"] is True
 
 
 def test_client_flags_excludes_backend_only_flags(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -75,7 +75,7 @@ def test_client_flags_ignores_unknown_appconfig_keys() -> None:
     flags = FeatureFlags(
         _FakeFlagDocumentSource(
             {
-                "app_config_probe": {"enabled": False},
+                "pin_registration": {"enabled": False},
                 "some_future_flag_not_yet_deployed": {"enabled": True},
             }
         )
@@ -86,20 +86,20 @@ def test_client_flags_ignores_unknown_appconfig_keys() -> None:
 def test_client_flags_treats_non_bool_string_enabled_value_as_off(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"app_config_probe": {"enabled": "true"}}))
+    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": {"enabled": "true"}}))
     with caplog.at_level(logging.WARNING, logger="sanposcape.core.feature_flags"):
         result = flags.client_flags()
-    assert result["app_config_probe"] is False
+    assert result["pin_registration"] is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
 def test_client_flags_treats_non_dict_flag_value_as_off(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"app_config_probe": True}))
+    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": True}))
     with caplog.at_level(logging.WARNING, logger="sanposcape.core.feature_flags"):
         result = flags.client_flags()
-    assert result["app_config_probe"] is False
+    assert result["pin_registration"] is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
@@ -179,8 +179,8 @@ def test_is_enabled_returns_false_for_unregistered_key(caplog: pytest.LogCapture
 
 
 def test_is_enabled_returns_registered_flag_value() -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"app_config_probe": {"enabled": True}}))
-    assert flags.is_enabled("app_config_probe") is True
+    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": {"enabled": True}}))
+    assert flags.is_enabled("pin_registration") is True
 
 
 # --- source_kind() ---
@@ -196,10 +196,10 @@ def test_source_kind_reflects_document_kind(kind: str) -> None:
 
 
 def test_get_document_delegates_to_source() -> None:
-    source = _FakeFlagDocumentSource({"app_config_probe": {"enabled": True}})
+    source = _FakeFlagDocumentSource({"pin_registration": {"enabled": True}})
     flags = FeatureFlags(source)
     assert flags.get_document() == FlagDocument(
-        {"app_config_probe": {"enabled": True}}, kind="appconfig"
+        {"pin_registration": {"enabled": True}}, kind="appconfig"
     )
     assert source.call_count == 1
 
@@ -211,7 +211,7 @@ def test_client_flags_minimum_supported_versions_and_source_kind_accept_a_shared
     """
     source = _FakeFlagDocumentSource(
         {
-            "app_config_probe": {"enabled": True},
+            "pin_registration": {"enabled": True},
             "client_requirements": {
                 "enabled": True,
                 "ios_minimum_version": "1.2.3",
@@ -227,6 +227,6 @@ def test_client_flags_minimum_supported_versions_and_source_kind_accept_a_shared
     flags.client_flags(document)
     flags.minimum_supported_versions(document)
     flags.source_kind(document)
-    flags.is_enabled("app_config_probe", document)
+    flags.is_enabled("pin_registration", document)
 
     assert source.call_count == 1

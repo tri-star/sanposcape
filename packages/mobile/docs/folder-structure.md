@@ -181,7 +181,10 @@ packages/mobile/
     （具体例は [architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
   - **E2Eテスト(Maestro)**: 実機に近い動作を優先。**Maestroで再現可能な機能は real のまま**利用し、
     再現できない機能は `dev` または `mock` にフォールバックする。
-- 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）。
+- 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）、
+  `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮。
+  アップロード（presigned POST での S3 直送）はネイティブ依存でも実機依存でもないため
+  `services/` には置かず `features/pin/api/` に置く。ADR-010）。
 - 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
 
 ### `src/api/` — バックエンドAPIクライアント
@@ -197,10 +200,13 @@ packages/mobile/
     **2本目の横断的エンドポイントラッパが増えたら `src/api/endpoints/` のようなサブフォルダへ
     分けること**（`components/` の「カテゴリのサブフォルダに分ける」ルールと同じ考え方）。
 - `authHeaders.ts` / `contentHash.ts`: リクエストへ横断的な送信ヘッダーを付与する純粋関数
-  （`X-App-Authorization` / `x-amz-content-sha256`。SS-70）。**mobile の HTTP 出口は
+  （`X-App-Authorization` / `x-amz-content-sha256`。SS-70）。**mobile の「backend への」HTTP 出口は
   `client.ts` の `customFetch` と `src/services/auth/authApi.ts` の `post()` の2箇所**あり、
   これらは両方の出口から共有される横断モジュールのため `src/api/` に置く（`services/auth/` へは
   置かない）。新しい横断的な送信ヘッダーを追加する場合も同じ配置ルールに従うこと。
+  これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`）が
+  **S3 / fake storage への3箇所目の HTTP 出口**として存在する。こちらは backend 用の横断ヘッダーを
+  **意図的に付けない**ため、上記2つとは別経路として扱う（SS-88 / ADR-010）。
 - `apiError.ts` / `retryPolicy.ts`: `ApiError` と 401→refresh のリトライ判定。
 - `transientRetry.ts`: 一時障害（429 / 502 / 503 / 504 / 通信断）に対する GET / HEAD 限定の
   指数バックオフ再送（SS-79）。401→refresh のリトライ（`retryPolicy.ts`）とは独立した軸で、
@@ -218,7 +224,9 @@ packages/mobile/
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
   純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34、`/app-config` のフラグ受け皿
-  `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100）もここに置く。
+  `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
+  トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
+  `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）)もここに置く。
   - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
     純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
     使っていないうちは `features/<feature>/lib/` に置いたままにする。

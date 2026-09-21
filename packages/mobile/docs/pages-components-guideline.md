@@ -69,11 +69,12 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 ### 画面の「戻る」導線の規約
 
 **適用範囲**: 現時点で `useScreenBack` を使っているのは `WalkStartView`（`walk-start`）/
-`WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）の3画面のみ
-（SS-34）。`SettingsView` と `(tabs)` 配下の各画面は未適用で、素の `router.back()` のまま
-（`SettingsView` は常に push で開かれるためスタックの戻り先が保証されており、実害は無い）。
-新しい画面を追加するとき、および `SettingsView` / `(tabs)` 配下を触るときは、この規約に順次
-寄せることを検討する。
+`WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）（SS-34）/
+`PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
+ダイアログを `onIntercept` で挟む。SS-88）の4画面。`SettingsView` と `(tabs)` 配下の各画面は
+未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
+戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
+`(tabs)` 配下を触るときは、この規約に順次寄せることを検討する。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。

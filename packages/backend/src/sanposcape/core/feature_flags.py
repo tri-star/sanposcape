@@ -71,12 +71,16 @@ class FeatureFlagSpec:
     audience: FlagAudience
 
 
+# キーを足す / 消すときは packages/backend/feature-flags.json（切り替えワークフローが使う
+# 定義ファイル）も合わせて変更する。キー集合の一致は core/tests/test_feature_flags_document.py
+# で検査している（SS-99, ADR-008 追補 D19）。
 FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
     FeatureFlagSpec(
-        key="app_config_probe",
+        key="pin_registration",
         description=(
-            "基盤の疎通確認用フラグ。機能には紐づかない。"
-            "最初の実フラグが入った時点で削除する（ADR-008 決定6）。"
+            "ピン登録（SS-88）。mobile の『この場所にピンを追加』と登録画面を出し分ける。"
+            "infra SS-106/107 と template.yaml の結線（BK-1）が揃ってから ON にする。"
+            "backend の API 自体はこのフラグでガードしない（B-U4）。"
         ),
         audience="client",
     ),

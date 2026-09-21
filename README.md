@@ -20,6 +20,7 @@
   - 横断: [ADR-006 mobile アプリの配信は EAS（Expo ホスト）に委ね、mobile 用 SAM テンプレートを作らない](./docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)
   - 横断: [ADR-007 周回ルート（往路と異なる道で戻る）の生成方式](./docs/adr/ADR-007-loop-route-generation.md)
   - 横断: [ADR-008 デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./docs/adr/ADR-008-deploy-release-separation.md)
+  - 横断: [ADR-009 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
@@ -31,6 +32,7 @@
     - [ADR-007 Expo 設定と Maps SDK キーの注入](./packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
     - [ADR-008 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有](./packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md)
     - [ADR-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)
+    - [ADR-010 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送](./packages/mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md)
 - backend
   - [フォルダ構造](./packages/backend/docs/folder-structure.md) / [命名規則](./packages/backend/docs/naming-convention.md)
   - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)
@@ -132,10 +134,13 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > **⚠️ mobile は Expo Go ではなく development build が必要**
 > react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
 > expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）/
-> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算）などの
+> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算）/
+> expo-image-picker（カメラ/写真ライブラリ）/ expo-image-manipulator（写真の縮小・再圧縮）/
+> expo-file-system（加工後ファイルのバイト数取得）などの
 > ネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
 > **SS-10（認証まわりのネイティブ依存を追加）・SS-15（expo-location の追加・Maps キー注入）・
-> SS-70（expo-crypto の追加）適用後は development build の作り直しが必要**
+> SS-70（expo-crypto の追加）・SS-88（expo-image-picker / expo-image-manipulator /
+> expo-file-system の追加。ピン登録機能）適用後は development build の作り直しが必要**
 > （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。

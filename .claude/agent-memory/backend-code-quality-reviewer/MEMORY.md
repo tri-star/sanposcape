@@ -9,3 +9,5 @@
 - [SS-44 fake maps providerの経緯](project_ss44_fake_maps_provider.md) — MAPS_MODE=fake追加の背景と意図的なスコープ外事項（mobile-e2e.ymlのTODOは指摘しない）
 - [select→delete→flushのStaleDataErrorレース](pattern_select_then_delete_race.md) — users/walks repository.delete()共通の未捕捉例外、新規delete()実装時に必ず確認
 - [SS-53 walks削除APIレビュー概要](project_ss53_walks_delete_review.md) — ADR-003決定13の背景。StaleDataErrorレースは対応済み確認(2026-08-13)。PR47フォローアップ(413統一/docstring)も指摘なし
+- [確定処理の締め切りが最初のフェーズにしか掛からない](pattern_partial_deadline_guard.md) — SS-88 photo_attacher: prepare()はdeadline付き、commit()/cleanup_stagingは無期限
+- [add_all後のループrefresh()はN+1](pattern_bulk_insert_refresh_n1.md) — SS-88 pins/repository.py。単一create()のrefreshは既存踏襲で問題なし、複数件ループが新規アンチパターン

@@ -98,6 +98,18 @@ export function ScreenCatalog() {
       onPress: () => router.push("/walk-history"),
     },
     {
+      key: "pin-register",
+      label: "ピン登録",
+      description:
+        "東京駅の座標で開く（フラグ pin_registration が OFF だとナビへ戻される。保存・写真追加で backend に書き込む）",
+      icon: "map-pin",
+      onPress: () =>
+        router.push({
+          pathname: "/pins/new",
+          params: { latitude: "35.681236", longitude: "139.767125" },
+        }),
+    },
+    {
       key: "search",
       label: "検索（準備中）",
       description: "プレースホルダ画面",

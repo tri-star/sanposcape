@@ -50,6 +50,14 @@
         {
           "locationWhenInUsePermission": "散歩できる範囲のスポットを探すために現在地を利用します。"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ピンに写真を添付するために写真ライブラリを利用します。",
+          "cameraPermission": "ピンに添付する写真を撮影するためにカメラを利用します。",
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

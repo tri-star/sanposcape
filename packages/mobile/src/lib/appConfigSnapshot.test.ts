@@ -4,7 +4,7 @@ import type { AppConfigRead } from "@/api/generated/model";
 import { isFeatureEnabled, toAppConfigSnapshot } from "@/lib/appConfigSnapshot";
 
 const BASE_DATA: AppConfigRead = {
-  flags: { app_config_probe: true },
+  flags: { pin_registration: true },
   minimum_supported_versions: { ios: "0.1.0", android: "0.2.0" },
   config_source: "stub",
 };
@@ -15,7 +15,7 @@ describe("toAppConfigSnapshot", () => {
 
     expect(snapshot).toEqual({
       status: "ready",
-      flags: { app_config_probe: true },
+      flags: { pin_registration: true },
       minimumSupportedVersions: { ios: "0.1.0", android: "0.2.0" },
     });
   });
@@ -73,15 +73,15 @@ describe("toAppConfigSnapshot", () => {
 describe("isFeatureEnabled", () => {
   it("ON のフラグは true", () => {
     const snapshot = toAppConfigSnapshot({ data: BASE_DATA, isError: false });
-    expect(isFeatureEnabled(snapshot, "app_config_probe")).toBe(true);
+    expect(isFeatureEnabled(snapshot, "pin_registration")).toBe(true);
   });
 
   it("OFF のフラグは false", () => {
     const snapshot = toAppConfigSnapshot({
-      data: { ...BASE_DATA, flags: { app_config_probe: false } },
+      data: { ...BASE_DATA, flags: { pin_registration: false } },
       isError: false,
     });
-    expect(isFeatureEnabled(snapshot, "app_config_probe")).toBe(false);
+    expect(isFeatureEnabled(snapshot, "pin_registration")).toBe(false);
   });
 
   it("未知キーは false", () => {
@@ -91,11 +91,11 @@ describe("isFeatureEnabled", () => {
 
   it("loading 中は false", () => {
     const snapshot = toAppConfigSnapshot({ data: undefined, isError: false });
-    expect(isFeatureEnabled(snapshot, "app_config_probe")).toBe(false);
+    expect(isFeatureEnabled(snapshot, "pin_registration")).toBe(false);
   });
 
   it("unavailable のときは false", () => {
     const snapshot = toAppConfigSnapshot({ data: undefined, isError: true });
-    expect(isFeatureEnabled(snapshot, "app_config_probe")).toBe(false);
+    expect(isFeatureEnabled(snapshot, "pin_registration")).toBe(false);
   });
 });

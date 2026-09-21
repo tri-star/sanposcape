@@ -24,7 +24,7 @@
   },
   "overrides": [
     {
-      "files": ["src/features/walk/**", "src/features/history/**"],
+      "files": ["src/features/walk/**", "src/features/history/**", "src/features/pin/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -32,7 +32,7 @@
             "patterns": [
               {
                 "group": ["@/services/auth", "@/services/auth/*", "@/store/useAuthSessionStore"],
-                "message": "探索・散歩・履歴のロジックは認証状態に依存させない（SS-13 / ADR-009）。認証トークンは customFetch が @/api/authTokenProvider 経由で付与する。"
+                "message": "探索・散歩・履歴・ピン登録のロジックは認証状態に依存させない（SS-13 / SS-88 / ADR-009）。認証済みかどうかはルート（app/）が useAuthSessionStore から読み、props で注入する。認証トークンは customFetch が @/api/authTokenProvider 経由で付与する。"
               }
             ]
           }
