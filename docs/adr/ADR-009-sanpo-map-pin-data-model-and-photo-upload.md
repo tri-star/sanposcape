@@ -2,7 +2,8 @@
 
 ## 日付
 
-2026-09-21（初版、SS-88）
+2026-09-21（初版、SS-88）、2026-09-21 追補（PR #93: Copilot レビュー対応の backend 分。
+アップロード枠の取り消し API、409 応答の機械可読 code）
 
 ## ステータス
 
@@ -266,6 +267,73 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
   （[ADR-008](./ADR-008-deploy-release-separation.md) SS-98 追補 D7 の規定どおり、
   最初の実フラグが入った時点で削除する）。`/app-config` の `flags` は map なので、
   古い mobile ビルドは未知キーが減っても壊れない。
+
+## 追補（2026-09-21, PR #93 レビュー対応）
+
+PR #93（本 ADR の実装 PR）に対する `copilot-pull-request-reviewer` の指摘のうち、
+backend の設計に関わる2件（アップロード枠の取り消し・409 応答の機械可読化）をここに
+追記する。他の指摘（時間予算チェックの追加箇所・タグ長の検証タイミング・decompression
+bomb の捕捉漏れ等）は決定4〜7・決定9の実装の精緻化であり、設計判断としての追補は不要
+と判断した。
+
+### 決定11: `DELETE /pin-photo-uploads/{upload_id}` で未使用の枠を取り消せるようにする
+
+**背景**: mobile は「枚数無制限」の要件（決定5）を満たすため、写真を先行アップロードした
+直後にピンへの紐付けを待たずに削除できる UI を持つ（`usePinPhotos.ts` の
+`removePhoto`）。ところが枠を解放する API が無かったため、削除しても backend の
+`pin_photo_uploads` 行は `pending` のまま紐付け期限（既定6時間）まで残り、未使用枠の
+保有上限（決定 B-D6, 30件）と容量予約（決定 B-D5 の `sum_reserved_bytes`）を占有し続ける。
+数十枚を追加・削除する操作を繰り返すと、実際にはどの枠も使っていないのに
+`too_many_pending_uploads`（429）で新規の先行アップロードができなくなる。
+
+**決定**: `DELETE /pin-photo-uploads/{upload_id}`（`operationId: delete_pin_photo_upload`）
+を追加する。
+
+- 対象は**本人の `pending` の枠のみ**。他人の・存在しない `upload_id` は「見つからない」
+  扱いで 404（決定9の IDOR 対策と同じ丸め方。`PinPhotoUploadRepository.
+  find_own_for_update()` が `user_id` を必須引数に取る）。
+- 既に写真として紐付け済み（`status="attached"`）の枠は 409（取り消しは未紐付けの枠専用。
+  紐付け済みの写真を消すのは別チケット BK-5「写真の削除」の範囲）。
+- DB 行は物理削除する（`status` に「取り消し済み」を増やさない）。容量予約
+  （`sum_reserved_bytes`）・未使用枠カウント（`count_active_pending`）はどちらも
+  `status="pending"` の行を数えるクエリのため、削除すれば即座に対象から外れる。
+- S3/フェイクストレージ側の `staging/` オブジェクトは commit 後に best-effort で削除する
+  （失敗しても staging は S3 のライフサイクルで最終的に消えるため実害がない。決定4の
+  `cleanup_staging()` と同じ方針）。
+- 行の取得は `with_for_update()` で行ロックする。理由: 別リクエストが同じ枠を
+  `lock_for_attach()`（決定4・PinService._prepare_photos）で確定処理中に、ロックなしで
+  `pending` の古い状態を読んで削除してしまうと、直後に相手が `attached` へ更新して
+  commit する、という取り消し不能な競合（本来 409 になるべき削除が成功してしまう）が
+  起こりうる。行ロックを取ることで、確定処理の commit/rollback を待ってから最新の
+  `status` を確認できる。
+
+**検討した代替案**: 行を消さず `status` に `"cancelled"` を追加する案は、
+`PIN_PHOTO_UPLOAD_STATUSES` の CHECK 制約・関連クエリの分岐が増えるだけで、
+取り消した枠を後から参照する要件が無いため見送った。
+
+### 決定12: `POST /pins`・`POST /pins/{pin_id}/photos` の 409 応答に機械可読な `code` を追加する
+
+**背景**: 両エンドポイントの 409 は `PinPhotoUploadNotReadyError`（写真の準備ができて
+いない: 未完了・期限切れ・デコード不可・他人の枠等を区別しない, 決定9）と
+`StorageQuotaExceededError`（容量超過）の両方から発生しうるが、応答は固定の `detail`
+文字列だけで、どちらの原因かを機械的に区別する手段が無かった。mobile はこれを
+区別できないため、容量超過（例: 1 GiB 到達）のときも「写真を削除して追加し直す」という
+誤った案内をユーザーに出してしまう（Copilot レビュー指摘、mobile 側は
+`pinSaveError.ts` で対応）。
+
+**決定**: 409 の応答本体に `code: "storage_quota_exceeded" | "photo_upload_not_ready"`
+を追加する（`PinConflictErrorRead` スキーマ、OpenAPI の `responses` にも反映）。
+
+- `detail` の固定文言（`"Photo upload not ready"` / `"Storage quota exceeded"`）は
+  既存クライアントとの後方互換のため変更しない。`code` は追加フィールドなので、
+  未対応の古いクライアントは無視すればよい。
+- `code` の付与は `main.py` の例外ハンドラ（`register_exception_handlers()`）に閉じている
+  ため、`POST /pin-photo-uploads`（枠発行）の 409（`StorageQuotaExceededError` のみ発生。
+  「写真の準備ができていない」との曖昧さが無い）にも同じ `code` が自動的に付く。
+- `add_pin_photos` は元々 `_prepare_photos()` を `create_pin` と共有しており
+  `StorageQuotaExceededError` も送出しうるが、`router.py` の 409 の `description` が
+  「Photo upload not ready」のみだったため、この追補で実際の挙動に合わせて修正した
+  （ドキュメントの不整合であり、挙動自体の変更ではない）。
 
 ## 検討した選択肢
 
