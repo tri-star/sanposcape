@@ -178,6 +178,7 @@ export function PinRegisterView({
                 state={register.sanpoMaps}
                 onSelect={register.selectSanpoMap}
                 onRetry={register.sanpoMaps.retry}
+                disabled={isSaving}
                 testID="pin-register-sanpo-map"
               />
 
@@ -198,6 +199,7 @@ export function PinRegisterView({
                 onChangeInput={register.setTagInput}
                 onAdd={register.addTagFromInput}
                 onRemove={register.removeTag}
+                disabled={isSaving}
                 testID="pin-register-tag"
               />
 

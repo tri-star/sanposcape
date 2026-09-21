@@ -27,6 +27,13 @@ export type UsePinSaveResult = {
   /** 作成段階が成功していればピン ID（写真の送信途中で失敗しても入る）。再開と離脱時の文言に使う。 */
   savedPinId: string | null;
   save: () => void;
+  /**
+   * 保存エラー状態をリセットする（PR #93 T8）。エラーでないときは no-op。呼び出し側
+   * （`usePinRegister`）が「写真・地図・入力のいずれかが変わった」タイミングで呼ぶことで、
+   * `photo_not_ready` / `sanpo_map_not_found` のような手動再試行不可のエラーコードでも、
+   * ユーザーが問題を修正した後は保存ボタンが再度押せるようになる。
+   */
+  resetError: () => void;
 };
 
 export function usePinSave(options: {
@@ -77,10 +84,14 @@ export function usePinSave(options: {
       Math.min(RETRY_DELAY_BASE_MS * 2 ** attemptIndex, RETRY_DELAY_MAX_MS),
   });
 
-  const { mutate } = mutation;
+  const { mutate, reset, isError } = mutation;
   const save = useCallback(() => {
     mutate();
   }, [mutate]);
+
+  const resetError = useCallback(() => {
+    if (isError) reset();
+  }, [isError, reset]);
 
   const status: PinSaveStatus = mutation.isSuccess
     ? "saved"
@@ -106,5 +117,6 @@ export function usePinSave(options: {
     errorStage,
     savedPinId,
     save,
+    resetError,
   };
 }

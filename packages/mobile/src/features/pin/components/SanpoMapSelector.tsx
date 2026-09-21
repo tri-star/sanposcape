@@ -12,11 +12,19 @@ export type SanpoMapSelectorProps = {
   state: SanpoMapChoicesState;
   onSelect: (selection: SanpoMapSelection) => void;
   onRetry: () => void;
+  /** 保存中は選び直しを止める（PR #93 T12）。 */
+  disabled?: boolean;
   testID: string;
 };
 
 /** SanpoMapSelector — 保存先の地図を選ぶチップ群。 */
-export function SanpoMapSelector({ state, onSelect, onRetry, testID }: SanpoMapSelectorProps) {
+export function SanpoMapSelector({
+  state,
+  onSelect,
+  onRetry,
+  disabled = false,
+  testID,
+}: SanpoMapSelectorProps) {
   const theme = useTheme();
   const styles = useStyles();
 
@@ -39,7 +47,8 @@ export function SanpoMapSelector({ state, onSelect, onRetry, testID }: SanpoMapS
               key={choice.key}
               icon={choice.isDraft ? "plus" : "map"}
               selected={choice.selected}
-              onPress={() => onSelect(choice.selection)}
+              // disabled 中は onPress を渡さない＝押せないタグとして描画する（Tag 自身の契約）。
+              onPress={disabled ? undefined : () => onSelect(choice.selection)}
               accessibilityLabel={`地図「${choice.label}」を選択`}
               testID={`${testID}-${choice.key}`}
             >
@@ -52,7 +61,13 @@ export function SanpoMapSelector({ state, onSelect, onRetry, testID }: SanpoMapS
       {state.status === "error" ? (
         <View style={styles.errorRow}>
           {state.helper ? <Text style={styles.helperError}>{state.helper}</Text> : null}
-          <Button variant="ghost" size="sm" onPress={onRetry} testID={`${testID}-retry`}>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onPress={onRetry}
+            testID={`${testID}-retry`}
+          >
             再読み込み
           </Button>
         </View>

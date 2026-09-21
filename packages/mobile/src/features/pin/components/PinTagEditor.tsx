@@ -13,6 +13,8 @@ export type PinTagEditorProps = {
   onChangeInput: (value: string) => void;
   onAdd: () => void;
   onRemove: (label: string) => void;
+  /** 保存中はタグの追加・削除を止める（PR #93 T12）。 */
+  disabled?: boolean;
   testID: string;
 };
 
@@ -24,6 +26,7 @@ export function PinTagEditor({
   onChangeInput,
   onAdd,
   onRemove,
+  disabled = false,
   testID,
 }: PinTagEditorProps) {
   const styles = useStyles();
@@ -36,7 +39,7 @@ export function PinTagEditor({
             <Tag
               key={tag}
               icon="x"
-              onPress={() => onRemove(tag)}
+              onPress={disabled ? undefined : () => onRemove(tag)}
               accessibilityLabel={`${tag}を削除`}
               testID={`${testID}-${index}`}
             >
@@ -54,6 +57,7 @@ export function PinTagEditor({
             value={input}
             onChangeText={onChangeInput}
             error={error ?? undefined}
+            disabled={disabled}
             testID={`${testID}-input`}
           />
         </View>
@@ -61,7 +65,7 @@ export function PinTagEditor({
           variant="secondary"
           size="sm"
           onPress={onAdd}
-          disabled={tags.length >= PIN_TAGS_MAX_COUNT}
+          disabled={disabled || tags.length >= PIN_TAGS_MAX_COUNT}
           testID={`${testID}-add`}
         >
           追加
