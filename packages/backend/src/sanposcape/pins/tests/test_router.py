@@ -92,6 +92,47 @@ class TestCreatePin:
         )
         assert response.status_code == 422
 
+    def test_tag_within_limit_after_normalization_is_accepted(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        """PR #93 T5: 先頭の `#` や前後の空白を含めた生の長さではなく、正規化後の
+        長さ(20文字)で判定する。生の長さは23文字だが、正規化後は20文字なので通る。
+        """
+        client, _storage = fake_storage_client
+        tag = "桜" * 20
+        response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "tags": ["#" + tag + "  "],
+            },
+        )
+
+        assert response.status_code == 201
+        assert {t["label"] for t in response.json()["tags"]} == {tag}
+
+    def test_tag_over_limit_after_normalization_is_422(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "tags": ["桜" * 21],
+            },
+        )
+
+        assert response.status_code == 422
+
     def test_non_member_sanpo_map_id_is_404(
         self,
         fake_storage_client: tuple[TestClient, FakeObjectStorage],

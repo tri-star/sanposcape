@@ -61,6 +61,14 @@ class TestPinCreateSchema:
         pin_create = document["components"]["schemas"]["PinCreate"]
         assert pin_create["properties"]["tags"]["maxItems"] == 10
 
+    def test_tag_item_max_length_is_the_raw_safety_limit_not_the_public_20(self) -> None:
+        """PR #93 T5: 公開上限（20文字）は正規化後に検証するため、ここに出る `maxLength`
+        は生入力に対する安全上限（200）になる。mobile 側の型もこれに合わせて緩める。
+        """
+        document = _load_committed_openapi()
+        pin_create = document["components"]["schemas"]["PinCreate"]
+        assert pin_create["properties"]["tags"]["items"]["maxLength"] == 200
+
 
 class TestPinPhotoReadSchema:
     def test_thumbnail_is_nullable(self) -> None:

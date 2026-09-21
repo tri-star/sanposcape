@@ -802,7 +802,7 @@ components:
         tags:
           items:
             type: string
-            maxLength: 20
+            maxLength: 200
             minLength: 1
           type: array
           maxItems: 10

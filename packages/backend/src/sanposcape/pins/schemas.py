@@ -12,14 +12,20 @@ from sanposcape.sanpo_maps.schemas import SanpoMapSummaryRead
 # --- API 契約の定数（OpenAPI に出す値。walks/schemas.py と同じ流儀で SCREAMING_SNAKE_CASE） ---
 PIN_NAME_MAX_LENGTH = 50
 PIN_MEMO_MAX_LENGTH = 1000
-PIN_TAG_MAX_LENGTH = 20
 PIN_TAGS_MAX_COUNT = 10
 #: 1リクエストで紐付けられる写真の上限（Lambda の時間予算のため。ピン全体は無制限, B-Y2）。
 PIN_PHOTOS_PER_REQUEST_MAX = 10
 #: `PinRead.photos` に含める件数の上限（応答を有界に保つため）。
 PIN_READ_PHOTOS_LIMIT = 10
 
-PinTagLabel = Annotated[str, Field(min_length=1, max_length=PIN_TAG_MAX_LENGTH)]
+#: 生入力（正規化前）に対する安全上の上限（DoS対策。PR #93 T5）。実際の公開上限
+#: （`PIN_TAG_MAX_LENGTH` = 20文字）は正規化後に `tag_labels.dedupe_tags()` が検証する。
+#: ここで厳しく絞ると、mobile なら正規化後に20文字以内になる入力（先頭の `#`/`＃` や
+#: 前後の空白を含む）まで 422 になってしまうため、この型の役割は「異常に長い文字列で
+#: 正規化処理を無駄に走らせない」ことに限定する。
+_PIN_TAG_RAW_MAX_LENGTH = 200
+
+PinTagLabel = Annotated[str, Field(min_length=1, max_length=_PIN_TAG_RAW_MAX_LENGTH)]
 
 
 def _blank_to_none(value: str | None) -> str | None:

@@ -47,3 +47,19 @@ class TestDedupeTags:
 
     def test_empty_list_returns_empty_list(self) -> None:
         assert dedupe_tags([]) == []
+
+    def test_length_is_checked_after_normalization(self) -> None:
+        """PR #93 T5: 先頭の `#` や前後の空白を含めた生の長さではなく、正規化後の長さで
+        20文字制限を判定する（mobile の正規化契約と揃える）。
+        """
+        raw = "#" + ("桜" * 20) + "  "  # 生の長さは23文字だが、正規化後は20文字。
+        assert dedupe_tags([raw]) == ["桜" * 20]
+
+    def test_length_over_limit_after_normalization_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="exceeds 20 characters"):
+            dedupe_tags(["桜" * 21])
+
+    def test_custom_max_length(self) -> None:
+        assert dedupe_tags(["abc"], max_length=3) == ["abc"]
+        with pytest.raises(ValueError, match="exceeds 3 characters"):
+            dedupe_tags(["abcd"], max_length=3)
