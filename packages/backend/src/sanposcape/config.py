@@ -165,6 +165,42 @@ class Settings(BaseSettings):
     # （低コスト DoS 対策）。
     walks_request_max_bytes: int = Field(default=1_048_576, gt=0, le=4_194_304)
 
+    # --- pins（写真ストレージ, SS-88）---
+    # real = S3 に実際に接続する。fake = プロセス内メモリ + backend 自身の /dev-storage/*
+    # （ローカル開発・E2E 用。ENV=local/test 以外で fake を選ぶと起動失敗、既存の
+    # AUTH_MODE/MAPS_MODE/FEATURE_FLAG_MODE と同じ fail-safe 方針）。
+    storage_mode: Literal["real", "fake"] = "real"
+    # 空文字なら UnconfiguredObjectStorage（写真 API は 503。SS-106/107 の apply 後に
+    # template.yaml から渡す。BK-1）。
+    pin_photo_bucket_name: str = ""
+    pin_photo_bucket_region: str = "ap-southeast-1"
+    # 1枚あたりの上限（ユーザー決定 B-Y3）。content-length-range・413・確定時の検証・GET に使う。
+    pin_photo_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1_048_576, le=20 * 1024 * 1024)
+    # アップロード者ごとの合計上限（ユーザー決定 B-Y5）。原本のみ計上（サムネイルは含めない）。
+    pin_photo_user_quota_bytes: int = Field(default=1024**3, gt=0)
+    # decompression bomb 対策（Pillow の Image.MAX_IMAGE_PIXELS に使う）。
+    pin_photo_max_pixels: int = Field(default=40_000_000, gt=0)
+    # 未紐付けの枠（pending）の同時保有数の上限。超えると 429（連打による容量の先食い防止）。
+    pin_photo_max_pending_uploads: int = Field(default=30, ge=1, le=200)
+    # presigned POST（アップロード）の有効期限。
+    pin_photo_upload_url_ttl_seconds: int = Field(default=600, ge=60, le=900)
+    # 枠を確定（POST /pins 等での紐付け）に使える期限。staging の S3 ライフサイクル
+    # （最短約24時間）より十分短くする。
+    pin_photo_upload_attach_ttl_seconds: int = Field(default=21_600, ge=300, le=64_800)
+    # サムネイル等の presigned GET の有効期限（上限値。実際は署名した Lambda の一時認証情報の
+    # 寿命より長くは有効でない）。
+    pin_photo_download_url_ttl_seconds: int = Field(default=3600, ge=60, le=43_200)
+    pin_photo_thumbnail_max_edge_px: int = Field(default=512, ge=64, le=2048)
+    pin_photo_thumbnail_jpeg_quality: int = Field(default=80, ge=30, le=95)
+    # 写真の確定処理（検証・サムネイル生成・Copy）全体の時間予算。CloudFront 30秒・Lambda
+    # 29秒より手前で打ち切り、503（再送で回復）にする。
+    pin_photo_confirm_deadline_seconds: int = Field(default=20, ge=1, le=25)
+    pin_photo_confirm_concurrency: int = Field(default=3, ge=1, le=8)
+    object_storage_connect_timeout_seconds: float = Field(default=2.0, gt=0)
+    object_storage_read_timeout_seconds: float = Field(default=5.0, gt=0)
+    # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。
+    pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)
+
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod
     def _split_csv(cls, v: object) -> object:
@@ -195,6 +231,8 @@ class Settings(BaseSettings):
                 raise ValueError(f"MAPS_MODE must be 'real' when ENV={self.env}")
             if self.feature_flag_mode != "real":
                 raise ValueError(f"FEATURE_FLAG_MODE must be 'real' when ENV={self.env}")
+            if self.storage_mode != "real":
+                raise ValueError(f"STORAGE_MODE must be 'real' when ENV={self.env}")
             if len(self.auth_jwt_secret) < 32:
                 raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
             if not self.google_allowed_audiences:
