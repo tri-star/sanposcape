@@ -3,12 +3,13 @@
 ## 日付
 
 2026-09-21（初版、SS-88）、2026-09-21 追補（PR #93: Copilot レビュー対応の backend 分。
-アップロード枠の取り消し API、409 応答の機械可読 code）
+アップロード枠の取り消し API、409 応答の機械可読 code）、2026-09-22 追補（SS-108:
+`template.yaml` への S3 結線）
 
 ## ステータス
 
-採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は infra 側
-（SS-106/107）の dev apply 待ちで未着手。
+採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は SS-108 で実施済み
+（dev の初回デプロイでの疎通確認待ち。prod は infra 側の prod apply 待ち）。
 
 ## コンテキスト
 
@@ -235,6 +236,14 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
   結線までは dev/staging/production で写真 API が 503 になるだけで、フラグ
   `pin_registration` が OFF の間は mobile から呼ばれないため利用者影響は無い
   （詳細は [deployment.md](../../packages/backend/docs/deployment.md) §12）。
+- **（SS-108 追補）結線は infra の dev apply 後に SS-108 で行った**。Api にだけ
+  `PIN_PHOTO_BUCKET_NAME`（SSM `pin_photos/bucket_name`）を渡し、実行ロールには
+  `pin_photos/bucket_arn` で絞ったインライン Statement（`staging/*`・`original/*`・`thumb/*` に
+  Put/Get/Delete、バケットに ListBucket）を付ける。`S3CrudPolicy` 等は使わない。
+  `template.yaml` は dev/prod 共通で環境による条件分岐は入れない。prod のデプロイは写真と
+  関係なく既に AppConfig（SS-98）の SSM を前提にしており、その apply（`deployments/prod/platform`）で
+  `pin_photos/*` も同時に作られるため、結線によって prod の前提は増えない
+  （prod の適用順序は [deployment.md](../../packages/backend/docs/deployment.md) §12）。
 
 ### 決定9: 他人の地図・ピン・アップロード枠は 404/409 で存在を漏らさない（IDOR 対策）
 
@@ -442,8 +451,9 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
 
 ### 移行・対応が必要な事項
 
-- [ ] **BK-1**: `template.yaml` に写真バケットを結線する（infra SS-106/107 の dev apply
-      後。detail は [deployment.md](../../packages/backend/docs/deployment.md) §12）
+- [ ] **BK-1**: `template.yaml` に写真バケットを結線する（SS-108 で実装済み・疎通確認待ち。
+      dev の初回デプロイで動的参照 + prefix 連結の解決と写真付きピン登録の疎通を確認したら完了。
+      detail は [deployment.md](../../packages/backend/docs/deployment.md) §12）
 - [ ] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
       S3 のオブジェクトは残るため）

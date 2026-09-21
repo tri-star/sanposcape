@@ -170,8 +170,8 @@ class Settings(BaseSettings):
     # （ローカル開発・E2E 用。ENV=local/test 以外で fake を選ぶと起動失敗、既存の
     # AUTH_MODE/MAPS_MODE/FEATURE_FLAG_MODE と同じ fail-safe 方針）。
     storage_mode: Literal["real", "fake"] = "real"
-    # 空文字なら UnconfiguredObjectStorage（写真 API は 503。SS-106/107 の apply 後に
-    # template.yaml から渡す。BK-1）。
+    # 空文字なら UnconfiguredObjectStorage（写真 API は 503）。デプロイ先では template.yaml が
+    # SSM（pin_photos/bucket_name）から渡す（SS-108）。
     pin_photo_bucket_name: str = ""
     pin_photo_bucket_region: str = "ap-southeast-1"
     # 1枚あたりの上限（ユーザー決定 B-Y3）。content-length-range・413・確定時の検証・GET に使う。

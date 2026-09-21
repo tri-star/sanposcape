@@ -239,8 +239,9 @@ docker compose up -d --build
   - `real`: S3 に実際に接続する。`PIN_PHOTO_BUCKET_NAME` が空なら
     `UnconfiguredObjectStorage`（写真関連 API は 503。写真を含まない `POST /pins` と
     `GET /sanpo-maps` は影響を受けない）にフォールバックする。ローカルではバケットを
-    結線していない（BK-1 未着手。`deployment.md` §12「写真ストレージ」/ ADR-009 決定8
-    参照）ため、`STORAGE_MODE=real` のままだと写真は一切試せない。
+    結線していない（バケットを結線しているのはデプロイ先の `template.yaml` だけ。
+    `deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）ため、`STORAGE_MODE=real` の
+    ままだと写真は一切試せない。
   - `fake`: ネットワークを一切使わない開発用の実装。`POST /pin-photo-uploads` が返す
     `upload.url` は backend 自身の `/dev-storage/uploads`（S3 の presigned POST 互換。
     成功 204・サイズ超過や署名不正は S3 と同じ XML エラー）を指し、写真の presigned GET
@@ -344,8 +345,8 @@ print(r.status_code); print(r.text[:800])"
 - `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`
 - `APPCONFIG_POLL_INTERVAL_SECONDS` / `APPCONFIG_ERROR_BACKOFF_SECONDS`
 - `APPCONFIG_CONNECT_TIMEOUT_SECONDS` / `APPCONFIG_READ_TIMEOUT_SECONDS`
-- `PIN_PHOTO_BUCKET_NAME` / `PIN_PHOTO_BUCKET_REGION`（BK-1 の template.yaml 結線まで
-  ローカルでは使わない。`STORAGE_MODE=fake` の間は無関係）
+- `PIN_PHOTO_BUCKET_NAME` / `PIN_PHOTO_BUCKET_REGION`（デプロイ先では `template.yaml` が
+  SSM から渡す。ローカルでは使わない。`STORAGE_MODE=fake` の間は無関係）
 - `PIN_PHOTO_MAX_PIXELS` / `PIN_PHOTO_MAX_PENDING_UPLOADS` / `PIN_PHOTO_UPLOAD_URL_TTL_SECONDS` /
   `PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS` / `PIN_PHOTO_DOWNLOAD_URL_TTL_SECONDS` /
   `PIN_PHOTO_THUMBNAIL_MAX_EDGE_PX` / `PIN_PHOTO_THUMBNAIL_JPEG_QUALITY` /
