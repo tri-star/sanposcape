@@ -39,13 +39,15 @@ export async function uploadToPresignedPost(
   }
 
   // ヘッダーを一切付けない（`Content-Type` を明示すると multipart の boundary が壊れる）。
-  // `redirect: "manual"` は `isAllowedUploadUrl` の送信先検証がリダイレクト**後**の遷移先までは
-  // 検証しないことへの多層防御（S3 の presigned POST は正常系でリダイレクトしないため機能に影響
-  // しない。ローカルレビュー MR3）。
-  // 注意（`@/api/client.ts` の `redirect: "error"` と同じ既知の制約）: RN 0.86 のグローバル fetch は
-  // `whatwg-fetch`（XHR ベースのポリフィル）の再エクスポートで、`Request` は `options.redirect` を
-  // 読まないため **実機ではリダイレクトが常に追従される**（実効的な防御にならない）。
-  // Web / react-native-web、および Node（vitest の msw 環境）の spec 準拠 fetch では機能する。
+  // `redirect: "manual"` は Web / react-native-web、および Node（vitest の msw 環境）の spec 準拠
+  // fetch では効くが、RN 実機では **best-effort**（PR #93 T1: レビュー指摘どおり、実機では
+  // 実効的な防御にならない）。理由（`@/api/client.ts` の `redirect: "error"` と同じ既知の制約）:
+  // RN 0.86 のグローバル fetch は `whatwg-fetch`（XHR ベースのポリフィル）の再エクスポートで、
+  // `Request` は `options.redirect` を読まないため実機ではリダイレクトが常に追従される。
+  // 実機での実効的な防御は次の2点に依る（多層防御のもう1枚として `redirect: "manual"` も残す）:
+  // (1) 送信先 URL の検証（`isAllowedUploadUrl`）で S3 のリージョナルエンドポイント・fake storage
+  //     の同一オリジンに限定していること、(2) S3 の presigned POST 自体が正常系で3xxを返す
+  //     経路を持たない署名の制約（別オリジンへ誘導するリダイレクトを返せない）。
   const response = await fetch(ticket.url, {
     method: "POST",
     body: form,

@@ -11,7 +11,7 @@
   - クライアント状態: Zustand（少量のグローバル状態）
 - 地図: react-native-maps（Android=Google Maps / iOS=Apple Maps）
 - 位置情報: expo-location（現在地取得。`src/services/location` で real/mock を切り替える。詳細は [ADR-006](../adr/ADR-006-location-service-real-mock.md)）
-- 写真: expo-image-picker（カメラ/ライブラリ）+ expo-image-manipulator（縮小・JPEG 再圧縮）+
+- 写真: expo-image-picker（カメラ/ライブラリ） + expo-image-manipulator（縮小・JPEG 再圧縮） +
   expo-file-system（加工後ファイルのバイト数取得）。`src/services/photo` で real/mock を切り替える。
   画像表示は expo-image。アップロードは presigned POST で S3 直送（`src/features/pin/api/`）。
   詳細は [ADR-010](../adr/ADR-010-photo-service-and-direct-s3-upload.md)
