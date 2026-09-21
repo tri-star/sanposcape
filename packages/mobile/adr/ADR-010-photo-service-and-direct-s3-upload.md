@@ -124,6 +124,41 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
   `PIN_PHOTO_PREUPLOAD_MAX` / `BACKEND_PENDING_UPLOADS_MAX`（`src/features/pin/lib/pinLimits.ts`）
   の見直しが必要（下げても 429 経由で動作はするが、保存時の往復が増える）。
 
+## 追補（2026-09-21, PR #93 レビュー対応）
+
+`copilot-pull-request-reviewer` の指摘（`tmp/93-comments.md`）のうち、本 ADR の決定に関わる
+4件をここに記録する。他の指摘（画面の薄いバグ修正: 保存エラー状態のリセット・
+アンマウント後の dispatch 抑止・入力のスナップショット固定・座標パラメータの trim 等）は
+決定そのものの変更ではないため追補しない。
+
+- **T1（`redirect: "manual"` のコメント修正）**: 決定4のコメントが「防御している」と読める
+  書き方だったため、「RN 実機では best-effort（`whatwg-fetch` が `options.redirect` を
+  読まないため実効的でない）で、実機での実効的な防御は送信先 URL の検証
+  （`isAllowedUploadUrl`）と S3 presigned POST の署名の制約（別オリジンへの3xxを返す
+  正規の経路が無いこと）に依る」と明記する修正のみ行った。コードの挙動は変えていない。
+- **T9（先行アップロードの1枚上限は枠発行応答が正）**: 決定3は元々「サーバーの1枚上限
+  10 MiB は安全弁で、正は枠発行応答の `max_byte_size`」としていたが、
+  `usePinPhotos.ts` の実装が先行アップロードの加工直後に固定 10 MiB でも足切りしており、
+  ADR の決定と実装がずれていた（backend の上限を引き上げても枠発行前に失敗する）。
+  実装をこの決定3に合わせ、端末側の足切りは `PIN_PHOTO_MAX_BYTES_HARD_CAP`（50 MiB。
+  明らかに枠発行するだけ無駄な極端な値のみを弾く安全弁）に緩めた。ADR の決定文自体の変更は無い。
+- **T11（削除した未紐付け写真の枠を解放する）**: 決定5に「保存フローが枠の上限を吸収する」
+  ことは書いていたが、**アップロード後・紐付け前に削除した写真の枠**を backend 側で
+  解放する手段が無かった（追加・削除を繰り返すと、どの枠も実際には使っていないのに
+  未使用枠の保有上限に達して 429 になりうる。ルート ADR-009 決定11の背景と同じ）。
+  backend が追加した `DELETE /pin-photo-uploads/{upload_id}` を `removePhoto` から
+  best-effort で呼ぶようにし、失敗時は `usePinPhotos.ts` 内の「幽霊枠」カウンタ
+  （`heldGhostSlotsRef`）で紐付け期限まで保有中として数え続ける（backend の会計とローカルの
+  `PIN_PHOTO_PREUPLOAD_MAX` 判定がズレないようにするため）。
+- **T15（409 の分類）**: 決定8（検討した選択肢）には明記していなかったが、
+  MVP では「409 はすべて `photo_not_ready` として扱う」という制約があった
+  （`pinSaveError.ts` の M-R7）。backend が追加した機械可読な `code`
+  （`storage_quota_exceeded` / `photo_upload_not_ready`。ルート ADR-009 決定12）を
+  `ApiError.body` 経由で読み、`quota_exceeded` と `photo_not_ready` を区別できるようにした。
+  影響範囲を最小にするため、`src/api/client.ts`（非2xx 応答の JSON 本文を `ApiError.body` に
+  保持する）と `src/api/apiError.ts`（`body` プロパティ・`getApiErrorCode()` ヘルパーの追加）
+  のみ変更し、他の API のエラー処理（`message` の既定値・`isApiError` の判定）は変えていない。
+
 ## 関連情報
 
 - [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
