@@ -7,7 +7,7 @@
 ## ステータス
 
 採用（backend 実装済み）。`template.yaml` への S3 結線（BK-1）は infra 側（SS-106/107）の
-dev apply 待ちで未着手。mobile 側の実装（SS-89 系）は本 PR のマージ後に着手する。
+dev apply 待ちで未着手。mobile 側の実装（SS-89 系）は同じ PR で backend の後に実装する。
 
 ## コンテキスト
 
@@ -77,7 +77,7 @@ dev apply 待ちで未着手。mobile 側の実装（SS-89 系）は本 PR の�
 既存のサンプル API `GET/POST /spots`（`spots/models.py` の `Spot`）は本 PR で
 ドメインごと削除した。配布済みの mobile ビルドは Orval 生成物を一度も使っておらず
 （`client.test.ts` は手書き URL + msw）、削除の相手（configured client）が存在しないため、
-決定7（expand → contract）の例外として直接削除している。
+ADR-008 決定7（expand → contract）の例外として直接削除している。
 
 ### 決定2: 地図とピンは N:1、権限は `sanpo_map_members` の role で判定する
 

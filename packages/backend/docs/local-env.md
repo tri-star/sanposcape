@@ -239,8 +239,8 @@ docker compose up -d --build
   - `real`: S3 に実際に接続する。`PIN_PHOTO_BUCKET_NAME` が空なら
     `UnconfiguredObjectStorage`（写真関連 API は 503。写真を含まない `POST /pins` と
     `GET /sanpo-maps` は影響を受けない）にフォールバックする。ローカルではバケットを
-    結線していない（BK-1 未着手, backend-plan.md 5.12）ため、`STORAGE_MODE=real` の
-    ままだと写真は一切試せない。
+    結線していない（BK-1 未着手。`deployment.md` §12「写真ストレージ」/ ADR-009 決定8
+    参照）ため、`STORAGE_MODE=real` のままだと写真は一切試せない。
   - `fake`: ネットワークを一切使わない開発用の実装。`POST /pin-photo-uploads` が返す
     `upload.url` は backend 自身の `/dev-storage/uploads`（S3 の presigned POST 互換。
     成功 204・サイズ超過や署名不正は S3 と同じ XML エラー）を指し、写真の presigned GET
@@ -276,10 +276,11 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST <upload.url> \
 
 ## リクエストサイズ制限
 
-`RequestSizeLimitMiddleware`（`core/middleware.py`）が JSON 解析前に本文サイズを拒否する ASGI ミドルウェアで、path prefix ごとに別々の上限を掛けられるよう汎用化されている（SS-18 で `/explore` 専用から拡張）。`main.py` の `create_app()` で prefix ごとに `app.add_middleware()` を複数回呼び出しており、現在は以下の2系統が有効。
+`RequestSizeLimitMiddleware`（`core/middleware.py`）が JSON 解析前に本文サイズを拒否する ASGI ミドルウェアで、path prefix ごとに別々の上限を掛けられるよう汎用化されている（SS-18 で `/explore` 専用から拡張）。`main.py` の `create_app()` で prefix ごとに `app.add_middleware()` を複数回呼び出しており、現在は以下の3系統が有効。
 
 - `GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES`: `/explore` 配下の本文サイズ上限（既定 32,768 / 上限 1,048,576）。
 - `WALKS_REQUEST_MAX_BYTES`: `/walks` 配下の本文サイズ上限（既定 1,048,576 / 上限 4,194,304）。軌跡（`track`）を含むため `/explore` より大きい上限にしているが、無制限にはしていない（低コスト DoS 対策）。
+- `PINS_REQUEST_MAX_BYTES`: `/pins`・`/pins/{pin_id}/photos`・`/pin-photo-uploads` 配下の本文サイズ上限（既定 16,384 / 上限 65,536）。写真本体は presigned POST で直接 S3 へ送るため、これらのエンドポイントの JSON 本文はメタデータのみで小さい（SS-88）。
 
 超過時はいずれも 413 を返す。
 

@@ -20,7 +20,7 @@
 > | `aws lambda invoke`（直接）で `/health` | ✅ 200 `{"status":"ok"}`。シークレット取得の実経路も通過 |
 > | Function URL 直叩き | ✅ 403 `{"Message":"Forbidden"}` |
 > | マイグレーション Lambda（§5.2） | ✅ 検証済み（`{"head": "ecd8f161fedb"}`。2 回目の invoke が no-op になる冪等性も確認） |
-> | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200。psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことも確認（§9） |
+> | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200（検証当時。`spots` ドメインは SS-88 で削除済みで現存しないが、他のエンドポイントでも成り立つ結論として psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことを確認済み、§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
 > | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は未実施 |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
@@ -687,6 +687,12 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   Pillow（SS-88, `pins/thumbnails.py`）も同じ理由でコンテナビルドが必須（manylinux wheel が
   約 4〜5 MB 増える程度で、zip 50 MB / 展開 250 MB の上限には十分収まる見込みだが、BK-1 の
   実デプロイで一度は zip サイズを確認すること）。
+- **（SS-88）`template.yaml` の Lambda `MemorySize` を下げる変更を単独で入れない。** 写真の
+  確定処理（`PhotoAttacher`）は `PIN_PHOTO_CONFIRM_CONCURRENCY`（既定3）並列で Pillow の
+  デコード・リサイズを行う前提でメモリ予算を見積もっている（ADR-009 決定5）。
+  `MemorySize` を下げる場合は `PIN_PHOTO_CONFIRM_CONCURRENCY` も
+  合わせて見直すこと（CPU 割り当ても `MemorySize` に比例するため、下げると確定処理の
+  所要時間が伸び `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` に近づくリスクもある）。
 - **（SS-72）`template.yaml` の `PermissionsBoundary` を削除しない。** 境界が無いと CI の
   デプロイロールが `CreateRole` を拒否する。境界はデプロイロールが持つ `PutRolePolicy` /
   `PassRole` による権限昇格を塞ぐ要であり、実行時に新しい AWS 操作が必要になった場合は

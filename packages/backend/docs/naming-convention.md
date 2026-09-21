@@ -15,7 +15,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | フォルダ / パッケージ | snake_case（小文字） | `walks/`, `google_maps/` |
 | モジュール（.py） | snake_case | `service.py`, `repository.py` |
 | クラス全般 | PascalCase | `WalkService` |
-| SQLAlchemy モデル | PascalCase・**単数** | `Walk`, `Spot`, `User` |
+| SQLAlchemy モデル | PascalCase・**単数** | `Walk`, `Pin`, `User` |
 | Pydantic スキーマ | PascalCase + 用途接尾辞 | `WalkCreate`, `WalkRead`, `WalkUpdate` |
 | 関数・メソッド・変数 | snake_case | `get_current_user`, `round_trip_minutes` |
 | 定数 | SCREAMING_SNAKE_CASE | `MAX_ROUND_TRIP_MINUTES` |
@@ -39,7 +39,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 | ファイル | 役割 |
 |---|---|
-| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/` と `walks/` で採用 |
+| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/`・`walks/`・`pins/` で採用 |
 
 ドメイン固有の事情がある場合は、役割が一目で分かる名前で追加してよい（固定セットに無理に詰め込まない）。
 例: `auth/` ドメインでは以下を追加している。
@@ -63,7 +63,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 |---|---|
 | `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin` 等）。DB に依存しない純粋関数 |
 
-`pins/` ドメインでは以下を追加している（`upload_router.py` 以外は SS-88 で新設）。
+`pins/` ドメイン（SS-88 で新設）では以下を追加している。
 
 | ファイル | 役割 |
 |---|---|
@@ -81,7 +81,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
   router = APIRouter(prefix="/walks", tags=["walks"])
   ```
 - URL パスの単語区切りには **ハイフン（kebab-case）を使い、アンダースコア（snake_case）は使わない**。RESTのリソース名は**複数形・小文字**にする。
-  - 例: `/walks`, `/walks/{walk_id}`, `/walks/stats`, `/spots`, `/auth/dev-session`（`AUTH_MODE=dev` 限定エンドポイント）
+  - 例: `/walks`, `/walks/{walk_id}`, `/walks/stats`, `/sanpo-maps`, `/pin-photo-uploads`, `/auth/dev-session`（`AUTH_MODE=dev` 限定エンドポイント）
   - `/health` や `/app-config` のように**リソース（複数取得できる集合）ではなく単一の設定・状態を返すトップレベルのパス**は、複数形ルールの例外として単数形のままにする（`/app-configs` にしない）
   - コレクション配下に固定セグメントのサブリソースを足すときは、**必ず `/{id}` より前に宣言する**
     （例: `/walks/stats` は `/walks/{walk_id}` より前）。FastAPI は宣言順にマッチするため、後ろに
@@ -104,7 +104,11 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `...Read` | レスポンス（クライアントへ返す表現） |
 | `...DetailRead` | 詳細取得用のレスポンス。一覧には含めない重い項目を追加する（例: `WalkDetailRead` は `WalkRead` に `track` を追加） |
 | `...ListRead` | 一覧レスポンスのラッパ。`items`（`...Read` の配列）+ `next_cursor` を持つ（例: `WalkListRead`） |
+| `...Add` | 既存リソースへの子要素追加リクエストのボディ（`...Create` は新規リソース作成用に予約し、既存リソースへの追加とは書き分ける。例: `PinPhotosAdd`） |
 
+- ページングしない・件数が有界な一覧レスポンスは `next_cursor` の代わりに総数フィールド（例:
+  `PinPhotoListRead.photo_count`）を持ってよい（`...ListRead` の全てが `next_cursor` を持つとは
+  限らない）。
 - 内部（service間）で使う DTO 的なものは用途が分かる名前を付ける（例: `WalkRouteSummary`）。
 
 ## SQLAlchemy / DB
@@ -112,7 +116,10 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 - モデルクラスは PascalCase・単数（`Walk`）、対応するテーブル名は **複数形・snake_case**（`walks`）。
 - カラム名は snake_case（`round_trip_minutes`, `created_at`）。
 - 外部キーは `<単数リソース>_id`（`user_id`, `walk_id`）。
-- 中間テーブルは関連する2リソースを snake_case で連結（`walk_spots` 等）。
+- 中間テーブルは関連する2リソースを snake_case で連結する（現時点では属性を持たない単純な
+  中間テーブルの実例は無い）。ただし、単なる存在フラグではなく `role` 等の属性を持つ
+  メンバーシップ表は `<親>_members`（例: `sanpo_map_members`。`sanpo_map_id` + `user_id` の
+  複合PKに `role` を持つ）と名付けてよい。
 - index / constraint 名は `<種別接頭辞>_<table>_<cols>` にする（`cols` はアンダースコア連結）。
   - unique constraint: `uq_<table>_<cols>`（例: `uq_walks_user_client_walk_id`）
   - index: `ix_<table>_<cols>`（例: `ix_walks_user_id_started_at_id`）

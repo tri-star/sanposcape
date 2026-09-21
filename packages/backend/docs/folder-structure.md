@@ -7,7 +7,7 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
 
 - **src レイアウト** を採用し、アプリ本体は `src/sanposcape/` 配下に置く。
 - **ドメイン単位の凝集 × レイヤー分離** をベースにする。
-  - ドメイン（`users` / `walks` / `spots` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
+  - ドメイン（`users` / `walks` / `sanpo_maps` / `pins` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
   - レイヤーは **router → service → repository** の3層。
     - `router`: HTTPの入出力の受け渡しのみ。**薄く保つ**（バリデーションと依存解決、serviceの呼び出し）。
     - `service`: ビジネスロジック。トランザクション境界・ユースケースを持つ。
@@ -185,7 +185,11 @@ packages/backend/
 ### 現在時刻の扱い（クロック注入）
 - **現在時刻に依存する service は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
   コンストラクタ引数で注入可能にする**。採用済み: `auth/service.py` の `AuthService`（トークンの有効期限）、
-  `walks/service.py` の `WalkService`（集計の「今日」判定）。
+  `walks/service.py` の `WalkService`（集計の「今日」判定）、`sanpo_maps/service.py` の
+  `SanpoMapService`・`pins/service.py` の `PinService`/`PinPhotoUploadService`（アップロード枠の
+  期限・確定時刻）。`pins/photo_attacher.py` の `PhotoAttacher` は `datetime` ではなく
+  `monotonic: Callable[[], float] = time.monotonic` を同じ発想で注入する（確定処理の時間予算の
+  締め切り判定。壁時計ではなく経過時間だけが必要なため）。
 - service 内に `datetime.now()` を直接書かない。テストから時刻を固定できず、日付境界の検証が書けなくなる
   （書けたとしても実行日に依存する不安定なテストになる）。
 - `dependencies.py` の `get_xxx_service()` は既定値のまま生成し、注入はテストからのみ行う。

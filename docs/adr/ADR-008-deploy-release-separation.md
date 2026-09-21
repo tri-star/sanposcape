@@ -504,6 +504,11 @@ GET /app-config            認証不要（/health と同じ扱い）。Cache-Con
 }
 ```
 
+（`app_config_probe` は最初の実フラグ導入まで用の暫定キー。SS-88 以降は `pin_registration` に
+置き換わっている——`app_config_probe` は SS-88 backend PR で削除済み。上の JSON 例は
+このドキュメントの記述時点のものなので、実際のキー集合は `core/feature_flags.py` の
+`FEATURE_FLAGS` を参照すること。）
+
 | フィールド | 型 | 意味 |
 |---|---|---|
 | `flags` | `dict[str, bool]` | **クライアント公開可**と登録簿（`core/feature_flags.py` の `FEATURE_FLAGS`）でマークされたフラグのみ。登録済みキーは AppConfig 側に値が無くても必ず `false` で出る（キー集合は backend のバージョンで決まる） |
