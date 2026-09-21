@@ -1,15 +1,45 @@
+from collections.abc import Generator
+
+import pytest
 from fastapi.testclient import TestClient
 
+from sanposcape.config import Settings, get_settings
+from sanposcape.conftest import override_get_db
+from sanposcape.database import get_db
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
+from sanposcape.main import create_app
 from sanposcape.pins.tests.conftest import make_jpeg_bytes
 
 
+@pytest.fixture
+def real_storage_client() -> Generator[TestClient, None, None]:
+    """`STORAGE_MODE=real` を明示構築したアプリの `TestClient`。
+
+    ambient app（`client`）は `.env` / 環境変数の `STORAGE_MODE` に従うため、
+    `.env.example` から生成した `.env`（`STORAGE_MODE=fake`）では `/dev-storage` が
+    include されてしまい、この検証が環境によって揺れる。
+    """
+    settings = Settings(
+        env="test",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["test-audience"],
+        storage_mode="real",
+    )
+    test_app = create_app(settings)
+    test_app.dependency_overrides[get_db] = override_get_db
+    test_app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(test_app) as test_client:
+        yield test_client
+    test_app.dependency_overrides.clear()
+
+
 class TestDevStorageIsFakeOnly:
-    def test_not_included_when_storage_mode_is_real(self, client: TestClient) -> None:
-        """ambient app（`.env` 由来。real/unconfigured 前提）では `/dev-storage/*` が
-        存在しない（`STORAGE_MODE=fake` のときだけ main.py が include する）。
+    def test_not_included_when_storage_mode_is_real(self, real_storage_client: TestClient) -> None:
+        """`STORAGE_MODE=real` では `/dev-storage/*` が存在しない
+        （`STORAGE_MODE=fake` のときだけ main.py が include する）。
         """
-        response = client.get("/dev-storage/objects/anything?expires=1&signature=x")
+        response = real_storage_client.get("/dev-storage/objects/anything?expires=1&signature=x")
         assert response.status_code == 404
 
     def test_not_in_openapi_schema(self, client: TestClient) -> None:
