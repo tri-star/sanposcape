@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-21（SS-93、SS-88、SS-99）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-22（SS-93、SS-88、SS-99）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -21,6 +21,7 @@
 - **切り替えワークフローは `.github/workflows/feature-flags.yml`、定義ファイルは `packages/backend/feature-flags.json`（AppConfig FeatureFlags 形式そのもの、既定値入り）**。
   フラグの現在値の正本は AppConfig（直近に配信を完了した版）で、ワークフローは現在値を引き継いで指定の1本だけを書き換えた版を作る。
   入力は環境・フラグキー・on/off（と定義から消えたキーを削除する `prune`）、ロール ARN は Environment Variables `AWS_FEATURE_FLAGS_ROLE_ARN`、環境ごとに直列化して配信完了まで待つ。
+  配信中の版が削除されて読めないときは、`from_defaults` を明示したときだけ既定値から組み立てる。
   定義ファイルのキー集合は登録簿 + 予約キーと一致させる（pytest）。（本文: SS-99 追補 D19〜D23）
 - **フラグキー・説明・クライアント公開の可否は backend のコード（`core/feature_flags.py` の `FEATURE_FLAGS`）、値と最低サポートバージョンは AppConfig が所有する**。
   キーは `_enabled` を付けない snake_case。`client_requirements` は最低サポートバージョンを属性で配る予約キーで、常に `enabled: true` に保つ。
@@ -900,6 +901,10 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
   dev で古い ref から起動した場合も、新しいフラグの ON を黙って失わない。
   （PR レビュー指摘による変更。当初案は「次の切り替えで自動的に消える」だった）
 - `client_requirements` は切り替え対象にせず、組み立て時に必ず `enabled: true` に戻す（D7）。
+- **直近の `COMPLETE` の配信が指す版が削除されていたら、既定では失敗させる。** `from_defaults` 入力を付けたときだけ
+  定義ファイルの既定値から組み立てる。現在値が分からないまま既定値（全 OFF）に倒すと、prod では公開済みの機能が
+  黙って消えるため。ワークフローのロールは版を削除できず、infra の資格情報による操作でしか起きない。
+  （2026-09-22 追記: dev の初回実行で実際に起きた。infra の疎通確認手順が、テスト用の版を配信してから削除していたため）
 - 現在の版と内容が同じなら配信しない（Job Summary に「変更なし」を出す）。比較では AppConfig が付けうる
   `_createdAt` / `_updatedAt` を除く。
 - 定義ファイルは AppConfig のスキーマが弾くもの（未知のキー、`name` 64 文字超、`description` 1024 文字超、

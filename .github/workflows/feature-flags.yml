@@ -42,6 +42,10 @@ on:
         description: "定義ファイルから消えたキーを AppConfig からも削除する（フラグ削除 PR を当該環境にデプロイした後だけ使う）"
         type: boolean
         default: false
+      from_defaults:
+        description: "配信中の版が削除されていて読めない場合に限り、定義ファイルの既定値（全フラグ OFF）から組み立てる"
+        type: boolean
+        default: false
 
 # 環境ごとに直列化する。AppConfig は同じ環境で配信中（ベイク中を含む）の間は次の
 # StartDeployment を ConflictException で弾くため、run 側で待たせる。各 run は配信の
@@ -120,6 +124,7 @@ jobs:
       FLAG: ${{ inputs.flag }}
       STATE: ${{ inputs.state }}
       PRUNE: ${{ inputs.prune }}
+      FROM_DEFAULTS: ${{ inputs.from_defaults }}
     steps:
       - name: Check role is configured
         working-directory: .
@@ -187,9 +192,29 @@ jobs:
             echo "version=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          aws appconfig get-hosted-configuration-version \
+          # 配信記録が指す版が消されていることがある（infra の README の疎通確認手順は、
+          # テスト用の版を配信したあと infra の資格情報で版を削除する）。このロールは版を
+          # 削除できないので、ワークフロー外の操作でしか起きない。現在値が分からない以上、
+          # 黙って既定値（全 OFF）に倒すと公開済みの機能が消えるため、明示指定を求める。
+          if ! aws appconfig get-hosted-configuration-version \
             --application-id "$APP_ID" --configuration-profile-id "$PROFILE_ID" \
-            --version-number "$version" "$RUNNER_TEMP/current.json" > /dev/null
+            --version-number "$version" "$RUNNER_TEMP/current.json" \
+            > /dev/null 2> "$RUNNER_TEMP/get-version.err"; then
+            if ! grep -q ResourceNotFoundException "$RUNNER_TEMP/get-version.err"; then
+              cat "$RUNNER_TEMP/get-version.err" >&2
+              exit 1
+            fi
+            if [ "$FROM_DEFAULTS" != "true" ]; then
+              echo "::error::配信中の版 #$version が削除されていて現在値を読めません。ワークフロー外で版を削除した可能性があります。定義ファイルの既定値（全フラグ OFF）から組み立ててよければ from_defaults を付けて再実行してください（docs/release-runbook.md §3）"
+              exit 1
+            fi
+            echo "::warning::配信中の版 #$version が削除されているため、定義ファイルの既定値から組み立てます（from_defaults）"
+            {
+              echo "version="
+              echo "missing_version=$version"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build the next version
@@ -300,6 +325,7 @@ jobs:
           PREVIOUS: ${{ steps.build.outputs.previous }}
           DROPPED: ${{ steps.build.outputs.dropped }}
           KEPT: ${{ steps.build.outputs.kept }}
+          MISSING_VERSION: ${{ steps.current.outputs.missing_version }}
           ADDED: ${{ steps.build.outputs.added }}
           VERSION: ${{ steps.version.outputs.number }}
           DEPLOYMENT: ${{ steps.deployment.outputs.number }}
@@ -310,6 +336,10 @@ jobs:
             echo "| フラグ | 変更前 | 変更後 | 版 | 配信 |"
             echo "|---|---|---|---|---|"
             echo "| \`$FLAG\` | $PREVIOUS | $STATE | #$VERSION | #$DEPLOYMENT |"
+            if [ -n "$MISSING_VERSION" ]; then
+              echo
+              echo "⚠️ 配信中だった版 #$MISSING_VERSION は削除されていたため、他のフラグは定義ファイルの既定値（OFF）で配信しました（from_defaults）。"
+            fi
             if [ -n "$DROPPED" ]; then
               echo
               echo "定義ファイルから消えたため削除したキー（prune）: $DROPPED"
