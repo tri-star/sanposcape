@@ -1,0 +1,53 @@
+# ピン登録: サインイン → 散歩開始 → 「この場所にピンを追加」→ 名前・タグ・メモ → 保存 → 散歩中画面へ戻る。
+#
+# 前提:
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
+#   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
+# 写真は添付しない（mock の写真は実ファイルではないため。写真付きは別チケット H）。
+# assert しないもの: 地図の名前・件数（同一 CI ランで他フローの登録が残る）、トースト、地図タイル。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+  - maps-required
+---
+- runFlow: subflows/sign-in.yaml
+- runFlow: subflows/start-walk-from-spot.yaml
+- tapOn:
+    id: "walk-active-add-pin"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-sanpo-map-loading"
+    timeout: 15000
+- assertNotVisible:
+    id: "pin-register-sanpo-map-retry"
+- tapOn:
+    id: "pin-register-name-input"
+- inputText: "E2Eのピン"
+- tapOn:
+    id: "pin-register-tag-input"
+- inputText: "e2e"
+- tapOn:
+    id: "pin-register-tag-add"
+- assertVisible:
+    id: "pin-register-tag-0"
+- tapOn:
+    id: "pin-register-memo-input"
+- inputText: "Maestro から登録"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "pin-register-save"
+- tapOn:
+    id: "pin-register-save"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-screen"
+    timeout: 20000
+- assertNotVisible:
+    id: "pin-register-screen"
+- assertNotVisible:
+    id: "pin-register-save-error"
