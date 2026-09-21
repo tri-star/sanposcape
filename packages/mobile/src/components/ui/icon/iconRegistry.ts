@@ -31,6 +31,7 @@ import Footprints from "lucide-react-native/icons/footprints";
 import ImagePlus from "lucide-react-native/icons/image-plus";
 import Info from "lucide-react-native/icons/info";
 import Landmark from "lucide-react-native/icons/landmark";
+import MapIcon from "lucide-react-native/icons/map";
 import MapPin from "lucide-react-native/icons/map-pin";
 import Maximize2 from "lucide-react-native/icons/maximize-2";
 import MessageCircle from "lucide-react-native/icons/message-circle";
@@ -39,6 +40,7 @@ import Pause from "lucide-react-native/icons/pause";
 import Pencil from "lucide-react-native/icons/pencil";
 import Play from "lucide-react-native/icons/play";
 import Plus from "lucide-react-native/icons/plus";
+import RefreshCw from "lucide-react-native/icons/refresh-cw";
 import Search from "lucide-react-native/icons/search";
 import SearchX from "lucide-react-native/icons/search-x";
 import Settings2 from "lucide-react-native/icons/settings-2";
@@ -79,6 +81,7 @@ export const ICONS = {
   "image-plus": ImagePlus,
   info: Info,
   landmark: Landmark,
+  map: MapIcon,
   "map-pin": MapPin,
   "maximize-2": Maximize2,
   "message-circle": MessageCircle,
@@ -87,6 +90,7 @@ export const ICONS = {
   pencil: Pencil,
   play: Play,
   plus: Plus,
+  "refresh-cw": RefreshCw,
   search: Search,
   "search-x": SearchX,
   "settings-2": Settings2,
