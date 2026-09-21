@@ -22,10 +22,21 @@ from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimi
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.aws.appconfig import build_flag_document_source
+from sanposcape.integrations.aws.s3 import ObjectStorageUnavailableError, build_object_storage
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
+from sanposcape.pins.dev_storage_router import router as pins_dev_storage_router
+from sanposcape.pins.exceptions import (
+    PinNotFoundError,
+    PinPhotoTooLargeError,
+    PinPhotoUploadNotReadyError,
+    StorageQuotaExceededError,
+    TooManyPendingUploadsError,
+)
+from sanposcape.pins.router import router as pins_router
+from sanposcape.pins.upload_router import router as pin_photo_uploads_router
 from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
 from sanposcape.sanpo_maps.router import router as sanpo_maps_router
 from sanposcape.spots.router import router as spots_router
@@ -127,6 +138,38 @@ def register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": "Permission denied"})
 
+    @app.exception_handler(PinNotFoundError)
+    async def _pin_not_found(request: Request, exc: PinNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "Pin not found"})
+
+    @app.exception_handler(PinPhotoUploadNotReadyError)
+    async def _pin_photo_upload_not_ready(
+        request: Request, exc: PinPhotoUploadNotReadyError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": "Photo upload not ready"})
+
+    @app.exception_handler(StorageQuotaExceededError)
+    async def _storage_quota_exceeded(
+        request: Request, exc: StorageQuotaExceededError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": "Storage quota exceeded"})
+
+    @app.exception_handler(PinPhotoTooLargeError)
+    async def _pin_photo_too_large(request: Request, exc: PinPhotoTooLargeError) -> JSONResponse:
+        return JSONResponse(status_code=413, content={"detail": "Photo too large"})
+
+    @app.exception_handler(TooManyPendingUploadsError)
+    async def _too_many_pending_uploads(
+        request: Request, exc: TooManyPendingUploadsError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=429, content={"detail": "Too many pending uploads"})
+
+    @app.exception_handler(ObjectStorageUnavailableError)
+    async def _object_storage_unavailable(
+        request: Request, exc: ObjectStorageUnavailableError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": "Photo storage unavailable"})
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -143,10 +186,13 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # コールドスタートに AppConfig のレイテンシを乗せないため（ADR-008 追補 D3）。
     app.state.feature_flag_source = build_flag_document_source(app.state.settings)
     app.state.feature_flags = FeatureFlags(app.state.feature_flag_source)
+    # クライアントの生成のみ（ネットワークに出ない）。real/fake/unconfigured の切替は
+    # `build_object_storage()` に集約している（B-D8）。
+    app.state.object_storage = build_object_storage(app.state.settings)
     try:
         yield
     finally:
-        for closeable in (provider, app.state.feature_flag_source):
+        for closeable in (provider, app.state.feature_flag_source, app.state.object_storage):
             close = getattr(closeable, "close", None)
             if callable(close):
                 close()
@@ -173,6 +219,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         path_prefix="/explore",
         max_bytes=settings.google_maps_explore_request_max_bytes,
     )
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
+        path_prefix="/pins",
+        max_bytes=settings.pins_request_max_bytes,
+    )
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
+        path_prefix="/pin-photo-uploads",
+        max_bytes=settings.pins_request_max_bytes,
+    )
     app.include_router(health_router)
     app.include_router(app_config_router)
     app.include_router(spots_router)
@@ -181,11 +237,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(maps_router)
     app.include_router(walks_router)
     app.include_router(sanpo_maps_router)
+    app.include_router(pins_router)
+    app.include_router(pin_photo_uploads_router)
     if settings.auth_mode == "dev":
         # 本番ではエンドポイント自体が存在しない（ADR-002 決定4）。
         # dev_router 側で include_in_schema=False を指定しているため、
         # include されても OpenAPI スキーマには現れない（D6）。
         app.include_router(auth_dev_router)
+    if settings.storage_mode == "fake":
+        # 本番では存在しない（router 自体が include されない。include_in_schema=False も
+        # あわせて指定しており、二重の安全策になっている）。
+        app.include_router(pins_dev_storage_router)
     register_exception_handlers(app)
     return app
 
