@@ -12,13 +12,13 @@ import { runSessionCleanup } from "@/lib/sessionCleanup";
 describe("queryClient のサインアウト時クリア", () => {
   it("walks系のキャッシュは消え、app-config は残る", () => {
     queryClient.setQueryData(["walks", "list"], { items: [] });
-    queryClient.setQueryData(["app-config"], { flags: { app_config_probe: true } });
+    queryClient.setQueryData(["app-config"], { flags: { pin_registration: true } });
 
     runSessionCleanup();
 
     expect(queryClient.getQueryData(["walks", "list"])).toBeUndefined();
     expect(queryClient.getQueryData(["app-config"])).toEqual({
-      flags: { app_config_probe: true },
+      flags: { pin_registration: true },
     });
   });
 

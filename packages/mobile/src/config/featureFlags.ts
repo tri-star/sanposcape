@@ -19,10 +19,12 @@
  */
 export const FEATURE_FLAG_KEYS = {
   /**
-   * 基盤の疎通確認用。機能には紐づかない（ADR-008 追補 D7）。
-   * **最初の実フラグが入った時点で backend と同時に削除する。**
+   * ピン登録（SS-88）。散歩中画面の「この場所にピンを追加」と `/pins/new` を出し分ける。
+   * OFF の間は従来どおり「準備中」トースト。dev は backend BK-1（template.yaml への S3 結線）後、
+   * prod は BK-2（アカウント削除時の写真削除）後に ON にする。
+   * 最初の実フラグとして `app_config_probe`（疎通確認用）を置き換えた。
    */
-  appConfigProbe: "app_config_probe",
+  pinRegistration: "pin_registration",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
