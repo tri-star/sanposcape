@@ -6,3 +6,5 @@
 - [SS-33周回ルートAPIレビュー](project_ss33_loop_route_review.md) — httpxに生floatのtimeoutを渡す罠・provider抽象の拡張パターン。実API検証は実施済み（フォールバック率69%で目標未達、改善はSS-92）
 - [SS-98 フィーチャーフラグ基盤の3層構成](project_ss98_feature_flags_architecture.md) — integrations/core/app_config分割の妥当性、「循環import」根拠は自分でgrepして確かめる、botocoreのmax_attemptsは再試行回数（total_max_attemptsを使う）
 - [CloudFormation Fn::Subのネスト変数罠](feedback_cloudformation_fn_sub_nested_variables.md) — 変数マップの値の中の${...}は再評価されない。template.yamlのIAM ARN組み立てレビュー時に確認
+- [SS-88 ピン写真確定処理レビュー](project_ss88_pin_photo_confirm_review.md) — 真の同時リトライで写真付きPOST /pinsが誤409(Critical)。確定時クォータ再チェックの並行性ギャップ、commit()の締切漏れ(Warning)
+- [プラン文書の並行性設計は実装と1行ずつ突き合わせる](feedback_verify_plan_concurrency_design_against_code.md) — backend-planのエッジケース記述が共有ヘルパーの1分岐だけ実装漏れするパターン

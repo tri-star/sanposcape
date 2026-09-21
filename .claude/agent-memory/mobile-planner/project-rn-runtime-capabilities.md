@@ -24,7 +24,8 @@ metadata:
 ## 依存追加のコスト
 
 - `pnpm-workspace.yaml` に `minimumReleaseAge: 2880`（2日）。
-- ネイティブモジュールが増えると `@expo/fingerprint` が変わり、ADR-004 の E2E preview APK キャッシュを1回ミスする。`package.json` を触るだけでも fingerprint は変わる。
-  → 「新規ネイティブ依存を足さない」を既定の判断にし、足す場合はプランに理由とコストを書く。
+- ~~ネイティブ追加で E2E APK キャッシュがミスする~~ → **ADR-004 の 2026-08-14 追補で撤回済み**（キャッシュキーは `packages/mobile` のソース全体ハッシュ）。`toolsets-libraries.md` も「論点にならない」と明記。
+  実際のコストは development build の作り直し（ADR-003）と `minimumReleaseAge`。足す場合はプランに理由を書く。
+- `expo-image`（表示用）は依存にあるが SS-88 時点まで未使用。`expo-image-picker` / `expo-image-manipulator` は未導入（SS-88 プランで追加予定）。
 
 Related: [[mobile-structure]], [[project-e2e-ci-constraints]]
