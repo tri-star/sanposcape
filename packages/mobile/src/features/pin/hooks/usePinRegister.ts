@@ -1,0 +1,154 @@
+import { useCallback, useMemo, useRef, useState } from "react";
+
+import { buildPinCreateRequest } from "@/features/pin/lib/pinCreateRequest";
+import type { PinDraftFieldErrors, SaveAvailability } from "@/features/pin/lib/pinDraftValidation";
+import {
+  hasUnsavedInput,
+  resolveSaveAvailability,
+  validatePinDraftFields,
+} from "@/features/pin/lib/pinDraftValidation";
+import { addTag, addTagErrorMessage, removeTag as removeTagFrom } from "@/features/pin/lib/pinTags";
+import { resolveSanpoMapChoices } from "@/features/pin/lib/sanpoMapChoices";
+import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
+import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import { usePinPhotos } from "@/features/pin/hooks/usePinPhotos";
+import type { UsePinPhotosResult } from "@/features/pin/hooks/usePinPhotos";
+import { usePinSave } from "@/features/pin/hooks/usePinSave";
+import type { UsePinSaveResult } from "@/features/pin/hooks/usePinSave";
+import type { PinDraft, SanpoMapSelection, SavedPin } from "@/features/pin/types";
+import { randomUuidV4 } from "@/lib/uuid";
+import type { GeoCoordinates } from "@/services/location/types";
+
+export type UsePinRegisterOptions = {
+  location: GeoCoordinates;
+  clientWalkId: string | null;
+  isSignedIn: boolean;
+  onSaved: (pin: SavedPin) => void;
+  onPickerError: (message: string) => void;
+};
+
+export type UsePinRegisterResult = {
+  draft: PinDraft;
+  setName: (v: string) => void;
+  setMemo: (v: string) => void;
+  tagInput: string;
+  setTagInput: (v: string) => void;
+  tagError: string | null;
+  addTagFromInput: () => void;
+  removeTag: (label: string) => void;
+  selectSanpoMap: (selection: SanpoMapSelection) => void;
+  sanpoMaps: SanpoMapChoicesState & { retry: () => void };
+  photos: UsePinPhotosResult;
+  fieldErrors: PinDraftFieldErrors;
+  saveAvailability: SaveAvailability;
+  save: UsePinSaveResult;
+  submit: () => void;
+  hasUnsavedInput: boolean;
+};
+
+/**
+ * ピン登録画面が必要とするものを1つに束ねる合成 hook。
+ * 判定・整形はすべて `lib/` に委ね、この hook は状態の保持と配線だけを行う
+ * （`useActiveWalk` と同じ設計方針）。
+ */
+export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterResult {
+  // 画面を開いた時点で1回だけ採番する（保存の冪等キー）。
+  const clientPinIdRef = useRef<string>(randomUuidV4());
+
+  const [name, setName] = useState("");
+  const [memo, setMemo] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [sanpoMapSelection, setSanpoMapSelection] = useState<SanpoMapSelection>({
+    kind: "default",
+  });
+
+  const draft: PinDraft = { name, memo, tags, sanpoMapSelection };
+  // 保存中に入力が変わっても作成内容が揺れないよう、保存開始時点の draft を ref で固定する。
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const sanpoMapsQuery = useSanpoMaps({ enabled: options.isSignedIn });
+  const sanpoMapsState = useMemo(
+    () =>
+      resolveSanpoMapChoices({
+        status: sanpoMapsQuery.status,
+        maps: sanpoMapsQuery.maps,
+        selection: sanpoMapSelection,
+      }),
+    [sanpoMapsQuery.status, sanpoMapsQuery.maps, sanpoMapSelection],
+  );
+
+  const photos = usePinPhotos({
+    enabled: options.isSignedIn,
+    onPickerError: options.onPickerError,
+  });
+
+  const buildCreateRequest = useCallback(
+    (photoUploadIds: readonly string[]) =>
+      buildPinCreateRequest({
+        clientPinId: clientPinIdRef.current,
+        draft: draftRef.current,
+        location: options.location,
+        photoUploadIds,
+        clientWalkId: options.clientWalkId,
+      }),
+    [options.location, options.clientWalkId],
+  );
+
+  const save = usePinSave({
+    photos: photos.saveBridge,
+    buildCreateRequest,
+    onSaved: options.onSaved,
+  });
+
+  // どちらも文字数チェック・配列走査のみで軽量なため useMemo せず毎レンダー計算する。
+  const fieldErrors = validatePinDraftFields(draft);
+  const saveAvailability = resolveSaveAvailability({
+    fieldErrors,
+    photos: photos.items,
+    isSaving: save.status === "saving",
+  });
+
+  // React Compiler（app.json の experiments.reactCompiler）がビルド時に自動メモ化するため、
+  // 手動の useCallback は付けない（依存配列の陳腐化・compiler との不整合警告を避ける）。
+  const addTagFromInput = () => {
+    const result = addTag(tags, tagInput);
+    if (!result.ok) {
+      setTagError(addTagErrorMessage(result.reason));
+      return;
+    }
+    setTags(result.tags);
+    setTagInput("");
+    setTagError(null);
+  };
+
+  const removeTag = (label: string) => {
+    setTags((prev) => removeTagFrom(prev, label));
+  };
+
+  const submit = () => {
+    if (!saveAvailability.canSave) return;
+    save.save();
+  };
+
+  return {
+    draft,
+    setName,
+    setMemo,
+    tagInput,
+    setTagInput,
+    tagError,
+    addTagFromInput,
+    removeTag,
+    selectSanpoMap: setSanpoMapSelection,
+    sanpoMaps: { ...sanpoMapsState, retry: sanpoMapsQuery.retry },
+    photos,
+    fieldErrors,
+    saveAvailability,
+    save,
+    submit,
+    hasUnsavedInput: hasUnsavedInput(draft, photos.summary.total),
+  };
+}
