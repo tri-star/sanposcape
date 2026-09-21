@@ -99,6 +99,25 @@ describe("uploadToPresignedPost", () => {
     );
   });
 
+  it("3xx（リダイレクト）は追従せず S3UploadError として失敗する（MR3）", async () => {
+    server.use(
+      http.post(
+        S3_TICKET.url,
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: { Location: "https://evil.example/steal" },
+          }),
+      ),
+    );
+
+    await expect(
+      uploadToPresignedPost(S3_TICKET, FILE, { apiBaseUrl: "https://app-api.dev.sanposcape.com" }),
+    ).rejects.toSatisfy(
+      (error: unknown) => isS3UploadError(error) && error.s3Code === "Redirected",
+    );
+  });
+
   it("許可されない URL は fetch せずに reject する", async () => {
     await expect(
       uploadToPresignedPost({ url: "http://evil.example/x", fields: [] }, FILE, {

@@ -39,11 +39,34 @@ export async function uploadToPresignedPost(
   }
 
   // ヘッダーを一切付けない（`Content-Type` を明示すると multipart の boundary が壊れる）。
-  const response = await fetch(ticket.url, { method: "POST", body: form, signal: options.signal });
+  // `redirect: "manual"` は `isAllowedUploadUrl` の送信先検証がリダイレクト**後**の遷移先までは
+  // 検証しないことへの多層防御（S3 の presigned POST は正常系でリダイレクトしないため機能に影響
+  // しない。ローカルレビュー MR3）。
+  // 注意（`@/api/client.ts` の `redirect: "error"` と同じ既知の制約）: RN 0.86 のグローバル fetch は
+  // `whatwg-fetch`（XHR ベースのポリフィル）の再エクスポートで、`Request` は `options.redirect` を
+  // 読まないため **実機ではリダイレクトが常に追従される**（実効的な防御にならない）。
+  // Web / react-native-web、および Node（vitest の msw 環境）の spec 準拠 fetch では機能する。
+  const response = await fetch(ticket.url, {
+    method: "POST",
+    body: form,
+    signal: options.signal,
+    redirect: "manual",
+  });
+
+  // `redirect: "manual"` が効く環境では 3xx は `type: "opaqueredirect"`（status は仕様上 0）になり
+  // 本文を読めない。リダイレクトはすべて失敗として扱う。
+  if (response.type === "opaqueredirect") {
+    throw new S3UploadError(0, "Redirected");
+  }
 
   // backend 契約上の成功は 204 だが、2xx は広く成功として扱う。
   if (response.status >= 200 && response.status < 300) {
     return;
+  }
+
+  // manual でも 3xx がそのまま観測される環境（一部ポリフィル）への保険。
+  if (response.status >= 300 && response.status < 400) {
+    throw new S3UploadError(response.status, "Redirected");
   }
 
   const body = await response.text().catch(() => "");
