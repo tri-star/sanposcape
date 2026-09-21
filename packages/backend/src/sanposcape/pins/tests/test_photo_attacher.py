@@ -222,6 +222,92 @@ class TestCommit:
 
         assert storage.head(prepared[0].original_key) is None
 
+    def test_deadline_exceeded_after_put_raises_before_copy(self) -> None:
+        """PR #93 T3 回帰テスト: Put 完了直後・Copy 開始前にも締め切りを確認する。
+
+        以前は `commit_one` の先頭1回しか確認しておらず、Put が時間予算を使い切った
+        後も Copy が開始されえた。
+        """
+
+        class TrackingStorage(FakeObjectStorage):
+            def __init__(self, **kwargs) -> None:
+                super().__init__(**kwargs)
+                self.copy_called = False
+
+            def copy(self, *, source_key: str, dest_key: str) -> None:
+                self.copy_called = True
+                super().copy(source_key=source_key, dest_key=dest_key)
+
+        storage = TrackingStorage(secret="s" * 32)
+        upload_id = uuid.uuid4()
+        seed(storage, upload_id)
+        prepare_attacher = make_attacher(storage, concurrency=1)
+        prepared = prepare_attacher.prepare(
+            [
+                PhotoUploadInput(
+                    upload_id=upload_id,
+                    staging_key=staging_key(user_id=USER_ID, upload_id=upload_id),
+                )
+            ],
+            user_id=USER_ID,
+            deadline_at=prepare_attacher.compute_deadline(20),
+        )
+        # 1つ目の呼び出し(Put の前)は締め切り内、2つ目(Put の後・Copy の前)は締め切り超過。
+        times = iter([0.0, 20.0])
+        commit_attacher = PhotoAttacher(
+            storage,
+            max_bytes=10 * 1024 * 1024,
+            max_pixels=1_000_000,
+            thumbnail_max_edge=50,
+            thumbnail_quality=80,
+            concurrency=1,
+            monotonic=lambda: next(times),
+        )
+
+        with pytest.raises(ObjectStorageUnavailableError):
+            commit_attacher.commit(prepared, deadline_at=10.0)
+
+        assert storage.copy_called is False
+        assert storage.head(prepared[0].original_key) is None
+        # サムネイルの Put 自体は締め切り確認の前に完了している。
+        assert storage.head(prepared[0].thumbnail_key) is not None
+
+    def test_deadline_exceeded_after_all_copies_finish_still_raises(self) -> None:
+        """PR #93 T3 回帰テスト: 個々の Put/Copy が全て成功しても、全 Future を集約した
+        時点（＝最後の Copy が終わった後）で締め切りを超えていれば 503 にする。
+        """
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload_id = uuid.uuid4()
+        seed(storage, upload_id)
+        prepare_attacher = make_attacher(storage, concurrency=1)
+        prepared = prepare_attacher.prepare(
+            [
+                PhotoUploadInput(
+                    upload_id=upload_id,
+                    staging_key=staging_key(user_id=USER_ID, upload_id=upload_id),
+                )
+            ],
+            user_id=USER_ID,
+            deadline_at=prepare_attacher.compute_deadline(20),
+        )
+        # commit_one 内の2回の確認(Put 前・Put 後)は締め切り内。Future 集約後の確認だけ超過させる。
+        times = iter([0.0, 0.0, 999.0])
+        commit_attacher = PhotoAttacher(
+            storage,
+            max_bytes=10 * 1024 * 1024,
+            max_pixels=1_000_000,
+            thumbnail_max_edge=50,
+            thumbnail_quality=80,
+            concurrency=1,
+            monotonic=lambda: next(times),
+        )
+
+        with pytest.raises(ObjectStorageUnavailableError):
+            commit_attacher.commit(prepared, deadline_at=10.0)
+
+        # Copy 自体は成功済み（集約時点の確認だけが失敗の原因）。
+        assert storage.head(prepared[0].original_key) is not None
+
     def test_partial_failure_propagates_and_stops_remaining_writes(self) -> None:
         """R3 回帰テスト: 途中の1枚が失敗しても例外が伝播し、以前に成功した分だけが
         original/thumbnail に残る（プランの failure table どおり。DB 未コミットなら
