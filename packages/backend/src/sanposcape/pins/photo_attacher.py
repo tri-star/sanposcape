@@ -216,11 +216,26 @@ class PhotoAttacher:
                     raise exc
             raise errors[0]
 
-    def cleanup_staging(self, prepared: list[PreparedPhoto]) -> None:
+    def cleanup_staging(self, prepared: list[PreparedPhoto], *, deadline_at: float) -> None:
         """commit 後に staging を best-effort で削除する（失敗は WARNING ログのみ。
         staging は S3 のライフサイクルで最終的に消える）。
+
+        `prepare()`/`commit()` と同じ `deadline_at` を受け取り、締め切りを超えたら
+        残りは削除せず打ち切って WARNING を1件出す（PR #93 T4: 以前はここだけ締め切りの
+        対象外で、DB commit 後・レスポンス返却前に1件ずつ逐次実行されるため、S3 が
+        劣化していると Lambda の実行タイムアウトまで無制御に時間を消費しうる不具合が
+        あった）。呼び出し元は既に DB commit 済みのため、ここで打ち切っても整合性は
+        壊れない（未削除の staging オブジェクトは S3 のライフサイクルで最終的に消える）。
         """
-        for item in prepared:
+        for index, item in enumerate(prepared):
+            if self._monotonic() > deadline_at:
+                logger.warning(
+                    "Skipping remaining staging cleanup: confirm deadline exceeded "
+                    "(%d of %d objects not deleted; they will expire via the S3 lifecycle rule)",
+                    len(prepared) - index,
+                    len(prepared),
+                )
+                return
             try:
                 self._storage.delete(item.staging_key)
             except ObjectStorageUnavailableError:

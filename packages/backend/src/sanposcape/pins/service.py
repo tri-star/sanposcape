@@ -228,7 +228,11 @@ class PinService:
         self._db.commit()
 
         if prepared_photos:
-            self._photo_attacher.cleanup_staging(prepared_photos)
+            if confirm_deadline_at is None:
+                raise AssertionError(
+                    "prepared_photos is non-empty but confirm_deadline_at is unset"
+                )
+            self._photo_attacher.cleanup_staging(prepared_photos, deadline_at=confirm_deadline_at)
 
         read_model = self._require_read_model(pin.id)
         return self._to_pin_read(read_model, current_user, base_url), True
@@ -268,6 +272,7 @@ class PinService:
             to_process.append(upload_id)
 
         prepared_photos: list[PreparedPhoto] = []
+        confirm_deadline_at: float | None = None
         if to_process:
             try:
                 prepared_photos, confirm_deadline_at = self._prepare_photos(
@@ -290,6 +295,8 @@ class PinService:
                 to_process = []
 
             if to_process:
+                if confirm_deadline_at is None:
+                    raise AssertionError("to_process is non-empty but confirm_deadline_at is unset")
                 start_position = self._repository.next_photo_position(pin.id)
                 self._commit_photos(
                     pin_id=pin.id,
@@ -303,7 +310,11 @@ class PinService:
         self._db.commit()
 
         if prepared_photos:
-            self._photo_attacher.cleanup_staging(prepared_photos)
+            if confirm_deadline_at is None:
+                raise AssertionError(
+                    "prepared_photos is non-empty but confirm_deadline_at is unset"
+                )
+            self._photo_attacher.cleanup_staging(prepared_photos, deadline_at=confirm_deadline_at)
 
         all_photos_by_upload_id = {
             photo.upload_id: photo for photo in self._repository.list_photos(pin.id)

@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import pytest
@@ -373,7 +374,7 @@ class TestCleanupStaging:
             inputs, user_id=USER_ID, deadline_at=attacher.compute_deadline(20)
         )
 
-        attacher.cleanup_staging(prepared)
+        attacher.cleanup_staging(prepared, deadline_at=attacher.compute_deadline(20))
 
         assert storage.head(staging_key(user_id=USER_ID, upload_id=upload_id)) is None
 
@@ -395,4 +396,49 @@ class TestCleanupStaging:
             inputs, user_id=USER_ID, deadline_at=attacher.compute_deadline(20)
         )
 
-        attacher.cleanup_staging(prepared)  # 例外を送出しない
+        attacher.cleanup_staging(
+            prepared, deadline_at=attacher.compute_deadline(20)
+        )  # 例外を送出しない
+
+    def test_deadline_exceeded_skips_remaining_deletes_and_logs_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """PR #93 T4 回帰テスト: 以前は締め切りの対象外で、S3 が劣化していると無制御に
+        時間を消費しうる不具合があった。超過分は削除せず打ち切って WARNING を出す。
+        """
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload_ids = [uuid.uuid4() for _ in range(3)]
+        for upload_id in upload_ids:
+            seed(storage, upload_id)
+        prepare_attacher = make_attacher(storage)
+        inputs = [
+            PhotoUploadInput(
+                upload_id=upload_id, staging_key=staging_key(user_id=USER_ID, upload_id=upload_id)
+            )
+            for upload_id in upload_ids
+        ]
+        prepared = prepare_attacher.prepare(
+            inputs, user_id=USER_ID, deadline_at=prepare_attacher.compute_deadline(20)
+        )
+        # 1件目・2件目は締め切り内、3件目の確認時点で超過させる。
+        times = iter([0.0, 0.0, 999.0])
+        cleanup_attacher = PhotoAttacher(
+            storage,
+            max_bytes=10 * 1024 * 1024,
+            max_pixels=1_000_000,
+            thumbnail_max_edge=50,
+            thumbnail_quality=80,
+            concurrency=3,
+            monotonic=lambda: next(times),
+        )
+
+        with caplog.at_level(logging.WARNING):
+            cleanup_attacher.cleanup_staging(prepared, deadline_at=10.0)
+
+        assert storage.head(staging_key(user_id=USER_ID, upload_id=upload_ids[0])) is None
+        assert storage.head(staging_key(user_id=USER_ID, upload_id=upload_ids[1])) is None
+        # 3件目は締め切り超過のため削除されずに残る（S3 のライフサイクルで最終的に消える）。
+        assert storage.head(staging_key(user_id=USER_ID, upload_id=upload_ids[2])) is not None
+        assert any(
+            "Skipping remaining staging cleanup" in record.message for record in caplog.records
+        )
