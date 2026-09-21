@@ -154,9 +154,11 @@ class PinRepository:
             for offset, item in enumerate(prepared)
         ]
         self._db.add_all(photos)
+        # SQLAlchemy 2.0 + psycopg は複数行 INSERT でも `RETURNING`（insertmanyvalues）で
+        # サーバー生成値（`created_at`）を `flush()` 時点で populate 済みにする。ループでの
+        # `refresh()`（写真枚数ぶんの追加 SELECT）は不要で、確定処理という時間予算がタイトな
+        # 経路で無駄な DB ラウンドトリップを増やすだけなので行わない。
         self._db.flush()
-        for photo in photos:
-            self._db.refresh(photo)
         return photos
 
     def add_tags(
@@ -172,9 +174,9 @@ class PinRepository:
             for label in labels
         ]
         self._db.add_all(tags)
+        # add_photos() と同じ理由でループでの refresh() は行わない（flush() の
+        # RETURNING で created_at は既に populate 済み）。
         self._db.flush()
-        for tag in tags:
-            self._db.refresh(tag)
         return tags
 
     def list_tags(self, pin_id: uuid.UUID) -> list[PinTag]:
