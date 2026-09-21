@@ -11,7 +11,7 @@
 | 節 | 状態 |
 |---|---|
 | 2. backend のデプロイ | **実績あり**（dev のみ。prod スタックは未作成） |
-| 3. フラグの操作 | backend の読み取り基盤（SS-98）は**実装済み**（dev への実デプロイでの検証は未実施）。**切り替えワークフロー（SS-99）は未実装**。mobile 側の受け皿（SS-100）は**実装済み**（起動時・フォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は全フラグ OFF で動く） |
+| 3. フラグの操作 | backend の読み取り基盤（SS-98）は**実装済み**（dev への実デプロイでの検証は未実施）。切り替えワークフロー（SS-99）は**実装済み・実行実績なし**（dev の初回実行で下記手順を確認すること）。mobile 側の受け皿（SS-100）は**実装済み**（起動時・フォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は全フラグ OFF で動く） |
 | 4. mobile の配布 | **実績あり**（dev 向けの `staging` 系のみ。ストア公開は未実施） |
 | 5. ストアの設定 | **未検証**（公式ドキュメントに基づく記述。本番のストアレコードが未作成で確認できない） |
 | 6. OTA | **未実装**（SS-103 が未着手） |
@@ -76,21 +76,28 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
 
 ## 3. フラグの操作
 
-> SS-98（backend の読み取り基盤と `/app-config`）は完了済み。
-> **SS-99（切り替えワークフロー）は未実装**。完了後に、確定した手順でここを書き直すこと。
+> SS-98（backend の読み取り基盤と `/app-config`）と SS-99（切り替えワークフロー）は実装済み。
+> **切り替えワークフローはまだ一度も実行されていない。** 初回実行時に差異があれば本節を訂正すること。
 > 現在のフラグ値・取得状態の確認は `/app-config` を叩けばよい
 > （[deployment.md](../packages/backend/docs/deployment.md) §11「フィーチャーフラグ」を参照）。
 
-現時点で確定している運用上の約束だけを記す。
+### 運用上の約束
 
-- **フラグの切り替えは GitHub Actions の `workflow_dispatch` からのみ行う。
-  AWS コンソールから直接操作しない。** Actions の実行履歴を
+- **フラグの切り替えは GitHub Actions の `workflow_dispatch`（`.github/workflows/feature-flags.yml`）
+  からのみ行う。AWS コンソールから直接操作しない。** Actions の実行履歴を
   「いつ・誰が・何をリリースしたか」の記録にするため（ADR-008 決定6）。
-- prod のフラグ切り替えは production Environment の承認を通る。
-- フラグの定義（名前・説明・既定値）は本リポジトリ内のファイルで管理する。
-  ワークフローがその値から hosted configuration version を作成して `StartDeployment` する。
+- prod のフラグ切り替えは production Environment の承認を通り、**main からしか起動できない**。
+  dev は任意の ref から起動できる（その ref の定義ファイルが使われる）。
+- フラグの定義（キー・名前・説明・既定値）は
+  [`packages/backend/feature-flags.json`](../packages/backend/feature-flags.json) で管理する。
+  キー集合は backend の登録簿（`core/feature_flags.py` の `FEATURE_FLAGS`）+ 予約キー
+  `client_requirements` と一致していなければならない（pytest で検査している）。
+- **フラグの現在値の正本は AppConfig**（直近に配信を完了した hosted configuration version）。
+  ワークフローは現在値を引き継ぎ、指定した1本だけを書き換えた版を作って `StartDeployment` する。
+  定義ファイルから消えたキーは次の切り替えで AppConfig からも消え、定義ファイルに足したキーは既定値（OFF）で入る。
 - **同一 Environment では、前のデプロイのベイク中に次のデプロイを開始できない。**
-  prod はベイク時間を数分置く設計のため、連続してフラグを切り替える場合は待ち時間が生じる。
+  ワークフローは環境ごとに直列化し、各 run が配信の完了（ベイク終了）まで待つので、連続で起動しても
+  後の run は前の run の完了を待ってから動く。ベイクは dev 0 分・prod 1 分（sanposcape-infra の設定）。
 - フラグが読めない場合、backend は**全フラグ OFF** で動く（ADR-008 決定9）。
   「フラグを ON にしたのに反映されない」ときは、AppConfig の取得自体が失敗している可能性を疑う。
 - mobile は起動時とフォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は
@@ -99,6 +106,38 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
   「フィーチャーフラグ（`/app-config`）の扱い」）。**フラグ ON は即時には反映されず、
   AppConfig のベイク + backend のポーリング間隔（既定60秒）+ 端末がフォアグラウンドへ戻るまで
   の遅延がある。**
+
+### 事前設定（環境ごとに1回）
+
+| 設定先 | 名前 | 値 |
+|---|---|---|
+| GitHub Environment `development` / `production` の **Variables** | `AWS_FEATURE_FLAGS_ROLE_ARN` | sanposcape-infra の `mise run output live/platform -raw feature_flags_role_arn`（当該環境で実行） |
+
+- Secrets は不要（OIDC のみ）。AppConfig の ID は SSM `/sanposcape/<env>/platform/appconfig/*` から
+  ワークフローが読む（リポジトリにもログにも出さない）。
+- Environment は backend のデプロイと共用する（infra のロールの trust が `environment:development` /
+  `environment:production` を許す）。production の Required reviewers と Deployment branches（main 限定）が
+  そのまま効く。
+- 前提: 当該環境の `live/platform`（AppConfig の器・ロール・SSM 契約）が apply 済みであること。
+
+### フラグを切り替える
+
+1. GitHub の Actions →「feature flags (AppConfig)」→ **Run workflow**
+   （CLI なら `gh workflow run feature-flags.yml --ref main -f environment=development -f flag=<キー> -f state=on`）
+2. `environment` / `flag`（`feature-flags.json` にあるキー）/ `state`（`on` / `off`）を選ぶ
+3. production の場合は承認する
+4. Job Summary で「変更前 → 変更後」と配信番号を確認する。既に同じ値なら「変更なし」で何もしない
+5. 数分後に `/app-config` で反映を確認する:
+   `curl -s https://app-api.<env>.sanposcape.com/app-config | jq`（`config_source` が `appconfig` になっていること）
+
+初回（その環境に一度も配信していない状態）は、定義ファイルの既定値に指定の1本を反映した版が最初の版になる。
+
+### フラグを追加する / 削除する
+
+- **追加**: 登録簿（`FEATURE_FLAGS`）と `feature-flags.json` の両方にキーを足す PR を出す
+  （既定値は必ず `enabled: false`）。マージ・デプロイ後にワークフローで ON にする。
+- **削除**: 分岐・登録簿・`feature-flags.json` からキーを消す PR を出す。AppConfig からは
+  次にいずれかのフラグを切り替えたときに消える（残っていても backend は未知キーとして無視する）。
 
 ### 現行の kill switch（AppConfig 移行前）
 
@@ -226,10 +265,13 @@ expand と contract は**別のデプロイに分ける**。
 
 ### 8.1 フラグを OFF にする（最優先）
 
-> 未実装（SS-99）。
-
 フラグで包んだ機能であれば、これが最も速い。再デプロイもストアの操作も不要。
-AppConfig のデプロイ中であれば `StopDeployment` で止められる。
+§3「フラグを切り替える」の手順で `state=off` にする。
+
+- prod はベイク（1 分）の間は次の配信を始められない。ワークフローは前の run の完了を待ってから
+  配信するので、ON にした直後に OFF を起動してよい（ベイク終了後に OFF が配信される）。
+- `StopDeployment` はワークフローに組み込んでいない。コンソールから止めるのは運用上の約束（§3）に反するため、
+  止める必要が生じたら逆の値でワークフローを起動する。
 
 ### 8.2 backend を再デプロイする
 

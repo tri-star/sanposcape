@@ -737,10 +737,11 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 | 値 | 意味 |
 |---|---|
 | `appconfig` | AppConfig から正常に取得できている |
-| `default` | 未配信（SS-99 のフラグ切り替えワークフローがまだ一度も流れていない。**デプロイ直後は必ずこの値になる正常な状態**）、または取得失敗（`APPCONFIG_*` 未設定・IAM 不備・タイムアウト等） |
+| `default` | 未配信（フラグ切り替えワークフロー `feature-flags.yml`（SS-99）がまだ一度も流れていない。**デプロイ直後は必ずこの値になる正常な状態**）、または取得失敗（`APPCONFIG_*` 未設定・IAM 不備・タイムアウト等） |
 | `stub` | `FEATURE_FLAG_MODE=stub`（ローカル開発 / テスト専用。dev/prod では起動時バリデーションで弾かれる） |
 
-`default` と `appconfig` のどちらであるべきかは、SS-99 で実際にフラグ値を配信済みかどうかで決まる。
+`default` と `appconfig` のどちらであるべきかは、切り替えワークフローで実際にフラグ値を配信済みかどうかで決まる
+（切り替え手順は [release-runbook.md](../../../docs/release-runbook.md) §3）。
 `default` が続く場合は CloudWatch Logs（後述）で「未配信（INFO）」か「取得失敗（ERROR）」かを
 切り分ける。
 
@@ -748,7 +749,7 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 
 フラグを ON にしてから `/app-config` に反映されるまでの時間は、次の合計になる。
 
-1. **AppConfig のデプロイのベイク時間**（Deployment Strategy が持つ待機時間。SS-99 側の設定）
+1. **AppConfig のデプロイのベイク時間**（Deployment Strategy が持つ待機時間。sanposcape-infra の設定で dev 0 分 / prod 1 分）
 2. **ポーリング間隔**（`APPCONFIG_POLL_INTERVAL_SECONDS`、既定60秒。実行環境ごとに独立してカウントする）
 3. **実行環境（Lambda コンテナ）ごとのばらつき**（コールドスタート・コンテナの入れ替わりで
    ポーリングのタイミングが揃わない）
