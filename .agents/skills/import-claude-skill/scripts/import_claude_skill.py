@@ -1,483 +1,309 @@
 #!/usr/bin/env python3
-"""Import Claude Code skills and agents into Codex-compatible files."""
+"""Compare Claude/Codex snapshots; never generate or overwrite active definitions."""
 
 from __future__ import annotations
 
 import argparse
-import ast
-import re
-import shutil
+import base64
+import difflib
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import subprocess
 import sys
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+import tempfile
+
+SCHEMA = 1
+STATE = ".codex/claude-import/baseline.json"
+SOURCE_PREFIXES = (".claude/skills/", ".claude/agents/")
+TARGET_PREFIXES = (".agents/skills/", ".codex/agents/")
+TARGET_FILES = {"AGENTS.md", ".codex/config.toml", "docs/codex-harness.md"}
 
 
-MODEL_MAP = {
-    "opus": ("gpt-5.6-sol", "high"),
-    "sonnet": ("gpt-5.6-terra", "medium"),
-    "haiku": ("gpt-5.6-luna", "low"),
-}
-
-SKILL_FRONTMATTER_KEYS = {
-    "name",
-    "description",
-    "license",
-    "compatibility",
-    "metadata",
-    "allowed-tools",
-}
-
-READ_ONLY_KEYWORDS = (
-    "review",
-    "reviewer",
-    "レビュー",
-    "監査",
-    "audit",
-    "調査",
-    "investigate",
-    "investigation",
-    "explore",
-    "explorer",
-    "参照",
-    "read-only",
-    "readonly",
-    "planner",
-    "planning",
-    "plan",
-    "プラン",
-    "計画",
-    "docs",
-    "document",
-    "documentation",
-    "ドキュメント",
-)
-
-WRITE_KEYWORDS = (
-    "developer",
-    "fixer",
-    "debugger",
-    "maintainer",
-    "開発",
-    "実装",
-)
+def digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
-@dataclass
-class FrontmatterDoc:
-    data: dict[str, Any]
-    body: str
-    had_frontmatter: bool
+def encoded(value: object) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+
+
+def safe_path(root: Path, relative: str) -> Path:
+    part = PurePosixPath(relative)
+    if part.is_absolute() or not part.parts or ".." in part.parts or str(part) != relative:
+        raise ValueError(f"unsafe path: {relative}")
+    candidate = root
+    for name in part.parts:
+        candidate = candidate / name
+        if candidate.is_symlink():
+            raise ValueError(f"symlinks are not imported: {relative}")
+    return candidate
+
+
+def is_source(path: str) -> bool:
+    return path.startswith(SOURCE_PREFIXES) or path == "CLAUDE.md" or (
+        path.startswith("packages/") and path.endswith("/CLAUDE.md")
+    )
+
+
+def is_target(path: str) -> bool:
+    return path.startswith(TARGET_PREFIXES) or path in TARGET_FILES or (
+        path.startswith("packages/") and path.endswith("/AGENTS.md")
+    )
+
+
+def unit(path: str) -> str:
+    parts = path.split("/")
+    if path.startswith(".claude/skills/"):
+        return "/".join(parts[:3])
+    return path
+
+
+def git(root: Path, *args: str) -> str:
+    return subprocess.check_output(["git", "-C", str(root), *args]).decode()
+
+
+def scan(root: Path, predicate) -> dict:
+    names = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0")
+    result = {}
+    for name in sorted(set(filter(predicate, filter(None, names)))):
+        path = safe_path(root, name)
+        if not path.exists():  # A tracked deletion.
+            continue
+        if not path.is_file():
+            raise ValueError(f"expected a regular file: {name}")
+        data = path.read_bytes()
+        entry = {"sha256": digest(data), "executable": bool(path.stat().st_mode & 0o111)}
+        try:
+            entry["text"] = data.decode("utf-8")
+        except UnicodeDecodeError:
+            entry["base64"] = base64.b64encode(data).decode("ascii")
+        result[name] = entry
+    return result
+
+
+def state(root: Path) -> tuple[dict, str | None]:
+    path = safe_path(root, STATE)
+    if not path.exists():
+        return {"schema": SCHEMA, "sources": {}, "targets": {}, "decisions": {}}, None
+    data = path.read_bytes()
+    value = json.loads(data)
+    if value.get("schema") != SCHEMA or not all(
+        isinstance(value.get(key), dict) for key in ("sources", "targets", "decisions")
+    ):
+        raise ValueError("invalid baseline schema; a plan is not an accepted baseline")
+    return value, digest(data)
+
+
+def changes(before: dict, after: dict) -> list[dict]:
+    return [
+        {"path": name, "kind": "added" if name not in before else "deleted" if name not in after else "modified"}
+        for name in sorted(before.keys() | after.keys())
+        if before.get(name) != after.get(name)
+    ]
+
+
+def make_plan(root: Path) -> dict:
+    baseline, checksum = state(root)
+    sources, targets = scan(root, is_source), scan(root, is_target)
+    source_changes = changes(baseline["sources"], sources)
+    target_changes = changes(baseline["targets"], targets)
+    units = sorted({unit(item["path"]) for item in source_changes})
+    target_names = {item["path"] for item in target_changes}
+    overlap = {
+        name: sorted(set(baseline["decisions"].get(name, {}).get("targets", [])) & target_names)
+        for name in units
+    }
+    return {
+        "schema": SCHEMA, "baseline_sha256": checksum,
+        "source_head": git(root, "rev-parse", "HEAD").strip(),
+        "sources": sources, "targets": targets,
+        "source_changes": source_changes, "target_changes": target_changes,
+        "units": units, "overlap": {k: v for k, v in overlap.items() if v},
+    }
+
+
+def summary(plan: dict) -> dict:
+    return {key: plan[key] for key in (
+        "baseline_sha256", "source_head", "units", "source_changes", "target_changes", "overlap"
+    )}
+
+
+def atomic_write(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".import-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(encoded(value))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def load_plan(path: Path) -> tuple[dict, str]:
+    raw = path.read_bytes()
+    plan = json.loads(raw)
+    if plan.get("schema") != SCHEMA:
+        raise ValueError("unsupported plan schema")
+    return plan, digest(raw)
+
+
+def show_diff(root: Path, plan: dict, side: str, paths: list[str]) -> str:
+    baseline, checksum = state(root)
+    if checksum != plan["baseline_sha256"]:
+        raise ValueError("baseline changed; create a new plan")
+    before, after = baseline[side], plan[side]
+    names = paths or [x["path"] for x in changes(before, after)]
+    output = []
+    for name in names:
+        if name not in before and name not in after:
+            raise ValueError(f"path absent from {side}: {name}")
+        old, new = before.get(name, {}), after.get(name, {})
+        output.append(f"--- {name}: {old.get('sha256', 'absent')} -> {new.get('sha256', 'absent')}\n")
+        if "base64" in old or "base64" in new:
+            output.append("Binary content changed; inspect the source asset separately.\n")
+        else:
+            output.extend(difflib.unified_diff(
+                old.get("text", "").splitlines(keepends=True),
+                new.get("text", "").splitlines(keepends=True),
+                fromfile="baseline/" + name, tofile="current/" + name,
+            ))
+        if old.get("executable") != new.get("executable"):
+            output.append(f"executable: {old.get('executable')} -> {new.get('executable')}\n")
+    return "".join(output)
+
+
+def accept(root: Path, plan: dict, plan_hash: str, decisions: dict) -> dict:
+    """Advance only reviewed source units and explicitly owned target files."""
+    baseline, checksum = state(root)
+    if checksum != plan["baseline_sha256"]:
+        raise ValueError("baseline changed; create a new plan")
+    if decisions.get("plan_sha256") != plan_hash:
+        raise ValueError("decisions must reference the exact plan SHA256")
+    if scan(root, is_source) != plan["sources"]:
+        raise ValueError("Claude sources changed since planning; create a new plan")
+    if not isinstance(decisions.get("validation"), list) or not decisions["validation"] or not all(
+        isinstance(x, str) and x.strip() for x in decisions["validation"]
+    ):
+        raise ValueError("record completed validation commands/results")
+    required = {unit(x["path"]) for x in changes(baseline["sources"], plan["sources"])}
+    records = decisions.get("units", {})
+    if set(records) != required:
+        raise ValueError("decide every changed source unit exactly once (use defer for pending)")
+    drift = {x["path"] for x in changes(baseline["targets"], plan["targets"])}
+    if set(decisions.get("reviewed_target_drift", [])) != drift:
+        raise ValueError("acknowledge all Codex changes present when planning")
+    current_targets = scan(root, is_target)
+    owned = set(decisions.get("codex_only_targets", []))
+    for name, record in records.items():
+        action = record.get("action")
+        if action not in {"adapt", "retain", "omit", "defer"} or not record.get("reason", "").strip():
+            raise ValueError(f"invalid decision/reason: {name}")
+        targets = record.get("targets", [])
+        if not isinstance(targets, list) or not all(isinstance(x, str) for x in targets):
+            raise ValueError(f"invalid targets: {name}")
+        if action in {"omit", "defer"} and targets:
+            raise ValueError(f"{action} must not advance target files: {name}")
+        if action in {"adapt", "retain"} and not targets:
+            raise ValueError(f"{action} requires target paths: {name}")
+        if action != "defer":
+            owned.update(targets)
+    known_targets = baseline["targets"].keys() | plan["targets"].keys() | current_targets.keys()
+    for name in owned:
+        safe_path(root, name)
+        if not is_target(name) or name not in known_targets:
+            raise ValueError(f"unknown or out-of-scope target: {name}")
+    edited = {x["path"] for x in changes(plan["targets"], current_targets)}
+    if edited - owned:
+        raise ValueError("unmapped Codex edits: " + ", ".join(sorted(edited - owned)))
+    # Pre-existing local edits are preserved on disk, and stay visible until explicitly accepted.
+    new = json.loads(json.dumps(baseline))
+    for name, record in records.items():
+        if record["action"] == "defer":
+            continue
+        for path in list(new["sources"]):
+            if unit(path) == name:
+                del new["sources"][path]
+        new["sources"].update({p: v for p, v in plan["sources"].items() if unit(p) == name})
+        new["decisions"][name] = {**record, "source_head": plan["source_head"]}
+    for name in owned:
+        if name in current_targets:
+            new["targets"][name] = current_targets[name]
+        else:
+            new["targets"].pop(name, None)
+    new["last_accept"] = {
+        "plan_sha256": plan_hash, "source_head": plan["source_head"],
+        "validation": decisions["validation"],
+        "deferred_units": sorted(k for k, v in records.items() if v["action"] == "defer"),
+        "codex_only_targets": sorted(decisions.get("codex_only_targets", [])),
+    }
+    return new
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Convert .claude/skills and .claude/agents into Codex-compatible files."
-    )
-    parser.add_argument(
-        "--project-root",
-        type=Path,
-        help="Project root. Defaults to nearest parent with .git.",
-    )
-    parser.add_argument(
-        "--skills-only", action="store_true", help="Import only Claude Code skills."
-    )
-    parser.add_argument(
-        "--agents-only", action="store_true", help="Import only Claude Code agents."
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print planned changes without writing files.",
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--project-root", type=Path)
+    sub = parser.add_subparsers(dest="command")
+    prepare = sub.add_parser("plan", help="Read-only comparison; optionally save a review plan")
+    prepare.add_argument("--output", type=Path)
+    inspect = sub.add_parser("diff", help="Read the exact source or Codex snapshot delta")
+    inspect.add_argument("--plan", required=True, type=Path)
+    inspect.add_argument("--side", choices=("sources", "targets"), default="sources")
+    inspect.add_argument("--path", action="append", default=[])
+    finish = sub.add_parser("accept", help="Checkpoint reviewed changes; does not edit definitions")
+    finish.add_argument("--plan", required=True, type=Path)
+    finish.add_argument("--decisions", required=True, type=Path)
     args = parser.parse_args()
-
-    if args.skills_only and args.agents_only:
-        parser.error("--skills-only and --agents-only cannot be used together")
-
-    project_root = (
-        args.project_root.resolve()
-        if args.project_root
-        else find_project_root(Path.cwd())
-    )
-    if project_root is None:
-        print(
-            "error: could not find project root; pass --project-root", file=sys.stderr
-        )
-        return 2
-
-    imported = 0
-    if not args.agents_only:
-        imported += import_skills(project_root, dry_run=args.dry_run)
-    if not args.skills_only:
-        agent_count = import_agents(project_root, dry_run=args.dry_run)
-        if agent_count is None:
-            return 1
-        imported += agent_count
-
-    verb = "would import" if args.dry_run else "imported"
-    print(f"{verb} {imported} item(s)")
+    root = (args.project_root or Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())).resolve()
+    if args.command in (None, "plan"):
+        plan = make_plan(root)
+        if getattr(args, "output", None):
+            if ".." in args.output.parts:
+                raise ValueError("plan output must not contain '..'")
+            destination = args.output.absolute()
+            if destination.exists() or destination.is_symlink():
+                raise ValueError("plan output already exists; choose a new file")
+            # Plans are temporary review data, never live definitions or the baseline.
+            for parent in (destination, *destination.parents):
+                if parent.is_symlink():
+                    raise ValueError("plan output must not use symlinks")
+            try:
+                relative = destination.relative_to(root).as_posix()
+            except ValueError:
+                relative = None
+            if relative and (is_source(relative) or is_target(relative) or relative.startswith(".codex/claude-import/")):
+                raise ValueError("plan output must be outside managed definitions and baseline")
+            atomic_write(destination, plan)
+            print(f"plan_sha256: {digest(destination.read_bytes())}")
+        print(json.dumps(summary(plan), ensure_ascii=False, indent=2))
+    else:
+        plan, plan_hash = load_plan(args.plan)
+        if args.command == "diff":
+            print(show_diff(root, plan, args.side, args.path), end="")
+        else:
+            import validate_harness
+            errors = validate_harness.validate(root)
+            if errors:
+                raise ValueError("harness validation failed:\n" + "\n".join(errors))
+            target = safe_path(root, STATE)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            lock = safe_path(root, ".codex/claude-import/.lock")
+            with lock.open("w") as stream:
+                fcntl.flock(stream, fcntl.LOCK_EX)
+                result = accept(root, plan, plan_hash, json.loads(args.decisions.read_text()))
+                atomic_write(target, result)
+            print(f"accepted baseline: {STATE}; deferred: {len(result['last_accept']['deferred_units'])}")
     return 0
 
 
-def find_project_root(start: Path) -> Path | None:
-    current = start.resolve()
-    while True:
-        if (current / ".git").exists():
-            return current
-        if current.parent == current:
-            return None
-        current = current.parent
-
-
-def import_skills(project_root: Path, *, dry_run: bool) -> int:
-    source_root = project_root / ".claude" / "skills"
-    target_root = project_root / ".agents" / "skills"
-    if not source_root.is_dir():
-        return 0
-
-    count = 0
-    for skill_dir in sorted(path for path in source_root.iterdir() if path.is_dir()):
-        source_skill = skill_dir / "SKILL.md"
-        if not source_skill.is_file():
-            print(
-                f"skip skill without SKILL.md: {relative(skill_dir, project_root)}",
-                file=sys.stderr,
-            )
-            continue
-
-        doc = parse_frontmatter(source_skill.read_text(encoding="utf-8"))
-        target_name = sanitize_name(str(doc.data.get("name") or skill_dir.name))
-        target_dir = target_root / target_name
-        target_skill = target_dir / "SKILL.md"
-        converted = convert_skill_doc(doc, name=target_name)
-
-        print(
-            f"{'would write' if dry_run else 'write'} {relative(target_skill, project_root)}"
-        )
-        if not dry_run:
-            if target_dir.exists():
-                shutil.rmtree(target_dir)
-            shutil.copytree(
-                skill_dir, target_dir, ignore=shutil.ignore_patterns("SKILL.md")
-            )
-            target_skill.write_text(converted, encoding="utf-8")
-        count += 1
-    return count
-
-
-def import_agents(project_root: Path, *, dry_run: bool) -> int | None:
-    source_root = project_root / ".claude" / "agents"
-    target_root = project_root / ".codex" / "agents"
-    if not source_root.is_dir():
-        return 0
-    if (project_root / ".codex").exists() and not (project_root / ".codex").is_dir():
-        print(
-            "error: .codex exists but is not a directory; cannot import agents",
-            file=sys.stderr,
-        )
-        return None
-
-    count = 0
-    for source_agent in sorted(source_root.glob("*.md")):
-        doc = parse_frontmatter(source_agent.read_text(encoding="utf-8"))
-        name = sanitize_agent_name(str(doc.data.get("name") or source_agent.stem))
-        target_agent = target_root / f"{name}.toml"
-        converted = convert_agent_doc(doc, fallback_name=name)
-
-        print(
-            f"{'would write' if dry_run else 'write'} {relative(target_agent, project_root)}"
-        )
-        if not dry_run:
-            target_root.mkdir(parents=True, exist_ok=True)
-            target_agent.write_text(converted, encoding="utf-8")
-        count += 1
-    return count
-
-
-def parse_frontmatter(text: str) -> FrontmatterDoc:
-    if not text.startswith("---\n"):
-        return FrontmatterDoc({}, text, False)
-
-    end = text.find("\n---", 4)
-    if end == -1:
-        return FrontmatterDoc({}, text, False)
-
-    raw = text[4:end].strip()
-    body_start = end + len("\n---")
-    if text[body_start : body_start + 1] == "\n":
-        body_start += 1
-
-    return FrontmatterDoc(parse_simple_yaml(raw), text[body_start:], True)
-
-
-def parse_simple_yaml(raw: str) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    lines = raw.splitlines()
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        index += 1
-        if (
-            not line.strip()
-            or line.lstrip().startswith("#")
-            or line.startswith((" ", "\t"))
-        ):
-            continue
-        if ":" not in line:
-            continue
-
-        key, value = line.split(":", 1)
-        key = key.strip()
-        value = value.strip()
-        if value == "":
-            nested: dict[str, Any] = {}
-            while index < len(lines) and lines[index].startswith((" ", "\t")):
-                nested_line = lines[index].strip()
-                index += 1
-                if (
-                    not nested_line
-                    or nested_line.startswith("#")
-                    or ":" not in nested_line
-                ):
-                    continue
-                nested_key, nested_value = nested_line.split(":", 1)
-                nested[nested_key.strip()] = parse_scalar(nested_value.strip())
-            result[key] = nested
-        else:
-            result[key] = parse_scalar(value)
-    return result
-
-
-def parse_scalar(value: str) -> Any:
-    if value in {"true", "True"}:
-        return True
-    if value in {"false", "False"}:
-        return False
-    if value in {"null", "Null", "~"}:
-        return None
-    if value.startswith("[") and value.endswith("]"):
-        inner = value[1:-1].strip()
-        if not inner:
-            return []
-        return [parse_scalar(part.strip()) for part in split_csv(inner)]
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        return unquote(value)
-    return value
-
-
-def split_csv(value: str) -> list[str]:
-    parts: list[str] = []
-    current: list[str] = []
-    quote: str | None = None
-    escape = False
-    for char in value:
-        if escape:
-            current.append(char)
-            escape = False
-        elif char == "\\":
-            current.append(char)
-            escape = True
-        elif quote:
-            current.append(char)
-            if char == quote:
-                quote = None
-        elif char in {"'", '"'}:
-            current.append(char)
-            quote = char
-        elif char == ",":
-            parts.append("".join(current))
-            current = []
-        else:
-            current.append(char)
-    parts.append("".join(current))
-    return parts
-
-
-def unquote(value: str) -> str:
-    try:
-        parsed = ast.literal_eval(value)
-    except (SyntaxError, ValueError):
-        return value[1:-1]
-    return str(parsed)
-
-
-def convert_skill_doc(doc: FrontmatterDoc, *, name: str) -> str:
-    source = doc.data
-    description = str(
-        source.get("description") or f"Imported Claude Code skill: {name}."
-    )
-
-    metadata: dict[str, Any] = {}
-    if isinstance(source.get("metadata"), dict):
-        metadata.update(source["metadata"])
-
-    claude_fields = {
-        key: value for key, value in source.items() if key not in SKILL_FRONTMATTER_KEYS
-    }
-    if claude_fields:
-        metadata["claude"] = claude_fields
-
-    model = str(source.get("model") or "").lower()
-    if model in MODEL_MAP:
-        codex_model, effort = MODEL_MAP[model]
-        metadata["codex"] = {"model": codex_model, "model_reasoning_effort": effort}
-
-    frontmatter: dict[str, Any] = {
-        "name": name,
-        "description": description,
-    }
-    for key in ("license", "compatibility", "allowed-tools"):
-        if key in source and source[key] not in (None, ""):
-            frontmatter[key] = source[key]
-    if metadata:
-        frontmatter["metadata"] = metadata
-
-    return render_yaml(frontmatter) + "\n" + rewrite_claude_agent_refs(doc.body)
-
-
-def convert_agent_doc(doc: FrontmatterDoc, *, fallback_name: str) -> str:
-    source = doc.data
-    name = sanitize_agent_name(str(source.get("name") or fallback_name))
-    description = str(
-        source.get("description") or f"Imported Claude Code agent: {name}."
-    )
-    body = rewrite_claude_agent_refs(doc.body).strip() or description
-    model = str(source.get("model") or "").lower()
-    codex_model, effort = MODEL_MAP.get(model, ("gpt-5.5", "medium"))
-    comments = unsupported_agent_comments(source)
-
-    lines: list[str] = []
-    lines.extend(comments)
-    lines.append(f"name = {toml_string(name)}")
-    lines.append(f"description = {toml_string(description)}")
-    lines.append(f"model = {toml_string(codex_model)}")
-    lines.append(f"model_reasoning_effort = {toml_string(effort)}")
-    if is_read_only_agent(name, description, body, source):
-        lines.append('sandbox_mode = "read-only"')
-    lines.append("developer_instructions = " + toml_multiline_string(body))
-    lines.append("")
-    return "\n".join(lines)
-
-
-def unsupported_agent_comments(source: dict[str, Any]) -> list[str]:
-    comments: list[str] = []
-    for key in ("tools", "color", "memory"):
-        if key in source and source[key] not in (None, ""):
-            comments.append(f"# Claude {key}: {source[key]}")
-    return comments
-
-
-def is_read_only_agent(
-    name: str, description: str, body: str, source: dict[str, Any]
-) -> bool:
-    name_lower = name.lower()
-    haystack = " ".join([name, description, first_chars(body, 2000)]).lower()
-    has_read_only_signal = any(
-        keyword.lower() in haystack for keyword in READ_ONLY_KEYWORDS
-    )
-    has_write_role_name = any(
-        keyword.lower() in name_lower for keyword in WRITE_KEYWORDS
-    )
-
-    tools = str(source.get("tools") or "").lower()
-    write_tools = ("write", "edit", "multiedit", "notebookedit")
-    if any(tool in tools for tool in write_tools):
-        return False
-
-    return has_read_only_signal and not has_write_role_name
-
-
-def rewrite_claude_agent_refs(text: str) -> str:
-    replacements = (
-        (r"\bExplore エージェント\b", "explorer エージェント"),
-        (r"\bExplore agent\b", "explorer agent"),
-        (r"\bExplore Agent\b", "explorer Agent"),
-    )
-    result = text
-    for pattern, replacement in replacements:
-        result = re.sub(pattern, replacement, result)
-    return result
-
-
-def sanitize_name(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9-]+", "-", value.strip().lower())
-    normalized = re.sub(r"-{2,}", "-", normalized).strip("-")
-    return normalized or "imported-skill"
-
-
-def sanitize_agent_name(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9_-]+", "_", value.strip().lower().replace("-", "_"))
-    normalized = re.sub(r"_{2,}", "_", normalized).strip("_")
-    return normalized or "imported_agent"
-
-
-def render_yaml(data: dict[str, Any]) -> str:
-    lines = ["---"]
-    for key, value in data.items():
-        append_yaml_value(lines, key, value, indent=0)
-    lines.append("---")
-    return "\n".join(lines)
-
-
-def append_yaml_value(lines: list[str], key: str, value: Any, *, indent: int) -> None:
-    prefix = " " * indent
-    if isinstance(value, dict):
-        lines.append(f"{prefix}{key}:")
-        for child_key, child_value in value.items():
-            append_yaml_value(lines, str(child_key), child_value, indent=indent + 2)
-    elif isinstance(value, list):
-        lines.append(f"{prefix}{key}:")
-        for item in value:
-            lines.append(f"{prefix}  - {yaml_scalar(item)}")
-    else:
-        lines.append(f"{prefix}{key}: {yaml_scalar(value)}")
-
-
-def yaml_scalar(value: Any) -> str:
-    if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    if value is None:
-        return "null"
-    text = str(value)
-    if (
-        text == ""
-        or text.strip() != text
-        or any(char in text for char in ":\n#[]{}&*!,>|%@`\"'")
-    ):
-        return (
-            '"'
-            + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-            + '"'
-        )
-    return text
-
-
-def toml_string(value: str) -> str:
-    return (
-        '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
-    )
-
-
-def toml_multiline_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
-    return '"""\n' + escaped + '\n"""'
-
-
-def first_chars(value: str, limit: int) -> str:
-    return value[:limit]
-
-
-def relative(path: Path, root: Path) -> str:
-    try:
-        return str(path.relative_to(root))
-    except ValueError:
-        return str(path)
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (ValueError, OSError, subprocess.CalledProcessError, KeyError, TypeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(2)

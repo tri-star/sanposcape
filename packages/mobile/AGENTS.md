@@ -20,7 +20,7 @@
 
 **設計を変える実装に着手する前に、該当する ADR を読むこと。** ガイドラインが「何をするか」を、
 ADR が「なぜそうなっているか」を持っている。ADR の決定を覆す変更をする場合は、
-ADR の追補（または新規 ADR の作成）が必要（[adr-writing](../../.claude/skills/adr-writing/SKILL.md) スキルを使う）。
+ADR の追補（または新規 ADR の作成）が必要（[adr-writing](../../.agents/skills/adr-writing/SKILL.md) スキルを使う）。
 
 mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断や
 ドメイン知識は [`docs/adr/`](../../docs/adr/)（リポジトリルート）にある。
