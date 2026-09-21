@@ -223,6 +223,33 @@ class TestCreatePin:
             },
         )
         assert response.status_code == 409
+        # PR #93 T15: mobile が「容量超過」と区別できるよう、機械可読な code を持つ。
+        assert response.json()["code"] == "photo_upload_not_ready"
+
+    def test_storage_quota_exceeded_returns_409_with_quota_code(
+        self,
+        fake_storage_tiny_quota_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        """PR #93 T15: 容量超過は `photo_upload_not_ready` と異なる code で区別できる。"""
+        client, storage = fake_storage_tiny_quota_client
+        upload = create_upload_row(db_session, user_id=authenticated_user.id)
+        seed_staging_photo(storage, user_id=authenticated_user.id, upload_id=upload.id)
+
+        response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "photo_upload_ids": [str(upload.id)],
+            },
+        )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "storage_quota_exceeded"
 
     def test_unconfigured_storage_without_photos_still_succeeds(
         self, unconfigured_storage_client: TestClient, auth_headers: dict[str, str]

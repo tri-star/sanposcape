@@ -16,7 +16,7 @@ router = APIRouter(prefix="/pin-photo-uploads", tags=["pins"])
     operation_id="create_pin_photo_upload",
     responses={
         401: {"description": "Not authenticated"},
-        409: {"description": "Storage quota exceeded"},
+        409: {"description": 'Storage quota exceeded (body code: "storage_quota_exceeded")'},
         413: {"description": "Request body too large, or photo exceeds the size limit"},
         422: {"description": "Validation error"},
         429: {"description": "Too many pending uploads"},

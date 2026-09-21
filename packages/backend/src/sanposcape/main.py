@@ -145,13 +145,22 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _pin_photo_upload_not_ready(
         request: Request, exc: PinPhotoUploadNotReadyError
     ) -> JSONResponse:
-        return JSONResponse(status_code=409, content={"detail": "Photo upload not ready"})
+        # `code` は PR #93 T15 で追加（mobile が 409 の中で「容量超過」と「写真の準備が
+        # できていない」を区別できるようにするため）。`detail` の固定文言は既存クライアント
+        # との後方互換のため変更しない。
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "Photo upload not ready", "code": "photo_upload_not_ready"},
+        )
 
     @app.exception_handler(StorageQuotaExceededError)
     async def _storage_quota_exceeded(
         request: Request, exc: StorageQuotaExceededError
     ) -> JSONResponse:
-        return JSONResponse(status_code=409, content={"detail": "Storage quota exceeded"})
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "Storage quota exceeded", "code": "storage_quota_exceeded"},
+        )
 
     @app.exception_handler(PinPhotoTooLargeError)
     async def _pin_photo_too_large(request: Request, exc: PinPhotoTooLargeError) -> JSONResponse:

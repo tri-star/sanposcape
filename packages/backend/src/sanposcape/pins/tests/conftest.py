@@ -114,6 +114,30 @@ def unconfigured_storage_client(test_settings: Settings) -> Generator[TestClient
     test_app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def fake_storage_tiny_quota_client() -> Generator[tuple[TestClient, FakeObjectStorage], None, None]:
+    """`STORAGE_MODE=fake` + `pin_photo_user_quota_bytes` を極小(1バイト)にした設定の
+    `TestClient`（`fake_storage_client` と同じ形）。`StorageQuotaExceededError`（409）を
+    狙って再現するために使う（PR #93 T15 の `code` フィールドのテスト）。
+    """
+    settings = Settings(
+        env="test",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["test-audience"],
+        storage_mode="fake",
+        pin_photo_user_quota_bytes=1,
+    )
+    test_app = create_app(settings)
+    test_app.dependency_overrides[get_db] = override_get_db
+    test_app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(test_app) as test_client:
+        storage = test_app.state.object_storage
+        assert isinstance(storage, FakeObjectStorage)
+        yield test_client, storage
+    test_app.dependency_overrides.clear()
+
+
 def make_jpeg_bytes(size: tuple[int, int] = (100, 100), *, color: str = "red") -> bytes:
     image = Image.new("RGB", size, color=color)
     buffer = io.BytesIO()

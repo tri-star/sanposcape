@@ -35,6 +35,19 @@ def _blank_to_none(value: str | None) -> str | None:
     return stripped or None
 
 
+class PinConflictErrorRead(BaseModel):
+    """`POST /pins`・`POST /pins/{pin_id}/photos` の 409 応答本体（PR #93 T15）。
+
+    `detail` は既存クライアントとの後方互換のため固定文言のまま維持する。`code` は
+    mobile が「容量超過」（`storage_quota_exceeded`）と「写真の準備ができていない」
+    （`photo_upload_not_ready`。未完了・期限切れ・デコード不可などをまとめて表す,
+    ADR-009 決定9）を区別するために新規追加した機械可読な値。
+    """
+
+    detail: str
+    code: Literal["storage_quota_exceeded", "photo_upload_not_ready"]
+
+
 class PinPhotoUploadCreate(BaseModel):
     """`POST /pin-photo-uploads` のリクエスト。
 

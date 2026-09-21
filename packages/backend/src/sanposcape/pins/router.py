@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, Request, Response, status
 
 from sanposcape.dependencies import get_current_user
 from sanposcape.pins.dependencies import get_pin_service
-from sanposcape.pins.schemas import PinCreate, PinPhotoListRead, PinPhotosAdd, PinRead
+from sanposcape.pins.schemas import (
+    PinConflictErrorRead,
+    PinCreate,
+    PinPhotoListRead,
+    PinPhotosAdd,
+    PinRead,
+)
 from sanposcape.pins.service import PinService
 from sanposcape.users.models import User
 
@@ -32,7 +38,11 @@ _ERROR_RESPONSES = {
         },
         403: {"description": "Permission denied"},
         404: {"description": "Sanpo map not found"},
-        409: {"description": "Photo upload not ready, or storage quota exceeded"},
+        409: {
+            "model": PinConflictErrorRead,
+            "description": "Photo upload not ready, or storage quota exceeded "
+            "(see body `code` to distinguish them)",
+        },
         422: {"description": "Validation error"},
         503: {"description": "Photo storage unavailable"},
     },
@@ -64,7 +74,11 @@ def create_pin(
         **_ERROR_RESPONSES,
         403: {"description": "Permission denied"},
         404: {"description": "Pin not found"},
-        409: {"description": "Photo upload not ready"},
+        409: {
+            "model": PinConflictErrorRead,
+            "description": "Photo upload not ready, or storage quota exceeded "
+            "(see body `code` to distinguish them)",
+        },
         422: {"description": "Validation error"},
         503: {"description": "Photo storage unavailable"},
     },
@@ -79,6 +93,8 @@ def add_pin_photos(
     """ピンに写真を追加する（1リクエストあたり1〜10枚。ピン全体の枚数は無制限, B-Y2）。
 
     既にこのピンに紐付いている `upload_id` の再送は成功扱い。別のピンに紐付け済みの
-    `upload_id` は 409。他人のピン・存在しないピンは 404。
+    `upload_id`・存在しない/他人の/期限切れの枠・デコード不可な画像は 409
+    （`code: "photo_upload_not_ready"`）。確定時の実サイズで容量上限を超える場合も 409
+    （`code: "storage_quota_exceeded"`）。他人のピン・存在しないピンは 404。
     """
     return service.add_photos(current_user, pin_id, payload, base_url=str(request.base_url))

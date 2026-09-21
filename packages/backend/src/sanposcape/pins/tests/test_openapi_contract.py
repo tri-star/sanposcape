@@ -80,6 +80,31 @@ class TestPinPhotoReadSchema:
         assert "null" in types
 
 
+class TestPinConflictErrorSchema:
+    """PR #93 T15: 409 応答の機械可読な `code` フィールド。"""
+
+    def test_code_enum_has_both_values(self) -> None:
+        document = _load_committed_openapi()
+        code_schema = document["components"]["schemas"]["PinConflictErrorRead"]["properties"][
+            "code"
+        ]
+        assert set(code_schema["enum"]) == {"storage_quota_exceeded", "photo_upload_not_ready"}
+
+    def test_create_pin_409_uses_the_schema(self) -> None:
+        document = _load_committed_openapi()
+        schema = document["paths"]["/pins"]["post"]["responses"]["409"]["content"][
+            "application/json"
+        ]["schema"]
+        assert schema == {"$ref": "#/components/schemas/PinConflictErrorRead"}
+
+    def test_add_pin_photos_409_uses_the_schema(self) -> None:
+        document = _load_committed_openapi()
+        schema = document["paths"]["/pins/{pin_id}/photos"]["post"]["responses"]["409"]["content"][
+            "application/json"
+        ]["schema"]
+        assert schema == {"$ref": "#/components/schemas/PinConflictErrorRead"}
+
+
 class TestRemovedOrHiddenRoutes:
     def test_spots_is_absent(self) -> None:
         document = _load_committed_openapi()
