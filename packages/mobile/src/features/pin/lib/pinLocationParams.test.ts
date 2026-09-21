@@ -20,6 +20,8 @@ describe("parsePinLocationParams", () => {
     ["latitude が配列", { latitude: ["1", "2"], longitude: "1" }],
     ["longitude が配列", { latitude: "1", longitude: ["1", "2"] }],
     ["latitude が空文字", { latitude: "", longitude: "1" }],
+    ["latitude が空白のみ（PR #93 T13）", { latitude: "  ", longitude: "1" }],
+    ["longitude が空白のみ（PR #93 T13）", { latitude: "1", longitude: " " }],
     ["latitude が非数値", { latitude: "abc", longitude: "1" }],
     ["latitude が範囲外(91)", { latitude: "91", longitude: "1" }],
     ["longitude が Infinity", { latitude: "1", longitude: "Infinity" }],

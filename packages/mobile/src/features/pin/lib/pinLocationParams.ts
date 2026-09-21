@@ -24,12 +24,20 @@ function toSingleValue(value: string | string[] | undefined): string | null {
 export function parsePinLocationParams(params: PinRouteParams): GeoCoordinates | null {
   const rawLatitude = toSingleValue(params.latitude);
   const rawLongitude = toSingleValue(params.longitude);
-  if (rawLatitude === null || rawLongitude === null || rawLatitude === "" || rawLongitude === "") {
+  if (rawLatitude === null || rawLongitude === null) {
     return null;
   }
 
-  const latitude = Number(rawLatitude);
-  const longitude = Number(rawLongitude);
+  // PR #93 T13: `trim()` 前の空文字判定だけでは空白のみの値（例: `?latitude=%20`）を弾けない。
+  // `Number(" ")` は 0 になるため、trim 後に空文字なら無効として扱う。
+  const trimmedLatitude = rawLatitude.trim();
+  const trimmedLongitude = rawLongitude.trim();
+  if (trimmedLatitude === "" || trimmedLongitude === "") {
+    return null;
+  }
+
+  const latitude = Number(trimmedLatitude);
+  const longitude = Number(trimmedLongitude);
   const coordinates: GeoCoordinates = { latitude, longitude };
   if (!isValidCoordinate(coordinates)) {
     return null;
