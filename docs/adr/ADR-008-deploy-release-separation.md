@@ -1,10 +1,79 @@
 # ADR-008: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-09-21（SS-93）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **デプロイ（本番にコードを置く）とリリース（利用者に見せる）を分離し、未公開の機能はフラグ OFF のまま main にマージして本番にデプロイしてよい**。
+  制御の軸は「ネイティブの配信 = ストア」「JS の配信 = EAS Update」「公開 = フィーチャーフラグ」の3つ。（本文: 決定1）
+- **フラグ基盤は AWS AppConfig で、器は `sanposcape-infra` の Terraform（`live/platform`）、値は本リポジトリが所有する**。
+  Profile は `feature-flags`（`AWS.AppConfig.FeatureFlags`、hosted）、Deployment Strategy は独自に作る。backend は boto3 の `appconfigdata` を直接呼び（Lambda Extension は使わない）、
+  ID は SSM `/sanposcape/<env>/platform/appconfig/*` から受け取り、完全 ARN への権限の絞り込みは SAM の実行ロールポリシーで行う。（本文: 決定2）
+- **mobile の公開時期は App Store の手動リリースと Google Play の公開の管理・段階的公開で制御する**。これはバイナリの配信の制御で、機能の公開はフラグで別に制御する。（本文: 決定3）
+- **バージョンはアプリ別に採番し、タグ `<app>/vX.Y.Z` と GitHub Release は production へのデプロイ成功時だけ作る**。
+  リリースノートは git-cliff で生成して `CHANGELOG.md` はコミットせず、mobile のキーは `app.json` の `version` のみとする。（本文: 決定4、決定5）
+- **フラグは「追加 → ON → 削除」の3段階で、削除まで終えて1つの機能追加とみなす**。
+  定義はリポジトリ内のファイルで管理し、切り替えは GitHub Actions の `workflow_dispatch`（prod は承認あり）が hosted configuration version を作って `StartDeployment` する形でだけ行う。
+  認証には sam-deploy とは別の OIDC ロール `sanposcape-<env>-feature-flags` を使う。（本文: 決定6）
+- **フラグキー・説明・クライアント公開の可否は backend のコード（`core/feature_flags.py` の `FEATURE_FLAGS`）、値と最低サポートバージョンは AppConfig が所有する**。
+  キーは `_enabled` を付けない snake_case。`client_requirements` は最低サポートバージョンを属性で配る予約キーで、常に `enabled: true` に保つ。
+  （本文: SS-98 追補 D7、D9）
+- **API と DB スキーマの変更は expand → contract の2段階で行う**。置き換える API は `deprecated=True` で意味とスキーマを変えずに残し、
+  削除は `/app-config` の最低サポートバージョン以上のクライアントだけが残ってから行う。（本文: 決定7）
+- **OTA で届けてよいのは「公開済み機能の不具合修正」と「フラグ OFF で入る新機能」だけで、channel の付け替えでリリースを制御しない**。
+  `version` を上げる PR と配布ビルドはセットで計画する。（本文: 決定8）
+- **backend はフラグを一度も取得できていないときだけ全フラグ OFF に倒す**。空の応答（変化なし）では直前の値を、取得失敗では一度取得できた値（known-good）を維持する。（本文: 決定9、決定9-1）
+- **公開済み機能の緊急停止（kill switch、安全側 ON）は AppConfig ではなく環境変数で持つ**。`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は環境変数のまま残す。
+  （本文: SS-98 追補 D8）
+- **`GET /app-config` は認証不要で DB を触らず、`Cache-Control: no-store` を返す**（このヘッダーは OpenAPI には出ない）。
+  `flags` は登録簿のクライアント公開フラグを必ず全部含む `dict[str, bool]`（AppConfig に値が無ければ `false`）、`minimum_supported_versions` は
+  iOS / Android 別で `null` は強制アップデートしない、`config_source` は診断専用でクライアントは分岐に使わない。（本文: SS-98 追補 D1、D10）
+- **ユーザー条件付きのフラグ（SS-98 追補 D2 の言う「ダークローンチ」）は採用しない**。そのため mobile はサインイン後に `/app-config` を再取得せず、
+  サインアウト時のキャッシュ削除からも `/app-config` を除外している（D2 を覆すときはこの2つも見直す）。（本文: SS-98 追補 D2、SS-100 追補 D14、D15）
+- **backend は `FEATURE_FLAG_MODE = real | stub`（既定 `real`、local / test 以外で `real` 以外なら起動失敗）で切り替える**。
+  `APPCONFIG_*` の ID が1つでも空なら AWS を呼ばない実装に落ち、AppConfig への取得は最初にフラグを参照したリクエストで行う。（本文: SS-98 追補 D3、D5）
+- **mobile はフラグ値を TanStack Query の `["app-config"]` だけで保持し、永続キャッシュは持たない**。`staleTime` 5分・`gcTime` 無期限で、
+  フォアグラウンド復帰時に直近の取得試行（成功または失敗）から60秒以上経っていれば再取得し、取得中は重ねて再取得しない。（本文: SS-100 追補 D11、D14）
+- **mobile は直近の成功値が無い間（初回ロード中・初回取得失敗）と、未知キー・bool 以外の値を OFF として扱う**。
+  成功値があれば再取得の失敗中もその値を使い、画面を隠す判定は `pending` / `enabled` / `disabled` の3値で行う。
+  キー定数は backend の登録簿の写しを自前で持ち、`config_source` は内部型から除き、`services/` の real/mock 層は作らない。（本文: SS-100 追補 D12、D13、D16、D18）
+
+### 未解決・持ち越し
+
+課題ID付きの項目（SS-97 / SS-99 / SS-101 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
+
+- **prod が未構築**。前提の SS-97（prod の `live/account` の apply と `production` Environment への `AWS_SAM_DEPLOY_ROLE_ARN` の設定）が未完了で、
+  本 ADR の手順は実運用で検証されていない。（本文: 前提となる制約、移行・対応が必要な事項）
+- **フラグ切り替えワークフローが未作成**（SS-99）。フラグ定義ファイルのフォーマットと置き場所も SS-99 で決める（本 ADR では未決定）。
+  （本文: 決定6、移行・対応が必要な事項、SS-98 追補 D9）
+- **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
+  （本文: 決定7、SS-100 追補 D17）
+- **mobile のタグ・Release・CHANGELOG の自動生成（SS-102）と、OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
+  （本文: 決定4、決定8、移行・対応が必要な事項）
+- **ストア側の設定（App Store の手動リリース / Google Play の公開の管理）が未実施**で、`release-runbook.md` の該当記述は未検証。（本文: 移行・対応が必要な事項）
+- **疎通確認用フラグ `app_config_probe` が残っている**。最初の実フラグが入った時点で削除する。（本文: SS-98 追補 D7）
+
+### 変更・撤回された決定
+
+- 取得失敗時の挙動: 「未配信・取得失敗・空の応答のいずれも全フラグ OFF」→ 一度も取得できていないときだけ全 OFF、それ以外は直前の値・known-good を維持（本文: 決定9-1、SS-98 / PR #88）
+- 本文の「ネガティブな影響」にある「取得失敗で全 OFF に倒す＝公開済みの機能が突然見えなくなる」は決定9-1 以前の記述で、現在そうなるのは一度も取得できていない場合だけ
+- 本文の「ポジティブな影響」にある「`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` もこの基盤へ移せば…」は初版時点の見込みで、現在は環境変数のまま残す（本文: SS-98 追補 D8）
+- mobile のサインイン後の `/app-config` 再取得: D2 で申し送り → 実装しない（本文: SS-100 追補 D14）
+- フォアグラウンド復帰時の再取得間隔（60秒）の起点: 直近の成功時刻 → 直近の取得試行（成功または失敗）の時刻（本文: SS-100 追補 D14、SS-100 / PR #89 追補）
+- mobile で永続キャッシュを持たない理由②: E2E 用 APK のキャッシュミス → development build の作り直しと依存追加の待機コスト（理由①と結論は不変。本文: SS-100 追補 D14、2026-09-20 訂正）
+- `FlagDocumentSource` を `integrations` 側に置く理由: 循環 import を避けるため → 既存の依存の向きに揃えるため（配置は不変。本文: SS-98 追補 D3）
+- 用語の注意（決定の変更ではない）: 本文の決定8・決定理由の「ダークローンチ」は「フラグ OFF で入る新機能」の意味で採用している。
+  SS-98 追補 D2 以降の「ダークローンチ」は「ユーザー条件付きのフラグ」の意味で不採用。両者は別物
+
 ## 日付
 
 2026-09-20（初版、SS-104）、2026-09-20 追補（SS-98: `/app-config` のレスポンススキーマと
 フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）、2026-09-21 追補
-（SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）
+（SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）、2026-09-21 追補
+（SS-93: SS-96 の完了を反映）
 
 ## ステータス
 
@@ -12,6 +81,8 @@
 SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfig の器）・SS-95（境界への
 読み取り権限追加）・SS-98（backend の取得基盤と `/app-config`）・SS-100（mobile のフラグ受け皿）が
 完了し、残りは未着手である。
+（**SS-93 追補**: 2026-09-21 時点で SS-96（フラグ切り替え用 OIDC ロール）も完了している。
+残る SS-97 / SS-99 / SS-101 / SS-102 / SS-103 は未着手）
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
 
@@ -377,7 +448,8 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
 
 - [x] SS-94: `live/platform` に AppConfig の器を作り、SSM に 4 つの ID を入れる（`sanposcape-infra` 側。**完了**）
 - [x] SS-95: Lambda 実行ロールの境界に `appconfig:StartConfigurationSession` / `GetLatestConfiguration` を追加する（**完了**）
-- [ ] SS-96: フラグ切り替え用の OIDC ロール `sanposcape-<env>-feature-flags` を作る
+- [x] SS-96: フラグ切り替え用の OIDC ロール `sanposcape-<env>-feature-flags` を作る（`sanposcape-infra` 側。**完了**。
+      **SS-93 追補**で反映）
 - [ ] SS-97: prod の `live/account` を apply し、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する
 - [x] SS-98: backend に AppConfig 読み取り基盤と `/app-config` エンドポイントを追加する（**完了**）。
       **（SS-98 追補）** レスポンススキーマ・ダークローンチの要否・
