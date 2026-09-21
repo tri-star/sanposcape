@@ -26,6 +26,8 @@ from sanposcape.integrations.google_maps.client import build_google_maps_provide
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
+from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
+from sanposcape.sanpo_maps.router import router as sanpo_maps_router
 from sanposcape.spots.router import router as spots_router
 from sanposcape.users.router import router as users_router
 from sanposcape.walks.exceptions import WalkNotFoundError
@@ -115,6 +117,16 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _invalid_cursor(request: Request, exc: InvalidCursorError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": "Invalid cursor"})
 
+    @app.exception_handler(SanpoMapNotFoundError)
+    async def _sanpo_map_not_found(request: Request, exc: SanpoMapNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "Sanpo map not found"})
+
+    @app.exception_handler(SanpoMapPermissionDeniedError)
+    async def _sanpo_map_permission_denied(
+        request: Request, exc: SanpoMapPermissionDeniedError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": "Permission denied"})
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -168,6 +180,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(users_router)
     app.include_router(maps_router)
     app.include_router(walks_router)
+    app.include_router(sanpo_maps_router)
     if settings.auth_mode == "dev":
         # 本番ではエンドポイント自体が存在しない（ADR-002 決定4）。
         # dev_router 側で include_in_schema=False を指定しているため、

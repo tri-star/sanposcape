@@ -485,6 +485,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /sanpo-maps:
+    get:
+      tags:
+      - sanpo-maps
+      summary: List Sanpo Maps
+      description: 自分が member である地図を全件返す（クエリなし。MVP は件数が少ない前提）。
+      operationId: list_sanpo_maps
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapListRead'
+        '401':
+          description: Not authenticated
+      security:
+      - HTTPBearer: []
 components:
   schemas:
     AppConfigRead:
@@ -780,6 +798,58 @@ components:
       - location
       - name
       title: RouteDestinationRead
+    SanpoMapListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SanpoMapRead'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: SanpoMapListRead
+    SanpoMapRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        is_default:
+          type: boolean
+          title: Is Default
+        role:
+          type: string
+          enum:
+          - owner
+          - editor
+          title: Role
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - name
+      - is_default
+      - role
+      - created_at
+      - updated_at
+      title: SanpoMapRead
     SessionCreate:
       properties:
         provider:
