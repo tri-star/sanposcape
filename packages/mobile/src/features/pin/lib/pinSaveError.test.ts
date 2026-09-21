@@ -41,6 +41,26 @@ describe("toPinSaveErrorCode", () => {
     expect(toPinSaveErrorCode(wrapped)).toBe("unauthorized");
   });
 
+  it("409 は本文の code で quota_exceeded / photo_not_ready を区別する（PR #93 T15）", () => {
+    expect(
+      toPinSaveErrorCode(
+        new ApiError(409, undefined, { detail: "x", code: "storage_quota_exceeded" }),
+      ),
+    ).toBe("quota_exceeded");
+    expect(
+      toPinSaveErrorCode(
+        new ApiError(409, undefined, { detail: "x", code: "photo_upload_not_ready" }),
+      ),
+    ).toBe("photo_not_ready");
+  });
+
+  it("409 で body が無い・code が不明な値のときは安全側で photo_not_ready", () => {
+    expect(toPinSaveErrorCode(new ApiError(409))).toBe("photo_not_ready");
+    expect(toPinSaveErrorCode(new ApiError(409, undefined, { code: "unknown_code" }))).toBe(
+      "photo_not_ready",
+    );
+  });
+
   it("写真送信由来の cause: too_large 系は photo_rejected に写す", () => {
     expect(toPinSaveErrorCode(new ApiError(413))).toBe("invalid_request");
     expect(toPinSaveErrorCode(new S3UploadError(400, "EntityTooLarge"))).toBe("photo_rejected");

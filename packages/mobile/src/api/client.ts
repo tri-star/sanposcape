@@ -74,7 +74,20 @@ export const customFetch = async <T>(url: string, options: RequestInit): Promise
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status);
+    // PR #93 T15: 機械可読な `code`（例: 409 の `storage_quota_exceeded` /
+    // `photo_upload_not_ready`）で分岐できるよう、本文が JSON なら保持する。
+    // 本文が無い・JSON でない場合は body を渡さない（message は既定のまま = 既存の呼び出し側の
+    // 挙動を変えない）。
+    const errorText = await response.text().catch(() => "");
+    let body: unknown;
+    if (errorText) {
+      try {
+        body = JSON.parse(errorText);
+      } catch {
+        body = undefined;
+      }
+    }
+    throw new ApiError(response.status, undefined, body);
   }
 
   // 204 No Content など本文が無い場合に配慮

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/api/apiError";
 import type { AuthTokenProvider } from "@/api/authTokenProvider";
 import { setAuthTokenProvider } from "@/api/authTokenProvider";
 import { CONTENT_SHA256_HEADER } from "@/api/contentHash";
@@ -40,6 +41,36 @@ describe("customFetch", () => {
     );
 
     await expect(customFetch("/spots", { method: "GET" })).rejects.toThrow("status: 500");
+  });
+
+  it("エラー応答が JSON なら ApiError.body に保持する（PR #93 T15）", async () => {
+    server.use(
+      http.post(
+        "http://localhost:8000/spots",
+        () =>
+          new HttpResponse(JSON.stringify({ detail: "Storage quota exceeded", code: "x" }), {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+
+    const error = await customFetch("/spots", { method: "POST" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(409);
+    expect((error as ApiError).body).toEqual({ detail: "Storage quota exceeded", code: "x" });
+    // 既定メッセージは変わらない（既存の呼び出し側の挙動を壊さない）。
+    expect((error as ApiError).message).toBe("HTTP error! status: 409");
+  });
+
+  it("エラー応答が JSON でない場合は body が undefined", async () => {
+    server.use(
+      http.get("http://localhost:8000/spots", () => new HttpResponse("not json", { status: 500 })),
+    );
+
+    const error = await customFetch("/spots", { method: "GET" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).body).toBeUndefined();
   });
 
   it("provider 未登録なら X-App-Authorization ヘッダが付かず、401 でもリトライせず ApiError を投げる", async () => {

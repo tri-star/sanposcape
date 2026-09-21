@@ -1,11 +1,12 @@
-import { isApiError } from "@/api/apiError";
+import { getApiErrorCode, isApiError } from "@/api/apiError";
 import { toPhotoUploadErrorCode } from "@/features/pin/lib/photoUploadError";
 import type { PinSaveProgress } from "@/features/pin/types";
 
 /**
- * 保存失敗の分類。409 は本文を読めないため区別できず（`ApiError` は本文を持たない）、
- * まとめて `photo_not_ready` とする（MVP。区別が必要になったら `client.ts` の改修が要る）。
- * `quota_exceeded` は型にだけ予約し、この分類関数からは返さない。
+ * 保存失敗の分類。409 は応答本体の機械可読な `code`（PR #93 T15。backend の
+ * `PinConflictErrorRead`）で `quota_exceeded` と `photo_not_ready` を区別する。
+ * `code` が無い・不明な値の場合は安全側で `photo_not_ready`（写真の削除を促す）に倒す
+ * （旧クライアント・想定外の応答でも `toPinSaveErrorCode` 自体は壊れない）。
  */
 export type PinSaveErrorCode =
   | "unauthorized" // 401
@@ -88,7 +89,9 @@ export function toPinSaveErrorCode(error: unknown): PinSaveErrorCode {
       case 404:
         return "sanpo_map_not_found";
       case 409:
-        return "photo_not_ready";
+        return getApiErrorCode(cause) === "storage_quota_exceeded"
+          ? "quota_exceeded"
+          : "photo_not_ready";
       case 413:
       case 422:
         return "invalid_request";
