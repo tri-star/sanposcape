@@ -23,3 +23,15 @@ class PinPhotoTooLargeError(Exception):
 
 class TooManyPendingUploadsError(Exception):
     """未使用（`pending`）の枠の同時保有数が上限（`PIN_PHOTO_MAX_PENDING_UPLOADS`）を超える。"""
+
+
+class PinPhotoUploadNotFoundError(Exception):
+    """`DELETE /pin-photo-uploads/{upload_id}` で指定された枠が存在しない、または他人の
+    もの（区別しない。IDOR 対策, ADR-003 決定6 と同じ設計。PR #93 T11）。
+    """
+
+
+class PinPhotoUploadAlreadyAttachedError(Exception):
+    """`DELETE /pin-photo-uploads/{upload_id}` の対象が既に写真として紐付け済み
+    （`status="attached"`）。取り消しは未紐付けの枠専用（PR #93 T11）。
+    """

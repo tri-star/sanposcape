@@ -1,15 +1,18 @@
 """pins のユースケース。トランザクション境界（commit）はここが持つ。"""
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from sanposcape.integrations.aws.s3 import ObjectStorage
+from sanposcape.integrations.aws.s3 import ObjectStorage, ObjectStorageUnavailableError
 from sanposcape.pins.exceptions import (
     PinNotFoundError,
     PinPhotoTooLargeError,
+    PinPhotoUploadAlreadyAttachedError,
+    PinPhotoUploadNotFoundError,
     PinPhotoUploadNotReadyError,
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
@@ -37,6 +40,8 @@ from sanposcape.sanpo_maps.exceptions import SanpoMapPermissionDeniedError
 from sanposcape.sanpo_maps.permissions import can_add_pin, can_add_pin_photo
 from sanposcape.sanpo_maps.service import SanpoMapService
 from sanposcape.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 class PinPhotoUploadService:
@@ -114,6 +119,35 @@ class PinPhotoUploadService:
             expires_at=now + timedelta(seconds=self._upload_url_ttl_seconds),
             max_byte_size=self._max_byte_size,
         )
+
+    def delete_upload(self, current_user: User, upload_id: uuid.UUID) -> None:
+        """未使用（`pending`）のアップロード枠を取り消す（`DELETE /pin-photo-uploads/{id}`,
+        PR #93 T11）。
+
+        mobile が「先行アップロード済みだが、まだピンに紐付けていない写真」を削除した際に
+        呼ぶ想定（`usePinPhotos.ts` の `removePhoto`）。呼ばなければ枠は紐付け期限
+        （既定6時間）まで pending のまま残り、容量予約・未使用枠カウントを占有し続ける。
+
+        本人の枠のみが対象（他人・存在しない `upload_id` は `PinPhotoUploadNotFoundError`
+        → 404, IDOR 対策）。既に写真として紐付け済みなら `PinPhotoUploadAlreadyAttachedError`
+        → 409（取り消しは未紐付けの枠専用）。DB 行の削除を先に commit してから、S3/フェイク
+        ストレージ側の実体を best-effort で削除する（staging は S3 のライフサイクルで
+        最終的に消えるため、ここでの削除に失敗しても実害はない）。
+        """
+        upload = self._repository.find_own_for_update(user_id=current_user.id, upload_id=upload_id)
+        if upload is None:
+            raise PinPhotoUploadNotFoundError()
+        if upload.status != "pending":
+            raise PinPhotoUploadAlreadyAttachedError()
+
+        s3_key = upload.s3_key
+        self._repository.delete(upload)
+        self._db.commit()
+
+        try:
+            self._storage.delete(s3_key)
+        except ObjectStorageUnavailableError:
+            logger.warning("Failed to delete staging object for a cancelled upload: %s", s3_key)
 
 
 class PinService:

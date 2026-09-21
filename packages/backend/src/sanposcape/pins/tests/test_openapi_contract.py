@@ -29,6 +29,10 @@ class TestOperationIds:
             document["paths"]["/pin-photo-uploads"]["post"]["operationId"]
             == "create_pin_photo_upload"
         )
+        assert (
+            document["paths"]["/pin-photo-uploads/{upload_id}"]["delete"]["operationId"]
+            == "delete_pin_photo_upload"
+        )
 
 
 class TestCreatePinResponses:

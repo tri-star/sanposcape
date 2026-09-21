@@ -614,6 +614,47 @@ paths:
           description: Photo storage unavailable
       security:
       - HTTPBearer: []
+  /pin-photo-uploads/{upload_id}:
+    delete:
+      tags:
+      - pins
+      summary: Delete Pin Photo Upload
+      description: '未使用（`pending`）のアップロード枠を取り消す（PR #93 T11）。
+
+
+        写真を先行アップロードした後、ピンに紐付ける前に削除した場合に呼ぶ。本人の枠のみが
+
+        対象（他人・存在しない `upload_id` は 404, IDOR 対策）。既に写真として紐付け済み
+
+        （`attached`）の枠は 409（取り消しは未紐付けの枠専用）。呼ばなければ枠は紐付け期限
+
+        まで容量予約・未使用枠カウントを占有し続ける。'
+      operationId: delete_pin_photo_upload
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: upload_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Upload Id
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Not authenticated
+        '404':
+          description: Pin photo upload not found
+        '409':
+          description: Pin photo upload already attached
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AppConfigRead:

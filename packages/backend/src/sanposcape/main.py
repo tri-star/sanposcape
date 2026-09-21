@@ -31,6 +31,8 @@ from sanposcape.pins.dev_storage_router import router as pins_dev_storage_router
 from sanposcape.pins.exceptions import (
     PinNotFoundError,
     PinPhotoTooLargeError,
+    PinPhotoUploadAlreadyAttachedError,
+    PinPhotoUploadNotFoundError,
     PinPhotoUploadNotReadyError,
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
@@ -171,6 +173,22 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: TooManyPendingUploadsError
     ) -> JSONResponse:
         return JSONResponse(status_code=429, content={"detail": "Too many pending uploads"})
+
+    @app.exception_handler(PinPhotoUploadNotFoundError)
+    async def _pin_photo_upload_not_found(
+        request: Request, exc: PinPhotoUploadNotFoundError
+    ) -> JSONResponse:
+        # `DELETE /pin-photo-uploads/{upload_id}` 専用（PR #93 T11）。
+        return JSONResponse(status_code=404, content={"detail": "Pin photo upload not found"})
+
+    @app.exception_handler(PinPhotoUploadAlreadyAttachedError)
+    async def _pin_photo_upload_already_attached(
+        request: Request, exc: PinPhotoUploadAlreadyAttachedError
+    ) -> JSONResponse:
+        # `DELETE /pin-photo-uploads/{upload_id}` 専用（PR #93 T11）。
+        return JSONResponse(
+            status_code=409, content={"detail": "Pin photo upload already attached"}
+        )
 
     @app.exception_handler(ObjectStorageUnavailableError)
     async def _object_storage_unavailable(

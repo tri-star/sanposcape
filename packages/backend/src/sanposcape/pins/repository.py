@@ -309,6 +309,34 @@ class PinPhotoUploadRepository:
             .values(status="attached", attached_at=attached_at)
         )
 
+    def find_own_for_update(
+        self, *, user_id: uuid.UUID, upload_id: uuid.UUID
+    ) -> PinPhotoUpload | None:
+        """本人の枠を1件、行ロック付きで取得する（`DELETE /pin-photo-uploads/{upload_id}`,
+        PR #93 T11）。他人の `upload_id` は「見つからない」扱い（IDOR 対策、
+        `lock_for_attach()` と同じ設計）。
+
+        `with_for_update()` にする理由: 同時に別リクエストがこの枠を `lock_for_attach()`
+        で確定処理中（＝行ロック保持中）の場合、ここでの取得をその確定処理の commit/
+        rollback まで待たせる。ロックせずに読むと「pending」の古い状態を読んだまま
+        削除してしまい、直後に相手が `attached` へ更新してコミットする、という
+        取り消し不能な競合（本来 409 になるべき削除が成功してしまう）が起こりうる。
+        """
+        stmt = (
+            select(PinPhotoUpload)
+            .where(PinPhotoUpload.user_id == user_id, PinPhotoUpload.id == upload_id)
+            .with_for_update()
+        )
+        return self._db.scalars(stmt).first()
+
+    def delete(self, upload: PinPhotoUpload) -> None:
+        """行を削除する（`status` に「取り消し済み」を追加せず物理削除する。PR #93 T11:
+        容量予約（`sum_reserved_bytes`）・未使用枠カウント（`count_active_pending`）は
+        どちらも `status="pending"` の行を数えるため、削除すれば即座に対象から外れる）。
+        """
+        self._db.delete(upload)
+        self._db.flush()
+
     def find_attachments(
         self, *, user_id: uuid.UUID, upload_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, tuple[uuid.UUID, uuid.UUID]]:
