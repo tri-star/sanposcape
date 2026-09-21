@@ -309,12 +309,22 @@ class PinPhotoUploadRepository:
             .values(status="attached", attached_at=attached_at)
         )
 
-    def find_attachment(self, *, upload_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID] | None:
-        """この `upload_id` が既にどこかの写真に紐づいていれば `(pin_id, client_pin_id)`。"""
+    def find_attachments(
+        self, *, user_id: uuid.UUID, upload_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, tuple[uuid.UUID, uuid.UUID]]:
+        """指定した `upload_id` 群のうち、既にどこかの写真に紐づいているものを
+        `{upload_id: (pin_id, client_pin_id)}` で返す。
+
+        `uploaded_by_user_id == user_id` で絞る（アップロード者本人以外の枠の紐付け状況を
+        横断的に解決できないようにする, IDOR 対策。他のリポジトリメソッドと同じ
+        「`user_id` を必須引数にし ID だけで引ける口を作らない」規約に合わせる）。
+        1クエリでまとめて解決するため、複数件を呼び出し元でループしても N+1 にならない。
+        """
+        if not upload_ids:
+            return {}
         stmt = (
-            select(PinPhoto.pin_id, Pin.client_pin_id)
+            select(PinPhoto.upload_id, PinPhoto.pin_id, Pin.client_pin_id)
             .join(Pin, Pin.id == PinPhoto.pin_id)
-            .where(PinPhoto.upload_id == upload_id)
+            .where(PinPhoto.upload_id.in_(upload_ids), PinPhoto.uploaded_by_user_id == user_id)
         )
-        row = self._db.execute(stmt).first()
-        return None if row is None else (row[0], row[1])
+        return {row[0]: (row[1], row[2]) for row in self._db.execute(stmt)}

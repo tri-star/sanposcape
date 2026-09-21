@@ -365,7 +365,7 @@ class TestPinPhotoUploadRepository:
         assert refreshed.status == "attached"
         assert refreshed.attached_at is not None
 
-    def test_find_attachment_returns_pin_and_client_pin_id(self, db_session: Session) -> None:
+    def test_find_attachments_returns_pin_and_client_pin_id(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
         sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
         client_pin_id = uuid.uuid4()
@@ -402,12 +402,73 @@ class TestPinPhotoUploadRepository:
         )
         db_session.commit()
 
-        result = PinPhotoUploadRepository(db_session).find_attachment(upload_id=upload_id)
+        result = PinPhotoUploadRepository(db_session).find_attachments(
+            user_id=user.id, upload_ids=[upload_id]
+        )
 
-        assert result == (pin.id, client_pin_id)
+        assert result == {upload_id: (pin.id, client_pin_id)}
 
-    def test_find_attachment_returns_none_when_unattached(self, db_session: Session) -> None:
-        assert PinPhotoUploadRepository(db_session).find_attachment(upload_id=uuid.uuid4()) is None
+    def test_find_attachments_returns_empty_dict_when_unattached(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        assert (
+            PinPhotoUploadRepository(db_session).find_attachments(
+                user_id=user.id, upload_ids=[uuid.uuid4()]
+            )
+            == {}
+        )
+
+    def test_find_attachments_returns_empty_dict_for_empty_input(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        assert (
+            PinPhotoUploadRepository(db_session).find_attachments(user_id=user.id, upload_ids=[])
+            == {}
+        )
+
+    def test_find_attachments_excludes_other_users_uploads(self, db_session: Session) -> None:
+        """アップロード者本人（`uploaded_by_user_id`）以外からは紐付け状況を解決できない
+        （IDOR 対策。他のリポジトリメソッドと同じ `user_id` 必須の規約, R8）。"""
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        client_pin_id = uuid.uuid4()
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=owner.id,
+            client_pin_id=client_pin_id,
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        upload_id = uuid.uuid4()
+        prepared = [
+            PreparedPhoto(
+                upload_id=upload_id,
+                staging_key="s",
+                original_key="o",
+                thumbnail_key="t",
+                content_type="image/jpeg",
+                byte_size=100,
+                width=10,
+                height=10,
+                thumbnail_bytes=b"x",
+                thumbnail_byte_size=1,
+                thumbnail_width=5,
+                thumbnail_height=5,
+            )
+        ]
+        PinRepository(db_session).add_photos(
+            pin_id=pin.id, uploaded_by_user_id=owner.id, prepared=prepared, start_position=0
+        )
+        db_session.commit()
+
+        result = PinPhotoUploadRepository(db_session).find_attachments(
+            user_id=stranger.id, upload_ids=[upload_id]
+        )
+
+        assert result == {}
 
 
 def test_sanpo_map_member_role_is_owner_after_map_creation(db_session: Session) -> None:
