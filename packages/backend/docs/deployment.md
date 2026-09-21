@@ -825,7 +825,7 @@ transform と組み込み関数の評価が終わった**後**の独立したス
 | 実行ロールへの付与方法 | **インライン `Statement`（`S3CrudPolicy` 等の SAM ポリシーテンプレートは使わない）**。ポリシーテンプレートは prefix で絞れず（`BucketName` 引数しか取らない）、境界の外のアクション（`PutObjectAcl` 等）まで一覧に入り、テンプレートを読んでも実効権限が分からなくなる |
 | 付与するアクション | `staging/*`・`original/*`・`thumb/*`: `s3:PutObject` / `s3:GetObject` / `s3:DeleteObject`。バケット: `s3:ListBucket`（`Resource` はバケット ARN そのもの、`/*` を付けない） |
 | 境界（SS-107） | `sanposcape-<env>-*` に Put/Get/Delete/AbortMultipartUpload + ListBucket。実効権限 = 境界 ∩ 付与。ここに無いアクション（タグ付け等）が要るときは先に infra 側の境界を広げる |
-| Migrate 関数 | S3 の環境変数・ポリシーとも付けない（写真操作を行わないため） |
+| Migrate 関数 | `PIN_PHOTO_BUCKET_NAME` と S3 のポリシーは付けない（写真操作を行わないため）。`STORAGE_MODE: real` だけは Globals 経由で渡るが、コード既定と同じ値で、Migrate はストレージを組み立てないため影響は無い |
 
 **抜けやすい罠**:
 
@@ -844,7 +844,7 @@ transform と組み込み関数の評価が終わった**後**の独立したス
 | 環境 | 必要な apply | 状況（2026-09-22） |
 |---|---|---|
 | dev | `deployments/dev/account`（SS-107: 境界に S3）と `deployments/dev/platform`（SS-106: バケット + SSM） | ✅ どちらも apply 済み |
-| prod | `deployments/prod/account`（SS-97 + SS-107。1回の apply にまとまる）と `deployments/prod/platform`（SS-106 + AppConfig 一式 + フラグ切り替えロール） | ⚠️ **未 apply** |
+| prod | `deployments/prod/account`（2026-09-05 から main に追随していない。Lambda 境界そのもの・sam-deploy ロール・`lambda_boundary_arn` の SSM（SS-97）に、境界の AppConfig（SS-95）・S3（SS-107）の追加も含めて1回の apply にまとまる）と `deployments/prod/platform`（SS-106 + AppConfig 一式 + フラグ切り替えロール） | ⚠️ **未 apply** |
 
 **prod を壊さないための整理**: `template.yaml` は dev/prod 共通で、環境による条件分岐は入れていない。
 prod の backend デプロイは、写真と関係なく既に `platform/appconfig/*`（SS-98）と
@@ -874,8 +874,10 @@ Required reviewers の手動起動（§4.1）で順序を人が守れること�
 **動的参照の後ろに `/staging/*` などの文字列を連結する書き方は、本リポジトリではまだ一度も
 デプロイで確かめられていない。** 動的参照の解決は組み込み関数の評価後の最終文字列に対して
 行われる（§11「各環境への初回デプロイで 1 回だけ確認すること」と同じ根拠）ため解決される見込みだが、
-失敗すると `cfn-lint` / `sam validate` を通ったまま実行時の 403 としてしか露見しない。
-失敗モードは安全側（無効な ARN が残り AccessDenied になる。過剰権限の方向には倒れない）。
+`cfn-lint` / `sam validate` はこの解決を検証できない。解決されずに `{{resolve:...}}` の文字列が
+`Resource` に残った場合は、IAM がポリシーを不正として拒否してデプロイ時に失敗するか
+（`MalformedPolicyDocument`。未確認）、ポリシーが付いても一致しないため実行時の 403 になるかの
+どちらかになる。どちらも安全側で、過剰権限の方向には倒れない。
 
 ```bash
 ENV=dev  # prod のときは prod
@@ -903,7 +905,11 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 
 1. マイグレーション（§5.2）で SS-88 のテーブルが入っていること（`{"head": ...}` が最新）
 2. フラグ `pin_registration` を当該環境で ON にする（ADR-008 のフラグ切り替えワークフロー, SS-99）。
-   `GET /app-config` の `flags.pin_registration` が `true` になるのを確認する
+   `GET /app-config` の `flags.pin_registration` が `true` になるのを確認する。
+   **このワークフローは PR #94（SS-99）のマージが前提**（`workflow_dispatch` は default branch に
+   ワークフロー定義が無いと起動できない。ADR-008 はフラグの切り替えをこのワークフローに限っている）。
+   #94 のマージ前は、上の確認 1)〜3) と CloudWatch Logs の確認までを先に済ませ、
+   手順 2 以降は #94 のマージ後に行う
 3. mobile で散歩中画面 →「この場所にピンを追加」→ 写真を 1 枚以上付けて保存
 4. 確認する点:
    - 保存が成功し、ピン詳細（または地図）でサムネイルが表示される（presigned GET が通っている）

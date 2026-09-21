@@ -451,8 +451,8 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
 
 ### 移行・対応が必要な事項
 
-- [x] **BK-1**: `template.yaml` に写真バケットを結線する（SS-108 で実施。dev の初回
-      デプロイで動的参照 + prefix 連結の解決と写真付きピン登録の疎通を確認する。
+- [ ] **BK-1**: `template.yaml` に写真バケットを結線する（SS-108 で実装済み・疎通確認待ち。
+      dev の初回デプロイで動的参照 + prefix 連結の解決と写真付きピン登録の疎通を確認したら完了。
       detail は [deployment.md](../../packages/backend/docs/deployment.md) §12）
 - [ ] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
