@@ -62,6 +62,13 @@ export function PinRegisterView({
     onPickerError: (message) => toast.show(message),
   });
 
+  // 注意（SS-88 ローカルレビュー MS1。SS-60 WalkDetailView と同じ既知の RN 挙動）:
+  // `discardOpen` 中は Android の hardwareBackPress を `Dialog`（RN `Modal`）の
+  // `onRequestClose={onCancel}` が先に消費するため、以下の `discardOpen` 分岐はハードウェア
+  // バック経由では実質到達しない可能性が高い。実際に閉じる役割は Dialog 側が独立に担っており、
+  // 見た目の挙動（`setDiscardOpen(false)`）は一致するのでバグではない。この分岐は画面上の
+  // 戻るボタン・プログラム的な `goBack()` など Modal を経由しない他の経路向けの保険として残す。
+  // `register.save.status === "saving"` の分岐は Modal に依存しないため実際に機能する。
   const back = useScreenBack({
     fallbackHref: "/(tabs)",
     onIntercept: () => {

@@ -14,9 +14,6 @@ import { runPinSave } from "@/features/pin/lib/pinSaveRunner";
 import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/hooks/useSanpoMaps";
 import type { PinSaveProgress, PinSaveStatus, SavedPin } from "@/features/pin/types";
 
-/** ピン一覧の queryKey（BK-4 で使う想定。今は invalidate 先としてだけ存在する）。 */
-const PINS_QUERY_KEY = ["pins"] as const;
-
 /** 自動再試行の最大回数（初回 + この回数まで）。`useWalkSave` と同じ値。 */
 const MAX_RETRY_COUNT = 2;
 const RETRY_DELAY_BASE_MS = 1000;
@@ -66,7 +63,9 @@ export function usePinSave(options: {
     },
     onSuccess: (pin) => {
       void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: PINS_QUERY_KEY });
+      // ピン一覧の取得 hook（BK-4）が実装されたら、そのキーの invalidate をここに足す。
+      // 未実装のキーを先取りして invalidate しても no-op なだけなので、今は持たない
+      // （SS-88 ローカルレビュー MS2: 「使われていない定数」を避ける）。
       options.onSaved(pin);
     },
     onSettled: () => {
