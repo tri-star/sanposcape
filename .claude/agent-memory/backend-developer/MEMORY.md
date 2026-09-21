@@ -21,5 +21,6 @@
 - [feedback-sandbox-constraints](feedback_sandbox_constraints.md) — sandboxが拒否する操作(.env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権)と回避策。「できない」と結論する前に読む
 - [feedback-cloudformation-sub-map-value-gotcha](feedback_cloudformation_sub_map_value_gotcha.md) — Fn::Subの変数マップの値に書いた${...}は再評価されない。値自体をさらに!Subで包む必要がある
 - [Settings の .env / OS 環境変数からの隔離](feedback_settings_env_isolation.md) — テストのSettings(...)は.env/OS環境変数から隔離済み(conftestのautouse)。DB接続だけは例外でambientから解決される
-- [project-ss88-pins-backend-complete](project_ss88_pins_backend_complete.md) — SS-88 backend（地図/ピン登録・写真アップロード, sanpo_maps/pinsドメイン）は実装完了。BK-1〜BK-10のPlaneチケット起票が未実施
-- [feedback-boto3-s3-and-pg-advisory-lock-gotchas](feedback_boto3_s3_and_pg_advisory_lock_gotchas.md) — boto3 S3のendpoint_url明示でpresigned URLのリージョンが脱落する罠、pg_advisory_xact_lockの決定的キー導出、Pydantic SkipJsonSchema[None]パターン
+- [project-ss88-pins-backend-complete](project_ss88_pins_backend_complete.md) — SS-88 backend（地図/ピン登録・写真アップロード, sanpo_maps/pinsドメイン）は実装完了・ローカルレビュー対応済み。BK-1〜BK-10のPlaneチケット起票が未実施
+- [feedback-boto3-s3-and-pg-advisory-lock-gotchas](feedback_boto3_s3_and_pg_advisory_lock_gotchas.md) — boto3 S3のendpoint_url明示でpresigned URLのリージョンが脱落する罠、pg_advisory_xact_lockの決定的キー導出、Pydantic SkipJsonSchema[None]パターン、retries.max_attemptsはtotal_max_attemptsでないと+1される罠
+- [feedback_true_concurrency_test_pattern](feedback_true_concurrency_test_pattern.md) — threading.Thread+別Session(TestSessionLocal)で真の行ロック競合を再現するテスト手順。ORMオブジェクトをスレッド間で共有しない・Core updateの後はrefresh()が必要

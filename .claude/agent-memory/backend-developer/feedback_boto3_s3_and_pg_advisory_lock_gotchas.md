@@ -1,6 +1,6 @@
 ---
 name: feedback-boto3-s3-and-pg-advisory-lock-gotchas
-description: SS-88実装で踏んだboto3 S3クライアントのendpoint_url罠、pg_advisory_xact_lockの決定的キー導出、PydanticのSkipJsonSchema[None]パターン
+description: SS-88実装で踏んだboto3 S3クライアントのendpoint_url罠・retries.max_attempts罠、pg_advisory_xact_lockの決定的キー導出、PydanticのSkipJsonSchema[None]パターン
 metadata:
   type: feedback
   scope: durable
@@ -31,6 +31,14 @@ SS-88（`integrations/aws/s3.py`, `pins/repository.py`, `pins/schemas.py`）実�
   （`pins/repository.py::_advisory_lock_key`はUUIDの128bitを32bitずつXORで畳み込む）。
   namespace（key1）は`zlib.crc32(固定文字列) & 0x7FFFFFFF`のような固定値にし、他用途の
   advisory lockと衝突しないようにする。
+- **boto3の`retries.max_attempts`（`mode="standard"/"adaptive"`）は「合計試行回数」ではない。**
+  `integrations/aws/s3.py`の`S3ObjectStorage`が当初`retries={"mode": "standard",
+  "max_attempts": 3}`としていたが、これは内部で「初回を除く再試行回数」として解釈され
+  +1された値（=合計4回）が実際の試行回数になる。合計試行回数を直接指定したい場合は
+  `total_max_attempts`を使う（`integrations/aws/appconfig.py`が`total_max_attempts: 1`
+  で先に踏んでいた罠と同じ。SS-88のローカルレビューで再発を確認、修正済み）。この手の
+  「新しい`boto3.client`のretries設定を書くたびに同じ罠を踏む」パターンなので、
+  新規にAWS SDKクライアントを作る際は`total_max_attempts`を使う一択にする。
 - **Pydantic v2で「省略可・明示nullは422・OpenAPI上はnon-nullable」を表現するパターン**:
   `field: T | SkipJsonSchema[None] = None` + `model_validator(mode="after")`で
   `"field" in self.model_fields_set and self.field is None`ならValueError。
