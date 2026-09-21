@@ -1,0 +1,45 @@
+"""タグの正規化・重複排除（純粋関数、DB/HTTP に依存しない）。
+
+mobile 側の正規化とケース表を揃える（backend-plan.md 5.3 (4) / 10章「タグの正規化は
+mobile と backend の二重実装」）。サーバーでも同じ正規化を行うのは、改造クライアントが
+未正規化のタグを送ってきても `UNIQUE(pin_id, label_key)` の意図（大文字小文字違いの
+重複を防ぐ）を守るため。
+"""
+
+import re
+
+_LEADING_HASH_PATTERN = re.compile(r"^[#＃]+")
+_WHITESPACE_PATTERN = re.compile(r"\s+")
+
+
+def normalize_tag_label(raw: str) -> str:
+    """trim・連続空白を1つに圧縮・先頭の `#`/`＃` を除去する。"""
+    value = raw.strip()
+    value = _LEADING_HASH_PATTERN.sub("", value)
+    value = value.strip()
+    return _WHITESPACE_PATTERN.sub(" ", value)
+
+
+def tag_key(label: str) -> str:
+    """重複判定キー（正規化 + 小文字化）。`pin_tags.label_key` に保存する値と同じ。"""
+    return normalize_tag_label(label).lower()
+
+
+def dedupe_tags(labels: list[str]) -> list[str]:
+    """各タグを正規化し、`tag_key` が一致するものを先勝ちで黙って除去して返す。
+
+    正規化後に空文字列になったタグ（記号・空白のみの入力）は `ValueError` にする
+    （`pins/schemas.py` の validator から呼ばれ、そのまま 422 になる）。
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in labels:
+        normalized = normalize_tag_label(raw)
+        if not normalized:
+            raise ValueError(f"Tag label is empty after normalization: {raw!r}")
+        key = tag_key(normalized)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(normalized)
+    return result
