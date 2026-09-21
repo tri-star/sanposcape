@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）
 
 ## ステータス
 
@@ -139,7 +139,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 `src/lib/sessionCleanup.ts` に後始末レジストリ（`registerSessionCleanup` / `runSessionCleanup`）を置き、**クリアされる側が自分の後始末を登録する**形にする。
 
-- 登録側: `useActiveWalkStore`（`endWalk()`）、`useFinishedWalkStore`（`clearFinishedWalk()`）、`src/api/queryClient.ts`（`queryClient.clear()`）。各モジュールの末尾で読み込み時に1回登録する。
+- 登録側: `useActiveWalkStore`（`endWalk()`）、`useFinishedWalkStore`（`clearFinishedWalk()`）、`src/api/queryClient.ts`（**SS-100 追補**: `queryClient.clear()` ではなく `removeQueries({ predicate: ... })` + `getMutationCache().clear()` に変更済み。詳細は [ADR-009](./ADR-009-auth-session-state-and-route-gate.md) の SS-100 追補を参照）。各モジュールの末尾で読み込み時に1回登録する。
 - 実行側: **`src/store/useAuthSessionStore.ts` の `setSession()` が、認証状態を `authenticated → guest` に落とす時点で `runSessionCleanup()` を呼ぶ（SS-13 追補）**。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走る。
   - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。**SS-50 では退避と履歴スタックの破棄も `AuthGate` に移した。** `SettingsView` は `authService.signOut()` の起動だけを担い、サインアウト callback と React effect の実行順に依存しない。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。

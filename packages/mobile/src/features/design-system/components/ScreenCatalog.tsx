@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
+import { AppConfigDebugCard } from "@/features/design-system/components/AppConfigDebugCard";
 import {
   DEFAULT_ACTIVE_WALK,
   DEFAULT_WALK_GOAL,
@@ -137,6 +138,8 @@ export function ScreenCatalog() {
             スタブデータ付きで各画面を直接開いて表示確認できます（開発用）
           </Text>
         </View>
+
+        <AppConfigDebugCard />
 
         <View style={styles.list}>
           {links.map((link) => (

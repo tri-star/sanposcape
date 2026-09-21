@@ -40,6 +40,75 @@
 - 呼び出し側（`features/walk`）は `src/services/location` のインターフェースのみを参照し、
   `expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
 
+## フィーチャーフラグ（`/app-config`）の扱い
+
+- 実装方針の根拠は [ADR-008（ルート、横断）: デプロイとリリースを分離し、公開はフィーチャーフラグと
+  ストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md) の
+  決定2・決定9・追補 D1/D2/D9/D10 と、その SS-100 追補。
+- **フラグ値の保持は TanStack Query（`queryKey: ["app-config"]`）に一本化する。Zustand へ複製しない。**
+  `/app-config` は未認証でも叩けるサーバー状態であり、`docs/folder-structure.md`「サーバー状態（API由来）
+  = TanStack Query」に従う。
+- **禁止しているのは `fetchAppConfig()`（`src/api/appConfigApi.ts`）を画面から直接呼ぶことだけ。**
+  正規の参照経路は複数ある:
+  - `useFeatureFlag(FEATURE_FLAG_KEYS.xxx)`（`src/hooks/useFeatureFlag.ts`）/
+    `<FeatureGate flag={...}>`（`src/components/app-config/FeatureGate.tsx`）: 「導線・要素を
+    ON/OFF で出し分けたい」場合の基本形。`enabled`/`disabled` の2値しか見えない。
+  - `useAppConfig()` の `status`（`src/hooks/useAppConfig.ts`）: 「まだ分からない（`loading`）」と
+    「OFF が確定した（`ready`/`unavailable` の OFF）」を**区別したい**画面はこちらを使ってよい
+    （`useFeatureFlag.ts` の JSDoc、下記「画面ガードレシピ」、`AppConfigDebugCard.tsx` の
+    診断表示がいずれもこの経路を前提にしている）。
+- キー定数は `src/config/featureFlags.ts` の `FEATURE_FLAG_KEYS`。正典は backend のコード
+  （`packages/backend/src/sanposcape/core/feature_flags.py` の `FEATURE_FLAGS`。ADR-008 追補 D9）で、
+  mobile 側はその写しを自前定義する（ADR-008 追補 D1 の申し送り）。自動同期はしない。
+- **`config_source` で分岐しない**（`src/lib/appConfigSnapshot.ts` の `AppConfigSnapshot` に
+  載せていないので型で防いでいる）。診断表示（`/dev-screens` の `AppConfigDebugCard`）だけが
+  `useAppConfigDiagnostics()` から読む。
+- 取得失敗・ロード中は全 OFF（ADR-008 決定9）。**取得完了を起動条件にしない**
+  （通信断でアプリが起動不能になることを避けるため）。ただし画面ごとフラグで隠す場合は
+  `resolveFeatureGateDecision`（`src/lib/featureGate.ts`）の `pending` を使い、
+  ロード中に確定的な OFF 扱い（`<Redirect>` 等）をしない。
+- **`src/services/` の real/mock 層は作らない**（HTTP で取れる値であり、実機依存でもネイティブ依存でもない。
+  ユニットテストは Orval 生成の msw ハンドラ、E2E は実 backend で足りる）。
+- **ローカルでフラグを ON にして試す手順**（AWS 不要）:
+  backend の `.env` に `FEATURE_FLAG_MODE=stub` と
+  `FEATURE_FLAG_STUB_DOCUMENT='{"app_config_probe":{"enabled":true}}'` を設定して起動する
+  （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
+  最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
+- フラグを削除するときは backend の登録簿・`src/config/featureFlags.ts`・分岐・テストを
+  同じ PR で消す（ADR-008 決定6）。
+
+### 画面ガードレシピ
+
+`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う
+（SS-100 時点では実例が無いが、次に画面単位のガードが必要になったときのために手順を残す）。
+
+**単一ルート**（`app/` のルートファイルは薄いまま）:
+
+```tsx
+export default function SomeFeatureRoute() {
+  const snapshot = useAppConfig();
+  const decision = resolveFeatureGateDecision({
+    status: snapshot.status,
+    enabled: isFeatureEnabled(snapshot, FEATURE_FLAG_KEYS.someFeature),
+  });
+  if (decision === "pending") return null; // 取得中に弾かない（ON なのに追い出す事故を防ぐ）
+  if (decision === "disabled") return <Redirect href="/" />;
+  return <SomeFeatureView />;
+}
+```
+
+- **`pending` 中は `<Redirect>` しない**。取得中に確定的な OFF 扱いをすると、「フラグ ON なのに
+  起動直後は必ず弾かれる」不具合になる（上記「取得失敗・ロード中は全 OFF」の例外に当たる。
+  画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
+- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。
+
+**タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
+`options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。
+ルート自体は残るので、ディープリンク対策が要るなら上のルート側ガードと併用する。
+
+**いずれの場合も** `app/` にロジックを書かない。判定は `resolveFeatureGateDecision`
+（`src/lib/featureGate.ts`）を呼ぶだけに保つ。
+
 ## テストの方針
 
 - E2Eテスト
