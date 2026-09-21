@@ -114,7 +114,14 @@ class PinTag(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    __table_args__ = (UniqueConstraint("pin_id", "label_key", name="uq_pin_tags_pin_id_label_key"),)
+    __table_args__ = (
+        UniqueConstraint("pin_id", "label_key", name="uq_pin_tags_pin_id_label_key"),
+        # `created_by_user_id` は `users.id` への `ON DELETE CASCADE` FK。他のFKカラム
+        # （`sanpo_maps.owner_user_id` 等）と同様、左端に含むインデックスを持たせておく
+        # （招待機能で他人のピンにタグを付けられるようになった後のユーザー削除時、
+        # シーケンシャルスキャンでロック保持時間が悪化しないようにする）。
+        Index("ix_pin_tags_created_by_user_id", "created_by_user_id"),
+    )
 
 
 class PinPhotoUpload(Base):
