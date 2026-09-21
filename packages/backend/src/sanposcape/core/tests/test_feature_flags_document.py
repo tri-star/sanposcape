@@ -99,6 +99,23 @@ def test_rejects_extra_top_level_keys(definitions: dict[str, Any]) -> None:
         script.validate_definitions(definitions)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("descripton", "typo"),
+        ("name", "x" * 65),
+        ("name", "line\nbreak"),
+        ("description", "x" * 1025),
+    ],
+)
+def test_rejects_flag_definitions_appconfig_would_reject(
+    definitions: dict[str, Any], field: str, value: str
+) -> None:
+    definitions["flags"]["walk_sharing"][field] = value
+    with pytest.raises(script.DocumentError):
+        script.validate_definitions(definitions)
+
+
 # --- フラグ名の検査 ---
 
 
@@ -148,19 +165,63 @@ def test_reports_no_change_when_the_value_is_already_set(definitions: dict[str, 
     assert summary["previous"] == "on"
 
 
-def test_drops_keys_and_attributes_removed_from_the_definitions(
+def test_keeps_keys_missing_from_the_definitions_by_default(
     definitions: dict[str, Any],
 ) -> None:
+    """main が稼働中の backend より先行していても、ON のフラグを黙って消さない。"""
     current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current["flags"]["old_flag"] = {"name": "old flag"}
     current["values"]["old_flag"] = {"enabled": True}
-    current["values"]["walk_sharing"]["legacy_attribute"] = "x"
 
     document, summary = script.build_document(definitions, current, "walk_sharing", True)
 
+    assert document["flags"]["old_flag"] == {"name": "old flag"}
+    assert document["values"]["old_flag"] == {"enabled": True}
+    assert summary["kept_undefined_keys"] == ["old_flag"]
+    assert summary["dropped_keys"] == []
+    assert summary["changed"] is False
+
+
+def test_prune_drops_keys_missing_from_the_definitions(definitions: dict[str, Any]) -> None:
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current["flags"]["old_flag"] = {"name": "old flag"}
+    current["values"]["old_flag"] = {"enabled": True}
+
+    document, summary = script.build_document(
+        definitions, current, "walk_sharing", True, prune=True
+    )
+
     assert "old_flag" not in document["values"]
-    assert document["values"]["walk_sharing"] == {"enabled": True}
+    assert "old_flag" not in document["flags"]
     assert summary["dropped_keys"] == ["old_flag"]
     assert summary["changed"] is True
+
+
+def test_drops_undefined_attributes_but_keeps_reserved_fields(
+    definitions: dict[str, Any],
+) -> None:
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current["values"]["walk_sharing"]["legacy_attribute"] = "x"
+    current["values"]["walk_sharing"]["_variants"] = [{"name": "v", "enabled": True}]
+
+    document, _ = script.build_document(definitions, current, "walk_sharing", True)
+
+    assert document["values"]["walk_sharing"] == {
+        "enabled": True,
+        "_variants": [{"name": "v", "enabled": True}],
+    }
+
+
+def test_ignores_timestamps_added_by_appconfig_when_detecting_changes(
+    definitions: dict[str, Any],
+) -> None:
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current = copy.deepcopy(current)
+    current["flags"]["walk_sharing"]["_updatedAt"] = "2026-09-21T00:00:00Z"
+
+    _, summary = script.build_document(definitions, current, "walk_sharing", True)
+
+    assert summary["changed"] is False
 
 
 def test_adds_new_flags_with_their_default(definitions: dict[str, Any]) -> None:

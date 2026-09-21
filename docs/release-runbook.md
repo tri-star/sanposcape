@@ -94,10 +94,14 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
   `client_requirements` と一致していなければならない（pytest で検査している）。
 - **フラグの現在値の正本は AppConfig**（直近に配信を完了した hosted configuration version）。
   ワークフローは現在値を引き継ぎ、指定した1本だけを書き換えた版を作って `StartDeployment` する。
-  定義ファイルから消えたキーは次の切り替えで AppConfig からも消え、定義ファイルに足したキーは既定値（OFF）で入る。
+  定義ファイルに足したキーは既定値（OFF）で入る。定義ファイルから消えたキーは、`prune` を付けて
+  実行したときだけ AppConfig から消える（付けなければ値を維持する）。
 - **同一 Environment では、前のデプロイのベイク中に次のデプロイを開始できない。**
-  ワークフローは環境ごとに直列化し、各 run が配信の完了（ベイク終了）まで待つので、連続で起動しても
+  ワークフローは環境ごとに直列化し、各 run が配信の完了（ベイク終了）まで待つので、2本続けて起動すると
   後の run は前の run の完了を待ってから動く。ベイクは dev 0 分・prod 1 分（sanposcape-infra の設定）。
+- **ただし待機できる run は環境ごとに1つだけ。** 待機中にさらに起動すると、待機していた run は
+  **キャンセルされて実行されない**（GitHub の concurrency の仕様）。prod で前の run が承認待ちのまま
+  だと待機が長引くので、起動したら必ず run が成功（または「変更なし」）で終わったことを確認する。
 - フラグが読めない場合、backend は**全フラグ OFF** で動く（ADR-008 決定9）。
   「フラグを ON にしたのに反映されない」ときは、AppConfig の取得自体が失敗している可能性を疑う。
 - mobile は起動時とフォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は
@@ -126,7 +130,8 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
    （CLI なら `gh workflow run feature-flags.yml --ref main -f environment=development -f flag=<キー> -f state=on`）
 2. `environment` / `flag`（`feature-flags.json` にあるキー）/ `state`（`on` / `off`）を選ぶ
 3. production の場合は承認する
-4. Job Summary で「変更前 → 変更後」と配信番号を確認する。既に同じ値なら「変更なし」で何もしない
+4. run が **成功で終わったこと**（キャンセルされていないこと）と、Job Summary の「変更前 → 変更後」・
+   配信番号を確認する。既に同じ値なら「変更なし」で何もしない
 5. 数分後に `/app-config` で反映を確認する:
    `curl -s https://app-api.<env>.sanposcape.com/app-config | jq`（`config_source` が `appconfig` になっていること）
 
@@ -136,8 +141,10 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
 
 - **追加**: 登録簿（`FEATURE_FLAGS`）と `feature-flags.json` の両方にキーを足す PR を出す
   （既定値は必ず `enabled: false`）。マージ・デプロイ後にワークフローで ON にする。
-- **削除**: 分岐・登録簿・`feature-flags.json` からキーを消す PR を出す。AppConfig からは
-  次にいずれかのフラグを切り替えたときに消える（残っていても backend は未知キーとして無視する）。
+- **削除**: 分岐・登録簿・`feature-flags.json` からキーを消す PR を出す。AppConfig の値は、
+  **その PR を当該環境の backend にデプロイした後で** `prune` を付けて何かを切り替えたときに消える。
+  `prune` を付けない切り替えでは値を維持する（main が稼働中の backend より先行していても、古い
+  backend が読んでいる ON のフラグを消さないため）。残っていても新しい backend は未知キーとして無視する。
 
 ### 現行の kill switch（AppConfig 移行前）
 
@@ -270,6 +277,8 @@ expand と contract は**別のデプロイに分ける**。
 
 - prod はベイク（1 分）の間は次の配信を始められない。ワークフローは前の run の完了を待ってから
   配信するので、ON にした直後に OFF を起動してよい（ベイク終了後に OFF が配信される）。
+  ただし待機中の OFF の run は、その後に別の run を起動するとキャンセルされる（§3）。緊急停止中は
+  他の切り替えを起動せず、OFF の run が成功したことを確認する。
 - `StopDeployment` はワークフローに組み込んでいない。コンソールから止めるのは運用上の約束（§3）に反するため、
   止める必要が生じたら逆の値でワークフローを起動する。
 

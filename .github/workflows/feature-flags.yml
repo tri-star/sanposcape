@@ -38,11 +38,17 @@ on:
         options: ["off", "on"]
         default: "off"
         required: true
+      prune:
+        description: "定義ファイルから消えたキーを AppConfig からも削除する（フラグ削除 PR を当該環境にデプロイした後だけ使う）"
+        type: boolean
+        default: false
 
 # 環境ごとに直列化する。AppConfig は同じ環境で配信中（ベイク中を含む）の間は次の
 # StartDeployment を ConflictException で弾くため、run 側で待たせる。各 run は配信の
 # 完了（ベイク終了）まで待ってから終わるので、後続の run は衝突しない。
 # 配信は途中で止めると巻き戻るため取り消さない。
+# ★ GitHub の仕様で、同じ group で待機できる run は1つだけ。待機中にさらに起動すると、
+#   待機していた run はキャンセルされる（実行されない）。runbook §3 に確認手順がある。
 concurrency:
   group: feature-flags-${{ inputs.environment }}
   cancel-in-progress: false
@@ -113,6 +119,7 @@ jobs:
       TARGET_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
       FLAG: ${{ inputs.flag }}
       STATE: ${{ inputs.state }}
+      PRUNE: ${{ inputs.prune }}
     steps:
       - name: Check role is configured
         working-directory: .
@@ -191,18 +198,22 @@ jobs:
           CURRENT_VERSION: ${{ steps.current.outputs.version }}
         run: |
           set -euo pipefail
-          current_args=()
+          extra_args=()
           if [ -n "$CURRENT_VERSION" ]; then
-            current_args=(--current "$RUNNER_TEMP/current.json")
+            extra_args+=(--current "$RUNNER_TEMP/current.json")
+          fi
+          if [ "$PRUNE" = "true" ]; then
+            extra_args+=(--prune)
           fi
           summary="$(python3 scripts/feature_flags_document.py build \
-            --flag "$FLAG" --state "$STATE" "${current_args[@]}" \
+            --flag "$FLAG" --state "$STATE" "${extra_args[@]}" \
             --output "$RUNNER_TEMP/next.json")"
           echo "$summary" | jq .
           {
             echo "changed=$(jq -r .changed <<< "$summary")"
-            echo "previous=$(jq -r '.previous // "未配信"' <<< "$summary")"
+            echo "previous=$(jq -r '.previous // "未設定"' <<< "$summary")"
             echo "dropped=$(jq -r '.dropped_keys | join(", ")' <<< "$summary")"
+            echo "kept=$(jq -r '.kept_undefined_keys | join(", ")' <<< "$summary")"
             echo "added=$(jq -r '.added_keys | join(", ")' <<< "$summary")"
           } >> "$GITHUB_OUTPUT"
 
@@ -288,6 +299,7 @@ jobs:
         env:
           PREVIOUS: ${{ steps.build.outputs.previous }}
           DROPPED: ${{ steps.build.outputs.dropped }}
+          KEPT: ${{ steps.build.outputs.kept }}
           ADDED: ${{ steps.build.outputs.added }}
           VERSION: ${{ steps.version.outputs.number }}
           DEPLOYMENT: ${{ steps.deployment.outputs.number }}
@@ -300,7 +312,11 @@ jobs:
             echo "| \`$FLAG\` | $PREVIOUS | $STATE | #$VERSION | #$DEPLOYMENT |"
             if [ -n "$DROPPED" ]; then
               echo
-              echo "定義ファイルから消えたため削除したキー: $DROPPED"
+              echo "定義ファイルから消えたため削除したキー（prune）: $DROPPED"
+            fi
+            if [ -n "$KEPT" ]; then
+              echo
+              echo "定義ファイルに無いが値を維持したキー: $KEPT（削除 PR をこの環境にデプロイ済みなら prune を付けて再実行する）"
             fi
             if [ -n "$ADDED" ]; then
               echo

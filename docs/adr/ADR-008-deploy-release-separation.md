@@ -20,7 +20,7 @@
   認証には sam-deploy とは別の OIDC ロール `sanposcape-<env>-feature-flags` を使う。（本文: 決定6）
 - **切り替えワークフローは `.github/workflows/feature-flags.yml`、定義ファイルは `packages/backend/feature-flags.json`（AppConfig FeatureFlags 形式そのもの、既定値入り）**。
   フラグの現在値の正本は AppConfig（直近に配信を完了した版）で、ワークフローは現在値を引き継いで指定の1本だけを書き換えた版を作る。
-  入力は環境・フラグキー・on/off、ロール ARN は Environment Variables `AWS_FEATURE_FLAGS_ROLE_ARN`、環境ごとに直列化して配信完了まで待つ。
+  入力は環境・フラグキー・on/off（と定義から消えたキーを削除する `prune`）、ロール ARN は Environment Variables `AWS_FEATURE_FLAGS_ROLE_ARN`、環境ごとに直列化して配信完了まで待つ。
   定義ファイルのキー集合は登録簿 + 予約キーと一致させる（pytest）。（本文: SS-99 追補 D19〜D23）
 - **フラグキー・説明・クライアント公開の可否は backend のコード（`core/feature_flags.py` の `FEATURE_FLAGS`）、値と最低サポートバージョンは AppConfig が所有する**。
   キーは `_enabled` を付けない snake_case。`client_requirements` は最低サポートバージョンを属性で配る予約キーで、常に `enabled: true` に保つ。
@@ -889,10 +889,18 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
   値をリポジトリのファイルに持たせる案は、フラグを倒すたびに PR が要り、決定1（デプロイとリリースの分離）に反するので採らない。
 - 現在値は「その環境で直近に配信を完了した（`COMPLETE`）版」を `ListDeployments` → `GetHostedConfigurationVersion`
   で読む。`ROLLED_BACK` の配信は飛ばす（実際に配信されている値ではないため）。未配信なら定義ファイルの既定値から始める。
-- 定義ファイルから消えたキー・定義に無い属性は落とし、定義ファイルに増えたキーは既定値で足す。
-  フラグの削除（決定6 の3段階目）は、PR マージ後に次に何かを切り替えた時点で AppConfig からも消える。
+- 定義ファイルに増えたキーは既定値で足す。定義に無い属性は落とすが、`_` で始まる AppConfig の予約フィールド
+  （`_variants` 等）は残す。
+- **定義ファイルから消えたキーは、既定では定義ごと維持し、`prune` 入力を付けたときだけ落とす。**
+  prod の backend は main から手動でデプロイするので、フラグ削除 PR のマージ後もしばらくは古い backend が
+  そのキーを読んでいる。ここで自動で落とすと、無関係なフラグを切り替えただけで ON の機能が消える。
+  dev で古い ref から起動した場合も、新しいフラグの ON を黙って失わない。
+  （PR レビュー指摘による変更。当初案は「次の切り替えで自動的に消える」だった）
 - `client_requirements` は切り替え対象にせず、組み立て時に必ず `enabled: true` に戻す（D7）。
-- 現在の版と内容が同じなら配信しない（Job Summary に「変更なし」を出す）。
+- 現在の版と内容が同じなら配信しない（Job Summary に「変更なし」を出す）。比較では AppConfig が付けうる
+  `_createdAt` / `_updatedAt` を除く。
+- 定義ファイルは AppConfig のスキーマが弾くもの（未知のキー、`name` 64 文字超、`description` 1024 文字超、
+  属性 25 個超）を `prepare` job で先に弾く。prod では承認後に失敗させないため。
 
 ### D21: 入力・認証・Environment
 
@@ -913,7 +921,9 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 
 - 同一環境で配信中（ベイク中を含む）は次の `StartDeployment` が `ConflictException` になる。
   ワークフローは `concurrency: feature-flags-<environment>`（取り消さない）で直列化し、各 run が
-  `GetDeployment` で `COMPLETE` まで待つ（上限 20 分）ので、連続で起動しても後の run は衝突しない。
+  `GetDeployment` で `COMPLETE` まで待つ（上限 20 分）ので、後の run は衝突しない。
+  ただし GitHub の仕様で待機できる run は group ごとに1つで、待機中にさらに起動すると待機していた run は
+  キャンセルされる。これは仕組みでは防がず、runbook で「run の成功を確認する」ことで扱う。
   それでも進行中の配信が見つかった場合（ワークフロー外から始めた配信）は、何もせずに失敗させる。
 - 引き返しは逆の値での再実行で行う。`StopDeployment`（ロールには権限がある）はワークフローに入れていない。
   prod のベイクは1分で、入れるとワークフローの入力と分岐が増える割に得るものが小さいため。必要になったら追加する。

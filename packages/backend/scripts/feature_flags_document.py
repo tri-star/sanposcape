@@ -32,6 +32,23 @@ RESERVED_FLAG_KEYS = frozenset({CLIENT_REQUIREMENTS_KEY})
 
 _TOP_LEVEL_KEYS = {"version", "flags", "values"}
 
+# AWS.AppConfig.FeatureFlags のスキーマ（flagDefinition）が許すキーと上限。承認後の
+# CreateHostedConfigurationVersion で BadRequest になる前に prepare job で落とすため。
+_FLAG_DEFINITION_KEYS = {
+    "name",
+    "description",
+    "attributes",
+    "_createdAt",
+    "_updatedAt",
+    "_deprecation",
+}
+_MAX_NAME_LENGTH = 64
+_MAX_DESCRIPTION_LENGTH = 1024
+_MAX_ATTRIBUTES = 25
+
+# AppConfig 側がメタ情報として付けうるキー。内容が変わったかの比較からは除く。
+_TIMESTAMP_KEYS = {"_createdAt", "_updatedAt"}
+
 
 class DocumentError(Exception):
     """定義ファイル・現在の文書・入力のいずれかが不正。"""
@@ -64,6 +81,7 @@ def validate_definitions(definitions: Any) -> None:
             raise DocumentError(f"フラグキーの形式が不正です: {key!r}")
         if not isinstance(flag, dict):
             raise DocumentError(f"フラグ定義がオブジェクトではありません: {key}")
+        _validate_flag_definition(key, flag)
         default = values[key]
         if not isinstance(default, dict) or not isinstance(default.get("enabled"), bool):
             raise DocumentError(f"既定値に bool の enabled がありません: {key}")
@@ -76,6 +94,28 @@ def validate_definitions(definitions: Any) -> None:
             raise DocumentError(
                 f"定義に無い属性が既定値にあります: {key}: {sorted(unknown_attributes)}"
             )
+
+
+def _validate_flag_definition(key: str, flag: dict[str, Any]) -> None:
+    unknown = set(flag) - _FLAG_DEFINITION_KEYS
+    if unknown:
+        raise DocumentError(f"フラグ定義に使えないキーがあります: {key}: {sorted(unknown)}")
+    name = flag.get("name")
+    if name is not None and (
+        not isinstance(name, str) or len(name) > _MAX_NAME_LENGTH or "\n" in name
+    ):
+        raise DocumentError(f"name は改行を含まない {_MAX_NAME_LENGTH} 文字以内の文字列です: {key}")
+    description = flag.get("description")
+    if description is not None and (
+        not isinstance(description, str) or len(description) > _MAX_DESCRIPTION_LENGTH
+    ):
+        raise DocumentError(f"description は {_MAX_DESCRIPTION_LENGTH} 文字以内の文字列です: {key}")
+    attributes = flag.get("attributes", {})
+    if not isinstance(attributes, dict) or len(attributes) > _MAX_ATTRIBUTES:
+        raise DocumentError(f"attributes は {_MAX_ATTRIBUTES} 個以内のオブジェクトです: {key}")
+    for attribute in attributes:
+        if not FLAG_KEY_PATTERN.match(attribute):
+            raise DocumentError(f"属性名の形式が不正です: {key}.{attribute}")
 
 
 def validate_flag_key(definitions: dict[str, Any], flag: str) -> None:
@@ -93,17 +133,24 @@ def build_document(
     current: dict[str, Any] | None,
     flag: str,
     enabled: bool,
+    *,
+    prune: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """新しい版の文書と、変更内容の要約を返す。
 
     - `current` は直近に配信を完了した版（未配信なら None）。その `values` を引き継ぐ。
-    - 定義ファイルに無いキー・定義に無い属性は落とす（フラグの削除 PR の後に掃除される）。
     - 定義ファイルにあって現在値に無いキーは既定値（OFF）で足す。
+    - 定義ファイルに無いキーは、既定では定義ごと**そのまま残す**。`prune=True` のときだけ落とす。
+      main が稼働中の backend より先行している（フラグ削除 PR はマージ済みだが未デプロイ）場合や、
+      dev で古い ref から起動した場合に、ON のフラグを黙って消さないため。
+    - 定義に無い属性は落とす。`_` で始まる AppConfig の予約フィールド（`_variants` 等）は残す。
     - `client_requirements` は常に ON に戻す。
     """
     validate_flag_key(definitions, flag)
     current_values = _current_values(current)
+    current_flags = current.get("flags", {}) if current is not None else {}
 
+    flags: dict[str, Any] = dict(definitions["flags"])
     values: dict[str, Any] = {}
     for key, flag_definition in definitions["flags"].items():
         default = definitions["values"][key]
@@ -111,28 +158,45 @@ def build_document(
         if not isinstance(base, dict) or not isinstance(base.get("enabled"), bool):
             base = default
         allowed = {"enabled"} | _attribute_names(flag_definition)
-        values[key] = {name: value for name, value in base.items() if name in allowed}
+        values[key] = {
+            name: value for name, value in base.items() if name in allowed or name.startswith("_")
+        }
     values[CLIENT_REQUIREMENTS_KEY]["enabled"] = True
     values[flag]["enabled"] = enabled
 
-    document = {
-        "version": "1",
-        "flags": definitions["flags"],
-        "values": values,
-    }
+    undefined_keys = sorted(set(current_values) - set(definitions["flags"]))
+    kept_keys: list[str] = []
+    if not prune:
+        for key in undefined_keys:
+            if isinstance(current_flags, dict) and isinstance(current_flags.get(key), dict):
+                flags[key] = current_flags[key]
+                values[key] = current_values[key]
+                kept_keys.append(key)
+
+    document = {"version": "1", "flags": flags, "values": values}
     previous = current_values.get(flag)
     previous_enabled = previous.get("enabled") if isinstance(previous, dict) else None
     summary = {
-        "changed": current is None or document != current,
+        "changed": current is None or _comparable(document) != _comparable(current),
         "flag": flag,
         "previous": _state_label(previous_enabled),
         "next": _state_label(enabled),
-        "dropped_keys": sorted(set(current_values) - set(definitions["flags"])),
+        "dropped_keys": [key for key in undefined_keys if key not in kept_keys],
+        "kept_undefined_keys": kept_keys,
         "added_keys": sorted(set(definitions["flags"]) - set(current_values))
         if current is not None
         else [],
     }
     return document, summary
+
+
+def _comparable(document: Any) -> Any:
+    """`_createdAt` / `_updatedAt` を除いた比較用の写し。"""
+    if isinstance(document, dict):
+        return {k: _comparable(v) for k, v in document.items() if k not in _TIMESTAMP_KEYS}
+    if isinstance(document, list):
+        return [_comparable(v) for v in document]
+    return document
 
 
 def _current_values(current: dict[str, Any] | None) -> dict[str, Any]:
@@ -168,6 +232,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     build.add_argument("--state", choices=["on", "off"], required=True)
     build.add_argument("--current", type=Path, help="直近に配信を完了した版（未配信なら省略）")
     build.add_argument("--output", type=Path, required=True)
+    build.add_argument(
+        "--prune",
+        action="store_true",
+        help="定義ファイルに無いキーを AppConfig から削除する（既定は残す）",
+    )
     return parser.parse_args(argv)
 
 
@@ -185,7 +254,9 @@ def main(argv: list[str]) -> int:
                 current = json.loads(args.current.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as exc:
                 raise DocumentError(f"現在配信中の文書を読めません: {exc}") from exc
-        document, summary = build_document(definitions, current, args.flag, args.state == "on")
+        document, summary = build_document(
+            definitions, current, args.flag, args.state == "on", prune=args.prune
+        )
     except DocumentError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
