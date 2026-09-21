@@ -24,3 +24,5 @@
 - [EAS クラウドビルドは sandbox 外で](feedback-eas-cloud-build-outside-sandbox.md) — WSLにAndroid SDKなし→dev buildはEASクラウド。sandbox内はダミーdotfileでEACCES、実HOMEで実行。build:viewでポーリング、APKは/mnt/c/temp経由でadb install
 - [sandboxで失敗するmobileコマンド](sandbox-constraints.md) — expo CLIのHOME書き込みEROFS / tsx CLIのIPC EPERM / oxfmtがstrayファイルで詰まる(個別実行だけで判断しない) / git worktreeがread-onlyでcommit不可
 - [フィーチャーフラグ(/app-config)受け皿パターン](feature-flag-app-config-pattern.md) — SS-100。TanStack Query一本化・キー定数は写し・pending/enabled/disabled・AppState購読はBootstrap1箇所・shouldRefreshOnForegroundはdataUpdatedAtだけでなくerrorUpdatedAt/isFetchingも見る・ReactNode optional propの`??`は`null`を潰す
+- [presigned POST S3直送と枠上限吸収パターン](direct-s3-upload-and-slot-limit-pattern.md) — SS-88。customFetchを使わない3つ目のHTTP出口、429を「待機に戻す」合図にする設計、PinSaveErrorでwrite系失敗も包む、模型サーバーでのテスト手法
+- [React Compilerのpreserve-manual-memoization警告の直し方](react-compiler-manual-memo-warning.md) — reactCompiler有効時、軽量な計算はuseMemo/useCallbackごと外す
