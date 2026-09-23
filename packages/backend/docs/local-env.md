@@ -249,6 +249,13 @@ docker compose up -d --build
     ときだけ `include_in_schema=False` で include され、OpenAPI には一切現れない。**
     実機・エミュレータからもリクエストされたホストで URL を組み立てるため、
     LAN 越し・Android エミュレータ（`10.0.2.2`）でも届く。
+- `DEV_STORAGE_DIR`: `STORAGE_MODE=fake` の保存先（既定は `compose.yaml` / `.env.example` の
+  `storages/dev-storage`。`packages/backend` からの相対パス）。`objects/<key>` に本体、
+  `content-types/<key>` に Content-Type を書くので、backend を再起動しても写真が残る。
+  中身は `.gitignore` 対象（ディレクトリは `.gitkeep` で残す）で、容量による追い出しはしない。
+  溜まった写真を消したいときは `.gitkeep` 以外を手で削除する（DB のピンと食い違って表示が
+  404 になるので、DB も作り直すときに合わせて消すのがよい）。空にするとプロセス内メモリになり、
+  再起動（`--reload` 含む）で消える。
 - `PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES`: 1枚あたりの上限（既定 10 MiB）と
   ユーザー合計の上限（既定 1 GiB）。他の上限値（保有枠数・TTL・サムネイルサイズ・確定処理の
   時間予算/並列度など）は妥当な既定値があり、通常は変更不要（`config.py` の `Settings` 参照）。
@@ -356,7 +363,7 @@ print(r.status_code); print(r.text[:800])"
 （`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、
 `compose.yaml` の `environment:` に含めている。`FEATURE_FLAG_MODE` も `AUTH_MODE` /
 `MAPS_MODE` と同じ「開発中に切り替えるモード系」として `compose.yaml` の `environment:` に
-含めている。**`STORAGE_MODE` も同じ理由で含めている。`FEATURE_FLAG_STUB_DOCUMENT` /
+含めている。**`STORAGE_MODE`（と `DEV_STORAGE_DIR`）も同じ理由で含めている。`FEATURE_FLAG_STUB_DOCUMENT` /
 `PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES` は SS-88 で `compose.yaml` の
 `environment:` に追加した**（mobile が `mobile-e2e.yml` から `.env.example` の値をそのまま
 使えるようにするため。以前は「妥当な既定値を持つため省略」としていたが、E2E で

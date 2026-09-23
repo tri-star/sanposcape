@@ -4,7 +4,7 @@
 
 2026-09-21（初版、SS-88）、2026-09-21 追補（PR #93: Copilot レビュー対応の backend 分。
 アップロード枠の取り消し API、409 応答の機械可読 code）、2026-09-22 追補（SS-108:
-`template.yaml` への S3 結線）
+`template.yaml` への S3 結線）、2026-09-23 追補（`STORAGE_MODE=fake` の保存先をディスクへ）
 
 ## ステータス
 
@@ -244,6 +244,21 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
   関係なく既に AppConfig（SS-98）の SSM を前提にしており、その apply（`deployments/prod/platform`）で
   `pin_photos/*` も同時に作られるため、結線によって prod の前提は増えない
   （prod の適用順序は [deployment.md](../../packages/backend/docs/deployment.md) §12）。
+- **（2026-09-23 追補）fake の保存先をディスクにした**。プロセス内メモリだと
+  `uvicorn --reload`（コード変更のたび）やコンテナ再起動で写真だけが消え、DB 上のピン・写真の
+  行は残るため表示が 404（`NoSuchKey`）になり、ローカルでの確認が続けにくかった。
+  `DEV_STORAGE_DIR`（ローカルでは `compose.yaml` / `.env.example` が
+  `storages/dev-storage` を渡す。`packages/backend` からの相対パス）が設定されていれば
+  `<dir>/objects/<key>` に本体、`<dir>/content-types/<key>` に Content-Type を書く。
+  中身は `.gitignore` 対象で、ディレクトリ自体は `.gitkeep` で残す。
+  - DB が参照している写真を黙って消さないよう、ディスク保存では容量による追い出しをしない
+    （不要になればディレクトリの中身を手で消す）。
+  - キーは署名済みだが、`..`・絶対パス・空要素を含むキーは多重防御として拒否する
+    （保存先の外へ読み書きさせない）。
+  - `DEV_STORAGE_DIR` が空（`Settings` の既定。テストはこれ）なら従来どおりプロセス内メモリ。
+  - MinIO / LocalStack は採用しなかった。`S3ObjectStorage` は virtual-hosted-style のため
+    接続先を明示しない作りで、差し替え口を足す変更が広がる一方、ローカルで確かめたいのは
+    presigned POST 互換の流れと表示であり、fake のままで足りるため。
 
 ### 決定9: 他人の地図・ピン・アップロード枠は 404/409 で存在を漏らさない（IDOR 対策）
 
