@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildPresignedPostFormEntries,
   isAllowedUploadUrl,
-  uploadFileName,
 } from "@/features/pin/lib/presignedPostForm";
 import type { UploadFilePart } from "@/features/pin/lib/presignedPostForm";
 
-const FILE: UploadFilePart = { uri: "file:///tmp/a.jpg", name: "a.jpg", type: "image/jpeg" };
+// ファイルパートは Blob 実装に限る（`UploadFileBody` の注記。SS-88）。
+const FILE: UploadFilePart = new Blob([new Uint8Array([0xff, 0xd8])], { type: "image/jpeg" });
 
 describe("buildPresignedPostFormEntries", () => {
   it("fields の順を保ち、最後に file を置く", () => {
@@ -66,11 +66,5 @@ describe("isAllowedUploadUrl", () => {
     ["not a url", "http://10.0.2.2:8000", false],
   ])("url=%s apiBaseUrl=%s -> %s", (url, apiBaseUrl, expected) => {
     expect(isAllowedUploadUrl(url, { apiBaseUrl })).toBe(expected);
-  });
-});
-
-describe("uploadFileName", () => {
-  it("localId を含む .jpg ファイル名を返す", () => {
-    expect(uploadFileName("abc-123")).toBe("pin-photo-abc-123.jpg");
   });
 });

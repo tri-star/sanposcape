@@ -28,6 +28,7 @@ const PREPARED: PreparedPhoto = {
   height: 1536,
   byteSize: 500_000,
   mimeType: "image/jpeg",
+  file: new Blob([new Uint8Array([0xff, 0xd8])], { type: "image/jpeg" }),
 };
 
 function item(overrides: Partial<PhotoDraftItem> & { localId: string }): PhotoDraftItem {

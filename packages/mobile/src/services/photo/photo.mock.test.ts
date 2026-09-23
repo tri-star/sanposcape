@@ -47,13 +47,16 @@ describe("createMockPhotoService.prepareForUpload", () => {
     const service = createMockPhotoService();
     const result = await service.prepareForUpload(MOCK_PICKED_PHOTO);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       uri: MOCK_PICKED_PHOTO.uri,
       width: 2048,
       height: 1536,
       byteSize: MOCK_PREPARED_BYTE_SIZE,
       mimeType: "image/jpeg",
     });
+    // 直送に載せる実体は Blob 実装であること（`{ uri, name, type }` だと Expo の fetch が
+    // 送信前に落ちる。SS-88 の回帰）。
+    expect(result.file).toBeInstanceOf(Blob);
   });
 
   it("preparedByteSize を指定するとその値が返る", async () => {

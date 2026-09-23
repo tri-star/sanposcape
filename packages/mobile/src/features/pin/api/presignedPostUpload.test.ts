@@ -7,11 +7,14 @@ import { uploadToPresignedPost } from "@/features/pin/api/presignedPostUpload";
 import type { PinPhotoUploadTicket } from "@/features/pin/types";
 import { server } from "@/test/setup";
 
-const FILE: UploadFilePart = {
-  uri: "file:///tmp/a.jpg",
-  name: "pin-photo-a.jpg",
-  type: "image/jpeg",
-};
+const FILE_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02, 0x03, 0x04]);
+
+/**
+ * ファイルパートは **Blob 実装**でなければならない（`{ uri, name, type }` は Expo の fetch が
+ * 送信前に `Unsupported FormDataPart implementation` で落とす。SS-88 で実機・エミュレータ再現）。
+ * 実機では `expo-file-system` の `File`（`implements Blob`）が渡ってくる。
+ */
+const FILE: UploadFilePart = new Blob([FILE_BYTES], { type: "image/jpeg" });
 
 const S3_TICKET: Pick<PinPhotoUploadTicket, "url" | "fields"> = {
   url: "https://sanposcape-dev-pin-photos-000000000000.s3.ap-southeast-1.amazonaws.com/",
@@ -66,6 +69,30 @@ describe("uploadToPresignedPost", () => {
     });
 
     expect(keys).toEqual(["key", "policy", "file"]);
+  });
+
+  it("file パートに画像の中身がそのまま載る（SS-88 の回帰）", async () => {
+    // 以前は `{ uri, name, type }` を Blob にキャストして渡しており、キー順の検証は通るのに
+    // 中身が送られていなかった（実機では Expo の fetch が送信前に例外を投げていた）。
+    // キーだけでなく **バイト列が届くこと** を固定する。
+    let received: Uint8Array | null = null;
+    server.use(
+      http.post(S3_TICKET.url, async ({ request }) => {
+        const form = await request.formData();
+        // 上の「キー順」のテストと同じ理由で、RN の FormData 型には無い Web 標準の
+        // メソッドへテストのときだけ型を広げてアクセスする。
+        const part = (form as unknown as { get(name: string): Blob | string | null }).get("file");
+        received = new Uint8Array(await (part as Blob).arrayBuffer());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await uploadToPresignedPost(S3_TICKET, FILE, {
+      apiBaseUrl: "https://app-api.dev.sanposcape.com",
+    });
+
+    expect(received).not.toBeNull();
+    expect(Array.from(received!)).toEqual(Array.from(FILE_BYTES));
   });
 
   it("fake storage URL（backend と同じ origin の http）でも成功する", async () => {

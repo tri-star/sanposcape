@@ -91,6 +91,10 @@ export function createMockPhotoService(options?: MockPhotoServiceOptions): Photo
         height,
         byteSize: preparedByteSize,
         mimeType: "image/jpeg",
+        // 実ファイルではないダミー（中身の長さは `byteSize` と一致しない）。この mock の写真を
+        // 実際にアップロードすると S3 の content-length-range に掛かって失敗する——という
+        // 既存の性質（上の JSDoc）はそのまま。E2E では写真を添付しない（ADR-010）。
+        file: new Blob([new Uint8Array(8)], { type: "image/jpeg" }),
       };
     },
   };
