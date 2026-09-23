@@ -23,8 +23,10 @@ S3 側の制約（infra-notes.md / infra-progress.md で確認済み）:
 """
 
 import logging
+import os
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import boto3
@@ -262,24 +264,43 @@ class UnconfiguredObjectStorage:
 
 
 class FakeObjectStorage:
-    """`STORAGE_MODE=fake` 用のプロセス内メモリ実装（開発・E2E 用）。
+    """`STORAGE_MODE=fake` 用の開発・E2E 用実装。
 
     presigned POST/GET の代わりに backend 自身の `/dev-storage/*`（`pins/dev_storage_router.py`、
     `STORAGE_MODE=fake` のときだけ include される）を指す URL を発行する。署名は HMAC-SHA256
     （`AUTH_JWT_SECRET` を鍵にする。本物の認証トークンとは用途が別だが、ローカル専用の
     改ざん検知としては十分）。
 
+    保存先は `root_dir` で切り替える:
+
+    - `root_dir=None`（テストの既定）: プロセス内メモリ。`max_total_bytes` を超えたら
+      古い順に捨てる。
+    - `root_dir` 指定（ローカル開発。`DEV_STORAGE_DIR`）: `<root_dir>/objects/<key>` に本体、
+      `<root_dir>/content-types/<key>` に Content-Type を書く。`uvicorn --reload` や
+      コンテナ再起動で写真が消え、DB 上のピンだけが残って 404 になるのを防ぐため。
+      DB が参照している写真を黙って消さないよう、容量による追い出しは行わない
+      （不要になったらディレクトリごと手で消す）。
+
     実際のバイト列の出し入れ（`store_upload` / `read_object`）は dev_storage_router から
     呼ばれる。`ObjectStorage` プロトコルのメソッド（`head`/`get_bytes`/`put_bytes`/`copy`/
     `delete`）は確定処理（`photo_attacher.py`）から直接呼ばれ、S3 実装と同じ挙動をする。
     """
 
-    def __init__(self, *, secret: str, max_total_bytes: int = 512 * 1024 * 1024) -> None:
+    def __init__(
+        self,
+        *,
+        secret: str,
+        max_total_bytes: int = 512 * 1024 * 1024,
+        root_dir: Path | None = None,
+    ) -> None:
         self._secret = secret
         self._max_total_bytes = max_total_bytes
         self._lock = threading.Lock()
         self._objects: dict[str, tuple[bytes, str]] = {}
         self._order: list[str] = []
+        self._root_dir = root_dir.resolve() if root_dir is not None else None
+        if self._root_dir is not None:
+            self._root_dir.mkdir(parents=True, exist_ok=True)
 
     # --- ObjectStorage プロトコル ---
 
@@ -308,16 +329,14 @@ class FakeObjectStorage:
         )
 
     def head(self, key: str) -> StoredObjectInfo | None:
-        with self._lock:
-            stored = self._objects.get(key)
+        stored = self._load(key)
         if stored is None:
             return None
         data, content_type = stored
         return StoredObjectInfo(content_length=len(data), content_type=content_type)
 
     def get_bytes(self, key: str, *, max_bytes: int) -> bytes:
-        with self._lock:
-            stored = self._objects.get(key)
+        stored = self._load(key)
         if stored is None:
             raise ObjectNotFoundError(key)
         data, _content_type = stored
@@ -329,8 +348,7 @@ class FakeObjectStorage:
         self._store(key, data, content_type)
 
     def copy(self, *, source_key: str, dest_key: str) -> None:
-        with self._lock:
-            stored = self._objects.get(source_key)
+        stored = self._load(source_key)
         if stored is None:
             raise ObjectNotFoundError(source_key)
         data, content_type = stored
@@ -338,6 +356,10 @@ class FakeObjectStorage:
 
     def delete(self, key: str) -> None:
         with self._lock:
+            if self._root_dir is not None:
+                for path in self._disk_paths(key) or ():
+                    path.unlink(missing_ok=True)
+                return
             self._objects.pop(key, None)
             if key in self._order:
                 self._order.remove(key)
@@ -379,13 +401,40 @@ class FakeObjectStorage:
         return None
 
     def read_object(self, key: str) -> tuple[bytes, str] | None:
-        with self._lock:
-            return self._objects.get(key)
+        return self._load(key)
 
     # --- 内部 ---
 
+    def _load(self, key: str) -> tuple[bytes, str] | None:
+        with self._lock:
+            if self._root_dir is None:
+                return self._objects.get(key)
+            paths = self._disk_paths(key)
+            if paths is None:
+                return None
+            data_path, content_type_path = paths
+            try:
+                data = data_path.read_bytes()
+            except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+                return None
+            try:
+                content_type = content_type_path.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                content_type = "application/octet-stream"
+            return data, content_type
+
     def _store(self, key: str, data: bytes, content_type: str) -> None:
         with self._lock:
+            if self._root_dir is not None:
+                paths = self._disk_paths(key)
+                if paths is None:
+                    # 実運用のキーは backend が組み立てる（photo_keys.py）ので起こらない
+                    # 防御的チェック。
+                    raise ValueError(f"invalid object key: {key!r}")
+                data_path, content_type_path = paths
+                _atomic_write(content_type_path, content_type.encode("utf-8"))
+                _atomic_write(data_path, data)
+                return
             if key not in self._objects:
                 self._order.append(key)
             self._objects[key] = (data, content_type)
@@ -399,6 +448,21 @@ class FakeObjectStorage:
             if evicted is not None:
                 total -= len(evicted[0])
 
+    def _disk_paths(self, key: str) -> tuple[Path, Path] | None:
+        """キーに対応する（本体, Content-Type）のパス。`root_dir` の外を指すキーは `None`。
+
+        キーは署名済み（改ざんできない）だが、`..` や絶対パスで `root_dir` の外へ
+        読み書きしないよう多重防御として弾く。
+        """
+        assert self._root_dir is not None
+        parts = key.split("/")
+        if not key or key.startswith("/") or any(part in ("", ".", "..") for part in parts):
+            return None
+        return (
+            self._root_dir / "objects" / key,
+            self._root_dir / "content-types" / key,
+        )
+
     def _sign(self, key: str, content_type: str, max_bytes: str, expires: str) -> str:
         message = "|".join((key, content_type, max_bytes, expires))
         return _hmac_hex(self._secret, message)
@@ -406,6 +470,14 @@ class FakeObjectStorage:
     def _sign_download(self, key: str, expires: str) -> str:
         message = "|".join((key, expires))
         return _hmac_hex(self._secret, message)
+
+
+def _atomic_write(path: Path, data: bytes) -> None:
+    """途中で落ちても壊れたファイルを残さないよう、一時ファイル経由で置き換える。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp_path.write_bytes(data)
+    os.replace(tmp_path, path)
 
 
 def _now_epoch() -> int:
@@ -432,8 +504,12 @@ def build_object_storage(settings: Settings) -> ObjectStorage:
     （`build_google_maps_provider()` / `build_flag_document_source()` と同じ順序）。
     """
     if settings.storage_mode == "fake":
-        logger.warning("STORAGE_MODE=fake: object storage is an in-process fake.")
-        return FakeObjectStorage(secret=settings.auth_jwt_secret)
+        root_dir = Path(settings.dev_storage_dir) if settings.dev_storage_dir else None
+        logger.warning(
+            "STORAGE_MODE=fake: object storage is a local fake (%s).",
+            f"disk: {root_dir}" if root_dir is not None else "in-memory",
+        )
+        return FakeObjectStorage(secret=settings.auth_jwt_secret, root_dir=root_dir)
     if not settings.pin_photo_bucket_name:
         if settings.env in ("local", "test"):
             logger.warning("PIN_PHOTO_BUCKET_NAME is not configured; photo APIs will return 503.")
