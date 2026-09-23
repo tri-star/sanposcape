@@ -14,6 +14,7 @@ import {
   PIN_PHOTO_PREUPLOAD_MAX,
 } from "@/features/pin/lib/pinLimits";
 import {
+  isAbortError,
   isWaitablePhotoUploadError,
   toPhotoUploadErrorCode,
 } from "@/features/pin/lib/photoUploadError";
@@ -198,9 +199,13 @@ export function usePinPhotos(options: {
           dispatch({ type: "prepared", localId: work.item.localId, prepared });
         }
       } catch (error) {
+        // ★ `errorMessage` は出さない。`expo-image-manipulator` は失敗時の例外に読み書き先の
+        //   URI をそのまま埋める（Android は `/data/user/0/<pkg>/cache/...`、iOS は
+        //   `file:///var/mobile/Containers/Data/Application/<UUID>/...`）。`pin-photo.upload.start`
+        //   で URI のスキームしか出していない方針と揃える（SS-88 のレビュー指摘）。
         logDiagnostic("pin-photo.prepare.failed", {
           localId: work.item.localId,
-          ...describeError(error),
+          errorName: describeError(error).errorName,
         });
         dispatch({ type: "failed", localId: work.item.localId, errorCode: "processing_failed" });
       }
@@ -230,6 +235,12 @@ export function usePinPhotos(options: {
       );
       dispatch({ type: "uploaded", localId: work.item.localId, uploadId });
     } catch (error) {
+      // 意図的な中断（MR5 の削除・アンマウント）はユーザーの通常操作なので、失敗として扱わない。
+      // 対象の localId は既に itemsRef から消えており reducer も no-op になるため、ここで
+      // 打ち切って構わない（`isAbortError` の JSDoc 参照）。
+      if (isAbortError(error)) {
+        return;
+      }
       const code = toPhotoUploadErrorCode(error);
       // 分類結果（UI の文言はここから決まる）と生の例外を1行で対応付ける。`withTimeout` の
       // タイムアウトと RN の通信失敗はどちらも "network" になるため、`errorMessage`

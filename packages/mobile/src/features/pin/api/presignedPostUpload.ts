@@ -1,4 +1,9 @@
-import { S3UploadError, extractS3ErrorCode } from "@/features/pin/lib/photoUploadError";
+import {
+  S3UploadError,
+  extractS3ErrorCode,
+  extractS3ErrorMessage,
+  isAbortError,
+} from "@/features/pin/lib/photoUploadError";
 import type { UploadFilePart } from "@/features/pin/lib/presignedPostForm";
 import {
   buildPresignedPostFormEntries,
@@ -75,11 +80,13 @@ export async function uploadToPresignedPost(
       redirect: "manual",
     });
   } catch (error) {
-    // ここに来るのは「S3 に届かなかった」ケース（RN の `TypeError: Network request failed`、
-    // 中断の `AbortError`）。S3 側にもリクエストが残らないため、**端末でログを取らない限り
-    // 何も分からない**区間になる。分類（どちらも "network"）では区別できないので
-    // `errorName` をそのまま残す。
-    logDiagnostic("pin-photo.upload.fetch-failed", { host, ...describeError(error) });
+    // ここに来るのは「S3 に届かなかった」ケース。S3 側にもリクエストが残らないため、
+    // **端末でログを取らない限り何も分からない**区間になる。分類では区別できないので
+    // `errorName` をそのまま残す（`TypeError: Network request failed` など）。
+    // ただし意図的な中断（写真の削除・画面離脱）は通常操作なのでログしない。
+    if (!isAbortError(error)) {
+      logDiagnostic("pin-photo.upload.fetch-failed", { host, ...describeError(error) });
+    }
     throw error;
   }
 
@@ -104,13 +111,15 @@ export async function uploadToPresignedPost(
   const body = await response.text().catch(() => "");
   const s3Code = extractS3ErrorCode(body);
   // S3 のエラー本文は XML。`<Code>` だけでは原因が絞れないことがある（同じ AccessDenied でも
-  // 「ポリシー条件の不一致」と「権限不足」がある）ため、`<Message>` を含む先頭も少しだけ残す。
-  // 署名や一時認証情報は応答本文には現れない。
+  // 「ポリシー条件の不一致」と「権限不足」がある）ため `<Message>` も残すが、
+  // **本文をそのまま切り出してはいけない**（`SignatureDoesNotMatch` の応答には
+  // `<StringToSign>` = policy(base64) が含まれ、復号すると一時認証情報が出てくる。
+  // `extractS3ErrorMessage` の JSDoc 参照）。許可リスト方式で `<Message>` だけを抜く。
   logDiagnostic("pin-photo.upload.rejected", {
     host,
     status: response.status,
     s3Code,
-    bodyHead: body.slice(0, 300),
+    s3Message: extractS3ErrorMessage(body)?.slice(0, 200) ?? null,
   });
   throw new S3UploadError(response.status, s3Code);
 }

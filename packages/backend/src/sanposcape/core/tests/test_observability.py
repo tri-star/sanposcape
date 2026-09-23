@@ -96,6 +96,29 @@ class TestConfigureLogging:
         finally:
             app_logger.setLevel(original_level)
 
+    def test_adds_one_handler_when_neither_root_nor_the_app_logger_has_one(self) -> None:
+        """ローカル（uvicorn）の経路。uvicorn は自分のロガーしか設定せず root は手付かずなので、
+        ここでハンドラーを足さないと INFO が `logging.lastResort` に飲まれて消える。
+
+        pytest はセッション中 root にハンドラーを付けるため、退避しないとこの分岐に到達できない
+        （= 素朴に書くと「Lambda の分岐だけテストされ、ローカルの分岐は壊れても CI が緑」という
+        非対称な状態になる）。
+        """
+        app_logger = logging.getLogger("sanposcape")
+        root = logging.getLogger()
+        saved_root, saved_app = root.handlers, app_logger.handlers
+        original_level = app_logger.level
+        root.handlers, app_logger.handlers = [], []
+        try:
+            configure_logging("INFO")
+            assert len(app_logger.handlers) == 1
+
+            configure_logging("INFO")  # 冪等: 2回目で増えない
+            assert len(app_logger.handlers) == 1
+        finally:
+            root.handlers, app_logger.handlers = saved_root, saved_app
+            app_logger.setLevel(original_level)
+
     def test_does_not_add_a_handler_when_root_already_has_one(self) -> None:
         """Lambda の python ランタイムは root にハンドラーを付ける。ここで足すと二重に出る。"""
         app_logger = logging.getLogger("sanposcape")

@@ -411,3 +411,18 @@ def test_migrate_database_dsn_is_not_required_for_non_local_env() -> None:
         migrate_database_dsn="",
     )
     assert settings.migrate_database_url is None
+
+
+def test_log_level_accepts_lowercase() -> None:
+    """`.env` に `LOG_LEVEL=info` と書かれても起動できるようにしている。
+
+    `Literal` は大小を区別するため、正規化しないと小文字表記で起動に失敗する。
+    """
+    assert Settings(log_level="info").log_level == "INFO"
+    assert Settings(log_level="Warning").log_level == "WARNING"
+
+
+def test_log_level_rejects_unknown_value() -> None:
+    """正規化で値域が緩くなっていないこと（`upper()` しても Literal に無い値は弾く）。"""
+    with pytest.raises(ValidationError):
+        Settings(log_level="verbose")

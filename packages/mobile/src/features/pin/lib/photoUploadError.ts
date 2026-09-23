@@ -36,6 +36,7 @@ export function isS3UploadError(error: unknown): error is S3UploadError {
 }
 
 const S3_CODE_PATTERN = /<Code>([^<]+)<\/Code>/;
+const S3_MESSAGE_PATTERN = /<Message>([^<]*)<\/Message>/;
 
 /** S3 のエラー応答本文（XML）から `<Code>` の値を取り出す。無ければ null。 */
 export function extractS3ErrorCode(body: string): string | null {
@@ -43,8 +44,39 @@ export function extractS3ErrorCode(body: string): string | null {
 }
 
 /**
+ * S3 のエラー応答本文（XML）から `<Message>` の値だけを取り出す（ログ用）。無ければ null。
+ *
+ * ★ **本文をそのまま（先頭 N 文字などで）ログに出してはいけない。** `SignatureDoesNotMatch`
+ * の応答には、デバッグ用に `<StringToSign>` / `<StringToSignBytes>` / `<CanonicalRequest>` /
+ * `<AWSAccessKeyId>` が含まれる。presigned POST の `StringToSign` は **policy(base64) そのもの**で、
+ * 復号すると `x-amz-security-token`（backend の一時認証情報）を含む条件が出てくる
+ * （SS-88 のレビューで指摘され、dev バケットに実際のリクエストを投げて確認済み。
+ * `<StringToSign>` は本文の 265 文字目から始まっていた）。
+ * `<Message>` は定型文のみなので、ここだけを許可リスト方式で抜き出す。
+ */
+export function extractS3ErrorMessage(body: string): string | null {
+  return S3_MESSAGE_PATTERN.exec(body)?.[1] ?? null;
+}
+
+/**
+ * 意図的な中断（`AbortController.abort()`）による例外か。
+ *
+ * 発生源は「転送中の写真を削除した」「登録画面をアンマウントした」の2つで、どちらも
+ * **ユーザーの通常操作**（`usePinPhotos.ts` の `removePhoto` / アンマウント時の cleanup）。
+ * 失敗として扱うと、写真を消すたびに `code: "unknown"` の診断ログが出て、本来調べたい
+ * 「本当に失敗したケース」が埋もれる（ADR-010 決定10 の目的を損なう）。
+ *
+ * `withTimeout` のタイムアウトは `TypeError("Pin photo transfer timed out")` なのでここには
+ * 該当せず、中断とタイムアウトは取り違えない。RN の `DOMException` 実装に依存しないよう
+ * `name` だけで判定する。
+ */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+/**
  * 任意の例外を PhotoUploadErrorCode に分類する（純粋。`instanceof` は TypeError 判定にのみ使う）。
- * `AbortError` は呼び出し側で握りつぶすので渡さないこと（分類対象外）。
+ * `AbortError` は呼び出し側が `isAbortError()` で先に弾くので渡らない（分類対象外）。
  */
 export function toPhotoUploadErrorCode(error: unknown): PhotoUploadErrorCode {
   if (isS3UploadError(error)) {

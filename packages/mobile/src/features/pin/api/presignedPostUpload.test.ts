@@ -1,11 +1,22 @@
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { isS3UploadError } from "@/features/pin/lib/photoUploadError";
 import type { UploadFilePart } from "@/features/pin/lib/presignedPostForm";
 import { uploadToPresignedPost } from "@/features/pin/api/presignedPostUpload";
 import type { PinPhotoUploadTicket } from "@/features/pin/types";
+import { logDiagnostic } from "@/lib/diagnosticLog";
 import { server } from "@/test/setup";
+
+// 診断ログの内容を検証するためにモックする（console への出力も抑止される）。
+vi.mock("@/lib/diagnosticLog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/diagnosticLog")>()),
+  logDiagnostic: vi.fn(),
+}));
+
+afterEach(() => {
+  vi.mocked(logDiagnostic).mockClear();
+});
 
 const FILE_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02, 0x03, 0x04]);
 
@@ -153,5 +164,46 @@ describe("uploadToPresignedPost", () => {
     ).rejects.toSatisfy(
       (error: unknown) => isS3UploadError(error) && error.s3Code === "InvalidUploadUrl",
     );
+  });
+});
+
+describe("診断ログ（SS-88）", () => {
+  /** SignatureDoesNotMatch の実応答を模した本文。`<StringToSign>` は policy(base64) そのもの。 */
+  const SIGNATURE_MISMATCH_BODY =
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    "<Error><Code>SignatureDoesNotMatch</Code>" +
+    "<Message>The request signature we calculated does not match.</Message>" +
+    "<AWSAccessKeyId>ASIAEXAMPLEKEYID</AWSAccessKeyId>" +
+    "<StringToSign>eyJleHBpcmF0aW9uIjogIlNFQ1JFVCJ9</StringToSign></Error>";
+
+  it("失敗ログに署名対象文書・アクセスキーIDを含めない（SS-88 の回帰）", async () => {
+    server.use(
+      http.post(S3_TICKET.url, () => new HttpResponse(SIGNATURE_MISMATCH_BODY, { status: 403 })),
+    );
+
+    await expect(
+      uploadToPresignedPost(S3_TICKET, FILE, { apiBaseUrl: "https://app-api.dev.sanposcape.com" }),
+    ).rejects.toThrow();
+
+    const logged = JSON.stringify(vi.mocked(logDiagnostic).mock.calls);
+    expect(logged).toContain("SignatureDoesNotMatch");
+    expect(logged).toContain("The request signature we calculated does not match.");
+    expect(logged).not.toContain("eyJleHBpcmF0aW9u");
+    expect(logged).not.toContain("ASIAEXAMPLEKEYID");
+  });
+
+  it("意図的な中断（AbortError）はログしない", async () => {
+    server.use(http.post(S3_TICKET.url, () => new HttpResponse(null, { status: 204 })));
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      uploadToPresignedPost(S3_TICKET, FILE, {
+        apiBaseUrl: "https://app-api.dev.sanposcape.com",
+        signal: controller.signal,
+      }),
+    ).rejects.toSatisfy((error: unknown) => error instanceof Error && error.name === "AbortError");
+
+    expect(vi.mocked(logDiagnostic)).not.toHaveBeenCalled();
   });
 });

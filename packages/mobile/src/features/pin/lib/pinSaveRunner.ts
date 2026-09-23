@@ -72,6 +72,11 @@ async function assembleReadyUploadIds(
     } catch (error) {
       const code = toPhotoUploadErrorCode(error);
       // 先行アップロード（usePinPhotos）と同じ理由で、分類結果と生の例外を対応付けて残す。
+      // あちらと違い `isAbortError` のガードは要らない。保存フローの `transferPhoto`
+      // （`usePinPhotos.ts` の `transferPhotoForSave`）は自前の AbortController しか持たず、
+      // それを abort するのは `withTimeout` のタイムアウトだけで、そのとき呼び出し側に届くのは
+      // `TypeError("Pin photo transfer timed out")`（`Promise.race` の勝者）だから。
+      // 将来 `transferPhoto` に外部から signal を渡せるようにしたら、ここにもガードが要る。
       logDiagnostic("pin-photo.upload.failed", {
         localId: item.localId,
         stage,
