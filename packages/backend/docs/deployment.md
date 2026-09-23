@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（2026-09-12 時点）**
+> **検証状況（最終更新 2026-09-24）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -26,7 +26,7 @@
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
-> | ピン写真バケット（S3）の結線（§12 / SS-108） | ⚠️ **未デプロイ**。`cfn-lint` は通過。動的参照の後ろに `/staging/*` を連結した `Resource` の解決と、写真付きピン登録の疎通は dev の初回デプロイで確認する（§12「初回デプロイで確認すること」） |
+> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -872,13 +872,12 @@ Required reviewers の手動起動（§4.1）で順序を人が守れること�
 
 ### 初回デプロイで確認すること（環境ごとに 1 回）
 
-**動的参照の後ろに `/staging/*` などの文字列を連結する書き方は、本リポジトリではまだ一度も
-デプロイで確かめられていない。** 動的参照の解決は組み込み関数の評価後の最終文字列に対して
-行われる（§11「各環境への初回デプロイで 1 回だけ確認すること」と同じ根拠）ため解決される見込みだが、
-`cfn-lint` / `sam validate` はこの解決を検証できない。解決されずに `{{resolve:...}}` の文字列が
-`Resource` に残った場合は、IAM がポリシーを不正として拒否してデプロイ時に失敗するか
-（`MalformedPolicyDocument`。未確認）、ポリシーが付いても一致しないため実行時の 403 になるかの
-どちらかになる。どちらも安全側で、過剰権限の方向には倒れない。
+**動的参照の後ろに `/staging/*` などの文字列を連結する書き方は、dev では 2026-09-24（SS-88）に
+解決を確認済み**（下の確認 3) を実施し、`Resource` が完全な ARN になっていた）。**prod は未確認**
+なので、環境ごとに 1 回この確認を行うこと。`cfn-lint` / `sam validate` はこの解決を検証できない。
+万一 `{{resolve:...}}` の文字列が `Resource` に残った場合は、IAM がポリシーを不正として拒否して
+デプロイ時に失敗するか（`MalformedPolicyDocument`）、ポリシーが付いても一致しないため実行時の
+403 になるかのどちらかになる。どちらも安全側で、過剰権限の方向には倒れない。
 
 ```bash
 ENV=dev  # prod のときは prod
@@ -928,5 +927,6 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 | presigned POST の発行は成功するが実際のアップロードが 403 | 実行ロールに `staging/*` への `s3:PutObject` が無い、境界（SS-107）が未 apply、または動的参照 + 連結が ARN に解決されていない | 上の確認 3) でポリシーの `Resource` を確認する。境界は infra 側で確認する。デプロイ自体は成功するため気付きにくい |
 | 確定（`POST /pins`）が 503、ログに `S3 operation failed: ClientError` | 上と同じ（`original/*`・`thumb/*` への Put、`staging/*` の Get/Delete の不足） | 同上 |
 | 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が無い（または Resource に `/*` を付けてしまった）ため、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `ListBucket` の Resource がバケット ARN そのものになっているか確認する |
+| 端末で「アップロードに失敗しました」になるが、CloudWatch Logs にも S3（CloudTrail データイベント）にも痕跡が無い | 直送は端末 → S3 で完結し backend を通らない。CloudTrail のデータイベントは呼び出し元を特定できたリクエストしか記録せず、認証前に弾かれる失敗や「そもそも送信されていない」ケースは残らない（ADR-009 追補「直送の失敗は原理的にサーバー側から見えない」） | まず**端末側の `logDiagnostic`**（`pin-photo.upload.*`。Metro / `adb logcat -s ReactNativeJS` / Console.app）を見る。次に backend のアクセスログで枠発行（`POST /pin-photo-uploads -> 201`）まで到達しているかを確認する。サーバー側から見る必要がある場合は **S3 サーバーアクセスログ**を一時的に有効化する（infra 作業。CloudTrail では取りこぼす） |
 | `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `pin_photos/*` の SSM が当該環境に無い（SS-106 が未 apply） | infra 側の apply を待つ（上の確認 1)）。prod は「前提となる infra の apply」の順序を参照 |
-| 動的参照 + `/staging/*` の連結がどうしても ARN に解決されない | CloudFormation が連結を受け付けない（未検証の懸念） | infra 側に prefix ごとの ARN（`staging/*` 等）を SSM の契約値として追加してもらい、連結をやめる |
+| 動的参照 + `/staging/*` の連結がどうしても ARN に解決されない | CloudFormation が連結を受け付けない（**dev では解決を確認済み**（2026-09-24）。prod で再発した場合の備え） | infra 側に prefix ごとの ARN（`staging/*` 等）を SSM の契約値として追加してもらい、連結をやめる |

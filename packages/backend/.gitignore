@@ -12,3 +12,8 @@ requirements-lambda.txt
 
 # scripts/loop_route_probe.py の出力（実測用の一時 GeoJSON。SS-33）
 tmp-probe/
+
+# STORAGE_MODE=fake のローカル写真保存先（DEV_STORAGE_DIR）。ディレクトリ自体は
+# .gitkeep で残し、中身だけを無視する。
+storages/dev-storage/*
+!storages/dev-storage/.gitkeep

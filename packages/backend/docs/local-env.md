@@ -238,10 +238,14 @@ docker compose up -d --build
   `fake` を既定にしている。
   - `real`: S3 に実際に接続する。`PIN_PHOTO_BUCKET_NAME` が空なら
     `UnconfiguredObjectStorage`（写真関連 API は 503。写真を含まない `POST /pins` と
-    `GET /sanpo-maps` は影響を受けない）にフォールバックする。ローカルではバケットを
-    結線していない（バケットを結線しているのはデプロイ先の `template.yaml` だけ。
-    `deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）ため、`STORAGE_MODE=real` の
-    ままだと写真は一切試せない。
+    `GET /sanpo-maps` は影響を受けない）にフォールバックする。平常のローカル開発では
+    バケットを設定しないので、`STORAGE_MODE=real` のままだと写真は試せない
+    （`deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）。
+    **（SS-88 追補）** 直送まわりの不具合は fake では再現しないことがあるため、
+    ローカルの backend を dev の実バケットに向ける手順を
+    [local-development.md](./local-development.md) の「実 S3 に繋いで確認する」に用意した。
+    `PIN_PHOTO_BUCKET_NAME` / `PIN_PHOTO_BUCKET_REGION` と AWS の一時認証情報を渡すと
+    `STORAGE_MODE=real` でも写真を試せる。
   - `fake`: ネットワークを一切使わない開発用の実装。`POST /pin-photo-uploads` が返す
     `upload.url` は backend 自身の `/dev-storage/uploads`（S3 の presigned POST 互換。
     成功 204・サイズ超過や署名不正は S3 と同じ XML エラー）を指し、写真の presigned GET
@@ -249,6 +253,13 @@ docker compose up -d --build
     ときだけ `include_in_schema=False` で include され、OpenAPI には一切現れない。**
     実機・エミュレータからもリクエストされたホストで URL を組み立てるため、
     LAN 越し・Android エミュレータ（`10.0.2.2`）でも届く。
+- `DEV_STORAGE_DIR`: `STORAGE_MODE=fake` の保存先（既定は `compose.yaml` / `.env.example` の
+  `storages/dev-storage`。`packages/backend` からの相対パス）。`objects/<key>` に本体、
+  `content-types/<key>` に Content-Type を書くので、backend を再起動しても写真が残る。
+  中身は `.gitignore` 対象（ディレクトリは `.gitkeep` で残す）で、容量による追い出しはしない。
+  溜まった写真を消したいときは `.gitkeep` 以外を手で削除する（DB のピンと食い違って表示が
+  404 になるので、DB も作り直すときに合わせて消すのがよい）。空にするとプロセス内メモリになり、
+  再起動（`--reload` 含む）で消える。
 - `PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES`: 1枚あたりの上限（既定 10 MiB）と
   ユーザー合計の上限（既定 1 GiB）。他の上限値（保有枠数・TTL・サムネイルサイズ・確定処理の
   時間予算/並列度など）は妥当な既定値があり、通常は変更不要（`config.py` の `Settings` 参照）。
@@ -345,8 +356,6 @@ print(r.status_code); print(r.text[:800])"
 - `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`
 - `APPCONFIG_POLL_INTERVAL_SECONDS` / `APPCONFIG_ERROR_BACKOFF_SECONDS`
 - `APPCONFIG_CONNECT_TIMEOUT_SECONDS` / `APPCONFIG_READ_TIMEOUT_SECONDS`
-- `PIN_PHOTO_BUCKET_NAME` / `PIN_PHOTO_BUCKET_REGION`（デプロイ先では `template.yaml` が
-  SSM から渡す。ローカルでは使わない。`STORAGE_MODE=fake` の間は無関係）
 - `PIN_PHOTO_MAX_PIXELS` / `PIN_PHOTO_MAX_PENDING_UPLOADS` / `PIN_PHOTO_UPLOAD_URL_TTL_SECONDS` /
   `PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS` / `PIN_PHOTO_DOWNLOAD_URL_TTL_SECONDS` /
   `PIN_PHOTO_THUMBNAIL_MAX_EDGE_PX` / `PIN_PHOTO_THUMBNAIL_JPEG_QUALITY` /
@@ -356,12 +365,21 @@ print(r.status_code); print(r.text[:800])"
 （`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、
 `compose.yaml` の `environment:` に含めている。`FEATURE_FLAG_MODE` も `AUTH_MODE` /
 `MAPS_MODE` と同じ「開発中に切り替えるモード系」として `compose.yaml` の `environment:` に
-含めている。**`STORAGE_MODE` も同じ理由で含めている。`FEATURE_FLAG_STUB_DOCUMENT` /
+含めている。**`STORAGE_MODE`（と `DEV_STORAGE_DIR`）も同じ理由で含めている。`FEATURE_FLAG_STUB_DOCUMENT` /
 `PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES` は SS-88 で `compose.yaml` の
 `environment:` に追加した**（mobile が `mobile-e2e.yml` から `.env.example` の値をそのまま
 使えるようにするため。以前は「妥当な既定値を持つため省略」としていたが、E2E で
 `pin_registration` を確実に ON にする・写真の上限値を CI から上書きできるようにする目的で
 明示列挙に変更した）。
+
+**（SS-88 追補）`LOG_LEVEL`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION`・
+`AWS_REGION`・`AWS_ACCESS_KEY_ID`・`AWS_SECRET_ACCESS_KEY`・`AWS_SESSION_TOKEN` も
+`compose.yaml` の `environment:` に追加した。** 前3者は
+[local-development.md](./local-development.md) の「実 S3 に繋いで確認する」で使う
+（既定は空 = 従来どおり `UnconfiguredObjectStorage`）。AWS の認証情報は
+**`.env` に書かず**、`aws configure export-credentials` の出力をシェルで `eval` してから
+`docker compose` を起動する運用にしている（一時認証情報は短命で、`.env` に書くと必ず古くなるため）。
+`AWS_REGION` だけは既定値 `ap-southeast-1` を持つ。
 
 既定値を上書きしたい場合は `.env` に書けば効く（`compose.yaml` への追加は不要）。CI 等で上書きが
 必要になった場合は `compose.yaml` の `environment:` にも追加すること（このリストは追加のたびに

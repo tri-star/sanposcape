@@ -23,7 +23,21 @@ services:
       MAPS_MODE: ${MAPS_MODE:-real}
       FEATURE_FLAG_MODE: ${FEATURE_FLAG_MODE:-real}
       FEATURE_FLAG_STUB_DOCUMENT: ${FEATURE_FLAG_STUB_DOCUMENT:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       STORAGE_MODE: ${STORAGE_MODE:-real}
+      DEV_STORAGE_DIR: ${DEV_STORAGE_DIR:-storages/dev-storage}
+      # STORAGE_MODE=real でローカルから実 S3 に繋いで確認するときだけ使う
+      # （PIN_PHOTO_BUCKET_NAME が空なら UnconfiguredObjectStorage = 写真 API は 503）。
+      # 認証情報は .env に書かず、`aws configure export-credentials` で取得した一時認証情報を
+      # シェルから渡すこと（AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN は
+      # 「ホストの環境変数があれば透過させる」だけで既定値を持たない。AWS_REGION のみ既定値あり）。
+      # 手順は docs/local-development.md「実 S3 に繋いで確認する」。
+      PIN_PHOTO_BUCKET_NAME: ${PIN_PHOTO_BUCKET_NAME:-}
+      PIN_PHOTO_BUCKET_REGION: ${PIN_PHOTO_BUCKET_REGION:-ap-southeast-1}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       PIN_PHOTO_MAX_BYTES: ${PIN_PHOTO_MAX_BYTES:-10485760}
       PIN_PHOTO_USER_QUOTA_BYTES: ${PIN_PHOTO_USER_QUOTA_BYTES:-1073741824}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-}

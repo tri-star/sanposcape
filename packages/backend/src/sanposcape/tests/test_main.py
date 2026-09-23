@@ -127,3 +127,32 @@ def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
 
     assert received_by_app == [b"1234"]
     assert sent[0]["status"] == 413
+
+
+def test_access_log_records_the_413_returned_by_the_size_limit_middleware(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`AccessLogMiddleware` が最外層に居ることを `create_app()` 経由で固定する。
+
+    `main.py` の `create_app()` は `AccessLogMiddleware` を **最後に** 登録している
+    （Starlette の `add_middleware` は先頭挿入なので、最後に登録したものが最も外側になる）。
+    この順序が崩れると、`RequestSizeLimitMiddleware` が自前で返す 413 を観測できず、
+    **アクセスログのステータスだけが実際の応答とずれる**。しかも 413 のケースでしか現れないため
+    静かに壊れる——今回の変更が解決しようとした「本番でどのステータスが返ったか分からない」
+    問題の再発になる。ミドルウェア単体のテストでは順序を固定できないので、ここで統合して確認する。
+    """
+    import logging
+
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    settings = Settings(env="test", pins_request_max_bytes=16)
+    app = create_app(settings)
+    client = TestClient(app)
+
+    with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
+        response = client.post("/pin-photo-uploads", content=b"x" * 64)
+
+    assert response.status_code == 413
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("POST /pin-photo-uploads -> 413" in message for message in messages), messages

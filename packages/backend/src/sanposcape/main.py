@@ -19,6 +19,7 @@ from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
 from sanposcape.core.feature_flags import FeatureFlags
 from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimitMiddleware
+from sanposcape.core.observability import AccessLogMiddleware, configure_logging
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.aws.appconfig import build_flag_document_source
@@ -226,6 +227,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    # ルーターや依存関係が組み立て中に出すログも拾えるよう、最初に呼ぶ。
+    configure_logging(settings.log_level)
     app = FastAPI(
         title="sanposcape API",
         version="0.1.0",
@@ -265,6 +268,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             path_prefix="/dev-storage",
             max_bytes=settings.dev_storage_request_max_bytes,
         )
+    # ★ 必ず最後に登録する（= 最も外側になる）。こうしないと RequestSizeLimitMiddleware が
+    #   自前で返す 413 を観測できず、アクセスログのステータスが実際の応答とずれる。
+    app.add_middleware(AccessLogMiddleware)
     app.include_router(health_router)
     app.include_router(app_config_router)
     app.include_router(auth_router)

@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     # docs/deployment.md）。
     env: Literal["local", "test", "staging", "production"] = "local"
 
+    # --- ログ ---
+    # `sanposcape.*` のログレベル（`core/observability.py` の `configure_logging()` が適用）。
+    # 既定を INFO にしているのは、アクセスログ（1リクエスト1行）を出すため。Lambda では
+    # これを WARNING に上げると障害調査の手掛かりが `START`/`END` だけに戻るので注意する。
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+
     # --- 認証モード（ADR-002 決定4。既定は fail-safe な real） ---
     auth_mode: Literal["real", "dev"] = "real"
 
@@ -166,10 +172,14 @@ class Settings(BaseSettings):
     walks_request_max_bytes: int = Field(default=1_048_576, gt=0, le=4_194_304)
 
     # --- pins（写真ストレージ, SS-88）---
-    # real = S3 に実際に接続する。fake = プロセス内メモリ + backend 自身の /dev-storage/*
+    # real = S3 に実際に接続する。fake = ローカル保存 + backend 自身の /dev-storage/*
     # （ローカル開発・E2E 用。ENV=local/test 以外で fake を選ぶと起動失敗、既存の
     # AUTH_MODE/MAPS_MODE/FEATURE_FLAG_MODE と同じ fail-safe 方針）。
     storage_mode: Literal["real", "fake"] = "real"
+    # STORAGE_MODE=fake の保存先ディレクトリ（相対パスはカレントディレクトリ基準）。
+    # 空文字ならプロセス内メモリ（再起動で消える。テストの既定）。ローカルでは
+    # compose.yaml / .env.example が `storages/dev-storage` を渡す。
+    dev_storage_dir: str = ""
     # 空文字なら UnconfiguredObjectStorage（写真 API は 503）。デプロイ先では template.yaml が
     # SSM（pin_photos/bucket_name）から渡す（SS-108）。
     pin_photo_bucket_name: str = ""
@@ -212,6 +222,12 @@ class Settings(BaseSettings):
         消費させられる（本番には存在しない router だが、local/test で有効）。
         """
         return self.pin_photo_max_bytes + 64 * 1024
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, v: object) -> object:
+        """`LOG_LEVEL=info` のような小文字表記も受け付ける（Literal は大小を区別するため）。"""
+        return v.upper() if isinstance(v, str) else v
 
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod

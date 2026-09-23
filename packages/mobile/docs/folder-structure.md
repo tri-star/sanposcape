@@ -226,7 +226,9 @@ packages/mobile/
   純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34、`/app-config` のフラグ受け皿
   `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
   トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
-  `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）)もここに置く。
+  `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）、端末側の診断ログの
+  **唯一の出力口** `diagnosticLog.ts`（SS-88/ADR-010 決定10。将来 Sentry 等に差し替えるときは
+  このファイルの中身だけを変える。**呼び出し側で `console.*` を直接使わない**）)もここに置く。
   - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
     純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
     使っていないうちは `features/<feature>/lib/` に置いたままにする。

@@ -79,7 +79,12 @@ export function createRealPhotoService(): PhotoService {
 
         // manipulator の結果にファイルサイズが含まれないため、`expo-file-system` の
         // `File` で実測する（SDK 54+ の新 API。`new File(uri).size`）。
-        const byteSize = new File(saved.uri).size;
+        // この `File` は `implements Blob`（`bytes()` / `name` / `type` を持つ）なので、
+        // そのまま multipart のファイルパートに載せられる。**ここで捨てて `uri` だけを
+        // 返してはいけない**（`UploadFileBody` の注記の理由。呼び出し側が
+        // `{ uri, name, type }` を組み直すと Expo の fetch が送信前に落ちる）。
+        const file = new File(saved.uri);
+        const byteSize = file.size;
         if (!Number.isFinite(byteSize) || byteSize <= 0) {
           throw toPhotoError(null, "processing_failed");
         }
@@ -90,6 +95,7 @@ export function createRealPhotoService(): PhotoService {
           height: saved.height,
           byteSize,
           mimeType: "image/jpeg",
+          file,
         };
       } catch (error) {
         throw toPhotoError(error, "processing_failed");

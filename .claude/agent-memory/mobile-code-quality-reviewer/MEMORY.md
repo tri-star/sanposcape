@@ -22,3 +22,7 @@
 - [テーブル駆動テストの模範](table-driven-test-style-reference.md) — `src/lib/backNavigation.test.ts`のit.each形式が基準。個別it()の羅列との乖離をレビューで拾う
 - [ADR番号の重複(repo-root/mobile)](duplicate-adr-numbers-repo-root-vs-mobile.md) — ADR-008等は`packages/mobile/adr/`と`docs/adr/`に別内容で同番号存在。参照は両方確認してから裏取り
 - [self-cancelling preupload queue effect](self-cancelling-preupload-queue-effect.md) — useEffectが自分でdispatchするstateを依存配列に持つと、await完了前にcleanupが発火し結果を握りつぶす（SS-88 usePinPhotosで発見）
+- [diagnostic log AbortError noise](diagnostic-log-abort-error-noise.md) — 削除/画面離脱由来のAbortErrorが分類関数を経て「失敗」ログに紛れ込みやすい。JSDocの「呼び出し側が握りつぶす」を鵜呑みにしない
+- [画面「戻る」導線の規約](back-navigation-convention.md) — SS-34のuseScreenBack/resolveBackActionへの一本化と既知のエッジケース
+- [render中のref代入パターン](ref-assignment-during-render-pattern.md) — 依存配列に入れず最新値を読むための確立した手法。レビューで誤指摘しない
+- [画面ヘッダーの重複](screen-header-duplication.md) — 戻るIconButton+タイトルがWalkStart/WalkHistoryList/WalkDetailでほぼ同一実装（Plane SS-40で追跡中）

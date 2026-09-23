@@ -1,5 +1,6 @@
 import base64
 import json
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import boto3
@@ -249,10 +250,73 @@ class TestFakeObjectStorage:
             storage.get_bytes("dst", max_bytes=10)
 
 
+class TestFakeObjectStorageOnDisk:
+    """`root_dir` 指定時（`DEV_STORAGE_DIR`）はディスクに永続化される。"""
+
+    def test_objects_survive_new_instance(self, tmp_path: Path) -> None:
+        storage = FakeObjectStorage(secret="s" * 32, root_dir=tmp_path)
+        assert (
+            storage.store_upload(
+                key="staging/pins/u1/up1.jpg", content_type="image/jpeg", data=b"abc", max_bytes=10
+            )
+            is None
+        )
+        storage.copy(source_key="staging/pins/u1/up1.jpg", dest_key="original/pins/u1/p1.jpg")
+
+        # backend の再起動（--reload 含む）を模して別インスタンスで読む
+        restarted = FakeObjectStorage(secret="s" * 32, root_dir=tmp_path)
+        assert restarted.read_object("original/pins/u1/p1.jpg") == (b"abc", "image/jpeg")
+        info = restarted.head("staging/pins/u1/up1.jpg")
+        assert info is not None
+        assert info.content_length == 3
+        assert info.content_type == "image/jpeg"
+        assert (tmp_path / "objects" / "original" / "pins" / "u1" / "p1.jpg").read_bytes() == b"abc"
+
+    def test_delete_removes_files(self, tmp_path: Path) -> None:
+        storage = FakeObjectStorage(secret="s" * 32, root_dir=tmp_path)
+        storage.put_bytes("thumb/a.jpg", b"data", content_type="image/jpeg")
+        storage.delete("thumb/a.jpg")
+        assert storage.head("thumb/a.jpg") is None
+        with pytest.raises(ObjectNotFoundError):
+            storage.get_bytes("thumb/a.jpg", max_bytes=10)
+        # 存在しないキーの削除は S3 と同じく成功扱い
+        storage.delete("thumb/a.jpg")
+
+    def test_does_not_evict_on_disk(self, tmp_path: Path) -> None:
+        storage = FakeObjectStorage(secret="s" * 32, max_total_bytes=10, root_dir=tmp_path)
+        storage.put_bytes("a", b"12345", content_type="image/jpeg")
+        storage.put_bytes("b", b"12345", content_type="image/jpeg")
+        storage.put_bytes("c", b"12345", content_type="image/jpeg")
+        assert storage.head("a") is not None
+
+    @pytest.mark.parametrize("key", ["../escape.jpg", "a/../../escape.jpg", "/abs.jpg", "a//b", ""])
+    def test_rejects_keys_outside_root(self, tmp_path: Path, key: str) -> None:
+        root = tmp_path / "root"
+        storage = FakeObjectStorage(secret="s" * 32, root_dir=root)
+        assert storage.read_object(key) is None
+        assert storage.head(key) is None
+        with pytest.raises(ValueError, match="invalid object key"):
+            storage.put_bytes(key, b"x", content_type="image/jpeg")
+        storage.delete(key)
+        assert not (tmp_path / "escape.jpg").exists()
+
+
 class TestBuildObjectStorage:
     def test_fake_mode(self) -> None:
         settings = Settings(env="test", storage_mode="fake", auth_jwt_secret="x" * 32)
         assert isinstance(build_object_storage(settings), FakeObjectStorage)
+
+    def test_fake_mode_persists_to_dev_storage_dir(self, tmp_path: Path) -> None:
+        settings = Settings(
+            env="test",
+            storage_mode="fake",
+            auth_jwt_secret="x" * 32,
+            dev_storage_dir=str(tmp_path / "dev-storage"),
+        )
+        storage = build_object_storage(settings)
+        assert isinstance(storage, FakeObjectStorage)
+        storage.put_bytes("thumb/a.jpg", b"data", content_type="image/jpeg")
+        assert (tmp_path / "dev-storage" / "objects" / "thumb" / "a.jpg").read_bytes() == b"data"
 
     def test_unconfigured_when_bucket_missing(self) -> None:
         settings = Settings(env="test", storage_mode="real", pin_photo_bucket_name="")

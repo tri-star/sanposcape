@@ -56,8 +56,14 @@
   `photo.real.ts` のみ）。
 - 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
   `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
+- **（SS-88）`services/photo` は「直送にそのまま載せられる実体」（`PreparedPhoto.file`、
+  型は `UploadFileBody`）まで返す契約**。`features/pin` 側で `uri` から
+  `{ uri, name, type }` を組み立て直してはいけない。Expo SDK 54+ の `fetch`（WinterCG）は
+  React Native 独自のこの形式を受け付けず、`Unsupported FormDataPart implementation` で
+  **送信前に**落ちる（実機・エミュレータで再現済み。ADR-010 決定9）。型で塞いであるが、
+  別経路を足すときも同じ契約を守ること。
 - 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
-  `src/features/pin/lib/pinSaveRunner.ts`（React 非依存の純粋関数）に閉じる。
+  `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
 
 ## フィーチャーフラグ（`/app-config`）の扱い
 

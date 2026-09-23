@@ -1,10 +1,29 @@
-import { S3UploadError, extractS3ErrorCode } from "@/features/pin/lib/photoUploadError";
+import {
+  S3UploadError,
+  extractS3ErrorCode,
+  extractS3ErrorMessage,
+  isAbortError,
+} from "@/features/pin/lib/photoUploadError";
 import type { UploadFilePart } from "@/features/pin/lib/presignedPostForm";
 import {
   buildPresignedPostFormEntries,
   isAllowedUploadUrl,
 } from "@/features/pin/lib/presignedPostForm";
 import type { PinPhotoUploadTicket } from "@/features/pin/types";
+import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
+
+/**
+ * ログに載せる送信先（ホスト名まで。署名付きのパス・クエリは載せない）。
+ * `origin` / `host` ではなく `hostname` を読むのは `presignedPostForm.ts` の `originOf` と
+ * 同じ理由（RN 0.86 の `URL` ポリフィルは合成プロパティの実装が不完全なことがある）。
+ */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "<unparsable>";
+  }
+}
 
 /**
  * S3（または backend の fake storage）への presigned POST 直送。
@@ -24,6 +43,7 @@ export async function uploadToPresignedPost(
   options: { signal?: AbortSignal; apiBaseUrl: string },
 ): Promise<void> {
   if (!isAllowedUploadUrl(ticket.url, { apiBaseUrl: options.apiBaseUrl })) {
+    logDiagnostic("pin-photo.upload.url-rejected", { host: hostOf(ticket.url) });
     throw new S3UploadError(0, "InvalidUploadUrl");
   }
 
@@ -32,9 +52,11 @@ export async function uploadToPresignedPost(
     if ("value" in entry) {
       form.append(entry.name, entry.value);
     } else {
-      // RN の `{ uri, name, type }` は Web の `Blob` と型が異なるが、RN の `FormData`/`fetch`
-      // 実装（XHR ベースのポリフィル）はこの形をファイルパートとして解釈する。
-      form.append(entry.name, entry.file as unknown as Blob);
+      // `UploadFileBody` は Blob そのものか `bytes()` を持つ実装（`expo-file-system` の `File`）。
+      // 後者は構造的に Blob を満たすだけで `instanceof Blob` を満たさないため、`FormData` の
+      // 型（Blob を要求する）には合わない。Expo の FormData/fetch は両方を受け付ける
+      // （`expo/src/winter/fetch/convertFormData.ts` の `'bytes' in entry` 分岐）。
+      form.append(entry.name, entry.file as Blob);
     }
   }
 
@@ -48,16 +70,30 @@ export async function uploadToPresignedPost(
   // (1) 送信先 URL の検証（`isAllowedUploadUrl`）で S3 のリージョナルエンドポイント・fake storage
   //     の同一オリジンに限定していること、(2) S3 の presigned POST 自体が正常系で3xxを返す
   //     経路を持たない署名の制約（別オリジンへ誘導するリダイレクトを返せない）。
-  const response = await fetch(ticket.url, {
-    method: "POST",
-    body: form,
-    signal: options.signal,
-    redirect: "manual",
-  });
+  const host = hostOf(ticket.url);
+  let response: Response;
+  try {
+    response = await fetch(ticket.url, {
+      method: "POST",
+      body: form,
+      signal: options.signal,
+      redirect: "manual",
+    });
+  } catch (error) {
+    // ここに来るのは「S3 に届かなかった」ケース。S3 側にもリクエストが残らないため、
+    // **端末でログを取らない限り何も分からない**区間になる。分類では区別できないので
+    // `errorName` をそのまま残す（`TypeError: Network request failed` など）。
+    // ただし意図的な中断（写真の削除・画面離脱）は通常操作なのでログしない。
+    if (!isAbortError(error)) {
+      logDiagnostic("pin-photo.upload.fetch-failed", { host, ...describeError(error) });
+    }
+    throw error;
+  }
 
   // `redirect: "manual"` が効く環境では 3xx は `type: "opaqueredirect"`（status は仕様上 0）になり
   // 本文を読めない。リダイレクトはすべて失敗として扱う。
   if (response.type === "opaqueredirect") {
+    logDiagnostic("pin-photo.upload.rejected", { host, status: 0, type: response.type });
     throw new S3UploadError(0, "Redirected");
   }
 
@@ -68,9 +104,22 @@ export async function uploadToPresignedPost(
 
   // manual でも 3xx がそのまま観測される環境（一部ポリフィル）への保険。
   if (response.status >= 300 && response.status < 400) {
+    logDiagnostic("pin-photo.upload.rejected", { host, status: response.status });
     throw new S3UploadError(response.status, "Redirected");
   }
 
   const body = await response.text().catch(() => "");
-  throw new S3UploadError(response.status, extractS3ErrorCode(body));
+  const s3Code = extractS3ErrorCode(body);
+  // S3 のエラー本文は XML。`<Code>` だけでは原因が絞れないことがある（同じ AccessDenied でも
+  // 「ポリシー条件の不一致」と「権限不足」がある）ため `<Message>` も残すが、
+  // **本文をそのまま切り出してはいけない**（`SignatureDoesNotMatch` の応答には
+  // `<StringToSign>` = policy(base64) が含まれ、復号すると一時認証情報が出てくる。
+  // `extractS3ErrorMessage` の JSDoc 参照）。許可リスト方式で `<Message>` だけを抜く。
+  logDiagnostic("pin-photo.upload.rejected", {
+    host,
+    status: response.status,
+    s3Code,
+    s3Message: extractS3ErrorMessage(body)?.slice(0, 200) ?? null,
+  });
+  throw new S3UploadError(response.status, s3Code);
 }

@@ -1,4 +1,12 @@
-export type UploadFilePart = { uri: string; name: string; type: "image/jpeg" };
+import type { UploadFileBody } from "@/services/photo/types";
+
+/**
+ * 直送する画像の実体。`services/photo` が組み立てたものをそのまま運ぶ
+ * （**`{ uri, name, type }` に組み直さないこと**。理由は `UploadFileBody` の注記）。
+ * 型だけの import なので、このモジュールは実行時に何も持ち込まない
+ * （`presignedPostUpload.ts` を node の vitest で動かせる性質を壊さない）。
+ */
+export type UploadFilePart = UploadFileBody;
 export type FormEntry = { name: string; value: string } | { name: "file"; file: UploadFilePart };
 
 const EXCLUDED_FIELD_NAMES = new Set(["file", "acl", "x-amz-acl"]);
@@ -68,7 +76,9 @@ export function isAllowedUploadUrl(url: string, options: { apiBaseUrl: string })
   return target.hostname === base.hostname && target.port === base.port;
 }
 
-/** アップロードするファイル名（拡張子は加工後の形式に固定。JPEG のみ）。 */
-export function uploadFileName(localId: string): string {
-  return `pin-photo-${localId}.jpg`;
-}
+// NOTE: かつてここに `uploadFileName(localId)` があったが、ファイル名を呼び出し側で決める
+// 手段が無くなったため削除した。`{ uri, name, type }` を渡せなくなり（`UploadFileBody` の
+// 注記）、`FormData.append(name, blob, filename)` の第3引数も Expo の実装では
+// `value instanceof Blob` のときしか効かない（`expo-file-system` の `File` は構造的に Blob を
+// 満たすだけで instanceof を満たさないため無視される）。
+// S3 の presigned POST は `key` フィールドで保存先が決まり、ファイル名は参照しないので実害は無い。

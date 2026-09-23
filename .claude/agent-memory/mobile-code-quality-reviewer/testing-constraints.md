@@ -27,3 +27,11 @@ metadata:
 **How to apply**: mobile のテスト網羅性をレビューするときは、まず対象ロジックが `lib/` に
 切り出されているか（切り出せるのに hooks/components に残っていないか）を見る。切り出し済みで
 `lib/*.test.ts` があれば、hooks/components 自体にテストが無いことは問題にしない。
+
+補足（2026-09-24。重複メモリ `vitest-no-rn-render-tests` を統合）:
+
+- 切り出し済みの実例: `src/lib/backNavigation.ts` の `resolveBackAction`、`src/lib/hitSlop.ts`、
+  `src/theme/tokens.ts` の `resolveTheme`、`src/features/auth/lib/authGate.ts`（SS-13）。
+- **画面の見た目の確認は `/dev-screens`（`ScreenCatalog`）での目視に委ねる方針**。
+  テストで担保できないぶんをここで見る、という前提で設計されている
+  （[[back-navigation-convention]] の実装もこの前提の上に成り立っている）。

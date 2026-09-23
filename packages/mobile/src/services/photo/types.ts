@@ -9,6 +9,24 @@ export type PickedPhoto = {
   mimeType: string | null;
 };
 
+/**
+ * multipart のファイルパートとして送れる画像の実体。
+ *
+ * **`{ uri, name, type }`（React Native 独自の形）は使えない。** Expo SDK 54+ は WinterCG の
+ * `fetch` を global に載せており、その FormData 変換（`expo/src/winter/fetch/convertFormData.ts`）
+ * は `uri` 形式を受け付けず `Error: Unsupported FormDataPart implementation` を投げる
+ * （リクエストは1バイトも送信されない）。SS-88 の実機・エミュレータで再現・確認済み。
+ * 受け付けられるのは `Blob` そのものか、`bytes()` を持つオブジェクト（`expo-file-system` の
+ * `File` が該当）だけなので、型でそれを強制する。
+ */
+export type UploadFileBody =
+  | Blob
+  | {
+      readonly name?: string;
+      readonly type?: string;
+      bytes(): Promise<Uint8Array>;
+    };
+
 /** アップロード用に縮小・再圧縮した画像。常に JPEG。EXIF は再エンコードで落ちる。 */
 export type PreparedPhoto = {
   uri: string;
@@ -17,6 +35,11 @@ export type PreparedPhoto = {
   /** 加工後ファイルのバイト数（枠の申請・上限チェックに使う）。 */
   byteSize: number;
   mimeType: "image/jpeg";
+  /**
+   * 直送（presigned POST）でそのまま multipart に載せる実体。
+   * `uri` から呼び出し側が組み立て直さないこと（上の `UploadFileBody` の注記の理由）。
+   */
+  file: UploadFileBody;
 };
 
 export type PickPhotosOptions = {
