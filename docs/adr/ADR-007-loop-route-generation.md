@@ -8,14 +8,14 @@
 ### 決定
 
 - **周回ルートは新エンドポイント `POST /explore/routes/loop` で返す**。既存の `/explore/routes/walking` は意味・スキーマを変えず `deprecated=True` を付けて残す（本文: 検討した選択肢「エンドポイントの形」、ポジティブな影響）
-- **1回の `computeRoutes` に目的地（stopover）と経由点（via）を渡して2 leg を取り、左右2候補を並列に取得してスコアで選ぶ**。結果は決定的で、同点なら右を採る（本文: 決定1）
+- **1回の `computeRoutes` に目的地（`via` を付けない通常の intermediate）と経由点（`via: true`）を渡して2 leg を取り、左右2候補を並列に取得してスコアで選ぶ**。結果は決定的で、同点なら右を採る（本文: 決定1）
 - **経由点は O-D の中点から左右90°に `max(0.25 × d, 80m)` ずらした点で、座標は小数5桁に丸める**。O-D が50m未満なら周回を作らない（本文: 決定2）
 - **候補は4指標（`detour_ratio` ≤ 1.4、`return_overlap_ratio` ≤ 0.5、`return_backtrack_ratio` ≤ 0.15、`via_snap_distance_meters` ≤ 250m）で判定し、合格候補から `score` 最小を採る**。しきい値・係数は `maps/loop_route.py` のモジュール定数で、値は暫定（本文: 決定3）
 - **レスポンスの `legs` は `[outbound, return]` の配列で、`kind` で種別を判定する**（本文: 検討した選択肢「レスポンスの `legs` の形」）
-- **Routes 呼び出しは周回1回につき常に2回、最大3回。単価は Essentials SKU と見込む**。キャッシュは provider に周回専用の名前空間（`loop:`）で持ち、レート制限は `/explore/places` と共有のまま変えない（本文: 決定4、SS-129 追補）
+- **周回を試みるときの Routes 呼び出しは常に2回、最大3回（kill switch オフ・O-D 50m未満のときは往路の1回だけ）。単価は Essentials SKU と見込む**。キャッシュは provider に周回専用の名前空間（`loop:`）で持ち、レート制限は `/explore/places` と共有のまま変えない（本文: 決定4、SS-129 追補）
 - **1リクエスト全体の時間予算は `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`（既定12秒、上限25秒）**。connect タイムアウトは `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` のまま短く保つ（本文: 決定4）
-- **周回を作れない・全候補が不合格・kill switch（`GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false`）のときは、200 + `return_is_same_path=true` の同じ道で返す**。同じ道の復路は往路を逆順にした複製で、D→O を問い合わせない。成功した候補が無ければ Quota なら429、往路の取り直しも失敗したら503（本文: 決定5、SS-129 追補）
-- **ログは候補ごとの判定と採用結果を出し、座標・place_id は出さない**（本文: 決定5）
+- **周回を作れない・全候補が不合格・kill switch（`GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false`）のときは、200 + `return_is_same_path=true` の同じ道で返す**。同じ道の復路は往路を逆順にした複製で、D→O を問い合わせない。成功した候補が無ければ、Quota なら429、残り時間が無ければ503。往路を取り直して失敗したら、Quota なら429、それ以外は503（本文: 決定5、SS-129 追補）
+- **ログは候補ごとの判定と採用結果を出し、座標・place_id は出さない**。Quota と時間切れは WARNING、それ以外は INFO（本文: 決定5、SS-129 追補）
 - **provider には既存の `get_walking_route` を拡張せず `get_walking_loop_route` を別メソッドとして足す**（本文: 決定6、決定理由）
 - **`/explore/places` の往復値は片道×2のままで、補正係数は入れない**（本文: 決定7）
 - **fake provider は経由点を直線で結ぶだけで、fake-place-1〜5 のすべてで周回が合格することをテストで固定する**。しきい値を変えたら必ずこのテストを確認する（本文: 決定8）
@@ -35,7 +35,7 @@
 
 ## 日付
 
-2026-09-15（初版。実 API 検証（下記「移行・対応が必要な事項」参照）は未実施）、2026-09-16 追補（エミュレータ上の実 API での動作確認）、2026-09-17 追補（実 API 検証の結果を記録。合格目標は未達で、生成品質の改善は別課題 SS-92 に切り出した）、2026-09-23 追補（SS-129: SS-33 のプラン・レビューで決めていながら本 ADR に転記していなかった根拠3件を、決定4・決定5・「ネガティブな影響・トレードオフ」に追記。`/explore/routes/walking` の削除判断を SS-130 として起票）
+2026-09-15（初版。実 API 検証（下記「移行・対応が必要な事項」参照）は未実施）、2026-09-16 追補（エミュレータ上の実 API での動作確認）、2026-09-17 追補（実 API 検証の結果を記録。合格目標は未達で、生成品質の改善は別課題 SS-92 に切り出した）、2026-09-23 追補（SS-129: SS-33 のプラン・レビューで決めていながら本 ADR に転記していなかった根拠3件を、決定4・決定5・「ネガティブな影響・トレードオフ」に追記。決定5のエラー応答とログレベルの記述を実装に合わせて注記。`/explore/routes/walking` の削除判断を SS-130 として起票）
 
 ## コンテキスト
 
@@ -105,7 +105,7 @@ leg の path を10m間隔に補間し、20mグリッドのセルに割り当て�
 ### 決定4: コスト・キャッシュ・レート制限
 
 - **コスト**: 1回の散歩で places 検索（Places 1回＋Routes 最大20回）＋周回2回（両候補とも失敗（Quota以外）かつ残り時間がある場合のみ往路を取り直し、3回になる。片方だけ成功した場合はその往路 leg を逆順にするだけで追加呼び出しはしない）。変更前は places＋walking 1回＋散歩中の再計算（最大1回/分）だったため、再計算が無くなった分、散歩1回あたりの総呼び出しは同等か減ると見込む。
-  - （SS-129 追補）単価は Compute Routes の **Essentials** SKU と見込んでいる。根拠は、1呼び出しの `intermediates` が10件以下（目的地と経由点の2件）で、交通状況を考慮したルーティングを使わないこと（どちらかを超えると上位 SKU になる）。見込みどおりかは Cloud Billing の SKU 名で確かめる設計だが、まだ確認していない（「実 API 検証の結果」の「未計測」参照）。
+  - （SS-129 追補）単価は Compute Routes の **Essentials** SKU と見込んでいる。根拠は、1呼び出しの `intermediates` が10件以下（目的地と経由点の2件）で、上位 SKU の条件になる機能（交通状況を考慮したルーティング、`optimizeWaypointOrder`、`vehicleStopover` などの location modifier、通行料・ポリラインの交通情報など）を使わないこと（`travelMode: WALK`、FieldMask は duration・distance・polyline のみ）。見込みどおりかは Cloud Billing の SKU 名で確かめる設計だが、まだ確認していない（「実 API 検証の結果」の「未計測」参照）。
 - **キャッシュ**: `HttpGoogleMapsProvider` に周回専用の `_loop_cache`（TtlCache）と `_loop_flight`（SingleFlight）を追加した。キーは `loop:{O 5桁}:{D 5桁}:via:{V 5桁}` とし、片道の `route:` とは名前空間を分ける。TTL・上限は既存の `google_maps_cache_ttl_seconds` / `max_entries` を共用する。service 層でのキャッシュは追加しない（判定は純粋関数で安く、二重キャッシュは不整合の元になる）。
 - **レート制限**: 変更しない（30req/60s、`/explore/places` と共有）。受信リクエストは「walking 1回＋再計算」から「loop 1回」に減り、1リクエストあたりの外部呼び出しの増幅は最大3倍で、places 検索の最大21倍より小さいため、新しい悪用経路にはならない。
 - **待ち時間の上限**: 新しい設定 `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`（既定12秒、上限25秒）。これは1リクエスト全体（並列2候補＋同じ道フォールバックの単発取得まで含む）の時間予算であり、1候補あたりの上限ではない。並列の各呼び出しは `min(read_timeout, route_deadline_seconds)` で打ち切り、両候補失敗時の往路取り直しは残り予算（`deadline - 経過時間`）で判定する（無ければ503）。Lambda の29秒制約より十分短くする。`_request()` は `httpx.Timeout(timeout_seconds, connect=min(connect_timeout_seconds, timeout_seconds))` を使い、connect フェーズだけは `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS`（既定3秒）のまま短く保つ（ARCH review: 単一の float を渡すと connect にも同じ値が適用され、接続詰まり時に最大25秒待ってしまう問題への対策）。
@@ -116,11 +116,11 @@ leg の path を10m間隔に補間し、20mグリッドのセルに割り当て�
 2. 左右を `ThreadPoolExecutor(max_workers=2)` で並列取得する
 3. 成功した候補を判定し、合格があればスコア最小のものを返す（`return_is_same_path=false`）
 4. 合格がなく成功した候補が1つでもあれば、その候補の往路 leg を逆順にして同じ道で返す（追加の呼び出しはしない）
-5. 成功した候補が無ければ: 1つでも Quota エラーなら429、それ以外で残り時間があれば往路を1回取得して同じ道、それも失敗すれば503
+5. 成功した候補が無ければ: 1つでも Quota エラーなら429、それ以外で残り時間があれば往路を1回取得して同じ道、それも失敗すれば503（SS-129 追補: 実装では、取り直しが Quota エラーなら429、Unavailable なら503。残り時間が無ければ取り直さず503）
 
 （SS-129 追補）1・4・5 の「同じ道」の復路は、往路 leg を逆順にたどっただけの複製（`MapsService._mirror`）で、Google に D→O を別途問い合わせない。所要時間・距離も往路の値をそのまま使うため、Google が返す D→O のルートとは厳密には一致しない。徒歩のルートは一方通行の影響を受けないので、この差は許容する（呼び出しを1回減らせる）。
 
-**周回を作れない・全候補が不合格・kill switch オフのいずれの場合も 200 + `return_is_same_path=true` を返し、エラーにはしない**。ログは INFO で候補ごと（side・合否・reason・各指標）と採用結果を1行ずつ出す。**座標・place_id は出さない**（利用者の現在地が分かってしまうため）。
+**周回を作れない・全候補が不合格・kill switch オフのいずれの場合も 200 + `return_is_same_path=true` を返し、エラーにはしない**。ログは INFO で候補ごと（side・合否・reason・各指標）と採用結果を1行ずつ出す（SS-129 追補: 実装では、候補の Quota エラーと、結果が Quota・時間切れのときは WARNING）。**座標・place_id は出さない**（利用者の現在地が分かってしまうため）。
 
 ### 決定6: provider のインターフェースは既存を拡張せず、別メソッドにする
 
@@ -181,7 +181,7 @@ leg の path を10m間隔に補間し、20mグリッドのセルに割り当て�
 - 一覧（`/explore/places`、片道×2）と選択後（周回の実測値）の値にずれが生じる（最大 `detour_ratio` の上限＝1.4倍程度）。
 - Routes の呼び出しは常に2回（両候補とも失敗（Quota以外）かつ残り時間があるときのみ往路取り直しで最大3回）になり、`/explore/routes/walking` 単体（1回）より増える。
 - プロセス内キャッシュ（`_loop_cache`）は Lambda では効きにくい（ADR-005 の前提から変わらない）。
-- （SS-129 追補）左右の並列取得に使う `ThreadPoolExecutor(max_workers=2)` は、リクエストごとに生成・破棄している。backend は Lambda で動き、1回の呼び出しで処理するリクエストは1件なので（[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md)）、プールを使い回しても得るものは無い。ECS などの常駐プロセスへ移ってリクエストの並行数が増えたら、スレッド生成のコストを考えて、プロセス全体で共有するプールに変えることを検討する（SS-33 のアーキテクチャレビューの Suggestion。SS-33 では対応しないと判断した）。
+- （SS-129 追補）左右の並列取得に使う `ThreadPoolExecutor(max_workers=2)` は、リクエストごとに生成・破棄している。backend は Lambda で動き（[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md)）、Lambda の実行環境は1度に1件のリクエストしか処理しないため、プールを使い回しても得るものはほとんど無い（温まった実行環境でスレッド生成を省ける程度）。ECS などの常駐プロセスへ移ってリクエストの並行数が増えたら、スレッド生成のコストを考えて、プロセス全体で共有するプールに変えることを検討する（SS-33 のアーキテクチャレビューの Suggestion。SS-33 では対応しないと判断した）。
 
 ### 実 API 検証の結果（2026-09-16 実施、2026-09-17 追補）
 
