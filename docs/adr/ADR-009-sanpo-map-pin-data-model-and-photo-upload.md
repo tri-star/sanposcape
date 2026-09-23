@@ -1,15 +1,41 @@
 # ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成
 
+## 現在有効な決定（要約）
+
+> 本文（`## 決定` 以降）は時系列の一次記録で、追補を重ねているため「今どれが有効か」が読み取りにくい。
+> ここはその索引。齟齬があれば本文と実装が正。
+> 最終更新: 2026-09-24（SS-88 実機不具合の追補）
+
+| # | いま有効な決定 | 補足 |
+|---|---|---|
+| 1 | 用語はピン（Pin）/ 地図（SanpoMap）/ スポット（`SpotCandidate` に限定） | 決定1 |
+| 2 | 地図とピンは N:1。権限は `sanpo_map_members` の role で判定 | 決定2 |
+| 3 | `sanpo_map_id` 省略時は「最初の地図」を同一トランザクションで作る | 決定3 |
+| 4 | 写真は **presigned POST で先行アップロード**し、ピン作成 API が確定を兼ねる（S3 → DB の順） | 決定4 |
+| 5 | 写真の枚数はピン全体で無制限、1リクエストの確定は10枚まで。未使用枠の同時保有は既定30（超過は 429） | 決定5・決定7 |
+| 6 | サムネイルは確定時に **Pillow で同期生成**（長辺 512px） | 決定6 |
+| 7 | 容量はアップロード者に計上し、**原本のみ**を数える（既定 1 GiB） | 決定7 |
+| 8 | ストレージは `STORAGE_MODE=real\|fake` + `Unconfigured`（バケット未設定なら写真 API は 503） | 決定8 |
+| 9 | **fake の保存先はディスク**（`DEV_STORAGE_DIR`）。空ならプロセス内メモリ（テストの既定） | 2026-09-23 追補 |
+| 10 | 他人の地図・ピン・枠は 404/409 で存在を漏らさない（IDOR 対策） | 決定9 |
+| 11 | フラグ `pin_registration` は API をガードしない | 決定10 |
+| 12 | `DELETE /pin-photo-uploads/{upload_id}` で未使用の枠を取り消せる | 決定11 |
+| 13 | 409 応答に機械可読な `code`（`storage_quota_exceeded` / `photo_upload_not_ready`） | 決定12 |
+| 14 | **backend はアクセスログを1リクエスト1行で出す**（`core/observability.py`。`create_app()` で最後に登録） | **SS-88 追補（2026-09-24）** |
+| 15 | **直送の失敗はサーバー側からは原理的に見えない**（可観測性は端末側に持たせる） | **SS-88 追補（2026-09-24）** |
+
 ## 日付
 
 2026-09-21（初版、SS-88）、2026-09-21 追補（PR #93: Copilot レビュー対応の backend 分。
 アップロード枠の取り消し API、409 応答の機械可読 code）、2026-09-22 追補（SS-108:
-`template.yaml` への S3 結線）、2026-09-23 追補（`STORAGE_MODE=fake` の保存先をディスクへ）
+`template.yaml` への S3 結線）、2026-09-23 追補（`STORAGE_MODE=fake` の保存先をディスクへ）、
+2026-09-24 追補（SS-88: 実機不具合の調査で判明したアクセスログの必要性と、dev の疎通確認完了）
 
 ## ステータス
 
-採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は SS-108 で実施済み
-（dev の初回デプロイでの疎通確認待ち。prod は infra 側の prod apply 待ち）。
+採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は SS-108 で実施済みで、
+**dev での疎通確認も完了**（2026-09-24。下の「追補（2026-09-24）」）。prod は infra 側の
+prod apply 待ち。
 
 ## コンテキスト
 
@@ -466,9 +492,11 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
 
 ### 移行・対応が必要な事項
 
-- [ ] **BK-1**: `template.yaml` に写真バケットを結線する（SS-108 で実装済み・疎通確認待ち。
-      dev の初回デプロイで動的参照 + prefix 連結の解決と写真付きピン登録の疎通を確認したら完了。
-      detail は [deployment.md](../../packages/backend/docs/deployment.md) §12）
+- [x] **BK-1**: `template.yaml` に写真バケットを結線する（SS-108 で実装。**dev の疎通確認は
+      2026-09-24 に完了**——動的参照 + prefix 連結は完全な ARN に解決されており、写真付きピン登録で
+      `original/` と `thumb/` にオブジェクトが作られ `staging/` が削除されることまで確認した。
+      prod は infra 側の apply 待ちで未実施。detail は
+      [deployment.md](../../packages/backend/docs/deployment.md) §12）
 - [ ] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
       S3 のオブジェクトは残るため）
@@ -488,6 +516,72 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       **招待機能（BK-7）の前提**（招待前は本人しか原本を見られないため後回しにしている）
 - [x] mobile 側の実装（Orval 再生成、`features/pin/` として実装済み。同じ PR で backend の
       後に実装した）
+
+## 追補（2026-09-24, SS-88 実機不具合の調査）
+
+TestFlight のビルド5を iPhone 実機で試したところ、写真の直送が必ず失敗した。**原因は mobile 側**
+（Expo の `fetch` が RN 形式の multipart ファイルパートを受け付けない。詳細は
+[ADR-010 の追補（2026-09-24）](../../packages/mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md)）
+で、backend・infra には問題が無かった。ただし**切り分けに時間がかかった理由**は backend 側にも
+あったため、その対処をここに記録する。
+
+### 決定13（追補）: backend はアクセスログを1リクエスト1行で出す
+
+調査を始めた時点で、CloudWatch Logs には `START`/`END`/`REPORT` しか残っておらず、
+**「枠発行（`POST /pin-photo-uploads`）が 201 だったのか 401 だったのか」すら分からなかった。**
+結局 CloudFront の `4xxErrorRate` メトリクス（1分粒度）から「その時刻の全リクエストが 2xx だった」
+ことを読み取って、失敗点が枠発行より後だと確定させている。
+
+ローカル（uvicorn）は uvicorn 自身がアクセスログを出すため気付きにくいが、**Lambda（Mangum）には
+uvicorn が居ないので、アプリ側で出さない限り何も残らない**。`core/observability.py` に
+`AccessLogMiddleware` を追加し、`method path -> status (N.Nms)` を INFO で出す。
+
+- `RequestSizeLimitMiddleware` と同じく**素の ASGI ミドルウェア**として書く
+  （`BaseHTTPMiddleware` を使わない = ストリーミング応答やバックグラウンドタスクの挙動を変えない）。
+- `create_app()` で**最後に登録**する（Starlette の `add_middleware` は先頭に挿入するため、
+  最後に登録したものが最も外側になる）。こうしないと `RequestSizeLimitMiddleware` が自前で返す
+  413 を観測できない。
+- **クエリ文字列・ヘッダー・ボディは出さない**（将来トークン等が載ったときに黙って漏れる経路を作らない）。
+- `/health` は既定で除外する（docker compose のヘルスチェックが5秒ごとに叩くため）。
+- ログレベルは `LOG_LEVEL`（既定 INFO）。`configure_logging()` は **root にハンドラーが無いときだけ**
+  ハンドラーを足す（Lambda の python ランタイムは root にハンドラーを付けるので、足すと二重に出る。
+  一方 uvicorn は自分のロガーしか設定しないので、足さないと INFO が消える）。
+
+あわせて枠発行時に `upload_id` と **S3 キー**を INFO で残す（`pins/service.py`）。直送は backend を
+通らないため、これが無いと「どのオブジェクトが届くはずだったのか」を後から S3 と突き合わせられない。
+**`form.fields` は絶対にログへ出さない**（policy・署名・一時認証情報を含む）。
+
+### 直送の失敗は原理的にサーバー側から見えない
+
+決定4（presigned POST で直送）の帰結として、**直送が失敗しても AWS 側のどこにも痕跡が残らない**。
+今回の調査で確認した範囲:
+
+- backend（Lambda）は経路に居ないので CloudWatch Logs には出ない。
+- バケットには S3 サーバーアクセスログが設定されていない。
+- 調査中に CloudTrail の S3 データイベント（write）を有効化して再現したが、**1件も記録されなかった**。
+  リクエストが1バイトも送信されていなかったためだが、仮に送信されていても CloudTrail の
+  データイベントは呼び出し元を特定できたリクエストしか記録しないので、認証前に弾かれる失敗
+  （`SignatureDoesNotMatch` / `MalformedPOSTRequest` 等）は残らない。
+  **サーバー側から直送の失敗を見たい場合は S3 サーバーアクセスログ**（HTTP レベルで全リクエストを
+  記録する）を一時的に有効化するのが唯一の手段になる（infra 側の作業）。
+
+したがって**直送の可観測性は端末側に持たせるしかない**。mobile 側の対処は ADR-010 の決定10を参照。
+
+### dev の疎通確認（BK-1 の完了）
+
+ローカル backend を `STORAGE_MODE=real` + `PIN_PHOTO_BUCKET_NAME` で dev の実バケットに向け、
+Android エミュレータから写真付きピン登録を通した（2026-09-24）。
+
+- `POST /pin-photo-uploads -> 201`、`storage=S3ObjectStorage`
+- S3 直送が 204、`staging/pins/<user_id>/<upload_id>.jpg` に 198171 バイト（`declared_bytes` と一致）
+- `POST /pins -> 201`（2.4秒）後、`original/` に原本、`thumb/…/512.jpg` にサムネイル（28525 バイト）、
+  `staging/` は削除済み
+
+デプロイ済み Lambda の実行ロール・境界（SS-107）・バケットポリシーも読み取りで確認しており、
+`{{resolve:ssm:}}` + prefix 連結が完全な ARN に解決されていることを確認済み
+（deployment.md §12 の「初回デプロイで確認すること」1)〜3)）。
+**ただし署名者はローカル実行時の管理者権限**であり、Lambda 実行ロールでの直送は
+この確認では再現していない（付与・境界の静的確認で代替した）。
 
 ## 関連情報
 

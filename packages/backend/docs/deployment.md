@@ -26,7 +26,7 @@
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
-> | ピン写真バケット（S3）の結線（§12 / SS-108） | ⚠️ **未デプロイ**。`cfn-lint` は通過。動的参照の後ろに `/staging/*` を連結した `Resource` の解決と、写真付きピン登録の疎通は dev の初回デプロイで確認する（§12「初回デプロイで確認すること」） |
+> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。動的参照 + `/staging/*` の連結は完全な ARN に解決されていることを確認。写真付きピン登録も `original/` と `thumb/` の生成、`staging/` の削除まで通った（§12「初回デプロイで確認すること」）。**prod は未実施**（infra の prod apply 待ち） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
