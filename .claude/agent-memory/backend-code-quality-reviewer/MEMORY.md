@@ -11,3 +11,5 @@
 - [SS-53 walks削除APIレビュー概要](project_ss53_walks_delete_review.md) — ADR-003決定13の背景。StaleDataErrorレースは対応済み確認(2026-08-13)。PR47フォローアップ(413統一/docstring)も指摘なし
 - [確定処理の締め切りが最初のフェーズにしか掛からない](pattern_partial_deadline_guard.md) — SS-88 photo_attacher: prepare()はdeadline付き、commit()/cleanup_stagingは無期限
 - [add_all後のループrefresh()はN+1](pattern_bulk_insert_refresh_n1.md) — SS-88 pins/repository.py。単一create()のrefreshは既存踏襲で問題なし、複数件ループが新規アンチパターン
+- [機密ログ漏洩ガード回帰テストの慣習](pattern_secret_leak_log_guard_test.md) — test_secrets.pyのARN非漏洩assertが先例。新規ログ追加時は同種テストの有無を確認
+- [configure_logging()のadd-handler分岐が事実上テスト不能](pattern_configure_logging_untestable_branch.md) — pytestがroot loggerに常時ハンドラーを持つため、ローカル/uvicorn向けの主分岐が未検証

@@ -8,3 +8,4 @@
 - [CloudFormation Fn::Subのネスト変数罠](feedback_cloudformation_fn_sub_nested_variables.md) — 変数マップの値の中の${...}は再評価されない。template.yamlのIAM ARN組み立てレビュー時に確認
 - [SS-88 ピン写真確定処理レビュー](project_ss88_pin_photo_confirm_review.md) — 真の同時リトライで写真付きPOST /pinsが誤409(Critical)。確定時クォータ再チェックの並行性ギャップ、commit()の締切漏れ(Warning)
 - [プラン文書の並行性設計は実装と1行ずつ突き合わせる](feedback_verify_plan_concurrency_design_against_code.md) — backend-planのエッジケース記述が共有ヘルパーの1分岐だけ実装漏れするパターン
+- [SS-88 AccessLogMiddleware登録順](ss88_access_log_middleware_order.md) — 最後に登録すべき制約がコメントのみでend-to-end回帰テスト無し(Warning)
