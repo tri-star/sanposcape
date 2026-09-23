@@ -26,10 +26,12 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       STORAGE_MODE: ${STORAGE_MODE:-real}
       DEV_STORAGE_DIR: ${DEV_STORAGE_DIR:-storages/dev-storage}
-      # STORAGE_MODE=real でローカルから実 S3 に繋いで確認するときだけ使う（既定は空 =
-      # UnconfiguredObjectStorage）。認証情報は .env に書かず、`aws configure
-      # export-credentials` で取得した一時認証情報をシェルから渡すこと（下の
-      # AWS_* は「ホストの環境変数があれば透過させる」だけで、既定値を持たない）。
+      # STORAGE_MODE=real でローカルから実 S3 に繋いで確認するときだけ使う
+      # （PIN_PHOTO_BUCKET_NAME が空なら UnconfiguredObjectStorage = 写真 API は 503）。
+      # 認証情報は .env に書かず、`aws configure export-credentials` で取得した一時認証情報を
+      # シェルから渡すこと（AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN は
+      # 「ホストの環境変数があれば透過させる」だけで既定値を持たない。AWS_REGION のみ既定値あり）。
+      # 手順は docs/local-development.md「実 S3 に繋いで確認する」。
       PIN_PHOTO_BUCKET_NAME: ${PIN_PHOTO_BUCKET_NAME:-}
       PIN_PHOTO_BUCKET_REGION: ${PIN_PHOTO_BUCKET_REGION:-ap-southeast-1}
       AWS_REGION: ${AWS_REGION:-ap-southeast-1}

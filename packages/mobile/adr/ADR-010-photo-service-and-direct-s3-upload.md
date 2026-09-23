@@ -2,23 +2,52 @@
 
 ## 現在有効な決定（要約）
 
-> 本文（`## 決定` 以降）は時系列の一次記録で、追補を重ねているため「今どれが有効か」が読み取りにくい。
-> ここはその索引。齟齬があれば本文と実装が正。
-> 最終更新: 2026-09-24（SS-88 実機不具合の追補）
+> 最終更新: 2026-09-24（SS-88）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
 
-| # | いま有効な決定 | 補足 |
-|---|---|---|
-| 1 | 写真の取得・加工は `services/photo/` の **real/mock 2モード**（`EXPO_PUBLIC_PHOTO_MODE`、既定 `real`）。ネイティブ依存は `photo.real.ts` に閉じる | 決定1・2 |
-| 2 | アップロード前に端末で**長辺 2048px へ縮小 + JPEG 品質 0.7 で再エンコード**（EXIF も落ちる） | 決定3 |
-| 3 | 1枚の上限の**正は枠発行応答の `max_byte_size`**。端末側の足切りは `PIN_PHOTO_MAX_BYTES_HARD_CAP`（50 MiB）の安全弁のみ | 決定3 + SS-88 追補 T9 |
-| 4 | アップロードは **presigned POST で S3 に直送**し、`customFetch` は使わない。送信先は `isAllowedUploadUrl` で https と「backend と同一 origin の http」に限定 | 決定4 |
-| 5 | **multipart のファイルパートは Blob 実装（`expo-file-system` の `File`）を渡す。RN 形式の `{ uri, name, type }` は使えない** | **SS-88 追補（2026-09-24）** |
-| 6 | 先頭 `PIN_PHOTO_PREUPLOAD_MAX`（20枚）を先行アップロードし、残りは保存時に10枚ずつ処理。**429 はエラーにせず「待機に戻す」** | 決定5 |
-| 7 | 未紐付け写真の削除時は `DELETE /pin-photo-uploads/{id}` を best-effort で呼び、失敗時は「幽霊枠」として数え続ける | SS-88 追補 T11 |
-| 8 | 409 は機械可読な `code` で `quota_exceeded` / `photo_not_ready` を区別する | SS-88 追補 T15 |
-| 9 | 写真付き E2E は当面できない（mock が実ファイルを返さないため） | 決定6 |
-| 10 | 撮影/選択の UI に BottomSheet（RN `Modal`）は使わない | 決定7 |
-| 11 | **直送の失敗は端末に痕跡を残す**（`logDiagnostic`。将来 Sentry に差し替える） | **SS-88 追補（2026-09-24）** |
+### 決定
+
+- **写真の取得・加工は `services/photo/` の real/mock 2モード**（`EXPO_PUBLIC_PHOTO_MODE`、
+  既定 `real`）。ネイティブ依存は `photo.real.ts` に閉じる（本文: 決定1、決定2）
+- **アップロード前に端末で長辺 2048px へ縮小し JPEG 品質 0.7 で再エンコードする**。
+  EXIF（撮影位置 GPS を含む）はこの再エンコードで落ちる（本文: 決定3）
+- **1枚の上限の正は枠発行応答の `max_byte_size`**。端末側の足切りは
+  `PIN_PHOTO_MAX_BYTES_HARD_CAP`（50 MiB）の安全弁のみ（本文: 決定3、PR #93 追補 T9）
+- **アップロードは presigned POST で S3 に直送し、`customFetch` は使わない**。送信先は
+  `isAllowedUploadUrl` で https と「backend と同一 origin の http」に限定する（本文: 決定4）
+- **multipart のファイルパートは Blob 実装（`expo-file-system` の `File`）を渡す。**
+  RN 形式の `{ uri, name, type }` は Expo の `fetch` が受け付けず送信前に落ちる
+  （本文: 追補（2026-09-24）決定9、SS-88 追補）
+- **先頭 `PIN_PHOTO_PREUPLOAD_MAX`（20枚）を先行アップロードし、残りは保存時に10枚ずつ処理する**。
+  429 はユーザー向けエラーにせず「待機に戻す」合図として扱う（本文: 決定5）
+- **未紐付け写真の削除時は `DELETE /pin-photo-uploads/{id}` を best-effort で呼ぶ**。失敗時は
+  「幽霊枠」として紐付け期限まで数え続ける（本文: PR #93 追補 T11）
+- **409 は機械可読な `code` で `quota_exceeded` と `photo_not_ready` を区別する**
+  （本文: PR #93 追補 T15）
+- **直送の失敗は端末にログを残す**（`logDiagnostic` が唯一の出力口。将来 Sentry に差し替える。
+  `fields` の値は絶対に出さない）（本文: 追補（2026-09-24）決定10、SS-88 追補）
+- **撮影/選択の UI に BottomSheet（RN `Modal`）は使わない**（iOS で OS のピッカーと表示が競合するため）
+  （本文: 決定7）
+- **登録画面はサムネイルを使わずローカル画像を表示する。** 閲覧チケットで使うときは、画像キャッシュの
+  キーを presigned URL ではなく `photo.id` にする（URL は応答ごとに変わるため）（本文: 決定8）
+
+### 未解決・持ち越し
+
+- **写真付き E2E は当面できない**（mock が実ファイルを返さないため）。実ファイルを返す mock が
+  用意できるまで別チケット（本文: 決定6）
+- **iPhone 実機での修正確認は未実施**。原因は Expo の `fetch` でプラットフォーム非依存のため
+  Android で直れば iOS も直るはずだが、TestFlight ビルドでの確認は別途必要
+  （本文: 追補（2026-09-24）「検証」）
+- **`logDiagnostic` の出力が release/TestFlight ビルドで実際に読めるか**は未確認
+  （本文: 追補（2026-09-24）決定10）
+
+### 変更・撤回された決定
+
+- multipart のファイルパート: RN 形式の `{ uri, name, type }` → **Blob 実装**（SS-88 追補）
+- 先行アップロードの足切り: 固定 10 MiB → **`PIN_PHOTO_MAX_BYTES_HARD_CAP`（50 MiB）**
+  （PR #93 追補 T9）
+- `uploadFileName(localId)`: ファイル名を呼び出し側で決める → **削除**（Expo の実装では
+  filename を指定する手段が無く、S3 は `key` で保存先を決めるため実害なし）（SS-88 追補）
 
 ## 日付
 
