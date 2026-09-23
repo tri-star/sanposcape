@@ -20,3 +20,4 @@
 - [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
 - [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）
+- [mobile ADR の地図](reference-mobile-adr-map.md) — mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式

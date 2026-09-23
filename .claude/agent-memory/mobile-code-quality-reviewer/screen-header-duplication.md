@@ -3,6 +3,8 @@ name: screen-header-duplication
 description: 戻るIconButton+タイトルの画面ヘッダーがWalkStartView/WalkHistoryListView/WalkDetailViewで重複している（Plane SS-40 で追跡中）
 metadata:
   type: project
+  scope: task-local
+  source_issue: SS-40
 ---
 
 `WalkStartView`（features/walk）、`WalkHistoryListView` / `WalkDetailView`（features/history）は

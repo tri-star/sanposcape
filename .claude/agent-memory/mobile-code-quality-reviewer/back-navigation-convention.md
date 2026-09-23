@@ -2,7 +2,8 @@
 name: back-navigation-convention
 description: SS-34で導入された画面「戻る」導線の一本化（useScreenBack/resolveBackAction）の設計と既知のエッジケース
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 SS-34（`feat/ss-34-walk-start-back-navigation`）で、画面上の戻る/キャンセルと Android の

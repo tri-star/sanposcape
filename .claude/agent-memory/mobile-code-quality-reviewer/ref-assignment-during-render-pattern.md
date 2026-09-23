@@ -2,7 +2,8 @@
 name: ref-assignment-during-render-pattern
 description: このコードベースでは「render中にref.currentへ最新値を代入し、effect/callbackから読む」手法が確立した規約
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `features/walk/hooks/useWalkTracking.ts` の `pausedRef`（`pausedRef.current = paused;` を

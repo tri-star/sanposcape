@@ -1,15 +1,16 @@
 ---
-name: mobile-adr-map
+name: reference-mobile-adr-map
 description: 設計判断の根拠がどの ADR にあるか（mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式）
 metadata:
   type: reference
+  scope: durable
 ---
 
 設計を変えるプランを書く前に該当 ADR を読む（`packages/mobile/AGENTS.md` の指示）。
 ADR を覆す/追補する場合は `.claude/skills/adr-writing/SKILL.md` スキルを使う。
 
-- **mobile 固有**: `packages/mobile/adr/ADR-00X-*.md`。2026-08-08 時点で **001〜009 まで使用済み**。
-  新規は次番を採る。
+- **mobile 固有**: `packages/mobile/adr/ADR-00X-*.md`。2026-09-24 時点で **001〜010 まで使用済み**
+  （ADR-010 は SS-88 の写真サービスと S3 直送）。新規は次番を採る。
   - 008 = 進行中の散歩の Zustand とルートの Query キャッシュ共有 / サインアウト時の `sessionCleanup` レジストリ
   - 009 = 認証セッション状態の集約（`useAuthSessionStore`）と認証ゲート（`AuthGate` / `canEnterProtectedRoutes`）。SS-13 で ADR-008 決定6 を追補している
 - **frontend/backend 横断・ドメイン知識**: リポジトリルートの `docs/adr/`。
