@@ -15,8 +15,6 @@
 - [feedback-import-order-and-lru-cache-test-techniques](feedback_import_order_and_lru_cache_test_techniques.md) — import順序契約やlru_cacheのcache_clear呼び出しを回帰テストするテクニック（sys.modules退避・別名fresh import・属性spy）
 - [reference-docs-lint-tmp-reference-check](reference_docs_lint_tmp_reference_check.md) — docs-lint CIがADR/packages*/docs/agent-memoryからのtmp/参照を検出し失敗させる。新規ADR作成後は`check-tmp-references.sh`で確認する
 - [reference-sam-cli-location](reference_sam_cli_location.md) — sam CLIはPATHに無くmise管理。絶対パスで呼ぶ。sam validate --lintはDocker不要
-- [project-ss33-loop-route-backend-complete](project_ss33_loop_route_backend_complete.md) — SS-33 backend（POST /explore/routes/loop）は実装完了。実API検証も実施済みでフォールバック率69%＝ADR-007目標未達、改善はSS-92
-- [project-ss33-review-followup](project_ss33_review_followup.md) — SS-33ローカルレビュー「修正予定(自律対応)」全件対応（Quota/Unavailableログ・connect timeout・resample点数上限・DI配線テスト・並列化・ADR/docs整合）の実装場所と判断ログ
 - [feedback-verification-revert-without-git-checkout](feedback_verification_revert_without_git_checkout.md) — フィックス検証で一時的に壊したソースを`git checkout --`で戻すと未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
 - [feedback-sandbox-constraints](feedback_sandbox_constraints.md) — sandboxが拒否する操作(.env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権)と回避策。「できない」と結論する前に読む
 - [feedback-cloudformation-sub-map-value-gotcha](feedback_cloudformation_sub_map_value_gotcha.md) — Fn::Subの変数マップの値に書いた${...}は再評価されない。値自体をさらに!Subで包む必要がある
@@ -24,3 +22,4 @@
 - [project-ss88-pins-backend-complete](project_ss88_pins_backend_complete.md) — SS-88 backend（地図/ピン登録・写真アップロード, sanpo_maps/pinsドメイン）は実装完了。PR #93 Copilotレビュー対応（T2-T6,T11,T15）も完了。BK-1〜BK-10のPlaneチケット起票が未実施
 - [feedback-boto3-s3-and-pg-advisory-lock-gotchas](feedback_boto3_s3_and_pg_advisory_lock_gotchas.md) — boto3 S3のendpoint_url明示でpresigned URLのリージョンが脱落する罠、pg_advisory_xact_lockの決定的キー導出、Pydantic SkipJsonSchema[None]パターン、retries.max_attemptsはtotal_max_attemptsでないと+1される罠
 - [feedback_true_concurrency_test_pattern](feedback_true_concurrency_test_pattern.md) — threading.Thread+別Session(TestSessionLocal)で真の行ロック競合を再現するテスト手順。ORMオブジェクトをスレッド間で共有しない・Core updateの後はrefresh()が必要
+- [feedback-httpx-timeout-mocktransport](feedback_httpx_timeout_mocktransport.md) — httpxのtimeout=に単一floatを渡すとconnectにも効く。httpx.Timeoutでフェーズを分け、MockTransportのrequest.extensions["timeout"]で検証する

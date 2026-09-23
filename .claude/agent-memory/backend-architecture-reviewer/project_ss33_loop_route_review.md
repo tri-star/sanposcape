@@ -3,8 +3,8 @@ name: project_ss33_loop_route_review
 description: SS-33周回ルートAPI(POST /explore/routes/loop)レビューの要点。検証スクリプトの結果がADR-007に未転記(しきい値暫定)が最大の留保事項
 metadata:
   type: project
-  scope: task-local
-  source_issue: SS-33
+  scope: durable
+  adr: docs/adr/ADR-007-loop-route-generation.md
 ---
 
 SS-33（`POST /explore/routes/loop`）のバックエンドアーキテクチャレビュー（2026-09-15時点、

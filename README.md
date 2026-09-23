@@ -21,6 +21,7 @@
   - 横断: [ADR-007 周回ルート（往路と異なる道で戻る）の生成方式](./docs/adr/ADR-007-loop-route-generation.md)
   - 横断: [ADR-008 デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./docs/adr/ADR-008-deploy-release-separation.md)
   - 横断: [ADR-009 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+  - 横断: [ADR-010 Astra向けハーネスとClaude定義の差分取り込み](./docs/adr/ADR-010-codex-astra-harness-and-incremental-import.md)
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)

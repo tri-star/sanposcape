@@ -3,8 +3,8 @@ name: project-ss33-loop-route-review
 description: SS-33 (tri-star/SS-33-claude) POST /explore/routes/loop security review outcome — no Critical/High/Medium; two Low findings around missing origin/destination distance cap and rate-limit sharing.
 metadata:
   type: project
-  scope: task-local
-  source_issue: SS-33
+  scope: durable
+  adr: docs/adr/ADR-007-loop-route-generation.md
 ---
 
 Reviewed 2026-09-15: `POST /explore/routes/loop` (`maps/router.py`, `maps/service.py`,
