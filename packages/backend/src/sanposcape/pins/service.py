@@ -113,6 +113,21 @@ class PinPhotoUploadService:
         )
         self._db.commit()
 
+        # 直送（端末 → S3）は backend を通らないため、発行した枠とキーを残しておかないと
+        # 「どのオブジェクトが届くはずだったのか」を後から S3 と突き合わせられない
+        # （SS-88 の実機調査での反省。`core/observability.py` の冒頭も参照）。
+        # ★ `form.fields` は絶対にログへ出さないこと（policy / 署名 / 一時認証情報を含む）。
+        logger.info(
+            "pin photo upload issued: upload_id=%s key=%s content_type=%s "
+            "declared_bytes=%d max_bytes=%d storage=%s",
+            upload_id,
+            key,
+            payload.content_type,
+            payload.byte_size,
+            self._max_byte_size,
+            type(self._storage).__name__,
+        )
+
         return PinPhotoUploadRead(
             upload_id=upload.id,
             upload=PresignedUploadRead(url=form.url, fields=form.fields),

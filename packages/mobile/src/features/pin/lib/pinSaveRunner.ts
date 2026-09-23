@@ -11,6 +11,7 @@ import type { PhotoDraftAction } from "@/features/pin/lib/photoDraft";
 import { PhotoSlotsBusyError, PinSaveError } from "@/features/pin/lib/pinSaveError";
 import type { PinSaveStage } from "@/features/pin/lib/pinSaveError";
 import type { PhotoDraftItem, PinSaveProgress, SavedPin } from "@/features/pin/types";
+import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 
 export type PinSaveRunnerDeps = {
   /** 呼ぶたびに最新の写真リスト（表示順・削除済みを除く）を返す。 */
@@ -70,6 +71,13 @@ async function assembleReadyUploadIds(
       readyUploadIds.push(uploadId);
     } catch (error) {
       const code = toPhotoUploadErrorCode(error);
+      // 先行アップロード（usePinPhotos）と同じ理由で、分類結果と生の例外を対応付けて残す。
+      logDiagnostic("pin-photo.upload.failed", {
+        localId: item.localId,
+        stage,
+        code,
+        ...describeError(error),
+      });
       if (isWaitablePhotoUploadError(code)) {
         // 429: エラーにしない。待機に戻し、ここまでに揃った分を紐付けて枠を空けるのを優先する。
         deps.dispatch({ type: "waited", localId: item.localId });

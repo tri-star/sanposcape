@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     # docs/deployment.md）。
     env: Literal["local", "test", "staging", "production"] = "local"
 
+    # --- ログ ---
+    # `sanposcape.*` のログレベル（`core/observability.py` の `configure_logging()` が適用）。
+    # 既定を INFO にしているのは、アクセスログ（1リクエスト1行）を出すため。Lambda では
+    # これを WARNING に上げると障害調査の手掛かりが `START`/`END` だけに戻るので注意する。
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+
     # --- 認証モード（ADR-002 決定4。既定は fail-safe な real） ---
     auth_mode: Literal["real", "dev"] = "real"
 
@@ -216,6 +222,12 @@ class Settings(BaseSettings):
         消費させられる（本番には存在しない router だが、local/test で有効）。
         """
         return self.pin_photo_max_bytes + 64 * 1024
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, v: object) -> object:
+        """`LOG_LEVEL=info` のような小文字表記も受け付ける（Literal は大小を区別するため）。"""
+        return v.upper() if isinstance(v, str) else v
 
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod

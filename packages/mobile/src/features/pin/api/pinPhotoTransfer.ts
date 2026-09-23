@@ -1,7 +1,7 @@
 import { ApiError } from "@/api/apiError";
 import { uploadToPresignedPost } from "@/features/pin/api/presignedPostUpload";
 import { requestPinPhotoUpload } from "@/features/pin/api/pinPhotoUploadApi";
-import { uploadFileName } from "@/features/pin/lib/presignedPostForm";
+import { logDiagnostic } from "@/lib/diagnosticLog";
 import type { PreparedPhoto } from "@/services/photo/types";
 
 /**
@@ -20,17 +20,31 @@ export async function transferPinPhoto(
     { signal: options.signal },
   );
 
+  // 直送の前に、backend が発行した枠の形を残す。backend 側のアクセスログ
+  // （`upload_id=... key=...`）と `uploadId` で突き合わせられる。
+  // ★ `fields` は**名前だけ**（値は policy・署名・一時認証情報を含む）。
+  logDiagnostic("pin-photo.upload.start", {
+    localId: input.localId,
+    uploadId: ticket.uploadId,
+    fieldNames: ticket.fields.map(([name]) => name),
+    maxByteSize: ticket.maxByteSize,
+    byteSize: input.prepared.byteSize,
+    mimeType: input.prepared.mimeType,
+    // 加工後ファイルの URI スキーム（RN のネットワーク層が読めるかの手掛かり。
+    // パス自体は端末内の絶対パスなので出さない）。
+    uriScheme: input.prepared.uri.split(":")[0],
+  });
+
   if (input.prepared.byteSize > ticket.maxByteSize) {
     // 上限の正は枠発行応答の max_byte_size。枠は既に発行済みだが、直送しないことで
     // 無駄な S3 通信・失敗応答を避ける（枠自体は backend の紐付け期限で自然に失効する）。
     throw new ApiError(413);
   }
 
-  await uploadToPresignedPost(
-    ticket,
-    { uri: input.prepared.uri, name: uploadFileName(input.localId), type: "image/jpeg" },
-    { signal: options.signal, apiBaseUrl: options.apiBaseUrl },
-  );
+  await uploadToPresignedPost(ticket, input.prepared.file, {
+    signal: options.signal,
+    apiBaseUrl: options.apiBaseUrl,
+  });
 
   return ticket.uploadId;
 }

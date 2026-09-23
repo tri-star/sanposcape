@@ -18,6 +18,7 @@ import {
   toPhotoUploadErrorCode,
 } from "@/features/pin/lib/photoUploadError";
 import type { PhotoDraftItem } from "@/features/pin/types";
+import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 import { randomUuidV4 } from "@/lib/uuid";
 import { photoService } from "@/services/photo";
 import { isPhotoError, photoErrorMessage } from "@/services/photo/photoError";
@@ -196,7 +197,11 @@ export function usePinPhotos(options: {
         } else {
           dispatch({ type: "prepared", localId: work.item.localId, prepared });
         }
-      } catch {
+      } catch (error) {
+        logDiagnostic("pin-photo.prepare.failed", {
+          localId: work.item.localId,
+          ...describeError(error),
+        });
         dispatch({ type: "failed", localId: work.item.localId, errorCode: "processing_failed" });
       }
       return;
@@ -226,6 +231,14 @@ export function usePinPhotos(options: {
       dispatch({ type: "uploaded", localId: work.item.localId, uploadId });
     } catch (error) {
       const code = toPhotoUploadErrorCode(error);
+      // 分類結果（UI の文言はここから決まる）と生の例外を1行で対応付ける。`withTimeout` の
+      // タイムアウトと RN の通信失敗はどちらも "network" になるため、`errorMessage`
+      // （"Pin photo transfer timed out" か否か）が唯一の見分け方になる。
+      logDiagnostic("pin-photo.upload.failed", {
+        localId: work.item.localId,
+        code,
+        ...describeError(error),
+      });
       if (isWaitablePhotoUploadError(code)) {
         // 429: この画面では以後、先行アップロードの枠発行をしない（放棄された未使用枠が
         // 他所に残っている可能性が高く、粘っても空かない）。残りは保存フローが送る。
