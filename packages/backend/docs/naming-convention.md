@@ -61,7 +61,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 | ファイル | 役割 |
 |---|---|
-| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin` 等）。DB に依存しない純粋関数 |
+| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`・編集・削除系の`can_update_pin`/`can_delete_pin`/`can_add_pin_tag`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112）。DB に依存しない純粋関数。「対象の作成者本人か」は操作ごとに材料が違う（ピン/タグ/写真）ため、`is_creator`/`is_uploader` をキーワード専用引数にして取り違えを防ぐ規約にしている |
 
 `pins/` ドメイン（SS-88 で新設）では以下を追加している。
 

@@ -241,8 +241,11 @@ docker compose up -d --build
     `POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos` の確定処理）は
     503 になるが、**閲覧系**（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）
     と `GET /sanpo-maps` は影響を受けず、200 のまま `thumbnail`/`original_url` が
-    null になる（ADR-009 決定18）。平常のローカル開発ではバケットを設定しないので、
-    `STORAGE_MODE=real` のままだと写真は試せない
+    null になる（ADR-009 決定18）。**削除系**（`PATCH /pins/{pin_id}`・
+    `DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`）も 503 にはならず、
+    DB の削除は成功して 200/204 を返す（S3 側の削除は `ObjectStorageUnavailableError` で
+    スキップされ WARNING ログのみ。ADR-009 決定22, SS-112）。平常のローカル開発では
+    バケットを設定しないので、`STORAGE_MODE=real` のままだと写真は試せない
     （`deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）。
     **（SS-88 追補）** 直送まわりの不具合は fake では再現しないことがあるため、
     ローカルの backend を dev の実バケットに向ける手順を
@@ -363,6 +366,7 @@ print(r.status_code); print(r.text[:800])"
   `PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS` / `PIN_PHOTO_DOWNLOAD_URL_TTL_SECONDS` /
   `PIN_PHOTO_THUMBNAIL_MAX_EDGE_PX` / `PIN_PHOTO_THUMBNAIL_JPEG_QUALITY` /
   `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` / `PIN_PHOTO_CONFIRM_CONCURRENCY` /
+  `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（SS-112: ピン・写真削除時の S3 実体削除の時間予算） /
   `OBJECT_STORAGE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_READ_TIMEOUT_SECONDS`
 
 （`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、

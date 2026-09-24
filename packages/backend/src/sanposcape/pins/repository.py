@@ -145,6 +145,10 @@ class PinRepository:
         """member 判定込みでピンを取得し、`pins` 行を `FOR UPDATE` でロックする。
 
         写真追加時の position 割り当ての同時実行競合を防ぐ（backend-plan.md 5.3 (5)）。
+        `PATCH /pins/{pin_id}`（`update_pin`）・`DELETE /pins/{pin_id}`（`delete_pin`）・
+        `DELETE /pins/{pin_id}/photos/{photo_id}`（`delete_photo`）も同じ行ロックを使う
+        ため、同一ピンへの編集・削除・写真追加は互いに直列化される（ADR-009 決定22。
+        例えば PATCH のタグ件数チェックの同時超過や、削除と写真追加の競合を防ぐ）。
         """
         stmt = self._member_pin_stmt(user_id=user_id, pin_id=pin_id).with_for_update(of=Pin)
         row = self._db.execute(stmt).first()
