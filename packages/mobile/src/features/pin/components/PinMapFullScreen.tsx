@@ -117,6 +117,11 @@ export function PinMapFullScreen({
           collapsable={false}
           accessible
           accessibilityLabel={title}
+          // 地図（MapView/Marker）はジェスチャー操作前提で、支援技術での代替入力手段は
+          // 用意していない（既知の限界。ADR-011 参照）。せめて何をすれば選べるかを
+          // accessibilityHint で伝える。文言は下部カードの hint と揃える（pickGesture ごとに
+          // 呼び出し側が渡す文言が変わる）。
+          accessibilityHint={hint}
           style={styles.mapWrap}
         >
           <MapView
