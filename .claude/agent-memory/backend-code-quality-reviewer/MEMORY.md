@@ -13,3 +13,5 @@
 - [add_all後のループrefresh()はN+1](pattern_bulk_insert_refresh_n1.md) — SS-88 pins/repository.py。単一create()のrefreshは既存踏襲で問題なし、複数件ループが新規アンチパターン
 - [機密ログ漏洩ガード回帰テストの慣習](pattern_secret_leak_log_guard_test.md) — test_secrets.pyのARN非漏洩assertが先例。新規ログ追加時は同種テストの有無を確認
 - [configure_logging()のadd-handler分岐が事実上テスト不能](pattern_configure_logging_untestable_branch.md) — pytestがroot loggerに常時ハンドラーを持つため、ローカル/uvicorn向けの主分岐が未検証
+- [commit後のORM属性アクセスで不要なSELECTが飛ぶ](pattern_expired_orm_attr_in_post_commit_log.md) — expire_on_commit=True下でcommit後にpin.id/current_user.idをログ参照すると再読込が発生。create_upload/delete_uploadの回避パターンと対比
+- [SS-112 ピン編集・削除APIレビュー概要](project_ss112_pins_edit_delete_review.md) — 権限マトリクス・delete_many・締め切り実装は良好、唯一の指摘はcommit後ORM属性アクセス

@@ -34,17 +34,27 @@ add_tags: Annotated[list[str], Field(max_length=10)] | SkipJsonSchema[None] = Fi
 常に「制約は非null側の型にAnnotatedで付け、outerのFieldはdefault_factory/defaultだけを
 持つ」形にする。既存の`PinCreate.tags`（null許容ではない）は影響を受けない。
 
-## 2. サービス層の単体テストで、commit後に同じORMオブジェクトの非PK列へアクセスするとObjectDeletedError
+## 2. commit後に同じセッションのORMオブジェクトへアクセスすると、削除有無で挙動が変わる
 
-`sessionmaker(...)` の既定 `expire_on_commit=True` により、`db.commit()` の後は
-セッション内の全ロード済みインスタンスの属性が expire される。テストが `PinService` と
-同じ `db_session` を共有していて、サービス内の delete 処理が commit した**後**に、
-テストが同じ行の（削除された）ORMオブジェクトの非PK列（`s3_key`など）へアクセスすると、
-`sqlalchemy.orm.exc.ObjectDeletedError` になる（`id` などの主キーは expire されないので
-アクセスできる——`state.key` が別に保持されているため）。
+`sessionmaker(...)` の既定 `expire_on_commit=True` が肝。訂正: 当初「主キーは expire
+されない」と理解していたが、正確には**「削除されたか persistent のままか」で挙動が違う**
+（`backend-code-quality-reviewer` の [[pattern_expired_orm_attr_in_post_commit_log]] で
+判明、感謝）。
 
-**How to apply:** service呼び出しで対象行が削除されるテストでは、削除メソッドを呼ぶ**前**に
-検証に使う非PK値（`s3_key`、`thumbnail_s3_key`、`byte_size`など）をローカル変数へ控えておく。
+- **`session.delete(obj)` した対象**: commit 後は expire ではなく **expunge（detach）**
+  されるため、`obj.id` のようなメモリ上の値へのアクセスは新規クエリを誘発しない
+  （行が実際に無くなっていても、削除した本人のオブジェクトなら安全に読める）。
+- **削除していない persistent オブジェクト**（例: `current_user`、あるいは「このピンの
+  写真を消したが pin 自体は消していない」場合の `pin`）: commit 後は属性が expire
+  され、次のアクセスで再読込の SELECT が飛ぶ。対象行が本当に消えていれば
+  `ObjectDeletedError`、消えていなければ「気付きにくい無駄な SELECT」になる。
+
+**How to apply:** commit 後に ORM オブジェクトの属性（ログ出力・アサーション問わず）へ
+アクセスしたくなったら、それが「今回のトランザクションで delete() した本人」か
+「delete していない persistent オブジェクト」かを区別する。後者なら、commit 前に
+必要な値（`s3_key`・`byte_size`・`user_id` など）をローカル変数へ控える、または
+既に引数として持っている ID（`pin_id`/`photo_id` パラメータ等）をそのまま使う。
+テストでも同じ理由で、検証に使う値は削除メソッドを呼ぶ**前**に控えておく。
 
 ## 3. `PinService` を直接呼ぶテストで、例外によるロールバックを検証するときは `db_session.rollback()` を明示する
 
