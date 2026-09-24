@@ -206,6 +206,9 @@ class Settings(BaseSettings):
     # 29秒より手前で打ち切り、503（再送で回復）にする。
     pin_photo_confirm_deadline_seconds: int = Field(default=20, ge=1, le=25)
     pin_photo_confirm_concurrency: int = Field(default=3, ge=1, le=8)
+    # ピン削除・写真削除の S3 実体削除（best-effort）の時間予算（ADR-009 決定22, SS-112）。
+    # 超えた分は諦めて WARNING を出す（削除 API 自体は 503 にしない）。
+    pin_photo_delete_deadline_seconds: float = Field(default=10, ge=1, le=25)
     object_storage_connect_timeout_seconds: float = Field(default=2.0, gt=0)
     object_storage_read_timeout_seconds: float = Field(default=5.0, gt=0)
     # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。

@@ -177,6 +177,88 @@ class TestDelete:
             storage.delete("k")
 
 
+class TestDeleteMany:
+    def test_calls_delete_objects_with_quiet_true(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": "a"}, {"Key": "b"}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(["a", "b"])
+        assert failed == []
+
+    def test_returns_failed_keys_from_errors(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_response(
+            "delete_objects",
+            {"Errors": [{"Key": "bad", "Code": "AccessDenied", "Message": "nope"}]},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": "a"}, {"Key": "bad"}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(["a", "bad"])
+        assert failed == ["bad"]
+
+    def test_empty_keys_does_not_call_s3(self) -> None:
+        storage, stubber = make_storage()
+        with stubber:
+            assert storage.delete_many([]) == []
+
+    def test_splits_into_chunks_of_1000(self) -> None:
+        storage, stubber = make_storage()
+        keys = [f"k{i}" for i in range(1001)]
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": k} for k in keys[:1000]], "Quiet": True},
+            },
+        )
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": keys[1000]}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(keys)
+        assert failed == []
+        stubber.assert_no_pending_responses()
+
+    def test_chunk_failure_is_treated_as_all_failed_and_next_chunk_still_runs(self) -> None:
+        storage, stubber = make_storage()
+        keys = [f"k{i}" for i in range(1001)]
+        stubber.add_client_error("delete_objects", service_error_code="InternalError")
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": keys[1000]}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(keys)
+        assert failed == keys[:1000]
+        stubber.assert_no_pending_responses()
+
+
+class TestUnconfiguredObjectStorageDeleteMany:
+    def test_raises_unavailable(self) -> None:
+        with pytest.raises(ObjectStorageUnavailableError):
+            UnconfiguredObjectStorage().delete_many(["k"])
+
+
 class TestFakeObjectStorage:
     def test_upload_and_download_round_trip(self) -> None:
         storage = FakeObjectStorage(secret="s" * 32)
@@ -248,6 +330,17 @@ class TestFakeObjectStorage:
         storage.delete("dst")
         with pytest.raises(ObjectNotFoundError):
             storage.get_bytes("dst", max_bytes=10)
+
+    def test_delete_many_deletes_all_and_returns_no_failures(self) -> None:
+        storage = FakeObjectStorage(secret="s" * 32)
+        storage.put_bytes("a", b"1", content_type="image/jpeg")
+        storage.put_bytes("b", b"2", content_type="image/jpeg")
+
+        failed = storage.delete_many(["a", "b", "missing"])
+
+        assert failed == []
+        assert storage.head("a") is None
+        assert storage.head("b") is None
 
 
 class TestFakeObjectStorageOnDisk:

@@ -89,6 +89,16 @@ class ObjectStorage(Protocol):
 
     def delete(self, key: str) -> None: ...
 
+    def delete_many(self, keys: list[str]) -> list[str]:
+        """複数キーを削除する（ピン削除, ADR-009 決定22）。戻り値は削除に失敗したキー。
+
+        S3 実装は `DeleteObjects`（最大1000件/回）でチャンク処理する。1件ずつの `delete()`
+        だと写真が数百枚あるピンの削除で Lambda の時間予算を食い潰しうるため、経路を
+        分ける。`ObjectStorageUnavailableError` を送出するのは Unconfigured のときだけで、
+        S3 実装は個々のチャンクの失敗を例外にせず戻り値に含める（呼び出し側を単純にする）。
+        """
+        ...
+
 
 class S3ObjectStorage:
     """boto3 による実装。リージョナルエンドポイントを明示し、SigV4 で署名する。"""
@@ -220,6 +230,32 @@ class S3ObjectStorage:
         except (ClientError, BotoCoreError) as exc:
             raise self._unavailable(exc) from exc
 
+    def delete_many(self, keys: list[str]) -> list[str]:
+        """`DeleteObjects`（`Quiet=True`）を最大1000件ずつのチャンクで呼ぶ。
+
+        チャンク単位で `ClientError`/`BotoCoreError` を捕捉し、そのチャンク全体を
+        失敗扱いにしてログを出したうえで次のチャンクへ進む（例外は投げない。
+        呼び出し側の締め切り管理を単純にするため, ADR-009 決定22）。
+        """
+        failed: list[str] = []
+        for start in range(0, len(keys), 1000):
+            chunk = keys[start : start + 1000]
+            try:
+                response = self._client.delete_objects(
+                    Bucket=self._bucket,
+                    Delete={"Objects": [{"Key": key} for key in chunk], "Quiet": True},
+                )
+            except (ClientError, BotoCoreError) as exc:
+                logger.warning(
+                    "S3 delete_objects failed for a chunk of %d keys: %s",
+                    len(chunk),
+                    type(exc).__name__,
+                )
+                failed.extend(chunk)
+                continue
+            failed.extend(error["Key"] for error in response.get("Errors", []))
+        return failed
+
     @staticmethod
     def _error_code(exc: ClientError) -> str:
         return exc.response.get("Error", {}).get("Code", "")
@@ -260,6 +296,9 @@ class UnconfiguredObjectStorage:
         raise ObjectStorageUnavailableError("Photo storage is not configured")
 
     def delete(self, key: str) -> None:
+        raise ObjectStorageUnavailableError("Photo storage is not configured")
+
+    def delete_many(self, keys: list[str]) -> list[str]:
         raise ObjectStorageUnavailableError("Photo storage is not configured")
 
 
@@ -363,6 +402,12 @@ class FakeObjectStorage:
             self._objects.pop(key, None)
             if key in self._order:
                 self._order.remove(key)
+
+    def delete_many(self, keys: list[str]) -> list[str]:
+        """`delete()` をループするだけ（S3 と同じく存在しないキーの削除も成功扱い）。"""
+        for key in keys:
+            self.delete(key)
+        return []
 
     # --- dev_storage_router 専用の検証・出し入れ ---
 
