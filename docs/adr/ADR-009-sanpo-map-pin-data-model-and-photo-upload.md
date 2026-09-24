@@ -225,7 +225,8 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
   成功扱い（冪等な再送）、別のピンに紐付け済みなら 409。
 - `PinRead.photos` は **position 順で先頭10件（`PIN_READ_PHOTOS_LIMIT`）+ `photo_count`
   （総数）**を返す。枚数無制限でも応答を有界に保つため。全件のページング取得は
-  閲覧チケット（BK-4）の `GET /pins/{pin_id}/photos` に委ねる。
+  閲覧チケット（BK-4）の `GET /pins/{pin_id}/photos` に委ねる（SS-111 で実装済み。
+  `(position, id)` の keyset ページング、決定17）。
 
 ### 決定6: サムネイルは backend が確定時に Pillow で同期生成する
 
@@ -323,7 +324,8 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
 - 地図: `SanpoMapRepository` の読み取りは全て `user_id` を必須引数に取り、
   `sanpo_map_members` との JOIN で絞る。member でない地図は 404（`SanpoMapNotFoundError`）。
 - ピン: `PinRepository.get_for_member_for_update()` は `pins JOIN sanpo_map_members` で
-  取得する。見つからなければ 404（`PinNotFoundError`）。
+  取得する。見つからなければ 404（`PinNotFoundError`）。閲覧系（書き込みロックを取らない
+  `get_for_member()`/`list_for_member()`）も同じ JOIN で絞り、SS-111 で追加した（決定14）。
 - アップロード枠: `PinPhotoUploadRepository.lock_for_attach()` は `user_id` を必須引数に
   取り、他人の `upload_id` は「見つからない」扱いにする（件数不一致として 409
   `PinPhotoUploadNotReadyError` に丸め、「存在しない」「他人のもの」「期限切れ」

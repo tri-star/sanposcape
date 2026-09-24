@@ -104,6 +104,9 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `...Read` | レスポンス（クライアントへ返す表現） |
 | `...DetailRead` | 詳細取得用のレスポンス。一覧には含めない重い項目を追加する（例: `WalkDetailRead` は `WalkRead` に `track` を追加） |
 | `...ListRead` | 一覧レスポンスのラッパ。`items`（`...Read` の配列）+ `next_cursor` を持つ（例: `WalkListRead`） |
+| `...ListItemRead` | 一覧レスポンスの要素が `...Read` と異なるフィールド構成を持つ場合の要素スキーマ（例: `PinListItemRead` は `PinRead` と違い `memo` を含めない一方 `cover_photo`/`photo_count` を持つ、ADR-009 決定15） |
+| `...PageRead` | keyset ページングの応答で、`items` + 総数フィールド + `next_cursor` をまとめて持つ（`...ListRead` とは別に総数を返したい場合に使う。例: `PinPhotoPageRead {items, photo_count, next_cursor}`、ADR-009 決定17） |
+| `...Query` | クエリパラメータをまとめる Pydantic モデル（`Annotated[...Query, Query()]` で受ける。例: `PinListQuery`） |
 | `...Add` | 既存リソースへの子要素追加リクエストのボディ（`...Create` は新規リソース作成用に予約し、既存リソースへの追加とは書き分ける。例: `PinPhotosAdd`） |
 
 - ページングしない・件数が有界な一覧レスポンスは `next_cursor` の代わりに総数フィールド（例:
