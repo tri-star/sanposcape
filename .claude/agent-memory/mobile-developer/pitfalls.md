@@ -1,6 +1,6 @@
 ---
 name: pitfalls
-description: TypeScript/React/RN でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatListのflex:1)
+description: TypeScript/React/RN でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatListのflex:1、react(set-state-in-effect)警告)
 metadata:
   type: feedback
   scope: durable
@@ -66,3 +66,35 @@ SS-20 で `WalkHistoryListView`（`FlatList`）と `WalkDetailView`（`ScrollVie
 
 **How to apply:** `<View style={{flex:1}}><Header/><FlatList .../></View>` やその `ScrollView` 版を
 組むときは、`contentContainerStyle` だけでなく **FlatList/ScrollView 自身に `flex: 1` を必ず付ける**。
+
+## `useEffect` 内の「他の state からの純粋な派生」setState は `react(set-state-in-effect)` 警告を出す
+
+React Compiler 有効時（`app.json` の `experiments.reactCompiler`）、oxlint は `useEffect` の中で
+setState する箇所に `react(set-state-in-effect): Calling setState synchronously within an effect
+can trigger cascading renders` という warning（exit code は 0 のまま）を出すことがある（SS-124、
+`usePinLocationPicker.ts` で発見）。既存の非同期 I/O（`fetch`・位置情報取得など）の完了時に
+setState する effect では出ないが、**「他の props/state から値を計算して setState するだけ」の
+effect**（例: 「初回だけ他の state から初期値を確定させる」「特定条件になったら1回だけ別の state
+を更新する」）で発生しやすい。
+
+**直し方**: 該当箇所を `useEffect` から外し、レンダー本体で条件付きに直接 `setState` する
+（React 公式ドキュメントが「レンダー中に state を直接調整する」パターンとして明示的に認めている
+形）。
+
+```ts
+// Before（警告が出る）
+useEffect(() => {
+  if (startRegion !== null) return;
+  const resolved = resolve(...);
+  if (resolved !== null) setStartRegion(resolved);
+}, [startRegion, ...deps]);
+
+// After（警告なし。外部から見える契約は同じ）
+if (startRegion === null) {
+  const resolved = resolve(...);
+  if (resolved !== null) setStartRegion(resolved);
+}
+```
+
+条件が満たされている間しか setState を呼ばない（無限ループにならない）ことを確認すること。
+外部から見える hook の型・振る舞いは変わらないため、呼び出し側の変更は不要。
