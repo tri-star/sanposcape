@@ -117,6 +117,11 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 将来「ゲストは入れないルート」（例: アカウント設定の一部）を追加する場合は、
 `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` / `resolveAuthGateDecision` に
 判定を足す（保護ルートに誰が入れるかの判断を1箇所に閉じる器はそのまま残っている）。
+**ただし「ルート自体は開けてよいが、画面内の一部の導線（ボタン等）だけをゲストに出さない」で
+足りる場合はゲートに手を入れない**。ゲートはルート単位の粗い判定であり、画面内の導線出し分けまで
+背負わせると判定が複雑化する。先例: SS-62 のアカウント削除導線は `/settings` 自体はゲストにも
+開放したまま、`canDeleteAccount()`（`features/settings/lib/settingsSection.ts`）という画面内の
+純粋関数だけでゲスト・`loading` への表示を止めている。
 `PUBLIC_ROOT_SEGMENTS` は「認証状態にかかわらず常に到達できるルート」（サインイン画面・開発用
 カタログなど）の先頭セグメント一覧であり、**未認証で到達させたい開発用ルートを新設したら
 ここにも先頭セグメントを追加する**こと（詳細は
@@ -131,14 +136,21 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 `onPress` が**遷移前にストアへ代表値を積む**エントリがある。その中には、開いただけで
 **バックエンドへの書き込みが走るもの**が含まれる。
 
+**本表の対象は「遷移前（`onPress` 内）の副作用」に限る**。エントリを開いた後、遷移先の画面内の
+ボタン操作で初めて発火する副作用（例: 設定画面の `settings` エントリから開ける「アカウントを
+削除」ボタン）は対象外——`onPress` は `router.push` のみで、開いただけでは何も起きないため。
+そうした「遷移後にユーザー操作で破壊的な処理に到達できる」エントリは、この表ではなく
+`description` に注意書きを書く（例: `settings` エントリの `description` の
+「取り消し不能・実サーバーへ `DELETE /users/me`」）。
+
 | エントリ | 遷移前の副作用 | 開くと起きること |
 |---|---|---|
 | `walk-active`（散歩中） | `useActiveWalkStore.startWalk(DEFAULT_ACTIVE_WALK ...)` | ローカル状態のみ。散歩が「進行中」になる |
 | `walk-summary`（散歩サマリ） | `useFinishedWalkStore.finishWalk(buildSampleFinishedWalk(...))` | サマリ画面の `useWalkSave` が発火し、**実サーバーへ `POST /walks` が飛んでスタブの散歩レコードが作られる**（履歴にも並ぶ。**サインイン済みの状態で開いた場合に限る**。ゲスト状態で開くと 401 になりサインイン CTA が表示される。SS-37） |
 
 - カタログの `description` にも副作用を明記する（例: 「保存も実行される」）。
-- **副作用を伴うエントリを追加するときは、この表にも1行足す**。バックエンドに書き込むものは
-  特に、レビュー時に気づけるよう `description` と本表の両方に残す。
+- **遷移前（`onPress` 内）に副作用を伴うエントリを追加するときは、この表にも1行足す**。
+  バックエンドに書き込むものは特に、レビュー時に気づけるよう `description` と本表の両方に残す。
 - 見た目だけを確認したいときは、書き込みが起きるエントリを避けるか、backend を
   ローカル環境に向けた状態で開く。
 

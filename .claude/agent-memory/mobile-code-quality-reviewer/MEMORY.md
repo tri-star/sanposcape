@@ -16,6 +16,8 @@
 - [feature横断の後始末レジストリ](cross-feature-cleanup-registry.md) — sessionCleanup/walkDeletionCleanup型の後始末レジストリパターン
 - [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針。統合提案しない
 - [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
+- [mutation success state not treated as busy](mutation-success-state-not-treated-as-busy.md) — useMutationのisPendingだけでdisabled判定すると、成功後の非同期遷移待ちの間だけ操作可能に戻る窓ができる（SS-62で発見）
+- [copy constant trivial self-check convention](copy-constant-trivial-self-check-convention.md) — *Copy.test.tsの「非空文字列チェック」は低価値だが既存の踏襲パターン。ハッシュ自己参照問題とは別物として区別する
 - [plan risk notes lost in tmp](plan-risk-notes-lost-in-tmp.md) — プランの「実機確認/既知の制約」注意書きが一時メモにしかなく、コード/ADRに転記漏れだと消える。転記有無を確認する
 - [history系Viewの分岐条件の二重定義](history-view-duplicated-branch-conditions.md) — 中央寄せ判定とrenderBody内の状態分岐を2箇所に別々に書くと片方だけ更新して表示が崩れる
 - [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。型では守られないので生成元を確認する

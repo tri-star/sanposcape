@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-09-20 追補（SS-29。棚卸しで agent-memory から昇格）、2026-09-20 追補（SS-100。サインアウト時のクリア対象から公開設定を除く）
+2026-08-06（初版 / SS-13）、2026-08-11 追補（SS-50）、2026-08-13 追補（SS-57）、2026-08-14 追補（SS-57 ローカルレビュー対応）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-09-13 追補（SS-62）、2026-09-20 追補（SS-29。棚卸しで agent-memory から昇格）、2026-09-20 追補（SS-100。サインアウト時のクリア対象から公開設定を除く）
 
 ## ステータス
 
-採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-29 追補、SS-100 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
+採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-62 追補、SS-29 追補、SS-100 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
 
 ## コンテキスト
 
@@ -93,6 +93,8 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 **サインアウト・セッション失効の退避は `AuthGate` に一本化する（SS-50 追補）**: `SettingsView` は `authService.signOut()` の起動だけを担う。`authenticated → guest` を受けた `AuthGate` は保護ルート上で `router.canDismiss()` を確認し、可能な場合だけ `router.dismissAll()` を実行してから `router.replace("/(auth)/sign-in")` する。これにより設定画面の Promise callback と React effect の実行順、または二重の `replace` に依存しない。401 → refresh 失敗のように設定画面を経由しない失効にも同じ退避・スタック整理を適用できる。
 
 **SS-57 追補: 退避条件を「ゲート判定（guest を弾く）」から「`authenticated → guest` の状態遷移」へ移した**。SS-57 でゲスト散歩を解禁し `canEnterProtectedRoutes` が guest も許可するようになったため、上記の退避ロジック（「`resolveAuthGateDecision` が guest を保護ルートで弾く」ことに依存していた）が成立しなくなった。移さない場合、ログアウトしても遷移せず `SettingsView` のダイアログが「ログアウト中...」で固まり、401 失効では `runSessionCleanup()` だけが走って画面が取り残される。判定は純粋関数 `shouldEvacuateOnSessionEnd`（`features/auth/lib/authGate.ts`）に切り出し、`AuthGate` は前回 `status` を `useRef` で保持して遷移を検出する。退避を `AuthGate` の1箇所に集約するという本決定の狙いは維持している。
+
+**SS-62 追補: アカウント削除が `runSessionCleanup()` の3つ目のトリガーになった**。`DELETE /users/me` 成功後に呼ぶ `authService.signOut()` も同じ `authenticated → guest` の遷移を経由するため、後始末（`queryClient.clear()` / `useFinishedWalkStore.clearFinishedWalk()` / `useActiveWalkStore.endWalk()`）と `AuthGate` の退避は、サインアウト・refresh 失効に加えてアカウント削除でも同一の経路でそのまま実行される。新しい決定を追加するものではなく、既存経路がそのまま適用されることの明記（詳細は本 ADR 末尾の「SS-62 追補」節を参照）。
 
 ### 7. ゲスト導線（「ゲストで試す」）
 
@@ -182,6 +184,47 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・`d
 - **対応**: `getPostSignInDestination` の入力を `hasUnsavedFinishedWalk`（保存待ちドラフトがあるか）から `wantsToSaveFinishedWalk`（保存待ちドラフトが**あり、かつサマリ画面の CTA から明示的にサインインした意思表示がある**）へ変更した。`useAuthActions.ts` のセレクタも同じ条件に合わせる（`state.finishedWalk !== null && !state.saved && state.signInForSaveRequested`）。CTA を経由しない無関係なサインイン（設定画面の `settings-sign-in` など）では、保存待ちドラフトが残っていても `dismissTo("/walk-summary")` を選ばず、従来どおり `/walk-start` へ `replace` する。
 - **ADR-002（横断）決定6-1 との関係**: 決定6-1（「`POST /walks` は未認証では許可しない。サインインを促す導線に倒し、ゲスト記録を後からアカウントへマージする機能は作らない」）と本追補・SS-37 初版は矛盾しない。「サインインを促す導線」は SS-37 の CTA そのものであり、決定6-1 はむしろこれを指示している。決定6-1 が禁じる「マージ機能」は**既にサーバーに永続化されたゲスト記録の所有権付け替え**（決定理由に「所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さ」と明記）を指すが、ゲストの散歩はそもそも `POST /walks` が 401 で弾かれサーバーに永続化されない。SS-37 が扱うのは「未保存のままクライアント側に残ったドラフトを、CTA を押した本人が明示的にサインインして保存する」という決定6-1 が推奨する導線そのものであり、ADR-002 の修正は不要と判断した。
 - **見送った代替案**: 「未保存ドラフト離脱時（`WalkSummaryView` の『記録を見る』『ホームへ』）に確認ダイアログを出し `clearFinishedWalk()` を呼ぶ」という案も提示されたが、UX 変更（離脱ダイアログの新設）を伴い SS-37 のスコープ（行き止まり解消）を超えるため見送った。起点限定だけでも実害シナリオ（無関係な後続サインインへの混入）は解消できる。「同一端末で CTA を押したのが別人」という残余リスクは本追補の対象外とし、フォローアップ課題として離脱時の明示的破棄を起票することを推奨する。
+
+### SS-62 追補: アカウント削除もセッション終了の一形態として同じ経路に乗せる
+
+SS-62（設定画面にアカウント削除の導線を実装する）で、`DELETE /users/me` 成功後のローカル後始末を
+どう配線するかを検討した。既存の決定を覆すものではなく、**範囲の明確化**として追補する。
+
+- **アカウント削除成功後は `authService.signOut()` を呼び、決定6 の経路にそのまま乗せる**。
+  `tokenStore.clear()` → `onSessionChange(null)` → `setSession(null)` → `runSessionCleanup()` →
+  `AuthGate` の `shouldEvacuateOnSessionEnd` による `dismissAll()` + `replace("/(auth)/sign-in")`、
+  という既存の後始末フローを再利用する。`AuthService` に `deleteAccount()` を足すことはしない
+  ——削除は `/auth/*` ではなくビジネス API であり、`customFetch`（`X-App-Authorization` /
+  `x-amz-content-sha256` 付与。SS-70）を通す必要がある。`services/auth/authApi.ts` は
+  401→refresh の再帰回避のため意図的に `customFetch` を通さない生 fetch であり、そこにビジネス
+  API を混ぜると3つ目の HTTP 出口になる（Backlog SS-76 が問題視している状態を再生産する）。
+  アカウント削除 API は `features/settings/api/accountDeleteApi.ts` に置き、Orval 生成の
+  `deleteMeUsersMeDelete()`（→ `customFetch`）を薄くラップする。
+- **削除 API が 401 を返した場合は、ローカルを掃除して成功扱いにしない**。エラー表示のみで、
+  非再試行（`unauthorized`）とする。401 は「アカウントが削除できていない」状態であり、成功扱いに
+  すると「削除後は再サインインで新規ユーザーになる」という受け入れ条件と矛盾する嘘の表示になる。
+  現実的な 401 経路（refresh token 失効）では `createSessionAuthService.doRefresh()` が既に
+  セッションを破棄しており、決定5 の経路で `AuthGate` が自動的に退避させるため、mobile 側が
+  明示的にローカルを掃除する必要は無い（もう一方の 401 経路＝トークン非保持のゲストは、
+  そもそも削除導線を出さないため発生しない）。
+- **ただし「401 = セッション失効」とは限らない（PR #81 レビュー対応）**。`customFetch` は
+  `refreshAccessToken()` が `null` なら元の 401 を投げるが、`doRefresh()` は refresh の通信障害・
+  5xx でも**セッションを保持したまま** `null` を返す。この場合 `AuthGate` は退避しないので、
+  401 を一律 `unauthorized`（非再試行）にすると削除ボタンだけが消える行き止まりになる。
+  そこで **削除の失敗時点でストアの status がまだ `authenticated` なら、401 を再試行可能な
+  `unknown` に読み替える**（`resolveAccountDeleteErrorCode`、`features/settings/lib/accountDeleteError.ts`）。
+  refresh token 失効時は `setCurrentUser(null)` → `onSessionChange` → `setSession(null)` が
+  401 の throw より前に同期的に走るため、status は既に `guest` で `unauthorized` のまま残る。
+  refresh の失敗理由を `refreshAccessToken()` の戻り値で伝播させる案は、「`null` のみを返す」
+  契約と `client.ts` / `authTokenProvider` / mock への影響が大きいため見送った。ストアは読むだけ
+  なので決定2 は維持される。
+- **ゲスト・`loading` には削除導線を出さない**（`canDeleteAccount`、
+  `features/settings/lib/settingsSection.ts`）。決定3 が扱う「保護ルートに誰が入れるか」を
+  変更するのではなく、**画面内の導線出し分け**で解決する（`/settings` 自体はゲストも到達可能な
+  まま。SS-57 追補の `settings-sign-in` と同じ扱い）。
+- **`features/settings` からストアへ直接書き込む（`setSession(null)`）実装は採らない**。
+  決定2（ストアへの書き込み経路は `services/auth` の `onSessionChange` と
+  `useAuthSessionBootstrap` の2つだけ）を維持する。
 
 ### 追補: サインアウト時のクリア対象から公開設定を除く（2026-09-20, SS-100）
 
@@ -340,6 +383,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/lib/postSignInDestination.ts`（SS-57 ローカルレビュー対応、SS-37 追補）、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例）
 - （SS-37 追補）実装: `app/walk-summary.tsx`、`src/features/walk/components/WalkSummaryView.tsx`、`src/features/walk/components/WalkSaveStatus.tsx`、`src/features/walk/hooks/useWalkSummary.ts`、`src/features/walk/hooks/useWalkSave.ts`、`.maestro/guest-walk-save-sign-in.yaml`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/auth/lib/postSignInDestination.ts`（`wantsToSaveFinishedWalk`）
+- （SS-62 追補）実装: `src/features/settings/api/accountDeleteApi.ts`、`src/features/settings/lib/accountDeleteError.ts`、`src/features/settings/lib/accountDeleteCopy.ts`、`src/features/settings/lib/settingsSection.ts`（`canDeleteAccount`）、`src/features/settings/types.ts`（`AccountDeleteStatus`）、`src/features/settings/hooks/useAccountDeletion.ts`、`src/features/settings/components/AccountDeleteDialog.tsx`、`src/features/settings/components/SettingsView.tsx`、`app/settings.tsx`、`src/features/design-system/components/ScreenCatalog.tsx`、`.maestro/auth-gate.yaml`
 - （SS-100 追補）実装: `src/api/queryClient.ts`（`registerSessionCleanup` を `removeQueries(predicate)` へ変更）、`src/api/appConfigQueryKey.ts`（`isAppConfigQueryKey`）
 - [ADR-008（ルート、横断）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md) — SS-100 追補（mobile のフラグ受け皿）で本追補の拡張点を記録
-- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（本追補の発生元）、SS-100（本追補の発生元。mobile のフラグ受け皿）
+- Plane: SS-13（本 ADR の発生元）、SS-50（サインアウト遷移の一本化）、SS-10（services 層の認証）、SS-11（認証画面・スプラッシュ）、SS-49（backend ゲスト API 契約の決定）、SS-56（backend 実装）、SS-57（mobile 実装）、SS-29（記録タブのユーザー名を認証セッションから供給、ルート props 注入パターンの実例化）、SS-37（本追補の発生元）、SS-62（アカウント削除の追補の発生元）、SS-100（本追補の発生元。mobile のフラグ受け皿）

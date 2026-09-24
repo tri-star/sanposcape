@@ -119,7 +119,8 @@ export function ScreenCatalog() {
     {
       key: "settings",
       label: "設定",
-      description: "ログアウト導線（サインイン後）/ サインイン導線（guest。SS-57）",
+      description:
+        "ログアウト / アカウント削除（取り消し不能・実サーバーへ DELETE /users/me）（サインイン後）/ サインイン導線（guest。SS-57）",
       icon: "settings-2",
       onPress: () => router.push("/settings"),
     },

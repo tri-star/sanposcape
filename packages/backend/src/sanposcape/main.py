@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from sanposcape.api_docs.router import router as api_docs_router
 from sanposcape.app_config.router import router as app_config_router
 from sanposcape.auth.dev_router import router as auth_dev_router
 from sanposcape.auth.exceptions import (
@@ -250,6 +251,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         description="散歩支援アプリ sanposcape のバックエンド API",
         lifespan=_lifespan,
+        # 既定の Swagger UI（/docs）と ReDoc（/redoc）は使わない。/docs は Scalar
+        # （api_docs/router.py）に置き換え、/redoc は廃止する（SS-131）。
+        # `/openapi.json`（既定の openapi_url）は実行時に Scalar が読むため全環境で
+        # そのまま残す。mobile の Orval はコミット済みの openapi.yaml
+        # （scripts/export_openapi.py の出力）を読むのであって、実行時の
+        # `/openapi.json` 自体には依存しない（誤認しやすいので明記する）。
+        docs_url=None,
+        redoc_url=None,
     )
     app.state.settings = settings
     # add_middleware は登録順と逆順に実行される。path_prefix で対象を絞っているため
@@ -305,6 +314,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # 本番では存在しない（router 自体が include されない。include_in_schema=False も
         # あわせて指定しており、二重の安全策になっている）。
         app.include_router(pins_dev_storage_router)
+    if settings.env in ("local", "test", "staging"):
+        # 許可リスト方式（`!= "production"` にしない理由は config.py と同じ: 新しい env 値が
+        # 増えても既定では `/docs` を出さない安全側に倒すため）。production では
+        # `/docs` 自体が存在しない（router が include されない）。
+        app.include_router(api_docs_router)
     register_exception_handlers(app)
     return app
 

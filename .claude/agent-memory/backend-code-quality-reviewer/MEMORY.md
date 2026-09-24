@@ -14,3 +14,5 @@
 - [機密ログ漏洩ガード回帰テストの慣習](pattern_secret_leak_log_guard_test.md) — test_secrets.pyのARN非漏洩assertが先例。新規ログ追加時は同種テストの有無を確認
 - [configure_logging()のadd-handler分岐が事実上テスト不能](pattern_configure_logging_untestable_branch.md) — pytestがroot loggerに常時ハンドラーを持つため、ローカル/uvicorn向けの主分岐が未検証
 - [commit後のORM属性アクセスで不要なSELECTが飛ぶ](pattern_expired_orm_attr_in_post_commit_log.md) — expire_on_commit=True下でcommit後にpin.id/current_user.idをログ参照すると再読込が発生。create_upload/delete_uploadの回避パターンと対比
+- [TestClientはlifespan依存stateを使うならwith必須](pattern_testclient_lifespan_with_block.md) — R7規約(app_config/tests)。SS-131のapi_docs/tests/test_router.pyはwith省略（現状は無害）
+- [SS-131 Scalar API docsレビュー概要](project_ss131_scalar_docs_review.md) — router.py/main.py/test_router.pyの所見。tmp参照は自己完結、TestClient with省略、fragileなJSON文字列一致は計画で既知

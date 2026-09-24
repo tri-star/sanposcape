@@ -53,6 +53,7 @@
 | アプリの `ENV` | `staging` | `production` |
 | ロググループ保持期間 | 30日 | 400日 |
 | `ReservedConcurrentExecutions` | Api=5 / Migrate=1 | 未設定（後述） |
+| API ドキュメント（`/docs`、SS-131） | 公開（Scalar、200） | 非公開（404） |
 
 **`Env=dev` はアプリの `ENV=staging` に対応する。** `template.yaml` の `Mappings`
 （`EnvToAppEnv`）で変換しており、`config.py` の `Literal["local","test","staging","production"]`
