@@ -15,6 +15,12 @@ class InvalidCursorError(Exception):
     """cursor の復号・パースに失敗した（クライアントからの不正な入力）。"""
 
 
+# `(position, id)` の cursor が比較に使う列（`pin_photos.position`）は PostgreSQL の
+# integer（int4）。範囲外の値をそのまま WHERE に渡すと DB が out of range で 500 になるため、
+# サーバーが生成しえない値として 400 に丸める。
+_MAX_POSITION = 2_147_483_647
+
+
 def encode_cursor(started_at: datetime, item_id: uuid.UUID) -> str:
     raw = f"{started_at.isoformat()}|{item_id}"
     return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
@@ -51,11 +57,12 @@ def decode_position_cursor(cursor: str) -> tuple[int, uuid.UUID]:
     try:
         raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
         position_raw, item_id_raw = raw.split("|", 1)
-        if not re.fullmatch(r"-?\d+", position_raw):
+        # 桁数も絞り、巨大な数字列を int() に渡さない（int4 の上限は10桁）。
+        if not re.fullmatch(r"-?\d{1,10}", position_raw):
             raise ValueError("Cursor position must be an integer")
         position = int(position_raw)
-        if position < 0:
-            raise ValueError("Cursor position must not be negative")
+        if not 0 <= position <= _MAX_POSITION:
+            raise ValueError("Cursor position is out of range")
         item_id = uuid.UUID(item_id_raw)
     except (
         ValueError,

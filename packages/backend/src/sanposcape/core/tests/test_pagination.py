@@ -93,6 +93,30 @@ def test_decode_position_cursor_with_negative_position_raises_invalid_cursor_err
         decode_position_cursor(cursor)
 
 
+def test_decode_position_cursor_with_int4_max_round_trips() -> None:
+    """境界値: PostgreSQL integer の上限はそのまま通す。"""
+    item_id = uuid.uuid4()
+    cursor = encode_position_cursor(2_147_483_647, item_id)
+
+    assert decode_position_cursor(cursor) == (2_147_483_647, item_id)
+
+
+def test_decode_position_cursor_beyond_int4_max_raises_invalid_cursor_error() -> None:
+    """int4 を超える値は DB で out of range（500）になるため、400 に丸める。"""
+    cursor = encode_position_cursor(2_147_483_648, uuid.uuid4())
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(cursor)
+
+
+def test_decode_position_cursor_with_huge_digit_string_raises_invalid_cursor_error() -> None:
+    raw = f"{'9' * 5000}|{uuid.uuid4()}"
+    malformed = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(malformed)
+
+
 def test_decode_position_cursor_with_non_numeric_position_raises_invalid_cursor_error() -> None:
     raw = f"not-a-number|{uuid.uuid4()}"
     malformed = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
