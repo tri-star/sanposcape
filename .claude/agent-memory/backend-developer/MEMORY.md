@@ -24,3 +24,4 @@
 - [feedback_true_concurrency_test_pattern](feedback_true_concurrency_test_pattern.md) — threading.Thread+別Session(TestSessionLocal)で真の行ロック競合を再現するテスト手順。ORMオブジェクトをスレッド間で共有しない・Core updateの後はrefresh()が必要
 - [feedback-httpx-timeout-mocktransport](feedback_httpx_timeout_mocktransport.md) — httpxのtimeout=に単一floatを渡すとconnectにも効く。httpx.Timeoutでフェーズを分け、MockTransportのrequest.extensions["timeout"]で検証する
 - [project-ss111-pins-read-api-complete](project_ss111_pins_read_api_complete.md) — SS-111 backend（ピンの閲覧API: GET /pins・/pins/{id}・/pins/{id}/photos）は実装完了。次はmobile側SS-118/SS-120
+- [project-ss111-review-followup](project_ss111_review_followup.md) — SS-111ローカルレビューR1〜R10対応。一時プラン文書への参照はブランチ差分のファイルに絞ってgrepすること、PinBoundingBoxフィールド順変更の安全確認手順
