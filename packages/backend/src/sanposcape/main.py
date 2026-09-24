@@ -237,8 +237,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=_lifespan,
         # 既定の Swagger UI（/docs）と ReDoc（/redoc）は使わない。/docs は Scalar
         # （api_docs/router.py）に置き換え、/redoc は廃止する（SS-131）。
-        # `/openapi.json`（既定の openapi_url）は Orval（mobile）と Scalar の両方が
-        # 使うため、全環境でそのまま残す。
+        # `/openapi.json`（既定の openapi_url）は実行時に Scalar が読むため全環境で
+        # そのまま残す。mobile の Orval はコミット済みの openapi.yaml
+        # （scripts/export_openapi.py の出力）を読むのであって、実行時の
+        # `/openapi.json` 自体には依存しない（誤認しやすいので明記する）。
         docs_url=None,
         redoc_url=None,
     )

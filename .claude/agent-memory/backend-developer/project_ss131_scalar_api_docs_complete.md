@@ -12,7 +12,9 @@ SS-131（`packages/backend` の API ドキュメント UI を Scalar に置き�
 
 **Why:** 既定の Swagger UI（`/docs`）・ReDoc（`/redoc`）が環境を問わず公開されていたため、
 `/docs` を Scalar（`scalar-fastapi`）に置き換え、`ENV=production` では登録しないようにした
-（`/openapi.json` は Orval が使うため全環境で維持）。
+（`/openapi.json` は実行時に Scalar が読むため全環境で維持。**mobile の Orval はコミット済みの
+openapi.yaml を読むのであって実行時の `/openapi.json` には依存しない**。ローカルレビュー A で
+指摘され main.py のコメントも合わせて訂正した）。
 
 **構成のポイント（今後似た「環境ごとの出し分け」を実装するときの参照）:**
 - 新規ドメイン `api_docs/`（`router.py` のみ、`health/` と同じ形）に Scalar を返す

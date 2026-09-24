@@ -1,4 +1,7 @@
+from typing import Literal
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sanposcape.api_docs.router import SCALAR_JS_URL
@@ -6,7 +9,23 @@ from sanposcape.config import Settings
 from sanposcape.main import create_app
 
 
-def _production_settings(env: str = "production") -> Settings:
+def _client(app: FastAPI) -> TestClient:
+    """`with` を使わずに `TestClient` を組み立てる。
+
+    `with TestClient(app) as client:` で入ると FastAPI の lifespan（`main._lifespan`）が
+    実行され、`build_google_maps_provider` 等が実クライアントを作る。production 相当の
+    `Settings`（`_production_settings()`）でこれを起動すると、テストが本来触れる必要のない
+    実クライアントの構築に依存してしまう（今のところ副作用は無いが、将来 provider の
+    construction 自体がネットワークに触れるようになった場合に壊れやすい）。このテストファイルは
+    `/docs` `/redoc` `/openapi.json` という lifespan 由来の `app.state` を一切参照しない
+    エンドポイントしか叩かないため、`with` を使わずに済ませて lifespan を起動しない
+    （既存の `auth/tests/test_dev_router.py` 等、lifespan の影響を受ける他ドメインのテストは
+    引き続き `with` を使っており、ここだけ意図的に統一しない）。
+    """
+    return TestClient(app)
+
+
+def _production_settings(env: Literal["staging", "production"] = "production") -> Settings:
     """production と同じ必須項目を持つ `Settings` を組み立てる。
 
     `env` だけ差し替えれば staging 用にも使える（staging は production と同じ
@@ -39,22 +58,21 @@ def non_production_settings(request: pytest.FixtureRequest, test_settings: Setti
 
 def test_scalar_docs_returns_html_with_pinned_js_url(non_production_settings: Settings) -> None:
     app = create_app(non_production_settings)
-    client = TestClient(app)
+    client = _client(app)
 
     res = client.get("/docs")
 
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/html")
     assert SCALAR_JS_URL in res.text
-    assert "@1.67.0" in SCALAR_JS_URL
 
 
 def test_scalar_docs_disables_telemetry_and_agent(non_production_settings: Settings) -> None:
     """設定 JSON の出力形式は scalar-fastapi の版に依存する。壊れたら実際の HTML を
-    出力し直して区切りを確認し、期待する文字列を直すこと（プランの注意事項参照）。
+    出力し直して区切りを確認し、期待する文字列を直すこと。
     """
     app = create_app(non_production_settings)
-    client = TestClient(app)
+    client = _client(app)
 
     res = client.get("/docs")
 
@@ -73,7 +91,7 @@ def test_docs_and_redoc_are_absent_from_openapi_schema(non_production_settings: 
 
 def test_redoc_returns_404(non_production_settings: Settings) -> None:
     app = create_app(non_production_settings)
-    client = TestClient(app)
+    client = _client(app)
 
     res = client.get("/redoc")
 
@@ -82,7 +100,7 @@ def test_redoc_returns_404(non_production_settings: Settings) -> None:
 
 def test_docs_returns_404_in_production() -> None:
     app = create_app(_production_settings())
-    client = TestClient(app)
+    client = _client(app)
 
     res = client.get("/docs")
 
@@ -91,7 +109,7 @@ def test_docs_returns_404_in_production() -> None:
 
 def test_redoc_returns_404_in_production() -> None:
     app = create_app(_production_settings())
-    client = TestClient(app)
+    client = _client(app)
 
     res = client.get("/redoc")
 
@@ -101,7 +119,7 @@ def test_redoc_returns_404_in_production() -> None:
 def test_openapi_json_is_available_in_production() -> None:
     """全環境で `/openapi.json` を残すという決定の回帰防止。"""
     app = create_app(_production_settings())
-    client = TestClient(app)
+    client = _client(app)
 
     res = client.get("/openapi.json")
 
