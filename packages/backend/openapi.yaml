@@ -477,12 +477,14 @@ paths:
 
         自分の既定地図（無ければ「最初の地図」を同一トランザクションで作成）に登録される。'
       operationId: create_pin
+      security:
+      - HTTPBearer: []
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/PinCreate'
-        required: true
       responses:
         '201':
           description: Successful Response
@@ -515,8 +517,129 @@ paths:
           description: Validation error
         '503':
           description: Photo storage unavailable
+    get:
+      tags:
+      - pins
+      summary: List Pins
+      description: '指定した地図のピン一覧を `created_at DESC` の keyset ページングで返す（SS-111）。
+
+
+        member でない地図・存在しない `sanpo_map_id` は 404。bbox（`min_latitude`/
+
+        `min_longitude`/`max_latitude`/`max_longitude`）は4つそろえて指定するか、
+
+        1つも指定しないかのどちらか。`q`（名前・メモ・タグの部分一致）と `tags`
+
+        （複数指定は AND）は SS-120（検索タブ）向け。各要素の `cover_photo` は
+
+        position が最小の写真（無ければ null）。写真の URL の有効期限は `urls_expire_at`。
+
+        mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。'
+      operationId: list_pins
       security:
       - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      - name: min_latitude
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 90
+            minimum: -90
+          - type: 'null'
+          title: Min Latitude
+      - name: min_longitude
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 180
+            minimum: -180
+          - type: 'null'
+          title: Min Longitude
+      - name: max_latitude
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 90
+            minimum: -90
+          - type: 'null'
+          title: Max Latitude
+      - name: max_longitude
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 180
+            minimum: -180
+          - type: 'null'
+          title: Max Longitude
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Q
+      - name: tags
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+          maxItems: 10
+          title: Tags
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinListRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '400':
+          description: Invalid cursor
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation error
   /pins/{pin_id}/photos:
     post:
       tags:
@@ -575,6 +698,98 @@ paths:
           description: Validation error
         '503':
           description: Photo storage unavailable
+    get:
+      tags:
+      - pins
+      summary: List Pin Photos
+      description: 'ピンの写真全件を position 昇順の keyset ページングで返す（SS-111 D7）。
+
+
+        member でないピン・存在しない ID は 404。写真の URL の有効期限は `urls_expire_at`。
+
+        mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。'
+      operationId: list_pin_photos
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: pin_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Pin Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 30
+          title: Limit
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinPhotoPageRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '400':
+          description: Invalid cursor
+        '404':
+          description: Pin not found
+        '422':
+          description: Validation error
+  /pins/{pin_id}:
+    get:
+      tags:
+      - pins
+      summary: Get Pin
+      description: 'ピンの詳細を返す（SS-111）。member でないピン・存在しない ID は 404。
+
+
+        `photos` は position 順の先頭10件、`photo_count` は総数。全件は
+
+        `GET /pins/{pin_id}/photos` で取得する。写真の URL の有効期限は `urls_expire_at`。'
+      operationId: get_pin
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: pin_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Pin Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Pin not found
+        '422':
+          description: Validation error
   /pin-photo-uploads:
     post:
       tags:
@@ -906,6 +1121,78 @@ components:
       - client_pin_id
       - location
       title: PinCreate
+    PinListItemRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        sanpo_map_id:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        tags:
+          items:
+            $ref: '#/components/schemas/PinTagRead'
+          type: array
+          title: Tags
+        cover_photo:
+          anyOf:
+          - $ref: '#/components/schemas/PinPhotoRead'
+          - type: 'null'
+        photo_count:
+          type: integer
+          title: Photo Count
+        created_by_user_id:
+          type: string
+          format: uuid
+          title: Created By User Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - sanpo_map_id
+      - name
+      - location
+      - tags
+      - cover_photo
+      - photo_count
+      - created_by_user_id
+      - created_at
+      - updated_at
+      title: PinListItemRead
+      description: '`GET /pins` の一覧要素。`memo` は含めない（SS-111 D5）。'
+    PinListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PinListItemRead'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: PinListRead
     PinPhotoListRead:
       properties:
         items:
@@ -921,6 +1208,31 @@ components:
       - items
       - photo_count
       title: PinPhotoListRead
+    PinPhotoPageRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PinPhotoRead'
+          type: array
+          title: Items
+        photo_count:
+          type: integer
+          title: Photo Count
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+      type: object
+      required:
+      - items
+      - photo_count
+      - next_cursor
+      title: PinPhotoPageRead
+      description: '`GET /pins/{pin_id}/photos` の応答。既存の `PinPhotoListRead`（`POST`
+        の応答で
+
+        `next_cursor` を持つ意味が無い）とは別に用意する（SS-111 D7）。'
     PinPhotoRead:
       properties:
         id:
@@ -950,6 +1262,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/PinPhotoThumbnailRead'
           - type: 'null'
+        original_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Original Url
         urls_expire_at:
           type: string
           format: date-time
@@ -972,6 +1289,7 @@ components:
       - byte_size
       - content_type
       - thumbnail
+      - original_url
       - urls_expire_at
       - uploaded_by_user_id
       - created_at
