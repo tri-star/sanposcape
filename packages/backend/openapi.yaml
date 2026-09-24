@@ -702,7 +702,7 @@ paths:
       tags:
       - pins
       summary: List Pin Photos
-      description: 'ピンの写真全件を position 昇順の keyset ページングで返す（SS-111 D7）。
+      description: 'ピンの写真全件を position 昇順の keyset ページングで返す（ADR-009 決定17）。
 
 
         member でないピン・存在しない ID は 404。写真の URL の有効期限は `urls_expire_at`。
@@ -1175,7 +1175,7 @@ components:
       - created_at
       - updated_at
       title: PinListItemRead
-      description: '`GET /pins` の一覧要素。`memo` は含めない（SS-111 D5）。'
+      description: '`GET /pins` の一覧要素。`memo` は含めない（ADR-009 決定15）。'
     PinListRead:
       properties:
         items:
@@ -1232,7 +1232,7 @@ components:
       description: '`GET /pins/{pin_id}/photos` の応答。既存の `PinPhotoListRead`（`POST`
         の応答で
 
-        `next_cursor` を持つ意味が無い）とは別に用意する（SS-111 D7）。'
+        `next_cursor` を持つ意味が無い）とは別に用意する（ADR-009 決定17）。'
     PinPhotoRead:
       properties:
         id:
