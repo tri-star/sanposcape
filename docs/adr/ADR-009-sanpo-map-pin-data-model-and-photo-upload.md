@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-24（SS-88）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-24（SS-111）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -29,12 +29,17 @@
   最後に登録して最外層に置く。クエリ文字列・ヘッダー・ボディは出さない）（本文: 決定13、SS-88 追補）
 - **直送の失敗は原理的にサーバー側から見えない**ので、可観測性は端末側に持たせる。サーバー側から
   見る必要がある場合は S3 サーバーアクセスログが唯一の手段（本文: SS-88 追補）
+- **閲覧 API（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）を追加した**
+  （BK-4 完了）。bbox・`q`・`tags` によるキーワード検索、keyset ページング、原本の presigned
+  GET（`PinPhotoRead.original_url`）を持つ。ストレージ未構成・障害時も 200 を返し URL を
+  null にする（本文: SS-111 追補）
 
 ### 未解決・持ち越し
 
 - **BK-2**: アカウント削除時の写真削除。**prod でフラグ ON にする前提条件**（本文: 移行・対応事項）
-- **BK-3〜BK-10**: 期限切れ枠の掃除、閲覧 API、編集・削除 API、地図管理、招待、使用量 API、
-  サムネイルの非同期化、原本の EXIF 除去（本文: 移行・対応事項）
+- **BK-3, BK-5〜BK-10**: 期限切れ枠の掃除、編集・削除 API、地図管理、招待、使用量 API、
+  サムネイルの非同期化、原本の EXIF 除去（本文: 移行・対応事項。BK-4「閲覧 API」は SS-111 で
+  完了した）
 - **prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
   apply 待ちで、backend の prod デプロイ自体がまだできない（本文: 決定8 の SS-108 追補）
 - **Lambda 実行ロールでの直送**は未再現。2026-09-24 の dev 疎通確認はローカルの管理者権限で
@@ -52,7 +57,8 @@
 2026-09-21（初版、SS-88）、2026-09-21 追補（PR #93: Copilot レビュー対応の backend 分。
 アップロード枠の取り消し API、409 応答の機械可読 code）、2026-09-22 追補（SS-108:
 `template.yaml` への S3 結線）、2026-09-23 追補（`STORAGE_MODE=fake` の保存先をディスクへ）、
-2026-09-24 追補（SS-88: 実機不具合の調査で判明したアクセスログの必要性と、dev の疎通確認完了）
+2026-09-24 追補（SS-88: 実機不具合の調査で判明したアクセスログの必要性と、dev の疎通確認完了）、
+2026-09-24 追補（SS-111: 閲覧 API の追加。BK-4 完了）
 
 ## ステータス
 
@@ -527,8 +533,9 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       S3 のオブジェクトは残るため）
 - [ ] **BK-3**: 期限切れ `pending` 枠の行削除と、対応する未参照 S3 オブジェクトの掃除
       （定期実行）
-- [ ] **BK-4**: 閲覧 API（`GET /pins?sanpo_map_id=`、`GET /pins/{pin_id}`、
-      `GET /pins/{pin_id}/photos` の全件ページング、原本の presigned GET）
+- [x] **BK-4**: 閲覧 API（`GET /pins?sanpo_map_id=`、`GET /pins/{pin_id}`、
+      `GET /pins/{pin_id}/photos` の全件ページング、原本の presigned GET）。**SS-111 で実装完了**
+      （detail は「追補（2026-09-24, SS-111 閲覧 API）」）
 - [ ] **BK-5**: 編集・削除 API（`PATCH`/`DELETE /pins/{id}`、写真・タグの削除）と
       権限マトリクス（決定2の表）の実装
 - [ ] **BK-6**: `POST /sanpo-maps`（地図の新規作成）、地図管理、`pin_count` の expand
@@ -609,6 +616,94 @@ Android エミュレータから写真付きピン登録を通した（2026-09-2
 **ただし署名者はローカル実行時の管理者権限**であり、Lambda 実行ロールでの直送は
 この確認では再現していない（付与・境界の静的確認で代替した）。
 
+## 追補（2026-09-24, SS-111 閲覧 API）
+
+BK-4（閲覧 API）を実装した。ADR 本文（決定1〜13）が決めていなかった点について、
+backend-plan.md（SS-111）で決めた事項をここに記録する。設計の再検討は行わない
+（本チケットのスコープは閲覧のみで、編集・削除・権限マトリクスは BK-5 のまま）。
+
+### 決定14: `GET /pins` の bbox は4つの独立したクエリパラメータにする
+
+`bbox=lng,lat,lng,lat` のような1つの文字列ではなく、`min_latitude`/`min_longitude`/
+`max_latitude`/`max_longitude` の4つのクエリパラメータにした。理由:
+
+- 1つの文字列だと座標の順序（GeoJSON は経度が先）を取り違えやすい。
+- 4つの独立したパラメータなら OpenAPI 上でも各値の範囲（緯度は -90〜90 等）を
+  `Field(ge=…, le=…)` で表現でき、Orval が生成する型にも制約が現れる。
+
+4つそろえて指定するか、1つも指定しないかのどちらかのみを許可する（`PinListQuery` の
+`model_validator` で検証）。そろっていない場合と `min > max` の場合は 422。日付変更線を
+またぐ範囲（`min_longitude > max_longitude` のような「範囲の反対側」の指定）は扱わない
+（日本国内で使うアプリのため実害がない）。境界上の点は含める（`BETWEEN` の両端含む）。
+
+### 決定15: 一覧の代表写真は `cover_photo: PinPhotoRead | null`（position が最小の写真）
+
+`PinListItemRead` に既存の `PinPhotoRead` スキーマをそのまま使い回す（原本 URL・
+`urls_expire_at` を含む）。理由: mobile が詳細画面の写真表示コンポーネントを共有できる。
+画像キャッシュのキー（`photo.id`）もそのまま使える。一覧の各要素には `memo` を含めない
+（最大1000文字あり、1ページ最大200件だと応答が大きくなる。詳細画面でしか使わないため）。
+`tags` は含める（検索結果の表示に必要で、1ピン最大10件なので応答サイズの上限は変わらない）。
+
+### 決定16: 原本の presigned GET は `PinPhotoRead.original_url: str | null` として返す
+
+検討した代替案:
+
+- (a) 写真ごとに原本の URL を返す専用エンドポイントを作る
+- (b) 302 リダイレクトで返す
+
+どちらもグリッドから拡大表示するたびに API 往復が1回増え、一覧・詳細の presigned URL を
+事前にまとめて取れる利点が失われる。既存の `urls_expire_at`（「この写真に含まれる URL の
+有効期限」）は最初から URL が複数になることを想定した名前になっており、そのまま使える。
+
+サムネイルと原本の署名はそれぞれ独立に `ObjectStorageUnavailableError` を捕捉する
+（`mappers.to_pin_photo_read()`）。片方だけ失敗してももう片方は返す。
+
+原本の EXIF（BK-10）については、閲覧できるのは地図の member だけ（招待機能 BK-7 までは
+ユーザー本人だけ）であることに変わりはないため、「BK-10 は BK-7 の前提」という ADR 本文の
+整理は変わらない。原本 URL を配り始めた後も、この前提（member 以外には配らない）で
+安全性を担保する。
+
+### 決定17: 写真全件のページングは新設の `PinPhotoPageRead {items, photo_count, next_cursor}`
+
+既存の `PinPhotoListRead`（`POST /pins/{id}/photos` の応答）は `next_cursor` を持たせる
+意味が無いため、`GET /pins/{pin_id}/photos` 専用のスキーマを別に用意した。`(position, id)`
+の keyset ページング（`core/pagination.py` に `encode_position_cursor`/`decode_position_cursor`
+を追加）。`position` は一意制約ではないため、`id` を補助キーにして並びを安定させる。
+既定 limit は30・最大100（一覧の既定50・最大200より小さい。写真グリッドは1ページの
+表示件数が少ないため）。
+
+### 決定18: 閲覧 API はストレージ未構成・障害時も 503 にせず、URL を null にする
+
+既存の `to_pin_photo_read()` が `thumbnail` を既にこう扱っている（「生成待ち・ストレージ
+不調は null」、決定6）ため、`original_url` も同じ扱いに揃えた。ピンの名前・位置・タグと
+いった写真以外の情報は DB だけで返せるため、ストレージが理由で閲覧 API 全体を止める理由が
+無い（`POST /pins` 等の書き込み系 API は決定8のとおり 503 のまま。写真を実際に確定させる
+処理はストレージに依存するため区別する）。
+
+### 検索条件（`q`・`tags`）について
+
+Plane の本チケットは「bbox 等の絞り込み条件付き」の閲覧 API を要求しており、SS-120
+（mobile の検索タブ）が使う backend 側の検索 API を置く場所が他に無かったため、`q`
+（名前・メモ・タグの部分一致、ILIKE + `pg_trgm` 無しの素朴な実装）と `tags`（複数指定は
+AND、`tag_key()` による正規化後の完全一致）を本チケットで実装した。マイグレーションは
+不要（既存の `pins`/`pin_tags` テーブルの列だけで実装できる）。
+
+一覧の総件数（`total_count`）は返さない。keyset ページングのたびに追加の `COUNT` クエリが
+要ることに対し、地図表示では使わないため。検索タブの「N 件のピン」表示は読み込んだ件数で
+代替する運用とし、必要になれば SS-120 で optional field として `total_count` を追加する
+（expand）。同様に、閲覧しているユーザーの role・編集可否も本チケットの応答には含めない
+（権限マトリクスは BK-5 の範囲。MVP は owner のみのため、mobile は `created_by_user_id` と
+自分の ID を比較すれば足りる）。
+
+### 将来の課題
+
+- 1つの地図のピンが数千件を超えると、bbox 絞り込みが `(sanpo_map_id, created_at, id)`
+  インデックス上で行を読み飛ばしながらのフィルタになり、遅くなりうる。MVP の規模
+  （1ユーザー数百件程度）では問題にならない。遅くなったら `(sanpo_map_id, latitude,
+  longitude)` の B-tree か PostGIS/GiST インデックスを検討する。
+- `q` の `ILIKE '%…%'` はインデックスが効かない。地図単位で絞ったあとに評価されるため
+  MVP では問題にならないが、必要になったら `pg_trgm` の導入を検討する。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -621,4 +716,4 @@ Android エミュレータから写真付きピン登録を通した（2026-09-2
   —— フィーチャーフラグの登録簿・削除ルール（`app_config_probe` の扱い）
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
-- Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）
+- Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）
