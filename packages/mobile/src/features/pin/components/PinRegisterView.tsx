@@ -182,6 +182,7 @@ export function PinRegisterView({
                   savedPinId: register.save.savedPinId,
                 })}
                 onRequestAdjust={() => setAdjustOpen(true)}
+                previewMapHidden={adjustOpen}
                 testID="pin-register-location"
               />
 

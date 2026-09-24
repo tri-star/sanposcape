@@ -11,11 +11,21 @@ const PREVIEW_HEIGHT = 140;
 
 export type PinLocationPreviewProps = {
   location: GeoCoordinates;
+  /**
+   * true のあいだは MapView を外し、同じ大きさの枠だけを残す。
+   * Android ではネイティブの地図サーフェスどうしの重なり順が RN の View の順序に従わず、
+   * 上に重ねた全画面地図（`PinLocationAdjustOverlay`）をこのプレビューが突き抜けて描画されるため（SS-124）。
+   */
+  mapHidden?: boolean;
   testID?: string;
 };
 
 /** PinLocationPreview — ピンを置く位置の小さな地図プレビュー（操作不可。調整は PinLocationField の「位置を調整」から）。 */
-export function PinLocationPreview({ location, testID }: PinLocationPreviewProps) {
+export function PinLocationPreview({
+  location,
+  mapHidden = false,
+  testID,
+}: PinLocationPreviewProps) {
   const styles = useStyles();
 
   return (
@@ -25,26 +35,28 @@ export function PinLocationPreview({ location, testID }: PinLocationPreviewProps
       accessibilityLabel="ピンを置く位置の地図"
       style={styles.wrap}
     >
-      <MapView
-        testID={testID}
-        style={styles.map}
-        region={{
-          latitude: location.latitude,
-          longitude: location.longitude,
-          latitudeDelta: REGION_DELTA,
-          longitudeDelta: REGION_DELTA,
-        }}
-        scrollEnabled={false}
-        zoomEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
-        toolbarEnabled={false}
-        showsUserLocation={false}
-      >
-        <Marker coordinate={location} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-          <MapPin category="park" icon="map-pin" size={34} />
-        </Marker>
-      </MapView>
+      {mapHidden ? null : (
+        <MapView
+          testID={testID}
+          style={styles.map}
+          region={{
+            latitude: location.latitude,
+            longitude: location.longitude,
+            latitudeDelta: REGION_DELTA,
+            longitudeDelta: REGION_DELTA,
+          }}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+          toolbarEnabled={false}
+          showsUserLocation={false}
+        >
+          <Marker coordinate={location} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+            <MapPin category="park" icon="map-pin" size={34} />
+          </Marker>
+        </MapView>
+      )}
     </View>
   );
 }

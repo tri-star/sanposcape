@@ -78,6 +78,10 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   ハードウェアバックを `onRequestClose` で先に取ってしまい、`useScreenBack` の `onIntercept` も
   実質届かなくなる。オーバーレイなら登録画面の状態（入力・写真）はマウントされたまま残り、
   Android バックも `useScreenBack({ onIntercept })` 1本で閉じられる。
+  ただし Android ではネイティブの地図サーフェスどうしの重なり順が RN の View の順序に従わず、
+  登録画面のプレビュー地図がオーバーレイの全画面地図を突き抜けて描画される（エミュレータで確認）。
+  そのため、オーバーレイを開いているあいだはプレビューの `MapView` を外し、同じ大きさの枠だけを
+  残す（`PinLocationPreview` の `mapHidden`）。
 - **D8: 全画面地図の枠（ヘッダー・地図・現在地マーカー・選択マーカー・ヒントとアクションの
   カード・再センタリング）を `PinMapFullScreen` にまとめる。** (a)(b) の違い（タップか長押しか・
   確定ボタンの有無・現在地の取得）は呼び出し側の props に出す。見た目と地図の設定

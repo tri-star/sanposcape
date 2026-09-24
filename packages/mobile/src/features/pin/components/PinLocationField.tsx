@@ -11,6 +11,8 @@ export type PinLocationFieldProps = {
   /** canAdjustPinLocation の結果。false のとき「位置を調整」は disabled。 */
   adjustable: boolean;
   onRequestAdjust: () => void;
+  /** 位置調整のオーバーレイを開いているあいだ true。プレビューの MapView を外す（`PinLocationPreview` の `mapHidden` を参照）。 */
+  previewMapHidden?: boolean;
   /** 接頭辞。`${testID}-preview`（= 既存の pin-register-location-preview と同じ値）/ `-adjust` / `-adjusted` を付ける。 */
   testID: string;
 };
@@ -25,13 +27,18 @@ export function PinLocationField({
   isAdjusted,
   adjustable,
   onRequestAdjust,
+  previewMapHidden = false,
   testID,
 }: PinLocationFieldProps) {
   const styles = useStyles();
 
   return (
     <>
-      <PinLocationPreview location={location} testID={`${testID}-preview`} />
+      <PinLocationPreview
+        location={location}
+        mapHidden={previewMapHidden}
+        testID={`${testID}-preview`}
+      />
       <View style={styles.row}>
         {isAdjusted ? (
           <Text style={styles.adjustedText} testID={`${testID}-adjusted`}>
