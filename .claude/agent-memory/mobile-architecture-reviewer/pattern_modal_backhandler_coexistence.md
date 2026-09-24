@@ -30,3 +30,14 @@ Android のハードウェアバック経由では**実質到達しない**可�
 関連ファイル: `packages/mobile/src/components/ui/dialog/Dialog.tsx`,
 `packages/mobile/src/hooks/useScreenBack.ts`,
 `packages/mobile/src/features/history/components/WalkDetailView.tsx`。
+
+**2026-09-25 追記（SS-124、ポジティブな適用例）**: `PinLocationAdjustOverlay.tsx`（位置調整の
+全画面オーバーレイ）は、この既知の問題を ADR-011 D7 で明示的に引用したうえで **RN `Modal` を
+使わない**設計（`position: absolute` の素の `View`）を選んでいる。理由は「`Modal` 内の
+`MapView` の Android 不具合（react-native-maps #3890/#4893）」と「`Modal` が
+`onIntercept` を届かなくする」の両方。`PinRegisterView.tsx` の `useScreenBack({ onIntercept })`
+は `adjustOpen` 分岐を `discardOpen`（`Dialog`＝`Modal` ベース、この既知の問題が引き続き
+残る）より先に置いており、"新規に追加するオーバーレイは `Modal` を避けて `onIntercept` を
+実際に機能させる" という設計判断の実例として今後の参照に使える。`discardOpen` 側は
+`PinRegisterView.tsx` 内のコメントで「Modal 表示中は Dialog 側が主、onIntercept は保険」と
+明確化済み（本メモリの How to apply で提案していた内容が実装済み）。
