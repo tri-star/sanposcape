@@ -2,7 +2,8 @@
 name: auth-architecture
 description: 認証(SS-10)の確定設計 — Google直結・自前セッショントークン・AUTH_MODE 3モード。プラン作成時に前提とする決定事項
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 # 認証アーキテクチャ（確定・ADR-002）

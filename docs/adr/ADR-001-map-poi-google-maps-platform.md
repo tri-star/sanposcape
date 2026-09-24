@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-07-19（初版）、2026-08-09 追補（SS-43）
+2026-07-19（初版）、2026-08-09 追補（SS-43）、2026-09-15 追補（SS-33）
 
 ## コンテキスト
 
@@ -94,7 +94,7 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 - backend に Google Maps Platform 連携（Places/Routes）と**キャッシュ/プロキシ層**を実装した（M4）。実装は `integrations/google_maps/` に隔離する。
 - Google Maps Platform の API キー発行・課金設定・利用制限（リファラ/IP制限等）を用意する。キーはリポジトリにコミットしない。
-- 往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。
+- 往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。（**SS-33 追補**: 候補の絞り込み（`/explore/places`）は引き続き片道×2の近似のまま（補正係数は入れない）。選択後のルートは `/explore/routes/loop` が返す周回全体の実測値になる。詳細は [ADR-007](./ADR-007-loop-route-generation.md) を参照。）
 - SS-43 で Places の日本語優先指定、backend の非空表示名契約、mobile の防御的フォールバックを実装した。
 - 地理検索の要件が育った段階で PostGIS 等への移行を検討する。
 
@@ -103,3 +103,4 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - [プロジェクト概要](../project-overview.md)
 - [ADR-002: モバイル技術スタック](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)
 - backend フォルダ構造（`integrations/` 隔離層）: [folder-structure](../../packages/backend/docs/folder-structure.md)
+- [ADR-007: 周回ルート（往路と異なる道で戻る）の生成方式](./ADR-007-loop-route-generation.md)（SS-33）

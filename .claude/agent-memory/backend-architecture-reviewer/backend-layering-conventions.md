@@ -1,7 +1,9 @@
 ---
 name: backend-layering-conventions
 description: packages/backend のレイヤー規約・命名・テスト方針の要点（folder-structure.md/SS-10実装から）
-type: project
+metadata:
+  type: reference
+  scope: durable
 ---
 
 `packages/backend/docs/folder-structure.md` が正典。要点:
@@ -13,7 +15,9 @@ type: project
   `register_exception_handlers()` に一元化して HTTP レスポンスに変換する
   （`auth/exceptions.py` の `AuthenticationError` 系がお手本）。
 - ドメインを跨いだ直接の repository 依存は避け、他ドメインの機能が必要なら相手の
-  `service.py` 経由にするか `core/` へ昇格させる。→ 違反例: [[users-auth-domain-boundary]]
+  `service.py` 経由にするか `core/` へ昇格させる。SS-10 では `AuthService` が `UserRepository` を
+  直接持つ逸脱があったが解消済み（現在は `auth/dependencies.py` が `UserService` だけを渡し、
+  `auth/service.py` にその理由がコメントで明記されている）。
 - `dependencies.py`（アプリ直下）は「複数ドメインで使う横断的依存」専用
   （DBセッション・`get_current_user` 等）。ここが唯一の意図的な「domain repository
   への直接アクセス」の許容箇所（SS-10では `get_current_user` がそれ）。

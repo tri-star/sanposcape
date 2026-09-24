@@ -2,7 +2,8 @@
 name: accessibility-label-overrides-children-text
 description: Pressable/View に明示的な accessibilityLabel を付けると、子要素の Text 内容が読み上げから排除される（説明文だけ消えるパターン）
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `packages/mobile` の `Pressable` ベースのリスト行コンポーネントには2つの流儀が混在している。

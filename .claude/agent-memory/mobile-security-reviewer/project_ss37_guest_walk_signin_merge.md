@@ -1,7 +1,9 @@
 ---
 name: project_ss37_guest_walk_signin_merge
 description: SS-37（保存失敗401時のサインインCTA・自動再送）レビューの要点。High指摘「未保存ゲストドラフトが無関係な後続サインインに自動添付される」は同PR内で解消済み
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-37（branch `tri-star/ss-37`、2026-08-15 レビュー）で `POST /walks` 401 時にサインイン CTA を追加し、
@@ -66,5 +68,5 @@ SS-37 のスコープ（行き止まり解消）を超えるため見送り、�
 [[project_ss13_auth_gate]]（`AuthGate` は今回もバイパスされていないことを確認済み）、
 [[project_ss57_guest_walk_start]]（ゲスト散歩解禁がこの経路の前提）。
 
-レビュー結果は `tmp/SS-37/mobile-local-review.md` の `## セキュリティレビュー` に記載
-（このファイルは将来削除・移動される可能性あり）。
+詳細なレビュー結果は作業ディレクトリに置いていたが gitignore 対象で既に消失しており、
+本メモリの記述が唯一残っている記録である。

@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -60,6 +61,40 @@ def test_known_authentication_error_subclass_still_uses_specific_handler() -> No
     assert res.json() == {"detail": "Invalid ID token"}
 
 
+def test_lifespan_closes_the_feature_flag_source_on_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """local-review F-13: `AppConfigFlagSource` の boto3 クライアント（内部に urllib3
+    コネクションプールを持つ）を `_lifespan` の finally で close することを固定する
+    （`HttpGoogleMapsProvider` と同じライフサイクル管理。今までは close されず非対称だった）。
+    """
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    closed: list[bool] = []
+
+    class _FakeBotoClient:
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(
+        "sanposcape.integrations.aws.appconfig.boto3.client", lambda *a, **k: _FakeBotoClient()
+    )
+    settings = Settings(
+        env="test",
+        feature_flag_mode="real",
+        appconfig_application_id="app",
+        appconfig_environment_id="env",
+        appconfig_configuration_profile_id="profile",
+    )
+    app = create_app(settings)
+
+    with TestClient(app):
+        assert closed == []
+
+    assert closed == [True]
+
+
 def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
     received_by_app: list[bytes] = []
     sent: list[dict] = []
@@ -92,3 +127,32 @@ def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
 
     assert received_by_app == [b"1234"]
     assert sent[0]["status"] == 413
+
+
+def test_access_log_records_the_413_returned_by_the_size_limit_middleware(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`AccessLogMiddleware` が最外層に居ることを `create_app()` 経由で固定する。
+
+    `main.py` の `create_app()` は `AccessLogMiddleware` を **最後に** 登録している
+    （Starlette の `add_middleware` は先頭挿入なので、最後に登録したものが最も外側になる）。
+    この順序が崩れると、`RequestSizeLimitMiddleware` が自前で返す 413 を観測できず、
+    **アクセスログのステータスだけが実際の応答とずれる**。しかも 413 のケースでしか現れないため
+    静かに壊れる——今回の変更が解決しようとした「本番でどのステータスが返ったか分からない」
+    問題の再発になる。ミドルウェア単体のテストでは順序を固定できないので、ここで統合して確認する。
+    """
+    import logging
+
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    settings = Settings(env="test", pins_request_max_bytes=16)
+    app = create_app(settings)
+    client = TestClient(app)
+
+    with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
+        response = client.post("/pin-photo-uploads", content=b"x" * 64)
+
+    assert response.status_code == 413
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("POST /pin-photo-uploads -> 413" in message for message in messages), messages

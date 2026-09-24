@@ -1,0 +1,972 @@
+# ADR-008: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する
+
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-09-22（SS-93、SS-88、SS-99）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **デプロイ（本番にコードを置く）とリリース（利用者に見せる）を分離し、未公開の機能はフラグ OFF のまま main にマージして本番にデプロイしてよい**。
+  制御の軸は「ネイティブの配信 = ストア」「JS の配信 = EAS Update」「公開 = フィーチャーフラグ」の3つ。（本文: 決定1）
+- **フラグ基盤は AWS AppConfig で、器は `sanposcape-infra` の Terraform（`live/platform`）、値は本リポジトリが所有する**。
+  Profile は `feature-flags`（`AWS.AppConfig.FeatureFlags`、hosted）、Deployment Strategy は独自に作る。backend は boto3 の `appconfigdata` を直接呼び（Lambda Extension は使わない）、
+  ID は SSM `/sanposcape/<env>/platform/appconfig/*` から受け取り、完全 ARN への権限の絞り込みは SAM の実行ロールポリシーで行う。（本文: 決定2）
+- **mobile の公開時期は App Store の手動リリースと Google Play の公開の管理・段階的公開で制御する**。これはバイナリの配信の制御で、機能の公開はフラグで別に制御する。（本文: 決定3）
+- **バージョンはアプリ別に採番し、タグ `<app>/vX.Y.Z` と GitHub Release は production へのデプロイ成功時だけ作る**。
+  リリースノートは git-cliff で生成して `CHANGELOG.md` はコミットせず、mobile のキーは `app.json` の `version` のみとする。（本文: 決定4、決定5）
+- **フラグは「追加 → ON → 削除」の3段階で、削除まで終えて1つの機能追加とみなす**。
+  定義はリポジトリ内のファイルで管理し、切り替えは GitHub Actions の `workflow_dispatch`（prod は承認あり）が hosted configuration version を作って `StartDeployment` する形でだけ行う。
+  認証には sam-deploy とは別の OIDC ロール `sanposcape-<env>-feature-flags` を使う。（本文: 決定6）
+- **切り替えワークフローは `.github/workflows/feature-flags.yml`、定義ファイルは `packages/backend/feature-flags.json`（AppConfig FeatureFlags 形式そのもの、既定値入り）**。
+  フラグの現在値の正本は AppConfig（直近に配信を完了した版）で、ワークフローは現在値を引き継いで指定の1本だけを書き換えた版を作る。
+  入力は環境・フラグキー・on/off（と定義から消えたキーを削除する `prune`）、ロール ARN は Environment Variables `AWS_FEATURE_FLAGS_ROLE_ARN`、環境ごとに直列化して配信完了まで待つ。
+  配信中の版が削除されて読めないときは、`from_defaults` を明示したときだけ既定値から組み立てる。
+  定義ファイルのキー集合は登録簿 + 予約キーと一致させる（pytest）。（本文: SS-99 追補 D19〜D23）
+- **フラグキー・説明・クライアント公開の可否は backend のコード（`core/feature_flags.py` の `FEATURE_FLAGS`）、値と最低サポートバージョンは AppConfig が所有する**。
+  キーは `_enabled` を付けない snake_case。`client_requirements` は最低サポートバージョンを属性で配る予約キーで、常に `enabled: true` に保つ。
+  （本文: SS-98 追補 D7、D9）
+- **API と DB スキーマの変更は expand → contract の2段階で行う**。置き換える API は `deprecated=True` で意味とスキーマを変えずに残し、
+  削除は `/app-config` の最低サポートバージョン以上のクライアントだけが残ってから行う。（本文: 決定7）
+- **OTA で届けてよいのは「公開済み機能の不具合修正」と「フラグ OFF で入る新機能」だけで、channel の付け替えでリリースを制御しない**。
+  `version` を上げる PR と配布ビルドはセットで計画する。（本文: 決定8）
+- **backend はフラグを一度も取得できていないときだけ全フラグ OFF に倒す**。空の応答（変化なし）では直前の値を、取得失敗では一度取得できた値（known-good）を維持する。（本文: 決定9、決定9-1）
+- **公開済み機能の緊急停止（kill switch、安全側 ON）は AppConfig ではなく環境変数で持つ**。`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は環境変数のまま残す。
+  （本文: SS-98 追補 D8）
+- **`GET /app-config` は認証不要で DB を触らず、`Cache-Control: no-store` を返す**（このヘッダーは OpenAPI には出ない）。
+  `flags` は登録簿のクライアント公開フラグを必ず全部含む `dict[str, bool]`（AppConfig に値が無ければ `false`）、`minimum_supported_versions` は
+  iOS / Android 別で `null` は強制アップデートしない、`config_source` は診断専用でクライアントは分岐に使わない。（本文: SS-98 追補 D1、D10）
+- **ユーザー条件付きのフラグ（SS-98 追補 D2 の言う「ダークローンチ」）は採用しない**。そのため mobile はサインイン後に `/app-config` を再取得せず、
+  サインアウト時のキャッシュ削除からも `/app-config` を除外している（D2 を覆すときはこの2つも見直す）。（本文: SS-98 追補 D2、SS-100 追補 D14、D15）
+- **backend は `FEATURE_FLAG_MODE = real | stub`（既定 `real`、local / test 以外で `real` 以外なら起動失敗）で切り替える**。
+  `APPCONFIG_*` の ID が1つでも空なら AWS を呼ばない実装に落ち、AppConfig への取得は最初にフラグを参照したリクエストで行う。（本文: SS-98 追補 D3、D5）
+- **mobile はフラグ値を TanStack Query の `["app-config"]` だけで保持し、永続キャッシュは持たない**。`staleTime` 5分・`gcTime` 無期限で、
+  フォアグラウンド復帰時に直近の取得試行（成功または失敗）から60秒以上経っていれば再取得し、取得中は重ねて再取得しない。（本文: SS-100 追補 D11、D14）
+- **mobile は直近の成功値が無い間（初回ロード中・初回取得失敗）と、未知キー・bool 以外の値を OFF として扱う**。
+  成功値があれば再取得の失敗中もその値を使い、画面を隠す判定は `pending` / `enabled` / `disabled` の3値で行う。
+  キー定数は backend の登録簿の写しを自前で持ち、`config_source` は内部型から除き、`services/` の real/mock 層は作らない。（本文: SS-100 追補 D12、D13、D16、D18）
+- **最初の実フラグ `pin_registration`（ピン登録, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）が登録され、疎通確認用の `app_config_probe` は削除済み**。
+  backend の API 自体はこのフラグでガードしない（ADR-009 決定10）。（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
+
+### 未解決・持ち越し
+
+課題ID付きの項目（SS-97 / SS-101 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
+
+- **prod が未構築**。前提の SS-97（prod の `live/account` の apply と `production` Environment への `AWS_SAM_DEPLOY_ROLE_ARN` の設定）が未完了で、
+  本 ADR の手順は実運用で検証されていない。（本文: 前提となる制約、移行・対応が必要な事項）
+- **フラグ切り替えワークフロー（SS-99）は実行実績が無い**。dev の初回実行で `release-runbook.md` §3 の手順を検証する。
+  最低サポートバージョン（`client_requirements` の属性）を変える入力はまだ無く、現在値を引き継ぐだけ（SS-101 で必要になったら足す）。
+  （本文: SS-99 追補 D22、D23）
+- **production ではフラグ切り替えワークフローをまだ実行できない**。2026-09-21 時点で sanposcape-infra の prod の `live/platform` が
+  未 apply で、prod の AppConfig も `sanposcape-prod-feature-flags` ロールも存在しない（SS-97 の `live/account` とは別に必要）。
+  apply 後に `production` Environment へ `AWS_FEATURE_FLAGS_ROLE_ARN` を設定する。（本文: SS-99 追補 D21）
+- **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
+  （本文: 決定7、SS-100 追補 D17）
+- **mobile のタグ・Release・CHANGELOG の自動生成（SS-102）と、OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
+  （本文: 決定4、決定8、移行・対応が必要な事項）
+- **ストア側の設定（App Store の手動リリース / Google Play の公開の管理）が未実施**で、`release-runbook.md` の該当記述は未検証。（本文: 移行・対応が必要な事項）
+
+### 変更・撤回された決定
+
+- 取得失敗時の挙動: 「未配信・取得失敗・空の応答のいずれも全フラグ OFF」→ 一度も取得できていないときだけ全 OFF、それ以外は直前の値・known-good を維持（本文: 決定9-1、SS-98 / PR #88）
+- 本文の「ネガティブな影響」にある「取得失敗で全 OFF に倒す＝公開済みの機能が突然見えなくなる」は決定9-1 以前の記述で、現在そうなるのは一度も取得できていない場合だけ
+- 本文の「ポジティブな影響」にある「`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` もこの基盤へ移せば…」は初版時点の見込みで、現在は環境変数のまま残す（本文: SS-98 追補 D8）
+- mobile のサインイン後の `/app-config` 再取得: D2 で申し送り → 実装しない（本文: SS-100 追補 D14）
+- フォアグラウンド復帰時の再取得間隔（60秒）の起点: 直近の成功時刻 → 直近の取得試行（成功または失敗）の時刻（本文: SS-100 追補 D14、SS-100 / PR #89 追補）
+- mobile で永続キャッシュを持たない理由②: E2E 用 APK のキャッシュミス → development build の作り直しと依存追加の待機コスト（理由①と結論は不変。本文: SS-100 追補 D14、2026-09-20 訂正）
+- `FlagDocumentSource` を `integrations` 側に置く理由: 循環 import を避けるため → 既存の依存の向きに揃えるため（配置は不変。本文: SS-98 追補 D3）
+- 用語の注意（決定の変更ではない）: 本文の決定8・決定理由の「ダークローンチ」は「フラグ OFF で入る新機能」の意味で採用している。
+  SS-98 追補 D2 以降の「ダークローンチ」は「ユーザー条件付きのフラグ」の意味で不採用。両者は別物
+- 疎通確認用フラグ `app_config_probe`: 「最初の実フラグが入った時点で削除する」（予定）→ **削除済み**。
+  `pin_registration`（ADR-009）が最初の実フラグとして登録された（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
+
+## 日付
+
+2026-09-20（初版、SS-104）、2026-09-20 追補（SS-98: `/app-config` のレスポンススキーマと
+フラグ取得基盤）、2026-09-20 追補（SS-100: mobile のフラグ受け皿）、2026-09-21 追補
+（SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）、2026-09-21 追補
+（SS-93: SS-96 の完了を反映）、2026-09-21 追補（SS-88: `pin_registration` を最初の実フラグ
+として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
+定義ファイル）
+
+## ステータス
+
+採用（SS-104 で決定）。実装は SS-94 / SS-95 / SS-96 / SS-97 / SS-98 / SS-99 / SS-100 / SS-101 /
+SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfig の器）・SS-95（境界への
+読み取り権限追加）・SS-98（backend の取得基盤と `/app-config`）・SS-100（mobile のフラグ受け皿）が
+完了し、残りは未着手である。
+（**SS-93 追補**: 2026-09-21 時点で SS-96（フラグ切り替え用 OIDC ロール）も完了している。
+残る SS-97 / SS-99 / SS-101 / SS-102 / SS-103 は未着手）
+（**SS-99 追補**: 2026-09-21 に SS-99（フラグ切り替えワークフロー）を実装した。実行実績はまだ無い）
+**本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
+これから決めること」を節ごとに区別して書いている。**
+
+## コンテキスト
+
+### なぜ今これを決めるのか
+
+[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) の SS-72 追補で
+backend のデプロイが GitHub Actions から実行できるようになり、production デプロイ成功時に
+`backend/vX.Y.Z` タグと GitHub Release が自動生成されるところまで到達した。その追補の末尾は
+次の一文で締められている。
+
+> デプロイとリリース（利用者への機能の公開）の分離（AppConfig によるフィーチャーフラグ、
+> ストアの手動リリース）は、別途 ADR を起こす予定。
+
+本 ADR がその「別途 ADR」である。ADR-005 は「backend をどう公開するか」に閉じているのに対し、
+リリース戦略は backend・mobile・CI/CD をまたぐため、ルートの `docs/adr/` に新規で起こしている。
+
+### 解こうとしている問題
+
+**デプロイ（コードを本番環境に置くこと）とリリース（利用者に機能を見せること）が
+現状では不可分である。** そのため次の不都合がある。
+
+1. **機能が完成するまで main へマージできない、あるいはマージした瞬間に公開されてしまう。**
+   長寿命のブランチが必要になり、マージ時の衝突とレビュー負荷が増える。
+2. **backend と mobile の公開タイミングを揃えられない。** mobile はストア審査を挟むため
+   backend より遅れる。backend を先に出すと mobile が追いつくまで未使用の API が公開され、
+   mobile を先に出すと存在しない API を叩く。
+3. **公開後に問題が見つかったときの引き返し方が「再デプロイ」しかない。**
+
+### 現状のフィーチャーフラグとその限界（AppConfig を入れる直接の動機）
+
+利用者から見える挙動を制御するフラグは `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`
+（周回ルートの kill switch、SS-33 / [ADR-007](./ADR-007-loop-route-generation.md)）の 1 つだけで、
+`config.py` の `Settings` が読む Lambda 環境変数として実装されている
+（`DB_DISABLE_PREPARED_STATEMENTS` も同じ形だが、これはドライバ側の回避策であって
+機能のフラグではない）。運用手順は
+[packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md)
+「周回ルートの kill switch」にあるが、そこに書かれているとおり次の限界がある。
+
+- 即時に切り替えるには `aws lambda update-function-configuration` で環境変数を
+  **丸ごと置換**する必要がある（差分更新ではないため、現在値を控えてから渡す）
+- その変更は **次の `sam deploy` で `template.yaml` の内容に巻き戻る**
+- 恒久化するには `template.yaml` を編集して redeploy する ―― つまり
+  **フラグを切り替えるのに再デプロイが要る**
+
+最後の点が本質的な問題である。フラグの目的は「デプロイなしで公開状態を変えられること」なのに、
+現行方式ではそれが成立していない。
+
+### 既に「配布済みビルドとの互換」を守っている実例がある
+
+`/explore/routes/walking` は `deprecated=True` のまま残されており、router の docstring に
+「SS-33: `/explore/routes/loop` に置き換え。**配布済みビルドの互換のため維持する**
+（意味・スキーマは変えない）」と書かれている。これは本 ADR の決定7（expand / contract）を
+既に実践している例であり、本 ADR はこれを暗黙の慣行から明文化された規則に格上げする。
+
+### 前提となる制約
+
+- **mobile はユーザーの端末に残り続ける。** `runtimeVersion.policy: "appVersion"`
+  （[ADR-006](./ADR-006-mobile-app-delivery-eas-hosted.md) の SS-89 追補）のため、
+  OTA（EAS Update）で直せるのは同一 `expo.version` の端末だけで、古い version のバイナリは
+  更新されないまま backend を叩き続ける。
+- **本リポジトリは public である。** AWS のアカウント ID・リソース ID をリポジトリに書けない。
+- **AppConfig の器は別リポジトリ（`sanposcape-infra` の Terraform）が作る。**
+  SAM と Terraform の責務境界は ADR-005 / ADR-006 で既に確定しており、本 ADR はそこに例外を作らない。
+- **prod はまだ存在しない。** `sanposcape-backend-prod` スタックは未デプロイ、
+  `app-api.sanposcape.com` は名前解決せず、ストアへの公開も未実施である。
+  したがって本 ADR の手順は**実運用による検証を経ていない**。
+
+## 決定
+
+### 1. デプロイとリリースを分離する
+
+**デプロイ**（コードを本番環境に置くこと）と**リリース**（利用者に機能を見せること）を
+別の操作として扱い、別の承認経路に載せる。
+
+- 未完成・未公開の機能も、**フラグ OFF の状態で main にマージし、本番にデプロイしてよい。**
+- 「本番に出ている」ことと「利用者に見えている」ことを別々に管理する。
+
+軸を整理すると次の 3 つになる。以降の決定はこの表の行に対応する。
+
+| 軸 | 手段 | 何を制御するか |
+|---|---|---|
+| **配信（ネイティブ）** | ストアの手動リリース / 段階的公開 | 誰の端末に新しいバイナリが載るか |
+| **配信（JS）** | EAS Update（OTA） | 同一 `runtimeVersion` 内で誰に新しい JS が載るか |
+| **公開** | AppConfig のフィーチャーフラグ | 誰に機能が見えるか |
+
+### 2. 未公開機能はフィーチャーフラグ（AWS AppConfig）で OFF のまま本番デプロイし、フラグ ON をリリースとする
+
+フラグの基盤には **AWS AppConfig** を使う。器（Application / Environment /
+Configuration Profile / Deployment Strategy）は Terraform（`sanposcape-infra` の `live/platform`）が
+所有し、**フラグの値は本リポジトリが所有する**（Secrets Manager と同じ「器は infra、中身はアプリ」の分担）。
+
+実装上の合意事項（SS-94 / SS-95 / SS-96 / SS-98 / SS-99 で infra 側と合意済み）:
+
+- **backend は boto3 の `appconfigdata` を直接呼ぶ。Lambda Extension は使わない。**
+  デプロイロールの変更が不要でテストも容易なため（infra 推奨）。
+- 実行環境ごとにセッションを 1 回開き、次回トークンと `NextPollIntervalInSeconds` を保持して
+  間隔内はキャッシュを返す。`GetLatestConfiguration` は変化が無いと空ボディを返すため、
+  前回値を保持する。
+- Configuration Profile は `feature-flags`、type は `AWS.AppConfig.FeatureFlags`、
+  `location_uri` は `hosted`。
+- **Deployment Strategy は独自に作る。** 組み込みの `AppConfig.AllAtOnce` はベイク時間が 10 分あり、
+  その間は次のデプロイを開始できないため。dev はベイク 0 分、prod は `StopDeployment` で
+  引き返せる時間を残すため数分を置く。
+- ID は SSM 経由で受け渡す（public リポジトリに ID を置かないため。
+  ADR-005 決定5 の `APP_SECRET_ARN` や SS-72 追補の `lambda_boundary_arn` と同じ理由）。
+  契約は `/sanposcape/<env>/platform/appconfig/{application_id,environment_id,configuration_profile_id,deployment_strategy_id}`。
+- Lambda 実行ロールの Permission Boundary（SS-95）は `appconfig:StartConfigurationSession` /
+  `GetLatestConfiguration` をワイルドカード ARN で許可する。**境界では ID まで絞れない**
+  （AppConfig の ID は `live/platform` で採番され、より先に apply される `live/account` からは
+  参照できない）ため、**完全 ARN への絞り込みは SAM テンプレート側の実行ロールポリシーで行う。**
+- ローカル / テスト環境ではスタブを用意する（既存の `AUTH_MODE` / `MAPS_MODE` と同じモード切替の流儀）。
+
+### 3. mobile はストアの手動リリースと段階的公開で公開時期を制御する
+
+- **App Store**: 「App Review 承認後に手動でリリース」を選び、承認と公開を切り離す。
+- **Google Play**: 「公開の管理（Managed publishing）」を有効にし、段階的公開（staged rollout）で
+  配信先の割合を制御する。
+
+これは**バイナリの配信**の制御であり、決定2 の**機能の公開**の制御とは別軸である
+（決定1 の表を参照）。両方を使うことで「新しいバイナリは一部の利用者にだけ配り、
+機能自体はフラグで全員に対して OFF」といった状態を作れる。
+
+なお mobile の機能も `/app-config`（決定2）越しのフラグでガードできる（SS-100）ため、
+**「コードは配布済み・フラグ OFF」は mobile でも成立する。**
+
+### 4. バージョンはアプリ別に採番し、タグは `<app>/vX.Y.Z` に統一する
+
+モノレポだがアプリごとに独立したバージョンとリリースノートを持つ。
+タグの接頭辞でアプリを区別する（`backend/v0.1.0`、`mobile/v0.1.0`、将来の LP も同じ形）。
+
+- 採番とリリースノートは **git-cliff**（リポジトリ直下の `cliff.toml`）で生成する。
+  設定はアプリに依存させず、アプリ別の差分は CLI 引数で渡す
+  （`--include-path 'packages/<app>/**'` と `--tag-pattern '^<app>/v[0-9]+\.[0-9]+\.[0-9]+$'`）。
+- バージョン規則・スキップ条件は ADR-005 の SS-72 追補および
+  [deployment.md](../../packages/backend/docs/deployment.md) §4.1 に記載したものを
+  そのまま他アプリへ適用する。
+- **`CHANGELOG.md` はリポジトリにコミットせず、GitHub Release の本文だけにする。**
+- mobile では、生成した CHANGELOG を**ストアの「新機能」欄の下書きとしても使う**（SS-102）。
+- mobile でタグ・CHANGELOG のキーにするのは **`app.json` の表示用 `version` のみ**である。
+  ビルド番号（iOS の `buildNumber` / Android の `versionCode`）は EAS サーバーが採番するため
+  （ADR-006 の SS-89 追補）、キーにしない。
+
+### 5. dev（development）へのデプロイではバージョンを振らない
+
+タグと GitHub Release を作るのは production へのデプロイが成功したときだけとする
+（ADR-005 の SS-72 追補で確定済み）。バージョンは「本番に出ているもの」を指す番号であり、
+検証環境に出たものに番号を与えると、番号が何を指すのかが曖昧になるため。
+
+dev に何が出ているかは GitHub Actions の実行履歴で確認する。
+
+### 6. フラグのライフサイクルは「追加 → ON → 削除」の 3 段階とし、削除まで終えて初めて完了とする
+
+| 段階 | 操作 | 完了の目安 |
+|---|---|---|
+| 追加 | フラグ定義を本リポジトリに追加し、既定値 OFF で本番へデプロイする | 本番にコードが載り、利用者には見えていない |
+| ON | フラグ切り替えワークフローで ON にする（prod は承認あり） | **これがリリース** |
+| 削除 | フラグの分岐とフラグ定義を消す PR を出す | フラグが 1 つ減っている |
+
+- **削除まで含めて 1 つの機能追加とみなす。** 削除しないフラグが積み上がると、
+  分岐の組み合わせが増えてコードが読めなくなり、テストで担保すべき状態数も増える。
+- フラグの定義（名前・説明・既定値）は**本リポジトリ内のファイルで管理する**。
+  ワークフローがその値から hosted configuration version を作成して `StartDeployment` する（SS-99）。
+  Terraform は hosted configuration version を作らない（SS-94）。
+- **フラグの切り替えは GitHub Actions の `workflow_dispatch` からのみ行い、
+  AWS コンソールから直接操作しない。** Actions の実行履歴を
+  「いつ・誰が・何をリリースしたか」の記録にするため（SS-99）。
+- 切り替え用の認証には **sam-deploy とは別の OIDC ロール** `sanposcape-<env>-feature-flags`（SS-96）を使う。
+  フラグの切り替えに CloudFormation や IAM の権限は不要であり、`iam:CreateRole` を持つ
+  sam-deploy ロールの使用場面を最小に保つため。
+
+### 7. API の変更は expand → contract の 2 段階で行う
+
+**配布済みの mobile ビルドは更新されないまま backend を叩き続ける。**
+したがって backend の API 変更は、常に「古いクライアントが動いたまま新しいクライアントも動く」
+中間状態を経由させる。
+
+| 段階 | やること |
+|---|---|
+| **expand** | 新しいフィールド / エンドポイントを**追加**する。古いものは残したまま、意味も変えない。新規フィールドは任意（optional）にする |
+| （移行） | 新しいクライアントを配布し、古いクライアントが十分に減るのを待つ |
+| **contract** | 古いフィールド / エンドポイントを削除する |
+
+- 既存エンドポイントを置き換える場合は、まず FastAPI の `deprecated=True` を付けて残す
+  （`/explore/routes/walking` が実例）。**意味とスキーマは変えない。**
+  「残っているが挙動が変わっている」が最も危険な状態である。
+- **contract に進んでよいかの判断材料は「最低サポートバージョン」とする。**
+  `/app-config` が返す最低サポートバージョン（SS-98）を下回るアプリには
+  アップデートを促す（SS-101）。そのバージョン以上のクライアントだけが残ったと言える状態になって
+  初めて、古いフィールド / エンドポイントを削除する。
+- DB スキーマの変更にも同じ原則を適用する。ADR-005 決定9 によりマイグレーションは手動であり、
+  デプロイ完了からマイグレーション実行までの間は**新しいコードが古いスキーマで動く**。
+  expand（列の追加・NULL 許容）と contract（列の削除・NOT NULL 化）を別のデプロイに分ける。
+
+### 8. OTA（EAS Update）は「配信」の手段であって「リリース」の手段ではない
+
+OTA で届ける利用者向けの変更は、次のいずれかに限る。
+
+1. **既に公開済みの機能に対する不具合修正**
+2. **フラグ OFF の状態で入る新機能**（ダークローンチ。公開は決定2 のフラグ ON で行う）
+
+理由:
+
+- `runtimeVersion.policy: "appVersion"` のため、OTA が届く範囲は**同一 `expo.version` の端末のみ**。
+  `version` を上げた瞬間、既存端末はその後の新 version 向け `eas update` を受け取らなくなる
+  （ADR-006 の SS-89 追補）。
+- OTA は**ストア審査を経ず即時に全対象端末へ届く**ため、それ単体では段階的公開の制御が効かない。
+  SS-103 が OTA 配信ワークフローに `workflow_dispatch` + production Environment の承認を
+  課しているのも同じ理由である。
+
+運用上の帰結:
+
+- **channel の付け替えでリリースを制御しない。** channel は `eas.json` の既存の割り当て
+  （`production` プロファイル → `production` channel）をそのまま使う。公開の制御はフラグで行う。
+- **`version` を上げる PR と配布ビルドはセットで計画する。** `version` を上げると、その version の
+  ネイティブバイナリを配布するまで OTA の配信先が存在しなくなる
+  （[build-profiles.md](../../packages/mobile/docs/build-profiles.md)
+  「表示用バージョン `version` の運用ルール」）。
+- ネイティブモジュールや config plugin の変更を伴う場合は、`version` を上げて互換境界を切る。
+
+### 9. フラグの取得に失敗した場合は全フラグ OFF で動く（フェイルセーフ）
+
+**一度も値を取得できていない**とき（未配信＝そのプロファイルにまだ構成が配信されていない、
+初回取得の失敗、取得した内容が JSON として壊れている）は、**既定値＝全フラグ OFF** で
+動作する（SS-94 の申し送り、SS-98）。
+
+「フラグが読めない」ときに未公開の機能が露出するより、公開済みの機能が見えなくなるほうが
+損害が小さいという判断による。AppConfig の最初のデプロイ前はそもそも配信済みの構成が存在しないため、
+この既定値が無いと backend が起動できない。
+
+#### 9-1. 一度取得できた値（known-good）は、その後の取得失敗では捨てない（2026-09-21 追記, SS-98 / PR #88）
+
+当初この決定は「未配信・取得失敗・空の応答のいずれの場合も全フラグ OFF」と書いていたが、
+性質の異なる 3 つの事象を一括りにしていたため、実装（SS-98）との食い違いを生んだ。
+次のように切り分ける。
+
+| 事象 | 挙動 |
+| --- | --- |
+| 一度も取得できていない（未配信 / 初回失敗 / パース失敗） | **全フラグ OFF**（`config_source: "default"`） |
+| 空の応答（`GetLatestConfiguration` の「変化なし」） | **直前に取得した値を維持** |
+| 取得失敗（known-good を持っている状態での失敗） | **known-good を維持**し、バックオフ後に再取得 |
+
+理由は 3 つある。
+
+1. **空の応答は正常系であって失敗ではない。** `GetLatestConfiguration` は構成に変化が無いとき
+   空ボディを返す仕様で、これを「全 OFF」に倒すとポーリングのたびに全フラグが消えて復活する
+   壊れた挙動になる。当初の文面の「空の応答」は「未配信」を指す意図だったと読むべきで、
+   記述が不正確だった。
+2. **known-good を保持しても、この決定が守ろうとしているリスクは発生しない。** 守りたいのは
+   「未公開の機能が露出する」ことだが、known-good 上で OFF のフラグは保持されても OFF のままで、
+   保持によって OFF が ON に変わる経路は存在しない。露出リスクが実在するのは known-good が
+   無い場合だけで、そこは上表のとおり全 OFF に倒している。
+3. **逆に全 OFF へ倒すと実害がある。** AppConfig の一時的なスロットリングやネットワーク断で、
+   **公開済み**の機能がバックオフ間隔のあいだ消える。(2) よりこちらに倒す利得が無い。
+
+なお「ON にした機能を OFF に戻して緊急停止する」用途はこの決定の射程外である。決定8 および
+追補 D8 のとおり、公開済み機能の緊急停止（安全側が ON）はフィーチャーフラグではなく
+環境変数が担うため、「AppConfig が読めずに stale な ON を掴み続ける」ことは緊急停止の
+妨げにならない。
+
+## 検討した選択肢
+
+### 選択肢1: AWS AppConfig ← 採用
+
+- **概要**: AWS マネージドのフィーチャーフラグ基盤。器は Terraform、値はアプリ側リポジトリ。
+- **メリット**:
+  - 既に AWS 上にインフラがあり、OIDC・SSM 契約・Permission Boundary という
+    既存の仕組み（ADR-004 / ADR-005）にそのまま載る。新しいアカウントも新しい秘密情報も増えない。
+  - **再デプロイなしで値を切り替えられる**（現行の環境変数方式の最大の欠点が解消する）。
+  - Deployment Strategy にベイク時間があり、`StopDeployment` で引き返せる。
+  - 固定費が MVP のコスト感に収まる。
+- **デメリット**:
+  - AWS 固有であり、backend 以外（mobile / LP）は `/app-config` 越しにしか読めない。
+  - 実装が増える（セッション管理・キャッシュ・フェイルセーフ・スタブ）。
+  - 組み込みの Deployment Strategy が使えず、自作が必要（ベイク 10 分の制約）。
+
+### 選択肢2: Lambda 環境変数を使い続ける（現状維持）
+
+- **概要**: `config.py` の `Settings` に `*_ENABLED` を生やし、`template.yaml` で値を与える。
+- **メリット**: 追加実装がゼロ。既に 1 つ（`GOOGLE_MAPS_LOOP_ROUTE_ENABLED`）動いている。
+- **デメリット**:
+  - **切り替えに再デプロイが要る**（または手動更新が次の `sam deploy` で巻き戻る）。
+    デプロイとリリースの分離という目的そのものを達成できない。
+  - 切り替えの履歴が残らない。
+  - mobile / LP から読む経路が無い。
+
+### 選択肢3: 外部 SaaS（LaunchDarkly など）
+
+- **概要**: フィーチャーフラグ専業の SaaS を使う。
+- **メリット**: UI・ターゲティング・監査ログが最初から揃っている。ダークローンチの表現力が高い。
+- **デメリット**:
+  - MVP 段階で月額の固定費が乗る。
+  - 管理するアカウントと秘密情報が 1 つ増える（ADR-004 の「秘密の保管先は消費者で決める」方針に
+    新しい経路を足すことになる）。
+  - 現時点で必要なのは ON/OFF だけで、ターゲティングの表現力に対価を払う理由が無い。
+
+### 選択肢4: DB のテーブルでフラグを持つ
+
+- **概要**: PostgreSQL にフラグ用テーブルを作り、backend が読む。
+- **メリット**: 追加のマネージドサービスが不要。値の変更が即時。
+- **デメリット**:
+  - **フラグの読み取りが DB の可用性に依存する。** DB 障害時に「フラグが読めないので全 OFF」に
+    落ちると、障害の影響範囲が不必要に広がる。
+  - Lambda ごとにキャッシュが分かれる問題（ADR-005 決定8 と同じ構図）が再演する。
+  - 値の変更経路が「本番 DB への書き込み」になり、承認と履歴を残す仕組みを自前で作る必要がある。
+  - mobile / LP から読むには結局 `/app-config` のようなエンドポイントが要る。
+
+## 決定理由
+
+**選択肢2（現状維持）を外した理由が、この ADR の出発点そのものである。**
+「フラグを切り替えるのに再デプロイが要る」状態では、デプロイとリリースを分離できない。
+`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の運用手順が
+「即時に変えられるが次の `sam deploy` で巻き戻る / 恒久化するには redeploy」という
+二者択一になっていることが、その証拠として既にドキュメントに残っている。
+
+**選択肢1 を採ったのは、増える管理対象が最も少ないため。** AppConfig は
+既存の OIDC・SSM 契約・Permission Boundary の枠組みにそのまま載り、
+新しいアカウント・新しい秘密情報・新しい請求先が増えない。選択肢3 はこの 3 つが全て増える。
+
+**選択肢4 を外した決め手は可用性の結合である。** フラグは「何かが壊れたときに機能を止める」
+用途を含む（`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` がまさにそれ）。その読み取り先を
+アプリ本体と同じ DB に置くと、最も必要な場面で使えない可能性がある。
+
+**決定8（OTA の位置づけ）は本 ADR で新たに導出したものである。** SS-72 の検討事項には
+OTA の扱いが明示されていなかったが、SS-103 が本課題と `relates to` で紐付き、本文に
+「`runtimeVersion`(policy: appVersion) と channel の運用を ADR-006 の未完了事項に沿って整理する」
+とあるため、ここで決めるべき事項と判断した。「OTA は不具合修正のみ」とより狭く縛る案も
+検討したが、SS-100 により mobile の機能もフラグでガードできる以上、ダークローンチを禁じる理由が無く、
+決定1 と整合しないため採らなかった。
+
+## 影響
+
+### ポジティブな影響
+
+- **未完成の機能を main にマージできる。** 長寿命ブランチとマージ時の衝突が減る。
+- **backend と mobile の公開タイミングを揃えられる。** 両方を配布済みにしたうえで、
+  フラグ ON という 1 つの操作で同時に公開できる。ストア審査の所要時間がリリース計画から外れる。
+- **引き返す手段がデプロイ以外に増える。** 問題が起きたらフラグ OFF で戻せる
+  （`StopDeployment` によるデプロイ自体の停止も含む）。
+- **リリースの履歴が GitHub Actions に残る。** 「いつ何が公開されたか」を後から追える。
+- 現行の `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` も、この基盤へ移せば
+  「巻き戻る一時変更か、再デプロイを伴う恒久変更か」の二者択一から解放される。
+
+### ネガティブな影響・トレードオフ
+
+- **コードにフラグの分岐が増える。** 決定6 の削除段階を実行しないと、分岐の組み合わせが
+  増え続けてコードが読めなくなる。「削除まで含めて 1 つの機能追加」という規律に依存している。
+- **テストすべき状態が増える。** フラグ ON / OFF の両方で壊れないことを担保する必要がある。
+- **リリースの操作が 1 つ増える。** 「デプロイしたら公開」より手数が多い。
+  小さな修正では割に合わない場合があり、すべての変更をフラグで包む必要はない
+  （どの変更をフラグで包むかの線引きは運用手順側に置く）。
+- **AppConfig の取得失敗が新しい失敗経路になる。** 決定9 のフェイルセーフで
+  「全 OFF」に倒すが、これは「公開済みの機能が突然見えなくなる」ことを意味する。
+- **フラグの数が増えるほど、AppConfig のデプロイのベイク時間が運用の律速になる。**
+  同一 Environment では前のデプロイのベイク中に次を開始できない（SS-94）。
+- **expand → contract は 2 回のデプロイを要する。** API の変更が常に 2 段階になり、
+  古いフィールドを消すまでの間はスキーマに冗長さが残る。
+- **本 ADR の手順は未検証である。** prod はまだ存在せず、ストアへの公開も未実施のため、
+  ストア側の設定手順は公式ドキュメントに基づく記述に留まる。
+
+### 移行・対応が必要な事項
+
+- [x] SS-94: `live/platform` に AppConfig の器を作り、SSM に 4 つの ID を入れる（`sanposcape-infra` 側。**完了**）
+- [x] SS-95: Lambda 実行ロールの境界に `appconfig:StartConfigurationSession` / `GetLatestConfiguration` を追加する（**完了**）
+- [x] SS-96: フラグ切り替え用の OIDC ロール `sanposcape-<env>-feature-flags` を作る（`sanposcape-infra` 側。**完了**。
+      **SS-93 追補**で反映）
+- [ ] SS-97: prod の `live/account` を apply し、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する
+- [x] SS-98: backend に AppConfig 読み取り基盤と `/app-config` エンドポイントを追加する（**完了**）。
+      **（SS-98 追補）** レスポンススキーマ・ダークローンチの要否・
+      `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の移行要否は下記「SS-98 追補」で決定した。
+- [x] SS-99: フラグ切り替えワークフローを追加する（**完了**。定義ファイルのフォーマットと置き場所は
+      下記「SS-99 追補」で決定した）
+- [x] SS-100: mobile が `/app-config` のフラグで機能表示をガードする（**完了**。詳細は下記
+      「SS-100 追補」を参照）
+- [ ] SS-101: 最低サポートバージョンを下回るアプリにアップデートを促す（決定7 の contract の前提）
+- [ ] SS-102: mobile の `mobile/vX.Y.Z` タグ・Release・CHANGELOG を自動生成する
+- [ ] SS-103: OTA の本番配信ワークフローを追加し、`EXPO_TOKEN` を Environment Secret へ移す
+- [x] `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` を AppConfig のフラグへ移行するかを判断する。
+      **（SS-98 追補）環境変数のまま残すと結論した。** 理由は下記「SS-98 追補」§D8 を参照
+- [ ] ストア側の設定（App Store の手動リリース / Google Play の公開の管理）を実際に行い、
+      [release-runbook.md](../release-runbook.md) の未検証の記述を実測で確定させる
+- [ ] 各実装チケットの完了時に、確定した構成を本 ADR へ追補する
+
+## 追補: `/app-config` のレスポンススキーマとフラグ取得基盤（2026-09-20, SS-98）
+
+決定2 が backend 側に投げていた「レスポンススキーマとダークローンチの要否は SS-98 で決める」
+（コメント1 参照）への回答。実装は `packages/backend/src/sanposcape/app_config/`
+（HTTP エンドポイント）、`core/feature_flags.py`（評価層）、
+`integrations/aws/appconfig.py`（boto3 `appconfigdata` の取得層）に分かれている。
+
+節番号は D1, D2, D3, D5, D7, D8, D9, D10 の順。**D4 と D6 は欠番**（この2つの番号に対応する
+決定が本追補には無く、意図的に使用していない。今後この2つの番号を新設する決定が生じた場合は、
+この欠番を埋める形で追補すること。既存の節番号は他の節・本リポジトリのコード（後述）から
+参照されているため、詰めて振り直さない）。
+
+### D1: `/app-config` のレスポンススキーマ
+
+```http
+GET /app-config            認証不要（/health と同じ扱い）。Cache-Control: no-store
+```
+
+```json
+{
+  "flags": {
+    "app_config_probe": false
+  },
+  "minimum_supported_versions": {
+    "ios": "0.1.0",
+    "android": "0.1.0"
+  },
+  "config_source": "appconfig"
+}
+```
+
+（`app_config_probe` は最初の実フラグ導入まで用の暫定キー。SS-88 以降は `pin_registration` に
+置き換わっている——`app_config_probe` は SS-88 backend PR で削除済み。上の JSON 例は
+このドキュメントの記述時点のものなので、実際のキー集合は `core/feature_flags.py` の
+`FEATURE_FLAGS` を参照すること。）
+
+| フィールド | 型 | 意味 |
+|---|---|---|
+| `flags` | `dict[str, bool]` | **クライアント公開可**と登録簿（`core/feature_flags.py` の `FEATURE_FLAGS`）でマークされたフラグのみ。登録済みキーは AppConfig 側に値が無くても必ず `false` で出る（キー集合は backend のバージョンで決まる） |
+| `minimum_supported_versions.ios` / `.android` | `string \| null` | `X.Y.Z` 形式。`null` は「**最低バージョンの指定なし = 強制アップデートしない**」（AppConfig を読めない場合も `null` になる。決定9 と同じ向きの fail-safe） |
+| `config_source` | `"appconfig" \| "default" \| "stub"` | 診断用。値の出どころ。**クライアントはこの値で分岐してはいけない**（秘密情報は含まない） |
+
+決定の要点:
+
+- **`flags` は固定キーのオブジェクトではなく map にする。** フラグのライフサイクルは
+  「追加 → ON → **削除**」（決定6）であり、フラグの増減が毎回 OpenAPI スキーマの
+  破壊的変更になるのは expand → contract（決定7）と噛み合わない。map ならフラグを
+  削除しても API スキーマは不変で、古いビルドは未知キーを読めなくなるだけで壊れない。
+  代償として mobile 側は型安全を失う（SS-100 でキー定数を自前定義する）。
+- **値は `bool` 単体**（`{"enabled": true}` のようにネストしない）。クライアントに属性を
+  配る要件が現時点で無く、必要になれば別フィールド（例 `flag_attributes`）を追加する
+  expand で足せる。
+- **最低サポートバージョンはプラットフォーム別。** iOS / Android は審査とストアの段階的公開で
+  普及速度が異なり、片方だけ古いビルドを切りたい場面が現実に起きる。`expo.version`
+  （`app.json`）は共通の1つの値だが、キーは分けておく（後から `string` → `{ios, android}`
+  に変えるのは破壊的変更になるため）。
+- **`/app-config` は DB を触らない。** 認証も DB も要らない軽量経路にしておくと、
+  DB 障害時にもフラグを配れる（選択肢4 を却下した理由と同じ発想）。
+
+### D2: ダークローンチ（ユーザー条件付きフラグ）は不採用
+
+**結論: 採用しない。**
+
+1. **`/app-config` は未認証で叩ける必要がある。** mobile はサインイン前にフラグを読む
+   （起動時ガード・強制アップデート判定）。ユーザー条件付きにすると「未認証時の値」と
+   「認証後の値」が食い違い、mobile はサインインの前後で2回取得して差し替える実装になる。
+   最初に入れる基盤の複雑さとして割に合わない。
+2. **AppConfig にターゲティングの仕組みが無い。** `AWS.AppConfig.FeatureFlags` が配るのは
+   キー → `enabled` + 属性だけで、ルール評価は自前実装になる。選択肢3（LaunchDarkly）を
+   外した理由「現時点で必要なのは ON/OFF だけ」がそのまま当てはまる。
+3. **検証の代替手段が既にある。** 「自分だけで試す」は dev 環境（`ENV=staging`）でフラグを
+   ON にすれば足りる。
+4. キャッシュが壊れる。ユーザー単位評価にすると `/app-config` はユーザーごとに違う応答に
+   なり、D10 のキャッシュ方針が作り直しになる。
+
+将来入れるときに変えるもの（今のうちに用意しておいた拡張点）:
+
+| 変更対象 | 具体的な変更 |
+|---|---|
+| 評価 API | `FeatureFlags.is_enabled(key)` に**キーワード引数**で `context=...` を足す。既存呼び出しは無変更で済む（現状のシグネチャは `def is_enabled(self, key: str) -> bool` で、`*, context=...` を後から追加できる形にしてある） |
+| フラグ JSON | `flags.<key>.attributes` に `allowed_user_keys` 等を定義し、`values.<key>` に値を入れる。**属性は `enabled: true` のときしか配信されない**ため「OFF だが特定ユーザーだけ ON」は表現できない（フラグの意味論が変わるため ADR 追補が別途必要） |
+| `/app-config` | 任意認証（既存の `get_current_user_optional` を使う）にする。`Cache-Control` は `no-store` のまま |
+| mobile | サインイン完了後に `/app-config` を再取得する（**SS-100 では実装しない。理由と拡張点は D14 を参照**） |
+
+### D3: 層の分離と初期化タイミング
+
+**層の分離**: 「AppConfig からどう取るか」（`integrations/aws/appconfig.py`、取得層/transport）と
+「どのキーが存在し、どれをクライアントに見せるか」（`core/feature_flags.py`、評価層）を分ける。
+両者は変更理由が異なる（前者は AWS API の都合、後者はフラグの登録簿・公開ポリシーの都合）ため、
+1つのモジュールにまとめると変更のたびに無関係な差分が混ざる。
+
+**`FlagDocument` / `FlagDocumentSource`（Protocol）を `core` 側ではなく
+`integrations/aws/appconfig.py` 側に置いた理由**: 実装時の設計判断では「core 側に置くと
+循環 import になるため」としていたが、これは**技術的に不正確**だった。`FlagDocumentSource` は
+`Protocol` であり構造的部分型が効くため、`AppConfigFlagSource` 等の実装クラスは明示的に
+import/継承しなくても適合する。つまり型定義を `core/feature_flags.py` に移しても、依存の向きが
+`integrations → core` に反転するだけで**循環にはならない**。
+
+実際にこの配置を採った理由は、既存の前例（`core/runtime_config.py` が
+`integrations/aws/secrets.py` の型を使う、という `core → integrations` の依存の向き）との
+**一貫性を優先した**ためである。古典的なポート＆アダプタでは「ポート(Protocol)と DTO は
+評価ロジックを持つ側（`core`）が所有し、アダプタ（具象実装）がそれに依存する」向き
+（`integrations → core`）がより教科書的だが、本リポジトリでは逆方向（`core → integrations`）の
+前例が既にあり、この1箇所だけ向きを変えると一貫性が崩れる。動くものを実装終盤に配置し直す
+利得より、リポジトリ内で依存の向きを揃えておく利得を優先した。技術的な制約ではなく
+一貫性のためのトレードオフである、という点を後続の設計判断のために明記しておく。
+
+**初期化タイミング**: `main.py` の `_lifespan`（コールドスタート時に1回実行される）は
+`FlagDocumentSource` / `FeatureFlags` の**インスタンスを作るだけ**で、AppConfig への実際の
+取得（`get_document()` の呼び出し）は行わない。最初にフラグを参照したリクエスト（通常は
+`/app-config`）が初めて取得する。これにより、`/app-config` 以外のエンドポイントの
+コールドスタートに AppConfig 取得のレイテンシ（`APPCONFIG_CONNECT_TIMEOUT_SECONDS` +
+`APPCONFIG_READ_TIMEOUT_SECONDS` が最悪ケース）を乗せずに済む。同じ形は
+`google_maps_provider`（`HttpGoogleMapsProvider` も `_lifespan` でインスタンス化されるだけで、
+実際の Places/Routes 呼び出しはリクエスト時）にも使われている既存パターンである。
+
+### D5: モード切替（`FEATURE_FLAG_MODE`）
+
+`AUTH_MODE` / `MAPS_MODE` と同じ型（決定2 が予告していたとおり）。
+
+```python
+feature_flag_mode: Literal["real", "stub"] = "real"       # コード既定は fail-safe な real
+feature_flag_stub_document: str = ""                       # stub 用の簡略 JSON 文字列
+appconfig_application_id: str = ""
+appconfig_environment_id: str = ""
+appconfig_configuration_profile_id: str = ""
+appconfig_poll_interval_seconds: int = 60
+appconfig_error_backoff_seconds: int = 30
+appconfig_connect_timeout_seconds: float = 1.0
+appconfig_read_timeout_seconds: float = 2.0
+```
+
+- `ENV` が `local` / `test` 以外で `feature_flag_mode != "real"` だと起動失敗する
+  （許可リスト方式。ADR-002 決定4 と同じ fail-safe 方針）。
+- **`APPCONFIG_*` の ID が1本でも空なら `UnconfiguredFlagSource`（AWS を一切呼ばない）に
+  フォールバックする。** これにより CI（`backend-ci.yml`）と既存開発者の `.env` は無変更で
+  安全（`MAPS_MODE` 未設定時に `UnconfiguredGoogleMapsProvider` に落ちるのと同じ構造）。
+- stub の入力は `GetLatestConfiguration` が返す簡略 JSON と同じ形（本番と同じパーサを通す）。
+  型は `str`（`dict` にすると pydantic-settings の自動 JSON デコードが絡み、
+  `GOOGLE_ALLOWED_AUDIENCES` で踏んだ「パース失敗で起動できない」罠を再演しうるため）。
+
+### D7: AppConfig に置く設定 JSON（SS-99 がそのまま使える例）
+
+**書き込む側**（hosted configuration version の中身。`AWS.AppConfig.FeatureFlags` の正規形）:
+
+```json
+{
+  "version": "1",
+  "flags": {
+    "client_requirements": {
+      "name": "client requirements",
+      "description": "機能フラグではない予約キー。クライアントの最低サポートバージョンを属性で配る。必ず enabled=true にすること（false にすると属性が配信されず backend は null にフォールバックする）",
+      "attributes": {
+        "ios_minimum_version": {
+          "description": "これ未満の iOS アプリにアップデートを促す（SS-101）",
+          "constraints": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+        },
+        "android_minimum_version": {
+          "description": "これ未満の Android アプリにアップデートを促す（SS-101）",
+          "constraints": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+        }
+      }
+    },
+    "app_config_probe": {
+      "name": "app config probe",
+      "description": "基盤の疎通確認用。機能には紐づかない。最初の実フラグが入ったら削除する"
+    }
+  },
+  "values": {
+    "client_requirements": {
+      "enabled": true,
+      "ios_minimum_version": "0.1.0",
+      "android_minimum_version": "0.1.0"
+    },
+    "app_config_probe": { "enabled": false }
+  }
+}
+```
+
+**読み取る側**（`GetLatestConfiguration` が返す簡略 JSON。backend / stub が扱う形）:
+
+```json
+{
+  "client_requirements": {
+    "enabled": true,
+    "ios_minimum_version": "0.1.0",
+    "android_minimum_version": "0.1.0"
+  },
+  "app_config_probe": { "enabled": false }
+}
+```
+
+スキーマ上の制約（AWS 公式の型リファレンスより。SS-99 が守る必要がある）:
+
+- フラグキー / 属性名は `^[a-z][a-zA-Z\d_-]{0,63}$`（先頭は小文字英字。snake_case で統一）。
+- `version` は `"1"` 固定・必須。トップレベルは `version` / `flags` / `values` のみ
+  （`additionalProperties: false`。独自のメタ情報を足せない。D9 の理由）。
+- **`enabled: false` のフラグの属性は `GetLatestConfiguration` の応答に含まれない**
+  （AWS の仕様）。`client_requirements` は**常に ON に保つ**必要がある。OFF にすると
+  最低サポートバージョンが `null` に落ちる（= 強制アップデートしない側なので安全）。
+- 最低サポートバージョンを配るためだけの別 Configuration Profile は作らない。
+  infra（SS-94）が作った profile は `feature-flags` の1本だけのため、既存 profile に
+  相乗りしている。
+- フラグキーの命名規約: `_enabled` のような接尾辞を付けず、機能名の snake_case にする
+  （`flags` という map の値が bool なので、接尾辞は冗長）。例: `walk_sharing`, `route_replay`。
+
+`app_config_probe`（疎通確認用フラグ）について: SS-98 時点では実機能に紐づくフラグが
+1つも無く、SS-99（切替ワークフロー）も SS-100（mobile の消費）も切り替える対象が無いと
+検証できない。そのため、登録簿と AppConfig の JSON 例にこのフラグを1つ置いた
+（client 公開・既定 OFF・挙動なし）。**最初の実フラグが入った時点で削除する**
+（決定6 の「削除まで含めて1つ」に反する常駐フラグにしない。コード上のコメント
+（`core/feature_flags.py`）にも同じ注記がある）。
+
+**（2026-09-21 追記, SS-88）** ピン登録機能（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）の
+`pin_registration` が最初の実フラグとして登録され、同じ PR で `app_config_probe` を
+`core/feature_flags.py` の `FEATURE_FLAGS` から削除した。`app_config/tests/test_router.py` /
+`core/tests/test_feature_flags.py` のサンプルキーも `pin_registration` に置き換えている。
+本節・上の JSON 例にある `app_config_probe` は SS-98 時点の記録として残すが、
+**現在のコードには存在しない。**
+
+### D8: `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は AppConfig へ移行しない
+
+「移行・対応が必要な事項」の宿題への回答。**環境変数のまま残す。**
+
+- AppConfig 基盤の既定値は**全フラグ OFF**（決定9）。`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の
+  安全側は**ON**（既に公開済みの機能で、OFF にすると「同じ道で戻る」フォールバックに落ちる）。
+  移行すると「AppConfig が読めない → 公開済み機能が静かに劣化する」という、今は存在しない
+  障害経路が増える。
+- kill switch は「何かが壊れたときに止める」ためのもので、AppConfig 自体が壊れていても
+  効いてほしい。
+- backend 内部のフラグでクライアントには公開しない（`/app-config` に出す理由が無い）。
+
+一般規則として書き下す:
+
+| 種類 | 安全な既定 | 置き場所 |
+|---|---|---|
+| 未公開機能の公開制御（リリース） | OFF | **AppConfig** |
+| 公開済み機能の緊急停止（kill switch） | ON | **環境変数（`Settings`）** |
+
+### D9: フラグ定義の所有（コードの登録簿 / AppConfig の値）
+
+| 決めること | 所有者 | 変更手段 |
+|---|---|---|
+| フラグキーの正典・説明・**クライアント公開の可否** | **backend のコード**（`core/feature_flags.py` の `FEATURE_FLAGS`） | PR（レビューを通る） |
+| フラグの値（ON / OFF）・最低サポートバージョン | **AppConfig**（hosted configuration version） | GitHub Actions（SS-99） |
+
+- **公開可否をコード側に置くのが要点。** AppConfig の値を切り替える操作で
+  「backend 内部専用のつもりだったフラグがクライアントに露出する」事故を構造的に防ぐ
+  （D7 のとおり AppConfig の JSON には独自メタ情報を足せない、という制約とも整合する）。
+- `/app-config` は登録簿にある client フラグを必ず全部返す（AppConfig 側に無ければ
+  `false`）。AppConfig 側にある未知キーは無視する（ログは DEBUG）。応答のキー集合が
+  「デプロイされている backend のバージョン」で決まり、mobile から見て予測可能になる。
+- フラグ定義ファイル（SS-99 が使う `flags.json` の置き場所とフォーマット）は SS-99 の
+  担当（決定6 がそう割り当てている）。SS-99 でファイルを作るときは、登録簿（Python）と
+  ファイル（JSON）のキー集合が一致することを pytest で検査することを推奨する。
+
+### D10: キャッシュ方針
+
+- レスポンスヘッダは **`Cache-Control: no-store`**。
+- CloudFront のキャッシュポリシー（Terraform 所有）に挙動を依存させたくない。リリース当日に
+  「フラグを ON にしたのに反映されない」の原因が CloudFront かポーリング間隔（既定60秒）か
+  コンテナ再利用かで切り分け不能になるのを避けるため。`/app-config` は DB も外部 API も
+  叩かない軽量経路で、キャッシュしないコストは小さい。
+- 反映の遅延要因は **AppConfig のベイク時間 + ポーリング間隔（既定60秒）+ 実行環境ごとの
+  ばらつき**に閉じる。後日トラフィックが増えたら `max-age` を入れる余地は残る
+  （expand で足せる）。
+- **`Cache-Control: no-store` は OpenAPI（`openapi.yaml`）には出力されない。** FastAPI の
+  router が `Response.headers` 経由で実行時に付与するヘッダーであり、`response_model` の
+  スキーマにもレスポンス定義にも現れない。mobile（Orval で `openapi.yaml` を消費する側）から
+  はこの契約が見えないため、キャッシュしない前提で実装する必要がある場合は本 ADR
+  （またはコードコメント）を参照させること。
+- **`config_source` は「最後に値を取得できた出所」を示す。** 決定9-1 のとおり取得失敗時は
+  known-good を維持するため、直近の取得が失敗していても、その値が AppConfig 由来なら
+  `"appconfig"` を返す（`"default"` に変わるのは一度も取得できていない場合だけ）。
+  クライアントは `config_source` で挙動を分岐させないこと（診断用）。
+
+## 追補: mobile のフラグ受け皿（2026-09-20, SS-100）
+
+決定2・決定9・追補 D1/D2/D9/D10 を mobile 側で実際に成立させた実装の記録。
+実装は `packages/mobile/src/api/`（`appConfigQueryKey.ts` / `appConfigApi.ts`）、
+`src/config/featureFlags.ts`（キー定数）、`src/lib/`（`appConfigSnapshot.ts` /
+`featureGate.ts` / `appConfigRefresh.ts`、いずれも純粋関数）、`src/hooks/`（`useAppConfig.ts` /
+`useAppConfigBootstrap.ts` / `useFeatureFlag.ts`）、`src/components/app-config/`
+（`AppConfigBootstrap.tsx` / `FeatureGate.tsx`）に分かれている。詳細な設計判断は
+[packages/mobile/docs/architecture-guideline.md](../../packages/mobile/docs/architecture-guideline.md)
+「フィーチャーフラグ（`/app-config`）の扱い」に譲り、ここでは ADR に残す価値のある決定のみを記す
+（節番号は D11 以降を使う。**D4 と D6 は欠番のまま**――既に SS-98 追補冒頭で明示済みの欠番であり、
+本追補でも詰めて振り直さない）。
+
+### D11: フラグ値の保持場所は TanStack Query、Zustand には複製しない
+
+`queryKey: ["app-config"]` の1本に一本化した。`/app-config` は未認証でも叩けるサーバー状態であり、
+[mobile ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md) の「サーバー状態 = TanStack
+Query」、および `packages/mobile/docs/folder-structure.md` の「サーバー由来のデータは `src/store/`
+に置かない」に従う。`AuthGate` の `loading` 中でも取得を開始できることが、Zustand に持たせる理由が
+無いことの根拠になっている。
+
+### D12: キー定数は mobile 側で自前定義し、自動同期はしない
+
+D1 の申し送りどおり `packages/mobile/src/config/featureFlags.ts` に `FEATURE_FLAG_KEYS`
+（`as const` オブジェクト + `FeatureFlagKey` 型）を置いた。正典は backend のコード
+（D9 のとおり `core/feature_flags.py` の `FEATURE_FLAGS`）であり、このファイルは**その写し**で
+機械的な同期はしない（mobile のテストから Python を読むことはしない）。ズレても壊れないよう、
+未知キーは常に OFF に倒す（下記 D13）。**SS-100 では実フラグを1つも追加していない**
+（backend の登録簿にあるクライアント公開フラグが `app_config_probe`（疎通確認用）の1件のみで、
+mobile 側に隠したい未公開機能も現時点で存在しないため）。
+
+### D13: フェイルセーフの具体
+
+- ロード中 / 取得失敗 / 未知キー / 値が bool でない異常応答 → `isFeatureEnabled()` は常に `false`
+  （`flags[key] === true` の厳密比較で担保）。
+- **ロード中は直近の成功値を保持する。** 再取得（フォアグラウンド復帰）が失敗しても、
+  直近に成功した `data` がキャッシュに残っていれば `status: "ready"` のまま扱い、
+  画面のチラつき（公開済み機能が一瞬消えて戻る）を避ける。
+- 画面ごとフラグで隠す用途では、「まだ分からない（`loading`）」と「OFF が確定した
+  （`ready`/`unavailable` の OFF）」を区別できるよう `resolveFeatureGateDecision` が
+  `pending` / `enabled` / `disabled` の3値を返す。`loading` 中に確定的な OFF 扱い
+  （`<Redirect>` 等）をすると、「フラグ ON なのに起動直後は必ず弾かれる」不具合になるため。
+
+### D14: キャッシュ方針
+
+- `staleTime` 5分 / `gcTime` `Infinity`（一度取れた値は捨てない）/ `refetchOnMount: false`
+  （画面遷移のたびに叩かない）。更新の取り込みはフォアグラウンド復帰時の `invalidateQueries`
+  （最小間隔60秒）に任せる。
+  （**2026-09-21 追補（SS-100、PR #89 レビュー対応）**: 「最小間隔60秒」の起点は当初
+  `dataUpdatedAt`（直近成功時刻）のみだったが、これは TanStack Query の仕様上**成功時にしか
+  更新されない**ため、取得が失敗し続けている間は起点が進まず絞りが効かなくなる不具合が
+  あった（初回失敗なら `dataUpdatedAt` は永久に 0 で毎回 true、成功後の失敗なら古い成功時刻の
+  まま前進しない）。`invalidateQueries` 1回は transport のリトライ（`src/api/transientRetry.ts`
+  最大3）× TanStack の `retry: 2`（最大3）で最悪9リクエストになりうるため、
+  「障害中にだけ絞りが外れる」という最も避けたい壊れ方になっていた。`shouldRefreshOnForeground`
+  （`src/lib/appConfigRefresh.ts`）の起点を `lastAttemptedAt = max(dataUpdatedAt, errorUpdatedAt)`
+  （直近の**成功または失敗**の時刻）に改め、加えて `isFetching`（実行中）のときは重ねて
+  `invalidateQueries` を呼ばないよう false を返すようにした。これは決定9 のフェイルセーフの
+  向きを変えるものではない。値が読めない間は従来どおり全フラグ OFF に倒れる。変わるのは
+  「無駄打ちを減らす」点のみである）。
+- **永続キャッシュ（AsyncStorage 等）は持たない。** 理由は2つ。
+  ① 決定9 のフェイルセーフは「読めない時は OFF」であり、前回起動時の ON を永続化すると
+  kill switch が効かない端末が生まれ、フェイルセーフの向きが逆転する。
+  ②（**2026-09-20 訂正**: 当初「依存追加は [ADR-004（mobile）](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+  の E2E APK キャッシュを1回ミスさせるコストに見合わない」としていたが、この前提は
+  ADR-004 自体が 2026-08-14 追補で撤回済みで誤りだった。`packages/mobile/docs/toolsets-libraries.md`
+  も「依存追加時の APK キャッシュミスは論点にならない」と明記しており、当時の根拠は成立しない）
+  候補である `@react-native-async-storage/async-storage` は**ネイティブモジュール**であり、
+  追加すると development build の作り直しが必要になる
+  （[mobile ADR-003](../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
+  「再ビルドが必要なのはネイティブが変わるときだけ（native 依存の追加/削除...）」）。
+  あわせて依存追加自体に `minimumReleaseAge`（2日）の待機コストも伴う
+  （`packages/mobile/docs/toolsets-libraries.md`）。得られるのは起動直後の数百 ms の
+  チラつき低減のみで、このコストに見合わない。**結論（永続キャッシュを持たない）自体は変わらない。**
+- **サインイン完了後の `/app-config` 再取得は実装しない。** 追補 D2 が「サインイン完了後に
+  `/app-config` を再取得する」と mobile 側に申し送っていたが、D2 自体がダークローンチ
+  （ユーザー条件付きフラグ）を不採用としており、現状の応答は未認証/認証後で同一であるため、
+  今入れても「必ず同じ値が返ってくる再取得」を1本足すだけになり決定6 の精神（使われない分岐を
+  残さない）に反する。将来 D2 を覆す際の拡張点は `src/hooks/useAppConfigBootstrap.ts` の1箇所
+  （`useAuthSessionStore` の `status` が `authenticated` に遷移したら
+  `invalidateQueries({ queryKey: APP_CONFIG_QUERY_KEY })` を呼ぶ）に特定してある。
+
+### D15: サインアウト時のクリア対象から `/app-config` を除外する
+
+`src/api/queryClient.ts` のサインアウト時後始末（[ADR-009（mobile）](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)
+決定6）を `queryClient.clear()` から `removeQueries({ predicate: ... })` に変更し、
+`/app-config` のキャッシュだけを対象外にした。ユーザー非依存の公開設定を「共有端末での前ユーザーの
+データ漏れ防止」という決定6 の目的に巻き込む必要が無いため（除外できるのは D2 がダークローンチを
+不採用としているからで、D2 を覆す場合はこの除外も見直しが必要。詳細は ADR-009 の SS-100 追補）。
+
+### D16: `config_source` は mobile の内部型から落として分岐を構造的に禁止した
+
+mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図的に `config_source` を
+持たない。D1 が「クライアントはこの値で分岐してはいけない」と定めているため、プロダクトコードが
+参照できる型から落とすことで型システムに担保させた。診断表示が必要な `__DEV__` 画面
+（`/dev-screens` の `AppConfigDebugCard`）だけは別 hook（`useAppConfigDiagnostics()`）から読む。
+
+### D17: `minimum_supported_versions` は保持のみ
+
+`AppConfigSnapshot.minimumSupportedVersions`（`{ ios: string | null; android: string | null }`。
+`undefined` は `null` に畳み済み）として保持するところまでが SS-100 のスコープ。バージョン比較・
+アップデート促進 UI は SS-101 の責務（D1 の表の docstring どおり）。
+
+### D18: mobile 側に `services/` の real/mock 層は作らなかった
+
+フラグ取得は HTTP で完結し、ネイティブ機能にも認証にも依存しない
+（`packages/mobile/docs/folder-structure.md` は `services/` を「認証・実機依存機能」の器と
+定義している）。ユニットテストは Orval の msw ハンドラで、E2E は実 backend で足りる。
+ローカルで ON/OFF を試す手段も backend 側に既にある（D5 の `FEATURE_FLAG_MODE=stub` +
+`FEATURE_FLAG_STUB_DOCUMENT`）。mobile に3つ目のモード環境変数を増やすと、「端末側で ON にできる」
+抜け道を作ることになり、フラグの正典が2つになる。
+
+## 追補: フラグ切り替えワークフロー（2026-09-21, SS-99）
+
+決定6 と SS-98 追補 D7/D9 を満たす切り替え経路の実装記録。実装は
+`.github/workflows/feature-flags.yml`、`packages/backend/feature-flags.json`（定義ファイル）、
+`packages/backend/scripts/feature_flags_document.py`（投入する版の組み立て）。運用手順は
+[release-runbook.md](../release-runbook.md) §3 に置く。節番号は D19 以降を使う。
+
+### D19: 定義ファイルは AppConfig FeatureFlags 形式そのもので、既定値を `values` に持つ
+
+- 置き場所は `packages/backend/feature-flags.json`。登録簿（`core/feature_flags.py`）と同じ package に置き、
+  キー集合の一致（登録簿の全キー + 予約キー `client_requirements`）を pytest で検査する（D9 の推奨どおり）。
+- 形式は D7 の「書き込む側」の JSON そのもの（`version` / `flags` / `values`）。`values` は既定値で、
+  通常のフラグは `enabled: false`、`client_requirements` は `enabled: true` 以外を検査で弾く（決定9・D7）。
+  独自形式にしないのは、変換層を持たずに済み、未配信の環境への最初の版がこのファイルからそのまま作れるため。
+- 説明文は登録簿（Python）と定義ファイルの両方にある。一致は検査しない（キー集合だけ）。
+  AppConfig 側の `description` は運用者がコンソールで読む補助情報で、正典は登録簿のまま（D9）。
+
+### D20: フラグの現在値の正本は AppConfig。ワークフローは現在値を引き継いで1本だけ書き換える
+
+- hosted configuration version は文書全体を置き換えるため、「1本を切り替える」には他のフラグの現在値が要る。
+  値をリポジトリのファイルに持たせる案は、フラグを倒すたびに PR が要り、決定1（デプロイとリリースの分離）に反するので採らない。
+- 現在値は「その環境で直近に配信を完了した（`COMPLETE`）版」を `ListDeployments` → `GetHostedConfigurationVersion`
+  で読む。`ROLLED_BACK` の配信は飛ばす（実際に配信されている値ではないため）。未配信なら定義ファイルの既定値から始める。
+- 定義ファイルに増えたキーは既定値で足す。定義に無い属性は落とすが、`_` で始まる AppConfig の予約フィールド
+  （`_variants` 等）は残す。
+- **定義ファイルから消えたキーは、既定では定義ごと維持し、`prune` 入力を付けたときだけ落とす。**
+  prod の backend は main から手動でデプロイするので、フラグ削除 PR のマージ後もしばらくは古い backend が
+  そのキーを読んでいる。ここで自動で落とすと、無関係なフラグを切り替えただけで ON の機能が消える。
+  dev で古い ref から起動した場合も、新しいフラグの ON を黙って失わない。
+  （PR レビュー指摘による変更。当初案は「次の切り替えで自動的に消える」だった）
+- `client_requirements` は切り替え対象にせず、組み立て時に必ず `enabled: true` に戻す（D7）。
+- **直近の `COMPLETE` の配信が指す版が削除されていたら、既定では失敗させる。** `from_defaults` 入力を付けたときだけ
+  定義ファイルの既定値から組み立てる。現在値が分からないまま既定値（全 OFF）に倒すと、prod では公開済みの機能が
+  黙って消えるため。ワークフローのロールは版を削除できず、infra の資格情報による操作でしか起きない。
+  （2026-09-22 追記: dev の初回実行で実際に起きた。infra の疎通確認手順が、テスト用の版を配信してから削除していたため）
+- 現在の版と内容が同じなら配信しない（Job Summary に「変更なし」を出す）。比較では AppConfig が付けうる
+  `_createdAt` / `_updatedAt` を除く。
+- 定義ファイルは AppConfig のスキーマが弾くもの（未知のキー、`name` 64 文字超、`description` 1024 文字超、
+  属性 25 個超）を `prepare` job で先に弾く。prod では承認後に失敗させないため。
+
+### D21: 入力・認証・Environment
+
+- 入力は `environment`（development / production）・`flag`（自由入力。定義ファイルで検査）・`state`（`off` / `on`、既定 `off`）。
+  `flag` を choice にしないのは、フラグの追加・削除のたびにワークフロー定義まで変えることになるため。
+  検査は承認待ちに入る前の `prepare` job（AWS に触らない）で行う。
+- 認証は infra SS-96 のロール `sanposcape-<env>-feature-flags`。ARN は Environment Variables
+  `AWS_FEATURE_FLAGS_ROLE_ARN`（`AWS_SAM_DEPLOY_ROLE_ARN` と同じ扱い。秘密ではない）。Secrets は使わない。
+- GitHub Environment は backend のデプロイと共用の `development` / `production`（infra のロールの trust の既定）。
+  production の Required reviewers と main 限定がそのまま効き、ワークフロー側でも production は main 以外から起動すると落とす。
+- 2026-09-21 時点で dev はロールと AppConfig が揃っている（infra 側で確認済み）。prod は `live/platform` が未 apply で、
+  ロールも AppConfig も無い。
+- AppConfig の ID は SSM `/sanposcape/<env>/platform/appconfig/*` から読み、`::add-mask::` でログから隠す
+  （public リポジトリの Actions ログは公開されるため。リポジトリに ID を置かないのと同じ理由）。
+- OIDC トークンを持つ job ではサードパーティの依存を入れない（aws CLI と python3 の標準ライブラリのみ）。
+  組み立てスクリプトを標準ライブラリで書き、backend のパッケージ（`sanposcape`）を import しないのはこのため。
+  そのぶん `FLAG_KEY_PATTERN` / 予約キーをスクリプト側に写しており、一致は pytest で検査する。
+
+### D22: ベイク中の衝突は直列化と完了待ちで吸収し、`StopDeployment` は組み込まない
+
+- 同一環境で配信中（ベイク中を含む）は次の `StartDeployment` が `ConflictException` になる。
+  ワークフローは `concurrency: feature-flags-<environment>`（取り消さない）で直列化し、各 run が
+  `GetDeployment` で `COMPLETE` まで待つ（上限 20 分）ので、後の run は衝突しない。
+  ただし GitHub の仕様で待機できる run は group ごとに1つで、待機中にさらに起動すると待機していた run は
+  キャンセルされる。これは仕組みでは防がず、runbook で「run の成功を確認する」ことで扱う。
+  それでも進行中の配信が見つかった場合（ワークフロー外から始めた配信）は、何もせずに失敗させる。
+- 引き返しは逆の値での再実行で行う。`StopDeployment`（ロールには権限がある）はワークフローに入れていない。
+  prod のベイクは1分で、入れるとワークフローの入力と分岐が増える割に得るものが小さいため。必要になったら追加する。
+- hosted configuration version の作成に楽観ロック（`--latest-version-number`）は使っていない。
+  書き込み経路がこのワークフローだけで、環境ごとに直列化しているため。
+
+### D23: 最低サポートバージョンの変更入力は持たない（SS-101 に送る）
+
+`client_requirements` の属性値（`ios_minimum_version` / `android_minimum_version`）は現在値を引き継ぐだけで、
+変更する入力は無い。値を使う側（SS-101 のアップデート促進）が未実装で、今入れても検証できない入力を
+1つ増やすだけになるため。SS-101 で必要になったときに、同じワークフローへの入力追加か別ワークフローかを決める。
+
+## 関連情報
+
+- [ADR-004: シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
+  —— GitHub Environment と AWS アカウントの 1:1 対応、OIDC ロールの trust の絞り方。
+  決定6 のフラグ切り替えロールも同じ枠組みに載る
+- [ADR-005: backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする](./ADR-005-backend-serverless-deployment-lambda-function-url.md)
+  —— 本 ADR の出発点。SS-72 追補がこの ADR を予約した。決定4・決定5 の内容はそこで確定済み
+- [ADR-006: mobile アプリの配信は EAS（Expo ホスト）に委ね、mobile 用 SAM テンプレートを作らない](./ADR-006-mobile-app-delivery-eas-hosted.md)
+  —— 決定3・決定8 の前提（配布経路、`runtimeVersion` と `version` の関係）
+- [ADR-007: 周回ルート（往路と異なる道で戻る）の生成方式](./ADR-007-loop-route-generation.md)
+  —— 現行の唯一のフラグ `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の由来
+- [docs/release-runbook.md](../release-runbook.md) —— 本 ADR に基づく実際のリリース手順
+- [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md)
+  —— backend のデプロイ手順、タグと GitHub Release、現行の kill switch の運用
+- [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md)
+  —— ビルドプロファイル、ビルド番号の採番、表示用 `version` の運用ルール
+- Plane: SS-104（本 ADR）、SS-72（起点）、SS-94 / SS-95 / SS-96 / SS-97（infra）、
+  SS-98 / SS-99（backend・CI）、SS-100 / SS-101（mobile のフラグ受け皿・強制アップデート）、
+  SS-102 / SS-103（mobile のリリース自動化・OTA）
+- [AWS AppConfig feature flags (AWS 公式ドキュメント)](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-configuration-and-profile-feature-flags.html)
+- [AWS AppConfig deployment strategies (AWS 公式ドキュメント)](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-deployment-strategy.html)
+  —— 定義済み Deployment Strategy のベイク時間
+- [Deployment patterns (Expo 公式ドキュメント)](https://docs.expo.dev/eas-update/deployment-patterns/)
+  —— channel / branch と runtimeVersion の関係

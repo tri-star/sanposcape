@@ -13,8 +13,8 @@ export type WalkGoalFallback = { name: string; time: number; dist: number };
  */
 export const DEFAULT_WALK_GOAL: WalkGoalFallback = {
   name: "川辺駅",
-  time: 60, // 往復の目安（分）
-  dist: 4.0, // 往復の目安距離（km）
+  time: 60, // 周回の目安（分）
+  dist: 4.0, // 周回の目安距離（km）
 };
 
 /**
@@ -30,8 +30,8 @@ export const DEFAULT_ACTIVE_WALK = {
     name: DEFAULT_WALK_GOAL.name,
     location: { latitude: 35.6875, longitude: 139.7625 },
   },
-  roundTripMinutes: DEFAULT_WALK_GOAL.time,
-  roundTripKm: DEFAULT_WALK_GOAL.dist,
+  loopMinutes: DEFAULT_WALK_GOAL.time,
+  loopKm: DEFAULT_WALK_GOAL.dist,
 } as const satisfies Omit<ActiveWalk, "startedAtMs" | "clientWalkId">;
 
 /**

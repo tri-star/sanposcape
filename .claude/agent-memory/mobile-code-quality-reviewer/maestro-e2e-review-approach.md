@@ -2,7 +2,8 @@
 name: maestro-e2e-review-approach
 description: Maestro E2E フロー（.maestro/*.yaml）と testID 追加のレビューでは、コメントの前提（画面遷移・canGoBack 挙動）を実際の router.push/replace 呼び出しまで追跡して裏取りする
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-21（`.maestro/` の MVP フロー追加・testID 追加）のレビューで有効だった手順。
@@ -25,6 +26,7 @@ idle 表示になる」「openLink 後は canGoBack() が true になる」）�
 3. `waitForAnimationToEnd` を「時間稼ぎ」目的で使っている箇所（アニメーションではなくポーリング
    間隔のあるデータ更新に依存させるトリック）を見つけたら、その UI が本当に継続的に変化し続けるか
    （タイマー表示など）を確認し、非自明な依存であることをレビューコメントで指摘する。
-4. `docs/milestones.md` 等の完了条件チェックリストが「ローカル実機検証は未実施」と自己申告している
+4. 完了条件チェックリスト（Plane の work item や ADR の「移行・対応が必要な事項」）が
+   「ローカル実機検証は未実施」と自己申告している
    場合、それは Warning 相当（プラン自身の完了条件を満たしていない可能性）として扱ってよい。
    静的なコードトレースで整合性が取れていても、実機での検証未了は指摘に値する。

@@ -2,7 +2,7 @@
 name: project_design_system_ssot
 description: SS-1 で決めた Claude Design と mobile リポジトリ間の SSoT 切り分けと同期方向・トークン実体の置き場
 metadata:
-  type: project
+  type: reference
   scope: durable
   adr: packages/mobile/adr/ADR-005-styling-without-unistyles.md
 ---
@@ -25,4 +25,4 @@ makeStyles/useTheme/withAlpha のみ）。つまり「Design で値を決め、t
 borderSubtle は既にある）、足りない場合だけ Design 側への提案を書く。生の色値のハードコードは禁止
 （SS-26 が「トークンに無い値の複製」を問題視）。
 
-関連: [[mobile-codegen-ci-constraint]]
+関連: [[project_codegen_ci_constraint]]

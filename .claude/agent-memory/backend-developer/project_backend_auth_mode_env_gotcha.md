@@ -1,8 +1,9 @@
 ---
-name: backend-auth-mode-env-gotcha
+name: project_backend_auth_mode_env_gotcha
 description: packages/backend/.env.example はAUTH_MODE=devが既定。ambientなmain.appに依存するテストはローカルとCIで結果が変わりうる
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `packages/backend/.env.example`（および開発者が生成する `.env`）は、ローカル開発 / Maestro E2E の

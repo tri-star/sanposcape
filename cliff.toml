@@ -1,0 +1,75 @@
+# git-cliff の設定（リポジトリ共通）。https://git-cliff.org/docs/configuration
+#
+# アプリ（backend / mobile / LP …）ごとに独立したバージョンとリリースノートを持つ前提で、
+# この設定自体はアプリに依存させない。アプリ別の差分は CLI 引数で渡す:
+#   --include-path   そのアプリのディレクトリ（例: 'packages/backend/**'）
+#   --tag-pattern    そのアプリのタグ（例: '^backend/v[0-9]+\.[0-9]+\.[0-9]+$'）
+# 例（backend の次バージョンと、前回タグ以降のリリースノート）:
+#   git-cliff --offline --unreleased --include-path 'packages/backend/**' \
+#     --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --bumped-version
+#   git-cliff --offline --unreleased --include-path 'packages/backend/**' \
+#     --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --strip all
+#
+# ★ `--include-path` を使うときは `--unreleased` を必ず付けること（`--bumped-version` でも）。
+#   付けないと、パス条件に当たらないコミット（マージコミット等）に付いた前回タグを見失い、
+#   全履歴を対象に bump してしまう（git-cliff 2.14.1 で確認）。
+# ★ `--offline` を付けること。GITHUB_TOKEN が環境にあると GitHub API から PR 情報などを
+#   取りに行くが、このリポジトリのテンプレートでは使っていない。
+
+[changelog]
+# GitHub Release の本文として使う想定のため、ヘッダー・フッターは持たない
+# （CHANGELOG.md をコミットする運用にする場合は、ここに見出しを足す）。
+header = ""
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.breaking %}**[破壊的変更]** {% endif %}\
+{{ commit.message | split(pat="\n") | first | trim }} \
+({{ commit.id | truncate(length=7, end="") }})\
+{% endfor %}
+{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+# このリポジトリのコミットは `feat(backend): …` のような Conventional Commits 形式
+# （docs/git-commit-guideline.md）。形式に沿わない古いコミット（`SS-12 …` など）は除外する。
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+# group の先頭の <!-- N --> は表示順を固定するためのもの（本文では striptags で消す）。
+commit_parsers = [
+  { message = "^Merge ", skip = true },
+  { message = "^Revert ", group = "<!-- 9 -->取り消し" },
+  { message = "^feat", group = "<!-- 0 -->新機能" },
+  { message = "^fix", group = "<!-- 1 -->バグ修正" },
+  { message = "^perf", group = "<!-- 2 -->パフォーマンス" },
+  { message = "^refactor", group = "<!-- 3 -->リファクタリング" },
+  { message = "^revert", group = "<!-- 9 -->取り消し" },
+  { message = "^docs", group = "<!-- 4 -->ドキュメント" },
+  { message = "^test", group = "<!-- 5 -->テスト" },
+  # エージェントの作業記憶の更新はアプリの変更ではない。
+  { message = "^chore\\(agent-memory\\)", skip = true },
+  { message = "^(chore|build|ci|style)", group = "<!-- 6 -->その他" },
+]
+# どの parser にも当たらない type（`walks: …` など独自の type）は除外する。
+filter_commits = true
+# 「前回タグ以降」を祖先関係で判定するため、日付順ではなくトポロジカル順でタグを並べる。
+topo_order = true
+sort_commits = "oldest"
+
+[bump]
+# 次バージョンの算出規則（`--bumped-version` / `--bump`）。
+# - 破壊的変更（`feat!:` / `BREAKING CHANGE:` フッター） → major。ただし 1.0.0 未満では minor
+#   （breaking_always_bump_major = false）。0.x の間に破壊的変更で勝手に 1.0.0 にしないため。
+#   1.0.0 は「公開 API を安定と宣言する」判断として、人が決めて上げる。
+# - feat → minor（1.0.0 未満でも minor。features_always_bump_minor = true）
+# - それ以外（上の commit_parsers で拾った fix / docs / test / chore など） → patch
+features_always_bump_minor = true
+breaking_always_bump_major = false
+# タグが1つも無いときのバージョン。bump せずにこの値がそのまま使われる。
+# 値は --tag-pattern に一致している必要があるため、アプリ別の接頭辞付きの値を環境変数で上書きする
+# （例: GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0）。ここの値は接頭辞無しの既定値。
+initial_tag = "0.1.0"

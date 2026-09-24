@@ -2,7 +2,8 @@
 name: sanposcape-auth-architecture-notes
 description: What to check when reviewing changes to sanposcape's backend auth module (packages/backend/src/sanposcape/auth) — checklist derived from ADR-002.
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 sanposcape backend auth follows ADR-002 (`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md`):

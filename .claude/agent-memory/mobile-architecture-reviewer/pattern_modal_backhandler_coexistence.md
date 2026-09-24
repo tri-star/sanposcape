@@ -2,7 +2,8 @@
 name: pattern_modal_backhandler_coexistence
 description: RN Modal(Android)がonRequestCloseで先にハードウェアバックを奪うため、useScreenBackのonInterceptがModal表示中は事実上呼ばれない既知の挙動
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `src/components/ui/dialog/Dialog.tsx`（RN `Modal` ベース）と `src/hooks/useScreenBack.ts`

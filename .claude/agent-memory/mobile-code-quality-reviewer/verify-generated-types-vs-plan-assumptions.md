@@ -2,11 +2,12 @@
 name: verify-generated-types-vs-plan-assumptions
 description: 実装プランの「backendの型がまだ甘い」前提はOrval再生成やbackend修正で覆っていることがある。生成物/backendのresponsesを直接読んでからプランの妥当性を判断する
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-19（`packages/mobile/src/features/walk/api/walkApi.ts`）のレビューで発見。
-実装プラン（`tmp/SS-19/mobile-plan.md` §5.3）は「`POST /walks` の 200（冪等再送）レスポンスに
+SS-19 の実装プランは「`POST /walks` の 200（冪等再送）レスポンスに
 `WalkRead` スキーマが無いため、Orval は `data: void` を生成する。依頼が通るまでは
 `WalkRead | undefined` として narrowing してから使う」という前提で実装方針を書いていた。
 

@@ -1,7 +1,9 @@
 ---
 name: project_ss42_walk_stats
 description: SS-42 記録タブ集計実データ化(GET /walks/stats)のセキュリティレビュー要点
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-42（commit f170371, mobile / 49effbf, backend）は記録タブの週/月チャート・連続日数・推定歩数を

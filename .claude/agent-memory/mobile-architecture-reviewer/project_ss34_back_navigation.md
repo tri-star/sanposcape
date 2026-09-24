@@ -1,7 +1,9 @@
 ---
 name: project_ss34_back_navigation
 description: SS-34（散歩開始前に探索・記録へ戻れる導線を追加）レビュー時点の実装状況と確認済みの設計整合ポイント
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 ブランチ `feat/ss-34-walk-start-back-navigation`（2026-08-05 時点でレビュー。gitStatus のスナップショットは

@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     # docs/deployment.md）。
     env: Literal["local", "test", "staging", "production"] = "local"
 
+    # --- ログ ---
+    # `sanposcape.*` のログレベル（`core/observability.py` の `configure_logging()` が適用）。
+    # 既定を INFO にしているのは、アクセスログ（1リクエスト1行）を出すため。Lambda では
+    # これを WARNING に上げると障害調査の手掛かりが `START`/`END` だけに戻るので注意する。
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+
     # --- 認証モード（ADR-002 決定4。既定は fail-safe な real） ---
     auth_mode: Literal["real", "dev"] = "real"
 
@@ -114,6 +120,28 @@ class Settings(BaseSettings):
     # ENV=local / test 以外で fake を選ぶと下の許可リスト検証で起動に失敗する。
     maps_mode: Literal["real", "fake"] = "real"
 
+    # --- フィーチャーフラグモード（ADR-002 決定4 と同じ fail-safe 方針。既定は real） ---
+    # real = AWS AppConfig（boto3 appconfigdata）から実際に取得する。
+    # stub = ネットワークを一切使わず FEATURE_FLAG_STUB_DOCUMENT を返す（ローカル開発 / テスト用）。
+    # ENV=local / test 以外で stub を選ぶと下の許可リスト検証で起動に失敗する。
+    # ADR-008 決定2 / SS-98。
+    feature_flag_mode: Literal["real", "stub"] = "real"
+    # stub モードで返す文書。`GetLatestConfiguration` が返す簡略 JSON と同じ形にする
+    # （integrations/aws/appconfig.py の同じパーサを本番と共有するため）。
+    # 型は str（dict にすると pydantic-settings の自動 JSON デコードが絡み、
+    # GOOGLE_ALLOWED_AUDIENCES で踏んだ「パース失敗で起動できない」罠を再演しうる）。
+    # パースは取得層で行い、失敗しても起動は落とさず警告 + 空ドキュメントにする。
+    feature_flag_stub_document: str = ""
+    # AppConfig の ID（SS-94 の SSM 契約から deploy 時に渡される）。1本でも空なら
+    # UnconfiguredFlagSource（AWS を一切呼ばない安全既定）にフォールバックする。
+    appconfig_application_id: str = ""
+    appconfig_environment_id: str = ""
+    appconfig_configuration_profile_id: str = ""
+    appconfig_poll_interval_seconds: int = Field(default=60, ge=15, le=86_400)
+    appconfig_error_backoff_seconds: int = Field(default=30, ge=1, le=3_600)
+    appconfig_connect_timeout_seconds: float = Field(default=1.0, gt=0)
+    appconfig_read_timeout_seconds: float = Field(default=2.0, gt=0)
+
     # --- Google Maps Platform (server-side only) ---
     google_maps_server_api_key: str = ""
     google_maps_connect_timeout_seconds: float = Field(default=3.0, gt=0)
@@ -128,11 +156,78 @@ class Settings(BaseSettings):
     google_maps_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
+    # 周回ルート（SS-33, ADR-007）の kill switch。品質劣化時の緊急停止と、mobile の
+    # 同じ道フォールバック表示の手動確認に使う（real/fake いずれでも有効）。
+    google_maps_loop_route_enabled: bool = True
+    # 周回ルート1リクエスト全体（並列2候補＋両候補失敗時の同じ道フォールバックの単発取得まで
+    # 含む）の時間予算。1候補あたりの上限ではない。各候補は
+    # `min(google_maps_read_timeout_seconds, google_maps_route_deadline_seconds)` で打ち切り、
+    # 単発フォールバックは残り予算（`deadline - 経過時間`）で判定する（無ければ503）。Lambda の
+    # Timeout（29秒）より十分短くする（docs/adr/ADR-005-backend-serverless-deployment-...）。
+    google_maps_route_deadline_seconds: float = Field(default=12.0, gt=0, le=25)
 
     # --- walks ---
     # 軌跡は最大で数百KBになり得るため /explore より大きい上限にするが、無制限にはしない
     # （低コスト DoS 対策）。
     walks_request_max_bytes: int = Field(default=1_048_576, gt=0, le=4_194_304)
+
+    # --- pins（写真ストレージ, SS-88）---
+    # real = S3 に実際に接続する。fake = ローカル保存 + backend 自身の /dev-storage/*
+    # （ローカル開発・E2E 用。ENV=local/test 以外で fake を選ぶと起動失敗、既存の
+    # AUTH_MODE/MAPS_MODE/FEATURE_FLAG_MODE と同じ fail-safe 方針）。
+    storage_mode: Literal["real", "fake"] = "real"
+    # STORAGE_MODE=fake の保存先ディレクトリ（相対パスはカレントディレクトリ基準）。
+    # 空文字ならプロセス内メモリ（再起動で消える。テストの既定）。ローカルでは
+    # compose.yaml / .env.example が `storages/dev-storage` を渡す。
+    dev_storage_dir: str = ""
+    # 空文字なら UnconfiguredObjectStorage（写真 API は 503）。デプロイ先では template.yaml が
+    # SSM（pin_photos/bucket_name）から渡す（SS-108）。
+    pin_photo_bucket_name: str = ""
+    pin_photo_bucket_region: str = "ap-southeast-1"
+    # 1枚あたりの上限（ユーザー決定 B-Y3）。content-length-range・413・確定時の検証・GET に使う。
+    pin_photo_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1_048_576, le=20 * 1024 * 1024)
+    # アップロード者ごとの合計上限（ユーザー決定 B-Y5）。原本のみ計上（サムネイルは含めない）。
+    pin_photo_user_quota_bytes: int = Field(default=1024**3, gt=0)
+    # decompression bomb 対策（Pillow の Image.MAX_IMAGE_PIXELS に使う）。
+    pin_photo_max_pixels: int = Field(default=40_000_000, gt=0)
+    # 未紐付けの枠（pending）の同時保有数の上限。超えると 429（連打による容量の先食い防止）。
+    pin_photo_max_pending_uploads: int = Field(default=30, ge=1, le=200)
+    # presigned POST（アップロード）の有効期限。
+    pin_photo_upload_url_ttl_seconds: int = Field(default=600, ge=60, le=900)
+    # 枠を確定（POST /pins 等での紐付け）に使える期限。staging の S3 ライフサイクル
+    # （最短約24時間）より十分短くする。
+    pin_photo_upload_attach_ttl_seconds: int = Field(default=21_600, ge=300, le=64_800)
+    # サムネイル等の presigned GET の有効期限（上限値。実際は署名した Lambda の一時認証情報の
+    # 寿命より長くは有効でない）。
+    pin_photo_download_url_ttl_seconds: int = Field(default=3600, ge=60, le=43_200)
+    pin_photo_thumbnail_max_edge_px: int = Field(default=512, ge=64, le=2048)
+    pin_photo_thumbnail_jpeg_quality: int = Field(default=80, ge=30, le=95)
+    # 写真の確定処理（検証・サムネイル生成・Copy）全体の時間予算。CloudFront 30秒・Lambda
+    # 29秒より手前で打ち切り、503（再送で回復）にする。
+    pin_photo_confirm_deadline_seconds: int = Field(default=20, ge=1, le=25)
+    pin_photo_confirm_concurrency: int = Field(default=3, ge=1, le=8)
+    object_storage_connect_timeout_seconds: float = Field(default=2.0, gt=0)
+    object_storage_read_timeout_seconds: float = Field(default=5.0, gt=0)
+    # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。
+    pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)
+
+    @property
+    def dev_storage_request_max_bytes(self) -> int:
+        """`STORAGE_MODE=fake` 専用の `/dev-storage/uploads` の本文上限（PR #93 T2）。
+
+        `pin_photo_max_bytes`（写真本体）に multipart の付随フィールド
+        （`key`/`Content-Type`/`x-fake-*` と boundary 諸々）の余裕を足す。
+        `file.read()` が本文全体を検証前にメモリへ読み込むため、この経路が
+        `RequestSizeLimitMiddleware` の対象外だと巨大な body で任意にメモリを
+        消費させられる（本番には存在しない router だが、local/test で有効）。
+        """
+        return self.pin_photo_max_bytes + 64 * 1024
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, v: object) -> object:
+        """`LOG_LEVEL=info` のような小文字表記も受け付ける（Literal は大小を区別するため）。"""
+        return v.upper() if isinstance(v, str) else v
 
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod
@@ -162,6 +257,10 @@ class Settings(BaseSettings):
                 raise ValueError(f"AUTH_MODE must be 'real' when ENV={self.env}")
             if self.maps_mode != "real":
                 raise ValueError(f"MAPS_MODE must be 'real' when ENV={self.env}")
+            if self.feature_flag_mode != "real":
+                raise ValueError(f"FEATURE_FLAG_MODE must be 'real' when ENV={self.env}")
+            if self.storage_mode != "real":
+                raise ValueError(f"STORAGE_MODE must be 'real' when ENV={self.env}")
             if len(self.auth_jwt_secret) < 32:
                 raise ValueError(f"AUTH_JWT_SECRET must be set (>=32 chars) when ENV={self.env}")
             if not self.google_allowed_audiences:

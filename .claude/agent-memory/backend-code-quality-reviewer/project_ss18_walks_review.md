@@ -2,7 +2,8 @@
 name: project_ss18_walks_review
 description: SS-18（walksドメイン新設）のコード品質レビューで把握した全体像。今後 walks/ を触るPRのレビュー時の前提知識。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 2026-08-01 時点、ブランチ `feat/ss-18-walk-record`（10コミット、main未マージ）で `walks/` ドメインを新設。`POST /walks`（記録保存・冪等）/ `GET /walks`（keysetページネーション履歴一覧）/ `GET /walks/{walk_id}`（軌跡付き詳細）。
@@ -18,7 +19,7 @@ metadata:
 
 レビューで見つけた主な指摘（詳細は各メモリ参照）:
 - `GET /walks` の `started_after`/`started_before` が `AwareDatetime` ではなく素の `datetime`（[[pattern_aware_datetime_query_params]]）。
-- `D1`〜`D11`/`Q1`〜`Q5` 等の決定コードがコメントに埋め込まれているが、由来の `tmp/SS-18/backend-plan.md` は gitignore 対象で追跡不能（[[antipattern_plan_decision_refs]]、`auth/mappers.py` の `B-3` と同系統の既存パターン）。
+- `D1`〜`D11`/`Q1`〜`Q5` 等の決定コードがコメントに埋め込まれているが、由来のプラン文書は gitignore 対象の作業ディレクトリにしか無く追跡不能（[[antipattern_plan_decision_refs]]、`auth/mappers.py` の `B-3` と同系統の既存パターン）。
 - track の境界値（0点・ちょうど10000点）の router レベルe2eテストが手薄（repository/mapper レベルでは空配列はカバー済み）。
 
 テスト構成: `walks/tests/conftest.py` に軽量認証フィクスチャ（`AUTH_MODE=real` の `test_settings` 経由、Google JWKS fakeを使わない `/auth/session` を通さない形）。`users/tests/test_router.py` に `DELETE /users/me` → walks の CASCADE 回帰テストを追加済み。

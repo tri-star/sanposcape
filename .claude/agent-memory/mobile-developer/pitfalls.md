@@ -1,8 +1,9 @@
 ---
 name: pitfalls
-description: TypeScript/React でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反の見落とし)
+description: TypeScript/React/RN でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatListのflex:1)
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 ## `__DEV__` を `globalThis.__DEV__ = ...` で代入すると TS2339 になる
@@ -51,3 +52,17 @@ TypeScript の既知の挙動として、`declare global` 内の `const`/`let` �
 `pnpm format` / `pnpm lint`(実体は oxfmt/oxlint)を実行すると、直前に Write/Edit したファイルが
 その場でフォーマットし直される。ツール呼び出し直後に diff の再確認を求められることがあるが、
 内容的な変更ではなく整形のみなので、意図した変更が保たれているかだけ確認すれば十分。
+
+## flex column の中の `FlatList` / `ScrollView` には明示的な `flex: 1` が要る
+
+画面ルートの `View` が flex column（`{ flex: 1, backgroundColor: ... }`、第1子に非 flex の
+ヘッダー）のとき、第2子に置く `FlatList` / `ScrollView` には `contentContainerStyle` とは別に
+**それ自身の `style={{ flex: 1 }}`** が必要。無いと RN がリストに伸びるための高さ境界を与えないため、
+`data` や children が空でなくても潰れて空っぽに見えることがある。
+
+SS-20 で `WalkHistoryListView`（`FlatList`）と `WalkDetailView`（`ScrollView`）を作った際に踏んだ。
+どちらもヘッダー `View`（auto height）の後に `contentContainerStyle` だけを持つリストを置いていた。
+`flatList` / `scrollView` の style キーに `flex: 1` を足して解消。
+
+**How to apply:** `<View style={{flex:1}}><Header/><FlatList .../></View>` やその `ScrollView` 版を
+組むときは、`contentContainerStyle` だけでなく **FlatList/ScrollView 自身に `flex: 1` を必ず付ける**。

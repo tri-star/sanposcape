@@ -1,7 +1,5 @@
-- [Auth stub/real switch is fail-open + env var name mismatch [解決済みSS-10]](project_auth_stub_switch.md) — SS-10で fail-safe 3モードに是正済み。歴史的経緯として保持
-- [Dev-only / 未ガードルート一覧（SS-15時点。SS-13で解消済み）](project_dev_only_routes_no_guard.md) — 旧問題。[[project_ss13_auth_gate]] のAuthGate導入で解消
+- [認証モードenvのfail-safeパース](project_auth_stub_switch.md) — SS-8のfail-open実装はSS-10で是正済み。新しいmode系envを足すPRでは変数名一致・fail-closedな既定値・production指定を確認する
 - [SS-13: AuthGate導入によるグローバル認証ガードのレビュー](project_ss13_auth_gate.md) — app/_layout.tsxのAuthGateで全ルート保護。oxlint importガードも発火確認済み。_sitemap未無効化はLow nits
-- [SS-10: tokenStore.clear() 例外がsignOut/doRefreshで未捕捉](project_ss10_token_clear_exception_safety.md) — SecureStore削除失敗時にsetCurrentUser(null)がスキップされ得る。Medium、要再確認
 - [SS-15: 地図・位置情報レビューの要点](project_ss15_location_maps.md) — Mapsキー分離/座標丸め/fail-safe env は良好。router paramsの生座標渡しは軽微指摘
 - [SS-16: 散歩ルート提示・散歩中トラッキングの要点](project_ss16_walk_tracking.md) — watchPositionリークガード模範実装/認証境界維持/place_id非露出。座標NaN未検証とpaused中GPS継続がLow
 - [SS-19: 散歩終了処理・散歩ルート保存(POST /walks)の要点](project_ss19_walk_finish_save.md) — signOutでuseFinishedWalkStore等が未クリア(Medium)。client_walk_idのuser scope一意制約は確認済みで妥当
@@ -9,7 +7,9 @@
 - [SS-57: ゲスト散歩解禁レビュー](project_ss57_guest_walk_start.md) — canEnterProtectedRoutesにguest追加/退避を状態遷移ベースに変更。問題なし。cleanup同期実行順・SettingsViewのuser非参照を確認済み
 - [SS-34: 戻る導線一元化(useScreenBack)レビュー](project_ss34_back_navigation.md) — fallbackHrefは全箇所ハードコードでopen redirect不成立。認証ガード不在はSS-13のAuthGateで解消済み（[[project_ss13_auth_gate]]参照）
 - [SS-42: 記録タブ集計実データ化(GET /walks/stats)レビュー](project_ss42_walk_stats.md) — 問題なし。customFetch経由/エラーメッセージ定型文言/生成物手編集なしを確認
-- [SS-35: 現在地起点ルート再計算レビュー](project_ss35_route_recalculation.md) — 問題なし。sequence+AbortControllerの二重多重起動防御、4層レート抑制がテストで担保済み。自動リクエスト発火系の模範実装として参照
 - [SS-37: 保存失敗401サインインCTA・自動再送レビュー](project_ss37_guest_walk_signin_merge.md) — High: 未保存ゲストドラフトが起点を問わない後続サインインに自動添付・強制dismissToされる。明示的破棄導線なしが根本原因
 - [SS-70: CloudFront経由API通信(X-App-Authorization/x-amz-content-sha256)レビュー](project_ss70_cloudfront_auth_header.md) — ハッシュ計算・リトライ整合性は正しい。Medium: fetchにredirectオプション未指定でトークン漏洩の潜在リスク
 - [SS-62: アカウント削除導線(DELETE /users/me)レビュー](project_ss62_account_deletion.md) — 問題なし。破壊的操作の確認ダイアログ/順序(token破棄→cache clear)/401非再試行/customFetch単一出口の模範実装として参照
+- [SS-33: 周回ルート提示・散歩中自動再計算撤去のレビュー](project_ss33_loop_route_review.md) — 問題なし。legs検証は値マッチ＋件数チェックで模範的。自動API発火系統(SS-35)が完全撤去され攻撃対象面が純減
+- [SS-100: /app-configフィーチャーフラグ受け皿のレビュー](project_ss100_app_config_flags.md) — 問題なし。flags===true厳密比較でfail-safe、サインアウトclear()除外はapp-config1件のみ明示、config_sourceは型から構造的に非露出
+- [SS-88: ピン登録・写真S3直送(presigned POST)のレビュー](project_ss88_pin_photo_s3_upload.md) — Critical/High無し。認証ヘッダー非送出/URLホワイトリスト/EXIF二重除去は良好。fetchのredirect未指定がMedium(M-1)

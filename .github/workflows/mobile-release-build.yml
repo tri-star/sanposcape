@@ -58,13 +58,25 @@ jobs:
       - name: Generate API client (Orval)
         run: pnpm --filter mobile orval
 
-      # 配布するバージョンをログに残す。autoIncrement を外した（SS-79）ため、
-      # buildNumber / versionCode は app.json の値がそのまま使われる。
-      # 同じ buildNumber の IPA は App Store Connect が受け付けないので、
-      # ディスパッチ前に上げる PR が出ているかをここで目視確認する。
-      - name: Show target version
+      # 配布する「表示用バージョン」をログに残す。
+      #
+      # buildNumber / versionCode は SS-89 で EAS サーバー側の採番へ移した
+      # （eas.json の cli.appVersionSource: "remote" + staging の autoIncrement: true）。
+      # リポジトリ側にはもう値が無いのでここでは表示できないし、ディスパッチ前に番号を
+      # 上げる PR も不要になった。実際に採番された番号は下のビルドステップが EAS の応答
+      # JSON から拾えた場合のみ Job Summary に出す（拾えなければ expo.dev 側で確認）。
+      # 現在値は `eas build:version:get` で読めるが（公式ドキュメント未記載・CLI には実在）、
+      # ここでは呼ばない。ビルド前に読めるのは「次に採番される値 - 1」でしかなく、
+      # 実際に採番された値は下のビルドステップの応答から取れるため、EAS への往復を増やす
+      # 価値がない。手元で現在値を知りたいときに使うコマンドであり、CI の依存先ではない。
+      #
+      # expo.version を表示する意味は残る: runtimeVersion.policy が "appVersion" なので
+      # version はそのまま OTA の互換境界であり、「このディスパッチがどの runtimeVersion の
+      # バイナリを作るのか」はビルド前に確認する価値がある（version を上げた直後は、
+      # このバイナリを配るまでその version 宛の eas update が誰にも届かない）。
+      - name: Show target app version
         run: |
-          node -e "const c=require('./packages/mobile/app.json').expo; console.log(JSON.stringify({version:c.version, buildNumber:c.ios.buildNumber, versionCode:c.android.versionCode}))" | tee -a "$GITHUB_STEP_SUMMARY"
+          node -e "const c=require('./packages/mobile/app.json').expo; console.log(JSON.stringify({version:c.version, runtimeVersionPolicy:c.runtimeVersion?.policy ?? null}))" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # このリポジトリは public。internal distribution の配布ページ（staging-apk）も
       # TestFlight 内部テスターの前段となるビルドページも、URL を Job Summary / Actions
@@ -106,9 +118,20 @@ jobs:
             echo "::error::Android ビルドの BUILD_ID を取得できませんでした（空または null）。$RUNNER_TEMP/android-build.json を確認してください。"
             exit 1
           fi
+          # EAS が採番した versionCode を Job Summary に出す（best-effort）。
+          # キー名 `appBuildVersion` は `eas-cli build:list --json` の実出力で確認した
+          # （同じ Build オブジェクトを返すので `build --json` でも同じはずだが、そちらは未実測）。
+          # 取れなければ何も壊さずメッセージだけ差し替える（ここでワークフローを落とさない。
+          # 番号を表示できないことより、ビルド済みの成果物を落とすことのほうが高くつく）。
+          APP_BUILD_VERSION=$(echo "$BUILD_JSON" | jq -r '.[0].appBuildVersion // empty' 2>/dev/null || true)
           {
             echo "### Android (staging-apk)"
             echo "- BUILD_ID: ${BUILD_ID}"
+            if [ -n "$APP_BUILD_VERSION" ]; then
+              echo "- versionCode（EAS が採番）: ${APP_BUILD_VERSION}"
+            else
+              echo "- versionCode: 応答 JSON から取得できませんでした。expo.dev のビルド詳細で確認してください。"
+            fi
             echo "- 配布ページ（internal distribution。URL を知っていれば誰でもインストール可）は"
             echo "  expo.dev のプロジェクト（メンバーのみ閲覧可）のビルド一覧から開いてください。"
             echo "  public リポジトリのため、このログに URL は出しません。"
@@ -138,9 +161,16 @@ jobs:
             exit 1
           fi
           echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+          # Android 側と同じ best-effort。取れなくても落とさない。
+          APP_BUILD_VERSION=$(echo "$BUILD_JSON" | jq -r '.[0].appBuildVersion // empty' 2>/dev/null || true)
           {
             echo "### iOS (staging)"
             echo "- BUILD_ID: ${BUILD_ID}"
+            if [ -n "$APP_BUILD_VERSION" ]; then
+              echo "- buildNumber（EAS が採番）: ${APP_BUILD_VERSION}"
+            else
+              echo "- buildNumber: 応答 JSON から取得できませんでした。expo.dev のビルド詳細 / App Store Connect で確認してください。"
+            fi
             echo "- ビルド詳細は expo.dev のプロジェクト（メンバーのみ閲覧可）のビルド一覧から開いてください。"
             echo "  public リポジトリのため、このログに URL は出しません。"
           } >> "$GITHUB_STEP_SUMMARY"

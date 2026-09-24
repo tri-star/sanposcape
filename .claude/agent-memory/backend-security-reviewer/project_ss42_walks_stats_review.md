@@ -2,12 +2,13 @@
 name: project-ss42-walks-stats-review
 description: Outcome of the SS-42 (GET /walks/stats aggregation endpoint) security review, commit 49effbf, reviewed 2026-08-09 — no Critical/High/Medium findings, one Low (write-amplification DoS via unlimited walks/day feeding a per-request aggregate scan).
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 Reviewed commit `49effbf` (`packages/backend/src/sanposcape/walks/{router,service,repository,
-schemas,mappers,stats}.py` + tests) against ADR-003 SS-42 addendum (決定10〜12) and
-`tmp/ss-42/backend-plan.md`.
+schemas,mappers,stats}.py` + tests) against ADR-003 SS-42 addendum (決定10〜12); the task's plan
+document was gitignored and is already gone.
 
 **Result: no Critical/High/Medium findings.**
 

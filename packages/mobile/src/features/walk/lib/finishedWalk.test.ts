@@ -12,8 +12,8 @@ const ACTIVE_WALK: ActiveWalk = {
     name: "緑町公園",
     location: { latitude: 35.6875, longitude: 139.7625 },
   },
-  roundTripMinutes: 40,
-  roundTripKm: 2.6,
+  loopMinutes: 40,
+  loopKm: 2.6,
   startedAtMs: 1_000_000,
 };
 

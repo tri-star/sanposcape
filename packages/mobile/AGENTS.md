@@ -20,7 +20,7 @@
 
 **設計を変える実装に着手する前に、該当する ADR を読むこと。** ガイドラインが「何をするか」を、
 ADR が「なぜそうなっているか」を持っている。ADR の決定を覆す変更をする場合は、
-ADR の追補（または新規 ADR の作成）が必要（[adr-writing](../../.claude/skills/adr-writing/SKILL.md) スキルを使う）。
+ADR の追補（または新規 ADR の作成）が必要（[adr-writing](../../.agents/skills/adr-writing/SKILL.md) スキルを使う）。
 
 mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断や
 ドメイン知識は [`docs/adr/`](../../docs/adr/)（リポジトリルート）にある。
@@ -36,3 +36,4 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 | [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補） |
 | [ADR-008](./adr/ADR-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有 |
 | [ADR-009](./adr/ADR-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート |
+| [ADR-010](./adr/ADR-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送 |

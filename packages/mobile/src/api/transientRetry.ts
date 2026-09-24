@@ -10,7 +10,8 @@
  * **この層で再送するのは GET / HEAD だけである。** 3つの理由がある（詳細は
  * `packages/mobile/docs/build-profiles.md` の「一時障害の再送」節も参照）。
  *
- * 1. `POST /explore/places` / `POST /explore/routes/walking` の 429 は backend 自身の
+ * 1. `POST /explore/places` / `POST /explore/routes/loop`（SS-33 以前は `/explore/routes/walking`。
+ *    同じレート制限バケットを共有するため扱いは変わらない）の 429 は backend 自身の
  *    レート制限（`packages/backend/src/sanposcape/maps/dependencies.py`）であり、
  *    Lambda のスロットルと区別が付かない。再送するとレート制限を悪化させるだけになる。
  *    `useSpotCandidates` が意図的に `retry: false` にしている判断を、transport 層が

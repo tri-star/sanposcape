@@ -2,7 +2,8 @@
 name: project_ss44_fake_maps_provider
 description: SS-44でMAPS_MODE=fake（FakeGoogleMapsProvider）が追加された経緯と、意図的にスコープ外にした申し送り事項。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-44（`feat/ss-44-fake-maps-provider`、2026-08時点でレビュー済み）で `Settings.maps_mode`（`real`|`fake`、既定`real`）と

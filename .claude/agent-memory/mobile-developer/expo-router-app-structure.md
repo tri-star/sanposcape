@@ -2,7 +2,8 @@
 name: expo-router-app-structure
 description: Expo Router (SDK 57 / expo-router 57) の型生成手順、index.tsx と (tabs)/index.tsx の共存、Tabs の非推奨警告
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## `.expo/types/router.d.ts` はCI/ローカルどちらも明示生成が必要
@@ -13,7 +14,7 @@ metadata:
   事前に `pnpm --filter mobile exec expo customize tsconfig.json` を実行して型を生成しておく必要がある
   （`.github/workflows/mobile-ci.yml` に "Generate Expo Router typed routes" ステップとして追加済み）。
 - サンドボックス環境で `expo` CLI を叩くときは `HOME="$TMPDIR/fakehome" EXPO_NO_TELEMETRY=1` を付ける
-  （[[sandbox-expo-home-workaround]] 参照）。
+  （[[sandbox-constraints]] 参照）。
 - **注意**: `.expo/` はモノレポの作業ディレクトリに紐づき、ブランチを切り替えても自動では消えない。
   別ブランチで生成された古い `router.d.ts`（存在しないルートを指す型）が残っていると、
   `useLocalSearchParams` 等の型が実際のファイル構成とズレる。ルート追加/削除後は必ず

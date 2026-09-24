@@ -7,7 +7,7 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
 
 - **src レイアウト** を採用し、アプリ本体は `src/sanposcape/` 配下に置く。
 - **ドメイン単位の凝集 × レイヤー分離** をベースにする。
-  - ドメイン（`users` / `walks` / `spots` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
+  - ドメイン（`users` / `walks` / `sanpo_maps` / `pins` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
   - レイヤーは **router → service → repository** の3層。
     - `router`: HTTPの入出力の受け渡しのみ。**薄く保つ**（バリデーションと依存解決、serviceの呼び出し）。
     - `service`: ビジネスロジック。トランザクション境界・ユースケースを持つ。
@@ -49,12 +49,16 @@ packages/backend/
 │       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
+│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware）とロギング設定（configure_logging）。SS-88/ADR-009 決定13
 │       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
+│       │   ├── feature_flags.py  #   フィーチャーフラグの評価層（登録簿 + AppConfig 文書 → 判定。SS-98/ADR-008）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   ├── google_maps/   #   Places / Routes クライアント + キャッシュ
-│       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）
+│       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）。
+│       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）。
+│       │                       #   s3.py は写真ストレージ（S3 / fake / unconfigured）の抽象化層（SS-88）
 │       │
 │       ├── auth/              # ドメイン: 認証・セッション（Google ID token検証・自前トークン）
 │       │   ├── __init__.py
@@ -85,15 +89,41 @@ packages/backend/
 │       │       └── test_router.py
 │       │
 │       ├── walks/             # ドメイン: 終了済み散歩の記録・履歴（散歩開始の探索・経路提示は maps/ の責務）
-│       ├── spots/             # ドメイン: スポット候補（Google Maps由来）
-│       └── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
+│       ├── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
+│       │   ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
+│       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
+│       ├── sanpo_maps/        # ドメイン: 地図（ピンの入れ物）とメンバーシップ・権限（SS-88, ADR-009）
+│       │   └── permissions.py #   role による権限判定（can_add_pin 等）の純粋関数
+│       ├── pins/               # ドメイン: ピン・写真・タグ・写真アップロード枠（SS-88, ADR-009）
+│       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos,
+│       │   │                   #   GET /pins, GET /pins/{pin_id}, GET /pins/{pin_id}/photos
+│       │   ├── upload_router.py#   POST /pin-photo-uploads
+│       │   ├── dev_storage_router.py # STORAGE_MODE=fake 限定の /dev-storage/*（include_in_schema=False）
+│       │   ├── photo_attacher.py     # 写真の確定処理（検証・サムネイル生成・並列化・時間予算）
+│       │   ├── thumbnails.py         # Pillow によるサムネイル生成（純粋関数）
+│       │   ├── tag_labels.py         # タグの正規化・重複排除（純粋関数）
+│       │   └── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
+│       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
+│       └── app_config/        # ドメイン: mobile / LP 向け公開設定（GET /app-config, SS-98/ADR-008）
+│           ├── __init__.py
+│           ├── router.py      #   service.py を置かない（ロジックは core/feature_flags.py 側にある。health/ と同じ判断）
+│           ├── schemas.py     #   AppConfigRead / MinimumSupportedVersionsRead
+│           ├── dependencies.py #   get_feature_flags(request) -> FeatureFlags（app.state から取得。maps/dependencies.py と同じ形）
+│           └── tests/         #   このドメインのテスト（併置）
 │
 ├── alembic/
 │   ├── env.py                 # all_models.py の Base を参照してメタデータを集約
 │   └── versions/              # マイグレーションスクリプト
 │
 ├── scripts/
-│   └── seed.py                # Seeder（初期データ投入）
+│   ├── seed.py                       # Seeder（初期データ投入）
+│   ├── export_openapi.py             # openapi.yaml/json の再生成（mobile の Orval が消費）
+│   ├── feature_flags_document.py     # フラグ切り替えワークフローが AppConfig に投入する版の組み立て（SS-99。標準ライブラリのみ）
+│   ├── loop_route_probe.py           # 周回ルートの実API検証スクリプト（開発者専用。SS-33, ADR-007）
+│   └── loop_route_probe_cases.yaml   # ↑の検証セット（O/D の組とラベル）
+│                                      #   出力は `tmp-probe/<timestamp>.geojson`（.gitignore 済み）
+│
+├── feature-flags.json         # フラグ定義ファイル（AppConfig FeatureFlags 形式・既定値。キーは core/feature_flags.py と一致させる）
 │
 └── docs/                      # 設計ドキュメント
 ```
@@ -111,7 +141,7 @@ packages/backend/
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
 
 ### `core/` — 横断的関心事
-- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
+- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`observability.py` の `AccessLogMiddleware` / `configure_logging()` のような**可観測性の土台**（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
 - ドメインを import しない（依存の向きは `domain → core`）。
 - 認証（Google ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
@@ -123,6 +153,9 @@ packages/backend/
   シークレット JSON を取得し `lru_cache` でプロセス内キャッシュする。boto3 は Lambda の
   python3.12 管理ランタイムに同梱されているため zip には含めず、`[dependency-groups] dev` に
   のみ追加している（ユニットテスト・型解決用）。シークレットの値は絶対にログへ出さない。
+  `appconfig.py` は AWS AppConfig（boto3 `appconfigdata`）の取得層（transport）で、
+  「AppConfig からどう取るか」だけをここに閉じ込め、評価ロジックは `core/feature_flags.py`
+  に持たせる（ADR-008 追補 D3, SS-98）。
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
@@ -136,6 +169,11 @@ packages/backend/
 - 1つのドメインに属する `router / schemas / models / service / repository / dependencies / exceptions` をまとめる。
 - **層をまたぐ呼び出しは一方向**にする: `router → service → repository`。逆流させない。
 - 他ドメインから使う必要が出たものは `core/` へ昇格させる（ドメイン間の直接依存を増やさない）。
+- ただし、片方のドメインがもう片方に**構造的に依存する**関係（例: `auth → users`、
+  `pins → sanpo_maps`）は例外として一方向の直接依存を許容する。`pins`（ピン・写真・タグ）は
+  `sanpo_maps`（地図・メンバーシップ・権限）の `Service`/`Repository` を直接 import してよいが、
+  逆方向（`sanpo_maps` が `pins` を import する）は禁止する。これにより `GET /sanpo-maps` が
+  ピンの状態に依存せず、地図単体の権限判定を先に固められる（ADR-009）。
   - 昇格時は、**旧 import 位置に再エクスポートを残して段階移行する**（OpenAPI のコンポーネント名を変えないため）。
     実例: `GeoPoint` は `maps/schemas.py` から `core/geo.py` へ昇格したが、`maps/schemas.py` は
     `from sanposcape.core.geo import GeoPoint` を再エクスポートし続けている。クラス名を変えていない
@@ -152,12 +190,18 @@ packages/backend/
 ### 現在時刻の扱い（クロック注入）
 - **現在時刻に依存する service は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
   コンストラクタ引数で注入可能にする**。採用済み: `auth/service.py` の `AuthService`（トークンの有効期限）、
-  `walks/service.py` の `WalkService`（集計の「今日」判定）。
+  `walks/service.py` の `WalkService`（集計の「今日」判定）、`sanpo_maps/service.py` の
+  `SanpoMapService`・`pins/service.py` の `PinService`/`PinPhotoUploadService`（アップロード枠の
+  期限・確定時刻）。`pins/photo_attacher.py` の `PhotoAttacher` は `datetime` ではなく
+  `monotonic: Callable[[], float] = time.monotonic` を同じ発想で注入する（確定処理の時間予算の
+  締め切り判定。壁時計ではなく経過時間だけが必要なため）。
 - service 内に `datetime.now()` を直接書かない。テストから時刻を固定できず、日付境界の検証が書けなくなる
   （書けたとしても実行日に依存する不安定なテストになる）。
 - `dependencies.py` の `get_xxx_service()` は既定値のまま生成し、注入はテストからのみ行う。
 - 日付計算そのものは DB / Pydantic に依存しない純粋関数モジュールへ切り出す（実例: `walks/stats.py`）。
-  こうすると DB を立てずに境界条件のテストが書ける。
+  こうすると DB を立てずに境界条件のテストが書ける。同じ方針は現在時刻に限らず、DB・HTTP を
+  持たない計算全般に当てはまる（実例: `maps/geometry.py`・`maps/loop_route.py` の幾何計算・
+  周回ルートの妥当性判定。SS-33, ADR-007）。
 
 ### `models.py` の配置と Alembic
 - SQLAlchemy モデルは**各ドメインの `models.py` に併置**する。

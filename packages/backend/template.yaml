@@ -8,7 +8,15 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #     ここでは一切作らない（Terraform 所有）
 #   - CloudFront からの呼び出し許可（lambda:InvokeFunctionUrl / lambda:InvokeFunction）は
 #     Terraform 側が付ける。AWS::Lambda::Permission をここに書かない（二重管理防止）
+#   - 実行ロールには Terraform が作る Permission Boundary（SSM の lambda_boundary_arn）を必ず付ける。
+#     外すと CI のデプロイロールが CreateRole を拒否する（Globals.Function の PermissionsBoundary 参照）
 #   デプロイ順は常に SAM → Terraform。詳細: docs/deployment.md
+#   - AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID は SSM 契約（SS-94）から deploy 時解決。
+#     Lambda 実行ロールの Permission Boundary（SS-95）は ID までは絞れないワイルドカード ARN
+#     のため、完全 ARN への絞り込みは Api の Policies（このファイル）が唯一の場所（SS-98）。
+#   - ピン写真バケット（S3、SS-106/ADR-009）の名前・ARN は SSM 契約（pin_photos/*）から deploy 時解決。
+#     バケットは live/platform 所有で、ここでは作らない。境界（SS-107）は sanposcape-<env>-* 全体を
+#     上限にしているため、写真バケットの ARN・prefix への絞り込みは Api の Policies が唯一の場所（SS-108）。
 
 Parameters:
   Env:
@@ -36,6 +44,21 @@ Globals:
     MemorySize: 1024
     # CloudFront のオリジン読み取りタイムアウトが 30 秒。超えると CloudFront が 504 を返す。
     Timeout: 29
+    # ★ SAM が作る Lambda 実行ロール（Api / Migrate）に付ける Permission Boundary。
+    #   - GitHub Actions のデプロイロール（sanposcape-infra の live/account/sam_deploy.tf）は
+    #     iam:CreateRole を「iam:PermissionsBoundary がこの ARN と一致する場合」だけ許可している。
+    #     ここを外すと CI からのデプロイが CreateRole の AccessDenied で止まる。
+    #   - 境界が許すのは自関数のログ書き込み・/sanposcape/<env>/* のシークレットと SSM の読み取り・
+    #     KMS Decrypt・X-Ray 程度。デプロイロールは PutRolePolicy / AttachRolePolicy も持つため、
+    #     境界が無いと「強い実行ロールを作って Lambda に渡す」経路で管理者へ昇格できてしまう。
+    #     実行時に新しい AWS 操作が要るようになったら、ここではなく infra 側の境界を先に広げること。
+    #   - 実行ロールの RoleName は明示しない。デプロイロールの許可は CFn の自動命名
+    #     （sanposcape-backend-<env>-<論理ID>-<乱数>）に一致するロールだけが対象。
+    #   - ARN はアカウント ID を含むため、SSM から deploy 時に解決する（APP_SECRET_ARN と同じ理由）。
+    #   - 既存の（境界の無い）ロールへ境界を後付けするには iam:PutRolePermissionsBoundary が要るが、
+    #     デプロイロールはこの操作を明示的に拒否している。境界を初めて入れるデプロイは
+    #     CI からは通らず、手元の管理者権限で 1 回流す必要がある（docs/deployment.md §7）。
+    PermissionsBoundary: !Sub '{{resolve:ssm:/sanposcape/${Env}/account/lambda_boundary_arn}}'
     # ★ VpcConfig は付けない。Neon / Google JWKS / Google Maps API はすべてインターネット経由で、
     #   VPC に入れると NAT Gateway の固定費と ENI 起因のコールドスタートが乗るだけ（決定5）。
     Environment:
@@ -43,6 +66,9 @@ Globals:
         ENV: !FindInMap [EnvToAppEnv, !Ref Env, AppEnv]
         AUTH_MODE: real
         MAPS_MODE: real
+        FEATURE_FLAG_MODE: real
+        # コード既定も real だが、AUTH_MODE 等と同じく明示する（fake はローカル・E2E 専用）。
+        STORAGE_MODE: real
         # Neon への同時接続数を ReservedConcurrentExecutions と合わせて有界化する（決定5）。
         DB_POOL_SIZE: '1'
         DB_MAX_OVERFLOW: '0'
@@ -52,6 +78,11 @@ Globals:
         # psycopg3 の既定（prepare_threshold=5）のままで問題ない。
         # "prepared statement ... already exists" 系のエラーが実際に出た場合のみ
         # true に変更する（docs/deployment.md のトラブルシュート参照）。
+        # GOOGLE_MAPS_LOOP_ROUTE_ENABLED（周回ルートの kill switch、SS-33/ADR-007）も同じ方針で
+        # 意図的に設定しない（既定 true のまま。config.py）。品質劣化時の緊急停止が必要なときだけ
+        # false に変更する（即時反映は `aws lambda update-function-configuration`、恒久化はここに
+        # `GOOGLE_MAPS_LOOP_ROUTE_ENABLED: 'false'` を追記して redeploy。docs/deployment.md
+        # 「周回ルートの kill switch」参照）。
         # 値ではなく ARN を渡す。deploy 時に CloudFormation が SSM から解決する
         # （実行ロールに ssm:GetParameter は不要。account ID がリポジトリに出ないようにするため）。
         APP_SECRET_ARN: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'
@@ -79,13 +110,60 @@ Resources:
       ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 5]
       FunctionUrlConfig:
         AuthType: AWS_IAM  # ★ NONE にしない（Function URL の直叩きを構造的に塞ぐ）
+      # AppConfig の ID は Api だけに渡す（Migrate はフラグを読まない。最小権限）。
+      # Globals の Variables とマージされる。
+      Environment:
+        Variables:
+          APPCONFIG_APPLICATION_ID: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/application_id}}'
+          APPCONFIG_ENVIRONMENT_ID: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/environment_id}}'
+          APPCONFIG_CONFIGURATION_PROFILE_ID: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/configuration_profile_id}}'
+          # 写真バケット名（SS-106）。名前にアカウント ID を含むため直書きしない。
+          # 空だと UnconfiguredObjectStorage（写真 API が 503）になる。Migrate には渡さない。
+          PIN_PHOTO_BUCKET_NAME: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_name}}'
       Policies:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
               Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/secrets/shared/arn}}'
-        # kms:Decrypt は不要（AWS 管理キー + kms:ViaService で同一アカウントを許可済み）
+            # kms:Decrypt は不要（AWS 管理キー + kms:ViaService で同一アカウントを許可済み）
+            # ★ IAM のアクション名前空間は appconfig:（エンドポイントは appconfigdata だが
+            #   IAM のアクションはこの綴り。境界（SS-95）もこの綴りで確認済み）。
+            #   境界はワイルドカードなので、完全 ARN への絞り込みはここが唯一の場所。
+            - Effect: Allow
+              Action:
+                - appconfig:StartConfigurationSession
+                - appconfig:GetLatestConfiguration
+              # ★ Fn::Sub の変数マップの値は素の文字列としてそのまま埋め込まれ、値の中の
+              #   ${Env} は再評価されない（マップ値自身を !Sub で包んだときだけ、その !Sub が
+              #   自分のスコープで ${Env} を解決する）。3本とも個別に !Sub で包む必要がある。
+              Resource: !Sub
+                - 'arn:aws:appconfig:ap-southeast-1:${AWS::AccountId}:application/${AppId}/environment/${EnvId}/configuration/${ProfileId}'
+                - AppId: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/application_id}}'
+                  EnvId: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/environment_id}}'
+                  ProfileId: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/appconfig/configuration_profile_id}}'
+            # ★ ピン写真（SS-108, ADR-009 決定8, docs/deployment.md §12）。
+            #   - S3CrudPolicy 等の SAM ポリシーテンプレートは使わない（prefix で絞れず、境界外の
+            #     PutObjectAcl 等まで並んで実効権限が読めなくなる）。
+            #   - ARN は名前から組み立てず bucket_arn を使う。ここに無いアクションが要るときは、
+            #     先に infra 側の境界（SS-107: Put/Get/Delete/AbortMultipartUpload + ListBucket）を広げる。
+            #   - staging/* の PutObject は presigned POST の署名者権限として必須。外すと署名の発行は
+            #     成功するのに実際のアップロードが全て 403 になる（デプロイでは検知できない）。
+            #   - CopyObject（staging/ → original/）はコピー元の GetObject + コピー先の PutObject で足りる。
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:DeleteObject
+              Resource:
+                - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/staging/*'
+                - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/original/*'
+                - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}/thumb/*'
+            # 無いと存在しないキーの HEAD/GET が 404 ではなく 403 になり、backend は安全側の 503 に倒す
+            # （409 が 503 に化ける）。Resource はバケット ARN そのもの（/* を付けると一致しない）。
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_arn}}'
 
   ApiLogGroup:
     Type: AWS::Logs::LogGroup

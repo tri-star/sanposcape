@@ -1,7 +1,9 @@
 ---
 name: project_ss57_guest_route_gate
 description: SS-57（ゲスト散歩解禁・canEnterProtectedRoutesにguest許可）レビュー所見。ADR-009追補の質は高い一方、mid-walk中のsettings経由サインインがwalk-startへ強制遷移し進行中の散歩を暗黙に上書きしうる新規ギャップを発見
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
 SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3「ゲート許可は
@@ -11,8 +13,8 @@ SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3�
 
 **良い点**:
 - ADR-009 に「唯一の変更点という記述は不正確だった」ことを含め、決定3・6・7それぞれに追補が
-  入っており、`tmp/SS-57/handover-notes.md` の調査過程（削除すると壊れる2箇所の特定）も
-  ADR 本文に要約が残っている。[[project_ss13_auth_session_gate]] や [[project_ss29_route_as_composition_root]]
+  入っており、引き継ぎメモに残した調査過程（削除すると壊れる2箇所の特定）も
+  ADR 本文に要約が残っている（引き継ぎメモ自体は gitignore 対象で既に消失）。[[project_ss13_auth_session_gate]] や [[project_ss29_route_as_composition_root]]
   で指摘した「判断根拠が tmp/ にしか残らない」問題がここでは再発していない。
 - `shouldEvacuateOnSessionEnd` は `AuthGate.tsx` で `useRef` に「前回 status」を持たせ、
   effect本体でミューテートする実装。React 18 StrictMode の effect 二重実行下でも
@@ -42,10 +44,16 @@ SS-57（ブランチ `tri-star/ss-57`、commit `afeaae7`）は ADR-009 決定3�
   3. `canGoBack() === false` という設計前提も崩れる（`settings` は `push` で積まれているため、
      新しい `walk-start` の下に `settings` が残る）。`WalkStartView` は `useScreenBack({fallbackHref: "/(tabs)"})`
      を使っており、戻る操作が意図しない `settings` 画面への `pop` になりうる。
-  - ADR-009 SS-57 追補・`tmp/SS-57/handover-notes.md` はいずれも「記録タブを踏んだゲストが
+  - ADR-009 SS-57 追補は「記録タブを踏んだゲストが
     `dismissAll()` で強制退去させられる」シナリオ（不採用にした allowlist 案の理由）は検討しているが、
     この「mid-walk のまま設定からサインインする」シナリオは検討されていない。
-  - 対応案: `useAuthActions.runSignIn` の成功後遷移を `useActiveWalkStore.getState().activeWalk` の有無で
+  - **解消済み（2026-09-20 確認）。** 純粋関数 `getPostSignInDestination`
+    （`features/auth/lib/postSignInDestination.ts`）が新設され、`hasActiveWalk` を**最優先**で見て
+    `/(tabs)` を返す（保存待ちドラフトより優先。散歩の最中にユーザーを別画面へ連れて行かないため）。
+    `SettingsView` のサインイン導線も `router.replace("/(auth)/sign-in")` になっている。
+    決定は ADR-009「SS-57 ローカルレビュー追補」および「SS-37 ローカルレビュー追補」に記録済み。
+    **このギャップを未解決として再指摘しないこと。**
+  - 当時の対応案: `useAuthActions.runSignIn` の成功後遷移を `useActiveWalkStore.getState().activeWalk` の有無で
     分岐する（進行中なら `/(tabs)` に replace、無ければ従来通り `/walk-start`）か、そもそも
     `router.back()` 系で呼び出し元コンテキストへ戻す。手動確認 or Maestro での再現確認が望ましい
     （このレビューでは静的解析のみで、実機/シミュレータでの再現検証はしていない）。

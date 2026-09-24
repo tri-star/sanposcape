@@ -2,7 +2,8 @@
 name: project-ss18-walks-review
 description: Outcome of the SS-18 (walks feature) security review on branch feat/ss-18-walk-record, reviewed 2026-08-01 — no Critical/High findings, two Low findings noted.
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 Reviewed `feat/ss-18-walk-record` (10 commits, `packages/backend/src/sanposcape/walks/` +

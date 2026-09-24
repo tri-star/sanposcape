@@ -2,7 +2,8 @@
 name: auth-session-gate-pattern
 description: SS-13で確立した認証セッション状態の集約パターン(useAuthSessionStore + AuthGate + useAuthSessionBootstrap)。今後の認証まわり・ゲート系の実装で必ず踏襲する構造上の制約を含む。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-13 で `packages/mobile/src/store/useAuthSessionStore.ts` / `src/features/auth/lib/authGate.ts` /

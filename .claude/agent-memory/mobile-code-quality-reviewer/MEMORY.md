@@ -5,7 +5,7 @@
 - [mock .dc.html as review evidence](mock-dc-html-as-review-evidence.md) — スタブ値の食い違いを見つけたら docs/mock/*.dc.html をgrepし、元mock仕様由来か新規バグかを判定してから指摘する。
 - [no-bash-tool review approach](no-bash-tool-review-approach.md) — Bash無しセッションではgit diffが取れない。実装プランのファイル一覧をGlob+Readで突き合わせ最終状態レビューに切替える。
 - [auth cleanup asymmetric error swallow](auth-cleanup-asymmetric-error-swallow.md) — signOut等のクリーンアップで一部の失敗だけtry/catchし残りが無防備というasymmetryは頻出。横並びで機械チェックする。
-- [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(往復)とroutes/walking(片道)を型・関数名で区別。「往復の目安」は出典が複数ある点に注意。
+- [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(片道×2近似)とroutes/loop(周回実値)を型・関数名で区別(SS-33。旧walkingは非推奨)。「往復の目安」は出典が複数ある点に注意。
 - [reused component static testID risk](reused-component-static-testid-risk.md) — 内部要素が固定testIDの共有コンポーネントを複数画面から使うと同時マウント時に重複し得る（LocationPermissionNoticeで発見）。
 - [verify generated types vs plan assumptions](verify-generated-types-vs-plan-assumptions.md) — プランの「backendの型がまだ甘い」前提はOrval再生成/backend修正で覆っていることがある。生成物とrouter.pyを直接読んで判断する。
 - [Maestro E2E review approach](maestro-e2e-review-approach.md) — .maestro/*.yamlのコメント主張（戻り先画面/canGoBack挙動）はrouter.push/replaceの実装を追跡して裏取りする。waitForAnimationToEndの時間稼ぎ用法は非自明。
@@ -18,3 +18,13 @@
 - [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
 - [mutation success state not treated as busy](mutation-success-state-not-treated-as-busy.md) — useMutationのisPendingだけでdisabled判定すると、成功後の非同期遷移待ちの間だけ操作可能に戻る窓ができる（SS-62で発見）
 - [copy constant trivial self-check convention](copy-constant-trivial-self-check-convention.md) — *Copy.test.tsの「非空文字列チェック」は低価値だが既存の踏襲パターン。ハッシュ自己参照問題とは別物として区別する
+- [plan risk notes lost in tmp](plan-risk-notes-lost-in-tmp.md) — プランの「実機確認/既知の制約」注意書きが一時メモにしかなく、コード/ADRに転記漏れだと消える。転記有無を確認する
+- [history系Viewの分岐条件の二重定義](history-view-duplicated-branch-conditions.md) — 中央寄せ判定とrenderBody内の状態分岐を2箇所に別々に書くと片方だけ更新して表示が崩れる
+- [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。型では守られないので生成元を確認する
+- [テーブル駆動テストの模範](table-driven-test-style-reference.md) — `src/lib/backNavigation.test.ts`のit.each形式が基準。個別it()の羅列との乖離をレビューで拾う
+- [ADR番号の重複(repo-root/mobile)](duplicate-adr-numbers-repo-root-vs-mobile.md) — ADR-008等は`packages/mobile/adr/`と`docs/adr/`に別内容で同番号存在。参照は両方確認してから裏取り
+- [self-cancelling preupload queue effect](self-cancelling-preupload-queue-effect.md) — useEffectが自分でdispatchするstateを依存配列に持つと、await完了前にcleanupが発火し結果を握りつぶす（SS-88 usePinPhotosで発見）
+- [diagnostic log AbortError noise](diagnostic-log-abort-error-noise.md) — 削除/画面離脱由来のAbortErrorが分類関数を経て「失敗」ログに紛れ込みやすい。JSDocの「呼び出し側が握りつぶす」を鵜呑みにしない
+- [画面「戻る」導線の規約](back-navigation-convention.md) — SS-34のuseScreenBack/resolveBackActionへの一本化と既知のエッジケース
+- [render中のref代入パターン](ref-assignment-during-render-pattern.md) — 依存配列に入れず最新値を読むための確立した手法。レビューで誤指摘しない
+- [画面ヘッダーの重複](screen-header-duplication.md) — 戻るIconButton+タイトルがWalkStart/WalkHistoryList/WalkDetailでほぼ同一実装（Plane SS-40で追跡中）

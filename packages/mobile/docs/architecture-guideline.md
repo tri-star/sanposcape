@@ -9,7 +9,7 @@
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
 - 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する（保存だけはサインイン CTA を出し、サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
-- `src/features/walk/` / `src/features/history/`（探索・散歩・履歴のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる。
+- `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピン登録のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する）。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
   （実例1: `app/(tabs)/history.tsx` が `state.user?.displayName ?? null` を読み `HistoryView` →
@@ -26,12 +26,17 @@
   オリジンへの SigV4 署名を `Authorization` に入れるため、ビューア（mobile）が送った
   `Authorization` はオリジンに届かない（詳細は
   [docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定4）。
-- **mobile の HTTP 出口は `src/api/client.ts` の `customFetch` と
+- **mobile の「backend への」HTTP 出口は `src/api/client.ts` の `customFetch` と
   `src/services/auth/authApi.ts` の `post()` の2箇所**であり、認証ヘッダーや
   `x-amz-content-sha256` のような横断的な送信ヘッダーは**両方に適用する**必要がある
   （`authApi.ts` は 401 → refresh の再帰を避けるため `customFetch` を意図的に使わない）。
   片方だけへの適用漏れは CloudFront 経由でのみ 403/401 を引き起こし、backend に直結する
   ローカル環境では発覚しない。
+- これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`。
+  下記「写真の扱い」参照）が **S3 / fake storage への3箇所目の HTTP 出口**として存在する。
+  こちらは**意図的に** `customFetch` を通さない（認証ヘッダー・`x-amz-content-sha256` を
+  backend 以外のオリジンへ送らないため）。横断的な送信ヘッダーを追加するときは、
+  この経路には**入れてはいけない**ことに注意する（ADR-010）。
 
 ## 位置情報の扱い
 - 実装方針は [ADR-006: 位置情報サービスは real/mock の2モード](../adr/ADR-006-location-service-real-mock.md) で確定済み。
@@ -39,6 +44,97 @@
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
 - 呼び出し側（`features/walk`）は `src/services/location` のインターフェースのみを参照し、
   `expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
+
+## 写真の扱い
+
+- 実装方針は [ADR-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で
+  S3 直送](../adr/ADR-010-photo-service-and-direct-s3-upload.md) で確定済み。
+- `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/photoMode.ts`）。
+  位置情報と同じく `dev` モードは持たない（mock はダミー画像を返すだけで実ファイルの加工を伴わない）。
+- 写真の**取得・加工**（カメラ/ライブラリ・縮小・JPEG 再圧縮）は `src/services/photo/` に閉じる
+  （`expo-image-picker` / `expo-image-manipulator` / `expo-file-system` を import してよいのは
+  `photo.real.ts` のみ）。
+- 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
+  `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
+- **（SS-88）`services/photo` は「直送にそのまま載せられる実体」（`PreparedPhoto.file`、
+  型は `UploadFileBody`）まで返す契約**。`features/pin` 側で `uri` から
+  `{ uri, name, type }` を組み立て直してはいけない。Expo SDK 54+ の `fetch`（WinterCG）は
+  React Native 独自のこの形式を受け付けず、`Unsupported FormDataPart implementation` で
+  **送信前に**落ちる（実機・エミュレータで再現済み。ADR-010 決定9）。型で塞いであるが、
+  別経路を足すときも同じ契約を守ること。
+- 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
+  `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
+
+## フィーチャーフラグ（`/app-config`）の扱い
+
+- 実装方針の根拠は [ADR-008（ルート、横断）: デプロイとリリースを分離し、公開はフィーチャーフラグと
+  ストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md) の
+  決定2・決定9・追補 D1/D2/D9/D10 と、その SS-100 追補。
+- **フラグ値の保持は TanStack Query（`queryKey: ["app-config"]`）に一本化する。Zustand へ複製しない。**
+  `/app-config` は未認証でも叩けるサーバー状態であり、`docs/folder-structure.md`「サーバー状態（API由来）
+  = TanStack Query」に従う。
+- **禁止しているのは `fetchAppConfig()`（`src/api/appConfigApi.ts`）を画面から直接呼ぶことだけ。**
+  正規の参照経路は複数ある:
+  - `useFeatureFlag(FEATURE_FLAG_KEYS.xxx)`（`src/hooks/useFeatureFlag.ts`）/
+    `<FeatureGate flag={...}>`（`src/components/app-config/FeatureGate.tsx`）: 「導線・要素を
+    ON/OFF で出し分けたい」場合の基本形。`enabled`/`disabled` の2値しか見えない。
+  - `useAppConfig()` の `status`（`src/hooks/useAppConfig.ts`）: 「まだ分からない（`loading`）」と
+    「OFF が確定した（`ready`/`unavailable` の OFF）」を**区別したい**画面はこちらを使ってよい
+    （`useFeatureFlag.ts` の JSDoc、下記「画面ガードレシピ」、`AppConfigDebugCard.tsx` の
+    診断表示がいずれもこの経路を前提にしている）。
+- キー定数は `src/config/featureFlags.ts` の `FEATURE_FLAG_KEYS`。正典は backend のコード
+  （`packages/backend/src/sanposcape/core/feature_flags.py` の `FEATURE_FLAGS`。ADR-008 追補 D9）で、
+  mobile 側はその写しを自前定義する（ADR-008 追補 D1 の申し送り）。自動同期はしない。
+- **`config_source` で分岐しない**（`src/lib/appConfigSnapshot.ts` の `AppConfigSnapshot` に
+  載せていないので型で防いでいる）。診断表示（`/dev-screens` の `AppConfigDebugCard`）だけが
+  `useAppConfigDiagnostics()` から読む。
+- 取得失敗・ロード中は全 OFF（ADR-008 決定9）。**取得完了を起動条件にしない**
+  （通信断でアプリが起動不能になることを避けるため）。ただし画面ごとフラグで隠す場合は
+  `resolveFeatureGateDecision`（`src/lib/featureGate.ts`）の `pending` を使い、
+  ロード中に確定的な OFF 扱い（`<Redirect>` 等）をしない。
+- **`src/services/` の real/mock 層は作らない**（HTTP で取れる値であり、実機依存でもネイティブ依存でもない。
+  ユニットテストは Orval 生成の msw ハンドラ、E2E は実 backend で足りる）。
+- **ローカルでフラグを ON にして試す手順**（AWS 不要）:
+  backend の `.env` に `FEATURE_FLAG_MODE=stub` と
+  `FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'` を設定して起動する
+  （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
+  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値になっており、
+  ピン登録機能はローカル・CI とも追加設定なしで ON になる（SS-88）。
+  最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
+- フラグを削除するときは backend の登録簿・`src/config/featureFlags.ts`・分岐・テストを
+  同じ PR で消す（ADR-008 決定6）。
+
+### 画面ガードレシピ
+
+`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う
+（SS-100 時点では実例が無いが、次に画面単位のガードが必要になったときのために手順を残す）。
+
+**単一ルート**（`app/` のルートファイルは薄いまま）:
+
+```tsx
+export default function SomeFeatureRoute() {
+  const snapshot = useAppConfig();
+  const decision = resolveFeatureGateDecision({
+    status: snapshot.status,
+    enabled: isFeatureEnabled(snapshot, FEATURE_FLAG_KEYS.someFeature),
+  });
+  if (decision === "pending") return null; // 取得中に弾かない（ON なのに追い出す事故を防ぐ）
+  if (decision === "disabled") return <Redirect href="/" />;
+  return <SomeFeatureView />;
+}
+```
+
+- **`pending` 中は `<Redirect>` しない**。取得中に確定的な OFF 扱いをすると、「フラグ ON なのに
+  起動直後は必ず弾かれる」不具合になる（上記「取得失敗・ロード中は全 OFF」の例外に当たる。
+  画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
+- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。
+
+**タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
+`options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。
+ルート自体は残るので、ディープリンク対策が要るなら上のルート側ガードと併用する。
+
+**いずれの場合も** `app/` にロジックを書かない。判定は `resolveFeatureGateDecision`
+（`src/lib/featureGate.ts`）を呼ぶだけに保つ。
 
 ## テストの方針
 
@@ -107,6 +203,10 @@
     （ネイティブ依存）に到達しうるため）。単体テストでは `createMockLocationService()`
     （`src/services/location/location.mock.ts`）を直接 import してフェイクを注入する
     （`location.mock.test.ts` を参照）。
+  - 写真: `services/photo` も同じ規律。バレル（`index.ts`）を単体テストから import せず、
+    `createMockPhotoService()`（`src/services/photo/photo.mock.ts`）を直接 import する
+    （`photo.mock.test.ts` を参照）。`features/pin/api/*` からのアップロード（presigned POST）は
+    実機依存でもネイティブ依存でもないため msw でテストする（`presignedPostUpload.test.ts`）。
   - Backend API: スタブ実装を利用(Orvalの生成物を利用)
   - モバイル機能: スタブ実装を利用
 

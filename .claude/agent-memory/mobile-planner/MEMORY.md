@@ -4,18 +4,20 @@
 - [認証アーキテクチャ](auth-architecture.md) — ADR-002 の確定事項／認証ゲートの隠れた結合（ゲスト可否は1関数では変えられない）
 - [デザインシステムの SSoT](project_design_system_ssot.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向
 - [MCP と CI の制約](project_codegen_ci_constraint.md) — MCP は CI から呼べない。codegen は fetch/transform を分離する
-- [テストの構造的制約](project_test_and_styling_constraints.md) — RN の render テストは書けない。純粋関数に切り出す
 - [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所／mockのonClick等をRN props(onPress)に読み替える
 - [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
-- [探索APIの制約](project_explore_api_constraints.md) — /explore/places の契約・コスト・呼び出し抑制ルール（M4）
 - [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
-- [探索 API 契約の非対称性](project-explore-api-contract.md) — places は往復、walking route は片道の値
+- [探索API契約とコスト制約](project-explore-api-contract.md) — placesは片道×2近似/routes/loopは周回実値。1探索=Places1回+Routes最大20回・30req/60sなので再探索の抑制が必須
+- [フィーチャーフラグ / app-config](project-feature-flags.md) — `/app-config` の契約・全OFFのfail-safe・dev画面は`__DEV__`でE2E不可・clear()の巻き添え
 - [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
-- [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSW 利用と純粋関数テストの方針
+- [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／開始前に副作用が無い根拠
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
 - [プラン作成時に必ず確認する制約](planning-constraints.md) — 読む順序と、毎回効いてくる mobile 固有の制約
 - [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）＋セッション破棄は `signOut()` 再利用が唯一の作法
+- [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
+- [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）
+- [mobile ADR の地図](reference-mobile-adr-map.md) — mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式

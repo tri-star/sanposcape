@@ -1,30 +1,32 @@
-- [tsx CLI EPERM in sandbox](sandbox-tsx-cli-workaround.md) — `tsx <file>` fails on IPC socket in this sandbox; use `pnpm --filter <pkg> exec node --import tsx <file>` to verify locally instead.
 - [Mobile docs map mismatch](docs-map-mismatch.md) — troubleshoot table lives in `app-startup-guide.md`, not `local-env.md`.
-- [Sandbox format:check stray files](sandbox-format-check-stray-files.md) — run `oxfmt --check` on specific changed files when the full script chokes on stray `.mcp.json`/`.claude/` files.
-- [TypeScript/React の落とし穴](pitfalls.md) — `__DEV__`とglobalThisの型、Rules of Hooks(早期return)、派生指標は生値から計算、バリデーション後付け時の既存テストfixture確認
+- [TS/React/RNの落とし穴集](pitfalls.md) — `__DEV__`のglobalThis型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatList/ScrollViewの`flex:1`
 - [Expo Router のアプリ構造](expo-router-app-structure.md) — typedRoutes生成、index.tsx+(tabs)/index.tsx共存、非推奨Tabsとカスタムタブバー
 - [ネストしたPressable+Checkbox](nested-pressable-checkbox.md) — 行全体Pressable+内側Checkboxはpointer Events="none"で表示専用に
 - [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
-- [expo CLIのHOME書き込みEROFS](sandbox-expo-home-workaround.md) — `expo install`/`expo customize`は`HOME="$TMPDIR/fakehome" EXPO_NO_TELEMETRY=1`で回避
 - [Nitro Google Signinのconfig plugin必須項目](native-config-plugins.md) — `iosUrlScheme`未設定だとAndroid専用でも`expo`コマンド全てが失敗、プレースホルダーで回避
 - [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — real/stubの2値ではない。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)。ただしlocationのように2モード(real/mock)が正当な例外もある
 - [Orval customFetchの契約](orval-customfetch-contract.md) — mutatorは`{status,data,headers}`を返す必要がある。生本文返却のままだと実利用時に`res.data`がundefined
 - [react-native-mapsの実装メモ](react-native-maps-notes.md) — MapViewはref+animateToRegion、Marker tracksViewChanges=falseはkeyに選択状態を含めて再マウント、Maps keyは`.env`のみで注入可
-- [oxfmt個別ファイル実行のズレ](oxfmt-individual-file-drift.md) — 個別`oxfmt`実行だけで満足せず、コミット前に必ず`pnpm --filter mobile format:check`のフルコマンドで確認する
 - [useMutationの初導入パターン](tanstack-mutation-pattern.md) — SS-19 useWalkSaveが最初の例。null検証→ApiError(422)throw、useRefで冪等発火、retryDelay指数バックオフ
 - [サインアウト時クリアの一元化パターン](session-cleanup-registry.md) — `src/lib/sessionCleanup.ts`。store側で自分の後始末を登録、signOut側は`runSessionCleanup()`を呼ぶだけ
 - [共有層への昇格手順](promotion-workflow.md) — `features/<x>/lib|components` から `src/lib`/`src/components/ui` へ安全に移す順序
 - [Orval `/walks` cursor=null の落とし穴](orval-cursor-null-pitfall.md) — `cursor: null` をそのまま `ListWalksWalksGetParams` に渡すと `?cursor=null` が飛ぶ
 - [巨大な座標配列の計算](large-point-array-pitfall.md) — 軌跡(最大1万点)に `Math.max(...points)` を使わない
-- [RNのflexレイアウトの落とし穴](rn-flex-layout-pitfall.md) — flex column内のFlatList/ScrollViewには明示的な`flex:1`が要る
 - [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`と`api/`のみ。hooks/componentsは設計上テストしない
 - [renderBody の中央寄せ判定パターン](render-body-centered-pattern.md) — `{content, centered}`を返す形で判定条件を1箇所に閉じる（features/history一覧・詳細）
 - [Maestro E2Eのフロー設計パターン](maestro-e2e-patterns.md) — subflows分離、tagでのCI除外、disabled誤タップ対策、状態別testID(root据え置き+内側`${testID}-<state>`)、itemTestIDPrefix
 - [画面の戻る導線パターン](screen-back-navigation-pattern.md) — `useScreenBack`+`resolveBackAction`に一本化。intercepted>navigating>canGoBackの優先順位、戻る処理でストアを触らない
 - [認証セッション状態の集約とゲートパターン](auth-session-gate-pattern.md) — SS-13。`useAuthSessionStore`+`AuthGate`+`useAuthSessionBootstrap`。storeバレル非import・segments配列を依存に入れない・ラッチをcleanupで中断しない等の構造上の制約
-- [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
-- [sandboxでgit worktreeがread-only](sandbox-git-worktree-readonly.md) — `git add/commit`がindex.lock作成でRead-only file system失敗。リトライ無駄、ユーザーに報告する
+- [Query不使用のローカル再計算パターン](local-state-recalc-over-query-pattern.md) — SS-35で確立(SS-33で実装は撤去済み、技術パターンのみ記録)。queryKey変化でdataが消えるのを避けたいときはhookローカルstate+AbortController+単調増加sequenceで二層構成にする
 - [サインイン後の遷移アクションパターン](post-sign-in-destination-action.md) — SS-37。getPostSignInDestinationは`{type:"replace"|"dismissTo", href}`を返す。優先順位=進行中の散歩>保存待ちドラフト>既定
 - [mobileのHTTP出口は2箇所](mobile-two-http-exits.md) — SS-70。`client.ts`のcustomFetchと`authApi.ts`の生fetch。横断的関心事(認証ヘッダー等)は両方に適用必須
 - [oxfmt --check のスコープ不一致](oxfmt-check-scope-mismatch.md) — `oxfmt --check .`は`docs/`/`adr/`等で素のツリーでも失敗する誤検知。必ず`pnpm run format:check`（package.json定義）を使う
 - [一時障害再送とAPP_VARIANT分岐](transient-retry-and-app-variant.md) — SS-79。再送はGET/HEAD限定(POST再送してはいけない3理由)。app.config.tsはapp.json=開発用実値/APP_VARIANT=production時だけ上書き、ConfigContext.configはPartial型。HOME=再設定はsandboxガードで拒否される
+- [EAS クラウドビルドは sandbox 外で](feedback-eas-cloud-build-outside-sandbox.md) — WSLにAndroid SDKなし→dev buildはEASクラウド。sandbox内はダミーdotfileでEACCES、実HOMEで実行。build:viewでポーリング、APKは/mnt/c/temp経由でadb install
+- [sandboxで失敗するmobileコマンド](sandbox-constraints.md) — expo CLIのHOME書き込みEROFS / tsx CLIのIPC EPERM / oxfmtがstrayファイルで詰まる(個別実行だけで判断しない) / git worktreeがread-onlyでcommit不可
+- [フィーチャーフラグ(/app-config)受け皿パターン](feature-flag-app-config-pattern.md) — SS-100。TanStack Query一本化・キー定数は写し・pending/enabled/disabled・AppState購読はBootstrap1箇所・shouldRefreshOnForegroundはdataUpdatedAtだけでなくerrorUpdatedAt/isFetchingも見る・ReactNode optional propの`??`は`null`を潰す
+- [presigned POST S3直送と枠上限吸収パターン](direct-s3-upload-and-slot-limit-pattern.md) — SS-88。customFetchを使わない3つ目のHTTP出口、429を「待機に戻す」合図にする設計、PinSaveErrorでwrite系失敗も包む、模型サーバーでのテスト手法
+- [React Compilerのpreserve-manual-memoization警告の直し方](react-compiler-manual-memo-warning.md) — reactCompiler有効時、軽量な計算はuseMemo/useCallbackごと外す
+- [effect依存配列駆動のキューが自己キャンセルする罠](effect-driven-queue-self-cancellation.md) — useEffect(deps:[items])で非同期キューを書くと自分のdispatchでcleanupが走り結果を握りつぶす。kick()駆動の自己完結ループに置き換える。eslint-disable-next-lineは閉じ括弧の直前に置く
+- [ApiErrorにbody/codeを持たせる拡張パターン](api-error-body-and-code.md) — SS-88 PR#93 T15。第3引数body?は既存呼び出し側と互換、customFetchがJSON本文をパースして渡す
+- [best-effort削除の幽霊枠会計パターン](best-effort-delete-ghost-slot-accounting.md) — SS-88 PR#93 T11。ローカルstateから消えてもbackend解放が失敗しうる資源はheldGhostSlotsRefで数え続け、上限判定関数にextraHeldSlotsを足す

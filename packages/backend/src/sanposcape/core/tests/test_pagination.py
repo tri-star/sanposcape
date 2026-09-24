@@ -4,7 +4,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from sanposcape.core.pagination import InvalidCursorError, decode_cursor, encode_cursor
+from sanposcape.core.pagination import (
+    InvalidCursorError,
+    decode_cursor,
+    decode_position_cursor,
+    encode_cursor,
+    encode_position_cursor,
+)
 
 
 def test_encode_decode_cursor_round_trips() -> None:
@@ -59,3 +65,94 @@ def test_decode_cursor_with_invalid_uuid_raises_invalid_cursor_error() -> None:
 
     with pytest.raises(InvalidCursorError):
         decode_cursor(malformed)
+
+
+def test_encode_decode_position_cursor_round_trips() -> None:
+    item_id = uuid.uuid4()
+
+    cursor = encode_position_cursor(3, item_id)
+    decoded_position, decoded_item_id = decode_position_cursor(cursor)
+
+    assert decoded_position == 3
+    assert decoded_item_id == item_id
+
+
+def test_decode_position_cursor_with_zero_round_trips() -> None:
+    item_id = uuid.uuid4()
+
+    cursor = encode_position_cursor(0, item_id)
+
+    assert decode_position_cursor(cursor) == (0, item_id)
+
+
+def test_decode_position_cursor_with_negative_position_raises_invalid_cursor_error() -> None:
+    item_id = uuid.uuid4()
+    cursor = encode_position_cursor(-1, item_id)
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(cursor)
+
+
+def test_decode_position_cursor_with_int4_max_round_trips() -> None:
+    """境界値: PostgreSQL integer の上限はそのまま通す。"""
+    item_id = uuid.uuid4()
+    cursor = encode_position_cursor(2_147_483_647, item_id)
+
+    assert decode_position_cursor(cursor) == (2_147_483_647, item_id)
+
+
+def test_decode_position_cursor_beyond_int4_max_raises_invalid_cursor_error() -> None:
+    """int4 を超える値は DB で out of range（500）になるため、400 に丸める。"""
+    cursor = encode_position_cursor(2_147_483_648, uuid.uuid4())
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(cursor)
+
+
+def test_decode_position_cursor_with_huge_digit_string_raises_invalid_cursor_error() -> None:
+    raw = f"{'9' * 5000}|{uuid.uuid4()}"
+    malformed = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(malformed)
+
+
+def test_decode_position_cursor_with_non_numeric_position_raises_invalid_cursor_error() -> None:
+    raw = f"not-a-number|{uuid.uuid4()}"
+    malformed = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(malformed)
+
+
+def test_decode_position_cursor_with_invalid_uuid_raises_invalid_cursor_error() -> None:
+    raw = "3|not-a-uuid"
+    malformed = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(malformed)
+
+
+def test_decode_position_cursor_with_empty_string_raises_invalid_cursor_error() -> None:
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor("")
+
+
+def test_decode_position_cursor_with_non_base64_raises_invalid_cursor_error() -> None:
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor("not-a-valid-cursor!!")
+
+
+def test_decode_position_cursor_missing_separator_raises_invalid_cursor_error() -> None:
+    malformed = base64.urlsafe_b64encode(b"no-separator-here").decode("ascii")
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(malformed)
+
+
+def test_decode_position_cursor_with_tampered_uuid_raises_invalid_cursor_error() -> None:
+    cursor = encode_position_cursor(1, uuid.uuid4())
+    tampered = cursor[:-4] + ("A" if cursor[-4] != "A" else "B") + cursor[-3:]
+
+    with pytest.raises(InvalidCursorError):
+        decode_position_cursor(tampered)

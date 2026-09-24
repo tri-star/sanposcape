@@ -2,7 +2,8 @@
 name: docs-map-mismatch
 description: mobile docs/local-env.md has no troubleshoot table; the actual symptom/cause/fix troubleshoot table lives in docs/app-startup-guide.md
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `packages/mobile/docs/local-env.md` covers setup steps but has **no** troubleshoot

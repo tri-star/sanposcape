@@ -2,14 +2,15 @@
 name: project-m5-walk-history
 description: M5「散歩記録・履歴」の Issue 分担（SS-18〜21）、SS-18 で引いたスコープ境界、および walks ドメインの設計を ADR-003 に一本化して追補し続ける運用。
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 M5 は SS-18(backend: Walk モデル・保存/履歴 API) → SS-19(mobile: 散歩終了処理) → SS-20(mobile: 履歴画面) → SS-21(E2E・仕上げ) の順で、SS-18 が後続2件の土台になる。
 
 **Why:** SS-19/SS-20 が API 契約に依存するため、SS-18 の設計は「mobile クライアントから使いやすい形」を先に確定させる必要がある、というユーザーからの明示的な指示があった。
 
-**How to apply:** M5 のプランを扱うときは `tmp/SS-18/backend-plan.md`（2026-08-01 作成）で引いた境界を出発点にする。特に次の3点は SS-19/SS-20 側のプランと矛盾しやすい。
+**How to apply:** M5 のプランを扱うときは SS-18（2026-08-01）で引いた境界を出発点にする（正本は ADR-003）。特に次の3点は SS-19/SS-20 側のプランと矛盾しやすい。
 
 - **保存は散歩終了時の単発 `POST /walks` のみ**（開始時にレコードを作らない / 進行中状態を backend に持たない）。アプリ強制終了からの復帰は mobile のローカル永続化（SS-19）で扱う想定。
 - **冪等キー `client_walk_id` は mobile が散歩開始時に採番**して `ActiveWalk` に保持する。保存直前の採番だとリトライで値が変わり冪等性が壊れる。

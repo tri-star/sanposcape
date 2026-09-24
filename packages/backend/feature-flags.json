@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "flags": {
+    "client_requirements": {
+      "name": "client requirements",
+      "description": "機能フラグではない予約キー。クライアントの最低サポートバージョンを属性で配る。必ず enabled=true にすること（false にすると属性が配信されず backend は null にフォールバックする）",
+      "attributes": {
+        "ios_minimum_version": {
+          "description": "これ未満の iOS アプリにアップデートを促す（SS-101）",
+          "constraints": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+        },
+        "android_minimum_version": {
+          "description": "これ未満の Android アプリにアップデートを促す（SS-101）",
+          "constraints": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+        }
+      }
+    },
+    "pin_registration": {
+      "name": "pin registration",
+      "description": "ピン登録（SS-88）。mobile の『この場所にピンを追加』と登録画面を出し分ける"
+    }
+  },
+  "values": {
+    "client_requirements": { "enabled": true },
+    "pin_registration": { "enabled": false }
+  }
+}

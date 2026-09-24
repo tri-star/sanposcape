@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
+import { AppConfigDebugCard } from "@/features/design-system/components/AppConfigDebugCard";
 import {
   DEFAULT_ACTIVE_WALK,
   DEFAULT_WALK_GOAL,
@@ -59,7 +60,7 @@ export function ScreenCatalog() {
     {
       key: "walk-active",
       label: "散歩中",
-      description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（往復${DEFAULT_WALK_GOAL.time}分）`,
+      description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（周回${DEFAULT_WALK_GOAL.time}分）`,
       icon: "navigation",
       onPress: () => {
         useActiveWalkStore.getState().startWalk({
@@ -95,6 +96,18 @@ export function ScreenCatalog() {
       description: "保存済みの散歩履歴（タップで詳細へ）。副作用なし",
       icon: "footprints",
       onPress: () => router.push("/walk-history"),
+    },
+    {
+      key: "pin-register",
+      label: "ピン登録",
+      description:
+        "東京駅の座標で開く（フラグ pin_registration が OFF だとナビへ戻される。保存・写真追加で backend に書き込む）",
+      icon: "map-pin",
+      onPress: () =>
+        router.push({
+          pathname: "/pins/new",
+          params: { latitude: "35.681236", longitude: "139.767125" },
+        }),
     },
     {
       key: "search",
@@ -138,6 +151,8 @@ export function ScreenCatalog() {
             スタブデータ付きで各画面を直接開いて表示確認できます（開発用）
           </Text>
         </View>
+
+        <AppConfigDebugCard />
 
         <View style={styles.list}>
           {links.map((link) => (

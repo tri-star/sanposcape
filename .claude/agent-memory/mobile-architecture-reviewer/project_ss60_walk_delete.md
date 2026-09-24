@@ -2,7 +2,8 @@
 name: project_ss60_walk_delete
 description: SS-60（散歩履歴削除UI）のレビュー背景と、そこで確立した「ドメインイベント後始末レジストリ」パターンの一般化状況
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-60「mobile: 散歩履歴を削除するUIを実装」（2026-08-16 レビュー）で、`src/lib/sessionCleanup.ts`

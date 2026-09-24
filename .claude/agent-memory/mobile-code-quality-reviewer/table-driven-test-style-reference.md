@@ -1,7 +1,9 @@
 ---
 name: table-driven-test-style-reference
 description: mobileのテーブル駆動テストは src/lib/backNavigation.test.ts の it.each 形式が模範。個別 it() の羅列との乖離をレビューで拾う。
-type: project
+metadata:
+  type: reference
+  scope: durable
 ---
 
 `src/lib/backNavigation.test.ts` は `it.each([...] as const)("... → $expected", (...) => {...})`

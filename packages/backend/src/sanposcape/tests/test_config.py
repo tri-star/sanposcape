@@ -1,29 +1,12 @@
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
 from sanposcape.config import Settings, _to_sqlalchemy_url
 
-
-@pytest.fixture(autouse=True)
-def _isolate_settings_sources(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """`Settings` の外部入力（環境変数・`.env`）を遮断する。
-
-    ここのテストは「引数で渡さなかった項目は既定値になる」ことを前提に
-    バリデーションを検証している。しかし `Settings` は環境変数と `.env` も読むため、
-    開発者の手元でその項目が設定されていると既定値にならず、テストの意味が変わってしまう。
-
-    実際に `GOOGLE_MAPS_SERVER_API_KEY` を設定した環境では
-    `test_production_without_google_maps_server_key_fails_to_start` が
-    「キー未設定なのに起動できてしまう」ではなく「キーが設定されている」状態を
-    検証することになり、失敗していた（CI はキーを設定しないため気付けなかった）。
-
-    `env_file=".env"` は相対パスなので、カレントディレクトリを移すことで読み込みも防ぐ。
-    """
-    for name in Settings.model_fields:
-        monkeypatch.delenv(name.upper(), raising=False)
-    monkeypatch.chdir(tmp_path)
+# このモジュールのテストは「引数で渡さなかった項目は既定値になる」ことを前提に
+# バリデーションを検証している。`Settings(...)` を開発者ローカルの `.env` / OS 環境変数から
+# 隔離する処理は `conftest.py` の `_isolate_settings_from_ambient_env`（autouse, SS-100）で
+# スイート全体に対して行われているため、ここでの個別定義はしない。
 
 
 def test_production_with_non_real_auth_mode_fails_to_start() -> None:
@@ -233,6 +216,49 @@ def test_maps_mode_defaults_to_real() -> None:
     assert Settings().maps_mode == "real"
 
 
+def test_production_with_stub_feature_flag_mode_fails_to_start() -> None:
+    """SS-98: FEATURE_FLAG_MODE も AUTH_MODE / MAPS_MODE と同じ許可リスト方式で検証されること。"""
+    with pytest.raises(ValidationError, match="FEATURE_FLAG_MODE"):
+        Settings(
+            env="production",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            feature_flag_mode="stub",
+        )
+
+
+def test_staging_with_stub_feature_flag_mode_fails_to_start() -> None:
+    """A-1 と対になる固定: 許可リスト方式は新しい env（staging）にも一律で効く。"""
+    with pytest.raises(ValidationError, match="FEATURE_FLAG_MODE"):
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            feature_flag_mode="stub",
+        )
+
+
+@pytest.mark.parametrize("env", ["local", "test"])
+def test_local_and_test_env_allow_stub_feature_flag_mode(env: str) -> None:
+    settings = Settings(env=env, feature_flag_mode="stub")
+    assert settings.feature_flag_mode == "stub"
+
+
+def test_feature_flag_mode_defaults_to_real() -> None:
+    assert Settings().feature_flag_mode == "real"
+
+
+def test_appconfig_ids_default_to_empty_string() -> None:
+    settings = Settings()
+    assert settings.appconfig_application_id == ""
+    assert settings.appconfig_environment_id == ""
+    assert settings.appconfig_configuration_profile_id == ""
+
+
 # --- 決定3: DSN の正規化 (`_to_sqlalchemy_url`) と `database_url` の優先順位 ---
 
 
@@ -385,3 +411,18 @@ def test_migrate_database_dsn_is_not_required_for_non_local_env() -> None:
         migrate_database_dsn="",
     )
     assert settings.migrate_database_url is None
+
+
+def test_log_level_accepts_lowercase() -> None:
+    """`.env` に `LOG_LEVEL=info` と書かれても起動できるようにしている。
+
+    `Literal` は大小を区別するため、正規化しないと小文字表記で起動に失敗する。
+    """
+    assert Settings(log_level="info").log_level == "INFO"
+    assert Settings(log_level="Warning").log_level == "WARNING"
+
+
+def test_log_level_rejects_unknown_value() -> None:
+    """正規化で値域が緩くなっていないこと（`upper()` しても Literal に無い値は弾く）。"""
+    with pytest.raises(ValidationError):
+        Settings(log_level="verbose")

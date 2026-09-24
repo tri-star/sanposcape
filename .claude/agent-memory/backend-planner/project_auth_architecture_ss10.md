@@ -2,7 +2,8 @@
 name: project-auth-architecture-ss10
 description: 認証アーキテクチャは ADR-002 で確定済み（Google 直結 + backend 自前セッショントークン）。SS-10〜SS-13 の分担と SS-10/SS-12 の線引き。
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 sanposcape の認証は **ADR-002（`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md`）で確定済み**。モバイルは Google に対する public client として ID token を取得し、それを1回だけ backend に渡して **backend が自前のセッショントークン（access=短命 HS256 JWT / refresh=opaque + ローテーション + 再利用検知）を発行**する。以降の全 API は自前トークンの Bearer。

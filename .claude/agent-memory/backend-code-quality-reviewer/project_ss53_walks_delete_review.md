@@ -2,7 +2,8 @@
 name: project_ss53_walks_delete_review
 description: SS-53（DELETE /walks/{walk_id}）のコード品質レビューで把握した設計判断と全体品質の所感。
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 2026-08-12 時点、ブランチ `tri-star/ss-53` で `DELETE /walks/{walk_id}` を追加。ADR-003 に「13. 散歩の削除は物理削除で行い、DELETE /walks/{walk_id} を提供する（SS-53 追補）」として丁寧に追補されている（`docs/adr/ADR-003-walk-record-persistence-and-history-api.md`）。

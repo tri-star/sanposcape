@@ -2,7 +2,7 @@
 name: auth-scenarios
 description: mobile で 401 が起きる2つの経路（ゲストのまま / セッション失効）の違いと、セッション破棄を再利用する唯一の作法
 metadata:
-  type: project
+  type: feedback
   scope: durable
   adr: packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md
 ---

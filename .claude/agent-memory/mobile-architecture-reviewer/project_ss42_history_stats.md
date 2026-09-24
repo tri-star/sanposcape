@@ -1,10 +1,12 @@
 ---
 name: project_ss42_history_stats
 description: SS-42（記録タブの週/月集計・連続日数・歩数を GET /walks/stats の実データへ差し替え）レビュー時点の実装状況
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
-`tmp/ss-42/mobile-plan.md`（backend への API 依頼を含む詳細プラン）に基づき、
+SS-42 のプラン（backend への API 依頼を含む。プラン文書自体は gitignore 対象で既に消失）に基づき、
 `src/features/history/{api/walkStatsApi.ts, lib/{periodChart,periodChartLabel,stepEstimate,
 walkStatsError}.ts, data/stepGoal.ts, hooks/useHistorySummary.ts, components/{HistoryView,
 PeriodChart,StepGoalCard}.tsx}` が実装され、`data/records.ts`（静的スタブ）が削除された
@@ -39,6 +41,6 @@ PeriodChart,StepGoalCard}.tsx}` が実装され、`data/records.ts`（静的ス�
 **既知の残課題（Warning相当、次の関連PRで確認すること）:**
 - `docs/milestones.md`（リポジトリルート）の M5 セクション（150行目台・163〜164行目付近）が
   「記録タブの集計表示は `useHistorySummary` のスタブのまま」「歩数目標はスタブのままで実データ化は
-  別課題」という SS-20 時点の記述のまま更新されていない。`tmp/ss-42/mobile-plan.md` §4 の
-  「リポジトリルート側」表は `docs/milestones.md [確認] # 記録タブのスタブ留保の記述を実績へ更新」を
-  明記していたが、反映されていない（`docs/adr/ADR-003` 側の SS-42 追補は正しく反映済み）。
+  別課題」という SS-20 時点の記述のまま更新されていなかった。**2026-09-20 追記: `docs/milestones.md`
+  自体が 2026-08-22 に削除され、残作業の情報源は Plane に一本化されたため、この残課題は消滅した**
+  （`docs/adr/ADR-003` 側の SS-42 追補は当時から正しく反映済み）。

@@ -2,7 +2,8 @@
 name: project-ss18-review-followup
 description: SS-18 (walks/散歩記録) のローカルレビュー指摘への対応履歴。承認された4項目の対応内容と判断ログ
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## 経緯
@@ -10,7 +11,7 @@ metadata:
 ブランチ `feat/ss-18-walk-record`（walks ドメインの実装、10コミット済み）に対して
 backend-security-reviewer / backend-architecture-reviewer / backend-code-quality-reviewer /
 doc-maintainer の4エージェントでローカルレビューを実施し、結果を
-`tmp/SS-18/local-review.md` にまとめた（このファイルは gitignore 対象で追跡されない）。
+当時の作業ディレクトリのレビューメモにまとめたが、そのファイルは gitignore 対象で既に消失している。
 親エージェント・ユーザーが承認した4項目のみ対応した（C-1, C-3, C-5〜C-7, ADR化 等は見送り）。
 
 ## 対応した4項目と実装場所

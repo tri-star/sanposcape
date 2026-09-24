@@ -1,9 +1,73 @@
 # ADR-002: 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-09-21（SS-93）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **モバイルは Google に対してのみ public client とし、Google ID token はサインイン直後に1回だけ
+  `POST /auth/session` で backend の自前トークンに交換する**。以降の API は自前 access token
+  （HS256 の短命 JWT）で呼び、refresh token は opaque + ローテーション + 再利用検知。（本文: 決定1）
+- **自前 access token は `X-App-Authorization: Bearer` ヘッダーで送る**。backend は
+  `X-App-Authorization` → `Authorization` の優先順で読む。理由（CloudFront OAC の SigV4 署名が
+  `Authorization` を使う）は [ADR-005 決定4](./ADR-005-backend-serverless-deployment-lambda-function-url.md)。
+  （本文: 決定1、移行・対応が必要な事項、SS-70 追補）
+- **Google サインインのライブラリは `react-native-nitro-google-signin`**。Android Credential Manager に無償で対応するため。
+  （本文: 決定1、検討した選択肢「Google サインインのライブラリ」）
+- **複数プロバイダへの抽象化点は `POST /auth/session` の `provider` フィールド**。Apple 等の追加は
+  モバイルのライブラリ1つ + backend の ID token 検証1つで済ませる。（本文: 決定2）
+- **モバイルの認証は `EXPO_PUBLIC_AUTH_MODE = real | dev | mock` の3モードで、既定は `real`（fail-safe）**。
+  `dev` は実物の backend を使い、トークン発行と `get_current_user` は real と同一のコードパスを通る。（本文: 決定3）
+- **backend は `AUTH_MODE`（既定 `real`）を持ち、`POST /auth/dev-session` は `AUTH_MODE=dev` のときだけ存在する**。
+  `ENV` が `local` / `test` 以外で real 以外のモードなら起動を失敗させる検証を、許可リスト方式で
+  `config.py` の `_validate_environment_settings` 1箇所に集約する。（本文: 決定4）
+- **`GOOGLE_ALLOWED_AUDIENCES` には動きうる全プラットフォームのクライアント ID を列挙する**
+  （Android = Web クライアント ID、iOS = iOS クライアント ID が `aud` に入る）。AWS では
+  Secrets Manager のキー `google_oauth_client_id`（単数形だが複数値）から写される。（本文: 決定4-1、SS-81 追補）
+- **`AuthService` は `signIn(provider)` に一本化し、サインイン/サインアップを区別しない**。
+  ユーザーは backend が初回サインイン時に JIT 作成する。（本文: 決定5）
+- **ゲストは「トークンを持たない認証状態」として表現し、ゲストのまま保護ルート（探索・散歩・記録タブ・設定）に入れる**。
+  詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)。（本文: 決定6、6-1（SS-49 追補））
+- **explore 系 API（`/explore/places`・`/explore/routes/loop`・deprecated の `/explore/routes/walking`）は認証任意**。
+  未認証時は `ExploreRateLimiter` の client_ip バケットで制御し、匿名の上限は認証済み以下
+  （既定 10 / 30）。（本文: 決定6-1、SS-49/SS-93 追補、6-1 追補（SS-33））
+- **`POST /walks` は認証必須で、ゲストの記録を後からアカウントへマージする機能は作らない**。（本文: 決定6-1、SS-49 追補）
+- **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
+  （本文: 移行・対応が必要な事項）
+- **Google OAuth クライアントは Android が「識別子 + SHA-1」の組ごと、iOS が bundle ID ごとに1つ必要**。
+  開発識別子 `com.sanposcape.app.dev` のビルド（E2E / `staging-apk` / クラウドビルド）はすべて同一の鍵を使うため、
+  開発用 GCP プロジェクトに登録する Android の組は1つ。iOS クライアントは開発識別子に紐づき、クライアント ID は従来と同じ。
+  （本文: 移行・対応が必要な事項、SS-81/SS-79 追補、「SS-79 追補」節）
+
+### 未解決・持ち越し
+
+- **Android 実機のサインインが未達**（Credential Manager 段階で失敗し backend に到達していない。iOS は疎通済み）。
+  失敗原因がアプリ側で汎用メッセージになる診断性の問題と合わせて SS-82 で継続。（本文: 決定4-1、移行・対応が必要な事項、SS-81 追補）
+- **Secrets Manager のキー名 `google_oauth_client_id` が複数値の実態と食い違い、設定漏れを誘発する**問題は SS-84 で扱う。
+  （本文: 決定4-1、SS-81 追補）
+- **本番識別子 `com.sanposcape.app` 用の OAuth クライアントが未作成**。`production` プロファイルを使い始める段で、
+  本番 GCP プロジェクトでの Android の登録、本番用 iOS クライアントの新規作成、`app.config.ts` の
+  `PRODUCTION_VARIANT` への `iosUrlScheme` 追加、本番 Secrets Manager の `google_oauth_client_id` 設定
+  （dev のクライアント ID を入れない）が必要。（本文: 「SS-79 追補」節）
+- **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が必要**（2026-09 時点で未実装）。
+  （本文: 移行・対応が必要な事項）
+
+### 変更・撤回された決定
+
+- 自前 access token のヘッダー `Authorization` → `X-App-Authorization`（決定は不変、記述のみ更新。SS-70 追補）
+- 未認証ユーザーは認証ゲートで弾く（SS-13 時点）→ ゲストのまま保護ルートに入れる（本文: 決定6、6-1（SS-49 追補）。SS-57 で実装）
+- 匿名バケットの上限は「低くすることを検討する」→ 認証済み以下（既定 10 / 30）で実装済み（本文: 決定6-1、SS-93 追補）
+- E2E 等のビルドが使う Android の鍵: 本番識別子の `build-credential-ci` → 開発識別子の新しい鍵
+  （「開発ビルドの全経路が同一鍵」という構造は維持。本文: 移行・対応が必要な事項、SS-79 追補）
+- 本文のコンテキスト・ネガティブな影響にある「SHA-1 は署名鍵ごと（debug / EAS development / preview / production）に登録が必要」は
+  初版時点の見込みで、現在の開発用 GCP プロジェクトの登録は開発識別子の組1つ（本文: 「SS-79 追補」節）
+
 ## 日付
 
 2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
-2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）
+2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -100,7 +164,9 @@ app --X-App-Authorization: Bearer <自前 access token>--> 以降の全 API
 
   この許可リストのブロックは **`AUTH_MODE` 専用ではなく、モード系 env と本番必須設定をまとめて検証する唯一の場所**とする（実装: `packages/backend/src/sanposcape/config.py` の `_validate_environment_settings`）。新しい fail-safe 項目は必ずこのブロックに追加し、別バリデータを新設しない（許可リストが分裂すると片方だけ更新される事故が起きる）。
 
-  2026-08 時点でこのブロックが検証しているのは `AUTH_MODE` / `MAPS_MODE`（SS-44 で追加。Maps provider を決定的な fake に差し替えるモード）/ `AUTH_JWT_SECRET` / `GOOGLE_ALLOWED_AUDIENCES` / `GOOGLE_MAPS_SERVER_API_KEY`。
+  2026-09 時点でこのブロックが検証しているのは `AUTH_MODE` / `MAPS_MODE`（SS-44 で追加。Maps provider を決定的な fake に差し替えるモード）/ `FEATURE_FLAG_MODE`（SS-98。AppConfig フィーチャーフラグ取得を stub に差し替えるモード）/ `AUTH_JWT_SECRET` / `GOOGLE_ALLOWED_AUDIENCES` / `GOOGLE_MAPS_SERVER_API_KEY` / `DATABASE_DSN`（SS-67）。
+
+  real でない側の呼称はモードの性質に応じて用途別に使い分けている（`AUTH_MODE=dev` / `MAPS_MODE=fake` / `FEATURE_FLAG_MODE=stub`）。名称が揃っていないのは意図的な区別であり、統一漏れではない。
 
 ### 4-1. `GOOGLE_ALLOWED_AUDIENCES` は必ず全プラットフォーム分を列挙する（SS-81 追補）
 
@@ -145,11 +211,18 @@ mobile ADR-009 が「今回は決めない」として持ち越していた、�
    - `get_current_user`（認証必須）への依存を、認証任意の依存関数に差し替える。
    - レート制限は既存の `ExploreRateLimiter`（`packages/backend/src/sanposcape/maps/rate_limit.py`）が user_id と client_ip の両方でバケットを持つ設計になっているため、未認証時は client_ip のみのバケットで制御する。
    - 匿名バケットの上限は認証済みより低く設定することを検討する（キャリアグレード NAT 等で IP が複数ユーザー間に共有されうるため）。具体の閾値は実装タスク（SS-56）側で決定する。
+     （**SS-93 追補**: SS-56 で実装済み。匿名の上限は `GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS`（既定 10）、
+     認証済みは `GOOGLE_MAPS_RATE_LIMIT_REQUESTS`（既定 30）で、匿名が認証済みを超えないことを
+     `config.py` の `_validate_environment_settings` で検証している）
 2. **`POST /walks`（散歩記録の保存）は未認証では許可しない。** サインインを促す導線に倒し（[mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md) の保護ルート方針に従う）、ゲスト記録を後からアカウントへマージする機能は作らない。
 
 **決定理由**: `docs/project-overview.md` が当初から明記していた「記録・履歴の永続化のみが認証を要求する」「ゲストでの散歩開始（記録なし）」という構想に、この2点がそのまま合致するため。マージ機能（ゲストの記録を後からアカウントへ紐付ける案）は、所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さを伴い、MVP のスコープでは必要性が無いと判断して見送った。
 
 **影響**: mobile 側は `canEnterProtectedRoutes`（`features/auth/lib/authGate.ts`、決定3参照）に `"guest"` を許可として追加し、`SignInView` / `SignUpView` のゲスト導線を復活させた（SS-57 で実装済み）。backend 側の実装は SS-56（先行して main にマージ済み）。詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)「SS-57 追補」を参照。
+
+### 6-1 追補（SS-33）
+
+SS-33 で新設した `POST /explore/routes/loop` も、`/explore/places` `/explore/routes/walking` と同じ扱いにする。認証は任意（`get_current_user_optional`）で、レート制限も同じ `ExploreRateLimiter`（`/explore/places` と共有のバケット）を使う。新しいバケットは作らない。既存 `/explore/routes/walking` は挙動・スキーマを変えずに `deprecated=True` を付与しただけで、6-1 の扱いは変わらない（詳細は [ADR-007](./ADR-007-loop-route-generation.md) 決定4）。
 
 ## 検討した選択肢
 

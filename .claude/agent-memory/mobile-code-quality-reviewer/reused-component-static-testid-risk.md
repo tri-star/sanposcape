@@ -2,7 +2,8 @@
 name: reused-component-static-testid-risk
 description: 内部要素に固定 testID を持つ共有コンポーネント（例 LocationPermissionNotice）を複数画面から使うと、両画面が同時マウントされた場合に testID 重複が起き得る。SS-16レビューで発見
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `packages/mobile/src/features/walk/components/LocationPermissionNotice.tsx` は root の `testID`

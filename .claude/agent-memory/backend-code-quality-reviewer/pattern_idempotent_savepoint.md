@@ -3,6 +3,7 @@ name: pattern_idempotent_savepoint
 description: 一意制約による冪等 INSERT を savepoint + IntegrityError 捕捉で実装する、このコードベース共通のパターン。
 metadata:
   type: reference
+  scope: durable
 ---
 
 `users/repository.py:UserRepository.create()` が元祖。`walks/repository.py:WalkRepository.create()`（SS-18）が同じ形を踏襲している。

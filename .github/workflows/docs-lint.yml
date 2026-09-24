@@ -7,6 +7,9 @@ on:
       - "docs/**"
       - "packages/*/docs/**"
       - ".claude/agent-memory/**"
+      - ".agents/skills/**"
+      - ".codex/**"
+      - "packages/*/AGENTS.md"
       - "*.md"
       - "scripts/knowledge/**"
       - ".github/workflows/docs-lint.yml"
@@ -15,6 +18,9 @@ on:
       - "docs/**"
       - "packages/*/docs/**"
       - ".claude/agent-memory/**"
+      - ".agents/skills/**"
+      - ".codex/**"
+      - "packages/*/AGENTS.md"
       - "*.md"
       - "scripts/knowledge/**"
       - ".github/workflows/docs-lint.yml"
@@ -34,3 +40,10 @@ jobs:
       # ベースラインに載っている既存メモリは対象外で、新規流入のみを止める。
       - name: Check agent-memory front-matter
         run: python3 scripts/knowledge/check-memory-frontmatter.py --all
+
+      # ハーネス専用の標準ライブラリ検証。アプリ環境や外部サービスは不要。
+      - name: Validate Codex harness references and formats
+        run: python3 .agents/skills/import-claude-skill/scripts/validate_harness.py
+
+      - name: Test incremental Claude import
+        run: python3 -m unittest discover -s .agents/skills/import-claude-skill/tests -v

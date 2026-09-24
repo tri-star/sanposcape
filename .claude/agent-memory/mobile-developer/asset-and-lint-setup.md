@@ -2,7 +2,8 @@
 name: asset-and-lint-setup
 description: PNG import の型宣言、oxlintrc に docs/mock を含める必要、@react-native-community/slider 追加時の注意
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 ## `import x from "@/assets/images/foo.png"` には型宣言が必要

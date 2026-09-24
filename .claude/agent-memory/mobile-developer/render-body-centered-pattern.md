@@ -2,7 +2,8 @@
 name: render-body-centered-pattern
 description: List/detail画面で「エラー/ローディング/空は中央寄せ、本体一覧はそのまま」を実装するときの重複防止パターン
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `features/history/components/WalkHistoryListView.tsx` / `WalkDetailView.tsx` は、状態（エラー/

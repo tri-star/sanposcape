@@ -57,8 +57,27 @@ components/ui/button/
 
 - **散歩の道のり（歩いたルート／提示ルート）** を表す語は `walkingRoute` / `walkRoute` などと表記し、
   Expo Router / React Router の route（画面/URL）と混同しない。
-  - 例: 型 `WalkRoute`、hook `useWalkRoute.ts`、変数 `walkRoutePolyline`。
+  - 例: 型 `WalkRoute`、hook `useWalkRoute.ts`、純粋関数 `walkRoutePolylineSegments`（`lib/walkRouteLegs.ts`）。
   - backend 側の命名規則とも揃える（`packages/backend/docs/naming-convention.md` 参照）。
+- **`roundTrip*` と `loop*` は意味が異なるので使い分ける**（SS-33）。
+  - `roundTrip*`（例: `SpotCandidate.roundTripMinutes`/`roundTripKm`）は `/explore/places` 由来の
+    **片道×2の近似スナップショット**。候補一覧の表示にのみ使う。
+  - `loop*`（例: `ActiveWalk.loopMinutes`/`loopKm`）は `/explore/routes/loop` から取得した
+    **周回ルートの実値**。散歩開始後（`ActiveWalk` 以降）はこちらを使う。
+  - 由来（近似 vs 実値）が異なる値を同じ変数名で読み違えないよう、rename ではなく最初から
+    別の語幹を選ぶこと。背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md)
+    決定1「SS-33 追補」を参照。
+- **周回ルートの leg（区間）の kind** は API 層の値をそのまま `outbound` / `return` として扱う
+  （`WalkingRouteLegKind`）。UI 表示の文言は「行き」/「帰り」（「往路」/「復路」ではない）で統一する
+  （`lib/walkRouteLegs.ts` の `walkRouteLegendItems` を参照）。
+
+## 「同じ道フォールバック」に関する命名の注意（SS-33）
+
+- 周回ルートを作れず、往路と同じ道を復路として返すケースは API の `returnIsSamePath`
+  （backend 側は `return_is_same_path`）というフィールド名で表現する。UI では凡例が1項目
+  （「行き・帰り（同じ道）」）にまとまる。
+- 「往復」という言葉は候補一覧の `roundTrip*` の文脈でのみ使い、周回ルート確定後の文脈
+  （`loop*`／`legs`）では使わない（両者は数値の出所が異なり、僅かにずれうるため）。
 
 ## テストファイル
 

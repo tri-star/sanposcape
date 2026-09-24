@@ -18,9 +18,9 @@ import type { WalkRoute } from "@/features/walk/types";
  * - `WalkRouteMapView` の「現在地への再センタリング」（`recenterNonce` 起点で
  *   `regionForRoundTrip(currentPosition, ...)` を呼ぶ別系統の effect）。
  *
- * 依存は `walkRouteFitKey`（placeId + origin）。SS-35 の再計算では目的地が同じまま起点だけが
- * 変わるため、placeId だけを見ていると新ルートに地図がフィットしない（`SpotMapView` は起点が
- * 固定なのでキーは実質変わらず、挙動は従来どおり）。
+ * 依存は `walkRouteFitKey`（placeId + origin）。散歩開始画面で現在地を取り直すと目的地が同じまま
+ * 起点だけが変わりうるため、placeId だけを見ていると新ルートに地図がフィットしない
+ * （`WalkRouteMapView` は起点が固定なのでキーは実質変わらず、挙動は従来どおり）。
  */
 export function useMapRouteFit(
   mapRef: RefObject<MapView | null>,

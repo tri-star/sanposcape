@@ -2,7 +2,8 @@
 name: ss53-request-size-limit-middleware-method-agnostic
 description: RequestSizeLimitMiddlewareはHTTPメソッドを見ずpath_prefixのみでContent-Length/ストリーミングサイズを判定する設計。GET/DELETEでも413があり得る
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 `packages/backend/src/sanposcape/core/middleware.py::RequestSizeLimitMiddleware` は

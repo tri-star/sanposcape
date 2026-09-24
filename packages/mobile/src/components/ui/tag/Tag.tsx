@@ -24,6 +24,12 @@ export type TagProps = {
    * disabled（＝今は利用できない）とは別物なので、そちらの表現には使わないこと。
    */
   onPress?: () => void;
+  /**
+   * 読み上げ文言の上書き。省略時は RN の既定動作（子 `Text` から自動導出）に任せる。
+   * 同じ `Tag` を「選択」と「削除」など異なる操作の意味で使う画面（例: `PinTagEditor` の
+   * 削除チップ vs `SanpoMapSelector` の選択チップ）で、読み上げ内容を区別するために使う。
+   */
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -38,6 +44,7 @@ export function Tag({
   category = "neutral",
   selected = false,
   onPress,
+  accessibilityLabel,
   style,
   testID,
 }: TagProps) {
@@ -72,6 +79,7 @@ export function Tag({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       testID={testID}
       hitSlop={hitSlopFor(TAG_HEIGHT)}

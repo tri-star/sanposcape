@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 12.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -24,34 +24,35 @@
         "EXPO_PUBLIC_AUTH_MODE": "dev",
         "EXPO_PUBLIC_DEV_USER_KEY": "e2e-user-1",
         "EXPO_PUBLIC_BACKEND_API_URL": "http://10.0.2.2:8000",
-        "EXPO_PUBLIC_LOCATION_MODE": "mock"
+        "EXPO_PUBLIC_LOCATION_MODE": "mock",
+        "EXPO_PUBLIC_PHOTO_MODE": "mock"
       }
     },
     "staging": {
       "distribution": "store",
       "channel": "staging",
       "environment": "preview",
+      "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
       },
       "env": {
         "EXPO_PUBLIC_BACKEND_API_URL": "https://app-api.dev.sanposcape.com",
         "EXPO_PUBLIC_AUTH_MODE": "real",
-        "EXPO_PUBLIC_LOCATION_MODE": "real"
+        "EXPO_PUBLIC_LOCATION_MODE": "real",
+        "EXPO_PUBLIC_PHOTO_MODE": "real"
       }
     },
     "staging-apk": {
       "extends": "staging",
       "distribution": "internal",
-      "autoIncrement": false,
       "android": {
         "buildType": "apk"
       }
     },
     "staging-ios": {
       "extends": "staging",
-      "distribution": "internal",
-      "autoIncrement": false
+      "distribution": "internal"
     },
     "production": {
       "distribution": "store",
@@ -65,7 +66,8 @@
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_BACKEND_API_URL": "https://app-api.sanposcape.com",
         "EXPO_PUBLIC_AUTH_MODE": "real",
-        "EXPO_PUBLIC_LOCATION_MODE": "real"
+        "EXPO_PUBLIC_LOCATION_MODE": "real",
+        "EXPO_PUBLIC_PHOTO_MODE": "real"
       }
     }
   },

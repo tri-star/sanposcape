@@ -4,7 +4,13 @@
 載せ、AWS SAM で dev / prod の AWS アカウントへデプロイする手順。方式決定の背景・却下案は
 [ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) を参照。
 
-> **検証状況（2026-09-12 時点）**
+> **デプロイ ≠ リリース。** 本ドキュメントが扱うのは「コードを本番環境に置く」ところまでである。
+> 「利用者に機能を見せる」のはフィーチャーフラグの ON（および mobile ではストアの公開）であり、
+> 別の操作として扱う（[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md)）。
+> リリース全体の流れ・フラグの操作・引き返し方は
+> [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
+
+> **検証状況（最終更新 2026-09-24）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -14,10 +20,14 @@
 > | `aws lambda invoke`（直接）で `/health` | ✅ 200 `{"status":"ok"}`。シークレット取得の実経路も通過 |
 > | Function URL 直叩き | ✅ 403 `{"Message":"Forbidden"}` |
 > | マイグレーション Lambda（§5.2） | ✅ 検証済み（`{"head": "ecd8f161fedb"}`。2 回目の invoke が no-op になる冪等性も確認） |
-> | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200。psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことも確認（§9） |
+> | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200（検証当時。`spots` ドメインは SS-88 で削除済みで現存しないが、他のエンドポイントでも成り立つ結論として psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことを確認済み、§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
 > | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は未実施 |
 > | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
+> | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
+> | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
+> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
+> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
 
@@ -27,6 +37,11 @@
 - Docker が利用可能であること（`sam build --use-container` が内部で使う）。
 - ローカル開発用の `docker compose` 環境とは別物。デプロイ作業はホストで `sam` / `aws` CLI を
   直接実行する（`docker compose exec api ...` ではない）。
+- **（SS-72）通常のデプロイは GitHub Actions（§4.1）から行う。** 手元からのデプロイは、初回の
+  境界付与（§7）・CI が使えない場合の緊急時・changeset を目で確認したい場合に限る。
+- `sanposcape-infra` の `live/account` が apply 済みで、次が存在すること（§3 Phase 0 で確認する）。
+  - SSM `/sanposcape/<env>/account/lambda_boundary_arn`（実行ロールに付ける Permission Boundary の ARN）
+  - GitHub Actions 用のデプロイロール（`sam_deploy_role_arn` の output）。**prod はどちらも未 apply（infra タスク SS-97 で対応予定）。prod の初回デプロイは SS-97 の完了待ち**
 
 ### dev / prod の対応表
 
@@ -81,6 +96,23 @@ Terraform 側が CloudFront のオリジンとして参照できない。
 # SSM パラメータ（シークレットの ARN）が存在すること
 aws ssm get-parameter --name /sanposcape/dev/platform/secrets/shared/arn --region ap-southeast-1
 
+# 実行ロール用 Permission Boundary の ARN が存在すること（SS-72。無いと deploy 時の
+# {{resolve:ssm:}} が失敗する。infra の live/account が未 apply の環境では存在しない）
+aws ssm get-parameter --name /sanposcape/dev/account/lambda_boundary_arn --region ap-southeast-1
+
+# AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID が3本とも存在すること。
+# 1本でも欠けると template.yaml の {{resolve:ssm:}} が解決できず、deploy 自体が失敗する
+# （backend が読むのは application_id / environment_id / configuration_profile_id の3本。
+# deployment_strategy_id は SS-99 のワークフロー側が読む）
+aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/application_id --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/environment_id --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/dev/platform/appconfig/configuration_profile_id --region ap-southeast-1
+
+# ピン写真バケット（SS-106/SS-108, §12）の名前と ARN が存在すること。
+# 無いと template.yaml の {{resolve:ssm:}} が解決できず、deploy 自体が失敗する
+aws ssm get-parameter --name /sanposcape/dev/platform/pin_photos/bucket_name --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/dev/platform/pin_photos/bucket_arn --region ap-southeast-1
+
 # シークレットのキー名だけを確認する（値は絶対に出さない）
 aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
   --query SecretString --output text | python3 -c "import sys,json; print(*sorted(json.load(sys.stdin)), sep='\n')"
@@ -123,8 +155,10 @@ sam deploy --config-env dev
 > **黙って無視される**（エラーにならないため気づきにくい）。`--container-env-vars`
 > も試したが、通常の `invoke`（デバッグセッションではない）には注入されない。
 >
-> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `DB_POOL_SIZE` /
-> `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 7 つだけ。
+> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `FEATURE_FLAG_MODE` /
+> `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 8 つだけ
+> （`Api` 関数はこれに加えて `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` /
+> `APPCONFIG_CONFIGURATION_PROFILE_ID` の 3 本が宣言済みで、計 11 本）。
 > `AUTH_JWT_SECRET` や `DATABASE_DSN` のような未宣言の変数を `events/local-env.json` に
 > 書いても効かず、`ENV=staging` の起動時バリデーションが
 > `AUTH_JWT_SECRET must be set (>=32 chars) when ENV=staging` のようなエラーで失敗する。
@@ -143,6 +177,130 @@ sam deploy --config-env dev
   クォータが引き上げ承認されるまでデプロイしない**（§9「Neon 接続設定」の下、および
   ADR-005 決定8を参照）。加えて prod のシークレットに値が未投入の間は Lambda が起動時に
   `ResourceNotFoundException` で落ちる。
+
+### 4.1 GitHub Actions からのデプロイ（SS-72）
+
+ワークフローは `.github/workflows/backend-deploy.yml`。認証は OIDC で、GitHub に長期クレデンシャルは
+置かない（[ADR-004 決定5・6](../../../docs/adr/ADR-004-secrets-management-and-cicd-aws-credentials.md)）。
+
+#### トリガー
+
+| 環境 | 起動方法 | ゲート |
+|---|---|---|
+| dev（`development` Environment） | 手動実行のみ（`environment: development`）。**任意のブランチ / ref から起動できる** | backend CI（lint / test / マイグレーションのスモーク）の通過 |
+| prod（`production` Environment） | 手動実行のみ（`environment: production`） | backend CI の通過 + **main からの実行のみ** + **Required reviewers（tri-star）の承認** |
+
+- **main への push による自動デプロイはしない**（SS-72 の途中で方針変更）。dev・prod とも、書き込み権限を
+  持つ人が Actions 画面または `gh` で明示的に起動する。
+  ```bash
+  gh workflow run backend-deploy.yml -f environment=development --ref <branch>
+  gh workflow run backend-deploy.yml -f environment=production --ref main
+  ```
+- 同じ環境へのデプロイは実行単位（ビルド・リリース作成を含む）で直列化される（取り消さない。
+  待機中の実行は新しい実行に置き換わる）。
+- dev は任意の ref から起動できるため、別々のブランチを続けてデプロイすると後に起動したものが残る。
+  検証中のブランチを dev に出したまま放置しないこと（main を再デプロイして戻す）。
+
+#### job 構成
+
+`prepare`（デプロイ先の決定・prod の ref チェック）→ `ci`（backend CI を呼び出す）→
+`build`（`make lambda-requirements` → `sam validate --lint` → `sam build --use-container`）→
+`deploy`（Environment に入り OIDC で AssumeRole → `sam deploy`）→
+`release`（**production のみ**。デプロイした SHA にタグと GitHub Release を作る。下記）。
+
+**`build` には `id-token: write` も Environment も付けていない。** PyPI 依存の取得・ビルドの
+過程で任意のコードが動き得るため、OIDC トークンを要求できるのはビルド成果物を受け取るだけの
+`deploy` に限っている。
+
+CI では `sam deploy --no-confirm-changeset --no-fail-on-empty-changeset` で実行する
+（承認は Environment の保護ルールで取る）。`samconfig.toml` の `confirm_changeset = true` は
+手元での実行のために残している。
+
+#### production デプロイ後のタグと GitHub Release
+
+production へのデプロイが成功すると、`release` job がデプロイした SHA（`github.sha`）に
+**`backend/vX.Y.Z` タグと GitHub Release** を作る。**development ではタグも Release も作らない**
+（バージョンを振るのは本番に出したものだけ）。
+
+- **採番とリリースノートは git-cliff**（リポジトリ直下の `cliff.toml`。バージョン 2.14.1 を
+  sha512 で検証してインストール）。前回の `backend/v*` タグ以降で `packages/backend/**` に触れた
+  コミットを Conventional Commits の type で分類し、Release の本文にする。
+  ```bash
+  # 手元で次のリリースを確認する（タグは作られない）
+  GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0 git-cliff --offline --unreleased \
+    --include-path 'packages/backend/**' --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --bumped-version
+  GIT_CLIFF__BUMP__INITIAL_TAG=backend/v0.1.0 git-cliff --offline --unreleased \
+    --include-path 'packages/backend/**' --tag-pattern '^backend/v[0-9]+\.[0-9]+\.[0-9]+$' --strip all
+  ```
+  **`--unreleased` を外さないこと。** 外すと、`--include-path` に当たらないコミット（マージコミットなど）に
+  付いた前回タグを見失い、全履歴から bump してしまう（2.14.1 で確認）。
+- **バージョンの規則**（`cliff.toml` の `[bump]`）
+
+  | 前回タグ以降のコミット | 1.0.0 未満 | 1.0.0 以上 |
+  |---|---|---|
+  | 破壊的変更（`feat!:` / `BREAKING CHANGE:` フッター） | minor | major |
+  | `feat` | minor | minor |
+  | それ以外（`fix` / `perf` / `refactor` / `docs` / `test` / `chore` / `build` / `ci` / `style` / `revert`） | patch | patch |
+
+  - **初回（`backend/v*` タグが1つも無い）は `backend/v0.1.0`**。本文はそれまでの全履歴になる。
+  - 1.0.0 未満の間は、破壊的変更があっても 1.0.0 には上がらない。1.0.0 への移行は人が判断して行う（手順は未整備）。
+  - `Merge ...`、`chore(agent-memory)`、Conventional Commits 形式でないコミット、上表に無い type は
+    本文にも採番にも含めない。
+- **タグを作らずにスキップする場合**（デプロイ自体は成功扱い。理由は Job Summary に出る）
+
+  | 状況 | 理由 |
+  |---|---|
+  | デプロイした SHA に既に `backend/v*` タグがある（同じコミットの再デプロイ） | 同じコミットに別の番号を振らない |
+  | 最新の `backend/v*` タグがデプロイした SHA の祖先でない（過去のコミットの再デプロイ・ロールバック、古い実行の Re-run） | そこから採番すると既存タグと番号が衝突し得る |
+  | 前回タグ以降に、本文に載る `packages/backend/**` のコミットが無い | 中身の無いリリースを作らない |
+
+- `release` job の権限は `contents: write` のみ。AWS に触らないので `id-token` も Environment も
+  付けていない（Environment を付けると production の承認がもう一度求められる）。
+- タグは `gh release create --target <SHA>` が API で作る。`GITHUB_TOKEN` で作ったタグは
+  他のワークフローを起動しない。
+- **`CHANGELOG.md` はコミットしない**（Release 本文のみ）。
+- `release` job だけが失敗した場合（デプロイは成功済み）は、その job だけを Re-run すればよい。
+  Release が作られていればスキップされる。
+
+#### Environment と Variables
+
+| Environment | Variables `AWS_SAM_DEPLOY_ROLE_ARN` | 保護ルール |
+|---|---|---|
+| `development` | `sanposcape-infra` の dev で `mise run output live/account -raw sam_deploy_role_arn` の値 | なし（ブランチ制限もなし） |
+| `production` | prod の `live/account` apply 後に同じ output の値（**未設定**） | Required reviewers = tri-star / Deployment branches = `main` のみ / 管理者によるバイパス不可 |
+
+```bash
+gh variable set AWS_SAM_DEPLOY_ROLE_ARN --env development --body '<arn>'
+```
+
+- 未設定のまま実行すると `deploy` job の最初のステップが `::error::` で落ちる（AssumeRole は試みない）。
+- **ARN をワークフローやドキュメントに直書きしない。** アカウント ID を含むため Variables に置く。
+  なお `role-to-assume` に渡した値はステップの入力として**公開リポジトリの Actions ログに表示される**
+  （ARN は秘密ではない前提。気になる場合は Environment Secret に移すとマスクされる）。
+- デプロイロールの trust は `repo:tri-star/sanposcape:environment:<development|production>` の
+  subject だけを許す。Environment を付けない job や `pull_request` からは AssumeRole できない。
+
+#### マイグレーションは手動
+
+CI はマイグレーションを実行しない。デプロイロールに `lambda:InvokeFunction` が無く、
+[ADR-005 決定9](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md#9-alembic-マイグレーションは専用-lambda-の手動-invoke-で実行するapi-本体では走らせない)
+でスキーマ変更とデプロイを不可分にしない方針のため。デプロイ完了後の Job Summary にコマンドが出るので、
+スキーマ変更を含む場合は手元の AWS 認証情報で §5.2 を実行する。
+
+#### デプロイロールでできないこと
+
+デプロイロール（`sanposcape-infra` の `live/account/sam_deploy.tf`）は、SAM が作るものの名前に
+合わせてリソースを絞っている。次の操作は CI からは通らない（手元の管理者権限で行う）。
+
+- **既存の実行ロールへの Permission Boundary の付け外し**（`iam:PutRolePermissionsBoundary` /
+  `DeleteRolePermissionsBoundary` を明示的に拒否。prod は SCP でも拒否）
+- **境界を付けない実行ロールの作成**、`RoleName` を明示した（CFn の自動命名でない）ロールの作成
+- `lambda:InvokeFunction`（migrate の実行を含む）、`lambda:AddPermission`（CloudFront の呼び出し許可は Terraform 所有）
+- `ap-southeast-1` 以外のリージョンへの操作
+- 命名規則（スタック `sanposcape-backend-<env>` / 関数 `sanposcape-<env>-backend-*` /
+  ロググループ `/aws/lambda/sanposcape-<env>-backend-*`）から外れるリソースの作成・変更
+- `template.yaml` に新しい種類のリソース（例: SQS、DynamoDB）を足すこと。足す場合は先に
+  infra 側のデプロイロールの権限を広げる
 
 ## 5. マイグレーション手順
 
@@ -311,6 +469,7 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 - ロググループ `/aws/lambda/sanposcape-dev-backend-api` の `RetentionInDays` が 30
 - `docker compose up -d` からの既存ローカル開発フローが従来どおり動く
 - backend CI（lint / test / migration smoke）が緑
+- フィーチャーフラグ（AppConfig）の疎通確認は §11 も実施する
 
 ## 7. トラブルシューティング
 
@@ -328,6 +487,33 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 | CloudFront 経由だと全エンドポイントで 401（`/health` は 200） | mobile 側が `Authorization` ヘッダーで送っている（CloudFront に上書きされる） | mobile 側が `X-App-Authorization` を送るよう実装されているか確認する（ADR-005 決定4） |
 | CloudFront 経由が全部 403（`/health` を含む） | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`）が無い、または distribution ID が不一致 | 下記の `get-policy` で確認する。**この許可は Terraform 側が付与するもので、SAM 側の対応は無い** |
 | `Runtime exited with error: exit status 1` / `Init failed` としか見えず、原因が分からない | init 時の例外報告そのものが壊れている（下記「init 失敗時にエラー報告自体が壊れる」を参照） | **CloudWatch Logs の `INIT_START` 直後の `[ERROR]` 行を読む**。真の原因はそこに出ている |
+| （CI）`iam:CreateRole` の `AccessDenied` | 実行ロールに Permission Boundary が付いていない（`template.yaml` の `Globals.Function.PermissionsBoundary` が消えた）、SSM `lambda_boundary_arn` の値と infra 側の境界 ARN が不一致、または `RoleName` を明示した | `template.yaml` の境界指定を戻す / SSM の値を確認する / `RoleName` を外す（SS-72） |
+| （CI）`iam:PutRolePermissionsBoundary` の `AccessDenied`（`UPDATE_ROLLBACK`） | 境界の無い既存ロールへ、境界を後付けしようとした。デプロイロールはこの操作を明示的に拒否している | **手元の管理者権限で 1 回デプロイする**（下記「境界を初めて入れるデプロイ」）。以後は CI から通る |
+| （CI）`Environment '...' に Variables 'AWS_SAM_DEPLOY_ROLE_ARN' が設定されていません` | Environment に Variables が未設定（Repository Variables ではなく Environment 側に置く必要がある） | §4.1 の `gh variable set ... --env <環境>` で設定する |
+| （CI）`Not authorized to perform sts:AssumeRoleWithWebIdentity` | ロール ARN の誤り、Environment 名の不一致（trust の subject は `environment:development` / `environment:production`）、または infra 側が未 apply | ARN と Environment 名を確認する。prod は infra の `live/account` の apply が前提 |
+| （CI）`AccessDenied` で `aws:RequestedRegion` に関するメッセージ / 想定外のリソースで拒否 | `ap-southeast-1` 以外のリージョンを触ろうとした、または命名規則から外れたリソースを作ろうとした | `samconfig.toml` の `region` と `template.yaml` の名前を確認する（§4.1「デプロイロールでできないこと」） |
+
+### 境界を初めて入れるデプロイ（SS-72・環境ごとに 1 回だけ）
+
+`template.yaml` に `PermissionsBoundary` を追加する前にデプロイされたスタックでは、実行ロール
+（`ApiRole` / `MigrateRole`）に境界が付いていない。CloudFormation は既存ロールに境界を付けるために
+`iam:PutRolePermissionsBoundary` を呼ぶが、デプロイロールはこれを拒否しているため、**最初の
+1 回だけは手元の管理者権限でデプロイする。** 境界の付いたロールになった後は、CI から通常どおり
+更新できる。
+
+```bash
+cd packages/backend
+make lambda-requirements && sam build --use-container && sam deploy --config-env dev
+```
+
+dev は既存スタックがあるため必須。**GitHub Actions からの最初の dev デプロイより前に
+済ませること**（未実施だとそのデプロイは上表の `PutRolePermissionsBoundary` で失敗する）。
+（SS-72 の途中で main push による自動デプロイを廃止したため、PR のマージ自体はデプロイを起こさない。）
+
+prod はスタックが未作成の想定なので、最初から境界付きで作られ、この手順は不要。**ただし prod に
+境界の無い既存スタックがあった場合、prod では SCP でも `iam:PutRolePermissionsBoundary` を拒否して
+いるため、手元の管理者権限でも境界を後付けできない可能性がある**（infra タスク SS-97 の中で確認する）。
+prod の初回デプロイは、デプロイロールと `lambda_boundary_arn` の apply（SS-97）を待って行う。
 
 ### init 失敗時にエラー報告自体が壊れる（日本語コメントを含むトレースバック）
 
@@ -392,6 +578,38 @@ aws lambda get-function-configuration --function-name sanposcape-dev-backend-api
 aws secretsmanager get-secret-value --secret-id <ARN> --query SecretString --output text | python3 -c "import sys,json; print(*sorted(json.load(sys.stdin)), sep='\n')"
 ```
 
+### 周回ルートの kill switch（緊急停止。SS-33, ADR-007）
+
+`GOOGLE_MAPS_LOOP_ROUTE_ENABLED`（既定 `true`）を `false` にすると、`/explore/routes/loop` は
+周回ルートの生成自体を行わず、常に往路を1回取得して「同じ道で戻る」
+（`return_is_same_path: true`）応答に固定される。周回ルートの品質が劣化した場合の緊急停止に使う。
+
+`template.yaml` にはこの変数を意図的に設定していない（既定 `true`。`DB_DISABLE_PREPARED_STATEMENTS`
+と同じ「フォールバック用の設定は既定では書かない」方針）。本番で止める必要が生じたら、次のいずれかで対応する。
+
+1. **即時停止（redeploy 不要）**: 該当関数の環境変数を直接更新する。Lambda の環境変数は
+   差分更新ではなく置換のため、まず現在値を控えてから更新する。
+
+   ```bash
+   # 1. 現在の環境変数を控える
+   aws lambda get-function-configuration --function-name sanposcape-<env>-backend-api \
+     --region ap-southeast-1 --query 'Environment.Variables'
+
+   # 2. 上記の内容に GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false を足して丸ごと渡す
+   aws lambda update-function-configuration --function-name sanposcape-<env>-backend-api \
+     --region ap-southeast-1 \
+     --environment 'Variables={ENV=...,AUTH_MODE=real,MAPS_MODE=real,...,GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false}'
+   ```
+
+   **次に `sam deploy` を実行すると `template.yaml` の内容（この変数は未設定）に巻き戻る**一時的な変更である点に注意。恒久的に固定したい場合は下記2を使う。
+2. **恒久的な変更（redeploy を伴う）**: `template.yaml` の `Globals.Function.Environment.Variables`
+   に `GOOGLE_MAPS_LOOP_ROUTE_ENABLED: 'false'` を追記し、`sam deploy --config-env <env>` で反映する。
+   IaC（このリポジトリ）側に変更を残したい場合はこちらを使う。
+
+解除する場合は、同じ手順を `true`（またはキーの削除 → 既定 `true` に戻す）で行う。ローカル開発での
+切り替え方法は [local-env.md](./local-env.md) を参照（`.env` の値を直接編集し `docker compose up -d`
+でコンテナを作り直す。`restart` では反映されない）。
+
 ## 8. `sam local` の限界
 
 `sam local invoke` / `sam local start-api` で検証できるのは次まで。
@@ -412,7 +630,8 @@ CloudFront 経由の curl が唯一の検証手段になる。
 - **決定4 の `Authorization` ヘッダー上書き**（CloudFront が存在しないため再現しない）
 - `{{resolve:ssm:}}` の解決（deploy 時解決。ローカルでは `APP_SECRET_ARN` に実 ARN を
   `--env-vars` で直接指定する。SSM パラメータ自体は引かない）
-- IAM ポリシー（`secretsmanager:GetSecretValue`）が実際に足りているか
+- IAM ポリシー（`secretsmanager:GetSecretValue` / `appconfig:StartConfigurationSession` /
+  `appconfig:GetLatestConfiguration`）が実際に足りているか
 - Neon への実接続・レイテンシ・コールドスタート時間・29 秒タイムアウトの境界
 - `ReservedConcurrentExecutions` の効果
 
@@ -471,3 +690,248 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   `<account-id>` はプレースホルダ）。
 - **`sam build --use-container` を省略しない。** `psycopg[binary]` の manylinux wheel が
   ビルドホストの arch/glibc に依存するため、コンテナなしビルドは実行時にしか失敗が判明しない。
+  Pillow（SS-88, `pins/thumbnails.py`）も同じ理由でコンテナビルドが必須（manylinux wheel が
+  約 4〜5 MB 増える程度で、zip 50 MB / 展開 250 MB の上限には十分収まる見込みだが、SS-108 の
+  dev デプロイで一度は zip サイズを確認すること）。
+- **（SS-88）`template.yaml` の Lambda `MemorySize` を下げる変更を単独で入れない。** 写真の
+  確定処理（`PhotoAttacher`）は `PIN_PHOTO_CONFIRM_CONCURRENCY`（既定3）並列で Pillow の
+  デコード・リサイズを行う前提でメモリ予算を見積もっている（ADR-009 決定5）。
+  `MemorySize` を下げる場合は `PIN_PHOTO_CONFIRM_CONCURRENCY` も
+  合わせて見直すこと（CPU 割り当ても `MemorySize` に比例するため、下げると確定処理の
+  所要時間が伸び `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` に近づくリスクもある）。
+- **（SS-72）`template.yaml` の `PermissionsBoundary` を削除しない。** 境界が無いと CI の
+  デプロイロールが `CreateRole` を拒否する。境界はデプロイロールが持つ `PutRolePolicy` /
+  `PassRole` による権限昇格を塞ぐ要であり、実行時に新しい AWS 操作が必要になった場合は
+  境界を外すのではなく infra 側の境界を先に広げる。
+- **（SS-72）実行ロールに `RoleName` を明示しない。** デプロイロールの IAM 権限は CloudFormation の
+  自動命名（`sanposcape-backend-<env>-<論理ID>-<乱数>`）に一致するロールだけが対象。
+- **（SS-72）`backend-deploy.yml` に `pull_request` / `pull_request_target` トリガーを足さない。**
+  このリポジトリは public で、fork の PR からデプロイ経路（Environment と OIDC）に到達され得る。
+- **（SS-72）ロール ARN をワークフロー・`samconfig.toml`・ドキュメントに直書きしない。**
+  アカウント ID を含むため、GitHub Environment の Variables（`AWS_SAM_DEPLOY_ROLE_ARN`）に置く。
+
+## 11. フィーチャーフラグ（AWS AppConfig, SS-98/ADR-008）
+
+デプロイとリリースの分離の詳細は [ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md)、
+実装の設計判断は同 ADR の「追補: `/app-config` のレスポンススキーマとフラグ取得基盤」を参照。
+ここでは運用手順のみをまとめる。
+
+> **`/app-config` は未認証・レート制限なし**（`/health` と同じ扱い）。同一実行環境内の
+> 連打はポーリング間隔のキャッシュにより AWS API を叩かず、AWS 側がスロットリングした
+> 場合も `_handle_fetch_failure` が吸収して `config_source: "default"` に倒れるため、
+> フェイルセーフは機能する（実害は AWS API 呼び出しコストに留まる）。トラフィックが増えて
+> 対策が必要になった場合は、backend 側に実装を足すのではなく CloudFront / WAF 側のレート
+> 制限に委ねる方針とする（セキュリティレビュー S-1。過去の `/health` 等のレビューでも
+> 同様に Low 判定としている）。
+
+### `/app-config` での確認方法
+
+```bash
+curl -s https://app-api.<env>.sanposcape.com/app-config | jq
+```
+
+```json
+{
+  "flags": { "pin_registration": false },
+  "minimum_supported_versions": { "ios": null, "android": null },
+  "config_source": "default"
+}
+```
+
+`config_source` の読み方（クライアントはこの値で分岐してはいけない。診断専用）:
+
+| 値 | 意味 |
+|---|---|
+| `appconfig` | AppConfig から正常に取得できている |
+| `default` | 未配信（フラグ切り替えワークフロー `feature-flags.yml`（SS-99）がまだ一度も流れていない。**デプロイ直後は必ずこの値になる正常な状態**）、または取得失敗（`APPCONFIG_*` 未設定・IAM 不備・タイムアウト等） |
+| `stub` | `FEATURE_FLAG_MODE=stub`（ローカル開発 / テスト専用。dev/prod では起動時バリデーションで弾かれる） |
+
+`default` と `appconfig` のどちらであるべきかは、切り替えワークフローで実際にフラグ値を配信済みかどうかで決まる
+（切り替え手順は [release-runbook.md](../../../docs/release-runbook.md) §3）。
+`default` が続く場合は CloudWatch Logs（後述）で「未配信（INFO）」か「取得失敗（ERROR）」かを
+切り分ける。
+
+### 反映までの遅延要因
+
+フラグを ON にしてから `/app-config` に反映されるまでの時間は、次の合計になる。
+
+1. **AppConfig のデプロイのベイク時間**（Deployment Strategy が持つ待機時間。sanposcape-infra の設定で dev 0 分 / prod 1 分）
+2. **ポーリング間隔**（`APPCONFIG_POLL_INTERVAL_SECONDS`、既定60秒。実行環境ごとに独立してカウントする）
+3. **実行環境（Lambda コンテナ）ごとのばらつき**（コールドスタート・コンテナの入れ替わりで
+   ポーリングのタイミングが揃わない）
+
+「フラグを ON にしたのに反映されない」と感じても、まず数分待ってから切り分けること
+（即座に反映されないのは仕様であり、`Cache-Control: no-store` にしているのは CDN 側の
+キャッシュを疑わなくて済むようにするためであって、AppConfig 側の遅延は無くならない）。
+
+### CloudWatch Logs で見るポイント
+
+```bash
+aws logs tail /aws/lambda/sanposcape-<env>-backend-api --since 15m --region ap-southeast-1
+```
+
+- `AppConfig has no deployed configuration yet; using default flags.`（INFO）: 未配信。
+  SS-99 が一度も流れていなければ正常。
+- `Failed to fetch AppConfig configuration: <ExceptionType>`（ERROR）: 取得失敗。
+  下記トラブルシュートを参照。
+- `APPCONFIG_* is not configured; all feature flags are OFF.`（ERROR、起動時1回）:
+  `APPCONFIG_*` の環境変数が1本でも空のまま起動した（`UnconfiguredFlagSource`）。
+  `template.yaml` の SSM 解決か SSM パラメータ自体を確認する。
+
+### トラブルシュート
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| `AccessDeniedException` on `StartConfigurationSession` / `GetLatestConfiguration` | 境界（SS-95）のアクション名が `appconfigdata:` になっている（正しくは `appconfig:`）、または `template.yaml` の `Resource` ARN と実際の AppConfig の ID が不一致 | 境界のポリシー（`sanposcape-infra`）のアクション名前空間を確認する。ARN は境界側がワイルドカード、`template.yaml` 側が完全 ARN（3本の SSM ID から組み立て）なので、両方を突き合わせる |
+| `/app-config` が常に `config_source: "default"` | `APPCONFIG_*` が未設定（CloudWatch Logs に ERROR）、または未配信（SS-99 が一度も流れていない。この場合は正常） | 上記「CloudWatch Logs で見るポイント」でログレベルを確認する |
+| デプロイ直後、`sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `/sanposcape/<env>/platform/appconfig/*` の SSM パラメータが存在しない（SS-94 が当該環境にまだ apply されていない） | Phase 0 の確認コマンドで存在を確認し、無ければ infra 側（SS-94）の apply を待つ |
+
+#### 各環境への初回デプロイで 1 回だけ確認すること（SS-98 / PR #88）
+
+AppConfig 読み取りの IAM `Resource` は、入れ子の `!Sub` の変数マップに動的参照
+（`{{resolve:ssm:}}`）を埋める形で組み立てている。**`sam validate --lint` はこの解決が
+意図どおりかを検証できない**ため、環境ごとの初回デプロイ時に次を 1 回だけ確認する。
+
+```bash
+# 処理後テンプレートで Resource が完全な ARN に解決されているかを見る
+# （SSM 動的参照の AWS 公式ドキュメントが明示的に推奨している検証手順）
+aws cloudformation create-change-set --stack-name <stack> --change-set-name verify-appconfig-arn ... 
+# → マネジメントコンソールのチェンジセット > Template タブで Resource の最終値を目視
+```
+
+そのうえで、デプロイ後の CloudWatch Logs に
+`AccessDeniedException` on `StartConfigurationSession` が出ないことを確認する。
+
+この形が正しく解決されること自体は AWS 公式ドキュメントで裏取り済みである
+（`Fn::Sub` の Supported functions に `Fn::Sub` 自身が含まれる／動的参照の解決は
+transform と組み込み関数の評価が終わった**後**の独立したステップであり、解決対象は
+関数評価後の最終文字列である）。それでも実デプロイでの確認を残すのは、失敗した場合に
+`sam validate` を通過したまま実行時まで露見しないため。なお**失敗モードは安全側**で、
+解決が崩れれば ARN として無効な文字列が残り `AccessDeniedException` になるのであって、
+ワイルドカードや過剰権限の方向には倒れない。
+
+## 12. 写真ストレージ（S3, SS-88/ADR-009。SS-108 で結線）
+
+設計の詳細は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+を参照。`template.yaml` への結線は SS-108（旧称 BK-1）で行った。
+
+### 結線の内容
+
+| 項目 | 値・方針 |
+|---|---|
+| バケット | `sanposcape-<env>-pin-photos-<account_id>`（`ap-southeast-1`）。infra の `live/platform`（SS-106）所有で、SAM では作らない |
+| SSM: バケット名 | `/sanposcape/<env>/platform/pin_photos/bucket_name` → Api の環境変数 `PIN_PHOTO_BUCKET_NAME` |
+| SSM: バケット ARN | `/sanposcape/<env>/platform/pin_photos/bucket_arn` → Api の実行ロールポリシーの `Resource` |
+| `STORAGE_MODE` | Globals で `real` を明示（コード既定と同じ。`ENV=staging/production` では `real` 以外は起動失敗） |
+| 実行ロールへの付与方法 | **インライン `Statement`（`S3CrudPolicy` 等の SAM ポリシーテンプレートは使わない）**。ポリシーテンプレートは prefix で絞れず（`BucketName` 引数しか取らない）、境界の外のアクション（`PutObjectAcl` 等）まで一覧に入り、テンプレートを読んでも実効権限が分からなくなる |
+| 付与するアクション | `staging/*`・`original/*`・`thumb/*`: `s3:PutObject` / `s3:GetObject` / `s3:DeleteObject`。バケット: `s3:ListBucket`（`Resource` はバケット ARN そのもの、`/*` を付けない） |
+| 境界（SS-107） | `sanposcape-<env>-*` に Put/Get/Delete/AbortMultipartUpload + ListBucket。実効権限 = 境界 ∩ 付与。ここに無いアクション（タグ付け等）が要るときは先に infra 側の境界を広げる |
+| Migrate 関数 | `PIN_PHOTO_BUCKET_NAME` と S3 のポリシーは付けない（写真操作を行わないため）。`STORAGE_MODE: real` だけは Globals 経由で渡るが、コード既定と同じ値で、Migrate はストレージを組み立てないため影響は無い |
+
+**抜けやすい罠**:
+
+- **`staging/*` への `s3:PutObject` を外すと、presigned POST への実際のアップロードが全て 403 になる**
+  （署名の発行自体は成功するため、デプロイでは検知できない）。`CopyObject`（staging→original）は
+  コピー元の `GetObject` + コピー先の `PutObject` で足りる（追加アクション不要）。
+- presigned POST の `fields` に **`acl` を含めない**（バケットが `BucketOwnerEnforced` のため失敗する）。
+  暗号化ヘッダーも送らない（デフォルト SSE-S3）。実装は `integrations/aws/s3.py` の
+  `S3ObjectStorage.create_upload_form`。
+
+### 前提となる infra の apply（環境ごと）
+
+`{{resolve:ssm:}}` は存在しない SSM パラメータを参照すると **`sam deploy` 自体が失敗する**
+（写真と無関係な修正のデプロイも止まる）。
+
+| 環境 | 必要な apply | 状況（2026-09-22） |
+|---|---|---|
+| dev | `deployments/dev/account`（SS-107: 境界に S3）と `deployments/dev/platform`（SS-106: バケット + SSM） | ✅ どちらも apply 済み |
+| prod | `deployments/prod/account`（2026-09-05 から main に追随していない。Lambda 境界そのもの・sam-deploy ロール・`lambda_boundary_arn` の SSM（SS-97）に、境界の AppConfig（SS-95）・S3（SS-107）の追加も含めて1回の apply にまとまる）と `deployments/prod/platform`（SS-106 + AppConfig 一式 + フラグ切り替えロール） | ⚠️ **未 apply** |
+
+**prod を壊さないための整理**: `template.yaml` は dev/prod 共通で、環境による条件分岐は入れていない。
+prod の backend デプロイは、写真と関係なく既に `platform/appconfig/*`（SS-98）と
+`account/lambda_boundary_arn`（SS-72）の SSM を前提にしており、どちらも prod には未 apply のため
+**現時点で prod デプロイはそもそもできない**。`deployments/prod/platform` の apply で AppConfig と
+`pin_photos/*` の SSM が同時に作られる（SS-106 は main にマージ済み）ので、この結線で prod の
+前提が新たに増えることはない。prod の順序は次のとおり（infra 側の作業はユーザーの承認のうえで行う）:
+
+1. `deployments/prod/account` の apply（SS-97 + SS-107）→ `production` Environment の
+   `AWS_SAM_DEPLOY_ROLE_ARN` を設定（§4.1）
+2. `deployments/prod/platform` の apply（SS-106 + AppConfig）。1 と並行でよい
+3. Phase 0 の確認コマンドを `prod` に読み替えて、`pin_photos/*` を含む SSM が揃っていることを確認
+4. backend の prod デプロイ → マイグレーション（§5.2）
+5. 下の「初回デプロイで確認すること」を prod でも 1 回行う
+
+> **境界（SS-107）だけが抜けた場合**、デプロイは成功するが実行時に S3 がすべて 403 になり、
+> 写真の**書き込み系** API（アップロード枠発行・確定）が 503 を返す（写真なしのピン登録・
+> 地図の取得は動く）。**閲覧系**（`GET /pins` 等, BK-4）は 503 にはならず、200 のまま
+> `thumbnail`/`original_url` が null で返る（ADR-009 決定18）。prod で `pin_registration` を
+> ON にするのは BK-2（アカウント削除時の写真削除）の後なので、それまでは利用者影響は無い。
+
+Fn::If で prod だけ結線を外す案は採らなかった。prod のデプロイは上記のとおり `platform` の apply を
+待つ必要があり分岐の効果が無いこと、非選択分岐の動的参照が解決されないかを本リポジトリで
+確かめていない（分岐自体が新たな未検証点になる）こと、prod のデプロイは main 限定 +
+Required reviewers の手動起動（§4.1）で順序を人が守れることが理由。
+
+### 初回デプロイで確認すること（環境ごとに 1 回）
+
+**動的参照の後ろに `/staging/*` などの文字列を連結する書き方は、dev では 2026-09-24（SS-88）に
+解決を確認済み**（下の確認 3) を実施し、`Resource` が完全な ARN になっていた）。**prod は未確認**
+なので、環境ごとに 1 回この確認を行うこと。`cfn-lint` / `sam validate` はこの解決を検証できない。
+万一 `{{resolve:...}}` の文字列が `Resource` に残った場合は、IAM がポリシーを不正として拒否して
+デプロイ時に失敗するか（`MalformedPolicyDocument`）、ポリシーが付いても一致しないため実行時の
+403 になるかのどちらかになる。どちらも安全側で、過剰権限の方向には倒れない。
+
+```bash
+ENV=dev  # prod のときは prod
+# 1) SSM が存在すること（Phase 0 と同じ）
+aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_name --region ap-southeast-1
+aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_arn --region ap-southeast-1
+
+# 2) Lambda の環境変数にバケット名が入っていること（空なら UnconfiguredObjectStorage で
+#    写真の書き込み系 API が 503。閲覧系（GET /pins 等）は 200 のまま URL が null になる）
+aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
+  --region ap-southeast-1 \
+  --query 'Environment.Variables.{STORAGE_MODE:STORAGE_MODE,PIN_PHOTO_BUCKET_NAME:PIN_PHOTO_BUCKET_NAME}'
+
+# 3) 実行ロールのインラインポリシーで Resource が完全な ARN + prefix に解決されていること
+ROLE=$(aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
+  --region ap-southeast-1 --query Role --output text | awk -F/ '{print $NF}')
+aws iam list-role-policies --role-name "$ROLE"
+aws iam get-role-policy --role-name "$ROLE" --policy-name <上で出た ApiRolePolicy0 等> \
+  --query 'PolicyDocument.Statement[?contains(to_string(Action), `s3:`)]'
+#    → Resource が arn:aws:s3:::sanposcape-<env>-pin-photos-<account_id>/staging/* 等になっていること
+#      （{{resolve:ssm:...}} の文字列が残っていないこと）。ListBucket は /* 無しのバケット ARN
+```
+
+そのうえで、写真付きのピン登録を実際に 1 回通す（dev は mobile の実機 / エミュレータから。
+CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため、curl より mobile のほうが手早い）:
+
+1. マイグレーション（§5.2）で SS-88 のテーブルが入っていること（`{"head": ...}` が最新）
+2. フラグ `pin_registration` を当該環境で ON にする（ADR-008 のフラグ切り替えワークフロー, SS-99）。
+   `GET /app-config` の `flags.pin_registration` が `true` になるのを確認する。
+   **このワークフローは PR #94（SS-99）のマージが前提**（`workflow_dispatch` は default branch に
+   ワークフロー定義が無いと起動できない。ADR-008 はフラグの切り替えをこのワークフローに限っている）。
+   #94 のマージ前は、上の確認 1)〜3) と CloudWatch Logs の確認までを先に済ませ、
+   手順 2 以降は #94 のマージ後に行う
+3. mobile で散歩中画面 →「この場所にピンを追加」→ 写真を 1 枚以上付けて保存
+4. 確認する点:
+   - 保存が成功し、ピン詳細（または地図）でサムネイルが表示される（presigned GET が通っている）
+   - `aws s3 ls s3://<bucket>/original/ --recursive` と `.../thumb/` にオブジェクトが増えている
+     （`staging/` の分は確定時に削除される）
+   - CloudWatch Logs（`/aws/lambda/sanposcape-<env>-backend-api`）に `S3 operation failed` や
+     `PIN_PHOTO_BUCKET_NAME is not configured` が出ていない
+5. 失敗した場合は下のトラブルシュートで切り分ける。dev で確認できるまで prod の `pin_registration` は ON にしない
+
+### トラブルシュート
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| 写真ありの `POST /pin-photo-uploads`・`POST /pins` が常に 503、ログに `PIN_PHOTO_BUCKET_NAME is not configured` | 環境変数が空（`UnconfiguredObjectStorage`） | 上の確認 2) で環境変数を確認する。空なら SSM の値を確認して再デプロイ |
+| presigned POST の発行は成功するが実際のアップロードが 403 | 実行ロールに `staging/*` への `s3:PutObject` が無い、境界（SS-107）が未 apply、または動的参照 + 連結が ARN に解決されていない | 上の確認 3) でポリシーの `Resource` を確認する。境界は infra 側で確認する。デプロイ自体は成功するため気付きにくい |
+| 確定（`POST /pins`）が 503、ログに `S3 operation failed: ClientError` | 上と同じ（`original/*`・`thumb/*` への Put、`staging/*` の Get/Delete の不足） | 同上 |
+| `GET /pins` 等の閲覧系は 200 だが `thumbnail`/`original_url` が常に null | 環境変数が空（`UnconfiguredObjectStorage`）、または署名用の認証情報を取得できない（ログに `S3 operation failed`）。閲覧系は 503 にしない設計（ADR-009 決定18）なので、書き込み系のように 5xx では気付けない。presigned GET の生成はローカルの署名計算だけなので、`s3:GetObject` の不足では null にならない（URL は返り、取得時に 403 になる。次の行） | 上の確認 2) で環境変数を確認する。空でなければ CloudWatch Logs で認証情報まわりのエラーを確認する |
+| 一覧・詳細の presigned GET（`thumbnail.url`/`original_url`）を取得すると 403 | 実行ロールに `original/*`・`thumb/*` への `s3:GetObject` が無い、または URL の有効期限（`urls_expire_at`）を過ぎている | 上の確認 3) でポリシーの `Resource` を確認する。期限切れなら応答を取り直す（presigned URL は応答のたびに再発行される） |
+| 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が無い（または Resource に `/*` を付けてしまった）ため、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `ListBucket` の Resource がバケット ARN そのものになっているか確認する |
+| 端末で「アップロードに失敗しました」になるが、CloudWatch Logs にも S3（CloudTrail データイベント）にも痕跡が無い | 直送は端末 → S3 で完結し backend を通らない。CloudTrail のデータイベントは呼び出し元を特定できたリクエストしか記録せず、認証前に弾かれる失敗や「そもそも送信されていない」ケースは残らない（ADR-009 追補「直送の失敗は原理的にサーバー側から見えない」） | まず**端末側の `logDiagnostic`**（`pin-photo.upload.*`。Metro / `adb logcat -s ReactNativeJS` / Console.app）を見る。次に backend のアクセスログで枠発行（`POST /pin-photo-uploads -> 201`）まで到達しているかを確認する。サーバー側から見る必要がある場合は **S3 サーバーアクセスログ**を一時的に有効化する（infra 作業。CloudTrail では取りこぼす） |
+| `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `pin_photos/*` の SSM が当該環境に無い（SS-106 が未 apply） | infra 側の apply を待つ（上の確認 1)）。prod は「前提となる infra の apply」の順序を参照 |
+| 動的参照 + `/staging/*` の連結がどうしても ARN に解決されない | CloudFormation が連結を受け付けない（**dev では解決を確認済み**（2026-09-24）。prod で再発した場合の備え） | infra 側に prefix ごとの ARN（`staging/*` 等）を SSM の契約値として追加してもらい、連結をやめる |

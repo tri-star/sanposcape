@@ -2,7 +2,8 @@
 name: screen-back-navigation-pattern
 description: 画面の「戻る」導線（ボタン+Androidシステムバック+連打ガード）を実装するときはsrc/hooks/useScreenBack.tsに一本化する（SS-34で導入）
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-34で「画面から出る」操作の共通パターンを整備した。以後、戻るボタン付きの画面を

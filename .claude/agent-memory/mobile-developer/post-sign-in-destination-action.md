@@ -2,7 +2,8 @@
 name: post-sign-in-destination-action
 description: サインイン成功後の遷移先を決めるgetPostSignInDestinationは「遷移アクション(replace/dismissTo + href)」を返す。SS-37でCTA戻り先を追加する際の型に注意。
 metadata:
-  type: project
+  type: reference
+  scope: durable
 ---
 
 `packages/mobile/src/features/auth/lib/postSignInDestination.ts` の

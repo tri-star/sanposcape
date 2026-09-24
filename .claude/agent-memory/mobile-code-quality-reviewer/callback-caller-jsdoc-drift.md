@@ -2,7 +2,8 @@
 name: callback-caller-jsdoc-drift
 description: 「実行側（呼び出し元）」を移すリファクタで、呼ばれる側の関数のJSDocに残った旧呼び出し元の記述が更新されず取りこぼされやすい
 metadata:
-  type: project
+  type: feedback
+  scope: durable
 ---
 
 SS-13（`packages/mobile/src/lib/sessionCleanup.ts`）で見つかったパターン。

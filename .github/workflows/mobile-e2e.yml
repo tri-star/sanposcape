@@ -25,6 +25,8 @@ name: mobile E2E (Maestro)
 # MVP 主要フロー（maps-required タグ）が依存する /explore/places の決定的な候補は、
 # 下記 "Start backend" ステップの MAPS_MODE=fake（SS-44 の FakeGoogleMapsProvider、
 # ENV=test なので許可リスト検証も通る）で供給される（SS-54 で常時実行を有効化）。
+# /explore/routes/loop（SS-33）も同じ fake provider で決定的な周回（往路と異なる道で
+# 戻る、return_is_same_path=false）を返す。
 on:
   workflow_dispatch:
   schedule:
@@ -184,6 +186,7 @@ jobs:
           # MAPS_MODE=fake は compose.yaml の environment: 経由でコンテナに届き（SS-21）、
           # backend の Settings.maps_mode で実際に解釈される（SS-44）。ENV=test なので
           # 許可リスト検証も通り、/explore/places は FakeGoogleMapsProvider の決定的な候補を返す。
+          # /explore/routes/loop（SS-33）も同じ provider で決定的な周回を返す。
           BACKEND_API_PORT=8000 DB_PORT=5432 \
           ENV=test AUTH_MODE=dev MAPS_MODE=fake AUTH_JWT_SECRET=e2e-insecure-secret-0123456789abcdef \
             docker compose up -d --build
@@ -339,7 +342,8 @@ jobs:
 
             adb install -r packages/mobile/e2e-build/app-preview.apk
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
-            # /explore/places の候補を決定的に返すため、外部データへの依存はない）。
+            # /explore/places の候補と /explore/routes/loop の周回を決定的に返すため、
+            # 外部データへの依存はない）。
             maestro test packages/mobile/.maestro/
 
       - name: Upload Maestro debug output

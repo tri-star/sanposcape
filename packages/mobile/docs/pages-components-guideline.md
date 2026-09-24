@@ -41,6 +41,8 @@ const useStyles = makeStyles((theme) => ({
   - `onPrimary` … `primary` の面の上（ダークでは primary が明るい青になるため near-black になる）
   - `onColor` … `danger` / `success` / 地図カテゴリ色など、primary 以外の彩度の高い面の上（両テーマとも白）
 - 地図のカテゴリ色は `theme.map`（`park` / `cafe` / `culture` / `station` …）を使う。
+  ルート線には `theme.map.route`（往路・既定の1本道ルート）と `theme.map.routeReturn`
+  （周回ルートの復路。破線と併用して描き分ける、SS-33）がある。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
   `lineHeight()` / `letterSpacing()` で px に換算して指定する。
 
@@ -51,6 +53,10 @@ const useStyles = makeStyles((theme) => ({
 StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline / Icon）。
 `RoutePolyline` は SS-20 で `features/walk` から昇格した地図オーバーレイ（`MapPin` と同じカテゴリ）で、
 散歩開始・散歩中・履歴詳細の3つの地図でルート線・軌跡線の見た目を揃えるための極薄ラッパ。
+`color` / `dashPattern` / `strokeWidth` / `zIndex` は任意の見た目 props で、省略時は従来どおりの
+既定スタイルになる（SS-33）。往路/復路の描き分け自体（どの区間をどの見た目で描くか）は
+`features/walk` 側の `WalkRoutePolylines.tsx` と `lib/walkRouteLegs.ts` が担い、`RoutePolyline` 自身は
+往復の概念を持たない（渡された1本の折れ線を渡された見た目で描くだけ）。
 まずはこれらを組み合わせて画面を作り、足りないものが出たら追加する。
 
 - 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で
@@ -63,11 +69,12 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 ### 画面の「戻る」導線の規約
 
 **適用範囲**: 現時点で `useScreenBack` を使っているのは `WalkStartView`（`walk-start`）/
-`WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）の3画面のみ
-（SS-34）。`SettingsView` と `(tabs)` 配下の各画面は未適用で、素の `router.back()` のまま
-（`SettingsView` は常に push で開かれるためスタックの戻り先が保証されており、実害は無い）。
-新しい画面を追加するとき、および `SettingsView` / `(tabs)` 配下を触るときは、この規約に順次
-寄せることを検討する。
+`WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）（SS-34）/
+`PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
+ダイアログを `onIntercept` で挟む。SS-88）の4画面。`SettingsView` と `(tabs)` 配下の各画面は
+未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
+戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
+`(tabs)` 配下を触るときは、この規約に順次寄せることを検討する。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。

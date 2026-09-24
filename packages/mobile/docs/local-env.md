@@ -183,6 +183,8 @@ pnpm --filter mobile orval          # API クライアント再生成
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
     `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、
     **Google Maps のキーを持っていなくてもローカルで実行できる**。
+    ただし fake provider は全候補で周回が合格するため、**同じ道フォールバック表示（凡例「行き・帰り（同じ道）」）は E2E では通らない**。
+    手動で確認するときは backend を `GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false` で作り直す（[backend の周回ルートの節](../../backend/docs/local-env.md#周回ルートexploreroutesloopss-33adr-007-参照)）。
 
 ```bash
 # ローカル: preview APK を作成（EASクラウド枠を使わないローカルビルド）
@@ -195,8 +197,7 @@ maestro test packages/mobile/.maestro/
 # smoke タグのフローだけ（外部データに依存せず、backend の候補を用意できない環境向け）
 maestro test --include-tags=smoke packages/mobile/.maestro/
 
-# 外部データに依存するフローだけ（MVP 主要フロー + 散歩中のルート再計算フロー +
-# ゲスト保存 → サインイン CTA フロー）
+# 外部データに依存するフローだけ（MVP 主要フロー + ゲスト保存 → サインイン CTA フロー）
 maestro test --include-tags=maps-required packages/mobile/.maestro/
 
 # 個別フローを名指しで実行（デバッグ時）
@@ -303,6 +304,20 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   - `mock` = 東京駅の固定座標（`src/services/location/location.mock.ts`。vitest や、位置情報が
     フレークになりやすい E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは既定でこれ）。
 - 権限文言は `app.json` の `expo-location` プラグイン（`locationWhenInUsePermission`）で設定済み。
+
+## 写真（expo-image-picker / expo-image-manipulator / expo-file-system）
+
+- `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で写真の取得・加工の実装を切り替える
+  （`src/config/photoMode.ts`）。位置情報と同じく `dev` モードは無い（詳細は
+  [ADR-010](../adr/ADR-010-photo-service-and-direct-s3-upload.md)）。
+  - `real` = `expo-image-picker`（カメラ/写真ライブラリ）+ `expo-image-manipulator`（縮小・再圧縮）。
+  - `mock` = 固定のダミー写真（`src/services/photo/photo.mock.ts`。vitest や、システムのカメラ/
+    写真ピッカーを安定操作できない E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは
+    既定でこれ。ダミーは実ファイルではないためアップロードは失敗する＝写真付き E2E は別チケット）。
+- 権限文言は `app.json` の `expo-image-picker` プラグイン（`photosPermission` /
+  `cameraPermission`）で設定済み。
+- ピンの写真アップロード（presigned POST）を backend 経由で確認するには、backend を
+  `STORAGE_MODE=fake` で起動する（`packages/backend/.env.example` が既定でこの値）。
 
 ## `/explore/places` がローカルで常に失敗する場合
 

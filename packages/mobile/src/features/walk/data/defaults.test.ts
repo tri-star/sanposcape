@@ -59,8 +59,8 @@ describe("DEFAULT_ACTIVE_WALK", () => {
     expect(DEFAULT_ACTIVE_WALK.destination.placeId.length).toBeGreaterThan(0);
   });
 
-  it("roundTripMinutes が正の値", () => {
-    expect(DEFAULT_ACTIVE_WALK.roundTripMinutes).toBeGreaterThan(0);
+  it("loopMinutes が正の値", () => {
+    expect(DEFAULT_ACTIVE_WALK.loopMinutes).toBeGreaterThan(0);
   });
 });
 

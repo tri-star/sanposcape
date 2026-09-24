@@ -3,6 +3,7 @@ name: reference-openapi-json-gitignored
 description: packages/backend/openapi.json は.gitignore対象（openapi.yamlのみ追跡）。export後にgit statusで差分が出なくても異常ではない
 metadata:
   type: reference
+  scope: durable
 ---
 
 `packages/backend/.gitignore`（7行目）に `openapi.json` が指定されており、
@@ -16,3 +17,8 @@ metadata:
 **How to apply:** OpenAPI 再出力タスクでは `git diff packages/backend/openapi.yaml` だけを
 確認すればよい。`openapi.json` に差分が出ないことを異常だと早合点しない
 （`git check-ignore -v packages/backend/openapi.json` で確認できる）。
+
+`openapi.yaml` は手で編集しない。router・schema の docstring や説明文が生成元なので、コメントや
+docstring を直しただけでも差分が出る。変更後は
+`docker compose -f packages/backend/compose.yaml exec api uv run python scripts/export_openapi.py`
+で作り直してから commit する（SS-111 の R1 対応で、docstring の置換後に再生成が必要だった）。

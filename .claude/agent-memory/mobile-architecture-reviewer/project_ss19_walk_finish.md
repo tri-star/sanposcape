@@ -1,11 +1,13 @@
 ---
 name: project_ss19_walk_finish
 description: SS-19（散歩終了処理・散歩ルート保存/POST walks 保存フロー）レビュー時点の実装状況と確認済みの設計整合ポイント
-type: project
+metadata:
+  type: feedback
+  scope: durable
 ---
 
-`tmp/SS-19/mobile-plan.md`（§3 サマリ画面で1回保存する案A採用・§4 軌跡整形・§7 各ファイル仕様・§8.3
-ローカル永続化スコープ外）に基づき、`useFinishedWalkStore`（保存待ちドラフト）/ `useWalkSave`（useMutation
+SS-19 のプラン（サマリ画面で1回保存する案A採用・軌跡整形・ローカル永続化はスコープ外。プラン文書自体は
+gitignore 対象で既に消失）に基づき、`useFinishedWalkStore`（保存待ちドラフト）/ `useWalkSave`（useMutation
 ラッパ、自動発火+再試行）/ `walkApi.saveWalk`（POST /walks）/ `lib/{finishedWalk,walkTrackPayload,
 walkCreateRequest,walkSaveError}`（すべて純粋関数）/ `src/lib/uuid.ts`（client_walk_id 採番）が実装済み
 （2026-08-02時点でレビュー、ブランチ `feat/ss-19-walk-finish`。関連: [[project_ss16_walk_route]]）。
