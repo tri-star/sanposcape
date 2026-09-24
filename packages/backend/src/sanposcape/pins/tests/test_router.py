@@ -968,6 +968,37 @@ class TestGetPin:
         assert body["photo_count"] == 11
         assert body["photos"][0]["original_url"] is not None
 
+    def test_unconfigured_storage_returns_200_with_null_urls(
+        self,
+        unconfigured_storage_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client = unconfigured_storage_client
+        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=authenticated_user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        create_pin_photo_row(
+            db_session, None, pin_id=pin.id, uploaded_by_user_id=authenticated_user.id, position=0
+        )
+
+        response = client.get(f"/pins/{pin.id}", headers=auth_headers)
+
+        assert response.status_code == 200
+        photo = response.json()["photos"][0]
+        assert photo["thumbnail"] is None
+        assert photo["original_url"] is None
+
 
 class TestListPinPhotos:
     def test_requires_authentication(
@@ -1089,3 +1120,34 @@ class TestListPinPhotos:
                 break
 
         assert collected_ids == [str(photo.id) for photo in photos]
+
+    def test_unconfigured_storage_returns_200_with_null_urls(
+        self,
+        unconfigured_storage_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client = unconfigured_storage_client
+        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=authenticated_user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        create_pin_photo_row(
+            db_session, None, pin_id=pin.id, uploaded_by_user_id=authenticated_user.id, position=0
+        )
+
+        response = client.get(f"/pins/{pin.id}/photos", headers=auth_headers)
+
+        assert response.status_code == 200
+        photo = response.json()["items"][0]
+        assert photo["thumbnail"] is None
+        assert photo["original_url"] is None
