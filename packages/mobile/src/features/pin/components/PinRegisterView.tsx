@@ -10,12 +10,15 @@ import { Input } from "@/components/ui/input/Input";
 import { ProgressBar } from "@/components/ui/progress-bar/ProgressBar";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinDiscardDialog } from "@/features/pin/components/PinDiscardDialog";
-import { PinLocationPreview } from "@/features/pin/components/PinLocationPreview";
+import { PinLocationAdjustOverlay } from "@/features/pin/components/PinLocationAdjustOverlay";
+import { PinLocationField } from "@/features/pin/components/PinLocationField";
 import { PinPhotoGrid } from "@/features/pin/components/PinPhotoGrid";
 import { PinSignInRequired } from "@/features/pin/components/PinSignInRequired";
 import { PinTagEditor } from "@/features/pin/components/PinTagEditor";
 import { SanpoMapSelector } from "@/features/pin/components/SanpoMapSelector";
+import { usePinLocationDraft } from "@/features/pin/hooks/usePinLocationDraft";
 import { usePinRegister } from "@/features/pin/hooks/usePinRegister";
+import { canAdjustPinLocation } from "@/features/pin/lib/pinLocationAdjust";
 import {
   canManuallyRetryPinSave,
   pinSaveErrorMessage,
@@ -49,10 +52,12 @@ export function PinRegisterView({
   const router = useRouter();
   const toast = useToast();
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const pinLocation = usePinLocationDraft(location);
 
   const register = usePinRegister({
     // location が null のときは register hook を無害な既定値で走らせる（下の early return で描画しない）。
-    location: location ?? { latitude: 0, longitude: 0 },
+    location: pinLocation.location ?? { latitude: 0, longitude: 0 },
     clientWalkId,
     isSignedIn,
     onSaved: () => {
@@ -72,12 +77,20 @@ export function PinRegisterView({
   const back = useScreenBack({
     fallbackHref: "/(tabs)",
     onIntercept: () => {
+      // saving 中はオーバーレイを開けないので、この分岐を先に見てよい。
+      if (adjustOpen) {
+        setAdjustOpen(false);
+        return true;
+      }
       if (register.save.status === "saving") return true;
       if (discardOpen) {
         setDiscardOpen(false);
         return true;
       }
-      if (register.hasUnsavedInput && register.save.status !== "saved") {
+      if (
+        (register.hasUnsavedInput || pinLocation.isAdjusted) &&
+        register.save.status !== "saved"
+      ) {
         setDiscardOpen(true);
         return true;
       }
@@ -134,6 +147,8 @@ export function PinRegisterView({
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        importantForAccessibility={adjustOpen ? "no-hide-descendants" : "auto"}
+        accessibilityElementsHidden={adjustOpen}
       >
         <ScrollView
           style={styles.flex}
@@ -159,7 +174,16 @@ export function PinRegisterView({
             <PinSignInRequired onSignIn={onSignIn} />
           ) : (
             <>
-              <PinLocationPreview location={location} testID="pin-register-location-preview" />
+              <PinLocationField
+                location={pinLocation.location ?? location}
+                isAdjusted={pinLocation.isAdjusted}
+                adjustable={canAdjustPinLocation({
+                  saveStatus: register.save.status,
+                  savedPinId: register.save.savedPinId,
+                })}
+                onRequestAdjust={() => setAdjustOpen(true)}
+                testID="pin-register-location"
+              />
 
               <View style={styles.field}>
                 <Input
@@ -266,6 +290,19 @@ export function PinRegisterView({
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {adjustOpen && pinLocation.location !== null ? (
+        <PinLocationAdjustOverlay
+          initialLocation={pinLocation.location}
+          onCancel={() => setAdjustOpen(false)}
+          onConfirm={(picked) => {
+            pinLocation.apply(picked);
+            // 他の入力変更と同じく、保存エラー状態を解除する（PR #93 T8 の方針）。
+            register.save.resetError();
+            setAdjustOpen(false);
+          }}
+        />
+      ) : null}
 
       <PinDiscardDialog
         open={discardOpen}

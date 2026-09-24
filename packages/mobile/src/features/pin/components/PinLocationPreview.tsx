@@ -5,7 +5,7 @@ import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { makeStyles } from "@/theme/makeStyles";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** 地図の表示範囲（緯度経度の差）。位置の微調整は MVP ではしない固定値。 */
+/** 地図の表示範囲（緯度経度の差）。プレビューの表示範囲。位置の調整は全画面の `PinLocationAdjustOverlay` で行う（SS-124）。 */
 const REGION_DELTA = 0.004;
 const PREVIEW_HEIGHT = 140;
 
@@ -14,7 +14,7 @@ export type PinLocationPreviewProps = {
   testID?: string;
 };
 
-/** PinLocationPreview — ピンを置く現在地の小さな地図プレビュー（操作不可）。 */
+/** PinLocationPreview — ピンを置く位置の小さな地図プレビュー（操作不可。調整は PinLocationField の「位置を調整」から）。 */
 export function PinLocationPreview({ location, testID }: PinLocationPreviewProps) {
   const styles = useStyles();
 
@@ -28,7 +28,7 @@ export function PinLocationPreview({ location, testID }: PinLocationPreviewProps
       <MapView
         testID={testID}
         style={styles.map}
-        initialRegion={{
+        region={{
           latitude: location.latitude,
           longitude: location.longitude,
           latitudeDelta: REGION_DELTA,
