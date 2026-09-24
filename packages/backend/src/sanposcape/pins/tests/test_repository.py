@@ -730,6 +730,8 @@ class TestListForMember:
             cursor=None,
         )
         assert len(first_page) == 3  # limit + 1 件取得
+        # created_at が全件同値のため、順序は id DESC（副ソートキー）だけで決まる。
+        assert [pin.id for pin in first_page] == sorted((p.id for p in pins), reverse=True)
 
         page = first_page[:2]
         cursor = encode_cursor(page[-1].created_at, page[-1].id)
