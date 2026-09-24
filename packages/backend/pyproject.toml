@@ -16,6 +16,7 @@ dependencies = [
     "mangum>=0.22",
     "pillow>=12.3.0",
     "python-multipart>=0.0.32",
+    "scalar-fastapi>=1.9.0",
 ]
 
 [dependency-groups]

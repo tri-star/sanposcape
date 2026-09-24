@@ -24,6 +24,8 @@ SS-111（`pins/` の閲覧API追加, PR: `tri-star/ss-111-pin-read-api`）でも
 3ドメイン目（walks → google_maps/fake → pins）での再発であり、ADR 追補という「正しい記録先」
 が存在するようになった後もコードコメントが追従していない点が新しい観察。
 
+SS-131（`api_docs/` Scalar導入）でも再発を確認: `api_docs/tests/test_router.py` の `test_scalar_docs_disables_telemetry_and_agent` docstring に「（プランの注意事項参照）」とあり、gitignore対象の計画ドキュメントの注意書きを指している。 <!-- tmp-ref-ok: tmp/ 参照そのものを説明している箇所 --> ただしdocstring本文自体がすでに同じ趣旨（実際のHTMLを出力し直して区切りを確認すること）を書いており自己完結していたため、Low/Suggestion止まりで指摘した（本文だけで意味が通り、tmp参照は装飾的）。
+
 **How to apply:** 新しいドメイン実装のレビューで `（D\d+）` `（Q\d+）` `（[A-Z]-\d+）` のような decision code を含むコメントを見たら、
 - コメント本文だけで意図が自己完結しているか確認する（自己完結していれば decision code 自体は無害な飾りとして許容範囲、Low/Suggestion 止まり）。
 - 自己完結していない場合や、参照先が ADR (`docs/adr/`) など**コミットされているドキュメント**であれば問題ない。gitignore 対象の `tmp/` にしかない場合は Medium 程度で指摘し、「重要な設計判断は ADR 化するか、コメントを自己完結させる」ことを提案する。
