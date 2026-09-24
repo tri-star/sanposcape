@@ -21,9 +21,9 @@ export type UseCurrentLocationResult = {
  * 現在地取得の hook。
  * `@/services/location` の `locationService` のみを参照し、real/mock の実体を知らない。
  *
- * 配置について: `walk` 以外から使われるまでは `features/walk/hooks/` に置く
- * （`docs/folder-structure.md` の「迷ったらまず features/」）。SS-16 で散歩中画面からも
- * 使うことになったら `src/hooks/` へ昇格を検討する。
+ * 配置について: `features/walk`（散歩開始画面の `useWalkPlan`）と `features/pin`（地点選択画面の
+ * `usePinLocationPicker`。SS-124）から使うため `src/hooks/` に置く（`docs/folder-structure.md` の
+ * 昇格ルール）。
  */
 export function useCurrentLocation(): UseCurrentLocationResult {
   const [coordinates, setCoordinates] = useState<GeoCoordinates | null>(null);
