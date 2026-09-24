@@ -24,3 +24,5 @@
 - [feedback_true_concurrency_test_pattern](feedback_true_concurrency_test_pattern.md) — threading.Thread+別Session(TestSessionLocal)で真の行ロック競合を再現するテスト手順。ORMオブジェクトをスレッド間で共有しない・Core updateの後はrefresh()が必要
 - [feedback-httpx-timeout-mocktransport](feedback_httpx_timeout_mocktransport.md) — httpxのtimeout=に単一floatを渡すとconnectにも効く。httpx.Timeoutでフェーズを分け、MockTransportのrequest.extensions["timeout"]で検証する
 - [feedback-full-suite-intermittent-401](feedback_full_suite_intermittent_401.md) — backend全体のpytestで無関係なテストがたまに有効JWTで401。まず単独実行で再現確認（原因未確認、DB負荷の推測）
+- [project-ss112-pins-edit-delete-complete](project_ss112_pins_edit_delete_complete.md) — SS-112 backend（ピンの編集・削除API・権限マトリクス, BK-5）は実装完了。次はmobile側SS-119
+- [feedback-pydantic-optional-list-and-orm-expire-gotchas](feedback_pydantic_optional_list_and_orm_expire_gotchas.md) — SkipJsonSchema[None]+max_lengthの罠、commit後のORM属性expireでのテスト罠、サービス直呼びテストでの明示rollback。backendにmypy未導入の事実も記載
