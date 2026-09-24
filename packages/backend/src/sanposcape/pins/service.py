@@ -14,7 +14,11 @@ from sanposcape.core.pagination import (
     encode_cursor,
     encode_position_cursor,
 )
-from sanposcape.integrations.aws.s3 import ObjectStorage, ObjectStorageUnavailableError
+from sanposcape.integrations.aws.s3 import (
+    S3_DELETE_OBJECTS_MAX_KEYS,
+    ObjectStorage,
+    ObjectStorageUnavailableError,
+)
 from sanposcape.pins.exceptions import (
     PinNotFoundError,
     PinPhotoNotFoundError,
@@ -293,9 +297,14 @@ class PinService:
             read_model = self._require_read_model(pin.id)
             return self._to_pin_read(read_model, current_user, base_url), False
 
+        # commit 前に控える（R2: commit 後は expire_on_commit により pin.id への
+        # アクセスが不要な SELECT を招きうるため、`PinPhotoUploadService.delete_upload`
+        # と同じく ORM 属性は commit 前に読み切っておく）。
+        pin_id = pin.id
+
         if payload.tags:
             self._repository.add_tags(
-                pin_id=pin.id, created_by_user_id=current_user.id, labels=payload.tags
+                pin_id=pin_id, created_by_user_id=current_user.id, labels=payload.tags
             )
 
         if prepared_photos:
@@ -304,7 +313,7 @@ class PinService:
                     "prepared_photos is non-empty but confirm_deadline_at is unset"
                 )
             self._commit_photos(
-                pin_id=pin.id,
+                pin_id=pin_id,
                 uploaded_by_user_id=current_user.id,
                 prepared=prepared_photos,
                 start_position=0,
@@ -321,7 +330,7 @@ class PinService:
                 )
             self._photo_attacher.cleanup_staging(prepared_photos, deadline_at=confirm_deadline_at)
 
-        read_model = self._require_read_model(pin.id)
+        read_model = self._require_read_model(pin_id)
         return self._to_pin_read(read_model, current_user, base_url), True
 
     def list_pins(self, current_user: User, query: PinListQuery, *, base_url: str) -> PinListRead:
@@ -608,7 +617,8 @@ class PinService:
 
         self._db.commit()
 
-        read_model = self._require_read_model(pin.id)
+        # `pin_id` は引数（commit の影響を受けない）をそのまま使う（R2）。
+        read_model = self._require_read_model(pin_id)
         return self._to_pin_read(read_model, current_user, base_url)
 
     def delete_pin(self, current_user: User, pin_id: uuid.UUID) -> None:
@@ -628,14 +638,18 @@ class PinService:
 
         photo_key_pairs = self._repository.list_photo_keys(pin.id)
         keys = [key for pair in photo_key_pairs for key in pair if key is not None]
+        # commit 前に控える（R2: `PinPhotoUploadService.delete_upload` と同じ流儀で、
+        # commit 後は `pin_id` 引数・ここで控えた `user_id` だけを使い、ORM 属性には
+        # 触れない）。
+        user_id = current_user.id
 
         self._repository.delete_pin(pin)
         self._db.commit()
 
         logger.info(
             "Pin deleted: pin_id=%s by user_id=%s photos=%d",
-            pin.id,
-            current_user.id,
+            pin_id,
+            user_id,
             len(photo_key_pairs),
         )
         self._delete_photo_keys_best_effort(keys)
@@ -659,15 +673,17 @@ class PinService:
             raise SanpoMapPermissionDeniedError()
 
         keys = [key for key in (photo.s3_key, photo.thumbnail_s3_key) if key is not None]
+        # commit 前に控える（R2: 同上）。
+        user_id = current_user.id
 
         self._repository.delete_photo(photo)
         self._db.commit()
 
         logger.info(
             "Pin photo deleted: pin_id=%s photo_id=%s by user_id=%s",
-            pin.id,
-            photo.id,
-            current_user.id,
+            pin_id,
+            photo_id,
+            user_id,
         )
         self._delete_photo_keys_best_effort(keys)
 
@@ -677,13 +693,19 @@ class PinService:
         DB は既に commit 済みのため、ここで打ち切っても整合性は壊れない（残るのは
         「DB から参照されない S3 オブジェクト」だけで、BK-3 の定期掃除で回収できる）。
         `PhotoAttacher.cleanup_staging()` と同じ `monotonic()` 基準の締め切りを使う。
-        `S3ObjectStorage.delete_many()` は1回で最大1000件を処理するため、ここでの
-        チャンクサイズもそれに揃える。
+        `S3ObjectStorage.delete_many()` は1回で `S3_DELETE_OBJECTS_MAX_KEYS` 件を処理する
+        ため、ここでのチャンクサイズもそれに揃える。
+
+        `except Exception` で広く捕まえる（R3）: ここは DB commit 後の best-effort 境界
+        であり、`ObjectStorageUnavailableError` 以外の想定外の例外（実装のバグ等）が
+        飛んできても、削除 API を 500 にしてはならない（決定22「削除 API はストレージが
+        理由で失敗を返さない」という意図に反するため）。捕まえた例外は種別ごと
+        WARNING ログに残す。
         """
         if not keys:
             return
         deadline_at = self._monotonic() + self._photo_delete_deadline_seconds
-        chunk_size = 1000
+        chunk_size = S3_DELETE_OBJECTS_MAX_KEYS
         for start in range(0, len(keys), chunk_size):
             if self._monotonic() > deadline_at:
                 logger.warning(
@@ -696,9 +718,12 @@ class PinService:
             chunk = keys[start : start + chunk_size]
             try:
                 failed = self._storage.delete_many(chunk)
-            except ObjectStorageUnavailableError:
+            except Exception as exc:  # noqa: BLE001 - commit後のbest-effort境界のため広く捕まえる
                 logger.warning(
-                    "Failed to delete %d pin photo objects: storage unavailable", len(chunk)
+                    "Failed to delete %d pin photo objects: %s: %s",
+                    len(chunk),
+                    type(exc).__name__,
+                    exc,
                 )
                 continue
             if failed:

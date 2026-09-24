@@ -1256,6 +1256,39 @@ class TestPinServiceDeletePin:
             service.get_pin(owner, pin_read.id, base_url=BASE_URL)
         assert any("Failed to delete" in record.getMessage() for record in caplog.records)
 
+    def test_unexpected_storage_exception_does_not_prevent_deletion(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """R3: `ObjectStorageUnavailableError` 以外の想定外の例外（実装のバグ等）でも、
+        DB commit 後の best-effort 境界では 500 にならず、WARNING ログに留める。
+        """
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+
+        def raising_delete_many(keys: list[str]) -> list[str]:
+            raise RuntimeError("boom")
+
+        storage.delete_many = raising_delete_many  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.pins.service"):
+            service.delete_pin(owner, pin_read.id)  # 例外を投げない
+
+        with pytest.raises(PinNotFoundError):
+            service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+        assert any(
+            "Failed to delete" in record.getMessage() and "RuntimeError" in record.getMessage()
+            for record in caplog.records
+        )
+
     def test_unconfigured_storage_does_not_prevent_deletion(self, db_session: Session) -> None:
         owner = make_user(db_session, subject="owner")
         creation_storage = FakeObjectStorage(secret="s" * 32)

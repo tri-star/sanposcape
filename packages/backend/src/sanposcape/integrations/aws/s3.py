@@ -37,6 +37,11 @@ from sanposcape.config import Settings
 
 logger = logging.getLogger(__name__)
 
+#: S3 `DeleteObjects` の1回あたりの最大キー数（S3 の仕様上の上限）。`S3ObjectStorage.
+#: delete_many()` のチャンクサイズと、呼び出し側（`pins/service.py`）が best-effort 削除の
+#: 締め切りチェックを行う間隔を揃えるために共有する（R4: ハードコードの重複を避ける）。
+S3_DELETE_OBJECTS_MAX_KEYS = 1000
+
 
 class ObjectStorageUnavailableError(Exception):
     """ストレージが未構成、または一時的に利用できない（呼び出し元は 503 に変換する）。"""
@@ -231,15 +236,16 @@ class S3ObjectStorage:
             raise self._unavailable(exc) from exc
 
     def delete_many(self, keys: list[str]) -> list[str]:
-        """`DeleteObjects`（`Quiet=True`）を最大1000件ずつのチャンクで呼ぶ。
+        """`DeleteObjects`（`Quiet=True`）を `S3_DELETE_OBJECTS_MAX_KEYS` 件ずつの
+        チャンクで呼ぶ。
 
         チャンク単位で `ClientError`/`BotoCoreError` を捕捉し、そのチャンク全体を
         失敗扱いにしてログを出したうえで次のチャンクへ進む（例外は投げない。
         呼び出し側の締め切り管理を単純にするため, ADR-009 決定22）。
         """
         failed: list[str] = []
-        for start in range(0, len(keys), 1000):
-            chunk = keys[start : start + 1000]
+        for start in range(0, len(keys), S3_DELETE_OBJECTS_MAX_KEYS):
+            chunk = keys[start : start + S3_DELETE_OBJECTS_MAX_KEYS]
             try:
                 response = self._client.delete_objects(
                     Bucket=self._bucket,
