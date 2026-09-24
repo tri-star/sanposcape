@@ -6,6 +6,7 @@ import {
   accountDeleteErrorMessage,
   canRetryAccountDelete,
   isRetriableAccountDeleteError,
+  resolveAccountDeleteErrorCode,
   toAccountDeleteErrorCode,
 } from "@/features/settings/lib/accountDeleteError";
 
@@ -34,6 +35,32 @@ describe("toAccountDeleteErrorCode", () => {
     expect(toAccountDeleteErrorCode(undefined)).toBe("unknown");
     expect(toAccountDeleteErrorCode("boom")).toBe("unknown");
   });
+});
+
+describe("resolveAccountDeleteErrorCode", () => {
+  it("unauthorized でもセッションが authenticated のまま（refresh の一時的失敗）なら unknown に読み替え、再試行できる", () => {
+    const code = resolveAccountDeleteErrorCode("unauthorized", "authenticated");
+    expect(code).toBe("unknown");
+    expect(canRetryAccountDelete(code)).toBe(true);
+    expect(accountDeleteErrorMessage(code)).not.toContain("サインイン");
+  });
+
+  it.each(["guest", "loading"] as const)(
+    "unauthorized でセッションが %s（失効が確定）なら unauthorized のまま再試行不可",
+    (status) => {
+      const code = resolveAccountDeleteErrorCode("unauthorized", status);
+      expect(code).toBe("unauthorized");
+      expect(canRetryAccountDelete(code)).toBe(false);
+    },
+  );
+
+  it.each(["network", "server", "unknown"] as const)(
+    "%s はセッション状態によらずそのまま返す",
+    (code) => {
+      expect(resolveAccountDeleteErrorCode(code, "authenticated")).toBe(code);
+      expect(resolveAccountDeleteErrorCode(code, "guest")).toBe(code);
+    },
+  );
 });
 
 describe("accountDeleteErrorMessage", () => {

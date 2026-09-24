@@ -166,6 +166,17 @@ SS-62（設定画面にアカウント削除の導線を実装する）で、`DE
   セッションを破棄しており、決定5 の経路で `AuthGate` が自動的に退避させるため、mobile 側が
   明示的にローカルを掃除する必要は無い（もう一方の 401 経路＝トークン非保持のゲストは、
   そもそも削除導線を出さないため発生しない）。
+- **ただし「401 = セッション失効」とは限らない（PR #81 レビュー対応）**。`customFetch` は
+  `refreshAccessToken()` が `null` なら元の 401 を投げるが、`doRefresh()` は refresh の通信障害・
+  5xx でも**セッションを保持したまま** `null` を返す。この場合 `AuthGate` は退避しないので、
+  401 を一律 `unauthorized`（非再試行）にすると削除ボタンだけが消える行き止まりになる。
+  そこで **削除の失敗時点でストアの status がまだ `authenticated` なら、401 を再試行可能な
+  `unknown` に読み替える**（`resolveAccountDeleteErrorCode`、`features/settings/lib/accountDeleteError.ts`）。
+  refresh token 失効時は `setCurrentUser(null)` → `onSessionChange` → `setSession(null)` が
+  401 の throw より前に同期的に走るため、status は既に `guest` で `unauthorized` のまま残る。
+  refresh の失敗理由を `refreshAccessToken()` の戻り値で伝播させる案は、「`null` のみを返す」
+  契約と `client.ts` / `authTokenProvider` / mock への影響が大きいため見送った。ストアは読むだけ
+  なので決定2 は維持される。
 - **ゲスト・`loading` には削除導線を出さない**（`canDeleteAccount`、
   `features/settings/lib/settingsSection.ts`）。決定3 が扱う「保護ルートに誰が入れるか」を
   変更するのではなく、**画面内の導線出し分け**で解決する（`/settings` 自体はゲストも到達可能な

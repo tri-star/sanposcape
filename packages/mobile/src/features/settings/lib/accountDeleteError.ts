@@ -1,4 +1,5 @@
 import { isApiError } from "@/api/apiError";
+import type { AuthSessionStatus } from "@/store/useAuthSessionStore";
 
 /**
  * `DELETE /users/me` の失敗分類。`walkDeleteError.ts` の `WalkDeleteErrorCode` と似ているが、
@@ -8,7 +9,7 @@ import { isApiError } from "@/api/apiError";
  * ボディも持たないため 422 は発生しない（来た場合は `unknown` に落ちる）。
  */
 export type AccountDeleteErrorCode =
-  | "unauthorized" // 401（customFetch の refresh 後もダメだった＝セッションが既に無効）
+  | "unauthorized" // 401 かつセッションが既に無効（`resolveAccountDeleteErrorCode` 参照）
   | "network" // TypeError（fetch 失敗）
   | "server" // 5xx
   | "unknown"; // それ以外
@@ -34,6 +35,35 @@ export function toAccountDeleteErrorCode(error: unknown): AccountDeleteErrorCode
   }
 
   return "unknown";
+}
+
+/**
+ * 分類結果をセッション状態で補正する。401 を「セッション失効（`unauthorized`）」と確定できるのは、
+ * セッションがもう `authenticated` でないときだけである（PR #81 Copilot レビュー指摘）。
+ *
+ * `customFetch` は `refreshAccessToken()` が `null` を返すと元の 401 をそのまま投げるが、
+ * `createSessionAuthService.doRefresh()` が `null` を返すのは次の2通りある:
+ * - refresh 自体が 401（refresh token 失効）: `tokenStore.clear()` + `setCurrentUser(null)` を
+ *   実行してから返す。`setCurrentUser` → `onSessionChange` → `useAuthSessionStore.setSession(null)`
+ *   は同期的に伝播するため、削除の mutation が error になった時点で status は既に `guest`。
+ *   → `unauthorized` のまま（再試行不可。AuthGate がサインイン画面へ退避させる）。
+ * - refresh の通信障害・5xx 等の一時的失敗: セッションを保持したまま返す（status は
+ *   `authenticated` のまま。AuthGate も遷移しない）。これを `unauthorized` にすると削除ボタンだけが
+ *   消えて行き止まりになり、「サインインし直して」という文言も事実と合わない。
+ *   → 再試行可能な `unknown` に読み替える。
+ *
+ * `features/settings` から refresh の失敗理由を知る手段は無く、`refreshAccessToken()` の
+ * 「`null` のみを返す」契約を変えて理由を伝播させる案は影響範囲が広いため採らない。
+ * ストアは読むだけなので ADR-009 決定2（書き込み経路の限定）にも抵触しない。
+ */
+export function resolveAccountDeleteErrorCode(
+  code: AccountDeleteErrorCode,
+  sessionStatus: AuthSessionStatus,
+): AccountDeleteErrorCode {
+  if (code === "unauthorized" && sessionStatus === "authenticated") {
+    return "unknown";
+  }
+  return code;
 }
 
 const MESSAGES: Record<AccountDeleteErrorCode, string> = {
@@ -64,10 +94,11 @@ export function isRetriableAccountDeleteError(code: AccountDeleteErrorCode): boo
  * 1. 401 は「アカウントが削除できていない」状態である。アカウントは backend に残っているのに
  *    「削除しました」と見せるのは、受け入れ条件（削除後は未認証状態に戻り、再サインインで
  *    新規ユーザーになる）と矛盾する嘘の表示になる。
- * 2. 受け入れ条件の「端末に前ユーザーのデータが残らない」は削除成功時の要件。しかも現実的な
- *    401 経路（refresh token 失効＝セッション失効）では、`customFetch` が refresh を試して
- *    401 を受けた時点で `createSessionAuthService.doRefresh()` が `tokenStore.clear()` +
- *    `setCurrentUser(null)` を実行するため、mobile 側が何もしなくても
+ * 2. 受け入れ条件の「端末に前ユーザーのデータが残らない」は削除成功時の要件。しかも
+ *    `unauthorized` になるのはセッション失効が確定した場合だけで（`resolveAccountDeleteErrorCode`。
+ *    refresh の一時的失敗による 401 は `unknown` に読み替え済み）、その経路では
+ *    `createSessionAuthService.doRefresh()` が `tokenStore.clear()` + `setCurrentUser(null)` を
+ *    実行済みのため、mobile 側が何もしなくても
  *    「トークン破棄 → runSessionCleanup() → authenticated → guest → AuthGate がサインイン
  *    画面へ退避」まで自動的に走る。端末にデータは残らない。
  * 3. もう一つの 401 経路（トークン非保持＝ゲスト）は、そもそも削除導線を出さないので発生しない

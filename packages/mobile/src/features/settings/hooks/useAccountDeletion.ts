@@ -4,10 +4,12 @@ import { useCallback } from "react";
 import { deleteAccount } from "@/features/settings/api/accountDeleteApi";
 import {
   type AccountDeleteErrorCode,
+  resolveAccountDeleteErrorCode,
   toAccountDeleteErrorCode,
 } from "@/features/settings/lib/accountDeleteError";
 import type { AccountDeleteStatus } from "@/features/settings/types";
 import { authService } from "@/services/auth";
+import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 export type UseAccountDeletionResult = {
   status: AccountDeleteStatus;
@@ -49,6 +51,8 @@ export type UseAccountDeletionResult = {
  * 登録済みの `queryClient.clear()`（`src/api/queryClient.ts`）が全キャッシュを捨てるため不要。
  */
 export function useAccountDeletion(): UseAccountDeletionResult {
+  // 401 の分類補正に使う（`resolveAccountDeleteErrorCode` 参照）。読むだけで書き込まない（ADR-009 決定2）。
+  const sessionStatus = useAuthSessionStore((state) => state.status);
   const mutation = useMutation({
     mutationFn: async () => {
       // 1) アカウント削除（失敗はそのまま throw = mutation は error になる）。
@@ -90,7 +94,9 @@ export function useAccountDeletion(): UseAccountDeletionResult {
 
   return {
     status,
-    errorCode: mutation.isError ? toAccountDeleteErrorCode(mutation.error) : null,
+    errorCode: mutation.isError
+      ? resolveAccountDeleteErrorCode(toAccountDeleteErrorCode(mutation.error), sessionStatus)
+      : null,
     deleteAccount: deleteAccountFn,
     reset,
   };
