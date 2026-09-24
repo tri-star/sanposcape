@@ -28,6 +28,9 @@ import { useTheme } from "@/theme/useTheme";
  * 散歩中（ナビタブ）画面。
  * 進行中の散歩が無ければ `WalkIdleNotice` を出し、あれば実地図・実位置トラッキング・
  * 実時刻ベースの経過時間を `useActiveWalk` から受けて表示する。
+ *
+ * 進行中の散歩が無いときは、`pin_registration` が ON なら「地図からピンを置く」FAB を出す
+ * （SS-124。散歩中は既存の「この場所にピンを追加」と登録画面の位置調整を使うため出さない）。
  */
 export function WalkActiveView() {
   const theme = useTheme();
@@ -49,6 +52,11 @@ export function WalkActiveView() {
     walk.finishWalk();
     router.push("/walk-summary");
   };
+
+  // 進行中の散歩が無いとき（ナビタブの FAB）は clientWalkId を付けない（値が無い。SS-124 D2）。
+  // features/pin は import せず、ルートの文字列だけを知る（addPinAction.ts のコメントにある
+  // feature 間の規約）。
+  const handleOpenPinPicker = () => router.push("/pins/pick-location");
 
   const handleAddPin = () => {
     const action = resolveAddPinAction({
@@ -75,9 +83,29 @@ export function WalkActiveView() {
   );
 
   if (walk.activeWalk === null) {
+    // FAB（theme.control.lg = 54）と重ならない高さにトーストを浮かせる。
+    const idleToastBottom = theme.spacing[4] + theme.control.lg + theme.spacing[3];
     return (
       <View testID="walk-active-screen" style={styles.root}>
         <WalkIdleNotice onStart={() => router.replace("/walk-start")} />
+        {pinRegistrationEnabled ? (
+          <Button
+            variant="primary"
+            size="lg"
+            icon="map-pin"
+            onPress={handleOpenPinPicker}
+            style={styles.pinFab}
+            testID="walk-active-pin-fab"
+          >
+            地図からピンを置く
+          </Button>
+        ) : null}
+        {/*
+          このトーストが無いと、ピン登録画面から戻ってきた「ピンを保存しました」
+          （useFocusEffect の consumeFlashMessage）が消費されるだけで表示されない
+          （FAB 経由の登録で初めて表に出る既存の抜け。SS-124 で合わせて直す）。
+        */}
+        <ToastOverlay message={toast.message} visible={toast.visible} bottom={idleToastBottom} />
       </View>
     );
   }
@@ -245,6 +273,12 @@ const useStyles = makeStyles((theme) => ({
     right: theme.spacing[3],
     top: theme.spacing[3],
     gap: theme.spacing[2],
+  },
+  pinFab: {
+    position: "absolute",
+    right: theme.layout.pageGutter,
+    bottom: theme.spacing[4],
+    ...theme.shadows.md,
   },
   statsWrap: {
     margin: theme.spacing[3],
