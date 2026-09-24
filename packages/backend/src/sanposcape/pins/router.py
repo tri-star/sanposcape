@@ -180,7 +180,7 @@ def list_pin_photos(
     current_user: User = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinPhotoPageRead:
-    """ピンの写真全件を position 昇順の keyset ページングで返す（SS-111 D7）。
+    """ピンの写真全件を position 昇順の keyset ページングで返す（ADR-009 決定17）。
 
     member でないピン・存在しない ID は 404。写真の URL の有効期限は `urls_expire_at`。
     mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。

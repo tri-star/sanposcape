@@ -729,7 +729,7 @@ class TestPinServiceObjectStorageFailure:
 
 class TestPinServiceListPins:
     """一覧の主な振る舞い（bbox・q・ページング等）は router テストで確認する。ここでは
-    `urls_expire_at` の注入・エラーの委譲だけを確認する（backend-plan.md 8章）。
+    `urls_expire_at` の注入・エラーの委譲だけを確認する。
     """
 
     def test_urls_expire_at_uses_injected_now(self, db_session: Session) -> None:

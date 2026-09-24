@@ -611,7 +611,7 @@ class TestListForMember:
         rows = PinRepository(db_session).list_for_member(
             user_id=user.id,
             sanpo_map_id=sanpo_map_id,
-            bbox=PinBoundingBox(min_latitude=0, max_latitude=1, min_longitude=0, max_longitude=1),
+            bbox=PinBoundingBox(min_latitude=0, min_longitude=0, max_latitude=1, max_longitude=1),
             q=None,
             tag_keys=[],
             limit=50,

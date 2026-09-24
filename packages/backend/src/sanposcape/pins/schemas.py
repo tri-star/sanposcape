@@ -214,7 +214,7 @@ class PinListQuery(BaseModel):
     max_latitude: float | None = Field(default=None, ge=-90, le=90)
     max_longitude: float | None = Field(default=None, ge=-180, le=180)
     # 名前・メモ・タグの部分一致(ILIKE, 大文字小文字を区別しない)。前後の空白を除いて
-    # 1〜100文字。空なら「条件なし」として扱う（SS-111 D8）。
+    # 1〜100文字。空なら「条件なし」として扱う（ADR-009 追補「検索条件（q・tags）」）。
     q: str | None = Field(default=None, max_length=PIN_SEARCH_QUERY_MAX_LENGTH)
     # 複数指定は AND。`tag_key()` で正規化した値同士の完全一致で絞る。
     tags: list[PinTagLabel] = Field(default_factory=list, max_length=PIN_SEARCH_TAGS_MAX_COUNT)
@@ -268,14 +268,14 @@ class PinListQuery(BaseModel):
 
 
 class PinListItemRead(BaseModel):
-    """`GET /pins` の一覧要素。`memo` は含めない（SS-111 D5）。"""
+    """`GET /pins` の一覧要素。`memo` は含めない（ADR-009 決定15）。"""
 
     id: uuid.UUID
     sanpo_map_id: uuid.UUID
     name: str | None
     location: GeoPoint
     tags: list[PinTagRead]
-    # position が最小の写真(無ければ null, SS-111 D4)。
+    # position が最小の写真(無ければ null, ADR-009 決定15)。
     cover_photo: PinPhotoRead | None
     photo_count: int
     created_by_user_id: uuid.UUID
@@ -290,7 +290,7 @@ class PinListRead(BaseModel):
 
 class PinPhotoPageRead(BaseModel):
     """`GET /pins/{pin_id}/photos` の応答。既存の `PinPhotoListRead`（`POST` の応答で
-    `next_cursor` を持つ意味が無い）とは別に用意する（SS-111 D7）。
+    `next_cursor` を持つ意味が無い）とは別に用意する（ADR-009 決定17）。
     """
 
     items: list[PinPhotoRead]

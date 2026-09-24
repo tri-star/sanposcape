@@ -18,12 +18,12 @@ class PinBoundingBox:
     """bbox 絞り込み(4つのクエリパラメータ)を repository に渡しやすい形にまとめたもの。
 
     他ドメインで使う予定が無いため `pins/` 内に置く(folder-structure.md「必要になったら
-    core に昇格する」方針, SS-111 backend-plan.md)。境界上の点は含む(`between()`)。
+    core に昇格する」方針)。境界上の点は含む(`between()`, ADR-009 決定14)。
     """
 
     min_latitude: float
-    max_latitude: float
     min_longitude: float
+    max_latitude: float
     max_longitude: float
 
 
@@ -204,10 +204,13 @@ class PinRepository:
         return list(self._db.scalars(stmt).all())
 
     def list_tags_for_pins(self, pin_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[PinTag]]:
-        """複数ピンのタグをまとめて取得する（一覧の N+1 回避, SS-111）。
+        """複数ピンのタグをまとめて取得する（一覧の N+1 回避）。
 
         並び順は `list_tags()` と同じ `created_at, id`（同一トランザクション内 INSERT は
         `created_at` が同値になりうるため、入力順の保持は保証しない）。
+
+        `pin_ids` は認可済み（`get_role()`/`get_for_member()` を通して member であることを
+        確認済み）のものを渡すこと（`list_photos_page()` と同じ前提）。
         """
         if not pin_ids:
             return {}
@@ -222,10 +225,13 @@ class PinRepository:
         return result
 
     def get_cover_photos(self, pin_ids: list[uuid.UUID]) -> dict[uuid.UUID, PinPhoto]:
-        """各ピンの代表写真（position が最小のもの）をまとめて取得する（SS-111 D4）。
+        """各ピンの代表写真（position が最小のもの）をまとめて取得する（ADR-009 決定15）。
 
         写真が無いピンは戻り値の dict に入らない（呼び出し側は `.get(id)` で `None` 扱いに
         する）。PostgreSQL の `DISTINCT ON`（`Select.distinct(*cols)`）を使う。
+
+        `pin_ids` は認可済み（`get_role()`/`get_for_member()` を通して member であることを
+        確認済み）のものを渡すこと（`list_photos_page()` と同じ前提）。
         """
         if not pin_ids:
             return {}
@@ -238,8 +244,11 @@ class PinRepository:
         return {photo.pin_id: photo for photo in self._db.scalars(stmt).all()}
 
     def count_photos_for_pins(self, pin_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
-        """各ピンの写真枚数をまとめて取得する（SS-111）。0件のピンは dict に入らない
+        """各ピンの写真枚数をまとめて取得する。0件のピンは dict に入らない
         （呼び出し側は `.get(id, 0)` にする）。
+
+        `pin_ids` は認可済み（`get_role()`/`get_for_member()` を通して member であることを
+        確認済み）のものを渡すこと（`list_photos_page()` と同じ前提）。
         """
         if not pin_ids:
             return {}
@@ -254,7 +263,7 @@ class PinRepository:
         self, *, pin_id: uuid.UUID, limit: int, cursor: tuple[int, uuid.UUID] | None
     ) -> list[PinPhoto]:
         """`(position, id)` の keyset で写真を最大 `limit + 1` 件返す（`GET /pins/{id}/photos`,
-        SS-111 D7）。
+        ADR-009 決定17）。
 
         `pin_id` の認可は呼び出し側（service）が `get_for_member()` を通してから呼ぶこと
         （既存の `list_photos()`/`count_photos()`/`load_read_model()` と同じ前提）。

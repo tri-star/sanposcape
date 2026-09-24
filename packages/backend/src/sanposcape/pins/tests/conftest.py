@@ -175,7 +175,7 @@ def create_pin_photo_row(
 ) -> PinPhoto:
     """`pin_photos` に直接1行 INSERT する（`PhotoAttacher`/確定処理を経由しない近道。
 
-    閲覧 API のテストで大量の写真が必要な場合に使う, SS-111 backend-plan.md 8章）。
+    閲覧 API のテストで大量の写真が必要な場合に使う）。
     `storage` を渡した場合は原本・サムネイルの実体も書き込み、`client.get()` で
     実際に取得できることを確認できるようにする。`storage=None`（ストレージ未構成の
     テスト）では DB 行だけを作り、実体は書き込まない。

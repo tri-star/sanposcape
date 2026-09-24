@@ -88,7 +88,7 @@ class TestPinPhotoReadSchema:
         assert "null" in types
 
     def test_original_url_is_required_and_nullable(self) -> None:
-        """SS-111 D6: `original_url` は必須キーだが値は null 許容。"""
+        """ADR-009 決定16: `original_url` は必須キーだが値は null 許容。"""
         document = _load_committed_openapi()
         schema = document["components"]["schemas"]["PinPhotoRead"]
         assert "original_url" in schema["required"]

@@ -326,8 +326,8 @@ class PinService:
                 raise AssertionError("PinListQuery bounding box fields are inconsistent")
             bbox = PinBoundingBox(
                 min_latitude=query.min_latitude,
-                max_latitude=query.max_latitude,
                 min_longitude=query.min_longitude,
+                max_latitude=query.max_latitude,
                 max_longitude=query.max_longitude,
             )
 
@@ -384,7 +384,7 @@ class PinService:
         cursor: str | None,
         base_url: str,
     ) -> PinPhotoPageRead:
-        """`GET /pins/{pin_id}/photos` の全件ページングを返す（SS-111 D7）。
+        """`GET /pins/{pin_id}/photos` の全件ページングを返す（ADR-009 決定17）。
 
         `pin_id` の認可は `get_for_member()` で確認してから `list_photos_page()` を
         呼ぶ（repository の docstring が要求する前提）。

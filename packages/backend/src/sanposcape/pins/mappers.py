@@ -1,8 +1,9 @@
 """service 層の戻り値（モデル）をレスポンススキーマへ変換するマッパー。
 
-サムネイルの presigned GET を発行するため `ObjectStorage` に依存する（`walks/mappers.py`
-とは異なりモデル単独の変換では完結しない）。ネットワーク I/O は発生しない
-（presigned URL の生成はローカルの署名計算のみ、`STORAGE_MODE=fake` も同様）。
+サムネイル・原本（`original_url`, ADR-009 決定16）の presigned GET を発行するため
+`ObjectStorage` に依存する（`walks/mappers.py` とは異なりモデル単独の変換では完結しない）。
+ネットワーク I/O は発生しない（presigned URL の生成はローカルの署名計算のみ、
+`STORAGE_MODE=fake` も同様）。
 """
 
 import uuid
@@ -61,7 +62,7 @@ def to_pin_photo_read(
             # 生成待ち・storage 不調は null にする（クライアントはプレースホルダを出す）。
             thumbnail = None
 
-    # 原本(サムネイルとは独立に署名する。片方だけ失敗してももう片方は返す, SS-111 D6・D11)。
+    # 原本(サムネイルとは独立に署名する。片方だけ失敗してももう片方は返す, ADR-009 決定16・決定18)。
     original_url: str | None
     try:
         original_url = storage.create_download_url(
@@ -196,7 +197,7 @@ def to_pin_photo_page_read(
     next_cursor: str | None,
     now: datetime,
 ) -> PinPhotoPageRead:
-    """`GET /pins/{pin_id}/photos` の応答へ変換する（SS-111 D7）。"""
+    """`GET /pins/{pin_id}/photos` の応答へ変換する（ADR-009 決定17）。"""
     return PinPhotoPageRead(
         items=[
             to_pin_photo_read(
