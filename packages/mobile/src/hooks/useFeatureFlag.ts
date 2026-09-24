@@ -10,8 +10,8 @@ import { isFeatureEnabled } from "@/lib/appConfigSnapshot";
  * 引数の型を `FeatureFlagKey` に限定することで、文字列リテラルのタイポを型で弾く
  * （ADR-008 追補 D1 の狙い）。
  *
- * `src/features/walk/**` / `src/features/history/**` からこの hook を import しても
- * `.oxlintrc.json` の `no-restricted-imports`（対象は `@/services/auth*` と
+ * `src/features/walk/**` / `src/features/history/**` / `src/features/pin/**` からこの hook を
+ * import しても `.oxlintrc.json` の `no-restricted-imports`（対象は `@/services/auth*` と
  * `@/store/useAuthSessionStore`）には抵触しない。フラグは認証状態ではないため、
  * props で注入する必要も無い。
  */

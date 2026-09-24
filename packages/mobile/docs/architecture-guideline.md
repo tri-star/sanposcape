@@ -127,7 +127,9 @@ export default function SomeFeatureRoute() {
 - **`pending` 中は `<Redirect>` しない**。取得中に確定的な OFF 扱いをすると、「フラグ ON なのに
   起動直後は必ず弾かれる」不具合になる（上記「取得失敗・ロード中は全 OFF」の例外に当たる。
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
-- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。
+- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
+  `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
+  （実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`。SS-88 / SS-124）。
 
 **タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
 `options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。

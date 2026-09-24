@@ -84,8 +84,9 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 - 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
   判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
 - 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
-  遷移は1回。適用済み3画面では、戻る以外でその画面から出る遷移（例:
-  `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」）も
+  遷移は1回。適用済み5画面では、戻る以外でその画面から出る遷移（例:
+  `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」、
+  `PinLocationPickerView` の長押し確定 → `router.replace("/pins/new", ...)`。SS-124）も
   すべて `runOnce` 経由にする。
 - BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
 - 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
@@ -93,8 +94,15 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
   の SS-34 追補も参照）。
 - 戻るボタンの見た目は `IconButton` の `icon="chevron-left" / label="戻る" / variant="ghost"` で
   統一する。
+  - **例外**: 全画面地図の上に重ねるヘッダーの戻る/閉じるボタン（`PinMapFullScreen` の
+    `closeKind`）は `variant="surface"`（地図の上でも視認できる影付きの面）にする。
+    「画面として使う」場合（`closeKind="back"`。地点選択画面 `PinLocationPickerView`）は
+    `icon="chevron-left" / label="戻る"`、「オーバーレイとして重ねる」場合
+    （`closeKind="close"`。位置調整オーバーレイ `PinLocationAdjustOverlay`）は
+    `icon="x" / label="閉じる"` にする（SS-124）。
 - 戻るボタンには `<画面>-back` の `testID` を付ける（例: `walk-start-back` / `walk-history-back` /
-  `walk-detail-back`）。Maestro からの参照に使う。
+  `walk-detail-back`）。Maestro からの参照に使う。上記の「閉じる」ボタンには
+  `<接頭辞>-close`（例: `pin-location-adjust-close`）を付ける（SS-124）。
 
 ### 開発確認用ルート（プロダクト導線外）
 

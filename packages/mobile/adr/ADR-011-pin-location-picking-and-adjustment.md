@@ -35,6 +35,8 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 以下はプラン作成時にユーザーへ確認した事項（D-ユーザー決定と付記）と、mobile-planner が
 自律判断した事項（D1〜D12）を合わせたもの。
 
+- **D-ユーザー決定: (b) の入口はナビタブ上の FAB。** FAB を押すと全画面の地図が現在地を起点に
+  開き、地図の長押しでその地点を位置としてピン登録画面（`/pins/new`）へ遷移する。
 - **D-ユーザー決定: (a) の操作方式はタップで移動する。** 中央固定ピン方式・マーカードラッグ
   方式は不採用。
 - **D-ユーザー決定: 散歩中に開いた登録画面で位置を動かした場合、移動距離に制限を設けず、
@@ -81,8 +83,10 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   確定ボタンの有無・現在地の取得）は呼び出し側の props に出す。見た目と地図の設定
   （`showsUserLocation={false}` など）を1か所に揃えるため。`features/pin` の中だけで使うので
   `src/components/` には置かない（2機能ルール）。
-- **D9: 位置を調整できる条件は、保存中と、ピンの作成が済んだ後（`savedPinId !== null`。写真の
-  紐付けの途中で失敗した場合を含む）は無効にする。** `POST /pins` の `client_pin_id` の冪等な
+- **D9: 位置を調整できる条件は、次の3条件のいずれかに当てはまるときは無効にする:
+  保存中（`saveStatus === "saving"`）・保存済み（`saveStatus === "saved"`）・
+  ピンの作成が済んだ後（`savedPinId !== null`。写真の紐付けの途中で失敗した場合を含む）。**
+  `POST /pins` の `client_pin_id` の冪等な
   再送は、内容が違っても既存のピンをそのまま返す（`packages/backend/openapi.yaml` の
   `create_pin` description）。作成後に位置を動かしても再送では反映されず、
   「動かしたのに元の位置に保存される」ことになる。
@@ -150,6 +154,24 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 - **デメリット**: ユーザーに無関係な場所を「起点」として見せることになる（D5 で却下。日本全体を
   初期表示にする）。
 
+### 選択肢7: (a) を中央固定ピン方式にする
+
+- **概要**: 地図を動かして中央（固定されたピンの位置）を目的の場所に合わせる、地図アプリでよく
+  見る UI。タップ操作は行わず、地図のパン操作だけで位置を決める。
+- **メリット**: 「今どこを指しているか」が常に画面中央で分かりやすい。ドラッグ操作の当たり判定に
+  悩まなくてよい。
+- **デメリット**: ユーザーが不採用と判断した（D-ユーザー決定）。長押しで座標を選ぶ (b) の操作感と
+  異なる操作様式になり、(a)(b) で地図の使い方が統一されない。
+
+### 選択肢8: (a) をマーカードラッグ方式にする
+
+- **概要**: 選択中のピン（`Marker`）自体をドラッグして動かす（`react-native-maps` の
+  `Marker.draggable`）。
+- **メリット**: 「動かしたい対象」に直接触れる直感的な操作。
+- **デメリット**: ユーザーが不採用と判断した（D-ユーザー決定）。ドラッグ操作は地図のパン操作
+  （2本指・1本指ジェスチャーの取り合い）との相性を個別に検証する必要があり、タップ方式（D11）に
+  比べて実装・検証コストが高い。
+
 ## 決定理由
 
 - (a)(b) とも、既存の feature 境界（`features/walk` は `features/pin` を import しない、
@@ -198,6 +220,8 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 ## 関連情報
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- [ADR-008（ルート）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md)（D3 で流用した `pin_registration` フラグの仕組み）
+- [ADR-001（mobile）: フォルダ構造と命名規則](./ADR-001-folder-structure.md)（D12 の昇格ルール）
 - [ADR-006（mobile）: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
 - [ADR-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-010-photo-service-and-direct-s3-upload.md)
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール）

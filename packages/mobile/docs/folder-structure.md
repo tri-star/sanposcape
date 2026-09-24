@@ -287,9 +287,10 @@ packages/mobile/
     2. 生成 hook は `react-native` を値 import する経路に乗るが、素の fetcher なら乗らないため
        **node 環境の Vitest でテストできる**（msw でレスポンスを差し替えて検証する）。
   - この層は `services/auth` を import しない（認証は `customFetch` が `authTokenProvider` 経由で付ける）。
-    `features/walk/**` / `features/history/**` については `.oxlintrc.json` の `no-restricted-imports`
-    override（`@/services/auth` 系・`@/store/useAuthSessionStore` への import を禁止）で機械的に
-    強制される（SS-13 / [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) 決定8）。
+    `features/walk/**` / `features/history/**` / `features/pin/**` については `.oxlintrc.json` の
+    `no-restricted-imports` override（`@/services/auth` 系・`@/store/useAuthSessionStore` への
+    import を禁止）で機械的に強制される（SS-13 / SS-88 /
+    [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) 決定8）。
   - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
     `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
     保存直後の一覧が更新されない。

@@ -179,6 +179,8 @@ pnpm --filter mobile orval          # API クライアント再生成
   **CI は絞り込まず全フローを実行する**（SS-54）ため、タグはローカルでの部分実行用:
   - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
+  - `pin`: ピン登録関連フロー（`pin-register.yaml`（SS-88）/ `pin-register-anywhere.yaml`
+    （散歩中以外・任意地点での登録と位置調整。SS-124））。
   - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
     `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、

@@ -1,5 +1,5 @@
 # 散歩していないときのピン登録（SS-124）: サインイン → 散歩開始画面から戻る → ナビタブの FAB
-# → 地点選択画面で長押し → 登録画面 → 位置を調整（タップ → 確定）→ 名前 → 保存 → ナビタブへ戻る。
+# → 地点選択画面で長押し → 登録画面 → 名前 → 位置を調整（タップ → 確定）→ 保存 → ナビタブへ戻る。
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
