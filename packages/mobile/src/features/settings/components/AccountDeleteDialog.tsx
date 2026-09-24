@@ -89,7 +89,14 @@ export function AccountDeleteDialog({
     >
       <Text style={styles.body}>{ACCOUNT_DELETE_DIALOG_DESCRIPTION}</Text>
       {errorCode !== null ? (
-        <Text style={styles.error} testID="account-delete-error">
+        // 失敗は mutation 完了後に動的に出るため、スクリーンリーダーへ通知する（PR #81 Copilot
+        // レビュー指摘）。iOS は accessibilityRole="alert"、Android は accessibilityLiveRegion で拾う。
+        <Text
+          style={styles.error}
+          testID="account-delete-error"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
           {accountDeleteErrorMessage(errorCode)}
         </Text>
       ) : null}
