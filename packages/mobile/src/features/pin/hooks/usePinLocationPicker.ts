@@ -48,6 +48,11 @@ export function usePinLocationPicker(): UsePinLocationPickerResult {
   }
 
   // 初期表示が fallback（現在地が取れなかった）だった後、現在地が取れたら1回だけそこへ移動する。
+  // `recenter()`（イベントハンドラ内の通常の setState）と二重発火しないか: `currentLocation` が
+  // 真になった時点でこのブロックが**先に**（イベントハンドラより前、レンダーの一部として）
+  // `startSource` を "current" に倒すため、以後このブロックの条件（`startSource === "fallback"`）
+  // は満たされなくなる。`recenter()` はユーザー操作でのみ呼ばれる独立した経路であり、
+  // このブロックと競合しない（手動検証済み）。
   if (
     startRegion !== null &&
     startSource === "fallback" &&

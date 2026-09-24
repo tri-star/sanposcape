@@ -4,6 +4,42 @@
 - Expo GoやCI上で利用できない可能性のある機能は起動時にスタブ実装で差し替える仕組みを用意することを検討する。
   初回実装時に実装手段を検討し、ユーザーと相談の上決定する。
 
+## hook 内での「1回だけの状態確定」パターン
+
+「他の props/state から値を計算して、初回だけ／条件を満たした瞬間だけ setState する」処理を
+hook に書くとき、2つの慣用句が共存する。**どちらを使うかは「外部 I/O を待つか」で決める**。
+
+- **外部 I/O（非同期処理・購読）の完了時に setState する場合は `useEffect` のまま**にする
+  （実例: `useScreenBack.ts` の `navigatingRef` + `useFocusEffect`、`useAuthSessionBootstrap.ts`
+  の `restoreSession()` 完了時、`useCurrentLocation.ts` の `getCurrentPosition()` 完了時）。
+  これらは「他の state からの派生」ではなく「外部システムとの同期」なので `useEffect` が正しい。
+- **他の props/state から純粋に導出できる値を setState するだけなら、`useEffect` に入れず
+  レンダー本体で条件付きに直接 setState する**（React 公式ドキュメントが「レンダー中に state を
+  直接調整する」パターンとして明示的に認めている形）。`useEffect` に書くと oxlint の
+  `react/set-state-in-effect`（React Compiler 由来。exit code は 0 のまま実害は無いが、
+  依存配列の陳腐化を招きやすい）に引っかかりやすい。
+
+  ```ts
+  // NG（useEffect に入れると react/set-state-in-effect 警告が出やすい）
+  useEffect(() => {
+    if (startRegion !== null) return;
+    const resolved = resolve(coordinates, isLoading);
+    if (resolved !== null) setStartRegion(resolved);
+  }, [startRegion, coordinates, isLoading]);
+
+  // OK（レンダー中に直接 setState。React が再レンダーをコミット前に差し替える）
+  if (startRegion === null) {
+    const resolved = resolve(coordinates, isLoading);
+    if (resolved !== null) setStartRegion(resolved);
+  }
+  ```
+
+  条件を満たさなくなったら setState を呼ばない（無限ループにならない）ことを必ず確認する。
+  実例: `src/features/pin/hooks/usePinLocationPicker.ts`（初期表示範囲の一度だけの確定、
+  fallback → current への一度だけの移動。SS-124）。同じ hook 内で `recenter()`
+  （イベントハンドラ内の通常の setState）と競合しないことも実装時に確認済み
+  （`usePinLocationPicker.ts` のコメント参照）。
+
 ## 認証の扱い
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
