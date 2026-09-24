@@ -70,6 +70,16 @@ describe("resolvePickerStartRegion", () => {
       }),
     ).toEqual({ region: PIN_PICKER_FALLBACK_REGION, source: "fallback" });
   });
+
+  it("isLoading: true でも座標が不正（NaN）なら fallback にはせず null（取得中のまま扱う）", () => {
+    // 不正な座標は isValidCoordinate で弾かれ current にならないため、isLoading の分岐へ落ちる。
+    expect(
+      resolvePickerStartRegion({
+        isLoading: true,
+        coordinates: { latitude: Number.NaN, longitude: 139 },
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("toPickedCoordinate", () => {
@@ -85,6 +95,7 @@ describe("toPickedCoordinate", () => {
     ["null", null],
     ["緯度が NaN", { latitude: Number.NaN, longitude: 139 }],
     ["緯度が範囲外(91)", { latitude: 91, longitude: 139 }],
+    ["経度が範囲外(181)", { latitude: 35, longitude: 181 }],
     ["経度が Infinity", { latitude: 35, longitude: Number.POSITIVE_INFINITY }],
   ])("%s は null", (_label, raw) => {
     expect(toPickedCoordinate(raw)).toBeNull();
