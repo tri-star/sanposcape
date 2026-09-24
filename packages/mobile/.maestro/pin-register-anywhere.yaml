@@ -1,0 +1,83 @@
+# 散歩していないときのピン登録（SS-124）: サインイン → 散歩開始画面から戻る → ナビタブの FAB
+# → 地点選択画面で長押し → 登録画面 → 位置を調整（タップ → 確定）→ 名前 → 保存 → ナビタブへ戻る。
+#
+# 前提:
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
+#   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
+#   - 地図の長押し・タップは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-007）。
+#     タイルの描画結果は assert しない。
+# /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
+# assert しないもの: 座標の値・地図の名前・件数・トースト・地図タイル。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+---
+- runFlow: subflows/sign-in.yaml
+- tapOn:
+    id: "walk-start-back"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+# FAB は /app-config の取得後に出る
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-pin-fab"
+    timeout: 15000
+- tapOn:
+    id: "walk-active-pin-fab"
+- extendedWaitUntil:
+    visible:
+      id: "pin-location-picker-map"
+    timeout: 15000
+- longPressOn:
+    id: "pin-location-picker-map"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-screen"
+    timeout: 10000
+- assertNotVisible:
+    id: "pin-location-picker-screen"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-sanpo-map-loading"
+    timeout: 15000
+- assertNotVisible:
+    id: "pin-register-sanpo-map-retry"
+# 名前を先に入れ、位置調整の往復で入力が消えないことも見る
+- tapOn:
+    id: "pin-register-name-input"
+- inputText: "E2Eの任意地点ピン"
+- hideKeyboard
+- tapOn:
+    id: "pin-register-location-adjust"
+- extendedWaitUntil:
+    visible:
+      id: "pin-location-adjust-map"
+    timeout: 10000
+# 地図の中心（= 現在の位置）を避けてタップする（中心だと「元と同じ位置」になり調整済みにならない）
+- tapOn:
+    point: "30%,40%"
+- tapOn:
+    id: "pin-location-adjust-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-location-adjust-overlay"
+    timeout: 5000
+- assertVisible:
+    id: "pin-register-location-adjusted"
+- assertVisible:
+    text: "E2Eの任意地点ピン"
+- scrollUntilVisible:
+    element:
+      id: "pin-register-save"
+- tapOn:
+    id: "pin-register-save"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 20000
+- assertNotVisible:
+    id: "pin-register-screen"
+- assertNotVisible:
+    id: "pin-register-save-error"
