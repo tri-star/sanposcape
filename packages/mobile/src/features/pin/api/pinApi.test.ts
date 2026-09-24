@@ -24,6 +24,7 @@ function photo(uploadId: string, position: number): PinPhotoRead {
     byte_size: 500_000,
     content_type: "image/jpeg",
     thumbnail: null,
+    original_url: null,
     urls_expire_at: "2026-01-01T01:00:00.000Z",
     uploaded_by_user_id: USER_ID,
     created_at: "2026-01-01T00:00:00.000Z",
