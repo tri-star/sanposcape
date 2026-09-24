@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 from sanposcape.core.pagination import encode_cursor
 from sanposcape.pins.models import Pin, PinPhotoUpload
 from sanposcape.pins.photo_attacher import PreparedPhoto
-from sanposcape.pins.repository import PinBoundingBox, PinPhotoUploadRepository, PinRepository
+from sanposcape.pins.repository import (
+    NOT_PROVIDED,
+    PinBoundingBox,
+    PinPhotoUploadRepository,
+    PinRepository,
+)
 from sanposcape.pins.tests.conftest import create_pin_photo_row, create_upload_row, make_user
 from sanposcape.sanpo_maps.models import SanpoMapMember
 from sanposcape.sanpo_maps.repository import SanpoMapRepository
@@ -864,3 +869,234 @@ class TestListPhotosPage:
             cursor = (last.position, last.id)
 
         assert collected == [photo.id for photo in photos]
+
+
+class TestUpdateFields:
+    def _make_pin(self, db_session: Session, *, user_id: uuid.UUID) -> Pin:
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user_id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user_id,
+            client_pin_id=uuid.uuid4(),
+            name="元の名前",
+            memo="元のメモ",
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        return pin
+
+    def test_updates_only_provided_fields(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        repo = PinRepository(db_session)
+        new_updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+
+        repo.update_fields(pin, name="新しい名前", updated_at=new_updated_at)
+        db_session.commit()
+
+        assert pin.name == "新しい名前"
+        assert pin.memo == "元のメモ"  # 送られなかったフィールドは変わらない
+        assert pin.updated_at == new_updated_at
+
+    def test_not_provided_sentinel_leaves_field_unchanged_even_for_none(
+        self, db_session: Session
+    ) -> None:
+        """`NOT_PROVIDED`（省略）と明示的な `None`（消す）は区別される。"""
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        repo = PinRepository(db_session)
+
+        repo.update_fields(pin, memo=None, updated_at=datetime.now(UTC))
+        db_session.commit()
+
+        assert pin.name == "元の名前"  # NOT_PROVIDED のまま = 変わらない
+        assert pin.memo is None  # 明示的な None = 消える
+
+    def test_not_provided_default_is_used_when_omitted(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        repo = PinRepository(db_session)
+
+        repo.update_fields(pin, updated_at=datetime.now(UTC))
+        db_session.commit()
+
+        assert pin.name == "元の名前"
+        assert pin.memo == "元のメモ"
+        assert NOT_PROVIDED is not None
+
+
+class TestGetTagsByIds:
+    def _make_pin(self, db_session: Session, *, user_id: uuid.UUID) -> uuid.UUID:
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user_id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user_id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        return pin.id
+
+    def test_scoped_to_pin_id(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = PinRepository(db_session)
+        pin_a = self._make_pin(db_session, user_id=user.id)
+        pin_b = self._make_pin(db_session, user_id=user.id)
+        [tag_a] = repo.add_tags(pin_id=pin_a, created_by_user_id=user.id, labels=["桜"])
+        [tag_b] = repo.add_tags(pin_id=pin_b, created_by_user_id=user.id, labels=["紅葉"])
+        db_session.commit()
+
+        result = repo.get_tags_by_ids(pin_id=pin_a, tag_ids=[tag_a.id, tag_b.id])
+
+        assert {tag.id for tag in result} == {tag_a.id}
+
+    def test_empty_tag_ids_returns_empty_without_querying(self, db_session: Session) -> None:
+        repo = PinRepository(db_session)
+        assert repo.get_tags_by_ids(pin_id=uuid.uuid4(), tag_ids=[]) == []
+
+
+class TestDeleteTagsAndCountTags:
+    def _make_pin(self, db_session: Session, *, user_id: uuid.UUID) -> uuid.UUID:
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user_id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user_id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        return pin.id
+
+    def test_delete_tags_removes_rows(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = PinRepository(db_session)
+        pin_id = self._make_pin(db_session, user_id=user.id)
+        tags = repo.add_tags(pin_id=pin_id, created_by_user_id=user.id, labels=["桜", "紅葉"])
+        db_session.commit()
+        assert repo.count_tags(pin_id) == 2
+
+        repo.delete_tags([tags[0]])
+        db_session.commit()
+
+        assert repo.count_tags(pin_id) == 1
+        remaining = repo.list_tags(pin_id)
+        assert {tag.label for tag in remaining} == {"紅葉"}
+
+    def test_count_tags_zero_when_none(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = PinRepository(db_session)
+        pin_id = self._make_pin(db_session, user_id=user.id)
+        assert repo.count_tags(pin_id) == 0
+
+
+class TestGetPhotoForPin:
+    def _make_pin(self, db_session: Session, *, user_id: uuid.UUID) -> uuid.UUID:
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user_id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user_id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        return pin.id
+
+    def test_scoped_to_pin_id(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin_a = self._make_pin(db_session, user_id=user.id)
+        pin_b = self._make_pin(db_session, user_id=user.id)
+        photo = create_pin_photo_row(
+            db_session, None, pin_id=pin_a, uploaded_by_user_id=user.id, position=0
+        )
+        repo = PinRepository(db_session)
+
+        assert repo.get_photo_for_pin(pin_id=pin_a, photo_id=photo.id) is not None
+        assert repo.get_photo_for_pin(pin_id=pin_b, photo_id=photo.id) is None
+
+    def test_missing_photo_id_returns_none(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin_id = self._make_pin(db_session, user_id=user.id)
+        repo = PinRepository(db_session)
+        assert repo.get_photo_for_pin(pin_id=pin_id, photo_id=uuid.uuid4()) is None
+
+
+class TestListPhotoKeysDeletePhotoDeletePin:
+    def _make_pin(self, db_session: Session, *, user_id: uuid.UUID) -> Pin:
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user_id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user_id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        return pin
+
+    def test_list_photo_keys_includes_photos_without_thumbnail(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        with_thumb = create_pin_photo_row(
+            db_session, None, pin_id=pin.id, uploaded_by_user_id=user.id, position=0
+        )
+        without_thumb = create_pin_photo_row(
+            db_session,
+            None,
+            pin_id=pin.id,
+            uploaded_by_user_id=user.id,
+            position=1,
+            with_thumbnail=False,
+        )
+        repo = PinRepository(db_session)
+
+        keys = repo.list_photo_keys(pin.id)
+
+        assert (with_thumb.s3_key, with_thumb.thumbnail_s3_key) in keys
+        assert (without_thumb.s3_key, None) in keys
+
+    def test_delete_photo_removes_row(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        photo = create_pin_photo_row(
+            db_session, None, pin_id=pin.id, uploaded_by_user_id=user.id, position=0
+        )
+        repo = PinRepository(db_session)
+
+        repo.delete_photo(photo)
+        db_session.commit()
+
+        assert repo.get_photo_for_pin(pin_id=pin.id, photo_id=photo.id) is None
+
+    def test_delete_pin_cascades_photos_and_tags(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        repo = PinRepository(db_session)
+        create_pin_photo_row(
+            db_session, None, pin_id=pin.id, uploaded_by_user_id=user.id, position=0
+        )
+        repo.add_tags(pin_id=pin.id, created_by_user_id=user.id, labels=["桜"])
+        db_session.commit()
+
+        repo.delete_pin(pin)
+        db_session.commit()
+
+        assert db_session.get(Pin, pin.id) is None
+        assert repo.count_photos(pin.id) == 0
+        assert repo.count_tags(pin.id) == 0
