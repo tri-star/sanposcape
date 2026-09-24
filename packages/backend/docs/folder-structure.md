@@ -104,6 +104,9 @@ packages/backend/
 │       │   ├── tag_labels.py         # タグの正規化・重複排除（純粋関数）
 │       │   └── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
 │       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
+│       ├── api_docs/          # ドメイン: API ドキュメント UI（GET /docs = Scalar）。router.py のみ。
+│       │                       #   include_in_schema=False（openapi.yaml に載せない）。
+│       │                       #   ENV=production では include しない（main.py。SS-131）
 │       └── app_config/        # ドメイン: mobile / LP 向け公開設定（GET /app-config, SS-98/ADR-008）
 │           ├── __init__.py
 │           ├── router.py      #   service.py を置かない（ロジックは core/feature_flags.py 側にある。health/ と同じ判断）

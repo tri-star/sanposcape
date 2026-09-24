@@ -69,8 +69,10 @@ docker compose ps
 # ヘルスチェック（<BACKEND_API_PORT> は .env の値）
 curl http://localhost:<BACKEND_API_PORT>/health   # -> {"status":"ok"}
 
-# API ドキュメント（ブラウザ）
+# API ドキュメント（ブラウザ、Scalar。SS-131）
 # http://localhost:<BACKEND_API_PORT>/docs
+# `/redoc` は廃止済み（404）。`ENV=production` では `/docs` 自体が存在しない（404）。
+# OpenAPI の JSON は環境に関係なく `/openapi.json` で取得できる。
 
 # 非root実行の確認（既定値では 1000:1000 / app_user）
 docker compose exec api id
@@ -152,7 +154,7 @@ docker compose up -d --build
   - `real`: `POST /auth/session` で Google ID token を検証するモード。
   - `dev`: `real` に加えて `POST /auth/dev-session`（`{"user_key": "..."}` で任意のユーザーを JIT 作成してセッションを発行）が有効になる。ローカル開発・Maestro E2E 専用。
   - `.env.example` は開発者の利便性のため `AUTH_MODE=dev` を既定にしている。**本番デプロイでは絶対に `dev` にしないこと**（`ENV=production` かつ `AUTH_MODE != real` の場合はプロセスが起動しない）。
-  - **重要**: `AUTH_MODE=dev` で `docker compose up` していても、`POST /auth/dev-session` は Swagger UI（`/docs`）や `openapi.yaml` には一切現れない（`include_in_schema=False` を指定しているため）。「Swagger UI に出ない」ことは「無効である」ことの証明にはならないので注意する。実際に有効かどうかは `curl` で直接 `POST /auth/dev-session` を叩いて確認すること。
+  - **重要**: `AUTH_MODE=dev` で `docker compose up` していても、`POST /auth/dev-session` は API ドキュメント（`/docs` の Scalar。SS-131 で Swagger UI から置き換え）や `openapi.yaml` には一切現れない（`include_in_schema=False` を指定しているため）。「`/docs` に出ない」ことは「無効である」ことの証明にはならないので注意する。実際に有効かどうかは `curl` で直接 `POST /auth/dev-session` を叩いて確認すること。
 - `AUTH_JWT_SECRET`: 自前 access token(HS256) の署名鍵。`local` / `test` 以外（`staging` / `production`）では 32 文字以上必須。`local` / `test` で未設定の場合はダミー鍵にフォールバックする（起動時に WARNING ログが出る）。
 - `AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE`: 自前 access token の `iss` / `aud` クレーム。既定値（`sanposcape` / `sanposcape-api`）があり、通常は変更不要。
 - `AUTH_ACCESS_TOKEN_TTL_SECONDS` / `AUTH_REFRESH_TOKEN_TTL_DAYS`: トークンの有効期限。
