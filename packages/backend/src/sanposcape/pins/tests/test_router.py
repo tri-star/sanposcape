@@ -1188,7 +1188,7 @@ class _PermissionWorld:
 
 
 class TestPinEditPermissionMatrix:
-    """ADR-009 決定19 の権限マトリクスを router レベルで固定する（backend-plan.md 9-1）。"""
+    """ADR-009 決定19 の権限マトリクスを router レベルで固定する。"""
 
     @pytest.fixture
     def world(
