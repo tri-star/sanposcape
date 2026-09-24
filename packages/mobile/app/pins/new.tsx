@@ -14,10 +14,12 @@ import { resolveFeatureGateDecision } from "@/lib/featureGate";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
- * ピン登録画面（散歩中画面の「この場所にピンを追加」から push）。
+ * ピン登録画面。散歩中画面の「この場所にピンを追加」から push（`clientWalkId` つき）、
+ * またはナビタブの FAB → 地点選択画面（`/pins/pick-location`）の長押しから replace
+ * （`clientWalkId` なし。SS-124）で来る。
  *
- * `docs/architecture-guideline.md`「画面ガードレシピ」の初の実例。散歩中画面からしか来ない
- * 画面なので `Redirect` 先は `/` ではなく `/(tabs)`（`/` はスプラッシュ経由になる）。
+ * `docs/architecture-guideline.md`「画面ガードレシピ」の実例。どちらの入口もナビタブから来るので、
+ * `Redirect` 先は `/` ではなく `/(tabs)`（`/` はスプラッシュ経由になる）。
  */
 export default function PinNewRoute() {
   const router = useRouter();
