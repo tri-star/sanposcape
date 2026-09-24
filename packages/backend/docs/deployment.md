@@ -862,7 +862,9 @@ prod の backend デプロイは、写真と関係なく既に `platform/appconf
 5. 下の「初回デプロイで確認すること」を prod でも 1 回行う
 
 > **境界（SS-107）だけが抜けた場合**、デプロイは成功するが実行時に S3 がすべて 403 になり、
-> 写真 API が 503 を返す（写真なしのピン登録・地図の取得は動く）。prod で `pin_registration` を
+> 写真の**書き込み系** API（アップロード枠発行・確定）が 503 を返す（写真なしのピン登録・
+> 地図の取得は動く）。**閲覧系**（`GET /pins` 等, BK-4）は 503 にはならず、200 のまま
+> `thumbnail`/`original_url` が null で返る（ADR-009 決定18）。prod で `pin_registration` を
 > ON にするのは BK-2（アカウント削除時の写真削除）の後なので、それまでは利用者影響は無い。
 
 Fn::If で prod だけ結線を外す案は採らなかった。prod のデプロイは上記のとおり `platform` の apply を
@@ -885,7 +887,8 @@ ENV=dev  # prod のときは prod
 aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_name --region ap-southeast-1
 aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_arn --region ap-southeast-1
 
-# 2) Lambda の環境変数にバケット名が入っていること（空なら UnconfiguredObjectStorage で写真 API が 503）
+# 2) Lambda の環境変数にバケット名が入っていること（空なら UnconfiguredObjectStorage で
+#    写真の書き込み系 API が 503。閲覧系（GET /pins 等）は 200 のまま URL が null になる）
 aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
   --region ap-southeast-1 \
   --query 'Environment.Variables.{STORAGE_MODE:STORAGE_MODE,PIN_PHOTO_BUCKET_NAME:PIN_PHOTO_BUCKET_NAME}'
@@ -926,6 +929,8 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 | 写真ありの `POST /pin-photo-uploads`・`POST /pins` が常に 503、ログに `PIN_PHOTO_BUCKET_NAME is not configured` | 環境変数が空（`UnconfiguredObjectStorage`） | 上の確認 2) で環境変数を確認する。空なら SSM の値を確認して再デプロイ |
 | presigned POST の発行は成功するが実際のアップロードが 403 | 実行ロールに `staging/*` への `s3:PutObject` が無い、境界（SS-107）が未 apply、または動的参照 + 連結が ARN に解決されていない | 上の確認 3) でポリシーの `Resource` を確認する。境界は infra 側で確認する。デプロイ自体は成功するため気付きにくい |
 | 確定（`POST /pins`）が 503、ログに `S3 operation failed: ClientError` | 上と同じ（`original/*`・`thumb/*` への Put、`staging/*` の Get/Delete の不足） | 同上 |
+| `GET /pins` 等の閲覧系は 200 だが `thumbnail`/`original_url` が常に null | 環境変数が空（`UnconfiguredObjectStorage`）、または署名用の認証情報を取得できない（ログに `S3 operation failed`）。閲覧系は 503 にしない設計（ADR-009 決定18）なので、書き込み系のように 5xx では気付けない。presigned GET の生成はローカルの署名計算だけなので、`s3:GetObject` の不足では null にならない（URL は返り、取得時に 403 になる。次の行） | 上の確認 2) で環境変数を確認する。空でなければ CloudWatch Logs で認証情報まわりのエラーを確認する |
+| 一覧・詳細の presigned GET（`thumbnail.url`/`original_url`）を取得すると 403 | 実行ロールに `original/*`・`thumb/*` への `s3:GetObject` が無い、または URL の有効期限（`urls_expire_at`）を過ぎている | 上の確認 3) でポリシーの `Resource` を確認する。期限切れなら応答を取り直す（presigned URL は応答のたびに再発行される） |
 | 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が無い（または Resource に `/*` を付けてしまった）ため、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `ListBucket` の Resource がバケット ARN そのものになっているか確認する |
 | 端末で「アップロードに失敗しました」になるが、CloudWatch Logs にも S3（CloudTrail データイベント）にも痕跡が無い | 直送は端末 → S3 で完結し backend を通らない。CloudTrail のデータイベントは呼び出し元を特定できたリクエストしか記録せず、認証前に弾かれる失敗や「そもそも送信されていない」ケースは残らない（ADR-009 追補「直送の失敗は原理的にサーバー側から見えない」） | まず**端末側の `logDiagnostic`**（`pin-photo.upload.*`。Metro / `adb logcat -s ReactNativeJS` / Console.app）を見る。次に backend のアクセスログで枠発行（`POST /pin-photo-uploads -> 201`）まで到達しているかを確認する。サーバー側から見る必要がある場合は **S3 サーバーアクセスログ**を一時的に有効化する（infra 作業。CloudTrail では取りこぼす） |
 | `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `pin_photos/*` の SSM が当該環境に無い（SS-106 が未 apply） | infra 側の apply を待つ（上の確認 1)）。prod は「前提となる infra の apply」の順序を参照 |

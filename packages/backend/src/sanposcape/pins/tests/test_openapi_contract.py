@@ -33,6 +33,10 @@ class TestOperationIds:
             document["paths"]["/pin-photo-uploads/{upload_id}"]["delete"]["operationId"]
             == "delete_pin_photo_upload"
         )
+        # SS-111（閲覧 API）
+        assert document["paths"]["/pins"]["get"]["operationId"] == "list_pins"
+        assert document["paths"]["/pins/{pin_id}"]["get"]["operationId"] == "get_pin"
+        assert document["paths"]["/pins/{pin_id}/photos"]["get"]["operationId"] == "list_pin_photos"
 
 
 class TestCreatePinResponses:
@@ -82,6 +86,89 @@ class TestPinPhotoReadSchema:
         ]
         types = {item.get("type") for item in thumbnail_schema.get("anyOf", [])}
         assert "null" in types
+
+    def test_original_url_is_required_and_nullable(self) -> None:
+        """ADR-009 決定16: `original_url` は必須キーだが値は null 許容。"""
+        document = _load_committed_openapi()
+        schema = document["components"]["schemas"]["PinPhotoRead"]
+        assert "original_url" in schema["required"]
+        original_url_schema = schema["properties"]["original_url"]
+        types = {item.get("type") for item in original_url_schema.get("anyOf", [])}
+        assert "string" in types
+        assert "null" in types
+
+
+class TestListPinsQuerySchema:
+    """SS-111: `GET /pins` のクエリパラメータの契約。"""
+
+    def _parameters(self) -> dict[str, dict]:
+        document = _load_committed_openapi()
+        params = document["paths"]["/pins"]["get"]["parameters"]
+        return {param["name"]: param for param in params}
+
+    def test_sanpo_map_id_is_required(self) -> None:
+        params = self._parameters()
+        assert params["sanpo_map_id"]["required"] is True
+
+    def test_bounding_box_is_four_separate_optional_parameters(self) -> None:
+        params = self._parameters()
+        for name in ("min_latitude", "min_longitude", "max_latitude", "max_longitude"):
+            assert name in params
+            assert params[name]["required"] is False
+
+    def test_limit_maximum_is_200(self) -> None:
+        params = self._parameters()
+        schema = params["limit"]["schema"]
+        assert schema["maximum"] == 200
+        assert schema["default"] == 50
+
+    def test_tags_is_an_array_parameter(self) -> None:
+        params = self._parameters()
+        schema = params["tags"]["schema"]
+        assert schema["type"] == "array"
+        assert schema["maxItems"] == 10
+
+    def test_q_max_length_is_100(self) -> None:
+        params = self._parameters()
+        schema = params["q"]["schema"]
+        string_schema = next(item for item in schema["anyOf"] if item.get("type") == "string")
+        assert string_schema["maxLength"] == 100
+
+
+class TestListPinPhotosQuerySchema:
+    def test_limit_maximum_is_100(self) -> None:
+        document = _load_committed_openapi()
+        params = {
+            param["name"]: param
+            for param in document["paths"]["/pins/{pin_id}/photos"]["get"]["parameters"]
+        }
+        schema = params["limit"]["schema"]
+        assert schema["maximum"] == 100
+        assert schema["default"] == 30
+
+
+class TestReadEndpointsResponses:
+    """3つの閲覧 GET は 404 を宣言し、503 は宣言しない（ADR-009 決定18）。"""
+
+    def test_list_pins_declares_404_and_not_503(self) -> None:
+        document = _load_committed_openapi()
+        responses = document["paths"]["/pins"]["get"]["responses"]
+        assert "404" in responses
+        assert "400" in responses
+        assert "503" not in responses
+
+    def test_get_pin_declares_404_and_not_503(self) -> None:
+        document = _load_committed_openapi()
+        responses = document["paths"]["/pins/{pin_id}"]["get"]["responses"]
+        assert "404" in responses
+        assert "503" not in responses
+
+    def test_list_pin_photos_declares_404_and_not_503(self) -> None:
+        document = _load_committed_openapi()
+        responses = document["paths"]["/pins/{pin_id}/photos"]["get"]["responses"]
+        assert "404" in responses
+        assert "400" in responses
+        assert "503" not in responses
 
 
 class TestPinConflictErrorSchema:

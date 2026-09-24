@@ -19,9 +19,14 @@ assert all(_ARN not in r.getMessage() for r in caplog.records)
 `pins/service.py` の `create_upload` にある
 「★ `form.fields` は絶対にログへ出さないこと（policy / 署名 / 一時認証情報を含む）」）を見つけたら、
 上記と同じ形の `caplog` ベースの回帰テストが実際に存在するか確認する。SS-88 の
-`PinPhotoUploadService.create_upload`（2026-09時点）にはこのコメントがあるにもかかわらず
-対応する `caplog` テストが無かった（`pins/tests/test_service.py` 自体が存在せず、
-`test_upload_router.py` にもログ検証は無い）ため Important として指摘した。
+`PinPhotoUploadService.create_upload`（2026-09時点）には当初このコメントがあるにもかかわらず
+対応する `caplog` テストが無く Important として指摘した。
+
+**追記（2026-09-24 時点で解消済み）**: `pins/tests/test_service.py::
+TestPinPhotoUploadServiceCreateUpload::test_logs_upload_id_and_key_without_leaking_form_fields`
+が追加され、`test_secrets.py` と同じ形（メッセージに `form.fields` の値が含まれないことを
+assert）で固定されている。SS-111（閲覧API）レビュー時に確認。今後この関数を触るレビューで
+再度このテストの有無を疑う必要はない（消えていないか確認する程度でよい）。
 
 **How to apply:** 新しいログ出力（`logger.info/warning/error`）を追加した diff で、
 「このフィールドは出さない」という注意コメントが付いているのに `caplog` での固定テストが

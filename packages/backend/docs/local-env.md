@@ -237,9 +237,12 @@ docker compose up -d --build
   許可リスト方式の検証で起動に失敗する。`.env.example` は開発者の利便性のため
   `fake` を既定にしている。
   - `real`: S3 に実際に接続する。`PIN_PHOTO_BUCKET_NAME` が空なら
-    `UnconfiguredObjectStorage`（写真関連 API は 503。写真を含まない `POST /pins` と
-    `GET /sanpo-maps` は影響を受けない）にフォールバックする。平常のローカル開発では
-    バケットを設定しないので、`STORAGE_MODE=real` のままだと写真は試せない
+    `UnconfiguredObjectStorage` にフォールバックする。写真の**書き込み系**（
+    `POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos` の確定処理）は
+    503 になるが、**閲覧系**（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）
+    と `GET /sanpo-maps` は影響を受けず、200 のまま `thumbnail`/`original_url` が
+    null になる（ADR-009 決定18）。平常のローカル開発ではバケットを設定しないので、
+    `STORAGE_MODE=real` のままだと写真は試せない
     （`deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）。
     **（SS-88 追補）** 直送まわりの不具合は fake では再現しないことがあるため、
     ローカルの backend を dev の実バケットに向ける手順を

@@ -95,7 +95,8 @@ packages/backend/
 │       ├── sanpo_maps/        # ドメイン: 地図（ピンの入れ物）とメンバーシップ・権限（SS-88, ADR-009）
 │       │   └── permissions.py #   role による権限判定（can_add_pin 等）の純粋関数
 │       ├── pins/               # ドメイン: ピン・写真・タグ・写真アップロード枠（SS-88, ADR-009）
-│       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos
+│       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos,
+│       │   │                   #   GET /pins, GET /pins/{pin_id}, GET /pins/{pin_id}/photos
 │       │   ├── upload_router.py#   POST /pin-photo-uploads
 │       │   ├── dev_storage_router.py # STORAGE_MODE=fake 限定の /dev-storage/*（include_in_schema=False）
 │       │   ├── photo_attacher.py     # 写真の確定処理（検証・サムネイル生成・並列化・時間予算）

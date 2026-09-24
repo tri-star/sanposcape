@@ -7,6 +7,12 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from sanposcape.core.pagination import (
+    decode_cursor,
+    decode_position_cursor,
+    encode_cursor,
+    encode_position_cursor,
+)
 from sanposcape.integrations.aws.s3 import ObjectStorage, ObjectStorageUnavailableError
 from sanposcape.pins.exceptions import (
     PinNotFoundError,
@@ -17,7 +23,12 @@ from sanposcape.pins.exceptions import (
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
-from sanposcape.pins.mappers import to_pin_photo_list_read, to_pin_read
+from sanposcape.pins.mappers import (
+    to_pin_list_item_read,
+    to_pin_photo_list_read,
+    to_pin_photo_page_read,
+    to_pin_read,
+)
 from sanposcape.pins.models import PinPhotoUpload
 from sanposcape.pins.photo_attacher import (
     InvalidPhotoError,
@@ -26,17 +37,25 @@ from sanposcape.pins.photo_attacher import (
     PreparedPhoto,
 )
 from sanposcape.pins.photo_keys import staging_key
-from sanposcape.pins.repository import PinPhotoUploadRepository, PinReadModel, PinRepository
+from sanposcape.pins.repository import (
+    PinBoundingBox,
+    PinPhotoUploadRepository,
+    PinReadModel,
+    PinRepository,
+)
 from sanposcape.pins.schemas import (
     PinCreate,
+    PinListQuery,
+    PinListRead,
     PinPhotoListRead,
+    PinPhotoPageRead,
     PinPhotosAdd,
     PinPhotoUploadCreate,
     PinPhotoUploadRead,
     PinRead,
     PresignedUploadRead,
 )
-from sanposcape.sanpo_maps.exceptions import SanpoMapPermissionDeniedError
+from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
 from sanposcape.sanpo_maps.permissions import can_add_pin, can_add_pin_photo
 from sanposcape.sanpo_maps.service import SanpoMapService
 from sanposcape.users.models import User
@@ -285,6 +304,115 @@ class PinService:
 
         read_model = self._require_read_model(pin.id)
         return self._to_pin_read(read_model, current_user, base_url), True
+
+    def list_pins(self, current_user: User, query: PinListQuery, *, base_url: str) -> PinListRead:
+        """`GET /pins` の一覧を返す（SS-111）。member でない地図は 404（存在を漏らさない）。
+
+        閲覧系のため commit しない（`SanpoMapService.list_maps` と同じ）。
+        """
+        role = self._sanpo_map_service.get_role(current_user, query.sanpo_map_id)
+        if role is None:
+            raise SanpoMapNotFoundError()
+
+        cursor = decode_cursor(query.cursor) if query.cursor is not None else None
+        bbox: PinBoundingBox | None = None
+        if query.min_latitude is not None:
+            if (
+                query.max_latitude is None
+                or query.min_longitude is None
+                or query.max_longitude is None
+            ):
+                # PinListQuery.model_validator が保証しているはずの不変条件違反。
+                raise AssertionError("PinListQuery bounding box fields are inconsistent")
+            bbox = PinBoundingBox(
+                min_latitude=query.min_latitude,
+                min_longitude=query.min_longitude,
+                max_latitude=query.max_latitude,
+                max_longitude=query.max_longitude,
+            )
+
+        rows = self._repository.list_for_member(
+            user_id=current_user.id,
+            sanpo_map_id=query.sanpo_map_id,
+            bbox=bbox,
+            q=query.q,
+            tag_keys=query.tags,
+            limit=query.limit,
+            cursor=cursor,
+        )
+
+        has_more = len(rows) > query.limit
+        page = rows[: query.limit]
+        next_cursor = encode_cursor(page[-1].created_at, page[-1].id) if has_more and page else None
+
+        pin_ids = [pin.id for pin in page]
+        tags_by_pin_id = self._repository.list_tags_for_pins(pin_ids)
+        cover_photos_by_pin_id = self._repository.get_cover_photos(pin_ids)
+        photo_counts_by_pin_id = self._repository.count_photos_for_pins(pin_ids)
+
+        # 全要素の urls_expire_at をそろえるため、now() は1回だけ取る。
+        now = self._now()
+        items = [
+            to_pin_list_item_read(
+                pin,
+                tags=tags_by_pin_id.get(pin.id, []),
+                cover_photo=cover_photos_by_pin_id.get(pin.id),
+                photo_count=photo_counts_by_pin_id.get(pin.id, 0),
+                storage=self._storage,
+                base_url=base_url,
+                download_url_ttl_seconds=self._download_url_ttl_seconds,
+                now=now,
+            )
+            for pin in page
+        ]
+        return PinListRead(items=items, next_cursor=next_cursor)
+
+    def get_pin(self, current_user: User, pin_id: uuid.UUID, *, base_url: str) -> PinRead:
+        """`GET /pins/{pin_id}` の詳細を返す（SS-111）。member でないピンは 404。"""
+        member = self._repository.get_for_member(user_id=current_user.id, pin_id=pin_id)
+        if member is None:
+            raise PinNotFoundError()
+        read_model = self._require_read_model(pin_id)
+        return self._to_pin_read(read_model, current_user, base_url)
+
+    def list_pin_photos(
+        self,
+        current_user: User,
+        pin_id: uuid.UUID,
+        *,
+        limit: int,
+        cursor: str | None,
+        base_url: str,
+    ) -> PinPhotoPageRead:
+        """`GET /pins/{pin_id}/photos` の全件ページングを返す（ADR-009 決定17）。
+
+        `pin_id` の認可は `get_for_member()` で確認してから `list_photos_page()` を
+        呼ぶ（repository の docstring が要求する前提）。
+        """
+        member = self._repository.get_for_member(user_id=current_user.id, pin_id=pin_id)
+        if member is None:
+            raise PinNotFoundError()
+
+        decoded_cursor = decode_position_cursor(cursor) if cursor is not None else None
+        photos = self._repository.list_photos_page(
+            pin_id=pin_id, limit=limit, cursor=decoded_cursor
+        )
+
+        has_more = len(photos) > limit
+        page = photos[:limit]
+        next_cursor = (
+            encode_position_cursor(page[-1].position, page[-1].id) if has_more and page else None
+        )
+        photo_count = self._repository.count_photos(pin_id)
+        return to_pin_photo_page_read(
+            page,
+            storage=self._storage,
+            base_url=base_url,
+            download_url_ttl_seconds=self._download_url_ttl_seconds,
+            photo_count=photo_count,
+            next_cursor=next_cursor,
+            now=self._now(),
+        )
 
     def add_photos(
         self, current_user: User, pin_id: uuid.UUID, payload: PinPhotosAdd, *, base_url: str
