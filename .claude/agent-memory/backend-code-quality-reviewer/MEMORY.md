@@ -13,4 +13,3 @@
 - [add_all後のループrefresh()はN+1](pattern_bulk_insert_refresh_n1.md) — SS-88 pins/repository.py。単一create()のrefreshは既存踏襲で問題なし、複数件ループが新規アンチパターン
 - [機密ログ漏洩ガード回帰テストの慣習](pattern_secret_leak_log_guard_test.md) — test_secrets.pyのARN非漏洩assertが先例。新規ログ追加時は同種テストの有無を確認
 - [configure_logging()のadd-handler分岐が事実上テスト不能](pattern_configure_logging_untestable_branch.md) — pytestがroot loggerに常時ハンドラーを持つため、ローカル/uvicorn向けの主分岐が未検証
-- [SS-111 ピン閲覧APIレビュー概要](project_ss111_pin_read_api_review.md) — Critical指摘なし。unconfigured storageテストの偏り、plan決定コード参照が既知ギャップ（task-local, SS-111）

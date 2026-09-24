@@ -23,5 +23,4 @@
 - [feedback-boto3-s3-and-pg-advisory-lock-gotchas](feedback_boto3_s3_and_pg_advisory_lock_gotchas.md) — boto3 S3のendpoint_url明示でpresigned URLのリージョンが脱落する罠、pg_advisory_xact_lockの決定的キー導出、Pydantic SkipJsonSchema[None]パターン、retries.max_attemptsはtotal_max_attemptsでないと+1される罠
 - [feedback_true_concurrency_test_pattern](feedback_true_concurrency_test_pattern.md) — threading.Thread+別Session(TestSessionLocal)で真の行ロック競合を再現するテスト手順。ORMオブジェクトをスレッド間で共有しない・Core updateの後はrefresh()が必要
 - [feedback-httpx-timeout-mocktransport](feedback_httpx_timeout_mocktransport.md) — httpxのtimeout=に単一floatを渡すとconnectにも効く。httpx.Timeoutでフェーズを分け、MockTransportのrequest.extensions["timeout"]で検証する
-- [project-ss111-pins-read-api-complete](project_ss111_pins_read_api_complete.md) — SS-111 backend（ピンの閲覧API: GET /pins・/pins/{id}・/pins/{id}/photos）は実装完了。次はmobile側SS-118/SS-120
-- [project-ss111-review-followup](project_ss111_review_followup.md) — SS-111ローカルレビューR1〜R10対応。一時プラン文書への参照はブランチ差分のファイルに絞ってgrepすること、PinBoundingBoxフィールド順変更の安全確認手順
+- [feedback-full-suite-intermittent-401](feedback_full_suite_intermittent_401.md) — backend全体のpytestで無関係なテストがたまに有効JWTで401。まず単独実行で再現確認（原因未確認、DB負荷の推測）

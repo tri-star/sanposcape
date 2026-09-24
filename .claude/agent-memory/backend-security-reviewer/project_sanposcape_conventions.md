@@ -27,6 +27,13 @@ Observed conventions in `packages/backend/src/sanposcape/` as of the SS-18 (walk
   cursor is just a WHERE-clause bound, never itself an authorization input. If a future endpoint
   reuses this cursor utility without a hard `user_id` filter alongside it, that would be a real
   IDOR/enumeration risk — check for that when reviewing new consumers of `core/pagination.py`.
+  `core/pagination.py` now has two cursor families: `(datetime, uuid)` (`encode_cursor`, walks)
+  and `(int, uuid)` (`encode_position_cursor`, pin photos, SS-111); the same rule applies to both.
+- **Authorize before decoding the cursor**: services check membership/ownership *before*
+  calling `decode_cursor`/`decode_position_cursor` (verified in `PinService.list_pins`/
+  `list_pin_photos`, SS-111). Reversing the order would let a non-member send a garbage cursor
+  and tell 400 (resource exists) from 404 (doesn't) — an existence oracle. Flag new list
+  endpoints that decode the cursor first.
 - **Request-size limiting**: `main.py::RequestSizeLimitMiddleware` is a generic ASGI
   streaming body-size guard keyed by `path_prefix`, registered once per prefix via
   `app.add_middleware(..., path_prefix=..., max_bytes=...)`. Originally `/explore`-only, now
