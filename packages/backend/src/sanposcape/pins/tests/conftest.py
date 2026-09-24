@@ -14,8 +14,8 @@ from sanposcape.conftest import override_get_db
 from sanposcape.database import get_db
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.main import create_app
-from sanposcape.pins.models import PinPhotoUpload
-from sanposcape.pins.photo_keys import staging_key
+from sanposcape.pins.models import PinPhoto, PinPhotoUpload
+from sanposcape.pins.photo_keys import original_key, staging_key, thumbnail_key
 from sanposcape.users.models import User
 
 
@@ -161,6 +161,52 @@ def seed_staging_photo(
         staging_key(user_id=user_id, upload_id=upload_id), data, content_type="image/jpeg"
     )
     return data
+
+
+def create_pin_photo_row(
+    db_session: Session,
+    storage: FakeObjectStorage | None,
+    *,
+    pin_id: uuid.UUID,
+    uploaded_by_user_id: uuid.UUID,
+    position: int,
+    upload_id: uuid.UUID | None = None,
+    with_thumbnail: bool = True,
+) -> PinPhoto:
+    """`pin_photos` に直接1行 INSERT する（`PhotoAttacher`/確定処理を経由しない近道。
+
+    閲覧 API のテストで大量の写真が必要な場合に使う, SS-111 backend-plan.md 8章）。
+    `storage` を渡した場合は原本・サムネイルの実体も書き込み、`client.get()` で
+    実際に取得できることを確認できるようにする。`storage=None`（ストレージ未構成の
+    テスト）では DB 行だけを作り、実体は書き込まない。
+    """
+    upload_id = upload_id or uuid.uuid4()
+    original = original_key(user_id=uploaded_by_user_id, upload_id=upload_id)
+    thumb = thumbnail_key(user_id=uploaded_by_user_id, upload_id=upload_id, size=512)
+    data = make_jpeg_bytes()
+    if storage is not None:
+        storage.put_bytes(original, data, content_type="image/jpeg")
+        if with_thumbnail:
+            storage.put_bytes(thumb, data, content_type="image/jpeg")
+    photo = PinPhoto(
+        pin_id=pin_id,
+        uploaded_by_user_id=uploaded_by_user_id,
+        upload_id=upload_id,
+        s3_key=original,
+        content_type="image/jpeg",
+        byte_size=len(data),
+        width=100,
+        height=100,
+        thumbnail_s3_key=thumb if with_thumbnail else None,
+        thumbnail_byte_size=len(data) if with_thumbnail else None,
+        thumbnail_width=100 if with_thumbnail else None,
+        thumbnail_height=100 if with_thumbnail else None,
+        position=position,
+    )
+    db_session.add(photo)
+    db_session.commit()
+    db_session.refresh(photo)
+    return photo
 
 
 def create_upload_row(
