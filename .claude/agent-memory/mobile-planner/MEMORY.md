@@ -16,7 +16,7 @@
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／開始前に副作用が無い根拠
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
 - [プラン作成時に必ず確認する制約](planning-constraints.md) — 読む順序と、毎回効いてくる mobile 固有の制約
-- [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）を取り違えないための整理
+- [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）＋セッション破棄は `signOut()` 再利用が唯一の作法
 - [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
 - [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）
