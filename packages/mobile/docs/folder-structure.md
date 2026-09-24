@@ -24,7 +24,8 @@ packages/mobile/
 │   ├── components/            # 横断的に再利用するUI（機能に依存しない）
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
-│   │   └── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
+│   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
+│   │   └── location/          #   位置情報まわりの横断UI（LocationPermissionNotice。SS-124）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
 │   │   └── <feature>/         #   例: walk, history
@@ -163,6 +164,9 @@ packages/mobile/
 > 迷ったら **まず `features/` に置く**。再利用が実際に発生した時点で `components/` へ昇格させる。
 > `components/` 直下にファイルを並べて肥大化させない。カテゴリのサブフォルダに分ける。
 
+- 実際の昇格例: `LocationPermissionNotice`（`features/walk/components/` → `src/components/location/`。
+  `features/pin` の地点選択画面からも使うことになったため。SS-124）。
+
 ### `src/services/` — スタブ差し替えの層
 - 認証(OAuth/OIDC)や実機依存機能（カメラ・位置情報など）を抽象化する層。
 - 呼び出し側は `index.ts` が公開する**インターフェースのみ**を参照し、real/dev/mock の実体を知らない。
@@ -220,7 +224,9 @@ packages/mobile/
 - `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useScreenBack.ts`（画面の「戻る」導線を
   一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
   `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
-  `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）。
+  `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、
+  `useCurrentLocation.ts`（現在地の単発取得。`features/walk` と `features/pin` から使うため
+  SS-124 で `features/walk/hooks/` から昇格）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
   純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34、`/app-config` のフラグ受け皿

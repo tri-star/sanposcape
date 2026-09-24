@@ -71,7 +71,10 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 **適用範囲**: 現時点で `useScreenBack` を使っているのは `WalkStartView`（`walk-start`）/
 `WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）（SS-34）/
 `PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
-ダイアログを `onIntercept` で挟む。SS-88）の4画面。`SettingsView` と `(tabs)` 配下の各画面は
+ダイアログを `onIntercept` で挟む。位置調整オーバーレイ（`PinLocationAdjustOverlay`。RN `Modal`
+ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124）/
+`PinLocationPickerView`（`pins/pick-location`。testID `pin-location-picker-back`。SS-124）の5画面。
+`SettingsView` と `(tabs)` 配下の各画面は
 未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
 戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
 `(tabs)` 配下を触るときは、この規約に順次寄せることを検討する。

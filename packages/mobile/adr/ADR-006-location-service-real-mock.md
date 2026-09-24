@@ -3,6 +3,7 @@
 ## 日付
 
 2026-07-30
+2026-09-25 追補（SS-124）
 
 ## ステータス
 
@@ -25,6 +26,7 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   設定しても反映タイミングがフレークになりやすい**。
 - 呼び出し側（`features/walk`）は地図表示にも座標を使うため、`expo-location` と
   `react-native-maps` のどちらの型に依存させるかという選択もある。
+  （SS-124 追補）呼び出し側は `features/pin`（ピンの地点選択画面）にも広がった。
 
 ## 決定
 
@@ -42,6 +44,8 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 - `expo-location` を import してよいのは `location.real.ts` **のみ**とする。
 - `initXxx()` のような初期化関数は持たない（`services/auth` との差分）。権限リクエストは画面側の
   hook（`features/walk/hooks/useCurrentLocation.ts`）が必要になった時点で行う。
+  （SS-124 追補）`useCurrentLocation` は `features/pin`（ピンの地点選択画面）からも使うため
+  `src/hooks/useCurrentLocation.ts` へ昇格した。呼び出し側は `features/walk` / `features/pin`。
 - エラーは `LocationError` / `LocationErrorCode`（`permission_denied` / `services_disabled` /
   `timeout` / `unavailable` / `unknown`）に正規化し、UI 文言へのマッピングを services 層に閉じる。
   分類は `instanceof` ではなく型ガード関数で行う（Hermes・トランスパイル環境で `instanceof` が

@@ -42,8 +42,8 @@
 - 実装方針は [ADR-006: 位置情報サービスは real/mock の2モード](../adr/ADR-006-location-service-real-mock.md) で確定済み。
 - `EXPO_PUBLIC_LOCATION_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/locationMode.ts`）。
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
-- 呼び出し側（`features/walk`）は `src/services/location` のインターフェースのみを参照し、
-  `expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
+- 呼び出し側（`features/walk` / `features/pin`）は `src/services/location` のインターフェースのみを
+  参照し、`expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
 
 ## 写真の扱い
 
@@ -106,8 +106,8 @@
 
 ### 画面ガードレシピ
 
-`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う
-（SS-100 時点では実例が無いが、次に画面単位のガードが必要になったときのために手順を残す）。
+`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う。
+実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`（SS-88 / SS-124）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
