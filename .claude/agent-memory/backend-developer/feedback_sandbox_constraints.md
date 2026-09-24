@@ -33,12 +33,21 @@ Edit ツールでも Bash の `sed -i` でも書き込みが permission deny に
 を実行すると `Connection refused` になる（sandbox のネットワーク名前空間が Bash ツール呼び出しごとに
 分離されているため、ポートフォワードへ到達できない）。SS-10 の手動疎通確認で発覚。
 
-**How to apply:** 疎通確認・スモークテストは最初から**コンテナ内から**行う。
-`api` コンテナに `curl` は入っていない（`sh: curl: not found`）ので、
-`docker compose exec api uv run python -` にヒアドキュメントで
-`httpx.Client(base_url="http://localhost:8000")` を使うスクリプトを渡すのが確実
-（httpx は既に backend の依存に含まれる）。dev token 取得は `POST /auth/dev-session` に
-`{"user_key": "..."}` を渡す（`sub` ではない。`auth/schemas.py` の `DevSessionCreate.user_key`）。
+**How to apply（2択）:**
+1. **`dangerouslyDisableSandbox: true` を付けた Bash から直接 `curl http://localhost:<port>/...`
+   すると普通に到達できる**（2026-09-25、SS-131 で確認。`docker compose ps` で `0.0.0.0:<port>->8000/tcp`
+   の公開を確認できていれば、host の curl はこれで足りる。`docker` コマンドを直叩きする他の操作と
+   同様、sandbox 内では拒否されるだけで、無効化すれば動く）。
+2. コンテナ外の curl を避けたい・`docker` コマンドの許可自体を最小化したい場合は
+   **コンテナ内から**確認する。`api` コンテナに `curl` は入っていない（`sh: curl: not found`）ので、
+   `docker compose exec api uv run python -` にヒアドキュメントで
+   `httpx.Client(base_url="http://localhost:8000")` を使うスクリプトを渡すのが確実
+   （httpx は既に backend の依存に含まれる）。dev token 取得は `POST /auth/dev-session` に
+   `{"user_key": "..."}` を渡す（`sub` ではない。`auth/schemas.py` の `DevSessionCreate.user_key`）。
+
+どちらも「sandbox 内の素の Bash では `Connection refused` になる」という観測だけで
+「host からの疎通確認は不可能」と結論しないこと（1の存在を見落とすと2に飛びつきがちだが、
+単発の目視確認なら1の方が速い）。
 
 ## `docker compose exec` の連続実行で permission denied が散発する
 
