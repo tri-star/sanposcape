@@ -37,6 +37,13 @@ class TestOperationIds:
         assert document["paths"]["/pins"]["get"]["operationId"] == "list_pins"
         assert document["paths"]["/pins/{pin_id}"]["get"]["operationId"] == "get_pin"
         assert document["paths"]["/pins/{pin_id}/photos"]["get"]["operationId"] == "list_pin_photos"
+        # SS-112（編集・削除 API）
+        assert document["paths"]["/pins/{pin_id}"]["patch"]["operationId"] == "update_pin"
+        assert document["paths"]["/pins/{pin_id}"]["delete"]["operationId"] == "delete_pin"
+        assert (
+            document["paths"]["/pins/{pin_id}/photos/{photo_id}"]["delete"]["operationId"]
+            == "delete_pin_photo"
+        )
 
 
 class TestCreatePinResponses:
@@ -204,6 +211,96 @@ class TestRemovedOrHiddenRoutes:
     def test_dev_storage_is_absent(self) -> None:
         document = _load_committed_openapi()
         assert not any(path.startswith("/dev-storage") for path in document["paths"])
+
+
+class TestPinUpdateSchema:
+    """SS-112: `PATCH /pins/{pin_id}` のリクエストスキーマの契約。"""
+
+    def _schema(self) -> dict:
+        document = _load_committed_openapi()
+        return document["components"]["schemas"]["PinUpdate"]
+
+    def test_additional_properties_is_false(self) -> None:
+        assert self._schema()["additionalProperties"] is False
+
+    def test_name_and_memo_are_optional_and_nullable(self) -> None:
+        schema = self._schema()
+        assert "name" not in schema.get("required", [])
+        assert "memo" not in schema.get("required", [])
+        for field_name in ("name", "memo"):
+            types = {item.get("type") for item in schema["properties"][field_name]["anyOf"]}
+            assert "string" in types
+            assert "null" in types
+
+    def test_add_tags_and_remove_tag_ids_are_optional_and_not_nullable(self) -> None:
+        """`SkipJsonSchema[None]` のため、素の配列スキーマになり `anyOf` で null を
+        許容する形にはならない（`PinCreate.sanpo_map_id` と同じ仕組み）。
+        """
+        schema = self._schema()
+        assert "add_tags" not in schema.get("required", [])
+        assert "remove_tag_ids" not in schema.get("required", [])
+        assert schema["properties"]["add_tags"]["type"] == "array"
+        assert schema["properties"]["remove_tag_ids"]["type"] == "array"
+
+    def test_add_tags_and_remove_tag_ids_max_items_is_10(self) -> None:
+        schema = self._schema()
+        assert schema["properties"]["add_tags"]["maxItems"] == 10
+        assert schema["properties"]["remove_tag_ids"]["maxItems"] == 10
+
+
+class TestNewEndpointsResponses:
+    """SS-112 の3エンドポイントは 503 を宣言せず、403・404 を宣言する（ADR-009 決定22）。"""
+
+    def test_update_pin_responses(self) -> None:
+        document = _load_committed_openapi()
+        responses = document["paths"]["/pins/{pin_id}"]["patch"]["responses"]
+        assert "403" in responses
+        assert "404" in responses
+        assert "409" in responses
+        assert "503" not in responses
+
+    def test_delete_pin_responses(self) -> None:
+        document = _load_committed_openapi()
+        responses = document["paths"]["/pins/{pin_id}"]["delete"]["responses"]
+        assert "403" in responses
+        assert "404" in responses
+        assert "503" not in responses
+
+    def test_delete_pin_photo_responses(self) -> None:
+        document = _load_committed_openapi()
+        responses = document["paths"]["/pins/{pin_id}/photos/{photo_id}"]["delete"]["responses"]
+        assert "403" in responses
+        assert "404" in responses
+        assert "503" not in responses
+
+
+class TestPinTagConflictErrorSchema:
+    """SS-112: `PATCH /pins/{pin_id}` の 409 応答の契約。"""
+
+    def test_update_pin_409_uses_the_schema(self) -> None:
+        document = _load_committed_openapi()
+        schema = document["paths"]["/pins/{pin_id}"]["patch"]["responses"]["409"]["content"][
+            "application/json"
+        ]["schema"]
+        assert schema == {"$ref": "#/components/schemas/PinTagConflictErrorRead"}
+
+    def test_code_is_fixed_to_tag_limit_exceeded(self) -> None:
+        """値が1つしかない `Literal` は pydantic の JSON Schema では `enum` ではなく
+        `const` になる（`PinConflictErrorRead.code` の2値 `enum` とは異なる形）。
+        """
+        document = _load_committed_openapi()
+        code_schema = document["components"]["schemas"]["PinTagConflictErrorRead"]["properties"][
+            "code"
+        ]
+        assert code_schema["const"] == "tag_limit_exceeded"
+
+    def test_does_not_change_existing_pin_conflict_error_schema(self) -> None:
+        """`PinConflictErrorRead.code` の enum が変わっていないこと（既存契約の保護）。"""
+        document = _load_committed_openapi()
+        code_schema = document["components"]["schemas"]["PinConflictErrorRead"]["properties"][
+            "code"
+        ]
+        assert set(code_schema["enum"]) == {"storage_quota_exceeded", "photo_upload_not_ready"}
 
 
 class TestStorageModeDoesNotAffectPublicSchema:
