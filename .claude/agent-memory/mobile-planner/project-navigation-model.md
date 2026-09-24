@@ -32,6 +32,17 @@ metadata:
   積まれている間もリスナが生きて上の画面のバックを奪う。
 - BottomSheet/Dialog は RN の `Modal`（`onRequestClose`）なので、Android バックは Modal 側が拾う想定。
 
+## 中間画面から `/pins/new` へ進むときは replace（SS-124 の計画で判明）
+
+`PinRegisterView` の保存後・破棄後は `canGoBack() ? back() : replace("/(tabs)")`。ナビタブの
+「ピンを保存しました」は `WalkActiveView` の `useFocusEffect` → `consumeFlashMessage()`。
+→ 地点選択のような中間画面から `/pins/new` へ `push` すると、戻り先が中間画面になってトーストも出ない。
+**中間画面 → `/pins/new` は `replace`** にしてスタックを `(tabs) → pins/new` に保つ。
+Expo Router には「前の画面へ結果を返す」正式な手段が無い。登録画面の状態を保ったまま子画面の結果を
+受け取りたいときは、ルートを増やさず画面内のオーバーレイで済ませるのが一番安い
+（RN `Modal` はハードウェアバックを `onRequestClose` で先に取り、`useScreenBack` の `onIntercept` が
+届かない。`Modal` の中の `MapView` には Android で不具合報告もある: react-native-maps #3890 / #4893）。
+
 ## 散歩開始「前」に副作用が無いことの根拠
 
 `clientWalkId` 採番・`useActiveWalkStore.startWalk()` は `WalkStartView.handleStartWalk` の中だけ。

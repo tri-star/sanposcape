@@ -11,6 +11,8 @@ ADR を覆す/追補する場合は `.claude/skills/adr-writing/SKILL.md` スキ
 
 - **mobile 固有**: `packages/mobile/adr/ADR-00X-*.md`。2026-09-24 時点で **001〜010 まで使用済み**
   （ADR-010 は SS-88 の写真サービスと S3 直送）。新規は次番を採る。
+  並行チケットが同じ番号を取り合うことがある（2026-09 に SS-124 と SS-117 が 011 を取り合う可能性があった）。
+  プランには「着手時に main の `adr/` を見て番号を決める」と書いておく。
   - 008 = 進行中の散歩の Zustand とルートの Query キャッシュ共有 / サインアウト時の `sessionCleanup` レジストリ
   - 009 = 認証セッション状態の集約（`useAuthSessionStore`）と認証ゲート（`AuthGate` / `canEnterProtectedRoutes`）。SS-13 で ADR-008 決定6 を追補している
 - **frontend/backend 横断・ドメイン知識**: リポジトリルートの `docs/adr/`。

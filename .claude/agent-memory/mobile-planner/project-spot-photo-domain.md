@@ -23,6 +23,8 @@ SS-88 で決まった、コードからはまだ読めない前提（2026-09 時
 - バケットは BucketOwnerEnforced + SSE-S3 + DenyInsecureTransport → `acl`/SSE ヘッダーを送らない、https 必須。CORS なし。S3 POST 成功は 204。
 - backend の `STORAGE_MODE=fake` は `http://<backend と同じ host>/dev-storage/…` を返す → mobile は「backend が http のとき同じ origin の http だけ」許可。
 
+**`client_pin_id` の冪等な再送は内容を無視して既存のピンを返す**（`POST /pins`）→ ピンの作成後（`usePinSave` の `savedPinId !== null`）に編集できる項目を登録画面に足すと、「変えたのに反映されない」ことになる。作成後は無効化する（SS-124 の位置調整で `canAdjustPinLocation` として適用）。作成後の編集は backend の編集 API（BK-5）の範囲。
+
 **S3 直送は mobile の3つ目の HTTP 出口**。backend 向け2箇所（`customFetch` / `authApi`）の横断ヘッダーを**付けてはいけない**側（[[project-cloudfront-client-contract]]）。
 
 Related: [[mobile-structure]], [[project-feature-flags]]
