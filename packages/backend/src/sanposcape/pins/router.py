@@ -1,13 +1,19 @@
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from sanposcape.dependencies import get_current_user
 from sanposcape.pins.dependencies import get_pin_service
 from sanposcape.pins.schemas import (
+    PIN_PHOTO_PAGE_DEFAULT_LIMIT,
+    PIN_PHOTO_PAGE_MAX_LIMIT,
     PinConflictErrorRead,
     PinCreate,
+    PinListQuery,
+    PinListRead,
     PinPhotoListRead,
+    PinPhotoPageRead,
     PinPhotosAdd,
     PinRead,
 )
@@ -98,3 +104,87 @@ def add_pin_photos(
     （`code: "storage_quota_exceeded"`）。他人のピン・存在しないピンは 404。
     """
     return service.add_photos(current_user, pin_id, payload, base_url=str(request.base_url))
+
+
+@router.get(
+    "",
+    response_model=PinListRead,
+    operation_id="list_pins",
+    responses={
+        **_ERROR_RESPONSES,
+        400: {"description": "Invalid cursor"},
+        404: {"description": "Sanpo map not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def list_pins(
+    query: Annotated[PinListQuery, Query()],
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinListRead:
+    """指定した地図のピン一覧を `created_at DESC` の keyset ページングで返す（SS-111）。
+
+    member でない地図・存在しない `sanpo_map_id` は 404。bbox（`min_latitude`/
+    `min_longitude`/`max_latitude`/`max_longitude`）は4つそろえて指定するか、
+    1つも指定しないかのどちらか。`q`（名前・メモ・タグの部分一致）と `tags`
+    （複数指定は AND）は SS-120（検索タブ）向け。各要素の `cover_photo` は
+    position が最小の写真（無ければ null）。写真の URL の有効期限は `urls_expire_at`。
+    mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。
+    """
+    return service.list_pins(current_user, query, base_url=str(request.base_url))
+
+
+# 固定セグメント（例: 将来の `/pins/tags` 等）を足す場合は `/{pin_id}` より前に定義する
+# こと（walks/router.py と同じ注意）。`/{pin_id}/photos` は深さが違うため衝突しない。
+@router.get(
+    "/{pin_id}",
+    response_model=PinRead,
+    operation_id="get_pin",
+    responses={
+        **_ERROR_RESPONSES,
+        404: {"description": "Pin not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def get_pin(
+    pin_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinRead:
+    """ピンの詳細を返す（SS-111）。member でないピン・存在しない ID は 404。
+
+    `photos` は position 順の先頭10件、`photo_count` は総数。全件は
+    `GET /pins/{pin_id}/photos` で取得する。写真の URL の有効期限は `urls_expire_at`。
+    """
+    return service.get_pin(current_user, pin_id, base_url=str(request.base_url))
+
+
+@router.get(
+    "/{pin_id}/photos",
+    response_model=PinPhotoPageRead,
+    operation_id="list_pin_photos",
+    responses={
+        **_ERROR_RESPONSES,
+        400: {"description": "Invalid cursor"},
+        404: {"description": "Pin not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def list_pin_photos(
+    pin_id: uuid.UUID,
+    request: Request,
+    limit: int = Query(default=PIN_PHOTO_PAGE_DEFAULT_LIMIT, ge=1, le=PIN_PHOTO_PAGE_MAX_LIMIT),
+    cursor: str | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinPhotoPageRead:
+    """ピンの写真全件を position 昇順の keyset ページングで返す（SS-111 D7）。
+
+    member でないピン・存在しない ID は 404。写真の URL の有効期限は `urls_expire_at`。
+    mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。
+    """
+    return service.list_pin_photos(
+        current_user, pin_id, limit=limit, cursor=cursor, base_url=str(request.base_url)
+    )

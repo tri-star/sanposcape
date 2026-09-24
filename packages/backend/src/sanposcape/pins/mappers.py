@@ -12,7 +12,9 @@ from sanposcape.core.geo import GeoPoint
 from sanposcape.integrations.aws.s3 import ObjectStorage, ObjectStorageUnavailableError
 from sanposcape.pins.models import Pin, PinPhoto, PinTag
 from sanposcape.pins.schemas import (
+    PinListItemRead,
     PinPhotoListRead,
+    PinPhotoPageRead,
     PinPhotoRead,
     PinPhotoThumbnailRead,
     PinRead,
@@ -58,6 +60,16 @@ def to_pin_photo_read(
         except ObjectStorageUnavailableError:
             # 生成待ち・storage 不調は null にする（クライアントはプレースホルダを出す）。
             thumbnail = None
+
+    # 原本(サムネイルとは独立に署名する。片方だけ失敗してももう片方は返す, SS-111 D6・D11)。
+    original_url: str | None
+    try:
+        original_url = storage.create_download_url(
+            key=photo.s3_key, expires_in=download_url_ttl_seconds, base_url=base_url
+        )
+    except ObjectStorageUnavailableError:
+        original_url = None
+
     return PinPhotoRead(
         id=photo.id,
         upload_id=photo.upload_id,
@@ -67,6 +79,7 @@ def to_pin_photo_read(
         byte_size=photo.byte_size,
         content_type=photo.content_type,
         thumbnail=thumbnail,
+        original_url=original_url,
         urls_expire_at=now + timedelta(seconds=download_url_ttl_seconds),
         uploaded_by_user_id=photo.uploaded_by_user_id,
         created_at=photo.created_at,
@@ -134,4 +147,67 @@ def to_pin_read(
         client_walk_id=pin.client_walk_id,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
+    )
+
+
+def to_pin_list_item_read(
+    pin: Pin,
+    *,
+    tags: list[PinTag],
+    cover_photo: PinPhoto | None,
+    photo_count: int,
+    storage: ObjectStorage,
+    base_url: str,
+    download_url_ttl_seconds: int,
+    now: datetime,
+) -> PinListItemRead:
+    """`GET /pins` の一覧要素へ変換する（SS-111）。`memo` は含めない（D5）。"""
+    return PinListItemRead(
+        id=pin.id,
+        sanpo_map_id=pin.sanpo_map_id,
+        name=pin.name,
+        location=GeoPoint(latitude=pin.latitude, longitude=pin.longitude),
+        tags=[to_pin_tag_read(tag) for tag in tags],
+        cover_photo=(
+            to_pin_photo_read(
+                cover_photo,
+                storage=storage,
+                base_url=base_url,
+                download_url_ttl_seconds=download_url_ttl_seconds,
+                now=now,
+            )
+            if cover_photo is not None
+            else None
+        ),
+        photo_count=photo_count,
+        created_by_user_id=pin.created_by_user_id,
+        created_at=pin.created_at,
+        updated_at=pin.updated_at,
+    )
+
+
+def to_pin_photo_page_read(
+    photos: list[PinPhoto],
+    *,
+    storage: ObjectStorage,
+    base_url: str,
+    download_url_ttl_seconds: int,
+    photo_count: int,
+    next_cursor: str | None,
+    now: datetime,
+) -> PinPhotoPageRead:
+    """`GET /pins/{pin_id}/photos` の応答へ変換する（SS-111 D7）。"""
+    return PinPhotoPageRead(
+        items=[
+            to_pin_photo_read(
+                photo,
+                storage=storage,
+                base_url=base_url,
+                download_url_ttl_seconds=download_url_ttl_seconds,
+                now=now,
+            )
+            for photo in photos
+        ],
+        photo_count=photo_count,
+        next_cursor=next_cursor,
     )

@@ -3,7 +3,7 @@ import zlib
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Select, exists, func, or_, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,26 @@ from sanposcape.pins.models import Pin, PinPhoto, PinPhotoUpload, PinTag
 from sanposcape.pins.photo_attacher import PreparedPhoto
 from sanposcape.pins.tag_labels import tag_key
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
+
+
+@dataclass(frozen=True)
+class PinBoundingBox:
+    """bbox 絞り込み(4つのクエリパラメータ)を repository に渡しやすい形にまとめたもの。
+
+    他ドメインで使う予定が無いため `pins/` 内に置く(folder-structure.md「必要になったら
+    core に昇格する」方針, SS-111 backend-plan.md)。境界上の点は含む(`between()`)。
+    """
+
+    min_latitude: float
+    max_latitude: float
+    min_longitude: float
+    max_longitude: float
+
+
+def _escape_like(value: str) -> str:
+    """ILIKE のパターン文字(`\\`・`%`・`_`)をリテラルとしてエスケープする。"""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。他用途のロックと
 #: 衝突しない固定値にする（backend-plan.md 10章の注意）。
@@ -104,6 +124,15 @@ class PinRepository:
         self._db.refresh(pin)
         return pin, True
 
+    @staticmethod
+    def _member_pin_stmt(*, user_id: uuid.UUID, pin_id: uuid.UUID) -> Select:
+        return (
+            select(Pin, SanpoMapMember.role)
+            .join(SanpoMap, SanpoMap.id == Pin.sanpo_map_id)
+            .join(SanpoMapMember, SanpoMapMember.sanpo_map_id == SanpoMap.id)
+            .where(SanpoMapMember.user_id == user_id, Pin.id == pin_id)
+        )
+
     def get_for_member_for_update(
         self, *, user_id: uuid.UUID, pin_id: uuid.UUID
     ) -> tuple[Pin, str] | None:
@@ -111,15 +140,135 @@ class PinRepository:
 
         写真追加時の position 割り当ての同時実行競合を防ぐ（backend-plan.md 5.3 (5)）。
         """
-        stmt = (
-            select(Pin, SanpoMapMember.role)
-            .join(SanpoMap, SanpoMap.id == Pin.sanpo_map_id)
-            .join(SanpoMapMember, SanpoMapMember.sanpo_map_id == SanpoMap.id)
-            .where(SanpoMapMember.user_id == user_id, Pin.id == pin_id)
-            .with_for_update(of=Pin)
-        )
+        stmt = self._member_pin_stmt(user_id=user_id, pin_id=pin_id).with_for_update(of=Pin)
         row = self._db.execute(stmt).first()
         return None if row is None else (row[0], row[1])
+
+    def get_for_member(self, *, user_id: uuid.UUID, pin_id: uuid.UUID) -> tuple[Pin, str] | None:
+        """member 判定込みでピンを取得する（ロックなし。閲覧 API・SS-112 の権限判定用）。
+
+        `get_for_member_for_update()` と同じ JOIN で、`with_for_update` を付けない。
+        """
+        row = self._db.execute(self._member_pin_stmt(user_id=user_id, pin_id=pin_id)).first()
+        return None if row is None else (row[0], row[1])
+
+    def list_for_member(
+        self,
+        *,
+        user_id: uuid.UUID,
+        sanpo_map_id: uuid.UUID,
+        bbox: PinBoundingBox | None,
+        q: str | None,
+        tag_keys: list[str],
+        limit: int,
+        cursor: tuple[datetime, uuid.UUID] | None,
+    ) -> list[Pin]:
+        """`created_at DESC, id DESC` で並べたピンを最大 `limit + 1` 件返す（SS-111）。
+
+        `sanpo_map_members` との JOIN で member 判定を行う（呼び出し元の service が
+        `get_role()` で先に検証していても、多重防御として repository 側でも絞る）。
+        `limit + 1` 件目の有無で `next_cursor` の要否を判断するのは `WalkRepository.
+        list_for_user()` と同じ形。
+        """
+        stmt = (
+            select(Pin)
+            .join(SanpoMapMember, SanpoMapMember.sanpo_map_id == Pin.sanpo_map_id)
+            .where(SanpoMapMember.user_id == user_id, Pin.sanpo_map_id == sanpo_map_id)
+        )
+        if bbox is not None:
+            stmt = stmt.where(
+                Pin.latitude.between(bbox.min_latitude, bbox.max_latitude),
+                Pin.longitude.between(bbox.min_longitude, bbox.max_longitude),
+            )
+        if q is not None:
+            pattern = f"%{_escape_like(q)}%"
+            tag_matches = exists(
+                select(1).where(PinTag.pin_id == Pin.id, PinTag.label.ilike(pattern, escape="\\"))
+            )
+            stmt = stmt.where(
+                or_(
+                    Pin.name.ilike(pattern, escape="\\"),
+                    Pin.memo.ilike(pattern, escape="\\"),
+                    tag_matches,
+                )
+            )
+        for key in tag_keys:
+            stmt = stmt.where(
+                exists(select(1).where(PinTag.pin_id == Pin.id, PinTag.label_key == key))
+            )
+        stmt = stmt.order_by(Pin.created_at.desc(), Pin.id.desc()).limit(limit + 1)
+        if cursor is not None:
+            cursor_created_at, cursor_id = cursor
+            # keyset 条件（行値比較）: (created_at, id) < (cursor_created_at, cursor_id)
+            stmt = stmt.where(tuple_(Pin.created_at, Pin.id) < (cursor_created_at, cursor_id))
+        return list(self._db.scalars(stmt).all())
+
+    def list_tags_for_pins(self, pin_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[PinTag]]:
+        """複数ピンのタグをまとめて取得する（一覧の N+1 回避, SS-111）。
+
+        並び順は `list_tags()` と同じ `created_at, id`（同一トランザクション内 INSERT は
+        `created_at` が同値になりうるため、入力順の保持は保証しない）。
+        """
+        if not pin_ids:
+            return {}
+        stmt = (
+            select(PinTag)
+            .where(PinTag.pin_id.in_(pin_ids))
+            .order_by(PinTag.pin_id, PinTag.created_at, PinTag.id)
+        )
+        result: dict[uuid.UUID, list[PinTag]] = {}
+        for tag in self._db.scalars(stmt).all():
+            result.setdefault(tag.pin_id, []).append(tag)
+        return result
+
+    def get_cover_photos(self, pin_ids: list[uuid.UUID]) -> dict[uuid.UUID, PinPhoto]:
+        """各ピンの代表写真（position が最小のもの）をまとめて取得する（SS-111 D4）。
+
+        写真が無いピンは戻り値の dict に入らない（呼び出し側は `.get(id)` で `None` 扱いに
+        する）。PostgreSQL の `DISTINCT ON`（`Select.distinct(*cols)`）を使う。
+        """
+        if not pin_ids:
+            return {}
+        stmt = (
+            select(PinPhoto)
+            .where(PinPhoto.pin_id.in_(pin_ids))
+            .order_by(PinPhoto.pin_id, PinPhoto.position, PinPhoto.id)
+            .distinct(PinPhoto.pin_id)
+        )
+        return {photo.pin_id: photo for photo in self._db.scalars(stmt).all()}
+
+    def count_photos_for_pins(self, pin_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """各ピンの写真枚数をまとめて取得する（SS-111）。0件のピンは dict に入らない
+        （呼び出し側は `.get(id, 0)` にする）。
+        """
+        if not pin_ids:
+            return {}
+        stmt = (
+            select(PinPhoto.pin_id, func.count())
+            .where(PinPhoto.pin_id.in_(pin_ids))
+            .group_by(PinPhoto.pin_id)
+        )
+        return dict(self._db.execute(stmt).all())
+
+    def list_photos_page(
+        self, *, pin_id: uuid.UUID, limit: int, cursor: tuple[int, uuid.UUID] | None
+    ) -> list[PinPhoto]:
+        """`(position, id)` の keyset で写真を最大 `limit + 1` 件返す（`GET /pins/{id}/photos`,
+        SS-111 D7）。
+
+        `pin_id` の認可は呼び出し側（service）が `get_for_member()` を通してから呼ぶこと
+        （既存の `list_photos()`/`count_photos()`/`load_read_model()` と同じ前提）。
+        """
+        stmt = (
+            select(PinPhoto)
+            .where(PinPhoto.pin_id == pin_id)
+            .order_by(PinPhoto.position, PinPhoto.id)
+            .limit(limit + 1)
+        )
+        if cursor is not None:
+            cursor_position, cursor_id = cursor
+            stmt = stmt.where(tuple_(PinPhoto.position, PinPhoto.id) > (cursor_position, cursor_id))
+        return list(self._db.scalars(stmt).all())
 
     def next_photo_position(self, pin_id: uuid.UUID) -> int:
         stmt = select(func.coalesce(func.max(PinPhoto.position), -1) + 1).where(
