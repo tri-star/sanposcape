@@ -148,7 +148,7 @@ class TestListPinPhotosQuerySchema:
 
 
 class TestReadEndpointsResponses:
-    """SS-111: 3つの GET は 404 を宣言し、503 は宣言しない（D11）。"""
+    """3つの閲覧 GET は 404 を宣言し、503 は宣言しない（ADR-009 決定18）。"""
 
     def test_list_pins_declares_404_and_not_503(self) -> None:
         document = _load_committed_openapi()

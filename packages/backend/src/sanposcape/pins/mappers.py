@@ -162,7 +162,7 @@ def to_pin_list_item_read(
     download_url_ttl_seconds: int,
     now: datetime,
 ) -> PinListItemRead:
-    """`GET /pins` の一覧要素へ変換する（SS-111）。`memo` は含めない（D5）。"""
+    """`GET /pins` の一覧要素へ変換する。`memo` は含めない（ADR-009 決定15）。"""
     return PinListItemRead(
         id=pin.id,
         sanpo_map_id=pin.sanpo_map_id,
