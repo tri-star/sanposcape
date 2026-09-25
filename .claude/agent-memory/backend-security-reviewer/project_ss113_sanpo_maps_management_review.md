@@ -3,7 +3,8 @@ name: project-ss113-sanpo-maps-management-review
 description: SS-113 (sanpo_maps POST/PATCH/DELETE, GET ?expand=pin_count) security review outcome — no Crit/High/Med, 3 Low/informational, all mitigations verified in code.
 metadata:
   type: project
-  scope: task-local
+  scope: durable
+  adr: docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md
   source_issue: SS-113
 ---
 
@@ -15,6 +16,7 @@ Reviewed 2026-09-26 on worktree `ss-113` (`git diff main...HEAD`, backend
      sibling `PinListQuery.tags` (`pins/schemas.py:297`, `max_length=PIN_SEARCH_TAGS_MAX_COUNT`).
      Negligible impact: values are restricted to `Literal["pin_count"]` and the repeated-query-
      param length is bounded by the HTTP server's URL/header-line limit anyway.
+     **Fixed in the same PR**: `max_length=8` (`SANPO_MAP_LIST_EXPAND_MAX_LENGTH`) was added after review.
   2. `PinRepository.count_pins_for_maps`/`list_photo_keys_for_map` (`pins/repository.py:450,461`)
      don't take `user_id` — same shape as the `find_attachment` exception noted in
      [[project_ss88_pins_photo_upload_review]]. Verified safe: both are only ever called with

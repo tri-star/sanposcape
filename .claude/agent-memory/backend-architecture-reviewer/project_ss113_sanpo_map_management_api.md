@@ -9,7 +9,7 @@ metadata:
 ---
 
 SS-113（`POST/PATCH/DELETE /sanpo-maps`・`GET /sanpo-maps?expand=pin_count`）はレビュー済み。
-Critical/High指摘なし。backend-plan.md（改訂版、SS-112マージ後）の設計判断が実装に一貫して
+Critical/High指摘なし。プラン（SS-112マージ後の改訂版）の設計判断が実装に一貫して
 反映されている（計画と実装の乖離なし）。一次記録は ADR-009 追補（決定25〜29）。
 
 確立された、後続チケット（SS-117/SS-121/BK-7）が踏襲すべき新パターン:
