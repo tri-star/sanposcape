@@ -81,7 +81,8 @@ docker compose --project-directory packages/backend -f packages/backend/compose.
 透過させる（既定は空）。`AWS_REGION` だけは既定値 `ap-southeast-1` を持つ。
 
 なお `UnconfiguredObjectStorage`（写真 API が 503）に落ちる条件は AWS の認証情報ではなく
-**`PIN_PHOTO_BUCKET_NAME` が空であること**（`config.py` の `build_object_storage()`）。
+**`PIN_PHOTO_BUCKET_NAME` が空であること**（`integrations/aws/s3.py` の
+`build_object_storage()`）。
 バケット名を設定したのに認証情報を渡し忘れた場合は、503 ではなく S3 呼び出しの失敗
 （`S3 operation failed` のログ + 503）になる。
 

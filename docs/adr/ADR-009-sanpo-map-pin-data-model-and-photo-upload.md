@@ -880,8 +880,8 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
     のときだけ）。IAM の実行ロールは `s3:DeleteObject` のまま（`DeleteObjects` API も IAM
     アクションは `s3:DeleteObject` なので、追加の権限は要らない）。
   - 時間予算は締め切り（`PhotoAttacher.cleanup_staging()` と同じ `monotonic()` 基準）で
-    守る。超えたら残りを諦めて WARNING を出す。新設の設定値
-    `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（既定10秒、上限20秒）で指定する。
+    守る。超えたら残りを諦めて WARNING を出す（判定条件は 2026-09-26 の追補で変更。下記）。
+    新設の設定値 `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（既定10秒、上限20秒）で指定する。
   - Fake 実装は `delete()` をループするだけ。Unconfigured 実装は
     `ObjectStorageUnavailableError` を投げる（呼び出し側が捕捉してログを出す）。
   - 写真1枚の削除（キー2つ）も同じ `delete_many()` を使う（経路を1つにする）。
@@ -895,7 +895,11 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
       （`OBJECT_STORAGE_DELETE_CONNECT_TIMEOUT_SECONDS` 既定1秒・
       `OBJECT_STORAGE_DELETE_READ_TIMEOUT_SECONDS` 既定5秒）。1回の最悪時間は
       connect + read（既定6秒）になる。best-effort なので、再試行を減らしても孤立が
-      増えるだけ（BK-3 で回収）。
+      増えるだけ（BK-3 で回収）。単発の `delete()` を使う staging の後始末
+      （`PhotoAttacher.cleanup_staging()`、アップロード枠の取り消し）も同じ削除専用
+      client を使うため、こちらも1回の呼び出しが有界になる副次効果がある。ただし
+      `cleanup_staging()` 自身は「締め切りを呼び出し前にだけ確認する」構造のままで、
+      直していない（次項の確定処理と同じ理由）。
     - 最初のチャンクは残り時間によらず必ず試みる。2つ目以降は「残り時間 ≥ 1回の最悪
       時間」のときだけ始める。この判定により、S3 の後始末フェーズ全体は
       `max(締め切り, 1回の最悪時間)` 以内に終わる。
@@ -905,8 +909,9 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
       全体の上限ではない。DNS 解決（`getaddrinfo`）も timeout の対象外。
     - 削除処理をリクエストの外へ移す案（EventBridge スケジュール + 別 Lambda 等）も
       Copilot から提案されたが、今回のスコープには含めない（別チケットで検討する）。
-    - 確定処理の締め切り（`PIN_PHOTO_CONFIRM_DEADLINE_SECONDS`）にも同じ構造（呼ぶ前だけ
-      確認）が残っているが、確定処理は 503 で再送すれば回復する設計のため、今回は直さない。
+    - 確定処理の締め切り（`PIN_PHOTO_CONFIRM_DEADLINE_SECONDS`）と `cleanup_staging()`
+      には、どちらも同じ構造（呼ぶ前だけ確認）が残っているが、確定処理は 503 で再送すれば
+      回復する設計のため、今回は直さない。
 - `pin_photo_uploads` の `attached` 行は削除しない（ピンへの参照を持たず、容量計算にも
   使われない）。削除した写真の `upload_id` を `POST /pins/{id}/photos` で再送した場合は、
   従来どおり `status != pending` で 409 `photo_upload_not_ready` になる。
