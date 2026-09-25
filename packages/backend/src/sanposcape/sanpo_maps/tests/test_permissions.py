@@ -7,7 +7,9 @@ from sanposcape.sanpo_maps.permissions import (
     can_delete_pin,
     can_delete_pin_photo,
     can_delete_pin_tag,
+    can_delete_sanpo_map,
     can_update_pin,
+    can_update_sanpo_map,
 )
 
 
@@ -115,3 +117,25 @@ class TestUnknownRoleIsFailSafe:
 
     def test_can_delete_pin_photo(self) -> None:
         assert can_delete_pin_photo("unknown", is_uploader=True) is False
+
+    def test_can_update_sanpo_map(self) -> None:
+        assert can_update_sanpo_map("unknown") is False
+
+    def test_can_delete_sanpo_map(self) -> None:
+        assert can_delete_sanpo_map("unknown") is False
+
+
+class TestCanUpdateSanpoMap:
+    def test_owner_can(self) -> None:
+        assert can_update_sanpo_map("owner") is True
+
+    def test_editor_cannot(self) -> None:
+        assert can_update_sanpo_map("editor") is False
+
+
+class TestCanDeleteSanpoMap:
+    def test_owner_can(self) -> None:
+        assert can_delete_sanpo_map("owner") is True
+
+    def test_editor_cannot(self) -> None:
+        assert can_delete_sanpo_map("editor") is False
