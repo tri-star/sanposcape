@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
+import sanposcape.pins.service
 from sanposcape.conftest import TestSessionLocal
 from sanposcape.integrations.aws.s3 import (
     FakeObjectStorage,
@@ -72,6 +73,7 @@ def make_pin_service(db_session: Session, storage: FakeObjectStorage, **override
         "read_photos_limit": 10,
         "download_url_ttl_seconds": 3600,
         "photo_delete_deadline_seconds": 10,
+        "photo_delete_call_worst_case_seconds": 6,
     }
     kwargs.update(overrides)
     photo_attacher = PhotoAttacher(
@@ -1312,36 +1314,139 @@ class TestPinServiceDeletePin:
         with pytest.raises(PinNotFoundError):
             unconfigured_service.get_pin(owner, pin_read.id, base_url=BASE_URL)
 
-    def test_delete_deadline_exceeded_skips_remaining_and_warns(
-        self, db_session: Session, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        call_count = [0]
 
-        def fake_monotonic() -> float:
-            call_count[0] += 1
-            return 0.0 if call_count[0] == 1 else 1_000.0
+class TestPinServiceDeleteTimeBudget:
+    """`_delete_photo_keys_best_effort` の時間予算判定（ADR-009 決定22 追補, SS-112 PR #101
+    レビュー対応）。写真2枚（キー4つ）のピンを、`S3_DELETE_OBJECTS_MAX_KEYS` を2に差し替えて
+    チャンク2つに分ける。
+    """
 
-        service = make_pin_service(
-            db_session, storage, photo_delete_deadline_seconds=1, monotonic=fake_monotonic
-        )
+    def _create_pin_with_two_photos(
+        self, db_session: Session, storage: FakeObjectStorage, owner: User
+    ) -> tuple[uuid.UUID, list[str]]:
+        service = make_pin_service(db_session, storage)
         pin_read, _ = service.create_pin(
             owner,
             PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
             base_url=BASE_URL,
         )
-        photo = create_pin_photo_row(
+        photo0 = create_pin_photo_row(
             db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
         )
-        s3_key = photo.s3_key  # commit 後に expire されるため先に控える
+        photo1 = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=1
+        )
+        assert photo0.thumbnail_s3_key is not None
+        assert photo1.thumbnail_s3_key is not None
+        keys = [
+            photo0.s3_key,
+            photo0.thumbnail_s3_key,
+            photo1.s3_key,
+            photo1.thumbnail_s3_key,
+        ]
+        return pin_read.id, keys
+
+    @staticmethod
+    def _wrap_delete_many(storage: FakeObjectStorage) -> list[list[str]]:
+        """呼ばれたチャンクを記録しつつ、元の（実際に削除する）`delete_many` に委譲する。"""
+        chunks: list[list[str]] = []
+        original = storage.delete_many
+
+        def recording_delete_many(keys: list[str]) -> list[str]:
+            chunks.append(list(keys))
+            return original(keys)
+
+        storage.delete_many = recording_delete_many  # type: ignore[method-assign]
+        return chunks
+
+    def test_second_chunk_is_skipped_when_remaining_time_is_below_worst_case(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(sanposcape.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
+        chunks = self._wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 4.5])  # deadline_at=10, remaining=5.5 < worst_case=6
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=10,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
 
         with caplog.at_level(logging.WARNING, logger="sanposcape.pins.service"):
-            service.delete_pin(owner, pin_read.id)
+            service.delete_pin(owner, pin_id)
 
-        # 締め切り超過のため S3 の実体は消えていない（DB はすでに削除済み）。
-        assert storage.head(s3_key) is not None
-        assert any("deadline exceeded" in record.getMessage() for record in caplog.records)
+        assert len(chunks) == 1
+        assert storage.head(keys[0]) is None
+        assert storage.head(keys[1]) is None
+        assert storage.head(keys[2]) is not None
+        assert storage.head(keys[3]) is not None
+        assert any(
+            "not enough time" in record.getMessage() and "2 of 4" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_second_chunk_starts_when_remaining_time_equals_worst_case(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(sanposcape.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
+        chunks = self._wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 4.0])  # deadline_at=10, remaining=6.0 == worst_case
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=10,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.pins.service"):
+            service.delete_pin(owner, pin_id)
+
+        assert len(chunks) == 2
+        for key in keys:
+            assert storage.head(key) is None
+        assert not any("not enough time" in record.getMessage() for record in caplog.records)
+
+    def test_first_chunk_is_always_attempted_regardless_of_remaining_time(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sanposcape.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
+        chunks = self._wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 1_000.0])
+        # 締め切り(1秒) + 最悪時間(6秒) は Settings のバリデーション（<=25秒）なら通る組み合わせ
+        # だが、ここでは service に直接注入しているため Settings の検証は経由しない。
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=1,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        service.delete_pin(owner, pin_id)
+
+        # 最初のチャンクは残り時間によらず必ず試みるため実体が消え、2つ目は打ち切られる。
+        assert len(chunks) == 1
+        assert storage.head(keys[0]) is None
+        assert storage.head(keys[1]) is None
+        assert storage.head(keys[2]) is not None
+        assert storage.head(keys[3]) is not None
 
 
 class TestPinServiceDeletePhoto:
@@ -1373,6 +1478,33 @@ class TestPinServiceDeletePhoto:
         assert storage.head(thumbnail_s3_key) is None
         result = service.get_pin(owner, pin_read.id, base_url=BASE_URL)
         assert result.photo_count == 0
+
+    def test_deletes_photo_even_when_monotonic_shows_deadline_far_exceeded(
+        self, db_session: Session
+    ) -> None:
+        """写真1枚（キー2つ）の削除は常に1チャンクで終わるため、`monotonic()` がどんな値を
+        返しても最初のチャンクとして必ず試みられる（ADR-009 決定22 追補, SS-112）。
+        """
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        monotonic_values = iter([0.0, 1_000.0])
+        service = make_pin_service(db_session, storage, monotonic=lambda: next(monotonic_values))
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        assert photo.thumbnail_s3_key is not None
+        photo_id = photo.id
+        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
+
+        service.delete_photo(owner, pin_read.id, photo_id)
+
+        assert storage.head(s3_key) is None
+        assert storage.head(thumbnail_s3_key) is None
 
     def test_resend_after_delete_raises_not_found(self, db_session: Session) -> None:
         owner = make_user(db_session, subject="owner")

@@ -1,14 +1,17 @@
 import base64
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 from urllib.parse import urlsplit
 
 import boto3
 import pytest
 from botocore.config import Config
+from botocore.exceptions import ReadTimeoutError
 from botocore.stub import Stubber
 
 from sanposcape.config import Settings
+from sanposcape.integrations.aws import s3 as s3_module
 from sanposcape.integrations.aws.s3 import (
     FakeObjectStorage,
     ObjectNotFoundError,
@@ -36,7 +39,13 @@ def make_storage() -> tuple[S3ObjectStorage, Stubber]:
     )
     stubber = Stubber(client)
     storage = S3ObjectStorage(
-        bucket=BUCKET, region=REGION, connect_timeout=1, read_timeout=1, client=client
+        bucket=BUCKET,
+        region=REGION,
+        connect_timeout=1,
+        read_timeout=1,
+        delete_connect_timeout=1,
+        delete_read_timeout=1,
+        client=client,
     )
     return storage, stubber
 
@@ -251,6 +260,178 @@ class TestDeleteMany:
             failed = storage.delete_many(keys)
         assert failed == keys[:1000]
         stubber.assert_no_pending_responses()
+
+
+class TestS3ClientConfig:
+    """削除専用 client の Config が通常の client と別に組み立てられること
+    （PR #101 レビュー対応, C1）。
+    """
+
+    def _make_recorder(self) -> tuple[object, list[dict], list[MagicMock]]:
+        calls: list[dict] = []
+        created: list[MagicMock] = []
+
+        def recorder(service_name: str, **kwargs: object) -> MagicMock:
+            calls.append(kwargs)
+            client = MagicMock(name=f"boto3-client-{len(calls)}")
+            created.append(client)
+            return client
+
+        return recorder, calls, created
+
+    def test_builds_two_clients_with_different_retry_and_timeout_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder, calls, _created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+
+        S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=2,
+            read_timeout=5,
+            delete_connect_timeout=1,
+            delete_read_timeout=4,
+        )
+
+        assert len(calls) == 2
+        normal_config = calls[0]["config"]
+        delete_config = calls[1]["config"]
+
+        assert normal_config.retries == {"total_max_attempts": 3, "mode": "standard"}
+        assert normal_config.connect_timeout == 2
+        assert normal_config.read_timeout == 5
+
+        assert delete_config.retries == {"total_max_attempts": 1, "mode": "standard"}
+        assert delete_config.connect_timeout == 1
+        assert delete_config.read_timeout == 4
+
+        assert normal_config.signature_version == "s3v4"
+        assert delete_config.signature_version == "s3v4"
+
+    def test_build_object_storage_passes_delete_timeouts_from_settings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder, calls, _created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+        settings = Settings(
+            env="test",
+            storage_mode="real",
+            pin_photo_bucket_name=BUCKET,
+            object_storage_delete_read_timeout_seconds=3,
+        )
+
+        build_object_storage(settings)
+
+        delete_config = calls[1]["config"]
+        assert delete_config.read_timeout == 3
+
+    def test_client_only_injected_is_used_for_delete_too(self) -> None:
+        """`client=` だけ注入すると、削除にも同じ client を使う（解決規則の2番）。"""
+        storage, stubber = make_storage()
+        stubber.add_response("delete_object", {}, {"Bucket": BUCKET, "Key": "k"})
+        with stubber:
+            storage.delete("k")
+        stubber.assert_no_pending_responses()
+
+    def test_delete_uses_dedicated_client_when_injected_separately(self) -> None:
+        normal_client = boto3.client(
+            "s3",
+            region_name=REGION,
+            aws_access_key_id="x",
+            aws_secret_access_key="y",
+            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+        )
+        delete_client = boto3.client(
+            "s3",
+            region_name=REGION,
+            aws_access_key_id="x",
+            aws_secret_access_key="y",
+            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+        )
+        normal_stubber = Stubber(normal_client)
+        delete_stubber = Stubber(delete_client)
+        storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+            client=normal_client,
+            delete_client=delete_client,
+        )
+        delete_stubber.add_response(
+            "delete_objects",
+            {},
+            {"Bucket": BUCKET, "Delete": {"Objects": [{"Key": "a"}], "Quiet": True}},
+        )
+        # 通常側は応答を積まずに activate する。誤ってこちらが呼ばれれば
+        # UnStubbedResponseError で失敗する。
+        with normal_stubber, delete_stubber:
+            failed = storage.delete_many(["a"])
+        assert failed == []
+        delete_stubber.assert_no_pending_responses()
+
+    def test_read_timeout_on_delete_client_is_absorbed_as_chunk_failure(self) -> None:
+        class _RaisingClient:
+            def delete_objects(self, **kwargs: object) -> None:
+                raise ReadTimeoutError(endpoint_url="https://x")
+
+        storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+            client=MagicMock(),
+            delete_client=_RaisingClient(),
+        )
+
+        failed = storage.delete_many(["a"])
+
+        assert failed == ["a"]
+
+    def test_close_does_not_close_injected_client(self) -> None:
+        """`client=` だけ注入した場合、delete 用も同じ client を使う（所有しない）ため
+        `close()` はどちらも呼ばない。
+        """
+        injected_normal = MagicMock()
+
+        storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+            client=injected_normal,
+        )
+        storage.close()
+
+        injected_normal.close.assert_not_called()
+
+    def test_close_closes_both_self_created_clients(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """client を注入しない場合、通常用・削除用の2つを自前で作り、両方 close する。"""
+        recorder, calls, created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+
+        owned_storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+        )
+        assert len(calls) == 2
+        owned_normal, owned_delete = created
+
+        owned_storage.close()
+
+        owned_normal.close.assert_called_once()
+        owned_delete.close.assert_called_once()
 
 
 class TestUnconfiguredObjectStorageDeleteMany:

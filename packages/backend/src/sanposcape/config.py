@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 # 本番でこの値が使われることはない（起動時バリデーションで別途弾く）。
 _INSECURE_DEV_JWT_SECRET = "insecure-local-development-secret-do-not-use-in-prod"
 
+# Lambda の Timeout（29秒, template.yaml）から 4 秒の余裕を引いた値。確定処理
+# （pin_photo_confirm_deadline_seconds）・周回ルート（google_maps_route_deadline_seconds）の
+# 締め切り上限（le=25）と同じ値。4 秒の余裕は、削除フェーズより前の DB 処理（行ロック・
+# SELECT・DELETE・commit）と、1回の最悪時間の近似誤差（read_timeout は無通信時間の上限に
+# すぎない・DNS 解決は timeout の対象外）を吸収する分（ADR-009 決定22, SS-112）。
+_REQUEST_TIME_BUDGET_SECONDS = 25
+
 
 def _to_sqlalchemy_url(dsn: str) -> str:
     """Neon 等が払い出す DSN 文字列を SQLAlchemy + psycopg3 用の URL に正規化する。
@@ -207,10 +214,18 @@ class Settings(BaseSettings):
     pin_photo_confirm_deadline_seconds: int = Field(default=20, ge=1, le=25)
     pin_photo_confirm_concurrency: int = Field(default=3, ge=1, le=8)
     # ピン削除・写真削除の S3 実体削除（best-effort）の時間予算（ADR-009 決定22, SS-112）。
-    # 超えた分は諦めて WARNING を出す（削除 API 自体は 503 にしない）。
-    pin_photo_delete_deadline_seconds: float = Field(default=10, ge=1, le=25)
+    # 2つ目以降のチャンクは、残り時間が1回の最悪時間
+    # （`object_storage_delete_call_worst_case_seconds`）以上のときだけ始める（最初のチャンク
+    # は必ず試みる）。締め切りと1回の最悪時間の和は `_REQUEST_TIME_BUDGET_SECONDS` 以下に
+    # なるよう起動時に検証する（`_validate_environment_settings`）。
+    pin_photo_delete_deadline_seconds: float = Field(default=10, ge=1, le=20)
     object_storage_connect_timeout_seconds: float = Field(default=2.0, gt=0)
     object_storage_read_timeout_seconds: float = Field(default=5.0, gt=0)
+    # 削除（`delete`/`delete_many`）専用の client の timeout（ADR-009 決定22 追補, SS-112）。
+    # 削除は再試行しない（`integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS`）ため、
+    # 通常の client の timeout より短め・小さめにしている。
+    object_storage_delete_connect_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
+    object_storage_delete_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
     # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。
     pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)
 
@@ -225,6 +240,22 @@ class Settings(BaseSettings):
         消費させられる（本番には存在しない router だが、local/test で有効）。
         """
         return self.pin_photo_max_bytes + 64 * 1024
+
+    @property
+    def object_storage_delete_call_worst_case_seconds(self) -> float:
+        """削除専用 client（`total_max_attempts=1`）で1回呼び出したときの最悪時間の近似
+        （ADR-009 決定22 追補, SS-112）。
+
+        試行が1回なのでバックオフの項は無く、`delete_connect_timeout + delete_read_timeout`
+        になる（前提: `integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS = 1`）。
+        あくまで近似であり、実際の上限ではない。botocore の read_timeout はソケットの
+        読み取り1回ごとの無通信時間の上限であり応答全体の上限ではない点、DNS 解決
+        （`getaddrinfo`）は timeout の対象外である点に注意する。
+        """
+        return (
+            self.object_storage_delete_connect_timeout_seconds
+            + self.object_storage_delete_read_timeout_seconds
+        )
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -249,6 +280,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS must not exceed "
                 "GOOGLE_MAPS_RATE_LIMIT_REQUESTS"
+            )
+        # 締め切り + 1回の最悪時間が Lambda の時間予算を超えると、S3 の削除呼び出し中に
+        # 応答が 504 になりうる（DB は commit 済みのため実害は小さいが、決定22の意図と
+        # 応答時間の有界性が崩れる）。env を問わず検証する（local/test で緩めても得るものが
+        # 無く、設定ミスにテスト時点で気付けるようにするため。ADR-009 決定22 追補, SS-112）。
+        worst_case = self.object_storage_delete_call_worst_case_seconds
+        if self.pin_photo_delete_deadline_seconds + worst_case > _REQUEST_TIME_BUDGET_SECONDS:
+            raise ValueError(
+                "PIN_PHOTO_DELETE_DEADLINE_SECONDS + "
+                "OBJECT_STORAGE_DELETE_CONNECT_TIMEOUT_SECONDS + "
+                "OBJECT_STORAGE_DELETE_READ_TIMEOUT_SECONDS must not exceed "
+                f"{_REQUEST_TIME_BUDGET_SECONDS} seconds"
             )
         # 許可リスト方式: 「fail-safe な検証をスキップしてよい環境」だけを明示的に列挙する。
         # `env == "production"` のような否定リスト方式だと、新しい env 値（例: staging）を

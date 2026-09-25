@@ -220,6 +220,7 @@ class PinService:
         read_photos_limit: int,
         download_url_ttl_seconds: int,
         photo_delete_deadline_seconds: float,
+        photo_delete_call_worst_case_seconds: float,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -234,6 +235,7 @@ class PinService:
         self._read_photos_limit = read_photos_limit
         self._download_url_ttl_seconds = download_url_ttl_seconds
         self._photo_delete_deadline_seconds = photo_delete_deadline_seconds
+        self._photo_delete_call_worst_case_seconds = photo_delete_call_worst_case_seconds
         self._now = now
         self._monotonic = monotonic
 
@@ -696,6 +698,16 @@ class PinService:
         `S3ObjectStorage.delete_many()` は1回で `S3_DELETE_OBJECTS_MAX_KEYS` 件を処理する
         ため、ここでのチャンクサイズもそれに揃える。
 
+        締め切りは「呼ぶ前だけ」ではなく、呼び出し中の S3 の時間も予算に収める
+        （ADR-009 決定22 追補, SS-112）。最初のチャンクは残り時間によらず必ず試みる
+        （写真1枚や 500枚以下のピンなど、チャンクが1つで終わるケースで設定値によらず
+        必ず S3 削除を試みるため）。2つ目以降のチャンクは、始める前に「残り時間 ≥
+        1回の最悪時間（`self._photo_delete_call_worst_case_seconds`）」を確認し、
+        満たさなければそこで打ち切る。この判定により、S3 の後始末フェーズ全体は
+        `max(締め切り, 1回の最悪時間)` 以内に収まる（`delete()`/`delete_many()` は
+        削除専用の client で呼ばれ、再試行なし・短い timeout のため1回の呼び出しが
+        有界になっている前提, `integrations/aws/s3.py`）。
+
         `except Exception` で広く捕まえる（R3）: ここは DB commit 後の best-effort 境界
         であり、`ObjectStorageUnavailableError` 以外の想定外の例外（実装のバグ等）が
         飛んできても、削除 API を 500 にしてはならない（決定22「削除 API はストレージが
@@ -706,15 +718,21 @@ class PinService:
             return
         deadline_at = self._monotonic() + self._photo_delete_deadline_seconds
         chunk_size = S3_DELETE_OBJECTS_MAX_KEYS
-        for start in range(0, len(keys), chunk_size):
-            if self._monotonic() > deadline_at:
-                logger.warning(
-                    "Skipping remaining pin photo object cleanup: delete deadline exceeded "
-                    "(%d of %d objects not deleted; they remain as orphaned objects until BK-3)",
-                    len(keys) - start,
-                    len(keys),
-                )
-                return
+        for index, start in enumerate(range(0, len(keys), chunk_size)):
+            if index > 0:
+                remaining = deadline_at - self._monotonic()
+                if remaining < self._photo_delete_call_worst_case_seconds:
+                    logger.warning(
+                        "Skipping remaining pin photo object cleanup: not enough time before "
+                        "the delete deadline (remaining=%.1fs < per-call worst case=%.1fs; "
+                        "%d of %d objects not deleted; they remain as orphaned objects "
+                        "until BK-3)",
+                        remaining,
+                        self._photo_delete_call_worst_case_seconds,
+                        len(keys) - start,
+                        len(keys),
+                    )
+                    return
             chunk = keys[start : start + chunk_size]
             try:
                 failed = self._storage.delete_many(chunk)
