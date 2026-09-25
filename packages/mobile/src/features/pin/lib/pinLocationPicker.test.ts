@@ -134,4 +134,18 @@ describe("PIN_PICKER_FALLBACK_REGION", () => {
     expect(PIN_PICKER_FALLBACK_REGION.latitudeDelta).toBeGreaterThan(0);
     expect(PIN_PICKER_FALLBACK_REGION.longitudeDelta).toBeGreaterThan(0);
   });
+
+  // PR #102 レビュー: 旧値（中心 36.2/138.25、delta 16）は稚内・那覇・石垣・与那国が範囲外だった。
+  it.each([
+    ["稚内（北端付近）", 45.415, 141.673],
+    ["根室（東端付近）", 43.33, 145.583],
+    ["東京", 35.681, 139.767],
+    ["那覇", 26.212, 127.679],
+    ["石垣", 24.34, 124.156],
+    ["与那国（西端付近）", 24.468, 123.004],
+  ])("%s が初期表示の範囲に入る", (_label, latitude, longitude) => {
+    const region = PIN_PICKER_FALLBACK_REGION;
+    expect(Math.abs(latitude - region.latitude)).toBeLessThanOrEqual(region.latitudeDelta / 2);
+    expect(Math.abs(longitude - region.longitude)).toBeLessThanOrEqual(region.longitudeDelta / 2);
+  });
 });

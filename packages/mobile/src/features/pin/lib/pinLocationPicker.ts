@@ -6,14 +6,29 @@ import type { GeoCoordinates } from "@/services/location/types";
 export const PIN_MAP_POINT_DELTA = 0.008;
 
 /**
- * 現在地が取れないとき（権限拒否・取得失敗）の初期表示。日本全体。
+ * 「日本全体」として初期表示に収める範囲（おおよその端）。
+ * 南端は波照間島、西端は与那国島、北端は宗谷岬、東端は納沙布岬。沖ノ鳥島・南鳥島などの遠い離島は
+ * 含めると本州が小さくなりすぎるため対象外にする。
+ */
+export const JAPAN_DISPLAY_BOUNDS = {
+  south: 24.0,
+  north: 45.6,
+  west: 122.9,
+  east: 145.9,
+} as const;
+
+/** 端の地点が画面の縁に貼り付かないように、上下左右に足す余白（度）。 */
+const JAPAN_DISPLAY_MARGIN = 1;
+
+/**
+ * 現在地が取れないとき（権限拒否・取得失敗）の初期表示。日本全体（`JAPAN_DISPLAY_BOUNDS` から計算）。
  * 特定の地点（東京駅など）にしないのは、ユーザーに無関係な場所を「起点」として見せないため。
  */
 export const PIN_PICKER_FALLBACK_REGION: MapRegion = {
-  latitude: 36.2,
-  longitude: 138.25,
-  latitudeDelta: 16,
-  longitudeDelta: 16,
+  latitude: (JAPAN_DISPLAY_BOUNDS.south + JAPAN_DISPLAY_BOUNDS.north) / 2,
+  longitude: (JAPAN_DISPLAY_BOUNDS.west + JAPAN_DISPLAY_BOUNDS.east) / 2,
+  latitudeDelta: JAPAN_DISPLAY_BOUNDS.north - JAPAN_DISPLAY_BOUNDS.south + JAPAN_DISPLAY_MARGIN * 2,
+  longitudeDelta: JAPAN_DISPLAY_BOUNDS.east - JAPAN_DISPLAY_BOUNDS.west + JAPAN_DISPLAY_MARGIN * 2,
 };
 
 /** 1点を中心にした表示範囲。 */
