@@ -44,4 +44,15 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
 - 7. `backend-workflow` skillの完了後、該当するクライアント側の `frontend-workflow` / `mobile-workflow` skill を呼び出し、実装を開始する
 - 8. backend/frontendのどちらにも属さない場合(インフラの構築や、CI/CDの設定)、 `Plan` agent を呼び出してプランを作成する。ユーザーから明示的にプラン作成までで停止する指示がない限り、承認を待たずに汎用エージェントを使い作業を進める
 - 9. タスクが完了した場合は、testが通ることを確認、コミットも完了していることを確認し、git push、PRを作成する。この際、`<task-root>/handover-notes.md` が存在する場合は内容を整理し、PR本文の末尾に「## 申し送り事項」セクションとして含める。
+  - PRレビュー指摘への対応(手順1で `review-fix` と判断した場合)では、新たなPRは作成せず既存のPRのブランチへ push する。
 - 10. `task-status-sync` skill を `issue-id` `pr-created` `<作成したPRのURL>` で呼び出し、タスクの状態更新とPR URLの紐付けを行う。
+  - `review-fix` の場合も、対応を push した後に同様に呼び出してレビュー待ちの状態へ戻す。
+- 11. `knowledge-harvest` skill を `issue-id`(タスクIDが無い場合は `<task-root>` のディレクトリ名)と「自動モード(task-workflow から呼び出し、PRあり)」である旨を伝えて呼び出す。このチケットで生まれた決定事項のADRへの転記・agent-memory の仕分け・ベースライン更新をコミットしてPRへ push し、`<task-root>` と `tmp/<PR番号>-comments.md` を削除するところまで、ユーザーの承認を待たずに完了させる。
+  - 手順9で `<task-root>/handover-notes.md` をPR本文に反映した後に行うこと(収穫の後では tmp が削除されて参照できない)。
+  - 手順10の後に行うのは、PR作成・状態更新の過程で専門エージェントが追記した agent-memory も仕分けの対象に含めるため。
+- 12. 手順11の収穫結果(追補したADR、昇格・削除・統合したメモリの内訳、削除した tmp)を、`gh pr edit` でPR本文の末尾に「## 知識の収穫」セクションとして追記する(`review-fix` の場合は既存セクションに追記する)。収穫対象が何も無かった場合はこのセクションを省略する。
+- 13. 最後の仕上げとして、未コミットのまま残ったエージェントの作業記録をコミットし、PRへ push する。
+  - 対象は `.claude/memory-access-log/` 配下(メモリ本文を読むたびにフックが追記するアクセスログ)と、手順11以降に追加・変更された `.claude/agent-memory/` 配下のファイル。アクセスログはセッションごとの追記専用ファイルなので、今回のセッションに限らず配下の未コミットファイルをすべて含めてよい。
+  - この手順より後にメモリ本文を読むと、そのアクセスログが再び未コミットで残る。この手順をワークフローの最後の操作とし、以降はメモリを読まない(最終報告は手元の情報だけで行う)。
+  - コミット後、`git status --porcelain -- .claude/agent-memory .claude/memory-access-log` の出力が空であり、`<task-root>` が存在しないことを確認してワークフローを終了する(`tmp/` は `.gitignore` 対象のため `git status` には現れない)。
+- 手順11〜13は、手順5でプラン作成までで停止した場合には行わない(`<task-root>` のプランは後続の実装で使うため削除しない)。

@@ -1,6 +1,7 @@
 """地図の role による権限判定（純粋関数、DB/HTTP に依存しない）。
 
-権限マトリクスの確定版は ADR-009 決定19（BK-5, SS-112）を参照。関数の形は2種類ある。
+権限マトリクスの確定版は ADR-009 決定19（BK-5, SS-112）・決定26（地図そのものの操作,
+SS-113）を参照。関数の形は3種類ある。
 
 - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: role だけで判定する
   （`role in _WRITE_ROLES`）。作成者は判定しないので `is_creator` 引数は持たない。
@@ -9,6 +10,9 @@
   `pins.created_by_user_id`、タグなら `pin_tags.created_by_user_id`、写真なら
   `pin_photos.uploaded_by_user_id`）ため、`is_creator`/`is_uploader` をキーワード専用引数で
   受け取る（取り違え防止）。
+- **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）: owner のみ
+  （`role == "owner"`）。地図の名前・存続は共有メンバー全員に影響するため、対象の持ち主を
+  判定する引数（`is_creator` 相当）は持たない（決定26）。
 
 未知の role（`_WRITE_ROLES` に無い値）は常に False にする（fail-safe）。owner 以外は
 `role in _WRITE_ROLES` を満たさない限り何もできないため、`SanpoMapRole` の想定外の値が
@@ -63,3 +67,13 @@ def can_delete_pin_photo(role: SanpoMapRole, *, is_uploader: bool) -> bool:
     削除できない。
     """
     return role == "owner" or (role in _WRITE_ROLES and is_uploader)
+
+
+def can_update_sanpo_map(role: SanpoMapRole) -> bool:
+    """地図の名前変更（`PATCH /sanpo-maps/{id}`, ADR-009 決定26）。owner のみ可。"""
+    return role == "owner"
+
+
+def can_delete_sanpo_map(role: SanpoMapRole) -> bool:
+    """地図の削除（`DELETE /sanpo-maps/{id}`, ADR-009 決定26）。owner のみ可。"""
+    return role == "owner"

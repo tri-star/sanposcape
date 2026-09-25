@@ -450,8 +450,26 @@ paths:
       tags:
       - sanpo-maps
       summary: List Sanpo Maps
-      description: 自分が member である地図を全件返す（クエリなし。MVP は件数が少ない前提）。
+      description: '自分が member である地図を全件返す（ページングなし。MVP は件数が少ない前提）。
+
+
+        `?expand=pin_count` を指定すると各要素の `pin_count` が整数で埋まる（ピンが無い
+
+        地図は0）。未指定なら `pin_count` は null のまま。'
       operationId: list_sanpo_maps
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: expand
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            const: pin_count
+            type: string
+          maxItems: 8
+          title: Expand
       responses:
         '200':
           description: Successful Response
@@ -461,8 +479,129 @@ paths:
                 $ref: '#/components/schemas/SanpoMapListRead'
         '401':
           description: Not authenticated
+        '413':
+          description: Request body too large
+        '422':
+          description: Validation error
+    post:
+      tags:
+      - sanpo-maps
+      summary: Create Sanpo Map
+      description: '地図を新規作成する（作成者が owner になる）。
+
+
+        自分の既定地図がまだ無ければ、作った地図が既定になる（`is_default` はリクエストで
+
+        指定できない）。名前の重複は許可する。冪等キーは持たない。'
+      operationId: create_sanpo_map
       security:
       - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SanpoMapCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '422':
+          description: Validation error
+  /sanpo-maps/{sanpo_map_id}:
+    patch:
+      tags:
+      - sanpo-maps
+      summary: Update Sanpo Map
+      description: '地図の名前を変更する。空のボディ `{}` は何も変えずに 200 を返す。
+
+
+        地図 owner のみ可（editor は 403）。非メンバー・存在しない ID は 404。同名への
+
+        変更も 200。名前変更では `updated_at` を更新しない。'
+      operationId: update_sanpo_map
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SanpoMapUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Permission denied
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+      - sanpo-maps
+      summary: Delete Sanpo Map
+      description: '地図を削除する。ピン・写真・タグも DB の `ON DELETE CASCADE` で消え、S3 の写真の
+
+        実体は best-effort で削除する（ストレージ障害・未構成でも 204 のまま）。
+
+
+        地図 owner のみ可（editor は 403）。非メンバー・存在しない ID は 404。非冪等
+
+        （削除済み ID への再送も 404）。消したのが既定地図なら、残りの地図のうち
+
+        `updated_at DESC, id DESC` の先頭が新しい既定に繰り上がる。'
+      operationId: delete_sanpo_map
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Permission denied
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /pins:
     post:
       tags:
@@ -1821,6 +1960,18 @@ components:
       - location
       - name
       title: RouteDestinationRead
+    SanpoMapCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: SanpoMapCreate
+      description: '`POST /sanpo-maps` のリクエスト（ADR-009 決定25）。'
     SanpoMapListRead:
       properties:
         items:
@@ -1856,6 +2007,11 @@ components:
           - owner
           - editor
           title: Role
+        pin_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pin Count
         created_at:
           type: string
           format: date-time
@@ -1892,6 +2048,26 @@ components:
       - is_default
       title: SanpoMapSummaryRead
       description: 他ドメイン（`pins/schemas.py` の `PinRead.sanpo_map`）が埋め込む要約表現。
+    SanpoMapUpdate:
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Name
+      additionalProperties: false
+      type: object
+      title: SanpoMapUpdate
+      description: '`PATCH /sanpo-maps/{sanpo_map_id}` のリクエスト（ADR-009 決定25。`pins/schemas.py`
+
+        の `PinUpdate` と同じ流儀）。
+
+
+        `extra="forbid"`。`name` は省略可・null 不可（`SkipJsonSchema[None]` により OpenAPI 上は
+
+        non-nullable の optional として出る。明示的な `null` は `model_validator` で 422）。
+
+        `{}` は 200 で何も変えない。'
     SessionCreate:
       properties:
         provider:

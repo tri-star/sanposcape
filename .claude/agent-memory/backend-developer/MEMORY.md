@@ -27,3 +27,4 @@
 - [feedback-pydantic-optional-list-and-orm-expire-gotchas](feedback_pydantic_optional_list_and_orm_expire_gotchas.md) — SkipJsonSchema[None]+max_lengthの罠、commit後のORM属性expireでのテスト罠、サービス直呼びテストでの明示rollback。backendにmypy未導入の事実も記載
 - [project-ss131-scalar-api-docs-complete](project_ss131_scalar_api_docs_complete.md) — SS-131（/docsをSwagger UIからScalarに置き換え、production非公開）は実装完了。api_docs/router.pyのSCALAR_JS_URL定数に版固定を集約
 - [project-ss112-pr101-review-c1-c4-complete](project_ss112_pr101_review_c1_c4_complete.md) — SS-112 PR #101レビューC1〜C4（削除の時間予算・権限マトリクスdocsの記述不一致）は実装完了。返信・resolveは未実施
+- [feedback-http-delete-identity-map-staleness-in-tests](feedback_http_delete_identity_map_staleness_in_tests.md) — HTTP経由の削除を別セッションで確認するテストはdb_sessionのidentity mapが罠になる（ObjectDeletedErrorも）。TestSessionLocal()の新規セッションで確認する

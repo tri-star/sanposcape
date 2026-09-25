@@ -9,3 +9,4 @@
 - [SS-33 loop route review outcome](project_ss33_loop_route_review.md) — reviewed 2026-09-15, no Crit/High/Med; Low: no O-D distance cap (resample cost), loop rate-limit shared w/ places (accepted tradeoff)
 - [SS-88 pins/photo-upload review outcome](project_ss88_pins_photo_upload_review.md) — reviewed 2026-09-21, no Crit/High/Med; 3 Low (find_attachment unscoped, no rate limit, dev-storage unbounded read)
 - [SS-88 observability log review](project_ss88_observability_log_review.md) — reviewed 2026-09-24, no findings; AccessLogMiddleware/upload-issue log verified to leak nothing
+- [SS-113 sanpo_maps management API review](project_ss113_sanpo_maps_management_review.md) — reviewed 2026-09-26, no Crit/High/Med; 3 Low (expand list no max_length, count_pins_for_maps unscoped-but-callers-authorize, no rate limit)
