@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""PR の変更ファイルを機械的に分類し、章立ての材料を JSON で出力する。
+"""PR の変更ファイルを機械的に分類し、概要と観点候補の材料を JSON で出力する。
 
-review-tour skill の「事実収集」フェーズで使う。
+review-tour skill の「概要」フェーズで使う。
 分類まで LLM に任せると結果がブレるため、パスから機械的に決まる部分
 (package / layer / feature / 生成物かどうか) はここで確定させ、
-LLM には「どう束ねてどう名付けるか」だけを担当させる。
+LLM には「何が変わるのか・どんな観点で見るべきか」の意味づけだけを担当させる。
 
 使い方:
     python3 .claude/skills/review-tour/scripts/collect-pr-facts.py 123
@@ -67,8 +67,8 @@ LAYER_RULES: list[tuple[str, str]] = [
     (r"\.md$", "docs"),
 ]
 
-# 自動生成物・ロックファイル。1行ずつ読む必要はなく、章では「再生成された」
-# 事実だけ伝えれば足りるので、章立ての段階で切り離せるように印を付ける。
+# 自動生成物・ロックファイル。1行ずつ読む必要はなく、概要では「再生成された」
+# 事実だけ伝えれば足りるので、レビュー対象から切り離せるように印を付ける。
 GENERATED_RULES = [
     r"^packages/mobile/src/api/",
     r"^packages/backend/openapi\.(json|ya?ml)$",

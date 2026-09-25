@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Usage:
 #   ./add-finding.sh <pr-number> --severity high --file path.py:88 --by agent \
-#       --title "例外時にレコードが中途半端に残る" [--chapter 03-walk-usecase] [--body "..."]
+#       --title "例外時にレコードが中途半端に残る" [--viewpoint V1] [--body "..."]
 #
 # review.md へ ID を採番して追記する。
 # LLM が Edit で既存の指摘を壊すのを防ぐため、追記は必ずこのスクリプトを通す。
@@ -15,7 +15,7 @@ shift
 SEVERITY=""
 FILE_REF=""
 BY=""
-CHAPTER=""
+VIEWPOINT=""
 TITLE=""
 BODY=""
 BODY_SET=0
@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
     --severity) SEVERITY="$2"; shift 2 ;;
     --file)     FILE_REF="$2"; shift 2 ;;
     --by)       BY="$2"; shift 2 ;;
-    --chapter)  CHAPTER="$2"; shift 2 ;;
+    --viewpoint) VIEWPOINT="$2"; shift 2 ;;
     --title)    TITLE="$2"; shift 2 ;;
     --body)     BODY="$2"; BODY_SET=1; shift 2 ;;
     *) echo "error: 不明な引数: $1" >&2; exit 2 ;;
@@ -66,7 +66,7 @@ NEXT_ID=$(printf 'F-%03d' "$(( $(grep -c '^### F-' "$FILE" || true) + 1 ))")
   echo
   echo "- **場所**: \`${FILE_REF}\`"
   echo "- **発見者**: ${BY}"
-  [[ -n "$CHAPTER" ]] && echo "- **章**: ${CHAPTER}"
+  [[ -n "$VIEWPOINT" ]] && echo "- **観点**: ${VIEWPOINT}"
   echo "- **状態**: open"
   echo "- **記録日時**: $(date +%Y-%m-%dT%H:%M:%S%z)"
   if [[ -n "$BODY" ]]; then
