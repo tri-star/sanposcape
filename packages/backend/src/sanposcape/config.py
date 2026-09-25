@@ -222,8 +222,12 @@ class Settings(BaseSettings):
     object_storage_connect_timeout_seconds: float = Field(default=2.0, gt=0)
     object_storage_read_timeout_seconds: float = Field(default=5.0, gt=0)
     # 削除（`delete`/`delete_many`）専用の client の timeout（ADR-009 決定22 追補, SS-112）。
-    # 削除は再試行しない（`integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS`）ため、
-    # 通常の client の timeout より短め・小さめにしている。
+    # 削除は再試行しない（`integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS`。この定数
+    # を変える場合は `object_storage_delete_call_worst_case_seconds` の式（バックオフ項の
+    # 有無）も見直すこと）。connect は通常の client（2.0秒）より短め（1.0秒）にしている。
+    # read は通常の client と同じ既定値（5.0秒）のままで、それを下回らせない（再試行しない
+    # 以上、read timeout をさらに縮めると大きいチャンクが恒常的に timeout して孤立が
+    # 増えるだけのため）。
     object_storage_delete_connect_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
     object_storage_delete_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
     # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。
@@ -247,10 +251,13 @@ class Settings(BaseSettings):
         （ADR-009 決定22 追補, SS-112）。
 
         試行が1回なのでバックオフの項は無く、`delete_connect_timeout + delete_read_timeout`
-        になる（前提: `integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS = 1`）。
-        あくまで近似であり、実際の上限ではない。botocore の read_timeout はソケットの
-        読み取り1回ごとの無通信時間の上限であり応答全体の上限ではない点、DNS 解決
-        （`getaddrinfo`）は timeout の対象外である点に注意する。
+        になる（前提: `integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS = 1`。
+        ★ この定数を 1 以外に変える場合は、この式にバックオフ項を足すなど、この property
+        も併せて見直すこと。定数が 1 であることは
+        `integrations/aws/tests/test_s3.py::test_delete_total_max_attempts_is_one` で固定
+        している）。あくまで近似であり、実際の上限ではない。botocore の read_timeout は
+        ソケットの読み取り1回ごとの無通信時間の上限であり応答全体の上限ではない点、
+        DNS 解決（`getaddrinfo`）は timeout の対象外である点に注意する。
         """
         return (
             self.object_storage_delete_connect_timeout_seconds

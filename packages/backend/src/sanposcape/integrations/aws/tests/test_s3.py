@@ -262,6 +262,21 @@ class TestDeleteMany:
         stubber.assert_no_pending_responses()
 
 
+def test_delete_total_max_attempts_is_one() -> None:
+    """削除専用 client の試行回数は1（再試行なし）に固定されている（ローカルレビュー R1）。
+
+    `Settings.object_storage_delete_call_worst_case_seconds`（config.py）は「1回の呼び出し
+    = connect + read」というバックオフ項の無い式で最悪時間を見積もっている。この定数を
+    2以上に変えると、その式は過小評価になり、削除の時間予算（PIN_PHOTO_DELETE_DEADLINE_
+    SECONDS の起動時検証）が壊れた状態のままテストだけが通ってしまう。
+    """
+    assert s3_module._DELETE_TOTAL_MAX_ATTEMPTS == 1, (
+        "_DELETE_TOTAL_MAX_ATTEMPTS を1以外に変える場合は、"
+        "Settings.object_storage_delete_call_worst_case_seconds の最悪時間の式"
+        "（バックオフ項の追加）も見直すこと"
+    )
+
+
 class TestS3ClientConfig:
     """削除専用 client の Config が通常の client と別に組み立てられること
     （PR #101 レビュー対応, C1）。
@@ -429,6 +444,32 @@ class TestS3ClientConfig:
         owned_normal, owned_delete = created
 
         owned_storage.close()
+
+        owned_normal.close.assert_called_once()
+        owned_delete.close.assert_called_once()
+
+    def test_close_still_closes_delete_client_when_normal_client_close_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """通常 client の `close()` が例外を投げても、削除用 client の `close()` は必ず
+        試みる（ローカルレビュー R2, security）。
+        """
+        recorder, calls, created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+
+        owned_storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+        )
+        owned_normal, owned_delete = created
+        owned_normal.close.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            owned_storage.close()
 
         owned_normal.close.assert_called_once()
         owned_delete.close.assert_called_once()

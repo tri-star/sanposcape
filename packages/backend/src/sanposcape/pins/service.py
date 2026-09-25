@@ -696,7 +696,10 @@ class PinService:
         「DB から参照されない S3 オブジェクト」だけで、BK-3 の定期掃除で回収できる）。
         `PhotoAttacher.cleanup_staging()` と同じ `monotonic()` 基準の締め切りを使う。
         `S3ObjectStorage.delete_many()` は1回で `S3_DELETE_OBJECTS_MAX_KEYS` 件を処理する
-        ため、ここでのチャンクサイズもそれに揃える。
+        ため、ここでのチャンクサイズもそれに揃える（R4: このチャンク分割は「時間予算の
+        判定の粒度」を決めるためのもので、`S3ObjectStorage.delete_many()` 内部のチャンク
+        分割は「S3 `DeleteObjects` の1回あたり最大キー数という API 制約」に対応するための
+        もの。目的が違うため2箇所に分かれている）。
 
         締め切りは「呼ぶ前だけ」ではなく、呼び出し中の S3 の時間も予算に収める
         （ADR-009 決定22 追補, SS-112）。最初のチャンクは残り時間によらず必ず試みる

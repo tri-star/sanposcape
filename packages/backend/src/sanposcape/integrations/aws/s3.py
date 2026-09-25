@@ -45,6 +45,9 @@ S3_DELETE_OBJECTS_MAX_KEYS = 1000
 #: 削除専用 client（`delete`/`delete_many`）の試行回数。「再試行なし」はユーザー決定で、
 #: env にすると呼び出し側（`pins/service.py`）が見積もる「1回の最悪時間」（バックオフを
 #: 含めない式）を運用で壊せてしまうため、定数にしている（ADR-009 決定22 追補, SS-112）。
+#: ★ この値を変える場合は `config.py` の `Settings.object_storage_delete_call_worst_case_
+#: seconds` の式（1を超えるとバックオフの項が要る）も見直すこと。値が1であることは
+#: `integrations/aws/tests/test_s3.py::test_delete_total_max_attempts_is_one` で固定している。
 _DELETE_TOTAL_MAX_ATTEMPTS = 1
 
 
@@ -317,10 +320,17 @@ class S3ObjectStorage:
         return ObjectStorageUnavailableError(str(exc))
 
     def close(self) -> None:
-        if self._owns_client:
-            self._client.close()
-        if self._owns_delete_client:
-            self._delete_client.close()
+        """所有している client（自分で作った分だけ）を閉じる。
+
+        通常用・削除用の2つを持つため、片方の `close()` が例外を投げても、もう片方の
+        `close()` を必ず試みる（`try`/`finally`。R2: security レビュー対応）。
+        """
+        try:
+            if self._owns_client:
+                self._client.close()
+        finally:
+            if self._owns_delete_client:
+                self._delete_client.close()
 
 
 class UnconfiguredObjectStorage:
