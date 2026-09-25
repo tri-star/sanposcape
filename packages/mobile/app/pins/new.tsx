@@ -14,7 +14,7 @@ import { resolveFeatureGateDecision } from "@/lib/featureGate";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
- * ピン登録画面。散歩中画面の「この場所にピンを追加」から push（`clientWalkId` つき）、
+ * ピン登録画面。散歩中画面の「この場所にピンを追加」または地図の長押しから push（`clientWalkId` つき）、
  * またはナビタブの FAB → 地点選択画面（`/pins/pick-location`）の長押しから replace
  * （`clientWalkId` なし。SS-124）で来る。
  *
