@@ -48,9 +48,10 @@
   まとめて削除する（本文: SS-112 追補）。**削除用の S3 client は再試行なし・短い timeout で、
   2つ目以降のチャンクは残り時間が1回の最悪時間以上のときだけ始める（締め切り + 1回の
   最悪時間 ≤ 25 秒を起動時に検証）**（本文: 決定22 追補, 2026-09-26 追補）
-- **地図の作成・更新・削除 API（`POST`/`PATCH`/`DELETE /sanpo-maps`）を追加した**（BK-6 完了）。
-  地図そのものの操作は owner のみ可（editor は 403、非メンバーは 404）。作成時に自分の既定地図が
-  無ければ既定化し、既定地図を削除すると `updated_at DESC, id DESC` の先頭へ繰り上げる
+- **地図の作成・更新・削除 API（`POST /sanpo-maps`・`PATCH /sanpo-maps/{sanpo_map_id}`・
+  `DELETE /sanpo-maps/{sanpo_map_id}`）を追加した**（BK-6 完了）。地図そのものの操作は
+  owner のみ可（editor は 403、非メンバーは 404）。作成時に自分の既定地図が無ければ既定化し、
+  既定地図を削除すると `updated_at DESC, id DESC` の先頭へ繰り上げる
   （本文: SS-113 追補 決定25〜27）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
@@ -214,7 +215,10 @@ ADR-008 決定7（expand → contract）の例外として直接削除してい�
 - **`GET /sanpo-maps` はピンの件数を返さない**（mobile 案にあった `spot_count`
   相当は削除）。`pins → sanpo_maps` の一方向依存を保つため（`sanpo_maps` は `pins` の
   存在を一切知らない）。件数が必要になったら地図管理チケット（BK-6）で
-  `pin_count` を optional field として expand する。（SS-113: 決定29 で実装）
+  `pin_count` を optional field として expand する。**この項目は SS-113 の決定29 で
+  実装され、`?expand=pin_count` を指定したときだけ `pin_count`（`int | null`）が
+  返るようになった（依存方向は port で維持したまま、「返さない」から「明示的に
+  要求すれば返す」に置き換わった）。**
 
 ### 決定4: 写真は presigned POST で先行アップロードし、ピン作成 API が確定を兼ねる
 
@@ -810,14 +814,17 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - **※1: editor が自分のピンを削除すると、他のメンバーがそのピンに付けた写真・タグも
   `ON DELETE CASCADE` で消える。** ADR の「ピンの削除は作成者本人」をそのまま実装した
   結果で、ピン単位の削除である以上避けられない。
-- 実装は `sanpo_maps/permissions.py` の純粋関数で、形は2種類ある
-  （2026-09-26 追補, PR #101 レビュー対応）。
+- 実装は `sanpo_maps/permissions.py` の純粋関数で、形は3種類ある
+  （2026-09-26 追補, PR #101 レビュー対応。3種類目は SS-113 で追加）。
   - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: `role in {"owner",
     "editor"}` のみで判定する。作成者は判定しないので `is_creator` 引数は持たない。
   - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
     `can_delete_pin_tag`/`can_delete_pin_photo`）: `role == "owner" or (role in {"owner",
     "editor"} and is_creator)`。写真だけは `is_uploader`。
-  - どちらも未知の role は False にする（fail-safe）。`is_creator`/`is_uploader` は
+  - **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）:
+    `role == "owner"` のみで判定する。地図の持ち主は owner の role そのものなので、
+    「対象の持ち主」を判定する引数（`is_creator`/`is_uploader`）は持たない（決定26）。
+  - いずれも未知の role は False にする（fail-safe）。`is_creator`/`is_uploader` は
     キーワード専用引数にし、取り違えを防ぐ。
 
 ### 決定20: `PATCH /pins/{id}` はフィールド単位の部分更新とタグの差分（`add_tags`/`remove_tag_ids`）
@@ -974,23 +981,22 @@ BK-6（地図の新規作成・管理 API、`pin_count` の expand）を実装�
 
 ### 決定25: 地図の作成・更新・削除 API の契約
 
-| 項目 | 決定 |
-|---|---|
-| `POST /sanpo-maps` | body `{"name": str}`（必須）。**201 + `SanpoMapRead`**（`role="owner"`、
+- **`POST /sanpo-maps`**: body `{"name": str}`（必須）。**201 + `SanpoMapRead`**（`role="owner"`、
   `is_default` は決定27 のルール、`pin_count=null`）。冪等キーは持たない（後から optional で
-  足せる） |
-| `PATCH /sanpo-maps/{sanpo_map_id}` | `SanpoMapUpdate`: `extra="forbid"`、`name` は省略可・
-  null 不可（決定20 と同じ流儀）。**`{}` は 200 で何も変えない**。**200 + 更新後の
-  `SanpoMapRead`** |
-| `DELETE /sanpo-maps/{sanpo_map_id}` | **204**、非冪等（2回目は 404）。503 は宣言しない
-  （決定22 と同じ） |
-| 名前 | 前後の空白（全角空白含む）を除去した後に 1〜50 文字（code point 数、DB
-  `String(50)`・ピン名と同じ）。空白のみは 422。重複は許可する |
-| `GET /sanpo-maps` の並び順 | 変更しない（自分の既定地図 → `updated_at DESC, id DESC`） |
-| 名前変更と `updated_at` | **更新しない**。`sanpo_maps.updated_at` は「最近ピンを追加した
+  足せる）。
+- **`PATCH /sanpo-maps/{sanpo_map_id}`**: `SanpoMapUpdate`（`extra="forbid"`、`name` は省略可・
+  null 不可、決定20 と同じ流儀）。**`{}` は 200 で何も変えない**。**200 + 更新後の
+  `SanpoMapRead`**。
+- **`DELETE /sanpo-maps/{sanpo_map_id}`**: **204**、非冪等（2回目は 404）。503 は宣言しない
+  （決定22 と同じ）。
+- **名前**: `str.strip()` で前後の空白（Unicode の空白。全角空白 U+3000・NBSP U+00A0 を含む）を
+  除去した後に 1〜50 文字（code point 数、DB `String(50)`・ピン名と同じ）。空白のみは 422。
+  重複は許可する。
+- **`GET /sanpo-maps` の並び順**: 変更しない（自分の既定地図 → `updated_at DESC, id DESC`）。
+- **名前変更と `updated_at`**: **更新しない**。`sanpo_maps.updated_at` は「最近ピンを追加した
   地図」を先頭にする並び順専用の列で、決定23（`Pin.updated_at` もピン本体・タグの変更でしか
-  更新しない）と同じ考え方 |
-| 地図数の上限 | 設けない（ピン数に上限が無いのと揃える） |
+  更新しない）と同じ考え方。
+- **地図数の上限**: 設けない（ピン数に上限が無いのと揃える）。
 
 `/sanpo-maps` にも `RequestSizeLimitMiddleware`（`pins_request_max_bytes` を流用）を足した
 ため、既存の `GET /sanpo-maps` も OpenAPI 上に 413 を持つようになった。
@@ -1062,7 +1068,9 @@ role を読み直す（二重 DELETE の後発はロック待ちの後に行が�
 `mark_used()` で `pins` 行 → 地図の行の順に UPDATE するため、地図削除（地図の行 → `pins`
 行）とまれにデッドロックし、PostgreSQL が片方を中断する（500）。DB はロールバックで整合し、
 確定済みの S3 コピーは決定4の残骸になる（BK-3）。**2台の端末で同じ地図に同時操作しない限り
-起きない**ため許容する。共有地図を owner が消すと editor のデータも消える点は BK-7 で再検討する。
+起きない**ため許容する。**このデッドロック・500 のシナリオは分析上の結論であり、テストで
+固定していない**（真の同時実行を再現するテストの追加は本チケットのスコープに含めない）。
+共有地図を owner が消すと editor のデータも消える点は BK-7 で再検討する。
 
 ### 決定29: `pin_count` の expand と依存方向
 
