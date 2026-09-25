@@ -93,10 +93,11 @@ packages/backend/
 │       │   ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
 │       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
 │       ├── sanpo_maps/        # ドメイン: 地図（ピンの入れ物）とメンバーシップ・権限（SS-88, ADR-009）
-│       │   └── permissions.py #   role による権限判定の純粋関数（can_add_pin 等に加え、
-│       │                      #   編集・削除（can_update_pin/can_delete_pin/can_add_pin_tag/
-│       │                      #   can_delete_pin_tag/can_delete_pin_photo）。後者は
-│       │                      #   is_creator/is_uploader をキーワード専用引数に取る, SS-112）
+│       │   └── permissions.py #   role による権限判定の純粋関数。追加系（can_add_pin/
+│       │                      #   can_add_pin_photo/can_add_pin_tag）は role だけ、
+│       │                      #   更新・削除系（can_update_pin/can_delete_pin/
+│       │                      #   can_delete_pin_tag/can_delete_pin_photo）は
+│       │                      #   is_creator/is_uploader をキーワード専用引数に取る, SS-112
 │       ├── pins/               # ドメイン: ピン・写真・タグ・写真アップロード枠（SS-88, ADR-009）
 │       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos,
 │       │   │                   #   GET /pins, GET /pins/{pin_id}, GET /pins/{pin_id}/photos,

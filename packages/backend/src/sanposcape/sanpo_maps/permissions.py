@@ -1,9 +1,14 @@
 """地図の role による権限判定（純粋関数、DB/HTTP に依存しない）。
 
-権限マトリクスの確定版は ADR-009 決定19（BK-5, SS-112）を参照。「対象の作成者本人」は
-操作ごとに対象が違う（ピンなら `pins.created_by_user_id`、タグなら
-`pin_tags.created_by_user_id`、写真なら `pin_photos.uploaded_by_user_id`）ため、各関数は
-`is_creator`/`is_uploader` をキーワード専用引数で受け取る（取り違え防止）。
+権限マトリクスの確定版は ADR-009 決定19（BK-5, SS-112）を参照。関数の形は2種類ある。
+
+- **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: role だけで判定する
+  （`role in _WRITE_ROLES`）。作成者は判定しないので `is_creator` 引数は持たない。
+- **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
+  `can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに対象が違う（ピンなら
+  `pins.created_by_user_id`、タグなら `pin_tags.created_by_user_id`、写真なら
+  `pin_photos.uploaded_by_user_id`）ため、`is_creator`/`is_uploader` をキーワード専用引数で
+  受け取る（取り違え防止）。
 
 未知の role（`_WRITE_ROLES` に無い値）は常に False にする（fail-safe）。owner 以外は
 `role in _WRITE_ROLES` を満たさない限り何もできないため、`SanpoMapRole` の想定外の値が

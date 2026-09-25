@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-25（SS-112）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-26（SS-112, PR #101 レビュー対応）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -45,7 +45,9 @@
   超えると409（`code: "tag_limit_exceeded"`）（本文: SS-112 追補）
 - **削除時の S3 実体は「DB commit → best-effort の即時削除」**。ストレージ障害・未構成でも
   削除 API は503にしない。`ObjectStorage.delete_many()`（S3 の DeleteObjects）で複数キーを
-  まとめて削除する（本文: SS-112 追補）
+  まとめて削除する（本文: SS-112 追補）。**削除用の S3 client は再試行なし・短い timeout で、
+  2つ目以降のチャンクは残り時間が1回の最悪時間以上のときだけ始める（締め切り + 1回の
+  最悪時間 ≤ 25 秒を起動時に検証）**（本文: 決定22 追補, 2026-09-26 追補）
 
 ### 未解決・持ち越し
 
@@ -74,7 +76,8 @@
 `template.yaml` への S3 結線）、2026-09-23 追補（`STORAGE_MODE=fake` の保存先をディスクへ）、
 2026-09-24 追補（SS-88: 実機不具合の調査で判明したアクセスログの必要性と、dev の疎通確認完了）、
 2026-09-24 追補（SS-111: 閲覧 API の追加。BK-4 完了）、
-2026-09-25 追補（SS-112: 編集・削除 API と権限マトリクスの確定。BK-5 完了）
+2026-09-25 追補（SS-112: 編集・削除 API と権限マトリクスの確定。BK-5 完了）、
+2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）
 
 ## ステータス
 
@@ -555,8 +558,8 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       S3 のオブジェクトは残るため）
 - [ ] **BK-3**: 期限切れ `pending` 枠の行削除と、対応する未参照 S3 オブジェクトの掃除
       （定期実行）。**SS-112 の編集・削除 API で残りうる不整合が増えた**: S3 削除が
-      締め切り超過・ストレージ障害で失敗した場合の `original/`・`thumb/` の孤立オブジェクト
-      （detail は「追補（2026-09-25, SS-112 編集・削除 API）」決定22）
+      時間予算の不足による打ち切り・ストレージ障害で失敗した場合の `original/`・`thumb/`
+      の孤立オブジェクト（detail は「追補（2026-09-25, SS-112 編集・削除 API）」決定22）
 - [x] **BK-4**: 閲覧 API（`GET /pins?sanpo_map_id=`、`GET /pins/{pin_id}`、
       `GET /pins/{pin_id}/photos` の全件ページング、原本の presigned GET）。**SS-111 で実装完了**
       （detail は「追補（2026-09-24, SS-111 閲覧 API）」）
@@ -787,11 +790,15 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - **※1: editor が自分のピンを削除すると、他のメンバーがそのピンに付けた写真・タグも
   `ON DELETE CASCADE` で消える。** ADR の「ピンの削除は作成者本人」をそのまま実装した
   結果で、ピン単位の削除である以上避けられない。
-- 実装は `sanpo_maps/permissions.py` の純粋関数（`can_update_pin`/`can_delete_pin`/
-  `can_add_pin_tag`/`can_delete_pin_tag`/`can_delete_pin_photo`）。すべて
-  `role == "owner" or (role in {"owner", "editor"} and is_creator)` の形で、未知の
-  role は False にする（fail-safe）。`is_creator`/`is_uploader` はキーワード専用引数にし、
-  取り違えを防ぐ。
+- 実装は `sanpo_maps/permissions.py` の純粋関数で、形は2種類ある
+  （2026-09-26 追補, PR #101 レビュー対応）。
+  - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: `role in {"owner",
+    "editor"}` のみで判定する。作成者は判定しないので `is_creator` 引数は持たない。
+  - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
+    `can_delete_pin_tag`/`can_delete_pin_photo`）: `role == "owner" or (role in {"owner",
+    "editor"} and is_creator)`。写真だけは `is_uploader`。
+  - どちらも未知の role は False にする（fail-safe）。`is_creator`/`is_uploader` は
+    キーワード専用引数にし、取り違えを防ぐ。
 
 ### 決定20: `PATCH /pins/{id}` はフィールド単位の部分更新とタグの差分（`add_tags`/`remove_tag_ids`）
 
@@ -874,10 +881,32 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
     アクションは `s3:DeleteObject` なので、追加の権限は要らない）。
   - 時間予算は締め切り（`PhotoAttacher.cleanup_staging()` と同じ `monotonic()` 基準）で
     守る。超えたら残りを諦めて WARNING を出す。新設の設定値
-    `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（既定10秒）で指定する。
+    `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（既定10秒、上限20秒）で指定する。
   - Fake 実装は `delete()` をループするだけ。Unconfigured 実装は
     `ObjectStorageUnavailableError` を投げる（呼び出し側が捕捉してログを出す）。
   - 写真1枚の削除（キー2つ）も同じ `delete_many()` を使う（経路を1つにする）。
+  - **（2026-09-26 追補, PR #101 レビュー対応）締め切りを「呼ぶ前だけ」確認するのでは
+    不十分だった**: 呼び出し中の S3 の時間が予算に入らない。旧設定（3回試行 ×（2 + 5）秒 +
+    バックオフ）では、1回の `delete_many` チャンクが 21 秒を超えうる。締め切り直前に次の
+    チャンクを始めると Lambda の 29 秒を超え、DB は commit 済みなのに 504 が返りうる
+    （Copilot レビュー, PR #101）。
+    - そこで、削除（`delete`/`delete_many`）は**削除専用の client**で呼ぶ。この client は
+      再試行なし（`total_max_attempts=1`）で、timeout は短め
+      （`OBJECT_STORAGE_DELETE_CONNECT_TIMEOUT_SECONDS` 既定1秒・
+      `OBJECT_STORAGE_DELETE_READ_TIMEOUT_SECONDS` 既定5秒）。1回の最悪時間は
+      connect + read（既定6秒）になる。best-effort なので、再試行を減らしても孤立が
+      増えるだけ（BK-3 で回収）。
+    - 最初のチャンクは残り時間によらず必ず試みる。2つ目以降は「残り時間 ≥ 1回の最悪
+      時間」のときだけ始める。この判定により、S3 の後始末フェーズ全体は
+      `max(締め切り, 1回の最悪時間)` 以内に終わる。
+    - 起動時に「締め切り + 1回の最悪時間 ≤ 25 秒」を検証する（env を問わず。Lambda の
+      29 秒から、削除フェーズより前の DB 処理と近似誤差の分として 4 秒の余裕を取る）。
+    - 近似の限界: botocore の read timeout は「無通信の時間」の上限であり、1回の応答
+      全体の上限ではない。DNS 解決（`getaddrinfo`）も timeout の対象外。
+    - 削除処理をリクエストの外へ移す案（EventBridge スケジュール + 別 Lambda 等）も
+      Copilot から提案されたが、今回のスコープには含めない（別チケットで検討する）。
+    - 確定処理の締め切り（`PIN_PHOTO_CONFIRM_DEADLINE_SECONDS`）にも同じ構造（呼ぶ前だけ
+      確認）が残っているが、確定処理は 503 で再送すれば回復する設計のため、今回は直さない。
 - `pin_photo_uploads` の `attached` 行は削除しない（ピンへの参照を持たず、容量計算にも
   使われない）。削除した写真の `upload_id` を `POST /pins/{id}/photos` で再送した場合は、
   従来どおり `status != pending` で 409 `photo_upload_not_ready` になる。
