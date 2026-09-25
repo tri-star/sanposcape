@@ -8,3 +8,4 @@
 - [AWS AppConfig フィーチャーフラグ 4 つの罠](feedback_appconfig_feature_flag_gotchas.md) — OFF フラグの属性は配信されない / トークン1回限り24h / 空ボディ / IAM は appconfig 名前空間
 - [infra 未 apply の SSM resolve は deploy を止める](feedback_template_ssm_resolve_blocks_deploy.md) — アプリは Unconfigured で先行、template 結線は infra apply 後の別チケット
 - [SS-88 ピン命名と写真の上限（ユーザー決定）](project_ss88_pin_naming_and_photo_limits.md) — Pin/SanpoMap、スポット=ゴール候補、写真無制限・10MiB・1GiB・サムネイル必須
+- [締め切りは実行中の呼び出し1回分も予算に入れる](feedback_deadline_must_budget_inflight_call.md) — 呼ぶ前だけ確認は不十分。試行回数×timeout を見積もり「締め切り+最悪1回<29秒」を示す
