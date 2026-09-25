@@ -24,6 +24,8 @@ export type WalkRouteMapViewProps = {
   style?: StyleProp<ViewStyle>;
   /** 地図上に重ねる追加コンテンツ（ツールボタンなど）。 */
   children?: ReactNode;
+  /** 地図を長押しした地点を受け取る（散歩中のピン登録。SS-124）。省略時は長押しを扱わない。 */
+  onLongPress?: (coordinate: GeoCoordinates) => void;
   testID?: string;
 };
 
@@ -48,6 +50,7 @@ export function WalkRouteMapView({
   height = 322,
   style,
   children,
+  onLongPress,
   testID,
 }: WalkRouteMapViewProps) {
   const theme = useTheme();
@@ -99,6 +102,7 @@ export function WalkRouteMapView({
         showsUserLocation={false}
         showsMyLocationButton={false}
         toolbarEnabled={false}
+        onLongPress={onLongPress ? (event) => onLongPress(event.nativeEvent.coordinate) : undefined}
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         {walkRoute ? (

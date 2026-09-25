@@ -16,7 +16,10 @@ import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/hooks/useActiveWalk";
-import { resolveAddPinAction } from "@/features/walk/lib/addPinAction";
+import {
+  resolveAddPinAction,
+  resolveMapLongPressPinAction,
+} from "@/features/walk/lib/addPinAction";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -29,8 +32,8 @@ import { useTheme } from "@/theme/useTheme";
  * 進行中の散歩が無ければ `WalkIdleNotice` を出し、あれば実地図・実位置トラッキング・
  * 実時刻ベースの経過時間を `useActiveWalk` から受けて表示する。
  *
- * 進行中の散歩が無いときは、`pin_registration` が ON なら「地図からピンを置く」FAB を出す
- * （SS-124。散歩中は既存の「この場所にピンを追加」と登録画面の位置調整を使うため出さない）。
+ * 進行中の散歩が無いときは、`pin_registration` が ON なら「地図からピンを置く」FAB（アイコンのみ）を出す。
+ * 散歩中は FAB を出さず、地図の長押しでその地点のピン登録へ進める（SS-124）。
  */
 export function WalkActiveView() {
   const theme = useTheme();
@@ -57,6 +60,18 @@ export function WalkActiveView() {
   // features/pin は import せず、ルートの文字列だけを知る（addPinAction.ts のコメントにある
   // feature 間の規約）。
   const handleOpenPinPicker = () => router.push("/pins/pick-location");
+
+  // 散歩中の地図の長押し → その地点で登録画面へ（散歩に紐付ける）。戻ると散歩中画面に戻るよう push する
+  // （「この場所にピンを追加」と同じ）。フラグ OFF・座標不正なら何もしない。
+  const handleMapLongPress = (coordinate: { latitude: number; longitude: number }) => {
+    const action = resolveMapLongPressPinAction({
+      featureEnabled: pinRegistrationEnabled,
+      pressedPosition: coordinate,
+      clientWalkId: walk.activeWalk?.clientWalkId ?? null,
+    });
+    if (action === null) return;
+    router.push({ pathname: "/pins/new", params: action.params });
+  };
 
   const handleAddPin = () => {
     const action = resolveAddPinAction({
@@ -89,16 +104,15 @@ export function WalkActiveView() {
       <View testID="walk-active-screen" style={styles.root}>
         <WalkIdleNotice onStart={() => router.replace("/walk-start")} />
         {pinRegistrationEnabled ? (
-          <Button
-            variant="primary"
+          <IconButton
+            variant="filled"
             size="lg"
             icon="map-pin"
+            label="地図からピンを置く"
             onPress={handleOpenPinPicker}
             style={styles.pinFab}
             testID="walk-active-pin-fab"
-          >
-            地図からピンを置く
-          </Button>
+          />
         ) : null}
         {/*
           このトーストが無いと、ピン登録画面から戻ってきた「ピンを保存しました」
@@ -147,6 +161,7 @@ export function WalkActiveView() {
         destinationName={activeWalk.destination.name}
         recenterNonce={recenterNonce}
         height={322}
+        onLongPress={handleMapLongPress}
         testID="walk-active-map"
       >
         <View style={styles.mapTools}>
