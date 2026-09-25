@@ -37,6 +37,49 @@ from sanposcape.config import Settings
 
 logger = logging.getLogger(__name__)
 
+#: S3 `DeleteObjects` の1回あたりの最大キー数（S3 の仕様上の上限）。`S3ObjectStorage.
+#: delete_many()` のチャンクサイズと、呼び出し側（`pins/service.py`）が best-effort 削除の
+#: 締め切りチェックを行う間隔を揃えるために共有する（R4: ハードコードの重複を避ける）。
+S3_DELETE_OBJECTS_MAX_KEYS = 1000
+
+#: 削除専用 client（`delete`/`delete_many`）の試行回数。「再試行なし」はユーザー決定で、
+#: env にすると呼び出し側（`pins/service.py`）が見積もる「1回の最悪時間」（バックオフを
+#: 含めない式）を運用で壊せてしまうため、定数にしている（ADR-009 決定22 追補, SS-112）。
+#: ★ この値を変える場合は `config.py` の `Settings.object_storage_delete_call_worst_case_
+#: seconds` の式（1を超えるとバックオフの項が要る）も見直すこと。値が1であることは
+#: `integrations/aws/tests/test_s3.py::test_delete_total_max_attempts_is_one` で固定している。
+_DELETE_TOTAL_MAX_ATTEMPTS = 1
+
+
+def _build_s3_client(
+    *, region: str, connect_timeout: float, read_timeout: float, total_max_attempts: int
+) -> object:
+    """S3 client を1つ組み立てる（通常用・削除用で共通の設定をここに集約する）。
+
+    `region_name` のみを渡す（`endpoint_url` を明示すると、virtual-hosted-style の
+    ホスト名からリージョンが脱落する botocore の挙動を確認済み。`region_name` だけで
+    `<bucket>.s3.<region>.amazonaws.com` のリージョナルホストが組み立てられる）。
+    """
+    return boto3.client(
+        "s3",
+        region_name=region,
+        config=Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "virtual"},
+            connect_timeout=connect_timeout,
+            read_timeout=read_timeout,
+            # ★ `max_attempts` ではなく `total_max_attempts` を使う（appconfig.py と同じ罠）。
+            #   `retries.mode="standard"` の `max_attempts` は botocore 内部で「初回を除く
+            #   再試行回数」として扱われ、指定値に + 1 されたものが実際の合計試行回数になる。
+            #   `total_max_attempts` は初回を含む合計回数をそのまま表すので、時間予算
+            #   （通常 client なら `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS`、削除用 client なら
+            #   `PIN_PHOTO_DELETE_DEADLINE_SECONDS`）に対して1回の S3 呼び出しが消費しうる
+            #   最悪時間を見積もる際はこちらを使う。
+            retries={"total_max_attempts": total_max_attempts, "mode": "standard"},
+            max_pool_connections=10,
+        ),
+    )
+
 
 class ObjectStorageUnavailableError(Exception):
     """ストレージが未構成、または一時的に利用できない（呼び出し元は 503 に変換する）。"""
@@ -89,6 +132,18 @@ class ObjectStorage(Protocol):
 
     def delete(self, key: str) -> None: ...
 
+    def delete_many(self, keys: list[str]) -> list[str]:
+        """複数キーを削除する（ピン削除, ADR-009 決定22）。戻り値は削除に失敗したキー。
+
+        S3 実装は `DeleteObjects`（最大1000件/回）でチャンク処理する。1件ずつの `delete()`
+        だと写真が数百枚あるピンの削除で Lambda の時間予算を食い潰しうるため、経路を
+        分ける。`ObjectStorageUnavailableError` を送出するのは Unconfigured のときだけで、
+        S3 実装は個々のチャンクの失敗を例外にせず戻り値に含める（呼び出し側を単純にする）。
+        S3 実装は削除専用の client（再試行なし・短い timeout）で呼ぶため、1回の呼び出しは
+        `connect_timeout + read_timeout` 秒で有界になる（ADR-009 決定22 追補, SS-112）。
+        """
+        ...
+
 
 class S3ObjectStorage:
     """boto3 による実装。リージョナルエンドポイントを明示し、SigV4 で署名する。"""
@@ -100,35 +155,41 @@ class S3ObjectStorage:
         region: str,
         connect_timeout: float,
         read_timeout: float,
+        delete_connect_timeout: float,
+        delete_read_timeout: float,
         client: object | None = None,
+        delete_client: object | None = None,
     ) -> None:
         self._bucket = bucket
         self._region = region
         # テストが差し替えた Stubber 付きクライアントまで close() しないよう、自分で
         # 作った場合だけ close する（appconfig.py の AppConfigFlagSource と同じ流儀）。
         self._owns_client = client is None
-        # region_name のみを渡す（endpoint_url を明示すると、virtual-hosted-style の
-        # ホスト名からリージョンが脱落する botocore の挙動を確認済み。region_name だけで
-        # `<bucket>.s3.<region>.amazonaws.com` のリージョナルホストが組み立てられる）。
-        self._client = client or boto3.client(
-            "s3",
-            region_name=region,
-            config=Config(
-                signature_version="s3v4",
-                s3={"addressing_style": "virtual"},
-                connect_timeout=connect_timeout,
-                read_timeout=read_timeout,
-                # ★ `max_attempts` ではなく `total_max_attempts` を使う（`integrations/aws/
-                #   appconfig.py` と同じ罠）。`retries.mode="standard"` の `max_attempts` は
-                #   botocore 内部で「初回を除く再試行回数」として扱われ、指定値に + 1 された
-                #   ものが実際の合計試行回数になる。`total_max_attempts` は初回を含む合計回数を
-                #   そのまま表すので、確定処理の時間予算（`PIN_PHOTO_CONFIRM_DEADLINE_SECONDS`）
-                #   に対して1回のS3呼び出しが消費しうる最悪時間を見積もる際はこちらを使う
-                #   （合計3回 ×（connect_timeout + read_timeout + バックオフ）が上限になる）。
-                retries={"total_max_attempts": 3, "mode": "standard"},
-                max_pool_connections=10,
-            ),
+        self._client = client or _build_s3_client(
+            region=region,
+            connect_timeout=connect_timeout,
+            read_timeout=read_timeout,
+            total_max_attempts=3,
         )
+        # 削除（`delete`/`delete_many`）専用の client（ADR-009 決定22 追補, SS-112）。
+        # 解決規則: (1) `delete_client` が渡されたらそれを使う（所有しない）。
+        # (2) 渡されず `client` が渡されたら、同じ `client` を削除にも使う（所有しない。
+        #     既存の Stubber テストが変更なしで動くようにするため）。(3) どちらも渡され
+        #     なければ、削除専用の Config（再試行なし・短い timeout）で新しく作る（所有する）。
+        if delete_client is not None:
+            self._delete_client = delete_client
+            self._owns_delete_client = False
+        elif client is not None:
+            self._delete_client = client
+            self._owns_delete_client = False
+        else:
+            self._delete_client = _build_s3_client(
+                region=region,
+                connect_timeout=delete_connect_timeout,
+                read_timeout=delete_read_timeout,
+                total_max_attempts=_DELETE_TOTAL_MAX_ATTEMPTS,
+            )
+            self._owns_delete_client = True
 
     def create_upload_form(
         self, *, key: str, content_type: str, max_bytes: int, expires_in: int, base_url: str
@@ -216,9 +277,38 @@ class S3ObjectStorage:
 
     def delete(self, key: str) -> None:
         try:
-            self._client.delete_object(Bucket=self._bucket, Key=key)
+            self._delete_client.delete_object(Bucket=self._bucket, Key=key)
         except (ClientError, BotoCoreError) as exc:
             raise self._unavailable(exc) from exc
+
+    def delete_many(self, keys: list[str]) -> list[str]:
+        """`DeleteObjects`（`Quiet=True`）を `S3_DELETE_OBJECTS_MAX_KEYS` 件ずつの
+        チャンクで呼ぶ。
+
+        削除専用の client（再試行なし・短い timeout）で呼ぶため、1回の呼び出しは
+        `delete_connect_timeout + delete_read_timeout` 秒で有界になる（ADR-009 決定22
+        追補, SS-112）。チャンク単位で `ClientError`/`BotoCoreError` を捕捉し、そのチャンク
+        全体を失敗扱いにしてログを出したうえで次のチャンクへ進む（例外は投げない。
+        呼び出し側の締め切り管理を単純にするため, ADR-009 決定22）。
+        """
+        failed: list[str] = []
+        for start in range(0, len(keys), S3_DELETE_OBJECTS_MAX_KEYS):
+            chunk = keys[start : start + S3_DELETE_OBJECTS_MAX_KEYS]
+            try:
+                response = self._delete_client.delete_objects(
+                    Bucket=self._bucket,
+                    Delete={"Objects": [{"Key": key} for key in chunk], "Quiet": True},
+                )
+            except (ClientError, BotoCoreError) as exc:
+                logger.warning(
+                    "S3 delete_objects failed for a chunk of %d keys: %s",
+                    len(chunk),
+                    type(exc).__name__,
+                )
+                failed.extend(chunk)
+                continue
+            failed.extend(error["Key"] for error in response.get("Errors", []))
+        return failed
 
     @staticmethod
     def _error_code(exc: ClientError) -> str:
@@ -230,8 +320,17 @@ class S3ObjectStorage:
         return ObjectStorageUnavailableError(str(exc))
 
     def close(self) -> None:
-        if self._owns_client:
-            self._client.close()
+        """所有している client（自分で作った分だけ）を閉じる。
+
+        通常用・削除用の2つを持つため、片方の `close()` が例外を投げても、もう片方の
+        `close()` を必ず試みる（`try`/`finally`。R2: security レビュー対応）。
+        """
+        try:
+            if self._owns_client:
+                self._client.close()
+        finally:
+            if self._owns_delete_client:
+                self._delete_client.close()
 
 
 class UnconfiguredObjectStorage:
@@ -260,6 +359,9 @@ class UnconfiguredObjectStorage:
         raise ObjectStorageUnavailableError("Photo storage is not configured")
 
     def delete(self, key: str) -> None:
+        raise ObjectStorageUnavailableError("Photo storage is not configured")
+
+    def delete_many(self, keys: list[str]) -> list[str]:
         raise ObjectStorageUnavailableError("Photo storage is not configured")
 
 
@@ -363,6 +465,12 @@ class FakeObjectStorage:
             self._objects.pop(key, None)
             if key in self._order:
                 self._order.remove(key)
+
+    def delete_many(self, keys: list[str]) -> list[str]:
+        """`delete()` をループするだけ（S3 と同じく存在しないキーの削除も成功扱い）。"""
+        for key in keys:
+            self.delete(key)
+        return []
 
     # --- dev_storage_router 専用の検証・出し入れ ---
 
@@ -521,4 +629,6 @@ def build_object_storage(settings: Settings) -> ObjectStorage:
         region=settings.pin_photo_bucket_region,
         connect_timeout=settings.object_storage_connect_timeout_seconds,
         read_timeout=settings.object_storage_read_timeout_seconds,
+        delete_connect_timeout=settings.object_storage_delete_connect_timeout_seconds,
+        delete_read_timeout=settings.object_storage_delete_read_timeout_seconds,
     )

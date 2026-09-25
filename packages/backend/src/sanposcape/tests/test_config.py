@@ -426,3 +426,37 @@ def test_log_level_rejects_unknown_value() -> None:
     """正規化で値域が緩くなっていないこと（`upper()` しても Literal に無い値は弾く）。"""
     with pytest.raises(ValidationError):
         Settings(log_level="verbose")
+
+
+def test_object_storage_delete_call_worst_case_seconds_default() -> None:
+    """既定値（delete connect=1.0 / delete read=5.0）では 6.0 秒になり、既定の締め切り
+    （10秒）との和（16秒）は `_REQUEST_TIME_BUDGET_SECONDS`（25秒）以下で起動できる
+    （ADR-009 決定22 追補, SS-112 PR #101 レビュー対応）。
+    """
+    settings = Settings()
+    assert settings.object_storage_delete_call_worst_case_seconds == 6.0
+
+
+def test_pin_photo_delete_deadline_plus_worst_case_over_budget_fails_to_start() -> None:
+    """締め切り + 1回の最悪時間が 25 秒を超えると起動に失敗する（20 + 1 + 5 = 26）。"""
+    with pytest.raises(ValidationError, match="PIN_PHOTO_DELETE_DEADLINE_SECONDS"):
+        Settings(
+            pin_photo_delete_deadline_seconds=20,
+            object_storage_delete_read_timeout_seconds=5.0,
+        )
+
+
+def test_pin_photo_delete_deadline_plus_worst_case_at_budget_boundary_starts() -> None:
+    """締め切り + 1回の最悪時間がちょうど 25 秒なら起動できる（境界）。"""
+    settings = Settings(
+        pin_photo_delete_deadline_seconds=19,
+        object_storage_delete_connect_timeout_seconds=1.0,
+        object_storage_delete_read_timeout_seconds=5.0,
+    )
+    assert settings.pin_photo_delete_deadline_seconds == 19
+
+
+def test_pin_photo_delete_deadline_over_field_limit_fails_to_start() -> None:
+    """締め切り自体の Field 上限（`le=20`）を超えると起動に失敗する。"""
+    with pytest.raises(ValidationError):
+        Settings(pin_photo_delete_deadline_seconds=21)

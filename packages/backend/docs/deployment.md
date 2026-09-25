@@ -865,8 +865,14 @@ prod の backend デプロイは、写真と関係なく既に `platform/appconf
 > **境界（SS-107）だけが抜けた場合**、デプロイは成功するが実行時に S3 がすべて 403 になり、
 > 写真の**書き込み系** API（アップロード枠発行・確定）が 503 を返す（写真なしのピン登録・
 > 地図の取得は動く）。**閲覧系**（`GET /pins` 等, BK-4）は 503 にはならず、200 のまま
-> `thumbnail`/`original_url` が null で返る（ADR-009 決定18）。prod で `pin_registration` を
-> ON にするのは BK-2（アカウント削除時の写真削除）の後なので、それまでは利用者影響は無い。
+> `thumbnail`/`original_url` が null で返る（ADR-009 決定18）。**編集**
+> （`PATCH /pins/{pin_id}`, BK-5）は S3 のオブジェクトを操作しないので影響を受けず、
+> DB を更新して 200 を返す（応答の `PinRead` の写真 URL は閲覧系と同じ扱い）。**削除系**
+> （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`, BK-5）も 503 には
+> ならず、DB の削除は成功して 204 を返す（S3 側の削除は失敗して WARNING ログのみ残り、
+> `original/`・`thumb/` のオブジェクトが孤立して残る。ADR-009 決定22, SS-112）。prod で
+> `pin_registration` を ON にするのは BK-2（アカウント削除時の写真削除）の後なので、
+> それまでは利用者影響は無い。
 
 Fn::If で prod だけ結線を外す案は採らなかった。prod のデプロイは上記のとおり `platform` の apply を
 待つ必要があり分岐の効果が無いこと、非選択分岐の動的参照が解決されないかを本リポジトリで
@@ -889,7 +895,9 @@ aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_name --
 aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_arn --region ap-southeast-1
 
 # 2) Lambda の環境変数にバケット名が入っていること（空なら UnconfiguredObjectStorage で
-#    写真の書き込み系 API が 503。閲覧系（GET /pins 等）は 200 のまま URL が null になる）
+#    写真の書き込み系 API が 503。閲覧系（GET /pins 等）と編集（PATCH /pins/{id}）は
+#    200 のまま URL が null になる。削除系（DELETE /pins/{id}、DELETE /pins/{id}/photos/{id}）
+#    は DB を削除して 204 を返し、S3 の後始末は WARNING を出してスキップする）
 aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
   --region ap-southeast-1 \
   --query 'Environment.Variables.{STORAGE_MODE:STORAGE_MODE,PIN_PHOTO_BUCKET_NAME:PIN_PHOTO_BUCKET_NAME}'
@@ -933,6 +941,7 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 | `GET /pins` 等の閲覧系は 200 だが `thumbnail`/`original_url` が常に null | 環境変数が空（`UnconfiguredObjectStorage`）、または署名用の認証情報を取得できない（ログに `S3 operation failed`）。閲覧系は 503 にしない設計（ADR-009 決定18）なので、書き込み系のように 5xx では気付けない。presigned GET の生成はローカルの署名計算だけなので、`s3:GetObject` の不足では null にならない（URL は返り、取得時に 403 になる。次の行） | 上の確認 2) で環境変数を確認する。空でなければ CloudWatch Logs で認証情報まわりのエラーを確認する |
 | 一覧・詳細の presigned GET（`thumbnail.url`/`original_url`）を取得すると 403 | 実行ロールに `original/*`・`thumb/*` への `s3:GetObject` が無い、または URL の有効期限（`urls_expire_at`）を過ぎている | 上の確認 3) でポリシーの `Resource` を確認する。期限切れなら応答を取り直す（presigned URL は応答のたびに再発行される） |
 | 存在しないアップロード枠が 409 ではなく 503 になる | `s3:ListBucket` が無い（または Resource に `/*` を付けてしまった）ため、存在しないキーの HEAD/GET が 403 → `ObjectStorageUnavailableError` に倒れている（backend 側の意図的な安全側フォールバック） | `ListBucket` の Resource がバケット ARN そのものになっているか確認する |
+| ピン・写真を削除（`DELETE`）しても `original/`・`thumb/` のオブジェクトが S3 に残り続ける | 削除 API は決定22により 503 にしない設計のため、境界不足・時間予算の不足（2つ目以降のチャンクは残り時間が1回の最悪時間に満たなければ始めない, PR #101 レビュー対応）・ストレージ障害があっても DB の削除自体は成功し 204 を返す。削除専用の client は再試行しないため、一時的な S3 の不調でも孤立が増えうる。S3 側の削除失敗は CloudWatch Logs の WARNING（`Failed to delete N pin photo objects: ...`、または `Skipping remaining pin photo object cleanup: not enough time before the delete deadline ...`）にしか残らない | 上の確認 3) で `staging/*`・`original/*`・`thumb/*` への `s3:DeleteObject` を持つか確認する。孤立オブジェクトは利用者の容量には影響しない（DB 集計のため）が、コストは発生し続けるため BK-3 の定期掃除が入るまでは手動で確認・削除する |
 | 端末で「アップロードに失敗しました」になるが、CloudWatch Logs にも S3（CloudTrail データイベント）にも痕跡が無い | 直送は端末 → S3 で完結し backend を通らない。CloudTrail のデータイベントは呼び出し元を特定できたリクエストしか記録せず、認証前に弾かれる失敗や「そもそも送信されていない」ケースは残らない（ADR-009 追補「直送の失敗は原理的にサーバー側から見えない」） | まず**端末側の `logDiagnostic`**（`pin-photo.upload.*`。Metro / `adb logcat -s ReactNativeJS` / Console.app）を見る。次に backend のアクセスログで枠発行（`POST /pin-photo-uploads -> 201`）まで到達しているかを確認する。サーバー側から見る必要がある場合は **S3 サーバーアクセスログ**を一時的に有効化する（infra 作業。CloudTrail では取りこぼす） |
 | `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `pin_photos/*` の SSM が当該環境に無い（SS-106 が未 apply） | infra 側の apply を待つ（上の確認 1)）。prod は「前提となる infra の apply」の順序を参照 |
 | 動的参照 + `/staging/*` の連結がどうしても ARN に解決されない | CloudFormation が連結を受け付けない（**dev では解決を確認済み**（2026-09-24）。prod で再発した場合の備え） | infra 側に prefix ごとの ARN（`staging/*` 等）を SSM の契約値として追加してもらい、連結をやめる |

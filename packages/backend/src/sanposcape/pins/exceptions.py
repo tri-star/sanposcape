@@ -35,3 +35,16 @@ class PinPhotoUploadAlreadyAttachedError(Exception):
     """`DELETE /pin-photo-uploads/{upload_id}` の対象が既に写真として紐付け済み
     （`status="attached"`）。取り消しは未紐付けの枠専用（PR #93 T11）。
     """
+
+
+class PinPhotoNotFoundError(Exception):
+    """指定された `photo_id` が存在しない、またはこのピンに属さない（区別しない。
+    ピンの member 判定を先に行うため、非メンバーはここに到達せず `PinNotFoundError` になる
+    ADR-009 決定21, SS-112）。
+    """
+
+
+class PinTagLimitExceededError(Exception):
+    """`PATCH /pins/{pin_id}` の適用後、タグ数が `PIN_TAGS_MAX_COUNT` を超える
+    （ADR-009 決定20, SS-112）。commit 前に検出するため、リクエスト全体がロールバックされる。
+    """

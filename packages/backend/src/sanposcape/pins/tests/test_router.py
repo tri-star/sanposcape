@@ -1,6 +1,8 @@
 import struct
 import uuid
+from dataclasses import dataclass
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -19,6 +21,22 @@ from sanposcape.pins.tests.conftest import (
 from sanposcape.sanpo_maps.models import SanpoMapMember
 from sanposcape.sanpo_maps.repository import SanpoMapRepository
 from sanposcape.users.models import User
+
+_FAKE_STORAGE_SETTINGS = Settings(
+    env="test",
+    auth_mode="real",
+    auth_jwt_secret="x" * 32,
+    google_allowed_audiences=["test-audience"],
+    storage_mode="fake",
+)
+
+
+def _auth_headers_for(user: User) -> dict[str, str]:
+    """`fake_storage_client` の JWT シークレットと揃えた設定でトークンを発行する
+    （`TestListPins.test_editor_member_can_list_pins` と同じ流儀）。
+    """
+    token, _ = create_access_token(user_id=user.id, settings=_FAKE_STORAGE_SETTINGS)
+    return {"Authorization": f"Bearer {token}"}
 
 
 class TestCreatePin:
@@ -1151,3 +1169,730 @@ class TestListPinPhotos:
         photo = response.json()["items"][0]
         assert photo["thumbnail"] is None
         assert photo["original_url"] is None
+
+
+@dataclass
+class _PermissionWorld:
+    client: TestClient
+    storage: FakeObjectStorage
+    owner: User
+    editor_a: User
+    editor_b: User
+    outsider: User
+    pin_by_owner_id: str
+    pin_by_editor_a_id: str
+    owner_tag_id: str
+    editor_a_tag_id: str
+    owner_photo_id: str
+    editor_a_photo_id: str
+
+
+class TestPinEditPermissionMatrix:
+    """ADR-009 決定19 の権限マトリクスを router レベルで固定する。"""
+
+    @pytest.fixture
+    def world(
+        self, fake_storage_client: tuple[TestClient, FakeObjectStorage], db_session: Session
+    ) -> _PermissionWorld:
+        client, storage = fake_storage_client
+        owner = make_user(db_session, subject="perm-owner")
+        editor_a = make_user(db_session, subject="perm-editor-a")
+        editor_b = make_user(db_session, subject="perm-editor-b")
+        outsider = make_user(db_session, subject="perm-outsider")
+        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=owner.id)
+        db_session.add(
+            SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        )
+        db_session.add(
+            SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        )
+        db_session.commit()
+        _create_sanpo_map(db_session, owner_user_id=outsider.id)  # outsider の別地図
+
+        owner_headers = _auth_headers_for(owner)
+        editor_a_headers = _auth_headers_for(editor_a)
+
+        pin_by_owner = client.post(
+            "/pins",
+            headers=owner_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "sanpo_map_id": str(sanpo_map_id),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        ).json()
+
+        pin_by_editor_a = client.post(
+            "/pins",
+            headers=editor_a_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "sanpo_map_id": str(sanpo_map_id),
+                "location": {"latitude": 0, "longitude": 0},
+                "name": "元の名前",
+            },
+        ).json()
+        pin_by_editor_a_id = pin_by_editor_a["id"]
+
+        owner_tag_response = client.patch(
+            f"/pins/{pin_by_editor_a_id}",
+            headers=owner_headers,
+            json={"add_tags": ["owner-tag"]},
+        )
+        assert owner_tag_response.status_code == 200
+        owner_tag_id = next(
+            tag["id"] for tag in owner_tag_response.json()["tags"] if tag["label"] == "owner-tag"
+        )
+
+        editor_a_tag_response = client.patch(
+            f"/pins/{pin_by_editor_a_id}",
+            headers=editor_a_headers,
+            json={"add_tags": ["editor-tag"]},
+        )
+        assert editor_a_tag_response.status_code == 200
+        editor_a_tag_id = next(
+            tag["id"]
+            for tag in editor_a_tag_response.json()["tags"]
+            if tag["label"] == "editor-tag"
+        )
+
+        owner_photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_by_editor_a_id),
+            uploaded_by_user_id=owner.id,
+            position=0,
+        )
+        editor_a_photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_by_editor_a_id),
+            uploaded_by_user_id=editor_a.id,
+            position=1,
+        )
+
+        return _PermissionWorld(
+            client=client,
+            storage=storage,
+            owner=owner,
+            editor_a=editor_a,
+            editor_b=editor_b,
+            outsider=outsider,
+            pin_by_owner_id=pin_by_owner["id"],
+            pin_by_editor_a_id=pin_by_editor_a_id,
+            owner_tag_id=owner_tag_id,
+            editor_a_tag_id=editor_a_tag_id,
+            owner_photo_id=str(owner_photo.id),
+            editor_a_photo_id=str(editor_a_photo.id),
+        )
+
+    @pytest.mark.parametrize(
+        ("actor_name", "expected_status"),
+        [("owner", 200), ("editor_a", 200), ("editor_b", 403), ("outsider", 404)],
+    )
+    def test_update_name_on_editor_a_pin(
+        self, world: _PermissionWorld, actor_name: str, expected_status: int
+    ) -> None:
+        actor: User = getattr(world, actor_name)
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(actor),
+            json={"name": "更新後"},
+        )
+        assert response.status_code == expected_status
+        if expected_status != 200:
+            unchanged = world.client.get(
+                f"/pins/{world.pin_by_editor_a_id}", headers=_auth_headers_for(world.owner)
+            )
+            assert unchanged.json()["name"] == "元の名前"
+
+    @pytest.mark.parametrize(
+        ("actor_name", "expected_status"),
+        [("owner", 204), ("editor_a", 204), ("editor_b", 403), ("outsider", 404)],
+    )
+    def test_delete_pin_by_editor_a(
+        self, world: _PermissionWorld, actor_name: str, expected_status: int
+    ) -> None:
+        actor: User = getattr(world, actor_name)
+        response = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}", headers=_auth_headers_for(actor)
+        )
+        assert response.status_code == expected_status
+        if expected_status == 403:
+            still_there = world.client.get(
+                f"/pins/{world.pin_by_editor_a_id}", headers=_auth_headers_for(world.owner)
+            )
+            assert still_there.status_code == 200
+
+    @pytest.mark.parametrize(
+        ("actor_name", "expected_status"),
+        [("owner", 200), ("editor_a", 200), ("editor_b", 200), ("outsider", 404)],
+    )
+    def test_add_tag(self, world: _PermissionWorld, actor_name: str, expected_status: int) -> None:
+        actor: User = getattr(world, actor_name)
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(actor),
+            json={"add_tags": [f"tag-by-{actor_name}"]},
+        )
+        assert response.status_code == expected_status
+
+    def test_owner_can_remove_editor_a_tag(self, world: _PermissionWorld) -> None:
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(world.owner),
+            json={"remove_tag_ids": [world.editor_a_tag_id]},
+        )
+        assert response.status_code == 200
+
+    def test_editor_a_can_remove_own_tag(self, world: _PermissionWorld) -> None:
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(world.editor_a),
+            json={"remove_tag_ids": [world.editor_a_tag_id]},
+        )
+        assert response.status_code == 200
+
+    def test_editor_a_cannot_remove_owner_tag(self, world: _PermissionWorld) -> None:
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(world.editor_a),
+            json={"remove_tag_ids": [world.owner_tag_id]},
+        )
+        assert response.status_code == 403
+
+    def test_editor_b_cannot_remove_owner_tag(self, world: _PermissionWorld) -> None:
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(world.editor_b),
+            json={"remove_tag_ids": [world.owner_tag_id]},
+        )
+        assert response.status_code == 403
+
+    def test_outsider_removing_tag_is_404(self, world: _PermissionWorld) -> None:
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(world.outsider),
+            json={"remove_tag_ids": [world.owner_tag_id]},
+        )
+        assert response.status_code == 404
+
+    def test_owner_can_delete_editor_a_photo(self, world: _PermissionWorld) -> None:
+        response = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{world.editor_a_photo_id}",
+            headers=_auth_headers_for(world.owner),
+        )
+        assert response.status_code == 204
+
+    def test_editor_a_can_delete_own_photo(self, world: _PermissionWorld) -> None:
+        response = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{world.editor_a_photo_id}",
+            headers=_auth_headers_for(world.editor_a),
+        )
+        assert response.status_code == 204
+
+    def test_editor_a_cannot_delete_owner_photo(self, world: _PermissionWorld) -> None:
+        response = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{world.owner_photo_id}",
+            headers=_auth_headers_for(world.editor_a),
+        )
+        assert response.status_code == 403
+
+    def test_editor_b_cannot_delete_owner_photo(self, world: _PermissionWorld) -> None:
+        response = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{world.owner_photo_id}",
+            headers=_auth_headers_for(world.editor_b),
+        )
+        assert response.status_code == 403
+
+    def test_outsider_deleting_photo_is_404(self, world: _PermissionWorld) -> None:
+        response = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{world.owner_photo_id}",
+            headers=_auth_headers_for(world.outsider),
+        )
+        assert response.status_code == 404
+
+    def test_other_pins_photo_id_is_404_even_for_a_member(self, world: _PermissionWorld) -> None:
+        """`pin_by_owner` の member（owner 自身）であっても、`pin_by_editor_a` の写真 ID を
+        `pin_by_owner` に対して指定すると 404（ADR-009 決定21）。
+        """
+        response = world.client.delete(
+            f"/pins/{world.pin_by_owner_id}/photos/{world.editor_a_photo_id}",
+            headers=_auth_headers_for(world.owner),
+        )
+        assert response.status_code == 404
+
+    def test_partial_permission_failure_does_not_apply_any_change(
+        self, world: _PermissionWorld
+    ) -> None:
+        """`name` の権限が無い editor_b が `name` と `add_tags` を同時に送ると、
+        タグも追加されない（原子性）。
+        """
+        response = world.client.patch(
+            f"/pins/{world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(world.editor_b),
+            json={"name": "乗っ取り", "add_tags": ["snuck-in"]},
+        )
+        assert response.status_code == 403
+
+        unchanged = world.client.get(
+            f"/pins/{world.pin_by_editor_a_id}", headers=_auth_headers_for(world.owner)
+        )
+        body = unchanged.json()
+        assert body["name"] == "元の名前"
+        assert "snuck-in" not in {tag["label"] for tag in body["tags"]}
+
+
+class TestUpdatePinRouter:
+    def _create_pin(
+        self, client: TestClient, headers: dict[str, str], *, name: str | None = None
+    ) -> str:
+        payload: dict[str, object] = {
+            "client_pin_id": str(uuid.uuid4()),
+            "location": {"latitude": 0, "longitude": 0},
+        }
+        if name is not None:
+            payload["name"] = name
+        response = client.post("/pins", headers=headers, json=payload)
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    def test_requires_authentication(
+        self, fake_storage_client: tuple[TestClient, FakeObjectStorage]
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.patch(f"/pins/{uuid.uuid4()}", json={"name": "X"})
+        assert response.status_code == 401
+
+    def test_missing_pin_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.patch(f"/pins/{uuid.uuid4()}", headers=auth_headers, json={"name": "X"})
+        assert response.status_code == 404
+
+    def test_unknown_field_is_422(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+
+        response = client.patch(
+            f"/pins/{pin_id}",
+            headers=auth_headers,
+            json={"location": {"latitude": 1, "longitude": 1}},
+        )
+        assert response.status_code == 422
+
+    def test_explicit_null_add_tags_is_422(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+
+        response = client.patch(f"/pins/{pin_id}", headers=auth_headers, json={"add_tags": None})
+        assert response.status_code == 422
+
+    def test_explicit_null_remove_tag_ids_is_422(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+
+        response = client.patch(
+            f"/pins/{pin_id}", headers=auth_headers, json={"remove_tag_ids": None}
+        )
+        assert response.status_code == 422
+
+    def test_name_over_max_length_is_422(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+
+        response = client.patch(f"/pins/{pin_id}", headers=auth_headers, json={"name": "あ" * 51})
+        assert response.status_code == 422
+
+    def test_empty_body_returns_200_unchanged(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers, name="元の名前")
+
+        response = client.patch(f"/pins/{pin_id}", headers=auth_headers, json={})
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "元の名前"
+
+    def test_tag_limit_exceeded_returns_409_with_code(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+        first = client.patch(
+            f"/pins/{pin_id}",
+            headers=auth_headers,
+            json={"add_tags": [f"tag{i}" for i in range(10)]},
+        )
+        assert first.status_code == 200
+
+        response = client.patch(
+            f"/pins/{pin_id}", headers=auth_headers, json={"add_tags": ["overflow"]}
+        )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "tag_limit_exceeded"
+
+    def test_response_matches_get_pin(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+
+        patched = client.patch(
+            f"/pins/{pin_id}", headers=auth_headers, json={"name": "更新後", "memo": "メモ"}
+        )
+        fetched = client.get(f"/pins/{pin_id}", headers=auth_headers)
+
+        assert patched.status_code == 200
+        assert patched.json() == fetched.json()
+
+
+class TestDeletePinRouter:
+    def _create_pin(self, client: TestClient, headers: dict[str, str]) -> str:
+        response = client.post(
+            "/pins",
+            headers=headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    def test_requires_authentication(
+        self, fake_storage_client: tuple[TestClient, FakeObjectStorage]
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.delete(f"/pins/{uuid.uuid4()}")
+        assert response.status_code == 401
+
+    def test_deletes_pin_then_get_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+
+        response = client.delete(f"/pins/{pin_id}", headers=auth_headers)
+        assert response.status_code == 204
+
+        after = client.get(f"/pins/{pin_id}", headers=auth_headers)
+        assert after.status_code == 404
+
+    def test_resend_after_delete_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+        first = client.delete(f"/pins/{pin_id}", headers=auth_headers)
+        assert first.status_code == 204
+
+        second = client.delete(f"/pins/{pin_id}", headers=auth_headers)
+        assert second.status_code == 404
+
+    def test_missing_pin_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.delete(f"/pins/{uuid.uuid4()}", headers=auth_headers)
+        assert response.status_code == 404
+
+    def test_deletes_photos_and_tags_and_s3_objects(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        pin_id = self._create_pin(client, auth_headers)
+        photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+        )
+        tag_response = client.patch(
+            f"/pins/{pin_id}", headers=auth_headers, json={"add_tags": ["桜"]}
+        )
+        assert tag_response.status_code == 200
+
+        response = client.delete(f"/pins/{pin_id}", headers=auth_headers)
+
+        assert response.status_code == 204
+        assert storage.head(photo.s3_key) is None
+        assert photo.thumbnail_s3_key is not None
+        assert storage.head(photo.thumbnail_s3_key) is None
+
+    def test_unconfigured_storage_still_returns_204(
+        self,
+        unconfigured_storage_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client = unconfigured_storage_client
+        response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert response.status_code == 201
+        pin_id = response.json()["id"]
+        create_pin_photo_row(
+            db_session,
+            None,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+        )
+
+        response = client.delete(f"/pins/{pin_id}", headers=auth_headers)
+
+        assert response.status_code == 204
+
+
+class TestDeletePinPhotoRouter:
+    def test_requires_authentication(
+        self, fake_storage_client: tuple[TestClient, FakeObjectStorage]
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.delete(f"/pins/{uuid.uuid4()}/photos/{uuid.uuid4()}")
+        assert response.status_code == 401
+
+    def test_deletes_photo_then_resend_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        pin_response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert pin_response.status_code == 201
+        pin_id = pin_response.json()["id"]
+        photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+        )
+
+        response = client.delete(f"/pins/{pin_id}/photos/{photo.id}", headers=auth_headers)
+        assert response.status_code == 204
+        assert storage.head(photo.s3_key) is None
+
+        again = client.delete(f"/pins/{pin_id}/photos/{photo.id}", headers=auth_headers)
+        assert again.status_code == 404
+
+    def test_missing_pin_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.delete(
+            f"/pins/{uuid.uuid4()}/photos/{uuid.uuid4()}", headers=auth_headers
+        )
+        assert response.status_code == 404
+
+    def test_missing_photo_is_404(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        pin_response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert pin_response.status_code == 201
+        pin_id = pin_response.json()["id"]
+
+        response = client.delete(f"/pins/{pin_id}/photos/{uuid.uuid4()}", headers=auth_headers)
+        assert response.status_code == 404
+
+    def test_deleting_photo_updates_capacity_and_cover_photo(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        pin_response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert pin_response.status_code == 201
+        pin_id = pin_response.json()["id"]
+        first_photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+        )
+        second_photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=1,
+        )
+
+        response = client.delete(f"/pins/{pin_id}/photos/{first_photo.id}", headers=auth_headers)
+        assert response.status_code == 204
+
+        pin_detail = client.get(f"/pins/{pin_id}", headers=auth_headers).json()
+        assert pin_detail["photo_count"] == 1
+        assert pin_detail["photos"][0]["id"] == str(second_photo.id)
+
+    def test_resend_upload_id_after_photo_delete_is_409(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=authenticated_user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=authenticated_user.id, upload_id=upload_id)
+        pin_response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "photo_upload_ids": [str(upload_id)],
+            },
+        )
+        assert pin_response.status_code == 201
+        pin_id = pin_response.json()["id"]
+        photo_id = pin_response.json()["photos"][0]["id"]
+
+        delete_response = client.delete(f"/pins/{pin_id}/photos/{photo_id}", headers=auth_headers)
+        assert delete_response.status_code == 204
+
+        resend = client.post(
+            f"/pins/{pin_id}/photos",
+            headers=auth_headers,
+            json={"photo_upload_ids": [str(upload_id)]},
+        )
+        assert resend.status_code == 409
+        assert resend.json()["code"] == "photo_upload_not_ready"
+
+    def test_storage_delete_failure_still_returns_204(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        pin_response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert pin_response.status_code == 201
+        pin_id = pin_response.json()["id"]
+        photo = create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+        )
+        storage.delete_many = lambda keys: list(keys)  # type: ignore[method-assign]
+
+        response = client.delete(f"/pins/{pin_id}/photos/{photo.id}", headers=auth_headers)
+
+        assert response.status_code == 204
+
+    def test_unconfigured_storage_still_returns_204(
+        self,
+        unconfigured_storage_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client = unconfigured_storage_client
+        pin_response = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+        assert pin_response.status_code == 201
+        pin_id = pin_response.json()["id"]
+        photo = create_pin_photo_row(
+            db_session,
+            None,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+        )
+
+        response = client.delete(f"/pins/{pin_id}/photos/{photo.id}", headers=auth_headers)
+
+        assert response.status_code == 204

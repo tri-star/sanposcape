@@ -2,6 +2,7 @@ import uuid
 import zlib
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, exists, func, or_, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
@@ -53,6 +54,11 @@ def _advisory_lock_key(user_id: uuid.UUID) -> int:
     if key >= 2**31:
         key -= 2**32
     return key
+
+
+#: `PinRepository.update_fields()` の「送られなかった」ことを表す番兵。`None` は
+#: 「値を消す」という意味のある入力（`PinUpdate` と同じ規約）のため区別が要る。
+NOT_PROVIDED: Any = object()
 
 
 @dataclass(frozen=True)
@@ -139,6 +145,10 @@ class PinRepository:
         """member 判定込みでピンを取得し、`pins` 行を `FOR UPDATE` でロックする。
 
         写真追加時の position 割り当ての同時実行競合を防ぐ（backend-plan.md 5.3 (5)）。
+        `PATCH /pins/{pin_id}`（`update_pin`）・`DELETE /pins/{pin_id}`（`delete_pin`）・
+        `DELETE /pins/{pin_id}/photos/{photo_id}`（`delete_photo`）も同じ行ロックを使う
+        ため、同一ピンへの編集・削除・写真追加は互いに直列化される（ADR-009 決定22。
+        例えば PATCH のタグ件数チェックの同時超過や、削除と写真追加の競合を防ぐ）。
         """
         stmt = self._member_pin_stmt(user_id=user_id, pin_id=pin_id).with_for_update(of=Pin)
         row = self._db.execute(stmt).first()
@@ -376,6 +386,78 @@ class PinRepository:
             photos=self.list_photos(pin_id, limit=photos_limit),
             photo_count=self.count_photos(pin_id),
         )
+
+    def update_fields(
+        self,
+        pin: Pin,
+        *,
+        name: str | None = NOT_PROVIDED,
+        memo: str | None = NOT_PROVIDED,
+        updated_at: datetime,
+    ) -> None:
+        """`name`/`memo` のうち、実際に渡されたものだけを更新して flush する
+        （`PATCH /pins/{pin_id}`, ADR-009 決定20）。
+
+        呼び出し元（service）はこのメソッドを実際に変化がある場合だけ呼ぶこと。
+        `updated_at` は呼ばれるたびに必ず注入した値へ更新する（決定23）。
+        """
+        if name is not NOT_PROVIDED:
+            pin.name = name
+        if memo is not NOT_PROVIDED:
+            pin.memo = memo
+        pin.updated_at = updated_at
+        self._db.flush()
+
+    def get_tags_by_ids(self, *, pin_id: uuid.UUID, tag_ids: list[uuid.UUID]) -> list[PinTag]:
+        """このピンに属するタグのうち、指定した ID のものだけを返す（`pin_id` で絞るため、
+        他のピンの ID を渡しても空になる。呼び出し元はこれで「このピンに無い ID」を
+        黙って無視できる, ADR-009 決定21）。
+        """
+        if not tag_ids:
+            return []
+        stmt = select(PinTag).where(PinTag.pin_id == pin_id, PinTag.id.in_(tag_ids))
+        return list(self._db.scalars(stmt).all())
+
+    def delete_tags(self, tags: list[PinTag]) -> None:
+        """ORM の `session.delete()` で1件ずつ消す（一括 DELETE 文は使わない。walks と
+        同じ流儀）。
+        """
+        for tag in tags:
+            self._db.delete(tag)
+        self._db.flush()
+
+    def count_tags(self, pin_id: uuid.UUID) -> int:
+        stmt = select(func.count()).select_from(PinTag).where(PinTag.pin_id == pin_id)
+        return self._db.scalar(stmt) or 0
+
+    def get_photo_for_pin(self, *, pin_id: uuid.UUID, photo_id: uuid.UUID) -> PinPhoto | None:
+        """`pin_id` と `photo_id` の両方で絞る（ID だけで引ける口を作らない。`photo_id` が
+        他のピンに属する場合も `None` になり `Pin photo not found` として扱われる,
+        ADR-009 決定21）。
+        """
+        stmt = select(PinPhoto).where(PinPhoto.pin_id == pin_id, PinPhoto.id == photo_id)
+        return self._db.scalars(stmt).first()
+
+    def list_photo_keys(self, pin_id: uuid.UUID) -> list[tuple[str, str | None]]:
+        """`(s3_key, thumbnail_s3_key)` の列だけを取る（ピン削除時, ADR-009 決定22）。
+
+        写真が数百枚あってもエンティティ全体は読み込まない。`thumbnail_s3_key` は
+        NULL 許容なので `None` を含みうる（呼び出し側でフィルタする）。
+        """
+        stmt = select(PinPhoto.s3_key, PinPhoto.thumbnail_s3_key).where(PinPhoto.pin_id == pin_id)
+        return [(row[0], row[1]) for row in self._db.execute(stmt).all()]
+
+    def delete_photo(self, photo: PinPhoto) -> None:
+        self._db.delete(photo)
+        self._db.flush()
+
+    def delete_pin(self, pin: Pin) -> None:
+        """ピンを削除する。子の行（`pin_photos`/`pin_tags`）は DB の `ON DELETE CASCADE`
+        で消える（`relationship()` を張っていないため ORM の cascade は効かない。
+        commit 前に同じセッションで子エンティティを触らないこと, ADR-009 決定22）。
+        """
+        self._db.delete(pin)
+        self._db.flush()
 
 
 class PinPhotoUploadRepository:

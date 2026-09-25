@@ -16,6 +16,8 @@ from sanposcape.pins.schemas import (
     PinPhotoPageRead,
     PinPhotosAdd,
     PinRead,
+    PinTagConflictErrorRead,
+    PinUpdate,
 )
 from sanposcape.pins.service import PinService
 from sanposcape.users.models import User
@@ -188,3 +190,91 @@ def list_pin_photos(
     return service.list_pin_photos(
         current_user, pin_id, limit=limit, cursor=cursor, base_url=str(request.base_url)
     )
+
+
+@router.patch(
+    "/{pin_id}",
+    response_model=PinRead,
+    operation_id="update_pin",
+    responses={
+        **_ERROR_RESPONSES,
+        403: {"description": "Permission denied"},
+        404: {"description": "Pin not found"},
+        409: {
+            "model": PinTagConflictErrorRead,
+            "description": "Applying add_tags/remove_tag_ids would exceed the per-pin tag limit",
+        },
+        422: {"description": "Validation error"},
+    },
+)
+def update_pin(
+    pin_id: uuid.UUID,
+    payload: PinUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinRead:
+    """ピンの名前・メモの更新、タグの追加・削除（`add_tags`/`remove_tag_ids`）を
+    1リクエストで原子的に行う（ADR-009 決定19・20）。
+
+    省略したフィールドは変更しない。`name`/`memo` は `null` か空白のみの値で消せる。
+    タグは全置換ではなく差分で送る（既にあるタグの再追加、このピンに無い ID の削除は
+    何もせず成功扱い）。権限は「送られたフィールド」ごとに判定し、1つでも権限が無ければ
+    何も反映せず 403 にする。地図 owner・対象の作成者本人（editor）は可能、作成者でない
+    editor は名前・メモの更新はできない（タグの削除も自分が付けたものだけ）。
+    非メンバー・存在しないピンは 404。タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。
+    """
+    return service.update_pin(current_user, pin_id, payload, base_url=str(request.base_url))
+
+
+@router.delete(
+    "/{pin_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_pin",
+    responses={
+        **_ERROR_RESPONSES,
+        403: {"description": "Permission denied"},
+        404: {"description": "Pin not found"},
+    },
+)
+def delete_pin(
+    pin_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> None:
+    """ピンを削除する（ADR-009 決定19）。
+
+    写真・タグは DB の `ON DELETE CASCADE` で消え、S3 の実体（原本・サムネイル）は
+    best-effort で削除する（ストレージ障害・未構成でも 204 のまま。決定22）。地図 owner・
+    対象の作成者本人（editor）のみ可能（作成者ではない editor は 403）。非メンバー・
+    存在しない ID は 404。削除済み ID への再送も 404（冪等にはしない。`DELETE /walks/{id}`
+    と同じ）。
+    """
+    service.delete_pin(current_user, pin_id)
+
+
+@router.delete(
+    "/{pin_id}/photos/{photo_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_pin_photo",
+    responses={
+        **_ERROR_RESPONSES,
+        403: {"description": "Permission denied"},
+        404: {"description": "Pin or pin photo not found"},
+    },
+)
+def delete_pin_photo(
+    pin_id: uuid.UUID,
+    photo_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> None:
+    """写真1枚を削除する（ADR-009 決定19）。原本・サムネイルの S3 実体も best-effort で
+    削除する（ストレージ障害・未構成でも 204 のまま）。
+
+    持ち主はアップロード者本人（ピンの作成者ではない）。地図 owner は他人がアップロード
+    した写真も削除できるが、ピン作成者の editor でも他人の写真は削除できない（403）。
+    このピンに属さない・存在しない `photo_id`、非メンバー・存在しない `pin_id` はどちらも
+    404（区別しない）。削除済みへの再送も 404。
+    """
+    service.delete_photo(current_user, pin_id, photo_id)

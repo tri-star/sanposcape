@@ -64,4 +64,6 @@ def get_pin_service(
         confirm_deadline_seconds=settings.pin_photo_confirm_deadline_seconds,
         read_photos_limit=PIN_READ_PHOTOS_LIMIT,
         download_url_ttl_seconds=settings.pin_photo_download_url_ttl_seconds,
+        photo_delete_deadline_seconds=settings.pin_photo_delete_deadline_seconds,
+        photo_delete_call_worst_case_seconds=settings.object_storage_delete_call_worst_case_seconds,
     )

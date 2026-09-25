@@ -1,14 +1,17 @@
 import base64
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 from urllib.parse import urlsplit
 
 import boto3
 import pytest
 from botocore.config import Config
+from botocore.exceptions import ReadTimeoutError
 from botocore.stub import Stubber
 
 from sanposcape.config import Settings
+from sanposcape.integrations.aws import s3 as s3_module
 from sanposcape.integrations.aws.s3 import (
     FakeObjectStorage,
     ObjectNotFoundError,
@@ -36,7 +39,13 @@ def make_storage() -> tuple[S3ObjectStorage, Stubber]:
     )
     stubber = Stubber(client)
     storage = S3ObjectStorage(
-        bucket=BUCKET, region=REGION, connect_timeout=1, read_timeout=1, client=client
+        bucket=BUCKET,
+        region=REGION,
+        connect_timeout=1,
+        read_timeout=1,
+        delete_connect_timeout=1,
+        delete_read_timeout=1,
+        client=client,
     )
     return storage, stubber
 
@@ -177,6 +186,301 @@ class TestDelete:
             storage.delete("k")
 
 
+class TestDeleteMany:
+    def test_calls_delete_objects_with_quiet_true(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": "a"}, {"Key": "b"}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(["a", "b"])
+        assert failed == []
+
+    def test_returns_failed_keys_from_errors(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_response(
+            "delete_objects",
+            {"Errors": [{"Key": "bad", "Code": "AccessDenied", "Message": "nope"}]},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": "a"}, {"Key": "bad"}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(["a", "bad"])
+        assert failed == ["bad"]
+
+    def test_empty_keys_does_not_call_s3(self) -> None:
+        storage, stubber = make_storage()
+        with stubber:
+            assert storage.delete_many([]) == []
+
+    def test_splits_into_chunks_of_1000(self) -> None:
+        storage, stubber = make_storage()
+        keys = [f"k{i}" for i in range(1001)]
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": k} for k in keys[:1000]], "Quiet": True},
+            },
+        )
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": keys[1000]}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(keys)
+        assert failed == []
+        stubber.assert_no_pending_responses()
+
+    def test_chunk_failure_is_treated_as_all_failed_and_next_chunk_still_runs(self) -> None:
+        storage, stubber = make_storage()
+        keys = [f"k{i}" for i in range(1001)]
+        stubber.add_client_error("delete_objects", service_error_code="InternalError")
+        stubber.add_response(
+            "delete_objects",
+            {},
+            {
+                "Bucket": BUCKET,
+                "Delete": {"Objects": [{"Key": keys[1000]}], "Quiet": True},
+            },
+        )
+        with stubber:
+            failed = storage.delete_many(keys)
+        assert failed == keys[:1000]
+        stubber.assert_no_pending_responses()
+
+
+def test_delete_total_max_attempts_is_one() -> None:
+    """削除専用 client の試行回数は1（再試行なし）に固定されている（ローカルレビュー R1）。
+
+    `Settings.object_storage_delete_call_worst_case_seconds`（config.py）は「1回の呼び出し
+    = connect + read」というバックオフ項の無い式で最悪時間を見積もっている。この定数を
+    2以上に変えると、その式は過小評価になり、削除の時間予算（PIN_PHOTO_DELETE_DEADLINE_
+    SECONDS の起動時検証）が壊れた状態のままテストだけが通ってしまう。
+    """
+    assert s3_module._DELETE_TOTAL_MAX_ATTEMPTS == 1, (
+        "_DELETE_TOTAL_MAX_ATTEMPTS を1以外に変える場合は、"
+        "Settings.object_storage_delete_call_worst_case_seconds の最悪時間の式"
+        "（バックオフ項の追加）も見直すこと"
+    )
+
+
+class TestS3ClientConfig:
+    """削除専用 client の Config が通常の client と別に組み立てられること
+    （PR #101 レビュー対応, C1）。
+    """
+
+    def _make_recorder(self) -> tuple[object, list[dict], list[MagicMock]]:
+        calls: list[dict] = []
+        created: list[MagicMock] = []
+
+        def recorder(service_name: str, **kwargs: object) -> MagicMock:
+            calls.append(kwargs)
+            client = MagicMock(name=f"boto3-client-{len(calls)}")
+            created.append(client)
+            return client
+
+        return recorder, calls, created
+
+    def test_builds_two_clients_with_different_retry_and_timeout_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder, calls, _created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+
+        S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=2,
+            read_timeout=5,
+            delete_connect_timeout=1,
+            delete_read_timeout=4,
+        )
+
+        assert len(calls) == 2
+        normal_config = calls[0]["config"]
+        delete_config = calls[1]["config"]
+
+        assert normal_config.retries == {"total_max_attempts": 3, "mode": "standard"}
+        assert normal_config.connect_timeout == 2
+        assert normal_config.read_timeout == 5
+
+        assert delete_config.retries == {"total_max_attempts": 1, "mode": "standard"}
+        assert delete_config.connect_timeout == 1
+        assert delete_config.read_timeout == 4
+
+        assert normal_config.signature_version == "s3v4"
+        assert delete_config.signature_version == "s3v4"
+
+    def test_build_object_storage_passes_delete_timeouts_from_settings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder, calls, _created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+        settings = Settings(
+            env="test",
+            storage_mode="real",
+            pin_photo_bucket_name=BUCKET,
+            object_storage_delete_read_timeout_seconds=3,
+        )
+
+        build_object_storage(settings)
+
+        delete_config = calls[1]["config"]
+        assert delete_config.read_timeout == 3
+
+    def test_client_only_injected_is_used_for_delete_too(self) -> None:
+        """`client=` だけ注入すると、削除にも同じ client を使う（解決規則の2番）。"""
+        storage, stubber = make_storage()
+        stubber.add_response("delete_object", {}, {"Bucket": BUCKET, "Key": "k"})
+        with stubber:
+            storage.delete("k")
+        stubber.assert_no_pending_responses()
+
+    def test_delete_uses_dedicated_client_when_injected_separately(self) -> None:
+        normal_client = boto3.client(
+            "s3",
+            region_name=REGION,
+            aws_access_key_id="x",
+            aws_secret_access_key="y",
+            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+        )
+        delete_client = boto3.client(
+            "s3",
+            region_name=REGION,
+            aws_access_key_id="x",
+            aws_secret_access_key="y",
+            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+        )
+        normal_stubber = Stubber(normal_client)
+        delete_stubber = Stubber(delete_client)
+        storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+            client=normal_client,
+            delete_client=delete_client,
+        )
+        delete_stubber.add_response(
+            "delete_objects",
+            {},
+            {"Bucket": BUCKET, "Delete": {"Objects": [{"Key": "a"}], "Quiet": True}},
+        )
+        # 通常側は応答を積まずに activate する。誤ってこちらが呼ばれれば
+        # UnStubbedResponseError で失敗する。
+        with normal_stubber, delete_stubber:
+            failed = storage.delete_many(["a"])
+        assert failed == []
+        delete_stubber.assert_no_pending_responses()
+
+    def test_read_timeout_on_delete_client_is_absorbed_as_chunk_failure(self) -> None:
+        class _RaisingClient:
+            def delete_objects(self, **kwargs: object) -> None:
+                raise ReadTimeoutError(endpoint_url="https://x")
+
+        storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+            client=MagicMock(),
+            delete_client=_RaisingClient(),
+        )
+
+        failed = storage.delete_many(["a"])
+
+        assert failed == ["a"]
+
+    def test_close_does_not_close_injected_client(self) -> None:
+        """`client=` だけ注入した場合、delete 用も同じ client を使う（所有しない）ため
+        `close()` はどちらも呼ばない。
+        """
+        injected_normal = MagicMock()
+
+        storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+            client=injected_normal,
+        )
+        storage.close()
+
+        injected_normal.close.assert_not_called()
+
+    def test_close_closes_both_self_created_clients(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """client を注入しない場合、通常用・削除用の2つを自前で作り、両方 close する。"""
+        recorder, calls, created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+
+        owned_storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+        )
+        assert len(calls) == 2
+        owned_normal, owned_delete = created
+
+        owned_storage.close()
+
+        owned_normal.close.assert_called_once()
+        owned_delete.close.assert_called_once()
+
+    def test_close_still_closes_delete_client_when_normal_client_close_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """通常 client の `close()` が例外を投げても、削除用 client の `close()` は必ず
+        試みる（ローカルレビュー R2, security）。
+        """
+        recorder, calls, created = self._make_recorder()
+        monkeypatch.setattr(s3_module.boto3, "client", recorder)
+
+        owned_storage = S3ObjectStorage(
+            bucket=BUCKET,
+            region=REGION,
+            connect_timeout=1,
+            read_timeout=1,
+            delete_connect_timeout=1,
+            delete_read_timeout=1,
+        )
+        owned_normal, owned_delete = created
+        owned_normal.close.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            owned_storage.close()
+
+        owned_normal.close.assert_called_once()
+        owned_delete.close.assert_called_once()
+
+
+class TestUnconfiguredObjectStorageDeleteMany:
+    def test_raises_unavailable(self) -> None:
+        with pytest.raises(ObjectStorageUnavailableError):
+            UnconfiguredObjectStorage().delete_many(["k"])
+
+
 class TestFakeObjectStorage:
     def test_upload_and_download_round_trip(self) -> None:
         storage = FakeObjectStorage(secret="s" * 32)
@@ -248,6 +552,17 @@ class TestFakeObjectStorage:
         storage.delete("dst")
         with pytest.raises(ObjectNotFoundError):
             storage.get_bytes("dst", max_bytes=10)
+
+    def test_delete_many_deletes_all_and_returns_no_failures(self) -> None:
+        storage = FakeObjectStorage(secret="s" * 32)
+        storage.put_bytes("a", b"1", content_type="image/jpeg")
+        storage.put_bytes("b", b"2", content_type="image/jpeg")
+
+        failed = storage.delete_many(["a", "b", "missing"])
+
+        assert failed == []
+        assert storage.head("a") is None
+        assert storage.head("b") is None
 
 
 class TestFakeObjectStorageOnDisk:

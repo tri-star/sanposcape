@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from sanposcape.core.geo import GeoPoint
@@ -56,6 +56,18 @@ class PinConflictErrorRead(BaseModel):
 
     detail: str
     code: Literal["storage_quota_exceeded", "photo_upload_not_ready"]
+
+
+class PinTagConflictErrorRead(BaseModel):
+    """`PATCH /pins/{pin_id}` の 409 応答本体（タグの上限超過, ADR-009 決定20）。
+
+    `PinConflictErrorRead` を再利用せず別スキーマにする。`code` の enum を広げると、
+    `POST /pins` 等の他エンドポイントの 409 にも出ない値が載り、mobile（Orval）の
+    網羅的な分岐にも影響するため。
+    """
+
+    detail: str
+    code: Literal["tag_limit_exceeded"]
 
 
 class PinPhotoUploadCreate(BaseModel):
@@ -141,6 +153,71 @@ class PinPhotosAdd(BaseModel):
         if len(set(value)) != len(value):
             raise ValueError("photo_upload_ids must not contain duplicates")
         return value
+
+
+class PinUpdate(BaseModel):
+    """`PATCH /pins/{pin_id}` のリクエスト（ADR-009 決定20）。
+
+    「省略」と明示的な `null` は `model_fields_set` で区別する（`PinCreate.
+    _sanpo_map_id_must_not_be_explicit_null` と同じ仕組み）。省略したフィールドは変更
+    しない。`name`/`memo` は `null` か空白のみの値で「消す」（`PinCreate` と同じ正規化）。
+    タグは全置換ではなく差分（`add_tags`/`remove_tag_ids`）で送る（共同編集での
+    lost update・タグごとの権限判定の分かりやすさ・再送の安全性のため）。
+
+    `extra="forbid"` にする理由: `location`/`sanpo_map_id` 等を送って「変更されたつもり」
+    になる事故を防ぐため（PATCH は「送ったものだけが変わる」という意味を持つ）。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, max_length=PIN_NAME_MAX_LENGTH)
+    memo: str | None = Field(default=None, max_length=PIN_MEMO_MAX_LENGTH)
+    # `SkipJsonSchema[None]` により OpenAPI 上は non-nullable の optional として出る
+    # （明示的な `null` は `_add_tags_and_remove_tag_ids_must_not_be_explicit_null` で 422）。
+    # `max_length` は `Annotated` でリスト側の型にだけ付ける（外側の `Field()` に付けると、
+    # `None` を検証するときにも `len(None)` を試みて `TypeError` になる）。
+    add_tags: (
+        Annotated[list[PinTagLabel], Field(max_length=PIN_TAGS_MAX_COUNT)] | SkipJsonSchema[None]
+    ) = Field(default_factory=list)
+    remove_tag_ids: (
+        Annotated[list[uuid.UUID], Field(max_length=PIN_TAGS_MAX_COUNT)] | SkipJsonSchema[None]
+    ) = Field(default_factory=list)
+
+    @field_validator("name", "memo", mode="before")
+    @classmethod
+    def _strip_and_blank_to_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return _blank_to_none(value)
+        return value
+
+    @field_validator("add_tags")
+    @classmethod
+    def _normalize_and_dedupe_tags(cls, value: list[str] | None) -> list[str] | None:
+        """`PinCreate.tags` と同じ正規化（サーバー側でも重複除去する, ADR-009 決定20）。
+
+        明示的な `null` はここでは弾かず（`ValueError` を投げると 422 にはなるが、意図が
+        「省略と同じ意味」に読める応答になりうる）そのまま通し、下の
+        `model_validator` で専用のエラーメッセージにする。
+        """
+        if value is None:
+            return None
+        return dedupe_tags(value)
+
+    @field_validator("remove_tag_ids")
+    @classmethod
+    def _no_duplicate_remove_tag_ids(cls, value: list[uuid.UUID] | None) -> list[uuid.UUID] | None:
+        if value is None:
+            return None
+        if len(set(value)) != len(value):
+            raise ValueError("remove_tag_ids must not contain duplicates")
+        return value
+
+    @model_validator(mode="after")
+    def _add_tags_and_remove_tag_ids_must_not_be_explicit_null(self) -> "PinUpdate":
+        for field_name in ("add_tags", "remove_tag_ids"):
+            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} must not be null; omit the field for no change")
+        return self
 
 
 class PinTagRead(BaseModel):

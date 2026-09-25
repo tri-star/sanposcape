@@ -188,7 +188,7 @@ docker compose up -d --build
 
 - `GOOGLE_MAPS_LOOP_ROUTE_ENABLED`: 既定 `true`。`false` にすると周回の生成自体を行わず、常に往路を1回取得して**同じ道で戻る**（`return_is_same_path: true`）応答になる（real / fake のどちらでも有効）。用途は品質劣化時の緊急停止と、mobile 側で同じ道フォールバック表示を手動確認したいときの強制切り替え。
   - `MAPS_MODE=fake docker compose up -d` と同様、`docker compose restart` では反映されない。値を変えたら `GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false docker compose up -d` のように `up -d` でコンテナを作り直すこと。
-- `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`: 既定 12 秒（上限 25 秒）。**周回1リクエスト全体**（並列2候補＋両候補失敗時の同じ道フォールバックの単発取得まで含む）の時間予算であり、1候補あたりの上限ではない。各候補は `min(GOOGLE_MAPS_READ_TIMEOUT_SECONDS, GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS)` で打ち切り、単発フォールバックは残り予算（deadline − 経過時間）が無ければ 503 になる。Lambda の Function URL タイムアウト（29秒、[ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)）より十分短くしている。
+- `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`: 既定 12 秒（上限 25 秒）。**周回1リクエスト全体**（並列2候補＋両候補失敗時の同じ道フォールバックの単発取得まで含む）の時間予算であり、1候補あたりの上限ではない。各候補は `min(GOOGLE_MAPS_READ_TIMEOUT_SECONDS, GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS)` で打ち切り、単発フォールバックは残り予算（deadline − 経過時間）が無ければ 503 になる。Lambda の Function URL タイムアウト（29秒、`template.yaml` の `Timeout: 29`）より十分短くしている。
 - 周回が作れない（O-D が近すぎる／候補がすべて判定で不合格）場合もエラーにはせず、200 + `return_is_same_path: true` で返す（往路 leg を逆順にしたものを復路として使う）。
 - 検証・しきい値調整用のスクリプト `scripts/loop_route_probe.py`（`scripts/loop_route_probe_cases.yaml` の O/D の組を使う）がある。`MAPS_MODE=real` かつ `GOOGLE_MAPS_SERVER_API_KEY` 設定時のみ動作し、`docker compose exec api uv run python scripts/loop_route_probe.py` で実行する。候補ごとの指標・合否・採用結果を標準出力に、往路/復路/経由点を `tmp-probe/<timestamp>.geojson`（`.gitignore` 済み）に出す。詳細は ADR-007 を参照。
   - スクリプトの結果を見て `maps/loop_route.py` のしきい値・係数を変えたら、E2E の生命線（fake の全候補で周回が合格すること。ADR-007 決定8）を `docker compose exec api uv run pytest src/sanposcape/integrations/google_maps/tests/test_fake.py::test_fake_loop_is_accepted_for_every_fake_candidate` で必ず再確認すること。
@@ -243,8 +243,12 @@ docker compose up -d --build
     `POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos` の確定処理）は
     503 になるが、**閲覧系**（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）
     と `GET /sanpo-maps` は影響を受けず、200 のまま `thumbnail`/`original_url` が
-    null になる（ADR-009 決定18）。平常のローカル開発ではバケットを設定しないので、
-    `STORAGE_MODE=real` のままだと写真は試せない
+    null になる（ADR-009 決定18）。**編集**（`PATCH /pins/{pin_id}`）は S3 を操作しない
+    ので影響を受けず、DB を更新して 200 を返す（写真 URL は null）。**削除系**
+    （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`）も 503 には
+    ならず、DB を削除したあと S3 の後始末を `ObjectStorageUnavailableError` の WARNING を
+    出してスキップし、204 を返す（ADR-009 決定22, SS-112）。平常のローカル開発では
+    バケットを設定しないので、`STORAGE_MODE=real` のままだと写真は試せない
     （`deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）。
     **（SS-88 追補）** 直送まわりの不具合は fake では再現しないことがあるため、
     ローカルの backend を dev の実バケットに向ける手順を
@@ -365,7 +369,13 @@ print(r.status_code); print(r.text[:800])"
   `PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS` / `PIN_PHOTO_DOWNLOAD_URL_TTL_SECONDS` /
   `PIN_PHOTO_THUMBNAIL_MAX_EDGE_PX` / `PIN_PHOTO_THUMBNAIL_JPEG_QUALITY` /
   `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` / `PIN_PHOTO_CONFIRM_CONCURRENCY` /
-  `OBJECT_STORAGE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_READ_TIMEOUT_SECONDS`
+  `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（SS-112: ピン・写真削除時の S3 実体削除の時間予算。
+  上限20秒。締め切りと削除用の connect + read の和が 25 秒を超えると起動に失敗する。
+  削除用 timeout が既定値（connect 1秒 + read 5秒 = 6秒）のままだと、実際に設定できる
+  上限は 20 ではなく **19 秒**（19 + 6 = 25）） /
+  `OBJECT_STORAGE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_READ_TIMEOUT_SECONDS` /
+  `OBJECT_STORAGE_DELETE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_DELETE_READ_TIMEOUT_SECONDS`
+  （PR #101 レビュー対応: 削除専用の client の timeout。削除は再試行しない）
 
 （`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は `MAPS_MODE` と同様に開発中の切り替えに使うため、
 `compose.yaml` の `environment:` に含めている。`FEATURE_FLAG_MODE` も `AUTH_MODE` /

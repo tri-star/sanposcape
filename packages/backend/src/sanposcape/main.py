@@ -32,10 +32,12 @@ from sanposcape.maps.router import router as maps_router
 from sanposcape.pins.dev_storage_router import router as pins_dev_storage_router
 from sanposcape.pins.exceptions import (
     PinNotFoundError,
+    PinPhotoNotFoundError,
     PinPhotoTooLargeError,
     PinPhotoUploadAlreadyAttachedError,
     PinPhotoUploadNotFoundError,
     PinPhotoUploadNotReadyError,
+    PinTagLimitExceededError,
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
@@ -190,6 +192,20 @@ def register_exception_handlers(app: FastAPI) -> None:
         # `DELETE /pin-photo-uploads/{upload_id}` 専用（PR #93 T11）。
         return JSONResponse(
             status_code=409, content={"detail": "Pin photo upload already attached"}
+        )
+
+    @app.exception_handler(PinPhotoNotFoundError)
+    async def _pin_photo_not_found(request: Request, exc: PinPhotoNotFoundError) -> JSONResponse:
+        # `DELETE /pins/{pin_id}/photos/{photo_id}` 専用（ADR-009 決定21, SS-112）。
+        return JSONResponse(status_code=404, content={"detail": "Pin photo not found"})
+
+    @app.exception_handler(PinTagLimitExceededError)
+    async def _pin_tag_limit_exceeded(
+        request: Request, exc: PinTagLimitExceededError
+    ) -> JSONResponse:
+        # `PATCH /pins/{pin_id}` 専用（ADR-009 決定20, SS-112）。
+        return JSONResponse(
+            status_code=409, content={"detail": "Too many tags", "code": "tag_limit_exceeded"}
         )
 
     @app.exception_handler(ObjectStorageUnavailableError)
