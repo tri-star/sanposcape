@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-26（SS-112, PR #101 レビュー対応）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-26（SS-113, 地図の作成・管理 API）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -48,13 +48,24 @@
   まとめて削除する（本文: SS-112 追補）。**削除用の S3 client は再試行なし・短い timeout で、
   2つ目以降のチャンクは残り時間が1回の最悪時間以上のときだけ始める（締め切り + 1回の
   最悪時間 ≤ 25 秒を起動時に検証）**（本文: 決定22 追補, 2026-09-26 追補）
+- **地図の作成・更新・削除 API（`POST`/`PATCH`/`DELETE /sanpo-maps`）を追加した**（BK-6 完了）。
+  地図そのものの操作は owner のみ可（editor は 403、非メンバーは 404）。作成時に自分の既定地図が
+  無ければ既定化し、既定地図を削除すると `updated_at DESC, id DESC` の先頭へ繰り上げる
+  （本文: SS-113 追補 決定25〜27）
+- **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
+  新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
+  （本文: SS-113 追補 決定28）
+- **`GET /sanpo-maps?expand=pin_count`** で地図ごとのピン件数（`int | null`、未指定は null）を
+  1クエリで返せるようにした。`sanpo_maps` が `pins` を import しない依存方向は、
+  `sanpo_maps/contents.py` の port（`PinService` が実装、配線はアプリ直下 `dependencies.py`）
+  で維持した（本文: SS-113 追補 決定29）
 
 ### 未解決・持ち越し
 
 - **BK-2**: アカウント削除時の写真削除。**prod でフラグ ON にする前提条件**（本文: 移行・対応事項）
-- **BK-3, BK-6〜BK-10**: 期限切れ枠の掃除、地図管理、招待、使用量 API、サムネイルの非同期化、
-  原本の EXIF 除去（本文: 移行・対応事項。BK-4「閲覧 API」は SS-111、BK-5「編集・削除 API」は
-  SS-112 で完了した）
+- **BK-3, BK-7〜BK-10**: 期限切れ枠の掃除、招待、使用量 API、サムネイルの非同期化、原本の EXIF
+  除去（本文: 移行・対応事項。BK-4「閲覧 API」は SS-111、BK-5「編集・削除 API」は SS-112、
+  BK-6「地図の作成・管理 API」は SS-113 で完了した）
 - **地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は SS-118 で
   決める。**検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る（本文: SS-111 追補）
 - **prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
@@ -77,7 +88,8 @@
 2026-09-24 追補（SS-88: 実機不具合の調査で判明したアクセスログの必要性と、dev の疎通確認完了）、
 2026-09-24 追補（SS-111: 閲覧 API の追加。BK-4 完了）、
 2026-09-25 追補（SS-112: 編集・削除 API と権限マトリクスの確定。BK-5 完了）、
-2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）
+2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）、
+2026-09-26 追補（SS-113: 地図の作成・更新・削除 API と `pin_count` の expand。BK-6 完了）
 
 ## ステータス
 
@@ -202,7 +214,7 @@ ADR-008 決定7（expand → contract）の例外として直接削除してい�
 - **`GET /sanpo-maps` はピンの件数を返さない**（mobile 案にあった `spot_count`
   相当は削除）。`pins → sanpo_maps` の一方向依存を保つため（`sanpo_maps` は `pins` の
   存在を一切知らない）。件数が必要になったら地図管理チケット（BK-6）で
-  `pin_count` を optional field として expand する。
+  `pin_count` を optional field として expand する。（SS-113: 決定29 で実装）
 
 ### 決定4: 写真は presigned POST で先行アップロードし、ピン作成 API が確定を兼ねる
 
@@ -555,18 +567,23 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       [deployment.md](../../packages/backend/docs/deployment.md) §12）
 - [ ] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
-      S3 のオブジェクトは残るため）
+      S3 のオブジェクトは残るため）。決定22 の `ObjectStorage.delete_many()` と
+      `PinService._delete_photo_keys_best_effort()`（決定28 で地図単位にも使われるように
+      なった best-effort 削除）をそのまま再利用できる（SS-113 追補）
 - [ ] **BK-3**: 期限切れ `pending` 枠の行削除と、対応する未参照 S3 オブジェクトの掃除
       （定期実行）。**SS-112 の編集・削除 API で残りうる不整合が増えた**: S3 削除が
       時間予算の不足による打ち切り・ストレージ障害で失敗した場合の `original/`・`thumb/`
-      の孤立オブジェクト（detail は「追補（2026-09-25, SS-112 編集・削除 API）」決定22）
+      の孤立オブジェクト（detail は「追補（2026-09-25, SS-112 編集・削除 API）」決定22）。
+      **SS-113 の地図削除でも同種の孤立オブジェクトが増えうる**（地図削除で写真が多数の
+      場合の打ち切り。detail は決定28）
 - [x] **BK-4**: 閲覧 API（`GET /pins?sanpo_map_id=`、`GET /pins/{pin_id}`、
       `GET /pins/{pin_id}/photos` の全件ページング、原本の presigned GET）。**SS-111 で実装完了**
       （detail は「追補（2026-09-24, SS-111 閲覧 API）」）
 - [x] **BK-5**: 編集・削除 API（`PATCH`/`DELETE /pins/{id}`、写真・タグの削除）と
       権限マトリクス（決定2の表）の実装。**SS-112 で実装完了**
       （detail は「追補（2026-09-25, SS-112 編集・削除 API）」）
-- [ ] **BK-6**: `POST /sanpo-maps`（地図の新規作成）、地図管理、`pin_count` の expand
+- [x] **BK-6**: `POST /sanpo-maps`（地図の新規作成）、地図管理、`pin_count` の expand。
+      **SS-113 で実装完了**（detail は「追補（2026-09-26, SS-113 地図の作成・管理 API）」）
 - [ ] **BK-7**: 招待・メンバー管理。招待ユーザー退会時に他人の地図へ付けたピン・写真・
       タグを消すかは未決（MVP は全て `ON DELETE CASCADE`）。**BK-10 が前提**
 - [ ] **BK-8**: `GET /users/me/storage-usage`（使用量 / 上限の表示）
@@ -774,6 +791,9 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 | 写真の追加（既存, 決定5） | ○ | ○ | ○ | 404 |
 | 写真の削除 | ○（他人の写真も可） | ○（自分がアップロードした写真） | 自分がアップロードした写真だけ。他人の写真は **403** | **404** |
 
+上表はピン・タグ・写真（地図の中身）の操作を対象にしている。地図そのものの操作（名前変更・
+削除）は決定26 を参照（SS-113）。
+
 決定2の表を実装内容で置き換える（決定2の表は「予定表」だったため）。表の読み方・実装上の
 注意:
 
@@ -947,6 +967,130 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   一覧のキャッシュを無効化する。
 - `DELETE /pins/{id}` の 204/404 は、どちらも一覧から取り除いてよい。
 
+## 追補（2026-09-26, SS-113 地図の作成・管理 API）
+
+BK-6（地図の新規作成・管理 API、`pin_count` の expand）を実装した。SS-112 の決定21
+（404/403 の使い分け）・決定22（削除時の S3 の扱い）の仕組みを地図単位に広げている。
+
+### 決定25: 地図の作成・更新・削除 API の契約
+
+| 項目 | 決定 |
+|---|---|
+| `POST /sanpo-maps` | body `{"name": str}`（必須）。**201 + `SanpoMapRead`**（`role="owner"`、
+  `is_default` は決定27 のルール、`pin_count=null`）。冪等キーは持たない（後から optional で
+  足せる） |
+| `PATCH /sanpo-maps/{sanpo_map_id}` | `SanpoMapUpdate`: `extra="forbid"`、`name` は省略可・
+  null 不可（決定20 と同じ流儀）。**`{}` は 200 で何も変えない**。**200 + 更新後の
+  `SanpoMapRead`** |
+| `DELETE /sanpo-maps/{sanpo_map_id}` | **204**、非冪等（2回目は 404）。503 は宣言しない
+  （決定22 と同じ） |
+| 名前 | 前後の空白（全角空白含む）を除去した後に 1〜50 文字（code point 数、DB
+  `String(50)`・ピン名と同じ）。空白のみは 422。重複は許可する |
+| `GET /sanpo-maps` の並び順 | 変更しない（自分の既定地図 → `updated_at DESC, id DESC`） |
+| 名前変更と `updated_at` | **更新しない**。`sanpo_maps.updated_at` は「最近ピンを追加した
+  地図」を先頭にする並び順専用の列で、決定23（`Pin.updated_at` もピン本体・タグの変更でしか
+  更新しない）と同じ考え方 |
+| 地図数の上限 | 設けない（ピン数に上限が無いのと揃える） |
+
+`/sanpo-maps` にも `RequestSizeLimitMiddleware`（`pins_request_max_bytes` を流用）を足した
+ため、既存の `GET /sanpo-maps` も OpenAPI 上に 413 を持つようになった。
+
+### 決定26: 地図そのものの操作の権限
+
+| 操作 | 地図 owner | editor | 非 member・存在しない ID・削除済み ID |
+|---|---|---|---|
+| 地図の作成 | ―（作った人が owner になる） | ― | ― |
+| 地図の閲覧（`GET /sanpo-maps`, 既存） | ○ | ○ | 一覧に出ない |
+| 地図の更新（名前変更, `PATCH`） | ○ | **403** | **404** |
+| 地図の削除（`DELETE`） | ○ | **403** | **404** |
+
+判定順は決定21と同じ「member（404）→ 権限（403）」。PATCH の権限判定は決定20と同じく
+「送られたフィールド」で行う（`{}` でも member 判定は行うが、`name` を送ったときだけ
+`can_update_sanpo_map` を見るため、editor の `{}` は 200 になる）。
+
+editor が 403 でも情報は漏れない（editor は既に `GET /sanpo-maps` で地図の存在を知っている
+ため、決定21 と同じ理由）。共有地図の名前・存続は全員に影響するので owner に限る。
+
+`sanpo_maps/permissions.py` に `can_update_sanpo_map(role)`/`can_delete_sanpo_map(role)`
+（`role == "owner"`）を追加した。地図そのものの管理は「対象の持ち主」を判定する必要が
+無い（地図の持ち主 = owner の role）ため、決定19 の更新・削除系関数のような
+`is_creator`/`is_uploader` キーワード専用引数は持たない。例外は既存の
+`SanpoMapPermissionDeniedError`（403）を再利用し、新しい例外は作っていない。
+
+### 決定27: 既定地図（`is_default`）の不変条件
+
+不変条件: 「owner が自分の地図を1つ以上持つなら、既定地図がちょうど1つある」
+（best-effort）。ユーザー承認済み（2026-09-25）。
+
+- **作成**: `POST /sanpo-maps` の時点で自分の既定地図が無ければ、作った地図を既定にする。
+  `is_default` はリクエストで受け取らない。`POST /pins` の「最初の地図」自動作成（決定3）と
+  競合して部分一意インデックス違反になったら、savepoint で捕捉して `is_default=false` で
+  作り直す。
+- **削除**: 既定地図も削除できる。消したら同じトランザクションで、残りの自分の地図のうち
+  `updated_at DESC, id DESC` の先頭を既定に繰り上げる。残りが無ければ既定なしになり、次の
+  `POST /pins`（`sanpo_map_id` 省略）が「最初の地図」を作り直して回復する（決定3）。繰り上げが
+  同時作成と競合して一意違反になったら savepoint で諦める（誰かが既定を作った = 不変条件は
+  満たされる）。
+- **名前変更**: 既定地図も名前を変えられる（`is_default` は変わらない）。
+
+### 決定28: 地図削除は決定22 の手順を地図単位に広げる
+
+1. **DB は CASCADE で消える**（アプリ側でピンを1件ずつ消さない。`sanpo_maps` →
+   `sanpo_map_members`・`pins` → `pin_photos`/`pin_tags` の `ON DELETE CASCADE` で連鎖する）。
+2. **S3 は決定22 の手順を地図単位に広げる**: 地図行を `FOR UPDATE` でロック → 地図の全ピンの
+   写真の `s3_key`/`thumbnail_s3_key` を列だけ収集 → 地図を削除して commit → 既存の
+   `PinService._delete_photo_keys_best_effort()`（決定22 と同じ時間予算・チャンク・失敗時の
+   ログ）で best-effort 削除。**新しい設定値・新しい削除部品は作っていない**。ストレージ
+   未構成・障害・時間切れでも 204（決定22 と同じ）。残骸は BK-3。
+3. **staging（未使用の枠）は触らない**（地図と紐付いていない。SS-117 の「写真を先に
+   アップロード → 地図を作成 → 保存」でも使える必要がある）。
+4. **容量は commit と同時に空く**（`pin_photos` が CASCADE で消えるため）。S3 の残骸は容量に
+   数えない（決定4・7）。
+
+**時間の見積もり**: 後始末フェーズは `max(PIN_PHOTO_DELETE_DEADLINE_SECONDS, 1回の最悪時間)`
+= 既定 `max(10, 6)` = 10 秒以内に終わる（起動時に「締め切り + 1回の最悪時間 ≤ 25 秒」を
+検証済み）。地図削除はピン削除より DB 処理が重い（地図単位の CASCADE）が、ユーザーの容量上限
+1 GiB・写真1枚が数百 KB なら写真は数千枚・キーは1万前後で、CASCADE の DELETE とキーの
+SELECT は1秒前後の見込み。Lambda の29秒に対して、既定値なら DB 数秒 + 後始末10秒で十分に
+余裕がある。写真が多すぎて時間が足りない場合は、残りのキーを WARNING に出して打ち切る
+（SS-112 のピン削除と同じ許容範囲）。
+
+**同時実行**: 地図の PATCH/DELETE は `sanpo_maps` 行を `FOR UPDATE` でロックして member・
+role を読み直す（二重 DELETE の後発はロック待ちの後に行が無く 404）。SS-112 で pins の
+更新・削除系はすべて `pins` 行を `FOR UPDATE` で取るようになったため、地図削除の CASCADE は
+これらの `pins` 行ロックを待つ（デッドロックはしない）。`add_photos`/`create_pin` は
+`mark_used()` で `pins` 行 → 地図の行の順に UPDATE するため、地図削除（地図の行 → `pins`
+行）とまれにデッドロックし、PostgreSQL が片方を中断する（500）。DB はロールバックで整合し、
+確定済みの S3 コピーは決定4の残骸になる（BK-3）。**2台の端末で同じ地図に同時操作しない限り
+起きない**ため許容する。共有地図を owner が消すと editor のデータも消える点は BK-7 で再検討する。
+
+### 決定29: `pin_count` の expand と依存方向
+
+- クエリは `?expand=pin_count`（`expand: list[Literal["pin_count"]]`。未知の値は 422、
+  配列にしたのは将来の expand 対象が増えてもパラメータを増やさないため）。
+- `SanpoMapRead.pin_count: int | None = None`（OpenAPI 上は optional・nullable）。expand
+  指定時は全要素に整数（ピンが無い地図は0）、未指定時・`POST`/`PATCH` の応答では `null`。
+- 集計は1クエリ: `SELECT sanpo_map_id, count(*) FROM pins WHERE sanpo_map_id IN (:ids)
+  GROUP BY sanpo_map_id`。`ids` は認可済み（member である）地図 ID だけ。
+- **依存方向は port（依存性逆転）で守る**。`sanpo_maps/contents.py`（新規）に Protocol
+  `SanpoMapContents`（`count_pins_for_sanpo_maps()`/`prepare_sanpo_map_deletion()`）を定義し、
+  `pins/service.py` の `PinService` が構造的部分型で満たす（新しいクラスは作らない）。
+  配線はアプリ直下 `sanposcape/dependencies.py` の `get_sanpo_map_contents()` で行い、
+  `SanpoMapService` へは（コンストラクタではなく）メソッド引数で渡す。
+  - `PinService` に実装を持たせる理由: SS-112 で入った best-effort 削除（時間予算の判定を
+    含む `_delete_photo_keys_best_effort()`）を、新しいクラスに切り出さずそのまま
+    `prepare_sanpo_map_deletion()` から再利用できるため。
+  - 配線をアプリ直下 `dependencies.py` に置く理由: ここが「複数ドメインで使う横断的依存」の
+    置き場であり、`sanpo_maps/dependencies.py` に置くと `sanpo_maps` が `pins` を import
+    することになるため。
+  - `SanpoMapService` のコンストラクタに port を持たせない理由: `get_pin_service` が
+    `SanpoMapService` を組み立てているため、コンストラクタで `PinService`（の port）を要求
+    すると組み立てが循環する。
+  - `sanpo_maps/` 配下（tests 含む）が `sanposcape.pins` を import していないことを
+    `tests/test_dependency_direction.py` が AST で検査する。
+- `pin_count` を required にしないのは、mobile の手書き型付きフィクスチャ
+  （`sanpoMapApi.test.ts`）を壊さないため。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -960,4 +1104,4 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）
+  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）
