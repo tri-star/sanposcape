@@ -51,7 +51,9 @@ argument-hint: "<task-id> <trigger: start|pr-created|review-fix|pr-merged> [pr-u
 1. `[pr-url]` が渡されていればそのPRに対して、渡されていなければユーザーに確認したうえで対象PRに対して `gh pr view <pr-url> --json state,mergedAt` を実行してください。
 2. `state` が `MERGED` でない場合は状態更新を行わず、現在のPRの状態をユーザーに伝えて終了してください。
 3. マージが確認できたら、専門エージェントに `<task-id>` のタスクを「完了(Done相当)」の状態に更新するよう依頼してください。マージは常に正常完了として扱い、Cancelled等キャンセルに相当する状態には変更しないでください。
-4. 状態更新が完了したら、続けて `knowledge-harvest` skill を `<task-id>` を渡して呼び出してください。このチケットで生まれた知識(決定事項・エージェントの作業メモ)を、文脈が残っているうちにADR/agent-memoryへ振り分け、`tmp/<task-id>/` を破棄するためです。マージ直後が最も仕分けの精度が高いタイミングであるため、後回しにしないでください。
+4. 状態更新が完了したら、知識の収穫に取りこぼしが無いかを確認してください。通常は `task-workflow` がPR作成直後に `knowledge-harvest` を実行し、収穫結果をPRに含めているため、ここでは何もしなくて済みます。
+   - `tmp/<task-id>/` が存在する、または `grep -rl 'source_issue: <task-id>' .claude/agent-memory` で `scope: task-local` のメモリが見つかる場合に限り、`knowledge-harvest` skill を `<task-id>` を渡して(対話モードで)呼び出してください。`task-workflow` を経由せずに作業した場合などの取りこぼしを、文脈が残っているうちに回収するためです。
+   - どちらも見つからなければ、収穫は済んでいるものとしてスキップし、その旨をユーザーに伝えてください。
 
 ## 他のワークフローへの組み込み方
 
@@ -60,6 +62,6 @@ argument-hint: "<task-id> <trigger: start|pr-created|review-fix|pr-merged> [pr-u
 - `backend-workflow` / `frontend-workflow` / `mobile-workflow` が実装エージェントを初めて起動する直前 → `start`
 - `task-workflow` が、指示内容にGitHubのPR番号が含まれレビュー指摘対応と判断した直後 → `review-fix`
 - `task-workflow` がPR作成後 → `pr-created`(取得したPR URLを渡す)
-- ユーザーから「PRがマージされました」等の報告を受けた時 → `pr-merged`(この場合、他のワークフローを経由せずこのスキルが単体で呼ばれることが多い)。`pr-merged` は状態更新後に `knowledge-harvest` skill を呼び出す
+- ユーザーから「PRがマージされました」等の報告を受けた時 → `pr-merged`(この場合、他のワークフローを経由せずこのスキルが単体で呼ばれることが多い)。`pr-merged` は状態更新後、知識の収穫に取りこぼしがある場合のみ `knowledge-harvest` skill を呼び出す(通常の収穫は `task-workflow` がPR作成後に行う)
 
 新しく開発ワークフロー系のスキルを作る場合も、対応するタイミングでこのスキルを呼び出してください。

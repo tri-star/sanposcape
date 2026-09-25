@@ -109,7 +109,7 @@ MEMORY.md はセッション開始時に読み込まれるインデックスで�
 - 保存先は `tmp/<issue-id>/`（issue-id が無い場合は `tmp/<YYYYmmdd-HHMM>/`）
 - エージェント間の情報共有・現在のチケットの参照に使うのは問題ない
 - **進行中のチケット以外の `tmp/` は読まない**。メンテナンスされないため必ず陳腐化している
-- チケット完了時に、残すべき知識を ADR / agent-memory へ収穫してからディレクトリごと破棄する
+- チケット完了時（`task-workflow` の PR 作成直後）に、残すべき知識を ADR / agent-memory へ収穫してからディレクトリごと破棄する
 
 ## 計測（どのメモリが役に立ったか）
 
@@ -120,6 +120,7 @@ MEMORY.md はセッション開始時に読み込まれるインデックスで�
 - 集計: `scripts/knowledge/memory-access-report.py`
 
 セッションごとに別ファイルへ追記するため、**複数人がログをコミットしても衝突せず合算できる**。
+ログは `task-workflow` の最後の操作としてコミットされ、PR に含まれる（未コミットのまま作業を終えない）。
 
 ```bash
 scripts/knowledge/memory-access-report.py --days 30
@@ -154,9 +155,11 @@ scripts/knowledge/memory-access-report.py --days 30
 | メモリ書き込みの都度 | front-matter 規約の検査 | PostToolUse フック（自動） |
 | メモリ本文を読む都度 | アクセスの記録 | PreToolUse フック（自動） |
 | PR時 | tmp/ 参照・front-matter 規約の検査 | CI（docs lint） |
-| **チケット完了時（PRマージ）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄 | `knowledge-harvest` skill |
+| **チケット完了時（PR作成直後）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄し、結果を PR に含める | `knowledge-harvest` skill（`task-workflow` から自動モードで） |
+| PRマージ時 | 収穫の取りこぼし（残った `tmp/<issue-id>`・task-local メモリ）がある場合のみ回収 | `task-status-sync` の `pr-merged` → `knowledge-harvest` skill |
 | **週次〜月次** | 取りこぼしの棚卸し、古い `tmp/` の削除 | `knowledge-review` skill |
 
 チケット完了時の仕分けが主役で、定期棚卸しは取りこぼしの回収に徹する。
-マージ直後は文脈が残っているため仕分けの精度が最も高く、時間が経つほど
+PR作成直後は文脈が残っているため仕分けの精度が最も高く、時間が経つほど
 「他人が書いた古いメモを文脈なしで判断する」ことになって精度が落ちるため。
+また、この時点で収穫すれば ADR 追補やメモリの変更を実装と同じ PR でレビューできる。
