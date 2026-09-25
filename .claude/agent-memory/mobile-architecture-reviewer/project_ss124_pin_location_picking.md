@@ -1,6 +1,6 @@
 ---
 name: project_ss124_pin_location_picking
-description: SS-124(任意地点でのピン登録・位置調整)mobileアーキレビュー結果。Must無し、feature間import非強制とrender中setStateパターンのドキュメント化がShould
+description: SS-124(任意地点でのピン登録・位置調整)mobileアーキレビュー結果。Must無し。feature間import非強制はShould(未対応)、render中setStateパターンは同PRでarchitecture-guideline.mdに文書化済み
 metadata:
   type: project
   scope: durable
@@ -30,16 +30,16 @@ ADR-011 と実装がほぼ完全に一致しており、Must 相当の指摘は�
 4. **`usePinLocationPicker.ts` の「render 中に直接 setState して単発の派生状態を確定する」パターン**
    は、`react/set-state-in-effect`（React Compiler 由来の oxlint 警告）を避けるために採用された、
    リポジトリで唯一の用例（他は `useEffect` + `ref` ラッチ）。React 公式ドキュメントが認める
-   パターンではあるが、`docs/architecture-guideline.md` 等のチーム共有ドキュメントには載っておらず
-   mobile-developer エージェントの pitfalls メモリにのみ記録されている（エージェント間・人間には
-   共有されない）。次に同じ oxlint 警告に遭遇した実装を見たら、チーム文書（`docs/` 配下）に
-   反映されているか確認し、されていなければ指摘する。
+   パターン。レビュー時点ではチーム文書に無かったが、同じ PR（#102）のレビュー対応で
+   `packages/mobile/docs/architecture-guideline.md` の「hook 内での『1回だけの状態確定』パターン」
+   節に判断基準（外部 I/O 待ちなら `useEffect`、純粋な派生なら render 中の setState）と実例として
+   文書化済み。次に同じ oxlint 警告に遭遇した実装を見たら、この節の基準に沿っているか確認する。
 
 **How to apply:** 次に `features/pin` または地図系オーバーレイ（`Modal` 代替）を触る PR を
-見たら、上記1・2が踏襲されているか確認する。feature 間 import の lint 強制（3）と
-render中setStateパターンのドキュメント化（4）は、このレビュー時点では「Should」止まりで
-まだ対応されていない。次回以降のレビューで実際に対応されたか確認し、されていれば本メモリから
-該当項目を削除する。
+見たら、上記1・2が踏襲されているか確認する。feature 間 import の lint 強制（3）は
+「Should」止まりで SS-124 では見送った（`pinLocationParams.test.ts` がテストで越境しているため、
+除外設定の検討が要る）。次回以降のレビューで対応されたか確認し、されていれば本メモリから
+該当項目を削除する。render中setStateパターンのドキュメント化（4）は反映済み。
 
 **関連メモリ**: [[project_ss88_pin_registration_mobile]]（features/pin の oxlintrc override は
 SS-124時点で解消済みと確認）、[[pattern_modal_backhandler_coexistence]]（本チケットでの
