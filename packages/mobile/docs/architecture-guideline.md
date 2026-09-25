@@ -10,8 +10,8 @@
 hook に書くとき、2つの慣用句が共存する。**どちらを使うかは「外部 I/O を待つか」で決める**。
 
 - **外部 I/O（非同期処理・購読）の完了時に setState する場合は `useEffect` のまま**にする
-  （実例: `useScreenBack.ts` の `navigatingRef` + `useFocusEffect`、`useAuthSessionBootstrap.ts`
-  の `restoreSession()` 完了時、`useCurrentLocation.ts` の `getCurrentPosition()` 完了時）。
+  （実例: `useAuthSessionBootstrap.ts` の `restoreSession()` 完了時、`useCurrentLocation.ts` の
+  `getCurrentPosition()` 完了時）。
   これらは「他の state からの派生」ではなく「外部システムとの同期」なので `useEffect` が正しい。
 - **他の props/state から純粋に導出できる値を setState するだけなら、`useEffect` に入れず
   レンダー本体で条件付きに直接 setState する**（React 公式ドキュメントが「レンダー中に state を
