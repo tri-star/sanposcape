@@ -7,7 +7,8 @@
 #   - 地図の長押し・タップは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-007）。
 #     タイルの描画結果は assert しない。
 # /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
-# assert しないもの: 座標の値・地図の名前・件数・トースト・地図タイル。
+# assert しないもの: 座標の値・地図の名前・件数・地図タイル。
+# 保存完了トーストは assert する（idle 分岐の ToastOverlay の欠落を SS-124 で直したため。PR #102 レビュー）。
 appId: com.sanposcape.app.dev
 tags:
   - pin
@@ -73,10 +74,14 @@ tags:
       id: "pin-register-save"
 - tapOn:
     id: "pin-register-save"
+# トーストは 1.9 秒で消える（useToast の既定）ので、idle 画面を待ってからでは取りこぼしうる。
+# 文言が出るのを直接待ち、そのあと idle 画面にいることを確かめる。
 - extendedWaitUntil:
     visible:
-      id: "walk-active-idle"
+      text: "ピンを保存しました"
     timeout: 20000
+- assertVisible:
+    id: "walk-active-idle"
 - assertNotVisible:
     id: "pin-register-screen"
 - assertNotVisible:
