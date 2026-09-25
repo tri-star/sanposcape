@@ -1,5 +1,6 @@
 """pins のユースケース。トランザクション境界（commit）はここが持つ。"""
 
+import functools
 import logging
 import time
 import uuid
@@ -689,8 +690,26 @@ class PinService:
         )
         self._delete_photo_keys_best_effort(keys)
 
+    def count_pins_for_sanpo_maps(self, sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """`GET /sanpo-maps?expand=pin_count` 用（`sanpo_maps/contents.py` の
+        `SanpoMapContents` port, ADR-009 決定29）。読み取りのみ・commit しない。
+        """
+        return self._repository.count_pins_for_maps(sanpo_map_ids)
+
+    def prepare_sanpo_map_deletion(self, sanpo_map_id: uuid.UUID) -> Callable[[], None]:
+        """地図削除の前（地図の行ロック取得後）に写真キーを集め、commit 後に呼ぶ後始末を
+        返す（`sanpo_maps/contents.py` の `SanpoMapContents` port, ADR-009 決定28）。
+
+        認可（member・role の確認とロック）は呼び出し側（`SanpoMapService.delete_map`）が
+        既に済ませている前提（`list_photos_page()` と同じ前提の書き方）。
+        """
+        photo_key_pairs = self._repository.list_photo_keys_for_map(sanpo_map_id)
+        keys = [key for pair in photo_key_pairs for key in pair if key is not None]
+        return functools.partial(self._delete_photo_keys_best_effort, keys)
+
     def _delete_photo_keys_best_effort(self, keys: list[str]) -> None:
-        """削除対象の S3 キーをまとめて best-effort で消す（ADR-009 決定22）。
+        """削除対象の S3 キーをまとめて best-effort で消す（ピン・写真・地図の削除,
+        ADR-009 決定22・決定28）。
 
         DB は既に commit 済みのため、ここで打ち切っても整合性は壊れない（残るのは
         「DB から参照されない S3 オブジェクト」だけで、BK-3 の定期掃除で回収できる）。
