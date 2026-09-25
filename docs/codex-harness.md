@@ -49,7 +49,9 @@ planは読み取り、diffは選んだファイルだけ表示、acceptは検証
 | aws-env-inspector | task-workflowで対象構成をメインが調査 |
 | Dependabot用2 agent | dependabot-update-workflowをメインで実行 |
 | Claude mobile-local-verification | mobile-developmentの端末確認手順 |
-| Claude review-tour / knowledge-harvest / knowledge-review | 今回は専用skillを移植しない。設計判断の記録と知識規約は維持 |
+| Claude knowledge-harvest | task-workflowの完了時参照へ統合。PR作成・修正後に知識整理し、マージ後は取りこぼしだけ確認。メモリ操作は実行環境の規則に従う |
+| Claude review-tour | Codex向けの[review-tour](../.agents/skills/review-tour/SKILL.md)でPRを観点ごとに対話案内 |
+| Claude knowledge-review | 専用skillは移植しない。設計判断の記録と知識規約は維持 |
 
 課題分割・日程整理・初期化・環境構築・エミュレータ・Git worktree・PRコメント機能は維持して呼び出しを整理した。Claude側の定義は変更しない。使われなくなった旧定義はGit履歴から復元できる。
 

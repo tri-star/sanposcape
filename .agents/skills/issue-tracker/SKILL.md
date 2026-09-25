@@ -15,7 +15,7 @@ description: 課題の取得・検索・作成・更新、進捗イベント、�
 | --- | --- | --- |
 | start | 実装に実際に着手 | 進行中、必要なら着手コメント |
 | review-fix | 指摘修正に再着手 | 進行中、修正対象の要点 |
-| pr-created | 対象PRの作成を確認 | レビュー待ち、PR URL |
+| pr-created | 対象PRの作成、または既存の未マージPRへのレビュー修正pushの成功を確認 | レビュー待ち、PR URL |
 | pr-merged | 対象PRのstate=MERGEDとmergedAtを確認 | 完了 |
 | blocked | 外部入力等がなく進められない | 阻害要因コメント。状態はproviderの運用に従う |
 

@@ -8,3 +8,5 @@ description: 着手・レビュー対応・PR作成・マージ確認に応じ�
 [issue-tracker](../issue-tracker/SKILL.md) を読み、メインが課題ID、イベント（start / review-fix / pr-created / pr-merged）、必要なPR URLを渡して操作する。状態の解決・重複防止・マージ確認はそのskillの規則に従う。操作専用Subagentは起動しない。
 
 課題やPRが会話から特定できれば再質問しない。複数候補で対象が確定できない場合だけ確認する。計画だけの依頼からは更新を呼び出さない。
+
+`pr-merged` の同期後は [完了時の知識整理](../task-workflow/references/completion.md) の「マージ後の取りこぼし」に従い、対象課題の残存記録がある場合だけ確認する。通常の整理はPR作成・レビュー修正後に行う。
