@@ -27,13 +27,42 @@ export function resolveAddPinAction(input: {
     return { type: "toast", message: "現在地を取得できるまでお待ちください" };
   }
 
-  const params: Record<string, string> = {
-    latitude: String(input.currentPosition.latitude),
-    longitude: String(input.currentPosition.longitude),
+  return {
+    type: "navigate",
+    params: buildPinRouteParams(input.currentPosition, input.clientWalkId),
   };
-  if (input.clientWalkId !== null) {
-    params.clientWalkId = input.clientWalkId;
-  }
+}
 
-  return { type: "navigate", params };
+/**
+ * 散歩中画面の地図を長押ししたときの遷移先を決める（純粋関数。SS-124）。
+ *
+ * 長押しは地図を触っているうちに意図せず起きうるため、ボタン（`resolveAddPinAction`）と違って
+ * フラグ OFF・座標不正のときはトーストを出さずに何もしない（`null`）。
+ * 長押しした地点で `/pins/new` を開き、散歩中なので `clientWalkId` を付ける。
+ */
+export function resolveMapLongPressPinAction(input: {
+  featureEnabled: boolean;
+  pressedPosition: GeoCoordinates | null;
+  clientWalkId: string | null;
+}): Extract<AddPinAction, { type: "navigate" }> | null {
+  if (!input.featureEnabled) return null;
+  if (input.pressedPosition === null || !isValidCoordinate(input.pressedPosition)) return null;
+  return {
+    type: "navigate",
+    params: buildPinRouteParams(input.pressedPosition, input.clientWalkId),
+  };
+}
+
+function buildPinRouteParams(
+  position: GeoCoordinates,
+  clientWalkId: string | null,
+): Record<string, string> {
+  const params: Record<string, string> = {
+    latitude: String(position.latitude),
+    longitude: String(position.longitude),
+  };
+  if (clientWalkId !== null) {
+    params.clientWalkId = clientWalkId;
+  }
+  return params;
 }

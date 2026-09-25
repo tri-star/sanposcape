@@ -14,7 +14,7 @@ export type LocationPermissionNoticeProps = {
   testID?: string;
   /**
    * 再試行ボタンの testID。省略時は `${testID ?? "location-permission-notice"}-retry`。
-   * 散歩開始・散歩中の2画面から使われるため、root の testID から自動的に画面ごとに
+   * 複数の画面から使われるため、root の testID から自動的に画面ごとに
    * 一意な値が導出される（明示的に上書きしたい場合のみ指定すればよい）。
    */
   retryTestID?: string;
@@ -24,7 +24,8 @@ export type LocationPermissionNoticeProps = {
 
 /**
  * LocationPermissionNotice — 位置情報の権限拒否・取得失敗時の案内カード。
- * 位置が取れないと探索できないため、`SpotMapView` の代わりにこのカードを表示する（§5.22）。
+ * 散歩開始画面（探索できないため `SpotMapView` の代わりに表示）・散歩中画面・
+ * ピンの地点選択画面（SS-124。地図の上に重ねる）から使うため `src/components/location/` に置く。
  */
 export function LocationPermissionNotice({
   errorCode,

@@ -3,12 +3,12 @@ import { useCallback, useMemo, useState } from "react";
 import type { ExploreCategory } from "@/api/generated/model";
 import { DEFAULT_CATEGORIES, DEFAULT_DURATION_MIN } from "@/features/walk/data/categories";
 import { isCandidateListLoading } from "@/features/walk/lib/candidateListState";
-import { useCurrentLocation } from "@/features/walk/hooks/useCurrentLocation";
 import { useSpotCandidates } from "@/features/walk/hooks/useSpotCandidates";
 import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { clampRoundTripMinutes } from "@/features/walk/lib/placeSearchRequest";
 import type { SpotCandidate, WalkDestination, WalkRoute } from "@/features/walk/types";
+import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import type { GeoCoordinates, LocationErrorCode } from "@/services/location/types";
 
 export type UseWalkPlanResult = {

@@ -110,6 +110,14 @@ export function ScreenCatalog() {
         }),
     },
     {
+      key: "pin-location-picker",
+      label: "ピンの地点選択",
+      description:
+        "現在地を起点に地図を開き、長押しした地点で登録画面へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める）",
+      icon: "map",
+      onPress: () => router.push("/pins/pick-location"),
+    },
+    {
       key: "search",
       label: "検索（準備中）",
       description: "プレースホルダ画面",

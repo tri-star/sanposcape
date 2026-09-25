@@ -4,6 +4,42 @@
 - Expo GoやCI上で利用できない可能性のある機能は起動時にスタブ実装で差し替える仕組みを用意することを検討する。
   初回実装時に実装手段を検討し、ユーザーと相談の上決定する。
 
+## hook 内での「1回だけの状態確定」パターン
+
+「他の props/state から値を計算して、初回だけ／条件を満たした瞬間だけ setState する」処理を
+hook に書くとき、2つの慣用句が共存する。**どちらを使うかは「外部 I/O を待つか」で決める**。
+
+- **外部 I/O（非同期処理・購読）の完了時に setState する場合は `useEffect` のまま**にする
+  （実例: `useAuthSessionBootstrap.ts` の `restoreSession()` 完了時、`useCurrentLocation.ts` の
+  `getCurrentPosition()` 完了時）。
+  これらは「他の state からの派生」ではなく「外部システムとの同期」なので `useEffect` が正しい。
+- **他の props/state から純粋に導出できる値を setState するだけなら、`useEffect` に入れず
+  レンダー本体で条件付きに直接 setState する**（React 公式ドキュメントが「レンダー中に state を
+  直接調整する」パターンとして明示的に認めている形）。`useEffect` に書くと oxlint の
+  `react/set-state-in-effect`（React Compiler 由来。exit code は 0 のまま実害は無いが、
+  依存配列の陳腐化を招きやすい）に引っかかりやすい。
+
+  ```ts
+  // NG（useEffect に入れると react/set-state-in-effect 警告が出やすい）
+  useEffect(() => {
+    if (startRegion !== null) return;
+    const resolved = resolve(coordinates, isLoading);
+    if (resolved !== null) setStartRegion(resolved);
+  }, [startRegion, coordinates, isLoading]);
+
+  // OK（レンダー中に直接 setState。React が再レンダーをコミット前に差し替える）
+  if (startRegion === null) {
+    const resolved = resolve(coordinates, isLoading);
+    if (resolved !== null) setStartRegion(resolved);
+  }
+  ```
+
+  条件を満たさなくなったら setState を呼ばない（無限ループにならない）ことを必ず確認する。
+  実例: `src/features/pin/hooks/usePinLocationPicker.ts`（初期表示範囲の一度だけの確定、
+  fallback → current への一度だけの移動。SS-124）。同じ hook 内で `recenter()`
+  （イベントハンドラ内の通常の setState）と競合しないことも実装時に確認済み
+  （`usePinLocationPicker.ts` のコメント参照）。
+
 ## 認証の扱い
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
@@ -42,8 +78,8 @@
 - 実装方針は [ADR-006: 位置情報サービスは real/mock の2モード](../adr/ADR-006-location-service-real-mock.md) で確定済み。
 - `EXPO_PUBLIC_LOCATION_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/locationMode.ts`）。
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
-- 呼び出し側（`features/walk`）は `src/services/location` のインターフェースのみを参照し、
-  `expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
+- 呼び出し側（`features/walk` / `features/pin`）は `src/services/location` のインターフェースのみを
+  参照し、`expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
 
 ## 写真の扱い
 
@@ -106,8 +142,8 @@
 
 ### 画面ガードレシピ
 
-`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う
-（SS-100 時点では実例が無いが、次に画面単位のガードが必要になったときのために手順を残す）。
+`<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う。
+実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`（SS-88 / SS-124）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
@@ -127,7 +163,9 @@ export default function SomeFeatureRoute() {
 - **`pending` 中は `<Redirect>` しない**。取得中に確定的な OFF 扱いをすると、「フラグ ON なのに
   起動直後は必ず弾かれる」不具合になる（上記「取得失敗・ロード中は全 OFF」の例外に当たる。
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
-- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。
+- **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
+  `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
+  （実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`。SS-88 / SS-124）。
 
 **タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
 `options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。

@@ -8,10 +8,11 @@
 - [app/ルートでの認証×feature合成パターン](project_ss29_route_as_composition_root.md) — restricted な feature へはプリミティブをprops注入する。横断hookでlintを形式的に回避する案はADR-009 SS-29追補で却下済み
 - [SS-57 ゲスト散歩解禁・canEnterProtectedRoutesにguest許可](project_ss57_guest_route_gate.md) — ADR追補の質は高評価。mid-walk中のsettings経由サインインで進行中散歩を上書きしうるギャップはgetPostSignInDestinationで解消済み
 - [SS-60 履歴削除UI](project_ss60_walk_delete.md) — 後始末レジストリパターンが2例目(walkDeletionCleanup)になった経緯。folder-structure.md と ADR-008 決定8 に追記済み
-- [Modal + useScreenBack の同居](pattern_modal_backhandler_coexistence.md) — Android では Modal が hardwareBackPress を奪うため onIntercept が実質到達しない疑い。次に同居コードを見たら要検証（実機未確認）
+- [Modal + useScreenBack の同居](pattern_modal_backhandler_coexistence.md) — Android では Modal が hardwareBackPress を奪うため onIntercept が実質到達しない疑い（実機未確認）。SS-124のPinLocationAdjustOverlayはModal回避で正しく機能する設計の好例として追記済み
 - [SS-37 散歩サマリ保存401時のサインインCTA追加](project_ss37_save_sign_in_cta.md) — props注入/ADR追補/nextWalkSaveFireKeyともに参照実装。Critical/Warning無し、SS-57のmid-walk問題が既に解消済みであることも確認
 - [SS-70 CloudFront/SigV4対応(x-amz-content-sha256, X-App-Authorization)](project_ss70_cloudfront_http_headers.md) — HTTP出口2箇所パターン確立、api/層への初のネイティブ依存混入(expo-crypto)、mobile内2種のADR-005番号衝突に注意
 - [SS-62 設定画面のアカウント削除導線](project_ss62_account_delete.md) — SS-60/ADR-009パターン踏襲は高品質。AccountDeleteDialogが成功後もisDeletingがfalseに戻りボタン再押下可能というWarningを発見
 - [SS-33 周回ルート提示・SS-35再計算の撤去](project_ss33_loop_route.md) — legs+純粋関数分離が参照実装、再計算/往路復路判定の残骸なしを確認。Suggestionのみ3件（ADR実装一覧漏れ・Design反映未追跡・Android破線未検証）
 - [SS-100 app-config フィーチャーフラグ受け皿](project_ss100_app_config_flags.md) — 横断ディレクトリ分散パターンの参照実装。src/api/肥大化リスクとFeatureGateの「画面ガードレシピ」dangling referenceに注意
-- [SS-88 ピン登録・写真presigned POST直送](project_ss88_pin_registration_mobile.md) — pinSaveRunner/services-photoはADR-010の模範実装。dispatch同期性の乖離とoxlintrc override漏れが既知ギャップ（task-local, SS-88クローズ時に再確認）
+- [SS-88 ピン登録・写真presigned POST直送](project_ss88_pin_registration_mobile.md) — pinSaveRunner/services-photoはADR-010の模範実装。dispatch同期性の乖離は未確認のまま、oxlintrc override漏れはSS-124で解消確認済み
+- [SS-124 任意地点ピン登録・位置調整](project_ss124_pin_location_picking.md) — PinMapFullScreen共通化・Modal回避オーバーレイは参照実装。feature間import非強制はShould(未対応・申し送り)。render中setStateパターンは同PRでarchitecture-guideline.mdに文書化済み

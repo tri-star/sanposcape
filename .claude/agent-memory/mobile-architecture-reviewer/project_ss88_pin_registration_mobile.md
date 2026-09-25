@@ -38,6 +38,17 @@ SS-88（ピン登録・写真presigned POST直送）の mobile 実装は事前�
 手を入れる変更を見たら、上記2点が解消されているか（1: dispatch同期化 or 結合テスト追加、
 2: `.oxlintrc.json` へのoverride追加）をまず確認してから他の観点に進む。ADR-010・
 `docs/architecture-guideline.md`「写真の扱い」節は実装と一致していることを確認済み
-（2026-09-21時点）。SS-88 がクローズしたら、2点とも実際に解消済みか確認したうえでこのメモリは
-削除するか、まだ未解消なら `.oxlintrc.json` の override 追加を ADR-009 追補として提案し
-durable なメモリへ昇格させる。
+（2026-09-21時点）。
+
+**2026-09-25 追記（SS-124レビューで確認）**: 上記2点のうち **2（`.oxlintrc.json` override への
+`src/features/pin/**` 追加）は解消済み**（`no-restricted-imports` override の `files` 配列に
+`src/features/pin/**` が含まれていることを確認）。1（dispatch同期性）は SS-124 のスコープ外
+（`pinSaveRunner`/`usePinPhotos` は未変更）のため未確認のまま。次に `usePinPhotos.ts` や
+`pinSaveRunner.ts` を触る変更を見たら1点目を再確認する。
+
+**SS-124で新たに判明した関連ギャップ**: `features/walk` ⇔ `features/pin` の相互非依存
+（`addPinAction.ts` のコメントで明記）は `.oxlintrc.json` では強制されていない
+（`no-restricted-imports` override は `@/services/auth*` / `@/store/useAuthSessionStore` のみ
+対象）。ADR-011 の D6 はこの非依存を前提にルーティング設計（ルート文字列での遷移）を決めており、
+依存度が増している。次に `features/walk`/`features/pin`/`features/history` 間の import を見たら、
+lintで強制されていない前提であることに注意する。

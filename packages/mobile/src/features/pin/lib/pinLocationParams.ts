@@ -18,8 +18,10 @@ function toSingleValue(value: string | string[] | undefined): string | null {
  * ディープリンクで任意の値が来うるため `Number()` + `isValidCoordinate` で必ず検証する。
  * 配列・空文字・非数値・範囲外・`Infinity` はすべて null。
  *
- * `features/walk/lib/addPinAction.ts` が組み立てる形（`String(latitude)` / `String(longitude)`、
- * キー名 `latitude`/`longitude`）をそのまま parse できる（feature 間の暗黙の契約）。
+ * `features/walk/lib/addPinAction.ts` の `resolveAddPinAction`（散歩中「この場所にピンを追加」）と
+ * `features/pin/lib/pinLocationPicker.ts` の `buildPinNewRouteParams`（地点選択画面の長押し。
+ * SS-124）が組み立てる形（`String(latitude)` / `String(longitude)`、キー名
+ * `latitude`/`longitude`）をそのまま parse できる（feature 間の暗黙の契約）。
  */
 export function parsePinLocationParams(params: PinRouteParams): GeoCoordinates | null {
   const rawLatitude = toSingleValue(params.latitude);

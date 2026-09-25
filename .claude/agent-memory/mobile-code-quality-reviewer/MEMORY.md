@@ -28,3 +28,6 @@
 - [画面「戻る」導線の規約](back-navigation-convention.md) — SS-34のuseScreenBack/resolveBackActionへの一本化と既知のエッジケース
 - [render中のref代入パターン](ref-assignment-during-render-pattern.md) — 依存配列に入れず最新値を読むための確立した手法。レビューで誤指摘しない
 - [画面ヘッダーの重複](screen-header-duplication.md) — 戻るIconButton+タイトルがWalkStart/WalkHistoryList/WalkDetailでほぼ同一実装（Plane SS-40で追跡中）
+- [RN Maps Markerがandroidでpressを飲み込む](rn-maps-marker-swallows-android-press.md) — タップで座標選択する地図UIはMarker直上がdead zoneになりうる（SS-124, #1132）
+- [レンダー中setStateによる派生state](render-phase-setstate-derived-state-pattern.md) — useEffectのreact(set-state-in-effect)警告回避の正当パターン。誤指摘しない判定基準
+- [全画面地図の唯一入力手段a11y欠如](fullscreen-map-a11y-no-alternative-input.md) — タップ/長押しが唯一の選択手段だとスクリーンリーダーで操作不能。SanpoMapSelectorとの対比
