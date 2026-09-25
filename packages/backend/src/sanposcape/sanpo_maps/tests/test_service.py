@@ -21,7 +21,7 @@ def make_service(db_session: Session, now: datetime | None = None) -> SanpoMapSe
 
 class FakeSanpoMapContents:
     """`sanpo_maps.contents.SanpoMapContents` を満たす fake（`pins` を import しない,
-    Protocol の構造的部分型を利用する。plan の J2 と同じ理由でテストも pins に依存しない）。
+    Protocol の構造的部分型を利用する。ADR-009 決定29 と同じ理由でテストも pins に依存しない）。
     """
 
     def __init__(self, counts: dict[uuid.UUID, int] | None = None) -> None:

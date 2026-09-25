@@ -16,7 +16,7 @@ def to_sanpo_map_read(
     pin_count: int | None = None,
 ) -> SanpoMapRead:
     """`is_default` は「リクエストユーザーにとっての既定地図か」（`sanpo_maps.is_default
-    AND owner_user_id == 自分`, B-D2）。`pin_count` は `?expand=pin_count` のときだけ
+    AND owner_user_id == 自分`, ADR-009 決定3）。`pin_count` は `?expand=pin_count` のときだけ
     整数で渡される（未指定は None のまま応答へ通す, ADR-009 決定29）。
     """
     return SanpoMapRead(

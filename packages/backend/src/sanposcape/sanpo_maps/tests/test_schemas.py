@@ -13,9 +13,20 @@ class TestSanpoMapCreate:
         payload = SanpoMapCreate(name="　近所の地図　")
         assert payload.name == "近所の地図"
 
+    def test_strips_nbsp(self) -> None:
+        # `str.strip()` は NBSP（U+00A0）も Unicode の空白として除去する
+        # （明示的な文字集合を書いた `strip(" \t\n\r\f\v　")` とは違い、`pins/schemas.py`
+        # の `_blank_to_none`（`str.strip()`）と挙動が揃う）。
+        payload = SanpoMapCreate(name=" 近所の地図 ")
+        assert payload.name == "近所の地図"
+
     def test_blank_only_name_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
             SanpoMapCreate(name="   ")
+
+    def test_blank_only_name_with_nbsp_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            SanpoMapCreate(name=" 　")
 
     def test_name_at_max_length_is_accepted(self) -> None:
         payload = SanpoMapCreate(name="あ" * 50)
@@ -55,6 +66,10 @@ class TestSanpoMapUpdate:
         payload = SanpoMapUpdate(name="  新しい名前  ")
         assert payload.name == "新しい名前"
 
+    def test_strips_nbsp(self) -> None:
+        payload = SanpoMapUpdate(name=" 新しい名前 ")
+        assert payload.name == "新しい名前"
+
     def test_blank_only_name_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
             SanpoMapUpdate(name="   ")
@@ -76,3 +91,7 @@ class TestSanpoMapListQuery:
     def test_unknown_expand_value_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
             SanpoMapListQuery(expand=["unknown"])
+
+    def test_too_many_expand_values_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            SanpoMapListQuery.model_validate({"expand": ["pin_count"] * 9})

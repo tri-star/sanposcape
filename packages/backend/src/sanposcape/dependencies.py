@@ -112,7 +112,10 @@ def get_sanpo_map_contents(pin_service: PinService = Depends(get_pin_service)) -
     `Depends` してもリクエストの余分な I/O は発生しない。FastAPI の依存キャッシュにより、
     同じリクエスト内の `get_db` は1つのセッションになる（`SanpoMapService.delete_map`
     の commit と `PinService.prepare_sanpo_map_deletion` の読み取りが同じトランザクションに
-    なることを `sanpo_maps/tests/test_service.py`/router のテストで確認している）。
+    なることは、実際の DI 経路（この関数）を通す結合テスト
+    `pins/tests/test_sanpo_map_management.py::TestDeleteSanpoMapCascade` で確認している。
+    `sanpo_maps/tests/test_service.py::TestDeleteMap` は fake の port で呼び出し順序
+    （commit 後に後始末を呼ぶこと）だけを確認しており、この関数の配線自体は通らない）。
     """
     return pin_service
 

@@ -13,10 +13,18 @@ SanpoMapRole = Literal["owner", "editor"]
 #: 同じ（ADR-009 決定25）。
 SANPO_MAP_NAME_MAX_LENGTH = 50
 
+#: `expand` に指定できる件数の上限。現状の選択肢は `pin_count` の1つだけだが、
+#: `PinListQuery.tags`（`PIN_SEARCH_TAGS_MAX_COUNT`）と同じく無制限の配列を受け付けない
+#: ため、小さい値で上限を設ける（将来 expand 対象が増えても十分な余裕）。
+SANPO_MAP_LIST_EXPAND_MAX_LENGTH = 8
+
 
 def _strip_name(value: str) -> str:
-    """前後の空白（全角空白 U+3000 も含む）を除去する。"""
-    return value.strip(" \t\n\r\f\v　")
+    """前後の空白を除去する。`str.strip()` は Unicode の空白（全角空白 U+3000・
+    NBSP U+00A0 を含む）を除去するため、ピン名の正規化（`pins/schemas.py`
+    `_blank_to_none` の `str.strip()`）と挙動を揃える。
+    """
+    return value.strip()
 
 
 SanpoMapName = Annotated[str, Field(min_length=1, max_length=SANPO_MAP_NAME_MAX_LENGTH)]
@@ -100,4 +108,6 @@ class SanpoMapListQuery(BaseModel):
     パラメータを増やさずに済むよう配列にしている。
     """
 
-    expand: list[Literal["pin_count"]] = Field(default_factory=list)
+    expand: list[Literal["pin_count"]] = Field(
+        default_factory=list, max_length=SANPO_MAP_LIST_EXPAND_MAX_LENGTH
+    )

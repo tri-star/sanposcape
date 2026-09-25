@@ -40,7 +40,7 @@ class SanpoMapService:
     """地図(SanpoMap)に関するユースケース。
 
     `pins → sanpo_maps` の一方向依存を保つため、この service は `pins` を import しない
-    （B-D1）。`pins` の情報（ピン件数の集計・削除時の写真後始末）が必要な操作は
+    （ADR-009 決定29）。`pins` の情報（ピン件数の集計・削除時の写真後始末）が必要な操作は
     `sanpo_maps/contents.py` の `SanpoMapContents` port をメソッド引数で受け取る
     （実装は `PinService` が満たし、配線はアプリ直下 `dependencies.py`、ADR-009 決定29）。
 

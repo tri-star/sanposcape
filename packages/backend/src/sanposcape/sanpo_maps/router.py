@@ -39,7 +39,7 @@ def list_sanpo_maps(
     service: SanpoMapService = Depends(get_sanpo_map_service),
     contents: SanpoMapContents = Depends(get_sanpo_map_contents),
 ) -> SanpoMapListRead:
-    """自分が member である地図を全件返す（クエリなし。MVP は件数が少ない前提）。
+    """自分が member である地図を全件返す（ページングなし。MVP は件数が少ない前提）。
 
     `?expand=pin_count` を指定すると各要素の `pin_count` が整数で埋まる（ピンが無い
     地図は0）。未指定なら `pin_count` は null のまま。
