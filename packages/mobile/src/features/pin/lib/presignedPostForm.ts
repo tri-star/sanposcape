@@ -46,6 +46,9 @@ function originOf(url: string): { protocol: string; hostname: string; port: stri
 
 /**
  * 送信先 URL を許可するか。
+ *
+ * SS-118: 閲覧の presigned GET（サムネイル・原本の URL）の許可判定にも使う
+ * （`@/features/pin/lib/pinRead.ts` の `toPinPhoto`）。規則は同じ。
  * - https: 常に許可（実 S3。バケットは DenyInsecureTransport）
  * - http: **apiBaseUrl も http で、かつ送信先の origin（scheme + host + port）が apiBaseUrl と一致する**
  *   ときだけ許可。backend の STORAGE_MODE=fake は `http://<リクエストされたホスト>/dev-storage/uploads`
