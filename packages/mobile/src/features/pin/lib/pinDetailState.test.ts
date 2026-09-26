@@ -49,6 +49,12 @@ describe("resolvePinDetailBodyState", () => {
     expect(resolvePinDetailBodyState({ ...READY_INPUT, hasPin: false })).toBe("loading");
   });
 
+  it("isLoading が true なら hasPin が true でも loading（isLoading が優先。SS-118 ローカルレビュー QA-S2）", () => {
+    expect(resolvePinDetailBodyState({ ...READY_INPUT, isLoading: true, hasPin: true })).toBe(
+      "loading",
+    );
+  });
+
   it("すべて満たせば ready", () => {
     expect(resolvePinDetailBodyState(READY_INPUT)).toBe("ready");
   });
