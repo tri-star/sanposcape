@@ -1,11 +1,11 @@
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { fetchPinsInBounds } from "@/features/pin/api/pinReadApi";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { resolvePinFetchBounds } from "@/features/pin/lib/pinFetchBounds";
 import { pinListQueryKey } from "@/features/pin/lib/pinQueryKeys";
-import { mergeRegisteredPinPages } from "@/features/pin/lib/pinRead";
+import { combineRegisteredPinListQueries } from "@/features/pin/lib/pinRead";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 import type { GeoBounds, PinSummary } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
@@ -59,7 +59,11 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
     setFetchBounds(resolvedBounds);
   }
 
-  const queries = useQueries({
+  // `combine` にはモジュールレベルの安定した関数参照（`combineRegisteredPinListQueries`）を渡す。
+  // クエリの実データが変わらない限り戻り値（`pins` を含む）の参照が安定するため、
+  // `WalkActiveView` の毎秒の再レンダーで `RegisteredPinMarkers` の `React.memo` が
+  // 無効化されない（SS-118 ローカルレビュー ARCH-W1。詳細は `pinRead.ts` の JSDoc）。
+  const combined = useQueries({
     queries: maps.maps.map((map) => ({
       queryKey: pinListQueryKey(map.id, fetchBounds ?? UNRESOLVED_BOUNDS),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
@@ -74,58 +78,50 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
       staleTime: STALE_TIME_MS,
       gcTime: GC_TIME_MS,
     })),
+    combine: combineRegisteredPinListQueries,
   });
 
-  const merged = useMemo(
-    () => mergeRegisteredPinPages(queries.map((query) => query.data)),
-    [queries],
-  );
-
   // 「打ち切られているか」は現在の fetchBounds に対する結果（プレースホルダではない）だけから
-  // 求める。プレースホルダ中の値を見ると、パン直後の一瞬だけ古い bounds の truncated が
-  // 新しい bounds に紛れ込みうるため isPlaceholderData を除く。
-  const settledTruncated = queries.some(
-    (query) => query.data !== undefined && !query.isPlaceholderData && query.data.hasMore,
-  );
-  if (fetchBounds !== null && settledTruncated !== currentTruncated) {
-    setCurrentTruncated(settledTruncated);
+  // 求める（`combineRegisteredPinListQueries` の `settledTruncated` の JSDoc を参照）。
+  if (fetchBounds !== null && combined.settledTruncated !== currentTruncated) {
+    setCurrentTruncated(combined.settledTruncated);
   }
-
-  const anyQueryPending = queries.some((query) => query.isPending);
-  const firstError = queries.find((query) => query.isError)?.error;
 
   const status: UseRegisteredPinsResult["status"] = !options.enabled
     ? "ready"
     : maps.status === "error"
       ? "error"
-      : maps.status === "loading" || fetchBounds === null || anyQueryPending
+      : maps.status === "loading" || fetchBounds === null || combined.anyPending
         ? "loading"
-        : firstError !== undefined
+        : combined.firstError !== undefined
           ? "error"
           : "ready";
 
+  // `toPinReadErrorCode` の 400→invalid_cursor は本来「写真ページ（`GET /pins/{id}/photos`）」
+  // 前提の分類（`pinReadError.ts` 参照）。ここで分類対象になる `firstError` は `GET /pins`
+  // （一覧）の失敗で、mobile はこの一覧取得に `cursor` を送らないため 400 が実際に発生することは
+  // 想定していない。万一 backend 側の事情で 400 が返っても "invalid_cursor" に分類されるが、
+  // 表示文言（「写真の読み込み位置が古くなりました」）はこの文脈には合わない。呼び出し元を
+  // 限定するほどの実害は無いと判断し、分類自体は変えていない（SS-118 ローカルレビュー QA-S3）。
   const errorCode: PinReadErrorCode | null =
     status !== "error"
       ? null
-      : firstError !== undefined
-        ? toPinReadErrorCode(firstError)
+      : combined.firstError !== undefined
+        ? toPinReadErrorCode(combined.firstError)
         : "unknown";
 
   const { retry: retryMaps } = maps;
+  const { refetchAll } = combined;
   const retry = useCallback(() => {
     retryMaps();
-    for (const query of queries) {
-      void query.refetch();
-    }
-    // `queries`（useQueries の戻り値）は毎レンダー新しい配列になるため依存配列には含めない。
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- queries は最新のクロージャ内の値を使うだけでよい
-  }, [retryMaps]);
+    refetchAll();
+  }, [retryMaps, refetchAll]);
 
   return {
-    pins: merged.pins,
+    pins: combined.pins,
     status,
     errorCode,
-    truncated: merged.truncated,
+    truncated: combined.truncated,
     retry,
   };
 }

@@ -95,3 +95,71 @@ export function mergeRegisteredPinPages(
 
   return { pins, truncated };
 }
+
+/**
+ * `useQueries` の1件分の結果から `useRegisteredPins` が必要とする値だけを抜き出した形
+ * （`@tanstack/react-query` の型を直接 import せず、この feature が必要とする最小の形で
+ * 自前定義する。`combineRegisteredPinListQueries` を node の Vitest でテストできるように
+ * するため）。
+ */
+export type PinListQueryOutcome = {
+  data: { pins: PinSummary[]; hasMore: boolean } | undefined;
+  isPlaceholderData: boolean;
+  isPending: boolean;
+  isError: boolean;
+  error: unknown;
+  refetch: () => Promise<unknown>;
+};
+
+export type CombinedPinListQueries = {
+  pins: PinSummary[];
+  /** いずれかの地図がプレースホルダを含めて打ち切られていれば true（表示用）。 */
+  truncated: boolean;
+  /**
+   * プレースホルダを除いた「現在の取得範囲に対する」打ち切り判定。`resolvePinFetchBounds` の
+   * 再取得判定にのみ使う（パン直後の一瞬だけ古い bounds の truncated が紛れ込むのを避けるため
+   * `isPlaceholderData` の結果は無視する）。
+   */
+  settledTruncated: boolean;
+  anyPending: boolean;
+  firstError: unknown;
+  /** 全地図の再取得を発火する（`useSanpoMaps` の再試行と合わせて `retry()` から呼ぶ）。 */
+  refetchAll: () => void;
+};
+
+/**
+ * `useQueries({ queries, combine })` の `combine` に渡す純粋関数（SS-118 ローカルレビュー
+ * ARCH-W1 / QA-W2）。
+ *
+ * **モジュールレベルの安定した関数参照のまま `combine` に渡すこと**（hook 内でラップした
+ * インライン関数にしない）。`@tanstack/query-core` は `combine` の関数参照とクエリの内部状態が
+ * 両方とも前回から変わっていなければ再計算自体をスキップし、変わったときも
+ * `replaceEqualDeep` で戻り値を構造共有するため、クエリの実データが変わらない限り
+ * この関数の戻り値（`pins` 配列を含む）の参照が安定する。`WalkActiveView` は経過時間で
+ * 毎秒再レンダーされるため、ここで参照を安定させないと `RegisteredPinMarkers` の
+ * `React.memo` が無効化される。
+ *
+ * `retry()` から呼ぶ `refetchAll` をここで作ることで、`useRegisteredPins` 側は
+ * `useQueries` の生の結果配列を持ち回さずに済む（stale closure の温床にしない。QA-W2）。
+ */
+export function combineRegisteredPinListQueries(
+  outcomes: readonly PinListQueryOutcome[],
+): CombinedPinListQueries {
+  const merged = mergeRegisteredPinPages(outcomes.map((outcome) => outcome.data));
+  const settledTruncated = outcomes.some(
+    (outcome) => outcome.data !== undefined && !outcome.isPlaceholderData && outcome.data.hasMore,
+  );
+
+  return {
+    pins: merged.pins,
+    truncated: merged.truncated,
+    settledTruncated,
+    anyPending: outcomes.some((outcome) => outcome.isPending),
+    firstError: outcomes.find((outcome) => outcome.isError)?.error,
+    refetchAll: () => {
+      for (const outcome of outcomes) {
+        void outcome.refetch();
+      }
+    },
+  };
+}

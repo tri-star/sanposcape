@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PinListItemRead, PinPhotoRead, PinRead } from "@/api/generated/model";
 import {
+  combineRegisteredPinListQueries,
   mergeRegisteredPinPages,
   toPinDetail,
   toPinPhoto,
   toPinSummary,
+  type PinListQueryOutcome,
 } from "@/features/pin/lib/pinRead";
 import type { PinSummary } from "@/features/pin/types";
 
@@ -191,5 +193,103 @@ describe("mergeRegisteredPinPages", () => {
     const result = mergeRegisteredPinPages([undefined, { pins: [pin("a")], hasMore: false }]);
     expect(result.pins.map((p) => p.id)).toEqual(["a"]);
     expect(result.truncated).toBe(false);
+  });
+});
+
+describe("combineRegisteredPinListQueries", () => {
+  function pin(id: string): PinSummary {
+    return { id, sanpoMapId: "map-1", name: null, location: { latitude: 0, longitude: 0 } };
+  }
+
+  function outcome(overrides: Partial<PinListQueryOutcome> = {}): PinListQueryOutcome {
+    return {
+      data: undefined,
+      isPlaceholderData: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: () => Promise.resolve(),
+      ...overrides,
+    };
+  }
+
+  it("pins・truncated は mergeRegisteredPinPages と同じ結果になる", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ data: { pins: [pin("a")], hasMore: true } }),
+      outcome({ data: { pins: [pin("b")], hasMore: false } }),
+    ]);
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("マージ結果の pin 要素は元の参照をそのまま返す（構造共有で参照を再利用できるように。ARCH-W1）", () => {
+    const pinA = pin("a");
+    const pinB = pin("b");
+    const outcomes = [
+      outcome({ data: { pins: [pinA], hasMore: false } }),
+      outcome({ data: { pins: [pinB], hasMore: false } }),
+    ];
+
+    const first = combineRegisteredPinListQueries(outcomes);
+    // 呼び出しごとに新しい配列（`useQueries` が毎レンダー生成する形を模す）を渡しても、
+    // 要素（pin オブジェクト自体）が変わっていなければ同じ参照が返ってくる。
+    const second = combineRegisteredPinListQueries(outcomes.map((o) => ({ ...o })));
+
+    expect(second.pins).not.toBe(first.pins);
+    expect(second.pins[0]).toBe(first.pins[0]);
+    expect(second.pins[1]).toBe(first.pins[1]);
+  });
+
+  it("プレースホルダの hasMore は settledTruncated に含めない", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ data: { pins: [pin("a")], hasMore: true }, isPlaceholderData: true }),
+    ]);
+    expect(result.truncated).toBe(true);
+    expect(result.settledTruncated).toBe(false);
+  });
+
+  it("プレースホルダでない hasMore は settledTruncated に含める", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ data: { pins: [pin("a")], hasMore: true }, isPlaceholderData: false }),
+    ]);
+    expect(result.settledTruncated).toBe(true);
+  });
+
+  it("いずれかが isPending なら anyPending は true", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ isPending: true }),
+      outcome({ isPending: false }),
+    ]);
+    expect(result.anyPending).toBe(true);
+  });
+
+  it("最初に isError の地図の error を firstError にする", () => {
+    const error1 = new Error("boom-1");
+    const error2 = new Error("boom-2");
+    const result = combineRegisteredPinListQueries([
+      outcome({ isError: false }),
+      outcome({ isError: true, error: error1 }),
+      outcome({ isError: true, error: error2 }),
+    ]);
+    expect(result.firstError).toBe(error1);
+  });
+
+  it("isError が無ければ firstError は undefined", () => {
+    const result = combineRegisteredPinListQueries([outcome(), outcome()]);
+    expect(result.firstError).toBeUndefined();
+  });
+
+  it("refetchAll はすべての地図の refetch を呼ぶ", () => {
+    const refetchA = vi.fn().mockResolvedValue(undefined);
+    const refetchB = vi.fn().mockResolvedValue(undefined);
+    const result = combineRegisteredPinListQueries([
+      outcome({ refetch: refetchA }),
+      outcome({ refetch: refetchB }),
+    ]);
+
+    result.refetchAll();
+
+    expect(refetchA).toHaveBeenCalledTimes(1);
+    expect(refetchB).toHaveBeenCalledTimes(1);
   });
 });
