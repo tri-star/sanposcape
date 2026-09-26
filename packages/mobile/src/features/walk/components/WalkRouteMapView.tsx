@@ -9,6 +9,7 @@ import { WalkRoutePolylines } from "@/features/walk/components/WalkRoutePolyline
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
 import type { WalkRoute } from "@/features/walk/types";
+import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -24,6 +25,16 @@ export type WalkRouteMapViewProps = {
   style?: StyleProp<ViewStyle>;
   /** 地図上に重ねる追加コンテンツ（ツールボタンなど）。 */
   children?: ReactNode;
+  /**
+   * `MapView` の子として描く追加レイヤー（登録済みピンなど。SS-118）。`features/walk` は
+   * その中身を知らない（`WalkRoutePolylines` の直後・目的地マーカーの前に置く）。
+   */
+  mapLayers?: ReactNode;
+  /**
+   * 表示範囲が確定したとき（初回表示 + パン・ズーム後）に呼ぶ（SS-118）。
+   * `sanitizeMapRegion` を通した値だけを渡す。
+   */
+  onRegionChangeComplete?: (region: MapRegion) => void;
   /** 地図を長押しした地点を受け取る（散歩中のピン登録。SS-124）。省略時は長押しを扱わない。 */
   onLongPress?: (coordinate: GeoCoordinates) => void;
   testID?: string;
@@ -50,6 +61,8 @@ export function WalkRouteMapView({
   height = 322,
   style,
   children,
+  mapLayers,
+  onRegionChangeComplete,
   onLongPress,
   testID,
 }: WalkRouteMapViewProps) {
@@ -103,8 +116,17 @@ export function WalkRouteMapView({
         showsMyLocationButton={false}
         toolbarEnabled={false}
         onLongPress={onLongPress ? (event) => onLongPress(event.nativeEvent.coordinate) : undefined}
+        onMapReady={() => {
+          const sanitized = sanitizeMapRegion(initialRegion);
+          if (sanitized) onRegionChangeComplete?.(sanitized);
+        }}
+        onRegionChangeComplete={(region) => {
+          const sanitized = sanitizeMapRegion(region);
+          if (sanitized) onRegionChangeComplete?.(sanitized);
+        }}
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
+        {mapLayers}
         {walkRoute ? (
           <Marker
             coordinate={walkRoute.destination.location}
