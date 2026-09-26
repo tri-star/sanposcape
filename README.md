@@ -35,6 +35,7 @@
     - [ADR-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)
     - [ADR-010 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送](./packages/mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md)
     - [ADR-011 ピンの位置の選択と調整](./packages/mobile/adr/ADR-011-pin-location-picking-and-adjustment.md)
+    - [ADR-012 登録済みピンの地図表示とピン詳細](./packages/mobile/adr/ADR-012-pin-map-display-and-detail.md)
 - backend
   - [フォルダ構造](./packages/backend/docs/folder-structure.md) / [命名規則](./packages/backend/docs/naming-convention.md)
   - [ツール・ライブラリ](./packages/backend/docs/toolsets-libraries.md) / [ローカル環境構築](./packages/backend/docs/local-env.md) / [ローカル開発ガイド](./packages/backend/docs/local-development.md)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { MIN_REGION_DELTA, regionForCoordinates } from "@/lib/mapRegion";
+import { MIN_REGION_DELTA, regionForCoordinates, sanitizeMapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 
 describe("regionForCoordinates", () => {
@@ -62,5 +62,44 @@ describe("regionForCoordinates", () => {
     expect(Number.isFinite(region?.longitude)).toBe(true);
     expect(Number.isFinite(region?.latitudeDelta)).toBe(true);
     expect(Number.isFinite(region?.longitudeDelta)).toBe(true);
+  });
+});
+
+describe("sanitizeMapRegion", () => {
+  const VALID = {
+    latitude: 35.6812,
+    longitude: 139.7671,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  };
+
+  it("正常値はそのまま返す", () => {
+    expect(sanitizeMapRegion(VALID)).toEqual(VALID);
+  });
+
+  it("null / undefined は null", () => {
+    expect(sanitizeMapRegion(null)).toBeNull();
+    expect(sanitizeMapRegion(undefined)).toBeNull();
+  });
+
+  it("NaN の緯度は null", () => {
+    expect(sanitizeMapRegion({ ...VALID, latitude: Number.NaN })).toBeNull();
+  });
+
+  it("Infinity の delta は null", () => {
+    expect(sanitizeMapRegion({ ...VALID, latitudeDelta: Number.POSITIVE_INFINITY })).toBeNull();
+  });
+
+  it("範囲外の緯度（91）は null", () => {
+    expect(sanitizeMapRegion({ ...VALID, latitude: 91 })).toBeNull();
+  });
+
+  it("delta が0は null", () => {
+    expect(sanitizeMapRegion({ ...VALID, latitudeDelta: 0 })).toBeNull();
+    expect(sanitizeMapRegion({ ...VALID, longitudeDelta: 0 })).toBeNull();
+  });
+
+  it("負の delta は null", () => {
+    expect(sanitizeMapRegion({ ...VALID, latitudeDelta: -0.01 })).toBeNull();
   });
 });

@@ -4,7 +4,7 @@
 - [認証アーキテクチャ](auth-architecture.md) — ADR-002 の確定事項／認証ゲートの隠れた結合（ゲスト可否は1関数では変えられない）
 - [デザインシステムの SSoT](project_design_system_ssot.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向
 - [MCP と CI の制約](project_codegen_ci_constraint.md) — MCP は CI から呼べない。codegen は fetch/transform を分離する
-- [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所／mockのonClick等をRN props(onPress)に読み替える
+- [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所（ピン系画面も有・.pen は無い）／onClick→onPress／mockよりチケット指示優先
 - [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
 - [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
 - [探索API契約とコスト制約](project-explore-api-contract.md) — placesは片道×2近似/routes/loopは周回実値。1探索=Places1回+Routes最大20回・30req/60sなので再探索の抑制が必須
@@ -19,5 +19,5 @@
 - [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）＋セッション破棄は `signOut()` 再利用が唯一の作法
 - [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
-- [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）
+- [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）／閲覧URLは期限前に失効しうる
 - [mobile ADR の地図](reference-mobile-adr-map.md) — mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式

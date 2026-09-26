@@ -151,10 +151,24 @@ packages/mobile/
       `runWalkDeletionCleanup(walkId)`（SS-60）。実行側は `features/history/hooks/useWalkDelete.ts` の
       `onSuccess`。サインアウト用と違い**引数（削除された walk id）を取り**、登録側は
       `savedWalkId` が一致するときだけクリアする（保存前の別ドラフトを巻き添えにしないため）。
-    - 共通の性質: 1つの後始末が例外を投げても他は止めない。登録はモジュール読み込み時に走るため、
-      対象 store が未ロードなら後始末も走らないが、いずれの store も非永続（メモリのみ）のため
-      「未ロード = クリアすべきデータも無い」が成立する。
+    - 共通の性質（**store については**）: 1つの後始末が例外を投げても他は止めない。登録はモジュール
+      読み込み時に走るため、対象 store が未ロードなら後始末も走らないが、いずれの store も非永続
+      （メモリのみ）のため「未ロード = クリアすべきデータも無い」が成立する。
+    - **例外（store 以外・SS-118）: 画像キャッシュ（expo-image）のサインアウト時消去**は
+      `src/lib/imageCacheCleanup.ts` に登録する。写真は本人（地図の member）しか見られないため、
+      共有端末で前のユーザーの写真がディスクに残らないようにする。対象が expo-image の
+      **ネイティブキャッシュ（ディスクに永続）** であり store のように「未ロード = クリアすべき
+      データも無い」が成立しない（過去の起動で読み込んだ写真がディスクに残る）ため、
+      登録元をその写真を表示するコンポーネント（`PinPhotoImage.tsx`）にはせず、**起動時に必ず
+      評価される `app/_layout.tsx` から副作用 import する専用モジュール**に置く
+      （SS-118 ローカルレビュー SEC-M1。以前はコンポーネント側で登録しており、そのコンポーネントが
+      一度も読み込まれないまま出たサインアウトでは後始末が走らなかった）。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
+- **feature をまたいで地図に要素を重ねたいときは、`app/` のルートが render slot で合成する**
+  （`features/walk` が `features/pin` を import しない規約を保つため）。実例:
+  `app/(tabs)/index.tsx` が `WalkActiveView` の `renderMapLayers(visibleRegion)` prop に
+  `RegisteredPinsMapLayer`（`features/pin`）を渡す。`WalkRouteMapView`（`features/walk`）は
+  `mapLayers?: ReactNode` を `MapView` の子としてそのまま描くだけで、中身を知らない（SS-118）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
 > **「2つ以上の機能から使うか？」**
@@ -244,7 +258,15 @@ packages/mobile/
       共通の防波堤。
     - `units.ts`（`toKilometers`）— 散歩ルート・散歩記録の距離表示で共通に使う。
     - `mapRegion.ts`（`MapRegion` 型 / `MIN_REGION_DELTA` / `regionForCoordinates`）— 座標集合から
-      地図の表示領域を求める汎用計算。
+      地図の表示領域を求める汎用計算。SS-118 で `sanitizeMapRegion`（`react-native-maps` の
+      `onRegionChangeComplete` / `onMapReady` が返す表示範囲を検証する純粋関数）も同ファイルへ
+      追加した — `features/walk`（`WalkRouteMapView`）と `features/pin`（`PinMapFullScreen`）の
+      両方から使うため。
+  - SS-118（`features/pin` の詳細画面が日付整形を必要とした）でさらに1本昇格した:
+    - `dateLabel.ts`（`features/history/lib/walkDateLabel.ts` から。`formatWalkDate` →
+      `formatDateLabel` のように walk 固有の関数名を汎用名へ変えた。ロジック・文言は変えていない）
+      — `features/history`（一覧・詳細の日時表示）と `features/pin`（ピン詳細の登録日時）の
+      両方から使う。
   - **汎用計算と機能固有の計算は分けたまま昇格する**: 例えば `mapRegion.ts` は「座標集合から表示領域を
     求める」汎用部分（`regionForCoordinates`）だけを `src/lib/mapRegion.ts` へ昇格し、「往復時間から
     到達半径を見積もる」walk 固有の計算（`regionForRoundTrip` / `regionForBounds` /

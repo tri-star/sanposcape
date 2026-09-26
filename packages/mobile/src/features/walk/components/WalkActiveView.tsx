@@ -1,4 +1,5 @@
 import { useFocusEffect, useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,18 +25,29 @@ import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
 import { formatClock } from "@/lib/formatClock";
+import type { MapRegion } from "@/lib/mapRegion";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
+
+export type WalkActiveViewProps = {
+  /**
+   * 散歩中の地図に重ねる追加レイヤー（`MapView` の子）を、現在の表示範囲から作る（SS-118）。
+   * `features/walk` は `features/pin` を import しないため、ルート（`app/(tabs)/index.tsx`）が
+   * 登録済みピンのレイヤーを合成して渡す。省略時は何も重ねない。
+   */
+  renderMapLayers?: (visibleRegion: MapRegion | null) => ReactNode;
+};
 
 /**
  * 散歩中（ナビタブ）画面。
  * 進行中の散歩が無ければ `WalkIdleNotice` を出し、あれば実地図・実位置トラッキング・
  * 実時刻ベースの経過時間を `useActiveWalk` から受けて表示する。
  *
- * 進行中の散歩が無いときは、`pin_registration` が ON なら「地図からピンを置く」FAB（アイコンのみ）を出す。
- * 散歩中は FAB を出さず、地図の長押しでその地点のピン登録へ進める（SS-124）。
+ * 進行中の散歩が無いときは、`pin_registration` が ON なら「地図からピンを置く」FAB（アイコンのみ）と
+ * 「登録したピンを地図で見る」ボタン（SS-118）を出す。散歩中は FAB を出さず、地図の長押しでその
+ * 地点のピン登録へ進める（SS-124）。散歩中の地図には登録済みピンが重なる（ルートが合成。SS-118）。
  */
-export function WalkActiveView() {
+export function WalkActiveView({ renderMapLayers }: WalkActiveViewProps = {}) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -44,6 +56,7 @@ export function WalkActiveView() {
   const walk = useActiveWalk();
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [recenterNonce, setRecenterNonce] = useState(0);
+  const [visibleRegion, setVisibleRegion] = useState<MapRegion | null>(null);
   const pinRegistrationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinRegistration);
 
   const isDark = theme.name === "dark";
@@ -104,6 +117,17 @@ export function WalkActiveView() {
       <View testID="walk-active-screen" style={styles.root}>
         <WalkIdleNotice onStart={() => router.replace("/walk-start")} />
         {pinRegistrationEnabled ? (
+          <Button
+            variant="secondary"
+            icon="map"
+            onPress={() => router.push("/pins/map")}
+            style={styles.pinMapButton}
+            testID="walk-active-open-pin-map"
+          >
+            登録したピンを地図で見る
+          </Button>
+        ) : null}
+        {pinRegistrationEnabled ? (
           <IconButton
             variant="filled"
             size="lg"
@@ -162,6 +186,8 @@ export function WalkActiveView() {
         recenterNonce={recenterNonce}
         height={322}
         onLongPress={handleMapLongPress}
+        onRegionChangeComplete={setVisibleRegion}
+        mapLayers={renderMapLayers?.(visibleRegion)}
         testID="walk-active-map"
       >
         <View style={styles.mapTools}>
@@ -288,6 +314,9 @@ const useStyles = makeStyles((theme) => ({
     right: theme.spacing[3],
     top: theme.spacing[3],
     gap: theme.spacing[2],
+  },
+  pinMapButton: {
+    marginHorizontal: theme.layout.pageGutter,
   },
   pinFab: {
     position: "absolute",

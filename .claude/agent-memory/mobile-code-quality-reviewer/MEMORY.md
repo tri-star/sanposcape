@@ -31,3 +31,5 @@
 - [RN Maps Markerがandroidでpressを飲み込む](rn-maps-marker-swallows-android-press.md) — タップで座標選択する地図UIはMarker直上がdead zoneになりうる（SS-124, #1132）
 - [レンダー中setStateによる派生state](render-phase-setstate-derived-state-pattern.md) — useEffectのreact(set-state-in-effect)警告回避の正当パターン。誤指摘しない判定基準
 - [全画面地図の唯一入力手段a11y欠如](fullscreen-map-a11y-no-alternative-input.md) — タップ/長押しが唯一の選択手段だとスクリーンリーダーで操作不能。SanpoMapSelectorとの対比
+- [Marker onSelectメモ化とretryのstale closure](marker-onselect-memo-and-retry-stale-closure.md) — React.memoコンポーネントは全呼び出し元でprops安定性を横並び確認。useCallback依存配列から配列を除外する判断は要検証（SS-118）
+- [地図中核フローの実機未検証リスク](map-core-flow-unverified-on-device.md) — 地図操作が中核要件のチケットは引き継ぎメモの「未実施の手動確認」を必ず確認しWarning級で報告する（SS-118）

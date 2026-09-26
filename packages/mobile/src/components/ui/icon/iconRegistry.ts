@@ -28,6 +28,7 @@ import Coffee from "lucide-react-native/icons/coffee";
 import Crosshair from "lucide-react-native/icons/crosshair";
 import Flag from "lucide-react-native/icons/flag";
 import Footprints from "lucide-react-native/icons/footprints";
+import ImageOff from "lucide-react-native/icons/image-off";
 import ImagePlus from "lucide-react-native/icons/image-plus";
 import Info from "lucide-react-native/icons/info";
 import Landmark from "lucide-react-native/icons/landmark";
@@ -78,6 +79,7 @@ export const ICONS = {
   crosshair: Crosshair,
   flag: Flag,
   footprints: Footprints,
+  "image-off": ImageOff,
   "image-plus": ImagePlus,
   info: Info,
   landmark: Landmark,

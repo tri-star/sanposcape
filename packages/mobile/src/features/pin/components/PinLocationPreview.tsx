@@ -17,6 +17,8 @@ export type PinLocationPreviewProps = {
    * 上に重ねた全画面地図（`PinLocationAdjustOverlay`）をこのプレビューが突き抜けて描画されるため（SS-124）。
    */
   mapHidden?: boolean;
+  /** 読み上げラベルの上書き（既定「ピンを置く位置の地図」。詳細画面は「ピンの位置の地図」を渡す。SS-118）。 */
+  accessibilityLabel?: string;
   testID?: string;
 };
 
@@ -24,6 +26,7 @@ export type PinLocationPreviewProps = {
 export function PinLocationPreview({
   location,
   mapHidden = false,
+  accessibilityLabel = "ピンを置く位置の地図",
   testID,
 }: PinLocationPreviewProps) {
   const styles = useStyles();
@@ -32,7 +35,7 @@ export function PinLocationPreview({
     <View
       accessible
       accessibilityRole="text"
-      accessibilityLabel="ピンを置く位置の地図"
+      accessibilityLabel={accessibilityLabel}
       style={styles.wrap}
     >
       {mapHidden ? null : (

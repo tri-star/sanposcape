@@ -1,0 +1,42 @@
+# 登録済みピンの地図（SS-118）: サインイン → 散歩開始画面から戻る → ナビタブの「登録したピンを地図で見る」
+# → 地図が出る → ピンの取得が落ち着く（エラーにならない）→ 戻る。
+#
+# 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
+# assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-004）。
+# ピン詳細は E2E しない（マーカーのタップは Google Maps の描画面で testID が安定して取れず、ピン ID も
+# フローから知る手段が無いため。詳細の状態判定は pinDetailState.test.ts が担う）。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+---
+- runFlow: subflows/sign-in.yaml
+- tapOn:
+    id: "walk-start-back"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-open-pin-map"
+    timeout: 15000
+- tapOn:
+    id: "walk-active-open-pin-map"
+- extendedWaitUntil:
+    visible:
+      id: "pin-map-map"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-map-pins-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "pin-map-pins-error"
+- assertNotVisible:
+    id: "pin-map-sign-in"
+- tapOn:
+    id: "pin-map-back"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000

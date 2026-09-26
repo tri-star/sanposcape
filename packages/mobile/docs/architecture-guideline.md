@@ -35,17 +35,21 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   ```
 
   条件を満たさなくなったら setState を呼ばない（無限ループにならない）ことを必ず確認する。
-  実例: `src/features/pin/hooks/usePinLocationPicker.ts`（初期表示範囲の一度だけの確定、
+  実例1: `src/features/pin/hooks/usePinLocationPicker.ts`（初期表示範囲の一度だけの確定、
   fallback → current への一度だけの移動。SS-124）。同じ hook 内で `recenter()`
   （イベントハンドラ内の通常の setState）と競合しないことも実装時に確認済み
   （`usePinLocationPicker.ts` のコメント参照）。
+  実例2: `src/features/pin/hooks/useRegisteredPins.ts`（表示範囲から取得範囲 `fetchBounds` を
+  導出する `resolvePinFetchBounds` の戻り値が変わったときだけ setState、`useQueries` の結果から
+  求めた `settledTruncated` が変わったときだけ `currentTruncated` を更新。いずれも次のレンダーで
+  同じ入力に対しては同じ結果になるため無限ループにならない。SS-118）。
 
 ## 認証の扱い
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
 - 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する（保存だけはサインイン CTA を出し、サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
-- `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピン登録のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する）。
+- `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピンの登録/閲覧のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/map.tsx` / `app/pins/[pinId].tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118）。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
   （実例1: `app/(tabs)/history.tsx` が `state.user?.displayName ?? null` を読み `HistoryView` →
@@ -100,6 +104,17 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   別経路を足すときも同じ契約を守ること。
 - 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
   `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
+- **（SS-118）閲覧（表示）側の写真は `features/pin/components/PinPhotoImage.tsx`（expo-image）
+  だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
+  で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / mobile ADR-012 D7）。
+  閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
+  （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError` が
+  URL の失効とみなし、取得から60秒以上経っていれば詳細を取り直す（`shouldRefreshPhotoUrls`）。
+  サインアウト時は `src/lib/imageCacheCleanup.ts`（`app/_layout.tsx` から副作用 import）の
+  `registerSessionCleanup` で expo-image のメモリ・ディスクキャッシュを消す。写真を表示する
+  コンポーネント（`PinPhotoImage.tsx`）ではなく起動時に必ず評価されるモジュールに置くのは、
+  そのコンポーネントが一度も読み込まれないまま出たサインアウトでも消去を保証するため
+  （SS-118 ローカルレビュー SEC-M1）。
 
 ## フィーチャーフラグ（`/app-config`）の扱い
 
@@ -143,7 +158,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 ### 画面ガードレシピ
 
 `<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う。
-実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`（SS-88 / SS-124）。
+実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`（SS-88 / SS-124）/ `app/pins/map.tsx` /
+`app/pins/[pinId].tsx`（SS-118。後者は `isUuid` での params 検証も併せて行う）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
@@ -165,7 +181,8 @@ export default function SomeFeatureRoute() {
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
   `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
-  （実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`。SS-88 / SS-124）。
+  （実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`。SS-88 / SS-124。
+  `app/pins/map.tsx` / `app/pins/[pinId].tsx`。SS-118）。
 
 **タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
 `options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。

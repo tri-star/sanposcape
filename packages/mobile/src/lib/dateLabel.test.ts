@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatWalkDate,
-  formatWalkTime,
-  formatWalkTimeRange,
+  formatDateLabel,
+  formatTimeLabel,
+  formatTimeRangeLabel,
   parseIsoDate,
-} from "@/features/history/lib/walkDateLabel";
+} from "@/lib/dateLabel";
 
 describe("parseIsoDate", () => {
   it("正常なISO文字列をDateにする", () => {
@@ -23,43 +23,43 @@ describe("parseIsoDate", () => {
   });
 });
 
-describe("formatWalkDate", () => {
+describe("formatDateLabel", () => {
   // タイムゾーン非依存にするため、Dateはローカルのコンストラクタで組み立てる。
   it("同じ年なら「8月2日(日)」形式（年を出さない）", () => {
     const date = new Date(2026, 7, 2, 14, 30);
     const now = new Date(2026, 7, 3);
-    expect(formatWalkDate(date, now)).toBe("8月2日(日)");
+    expect(formatDateLabel(date, now)).toBe("8月2日(日)");
   });
 
   it("年が異なるなら「2025年8月2日(土)」のように年を前置する", () => {
     const date = new Date(2025, 7, 2, 14, 30);
     const now = new Date(2026, 7, 3);
-    expect(formatWalkDate(date, now)).toBe("2025年8月2日(土)");
+    expect(formatDateLabel(date, now)).toBe("2025年8月2日(土)");
   });
 
   it("now を省略すると既定でDate.now()の年と比較する", () => {
     const now = new Date();
     const date = new Date(now.getFullYear(), 0, 1);
-    expect(formatWalkDate(date)).not.toContain("年");
+    expect(formatDateLabel(date)).not.toContain("年");
   });
 });
 
-describe("formatWalkTime", () => {
+describe("formatTimeLabel", () => {
   it("1桁の時・分をゼロ埋めする（9:05 → 09:05）", () => {
     const date = new Date(2026, 7, 2, 9, 5);
-    expect(formatWalkTime(date)).toBe("09:05");
+    expect(formatTimeLabel(date)).toBe("09:05");
   });
 
   it("2桁の時・分はそのまま", () => {
     const date = new Date(2026, 7, 2, 14, 30);
-    expect(formatWalkTime(date)).toBe("14:30");
+    expect(formatTimeLabel(date)).toBe("14:30");
   });
 });
 
-describe("formatWalkTimeRange", () => {
+describe("formatTimeRangeLabel", () => {
   it("開始と終了を en dash で区切る", () => {
     const start = new Date(2026, 7, 2, 14, 30);
     const end = new Date(2026, 7, 2, 15, 2);
-    expect(formatWalkTimeRange(start, end)).toBe("14:30 – 15:02");
+    expect(formatTimeRangeLabel(start, end)).toBe("14:30 – 15:02");
   });
 });

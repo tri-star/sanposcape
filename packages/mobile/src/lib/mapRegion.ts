@@ -53,3 +53,38 @@ export function regionForCoordinates(
 
   return { latitude, longitude, latitudeDelta, longitudeDelta };
 }
+
+/**
+ * react-native-maps の `onRegionChangeComplete` / `onMapReady` から受け取った表示範囲を検証する
+ * 純粋関数（SS-118）。緯度・経度が `isValidCoordinate` を満たさない、delta が有限の正数でない
+ * 場合は null（呼び出し側は値を捨てる）。
+ *
+ * 引数は構造的に互換な型（`{ latitude, longitude, latitudeDelta, longitudeDelta }`）で受ける
+ * ため、`react-native-maps` の `Region` 型を import しない（このモジュールを
+ * `react-native` 非依存に保つため）。
+ */
+export function sanitizeMapRegion(
+  raw:
+    | { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }
+    | null
+    | undefined,
+): MapRegion | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (!isValidCoordinate({ latitude: raw.latitude, longitude: raw.longitude })) {
+    return null;
+  }
+  if (!Number.isFinite(raw.latitudeDelta) || raw.latitudeDelta <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(raw.longitudeDelta) || raw.longitudeDelta <= 0) {
+    return null;
+  }
+  return {
+    latitude: raw.latitude,
+    longitude: raw.longitude,
+    latitudeDelta: raw.latitudeDelta,
+    longitudeDelta: raw.longitudeDelta,
+  };
+}

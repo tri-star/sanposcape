@@ -118,6 +118,14 @@ export function ScreenCatalog() {
       onPress: () => router.push("/pins/pick-location"),
     },
     {
+      key: "pin-map",
+      label: "登録したピンの地図",
+      description:
+        "現在地を起点に登録済みピンを表示。ピンをタップすると詳細へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。副作用なし）",
+      icon: "map",
+      onPress: () => router.push("/pins/map"),
+    },
+    {
       key: "search",
       label: "検索（準備中）",
       description: "プレースホルダ画面",
