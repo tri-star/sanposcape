@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
@@ -36,9 +36,15 @@ export function PinMapView({ isSignedIn, onSignIn }: PinMapViewProps) {
   // フラグ（pin_registration）はルートの画面ガードで確定済みなので、ここでは isSignedIn だけ見ればよい。
   const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn });
 
-  const handleSelectPin = (pinId: string) => {
-    back.runOnce(() => router.push({ pathname: "/pins/[pinId]", params: { pinId } }));
-  };
+  // `RegisteredPinMarkers` は `React.memo` で包まれているため、`onSelectPin` の参照を
+  // 安定させないと `pins` が変わらなくても再レンダーで memo が無効化される
+  // （SS-118 ローカルレビュー QA-W3。`back`/`router` は参照が安定している）。
+  const handleSelectPin = useCallback(
+    (pinId: string) => {
+      back.runOnce(() => router.push({ pathname: "/pins/[pinId]", params: { pinId } }));
+    },
+    [back, router],
+  );
 
   const notice = resolvePinMapNotice({
     isSignedIn,
