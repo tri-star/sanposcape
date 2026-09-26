@@ -73,7 +73,10 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 `PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
 ダイアログを `onIntercept` で挟む。位置調整オーバーレイ（`PinLocationAdjustOverlay`。RN `Modal`
 ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124）/
-`PinLocationPickerView`（`pins/pick-location`。testID `pin-location-picker-back`。SS-124）の5画面。
+`PinLocationPickerView`（`pins/pick-location`。testID `pin-location-picker-back`。SS-124）/
+`PinMapView`（`pins/map`。testID `pin-map-back`。SS-118）/ `PinDetailView`（`pins/[pinId]`。
+testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` ではない画面内オーバーレイ）を
+開いている間は `onIntercept` で閉じる。SS-118）の7画面。
 `SettingsView` と `(tabs)` 配下の各画面は
 未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
 戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
@@ -99,7 +102,8 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
     「画面として使う」場合（`closeKind="back"`。地点選択画面 `PinLocationPickerView`）は
     `icon="chevron-left" / label="戻る"`、「オーバーレイとして重ねる」場合
     （`closeKind="close"`。位置調整オーバーレイ `PinLocationAdjustOverlay`）は
-    `icon="x" / label="閉じる"` にする（SS-124）。
+    `icon="x" / label="閉じる"` にする（SS-124）。(c) 閲覧 `/pins/map`（`PinMapView`）も
+    「画面として使う」ため `closeKind="back"` にする（SS-118）。
 - 戻るボタンには `<画面>-back` の `testID` を付ける（例: `walk-start-back` / `walk-history-back` /
   `walk-detail-back`）。Maestro からの参照に使う。上記の「閉じる」ボタンには
   `<接頭辞>-close`（例: `pin-location-adjust-close`）を付ける（SS-124）。
@@ -190,7 +194,9 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
      埋め込まない**。呼び出し側から接頭辞を prop で受け取り、各項目に `${prefix}-${item.value}` のように
      付与する形にする（例: `TabBar` の `itemTestIDPrefix?: string`。未指定時は `testID={undefined}`
      のまま何も付かない）。固定 testID を埋め込むと、同じプリミティブを複数箇所で使ったときに
-     testID が衝突する。
+     testID が衝突する。登録済みピンの `Marker`（`RegisteredPinMarkers`）も同じ形で、
+     `${testIDPrefix}-${pin.id}`（実例: `walk-active-pin-<pinId>` / `pin-map-pin-<pinId>`）になる。
+     E2E からの参照は想定しない（ピン ID をフローから知る手段が無いため。SS-118）。
    - **状態によって表示が切り替わるコンポーネントは、root の `testID` を状態ごとに付け替えない**。
      root は同じ `testID` のまま据え置き、その状態でしか描画されない内側の要素にだけ
      `${testID}-<state>` を追加する（例: `WalkSaveStatus` の `walk-summary-save-status-saved`。error は

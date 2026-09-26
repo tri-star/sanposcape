@@ -155,6 +155,11 @@ packages/mobile/
       対象 store が未ロードなら後始末も走らないが、いずれの store も非永続（メモリのみ）のため
       「未ロード = クリアすべきデータも無い」が成立する。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
+- **feature をまたいで地図に要素を重ねたいときは、`app/` のルートが render slot で合成する**
+  （`features/walk` が `features/pin` を import しない規約を保つため）。実例:
+  `app/(tabs)/index.tsx` が `WalkActiveView` の `renderMapLayers(visibleRegion)` prop に
+  `RegisteredPinsMapLayer`（`features/pin`）を渡す。`WalkRouteMapView`（`features/walk`）は
+  `mapLayers?: ReactNode` を `MapView` の子としてそのまま描くだけで、中身を知らない（SS-118）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
 > **「2つ以上の機能から使うか？」**
@@ -245,6 +250,11 @@ packages/mobile/
     - `units.ts`（`toKilometers`）— 散歩ルート・散歩記録の距離表示で共通に使う。
     - `mapRegion.ts`（`MapRegion` 型 / `MIN_REGION_DELTA` / `regionForCoordinates`）— 座標集合から
       地図の表示領域を求める汎用計算。
+  - SS-118（`features/pin` の詳細画面が日付整形を必要とした）でさらに1本昇格した:
+    - `dateLabel.ts`（`features/history/lib/walkDateLabel.ts` から。`formatWalkDate` →
+      `formatDateLabel` のように walk 固有の関数名を汎用名へ変えた。ロジック・文言は変えていない）
+      — `features/history`（一覧・詳細の日時表示）と `features/pin`（ピン詳細の登録日時）の
+      両方から使う。
   - **汎用計算と機能固有の計算は分けたまま昇格する**: 例えば `mapRegion.ts` は「座標集合から表示領域を
     求める」汎用部分（`regionForCoordinates`）だけを `src/lib/mapRegion.ts` へ昇格し、「往復時間から
     到達半径を見積もる」walk 固有の計算（`regionForRoundTrip` / `regionForBounds` /

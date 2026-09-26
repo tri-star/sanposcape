@@ -100,6 +100,14 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   別経路を足すときも同じ契約を守ること。
 - 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
   `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
+- **（SS-118）閲覧（表示）側の写真は `features/pin/components/PinPhotoImage.tsx`（expo-image）
+  だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
+  で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / mobile ADR-012 D7）。
+  閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
+  （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError` が
+  URL の失効とみなし、取得から60秒以上経っていれば詳細を取り直す（`shouldRefreshPhotoUrls`）。
+  サインアウト時は `PinPhotoImage.tsx` のモジュール末尾の `registerSessionCleanup` で
+  expo-image のメモリ・ディスクキャッシュを消す。
 
 ## フィーチャーフラグ（`/app-config`）の扱い
 
@@ -143,7 +151,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 ### 画面ガードレシピ
 
 `<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う。
-実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`（SS-88 / SS-124）。
+実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`（SS-88 / SS-124）/ `app/pins/map.tsx` /
+`app/pins/[pinId].tsx`（SS-118。後者は `isUuid` での params 検証も併せて行う）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
