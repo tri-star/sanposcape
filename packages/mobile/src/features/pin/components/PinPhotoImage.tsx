@@ -4,7 +4,6 @@ import { View } from "react-native";
 
 import { Icon } from "@/components/ui/icon/Icon";
 import { pinPhotoCacheKey, type PinPhotoVariant } from "@/features/pin/lib/pinPhotoCache";
-import { registerSessionCleanup } from "@/lib/sessionCleanup";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -24,7 +23,10 @@ export type PinPhotoImageProps = {
 /**
  * PinPhotoImage — 閲覧用の写真表示を expo-image に一本化するラッパ（SS-118）。
  * キャッシュキー（`photo.id` + variant。presigned URL は応答ごとに変わるため URL をキーにしない。
- * mobile ADR-010 決定8）・プレースホルダ・失敗時の通知・サインアウト時のキャッシュ消去をここに閉じる。
+ * mobile ADR-010 決定8）・プレースホルダ・失敗時の通知をここに閉じる。
+ * サインアウト時のキャッシュ消去は `src/lib/imageCacheCleanup.ts` に分離している
+ * （このコンポーネントが一度も読み込まれないまま出たサインアウトでも消去を保証するため。
+ * SS-118 ローカルレビュー SEC-M1）。
  */
 export function PinPhotoImage({
   photoId,
@@ -68,16 +70,6 @@ export function PinPhotoImage({
     />
   );
 }
-
-// サインアウト時に expo-image のキャッシュを消す（ADR-009（mobile）決定6 / ADR-008 決定6 と
-// 同じ考え方。写真は本人（地図の member）しか見られないため、共有端末でサインアウトした後に
-// 前のユーザーの写真が端末のキャッシュに残らないようにする）。
-// 既知の限界: このモジュールが一度も読み込まれずにサインアウトした場合はディスクキャッシュが
-// 消えない（`handover-notes.md` 参照）。
-registerSessionCleanup(() => {
-  void Image.clearMemoryCache();
-  void Image.clearDiskCache();
-});
 
 const useStyles = makeStyles(() => ({
   placeholder: {
