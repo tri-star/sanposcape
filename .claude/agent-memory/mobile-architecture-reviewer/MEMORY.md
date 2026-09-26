@@ -16,3 +16,4 @@
 - [SS-100 app-config フィーチャーフラグ受け皿](project_ss100_app_config_flags.md) — 横断ディレクトリ分散パターンの参照実装。src/api/肥大化リスクとFeatureGateの「画面ガードレシピ」dangling referenceに注意
 - [SS-88 ピン登録・写真presigned POST直送](project_ss88_pin_registration_mobile.md) — pinSaveRunner/services-photoはADR-010の模範実装。dispatch同期性の乖離は未確認のまま、oxlintrc override漏れはSS-124で解消確認済み
 - [SS-124 任意地点ピン登録・位置調整](project_ss124_pin_location_picking.md) — PinMapFullScreen共通化・Modal回避オーバーレイは参照実装。feature間import非強制はShould(未対応・申し送り)。render中setStateパターンは同PRでarchitecture-guideline.mdに文書化済み
+- [SS-118 登録済みピンの地図表示・詳細画面](project_ss118_pin_map_display.md) — render slot合成(WalkActiveView.renderMapLayers)は模範実装。useQueriesの戻り配列が毎レンダー新参照→combineに安定関数を渡して解消(ADR-012 D15)
