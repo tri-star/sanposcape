@@ -27,9 +27,20 @@ tags:
 - tapOn:
     id: "pin-register-name-input"
 - inputText: "E2Eのピン"
+# タグ欄は位置プレビュー・位置調整ボタン（SS-124）の下にあり、キーボードを開いたままだと
+# その裏に隠れる。Maestro は隠れた要素の座標をそのままタップするので、タップがキーボードに
+# 吸われて名前欄に入力が続いてしまう。キーボードを閉じてからタグ欄を画面内に出す。
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "pin-register-tag-input"
 - tapOn:
     id: "pin-register-tag-input"
 - inputText: "e2e"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "pin-register-tag-add"
 - tapOn:
     id: "pin-register-tag-add"
 - assertVisible:
