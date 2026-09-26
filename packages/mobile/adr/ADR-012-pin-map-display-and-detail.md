@@ -95,6 +95,16 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - **D14: E2E は `/pins/map` の表示と取得完了（エラーにならない）までとし、マーカーのタップ →
   詳細への遷移は E2E しない。** Google Maps の描画面上の `Marker` は testID で安定して触れず、
   フローからピン ID を知る手段も無いため。詳細の状態判定は `pinDetailState.test.ts` が担う。
+- **D15: 全地図の `GET /pins` の結果は、`useQueries` の `combine` にモジュールレベルの純粋関数
+  （`pinRead.ts` の `combineRegisteredPinListQueries`）を渡してマージする。** `combine` 未指定の
+  `useQueries` の戻り値は毎レンダー新しい配列になり、`useMemo([queries])` でマージしても
+  `WalkActiveView` の毎秒の再レンダーで `pins` が毎回新しい参照になって `RegisteredPinMarkers` の
+  `React.memo` が効かない（SS-118 ローカルレビュー ARCH-W1）。`combine` の関数参照が不変なら
+  TanStack Query はクエリの状態が変わらない限り再計算を省き、変わったときも `replaceEqualDeep` で
+  構造共有するため、データが同じ間は `pins` の参照が保たれる。再試行も `combine` の戻り値
+  （`refetchAll`）から呼び、生の結果配列を `useCallback` に閉じ込める stale closure を避ける
+  （同 QA-W2）。前回値を `useRef` + 浅い比較で再利用する自作の仕組みは、TanStack Query の仕組みで
+  足りるため採らない。
 
 ## 検討した選択肢
 
