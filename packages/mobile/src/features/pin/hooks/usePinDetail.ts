@@ -10,7 +10,7 @@ import type { PinDetail, PinPhoto } from "@/features/pin/types";
 
 /**
  * 保存済みのピンは（このセッション内では）ほぼ不変。presigned URL の TTL（3600秒）より
- * 十分短くすることで、再訪時に URL を取り直す（`docs/architecture-guideline.md`「写真の扱い」）。
+ * 十分短くすることで、再訪時に URL を取り直す（mobile ADR-012 D7）。
  */
 const DETAIL_STALE_TIME_MS = 5 * 60_000;
 const DETAIL_GC_TIME_MS = 30 * 60_000;

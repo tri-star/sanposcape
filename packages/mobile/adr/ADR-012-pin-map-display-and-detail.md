@@ -29,8 +29,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 ## 決定
 
-以下は mobile-planner が自律判断した事項（`tmp/SS-118/handover-notes.md` の記録を転記）と、
-実装時に確定した詳細を合わせたもの。
+以下は mobile-planner が自律判断した事項と、実装時に確定した詳細を合わせたもの。
 
 - **D1: 表示場所は「散歩中のナビタブの地図」+「新しい `/pins/map`（idle のナビタブから開く）」。
   地点選択画面（`/pins/pick-location`）・位置調整オーバーレイには表示しない。**
@@ -69,7 +68,10 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   `cachePolicy="memory-disk"`。presigned URL は応答ごとに変わるため URL をキーにしない
   （mobile ADR-010 決定8 / ルート ADR-009 決定15）。**
   サインアウト時に `Image.clearMemoryCache()` / `clearDiskCache()` を `registerSessionCleanup` で
-  走らせる（`PinPhotoImage.tsx` のモジュール末尾で登録）。presigned GET は `urls_expire_at` より
+  走らせる。登録は `PinPhotoImage.tsx`（コンポーネント）ではなく、起動時に必ず評価される
+  `src/lib/imageCacheCleanup.ts`（`app/_layout.tsx` から副作用 import）に置く。写真を一度も
+  表示しないまま出たサインアウトでも消去を保証するため（SS-118 ローカルレビュー SEC-M1）。
+  presigned GET は `urls_expire_at` より
   前に失効しうる（backend `config.py` の注記: 署名した Lambda の一時認証情報の寿命が上限）ため、
   期限時刻ではなく「画像の読み込み失敗」を契機に詳細を取り直す（取得から60秒未満なら取り直さない。
   `shouldRefreshPhotoUrls`）。閲覧 URL にも直送用の `isAllowedUploadUrl` を適用する
@@ -165,9 +167,9 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   検索タブ（SS-120）が代替導線になりうる。
 - ピンの E2E はマーカーのタップを含まない（D14）。詳細画面の見た目は `/dev-screens` からの手動
   確認に頼る。
-- 画像のディスクキャッシュ消去は、`PinPhotoImage.tsx` がそのプロセスで一度も読み込まれずに
-  サインアウトした場合は走らない（前回起動で閲覧したキャッシュが残る）。気になるなら
-  `app/_layout.tsx` 等の起動時に読み込まれる場所へ登録を移す。
+- （解消済み・SEC-M1）当初は `PinPhotoImage.tsx` のモジュール末尾で消去登録していたため、写真を
+  一度も表示しないまま出たサインアウトでは消去が走らない限界があった。`src/lib/imageCacheCleanup.ts`
+  へ登録を移し、`app/_layout.tsx` から副作用 import することで解消した（D7 参照）。
 - ゲストが案内からサインインしても元の画面（地図・詳細）へ戻らない
   （`getPostSignInDestination` の既存の限界。ADR-011 と同じ）。
 - 表示範囲に地図ごとに200件を超えるピンがあると古いピンが出ない（拡大すると取り直す）。

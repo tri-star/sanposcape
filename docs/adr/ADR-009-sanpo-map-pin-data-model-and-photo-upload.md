@@ -79,7 +79,9 @@
 2026-09-24 追補（SS-88: 実機不具合の調査で判明したアクセスログの必要性と、dev の疎通確認完了）、
 2026-09-24 追補（SS-111: 閲覧 API の追加。BK-4 完了）、
 2026-09-25 追補（SS-112: 編集・削除 API と権限マトリクスの確定。BK-5 完了）、
-2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）
+2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）、
+2026-09-26 追補（SS-118: mobile が地図表示の limit 超過時の見せ方を決着。閲覧 API・データモデルの
+backend 側変更は無い）
 
 ## ステータス
 
@@ -975,4 +977,4 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）
+  SS-112（編集・削除 API, BK-5）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3・D4）

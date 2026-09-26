@@ -87,9 +87,10 @@ testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` �
 - 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
   判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
 - 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
-  遷移は1回。適用済み5画面では、戻る以外でその画面から出る遷移（例:
+  遷移は1回。適用済み7画面では、戻る以外でその画面から出る遷移（例:
   `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」、
-  `PinLocationPickerView` の長押し確定 → `router.replace("/pins/new", ...)`。SS-124）も
+  `PinLocationPickerView` の長押し確定 → `router.replace("/pins/new", ...)`。SS-124、
+  `PinMapView` のピンタップ → `router.push("/pins/[pinId]", ...)`。SS-118）も
   すべて `runOnce` 経由にする。
 - BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
 - 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
