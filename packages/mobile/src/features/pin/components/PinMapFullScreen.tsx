@@ -14,14 +14,14 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { regionAroundPoint, toPickedCoordinate } from "@/features/pin/lib/pinLocationPicker";
-import type { MapRegion } from "@/lib/mapRegion";
+import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type PinMapFocusRequest = { target: GeoCoordinates; nonce: number };
 
-export type PinMapFullScreenProps = {
+type PinMapFullScreenCommonProps = {
   /**
    * testID の接頭辞。次を付ける:
    * `${p}-screen`（root）/ `${p}-map`（地図を包む View）/ `${p}-back` か `${p}-close`（closeKind による）/
@@ -36,33 +36,52 @@ export type PinMapFullScreenProps = {
   initialRegion: MapRegion | null;
   /** 読み込み表示の文言。既定「現在地を取得しています…」。 */
   loadingLabel?: string;
-  /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（(b)）。 */
-  pickGesture: "tap" | "long-press";
-  /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
-  onPick: (location: GeoCoordinates) => void;
   /** 選択中の位置（(a) のピン）。null ならマーカーを出さない。 */
   selectedLocation: GeoCoordinates | null;
   /** 現在地（(b)）。null なら出さない。 */
   currentLocation: GeoCoordinates | null;
   /** nonce が変わるたびに target へ animateToRegion する（WalkRouteMapView の recenterNonce と同じ考え方）。 */
   focusRequest: PinMapFocusRequest | null;
-  /** "back" = chevron-left「戻る」（画面として使う (b)）、"close" = x「閉じる」（オーバーレイ (a)）。 */
+  /** "back" = chevron-left「戻る」（画面として使う (b)(c)）、"close" = x「閉じる」（オーバーレイ (a)）。 */
   closeKind: "back" | "close";
   onClose: () => void;
-  /** 地図の右上に重ねるツール（(b) の現在地ボタンなど）。 */
+  /** 地図の右上に重ねるツール（(b)(c) の現在地ボタンなど）。 */
   mapTools?: ReactNode;
-  /** ヘッダーの下に重ねる通知（(b) の LocationPermissionNotice）。 */
+  /** ヘッダーの下に重ねる通知（(b)(c) の LocationPermissionNotice）。 */
   notice?: ReactNode;
-  /** 下部カードのヒントの下に置くアクション（(a) の「この位置にする」）。 */
+  /** 下部カードのヒントの下に置くアクション（(a) の「この位置にする」・(c) の状態カード）。 */
   footerActions?: ReactNode;
+  /** `MapView` の子として、選択マーカー・現在地マーカーの前（下層）に描く追加レイヤー（(c)。SS-118）。 */
+  mapLayers?: ReactNode;
+  /**
+   * 表示範囲が確定したとき（初回表示 + パン・ズーム後）に呼ぶ（(c)。SS-118）。
+   * `sanitizeMapRegion` を通した値だけを渡す（null は捨てる）。
+   */
+  onRegionChangeComplete?: (region: MapRegion) => void;
 };
+
+type PinMapFullScreenPickProps =
+  | {
+      /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（(b)）。 */
+      pickGesture: "tap" | "long-press";
+      /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
+      onPick: (location: GeoCoordinates) => void;
+    }
+  | {
+      /** "none" = 位置の選択をしない（(c) 閲覧専用の地図。ジェスチャーハンドラを一切渡さない）。 */
+      pickGesture: "none";
+      onPick?: undefined;
+    };
+
+export type PinMapFullScreenProps = PinMapFullScreenCommonProps & PinMapFullScreenPickProps;
 
 const DEFAULT_LOADING_LABEL = "現在地を取得しています…";
 const FOCUS_ANIMATION_MS = 400;
 
 /**
- * PinMapFullScreen — (a)(b) 共通の全画面地図の枠（SS-124）。
- * (b) 地点選択画面ではそのまま画面になり、(a) 位置調整ではオーバーレイの中身になる。
+ * PinMapFullScreen — (a)(b)(c) 共通の全画面地図の枠（SS-124 / SS-118）。
+ * (b) 地点選択画面ではそのまま画面になり、(a) 位置調整ではオーバーレイの中身になり、
+ * (c) 登録済みピンの閲覧（`/pins/map`。SS-118）でもそのまま画面になる。
  * `showsUserLocation` は使わない（`WalkRouteMapView` と同じ理由。`EXPO_PUBLIC_LOCATION_MODE=mock`
  * のとき OS の青い点が mock の位置と食い違って点が2つ出る）。
  */
@@ -82,6 +101,8 @@ export function PinMapFullScreen({
   mapTools,
   notice,
   footerActions,
+  mapLayers,
+  onRegionChangeComplete,
 }: PinMapFullScreenProps) {
   const theme = useTheme();
   const styles = useStyles();
@@ -98,7 +119,12 @@ export function PinMapFullScreen({
 
   const handlePick = (e: MapPressEvent | PoiClickEvent | LongPressEvent) => {
     const picked = toPickedCoordinate(e.nativeEvent.coordinate);
-    if (picked !== null) onPick(picked);
+    if (picked !== null) onPick?.(picked);
+  };
+
+  const handleRegionChangeComplete = (region: MapRegion) => {
+    const sanitized = sanitizeMapRegion(region);
+    if (sanitized !== null) onRegionChangeComplete?.(sanitized);
   };
 
   return (
@@ -133,8 +159,11 @@ export function PinMapFullScreen({
             toolbarEnabled={false}
             onPress={pickGesture === "tap" ? handlePick : undefined}
             onPoiClick={pickGesture === "tap" ? handlePick : undefined}
-            onLongPress={handlePick}
+            onLongPress={pickGesture === "none" ? undefined : handlePick}
+            onMapReady={() => handleRegionChangeComplete(initialRegion)}
+            onRegionChangeComplete={handleRegionChangeComplete}
           >
+            {mapLayers}
             {selectedLocation !== null ? (
               <Marker
                 coordinate={selectedLocation}
