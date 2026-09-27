@@ -67,16 +67,22 @@ export function formatPinCreatedAt(iso: string, now: Date = new Date()): string 
 }
 
 /**
- * グリッド・拡大表示に使う写真リストを決める。
+ * グリッド・拡大表示に使う写真リストと総数を決める。
  * - `pages` が1ページ以上あれば、その items を連結（id で重複排除）し、
- *   `hasMore` = 最終ページの `nextCursor !== null`
- * - `pages` が無ければ `detailPhotos` を使い、`hasMore` = `photoCount > detailPhotos.length`
+ *   `hasMore` = 最終ページの `nextCursor !== null`、`photoCount` = 最終ページの `photoCount`
+ *   （詳細の取得後に別の端末・メンバーが写真を増減していても、件数表示とビューアの分母を
+ *   最新のページ応答に揃える。PR #105 レビュー）
+ * - `pages` が無ければ `detailPhotos` を使い、`hasMore` = `photoCount > detailPhotos.length`、
+ *   `photoCount` = 詳細の `photoCount`
+ *
+ * `photoCount` は読み込み済みの枚数を下回らない（ページの取得中に削除があっても「12 / 10」に
+ * ならないように）。
  */
 export function resolvePinDetailPhotos(input: {
   detailPhotos: readonly PinPhoto[];
   photoCount: number;
   pages: readonly PinPhotoPage[] | undefined;
-}): { photos: PinPhoto[]; hasMore: boolean } {
+}): { photos: PinPhoto[]; hasMore: boolean; photoCount: number } {
   const { pages } = input;
 
   if (pages !== undefined && pages.length > 0) {
@@ -90,13 +96,33 @@ export function resolvePinDetailPhotos(input: {
       }
     }
     const lastPage = pages[pages.length - 1];
-    return { photos, hasMore: lastPage !== undefined && lastPage.nextCursor !== null };
+    return {
+      photos,
+      hasMore: lastPage !== undefined && lastPage.nextCursor !== null,
+      photoCount: Math.max(lastPage?.photoCount ?? input.photoCount, photos.length),
+    };
   }
 
   return {
     photos: [...input.detailPhotos],
     hasMore: input.photoCount > input.detailPhotos.length,
+    photoCount: Math.max(input.photoCount, input.detailPhotos.length),
   };
+}
+
+/**
+ * 「もっと見る」の読み込み中か。初回の「もっと見る」は写真ページの query を有効にして
+ * 最初のページを取りに行くが、その間 `isFetchingNextPage` は false のままなので、
+ * 「有効にした（`wantsMorePhotos`）がまだ1ページも無い（`isPending`）」も読み込み中とみなす
+ * （連打で `fetchNextPage()` を重ねないため。PR #105 レビュー）。
+ * URL の取り直し（invalidate）による再取得は含めない（その間もボタンは押せてよい）。
+ */
+export function resolveIsLoadingMorePhotos(input: {
+  wantsMorePhotos: boolean;
+  isPending: boolean;
+  isFetchingNextPage: boolean;
+}): boolean {
+  return input.isFetchingNextPage || (input.wantsMorePhotos && input.isPending);
 }
 
 /**

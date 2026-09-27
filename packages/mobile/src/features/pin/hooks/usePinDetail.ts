@@ -3,7 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getApiBaseUrl } from "@/config/env";
 import { fetchPinDetail, fetchPinPhotoPage } from "@/features/pin/api/pinReadApi";
-import { resolvePinDetailPhotos, shouldRefreshPhotoUrls } from "@/features/pin/lib/pinDetailState";
+import {
+  resolveIsLoadingMorePhotos,
+  resolvePinDetailPhotos,
+  shouldRefreshPhotoUrls,
+} from "@/features/pin/lib/pinDetailState";
 import { pinDetailQueryKey, pinPhotosQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 import type { PinDetail, PinPhoto } from "@/features/pin/types";
@@ -22,6 +26,8 @@ export type UsePinDetailResult = {
   retry: () => void;
   /** グリッド・拡大表示に使う写真（`resolvePinDetailPhotos` の結果）。 */
   photos: PinPhoto[];
+  /** 写真の総数（件数表示・ビューアの分母）。写真ページを取得済みなら最新ページの値。 */
+  photoCount: number;
   hasMorePhotos: boolean;
   isLoadingMorePhotos: boolean;
   /** 写真ページの取得失敗（詳細本体は表示できている）。 */
@@ -69,7 +75,11 @@ export function usePinDetail(
     retry: false,
   });
 
-  const { photos, hasMore: hasMorePhotos } = useMemo(
+  const {
+    photos,
+    hasMore: hasMorePhotos,
+    photoCount,
+  } = useMemo(
     () =>
       resolvePinDetailPhotos({
         detailPhotos: detailQuery.data?.photos ?? [],
@@ -79,14 +89,20 @@ export function usePinDetail(
     [detailQuery.data, photosQuery.data],
   );
 
-  const { fetchNextPage, isFetchingNextPage } = photosQuery;
+  const { fetchNextPage } = photosQuery;
+  const isLoadingMorePhotos = resolveIsLoadingMorePhotos({
+    wantsMorePhotos,
+    isPending: photosQuery.isPending,
+    isFetchingNextPage: photosQuery.isFetchingNextPage,
+  });
   const loadMorePhotos = useCallback(() => {
+    if (isLoadingMorePhotos) return;
     if (!wantsMorePhotos) {
       setWantsMorePhotos(true);
       return;
     }
     void fetchNextPage();
-  }, [wantsMorePhotos, fetchNextPage]);
+  }, [isLoadingMorePhotos, wantsMorePhotos, fetchNextPage]);
 
   const photosErrorCode = photosQuery.error ? toPinReadErrorCode(photosQuery.error) : null;
 
@@ -120,8 +136,9 @@ export function usePinDetail(
     errorCode: detailQuery.error ? toPinReadErrorCode(detailQuery.error) : null,
     retry,
     photos,
+    photoCount,
     hasMorePhotos,
-    isLoadingMorePhotos: isFetchingNextPage,
+    isLoadingMorePhotos,
     photosErrorCode,
     loadMorePhotos,
     handlePhotoLoadError,

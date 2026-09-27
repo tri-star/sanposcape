@@ -5,6 +5,7 @@ import {
   formatPinCreatedAt,
   pinDisplayName,
   resolvePinDetailBodyState,
+  resolveIsLoadingMorePhotos,
   resolvePinDetailPhotos,
   shouldRefreshPhotoUrls,
 } from "@/features/pin/lib/pinDetailState";
@@ -135,6 +136,71 @@ describe("resolvePinDetailPhotos", () => {
     const pages: PinPhotoPage[] = [{ items: [photo("p0", 0)], photoCount: 5, nextCursor: "c2" }];
     const result = resolvePinDetailPhotos({ detailPhotos: [], photoCount: 5, pages });
     expect(result.hasMore).toBe(true);
+  });
+
+  it("pages が無ければ photoCount は詳細の値", () => {
+    const detailPhotos = Array.from({ length: 10 }, (_, i) => photo(`p${i}`, i));
+    const result = resolvePinDetailPhotos({ detailPhotos, photoCount: 35, pages: undefined });
+    expect(result.photoCount).toBe(35);
+  });
+
+  it("pages があれば photoCount は最終ページの値（詳細の取得後に増減していても最新に揃える）", () => {
+    const pages: PinPhotoPage[] = [
+      { items: [photo("p0", 0), photo("p1", 1)], photoCount: 40, nextCursor: "c1" },
+      { items: [photo("p2", 2)], photoCount: 42, nextCursor: "c2" },
+    ];
+    const result = resolvePinDetailPhotos({ detailPhotos: [], photoCount: 35, pages });
+    expect(result.photoCount).toBe(42);
+  });
+
+  it("photoCount は読み込み済みの枚数を下回らない", () => {
+    const pages: PinPhotoPage[] = [
+      { items: [photo("p0", 0), photo("p1", 1), photo("p2", 2)], photoCount: 2, nextCursor: null },
+    ];
+    const result = resolvePinDetailPhotos({ detailPhotos: [], photoCount: 3, pages });
+    expect(result.photoCount).toBe(3);
+  });
+});
+
+describe("resolveIsLoadingMorePhotos", () => {
+  it("次ページの取得中は true", () => {
+    expect(
+      resolveIsLoadingMorePhotos({
+        wantsMorePhotos: true,
+        isPending: false,
+        isFetchingNextPage: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("初回の「もっと見る」で最初のページを取得中（isPending）も true", () => {
+    expect(
+      resolveIsLoadingMorePhotos({
+        wantsMorePhotos: true,
+        isPending: true,
+        isFetchingNextPage: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("「もっと見る」を押す前（query が無効で isPending）は false", () => {
+    expect(
+      resolveIsLoadingMorePhotos({
+        wantsMorePhotos: false,
+        isPending: true,
+        isFetchingNextPage: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("最初のページの取得後で次ページを取得していなければ false", () => {
+    expect(
+      resolveIsLoadingMorePhotos({
+        wantsMorePhotos: true,
+        isPending: false,
+        isFetchingNextPage: false,
+      }),
+    ).toBe(false);
   });
 });
 

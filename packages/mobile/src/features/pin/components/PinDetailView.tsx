@@ -190,7 +190,7 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
               <PinPhotoGallery
                 testID="pin-detail-photos"
                 photos={detail.photos}
-                photoCount={pin.photoCount}
+                photoCount={detail.photoCount}
                 hasMore={detail.hasMorePhotos}
                 isLoadingMore={detail.isLoadingMorePhotos}
                 loadMoreErrorMessage={
@@ -233,27 +233,36 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
   };
 
   const body = renderBody();
+  const viewerOpen = viewerIndex !== null && detail.photos.length > 0;
 
   return (
     <View testID="pin-detail-screen" style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing[2] }]}>
-        <IconButton
-          icon="chevron-left"
-          label="戻る"
-          variant="ghost"
-          onPress={back.goBack}
-          testID="pin-detail-back"
-        />
-        <Text style={styles.title}>ピンの詳細</Text>
-        {/* SS-119 でここに編集ボタンを置く。今は押せて何も起きないボタンを作らないため空のスペーサー。 */}
-        <View style={styles.headerSpacer} />
+      {/* ビューアを開いている間は、背後（ヘッダー・本文）をスクリーンリーダーから隠す（Android）。
+          iOS はビューア側の accessibilityViewIsModal で分離する（PinRegisterView の位置調整
+          オーバーレイと同じ。PR #105 レビュー）。 */}
+      <View
+        style={styles.main}
+        importantForAccessibility={viewerOpen ? "no-hide-descendants" : "auto"}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + theme.spacing[2] }]}>
+          <IconButton
+            icon="chevron-left"
+            label="戻る"
+            variant="ghost"
+            onPress={back.goBack}
+            testID="pin-detail-back"
+          />
+          <Text style={styles.title}>ピンの詳細</Text>
+          {/* SS-119 でここに編集ボタンを置く。今は押せて何も起きないボタンを作らないため空のスペーサー。 */}
+          <View style={styles.headerSpacer} />
+        </View>
+        {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
       </View>
-      {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
-      {viewerIndex !== null && detail.photos.length > 0 ? (
+      {viewerOpen && viewerIndex !== null ? (
         <PinPhotoViewer
           photos={detail.photos}
           index={viewerIndex}
-          photoCount={detail.pin?.photoCount ?? detail.photos.length}
+          photoCount={detail.photoCount}
           hasMore={detail.hasMorePhotos}
           isLoadingMore={detail.isLoadingMorePhotos}
           onChangeIndex={setViewerIndex}
@@ -270,6 +279,9 @@ const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surfaceApp,
+  },
+  main: {
+    flex: 1,
   },
   header: {
     flexDirection: "row",
