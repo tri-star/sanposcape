@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-26（SS-113, 地図の作成・管理 API）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-27（SS-113, PR #103 Copilot レビュー対応: 既定地図の直列化）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -51,7 +51,10 @@
 - **地図の作成・更新・削除 API（`POST /sanpo-maps`・`PATCH /sanpo-maps/{sanpo_map_id}`・
   `DELETE /sanpo-maps/{sanpo_map_id}`）を追加した**（BK-6 完了）。地図そのものの操作は
   owner のみ可（editor は 403、非メンバーは 404）。作成時に自分の既定地図が無ければ既定化し、
-  既定地図を削除すると `updated_at DESC, id DESC` の先頭へ繰り上げる
+  既定地図を削除すると `updated_at DESC, id DESC` の先頭へ繰り上げる。**既定地図の不変条件は
+  owner 単位の advisory lock（`SanpoMapRepository.lock_owner()`）で `create_map`/
+  `delete_map` を直列化して守る**（2026-09-27 追補, PR #103 レビュー対応。当初の
+  best-effort 記述から変更）
   （本文: SS-113 追補 決定25〜27）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
@@ -92,7 +95,9 @@
 2026-09-24 追補（SS-111: 閲覧 API の追加。BK-4 完了）、
 2026-09-25 追補（SS-112: 編集・削除 API と権限マトリクスの確定。BK-5 完了）、
 2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）、
-2026-09-26 追補（SS-113: 地図の作成・更新・削除 API と `pin_count` の expand。BK-6 完了）
+2026-09-26 追補（SS-113: 地図の作成・更新・削除 API と `pin_count` の expand。BK-6 完了）、
+2026-09-27 追補（SS-113: PR #103 Copilot レビュー対応。既定地図の不変条件を owner 単位の
+advisory lock で直列化）
 
 ## ステータス
 
@@ -1027,23 +1032,47 @@ editor が 403 でも情報は漏れない（editor は既に `GET /sanpo-maps` 
 
 ### 決定27: 既定地図（`is_default`）の不変条件
 
-不変条件: 「owner が自分の地図を1つ以上持つなら、既定地図がちょうど1つある」
-（best-effort）。ユーザー承認済み（2026-09-25）。
+不変条件: 「owner が自分の地図を1つ以上持つなら、既定地図がちょうど1つある」。
+ユーザー承認済み（2026-09-25）。**owner 単位の advisory lock で `create_map`/`delete_map`
+を直列化して守る**（2026-09-27 追補, PR #103 Copilot レビュー対応。当初は
+「best-effort」としていたが、崩れると mobile が「最初の地図」を再提示するという
+ユーザーに見える影響があるため、直列化で塞ぐ）。
 
-- **作成**: `POST /sanpo-maps` の時点で自分の既定地図が無ければ、作った地図を既定にする。
-  `is_default` はリクエストで受け取らない。`POST /pins` の「最初の地図」自動作成（決定3）と
-  競合して部分一意インデックス違反になったら、savepoint で捕捉して `is_default=false` で
-  作り直す。
-- **削除**: 既定地図も削除できる。消したら同じトランザクションで、残りの自分の地図のうち
-  `updated_at DESC, id DESC` の先頭を既定に繰り上げる。残りが無ければ既定なしになり、次の
-  `POST /pins`（`sanpo_map_id` 省略）が「最初の地図」を作り直して回復する（決定3）。繰り上げが
+- **作成**: `POST /sanpo-maps` の先頭で owner 単位の advisory lock
+  （`SanpoMapRepository.lock_owner()`, `pg_advisory_xact_lock`）を取り、既定の有無の判定
+  （`get_default_for_owner()`）から作成・commit までを直列化する。自分の既定地図が
+  無ければ、作った地図を既定にする。`is_default` はリクエストで受け取らない。
+  `POST /pins` の「最初の地図」自動作成（決定3）と競合して部分一意インデックス違反に
+  なったら、savepoint で捕捉して `is_default=false` で作り直す（このロックを取らない
+  経路との競合はここで吸収する。後述）。
+- **削除**: 既定地図も削除できる。`DELETE /sanpo-maps/{id}` の先頭で同じ owner 単位の
+  advisory lock を取り（`create_map` と同じロック、順序は決定28 参照）、地図行の取得
+  から削除・繰り上げ・commit までを直列化する。消したら同じトランザクションで、残りの
+  自分の地図のうち `updated_at DESC, id DESC` の先頭を既定に繰り上げる
+  （`promote_latest_to_default()`。選定直後に候補行が消えていた場合に備え、`UPDATE` の
+  rowcount を確認し、0件なら候補を除いて選び直す防御的なリトライを入れている。上限
+  `_PROMOTE_MAX_ATTEMPTS` 回）。残りが無ければ既定なしになり、次の `POST /pins`
+  （`sanpo_map_id` 省略）が「最初の地図」を作り直して回復する（決定3）。繰り上げが
   同時作成と競合して一意違反になったら savepoint で諦める（誰かが既定を作った = 不変条件は
   満たされる）。
-- **名前変更**: 既定地図も名前を変えられる（`is_default` は変わらない）。
+- **名前変更**: 既定地図も名前を変えられる（`is_default` は変わらない。advisory lock は
+  取らない。名前の変更だけでは既定の有無は変わらないため）。
 
 作成時に既定にする理由: mobile は「自分の既定地図が無い ⇔ draft の『最初の地図』を既定の
 選択肢として出す」規則で動いている（決定3）。作った地図を既定にしないと、SS-117 で地図を
 作った初回ユーザーにも draft の「最初の地図」が残り、保存時にもう1つ地図ができてしまう。
+
+**`POST /pins` の「最初の地図」自動作成（`resolve_map_for_new_pin`）はこの advisory lock を
+取らない**。この経路は「既定が無ければ `is_default=true` で作る」だけで、既存の既定を
+`false` にする操作を含まない。部分一意インデックス（`uq_sanpo_maps_owner_user_id_is_default`）
+が「同じ owner に既定が2つできる」方向を防ぐため、ロック無しでも不変条件は破れない
+（`create_map`/`delete_map` と競合しても、`create_with_owner()` が savepoint で一意違反を
+捕捉し、既存の既定を返すだけで済む）。ロックを取る側（`create_map`/`delete_map`）と
+取らない側（この経路）が交差する具体的なシナリオ（決定3 の既定判定と `create_map` の
+既定判定が両方「無い」と読んでから両方が作る等）は、後者が `is_default=true` を追加で
+作ろうとするだけなので一意インデックスに引っかかり、`create_with_owner()` の既存の
+フォールバックで解決される。既定を**消す**側の操作（`delete_map`）は必ずこのロックを
+取るため、「既定が0」になる方向の競合はこの経路からは発生しない。
 
 検討した代替案:
 
@@ -1052,6 +1081,10 @@ editor が 403 でも情報は漏れない（editor は既に `GET /sanpo-maps` 
 - **削除しても繰り上げない**（既定なしのままにする）: 消した直後の `POST /pins`
   （`sanpo_map_id` 省略）で「最初の地図」が再び作られ、他に地図があるのに消した名前の地図が
   再出現したように見える。
+- **`promote_latest_to_default()` の rowcount 確認・リトライを付けない**（advisory lock
+  だけに頼る）: lock で通常のシナリオ（同じ owner の `create_map`/`delete_map` 同時実行）は
+  防げるが、将来ロックを取らない経路から地図が削除される可能性に備え、防御的にリトライを
+  残した（コストは小さい）。
 
 ### 決定28: 地図削除は決定22 の手順を地図単位に広げる
 
@@ -1075,10 +1108,14 @@ SELECT は1秒前後の見込み。Lambda の29秒に対して、既定値なら
 余裕がある。写真が多すぎて時間が足りない場合は、残りのキーを WARNING に出して打ち切る
 （SS-112 のピン削除と同じ許容範囲）。
 
-**同時実行**: 地図の PATCH/DELETE は `sanpo_maps` 行を `FOR UPDATE` でロックして member・
-role を読み直す（二重 DELETE の後発はロック待ちの後に行が無く 404）。SS-112 で pins の
-更新・削除系はすべて `pins` 行を `FOR UPDATE` で取るようになったため、地図削除の CASCADE は
-これらの `pins` 行ロックを待つ（デッドロックはしない）。`add_photos`/`create_pin` は
+**同時実行**: `DELETE /sanpo-maps/{id}` は、まず owner 単位の advisory lock
+（`lock_owner()`）を取り、その後に `sanpo_maps` 行を `FOR UPDATE` でロックして member・
+role を読み直す。ロックの順序は常に**「owner → 地図行」**（`POST /sanpo-maps`
+（`create_map`）と同じ順序。決定27 の advisory lock はこの2箇所でしか取らないため、
+互いの間でロック順序が入れ替わることはなく、デッドロックしない）。二重 DELETE の後発は
+advisory lock 待ち・地図行ロック待ちのいずれでも、待った後に行が無く 404 になる。
+SS-112 で pins の更新・削除系はすべて `pins` 行を `FOR UPDATE` で取るようになったため、
+地図削除の CASCADE はこれらの `pins` 行ロックを待つ（デッドロックはしない）。`add_photos`/`create_pin` は
 `mark_used()` で `pins` 行 → 地図の行の順に UPDATE するため、地図削除（地図の行 → `pins`
 行）とまれにデッドロックし、PostgreSQL が片方を中断する（500）。DB はロールバックで整合し、
 確定済みの S3 コピーは決定4の残骸になる（BK-3）。**2台の端末で同じ地図に同時操作しない限り
