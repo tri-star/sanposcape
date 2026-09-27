@@ -1621,3 +1621,155 @@ class TestPinServiceDeletePhoto:
 
         with pytest.raises(PinNotFoundError):
             service.delete_photo(stranger, pin_read.id, photo.id)
+
+
+class TestCountPinsForSanpoMaps:
+    """`sanpo_maps/contents.py` の `SanpoMapContents.count_pins_for_sanpo_maps()` を
+    `PinService` が満たすことの確認（ADR-009 決定29）。集計クエリ自体は
+    `test_repository.py::TestCountPinsForMaps` で検証済みのため、ここでは委譲だけを見る。
+    """
+
+    def test_delegates_to_repository(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+
+        counts = service.count_pins_for_sanpo_maps([sanpo_map_id])
+
+        assert counts == {sanpo_map_id: 1}
+
+
+class TestPrepareSanpoMapDeletion:
+    """`sanpo_maps/contents.py` の `SanpoMapContents.prepare_sanpo_map_deletion()` を
+    `PinService` が満たすことの確認（地図削除の後始末, ADR-009 決定28）。
+    """
+
+    def test_cleanup_deletes_fake_storage_objects(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        assert photo.thumbnail_s3_key is not None
+        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
+
+        cleanup = service.prepare_sanpo_map_deletion(sanpo_map_id)
+        cleanup()
+
+        assert storage.head(s3_key) is None
+        assert storage.head(thumbnail_s3_key) is None
+
+    def test_second_chunk_is_skipped_when_remaining_time_is_below_worst_case(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """`TestPinServiceDeleteTimeBudget` と同じ時間予算判定を、地図単位（複数ピンに
+        またがるキー収集）でも通ることを確認する（ADR-009 決定22 追補・決定28）。
+        """
+        monkeypatch.setattr(sanposcape.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        creation_service = make_pin_service(db_session, storage)
+        pin_a, _ = creation_service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        pin_b, _ = creation_service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 1, "longitude": 1},
+            ),
+            base_url=BASE_URL,
+        )
+        photo_a = create_pin_photo_row(
+            db_session, storage, pin_id=pin_a.id, uploaded_by_user_id=owner.id, position=0
+        )
+        photo_b = create_pin_photo_row(
+            db_session, storage, pin_id=pin_b.id, uploaded_by_user_id=owner.id, position=0
+        )
+        assert photo_a.thumbnail_s3_key is not None
+        assert photo_b.thumbnail_s3_key is not None
+        all_keys = [
+            photo_a.s3_key,
+            photo_a.thumbnail_s3_key,
+            photo_b.s3_key,
+            photo_b.thumbnail_s3_key,
+        ]
+        monotonic_values = iter([0.0, 4.5])  # deadline_at=10, remaining=5.5 < worst_case=6
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=10,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        cleanup = service.prepare_sanpo_map_deletion(sanpo_map_id)
+        with caplog.at_level(logging.WARNING, logger="sanposcape.pins.service"):
+            cleanup()
+
+        remaining = [key for key in all_keys if storage.head(key) is not None]
+        deleted = [key for key in all_keys if storage.head(key) is None]
+        assert len(deleted) == 2
+        assert len(remaining) == 2
+        assert any(
+            "not enough time" in record.getMessage() and "2 of 4" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_unconfigured_storage_does_not_raise(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        creation_storage = FakeObjectStorage(secret="s" * 32)
+        creation_service = make_pin_service(db_session, creation_storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_read, _ = creation_service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session,
+            creation_storage,
+            pin_id=pin_read.id,
+            uploaded_by_user_id=owner.id,
+            position=0,
+        )
+        unconfigured_service = make_pin_service(db_session, UnconfiguredObjectStorage())
+
+        cleanup = unconfigured_service.prepare_sanpo_map_deletion(sanpo_map_id)
+        cleanup()  # 例外を投げない

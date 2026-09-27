@@ -7,4 +7,6 @@ class SanpoMapNotFoundError(Exception):
 
 
 class SanpoMapPermissionDeniedError(Exception):
-    """member だが書き込み権限の無い role（MVP では発生しない予約）。"""
+    """member だが role が操作を許さない（ピンの更新・削除・タグ・写真の一部, ADR-009
+    決定19。地図そのものの更新・削除の editor, 決定26）。403。
+    """

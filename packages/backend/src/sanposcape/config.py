@@ -230,7 +230,8 @@ class Settings(BaseSettings):
     # 増えるだけのため）。
     object_storage_delete_connect_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
     object_storage_delete_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
-    # /pins・/pin-photo-uploads の本文上限（軌跡を含まないので walks より小さい）。
+    # /pins・/pin-photo-uploads・/sanpo-maps の本文上限（軌跡を含まないので walks より
+    # 小さい。/sanpo-maps は SS-113 でこの値を流用するようになった）。
     pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)
 
     @property

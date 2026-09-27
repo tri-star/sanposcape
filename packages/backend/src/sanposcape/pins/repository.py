@@ -447,6 +447,34 @@ class PinRepository:
         stmt = select(PinPhoto.s3_key, PinPhoto.thumbnail_s3_key).where(PinPhoto.pin_id == pin_id)
         return [(row[0], row[1]) for row in self._db.execute(stmt).all()]
 
+    def list_photo_keys_for_map(self, sanpo_map_id: uuid.UUID) -> list[tuple[str, str | None]]:
+        """地図に属する全ピンの写真の `(s3_key, thumbnail_s3_key)` を列だけ取る
+        （地図削除時, ADR-009 決定28）。`list_photo_keys(pin_id)` と同じ戻り値の形。
+        """
+        stmt = (
+            select(PinPhoto.s3_key, PinPhoto.thumbnail_s3_key)
+            .join(Pin, Pin.id == PinPhoto.pin_id)
+            .where(Pin.sanpo_map_id == sanpo_map_id)
+        )
+        return [(row[0], row[1]) for row in self._db.execute(stmt).all()]
+
+    def count_pins_for_maps(self, sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """各地図のピン件数をまとめて取得する（`GET /sanpo-maps?expand=pin_count` 用,
+        ADR-009 決定29）。0件の地図は dict に入らない（呼び出し側は `.get(id, 0)` にする。
+        `count_photos_for_pins()` と同じ形）。
+
+        `sanpo_map_ids` は認可済み（`SanpoMapRepository.list_for_member()` を通して
+        member であることを確認済み）のものを渡すこと。
+        """
+        if not sanpo_map_ids:
+            return {}
+        stmt = (
+            select(Pin.sanpo_map_id, func.count())
+            .where(Pin.sanpo_map_id.in_(sanpo_map_ids))
+            .group_by(Pin.sanpo_map_id)
+        )
+        return dict(self._db.execute(stmt).all())
+
     def delete_photo(self, photo: PinPhoto) -> None:
         self._db.delete(photo)
         self._db.flush()

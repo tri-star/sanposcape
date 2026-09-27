@@ -26,6 +26,18 @@ SS-111（`pins/` の閲覧API追加, PR: `tri-star/ss-111-pin-read-api`）でも
 
 SS-131（`api_docs/` Scalar導入）でも再発を確認: `api_docs/tests/test_router.py` の `test_scalar_docs_disables_telemetry_and_agent` docstring に「（プランの注意事項参照）」とあり、gitignore対象の計画ドキュメントの注意書きを指している。 <!-- tmp-ref-ok: tmp/ 参照そのものを説明している箇所 --> ただしdocstring本文自体がすでに同じ趣旨（実際のHTMLを出力し直して区切りを確認すること）を書いており自己完結していたため、Low/Suggestion止まりで指摘した（本文だけで意味が通り、tmp参照は装飾的）。
 
+SS-113（`sanpo_maps/` 地図の作成・管理API追加）でも再発を確認: `sanpo_maps/mappers.py`（新規ファイル）
+と `sanpo_maps/service.py` の docstring に `（B-D2）`/`（B-D1）` という、ADR-009本文のどこにも定義のない
+ラベルが新規に追加された（既存の `sanpo_maps/repository.py::list_for_member` や `pins/repository.py`・
+`pins/models.py`・`pins/thumbnails.py`・`integrations/aws/s3.py` 等にも `B-D5`/`B-D7`〜`B-D20` が
+既に広範囲に存在しており、`B-D` は SS-88 当時の初期ナンバリングの生き残りと見られる）。
+このチケットの実装計画は「実装ステップ」冒頭で明示的に
+「コードのコメントは ADR-009 の決定番号（決定25〜29）で参照し、計画書内のラベル・節番号・
+揮発性の作業メモ置き場を書かない（docs-lint と SS-111 のレビュー指摘）」と自己規定していたにも
+かかわらず、新規コードの一部がそれに従わず `B-D*` を引き続き使ってしまった。`scripts/knowledge/check-tmp-references.sh` は
+`docs/`・`.claude/agent-memory/`・トップレベル `*.md` のみを走査し `src/**/*.py` を検査しないため、
+この種のコード内コメント参照はCIで検知されない（4ドメイン目以降でも継続する抜け穴）。
+
 **How to apply:** 新しいドメイン実装のレビューで `（D\d+）` `（Q\d+）` `（[A-Z]-\d+）` のような decision code を含むコメントを見たら、
 - コメント本文だけで意図が自己完結しているか確認する（自己完結していれば decision code 自体は無害な飾りとして許容範囲、Low/Suggestion 止まり）。
 - 自己完結していない場合や、参照先が ADR (`docs/adr/`) など**コミットされているドキュメント**であれば問題ない。gitignore 対象の `tmp/` にしかない場合は Medium 程度で指摘し、「重要な設計判断は ADR 化するか、コメントを自己完結させる」ことを提案する。
