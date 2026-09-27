@@ -39,7 +39,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 | ファイル | 役割 |
 |---|---|
-| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/`・`walks/`・`pins/` で採用 |
+| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/`・`walks/`・`pins/`・`sanpo_maps/`（SS-113）で採用 |
 
 ドメイン固有の事情がある場合は、役割が一目で分かる名前で追加してよい（固定セットに無理に詰め込まない）。
 例: `auth/` ドメインでは以下を追加している。
@@ -61,7 +61,8 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 | ファイル | 役割 |
 |---|---|
-| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112）。DB に依存しない純粋関数。追加系（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）は role だけで判定する。対象の持ち主を判定する更新・削除系（`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに材料が違う（ピン/タグ/写真）ため `is_creator`/`is_uploader` をキーワード専用引数にする |
+| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112。地図そのものの管理系 `can_update_sanpo_map`/`can_delete_sanpo_map`, SS-113）。DB に依存しない純粋関数。追加系（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）は role だけで判定する。対象の持ち主を判定する更新・削除系（`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに材料が違う（ピン/タグ/写真）ため `is_creator`/`is_uploader` をキーワード専用引数にする。地図そのものの管理系（`can_update_sanpo_map`/`can_delete_sanpo_map`）は role のみで判定し owner 限定（地図の持ち主 = owner の role のため、対象の持ち主を判定する引数は無い） |
+| `contents.py` | `sanpo_maps` ドメインが `pins` へ依存せず地図の中身（ピン件数・写真）にアクセスするための port（`SanpoMapContents`, `Protocol`）。実装は `pins/service.py` の `PinService` が構造的部分型で満たす（SS-113, ADR-009 決定29） |
 
 `pins/` ドメイン（SS-88 で新設）では以下を追加している。
 

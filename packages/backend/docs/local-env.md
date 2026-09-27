@@ -245,9 +245,10 @@ docker compose up -d --build
     と `GET /sanpo-maps` は影響を受けず、200 のまま `thumbnail`/`original_url` が
     null になる（ADR-009 決定18）。**編集**（`PATCH /pins/{pin_id}`）は S3 を操作しない
     ので影響を受けず、DB を更新して 200 を返す（写真 URL は null）。**削除系**
-    （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`）も 503 には
-    ならず、DB を削除したあと S3 の後始末を `ObjectStorageUnavailableError` の WARNING を
-    出してスキップし、204 を返す（ADR-009 決定22, SS-112）。平常のローカル開発では
+    （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`・
+    `DELETE /sanpo-maps/{sanpo_map_id}`）も 503 にはならず、DB を削除したあと S3 の
+    後始末を `ObjectStorageUnavailableError` の WARNING を出してスキップし、204 を返す
+    （ADR-009 決定22, SS-112。地図削除は決定28, SS-113）。平常のローカル開発では
     バケットを設定しないので、`STORAGE_MODE=real` のままだと写真は試せない
     （`deployment.md` §12「写真ストレージ」/ ADR-009 決定8 参照）。
     **（SS-88 追補）** 直送まわりの不具合は fake では再現しないことがあるため、
@@ -301,7 +302,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST <upload.url> \
 
 - `GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES`: `/explore` 配下の本文サイズ上限（既定 32,768 / 上限 1,048,576）。
 - `WALKS_REQUEST_MAX_BYTES`: `/walks` 配下の本文サイズ上限（既定 1,048,576 / 上限 4,194,304）。軌跡（`track`）を含むため `/explore` より大きい上限にしているが、無制限にはしていない（低コスト DoS 対策）。
-- `PINS_REQUEST_MAX_BYTES`: `/pins`・`/pins/{pin_id}/photos`・`/pin-photo-uploads` 配下の本文サイズ上限（既定 16,384 / 上限 65,536）。写真本体は presigned POST で直接 S3 へ送るため、これらのエンドポイントの JSON 本文はメタデータのみで小さい（SS-88）。
+- `PINS_REQUEST_MAX_BYTES`: `/pins`・`/pins/{pin_id}/photos`・`/pin-photo-uploads`・`/sanpo-maps` 配下の本文サイズ上限（既定 16,384 / 上限 65,536）。写真本体は presigned POST で直接 S3 へ送るため、これらのエンドポイントの JSON 本文はメタデータのみで小さい（SS-88）。`/sanpo-maps` はこの値をそのまま流用している（SS-113）。
 
 超過時はいずれも 413 を返す。
 
@@ -370,9 +371,10 @@ print(r.status_code); print(r.text[:800])"
   `PIN_PHOTO_THUMBNAIL_MAX_EDGE_PX` / `PIN_PHOTO_THUMBNAIL_JPEG_QUALITY` /
   `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` / `PIN_PHOTO_CONFIRM_CONCURRENCY` /
   `PIN_PHOTO_DELETE_DEADLINE_SECONDS`（SS-112: ピン・写真削除時の S3 実体削除の時間予算。
-  上限20秒。締め切りと削除用の connect + read の和が 25 秒を超えると起動に失敗する。
-  削除用 timeout が既定値（connect 1秒 + read 5秒 = 6秒）のままだと、実際に設定できる
-  上限は 20 ではなく **19 秒**（19 + 6 = 25）） /
+  SS-113 で地図削除（`DELETE /sanpo-maps/{id}`）の後始末にも同じ設定値が使われるように
+  なった（新しい設定値は追加していない）。上限20秒。締め切りと削除用の connect + read の
+  和が 25 秒を超えると起動に失敗する。削除用 timeout が既定値（connect 1秒 + read 5秒 =
+  6秒）のままだと、実際に設定できる上限は 20 ではなく **19 秒**（19 + 6 = 25）） /
   `OBJECT_STORAGE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_READ_TIMEOUT_SECONDS` /
   `OBJECT_STORAGE_DELETE_CONNECT_TIMEOUT_SECONDS` / `OBJECT_STORAGE_DELETE_READ_TIMEOUT_SECONDS`
   （PR #101 レビュー対応: 削除専用の client の timeout。削除は再試行しない）

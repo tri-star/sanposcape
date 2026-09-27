@@ -93,11 +93,17 @@ packages/backend/
 │       │   ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
 │       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
 │       ├── sanpo_maps/        # ドメイン: 地図（ピンの入れ物）とメンバーシップ・権限（SS-88, ADR-009）
+│       │   ├── router.py      #   GET/POST /sanpo-maps, PATCH/DELETE /sanpo-maps/{id}（SS-113）
+│       │   ├── contents.py    #   pins へ依存せず地図の中身にアクセスするための port
+│       │   │                  #   （SanpoMapContents, Protocol。PinService が実装, SS-113）
+│       │   ├── mappers.py     #   to_sanpo_map_read() に SanpoMapRead の組み立てを集約（SS-113）
 │       │   └── permissions.py #   role による権限判定の純粋関数。追加系（can_add_pin/
 │       │                      #   can_add_pin_photo/can_add_pin_tag）は role だけ、
 │       │                      #   更新・削除系（can_update_pin/can_delete_pin/
 │       │                      #   can_delete_pin_tag/can_delete_pin_photo）は
-│       │                      #   is_creator/is_uploader をキーワード専用引数に取る, SS-112
+│       │                      #   is_creator/is_uploader をキーワード専用引数に取る（SS-112）。
+│       │                      #   地図そのものの管理系（can_update_sanpo_map/
+│       │                      #   can_delete_sanpo_map）は role のみで owner 限定（SS-113）
 │       ├── pins/               # ドメイン: ピン・写真・タグ・写真アップロード枠（SS-88, ADR-009）
 │       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos,
 │       │   │                   #   GET /pins, GET /pins/{pin_id}, GET /pins/{pin_id}/photos,
@@ -148,6 +154,8 @@ packages/backend/
   ハイドレーション前の設定で接続してしまうため）。`Base` / `get_db` の名前と挙動は変えていないため、
   呼び出し側（`models.py` / `dependencies.py` / 各 `tests/`）は無変更で動く。
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
+  ドメイン間の port の配線もここに置く（例: `get_sanpo_map_contents()`。`sanpo_maps/contents.py`
+  の `SanpoMapContents` port を `PinService` に結びつける、ADR-009 決定29, SS-113）。
 
 ### `core/` — 横断的関心事
 - どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`observability.py` の `AccessLogMiddleware` / `configure_logging()` のような**可観測性の土台**（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
@@ -183,6 +191,13 @@ packages/backend/
   `sanpo_maps`（地図・メンバーシップ・権限）の `Service`/`Repository` を直接 import してよいが、
   逆方向（`sanpo_maps` が `pins` を import する）は禁止する。これにより `GET /sanpo-maps` が
   ピンの状態に依存せず、地図単体の権限判定を先に固められる（ADR-009）。
+  - `sanpo_maps` が `pins` の情報（ピン件数の集計・地図削除時の写真の後始末）を要るときは、
+    `sanpo_maps/contents.py` の `SanpoMapContents` port（Protocol）を経由する。実装は
+    `pins/service.py` の `PinService` が構造的部分型で満たし、配線はアプリ直下
+    `dependencies.py` の `get_sanpo_map_contents()` で行う（`sanpo_maps/dependencies.py` に
+    置くと `sanpo_maps` が `pins` を import することになるため）。`sanpo_maps/tests/
+    test_dependency_direction.py` が `sanpo_maps/` 配下の全 `.py` を AST で検査し、
+    `sanposcape.pins` を import していないことを固定する（ADR-009 決定29, SS-113）。
   - 昇格時は、**旧 import 位置に再エクスポートを残して段階移行する**（OpenAPI のコンポーネント名を変えないため）。
     実例: `GeoPoint` は `maps/schemas.py` から `core/geo.py` へ昇格したが、`maps/schemas.py` は
     `from sanposcape.core.geo import GeoPoint` を再エクスポートし続けている。クラス名を変えていない

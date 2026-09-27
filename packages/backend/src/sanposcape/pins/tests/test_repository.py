@@ -1100,3 +1100,141 @@ class TestListPhotoKeysDeletePhotoDeletePin:
         assert db_session.get(Pin, pin.id) is None
         assert repo.count_photos(pin.id) == 0
         assert repo.count_tags(pin.id) == 0
+
+
+class TestListPhotoKeysForMap:
+    def test_includes_all_pins_photos_in_the_map(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        repo = PinRepository(db_session)
+        pin_a, _ = repo.create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        pin_b, _ = repo.create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        photo_a = create_pin_photo_row(
+            db_session, None, pin_id=pin_a.id, uploaded_by_user_id=user.id, position=0
+        )
+        photo_b = create_pin_photo_row(
+            db_session,
+            None,
+            pin_id=pin_b.id,
+            uploaded_by_user_id=user.id,
+            position=0,
+            with_thumbnail=False,
+        )
+
+        keys = repo.list_photo_keys_for_map(sanpo_map_id)
+
+        assert (photo_a.s3_key, photo_a.thumbnail_s3_key) in keys
+        assert (photo_b.s3_key, None) in keys
+
+    def test_excludes_photos_from_other_maps(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        target_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        # `make_sanpo_map()` は is_default=True で作るため、同じユーザーで2回呼ぶと
+        # 一意違反のフォールバックで同じ地図が返ってしまう。2つ目は非既定で直接作る。
+        other_map, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=user.id, name="別の地図", is_default=False
+        )
+        db_session.commit()
+        other_map_id = other_map.id
+        repo = PinRepository(db_session)
+        target_pin, _ = repo.create(
+            sanpo_map_id=target_map_id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        other_pin, _ = repo.create(
+            sanpo_map_id=other_map_id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        create_pin_photo_row(
+            db_session, None, pin_id=target_pin.id, uploaded_by_user_id=user.id, position=0
+        )
+        other_photo = create_pin_photo_row(
+            db_session, None, pin_id=other_pin.id, uploaded_by_user_id=user.id, position=0
+        )
+
+        keys = repo.list_photo_keys_for_map(target_map_id)
+
+        assert (other_photo.s3_key, other_photo.thumbnail_s3_key) not in keys
+
+    def test_empty_map_returns_empty_list(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        repo = PinRepository(db_session)
+
+        assert repo.list_photo_keys_for_map(sanpo_map_id) == []
+
+
+class TestCountPinsForMaps:
+    def test_counts_pins_per_map_and_omits_empty_maps(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        map_with_pins = make_sanpo_map(db_session, owner_user_id=user.id)
+        # `make_sanpo_map()` は is_default=True で作るため、同じユーザーで2回呼ぶと
+        # 一意違反のフォールバックで同じ地図が返ってしまう。2つ目は非既定で直接作る。
+        map_without_pins_row, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=user.id, name="ピンなし地図", is_default=False
+        )
+        db_session.commit()
+        map_without_pins = map_without_pins_row.id
+        repo = PinRepository(db_session)
+        repo.create(
+            sanpo_map_id=map_with_pins,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        repo.create(
+            sanpo_map_id=map_with_pins,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+
+        counts = repo.count_pins_for_maps([map_with_pins, map_without_pins])
+
+        assert counts == {map_with_pins: 2}
+        assert map_without_pins not in counts
+
+    def test_empty_input_returns_empty_dict(self, db_session: Session) -> None:
+        repo = PinRepository(db_session)
+        assert repo.count_pins_for_maps([]) == {}

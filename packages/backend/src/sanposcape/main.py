@@ -275,6 +275,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(
         RequestSizeLimitMiddleware,
+        path_prefix="/sanpo-maps",
+        max_bytes=settings.pins_request_max_bytes,
+    )
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
         path_prefix="/pins",
         max_bytes=settings.pins_request_max_bytes,
     )

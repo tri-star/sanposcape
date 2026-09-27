@@ -868,9 +868,10 @@ prod の backend デプロイは、写真と関係なく既に `platform/appconf
 > `thumbnail`/`original_url` が null で返る（ADR-009 決定18）。**編集**
 > （`PATCH /pins/{pin_id}`, BK-5）は S3 のオブジェクトを操作しないので影響を受けず、
 > DB を更新して 200 を返す（応答の `PinRead` の写真 URL は閲覧系と同じ扱い）。**削除系**
-> （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`, BK-5）も 503 には
-> ならず、DB の削除は成功して 204 を返す（S3 側の削除は失敗して WARNING ログのみ残り、
-> `original/`・`thumb/` のオブジェクトが孤立して残る。ADR-009 決定22, SS-112）。prod で
+> （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`, BK-5。地図単位の
+> `DELETE /sanpo-maps/{sanpo_map_id}`, BK-6）も 503 にはならず、DB の削除は成功して
+> 204 を返す（S3 側の削除は失敗して WARNING ログのみ残り、`original/`・`thumb/` の
+> オブジェクトが孤立して残る。ADR-009 決定22, SS-112。地図削除は決定28, SS-113）。prod で
 > `pin_registration` を ON にするのは BK-2（アカウント削除時の写真削除）の後なので、
 > それまでは利用者影響は無い。
 
@@ -896,8 +897,9 @@ aws ssm get-parameter --name /sanposcape/$ENV/platform/pin_photos/bucket_arn --r
 
 # 2) Lambda の環境変数にバケット名が入っていること（空なら UnconfiguredObjectStorage で
 #    写真の書き込み系 API が 503。閲覧系（GET /pins 等）と編集（PATCH /pins/{id}）は
-#    200 のまま URL が null になる。削除系（DELETE /pins/{id}、DELETE /pins/{id}/photos/{id}）
-#    は DB を削除して 204 を返し、S3 の後始末は WARNING を出してスキップする）
+#    200 のまま URL が null になる。削除系（DELETE /pins/{id}、DELETE /pins/{id}/photos/{id}、
+#    DELETE /sanpo-maps/{id}）は DB を削除して 204 を返し、S3 の後始末は WARNING を出して
+#    スキップする）
 aws lambda get-function-configuration --function-name sanposcape-$ENV-backend-api \
   --region ap-southeast-1 \
   --query 'Environment.Variables.{STORAGE_MODE:STORAGE_MODE,PIN_PHOTO_BUCKET_NAME:PIN_PHOTO_BUCKET_NAME}'
