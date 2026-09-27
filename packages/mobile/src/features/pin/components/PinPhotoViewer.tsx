@@ -62,6 +62,8 @@ export function PinPhotoViewer({
   return (
     <View
       testID="pin-photo-viewer"
+      // 表示中は背後の画面へフォーカスを移さない（iOS。Android は PinDetailView が背後を隠す）。
+      accessibilityViewIsModal
       // 写真ビューアは両テーマで暗背景にする（テーマの用途名では表現できないため、
       // ここだけ意図的に palette を直接使う）。
       style={[StyleSheet.absoluteFill, styles.root, { backgroundColor: theme.palette.ink900 }]}
@@ -103,6 +105,7 @@ export function PinPhotoViewer({
                   uri={photo.thumbnailUrl}
                   contentFit="contain"
                   style={styles.image}
+                  onError={onImageError}
                 />
               ) : null}
               <Text
@@ -116,7 +119,7 @@ export function PinPhotoViewer({
         ) : null}
       </View>
 
-      <View style={styles.navRow}>
+      <View style={[styles.navRow, { paddingBottom: insets.bottom + theme.spacing[4] }]}>
         <IconButton
           icon="chevron-left"
           label="前の写真"
@@ -175,6 +178,5 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: theme.layout.pageGutter,
-    paddingBottom: theme.spacing[4],
   },
 }));
