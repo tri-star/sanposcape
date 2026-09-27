@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-27（SS-113, PR #103 Copilot レビュー対応: 既定地図の直列化）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-27（SS-113, PR #103 Copilot レビュー対応: 既定地図の直列化。SS-118: 地図表示の limit 超過時の見せ方を決着）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -70,8 +70,10 @@
 - **BK-3, BK-7〜BK-10**: 期限切れ枠の掃除、招待、使用量 API、サムネイルの非同期化、原本の EXIF
   除去（本文: 移行・対応事項。BK-4「閲覧 API」は SS-111、BK-5「編集・削除 API」は SS-112、
   BK-6「地図の作成・管理 API」は SS-113 で完了した）
-- **地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は SS-118 で
-  決める。**検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る（本文: SS-111 追補）
+- ~~**地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は
+  SS-118 で決める。~~ → **SS-118 で決着**（ページングを続けず上限200件 + 案内。mobile
+  [ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3。本文: 2026-09-26 追補（SS-118））。
+  **検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る（本文: SS-111 追補）
 - **prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
   apply 待ちで、backend の prod デプロイ自体がまだできない（本文: 決定8 の SS-108 追補）
 - **Lambda 実行ロールでの直送**は未再現。2026-09-24 の dev 疎通確認はローカルの管理者権限で
@@ -96,6 +98,8 @@
 2026-09-25 追補（SS-112: 編集・削除 API と権限マトリクスの確定。BK-5 完了）、
 2026-09-26 追補（SS-112: PR #101 レビュー対応。削除の時間予算の有界化）、
 2026-09-26 追補（SS-113: 地図の作成・更新・削除 API と `pin_count` の expand。BK-6 完了）、
+2026-09-26 追補（SS-118: mobile が地図表示の limit 超過時の見せ方を決着。閲覧 API・データモデルの
+backend 側変更は無い）、
 2026-09-27 追補（SS-113: PR #103 Copilot レビュー対応。既定地図の不変条件を owner 単位の
 advisory lock で直列化）
 
@@ -1155,6 +1159,19 @@ backend の実装はどちらでも変わらない（決定22 のピン削除も
 - `pin_count` を required にしないのは、mobile の手書き型付きフィクスチャ
   （`sanpoMapApi.test.ts`）を壊さないため。
 
+## 追補（2026-09-26, SS-118: 地図表示で limit を超えたときの見せ方の決着）
+
+「地図表示で `limit` を超えたときの見せ方（ページングを続けるか、クラスタ表示にするか）は
+SS-118 で決める」（本文「一覧の必須パラメータ・並び順・件数上限」）を決着させた。
+
+- **決定: ページングを続けず、1リクエスト（`limit=200`。地図ごと）で打ち切り、mobile の
+  `/pins/map` では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
+  （詳細・理由は mobile [ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3）。
+  backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
+- mobile は地図ごとに `GET /pins` を並列に呼んでマージする（`sanpo_map_id` 必須のまま。
+  ADR-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数
+  上限」が予告している `sanpo_map_id` 任意化の expand を検討する（今回は依頼しない）。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1168,4 +1185,4 @@ backend の実装はどちらでも変わらない（決定22 のピン削除も
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）
+  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3・D4）

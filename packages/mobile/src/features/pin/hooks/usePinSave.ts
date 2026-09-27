@@ -3,7 +3,9 @@ import { useCallback, useRef, useState } from "react";
 
 import type { PinCreate } from "@/api/generated/model";
 import { addPinPhotos, createPin } from "@/features/pin/api/pinApi";
+import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/hooks/useSanpoMaps";
 import type { UsePinPhotosResult } from "@/features/pin/hooks/usePinPhotos";
+import { PINS_QUERY_ROOT } from "@/features/pin/lib/pinQueryKeys";
 import {
   isPinSaveError,
   isRetriablePinSaveError,
@@ -11,7 +13,6 @@ import {
 } from "@/features/pin/lib/pinSaveError";
 import type { PinSaveErrorCode, PinSaveStage } from "@/features/pin/lib/pinSaveError";
 import { runPinSave } from "@/features/pin/lib/pinSaveRunner";
-import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/hooks/useSanpoMaps";
 import type { PinSaveProgress, PinSaveStatus, SavedPin } from "@/features/pin/types";
 
 /** 自動再試行の最大回数（初回 + この回数まで）。`useWalkSave` と同じ値。 */
@@ -70,9 +71,10 @@ export function usePinSave(options: {
     },
     onSuccess: (pin) => {
       void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
-      // ピン一覧の取得 hook（BK-4）が実装されたら、そのキーの invalidate をここに足す。
-      // 未実装のキーを先取りして invalidate しても no-op なだけなので、今は持たない
-      // （SS-88 ローカルレビュー MS2: 「使われていない定数」を避ける）。
+      // ピン一覧・詳細・写真ページを一括で再検証する（SS-118 で追加）。保存後に戻った先
+      // （散歩中の地図・`/pins/map`）でマウント中の一覧クエリが取り直され、新しいピンが
+      // すぐ描かれる。
+      void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
       options.onSaved(pin);
     },
     onSettled: () => {

@@ -1,4 +1,4 @@
-import { WEEKDAYS } from "@/features/history/lib/walkDateLabel";
+import { WEEKDAYS } from "@/lib/dateLabel";
 
 /**
  * `GET /walks/stats` のバケット `start_date`（`YYYY-MM-DD`、JST 暦日）からチャートのラベルを作る。

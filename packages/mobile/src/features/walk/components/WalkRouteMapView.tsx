@@ -9,6 +9,7 @@ import { WalkRoutePolylines } from "@/features/walk/components/WalkRoutePolyline
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
 import type { WalkRoute } from "@/features/walk/types";
+import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -24,6 +25,17 @@ export type WalkRouteMapViewProps = {
   style?: StyleProp<ViewStyle>;
   /** 地図上に重ねる追加コンテンツ（ツールボタンなど）。 */
   children?: ReactNode;
+  /**
+   * `MapView` の子として描く追加レイヤー（登録済みピンなど。SS-118）。`features/walk` は
+   * その中身を知らない。増減するレイヤーなので `MapView` の子の末尾に置く
+   * （mobile ADR-012 D16）。
+   */
+  mapLayers?: ReactNode;
+  /**
+   * 表示範囲が確定したとき（初回表示 + パン・ズーム後）に呼ぶ（SS-118）。
+   * `sanitizeMapRegion` を通した値だけを渡す。
+   */
+  onRegionChangeComplete?: (region: MapRegion) => void;
   /** 地図を長押しした地点を受け取る（散歩中のピン登録。SS-124）。省略時は長押しを扱わない。 */
   onLongPress?: (coordinate: GeoCoordinates) => void;
   testID?: string;
@@ -35,6 +47,12 @@ const ROUTE_FIT_ANIMATION_MS = 400;
 const RECENTER_ANIMATION_MS = 400;
 /** ルートが未取得のときに現在地を中心として表示する緩い往復時間相当（分）。 */
 const FALLBACK_DURATION_MIN = 20;
+/**
+ * マーカーの重なり順。`mapLayers` のマーカー（既定 0）より現在地・目的地を上に描く
+ * （同じ座標に登録済みピンがあっても現在地が隠れないように。SS-118）。
+ */
+const GOAL_MARKER_Z_INDEX = 1;
+const CURRENT_MARKER_Z_INDEX = 2;
 
 /**
  * WalkRouteMapView — 散歩中画面の実地図。ルート・目的地・現在地を描く。
@@ -50,6 +68,8 @@ export function WalkRouteMapView({
   height = 322,
   style,
   children,
+  mapLayers,
+  onRegionChangeComplete,
   onLongPress,
   testID,
 }: WalkRouteMapViewProps) {
@@ -57,6 +77,10 @@ export function WalkRouteMapView({
   const styles = useStyles();
   const mapRef = useRef<MapView>(null);
   const isFirstRecenter = useRef(true);
+  // `onMapReady` は画面を離れて戻る（ネイティブの地図が window から外れて付き直す）たびにも
+  // 呼ばれる。そのときのカメラは離れる前の位置のままなので、`initialRegion` を表示範囲として
+  // 報告するのは初回だけにする（2回目以降は `onRegionChangeComplete` に任せる）。
+  const hasReportedInitialRegion = useRef(false);
 
   const initialRegion = walkRoute
     ? regionForBounds(walkRoute.bounds)
@@ -102,7 +126,20 @@ export function WalkRouteMapView({
         showsUserLocation={false}
         showsMyLocationButton={false}
         toolbarEnabled={false}
+        // マーカーのタップでカメラを動かさない（登録済みピンはタップで詳細へ移るため、
+        // 戻ったときに地図がずれないようにする。SS-118）。
+        moveOnMarkerPress={false}
         onLongPress={onLongPress ? (event) => onLongPress(event.nativeEvent.coordinate) : undefined}
+        onMapReady={() => {
+          if (hasReportedInitialRegion.current) return;
+          hasReportedInitialRegion.current = true;
+          const sanitized = sanitizeMapRegion(initialRegion);
+          if (sanitized) onRegionChangeComplete?.(sanitized);
+        }}
+        onRegionChangeComplete={(region) => {
+          const sanitized = sanitizeMapRegion(region);
+          if (sanitized) onRegionChangeComplete?.(sanitized);
+        }}
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         {walkRoute ? (
@@ -112,6 +149,7 @@ export function WalkRouteMapView({
             title={destinationName}
             anchor={{ x: 0.5, y: 1 }}
             tracksViewChanges={false}
+            zIndex={GOAL_MARKER_Z_INDEX}
             testID="walk-active-goal-marker"
           >
             <MapPin category="goal" icon="flag" size={38} />
@@ -123,11 +161,13 @@ export function WalkRouteMapView({
             identifier="current"
             anchor={{ x: 0.5, y: 1 }}
             tracksViewChanges={false}
+            zIndex={CURRENT_MARKER_Z_INDEX}
             testID="walk-active-current-marker"
           >
             <MapPin category="current" size={30} />
           </Marker>
         ) : null}
+        {mapLayers}
       </MapView>
       {walkRoute ? (
         <WalkRouteLegend walkRoute={walkRoute} testID="walk-active-route-legend" />

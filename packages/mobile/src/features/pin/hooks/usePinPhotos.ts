@@ -333,7 +333,7 @@ export function usePinPhotos(options: {
       // PR #93 T11: `uploaded`（未紐付け）の写真を削除したら backend の枠も best-effort で
       // 解放する。呼んでおかないと backend 側は紐付け期限（6時間）まで枠を占有し続け、
       // 追加・削除を繰り返すと実際にはどれも使っていないのに未使用枠の上限（429）に
-      // 達してしまう（handover-notes.md T11）。
+      // 達してしまう（mobile ADR-010 の「PR #93 追補 T11」参照）。
       if (removedItem?.status === "uploaded" && removedItem.uploadId !== null) {
         const uploadId = removedItem.uploadId;
         heldGhostSlotsRef.current += 1;

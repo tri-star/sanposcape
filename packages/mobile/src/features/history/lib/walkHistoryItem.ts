@@ -1,6 +1,6 @@
 import type { WalkRead } from "@/api/generated/model";
-import { formatWalkDate, formatWalkTime, parseIsoDate } from "@/features/history/lib/walkDateLabel";
 import type { WalkHistoryItem } from "@/features/history/types";
+import { formatDateLabel, formatTimeLabel, parseIsoDate } from "@/lib/dateLabel";
 import { formatDuration } from "@/lib/formatDuration";
 import { toNonNegative } from "@/lib/numberGuard";
 import { toKilometers } from "@/lib/units";
@@ -16,8 +16,8 @@ export function toWalkHistoryItem(read: WalkRead, now: Date = new Date()): WalkH
   return {
     id: read.id,
     startedAt: read.started_at,
-    dateLabel: startedAt !== null ? formatWalkDate(startedAt, now) : "日時不明",
-    timeLabel: startedAt !== null ? formatWalkTime(startedAt) : "",
+    dateLabel: startedAt !== null ? formatDateLabel(startedAt, now) : "日時不明",
+    timeLabel: startedAt !== null ? formatTimeLabel(startedAt) : "",
     destinationName: destinationName.length > 0 ? destinationName : FALLBACK_DESTINATION_NAME,
     durationLabel: formatDuration(Math.round(toNonNegative(read.duration_seconds) / 60)),
     distanceKm: toKilometers(read.distance_meters),

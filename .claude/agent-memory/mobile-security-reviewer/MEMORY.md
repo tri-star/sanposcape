@@ -14,3 +14,4 @@
 - [SS-100: /app-configフィーチャーフラグ受け皿のレビュー](project_ss100_app_config_flags.md) — 問題なし。flags===true厳密比較でfail-safe、サインアウトclear()除外はapp-config1件のみ明示、config_sourceは型から構造的に非露出
 - [SS-88: ピン登録・写真S3直送(presigned POST)のレビュー](project_ss88_pin_photo_s3_upload.md) — Critical/High無し。認証ヘッダー非送出/URLホワイトリスト/EXIF二重除去は良好。fetchのredirect未指定がMedium(M-1)
 - [SS-124: 地点選択画面(/pins/pick-location)・位置調整オーバーレイのレビュー](project_ss124_pin_location_picking_adjust.md) — Critical/High/Medium無し。座標検証は送受信双方で二重防御、フラグガードは/pins/newと同一パターン。Lowは丸めない座標のURL params露出のみ
+- [SS-118: 登録済みピン地図表示・詳細画面(/pins/map, /pins/[pinId])のレビュー](project_ss118_pin_map_detail_review.md) — Critical/High無し。pinId=isUuid多層防御、presigned GET URLはisAllowedUploadUrl流用、ゲスト通信ゼロ。Medium(画像ディスクキャッシュのサインアウト消去の登録位置)は同PRでimageCacheCleanup.tsへ移して解消

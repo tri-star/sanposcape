@@ -25,6 +25,11 @@ SS-88 で決まった、コードからはまだ読めない前提（2026-09 時
 
 **`client_pin_id` の冪等な再送は内容を無視して既存のピンを返す**（`POST /pins`）→ ピンの作成後（`usePinSave` の `savedPinId !== null`）に編集できる項目を登録画面に足すと、「変えたのに反映されない」ことになる。作成後は無効化する（SS-124 の位置調整で `canAdjustPinLocation` として適用）。作成後の編集は backend の編集 API（BK-5）の範囲。
 
+**閲覧（presigned GET）の URL は `urls_expire_at` より前に失効しうる**（backend `config.py` の
+`pin_photo_download_url_ttl_seconds` の注記: 署名した Lambda の一時認証情報の寿命が上限。既定 TTL 3600 秒）。
+→ mobile は「期限時刻」ではなく「画像の読み込み失敗」を契機に取り直す設計にする。画像キャッシュのキーは URL ではなく
+`photo.id`（expo-image の `source.cacheKey`）。ストレージ障害時も閲覧 API は 200 で URL が null（ADR-009 決定18）。
+
 **S3 直送は mobile の3つ目の HTTP 出口**。backend 向け2箇所（`customFetch` / `authApi`）の横断ヘッダーを**付けてはいけない**側（[[project-cloudfront-client-contract]]）。
 
 Related: [[mobile-structure]], [[project-feature-flags]]

@@ -1,4 +1,5 @@
 import type { PhotoUploadErrorCode } from "@/features/pin/lib/photoUploadError";
+import type { GeoCoordinates } from "@/services/location/types";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 
 /** 画面で扱う地図（SanpoMapRead を camelCase 化）。件数は API に無い（地図管理チケットで expand）。 */
@@ -65,10 +66,11 @@ export type PinPhotoUploadTicket = {
 /**
  * 保存成功時に画面が必要とする最小限（詳細表示・サムネイル表示は別チケット）。
  *
- * NOTE: `PinRead.photos[].thumbnail`（nullable presigned GET）・`urls_expire_at` は MVP の
- * 登録画面では使わない（ローカル画像を表示する）ため、この型にも含めない。閲覧チケットで
- * 使うときは、画像キャッシュのキーを URL ではなく `photo.id` にすること（backend-plan 5.10）。
- * presigned URL は応答ごとに変わりうるため。
+ * NOTE: `PinRead.photos[].thumbnail`（nullable presigned GET）・`urls_expire_at` は登録画面では
+ * 使わない（ローカル画像を表示する）ため、この型にも含めない。SS-118 で閲覧側の型（`PinPhoto` /
+ * `PinDetail` 等）を追加した。画像キャッシュのキーは URL ではなく `photo.id`
+ * （`@/features/pin/lib/pinPhotoCache` の `pinPhotoCacheKey`）を使う。presigned URL は
+ * 応答ごとに変わりうるため。
  */
 export type SavedPin = {
   id: string;
@@ -84,3 +86,47 @@ export type PinSaveStatus = "idle" | "saving" | "saved" | "error";
 export type PinSaveProgress =
   | { step: "creating" }
   | { step: "sending_photos"; sent: number; total: number };
+
+// --- SS-118: 閲覧（地図表示・詳細画面）で使う型 ---
+
+/** 緯度経度の矩形（bbox）。south <= north・west <= east（日付変更線をまたぐ範囲は扱わない）。 */
+export type GeoBounds = { south: number; west: number; north: number; east: number };
+
+/** 地図に描くピン1件（`PinListItemRead` の必要部分。SS-120 で項目を足してよい）。 */
+export type PinSummary = {
+  id: string;
+  sanpoMapId: string;
+  /** null は「名前なし」。表示名は pinDisplayName() を通す。 */
+  name: string | null;
+  location: GeoCoordinates;
+};
+
+/** 表示用の写真1枚。URL は許可判定（isAllowedUploadUrl）を通したもの。不可・未生成は null。 */
+export type PinPhoto = {
+  id: string;
+  position: number;
+  thumbnailUrl: string | null;
+  originalUrl: string | null;
+  width: number;
+  height: number;
+};
+
+export type PinTagView = { id: string; label: string };
+
+/** 詳細画面が必要とする情報（`PinRead` を camelCase 化）。 */
+export type PinDetail = {
+  id: string;
+  name: string | null;
+  memo: string | null;
+  location: GeoCoordinates;
+  tags: PinTagView[];
+  /** position 順の先頭（最大10件）。全件は GET /pins/{id}/photos。 */
+  photos: PinPhoto[];
+  photoCount: number;
+  sanpoMapName: string;
+  /** ISO 文字列（表示整形は lib 側）。 */
+  createdAt: string;
+};
+
+/** 写真ページ1枚分（GET /pins/{id}/photos）。 */
+export type PinPhotoPage = { items: PinPhoto[]; photoCount: number; nextCursor: string | null };

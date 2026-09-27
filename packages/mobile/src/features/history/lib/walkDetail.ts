@@ -1,11 +1,7 @@
 import type { WalkDetailRead } from "@/api/generated/model";
-import {
-  formatWalkDate,
-  formatWalkTimeRange,
-  parseIsoDate,
-} from "@/features/history/lib/walkDateLabel";
 import { formatPace } from "@/features/history/lib/walkMetrics";
 import type { WalkDetail } from "@/features/history/types";
+import { formatDateLabel, formatTimeRangeLabel, parseIsoDate } from "@/lib/dateLabel";
 import { formatClock } from "@/lib/formatClock";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import { toNonNegative } from "@/lib/numberGuard";
@@ -23,9 +19,9 @@ export function toWalkDetail(read: WalkDetailRead, now: Date = new Date()): Walk
   return {
     id: read.id,
     startedAt: read.started_at,
-    dateLabel: startedAt !== null ? formatWalkDate(startedAt, now) : "日時不明",
+    dateLabel: startedAt !== null ? formatDateLabel(startedAt, now) : "日時不明",
     timeRangeLabel:
-      startedAt !== null && endedAt !== null ? formatWalkTimeRange(startedAt, endedAt) : "",
+      startedAt !== null && endedAt !== null ? formatTimeRangeLabel(startedAt, endedAt) : "",
     destinationName: destinationName.length > 0 ? destinationName : FALLBACK_DESTINATION_NAME,
     destination: {
       latitude: read.destination.location.latitude,
