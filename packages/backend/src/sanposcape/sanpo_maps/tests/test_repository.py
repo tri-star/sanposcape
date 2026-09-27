@@ -1,9 +1,10 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
-from sanposcape.sanpo_maps.repository import SanpoMapRepository
+from sanposcape.sanpo_maps.repository import _PROMOTE_MAX_ATTEMPTS, SanpoMapRepository
 from sanposcape.sanpo_maps.tests.conftest import make_user
 
 
@@ -288,3 +289,67 @@ class TestPromoteLatestToDefault:
         db_session.commit()
 
         assert repo.promote_latest_to_default(owner_user_id=stranger.id) is None
+
+    def test_retries_with_next_candidate_when_first_update_matches_zero_rows(
+        self, db_session: Session
+    ) -> None:
+        """PR #103 レビュー対応: 選定直後に候補行が消えた（`UPDATE` の rowcount が0）場合、
+        その候補を除いて選び直すことを固定する。真の同時実行は再現せず、
+        `_select_promotion_candidate()` を差し替えて「存在しない候補」を1回目に返させる
+        （advisory lock を取っていても、将来他経路で消えた場合の防御的分岐を検証する）。
+        """
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        fallback = repo.create_owned(owner_user_id=user.id, name="残る地図", prefer_default=False)
+        db_session.commit()
+
+        call_count = 0
+        original_select = repo._select_promotion_candidate
+
+        def fake_select(*, owner_user_id: uuid.UUID, excluded_ids: list) -> uuid.UUID | None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return uuid.uuid4()  # 同時に消えたことにする、存在しない候補
+            return original_select(owner_user_id=owner_user_id, excluded_ids=excluded_ids)
+
+        repo._select_promotion_candidate = fake_select  # type: ignore[method-assign]
+
+        promoted_id = repo.promote_latest_to_default(owner_user_id=user.id)
+        db_session.commit()
+
+        assert call_count == 2
+        assert promoted_id == fallback.id
+        refreshed = db_session.get(SanpoMap, fallback.id)
+        assert refreshed is not None
+        assert refreshed.is_default is True
+
+    def test_gives_up_after_max_attempts_when_every_candidate_is_gone(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        repo.create_owned(owner_user_id=user.id, name="地図", prefer_default=False)
+        db_session.commit()
+
+        call_count = 0
+
+        def fake_select(*, owner_user_id: uuid.UUID, excluded_ids: list) -> uuid.UUID | None:
+            nonlocal call_count
+            call_count += 1
+            return uuid.uuid4()  # 毎回「存在しない候補」を返す
+
+        repo._select_promotion_candidate = fake_select  # type: ignore[method-assign]
+
+        promoted_id = repo.promote_latest_to_default(owner_user_id=user.id)
+
+        assert promoted_id is None
+        assert call_count == _PROMOTE_MAX_ATTEMPTS
+
+
+class TestLockOwner:
+    def test_does_not_error(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+
+        repo.lock_owner(user.id)  # 例外を投げない

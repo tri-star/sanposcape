@@ -1,11 +1,35 @@
 import uuid
+import zlib
 from datetime import datetime
 
-from sqlalchemy import Select, and_, case, select, update
+from sqlalchemy import Select, and_, case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
+
+#: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`pins/repository.py`
+#: の `_PIN_PHOTO_UPLOAD_LOCK_NAMESPACE` とは別の固定値にする（衝突回避, ADR-009 決定27）。
+_SANPO_MAP_OWNER_LOCK_NAMESPACE = zlib.crc32(b"sanposcape.sanpo_maps.owner") & 0x7FFFFFFF
+
+#: `promote_latest_to_default()` が候補を選び直す回数の上限（無限ループ防止）。
+_PROMOTE_MAX_ATTEMPTS = 10
+
+
+def _advisory_lock_key(user_id: uuid.UUID) -> int:
+    """UUID を `pg_advisory_xact_lock` の signed int4 キーへ畳み込む（決定的・プロセス非依存）。
+
+    `pins/repository.py` の同名関数と同じ内容。`sanpo_maps` は `pins` を import しない
+    （ADR-009 決定29）ため、共通化はせず暫定でこの関数を複製している（sanpo_maps と pins を
+    同じコンテキスト境界に統合するかは別途検討中）。
+    """
+    raw = user_id.int
+    key = 0
+    for shift in range(0, 128, 32):
+        key ^= (raw >> shift) & 0xFFFFFFFF
+    if key >= 2**31:
+        key -= 2**32
+    return key
 
 
 class SanpoMapRepository:
@@ -17,6 +41,22 @@ class SanpoMapRepository:
 
     def __init__(self, db: Session) -> None:
         self._db = db
+
+    def lock_owner(self, owner_user_id: uuid.UUID) -> None:
+        """owner 単位の advisory lock を取る（既定地図の不変条件を守るための直列化,
+        ADR-009 決定27）。`create_map`/`delete_map` の先頭（他の SELECT より前）で呼ぶこと。
+
+        トランザクションスコープ（`pg_advisory_xact_lock`）なので、呼び出し元の
+        commit/rollback で自動的に解放される（`PinPhotoUploadRepository.acquire_user_lock()`
+        と同じ形）。
+        """
+        self._db.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    _SANPO_MAP_OWNER_LOCK_NAMESPACE, _advisory_lock_key(owner_user_id)
+                )
+            )
+        )
 
     def list_for_member(self, *, user_id: uuid.UUID) -> list[tuple[SanpoMap, str]]:
         """自分が member である地図を「自分の既定地図」→ `updated_at DESC, id DESC` で返す。
@@ -163,31 +203,45 @@ class SanpoMapRepository:
         self._db.delete(sanpo_map)
         self._db.flush()
 
+    def _select_promotion_candidate(
+        self, *, owner_user_id: uuid.UUID, excluded_ids: list[uuid.UUID]
+    ) -> uuid.UUID | None:
+        stmt = select(SanpoMap.id).where(SanpoMap.owner_user_id == owner_user_id)
+        if excluded_ids:
+            stmt = stmt.where(SanpoMap.id.not_in(excluded_ids))
+        stmt = stmt.order_by(SanpoMap.updated_at.desc(), SanpoMap.id.desc()).limit(1)
+        return self._db.scalar(stmt)
+
     def promote_latest_to_default(self, *, owner_user_id: uuid.UUID) -> uuid.UUID | None:
         """既定地図を削除した直後に、残りの自分の地図のうち `updated_at DESC, id DESC` の
         先頭を新しい既定へ繰り上げる（`list_for_member()` と同じ並び順, 決定27）。
 
+        呼び出し元（`SanpoMapService.delete_map`）が `lock_owner()` を既に取っている前提
+        だが、それでも防御的に rowcount を確認する: 候補行が選定後に消えていた場合
+        （UPDATE の rowcount が0）、その候補を除いて選び直す（上限
+        `_PROMOTE_MAX_ATTEMPTS` 回、advisory lock が効いていれば通常は1回で終わる）。
         残りが無ければ `None`（既定なしのまま。次の `POST /pins` が「最初の地図」で
         回復する）。savepoint で一意違反（同時に誰かが既定を作った）を捕捉したら諦めて
         `None` を返す（誰かが既定を作った = 不変条件は満たされる）。
         """
-        stmt = (
-            select(SanpoMap.id)
-            .where(SanpoMap.owner_user_id == owner_user_id)
-            .order_by(SanpoMap.updated_at.desc(), SanpoMap.id.desc())
-            .limit(1)
-        )
-        candidate_id = self._db.scalar(stmt)
-        if candidate_id is None:
-            return None
-        try:
-            with self._db.begin_nested():
-                self._db.execute(
-                    update(SanpoMap).where(SanpoMap.id == candidate_id).values(is_default=True)
-                )
-        except IntegrityError:
-            return None
-        return candidate_id
+        excluded_ids: list[uuid.UUID] = []
+        for _ in range(_PROMOTE_MAX_ATTEMPTS):
+            candidate_id = self._select_promotion_candidate(
+                owner_user_id=owner_user_id, excluded_ids=excluded_ids
+            )
+            if candidate_id is None:
+                return None
+            try:
+                with self._db.begin_nested():
+                    result = self._db.execute(
+                        update(SanpoMap).where(SanpoMap.id == candidate_id).values(is_default=True)
+                    )
+            except IntegrityError:
+                return None
+            if result.rowcount > 0:
+                return candidate_id
+            excluded_ids.append(candidate_id)
+        return None
 
     def touch(self, *, sanpo_map_id: uuid.UUID, now: datetime) -> None:
         """ピン追加時に `updated_at` を更新する（「最近使った地図」を先頭にする並び順に使う）。"""

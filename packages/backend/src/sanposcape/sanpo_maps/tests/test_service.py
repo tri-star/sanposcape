@@ -244,6 +244,35 @@ class TestCreateMap:
         finally:
             other_session.close()
 
+    def test_takes_owner_lock_before_checking_default(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PR #103 レビュー対応: 既定地図の不変条件（決定27）を守るため、owner 単位の
+        advisory lock を `get_default_for_owner()` より前に取ることを固定する
+        （真の同時実行は再現せず、呼び出し順序だけを確認する）。
+        """
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        call_order: list[tuple[str, uuid.UUID]] = []
+        original_lock_owner = service._repository.lock_owner
+        original_get_default = service._repository.get_default_for_owner
+
+        def spy_lock_owner(owner_user_id: uuid.UUID) -> None:
+            call_order.append(("lock_owner", owner_user_id))
+            original_lock_owner(owner_user_id)
+
+        def spy_get_default(*, owner_user_id: uuid.UUID) -> object:
+            call_order.append(("get_default_for_owner", owner_user_id))
+            return original_get_default(owner_user_id=owner_user_id)
+
+        monkeypatch.setattr(service._repository, "lock_owner", spy_lock_owner)
+        monkeypatch.setattr(service._repository, "get_default_for_owner", spy_get_default)
+
+        service.create_map(user, SanpoMapCreate(name="地図"))
+
+        assert [name for name, _user_id in call_order] == ["lock_owner", "get_default_for_owner"]
+        assert all(user_id == user.id for _name, user_id in call_order)
+
 
 class TestUpdateMap:
     def test_owner_can_rename_without_touching_updated_at(self, db_session: Session) -> None:
@@ -309,6 +338,42 @@ class TestDeleteMap:
 
         assert db_session.get(SanpoMap, created.id) is None
         assert db_session.get(SanpoMapMember, (created.id, user.id)) is None
+
+    def test_takes_owner_lock_before_locking_map_row(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PR #103 レビュー対応: owner 単位の advisory lock を `get_membership_for_update()`
+        （地図行の `FOR UPDATE`）より前に取ることを固定する（「owner → 地図行」の順で
+        `create_map` と揃え、デッドロックを防ぐ, 決定27・28）。
+        """
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        created = service.create_map(user, SanpoMapCreate(name="地図"))
+        fake = FakeSanpoMapContents()
+        call_order: list[tuple[str, uuid.UUID]] = []
+        original_lock_owner = service._repository.lock_owner
+        original_get_membership_for_update = service._repository.get_membership_for_update
+
+        def spy_lock_owner(owner_user_id: uuid.UUID) -> None:
+            call_order.append(("lock_owner", owner_user_id))
+            original_lock_owner(owner_user_id)
+
+        def spy_get_membership_for_update(*, user_id: uuid.UUID, sanpo_map_id: uuid.UUID) -> object:
+            call_order.append(("get_membership_for_update", user_id))
+            return original_get_membership_for_update(user_id=user_id, sanpo_map_id=sanpo_map_id)
+
+        monkeypatch.setattr(service._repository, "lock_owner", spy_lock_owner)
+        monkeypatch.setattr(
+            service._repository, "get_membership_for_update", spy_get_membership_for_update
+        )
+
+        service.delete_map(user, created.id, contents=fake)
+
+        assert [name for name, _user_id in call_order] == [
+            "lock_owner",
+            "get_membership_for_update",
+        ]
+        assert all(user_id == user.id for _name, user_id in call_order)
 
     def test_cleanup_is_called_after_commit(self, db_session: Session) -> None:
         """後始末関数が呼ばれた時点で、別セッションから地図が見えないこと

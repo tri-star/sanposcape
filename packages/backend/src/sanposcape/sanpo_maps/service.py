@@ -129,9 +129,14 @@ class SanpoMapService:
         """`POST /sanpo-maps`: 地図を新規作成する（ADR-009 決定25・27）。
 
         自分の既定地図がまだ無ければ、作った地図を既定にする（`is_default` はリクエスト
-        では受け取らない）。`POST /pins` の「最初の地図」自動作成と競合した場合は
-        `create_owned()` 側で非既定として作り直される。
+        では受け取らない）。既定の有無の判定から作成・commit までを owner 単位の
+        advisory lock（`lock_owner()`）で直列化する（`delete_map` と同じロックを取るため、
+        既定地図の削除と本操作が交差して「既定が0」になることを防ぐ, 決定27）。
+        `POST /pins` の「最初の地図」自動作成（`resolve_map_for_new_pin`）はこのロックを
+        取らないが、部分一意インデックスが「既定が2つ」の方向を防ぐため、既定が消える
+        方向のバグは起きない（決定27）。
         """
+        self._repository.lock_owner(current_user.id)
         prefer_default = (
             self._repository.get_default_for_owner(owner_user_id=current_user.id) is None
         )
@@ -175,11 +180,19 @@ class SanpoMapService:
     ) -> None:
         """`DELETE /sanpo-maps/{sanpo_map_id}`: 地図を削除する（ADR-009 決定28）。
 
-        手順: 地図行を `FOR UPDATE` でロックして member・role を読み直す → 権限確認 →
+        手順: owner 単位の advisory lock（`lock_owner()`）を取る → 地図行を `FOR UPDATE`
+        でロックして member・role を読み直す → 権限確認 →
         `contents.prepare_sanpo_map_deletion()` で写真キーを集める（認可・ロックの後）→
         DB 削除・既定地図の繰り上げ・commit → best-effort な後始末（commit 後、例外を
         出さない）。非冪等（2回目は 404）。
+
+        `lock_owner()` は「owner → 地図行」の順で取る（`create_map` と同じ順序にして
+        デッドロックを防ぐ, 決定27・決定28）。地図の削除は owner にしか許可しない
+        （`can_delete_sanpo_map`）ため、`current_user.id` が実際に owner の ID になる。
+        editor・非メンバーが呼んでも、自分自身の ID でロックを取るだけで他の操作と
+        競合せず、直後の権限確認・404 判定で弾かれるだけなので害はない。
         """
+        self._repository.lock_owner(current_user.id)
         membership = self._repository.get_membership_for_update(
             user_id=current_user.id, sanpo_map_id=sanpo_map_id
         )
