@@ -6,7 +6,6 @@ import type { MapRegion } from "@/lib/mapRegion";
 
 export type RegisteredPinsMapLayerProps = {
   visibleRegion: MapRegion | null;
-  enabled: boolean;
   onSelectPin: (pinId: string) => void;
   testIDPrefix: string;
 };
@@ -17,15 +16,17 @@ export type RegisteredPinsMapLayerProps = {
  * （`docs/architecture-guideline.md`）を保つため、合成自体はルート
  * （`app/(tabs)/index.tsx`）が `WalkActiveView.renderMapLayers` 経由で行う。
  *
+ * フラグ OFF・未サインインのときは、ルートがこのコンポーネント自体を描かない（`enabled: false` の
+ * query でもキャッシュ済みのピンは返るため、`enabled` を渡して隠す方式にはしない）。
+ *
  * 取得失敗・打ち切りは表示しない（散歩中の画面は下部カードで埋まっており、ピンは付加情報の
  * ため静かに劣化させる。案内が要る画面は `/pins/map`（`PinMapView`）側で出す）。
  */
 export function RegisteredPinsMapLayer({
   visibleRegion,
-  enabled,
   onSelectPin,
   testIDPrefix,
 }: RegisteredPinsMapLayerProps): ReactNode {
-  const { pins } = useRegisteredPins({ visibleRegion, enabled });
+  const { pins } = useRegisteredPins({ visibleRegion, enabled: true });
   return <RegisteredPinMarkers pins={pins} onSelectPin={onSelectPin} testIDPrefix={testIDPrefix} />;
 }

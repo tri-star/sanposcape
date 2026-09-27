@@ -24,16 +24,20 @@ export default function WalkActiveRoute() {
     [router],
   );
 
+  // フラグ OFF・未サインインのときはレイヤー自体を描かない。`enabled: false` の query は通信を
+  // 止めるだけで、キャッシュ済みのピンは返し続けるため（実行中にフラグが OFF になってもマーカーが
+  // 残ってしまう。PR #105 レビュー）。
+  const showRegisteredPins = pinFeatureEnabled && isSignedIn;
   const renderMapLayers = useCallback(
-    (visibleRegion: MapRegion | null) => (
-      <RegisteredPinsMapLayer
-        visibleRegion={visibleRegion}
-        enabled={pinFeatureEnabled && isSignedIn}
-        onSelectPin={handleSelectPin}
-        testIDPrefix="walk-active-pin"
-      />
-    ),
-    [pinFeatureEnabled, isSignedIn, handleSelectPin],
+    (visibleRegion: MapRegion | null) =>
+      showRegisteredPins ? (
+        <RegisteredPinsMapLayer
+          visibleRegion={visibleRegion}
+          onSelectPin={handleSelectPin}
+          testIDPrefix="walk-active-pin"
+        />
+      ) : null,
+    [showRegisteredPins, handleSelectPin],
   );
 
   return <WalkActiveView renderMapLayers={renderMapLayers} />;
