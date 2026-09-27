@@ -51,7 +51,10 @@ type PinMapFullScreenCommonProps = {
   notice?: ReactNode;
   /** 下部カードのヒントの下に置くアクション（(a) の「この位置にする」・(c) の状態カード）。 */
   footerActions?: ReactNode;
-  /** `MapView` の子として、選択マーカー・現在地マーカーの前（下層）に描く追加レイヤー（(c)。SS-118）。 */
+  /**
+   * `MapView` の子として描く追加レイヤー（(c)。SS-118）。増減するレイヤーなので `MapView` の
+   * 子の末尾に置き、重なり順は `zIndex` で選択マーカー・現在地マーカーより下にする（mobile ADR-012 D16）。
+   */
   mapLayers?: ReactNode;
   /**
    * 表示範囲が確定したとき（初回表示 + パン・ズーム後）に呼ぶ（(c)。SS-118）。
@@ -77,6 +80,9 @@ export type PinMapFullScreenProps = PinMapFullScreenCommonProps & PinMapFullScre
 
 const DEFAULT_LOADING_LABEL = "現在地を取得しています…";
 const FOCUS_ANIMATION_MS = 400;
+/** `mapLayers` のマーカー（既定 0）より選択・現在地マーカーを上に描く（SS-118）。 */
+const SELECTED_MARKER_Z_INDEX = 1;
+const CURRENT_MARKER_Z_INDEX = 2;
 
 /**
  * PinMapFullScreen — (a)(b)(c) 共通の全画面地図の枠（SS-124 / SS-118）。
@@ -109,6 +115,9 @@ export function PinMapFullScreen({
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
   const lastNonceRef = useRef<number | null>(null);
+  // `onMapReady` は画面を離れて戻るたびにも呼ばれる。カメラは離れる前の位置のままなので、
+  // `initialRegion` を表示範囲として報告するのは初回だけにする（`WalkRouteMapView` と同じ）。
+  const hasReportedInitialRegion = useRef(false);
 
   useEffect(() => {
     if (focusRequest === null) return;
@@ -160,15 +169,21 @@ export function PinMapFullScreen({
             onPress={pickGesture === "tap" ? handlePick : undefined}
             onPoiClick={pickGesture === "tap" ? handlePick : undefined}
             onLongPress={pickGesture === "none" ? undefined : handlePick}
-            onMapReady={() => handleRegionChangeComplete(initialRegion)}
+            // マーカーのタップでカメラを動かさない（登録済みピンはタップで詳細へ移るため。SS-118）。
+            moveOnMarkerPress={false}
+            onMapReady={() => {
+              if (hasReportedInitialRegion.current) return;
+              hasReportedInitialRegion.current = true;
+              handleRegionChangeComplete(initialRegion);
+            }}
             onRegionChangeComplete={handleRegionChangeComplete}
           >
-            {mapLayers}
             {selectedLocation !== null ? (
               <Marker
                 coordinate={selectedLocation}
                 anchor={{ x: 0.5, y: 1 }}
                 tracksViewChanges={false}
+                zIndex={SELECTED_MARKER_Z_INDEX}
                 testID={`${p}-marker`}
               >
                 <MapPin category="park" icon="map-pin" size={38} />
@@ -179,11 +194,13 @@ export function PinMapFullScreen({
                 coordinate={currentLocation}
                 anchor={{ x: 0.5, y: 1 }}
                 tracksViewChanges={false}
+                zIndex={CURRENT_MARKER_Z_INDEX}
                 testID={`${p}-current-marker`}
               >
                 <MapPin category="current" size={30} />
               </Marker>
             ) : null}
+            {mapLayers}
           </MapView>
         </View>
       )}

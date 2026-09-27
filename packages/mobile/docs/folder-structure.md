@@ -169,6 +169,8 @@ packages/mobile/
   `app/(tabs)/index.tsx` が `WalkActiveView` の `renderMapLayers(visibleRegion)` prop に
   `RegisteredPinsMapLayer`（`features/pin`）を渡す。`WalkRouteMapView`（`features/walk`）は
   `mapLayers?: ReactNode` を `MapView` の子としてそのまま描くだけで、中身を知らない（SS-118）。
+  増減するレイヤーは `MapView` の子の**末尾**に置き、重なり順は `zIndex` で決める
+  （既存のルート線・マーカーの位置を動かさないため。mobile ADR-012 D16）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
 > **「2つ以上の機能から使うか？」**
