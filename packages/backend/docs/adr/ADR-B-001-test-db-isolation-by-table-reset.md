@@ -1,4 +1,4 @@
-# ADR-011: backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える
+# ADR-B-001: backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える
 
 ## 日付
 
@@ -16,8 +16,8 @@
 
 - テスト件数は約1,100件（本 ADR 作成時点で1,116件）まで増えており、DDL の実行コストが
   積み重なっている。
-- PR #103（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 関連）の
-  レビューで、この点が改善提案（F-005）として挙がった。
+- PR #103（[ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+  関連）のレビューで、この点が改善提案（F-005）として挙がった。
 - 変更前に `pytest --durations=30` 等で計測したところ、setup/teardown（create_all/drop_all
   相当）が全体時間の約8割を占めていた（詳細は下記「計測結果」）。
 
@@ -32,7 +32,9 @@
   スキーマで動き、以降は `drop_all` からモデル定義（`create_all`）由来のスキーマで動く」
   という状態になっていた。この性質（=テストはモデル定義由来のスキーマで動く）を崩さないことを
   変更の制約にした。
-- **主キー**: 全テーブルが UUID 主キー（`default=uuid.uuid4`）で、シーケンス/IDENTITY 列は無い。
+- **主キー**: ほとんどのテーブルは UUID 主キー（`default=uuid.uuid4`）で、シーケンス/IDENTITY 列は
+  無い。例外は `sanpo_map_members` で、`sanpo_map_id`＋`user_id`（ともに UUID の FK）の
+  複合主キー。
 - **FK構造**: ネイティブ Enum・循環 FK は無い。`users`/`sanpo_maps`/`pins` を親とする木構造。
 - **session/moduleスコープでDBにデータを入れる fixture は無い**（`auth`/`sanpo_maps`/`pins`/
   `users`/`walks` の各 `tests/conftest.py` を確認）。すべて function スコープで、テストの
@@ -46,7 +48,7 @@
 
 ### 1. スキーマは pytest の session スコープで1回だけ作る
 
-`_test_db_schema`（session・autouse）を新設し、セッション開始時に
+`_setup_test_db_schema`（session・autouse）を新設し、セッション開始時に
 `Base.metadata.drop_all(bind=test_engine)` → `Base.metadata.create_all(bind=test_engine)`、
 セッション終了時に `Base.metadata.drop_all(bind=test_engine)` を実行する。
 
@@ -56,11 +58,16 @@
   使い回さない効果がある。
 - 終了時にも `drop_all` するのは、「テストが終わったらテスト用DBは空」という従来の終了時の
   状態を保つため。コストはセッション終了時の1回分だけ。
+- `drop_all`/`create_all` の前にも、`_reset_tables`（決定4）と同じ `SET LOCAL
+  lock_timeout = '10s'` を設定した接続の上で実行する。理由は決定4を参照（このガードは
+  `_delete_all` と共通の値を使う）。
 
 ### 2. 各テストの**前**に、対象テーブルの中身を空にする
 
-`_reset_tables`（function・autouse、`_test_db_schema` に依存）を新設し、**yield の前**に
-全テーブルの中身を空にする。
+`_reset_tables`（function・autouse、`_setup_test_db_schema` に依存）を新設し、対象
+fixture の **setup 時**（テスト本体の実行前）に全テーブルの中身を空にする。
+`_reset_tables` は値を返さない通常の関数で、`yield` を持つジェネレータではない
+（teardown 処理は無い）。
 
 課題本文は「各テストの後」を案として挙げていたが、「前」を採用した。理由:
 
@@ -83,8 +90,19 @@
 
 - `with test_engine.begin() as conn:` の中で、最初に
   `SET LOCAL lock_timeout = '10s'` を実行する。閉じ忘れたセッションが
-  idle in transaction で残っている場合に、無言で止まらずエラーにするため
-  （今の `drop_all` も同じ種類のロックを要求するため、新しいリスクではない）。
+  idle in transaction で残っている場合に、無言で止まらずエラーにするため。
+  同じ値（`10s`）は `_setup_test_db_schema` の `drop_all`/`create_all`（決定1）にも
+  適用する。`drop_all`/`create_all` は ACCESS EXCLUSIVE 相当のロックを要求するため
+  `_delete_all` と同種のリスクがあり、かつセッション全体で最初と最後に1回ずつしか
+  実行されない分、ここでハングするとテストスイート全体が無診断で止まりうるため。
+
+**トラブルシューティング**: `lock_timeout` 超過でテストが失敗した場合、原因は
+「直前まで実行されていた別のテストが接続を閉じ忘れ、`idle in transaction` のまま
+残っている」ことが多い。pytest はテスト実行順を保証しないため、失敗の見た目は
+「たまたま次に実行された無関係なテストの setup 失敗」になる（失敗したテスト名が
+原因テストとは限らない）。調査するときは、テスト用DBに対して
+`SELECT pid, state, query, state_change FROM pg_stat_activity WHERE state = 'idle in transaction';`
+を実行し、長時間 `idle in transaction` のままの接続を探す。
 
 ### 5. 外側トランザクション + savepoint 巻き戻し案は採らない
 
@@ -120,18 +138,24 @@
 - 変更前は setup+teardown が 83.80s / 104.87s ≈ **80%** を占めていた。
   採用方式では setup+teardown は 8.23s / 26.42s ≈ 31% まで下がった。
 - **TRUNCATE と DELETE の比較**: TRUNCATE中央値 47.24s → DELETE中央値 32.81s（比較時点、
-  約31%短縮）。差はプランの許容誤差（3%）を大きく超えるため、判断基準
-  「全体時間の中央値が明らかに短い方を採る」により DELETE を採用した。
+  約31%短縮）。差は事前に定めた許容誤差（3%以内ならTRUNCATEを採る）を大きく超えるため、
+  事前に定めた判断基準「全体時間の中央値が明らかに短い方を採る」により DELETE を採用した。
   対象テーブルはテストのたびに数行〜0行というほぼ空の状態で実行されるため、TRUNCATE の
   ACCESS EXCLUSIVE ロック取得・カタログ更新のコストが、DELETE の行ロック・行削除のコストより
   相対的に高くなったためと考えられる。
+  - この比較時点の DELETE中央値 32.81s は、TRUNCATE/DELETE を切り替える一時的な環境変数
+    （`SS141_CLEANUP`）と `_truncate_all` がまだコード上に残っていた状態での計測。
+    上の表（計測結果）の DELETE 行 **30.52s** は、その切り替えコードを削除した最終版
+    conftest.py で改めて計測し直した値であり、同じ実行を指しているわけではない
+    （別の計測回。切り替え分岐の除去でわずかに速くなっている）。
 - **DELETE の安定性**: 死んだタプルの蓄積による `ORDER BY` の無いクエリの並び順の揺れを
   懸念していたが、比較時の3回 + 採用後の安定性確認2回 + 追加の連続実行3回、合計8回の
   全件実行（1,116件 × 8）で不安定な失敗は観測されなかった。
 - **`_reset_tables`（DELETE）自体のコスト**: pytest を介さず `_delete_all()` を
   空のテーブルに対して1,116回単体実行したところ 1.81秒（1回あたり約1.62ms）だった。
-  採用方式の全体時間（中央値30.52s）に対して約6%であり、プランのステップ5
-  （「DBを触らなかったテストでは後始末を省く」最適化）の実施条件（1割超）を満たさないため、
+  採用方式の全体時間（中央値30.52s）に対して約6%であり、事前に検討していた追加の
+  最適化案（「DBを触らなかったテストでは後始末を省く」）の実施条件（後始末の合計が
+  全体時間の1割を超える場合のみ検討する、という事前に定めた基準）を満たさないため、
   この最適化は実施していない。
 
 ## 検討した選択肢
@@ -172,7 +196,7 @@
   実装になるため、「別セッションから見えるか」「複数スレッドでのFOR UPDATE直列化」
   「一意制約違反からの冪等な再取得」を検証しているテスト（決定5に列挙）の前提が崩れ、
   それらのテストが実質的に無意味になる。書き換えれば対応できなくはないが、
-  「テストコード本体は変えない」というプランの制約と、検証している内容（実DBの並行制御）の
+  「テストコード本体は変えない」という事前の制約と、検証している内容（実DBの並行制御）の
   価値を優先し、不採用とした。
 
 ### 選択肢E: pytest-xdist による並列化
@@ -185,8 +209,8 @@
 ## 決定理由
 
 - 「全体時間の中央値が明らかに短い方を採る。差が誤差（3%以内）ならTRUNCATEを採る」という
-  プランの判断基準に従った。DELETEとTRUNCATEの差（約31%短縮）は誤差の範囲を明らかに超えていた
-  ため、DELETEを採用した。
+  事前に定めた判断基準に従った。DELETEとTRUNCATEの差（約31%短縮）は誤差の範囲を明らかに
+  超えていたため、DELETEを採用した。
 - テストの独立性（外側トランザクション+savepoint案を採らない理由）を、実行速度より優先した。
   「別セッションから見えるか」「行ロックの直列化」「一意制約違反時の挙動」は実DBの並行制御の
   正しさを検証する目的で書かれたテストであり、これらの意味を保つことを速度より優先すべきと
@@ -209,9 +233,9 @@
   理論上不安定になりうる（選択肢Cのデメリット参照）。今回の計測（8回の全件実行）では
   再現しなかったが、将来こうしたテストが発生した場合は「明示的に`ORDER BY`を付けて
   結果を安定させる」ことを個別のテスト側で対応する（DBの並び順を保証と誤認しない）。
-- `_test_db_schema`・`_reset_tables`はいずれも`test_engine`（DBの実接続）を直接操作するため、
-  今後この2つのfixtureの実行順序（`_test_db_schema`が先、`_reset_tables`が後）を崩す変更を
-  conftestに加える場合は注意が必要。
+- `_setup_test_db_schema`・`_reset_tables`はいずれも`test_engine`（DBの実接続）を直接操作
+  するため、今後この2つのfixtureの実行順序（`_setup_test_db_schema`が先、`_reset_tables`が
+  後）を崩す変更をconftestに加える場合は注意が必要。
 
 ### 移行・対応が必要な事項
 
@@ -225,8 +249,8 @@
 ## 関連情報
 
 - 課題 SS-141（本ADRの実装元）
-- [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   — 本ADRのきっかけとなったPR #103のレビュー（F-005）が出たADR
-- `packages/backend/src/sanposcape/conftest.py` — 実装本体（`_test_db_schema`/`_reset_tables`）
+- `packages/backend/src/sanposcape/conftest.py` — 実装本体（`_setup_test_db_schema`/`_reset_tables`）
 - `packages/backend/docs/folder-structure.md` — テストファイルの配置とテスト用DBの分離方式
 - `.github/workflows/backend-ci.yml` — CIでのテスト用DBの構成
