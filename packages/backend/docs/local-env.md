@@ -145,7 +145,7 @@ docker compose up -d --build
 - 開発用DB（`DB_NAME`）とテスト用DB（`TEST_DB_NAME`）を分離している。
 - テスト用DBは `db` コンテナ初回起動時に `scripts/init-test-db.sh` で作成される。
 - テスト用DBのスキーマは pytest の session スコープで1回だけ作り、各テストの前にテーブルの
-  中身を DELETE で空にする（[ADR-011](../../../docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md)）。
+  中身を DELETE で空にする（[ADR-B-001](./adr/ADR-B-001-test-db-isolation-by-table-reset.md)）。
 
 ## 認証（`AUTH_MODE` と関連 env）
 

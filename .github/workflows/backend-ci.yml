@@ -58,7 +58,7 @@ jobs:
       DB_PASSWORD: password
       DB_NAME: app
       # CI ではサービスの既定DBをテスト用に流用（テスト開始時に drop_all/create_all、
-      # 各テストの前に DELETE でテーブルの中身を空にする。SS-141, ADR-011）
+      # 各テストの前に DELETE でテーブルの中身を空にする。SS-141, ADR-B-001）
       TEST_DB_NAME: app
       ENV: test
       AUTH_MODE: real # 既定が real であることを CI でも踏襲（dev router 404 のテストが成立する）

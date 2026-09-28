@@ -249,7 +249,19 @@ packages/backend/
 - テスト用DBの分離方式: スキーマは pytest の session スコープで1回だけ作り、各テストの前に
   テーブルの中身を DELETE で空にする（テストごとに `create_all`/`drop_all` はしない）。
   テストは実際に commit してよく、テスト中に DDL は実行しない。詳細は
-  [ADR-011](../../../docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md) を参照。
+  [ADR-B-001](./adr/ADR-B-001-test-db-isolation-by-table-reset.md) を参照。
+  - 約束事: テスト中に DDL（`CREATE`/`ALTER`/`DROP`/`TRUNCATE`等）を実行しない。
+  - 約束事: session/module スコープの fixture で DB にデータを入れない（入れても各テストの
+    前に消える）。
+  - 約束事: PostGIS 等の拡張を追加するとき、または migration で投入するマスタデータに
+    依存するモデルを追加するときは、`_delete_all` の対象（`Base.metadata.sorted_tables`）と
+    seed/拡張由来データの扱いを見直す。
+  - トラブルシューティング: `lock_timeout` 超過でテストが失敗した場合、原因は多くの場合
+    「直前まで実行されていた別のテストが接続を閉じ忘れ `idle in transaction` のまま
+    残っている」ことにあり、失敗自体は「たまたま次に実行された無関係なテスト」の setup
+    として現れる。テスト用DBで
+    `SELECT pid, state, query, state_change FROM pg_stat_activity WHERE state = 'idle in transaction';`
+    を実行し、長時間 `idle in transaction` の接続を探す（詳細は ADR-B-001 決定4）。
 
 ## コマンド実行
 
