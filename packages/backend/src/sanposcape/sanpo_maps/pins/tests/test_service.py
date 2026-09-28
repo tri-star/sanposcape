@@ -1,0 +1,1775 @@
+import logging
+import threading
+import time
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy.orm import Session
+
+import sanposcape.sanpo_maps.pins.service
+from sanposcape.conftest import TestSessionLocal
+from sanposcape.integrations.aws.s3 import (
+    FakeObjectStorage,
+    ObjectStorageUnavailableError,
+    PresignedUploadForm,
+    UnconfiguredObjectStorage,
+)
+from sanposcape.sanpo_maps.conftest import (
+    create_pin_photo_row,
+    create_upload_row,
+    make_user,
+    seed_staging_photo,
+)
+from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
+from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
+from sanposcape.sanpo_maps.maps.service import SanpoMapService
+from sanposcape.sanpo_maps.models import SanpoMapMember
+from sanposcape.sanpo_maps.photos.photo_attacher import PhotoAttacher, PreparedPhoto
+from sanposcape.sanpo_maps.pins.exceptions import (
+    PinNotFoundError,
+    PinPhotoNotFoundError,
+    PinPhotoTooLargeError,
+    PinPhotoUploadNotReadyError,
+    PinTagLimitExceededError,
+    StorageQuotaExceededError,
+    TooManyPendingUploadsError,
+)
+from sanposcape.sanpo_maps.pins.repository import PinPhotoUploadRepository, PinRepository
+from sanposcape.sanpo_maps.pins.schemas import (
+    PinCreate,
+    PinListQuery,
+    PinPhotosAdd,
+    PinPhotoUploadCreate,
+    PinUpdate,
+)
+from sanposcape.sanpo_maps.pins.service import PinPhotoUploadService, PinService
+from sanposcape.users.models import User
+
+BASE_URL = "http://testserver/"
+_LOCK_WAIT_TIMEOUT = 5.0
+
+
+def make_upload_service(
+    db_session: Session, storage: FakeObjectStorage, **overrides
+) -> PinPhotoUploadService:
+    kwargs = {
+        "max_byte_size": 10 * 1024 * 1024,
+        "user_quota_bytes": 1024**3,
+        "max_pending_uploads": 30,
+        "upload_url_ttl_seconds": 600,
+        "attach_ttl_seconds": 21_600,
+    }
+    kwargs.update(overrides)
+    return PinPhotoUploadService(
+        db_session, PinPhotoUploadRepository(db_session), storage, **kwargs
+    )
+
+
+def make_pin_service(db_session: Session, storage: FakeObjectStorage, **overrides) -> PinService:
+    kwargs = {
+        "user_quota_bytes": 1024**3,
+        "confirm_deadline_seconds": 20,
+        "read_photos_limit": 10,
+        "download_url_ttl_seconds": 3600,
+        "photo_delete_deadline_seconds": 10,
+        "photo_delete_call_worst_case_seconds": 6,
+    }
+    kwargs.update(overrides)
+    photo_attacher = PhotoAttacher(
+        storage,
+        max_bytes=10 * 1024 * 1024,
+        max_pixels=1_000_000,
+        thumbnail_max_edge=512,
+        thumbnail_quality=80,
+        concurrency=3,
+    )
+    return PinService(
+        db_session,
+        PinRepository(db_session),
+        PinPhotoUploadRepository(db_session),
+        SanpoMapService(db_session, SanpoMapRepository(db_session)),
+        photo_attacher,
+        storage,
+        **kwargs,
+    )
+
+
+class TestPinPhotoUploadServiceCreateUpload:
+    def test_creates_upload_and_returns_presigned_form(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_upload_service(db_session, storage)
+
+        result = service.create_upload(
+            user, PinPhotoUploadCreate(content_type="image/jpeg", byte_size=1000), base_url=BASE_URL
+        )
+
+        assert result.max_byte_size == 10 * 1024 * 1024
+        assert result.upload.fields["key"].startswith(f"staging/pins/{user.id}/")
+
+    def test_logs_upload_id_and_key_without_leaking_form_fields(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """直送は backend を通らないため、発行した枠とキーはログに残す必要がある
+        （ADR-009 決定13）。一方 `form.fields` は policy・署名・一時認証情報を含むため、
+        1つでもログに出したら失敗させる（`integrations/aws/tests/test_secrets.py` と同じ流儀）。
+        """
+        user = make_user(db_session, subject="u1")
+
+        class SentinelFieldsStorage(FakeObjectStorage):
+            """`fields` の値を一目で分かる番兵にしたストレージ。
+
+            `FakeObjectStorage` の素の `fields` は `x-fake-max-bytes=10485760` のように
+            ログの別項目（`max_bytes`）と偶然一致する値を含み、部分文字列一致の検査が
+            誤検知する。実 S3 の `policy` / `x-amz-signature` 相当が漏れていないことだけを
+            確かめたいので、衝突しない値に置き換える。
+            """
+
+            def create_upload_form(self, **kwargs: object) -> PresignedUploadForm:
+                form = super().create_upload_form(**kwargs)  # type: ignore[arg-type]
+                fields = dict(form.fields)
+                for name in fields:
+                    if name not in ("key", "Content-Type"):
+                        fields[name] = f"SENTINEL-{name}-must-not-be-logged"
+                return PresignedUploadForm(url=form.url, fields=fields)
+
+        storage = SentinelFieldsStorage(secret="s" * 32)
+        service = make_upload_service(db_session, storage)
+
+        with caplog.at_level(logging.INFO, logger="sanposcape.sanpo_maps.pins.service"):
+            result = service.create_upload(
+                user,
+                PinPhotoUploadCreate(content_type="image/jpeg", byte_size=1000),
+                base_url=BASE_URL,
+            )
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert any(str(result.upload_id) in message for message in messages)
+        assert any(result.upload.fields["key"] in message for message in messages)
+        # `key` と `Content-Type` は意図的にログしている（上で検証済み）。残りは policy・署名・
+        # 一時認証情報の類で、1つでも出ていたら漏洩とみなす。
+        logged_on_purpose = {"key", "Content-Type"}
+        secret_values = [
+            value for name, value in result.upload.fields.items() if name not in logged_on_purpose
+        ]
+        assert secret_values, "検証対象の fields が空では回帰テストとして意味がない"
+        for value in secret_values:
+            assert all(value not in message for message in messages), (
+                f"presigned POST の fields がログに漏れている: {value[:16]}..."
+            )
+
+    def test_too_large_raises(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_upload_service(db_session, storage, max_byte_size=100)
+
+        with pytest.raises(PinPhotoTooLargeError):
+            service.create_upload(
+                user,
+                PinPhotoUploadCreate(content_type="image/jpeg", byte_size=200),
+                base_url=BASE_URL,
+            )
+
+    def test_pending_limit_raises(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        create_upload_row(db_session, user_id=user.id)
+        service = make_upload_service(db_session, storage, max_pending_uploads=1)
+
+        with pytest.raises(TooManyPendingUploadsError):
+            service.create_upload(
+                user,
+                PinPhotoUploadCreate(content_type="image/jpeg", byte_size=100),
+                base_url=BASE_URL,
+            )
+
+    def test_quota_exceeded_raises(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_upload_service(db_session, storage, user_quota_bytes=100)
+
+        with pytest.raises(StorageQuotaExceededError):
+            service.create_upload(
+                user,
+                PinPhotoUploadCreate(content_type="image/jpeg", byte_size=200),
+                base_url=BASE_URL,
+            )
+
+    def test_quota_exactly_at_limit_succeeds(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_upload_service(db_session, storage, user_quota_bytes=100)
+
+        result = service.create_upload(
+            user, PinPhotoUploadCreate(content_type="image/jpeg", byte_size=100), base_url=BASE_URL
+        )
+        assert result.upload_id is not None
+
+
+class TestPinServiceCreatePin:
+    def test_creates_pin_without_photos_in_default_map(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        payload = PinCreate(
+            client_pin_id=uuid.uuid4(),
+            location={"latitude": 35.0, "longitude": 139.0},
+        )
+
+        pin_read, created = service.create_pin(user, payload, base_url=BASE_URL)
+
+        assert created is True
+        assert pin_read.sanpo_map.name == "最初の地図"
+        assert pin_read.sanpo_map.is_default is True
+        assert pin_read.photos == []
+        assert pin_read.photo_count == 0
+
+    def test_idempotent_resend_returns_existing_without_reprocessing(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        client_pin_id = uuid.uuid4()
+        first, _ = service.create_pin(
+            user,
+            PinCreate(
+                client_pin_id=client_pin_id, location={"latitude": 1, "longitude": 1}, name="A"
+            ),
+            base_url=BASE_URL,
+        )
+
+        second, created = service.create_pin(
+            user,
+            PinCreate(
+                client_pin_id=client_pin_id, location={"latitude": 2, "longitude": 2}, name="B"
+            ),
+            base_url=BASE_URL,
+        )
+
+        assert created is False
+        assert second.id == first.id
+        assert second.name == "A"
+
+    def test_explicit_sanpo_map_not_member_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        service = make_pin_service(db_session, storage)
+
+        with pytest.raises(SanpoMapNotFoundError):
+            service.create_pin(
+                stranger,
+                PinCreate(
+                    client_pin_id=uuid.uuid4(),
+                    sanpo_map_id=sanpo_map.id,
+                    location={"latitude": 0, "longitude": 0},
+                ),
+                base_url=BASE_URL,
+            )
+
+    def test_creates_pin_with_photo_and_thumbnail(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        service = make_pin_service(db_session, storage)
+
+        pin_read, created = service.create_pin(
+            user,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                location={"latitude": 0, "longitude": 0},
+                photo_upload_ids=[upload_id],
+            ),
+            base_url=BASE_URL,
+        )
+
+        assert created is True
+        assert pin_read.photo_count == 1
+        assert pin_read.photos[0].thumbnail is not None
+        assert pin_read.photos[0].width == 100
+        assert pin_read.photos[0].height == 100
+
+        # 確定後は upload の status が attached になっている。
+        uploads = PinPhotoUploadRepository(db_session).lock_for_attach(
+            user_id=user.id, upload_ids=[upload_id]
+        )
+        assert uploads[0].status == "attached"
+        # staging は best-effort で削除される。
+        assert storage.head(f"staging/pins/{user.id}/{upload_id}.jpg") is None
+
+    def test_invalid_photo_upload_raises_not_ready_and_creates_nothing(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        client_pin_id = uuid.uuid4()
+
+        with pytest.raises(PinPhotoUploadNotReadyError):
+            service.create_pin(
+                user,
+                PinCreate(
+                    client_pin_id=client_pin_id,
+                    location={"latitude": 0, "longitude": 0},
+                    photo_upload_ids=[uuid.uuid4()],  # 存在しない枠
+                ),
+                base_url=BASE_URL,
+            )
+
+        assert (
+            PinRepository(db_session).get_by_client_pin_id(
+                user_id=user.id, client_pin_id=client_pin_id
+            )
+            is None
+        )
+
+    def test_other_users_upload_raises_not_ready(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload = create_upload_row(db_session, user_id=owner.id)
+        service = make_pin_service(db_session, storage)
+
+        with pytest.raises(PinPhotoUploadNotReadyError):
+            service.create_pin(
+                stranger,
+                PinCreate(
+                    client_pin_id=uuid.uuid4(),
+                    location={"latitude": 0, "longitude": 0},
+                    photo_upload_ids=[upload.id],
+                ),
+                base_url=BASE_URL,
+            )
+
+    def test_expired_upload_raises_not_ready(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload = create_upload_row(
+            db_session, user_id=user.id, expires_at=datetime.now(UTC) - timedelta(seconds=1)
+        )
+        service = make_pin_service(db_session, storage)
+
+        with pytest.raises(PinPhotoUploadNotReadyError):
+            service.create_pin(
+                user,
+                PinCreate(
+                    client_pin_id=uuid.uuid4(),
+                    location={"latitude": 0, "longitude": 0},
+                    photo_upload_ids=[upload.id],
+                ),
+                base_url=BASE_URL,
+            )
+
+    def test_real_size_over_quota_raises_storage_quota_exceeded(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload_id = uuid.uuid4()
+        data = seed_staging_photo(storage, user_id=user.id, upload_id=upload_id, size=(100, 100))
+        # 申告値は小さいが実サイズ (len(data)) は容量を超える設定にする。
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id, declared_byte_size=1)
+        service = make_pin_service(db_session, storage, user_quota_bytes=len(data) - 1)
+
+        with pytest.raises(StorageQuotaExceededError):
+            service.create_pin(
+                user,
+                PinCreate(
+                    client_pin_id=uuid.uuid4(),
+                    location={"latitude": 0, "longitude": 0},
+                    photo_upload_ids=[upload_id],
+                ),
+                base_url=BASE_URL,
+            )
+
+
+class TestPinServiceAddPhotos:
+    def _create_pin(self, db_session: Session, storage: FakeObjectStorage, user) -> uuid.UUID:
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        return pin_read.id
+
+    def test_adds_photo_with_incrementing_position(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id = self._create_pin(db_session, storage, user)
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        service = make_pin_service(db_session, storage)
+
+        result = service.add_photos(
+            user, pin_id, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+        )
+
+        assert result.photo_count == 1
+        assert result.items[0].position == 0
+
+    def test_resend_of_already_attached_upload_succeeds(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id = self._create_pin(db_session, storage, user)
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        service = make_pin_service(db_session, storage)
+        service.add_photos(
+            user, pin_id, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+        )
+
+        result = service.add_photos(
+            user, pin_id, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+        )
+
+        assert result.photo_count == 1
+
+    def test_upload_attached_to_different_pin_raises_not_ready(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id_a = self._create_pin(db_session, storage, user)
+        pin_id_b = self._create_pin(db_session, storage, user)
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        service = make_pin_service(db_session, storage)
+        service.add_photos(
+            user, pin_id_a, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+        )
+
+        with pytest.raises(PinPhotoUploadNotReadyError):
+            service.add_photos(
+                user, pin_id_b, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+            )
+
+    def test_non_member_pin_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id = self._create_pin(db_session, storage, owner)
+        service = make_pin_service(db_session, storage)
+
+        with pytest.raises(PinNotFoundError):
+            service.add_photos(
+                stranger, pin_id, PinPhotosAdd(photo_upload_ids=[uuid.uuid4()]), base_url=BASE_URL
+            )
+
+    def test_missing_pin_raises_not_found(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+
+        with pytest.raises(PinNotFoundError):
+            service.add_photos(
+                user, uuid.uuid4(), PinPhotosAdd(photo_upload_ids=[uuid.uuid4()]), base_url=BASE_URL
+            )
+
+    def test_response_photos_are_ordered_by_requested_upload_ids(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id = self._create_pin(db_session, storage, user)
+        upload_ids = [uuid.uuid4() for _ in range(3)]
+        for upload_id in upload_ids:
+            seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+            create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        service = make_pin_service(db_session, storage)
+
+        # 逆順に指定しても、応答はリクエストした順で返る。
+        requested = list(reversed(upload_ids))
+        result = service.add_photos(
+            user, pin_id, PinPhotosAdd(photo_upload_ids=requested), base_url=BASE_URL
+        )
+
+        assert [item.upload_id for item in result.items] == requested
+        assert result.photo_count == 3
+
+
+def _make_prepared_photo(*, user_id: uuid.UUID, upload_id: uuid.UUID) -> PreparedPhoto:
+    """DB書き込みだけを検証するテスト用のフェイク（S3への実書き込みは行わない）。"""
+    return PreparedPhoto(
+        upload_id=upload_id,
+        staging_key=f"staging/pins/{user_id}/{upload_id}.jpg",
+        original_key=f"original/pins/{user_id}/{upload_id}.jpg",
+        thumbnail_key=f"thumb/pins/{user_id}/{upload_id}/512.jpg",
+        content_type="image/jpeg",
+        byte_size=100,
+        width=10,
+        height=10,
+        thumbnail_bytes=b"x",
+        thumbnail_byte_size=1,
+        thumbnail_width=5,
+        thumbnail_height=5,
+    )
+
+
+class TestCreatePinTrueConcurrentIdempotentResend:
+    """R1 の回帰テスト（Critical）。
+
+    `backend-plan.md` 5.5 手順3 / ADR-003 決定3 が要求する「アップロード枠が真に同時な
+    再送で `attached` 済みでも、紐付け先が同じ `client_pin_id` のピンなら成功として
+    既存ピンを返す」契約を検証する。`threading.Thread` + 別 `Session`（= 別コネクション）
+    で実DB（PostgreSQL）上の真の競合を再現する
+    （`walks/tests/test_repository.py::TestDeleteConcurrentRace` と同じ手法）。
+
+    holder は「1回目のリクエストが確定処理を終えて commit する直前」を、実際の
+    `PhotoAttacher`（S3 I/O）を経由せず repository 呼び出しで直接模する。これにより
+    `PinPhotoUploadRepository.lock_for_attach()`（`FOR UPDATE`）の行ロックを、waiter の
+    `PinService.create_pin()` が本物のロック待ちとして経験することだけを検証対象にする。
+    """
+
+    def test_second_request_returns_existing_pin_instead_of_409(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="race-user")
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=user.id, name="最初の地図", is_default=True
+        )
+        db_session.commit()
+        client_pin_id = uuid.uuid4()
+        user_id = user.id
+        sanpo_map_id = sanpo_map.id
+
+        holder_locked = threading.Event()
+        holder_may_commit = threading.Event()
+        results: dict[str, object] = {}
+        errors: list[BaseException] = []
+
+        def _holder() -> None:
+            session = TestSessionLocal()
+            try:
+                upload_repo = PinPhotoUploadRepository(session)
+                pin_repo = PinRepository(session)
+                # 実際の1回目のリクエストが `_prepare_photos` の `lock_for_attach` で
+                # 行ロックを取得した状態を再現する（未コミット。行ロックを保持したまま待機）。
+                upload_repo.lock_for_attach(user_id=user_id, upload_ids=[upload_id])
+                holder_locked.set()
+                holder_may_commit.wait(timeout=_LOCK_WAIT_TIMEOUT)
+                # 検証・サムネイル生成・Copy を終えて DB 書き込み・commit する直前の状態を
+                # 模す（S3 側の中身はこのテストの検証対象ではないため実際には書き込まない）。
+                pin, created = pin_repo.create(
+                    sanpo_map_id=sanpo_map_id,
+                    created_by_user_id=user_id,
+                    client_pin_id=client_pin_id,
+                    name="A",
+                    memo=None,
+                    latitude=0,
+                    longitude=0,
+                    client_walk_id=None,
+                )
+                if not created:
+                    raise AssertionError("holder should be the first to create the pin")
+                pin_repo.add_photos(
+                    pin_id=pin.id,
+                    uploaded_by_user_id=user_id,
+                    prepared=[_make_prepared_photo(user_id=user_id, upload_id=upload_id)],
+                    start_position=0,
+                )
+                upload_repo.mark_attached(upload_ids=[upload_id], attached_at=datetime.now(UTC))
+                session.commit()
+                results["holder_pin_id"] = pin.id
+            except BaseException as exc:  # noqa: BLE001 - スレッド内例外をテスト本体に伝える
+                errors.append(exc)
+                holder_locked.set()
+            finally:
+                session.close()
+
+        def _waiter() -> None:
+            session = TestSessionLocal()
+            try:
+                waiter_user = session.get(User, user_id)
+                if waiter_user is None:
+                    raise AssertionError("user not found in waiter session")
+                service = make_pin_service(session, storage)
+                pin_read, created = service.create_pin(
+                    waiter_user,
+                    PinCreate(
+                        client_pin_id=client_pin_id,
+                        sanpo_map_id=sanpo_map_id,
+                        location={"latitude": 0, "longitude": 0},
+                        photo_upload_ids=[upload_id],
+                    ),
+                    base_url=BASE_URL,
+                )
+                results["waiter_created"] = created
+                results["waiter_pin_id"] = pin_read.id
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+            finally:
+                session.close()
+
+        holder_thread = threading.Thread(target=_holder)
+        waiter_thread = threading.Thread(target=_waiter)
+
+        holder_thread.start()
+        assert holder_locked.wait(timeout=_LOCK_WAIT_TIMEOUT), "holder が行ロックを取得できなかった"
+        waiter_thread.start()
+
+        # waiter が holder の行ロックで実際にブロックされていることを確認する
+        # （早期完了は行ロックによる競合再現に失敗している証拠）。
+        time.sleep(0.3)
+        assert "waiter_created" not in results, (
+            "waiter が holder の commit 前に完了した(競合の再現に失敗)"
+        )
+
+        holder_may_commit.set()
+        holder_thread.join(timeout=_LOCK_WAIT_TIMEOUT)
+        waiter_thread.join(timeout=_LOCK_WAIT_TIMEOUT)
+
+        assert not holder_thread.is_alive(), "holder スレッドがタイムアウトした"
+        assert not waiter_thread.is_alive(), "waiter スレッドがタイムアウトした"
+        assert not errors, f"スレッド内で例外が発生した: {errors}"
+        assert results["waiter_created"] is False  # 409 ではなく 200 相当（既存ピンを返す）
+        assert results["waiter_pin_id"] == results["holder_pin_id"]
+
+
+class TestAddPhotosConcurrentIdempotentResendFallback:
+    """R1 の回帰テスト（add_photos 側）。
+
+    architecture レビューの指摘どおり、`add_photos()` も `_prepare_photos()` が
+    `PinPhotoUploadNotReadyError` を送出した場合に `find_attachments()` で
+    「対象ピンに実際に紐付いたか」を再確認し、紐付いていれば成功応答に倒す
+    （事前チェックをすり抜けてロック待ちに入った場合の安全網）。
+    """
+
+    def test_falls_back_to_success_when_already_attached_to_target_pin_after_lock_wait(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        pin_id = pin_read.id
+        upload_id = uuid.uuid4()
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+
+        # 事前チェック（`list_photos`/`find_attachments`）はまだ「未紐付け」を見る
+        # スナップショットのまま、`_prepare_photos` 内部の `lock_for_attach` だけが
+        # 「ロック待ちの末に見つけたら既に対象ピンへ attached 済みだった」状態を
+        # 再現する: `PinPhotoUploadRepository.lock_for_attach` を差し替え、呼ばれた
+        # 時点で（真に同時なリクエストが commit した後を模して）直接 attach してしまう。
+        real_lock_for_attach = PinPhotoUploadRepository.lock_for_attach
+
+        def fake_lock_for_attach(self, *, user_id, upload_ids):  # noqa: ANN001
+            uploads = real_lock_for_attach(self, user_id=user_id, upload_ids=upload_ids)
+            PinRepository(db_session).add_photos(
+                pin_id=pin_id,
+                uploaded_by_user_id=user_id,
+                prepared=[_make_prepared_photo(user_id=user_id, upload_id=upload_id)],
+                start_position=0,
+            )
+            self.mark_attached(upload_ids=upload_ids, attached_at=datetime.now(UTC))
+            # `mark_attached` は Core の `update()` なので、既に読み込み済みの ORM
+            # オブジェクト（`uploads`）には自動反映されない。呼び出し元（`_prepare_photos`）
+            # が「ロック取得後に読み直したら attached だった」を観測できるよう明示的に
+            # refresh する（同一トランザクション内なので commit 前でも読める）。
+            for upload in uploads:
+                db_session.refresh(upload)
+            return uploads
+
+        monkeypatch.setattr(PinPhotoUploadRepository, "lock_for_attach", fake_lock_for_attach)
+
+        result = service.add_photos(
+            user, pin_id, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+        )
+
+        assert result.photo_count == 1
+        assert result.items[0].upload_id == upload_id
+
+
+class TestPinServiceObjectStorageFailure:
+    """R2/R3 の回帰テスト。
+
+    確定処理（`commit()`）が `ObjectStorageUnavailableError` を送出した場合、
+    `PinService.create_pin` はそれをそのまま伝播させ（router で503に変換される）、
+    DBはロールバックされて中間状態（写真の欠けたピン）を残さないことを確認する。
+    """
+
+    def test_create_pin_propagates_storage_failure_and_rolls_back(
+        self, db_session: Session
+    ) -> None:
+        class FailingPutStorage(FakeObjectStorage):
+            """`commit()` フェーズ（サムネイル Put）だけを失敗させる。`seed_staging_photo()`
+            が使う staging への Put は成功させ、確定処理の Copy 前に失敗させる。
+            """
+
+            def put_bytes(self, key: str, data: bytes, *, content_type: str) -> None:
+                if key.startswith("thumb/"):
+                    raise ObjectStorageUnavailableError("boom")
+                super().put_bytes(key, data, content_type=content_type)
+
+        user = make_user(db_session, subject="u1")
+        storage = FailingPutStorage(secret="s" * 32)
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id)
+        service = make_pin_service(db_session, storage)
+        client_pin_id = uuid.uuid4()
+
+        with pytest.raises(ObjectStorageUnavailableError):
+            service.create_pin(
+                user,
+                PinCreate(
+                    client_pin_id=client_pin_id,
+                    location={"latitude": 0, "longitude": 0},
+                    photo_upload_ids=[upload_id],
+                ),
+                base_url=BASE_URL,
+            )
+
+        db_session.rollback()
+        assert (
+            PinRepository(db_session).get_by_client_pin_id(
+                user_id=user.id, client_pin_id=client_pin_id
+            )
+            is None
+        )
+
+
+class TestPinServiceListPins:
+    """一覧の主な振る舞い（bbox・q・ページング等）は router テストで確認する。ここでは
+    `urls_expire_at` の注入・エラーの委譲だけを確認する。
+    """
+
+    def test_urls_expire_at_uses_injected_now(self, db_session: Session) -> None:
+        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage, now=lambda: fixed_now)
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=user.id, position=0
+        )
+
+        result = service.list_pins(
+            user, PinListQuery(sanpo_map_id=pin_read.sanpo_map.id), base_url=BASE_URL
+        )
+
+        assert len(result.items) == 1
+        cover_photo = result.items[0].cover_photo
+        assert cover_photo is not None
+        assert cover_photo.urls_expire_at == fixed_now + timedelta(seconds=3600)
+
+    def test_non_member_sanpo_map_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        service = make_pin_service(db_session, storage)
+
+        with pytest.raises(SanpoMapNotFoundError):
+            service.list_pins(stranger, PinListQuery(sanpo_map_id=sanpo_map.id), base_url=BASE_URL)
+
+
+class TestPinServiceGetPin:
+    def test_urls_expire_at_uses_injected_now(self, db_session: Session) -> None:
+        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage, now=lambda: fixed_now)
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=user.id, position=0
+        )
+
+        result = service.get_pin(user, pin_read.id, base_url=BASE_URL)
+
+        assert result.photos[0].urls_expire_at == fixed_now + timedelta(seconds=3600)
+
+    def test_non_member_pin_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+
+        with pytest.raises(PinNotFoundError):
+            service.get_pin(stranger, pin_read.id, base_url=BASE_URL)
+
+
+class TestPinServiceListPinPhotos:
+    def test_urls_expire_at_uses_injected_now(self, db_session: Session) -> None:
+        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage, now=lambda: fixed_now)
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=user.id, position=0
+        )
+
+        result = service.list_pin_photos(
+            user, pin_read.id, limit=30, cursor=None, base_url=BASE_URL
+        )
+
+        assert result.photo_count == 1
+        assert result.items[0].urls_expire_at == fixed_now + timedelta(seconds=3600)
+
+    def test_non_member_pin_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+
+        with pytest.raises(PinNotFoundError):
+            service.list_pin_photos(stranger, pin_read.id, limit=30, cursor=None, base_url=BASE_URL)
+
+
+def add_member(
+    db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, role: str
+) -> None:
+    db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role=role))
+    db_session.commit()
+
+
+def make_shared_map(db_session: Session, *, owner: User) -> uuid.UUID:
+    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+        owner_user_id=owner.id, name="共有地図", is_default=True
+    )
+    db_session.commit()
+    return sanpo_map.id
+
+
+class TestPinServiceUpdatePin:
+    def _make_pin(
+        self,
+        service: PinService,
+        user: User,
+        *,
+        sanpo_map_id: uuid.UUID,
+        name: str | None = "元の名前",
+        memo: str | None = "元のメモ",
+    ) -> uuid.UUID:
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+                name=name,
+                memo=memo,
+            ),
+            base_url=BASE_URL,
+        )
+        return pin_read.id
+
+    def test_updates_name_and_memo(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+
+        result = service.update_pin(
+            owner, pin_id, PinUpdate(name="新しい名前", memo="新しいメモ"), base_url=BASE_URL
+        )
+
+        assert result.name == "新しい名前"
+        assert result.memo == "新しいメモ"
+
+    def test_omitted_fields_are_unchanged(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+
+        result = service.update_pin(owner, pin_id, PinUpdate(name="新しい名前"), base_url=BASE_URL)
+
+        assert result.name == "新しい名前"
+        assert result.memo == "元のメモ"
+
+    def test_null_or_blank_clears_name_and_memo(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+
+        result = service.update_pin(
+            owner, pin_id, PinUpdate(name=None, memo="   "), base_url=BASE_URL
+        )
+
+        assert result.name is None
+        assert result.memo is None
+
+    def test_empty_body_is_noop(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        before = service.get_pin(owner, pin_id, base_url=BASE_URL)
+
+        after = service.update_pin(owner, pin_id, PinUpdate(), base_url=BASE_URL)
+
+        assert after.name == before.name
+        assert after.memo == before.memo
+        assert after.updated_at == before.updated_at
+
+    def test_updated_at_bumps_only_on_real_change(self, db_session: Session) -> None:
+        fixed_now = [datetime(2026, 1, 1, tzinfo=UTC)]
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage, now=lambda: fixed_now[0])
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        created = service.get_pin(owner, pin_id, base_url=BASE_URL)
+
+        fixed_now[0] = datetime(2026, 1, 2, tzinfo=UTC)
+        unchanged = service.update_pin(owner, pin_id, PinUpdate(name="元の名前"), base_url=BASE_URL)
+        assert unchanged.updated_at == created.updated_at
+
+        fixed_now[0] = datetime(2026, 1, 3, tzinfo=UTC)
+        changed = service.update_pin(owner, pin_id, PinUpdate(name="別の名前"), base_url=BASE_URL)
+        assert changed.updated_at == datetime(2026, 1, 3, tzinfo=UTC)
+
+    def test_add_tags_normalizes_and_dedupes_against_existing(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        service.update_pin(owner, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL)
+
+        result = service.update_pin(
+            owner, pin_id, PinUpdate(add_tags=["#桜", "紅葉"]), base_url=BASE_URL
+        )
+
+        assert {tag.label for tag in result.tags} == {"桜", "紅葉"}
+
+    def test_remove_tag_ids_ignores_ids_not_belonging_to_this_pin(
+        self, db_session: Session
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_a = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        pin_b = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        tag_on_b = service.update_pin(
+            owner, pin_b, PinUpdate(add_tags=["紅葉"]), base_url=BASE_URL
+        ).tags[0]
+
+        result = service.update_pin(
+            owner, pin_a, PinUpdate(remove_tag_ids=[tag_on_b.id]), base_url=BASE_URL
+        )
+
+        assert result.tags == []
+        remaining = service.get_pin(owner, pin_b, base_url=BASE_URL)
+        assert {tag.id for tag in remaining.tags} == {tag_on_b.id}
+
+    def test_swap_same_label_reassigns_creator(self, db_session: Session) -> None:
+        """同じラベルを削除と追加の両方に含めると、削除してから追加し直す（結果として
+        作成者が付け替わる, ADR-009 決定20）。owner は他人（editor）が付けたタグも
+        削除できるので、削除役と追加役が別人になる組み合わせで固定する。
+        """
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        original_tag = service.update_pin(
+            editor, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL
+        ).tags[0]
+        assert original_tag.created_by_user_id == editor.id
+
+        result = service.update_pin(
+            owner,
+            pin_id,
+            PinUpdate(remove_tag_ids=[original_tag.id], add_tags=["桜"]),
+            base_url=BASE_URL,
+        )
+
+        assert len(result.tags) == 1
+        assert result.tags[0].id != original_tag.id
+        assert result.tags[0].created_by_user_id == owner.id
+
+    def test_tag_limit_exceeded_rolls_back(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+        service.update_pin(
+            owner, pin_id, PinUpdate(add_tags=[f"tag{i}" for i in range(10)]), base_url=BASE_URL
+        )
+
+        with pytest.raises(PinTagLimitExceededError):
+            service.update_pin(owner, pin_id, PinUpdate(add_tags=["overflow"]), base_url=BASE_URL)
+
+        # commit していないので、request のライフサイクル終了時の `get_db()` の
+        # `finally: db.close()` がロールバックする（router 経由のテストで確認済み）。
+        # サービスを直接呼ぶ単体テストではそれをここで明示的に行う
+        # （`TestPinServiceObjectStorageFailure` と同じ流儀）。
+        db_session.rollback()
+
+        result = service.get_pin(owner, pin_id, base_url=BASE_URL)
+        assert len(result.tags) == 10
+
+    def test_non_creator_editor_cannot_update_name(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor_a = make_user(db_session, subject="editor-a")
+        editor_b = make_user(db_session, subject="editor-b")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.update_pin(editor_b, pin_id, PinUpdate(name="乗っ取り"), base_url=BASE_URL)
+
+        unchanged = service.get_pin(owner, pin_id, base_url=BASE_URL)
+        assert unchanged.name == "元の名前"
+
+    def test_non_creator_editor_can_add_tags(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor_a = make_user(db_session, subject="editor-a")
+        editor_b = make_user(db_session, subject="editor-b")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
+
+        result = service.update_pin(editor_b, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL)
+
+        assert {tag.label for tag in result.tags} == {"桜"}
+
+    def test_non_creator_editor_cannot_remove_others_tag(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor_a = make_user(db_session, subject="editor-a")
+        editor_b = make_user(db_session, subject="editor-b")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
+        tag = service.update_pin(
+            editor_a, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL
+        ).tags[0]
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.update_pin(
+                editor_b, pin_id, PinUpdate(remove_tag_ids=[tag.id]), base_url=BASE_URL
+            )
+
+    def test_partial_permission_failure_does_not_apply_any_change(
+        self, db_session: Session
+    ) -> None:
+        """`name` の権限が無ければ、同時に送った `add_tags` も反映されない（原子性）。"""
+        owner = make_user(db_session, subject="owner")
+        editor_a = make_user(db_session, subject="editor-a")
+        editor_b = make_user(db_session, subject="editor-b")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.update_pin(
+                editor_b, pin_id, PinUpdate(name="乗っ取り", add_tags=["桜"]), base_url=BASE_URL
+            )
+
+        result = service.get_pin(owner, pin_id, base_url=BASE_URL)
+        assert result.tags == []
+        assert result.name == "元の名前"
+
+    def test_non_member_pin_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
+
+        with pytest.raises(PinNotFoundError):
+            service.update_pin(stranger, pin_id, PinUpdate(name="X"), base_url=BASE_URL)
+
+
+class TestPinServiceDeletePin:
+    def test_deletes_pin_and_cascades_photos_and_tags(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        # commit 後は `photo` の属性が expire される（同じセッションを使っているため）。
+        # `delete_pin()` の commit より前に、検証に使うキーを控えておく。
+        assert photo.thumbnail_s3_key is not None
+        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
+        service.update_pin(owner, pin_read.id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL)
+
+        service.delete_pin(owner, pin_read.id)
+
+        with pytest.raises(PinNotFoundError):
+            service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+        assert storage.head(s3_key) is None
+        assert storage.head(thumbnail_s3_key) is None
+
+    def test_resend_after_delete_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        service.delete_pin(owner, pin_read.id)
+
+        with pytest.raises(PinNotFoundError):
+            service.delete_pin(owner, pin_read.id)
+
+    def test_owner_can_delete_others_pin(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        pin_read, _ = service.create_pin(
+            editor,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+
+        service.delete_pin(owner, pin_read.id)
+
+        with pytest.raises(PinNotFoundError):
+            service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+
+    def test_non_creator_editor_cannot_delete(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor_a = make_user(db_session, subject="editor-a")
+        editor_b = make_user(db_session, subject="editor-b")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        pin_read, _ = service.create_pin(
+            editor_a,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.delete_pin(editor_b, pin_read.id)
+
+    def test_non_member_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+
+        with pytest.raises(PinNotFoundError):
+            service.delete_pin(stranger, pin_read.id)
+
+    def test_storage_delete_failure_does_not_prevent_deletion(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+
+        def failing_delete_many(keys: list[str]) -> list[str]:
+            return list(keys)  # 全キーが削除に失敗したとして返す
+
+        storage.delete_many = failing_delete_many  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+            service.delete_pin(owner, pin_read.id)  # 例外を投げない
+
+        with pytest.raises(PinNotFoundError):
+            service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+        assert any("Failed to delete" in record.getMessage() for record in caplog.records)
+
+    def test_unexpected_storage_exception_does_not_prevent_deletion(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """R3: `ObjectStorageUnavailableError` 以外の想定外の例外（実装のバグ等）でも、
+        DB commit 後の best-effort 境界では 500 にならず、WARNING ログに留める。
+        """
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+
+        def raising_delete_many(keys: list[str]) -> list[str]:
+            raise RuntimeError("boom")
+
+        storage.delete_many = raising_delete_many  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+            service.delete_pin(owner, pin_read.id)  # 例外を投げない
+
+        with pytest.raises(PinNotFoundError):
+            service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+        assert any(
+            "Failed to delete" in record.getMessage() and "RuntimeError" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_unconfigured_storage_does_not_prevent_deletion(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        creation_storage = FakeObjectStorage(secret="s" * 32)
+        creation_service = make_pin_service(db_session, creation_storage)
+        pin_read, _ = creation_service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session,
+            creation_storage,
+            pin_id=pin_read.id,
+            uploaded_by_user_id=owner.id,
+            position=0,
+        )
+        unconfigured_service = make_pin_service(db_session, UnconfiguredObjectStorage())
+
+        unconfigured_service.delete_pin(owner, pin_read.id)
+
+        with pytest.raises(PinNotFoundError):
+            unconfigured_service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+
+
+class TestPinServiceDeleteTimeBudget:
+    """`_delete_photo_keys_best_effort` の時間予算判定（ADR-009 決定22 追補, SS-112 PR #101
+    レビュー対応）。写真2枚（キー4つ）のピンを、`S3_DELETE_OBJECTS_MAX_KEYS` を2に差し替えて
+    チャンク2つに分ける。
+    """
+
+    def _create_pin_with_two_photos(
+        self, db_session: Session, storage: FakeObjectStorage, owner: User
+    ) -> tuple[uuid.UUID, list[str]]:
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo0 = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        photo1 = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=1
+        )
+        assert photo0.thumbnail_s3_key is not None
+        assert photo1.thumbnail_s3_key is not None
+        keys = [
+            photo0.s3_key,
+            photo0.thumbnail_s3_key,
+            photo1.s3_key,
+            photo1.thumbnail_s3_key,
+        ]
+        return pin_read.id, keys
+
+    @staticmethod
+    def _wrap_delete_many(storage: FakeObjectStorage) -> list[list[str]]:
+        """呼ばれたチャンクを記録しつつ、元の（実際に削除する）`delete_many` に委譲する。"""
+        chunks: list[list[str]] = []
+        original = storage.delete_many
+
+        def recording_delete_many(keys: list[str]) -> list[str]:
+            chunks.append(list(keys))
+            return original(keys)
+
+        storage.delete_many = recording_delete_many  # type: ignore[method-assign]
+        return chunks
+
+    def test_second_chunk_is_skipped_when_remaining_time_is_below_worst_case(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
+        chunks = self._wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 4.5])  # deadline_at=10, remaining=5.5 < worst_case=6
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=10,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+            service.delete_pin(owner, pin_id)
+
+        assert len(chunks) == 1
+        assert storage.head(keys[0]) is None
+        assert storage.head(keys[1]) is None
+        assert storage.head(keys[2]) is not None
+        assert storage.head(keys[3]) is not None
+        assert any(
+            "not enough time" in record.getMessage() and "2 of 4" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_second_chunk_starts_when_remaining_time_equals_worst_case(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
+        chunks = self._wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 4.0])  # deadline_at=10, remaining=6.0 == worst_case
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=10,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+            service.delete_pin(owner, pin_id)
+
+        assert len(chunks) == 2
+        for key in keys:
+            assert storage.head(key) is None
+        assert not any("not enough time" in record.getMessage() for record in caplog.records)
+
+    def test_first_chunk_is_always_attempted_regardless_of_remaining_time(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
+        chunks = self._wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 1_000.0])
+        # 締め切り(1秒) + 最悪時間(6秒) は Settings のバリデーション（<=25秒）なら通る組み合わせ
+        # だが、ここでは service に直接注入しているため Settings の検証は経由しない。
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=1,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        service.delete_pin(owner, pin_id)
+
+        # 最初のチャンクは残り時間によらず必ず試みるため実体が消え、2つ目は打ち切られる。
+        assert len(chunks) == 1
+        assert storage.head(keys[0]) is None
+        assert storage.head(keys[1]) is None
+        assert storage.head(keys[2]) is not None
+        assert storage.head(keys[3]) is not None
+
+
+class TestPinServiceDeletePhoto:
+    def test_deletes_photo_and_updates_capacity(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        # commit 後は `photo` の属性が expire される（同じセッションを使っているため）。
+        # `delete_photo()` の commit より前に、検証に使う値を控えておく。
+        assert photo.thumbnail_s3_key is not None
+        photo_id, byte_size = photo.id, photo.byte_size
+        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
+        upload_repo = PinPhotoUploadRepository(db_session)
+        before_usage = upload_repo.sum_attached_bytes(user_id=owner.id)
+
+        service.delete_photo(owner, pin_read.id, photo_id)
+
+        after_usage = upload_repo.sum_attached_bytes(user_id=owner.id)
+        assert after_usage == before_usage - byte_size
+        assert storage.head(s3_key) is None
+        assert storage.head(thumbnail_s3_key) is None
+        result = service.get_pin(owner, pin_read.id, base_url=BASE_URL)
+        assert result.photo_count == 0
+
+    def test_deletes_photo_even_when_monotonic_shows_deadline_far_exceeded(
+        self, db_session: Session
+    ) -> None:
+        """写真1枚（キー2つ）の削除は常に1チャンクで終わるため、`monotonic()` がどんな値を
+        返しても最初のチャンクとして必ず試みられる（ADR-009 決定22 追補, SS-112）。
+        """
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        monotonic_values = iter([0.0, 1_000.0])
+        service = make_pin_service(db_session, storage, monotonic=lambda: next(monotonic_values))
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        assert photo.thumbnail_s3_key is not None
+        photo_id = photo.id
+        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
+
+        service.delete_photo(owner, pin_read.id, photo_id)
+
+        assert storage.head(s3_key) is None
+        assert storage.head(thumbnail_s3_key) is None
+
+    def test_resend_after_delete_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        service.delete_photo(owner, pin_read.id, photo.id)
+
+        with pytest.raises(PinPhotoNotFoundError):
+            service.delete_photo(owner, pin_read.id, photo.id)
+
+    def test_missing_photo_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+
+        with pytest.raises(PinPhotoNotFoundError):
+            service.delete_photo(owner, pin_read.id, uuid.uuid4())
+
+    def test_photo_belonging_to_another_pin_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_a, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        pin_b, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 1, "longitude": 1}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_a.id, uploaded_by_user_id=owner.id, position=0
+        )
+
+        with pytest.raises(PinPhotoNotFoundError):
+            service.delete_photo(owner, pin_b.id, photo.id)
+
+    def test_owner_can_delete_others_photo(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=editor.id, position=0
+        )
+
+        service.delete_photo(owner, pin_read.id, photo.id)
+
+        with pytest.raises(PinPhotoNotFoundError):
+            service.delete_photo(owner, pin_read.id, photo.id)
+
+    def test_creator_editor_cannot_delete_others_photo(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        pin_read, _ = service.create_pin(
+            editor,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.delete_photo(editor, pin_read.id, photo.id)
+
+    def test_non_member_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+
+        with pytest.raises(PinNotFoundError):
+            service.delete_photo(stranger, pin_read.id, photo.id)
+
+
+class TestCountPinsForSanpoMaps:
+    """`sanpo_maps/contents.py` の `SanpoMapContents.count_pins_for_sanpo_maps()` を
+    `PinService` が満たすことの確認（ADR-009 決定29）。集計クエリ自体は
+    `test_repository.py::TestCountPinsForMaps` で検証済みのため、ここでは委譲だけを見る。
+    """
+
+    def test_delegates_to_repository(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+
+        counts = service.count_pins_for_sanpo_maps([sanpo_map_id])
+
+        assert counts == {sanpo_map_id: 1}
+
+
+class TestPrepareSanpoMapDeletion:
+    """`sanpo_maps/contents.py` の `SanpoMapContents.prepare_sanpo_map_deletion()` を
+    `PinService` が満たすことの確認（地図削除の後始末, ADR-009 決定28）。
+    """
+
+    def test_cleanup_deletes_fake_storage_objects(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_read, _ = service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        photo = create_pin_photo_row(
+            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
+        )
+        assert photo.thumbnail_s3_key is not None
+        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
+
+        cleanup = service.prepare_sanpo_map_deletion(sanpo_map_id)
+        cleanup()
+
+        assert storage.head(s3_key) is None
+        assert storage.head(thumbnail_s3_key) is None
+
+    def test_second_chunk_is_skipped_when_remaining_time_is_below_worst_case(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """`TestPinServiceDeleteTimeBudget` と同じ時間予算判定を、地図単位（複数ピンに
+        またがるキー収集）でも通ることを確認する（ADR-009 決定22 追補・決定28）。
+        """
+        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        owner = make_user(db_session, subject="owner")
+        storage = FakeObjectStorage(secret="s" * 32)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        creation_service = make_pin_service(db_session, storage)
+        pin_a, _ = creation_service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        pin_b, _ = creation_service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 1, "longitude": 1},
+            ),
+            base_url=BASE_URL,
+        )
+        photo_a = create_pin_photo_row(
+            db_session, storage, pin_id=pin_a.id, uploaded_by_user_id=owner.id, position=0
+        )
+        photo_b = create_pin_photo_row(
+            db_session, storage, pin_id=pin_b.id, uploaded_by_user_id=owner.id, position=0
+        )
+        assert photo_a.thumbnail_s3_key is not None
+        assert photo_b.thumbnail_s3_key is not None
+        all_keys = [
+            photo_a.s3_key,
+            photo_a.thumbnail_s3_key,
+            photo_b.s3_key,
+            photo_b.thumbnail_s3_key,
+        ]
+        monotonic_values = iter([0.0, 4.5])  # deadline_at=10, remaining=5.5 < worst_case=6
+        service = make_pin_service(
+            db_session,
+            storage,
+            photo_delete_deadline_seconds=10,
+            photo_delete_call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        cleanup = service.prepare_sanpo_map_deletion(sanpo_map_id)
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+            cleanup()
+
+        remaining = [key for key in all_keys if storage.head(key) is not None]
+        deleted = [key for key in all_keys if storage.head(key) is None]
+        assert len(deleted) == 2
+        assert len(remaining) == 2
+        assert any(
+            "not enough time" in record.getMessage() and "2 of 4" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_unconfigured_storage_does_not_raise(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        creation_storage = FakeObjectStorage(secret="s" * 32)
+        creation_service = make_pin_service(db_session, creation_storage)
+        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        pin_read, _ = creation_service.create_pin(
+            owner,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                sanpo_map_id=sanpo_map_id,
+                location={"latitude": 0, "longitude": 0},
+            ),
+            base_url=BASE_URL,
+        )
+        create_pin_photo_row(
+            db_session,
+            creation_storage,
+            pin_id=pin_read.id,
+            uploaded_by_user_id=owner.id,
+            position=0,
+        )
+        unconfigured_service = make_pin_service(db_session, UnconfiguredObjectStorage())
+
+        cleanup = unconfigured_service.prepare_sanpo_map_deletion(sanpo_map_id)
+        cleanup()  # 例外を投げない

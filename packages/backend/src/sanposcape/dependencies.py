@@ -16,9 +16,9 @@ from sanposcape.auth.headers import extract_bearer_token
 from sanposcape.auth.tokens import decode_access_token
 from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
-from sanposcape.pins.dependencies import get_pin_service
-from sanposcape.pins.service import PinService
-from sanposcape.sanpo_maps.contents import SanpoMapContents
+from sanposcape.sanpo_maps.maps.contents import SanpoMapContents
+from sanposcape.sanpo_maps.pins.dependencies import get_pin_service
+from sanposcape.sanpo_maps.pins.service import PinService
 from sanposcape.users.dependencies import get_user_service
 from sanposcape.users.models import User
 from sanposcape.users.service import UserService

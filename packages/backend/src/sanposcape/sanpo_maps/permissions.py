@@ -19,7 +19,7 @@ SS-113）を参照。関数の形は3種類ある。
 渡っても構造的に安全側へ倒れる。
 """
 
-from sanposcape.sanpo_maps.schemas import SanpoMapRole
+from sanposcape.sanpo_maps.maps.schemas import SanpoMapRole
 
 _WRITE_ROLES: tuple[SanpoMapRole, ...] = ("owner", "editor")
 
