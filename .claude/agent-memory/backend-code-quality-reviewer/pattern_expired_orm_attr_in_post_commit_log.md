@@ -20,10 +20,13 @@ SS-112 の `pins/service.py::delete_pin()` / `delete_photo()` は、`self._db.co
 `pins`/`users` テーブルへ余計な往復が発生する）。`update_pin()` の `self._require_read_model(pin.id)`
 （commit直後に `pin.id` へアクセス）も同型（ただしこちらは既存の `create_pin()` からの踏襲パターン）。
 
-対照的に、同じファイルの `PinPhotoUploadService.create_upload()`（ログには `upload_id`/`key`
+対照的に、`PinPhotoUploadService.create_upload()`（ログには `upload_id`/`key`
 というローカル変数だけを使い、`upload.id` 等のORM属性には触れない）と `delete_upload()`
 （`s3_key = upload.s3_key` を commit 前にローカル変数へ退避する）は、この問題を意図的に
-回避する慎重なパターンを確立している。
+回避する慎重なパターンを確立している。**SS-137 追補**: `PinPhotoUploadService` は
+`sanpo_maps/photos/service.py` へ移動し `pins/service.py`（**SS-137 追補**: `sanpo_maps/pins/
+service.py` へ移動）とは別ファイルになった。「同じファイル」という対比の前提は SS-137 時点では
+成り立たないが、両クラスがそれぞれ確立したパターンの内容自体は変わっていない。
 
 なお「削除された（`session.delete()` された）オブジェクト」自体は commit 後に expire では
 なく expunge（detach）されるため、`pin.id`（`delete_pin()` で pin 自体を削除したケース）への

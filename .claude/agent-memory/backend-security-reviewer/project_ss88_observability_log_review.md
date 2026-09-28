@@ -9,7 +9,10 @@ metadata:
 
 Reviewed 2026-09-24 on branch `tri-star/ss-88-photo-upload-fix` (`git diff 4d7f8f8..HEAD --
 packages/backend`). Added `core/observability.py` (`AccessLogMiddleware` + `configure_logging`)
-and a log line in `pins/service.py::PinPhotoUploadService.create_upload`.
+and a log line in `pins/service.py::PinPhotoUploadService.create_upload` (**SS-137 addendum**:
+`PinPhotoUploadService` moved to `sanpo_maps/photos/service.py`; logger name changed from
+`sanposcape.pins.service` to `sanposcape.sanpo_maps.photos.service`. The finding itself — what
+gets logged — is unaffected, only the file/logger name).
 
 - **Outcome**: no Critical/High/Medium/Low. Focus was "does logging leak anything" per caller's
   request — verified rather than assumed:
