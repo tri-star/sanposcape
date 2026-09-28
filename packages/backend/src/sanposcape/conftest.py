@@ -95,7 +95,7 @@ def _test_db_schema() -> Generator[None, None, None]:
       スレッドを使った FOR UPDATE の直列化（`auth/tests/test_repository.py`、
       `pins/tests/test_service.py`、`walks/tests/test_repository.py` など）、一意制約の競合
       （`users/tests/test_repository.py`）を検証するテストの意味が失われるため。
-      詳細は [ADR-011](../../../docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md)。
+      詳細は `docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md`。
     """
     Base.metadata.drop_all(bind=test_engine)
     Base.metadata.create_all(bind=test_engine)
