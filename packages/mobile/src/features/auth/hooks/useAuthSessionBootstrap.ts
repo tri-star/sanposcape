@@ -17,8 +17,8 @@ let bootstrapStarted = false;
  *   2回目がラッチで弾かれ、`status` が永久に `loading` のままになる。`AuthGate` はルートに
  *   常駐しアンマウントされないので、中断の必要が無い。タイムアウトは
  *   `createSessionAuthService` 側の `restoreTimeoutMs`（既定 10s）が持つ。
- * - `restoreSession()` を単体で二重に呼ばない（`refreshAccessToken()` の single-flight を
- *   経由しない専用経路のため、二重呼び出しは refresh token のローテーション再利用検知に触れる恐れがある）。
+ * - `restoreSession()` は API のトークン取得・更新と single-flight を共有する（SS-135）。
+ *   起動時の設定取得と重なっても refresh token を二重に送らない。
  * - 復元成功時は `createSessionAuthService` 内の `setCurrentUser` → `onSessionChange` 経由で
  *   すでにストアが `authenticated` になっているが、`setSession(user)` の再適用は冪等なので問題ない。
  *   復元失敗/未保持時は通知が飛ばないため、この hook の `setSession(null)` が唯一の
