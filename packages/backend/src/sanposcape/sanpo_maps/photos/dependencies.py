@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
 from sanposcape.integrations.aws.s3 import ObjectStorage
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.photos.service import PinPhotoUploadService
 
@@ -14,6 +15,17 @@ def get_object_storage(request: Request) -> ObjectStorage:
     router のテストはこの依存を直接差し替えられる。
     """
     return request.app.state.object_storage
+
+
+def get_photo_object_cleaner(
+    storage: ObjectStorage = Depends(get_object_storage),
+    settings: Settings = Depends(get_settings),
+) -> PhotoObjectCleaner:
+    return PhotoObjectCleaner(
+        storage,
+        deadline_seconds=settings.pin_photo_delete_deadline_seconds,
+        call_worst_case_seconds=settings.object_storage_delete_call_worst_case_seconds,
+    )
 
 
 def get_pin_photo_upload_service(

@@ -1,8 +1,6 @@
 """pins のユースケース。トランザクション境界（commit）はここが持つ。"""
 
-import functools
 import logging
-import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -15,7 +13,7 @@ from sanposcape.core.pagination import (
     encode_cursor,
     encode_position_cursor,
 )
-from sanposcape.integrations.aws.s3 import S3_DELETE_OBJECTS_MAX_KEYS, ObjectStorage
+from sanposcape.integrations.aws.s3 import ObjectStorage
 from sanposcape.sanpo_maps.exceptions import (
     PinNotFoundError,
     PinPhotoNotFoundError,
@@ -25,7 +23,7 @@ from sanposcape.sanpo_maps.exceptions import (
     SanpoMapPermissionDeniedError,
     StorageQuotaExceededError,
 )
-from sanposcape.sanpo_maps.maps.service import SanpoMapService
+from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.models import PinPhotoUpload, PinTag
 from sanposcape.sanpo_maps.permissions import (
     can_add_pin,
@@ -36,6 +34,7 @@ from sanposcape.sanpo_maps.permissions import (
     can_delete_pin_tag,
     can_update_pin,
 )
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner, flatten_photo_keys
 from sanposcape.sanpo_maps.photos.photo_attacher import (
     InvalidPhotoError,
     PhotoAttacher,
@@ -80,33 +79,29 @@ class PinService:
         db: Session,
         repository: PinRepository,
         upload_repository: PinPhotoUploadRepository,
-        sanpo_map_service: SanpoMapService,
+        sanpo_map_access: SanpoMapAccess,
         photo_attacher: PhotoAttacher,
+        photo_cleaner: PhotoObjectCleaner,
         storage: ObjectStorage,
         *,
         user_quota_bytes: int,
         confirm_deadline_seconds: float,
         read_photos_limit: int,
         download_url_ttl_seconds: int,
-        photo_delete_deadline_seconds: float,
-        photo_delete_call_worst_case_seconds: float,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
-        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._db = db
         self._repository = repository
         self._upload_repository = upload_repository
-        self._sanpo_map_service = sanpo_map_service
+        self._sanpo_map_access = sanpo_map_access
         self._photo_attacher = photo_attacher
+        self._photo_cleaner = photo_cleaner
         self._storage = storage
         self._user_quota_bytes = user_quota_bytes
         self._confirm_deadline_seconds = confirm_deadline_seconds
         self._read_photos_limit = read_photos_limit
         self._download_url_ttl_seconds = download_url_ttl_seconds
-        self._photo_delete_deadline_seconds = photo_delete_deadline_seconds
-        self._photo_delete_call_worst_case_seconds = photo_delete_call_worst_case_seconds
         self._now = now
-        self._monotonic = monotonic
 
     def create_pin(
         self, current_user: User, payload: PinCreate, *, base_url: str
@@ -125,7 +120,7 @@ class PinService:
             read_model = self._require_read_model(existing.id)
             return self._to_pin_read(read_model, current_user, base_url), False
 
-        resolved_map = self._sanpo_map_service.resolve_map_for_new_pin(
+        resolved_map = self._sanpo_map_access.resolve_map_for_new_pin(
             current_user, payload.sanpo_map_id
         )
         if not can_add_pin(resolved_map.role):
@@ -191,7 +186,7 @@ class PinService:
                 deadline_at=confirm_deadline_at,
             )
 
-        self._sanpo_map_service.mark_used(resolved_map.sanpo_map.id)
+        self._sanpo_map_access.mark_used(resolved_map.sanpo_map.id)
         self._db.commit()
 
         if prepared_photos:
@@ -209,7 +204,7 @@ class PinService:
 
         閲覧系のため commit しない（`SanpoMapService.list_maps` と同じ）。
         """
-        role = self._sanpo_map_service.get_role(current_user, query.sanpo_map_id)
+        role = self._sanpo_map_access.get_role(current_user, query.sanpo_map_id)
         if role is None:
             raise SanpoMapNotFoundError()
 
@@ -381,7 +376,7 @@ class PinService:
                     start_position=start_position,
                     deadline_at=confirm_deadline_at,
                 )
-                self._sanpo_map_service.mark_used(pin.sanpo_map_id)
+                self._sanpo_map_access.mark_used(pin.sanpo_map_id)
 
         self._db.commit()
 
@@ -508,7 +503,7 @@ class PinService:
             raise SanpoMapPermissionDeniedError()
 
         photo_key_pairs = self._repository.list_photo_keys(pin.id)
-        keys = [key for pair in photo_key_pairs for key in pair if key is not None]
+        keys = flatten_photo_keys(photo_key_pairs)
         # commit 前に控える（R2: `PinPhotoUploadService.delete_upload` と同じ流儀で、
         # commit 後は `pin_id` 引数・ここで控えた `user_id` だけを使い、ORM 属性には
         # 触れない）。
@@ -523,7 +518,7 @@ class PinService:
             user_id,
             len(photo_key_pairs),
         )
-        self._delete_photo_keys_best_effort(keys)
+        self._photo_cleaner.delete_best_effort(keys)
 
     def delete_photo(self, current_user: User, pin_id: uuid.UUID, photo_id: uuid.UUID) -> None:
         """`DELETE /pins/{pin_id}/photos/{photo_id}`: 写真1枚を削除する（ADR-009 決定19）。
@@ -556,86 +551,7 @@ class PinService:
             photo_id,
             user_id,
         )
-        self._delete_photo_keys_best_effort(keys)
-
-    def count_pins_for_sanpo_maps(self, sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
-        """`GET /sanpo-maps?expand=pin_count` 用（`sanpo_maps/contents.py` の
-        `SanpoMapContents` port, ADR-009 決定29）。読み取りのみ・commit しない。
-        """
-        return self._repository.count_pins_for_maps(sanpo_map_ids)
-
-    def prepare_sanpo_map_deletion(self, sanpo_map_id: uuid.UUID) -> Callable[[], None]:
-        """地図削除の前（地図の行ロック取得後）に写真キーを集め、commit 後に呼ぶ後始末を
-        返す（`sanpo_maps/contents.py` の `SanpoMapContents` port, ADR-009 決定28）。
-
-        認可（member・role の確認とロック）は呼び出し側（`SanpoMapService.delete_map`）が
-        既に済ませている前提（`list_photos_page()` と同じ前提の書き方）。
-        """
-        photo_key_pairs = self._repository.list_photo_keys_for_map(sanpo_map_id)
-        keys = [key for pair in photo_key_pairs for key in pair if key is not None]
-        return functools.partial(self._delete_photo_keys_best_effort, keys)
-
-    def _delete_photo_keys_best_effort(self, keys: list[str]) -> None:
-        """削除対象の S3 キーをまとめて best-effort で消す（ピン・写真・地図の削除,
-        ADR-009 決定22・決定28）。
-
-        DB は既に commit 済みのため、ここで打ち切っても整合性は壊れない（残るのは
-        「DB から参照されない S3 オブジェクト」だけで、BK-3 の定期掃除で回収できる）。
-        `PhotoAttacher.cleanup_staging()` と同じ `monotonic()` 基準の締め切りを使う。
-        `S3ObjectStorage.delete_many()` は1回で `S3_DELETE_OBJECTS_MAX_KEYS` 件を処理する
-        ため、ここでのチャンクサイズもそれに揃える（R4: このチャンク分割は「時間予算の
-        判定の粒度」を決めるためのもので、`S3ObjectStorage.delete_many()` 内部のチャンク
-        分割は「S3 `DeleteObjects` の1回あたり最大キー数という API 制約」に対応するための
-        もの。目的が違うため2箇所に分かれている）。
-
-        締め切りは「呼ぶ前だけ」ではなく、呼び出し中の S3 の時間も予算に収める
-        （ADR-009 決定22 追補, SS-112）。最初のチャンクは残り時間によらず必ず試みる
-        （写真1枚や 500枚以下のピンなど、チャンクが1つで終わるケースで設定値によらず
-        必ず S3 削除を試みるため）。2つ目以降のチャンクは、始める前に「残り時間 ≥
-        1回の最悪時間（`self._photo_delete_call_worst_case_seconds`）」を確認し、
-        満たさなければそこで打ち切る。この判定により、S3 の後始末フェーズ全体は
-        `max(締め切り, 1回の最悪時間)` 以内に収まる（`delete()`/`delete_many()` は
-        削除専用の client で呼ばれ、再試行なし・短い timeout のため1回の呼び出しが
-        有界になっている前提, `integrations/aws/s3.py`）。
-
-        `except Exception` で広く捕まえる（R3）: ここは DB commit 後の best-effort 境界
-        であり、`ObjectStorageUnavailableError` 以外の想定外の例外（実装のバグ等）が
-        飛んできても、削除 API を 500 にしてはならない（決定22「削除 API はストレージが
-        理由で失敗を返さない」という意図に反するため）。捕まえた例外は種別ごと
-        WARNING ログに残す。
-        """
-        if not keys:
-            return
-        deadline_at = self._monotonic() + self._photo_delete_deadline_seconds
-        chunk_size = S3_DELETE_OBJECTS_MAX_KEYS
-        for index, start in enumerate(range(0, len(keys), chunk_size)):
-            if index > 0:
-                remaining = deadline_at - self._monotonic()
-                if remaining < self._photo_delete_call_worst_case_seconds:
-                    logger.warning(
-                        "Skipping remaining pin photo object cleanup: not enough time before "
-                        "the delete deadline (remaining=%.1fs < per-call worst case=%.1fs; "
-                        "%d of %d objects not deleted; they remain as orphaned objects "
-                        "until BK-3)",
-                        remaining,
-                        self._photo_delete_call_worst_case_seconds,
-                        len(keys) - start,
-                        len(keys),
-                    )
-                    return
-            chunk = keys[start : start + chunk_size]
-            try:
-                failed = self._storage.delete_many(chunk)
-            except Exception as exc:  # noqa: BLE001 - commit後のbest-effort境界のため広く捕まえる
-                logger.warning(
-                    "Failed to delete %d pin photo objects: %s: %s",
-                    len(chunk),
-                    type(exc).__name__,
-                    exc,
-                )
-                continue
-            if failed:
-                logger.warning("Failed to delete %d pin photo objects: %s", len(failed), failed)
+        self._photo_cleaner.delete_best_effort(keys)
 
     def _prepare_photos(
         self, current_user: User, upload_ids: list[uuid.UUID]

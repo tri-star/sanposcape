@@ -1,13 +1,9 @@
 import logging
 import uuid
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
-from sanposcape.sanpo_maps.maps.contents import SanpoMapContents
 from sanposcape.sanpo_maps.maps.mappers import to_sanpo_map_read
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.maps.schemas import (
@@ -16,66 +12,45 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapRead,
     SanpoMapUpdate,
 )
-from sanposcape.sanpo_maps.models import SanpoMap
-from sanposcape.sanpo_maps.permissions import (
-    SanpoMapRole,
-    can_delete_sanpo_map,
-    can_update_sanpo_map,
-)
+from sanposcape.sanpo_maps.permissions import can_delete_sanpo_map, can_update_sanpo_map
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner, flatten_photo_keys
 from sanposcape.users.models import User
 
 logger = logging.getLogger(__name__)
-
-#: `sanpo_map_id` 省略時、地図を持たないユーザーに同一トランザクションで作られる地図の名前。
-#: mobile の同名定数（`FIRST_SANPO_MAP_NAME`）と一致させる（backend-plan.md 5.8）。
-FIRST_SANPO_MAP_NAME = "最初の地図"
-
-
-@dataclass(frozen=True)
-class ResolvedSanpoMap:
-    """ピン作成のために解決された地図と、リクエストユーザーの role。"""
-
-    sanpo_map: SanpoMap
-    role: SanpoMapRole
 
 
 class SanpoMapService:
     """地図(SanpoMap)に関するユースケース。
 
-    `pins → sanpo_maps` の一方向依存を保つため、この service は `pins` を import しない
-    （ADR-009 決定29）。`pins` の情報（ピン件数の集計・削除時の写真後始末）が必要な操作は
-    `sanpo_maps/contents.py` の `SanpoMapContents` port をメソッド引数で受け取る
-    （実装は `PinService` が満たし、配線はアプリ直下 `dependencies.py`、ADR-009 決定29）。
+    他の Service を import・保持・呼び出ししない（ADR-011 M3）。地図の中身（ピン件数）の
+    集計・写真キー収集は `SanpoMapRepository`、S3 の後始末は `PhotoObjectCleaner` を使う
+    （ADR-011）。
 
-    トランザクション境界（commit）: `resolve_map_for_new_pin`/`mark_used` は呼び出し元
-    （`PinService`）が commit する（ピン作成と同じトランザクションにするため）。
-    `list_maps` は読み取り専用なので commit しない。`create_map`/`update_map`/`delete_map`
-    は自分で commit する。
+    トランザクション境界（commit）: `list_maps` は読み取り専用なので commit しない。
+    `create_map`/`update_map`/`delete_map` は自分で commit する。
     """
 
     def __init__(
         self,
         db: Session,
         repository: SanpoMapRepository,
-        now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        photo_cleaner: PhotoObjectCleaner,
     ) -> None:
         self._db = db
         self._repository = repository
-        self._now = now
+        self._photo_cleaner = photo_cleaner
 
-    def list_maps(
-        self, current_user: User, *, pin_counter: SanpoMapContents | None = None
-    ) -> SanpoMapListRead:
+    def list_maps(self, current_user: User, *, include_pin_count: bool = False) -> SanpoMapListRead:
         """自分が member である地図を全件返す。
 
-        `pin_counter` を渡すと（`?expand=pin_count`）、認可済みの全 ID をまとめて1回だけ
-        `count_pins_for_sanpo_maps()` に渡し、ピンが無い地図は0として埋める。渡さなければ
+        `include_pin_count=True` のとき（`?expand=pin_count`）、認可済みの全 ID をまとめて
+        1回だけ `count_pins_for_maps()` に渡し、ピンが無い地図は0として埋める。`False` なら
         全要素 `pin_count=None`（ADR-009 決定29）。
         """
         rows = self._repository.list_for_member(user_id=current_user.id)
         pin_counts: dict[uuid.UUID, int] = {}
-        if pin_counter is not None:
-            pin_counts = pin_counter.count_pins_for_sanpo_maps(
+        if include_pin_count:
+            pin_counts = self._repository.count_pins_for_maps(
                 [sanpo_map.id for sanpo_map, _role in rows]
             )
         items = [
@@ -83,50 +58,11 @@ class SanpoMapService:
                 sanpo_map,
                 role=role,
                 current_user_id=current_user.id,
-                pin_count=pin_counts.get(sanpo_map.id, 0) if pin_counter is not None else None,
+                pin_count=pin_counts.get(sanpo_map.id, 0) if include_pin_count else None,
             )
             for sanpo_map, role in rows
         ]
         return SanpoMapListRead(items=items, next_cursor=None)
-
-    def resolve_map_for_new_pin(
-        self, current_user: User, sanpo_map_id: uuid.UUID | None
-    ) -> ResolvedSanpoMap:
-        """ピン作成用に地図を解決する。
-
-        `sanpo_map_id` 指定あり: member 行を確認し、無ければ `SanpoMapNotFoundError`（404）。
-        省略: 自分の既定地図を取得し、無ければ同一トランザクションで作成する
-        （flush のみ・commit しない。呼び出し元 `PinService.create_pin` が検証失敗時に
-        ロールバックできるようにするため。空の地図が残らない、backend-plan.md 5.5）。
-        """
-        if sanpo_map_id is not None:
-            membership = self._repository.get_membership(
-                user_id=current_user.id, sanpo_map_id=sanpo_map_id
-            )
-            if membership is None:
-                raise SanpoMapNotFoundError()
-            sanpo_map, role = membership
-            return ResolvedSanpoMap(sanpo_map=sanpo_map, role=role)
-
-        default_map = self._repository.get_default_for_owner(owner_user_id=current_user.id)
-        if default_map is not None:
-            return ResolvedSanpoMap(sanpo_map=default_map, role="owner")
-
-        created_map, _created = self._repository.create_with_owner(
-            owner_user_id=current_user.id, name=FIRST_SANPO_MAP_NAME, is_default=True
-        )
-        return ResolvedSanpoMap(sanpo_map=created_map, role="owner")
-
-    def get_role(self, current_user: User, sanpo_map_id: uuid.UUID) -> SanpoMapRole | None:
-        """写真追加 API の権限判定用。member でなければ `None`。"""
-        membership = self._repository.get_membership(
-            user_id=current_user.id, sanpo_map_id=sanpo_map_id
-        )
-        return None if membership is None else membership[1]
-
-    def mark_used(self, sanpo_map_id: uuid.UUID) -> None:
-        """ピン追加時に地図の `updated_at` を更新する（commit しない）。"""
-        self._repository.touch(sanpo_map_id=sanpo_map_id, now=self._now())
 
     def create_map(self, current_user: User, payload: SanpoMapCreate) -> SanpoMapRead:
         """`POST /sanpo-maps`: 地図を新規作成する（ADR-009 決定25・27）。
@@ -178,15 +114,12 @@ class SanpoMapService:
         self._db.commit()
         return to_sanpo_map_read(sanpo_map, role=role, current_user_id=current_user.id)
 
-    def delete_map(
-        self, current_user: User, sanpo_map_id: uuid.UUID, *, contents: SanpoMapContents
-    ) -> None:
+    def delete_map(self, current_user: User, sanpo_map_id: uuid.UUID) -> None:
         """`DELETE /sanpo-maps/{sanpo_map_id}`: 地図を削除する（ADR-009 決定28）。
 
         手順: owner 単位の advisory lock（`lock_owner()`）を取る → 地図行を `FOR UPDATE`
-        でロックして member・role を読み直す → 権限確認 →
-        `contents.prepare_sanpo_map_deletion()` で写真キーを集める（認可・ロックの後）→
-        DB 削除・既定地図の繰り上げ・commit → best-effort な後始末（commit 後、例外を
+        でロックして member・role を読み直す → 権限確認 → 写真キーを集める（認可・ロックの
+        後）→ DB 削除・既定地図の繰り上げ・commit → best-effort な後始末（commit 後、例外を
         出さない）。非冪等（2回目は 404）。
 
         `lock_owner()` は「owner → 地図行」の順で取る（`create_map` と同じ順序にして
@@ -205,7 +138,7 @@ class SanpoMapService:
         if not can_delete_sanpo_map(role):
             raise SanpoMapPermissionDeniedError()
 
-        cleanup = contents.prepare_sanpo_map_deletion(sanpo_map_id)
+        photo_keys = flatten_photo_keys(self._repository.list_photo_keys_for_map(sanpo_map_id))
 
         # commit 前に控える（R2: commit 後は expire_on_commit により ORM 属性へのアクセスが
         # 不要な SELECT を招きうるため、SS-112 の `PinService.delete_pin` と同じ流儀）。
@@ -227,4 +160,4 @@ class SanpoMapService:
             user_id,
             promoted_sanpo_map_id,
         )
-        cleanup()
+        self._photo_cleaner.delete_best_effort(photo_keys)

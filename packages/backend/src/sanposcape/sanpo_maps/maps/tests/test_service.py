@@ -1,50 +1,53 @@
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
 
 from sanposcape.conftest import TestSessionLocal
-from sanposcape.sanpo_maps.conftest import make_user
+from sanposcape.sanpo_maps.conftest import create_pin_photo_row, make_user
 from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.maps.schemas import SanpoMapCreate, SanpoMapUpdate
-from sanposcape.sanpo_maps.maps.service import FIRST_SANPO_MAP_NAME, SanpoMapService
+from sanposcape.sanpo_maps.maps.service import SanpoMapService
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.pins.repository import PinRepository
 
 
-def make_service(db_session: Session, now: datetime | None = None) -> SanpoMapService:
-    kwargs = {} if now is None else {"now": lambda: now}
-    return SanpoMapService(db_session, SanpoMapRepository(db_session), **kwargs)
-
-
-class FakeSanpoMapContents:
-    """`sanpo_maps.contents.SanpoMapContents` を満たす fake（`pins` を import しない,
-    Protocol の構造的部分型を利用する。ADR-009 決定29 と同じ理由でテストも pins に依存しない）。
+class SpyPhotoCleaner:
+    """`PhotoObjectCleaner` を duck typing で満たす spy（`delete_best_effort(keys)` の
+    呼び出しを記録するだけ、ADR-011）。継承せず構造的部分型に頼る。
     """
 
-    def __init__(self, counts: dict[uuid.UUID, int] | None = None) -> None:
-        self.counts = counts or {}
-        self.count_calls: list[list[uuid.UUID]] = []
-        self.prepared_ids: list[uuid.UUID] = []
-        self.cleanup_calls: list[uuid.UUID] = []
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+        self.on_delete: Callable[[list[str]], None] | None = None
 
-    def count_pins_for_sanpo_maps(self, sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
-        self.count_calls.append(list(sanpo_map_ids))
-        return {
-            sanpo_map_id: count
-            for sanpo_map_id, count in self.counts.items()
-            if sanpo_map_id in sanpo_map_ids
-        }
+    def delete_best_effort(self, keys: list[str]) -> None:
+        self.calls.append(list(keys))
+        if self.on_delete is not None:
+            self.on_delete(keys)
 
-    def prepare_sanpo_map_deletion(self, sanpo_map_id: uuid.UUID) -> Callable[[], None]:
-        self.prepared_ids.append(sanpo_map_id)
 
-        def cleanup() -> None:
-            self.cleanup_calls.append(sanpo_map_id)
+def make_service(
+    db_session: Session, photo_cleaner: SpyPhotoCleaner | None = None
+) -> SanpoMapService:
+    return SanpoMapService(
+        db_session, SanpoMapRepository(db_session), photo_cleaner or SpyPhotoCleaner()
+    )
 
-        return cleanup
+
+def _create_pin(db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    PinRepository(db_session).create(
+        sanpo_map_id=sanpo_map_id,
+        created_by_user_id=user_id,
+        client_pin_id=uuid.uuid4(),
+        name=None,
+        memo=None,
+        latitude=0,
+        longitude=0,
+        client_walk_id=None,
+    )
 
 
 class TestListMaps:
@@ -84,113 +87,30 @@ class TestListMaps:
         assert result.items == []
 
 
-class TestResolveMapForNewPin:
-    def test_explicit_id_for_member_returns_map_and_role(self, db_session: Session) -> None:
-        user = make_user(db_session, subject="u1")
-        service = make_service(db_session)
-        sanpo_map, _ = service._repository.create_with_owner(
-            owner_user_id=user.id, name="地図", is_default=False
-        )
-        db_session.commit()
-
-        resolved = service.resolve_map_for_new_pin(user, sanpo_map.id)
-
-        assert resolved.sanpo_map.id == sanpo_map.id
-        assert resolved.role == "owner"
-
-    def test_explicit_id_for_non_member_raises_not_found(self, db_session: Session) -> None:
-        owner = make_user(db_session, subject="owner")
-        stranger = make_user(db_session, subject="stranger")
-        service = make_service(db_session)
-        sanpo_map, _ = service._repository.create_with_owner(
-            owner_user_id=owner.id, name="地図", is_default=False
-        )
-        db_session.commit()
-
-        with pytest.raises(SanpoMapNotFoundError):
-            service.resolve_map_for_new_pin(stranger, sanpo_map.id)
-
-    def test_omitted_id_creates_first_map_when_absent(self, db_session: Session) -> None:
-        user = make_user(db_session, subject="u1")
-        service = make_service(db_session)
-
-        resolved = service.resolve_map_for_new_pin(user, None)
-
-        assert resolved.sanpo_map.name == FIRST_SANPO_MAP_NAME
-        assert resolved.sanpo_map.is_default is True
-        assert resolved.role == "owner"
-
-    def test_omitted_id_reuses_existing_default_map(self, db_session: Session) -> None:
-        user = make_user(db_session, subject="u1")
-        service = make_service(db_session)
-        existing, _ = service._repository.create_with_owner(
-            owner_user_id=user.id, name="既存の既定地図", is_default=True
-        )
-        db_session.commit()
-
-        resolved = service.resolve_map_for_new_pin(user, None)
-
-        assert resolved.sanpo_map.id == existing.id
-        assert resolved.sanpo_map.name == "既存の既定地図"
-
-
-class TestGetRole:
-    def test_returns_role_for_member(self, db_session: Session) -> None:
-        user = make_user(db_session, subject="u1")
-        service = make_service(db_session)
-        sanpo_map, _ = service._repository.create_with_owner(
-            owner_user_id=user.id, name="地図", is_default=True
-        )
-        db_session.commit()
-
-        assert service.get_role(user, sanpo_map.id) == "owner"
-
-    def test_returns_none_for_non_member(self, db_session: Session) -> None:
-        owner = make_user(db_session, subject="owner")
-        stranger = make_user(db_session, subject="stranger")
-        service = make_service(db_session)
-        sanpo_map, _ = service._repository.create_with_owner(
-            owner_user_id=owner.id, name="地図", is_default=True
-        )
-        db_session.commit()
-
-        assert service.get_role(stranger, sanpo_map.id) is None
-
-
-class TestMarkUsed:
-    def test_updates_updated_at_using_injected_clock(self, db_session: Session) -> None:
-        user = make_user(db_session, subject="u1")
-        fixed_now = datetime(2026, 1, 1, tzinfo=UTC)
-        service = make_service(db_session, now=fixed_now)
-        sanpo_map, _ = service._repository.create_with_owner(
-            owner_user_id=user.id, name="地図", is_default=True
-        )
-        db_session.commit()
-
-        service.mark_used(sanpo_map.id)
-        db_session.commit()
-
-        rows = service._repository.list_for_member(user_id=user.id)
-        assert rows[0][0].updated_at == fixed_now
-
-
 class TestListMapsPinCount:
-    def test_without_pin_counter_all_items_have_null_pin_count_and_fake_is_not_called(
-        self, db_session: Session
+    def test_without_include_pin_count_all_items_have_null_pin_count_and_repository_is_not_called(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         user = make_user(db_session, subject="u1")
         service = make_service(db_session)
         service._repository.create_with_owner(owner_user_id=user.id, name="地図", is_default=True)
         db_session.commit()
-        fake = FakeSanpoMapContents()
+        calls: list[list[uuid.UUID]] = []
+        original = service._repository.count_pins_for_maps
+
+        def spy_count_pins_for_maps(sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+            calls.append(list(sanpo_map_ids))
+            return original(sanpo_map_ids)
+
+        monkeypatch.setattr(service._repository, "count_pins_for_maps", spy_count_pins_for_maps)
 
         result = service.list_maps(user)
 
         assert result.items[0].pin_count is None
-        assert fake.count_calls == []
+        assert calls == []
 
-    def test_with_pin_counter_calls_once_with_all_ids_and_fills_missing_with_zero(
-        self, db_session: Session
+    def test_with_include_pin_count_calls_once_with_all_ids_and_fills_missing_with_zero(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         user = make_user(db_session, subject="u1")
         service = make_service(db_session)
@@ -201,14 +121,23 @@ class TestListMapsPinCount:
             owner_user_id=user.id, name="ピンなし", is_default=False
         )
         db_session.commit()
-        fake = FakeSanpoMapContents(counts={with_pins.id: 3})
+        _create_pin(db_session, sanpo_map_id=with_pins.id, user_id=user.id)
+        db_session.commit()
+        calls: list[list[uuid.UUID]] = []
+        original = service._repository.count_pins_for_maps
 
-        result = service.list_maps(user, pin_counter=fake)
+        def spy_count_pins_for_maps(sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+            calls.append(list(sanpo_map_ids))
+            return original(sanpo_map_ids)
 
-        assert len(fake.count_calls) == 1
-        assert set(fake.count_calls[0]) == {with_pins.id, without_pins.id}
+        monkeypatch.setattr(service._repository, "count_pins_for_maps", spy_count_pins_for_maps)
+
+        result = service.list_maps(user, include_pin_count=True)
+
+        assert len(calls) == 1
+        assert set(calls[0]) == {with_pins.id, without_pins.id}
         pin_counts_by_id = {item.id: item.pin_count for item in result.items}
-        assert pin_counts_by_id[with_pins.id] == 3
+        assert pin_counts_by_id[with_pins.id] == 1
         assert pin_counts_by_id[without_pins.id] == 0
 
 
@@ -332,9 +261,8 @@ class TestDeleteMap:
         user = make_user(db_session, subject="u1")
         service = make_service(db_session)
         created = service.create_map(user, SanpoMapCreate(name="地図"))
-        fake = FakeSanpoMapContents()
 
-        service.delete_map(user, created.id, contents=fake)
+        service.delete_map(user, created.id)
 
         assert db_session.get(SanpoMap, created.id) is None
         assert db_session.get(SanpoMapMember, (created.id, user.id)) is None
@@ -349,7 +277,6 @@ class TestDeleteMap:
         user = make_user(db_session, subject="u1")
         service = make_service(db_session)
         created = service.create_map(user, SanpoMapCreate(name="地図"))
-        fake = FakeSanpoMapContents()
         call_order: list[tuple[str, uuid.UUID]] = []
         original_lock_owner = service._repository.lock_owner
         original_get_membership_for_update = service._repository.get_membership_for_update
@@ -367,7 +294,7 @@ class TestDeleteMap:
             service._repository, "get_membership_for_update", spy_get_membership_for_update
         )
 
-        service.delete_map(user, created.id, contents=fake)
+        service.delete_map(user, created.id)
 
         assert [name for name, _user_id in call_order] == [
             "lock_owner",
@@ -376,74 +303,93 @@ class TestDeleteMap:
         assert all(user_id == user.id for _name, user_id in call_order)
 
     def test_cleanup_is_called_after_commit(self, db_session: Session) -> None:
-        """後始末関数が呼ばれた時点で、別セッションから地図が見えないこと
-        （commit 後に呼ばれることの確認）。
+        """後始末（`delete_best_effort`）が呼ばれた時点で、別セッションから地図が見えない
+        こと（commit 後に呼ばれることの確認）。
         """
         user = make_user(db_session, subject="u1")
-        service = make_service(db_session)
+        cleaner = SpyPhotoCleaner()
+        service = make_service(db_session, photo_cleaner=cleaner)
         created = service.create_map(user, SanpoMapCreate(name="地図"))
         visible_during_cleanup: list[bool] = []
 
-        class RecordingContents(FakeSanpoMapContents):
-            def prepare_sanpo_map_deletion(self, sanpo_map_id: uuid.UUID) -> Callable[[], None]:
-                inner = super().prepare_sanpo_map_deletion(sanpo_map_id)
+        def record_visibility(keys: list[str]) -> None:
+            other_session = TestSessionLocal()
+            try:
+                visible_during_cleanup.append(other_session.get(SanpoMap, created.id) is not None)
+            finally:
+                other_session.close()
 
-                def cleanup() -> None:
-                    other_session = TestSessionLocal()
-                    try:
-                        visible_during_cleanup.append(
-                            other_session.get(SanpoMap, sanpo_map_id) is not None
-                        )
-                    finally:
-                        other_session.close()
-                    inner()
+        cleaner.on_delete = record_visibility
 
-                return cleanup
-
-        service.delete_map(user, created.id, contents=RecordingContents())
+        service.delete_map(user, created.id)
 
         assert visible_during_cleanup == [False]
 
     def test_editor_raises_permission_denied_and_does_not_prepare_deletion(
-        self, db_session: Session
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         owner = make_user(db_session, subject="owner")
         editor = make_user(db_session, subject="editor")
-        service = make_service(db_session)
+        cleaner = SpyPhotoCleaner()
+        service = make_service(db_session, photo_cleaner=cleaner)
         sanpo_map, _ = service._repository.create_with_owner(
             owner_user_id=owner.id, name="地図", is_default=True
         )
         db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map.id, user_id=editor.id, role="editor"))
         db_session.commit()
-        fake = FakeSanpoMapContents()
+        list_photo_keys_calls: list[uuid.UUID] = []
+        original_list_photo_keys = service._repository.list_photo_keys_for_map
+
+        def spy_list_photo_keys_for_map(sanpo_map_id: uuid.UUID) -> list[tuple[str, str | None]]:
+            list_photo_keys_calls.append(sanpo_map_id)
+            return original_list_photo_keys(sanpo_map_id)
+
+        monkeypatch.setattr(
+            service._repository, "list_photo_keys_for_map", spy_list_photo_keys_for_map
+        )
 
         with pytest.raises(SanpoMapPermissionDeniedError):
-            service.delete_map(editor, sanpo_map.id, contents=fake)
+            service.delete_map(editor, sanpo_map.id)
 
-        assert fake.prepared_ids == []
+        assert list_photo_keys_calls == []
+        assert cleaner.calls == []
         assert db_session.get(SanpoMap, sanpo_map.id) is not None
 
-    def test_non_member_raises_not_found(self, db_session: Session) -> None:
+    def test_non_member_raises_not_found(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         owner = make_user(db_session, subject="owner")
         stranger = make_user(db_session, subject="stranger")
-        service = make_service(db_session)
+        cleaner = SpyPhotoCleaner()
+        service = make_service(db_session, photo_cleaner=cleaner)
         sanpo_map, _ = service._repository.create_with_owner(
             owner_user_id=owner.id, name="地図", is_default=True
         )
         db_session.commit()
-        fake = FakeSanpoMapContents()
+        list_photo_keys_calls: list[uuid.UUID] = []
+        original_list_photo_keys = service._repository.list_photo_keys_for_map
+
+        def spy_list_photo_keys_for_map(sanpo_map_id: uuid.UUID) -> list[tuple[str, str | None]]:
+            list_photo_keys_calls.append(sanpo_map_id)
+            return original_list_photo_keys(sanpo_map_id)
+
+        monkeypatch.setattr(
+            service._repository, "list_photo_keys_for_map", spy_list_photo_keys_for_map
+        )
 
         with pytest.raises(SanpoMapNotFoundError):
-            service.delete_map(stranger, sanpo_map.id, contents=fake)
+            service.delete_map(stranger, sanpo_map.id)
+
+        assert list_photo_keys_calls == []
+        assert cleaner.calls == []
 
     def test_deleting_default_map_promotes_the_next_one(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
         service = make_service(db_session)
         default_map = service.create_map(user, SanpoMapCreate(name="既定"))
         other_map = service.create_map(user, SanpoMapCreate(name="非既定"))
-        fake = FakeSanpoMapContents()
 
-        service.delete_map(user, default_map.id, contents=fake)
+        service.delete_map(user, default_map.id)
 
         refreshed = db_session.get(SanpoMap, other_map.id)
         assert refreshed is not None
@@ -454,10 +400,51 @@ class TestDeleteMap:
         service = make_service(db_session)
         default_map = service.create_map(user, SanpoMapCreate(name="既定"))
         other_map = service.create_map(user, SanpoMapCreate(name="非既定"))
-        fake = FakeSanpoMapContents()
 
-        service.delete_map(user, other_map.id, contents=fake)
+        service.delete_map(user, other_map.id)
 
         refreshed = db_session.get(SanpoMap, default_map.id)
         assert refreshed is not None
         assert refreshed.is_default is True
+
+    def test_passes_all_photo_keys_of_the_map_to_the_cleaner(self, db_session: Session) -> None:
+        """渡されたキーが地図の全ピンの写真キー（サムネイル含む・`None` 除外）であること。"""
+        user = make_user(db_session, subject="u1")
+        cleaner = SpyPhotoCleaner()
+        service = make_service(db_session, photo_cleaner=cleaner)
+        created = service.create_map(user, SanpoMapCreate(name="地図"))
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=created.id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+        photo_with_thumbnail = create_pin_photo_row(
+            db_session, None, pin_id=pin.id, uploaded_by_user_id=user.id, position=0
+        )
+        photo_without_thumbnail = create_pin_photo_row(
+            db_session,
+            None,
+            pin_id=pin.id,
+            uploaded_by_user_id=user.id,
+            position=1,
+            with_thumbnail=False,
+        )
+        # commit 前に控える（R2: 削除後は expire_on_commit により ORM 属性へのアクセスが
+        # `ObjectDeletedError` を招くため）。
+        expected_keys = {
+            photo_with_thumbnail.s3_key,
+            photo_with_thumbnail.thumbnail_s3_key,
+            photo_without_thumbnail.s3_key,
+        }
+
+        service.delete_map(user, created.id)
+
+        assert len(cleaner.calls) == 1
+        assert set(cleaner.calls[0]) == expected_keys
+        assert None not in cleaner.calls[0]

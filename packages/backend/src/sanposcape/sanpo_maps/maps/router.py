@@ -3,8 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from sanposcape.dependencies import get_current_user, get_sanpo_map_contents
-from sanposcape.sanpo_maps.maps.contents import SanpoMapContents
+from sanposcape.dependencies import get_current_user
 from sanposcape.sanpo_maps.maps.dependencies import get_sanpo_map_service
 from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapCreate,
@@ -37,15 +36,13 @@ def list_sanpo_maps(
     query: Annotated[SanpoMapListQuery, Query()],
     current_user: User = Depends(get_current_user),
     service: SanpoMapService = Depends(get_sanpo_map_service),
-    contents: SanpoMapContents = Depends(get_sanpo_map_contents),
 ) -> SanpoMapListRead:
     """自分が member である地図を全件返す（ページングなし。MVP は件数が少ない前提）。
 
     `?expand=pin_count` を指定すると各要素の `pin_count` が整数で埋まる（ピンが無い
     地図は0）。未指定なら `pin_count` は null のまま。
     """
-    pin_counter = contents if "pin_count" in query.expand else None
-    return service.list_maps(current_user, pin_counter=pin_counter)
+    return service.list_maps(current_user, include_pin_count="pin_count" in query.expand)
 
 
 @router.post(
@@ -107,7 +104,6 @@ def delete_sanpo_map(
     sanpo_map_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     service: SanpoMapService = Depends(get_sanpo_map_service),
-    contents: SanpoMapContents = Depends(get_sanpo_map_contents),
 ) -> None:
     """地図を削除する。ピン・写真・タグも DB の `ON DELETE CASCADE` で消え、S3 の写真の
     実体は best-effort で削除する（ストレージ障害・未構成でも 204 のまま）。
@@ -116,4 +112,4 @@ def delete_sanpo_map(
     （削除済み ID への再送も 404）。消したのが既定地図なら、残りの地図のうち
     `updated_at DESC, id DESC` の先頭が新しい既定に繰り上がる。
     """
-    service.delete_map(current_user, sanpo_map_id, contents=contents)
+    service.delete_map(current_user, sanpo_map_id)

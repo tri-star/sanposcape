@@ -1,10 +1,8 @@
 """地図の削除（`DELETE /sanpo-maps/{id}`）と `?expand=pin_count` の、pins 側との結合テスト
-（ADR-009 決定28・決定29）。
+（ADR-009 決定28・決定29, ADR-011）。
 
-`sanpo_maps` は `pins` を import しないが、逆方向（`pins → sanpo_maps`）は許容される
-（folder-structure.md）。ピン・写真・タグを持つ地図を実際に作る必要があるテストは、
-依存の向きに合わせて `pins/tests/` 側に置く（`sanpo_maps/tests/test_router.py` は
-`pins` を import しない）。
+地図 API とピン・写真の結合テスト。ピン・写真・タグを持つ地図を実際に作り、実際の DI 経路
+（`get_sanpo_map_service`）で S3 の実体まで消えることを確認する。
 """
 
 import uuid

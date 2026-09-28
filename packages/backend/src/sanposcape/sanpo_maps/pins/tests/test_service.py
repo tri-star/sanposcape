@@ -7,7 +7,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
-import sanposcape.sanpo_maps.pins.service
 from sanposcape.conftest import TestSessionLocal
 from sanposcape.integrations.aws.s3 import (
     FakeObjectStorage,
@@ -29,9 +28,10 @@ from sanposcape.sanpo_maps.exceptions import (
     SanpoMapPermissionDeniedError,
     StorageQuotaExceededError,
 )
+from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.maps.service import SanpoMapService
 from sanposcape.sanpo_maps.models import SanpoMapMember
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.photos.photo_attacher import PhotoAttacher, PreparedPhoto
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.pins.repository import PinRepository
@@ -49,13 +49,30 @@ _LOCK_WAIT_TIMEOUT = 5.0
 
 
 def make_pin_service(db_session: Session, storage: FakeObjectStorage, **overrides) -> PinService:
+    """`**overrides` のうち `photo_delete_deadline_seconds`・
+    `photo_delete_call_worst_case_seconds`・`monotonic` は `PhotoObjectCleaner`
+    （`PinService` ではなく削除の後始末を担う部品, ADR-011）側の引数に振り分ける。
+    `photo_cleaner` を直接渡した場合はそちらを使う。
+    """
+    photo_cleaner = overrides.pop("photo_cleaner", None)
+    if photo_cleaner is None:
+        cleaner_kwargs = {
+            "deadline_seconds": overrides.pop("photo_delete_deadline_seconds", 10),
+            "call_worst_case_seconds": overrides.pop("photo_delete_call_worst_case_seconds", 6),
+        }
+        if "monotonic" in overrides:
+            cleaner_kwargs["monotonic"] = overrides.pop("monotonic")
+        photo_cleaner = PhotoObjectCleaner(storage, **cleaner_kwargs)
+    else:
+        overrides.pop("photo_delete_deadline_seconds", None)
+        overrides.pop("photo_delete_call_worst_case_seconds", None)
+        overrides.pop("monotonic", None)
+
     kwargs = {
         "user_quota_bytes": 1024**3,
         "confirm_deadline_seconds": 20,
         "read_photos_limit": 10,
         "download_url_ttl_seconds": 3600,
-        "photo_delete_deadline_seconds": 10,
-        "photo_delete_call_worst_case_seconds": 6,
     }
     kwargs.update(overrides)
     photo_attacher = PhotoAttacher(
@@ -70,8 +87,9 @@ def make_pin_service(db_session: Session, storage: FakeObjectStorage, **override
         db_session,
         PinRepository(db_session),
         PinPhotoUploadRepository(db_session),
-        SanpoMapService(db_session, SanpoMapRepository(db_session)),
+        SanpoMapAccess(SanpoMapRepository(db_session)),
         photo_attacher,
+        photo_cleaner,
         storage,
         **kwargs,
     )
@@ -1121,7 +1139,7 @@ class TestPinServiceDeletePin:
 
         storage.delete_many = failing_delete_many  # type: ignore[method-assign]
 
-        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.photos.cleanup"):
             service.delete_pin(owner, pin_read.id)  # 例外を投げない
 
         with pytest.raises(PinNotFoundError):
@@ -1151,7 +1169,7 @@ class TestPinServiceDeletePin:
 
         storage.delete_many = raising_delete_many  # type: ignore[method-assign]
 
-        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
+        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.photos.cleanup"):
             service.delete_pin(owner, pin_read.id)  # 例外を投げない
 
         with pytest.raises(PinNotFoundError):
@@ -1183,140 +1201,6 @@ class TestPinServiceDeletePin:
 
         with pytest.raises(PinNotFoundError):
             unconfigured_service.get_pin(owner, pin_read.id, base_url=BASE_URL)
-
-
-class TestPinServiceDeleteTimeBudget:
-    """`_delete_photo_keys_best_effort` の時間予算判定（ADR-009 決定22 追補, SS-112 PR #101
-    レビュー対応）。写真2枚（キー4つ）のピンを、`S3_DELETE_OBJECTS_MAX_KEYS` を2に差し替えて
-    チャンク2つに分ける。
-    """
-
-    def _create_pin_with_two_photos(
-        self, db_session: Session, storage: FakeObjectStorage, owner: User
-    ) -> tuple[uuid.UUID, list[str]]:
-        service = make_pin_service(db_session, storage)
-        pin_read, _ = service.create_pin(
-            owner,
-            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
-            base_url=BASE_URL,
-        )
-        photo0 = create_pin_photo_row(
-            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
-        )
-        photo1 = create_pin_photo_row(
-            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=1
-        )
-        assert photo0.thumbnail_s3_key is not None
-        assert photo1.thumbnail_s3_key is not None
-        keys = [
-            photo0.s3_key,
-            photo0.thumbnail_s3_key,
-            photo1.s3_key,
-            photo1.thumbnail_s3_key,
-        ]
-        return pin_read.id, keys
-
-    @staticmethod
-    def _wrap_delete_many(storage: FakeObjectStorage) -> list[list[str]]:
-        """呼ばれたチャンクを記録しつつ、元の（実際に削除する）`delete_many` に委譲する。"""
-        chunks: list[list[str]] = []
-        original = storage.delete_many
-
-        def recording_delete_many(keys: list[str]) -> list[str]:
-            chunks.append(list(keys))
-            return original(keys)
-
-        storage.delete_many = recording_delete_many  # type: ignore[method-assign]
-        return chunks
-
-    def test_second_chunk_is_skipped_when_remaining_time_is_below_worst_case(
-        self,
-        db_session: Session,
-        monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
-        chunks = self._wrap_delete_many(storage)
-        monotonic_values = iter([0.0, 4.5])  # deadline_at=10, remaining=5.5 < worst_case=6
-        service = make_pin_service(
-            db_session,
-            storage,
-            photo_delete_deadline_seconds=10,
-            photo_delete_call_worst_case_seconds=6,
-            monotonic=lambda: next(monotonic_values),
-        )
-
-        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
-            service.delete_pin(owner, pin_id)
-
-        assert len(chunks) == 1
-        assert storage.head(keys[0]) is None
-        assert storage.head(keys[1]) is None
-        assert storage.head(keys[2]) is not None
-        assert storage.head(keys[3]) is not None
-        assert any(
-            "not enough time" in record.getMessage() and "2 of 4" in record.getMessage()
-            for record in caplog.records
-        )
-
-    def test_second_chunk_starts_when_remaining_time_equals_worst_case(
-        self,
-        db_session: Session,
-        monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
-        chunks = self._wrap_delete_many(storage)
-        monotonic_values = iter([0.0, 4.0])  # deadline_at=10, remaining=6.0 == worst_case
-        service = make_pin_service(
-            db_session,
-            storage,
-            photo_delete_deadline_seconds=10,
-            photo_delete_call_worst_case_seconds=6,
-            monotonic=lambda: next(monotonic_values),
-        )
-
-        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
-            service.delete_pin(owner, pin_id)
-
-        assert len(chunks) == 2
-        for key in keys:
-            assert storage.head(key) is None
-        assert not any("not enough time" in record.getMessage() for record in caplog.records)
-
-    def test_first_chunk_is_always_attempted_regardless_of_remaining_time(
-        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        pin_id, keys = self._create_pin_with_two_photos(db_session, storage, owner)
-        chunks = self._wrap_delete_many(storage)
-        monotonic_values = iter([0.0, 1_000.0])
-        # 締め切り(1秒) + 最悪時間(6秒) は Settings のバリデーション（<=25秒）なら通る組み合わせ
-        # だが、ここでは service に直接注入しているため Settings の検証は経由しない。
-        service = make_pin_service(
-            db_session,
-            storage,
-            photo_delete_deadline_seconds=1,
-            photo_delete_call_worst_case_seconds=6,
-            monotonic=lambda: next(monotonic_values),
-        )
-
-        service.delete_pin(owner, pin_id)
-
-        # 最初のチャンクは残り時間によらず必ず試みるため実体が消え、2つ目は打ち切られる。
-        assert len(chunks) == 1
-        assert storage.head(keys[0]) is None
-        assert storage.head(keys[1]) is None
-        assert storage.head(keys[2]) is not None
-        assert storage.head(keys[3]) is not None
 
 
 class TestPinServiceDeletePhoto:
@@ -1491,155 +1375,3 @@ class TestPinServiceDeletePhoto:
 
         with pytest.raises(PinNotFoundError):
             service.delete_photo(stranger, pin_read.id, photo.id)
-
-
-class TestCountPinsForSanpoMaps:
-    """`sanpo_maps/contents.py` の `SanpoMapContents.count_pins_for_sanpo_maps()` を
-    `PinService` が満たすことの確認（ADR-009 決定29）。集計クエリ自体は
-    `test_repository.py::TestCountPinsForMaps` で検証済みのため、ここでは委譲だけを見る。
-    """
-
-    def test_delegates_to_repository(self, db_session: Session) -> None:
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        service.create_pin(
-            owner,
-            PinCreate(
-                client_pin_id=uuid.uuid4(),
-                sanpo_map_id=sanpo_map_id,
-                location={"latitude": 0, "longitude": 0},
-            ),
-            base_url=BASE_URL,
-        )
-
-        counts = service.count_pins_for_sanpo_maps([sanpo_map_id])
-
-        assert counts == {sanpo_map_id: 1}
-
-
-class TestPrepareSanpoMapDeletion:
-    """`sanpo_maps/contents.py` の `SanpoMapContents.prepare_sanpo_map_deletion()` を
-    `PinService` が満たすことの確認（地図削除の後始末, ADR-009 決定28）。
-    """
-
-    def test_cleanup_deletes_fake_storage_objects(self, db_session: Session) -> None:
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        pin_read, _ = service.create_pin(
-            owner,
-            PinCreate(
-                client_pin_id=uuid.uuid4(),
-                sanpo_map_id=sanpo_map_id,
-                location={"latitude": 0, "longitude": 0},
-            ),
-            base_url=BASE_URL,
-        )
-        photo = create_pin_photo_row(
-            db_session, storage, pin_id=pin_read.id, uploaded_by_user_id=owner.id, position=0
-        )
-        assert photo.thumbnail_s3_key is not None
-        s3_key, thumbnail_s3_key = photo.s3_key, photo.thumbnail_s3_key
-
-        cleanup = service.prepare_sanpo_map_deletion(sanpo_map_id)
-        cleanup()
-
-        assert storage.head(s3_key) is None
-        assert storage.head(thumbnail_s3_key) is None
-
-    def test_second_chunk_is_skipped_when_remaining_time_is_below_worst_case(
-        self,
-        db_session: Session,
-        monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """`TestPinServiceDeleteTimeBudget` と同じ時間予算判定を、地図単位（複数ピンに
-        またがるキー収集）でも通ることを確認する（ADR-009 決定22 追補・決定28）。
-        """
-        monkeypatch.setattr(sanposcape.sanpo_maps.pins.service, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
-        owner = make_user(db_session, subject="owner")
-        storage = FakeObjectStorage(secret="s" * 32)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        creation_service = make_pin_service(db_session, storage)
-        pin_a, _ = creation_service.create_pin(
-            owner,
-            PinCreate(
-                client_pin_id=uuid.uuid4(),
-                sanpo_map_id=sanpo_map_id,
-                location={"latitude": 0, "longitude": 0},
-            ),
-            base_url=BASE_URL,
-        )
-        pin_b, _ = creation_service.create_pin(
-            owner,
-            PinCreate(
-                client_pin_id=uuid.uuid4(),
-                sanpo_map_id=sanpo_map_id,
-                location={"latitude": 1, "longitude": 1},
-            ),
-            base_url=BASE_URL,
-        )
-        photo_a = create_pin_photo_row(
-            db_session, storage, pin_id=pin_a.id, uploaded_by_user_id=owner.id, position=0
-        )
-        photo_b = create_pin_photo_row(
-            db_session, storage, pin_id=pin_b.id, uploaded_by_user_id=owner.id, position=0
-        )
-        assert photo_a.thumbnail_s3_key is not None
-        assert photo_b.thumbnail_s3_key is not None
-        all_keys = [
-            photo_a.s3_key,
-            photo_a.thumbnail_s3_key,
-            photo_b.s3_key,
-            photo_b.thumbnail_s3_key,
-        ]
-        monotonic_values = iter([0.0, 4.5])  # deadline_at=10, remaining=5.5 < worst_case=6
-        service = make_pin_service(
-            db_session,
-            storage,
-            photo_delete_deadline_seconds=10,
-            photo_delete_call_worst_case_seconds=6,
-            monotonic=lambda: next(monotonic_values),
-        )
-
-        cleanup = service.prepare_sanpo_map_deletion(sanpo_map_id)
-        with caplog.at_level(logging.WARNING, logger="sanposcape.sanpo_maps.pins.service"):
-            cleanup()
-
-        remaining = [key for key in all_keys if storage.head(key) is not None]
-        deleted = [key for key in all_keys if storage.head(key) is None]
-        assert len(deleted) == 2
-        assert len(remaining) == 2
-        assert any(
-            "not enough time" in record.getMessage() and "2 of 4" in record.getMessage()
-            for record in caplog.records
-        )
-
-    def test_unconfigured_storage_does_not_raise(self, db_session: Session) -> None:
-        owner = make_user(db_session, subject="owner")
-        creation_storage = FakeObjectStorage(secret="s" * 32)
-        creation_service = make_pin_service(db_session, creation_storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        pin_read, _ = creation_service.create_pin(
-            owner,
-            PinCreate(
-                client_pin_id=uuid.uuid4(),
-                sanpo_map_id=sanpo_map_id,
-                location={"latitude": 0, "longitude": 0},
-            ),
-            base_url=BASE_URL,
-        )
-        create_pin_photo_row(
-            db_session,
-            creation_storage,
-            pin_id=pin_read.id,
-            uploaded_by_user_id=owner.id,
-            position=0,
-        )
-        unconfigured_service = make_pin_service(db_session, UnconfiguredObjectStorage())
-
-        cleanup = unconfigured_service.prepare_sanpo_map_deletion(sanpo_map_id)
-        cleanup()  # 例外を投げない

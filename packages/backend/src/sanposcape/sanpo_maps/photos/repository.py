@@ -5,29 +5,13 @@ from datetime import datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from sanposcape.sanpo_maps.advisory_locks import advisory_lock_key
 from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinPhotoUpload
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。他用途のロックと
-#: 衝突しない固定値にする（backend-plan.md 10章の注意）。
+#: 衝突しない固定値にする（backend-plan.md 10章の注意）。値はロックキーそのもの。
+#: モジュールパスではないので、ファイルを移動しても変えない（ADR-011）。
 _PIN_PHOTO_UPLOAD_LOCK_NAMESPACE = zlib.crc32(b"sanposcape.pins.pin_photo_uploads") & 0x7FFFFFFF
-
-
-def _advisory_lock_key(user_id: uuid.UUID) -> int:
-    """UUID を `pg_advisory_xact_lock` の signed int4 キーへ畳み込む（決定的・プロセス非依存）。
-
-    Python 組み込みの `hash()` は `PYTHONHASHSEED` によりプロセスごとに変わりうるため
-    使わない（同一ユーザーの同時リクエストが別の Lambda 実行環境で処理された場合に
-    ロックが効かなくなる）。128bit を32bit ずつ XOR で畳み込むだけなので衝突はあり得るが、
-    無関係なユーザー同士がまれに同じロックを共有するだけで、ロックの正しさ
-    （同一ユーザーの同時リクエストを直列化する）は損なわれない。
-    """
-    raw = user_id.int
-    key = 0
-    for shift in range(0, 128, 32):
-        key ^= (raw >> shift) & 0xFFFFFFFF
-    if key >= 2**31:
-        key -= 2**32
-    return key
 
 
 class PinPhotoUploadRepository:
@@ -45,7 +29,7 @@ class PinPhotoUploadRepository:
         self._db.execute(
             select(
                 func.pg_advisory_xact_lock(
-                    _PIN_PHOTO_UPLOAD_LOCK_NAMESPACE, _advisory_lock_key(user_id)
+                    _PIN_PHOTO_UPLOAD_LOCK_NAMESPACE, advisory_lock_key(user_id)
                 )
             )
         )

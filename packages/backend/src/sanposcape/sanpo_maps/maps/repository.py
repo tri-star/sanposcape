@@ -6,30 +6,17 @@ from sqlalchemy import Select, and_, case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.advisory_locks import advisory_lock_key
+from sanposcape.sanpo_maps.models import Pin, PinPhoto, SanpoMap, SanpoMapMember
 
-#: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`pins/repository.py`
+#: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`photos/repository.py`
 #: の `_PIN_PHOTO_UPLOAD_LOCK_NAMESPACE` とは別の固定値にする（衝突回避, ADR-009 決定27）。
+#: 値はロックキーそのもの。モジュールパスではないので、ファイルを移動しても変えない
+#: （ADR-011）。
 _SANPO_MAP_OWNER_LOCK_NAMESPACE = zlib.crc32(b"sanposcape.sanpo_maps.owner") & 0x7FFFFFFF
 
 #: `promote_latest_to_default()` が候補を選び直す回数の上限（無限ループ防止）。
 _PROMOTE_MAX_ATTEMPTS = 10
-
-
-def _advisory_lock_key(user_id: uuid.UUID) -> int:
-    """UUID を `pg_advisory_xact_lock` の signed int4 キーへ畳み込む（決定的・プロセス非依存）。
-
-    `pins/repository.py` の同名関数と同じ内容。`sanpo_maps` は `pins` を import しない
-    （ADR-009 決定29）ため、共通化はせず暫定でこの関数を複製している（sanpo_maps と pins を
-    同じコンテキスト境界に統合するかは別途検討中）。
-    """
-    raw = user_id.int
-    key = 0
-    for shift in range(0, 128, 32):
-        key ^= (raw >> shift) & 0xFFFFFFFF
-    if key >= 2**31:
-        key -= 2**32
-    return key
 
 
 class SanpoMapRepository:
@@ -53,7 +40,7 @@ class SanpoMapRepository:
         self._db.execute(
             select(
                 func.pg_advisory_xact_lock(
-                    _SANPO_MAP_OWNER_LOCK_NAMESPACE, _advisory_lock_key(owner_user_id)
+                    _SANPO_MAP_OWNER_LOCK_NAMESPACE, advisory_lock_key(owner_user_id)
                 )
             )
         )
@@ -246,3 +233,32 @@ class SanpoMapRepository:
     def touch(self, *, sanpo_map_id: uuid.UUID, now: datetime) -> None:
         """ピン追加時に `updated_at` を更新する（「最近使った地図」を先頭にする並び順に使う）。"""
         self._db.execute(update(SanpoMap).where(SanpoMap.id == sanpo_map_id).values(updated_at=now))
+
+    def list_photo_keys_for_map(self, sanpo_map_id: uuid.UUID) -> list[tuple[str, str | None]]:
+        """地図に属する全ピンの写真の `(s3_key, thumbnail_s3_key)` を列だけ取る
+        （地図削除時, ADR-009 決定28）。`PinRepository.list_photo_keys(pin_id)` と同じ
+        戻り値の形。
+        """
+        stmt = (
+            select(PinPhoto.s3_key, PinPhoto.thumbnail_s3_key)
+            .join(Pin, Pin.id == PinPhoto.pin_id)
+            .where(Pin.sanpo_map_id == sanpo_map_id)
+        )
+        return [(row[0], row[1]) for row in self._db.execute(stmt).all()]
+
+    def count_pins_for_maps(self, sanpo_map_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """各地図のピン件数をまとめて取得する（`GET /sanpo-maps?expand=pin_count` 用,
+        ADR-009 決定29）。0件の地図は dict に入らない（呼び出し側は `.get(id, 0)` にする。
+        `PinRepository.count_photos_for_pins()` と同じ形）。
+
+        `sanpo_map_ids` は認可済み（`list_for_member()` を通して member であることを
+        確認済み）のものを渡すこと。
+        """
+        if not sanpo_map_ids:
+            return {}
+        stmt = (
+            select(Pin.sanpo_map_id, func.count())
+            .where(Pin.sanpo_map_id.in_(sanpo_map_ids))
+            .group_by(Pin.sanpo_map_id)
+        )
+        return dict(self._db.execute(stmt).all())
