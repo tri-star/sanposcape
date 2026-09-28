@@ -12,3 +12,4 @@
 - [SQLAlchemy identity mapは偽N+1](feedback_sqlalchemy_identity_map_not_n_plus_1.md) — select()直後のdb.get()は追加クエリなしのことが多い。安易にN+1指摘しない
 - [SS-111 ピン閲覧APIレビュー](project_ss111_pin_read_api.md) — Critical/High無し。get_for_member/バッチ取得/bbox4パラメータ等、SS-112/118/120が踏襲すべき確立パターン
 - [SS-113 地図の作成・管理APIレビュー](project_ss113_sanpo_map_management_api.md) — Critical/High無し。port+構造的部分型での依存逆転パターン、削除のcommit境界検証、既定地図繰り上げ
+- [SS-141 テスト用DB分離(ADR-B-001)レビュー](project_ss141_test_db_reset_review.md) — Critical/Warning無し。DELETE採用妥当、session/functionのfixture順序が壊れやすい箇所

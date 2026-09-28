@@ -1,6 +1,5 @@
 # Backend Developer Memory Index
 
-- [project-ss141-test-db-reset-complete](project_ss141_test_db_reset_complete.md) — SS-141（テスト用DBのスキーマ作り直しをやめDELETEでのテーブルリセットに変更）は実装完了。conftest.pyのみ変更、全体実行時間は中央値で約73%短縮
 - [backend-auth-mode-env-gotcha](project_backend_auth_mode_env_gotcha.md) — .envのAUTH_MODE既定はdev。ambientなmain.appに依存するauth_modeテストはローカル/CIで結果が変わりうるので明示Settings構築を使う
 - [auth-users-boundary-userservice](project_auth_users_boundary_userservice.md) — `auth`ドメインから`users`ドメインへのアクセスは常に`UserService`経由に統一する設計（SS-10ローカルレビューA-3で確定）。SS-12実装時の choke point
 - [project-ss18-walks-backend-complete](project_ss18_walks_backend_complete.md) — SS-18 backend（walksドメイン: 記録保存/履歴/IDOR対策）は実装完了。次はmobile側SS-19/SS-20

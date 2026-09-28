@@ -27,7 +27,7 @@ backend 全体（800件超）の `uv run pytest` を通しで10回ほど流し�
 **2026-09-28 追記（SS-141）**: 上記で推測していた原因（`_setup_schema` がテストごとに
 `create_all`/`drop_all` していた）は SS-141 で解消した。スキーマ作成は session スコープで
 1回だけになり、各テストの前は `DELETE FROM` でテーブルの中身を空にするだけになった
-（[[project_ss141_test_db_reset_complete]]、`packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md`）。
+（`packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md`）。
 全体の実行時間も中央値で約73%短縮（114.24s→30.52s）している。DB負荷が原因だった場合はこの
 変更で自然に解消している可能性が高い。次に全件実行で 401 が再発した場合は、DB負荷起因という
 仮説は見直し、別の原因を疑うこと。
