@@ -106,7 +106,7 @@ sanpo_maps/                     # ドメイン: 地図・ピン・写真（1つ�
 ```
 
 規模の目安（本体、docstring 込み）: 共有カーネル 約400行 / maps 約850行 / pins 約2,100行 /
-photos 約930行。1ファイルの最大は `pins/service.py`（約670行）。
+photos 約930行。1ファイルの最大は `pins/service.py`（約650行）。
 
 **モデルを共有カーネル（`models.py` 1ファイル）に置く理由**: 3つのサブパッケージの
 `Repository` が互いのテーブルを JOIN・集計する（`PinRepository` は `SanpoMapMember` で
@@ -136,7 +136,7 @@ import は常に `sanposcape.sanpo_maps.maps.*` と完全修飾なので実害�
 |---|---|---|
 | M1 | 依存の向きは上図のとおり。カーネルはサブパッケージを import しない | AST |
 | M2 | 直下（カーネル）に置けるのは `models`/`exceptions`/`permissions`/`advisory_locks` だけ | AST |
-| M3 | **Service は他の Service を import しない・コンストラクタで受け取らない**。サブパッケージを跨いで共有してよいのは、下位サブパッケージの Repository と「commit しない部品」（`SanpoMapAccess`・`PhotoAttacher`・`PhotoObjectCleaner`） | AST |
+| M3 | **Service は他の Service を import しない・コンストラクタで受け取らない**。サブパッケージを跨いで共有してよいのは、下位サブパッケージの Repository と「commit しない部品」（`SanpoMapAccess`・`PhotoAttacher`・`PhotoObjectCleaner`） | AST（import）＋レビュー（コンストラクタ引数） |
 | M4 | **commit/rollback を呼ぶのは `service.py` だけ** | AST |
 | M5 | 複数サブパッケージにまたがるユースケースは、依存の向きで**上位のサブパッケージの Service が持つ**（地図削除 = maps が photos の部品を使う。ピン作成 = pins が maps の部品と photos の部品を使う）。下位が上位の情報を要する場合は、クエリを下位の Repository に置く（モデルは共有なので可能）か、処理を下位へ移す。**Protocol の port・メソッド引数での注入は作らない**。下位が上位の業務ロジックそのものを必要とし、これらで解けなくなったら決定3'（M9）のユースケース層を導入する | AST（`test_no_protocol_ports`）+ レビュー |
 | M6 | テーブルへの書き込み（INSERT/UPDATE/DELETE）は、そのテーブルを持つサブパッケージの Repository だけが行う。他サブパッケージのテーブルは JOIN・集計（読み取り）にだけ使ってよい。`ON DELETE CASCADE` は対象外 | レビュー |
@@ -159,11 +159,19 @@ import は常に `sanposcape.sanpo_maps.maps.*` と完全修飾なので実害�
 6. `test_outside_code_imports_only_public_surface`（M7）
 7. `test_no_relative_imports`（M8）
 8. `test_no_protocol_ports`（M5。**M5 の「port を作らない」をこのテストで固定した**。
-   本体コードで `typing.Protocol`/`typing_extensions.Protocol` を基底に持つクラスを
-   定義していないことを検査する。違反メッセージは「モジュール内で port を作らない。
-   下位の Repository へのクエリ移設・処理の下位への移動で解けなければユースケース層を
-   導入する（ADR-011 M5・M9）」）
+   本体コードで `typing.Protocol`/`typing_extensions.Protocol`、および `abc.ABC`/
+   `abc.ABCMeta`（`metaclass=ABCMeta` を含む）を基底に持つクラスを定義していないことを
+   検査する。違反メッセージは「モジュール内で port を作らない。下位の Repository への
+   クエリ移設・処理の下位への移動で解けなければユースケース層を導入する
+   （ADR-011 M5・M9）」）
 9. `test_scans_known_modules`（番兵。走査対象が空になって何も検査しない事故を防ぐ）
+
+**M5 のレビュー観点（AST でカバーできない範囲）**: `test_no_protocol_ports` はクラス定義
+（`Protocol`・`abc.ABC`/`ABCMeta`）を伴う port は検出できるが、**コンストラクタで
+`Callable` 型の引数を受け取り、呼び出し元がその場で関数・メソッドを渡す**という、
+クラス定義を伴わない事実上の port は AST では機械的に判定しにくい。レビュー時は、
+Service のコンストラクタ引数に `Callable[...]` 型があり、それが「別サブパッケージの
+判断そのものを外側から注入している」ものになっていないかを確認する。
 
 ### 決定3': ユースケース層の導入条件（M9）
 
@@ -180,20 +188,34 @@ import は常に `sanposcape.sanpo_maps.maps.*` と完全修飾なので実害�
 「クエリは下位の `Repository` へ」「手順は下位の部品（`photos/cleanup.py`）へ」移設する
 ことで、port を使わずに依存を一方向にできることを示している。
 
-**導入条件（(a) または (b) が起きたら導入する）**:
+**導入条件（(a) または (b) が起きたら導入する。どちらも数え上げ・手続きで判定できる形にしている）**:
 
-- (a) M5 の「下位の Repository へのクエリ移設」「処理の下位への移動」のどちらでも、
-  下位サブパッケージが上位の業務ロジックを呼ばずに済ませられない場合。
-  例えば「ピンの編集権限の判定（誰が編集できるか）そのものを地図側が必要とする」ような
-  ケースはクエリでも部品への切り出しでも解けず、この条件に該当する。
-- (b) 複数サブパッケージにまたがるユースケースが増え、どの Service が持つべきかを
-  依存の向きだけで決められなくなった場合。
+- (a) M5 の「下位の Repository へのクエリ移設」「処理の下位への移動」を実際に試みても、
+  ある Service のメソッドが依存の向きに逆らって他サブパッケージの Service の**判断
+  そのもの**（誰が編集できるか、どの状態遷移を許すか等の業務ロジック）を必要とする
+  ケースが**1件でも**出たら該当する。例えば「ピンの編集権限の判定（誰が編集できるか）
+  そのものを地図側が必要とする」ようなケースはクエリでも部品への切り出しでも解けず、
+  この条件に該当する。
+- (b) (a) には該当しない（依存の向きに沿ってクエリ・部品として置ける）が、複数
+  サブパッケージにまたがるユースケースの数が**3つ以上**になり、かつそれぞれの主たる
+  持ち主となる Service が異なって（横断処理ごとに「maps の Service が持つ」「pins の
+  Service が持つ」のようにバラけて）読み手が呼び出し関係を追えなくなった場合。今は
+  「ピン作成」「地図削除」の2つで、どちらも `pins` の Service が自然に持てる（決定4）
+  ため該当しない。3つ目の横断処理が増えたら、それが既存の持ち主（`pins` の Service）に
+  自然に収まるかをまず確認し、収まらなければ該当するとみなす。
 
-**導入時の形**: モジュール直下に `usecases/`（サブパッケージの最上位。
-`router → usecase → 各サブパッケージの Service/部品`）を設け、双方向に必要となった処理を
-そこへ移す。導入したら本 ADR に追補し、`test_architecture.py` の許可表（M7 の公開面・M1 の
-依存方向）に `usecases`（全サブパッケージを import 可、どこからも import されない
-= router のみから呼ばれる）を加える。
+**導入時の形**: モジュール直下に `usecases/` を設け、双方向に必要となった処理をそこへ移す。
+**各サブパッケージの `router.py` だけが `usecases` を import してよい**（`usecases` は
+全サブパッケージの Service/部品を import できる）。`router.py` 以外のファイルから
+`usecases` を import してはならない。router はサブパッケージ配下にあるため、パッケージ
+単位で見ると `usecases → 各サブパッケージ` と `各サブパッケージ（の router.py）→
+usecases` が同時に存在するように見えるが、**ファイル単位では常に `router.py → usecases
+→ 各サブパッケージの Service/部品` の一方向**であり、循環 import は生じない（`router.py`
+は他のどのファイルからも import されない末端のため）。M7 の公開面は変わらない（`main.py`
+は引き続き各 `router.py` だけを import し、`usecases` を直接 import しない）。導入したら
+本 ADR に追補し、`test_architecture.py` の許可表に `usecases`（全サブパッケージの
+Service/部品を import 可）を加えたうえで、「`router.py` だけの例外」（M1 のサブパッケージ
+許可表とは別枠で `usecases` の import を許す）を検査するテストを追加する。
 
 **今は導入しない**。またがる処理が「ピン作成」「地図削除」の2つだけで、どちらも
 依存の向きに沿って上位サブパッケージの Service が自然に持てるため（決定4）。層を足すと
@@ -233,7 +255,7 @@ advisory lock の重複統合: `sanpo_maps/advisory_locks.py` の `advisory_lock
 重複していた）。**namespace 定数（バイト列）は各 repository に残し、値は変えていない**
 （決定5）。
 
-`pins/service.py`（868行）のさらなる分割（写真確定処理の部品化等）は本チケットでは行わない。
+`pins/service.py`（約650行）のさらなる分割（写真確定処理の部品化等）は本チケットでは行わない。
 理由・目安は「影響・将来の課題」を参照。
 
 ### 決定5: 変えてはいけないもの（不変条件）とロガー名の変化
@@ -378,7 +400,7 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
       パス更新）をすべて完了。
 - [ ] `SanpoMapSummaryRead`・`SanpoMapUpdate` の docstring の古い語（「他ドメイン
       （`pins/schemas.py` の…）」）は、次に openapi.yaml を変更するチケットで一緒に直す。
-- [ ] `pins/service.py`（約670行）が約800行を超えるか、写真確定処理（`_prepare_photos`/
+- [ ] `pins/service.py`（約650行）が約800行を超えるか、写真確定処理（`_prepare_photos`/
       `_commit_photos`）を使う3つ目のユースケースが現れたら、確定処理を `photos/` の部品
       （`PhotoConfirmer` 等）へ切り出すことを検討する。本チケットでは行わない
       （理由: `create_pin`・`add_photos` の写真確定には、真に同時な冪等リトライへの

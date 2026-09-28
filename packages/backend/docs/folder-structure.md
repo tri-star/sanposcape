@@ -109,7 +109,7 @@ packages/backend/
 │       │   ├── advisory_locks.py #   advisory_lock_key()（共有カーネル。owner 単位ロックと
 │       │   │                  #   アップロード枠ロックの共通の鍵導出。SS-137）
 │       │   ├── conftest.py    #   モジュール全体のテスト fixture
-│       │   ├── tests/         #   モジュール全体のテスト（test_architecture.py が M1〜M9 を AST で検査）
+│       │   ├── tests/         #   モジュール全体のテスト（test_architecture.py が M1〜M5・M7・M8 を AST で検査）
 │       │   ├── maps/          #   サブパッケージ: 地図（SanpoMap）とメンバーシップ。
 │       │   │   ├── router.py  #     GET/POST /sanpo-maps, PATCH/DELETE /sanpo-maps/{id}（SS-113）
 │       │   │   ├── access.py  #     SanpoMapAccess（ピン作成・写真操作のための地図解決。
@@ -171,9 +171,9 @@ packages/backend/
   呼び出し側（`models.py` / `dependencies.py` / 各 `tests/`）は無変更で動く。
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
   **（SS-137 追補）** `sanpo_maps` の地図・ピン間の依存は port ではなく `sanpo_maps` モジュール
-  内部の部品（`maps/access.py` の `SanpoMapAccess`・`photos/cleanup.py` の `PhotoObjectCleaner`）に
-  置き換わったため、ここに置いていたドメイン間 port の配線（`get_sanpo_map_contents()`）は撤去した
-  （ADR-011）。
+  内部の部品（`sanpo_maps/maps/access.py` の `SanpoMapAccess`・`sanpo_maps/photos/cleanup.py` の
+  `PhotoObjectCleaner`）に置き換わったため、ここに置いていたドメイン間 port の配線
+  （`get_sanpo_map_contents()`）は撤去した（ADR-011）。
 
 ### `core/` — 横断的関心事
 - どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`observability.py` の `AccessLogMiddleware` / `configure_logging()` のような**可観測性の土台**（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
@@ -209,7 +209,8 @@ packages/backend/
   - **（SS-137 追補）** 地図とピンの関係は「別ドメインが構造的に依存する」形から、
     「1つのドメイン（`sanpo_maps`）の中のサブパッケージ」に置き換わった。地図の中身の集計・
     削除時の後始末は port（Protocol・依存性逆転）ではなく、依存の向きに沿った通常の部品
-    （`maps/access.py`・`photos/cleanup.py`）と `Repository` のクエリで解決する。詳細は
+    （`sanpo_maps/maps/access.py`・`sanpo_maps/photos/cleanup.py`）と `Repository` のクエリで
+    解決する。詳細は
     後述「複数エンティティを持つドメイン（`sanpo_maps/`）」と ADR-011 を参照。
   - 昇格時は、**旧 import 位置に再エクスポートを残して段階移行する**（OpenAPI のコンポーネント名を変えないため）。
     実例: `GeoPoint` は `maps/schemas.py` から `core/geo.py` へ昇格したが、`maps/schemas.py` は

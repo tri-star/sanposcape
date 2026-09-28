@@ -602,7 +602,11 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
       S3 のオブジェクトは残るため）。決定22 の `ObjectStorage.delete_many()` と
       `PinService._delete_photo_keys_best_effort()`（決定28 で地図単位にも使われるように
-      なった best-effort 削除）をそのまま再利用できる（SS-113 追補）
+      なった best-effort 削除）をそのまま再利用できる（SS-113 追補）（**SS-137 追補**:
+      再利用先は `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner.delete_best_effort()`
+      に置き換わった。`users` ドメインから呼ぶ場合は `sanpo_maps` の外からの呼び出しになるため、
+      先に ADR-011 M7 の公開面（現在は `models`/`exceptions`/各 `router` のみ）へ
+      `PhotoObjectCleaner` を追補してから使う）
 - [ ] **BK-3**: 期限切れ `pending` 枠の行削除と、対応する未参照 S3 オブジェクトの掃除
       （定期実行）。**SS-112 の編集・削除 API で残りうる不整合が増えた**: S3 削除が
       時間予算の不足による打ち切り・ストレージ障害で失敗した場合の `original/`・`thumb/`
@@ -658,7 +662,8 @@ uvicorn が居ないので、アプリ側で出さない限り何も残らない
   ハンドラーを付けるので、足すと二重に出る。一方 uvicorn は自分のロガーしか設定しないので、
   足さないと INFO が消える。`sanposcape` 側も見るのは、複数回呼ばれてもハンドラーを増やさないため）。
 
-あわせて枠発行時に `upload_id` と **S3 キー**を INFO で残す（`pins/service.py`）。直送は backend を
+あわせて枠発行時に `upload_id` と **S3 キー**を INFO で残す（`pins/service.py`。**SS-137 追補**:
+現在は `sanpo_maps/photos/service.py` の `PinPhotoUploadService`）。直送は backend を
 通らないため、これが無いと「どのオブジェクトが届くはずだったのか」を後から S3 と突き合わせられない。
 **`form.fields` は絶対にログへ出さない**（policy・署名・一時認証情報を含む）。
 
@@ -795,6 +800,10 @@ role・操作可否を応答に含めない方針も決定24として確定し�
 - **検索タブのタグ候補（地図内のタグの一覧・使用回数）を返す API**（例:
   `GET /sanpo-maps/{id}/tags`）は本チケットに含めない。検索タブ（SS-120）で必要になったら
   別に切る。`pins → sanpo_maps` の依存の向きに合わせ、実装は `pins/` 側に置く想定。
+  （**SS-137 追補**: `pins → sanpo_maps` という別ドメイン間の依存の前提は無くなり、
+  `pins` は `sanpo_maps` 配下のサブパッケージになった。実装する際は ADR-011 M1・M5・M6 の
+  依存規則（下位 `photos` は import しないが、`maps`・`pins` の Repository はモデル共有で
+  互いを集計できる）に従って置き場所を判断する）
 
 ### 将来の課題
 
