@@ -108,7 +108,7 @@ def _setup_test_db_schema() -> Generator[None, None, None]:
       スレッドを使った FOR UPDATE の直列化（`auth/tests/test_repository.py`、
       `pins/tests/test_service.py`、`walks/tests/test_repository.py` など）、一意制約の競合
       （`users/tests/test_repository.py`）を検証するテストの意味が失われるため。
-      詳細は `docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md`。
+      詳細は `packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md`。
     """
     with test_engine.begin() as conn:
         conn.execute(text(f"SET LOCAL lock_timeout = '{_LOCK_TIMEOUT}'"))
