@@ -18,3 +18,4 @@
 - [SS-131 Scalar API docsレビュー概要](project_ss131_scalar_docs_review.md) — router.py/main.py/test_router.pyの所見。tmp参照は自己完結、TestClient with省略、fragileなJSON文字列一致は計画で既知
 - [SS-112 削除S3後始末の時間予算対応レビュー](project_ss112_delete_time_budget_review.md) — C1対応は妥当。config.py↔s3.pyの_DELETE_TOTAL_MAX_ATTEMPTS整合性テストはローカルレビューR1で追加済み
 - [SS-113 地図の作成・管理APIレビュー](project_ss113_sanpo_maps_management_review.md) — B-D参照の再発は同PR（`28777e0`）で修正済み。GROUP BY集計・依存方向AST検査・削除時間予算の再利用を確認済み。既定地図の同時実行の穴（PR #103指摘）を見逃した点をレビュー観点として追記
+- [lock_timeoutガードの非対称パターン](pattern_lock_timeout_guard_asymmetry.md) — 一部のDB操作だけにタイムアウトガードを足すレビューで汎用的に確認すべき観点
