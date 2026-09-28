@@ -104,10 +104,10 @@ def _setup_test_db_schema() -> Generator[None, None, None]:
       決定4を参照。
     ★ 外側トランザクション + savepoint 巻き戻し案は採らない: その案ではテスト用セッションと
       アプリ用セッションが同じ接続を共有してしまい、「別セッションから見えるか」
-      （`sanpo_maps/tests/test_service.py::test_commits_and_is_visible_from_another_session`）や
+      （`sanpo_maps/maps/tests/test_service.py::test_commits_and_is_visible_from_another_session`）や
       スレッドを使った FOR UPDATE の直列化（`auth/tests/test_repository.py`、
-      `pins/tests/test_service.py`、`walks/tests/test_repository.py` など）、一意制約の競合
-      （`users/tests/test_repository.py`）を検証するテストの意味が失われるため。
+      `sanpo_maps/pins/tests/test_service.py`、`walks/tests/test_repository.py` など）、
+      一意制約の競合（`users/tests/test_repository.py`）を検証するテストの意味が失われるため。
       詳細は `packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md`。
     """
     with test_engine.begin() as conn:

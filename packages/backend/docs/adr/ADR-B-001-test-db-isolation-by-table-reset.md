@@ -109,11 +109,11 @@ fixture の **setup 時**（テスト本体の実行前）に全テーブルの�
 検討したが不採用（詳細は「検討した選択肢」の選択肢D）。テスト用セッションとアプリ用
 セッションが同じ接続を共有してしまい、次の検証の意味が失われるため。
 
-- `sanpo_maps/tests/test_service.py::test_commits_and_is_visible_from_another_session` /
+- `sanpo_maps/maps/tests/test_service.py::test_commits_and_is_visible_from_another_session` /
   `test_cleanup_is_called_after_commit`（別セッションから見えるか）
 - `auth/tests/test_repository.py::test_get_by_hash_for_update_blocks_concurrent_transaction`
   （スレッド2本での `FOR UPDATE` の直列化）
-- `pins/tests/test_service.py`（スレッドを使った競合検証）
+- `sanpo_maps/pins/tests/test_service.py`（スレッドを使った競合検証）
 - `walks/tests/test_repository.py::TestDeleteConcurrentRace`（`StaleDataError` の競合）
 - `users/tests/test_repository.py`（insert → 一意制約違反 → on conflict 的な再取得の冪等パターン）
 

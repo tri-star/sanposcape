@@ -16,7 +16,7 @@ Critical/Warning無し、Suggestionのみ（`_delete_all`のロックタイム�
 **Why:** 約1,100件のテストで setup+teardown が全体時間の8割を占めていた（PR #103レビューF-005）。
 TRUNCATE(47.24s)よりDELETE(32.81s)が計測で明らかに速く（許容誤差3%を超過）採用された。
 外側トランザクション+savepoint案は、`test_commits_and_is_visible_from_another_session`
-（`sanpo_maps/tests/test_service.py`）や `pg_advisory_xact_lock` を使ったFOR UPDATE直列化
+（`sanpo_maps/maps/tests/test_service.py`）や `pg_advisory_xact_lock` を使ったFOR UPDATE直列化
 （`auth/tests/test_repository.py` 等、いずれもトランザクションスコープのadvisory lockのみ使用で
 セッションスコープのlock残留リスクは無いことを確認済み）の意味を壊すため不採用。
 
