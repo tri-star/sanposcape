@@ -55,10 +55,11 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
       const session = toSession(raw, now());
       if (signal?.aborted) return null;
 
-      tokenStore.setAccessToken(session.accessToken);
       // ローテーションされた refresh token を必ず保存する。
       await tokenStore.setRefreshToken(session.refreshToken);
       if (signal?.aborted) return null;
+      // 保存失敗・中断時に、ゲスト状態のままAPIへ認証トークンが渡らないようにする。
+      tokenStore.setAccessToken(session.accessToken);
       setCurrentUser(session.user);
 
       return session.accessToken.value;

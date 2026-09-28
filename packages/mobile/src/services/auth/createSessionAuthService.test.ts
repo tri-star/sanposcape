@@ -71,6 +71,7 @@ function setup(options?: {
 
   return {
     service,
+    tokenStore,
     persistence,
     issueSession,
     api,
@@ -229,6 +230,54 @@ describe("createSessionAuthService", () => {
   });
 
   describe("restoreSession", () => {
+    it("refresh token の保存失敗では新しい access token とユーザーを公開しない", async () => {
+      const persistence: RefreshTokenPersistence = {
+        load: async () => "refresh-1",
+        save: async () => {
+          throw new Error("SecureStore save failed");
+        },
+        remove: async () => {},
+      };
+      const { service, api, tokenStore, onSessionChange } = setup({ persistence });
+      api.refresh.mockResolvedValue(rawSession({ refreshToken: "refresh-2" }));
+
+      await expect(service.restoreSession()).resolves.toBeNull();
+
+      expect(tokenStore.getAccessToken()).toBeNull();
+      expect(service.getCurrentUser()).toBeNull();
+      expect(onSessionChange).not.toHaveBeenCalled();
+      api.refresh.mockRejectedValue(new TypeError("network down"));
+      await expect(service.getAccessToken()).resolves.toBeNull();
+    });
+
+    it("refresh token の保存完了後に access token とユーザーを公開する", async () => {
+      let releaseSave: () => void = () => {};
+      const saveStarted = Promise.withResolvers<void>();
+      const persistence: RefreshTokenPersistence = {
+        load: async () => "refresh-1",
+        save: async () => {
+          await new Promise<void>((resolve) => {
+            releaseSave = resolve;
+            saveStarted.resolve();
+          });
+        },
+        remove: async () => {},
+      };
+      const { service, api, tokenStore, onSessionChange } = setup({ persistence });
+      api.refresh.mockResolvedValue(rawSession({ refreshToken: "refresh-2" }));
+      const restored = service.restoreSession();
+      await saveStarted.promise;
+      expect(tokenStore.getAccessToken()).toBeNull();
+      expect(service.getCurrentUser()).toBeNull();
+      expect(onSessionChange).not.toHaveBeenCalled();
+
+      releaseSave();
+      await expect(restored).resolves.toMatchObject({ id: "user-1" });
+      await expect(service.getAccessToken()).resolves.toBe("access-1");
+      expect(onSessionChange).toHaveBeenCalledTimes(1);
+      expect(api.refresh).toHaveBeenCalledTimes(1);
+    });
+
     it("時間超過後もトークン保存が完了するまで次のrefreshを開始しない", async () => {
       vi.useFakeTimers();
       try {
@@ -245,13 +294,22 @@ describe("createSessionAuthService", () => {
           save,
           remove: async () => {},
         };
-        const { service, api } = setup({ persistence, restoreTimeoutMs: 1_000 });
+        const { service, api, tokenStore, onSessionChange } = setup({
+          persistence,
+          restoreTimeoutMs: 1_000,
+        });
         api.refresh.mockResolvedValue(rawSession({ refreshToken: "refresh-2" }));
         const restored = service.restoreSession();
         await vi.advanceTimersByTimeAsync(0);
         expect(save).toHaveBeenCalledWith("refresh-2");
+        expect(tokenStore.getAccessToken()).toBeNull();
+        const pendingAccess = service.getAccessToken();
         await vi.advanceTimersByTimeAsync(1_000);
+        await expect(pendingAccess).resolves.toBeNull();
         await expect(restored).resolves.toBeNull();
+        await expect(service.getAccessToken()).resolves.toBeNull();
+        expect(service.getCurrentUser()).toBeNull();
+        expect(onSessionChange).not.toHaveBeenCalled();
 
         await expect(service.refreshAccessToken()).resolves.toBeNull();
         expect(api.refresh).toHaveBeenCalledTimes(1);
@@ -260,6 +318,9 @@ describe("createSessionAuthService", () => {
         releaseSave();
         await vi.advanceTimersByTimeAsync(0);
         expect(await persistence.load()).toBe("refresh-2");
+        expect(tokenStore.getAccessToken()).toBeNull();
+        expect(service.getCurrentUser()).toBeNull();
+        expect(onSessionChange).not.toHaveBeenCalled();
         api.refresh.mockRejectedValue(new TypeError("network down"));
         await expect(service.refreshAccessToken()).resolves.toBeNull();
         expect(api.refresh).toHaveBeenCalledTimes(2);
