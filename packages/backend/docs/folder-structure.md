@@ -246,6 +246,10 @@ packages/backend/
   ```
 - 共通フィクスチャ（テスト用DB・FastAPI `TestClient` 等）は `src/sanposcape/conftest.py` に集約する。
 - テスト用DBは本番/開発用DBと分離する（`TEST_DB_NAME`）。
+- テスト用DBの分離方式: スキーマは pytest の session スコープで1回だけ作り、各テストの前に
+  テーブルの中身を DELETE で空にする（テストごとに `create_all`/`drop_all` はしない）。
+  テストは実際に commit してよく、テスト中に DDL は実行しない。詳細は
+  [ADR-011](../../../docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md) を参照。
 
 ## コマンド実行
 
