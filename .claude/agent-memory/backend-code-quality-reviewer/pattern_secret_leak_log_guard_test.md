@@ -28,6 +28,15 @@ TestPinPhotoUploadServiceCreateUpload::test_logs_upload_id_and_key_without_leaki
 assert）で固定されている。SS-111（閲覧API）レビュー時に確認。今後この関数を触るレビューで
 再度このテストの有無を疑う必要はない（消えていないか確認する程度でよい）。
 
+**追記（2026-09-28, SS-137 で `sanpo_maps`/`pins` 統合）**: `PinPhotoUploadService` は
+`sanpo_maps/photos/service.py` へ移動し、上記のテストも
+`sanpo_maps/photos/tests/test_service.py::TestPinPhotoUploadServiceCreateUpload::
+test_logs_upload_id_and_key_without_leaking_form_fields` に移った。**この種の caplog テストは
+`logging.getLogger(__name__)` のロガー名（ファイル移動で `sanposcape.pins.service` →
+`sanposcape.sanpo_maps.photos.service` に変化）にも依存する**ため、ファイル移動を伴う
+リファクタでは `caplog.at_level(..., logger=...)` の文字列引数も一緒に直っているか確認する
+（直し忘れると INFO を拾えず静かに無意味なテストになる。→[[feedback-backend-file-relocation-gotchas]]）。
+
 **How to apply:** 新しいログ出力（`logger.info/warning/error`）を追加した diff で、
 「このフィールドは出さない」という注意コメントが付いているのに `caplog` での固定テストが
 伴っていない場合、`test_secrets.py` の形を提案する（メッセージに機密値が含まれないことを

@@ -17,16 +17,22 @@ Reviewed 2026-09-26 on worktree `ss-113` (`git diff main...HEAD`, backend
      Negligible impact: values are restricted to `Literal["pin_count"]` and the repeated-query-
      param length is bounded by the HTTP server's URL/header-line limit anyway.
      **Fixed in the same PR**: `max_length=8` (`SANPO_MAP_LIST_EXPAND_MAX_LENGTH`) was added after review.
-  2. `PinRepository.count_pins_for_maps`/`list_photo_keys_for_map` (`pins/repository.py:450,461`)
-     don't take `user_id` — same shape as the `find_attachment` exception noted in
+  2. `PinRepository.count_pins_for_maps`/`list_photo_keys_for_map` (`pins/repository.py:450,461`,
+     **SS-137: moved to `sanpo_maps/maps/repository.py`**) don't take `user_id` — same shape as
+     the `find_attachment` exception noted in
      [[project_ss88_pins_photo_upload_review]]. Verified safe: both are only ever called with
      already-authorized `sanpo_map_id`s — `list_sanpo_maps` builds the id list from
      `SanpoMapRepository.list_for_member(user_id=current_user.id)`
-     (`sanpo_maps/service.py:72`) before calling `count_pins_for_sanpo_maps`, and
-     `SanpoMapService.delete_map` calls `contents.prepare_sanpo_map_deletion(sanpo_map_id)`
-     only *after* `get_membership_for_update()` + `can_delete_sanpo_map(role)` pass. Confirmed by
-     test `test_editor_raises_permission_denied_and_does_not_prepare_deletion`
-     (`sanpo_maps/tests/test_service.py`).
+     (`sanpo_maps/service.py:72`, **SS-137: moved to `sanpo_maps/maps/service.py`**) before
+     calling `count_pins_for_sanpo_maps`, and `SanpoMapService.delete_map` calls
+     `contents.prepare_sanpo_map_deletion(sanpo_map_id)` only *after* `get_membership_for_update()`
+     + `can_delete_sanpo_map(role)` pass. Confirmed by test
+     `test_editor_raises_permission_denied_and_does_not_prepare_deletion`
+     (`sanpo_maps/maps/tests/test_service.py`, **SS-137**: moved from sanpo_maps/tests/test_service.py).
+     **SS-137 addendum**: the port (`contents.prepare_sanpo_map_deletion`) was removed; the same
+     ordering now happens via `SanpoMapRepository.list_photo_keys_for_map()` +
+     `PhotoObjectCleaner` (`sanpo_maps/photos/cleanup.py`), still called only after the same
+     authorization order. See [ADR-011](../../../docs/adr/ADR-011-sanpo-maps-module-structure.md).
   3. No rate limiting on `POST`/`PATCH`/`DELETE /sanpo-maps` — same accepted tradeoff as
      walks/pins ([[project_ss18_walks_review]], [[project_ss88_pins_photo_upload_review]]).
 - **Mitigations verified as actually implemented**:
@@ -51,12 +57,18 @@ Reviewed 2026-09-26 on worktree `ss-113` (`git diff main...HEAD`, backend
     (`core/middleware.py::_matches_prefix`), no `/sanpo-mapsFOO` bypass/over-match risk.
   - Error responses: `SanpoMapNotFoundError`/`SanpoMapPermissionDeniedError` handlers in
     `main.py` return fixed static `detail` strings only, no stack trace/internal leakage.
-  - `sanpo_maps` → `pins` one-way dependency (no IDOR-relevant import cycle) enforced by
-    `tests/test_dependency_direction.py` (AST-based check) and the `SanpoMapContents` Protocol
-    port pattern (`sanpo_maps/contents.py`), wired in `dependencies.py::get_sanpo_map_contents`.
-- **New pattern for this repo**: cross-domain port via `Protocol` + app-level `dependencies.py`
-  wiring (not either domain's own `dependencies.py`) is now an established pattern
-  (`SanpoMapContents`, ADR-009 決定29) — expect more of these as domains grow; when reviewing,
-  check the *port's* docstring for the "caller must authorize before calling" contract (same
-  discipline as [[project_sanposcape_conventions]]'s "authorize before decoding the cursor" rule)
-  rather than assuming the port method itself re-checks ownership.
+  - `sanpo_maps` → `pins` one-way dependency (no IDOR-relevant import cycle) enforced by the
+    old test_dependency_direction module (AST-based check) and the `SanpoMapContents` Protocol
+    port pattern (formerly sanpo_maps/contents.py), wired in `dependencies.py::get_sanpo_map_contents`.
+    **SS-137 addendum**: `pins` was merged under `sanpo_maps` and the port was removed. The
+    dependency direction is now enforced by `sanpo_maps/tests/test_architecture.py`
+    (rules M1–M9, [ADR-011](../../../docs/adr/ADR-011-sanpo-maps-module-structure.md)), which
+    also asserts no `Protocol`-based port is defined in the module (`test_no_protocol_ports`, M5).
+- **New pattern for this repo (retired in SS-137, see below)**: cross-domain port via `Protocol` +
+  app-level `dependencies.py` wiring (not either domain's own `dependencies.py`) was an established
+  pattern (`SanpoMapContents`, ADR-009 決定29) as of SS-113. **SS-137 addendum**: this pattern is
+  no longer used — `sanpo_maps` and `pins` are now one module, and cross-subpackage access goes
+  through ordinary `Repository` queries and non-committing helper objects (`SanpoMapAccess`,
+  `PhotoObjectCleaner`) instead of a port. When reviewing new dependency-direction problems inside
+  `sanpo_maps`, check against ADR-011's M1–M9 rather than proposing a new `Protocol` port (the
+  architecture test now fails any new `Protocol` defined in the module body).

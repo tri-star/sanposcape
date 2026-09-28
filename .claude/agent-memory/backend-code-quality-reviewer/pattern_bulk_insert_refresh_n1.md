@@ -22,7 +22,8 @@ for photo in photos:
 確定処理のような時間予算がタイトな経路で無駄なDBラウンドトリップを増やす。
 
 **単一オブジェクトの `create()` 系（`users/repository.py`, `walks/repository.py`,
-`sanpo_maps/repository.py`, `pins/repository.py` の `create()`）が1回だけ呼ぶ `db.refresh()` は
+`sanpo_maps/maps/repository.py`（当時は sanpo_maps/repository.py。SS-137 で移動）,
+`pins/repository.py` の `create()`）が1回だけ呼ぶ `db.refresh()` は
 既存踏襲パターンで問題ない**（N+1ではない）。問題にしているのは「複数件を `add_all()` した後に
 ループで `refresh()` する」新しいパターンの方。
 

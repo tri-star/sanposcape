@@ -691,7 +691,8 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   `<account-id>` はプレースホルダ）。
 - **`sam build --use-container` を省略しない。** `psycopg[binary]` の manylinux wheel が
   ビルドホストの arch/glibc に依存するため、コンテナなしビルドは実行時にしか失敗が判明しない。
-  Pillow（SS-88, `pins/thumbnails.py`）も同じ理由でコンテナビルドが必須（manylinux wheel が
+  Pillow（SS-88, `sanpo_maps/photos/thumbnails.py`。SS-137 で `pins/` から移動）も同じ理由で
+  コンテナビルドが必須（manylinux wheel が
   約 4〜5 MB 増える程度で、zip 50 MB / 展開 250 MB の上限には十分収まる見込みだが、SS-108 の
   dev デプロイで一度は zip サイズを確認すること）。
 - **（SS-88）`template.yaml` の Lambda `MemorySize` を下げる変更を単独で入れない。** 写真の

@@ -2,7 +2,8 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-27（SS-113, PR #103 Copilot レビュー対応: 既定地図の直列化。SS-118: 地図表示の limit 超過時の見せ方を決着）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-28（SS-137: `sanpo_maps/contents.py` の port 撤去とモジュール構成の
+> ADR-011 への移管を反映）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -58,11 +59,17 @@
   （本文: SS-113 追補 決定25〜27）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
-  （本文: SS-113 追補 決定28）
+  （本文: SS-113 追補 決定28）（**SS-137 追補**: port 経由の再利用は撤去し、
+  `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner`（ピン削除・写真削除・地図削除で共有する
+  commit しない部品）に置き換えた。時間予算の判定・ログ文言は変えていない。詳細は
+  [ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4）
 - **`GET /sanpo-maps?expand=pin_count`** で地図ごとのピン件数（`int | null`、未指定は null）を
   1クエリで返せるようにした。`sanpo_maps` が `pins` を import しない依存方向は、
   `sanpo_maps/contents.py` の port（`PinService` が実装、配線はアプリ直下 `dependencies.py`）
-  で維持した（本文: SS-113 追補 決定29）
+  で維持した（本文: SS-113 追補 決定29）（**SS-137 追補**: `pins` を `sanpo_maps` 配下へ
+  統合し、port（`SanpoMapContents`）は撤去した。ピン件数の集計は
+  `SanpoMapRepository.count_pins_for_maps()` に置き換わった。依存方向の規則・AST 検査は
+  [ADR-011](./ADR-011-sanpo-maps-module-structure.md) M1〜M9・`test_architecture.py` に移った）
 
 ### 未解決・持ち越し
 
@@ -87,6 +94,11 @@
   （2026-09-23 追補）
 - `template.yaml` への S3 結線（BK-1）: 「本 PR に含めない」→ **SS-108 で実施し、dev の疎通確認も
   完了**（SS-108 / SS-88 追補）
+- `sanpo_maps/contents.py` の port（`SanpoMapContents`, Protocol + メソッド引数注入で依存方向を
+  守る構成）→ **ADR-011（SS-137）で撤去**。`pins` を `sanpo_maps` 配下へ統合し、依存の向きに
+  沿った `Repository` のクエリ（`count_pins_for_maps`・`list_photo_keys_for_map`）と
+  commit しない部品（`SanpoMapAccess`・`PhotoObjectCleaner`）で解決する構成に置き換えた
+  （SS-137 追補）
 
 ## 日付
 
@@ -101,7 +113,10 @@
 2026-09-26 追補（SS-118: mobile が地図表示の limit 超過時の見せ方を決着。閲覧 API・データモデルの
 backend 側変更は無い）、
 2026-09-27 追補（SS-113: PR #103 Copilot レビュー対応。既定地図の不変条件を owner 単位の
-advisory lock で直列化）
+advisory lock で直列化）、
+2026-09-28 追補（SS-137: `pins` を `sanpo_maps` 配下へ統合し、`sanpo_maps/contents.py` の
+port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の一次記録は
+[ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）
 
 ## ステータス
 
@@ -229,7 +244,10 @@ ADR-008 決定7（expand → contract）の例外として直接削除してい�
   `pin_count` を optional field として expand する。**この項目は SS-113 の決定29 で
   実装され、`?expand=pin_count` を指定したときだけ `pin_count`（`int | null`）が
   返るようになった（依存方向は port で維持したまま、「返さない」から「明示的に
-  要求すれば返す」に置き換わった）。**
+  要求すれば返す」に置き換わった）。**（**SS-137 追補**: 「`pins → sanpo_maps` の
+  一方向依存」「port で維持」は当時の構成。`pins` は `sanpo_maps` 配下へ統合され、
+  依存方向は port ではなく AST テストで固定する構成に置き換わった。詳細は決定29 の
+  SS-137 追補・[ADR-011](./ADR-011-sanpo-maps-module-structure.md)）
 
 ### 決定4: 写真は presigned POST で先行アップロードし、ピン作成 API が確定を兼ねる
 
@@ -584,7 +602,11 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
       S3 のオブジェクトは残るため）。決定22 の `ObjectStorage.delete_many()` と
       `PinService._delete_photo_keys_best_effort()`（決定28 で地図単位にも使われるように
-      なった best-effort 削除）をそのまま再利用できる（SS-113 追補）
+      なった best-effort 削除）をそのまま再利用できる（SS-113 追補）（**SS-137 追補**:
+      再利用先は `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner.delete_best_effort()`
+      に置き換わった。`users` ドメインから呼ぶ場合は `sanpo_maps` の外からの呼び出しになるため、
+      先に ADR-011 M7 の公開面（現在は `models`/`exceptions`/各 `router` のみ）へ
+      `PhotoObjectCleaner` を追補してから使う）
 - [ ] **BK-3**: 期限切れ `pending` 枠の行削除と、対応する未参照 S3 オブジェクトの掃除
       （定期実行）。**SS-112 の編集・削除 API で残りうる不整合が増えた**: S3 削除が
       時間予算の不足による打ち切り・ストレージ障害で失敗した場合の `original/`・`thumb/`
@@ -640,7 +662,8 @@ uvicorn が居ないので、アプリ側で出さない限り何も残らない
   ハンドラーを付けるので、足すと二重に出る。一方 uvicorn は自分のロガーしか設定しないので、
   足さないと INFO が消える。`sanposcape` 側も見るのは、複数回呼ばれてもハンドラーを増やさないため）。
 
-あわせて枠発行時に `upload_id` と **S3 キー**を INFO で残す（`pins/service.py`）。直送は backend を
+あわせて枠発行時に `upload_id` と **S3 キー**を INFO で残す（`pins/service.py`。**SS-137 追補**:
+現在は `sanpo_maps/photos/service.py` の `PinPhotoUploadService`）。直送は backend を
 通らないため、これが無いと「どのオブジェクトが届くはずだったのか」を後から S3 と突き合わせられない。
 **`form.fields` は絶対にログへ出さない**（policy・署名・一時認証情報を含む）。
 
@@ -777,6 +800,10 @@ role・操作可否を応答に含めない方針も決定24として確定し�
 - **検索タブのタグ候補（地図内のタグの一覧・使用回数）を返す API**（例:
   `GET /sanpo-maps/{id}/tags`）は本チケットに含めない。検索タブ（SS-120）で必要になったら
   別に切る。`pins → sanpo_maps` の依存の向きに合わせ、実装は `pins/` 側に置く想定。
+  （**SS-137 追補**: `pins → sanpo_maps` という別ドメイン間の依存の前提は無くなり、
+  `pins` は `sanpo_maps` 配下のサブパッケージになった。実装する際は ADR-011 M1・M5・M6 の
+  依存規則（下位 `photos` は import しないが、`maps`・`pins` の Repository はモデル共有で
+  互いを集計できる）に従って置き場所を判断する）
 
 ### 将来の課題
 
@@ -1099,6 +1126,10 @@ editor が 403 でも情報は漏れない（editor は既に `GET /sanpo-maps` 
    `PinService._delete_photo_keys_best_effort()`（決定22 と同じ時間予算・チャンク・失敗時の
    ログ）で best-effort 削除。**新しい設定値・新しい削除部品は作っていない**。ストレージ
    未構成・障害・時間切れでも 204（決定22 と同じ）。残骸は BK-3。
+   （**SS-137 追補**: `PinService._delete_photo_keys_best_effort()` は
+   `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner.delete_best_effort()` へ切り出した。
+   ピン削除・写真削除・地図削除の3箇所が同じ部品をコンストラクタ注入で共有する形になったが、
+   時間予算の判定・チャンク・ログ文言は本文のまま変えていない。[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4）
 3. **staging（未使用の枠）は触らない**（地図と紐付いていない。SS-117 の「写真を先に
    アップロード → 地図を作成 → 保存」でも使える必要がある）。
 4. **容量は commit と同時に空く**（`pin_photos` が CASCADE で消えるため）。S3 の残骸は容量に
@@ -1158,6 +1189,17 @@ backend の実装はどちらでも変わらない（決定22 のピン削除も
     `tests/test_dependency_direction.py` が AST で検査する。
 - `pin_count` を required にしないのは、mobile の手書き型付きフィクスチャ
   （`sanpoMapApi.test.ts`）を壊さないため。
+
+**（SS-137 追補）** 上記の port 構成（`sanpo_maps/contents.py`・`SanpoMapContents`・
+`get_sanpo_map_contents()`・`test_dependency_direction.py`）は**撤去済み**。`pins` を
+`sanpo_maps` 配下へ統合し、`count_pins_for_sanpo_maps()` は `SanpoMapRepository.
+count_pins_for_maps()` へ、`prepare_sanpo_map_deletion()` は `SanpoMapRepository.
+list_photo_keys_for_map()`（キー収集）と `photos/cleanup.py` の `PhotoObjectCleaner`
+（S3 の後始末）に分解して置き換えた。依存方向は port ではなく、依存の向きに沿った
+`Repository` のクエリと commit しない部品で守る（`sanpo_maps/tests/test_architecture.py`
+が AST で検査）。クエリ・応答仕様（`?expand=pin_count`・`SanpoMapRead.pin_count` の型・
+集計クエリの内容）自体は変わっていない。詳細は
+[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定3'（M9）・決定4を参照。
 
 ## 追補（2026-09-26, SS-118: 地図表示で limit を超えたときの見せ方の決着）
 

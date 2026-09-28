@@ -2,9 +2,12 @@
 
 folder-structure.md の方針（外部 API / SDK は `integrations/` に隔離し、差し替え・モック
 しやすいようインターフェースを介して公開する）に従う。`ObjectStorage` が公開する操作は
-`pins/` ドメインのユースケース（presigned POST の発行・確定処理での HEAD/GET/Copy/Put/Delete）
-に必要な最小集合で、`STORAGE_MODE`（`AUTH_MODE`/`MAPS_MODE`/`FEATURE_FLAG_MODE` と同じ
-fail-safe な流儀）で real / fake / unconfigured を切り替える（B-D8）。
+`sanpo_maps` ドメイン（写真の枠発行・確定処理は `sanpo_maps/photos/`、ピン削除・地図削除の
+best-effort な S3 後始末は `sanpo_maps/photos/cleanup.py`）のユースケース（presigned POST の
+発行・確定処理での HEAD/GET/Copy/Put/Delete）に必要な最小集合で、`STORAGE_MODE`
+（`AUTH_MODE`/`MAPS_MODE`/`FEATURE_FLAG_MODE` と同じ fail-safe な流儀）で
+real / fake / unconfigured を切り替える（B-D8。SS-137 で `pins/` から `sanpo_maps/{pins,photos}/`
+へ移動）。
 
 boto3 は Lambda の python3.12 管理ランタイム同梱前提で、`pyproject.toml` の
 `[dependency-groups] dev` にのみ追加している（zip に含めない。`secrets.py`/`appconfig.py`
@@ -38,12 +41,14 @@ from sanposcape.config import Settings
 logger = logging.getLogger(__name__)
 
 #: S3 `DeleteObjects` の1回あたりの最大キー数（S3 の仕様上の上限）。`S3ObjectStorage.
-#: delete_many()` のチャンクサイズと、呼び出し側（`pins/service.py`）が best-effort 削除の
-#: 締め切りチェックを行う間隔を揃えるために共有する（R4: ハードコードの重複を避ける）。
+#: delete_many()` のチャンクサイズと、呼び出し側（`sanpo_maps/photos/cleanup.py` の
+#: `PhotoObjectCleaner`）が best-effort 削除の締め切りチェックを行う間隔を揃えるために
+#: 共有する（R4: ハードコードの重複を避ける）。
 S3_DELETE_OBJECTS_MAX_KEYS = 1000
 
 #: 削除専用 client（`delete`/`delete_many`）の試行回数。「再試行なし」はユーザー決定で、
-#: env にすると呼び出し側（`pins/service.py`）が見積もる「1回の最悪時間」（バックオフを
+#: env にすると呼び出し側（`sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner`）が
+#: 見積もる「1回の最悪時間」（バックオフを
 #: 含めない式）を運用で壊せてしまうため、定数にしている（ADR-009 決定22 追補, SS-112）。
 #: ★ この値を変える場合は `config.py` の `Settings.object_storage_delete_call_worst_case_
 #: seconds` の式（1を超えるとバックオフの項が要る）も見直すこと。値が1であることは
@@ -368,8 +373,9 @@ class UnconfiguredObjectStorage:
 class FakeObjectStorage:
     """`STORAGE_MODE=fake` 用の開発・E2E 用実装。
 
-    presigned POST/GET の代わりに backend 自身の `/dev-storage/*`（`pins/dev_storage_router.py`、
-    `STORAGE_MODE=fake` のときだけ include される）を指す URL を発行する。署名は HMAC-SHA256
+    presigned POST/GET の代わりに backend 自身の `/dev-storage/*`
+    （`sanpo_maps/photos/dev_storage_router.py`、`STORAGE_MODE=fake` のときだけ include される）
+    を指す URL を発行する。署名は HMAC-SHA256
     （`AUTH_JWT_SECRET` を鍵にする。本物の認証トークンとは用途が別だが、ローカル専用の
     改ざん検知としては十分）。
 

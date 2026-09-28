@@ -28,7 +28,9 @@ SS-88（`integrations/aws/s3.py`, `pins/repository.py`, `pins/schemas.py`）実�
   `PYTHONHASHSEED`のプロセスごとのランダム化により、同一値（例: user_idの文字列）でも
   Lambdaの実行環境（プロセス）が変わるとハッシュ値が変わり、異なるプロセスで処理される
   同一ユーザーの同時リクエスト間でロックが効かなくなる。決定的に導出する
-  （`pins/repository.py::_advisory_lock_key`はUUIDの128bitを32bitずつXORで畳み込む）。
+  （`pins/repository.py::_advisory_lock_key`はUUIDの128bitを32bitずつXORで畳み込む。**SS-137
+  追補**: `sanpo_maps`/`pins`統合で`sanpo_maps/advisory_locks.py::advisory_lock_key()`に
+  1本化された。namespace定数はサブパッケージごとの`repository.py`に残り、値は変えていない）。
   namespace（key1）は`zlib.crc32(固定文字列) & 0x7FFFFFFF`のような固定値にし、他用途の
   advisory lockと衝突しないようにする。
 - **boto3の`retries.max_attempts`（`mode="standard"/"adaptive"`）は「合計試行回数」ではない。**

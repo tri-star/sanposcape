@@ -29,8 +29,7 @@ from sanposcape.integrations.google_maps.client import build_google_maps_provide
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
-from sanposcape.pins.dev_storage_router import router as pins_dev_storage_router
-from sanposcape.pins.exceptions import (
+from sanposcape.sanpo_maps.exceptions import (
     PinNotFoundError,
     PinPhotoNotFoundError,
     PinPhotoTooLargeError,
@@ -38,13 +37,15 @@ from sanposcape.pins.exceptions import (
     PinPhotoUploadNotFoundError,
     PinPhotoUploadNotReadyError,
     PinTagLimitExceededError,
+    SanpoMapNotFoundError,
+    SanpoMapPermissionDeniedError,
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
-from sanposcape.pins.router import router as pins_router
-from sanposcape.pins.upload_router import router as pin_photo_uploads_router
-from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
-from sanposcape.sanpo_maps.router import router as sanpo_maps_router
+from sanposcape.sanpo_maps.maps.router import router as sanpo_maps_router
+from sanposcape.sanpo_maps.photos.dev_storage_router import router as pins_dev_storage_router
+from sanposcape.sanpo_maps.photos.router import router as pin_photo_uploads_router
+from sanposcape.sanpo_maps.pins.router import router as pins_router
 from sanposcape.users.router import router as users_router
 from sanposcape.walks.exceptions import WalkNotFoundError
 from sanposcape.walks.router import router as walks_router

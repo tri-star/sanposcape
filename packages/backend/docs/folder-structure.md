@@ -7,7 +7,9 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
 
 - **src レイアウト** を採用し、アプリ本体は `src/sanposcape/` 配下に置く。
 - **ドメイン単位の凝集 × レイヤー分離** をベースにする。
-  - ドメイン（`users` / `walks` / `sanpo_maps` / `pins` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
+  - ドメイン（`users` / `walks` / `sanpo_maps` / `maps` など）ごとにフォルダを分け、その中で層を分ける。
+    `sanpo_maps` は地図・ピン・写真という複数エンティティを持つドメインで、内部を3つの
+    サブパッケージに分ける（後述「複数エンティティを持つドメイン（`sanpo_maps/`）」、ADR-011, SS-137）。
   - レイヤーは **router → service → repository** の3層。
     - `router`: HTTPの入出力の受け渡しのみ。**薄く保つ**（バリデーションと依存解決、serviceの呼び出し）。
     - `service`: ビジネスロジック。トランザクション境界・ユースケースを持つ。
@@ -92,29 +94,43 @@ packages/backend/
 │       ├── maps/              # ドメイン: 往復範囲探索・ルート算出の proxy エンドポイント
 │       │   ├── geometry.py    #   DB/HTTPを持たない純粋な幾何関数（haversine/bearing/resample等）
 │       │   └── loop_route.py  #   周回ルートの経由点生成・妥当性判定（SS-33, ADR-007。walks/stats.py と同じ位置づけ）
-│       ├── sanpo_maps/        # ドメイン: 地図（ピンの入れ物）とメンバーシップ・権限（SS-88, ADR-009）
-│       │   ├── router.py      #   GET/POST /sanpo-maps, PATCH/DELETE /sanpo-maps/{id}（SS-113）
-│       │   ├── contents.py    #   pins へ依存せず地図の中身にアクセスするための port
-│       │   │                  #   （SanpoMapContents, Protocol。PinService が実装, SS-113）
-│       │   ├── mappers.py     #   to_sanpo_map_read() に SanpoMapRead の組み立てを集約（SS-113）
-│       │   └── permissions.py #   role による権限判定の純粋関数。追加系（can_add_pin/
-│       │                      #   can_add_pin_photo/can_add_pin_tag）は role だけ、
-│       │                      #   更新・削除系（can_update_pin/can_delete_pin/
-│       │                      #   can_delete_pin_tag/can_delete_pin_photo）は
-│       │                      #   is_creator/is_uploader をキーワード専用引数に取る（SS-112）。
-│       │                      #   地図そのものの管理系（can_update_sanpo_map/
-│       │                      #   can_delete_sanpo_map）は role のみで owner 限定（SS-113）
-│       ├── pins/               # ドメイン: ピン・写真・タグ・写真アップロード枠（SS-88, ADR-009）
-│       │   ├── router.py       #   POST /pins, POST /pins/{pin_id}/photos,
-│       │   │                   #   GET /pins, GET /pins/{pin_id}, GET /pins/{pin_id}/photos,
-│       │   │                   #   PATCH /pins/{pin_id}, DELETE /pins/{pin_id},
-│       │   │                   #   DELETE /pins/{pin_id}/photos/{photo_id}（SS-112）
-│       │   ├── upload_router.py#   POST /pin-photo-uploads, DELETE /pin-photo-uploads/{upload_id}
-│       │   ├── dev_storage_router.py # STORAGE_MODE=fake 限定の /dev-storage/*（include_in_schema=False）
-│       │   ├── photo_attacher.py     # 写真の確定処理（検証・サムネイル生成・並列化・時間予算）
-│       │   ├── thumbnails.py         # Pillow によるサムネイル生成（純粋関数）
-│       │   ├── tag_labels.py         # タグの正規化・重複排除（純粋関数）
-│       │   └── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
+│       ├── sanpo_maps/        # ドメイン: 地図・ピン・写真（1つの境界づけられたコンテキスト。
+│       │   │                  #   SS-88, ADR-009。内部構成は ADR-011, SS-137）
+│       │   ├── models.py      #   全6モデル（SanpoMap/SanpoMapMember/Pin/PinTag/PinPhoto/
+│       │   │                  #   PinPhotoUpload）を1ファイルに集約（共有カーネル）
+│       │   ├── exceptions.py  #   ドメイン全体の例外（共有カーネル）
+│       │   ├── permissions.py #   SanpoMapRole と role による権限判定の純粋関数（共有カーネル）。
+│       │   │                  #   追加系（can_add_pin/can_add_pin_photo/can_add_pin_tag）は role
+│       │   │                  #   だけ、更新・削除系（can_update_pin/can_delete_pin/
+│       │   │                  #   can_delete_pin_tag/can_delete_pin_photo）は is_creator/
+│       │   │                  #   is_uploader をキーワード専用引数に取る（SS-112）。地図そのものの
+│       │   │                  #   管理系（can_update_sanpo_map/can_delete_sanpo_map）は role の
+│       │   │                  #   みで owner 限定（SS-113）
+│       │   ├── advisory_locks.py #   advisory_lock_key()（共有カーネル。owner 単位ロックと
+│       │   │                  #   アップロード枠ロックの共通の鍵導出。SS-137）
+│       │   ├── conftest.py    #   モジュール全体のテスト fixture
+│       │   ├── tests/         #   モジュール全体のテスト（test_architecture.py が M1〜M5・M7・M8 を AST で検査）
+│       │   ├── maps/          #   サブパッケージ: 地図（SanpoMap）とメンバーシップ。
+│       │   │   ├── router.py  #     GET/POST /sanpo-maps, PATCH/DELETE /sanpo-maps/{id}（SS-113）
+│       │   │   ├── access.py  #     SanpoMapAccess（ピン作成・写真操作のための地図解決。
+│       │   │   │              #     commit しない部品。SS-137）
+│       │   │   └── mappers.py #     to_sanpo_map_read() に SanpoMapRead の組み立てを集約（SS-113）
+│       │   ├── pins/          #   サブパッケージ: ピン・タグ・ピンに紐付いた写真（行）。
+│       │   │   ├── router.py  #     POST /pins, POST /pins/{pin_id}/photos, GET /pins,
+│       │   │   │              #     GET /pins/{pin_id}, GET /pins/{pin_id}/photos,
+│       │   │   │              #     PATCH /pins/{pin_id}, DELETE /pins/{pin_id},
+│       │   │   │              #     DELETE /pins/{pin_id}/photos/{photo_id}（SS-112）
+│       │   │   └── tag_labels.py #   タグの正規化・重複排除（純粋関数）
+│       │   └── photos/        #   サブパッケージ: 写真の実体（S3）とアップロード枠。
+│       │       ├── router.py  #     POST /pin-photo-uploads, DELETE /pin-photo-uploads/{upload_id}
+│       │       │              #     （旧 pins/upload_router.py。SS-137 で改名）
+│       │       ├── dev_storage_router.py # STORAGE_MODE=fake 限定の /dev-storage/*（include_in_schema=False）
+│       │       ├── photo_attacher.py     # 写真の確定処理（検証・サムネイル生成・並列化・時間予算）
+│       │       ├── thumbnails.py         # Pillow によるサムネイル生成（純粋関数）
+│       │       ├── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
+│       │       └── cleanup.py            # PhotoObjectCleaner（DB commit 後の best-effort な
+│       │                                 #   S3 オブジェクト削除。旧 PinService._delete_photo_
+│       │                                 #   keys_best_effort。SS-137）
 │       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
 │       ├── api_docs/          # ドメイン: API ドキュメント UI（GET /docs = Scalar）。router.py のみ。
 │       │                       #   include_in_schema=False（openapi.yaml に載せない）。
@@ -154,8 +170,10 @@ packages/backend/
   ハイドレーション前の設定で接続してしまうため）。`Base` / `get_db` の名前と挙動は変えていないため、
   呼び出し側（`models.py` / `dependencies.py` / 各 `tests/`）は無変更で動く。
 - `dependencies.py`: 複数ドメインで使う依存（DBセッションの供給、認証済みユーザーの取得など）。
-  ドメイン間の port の配線もここに置く（例: `get_sanpo_map_contents()`。`sanpo_maps/contents.py`
-  の `SanpoMapContents` port を `PinService` に結びつける、ADR-009 決定29, SS-113）。
+  **（SS-137 追補）** `sanpo_maps` の地図・ピン間の依存は port ではなく `sanpo_maps` モジュール
+  内部の部品（`sanpo_maps/maps/access.py` の `SanpoMapAccess`・`sanpo_maps/photos/cleanup.py` の
+  `PhotoObjectCleaner`）に置き換わったため、ここに置いていたドメイン間 port の配線
+  （`get_sanpo_map_contents()`）は撤去した（ADR-011）。
 
 ### `core/` — 横断的関心事
 - どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`observability.py` の `AccessLogMiddleware` / `configure_logging()` のような**可観測性の土台**（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
@@ -186,22 +204,72 @@ packages/backend/
 - 1つのドメインに属する `router / schemas / models / service / repository / dependencies / exceptions` をまとめる。
 - **層をまたぐ呼び出しは一方向**にする: `router → service → repository`。逆流させない。
 - 他ドメインから使う必要が出たものは `core/` へ昇格させる（ドメイン間の直接依存を増やさない）。
-- ただし、片方のドメインがもう片方に**構造的に依存する**関係（例: `auth → users`、
-  `pins → sanpo_maps`）は例外として一方向の直接依存を許容する。`pins`（ピン・写真・タグ）は
-  `sanpo_maps`（地図・メンバーシップ・権限）の `Service`/`Repository` を直接 import してよいが、
-  逆方向（`sanpo_maps` が `pins` を import する）は禁止する。これにより `GET /sanpo-maps` が
-  ピンの状態に依存せず、地図単体の権限判定を先に固められる（ADR-009）。
-  - `sanpo_maps` が `pins` の情報（ピン件数の集計・地図削除時の写真の後始末）を要るときは、
-    `sanpo_maps/contents.py` の `SanpoMapContents` port（Protocol）を経由する。実装は
-    `pins/service.py` の `PinService` が構造的部分型で満たし、配線はアプリ直下
-    `dependencies.py` の `get_sanpo_map_contents()` で行う（`sanpo_maps/dependencies.py` に
-    置くと `sanpo_maps` が `pins` を import することになるため）。`sanpo_maps/tests/
-    test_dependency_direction.py` が `sanpo_maps/` 配下の全 `.py` を AST で検査し、
-    `sanposcape.pins` を import していないことを固定する（ADR-009 決定29, SS-113）。
+- ただし、片方のドメインがもう片方に**構造的に依存する**関係（例: `auth → users`）は例外として
+  一方向の直接依存を許容する。
+  - **（SS-137 追補）** 地図とピンの関係は「別ドメインが構造的に依存する」形から、
+    「1つのドメイン（`sanpo_maps`）の中のサブパッケージ」に置き換わった。地図の中身の集計・
+    削除時の後始末は port（Protocol・依存性逆転）ではなく、依存の向きに沿った通常の部品
+    （`sanpo_maps/maps/access.py`・`sanpo_maps/photos/cleanup.py`）と `Repository` のクエリで
+    解決する。詳細は
+    後述「複数エンティティを持つドメイン（`sanpo_maps/`）」と ADR-011 を参照。
   - 昇格時は、**旧 import 位置に再エクスポートを残して段階移行する**（OpenAPI のコンポーネント名を変えないため）。
     実例: `GeoPoint` は `maps/schemas.py` から `core/geo.py` へ昇格したが、`maps/schemas.py` は
     `from sanposcape.core.geo import GeoPoint` を再エクスポートし続けている。クラス名を変えていない
     ため、生成される OpenAPI のコンポーネント名（`GeoPoint`）にも変化はない。
+
+### 複数エンティティを持つドメイン（`sanpo_maps/`）（SS-137, ADR-011）
+
+複数のエンティティが強く結びついているドメインは、`<domain>/` を素直に分割すると
+サブドメイン間で双方向の依存が生まれてしまう。`sanpo_maps`（地図・ピン・写真）はこの形の実例。
+
+1. **いつこの形にするか**: 複数のエンティティが次のいずれかを共有し、別ドメインに分けると
+   双方向の依存が要る場合。
+   - 権限（メンバーシップ）を共有する
+   - ライフサイクル（`ON DELETE CASCADE` 等）を共有する
+   - 同じトランザクションでの更新を要求する
+
+   どれにも当てはまらなければ、通常どおり別ドメインに分けて一方向の依存にする
+   （`auth → users` のような構造的依存の例外はそのまま使ってよい）。
+
+2. **形**: ドメイン直下は**共有カーネル**だけにする（`models.py` に全モデル、
+   `exceptions.py`、`permissions.py` 等の DB に依存しない純粋関数、`advisory_locks.py` のような
+   複数サブパッケージが使う小さな共通部品）。`router`/`service`/`repository` はドメイン直下に
+   置かず、サブパッケージ（`maps/`・`pins/`・`photos/`）に置く。サブパッケージの中は通常の
+   ドメインと同じ役割名のファイル（`router.py`/`service.py`/`repository.py`/`schemas.py`/
+   `mappers.py`/`dependencies.py`）にする。テストは各サブパッケージの `tests/` に、
+   ドメイン全体に関わるテスト（依存方向の検査等）は `sanpo_maps/tests/`、共通 fixture は
+   `sanpo_maps/conftest.py` に置く。
+
+3. **依存の向きとモジュール内規則（M1〜M9）**:
+
+   ```
+               pins ─────────┐
+                │            │
+                ▼            ▼
+               maps ──────► photos
+                │            │
+                ▼            ▼
+         共有カーネル（models / exceptions / permissions / advisory_locks）
+   ```
+
+   下位（`photos`）は上位（`maps`・`pins`）を import しない。詳細な規則 M1〜M9 は
+   [ADR-011](../../../docs/adr/ADR-011-sanpo-maps-module-structure.md) を参照。特に、
+   **双方向の依存が必要になった（下位サブパッケージが上位の業務ロジックそのものを必要とする）
+   場合は、port（Protocol）やメソッドインジェクションで回避せず、ユースケース層
+   （`sanpo_maps/usecases/`）を導入する（M9）**。この判断は `sanpo_maps/tests/
+   test_architecture.py` が AST で検査している（`test_no_protocol_ports` が
+   `sanpo_maps` 本体で `Protocol` を定義していないことを固定する）。
+
+4. **パスの書き方**: `sanpo_maps/maps/` はアプリ直下の `maps/`（探索・経路算出ドメイン）と
+   同名になる。import は常に `sanposcape.sanpo_maps.maps.*` のように完全修飾するため実害は
+   無いが、ドキュメント・コメント・agent-memory では**必ずモジュール名から書く**
+   （`sanpo_maps/maps/service.py` のように書き、単に `maps/service.py` と書かない）。
+
+5. **サブパッケージを増やす判断**: 新しいエンティティ群が独自の `router` とテーブルを持ち、
+   既存サブパッケージとの依存が一方向（上図の並びのどこかに追加できる形）に収まるなら
+   サブパッケージとして追加してよい。追加したら `sanpo_maps/tests/test_architecture.py` の
+   許可表（`_ALLOWED_SUBPACKAGE_DEPENDENCIES`・`_ALLOWED_PUBLIC_SURFACE`）と ADR-011 を
+   追補として更新する。
 
 ### レイヤーの配置判断
 > - HTTPの入出力・依存解決だけ → `router.py`
@@ -212,13 +280,16 @@ packages/backend/
 > 迷ったらまず `service.py` に書き、DBアクセスが増えたら `repository.py` に切り出す。
 
 ### 現在時刻の扱い（クロック注入）
-- **現在時刻に依存する service は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
+- **現在時刻に依存する service・部品は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
   コンストラクタ引数で注入可能にする**。採用済み: `auth/service.py` の `AuthService`（トークンの有効期限）、
-  `walks/service.py` の `WalkService`（集計の「今日」判定）、`sanpo_maps/service.py` の
-  `SanpoMapService`・`pins/service.py` の `PinService`/`PinPhotoUploadService`（アップロード枠の
-  期限・確定時刻）。`pins/photo_attacher.py` の `PhotoAttacher` は `datetime` ではなく
-  `monotonic: Callable[[], float] = time.monotonic` を同じ発想で注入する（確定処理の時間予算の
-  締め切り判定。壁時計ではなく経過時間だけが必要なため）。
+  `walks/service.py` の `WalkService`（集計の「今日」判定）、`sanpo_maps/pins/service.py` の
+  `PinService`/`sanpo_maps/photos/service.py` の `PinPhotoUploadService`（アップロード枠の期限・
+  確定時刻）、`sanpo_maps/maps/access.py` の `SanpoMapAccess`（地図の `updated_at` 更新。**SS-137
+  追補**: 旧 `SanpoMapService` から移った。`SanpoMapService` 自体はもう `now` を持たない）。
+  `sanpo_maps/photos/photo_attacher.py` の `PhotoAttacher`・`sanpo_maps/photos/cleanup.py` の
+  `PhotoObjectCleaner`（**SS-137 追補**: 新設）は `datetime` ではなく
+  `monotonic: Callable[[], float] = time.monotonic` を同じ発想で注入する（確定処理・削除の
+  時間予算の締め切り判定。壁時計ではなく経過時間だけが必要なため）。
 - service 内に `datetime.now()` を直接書かない。テストから時刻を固定できず、日付境界の検証が書けなくなる
   （書けたとしても実行日に依存する不安定なテストになる）。
 - `dependencies.py` の `get_xxx_service()` は既定値のまま生成し、注入はテストからのみ行う。
@@ -229,6 +300,10 @@ packages/backend/
 
 ### `models.py` の配置と Alembic
 - SQLAlchemy モデルは**各ドメインの `models.py` に併置**する。
+  複数エンティティを持つドメイン（`sanpo_maps/`）は、サブパッケージに分けず**ドメイン直下の
+  `models.py` 1ファイルに全モデルを置く**（サブパッケージの `Repository` が互いのテーブルを
+  JOIN・集計するため、モデルを分けるとモデルの import だけでサブパッケージ間が循環してしまう。
+  SS-137, ADR-011）。
 - 集約モジュール `all_models.py` が全ドメインの models を import して `Base.metadata` に載せ、`alembic/env.py` はこの `all_models.py` の `Base` を参照する。
 - **新しいドメインの models を追加したら、`all_models.py` に import を足すこと**（追加しないと Alembic の autogenerate がそのモデルを認識できず、マイグレーションが生成されない）。
 

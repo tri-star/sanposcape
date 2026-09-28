@@ -20,9 +20,10 @@ Full report was written to a task-local file under `tmp/` (not durable) — key 
   2. No dedicated rate limiting on `POST /pin-photo-uploads` / `POST /pins` / `POST
      /pins/{pin_id}/photos` (same accepted-tradeoff pattern as walks/maps, see
      [[project_ss18_walks_review]] / [[project_ss42_walks_stats_review]]).
-  3. `pins/dev_storage_router.py`'s `POST /dev-storage/uploads` reads the whole multipart file
-     into memory before checking `max_bytes` — dev/test-only (STORAGE_MODE=fake fails startup
-     outside local/test per `config.py`'s allowlist validator), so low impact.
+  3. `sanpo_maps/photos/dev_storage_router.py`'s (**SS-137**: moved from pins/dev_storage_router.py)
+     `POST /dev-storage/uploads` reads the whole multipart file into memory before checking
+     `max_bytes` — dev/test-only (STORAGE_MODE=fake fails startup outside local/test per
+     `config.py`'s allowlist validator), so low impact.
 - **Mitigations verified as actually implemented (not just planned)**:
   - IDOR: `SanpoMapRepository`/`PinRepository`/`PinPhotoUploadRepository` read methods all
     require `user_id` and JOIN through `sanpo_map_members`; cross-owner access is 404, matching

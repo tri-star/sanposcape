@@ -7,7 +7,8 @@ metadata:
   source_issue: SS-112
 ---
 
-`packages/backend/src/sanposcape/pins/service.py::_delete_photo_keys_best_effort` の
+`packages/backend/src/sanposcape/pins/service.py::_delete_photo_keys_best_effort`（**SS-137
+追補**: `sanpo_maps/photos/cleanup.py::PhotoObjectCleaner.delete_best_effort` へ切り出し済み）の
 時間予算バグ（PR #101 レビューC1、`pattern_partial_deadline_guard` と同系統の指摘）への対応
 （2026-09-26時点、`tri-star/ss-112` ブランチ）をレビューした結果。
 
@@ -40,7 +41,8 @@ R1対応で、定数の定義直後（`s3.py`）と `object_storage_delete_call_
 
 **pattern_partial_deadline_guard との関係**: `pins/service.py` の削除経路（`delete_pin`/`delete_photo`
 → `_delete_photo_keys_best_effort`）はSS-112で対称的な締め切り保護に修正済み。
-一方 `pins/photo_attacher.py` の `commit()`/`cleanup_staging()`（確定処理側）は、
+一方 `sanpo_maps/photos/photo_attacher.py`（旧 pins/photo_attacher.py）の
+`commit()`/`cleanup_staging()`（確定処理側）は、
 本対応のスコープ外として意図的に残されている。「確定処理は503で再送できる設計で、C1の
 指摘対象ではない」というユーザー決定は ADR-009 決定22 追補（2026-09-26）に記録済み。
 次にこのファイルをレビューする際は「まだ直っていない」という前提で良い。
