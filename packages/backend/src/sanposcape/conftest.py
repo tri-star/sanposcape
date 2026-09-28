@@ -1,6 +1,7 @@
 """pytest 共通フィクスチャ。
 
-テスト用DB（TEST_DB_NAME）に対してスキーマを作成し、
+テスト用DB（TEST_DB_NAME）に対して、セッション開始時に1回だけスキーマを作成し、
+各テストの前にテーブルの中身を空にする（SS-141）。
 FastAPI の DB 依存を差し替えた TestClient を提供する。
 """
 
@@ -10,7 +11,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from sanposcape.all_models import Base
@@ -69,12 +70,74 @@ def _isolate_settings_from_ambient_env(monkeypatch: pytest.MonkeyPatch, tmp_path
     monkeypatch.chdir(tmp_path)
 
 
-@pytest.fixture(autouse=True)
-def _setup_schema() -> Generator[None, None, None]:
-    """各テスト前後でスキーマを作り直し、テストを独立させる。"""
+@pytest.fixture(scope="session", autouse=True)
+def _test_db_schema() -> Generator[None, None, None]:
+    """テスト用DBのスキーマをセッション開始時に1回だけ作る（SS-141）。
+
+    約1,100件のテストのたびに `create_all`/`drop_all`（DDL）を実行するコストが大きかった
+    （PR #103 レビュー F-005）。スキーマ自体はテスト間で変わらないため、session スコープで
+    1回だけ作れば足りる。テストごとの独立性は `_reset_tables`（各テストの前にテーブルの
+    中身を空にする）で担保する。
+
+    ★ なぜ最初に `drop_all` してから `create_all` するか: CI（`.github/workflows/
+      backend-ci.yml`）は `TEST_DB_NAME` を `DB_NAME` と同じ値にしたうえで、テストの前に
+      `alembic upgrade head` を流している。`create_all`（checkfirst）だけにすると、CI では
+      テスト全体が alembic 由来のスキーマで動くように変わってしまう（今は最初の1件を除き、
+      モデル定義（`Base.metadata`）から作ったスキーマで動いている）。drop_all を先に行う
+      ことで、常にモデル定義由来のスキーマでテストが動くという今の性質を保つ。ローカルでも、
+      前回の実行が落ちて残ったテーブルや別ブランチで列が変わったテーブルを使い回さない
+      効果がある。
+    ★ 終了時にも `drop_all` するのは、「テストが終わったらテスト用DBは空」という今までの
+      終了時の状態を保つため。コストはセッション終了時の1回分だけ。
+    ★ 外側トランザクション + savepoint 巻き戻し案は採らない: その案ではテスト用セッションと
+      アプリ用セッションが同じ接続を共有してしまい、「別セッションから見えるか」
+      （`sanpo_maps/tests/test_service.py::test_commits_and_is_visible_from_another_session`）や
+      スレッドを使った FOR UPDATE の直列化（`auth/tests/test_repository.py`、
+      `pins/tests/test_service.py`、`walks/tests/test_repository.py` など）、一意制約の競合
+      （`users/tests/test_repository.py`）を検証するテストの意味が失われるため。
+      詳細は [ADR-011](../../../docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md)。
+    """
+    Base.metadata.drop_all(bind=test_engine)
     Base.metadata.create_all(bind=test_engine)
     yield
     Base.metadata.drop_all(bind=test_engine)
+
+
+_TABLES = Base.metadata.sorted_tables
+"""`_reset_tables` の後始末対象。`Base.metadata` に載っているテーブルだけを対象にすることで、
+将来 PostGIS 等の拡張を入れても、拡張由来のテーブルや `alembic_version`（メタデータ外）は
+構造的に対象から外れる（現状はどちらも存在しない。ADR-011 参照）。"""
+
+
+def _delete_all() -> None:
+    """全テーブルを `DELETE FROM` で空にする。
+
+    TRUNCATE との比較計測（ADR-011）で、DELETE の方が明らかに速かった（テーブルが小さく
+    ほぼ空の状態で毎回実行するため、TRUNCATE の ACCESS EXCLUSIVE ロック取得・カタログ更新の
+    コストの方が相対的に高い）ため、こちらを採用した。`Base.metadata.sorted_tables` の
+    逆順（子テーブルから）で削除することで、外部キー制約に違反しない。
+    """
+    with test_engine.begin() as conn:
+        # 閉じ忘れたセッションが idle in transaction で残っていると DELETE は行ロック待ちで
+        # 無言に止まりうる。今の drop_all も同種のロックを要求するため新しいリスクではないが、
+        # 原因を切り分けやすくするためエラーにする。
+        conn.execute(text("SET LOCAL lock_timeout = '10s'"))
+        for table in reversed(_TABLES):
+            conn.execute(table.delete())
+
+
+@pytest.fixture(autouse=True)
+def _reset_tables(_test_db_schema: None) -> None:
+    """各テストの**前**に全テーブルの中身を空にする（SS-141）。
+
+    ★ なぜ「テストの後」ではなく「前」か: 前のテストの teardown が失敗しても（例外や
+      ロック待ちタイムアウト）、次のテストは必ず空のテーブルから始まる。失敗が後続の
+      テストへ連鎖しない。最後のテストが残したデータは、session 終了時の `drop_all`
+      （`_test_db_schema`）が片付ける。詳細は ADR-011。
+    ★ TRUNCATE ではなく DELETE を選んだ理由・計測結果は `_delete_all` の docstring と
+      ADR-011 を参照。
+    """
+    _delete_all()
 
 
 @pytest.fixture
