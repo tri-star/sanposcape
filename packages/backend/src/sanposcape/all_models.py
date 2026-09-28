@@ -7,8 +7,14 @@ Alembic の autogenerate がスキーマ全体を認識できるようにする�
 
 from sanposcape.auth.models import RefreshToken  # noqa: F401
 from sanposcape.database import Base
-from sanposcape.pins.models import Pin, PinPhoto, PinPhotoUpload, PinTag  # noqa: F401
-from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember  # noqa: F401
+from sanposcape.sanpo_maps.models import (  # noqa: F401
+    Pin,
+    PinPhoto,
+    PinPhotoUpload,
+    PinTag,
+    SanpoMap,
+    SanpoMapMember,
+)
 from sanposcape.users.models import User  # noqa: F401
 from sanposcape.walks.models import Walk  # noqa: F401
 

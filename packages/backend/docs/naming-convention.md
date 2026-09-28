@@ -39,7 +39,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 | ファイル | 役割 |
 |---|---|
-| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/`・`walks/`・`pins/`・`sanpo_maps/`（SS-113）で採用 |
+| `mappers.py` | モデル→レスポンススキーマの変換（`from_attributes` で表現できない場合）。`auth/`・`walks/`・`sanpo_maps/{maps,pins}/`（SS-113。SS-137 でサブパッケージへ移動）で採用 |
 
 ドメイン固有の事情がある場合は、役割が一目で分かる名前で追加してよい（固定セットに無理に詰め込まない）。
 例: `auth/` ドメインでは以下を追加している。
@@ -57,23 +57,41 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 |---|---|
 | `stats.py` | 集計（`GET /walks/stats`）で使う日付ロジックと定数。DB / Pydantic に依存しない純粋関数だけを置き、現在時刻は必ず引数で受け取る |
 
-`sanpo_maps/` ドメインでは以下を追加している。
+`sanpo_maps/` ドメイン（SS-88 で新設、SS-137 で `pins/` を統合し複数エンティティを持つドメインに
+再編。内部構成・命名規則は [folder-structure.md「複数エンティティを持つドメイン」](./folder-structure.md)
+と [ADR-011](../../../docs/adr/ADR-011-sanpo-maps-module-structure.md) を参照）では、
+ドメイン直下（共有カーネル）と各サブパッケージで、それぞれ以下のファイルを役割別ファイル名の
+基本セットに追加している。
+
+共有カーネル（ドメイン直下）:
 
 | ファイル | 役割 |
 |---|---|
-| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112。地図そのものの管理系 `can_update_sanpo_map`/`can_delete_sanpo_map`, SS-113）。DB に依存しない純粋関数。追加系（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）は role だけで判定する。対象の持ち主を判定する更新・削除系（`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに材料が違う（ピン/タグ/写真）ため `is_creator`/`is_uploader` をキーワード専用引数にする。地図そのものの管理系（`can_update_sanpo_map`/`can_delete_sanpo_map`）は role のみで判定し owner 限定（地図の持ち主 = owner の role のため、対象の持ち主を判定する引数は無い） |
-| `contents.py` | `sanpo_maps` ドメインが `pins` へ依存せず地図の中身（ピン件数・写真）にアクセスするための port（`SanpoMapContents`, `Protocol`）。実装は `pins/service.py` の `PinService` が構造的部分型で満たす（SS-113, ADR-009 決定29） |
+| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112。地図そのものの管理系 `can_update_sanpo_map`/`can_delete_sanpo_map`, SS-113）。DB に依存しない純粋関数。追加系（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）は role だけで判定する。対象の持ち主を判定する更新・削除系（`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに材料が違う（ピン/タグ/写真）ため `is_creator`/`is_uploader` をキーワード専用引数にする。地図そのものの管理系（`can_update_sanpo_map`/`can_delete_sanpo_map`）は role のみで判定し owner 限定（地図の持ち主 = owner の role のため、対象の持ち主を判定する引数は無い）。`SanpoMapRole` もここで定義する（SS-137 で `maps/schemas.py` から移動） |
+| `advisory_locks.py` | `advisory_lock_key(user_id)`。owner 単位ロック（`sanpo_maps/maps/repository.py`）とアップロード枠ロック（`sanpo_maps/photos/repository.py`）が共通で使う鍵導出（SS-137。旧 `_advisory_lock_key` の重複を統合） |
 
-`pins/` ドメイン（SS-88 で新設）では以下を追加している。
+`maps/` サブパッケージ（地図・メンバーシップ）:
 
 | ファイル | 役割 |
 |---|---|
-| `upload_router.py` | `POST /pin-photo-uploads`（写真アップロード枠の発行）専用の `APIRouter`。本体の `router.py`（`POST /pins` 等）と分離している |
+| `access.py` | `SanpoMapAccess`。ピン作成時の地図解決・権限判定・`updated_at` 更新（旧 `SanpoMapService.resolve_map_for_new_pin`/`get_role`/`mark_used`）。Session を持たず commit しない部品として `sanpo_maps/pins/service.py` から使われる（SS-137, ADR-011） |
+
+`pins/` サブパッケージ（ピン・タグ・ピンに紐付いた写真の行）:
+
+| ファイル | 役割 |
+|---|---|
+| `tag_labels.py` | タグの正規化（trim・連続空白圧縮・先頭記号除去）と重複排除。DB に依存しない純粋関数 |
+
+`photos/` サブパッケージ（写真の実体と先行アップロード枠。旧 `pins/` ドメインの一部を SS-137 で分離）:
+
+| ファイル | 役割 |
+|---|---|
+| `router.py` | `POST /pin-photo-uploads`（写真アップロード枠の発行）、`DELETE /pin-photo-uploads/{upload_id}` 専用の `APIRouter`（旧 `pins/upload_router.py`。`pins/router.py` と役割名を揃えるため改名） |
 | `dev_storage_router.py` | `STORAGE_MODE=fake` 限定の `/dev-storage/*`。`include_in_schema=False`（`auth/dev_router.py` と同じ規律） |
 | `photo_attacher.py` | 写真の確定処理（検証・サムネイル生成・並列化・時間予算のガード）。DB に依存しない |
 | `thumbnails.py` | Pillow によるサムネイル生成（`bytes -> ThumbnailResult`）。DB/S3 に依存しない純粋関数 |
-| `tag_labels.py` | タグの正規化（trim・連続空白圧縮・先頭記号除去）と重複排除。DB に依存しない純粋関数 |
 | `photo_keys.py` | `staging`/`original`/`thumb` の S3 キー組み立て。DB/S3 に依存しない純粋関数 |
+| `cleanup.py` | `PhotoObjectCleaner`。DB commit 後に写真の S3 オブジェクトを best-effort で削除する部品（旧 `PinService._delete_photo_keys_best_effort`。ピン削除・写真削除・地図削除の3箇所から使われる。SS-137, ADR-011） |
 
 ## FastAPI / API 関連
 
@@ -154,7 +172,7 @@ route（画面/URL/`APIRouter`）とも混同しない）。
 
 | 意味 | 語 | 実例 |
 |---|---|---|
-| ①ユーザーが地図に自由に登録する地点（名前・メモ・タグ・写真） | `Pin` | `pins/models.py` の `Pin` / テーブル `pins` / API `/pins`・`client_pin_id` |
+| ①ユーザーが地図に自由に登録する地点（名前・メモ・タグ・写真） | `Pin` | `sanpo_maps/models.py` の `Pin`（SS-137 で `pins/models.py` から統合） / テーブル `pins` / API `/pins`・`client_pin_id` |
 | ②散歩の目的地候補（Google Maps 由来。往復範囲探索で提示） | `SpotCandidate` | `maps/schemas.py`。`Spot`（単体）は使わない（① と衝突するサンプル実装だったため SS-88 で削除済み） |
 | ③ピンの入れ物（コレクション） | `SanpoMap` | `sanpo_maps/models.py` の `SanpoMap` / テーブル `sanpo_maps` / API `/sanpo-maps`・`sanpo_map_id`。`Map` 単体は使わない（`maps/` ドメイン＝探索・経路と衝突するため） |
 

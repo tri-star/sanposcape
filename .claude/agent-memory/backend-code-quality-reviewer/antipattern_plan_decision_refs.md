@@ -26,11 +26,15 @@ SS-111（`pins/` の閲覧API追加, PR: `tri-star/ss-111-pin-read-api`）でも
 
 SS-131（`api_docs/` Scalar導入）でも再発を確認: `api_docs/tests/test_router.py` の `test_scalar_docs_disables_telemetry_and_agent` docstring に「（プランの注意事項参照）」とあり、gitignore対象の計画ドキュメントの注意書きを指している。 <!-- tmp-ref-ok: tmp/ 参照そのものを説明している箇所 --> ただしdocstring本文自体がすでに同じ趣旨（実際のHTMLを出力し直して区切りを確認すること）を書いており自己完結していたため、Low/Suggestion止まりで指摘した（本文だけで意味が通り、tmp参照は装飾的）。
 
-SS-113（`sanpo_maps/` 地図の作成・管理API追加）でも再発を確認: `sanpo_maps/mappers.py`（新規ファイル）
-と `sanpo_maps/service.py` の docstring に `（B-D2）`/`（B-D1）` という、ADR-009本文のどこにも定義のない
-ラベルが新規に追加された（既存の `sanpo_maps/repository.py::list_for_member` や `pins/repository.py`・
-`pins/models.py`・`pins/thumbnails.py`・`integrations/aws/s3.py` 等にも `B-D5`/`B-D7`〜`B-D20` が
-既に広範囲に存在しており、`B-D` は SS-88 当時の初期ナンバリングの生き残りと見られる）。
+SS-113（`sanpo_maps/` 地図の作成・管理API追加）でも再発を確認: `sanpo_maps/maps/mappers.py`
+（新規ファイル。当時は sanpo_maps/mappers.py。**SS-137 で移動**）と `sanpo_maps/maps/service.py`
+（当時は sanpo_maps/service.py。**SS-137 で移動**）の docstring に `（B-D2）`/`（B-D1）` という、
+ADR-009本文のどこにも定義のないラベルが新規に追加された（既存の
+`sanpo_maps/maps/repository.py::list_for_member`（当時は sanpo_maps/repository.py。**SS-137 で
+移動**）や `pins/repository.py`・`sanpo_maps/models.py`（当時は pins/models.py。**SS-137 で
+共有カーネルへ統合**）・`sanpo_maps/photos/thumbnails.py`（当時は pins/thumbnails.py。**SS-137 で
+移動**）・`integrations/aws/s3.py` 等にも `B-D5`/`B-D7`〜`B-D20` が既に広範囲に存在しており、
+`B-D` は SS-88 当時の初期ナンバリングの生き残りと見られる）。
 このチケットの実装計画は「実装ステップ」冒頭で明示的に
 「コードのコメントは ADR-009 の決定番号（決定25〜29）で参照し、計画書内のラベル・節番号・
 揮発性の作業メモ置き場を書かない（docs-lint と SS-111 のレビュー指摘）」と自己規定していたにも

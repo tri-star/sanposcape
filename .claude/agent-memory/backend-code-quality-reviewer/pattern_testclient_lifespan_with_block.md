@@ -15,7 +15,8 @@ metadata:
 のコメント "R7: `_lifespan` を走らせるため `with TestClient(...)` が必須" が明文化）**:
 - `conftest.py` の `client` フィクスチャ、`auth/tests/test_dev_router.py` の `real_client`、
   `conftest.py` の `dev_client`、`app_config/tests/test_router.py` の `stub_client` /
-  `empty_stub_client` / `unconfigured_client`、`pins/tests/conftest.py` 等はすべて
+  `empty_stub_client` / `unconfigured_client`、`sanpo_maps/conftest.py`（**SS-137 追補**: 旧
+  pins/tests/conftest.py。`sanpo_maps`/`pins`統合でモジュール直下に統合された）等はすべて
   `with TestClient(app) as test_client:` を使う。
 - 唯一の例外は `tests/test_main.py:151`（`test_access_log_records_the_413_...`）で、
   ミドルウェアが本文サイズ超過を検知してリクエストがルートハンドラ（＝lifespan 依存の状態）

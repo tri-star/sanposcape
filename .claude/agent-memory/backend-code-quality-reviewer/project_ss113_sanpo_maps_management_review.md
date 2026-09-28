@@ -15,18 +15,21 @@ Copilotレビュー対応を反映して更新）。
 コミット `28777e0`（ローカルレビュー対応）で、ADR-009 の決定番号の参照（決定3・決定29）に
 修正済み**。未解決の指摘ではない。それ以外の観点は以下のとおり良好:
 
-- `pins/repository.py::count_pins_for_maps()` は `IN (:ids) GROUP BY sanpo_map_id` の単一クエリ、
-  空リストガードあり。N+1なし。
-- `pins/repository.py::list_photo_keys_for_map()` は列だけSELECT（エンティティ全体を読まない）。
+- `pins/repository.py::count_pins_for_maps()`（**SS-137 追補**: `sanpo_maps/maps/repository.py`
+  へ移動）は `IN (:ids) GROUP BY sanpo_map_id` の単一クエリ、空リストガードあり。N+1なし。
+- `pins/repository.py::list_photo_keys_for_map()`（**SS-137 追補**: 同上、`sanpo_maps/maps/
+  repository.py` へ移動）は列だけSELECT（エンティティ全体を読まない）。
   地図単位でも [[pattern_partial_deadline_guard]] や SS-112の時間予算実装（
   `PinService._delete_photo_keys_best_effort`）をそのまま再利用しており、新しい削除部品・
   設定値を増やしていない。
-- 依存方向（`sanpo_maps` が `pins` を import しない）は `sanpo_maps/contents.py` の Protocol +
-  `sanpo_maps/tests/test_dependency_direction.py`（AST解析、走査対象が空にならないことの番兵
-  テストつき）で機械的に担保されている。
+- 依存方向（`sanpo_maps` が `pins` を import しない）は `SanpoMapContents` の Protocol + 旧
+  test_dependency_direction（AST解析、走査対象が空にならないことの番兵テストつき）で機械的に
+  担保されていた。**SS-137 追補**: `pins` を `sanpo_maps` 配下へ統合し、port は撤去。依存方向は
+  `sanpo_maps/tests/test_architecture.py`（M1〜M9, ADR-011）が引き続き AST で担保している。
 - commit前にORM属性をローカル変数へ退避してから `delete()`→`commit()`→`cleanup()` する順序は
   [[pattern_expired_orm_attr_in_post_commit_log]] のR2規律を正しく踏襲。
-- テスト網羅性（`sanpo_maps/tests/`・`pins/tests/test_sanpo_map_management.py`）はCASCADE・
+- テスト網羅性（`sanpo_maps/tests/`・`sanpo_maps/maps/tests/test_sanpo_map_management.py`。
+  **SS-137 追補**: 旧 pins/tests/test_sanpo_map_management.py）はCASCADE・
   S3削除・staging温存・容量解放・Unconfigured時204・IDOR・既定地図の繰り上げをほぼ計画の
   完了条件どおりに固定しており抜けなし。
 

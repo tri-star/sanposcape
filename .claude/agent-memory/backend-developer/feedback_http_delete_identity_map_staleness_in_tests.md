@@ -28,6 +28,6 @@ commit を認識しない。
 `sanposcape.conftest.TestSessionLocal()` で新しいセッションを開いて `.get()` する（使い終わったら
 `close()`）。`sum_attached_bytes()` のような集計 SELECT（identity map を経由しない生クエリ）は
 READ COMMITTED のもとで新しい文ごとに最新状態を読むため、この罠に当たらない
-（`pins/tests/test_sanpo_map_management.py::TestDeleteSanpoMapCascade::
-test_capacity_is_freed_after_deletion` で確認済み）。罠に当たるのは `Session.get()`（主キー
-指定の ORM ロード）だけ。
+（`sanpo_maps/maps/tests/test_sanpo_map_management.py::TestDeleteSanpoMapCascade::
+test_capacity_is_freed_after_deletion`（**SS-137 追補**: 旧 pins/tests/test_sanpo_map_management.py）
+で確認済み）。罠に当たるのは `Session.get()`（主キー指定の ORM ロード）だけ。
