@@ -28,4 +28,4 @@
 - [project-ss131-scalar-api-docs-complete](project_ss131_scalar_api_docs_complete.md) — SS-131（/docsをSwagger UIからScalarに置き換え、production非公開）は実装完了。api_docs/router.pyのSCALAR_JS_URL定数に版固定を集約
 - [project-ss112-pr101-review-c1-c4-complete](project_ss112_pr101_review_c1_c4_complete.md) — SS-112 PR #101レビューC1〜C4（削除の時間予算・権限マトリクスdocsの記述不一致）は実装完了。返信・resolveは未実施
 - [feedback-http-delete-identity-map-staleness-in-tests](feedback_http_delete_identity_map_staleness_in_tests.md) — HTTP経由の削除を別セッションで確認するテストはdb_sessionのidentity mapが罠になる（ObjectDeletedErrorも）。TestSessionLocal()の新規セッションで確認する
-- [project-ss137-sanpo-maps-module-merge-complete](project_ss137_sanpo_maps_module_merge_complete.md) — SS-137（pinsをsanpo_maps配下へ統合、maps/pins/photosサブパッケージ化）は段階1〜3（移動・Service再設計・ADR-011/docs/agent-memory更新）まで実装完了
+- [feedback-module-relocation-and-ast-arch-test-gotchas](feedback_module_relocation_and_ast_arch_test_gotchas.md) — パッケージ移動とASTアーキテクチャテストの罠: 除外条件は1ヘルパーに集約 / from X import YはX.Yも候補(公開面はprefix判定) / 違反注入で確認 / 空__init__のrename誤検出 / staleness検査はバッククォート+拡張子を拾う

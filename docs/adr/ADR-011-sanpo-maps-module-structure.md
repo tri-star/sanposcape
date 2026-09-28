@@ -409,6 +409,13 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 - [ ] 将来 BK-2（アカウント削除時の写真削除）・BK-7（招待）等の他ドメインが地図の権限・
       写真削除を必要とする場合は、M7 の公開面（`sanpo_maps.models`・`sanpo_maps.exceptions`・
       各 `router`）を本 ADR への追補で意識的に広げてから使う。
+- [ ] `sanpo_maps/photos/service.py` の `PinPhotoUploadService.delete_upload`（アップロード枠の
+      取り消し）は、commit 後の staging 削除で `ObjectStorageUnavailableError` だけを捕捉している
+      （他の commit 後の後始末は `PhotoObjectCleaner.delete_best_effort()` の `except Exception`）。
+      想定外の例外は commit 後にもかかわらず router まで伝播しうる。統合前（旧 pins の service）
+      からの挙動をそのまま移したもので、揃えると振る舞いが変わるため本チケットでは直さず、
+      別チケットで「commit 後の後始末は例外を外に出さない」に揃えるかを判断する
+      （SS-137 ローカルレビュー、2026-09-28 ユーザー判断で見送り）。
 
 ## 関連情報
 
@@ -419,5 +426,5 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
   「複数エンティティを持つドメイン（`sanpo_maps/`）」節
 - [packages/backend/docs/naming-convention.md](../../packages/backend/docs/naming-convention.md)
 - `packages/backend/src/sanposcape/sanpo_maps/tests/test_architecture.py`
-  —— M1〜M8 のうち AST で検査できるものの実装
+  —— M1〜M5・M7・M8 を AST で検査する実装（M6・M9 はレビューで確認）
 - Plane: SS-137（本 ADR）、SS-113（本 ADR が置き換える port 構成の導入元）
