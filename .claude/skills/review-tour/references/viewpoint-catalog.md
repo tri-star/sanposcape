@@ -64,7 +64,7 @@
 
 1. 外部サービスを抽象化している境界（interface・Protocol・依存性注入）
 2. 本番用の実装（`integrations/` など）
-3. ローカル・テスト用のスタブ実装（例: backend `pins/dev_storage_router.py`、mobile `services/<名前>/*.mock.ts` / `*.dev.ts`）
+3. ローカル・テスト用のスタブ実装（例: backend `sanpo_maps/photos/dev_storage_router.py`、mobile `services/<名前>/*.mock.ts` / `*.dev.ts`）
 4. どちらを使うかを切り替える箇所（backend `config.py`・環境変数・DI の組み立て、mobile `services/<名前>/index.ts`）
 5. ローカルでの確認手順があるか（`packages/backend/docs/local-development.md` など）
 
