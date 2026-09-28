@@ -14,8 +14,9 @@ from sanposcape.conftest import override_get_db
 from sanposcape.database import get_db
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.main import app, create_app
+from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
+from sanposcape.sanpo_maps.models import PinPhoto, PinPhotoUpload
 from sanposcape.sanpo_maps.photos.photo_keys import original_key, staging_key, thumbnail_key
-from sanposcape.sanpo_maps.pins.models import PinPhoto, PinPhotoUpload
 from sanposcape.users.models import User
 
 
@@ -32,6 +33,15 @@ def make_user(db_session: Session, *, subject: str) -> User:
     db_session.commit()
     db_session.refresh(user)
     return user
+
+
+def make_sanpo_map(db_session: Session, *, owner_user_id: uuid.UUID) -> uuid.UUID:
+    """所有者1名だけの地図を作る共有ヘルパー（`maps/`・`pins/`・`photos/` のテストで使う）。"""
+    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+        owner_user_id=owner_user_id, name="テスト地図", is_default=True
+    )
+    db_session.commit()
+    return sanpo_map.id
 
 
 @pytest.fixture

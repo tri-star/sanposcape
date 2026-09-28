@@ -12,8 +12,7 @@ from datetime import datetime, timedelta
 from sanposcape.core.geo import GeoPoint
 from sanposcape.integrations.aws.s3 import ObjectStorage, ObjectStorageUnavailableError
 from sanposcape.sanpo_maps.maps.schemas import SanpoMapSummaryRead
-from sanposcape.sanpo_maps.models import SanpoMap
-from sanposcape.sanpo_maps.pins.models import Pin, PinPhoto, PinTag
+from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap
 from sanposcape.sanpo_maps.pins.schemas import (
     PinListItemRead,
     PinPhotoListRead,

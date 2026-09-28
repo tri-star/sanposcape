@@ -25,7 +25,8 @@ from sanposcape.sanpo_maps.conftest import (
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
 from sanposcape.sanpo_maps.photos.photo_keys import staging_key
-from sanposcape.sanpo_maps.pins.repository import PinPhotoUploadRepository, PinRepository
+from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
+from sanposcape.sanpo_maps.pins.repository import PinRepository
 from sanposcape.users.models import User
 
 _FAKE_STORAGE_SETTINGS = Settings(

@@ -3,9 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, Request, status
 
 from sanposcape.dependencies import get_current_user
-from sanposcape.sanpo_maps.pins.dependencies import get_pin_photo_upload_service
-from sanposcape.sanpo_maps.pins.schemas import PinPhotoUploadCreate, PinPhotoUploadRead
-from sanposcape.sanpo_maps.pins.service import PinPhotoUploadService
+from sanposcape.sanpo_maps.photos.dependencies import get_pin_photo_upload_service
+from sanposcape.sanpo_maps.photos.schemas import PinPhotoUploadCreate, PinPhotoUploadRead
+from sanposcape.sanpo_maps.photos.service import PinPhotoUploadService
 from sanposcape.users.models import User
 
 router = APIRouter(prefix="/pin-photo-uploads", tags=["pins"])

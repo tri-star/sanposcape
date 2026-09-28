@@ -4,8 +4,9 @@
 
 import uuid
 
-from sanposcape.sanpo_maps.maps.schemas import SanpoMapRead, SanpoMapRole
+from sanposcape.sanpo_maps.maps.schemas import SanpoMapRead
 from sanposcape.sanpo_maps.models import SanpoMap
+from sanposcape.sanpo_maps.permissions import SanpoMapRole
 
 
 def to_sanpo_map_read(

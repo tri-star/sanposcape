@@ -5,9 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
-#: `sanpo_map_members.role` と同じ値域（`models.py` の `SANPO_MAP_ROLES`）。
-#: MVP では `owner` のみが出現する（editor は招待機能で登場する予約）。
-SanpoMapRole = Literal["owner", "editor"]
+from sanposcape.sanpo_maps.permissions import SanpoMapRole
 
 #: 地図名の長さ上限（code point 数）。DB `String(50)`・ピン名（`PIN_NAME_MAX_LENGTH`）と
 #: 同じ（ADR-009 決定25）。

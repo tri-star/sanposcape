@@ -14,11 +14,14 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapCreate,
     SanpoMapListRead,
     SanpoMapRead,
-    SanpoMapRole,
     SanpoMapUpdate,
 )
 from sanposcape.sanpo_maps.models import SanpoMap
-from sanposcape.sanpo_maps.permissions import can_delete_sanpo_map, can_update_sanpo_map
+from sanposcape.sanpo_maps.permissions import (
+    SanpoMapRole,
+    can_delete_sanpo_map,
+    can_update_sanpo_map,
+)
 from sanposcape.users.models import User
 
 logger = logging.getLogger(__name__)

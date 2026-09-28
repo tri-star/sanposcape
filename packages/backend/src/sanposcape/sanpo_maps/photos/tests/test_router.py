@@ -5,8 +5,8 @@ from fastapi.testclient import TestClient
 from sanposcape.conftest import TestSessionLocal
 from sanposcape.integrations.aws.s3 import FakeObjectStorage, ObjectStorageUnavailableError
 from sanposcape.sanpo_maps.conftest import create_upload_row, make_user, seed_staging_photo
+from sanposcape.sanpo_maps.models import PinPhotoUpload
 from sanposcape.sanpo_maps.photos.photo_keys import staging_key
-from sanposcape.sanpo_maps.pins.models import PinPhotoUpload
 
 
 def _upload_row_exists(upload_id: uuid.UUID) -> bool:

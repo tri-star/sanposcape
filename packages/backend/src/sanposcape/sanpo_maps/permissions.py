@@ -19,7 +19,11 @@ SS-113）を参照。関数の形は3種類ある。
 渡っても構造的に安全側へ倒れる。
 """
 
-from sanposcape.sanpo_maps.maps.schemas import SanpoMapRole
+from typing import Literal
+
+#: `sanpo_map_members.role` と同じ値域（`models.py` の `SANPO_MAP_ROLES`）。
+#: MVP では `owner` のみが出現する（editor は招待機能で登場する予約）。
+SanpoMapRole = Literal["owner", "editor"]
 
 _WRITE_ROLES: tuple[SanpoMapRole, ...] = ("owner", "editor")
 
