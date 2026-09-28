@@ -229,6 +229,149 @@ describe("createSessionAuthService", () => {
   });
 
   describe("restoreSession", () => {
+    it("時間超過後もトークン保存が完了するまで次のrefreshを開始しない", async () => {
+      vi.useFakeTimers();
+      try {
+        let stored = "refresh-1";
+        let releaseSave: () => void = () => {};
+        const save = vi.fn(async (token: string) => {
+          await new Promise<void>((resolve) => {
+            releaseSave = resolve;
+          });
+          stored = token;
+        });
+        const persistence: RefreshTokenPersistence = {
+          load: async () => stored,
+          save,
+          remove: async () => {},
+        };
+        const { service, api } = setup({ persistence, restoreTimeoutMs: 1_000 });
+        api.refresh.mockResolvedValue(rawSession({ refreshToken: "refresh-2" }));
+        const restored = service.restoreSession();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(save).toHaveBeenCalledWith("refresh-2");
+        await vi.advanceTimersByTimeAsync(1_000);
+        await expect(restored).resolves.toBeNull();
+
+        await expect(service.refreshAccessToken()).resolves.toBeNull();
+        expect(api.refresh).toHaveBeenCalledTimes(1);
+        expect(await persistence.load()).toBe("refresh-1");
+
+        releaseSave();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(await persistence.load()).toBe("refresh-2");
+        api.refresh.mockRejectedValue(new TypeError("network down"));
+        await expect(service.refreshAccessToken()).resolves.toBeNull();
+        expect(api.refresh).toHaveBeenCalledTimes(2);
+        expect(api.refresh.mock.calls[1]?.[0]).toBe("refresh-2");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("サインイン後にサービスを再生成しても、保存済みトークンで連続して復元できる", async () => {
+      const persistence = createMemoryRefreshTokenPersistence();
+      const original = setup({ persistence });
+      original.issueSession.mockResolvedValue(rawSession());
+      const user = await original.service.signIn("google");
+
+      for (const [previous, next] of [
+        ["refresh-1", "refresh-2"],
+        ["refresh-2", "refresh-3"],
+      ]) {
+        const restarted = setup({ persistence });
+        restarted.api.refresh.mockResolvedValue(rawSession({ refreshToken: next }));
+        expect(restarted.service.getCurrentUser()).toBeNull();
+        await expect(restarted.service.restoreSession()).resolves.toEqual(user);
+        expect(restarted.api.refresh.mock.calls[0]?.[0]).toBe(previous);
+        expect(await persistence.load()).toBe(next);
+      }
+    });
+
+    it("APIが先に開始した更新も復元の上限時間で中断され、遅い応答は無視される", async () => {
+      vi.useFakeTimers();
+      try {
+        const persistence = createMemoryRefreshTokenPersistence("refresh-1");
+        const { service, api, onSessionChange } = setup({ persistence, restoreTimeoutMs: 1_000 });
+        let release: (value: unknown) => void = () => {};
+        api.refresh.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              release = resolve;
+            }),
+        );
+        const token = service.getAccessToken();
+        const restored = service.restoreSession();
+        await vi.advanceTimersByTimeAsync(1_000);
+        await expect(token).resolves.toBeNull();
+        await expect(restored).resolves.toBeNull();
+        release(rawSession({ refreshToken: "refresh-2" }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(onSessionChange).not.toHaveBeenCalled();
+        expect(await persistence.load()).toBe("refresh-1");
+        expect(api.refresh).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("中断後に遅れて返った401が、再サインインしたセッションを消さない", async () => {
+      const { service, api, issueSession, persistence } = setup({
+        persistence: createMemoryRefreshTokenPersistence("refresh-1"),
+      });
+      let reject: (error: unknown) => void = () => {};
+      api.refresh.mockImplementation(
+        () =>
+          new Promise((_resolve, rejectRefresh) => {
+            reject = rejectRefresh;
+          }),
+      );
+      const controller = new AbortController();
+      const restored = service.restoreSession({ signal: controller.signal });
+      await vi.waitFor(() => expect(api.refresh).toHaveBeenCalledTimes(1));
+      controller.abort();
+      await expect(restored).resolves.toBeNull();
+      issueSession.mockResolvedValue(rawSession({ refreshToken: "refresh-new" }));
+      const user = await service.signIn("google");
+      reject(new ApiError(401));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(service.getCurrentUser()).toEqual(user);
+      expect(await persistence.load()).toBe("refresh-new");
+    });
+
+    it.each(["restore-first", "api-first"] as const)(
+      "%s: 起動時復元とAPIのトークン取得が同じrefreshを共有する",
+      async (order) => {
+        const persistence = createMemoryRefreshTokenPersistence("refresh-1");
+        const { service, api, onSessionChange } = setup({ persistence });
+        let release: (value: unknown) => void = () => {};
+        api.refresh
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                release = resolve;
+              }),
+          )
+          .mockRejectedValue(new ApiError(401));
+
+        const first =
+          order === "restore-first" ? service.restoreSession() : service.getAccessToken();
+        await vi.waitFor(() => expect(api.refresh).toHaveBeenCalledTimes(1));
+        const second =
+          order === "restore-first" ? service.getAccessToken() : service.restoreSession();
+        // 専用復元経路と通常経路が同じトークンを別々に送るとbackendはfamilyを失効する。
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        release(rawSession({ refreshToken: "refresh-2" }));
+        const results = await Promise.all([first, second]);
+
+        expect(api.refresh).toHaveBeenCalledTimes(1);
+        expect(results[order === "restore-first" ? 0 : 1]).toMatchObject({ id: "user-1" });
+        expect(results[order === "restore-first" ? 1 : 0]).toBe("access-1");
+        expect(await persistence.load()).toBe("refresh-2");
+        expect(onSessionChange).toHaveBeenCalledTimes(1);
+      },
+    );
+
     it("保存済み refresh token から user を復元する", async () => {
       const persistence = createMemoryRefreshTokenPersistence("refresh-1");
       const { service, api } = setup({ persistence });
