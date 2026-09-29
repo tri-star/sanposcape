@@ -19,8 +19,11 @@ export function normalizeTagLabel(input: string): string {
   return value.replace(WHITESPACE_PATTERN, " ");
 }
 
-/** 重複判定キー（正規化 + 小文字化）。backend の `tag_key` と同じ。 */
-function tagKey(label: string): string {
+/**
+ * 重複判定キー（正規化 + 小文字化）。backend の `tag_key` と同じ。
+ * 候補の照合（`pinTagSuggestions.ts`）でも使う。
+ */
+export function tagKey(label: string): string {
   return normalizeTagLabel(label).toLowerCase();
 }
 

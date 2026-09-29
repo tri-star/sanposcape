@@ -7,15 +7,21 @@ import {
   resolveSaveAvailability,
   validatePinDraftFields,
 } from "@/features/pin/lib/pinDraftValidation";
+import {
+  filterTagSuggestions,
+  resolveTagLabelForAdd,
+  resolveTagSuggestionSanpoMapId,
+} from "@/features/pin/lib/pinTagSuggestions";
 import { addTag, addTagErrorMessage, removeTag as removeTagFrom } from "@/features/pin/lib/pinTags";
 import { resolveSanpoMapChoices } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import { usePinTagSuggestions } from "@/features/pin/hooks/usePinTagSuggestions";
 import { usePinPhotos } from "@/features/pin/hooks/usePinPhotos";
 import type { UsePinPhotosResult } from "@/features/pin/hooks/usePinPhotos";
 import { usePinSave } from "@/features/pin/hooks/usePinSave";
 import type { UsePinSaveResult } from "@/features/pin/hooks/usePinSave";
-import type { PinDraft, SanpoMapSelection, SavedPin } from "@/features/pin/types";
+import type { PinDraft, SanpoMapSelection, SavedPin, TagSuggestion } from "@/features/pin/types";
 import { randomUuidV4 } from "@/lib/uuid";
 import type { GeoCoordinates } from "@/services/location/types";
 
@@ -35,6 +41,10 @@ export type UsePinRegisterResult = {
   setTagInput: (v: string) => void;
   tagError: string | null;
   addTagFromInput: () => void;
+  /** 画面に出す候補（絞り込み・付与済み除外・上限判定済み）。 */
+  tagSuggestions: TagSuggestion[];
+  /** 候補チップのタップ。 */
+  addTagFromSuggestion: (label: string) => void;
   removeTag: (label: string) => void;
   selectSanpoMap: (selection: SanpoMapSelection) => void;
   sanpoMaps: SanpoMapChoicesState & { retry: () => void };
@@ -58,7 +68,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   const [name, setNameState] = useState("");
   const [memo, setMemoState] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
+  const [tagInput, setTagInputState] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
   const [sanpoMapSelection, setSanpoMapSelection] = useState<SanpoMapSelection>({
     kind: "default",
@@ -83,6 +93,21 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
       }),
     [sanpoMapsQuery.status, sanpoMapsQuery.maps, sanpoMapSelection],
   );
+
+  const tagSuggestionsQuery = usePinTagSuggestions({
+    sanpoMapId: resolveTagSuggestionSanpoMapId({
+      status: sanpoMapsQuery.status,
+      maps: sanpoMapsQuery.maps,
+      selection: sanpoMapSelection,
+    }),
+    enabled: options.isSignedIn,
+  });
+  // 配列走査のみで軽いので useMemo しない（`fieldErrors` と同じ扱い）。
+  const tagSuggestions = filterTagSuggestions({
+    candidates: tagSuggestionsQuery.candidates,
+    query: tagInput,
+    attached: tags,
+  });
 
   const photosBase = usePinPhotos({
     enabled: options.isSignedIn,
@@ -134,17 +159,29 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     save.resetError();
   };
 
-  const addTagFromInput = () => {
-    const result = addTag(tags, tagInput);
+  // 入力が変わったら前回のエラー（「同じタグがすでにあります」など）は消す。
+  const setTagInput = (v: string) => {
+    setTagInputState(v);
+    setTagError(null);
+  };
+
+  const applyAddTag = (label: string) => {
+    const result = addTag(tags, label);
     if (!result.ok) {
       setTagError(addTagErrorMessage(result.reason));
       return;
     }
     setTags(result.tags);
-    setTagInput("");
+    setTagInputState("");
     setTagError(null);
     save.resetError();
   };
+
+  // 候補との照合には絞り込み前の候補を使う（画面に出ていない既存タグの表記にも揃えるため）。
+  const addTagFromInput = () =>
+    applyAddTag(resolveTagLabelForAdd(tagInput, tagSuggestionsQuery.candidates));
+
+  const addTagFromSuggestion = (label: string) => applyAddTag(label);
 
   const removeTag = (label: string) => {
     setTags((prev) => removeTagFrom(prev, label));
@@ -187,6 +224,8 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     setTagInput,
     tagError,
     addTagFromInput,
+    tagSuggestions,
+    addTagFromSuggestion,
     removeTag,
     selectSanpoMap,
     sanpoMaps: { ...sanpoMapsState, retry: sanpoMapsQuery.retry },

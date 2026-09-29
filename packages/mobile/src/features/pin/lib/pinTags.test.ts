@@ -6,6 +6,7 @@ import {
   addTagErrorMessage,
   normalizeTagLabel,
   removeTag,
+  tagKey,
 } from "@/features/pin/lib/pinTags";
 
 describe("normalizeTagLabel", () => {
@@ -23,6 +24,16 @@ describe("normalizeTagLabel", () => {
 
   it("記号・空白のみは空文字になる", () => {
     expect(normalizeTagLabel("  ###  ")).toBe("");
+  });
+});
+
+describe("tagKey", () => {
+  it.each([
+    ["  #Cafe  ", "cafe"],
+    ["ＣＡＦＥ", "ｃａｆｅ"],
+    ["a   B", "a b"],
+  ])("%s -> %s（NFKC はしない）", (raw, expected) => {
+    expect(tagKey(raw)).toBe(expected);
   });
 });
 
