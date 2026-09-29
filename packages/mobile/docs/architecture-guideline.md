@@ -52,7 +52,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピンの登録/閲覧のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/map.tsx` / `app/pins/[pinId].tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118）。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
-  （実例1: `app/(tabs)/history.tsx` が `state.user?.displayName ?? null` を読み `HistoryView` →
+  （実例1: `app/(tabs)/account.tsx`（SS-145 で `history.tsx` から改名）が `state.user?.displayName ?? null` を読み `HistoryView` →
   `useHistorySummary` へ渡す。SS-29。
   実例2: `app/walk-summary.tsx` が `state.status === "authenticated"` を読み、`WalkSummaryView` →
   `useWalkSummary` → `useWalkSave` へ渡す。401 のときのサインイン CTA のハンドラも同じくルートが
@@ -181,12 +181,17 @@ export default function SomeFeatureRoute() {
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
   `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
+  （ピンタブから開く `/pins/*` も OFF 時はナビタブへ戻す。ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
   （実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`。SS-88 / SS-124。
   `app/pins/map.tsx` / `app/pins/[pinId].tsx`。SS-118）。
 
-**タブごと隠す**: `app/(tabs)/_layout.tsx` の該当 `<Tabs.Screen>` に
-`options={{ href: enabled ? undefined : null }}` を渡す（`href: null` でタブバーから消える）。
-ルート自体は残るので、ディープリンク対策が要るなら上のルート側ガードと併用する。
+**タブごと隠す**: このアプリのタブバーは独自の `AppTabBar`（`features/navigation`）で、`Tabs.Screen` の
+`href: null` は効かない（expo-router は `href: null` を標準タブバー用の `tabBarButton` /
+`tabBarItemStyle` に変換するだけのため）。表示するタブは `features/navigation/lib/appTabs.ts` の
+`resolveVisibleAppTabs` で決め、`app/(tabs)/_layout.tsx` がフラグの判定（`resolveFeatureGateDecision`
+の結果）を `AppTabBar` に渡す。**`pending` では隠さず、`disabled` で隠す**。タブのルート自体は残るので、
+ディープリンク・フォーカス中の OFF 化に備えて上の単一ルートのガードと併用する
+（実例: ピンタブ `app/(tabs)/pins.tsx`。SS-145）。
 
 **いずれの場合も** `app/` にロジックを書かない。判定は `resolveFeatureGateDecision`
 （`src/lib/featureGate.ts`）を呼ぶだけに保つ。
