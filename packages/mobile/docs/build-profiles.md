@@ -99,9 +99,10 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
 > **iOS の OAuth クライアントは既存クライアントの bundle ID を `com.sanposcape.app.dev` に
 > 編集する形で対応した**（クライアント ID は変わらなかったことをコンソールで確認済み）。
 > そのため `iosUrlScheme` / EAS の `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` / Secrets Manager /
-> `sam deploy` はすべて無変更。**本番用 iOS OAuth クライアントは未作成**で、`production` を
-> 使い始める段で新規作成し `app.config.ts` の `PRODUCTION_VARIANT` に `iosUrlScheme` を
-> 足す必要がある。
+> `sam deploy` はすべて無変更。本番用 iOS OAuth クライアントは SS-79 時点では未作成だったが、
+> **2026-09-30 に本番 GCP プロジェクトで作成し、`app.config.ts` の `PRODUCTION_VARIANT` に
+> `iosUrlScheme` を追加済み**（下記「アプリ識別子の定義」、
+> [ADR-002 の本番用 iOS OAuth クライアント追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。
 
 ### `staging-apk`
 
@@ -599,7 +600,11 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
 | 本番 | `production` | `com.sanposcape.app` | `sanposcape` | `sanposcape` |
 
 - **値の出どころ**: 開発用 = `app.json` の実値、本番 = `app.config.ts` の `PRODUCTION_VARIANT`
-  定数（`APP_VARIANT=production` のときだけ適用）。app.json に開発用の実値を置いているのは、
+  定数（`APP_VARIANT=production` のときだけ適用）。Google サインインの `iosUrlScheme`
+  （`react-native-nitro-google-signin` のプラグイン設定）も同じ向きで、開発用 =
+  `app.json`（開発用 GCP プロジェクト `647949159303` の iOS クライアント）、本番 =
+  `PRODUCTION_VARIANT.googleSignInIosUrlScheme`（本番 GCP プロジェクト `680740561437` の iOS
+  クライアント。2026-09-30 追加）。app.json に開発用の実値を置いているのは、
   `scripts/mobile-tools/lib/common.sh` が app.json を grep して `APP_ID` / `APP_SCHEME` を
   決めるため。この向きなら `app.config.ts` の分岐を書き忘れても開発用に落ちるだけで済む。
 - **識別子ごとに別セットになるもの**: EAS の Android キーストア / iOS プロビジョニング

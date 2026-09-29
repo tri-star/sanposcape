@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-21（SS-93）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-30（本番用 iOS OAuth クライアント追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -47,10 +47,12 @@
   失敗原因がアプリ側で汎用メッセージになる診断性の問題と合わせて SS-82 で継続。（本文: 決定4-1、移行・対応が必要な事項、SS-81 追補）
 - **Secrets Manager のキー名 `google_oauth_client_id` が複数値の実態と食い違い、設定漏れを誘発する**問題は SS-84 で扱う。
   （本文: 決定4-1、SS-81 追補）
-- **本番識別子 `com.sanposcape.app` 用の OAuth クライアントが未作成**。`production` プロファイルを使い始める段で、
-  本番 GCP プロジェクトでの Android の登録、本番用 iOS クライアントの新規作成、`app.config.ts` の
-  `PRODUCTION_VARIANT` への `iosUrlScheme` 追加、本番 Secrets Manager の `google_oauth_client_id` 設定
-  （dev のクライアント ID を入れない）が必要。（本文: 「SS-79 追補」節）
+- **本番識別子 `com.sanposcape.app` 用の OAuth 設定は一部未完了**。本番用 iOS クライアントの作成
+  （本番 GCP プロジェクト `680740561437`）と、`app.config.ts` の `PRODUCTION_VARIANT` による
+  `iosUrlScheme` の上書きは対応済み（2026-09-30）。残りは本番 GCP プロジェクトでの Android の登録、
+  EAS `production` 環境の `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`、
+  本番 Secrets Manager の `google_oauth_client_id` 設定（dev のクライアント ID を入れない）。
+  （本文: 「SS-79 追補」節、「本番用 iOS OAuth クライアント追補」節）
 - **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が必要**（2026-09 時点で未実装）。
   （本文: 移行・対応が必要な事項）
 
@@ -67,7 +69,8 @@
 ## 日付
 
 2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
-2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）
+2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）、
+2026-09-30 追補（本番用 iOS OAuth クライアント）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -348,7 +351,8 @@ SS-79 でアプリ識別子を本番（`com.sanposcape.app`）と開発（`com.s
   ユーザーが確認した。したがって `app.json` の `iosUrlScheme`・backend の
   `GOOGLE_ALLOWED_AUDIENCES`（Secrets Manager `/sanposcape/dev/shared` の
   `google_oauth_client_id`）はいずれも**無変更**で済んでいる。
-- **本番用 iOS OAuth クライアントは未作成**。既存クライアントを開発識別子に編集したため、
+- **本番用 iOS OAuth クライアントは未作成**（**2026-09-30 追補: 作成し `app.config.ts` に反映済み。
+  下記「本番用 iOS OAuth クライアント追補」節を参照**）。既存クライアントを開発識別子に編集したため、
   `production` プロファイルを使い始める段で本番識別子（`com.sanposcape.app`）用のクライアントを
   新規作成し、`packages/mobile/app.config.ts` の `PRODUCTION_VARIANT` に `iosUrlScheme` を
   追加し、本番の Secrets Manager（`/sanposcape/prod/shared`）の `google_oauth_client_id` に
@@ -357,6 +361,30 @@ SS-79 でアプリ識別子を本番（`com.sanposcape.app`）と開発（`com.s
 - 識別子ごとの署名鍵・登録状態の一覧は
   [build-profiles.md](../../packages/mobile/docs/build-profiles.md) の「アプリ識別子の定義」を
   参照。
+
+## 本番用 iOS OAuth クライアント追補（2026-09-30）
+
+本番 GCP プロジェクト（`680740561437`）に、本番識別子 `com.sanposcape.app` 用の iOS OAuth
+クライアントを作成した（クライアント ID `680740561437-1q63dlugo3vrecpvsrd15jsgpt4g57dp`）。
+
+- **`packages/mobile/app.config.ts` の `PRODUCTION_VARIANT` にこのクライアントの iOS URL スキーム
+  （`com.googleusercontent.apps.680740561437-1q63dlugo3vrecpvsrd15jsgpt4g57dp`）を追加し、
+  `APP_VARIANT=production` のときだけ `react-native-nitro-google-signin` の `iosUrlScheme` を
+  上書きする**ようにした。`APP_VARIANT` 未設定時は `app.json` の開発用の値のまま。
+  それまでは本番ビルドにも dev クライアントの URL スキームが入っていた（上書きすべき値が無かった）。
+- **プラグインが plugins 配列に見つからなければ `expo config` の評価時点で例外にする**。
+  名前変更等で差し替えが空振りすると、本番でだけ iOS サインインが壊れ、ビルドや E2E
+  （Android のみ）では検出できないため。`APP_VARIANT` の typo を例外にするのと同じ考え方
+  （[mobile ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)）。
+- **URL スキームと `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` は同じクライアントを指す必要がある**。
+  前者はリポジトリ（`app.config.ts`）、後者は EAS の `production` 環境変数と供給元が分かれて
+  いるため、クライアントを作り直したときは両方を更新すること。
+- **本番の残作業**（本追補時点で未完了。リポジトリ外の設定）: EAS `production` 環境の
+  `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` /
+  `GOOGLE_MAPS_ANDROID_SDK_KEY`（secret）、本番 Secrets Manager（`/sanposcape/prod/shared`）の
+  `google_oauth_client_id` に Web クライアント ID + 本番用 iOS クライアント ID を設定
+  （dev のクライアント ID を入れない）、本番 GCP プロジェクトでの Android の登録
+  （`com.sanposcape.app` + 本番鍵の SHA-1。build-profiles.md の「アプリ識別子の定義」参照）。
 
 ## 関連情報
 
