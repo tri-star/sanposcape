@@ -14,6 +14,7 @@ from sanposcape.sanpo_maps.conftest import (
 from sanposcape.sanpo_maps.maps.repository import _PROMOTE_MAX_ATTEMPTS, SanpoMapRepository
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
 from sanposcape.sanpo_maps.pins.repository import PinRepository
+from sanposcape.users.models import User
 
 
 class TestListForMember:
@@ -505,7 +506,7 @@ class TestCountPinsForMaps:
 
 
 class TestListTagSummaries:
-    def _setup(self, db_session: Session):
+    def _setup(self, db_session: Session) -> tuple[User, uuid.UUID, SanpoMapRepository]:
         owner = make_user(db_session, subject="owner")
         sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         return owner, sanpo_map_id, SanpoMapRepository(db_session)
@@ -585,6 +586,21 @@ class TestListTagSummaries:
         rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
 
         assert [r.label_key for r in rows] == ["a", "b", "c"]
+
+    def test_tie_break_by_label_key_is_byte_order(self, db_session: Session) -> None:
+        """最終タイブレークは DB の collation ではなくバイト順（`COLLATE "C"`）。"""
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(
+            db_session,
+            sanpo_map_id=map_id,
+            user_id=owner.id,
+            tags=[("あ", 0), ("z", 0), ("_x", 0), ("1", 0), ("Y", 0)],
+        )
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        # 数字 < `_` < 小文字 ASCII < かな（UTF-8 のバイト順）。`Y` は "y" に正規化される。
+        assert [r.label_key for r in rows] == ["1", "_x", "y", "z", "あ"]
 
     def test_limit_truncates_to_top_n(self, db_session: Session) -> None:
         owner, map_id, repo = self._setup(db_session)

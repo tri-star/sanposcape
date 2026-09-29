@@ -37,8 +37,11 @@ class SanpoMapTagSummary:
 class SanpoMapRepository:
     """sanpo_maps / sanpo_map_members への DB アクセスを隔離する層。
 
-    読み取り系のメソッドはすべて `user_id` を必須引数に取り、`sanpo_map_members` との
-    JOIN で絞る（ID だけで引ける口を作らない。ADR-003 決定6 と同じ構造的な IDOR 対策）。
+    member 判定を伴う読み取り（`list_for_member`/`get_membership`/`list_tag_summaries` 等）は
+    `user_id` を必須引数に取り、`sanpo_map_members` との JOIN で絞る（ID だけで引ける口を
+    作らない。ADR-003 決定6 と同じ構造的な IDOR 対策）。`count_pins_for_maps` /
+    `list_photo_keys_for_map` のように認可済みの ID を受け取るものは、その旨を各 docstring
+    に明記している。
     """
 
     def __init__(self, db: Session) -> None:
@@ -285,7 +288,8 @@ class SanpoMapRepository:
         （`GET /sanpo-maps/{sanpo_map_id}/tags` 用, ADR-009 SS-136 追補 決定30）。
 
         - 並び順: `pin_count DESC` → `last_used_at`（`MAX(pin_tags.created_at)`）`DESC`
-          → `label_key ASC`。
+          → `label_key ASC`（`COLLATE "C"` = バイト順。DB の collation に依存させず
+          決定的にする）。
         - `label`（代表表記）: 同じ `label_key` の行のうち `created_at DESC, id DESC` の
           先頭。同一トランザクションの INSERT は `created_at` が同値になりうるので、`id`
           を補助キーにして決定的にする。
@@ -294,6 +298,8 @@ class SanpoMapRepository:
         - 集計対象は作成者を問わない全ピン。`sanpo_map_members` を `user_id` で JOIN して
           絞るので、非メンバーの `user_id` では空になる（`(sanpo_map_id, user_id)` が PK
           のため行は増えず、count は水増しされない）。
+        - `limit` は 1〜`SANPO_MAP_TAG_LIST_MAX_LIMIT`（Router の `Query` で検証済み）。
+          ここでは再検証しない。
         - `PinTag` は maps 外のテーブルだが、読み取りの JOIN・集計なので可（ADR-011 M6）。
         """
         # PostgreSQL の配列は 1 始まり。SQLAlchemy の ARRAY は zero_indexes=False が既定で
@@ -309,7 +315,9 @@ class SanpoMapRepository:
             .join(SanpoMapMember, SanpoMapMember.sanpo_map_id == Pin.sanpo_map_id)
             .where(Pin.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id)
             .group_by(PinTag.label_key)
-            .order_by(pin_count_col.desc(), last_used_col.desc(), PinTag.label_key.asc())
+            .order_by(
+                pin_count_col.desc(), last_used_col.desc(), PinTag.label_key.collate("C").asc()
+            )
             .limit(limit)
         )
         return [

@@ -74,7 +74,8 @@ class SanpoMapService:
 
         member（owner / editor）なら可。非メンバー・存在しない ID は区別せず 404
         （決定9・21）。読み取りのみで role による拒否は無いので `permissions.py` には
-        関数を足さない。集計は Repository のクエリ側でも member JOIN で絞る（多重防御）。
+        関数を足さない。`limit` は 1〜`SANPO_MAP_TAG_LIST_MAX_LIMIT`（Router で検証済み）。
+        集計は Repository のクエリ側でも member JOIN で絞る（多重防御）。
         """
         membership = self._repository.get_membership(
             user_id=current_user.id, sanpo_map_id=sanpo_map_id
