@@ -215,6 +215,8 @@ testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` �
    - Tag のように「静的な表示」が正当な用途としてある場合のみ optional にしてよい。
      その場合は disabled ではなく、`Pressable` を使わず `accessibilityRole` も付けない
      **非インタラクティブな要素として描画する**（disabled は「今は利用できない」の意味なので別物）。
+   - **例外**: `Input` の `onSubmitEditing` のように、キーボード上に常にある操作への補助ハンドラは
+     対象外（optional でよい）。押せるように見えるコントロールを新たに作らないため。
 
 ### テストの書き方（RN の render テストは書けない）
 
