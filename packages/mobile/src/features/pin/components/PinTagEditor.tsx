@@ -55,6 +55,12 @@ export function PinTagEditor({
     AccessibilityInfo.announceForAccessibility(`タグ「${label}」を追加しました`);
   };
 
+  // 追加ボタンも入力欄にフォーカスが残ったまま押されるので、上限に達するなら同じく閉じる。
+  const handleAdd = () => {
+    if (reachesTagLimitAfterAdd(tags, input)) Keyboard.dismiss();
+    onAdd();
+  };
+
   return (
     <View testID={testID} style={styles.root}>
       {tags.length > 0 ? (
@@ -103,7 +109,7 @@ export function PinTagEditor({
         <Button
           variant="secondary"
           size="sm"
-          onPress={onAdd}
+          onPress={handleAdd}
           disabled={disabled || limitReached}
           testID={`${testID}-add`}
         >

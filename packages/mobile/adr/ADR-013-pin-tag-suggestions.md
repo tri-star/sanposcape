@@ -54,8 +54,9 @@ backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API �
   （`submitBehavior="submit"`）にし、続けて入力できる。次の場合だけ `blurAndSubmit` に切り替える。
   (1) 入力が空: 追加せずキーボードを閉じるだけでエラーを出さない。(2) この追加で上限（10個）に
   達する: 直後に入力欄が `editable=false` になり、OS によってはキーボードだけ残るのを避ける。
-  判定は `lib/pinTagSuggestions.ts` の純粋関数（`resolveTagSubmitBehavior`）。候補チップのタップで
-  上限に達した場合は UI 側で `Keyboard.dismiss()` する。候補から追加したときは
+  判定は `lib/pinTagSuggestions.ts` の純粋関数（`resolveTagSubmitBehavior`）。候補チップのタップ
+  または追加ボタンで上限に達した場合は UI 側で `Keyboard.dismiss()` する（判定は同じく
+  `reachesTagLimitAfterAdd`。PR #110 レビューで追加ボタンの経路を追加）。候補から追加したときは
   `AccessibilityInfo.announceForAccessibility` で追加を読み上げる（タップしたチップが消えるため）。
   追加ボタンは残す（送信キーに気づかない人・スクリーンリーダー利用者の導線）。
 - **D10: 入力が変わったら前回のタグ追加エラーを消す。** 打ち直している間に
