@@ -3,7 +3,7 @@ import uuid
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from sanposcape.sanpo_maps.conftest import make_user
+from sanposcape.sanpo_maps.conftest import add_pin_tag, create_pin_with_tags, make_user
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.models import SanpoMapMember
 from sanposcape.users.models import User
@@ -363,6 +363,148 @@ class TestDeleteSanpoMap:
         items = list_response.json()["items"]
         assert items[0]["id"] == other_body["id"]
         assert items[0]["is_default"] is True
+
+
+class TestListSanpoMapTags:
+    def _own_map(self, db_session: Session, user: User) -> uuid.UUID:
+        sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=user.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        return sanpo_map.id
+
+    def test_requires_authentication(self, sanpo_maps_client: TestClient) -> None:
+        response = sanpo_maps_client.get(f"/sanpo-maps/{uuid.uuid4()}/tags")
+        assert response.status_code == 401
+
+    def test_returns_label_and_pin_count_only(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        map_id = self._own_map(db_session, authenticated_user)
+        for _ in range(2):
+            create_pin_with_tags(
+                db_session, sanpo_map_id=map_id, user_id=authenticated_user.id, tags=[("カフェ", 0)]
+            )
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=authenticated_user.id, tags=[("公園", 1)]
+        )
+
+        response = sanpo_maps_client.get(f"/sanpo-maps/{map_id}/tags", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "items": [{"label": "カフェ", "pin_count": 2}, {"label": "公園", "pin_count": 1}]
+        }
+
+    def test_map_without_tags_returns_empty_items(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        map_id = self._own_map(db_session, authenticated_user)
+
+        response = sanpo_maps_client.get(f"/sanpo-maps/{map_id}/tags", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json() == {"items": []}
+
+    def test_others_map_is_404(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        db_session: Session,
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        map_id = self._own_map(db_session, owner)
+
+        response = sanpo_maps_client.get(f"/sanpo-maps/{map_id}/tags", headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Sanpo map not found"}
+
+    def test_unknown_map_is_404(
+        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = sanpo_maps_client.get(f"/sanpo-maps/{uuid.uuid4()}/tags", headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Sanpo map not found"}
+
+    def test_non_uuid_map_id_is_422(
+        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = sanpo_maps_client.get("/sanpo-maps/not-a-uuid/tags", headers=auth_headers)
+        assert response.status_code == 422
+
+    def test_limit_out_of_range_is_422_and_upper_bound_is_ok(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        map_id = self._own_map(db_session, authenticated_user)
+        url = f"/sanpo-maps/{map_id}/tags"
+
+        assert (
+            sanpo_maps_client.get(url, params={"limit": 0}, headers=auth_headers).status_code == 422
+        )
+        assert (
+            sanpo_maps_client.get(url, params={"limit": 201}, headers=auth_headers).status_code
+            == 422
+        )
+        assert (
+            sanpo_maps_client.get(url, params={"limit": 200}, headers=auth_headers).status_code
+            == 200
+        )
+
+    def test_default_limit_is_100(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        map_id = self._own_map(db_session, authenticated_user)
+        # サービス層の10件上限を通らないよう、Repository 直で 101 種類を INSERT する。
+        pin_id = create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=authenticated_user.id
+        )
+        for i in range(101):
+            add_pin_tag(
+                db_session, pin_id=pin_id, user_id=authenticated_user.id, label=f"tag{i:03d}"
+            )
+        db_session.commit()
+
+        response = sanpo_maps_client.get(f"/sanpo-maps/{map_id}/tags", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert len(response.json()["items"]) == 100
+
+    def test_editor_member_can_list(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        map_id = self._own_map(db_session, owner)
+        add_member(db_session, sanpo_map_id=map_id, user_id=authenticated_user.id, role="editor")
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("オーナーのタグ", 0)]
+        )
+
+        response = sanpo_maps_client.get(f"/sanpo-maps/{map_id}/tags", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json() == {"items": [{"label": "オーナーのタグ", "pin_count": 1}]}
 
 
 class TestRequestSizeLimit:

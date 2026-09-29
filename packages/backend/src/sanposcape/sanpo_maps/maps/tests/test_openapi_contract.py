@@ -29,6 +29,10 @@ class TestOperationIds:
             document["paths"]["/sanpo-maps/{sanpo_map_id}"]["delete"]["operationId"]
             == "delete_sanpo_map"
         )
+        assert (
+            document["paths"]["/sanpo-maps/{sanpo_map_id}/tags"]["get"]["operationId"]
+            == "list_sanpo_map_tags"
+        )
 
 
 class TestCreateSanpoMapResponses:
@@ -117,3 +121,41 @@ class TestSanpoMapUpdateSchema:
         document = _load_committed_openapi()
         schema = document["components"]["schemas"]["SanpoMapUpdate"]["properties"]["name"]
         assert schema["maxLength"] == 50
+
+
+class TestListSanpoMapTagsContract:
+    _PATH = "/sanpo-maps/{sanpo_map_id}/tags"
+
+    def _operation(self) -> dict:
+        return _load_committed_openapi()["paths"][self._PATH]["get"]
+
+    def test_is_grouped_under_sanpo_maps_tag(self) -> None:
+        """mobile の Orval（tags-split）の出力先 `endpoints/sanpo-maps/` を固定する。"""
+        assert self._operation()["tags"] == ["sanpo-maps"]
+
+    def test_200_uses_sanpo_map_tag_list_read(self) -> None:
+        schema = self._operation()["responses"]["200"]["content"]["application/json"]["schema"]
+        assert schema == {"$ref": "#/components/schemas/SanpoMapTagListRead"}
+
+    def test_declares_401_404_413_422_and_not_403_503(self) -> None:
+        responses = self._operation()["responses"]
+        for status in ("401", "404", "413", "422"):
+            assert status in responses
+        assert "403" not in responses
+        assert "503" not in responses
+
+    def test_limit_parameter(self) -> None:
+        params = self._operation()["parameters"]
+        limit = next(param for param in params if param["name"] == "limit")
+        assert limit["required"] is False
+        assert limit["schema"]["type"] == "integer"
+        assert limit["schema"]["default"] == 100
+        assert limit["schema"]["minimum"] == 1
+        assert limit["schema"]["maximum"] == 200
+
+    def test_schemas_have_only_label_and_pin_count(self) -> None:
+        schemas = _load_committed_openapi()["components"]["schemas"]
+        tag = schemas["SanpoMapTagRead"]
+        assert set(tag["required"]) == {"label", "pin_count"}
+        assert set(tag["properties"]) == {"label", "pin_count"}
+        assert schemas["SanpoMapTagListRead"]["required"] == ["items"]

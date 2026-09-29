@@ -15,8 +15,10 @@ from sanposcape.database import get_db
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.main import app, create_app
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import PinPhoto, PinPhotoUpload
+from sanposcape.sanpo_maps.models import PinPhoto, PinPhotoUpload, PinTag
 from sanposcape.sanpo_maps.photos.photo_keys import original_key, staging_key, thumbnail_key
+from sanposcape.sanpo_maps.pins.repository import PinRepository
+from sanposcape.sanpo_maps.pins.tag_labels import tag_key
 from sanposcape.users.models import User
 
 
@@ -254,3 +256,58 @@ def create_upload_row(
     db_session.commit()
     db_session.refresh(upload)
     return upload
+
+
+#: `add_pin_tag()` の `created_at` の基準時刻（テスト内で相対的な前後関係を作る用）。
+TAG_BASE_TIME = datetime(2026, 9, 1, tzinfo=UTC)
+
+
+def create_pin_with_tags(
+    db_session: Session,
+    *,
+    sanpo_map_id: uuid.UUID,
+    user_id: uuid.UUID,
+    tags: list[tuple[str, int]] | None = None,
+) -> uuid.UUID:
+    """ピンを1件作り、`tags`（`(label, created_at の基準からの経過分)`）を `created_at` を
+    明示して直接 INSERT する。地図のタグ一覧（SS-136）の並び順・代表表記のテスト用。
+    `PinRepository.add_tags()` は `created_at` を指定できず、同一トランザクションでは
+    同値になるため使わない。
+    """
+    pin, _ = PinRepository(db_session).create(
+        sanpo_map_id=sanpo_map_id,
+        created_by_user_id=user_id,
+        client_pin_id=uuid.uuid4(),
+        name=None,
+        memo=None,
+        latitude=0,
+        longitude=0,
+        client_walk_id=None,
+    )
+    for label, minutes in tags or []:
+        add_pin_tag(db_session, pin_id=pin.id, user_id=user_id, label=label, minutes=minutes)
+    db_session.commit()
+    return pin.id
+
+
+def add_pin_tag(
+    db_session: Session,
+    *,
+    pin_id: uuid.UUID,
+    user_id: uuid.UUID,
+    label: str,
+    minutes: int = 0,
+    tag_id: uuid.UUID | None = None,
+) -> None:
+    """`pin_tags` に `created_at = TAG_BASE_TIME + minutes 分` で1行 INSERT する（flush のみ）。"""
+    db_session.add(
+        PinTag(
+            id=tag_id or uuid.uuid4(),
+            pin_id=pin_id,
+            label=label,
+            label_key=tag_key(label),
+            created_by_user_id=user_id,
+            created_at=TAG_BASE_TIME + timedelta(minutes=minutes),
+        )
+    )
+    db_session.flush()

@@ -16,10 +16,14 @@ SANPO_MAP_NAME_MAX_LENGTH = 50
 #: ため、小さい値で上限を設ける（将来 expand 対象が増えても十分な余裕）。
 SANPO_MAP_LIST_EXPAND_MAX_LENGTH = 8
 
+#: `GET /sanpo-maps/{sanpo_map_id}/tags` の limit（SS-136）。mobile は既定値の 100 を送る。
+SANPO_MAP_TAG_LIST_DEFAULT_LIMIT = 100
+SANPO_MAP_TAG_LIST_MAX_LIMIT = 200
+
 
 def _strip_name(value: str) -> str:
     """前後の空白を除去する。`str.strip()` は Unicode の空白（全角空白 U+3000・
-    NBSP U+00A0 を含む）を除去するため、ピン名の正規化（`pins/schemas.py`
+    NBSP U+00A0 を含む）を除去するため、ピン名の正規化（`sanpo_maps/pins/schemas.py`
     `_blank_to_none` の `str.strip()`）と挙動を揃える。
     """
     return value.strip()
@@ -49,11 +53,26 @@ class SanpoMapListRead(BaseModel):
 
 
 class SanpoMapSummaryRead(BaseModel):
-    """他ドメイン（`pins/schemas.py` の `PinRead.sanpo_map`）が埋め込む要約表現。"""
+    """ピン（`sanpo_maps/pins/schemas.py` の `PinRead.sanpo_map`）が埋め込む地図の要約表現。"""
 
     id: uuid.UUID
     name: str
     is_default: bool
+
+
+class SanpoMapTagRead(BaseModel):
+    """地図内で使われているタグ1種類（`label_key` 単位に集約, SS-136）。"""
+
+    # 同じキーの表記のうち最後に付けられたもの（正規化済み・20文字以内。そのまま
+    # POST /pins の tags に送れる）
+    label: str
+    # この地図でこのタグが付いているピンの数
+    pin_count: int
+
+
+class SanpoMapTagListRead(BaseModel):
+    # pin_count DESC → 最後に使われた日時 DESC → label_key ASC。最大 limit 件
+    items: list[SanpoMapTagRead]
 
 
 class SanpoMapCreate(BaseModel):
@@ -70,8 +89,8 @@ class SanpoMapCreate(BaseModel):
 
 
 class SanpoMapUpdate(BaseModel):
-    """`PATCH /sanpo-maps/{sanpo_map_id}` のリクエスト（ADR-009 決定25。`pins/schemas.py`
-    の `PinUpdate` と同じ流儀）。
+    """`PATCH /sanpo-maps/{sanpo_map_id}` のリクエスト（ADR-009 決定25。
+    `sanpo_maps/pins/schemas.py` の `PinUpdate` と同じ流儀）。
 
     `extra="forbid"`。`name` は省略可・null 不可（`SkipJsonSchema[None]` により OpenAPI 上は
     non-nullable の optional として出る。明示的な `null` は `model_validator` で 422）。

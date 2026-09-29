@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, Query, status
 from sanposcape.dependencies import get_current_user
 from sanposcape.sanpo_maps.maps.dependencies import get_sanpo_map_service
 from sanposcape.sanpo_maps.maps.schemas import (
+    SANPO_MAP_TAG_LIST_DEFAULT_LIMIT,
+    SANPO_MAP_TAG_LIST_MAX_LIMIT,
     SanpoMapCreate,
     SanpoMapListQuery,
     SanpoMapListRead,
     SanpoMapRead,
+    SanpoMapTagListRead,
     SanpoMapUpdate,
 )
 from sanposcape.sanpo_maps.maps.service import SanpoMapService
@@ -113,3 +116,33 @@ def delete_sanpo_map(
     `updated_at DESC, id DESC` の先頭が新しい既定に繰り上がる。
     """
     service.delete_map(current_user, sanpo_map_id)
+
+
+@router.get(
+    "/{sanpo_map_id}/tags",
+    response_model=SanpoMapTagListRead,
+    operation_id="list_sanpo_map_tags",
+    responses={
+        **_ERROR_RESPONSES,
+        404: {"description": "Sanpo map not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def list_sanpo_map_tags(
+    sanpo_map_id: uuid.UUID,
+    limit: int = Query(
+        default=SANPO_MAP_TAG_LIST_DEFAULT_LIMIT, ge=1, le=SANPO_MAP_TAG_LIST_MAX_LIMIT
+    ),
+    current_user: User = Depends(get_current_user),
+    service: SanpoMapService = Depends(get_sanpo_map_service),
+) -> SanpoMapTagListRead:
+    """地図内の全ピン（作成者を問わない）のタグを、正規化キー（`label_key`）単位にまとめて返す。
+
+    `label` は同じキーで最後に付けられた表記。並び順は付いているピン数の多い順
+    （`pin_count DESC`）→ 最後に使われた日時の新しい順 → `label_key` の昇順。`limit`
+    件（既定100・最大200）まで返し、続きは取れない（上位 N 件のランキング）。タグが
+    無ければ `items` は空。
+
+    地図の member（owner・editor）なら呼べる。非メンバー・存在しない ID は 404。
+    """
+    return service.list_tags(current_user, sanpo_map_id, limit=limit)

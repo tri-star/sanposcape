@@ -3,7 +3,14 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from sanposcape.sanpo_maps.conftest import create_pin_photo_row, make_sanpo_map, make_user
+from sanposcape.sanpo_maps.conftest import (
+    TAG_BASE_TIME,
+    add_pin_tag,
+    create_pin_photo_row,
+    create_pin_with_tags,
+    make_sanpo_map,
+    make_user,
+)
 from sanposcape.sanpo_maps.maps.repository import _PROMOTE_MAX_ATTEMPTS, SanpoMapRepository
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
 from sanposcape.sanpo_maps.pins.repository import PinRepository
@@ -495,3 +502,161 @@ class TestCountPinsForMaps:
     def test_empty_input_returns_empty_dict(self, db_session: Session) -> None:
         repo = SanpoMapRepository(db_session)
         assert repo.count_pins_for_maps([]) == {}
+
+
+class TestListTagSummaries:
+    def _setup(self, db_session: Session):
+        owner = make_user(db_session, subject="owner")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        return owner, sanpo_map_id, SanpoMapRepository(db_session)
+
+    def test_aggregates_by_label_key_ordered_by_pin_count(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        for _ in range(3):
+            create_pin_with_tags(
+                db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("カフェ", 0)]
+            )
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("公園", 10)])
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert [(r.label, r.pin_count) for r in rows] == [("カフェ", 3), ("公園", 1)]
+
+    def test_representative_label_is_the_latest_one(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("Cafe", 0)])
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("cafe", 5)])
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert len(rows) == 1
+        assert rows[0].label == "cafe"
+        assert rows[0].label_key == "cafe"
+        assert rows[0].pin_count == 2
+
+    def test_representative_label_is_the_latest_even_if_inserted_first(
+        self, db_session: Session
+    ) -> None:
+        """INSERT 順ではなく `created_at` で決まる（添字ずれ・順序不定の検知）。"""
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("cafe", 5)])
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("Cafe", 0)])
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert [r.label for r in rows] == ["cafe"]
+
+    def test_same_created_at_falls_back_to_larger_tag_id(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        small_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+        large_id = uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
+        pin_a = create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id)
+        pin_b = create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id)
+        add_pin_tag(db_session, pin_id=pin_a, user_id=owner.id, label="Cafe", tag_id=large_id)
+        add_pin_tag(db_session, pin_id=pin_b, user_id=owner.id, label="cafe", tag_id=small_id)
+        db_session.commit()
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert [r.label for r in rows] == ["Cafe"]
+
+    def test_same_pin_count_orders_by_last_used_at_desc(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("古い", 0)])
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("新しい", 10)]
+        )
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert [r.label for r in rows] == ["新しい", "古い"]
+
+    def test_same_pin_count_and_last_used_at_orders_by_label_key_asc(
+        self, db_session: Session
+    ) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(
+            db_session,
+            sanpo_map_id=map_id,
+            user_id=owner.id,
+            tags=[("b", 0), ("c", 0), ("a", 0)],
+        )
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert [r.label_key for r in rows] == ["a", "b", "c"]
+
+    def test_limit_truncates_to_top_n(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        for label, count in (("a", 3), ("b", 2), ("c", 1)):
+            for _ in range(count):
+                create_pin_with_tags(
+                    db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[(label, 0)]
+                )
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=2)
+
+        assert [r.label for r in rows] == ["a", "b"]
+
+    def test_other_maps_tags_are_excluded(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        other_map, _ = repo.create_with_owner(
+            owner_user_id=owner.id, name="別の地図", is_default=False
+        )
+        db_session.commit()
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("自分の地図", 0)]
+        )
+        create_pin_with_tags(
+            db_session, sanpo_map_id=other_map.id, user_id=owner.id, tags=[("別の地図", 0)]
+        )
+
+        rows = repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+
+        assert [r.label for r in rows] == ["自分の地図"]
+
+    def test_non_member_gets_empty_list(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        stranger = make_user(db_session, subject="stranger")
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("カフェ", 0)]
+        )
+
+        assert repo.list_tag_summaries(user_id=stranger.id, sanpo_map_id=map_id, limit=100) == []
+
+    def test_editor_sees_tags_created_by_owner(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        editor = make_user(db_session, subject="editor")
+        db_session.add(SanpoMapMember(sanpo_map_id=map_id, user_id=editor.id, role="editor"))
+        db_session.commit()
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("オーナーのタグ", 0)]
+        )
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=editor.id, tags=[("編集者のタグ", 1)]
+        )
+
+        rows = repo.list_tag_summaries(user_id=editor.id, sanpo_map_id=map_id, limit=100)
+
+        assert {r.label for r in rows} == {"オーナーのタグ", "編集者のタグ"}
+
+    def test_map_without_tags_returns_empty_list(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id)
+
+        assert repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100) == []
+
+    def test_last_used_at_is_max_created_at_per_key(self, db_session: Session) -> None:
+        owner, map_id, repo = self._setup(db_session)
+        create_pin_with_tags(
+            db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("a", 3), ("b", 1)]
+        )
+        create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=owner.id, tags=[("a", 7)])
+
+        rows = {
+            r.label_key: r
+            for r in repo.list_tag_summaries(user_id=owner.id, sanpo_map_id=map_id, limit=100)
+        }
+
+        assert rows["a"].last_used_at == TAG_BASE_TIME + timedelta(minutes=7)
+        assert rows["b"].last_used_at == TAG_BASE_TIME + timedelta(minutes=1)
