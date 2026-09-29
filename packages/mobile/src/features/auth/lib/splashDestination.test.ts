@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getSplashDestination } from "@/features/auth/lib/splashDestination";
 
 describe("getSplashDestination", () => {
-  it("authenticated の場合は散歩開始画面へ遷移する", () => {
+  it("authenticated の場合はピンタブへ遷移する（SS-145）", () => {
     expect(getSplashDestination("authenticated")).toBe("/(tabs)/pins");
   });
 
