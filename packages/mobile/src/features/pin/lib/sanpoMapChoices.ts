@@ -26,6 +26,20 @@ function isSameSelection(a: SanpoMapSelection, b: SanpoMapSelection): boolean {
 }
 
 /**
+ * 現在の選択を一覧に照らして解決する。既存地図を指していてその id が一覧に無い
+ * （削除された）ときは default に戻す。選択肢の強調表示と候補の取得先の両方がこれを使う。
+ */
+export function resolveEffectiveSanpoMapSelection(input: {
+  maps: readonly SanpoMap[];
+  selection: SanpoMapSelection;
+}): SanpoMapSelection {
+  const selection = input.selection;
+  return selection.kind === "existing" && !input.maps.some((map) => map.id === selection.sanpoMapId)
+    ? { kind: "default" }
+    : selection;
+}
+
+/**
  * 「保存先の地図」選択肢を組み立てる。
  *
  * - `isDefault` の地図が無ければ（0件、または招待された地図だけ）、先頭に draft
@@ -48,11 +62,7 @@ export function resolveSanpoMapChoices(input: {
   }
 
   const hasDefaultMap = input.maps.some((map) => map.isDefault);
-  const selection = input.selection;
-  const effectiveSelection: SanpoMapSelection =
-    selection.kind === "existing" && !input.maps.some((map) => map.id === selection.sanpoMapId)
-      ? { kind: "default" }
-      : selection;
+  const effectiveSelection = resolveEffectiveSanpoMapSelection(input);
 
   const choices: SanpoMapChoice[] = [];
 

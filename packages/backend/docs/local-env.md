@@ -244,7 +244,7 @@ docker compose up -d --build
     `UnconfiguredObjectStorage` にフォールバックする。写真の**書き込み系**（
     `POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos` の確定処理）は
     503 になるが、**閲覧系**（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）
-    と `GET /sanpo-maps` は影響を受けず、200 のまま `thumbnail`/`original_url` が
+    と `GET /sanpo-maps`（`/tags` を含む）は影響を受けず、200 のまま `thumbnail`/`original_url` が
     null になる（ADR-009 決定18）。**編集**（`PATCH /pins/{pin_id}`）は S3 を操作しない
     ので影響を受けず、DB を更新して 200 を返す（写真 URL は null）。**削除系**
     （`DELETE /pins/{pin_id}`・`DELETE /pins/{pin_id}/photos/{photo_id}`・

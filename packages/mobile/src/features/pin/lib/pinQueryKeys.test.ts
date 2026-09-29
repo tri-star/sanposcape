@@ -5,6 +5,7 @@ import {
   pinDetailQueryKey,
   pinListQueryKey,
   pinPhotosQueryKey,
+  pinTagSuggestionsQueryKey,
 } from "@/features/pin/lib/pinQueryKeys";
 import type { GeoBounds } from "@/features/pin/types";
 
@@ -15,16 +16,20 @@ describe("pinQueryKeys", () => {
     expect(pinListQueryKey("map-1", BOUNDS)[0]).toBe(PINS_QUERY_ROOT[0]);
     expect(pinDetailQueryKey("pin-1")[0]).toBe(PINS_QUERY_ROOT[0]);
     expect(pinPhotosQueryKey("pin-1")[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(pinTagSuggestionsQueryKey("map-1")[0]).toBe(PINS_QUERY_ROOT[0]);
   });
 
   it("同じ引数なら同じ構造のキーになる", () => {
     expect(pinListQueryKey("map-1", BOUNDS)).toEqual(pinListQueryKey("map-1", { ...BOUNDS }));
     expect(pinDetailQueryKey("pin-1")).toEqual(pinDetailQueryKey("pin-1"));
     expect(pinPhotosQueryKey("pin-1")).toEqual(pinPhotosQueryKey("pin-1"));
+    expect(pinTagSuggestionsQueryKey("map-1")).toEqual(pinTagSuggestionsQueryKey("map-1"));
   });
 
   it("引数が異なれば異なる構造のキーになる", () => {
     expect(pinListQueryKey("map-1", BOUNDS)).not.toEqual(pinListQueryKey("map-2", BOUNDS));
     expect(pinDetailQueryKey("pin-1")).not.toEqual(pinDetailQueryKey("pin-2"));
+    expect(pinTagSuggestionsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-2"));
+    expect(pinTagSuggestionsQueryKey(null)).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
   });
 });

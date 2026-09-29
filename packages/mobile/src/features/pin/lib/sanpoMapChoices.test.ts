@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { FIRST_SANPO_MAP_NAME } from "@/features/pin/lib/pinLimits";
-import { resolveSanpoMapChoices } from "@/features/pin/lib/sanpoMapChoices";
+import {
+  resolveEffectiveSanpoMapSelection,
+  resolveSanpoMapChoices,
+} from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMap } from "@/features/pin/types";
 
 const OWNED_DEFAULT: SanpoMap = {
@@ -109,5 +112,29 @@ describe("resolveSanpoMapChoices", () => {
       selection: { kind: "existing", sanpoMapId: "deleted-map" },
     });
     expect(result.choices.find((c) => c.key === OWNED_DEFAULT.id)?.selected).toBe(true);
+  });
+});
+
+describe("resolveEffectiveSanpoMapSelection", () => {
+  const maps = [OWNED_DEFAULT, OWNED_OTHER];
+
+  it("default はそのまま", () => {
+    expect(resolveEffectiveSanpoMapSelection({ maps, selection: { kind: "default" } })).toEqual({
+      kind: "default",
+    });
+  });
+
+  it("一覧にある existing はそのまま", () => {
+    const selection = { kind: "existing", sanpoMapId: OWNED_OTHER.id } as const;
+    expect(resolveEffectiveSanpoMapSelection({ maps, selection })).toEqual(selection);
+  });
+
+  it("一覧に無い existing（削除された地図）は default に戻す", () => {
+    expect(
+      resolveEffectiveSanpoMapSelection({
+        maps,
+        selection: { kind: "existing", sanpoMapId: "map-gone" },
+      }),
+    ).toEqual({ kind: "default" });
   });
 });

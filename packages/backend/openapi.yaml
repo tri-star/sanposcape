@@ -602,6 +602,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /sanpo-maps/{sanpo_map_id}/tags:
+    get:
+      tags:
+      - sanpo-maps
+      summary: List Sanpo Map Tags
+      description: '地図内の全ピン（作成者を問わない）のタグを、正規化キー（`label_key`）単位にまとめて返す。
+
+
+        `label` は同じキーで最後に付けられた表記。並び順は付いているピン数の多い順
+
+        （`pin_count DESC`）→ 最後に使われた日時の新しい順 → `label_key` の昇順。`limit`
+
+        件（既定100・最大200）まで返し、続きは取れない（上位 N 件のランキング）。タグが
+
+        無ければ `items` は空。
+
+
+        地図の member（owner・editor）なら呼べる。非メンバー・存在しない ID は 404。'
+      operationId: list_sanpo_map_tags
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapTagListRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation error
   /pins:
     post:
       tags:
@@ -2047,7 +2100,32 @@ components:
       - name
       - is_default
       title: SanpoMapSummaryRead
-      description: 他ドメイン（`pins/schemas.py` の `PinRead.sanpo_map`）が埋め込む要約表現。
+      description: ピン（`sanpo_maps/pins/schemas.py` の `PinRead.sanpo_map`）が埋め込む地図の要約表現。
+    SanpoMapTagListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SanpoMapTagRead'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: SanpoMapTagListRead
+    SanpoMapTagRead:
+      properties:
+        label:
+          type: string
+          title: Label
+        pin_count:
+          type: integer
+          title: Pin Count
+      type: object
+      required:
+      - label
+      - pin_count
+      title: SanpoMapTagRead
+      description: 地図内で使われているタグ1種類（`label_key` 単位に集約, SS-136）。
     SanpoMapUpdate:
       properties:
         name:
@@ -2058,9 +2136,9 @@ components:
       additionalProperties: false
       type: object
       title: SanpoMapUpdate
-      description: '`PATCH /sanpo-maps/{sanpo_map_id}` のリクエスト（ADR-009 決定25。`pins/schemas.py`
+      description: '`PATCH /sanpo-maps/{sanpo_map_id}` のリクエスト（ADR-009 決定25。
 
-        の `PinUpdate` と同じ流儀）。
+        `sanpo_maps/pins/schemas.py` の `PinUpdate` と同じ流儀）。
 
 
         `extra="forbid"`。`name` は省略可・null 不可（`SkipJsonSchema[None]` により OpenAPI 上は

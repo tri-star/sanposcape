@@ -17,6 +17,7 @@ from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.sanpo_maps.conftest import (
     create_pin_photo_row,
     create_upload_row,
+    make_sanpo_map,
     make_user,
     seed_staging_photo,
 )
@@ -362,3 +363,35 @@ class TestListSanpoMapsExpandPinCount:
         assert counts_by_id[str(map_without_pins.id)] == 0
         assert counts_by_id[str(editor_map.id)] == 1
         assert str(others_private_map.id) not in counts_by_id
+
+
+class TestListSanpoMapTagsViaCreatePin:
+    def test_normalized_tags_from_post_pins_become_candidates(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        db_session: Session,
+    ) -> None:
+        """`POST /pins` の正規化結果（先頭記号除去・trim）がそのまま候補の `label` になる
+        （mobile が候補の `label` をそのまま `tags` に送る契約の裏付け）。
+        """
+        client, _storage = fake_storage_client
+        user = make_user(db_session, subject="tagger")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        headers = _auth_headers_for(user)
+        created = client.post(
+            "/pins",
+            headers=headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "sanpo_map_id": str(sanpo_map_id),
+                "location": {"latitude": 0, "longitude": 0},
+                "tags": ["#Cafe ", "公園"],
+            },
+        )
+        assert created.status_code == 201
+
+        response = client.get(f"/sanpo-maps/{sanpo_map_id}/tags", headers=headers)
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert {(item["label"], item["pin_count"]) for item in items} == {("Cafe", 1), ("公園", 1)}

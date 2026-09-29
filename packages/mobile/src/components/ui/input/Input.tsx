@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { type StyleProp, Text, TextInput, View, type ViewStyle } from "react-native";
+import {
+  type StyleProp,
+  Text,
+  TextInput,
+  type TextInputProps,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import { makeStyles } from "@/theme/makeStyles";
@@ -23,6 +30,17 @@ export type InputProps = {
   multiline?: boolean;
   /** multiline のときの最小の高さ。 */
   minHeight?: number;
+  /** キーボードの送信キーの種類（例: "done"）。 */
+  returnKeyType?: TextInputProps["returnKeyType"];
+  /**
+   * 送信キーが押されたとき。キーボードに常にある操作なので、他のコントロールと違い
+   * 操作ハンドラ必須にはしない（`pages-components-guideline.md` ルール8の対象外）。
+   */
+  onSubmitEditing?: () => void;
+  /** 送信キーでフォーカスを外すか。"submit" はキーボードを開いたまま送信する。 */
+  submitBehavior?: TextInputProps["submitBehavior"];
+  autoCapitalize?: TextInputProps["autoCapitalize"];
+  autoCorrect?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -44,6 +62,11 @@ export function Input({
   disabled = false,
   multiline = false,
   minHeight = 96,
+  returnKeyType,
+  onSubmitEditing,
+  submitBehavior,
+  autoCapitalize,
+  autoCorrect,
   style,
   testID,
 }: InputProps) {
@@ -85,6 +108,11 @@ export function Input({
           placeholderTextColor={theme.colors.textTertiary}
           editable={!disabled}
           multiline={multiline}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing ? () => onSubmitEditing() : undefined}
+          submitBehavior={submitBehavior}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={[styles.input, multiline ? styles.inputMultiline : null]}

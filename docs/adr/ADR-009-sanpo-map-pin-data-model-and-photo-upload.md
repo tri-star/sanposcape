@@ -2,8 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-28（SS-137: `sanpo_maps/contents.py` の port 撤去とモジュール構成の
-> ADR-011 への移管を反映）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -70,6 +69,10 @@
   統合し、port（`SanpoMapContents`）は撤去した。ピン件数の集計は
   `SanpoMapRepository.count_pins_for_maps()` に置き換わった。依存方向の規則・AST 検査は
   [ADR-011](./ADR-011-sanpo-maps-module-structure.md) M1〜M9・`test_architecture.py` に移った）
+- **`GET /sanpo-maps/{sanpo_map_id}/tags` で地図内のタグを `label_key` 単位に集計して返す**
+  （`label` は同キーで最後に付けられた表記、`pin_count DESC` → 最終使用 DESC → `label_key ASC`、
+  `limit` 既定100・最大200、member のみ・非メンバーは404）。置き場所は `sanpo_maps/maps/`
+  （本文: SS-136 追補 決定30）
 
 ### 未解決・持ち越し
 
@@ -80,7 +83,8 @@
 - ~~**地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は
   SS-118 で決める。~~ → **SS-118 で決着**（ページングを続けず上限200件 + 案内。mobile
   [ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3。本文: 2026-09-26 追補（SS-118））。
-  **検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る（本文: SS-111 追補）
+  ~~**検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る~~ → **SS-136 で実装**
+  （決定30。SS-120 はこの API を使える。本文: SS-136 追補）
 - **prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
   apply 待ちで、backend の prod デプロイ自体がまだできない（本文: 決定8 の SS-108 追補）
 - **Lambda 実行ロールでの直送**は未再現。2026-09-24 の dev 疎通確認はローカルの管理者権限で
@@ -116,7 +120,8 @@ backend 側変更は無い）、
 advisory lock で直列化）、
 2026-09-28 追補（SS-137: `pins` を `sanpo_maps` 配下へ統合し、`sanpo_maps/contents.py` の
 port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の一次記録は
-[ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）
+[ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）、
+2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）
 
 ## ステータス
 
@@ -804,6 +809,8 @@ role・操作可否を応答に含めない方針も決定24として確定し�
   `pins` は `sanpo_maps` 配下のサブパッケージになった。実装する際は ADR-011 M1・M5・M6 の
   依存規則（下位 `photos` は import しないが、`maps`・`pins` の Repository はモデル共有で
   互いを集計できる）に従って置き場所を判断する）
+  （**SS-136 追補**: `GET /sanpo-maps/{sanpo_map_id}/tags` として実装した。置き場所は
+  `sanpo_maps/maps/`。決定30）
 
 ### 将来の課題
 
@@ -1214,6 +1221,62 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
   ADR-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数
   上限」が予告している `sanpo_map_id` 任意化の expand を検討する（今回は依頼しない）。
 
+## 追補（2026-09-29, SS-136 地図のタグ一覧 API）
+
+ピン登録時のタグ入力をサジェスト付きにする（SS-136）ための、mobile がタグ候補の元データに使う
+API を追加した。SS-111 追補が「後で切る」としていたものにあたる。DB スキーマは変えない
+（マイグレーションなし）。フィーチャーフラグは使わない（決定10）。mobile 側の判断（端末での
+絞り込み・既存表記への統一・見せ方）は mobile の
+[ADR-013](../../packages/mobile/adr/ADR-013-pin-tag-suggestions.md) に記録する。
+
+### 決定30: `GET /sanpo-maps/{sanpo_map_id}/tags`（地図のタグ一覧）の契約
+
+- **path / operation_id**: `GET /sanpo-maps/{sanpo_map_id}/tags` / `list_sanpo_map_tags`
+  （OpenAPI tag は `sanpo-maps`）。
+- **クエリ**: `limit`（既定100・1〜200。範囲外は 422）。`q` は持たない。
+- **応答（200）**: `SanpoMapTagListRead { items: SanpoMapTagRead[] }`。`SanpoMapTagRead` は
+  `label`（同じ `label_key` の表記のうち最後に付けられたもの）と `pin_count`（その地図で
+  そのタグが付いているピンの数）の2つだけ（どちらも required）。`label_key`・最終使用日時・
+  `next_cursor` は返さない（mobile は使わない。後から optional で足せるが、先に required で
+  出すと外せないため。上位 N 件のランキングで続きを取らないので `next_cursor` も持たない）。
+- **代表表記（`label`）**: 同じ `label_key` の行のうち `created_at DESC, id DESC` の先頭。
+  同一トランザクションの INSERT は `created_at` が同値になりうる（`PinRepository.list_tags`
+  の注記）ため、`id` を補助キーにして決定的にした。`pin_tags.label` は `POST /pins` の
+  正規化済みで保存されているので、そのまま `tags` に送り返せる。
+- **並び順**: `pin_count DESC` → 最後に使われた日時（`MAX(pin_tags.created_at)`）`DESC` →
+  `label_key ASC`。最大 `limit` 件。最後の `label_key ASC` は DB の collation に依存させず、
+  `label_key` のバイト順（`COLLATE "C"`。数字 < `_` < ASCII 小文字 < かな等）で決定的にする。
+- **`pin_count`**: 集計行数 `count(*)`。`UNIQUE(pin_id, label_key)` により1ピン1行なので
+  行数がピン数になる（この制約が前提）。
+- **認可**: 地図の member（owner / editor）なら可。非メンバー・存在しない ID は 404
+  （`Sanpo map not found`。決定9・21）。非 UUID は 422、未認証は 401。role による拒否は無い
+  ので 403 は宣言しない。ストレージに依存しないので 503 も宣言しない。
+- **集計対象**: その地図に属する**全ピン**のタグ（作成者を問わない）。member は `GET /pins` で
+  他人のタグを既に見られるため、新たに漏れる情報は無い。
+- **多重防御**: Service の `get_membership()`（404 判定）に加え、Repository のクエリ自体も
+  `sanpo_map_members` を `user_id` で JOIN して絞る（`list_for_member`/`get_membership` と
+  同じく `user_id` で JOIN する形。認可済み ID を受け取る `count_pins_for_maps` 等とは区別する）。
+- **インデックス**: 追加しない。`pins.sanpo_map_id`（`ix_pins_sanpo_map_id_created_at_id` の
+  先頭列）→ `pin_tags.pin_id`（`uq_pin_tags_pin_id_label_key` の先頭列）で引ける。MVP 規模
+  （1地図数百ピン × 最大10タグ）の GROUP BY は十分速い。
+- **置き場所**: `sanpo_maps/maps/`（router / `SanpoMapService.list_tags()` /
+  `SanpoMapRepository.list_tag_summaries()` / schemas）。「地図 ID で集計する読み取りクエリは
+  地図の Repository に置ける」（[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4。
+  `count_pins_for_maps`・`list_photo_keys_for_map` の前例）で、他サブパッケージのテーブル
+  （`pin_tags`・`pins`）の読み取り JOIN は M6 に収まる。`pins/` に置くと `/sanpo-maps/...` 用の
+  2つ目の router・`main.py` の include・公開面（M7）の変更が要るだけで得るものが無い。
+  SS-111 追補の「実装は `pins/` 側に置く想定」は `pins → sanpo_maps` 別ドメイン時代の前提で、
+  SS-137 追補が「ADR-011 に従って判断する」と改めている。
+
+### 将来の課題（SS-136 追補）
+
+- SS-120（検索タブ）で文字列絞り込み（`q`）を足す場合は正規化関数 `tag_key()`（現在は
+  `sanpo_maps/pins/tag_labels.py`）が要る。`maps` は `pins` を import できない（ADR-011 M1）ので、
+  `tag_labels.py` を共有カーネルへ移す（ADR-011 M2 の追補）か、絞り込み付きの版を `pins` に
+  置くかをそのとき決める。
+- 1つの地図のピンが数千件を超えると集計コストが上がる。そのときは
+  `pin_tags(pin_id, label_key, created_at)` のカバリングインデックスや集計テーブルを検討する。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1227,4 +1290,5 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3・D4）
+  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3・D4）、
+  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[mobile ADR-013](../../packages/mobile/adr/ADR-013-pin-tag-suggestions.md)）

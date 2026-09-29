@@ -5,10 +5,18 @@ import pytest
 from sqlalchemy.orm import Session
 
 from sanposcape.conftest import TestSessionLocal
-from sanposcape.sanpo_maps.conftest import create_pin_photo_row, make_user
+from sanposcape.sanpo_maps.conftest import (
+    create_pin_photo_row,
+    create_pin_with_tags,
+    make_user,
+)
 from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.maps.schemas import SanpoMapCreate, SanpoMapUpdate
+from sanposcape.sanpo_maps.maps.schemas import (
+    SanpoMapCreate,
+    SanpoMapTagListRead,
+    SanpoMapUpdate,
+)
 from sanposcape.sanpo_maps.maps.service import SanpoMapService
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
 from sanposcape.sanpo_maps.pins.repository import PinRepository
@@ -448,3 +456,96 @@ class TestDeleteMap:
         assert len(cleaner.calls) == 1
         assert set(cleaner.calls[0]) == expected_keys
         assert None not in cleaner.calls[0]
+
+
+class TestListTags:
+    def test_non_member_raises_not_found_and_does_not_aggregate(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        service = make_service(db_session)
+        sanpo_map, _ = service._repository.create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        calls: list[dict] = []
+
+        def spy(**kwargs):  # type: ignore[no-untyped-def]
+            calls.append(kwargs)
+            return []
+
+        monkeypatch.setattr(service._repository, "list_tag_summaries", spy)
+
+        with pytest.raises(SanpoMapNotFoundError):
+            service.list_tags(stranger, sanpo_map.id, limit=100)
+        assert calls == []
+
+    def test_unknown_map_raises_not_found(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+
+        with pytest.raises(SanpoMapNotFoundError):
+            service.list_tags(user, uuid.uuid4(), limit=100)
+
+    def test_editor_gets_tags_of_owners_pins(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        service = make_service(db_session)
+        sanpo_map, _ = service._repository.create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map.id, user_id=editor.id, role="editor"))
+        db_session.commit()
+        create_pin_with_tags(
+            db_session, sanpo_map_id=sanpo_map.id, user_id=owner.id, tags=[("カフェ", 0)]
+        )
+
+        result = service.list_tags(editor, sanpo_map.id, limit=100)
+
+        assert [(i.label, i.pin_count) for i in result.items] == [("カフェ", 1)]
+
+    def test_returns_items_in_repository_order_as_label_and_pin_count(
+        self, db_session: Session
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        service = make_service(db_session)
+        sanpo_map, _ = service._repository.create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        for _ in range(2):
+            create_pin_with_tags(
+                db_session, sanpo_map_id=sanpo_map.id, user_id=owner.id, tags=[("多い", 0)]
+            )
+        create_pin_with_tags(
+            db_session, sanpo_map_id=sanpo_map.id, user_id=owner.id, tags=[("少ない", 1)]
+        )
+
+        result = service.list_tags(owner, sanpo_map.id, limit=100)
+
+        assert isinstance(result, SanpoMapTagListRead)
+        assert result.model_dump() == {
+            "items": [{"label": "多い", "pin_count": 2}, {"label": "少ない", "pin_count": 1}]
+        }
+
+    def test_passes_limit_to_repository(
+        self, db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        service = make_service(db_session)
+        sanpo_map, _ = service._repository.create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        calls: list[dict] = []
+
+        def spy(**kwargs):  # type: ignore[no-untyped-def]
+            calls.append(kwargs)
+            return []
+
+        monkeypatch.setattr(service._repository, "list_tag_summaries", spy)
+
+        service.list_tags(owner, sanpo_map.id, limit=7)
+
+        assert calls == [{"user_id": owner.id, "sanpo_map_id": sanpo_map.id, "limit": 7}]

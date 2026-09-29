@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-09-28（初版、SS-137）
+2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）
 
 ## ステータス
 
@@ -392,14 +392,15 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
   必ずモジュール名から書く規則（folder-structure.md）を徹底する必要がある。
 - `SanpoMapSummaryRead`・`SanpoMapUpdate` の docstring に残る「他ドメイン（`pins/schemas.py` の
   …）」という語が実態と合わなくなった。OpenAPI の差分を避けるため本チケットでは残した
-  （下記「将来の課題」）。
+  （SS-136 で解消。下記「移行・対応が必要な事項」）。
 
 ### 移行・対応が必要な事項
 
 - [x] 段階1（配置の移動）・段階2（Service 再設計）・段階3（本 ADR・docs・agent-memory の
       パス更新）をすべて完了。
-- [ ] `SanpoMapSummaryRead`・`SanpoMapUpdate` の docstring の古い語（「他ドメイン
+- [x] `SanpoMapSummaryRead`・`SanpoMapUpdate` の docstring の古い語（「他ドメイン
       （`pins/schemas.py` の…）」）は、次に openapi.yaml を変更するチケットで一緒に直す。
+      → SS-136 で `openapi.yaml` の変更（地図のタグ一覧 API の追加）と一緒に直した。
 - [ ] `pins/service.py`（約650行）が約800行を超えるか、写真確定処理（`_prepare_photos`/
       `_commit_photos`）を使う3つ目のユースケースが現れたら、確定処理を `photos/` の部品
       （`PhotoConfirmer` 等）へ切り出すことを検討する。本チケットでは行わない

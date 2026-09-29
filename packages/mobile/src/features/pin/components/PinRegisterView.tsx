@@ -221,8 +221,10 @@ export function PinRegisterView({
                 tags={register.draft.tags}
                 input={register.tagInput}
                 error={register.tagError}
+                suggestions={register.tagSuggestions}
                 onChangeInput={register.setTagInput}
                 onAdd={register.addTagFromInput}
+                onSelectSuggestion={register.addTagFromSuggestion}
                 onRemove={register.removeTag}
                 disabled={isSaving}
                 testID="pin-register-tag"

@@ -1,13 +1,15 @@
 import uuid
 import zlib
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import Select, and_, case, func, select, update
+from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.advisory_locks import advisory_lock_key
-from sanposcape.sanpo_maps.models import Pin, PinPhoto, SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap, SanpoMapMember
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`photos/repository.py`
 #: の `_PIN_PHOTO_UPLOAD_LOCK_NAMESPACE` とは別の固定値にする（衝突回避, ADR-009 決定27）。
@@ -19,11 +21,27 @@ _SANPO_MAP_OWNER_LOCK_NAMESPACE = zlib.crc32(b"sanposcape.sanpo_maps.owner") & 0
 _PROMOTE_MAX_ATTEMPTS = 10
 
 
+@dataclass(frozen=True)
+class SanpoMapTagSummary:
+    """`list_tag_summaries()` の1行（`label_key` 単位の集計結果）。
+
+    `label_key`・`last_used_at` は API には出さないが、並び順をテストで検証できるように返す。
+    """
+
+    label: str
+    label_key: str
+    pin_count: int
+    last_used_at: datetime
+
+
 class SanpoMapRepository:
     """sanpo_maps / sanpo_map_members への DB アクセスを隔離する層。
 
-    読み取り系のメソッドはすべて `user_id` を必須引数に取り、`sanpo_map_members` との
-    JOIN で絞る（ID だけで引ける口を作らない。ADR-003 決定6 と同じ構造的な IDOR 対策）。
+    member 判定を伴う読み取り（`list_for_member`/`get_membership`/`list_tag_summaries` 等）は
+    `user_id` を必須引数に取り、`sanpo_map_members` との JOIN で絞る（ID だけで引ける口を
+    作らない。ADR-003 決定6 と同じ構造的な IDOR 対策）。`count_pins_for_maps` /
+    `list_photo_keys_for_map` のように認可済みの ID を受け取るものは、その旨を各 docstring
+    に明記している。
     """
 
     def __init__(self, db: Session) -> None:
@@ -262,3 +280,52 @@ class SanpoMapRepository:
             .group_by(Pin.sanpo_map_id)
         )
         return dict(self._db.execute(stmt).all())
+
+    def list_tag_summaries(
+        self, *, user_id: uuid.UUID, sanpo_map_id: uuid.UUID, limit: int
+    ) -> list[SanpoMapTagSummary]:
+        """地図内の全ピンのタグを `label_key` 単位に集計して上位 `limit` 件返す
+        （`GET /sanpo-maps/{sanpo_map_id}/tags` 用, ADR-009 SS-136 追補 決定30）。
+
+        - 並び順: `pin_count DESC` → `last_used_at`（`MAX(pin_tags.created_at)`）`DESC`
+          → `label_key ASC`（`COLLATE "C"` = バイト順。DB の collation に依存させず
+          決定的にする）。
+        - `label`（代表表記）: 同じ `label_key` の行のうち `created_at DESC, id DESC` の
+          先頭。同一トランザクションの INSERT は `created_at` が同値になりうるので、`id`
+          を補助キーにして決定的にする。
+        - `pin_count` は `count(*)`。`UNIQUE(pin_id, label_key)` により1ピン1行なので行数
+          がピン数になる（この制約が前提）。
+        - 集計対象は作成者を問わない全ピン。`sanpo_map_members` を `user_id` で JOIN して
+          絞るので、非メンバーの `user_id` では空になる（`(sanpo_map_id, user_id)` が PK
+          のため行は増えず、count は水増しされない）。
+        - `limit` は 1〜`SANPO_MAP_TAG_LIST_MAX_LIMIT`（Router の `Query` で検証済み）。
+          ここでは再検証しない。
+        - `PinTag` は maps 外のテーブルだが、読み取りの JOIN・集計なので可（ADR-011 M6）。
+        """
+        # PostgreSQL の配列は 1 始まり。SQLAlchemy の ARRAY は zero_indexes=False が既定で
+        # `[1]` がそのまま `[1]` として出る。
+        label_col = array_agg(
+            aggregate_order_by(PinTag.label, PinTag.created_at.desc(), PinTag.id.desc())
+        )[1].label("label")
+        pin_count_col = func.count().label("pin_count")
+        last_used_col = func.max(PinTag.created_at).label("last_used_at")
+        stmt = (
+            select(PinTag.label_key, label_col, pin_count_col, last_used_col)
+            .join(Pin, Pin.id == PinTag.pin_id)
+            .join(SanpoMapMember, SanpoMapMember.sanpo_map_id == Pin.sanpo_map_id)
+            .where(Pin.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id)
+            .group_by(PinTag.label_key)
+            .order_by(
+                pin_count_col.desc(), last_used_col.desc(), PinTag.label_key.collate("C").asc()
+            )
+            .limit(limit)
+        )
+        return [
+            SanpoMapTagSummary(
+                label=row.label,
+                label_key=row.label_key,
+                pin_count=row.pin_count,
+                last_used_at=row.last_used_at,
+            )
+            for row in self._db.execute(stmt).all()
+        ]

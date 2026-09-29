@@ -10,6 +10,8 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapCreate,
     SanpoMapListRead,
     SanpoMapRead,
+    SanpoMapTagListRead,
+    SanpoMapTagRead,
     SanpoMapUpdate,
 )
 from sanposcape.sanpo_maps.permissions import can_delete_sanpo_map, can_update_sanpo_map
@@ -26,7 +28,7 @@ class SanpoMapService:
     集計・写真キー収集は `SanpoMapRepository`、S3 の後始末は `PhotoObjectCleaner` を使う
     （ADR-011）。
 
-    トランザクション境界（commit）: `list_maps` は読み取り専用なので commit しない。
+    トランザクション境界（commit）: `list_maps`/`list_tags` は読み取り専用なので commit しない。
     `create_map`/`update_map`/`delete_map` は自分で commit する。
     """
 
@@ -63,6 +65,29 @@ class SanpoMapService:
             for sanpo_map, role in rows
         ]
         return SanpoMapListRead(items=items, next_cursor=None)
+
+    def list_tags(
+        self, current_user: User, sanpo_map_id: uuid.UUID, *, limit: int
+    ) -> SanpoMapTagListRead:
+        """`GET /sanpo-maps/{sanpo_map_id}/tags`: 地図内のタグを `label_key` 単位に集計して
+        返す（ADR-009 SS-136 追補 決定30）。
+
+        member（owner / editor）なら可。非メンバー・存在しない ID は区別せず 404
+        （決定9・21）。読み取りのみで role による拒否は無いので `permissions.py` には
+        関数を足さない。`limit` は 1〜`SANPO_MAP_TAG_LIST_MAX_LIMIT`（Router で検証済み）。
+        集計は Repository のクエリ側でも member JOIN で絞る（多重防御）。
+        """
+        membership = self._repository.get_membership(
+            user_id=current_user.id, sanpo_map_id=sanpo_map_id
+        )
+        if membership is None:
+            raise SanpoMapNotFoundError()
+        rows = self._repository.list_tag_summaries(
+            user_id=current_user.id, sanpo_map_id=sanpo_map_id, limit=limit
+        )
+        return SanpoMapTagListRead(
+            items=[SanpoMapTagRead(label=row.label, pin_count=row.pin_count) for row in rows]
+        )
 
     def create_map(self, current_user: User, payload: SanpoMapCreate) -> SanpoMapRead:
         """`POST /sanpo-maps`: 地図を新規作成する（ADR-009 決定25・27）。

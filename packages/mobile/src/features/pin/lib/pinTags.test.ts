@@ -4,8 +4,10 @@ import { PIN_TAGS_MAX_COUNT, PIN_TAG_MAX_LENGTH } from "@/features/pin/lib/pinLi
 import {
   addTag,
   addTagErrorMessage,
+  isTagLabelWithinMaxLength,
   normalizeTagLabel,
   removeTag,
+  tagKey,
 } from "@/features/pin/lib/pinTags";
 
 describe("normalizeTagLabel", () => {
@@ -23,6 +25,16 @@ describe("normalizeTagLabel", () => {
 
   it("記号・空白のみは空文字になる", () => {
     expect(normalizeTagLabel("  ###  ")).toBe("");
+  });
+});
+
+describe("tagKey", () => {
+  it.each([
+    ["  #Cafe  ", "cafe"],
+    ["ＣＡＦＥ", "ｃａｆｅ"],
+    ["a   B", "a b"],
+  ])("%s -> %s（NFKC はしない）", (raw, expected) => {
+    expect(tagKey(raw)).toBe(expected);
   });
 });
 
@@ -69,5 +81,12 @@ describe("removeTag", () => {
 describe("addTagErrorMessage", () => {
   it.each(["empty", "too_long", "duplicate", "limit"] as const)("%s に文言がある", (reason) => {
     expect(addTagErrorMessage(reason).length).toBeGreaterThan(0);
+  });
+});
+
+describe("isTagLabelWithinMaxLength", () => {
+  it("最大長ちょうどは true、超えたら false（code point 単位）", () => {
+    expect(isTagLabelWithinMaxLength("😀".repeat(PIN_TAG_MAX_LENGTH))).toBe(true);
+    expect(isTagLabelWithinMaxLength("😀".repeat(PIN_TAG_MAX_LENGTH + 1))).toBe(false);
   });
 });

@@ -130,3 +130,17 @@ export type PinDetail = {
 
 /** 写真ページ1枚分（GET /pins/{id}/photos）。 */
 export type PinPhotoPage = { items: PinPhoto[]; photoCount: number; nextCursor: string | null };
+
+/**
+ * タグの候補1件（`GET /sanpo-maps/{id}/tags` の `SanpoMapTagRead` を camelCase 化。SS-136）。
+ * `label` は backend が選んだ代表表記（同じキーのタグのうち最後に付けられた表記。
+ * `pin_tags.created_at DESC, id DESC` の先頭。ルート ADR-009 SS-136 追補）。
+ */
+export type TagSuggestion = {
+  label: string;
+  /**
+   * その地図でこのタグが付いているピンの数。並び順は backend が決めるので mobile は並べ替えに
+   * 使わない。現状は未使用で、ピン数の表示など SS-120（検索タブ）での利用を想定して保持している。
+   */
+  pinCount: number;
+};

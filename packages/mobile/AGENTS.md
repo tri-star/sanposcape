@@ -39,3 +39,4 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 | [ADR-010](./adr/ADR-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送 |
 | [ADR-011](./adr/ADR-011-pin-location-picking-and-adjustment.md) | ピンの位置の選択と調整（任意地点からの登録は長押し、登録画面での調整はタップ・画面内オーバーレイ） |
 | [ADR-012](./adr/ADR-012-pin-map-display-and-detail.md) | 登録済みピンの地図表示（取得範囲・上限の見せ方・散歩中の地図への合成）とピン詳細（写真のページング・画像キャッシュ） |
+| [ADR-013](./adr/ADR-013-pin-tag-suggestions.md) | ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一） |

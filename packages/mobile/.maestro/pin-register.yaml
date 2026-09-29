@@ -4,6 +4,7 @@
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
 #   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
 # 写真は添付しない（mock の写真は実ファイルではないため。写真付きは別チケット H）。
+# タグは追加ボタンと送信キーの両方で1件ずつ追加する。候補の表示は件数が実行順に依存するので見ない。
 # assert しないもの: 地図の名前・件数（同一 CI ランで他フローの登録が残る）、トースト、地図タイル。
 appId: com.sanposcape.app.dev
 tags:
@@ -34,6 +35,12 @@ tags:
     id: "pin-register-tag-add"
 - assertVisible:
     id: "pin-register-tag-0"
+- tapOn:
+    id: "pin-register-tag-input"
+- inputText: "e2e-enter"
+- pressKey: Enter
+- assertVisible:
+    id: "pin-register-tag-1"
 - tapOn:
     id: "pin-register-memo-input"
 - inputText: "Maestro から登録"
