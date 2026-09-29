@@ -1244,7 +1244,8 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
   の注記）ため、`id` を補助キーにして決定的にした。`pin_tags.label` は `POST /pins` の
   正規化済みで保存されているので、そのまま `tags` に送り返せる。
 - **並び順**: `pin_count DESC` → 最後に使われた日時（`MAX(pin_tags.created_at)`）`DESC` →
-  `label_key ASC`。最大 `limit` 件。
+  `label_key ASC`。最大 `limit` 件。最後の `label_key ASC` は DB の collation に依存させず、
+  `label_key` のバイト順（`COLLATE "C"`。数字 < `_` < ASCII 小文字 < かな等）で決定的にする。
 - **`pin_count`**: 集計行数 `count(*)`。`UNIQUE(pin_id, label_key)` により1ピン1行なので
   行数がピン数になる（この制約が前提）。
 - **認可**: 地図の member（owner / editor）なら可。非メンバー・存在しない ID は 404
@@ -1253,8 +1254,8 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
 - **集計対象**: その地図に属する**全ピン**のタグ（作成者を問わない）。member は `GET /pins` で
   他人のタグを既に見られるため、新たに漏れる情報は無い。
 - **多重防御**: Service の `get_membership()`（404 判定）に加え、Repository のクエリ自体も
-  `sanpo_map_members` を `user_id` で JOIN して絞る（`SanpoMapRepository` の「読み取り系は
-  `user_id` 必須」の約束）。
+  `sanpo_map_members` を `user_id` で JOIN して絞る（`list_for_member`/`get_membership` と
+  同じく `user_id` で JOIN する形。認可済み ID を受け取る `count_pins_for_maps` 等とは区別する）。
 - **インデックス**: 追加しない。`pins.sanpo_map_id`（`ix_pins_sanpo_map_id_created_at_id` の
   先頭列）→ `pin_tags.pin_id`（`uq_pin_tags_pin_id_label_key` の先頭列）で引ける。MVP 規模
   （1地図数百ピン × 最大10タグ）の GROUP BY は十分速い。

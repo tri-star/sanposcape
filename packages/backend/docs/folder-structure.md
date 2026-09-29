@@ -112,7 +112,7 @@ packages/backend/
 │       │   ├── tests/         #   モジュール全体のテスト（test_architecture.py が M1〜M5・M7・M8 を AST で検査）
 │       │   ├── maps/          #   サブパッケージ: 地図（SanpoMap）とメンバーシップ。
 │       │   │   ├── router.py  #     GET/POST /sanpo-maps, PATCH/DELETE /sanpo-maps/{id}（SS-113）,
-│       │   │                  #     GET /sanpo-maps/{id}/tags（SS-136）
+│       │   │   │              #     GET /sanpo-maps/{id}/tags（SS-136）
 │       │   │   ├── access.py  #     SanpoMapAccess（ピン作成・写真操作のための地図解決。
 │       │   │   │              #     commit しない部品。SS-137）
 │       │   │   └── mappers.py #     to_sanpo_map_read() に SanpoMapRead の組み立てを集約（SS-113）
