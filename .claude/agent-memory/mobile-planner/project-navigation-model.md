@@ -10,11 +10,12 @@ metadata:
 
 ## スタックの実態
 
-- **主要導線は `replace` の連鎖**: `/`(スプラッシュ) → `replace` `/(auth)/sign-in` → `replace` `/walk-start`。
-  → **`/walk-start` に着いた時点で `router.canGoBack() === false`**。Android のシステムバックは
-  既定でアプリ終了になる。`/walk-start` ⇄ `/(tabs)` も互いに `replace`（`WalkIdleNotice` の CTA が
-  `replace("/walk-start")`）なので、往復してもスタックは1枚のまま伸びない。
-- **アプリの既定ホームは `(tabs)`**（ナビ/検索/記録）。`WalkSummaryView` の「ホームへ」も
+- **主要導線は `replace` の連鎖**: `/`(スプラッシュ) → `replace` `/(auth)/sign-in` → `replace` ピンタブ `/(tabs)/pins`
+  （SS-145 で着地点が `/walk-start` から変わった。正本は mobile ADR-009 の SS-145 追補）。
+  → **着地した時点で `router.canGoBack() === false`**。`/walk-start` ⇄ `/(tabs)` は互いに `replace`
+  （`WalkIdleNotice` の CTA が `replace("/walk-start")`）なので、往復してもスタックは1枚のまま伸びない。
+  タブ内の Android バックは `Tabs` の `backBehavior`（既定 `firstRoute`＝ナビタブへ戻ってから終了）に従う。
+- **アプリの既定ホームは `(tabs)`**（ナビ `index` / ピン `pins` / アカウント `account`。SS-145 以降）。`WalkSummaryView` の「ホームへ」も
   `replace("/(tabs)")`。「スポット一覧・検索・過去記録に届く画面」＝ `(tabs)` しかない。
 - `/walk-start` に `push` で入る経路は3つだけ: `/walk-history` の空状態 CTA、`/dev-screens`、
   そして `WalkActiveView` の idle CTA（これは `replace`）。
@@ -31,6 +32,18 @@ metadata:
 - 購読は **`useFocusEffect`（`expo-router` が re-export 済み）の中で**行う。`useEffect` だと上に別画面が
   積まれている間もリスナが生きて上の画面のバックを奪う。
 - BottomSheet/Dialog は RN の `Modal`（`onRequestClose`）なので、Android バックは Modal 側が拾う想定。
+
+## タブまわりの確認済みの事実（SS-145 で node_modules を読んで確認・2026-09-29）
+
+- **`Tabs.Screen` の `href: null` は独自の `AppTabBar` には効かない**。expo-router（`build/layouts/TabsClient.js`）は
+  `href` を `tabBarButton` / `tabBarItemStyle` に変換するだけで、`AppTabBar` は自分の項目リストを描く。
+  タブを隠すときは `AppTabBar` 側の項目リストから外す（`features/navigation/lib/appTabs.ts`。SS-145 で
+  `docs/architecture-guideline.md` のレシピも訂正済み）。
+- **expo-router の `<Redirect>` は `useFocusEffect` の中で `replace` する**（`build/link/Redirect.js`）→ フォーカス中の
+  画面でしか動かない。タブ内の画面ガードが、別タブにいるユーザーを引き戻すことはない。
+- `Tabs` の `backBehavior` の既定は `firstRoute`（`build/react-navigation/routers/TabRouter.js`）。
+- `"/(tabs)"` は `(tabs)/index`（ナビタブ）に解決される（`app/index.tsx`＝スプラッシュの `/` とは別物）。
+- `pin_registration` の画面ガードは `usePinRegistrationGate()`（SS-145）に集約されている。新しいピン系ルートもこれを使う。
 
 ## 中間画面から `/pins/new` へ進むときは replace（SS-124 の計画で判明）
 
