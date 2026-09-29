@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { getPostSignInDestination } from "@/features/auth/lib/postSignInDestination";
+import {
+  getGuestEntryDestination,
+  getPostSignInDestination,
+} from "@/features/auth/lib/postSignInDestination";
 
 describe("getPostSignInDestination", () => {
-  it("進行中の散歩・保存意思表示のいずれも無ければ散歩開始画面（計画画面）へ replace する", () => {
+  it("進行中の散歩・保存意思表示のいずれも無ければピンタブへ replace する（SS-145）", () => {
     expect(
       getPostSignInDestination({ hasActiveWalk: false, wantsToSaveFinishedWalk: false }),
-    ).toEqual({ type: "replace", href: "/walk-start" });
+    ).toEqual({ type: "replace", href: "/(tabs)/pins" });
   });
 
-  it("進行中の散歩があれば /(tabs) へ replace する（無警告での上書きを防ぐ。SS-57 ローカルレビュー対応）", () => {
+  it("進行中の散歩があれば ナビタブ（/(tabs)）へ replace する（無警告での上書きを防ぐ。SS-57 ローカルレビュー対応）", () => {
     expect(
       getPostSignInDestination({ hasActiveWalk: true, wantsToSaveFinishedWalk: false }),
     ).toEqual({ type: "replace", href: "/(tabs)" });
@@ -33,6 +36,29 @@ describe("getPostSignInDestination", () => {
     // ことも含む値なので、意思表示が無い場合は false として渡ってくる想定。
     expect(
       getPostSignInDestination({ hasActiveWalk: false, wantsToSaveFinishedWalk: false }),
-    ).toEqual({ type: "replace", href: "/walk-start" });
+    ).toEqual({ type: "replace", href: "/(tabs)/pins" });
+  });
+});
+
+describe("getGuestEntryDestination", () => {
+  it("進行中の散歩が無ければピンタブ", () => {
+    expect(getGuestEntryDestination({ hasActiveWalk: false })).toBe("/(tabs)/pins");
+  });
+
+  it("進行中の散歩があればナビタブ", () => {
+    expect(getGuestEntryDestination({ hasActiveWalk: true })).toBe("/(tabs)");
+  });
+});
+
+describe("着地点の回帰防止", () => {
+  it("どの入力でも /walk-start を返さない", () => {
+    for (const hasActiveWalk of [false, true]) {
+      for (const wantsToSaveFinishedWalk of [false, true]) {
+        expect(getPostSignInDestination({ hasActiveWalk, wantsToSaveFinishedWalk }).href).not.toBe(
+          "/walk-start",
+        );
+      }
+      expect(getGuestEntryDestination({ hasActiveWalk })).not.toBe("/walk-start");
+    }
   });
 });

@@ -55,11 +55,14 @@ describe("resolveAuthGateDecision", () => {
     });
   });
 
-  it("guest は (tabs) / (tabs)/history を許可する（SS-57）", () => {
+  it("guest は (tabs) / (tabs)/pins / (tabs)/account を許可する（SS-57 / SS-145）", () => {
     expect(resolveAuthGateDecision({ status: "guest", segments: ["(tabs)"] })).toEqual({
       type: "allow",
     });
-    expect(resolveAuthGateDecision({ status: "guest", segments: ["(tabs)", "history"] })).toEqual({
+    expect(resolveAuthGateDecision({ status: "guest", segments: ["(tabs)", "pins"] })).toEqual({
+      type: "allow",
+    });
+    expect(resolveAuthGateDecision({ status: "guest", segments: ["(tabs)", "account"] })).toEqual({
       type: "allow",
     });
   });
