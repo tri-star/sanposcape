@@ -8,7 +8,7 @@ import { resolveBackAction } from "@/lib/backNavigation";
 export type UseScreenBackOptions = {
   /**
    * スタックに戻り先が無いときの遷移先。`router.replace()` する。
-   * 例: 散歩開始画面 → "/(tabs)"、履歴一覧/詳細 → "/(tabs)/history"
+   * 例: 散歩開始画面 → "/(tabs)"、履歴一覧/詳細 → "/(tabs)/account"
    */
   fallbackHref: Href;
   /**

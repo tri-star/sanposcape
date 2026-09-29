@@ -34,7 +34,7 @@ export function WalkHistoryListView() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const history = useWalkHistory();
-  const back = useScreenBack({ fallbackHref: "/(tabs)/history" });
+  const back = useScreenBack({ fallbackHref: "/(tabs)/account" });
 
   const renderBody = (): HistoryBody => {
     if (history.errorCode !== null) {

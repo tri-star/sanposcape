@@ -21,7 +21,7 @@ const STALE_TIME_MS = 30_000;
 const GC_TIME_MS = 5 * 60_000;
 
 export type UseHistorySummaryInput = {
-  /** サインイン中ユーザーの表示名。未サインイン/復元中は null。ルート（app/(tabs)/history.tsx）から渡す。 */
+  /** サインイン中ユーザーの表示名。未サインイン/復元中は null。ルート（app/(tabs)/account.tsx）から渡す。 */
   displayName: string | null;
 };
 
@@ -49,11 +49,11 @@ export type UseHistorySummaryResult = {
  * `data/`（stub）・`api/`（サーバー状態）を読むのはこの hook のみで、View は戻り値だけを参照する。
  * ユーザーの表示名だけは例外で、この hook 自身は認証ストアを読まない
  * （`features/history/**` から `@/store/useAuthSessionStore` を import しない規約。SS-13 / ADR-009 決定8）。
- * ルート（`app/(tabs)/history.tsx`）が `useAuthSessionStore` から読み取り、`displayName` として注入する。
+ * ルート（`app/(tabs)/account.tsx`）が `useAuthSessionStore` から読み取り、`displayName` として注入する。
  *
  * `queryKey` は `["walks", "stats"]`（`["walks", ...]` 始まり）にする。`useWalkSave` が
  * 保存成功時に `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、これで
- * 「散歩を保存 → 記録タブに戻ると集計が更新されている」が自動的に成立する。
+ * 「散歩を保存 → アカウントタブ（記録）に戻ると集計が更新されている」が自動的に成立する。
  *
  * `hooks/` 層は Vitest 対象外（`react-native` に到達しうる）。テストしたいロジックは
  * すべて `lib/`（`buildHistoryGreeting` / `buildPeriodChart` / `estimateSteps` / `toWalkStatsErrorCode`）へ

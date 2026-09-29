@@ -42,8 +42,9 @@ export function WalkStartView() {
   const plan = useWalkPlan();
   const startWalk = useActiveWalkStore((state) => state.startWalk);
 
-  // 戻り先は (tabs)。ナビタブ経由で検索・記録・スポット一覧のすべてに届く既定ホーム
-  // （`WalkSummaryView` の「ホームへ」と同じ）。「散歩を始める」とラッチを共有し、
+  // 戻り先は (tabs)。`/(tabs)` は `(tabs)/index`＝ナビタブに解決される。`/walk-start` にはナビタブの
+  // 「散歩を始める」から入るため、戻り先・開始後の遷移先ともナビタブにする（SS-145 でログイン直後の
+  // 着地点はピンタブになったが、ここは変えない。`WalkSummaryView` の「ホームへ」と同じ）。「散歩を始める」とラッチを共有し、
   // 戻る連打・戻る＋開始の同時押しでも遷移は1回に収まる。
   const back = useScreenBack({
     fallbackHref: HOME_HREF,
