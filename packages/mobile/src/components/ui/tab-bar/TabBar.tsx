@@ -93,6 +93,10 @@ const useStyles = makeStyles((theme) => ({
     width: 40,
     height: 40,
     borderRadius: 20,
+    // 非選択時も背景を持たせておく。Android(Fabric) では、背景の無い状態でマウントされた View に
+    // 後から backgroundColor だけを足すと borderRadius が効かず四角く塗られるため（SS-145 の実機確認で判明）。
+    backgroundColor: "transparent",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
