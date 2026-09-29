@@ -13,12 +13,12 @@ tags:
     visible:
       id: "sign-in-google-button"
     timeout: 15000
-# 「ゲストで試す」で保護ルート（散歩開始画面）に入れる。
+# 「ゲストで試す」で保護ルート（ピンタブ。SS-145 の着地点）に入れる。
 - tapOn:
     id: "sign-in-guest-button"
 - extendedWaitUntil:
     visible:
-      id: "walk-start-screen"
+      id: "pin-tab-screen"
     timeout: 15000
 # ゲストのまま設定画面に入ると、ログアウトではなくサインイン導線が出る。
 - openLink: "sanposcape-dev://settings"
@@ -46,5 +46,5 @@ tags:
     id: "sign-in-google-button"
 - extendedWaitUntil:
     visible:
-      id: "walk-start-screen"
+      id: "pin-tab-screen"
     timeout: 20000

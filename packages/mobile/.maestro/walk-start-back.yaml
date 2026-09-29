@@ -6,8 +6,11 @@ tags:
   - smoke
 ---
 - runFlow: subflows/sign-in.yaml
+- runFlow: subflows/open-walk-start.yaml
 
-# 画面上のキャンセル/戻る → タブ（ナビ/検索/記録にアクセスできるホーム）へ
+# 画面上のキャンセル/戻る → ナビタブ（散歩を始めた元のタブ）へ。`/walk-start` は replace で入るため
+# `canGoBack()` は false で、fallback の `/(tabs)`＝ナビタブへ replace される
+# （SS-145 で着地点がピンタブになっても戻り先はナビタブ）
 - tapOn:
     id: "walk-start-back"
 - extendedWaitUntil:

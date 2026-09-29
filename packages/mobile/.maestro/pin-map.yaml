@@ -1,5 +1,6 @@
-# 登録済みピンの地図（SS-118）: サインイン → 散歩開始画面から戻る → ナビタブの「登録したピンを地図で見る」
-# → 地図が出る → ピンの取得が落ち着く（エラーにならない）→ 戻る。
+# 登録済みピンの地図（SS-118）: サインイン → ピンタブの「登録したピンを地図で見る」
+# → 地図が出る → ピンの取得が落ち着く（エラーにならない）→ 戻るとピンタブ
+# （SS-145 で入口をナビタブからピンタブへ移した）。
 #
 # 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
 # assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-004）。
@@ -10,18 +11,12 @@ tags:
   - pin
 ---
 - runFlow: subflows/sign-in.yaml
-- tapOn:
-    id: "walk-start-back"
 - extendedWaitUntil:
     visible:
-      id: "walk-active-idle"
-    timeout: 10000
-- extendedWaitUntil:
-    visible:
-      id: "walk-active-open-pin-map"
+      id: "pin-tab-open-pin-map"
     timeout: 15000
 - tapOn:
-    id: "walk-active-open-pin-map"
+    id: "pin-tab-open-pin-map"
 - extendedWaitUntil:
     visible:
       id: "pin-map-map"
@@ -38,5 +33,5 @@ tags:
     id: "pin-map-back"
 - extendedWaitUntil:
     visible:
-      id: "walk-active-idle"
+      id: "pin-tab-screen"
     timeout: 10000

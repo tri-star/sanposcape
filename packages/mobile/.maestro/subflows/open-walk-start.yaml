@@ -1,0 +1,16 @@
+# 共通 subflow: （タブ表示中に）ナビタブ → 「散歩を始める」→ 散歩開始画面（SS-145）。
+# `subflows/` 配下なので単体では実行されない。
+appId: com.sanposcape.app.dev
+---
+- tapOn:
+    id: "app-tab-index"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+- tapOn:
+    id: "walk-active-start-cta"
+- extendedWaitUntil:
+    visible:
+      id: "walk-start-screen"
+    timeout: 10000

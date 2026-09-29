@@ -11,6 +11,7 @@ tags:
   - maps-required
 ---
 - runFlow: subflows/sign-in.yaml
+- runFlow: subflows/open-walk-start.yaml
 - runFlow: subflows/start-walk-from-spot.yaml
 - tapOn:
     id: "walk-active-add-pin"
