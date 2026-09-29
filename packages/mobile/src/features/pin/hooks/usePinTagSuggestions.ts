@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 import { fetchPinTagSuggestions } from "@/features/pin/api/pinTagSuggestionApi";
 import { pinTagSuggestionsQueryKey } from "@/features/pin/lib/pinQueryKeys";
@@ -31,9 +31,12 @@ export function usePinTagSuggestions(
 ): UsePinTagSuggestionsResult {
   const { sanpoMapId } = options;
   const query = useQuery({
-    queryKey: pinTagSuggestionsQueryKey(sanpoMapId ?? ""),
-    queryFn: ({ signal }) => fetchPinTagSuggestions(sanpoMapId as string, { signal }),
-    enabled: options.enabled && sanpoMapId !== null,
+    queryKey: pinTagSuggestionsQueryKey(sanpoMapId),
+    // 取得先が無いときは skipToken（型で `sanpoMapId` が string に絞られる）。
+    queryFn:
+      options.enabled && sanpoMapId !== null
+        ? ({ signal }) => fetchPinTagSuggestions(sanpoMapId, { signal })
+        : skipToken,
     staleTime: STALE_TIME_MS,
     retry: false,
   });

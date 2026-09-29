@@ -37,7 +37,6 @@ export function PinTagSuggestions({
             key={suggestion.label}
             icon="plus"
             category="neutral"
-            selected={false}
             onPress={() => onSelect(suggestion.label)}
             accessibilityLabel={`タグ「${suggestion.label}」を追加`}
             testID={`${testID}-${index}`}

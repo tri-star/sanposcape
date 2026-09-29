@@ -5,7 +5,9 @@ import {
   PIN_TAG_SUGGESTIONS_VISIBLE_MAX,
   filterTagSuggestions,
   resolveTagLabelForAdd,
+  reachesTagLimitAfterAdd,
   resolveTagSubmitAction,
+  resolveTagSubmitBehavior,
   resolveTagSuggestionSanpoMapId,
   tagSuggestionHeading,
   toTagSuggestions,
@@ -124,10 +126,30 @@ describe("filterTagSuggestions", () => {
   });
 
   it("前方一致 → 部分一致の順で、一致しないものは出ない", () => {
-    expect(labels(filterTagSuggestions({ candidates: base, query: "カ", attached: [] }))).toEqual([
+    // 部分一致を元の並びで先に置き、並び替えが効いていることを確かめる。
+    const candidates = [s("古民家カフェ"), s("公園"), s("カフェ"), s("カフェオレ")];
+    expect(labels(filterTagSuggestions({ candidates, query: "カフェ", attached: [] }))).toEqual([
       "カフェ",
+      "カフェオレ",
       "古民家カフェ",
     ]);
+  });
+
+  it("付与済みの除外と絞り込みを両方行う", () => {
+    const candidates = [s("カフェ"), s("カフェオレ"), s("古民家カフェ")];
+    expect(
+      labels(filterTagSuggestions({ candidates, query: "カフェ", attached: ["#カフェ"] })),
+    ).toEqual(["カフェオレ", "古民家カフェ"]);
+  });
+
+  it("前方一致と部分一致を足して最大件数で切る（前方一致が優先）", () => {
+    const partial = Array.from({ length: 4 }, (_, i) => s(`x-a${i}`));
+    const prefix = Array.from({ length: 4 }, (_, i) => s(`a${i}`));
+    expect(
+      labels(
+        filterTagSuggestions({ candidates: [...partial, ...prefix], query: "a", attached: [] }),
+      ),
+    ).toEqual(["a0", "a1", "a2", "a3", "x-a0", "x-a1"]);
   });
 
   it("大文字小文字を区別しない", () => {
@@ -169,8 +191,13 @@ describe("resolveTagLabelForAdd", () => {
     ["cafe", "Cafe"],
     ["#Cafe ", "Cafe"],
     ["新しいタグ", "新しいタグ"],
-  ])("%s -> %s", (query, expected) => {
+    ["", ""],
+  ])("%j -> %j", (query, expected) => {
     expect(resolveTagLabelForAdd(query, candidates)).toBe(expected);
+  });
+
+  it("候補が空なら入力のまま", () => {
+    expect(resolveTagLabelForAdd("cafe", [])).toBe("cafe");
   });
 });
 
@@ -182,6 +209,33 @@ describe("resolveTagSubmitAction", () => {
     ["a", "add"],
   ] as const)("%j -> %s", (query, expected) => {
     expect(resolveTagSubmitAction(query)).toBe(expected);
+  });
+});
+
+describe("reachesTagLimitAfterAdd / resolveTagSubmitBehavior", () => {
+  const nine = Array.from({ length: PIN_TAGS_MAX_COUNT - 1 }, (_, i) => `a${i}`);
+  const ten = [...nine, "z"];
+
+  it("あと1つで上限のとき、追加できる入力なら true", () => {
+    expect(reachesTagLimitAfterAdd(nine, "new")).toBe(true);
+  });
+
+  it("まだ余裕があれば false", () => {
+    expect(reachesTagLimitAfterAdd(nine.slice(1), "new")).toBe(false);
+  });
+
+  it("追加されない入力（空・重複・長すぎ・すでに上限）は false", () => {
+    expect(reachesTagLimitAfterAdd(nine, "  ")).toBe(false);
+    expect(reachesTagLimitAfterAdd(nine, "#A0")).toBe(false);
+    expect(reachesTagLimitAfterAdd(nine, "😀".repeat(21))).toBe(false);
+    expect(reachesTagLimitAfterAdd(ten, "new")).toBe(false);
+  });
+
+  it("submitBehavior: 通常は submit、空・上限到達は blurAndSubmit", () => {
+    expect(resolveTagSubmitBehavior({ query: "new", tags: [] })).toBe("submit");
+    expect(resolveTagSubmitBehavior({ query: "", tags: [] })).toBe("blurAndSubmit");
+    expect(resolveTagSubmitBehavior({ query: "new", tags: nine })).toBe("blurAndSubmit");
+    expect(resolveTagSubmitBehavior({ query: "a0", tags: nine })).toBe("submit");
   });
 });
 

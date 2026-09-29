@@ -9,8 +9,8 @@ const WHITESPACE_PATTERN = /\s+/g;
 
 /**
  * trim・連続空白を1つに圧縮・先頭の `#`/`＃` を除去する。
- * backend `pins/tag_labels.py` の `normalize_tag_label` と同じ規則（ケース表も揃える。
- * backend-plan.md 10章）。二重防御として backend も同じ正規化・重複除去を行う。
+ * backend `sanpo_maps/pins/tag_labels.py` の `normalize_tag_label` と同じ規則。
+ * 二重防御として backend も同じ正規化・重複除去を行う（ルート ADR-009、mobile ADR-013 D4）。
  */
 export function normalizeTagLabel(input: string): string {
   let value = input.trim();
@@ -27,6 +27,11 @@ export function tagKey(label: string): string {
   return normalizeTagLabel(label).toLowerCase();
 }
 
+/** 正規化済みのラベルが最大長以内か。長さは Unicode code point 単位（`Array.from`）。 */
+export function isTagLabelWithinMaxLength(normalizedLabel: string): boolean {
+  return Array.from(normalizedLabel).length <= PIN_TAG_MAX_LENGTH;
+}
+
 /**
  * タグを1件追加する。長さは Unicode code point 単位（`Array.from` で数える。
  * `String.prototype.normalize` は使わない）。
@@ -36,7 +41,7 @@ export function addTag(tags: readonly string[], input: string): AddTagResult {
   if (normalized.length === 0) {
     return { ok: false, reason: "empty" };
   }
-  if (Array.from(normalized).length > PIN_TAG_MAX_LENGTH) {
+  if (!isTagLabelWithinMaxLength(normalized)) {
     return { ok: false, reason: "too_long" };
   }
   if (tags.length >= PIN_TAGS_MAX_COUNT) {

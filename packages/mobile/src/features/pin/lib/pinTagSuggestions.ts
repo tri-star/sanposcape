@@ -1,6 +1,12 @@
 import type { SanpoMapTagRead } from "@/api/generated/model";
-import { PIN_TAGS_MAX_COUNT, PIN_TAG_MAX_LENGTH } from "@/features/pin/lib/pinLimits";
-import { normalizeTagLabel, tagKey } from "@/features/pin/lib/pinTags";
+import { PIN_TAGS_MAX_COUNT } from "@/features/pin/lib/pinLimits";
+import {
+  addTag,
+  isTagLabelWithinMaxLength,
+  normalizeTagLabel,
+  tagKey,
+} from "@/features/pin/lib/pinTags";
+import { resolveEffectiveSanpoMapSelection } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMap, SanpoMapSelection, TagSuggestion } from "@/features/pin/types";
 
 /** 1回の取得件数（backend の最大 200 以下。地図1枚のタグの種類はこれで足りる想定）。 */
@@ -17,7 +23,7 @@ export function toTagSuggestions(items: readonly SanpoMapTagRead[]): TagSuggesti
   const result: TagSuggestion[] = [];
   for (const item of items) {
     const label = normalizeTagLabel(item.label);
-    if (label === "" || Array.from(label).length > PIN_TAG_MAX_LENGTH) continue;
+    if (label === "" || !isTagLabelWithinMaxLength(label)) continue;
     const key = tagKey(label);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -28,7 +34,8 @@ export function toTagSuggestions(items: readonly SanpoMapTagRead[]): TagSuggesti
 
 /**
  * 候補を取る地図の id。地図一覧が未取得、または既定地図がまだ無いときは null（取得しない）。
- * 選んでいた地図が一覧から消えたときは既定地図に戻す（`resolveSanpoMapChoices` と同じ扱い）。
+ * 選んでいた地図が一覧から消えたときは既定地図に戻す（`resolveEffectiveSanpoMapSelection`。
+ * `resolveSanpoMapChoices` と同じ解決を共用する）。
  */
 export function resolveTagSuggestionSanpoMapId(input: {
   status: "loading" | "ready" | "error";
@@ -36,10 +43,8 @@ export function resolveTagSuggestionSanpoMapId(input: {
   selection: SanpoMapSelection;
 }): string | null {
   if (input.status !== "ready") return null;
-  if (input.selection.kind === "existing") {
-    const selectedId = input.selection.sanpoMapId;
-    if (input.maps.some((m) => m.id === selectedId)) return selectedId;
-  }
+  const selection = resolveEffectiveSanpoMapSelection(input);
+  if (selection.kind === "existing") return selection.sanpoMapId;
   return input.maps.find((m) => m.isDefault)?.id ?? null;
 }
 
@@ -82,6 +87,28 @@ export function resolveTagLabelForAdd(query: string, candidates: readonly TagSug
 /** 送信キーの動作。空なら追加せずキーボードを閉じるだけ（エラーを出さない）。 */
 export function resolveTagSubmitAction(query: string): "add" | "dismiss" {
   return normalizeTagLabel(query) === "" ? "dismiss" : "add";
+}
+
+/**
+ * `label` を追加すると上限（10個）に達するか。達するなら追加後に入力欄が無効になるので、
+ * フォーカスが残ってキーボードだけ開いたままになるのを避けるために呼び出し側が閉じる。
+ * 追加できない入力（空・重複・長すぎ・すでに上限）は追加されないので false。
+ */
+export function reachesTagLimitAfterAdd(tags: readonly string[], label: string): boolean {
+  const result = addTag(tags, label);
+  return result.ok && result.tags.length >= PIN_TAGS_MAX_COUNT;
+}
+
+/**
+ * 入力欄の `submitBehavior`。文字があれば追加してキーボードを開いたまま（続けて入力できる）、
+ * 空なら閉じるだけ、この追加で上限に達するなら閉じる。
+ */
+export function resolveTagSubmitBehavior(input: {
+  query: string;
+  tags: readonly string[];
+}): "submit" | "blurAndSubmit" {
+  if (resolveTagSubmitAction(input.query) === "dismiss") return "blurAndSubmit";
+  return reachesTagLimitAfterAdd(input.tags, input.query) ? "blurAndSubmit" : "submit";
 }
 
 export function tagSuggestionHeading(query: string): string {

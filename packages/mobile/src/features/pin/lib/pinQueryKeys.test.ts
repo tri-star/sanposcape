@@ -30,5 +30,6 @@ describe("pinQueryKeys", () => {
     expect(pinListQueryKey("map-1", BOUNDS)).not.toEqual(pinListQueryKey("map-2", BOUNDS));
     expect(pinDetailQueryKey("pin-1")).not.toEqual(pinDetailQueryKey("pin-2"));
     expect(pinTagSuggestionsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-2"));
+    expect(pinTagSuggestionsQueryKey(null)).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
   });
 });

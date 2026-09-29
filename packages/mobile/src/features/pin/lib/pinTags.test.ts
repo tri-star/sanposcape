@@ -4,6 +4,7 @@ import { PIN_TAGS_MAX_COUNT, PIN_TAG_MAX_LENGTH } from "@/features/pin/lib/pinLi
 import {
   addTag,
   addTagErrorMessage,
+  isTagLabelWithinMaxLength,
   normalizeTagLabel,
   removeTag,
   tagKey,
@@ -80,5 +81,12 @@ describe("removeTag", () => {
 describe("addTagErrorMessage", () => {
   it.each(["empty", "too_long", "duplicate", "limit"] as const)("%s に文言がある", (reason) => {
     expect(addTagErrorMessage(reason).length).toBeGreaterThan(0);
+  });
+});
+
+describe("isTagLabelWithinMaxLength", () => {
+  it("最大長ちょうどは true、超えたら false（code point 単位）", () => {
+    expect(isTagLabelWithinMaxLength("😀".repeat(PIN_TAG_MAX_LENGTH))).toBe(true);
+    expect(isTagLabelWithinMaxLength("😀".repeat(PIN_TAG_MAX_LENGTH + 1))).toBe(false);
   });
 });

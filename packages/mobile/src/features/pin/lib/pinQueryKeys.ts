@@ -27,6 +27,6 @@ export function pinPhotosQueryKey(pinId: string) {
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })`（`usePinSave`）と、SS-119 の編集・削除後の
  * invalidate で自動的に取り直されるようにする。
  */
-export function pinTagSuggestionsQueryKey(sanpoMapId: string) {
+export function pinTagSuggestionsQueryKey(sanpoMapId: string | null) {
   return ["pins", "tag-suggestions", sanpoMapId] as const;
 }

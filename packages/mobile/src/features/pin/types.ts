@@ -138,6 +138,9 @@ export type PinPhotoPage = { items: PinPhoto[]; photoCount: number; nextCursor: 
  */
 export type TagSuggestion = {
   label: string;
-  /** その地図でこのタグが付いているピンの数。並び順は backend が決めるので mobile は並べ替えに使わない。 */
+  /**
+   * その地図でこのタグが付いているピンの数。並び順は backend が決めるので mobile は並べ替えに
+   * 使わない。現状は未使用で、ピン数の表示など SS-120（検索タブ）での利用を想定して保持している。
+   */
   pinCount: number;
 };

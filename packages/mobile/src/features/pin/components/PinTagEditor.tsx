@@ -1,11 +1,16 @@
-import { View } from "react-native";
+import { AccessibilityInfo, Keyboard, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { Input } from "@/components/ui/input/Input";
 import { Tag } from "@/components/ui/tag/Tag";
 import { PinTagSuggestions } from "@/features/pin/components/PinTagSuggestions";
 import { PIN_TAGS_MAX_COUNT } from "@/features/pin/lib/pinLimits";
-import { resolveTagSubmitAction, tagSuggestionHeading } from "@/features/pin/lib/pinTagSuggestions";
+import {
+  reachesTagLimitAfterAdd,
+  resolveTagSubmitAction,
+  resolveTagSubmitBehavior,
+  tagSuggestionHeading,
+} from "@/features/pin/lib/pinTagSuggestions";
 import type { TagSuggestion } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 
@@ -41,6 +46,14 @@ export function PinTagEditor({
 }: PinTagEditorProps) {
   const styles = useStyles();
   const limitReached = tags.length >= PIN_TAGS_MAX_COUNT;
+
+  // 候補チップは押すと消えるので、追加できたことを読み上げで知らせる。この追加で上限に達すると
+  // 入力欄が無効になるため、フォーカスが残ってキーボードだけ開いたままにならないよう閉じる。
+  const handleSelectSuggestion = (label: string) => {
+    if (reachesTagLimitAfterAdd(tags, label)) Keyboard.dismiss();
+    onSelectSuggestion(label);
+    AccessibilityInfo.announceForAccessibility(`タグ「${label}」を追加しました`);
+  };
 
   return (
     <View testID={testID} style={styles.root}>
@@ -78,8 +91,9 @@ export function PinTagEditor({
             returnKeyType="done"
             autoCapitalize="none"
             autoCorrect={false}
-            // 文字があるときはキーボードを開いたまま追加し、続けて入力できる。空なら閉じるだけ。
-            submitBehavior={resolveTagSubmitAction(input) === "add" ? "submit" : "blurAndSubmit"}
+            // 文字があるときはキーボードを開いたまま追加し、続けて入力できる。空、または
+            // この追加で上限に達するときは閉じる（入力欄が無効になるため）。
+            submitBehavior={resolveTagSubmitBehavior({ query: input, tags })}
             onSubmitEditing={() => {
               if (resolveTagSubmitAction(input) === "add") onAdd();
             }}
@@ -102,7 +116,7 @@ export function PinTagEditor({
         <PinTagSuggestions
           suggestions={suggestions}
           heading={tagSuggestionHeading(input)}
-          onSelect={onSelectSuggestion}
+          onSelect={handleSelectSuggestion}
           testID={`${testID}-suggestions`}
         />
       )}
