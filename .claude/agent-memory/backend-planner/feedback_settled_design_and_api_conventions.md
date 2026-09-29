@@ -32,4 +32,9 @@ metadata:
 **Why:** backend がマージされてから mobile が dev モードで実動作確認する流れにするため。
 **How to apply:** backend プランの完了条件は **backend 単独で満たせるもの**に限る（モバイルの `orval` 実行や typecheck を完了条件に入れない）。モバイルの Orval 生成物は gitignore 済みなので backend PR は `openapi.yaml` のコミットだけでよい。backend 単独で手動疎通確認できる手段（認証なら dev トークン + 認証必須エンドポイント）をプランに用意する。両プランが同じファイルの編集を計画している場合はどちらの PR で行うか明記して重複を消す。
 
+**例外（SS-136, 2026-09-29）**: task-workflow（オーケストレーター）が1チケットを backend+mobile の同一ブランチ・同一 PR
+（backend 実装 → openapi.yaml 更新 → mobile で orval 再生成）で進めると判断し、そう依頼してくることがある（前例: SS-88 / PR #93）。
+その場合は分割前提を捨て、mobile プランの「backend が main に入るまで待つ」前提が不要になる点をプランの伝達事項に書く。
+依頼があればそちらを優先し、無ければ上の2本分割を既定とする。
+
 関連: [[project-auth-architecture-ss10]]
