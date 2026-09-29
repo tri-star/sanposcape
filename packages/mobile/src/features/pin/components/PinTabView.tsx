@@ -42,7 +42,9 @@ export function PinTabView() {
       style={[styles.root, { paddingTop: insets.top + theme.spacing[2] }]}
     >
       <Text style={styles.eyebrow}>ピン</Text>
-      <Text style={styles.title}>気になった場所をピンで残そう</Text>
+      <Text accessibilityRole="header" style={styles.title}>
+        気になった場所をピンで残そう
+      </Text>
       <Card style={styles.card}>
         <Icon name="map-pin" size={28} color={theme.colors.primary} />
         <Text style={styles.description}>
