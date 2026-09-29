@@ -76,7 +76,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
   };
 
   const back = useScreenBack({
-    fallbackHref: "/(tabs)/history",
+    fallbackHref: "/(tabs)/account",
     // ダイアログを開いている間は、画面ごと戻らずダイアログだけを閉じる。
     //
     // 注意: Android のハードウェアバックは、Modal 表示中は Modal 側の `onRequestClose`

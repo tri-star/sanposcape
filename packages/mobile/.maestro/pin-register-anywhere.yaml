@@ -1,5 +1,6 @@
-# 散歩していないときのピン登録（SS-124）: サインイン → 散歩開始画面から戻る → ナビタブの FAB
-# → 地点選択画面で長押し → 登録画面 → 名前 → 位置を調整（タップ → 確定）→ 保存 → ナビタブへ戻る。
+# 散歩していないときのピン登録（SS-124）: サインイン → ピンタブの「地図からピンを登録する」
+# → 地点選択画面で長押し → 登録画面 → 名前 → 位置を調整（タップ → 確定）→ 保存 → ピンタブへ戻る。
+# 保存完了トーストはピンタブの PinTabView が出す（SS-145）。
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
@@ -14,19 +15,12 @@ tags:
   - pin
 ---
 - runFlow: subflows/sign-in.yaml
-- tapOn:
-    id: "walk-start-back"
 - extendedWaitUntil:
     visible:
-      id: "walk-active-idle"
-    timeout: 10000
-# FAB は /app-config の取得後に出る
-- extendedWaitUntil:
-    visible:
-      id: "walk-active-pin-fab"
+      id: "pin-tab-add-pin"
     timeout: 15000
 - tapOn:
-    id: "walk-active-pin-fab"
+    id: "pin-tab-add-pin"
 - extendedWaitUntil:
     visible:
       id: "pin-location-picker-map"
@@ -75,13 +69,13 @@ tags:
 - tapOn:
     id: "pin-register-save"
 # トーストは 1.9 秒で消える（useToast の既定）ので、idle 画面を待ってからでは取りこぼしうる。
-# 文言が出るのを直接待ち、そのあと idle 画面にいることを確かめる。
+# 文言が出るのを直接待ち、そのあとピンタブにいることを確かめる。
 - extendedWaitUntil:
     visible:
       text: "ピンを保存しました"
     timeout: 20000
 - assertVisible:
-    id: "walk-active-idle"
+    id: "pin-tab-screen"
 - assertNotVisible:
     id: "pin-register-screen"
 - assertNotVisible:

@@ -21,8 +21,9 @@ tags:
     id: "sign-in-guest-button"
 - extendedWaitUntil:
     visible:
-      id: "walk-start-screen"
+      id: "pin-tab-screen"
     timeout: 15000
+- runFlow: subflows/open-walk-start.yaml
 - runFlow: subflows/start-walk-from-spot.yaml
 
 # --- 散歩中 → 終了 ---

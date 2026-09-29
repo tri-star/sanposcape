@@ -1,4 +1,7 @@
-# 共通 subflow: 起動 → サインイン → 散歩開始画面。
+# 共通 subflow: 起動 → サインイン → ピンタブ（ログイン直後の着地点。SS-145）。
+# backend の pin_registration が ON であること（.env.example の既定）が前提。
+# OFF だとピンタブはナビタブへリダイレクトされ、このサブフローは失敗する。
+# 散歩開始画面へは subflows/open-walk-start.yaml で進む。
 # `subflows/` 配下のファイルは Maestro の既定（ワークスペース直下のみ実行）により
 # 単体では実行されず、runFlow からのみ呼ばれる。
 appId: com.sanposcape.app.dev
@@ -25,5 +28,7 @@ appId: com.sanposcape.app.dev
 # EXPO_PUBLIC_AUTH_MODE=dev → POST /auth/dev-session の往復を待つ。
 - extendedWaitUntil:
     visible:
-      id: "walk-start-screen"
+      id: "pin-tab-screen"
     timeout: 20000
+# ピンタブは /app-config の取得中（pending）は読み込み表示（pin-tab-loading）だけを出して
+# pin-tab-screen を描かないので、その待ちも上の待機に含まれる。

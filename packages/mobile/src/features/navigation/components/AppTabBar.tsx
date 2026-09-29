@@ -1,11 +1,7 @@
-import { TabBar, type TabBarItem } from "@/components/ui/tab-bar/TabBar";
+import { TabBar } from "@/components/ui/tab-bar/TabBar";
+import { resolveActiveAppTab, resolveVisibleAppTabs } from "@/features/navigation/lib/appTabs";
+import type { FeatureGateDecision } from "@/lib/featureGate";
 import { useTheme } from "@/theme/useTheme";
-
-const TAB_ITEMS: readonly TabBarItem[] = [
-  { label: "ナビ", value: "index", icon: "footprints" },
-  { label: "検索", value: "search", icon: "search" },
-  { label: "記録", value: "history", icon: "bar-chart-2" },
-];
 
 /**
  * Expo Router の `Tabs` `tabBar` prop（`BottomTabBarProps`）から
@@ -24,19 +20,23 @@ export type AppTabBarProps = {
   insets: {
     bottom: number;
   };
+  /** pin_registration の判定。"disabled"（OFF 確定）のときだけピンタブを隠す。 */
+  pinTabGate: FeatureGateDecision;
 };
 
 /**
  * AppTabBar — Expo Router `Tabs` の `tabBar` prop から既存 `TabBar` プリミティブへのアダプタ。
- * デザイン: mock の TAB BAR（ナビ / 検索 / 記録）。
+ * デザイン: mock の TAB BAR（ナビ / ピン / アカウント。SS-145）。ピンタブは pin_registration の OFF 確定時に隠す。
+ * `Tabs.Screen` の `href: null` はこの独自タブバーには効かないため、表示するタブは `resolveVisibleAppTabs` で決める。
  */
-export function AppTabBar({ state, navigation, insets }: AppTabBarProps) {
+export function AppTabBar({ state, navigation, insets, pinTabGate }: AppTabBarProps) {
   const theme = useTheme();
-  const currentRouteName = state.routes[state.index]?.name ?? TAB_ITEMS[0]!.value;
+  const items = resolveVisibleAppTabs({ pinTabGate });
+  const currentRouteName = resolveActiveAppTab(state.routes[state.index]?.name);
 
   return (
     <TabBar
-      items={TAB_ITEMS}
+      items={items}
       value={currentRouteName}
       onChange={(value) => navigation.navigate(value)}
       testID="app-tab-bar"

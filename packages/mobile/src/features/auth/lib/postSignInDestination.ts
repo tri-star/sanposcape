@@ -1,5 +1,9 @@
+import { ACTIVE_WALK_LANDING_HREF, DEFAULT_LANDING_HREF } from "@/features/auth/lib/landingHref";
+
+export type LandingHref = typeof DEFAULT_LANDING_HREF | typeof ACTIVE_WALK_LANDING_HREF;
+
 export type PostSignInDestination =
-  | { type: "replace"; href: "/walk-start" | "/(tabs)" }
+  | { type: "replace"; href: LandingHref }
   | { type: "dismissTo"; href: "/walk-summary" };
 
 export type PostSignInInput = {
@@ -22,7 +26,7 @@ export type PostSignInInput = {
  * サインイン成功後の遷移先と遷移方法を決める（純粋）。
  *
  * 優先順:
- * 1. 進行中の散歩がある → `/(tabs)`（`WalkActiveView` を隠さない。SS-57 ローカルレビュー対応）。
+ * 1. 進行中の散歩がある → `/(tabs)`（ナビタブ。`WalkActiveView` を隠さない。SS-57 ローカルレビュー対応）。
  *    保存待ちドラフトより優先する。散歩の最中にユーザーを別画面へ連れて行かないため
  *    （この2つが同時に立つのは「保存待ちのまま次の散歩を始めた」稀なケース）。
  * 2. サマリの CTA から来た保存待ちドラフトがある → `/walk-summary` へ `dismissTo` で戻す（SS-37。
@@ -30,8 +34,8 @@ export type PostSignInInput = {
  *    条件へ限定した）。`replace` を使わないのは、サマリ画面から CTA で `push` して来た場合に
  *    スタックへサマリが二重に積まれるのを避けるため。`dismissTo` はスタックに
  *    対象が無ければ現在の画面を置き換えるので、設定画面からサインインした場合も破綻しない。
- * 3. それ以外（意思表示の無い保存待ちドラフトのみ、または何も無い） → 従来どおり `/walk-start`
- *    へ `replace`。CTA を経由しない無関係なサインインでは、保存待ちドラフトが残っていても
+ * 3. それ以外（意思表示の無い保存待ちドラフトのみ、または何も無い） → ピンタブ（`/(tabs)/pins`）
+ *    へ `replace`（SS-145）。CTA を経由しない無関係なサインインでは、保存待ちドラフトが残っていても
  *    サマリへは連れて行かない（Security High 対応）。ドラフトの自動再送自体は `useWalkSave` の
  *    多重防御に任せる（`isSignedIn` の変化を見て再発火するが、こちらも同じ意思表示ゲートを持つ）。
  *
@@ -40,7 +44,17 @@ export type PostSignInInput = {
  * 引き続き有効。
  */
 export function getPostSignInDestination(input: PostSignInInput): PostSignInDestination {
-  if (input.hasActiveWalk) return { type: "replace", href: "/(tabs)" };
+  if (input.hasActiveWalk) return { type: "replace", href: ACTIVE_WALK_LANDING_HREF };
   if (input.wantsToSaveFinishedWalk) return { type: "dismissTo", href: "/walk-summary" };
-  return { type: "replace", href: "/walk-start" };
+  return { type: "replace", href: DEFAULT_LANDING_HREF };
+}
+
+/**
+ * 「ゲストで試す」の着地点（SS-145）。進行中の散歩があればナビタブ、無ければピンタブ。
+ * 「散歩中 → 設定 → サインイン導線 → ゲストで試す」の経路で、進行中の散歩を見えない位置に置かないため
+ * （サインイン成功時の SS-57 ローカルレビュー対応と同じ理由）。保存意思（dismissTo）は見ない
+ * （ゲストは保存できないので、サマリへ戻しても再送されない）。
+ */
+export function getGuestEntryDestination(input: { hasActiveWalk: boolean }): LandingHref {
+  return input.hasActiveWalk ? ACTIVE_WALK_LANDING_HREF : DEFAULT_LANDING_HREF;
 }

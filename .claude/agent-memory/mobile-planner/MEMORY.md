@@ -13,7 +13,7 @@
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
-- [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／開始前に副作用が無い根拠
+- [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／href:null は AppTabBar に効かない／Redirect はフォーカス時のみ
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
 - [プラン作成時に必ず確認する制約](planning-constraints.md) — 読む順序と、毎回効いてくる mobile 固有の制約
 - [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）＋セッション破棄は `signOut()` 再利用が唯一の作法

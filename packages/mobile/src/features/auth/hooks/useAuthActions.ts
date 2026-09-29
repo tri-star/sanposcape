@@ -1,7 +1,10 @@
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
-import { getPostSignInDestination } from "@/features/auth/lib/postSignInDestination";
+import {
+  getGuestEntryDestination,
+  getPostSignInDestination,
+} from "@/features/auth/lib/postSignInDestination";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import { useToast } from "@/hooks/useToast";
@@ -10,7 +13,7 @@ import { authService, isAuthError } from "@/services/auth";
 export type UseAuthActionsResult = {
   signInWithGoogle: () => void;
   signUpWithGoogle: () => void;
-  /** ゲストのまま散歩開始画面へ進む。認証状態は変えない＝トークン非保持のまま（ADR-002 決定6）。 */
+  /** ゲストのまま着地点（ピンタブ。進行中の散歩があればナビタブ）へ進む。認証状態は変えない＝トークン非保持のまま（ADR-002 決定6）。 */
   continueAsGuest: () => void;
   /** サインイン処理中かどうか。ボタンの `disabled` 制御に使う（多重タップ防止）。 */
   isSubmitting: boolean;
@@ -38,7 +41,7 @@ export type UseAuthActionsResult = {
  *
  * **散歩中に設定画面経由でサインインするケースへの対応（SS-57 ローカルレビュー対応）**:
  * ゲスト散歩の解禁により、「散歩中タブの歯車 → 設定 → guest向けサインイン導線 → Google サインイン
- * 成功」という経路が生まれた。無条件に `/walk-start` へ `replace` すると、進行中の散歩が見えない
+ * 成功」という経路が生まれた。無条件に `/walk-start` へ `replace` すると（SS-145 以降の既定の着地点はピンタブ）、進行中の散歩が見えない
  * 画面に飛ばされ、気づかず「散歩を始める」を押すと進行中の散歩が無警告で上書きされてしまう。
  * `useActiveWalkStore` の `activeWalk` を見て遷移先を分岐する（保存待ちドラフトより優先）。
  */
@@ -106,13 +109,13 @@ export function useAuthActions(): UseAuthActionsResult {
   // authService は呼ばない。ゲストは「トークン非保持状態」であって AuthService のメソッドでは
   // ない（ADR-002 決定6）。起動時の復元失敗で useAuthSessionStore は既に guest になっているため、
   // ストアへの書き込みも不要（ストアの書き込み経路は2つだけ、という ADR-009 決定2 を守る）。
-  // push ではなく replace を使う（スプラッシュ→サインイン→walk-start は replace 連鎖で、
-  // /walk-start 到達時に canGoBack() === false になる設計。ここだけ push にすると
+  // push ではなく replace を使う（スプラッシュ→サインイン→着地点は replace 連鎖で、
+  // 着地点（SS-145 以降はピンタブ）到達時に canGoBack() === false になる設計。ここだけ push にすると
   // スタックの性質が変わる）。isSubmitting によるガードは持たない（サインイン処理中の多重操作
   // 防止はサインインボタン専用。ゲストボタン側は View 側で disabled={isSubmitting} を付ける）。
   const continueAsGuest = useCallback(() => {
-    router.replace("/walk-start");
-  }, [router]);
+    router.replace(getGuestEntryDestination({ hasActiveWalk }));
+  }, [router, hasActiveWalk]);
 
   return {
     signInWithGoogle,

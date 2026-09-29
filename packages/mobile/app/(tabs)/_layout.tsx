@@ -1,17 +1,24 @@
 import { Tabs } from "expo-router";
 
 import { AppTabBar } from "@/features/navigation/components/AppTabBar";
+import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
 
 /**
- * タブナビゲーション（ナビ / 検索 / 記録）。
- * 標準タブバーの代わりに既存 `TabBar` プリミティブを `AppTabBar` でブリッジして使う。
+ * タブナビゲーション（ナビ / ピン / アカウント。SS-145）。
+ * ログイン直後の着地点はピンタブ（`features/auth/lib/landingHref.ts`）。
+ * ピンタブの表示可否は pin_registration の判定を `AppTabBar` へ渡して決める
+ * （`Tabs.Screen` の `href: null` は独自タブバーには効かない）。
  */
 export default function TabsLayout() {
+  const pinTabGate = usePinRegistrationGate();
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AppTabBar {...props} />}>
+    <Tabs
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <AppTabBar {...props} pinTabGate={pinTabGate} />}
+    >
       <Tabs.Screen name="index" options={{ title: "ナビ" }} />
-      <Tabs.Screen name="search" options={{ title: "検索" }} />
-      <Tabs.Screen name="history" options={{ title: "記録" }} />
+      <Tabs.Screen name="pins" options={{ title: "ピン" }} />
+      <Tabs.Screen name="account" options={{ title: "アカウント" }} />
     </Tabs>
   );
 }

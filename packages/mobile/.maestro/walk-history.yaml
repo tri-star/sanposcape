@@ -1,4 +1,4 @@
-# 履歴一覧の到達性。候補（/explore/places）に依存しないよう、記録タブ経由ではなく
+# 履歴一覧の到達性。候補（/explore/places）に依存しないよう、アカウントタブ（記録）経由ではなく
 # ディープリンクで /walk-history へ入る（logout.yaml と同じ手法）。
 # 履歴の「件数」は assert しない: dev ユーザーキーは e2e-user-1 固定で、同一 CI ラン内で
 # 先に走ったフローの記録が残るため、0 件も N 件もあり得る。
@@ -21,5 +21,8 @@ tags:
     id: "walk-history-error"
 - tapOn:
     id: "walk-history-back"
-- assertVisible:
-    id: "walk-start-screen"
+# ディープリンクはピンタブの上に push されるので、戻るとピンタブ（SS-145）
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 10000

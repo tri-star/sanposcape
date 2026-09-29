@@ -1,0 +1,55 @@
+# 下部タブの構成とログイン直後の着地点（SS-145）。
+# 前提: preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev）・backend の pin_registration が ON（.env.example の既定）。
+# /explore/* に依存しないので maps-required は付けない。
+appId: com.sanposcape.app.dev
+tags:
+  - smoke
+---
+# サインイン直後にピンタブ（pin-tab-screen）に着く
+- runFlow: subflows/sign-in.yaml
+# タブ構成はラベルの text で確認する（廃止した検索・記録タブが無いことも text で否定する。
+# 存在しない testID への assertNotVisible は常に通ってしまい何も検証しないため）
+- assertVisible:
+    id: "app-tab-index"
+- assertVisible:
+    id: "app-tab-pins"
+- assertVisible:
+    id: "app-tab-account"
+- assertVisible:
+    text: "ナビ"
+- assertVisible:
+    text: "ピン"
+- assertVisible:
+    text: "アカウント"
+- assertNotVisible:
+    text: "検索"
+- assertNotVisible:
+    text: "記録"
+# タブを切り替えられる
+- tapOn:
+    id: "app-tab-account"
+- extendedWaitUntil:
+    visible:
+      id: "history-screen"
+    timeout: 10000
+- tapOn:
+    id: "app-tab-index"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-idle"
+    timeout: 10000
+- tapOn:
+    id: "app-tab-pins"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 10000
+# スプラッシュ経由（保存済みセッションの復元）でもピンタブに着く。clearState しない再起動。
+# セッション復元（ADR-009 SS-135 追補）に依存する。不安定なら外し、
+# splashDestination.test.ts だけで担保する。
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 20000

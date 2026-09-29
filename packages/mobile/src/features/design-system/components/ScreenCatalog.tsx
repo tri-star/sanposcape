@@ -84,11 +84,20 @@ export function ScreenCatalog() {
       },
     },
     {
-      key: "history",
-      label: "記録",
-      description: "週/月タブ・歩数進捗（集計は GET /walks/stats に依存。backend 起動が必要）",
-      icon: "bar-chart-2",
-      onPress: () => router.push("/(tabs)/history"),
+      key: "pin-tab",
+      label: "ピンタブ（暫定）",
+      description:
+        "ログイン直後の着地点。ピン地図・地点選択への入口（フラグ pin_registration が OFF だとナビへ戻される。副作用なし）",
+      icon: "map-pin",
+      onPress: () => router.push("/(tabs)/pins"),
+    },
+    {
+      key: "account",
+      label: "アカウント（記録）",
+      description:
+        "記録（週/月タブ・歩数進捗。集計は GET /walks/stats に依存。backend 起動が必要）。設定などのボタンは SS-148",
+      icon: "user",
+      onPress: () => router.push("/(tabs)/account"),
     },
     {
       key: "walk-history",
@@ -124,13 +133,6 @@ export function ScreenCatalog() {
         "現在地を起点に登録済みピンを表示。ピンをタップすると詳細へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。副作用なし）",
       icon: "map",
       onPress: () => router.push("/pins/map"),
-    },
-    {
-      key: "search",
-      label: "検索（準備中）",
-      description: "プレースホルダ画面",
-      icon: "search",
-      onPress: () => router.push("/(tabs)/search"),
     },
     {
       key: "settings",

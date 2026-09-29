@@ -78,7 +78,7 @@ export function WalkSummaryView({ isSignedIn, onSignIn }: WalkSummaryViewProps) 
                   pathname: "/walk-history/[walkId]",
                   params: { walkId: summary.savedWalkId },
                 })
-              : router.replace("/(tabs)/history")
+              : router.replace("/(tabs)/account")
           }
         >
           記録を見る
