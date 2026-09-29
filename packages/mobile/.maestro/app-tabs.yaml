@@ -7,16 +7,24 @@ tags:
 ---
 # サインイン直後にピンタブ（pin-tab-screen）に着く
 - runFlow: subflows/sign-in.yaml
+# タブ構成はラベルの text で確認する（廃止した検索・記録タブが無いことも text で否定する。
+# 存在しない testID への assertNotVisible は常に通ってしまい何も検証しないため）
 - assertVisible:
     id: "app-tab-index"
 - assertVisible:
     id: "app-tab-pins"
 - assertVisible:
     id: "app-tab-account"
+- assertVisible:
+    text: "ナビ"
+- assertVisible:
+    text: "ピン"
+- assertVisible:
+    text: "アカウント"
 - assertNotVisible:
-    id: "app-tab-search"
+    text: "検索"
 - assertNotVisible:
-    id: "app-tab-history"
+    text: "記録"
 # タブを切り替えられる
 - tapOn:
     id: "app-tab-account"
