@@ -3,7 +3,7 @@
 ## 日付
 
 2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）、2026-09-11 追補（SS-78）、
-2026-09-13 追補（SS-79）
+2026-09-13 追補（SS-79）、2026-09-30 追補（本番用 iOS OAuth クライアント）
 
 ## ステータス
 
@@ -205,7 +205,9 @@ GitHub Secrets と二重供給になって「差分を見ても原因に辿り�
 ### `app.config.ts` の責務が増えたことを記録する
 
 Maps キーの注入に加えて、`APP_VARIANT` による本番 variant の上書き（識別子・scheme・
-アプリ名）を担うようになった（`applyAppVariant` 関数）。未知の値（typo 等）は例外にする:
+アプリ名。**2026-09-30 追補: Google サインインの `iosUrlScheme` も**。詳細は
+[ADR-002(横断) の本番用 iOS OAuth クライアント追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
+を担うようになった（`applyAppVariant` 関数）。未知の値（typo 等）は例外にする:
 本番ビルドが黙って開発識別子になる事故は、EAS の枠を消費してから発覚すると被害が大きいため、
 `expo config` の評価時点（ビルドを始める前）で止める。
 

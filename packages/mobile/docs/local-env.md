@@ -379,9 +379,9 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
    `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` と `app.json` の `plugins` の
    `react-native-nitro-google-signin` オプション `iosUrlScheme`（逆ドメイン形式、
    `com.googleusercontent.apps.<IOS_CLIENT_ID>`）は変更不要だった。
-   - **本番識別子（`com.sanposcape.app`）用の iOS クライアントは未作成**。`production` を
-     使い始める段で新規作成し、`app.config.ts` の `PRODUCTION_VARIANT` に `iosUrlScheme` を
-     足す必要がある（build-profiles.md に未完了事項として記載）。
+   - **本番識別子（`com.sanposcape.app`）用の iOS クライアントは本番 GCP プロジェクト
+     （`680740561437`）に作成済み**（2026-09-30）。その URL スキームは `app.config.ts` の
+     `PRODUCTION_VARIANT` にあり、`APP_VARIANT=production` のときだけ `iosUrlScheme` を上書きする。
 4. **App Store 審査**: iOS で Google ログインを提供する場合、Sign in with Apple の併設が要求される
    （MVP のリリース計画に織り込む）。
 
@@ -396,8 +396,10 @@ EAS ダッシュボード（`production` 環境）で以下が別途注入され
 
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`（未設定だと
   `signInWithGoogle()` が `AuthError("configuration")` を返し、実質サインイン不能になる。
-  起動時クラッシュはしないがユーザー体験としては全滅する点に注意。**本番用 iOS OAuth クライアントは
-  2026-09-13 時点で未作成**。`production` を使い始める段で新規作成が必要。詳細は
+  起動時クラッシュはしないがユーザー体験としては全滅する点に注意。本番用 iOS OAuth クライアントは
+  2026-09-30 に作成済みで、`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` には **`app.config.ts` の
+  `PRODUCTION_VARIANT.googleSignInIosUrlScheme` と同じクライアント**（`680740561437-...`）の ID を
+  入れること。dev のクライアント ID を入れない。詳細は
   [ADR-002 の SS-79 追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
 - `GOOGLE_MAPS_ANDROID_SDK_KEY`（未注入だと Android で Maps SDK 初期化時に
   `RuntimeException` が発生してアプリがクラッシュする。「地図が灰色になるだけ」ではない。

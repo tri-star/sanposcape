@@ -13,19 +13,24 @@ const PRODUCTION_VARIANT = {
   scheme: "sanposcape",
   bundleIdentifier: "com.sanposcape.app",
   androidPackage: "com.sanposcape.app",
+  // 本番 GCP プロジェクトの iOS OAuth クライアント（bundle ID com.sanposcape.app）の「iOS URL スキーム」。
+  // クライアント ID を逆ドメイン形式にしたもので、EAS production 環境の
+  // EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID と同じクライアントを指していなければならない。
+  googleSignInIosUrlScheme:
+    "com.googleusercontent.apps.680740561437-1q63dlugo3vrecpvsrd15jsgpt4g57dp",
 } as const;
 
+const GOOGLE_SIGNIN_PLUGIN = "react-native-nitro-google-signin";
+
 /**
- * APP_VARIANT が "production" のときだけ本番の識別子・scheme・アプリ名で上書きする。
+ * APP_VARIANT が "production" のときだけ本番の識別子・scheme・アプリ名と、
+ * Google サインインの `iosUrlScheme`（plugins 配列内）で上書きする。
  * 未設定なら開発用（app.json の値）のまま。
  * それ以外の値は例外にする: typo（"prod" 等）で本番ビルドが黙って開発識別子になると、
  * 別アプリとしてストアに出る/クレデンシャルを取り違える事故になり、しかも EAS の枠を消費してから発覚する。
  * expo config の評価時点で落とせば、ビルドを始める前に止まる。
  *
  * 意図的にやらないこと:
- * - `iosUrlScheme`（plugins 配列内）は上書きしない。本番用 iOS OAuth クライアントは
- *   未作成（スコープ外）で、上書きすべき値が存在しない。`production` を使い始める段で、
- *   本番用クライアントを作って PRODUCTION_VARIANT に足す（build-profiles.md に未完了事項として明記）。
  * - アイコンは分けない（docs/build-profiles.md の「アプリ識別子の定義」参照）。iOS の
  *   `expo.icon`（Icon Composer 形式）の variant を作るコストが見合わないため、後続課題にする。
  * - `slug` / `extra.eas.projectId` / `updates.url` / `runtimeVersion` は上書きしない
@@ -45,7 +50,36 @@ function applyAppVariant(config: Partial<ExpoConfig>): Partial<ExpoConfig> {
     scheme: PRODUCTION_VARIANT.scheme,
     ios: { ...config.ios, bundleIdentifier: PRODUCTION_VARIANT.bundleIdentifier },
     android: { ...config.android, package: PRODUCTION_VARIANT.androidPackage },
+    plugins: withProductionGoogleSignInPlugin(config.plugins),
   };
+}
+
+/**
+ * plugins 配列の Google サインインのプラグイン設定だけを本番の `iosUrlScheme` に差し替える。
+ * プラグインが見つからなければ例外にする: 名前の変更等で差し替えが空振りすると、
+ * 本番ビルドが dev の iOS クライアントの URL スキームを黙って持つことになり、
+ * iOS のサインインが本番でだけ壊れる（ビルド・E2E では検出できない）。
+ */
+function withProductionGoogleSignInPlugin(plugins: ExpoConfig["plugins"]): ExpoConfig["plugins"] {
+  let replaced = false;
+  const next = (plugins ?? []).map((plugin): NonNullable<ExpoConfig["plugins"]>[number] => {
+    const name = Array.isArray(plugin) ? plugin[0] : plugin;
+    if (name !== GOOGLE_SIGNIN_PLUGIN) {
+      return plugin;
+    }
+    replaced = true;
+    const options = Array.isArray(plugin) ? plugin[1] : undefined;
+    return [
+      GOOGLE_SIGNIN_PLUGIN,
+      { ...options, iosUrlScheme: PRODUCTION_VARIANT.googleSignInIosUrlScheme },
+    ];
+  });
+  if (!replaced) {
+    throw new Error(
+      `Plugin "${GOOGLE_SIGNIN_PLUGIN}" not found in app.json; cannot apply the production iosUrlScheme.`,
+    );
+  }
+  return next;
 }
 
 /**
