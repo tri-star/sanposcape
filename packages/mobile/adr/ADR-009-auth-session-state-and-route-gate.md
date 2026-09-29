@@ -472,7 +472,7 @@ v0.2 で「開いてすぐにピンを地図で見る・付ける」をメイン
 - スプラッシュ（authenticated）・サインイン成功（通常）・ゲスト開始の着地点を `/(tabs)/pins`（ピンタブ）にする。定数は `features/auth/lib/landingHref.ts`。
 - 進行中の散歩があるときはナビタブ（`/(tabs)`）、サマリの CTA から来たサインインは `dismissTo("/walk-summary")`。優先順位は変えない（SS-57 ローカルレビュー追補・SS-37 追補・SS-37 ローカルレビュー追補）。
 - **`continueAsGuest` も進行中の散歩の有無で分岐する（`getGuestEntryDestination`）**。SS-57 ローカルレビュー追補と SS-37 追補は「サインイン画面から来る時点で進行中の散歩は無い」として対象外にしていたが、「散歩中 → 設定 → `settings-sign-in` → ゲストで試す」の経路で成り立たないことが分かったため。
-- **`pin_registration` が OFF のときのフォールバックは、着地点関数ではなくピンタブのルートガードが担う**（`pending` → 何も描かない、`disabled` → ナビタブへ `Redirect`。タブバーからも隠す）。スプラッシュの時点ではフラグがまだ取得中のことがあり、取得完了を起動条件にしない（[ルート ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定9、`architecture-guideline.md`「フィーチャーフラグ」）ため。`Redirect` はフォーカス中にだけ動くので、別タブにいる間にフラグが変わってもユーザーは移動しない。
+- **`pin_registration` が OFF のときのフォールバックは、着地点関数ではなくピンタブのルートガードが担う**（`pending` → 読み込み表示（`pin-tab-loading`）だけを出す、`disabled` → ナビタブへ `Redirect`。タブバーからも隠す）。スプラッシュの時点ではフラグがまだ取得中のことがあり、取得完了を起動条件にしない（[ルート ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定9、`architecture-guideline.md`「フィーチャーフラグ」）ため。`Redirect` はフォーカス中にだけ動くので、別タブにいる間にフラグが変わってもユーザーは移動しない。`pending` 中に何も描かないと着地直後にタブバーだけの空白画面になるため、読み込み表示を出す（ローカルレビューで変更。`/app-config` の取得は再試行後に確定するので表示が無期限に続くことはない）。
 - replace 連鎖（スプラッシュ → サインイン → 着地点）で、着地点で `canGoBack() === false` になる性質は変えない。`/walk-start` はナビタブの「散歩を始める」から入り、戻り先（fallback `/(tabs)`）はナビタブのまま。
 - SS-29 追補で「ルートで合成する」実例に挙げた `app/(tabs)/history.tsx` は `app/(tabs)/account.tsx` に改名した（中身は同じ）。
 

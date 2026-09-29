@@ -30,4 +30,5 @@ appId: com.sanposcape.app.dev
     visible:
       id: "pin-tab-screen"
     timeout: 20000
-# ピンタブは /app-config の取得中（pending）は何も描かないので、その待ちも上の待機に含まれる。
+# ピンタブは /app-config の取得中（pending）は読み込み表示（pin-tab-loading）だけを出して
+# pin-tab-screen を描かないので、その待ちも上の待機に含まれる。
