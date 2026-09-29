@@ -1,10 +1,7 @@
 import { Tabs } from "expo-router";
 
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { AppTabBar } from "@/features/navigation/components/AppTabBar";
-import { useAppConfig } from "@/hooks/useAppConfig";
-import { isFeatureEnabled } from "@/lib/appConfigSnapshot";
-import { resolveFeatureGateDecision } from "@/lib/featureGate";
+import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
 
 /**
  * タブナビゲーション（ナビ / ピン / アカウント。SS-145）。
@@ -13,11 +10,7 @@ import { resolveFeatureGateDecision } from "@/lib/featureGate";
  * （`Tabs.Screen` の `href: null` は独自タブバーには効かない）。
  */
 export default function TabsLayout() {
-  const snapshot = useAppConfig();
-  const pinTabGate = resolveFeatureGateDecision({
-    status: snapshot.status,
-    enabled: isFeatureEnabled(snapshot, FEATURE_FLAG_KEYS.pinRegistration),
-  });
+  const pinTabGate = usePinRegistrationGate();
   return (
     <Tabs
       screenOptions={{ headerShown: false }}

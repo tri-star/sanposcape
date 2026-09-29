@@ -1,16 +1,13 @@
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { PinRegisterView } from "@/features/pin/components/PinRegisterView";
 import {
   parseClientWalkIdParam,
   parsePinLocationParams,
 } from "@/features/pin/lib/pinLocationParams";
 import type { PinRouteParams } from "@/features/pin/lib/pinLocationParams";
-import { useAppConfig } from "@/hooks/useAppConfig";
-import { isFeatureEnabled } from "@/lib/appConfigSnapshot";
-import { resolveFeatureGateDecision } from "@/lib/featureGate";
+import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
@@ -24,11 +21,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 export default function PinNewRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<PinRouteParams>();
-  const snapshot = useAppConfig();
-  const decision = resolveFeatureGateDecision({
-    status: snapshot.status,
-    enabled: isFeatureEnabled(snapshot, FEATURE_FLAG_KEYS.pinRegistration),
-  });
+  const decision = usePinRegistrationGate();
   // セレクタはプリミティブを返す（オブジェクトを返すと zustand v5 で毎レンダー新しい参照になる）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
   const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
