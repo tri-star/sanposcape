@@ -1226,7 +1226,8 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 ピン登録時のタグ入力をサジェスト付きにする（SS-136）ための、mobile がタグ候補の元データに使う
 API を追加した。SS-111 追補が「後で切る」としていたものにあたる。DB スキーマは変えない
 （マイグレーションなし）。フィーチャーフラグは使わない（決定10）。mobile 側の判断（端末での
-絞り込み・既存表記への統一・見せ方）は mobile の ADR（SS-136 で新設）に記録する。
+絞り込み・既存表記への統一・見せ方）は mobile の
+[ADR-013](../../packages/mobile/adr/ADR-013-pin-tag-suggestions.md) に記録する。
 
 ### 決定30: `GET /sanpo-maps/{sanpo_map_id}/tags`（地図のタグ一覧）の契約
 
@@ -1289,4 +1290,4 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
   SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3・D4）、
-  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト）
+  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[mobile ADR-013](../../packages/mobile/adr/ADR-013-pin-tag-suggestions.md)）
