@@ -5,6 +5,7 @@ import {
   combineRegisteredPinListQueries,
   mergeRegisteredPinPages,
   toPinDetail,
+  toPinListEntry,
   toPinPhoto,
   toPinSummary,
   type PinListQueryOutcome,
@@ -119,6 +120,52 @@ describe("toPinSummary", () => {
 
   it("name が null（名前なし）でも変換する", () => {
     expect(toPinSummary({ ...READ, name: null })?.name).toBeNull();
+  });
+});
+
+describe("toPinListEntry", () => {
+  const READ: PinListItemRead = {
+    id: "pin-1",
+    sanpo_map_id: "map-1",
+    name: "桜の木",
+    location: { latitude: 35.681236, longitude: 139.767125 },
+    tags: [{ id: "tag-1", label: "桜", created_by_user_id: "user-1" }],
+    cover_photo: photo({ id: "cover-1" }),
+    photo_count: 3,
+    created_by_user_id: "user-1",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-02T00:00:00.000Z",
+  };
+
+  it("各項目を対応させて変換する", () => {
+    expect(toPinListEntry(READ, { apiBaseUrl: API_BASE_URL_HTTPS })).toEqual({
+      id: "pin-1",
+      name: "桜の木",
+      tags: [{ id: "tag-1", label: "桜" }],
+      coverPhoto: toPinPhoto(photo({ id: "cover-1" }), { apiBaseUrl: API_BASE_URL_HTTPS }),
+      photoCount: 3,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+  });
+
+  it("cover_photo が null なら coverPhoto は null", () => {
+    expect(
+      toPinListEntry({ ...READ, cover_photo: null }, { apiBaseUrl: API_BASE_URL_HTTPS }).coverPhoto,
+    ).toBeNull();
+  });
+
+  it("name が null でも変換する", () => {
+    expect(
+      toPinListEntry({ ...READ, name: null }, { apiBaseUrl: API_BASE_URL_HTTPS }).name,
+    ).toBeNull();
+  });
+
+  it("座標が不正でも落とさない", () => {
+    const entry = toPinListEntry(
+      { ...READ, location: { latitude: 91, longitude: 0 } },
+      { apiBaseUrl: API_BASE_URL_HTTPS },
+    );
+    expect(entry.id).toBe("pin-1");
   });
 });
 

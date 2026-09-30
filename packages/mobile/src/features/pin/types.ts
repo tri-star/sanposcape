@@ -2,7 +2,7 @@ import type { PhotoUploadErrorCode } from "@/features/pin/lib/photoUploadError";
 import type { GeoCoordinates } from "@/services/location/types";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 
-/** 画面で扱う地図（SanpoMapRead を camelCase 化）。件数は API に無い（地図管理チケットで expand）。 */
+/** 画面で扱う地図（SanpoMapRead を camelCase 化）。 */
 export type SanpoMap = {
   id: string;
   name: string;
@@ -10,6 +10,8 @@ export type SanpoMap = {
   isDefault: boolean;
   /** MVP では owner のみ出現。招待機能で editor が増える前提で型に持つ。 */
   role: "owner" | "editor";
+  /** 地図のピン件数（`GET /sanpo-maps?expand=pin_count`）。作成直後は 0。値が無い（null）ときは表示しない。 */
+  pinCount: number | null;
 };
 
 /** 保存先の選択。"default" は sanpo_map_id を送らない＝自分の既定地図（無ければ「最初の地図」を作る）。 */
@@ -112,6 +114,19 @@ export type PinPhoto = {
 };
 
 export type PinTagView = { id: string; label: string };
+
+/** 地図詳細のピン一覧の1件（`PinListItemRead` の必要部分。SS-121）。 */
+export type PinListEntry = {
+  id: string;
+  /** null は「名前なし」。表示名は pinDisplayName() を通す。 */
+  name: string | null;
+  tags: PinTagView[];
+  /** 代表写真（position 最小）。無ければ null。URL は isAllowedUploadUrl を通したもの。 */
+  coverPhoto: PinPhoto | null;
+  photoCount: number;
+  /** ISO 文字列。 */
+  createdAt: string;
+};
 
 /** 詳細画面が必要とする情報（`PinRead` を camelCase 化）。 */
 export type PinDetail = {

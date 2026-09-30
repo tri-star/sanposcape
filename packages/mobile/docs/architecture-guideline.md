@@ -49,7 +49,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
 - 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する（保存だけはサインイン CTA を出し、サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
-- `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピンの登録/閲覧のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/[pinId].tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118。ピンタブ `app/(tabs)/pins.tsx` も同様。SS-146）。
+- `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピンの登録/閲覧のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/[pinId].tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118。地図一覧・地図詳細（`app/sanpo-maps/*`）も同様。SS-121。ピンタブ `app/(tabs)/pins.tsx` も同様。SS-146）。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
   （実例1: `app/(tabs)/account.tsx`（SS-145 で `history.tsx` から改名）が `state.user?.displayName ?? null` を読み `HistoryView` →
@@ -108,7 +108,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
   で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / mobile ADR-012 D7）。
   閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
-  （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError` が
+  （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError`（地図詳細の `useSanpoMapPins.handlePhotoLoadError` も同じ規則）が
   URL の失効とみなし、取得から60秒以上経っていれば詳細を取り直す（`shouldRefreshPhotoUrls`）。
   サインアウト時は `src/lib/imageCacheCleanup.ts`（`app/_layout.tsx` から副作用 import）の
   `registerSessionCleanup` で expo-image のメモリ・ディスクキャッシュを消す。写真を表示する
@@ -160,7 +160,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 `<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う。
 実例: `app/pins/new.tsx`（SS-88）/
 `app/pins/[pinId].tsx`（SS-118。後者は `isUuid` での params 検証も併せて行う）/
-`app/sanpo-maps/index.tsx`（SS-146）。
+`app/sanpo-maps/index.tsx`（SS-146。SS-121 で `isSignedIn` / `onSignIn` の注入を追加）/
+`app/sanpo-maps/[sanpoMapId].tsx`（SS-121。`isUuid` での params 検証と認証値の注入を行う）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
@@ -182,7 +183,7 @@ export default function SomeFeatureRoute() {
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
   `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
-  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`。SS-146）も OFF 時はナビタブへ戻す。
+  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`・`[sanpoMapId].tsx`。SS-146 / SS-121）も OFF 時はナビタブへ戻す。
   ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
   （実例: `app/pins/new.tsx`。SS-88。
   `app/pins/[pinId].tsx`。SS-118）。

@@ -20,13 +20,12 @@ export type PinReadErrorCode =
  * ただし fetch の通信失敗を表す TypeError の分類だけは `instanceof` を使用する。
  *
  * **前提（QA-S3）**: `400 → "invalid_cursor"` の文言（`pinReadErrorMessage`）は「写真の読み込み
- * 位置が古くなりました」で、実際に `cursor` パラメータを送る呼び出し元
- * （`GET /pins/{id}/photos`。`usePinDetail.ts` の写真ページング）を前提にしている。
- * backend は `GET /pins`（一覧）にも同じ 400「Invalid cursor」を定義しているが、mobile は
- * この一覧取得に `cursor` を送らない（`useRegisteredPins.ts` は1ページ目しか読まない。
- * mobile ADR-012 D3）ため、この呼び出し元で 400 が実際に発生することは想定していない。
- * 万一発生した場合、この文言はその文脈に合わない（写真の話ではない）。新しい呼び出し元を
- * 追加するときはこの前提が成り立つかを確認すること。
+ * 位置が古くなりました」で、`GET /pins/{id}/photos`（`usePinDetail.ts` の写真ページング）を
+ * 前提にしている。`fetchAllPinsInSanpoMap`（SS-121）は `GET /pins` に cursor を送るので
+ * こちらでも 400 が起こりうる。その呼び出し元は文言に `sanpoMapReadErrorMessage`
+ * （`sanpoMapError.ts`）を使うこと。`fetchPinsInBounds`（`useRegisteredPins.ts`）は
+ * 1ページ目しか読まないので 400 は想定していない。新しい呼び出し元を追加するときは
+ * この前提が成り立つかを確認すること。
  */
 export function toPinReadErrorCode(error: unknown): PinReadErrorCode {
   if (isApiError(error)) {

@@ -1,0 +1,199 @@
+# 地図一覧・地図詳細（SS-121）: サインイン → ピンタブの「地図一覧」→ 地図を作成 → 地図名で検索
+# → 地図詳細（作ったばかりなのでピン0件）→ 作った地図にピンを登録 → 地図詳細にピンが出る
+# → ピン名で検索 → ピン詳細へ遷移 → 戻ると地図詳細。
+#
+# 前提: pin-register-anywhere.yaml と同じ
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
+#   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
+#   - 地図の長押しは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-007）。
+# /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
+#
+# assert しないもの: 既存の地図・ピンの件数や名前（同じ CI ランで他のフローが作った地図・ピンが残る。
+# e2e ユーザーは固定）、サムネイル、ピン件数の数値。
+# このフローが作る地図にだけ依存する: 実行ごとに一意な名前（Date.now() の接尾辞）の地図とピンを作り、
+# その地図の中身（作成直後はピン0件）だけを assert する。
+#
+# 注意:
+#   - 作成ボタンは disabled でもタップが失敗にならない（Maestro の性質）ので、タップ後に
+#     「ダイアログが消える」ことを待って成功を確かめている。
+#   - 保存先の地図のチップ（pin-register-sanpo-map-<地図id>）は id がフローから分からないため文字で探す。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-map"
+    timeout: 15000
+# 実行ごとに一意な名前（同じ CI ランの他フロー・前回の実行の地図と区別する）
+- evalScript: ${output.suffix = String(Date.now())}
+- evalScript: ${output.mapName = 'E2E地図' + output.suffix}
+- evalScript: ${output.pinName = 'E2Eピン' + output.suffix}
+
+# --- 地図一覧 → 作成 ---
+- tapOn:
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+- assertNotVisible:
+    id: "sanpo-map-list-error"
+- tapOn:
+    id: "sanpo-map-list-create-fab"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-create-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-create-name-input"
+- inputText: ${output.mapName}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-create-submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-create-dialog"
+    timeout: 15000
+# 作成後の一覧に出る（トーストの文言にも含まれるが、どちらでも作成の成功を確かめられる）
+- extendedWaitUntil:
+    visible:
+      text: ${output.mapName}
+    timeout: 10000
+
+# --- 地図名で検索（数字の接尾辞で一意に絞れる）→ 該当なし → クリア → 絞り込み → 詳細（ピン0件） ---
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- inputText: "zz-no-match-${output.suffix}"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-no-match"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-list-search-input-clear"
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- inputText: ${output.suffix}
+- hideKeyboard
+# 一意な接尾辞なので1件だけ残る
+- assertVisible:
+    id: "sanpo-map-list-item-0"
+- assertNotVisible:
+    id: "sanpo-map-list-item-1"
+- tapOn:
+    id: "sanpo-map-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-detail-pins-loading"
+    timeout: 15000
+# 作ったばかりの地図なので必ず0件
+- assertVisible:
+    id: "sanpo-map-detail-pins-empty"
+- tapOn:
+    id: "sanpo-map-detail-back"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- tapOn:
+    id: "sanpo-map-list-back"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 10000
+
+# --- 作った地図にピンを登録する（pin-register-anywhere.yaml と同じ長押しの地点） ---
+- longPressOn:
+    point: "50%,62%"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-sanpo-map-loading"
+    timeout: 15000
+- tapOn:
+    id: "pin-register-name-input"
+- inputText: ${output.pinName}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: ${output.mapName}
+- tapOn:
+    text: ${output.mapName}
+- scrollUntilVisible:
+    element:
+      id: "pin-register-save"
+- tapOn:
+    id: "pin-register-save"
+- extendedWaitUntil:
+    visible:
+      text: "ピンを保存しました"
+    timeout: 20000
+
+# --- 地図詳細にピンが出る → ピン名で検索 → ピン詳細 ---
+- tapOn:
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- inputText: ${output.suffix}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pin-0"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-detail-search-input"
+- inputText: "zz-no-match"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pins-no-match"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-detail-search-input-clear"
+- tapOn:
+    id: "sanpo-map-detail-search-input"
+- inputText: ${output.pinName}
+- hideKeyboard
+- assertVisible:
+    id: "sanpo-map-detail-pin-0"
+- tapOn:
+    id: "sanpo-map-detail-pin-0"
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-name"
+    timeout: 15000
+- tapOn:
+    id: "pin-detail-back"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000

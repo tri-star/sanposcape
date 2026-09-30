@@ -182,7 +182,8 @@ pnpm --filter mobile orval          # API クライアント再生成
   - `pin`: ピン登録・閲覧関連フロー（`pin-register.yaml`（SS-88）/ `pin-register-anywhere.yaml`
     （ピンタブの地図の長押し → 登録・位置調整 → 保存 → ピンタブへ戻ってトースト。SS-124 / SS-146）/
     `pin-map.yaml`（ピンタブの地図表示・登録済みピン取得が落ち着くこと・「地図一覧」の往復。マーカーのタップ→詳細遷移は含まない。
-    SS-118 / SS-146））。`auth-gate.yaml`（`smoke`）はゲストのピンタブにサインイン案内が出ることも見る。
+    SS-118 / SS-146）/ `sanpo-map-list.yaml`（地図一覧の表示・地図の作成・地図名の検索・地図詳細・
+    ピン名の検索・ピン詳細への遷移。実行ごとに一意な名前の地図とピンを作る。SS-121））。`auth-gate.yaml`（`smoke`）はゲストのピンタブにサインイン案内が出ることも見る。
   - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
     `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、

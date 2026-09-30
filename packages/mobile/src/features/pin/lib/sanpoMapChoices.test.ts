@@ -12,18 +12,21 @@ const OWNED_DEFAULT: SanpoMap = {
   name: "最初の地図",
   isDefault: true,
   role: "owner",
+  pinCount: null,
 };
 const OWNED_OTHER: SanpoMap = {
   id: "map-other",
   name: "おすすめランチ",
   isDefault: false,
   role: "owner",
+  pinCount: null,
 };
 const INVITED: SanpoMap = {
   id: "map-invited",
   name: "友達の地図",
   isDefault: false,
   role: "editor",
+  pinCount: null,
 };
 
 describe("resolveSanpoMapChoices", () => {
