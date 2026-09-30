@@ -43,7 +43,7 @@ describe("resolveAuthGateDecision", () => {
     });
   });
 
-  it("guest は _sitemap を許可する（本番でも到達可能。ADR-009 参照）", () => {
+  it("guest は _sitemap を許可する（本番でも到達可能。ADR-M-009 参照）", () => {
     expect(resolveAuthGateDecision({ status: "guest", segments: ["_sitemap"] })).toEqual({
       type: "allow",
     });

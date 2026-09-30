@@ -53,7 +53,7 @@ pnpm --filter mobile orval
 ### 3. development build の作成（EAS）と起動
 
 方針: **EASで端末向けdevelopment buildを1回作り、以降はMetroのFast RefreshでExpo Go同等**の体験を得る。
-再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)。
+再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-M-003](../adr/ADR-M-003-development-build-and-dev-loop.md)。
 
 > `development` 以外のプロファイル（E2E の `preview`、dev AWS 環境の `staging`、ストア配信の
 > `production`）がどの backend を向くか、`eas.json` に書かない値をどう供給するかは
@@ -173,7 +173,7 @@ pnpm --filter mobile orval          # API クライアント再生成
 - フローは `.maestro/` に置く（例: `.maestro/smoke.yaml`）。Maestro は既定でワークスペース直下の
   yaml だけを自動実行するため、`.maestro/subflows/` は `runFlow` からのみ呼ばれる共通手順の置き場
   になっている（単体では実行されない）。
-- E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)。
+- E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-M-004](../adr/ADR-M-004-e2e-build-ci-strategy.md)。
 - 実行には Android エミュレータ/実機 + preview APK が必要。
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。
   **CI は絞り込まず全フローを実行する**（SS-54）ため、タグはローカルでの部分実行用:
@@ -221,7 +221,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   `docker compose restart` では反映されない（`compose.yaml` の `${...}` はコンテナ生成時に
   展開されるため）。必ず `up -d` でコンテナを作り直すこと。
 - CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドする。
-  起動条件は次の2系統（PR 作成時や `main` への push では起動しない。ADR-004 の 2026-08-14 追補で
+  起動条件は次の2系統（PR 作成時や `main` への push では起動しない。ADR-M-004 の 2026-08-14 追補で
   push 起動を廃止した）:
   - **週次**: 毎週土曜 08:00 JST 相当（金曜 23:00 UTC）のスケジュール実行。
   - **手動実行**: GitHub Actions の `workflow_dispatch`。
@@ -288,13 +288,13 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
      なお **CI の E2E（`preview` プロファイル）にはこのキーを注入している**
      （`.github/workflows/mobile-e2e.yml` が `ci-e2e` environment の GitHub Secrets から渡す）。
      未注入にすると `maps-required` タグの Maestro フローが軒並みクラッシュで失敗するため、
-     E2E にとってこのキーは必須である（地図タイルの描画自体は assert しない。ADR-004）。
+     E2E にとってこのキーは必須である（地図タイルの描画自体は assert しない。ADR-M-004）。
   4. 反映確認: `pnpm --filter mobile exec expo config --type prebuild` の出力に
      `android.config.googleMaps.apiKey` が載っているか確認する（キー未設定時は `config`
      フィールド自体が付かない。この状態のビルドを実機・エミュレータで起動すると
      Maps SDK 初期化時にクラッシュする）。
   5. **ネイティブ設定（`expo-location` の追加・Maps キーの注入）を反映するには development build
-     の作り直しが必要**（Fast Refresh では反映されない。ADR-004 の 2026-08-14 追補以降、
+     の作り直しが必要**（Fast Refresh では反映されない。ADR-M-004 の 2026-08-14 追補以降、
      E2E の APK キャッシュキーは `packages/mobile` のソース全体ハッシュ（`.maestro/` / `docs/` /
      `adr/` を除く）になっているため、ネイティブ設定に限らずソースの変更があれば再ビルドされる）。
 
@@ -312,7 +312,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
 - `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で写真の取得・加工の実装を切り替える
   （`src/config/photoMode.ts`）。位置情報と同じく `dev` モードは無い（詳細は
-  [ADR-010](../adr/ADR-010-photo-service-and-direct-s3-upload.md)）。
+  [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）。
   - `real` = `expo-image-picker`（カメラ/写真ライブラリ）+ `expo-image-manipulator`（縮小・再圧縮）。
   - `mock` = 固定のダミー写真（`src/services/photo/photo.mock.ts`。vitest や、システムのカメラ/
     写真ピッカーを安定操作できない E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは

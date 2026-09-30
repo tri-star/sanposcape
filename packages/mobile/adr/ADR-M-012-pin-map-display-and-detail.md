@@ -1,4 +1,4 @@
-# ADR-012: 登録済みピンの地図表示とピン詳細画面
+# ADR-M-012: 登録済みピンの地図表示とピン詳細画面
 
 ## 現在有効な決定（要約）
 
@@ -30,7 +30,7 @@
   （本文: D6）
 - **画像キャッシュは `photo.id` ベースの `cacheKey`（`memory-disk`）とし、サインアウト時の消去は
   `src/lib/imageCacheCleanup.ts` で登録する**。presigned URL は画像の読み込み失敗を契機に取り直す（60秒未満は取り直さない）。
-  地図詳細のピン一覧のサムネイルも同じ規則（[ADR-014](./ADR-014-sanpo-map-list-and-detail.md) D7）。（本文: D7、SS-121 追補）
+  地図詳細のピン一覧のサムネイルも同じ規則（[ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md) D7）。（本文: D7、SS-121 追補）
 - **原本ビューアは RN `Modal` を使わない画面内オーバーレイで、前後はボタンでのみ移動する**。（本文: D8）
 - **ゲストはピンタブ・ピン詳細を開けるが通信せず、サインイン案内を出す**。散歩中の地図のピンレイヤーもゲストでは
   通信しない。地図一覧 `/sanpo-maps`・地図詳細 `/sanpo-maps/[sanpoMapId]` も同じ。アカウントタブでも、ゲストには集計・最近の散歩を出さず
@@ -39,7 +39,7 @@
 - **フラグは既存の `pin_registration` を流用し、`/pins/[pinId]` は OFF 確定時に `/(tabs)` へ Redirect する**。
   （本文: D10、SS-147 追補）
 - **ピンタブの地図の下に `TabActionBar`（`src/components/layout/`。children スロット・右寄せ）を置き、「地図一覧」ボタンで `/sanpo-maps`
-  へ遷移する**。`/sanpo-maps` は SS-121 で本実装した（[ADR-014](./ADR-014-sanpo-map-list-and-detail.md)）。testID
+  へ遷移する**。`/sanpo-maps` は SS-121 で本実装した（[ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md)）。testID
   `sanpo-map-list-screen` / `sanpo-map-list-back` は維持。（本文: SS-146 追補、SS-121 追補、SS-148 追補）
 - **ピンタブの現在地はフォーカスが戻るたびに（初回を除き）静かに取り直す**（権限をリクエストしない・失敗しても前回値を保持・
   30 秒以内はスキップ・視点は動かさない）。（本文: SS-146 追補の影響）
@@ -66,7 +66,7 @@
 
 - D1: 表示場所「散歩中のナビタブの地図 + `/pins/map`（idle のナビタブの『登録したピンを地図で見る』から開く）」→
   「散歩中のナビタブの地図 + ピンタブ」（SS-146 追補でピンタブを追加、SS-147 追補でボタン・ルート・`PinMapView` を削除）。
-  D1 の「地点選択画面には表示しない」の地点選択画面も SS-147 で削除（ADR-011）
+  D1 の「地点選択画面には表示しない」の地点選択画面も SS-147 で削除（ADR-M-011）
 - D3: 打ち切りの案内を出す場所 `/pins/map` → ピンタブ（SS-146 追補）
 - D9・D10: `/pins/map` のゲスト表示・フラグのガード → `/pins/map` の削除で対象外（SS-147 追補）
 - D14: E2E `/pins/map` の表示と取得完了 → ピンタブへ移動（SS-146 追補）。`/pins/map` の表示確認も削除（SS-147 追補）
@@ -110,7 +110,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - **D1（SS-147 追補: `/pins/map` は削除）: 表示場所は「散歩中のナビタブの地図」+「新しい `/pins/map`（idle のナビタブから開く）」。
   地点選択画面（`/pins/pick-location`）・位置調整オーバーレイには表示しない。**
   モックの main 画面（散歩中の地図）に `mainPins` があり、散歩中に登録して戻った地図にすぐ出るのが
-  最も価値が高い。idle のナビタブには地図が無いため別画面が要る。ADR-011 のユーザー決定
+  最も価値が高い。idle のナビタブには地図が無いため別画面が要る。ADR-M-011 のユーザー決定
   「(b) の入口は SS-118 とは別画面として作る。入口の統合は SS-118 の後で検討」とも一致する。
   `/pins/map` への入口は idle の `WalkIdleNotice` 直下のテキスト付き `Button`
   （「登録したピンを地図で見る」）。（SS-147 追補: /pins/map は削除）
@@ -125,7 +125,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   1リクエスト200件（backend の上限。地図ごと）で打ち切り、`/pins/map` では「一部だけ表示。
   拡大すると他も出る」と案内する。クラスタ表示は採らない。**
   理由: (1) 1画面に数百のカスタム View マーカーを描くと RN の地図は重くなる、(2) クラスタ表示は
-  依存ライブラリの追加（ADR-003 の development build 作り直し・`minimumReleaseAge`）が要り、
+  依存ライブラリの追加（ADR-M-003 の development build 作り直し・`minimumReleaseAge`）が要り、
   MVP 規模（1ユーザー数百件）に見合わない、(3) 並びが `created_at DESC` なので「新しいピンが
   見える」は自然な劣化。散歩中の地図では案内しない（下部カードが既に埋まっているため静かに劣化）。
 - **D4: 複数の地図は地図ごとに `GET /pins` を並列に呼んでマージする（`useRegisteredPins`）。**
@@ -142,7 +142,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   ビューアの末尾（最後に読み込んだ写真で `hasMore`）で次ページを読み込む。
 - **D7: 画像キャッシュは `cacheKey = pin-photo:<photo.id>:<thumb|original>`、
   `cachePolicy="memory-disk"`。presigned URL は応答ごとに変わるため URL をキーにしない
-  （mobile ADR-010 決定8 / ルート ADR-009 決定15）。**
+  （ADR-M-010 決定8 / ルート ADR-009 決定15）。**
   サインアウト時に `Image.clearMemoryCache()` / `clearDiskCache()` を `registerSessionCleanup` で
   走らせる。登録は `PinPhotoImage.tsx`（コンポーネント）ではなく、起動時に必ず評価される
   `src/lib/imageCacheCleanup.ts`（`app/_layout.tsx` から副作用 import）に置く。写真を一度も
@@ -153,12 +153,12 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   `shouldRefreshPhotoUrls`）。閲覧 URL にも直送用の `isAllowedUploadUrl` を適用する
   （関数名・挙動は変えない。用途を JSDoc に追記）。
 - **D8: 原本ビューアは RN `Modal` を使わない画面内オーバーレイ（`position: absolute` の
-  `View`）。** ADR-011 D7 と同じ理由（`Modal` は Android のハードウェアバックを
+  `View`）。** ADR-M-011 D7 と同じ理由（`Modal` は Android のハードウェアバックを
   `onRequestClose` で先取りし、`useScreenBack` の `onIntercept` が届かなくなる）。前後はボタンの
   みで移動する（モックどおり。スワイプ・ピンチズームはスコープ外）。背景は両テーマで暗色
   （`theme.palette.ink900`。用途名では表現できないため意図的に palette を直接使う）。
 - **D9（SS-147 追補: `/pins/map` は削除）: ゲストは `/pins/map` とピン詳細のルートを開けるが通信せず、サインイン案内を出す**
-  （ADR-011 D4 と同じく入口ボタンはゲストにも出す）。散歩中の地図のピンレイヤーもゲストでは通信
+  （ADR-M-011 D4 と同じく入口ボタンはゲストにも出す）。散歩中の地図のピンレイヤーもゲストでは通信
   しない。
 - **D10（SS-147 追補: `/pins/map` は削除）: フラグは既存の `pin_registration` を流用する。** `/pins/map` と `/pins/[pinId]` は画面
   ガードレシピで OFF 確定時に `/(tabs)` へ Redirect する。
@@ -194,7 +194,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   - JS 側の回避策は採らなかった。画面を離れている間とバックグラウンドの間はピンの増減を止め、
     変更はレイヤーごと作り直す、という案だったが、ライブラリ内部の挙動に依存して壊れやすく、
     ライブラリを上げれば不要になる。
-  - 更新にはネイティブの変更が含まれるため、development build の作り直しが要る（ADR-003）。
+  - 更新にはネイティブの変更が含まれるため、development build の作り直しが要る（ADR-M-003）。
   - 末尾配置・`zIndex`・`moveOnMarkerPress`・`onMapReady` の初回限定は、ライブラリの修正後も
     意味がある。末尾配置は既存の子の位置を動かさない。`zIndex` は同じ座標のピンが現在地を隠さない
     ようにする。`moveOnMarkerPress` は、戻ったときに地図がピンの位置へずれないようにする。
@@ -213,7 +213,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 - **概要**: 既存の全画面地図（FAB → 地点選択）にそのまま登録済みピンを重ね、新しい画面を作らない。
 - **メリット**: 画面数が増えない。
-- **デメリット**: ユーザーが ADR-011 で「入口の統合は SS-118 の後で検討する」と決めており、
+- **デメリット**: ユーザーが ADR-M-011 で「入口の統合は SS-118 の後で検討する」と決めており、
   先取りしてしまう。閲覧専用の地図（長押しで登録へ進ませたくない）と登録用の地図
   （長押しが本来の目的）の操作モードが1画面に混在し、事故（閲覧中の誤操作で登録画面へ進む）の
   リスクがある（D1 で不採用）。
@@ -231,7 +231,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - **概要**: マーカーが密集したら数字付きの円にまとめる（地図アプリでよくある UI）。
 - **メリット**: 大量のピンでも地図が重くならず、全件の位置感を把握しやすい。
 - **デメリット**: クラスタリング用ライブラリの追加が要り、development build の作り直しと
-  `minimumReleaseAge`（ADR-003 / ADR-004）の待ちが発生する。MVP 規模（1ユーザー数百件程度）では
+  `minimumReleaseAge`（ADR-M-003 / ADR-M-004）の待ちが発生する。MVP 規模（1ユーザー数百件程度）では
   投資対効果が低い（D3 で不採用。将来件数が増えたら再検討）。
 
 ### 選択肢5: 上限超過時もページングを続ける（`next_cursor` を辿る）
@@ -251,7 +251,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 ## 決定理由
 
 - 既存の feature 境界（`features/walk` は `features/pin` を import しない、`features/pin` は
-  認証状態を読まない。ADR-009（mobile）/ ADR-011 と同じ規約）を保ったまま実装できる形を優先した。
+  認証状態を読まない。ADR-M-009 / ADR-M-011 と同じ規約）を保ったまま実装できる形を優先した。
 - ユーザーの明示要件（タップで直接詳細へ）を最優先し、モックとの差分は ADR に明記して透明にした。
 - ルート ADR-009 の持ち越し事項（上限の見せ方）は、依存追加を伴わない選択肢（打ち切り + 案内）を
   MVP のスコープとして採用し、クラスタ表示は将来の拡張として残した。
@@ -267,7 +267,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 ### ネガティブな影響・トレードオフ
 
-- 地図上のピン操作は支援技術（スクリーンリーダー等）で代替できない（ADR-011 と同じ既知の限界）。
+- 地図上のピン操作は支援技術（スクリーンリーダー等）で代替できない（ADR-M-011 と同じ既知の限界）。
   検索タブ（SS-120）を代替導線に想定していたが、SS-145 で検索タブは廃止された。代替導線は未定。
   （SS-121 追補）地図詳細のピン一覧（`/sanpo-maps/[sanpoMapId]`）が代替導線になった。
 - ピンの E2E はマーカーのタップを含まない（D14。SS-147 追補: E2E はピンタブのみ）。詳細画面の見た目は `/dev-screens` からの手動
@@ -276,7 +276,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   一度も表示しないまま出たサインアウトでは消去が走らない限界があった。`src/lib/imageCacheCleanup.ts`
   へ登録を移し、`app/_layout.tsx` から副作用 import することで解消した（D7 参照）。
 - ゲストが案内からサインインしても元の画面（地図・詳細）へ戻らない
-  （`getPostSignInDestination` の既存の限界。ADR-011 と同じ）。
+  （`getPostSignInDestination` の既存の限界。ADR-M-011 と同じ）。
 - 表示範囲に地図ごとに200件を超えるピンがあると古いピンが出ない（拡大すると取り直す）。
 
 ### 移行・対応が必要な事項
@@ -289,7 +289,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 - D1 の追補: 表示場所にピンタブを加える。選択肢2で避けた「閲覧と登録の操作モードの混在」は、登録を長押しだけに限り（タップはピン詳細のみ・Marker に `onLongPress` は無い）、誤って長押ししても未入力なら登録画面から確認なしで戻れるので受け入れる。
 - 状態表示: `/pins/map` と同じ `resolvePinMapNotice`・案内（`PinMapStatusNotice` に切り出し）をピンタブ上部の情報カードで出す（D3 の打ち切り案内もピンタブで出す）。`RegisteredPinsMapLayer`（状態を出さない包み）は使わず、`useRegisteredPins` + `RegisteredPinMarkers` を直接使う。
-- D9 の追補: ゲストは地図を見られるが通信せず、サインイン案内を出す。サインイン成功後は既存の `(tabs)` へ `dismissTo` で戻り（進行中の散歩があればナビタブ、無ければピンタブ。ADR-009 SS-146 追補）、ピンタブでは「元の画面へ戻らない」限界が当たらない。
+- D9 の追補: ゲストは地図を見られるが通信せず、サインイン案内を出す。サインイン成功後は既存の `(tabs)` へ `dismissTo` で戻り（進行中の散歩があればナビタブ、無ければピンタブ。ADR-M-009 SS-146 追補）、ピンタブでは「元の画面へ戻らない」限界が当たらない。
 - ボタン配置エリア（`PinTabActionBar`。SS-148 追補: `TabActionBar` に昇格・改名）を地図の下・タブバーの上に通常フローで置く（地図に重ねない）。最初のボタン「地図一覧」は `/sanpo-maps`（SS-121 まで暫定画面。SS-121 で本実装）。
   - 構造は children スロット（横並び・右寄せ・折り返し）。並べるボタンの種類・出し分け条件が未確定なので、配列＋判定関数のデータ駆動より、呼び出し側が並べる方が変更に強いと判断した。使うのはピンタブだけなので `features/pin` に置く。→ SS-148 で決着（アカウントタブでも使うことになり `src/components/layout/TabActionBar` に昇格した。下記 SS-148 追補）。
   - 「地図一覧」は SS-121 が未完了でも常に表示し、遷移先に「準備中」の暫定画面（`SanpoMapListView`）を置く。却下案「SS-121 完了までボタンを出し分ける（非表示）」は、受け入れ条件「地図一覧ボタンが右寄せで表示される」を満たせないため採らなかった。v0.2 のストアリリース前に SS-121 が同じルート・testID（`sanpo-map-list-screen` / `sanpo-map-list-back`）のまま本実装に差し替える前提。→ SS-121 で決着（そのとおり差し替えた）。
@@ -325,7 +325,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 ## SS-121 追補: 地図一覧・地図詳細（2026-09-30）
 
-地図一覧（`/sanpo-maps`）の本実装と地図詳細（`/sanpo-maps/[sanpoMapId]`）の新設は [ADR-014](./ADR-014-sanpo-map-list-and-detail.md) に記録した。本 ADR への影響は次のとおり。
+地図一覧（`/sanpo-maps`）の本実装と地図詳細（`/sanpo-maps/[sanpoMapId]`）の新設は [ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md) に記録した。本 ADR への影響は次のとおり。
 
 - SS-146 追補の「`/sanpo-maps` の認証ガード（または未サインイン案内）と API 側の認可を入れる」は決着した。ゲストには未サインイン案内を出して通信せず（D9 と同じ）、API は member の地図だけを返す。
 - SS-146 追補の「SS-121 が同じルート・testID のまま本実装に差し替える」は、そのとおり差し替えた。
@@ -340,14 +340,14 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 認証状態は `status` をそのまま `isSignedIn` に圧縮せず、`signed-in` / `guest` / `restoring` の3値で `HistoryView` に注入する。`loading`（セッション復元中）は `restoring` で、通信せず集計部分に既存の読み込み表示を出し、サインイン案内も「最近の散歩」も出さない。コールドスタートのディープリンク（`sanposcape://account` 等）では `AuthGate` が `loading` の間も children を通すので、ゲスト扱いにするとサインイン済みのユーザーにサインイン案内が一瞬見えて押せてしまうため。判定は `resolveHistoryStatsState`（`restoring` → `sign-in-required` → …）。
 - サインイン遷移（ピンタブ・アカウントタブ）は `src/hooks/useSignInNavigation.ts` に共通化し、両タブで二重タップを防ぐ（アカウントタブは設定・画面カタログと同じ `useNavigateOnce` のラッチを渡して共有する）。
 - 既知の制限: ゲストがアカウントタブのサインイン案内からサインインすると、`getPostSignInDestination` によりピンタブ（進行中の散歩があればナビタブ）へ戻り、アカウントタブには戻らない（ピン詳細の案内と同じ制限。直すなら別課題）。
-- 記録・帯の合成は `app/(tabs)/account.tsx` が `HistoryView` の `footer` に `AccountActionBar`（`features/account`）を渡して行う（D5 の render slot の一般化）。開発ツールの表示可否は [ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) の SS-148 追補。
+- 記録・帯の合成は `app/(tabs)/account.tsx` が `HistoryView` の `footer` に `AccountActionBar`（`features/account`）を渡して行う（D5 の render slot の一般化）。開発ツールの表示可否は [ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-148 追補。
 
 ## 関連情報
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定15・持ち越し事項の決着）
-- [ADR-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-010-photo-service-and-direct-s3-upload.md)（決定8）
-- [ADR-011（mobile）: ピンの位置の選択と調整](./ADR-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
+- [ADR-M-010: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)（決定8）
+- [ADR-M-011: ピンの位置の選択と調整](./ADR-M-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール・feature 間の render slot 合成）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ・写真の扱い）
-- [ADR-014（mobile）: 地図一覧と地図詳細](./ADR-014-sanpo-map-list-and-detail.md)（SS-121 追補）
+- [ADR-M-014: 地図一覧と地図詳細](./ADR-M-014-sanpo-map-list-and-detail.md)（SS-121 追補）
 - 元チケット: SS-118 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）・SS-121

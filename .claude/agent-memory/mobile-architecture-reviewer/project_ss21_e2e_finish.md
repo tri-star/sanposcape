@@ -21,7 +21,7 @@ CI 実行対象を制御。backend の fake Maps provider（`MAPS_MODE=fake`）�
   リネームしていない。
 - disabled ボタンを Maestro がタップ成功扱いする問題への対策（ready 状態 testID を先に待つ）や、
   履歴の件数・空状態を E2E で assert しない方針（同一 CI ラン内で他フローの記録が残るため）は
-  ADR-004 追補・`architecture-guideline.md` に明記され实装と一致。
+  ADR-M-004 追補・`architecture-guideline.md` に明記され实装と一致。
 
 **確認された設計上の前提（コードで裏取り済み）**:
 - `WalkSummaryView` の「記録を見る」は `savedWalkId !== null` なら

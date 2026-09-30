@@ -9,7 +9,7 @@ import {
 } from "@/features/history/lib/walkHistoryError";
 import type { WalkDetail } from "@/features/history/types";
 
-/** 保存済みの散歩記録は不変なので長めに持つ（ADR-008 決定2 と同じ考え方）。 */
+/** 保存済みの散歩記録は不変なので長めに持つ（ADR-M-008 決定2 と同じ考え方）。 */
 const STALE_TIME_MS = 60 * 60_000;
 const GC_TIME_MS = 2 * 60 * 60_000;
 

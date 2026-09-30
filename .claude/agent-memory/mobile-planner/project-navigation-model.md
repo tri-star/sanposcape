@@ -11,7 +11,7 @@ metadata:
 ## スタックの実態
 
 - **主要導線は `replace` の連鎖**: `/`(スプラッシュ) → `replace` `/(auth)/sign-in` → `replace` ピンタブ `/(tabs)/pins`
-  （SS-145 で着地点が `/walk-start` から変わった。正本は mobile ADR-009 の SS-145 追補）。
+  （SS-145 で着地点が `/walk-start` から変わった。正本は ADR-M-009 の SS-145 追補）。
   → **着地した時点で `router.canGoBack() === false`**。`/walk-start` ⇄ `/(tabs)` は互いに `replace`
   （`WalkIdleNotice` の CTA が `replace("/walk-start")`）なので、往復してもスタックは1枚のまま伸びない。
   タブ内の Android バックは `Tabs` の `backBehavior`（既定 `firstRoute`＝ナビタブへ戻ってから終了）に従う。
@@ -44,7 +44,7 @@ metadata:
 - `Tabs` の `backBehavior` の既定は `firstRoute`（`build/react-navigation/routers/TabRouter.js`）。
 - `"/(tabs)"` は `(tabs)/index`（ナビタブ）に解決される（`app/index.tsx`＝スプラッシュの `/` とは別物）。
 - `pin_registration` の画面ガードは `usePinRegistrationGate()`（SS-145）に集約されている。新しいピン系ルートもこれを使う。
-- **タブ画面は一度開くとマウントされたまま残る**（ADR-012 SS-146 追補）。同じ feature コンポーネントを2つのタブに出すと
+- **タブ画面は一度開くとマウントされたまま残る**（ADR-M-012 SS-146 追補）。同じ feature コンポーネントを2つのタブに出すと
   固定 testID が同時に2つ存在しうる → 呼び出し側から接頭辞を渡す形にし、既存 E2E が使う既定値は据え置く
   （`pages-components-guideline.md` ルール7。SS-147 の `RecentWalksSection` の計画で判断）。
 - ナビタブ（`app/(tabs)/index.tsx`）は feature 合成の集積点: `features/pin`（`renderMapLayers`）と

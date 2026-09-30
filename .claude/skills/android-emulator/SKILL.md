@@ -7,7 +7,7 @@ allowed-tools: Bash
 # Android Emulator (WSL2 → Windows) 起動スキル
 
 WSL2上のClaude Codeから、Windows側にインストールされたAndroid Emulatorを操作するスキルです。
-本プロジェクトのmobile development buildは、エミュレータ/adb serverをWindows側で動作させる構成を前提としています（[ADR-003](../../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)、[local-env.md](../../../packages/mobile/docs/local-env.md)）。
+本プロジェクトのmobile development buildは、エミュレータ/adb serverをWindows側で動作させる構成を前提としています（[ADR-M-003](../../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)、[local-env.md](../../../packages/mobile/docs/local-env.md)）。
 
 ## 前提条件
 

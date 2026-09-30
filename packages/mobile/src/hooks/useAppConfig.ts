@@ -10,7 +10,7 @@ import type { AppConfigSnapshot } from "@/lib/appConfigSnapshot";
 /**
  * `/app-config` のサーバー状態を TanStack Query で保持する（**論点1の結論**: 保持場所は
  * **TanStack Query**。Zustand には複製しない。`docs/folder-structure.md`
- * 「サーバー由来のデータは `src/store/` に置かない」と ADR-002 の「サーバー状態 = TanStack Query」に
+ * 「サーバー由来のデータは `src/store/` に置かない」と ADR-M-002 の「サーバー状態 = TanStack Query」に
  * 従う。`/app-config` は未認証でも叩けるので、`AuthGate` の `loading` 中でも取得を開始できる＝
  * Zustand にする理由が無い）。
  *

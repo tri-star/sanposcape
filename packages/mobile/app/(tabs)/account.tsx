@@ -16,7 +16,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * ゲストには集計・最近の散歩の代わりにサインイン案内を出す。
  *
  * 認証セッションの値（表示名・サインイン中か）と開発ツールの可否をここで読んで渡す
- * （features/history は認証へ依存させない。ADR-009 決定8・SS-29 追補、.oxlintrc.json の
+ * （features/history は認証へ依存させない。ADR-M-009 決定8・SS-29 追補、.oxlintrc.json の
  * no-restricted-imports。feature 間の import も作らないので、帯は `footer` スロットで差し込む）。
  * タブ画面なので `useScreenBack` は使わない（backBehavior を奪うため）。二重遷移は `useNavigateOnce` で防ぐ。
  * 認証状態は `status` を3値（`signed-in` / `guest` / `restoring`）に写して渡す。`loading`（セッション復元中）を

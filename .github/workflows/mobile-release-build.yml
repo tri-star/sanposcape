@@ -1,7 +1,7 @@
 name: mobile release build (EAS)
 
 # 配布ビルド専用。E2E（mobile-e2e.yml）とは目的もコスト構造も異なる。
-#   - E2E:   `eas build --local` でランナー上でビルドし、EAS のクラウド枠を消費しない（ADR-004）
+#   - E2E:   `eas build --local` でランナー上でビルドし、EAS のクラウド枠を消費しない（ADR-M-004）
 #   - 本WF:  EAS の *クラウド* ビルドを使う。internal distribution の配布リンク/QR は EAS 側の
 #            成果物にしか発行されず、`--local` の成果物（ランナー上のファイル）では得られないため（SS-79）
 # EAS Free プラン: Android 15回 / iOS 15回（月）・同時実行1・low-priority キュー。
@@ -97,7 +97,7 @@ jobs:
         run: |
           # GOOGLE_MAPS_ANDROID_SDK_KEY はここで渡さない（渡せない）。
           # クラウドビルドはシェル環境変数を受け取らないため、EAS の `preview` 環境に
-          # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-007 追補。
+          # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-M-007 追補。
           # 2026-09-14 に secret 化済み。記録は packages/mobile/docs/build-profiles.md の実測欄）。
           set +e
           BUILD_JSON=$(npx eas-cli build \

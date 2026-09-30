@@ -4,12 +4,12 @@ description: 入力が変わるたびにqueryKeyが変わり直前データが�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 **注記（2026-09-15, SS-33）**: このパターンの具体的な実装（`useWalkRouteRecalculation.ts` /
 `routeRecalculation.ts` / `routeDeviation.ts`）は SS-33 で**ファイルごと削除済み**。
-ユーザー判断で「散歩中はルートを再計算しない」に変わったため（ADR-008 決定7 撤回）、
+ユーザー判断で「散歩中はルートを再計算しない」に変わったため（ADR-M-008 決定7 撤回）、
 現在の `packages/mobile` にはこのパターンの実例は存在しない。技術パターン自体は
 別の要件で再度必要になる可能性があるため、汎用知識として以下に残す。
 **再度実装する前に、対象ファイルが実在するか確認すること**（このメモは過去の実装を指している）。

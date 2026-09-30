@@ -16,7 +16,7 @@
 
 - テスト件数は約1,100件（本 ADR 作成時点で1,116件）まで増えており、DDL の実行コストが
   積み重なっている。
-- PR #103（[ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- PR #103（[ADR-009](../../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   関連）のレビューで、この点が改善提案（F-005）として挙がった。
 - 変更前に `pytest --durations=30` 等で計測したところ、setup/teardown（create_all/drop_all
   相当）が全体時間の約8割を占めていた（詳細は下記「計測結果」）。
@@ -263,7 +263,7 @@ CI は `env == "test"` かつジョブ専用の使い捨てコンテナで `TEST
 ## 関連情報
 
 - 課題 SS-141（本ADRの実装元）
-- [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](../../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   — 本ADRのきっかけとなったPR #103のレビュー（F-005）が出たADR
 - `packages/backend/src/sanposcape/conftest.py` — 実装本体（`_setup_test_db_schema`/`_reset_tables`）
 - `packages/backend/docs/folder-structure.md` — テストファイルの配置とテスト用DBの分離方式

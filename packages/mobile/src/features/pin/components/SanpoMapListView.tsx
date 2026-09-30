@@ -50,13 +50,13 @@ type SanpoMapListBody = {
 
 /**
  * SanpoMapListView — 地図一覧（`/sanpo-maps`）の実体（SS-121。SS-146 の暫定画面を本実装に差し替え）。
- * 自分の地図を並べ、名前で即時に絞り込み（端末で行う。mobile ADR-014 D1）、FAB から地図を作成し、
+ * 自分の地図を並べ、名前で即時に絞り込み（端末で行う。ADR-M-014 D1）、FAB から地図を作成し、
  * 行のタップで地図詳細（`/sanpo-maps/[sanpoMapId]`）へ進む。
  *
  * - testID `sanpo-map-list-screen` / `sanpo-map-list-back` は E2E（`pin-map.yaml`）が使うので維持する。
  * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
  * - ゲストは開けるが通信せずサインイン案内を出し、FAB・検索欄は出さない
- *   （押しても 401 になる操作を見せない。ADR-014 D6）。
+ *   （押しても 401 になる操作を見せない。ADR-M-014 D6）。
  */
 export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps) {
   const theme = useTheme();

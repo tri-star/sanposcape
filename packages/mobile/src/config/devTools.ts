@@ -12,7 +12,7 @@ const DEV_TOOLS_ENABLED = isDevToolsAllowed({
 
 /**
  * 開発ツール（/dev-screens・/design-system と、アカウントタブの「画面カタログ」ボタン）を出してよいビルドか。
- * 判定の実体は `appVariant.ts` の `isDevToolsAllowed`（mobile ADR-007 の SS-148 追補）。
+ * 判定の実体は `appVariant.ts` の `isDevToolsAllowed`（ADR-M-007 の SS-148 追補）。
  *
  * ビルドの種類で分岐してよいのは開発ツールの表示可否だけ。プロダクトの挙動の分岐には使わない
  * （使い道を増やすと、本番と staging で挙動が違う機能が生まれるため）。

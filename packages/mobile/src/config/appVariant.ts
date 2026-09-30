@@ -7,7 +7,7 @@
  * OTA の update で起動すると `Constants.expoConfig` が update の manifest 由来になり、
  * `eas update` は `eas.json` のビルドプロファイルの `env`（`APP_VARIANT=production`）を読まないため、
  * `extra` だけだと本番端末で `"development"` に変わりうる（fail-open）から。
- * `Updates.channel` はネイティブ設定で OTA では変わらない。詳細は mobile ADR-007 の SS-148 追補。
+ * `Updates.channel` はネイティブ設定で OTA では変わらない。詳細は ADR-M-007 の SS-148 追補。
  */
 
 /** app.config.ts が extra.appVariant に書く値（APP_VARIANT=production → "production"、未設定 → "development"）。 */

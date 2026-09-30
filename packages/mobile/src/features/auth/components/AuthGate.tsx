@@ -32,7 +32,7 @@ function dismissAllAndReplace(
 
 /**
  * 「起動時のセッション復元の起動」と「ゲート判定に基づく遷移」を担う、UI を持たないコンポーネント。
- * `app/_layout.tsx` が `<Stack>` を包む形で1箇所だけ配置する（SS-13 / ADR-009）。
+ * `app/_layout.tsx` が `<Stack>` を包む形で1箇所だけ配置する（SS-13 / ADR-M-009）。
  *
  * 重要な注意:
  * - **`useEffect` の依存に `segments`（配列）を直接入れない**。`useSegments()` の戻り値は

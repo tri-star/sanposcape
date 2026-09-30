@@ -34,5 +34,5 @@ SS-19 のローカルレビュー対応で `packages/mobile/src/lib/sessionClean
 後始末が走るようになった。`SettingsView` は現在 `router.dismissAll()` +
 `router.replace("/(auth)/sign-in")` のスタックを畳む導線のみを担う。
 `useAuthSessionStore` 自身は登録側に加えてはいけない（[[auth-session-gate-pattern]] 参照）。
-詳細は `packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md` 決定6 の SS-13 追補、
-`packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md` を参照。
+詳細は `packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md` 決定6 の SS-13 追補、
+`packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md` を参照。

@@ -10,7 +10,7 @@ const WHITESPACE_PATTERN = /\s+/g;
 /**
  * trim・連続空白を1つに圧縮・先頭の `#`/`＃` を除去する。
  * backend `sanpo_maps/pins/tag_labels.py` の `normalize_tag_label` と同じ規則。
- * 二重防御として backend も同じ正規化・重複除去を行う（ルート ADR-009、mobile ADR-013 D4）。
+ * 二重防御として backend も同じ正規化・重複除去を行う（ルート ADR-009、ADR-M-013 D4）。
  */
 export function normalizeTagLabel(input: string): string {
   let value = input.trim();

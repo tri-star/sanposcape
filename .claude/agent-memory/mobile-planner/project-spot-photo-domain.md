@@ -8,7 +8,7 @@ metadata:
   verify_by: 2027-03-31
 ---
 
-SS-88 で決まった、コードからはまだ読めない前提（2026-09 時点。実装後はルート ADR-009 / mobile ADR-010 が正本になる予定）。
+SS-88 で決まった、コードからはまだ読めない前提（2026-09 時点。実装後はルート ADR-009 / ADR-M-010 が正本になる予定）。
 
 **命名（ユーザー決定）**: 地図上に登録する地点は**コード・API・UI すべて「ピン(Pin)」**（`features/pin`、`/pins`、`pin_registration`）。
 **「スポット」は既存の散歩ゴール候補（`SpotCandidate`）の意味だけ**。入れ物は `SanpoMap`（`Map` 単体は react-native-maps と紛らわしい）。
@@ -18,7 +18,7 @@ SS-88 で決まった、コードからはまだ読めない前提（2026-09 時
 **チケットの「地図一覧」は `SanpoMap`（散歩マップ＝ピンの入れ物）の一覧**（SS-121 地図管理画面。API は
 `GET /sanpo-maps`、`expand=pin_count` あり）。ピンを表示する地図画面（`/pins/map`）のことではない。
 SS-146 の計画では遷移先ルートを `/sanpo-maps`（`app/sanpo-maps/index.tsx`）に置いた。
-SS-121 の計画（2026-09-30）で詳細を `/sanpo-maps/[sanpoMapId]` に置き、絞り込みは端末側に決めた（mobile ADR-014）。
+SS-121 の計画（2026-09-30）で詳細を `/sanpo-maps/[sanpoMapId]` に置き、絞り込みは端末側に決めた（ADR-M-014）。
 計画時に踏みやすい API の事実: **`GET /sanpo-maps/{id}` は無い**（詳細の地図情報は一覧キャッシュから引く）。
 **`GET /pins` の `q` は名前・メモ・タグの OR 部分一致**で「名前だけ」の検索には使えない。`POST /sanpo-maps` は冪等キーなし（自動再送しない）。
 

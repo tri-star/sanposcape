@@ -62,7 +62,7 @@ const MAX_PIN_TOTAL = SANPO_MAP_PIN_PAGE_SIZE * SANPO_MAP_PIN_MAX_PAGES;
  * SanpoMapDetailView — 地図詳細（`/sanpo-maps/[sanpoMapId]`）の実体（SS-121）。
  * 地図の情報と、その地図のピン一覧（新しい順。ピン名で即時に絞り込み、タップでピン詳細へ）。
  *
- * - 地図の情報は地図一覧のキャッシュから id で引く（`GET /sanpo-maps/{id}` は無い。mobile ADR-014 D3）。
+ * - 地図の情報は地図一覧のキャッシュから id で引く（`GET /sanpo-maps/{id}` は無い。ADR-M-014 D3）。
  * - ピン一覧は全件（上限 1000）を1回の取得で揃え、端末で絞り込む（D1 / D2）。
  * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
  */
@@ -75,7 +75,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn });
   const back = useScreenBack({ fallbackHref: "/sanpo-maps" });
   // 引っ張って更新・再試行は、ピン一覧と地図一覧（地図の名前・件数・存在）の両方を取り直す。
-  // 別端末での名前変更の反映と、削除された地図の not-found 化のため（mobile ADR-014 D7）。
+  // 別端末での名前変更の反映と、削除された地図の not-found 化のため（ADR-M-014 D7）。
   const { refresh: refreshPins, retry: retryPins } = pins;
   const { refresh: refreshMaps, retry: retryMaps } = maps;
   const refreshAll = useCallback(async () => {

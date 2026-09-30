@@ -15,7 +15,7 @@ export type NameSearchFieldProps = {
 
 /**
  * NameSearchField — 地図一覧・地図詳細で共有する名前の検索欄（SS-121）。
- * 虫眼鏡 + 入力 + 入力があるときだけ出るクリアボタン。絞り込みは端末で行う（mobile ADR-014 D1）。
+ * 虫眼鏡 + 入力 + 入力があるときだけ出るクリアボタン。絞り込みは端末で行う（ADR-M-014 D1）。
  * 地図の画面だけで使う機能固有のコンポーネントなので `features/pin/components` に置く。
  */
 export function NameSearchField({

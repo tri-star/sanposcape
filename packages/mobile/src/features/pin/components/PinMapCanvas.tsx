@@ -40,7 +40,7 @@ type PinMapCanvasCommonProps = {
   focusRequest: PinMapFocusRequest | null;
   /**
    * `MapView` の子として描く追加レイヤー。増減するレイヤーなので `MapView` の
-   * 子の末尾に置き、重なり順は `zIndex` で選択マーカー・現在地マーカーより下にする（mobile ADR-012 D16）。
+   * 子の末尾に置き、重なり順は `zIndex` で選択マーカー・現在地マーカーより下にする（ADR-M-012 D16）。
    */
   mapLayers?: ReactNode;
   /** 表示範囲が確定したとき（初回表示 + パン・ズーム後）に呼ぶ。`sanitizeMapRegion` を通した値だけを渡す。 */
@@ -59,7 +59,7 @@ const CURRENT_MARKER_Z_INDEX = 2;
  * PinMapCanvas — ピン関連の地図そのもの（SS-146 で `PinMapFullScreen` から切り出し）。
  * (a) 位置調整は `PinMapFullScreen` 経由で、
  * (d) ピンタブ（SS-146）は直接使う。ヘッダー・通知・ツール・下部カード・safe area は持たない
- * （呼び出し側の責務）。地図の設定を1か所に保つ（ADR-011 D8）。
+ * （呼び出し側の責務）。地図の設定を1か所に保つ（ADR-M-011 D8）。
  * `showsUserLocation` は使わない（`WalkRouteMapView` と同じ理由。`EXPO_PUBLIC_LOCATION_MODE=mock`
  * のとき OS の青い点が mock の位置と食い違って点が2つ出る）。
  */
@@ -120,7 +120,7 @@ export function PinMapCanvas({
       accessible
       accessibilityLabel={accessibilityLabel}
       // 地図（MapView/Marker）はジェスチャー操作前提で、支援技術での代替入力手段は
-      // 用意していない（既知の限界。ADR-011 参照）。せめて何をすれば選べるかを
+      // 用意していない（既知の限界。ADR-M-011 参照）。せめて何をすれば選べるかを
       // accessibilityHint で伝える。文言は下部カードの hint と揃える（pickGesture ごとに
       // 呼び出し側が渡す文言が変わる）。
       accessibilityHint={accessibilityHint}

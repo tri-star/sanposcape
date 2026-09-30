@@ -19,7 +19,7 @@ export function registerSessionCleanup(cleanup: SessionCleanup): void {
 /**
  * 登録済みの後始末関数をすべて実行する。呼び出し側は認証状態が
  * `authenticated → guest` に落ちる箇所のみ（`src/store/useAuthSessionStore.ts` の
- * `setSession()`。SS-13 / ADR-009 追補）。サインアウトだけでなく、refresh token 失効による
+ * `setSession()`。SS-13 / ADR-M-009 追補）。サインアウトだけでなく、refresh token 失効による
  * 非自発的なセッション終了でも呼ばれる。
  * 1つが例外を投げても他の後始末の実行は止めない（無関係な store のクリア失敗が原因で、
  * 他の機微データ（位置情報の軌跡など）が残留するのを避けるため）。

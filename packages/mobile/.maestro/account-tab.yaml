@@ -3,7 +3,7 @@
 # 画面カタログのボタンが見えるのは、preview ビルドが「本番以外」だから。本番での非表示・
 # ディープリンクの Redirect は E2E では確かめられないので、Vitest の判定表と
 # eas.json / app.config.ts の契約テスト（src/config/appVariant.test.ts）で担保している。
-# 件数・集計値は assert しない（ADR-004）。集計の取得が落ち着くことも見ない（app-tabs.yaml と同じ範囲）。
+# 件数・集計値は assert しない（ADR-M-004）。集計の取得が落ち着くことも見ない（app-tabs.yaml と同じ範囲）。
 appId: com.sanposcape.app.dev
 tags:
   - smoke

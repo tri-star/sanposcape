@@ -13,7 +13,7 @@ import type { FinishedWalk, WalkSaveStatus } from "@/features/walk/types";
 export type UseWalkSaveOptions = {
   /**
    * 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から読んで注入する。
-   * `features/walk` は認証状態を直接見ない（ADR-009 決定8）。
+   * `features/walk` は認証状態を直接見ない（ADR-M-009 決定8）。
    */
   isSignedIn: boolean;
 };

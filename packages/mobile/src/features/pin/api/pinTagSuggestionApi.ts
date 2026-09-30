@@ -10,7 +10,7 @@ import { isUuid } from "@/lib/uuid";
 
 /**
  * `GET /sanpo-maps/{sanpo_map_id}/tags`（SS-136）。地図で使われているタグを、よく使う順に
- * 上位 N 件まとめて取る（絞り込みは端末で行う。mobile ADR-013）。
+ * 上位 N 件まとめて取る（絞り込みは端末で行う。ADR-M-013）。
  * `sanpoMapId` が UUID 形式でなければ通信せず `ApiError(404)`（`fetchPinDetail` と同じ多層防御。
  * Orval の URL ビルダーはエスケープしないため）。
  */

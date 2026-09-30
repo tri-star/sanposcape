@@ -4,7 +4,7 @@ description: react-native-maps 1.27.2 の型・実装メモ（MapView ref, Marke
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 ## 導入（SS-15, 2026-07-30）

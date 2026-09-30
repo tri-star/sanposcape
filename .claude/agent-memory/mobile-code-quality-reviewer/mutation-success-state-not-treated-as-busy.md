@@ -23,7 +23,7 @@ const status = mutation.isPending ? "deleting" : mutation.isSuccess ? "deleted" 
   （画面遷移）を呼ぶため、この「deleted だが disabled ではない」窓は実質1フレーム未満で問題にならない。
 - `useAccountDeletion` は違う: 成功後の遷移は `authService.signOut()` →
   `onSessionChange(null)` → `useAuthSessionStore.setSession(null)` → `AuthGate` の
-  `useEffect` という**複数レンダーを挟む非同期チェーン**に依存する（ADR-009 決定6）。
+  `useEffect` という**複数レンダーを挟む非同期チェーン**に依存する（ADR-M-009 決定6）。
   この間 `AccountDeleteDialog` は「削除する」「キャンセル」ボタンが押せる見た目のまま残り、
   ユーザーが再度「削除する」を押すと（アカウントは既に削除済み・トークンも破棄されているため）
   2回目の呼び出しが 401 になり、削除成功直後に「サインインの有効期限が切れました」という

@@ -1,7 +1,7 @@
 # フォルダ構造ガイドライン (mobile)
 
 ReactNative(Expo) アプリのフォルダ構造の方針をまとめる。
-背景・選定理由は [ADR-001](../adr/ADR-001-folder-structure.md) を参照。
+背景・選定理由は [ADR-M-001](../adr/ADR-M-001-folder-structure.md) を参照。
 
 ## 前提
 
@@ -133,11 +133,11 @@ packages/mobile/
     散歩中画面 → サマリ画面をまたいで保存対象を渡すために、`useActiveWalkStore` とは責務を分けて別ファイルにしている。
   - **いずれも永続化しない**（AsyncStorage / SecureStore を使わない）。保存前にアプリを落とすと記録は失われる。
     ローカル永続化（起動時の再送・散歩の復帰）は SS-19 のスコープ外でフォローアップ課題に送っており、
-    着手時は ADR-008 の再追補が必要。
+    着手時は ADR-M-008 の再追補が必要。
   - **「サーバー由来のデータを置かない」の例外は `useFinishedWalkStore.savedWalkId` の1つだけ**。
     サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
-  - 判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
+  - 判断の背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) を参照。
   - **feature をまたぐイベントで他 feature の store をクリアしたくなったら、直接 import せず
     `src/lib/` に後始末レジストリを置き、クリアされる側（store）が自分の後始末を登録する**
     （ストアのファイル末尾で1回）。呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに
@@ -170,7 +170,7 @@ packages/mobile/
   `RegisteredPinsMapLayer`（`features/pin`）を渡す。`WalkRouteMapView`（`features/walk`）は
   `mapLayers?: ReactNode` を `MapView` の子としてそのまま描くだけで、中身を知らない（SS-118）。
   増減するレイヤーは `MapView` の子の**末尾**に置き、重なり順は `zIndex` で決める
-  （既存のルート線・マーカーの位置を動かさないため。mobile ADR-012 D16）。
+  （既存のルート線・マーカーの位置を動かさないため。ADR-M-012 D16）。
   地図以外の合成も同じ形にする。実例: `app/(tabs)/index.tsx` が `WalkActiveView` の `idleSection` prop に
   `RecentWalksSection`（`features/history`）を渡す（散歩していないときのナビタブの「最近の散歩」。
   `features/walk` と `features/history` は互いに import しない。サインイン中だけ渡す判定もルートが持つ。SS-147）。
@@ -201,7 +201,7 @@ packages/mobile/
 - ただし**必要なモードだけ用意してよい**。例: `services/location` は real/mock の2モードのみ
   （Android エミュレータ / 実機の位置設定・`adb emu geo fix` で real のまま再現できるため、
   「本物に近いが実機依存しない中間実装」= `dev` に相当するものが無い。
-  詳細は [ADR-006](../adr/ADR-006-location-service-real-mock.md)）。
+  詳細は [ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)）。
 - テスト方針との対応:
   - **ユニットテスト**: `mock`（または個別モジュールへの直接フェイク注入）を利用する。
     ただし `index.ts`（バレル）はネイティブ依存に到達しうるため、バレルを import せず
@@ -212,7 +212,7 @@ packages/mobile/
 - 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）、
   `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮。
   アップロード（presigned POST での S3 直送）はネイティブ依存でも実機依存でもないため
-  `services/` には置かず `features/pin/api/` に置く。ADR-010）。
+  `services/` には置かず `features/pin/api/` に置く。ADR-M-010）。
 - 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
 
 ### `src/api/` — バックエンドAPIクライアント
@@ -234,7 +234,7 @@ packages/mobile/
   置かない）。新しい横断的な送信ヘッダーを追加する場合も同じ配置ルールに従うこと。
   これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`）が
   **S3 / fake storage への3箇所目の HTTP 出口**として存在する。こちらは backend 用の横断ヘッダーを
-  **意図的に付けない**ため、上記2つとは別経路として扱う（SS-88 / ADR-010）。
+  **意図的に付けない**ため、上記2つとは別経路として扱う（SS-88 / ADR-M-010）。
 - `apiError.ts` / `retryPolicy.ts`: `ApiError` と 401→refresh のリトライ判定。
 - `transientRetry.ts`: 一時障害（429 / 502 / 503 / 504 / 通信断）に対する GET / HEAD 限定の
   指数バックオフ再送（SS-79）。401→refresh のリトライ（`retryPolicy.ts`）とは独立した軸で、
@@ -242,7 +242,7 @@ packages/mobile/
 - `authTokenProvider.ts`: `client.ts` が `services/auth` を直接 import せずにトークンを
   取得するためのレジストリ（循環参照回避）。
 - `queryClient.ts`: TanStack Query の `QueryClient` 設定。サインアウト時のクリア対象から
-  `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-009 の SS-100 追補）。
+  `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-M-009 の SS-100 追補）。
 
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useNavigateOnce.ts`（画面から出る遷移の二重発火ラッチ。
@@ -259,7 +259,7 @@ packages/mobile/
   `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
   トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
   `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）、端末側の診断ログの
-  **唯一の出力口** `diagnosticLog.ts`（SS-88/ADR-010 決定10。将来 Sentry 等に差し替えるときは
+  **唯一の出力口** `diagnosticLog.ts`（SS-88/ADR-M-010 決定10。将来 Sentry 等に差し替えるときは
   このファイルの中身だけを変える。**呼び出し側で `console.*` を直接使わない**）)もここに置く。
   - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
     純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
@@ -298,12 +298,12 @@ packages/mobile/
     `user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、
     TanStack Query が管理する一般的なドメインデータとは性質が異なるため許容する
     （`authenticated ⟺ user !== null` の不変条件を保つための判断。詳細は
-    [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
+    [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照）。
   - **例外**: `useAuthSessionStore` だけは `registerSessionCleanup()` に自分自身を登録しない
     （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
     `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
-    詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
-- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
+    詳細は [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照。
+- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け
@@ -326,7 +326,7 @@ packages/mobile/
     `features/walk/**` / `features/history/**` / `features/pin/**` については `.oxlintrc.json` の
     `no-restricted-imports` override（`@/services/auth` 系・`@/store/useAuthSessionStore` への
     import を禁止）で機械的に強制される（SS-13 / SS-88 /
-    [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) 決定8）。
+    [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) 決定8）。
   - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
     `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
     保存直後の一覧が更新されない。

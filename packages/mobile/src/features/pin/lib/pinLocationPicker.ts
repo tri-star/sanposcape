@@ -86,7 +86,7 @@ export function toPickedCoordinate(
  * `/pins/new` のルートパラメータを組み立てる（ピンタブの長押し → 登録画面）。
  * キー名・値の形式（`String(n)`・丸めない）は `features/walk/lib/addPinAction.ts` と同じにし、
  * `parsePinLocationParams` がそのまま読めることをテストで固定する。clientWalkId は含めない
- * （散歩していないときの登録に散歩の紐付けは無い。ADR-011 D2）。
+ * （散歩していないときの登録に散歩の紐付けは無い。ADR-M-011 D2）。
  */
 export function buildPinNewRouteParams(location: GeoCoordinates): {
   latitude: string;

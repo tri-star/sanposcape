@@ -26,7 +26,7 @@ export type HistoryViewProps = {
   displayName: string | null;
   /**
    * 認証状態（サインイン中 / ゲスト / セッション復元中）。ルート（app/(tabs)/account.tsx）が注入する
-   * （features/history は認証を読まない。ADR-009 決定8）。
+   * （features/history は認証を読まない。ADR-M-009 決定8）。
    */
   authState: HistoryAuthState;
   /** ゲスト向けサインイン案内のボタン。 */

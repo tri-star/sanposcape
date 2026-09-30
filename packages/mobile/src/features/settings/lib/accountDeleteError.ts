@@ -54,7 +54,7 @@ export function toAccountDeleteErrorCode(error: unknown): AccountDeleteErrorCode
  *
  * `features/settings` から refresh の失敗理由を知る手段は無く、`refreshAccessToken()` の
  * 「`null` のみを返す」契約を変えて理由を伝播させる案は影響範囲が広いため採らない。
- * ストアは読むだけなので ADR-009 決定2（書き込み経路の限定）にも抵触しない。
+ * ストアは読むだけなので ADR-M-009 決定2（書き込み経路の限定）にも抵触しない。
  */
 export function resolveAccountDeleteErrorCode(
   code: AccountDeleteErrorCode,
@@ -104,7 +104,7 @@ export function isRetriableAccountDeleteError(code: AccountDeleteErrorCode): boo
  * 3. もう一つの 401 経路（トークン非保持＝ゲスト）は、そもそも削除導線を出さないので発生しない
  *    （`canDeleteAccount`）。
  * 4. `features/settings` から `useAuthSessionStore.setSession(null)` を直接呼んで無理に
- *    ローカルを掃除する案は、ADR-009 決定2（ストアへの書き込み経路は `services/auth` の
+ *    ローカルを掃除する案は、ADR-M-009 決定2（ストアへの書き込み経路は `services/auth` の
  *    `onSessionChange` と `useAuthSessionBootstrap` の2つだけ）を破るため採らない。
  *
  * 判定を `.tsx` に書かずここに置くのは、この repo の Vitest 構成では

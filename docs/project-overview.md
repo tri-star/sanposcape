@@ -26,7 +26,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 言語 | TypeScript (mobile) / Python (backend) | |
 | フレームワーク | React Native (Expo) + Expo Router / FastAPI | |
 | 状態管理 (mobile) | TanStack Query + Zustand | サーバー状態=TanStack Query、クライアント状態=Zustand |
-| スタイリング (mobile) | React Native 標準 `StyleSheet` + テーマ Context | デザイントークン・テーマ（ライト/ダーク）を `src/theme` で管理。Unistyles は [mobile ADR-005](../packages/mobile/adr/ADR-005-styling-without-unistyles.md) で撤回 |
+| スタイリング (mobile) | React Native 標準 `StyleSheet` + テーマ Context | デザイントークン・テーマ（ライト/ダーク）を `src/theme` で管理。Unistyles は [ADR-M-005](../packages/mobile/adr/ADR-M-005-styling-without-unistyles.md) で撤回 |
 | 地図 (mobile) | react-native-maps | Android=Google Maps / iOS=Apple Maps。SDKキーは `app.config.ts` が環境変数から注入 |
 | 位置情報 (mobile) | expo-location | 現在地取得。services 層で real/mock を切り替え |
 | APIクライアント生成 (mobile) | Orval（OpenAPIから生成）+ MSWモック | HTTPクライアントは fetch/customFetch |
@@ -109,7 +109,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 
 ### 5.2 スケーラビリティ・拡張性に関する考慮事項
 
-- **ゲスト（未認証）での散歩を見据えた設計** — SS-49・SS-56・SS-57 で「サインインせず記録なしで散歩開始」を実装済み。散歩の探索・開始・散歩中表示のロジックが**ユーザー認証に不可分に依存しない**よう分離してある（記録・履歴の永続化のみが認証を要求する）。認証状態の判定元は `src/store/useAuthSessionStore`（`loading | authenticated | guest`）に集約し、画面遷移のゲート（`AuthGate`。判定条件は `canEnterProtectedRoutes` 1関数に閉じ、`guest` も保護ルートに入れる）を通す（mobile [ADR-009](../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md) 参照）。
+- **ゲスト（未認証）での散歩を見据えた設計** — SS-49・SS-56・SS-57 で「サインインせず記録なしで散歩開始」を実装済み。散歩の探索・開始・散歩中表示のロジックが**ユーザー認証に不可分に依存しない**よう分離してある（記録・履歴の永続化のみが認証を要求する）。認証状態の判定元は `src/store/useAuthSessionStore`（`loading | authenticated | guest`）に集約し、画面遷移のゲート（`AuthGate`。判定条件は `canEnterProtectedRoutes` 1関数に閉じ、`guest` も保護ルートに入れる）を通す（[ADR-M-009](../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md) 参照）。
 - スポット/記録データは位置情報を持つため、将来の地理検索を見据え PostGIS 等の地理空間拡張への移行余地を残す（MVPは緯度経度カラム + 単純検索でも可）。
 - Places / Routes のデータ API はコスト・レート制限があるため、backend 側のキャッシュ・プロキシ層を通す（SS-14 で実装）。地図描画の native SDK 通信は mobile 側の責務として分離している（SS-15。`app.config.ts` が mobile 用の Maps SDK キーを注入し、backend の server key とは別キーにする）。
 - 実機依存機能（位置情報・カメラ）と認証は services 層でスタブ差し替え可能にし、テスト容易性とCI実行性を維持する。
@@ -131,7 +131,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 地図 (SanpoMap) | ピンをまとめる入れ物（例:「おすすめランチ」）。コード上は `SanpoMap` / `sanpo_map`。ユーザーごとに既定の地図を1つ持ちうる（初期名「最初の地図」、初回のピン登録時にサーバーが自動作成する）。地図自体の新規作成・名前変更・削除 API（`POST`/`PATCH`/`DELETE /sanpo-maps`）は SS-113 で実装済み（既定地図は、他に既定が無ければ作成した地図が既定になり、既定地図を削除すると直近に更新した地図へ繰り上がる）。mobile では地図一覧画面から地図を作成できる（SS-121）。`react-native-maps` の地図（`MapView`）や地図の表示領域とは別概念（SS-88） |
 | 往復範囲 | 現在地から指定時間内に徒歩で往復できる地理的範囲。候補一覧の「往復◯分」は `/explore/places` 由来の片道×2の近似値で、選択後に取得する周回ルートの実値（`loopMinutes`/`loopKm`）とは僅かにずれうる（SS-33。ズレは UI では説明しない） |
 | 散歩ルート (Walking Route) | スポット選択時に提示される徒歩の推奨経路。実際に歩いた軌跡は「軌跡 (Track)」として別語に分ける（SS-18 でコード上も分離）。SS-33 以降は「現在地 → 目的地 → 往路とは異なる道（作れない場合は同じ道）→ 現在地」という**周回ルート**（`/explore/routes/loop`）を提示する。既存の片道 API（`/explore/routes/walking`）は非推奨（`deprecated`）として残るが、意味・挙動は変わらない。**Expo Router / React Router の「ルート(route＝画面/URL)」とは別概念**。コード上は walking-route / walkingRoute 等と表記し、画面遷移の route と混同しない |
-| 周回ルート (Loop Route) | SS-33 で追加。現在地から目的地まで（往路 leg）、目的地から現在地まで（復路 leg。往路とは異なる経路を優先し、作れなければ往路を逆順にたどる「同じ道」になる）の2 leg からなる散歩ルート。往路・復路をつなぐ中間の通過点は「経由点」と呼ぶ（ADR-007）。mobile の画面表示では往路/復路を「行き」/「帰り」と表記し、線の描き分け（実線/破線）と凡例だけで示す。現在どちらの区間にいるかの判定はしない（mobile の [ADR-008](../packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md) 決定9。ルート直下の [ADR-008](./adr/ADR-008-deploy-release-separation.md) とは別物） |
+| 周回ルート (Loop Route) | SS-33 で追加。現在地から目的地まで（往路 leg）、目的地から現在地まで（復路 leg。往路とは異なる経路を優先し、作れなければ往路を逆順にたどる「同じ道」になる）の2 leg からなる散歩ルート。往路・復路をつなぐ中間の通過点は「経由点」と呼ぶ（ADR-007）。mobile の画面表示では往路/復路を「行き」/「帰り」と表記し、線の描き分け（実線/破線）と凡例だけで示す。現在どちらの区間にいるかの判定はしない（[ADR-M-008](../packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md) 決定9） |
 | leg | 周回ルートを構成する区間（往路 leg / 復路 leg）。1つの `duration_seconds` / `distance_meters` / `path` を持つ。API 上の kind は `outbound` / `return`（`WalkingRouteLegKind`） |
 | 経由点 (Via) | 周回ルートの復路を往路と異なる道にするために生成する、道路上ではなく幾何的に計算した中間点（Google の経路探索への入力）。実在する POI ではない（ADR-007） |
 | 同じ道フォールバック | 周回ルートが作れない、または生成した候補がすべて品質判定に不合格だった場合に、復路として往路をそのまま逆順にたどる経路を使うこと。backend の API では `return_is_same_path: true`、mobile のコード（`WalkRoute.returnIsSamePath`）では `returnIsSamePath` として表現し、エラーにはしない（ADR-007）。mobile の画面では凡例が1項目（「行き・帰り（同じ道）」）にまとまる |

@@ -221,7 +221,7 @@ class PinPhotoRead(BaseModel):
     thumbnail: PinPhotoThumbnailRead | None
     # 原本（端末で長辺2048px程度に縮小済み）の presigned GET。ストレージ未構成・障害時は
     # null（ADR-009 決定16・決定18）。mobile の画像キャッシュのキーには URL ではなく `id` を使う
-    # （mobile ADR-010 決定8）。
+    # （ADR-M-010 決定8）。
     original_url: str | None
     # この写真に含まれる URL の有効期限の上限（署名した Lambda の一時認証情報が
     # 先に切れると早く無効になりうる）。

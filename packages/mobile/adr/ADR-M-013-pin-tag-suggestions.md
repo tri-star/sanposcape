@@ -1,4 +1,4 @@
-# ADR-013: ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一）
+# ADR-M-013: ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一）
 
 ## 日付
 
@@ -117,6 +117,6 @@ backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API �
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   の SS-136 追補 決定30（`GET /sanpo-maps/{sanpo_map_id}/tags` の契約）と、SS-111 追補
   「スコープ外にしたもの」（タグ候補 API）
-- [ADR-012（mobile）: 登録済みピンの地図表示とピン詳細](./ADR-012-pin-map-display-and-detail.md)
+- [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)
   （SS-119 の編集ボタンの置き場）
 - 元チケット: SS-136 / 関連: SS-119（ピン編集）・SS-120（検索タブ）

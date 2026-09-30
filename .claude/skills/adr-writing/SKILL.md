@@ -8,6 +8,7 @@ description: ADRを作成・更新する際に利用します。ある機能の�
 - `<project-root>`: プロジェクトの .git フォルダのある、ルートと見なせるディレクトリ
 - `<frontend-root>`: `<project-root>/packages/frontend`
 - `<backend-root>`: `<project-root>/packages/backend`
+- `<mobile-root>`: `<project-root>/packages/mobile`
 
 # ADRの作成場所
 
@@ -34,10 +35,10 @@ ADRは内容により作成場所が異なります。以下のルールに従�
   - セキュリティ対策
   - CI/CD
 
-## frontend/backendのどちらかに特化した技術的なもの
+## frontend/backend/mobileのどれかに特化した技術的なもの
 
 先に `<project-root>/docs/adr` 配下のドキュメントに保存することを検討し、
-その上でfrontend/backendに特化していてfrontend/backend用と思われる場合は以下の場所に保存する。
+その上でfrontend/backend/mobileのどれかに特化していると思われる場合は以下の場所に保存する。
 
 - frontendに関するもの
   - `<frontend-root>/docs/adr/ADR-F-<sequence-number>-<title>.md`
@@ -47,7 +48,27 @@ ADRは内容により作成場所が異なります。以下のルールに従�
   - `<backend-root>/docs/adr/ADR-B-<sequence-number>-<title>.md`
     - 例: `packages/backend/docs/adr/ADR-B-001-some-title.md`
 
-Important: `<sequence-number>` はフォルダ内での連番とします。
+- mobileに関するもの
+  - `<mobile-root>/adr/ADR-M-<sequence-number>-<title>.md`（mobile だけは `docs/adr/` ではなく `adr/` 直下）
+    - 例: `packages/mobile/adr/ADR-M-001-folder-structure.md`
+
+Important: `<sequence-number>` はフォルダ内での連番（3桁ゼロ埋め）とします。
+
+## ADRの番号の書き方
+
+パッケージ固有のADRには `F`/`B`/`M` の接頭辞を付け、全体向け（`<project-root>/docs/adr`）には付けない。
+番号だけでどのフォルダのADRか区別できるようにするため（連番はフォルダごとに独立しているので、
+接頭辞が無いと `ADR-009` が全体向けとmobileの両方を指してしまう）。
+
+| 置き場所 | ファイル名・本文中の表記 |
+| --- | --- |
+| `<project-root>/docs/adr/` | `ADR-001` |
+| `<frontend-root>/docs/adr/` | `ADR-F-001` |
+| `<backend-root>/docs/adr/` | `ADR-B-001` |
+| `<mobile-root>/adr/` | `ADR-M-001` |
+
+- ADR本文のタイトル行（`# ADR-M-001: ...`）、他のADR・文書・コードコメントから参照するときも同じ表記を使う。
+- 参照するときに「mobile の」「ルートの」のような修飾は不要（接頭辞で区別できる）。
 
 ## ADRのテンプレート
 

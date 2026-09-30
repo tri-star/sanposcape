@@ -29,7 +29,7 @@ export type AuthService = {
   /**
    * 現在のユーザー（同期）。未認証なら null。
    * **UI（features / app）からは呼ばない**。画面が参照する認証状態は
-   * `@/store/useAuthSessionStore` に一本化する（SS-13 / ADR-009）。
+   * `@/store/useAuthSessionStore` に一本化する（SS-13 / ADR-M-009）。
    * 同期取得が必要なサービス層内部・デバッグ用途に限る。
    */
   getCurrentUser(): AuthUser | null;

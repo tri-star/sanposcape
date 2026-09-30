@@ -31,7 +31,7 @@ const EMPTY_PINS: PinListEntry[] = [];
 /**
  * 地図詳細のピン一覧（全件・上限 1000）のサーバー状態と、代表写真の URL の取り直し（SS-121）。
  * 端末で名前の絞り込みをするため `useInfiniteQuery` ではなく、全ページを1つの取得関数で
- * 順に取る `useQuery` 1本にしている（mobile ADR-014 D2）。
+ * 順に取る `useQuery` 1本にしている（ADR-M-014 D2）。
  *
  * `enabled` が false（ゲスト）のときは通信せず status は "ready"（呼び出し側の状態判定が
  * ゲストを先に扱う）。地図一覧（`useSanpoMaps`）の取得は待たず並列に走らせる。

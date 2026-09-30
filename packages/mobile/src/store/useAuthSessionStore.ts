@@ -4,7 +4,7 @@ import { runSessionCleanup } from "@/lib/sessionCleanup";
 // `AuthUser` は型のみ import する。`@/services/auth`（バレル）を実行時 import すると、
 // `getAuthMode()` の結果次第で `expo-secure-store` / `react-native-nitro-google-signin` に
 // 到達し、node 環境の vitest（このストアのテスト）が壊れる。`import type` はトランスパイルで
-// 消えるため安全（SS-13 / ADR-009）。
+// 消えるため安全（SS-13 / ADR-M-009）。
 import type { AuthUser } from "@/services/auth/types";
 
 /**
@@ -30,7 +30,7 @@ type AuthSessionState = {
 };
 
 /**
- * アプリ全体で唯一の「認証セッション状態」の置き場（SS-13 / ADR-009）。
+ * アプリ全体で唯一の「認証セッション状態」の置き場（SS-13 / ADR-M-009）。
  *
  * UI（features / app）はここだけを見る。`authService.getCurrentUser()` を直接呼ばない。
  * ゲスト＝トークン非保持（ADR-002 決定6）であり、`AuthService` のメソッドとしては表現しない。

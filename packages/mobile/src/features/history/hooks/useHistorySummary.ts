@@ -53,7 +53,7 @@ export type UseHistorySummaryResult = {
  * 記録画面が表示するデータを1本化する hook。
  * `data/`（stub）・`api/`（サーバー状態）を読むのはこの hook のみで、View は戻り値だけを参照する。
  * ユーザーの表示名だけは例外で、この hook 自身は認証ストアを読まない
- * （`features/history/**` から `@/store/useAuthSessionStore` を import しない規約。SS-13 / ADR-009 決定8）。
+ * （`features/history/**` から `@/store/useAuthSessionStore` を import しない規約。SS-13 / ADR-M-009 決定8）。
  * ルート（`app/(tabs)/account.tsx`）が `useAuthSessionStore` から読み取り、`displayName` として注入する。
  *
  * `queryKey` は `["walks", "stats"]`（`["walks", ...]` 始まり）にする。`useWalkSave` が

@@ -8,7 +8,7 @@ metadata:
 
 Running `pnpm exec oxfmt --check .` (or any invocation with `.` / the whole
 `packages/mobile` tree as target) from `packages/mobile` reports ~27 "format issues"
-in files like `AGENTS.md`, `adr/ADR-004-*.md`, `adr/ADR-005-*.md`, `docs/*.md`,
+in files like `AGENTS.md`, `adr/ADR-M-004-*.md`, `adr/ADR-M-005-*.md`, `docs/*.md`,
 `package.json`, `tsconfig.json`, `docs/mock/**`. This happens **even on a pristine
 `git stash`ed tree** with zero uncommitted changes — it is pre-existing baseline
 noise, not something introduced by the current diff.

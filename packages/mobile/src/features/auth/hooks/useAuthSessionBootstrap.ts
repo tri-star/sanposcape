@@ -7,7 +7,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 let bootstrapStarted = false;
 
 /**
- * アプリ起動時に `authService.restoreSession()` を**1回だけ**呼び、結果をストアに反映する（SS-13 / ADR-009）。
+ * アプリ起動時に `authService.restoreSession()` を**1回だけ**呼び、結果をストアに反映する（SS-13 / ADR-M-009）。
  * スプラッシュ画面ではなくルートレイアウト（`AuthGate`）で走らせることで、
  * **ディープリンクのコールドスタートでもセッションが復元される**ようにする。
  *

@@ -37,7 +37,7 @@ export type UseRegisteredPinsOptions = {
  * （`usePinLocationPicker` と同じ設計方針）。
  *
  * 表示範囲内のピンが上限（`PIN_MAP_FETCH_LIMIT`）を超えてもページングは続けない
- * （ルート ADR-009 の持ち越しの決着。mobile ADR-012 D3）。
+ * （ルート ADR-009 の持ち越しの決着。ADR-M-012 D3）。
  */
 export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegisteredPinsResult {
   const maps = useSanpoMaps({ enabled: options.enabled });

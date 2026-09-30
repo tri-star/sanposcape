@@ -4,7 +4,7 @@ description: How backend /walks maps onto mobile's active-walk state — the val
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散歩まわりのプランで毎回効く。
@@ -17,7 +17,7 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
 - **履歴の queryKey は `["walks", ...]` 始まり**で統一する（保存成功時の `invalidateQueries` がこのプレフィックスを使う）。
 - 一覧 `WalkRead` は軌跡を含まない。軌跡は `GET /walks/{walk_id}`（`WalkDetailRead`）のみ → **一覧行にミニ地図は出せない**（サムネイルが欲しくなったら backend に代表点/bounds の追加を依頼する）。
 - `GET /walks` は keyset カーソル（`next_cursor: string | null`、`limit` 1..50・既定20）。不正カーソルは 400。**`cursor` を明示的に `null` で送ると 400 になる**（[[mobile-structure]] の Orval 落とし穴1）。
-- `useFinishedWalkStore.savedWalkId` は SS-19 時点でプロダクトコード未参照。SS-20 の「サマリ → その散歩の詳細」遷移で消費される想定（ADR-008 決定4）。
+- `useFinishedWalkStore.savedWalkId` は SS-19 時点でプロダクトコード未参照。SS-20 の「サマリ → その散歩の詳細」遷移で消費される想定（ADR-M-008 決定4）。
 
 ## 削除 API（SS-53 backend / SS-60 mobile 導線）
 
@@ -36,11 +36,11 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
 
 ## 散歩中ルートまわりで毎回引っかかる制約（SS-33 時点）
 
-**SS-33 で「散歩中のルート再計算」「往路/復路の到達判定」を両方とも撤去した**（ADR-008 決定7 撤回・
+**SS-33 で「散歩中のルート再計算」「往路/復路の到達判定」を両方とも撤去した**（ADR-M-008 決定7 撤回・
 決定9 新設）。以下は SS-33 時点で有効な制約。SS-35 時点の再計算前提（現在地起点で引き直す、
 `isOffRoute` 判定など）はもう存在しない。
 
-- **ルートの取得は ADR-008 決定2 で「`origin` = 散歩の起点で固定」**（**例外なし**）。散歩開始画面と
+- **ルートの取得は ADR-M-008 決定2 で「`origin` = 散歩の起点で固定」**（**例外なし**）。散歩開始画面と
   散歩中画面が同じ `useWalkRoute({origin, destination})` を呼んで queryKey を一致させ、API 1回
   （1散歩あたり生涯で1回。散歩中の呼び出しは0回）で済ませるのが設計の主目的。
 - `useWalkRoute` は `staleTime 1h / gcTime 2h / retry:false`。再計算が無くなったため

@@ -5,7 +5,7 @@
 # 前提: pin-register-anywhere.yaml と同じ
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
 #   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
-#   - 地図の長押しは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-007）。
+#   - 地図の長押しは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-M-007）。
 # /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
 #
 # assert しないもの: 既存の地図・ピンの件数や名前（同じ CI ランで他のフローが作った地図・ピンが残る。

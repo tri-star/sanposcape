@@ -7,7 +7,7 @@ name: mobile E2E (Maestro)
 #     ハッシュが変わらない限り再ビルドしない（詳細は "Compute build cache key" ステップのコメント）
 #   - 実行頻度を分離: 常時CI(lint/typecheck/unit)は mobile-ci.yml、E2Eは下記トリガのみ
 #
-# 実行頻度についての追補（2026-08-14, ADR-004追補）:
+# 実行頻度についての追補（2026-08-14, ADR-M-004追補）:
 # 当初は「ネイティブ影響パスへの push」でも自動実行していたが、APKキャッシュのキーが
 # ネイティブ影響入力のみのハッシュだったため、JSのみの変更（例: SS-57のゲスト導線ボタン追加）が
 # 反映されないまま古いAPKがキャッシュヒットし続け、Maestroフロー側だけが新しいUI要素を
@@ -80,7 +80,7 @@ jobs:
 
       # APK キャッシュのキー = ネイティブ影響入力のハッシュ + packages/mobile ソース全体のハッシュ。
       # GOOGLE_MAPS_ANDROID_SDK_KEY はビルドステップと同じ値を渡す。app.config.ts が
-      # このキーの有無で android.config.googleMaps.apiKey を出し分ける（ADR-007）ため、
+      # このキーの有無で android.config.googleMaps.apiKey を出し分ける（ADR-M-007）ため、
       # ここで渡さないとキーの有無がキャッシュキーに反映されず、キー注入前にキャッシュされた
       # APK（クラッシュする）がキー注入後も使い回されてしまう。
       #
@@ -90,9 +90,9 @@ jobs:
       # したがって **この GitHub Secret（`ci-e2e` environment）が `--local` 経路での唯一の供給元**
       # であり、クラウドビルド（mobile-release-build.yml）では逆に EAS 側の値だけが使われる。
       # 供給元が経路ごとに1つずつに分かれている状態を壊さないこと。詳細は
-      # packages/mobile/docs/build-profiles.md と packages/mobile/adr/ADR-007 の SS-79 追補。
+      # packages/mobile/docs/build-profiles.md と packages/mobile/adr/ADR-M-007 の SS-79 追補。
       #
-      # ソース全体のハッシュを合成している理由（2026-08-14 追補、ADR-004追補）:
+      # ソース全体のハッシュを合成している理由（2026-08-14 追補、ADR-M-004追補）:
       # @expo/fingerprint 単体はネイティブに影響する入力しか見ないため、UIやロジックなど
       # JSのみの変更ではキャッシュキーが変わらず、古いJSを埋め込んだAPKが使われ続けていた
       # （standalone preview ビルドはJSを実行時取得ではなくビルド時に埋め込むため、
@@ -152,7 +152,7 @@ jobs:
         timeout-minutes: 40
         working-directory: packages/mobile
         env:
-          # app.config.ts が android.config.googleMaps.apiKey へ注入する（ADR-007）。
+          # app.config.ts が android.config.googleMaps.apiKey へ注入する（ADR-M-007）。
           # 未注入だと Maps SDK 初期化時に RuntimeException でアプリがクラッシュし、
           # walk-start 系の Maestro フローが軒並み失敗していた（SS-44追補、google_apis
           # イメージへの切り替えで判明）。
@@ -161,7 +161,7 @@ jobs:
           # 唯一の供給元である。EAS の `preview` 環境にも同名の変数があるが visibility が
           # `secret` のため `eas build --local` では解決されない（SS-79）。クラウドビルド
           # （mobile-release-build.yml）は逆に EAS 側の値だけを使う。詳細は
-          # packages/mobile/docs/build-profiles.md と packages/mobile/adr/ADR-007 の SS-79 追補。
+          # packages/mobile/docs/build-profiles.md と packages/mobile/adr/ADR-M-007 の SS-79 追補。
           GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
           mkdir -p e2e-build
@@ -313,7 +313,7 @@ jobs:
             adb unroot || true
             timeout 120 adb wait-for-device || true
             # ユーザー側の位置情報トグルも併せて落とす（単体では不十分だが、要求元を減らす方向には効く）。
-            # preview ビルドは EXPO_PUBLIC_LOCATION_MODE=mock（ADR-006）でアプリ自身は
+            # preview ビルドは EXPO_PUBLIC_LOCATION_MODE=mock（ADR-M-006）でアプリ自身は
             # expo-location/GNSS に触れないため、無効化してもフローの前提は壊れない。
             adb shell cmd location set-location-enabled false
             # トグルの状態をログに残す（false が出ること）。ただしこれはユーザー設定の状態でしかなく、

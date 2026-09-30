@@ -15,7 +15,7 @@ import { useTheme } from "@/theme/useTheme";
 export type WalkSummaryViewProps = {
   /**
    * 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から読んで渡す。
-   * `features/walk` は認証状態を直接 import できない（ADR-009 決定8 / .oxlintrc.json）。
+   * `features/walk` は認証状態を直接 import できない（ADR-M-009 決定8 / .oxlintrc.json）。
    */
   isSignedIn: boolean;
   /** 保存が 401 で失敗したときの CTA。サインイン画面へ送る（遷移先の知識は app/ 側が持つ）。 */

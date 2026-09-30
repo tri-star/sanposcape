@@ -23,7 +23,7 @@ export type PinPhotoViewerProps = {
 /**
  * PinPhotoViewer — 原本の全画面表示（モックの lightbox。SS-118）。
  *
- * RN `Modal` を使わず `position: absolute` の View にする（ADR-011 D7 と同じ理由:
+ * RN `Modal` を使わず `position: absolute` の View にする（ADR-M-011 D7 と同じ理由:
  * `Modal` は Android のハードウェアバックを `onRequestClose` で先取りし、`useScreenBack` の
  * `onIntercept` が届かなくなる）。スワイプ・ピンチズームは入れない（スコープ外。前後移動は
  * ボタンのみ、モックどおり）。

@@ -4,7 +4,7 @@ description: 実行時にビルドの種類（production か否か）を判別�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md
+  adr: packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md
 ---
 
 ビルド variant で分岐するプランを書く前に押さえる事実（SS-148 の計画で Expo 公式ドキュメントとコードから確認・2026-10-01）。

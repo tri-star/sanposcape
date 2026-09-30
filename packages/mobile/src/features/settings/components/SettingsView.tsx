@@ -23,11 +23,11 @@ import { useTheme } from "@/theme/useTheme";
  * 設定画面。SS-11 時点ではログアウト導線のみを提供していたが、SS-57 でゲスト散歩を解禁した
  * ことで `/settings` にゲストも到達できるようになったため、ゲストのときはログアウトの代わりに
  * サインイン導線を出す（押しても何も起きない「ログアウト」を見せない）。
- * 認証全体のルートガードは `AuthGate`（`app/_layout.tsx`）が担う（SS-13 / ADR-009）。
+ * 認証全体のルートガードは `AuthGate`（`app/_layout.tsx`）が担う（SS-13 / ADR-M-009）。
  *
  * `features/settings` は `.oxlintrc.json` の `no-restricted-imports` override 対象外
  * （対象は `src/features/walk/**` / `src/features/history/**` のみ）なので、
- * `useAuthSessionStore` を直接参照してよい（`authService.getCurrentUser()` は見ない。ADR-009 決定2）。
+ * `useAuthSessionStore` を直接参照してよい（`authService.getCurrentUser()` は見ない。ADR-M-009 決定2）。
  *
  * `status` は `"loading" | "authenticated" | "guest"` の3値（`loading` はまだ「認証済み/未認証」
  * を判定してはいけない起動時のセッション復元中）。これを `status === "authenticated"` の boolean

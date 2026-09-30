@@ -3,7 +3,7 @@
 `packages/mobile/eas.json` の各ビルドプロファイルが「どの backend を向くか」「どの環境変数を
 持つか」をまとめる。ローカル開発（Metro + `.env`）の手順は
 [ローカル環境構築手順](./local-env.md)、development build の考え方は
-[ADR-003](../adr/ADR-003-development-build-and-dev-loop.md) を参照。
+[ADR-M-003](../adr/ADR-M-003-development-build-and-dev-loop.md) を参照。
 
 > **配布 ≠ リリース。** 本ドキュメントが扱うのは「ビルドを作って端末に届ける」ところまでである。
 > 「利用者に機能を見せる」のはストアの公開とフィーチャーフラグの ON であり、別の操作として扱う
@@ -23,7 +23,7 @@
 この区別は Expo 公式の `eas.json` リファレンスが `env` について
 「git リポジトリにコミットする値のみに使い、パスワードや秘密情報には使わないこと」と
 定めているものに沿っている。Maps SDK キーの扱いは
-[ADR-007](../adr/ADR-007-expo-config-and-maps-key-injection.md) を参照。
+[ADR-M-007](../adr/ADR-M-007-expo-config-and-maps-key-injection.md) を参照。
 
 > **設定漏れはビルドでは落ちない。** `EXPO_PUBLIC_BACKEND_API_URL` が未設定でも
 > `src/config/env.ts` の `getApiBaseUrl()` が `http://localhost:8000` にフォールバックするため、
@@ -86,7 +86,7 @@ CloudFront 経由の backend（`app-api.dev.sanposcape.com`）を向き、**Test
 > `com.sanposcape.app.dev`、本番（`production`）は `com.sanposcape.app`。scheme とアプリ名も
 > 分ける（詳細は下記「アプリ識別子の定義」）。
 >
-> **理由（要約。詳細は `packages/mobile/adr/ADR-003` の SS-79 追補）**:
+> **理由（要約。詳細は `packages/mobile/adr/ADR-M-003` の SS-79 追補）**:
 > 1. TestFlight / ストアのアプリレコードが構造的に分離され、dev backend を向いた `staging`
 >    ビルドが本番ビルドと同じ TestFlight に並ぶ事態が起きなくなる。
 > 2. 同一端末に本番と開発を共存させられる（同一識別子だと上書きインストールになる）。
@@ -136,7 +136,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 - **関係者へ広く配るなら TestFlight（`staging`）を使う。** UDID 管理が要らず、
   外部テスターにも配れる（ただしプライバシーポリシー URL が必要。SS-79）。
 - `autoIncrement` は書かない（`staging` の `true` を継承して番号が進む）。理由は `staging-apk` と同じ。
-- iOS は既定で Apple Maps を使うため **Maps SDK キーの注入は不要**（ADR-007）。
+- iOS は既定で Apple Maps を使うため **Maps SDK キーの注入は不要**（ADR-M-007）。
 
 ### `preview`（E2E 専用。CloudFront へ向けないこと）
 
@@ -144,7 +144,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 `EXPO_PUBLIC_AUTH_MODE=dev` / `EXPO_PUBLIC_LOCATION_MODE=mock` / `EXPO_PUBLIC_PHOTO_MODE=mock`
 で外部依存を断ち、backend はランナー上のローカル起動 + `adb reverse` で `10.0.2.2:8000` に届く
 前提になっている（`PHOTO_MODE=mock` の理由: システムのカメラ/写真ピッカーは Maestro から
-安定操作できないため。SS-88 / ADR-010）。
+安定操作できないため。SS-88 / ADR-M-010）。
 
 **ここを CloudFront に向けてはならない。** E2E が外部環境への依存と課金対象になり、
 ワークフローの前提（ローカル backend 起動 + `adb reverse`）が崩れる。
@@ -152,14 +152,14 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 このプロファイルは `developmentClient` を使わない release 相当のビルドなので、
 `http://` の backend に届かせるために `app.config.ts` の
 `withCleartextTrafficForHttpBackend` が `usesCleartextTraffic` を有効化する
-（ADR-004 の SS-44 追補）。
+（ADR-M-004 の SS-44 追補）。
 
 > **`preview` の APK は x86_64 でしか動かない（SS-85）。** `mobile-e2e.yml` が
 > `REACT_NATIVE_ARCHITECTURES=x86_64` を渡し、`app.config.ts` の
 > `withAndroidGradleProperties` が `android/gradle.properties` の
 > `reactNativeArchitectures` を上書きするため、**arm 系の実機にはインストールできない**。
 > E2E のエミュレータが `arch: x86_64` 固定である以上ほかの ABI は無駄で、ビルド時間の半分と
-> Gradle の Java heap OOM の一因になっていたため意図的に絞っている（ADR-004 の SS-85 追補）。
+> Gradle の Java heap OOM の一因になっていたため意図的に絞っている（ADR-M-004 の SS-85 追補）。
 > **実機で確認したいときは `preview` を流用せず `staging-apk` を使うこと**（4 ABI のまま）。
 
 > **`preview` 環境は `staging` と共有される。** EAS の環境は 3 つしかないため、E2E 用の
@@ -174,7 +174,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 ### `development`
 
 `developmentClient: true` の dev client を作る。JS は Metro から配信されるため、
-`.env` の値がそのまま効く。**ネイティブ依存が変わったときだけ**作り直せばよい（ADR-003）。
+`.env` の値がそのまま効く。**ネイティブ依存が変わったときだけ**作り直せばよい（ADR-M-003）。
 
 > **実測（2026-09-16 確認）: EAS の `development` 環境にも Maps キーが登録されている。**
 > `eas env:list development` の結果、`GOOGLE_MAPS_ANDROID_SDK_KEY`（secret）と
@@ -216,7 +216,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 
 | 変数 | 必要なプロファイル | 供給元 | 未設定時の症状 |
 |---|---|---|---|
-| `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **クラウドビルド = EAS 環境変数（`preview` / secret）/ `--local`・ローカル = GitHub Secrets・`.env`**（SS-79。経路ごとに供給元は1つ）。実測: `development` 環境にも登録されている（2026-09-16 確認。`development` 節を参照） | ADR-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
+| `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **クラウドビルド = EAS 環境変数（`preview` / secret）/ `--local`・ローカル = GitHub Secrets・`.env`**（SS-79。経路ごとに供給元は1つ）。実測: `development` 環境にも登録されている（2026-09-16 確認。`development` 節を参照） | ADR-M-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `staging-ios` / `production`） | EAS 環境変数 | サインイン時に `AuthError("configuration")` |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド（`staging` / `staging-ios` / `production`） | EAS 環境変数 | 同上 |
 
@@ -280,7 +280,7 @@ git を見ても原因に辿り着けない。
 > [2026-09-13, SS-79]**: 以前ここには「地図の初期化クラッシュ」と書かれていたが誤り。
 > Google Maps SDK の仕様上、SHA-1 / package の不一致は**認証エラーで地図タイルが
 > 表示されないだけ**で、アプリは落ちない。実際にクラッシュするのは APK にキー自体が
-> 未注入のとき。詳細は下記「アプリ識別子の定義」および `packages/mobile/adr/ADR-004` の
+> 未注入のとき。詳細は下記「アプリ識別子の定義」および `packages/mobile/adr/ADR-M-004` の
 > SS-79 追補を参照）。しかもリポジトリには一切差分が出ないため、git からは原因に
 > 辿り着けない。**既定構成は変更しないこと。**
 
@@ -644,7 +644,7 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
 
 開発ツール（`/dev-screens`・`/design-system` と、アカウントタブの「画面カタログ」ボタン）を出してよいビルドかは、
 実行時に `src/config/devTools.ts` の `isDevToolsEnabled()` が判定する（純粋な判定は `src/config/appVariant.ts`。
-根拠は [ADR-007](../adr/ADR-007-expo-config-and-maps-key-injection.md) の SS-148 追補）。
+根拠は [ADR-M-007](../adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-148 追補）。
 
 | ビルド | `__DEV__` | `extra.appVariant` | `Updates.channel` | 開発ツール |
 |---|---|---|---|---|
@@ -686,9 +686,9 @@ cleartext 許可が混入することはない。
 ## 関連
 
 - [ADR-002: 認証は Google 直結 + モバイル public client](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)（決定1）
-- [ADR-003: development build と開発ループ](../adr/ADR-003-development-build-and-dev-loop.md)
-- [ADR-004: E2E ビルド・CI 戦略](../adr/ADR-004-e2e-build-ci-strategy.md)
-- [ADR-007: Expo 設定と Maps キーの注入](../adr/ADR-007-expo-config-and-maps-key-injection.md)
+- [ADR-M-003: development build と開発ループ](../adr/ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](../adr/ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-007: Expo 設定と Maps キーの注入](../adr/ADR-M-007-expo-config-and-maps-key-injection.md)
 - [ADR-005: backend のサーバーレスデプロイ](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)（決定4 / 決定6）
 - [ADR-006: mobile アプリの配信は EAS に委ねる](../../../docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)（`channel` が対応する EAS Update の配信面）
 - [ADR-008: デプロイとリリースの分離](../../../docs/adr/ADR-008-deploy-release-separation.md)（決定3: ストアの手動リリース / 決定8: OTA は配信の手段であってリリースの手段ではない）

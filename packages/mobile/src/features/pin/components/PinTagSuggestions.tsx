@@ -16,7 +16,7 @@ export type PinTagSuggestionsProps = {
 /**
  * PinTagSuggestions — タグ候補のチップ群（SS-136）。`PinTagEditor` からだけ使う。
  * ドロップダウンにせず、フォームの流れの中に並べる（ScrollView + KeyboardAvoidingView 内の
- * 浮いたリストは重なり順・キーボード・読み上げ順が難しいため。mobile ADR-013）。
+ * 浮いたリストは重なり順・キーボード・読み上げ順が難しいため。ADR-M-013）。
  */
 export function PinTagSuggestions({
   suggestions,

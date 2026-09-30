@@ -1,4 +1,4 @@
-# ADR-006: 位置情報サービスは services 層で real/mock の2モードとし、`dev` を持たない
+# ADR-M-006: 位置情報サービスは services 層で real/mock の2モードとし、`dev` を持たない
 
 ## 日付
 
@@ -7,7 +7,7 @@
 
 ## ステータス
 
-採用（SS-15）。[ADR-002](./ADR-002-mobile-tech-stack.md) および [folder-structure](../docs/folder-structure.md) の「services は real/dev/mock の3モードが基本形」という方針に対する、**位置情報に限った意図的な例外**を定める。
+採用（SS-15）。[ADR-M-002](./ADR-M-002-mobile-tech-stack.md) および [folder-structure](../docs/folder-structure.md) の「services は real/dev/mock の3モードが基本形」という方針に対する、**位置情報に限った意図的な例外**を定める。
 
 ## コンテキスト
 
@@ -110,9 +110,9 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 
 ## 関連情報
 
-- [ADR-002(mobile): 技術スタック](./ADR-002-mobile-tech-stack.md)
+- [ADR-M-002: 技術スタック](./ADR-M-002-mobile-tech-stack.md)
 - [ADR-002(横断): 認証は Google 直結 + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
-- [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
-- [ADR-007: Expo 設定と Maps キー注入](./ADR-007-expo-config-and-maps-key-injection.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-007: Expo 設定と Maps キー注入](./ADR-M-007-expo-config-and-maps-key-injection.md)
 - [フォルダ構造](../docs/folder-structure.md)
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)

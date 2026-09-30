@@ -1,4 +1,4 @@
-# ADR-002: モバイルの技術スタック（スタイル・状態管理・地図・APIクライアント）
+# ADR-M-002: モバイルの技術スタック（スタイル・状態管理・地図・APIクライアント）
 
 ## 日付
 
@@ -6,11 +6,11 @@
 
 ## ステータス
 
-一部を置き換え済み。**スタイルの決定（react-native-unistyles）は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤回**した。状態管理・地図・API クライアントの決定は有効。
+一部を置き換え済み。**スタイルの決定（react-native-unistyles）は [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で撤回**した。状態管理・地図・API クライアントの決定は有効。
 
 ## コンテキスト
 
-[ADR-001](./ADR-001-folder-structure.md) でフォルダ構造を決めた際、スタイルライブラリは「未定」、状態管理も未確定だった。実装を始めるにあたり以下を確定する必要がある。
+[ADR-M-001](./ADR-M-001-folder-structure.md) でフォルダ構造を決めた際、スタイルライブラリは「未定」、状態管理も未確定だった。実装を始めるにあたり以下を確定する必要がある。
 
 - スタイリング方針（`src/theme/` に何を入れるか）
 - 状態管理（サーバー状態・クライアント状態）
@@ -25,7 +25,7 @@
 
 ## 決定
 
-- **スタイル: React Native 標準 `StyleSheet` + テーマ Context**。当初採用した react-native-unistyles（v3）は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤回済み。デザイントークン/テーマは `src/theme/` に primitive/semantic を定義し、`ThemeProvider` と `makeStyles` から参照する。
+- **スタイル: React Native 標準 `StyleSheet` + テーマ Context**。当初採用した react-native-unistyles（v3）は [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で撤回済み。デザイントークン/テーマは `src/theme/` に primitive/semantic を定義し、`ThemeProvider` と `makeStyles` から参照する。
 - **状態管理**:
   - サーバー状態 = **TanStack Query**（Orval 生成物と組み合わせる）。`src/store` には複製しない。
   - クライアント状態（UI・一時状態）= **Zustand**（`src/store`）。
@@ -37,11 +37,11 @@
 
 ### スタイル
 
-#### 選択肢1: Unistyles（当初採用、ADR-005で撤回）
+#### 選択肢1: Unistyles（当初採用、ADR-M-005で撤回）
 
 - **概要**: テーマ/デザイントークンを型安全に扱う高性能スタイルライブラリ。
 - **メリット**: デザイントークン運用・テーマ切替に強く、純粋な RN スタイルに近い。長期保守向き。
-- **デメリット**: v3 はネイティブ(Nitro)依存で **Expo Go 不可**（[ADR-003](./ADR-003-development-build-and-dev-loop.md) で対応）。babel プラグイン設定が必要。
+- **デメリット**: v3 はネイティブ(Nitro)依存で **Expo Go 不可**（[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md) で対応）。babel プラグイン設定が必要。
 
 #### 選択肢2: NativeWind（Tailwind）
 
@@ -49,7 +49,7 @@
 - **メリット**: Web の Tailwind と語感が揃う。学習が早い。
 - **デメリット**: バージョン変遷の履歴があり、長期運用の安定性に懸念。
 
-#### 選択肢3: StyleSheet + 独自トークン（ADR-005で採用）
+#### 選択肢3: StyleSheet + 独自トークン（ADR-M-005で採用）
 
 - **概要**: ライブラリを足さず素の StyleSheet + トークン。
 - **メリット**: 依存最小。
@@ -78,7 +78,7 @@
 #### 選択肢1: react-native-maps（採用）
 
 - **メリット**: 最も成熟。Expo config plugin 対応、エコシステム豊富で MVP 向き。ベンダーコスト最小。
-- **デメリット**: ネイティブモジュールのため **Expo Go 不可**（[ADR-003](./ADR-003-development-build-and-dev-loop.md)）。
+- **デメリット**: ネイティブモジュールのため **Expo Go 不可**（[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md)）。
 
 #### 選択肢2: Mapbox / 選択肢3: MapLibre(OSM)
 
@@ -87,7 +87,7 @@
 
 ## 決定理由
 
-- スタイルは当初、**長期保守**とデザイントークン運用を重視して Unistyles を採用したが、実装時の環境起因エラーとテスト負荷を踏まえ、[ADR-005](./ADR-005-styling-without-unistyles.md) で React Native 標準 `StyleSheet` + テーマ Context へ置き換えた。
+- スタイルは当初、**長期保守**とデザイントークン運用を重視して Unistyles を採用したが、実装時の環境起因エラーとテスト負荷を踏まえ、[ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で React Native 標準 `StyleSheet` + テーマ Context へ置き換えた。
 - 状態管理は、サーバー状態を Query に一元化し、少量のクライアント状態を Zustand で持つのが**責務が明確で学習コストも低い**。
 - API は OpenAPI からの自動生成（Orval）で**型安全＆手書き削減**。MSW モックも同時生成でき、テスト容易性の要件に合致。
 
@@ -95,13 +95,13 @@
 
 ### ポジティブな影響
 
-- デザイントークン運用・テーマ切替を `src/theme/` に集約できる（[ADR-001](./ADR-001-folder-structure.md) の暫定だった `src/theme/` を確定）。
+- デザイントークン運用・テーマ切替を `src/theme/` に集約できる（[ADR-M-001](./ADR-M-001-folder-structure.md) の暫定だった `src/theme/` を確定）。
 - サーバー/クライアント状態の分離がコード構造に表現される。
 - backend の API 変更が OpenAPI→Orval 再生成で mobile に型として反映される。
 
 ### ネガティブな影響・トレードオフ
 
-- react-native-maps が**ネイティブモジュール**のため Expo Go が使えず、development build が必要（[ADR-003](./ADR-003-development-build-and-dev-loop.md)）。Unistyles のネイティブ依存は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤去済み。
+- react-native-maps が**ネイティブモジュール**のため Expo Go が使えず、development build が必要（[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md)）。Unistyles のネイティブ依存は [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で撤去済み。
 - Orval 生成物は再生成前提のため、backend の OpenAPI 更新時に再生成の運用が必要。
 
 ### 移行・対応が必要な事項
@@ -112,15 +112,15 @@
   → M4（SS-15）で対応済み。ただし `app.json` への直書きではなく、新設した `app.config.ts` が
   環境変数 `GOOGLE_MAPS_ANDROID_SDK_KEY` を `android.config.googleMaps.apiKey` へ注入する方式にした
   （キーをリポジトリにコミットしないため）。詳細は
-  [ADR-007: Expo 設定と Maps キー注入](./ADR-007-expo-config-and-maps-key-injection.md)。
+  [ADR-M-007: Expo 設定と Maps キー注入](./ADR-M-007-expo-config-and-maps-key-injection.md)。
 
 ## 関連情報
 
-- [ADR-001: フォルダ構造](./ADR-001-folder-structure.md)
-- [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
-- [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
-- [ADR-005: スタイルは Unistyles をやめる](./ADR-005-styling-without-unistyles.md)
-- [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
-- [ADR-007: Expo 設定と Maps キー注入](./ADR-007-expo-config-and-maps-key-injection.md)
+- [ADR-M-001: フォルダ構造](./ADR-M-001-folder-structure.md)
+- [ADR-M-003: development build 前提と開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-005: スタイルは Unistyles をやめる](./ADR-M-005-styling-without-unistyles.md)
+- [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
+- [ADR-M-007: Expo 設定と Maps キー注入](./ADR-M-007-expo-config-and-maps-key-injection.md)
 - [ツール・ライブラリ](../docs/toolsets-libraries.md) / [フォルダ構造](../docs/folder-structure.md)
 - [ADR-001(横断): 地図・POI に Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)

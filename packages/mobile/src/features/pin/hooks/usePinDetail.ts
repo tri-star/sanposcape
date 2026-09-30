@@ -14,7 +14,7 @@ import type { PinDetail, PinPhoto } from "@/features/pin/types";
 
 /**
  * 保存済みのピンは（このセッション内では）ほぼ不変。presigned URL の TTL（3600秒）より
- * 十分短くすることで、再訪時に URL を取り直す（mobile ADR-012 D7）。
+ * 十分短くすることで、再訪時に URL を取り直す（ADR-M-012 D7）。
  */
 const DETAIL_STALE_TIME_MS = 5 * 60_000;
 const DETAIL_GC_TIME_MS = 30 * 60_000;
@@ -42,7 +42,7 @@ export type UsePinDetailResult = {
  *
  * 最初の10件は `GET /pins/{id}` の `photos` をそのまま使い、`GET /pins/{id}/photos` は
  * 「もっと見る」を押したときだけ呼ぶ（写真が10件以下のピンでは往復を1回に抑える。
- * mobile ADR-012 D6）。
+ * ADR-M-012 D6）。
  */
 export function usePinDetail(
   pinId: string | null,

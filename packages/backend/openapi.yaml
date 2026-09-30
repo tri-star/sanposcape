@@ -726,7 +726,7 @@ paths:
 
         position が最小の写真（無ければ null）。写真の URL の有効期限は `urls_expire_at`。
 
-        mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。'
+        mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。'
       operationId: list_pins
       security:
       - HTTPBearer: []
@@ -899,7 +899,7 @@ paths:
 
         member でないピン・存在しない ID は 404。写真の URL の有効期限は `urls_expire_at`。
 
-        mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。'
+        mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。'
       operationId: list_pin_photos
       security:
       - HTTPBearer: []

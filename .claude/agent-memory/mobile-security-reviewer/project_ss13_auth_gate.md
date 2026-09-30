@@ -19,10 +19,10 @@ oxlint override（`features/walk|history` → `@/services/auth` / `@/store/useAu
 **認証状態は `src/store/useAuthSessionStore.ts`（`loading|authenticated|guest`）に一本化**。
 書き込み経路は `services/auth/index.ts` の `onSessionChange` 配線と `useAuthSessionBootstrap`
 の2つのみ。`SettingsView` の自前ガード・自前 `runSessionCleanup()` 呼び出しは削除され、
-後始末の実行側は `setSession()` の `authenticated → guest` 遷移に一本化（ADR-008 決定6 追補）。
+後始末の実行側は `setSession()` の `authenticated → guest` 遷移に一本化（ADR-M-008 決定6 追補）。
 これにより非自発的セッション失効（refresh 401）でも `runSessionCleanup()` が走るようになった。
 
-**残存する軽微な論点（Low、意図的な受容リスクとして ADR-009 に明記済み）**:
+**残存する軽微な論点（Low、意図的な受容リスクとして ADR-M-009 に明記済み）**:
 - `status === "loading"` の間はゲートが素通しする設計。ディープリンクのコールドスタートで
   保護画面が復元完了までの数百 ms 描画されうるが、機微データはサーバー由来でトークンが
   無ければ 401 になるため実害は小さいと ADR 自身が評価している。同意できる評価。

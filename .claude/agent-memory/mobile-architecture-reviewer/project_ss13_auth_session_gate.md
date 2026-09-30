@@ -9,7 +9,7 @@ metadata:
 SS-13（ブランチ `feat/ss-13-auth-walk-separation`）で `src/store/useAuthSessionStore.ts`
 （`loading|authenticated|guest`）+ `app/_layout.tsx` の `AuthGate`（判定は
 `features/auth/lib/authGate.ts` の `resolveAuthGateDecision`/`canEnterProtectedRoutes` に純粋関数化）
-を導入。ADR-009 新規作成、ADR-008 決定6（`runSessionCleanup()` の実行側）を追補。
+を導入。ADR-M-009 新規作成、ADR-M-008 決定6（`runSessionCleanup()` の実行側）を追補。
 
 **良好な点**:
 - 依存の向き: `store/useAuthSessionStore.ts` は `@/services/auth/types` から `AuthUser` を
@@ -28,14 +28,14 @@ SS-13（ブランチ `feat/ss-13-auth-walk-separation`）で `src/store/useAuthS
 
 **残課題（指摘済み・要フォロー）**:
 1. `src/lib/sessionCleanup.ts` の `runSessionCleanup()` JSDoc が
-   「呼び出し側は現状 `SettingsView`」のまま古い。ADR-008 決定6追補で実行側は
+   「呼び出し側は現状 `SettingsView`」のまま古い。ADR-M-008 決定6追補で実行側は
    `useAuthSessionStore.setSession()` に移ったが、このファイルは SS-13 実装プランの
    編集対象リストに含まれておらず更新されなかった（ドキュメントドリフト。
    [[project_ss19_walk_finish]] の savedWalkId コメント陳腐化と同種のパターン）。
 2. `useAuthSessionStore.user: AuthUser`（id/email/displayName/photoUrl、
    `/auth/session`・`/auth/refresh` 由来）は `src/store/` に置かれているが、
    `folder-structure.md` の「`src/store/` はサーバー由来のデータを置かない」原則との
-   関係が ADR-009 で明示的に整理されていない。ADR-008 の `savedWalkId` は
+   関係が ADR-M-009 で明示的に整理されていない。ADR-M-008 の `savedWalkId` は
    「識別子1つだけ」と例外の範囲を明記して正当化しているのに対し、こちらは
    `AuthUser` オブジェクト全体を保持しており対称的な扱いがない。現時点で `user` を
    読むコンポーネントも存在しない（`status` のみ購読されている）ため、
@@ -52,8 +52,8 @@ SS-13（ブランチ `feat/ss-13-auth-walk-separation`）で `src/store/useAuthS
 
 **2026-08-06 追記（レビュー対応で解決済み）**: 上記「残課題」3点はいずれもレビュー対応ブランチで解消。
 1は `sessionCleanup.ts` の JSDoc を実行側（`useAuthSessionStore.setSession()`）に更新（[[callback-caller-jsdoc-drift]]）。
-2は ADR-009 に「`user` はセッションのライフサイクルと1:1の identity snapshot」として例外を明記し、
-`folder-structure.md` にも同旨を追記。3は `SettingsView.tsx` / `AuthGate.tsx` / ADR-009 に
+2は ADR-M-009 に「`user` はセッションのライフサイクルと1:1の identity snapshot」として例外を明記し、
+`folder-structure.md` にも同旨を追記。3は `SettingsView.tsx` / `AuthGate.tsx` / ADR-M-009 に
 「`.finally` のマイクロタスクは `useEffect` フラッシュより先に走るという JS/React のスケジューリング
 特性への依存であり、フレームワークの保証ではない」旨を明記。
 

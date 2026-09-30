@@ -2,7 +2,7 @@ import type { WalkStatsErrorCode } from "@/features/history/lib/walkStatsError";
 
 /**
  * 記録画面から見た認証状態。ルート（`app/(tabs)/account.tsx`）が認証セッションの `status` から作って注入する
- * （features/history は認証を読まない。ADR-009 決定8）。`restoring` はセッション復元中（`status === "loading"`）で、
+ * （features/history は認証を読まない。ADR-M-009 決定8）。`restoring` はセッション復元中（`status === "loading"`）で、
  * ゲストとは区別する（サインイン済みのユーザーにサインイン案内を見せないため）。
  */
 export type HistoryAuthState = "signed-in" | "guest" | "restoring";

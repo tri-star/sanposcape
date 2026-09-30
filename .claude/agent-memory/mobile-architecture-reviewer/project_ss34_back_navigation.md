@@ -26,10 +26,10 @@ Glob/Grep/Read で直接検証）。
 - `interceptRef`/`fallbackRef` を使い、BackHandler 購読を毎レンダー貼り直さない設計は
   `useWalkTracking.ts` の `pausedRef` と同じ手法を踏襲（コードコメントで明示）。
 - `WalkStartView.handleStartWalk` は `back.runOnce` でラッチを共有し、戻る連打・戻る＋開始の同時押しで
-  二重遷移が起きない。ADR-008 の `useActiveWalkStore.startWalk` 呼び出し自体は変更していない。
+  二重遷移が起きない。ADR-M-008 の `useActiveWalkStore.startWalk` 呼び出し自体は変更していない。
 - 新規 Maestro フロー（`walk-start-back.yaml`/`walk-history.yaml`）はタグ運用・
   `maps-required` 回避のディープリンク手法（`walk-history.yaml` が `/explore/places` に依存しないよう
-  `openLink` で直接遷移）を含め、既存の ADR-004 方針・SS-21 の手法と整合している。
+  `openLink` で直接遷移）を含め、既存の ADR-M-004 方針・SS-21 の手法と整合している。
 - 新規/変更ファイルの命名（`backNavigation.ts`/`useScreenBack.ts`、フォルダはすべて既存の
   kebab-case フォルダ）は naming-conventions.md に完全準拠。import の case 一致も確認済み。
 
@@ -42,6 +42,6 @@ Glob/Grep/Read で直接検証）。
   実害は顕在化していないが、将来の新しい遷移元（ディープリンク等）で `router.back()` が no-op になり
   ユーザーが詰む余地がある。次に Settings 系画面を触るときに移行漏れとして再指摘する。
 - 🔵 このスクリーン戻る導線の一本化は、優先順位ロジック・`predictiveBackGestureEnabled: false` への
-  依存など、他の cross-cutting な設計判断（ADR-006/ADR-008）と同程度に「なぜ」を残す価値がある内容だが、
+  依存など、他の cross-cutting な設計判断（ADR-M-006/ADR-M-008）と同程度に「なぜ」を残す価値がある内容だが、
   ADR ではなく `pages-components-guideline.md`（実装ガイドライン）にのみ記載されている。今後 Android の
   predictive back 対応などで見直しが入るなら、その時点で ADR 化を検討してよい。

@@ -4,7 +4,7 @@ iPhone実機にdevelopment buildをインストールし、WSL2上のMetroへ接
 Expo Goは使用せず、EAS Buildで作成したAd Hoc署名付きのdevelopment buildを使用する。
 
 背景となる方針は
-[ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)を参照。
+[ADR-M-003](../adr/ADR-M-003-development-build-and-dev-loop.md)を参照。
 
 ## 前提
 
