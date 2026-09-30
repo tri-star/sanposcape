@@ -5,6 +5,7 @@ appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---
+# ナビタブ idle の構成（SS-147）: ピン導線が無く「最近の散歩」がある。
 # サインイン直後にピンタブ（pin-tab-screen）に着く
 - runFlow: subflows/sign-in.yaml
 # タブ構成はラベルの text で確認する（廃止した検索・記録タブが無いことも text で否定する。
@@ -38,6 +39,24 @@ tags:
     visible:
       id: "walk-active-idle"
     timeout: 10000
+# ナビタブ（散歩していないとき。SS-147）: ピンの導線が無く、「最近の散歩」がある。
+# 件数・空状態は assert しない（e2e-user-1 の記録は同一 CI ラン内の他フローに依存する。ADR-004）。
+# ピン導線は存在しない testID を否定しても何も検証しないので text で否定する
+# （FAB はアイコンのみのため accessibilityLabel で見る。Maestro の text は Android の content-desc にも当たる）。
+- assertNotVisible:
+    text: "登録したピンを地図で見る"
+- assertNotVisible:
+    text: "地図からピンを置く"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-recent-walks"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "walk-active-recent-walks-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "walk-active-recent-walks-error"
 - tapOn:
     id: "app-tab-pins"
 - extendedWaitUntil:

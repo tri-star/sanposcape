@@ -12,7 +12,7 @@ export type WalkHistoryCardProps = {
   testID?: string;
 };
 
-/** WalkHistoryCard — 履歴一覧・記録タブの「最近の散歩」で使う1行。 */
+/** WalkHistoryCard — 履歴一覧と「最近の散歩」（記録タブ・ナビタブ）で使う1行。 */
 export function WalkHistoryCard({ item, onPress, testID }: WalkHistoryCardProps) {
   const theme = useTheme();
   const styles = useStyles();

@@ -1,7 +1,7 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
-import { Image, Text, View } from "react-native";
+import { Image, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import walkerImage from "@/assets/images/walker.png";
@@ -36,6 +36,13 @@ export type WalkActiveViewProps = {
    * 登録済みピンのレイヤーを合成して渡す。省略時は何も重ねない。
    */
   renderMapLayers?: (visibleRegion: MapRegion | null) => ReactNode;
+  /**
+   * 散歩していないとき、`WalkIdleNotice` の下に描く追加セクション（SS-147）。
+   * `features/walk` は `features/history` を import しないため、ルート（`app/(tabs)/index.tsx`）が
+   * 「最近の散歩」（`RecentWalksSection`）を合成して渡す。散歩中は描かない（マウントしないので、
+   * セクション内の取得（`GET /walks`）も走らない）。省略時は何も出さない。
+   */
+  idleSection?: ReactNode;
 };
 
 /**
@@ -43,11 +50,11 @@ export type WalkActiveViewProps = {
  * 進行中の散歩が無ければ `WalkIdleNotice` を出し、あれば実地図・実位置トラッキング・
  * 実時刻ベースの経過時間を `useActiveWalk` から受けて表示する。
  *
- * 進行中の散歩が無いときは、`pin_registration` が ON なら「地図からピンを置く」FAB（アイコンのみ）と
- * 「登録したピンを地図で見る」ボタン（SS-118）を出す。散歩中は FAB を出さず、地図の長押しでその
- * 地点のピン登録へ進める（SS-124）。散歩中の地図には登録済みピンが重なる（ルートが合成。SS-118）。
+ * 進行中の散歩が無いときは `WalkIdleNotice` と、ルートが合成した `idleSection`（最近の散歩。SS-147）を
+ * 出す（ピンの導線はピンタブに集約。SS-146/SS-147）。散歩中は地図の長押しでその地点のピン登録へ進める
+ * （SS-124）。散歩中の地図には登録済みピンが重なる（ルートが合成。SS-118）。
  */
-export function WalkActiveView({ renderMapLayers }: WalkActiveViewProps = {}) {
+export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewProps = {}) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -68,11 +75,6 @@ export function WalkActiveView({ renderMapLayers }: WalkActiveViewProps = {}) {
     walk.finishWalk();
     router.push("/walk-summary");
   };
-
-  // 進行中の散歩が無いとき（ナビタブの FAB）は clientWalkId を付けない（値が無い。SS-124 D2）。
-  // features/pin は import せず、ルートの文字列だけを知る（addPinAction.ts のコメントにある
-  // feature 間の規約）。
-  const handleOpenPinPicker = () => router.push("/pins/pick-location");
 
   // 散歩中の地図の長押し → その地点で登録画面へ（散歩に紐付ける）。戻ると散歩中画面に戻るよう push する
   // （「この場所にピンを追加」と同じ）。フラグ OFF・座標不正なら何もしない。
@@ -111,39 +113,21 @@ export function WalkActiveView({ renderMapLayers }: WalkActiveViewProps = {}) {
   );
 
   if (walk.activeWalk === null) {
-    // FAB（theme.control.lg = 54）と重ならない高さにトーストを浮かせる。
-    const idleToastBottom = theme.spacing[4] + theme.control.lg + theme.spacing[3];
     return (
       <View testID="walk-active-screen" style={styles.root}>
-        <WalkIdleNotice onStart={() => router.replace("/walk-start")} />
-        {pinRegistrationEnabled ? (
-          <Button
-            variant="secondary"
-            icon="map"
-            onPress={() => router.push("/pins/map")}
-            style={styles.pinMapButton}
-            testID="walk-active-open-pin-map"
-          >
-            登録したピンを地図で見る
-          </Button>
-        ) : null}
-        {pinRegistrationEnabled ? (
-          <IconButton
-            variant="filled"
-            size="lg"
-            icon="map-pin"
-            label="地図からピンを置く"
-            onPress={handleOpenPinPicker}
-            style={styles.pinFab}
-            testID="walk-active-pin-fab"
-          />
-        ) : null}
-        {/*
-          このトーストが無いと、ピン登録画面から戻ってきた「ピンを保存しました」
-          （useFocusEffect の consumeFlashMessage）が消費されるだけで表示されない
-          （FAB 経由の登録で初めて表に出る既存の抜け。SS-124 で合わせて直す）。
-        */}
-        <ToastOverlay message={toast.message} visible={toast.visible} bottom={idleToastBottom} />
+        <ScrollView
+          // 上端はステータスバーの高さぶん下げる（SS-147。以前は余白が無くカードがステータスバーに重なっていた）。
+          // タブ画面なので下端に insets.bottom は足さない（AppTabBar が負担する。PinTabView と同じ）。
+          contentContainerStyle={[styles.idleContent, { paddingTop: insets.top }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <WalkIdleNotice onStart={() => router.replace("/walk-start")} />
+          {idleSection ? <View style={styles.idleSection}>{idleSection}</View> : null}
+        </ScrollView>
+        {/* ピン登録から戻ったときの保存完了トースト（useFocusEffect の consumeFlashMessage）の表示先。
+            SS-147 で FAB・地点選択画面を撤去したので通常は届かないが、消費だけされて黙って捨てられないよう残す。
+            タブ画面なので insets.bottom は足さない（PinTabView と同じ）。 */}
+        <ToastOverlay message={toast.message} visible={toast.visible} bottom={theme.spacing[4]} />
       </View>
     );
   }
@@ -315,14 +299,11 @@ const useStyles = makeStyles((theme) => ({
     top: theme.spacing[3],
     gap: theme.spacing[2],
   },
-  pinMapButton: {
-    marginHorizontal: theme.layout.pageGutter,
+  idleContent: {
+    paddingBottom: theme.spacing[6],
   },
-  pinFab: {
-    position: "absolute",
-    right: theme.layout.pageGutter,
-    bottom: theme.spacing[4],
-    ...theme.shadows.md,
+  idleSection: {
+    paddingHorizontal: theme.layout.pageGutter,
   },
   statsWrap: {
     margin: theme.spacing[3],

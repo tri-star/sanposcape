@@ -171,6 +171,11 @@ packages/mobile/
   `mapLayers?: ReactNode` を `MapView` の子としてそのまま描くだけで、中身を知らない（SS-118）。
   増減するレイヤーは `MapView` の子の**末尾**に置き、重なり順は `zIndex` で決める
   （既存のルート線・マーカーの位置を動かさないため。mobile ADR-012 D16）。
+  地図以外の合成も同じ形にする。実例: `app/(tabs)/index.tsx` が `WalkActiveView` の `idleSection` prop に
+  `RecentWalksSection`（`features/history`）を渡す（散歩していないときのナビタブの「最近の散歩」。
+  `features/walk` と `features/history` は互いに import しない。サインイン中だけ渡す判定もルートが持つ。SS-147）。
+  同じコンポーネントを複数のタブに出すと、タブは一度開くとマウントされたまま残るため testID が衝突しうる。
+  呼び出し側から接頭辞を渡す（`pages-components-guideline.md` のルール 7）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
 > **「2つ以上の機能から使うか？」**
