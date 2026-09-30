@@ -100,7 +100,8 @@ tags:
     timeout: 20000
 - assertNotVisible:
     id: "walk-active-recent-walks-error"
-# 直前に保存した散歩が先頭に出る（started_at DESC。useWalkSave の invalidateQueries の検証）
+# 先頭のカードから詳細が開くこと（遷移確認）。直前に保存した散歩が先頭に出るかは、
+# 一覧がキャッシュ済みで確実に待てないためここでは検証しない。
 - scrollUntilVisible:
     element:
       id: "walk-active-recent-walks-item-0"
@@ -112,11 +113,11 @@ tags:
     timeout: 15000
 - tapOn:
     id: "walk-detail-back"
-# ScrollView の位置が残るので、カード（walk-active-idle）ではなく root で戻りを確かめる
-- extendedWaitUntil:
-    visible:
-      id: "walk-active-screen"
-    timeout: 10000
+# idle でのみ存在する「最近の散歩」で戻りを確かめる（root の walk-active-screen は散歩中と共通で弱い）。
+# ScrollView の位置が残ってセクションが画面外の場合があるので scrollUntilVisible で探す。
+- scrollUntilVisible:
+    element:
+      id: "walk-active-recent-walks"
 - scrollUntilVisible:
     element:
       id: "walk-active-recent-walks-see-all"
@@ -128,10 +129,10 @@ tags:
     timeout: 15000
 - tapOn:
     id: "walk-history-back"
-- extendedWaitUntil:
-    visible:
-      id: "walk-active-screen"
-    timeout: 10000
+# 戻り先が idle であることを idle 固有の「最近の散歩」で確かめる（位置が残るので scrollUntilVisible）
+- scrollUntilVisible:
+    element:
+      id: "walk-active-recent-walks"
 - tapOn:
     id: "app-tab-account"
 - assertVisible:

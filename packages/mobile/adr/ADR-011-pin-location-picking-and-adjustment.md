@@ -56,13 +56,13 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   散歩中の画面は地図（右上に現在地ボタン）と下部カード（一時停止・終了・ピン追加の3ボタン）で
   埋まっていて FAB を置く余白がない。散歩中の任意地点の登録は、地図の長押し（上のユーザー決定）と、
   「この場所にピンを追加」→ 登録画面の「位置を調整」の2通りで行える。
-- **D2: FAB 経由の登録の `clientWalkId` は付けない**（散歩していないので値が無い）。D1 から
+- **D2（SS-147 追補: FAB は撤去。ピンタブの長押しでも `clientWalkId` なしは同じ）: FAB 経由の登録の `clientWalkId` は付けない**（散歩していないので値が無い）。D1 から
   自動的に決まる。`/pins/new` には `latitude`/`longitude` だけを渡す。
 - **D3: フラグは既存の `pin_registration` を流用する。** OFF・取得中・取得失敗のときは FAB を
   出さない。`/pins/pick-location` はルートごと隠す（`docs/architecture-guideline.md`
   「画面ガードレシピ」）。（SS-147 追補: 撤去）新しいフラグを作るには backend の登録簿（`core/feature_flags.py`）の
   変更が要る（backend は触れない）。
-- **D4: 未サインインのとき、FAB も地点選択画面も出す。** サインインの要否は既存どおり登録画面の
+- **D4（SS-147 追補: FAB と地点選択画面は撤去。ピンタブでも同じ扱い）: 未サインインのとき、FAB も地点選択画面も出す。** サインインの要否は既存どおり登録画面の
   `PinSignInRequired` に任せる。サインインの判定を1か所（`/pins/new` のルート）に保てる。
   散歩中の「この場所にピンを追加」もサインインを見ていないので、それと揃う。既知の限界（影響を
   参照）。
@@ -74,7 +74,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   使える。再試行で現在地が取れたら、そこへアニメーションで移動する。現在地が無くても「任意地点
   での登録」という目的は果たせる。現在地の初回取得中（`isLoading`）は地図を出さず、読み込み表示
   にする。
-- **D6: (b) の地点選択画面は新しいルート `app/pins/pick-location.tsx`。長押しで `router.replace`
+- **D6（SS-147 追補: `/pins/pick-location` は削除）: (b) の地点選択画面は新しいルート `app/pins/pick-location.tsx`。長押しで `router.replace`
   して `/pins/new` へ進む。** `features/walk` は `features/pin` を import できないので、ナビタブ
   から開くにはルートの文字列で遷移するしかない。`push` にすると、スタックが
   `(tabs) → 地点選択 → 登録` になる。登録画面の保存後の `router.back()` が地点選択画面に戻って
@@ -259,7 +259,7 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 - ピンタブの地図の長押しで `/pins/new` へ **push** する。D6 の replace はタブ画面では使えない（replace は `(tabs)` ごと置き換える）。push でスタックは `(tabs) → pins/new` になり、保存後・破棄後の `back()` でピンタブへ戻る。D6 が replace で作りたかった形と同じになる。
 - D4（ゲストにも入口を出し、サインインの要否は `/pins/new` に任せる）・D5（現在地が取れないときは日本全体）・D2（`clientWalkId` なし）はピンタブでも同じ。
 - D8 の補足: 地図の設定・ジェスチャーは `PinMapCanvas` に切り出し、`PinMapFullScreen` とピンタブが共有する。canvas の読み込み表示の testID は `${p}-map-loading`（ピンタブのルートの `pin-tab-loading` との衝突回避）。
-- `/pins/pick-location`（`PinLocationPickerView`）はナビタブの FAB が残る間は残し、ナビタブの導線を削除する別課題で削除する。`PinMapFullScreen` は (a) 位置調整が使うので残る。
+- `/pins/pick-location`（`PinLocationPickerView`）はナビタブの FAB が残る間は残し、ナビタブの導線を削除する別課題で削除する。`PinMapFullScreen` は (a) 位置調整が使うので残る。（SS-147 追補: 削除した）
 
 ### 影響
 

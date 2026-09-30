@@ -201,6 +201,10 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
      testID が衝突する。登録済みピンの `Marker`（`RegisteredPinMarkers`）も同じ形で、
      `${testIDPrefix}-${pin.id}`（実例: `walk-active-pin-<pinId>` / `pin-tab-pin-<pinId>`）になる。
      E2E からの参照は想定しない（ピン ID をフローから知る手段が無いため。SS-118）。
+   - **複数のタブにマウントされうるセクションも同じ**。タブ画面は一度開くとマウントされたまま残るため、
+     固定 testID だと同時に存在して衝突する。呼び出し側の接頭辞から組み立て、既存 E2E が依存する
+     既定値は接頭辞なしのときだけ返す（実例: `RecentWalksSection` の `testIDPrefix` / `recentWalksTestIds`。
+     ナビタブは `walk-active-recent-walks`。SS-147）。
    - **状態によって表示が切り替わるコンポーネントは、root の `testID` を状態ごとに付け替えない**。
      root は同じ `testID` のまま据え置き、その状態でしか描画されない内側の要素にだけ
      `${testID}-<state>` を追加する（例: `WalkSaveStatus` の `walk-summary-save-status-saved`。error は

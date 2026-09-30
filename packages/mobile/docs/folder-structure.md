@@ -186,7 +186,7 @@ packages/mobile/
 > `components/` 直下にファイルを並べて肥大化させない。カテゴリのサブフォルダに分ける。
 
 - 実際の昇格例: `LocationPermissionNotice`（`features/walk/components/` → `src/components/location/`。
-  `features/pin` の地点選択画面からも使うことになったため。SS-124）。
+  `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `features/walk` の画面と `features/pin` の `PinMapFullScreen` / `PinTabView`）。
 
 ### `src/services/` — スタブ差し替えの層
 - 認証(OAuth/OIDC)や実機依存機能（カメラ・位置情報など）を抽象化する層。

@@ -17,6 +17,8 @@ export type RecentWalksTestIds = {
  * 接頭辞なし（undefined / 空文字）は記録（アカウント）タブの既存 testID
  * （E2E が依存しているのでリネーム禁止）。接頭辞ありは `${p}` / `${p}-error` / `${p}-loading` /
  * `${p}-empty` / `${p}-see-all` / `${p}-item-${index}`。
+ * 注意: 空文字は「接頭辞なし」と同じ既定扱いになるため、2箇所で使うと testID が衝突する
+ * （複数タブに出すときは必ず互いに異なる非空の接頭辞を渡す）。
  */
 export function recentWalksTestIds(prefix?: string): RecentWalksTestIds {
   if (!prefix) {

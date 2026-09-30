@@ -72,7 +72,7 @@ export function usePinSave(options: {
     onSuccess: (pin) => {
       void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
       // ピン一覧・詳細・写真ページを一括で再検証する（SS-118 で追加）。保存後に戻った先
-      // （散歩中の地図・`/pins/map`）でマウント中の一覧クエリが取り直され、新しいピンが
+      // （散歩中の地図・ピンタブ）でマウント中の一覧クエリが取り直され、新しいピンが
       // すぐ描かれる。
       void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
       options.onSaved(pin);
