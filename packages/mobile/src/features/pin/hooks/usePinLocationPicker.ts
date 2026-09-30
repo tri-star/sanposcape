@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { PinMapFocusRequest } from "@/features/pin/components/PinMapFullScreen";
+import type { PinMapFocusRequest } from "@/features/pin/components/PinMapCanvas";
 import { resolvePickerStartRegion } from "@/features/pin/lib/pinLocationPicker";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
@@ -19,7 +19,7 @@ export type UsePinLocationPickerResult = {
 };
 
 /**
- * (b) 地点選択画面の状態をまとめる hook。判定は `lib/pinLocationPicker.ts` に任せ、
+ * 現在地起点の地図（(b) 地点選択・(c) `/pins/map`・ピンタブ（SS-146））の初期表示と現在地を扱う hook。判定は `lib/pinLocationPicker.ts` に任せ、
  * この hook は状態の保持と配線だけを行う（`usePinRegister` と同じ設計方針）。
  *
  * 権限リクエストは `useCurrentLocation` がマウント時に行う
