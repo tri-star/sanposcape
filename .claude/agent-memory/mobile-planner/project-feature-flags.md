@@ -34,8 +34,9 @@ E2E は実 backend を叩き、`APPCONFIG_*` の ID 未設定なら `config_sour
 
 ## 計画時に踏みやすい落とし穴（SS-100 で判明）
 
-- **`/dev-screens` と `/design-system` は `__DEV__` ガード**で、preview/release ビルドでは `/` に
-  Redirect される。→ **Maestro E2E からは開けない**。「dev 画面に出して E2E で確認する」プランは書けない。
+- **`/dev-screens` と `/design-system` は `isDevToolsEnabled()` ガード**（SS-148 で `__DEV__` から変更）で、
+  production ビルドでだけ `/` に Redirect される。preview（E2E）・staging では開ける。
+  ただし「production で出ない」ことは E2E（preview のみ）では確かめられない。詳細は [[project-build-variant-runtime]]
 - **`src/api/queryClient.ts` の `registerSessionCleanup(() => queryClient.clear())` は
   ユーザー非依存のキャッシュまで消す**。TanStack Query の `clear()` はマウント済み observer の
   再取得を保証しないため、消えたキーに対する後続の `invalidateQueries` は空振りしうる。

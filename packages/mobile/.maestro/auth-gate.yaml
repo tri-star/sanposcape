@@ -25,6 +25,17 @@ tags:
     visible:
       id: "pin-tab-sign-in"
     timeout: 10000
+# ゲストのアカウントタブ: 集計・最近の散歩の代わりにサインイン案内（通信しない）。設定ボタンはゲストにも出る（SS-148）
+- tapOn:
+    id: "app-tab-account"
+- extendedWaitUntil:
+    visible:
+      id: "history-sign-in-required"
+    timeout: 10000
+- assertNotVisible:
+    id: "history-stats-error"
+- assertVisible:
+    id: "account-open-settings"
 # ゲストのまま設定画面に入ると、ログアウトではなくサインイン導線が出る。
 - openLink: "sanposcape-dev://settings"
 - extendedWaitUntil:

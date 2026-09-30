@@ -21,7 +21,7 @@ export type MinimumSupportedVersions = { ios: string | null; android: string | n
  * **`config_source` を意図的に持たない。** ADR-008 追補 D1 が
  * 「クライアントはこの値で分岐してはいけない」と定めているため、
  * プロダクトコードが参照できる型から落とすことで構造的に担保する
- * （診断表示が必要な `__DEV__` 画面だけは `@/hooks/useAppConfig` の
+ * （診断表示が必要な開発ツールの画面（`/dev-screens`。本番ビルドでは開けない）だけは `@/hooks/useAppConfig` の
  * `useAppConfigDiagnostics()` から読む）。
  */
 export type AppConfigSnapshot = {

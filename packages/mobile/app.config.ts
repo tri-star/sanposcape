@@ -30,19 +30,24 @@ const GOOGLE_SIGNIN_PLUGIN = "react-native-nitro-google-signin";
  * 別アプリとしてストアに出る/クレデンシャルを取り違える事故になり、しかも EAS の枠を消費してから発覚する。
  * expo config の評価時点で落とせば、ビルドを始める前に止まる。
  *
+ * `extra.appVariant`（"production" | "development"）は default export が常に書く。
+ * `src/config/appVariant.ts` の `AppVariant` と同じ値域で、`src/config/devTools.ts` が実行時に読む。
+ * `extra` は公開の設定で JS バンドルからも見えるため、秘密を置かない。
+ * OTA では `extra` が update 評価時の値になるので、本番の判定は `Updates.channel` と併用している
+ * （ADR-M-007 の SS-148 追補）。
+ *
  * 意図的にやらないこと:
  * - アイコンは分けない（docs/build-profiles.md の「アプリ識別子の定義」参照）。iOS の
  *   `expo.icon`（Icon Composer 形式）の variant を作るコストが見合わないため、後続課題にする。
  * - `slug` / `extra.eas.projectId` / `updates.url` / `runtimeVersion` は上書きしない
  *   （同一 EAS プロジェクトで variant を持つ）。
  */
-function applyAppVariant(config: Partial<ExpoConfig>): Partial<ExpoConfig> {
-  const variant = process.env.APP_VARIANT;
-  if (!variant) {
-    return config;
-  }
+function applyAppVariant(
+  config: Partial<ExpoConfig>,
+  variant: "production" | "development",
+): Partial<ExpoConfig> {
   if (variant !== "production") {
-    throw new Error(`Unknown APP_VARIANT "${variant}". Expected "production" or unset.`);
+    return config;
   }
   return {
     ...config,
@@ -52,6 +57,21 @@ function applyAppVariant(config: Partial<ExpoConfig>): Partial<ExpoConfig> {
     android: { ...config.android, package: PRODUCTION_VARIANT.androidPackage },
     plugins: withProductionGoogleSignInPlugin(config.plugins),
   };
+}
+
+/**
+ * APP_VARIANT を検証して解決する。未設定（空文字を含む）は開発、"production" は本番、
+ * それ以外は例外にする（理由は applyAppVariant の JSDoc を参照）。
+ */
+function resolveAppVariant(): "production" | "development" {
+  const variant = process.env.APP_VARIANT;
+  if (!variant) {
+    return "development";
+  }
+  if (variant !== "production") {
+    throw new Error(`Unknown APP_VARIANT "${variant}". Expected "production" or unset.`);
+  }
+  return "production";
 }
 
 /**
@@ -91,7 +111,8 @@ function withProductionGoogleSignInPlugin(plugins: ExpoConfig["plugins"]): ExpoC
  * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const base = applyAppVariant(config);
+  const variant = resolveAppVariant();
+  const base = applyAppVariant(config, variant);
   const androidKey = process.env.GOOGLE_MAPS_ANDROID_SDK_KEY;
   return withCleartextTrafficForHttpBackend(
     withDisableAndroidLintVital(
@@ -103,6 +124,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           ...base.android,
           ...(androidKey ? { config: { googleMaps: { apiKey: androidKey } } } : {}),
         },
+        // 実行時に JS から読む（src/config/devTools.ts）。app.json の extra.router / extra.eas を消さないよう spread する。
+        extra: { ...base.extra, appVariant: variant },
       }),
     ),
   );

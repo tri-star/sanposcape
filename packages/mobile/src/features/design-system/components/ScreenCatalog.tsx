@@ -27,7 +27,8 @@ type CatalogLink = {
 /**
  * 開発確認用の画面カタログ（Storybook相当）。
  * RN の render/snapshot テストが書けない制約の代替として、各主要画面をスタブデータ付きで
- * 直接開くための導線を1画面に集約する。`testID` は Maestro からの将来利用も想定して付与する。
+ * 直接開くための導線を1画面に集約する。development / E2E / staging のビルドで開ける（本番は不可。SS-148）。
+ * `testID` は Maestro からの将来利用も想定して付与する。
  */
 export function ScreenCatalog() {
   const theme = useTheme();
@@ -95,7 +96,7 @@ export function ScreenCatalog() {
       key: "account",
       label: "アカウント（記録）",
       description:
-        "記録（週/月タブ・歩数進捗。集計は GET /walks/stats に依存。backend 起動が必要）。設定などのボタンは SS-148",
+        "記録（週/月タブ・歩数進捗。集計は GET /walks/stats に依存。backend 起動が必要）と、下部の設定・画面カタログボタン。ゲストはサインイン案内",
       icon: "user",
       onPress: () => router.push("/(tabs)/account"),
     },
@@ -144,7 +145,7 @@ export function ScreenCatalog() {
   ];
 
   return (
-    <View style={styles.root}>
+    <View testID="screen-catalog" style={styles.root}>
       <ScrollView
         contentContainerStyle={[
           styles.content,

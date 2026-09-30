@@ -18,8 +18,8 @@ export type AuthGateDecision = { type: "allow" } | { type: "redirect"; href: Aut
  */
 export const PUBLIC_ROOT_SEGMENTS: readonly string[] = [
   "(auth)", // サインイン / サインアップ
-  "dev-screens", // 開発用の画面カタログ（__DEV__ でのみ描画される）
-  "design-system", // 開発用のデザインシステム一覧
+  "dev-screens", // 開発用の画面カタログ（本番ビルドではルート側で / へ Redirect。isDevToolsEnabled）
+  "design-system", // 開発用のデザインシステム一覧（同上）
   // Expo Router が提供するルート一覧。`sitemap: false` を明示しない限り expo-router 57 は
   // 本番ビルドにも `/_sitemap` を含める＝「開発時のみ」ではなく本番でも到達可能（ADR-M-009 参照）。
   // 内容はルート一覧のみで、RN アプリはバンドル解析で同等の情報が得られるため MVP では許容する。

@@ -49,5 +49,5 @@ Critical/High 指摘なし。詳細レポートは作業ディレクトリに置
   （SS-19 で新規悪化なし。`/walk-summary` 自体は認証必須ルートとして別途ガードされているかは
   今回のスコープ外のため未確認）。
 - 開発用ショートカット（`ScreenCatalog` の「散歩サマリ」ボタンが実際に `POST /walks` を発火）は
-  `app/dev-screens.tsx` の `__DEV__` ガードで本番到達不能を確認済み
-  （[[project_auth_stub_switch]] と同じ fail-safe パターン）。
+  `app/dev-screens.tsx` のガードで本番到達不能を確認済み。SS-148 でガードは `isDevToolsEnabled()`
+  （本番ビルド以外で許可）に変わり、staging のテスターは自分のアカウントへ `POST /walks` できる（ADR-M-007 SS-148 追補で許容）。

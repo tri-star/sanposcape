@@ -177,13 +177,13 @@ pnpm --filter mobile orval          # API クライアント再生成
 - 実行には Android エミュレータ/実機 + preview APK が必要。
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。
   **CI は絞り込まず全フローを実行する**（SS-54）ため、タグはローカルでの部分実行用:
-  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー（`app-tabs.yaml` はタブ構成とナビタブ idle の構成を見る。SS-145 / SS-147）。
+  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー（`app-tabs.yaml` はタブ構成とナビタブ idle の構成を見る。SS-145 / SS-147。`account-tab.yaml` はアカウントタブの記録・設定・画面カタログへの遷移を見る。SS-148）。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
   - `pin`: ピン登録・閲覧関連フロー（`pin-register.yaml`（SS-88）/ `pin-register-anywhere.yaml`
     （ピンタブの地図の長押し → 登録・位置調整 → 保存 → ピンタブへ戻ってトースト。SS-124 / SS-146）/
     `pin-map.yaml`（ピンタブの地図表示・登録済みピン取得が落ち着くこと・「地図一覧」の往復。マーカーのタップ→詳細遷移は含まない。
     SS-118 / SS-146）/ `sanpo-map-list.yaml`（地図一覧の表示・地図の作成・地図名の検索・地図詳細・
-    ピン名の検索・ピン詳細への遷移。実行ごとに一意な名前の地図とピンを作る。SS-121））。`auth-gate.yaml`（`smoke`）はゲストのピンタブにサインイン案内が出ることも見る。
+    ピン名の検索・ピン詳細への遷移。実行ごとに一意な名前の地図とピンを作る。SS-121））。`auth-gate.yaml`（`smoke`）はゲストのピンタブ・アカウントタブにサインイン案内が出ることも見る（SS-148）。
   - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
     `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、
@@ -409,6 +409,11 @@ EAS ダッシュボード（`production` 環境）で以下が別途注入され
   Maps キーのアプリ制限・GCP プロジェクトの用意も 2026-09-13 時点で未完了**（開発用 GCP
   プロジェクトには本番識別子の登録が無い。[build-profiles.md](./build-profiles.md) の
   「アプリ識別子の定義」参照）
+- 開発ツール（`/dev-screens`・`/design-system`・アカウントタブの「画面カタログ」ボタン）が出ないこと（SS-148）。
+  ビルドに焼き込まれた `extra.appVariant` が `"production"` であることを確認する
+  （`npx expo config --type public` の `extra.appVariant`、または生成後の `app.json` 相当）。
+  `APP_VARIANT=production` が渡っていないと `"development"` になり、`Updates.channel`（`production`）の
+  1シグナルだけで止まる状態になる。判定表は [build-profiles.md](./build-profiles.md) の「実行時のビルド variant 判定」。
 
 `EXPO_PUBLIC_LOCATION_MODE` は `eas.json` で既に `"real"` を明示している（未設定＝`real` への
 フォールバックに頼らない。誤って `mock` が入ると全ユーザーの現在地が東京駅固定になるため）。

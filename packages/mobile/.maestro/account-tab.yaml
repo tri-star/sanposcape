@@ -1,0 +1,59 @@
+# アカウントタブ（SS-148）: サインイン後に記録が出て、下部の帯から設定・画面カタログへ行き来できる。
+# `/explore/*` に依存しないので maps-required は付けない。
+# 画面カタログのボタンが見えるのは、preview ビルドが「本番以外」だから。本番での非表示・
+# ディープリンクの Redirect は E2E では確かめられないので、Vitest の判定表と
+# eas.json / app.config.ts の契約テスト（src/config/appVariant.test.ts）で担保している。
+# 件数・集計値は assert しない（ADR-M-004）。集計の取得が落ち着くことも見ない（app-tabs.yaml と同じ範囲）。
+appId: com.sanposcape.app.dev
+tags:
+  - smoke
+---
+- runFlow: subflows/sign-in.yaml
+- tapOn:
+    id: "app-tab-account"
+- extendedWaitUntil:
+    visible:
+      id: "history-screen"
+    timeout: 10000
+# サインイン中はサインイン案内が出ない（実在する testID なので否定に意味がある）
+- assertNotVisible:
+    id: "history-sign-in-required"
+- extendedWaitUntil:
+    visible:
+      id: "account-action-bar"
+    timeout: 10000
+- assertVisible:
+    id: "account-open-settings"
+# 設定へ
+- tapOn:
+    id: "account-open-settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 10000
+- assertVisible:
+    id: "settings-open-logout-dialog"
+# 導線の有無だけ見る。押さない（e2e-user-1 は全フローで共有される固定アカウント）
+- assertVisible:
+    id: "settings-open-account-delete-dialog"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "history-screen"
+    timeout: 10000
+# 画面カタログへ（preview は本番以外なので表示される）
+- assertVisible:
+    id: "account-open-screen-catalog"
+- tapOn:
+    id: "account-open-screen-catalog"
+- extendedWaitUntil:
+    visible:
+      id: "screen-catalog"
+    timeout: 10000
+- assertVisible:
+    id: "catalog-link-settings"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "history-screen"
+    timeout: 10000
