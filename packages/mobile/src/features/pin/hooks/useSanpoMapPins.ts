@@ -71,7 +71,11 @@ export function useSanpoMapPins(
     if (sanpoMapId === null) return;
     if (!shouldRefreshPhotoUrls({ dataUpdatedAt: dataUpdatedAtRef.current, now: Date.now() }))
       return;
-    void queryClient.invalidateQueries({ queryKey: sanpoMapPinsQueryKey(sanpoMapId) });
+    const queryKey = sanpoMapPinsQueryKey(sanpoMapId);
+    // 取得中（最大5ページの連続取得）は中断して取り直さない。期限切れの URL のサムネイルが
+    // 一斉に失敗しても、1件ごとに取得を中断・再開しないようにする。
+    if (queryClient.isFetching({ queryKey }) > 0) return;
+    void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
   }, [queryClient, sanpoMapId]);
 
   // 表示できるデータがあるときの再取得失敗では error にしない（ピン一覧を消さない）。

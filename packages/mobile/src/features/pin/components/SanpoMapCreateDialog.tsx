@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
@@ -44,6 +44,16 @@ export function SanpoMapCreateDialog({
   useEffect(() => {
     onBusyChange?.(isCreating);
   }, [isCreating, onBusyChange]);
+
+  // 作成中にダイアログがアンマウントされても、呼び出し側の busy が true のまま残らないようにする。
+  // cleanup は最新の onBusyChange を使いたいので ref 経由で呼ぶ。
+  const onBusyChangeRef = useRef(onBusyChange);
+  useEffect(() => {
+    onBusyChangeRef.current = onBusyChange;
+  }, [onBusyChange]);
+  useEffect(() => {
+    return () => onBusyChangeRef.current?.(false);
+  }, []);
 
   const validation = validateSanpoMapName(name);
   const nameError = validation.ok ? null : sanpoMapNameErrorMessage(validation.reason);
