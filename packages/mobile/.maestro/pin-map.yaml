@@ -1,12 +1,13 @@
 # ピンタブ（SS-146）: サインイン → 地図が出る → 登録済みピンの取得が落ち着く（エラーにならない）
-# → ボタン配置エリアの「地図一覧」→ 地図一覧（SS-121 までは暫定画面）→ 戻るとピンタブ。
+# → ボタン配置エリアの「地図一覧」→ 地図一覧（SS-121）→ 戻るとピンタブ。
 # 後半はナビタブ（idle）の旧導線（/pins/map・/pins/pick-location）の表示確認。
 # ナビタブの導線を削除する別課題で、後半の節ごと削除する。
 #
 # 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
 # assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-004 / ADR-012 D14）。
-# ピン詳細は E2E しない（マーカーのタップは Google Maps の描画面で testID が安定して取れず、ピン ID も
-# フローから知る手段が無いため。詳細の状態判定は pinDetailState.test.ts が担う）。
+# マーカーのタップ → ピン詳細は E2E しない（Google Maps の描画面で testID が安定して取れないため。
+# 詳細の状態判定は pinDetailState.test.ts が担う）。ピン詳細への遷移は sanpo-map-list.yaml
+# （地図詳細のピン一覧から。SS-121）で確かめる。
 appId: com.sanposcape.app.dev
 tags:
   - pin
