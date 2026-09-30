@@ -9,7 +9,7 @@ metadata:
 
 ## CI の実行モデル（検証済み）
 
-- `.github/workflows/mobile-e2e.yml` は `maestro test packages/mobile/.maestro/` で**ディレクトリ全体**を実行する。トリガは nightly / 手動 / ネイティブ影響パスへの push のみ（`.maestro/**` は**トリガに入っていない**）。
+- `.github/workflows/mobile-e2e.yml` は `maestro test packages/mobile/.maestro/` で**ディレクトリ全体**を実行する。トリガは **`workflow_dispatch` と週次 schedule（土曜 08:00 JST）だけ**（2026-09-30 に workflow 本体で確認。push トリガは ADR-004 の 2026-08-14 追補で廃止）。`docs/local-env.md` の「3系統（nightly / 手動 / push）」は古い記述なので信じない。E2E を変えるプランには「マージ前に手動実行」と書く。
 - **Maestro はワークスペース直下の yaml だけを自動実行する**（`flows` の既定は `*`。サブディレクトリは対象外）。→ `.maestro/subflows/` に置いたファイルは `runFlow` からしか実行されない＝共通手順の切り出し先として安全。
 - フローヘッダの `tags:` と CLI の `--include-tags` / `--exclude-tags` で実行対象を絞れる（CLI は config.yaml より優先）。`.maestro/config.yaml` は書かなくてよい（`flows` の glob を書き損ねると「1本も実行されないのに緑」になる）。
 - `assertVisible` の待ちは短い。通信・画面遷移をまたぐ箇所は `extendedWaitUntil`（`visible` / `notVisible` + `timeout`）を使う。
