@@ -108,7 +108,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
   で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / mobile ADR-012 D7）。
   閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
-  （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError` が
+  （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError`（地図詳細の `useSanpoMapPins.handlePhotoLoadError` も同じ規則）が
   URL の失効とみなし、取得から60秒以上経っていれば詳細を取り直す（`shouldRefreshPhotoUrls`）。
   サインアウト時は `src/lib/imageCacheCleanup.ts`（`app/_layout.tsx` から副作用 import）の
   `registerSessionCleanup` で expo-image のメモリ・ディスクキャッシュを消す。写真を表示する
