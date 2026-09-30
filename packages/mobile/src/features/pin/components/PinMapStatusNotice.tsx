@@ -17,8 +17,8 @@ export type PinMapStatusNoticeProps = {
 };
 
 /**
- * PinMapStatusNotice — 登録済みピンの取得状態の案内（SS-146 で `PinMapView` から切り出し）。
- * `/pins/map` の下部カードとピンタブの情報カードで共有する。
+ * PinMapStatusNotice — 登録済みピンの取得状態の案内（SS-146 で `PinMapView` から切り出し。
+ * `/pins/map` は SS-147 で削除）。ピンタブの情報カードで使う。
  */
 export function PinMapStatusNotice({
   notice,

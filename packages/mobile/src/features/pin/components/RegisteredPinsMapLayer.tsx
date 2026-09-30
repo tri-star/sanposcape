@@ -20,8 +20,8 @@ export type RegisteredPinsMapLayerProps = {
  * query でもキャッシュ済みのピンは返るため、`enabled` を渡して隠す方式にはしない）。
  *
  * 取得失敗・打ち切りは表示しない（散歩中の画面は下部カードで埋まっており、ピンは付加情報の
- * ため静かに劣化させる。案内が要る画面は `/pins/map`（`PinMapView`）とピンタブ（`PinTabView`）で出す。
- * どちらもこの包みではなく `useRegisteredPins` + `RegisteredPinMarkers` を直接使う）。
+ * ため静かに劣化させる。案内が要る画面はピンタブ（`PinTabView`）で出す。
+ * ピンタブはこの包みではなく `useRegisteredPins` + `RegisteredPinMarkers` を直接使う）。
  */
 export function RegisteredPinsMapLayer({
   visibleRegion,

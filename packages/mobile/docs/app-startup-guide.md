@@ -262,6 +262,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 - **SS-19 以降、散歩サマリ画面（`/walk-summary`）の保存確定は backend の `POST /walks` に依存する**。
   サマリ自体の表示はローカルのドラフト（`useFinishedWalkStore`）だけで完結するため backend 未起動でも
   開けるが、保存は失敗し `WalkSaveStatus` に再試行導線が出る。
+- **SS-147 以降、ナビタブ（散歩していないとき・サインイン済み）の「最近の散歩」も `GET /walks` に依存する**（ゲストには出さないので通信しない）。
 - **SS-20 以降、アカウントタブ（記録）の「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）は
   backend の `GET /walks` / `GET /walks/{walk_id}` に依存する**ため、静的スタブでの確認はできない。
   backend 未起動、または未認証（401）の場合はエラー文言 + 再試行導線（一覧・詳細とも）になる。

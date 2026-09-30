@@ -1,4 +1,4 @@
-# MVP 主要フロー: 認証 → スポット探索 → 散歩開始 → 散歩終了・保存 → 履歴確認（タブ/一覧/詳細）。
+# MVP 主要フロー: 認証 → スポット探索 → 散歩開始 → 散歩終了・保存 → 履歴確認（ナビタブの最近の散歩/タブ/一覧/詳細）。
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）
@@ -23,6 +23,12 @@ tags:
     visible:
       id: "walk-active-route-legend"
     timeout: 10000
+
+# 散歩中はナビタブの idle 表示（カード・最近の散歩）を出さない（SS-147）
+- assertNotVisible:
+    id: "walk-active-idle"
+- assertNotVisible:
+    id: "walk-active-recent-walks"
 
 # --- 散歩中 ---
 # 経過時間が進むまで待つ。アニメーションの有無ではなく、保存に必要な started_at / ended_at の
@@ -86,6 +92,47 @@ tags:
     visible:
       id: "walk-active-idle"
     timeout: 10000
+
+# --- ナビタブ（idle）の「最近の散歩」→ 詳細 / 一覧（SS-147）---
+- extendedWaitUntil:
+    notVisible:
+      id: "walk-active-recent-walks-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "walk-active-recent-walks-error"
+# 先頭のカードから詳細が開くこと（遷移確認）。直前に保存した散歩が先頭に出るかは、
+# 一覧がキャッシュ済みで確実に待てないためここでは検証しない。
+- scrollUntilVisible:
+    element:
+      id: "walk-active-recent-walks-item-0"
+- tapOn:
+    id: "walk-active-recent-walks-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "walk-detail-screen"
+    timeout: 15000
+- tapOn:
+    id: "walk-detail-back"
+# idle でのみ存在する「最近の散歩」で戻りを確かめる（root の walk-active-screen は散歩中と共通で弱い）。
+# ScrollView の位置が残ってセクションが画面外の場合があるので scrollUntilVisible で探す。
+- scrollUntilVisible:
+    element:
+      id: "walk-active-recent-walks"
+- scrollUntilVisible:
+    element:
+      id: "walk-active-recent-walks-see-all"
+- tapOn:
+    id: "walk-active-recent-walks-see-all"
+- extendedWaitUntil:
+    visible:
+      id: "walk-history-screen"
+    timeout: 15000
+- tapOn:
+    id: "walk-history-back"
+# 戻り先が idle であることを idle 固有の「最近の散歩」で確かめる（位置が残るので scrollUntilVisible）
+- scrollUntilVisible:
+    element:
+      id: "walk-active-recent-walks"
 - tapOn:
     id: "app-tab-account"
 - assertVisible:

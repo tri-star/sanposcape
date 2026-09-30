@@ -45,8 +45,6 @@ const PIN_TAB_HINT =
  * - 長押しは `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
  *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
  * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
- * - 取得状態の組み立て（`useRegisteredPins` → `resolvePinMapNotice`）は `PinMapView` と重複している。
- *   `/pins/map` を削除する別課題（ナビタブからの導線削除）で解消する前提のため、共通化しない。
  * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  */
 export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
