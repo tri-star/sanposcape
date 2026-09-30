@@ -18,6 +18,7 @@ import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapCreateDialog } from "@/features/pin/components/SanpoMapCreateDialog";
 import { SanpoMapListItem } from "@/features/pin/components/SanpoMapListItem";
+import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
 import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
@@ -41,9 +42,6 @@ export type SanpoMapListViewProps = {
 /** `renderBody()` の戻り値。中央寄せするかどうかの判断をここ1箇所に閉じる（`PinDetailView` と同じ形）。 */
 type SanpoMapListBody = { content: ReactNode; centered: boolean };
 
-/** FAB（IconButton size="lg"）の高さ。最後の行が FAB に隠れないよう下余白に足す。 */
-const FAB_SIZE = 54;
-
 /**
  * SanpoMapListView — 地図一覧（`/sanpo-maps`）の実体（SS-121。SS-146 の暫定画面を本実装に差し替え）。
  * 自分の地図を並べ、名前で即時に絞り込み（端末で行う。mobile ADR-014 D1）、FAB から地図を作成し、
@@ -61,18 +59,25 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
   const router = useRouter();
   const toast = useToast();
   const maps = useSanpoMaps({ enabled: isSignedIn });
+  // FAB は IconButton size="lg"（実寸 54 = theme.control.lg）。
+  const fabSize = theme.control.lg;
 
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   // 開くたびに +1 してダイアログを作り直す（入力値・作成エラーを空に戻す）。
   const [createDialogKey, setCreateDialogKey] = useState(0);
+  // 作成中（ダイアログから通知される）。作成中はバックキーでも閉じない。
+  const [createBusy, setCreateBusy] = useState(false);
+  const pull = usePullToRefresh(maps.refresh);
 
   const back = useScreenBack({
     fallbackHref: "/(tabs)/pins",
     onIntercept: () => {
       if (!createOpen) return false;
-      // 作成中の閉じる操作はダイアログ側が止める。ここは Android のバックを受ける一本化のため。
-      setCreateOpen(false);
+      // 作成中はダイアログを閉じず、バック操作だけ消費する（画面も戻らない）。
+      // Android では Modal の onRequestClose（作成中は Dialog が止める）が先に受けるので、
+      // ここは useScreenBack 経由のバックを受ける一本化のため。
+      if (!createBusy) setCreateOpen(false);
       return true;
     },
   });
@@ -118,6 +123,12 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
       />
     ),
     [handleOpenMap],
+  );
+
+  // 最後の行が FAB（IconButton size="lg"）に隠れないよう下余白に FAB の高さを足す。
+  const listContentStyle = useMemo(
+    () => [styles.listContent, { paddingBottom: insets.bottom + fabSize + theme.spacing[6] }],
+    [styles.listContent, insets.bottom, fabSize, theme.spacing],
   );
 
   const loadingBody = (): SanpoMapListBody => ({
@@ -210,15 +221,12 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
               keyboardDismissMode="on-drag"
               refreshControl={
                 <RefreshControl
-                  refreshing={maps.isRefetching}
-                  onRefresh={maps.retry}
+                  refreshing={pull.refreshing}
+                  onRefresh={pull.onRefresh}
                   tintColor={theme.colors.primary}
                 />
               }
-              contentContainerStyle={[
-                styles.listContent,
-                { paddingBottom: insets.bottom + FAB_SIZE + theme.spacing[6] },
-              ]}
+              contentContainerStyle={listContentStyle}
               showsVerticalScrollIndicator={false}
             />
           ),
@@ -281,13 +289,14 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
       <ToastOverlay
         message={toast.message}
         visible={toast.visible}
-        bottom={fabBottom + FAB_SIZE + theme.spacing[2]}
+        bottom={fabBottom + fabSize + theme.spacing[2]}
       />
       <SanpoMapCreateDialog
         key={createDialogKey}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={handleCreated}
+        onBusyChange={setCreateBusy}
       />
     </View>
   );

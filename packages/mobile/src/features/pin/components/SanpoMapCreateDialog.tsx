@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
@@ -15,6 +15,8 @@ export type SanpoMapCreateDialogProps = {
   onClose: () => void;
   /** 作成に成功した地図（キャッシュ反映は済んでいる）。閉じる操作は呼び出し側が行う。 */
   onCreated: (map: SanpoMap) => void;
+  /** 作成中かどうかの通知。呼び出し側がバックキー等の閉じる操作を止める判断に使う。 */
+  onBusyChange?: (busy: boolean) => void;
   /** testID の接頭辞。既定 "sanpo-map-create"。 */
   testIDPrefix?: string;
 };
@@ -32,11 +34,16 @@ export function SanpoMapCreateDialog({
   open,
   onClose,
   onCreated,
+  onBusyChange,
   testIDPrefix = "sanpo-map-create",
 }: SanpoMapCreateDialogProps) {
   const styles = useStyles();
   const [name, setName] = useState("");
   const { create, isCreating, errorCode, reset } = useSanpoMapCreate({ onCreated });
+
+  useEffect(() => {
+    onBusyChange?.(isCreating);
+  }, [isCreating, onBusyChange]);
 
   const validation = validateSanpoMapName(name);
   const nameError = validation.ok ? null : sanpoMapNameErrorMessage(validation.reason);

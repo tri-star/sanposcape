@@ -17,6 +17,7 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
+import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMapPins } from "@/features/pin/hooks/useSanpoMapPins";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
@@ -66,6 +67,11 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const maps = useSanpoMaps({ enabled: isSignedIn });
   const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn });
   const back = useScreenBack({ fallbackHref: "/sanpo-maps" });
+  const pull = usePullToRefresh(pins.refresh);
+  const listContentStyle = useMemo(
+    () => ({ paddingBottom: insets.bottom + theme.spacing[6] }),
+    [insets.bottom, theme.spacing],
+  );
 
   const map =
     sanpoMapId === null ? undefined : maps.maps.find((candidate) => candidate.id === sanpoMapId);
@@ -187,12 +193,12 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
               keyboardDismissMode="on-drag"
               refreshControl={
                 <RefreshControl
-                  refreshing={pins.isRefetching}
-                  onRefresh={pins.retry}
+                  refreshing={pull.refreshing}
+                  onRefresh={pull.onRefresh}
                   tintColor={theme.colors.primary}
                 />
               }
-              contentContainerStyle={{ paddingBottom: insets.bottom + theme.spacing[6] }}
+              contentContainerStyle={listContentStyle}
               showsVerticalScrollIndicator={false}
             />
           </>

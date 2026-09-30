@@ -3,7 +3,10 @@ import { Pressable, Text, View } from "react-native";
 
 import { Badge } from "@/components/ui/badge/Badge";
 import { Icon } from "@/components/ui/icon/Icon";
-import { formatSanpoMapPinCount } from "@/features/pin/lib/sanpoMapScreenState";
+import {
+  formatSanpoMapPinCount,
+  sanpoMapRowAccessibilityLabel,
+} from "@/features/pin/lib/sanpoMapScreenState";
 import type { SanpoMap } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -24,7 +27,8 @@ function SanpoMapListItemBase({ map, onPress, testID }: SanpoMapListItemProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`地図「${map.name}」を開く`}
+      accessibilityLabel={sanpoMapRowAccessibilityLabel(map)}
+      accessibilityHint="地図の詳細を開きます"
       onPress={() => onPress(map.id)}
       style={({ pressed }) => [
         styles.row,

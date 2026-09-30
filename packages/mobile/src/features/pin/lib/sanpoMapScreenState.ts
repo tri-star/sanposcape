@@ -118,3 +118,36 @@ export function summarizePinTags(
 export function sanpoMapNoMatchTitle(query: string): string {
   return `「${query.trim()}」に一致する地図がありません`;
 }
+
+/**
+ * 地図一覧の行の読み上げ。行全体を1つのボタンにするので、子の Text（件数・バッジ）が読まれない分を
+ * ここに合成する。「地図「桜」、ピン 3件、既定の地図」。
+ */
+export function sanpoMapRowAccessibilityLabel(map: {
+  name: string;
+  pinCount: number | null;
+  isDefault: boolean;
+  role: string;
+}): string {
+  const parts = [`地図「${map.name}」`];
+  const pinCountLabel = formatSanpoMapPinCount(map.pinCount);
+  if (pinCountLabel !== null) parts.push(pinCountLabel);
+  if (map.isDefault) parts.push("既定の地図");
+  if (map.role === "editor") parts.push("招待された地図");
+  return parts.join("、");
+}
+
+/** 地図詳細のピン行の読み上げ。名前・日時・タグ（表示と同じ先頭3件＋残り件数）を合成する。 */
+export function pinRowAccessibilityLabel(input: {
+  displayName: string;
+  createdAtLabel: string | null;
+  tags: readonly { label: string }[];
+}): string {
+  const parts = [input.displayName];
+  if (input.createdAtLabel !== null) parts.push(input.createdAtLabel);
+  const { visible, hiddenCount } = summarizePinTags(input.tags);
+  if (visible.length > 0) {
+    parts.push(`タグ ${visible.join("、")}${hiddenCount > 0 ? `、ほか${hiddenCount}件` : ""}`);
+  }
+  return parts.join("、");
+}

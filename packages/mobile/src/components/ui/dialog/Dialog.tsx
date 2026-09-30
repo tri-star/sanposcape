@@ -17,7 +17,7 @@ export type DialogProps = {
 };
 
 /**
- * Dialog — 中央に出る確認モーダル（例:「散歩を終了しますか？」）。
+ * Dialog — 中央に出るモーダル。確認（例:「散歩を終了しますか？」）のほか、入力欄を載せる用途（地図の作成など）にも使う。
  * デザイン: Sanpo Design System / components/overlays/Dialog
  */
 export function Dialog({

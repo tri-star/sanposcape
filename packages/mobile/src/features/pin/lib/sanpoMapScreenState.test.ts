@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   formatPinResultHeading,
   formatSanpoMapPinCount,
+  pinRowAccessibilityLabel,
   resolveSanpoMapDetailBodyState,
   resolveSanpoMapListBodyState,
   resolveSanpoMapPinCount,
   resolveSanpoMapPinSectionState,
   sanpoMapNoMatchTitle,
+  sanpoMapRowAccessibilityLabel,
   summarizePinTags,
 } from "@/features/pin/lib/sanpoMapScreenState";
 
@@ -197,5 +199,34 @@ describe("summarizePinTags", () => {
 describe("sanpoMapNoMatchTitle", () => {
   it("trim した検索語を出す", () => {
     expect(sanpoMapNoMatchTitle("  パン ")).toBe("「パン」に一致する地図がありません");
+  });
+});
+
+describe("sanpoMapRowAccessibilityLabel", () => {
+  const base = { name: "桜", pinCount: 3, isDefault: false, role: "owner" };
+
+  it("名前とピン件数を読み上げる", () => {
+    expect(sanpoMapRowAccessibilityLabel(base)).toBe("地図「桜」、ピン 3件");
+  });
+
+  it("既定・招待のバッジも合成し、件数が null なら件数は含めない", () => {
+    expect(
+      sanpoMapRowAccessibilityLabel({ ...base, pinCount: null, isDefault: true, role: "editor" }),
+    ).toBe("地図「桜」、既定の地図、招待された地図");
+  });
+});
+
+describe("pinRowAccessibilityLabel", () => {
+  it("名前・日時・タグを合成する（タグは先頭3件＋残り件数）", () => {
+    const tags = ["a", "b", "c", "d"].map((label) => ({ label }));
+    expect(
+      pinRowAccessibilityLabel({ displayName: "カフェ", createdAtLabel: "2026/09/01", tags }),
+    ).toBe("カフェ、2026/09/01、タグ a、b、c、ほか1件");
+  });
+
+  it("日時もタグも無ければ名前だけ", () => {
+    expect(
+      pinRowAccessibilityLabel({ displayName: "カフェ", createdAtLabel: null, tags: [] }),
+    ).toBe("カフェ");
   });
 });

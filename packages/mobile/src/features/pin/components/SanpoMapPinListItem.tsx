@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { Tag } from "@/components/ui/tag/Tag";
 import { PinPhotoImage } from "@/features/pin/components/PinPhotoImage";
 import { formatPinCreatedAt, pinDisplayName } from "@/features/pin/lib/pinDetailState";
-import { summarizePinTags } from "@/features/pin/lib/sanpoMapScreenState";
+import { pinRowAccessibilityLabel, summarizePinTags } from "@/features/pin/lib/sanpoMapScreenState";
 import type { PinListEntry } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -31,7 +31,12 @@ function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMa
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${displayName}の詳細を開く`}
+      accessibilityLabel={pinRowAccessibilityLabel({
+        displayName,
+        createdAtLabel,
+        tags: pin.tags,
+      })}
+      accessibilityHint="ピンの詳細を開きます"
       onPress={() => onPress(pin.id)}
       style={({ pressed }) => [
         styles.row,
@@ -114,7 +119,7 @@ const useStyles = makeStyles((theme) => ({
   },
   tag: {
     // 行に並べるので Tag の既定より小さくする。
-    paddingVertical: 2,
+    paddingVertical: theme.spacing[1],
     paddingHorizontal: theme.spacing[2],
   },
   tags: {
