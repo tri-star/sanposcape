@@ -44,7 +44,7 @@ export function useAppConfig(): AppConfigSnapshot {
 
 /**
  * 診断表示専用。`config_source`（値の出どころ）は ADR-008 追補 D1 により
- * **プロダクトの分岐に使ってはいけない**。`__DEV__` の画面（`/dev-screens`）だけが呼ぶこと。
+ * **プロダクトの分岐に使ってはいけない**。開発ツールの画面（`/dev-screens`。本番ビルドでは開けない）だけが呼ぶこと。
  * 通常のプロダクトコードは `useAppConfig()` を使う（`AppConfigSnapshot` には
  * `config_source` が存在しないので、型の上で誤用できない）。
  */

@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<AppConfigStatus, string> = {
 };
 
 /**
- * `/app-config` の取得状態を目視確認するための開発確認用カード（`__DEV__` 限定の `/dev-screens`
+ * `/app-config` の取得状態を目視確認するための開発確認用カード（開発ツールが有効なビルド（`isDevToolsEnabled()`）限定の `/dev-screens`
  * からのみ到達する `ScreenCatalog` に差し込む）。
  *
  * RN のレンダリングテストが書けない制約の代替として、リポジトリが採っている

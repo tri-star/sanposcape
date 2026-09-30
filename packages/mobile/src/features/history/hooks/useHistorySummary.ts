@@ -23,6 +23,11 @@ const GC_TIME_MS = 5 * 60_000;
 export type UseHistorySummaryInput = {
   /** サインイン中ユーザーの表示名。未サインイン/復元中は null。ルート（app/(tabs)/account.tsx）から渡す。 */
   displayName: string | null;
+  /**
+   * サインイン中だけ true。ゲストは `GET /walks/stats` が必ず 401 になるので呼ばない。
+   * ルート（app/(tabs)/account.tsx）が `useAuthSessionStore` から注入する。
+   */
+  enabled: boolean;
 };
 
 export type UseHistorySummaryResult = {
@@ -61,6 +66,7 @@ export type UseHistorySummaryResult = {
  */
 export function useHistorySummary({
   displayName,
+  enabled,
 }: UseHistorySummaryInput): UseHistorySummaryResult {
   const [period, setPeriod] = useState<Period>("week");
   const queryClient = useQueryClient();
@@ -72,6 +78,7 @@ export function useHistorySummary({
     staleTime: STALE_TIME_MS,
     gcTime: GC_TIME_MS,
     retry: false,
+    enabled,
   });
 
   const chart = useMemo(() => {

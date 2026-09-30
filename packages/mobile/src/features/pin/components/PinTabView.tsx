@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { TabActionBar } from "@/components/layout/TabActionBar";
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
@@ -11,7 +12,6 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
 import { PinMapStatusNotice } from "@/features/pin/components/PinMapStatusNotice";
-import { PinTabActionBar } from "@/features/pin/components/PinTabActionBar";
 import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
@@ -36,7 +36,7 @@ const PIN_TAB_HINT =
 
 /**
  * PinTabView — ピンタブの実体（SS-146）。現在地起点の地図 + 登録済みピン + 長押しで登録 +
- * 状態表示 + ボタン配置エリア（`PinTabActionBar`）。
+ * 状態表示 + ボタン配置エリア（`TabActionBar`）。
  *
  * - 地図の設定は `PinMapCanvas` に集約（`PinMapFullScreen` と共有）。全画面の枠はタブ画面に合わない
  *   （戻るボタン必須・下部が `insets.bottom` 前提）ので使わない。
@@ -172,7 +172,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
         {/* 地図エリアの下端はボタン配置エリアの上。タブ画面なので insets.bottom は足さない。 */}
         <ToastOverlay message={toast.message} visible={toast.visible} bottom={theme.spacing[4]} />
       </View>
-      <PinTabActionBar testID="pin-tab-action-bar">
+      <TabActionBar testID="pin-tab-action-bar">
         <Button
           variant="secondary"
           size="sm"
@@ -182,7 +182,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
         >
           地図一覧
         </Button>
-      </PinTabActionBar>
+      </TabActionBar>
     </View>
   );
 }
