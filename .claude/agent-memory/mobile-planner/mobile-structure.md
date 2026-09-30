@@ -4,7 +4,7 @@ description: packages/mobile の確定した規約・既存UI資産・Expo Route
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-001-folder-structure.md
+  adr: packages/mobile/adr/ADR-M-001-folder-structure.md
 ---
 
 # packages/mobile の要点（plan作成の前提）

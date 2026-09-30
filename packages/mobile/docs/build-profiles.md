@@ -3,7 +3,7 @@
 `packages/mobile/eas.json` の各ビルドプロファイルが「どの backend を向くか」「どの環境変数を
 持つか」をまとめる。ローカル開発（Metro + `.env`）の手順は
 [ローカル環境構築手順](./local-env.md)、development build の考え方は
-[ADR-003](../adr/ADR-003-development-build-and-dev-loop.md) を参照。
+[ADR-M-003](../adr/ADR-M-003-development-build-and-dev-loop.md) を参照。
 
 > **配布 ≠ リリース。** 本ドキュメントが扱うのは「ビルドを作って端末に届ける」ところまでである。
 > 「利用者に機能を見せる」のはストアの公開とフィーチャーフラグの ON であり、別の操作として扱う
@@ -23,7 +23,7 @@
 この区別は Expo 公式の `eas.json` リファレンスが `env` について
 「git リポジトリにコミットする値のみに使い、パスワードや秘密情報には使わないこと」と
 定めているものに沿っている。Maps SDK キーの扱いは
-[ADR-007](../adr/ADR-007-expo-config-and-maps-key-injection.md) を参照。
+[ADR-M-007](../adr/ADR-M-007-expo-config-and-maps-key-injection.md) を参照。
 
 > **設定漏れはビルドでは落ちない。** `EXPO_PUBLIC_BACKEND_API_URL` が未設定でも
 > `src/config/env.ts` の `getApiBaseUrl()` が `http://localhost:8000` にフォールバックするため、
@@ -665,9 +665,9 @@ cleartext 許可が混入することはない。
 ## 関連
 
 - [ADR-002: 認証は Google 直結 + モバイル public client](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)（決定1）
-- [ADR-003: development build と開発ループ](../adr/ADR-003-development-build-and-dev-loop.md)
-- [ADR-004: E2E ビルド・CI 戦略](../adr/ADR-004-e2e-build-ci-strategy.md)
-- [ADR-007: Expo 設定と Maps キーの注入](../adr/ADR-007-expo-config-and-maps-key-injection.md)
+- [ADR-M-003: development build と開発ループ](../adr/ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](../adr/ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-007: Expo 設定と Maps キーの注入](../adr/ADR-M-007-expo-config-and-maps-key-injection.md)
 - [ADR-005: backend のサーバーレスデプロイ](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)（決定4 / 決定6）
 - [ADR-006: mobile アプリの配信は EAS に委ねる](../../../docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)（`channel` が対応する EAS Update の配信面）
 - [ADR-008: デプロイとリリースの分離](../../../docs/adr/ADR-008-deploy-release-separation.md)（決定3: ストアの手動リリース / 決定8: OTA は配信の手段であってリリースの手段ではない）

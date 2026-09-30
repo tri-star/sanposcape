@@ -3,7 +3,7 @@ name: marker-onselect-memo-and-retry-stale-closure
 description: SS-118のRegisteredPinMarkers/useRegisteredPinsで見つけた「React.memo無効化」と「useCallback stale closure」の2パターン
 metadata:
   type: project
-  adr: packages/mobile/adr/ADR-012-pin-map-display-and-detail.md
+  adr: packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md
   scope: durable
   source_issue: SS-118
 ---

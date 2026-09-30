@@ -38,7 +38,7 @@ M4（SS-15 / SS-16）で「スポット候補の提示 → 徒歩ルートの提
 
 散歩開始時に backend へレコードを作らない。`status` のような状態カラムも持たない。進行中の散歩は backend に存在しない。
 
-アプリ強制終了からの復帰は mobile 側のローカル永続化で扱う想定だが、**SS-19 ではスコープ外**とした。SS-19 は「終了時にメモリ上のドラフトを送る」までで、進行中の散歩・未送信ドラフトの永続化は行っていない（保存前にアプリが落ちれば記録は失われる）。恒久対応はフォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」で扱う（[mobile ADR-008](../../packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md) の決定5）。
+アプリ強制終了からの復帰は mobile 側のローカル永続化で扱う想定だが、**SS-19 ではスコープ外**とした。SS-19 は「終了時にメモリ上のドラフトを送る」までで、進行中の散歩・未送信ドラフトの永続化は行っていない（保存前にアプリが落ちれば記録は失われる）。恒久対応はフォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」で扱う（[mobile ADR-M-008](../../packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md) の決定5）。
 
 ### 2. 軌跡は JSONB の座標ペア配列で保存する
 
@@ -255,7 +255,7 @@ streak は非正規化カラムを持たず、`started_at` の JST 暦日から�
 
 - [ADR-001: 地図・POI は Google Maps Platform を使う](./ADR-001-map-poi-google-maps-platform.md) — 提示経路を永続化せず `place_id` から都度取得する方針の出典
 - [ADR-002: 認証は Google 直結 + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md) — `get_current_user` を single choke point とする方針、401 への正規化
-- [mobile ADR-008: 進行中の散歩の状態管理とルートキャッシュ](../../packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md) — SS-19 追補で「永続化しない」判断を維持した経緯（決定5）と、保存待ちドラフトの持ち方（決定4）
+- [mobile ADR-M-008: 進行中の散歩の状態管理とルートキャッシュ](../../packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md) — SS-19 追補で「永続化しない」判断を維持した経緯（決定5）と、保存待ちドラフトの持ち方（決定4）
 - `packages/backend/docs/folder-structure.md` — ドメイン単位の凝集 × `router → service → repository` の3層、`core/` への昇格ルール
 - `packages/backend/docs/naming-convention.md` — 「提示経路 = `walking_route`」「歩いた軌跡 = `track`」の使い分け
 - 実装: `packages/backend/src/sanposcape/walks/`、`core/geo.py`、`core/pagination.py`、`core/middleware.py`

@@ -4,7 +4,7 @@ description: SS-33（往路/復路が異なる周回ルート提示・SS-35再�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 SS-33（`packages/mobile/src/features/walk/` の周回ルート対応）をレビューし、Critical/Warning 無しの

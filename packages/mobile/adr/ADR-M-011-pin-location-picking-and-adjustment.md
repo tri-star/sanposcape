@@ -1,4 +1,4 @@
-# ADR-011: ピンの位置の選択と調整（散歩中以外・任意地点からの登録と、登録画面での位置の微調整）
+# ADR-M-011: ピンの位置の選択と調整（散歩中以外・任意地点からの登録と、登録画面での位置の微調整）
 
 ## 現在有効な決定（要約）
 
@@ -30,7 +30,7 @@
   `LocationPermissionNotice` を重ね、長押しでの選択はそのまま使える。ピンタブでも同じ。
   （本文: D5、SS-146 追補、SS-147 追補）
 - **ピンタブの現在地は、フォーカスが戻るたびに（初回を除き）静かに取り直す**（`useCurrentLocation().refresh()`）。
-  地図の視点は動かさない。詳細は [ADR-012](./ADR-012-pin-map-display-and-detail.md) の SS-146 追補。（本文: SS-146 追補の影響）
+  地図の視点は動かさない。詳細は [ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) の SS-146 追補。（本文: SS-146 追補の影響）
 - **ピンタブの離脱遷移（長押し・ピンのタップ・地図一覧・サインイン）の二重発火は `useNavigateOnce` で防ぐ**。
   タブのシステムバックの既定を奪うため `useScreenBack` は使わない。（本文: SS-146 追補の影響）
 - **`useCurrentLocation` / `LocationPermissionNotice` は `src/hooks/` / `src/components/location/` に置く**
@@ -356,9 +356,9 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
 - [ADR-008（ルート）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md)（D3 で流用した `pin_registration` フラグの仕組み）
-- [ADR-001（mobile）: フォルダ構造と命名規則](./ADR-001-folder-structure.md)（D12 の昇格ルール）
-- [ADR-006（mobile）: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
-- [ADR-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-010-photo-service-and-direct-s3-upload.md)
+- [ADR-M-001（mobile）: フォルダ構造と命名規則](./ADR-M-001-folder-structure.md)（D12 の昇格ルール）
+- [ADR-M-006（mobile）: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
+- [ADR-M-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ）
 - 元チケット: SS-88 / PR #93 / 関連: SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）

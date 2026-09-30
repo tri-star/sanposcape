@@ -4,7 +4,7 @@ description: Maestro/CI の実行モデルと、E2E フローを計画すると�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md
+  adr: packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md
 ---
 
 ## CI の実行モデル（検証済み）
@@ -33,7 +33,7 @@ ADR-004 により CI の preview APK には Maps SDK キーが無く（地図は
   「`*-loading` が消える」＋「`*-error` が出ない」の2段で “取得が成功して落ち着いた” ことだけを見る。空状態の文言は Vitest（純粋関数）の責務。
 - ゲスト導線の testID（`sign-in-guest-button` / `sign-up-guest-button`）は **SS-13 で削除 → SS-57 で復活**
   という経緯がある（SS-49/SS-56 で `/explore/*` が任意認証になったため）。**参照する前に現物の有無を確認する**。
-  経緯は [mobile ADR-009](../../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)。
+  経緯は [mobile ADR-M-009](../../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)。
 - `.maestro/auth-gate.yaml` は「未認証で walk-start へディープリンク → サインインへ弾かれる」を assert していた
   フロー。SS-57 でこの仕様自体が反転するので、認証ゲート関連の変更時は真っ先に確認する。
 

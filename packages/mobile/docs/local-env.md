@@ -53,7 +53,7 @@ pnpm --filter mobile orval
 ### 3. development build の作成（EAS）と起動
 
 方針: **EASで端末向けdevelopment buildを1回作り、以降はMetroのFast RefreshでExpo Go同等**の体験を得る。
-再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md)。
+再ビルドが必要なのは**ネイティブが変わるとき**（native依存の追加/削除・`app.json`のネイティブ設定・plugin・SDK更新）だけ。JS/スタイル/ロジックの変更は Fast Refresh で即反映される。詳細は [ADR-M-003](../adr/ADR-M-003-development-build-and-dev-loop.md)。
 
 > `development` 以外のプロファイル（E2E の `preview`、dev AWS 環境の `staging`、ストア配信の
 > `production`）がどの backend を向くか、`eas.json` に書かない値をどう供給するかは
@@ -173,7 +173,7 @@ pnpm --filter mobile orval          # API クライアント再生成
 - フローは `.maestro/` に置く（例: `.maestro/smoke.yaml`）。Maestro は既定でワークスペース直下の
   yaml だけを自動実行するため、`.maestro/subflows/` は `runFlow` からのみ呼ばれる共通手順の置き場
   になっている（単体では実行されない）。
-- E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)。
+- E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-M-004](../adr/ADR-M-004-e2e-build-ci-strategy.md)。
 - 実行には Android エミュレータ/実機 + preview APK が必要。
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。
   **CI は絞り込まず全フローを実行する**（SS-54）ため、タグはローカルでの部分実行用:
@@ -312,7 +312,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
 - `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で写真の取得・加工の実装を切り替える
   （`src/config/photoMode.ts`）。位置情報と同じく `dev` モードは無い（詳細は
-  [ADR-010](../adr/ADR-010-photo-service-and-direct-s3-upload.md)）。
+  [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）。
   - `real` = `expo-image-picker`（カメラ/写真ライブラリ）+ `expo-image-manipulator`（縮小・再圧縮）。
   - `mock` = 固定のダミー写真（`src/services/photo/photo.mock.ts`。vitest や、システムのカメラ/
     写真ピッカーを安定操作できない E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは

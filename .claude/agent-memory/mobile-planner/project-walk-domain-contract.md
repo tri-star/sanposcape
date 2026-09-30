@@ -4,7 +4,7 @@ description: How backend /walks maps onto mobile's active-walk state — the val
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散歩まわりのプランで毎回効く。

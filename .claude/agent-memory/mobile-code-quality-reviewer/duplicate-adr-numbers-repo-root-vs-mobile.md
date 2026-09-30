@@ -7,7 +7,7 @@ metadata:
 ---
 
 SS-100（`/app-config`フィーチャーフラグ）のレビューで、実装コード（`appConfigSnapshot.ts`等）の
-コメントに「ADR-008 決定9」とあったが、`packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md`
+コメントに「ADR-008 決定9」とあったが、`packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md`
 （mobile固有、内容は散歩中ルートの往路/復路判定禁止）を見ても該当する「決定9」が無く、一見コメントが
 古い/誤り参照に見えた。
 

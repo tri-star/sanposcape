@@ -4,7 +4,7 @@ description: SS-88 ピン登録機能（写真選択・EXIF除去・presigned PO
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md
+  adr: packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md
 ---
 
 SS-88（ピン登録: 写真つき）のmobile側は `src/features/pin/` + `src/services/photo/` に実装され、

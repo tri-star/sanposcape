@@ -27,7 +27,7 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - **Places / Routes のデータ API 呼び出しは backend 経由（キャッシュ/プロキシ層）で行い、クライアントから直接叩かない**。
   - mobile は backend の API を叩き、backend が Google Maps Platform を呼ぶ。
   - backend 側にキャッシュを差し込み、コスト・レート制限を制御する。
-- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-002](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)）。タイル／SDK 通信と mobile 用に制限した SDK key は mobile 側で管理し、Places / Routes 用 server key と混在させない（SS-15 で実装。`packages/mobile/app.config.ts` が `GOOGLE_MAPS_ANDROID_SDK_KEY` を注入し、backend の `GOOGLE_MAPS_SERVER_API_KEY` とは別キーにする。詳細は [mobile ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)）。
+- 地図の**描画**は mobile 側の `react-native-maps` で行う（[ADR-M-002](../../packages/mobile/adr/ADR-M-002-mobile-tech-stack.md)）。タイル／SDK 通信と mobile 用に制限した SDK key は mobile 側で管理し、Places / Routes 用 server key と混在させない（SS-15 で実装。`packages/mobile/app.config.ts` が `GOOGLE_MAPS_ANDROID_SDK_KEY` を注入し、backend の `GOOGLE_MAPS_SERVER_API_KEY` とは別キーにする。詳細は [mobile ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)）。
 - スポット/記録の位置データは MVP では緯度経度カラム + 単純検索とし、将来の地理検索に備え PostGIS 等への移行余地を残す。
 - （SS-43 追補）スポットの表示名は backend が Google Places Nearby Search に
   `languageCode: "ja"` と `regionCode: "JP"` を指定して日本語を優先する。日本語名が提供されない場合は、
@@ -101,6 +101,6 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 ## 関連情報
 
 - [プロジェクト概要](../project-overview.md)
-- [ADR-002: モバイル技術スタック](../../packages/mobile/adr/ADR-002-mobile-tech-stack.md)
+- [ADR-M-002: モバイル技術スタック](../../packages/mobile/adr/ADR-M-002-mobile-tech-stack.md)
 - backend フォルダ構造（`integrations/` 隔離層）: [folder-structure](../../packages/backend/docs/folder-structure.md)
 - [ADR-007: 周回ルート（往路と異なる道で戻る）の生成方式](./ADR-007-loop-route-generation.md)（SS-33）

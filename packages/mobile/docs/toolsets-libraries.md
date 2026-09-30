@@ -4,17 +4,17 @@
 - パッケージ管理: pnpm（`minimumReleaseAge` を設定し、公開から2日以上経過したバージョンのみ利用）
 - フレームワーク: ReactNative(expo)
 - ルーティング: Expo Router（ファイルベース）
-- スタイル: React Native 標準の `StyleSheet` + テーマ Context（`src/theme`。トークンは Claude Design から取り込み、ライト/ダークを切り替える。詳細は [ADR-005](../adr/ADR-005-styling-without-unistyles.md)）
+- スタイル: React Native 標準の `StyleSheet` + テーマ Context（`src/theme`。トークンは Claude Design から取り込み、ライト/ダークを切り替える。詳細は [ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）
 - アイコン: lucide-react-native（描画に react-native-svg を利用）
 - 状態管理:
   - サーバー状態: TanStack Query（Orval生成物と組み合わせる）
   - クライアント状態: Zustand（少量のグローバル状態）
 - 地図: react-native-maps（Android=Google Maps / iOS=Apple Maps）
-- 位置情報: expo-location（現在地取得。`src/services/location` で real/mock を切り替える。詳細は [ADR-006](../adr/ADR-006-location-service-real-mock.md)）
+- 位置情報: expo-location（現在地取得。`src/services/location` で real/mock を切り替える。詳細は [ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)）
 - 写真: expo-image-picker（カメラ/ライブラリ） + expo-image-manipulator（縮小・JPEG 再圧縮） +
   expo-file-system（加工後ファイルのバイト数取得）。`src/services/photo` で real/mock を切り替える。
   画像表示は expo-image。アップロードは presigned POST で S3 直送（`src/features/pin/api/`）。
-  詳細は [ADR-010](../adr/ADR-010-photo-service-and-direct-s3-upload.md)
+  詳細は [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
 - スライダー: @react-native-community/slider（往復時間の指定UI）
 - 認証: react-native-nitro-google-signin（Google サインイン。[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token の永続化）
 - APIクライアント生成: Orval（backendのOpenAPIから生成）+ MSWモック（HTTPクライアントは fetch/customFetch）
@@ -32,7 +32,7 @@
 2026-08-14 追補で「ネイティブモジュールが増えると `@expo/fingerprint` が変化し E2E APK
 キャッシュを1回ミスさせる」という当初の前提を撤回済みで、現在のキャッシュキーは
 `packages/mobile` のソース全体ハッシュ（`.maestro/` / `docs/` / `adr/` を除く）に変わっている
-（[ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。そのため依存追加時の
+（[ADR-M-004](../adr/ADR-M-004-e2e-build-ci-strategy.md)）。そのため依存追加時の
 APK キャッシュミスは論点にならない。用途が小さく、暗号強度や外部仕様への追従が
 不要なもの、または既存実装の置き換えコストに見合わないものは自前実装に倒している。
 

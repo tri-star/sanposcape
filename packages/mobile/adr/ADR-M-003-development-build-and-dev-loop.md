@@ -1,4 +1,4 @@
-# ADR-003: モバイルは development build を前提とし、Fast Refresh で開発する
+# ADR-M-003: モバイルは development build を前提とし、Fast Refresh で開発する
 
 ## 日付
 
@@ -9,7 +9,7 @@
 当初、mobile の動作確認は **Expo Go** で行う想定だった（`expo start` → Expo Go アプリで確認）。しかし技術スタック確定後、次が判明した。
 
 - **Unistyles v3** は Nitro（ネイティブ C++/JSI）に依存し、**Expo Go では動作しない**。
-  （※ Unistyles は後に [ADR-005](./ADR-005-styling-without-unistyles.md) で撤去したが、`react-native-maps` と
+  （※ Unistyles は後に [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で撤去したが、`react-native-maps` と
   アイコン描画の `react-native-svg` がネイティブモジュールのため、**本 ADR の結論は変わらない**。）
 - **react-native-maps** もネイティブモジュールで、**Expo Go では動作しない**。
 
@@ -36,7 +36,7 @@
     `expo start --dev-client --host lan`を使う。WSL2のmirrored networkingを使うPCでは、
     Hyper-VファイアウォールでMetro用ポートをローカルサブネットから許可する。
     LAN経路を利用できない場合のみTunnelへフォールバックする。
-- エントリは `index.ts`（Unistyles 撤去後は起動前処理の差し込み口として残している。[ADR-005](./ADR-005-styling-without-unistyles.md)）。
+- エントリは `index.ts`（Unistyles 撤去後は起動前処理の差し込み口として残している。[ADR-M-005](./ADR-M-005-styling-without-unistyles.md)）。
 
 ## 検討した選択肢
 
@@ -51,7 +51,7 @@
 
 - **概要**: Unistyles をやめ StyleSheet 等に、地図も Expo Go 対応手段に変更。
 - **メリット**: Expo Go の手軽さを維持。
-- **デメリット**: そもそも **react-native-maps が必須のためこの案では中核が成立しない**。長期の技術選定（[ADR-002](./ADR-002-mobile-tech-stack.md)）を曲げることになる。
+- **デメリット**: そもそも **react-native-maps が必須のためこの案では中核が成立しない**。長期の技術選定（[ADR-M-002](./ADR-M-002-mobile-tech-stack.md)）を曲げることになる。
 
 ### 選択肢3: 毎回フルビルドして実機確認（HMRなし）
 
@@ -70,7 +70,7 @@
 
 ### ポジティブな影響
 
-- react-native-maps などのネイティブ機能が動作し、[ADR-002](./ADR-002-mobile-tech-stack.md) の技術選定を活かせる。Unistyles は [ADR-005](./ADR-005-styling-without-unistyles.md) で撤去済み。
+- react-native-maps などのネイティブ機能が動作し、[ADR-M-002](./ADR-M-002-mobile-tech-stack.md) の技術選定を活かせる。Unistyles は [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で撤去済み。
 - 日常の開発ループは Fast Refresh で Expo Go 同等。
 - dev build はチームで使い回せる（各自インストールするだけ）。
 
@@ -91,7 +91,7 @@
 - ~~iOSのBundle Identifierは`com.sanposcape.app`とし~~、**（SS-79 追補: `com.sanposcape.app.dev`
   に変更）**、EASでApple Distribution Certificateと
   Ad Hoc Provisioning Profileを管理する。
-- E2E は development build ではなく standalone な preview ビルドを使う（[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）。
+- E2E は development build ではなく standalone な preview ビルドを使う（[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md)）。
 
 ## SS-79 追補: development build を含む開発用ビルドの識別子を本番から分割する
 
@@ -115,8 +115,8 @@ TestFlight ビルドのやり直しとテスターの再インストールが発
 
 ## 関連情報
 
-- [ADR-002: モバイル技術スタック](./ADR-002-mobile-tech-stack.md)
-- [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
-- [ADR-005: スタイルは Unistyles をやめる](./ADR-005-styling-without-unistyles.md)
+- [ADR-M-002: モバイル技術スタック](./ADR-M-002-mobile-tech-stack.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-005: スタイルは Unistyles をやめる](./ADR-M-005-styling-without-unistyles.md)
 - [mobile ローカル環境構築手順](../docs/local-env.md)
 - [iPhone実機 development build 手順](../docs/iphone-device-development.md)

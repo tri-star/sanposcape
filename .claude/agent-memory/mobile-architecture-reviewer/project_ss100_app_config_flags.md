@@ -11,7 +11,7 @@ metadata:
 SS-100（mobile が `/app-config` からフィーチャーフラグを取得して機能表示をガードする）を
 アーキテクチャレビュー（2026-09-20）。Critical/High 無し。決定事項そのものは
 `docs/adr/ADR-008-deploy-release-separation.md`（D11〜D18 追補）と
-`packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md`（SS-100 追補）に記録済み。
+`packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md`（SS-100 追補）に記録済み。
 このメモリは次に同種の差分（フラグ追加・`src/api/` への新規ラッパ追加・横断機能の配置判断）を
 レビューするときに確認すべきことを残す。
 

@@ -1,4 +1,4 @@
-# ADR-012: 登録済みピンの地図表示とピン詳細画面
+# ADR-M-012: 登録済みピンの地図表示とピン詳細画面
 
 ## 現在有効な決定（要約）
 
@@ -30,14 +30,14 @@
   （本文: D6）
 - **画像キャッシュは `photo.id` ベースの `cacheKey`（`memory-disk`）とし、サインアウト時の消去は
   `src/lib/imageCacheCleanup.ts` で登録する**。presigned URL は画像の読み込み失敗を契機に取り直す（60秒未満は取り直さない）。
-  地図詳細のピン一覧のサムネイルも同じ規則（[ADR-014](./ADR-014-sanpo-map-list-and-detail.md) D7）。（本文: D7、SS-121 追補）
+  地図詳細のピン一覧のサムネイルも同じ規則（[ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md) D7）。（本文: D7、SS-121 追補）
 - **原本ビューアは RN `Modal` を使わない画面内オーバーレイで、前後はボタンでのみ移動する**。（本文: D8）
 - **ゲストはピンタブ・ピン詳細を開けるが通信せず、サインイン案内を出す**。散歩中の地図のピンレイヤーもゲストでは
   通信しない。地図一覧 `/sanpo-maps`・地図詳細 `/sanpo-maps/[sanpoMapId]` も同じ。（本文: D9、SS-146 追補、SS-147 追補、SS-121 追補）
 - **フラグは既存の `pin_registration` を流用し、`/pins/[pinId]` は OFF 確定時に `/(tabs)` へ Redirect する**。
   （本文: D10、SS-147 追補）
 - **ピンタブの地図の下に `PinTabActionBar`（children スロット・右寄せ）を置き、「地図一覧」ボタンで `/sanpo-maps`
-  へ遷移する**。`/sanpo-maps` は SS-121 で本実装した（[ADR-014](./ADR-014-sanpo-map-list-and-detail.md)）。testID
+  へ遷移する**。`/sanpo-maps` は SS-121 で本実装した（[ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md)）。testID
   `sanpo-map-list-screen` / `sanpo-map-list-back` は維持。（本文: SS-146 追補、SS-121 追補）
 - **ピンタブの現在地はフォーカスが戻るたびに（初回を除き）静かに取り直す**（権限をリクエストしない・失敗しても前回値を保持・
   30 秒以内はスキップ・視点は動かさない）。（本文: SS-146 追補の影響）
@@ -322,7 +322,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 ## SS-121 追補: 地図一覧・地図詳細（2026-09-30）
 
-地図一覧（`/sanpo-maps`）の本実装と地図詳細（`/sanpo-maps/[sanpoMapId]`）の新設は [ADR-014](./ADR-014-sanpo-map-list-and-detail.md) に記録した。本 ADR への影響は次のとおり。
+地図一覧（`/sanpo-maps`）の本実装と地図詳細（`/sanpo-maps/[sanpoMapId]`）の新設は [ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md) に記録した。本 ADR への影響は次のとおり。
 
 - SS-146 追補の「`/sanpo-maps` の認証ガード（または未サインイン案内）と API 側の認可を入れる」は決着した。ゲストには未サインイン案内を出して通信せず（D9 と同じ）、API は member の地図だけを返す。
 - SS-146 追補の「SS-121 が同じルート・testID のまま本実装に差し替える」は、そのとおり差し替えた。
@@ -333,9 +333,9 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 ## 関連情報
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定15・持ち越し事項の決着）
-- [ADR-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-010-photo-service-and-direct-s3-upload.md)（決定8）
-- [ADR-011（mobile）: ピンの位置の選択と調整](./ADR-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
+- [ADR-M-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)（決定8）
+- [ADR-M-011（mobile）: ピンの位置の選択と調整](./ADR-M-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール・feature 間の render slot 合成）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ・写真の扱い）
-- [ADR-014（mobile）: 地図一覧と地図詳細](./ADR-014-sanpo-map-list-and-detail.md)（SS-121 追補）
+- [ADR-M-014（mobile）: 地図一覧と地図詳細](./ADR-M-014-sanpo-map-list-and-detail.md)（SS-121 追補）
 - 元チケット: SS-118 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）・SS-121

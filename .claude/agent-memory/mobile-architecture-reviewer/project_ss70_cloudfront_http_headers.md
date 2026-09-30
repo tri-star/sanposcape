@@ -47,7 +47,7 @@ Vitest 側は `vitest.config.ts` の `resolve.alias` に `expo-crypto` を追加
 
 ## ADR参照時の曖昧さに注意
 
-mobile には `packages/mobile/adr/ADR-005-styling-without-unistyles.md`（スタイル）と
+mobile には `packages/mobile/adr/ADR-M-005-styling-without-unistyles.md`（スタイル）と
 リポジトリルートの `docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md`
 （CloudFront/SigV4）という**同じ番号のADRが2種類**存在する。mobile のコード中で
 「（ADR-005 決定4）」のようにパスを省略した参照を見たら、どちらを指すか必ずファイルパスで確認する

@@ -1,4 +1,4 @@
-# ADR-007: Expo 設定は `app.json` + `app.config.ts` の併用とし、Maps SDK キーは環境変数から注入する
+# ADR-M-007: Expo 設定は `app.json` + `app.config.ts` の併用とし、Maps SDK キーは環境変数から注入する
 
 ## 日付
 
@@ -7,7 +7,7 @@
 
 ## ステータス
 
-採用（SS-15）。[ADR-002](./ADR-002-mobile-tech-stack.md) の「移行・対応が必要な事項」にあった「Google Maps の API キー設定は M4 で `app.json` に結線する」という予定を**置き換える**。
+採用（SS-15）。[ADR-M-002](./ADR-M-002-mobile-tech-stack.md) の「移行・対応が必要な事項」にあった「Google Maps の API キー設定は M4 で `app.json` に結線する」という予定を**置き換える**。
 
 **SS-34「画面の『戻る』導線」で追補**した（`android.predictiveBackGestureEnabled: false` が
 `useScreenBack` の前提になっていることを「決定」に明記した）。追補部分には `（SS-34 追補）` を付けている。
@@ -33,7 +33,7 @@ Android で `react-native-maps` の地図タイルを描画するには、Maps S
   backend の Places/Routes 用 server key は別のキーにする**ことが決まっている。
 - キーは**リポジトリにコミットできない**。一方 `app.json` は静的な JSON なので値を書くしかない。
 - `/ios` と `/android` は gitignore しており、ネイティブプロジェクトは CNG（Continuous Native
-  Generation）で生成する前提になっている（[ADR-003](./ADR-003-development-build-and-dev-loop.md)）。
+  Generation）で生成する前提になっている（[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md)）。
 - `react-native-maps` に同梱されている config plugin は、**キーのプロパティを指定しないと
   manifest からキー設定を削除する**実装になっているため、部分的な併用ができない。
 
@@ -94,7 +94,7 @@ SS-15 の目的（地図表示）に対して変更範囲が不釣り合いな�
   差分の小ささとレビュー性を優先した。
 - 「キー未設定なら `android.config` を付けない」は、キーが無い環境（CI の E2E、キー未取得の開発者）で
   **ビルドを壊さずに地図だけ灰色になる**という劣化の仕方を選ぶための決定。E2E が地図描画を
-  assert しない方針（[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）と対になっている。
+  assert しない方針（[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md)）と対になっている。
 
 ## SS-78 追補: 供給元を 2 つにしない（**SS-79 追補で「載せない」から「経路ごとに1つ」に更新**）
 
@@ -219,17 +219,17 @@ SS-44 で実際に観測されたクラッシュは**キーが APK に未注入*
 いるが GCP のアプリ制限（package + SHA-1）と合わない場合は、Google Maps SDK の仕様上
 **認証エラーで地図タイルが表示されないだけでアプリは落ちない**（本プロジェクトでは未観測）。
 したがって **E2E は GCP 登録の漏れを検出できない**（`.maestro/` は地図タイルの描画を
-assert しない。[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）。同じ訂正を
-`packages/mobile/docs/build-profiles.md` と [ADR-004](./ADR-004-e2e-build-ci-strategy.md) の
+assert しない。[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md)）。同じ訂正を
+`packages/mobile/docs/build-profiles.md` と [ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md) の
 SS-79 追補にも反映した。
 
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)
-- [ADR-002(mobile): 技術スタック](./ADR-002-mobile-tech-stack.md)
-- [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
-- [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
-- [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
+- [ADR-M-002(mobile): 技術スタック](./ADR-M-002-mobile-tech-stack.md)
+- [ADR-M-003: development build 前提と開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
 - [ローカル環境構築手順](../docs/local-env.md)
 - [ビルドプロファイルと環境変数](../docs/build-profiles.md)（SS-78 で新設。プロファイルごとの
   backend の向き先と、`eas.json` に書かない値の供給経路の一覧）

@@ -4,7 +4,7 @@ description: SS-33（周回ルート提示・散歩中の自動再計算撤去�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 SS-33（`tri-star/SS-33-claude`、2026-09-15 レビュー）で `POST /explore/routes/loop`

@@ -29,7 +29,7 @@
 - **`AuthService` は `signIn(provider)` に一本化し、サインイン/サインアップを区別しない**。
   ユーザーは backend が初回サインイン時に JIT 作成する。（本文: 決定5）
 - **ゲストは「トークンを持たない認証状態」として表現し、ゲストのまま保護ルート（探索・散歩・記録タブ・設定）に入れる**。
-  詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)。（本文: 決定6、6-1（SS-49 追補））
+  詳細は [mobile ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)。（本文: 決定6、6-1（SS-49 追補））
 - **explore 系 API（`/explore/places`・`/explore/routes/loop`・deprecated の `/explore/routes/walking`）は認証任意**。
   未認証時は `ExploreRateLimiter` の client_ip バケットで制御し、匿名の上限は認証済み以下
   （既定 10 / 30）。（本文: 決定6-1、SS-49/SS-93 追補、6-1 追補（SS-33））
@@ -106,7 +106,7 @@ M3「認証・アプリ骨格」の起点となる [SS-10](https://github.com/tr
   - **ID token のみが検証可能な JWT**。ただし有効期限は約1時間で、**我々の側から失効させる手段がない**
 - **Expo SDK 57 の AuthSession ドキュメントは、IdP 固有ライブラリが存在する場合はそちらを使うことを推奨**しており、`expo-auth-session` の `GoogleAuthRequestConfig` は **deprecated** になっている。つまり「1つの汎用 OAuth ライブラリで複数プロバイダを束ねる」構成は Expo の推奨から外れる。
 - **Android の従来の Google Sign-In SDK は Google により deprecated** で、Android Credential Manager への移行が推奨されている。
-- **Android 用 OAuth クライアントは SHA-1 証明書フィンガープリントを要求**する。debug / EAS development / preview / production の署名鍵ごとに登録が必要で、[ADR-004](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md) の fingerprint キャッシュ運用とも噛み合う。
+- **Android 用 OAuth クライアントは SHA-1 証明書フィンガープリントを要求**する。debug / EAS development / preview / production の署名鍵ごとに登録が必要で、[ADR-M-004](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md) の fingerprint キャッシュ運用とも噛み合う。
 
 ### 既存実装の問題
 
@@ -204,7 +204,7 @@ AWS 環境では Secrets Manager のキー `google_oauth_client_id`（**単数�
 
 ### 6. ゲストは「トークンを持たない状態」として表現する
 
-`AuthService` のメソッドとしての `guest` は持たせず、認証状態（トークン非保持）として表現する。これは [SS-13](https://github.com/tri-star/sanposcape)「認証状態と探索ロジックの分離」で実装に落とされ、探索ロジックが認証に不可分に依存しない形が `.oxlintrc.json` の import 制限により構造的に担保されている（詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)）。SS-13 時点では未認証をゲートで弾いていたが、SS-49 の合意（下記 6-1）を受けて SS-57 でゲスト散歩を解禁し、`guest` のまま保護ルート（探索・散歩・記録タブ・設定）に入れるようになった。
+`AuthService` のメソッドとしての `guest` は持たせず、認証状態（トークン非保持）として表現する。これは [SS-13](https://github.com/tri-star/sanposcape)「認証状態と探索ロジックの分離」で実装に落とされ、探索ロジックが認証に不可分に依存しない形が `.oxlintrc.json` の import 制限により構造的に担保されている（詳細は [mobile ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)）。SS-13 時点では未認証をゲートで弾いていたが、SS-49 の合意（下記 6-1）を受けて SS-57 でゲスト散歩を解禁し、`guest` のまま保護ルート（探索・散歩・記録タブ・設定）に入れるようになった。
 
 ### 6-1. ゲスト時の backend API 契約（SS-49 追補）
 
@@ -217,11 +217,11 @@ mobile ADR-009 が「今回は決めない」として持ち越していた、�
      （**SS-93 追補**: SS-56 で実装済み。匿名の上限は `GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS`（既定 10）、
      認証済みは `GOOGLE_MAPS_RATE_LIMIT_REQUESTS`（既定 30）で、匿名が認証済みを超えないことを
      `config.py` の `_validate_environment_settings` で検証している）
-2. **`POST /walks`（散歩記録の保存）は未認証では許可しない。** サインインを促す導線に倒し（[mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md) の保護ルート方針に従う）、ゲスト記録を後からアカウントへマージする機能は作らない。
+2. **`POST /walks`（散歩記録の保存）は未認証では許可しない。** サインインを促す導線に倒し（[mobile ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md) の保護ルート方針に従う）、ゲスト記録を後からアカウントへマージする機能は作らない。
 
 **決定理由**: `docs/project-overview.md` が当初から明記していた「記録・履歴の永続化のみが認証を要求する」「ゲストでの散歩開始（記録なし）」という構想に、この2点がそのまま合致するため。マージ機能（ゲストの記録を後からアカウントへ紐付ける案）は、所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さを伴い、MVP のスコープでは必要性が無いと判断して見送った。
 
-**影響**: mobile 側は `canEnterProtectedRoutes`（`features/auth/lib/authGate.ts`、決定3参照）に `"guest"` を許可として追加し、`SignInView` / `SignUpView` のゲスト導線を復活させた（SS-57 で実装済み）。backend 側の実装は SS-56（先行して main にマージ済み）。詳細は [mobile ADR-009](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)「SS-57 追補」を参照。
+**影響**: mobile 側は `canEnterProtectedRoutes`（`features/auth/lib/authGate.ts`、決定3参照）に `"guest"` を許可として追加し、`SignInView` / `SignUpView` のゲスト導線を復活させた（SS-57 で実装済み）。backend 側の実装は SS-56（先行して main にマージ済み）。詳細は [mobile ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)「SS-57 追補」を参照。
 
 ### 6-1 追補（SS-33）
 
@@ -375,7 +375,7 @@ SS-79 でアプリ識別子を本番（`com.sanposcape.app`）と開発（`com.s
 - **プラグインが plugins 配列に見つからなければ `expo config` の評価時点で例外にする**。
   名前変更等で差し替えが空振りすると、本番でだけ iOS サインインが壊れ、ビルドや E2E
   （Android のみ）では検出できないため。`APP_VARIANT` の typo を例外にするのと同じ考え方
-  （[mobile ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)）。
+  （[mobile ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)）。
 - **URL スキームと `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` は同じクライアントを指す必要がある**。
   前者はリポジトリ（`app.config.ts`）、後者は EAS の `production` 環境変数と供給元が分かれて
   いるため、クライアントを作り直したときは両方を更新すること。
@@ -389,9 +389,9 @@ SS-79 でアプリ識別子を本番（`com.sanposcape.app`）と開発（`com.s
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
-- [ADR-003: development build 前提と開発ループ](../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
-- [ADR-004: E2E ビルド・CI 戦略](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
-- [mobile ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../../packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」を実装に落とした ADR
+- [ADR-M-003: development build 前提と開発ループ](../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
+- [mobile ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」を実装に落とした ADR
 - [モバイルのアーキテクチャガイドライン](../../packages/mobile/docs/architecture-guideline.md)
 - [プロジェクト概要](../project-overview.md)
 - [RFC 8252: OAuth 2.0 for Native Apps](https://datatracker.ietf.org/doc/html/rfc8252)

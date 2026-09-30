@@ -1,4 +1,4 @@
-# ADR-005: スタイルは Unistyles をやめ、RN の StyleSheet + テーマ Context にする
+# ADR-M-005: スタイルは Unistyles をやめ、RN の StyleSheet + テーマ Context にする
 
 ## 日付
 
@@ -6,11 +6,11 @@
 
 ## ステータス
 
-採用。[ADR-002](./ADR-002-mobile-tech-stack.md) の「スタイル: react-native-unistyles（v3）」の決定を**置き換える**（ADR-002 のその他の決定 — 状態管理・地図・Orval — は有効）。
+採用。[ADR-M-002](./ADR-M-002-mobile-tech-stack.md) の「スタイル: react-native-unistyles（v3）」の決定を**置き換える**（ADR-002 のその他の決定 — 状態管理・地図・Orval — は有効）。
 
 ## コンテキスト
 
-[ADR-002](./ADR-002-mobile-tech-stack.md) では、デザイントークンとテーマを型安全に扱える点を評価して **react-native-unistyles v3** を採用した。その後、実際に画面実装を試した段階で次が分かった。
+[ADR-M-002](./ADR-M-002-mobile-tech-stack.md) では、デザイントークンとテーマを型安全に扱える点を評価して **react-native-unistyles v3** を採用した。その後、実際に画面実装を試した段階で次が分かった。
 
 - Unistyles v3 は Nitro（ネイティブ C++/JSI）+ babel プラグイン前提で、**環境起因のエラーが繰り返し発生**した。
 - エラーを回避する過程でライブラリ固有の機能（variants・動的テーマ適用など）をほとんど使えなくなり、
@@ -47,7 +47,7 @@
 
 ### 選択肢2: Unistyles を継続し、エラーを個別に回避する
 
-- **メリット**: [ADR-002](./ADR-002-mobile-tech-stack.md) の決定を変えずに済む。
+- **メリット**: [ADR-M-002](./ADR-M-002-mobile-tech-stack.md) の決定を変えずに済む。
 - **デメリット**: 回避のたびにライブラリの機能を捨てており、**払っているコストに見合う価値が残っていない**。
 
 ### 選択肢3: NativeWind へ乗り換える
@@ -82,7 +82,7 @@
 - `src/theme/unistyles.ts` を削除し、`ThemeProvider` を `app/_layout.tsx` に配線済み。
 - **development build 前提は変わらない**。`react-native-maps` と、アイコン描画に使う
   `react-native-svg`（`lucide-react-native` の依存）がネイティブモジュールのため、Expo Go は引き続き使えない
-  （[ADR-003](./ADR-003-development-build-and-dev-loop.md) の結論は維持）。
+  （[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md) の結論は維持）。
 - ネイティブ依存の増減があったため、既存の development build は**作り直しが必要**。
 - **フォントは端末のシステムフォントにフォールバックさせる（2026-07-22 時点の決定）**。
   デザイン指定は Noto Sans / Noto Sans JP だが、`@expo-google-fonts/noto-sans-jp@0.4.3` を実測したところ
@@ -110,6 +110,6 @@
 
 ## 関連情報
 
-- [ADR-002: モバイル技術スタック](./ADR-002-mobile-tech-stack.md)
-- [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
+- [ADR-M-002: モバイル技術スタック](./ADR-M-002-mobile-tech-stack.md)
+- [ADR-M-003: development build 前提と開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
 - [ツール・ライブラリ](../docs/toolsets-libraries.md) / [フォルダ構造](../docs/folder-structure.md)

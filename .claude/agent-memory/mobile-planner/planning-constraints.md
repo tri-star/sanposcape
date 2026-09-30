@@ -4,7 +4,7 @@ description: mobile プランを書くたびに効いてくる制約（ADR の�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-001-folder-structure.md
+  adr: packages/mobile/adr/ADR-M-001-folder-structure.md
 ---
 
 プラン作成前に読む順序: `packages/mobile/AGENTS.md`（ADR 一覧つき）→ 該当 ADR（`packages/mobile/adr/`）→ `docs/architecture-guideline.md` / `folder-structure.md` → 実コード。

@@ -4,7 +4,7 @@ description: mobile で 401 が起きる2つの経路（ゲストのまま / セ
 metadata:
   type: feedback
   scope: durable
-  adr: packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md
+  adr: packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md
 ---
 
 `/walks` 系 API の 401 には性質の違う2経路がある。**どちらの話をしているか毎回確認すること。**

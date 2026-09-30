@@ -4,7 +4,7 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
 **手動実行**の手順をまとめる。
 （将来は1コマンド化したいが、慣れるまでは本手順を手で実行する想定）
 
-- 背景・設計の詳細は [ローカル環境構築手順](./local-env.md) と [ADR-003](../adr/ADR-003-development-build-and-dev-loop.md) を参照。
+- 背景・設計の詳細は [ローカル環境構築手順](./local-env.md) と [ADR-M-003](../adr/ADR-M-003-development-build-and-dev-loop.md) を参照。
 - この構成の要点:
   - Androidでは、**エミュレータ / adb は Windows 側**、**Expo CLI / Metro は WSL2 側**で動かす。
   - Expo は WSL 側に Android SDK が無いため、`adb` 操作（reverse・起動）は**自分たちで手動実行**する。
@@ -103,7 +103,7 @@ adb shell am start -a android.intent.action.VIEW \
 **未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`/walks` 系 API だけは 401 になり
 各画面のエラーカードで degrade する）。サインイン後の見た目を確認したい場合は
 `EXPO_PUBLIC_AUTH_MODE=dev` の development build で `sign-in-google-button` を1タップする
-（詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
+（詳細は [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照）。
 
 ```bash
 adb shell am start -a android.intent.action.VIEW -d "sanposcape-dev://dev-screens"
@@ -291,6 +291,6 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 
 - [ローカル環境構築手順](./local-env.md)
 - [iPhone実機 development build手順](./iphone-device-development.md)
-- [ADR-003: development build 前提と開発ループ](../adr/ADR-003-development-build-and-dev-loop.md)
-- [ADR-004: E2E ビルド・CI 戦略](../adr/ADR-004-e2e-build-ci-strategy.md)
+- [ADR-M-003: development build 前提と開発ループ](../adr/ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-004: E2E ビルド・CI 戦略](../adr/ADR-M-004-e2e-build-ci-strategy.md)
 - ツール: `scripts/mobile-tools/`（adb ラッパー / エミュレータ起動 / AVD一覧）

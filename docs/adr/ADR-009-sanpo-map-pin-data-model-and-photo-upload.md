@@ -82,7 +82,7 @@
   BK-6「地図の作成・管理 API」は SS-113 で完了した）
 - ~~**地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は
   SS-118 で決める。~~ → **SS-118 で決着**（ページングを続けず上限200件 + 案内。mobile
-  [ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3。本文: 2026-09-26 追補（SS-118））。
+  [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3。本文: 2026-09-26 追補（SS-118））。
   ~~**検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る~~ → **SS-136 で実装**
   （決定30。SS-120 はこの API を使える。本文: SS-136 追補）
 - **prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
@@ -640,7 +640,7 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
 
 TestFlight のビルド5を iPhone 実機で試したところ、写真の直送が必ず失敗した。**原因は mobile 側**
 （Expo の `fetch` が RN 形式の multipart ファイルパートを受け付けない。詳細は
-[ADR-010 の追補（2026-09-24）](../../packages/mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md)）
+[ADR-M-010 の追補（2026-09-24）](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）
 で、backend・infra には問題が無かった。ただし**切り分けに時間がかかった理由**は backend 側にも
 あったため、その対処をここに記録する。
 
@@ -1215,7 +1215,7 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 
 - **決定: ページングを続けず、1リクエスト（`limit=200`。地図ごと）で打ち切り、mobile の
   `/pins/map`（SS-147 で削除。現在はピンタブ）では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
-  （詳細・理由は mobile [ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3）。
+  （詳細・理由は mobile [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
   backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
 - mobile は地図ごとに `GET /pins` を並列に呼んでマージする（`sanpo_map_id` 必須のまま。
   ADR-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数
@@ -1227,7 +1227,7 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 API を追加した。SS-111 追補が「後で切る」としていたものにあたる。DB スキーマは変えない
 （マイグレーションなし）。フィーチャーフラグは使わない（決定10）。mobile 側の判断（端末での
 絞り込み・既存表記への統一・見せ方）は mobile の
-[ADR-013](../../packages/mobile/adr/ADR-013-pin-tag-suggestions.md) に記録する。
+[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md) に記録する。
 
 ### 決定30: `GET /sanpo-maps/{sanpo_map_id}/tags`（地図のタグ一覧）の契約
 
@@ -1290,5 +1290,5 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3・D4）、
-  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[mobile ADR-013](../../packages/mobile/adr/ADR-013-pin-tag-suggestions.md)）
+  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
+  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[mobile ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）

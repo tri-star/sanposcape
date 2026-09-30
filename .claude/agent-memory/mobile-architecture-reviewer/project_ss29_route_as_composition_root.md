@@ -4,7 +4,7 @@ description: restricted import 対象の feature（features/walk・features/hist
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md
+  adr: packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md
 ---
 
 SS-29（`features/history/data/profile.ts` の手書き `STUB_USER_PROFILE` 廃止 + `authApi` 単体テスト追加）の

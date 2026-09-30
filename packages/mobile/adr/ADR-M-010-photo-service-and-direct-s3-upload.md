@@ -1,4 +1,4 @@
-# ADR-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送
+# ADR-M-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送
 
 ## 現在有効な決定（要約）
 
@@ -31,7 +31,7 @@
 - **登録画面はサムネイルを使わずローカル画像を表示する。** 閲覧チケットで使うときは、画像キャッシュの
   キーを presigned URL ではなく `photo.id` にする（URL は応答ごとに変わるため）（本文: 決定8。
   SS-118 で閲覧側を実装: expo-image の `cacheKey` = `pin-photo:<photo.id>:<variant>`。
-  [mobile ADR-012](./ADR-012-pin-map-display-and-detail.md) D7）
+  [mobile ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7）
 
 ### 未解決・持ち越し
 
@@ -83,7 +83,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
 
 1. **写真の取得（カメラ/ライブラリ）と加工（縮小・JPEG 再圧縮・サイズ取得）を
    `src/services/photo/` に置き、real/mock の2モード**（`EXPO_PUBLIC_PHOTO_MODE`、既定 `real`）とする。
-   `dev` は作らない（[ADR-006](./ADR-006-location-service-real-mock.md) と同じ理由: 「本物に近いが
+   `dev` は作らない（[ADR-M-006](./ADR-M-006-location-service-real-mock.md) と同じ理由: 「本物に近いが
    実機に依存しない中間実装」に相当するものが無い。mock はダミー画像を返すだけで実ファイルの加工を
    伴わない）。
 2. ライブラリは `expo-image-picker` + `expo-image-manipulator` + `expo-file-system`。
@@ -130,7 +130,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
    **（SS-118 で完了）** 閲覧側（`/pins/map` のマーカータップからの詳細画面）を実装し、
    `PinPhotoImage.tsx`（expo-image）で `cacheKey = pin-photo:<photo.id>:<thumb|original>`、
    `cachePolicy="memory-disk"` を採用した。詳細は
-   [mobile ADR-012](./ADR-012-pin-map-display-and-detail.md) D7 を参照。
+   [mobile ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7 を参照。
 
 ## 検討した選択肢
 
@@ -177,7 +177,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
 ### 移行・対応が必要な事項
 
 - `expo-image-picker` / `expo-image-manipulator` / `expo-file-system` の追加により development
-  build の作り直しが必要（[ADR-003](./ADR-003-development-build-and-dev-loop.md)）。
+  build の作り直しが必要（[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md)）。
 - `app.json` に `expo-image-picker` の config plugin（写真/カメラ権限文言）を追加。
 - backend の `PIN_PHOTO_MAX_PENDING_UPLOADS` を 20 以下に下げる場合、mobile の
   `PIN_PHOTO_PREUPLOAD_MAX` / `BACKEND_PENDING_UPLOADS_MAX`（`src/features/pin/lib/pinLimits.ts`）
@@ -292,7 +292,7 @@ backend を通らないため CloudWatch Logs に何も出ず、リクエスト�
 
 ## 関連情報
 
-- [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
+- [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
 - [ADR-009（横断・backend）: ピンの写真ストレージとサムネイル](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)
 - [フォルダ構造](../docs/folder-structure.md)

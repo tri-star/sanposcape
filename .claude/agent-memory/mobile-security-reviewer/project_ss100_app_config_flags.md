@@ -4,7 +4,7 @@ description: SS-100 の /app-config フィーチャーフラグ受け皿（mobil
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md
+  adr: packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md
 ---
 
 SS-100（`GET /app-config` からフラグ・最低サポートバージョンを取得し UI 出し分けに使う mobile 実装）

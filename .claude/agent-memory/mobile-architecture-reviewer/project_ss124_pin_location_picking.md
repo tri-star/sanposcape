@@ -4,7 +4,7 @@ description: SS-124(任意地点でのピン登録・位置調整)mobileアー�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-011-pin-location-picking-and-adjustment.md
+  adr: packages/mobile/adr/ADR-M-011-pin-location-picking-and-adjustment.md
   source_issue: SS-124
 ---
 

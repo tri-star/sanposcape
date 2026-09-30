@@ -4,7 +4,7 @@ description: What the Expo 57 / RN 0.86 runtime in this repo does NOT provide (c
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md
+  adr: packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md
   verify_by: 2026-12-31
 ---
 

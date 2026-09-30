@@ -4,7 +4,7 @@ description: 入力が変わるたびにqueryKeyが変わり直前データが�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 **注記（2026-09-15, SS-33）**: このパターンの具体的な実装（`useWalkRouteRecalculation.ts` /

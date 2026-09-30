@@ -4,7 +4,7 @@ description: SS-124（地点選択画面/pins/pick-locationと登録画面での
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-011-pin-location-picking-and-adjustment.md
+  adr: packages/mobile/adr/ADR-M-011-pin-location-picking-and-adjustment.md
 ---
 
 SS-124（SS-88の拡張。ナビタブFAB→`/pins/pick-location`長押し→`/pins/new`、登録画面での

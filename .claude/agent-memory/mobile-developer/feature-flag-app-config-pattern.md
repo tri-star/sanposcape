@@ -11,7 +11,7 @@ SS-100 で `packages/mobile/src/api/appConfigQueryKey.ts` / `appConfigApi.ts`、
 `appConfigRefresh.ts`、`src/hooks/useAppConfig.ts` / `useAppConfigBootstrap.ts` /
 `useFeatureFlag.ts`、`src/components/app-config/AppConfigBootstrap.tsx` / `FeatureGate.tsx` を新設。
 詳細な設計判断は `docs/adr/ADR-008-deploy-release-separation.md`（ルート、D11〜D18）と
-`packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md`（SS-100 追補）に記録済み。
+`packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md`（SS-100 追補）に記録済み。
 
 ## 構造上のポイント（今後フラグを増やす/参照する側が踏襲すること）
 

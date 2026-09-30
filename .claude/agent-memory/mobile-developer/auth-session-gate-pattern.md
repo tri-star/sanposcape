@@ -9,7 +9,7 @@ metadata:
 SS-13 で `packages/mobile/src/store/useAuthSessionStore.ts` / `src/features/auth/lib/authGate.ts` /
 `src/features/auth/components/AuthGate.tsx` / `src/features/auth/hooks/useAuthSessionBootstrap.ts` を
 新設し、認証状態の参照とゲートを1箇所に集約した（詳細は
-`packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md`）。
+`packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md`）。
 
 **Why**: それまで `SplashView` が `restoreSession()` を、`SettingsView` が
 `authService.getCurrentUser()` を各自で読んでおり、(1) ディープリンクのコールドスタートで

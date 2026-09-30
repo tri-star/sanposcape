@@ -4,7 +4,7 @@ description: sanposcape mobile の探索/散歩機能では片道×2近似の値
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 **SS-33 で前提が変わった**: 周回ルート（往路と異なる道で復路を歩く。作れなければ「同じ道」で

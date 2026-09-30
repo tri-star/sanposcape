@@ -4,7 +4,7 @@ description: SS-118 登録済みピンの地図表示・ピン詳細画面（/pi
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-012-pin-map-display-and-detail.md
+  adr: packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md
   source_issue: SS-118
 ---
 

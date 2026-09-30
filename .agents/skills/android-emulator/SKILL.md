@@ -6,7 +6,7 @@ description: WSL2からWindows側のAndroid Emulatorを起動したり、有効�
 # Android Emulator (WSL2 → Windows) 起動スキル
 
 WSL2からWindows側にインストールされたAndroid Emulatorを操作します。Claude固有のsandbox除外設定は前提にせず、実際の接続・権限を確認します。同じAVDを二重起動しないでください。
-本プロジェクトのmobile development buildは、エミュレータ/adb serverをWindows側で動作させる構成を前提としています（[ADR-003](../../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)、[local-env.md](../../../packages/mobile/docs/local-env.md)）。
+本プロジェクトのmobile development buildは、エミュレータ/adb serverをWindows側で動作させる構成を前提としています（[ADR-M-003](../../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)、[local-env.md](../../../packages/mobile/docs/local-env.md)）。
 
 ## 前提条件
 

@@ -1,4 +1,4 @@
-# ADR-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する
+# ADR-M-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する
 
 ## 日付
 
@@ -6,7 +6,7 @@
 
 ## ステータス
 
-採用（SS-16）。[ADR-002](./ADR-002-mobile-tech-stack.md) の「クライアント状態 = Zustand（`src/store`）」および [folder-structure](../docs/folder-structure.md) の状態管理の使い分けを、**機能スコープのストアという形で具体化**する。
+採用（SS-16）。[ADR-M-002](./ADR-M-002-mobile-tech-stack.md) の「クライアント状態 = Zustand（`src/store`）」および [folder-structure](../docs/folder-structure.md) の状態管理の使い分けを、**機能スコープのストアという形で具体化**する。
 
 **SS-19「散歩終了処理・散歩ルート保存」で追補**した（決定1 にフィールドを追加、決定4〜6 を新規追加、「影響」を書き直し）。追補部分には `（SS-19 追補）` を付けている。
 
@@ -130,7 +130,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 初版の「移行・対応が必要な事項」で M5 の保存実装時に見直すとしていた判断を、**SS-19 時点では『維持』と結論する**。`useActiveWalkStore` / `useFinishedWalkStore` のいずれにも persist ミドルウェアを入れない。理由:
 
-- **永続ストレージの依存が現状無い。** `expo-secure-store` は値サイズ上限（約 2KB）があり軌跡を置けない。`@react-native-async-storage/async-storage` は未導入。`expo-file-system` は推移的依存として存在するが、明示依存へ昇格させると `package.json` が変わって `@expo/fingerprint` が変化し、[ADR-004](./ADR-004-e2e-build-ci-strategy.md) の E2E APK キャッシュを1回ミスさせる。
+- **永続ストレージの依存が現状無い。** `expo-secure-store` は値サイズ上限（約 2KB）があり軌跡を置けない。`@react-native-async-storage/async-storage` は未導入。`expo-file-system` は推移的依存として存在するが、明示依存へ昇格させると `package.json` が変わって `@expo/fingerprint` が変化し、[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md) の E2E APK キャッシュを1回ミスさせる。
 - **「復帰」は保存とは独立した設計判断。** 進行中の散歩を本当に復元するには、増え続ける `track` を測位のたびにスロットリングして書き出し、起動時に復元し、古いドラフトの期限判定を入れる必要がある。SS-19 の「終了処理・ルート保存」に混ぜると差分が大きくなりレビューが成立しない。
 
 → フォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」として切り出す（保存先は `expo-file-system` の明示依存化を第一候補、`async-storage` を対案として比較する）。**着手時は本 ADR の再追補が必要**。
@@ -139,12 +139,12 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 `src/lib/sessionCleanup.ts` に後始末レジストリ（`registerSessionCleanup` / `runSessionCleanup`）を置き、**クリアされる側が自分の後始末を登録する**形にする。
 
-- 登録側: `useActiveWalkStore`（`endWalk()`）、`useFinishedWalkStore`（`clearFinishedWalk()`）、`src/api/queryClient.ts`（**SS-100 追補**: `queryClient.clear()` ではなく `removeQueries({ predicate: ... })` + `getMutationCache().clear()` に変更済み。詳細は [ADR-009](./ADR-009-auth-session-state-and-route-gate.md) の SS-100 追補を参照）。各モジュールの末尾で読み込み時に1回登録する。
+- 登録側: `useActiveWalkStore`（`endWalk()`）、`useFinishedWalkStore`（`clearFinishedWalk()`）、`src/api/queryClient.ts`（**SS-100 追補**: `queryClient.clear()` ではなく `removeQueries({ predicate: ... })` + `getMutationCache().clear()` に変更済み。詳細は [ADR-M-009](./ADR-M-009-auth-session-state-and-route-gate.md) の SS-100 追補を参照）。各モジュールの末尾で読み込み時に1回登録する。
 - 実行側: **`src/store/useAuthSessionStore.ts` の `setSession()` が、認証状態を `authenticated → guest` に落とす時点で `runSessionCleanup()` を呼ぶ（SS-13 追補）**。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走る。
   - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。**SS-50 では退避と履歴スタックの破棄も `AuthGate` に移した。** `SettingsView` は `authService.signOut()` の起動だけを担い、サインアウト callback と React effect の実行順に依存しない。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
 - サインアウト導線は `authService.signOut()` を起動するだけにする。後始末は認証状態遷移、退避と履歴スタックの破棄は `AuthGate` が担うため、feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）。
-- **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-009](./ADR-009-auth-session-state-and-route-gate.md) を参照。
+- **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-M-009](./ADR-M-009-auth-session-state-and-route-gate.md) を参照。
 
 ### 7. 再計算後のルートは Query キャッシュではなく `useWalkRouteRecalculation` のローカル state で持つ（SS-35 追補・**SS-33 で撤回**）
 
@@ -288,12 +288,12 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 
 ## 関連情報
 
-- [ADR-002: mobile の技術スタック](./ADR-002-mobile-tech-stack.md) — クライアント状態 = Zustand の原則
-- [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md) — 依存追加が `@expo/fingerprint` 経由で APK キャッシュに効く（決定5 の理由）
-- [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md) — SS-16 で `watchPosition` を追加
+- [ADR-M-002: mobile の技術スタック](./ADR-M-002-mobile-tech-stack.md) — クライアント状態 = Zustand の原則
+- [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md) — 依存追加が `@expo/fingerprint` 経由で APK キャッシュに効く（決定5 の理由）
+- [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md) — SS-16 で `watchPosition` を追加
 - [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由。候補一覧（`/explore/places`）は片道値×2の近似、選択後は `/explore/routes/loop` の周回実値（SS-33 追補）
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
-- [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
+- [ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-M-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
 - **（SS-60 追補）** 実装: `src/lib/walkDeletionCleanup.ts`（決定8 のレジストリ）、`src/features/history/hooks/useWalkDelete.ts`（実行側）

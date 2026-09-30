@@ -1,7 +1,7 @@
 # フォルダ構造ガイドライン (mobile)
 
 ReactNative(Expo) アプリのフォルダ構造の方針をまとめる。
-背景・選定理由は [ADR-001](../adr/ADR-001-folder-structure.md) を参照。
+背景・選定理由は [ADR-M-001](../adr/ADR-M-001-folder-structure.md) を参照。
 
 ## 前提
 
@@ -137,7 +137,7 @@ packages/mobile/
   - **「サーバー由来のデータを置かない」の例外は `useFinishedWalkStore.savedWalkId` の1つだけ**。
     サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
-  - 判断の背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照。
+  - 判断の背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) を参照。
   - **feature をまたぐイベントで他 feature の store をクリアしたくなったら、直接 import せず
     `src/lib/` に後始末レジストリを置き、クリアされる側（store）が自分の後始末を登録する**
     （ストアのファイル末尾で1回）。呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに
@@ -198,7 +198,7 @@ packages/mobile/
 - ただし**必要なモードだけ用意してよい**。例: `services/location` は real/mock の2モードのみ
   （Android エミュレータ / 実機の位置設定・`adb emu geo fix` で real のまま再現できるため、
   「本物に近いが実機依存しない中間実装」= `dev` に相当するものが無い。
-  詳細は [ADR-006](../adr/ADR-006-location-service-real-mock.md)）。
+  詳細は [ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)）。
 - テスト方針との対応:
   - **ユニットテスト**: `mock`（または個別モジュールへの直接フェイク注入）を利用する。
     ただし `index.ts`（バレル）はネイティブ依存に到達しうるため、バレルを import せず
@@ -293,12 +293,12 @@ packages/mobile/
     `user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、
     TanStack Query が管理する一般的なドメインデータとは性質が異なるため許容する
     （`authenticated ⟺ user !== null` の不変条件を保つための判断。詳細は
-    [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
+    [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照）。
   - **例外**: `useAuthSessionStore` だけは `registerSessionCleanup()` に自分自身を登録しない
     （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
     `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
-    詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
-- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
+    詳細は [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照。
+- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け
@@ -321,7 +321,7 @@ packages/mobile/
     `features/walk/**` / `features/history/**` / `features/pin/**` については `.oxlintrc.json` の
     `no-restricted-imports` override（`@/services/auth` 系・`@/store/useAuthSessionStore` への
     import を禁止）で機械的に強制される（SS-13 / SS-88 /
-    [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) 決定8）。
+    [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) 決定8）。
   - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
     `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
     保存直後の一覧が更新されない。

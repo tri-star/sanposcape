@@ -27,4 +27,4 @@ SS-60「mobile: 散歩履歴を削除するUIを実装」（2026-08-16 レビュ
 関連ファイル: `packages/mobile/src/lib/walkDeletionCleanup.ts`,
 `packages/mobile/src/lib/sessionCleanup.ts`,
 `packages/mobile/src/features/walk/store/useFinishedWalkStore.ts`,
-`packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md` 決定6。
+`packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md` 決定6。
