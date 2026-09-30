@@ -82,8 +82,9 @@ testID `sanpo-map-list-back`。作成ダイアログを開いている間は `on
 未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
 戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
 `(tabs)` 配下を触るときは、この規約に順次寄せることを検討する。
-ピンタブ（`PinTabView`）は画面から出る遷移（長押しで `/pins/new`・ピンのタップ・『地図一覧』・
-サインイン）が二重に発火しないよう、`BackHandler` を購読しない `src/hooks/useNavigateOnce.ts`
+ピンタブ（`PinTabView`）とアカウントタブ（`app/(tabs)/account.tsx`。設定・画面カタログ・サインイン）は
+画面から出る遷移（ピンタブは長押しで `/pins/new`・ピンのタップ・『地図一覧』・サインイン）が
+二重に発火しないよう、`BackHandler` を購読しない `src/hooks/useNavigateOnce.ts`
 （フォーカスで解除するラッチ。`useScreenBack` も内部で使う）を使う。`useScreenBack` はタブの
 Android バックの既定（`backBehavior: firstRoute`）を奪うので使わない（SS-146）。
 
@@ -139,7 +140,8 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 `/dev-screens` 自体と `/design-system` は未認証でも開ける公開ルートで、そこから開く先の
 散歩開始・履歴・設定などの保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を
 解禁したため**未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`canEnterProtectedRoutes`
-が `guest` も許可する。`/walks` 系 API だけは 401 になり各画面のエラーカードで degrade する）。
+が `guest` も許可する。`/walks` 系 API だけは 401 になり各画面のエラーカードで degrade する。ただしアカウントタブは
+ゲストでは通信せず、サインイン案内を出す（SS-148）。
 将来「ゲストは入れないルート」（例: アカウント設定の一部）を追加する場合は、
 `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` / `resolveAuthGateDecision` に
 判定を足す（保護ルートに誰が入れるかの判断を1箇所に閉じる器はそのまま残っている）。

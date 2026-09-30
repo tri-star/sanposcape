@@ -98,11 +98,12 @@ adb shell am start -a android.intent.action.VIEW \
 `/dev-screens`（`ScreenCatalog`）を直接開くとスタブデータ付きで一覧から確認できる（SS-9）。
 本番ビルド（`production` プロファイル）では `isDevToolsEnabled()` のガードにより `/` へリダイレクトされ開けない。
 development / E2E / staging のビルドでは、アカウントタブ下部の「画面カタログ」ボタンからも開ける（SS-148）。
+ゲストのアカウントタブは backend に通信せず（集計・最近の散歩を呼ばない）、サインイン案内を出す。
 
 `/dev-screens` 自体は未認証でも開ける公開ルートで、そこから開く散歩開始・履歴・設定などの
 保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を解禁したため
 **未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`/walks` 系 API だけは 401 になり
-各画面のエラーカードで degrade する）。サインイン後の見た目を確認したい場合は
+各画面のエラーカードで degrade する。ただしアカウントタブはゲストでは通信せず、サインイン案内を出す）。サインイン後の見た目を確認したい場合は
 `EXPO_PUBLIC_AUTH_MODE=dev` の development build で `sign-in-google-button` を1タップする
 （詳細は [ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
 
@@ -264,11 +265,13 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
   サマリ自体の表示はローカルのドラフト（`useFinishedWalkStore`）だけで完結するため backend 未起動でも
   開けるが、保存は失敗し `WalkSaveStatus` に再試行導線が出る。
 - **SS-147 以降、ナビタブ（散歩していないとき・サインイン済み）の「最近の散歩」も `GET /walks` に依存する**（ゲストには出さないので通信しない）。
+- **SS-148 以降、ゲストのアカウントタブは集計・「最近の散歩」の代わりにサインイン案内（`history-sign-in-required`）を出し、通信しない**
+  （以下の SS-20 / SS-42 の依存と 401 のエラーカードは、サインイン中のときの話）。
 - **SS-20 以降、アカウントタブ（記録）の「最近の散歩」・`/walk-history`（一覧）・`/walk-history/[walkId]`（詳細）は
   backend の `GET /walks` / `GET /walks/{walk_id}` に依存する**ため、静的スタブでの確認はできない。
-  backend 未起動、または未認証（401）の場合はエラー文言 + 再試行導線（一覧・詳細とも）になる。
+  backend 未起動の場合はエラー文言 + 再試行導線（一覧・詳細とも）になる（アカウントタブはゲストではサインイン案内で通信しない。一覧・詳細を未認証で直に開いた場合は 401 のエラー文言）。
 - **SS-42 以降、アカウントタブ（記録）上部の集計（週/月チャート・合計距離・連続日数・今日の推定歩数）は
-  backend の `GET /walks/stats` に依存する**。backend 未起動・未認証（401）の場合は集計セクション
+  backend の `GET /walks/stats` に依存する**。backend 未起動（サインイン中の 401 を含む）の場合は集計セクション
   だけがエラーカード（`history-stats-error`）+ 再試行導線になり、「最近の散歩」セクションは
   別クエリのため独立して表示される。目標歩数（8,000）は引き続き静的スタブ。
 - **SS-29 以降、アカウントタブ（記録）のあいさつ文はサインイン中ユーザーの表示名を反映する**（静的スタブ廃止）。

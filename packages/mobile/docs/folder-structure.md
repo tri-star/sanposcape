@@ -246,7 +246,7 @@ packages/mobile/
 
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useNavigateOnce.ts`（画面から出る遷移の二重発火ラッチ。
-  フォーカスで解除。`BackHandler` を購読しない。`useScreenBack` とピンタブが共有。SS-146）、
+  フォーカスで解除。`BackHandler` を購読しない。`useScreenBack`・ピンタブ・アカウントタブが共有。SS-146、SS-148）、
   `useScreenBack.ts`（画面の「戻る」導線を一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
   `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
   `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、

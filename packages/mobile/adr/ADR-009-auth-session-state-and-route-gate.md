@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-30（SS-146）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-01（SS-148、SS-146）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -14,7 +14,7 @@
 - **サインアウト・refresh の401失効はストアへ通知し、`authenticated → guest` で後始末する。** 一時的な通信障害では保存トークンを保持する。保護ルートからの退避と履歴整理は `AuthGate` に集約する。（本文: 決定5・決定6、SS-50/SS-57 追補）
 - **ログイン直後の遷移は進行中の散歩と保存意思で決める。** 進行中の散歩があればナビタブ（`/(tabs)`）へ `replace`、無い場合に限り保存待ちドラフトとサマリの CTA からのサインイン意思が揃えば `dismissTo("/walk-summary")`、それ以外はピンタブ（`/(tabs)/pins`）へ `replace` する。ゲスト開始も進行中の散歩があればナビタブ、無ければピンタブへ進む。サインイン画面の下に戻れる画面があるとき（ピンタブ等から push で開いた場合）は `replace` でなく既存の `(tabs)` へ `dismissTo` する。（本文: SS-146 追補・SS-57 ローカルレビュー追補・SS-37 追補・SS-37 ローカルレビュー追補・SS-145 追補）
 - **`pin_registration` が OFF のときのピンタブの代替は、着地点ではなくピンタブのルートガードが担う。** OFF が確定したらナビタブへリダイレクトし、タブバーから隠す。取得中は隠さない。（本文: SS-145 追補）
-- **探索・散歩・履歴から認証への直接 import を禁止し、必要な値は `app/` から props で注入する。** 設定画面は直接ストアを参照できる。（本文: 決定8・SS-29 追補）
+- **探索・散歩・履歴から認証への直接 import を禁止し、必要な値は `app/` から props で注入する。** 設定画面は直接ストアを参照できる。アカウントタブでも同じ形で、ゲストにはサインイン案内を出す。（本文: 決定8・SS-29 追補・SS-148 の注記）
 - **アカウント削除成功後は既存の `signOut()` による終了経路を使う。** ゲスト・復元中には削除導線を出さず、削除401でもセッションが残る場合は再試行可能なエラーとする。（本文: SS-62 追補）
 - **後始末ではユーザー由来の Query キャッシュと Mutation キャッシュを消し、公開 `/app-config` の Query だけを除外する。** ユーザー条件付きフラグを採用する場合は除外とサインイン後再取得を見直す。（本文: SS-100 追補）
 
@@ -134,6 +134,8 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 ### 8. `features/walk` / `features/history` から認証への import を oxlint で禁止する
 
 `.oxlintrc.json` に `no-restricted-imports` の override を追加し、`@/services/auth` / `@/services/auth/*` / `@/store/useAuthSessionStore` への import をエラーにする。既存コードはこれらに一切依存していなかったため、新規違反の追加を禁止するだけで既存コードの修正は不要だった。SS-57 でゲスト散歩を解禁した後もこの override は外していない（`features/walk` / `features/history` はゲスト時の差異を API の 401 分類に吸収しており、認証状態を直接見る必要が発生しなかったため）。
+
+（SS-148 の注記: アカウントタブの記録画面はゲストに集計・最近の散歩を出さずサインイン案内を出すことにした。認証状態は `app/(tabs)/account.tsx` が `useAuthSessionStore` から `isSignedIn`（`status === "authenticated"` への圧縮。`loading` はゲスト扱いだが、スプラッシュで状態が確定してから表示される前提）と `onSignIn` を読み、`HistoryView` へ props で注入する。決定8は維持している。）
 
 ### SS-29 追補: restricted な feature が認証情報を必要とする場合は `app/` ルートで合成する
 
@@ -388,7 +390,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - `/dev-screens` から保護画面を開くには先にサインインが必要になった（`EXPO_PUBLIC_AUTH_MODE=dev` なら1タップで済む）。
 - セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（決定6 参照。ADR-008 の「アプリを落とすと散歩状態が消える」という既存の残存リスクに、非自発的セッション失効というトリガーが新たに加わった形）。
 - ゲートは `loading` 中は素通しのため、ディープリンクで開いた保護画面が復元完了までの数百 ms だけ描画されうる（機微データはサーバー由来で、トークンが無ければ API が 401 になるため実害は小さいと判断している）。
-- **（SS-57 追補）** ゲストは記録タブ・履歴・設定にも入れるようになり、`/walks` 系は 401 のエラーカードで degrade する（保存誘導 CTA は **SS-37 で対応済み**。履歴・統計は引き続きエラーカードで degrade する）。
+- **（SS-57 追補）** ゲストは記録タブ・履歴・設定にも入れるようになり、`/walks` 系は 401 のエラーカードで degrade する（保存誘導 CTA は **SS-37 で対応済み**。履歴・統計は引き続きエラーカードで degrade する。→ SS-148 でアカウントタブのゲストはサインイン案内に変わり、通信しない）。
 - **（SS-37 追補）** サインイン画面への遷移だけ `push` にする例外が1つ増えた（決定3・SS-57 ローカルレビュー対応が確立した「原則 `replace` 連鎖」に対する意図的な例外）。将来別の CTA を足す際は、行き止まり解消が目的かどうかを基準に `push`/`replace` を選ぶこと。
 
 ### 移行・対応が必要な事項
@@ -398,7 +400,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
     `useAuthSessionStore` から表示名を読み、`HistoryView` → `useHistorySummary` へ props / 引数として注入する。
     横断 hook を新設して override を形式的に回避する案は、ルールの趣旨（探索・散歩・履歴のロジックを認証状態に
     依存させない）に反するため採らなかった。同種の合成が必要になった場合はこのパターンに倣うこと。
-  - SS-57 時点では `features/walk` / `features/history` に認証状態を見る必要は発生しなかった（ゲスト時の差異は API の 401 分類に吸収されている）。**SS-37 で2例目が実例化された**: `app/walk-summary.tsx` が `isSignedIn` / `onSignIn` を `WalkSummaryView` → `useWalkSummary` → `useWalkSave` へ注入する。
+  - SS-57 時点では `features/walk` / `features/history` に認証状態を見る必要は発生しなかった（ゲスト時の差異は API の 401 分類に吸収されている）。**SS-37 で2例目が実例化された**: `app/walk-summary.tsx` が `isSignedIn` / `onSignIn` を `WalkSummaryView` → `useWalkSummary` → `useWalkSave` へ注入する。**SS-148 で3例目**: `app/(tabs)/account.tsx` が `isSignedIn` / `onSignIn` を `HistoryView` へ注入する（ゲスト向けサインイン案内）。
 - **（SS-37 追補）** シナリオA（散歩中のセッション失効による記録喪失）は本追補のスコープ外のまま残っている。解消するには ADR-008 決定5 のフォローアップ課題（ローカル永続化）の着手が必要。
 - backend との合意が必要になる論点（今回は決めない）としていた2点は、SS-49 で決定済み。決定内容は [横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6-1 を参照。
   - `/explore/places` `/explore/routes/walking` は認証を任意化し、未認証でも呼べるようにする（レート制限は既存の IP バケットを流用。backend 実装は SS-56）。（**SS-33 追補**）`/explore/routes/walking` を置き換えた `/explore/routes/loop` も同じ扱い。
