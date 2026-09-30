@@ -16,7 +16,7 @@ metadata:
 | `AuthGate` の退避 | しない（画面に留まる） | `shouldEvacuateOnSessionEnd` が true → `dismissAll()` + `replace("/(auth)/sign-in")` |
 | customFetch の refresh 再送 | しない（`shouldRefreshAndRetry` は `hadToken` が必要） | 1回試して失敗した後に 401 が表面化 |
 
-**Why:** SS-37 の初期ブリーフは「CTA を出しても保存対象が消えている」という前提だったが、実際には消えるのは失効側だけで、その側は AuthGate が既にサインイン画面へ退避させるため行き止まりではなかった。取り違えると ADR-008 決定6（サインアウト時のドラフトクリア＝共有端末の事故防止）を不要に覆すプランになる。
+**Why:** SS-37 の初期ブリーフは「CTA を出しても保存対象が消えている」という前提だったが、実際には消えるのは失効側だけで、その側は AuthGate が既にサインイン画面へ退避させるため行き止まりではなかった。取り違えると ADR-M-008 決定6（サインアウト時のドラフトクリア＝共有端末の事故防止）を不要に覆すプランになる。
 
 **How to apply:** 「ゲストで degrade する話」なのか「セッションが切れる話」なのかを最初に切り分ける。前者は状態が残るので画面上の導線で解ける。後者で失われるデータの回復は**ドラフト永続化（SS-36）待ち**で、個別タスクでは解かない。
 
@@ -27,7 +27,7 @@ metadata:
 `POST /auth/logout` →（real は Google ネイティブ破棄）→ `tokenStore.clear()` →
 `onSessionChange(null)` → `setSession(null)`（`authenticated → guest` の遷移でのみ
 `runSessionCleanup()`）→ `AuthGate` の `dismissAll()` + `replace("/(auth)/sign-in")` まで走る。
-画面/フックは `router` を触らない（ADR-009 決定6）。
+画面/フックは `router` を触らない（ADR-M-009 決定6）。
 
 - **`signOut()` は現実装では reject しない**（`createSessionAuthService.signOut()` が `api.logout` /
   `onSignOut` / `tokenStore.clear()` を全部 try/catch し、`secureRefreshTokenPersistence.load()` も
@@ -35,7 +35,7 @@ metadata:
   「将来の実装が reject してもダイアログを操作不能にしない」ために catch している）。
 - 順序の効能: トークン破棄がキャッシュクリアより**前**なので、クリア直後の再フェッチが有効な
   トークンで前ユーザーのデータを取り直す窓が無い。
-- `features/*` から `setSession(null)` を直接呼ぶ案は ADR-009 決定2（書き込み経路は
+- `features/*` から `setSession(null)` を直接呼ぶ案は ADR-M-009 決定2（書き込み経路は
   `services/auth` の `onSessionChange` と `useAuthSessionBootstrap` の2つだけ）違反。
 - 破壊的 API（`DELETE /users/me` 等）が 401 のときは「ローカルを掃除して成功扱い」にしない。
   上表の失効側なら放っておいても自己修復する（＝端末にデータは残らない）。

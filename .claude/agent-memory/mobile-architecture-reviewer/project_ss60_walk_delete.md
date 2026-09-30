@@ -7,13 +7,13 @@ metadata:
 ---
 
 SS-60「mobile: 散歩履歴を削除するUIを実装」（2026-08-16 レビュー）で、`src/lib/sessionCleanup.ts`
-（ADR-008 決定6。サインアウト時の後始末レジストリ）と同型の `src/lib/walkDeletionCleanup.ts`
+（ADR-M-008 決定6。サインアウト時の後始末レジストリ）と同型の `src/lib/walkDeletionCleanup.ts`
 （散歩削除時の後始末レジストリ、`(walkId: string) => void` を登録する形）が新設された。
 
 **Why:** `features/history`（削除の実行元）から `features/walk/store/useFinishedWalkStore`
 （`savedWalkId` 一致時にドラフトをクリアする必要がある）を直接 import すると
 `folder-structure.md` の「その機能の外から import されるものは置かない」に反するため。
-`useFinishedWalkStore` を `src/store/` へ昇格させる案は ADR-008 決定4 を覆すため ADR 追補が必要になり
+`useFinishedWalkStore` を `src/store/` へ昇格させる案は ADR-M-008 決定4 を覆すため ADR 追補が必要になり
 過剰と判断し、既存の後始末レジストリパターンを転用した（実装者はこれを ADR 追補不要と判断）。
 
 **How to apply:** この「クリアされる側が自分の後始末を登録し、実行側は1箇所からトリガーする」

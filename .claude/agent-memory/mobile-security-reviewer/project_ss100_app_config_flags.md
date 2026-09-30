@@ -16,7 +16,7 @@ SS-100（`GET /app-config` からフラグ・最低サポートバージョン�
   prototype pollution 経路も無い（スプレッド/マージをせず参照代入のみ）。
 - `queryClient.ts`: サインアウト時クリアを `clear()` → `removeQueries({ predicate: !isAppConfigQueryKey })`
   + `getMutationCache().clear()` に変更。除外は `/app-config` 1件のみ明示列挙、新規クエリは
-  デフォルトでクリア対象（fail-closed な向きを維持）。ADR-009 に SS-100 追補として、
+  デフォルトでクリア対象（fail-closed な向きを維持）。ADR-M-009 に SS-100 追補として、
   「除外してよいのはユーザー非依存の設定に限る／ダークローンチ採用時は要再検討」まで明記されている。
 - `config_source` は型 `AppConfigSnapshot` に存在せず、プロダクトコードから構造的に参照不能。
   `useAppConfigDiagnostics()`（診断専用）のみが読み、呼び出し元は `__DEV__` ガード付き

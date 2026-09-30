@@ -19,13 +19,13 @@ SS-33（`packages/mobile/src/features/walk/` の周回ルート対応）をレ�
 - **SS-35 の巻き戻しが完全**: 散歩中のルート再計算（`useWalkRouteRecalculation.ts` / `routeDeviation.ts` /
   `routeRecalculation.ts` / `walkRouteNotice.ts` とその `.test.ts`、`.maestro/walk-route-recalculate.yaml`）が
   ファイルごと削除され、grep（`Recalc|recalc|routeDeviation|isOffRoute|toOneWayMinutes|estimateRoundTripMinutes`）
-  でも残骸なし。ADR-008 の決定7撤回・決定9新設（往路/復路の到達判定はしない）とコードの実態が一致している。
+  でも残骸なし。ADR-M-008 の決定7撤回・決定9新設（往路/復路の到達判定はしない）とコードの実態が一致している。
   - **Why**: 前回試行（PR #62、クローズ済み）は「再計算」と「往路/復路判定」の組み合わせで状態が爆発し
     不具合源になった。ユーザー指示で両方を最初から作らない設計にした。
   - **How to apply**: 今後 SS-33 系のルート機能に触るとき、再計算・往路復路判定を安易に復活させる提案を
-    しない。復活させる場合は ADR-008 の再追補が必須（ADR 本文に明記済み）。
+    しない。復活させる場合は ADR-M-008 の再追補が必須（ADR 本文に明記済み）。
 - **軽微な指摘（Suggestion のみ）**:
-  1. ADR-008 の SS-33 追補「実装ファイル一覧」に `theme/tokens.ts`（`routeReturn` 追加）と
+  1. ADR-M-008 の SS-33 追補「実装ファイル一覧」に `theme/tokens.ts`（`routeReturn` 追加）と
      `RoutePolyline.tsx`（見た目 props 追加）が挙がっていない（本文には言及あり、一覧からの漏れ）。
   2. `theme.map.routeReturn` を Design System（Claude Design "Sanpo Design System"）側へ反映する
      フォローアップが issue化・ADR申し送りされていない（プランの Q3 で「後追いで依頼する」とだけ決めている）。
@@ -33,7 +33,7 @@ SS-33（`packages/mobile/src/features/walk/` の周回ルート対応）をレ�
      レビュー時点で実機未確認だった。→ **2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で確認済み**:
      凡例の破線見本と同じ道フォールバック時の凡例は正常。帰りの Polyline は `lineCap="round"` + dash で
      「丸い点の点線」に見え凡例見本と少し違うが、ユーザー判断で許容・据え置き（揃えるなら復路だけ
-     `lineCap="butt"`）。ダークモードと TalkBack は未確認。詳細は ADR-008「移行・対応が必要な事項」。
+     `lineCap="butt"`）。ダークモードと TalkBack は未確認。詳細は ADR-M-008「移行・対応が必要な事項」。
 - 関連: 今回撤去された機能（SS-35 の現在地起点ルート再計算）の元実装レビューメモ
   `project_ss35_route_recalculation.md` は実装ごと削除されたため本 SS-33 対応で除去した。
   そこにあったパターン知見（Query外ローカルstate+sequence世代管理+純粋関数状態機械）は

@@ -30,7 +30,7 @@ SS-124（SS-88の拡張。ナビタブFAB→`/pins/pick-location`長押し→`/p
   （SS-57）ため到達できる。これは意図された設計で脆弱性ではない。
 - 「位置を調整」ボタンのdisabled判定（`canAdjustPinLocation`）はクライアント側UI制御のみだが、
   `POST /pins`の`client_pin_id`冪等再送はサーバー側で内容を無視し既存ピンを返すため
-  （ADR-010決定5）、バイパスされても実害なし。
+  （ADR-M-010決定5）、バイパスされても実害なし。
 - `useCurrentLocation`/`LocationPermissionNotice`の`features/walk`→`src/hooks`・
   `src/components/location`への昇格は`git mv`相当の純粋移動でロジック変更なし
   （`git diff`で確認）。

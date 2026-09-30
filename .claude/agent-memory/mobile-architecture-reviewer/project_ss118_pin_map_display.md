@@ -1,6 +1,6 @@
 ---
 name: project_ss118_pin_map_display
-description: SS-118(登録済みピンの地図表示・詳細画面)mobileアーキレビュー結果。render slot合成は模範実装。useQueriesの戻り配列の参照不安定→combineにモジュールレベル関数を渡して解消(ADR-012 D15)
+description: SS-118(登録済みピンの地図表示・詳細画面)mobileアーキレビュー結果。render slot合成は模範実装。useQueriesの戻り配列の参照不安定→combineにモジュールレベル関数を渡して解消(ADR-M-012 D15)
 metadata:
   type: project
   scope: durable
@@ -9,7 +9,7 @@ metadata:
 ---
 
 SS-118（登録済みピンの地図表示 + ピン詳細画面。ユーザー追加要件でマーカータップは直接詳細へ push）の
-mobile 実装をアーキテクチャレビュー（2026-09-26）。プラン・ADR-012 と実装がほぼ完全に一致。Critical 指摘なし。
+mobile 実装をアーキテクチャレビュー（2026-09-26）。プラン・ADR-M-012 と実装がほぼ完全に一致。Critical 指摘なし。
 
 **Why:** 他レビューでも再利用価値が高い設計判断・発見した実装バグ。
 
@@ -49,7 +49,7 @@ mobile 実装をアーキテクチャレビュー（2026-09-26）。プラン・
    （複数クエリを配列で返す API）に固有。
 
 4. **`isAllowedUploadUrl` の多目的化（アップロード許可判定 → 閲覧 presigned GET の許可判定にも
-   流用）は関数名を変えずに JSDoc だけ追記する設計**（`presignedPostForm.ts`）。ADR-010 決定8の
+   流用）は関数名を変えずに JSDoc だけ追記する設計**（`presignedPostForm.ts`）。ADR-M-010 決定8の
    延長として妥当。次に同じ関数を3つ目の用途に使うことになったら、関数名の一般化
    （例: `isAllowedStorageUrl`）を検討する潮時。
 

@@ -9,7 +9,7 @@ metadata:
 
 # packages/mobile の要点（plan作成の前提）
 
-**スタイル**: react-native-unistyles は撤去済み（ADR-005）。RN標準 `StyleSheet` を `@/theme/makeStyles((theme)=>...)` でラップ + `@/theme/useTheme()`。色/余白/角丸/影/文字は `src/theme/tokens.ts` のトークンから取得（ハードコード禁止）。**Unistyles 前提の記述は書かない**。
+**スタイル**: react-native-unistyles は撤去済み（ADR-M-005）。RN標準 `StyleSheet` を `@/theme/makeStyles((theme)=>...)` でラップ + `@/theme/useTheme()`。色/余白/角丸/影/文字は `src/theme/tokens.ts` のトークンから取得（ハードコード禁止）。**Unistyles 前提の記述は書かない**。
 
 **Text プリミティブは存在しない** → RN の `Text` を直接 import し theme トークンでスタイルする（`DesignSystemGallery.tsx` が手本）。
 
@@ -38,7 +38,7 @@ metadata:
 **feature 境界の抜け道**: `docs/folder-structure.md` は「その機能の外から import されるものは features に置かない」。
 機能 A が機能 B の store を触りたくなったら、昇格（ADR 追補が要る）より **`src/lib/` の後始末レジストリ**
 （`sessionCleanup.ts` = `register*` + `run*` + `reset*ForTest`、クリアされる側がモジュール末尾で自己登録）を
-真似るのが既存方針に沿う。ADR-008 決定6 が同じ問題をこれで解いている。登録がモジュールロード依存な点は
+真似るのが既存方針に沿う。ADR-M-008 決定6 が同じ問題をこれで解いている。登録がモジュールロード依存な点は
 「未ロード＝そのメモリ状態も存在しない」で許容されている。
 
 **Dialog + `useScreenBack` の同居は要注意**: RN `Modal` の `onRequestClose` と `BackHandler` 購読が
@@ -50,6 +50,6 @@ metadata:
 
 **react-native-maps の地図操作**: `MapView.onPress` は Marker と POI のタップでは**発火しない**（POI は `onPoiClick`、Google のみ）。「タップした地点を選ぶ」UI は `onPoiClick` も同じハンドラにつなぐ。`showsUserLocation` は使わない（mock モードで OS の点と2つ出る。`WalkRouteMapView` の JSDoc）。worktree には node_modules が無いことが多く、ライブラリの型は手元で読めない → 公式 docs（GitHub の `docs/mapview.md`）で確認する。
 
-**ネイティブ設定**: `/ios` `/android` は gitignore（CNG 前提）→ ネイティブ設定は app config で行う。`react-native-maps@1.27.2` は依存にあるだけで未使用・キー未設定。Android の Maps キーは `expo.android.config.googleMaps.apiKey`（@expo/config-plugins が読む）に app.config.ts 経由で env から注入する。react-native-maps 同梱の config plugin は**プロパティ未指定だと manifest からキーを削除する**ので併用しない。iOS は既定 Apple Maps でキー不要。ネイティブ追加は `@expo/fingerprint` を変え、ADR-004 の E2E APK キャッシュを1回ミスさせる。
+**ネイティブ設定**: `/ios` `/android` は gitignore（CNG 前提）→ ネイティブ設定は app config で行う。`react-native-maps@1.27.2` は依存にあるだけで未使用・キー未設定。Android の Maps キーは `expo.android.config.googleMaps.apiKey`（@expo/config-plugins が読む）に app.config.ts 経由で env から注入する。react-native-maps 同梱の config plugin は**プロパティ未指定だと manifest からキーを削除する**ので併用しない。iOS は既定 Apple Maps でキー不要。ネイティブ追加は `@expo/fingerprint` を変え、ADR-M-004 の E2E APK キャッシュを1回ミスさせる。
 
 **フルスクリーンのデザインモック(.pen等)はリポジトリに無い**（`src/features/design-system/components/DesignSystemGallery.tsx` がプリミティブ一覧＝実質のUI見本）。画面は既存プリミティブ＋各コンポーネントのJSDocが示す用途から構成する。

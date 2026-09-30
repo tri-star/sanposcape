@@ -1,6 +1,6 @@
 ---
 name: project_ss62_account_delete
-description: SS-62（設定画面にアカウント削除の導線）レビュー所見。SS-60/ADR-009パターンの忠実な踏襲は高品質だが、AccountDeleteDialogが成功後(status="deleted")もisDeletingをtrueにせずボタンが再度押せてしまう新規バグを発見
+description: SS-62（設定画面にアカウント削除の導線）レビュー所見。SS-60/ADR-M-009パターンの忠実な踏襲は高品質だが、AccountDeleteDialogが成功後(status="deleted")もisDeletingをtrueにせずボタンが再度押せてしまう新規バグを発見
 metadata:
   type: project
   scope: task-local
@@ -9,7 +9,7 @@ metadata:
 
 SS-62（ブランチ `tri-star/SS-62`、2026-09-13）は設定画面にアカウント削除
 （`DELETE /users/me`）を追加するタスク。実装計画・申し送りとも精度が高く、SS-60
-（`walkDeleteApi.ts`/`WalkDeleteDialog`）・ADR-009（決定2・決定6・SS-57追補）のパターンを
+（`walkDeleteApi.ts`/`WalkDeleteDialog`）・ADR-M-009（決定2・決定6・SS-57追補）のパターンを
 忠実に踏襲している。
 
 **確認して裏取りした主張（すべて一致）**:

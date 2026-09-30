@@ -9,7 +9,7 @@ metadata:
 
 ## CI の実行モデル（検証済み）
 
-- `.github/workflows/mobile-e2e.yml` は `maestro test packages/mobile/.maestro/` で**ディレクトリ全体**を実行する。トリガは **`workflow_dispatch` と週次 schedule（土曜 08:00 JST）だけ**（2026-09-30 に workflow 本体で確認。push トリガは ADR-004 の 2026-08-14 追補で廃止）。`docs/local-env.md` の「3系統（nightly / 手動 / push）」は古い記述なので信じない。E2E を変えるプランには「マージ前に手動実行」と書く。
+- `.github/workflows/mobile-e2e.yml` は `maestro test packages/mobile/.maestro/` で**ディレクトリ全体**を実行する。トリガは **`workflow_dispatch` と週次 schedule（土曜 08:00 JST）だけ**（2026-09-30 に workflow 本体で確認。push トリガは ADR-M-004 の 2026-08-14 追補で廃止）。`docs/local-env.md` の「3系統（nightly / 手動 / push）」は古い記述なので信じない。E2E を変えるプランには「マージ前に手動実行」と書く。
 - **Maestro はワークスペース直下の yaml だけを自動実行する**（`flows` の既定は `*`。サブディレクトリは対象外）。→ `.maestro/subflows/` に置いたファイルは `runFlow` からしか実行されない＝共通手順の切り出し先として安全。
 - フローヘッダの `tags:` と CLI の `--include-tags` / `--exclude-tags` で実行対象を絞れる（CLI は config.yaml より優先）。`.maestro/config.yaml` は書かなくてよい（`flows` の glob を書き損ねると「1本も実行されないのに緑」になる）。
 - `assertVisible` の待ちは短い。通信・画面遷移をまたぐ箇所は `extendedWaitUntil`（`visible` / `notVisible` + `timeout`）を使う。
@@ -17,18 +17,18 @@ metadata:
 
 ## 「候補0件」問題の根本原因（＝差し替えの継ぎ目）
 
-ADR-004 により CI の preview APK には Maps SDK キーが無く（地図は灰色）、CI の backend にも Google server key が無い。
+ADR-M-004 により CI の preview APK には Maps SDK キーが無く（地図は灰色）、CI の backend にも Google server key が無い。
 キーが空だと `build_google_maps_provider()`（`packages/backend/src/sanposcape/integrations/google_maps/client.py`）が
 `UnconfiguredGoogleMapsProvider` を返し `/explore/places` が 503 → 候補0件 → スポットを選べない →
 **`(tabs)` 配下（ナビ/検索/記録タブ）とその先（履歴）に E2E から到達できない**（`(tabs)` に入る唯一の導線は `WalkStartView` の「散歩を始める」）。
 
 → SS-21 のプランでは backend に `MAPS_MODE=real|fake` と `FakeGoogleMapsProvider` を足す案を提示した（`AUTH_MODE` と同じ fail-safe 方針）。
 **注意**: `packages/backend/compose.yaml` は環境変数を1つずつ列挙して渡す方式なので、新しい env は compose.yaml にも追加しないとコンテナに届かない。
-実キーを CI に置く案は ADR-004 のコスト方針（課金・シークレット管理）に反するため却下している。
+実キーを CI に置く案は ADR-M-004 のコスト方針（課金・シークレット管理）に反するため却下している。
 
 ## E2E で assert してはいけないもの
 
-- 地図タイルの描画・候補の件数/名称・距離や時間の具体値（ADR-004）。
+- 地図タイルの描画・候補の件数/名称・距離や時間の具体値（ADR-M-004）。
 - **履歴の件数・空状態**。`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1` 固定 + DB は CI ラン単位で共有のため、先に走ったフローの記録が残る。
   「`*-loading` が消える」＋「`*-error` が出ない」の2段で “取得が成功して落ち着いた” ことだけを見る。空状態の文言は Vitest（純粋関数）の責務。
 - ゲスト導線の testID（`sign-in-guest-button` / `sign-up-guest-button`）は **SS-13 で削除 → SS-57 で復活**

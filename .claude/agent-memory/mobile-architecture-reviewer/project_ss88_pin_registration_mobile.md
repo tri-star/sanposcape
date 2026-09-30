@@ -1,6 +1,6 @@
 ---
 name: project_ss88_pin_registration_mobile
-description: SS-88ピン登録機能(features/pin, services/photo, ADR-010)のmobileアーキレビュー結果と既知ギャップ
+description: SS-88ピン登録機能(features/pin, services/photo, ADR-M-010)のmobileアーキレビュー結果と既知ギャップ
 metadata:
   type: project
   scope: task-local
@@ -9,7 +9,7 @@ metadata:
 
 SS-88（ピン登録・写真presigned POST直送）の mobile 実装は事前プランに極めて忠実で、Critical指摘なし。
 `src/features/pin/lib/pinSaveRunner.ts`（未使用枠30の吸収・冪等再開）と `src/services/photo/`
-（real/mock）は ADR-010 の「複雑な状態遷移はすべて lib/ の純粋関数に閉じ、vitest で網羅する」方針の
+（real/mock）は ADR-M-010 の「複雑な状態遷移はすべて lib/ の純粋関数に閉じ、vitest で網羅する」方針の
 模範実装。レビュー日 2026-09-21。
 
 **Why:** 次に `features/pin` や同種の「複雑な非同期状態機械 + DI テスト」を見たとき、以下2点を
@@ -36,7 +36,7 @@ SS-88（ピン登録・写真presigned POST直送）の mobile 実装は事前�
 
 **How to apply:** `features/pin` 配下の新規PRで `pinSaveRunner`/`photoDraft`/`usePinPhotos` に
 手を入れる変更を見たら、上記2点が解消されているか（1: dispatch同期化 or 結合テスト追加、
-2: `.oxlintrc.json` へのoverride追加）をまず確認してから他の観点に進む。ADR-010・
+2: `.oxlintrc.json` へのoverride追加）をまず確認してから他の観点に進む。ADR-M-010・
 `docs/architecture-guideline.md`「写真の扱い」節は実装と一致していることを確認済み
 （2026-09-21時点）。
 
@@ -49,6 +49,6 @@ SS-88（ピン登録・写真presigned POST直送）の mobile 実装は事前�
 **SS-124で新たに判明した関連ギャップ**: `features/walk` ⇔ `features/pin` の相互非依存
 （`addPinAction.ts` のコメントで明記）は `.oxlintrc.json` では強制されていない
 （`no-restricted-imports` override は `@/services/auth*` / `@/store/useAuthSessionStore` のみ
-対象）。ADR-011 の D6 はこの非依存を前提にルーティング設計（ルート文字列での遷移）を決めており、
+対象）。ADR-M-011 の D6 はこの非依存を前提にルーティング設計（ルート文字列での遷移）を決めており、
 依存度が増している。次に `features/walk`/`features/pin`/`features/history` 間の import を見たら、
 lintで強制されていない前提であることに注意する。

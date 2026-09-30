@@ -9,8 +9,8 @@ metadata:
 ---
 
 SS-124（散歩中以外・任意地点でのピン登録 (b) と登録画面での位置の微調整 (a)）の mobile 実装を
-アーキテクチャレビュー（2026-09-25）。実装プラン（D1〜D12。詳細は ADR-011 本文に転記済み）・
-ADR-011 と実装がほぼ完全に一致しており、Must 相当の指摘は無し。
+アーキテクチャレビュー（2026-09-25）。実装プラン（D1〜D12。詳細は ADR-M-011 本文に転記済み）・
+ADR-M-011 と実装がほぼ完全に一致しており、Must 相当の指摘は無し。
 
 **Why:** このタスクで確立された設計判断のうち、他のレビューでも再利用価値が高いものを残す。
 
@@ -20,11 +20,11 @@ ADR-011 と実装がほぼ完全に一致しており、Must 相当の指摘は�
    （`features/pin` 内だけで使う2コンポーネント）の適用例として妥当。
 2. **`Modal` を避けた全画面オーバーレイ設計**は [[pattern_modal_backhandler_coexistence]] で
    指摘していた既知の問題（Android で `Modal` 表示中は `hardwareBackPress` が `Dialog` 側に
-   奪われ `useScreenBack.onIntercept` が実質届かない）を ADR-011 D7 で明示的に踏まえた回避。
+   奪われ `useScreenBack.onIntercept` が実質届かない）を ADR-M-011 D7 で明示的に踏まえた回避。
    今後 "地図を全画面で見せる" 系の新規オーバーレイを見たら、同じ理由で `Modal` を避けているか
    確認する。
 3. **feature 間 import の非依存（`features/walk` ⇔ `features/pin`）は `.oxlintrc.json` の
-   `no-restricted-imports` では強制されていない**（対象は認証系のみ）。ADR-011 D6 のルーティング
+   `no-restricted-imports` では強制されていない**（対象は認証系のみ）。ADR-M-011 D6 のルーティング
    設計（ルート文字列だけで遷移する）はこの非依存を前提にしており、依存度が増した。次に
    feature 間 import を lint で強制する提案が出たら、この点を後押し材料にできる。
 4. **`usePinLocationPicker.ts` の「render 中に直接 setState して単発の派生状態を確定する」パターン**
