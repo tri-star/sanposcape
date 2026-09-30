@@ -33,11 +33,11 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 | [ADR-004](./adr/ADR-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補） |
 | [ADR-005](./adr/ADR-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context |
 | [ADR-006](./adr/ADR-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード |
-| [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補） |
+| [ADR-007](./adr/ADR-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補） |
 | [ADR-008](./adr/ADR-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有 |
 | [ADR-009](./adr/ADR-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート |
 | [ADR-010](./adr/ADR-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送 |
 | [ADR-011](./adr/ADR-011-pin-location-picking-and-adjustment.md) | ピンの位置の選択と調整（任意地点からの登録は長押し、登録画面での調整はタップ・画面内オーバーレイ）。ピンタブへの統合（SS-146 追補）。ナビタブの FAB と地点選択画面の削除（SS-147 追補） |
-| [ADR-012](./adr/ADR-012-pin-map-display-and-detail.md) | 登録済みピンの地図表示（取得範囲・上限の見せ方・散歩中の地図への合成）とピン詳細（写真のページング・画像キャッシュ）。ピンタブでの表示（SS-146 追補）。`/pins/map` の削除とナビタブ idle への「最近の散歩」の合成（SS-147 追補） |
+| [ADR-012](./adr/ADR-012-pin-map-display-and-detail.md) | 登録済みピンの地図表示（取得範囲・上限の見せ方・散歩中の地図への合成）とピン詳細（写真のページング・画像キャッシュ）。ピンタブでの表示（SS-146 追補）。`/pins/map` の削除とナビタブ idle への「最近の散歩」の合成（SS-147 追補）。アカウントタブのゲスト表示（SS-148 追補） |
 | [ADR-013](./adr/ADR-013-pin-tag-suggestions.md) | ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一） |
 | [ADR-014](./adr/ADR-014-sanpo-map-list-and-detail.md) | 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ） |

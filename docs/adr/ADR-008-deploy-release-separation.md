@@ -87,7 +87,7 @@
 （SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）、2026-09-21 追補
 （SS-93: SS-96 の完了を反映）、2026-09-21 追補（SS-88: `pin_registration` を最初の実フラグ
 として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
-定義ファイル）
+定義ファイル）、2026-10-01 追補（SS-148: D16 の表示範囲の注記）
 
 ## ステータス
 
@@ -854,6 +854,8 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 持たない。D1 が「クライアントはこの値で分岐してはいけない」と定めているため、プロダクトコードが
 参照できる型から落とすことで型システムに担保させた。診断表示が必要な `__DEV__` 画面
 （`/dev-screens` の `AppConfigDebugCard`）だけは別 hook（`useAppConfigDiagnostics()`）から読む。
+（SS-148 追補: `/dev-screens` を開けるのは「本番以外のビルド」になり、staging（TestFlight）でも表示される。
+`config_source` で分岐しない方針は変わらない。mobile ADR-007 SS-148 追補）
 
 ### D17: `minimum_supported_versions` は保持のみ
 

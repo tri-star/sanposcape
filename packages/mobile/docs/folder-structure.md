@@ -176,6 +176,7 @@ packages/mobile/
   `features/walk` と `features/history` は互いに import しない。サインイン中だけ渡す判定もルートが持つ。SS-147）。
   同じコンポーネントを複数のタブに出すと、タブは一度開くとマウントされたまま残るため testID が衝突しうる。
   呼び出し側から接頭辞を渡す（`pages-components-guideline.md` のルール 7）。
+  同様に `app/(tabs)/account.tsx` が `HistoryView` の `footer` に `AccountActionBar`（`features/account`）を渡す（SS-148）。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
 > **「2つ以上の機能から使うか？」**
@@ -187,6 +188,8 @@ packages/mobile/
 
 - 実際の昇格例: `LocationPermissionNotice`（`features/walk/components/` → `src/components/location/`。
   `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `features/walk` の画面と `features/pin` の `PinMapFullScreen` / `PinTabView`）。
+- 実際の昇格例: `TabActionBar`（`features/pin/components/PinTabActionBar.tsx` → `src/components/layout/TabActionBar.tsx`。
+  アカウントタブの下部の帯でも使うため。SS-148）。
 
 ### `src/services/` — スタブ差し替えの層
 - 認証(OAuth/OIDC)や実機依存機能（カメラ・位置情報など）を抽象化する層。
@@ -280,7 +283,8 @@ packages/mobile/
     到達半径を見積もる」walk 固有の計算（`regionForRoundTrip` / `regionForBounds` /
     `radiusMetersForRoundTrip`）は `features/walk/lib/mapRegion.ts` に残す。同名ファイルが2箇所に
     あること自体は問題ではなく、共有側は汎用型（`MapRegion` / `MIN_REGION_DELTA`）だけを import する。
-- `src/config/`: 環境変数の読み取りと定数。フィーチャーフラグのキー定数（`featureFlags.ts`。
+- `src/config/`: 環境変数の読み取りと定数。ビルド variant の判定（`appVariant.ts` は純粋関数、`devTools.ts` は
+  `expo-constants` / `expo-updates` を読む実行時の入口。SS-148）も含む。フィーチャーフラグのキー定数（`featureFlags.ts`。
   `/app-config` の `flags` は map で返るためキーの型情報が OpenAPI に無く、mobile 側で自前定義する。
   SS-100）も含む。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。

@@ -96,7 +96,8 @@ adb shell am start -a android.intent.action.VIEW \
 
 各主要画面はプロダクト導線を辿らないと単独で開けないため、development build 上で
 `/dev-screens`（`ScreenCatalog`）を直接開くとスタブデータ付きで一覧から確認できる（SS-9）。
-本番ビルドでは `__DEV__` ガードにより `/` へリダイレクトされ開けない。
+本番ビルド（`production` プロファイル）では `isDevToolsEnabled()` のガードにより `/` へリダイレクトされ開けない。
+development / E2E / staging のビルドでは、アカウントタブ下部の「画面カタログ」ボタンからも開ける（SS-148）。
 
 `/dev-screens` 自体は未認証でも開ける公開ルートで、そこから開く散歩開始・履歴・設定などの
 保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を解禁したため

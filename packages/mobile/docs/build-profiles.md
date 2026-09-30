@@ -640,6 +640,27 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
   `staging-apk`）は地図が表示されずサインインもできなくなるため、開発用識別子のビルドで
   入れ直すこと。
 
+## 実行時のビルド variant 判定（SS-148）
+
+開発ツール（`/dev-screens`・`/design-system` と、アカウントタブの「画面カタログ」ボタン）を出してよいビルドかは、
+実行時に `src/config/devTools.ts` の `isDevToolsEnabled()` が判定する（純粋な判定は `src/config/appVariant.ts`。
+根拠は [ADR-007](../adr/ADR-007-expo-config-and-maps-key-injection.md) の SS-148 追補）。
+
+| ビルド | `__DEV__` | `extra.appVariant` | `Updates.channel` | 開発ツール |
+|---|---|---|---|---|
+| `development`（dev client + Metro） | true | `"development"` | `null` | 表示 |
+| `preview`（E2E） | false | `"development"` | `"preview"` | 表示 |
+| `staging` / `staging-apk` / `staging-ios` | false | `"development"` | `"staging"` | 表示 |
+| `production`（埋め込みバンドル） | false | `"production"` | `"production"` | 非表示 |
+| `production` + 将来の OTA | false | `"development"` になりうる | `"production"` | 非表示（channel で止まる） |
+| 値が取れない・未知の値 | false | `null` | 任意 | 非表示（fail-closed） |
+
+- **production の `channel` 名を変えるときは `src/config/appVariant.ts` の `PRODUCTION_UPDATES_CHANNEL` も変える**
+  （`appVariant.test.ts` の契約テストが落ちて気づける）。
+- **`eas update` では `eas.json` のビルドプロファイルの `env` が効かない**（SDK 55 以降は EAS サーバーの環境変数だけを使う）。
+  OTA の手順（SS-103）で扱う。
+- ビルドの種類での分岐は開発ツールの表示可否だけに使う。プロダクトの挙動の分岐には使わない。
+
 ## 切り替え後の検証
 
 CloudFront 経由に向けたビルドの疎通確認は、**`GET /health` では絶対に露見しない**。

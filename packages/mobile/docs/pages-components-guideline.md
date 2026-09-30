@@ -118,15 +118,20 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 
 各主要画面はプロダクトの操作フロー（サインイン→散歩開始→…）を経ないと単独で開けないため、
 開発・レビュー時にスタブデータ付きで直接開くための専用ルートを用意している。
-いずれも `app/_layout.tsx` のプロダクト導線には含めず、`__DEV__` でガードして本番ビルドでは
-`/`（トップ）へ `Redirect` する（SS-9）。
+いずれも `app/_layout.tsx` のプロダクト導線には含めず、`isDevToolsEnabled()`（`src/config/devTools.ts`）でガードして
+本番ビルドでは `/`（トップ）へ `Redirect` する（SS-9。SS-148 で `__DEV__` から置き換え、staging・E2E でも開けるようにした）。
+
+- 入口はアカウントタブ下部の「画面カタログ」ボタン（本番以外のビルドのみ表示）と URL 直打ち。
+- **開発用ルートを新設するときも同じガード（`isDevToolsEnabled()`）を使う**。
+- staging（dev backend・本物の Google サインイン）で開くと、書き込みのあるエントリ（`walk-summary` の `POST /walks` など）は
+  そのテスターのアカウントに作用する。
 
 | ルート | 実体 | 用途 |
 |---|---|---|
 | `/dev-screens` | `app/dev-screens.tsx` → `ScreenCatalog` | 各主要画面をスタブデータ付きで直接開く画面カタログ |
 | `/design-system` | `app/design-system.tsx` → `DesignSystemGallery` | デザイントークン/UIプリミティブ一覧 |
 
-画面の見た目を確認したいときは、development build で `/dev-screens` を開く
+画面の見た目を確認したいときは、development build（または staging の配布ビルド）で `/dev-screens` を開く
 （URL直打ちの手順は [app-startup-guide](./app-startup-guide.md) を参照）。
 **新しい主要画面（`app/` 配下のルート）を追加したら、`ScreenCatalog` の `links` にリンクを1件追加する**
 ことを実装のセットとする。追加を怠るとカタログが陳腐化し、表示確認の抜け漏れに繋がる。

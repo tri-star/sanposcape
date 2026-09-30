@@ -1,9 +1,44 @@
 # ADR-007: Expo 設定は `app.json` + `app.config.ts` の併用とし、Maps SDK キーは環境変数から注入する
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-01（SS-148）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- 静的な設定は `app.json`、動的な部分だけを `app.config.ts` で拡張する。（本文: 決定）
+- Maps SDK キーは `GOOGLE_MAPS_ANDROID_SDK_KEY` から `android.config.googleMaps.apiKey` へ注入する。`EXPO_PUBLIC_` は付けず、
+  未設定なら `android.config` を付けない。iOS は Apple Maps でキー不要。`react-native-maps` の config plugin は併用しない。（本文: 決定）
+- キーの供給元は経路ごとに1つにする。クラウドビルドは EAS の `preview` 環境に `secret`、`--local`（E2E）は GitHub Secrets（`ci-e2e`）。
+  `plaintext` / `sensitive` に戻さない。（本文: 決定、SS-79 追補）
+- キーが APK に無いと Maps SDK の初期化でクラッシュする（E2E に必須）。SHA-1 / package の不一致では地図が出ないだけ。
+  （本文: 影響、SS-78 追補、SS-79 追補）
+- `app.config.ts` は `mobile-e2e.yml` のネイティブ変更トリガと `oxfmt` の対象に含める。（本文: 決定）
+- `predictiveBackGestureEnabled: false` は `useScreenBack` の前提。（本文: 決定、SS-34 追補）
+- `APP_VARIANT=production` のときだけ本番の識別子・scheme・アプリ名・Google サインインの `iosUrlScheme` に上書きし、
+  未知の値は `expo config` の評価時に throw する。（本文: SS-79 追補、2026-09-30 追補）
+- `eas credentials` の既定クレデンシャルを識別子ごとに切り替えない。（本文: SS-79 追補）
+- `app.config.ts` は `extra.appVariant` を常に公開し、開発ツールの表示可否は `isDevToolsEnabled()`
+  （`__DEV__` / `extra.appVariant` / `Updates.channel`）だけで判定する。未知は非表示。（本文: SS-148 追補）
+- 開発ツールのコードは本番バンドルから除外しない。（本文: SS-148 追補）
+
+### 未解決・持ち越し
+
+- iOS で Google Maps を使う場合のキー注入。（本文: 移行・対応事項）
+- OTA の update 時の環境変数の供給（SS-103）。（本文: SS-148 追補）
+
+### 変更・撤回された決定
+
+- 「EAS の環境変数管理には載せない」→「preview に secret」（SS-79）
+- 「キー未注入は地図が灰色」→「クラッシュ」（SS-78）
+- 「SHA-1 不一致でクラッシュ」→「表示されないだけ」（SS-79）
+
 ## 日付
 
 2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）、2026-09-11 追補（SS-78）、
-2026-09-13 追補（SS-79）、2026-09-30 追補（本番用 iOS OAuth クライアント）
+2026-09-13 追補（SS-79）、2026-09-30 追補（本番用 iOS OAuth クライアント）、
+2026-10-01 追補（SS-148。実行時のビルド variant 判定）
 
 ## ステータス
 
@@ -23,6 +58,10 @@ EAS 側の供給経路について「**EAS の環境変数管理には載せな�
 環境に `secret` visibility で載せる（`--local` 経路の供給元は GitHub Secrets のまま維持する）」
 に更新した。あわせて `app.config.ts` の責務に `APP_VARIANT` による本番 variant の識別子上書きが
 加わったことを記録した。追補部分には `（SS-79 追補）` を付けている。
+
+**SS-148「mobile: アカウントタブ」で追補**した。画面カタログを staging（TestFlight）でも開けるようにするため、
+`app.config.ts` が `extra.appVariant` を公開し、実行時にビルドの種類を判別して開発ツールの表示可否を決める。
+追補部分には `（SS-148 追補）` を付けている。
 
 ## コンテキスト
 
@@ -210,6 +249,7 @@ Maps キーの注入に加えて、`APP_VARIANT` による本番 variant の上�
 を担うようになった（`applyAppVariant` 関数）。未知の値（typo 等）は例外にする:
 本番ビルドが黙って開発識別子になる事故は、EAS の枠を消費してから発覚すると被害が大きいため、
 `expo config` の評価時点（ビルドを始める前）で止める。
+（SS-148 追補: `extra.appVariant` の公開も担う。下記）
 
 ### 訂正: SHA-1 の不一致は地図が「クラッシュ」ではなく「表示されない」だけ
 
@@ -223,6 +263,61 @@ assert しない。[ADR-004](./ADR-004-e2e-build-ci-strategy.md)）。同じ訂�
 `packages/mobile/docs/build-profiles.md` と [ADR-004](./ADR-004-e2e-build-ci-strategy.md) の
 SS-79 追補にも反映した。
 
+## SS-148 追補: 実行時のビルド variant 判定と開発ツールの表示可否（2026-10-01）
+
+### コンテキスト
+
+画面カタログ（`/dev-screens`）をアカウントタブから開けるようにし、TestFlight（staging）でも使いたい。
+しかし `__DEV__` は Metro の開発バンドルでしか true にならず、配布ビルドでは開けない。
+実行時にビルドの種類を判別する手段も無かった（`APP_VARIANT=production` は `eas.json` の `production` プロファイルの
+`env` にだけあり、`app.config.ts` がビルド時に識別子を上書きするのに使うだけで、JS からは見えない）。
+
+### 決定
+
+1. `app.config.ts` は `extra.appVariant`（`"production"` | `"development"`）を常に書く。未知の `APP_VARIANT` は従来どおり throw する。
+   `extra` は公開の設定で JS バンドルからも見えるので、秘密を置かない。
+2. 開発ツールの表示可否は `src/config/devTools.ts` の `isDevToolsEnabled()` だけで判定する（純粋な判定は `src/config/appVariant.ts`）。
+   判定順: `__DEV__` なら許可 → `extra.appVariant === "production"` なら不許可 → `Updates.channel === "production"` なら不許可
+   → `extra.appVariant === "development"` なら許可 → それ以外（`extra` 欠落・未知）は不許可（fail-closed）。
+3. `/dev-screens`・`/design-system` のガードと、アカウントタブの「画面カタログ」ボタンは、この判定にそろえる。
+4. `Updates.channel` を2つ目のシグナルにする理由: `Constants.expoConfig` は OTA の update で起動したときは update の manifest 由来になる
+   （embedded でも remote でも）。SDK 55 以降の `eas update` は EAS サーバーの環境変数だけを使い、`eas.json` のビルドプロファイルの
+   `env` を読まない。つまり `production` チャネルへ `eas update` を出すと `APP_VARIANT` が無い状態で `app.config.ts` が評価され、
+   本番端末の `extra.appVariant` が `"development"` に変わりうる。`Updates.channel` はビルド時にネイティブ設定へ書かれ OTA では
+   変わらない（dev build では常に `null`）ので、どちらかが production を示したら閉じることで fail-open を防ぐ。
+5. 開発ツールのコードは本番バンドルから除外しない。現状の `__DEV__` ガードでも、`app/dev-screens.tsx` の import は残り、
+   Metro は tree shaking を有効にしていない（`metro.config.js` は既定）ので、実行時判定にしてもバンドルの中身は変わらない。
+   画面カタログは秘密を持たない（スタブの代表値とルート一覧だけ）。`src/services/auth/index.ts` の
+   「dev / mock の実装が本番バンドルに入ることは許容する」と同じ判断。
+6. ビルドの種類での分岐は、開発ツールの表示可否以外に使わない（使い道を増やすと、本番と staging で挙動が違う機能が生まれる）。
+
+`src/services/auth/index.ts` の `!__DEV__`（mock モードの起動時ガード）は変えない。テスト専用の認証バイパスを
+非開発ビルドで禁止するためのガードで、staging でも禁止したままでなければならない。
+
+### 検討した選択肢
+
+- `__DEV__` のまま: staging で開けない
+- `EXPO_PUBLIC_APP_VARIANT` を JS に inline する: `eas.json` に同じ意味の変数が2つになる。OTA では同じく update 評価時の値になる
+- `extra` だけで判定する: OTA で fail-open する
+- `Updates.channel` だけで判定する: `APP_VARIANT` と無関係にチャネル名だけで決まる。channel の無いビルドでは本番を識別できない
+- `expo-application` の `applicationId`（`com.sanposcape.app`）で判定する: 最も直接的だが、ネイティブ依存の追加で
+  development build の作り直しと `minimumReleaseAge` の待ちが発生する。2シグナルで fail-closed にできるので見送る
+- 本番バンドルから除外する: 実験的な tree shaking かモジュール差し替えが要る。秘密を持たない画面に対して効果が見合わない
+
+### 影響
+
+- staging のテスターが画面カタログから、backend に書き込むエントリ（`walk-summary` の `POST /walks`）や
+  `AppConfigDebugCard`（`config_source` の表示）に届く。dev 環境の自分のアカウントにしか作用しないので許容する。
+  ルート ADR-008 D16 の「`config_source` で分岐しない」方針は変わらない。
+- E2E（`preview`）から画面カタログを開けるようになる。
+- OTA 運用（SS-103）への申し送り: `production` チャネルの `eas update` では、`extra` の値と `eas.json` の `env` にしかない
+  `EXPO_PUBLIC_*` が update 評価時の環境で決まる。開発ツールの判定は channel で守られるが、update 時の環境変数の供給は SS-103 で決めること。
+- `extra` の追加で fingerprint が変わり、E2E の APK キャッシュが1回ミスする。development build の作り直しは要らない
+  （dev client は Metro が評価した manifest を読む）。
+- production のビルドで「ボタンが出ない」「ディープリンクで開けない」ことは E2E では確かめられない（E2E は `preview` だけ）。
+  Vitest の判定表・`eas.json` / `app.config.ts` との契約テスト（`src/config/appVariant.test.ts`）と、
+  `expo config --type public` の手動確認で担保する。
+
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)
@@ -230,6 +325,7 @@ SS-79 追補にも反映した。
 - [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
 - [ADR-004: E2E ビルド・CI 戦略](./ADR-004-e2e-build-ci-strategy.md)
 - [ADR-006: 位置情報サービスは real/mock の2モード](./ADR-006-location-service-real-mock.md)
+- [ADR-008(ルート): デプロイとリリースの分離](../../../docs/adr/ADR-008-deploy-release-separation.md)（D16。SS-148 追補で表示範囲を注記）
 - [ローカル環境構築手順](../docs/local-env.md)
 - [ビルドプロファイルと環境変数](../docs/build-profiles.md)（SS-78 で新設。プロファイルごとの
   backend の向き先と、`eas.json` に書かない値の供給経路の一覧）
