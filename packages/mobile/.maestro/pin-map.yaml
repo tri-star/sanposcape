@@ -59,6 +59,8 @@ tags:
     timeout: 20000
 - assertNotVisible:
     id: "pin-map-pins-error"
+- assertNotVisible:
+    id: "pin-map-sign-in"
 - tapOn:
     id: "pin-map-back"
 - extendedWaitUntil:
