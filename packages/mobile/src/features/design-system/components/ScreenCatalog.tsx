@@ -85,9 +85,9 @@ export function ScreenCatalog() {
     },
     {
       key: "pin-tab",
-      label: "ピンタブ（暫定）",
+      label: "ピンタブ",
       description:
-        "ログイン直後の着地点。ピン地図・地点選択への入口（フラグ pin_registration が OFF だとナビへ戻される。副作用なし）",
+        "ログイン直後の着地点。登録済みピンの地図・長押しでピン登録・地図一覧ボタン（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。副作用なし）",
       icon: "map-pin",
       onPress: () => router.push("/(tabs)/pins"),
     },
@@ -122,7 +122,7 @@ export function ScreenCatalog() {
       key: "pin-location-picker",
       label: "ピンの地点選択",
       description:
-        "現在地を起点に地図を開き、長押しした地点で登録画面へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める）",
+        "現在地を起点に地図を開き、長押しした地点で登録画面へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。ナビタブの旧導線。別課題で削除予定）",
       icon: "map",
       onPress: () => router.push("/pins/pick-location"),
     },
@@ -130,9 +130,17 @@ export function ScreenCatalog() {
       key: "pin-map",
       label: "登録したピンの地図",
       description:
-        "現在地を起点に登録済みピンを表示。ピンをタップすると詳細へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。副作用なし）",
+        "現在地を起点に登録済みピンを表示。ピンをタップすると詳細へ（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。副作用なし。ナビタブの旧導線。別課題で削除予定）",
       icon: "map",
       onPress: () => router.push("/pins/map"),
+    },
+    {
+      key: "sanpo-map-list",
+      label: "地図一覧（暫定）",
+      description:
+        "ピンタブの『地図一覧』の遷移先。SS-121 で本実装（フラグ pin_registration が OFF だとナビへ戻される。副作用なし）",
+      icon: "map",
+      onPress: () => router.push("/sanpo-maps"),
     },
     {
       key: "settings",

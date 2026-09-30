@@ -1,12 +1,16 @@
-import { Redirect } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
+import { useCallback } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 import { PinTabView } from "@/features/pin/components/PinTabView";
 import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
+import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { useTheme } from "@/theme/useTheme";
 
 /**
- * ピンタブ（SS-145。ログイン直後の着地点）。中身は SS-146 で本実装に差し替える暫定の `PinTabView`。
+ * ピンタブ（SS-145。ログイン直後の着地点）。中身は登録済みピンの地図・長押しでの登録・
+ * ボタン配置エリア（SS-146）。ゲストのサインイン後は `DEFAULT_LANDING_HREF`（ピンタブ）へ
+ * replace されるので、この画面へ戻ってくる。認証値はここで注入する（features/pin は認証を読まない）。
  * pin_registration が OFF と確定したらナビタブへリダイレクトする（ログイン後の着地点のフォールバック。
  * `Redirect` はフォーカス中にだけ動くので、別タブにいる間に OFF になってもユーザーを動かさない）。
  * 取得中（pending）は読み込み表示だけを出す（ON なのに追い出す事故を防ぎつつ、着地直後に
@@ -15,7 +19,11 @@ import { useTheme } from "@/theme/useTheme";
  */
 export default function PinTabRoute() {
   const theme = useTheme();
+  const router = useRouter();
   const decision = usePinRegistrationGate();
+  // セレクタはプリミティブを返す（zustand v5）。
+  const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
+  const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
   if (decision === "pending") {
     return (
       <View
@@ -32,5 +40,5 @@ export default function PinTabRoute() {
     );
   }
   if (decision === "disabled") return <Redirect href="/(tabs)" />;
-  return <PinTabView />;
+  return <PinTabView isSignedIn={isSignedIn} onSignIn={handleSignIn} />;
 }

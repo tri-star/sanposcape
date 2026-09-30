@@ -83,7 +83,7 @@ export function toPickedCoordinate(
 }
 
 /**
- * `/pins/new` のルートパラメータを組み立てる（地点選択画面の長押し → 登録画面）。
+ * `/pins/new` のルートパラメータを組み立てる（地点選択画面・ピンタブの長押し → 登録画面）。
  * キー名・値の形式（`String(n)`・丸めない）は `features/walk/lib/addPinAction.ts` と同じにし、
  * `parsePinLocationParams` がそのまま読めることをテストで固定する。clientWalkId は含めない
  * （D2: FAB 経由の登録に散歩の紐付けは無い）。
