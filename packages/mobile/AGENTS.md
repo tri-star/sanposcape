@@ -24,6 +24,7 @@ ADR の追補（または新規 ADR の作成）が必要（[adr-writing](../../
 
 mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断や
 ドメイン知識は [`docs/adr/`](../../docs/adr/)（リポジトリルート）にある。
+mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` と書き分ける（参照するときも同じ。接頭辞の無い `ADR-009` はルートの ADR を指す）。
 
 | ADR | 主題 |
 |---|---|

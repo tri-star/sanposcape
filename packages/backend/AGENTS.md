@@ -6,3 +6,4 @@
 - ローカル環境構築の方法は [ローカル環境構築] (./docs/local-env.md) を参照
 - ローカル開発時のコマンド実行方法は [ローカル開発ガイド] (./docs/local-development.md) を参照
 - AWS SAM によるデプロイ手順は [デプロイ手順] (./docs/deployment.md) を参照
+- backend 固有の設計判断は `./docs/adr/ADR-B-{番号}-{タイトル}.md` に置く（frontend/backend にまたがる判断・ドメイン知識はリポジトリルートの `docs/adr/`（`ADR-{番号}`）。書き方は adr-writing skill）
