@@ -262,7 +262,7 @@ packages/mobile/
     - `mapRegion.ts`（`MapRegion` 型 / `MIN_REGION_DELTA` / `regionForCoordinates`）— 座標集合から
       地図の表示領域を求める汎用計算。SS-118 で `sanitizeMapRegion`（`react-native-maps` の
       `onRegionChangeComplete` / `onMapReady` が返す表示範囲を検証する純粋関数）も同ファイルへ
-      追加した — `features/walk`（`WalkRouteMapView`）と `features/pin`（`PinMapFullScreen`）の
+      追加した — `features/walk`（`WalkRouteMapView`）と `features/pin`（`PinMapCanvas`。SS-146 で `PinMapFullScreen` から切り出し）の
       両方から使うため。
   - SS-118（`features/pin` の詳細画面が日付整形を必要とした）でさらに1本昇格した:
     - `dateLabel.ts`（`features/history/lib/walkDateLabel.ts` から。`formatWalkDate` →
