@@ -1,9 +1,10 @@
-# 登録済みピンの地図（SS-118）: サインイン → ピンタブの「登録したピンを地図で見る」
-# → 地図が出る → ピンの取得が落ち着く（エラーにならない）→ 戻るとピンタブ
-# （SS-145 で入口をナビタブからピンタブへ移した）。
+# ピンタブ（SS-146）: サインイン → 地図が出る → 登録済みピンの取得が落ち着く（エラーにならない）
+# → ボタン配置エリアの「地図一覧」→ 地図一覧（SS-121 までは暫定画面）→ 戻るとピンタブ。
+# 後半はナビタブ（idle）の旧導線（/pins/map・/pins/pick-location）の表示確認。
+# ナビタブの導線を削除する別課題で、後半の節ごと削除する。
 #
 # 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
-# assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-004）。
+# assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-004 / ADR-012 D14）。
 # ピン詳細は E2E しない（マーカーのタップは Google Maps の描画面で testID が安定して取れず、ピン ID も
 # フローから知る手段が無いため。詳細の状態判定は pinDetailState.test.ts が担う）。
 appId: com.sanposcape.app.dev
@@ -13,10 +14,41 @@ tags:
 - runFlow: subflows/sign-in.yaml
 - extendedWaitUntil:
     visible:
-      id: "pin-tab-open-pin-map"
+      id: "pin-tab-map"
     timeout: 15000
+# ベストエフォートの確認: 取得開始前（loading がまだ出ていない）でも即パスしうるので、
+# 「取得が終わった」ことの保証ではなく、「取得中のまま固まっていない・エラーになっていない」ことの目安。
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-tab-pins-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "pin-tab-pins-error"
+- assertNotVisible:
+    id: "pin-tab-sign-in"
+- assertVisible:
+    id: "pin-tab-action-bar"
 - tapOn:
-    id: "pin-tab-open-pin-map"
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- tapOn:
+    id: "sanpo-map-list-back"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 10000
+# --- ナビタブの旧導線（別課題で削除） ---
+- tapOn:
+    id: "app-tab-index"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-open-pin-map"
+    timeout: 10000
+- tapOn:
+    id: "walk-active-open-pin-map"
 - extendedWaitUntil:
     visible:
       id: "pin-map-map"
@@ -33,5 +65,17 @@ tags:
     id: "pin-map-back"
 - extendedWaitUntil:
     visible:
-      id: "pin-tab-screen"
+      id: "walk-active-pin-fab"
+    timeout: 10000
+- tapOn:
+    id: "walk-active-pin-fab"
+- extendedWaitUntil:
+    visible:
+      id: "pin-location-picker-map"
+    timeout: 15000
+- tapOn:
+    id: "pin-location-picker-back"
+- extendedWaitUntil:
+    visible:
+      id: "walk-active-screen"
     timeout: 10000

@@ -1,76 +1,190 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
+import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
+import { PinMapStatusNotice } from "@/features/pin/components/PinMapStatusNotice";
+import { PinTabActionBar } from "@/features/pin/components/PinTabActionBar";
+import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
+import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
+import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
+import { buildPinNewRouteParams } from "@/features/pin/lib/pinLocationPicker";
+import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
+import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
+import type { MapRegion } from "@/lib/mapRegion";
+import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
+export type PinTabViewProps = {
+  /** ルート（`app/(tabs)/pins.tsx`）が `useAuthSessionStore` から注入する（features/pin は認証を読まない。ADR-009 決定8）。 */
+  isSignedIn: boolean;
+  onSignIn: () => void;
+};
+
+const PIN_TAB_HINT =
+  "地図を長押しすると、その場所にピンを登録できます。ピンをタップすると詳細を表示します";
+
 /**
- * PinTabView — ピンタブの暫定の中身（SS-145）。
- * SS-146 で『登録済みピンの地図 + 長押しで登録 + ボタン配置エリア』に作り直すまでの入口。
- * 全画面の Stack ルート（`PinMapFullScreen` を使う画面）はタブに入れない
- * （戻るボタンが必須で、下部の配置が `insets.bottom` 前提のため）。
- * pin_registration のガードはルート（`app/(tabs)/pins.tsx`）が担うので、ここではフラグも認証も見ない。
+ * PinTabView — ピンタブの実体（SS-146）。現在地起点の地図 + 登録済みピン + 長押しで登録 +
+ * 状態表示 + ボタン配置エリア（`PinTabActionBar`）。
+ *
+ * - 地図の設定は `PinMapCanvas` に集約（`PinMapFullScreen` と共有）。全画面の枠はタブ画面に合わない
+ *   （戻るボタン必須・下部が `insets.bottom` 前提）ので使わない。
+ * - `RegisteredPinsMapLayer` は使わず `useRegisteredPins` + `RegisteredPinMarkers` を直接使う
+ *   （読み込み・エラー・再試行・打ち切りの状態表示が要るため）。
+ * - 長押しは `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
+ *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
+ * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
+ * - 取得状態の組み立て（`useRegisteredPins` → `resolvePinMapNotice`）は `PinMapView` と重複している。
+ *   `/pins/map` を削除する別課題（ナビタブからの導線削除）で解消する前提のため、共通化しない。
+ * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  */
-export function PinTabView() {
+export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
   const { show } = toast;
+  const [visibleRegion, setVisibleRegion] = useState<MapRegion | null>(null);
+  const picker = usePinLocationPicker();
+  const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn });
+  const notice = resolvePinMapNotice({
+    isSignedIn,
+    status: registered.status,
+    errorCode: registered.errorCode,
+    truncated: registered.truncated,
+    pinCount: registered.pins.length,
+  });
 
-  // ピン登録（/pins/new）を保存して戻ってきたときの保存完了トースト
-  // （画面またぎのメッセージ受け渡し。`src/lib/flashMessage.ts` 参照）。
+  // 画面から出る遷移の二重発火防止（フォーカスで解除するラッチ）。
+  // `useScreenBack` は `hardwareBackPress` を購読して戻るを奪い、タブの Android バックの既定
+  // （`backBehavior: firstRoute` でナビタブへ。ADR-009 SS-145 追補）を変えてしまうので使わず、
+  // BackHandler を購読しない `useNavigateOnce` を使う。サインイン遷移（`onSignIn`）も同じラッチに通す。
+  const { runOnce } = useNavigateOnce();
+  const { refreshLocation } = picker;
+  const handleSignIn = () => runOnce(onSignIn);
+
+  // 初回フォーカス（マウント直後）は現在地を取得済みなので取り直さない。
+  const hasFocusedRef = useRef(false);
+
+  // フォーカス時: 現在地を取り直し（常駐するのでマウント時のままだと古くなる。初回除く）、
+  // ピン登録（/pins/new）を保存して戻ってきたときの
+  // 保存完了トーストを出す（画面またぎのメッセージ受け渡し。`src/lib/flashMessage.ts` 参照）。
   useFocusEffect(
     useCallback(() => {
+      if (hasFocusedRef.current) refreshLocation();
+      hasFocusedRef.current = true;
       const message = consumeFlashMessage();
       if (message) show(message);
-    }, [show]),
+    }, [show, refreshLocation]),
   );
 
+  const handlePick = (location: GeoCoordinates) => {
+    // push であって replace ではない（ADR-011 SS-146 追補）。clientWalkId は付けない。
+    runOnce(() => router.push({ pathname: "/pins/new", params: buildPinNewRouteParams(location) }));
+  };
+
+  // `RegisteredPinMarkers` は `React.memo` なので参照を安定させる。
+  const handleSelectPin = useCallback(
+    (pinId: string) => {
+      runOnce(() => router.push({ pathname: "/pins/[pinId]", params: { pinId } }));
+    },
+    [runOnce, router],
+  );
+
+  const handleOpenSanpoMapList = () => {
+    runOnce(() => router.push("/sanpo-maps"));
+  };
+
   return (
-    <View
-      testID="pin-tab-screen"
-      style={[styles.root, { paddingTop: insets.top + theme.spacing[2] }]}
-    >
-      <Text style={styles.eyebrow}>ピン</Text>
-      <Text accessibilityRole="header" style={styles.title}>
-        気になった場所をピンで残そう
-      </Text>
-      <Card style={styles.card}>
-        <Icon name="map-pin" size={28} color={theme.colors.primary} />
-        <Text style={styles.description}>
-          登録したピンを地図で見たり、地図を長押しして新しいピンを登録できます。
-        </Text>
-        <Button
-          variant="primary"
-          icon="map"
-          fullWidth
-          testID="pin-tab-open-pin-map"
-          onPress={() => router.push("/pins/map")}
+    <View testID="pin-tab-screen" style={styles.root}>
+      <View style={styles.mapArea}>
+        <PinMapCanvas
+          testIDPrefix="pin-tab"
+          accessibilityLabel="ピンの地図"
+          accessibilityHint={PIN_TAB_HINT}
+          initialRegion={picker.startRegion}
+          pickGesture="long-press"
+          onPick={handlePick}
+          selectedLocation={null}
+          currentLocation={picker.currentLocation}
+          focusRequest={picker.focusRequest}
+          onRegionChangeComplete={setVisibleRegion}
+          // 認証が無いときはピンのレイヤーを描かない（`enabled: false` でもキャッシュ済みのピンは返るため）。
+          mapLayers={
+            isSignedIn ? (
+              <RegisteredPinMarkers
+                pins={registered.pins}
+                onSelectPin={handleSelectPin}
+                testIDPrefix="pin-tab-pin"
+              />
+            ) : null
+          }
+        />
+        {/* box-none 必須: 付けないと地図の上半分の長押し・パンが効かなくなる。 */}
+        <View
+          pointerEvents="box-none"
+          style={[styles.topOverlay, { top: insets.top + theme.spacing[2] }]}
         >
-          登録したピンを地図で見る
-        </Button>
+          <Card style={styles.infoCard} testID="pin-tab-info">
+            <View style={styles.hintRow}>
+              <Icon name="info" size={18} color={theme.colors.textTertiary} />
+              <Text style={styles.hintText} testID="pin-tab-hint">
+                {PIN_TAB_HINT}
+              </Text>
+            </View>
+            <PinMapStatusNotice
+              notice={notice}
+              onSignIn={handleSignIn}
+              onRetry={registered.retry}
+              testIDPrefix="pin-tab"
+            />
+          </Card>
+          {picker.locationErrorCode !== null ? (
+            <LocationPermissionNotice
+              errorCode={picker.locationErrorCode}
+              onRetry={picker.retryLocation}
+              testID="pin-tab-location-notice"
+            />
+          ) : null}
+          {picker.currentLocation ? (
+            <View pointerEvents="box-none" style={styles.mapTools}>
+              <IconButton
+                icon="crosshair"
+                label="現在地"
+                variant="surface"
+                size="sm"
+                onPress={picker.recenter}
+                testID="pin-tab-recenter"
+              />
+            </View>
+          ) : null}
+        </View>
+        {/* 地図エリアの下端はボタン配置エリアの上。タブ画面なので insets.bottom は足さない。 */}
+        <ToastOverlay message={toast.message} visible={toast.visible} bottom={theme.spacing[4]} />
+      </View>
+      <PinTabActionBar testID="pin-tab-action-bar">
         <Button
           variant="secondary"
-          icon="map-pin"
-          fullWidth
-          testID="pin-tab-add-pin"
-          onPress={() => router.push("/pins/pick-location")}
+          size="sm"
+          icon="map"
+          onPress={handleOpenSanpoMapList}
+          testID="pin-tab-open-sanpo-map-list"
         >
-          地図からピンを登録する
+          地図一覧
         </Button>
-      </Card>
-      {/* タブ画面の下端はタブバーの上なので insets.bottom は足さない。 */}
-      <ToastOverlay message={toast.message} visible={toast.visible} bottom={theme.spacing[4]} />
+      </PinTabActionBar>
     </View>
   );
 }
@@ -79,24 +193,33 @@ const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surfaceApp,
-    paddingHorizontal: theme.layout.pageGutter,
   },
-  eyebrow: {
-    fontSize: theme.typography.size["2xs"],
-    color: theme.colors.textTertiary,
+  mapArea: {
+    flex: 1,
   },
-  title: {
-    marginTop: 1,
-    fontSize: theme.typography.size.md,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textPrimary,
+  topOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    gap: theme.spacing[2],
   },
-  card: {
-    marginTop: theme.spacing[4],
-    gap: theme.spacing[3],
+  infoCard: {
+    marginHorizontal: theme.layout.pageGutter,
+    gap: theme.spacing[2],
   },
-  description: {
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing[2],
+  },
+  hintText: {
+    flex: 1,
     fontSize: theme.typography.size.sm,
     color: theme.colors.textSecondary,
+  },
+  mapTools: {
+    alignSelf: "flex-end",
+    paddingRight: theme.layout.pageGutter,
+    gap: theme.spacing[2],
   },
 }));

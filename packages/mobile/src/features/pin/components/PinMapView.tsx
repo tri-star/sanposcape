@@ -1,19 +1,16 @@
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
 
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
-import { Button } from "@/components/ui/button/Button";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { PinMapStatusNotice } from "@/features/pin/components/PinMapStatusNotice";
 import { PinMapFullScreen } from "@/features/pin/components/PinMapFullScreen";
 import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
-import { resolvePinMapNotice, type PinMapNotice } from "@/features/pin/lib/pinMapNotice";
-import { pinReadErrorMessage } from "@/features/pin/lib/pinReadError";
+import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import type { MapRegion } from "@/lib/mapRegion";
-import { makeStyles } from "@/theme/makeStyles";
 
 export type PinMapViewProps = {
   /** ルート（`app/pins/map.tsx`）が `useAuthSessionStore` から注入する。 */
@@ -26,6 +23,9 @@ export type PinMapViewProps = {
  * ナビタブで散歩していないときの「登録したピンを地図で見る」から push する。
  * 全画面の地図に表示範囲内の登録済みピンを描き、タップで `/pins/[pinId]` へ push する
  * （モックのポップアップカードは挟まない。ユーザー追加要件）。
+ *
+ * ナビタブ（idle）の旧導線。ピンタブ（SS-146）が同じ役割を持つ。
+ * ナビタブの導線を削除する別課題でルートごと削除する。
  */
 export function PinMapView({ isSignedIn, onSignIn }: PinMapViewProps) {
   const picker = usePinLocationPicker();
@@ -97,83 +97,13 @@ export function PinMapView({ isSignedIn, onSignIn }: PinMapViewProps) {
         ) : null
       }
       footerActions={
-        <PinMapStatus notice={notice} onSignIn={onSignIn} onRetry={registered.retry} />
+        <PinMapStatusNotice
+          notice={notice}
+          onSignIn={onSignIn}
+          onRetry={registered.retry}
+          testIDPrefix="pin-map"
+        />
       }
     />
   );
 }
-
-type PinMapStatusProps = {
-  notice: PinMapNotice;
-  onSignIn: () => void;
-  onRetry: () => void;
-};
-
-function PinMapStatus({ notice, onSignIn, onRetry }: PinMapStatusProps) {
-  const styles = useStyles();
-
-  switch (notice.kind) {
-    case "sign-in":
-      return (
-        <View style={styles.row} testID="pin-map-sign-in">
-          <Text style={styles.text}>サインインすると、登録したピンが地図に表示されます</Text>
-          <Button variant="primary" size="sm" onPress={onSignIn}>
-            サインイン
-          </Button>
-        </View>
-      );
-    case "loading":
-      return (
-        <View style={styles.row} testID="pin-map-pins-loading">
-          <ActivityIndicator />
-          <Text style={styles.text}>ピンを読み込んでいます…</Text>
-        </View>
-      );
-    case "error":
-      return (
-        <View style={styles.row} testID="pin-map-pins-error">
-          <Text style={styles.text}>{pinReadErrorMessage(notice.code)}</Text>
-          {notice.retriable ? (
-            <Button variant="secondary" size="sm" onPress={onRetry} testID="pin-map-pins-retry">
-              再試行
-            </Button>
-          ) : null}
-        </View>
-      );
-    case "truncated":
-      return (
-        <Text style={styles.textSecondary} testID="pin-map-pins-truncated">
-          ピンが多いため、新しいものから一部だけを表示しています。地図を拡大すると、ほかのピンも表示されます
-        </Text>
-      );
-    case "empty":
-      return (
-        <Text style={styles.text} testID="pin-map-pins-empty">
-          この範囲に登録したピンはありません
-        </Text>
-      );
-    case "none":
-      return null;
-    default: {
-      const exhaustiveCheck: never = notice;
-      return exhaustiveCheck;
-    }
-  }
-}
-
-const useStyles = makeStyles((theme) => ({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  text: {
-    flex: 1,
-    fontSize: theme.typography.size.sm,
-    color: theme.colors.textSecondary,
-  },
-  textSecondary: {
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textSecondary,
-  },
-}));

@@ -4,7 +4,7 @@ export type LandingHref = typeof DEFAULT_LANDING_HREF | typeof ACTIVE_WALK_LANDI
 
 export type PostSignInDestination =
   | { type: "replace"; href: LandingHref }
-  | { type: "dismissTo"; href: "/walk-summary" };
+  | { type: "dismissTo"; href: LandingHref | "/walk-summary" };
 
 export type PostSignInInput = {
   /** 進行中の散歩がある（`useActiveWalkStore.activeWalk !== null`）。 */
@@ -20,6 +20,25 @@ export type PostSignInInput = {
    * 押した本人のサインインだけがこの分岐に乗るようにする。
    */
   wantsToSaveFinishedWalk: boolean;
+  /**
+   * サインイン画面の下に戻れる画面がある（`router.canGoBack()`）。スプラッシュ→サインインは
+   * `replace` 連鎖なので false、ピンタブ・設定・サマリ画面などから `push`/`replace` で来た場合は
+   * その下に `(tabs)` があるので true。true のときに `replace` するとルートスタックが
+   * `[(tabs)旧, (tabs)新]` の二重になる（Android バックが古いタブへ戻る等。SS-146）ので、
+   * 既存の `(tabs)` へ `dismissTo` で戻る。
+   */
+  canGoBack: boolean;
+};
+
+/** 着地点（`LandingHref`）へ、戻れるなら dismissTo、戻れないなら replace で向かう遷移を作る（純粋）。 */
+function landingNavigation(href: LandingHref, canGoBack: boolean): PostSignInDestination {
+  return { type: canGoBack ? "dismissTo" : "replace", href };
+}
+
+/** 「ゲストで試す」の遷移アクション。 */
+export type GuestEntryDestination = {
+  type: "replace" | "dismissTo";
+  href: LandingHref;
 };
 
 /**
@@ -39,22 +58,30 @@ export type PostSignInInput = {
  *    サマリへは連れて行かない（Security High 対応）。ドラフトの自動再送自体は `useWalkSave` の
  *    多重防御に任せる（`isSignedIn` の変化を見て再発火するが、こちらも同じ意思表示ゲートを持つ）。
  *
+ * 着地点（1・3）への遷移は、サインイン画面の下に戻れる画面がある（`canGoBack`）ときは
+ * `dismissTo`、無い（スプラッシュから来た）ときは `replace`（SS-146。ルートスタックの `(tabs)` 二重化を防ぐ）。
+ *
  * SS-57 の背景（進行中の散歩があるとき無条件に `/walk-start` へ送ると、進行中の散歩が
  * 見えない画面に飛ばされ、気づかず「散歩を始める」を押すと無警告で上書きされる）は
  * 引き続き有効。
  */
 export function getPostSignInDestination(input: PostSignInInput): PostSignInDestination {
-  if (input.hasActiveWalk) return { type: "replace", href: ACTIVE_WALK_LANDING_HREF };
+  if (input.hasActiveWalk) return landingNavigation(ACTIVE_WALK_LANDING_HREF, input.canGoBack);
   if (input.wantsToSaveFinishedWalk) return { type: "dismissTo", href: "/walk-summary" };
-  return { type: "replace", href: DEFAULT_LANDING_HREF };
+  return landingNavigation(DEFAULT_LANDING_HREF, input.canGoBack);
 }
 
 /**
- * 「ゲストで試す」の着地点（SS-145）。進行中の散歩があればナビタブ、無ければピンタブ。
+ * 「ゲストで試す」の遷移（SS-145）。進行中の散歩があればナビタブ、無ければピンタブ。
  * 「散歩中 → 設定 → サインイン導線 → ゲストで試す」の経路で、進行中の散歩を見えない位置に置かないため
- * （サインイン成功時の SS-57 ローカルレビュー対応と同じ理由）。保存意思（dismissTo）は見ない
- * （ゲストは保存できないので、サマリへ戻しても再送されない）。
+ * （サインイン成功時の SS-57 ローカルレビュー対応と同じ理由）。保存意思（サマリへの dismissTo）は見ない
+ * （ゲストは保存できないので、サマリへ戻しても再送されない）。遷移方法はサインイン成功時と同じく
+ * `canGoBack` で決める（SS-146）。
  */
-export function getGuestEntryDestination(input: { hasActiveWalk: boolean }): LandingHref {
-  return input.hasActiveWalk ? ACTIVE_WALK_LANDING_HREF : DEFAULT_LANDING_HREF;
+export function getGuestEntryDestination(input: {
+  hasActiveWalk: boolean;
+  canGoBack: boolean;
+}): GuestEntryDestination {
+  const href = input.hasActiveWalk ? ACTIVE_WALK_LANDING_HREF : DEFAULT_LANDING_HREF;
+  return { type: input.canGoBack ? "dismissTo" : "replace", href };
 }

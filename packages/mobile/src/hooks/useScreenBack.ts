@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef } from "react";
 import { BackHandler } from "react-native";
 
+import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { resolveBackAction } from "@/lib/backNavigation";
 
 export type UseScreenBackOptions = {
@@ -46,7 +47,8 @@ export function useScreenBack({
   onIntercept,
 }: UseScreenBackOptions): UseScreenBackResult {
   const router = useRouter();
-  const navigatingRef = useRef(false);
+  // 遷移の二重発火ラッチ（フォーカスで解除）は BackHandler を購読しない `useNavigateOnce` に任せる。
+  const { runOnce, isNavigating } = useNavigateOnce();
   // レンダー中の ref 代入は既存 `features/walk/hooks/useWalkTracking.ts`（pausedRef）と同じ手法。
   // BackHandler の購読を毎レンダー貼り直さずに最新の値を読むため。
   const interceptRef = useRef(onIntercept);
@@ -57,7 +59,7 @@ export function useScreenBack({
   const goBack = useCallback(() => {
     const action = resolveBackAction({
       intercepted: interceptRef.current?.() === true,
-      navigating: navigatingRef.current,
+      navigating: isNavigating(),
       canGoBack: router.canGoBack(),
     });
 
@@ -68,49 +70,21 @@ export function useScreenBack({
       case "ignored":
         return;
       case "pop":
-        navigatingRef.current = true;
-        try {
-          router.back();
-        } catch {
-          // 遷移の発行自体が失敗した場合はラッチを戻す。フォーカス復帰でも解除されるが、
-          // フォーカスが変わらないまま失敗するケースに備えた保険。失敗の詳細は握りつぶし、
-          // ユーザーはもう一度戻る操作をやり直せる状態に戻すことだけを保証する。
-          navigatingRef.current = false;
-        }
+        // 遷移の発行に失敗した場合のラッチ復旧は runOnce が行う（ユーザーはもう一度戻る操作をやり直せる）。
+        runOnce(() => router.back());
         return;
       case "replace-fallback":
-        navigatingRef.current = true;
-        try {
-          router.replace(fallbackRef.current);
-        } catch {
-          navigatingRef.current = false;
-        }
+        runOnce(() => router.replace(fallbackRef.current));
         return;
       default: {
         const exhaustiveCheck: never = action;
         return exhaustiveCheck;
       }
     }
-  }, [router]);
-
-  const runOnce = useCallback((navigate: () => void) => {
-    if (navigatingRef.current) return;
-    navigatingRef.current = true;
-    try {
-      navigate();
-    } catch {
-      // 遷移の発行自体が失敗した場合、同じ画面からの以後の戻る・離脱操作を
-      // 不必要にブロックしないようラッチを復旧する。
-      navigatingRef.current = false;
-    }
-  }, []);
+  }, [router, runOnce, isNavigating]);
 
   useFocusEffect(
     useCallback(() => {
-      // 画面にフォーカスが戻ったらラッチを解除する。遷移が実際には起きなかった場合
-      // （replace の失敗など）に、その画面から二度と出られなくなるのを防ぐ。
-      navigatingRef.current = false;
-
       // Android のシステムバックを画面上の戻ると同じ経路に一本化する。
       // true を返して既定の pop / アプリ終了を止める。
       const subscription = BackHandler.addEventListener("hardwareBackPress", () => {

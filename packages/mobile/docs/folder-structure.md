@@ -237,11 +237,12 @@ packages/mobile/
   `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-009 の SS-100 追補）。
 
 ### その他
-- `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useScreenBack.ts`（画面の「戻る」導線を
-  一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
+- `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useNavigateOnce.ts`（画面から出る遷移の二重発火ラッチ。
+  フォーカスで解除。`BackHandler` を購読しない。`useScreenBack` とピンタブが共有。SS-146）、
+  `useScreenBack.ts`（画面の「戻る」導線を一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
   `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
   `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、
-  `useCurrentLocation.ts`（現在地の単発取得。`features/walk` と `features/pin` から使うため
+  `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。`features/walk` と `features/pin` から使うため
   SS-124 で `features/walk/hooks/` から昇格）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
@@ -262,7 +263,7 @@ packages/mobile/
     - `mapRegion.ts`（`MapRegion` 型 / `MIN_REGION_DELTA` / `regionForCoordinates`）— 座標集合から
       地図の表示領域を求める汎用計算。SS-118 で `sanitizeMapRegion`（`react-native-maps` の
       `onRegionChangeComplete` / `onMapReady` が返す表示範囲を検証する純粋関数）も同ファイルへ
-      追加した — `features/walk`（`WalkRouteMapView`）と `features/pin`（`PinMapFullScreen`）の
+      追加した — `features/walk`（`WalkRouteMapView`）と `features/pin`（`PinMapCanvas`。SS-146 で `PinMapFullScreen` から切り出し）の
       両方から使うため。
   - SS-118（`features/pin` の詳細画面が日付整形を必要とした）でさらに1本昇格した:
     - `dateLabel.ts`（`features/history/lib/walkDateLabel.ts` から。`formatWalkDate` →

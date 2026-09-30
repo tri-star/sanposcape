@@ -20,6 +20,11 @@ tags:
     visible:
       id: "pin-tab-screen"
     timeout: 15000
+# ゲストのピンタブは通信せず、サインイン案内を出す（SS-146 / ADR-012 D9）。
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-sign-in"
+    timeout: 10000
 # ゲストのまま設定画面に入ると、ログアウトではなくサインイン導線が出る。
 - openLink: "sanposcape-dev://settings"
 - extendedWaitUntil:

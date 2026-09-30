@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-09-25
+2026-09-25、2026-09-30 追補（SS-146。ピンタブへの統合）
 
 ## ステータス
 
-採用（SS-124）。
+採用（SS-124、SS-146 追補）。
 
 ## コンテキスト
 
@@ -248,6 +248,27 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 
 - なし（backend・OpenAPI の変更を伴わない）。
 
+## SS-146 追補: ピンタブへの統合（2026-09-30）
+
+### 背景
+
+SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピンタブの地図が (b)（任意地点の登録）を引き継ぐ。ユーザー決定「(b) の入口は SS-118 とは別画面として作る。入口の統合は SS-118 の後で検討」の決着で、チケット SS-146 の要件として統合が決まった。
+
+### 決定・理由
+
+- ピンタブの地図の長押しで `/pins/new` へ **push** する。D6 の replace はタブ画面では使えない（replace は `(tabs)` ごと置き換える）。push でスタックは `(tabs) → pins/new` になり、保存後・破棄後の `back()` でピンタブへ戻る。D6 が replace で作りたかった形と同じになる。
+- D4（ゲストにも入口を出し、サインインの要否は `/pins/new` に任せる）・D5（現在地が取れないときは日本全体）・D2（`clientWalkId` なし）はピンタブでも同じ。
+- D8 の補足: 地図の設定・ジェスチャーは `PinMapCanvas` に切り出し、`PinMapFullScreen` とピンタブが共有する。canvas の読み込み表示の testID は `${p}-map-loading`（ピンタブのルートの `pin-tab-loading` との衝突回避）。
+- `/pins/pick-location`（`PinLocationPickerView`）はナビタブの FAB が残る間は残し、ナビタブの導線を削除する別課題で削除する。`PinMapFullScreen` は (a) 位置調整が使うので残る。
+
+### 影響
+
+- ピンタブの現在地は、フォーカスが戻るたびに（初回除く）静かに取り直す（`useCurrentLocation().refresh()`。`isLoading` を立てず、権限をリクエストせず、失敗しても前回値を保持し、30 秒以内はスキップする。フォールバック表示からの自動移動は静かな取り直しでは行わない。詳細は ADR-012 SS-146 追補）。
+- ピンタブの離脱遷移（長押し・ピンのタップ・地図一覧・サインイン）の二重発火は、`BackHandler` を購読しない `useNavigateOnce` で防ぐ（`useScreenBack` はタブのシステムバックの既定を奪うので使わない）。
+- E2E `pin-register-anywhere.yaml` の入口がピンタブの長押しになる。
+- ピンタブは着地点なので、位置情報の権限リクエストがログイン直後に出る（ADR-006「必要になった時点で」の範囲内と判断）。
+- 既知の限界「ゲストがサインインしても登録画面へ戻らない」は、ピンタブ起点ならサインイン後にピンタブへ戻る（既存の `(tabs)` へ `dismissTo`。地点は選び直し）。
+
 ## 関連情報
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
@@ -257,4 +278,4 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 - [ADR-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-010-photo-service-and-direct-s3-upload.md)
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ）
-- 元チケット: SS-88 / PR #93
+- 元チケット: SS-88 / PR #93 / 関連: SS-124（PR #102）・SS-146（PR #114）

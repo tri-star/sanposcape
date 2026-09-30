@@ -8,6 +8,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 /**
  * 登録済みピンの地図（`/pins/map`。SS-118）。
  * ナビタブの idle の「登録したピンを地図で見る」から push。ピンのタップで `/pins/[pinId]` へ push する。
+ * ナビタブ（idle）の「登録したピンを地図で見る」からの旧導線。ピンタブ（SS-146）が同じ役割を持つ。
+ * ナビタブの導線を削除する別課題でルートごと削除する。
  * `app/pins/pick-location.tsx` と同じ画面ガードレシピ（`docs/architecture-guideline.md`）。
  */
 export default function PinMapRoute() {

@@ -13,9 +13,9 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 /**
  * ピン登録画面。散歩中画面の「この場所にピンを追加」または地図の長押しから push（`clientWalkId` つき）、
  * またはナビタブの FAB → 地点選択画面（`/pins/pick-location`）の長押しから replace
- * （`clientWalkId` なし。SS-124）で来る。
+ * （`clientWalkId` なし。SS-124）、ピンタブの地図の長押しから push（`clientWalkId` なし。SS-146）で来る。
  *
- * `docs/architecture-guideline.md`「画面ガードレシピ」の実例。どちらの入口もナビタブから来るので、
+ * `docs/architecture-guideline.md`「画面ガードレシピ」の実例。どの入口もタブ画面（ナビタブ・ピンタブ）から来るので、
  * `Redirect` 先は `/` ではなく `/(tabs)`（`/` はスプラッシュ経由になる）。
  */
 export default function PinNewRoute() {

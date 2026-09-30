@@ -12,6 +12,8 @@ import type { GeoCoordinates } from "@/services/location/types";
  * PinLocationPickerView — (b) ピンの地点選択画面（`/pins/pick-location`）の実体。
  * ナビタブで散歩していないときの FAB から開く。長押しした地点で `/pins/new` へ `replace` する
  * （`push` だと保存後の `router.back()` がこの画面に戻ってしまうため。SS-124 D6）。
+ * ナビタブ（idle）の FAB からの旧導線。ピンタブ（SS-146）が同じ役割を持つ。
+ * ナビタブの導線を削除する別課題でルートごと削除する。
  */
 export function PinLocationPickerView() {
   const picker = usePinLocationPicker();

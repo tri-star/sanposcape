@@ -1,32 +1,23 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import MapView, {
-  Marker,
-  type LongPressEvent,
-  type MapPressEvent,
-  type PoiClickEvent,
-} from "react-native-maps";
+import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
-import { MapPin } from "@/components/ui/map-pin/MapPin";
-import { regionAroundPoint, toPickedCoordinate } from "@/features/pin/lib/pinLocationPicker";
-import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
+import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
+import type { PinMapFocusRequest, PinMapPickProps } from "@/features/pin/lib/pinLocationPicker";
+import type { MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
-export type PinMapFocusRequest = { target: GeoCoordinates; nonce: number };
-
 type PinMapFullScreenCommonProps = {
   /**
    * testID の接頭辞。次を付ける:
-   * `${p}-screen`（root）/ `${p}-map`（地図を包む View）/ `${p}-back` か `${p}-close`（closeKind による）/
+   * `${p}-screen`（root）/ `${p}-map`（地図を包む View。canvas が付ける）/ `${p}-back` か `${p}-close`（closeKind による）/
    * `${p}-marker`（選択位置の Marker）/ `${p}-current-marker`（現在地の Marker）/
-   * `${p}-loading`（initialRegion が null の間）/ `${p}-hint`
+   * `${p}-map-loading`（initialRegion が null の間）/ `${p}-hint`
    */
   testIDPrefix: string;
   title: string;
@@ -63,26 +54,7 @@ type PinMapFullScreenCommonProps = {
   onRegionChangeComplete?: (region: MapRegion) => void;
 };
 
-type PinMapFullScreenPickProps =
-  | {
-      /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（(b)）。 */
-      pickGesture: "tap" | "long-press";
-      /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
-      onPick: (location: GeoCoordinates) => void;
-    }
-  | {
-      /** "none" = 位置の選択をしない（(c) 閲覧専用の地図。ジェスチャーハンドラを一切渡さない）。 */
-      pickGesture: "none";
-      onPick?: undefined;
-    };
-
-export type PinMapFullScreenProps = PinMapFullScreenCommonProps & PinMapFullScreenPickProps;
-
-const DEFAULT_LOADING_LABEL = "現在地を取得しています…";
-const FOCUS_ANIMATION_MS = 400;
-/** `mapLayers` のマーカー（既定 0）より選択・現在地マーカーを上に描く（SS-118）。 */
-const SELECTED_MARKER_Z_INDEX = 1;
-const CURRENT_MARKER_Z_INDEX = 2;
+export type PinMapFullScreenProps = PinMapFullScreenCommonProps & PinMapPickProps;
 
 /**
  * PinMapFullScreen — (a)(b)(c) 共通の全画面地図の枠（SS-124 / SS-118）。
@@ -96,9 +68,7 @@ export function PinMapFullScreen({
   title,
   hint,
   initialRegion,
-  loadingLabel = DEFAULT_LOADING_LABEL,
-  pickGesture,
-  onPick,
+  loadingLabel,
   selectedLocation,
   currentLocation,
   focusRequest,
@@ -109,101 +79,28 @@ export function PinMapFullScreen({
   footerActions,
   mapLayers,
   onRegionChangeComplete,
+  // pickGesture / onPick は判別共用体のまま canvas へ渡す（分割代入すると型が広がる）。
+  ...pick
 }: PinMapFullScreenProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<MapView>(null);
-  const lastNonceRef = useRef<number | null>(null);
-  // `onMapReady` は画面を離れて戻るたびにも呼ばれる。カメラは離れる前の位置のままなので、
-  // `initialRegion` を表示範囲として報告するのは初回だけにする（`WalkRouteMapView` と同じ）。
-  const hasReportedInitialRegion = useRef(false);
-
-  useEffect(() => {
-    if (focusRequest === null) return;
-    if (lastNonceRef.current === focusRequest.nonce) return;
-    lastNonceRef.current = focusRequest.nonce;
-    mapRef.current?.animateToRegion(regionAroundPoint(focusRequest.target), FOCUS_ANIMATION_MS);
-  }, [focusRequest]);
-
-  const handlePick = (e: MapPressEvent | PoiClickEvent | LongPressEvent) => {
-    const picked = toPickedCoordinate(e.nativeEvent.coordinate);
-    if (picked !== null) onPick?.(picked);
-  };
-
-  const handleRegionChangeComplete = (region: MapRegion) => {
-    const sanitized = sanitizeMapRegion(region);
-    if (sanitized !== null) onRegionChangeComplete?.(sanitized);
-  };
 
   return (
     <View testID={`${p}-screen`} style={styles.root}>
-      {initialRegion === null ? (
-        <View
-          testID={`${p}-loading`}
-          style={[styles.loading, { backgroundColor: theme.map.canvas }]}
-        >
-          <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.loadingLabel}>{loadingLabel}</Text>
-        </View>
-      ) : (
-        <View
-          testID={`${p}-map`}
-          collapsable={false}
-          accessible
-          accessibilityLabel={title}
-          // 地図（MapView/Marker）はジェスチャー操作前提で、支援技術での代替入力手段は
-          // 用意していない（既知の限界。ADR-011 参照）。せめて何をすれば選べるかを
-          // accessibilityHint で伝える。文言は下部カードの hint と揃える（pickGesture ごとに
-          // 呼び出し側が渡す文言が変わる）。
-          accessibilityHint={hint}
-          style={styles.mapWrap}
-        >
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={initialRegion}
-            showsUserLocation={false}
-            showsMyLocationButton={false}
-            toolbarEnabled={false}
-            onPress={pickGesture === "tap" ? handlePick : undefined}
-            onPoiClick={pickGesture === "tap" ? handlePick : undefined}
-            onLongPress={pickGesture === "none" ? undefined : handlePick}
-            // マーカーのタップでカメラを動かさない（登録済みピンはタップで詳細へ移るため。SS-118）。
-            moveOnMarkerPress={false}
-            onMapReady={() => {
-              if (hasReportedInitialRegion.current) return;
-              hasReportedInitialRegion.current = true;
-              handleRegionChangeComplete(initialRegion);
-            }}
-            onRegionChangeComplete={handleRegionChangeComplete}
-          >
-            {selectedLocation !== null ? (
-              <Marker
-                coordinate={selectedLocation}
-                anchor={{ x: 0.5, y: 1 }}
-                tracksViewChanges={false}
-                zIndex={SELECTED_MARKER_Z_INDEX}
-                testID={`${p}-marker`}
-              >
-                <MapPin category="park" icon="map-pin" size={38} />
-              </Marker>
-            ) : null}
-            {currentLocation !== null ? (
-              <Marker
-                coordinate={currentLocation}
-                anchor={{ x: 0.5, y: 1 }}
-                tracksViewChanges={false}
-                zIndex={CURRENT_MARKER_Z_INDEX}
-                testID={`${p}-current-marker`}
-              >
-                <MapPin category="current" size={30} />
-              </Marker>
-            ) : null}
-            {mapLayers}
-          </MapView>
-        </View>
-      )}
+      <PinMapCanvas
+        {...pick}
+        testIDPrefix={p}
+        accessibilityLabel={title}
+        accessibilityHint={hint}
+        initialRegion={initialRegion}
+        loadingLabel={loadingLabel}
+        selectedLocation={selectedLocation}
+        currentLocation={currentLocation}
+        focusRequest={focusRequest}
+        mapLayers={mapLayers}
+        onRegionChangeComplete={onRegionChangeComplete}
+      />
 
       <View style={[styles.header, { top: insets.top + theme.spacing[2] }]}>
         <IconButton
@@ -257,22 +154,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surfaceApp,
-  },
-  loading: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing[3],
-  },
-  loadingLabel: {
-    fontSize: theme.typography.size.sm,
-    color: theme.colors.textSecondary,
-  },
-  mapWrap: {
-    flex: 1,
-  },
-  map: {
-    flex: 1,
   },
   header: {
     position: "absolute",
