@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 
 import { createSanpoMap } from "@/features/pin/api/sanpoMapApi";
-import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/hooks/useSanpoMaps";
+import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/lib/pinQueryKeys";
 import { insertCreatedSanpoMap } from "@/features/pin/lib/sanpoMapCache";
 import {
   toSanpoMapCreateErrorCode,
@@ -33,6 +33,9 @@ export function useSanpoMapCreate(options: {
   // 最新の onCreated を呼ぶ（呼び出し側が useCallback しなくても壊れない。useScreenBack と同じ手法）。
   const onCreatedRef = useRef(options.onCreated);
   onCreatedRef.current = options.onCreated;
+  // 再レンダー前に続けて呼ばれても POST が2本飛ばないよう、同期的に立てるラッチ
+  // （`isPending` はレンダーのクロージャなので同一フレーム内の連打を防げない）。
+  const submittingRef = useRef(false);
 
   const mutation = useMutation({
     mutationFn: (name: string) => createSanpoMap({ name }),
@@ -47,15 +50,19 @@ export function useSanpoMapCreate(options: {
     onError: () => {
       void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
     },
+    onSettled: () => {
+      submittingRef.current = false;
+    },
   });
 
   const { mutate, reset, isPending } = mutation;
   const create = useCallback(
     (name: string) => {
-      if (isPending) return;
+      if (submittingRef.current) return;
+      submittingRef.current = true;
       mutate(name);
     },
-    [isPending, mutate],
+    [mutate],
   );
 
   return {

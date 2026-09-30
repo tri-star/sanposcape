@@ -2,11 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { fetchSanpoMaps } from "@/features/pin/api/sanpoMapApi";
+import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/lib/pinQueryKeys";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
+import { resolveQueryLoadStatus } from "@/features/pin/lib/queryLoadStatus";
 import type { SanpoMap } from "@/features/pin/types";
-
-/** 一覧全体（`useSanpoMaps` / 保存成功時の invalidate）で共有するクエリキー。 */
-export const SANPO_MAPS_QUERY_KEY = ["sanpo-maps", "list"] as const;
 
 /** サーバーから取得しなおす頻度を抑える（登録画面を開いている間はほぼ変わらない）。 */
 const STALE_TIME_MS = 5 * 60_000;
@@ -15,10 +14,10 @@ export type UseSanpoMapsResult = {
   status: "loading" | "ready" | "error";
   maps: SanpoMap[];
   retry: () => void;
-  /** 失敗の分類（status が "error" のときだけ非 null）。 */
+  /** 失敗の分類（status が "error" のときだけ非 null。データがある再取得失敗では null）。 */
   errorCode: PinReadErrorCode | null;
-  /** pull-to-refresh の表示用（初回取得中は false）。 */
-  isRefetching: boolean;
+  /** pull-to-refresh 用。取得の完了（失敗を含む）で解決する。 */
+  refresh: () => Promise<void>;
 };
 
 /**
@@ -38,19 +37,24 @@ export function useSanpoMaps(options: { enabled: boolean }): UseSanpoMapsResult 
     void refetch();
   }, [refetch]);
 
-  const status: UseSanpoMapsResult["status"] = query.isPending
-    ? "loading"
-    : query.isError
-      ? "error"
-      : "ready";
+  // 表示できるデータがあるときの再取得失敗では error にしない（一覧を消さない）。
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
-  // 保存成功時の invalidate は呼び出し側（usePinSave）が行う。この hook はキャッシュを
-  // 読むだけ（同じ queryKey なので新しく作られた「最初の地図」を反映できる）。
+  const status = resolveQueryLoadStatus({
+    isPending: query.isPending,
+    isError: query.isError,
+    hasData: query.data !== undefined,
+  });
+
+  // キャッシュの更新は書き込み側が行う（保存成功時の invalidate は `usePinSave`、地図の作成時の
+  // 挿入・invalidate は `useSanpoMapCreate`）。この hook は同じ queryKey のキャッシュを読むだけ。
   return {
     status,
     maps: query.data ?? [],
     retry,
-    errorCode: query.error ? toPinReadErrorCode(query.error) : null,
-    isRefetching: query.isRefetching,
+    errorCode: status === "error" && query.error ? toPinReadErrorCode(query.error) : null,
+    refresh,
   };
 }

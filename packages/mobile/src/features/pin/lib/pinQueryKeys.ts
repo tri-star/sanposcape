@@ -10,6 +10,13 @@ import type { GeoBounds } from "@/features/pin/types";
  */
 export const PINS_QUERY_ROOT = ["pins"] as const;
 
+/**
+ * 地図一覧（`GET /sanpo-maps?expand=pin_count`）。ピン系と違い `["pins"]` 配下ではない
+ * （`usePinSave` は保存成功時に個別に invalidate する。SS-119 もピン削除時に同様に行うこと）。
+ * 一覧画面・ピン登録画面・ピンタブで同じキャッシュを共有する。
+ */
+export const SANPO_MAPS_QUERY_KEY = ["sanpo-maps", "list"] as const;
+
 export function pinListQueryKey(sanpoMapId: string, bounds: GeoBounds) {
   return ["pins", "list", { sanpoMapId, bounds }] as const;
 }

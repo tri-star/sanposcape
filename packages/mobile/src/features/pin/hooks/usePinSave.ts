@@ -3,9 +3,8 @@ import { useCallback, useRef, useState } from "react";
 
 import type { PinCreate } from "@/api/generated/model";
 import { addPinPhotos, createPin } from "@/features/pin/api/pinApi";
-import { SANPO_MAPS_QUERY_KEY } from "@/features/pin/hooks/useSanpoMaps";
 import type { UsePinPhotosResult } from "@/features/pin/hooks/usePinPhotos";
-import { PINS_QUERY_ROOT } from "@/features/pin/lib/pinQueryKeys";
+import { PINS_QUERY_ROOT, SANPO_MAPS_QUERY_KEY } from "@/features/pin/lib/pinQueryKeys";
 import {
   isPinSaveError,
   isRetriablePinSaveError,

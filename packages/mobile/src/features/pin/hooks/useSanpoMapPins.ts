@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 import { getApiBaseUrl } from "@/config/env";
 import { fetchAllPinsInSanpoMap } from "@/features/pin/api/pinReadApi";
 import { shouldRefreshPhotoUrls } from "@/features/pin/lib/pinDetailState";
 import { sanpoMapPinsQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
+import { resolveQueryLoadStatus } from "@/features/pin/lib/queryLoadStatus";
 import type { PinListEntry } from "@/features/pin/types";
 
 /** 表示範囲を動かさない画面なので、短い間隔での取り直しは抑える。 */
@@ -19,7 +20,8 @@ export type UseSanpoMapPinsResult = {
   status: "loading" | "ready" | "error";
   errorCode: PinReadErrorCode | null;
   retry: () => void;
-  isRefetching: boolean;
+  /** pull-to-refresh 用。取得の完了（失敗を含む）で解決する。 */
+  refresh: () => Promise<void>;
   /** 代表写真の読み込みに失敗したとき（URL の失効の可能性）。60 秒未満なら何もしない。 */
   handlePhotoLoadError: () => void;
 };
@@ -54,31 +56,40 @@ export function useSanpoMapPins(
   });
 
   const { refetch, dataUpdatedAt } = query;
+  // 再取得のたびに handlePhotoLoadError の参照が変わって全行が再レンダーされないよう ref で持つ。
+  const dataUpdatedAtRef = useRef(dataUpdatedAt);
+  dataUpdatedAtRef.current = dataUpdatedAt;
   const retry = useCallback(() => {
     void refetch();
   }, [refetch]);
 
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
   const handlePhotoLoadError = useCallback(() => {
     if (sanpoMapId === null) return;
-    if (!shouldRefreshPhotoUrls({ dataUpdatedAt, now: Date.now() })) return;
+    if (!shouldRefreshPhotoUrls({ dataUpdatedAt: dataUpdatedAtRef.current, now: Date.now() }))
+      return;
     void queryClient.invalidateQueries({ queryKey: sanpoMapPinsQueryKey(sanpoMapId) });
-  }, [dataUpdatedAt, queryClient, sanpoMapId]);
+  }, [queryClient, sanpoMapId]);
 
+  // 表示できるデータがあるときの再取得失敗では error にしない（ピン一覧を消さない）。
   const status: UseSanpoMapPinsResult["status"] = !enabled
     ? "ready"
-    : query.isPending
-      ? "loading"
-      : query.isError
-        ? "error"
-        : "ready";
+    : resolveQueryLoadStatus({
+        isPending: query.isPending,
+        isError: query.isError,
+        hasData: query.data !== undefined,
+      });
 
   return {
     pins: query.data?.pins ?? EMPTY_PINS,
     truncated: query.data?.truncated ?? false,
     status,
-    errorCode: query.error ? toPinReadErrorCode(query.error) : null,
+    errorCode: status === "error" && query.error ? toPinReadErrorCode(query.error) : null,
     retry,
-    isRefetching: query.isRefetching,
+    refresh,
     handlePhotoLoadError,
   };
 }
