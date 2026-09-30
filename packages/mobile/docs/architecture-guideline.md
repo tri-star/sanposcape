@@ -182,7 +182,8 @@ export default function SomeFeatureRoute() {
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
   `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
-  （ピンタブから開く `/pins/*` も OFF 時はナビタブへ戻す。ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
+  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`。SS-146）も OFF 時はナビタブへ戻す。
+  ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
   （実例: `app/pins/new.tsx` / `app/pins/pick-location.tsx`。SS-88 / SS-124。
   `app/pins/map.tsx` / `app/pins/[pinId].tsx`。SS-118）。
 

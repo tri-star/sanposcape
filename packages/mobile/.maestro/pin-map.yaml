@@ -16,6 +16,8 @@ tags:
     visible:
       id: "pin-tab-map"
     timeout: 15000
+# ベストエフォートの確認: 取得開始前（loading がまだ出ていない）でも即パスしうるので、
+# 「取得が終わった」ことの保証ではなく、「取得中のまま固まっていない・エラーになっていない」ことの目安。
 - extendedWaitUntil:
     notVisible:
       id: "pin-tab-pins-loading"
