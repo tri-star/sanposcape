@@ -17,6 +17,9 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * （features/history は認証へ依存させない。ADR-009 決定8・SS-29 追補、.oxlintrc.json の
  * no-restricted-imports。feature 間の import も作らないので、帯は `footer` スロットで差し込む）。
  * タブ画面なので `useScreenBack` は使わない（backBehavior を奪うため）。二重遷移は `useNavigateOnce` で防ぐ。
+ * `isSignedIn` は `status === "authenticated"` への圧縮で、`loading`（セッション復元中）もゲスト扱いになる。
+ * 問題ないのは、起動時のスプラッシュ（`app/index.tsx` の `SplashView`）が出ている間にセッション復元が
+ * 終わり、状態が確定してからタブ画面が表示される前提だから（`AuthGate` / `useAuthSessionBootstrap`）。この前提が崩れると、復元中にゲスト向けのサインイン案内が一瞬出る。
  * 遷移は push（replace にすると `(tabs)` ごと置き換わってタブバーが消える）。
  */
 export default function AccountRoute() {

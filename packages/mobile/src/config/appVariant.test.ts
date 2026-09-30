@@ -115,15 +115,49 @@ describe("isDevToolsAllowed", () => {
   );
 });
 
-type EasProfile = { channel?: string; env?: Record<string, string> };
+type EasProfile = {
+  extends?: string;
+  distribution?: string;
+  environment?: string;
+  channel?: string;
+  env?: Record<string, string>;
+};
+
+/**
+ * eas.json のプロファイルを `extends` を再帰的に辿って解決する（子が親を上書き、env は合成）。
+ * EAS のビルドが実際に見る値で検査するため。循環参照・未定義の親は例外。
+ */
+function resolveEasProfile(
+  build: Record<string, EasProfile>,
+  name: string,
+  seen: string[] = [],
+): EasProfile {
+  if (seen.includes(name))
+    throw new Error(`eas.json の extends が循環: ${[...seen, name].join(" -> ")}`);
+  const profile = build[name];
+  if (profile === undefined) throw new Error(`eas.json に未定義のプロファイル: ${name}`);
+  if (profile.extends === undefined) return profile;
+  const parent = resolveEasProfile(build, profile.extends, [...seen, name]);
+  return { ...parent, ...profile, env: { ...parent.env, ...profile.env } };
+}
 
 describe("ビルド設定との契約", () => {
   const easJson = JSON.parse(readFileSync(path.resolve(__dirname, "../../eas.json"), "utf8")) as {
     build: Record<string, EasProfile>;
   };
-  const others = Object.entries(easJson.build).filter(([name]) => name !== "production");
+  const resolved = Object.keys(easJson.build).map(
+    (name) => [name, resolveEasProfile(easJson.build, name)] as const,
+  );
+  const others = resolved.filter(([name]) => name !== "production");
 
-  describe("eas.json", () => {
+  describe("eas.json（extends を解決した値で検査）", () => {
+    it("extends の解決は循環・未定義の親を検出する", () => {
+      expect(() => resolveEasProfile({ a: { extends: "b" }, b: { extends: "a" } }, "a")).toThrow(
+        /循環/,
+      );
+      expect(() => resolveEasProfile({ a: { extends: "x" } }, "a")).toThrow(/未定義/);
+    });
+
     it("production は APP_VARIANT=production を持つ", () => {
       expect(easJson.build.production?.env?.APP_VARIANT).toBe("production");
     });
@@ -132,11 +166,34 @@ describe("ビルド設定との契約", () => {
       expect(easJson.build.production?.channel).toBe(PRODUCTION_UPDATES_CHANNEL);
     });
 
-    it("production 以外で channel を明示するプロファイルは production チャネルと一致しない", () => {
-      for (const [name, profile] of others) {
-        if (profile.channel !== undefined) {
+    it("distribution が store のプロファイルは、本番相当なら APP_VARIANT=production と production チャネルの両方を持つ", () => {
+      // staging は TestFlight / Play 内部テスト向けの store 配布だが本番ではない（開発ツールを開く）。
+      // 許可リストで明示し、新しい store プロファイルは本番相当（両方必須）か許可リストのどちらかに倒す。
+      const NON_PRODUCTION_STORE_PROFILES = ["staging"];
+      const storeProfiles = resolved.filter(([, profile]) => profile.distribution === "store");
+      expect(storeProfiles.length).toBeGreaterThan(0);
+      for (const [name, profile] of storeProfiles) {
+        if (NON_PRODUCTION_STORE_PROFILES.includes(name)) {
+          expect(profile.env?.APP_VARIANT, name).toBeUndefined();
           expect(profile.channel, name).not.toBe(PRODUCTION_UPDATES_CHANNEL);
+          expect(profile.environment, name).not.toBe("production");
+        } else {
+          expect(profile.env?.APP_VARIANT, name).toBe("production");
+          expect(profile.channel, name).toBe(PRODUCTION_UPDATES_CHANNEL);
         }
+      }
+    });
+
+    it("environment が production のプロファイルは APP_VARIANT=production と production チャネルを持つ", () => {
+      for (const [name, profile] of resolved.filter(([, p]) => p.environment === "production")) {
+        expect(profile.env?.APP_VARIANT, name).toBe("production");
+        expect(profile.channel, name).toBe(PRODUCTION_UPDATES_CHANNEL);
+      }
+    });
+
+    it("production 以外のプロファイルは production の channel を持たない", () => {
+      for (const [name, profile] of others) {
+        expect(profile.channel, name).not.toBe(PRODUCTION_UPDATES_CHANNEL);
       }
     });
 

@@ -37,9 +37,14 @@ export type HistoryViewProps = {
 /**
  * 履歴（記録）画面。mock `isRecord` を1:1で再現する。
  * 集計（`GET /walks/stats`）のローディング/エラーは集計セクションだけに閉じ、
- * 「最近の散歩」（別クエリの `RecentWalksSection`）は常に独立して表示する
+ * 「最近の散歩」（別クエリの `RecentWalksSection`）はサインイン中は常に独立して表示する
  * （集計 API が落ちても履歴一覧は見られるようにするため）。
  * ゲストには集計・「最近の散歩」を出さず、サインイン案内を出す（通信しない。SS-148）。
+ *
+ * `isSignedIn` は認証状態を boolean に圧縮した値で、`loading`（セッション復元中）と `unauthenticated` を
+ * 区別できない。`loading` をゲストとして扱ってよいのは、起動時のスプラッシュ（`app/index.tsx` の `SplashView`）が出ている間に
+ * セッション復元が終わり、状態が確定してからこの画面が表示される前提だから。復元中にこの画面が見える構成へ変える場合は、
+ * `status` を props で渡す形に見直すこと。
  */
 export function HistoryView({ displayName, isSignedIn, onSignIn, footer }: HistoryViewProps) {
   const theme = useTheme();
@@ -61,7 +66,7 @@ export function HistoryView({ displayName, isSignedIn, onSignIn, footer }: Histo
   const statsState = resolveHistoryStatsState({ isSignedIn, errorCode, isLoading });
 
   const renderStats = () => {
-    switch (statsState) {
+    switch (statsState.kind) {
       case "sign-in-required":
         return (
           <HistoryStateCard
@@ -78,9 +83,9 @@ export function HistoryView({ displayName, isSignedIn, onSignIn, footer }: Histo
             testID="history-stats-error"
             icon="alert-circle"
             tone="danger"
-            title={walkStatsErrorMessage(errorCode ?? "unknown")}
+            title={walkStatsErrorMessage(statsState.errorCode)}
             action={
-              errorCode !== null && isRetriableWalkStatsError(errorCode)
+              isRetriableWalkStatsError(statsState.errorCode)
                 ? { label: "再試行", onPress: reload }
                 : undefined
             }

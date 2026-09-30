@@ -13,27 +13,31 @@ describe("resolveHistoryStatsState", () => {
     { errorCode: "unauthorized" as const, isLoading: false },
     { errorCode: "server" as const, isLoading: true },
   ])("ゲストは常に sign-in-required（%o）", ({ errorCode, isLoading }) => {
-    expect(resolveHistoryStatsState({ isSignedIn: false, errorCode, isLoading })).toBe(
-      "sign-in-required",
-    );
+    expect(resolveHistoryStatsState({ isSignedIn: false, errorCode, isLoading })).toEqual({
+      kind: "sign-in-required",
+    });
   });
 
   it("サインイン中: errorCode があれば error（isLoading が true でも勝つ）", () => {
     expect(
       resolveHistoryStatsState({ isSignedIn: true, errorCode: "network", isLoading: true }),
-    ).toBe("error");
+    ).toEqual({ kind: "error", errorCode: "network" });
   });
 
   it("サインイン中: errorCode なし・取得中は loading", () => {
-    expect(resolveHistoryStatsState({ isSignedIn: true, errorCode: null, isLoading: true })).toBe(
-      "loading",
-    );
+    expect(
+      resolveHistoryStatsState({ isSignedIn: true, errorCode: null, isLoading: true }),
+    ).toEqual({
+      kind: "loading",
+    });
   });
 
   it("サインイン中: どちらもなければ ready", () => {
-    expect(resolveHistoryStatsState({ isSignedIn: true, errorCode: null, isLoading: false })).toBe(
-      "ready",
-    );
+    expect(
+      resolveHistoryStatsState({ isSignedIn: true, errorCode: null, isLoading: false }),
+    ).toEqual({
+      kind: "ready",
+    });
   });
 });
 

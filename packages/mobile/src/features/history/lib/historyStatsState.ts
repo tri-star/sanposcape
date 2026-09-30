@@ -1,6 +1,10 @@
 import type { WalkStatsErrorCode } from "@/features/history/lib/walkStatsError";
 
-export type HistoryStatsState = "sign-in-required" | "error" | "loading" | "ready";
+export type HistoryStatsState =
+  | { kind: "sign-in-required" }
+  | { kind: "error"; errorCode: WalkStatsErrorCode }
+  | { kind: "loading" }
+  | { kind: "ready" };
 
 /**
  * 記録画面の集計部分の状態。判定順（この順序が仕様）: sign-in-required → error → loading → ready。
@@ -12,10 +16,10 @@ export function resolveHistoryStatsState(input: {
   errorCode: WalkStatsErrorCode | null;
   isLoading: boolean;
 }): HistoryStatsState {
-  if (!input.isSignedIn) return "sign-in-required";
-  if (input.errorCode !== null) return "error";
-  if (input.isLoading) return "loading";
-  return "ready";
+  if (!input.isSignedIn) return { kind: "sign-in-required" };
+  if (input.errorCode !== null) return { kind: "error", errorCode: input.errorCode };
+  if (input.isLoading) return { kind: "loading" };
+  return { kind: "ready" };
 }
 
 export const HISTORY_SIGN_IN_TITLE = "サインインすると、歩いた記録を見られます。";
