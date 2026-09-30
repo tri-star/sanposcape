@@ -19,5 +19,5 @@
 - [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）＋セッション破棄は `signOut()` 再利用が唯一の作法
 - [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
-- [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）／閲覧URLは期限前に失効しうる／チケットの「地図一覧」は SanpoMap 一覧(/sanpo-maps)
+- [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin（スポット＝ゴール候補のみ）・SanpoMap／S3 直送（10枚/req・10MiB・1GiB・同一origin http）／閲覧URLは期限前に失効しうる／「地図一覧」は /sanpo-maps／GET /sanpo-maps/{id} は無い・/pins の q は名前以外にも当たる
 - [mobile ADR の地図](reference-mobile-adr-map.md) — mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式
