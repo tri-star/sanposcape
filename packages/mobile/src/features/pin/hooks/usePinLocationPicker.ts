@@ -36,7 +36,8 @@ export type UsePinLocationPickerResult = {
  * コミット前に差し替えるため、画面のちらつきは起きない）。
  */
 export function usePinLocationPicker(): UsePinLocationPickerResult {
-  const { coordinates, isLoading, errorCode, retry, refresh } = useCurrentLocation();
+  const { coordinates, coordinatesFromRefresh, isLoading, errorCode, retry, refresh } =
+    useCurrentLocation();
 
   const [startRegion, setStartRegion] = useState<MapRegion | null>(null);
   const [startSource, setStartSource] = useState<"current" | "fallback" | null>(null);
@@ -51,7 +52,8 @@ export function usePinLocationPicker(): UsePinLocationPickerResult {
     }
   }
 
-  // 初期表示が fallback（現在地が取れなかった）だった後、現在地が取れたら1回だけそこへ移動する。
+  // 初期表示が fallback（現在地が取れなかった）だった後、現在地が取れたら1回だけそこへ移動する
+  // （初回マウント・ユーザーの retry で取れた場合のみ。静かな取り直しでは移動しない）。
   // `recenter()`（イベントハンドラ内の通常の setState）と二重発火しないか: `currentLocation` が
   // 真になった時点でこのブロックが**先に**（イベントハンドラより前、レンダーの一部として）
   // `startSource` を "current" に倒すため、以後このブロックの条件（`startSource === "fallback"`）
@@ -64,7 +66,11 @@ export function usePinLocationPicker(): UsePinLocationPickerResult {
     isValidCoordinate(coordinates)
   ) {
     setStartSource("current");
-    setFocusRequest((prev) => ({ target: coordinates, nonce: (prev?.nonce ?? 0) + 1 }));
+    // 静かな取り直しで初めて取れた場合は、ユーザーが見ている場所を奪わないため移動しない
+    // （「現在地」ボタンの `recenter` で移動できる）。
+    if (!coordinatesFromRefresh) {
+      setFocusRequest((prev) => ({ target: coordinates, nonce: (prev?.nonce ?? 0) + 1 }));
+    }
   }
 
   const recenter = () => {
