@@ -40,3 +40,4 @@ argument-hint: "[plane-issue-id] [今回の作業範囲: plan|implementation|pla
     - `mobile-code-quality-reviewer`
   - 3-5. 修正を行う場合、 `<task-root>/mobile-local-review.md` とユーザーの指示に従って `mobile-developer` エージェントを起動させ修正を行います。エージェントが正常に完了した場合、ワークフローは終了です。
 - 4. 今回の作業範囲が"plan+implementation"の場合は、上記 2と3を順番に実行します。この場合、2-3のプラン提示後もユーザーの承認を待たず、自動的に3の実装作業に進みます。
+- 補足: PR作成後にエミュレータで動作確認し、スクリーンショットをPRへ添付する作業は、PRを作成する呼び出し元(`task-workflow`)が `mobile-pr-verification` skill で行います。本ワークフロー内では行いません。

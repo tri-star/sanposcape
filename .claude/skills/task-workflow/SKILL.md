@@ -45,6 +45,9 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
 - 8. backend/frontendのどちらにも属さない場合(インフラの構築や、CI/CDの設定)、 `Plan` agent を呼び出してプランを作成する。ユーザーから明示的にプラン作成までで停止する指示がない限り、承認を待たずに汎用エージェントを使い作業を進める
 - 9. タスクが完了した場合は、testが通ることを確認、コミットも完了していることを確認し、git push、PRを作成する。この際、`<task-root>/handover-notes.md` が存在する場合は内容を整理し、PR本文の末尾に「## 申し送り事項」セクションとして含める。
   - PRレビュー指摘への対応(手順1で `review-fix` と判断した場合)では、新たなPRは作成せず既存のPRのブランチへ push する。
+  - PR作成(または `review-fix` の push)の後、`mobile-pr-verification` skill を `<PR番号>` `issue-id` で呼び出す。mobile の画面変更を含む場合だけ、エミュレータで動作確認してスクリーンショットをPRにコメントで添付する(判定基準・省略条件は同 skill に定義されており、画面変更が無ければ何もせず終了する)。
+    - adb や gh の `--attach` が使えない等で省略された場合もワークフローは止めず、省略した旨と理由を最終報告に含める。
+    - スクリーンショットは `<task-root>` に置くため、手順11(`<task-root>` の削除)より前に行う。
 - 10. `task-status-sync` skill を `issue-id` `pr-created` `<作成したPRのURL>` で呼び出し、タスクの状態更新とPR URLの紐付けを行う。
   - `review-fix` の場合も、対応を push した後に同様に呼び出してレビュー待ちの状態へ戻す。
 - 11. `knowledge-harvest` skill を `issue-id`(タスクIDが無い場合は `<task-root>` のディレクトリ名)と「自動モード(task-workflow から呼び出し、PRあり)」である旨を伝えて呼び出す。このチケットで生まれた決定事項のADRへの転記・agent-memory の仕分け・ベースライン更新をコミットしてPRへ push し、`<task-root>` と `tmp/<PR番号>-comments.md` を削除するところまで、ユーザーの承認を待たずに完了させる。

@@ -190,4 +190,5 @@ pkill -f "expo start --dev-client"   # Metro は setsid で切り離されてい
 
 - [app-startup-guide.md](../../../packages/mobile/docs/app-startup-guide.md) — 手動手順・初回セットアップ・iPhone実機
 - [android-emulator](../android-emulator/SKILL.md) — エミュレータ起動と AVD 一覧だけを扱う下位のスキル
+- [mobile-pr-verification](../mobile-pr-verification/SKILL.md) — 画面変更を含むPRで、このスキルの手順で動作確認したスクリーンショットをPRに添付する
 - [local-env-setup](../local-env-setup/SKILL.md) — `.env` 生成を含む初期セットアップ
