@@ -87,7 +87,7 @@ function withProductionGoogleSignInPlugin(plugins: ExpoConfig["plugins"]): ExpoC
  * キーはリポジトリにコミットしない（ADR-001: mobile 用 SDK key と backend の server key は分離する）。
  * - Android: Maps SDK for Android のキーが未注入だと、地図が灰色になるのではなく、
  *   Maps SDK の初期化時に RuntimeException が発生してアプリがクラッシュする
- *   （SS-44 で実際に観測。ADR-007 の SS-78 追補も参照）。
+ *   （SS-44 で実際に観測。ADR-M-007 の SS-78 追補も参照）。
  * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
@@ -134,7 +134,7 @@ function withCleartextTrafficForHttpBackend(config: ExpoConfig): ExpoConfig {
  * assembleRelease に自動付随する lintVitalAnalyzeRelease を無効化する。
  * E2E用のpreviewビルド(内部配布のみ)にリリース前品質ゲートは不要な一方、
  * ネイティブモジュール数の多さでGradleがMetaspace OOMを起こしCIがハングする原因になっていた
- * （ADR-004 SS-44追補参照）。
+ * （ADR-M-004 SS-44追補参照）。
  */
 function withDisableAndroidLintVital(config: ExpoConfig): ExpoConfig {
   return withAppBuildGradle(config, (config) => {
@@ -157,8 +157,8 @@ function withDisableAndroidLintVital(config: ExpoConfig): ExpoConfig {
  * mobile-e2e（run 34657232761）は dex マージ中（:app:mergeExtDexRelease）に
  * `OutOfMemoryError: Java heap space` を4スレッドで同時に起こして停止し、40分でタイムアウトした
  * （ログ上 FAILED と出る :app:mergeReleaseArtProfile は同時に走っていて巻き添えになっただけで、
- * 原因ではない）。ADR-004 の SS-44 追補が対処した lintVitalAnalyzeRelease の Metaspace OOM とは
- * 別種であり、既存の withDisableAndroidLintVital では防げない。詳細は ADR-004 の SS-85 追補。
+ * 原因ではない）。ADR-M-004 の SS-44 追補が対処した lintVitalAnalyzeRelease の Metaspace OOM とは
+ * 別種であり、既存の withDisableAndroidLintVital では防げない。詳細は ADR-M-004 の SS-85 追補。
  *
  * ランナー（GitHub Actions ubuntu-latest / EAS の Android ワーカーとも 4 vCPU・16GB）に対して
  * 2GB は明らかに過小なので、全プロファイル共通で引き上げる。E2E だけでなく staging-apk 等の

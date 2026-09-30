@@ -110,7 +110,7 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 
 ## 関連情報
 
-- [ADR-M-002(mobile): 技術スタック](./ADR-M-002-mobile-tech-stack.md)
+- [ADR-M-002: 技術スタック](./ADR-M-002-mobile-tech-stack.md)
 - [ADR-002(横断): 認証は Google 直結 + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
 - [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
 - [ADR-M-007: Expo 設定と Maps キー注入](./ADR-M-007-expo-config-and-maps-key-injection.md)

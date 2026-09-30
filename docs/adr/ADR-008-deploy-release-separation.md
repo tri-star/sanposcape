@@ -821,7 +821,7 @@ mobile 側に隠したい未公開機能も現時点で存在しないため）�
 - **永続キャッシュ（AsyncStorage 等）は持たない。** 理由は2つ。
   ① 決定9 のフェイルセーフは「読めない時は OFF」であり、前回起動時の ON を永続化すると
   kill switch が効かない端末が生まれ、フェイルセーフの向きが逆転する。
-  ②（**2026-09-20 訂正**: 当初「依存追加は [ADR-M-004（mobile）](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
+  ②（**2026-09-20 訂正**: 当初「依存追加は [ADR-M-004](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
   の E2E APK キャッシュを1回ミスさせるコストに見合わない」としていたが、この前提は
   ADR-M-004 自体が 2026-08-14 追補で撤回済みで誤りだった。`packages/mobile/docs/toolsets-libraries.md`
   も「依存追加時の APK キャッシュミスは論点にならない」と明記しており、当時の根拠は成立しない）
@@ -842,7 +842,7 @@ mobile 側に隠したい未公開機能も現時点で存在しないため）�
 
 ### D15: サインアウト時のクリア対象から `/app-config` を除外する
 
-`src/api/queryClient.ts` のサインアウト時後始末（[ADR-M-009（mobile）](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)
+`src/api/queryClient.ts` のサインアウト時後始末（[ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)
 決定6）を `queryClient.clear()` から `removeQueries({ predicate: ... })` に変更し、
 `/app-config` のキャッシュだけを対象外にした。ユーザー非依存の公開設定を「共有端末での前ユーザーの
 データ漏れ防止」という決定6 の目的に巻き込む必要が無いため（除外できるのは D2 がダークローンチを

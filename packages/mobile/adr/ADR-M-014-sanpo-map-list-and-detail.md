@@ -151,8 +151,8 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 
 ## 関連情報
 
-- [ADR-M-009（mobile）: 認証セッション状態の集約と認証ゲート](./ADR-M-009-auth-session-state-and-route-gate.md)
-- [ADR-M-012（mobile）: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（D7・D9・SS-146 追補）
-- [ADR-M-013（mobile）: ピンのタグ入力の候補](./ADR-M-013-pin-tag-suggestions.md)（端末での絞り込み・照合規則）
+- [ADR-M-009: 認証セッション状態の集約と認証ゲート](./ADR-M-009-auth-session-state-and-route-gate.md)
+- [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（D7・D9・SS-146 追補）
+- [ADR-M-013: ピンのタグ入力の候補](./ADR-M-013-pin-tag-suggestions.md)（端末での絞り込み・照合規則）
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・SS-111 追補）
 - 元チケット: SS-121 / 関連: SS-113（地図 API）・SS-145・SS-146（PR #114）・SS-117・SS-119

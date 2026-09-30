@@ -333,9 +333,9 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 ## 関連情報
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定15・持ち越し事項の決着）
-- [ADR-M-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)（決定8）
-- [ADR-M-011（mobile）: ピンの位置の選択と調整](./ADR-M-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
+- [ADR-M-010: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)（決定8）
+- [ADR-M-011: ピンの位置の選択と調整](./ADR-M-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール・feature 間の render slot 合成）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ・写真の扱い）
-- [ADR-M-014（mobile）: 地図一覧と地図詳細](./ADR-M-014-sanpo-map-list-and-detail.md)（SS-121 追補）
+- [ADR-M-014: 地図一覧と地図詳細](./ADR-M-014-sanpo-map-list-and-detail.md)（SS-121 追補）
 - 元チケット: SS-118 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）・SS-121

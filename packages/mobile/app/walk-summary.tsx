@@ -8,7 +8,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 /**
  * 散歩終了サマリ画面（散歩中画面から push）。
  *
- * `features/walk` は認証状態を import できない（ADR-009 決定8）ため、
+ * `features/walk` は認証状態を import できない（ADR-M-009 決定8）ため、
  * 認証済みかどうかと「サインイン画面へ送る」導線はこのルートが注入する（SS-37）。
  * サインイン画面へは `push` で送る（`replace` にすると、サインインをやめたときに
  * サマリ画面へ戻れず新しい行き止まりを作ってしまうため）。

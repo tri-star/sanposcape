@@ -49,7 +49,7 @@ export type MockPhotoServiceOptions = {
  * `expo-image-picker` 等も `react-native` も import しないため `.test.ts` から直接テストできる。
  *
  * uri は実ファイルではないため、この mock が返す写真はアップロードすると失敗する
- * （E2E では写真を添付しない。ADR-010）。
+ * （E2E では写真を添付しない。ADR-M-010）。
  */
 export function createMockPhotoService(options?: MockPhotoServiceOptions): PhotoService {
   const count = options?.count ?? 1;
@@ -93,7 +93,7 @@ export function createMockPhotoService(options?: MockPhotoServiceOptions): Photo
         mimeType: "image/jpeg",
         // 実ファイルではないダミー（中身の長さは `byteSize` と一致しない）。この mock の写真を
         // 実際にアップロードすると S3 の content-length-range に掛かって失敗する——という
-        // 既存の性質（上の JSDoc）はそのまま。E2E では写真を添付しない（ADR-010）。
+        // 既存の性質（上の JSDoc）はそのまま。E2E では写真を添付しない（ADR-M-010）。
         file: new Blob([new Uint8Array(8)], { type: "image/jpeg" }),
       };
     },

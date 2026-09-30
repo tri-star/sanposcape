@@ -26,7 +26,7 @@ import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type PinTabViewProps = {
-  /** ルート（`app/(tabs)/pins.tsx`）が `useAuthSessionStore` から注入する（features/pin は認証を読まない。ADR-009 決定8）。 */
+  /** ルート（`app/(tabs)/pins.tsx`）が `useAuthSessionStore` から注入する（features/pin は認証を読まない。ADR-M-009 決定8）。 */
   isSignedIn: boolean;
   onSignIn: () => void;
 };
@@ -67,7 +67,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
 
   // 画面から出る遷移の二重発火防止（フォーカスで解除するラッチ）。
   // `useScreenBack` は `hardwareBackPress` を購読して戻るを奪い、タブの Android バックの既定
-  // （`backBehavior: firstRoute` でナビタブへ。ADR-009 SS-145 追補）を変えてしまうので使わず、
+  // （`backBehavior: firstRoute` でナビタブへ。ADR-M-009 SS-145 追補）を変えてしまうので使わず、
   // BackHandler を購読しない `useNavigateOnce` を使う。サインイン遷移（`onSignIn`）も同じラッチに通す。
   const { runOnce } = useNavigateOnce();
   const { refreshLocation } = picker;
@@ -89,7 +89,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
   );
 
   const handlePick = (location: GeoCoordinates) => {
-    // push であって replace ではない（ADR-011 SS-146 追補）。clientWalkId は付けない。
+    // push であって replace ではない（ADR-M-011 SS-146 追補）。clientWalkId は付けない。
     runOnce(() => router.push({ pathname: "/pins/new", params: buildPinNewRouteParams(location) }));
   };
 

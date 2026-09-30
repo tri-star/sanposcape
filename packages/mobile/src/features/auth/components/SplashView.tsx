@@ -15,7 +15,7 @@ const SPLASH_MS = 900;
  * セッション復元は `AuthGate` の `useAuthSessionBootstrap` が担う（ディープリンクのコールド
  * スタートでも復元されるようにするため）。この画面は `useAuthSessionStore` の `status` を
  * 購読し、「最低表示時間の経過」と「復元完了（`status !== "loading"`）」の**両方**が揃ったら
- * 遷移する（SS-13 / ADR-009）。
+ * 遷移する（SS-13 / ADR-M-009）。
  * デザイン: mock `isLogin` のロゴ＋キャッチのトーンを流用した起動ブランド画面（mock に直接該当なし）。
  */
 export function SplashView() {

@@ -27,7 +27,7 @@ export type UsePinLocationPickerResult = {
  * この hook は状態の保持と配線だけを行う（`usePinRegister` と同じ設計方針）。
  *
  * 権限リクエストは `useCurrentLocation` がマウント時に行う
- * （ADR-006「権限リクエストは画面側の hook が必要になった時点で行う」に合う）。
+ * （ADR-M-006「権限リクエストは画面側の hook が必要になった時点で行う」に合う）。
  *
  * `startRegion`/`focusRequest` の「一度だけ確定・一度だけ移動」は、React公式ドキュメントの
  * 「レンダー中に state を直接調整する」パターン（`useEffect` にすると1フレーム遅れて描画される）

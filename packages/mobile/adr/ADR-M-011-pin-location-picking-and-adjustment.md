@@ -356,9 +356,9 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
 - [ADR-008（ルート）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md)（D3 で流用した `pin_registration` フラグの仕組み）
-- [ADR-M-001（mobile）: フォルダ構造と命名規則](./ADR-M-001-folder-structure.md)（D12 の昇格ルール）
-- [ADR-M-006（mobile）: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
-- [ADR-M-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)
+- [ADR-M-001: フォルダ構造と命名規則](./ADR-M-001-folder-structure.md)（D12 の昇格ルール）
+- [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
+- [ADR-M-010: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ）
 - 元チケット: SS-88 / PR #93 / 関連: SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）

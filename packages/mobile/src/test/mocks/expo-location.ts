@@ -31,7 +31,7 @@ export async function getCurrentPositionAsync() {
 
 /**
  * `location.real.ts` が vitest 上で import されても壊れないようにするためだけのスタブ。
- * 実際の通知を再現したテストは `createMockLocationService()` を使うこと（ADR-006 の規律）。
+ * 実際の通知を再現したテストは `createMockLocationService()` を使うこと（ADR-M-006 の規律）。
  */
 export async function watchPositionAsync(
   _options: unknown,

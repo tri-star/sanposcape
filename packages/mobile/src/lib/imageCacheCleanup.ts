@@ -5,7 +5,7 @@ import { registerSessionCleanup } from "@/lib/sessionCleanup";
 /**
  * サインアウト時に expo-image のメモリ・ディスクキャッシュを消す（SS-118）。
  * 写真は本人（地図の member）しか見られないため、共有端末でサインアウトした後に前のユーザーの
- * 写真が端末に残らないようにする（ADR-009（mobile）決定6 / ADR-008 決定6 と同じ考え方）。
+ * 写真が端末に残らないようにする（ADR-M-009決定6 / ADR-M-008 決定6 と同じ考え方）。
  *
  * このモジュールを `PinPhotoImage.tsx`（コンポーネント）ではなく、起動時に必ず評価される
  * `app/_layout.tsx` から副作用 import することが重要（`import "@/lib/imageCacheCleanup"`）。

@@ -226,7 +226,7 @@ SS-79 追補にも反映した。
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)
-- [ADR-M-002(mobile): 技術スタック](./ADR-M-002-mobile-tech-stack.md)
+- [ADR-M-002: 技術スタック](./ADR-M-002-mobile-tech-stack.md)
 - [ADR-M-003: development build 前提と開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
 - [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
 - [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)

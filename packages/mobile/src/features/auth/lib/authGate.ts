@@ -2,7 +2,7 @@ import type { AuthSessionStatus, ResolvedAuthSessionStatus } from "@/store/useAu
 
 /**
  * 保護ルートへの到達可否とセッション終了時の退避を判定する純粋関数群
- * （SS-13 / ADR-009。ゲスト散歩の解禁は SS-57 / ADR-009 SS-57 追補）。
+ * （SS-13 / ADR-M-009。ゲスト散歩の解禁は SS-57 / ADR-M-009 SS-57 追補）。
  * `react-native` / `expo-router` を値 import しない（vitest 対象）。
  */
 
@@ -21,7 +21,7 @@ export const PUBLIC_ROOT_SEGMENTS: readonly string[] = [
   "dev-screens", // 開発用の画面カタログ（__DEV__ でのみ描画される）
   "design-system", // 開発用のデザインシステム一覧
   // Expo Router が提供するルート一覧。`sitemap: false` を明示しない限り expo-router 57 は
-  // 本番ビルドにも `/_sitemap` を含める＝「開発時のみ」ではなく本番でも到達可能（ADR-009 参照）。
+  // 本番ビルドにも `/_sitemap` を含める＝「開発時のみ」ではなく本番でも到達可能（ADR-M-009 参照）。
   // 内容はルート一覧のみで、RN アプリはバンドル解析で同等の情報が得られるため MVP では許容する。
   "_sitemap",
 ];
@@ -46,7 +46,7 @@ export function isPublicRoute(segments: readonly string[]): boolean {
  *
  * **注意**: この関数はゲート以外に `splashDestination.ts` からも参照され得るように見えるが、
  * SS-57 でスプラッシュはこの関数への委譲をやめている（詳細は `splashDestination.ts` の JSDoc /
- * ADR-009 SS-57 追補を参照）。この関数だけを変えれば安全、とは限らないことに注意すること。
+ * ADR-M-009 SS-57 追補を参照）。この関数だけを変えれば安全、とは限らないことに注意すること。
  */
 export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): boolean {
   return status === "authenticated" || status === "guest";
@@ -67,7 +67,7 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
  * SS-57 で `canEnterProtectedRoutes` が guest も許可するようになったため、現状この関数が
  * `redirect` を返す経路は無い（`loading` は 1. で allow、`guest`/`authenticated` は 3. で allow）。
  * それでも `resolveAuthGateDecision` と `AuthGateDecision` 型はそのまま残す。
- * 「保護ルートに誰が入れるか」の判断を1箇所に閉じる器（ADR-009 決定3）を壊さないため、また
+ * 「保護ルートに誰が入れるか」の判断を1箇所に閉じる器（ADR-M-009 決定3）を壊さないため、また
  * 将来「ゲストは入れないルート」（例: アカウント設定）が必要になったとき、追加場所をここに
  * 固定するためである。
  */
@@ -93,7 +93,7 @@ export function resolveAuthGateDecision(input: {
  *
  * SS-50 までは `resolveAuthGateDecision` が guest を保護ルートで弾くことでこの退避が成立していたが、
  * SS-57 で guest も保護ルートに入れるようになったため、判定を「状態そのもの」から
- * 「authenticated → guest という遷移」へ移す（ADR-009 決定6 の狙い＝退避を AuthGate 1箇所に
+ * 「authenticated → guest という遷移」へ移す（ADR-M-009 決定6 の狙い＝退避を AuthGate 1箇所に
  * 集約する、はそのまま維持する）。
  *
  * - `loading → guest`（起動時に復元できなかった）では退避しない。ゲストのままディープリンクで

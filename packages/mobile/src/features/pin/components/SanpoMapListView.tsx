@@ -56,7 +56,7 @@ type SanpoMapListBody = {
  * - testID `sanpo-map-list-screen` / `sanpo-map-list-back` は E2E（`pin-map.yaml`）が使うので維持する。
  * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
  * - ゲストは開けるが通信せずサインイン案内を出し、FAB・検索欄は出さない
- *   （押しても 401 になる操作を見せない。ADR-014 D6）。
+ *   （押しても 401 になる操作を見せない。ADR-M-014 D6）。
  */
 export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps) {
   const theme = useTheme();

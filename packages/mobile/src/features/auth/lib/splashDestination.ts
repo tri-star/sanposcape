@@ -17,9 +17,9 @@ export type SplashDestination = typeof DEFAULT_LANDING_HREF | "/(auth)/sign-in";
  * SS-145: authenticated の着地点を `/walk-start` からピンタブへ変えた。起動直後は進行中の散歩が無い
  * （メモリのみで永続化していない）ため、散歩の有無では分岐しない。
  *
- * 委譲をやめても危険な食い違いは起きない。ADR-009 が防ぎたかったのは「スプラッシュが通した先で
+ * 委譲をやめても危険な食い違いは起きない。ADR-M-009 が防ぎたかったのは「スプラッシュが通した先で
  * ゲートが弾く」向きであり、サインイン画面は公開ルート（`PUBLIC_ROOT_SEGMENTS` の `(auth)`）なので
- * ゲートは決して弾かない（詳細は ADR-009 SS-57 追補を参照）。
+ * ゲートは決して弾かない（詳細は ADR-M-009 SS-57 追補を参照）。
  */
 export function getSplashDestination(status: ResolvedAuthSessionStatus): SplashDestination {
   return status === "authenticated" ? DEFAULT_LANDING_HREF : "/(auth)/sign-in";

@@ -16,7 +16,7 @@ const DEFAULT_ACCESS_TOKEN = "mock-access-token";
  *
  * `onSessionChange` を real/dev と同じ形（`signIn` で user、`signOut` で null を通知）で
  * 受け取れるようにしているのは、`EXPO_PUBLIC_AUTH_MODE=mock` の開発ビルドでも
- * `useAuthSessionStore` へ状態が届き、`AuthGate` が機能するようにするため（SS-13 / ADR-009）。
+ * `useAuthSessionStore` へ状態が届き、`AuthGate` が機能するようにするため（SS-13 / ADR-M-009）。
  * `restoreSession()` は null を返すだけなので通知しない（real/dev の restoreSession 失敗時と揃える）。
  */
 export function createMockAuthService(options?: {

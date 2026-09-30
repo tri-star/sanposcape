@@ -133,7 +133,7 @@ packages/mobile/
     散歩中画面 → サマリ画面をまたいで保存対象を渡すために、`useActiveWalkStore` とは責務を分けて別ファイルにしている。
   - **いずれも永続化しない**（AsyncStorage / SecureStore を使わない）。保存前にアプリを落とすと記録は失われる。
     ローカル永続化（起動時の再送・散歩の復帰）は SS-19 のスコープ外でフォローアップ課題に送っており、
-    着手時は ADR-008 の再追補が必要。
+    着手時は ADR-M-008 の再追補が必要。
   - **「サーバー由来のデータを置かない」の例外は `useFinishedWalkStore.savedWalkId` の1つだけ**。
     サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
@@ -209,7 +209,7 @@ packages/mobile/
 - 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）、
   `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮。
   アップロード（presigned POST での S3 直送）はネイティブ依存でも実機依存でもないため
-  `services/` には置かず `features/pin/api/` に置く。ADR-010）。
+  `services/` には置かず `features/pin/api/` に置く。ADR-M-010）。
 - 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
 
 ### `src/api/` — バックエンドAPIクライアント
@@ -231,7 +231,7 @@ packages/mobile/
   置かない）。新しい横断的な送信ヘッダーを追加する場合も同じ配置ルールに従うこと。
   これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`）が
   **S3 / fake storage への3箇所目の HTTP 出口**として存在する。こちらは backend 用の横断ヘッダーを
-  **意図的に付けない**ため、上記2つとは別経路として扱う（SS-88 / ADR-010）。
+  **意図的に付けない**ため、上記2つとは別経路として扱う（SS-88 / ADR-M-010）。
 - `apiError.ts` / `retryPolicy.ts`: `ApiError` と 401→refresh のリトライ判定。
 - `transientRetry.ts`: 一時障害（429 / 502 / 503 / 504 / 通信断）に対する GET / HEAD 限定の
   指数バックオフ再送（SS-79）。401→refresh のリトライ（`retryPolicy.ts`）とは独立した軸で、
@@ -239,7 +239,7 @@ packages/mobile/
 - `authTokenProvider.ts`: `client.ts` が `services/auth` を直接 import せずにトークンを
   取得するためのレジストリ（循環参照回避）。
 - `queryClient.ts`: TanStack Query の `QueryClient` 設定。サインアウト時のクリア対象から
-  `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-009 の SS-100 追補）。
+  `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-M-009 の SS-100 追補）。
 
 ### その他
 - `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useNavigateOnce.ts`（画面から出る遷移の二重発火ラッチ。
@@ -255,7 +255,7 @@ packages/mobile/
   `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
   トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
   `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）、端末側の診断ログの
-  **唯一の出力口** `diagnosticLog.ts`（SS-88/ADR-010 決定10。将来 Sentry 等に差し替えるときは
+  **唯一の出力口** `diagnosticLog.ts`（SS-88/ADR-M-010 決定10。将来 Sentry 等に差し替えるときは
   このファイルの中身だけを変える。**呼び出し側で `console.*` を直接使わない**）)もここに置く。
   - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
     純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか

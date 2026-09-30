@@ -8,7 +8,7 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
 /**
  * サインアップ画面。mock に直接該当なし。`isLogin` の様式を流用した新規登録画面。
  * 「Google で登録」は押下後に散歩開始画面へ遷移する。
- * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-009 SS-57 追補参照）。
+ * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-M-009 SS-57 追補参照）。
  */
 export function SignUpView() {
   const router = useRouter();

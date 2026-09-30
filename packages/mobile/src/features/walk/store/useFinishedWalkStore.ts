@@ -48,11 +48,11 @@ type FinishedWalkState = {
  * `savedWalkId` のみ（識別子1つ。SS-20 の詳細遷移で使えるようにするため）。
  * 散歩の内容そのもの（`WalkRead`）は入れない。
  *
- * **永続化しない**（AsyncStorage / SecureStore を使わない）。ADR-008 の「永続化しない」判断を踏襲する。
+ * **永続化しない**（AsyncStorage / SecureStore を使わない）。ADR-M-008 の「永続化しない」判断を踏襲する。
  * そのため、保存前にアプリを強制終了する／サマリ画面に到達する前にクラッシュすると、
  * この散歩の記録は失われる（永続化は SS-19 のスコープ外。フォローアップとして
  * 「進行中の散歩と未送信の散歩記録をローカル永続化する」課題を別途起票する想定。
- * 着手時は ADR-008 の追補が必要）。
+ * 着手時は ADR-M-008 の追補が必要）。
  *
  * 画面外（`ScreenCatalog` のような非 React コンテキスト）からは
  * `useFinishedWalkStore.getState().finishWalk(...)` を使える。

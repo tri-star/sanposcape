@@ -64,7 +64,7 @@ export function extractS3ErrorMessage(body: string): string | null {
  * 発生源は「転送中の写真を削除した」「登録画面をアンマウントした」の2つで、どちらも
  * **ユーザーの通常操作**（`usePinPhotos.ts` の `removePhoto` / アンマウント時の cleanup）。
  * 失敗として扱うと、写真を消すたびに `code: "unknown"` の診断ログが出て、本来調べたい
- * 「本当に失敗したケース」が埋もれる（ADR-010 決定10 の目的を損なう）。
+ * 「本当に失敗したケース」が埋もれる（ADR-M-010 決定10 の目的を損なう）。
  *
  * `withTimeout` のタイムアウトは `TypeError("Pin photo transfer timed out")` なのでここには
  * 該当せず、中断とタイムアウトは取り違えない。RN の `DOMException` 実装に依存しないよう

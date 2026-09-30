@@ -221,7 +221,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   `docker compose restart` では反映されない（`compose.yaml` の `${...}` はコンテナ生成時に
   展開されるため）。必ず `up -d` でコンテナを作り直すこと。
 - CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドする。
-  起動条件は次の2系統（PR 作成時や `main` への push では起動しない。ADR-004 の 2026-08-14 追補で
+  起動条件は次の2系統（PR 作成時や `main` への push では起動しない。ADR-M-004 の 2026-08-14 追補で
   push 起動を廃止した）:
   - **週次**: 毎週土曜 08:00 JST 相当（金曜 23:00 UTC）のスケジュール実行。
   - **手動実行**: GitHub Actions の `workflow_dispatch`。
@@ -288,13 +288,13 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
      なお **CI の E2E（`preview` プロファイル）にはこのキーを注入している**
      （`.github/workflows/mobile-e2e.yml` が `ci-e2e` environment の GitHub Secrets から渡す）。
      未注入にすると `maps-required` タグの Maestro フローが軒並みクラッシュで失敗するため、
-     E2E にとってこのキーは必須である（地図タイルの描画自体は assert しない。ADR-004）。
+     E2E にとってこのキーは必須である（地図タイルの描画自体は assert しない。ADR-M-004）。
   4. 反映確認: `pnpm --filter mobile exec expo config --type prebuild` の出力に
      `android.config.googleMaps.apiKey` が載っているか確認する（キー未設定時は `config`
      フィールド自体が付かない。この状態のビルドを実機・エミュレータで起動すると
      Maps SDK 初期化時にクラッシュする）。
   5. **ネイティブ設定（`expo-location` の追加・Maps キーの注入）を反映するには development build
-     の作り直しが必要**（Fast Refresh では反映されない。ADR-004 の 2026-08-14 追補以降、
+     の作り直しが必要**（Fast Refresh では反映されない。ADR-M-004 の 2026-08-14 追補以降、
      E2E の APK キャッシュキーは `packages/mobile` のソース全体ハッシュ（`.maestro/` / `docs/` /
      `adr/` を除く）になっているため、ネイティブ設定に限らずソースの変更があれば再ビルドされる）。
 
