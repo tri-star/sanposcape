@@ -87,6 +87,9 @@ testID `sanpo-map-list-back`。作成ダイアログを開いている間は `on
 二重に発火しないよう、`BackHandler` を購読しない `src/hooks/useNavigateOnce.ts`
 （フォーカスで解除するラッチ。`useScreenBack` も内部で使う）を使う。`useScreenBack` はタブの
 Android バックの既定（`backBehavior: firstRoute`）を奪うので使わない（SS-146）。
+サインイン遷移（ゲスト向けサインイン案内のボタン）は両タブで `src/hooks/useSignInNavigation.ts` に共通化し、
+アカウントタブは設定・画面カタログと同じ `runOnce` を渡してラッチを共有する。ピンタブはルートでは自前のラッチ、
+`PinTabView` 内では他の遷移と共有するラッチを通す（SS-148）。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。

@@ -35,6 +35,7 @@
 - **ゲストはピンタブ・ピン詳細を開けるが通信せず、サインイン案内を出す**。散歩中の地図のピンレイヤーもゲストでは
   通信しない。地図一覧 `/sanpo-maps`・地図詳細 `/sanpo-maps/[sanpoMapId]` も同じ。アカウントタブでも、ゲストには集計・最近の散歩を出さず
   （`GET /walks/stats`・`GET /walks` を呼ばない）サインイン案内を出す。（本文: D9、SS-146 追補、SS-147 追補、SS-121 追補、SS-148 追補）
+  アカウントタブはセッション復元中（`loading`）をゲストにせず、通信せずに読み込み表示を出す。（本文: SS-148 追補）
 - **フラグは既存の `pin_registration` を流用し、`/pins/[pinId]` は OFF 確定時に `/(tabs)` へ Redirect する**。
   （本文: D10、SS-147 追補）
 - **ピンタブの地図の下に `TabActionBar`（`src/components/layout/`。children スロット・右寄せ）を置き、「地図一覧」ボタンで `/sanpo-maps`
@@ -336,6 +337,8 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 - アカウントタブのゲスト表示を決着させた（SS-147 追補が持ち越していた）。ゲストには集計・「最近の散歩」を出さず（`GET /walks/stats`・`GET /walks` を呼ばない）、サインイン案内を出す。ピンタブ・地図一覧・ナビタブ idle と扱いがそろう。401 のエラーカード2枚（「サインインし直すと…」は一度もサインインしていないゲストには文言も合わない）が消える。「設定」ボタンはゲストにも出す（設定画面がゲストにサインイン導線を出す）。
 - `PinTabActionBar` を `src/components/layout/TabActionBar.tsx` に昇格・改名した（アカウントタブの下部の帯でも使うため。`docs/folder-structure.md` の昇格ルール）。testID `pin-tab-action-bar` は変えていない。
+- 認証状態は `status` をそのまま `isSignedIn` に圧縮せず、`signed-in` / `guest` / `restoring` の3値で `HistoryView` に注入する。`loading`（セッション復元中）は `restoring` で、通信せず集計部分に既存の読み込み表示を出し、サインイン案内も「最近の散歩」も出さない。コールドスタートのディープリンク（`sanposcape://account` 等）では `AuthGate` が `loading` の間も children を通すので、ゲスト扱いにするとサインイン済みのユーザーにサインイン案内が一瞬見えて押せてしまうため。判定は `resolveHistoryStatsState`（`restoring` → `sign-in-required` → …）。
+- サインイン遷移（ピンタブ・アカウントタブ）は `src/hooks/useSignInNavigation.ts` に共通化し、両タブで二重タップを防ぐ（アカウントタブは設定・画面カタログと同じ `useNavigateOnce` のラッチを渡して共有する）。
 - 既知の制限: ゲストがアカウントタブのサインイン案内からサインインすると、`getPostSignInDestination` によりピンタブ（進行中の散歩があればナビタブ）へ戻り、アカウントタブには戻らない（ピン詳細の案内と同じ制限。直すなら別課題）。
 - 記録・帯の合成は `app/(tabs)/account.tsx` が `HistoryView` の `footer` に `AccountActionBar`（`features/account`）を渡して行う（D5 の render slot の一般化）。開発ツールの表示可否は [ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) の SS-148 追補。
 

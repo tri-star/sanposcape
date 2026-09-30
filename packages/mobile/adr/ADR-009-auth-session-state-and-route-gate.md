@@ -135,7 +135,7 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 
 `.oxlintrc.json` に `no-restricted-imports` の override を追加し、`@/services/auth` / `@/services/auth/*` / `@/store/useAuthSessionStore` への import をエラーにする。既存コードはこれらに一切依存していなかったため、新規違反の追加を禁止するだけで既存コードの修正は不要だった。SS-57 でゲスト散歩を解禁した後もこの override は外していない（`features/walk` / `features/history` はゲスト時の差異を API の 401 分類に吸収しており、認証状態を直接見る必要が発生しなかったため）。
 
-（SS-148 の注記: アカウントタブの記録画面はゲストに集計・最近の散歩を出さずサインイン案内を出すことにした。認証状態は `app/(tabs)/account.tsx` が `useAuthSessionStore` から `isSignedIn`（`status === "authenticated"` への圧縮。`loading` はゲスト扱いだが、スプラッシュで状態が確定してから表示される前提）と `onSignIn` を読み、`HistoryView` へ props で注入する。決定8は維持している。）
+（SS-148 の注記: アカウントタブの記録画面はゲストに集計・最近の散歩を出さずサインイン案内を出すことにした。認証状態は `app/(tabs)/account.tsx` が `useAuthSessionStore` の `status` を3値（`signed-in` / `guest` / `restoring`）に写した `authState` と `onSignIn` を、`HistoryView` へ props で注入する。`loading`（セッション復元中）をゲストにはしない: コールドスタートのディープリンクでは `AuthGate`（`resolveAuthGateDecision` の step 1）が `loading` の間も children を通すため、サインイン済みのユーザーにサインイン案内が一瞬見え、押せてしまうから。復元中は通信せず読み込み表示を出す。決定8は維持している。）
 
 ### SS-29 追補: restricted な feature が認証情報を必要とする場合は `app/` ルートで合成する
 
