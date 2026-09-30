@@ -1,7 +1,9 @@
 import { useState } from "react";
 
-import type { PinMapFocusRequest } from "@/features/pin/components/PinMapCanvas";
-import { resolvePickerStartRegion } from "@/features/pin/lib/pinLocationPicker";
+import {
+  resolvePickerStartRegion,
+  type PinMapFocusRequest,
+} from "@/features/pin/lib/pinLocationPicker";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import type { MapRegion } from "@/lib/mapRegion";
@@ -13,6 +15,8 @@ export type UsePinLocationPickerResult = {
   currentLocation: GeoCoordinates | null;
   locationErrorCode: LocationErrorCode | null;
   retryLocation: () => void;
+  /** 表示を変えずに現在地を取り直す（常駐するピンタブがフォーカスを取り戻したとき用。SS-146）。 */
+  refreshLocation: () => void;
   focusRequest: PinMapFocusRequest | null;
   /** 現在地があればそこへ移動する（現在地ボタン）。 */
   recenter: () => void;
@@ -32,7 +36,7 @@ export type UsePinLocationPickerResult = {
  * コミット前に差し替えるため、画面のちらつきは起きない）。
  */
 export function usePinLocationPicker(): UsePinLocationPickerResult {
-  const { coordinates, isLoading, errorCode, retry } = useCurrentLocation();
+  const { coordinates, isLoading, errorCode, retry, refresh } = useCurrentLocation();
 
   const [startRegion, setStartRegion] = useState<MapRegion | null>(null);
   const [startSource, setStartSource] = useState<"current" | "fallback" | null>(null);
@@ -76,6 +80,7 @@ export function usePinLocationPicker(): UsePinLocationPickerResult {
     currentLocation,
     locationErrorCode: errorCode,
     retryLocation: retry,
+    refreshLocation: refresh,
     focusRequest,
     recenter,
   };

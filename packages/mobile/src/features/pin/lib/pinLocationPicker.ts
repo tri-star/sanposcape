@@ -97,3 +97,19 @@ export function buildPinNewRouteParams(location: GeoCoordinates): {
     longitude: String(location.longitude),
   };
 }
+
+export type PinMapFocusRequest = { target: GeoCoordinates; nonce: number };
+
+/** 位置の選択方法。 */
+export type PinMapPickProps =
+  | {
+      /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（(b)・ピンタブ）。 */
+      pickGesture: "tap" | "long-press";
+      /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
+      onPick: (location: GeoCoordinates) => void;
+    }
+  | {
+      /** "none" = 位置の選択をしない（(c) 閲覧専用の地図。ジェスチャーハンドラを一切渡さない）。 */
+      pickGesture: "none";
+      onPick?: undefined;
+    };

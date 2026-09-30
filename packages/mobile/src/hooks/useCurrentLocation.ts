@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { locationService } from "@/services/location";
 import { toLocationError } from "@/services/location/locationError";
@@ -15,6 +15,12 @@ export type UseCurrentLocationResult = {
   errorCode: LocationErrorCode | null;
   /** 権限リクエスト → 現在地取得をやり直す。 */
   retry: () => void;
+  /**
+   * 現在地だけを静かに取り直す。`retry` と違い `isLoading` を立てず `errorCode` も先にクリアしない
+   * ので、常駐する画面（ピンタブ）がフォーカスを取り戻したときに表示が点滅しない。
+   * 結果（成功・失敗）は取得完了時に反映される。
+   */
+  refresh: () => void;
 };
 
 /**
@@ -32,16 +38,28 @@ export function useCurrentLocation(): UseCurrentLocationResult {
   const [errorCode, setErrorCode] = useState<LocationErrorCode | null>(null);
   const [attempt, setAttempt] = useState(0);
 
+  // 次の取得を静かに行うか（isLoading/errorCode を先に触らない）。effect が読んで即座に戻す。
+  const silentRef = useRef(false);
+
   const retry = useCallback(() => {
+    setAttempt((prev) => prev + 1);
+  }, []);
+
+  const refresh = useCallback(() => {
+    silentRef.current = true;
     setAttempt((prev) => prev + 1);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const silent = silentRef.current;
+    silentRef.current = false;
 
     async function resolveLocation() {
-      setIsLoading(true);
-      setErrorCode(null);
+      if (!silent) {
+        setIsLoading(true);
+        setErrorCode(null);
+      }
 
       try {
         let status = await locationService.getPermissionStatus();
@@ -60,6 +78,8 @@ export function useCurrentLocation(): UseCurrentLocationResult {
         const position = await locationService.getCurrentPosition();
         if (cancelled) return;
         setCoordinates(position);
+        // 静かな取り直しで成功したら、前回の失敗表示を消す。
+        setErrorCode(null);
       } catch (error) {
         if (cancelled) return;
         setErrorCode(toLocationError(error).code);
@@ -76,5 +96,5 @@ export function useCurrentLocation(): UseCurrentLocationResult {
     };
   }, [attempt]);
 
-  return { coordinates, permission, isLoading, errorCode, retry };
+  return { coordinates, permission, isLoading, errorCode, retry, refresh };
 }

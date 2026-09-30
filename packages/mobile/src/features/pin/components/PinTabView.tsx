@@ -17,6 +17,7 @@ import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker"
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
 import { buildPinNewRouteParams } from "@/features/pin/lib/pinLocationPicker";
 import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
+import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
 import type { MapRegion } from "@/lib/mapRegion";
@@ -44,6 +45,9 @@ const PIN_TAB_HINT =
  * - 長押しは `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
  *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
  * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
+ * - 取得状態の組み立て（`useRegisteredPins` → `resolvePinMapNotice`）は `PinMapView` と重複している。
+ *   `/pins/map` を削除する別課題（ナビタブからの導線削除）で解消する前提のため、共通化しない。
+ * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  */
 export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
   const theme = useTheme();
@@ -65,26 +69,25 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
 
   // 画面から出る遷移の二重発火防止（フォーカスで解除するラッチ）。
   // `useScreenBack` は `hardwareBackPress` を購読して戻るを奪い、タブの Android バックの既定
-  // （`backBehavior: firstRoute` でナビタブへ。ADR-009 SS-145 追補）を変えてしまうので使わない。
-  const navigatingRef = useRef(false);
-  const runOnce = useCallback((navigate: () => void) => {
-    if (navigatingRef.current) return;
-    navigatingRef.current = true;
-    try {
-      navigate();
-    } catch {
-      navigatingRef.current = false;
-    }
-  }, []);
+  // （`backBehavior: firstRoute` でナビタブへ。ADR-009 SS-145 追補）を変えてしまうので使わず、
+  // BackHandler を購読しない `useNavigateOnce` を使う。サインイン遷移（`onSignIn`）も同じラッチに通す。
+  const { runOnce } = useNavigateOnce();
+  const { refreshLocation } = picker;
+  const handleSignIn = () => runOnce(onSignIn);
 
-  // フォーカス時: ラッチを解除し、ピン登録（/pins/new）を保存して戻ってきたときの
+  // 初回フォーカス（マウント直後）は現在地を取得済みなので取り直さない。
+  const hasFocusedRef = useRef(false);
+
+  // フォーカス時: 現在地を取り直し（常駐するのでマウント時のままだと古くなる。初回除く）、
+  // ピン登録（/pins/new）を保存して戻ってきたときの
   // 保存完了トーストを出す（画面またぎのメッセージ受け渡し。`src/lib/flashMessage.ts` 参照）。
   useFocusEffect(
     useCallback(() => {
-      navigatingRef.current = false;
+      if (hasFocusedRef.current) refreshLocation();
+      hasFocusedRef.current = true;
       const message = consumeFlashMessage();
       if (message) show(message);
-    }, [show]),
+    }, [show, refreshLocation]),
   );
 
   const handlePick = (location: GeoCoordinates) => {
@@ -143,7 +146,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
             </View>
             <PinMapStatusNotice
               notice={notice}
-              onSignIn={onSignIn}
+              onSignIn={handleSignIn}
               onRetry={registered.retry}
               testIDPrefix="pin-tab"
             />

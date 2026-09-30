@@ -9,27 +9,16 @@ import MapView, {
 } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
-import { regionAroundPoint, toPickedCoordinate } from "@/features/pin/lib/pinLocationPicker";
+import {
+  regionAroundPoint,
+  toPickedCoordinate,
+  type PinMapFocusRequest,
+  type PinMapPickProps,
+} from "@/features/pin/lib/pinLocationPicker";
 import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
-
-export type PinMapFocusRequest = { target: GeoCoordinates; nonce: number };
-
-/** 位置の選択方法。 */
-export type PinMapPickProps =
-  | {
-      /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（(b)・ピンタブ）。 */
-      pickGesture: "tap" | "long-press";
-      /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
-      onPick: (location: GeoCoordinates) => void;
-    }
-  | {
-      /** "none" = 位置の選択をしない（(c) 閲覧専用の地図。ジェスチャーハンドラを一切渡さない）。 */
-      pickGesture: "none";
-      onPick?: undefined;
-    };
 
 type PinMapCanvasCommonProps = {
   /**
