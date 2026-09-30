@@ -136,9 +136,9 @@ export function ScreenCatalog() {
     },
     {
       key: "sanpo-map-list",
-      label: "地図一覧（暫定）",
+      label: "地図一覧",
       description:
-        "ピンタブの『地図一覧』の遷移先。SS-121 で本実装（フラグ pin_registration が OFF だとナビへ戻される。副作用なし）",
+        "自分の地図の一覧・名前で絞り込み・右下の＋で地図を作成（作成すると POST /sanpo-maps で backend に書き込む）。タップで地図詳細とピン一覧（フラグ pin_registration が OFF だとナビへ戻される）",
       icon: "map",
       onPress: () => router.push("/sanpo-maps"),
     },

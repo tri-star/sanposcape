@@ -1,24 +1,241 @@
-import { Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  RefreshControl,
+  Text,
+  View,
+  type ListRenderItemInfo,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card } from "@/components/ui/card/Card";
-import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { NameSearchField } from "@/features/pin/components/NameSearchField";
+import { PinStateCard } from "@/features/pin/components/PinStateCard";
+import { SanpoMapCreateDialog } from "@/features/pin/components/SanpoMapCreateDialog";
+import { SanpoMapListItem } from "@/features/pin/components/SanpoMapListItem";
+import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
+import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
+import { filterSanpoMapsByName } from "@/features/pin/lib/sanpoMapSearch";
+import {
+  resolveSanpoMapListBodyState,
+  sanpoMapNoMatchTitle,
+} from "@/features/pin/lib/sanpoMapScreenState";
+import type { SanpoMap } from "@/features/pin/types";
 import { useScreenBack } from "@/hooks/useScreenBack";
+import { useToast } from "@/hooks/useToast";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
+export type SanpoMapListViewProps = {
+  /** ルート（app/sanpo-maps/index.tsx）が useAuthSessionStore から注入する（features/pin は認証を読まない）。 */
+  isSignedIn: boolean;
+  onSignIn: () => void;
+};
+
+/** `renderBody()` の戻り値。中央寄せするかどうかの判断をここ1箇所に閉じる（`PinDetailView` と同じ形）。 */
+type SanpoMapListBody = { content: ReactNode; centered: boolean };
+
+/** FAB（IconButton size="lg"）の高さ。最後の行が FAB に隠れないよう下余白に足す。 */
+const FAB_SIZE = 54;
+
 /**
- * SanpoMapListView — 地図一覧（`/sanpo-maps`）の暫定画面（SS-146）。
- * ピンタブの「地図一覧」ボタンの遷移先。SS-121 で本実装に差し替える暫定で、同じファイル名・ルートのまま置き換える。
- * testID `sanpo-map-list-screen` / `sanpo-map-list-back` は E2E（`pin-map.yaml`）が使うので維持すること。
- * 認証もフラグも見ない（フラグはルートがガードする。何も通信しない）。
+ * SanpoMapListView — 地図一覧（`/sanpo-maps`）の実体（SS-121。SS-146 の暫定画面を本実装に差し替え）。
+ * 自分の地図を並べ、名前で即時に絞り込み（端末で行う。mobile ADR-014 D1）、FAB から地図を作成し、
+ * 行のタップで地図詳細（`/sanpo-maps/[sanpoMapId]`）へ進む。
+ *
+ * - testID `sanpo-map-list-screen` / `sanpo-map-list-back` は E2E（`pin-map.yaml`）が使うので維持する。
+ * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
+ * - ゲストは開けるが通信せずサインイン案内を出し、FAB・検索欄は出さない
+ *   （押しても 401 になる操作を見せない。ADR-014 D6）。
  */
-export function SanpoMapListView() {
+export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const back = useScreenBack({ fallbackHref: "/(tabs)/pins" });
+  const router = useRouter();
+  const toast = useToast();
+  const maps = useSanpoMaps({ enabled: isSignedIn });
+
+  const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  // 開くたびに +1 してダイアログを作り直す（入力値・作成エラーを空に戻す）。
+  const [createDialogKey, setCreateDialogKey] = useState(0);
+
+  const back = useScreenBack({
+    fallbackHref: "/(tabs)/pins",
+    onIntercept: () => {
+      if (!createOpen) return false;
+      // 作成中の閉じる操作はダイアログ側が止める。ここは Android のバックを受ける一本化のため。
+      setCreateOpen(false);
+      return true;
+    },
+  });
+
+  const matched = useMemo(() => filterSanpoMapsByName(maps.maps, query), [maps.maps, query]);
+
+  const bodyState = resolveSanpoMapListBodyState({
+    isSignedIn,
+    status: maps.status,
+    mapCount: maps.maps.length,
+    matchedCount: matched.length,
+  });
+
+  const handleOpenMap = useCallback(
+    (sanpoMapId: string) => {
+      Keyboard.dismiss();
+      back.runOnce(() =>
+        router.push({ pathname: "/sanpo-maps/[sanpoMapId]", params: { sanpoMapId } }),
+      );
+    },
+    [back, router],
+  );
+
+  const handleCreated = (map: SanpoMap) => {
+    setCreateOpen(false);
+    // 作った地図が絞り込みで隠れないようにクリアする。
+    setQuery("");
+    toast.show(`地図「${map.name}」を作成しました`);
+  };
+
+  const handleOpenCreate = () => {
+    Keyboard.dismiss();
+    setCreateDialogKey((k) => k + 1);
+    setCreateOpen(true);
+  };
+
+  const renderItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<SanpoMap>) => (
+      <SanpoMapListItem
+        map={item}
+        onPress={handleOpenMap}
+        testID={`sanpo-map-list-item-${index}`}
+      />
+    ),
+    [handleOpenMap],
+  );
+
+  const loadingBody = (): SanpoMapListBody => ({
+    centered: true,
+    content: (
+      <View style={styles.centerState} testID="sanpo-map-list-loading">
+        <ActivityIndicator color={theme.colors.primary} />
+      </View>
+    ),
+  });
+
+  const renderBody = (): SanpoMapListBody => {
+    switch (bodyState) {
+      case "sign-in-required":
+        return {
+          centered: true,
+          content: (
+            <PinStateCard
+              testID="sanpo-map-list-sign-in-required"
+              icon="user"
+              title="地図の一覧を見るにはサインインが必要です"
+              action={{
+                label: "サインイン",
+                onPress: () => back.runOnce(onSignIn),
+                testID: "sanpo-map-list-sign-in",
+              }}
+            />
+          ),
+        };
+
+      case "loading":
+        return loadingBody();
+
+      case "error": {
+        const errorCode = maps.errorCode;
+        if (errorCode === null) return loadingBody();
+        return {
+          centered: true,
+          content: (
+            <PinStateCard
+              testID="sanpo-map-list-error"
+              icon="alert-circle"
+              tone="danger"
+              title={sanpoMapReadErrorMessage(errorCode, "maps")}
+              action={
+                isRetriablePinReadError(errorCode)
+                  ? { label: "再試行", onPress: maps.retry, testID: "sanpo-map-list-retry" }
+                  : undefined
+              }
+            />
+          ),
+        };
+      }
+
+      case "empty":
+        return {
+          centered: true,
+          content: (
+            <PinStateCard
+              testID="sanpo-map-list-empty"
+              icon="map"
+              title="まだ地図がありません"
+              description="右下の＋から地図を作成できます。ピンを登録すると「最初の地図」が自動で作られます"
+            />
+          ),
+        };
+
+      case "no-match":
+        return {
+          centered: true,
+          content: (
+            <PinStateCard
+              testID="sanpo-map-list-no-match"
+              icon="search-x"
+              title={sanpoMapNoMatchTitle(query)}
+            />
+          ),
+        };
+
+      case "ready":
+        return {
+          centered: false,
+          content: (
+            <FlatList
+              testID="sanpo-map-list"
+              data={matched}
+              keyExtractor={(map) => map.id}
+              renderItem={renderItem}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              refreshControl={
+                <RefreshControl
+                  refreshing={maps.isRefetching}
+                  onRefresh={maps.retry}
+                  tintColor={theme.colors.primary}
+                />
+              }
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: insets.bottom + FAB_SIZE + theme.spacing[6] },
+              ]}
+              showsVerticalScrollIndicator={false}
+            />
+          ),
+        };
+
+      default: {
+        const exhaustiveCheck: never = bodyState;
+        return exhaustiveCheck;
+      }
+    }
+  };
+
+  const body = renderBody();
+  const showSearch = isSignedIn && maps.maps.length > 0 && maps.status === "ready";
+  const showFab =
+    isSignedIn && (bodyState === "ready" || bodyState === "empty" || bodyState === "no-match");
+  const fabBottom = insets.bottom + theme.spacing[4];
 
   return (
     <View
@@ -36,11 +253,42 @@ export function SanpoMapListView() {
         <Text accessibilityRole="header" style={styles.title}>
           地図一覧
         </Text>
+        <View style={styles.headerSpacer} />
       </View>
-      <Card style={styles.card} testID="sanpo-map-list-placeholder">
-        <Icon name="map" size={28} color={theme.colors.primary} />
-        <Text style={styles.description}>地図の一覧と管理は準備中です</Text>
-      </Card>
+      {showSearch ? (
+        <View style={styles.search}>
+          <NameSearchField
+            value={query}
+            onChangeText={setQuery}
+            placeholder="地図の名前で検索"
+            accessibilityLabel="地図の名前で検索"
+            testID="sanpo-map-list-search-input"
+          />
+        </View>
+      ) : null}
+      {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
+      {showFab ? (
+        <IconButton
+          variant="filled"
+          size="lg"
+          icon="plus"
+          label="地図を作成"
+          onPress={handleOpenCreate}
+          style={[styles.fab, { bottom: fabBottom }]}
+          testID="sanpo-map-list-create-fab"
+        />
+      ) : null}
+      <ToastOverlay
+        message={toast.message}
+        visible={toast.visible}
+        bottom={fabBottom + FAB_SIZE + theme.spacing[2]}
+      />
+      <SanpoMapCreateDialog
+        key={createDialogKey}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreated}
+      />
     </View>
   );
 }
@@ -49,24 +297,41 @@ const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surfaceApp,
-    paddingHorizontal: theme.layout.pageGutter,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
+    justifyContent: "space-between",
+    paddingHorizontal: theme.layout.pageGutter,
+    paddingBottom: theme.spacing[2],
   },
   title: {
-    fontSize: theme.typography.size.md,
-    fontWeight: theme.typography.weight.bold,
+    fontSize: theme.typography.size.xl,
+    fontWeight: theme.typography.weight.heavy,
     color: theme.colors.textPrimary,
   },
-  card: {
-    marginTop: theme.spacing[4],
-    gap: theme.spacing[3],
+  headerSpacer: {
+    width: theme.control.md,
   },
-  description: {
-    fontSize: theme.typography.size.sm,
-    color: theme.colors.textSecondary,
+  search: {
+    paddingHorizontal: theme.layout.pageGutter,
+    paddingBottom: theme.spacing[2],
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: theme.layout.pageGutter,
+  },
+  centerState: {
+    alignItems: "center",
+  },
+  listContent: {
+    paddingHorizontal: theme.layout.pageGutter,
+    paddingTop: theme.spacing[1],
+  },
+  fab: {
+    position: "absolute",
+    right: theme.layout.pageGutter,
+    ...theme.shadows.md,
   },
 }));

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { fetchSanpoMaps } from "@/features/pin/api/sanpoMapApi";
+import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 import type { SanpoMap } from "@/features/pin/types";
 
 /** 一覧全体（`useSanpoMaps` / 保存成功時の invalidate）で共有するクエリキー。 */
@@ -14,6 +15,10 @@ export type UseSanpoMapsResult = {
   status: "loading" | "ready" | "error";
   maps: SanpoMap[];
   retry: () => void;
+  /** 失敗の分類（status が "error" のときだけ非 null）。 */
+  errorCode: PinReadErrorCode | null;
+  /** pull-to-refresh の表示用（初回取得中は false）。 */
+  isRefetching: boolean;
 };
 
 /**
@@ -41,5 +46,11 @@ export function useSanpoMaps(options: { enabled: boolean }): UseSanpoMapsResult 
 
   // 保存成功時の invalidate は呼び出し側（usePinSave）が行う。この hook はキャッシュを
   // 読むだけ（同じ queryKey なので新しく作られた「最初の地図」を反映できる）。
-  return { status, maps: query.data ?? [], retry };
+  return {
+    status,
+    maps: query.data ?? [],
+    retry,
+    errorCode: query.error ? toPinReadErrorCode(query.error) : null,
+    isRefetching: query.isRefetching,
+  };
 }

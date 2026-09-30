@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from "react-native";
 
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { makeStyles } from "@/theme/makeStyles";
@@ -41,46 +41,59 @@ export function Dialog({
       onRequestClose={dismissDisabled ? () => {} : onClose}
       statusBarTranslucent
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="閉じる"
-        accessibilityState={{ disabled: dismissDisabled }}
-        disabled={dismissDisabled}
-        style={styles.scrim}
-        onPress={onClose}
+      {/*
+        入力欄を載せたダイアログ（`SanpoMapCreateDialog`。SS-121）でキーボードがパネルを隠さない
+        ようにする。iOS の Modal はキーボードを自動で避けない。Android は Modal のウィンドウの
+        リサイズに任せる。入力の無いダイアログでは何も起きない。
+      */}
+      <KeyboardAvoidingView
+        style={styles.avoider}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/*
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="閉じる"
+          accessibilityState={{ disabled: dismissDisabled }}
+          disabled={dismissDisabled}
+          style={styles.scrim}
+          onPress={onClose}
+        >
+          {/*
           中身のタップではスクリムに伝播させない。
           Pressable にすると本体が1つのボタンとしてアクセシビリティツリーに露出し、
           iOS では子要素（タイトル・本文・アクション）が読み上げから到達できなくなるため、
           View + responder で伝播だけを止める。
         */}
-        <View
-          testID={testID}
-          accessibilityViewIsModal
-          onStartShouldSetResponder={() => true}
-          style={styles.panel}
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <IconButton
-              icon="x"
-              label="閉じる"
-              variant="ghost"
-              size="sm"
-              disabled={dismissDisabled}
-              onPress={onClose}
-            />
+          <View
+            testID={testID}
+            accessibilityViewIsModal
+            onStartShouldSetResponder={() => true}
+            style={styles.panel}
+          >
+            <View style={styles.header}>
+              <Text style={styles.title}>{title}</Text>
+              <IconButton
+                icon="x"
+                label="閉じる"
+                variant="ghost"
+                size="sm"
+                disabled={dismissDisabled}
+                onPress={onClose}
+              />
+            </View>
+            {children ? <View style={styles.body}>{children}</View> : null}
+            {actions ? <View style={styles.actions}>{actions}</View> : null}
           </View>
-          {children ? <View style={styles.body}>{children}</View> : null}
-          {actions ? <View style={styles.actions}>{actions}</View> : null}
-        </View>
-      </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const useStyles = makeStyles((theme) => ({
+  avoider: {
+    flex: 1,
+  },
   scrim: {
     flex: 1,
     backgroundColor: theme.colors.scrim,
