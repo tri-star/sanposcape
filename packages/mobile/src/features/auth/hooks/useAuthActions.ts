@@ -73,7 +73,11 @@ export function useAuthActions(): UseAuthActionsResult {
           // `setSession(user)` が走った瞬間にサマリ画面（スタック下で mount 済み）の
           // `isSignedIn` が true になり `useWalkSave` の effect が再発火する。ここでの
           // `dismissTo` はユーザーを保存中の画面へ戻すだけで、遷移が失敗しても保存自体は走る。
-          const destination = getPostSignInDestination({ hasActiveWalk, wantsToSaveFinishedWalk });
+          const destination = getPostSignInDestination({
+            hasActiveWalk,
+            wantsToSaveFinishedWalk,
+            canGoBack: router.canGoBack(),
+          });
           if (destination.type === "dismissTo") {
             router.dismissTo(destination.href);
             return;
@@ -109,12 +113,21 @@ export function useAuthActions(): UseAuthActionsResult {
   // authService は呼ばない。ゲストは「トークン非保持状態」であって AuthService のメソッドでは
   // ない（ADR-002 決定6）。起動時の復元失敗で useAuthSessionStore は既に guest になっているため、
   // ストアへの書き込みも不要（ストアの書き込み経路は2つだけ、という ADR-009 決定2 を守る）。
-  // push ではなく replace を使う（スプラッシュ→サインイン→着地点は replace 連鎖で、
-  // 着地点（SS-145 以降はピンタブ）到達時に canGoBack() === false になる設計。ここだけ push にすると
-  // スタックの性質が変わる）。isSubmitting によるガードは持たない（サインイン処理中の多重操作
+  // スプラッシュから来た（下に戻れる画面が無い）ときは replace（スプラッシュ→サインイン→着地点は
+  // replace 連鎖で、着地点到達時に canGoBack() === false になる設計）。ピンタブなど `(tabs)` の上に
+  // サインイン画面が積まれている場合は、`(tabs)` が二重にならないよう dismissTo で既存の
+  // `(tabs)` へ戻る（SS-146。判定は `getGuestEntryDestination`）。isSubmitting によるガードは持たない（サインイン処理中の多重操作
   // 防止はサインインボタン専用。ゲストボタン側は View 側で disabled={isSubmitting} を付ける）。
   const continueAsGuest = useCallback(() => {
-    router.replace(getGuestEntryDestination({ hasActiveWalk }));
+    const destination = getGuestEntryDestination({
+      hasActiveWalk,
+      canGoBack: router.canGoBack(),
+    });
+    if (destination.type === "dismissTo") {
+      router.dismissTo(destination.href);
+      return;
+    }
+    router.replace(destination.href);
   }, [router, hasActiveWalk]);
 
   return {
