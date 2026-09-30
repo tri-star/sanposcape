@@ -44,9 +44,6 @@ export function PinLocationAdjustOverlay({
         pickGesture="tap"
         onPick={setDraft}
         selectedLocation={draft}
-        currentLocation={null}
-        focusRequest={null}
-        closeKind="close"
         onClose={onCancel}
         footerActions={
           <Button

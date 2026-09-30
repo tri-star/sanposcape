@@ -220,12 +220,10 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   `docker compose restart` では反映されない（`compose.yaml` の `${...}` はコンテナ生成時に
   展開されるため）。必ず `up -d` でコンテナを作り直すこと。
 - CI（`.github/workflows/mobile-e2e.yml`）は EAS クラウドビルドを使わず、ランナーで自前ビルドする。
-  起動条件は次の3系統:
-  - **nightly**: 毎日 03:00 JST 相当のスケジュール実行。
+  起動条件は次の2系統（PR 作成時や `main` への push では起動しない。ADR-004 の 2026-08-14 追補で
+  push 起動を廃止した）:
+  - **週次**: 毎週土曜 08:00 JST 相当（金曜 23:00 UTC）のスケジュール実行。
   - **手動実行**: GitHub Actions の `workflow_dispatch`。
-  - **対象パス変更時**: `main` への push のうち、ネイティブに影響し得る設定・依存ファイル、
-    Maestro フロー、または E2E workflow 自身が変更された場合。通常の PR 作成時には起動せず、
-    対象変更が `main` に push（マージ）された後に起動する。
 - CI が起動した後はタグで絞り込まず、MVP フローを含む `.maestro/` 配下の全フローを実行する
   （SS-54）。`smoke` / `maps-required` タグはローカルでの部分実行用であり、CI の起動条件ではない。
   CI の backend は `MAPS_MODE=fake` で起動するため、外部データに依存せず全フローを実行できる。

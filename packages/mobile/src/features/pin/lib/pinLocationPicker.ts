@@ -101,15 +101,9 @@ export function buildPinNewRouteParams(location: GeoCoordinates): {
 export type PinMapFocusRequest = { target: GeoCoordinates; nonce: number };
 
 /** 位置の選択方法。 */
-export type PinMapPickProps =
-  | {
-      /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（ピンタブ）。 */
-      pickGesture: "tap" | "long-press";
-      /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
-      onPick: (location: GeoCoordinates) => void;
-    }
-  | {
-      /** "none" = 位置の選択をしない（閲覧専用の地図。SS-147 以降は使用箇所なし。ジェスチャーハンドラを一切渡さない）。 */
-      pickGesture: "none";
-      onPick?: undefined;
-    };
+export type PinMapPickProps = {
+  /** "tap" = onPress / onPoiClick / onLongPress で選ぶ（(a)）。"long-press" = onLongPress だけ（ピンタブ）。 */
+  pickGesture: "tap" | "long-press";
+  /** 検証済み（toPickedCoordinate を通した）座標だけが渡る。 */
+  onPick: (location: GeoCoordinates) => void;
+};

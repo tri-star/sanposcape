@@ -51,7 +51,9 @@
   案内の追加はフォローアップ候補。（本文: 影響「ネガティブな影響」）
 - **「現在地に置く」ボタンは入れていない**。要望が出たらフォローアップ。（本文: 影響「ネガティブな影響」）
 - **`PinMapFullScreen` / `PinMapCanvas` の、呼び出し元が無くなった props（`mapLayers` / `onRegionChangeComplete` /
-  `loadingLabel`・`pickGesture: "none"`）の型の整理**は別課題。（本文: SS-147 追補の影響）
+  `loadingLabel`・`pickGesture: "none"`）の型の整理**（SS-147 追補: SS-147 で整理した。`PinMapFullScreen` は (a) が使う props だけにし、
+  `PinMapCanvas` から `loadingLabel` と `pickGesture: "none"` を削除した。`mapLayers` / `onRegionChangeComplete` はピンタブが使うので残す）。
+  （本文: SS-147 追補の影響）
 
 ### 変更・撤回された決定
 
@@ -345,7 +347,9 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 
 ### 影響
 
-- `PinMapFullScreen` / `PinMapCanvas` の (b)(c) 向けの props（`mapLayers` / `onRegionChangeComplete` / `loadingLabel`・`pickGesture: "none"`）は呼び出し元が無くなった。型の整理は別課題。
+- `PinMapFullScreen` / `PinMapCanvas` の (b)(c) 向けの props（`mapLayers` / `onRegionChangeComplete` / `loadingLabel`・`pickGesture: "none"`）は呼び出し元が無くなった。型の整理は別課題。（SS-147 追補: SS-147 で整理した。`PinMapFullScreen` の `closeKind` / `loadingLabel` / `mapLayers` /
+  `onRegionChangeComplete` / `currentLocation` / `focusRequest` / `mapTools` / `notice` を削除し、`PinMapCanvas` の `loadingLabel` と `pickGesture: "none"` を削除した。
+  `mapLayers` / `onRegionChangeComplete` はピンタブが使うので `PinMapCanvas` に残る）
 - E2E の FAB 経由の表示確認（`pin-map.yaml` 後半）を削除した。
 
 ## 関連情報
