@@ -38,7 +38,7 @@ mobile 実装をアーキテクチャレビュー（2026-09-26）。プラン・
    - **同PR内で解消済み**: `useQueries({ queries, combine })` の `combine` にモジュールレベルの
      純粋関数（`pinRead.ts` の `combineRegisteredPinListQueries`）を渡す形に直した。`combine` の
      関数参照が不変なら TanStack Query は再計算を省き、`replaceEqualDeep` で構造共有するため
-     `pins` の参照が保たれる。再試行も `combine` の戻り値 `refetchAll` から呼ぶ（mobile ADR-012 D15）。
+     `pins` の参照が保たれる。再試行も `combine` の戻り値 `refetchAll` から呼ぶ（ADR-M-012 D15）。
    - 次に `useQueries` の利用箇所を見たら、派生値を `useMemo([queries])` で作っていないか確認し、
      `combine`（インラインクロージャではなく安定した関数参照）への置き換えを提案する。
      単純な `[queries]` 依存はほぼ常に「毎レンダー再計算」と同義になる。

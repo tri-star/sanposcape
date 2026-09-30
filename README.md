@@ -57,7 +57,7 @@
 | 言語 | TypeScript |
 | フレームワーク | React Native (Expo) + Expo Router |
 | 状態管理 | TanStack Query（サーバー状態）+ Zustand（クライアント状態） |
-| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（デザイントークン・テーマは `src/theme` で管理。Unistyles は [mobile ADR-M-005](./packages/mobile/adr/ADR-M-005-styling-without-unistyles.md) で撤回） |
+| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（デザイントークン・テーマは `src/theme` で管理。Unistyles は [ADR-M-005](./packages/mobile/adr/ADR-M-005-styling-without-unistyles.md) で撤回） |
 | 地図 | react-native-maps |
 | APIクライアント | Orval（OpenAPIから生成）+ MSWモック |
 | テスト | Vitest（ユニット）/ Maestro（E2E） |

@@ -774,7 +774,7 @@ appconfig_read_timeout_seconds: float = 2.0
 ### D11: フラグ値の保持場所は TanStack Query、Zustand には複製しない
 
 `queryKey: ["app-config"]` の1本に一本化した。`/app-config` は未認証でも叩けるサーバー状態であり、
-[mobile ADR-M-002](../../packages/mobile/adr/ADR-M-002-mobile-tech-stack.md) の「サーバー状態 = TanStack
+[ADR-M-002](../../packages/mobile/adr/ADR-M-002-mobile-tech-stack.md) の「サーバー状態 = TanStack
 Query」、および `packages/mobile/docs/folder-structure.md` の「サーバー由来のデータは `src/store/`
 に置かない」に従う。`AuthGate` の `loading` 中でも取得を開始できることが、Zustand に持たせる理由が
 無いことの根拠になっている。
@@ -823,11 +823,11 @@ mobile 側に隠したい未公開機能も現時点で存在しないため）�
   kill switch が効かない端末が生まれ、フェイルセーフの向きが逆転する。
   ②（**2026-09-20 訂正**: 当初「依存追加は [ADR-M-004（mobile）](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
   の E2E APK キャッシュを1回ミスさせるコストに見合わない」としていたが、この前提は
-  ADR-004 自体が 2026-08-14 追補で撤回済みで誤りだった。`packages/mobile/docs/toolsets-libraries.md`
+  ADR-M-004 自体が 2026-08-14 追補で撤回済みで誤りだった。`packages/mobile/docs/toolsets-libraries.md`
   も「依存追加時の APK キャッシュミスは論点にならない」と明記しており、当時の根拠は成立しない）
   候補である `@react-native-async-storage/async-storage` は**ネイティブモジュール**であり、
   追加すると development build の作り直しが必要になる
-  （[mobile ADR-M-003](../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)
+  （[ADR-M-003](../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)
   「再ビルドが必要なのはネイティブが変わるときだけ（native 依存の追加/削除...）」）。
   あわせて依存追加自体に `minimumReleaseAge`（2日）の待機コストも伴う
   （`packages/mobile/docs/toolsets-libraries.md`）。得られるのは起動直後の数百 ms の
@@ -846,7 +846,7 @@ mobile 側に隠したい未公開機能も現時点で存在しないため）�
 決定6）を `queryClient.clear()` から `removeQueries({ predicate: ... })` に変更し、
 `/app-config` のキャッシュだけを対象外にした。ユーザー非依存の公開設定を「共有端末での前ユーザーの
 データ漏れ防止」という決定6 の目的に巻き込む必要が無いため（除外できるのは D2 がダークローンチを
-不採用としているからで、D2 を覆す場合はこの除外も見直しが必要。詳細は ADR-009 の SS-100 追補）。
+不採用としているからで、D2 を覆す場合はこの除外も見直しが必要。詳細は ADR-M-009 の SS-100 追補）。
 
 ### D16: `config_source` は mobile の内部型から落として分岐を構造的に禁止した
 

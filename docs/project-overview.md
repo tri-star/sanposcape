@@ -26,7 +26,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 言語 | TypeScript (mobile) / Python (backend) | |
 | フレームワーク | React Native (Expo) + Expo Router / FastAPI | |
 | 状態管理 (mobile) | TanStack Query + Zustand | サーバー状態=TanStack Query、クライアント状態=Zustand |
-| スタイリング (mobile) | React Native 標準 `StyleSheet` + テーマ Context | デザイントークン・テーマ（ライト/ダーク）を `src/theme` で管理。Unistyles は [mobile ADR-M-005](../packages/mobile/adr/ADR-M-005-styling-without-unistyles.md) で撤回 |
+| スタイリング (mobile) | React Native 標準 `StyleSheet` + テーマ Context | デザイントークン・テーマ（ライト/ダーク）を `src/theme` で管理。Unistyles は [ADR-M-005](../packages/mobile/adr/ADR-M-005-styling-without-unistyles.md) で撤回 |
 | 地図 (mobile) | react-native-maps | Android=Google Maps / iOS=Apple Maps。SDKキーは `app.config.ts` が環境変数から注入 |
 | 位置情報 (mobile) | expo-location | 現在地取得。services 層で real/mock を切り替え |
 | APIクライアント生成 (mobile) | Orval（OpenAPIから生成）+ MSWモック | HTTPクライアントは fetch/customFetch |

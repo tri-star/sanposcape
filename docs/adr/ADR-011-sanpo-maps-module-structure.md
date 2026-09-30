@@ -358,7 +358,8 @@ advisory lock の重複統合: `sanpo_maps/advisory_locks.py` の `advisory_lock
   （`packages/backend/docs/adr/`）ではなく `docs/adr/` にするのは、「地図とピンは1つの
   境界づけられたコンテキスト」というドメイン上の判断を含むため。
   ※ `packages/mobile/adr/ADR-011-…` と番号が並ぶが、フォルダごとの連番なので問題ない
-  （ADR-009 も同様）。
+  （ADR-009 も同様）。（**SS-132 追補**: 番号だけではどちらを指すか区別できないため、
+  mobile の ADR を `ADR-M-{番号}` に改名した。mobile 側は現在 `ADR-M-011-…` / `ADR-M-009-…`）
 
 ## 決定理由
 

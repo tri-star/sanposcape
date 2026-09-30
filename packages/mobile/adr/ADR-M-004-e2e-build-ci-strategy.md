@@ -518,7 +518,7 @@ SS-79 では `GOOGLE_MAPS_ANDROID_SDK_KEY` の EAS 側 visibility を `secret` �
 E2E には EAS 側の値がそもそも流れ込まない）。`secret` 化は 2026-09-14 に実施した。
 なお変更前に実測した優先順位は**「EAS が勝つ」**で、`sensitive` のままでは E2E の値が
 EAS の値に黙って置き換わる経路が実在した。詳細は
-[mobile ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-79 追補、
+[ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-79 追補、
 実測記録は [build-profiles.md](../docs/build-profiles.md) を参照。
 
 ### 訂正: SHA-1 の不一致は「クラッシュ」ではなく「地図タイルが表示されない」だけ
@@ -528,7 +528,7 @@ EAS の値に黙って置き換わる経路が実在した。詳細は
 しない**。Google Maps SDK の仕様上、認証エラーで地図タイルが表示されないだけである。
 クラッシュするのは APK にキー自体が**未注入**のときだけ。したがって **E2E は GCP 登録の
 漏れを検出できない**（`.maestro/` は地図タイルの描画を assert しないため）。同じ訂正を
-[mobile ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) と
+[ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) と
 `packages/mobile/docs/build-profiles.md` にも反映した。
 
 ## 関連情報

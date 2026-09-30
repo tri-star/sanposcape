@@ -37,7 +37,7 @@ const retry = useCallback(() => {
 
 **解消方法（同PR内で対応済み）**: パターン1は `PinMapView` の `handleSelectPin` を `useCallback` 化。
 パターン2は `useQueries` の `combine` にモジュールレベルの純粋関数を渡し、その戻り値の `refetchAll` を
-`retry` から呼ぶ形にして、生の結果配列をクロージャに閉じ込めないようにした（mobile ADR-012 D15）。
+`retry` から呼ぶ形にして、生の結果配列をクロージャに閉じ込めないようにした（ADR-M-012 D15）。
 
 **Why**: `React.memo` の効果検証は「メモ化されたコンポーネントの props が全呼び出し元で
 安定しているか」を横並びで見ないと片方だけ見落とす。`useCallback`/`useMemo` の

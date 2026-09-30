@@ -40,7 +40,7 @@ type PinMapCanvasCommonProps = {
   focusRequest: PinMapFocusRequest | null;
   /**
    * `MapView` の子として描く追加レイヤー。増減するレイヤーなので `MapView` の
-   * 子の末尾に置き、重なり順は `zIndex` で選択マーカー・現在地マーカーより下にする（mobile ADR-012 D16）。
+   * 子の末尾に置き、重なり順は `zIndex` で選択マーカー・現在地マーカーより下にする（ADR-M-012 D16）。
    */
   mapLayers?: ReactNode;
   /** 表示範囲が確定したとき（初回表示 + パン・ズーム後）に呼ぶ。`sanitizeMapRegion` を通した値だけを渡す。 */

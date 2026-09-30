@@ -686,7 +686,7 @@ uvicorn が居ないので、アプリ側で出さない限り何も残らない
   **サーバー側から直送の失敗を見たい場合は S3 サーバーアクセスログ**（HTTP レベルで全リクエストを
   記録する）を一時的に有効化するのが唯一の手段になる（infra 側の作業）。
 
-したがって**直送の可観測性は端末側に持たせるしかない**。mobile 側の対処は ADR-010 の決定10を参照。
+したがって**直送の可観測性は端末側に持たせるしかない**。mobile 側の対処は ADR-M-010 の決定10を参照。
 
 ### dev の疎通確認（BK-1 の完了）
 
@@ -1218,7 +1218,7 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
   （詳細・理由は mobile [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
   backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
 - mobile は地図ごとに `GET /pins` を並列に呼んでマージする（`sanpo_map_id` 必須のまま。
-  ADR-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数
+  ADR-M-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数
   上限」が予告している `sanpo_map_id` 任意化の expand を検討する（今回は依頼しない）。
 
 ## 追補（2026-09-29, SS-136 地図のタグ一覧 API）
@@ -1290,5 +1290,5 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[mobile ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
-  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[mobile ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）
+  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
+  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）

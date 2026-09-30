@@ -31,7 +31,7 @@
 - **登録画面はサムネイルを使わずローカル画像を表示する。** 閲覧チケットで使うときは、画像キャッシュの
   キーを presigned URL ではなく `photo.id` にする（URL は応答ごとに変わるため）（本文: 決定8。
   SS-118 で閲覧側を実装: expo-image の `cacheKey` = `pin-photo:<photo.id>:<variant>`。
-  [mobile ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7）
+  [ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7）
 
 ### 未解決・持ち越し
 
@@ -130,7 +130,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
    **（SS-118 で完了）** 閲覧側（`/pins/map` のマーカータップからの詳細画面）を実装し、
    `PinPhotoImage.tsx`（expo-image）で `cacheKey = pin-photo:<photo.id>:<thumb|original>`、
    `cachePolicy="memory-disk"` を採用した。詳細は
-   [mobile ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7 を参照。
+   [ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7 を参照。
 
 ## 検討した選択肢
 

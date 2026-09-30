@@ -11,7 +11,7 @@ metadata:
 ## スタックの実態
 
 - **主要導線は `replace` の連鎖**: `/`(スプラッシュ) → `replace` `/(auth)/sign-in` → `replace` ピンタブ `/(tabs)/pins`
-  （SS-145 で着地点が `/walk-start` から変わった。正本は mobile ADR-009 の SS-145 追補）。
+  （SS-145 で着地点が `/walk-start` から変わった。正本は ADR-M-009 の SS-145 追補）。
   → **着地した時点で `router.canGoBack() === false`**。`/walk-start` ⇄ `/(tabs)` は互いに `replace`
   （`WalkIdleNotice` の CTA が `replace("/walk-start")`）なので、往復してもスタックは1枚のまま伸びない。
   タブ内の Android バックは `Tabs` の `backBehavior`（既定 `firstRoute`＝ナビタブへ戻ってから終了）に従う。

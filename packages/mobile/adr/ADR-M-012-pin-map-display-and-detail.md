@@ -139,7 +139,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   ビューアの末尾（最後に読み込んだ写真で `hasMore`）で次ページを読み込む。
 - **D7: 画像キャッシュは `cacheKey = pin-photo:<photo.id>:<thumb|original>`、
   `cachePolicy="memory-disk"`。presigned URL は応答ごとに変わるため URL をキーにしない
-  （mobile ADR-010 決定8 / ルート ADR-009 決定15）。**
+  （ADR-M-010 決定8 / ルート ADR-009 決定15）。**
   サインアウト時に `Image.clearMemoryCache()` / `clearDiskCache()` を `registerSessionCleanup` で
   走らせる。登録は `PinPhotoImage.tsx`（コンポーネント）ではなく、起動時に必ず評価される
   `src/lib/imageCacheCleanup.ts`（`app/_layout.tsx` から副作用 import）に置く。写真を一度も

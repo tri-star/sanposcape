@@ -106,7 +106,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
 - **（SS-118）閲覧（表示）側の写真は `features/pin/components/PinPhotoImage.tsx`（expo-image）
   だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
-  で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / mobile ADR-012 D7）。
+  で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / ADR-M-012 D7）。
   閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
   （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError`（地図詳細の `useSanpoMapPins.handlePhotoLoadError` も同じ規則）が
   URL の失効とみなし、取得から60秒以上経っていれば詳細を取り直す（`shouldRefreshPhotoUrls`）。

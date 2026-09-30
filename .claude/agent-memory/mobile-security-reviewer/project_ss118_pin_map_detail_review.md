@@ -36,7 +36,7 @@ clearDiskCache })` はモジュール読み込み時に1回だけ登録される
 見ずにサインアウト → 別ユーザーがサインイン」という順序だと、前ユーザーの写真ファイルが
 端末ディスクに残留する（同一cacheKeyが偶然再利用されない限りUI上には出ないが、端末への
 物理/ファイルシステムアクセスで読める）。**同PR内で解消済み**: 登録を `src/lib/imageCacheCleanup.ts`
-（`app/_layout.tsx` から副作用 import）へ移した（mobile ADR-012 D7）。
+（`app/_layout.tsx` から副作用 import）へ移した（ADR-M-012 D7）。
 
 **Low/確認事項**:
 - IDOR的な観点: `/pins/[pinId]` はUUID形式チェックのみで、そのピンが所属するsanpo_mapの
