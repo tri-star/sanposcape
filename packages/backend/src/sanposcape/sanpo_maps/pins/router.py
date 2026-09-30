@@ -132,7 +132,7 @@ def list_pins(
     1つも指定しないかのどちらか。`q`（名前・メモ・タグの部分一致）と `tags`
     （複数指定は AND）は SS-120（検索タブ）向け。各要素の `cover_photo` は
     position が最小の写真（無ければ null）。写真の URL の有効期限は `urls_expire_at`。
-    mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。
+    mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。
     """
     return service.list_pins(current_user, query, base_url=str(request.base_url))
 
@@ -185,7 +185,7 @@ def list_pin_photos(
     """ピンの写真全件を position 昇順の keyset ページングで返す（ADR-009 決定17）。
 
     member でないピン・存在しない ID は 404。写真の URL の有効期限は `urls_expire_at`。
-    mobile の画像キャッシュのキーには URL ではなく `id` を使う（mobile ADR-010 決定8）。
+    mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。
     """
     return service.list_pin_photos(
         current_user, pin_id, limit=limit, cursor=cursor, base_url=str(request.base_url)

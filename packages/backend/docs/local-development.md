@@ -55,7 +55,7 @@ UID/GID を変更している場合は、`docker compose up -d --build` でイ�
 平常のローカル開発は `STORAGE_MODE=fake`（backend 自身の `/dev-storage/*`）で足りる。
 ただし**写真の直送は端末 → S3 で完結して backend を通らない**ため、直送まわりの不具合は
 fake では再現しないことがある（SS-88 の実機不具合が実例。
-[ADR-010 の追補](../../mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md)）。
+[ADR-M-010 の追補](../../mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）。
 そのときだけ、ローカルの backend を dev の実バケットに向ける。
 
 `packages/backend/.env` を次のように変える（3行）。

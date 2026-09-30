@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * 地図詳細を開いたとき、地図一覧のキャッシュに id が無い場合の取り直し（SS-121。mobile ADR-014 D7）。
+ * 地図詳細を開いたとき、地図一覧のキャッシュに id が無い場合の取り直し（SS-121。ADR-M-014 D7）。
  * 地図一覧のキャッシュ（staleTime 5 分）が古いだけで not-found を確定しないよう、id ごとに
  * 一覧を1回だけ取り直す（取り直しても無ければ呼び出し側が not-found にする）。
  *

@@ -27,7 +27,7 @@ const tokenStore = createTokenStore(
 const api = createAuthApi();
 
 /**
- * サービス層のセッション変化をアプリ状態へ橋渡しする（SS-13 / ADR-009）。
+ * サービス層のセッション変化をアプリ状態へ橋渡しする（SS-13 / ADR-M-009）。
  * ここが唯一の配線点なので、401 → refresh 失敗によるセッション破棄も UI に届く。
  * `initAuth()` が `@/api/authTokenProvider` へトークン供給者を登録するのと同じ
  * 「バレル＝認証の合成ルート」という役割に沿う。
@@ -61,7 +61,7 @@ let initialized = false;
  * - api クライアントへトークン供給者を登録する（これを呼ばないと Bearer が付かない）
  * - real モードなら Google SDK を configure する
  * 冪等。セッション復元（restoreSession）は `features/auth/hooks/useAuthSessionBootstrap.ts`
- * （`app/_layout.tsx` の `AuthGate`）の責務（SS-13 / ADR-009。SS-11 時点はスプラッシュの責務だった）。
+ * （`app/_layout.tsx` の `AuthGate`）の責務（SS-13 / ADR-M-009。SS-11 時点はスプラッシュの責務だった）。
  */
 export function initAuth(): void {
   if (initialized) return;

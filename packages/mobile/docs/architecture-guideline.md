@@ -58,7 +58,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   `useWalkSummary` → `useWalkSave` へ渡す。401 のときのサインイン CTA のハンドラも同じくルートが
   注入する。SS-37）。セレクタは必ずプリミティブを返すこと
   （オブジェクトを返すと zustand v5 で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
-- 詳細は [ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照。
+- 詳細は [ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照。
 
 ### 送信側のヘッダー契約（CloudFront経由の通信）
 
@@ -76,10 +76,10 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   下記「写真の扱い」参照）が **S3 / fake storage への3箇所目の HTTP 出口**として存在する。
   こちらは**意図的に** `customFetch` を通さない（認証ヘッダー・`x-amz-content-sha256` を
   backend 以外のオリジンへ送らないため）。横断的な送信ヘッダーを追加するときは、
-  この経路には**入れてはいけない**ことに注意する（ADR-010）。
+  この経路には**入れてはいけない**ことに注意する（ADR-M-010）。
 
 ## 位置情報の扱い
-- 実装方針は [ADR-006: 位置情報サービスは real/mock の2モード](../adr/ADR-006-location-service-real-mock.md) で確定済み。
+- 実装方針は [ADR-M-006: 位置情報サービスは real/mock の2モード](../adr/ADR-M-006-location-service-real-mock.md) で確定済み。
 - `EXPO_PUBLIC_LOCATION_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/locationMode.ts`）。
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
 - 呼び出し側（`features/walk` / `features/pin`）は `src/services/location` のインターフェースのみを
@@ -87,8 +87,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 
 ## 写真の扱い
 
-- 実装方針は [ADR-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で
-  S3 直送](../adr/ADR-010-photo-service-and-direct-s3-upload.md) で確定済み。
+- 実装方針は [ADR-M-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で
+  S3 直送](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md) で確定済み。
 - `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/photoMode.ts`）。
   位置情報と同じく `dev` モードは持たない（mock はダミー画像を返すだけで実ファイルの加工を伴わない）。
 - 写真の**取得・加工**（カメラ/ライブラリ・縮小・JPEG 再圧縮）は `src/services/photo/` に閉じる
@@ -100,13 +100,13 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   型は `UploadFileBody`）まで返す契約**。`features/pin` 側で `uri` から
   `{ uri, name, type }` を組み立て直してはいけない。Expo SDK 54+ の `fetch`（WinterCG）は
   React Native 独自のこの形式を受け付けず、`Unsupported FormDataPart implementation` で
-  **送信前に**落ちる（実機・エミュレータで再現済み。ADR-010 決定9）。型で塞いであるが、
+  **送信前に**落ちる（実機・エミュレータで再現済み。ADR-M-010 決定9）。型で塞いであるが、
   別経路を足すときも同じ契約を守ること。
 - 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
   `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
 - **（SS-118）閲覧（表示）側の写真は `features/pin/components/PinPhotoImage.tsx`（expo-image）
   だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
-  で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-010 決定8 / mobile ADR-012 D7）。
+  で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-M-010 決定8 / ADR-M-012 D7）。
   閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
   （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError`（地図詳細の `useSanpoMapPins.handlePhotoLoadError` も同じ規則）が
   URL の失効とみなし、取得から60秒以上経っていれば詳細を取り直す（`shouldRefreshPhotoUrls`）。
@@ -212,7 +212,7 @@ export default function SomeFeatureRoute() {
     全フローを実行している**。backend 側は SS-44 の `MAPS_MODE=fake`（決定的な fake provider）
     で候補を返すため、外部データへの依存はない。タグは依存を用意できないローカル環境向けの
     絞り込み手段として残している。候補の**件数・内容は assert せず**存在のみを見る
-    （詳細は [ADR-004](../adr/ADR-004-e2e-build-ci-strategy.md)）。
+    （詳細は [ADR-M-004](../adr/ADR-M-004-e2e-build-ci-strategy.md)）。
   - 履歴などデータ件数に依存する assert は行わない（同一 CI ラン内で他フローの記録が残るため）。
   - モバイル機能: Maestro経由で利用可能な機能はそのまま利用する。利用できない機能はスタブ実装を利用する。
   - **共有 dev ユーザー（`e2e-user-1`）を壊す取り消し不能な破壊的操作（例: アカウント削除）は

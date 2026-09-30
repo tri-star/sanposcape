@@ -23,7 +23,7 @@ walkCreateRequest,walkSaveError}`（すべて純粋関数）/ `src/lib/uuid.ts`�
   retry・backoff を自前実装することになる）を踏まえた妥当な判断として実装に反映されている。
   `useWalkSave` の自動発火は `saved`（Zustand、画面をまたいで永続）+ `useRef` の `clientWalkId`
   二重ガードで、StrictMode 二重実行・冪等再送のいずれにも耐える構造。
-- `useFinishedWalkStore`（保存待ちドラフト）と `useActiveWalkStore`（進行中の識別情報。ADR-008）が
+- `useFinishedWalkStore`（保存待ちドラフト）と `useActiveWalkStore`（進行中の識別情報。ADR-M-008）が
   明確に責務分離されている。前者の「サーバー由来データを置かない」規律への唯一の例外は `savedWalkId`
   （識別子1つ）とコメントで明示。
 - `lib/finishedWalk.ts` / `lib/walkTrackPayload.ts` / `lib/walkCreateRequest.ts` / `lib/walkSaveError.ts`

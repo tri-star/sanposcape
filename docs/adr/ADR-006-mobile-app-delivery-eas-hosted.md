@@ -279,8 +279,8 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
   —— SAM と Terraform の責務境界。本 ADR はこの境界に mobile の例外を作らないことを決めている。
 - [ADR-004: シークレット管理と CI/CD の AWS 認証情報](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
   —— `EXPO_TOKEN` の扱い。
-- [packages/mobile/adr/ADR-003: development build と開発ループ](../../packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
-- [packages/mobile/adr/ADR-004: E2E ビルド・CI 戦略](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+- [packages/mobile/adr/ADR-M-003: development build と開発ループ](../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)
+- [packages/mobile/adr/ADR-M-004: E2E ビルド・CI 戦略](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
   —— `eas build --local` で EAS のクラウド枠を消費しない既存方針。iOS ビルドにはそのまま適用できない
   （SS-79 の検討事項）。
 - Plane: SS-77（本 ADR の起点。Cancelled）、SS-74（infra 側の配信面）、

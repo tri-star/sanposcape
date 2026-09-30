@@ -47,9 +47,9 @@ Vitest 側は `vitest.config.ts` の `resolve.alias` に `expo-crypto` を追加
 
 ## ADR参照時の曖昧さに注意
 
-mobile には `packages/mobile/adr/ADR-005-styling-without-unistyles.md`（スタイル）と
-リポジトリルートの `docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md`
-（CloudFront/SigV4）という**同じ番号のADRが2種類**存在する。mobile のコード中で
-「（ADR-005 決定4）」のようにパスを省略した参照を見たら、どちらを指すか必ずファイルパスで確認する
-（SS-70 では `src/api/authHeaders.ts`・`src/services/auth/authApi.ts` がパス省略、
-`src/api/contentHash.ts` はフルパス記載、と同一PR内でも表記が割れていた）。
+SS-70 当時は mobile の `packages/mobile/adr/ADR-005-…`（スタイル）とリポジトリルートの
+`docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md`（CloudFront/SigV4）が
+**同じ番号**で、パスを省略した「（ADR-005 決定4）」がどちらを指すか番号だけでは分からなかった。
+SS-132 で mobile の ADR は `ADR-M-{番号}`（現 `ADR-M-005-styling-without-unistyles.md`）に改名されたため、
+今は `ADR-005` と書けばルートの ADR を指す。SS-132 より前のブランチ・PR コメントの番号だけの参照は
+旧規則なので、どちらを指すかは内容で確かめる。

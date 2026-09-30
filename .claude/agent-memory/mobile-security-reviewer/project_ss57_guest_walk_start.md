@@ -24,7 +24,7 @@ SS-57（branch `tri-star/ss-57`, commit `afeaae7`）で `canEnterProtectedRoutes
   `runSessionCleanup()`（queryClient.clear() + useActiveWalkStore.endWalk() +
   useFinishedWalkStore.clearFinishedWalk()）を**同期的に**呼ぶ。退避の useEffect より前に
   cleanup が走るため、退避のリダイレクト完了前に前ユーザーのキャッシュ/位置情報が画面に
-  残る窓は無い（ADR-008 決定6 の目的と整合）。
+  残る窓は無い（ADR-M-008 決定6 の目的と整合）。
 - `SettingsView` はゲストのとき `useAuthSessionStore` の `status === "authenticated"` だけを
   boolean で読み、`user` オブジェクト（PII）は読まない。`.oxlintrc.json` の
   `no-restricted-imports` override 対象は `features/walk/**` / `features/history/**` のみで

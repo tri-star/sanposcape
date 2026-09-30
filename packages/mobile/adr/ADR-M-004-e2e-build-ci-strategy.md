@@ -1,4 +1,4 @@
-# ADR-004: モバイル E2E(Maestro) のビルド方式と CI コスト戦略
+# ADR-M-004: モバイル E2E(Maestro) のビルド方式と CI コスト戦略
 
 ## 日付
 
@@ -10,7 +10,7 @@
 
 ## コンテキスト
 
-[ADR-003](./ADR-003-development-build-and-dev-loop.md) により本アプリは development build 前提になった。E2E(Maestro) は**実際にインストールしたアプリ**をエミュレータ/実機上で操作するため、E2E 用のビルド成果物が必要になる。ここで次の懸念がある。
+[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md) により本アプリは development build 前提になった。E2E(Maestro) は**実際にインストールしたアプリ**をエミュレータ/実機上で操作するため、E2E 用のビルド成果物が必要になる。ここで次の懸念がある。
 
 - **どのビルドを E2E に使うか**: development build は Metro からJSを取得する前提で、Metro が動いていないと起動しない → CI で不安定。
 - **コスト**: EAS の**クラウドビルドを CI で毎回実行すると課金**が気になる。
@@ -19,7 +19,7 @@
 ## 決定
 
 - **E2E には standalone な preview ビルド**（JS 埋め込み・スタブ用 env 焼き込み）を使う。日常開発の development build とは別プロファイルにする（`eas.json` の `preview`）。
-  - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=dev`、`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`、`EXPO_PUBLIC_LOCATION_MODE=mock`）を焼き込む。`dev` は backend の `POST /auth/dev-session` を使う＝**backend API は実物**であり、認証の入口だけを差し替える（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。位置情報はエミュレータの位置設定がフレークになりやすいため `mock`（東京駅固定）にする（[ADR-006](./ADR-006-location-service-real-mock.md)）。
+  - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=dev`、`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`、`EXPO_PUBLIC_LOCATION_MODE=mock`）を焼き込む。`dev` は backend の `POST /auth/dev-session` を使う＝**backend API は実物**であり、認証の入口だけを差し替える（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。位置情報はエミュレータの位置設定がフレークになりやすいため `mock`（東京駅固定）にする（[ADR-M-006](./ADR-M-006-location-service-real-mock.md)）。
 - **地図の描画と外部データは E2E の assert 対象にしない**（SS-15 で確立）。CI の preview APK には
   Maps SDK キーを注入していないため Android の地図は灰色のままである。`/explore/places` も
   当初は CI の backend に Google の server key が無く常に 503 を返していた（→ 下記 SS-21 追補・
@@ -38,7 +38,7 @@
     は SS-44 として別タスクに切り出し）。
   - **候補の件数・名称・距離/時間の値は引き続き assert しない**（SS-44 完了後も維持）。assert
     するのは「候補が 1 件以上ある（`spot-card-0` が存在する）」までとする。
-  - 実キーを CI に置く案は却下（課金とシークレット管理。ADR-004 の当初のコスト方針を維持する
+  - 実キーを CI に置く案は却下（課金とシークレット管理。ADR-M-004 の当初のコスト方針を維持する
     ため）。
 
   **（SS-44 追補: backend 側は対応済み）**
@@ -518,7 +518,7 @@ SS-79 では `GOOGLE_MAPS_ANDROID_SDK_KEY` の EAS 側 visibility を `secret` �
 E2E には EAS 側の値がそもそも流れ込まない）。`secret` 化は 2026-09-14 に実施した。
 なお変更前に実測した優先順位は**「EAS が勝つ」**で、`sensitive` のままでは E2E の値が
 EAS の値に黙って置き換わる経路が実在した。詳細は
-[mobile ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) の SS-79 追補、
+[ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-79 追補、
 実測記録は [build-profiles.md](../docs/build-profiles.md) を参照。
 
 ### 訂正: SHA-1 の不一致は「クラッシュ」ではなく「地図タイルが表示されない」だけ
@@ -528,13 +528,13 @@ EAS の値に黙って置き換わる経路が実在した。詳細は
 しない**。Google Maps SDK の仕様上、認証エラーで地図タイルが表示されないだけである。
 クラッシュするのは APK にキー自体が**未注入**のときだけ。したがって **E2E は GCP 登録の
 漏れを検出できない**（`.maestro/` は地図タイルの描画を assert しないため）。同じ訂正を
-[mobile ADR-007](./ADR-007-expo-config-and-maps-key-injection.md) と
+[ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) と
 `packages/mobile/docs/build-profiles.md` にも反映した。
 
 ## 関連情報
 
-- [ADR-003: development build 前提と開発ループ](./ADR-003-development-build-and-dev-loop.md)
-- [ADR-007: Expo 設定と Maps SDK キーの注入](./ADR-007-expo-config-and-maps-key-injection.md)
+- [ADR-M-003: development build 前提と開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
+- [ADR-M-007: Expo 設定と Maps SDK キーの注入](./ADR-M-007-expo-config-and-maps-key-injection.md)
 - CI: `.github/workflows/mobile-e2e.yml` / `.github/workflows/mobile-ci.yml` /
   `.github/workflows/mobile-release-build.yml`（SS-79 で新設。配布ビルド専用）
 - [mobile ローカル環境構築手順](../docs/local-env.md)

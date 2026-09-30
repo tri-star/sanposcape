@@ -26,7 +26,7 @@ export const PIN_PHOTO_PAGE_SIZE = 30;
 
 /**
  * `GET /pins`（1ページ目のみ。ページングは続けない。ルート ADR-009 の持ち越しの決着。
- * mobile ADR-012 D3）。`items` は `toPinSummary` して不正座標を除外する。
+ * ADR-M-012 D3）。`items` は `toPinSummary` して不正座標を除外する。
  * `hasMore` は `next_cursor !== null`（打ち切りの目印。実際のページングはしない）。
  *
  * 素の fetcher（`listPins`）を使う理由: `useRegisteredPins` 側で queryKey / `enabled` /
@@ -95,7 +95,7 @@ export async function fetchPinPhotoPage(
 /**
  * `GET /pins` を地図単位で next_cursor が null になるまで順に取る（最大 maxPages ページ。SS-121）。
  * 端末で名前の絞り込みをするため、無限スクロールではなく全件（上限つき）を1回の取得で揃える
- * （mobile ADR-014）。
+ * （ADR-M-014）。
  * `sanpoMapId` が UUID でなければ通信せず `ApiError(404)`（`fetchPinDetail` と同じ多層防御）。
  * id の重複は先勝ちで除く。`signal` は各リクエストに渡す（read なので画面離脱で中断してよい）。
  * 取り直しは常に1ページ目から（カーソルを保存しない）。

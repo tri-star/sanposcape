@@ -51,7 +51,7 @@ components/ui/button/
 - サーバー由来のデータはストアに置かない（TanStack Query が保持する）。
   - ただし**識別子1つに限った例外**を認める場合がある（現状は `useFinishedWalkStore.savedWalkId` のみ）。
     許容条件と例外の範囲は [フォルダ構造](./folder-structure.md) の `store/` の節を正とし、
-    背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md) を参照する。
+    背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) を参照する。
 
 ## 「散歩ルート」に関する命名の注意
 
@@ -65,7 +65,7 @@ components/ui/button/
   - `loop*`（例: `ActiveWalk.loopMinutes`/`loopKm`）は `/explore/routes/loop` から取得した
     **周回ルートの実値**。散歩開始後（`ActiveWalk` 以降）はこちらを使う。
   - 由来（近似 vs 実値）が異なる値を同じ変数名で読み違えないよう、rename ではなく最初から
-    別の語幹を選ぶこと。背景は [ADR-008](../adr/ADR-008-active-walk-state-and-route-cache.md)
+    別の語幹を選ぶこと。背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md)
     決定1「SS-33 追補」を参照。
 - **周回ルートの leg（区間）の kind** は API 層の値をそのまま `outbound` / `return` として扱う
   （`WalkingRouteLegKind`）。UI 表示の文言は「行き」/「帰り」（「往路」/「復路」ではない）で統一する

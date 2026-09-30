@@ -11,7 +11,7 @@
 
 ## スタイルの書き方
 
-スタイルは React Native 標準の `StyleSheet` を `makeStyles` でラップして書く（背景は [ADR-005](../adr/ADR-005-styling-without-unistyles.md)）。
+スタイルは React Native 標準の `StyleSheet` を `makeStyles` でラップして書く（背景は [ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。
 
 ```tsx
 import { makeStyles } from "@/theme/makeStyles";
@@ -98,7 +98,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
   すべて `runOnce` 経由にする。
 - BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
 - 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
-  この規約と `useScreenBack` を見直す（[ADR-007](../adr/ADR-007-expo-config-and-maps-key-injection.md)
+  この規約と `useScreenBack` を見直す（[ADR-M-007](../adr/ADR-M-007-expo-config-and-maps-key-injection.md)
   の SS-34 追補も参照）。
 - 戻るボタンの見た目は `IconButton` の `icon="chevron-left" / label="戻る" / variant="ghost"` で
   統一する。
@@ -146,7 +146,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 `PUBLIC_ROOT_SEGMENTS` は「認証状態にかかわらず常に到達できるルート」（サインイン画面・開発用
 カタログなど）の先頭セグメント一覧であり、**未認証で到達させたい開発用ルートを新設したら
 ここにも先頭セグメントを追加する**こと（詳細は
-[ADR-009](../adr/ADR-009-auth-session-state-and-route-gate.md) を参照）。
+[ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照）。
 - **例外**: 動的ルート（`[param].tsx`、id が無いと開けない画面）は直リンクを張らない。親の一覧画面
   のエントリで代替する（例: `/walk-history/[walkId]` は単独のエントリを持たず、`walk-history`
   エントリの `description` に「一覧から開く」旨を書き、一覧 → 詳細のタップで確認する）。

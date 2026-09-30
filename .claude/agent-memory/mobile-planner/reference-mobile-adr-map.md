@@ -9,13 +9,14 @@ metadata:
 設計を変えるプランを書く前に該当 ADR を読む（`packages/mobile/AGENTS.md` の指示）。
 ADR を覆す/追補する場合は `.claude/skills/adr-writing/SKILL.md` スキルを使う。
 
-- **mobile 固有**: `packages/mobile/adr/ADR-0XX-*.md`。2026-09-30 時点で **001〜014 まで使用済み**
+- **mobile 固有**: `packages/mobile/adr/ADR-M-0XX-*.md`（SS-132 で `ADR-0XX` から改名。本文中の参照も
+  `ADR-M-0XX` と書き、番号だけの `ADR-0XX` はルートの `docs/adr/` を指す）。2026-09-30 時点で **001〜014 まで使用済み**
   （010 = SS-88 写真サービスと S3 直送、011 = SS-124 ピン位置の選択・調整、012 = SS-118 ピンの地図表示と詳細、
   013 = SS-136 ピンのタグ入力の候補（API 契約はルート ADR-009 決定30）、014 = SS-121 地図一覧と地図詳細）。新規は次番を採る。
   並行チケットが同じ番号を取り合うことがある（2026-09 に SS-124 と SS-117 が 011 を取り合う可能性があった）。
   プランには「着手時に main の `adr/` を見て番号を決める」と書いておく。
   - 008 = 進行中の散歩の Zustand とルートの Query キャッシュ共有 / サインアウト時の `sessionCleanup` レジストリ
-  - 009 = 認証セッション状態の集約（`useAuthSessionStore`）と認証ゲート（`AuthGate` / `canEnterProtectedRoutes`）。SS-13 で ADR-008 決定6 を追補している
+  - 009 = 認証セッション状態の集約（`useAuthSessionStore`）と認証ゲート（`AuthGate` / `canEnterProtectedRoutes`）。SS-13 で ADR-M-008 決定6 を追補している
 - **frontend/backend 横断・ドメイン知識**: リポジトリルートの `docs/adr/`。
   認証の全体方針は `docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md`
   （決定3 = real/dev/mock の3モード、決定5 = signIn/signUp を区別しない、
@@ -26,6 +27,6 @@ ADR を覆す/追補する場合は `.claude/skills/adr-writing/SKILL.md` スキ
   決定理由 / 影響（ポジティブ・ネガティブ・移行が必要な事項）/ 関連情報。
   追補は日付行に「YYYY-MM-DD 追補（SS-XX）」を足し、本文の該当箇所に `（SS-XX 追補）` を付ける。
   「移行・対応が必要な事項」で解決済みになった項目は、消さずに**取り消し線＋`→ SS-xx で決着`** で残す
-  （ADR-003 / ADR-008 がこの書式の実例）。
+  （ADR-M-008 がこの書式の実例）。
 
 Related: [[reference-planning-inputs]], [[auth-architecture]]

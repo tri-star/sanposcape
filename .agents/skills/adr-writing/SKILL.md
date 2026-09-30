@@ -5,7 +5,7 @@ description: 設計上の決定・理由・代替案・影響をADRへ記録す�
 
 # ADR
 
-[知識の置き場所](../../../docs/knowledge-management.md) と [テンプレート](templates/adr-template.md) を使う。機能横断・ドメイン・ハーネスの決定はルートdocs/adrへ。package固有は既存配置に従う（mobileはpackages/mobile/adr、backend/frontendは各docs/adr）。番号は対象ディレクトリで重複しない連番。
+[知識の置き場所](../../../docs/knowledge-management.md) と [テンプレート](templates/adr-template.md) を使う。機能横断・ドメイン・ハーネスの決定はルートdocs/adrへ。package固有は既存配置に従う（mobileはpackages/mobile/adr、backend/frontendは各docs/adr）。番号は対象ディレクトリで重複しない3桁の連番。package固有には接頭辞を付け、ファイル名・タイトル行・参照とも `ADR-F-001`（frontend）/`ADR-B-001`（backend）/`ADR-M-001`（mobile）と書く。ルートdocs/adrは `ADR-001` のまま（連番がフォルダごとに独立しているため、接頭辞で番号だけでも所属を区別する）。
 
 既存ADRに関係する決定なら追補を先に検討する。当時の理由や選択肢を消さず、追補の日付・課題/依頼・変更点を明示する。未実装など現在状態を示す記述は実績へ更新してよい。
 

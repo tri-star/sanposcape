@@ -18,9 +18,9 @@ const MAX_RANDOM_VALUE = 1 - Number.EPSILON;
  *   既に導入済みのため、追加コスト（ネイティブモジュール増）は理由にならない。
  *   用途は保存の冪等キー（`client_walk_id`）で**暗号強度を要しない**上、既存の自前実装を
  *   `expo-crypto` ベースへ置き換えるコストに見合わないため、自前実装のまま維持する。
- * - なお ADR-004 は 2026-08-14 追補でネイティブ影響ベースの APK キャッシュ前提を撤回済み
+ * - なお ADR-M-004 は 2026-08-14 追補でネイティブ影響ベースの APK キャッシュ前提を撤回済み
  *   （キャッシュキーは `packages/mobile` のソース全体ハッシュ。`.maestro/` / `docs/` / `adr/`
- *   を除く。詳細は `packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md`）ため、
+ *   を除く。詳細は `packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md`）ため、
  *   ネイティブモジュールの増減と APK キャッシュミスは現在では無関係。
  *
  * `random` はテストのために注入可能（既定 `Math.random`）。0..1 の一様乱数を返す関数を渡すこと。

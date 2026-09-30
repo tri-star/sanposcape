@@ -19,7 +19,7 @@ CD（SAM/Lambda のビルド・デプロイ）と dev/prod の AWS アカウン�
 現状、シークレットを扱っているのは `.github/workflows/mobile-e2e.yml` のみで、次の構成になっている。
 
 - `EXPO_TOKEN`（`eas build --local` のアカウント連携）と `GOOGLE_MAPS_ANDROID_SDK_KEY`
-  （Maps SDK for Android のキー。[mobile ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
+  （Maps SDK for Android のキー。[ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)
   で `app.config.ts` からネイティブ設定に注入される）を、GitHub の environment `ci-e2e` の
   secret として参照している。
 - 本リポジトリは **public** である。そのため secret への到達経路を絞る目的で、
@@ -75,7 +75,7 @@ Secrets Manager に格納しても APK から抽出されて意味をなさな�
 リポジトリにコミットしないのは「リポジトリから機械的に収穫されない」ためであり、
 その目的は GitHub Secrets で達成できている。
 
-なお、[mobile ADR-004](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md) の通り
+なお、[ADR-M-004](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md) の通り
 **E2E の preview APK にはこのキーを注入しない**（地図タイルの描画を assert しないため）。
 本 ADR はこの方針を変更しない。
 
@@ -235,7 +235,7 @@ GitHub Secrets からの撤去ではなく、**消費者が増えた**ことへ�
 （消費者で決める）に沿った拡張であり、原則そのものは変えていない。
 
 詳細（visibility を `secret` にした理由・E2E への影響）は
-[packages/mobile/adr/ADR-007](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
+[packages/mobile/adr/ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)
 の SS-79 追補を参照。
 
 **実施（2026-09-14）**: `secret` visibility への変更を実施した（ユーザー作業）。
@@ -252,8 +252,8 @@ GitHub Secrets からの撤去ではなく、**消費者が増えた**ことへ�
 `preview` ビルドへ注入するようになっている（`GOOGLE_MAPS_ANDROID_SDK_KEY` は maps-required な
 Maestro フローの前提であり、地図タイルの描画自体は assert しないが、キーが無いと起動時点で
 落ちるため必須になった）。詳細は
-[mobile ADR-004 の SS-44 / SS-78 追補](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
-と `packages/mobile/adr/ADR-007` を参照。
+[ADR-M-004 の SS-44 / SS-78 追補](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
+と `packages/mobile/adr/ADR-M-007` を参照。
 
 ### App Store Connect API Key は GitHub Secrets に置かない
 
@@ -314,10 +314,10 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
 
 - [ADR-001: 地図・POI・ルーティング基盤に Google Maps Platform を採用し backend 経由で利用する](./ADR-001-map-poi-google-maps-platform.md)
   — mobile の SDK key と backend の server key を分離する決定
-- [mobile ADR-004: E2E のビルド・CI 戦略](../../packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
+- [ADR-M-004: E2E のビルド・CI 戦略](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
   — E2E（`preview`）のビルド・CI 戦略。Maps SDK キーは SS-44 以降 `ci-e2e` の GitHub Secrets
   から注入する（上記「訂正」を参照。「注入しない」は SS-44 以前の話）
-- [mobile ADR-007: Expo 設定と Maps SDK キーの注入](../../packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
+- [ADR-M-007: Expo 設定と Maps SDK キーの注入](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)
   — `app.config.ts` によるキー注入と `EXPO_PUBLIC_` を付けない理由
 - `.github/workflows/mobile-e2e.yml` — 現行の `ci-e2e` environment の利用箇所
 - `.github/workflows/backend-deploy.yml` — `development` / `production` environment の利用箇所（SS-72）

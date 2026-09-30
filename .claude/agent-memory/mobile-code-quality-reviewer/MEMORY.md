@@ -22,7 +22,6 @@
 - [history系Viewの分岐条件の二重定義](history-view-duplicated-branch-conditions.md) — 中央寄せ判定とrenderBody内の状態分岐を2箇所に別々に書くと片方だけ更新して表示が崩れる
 - [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。型では守られないので生成元を確認する
 - [テーブル駆動テストの模範](table-driven-test-style-reference.md) — `src/lib/backNavigation.test.ts`のit.each形式が基準。個別it()の羅列との乖離をレビューで拾う
-- [ADR番号の重複(repo-root/mobile)](duplicate-adr-numbers-repo-root-vs-mobile.md) — ADR-008等は`packages/mobile/adr/`と`docs/adr/`に別内容で同番号存在。参照は両方確認してから裏取り
 - [self-cancelling preupload queue effect](self-cancelling-preupload-queue-effect.md) — useEffectが自分でdispatchするstateを依存配列に持つと、await完了前にcleanupが発火し結果を握りつぶす（SS-88 usePinPhotosで発見）
 - [diagnostic log AbortError noise](diagnostic-log-abort-error-noise.md) — 削除/画面離脱由来のAbortErrorが分類関数を経て「失敗」ログに紛れ込みやすい。JSDocの「呼び出し側が握りつぶす」を鵜呑みにしない
 - [画面「戻る」導線の規約](back-navigation-convention.md) — SS-34のuseScreenBack/resolveBackActionへの一本化と既知のエッジケース

@@ -24,7 +24,7 @@ export type SanpoMapCreateDialogProps = {
 /**
  * SanpoMapCreateDialog — 地図の新規作成ダイアログ（SS-121）。
  * 地図一覧の FAB と、SS-117 のピン登録画面の両方から使う前提で、画面を知らない作りにしている
- * （mobile ADR-014 D5）。
+ * （ADR-M-014 D5）。
  *
  * 状態の初期化: 呼び出し側が開くたびに `key` を変えて作り直す。このコンポーネントは
  * 「マウント時が空」だけを保証する。作成中は閉じる操作をすべて止める（`dismissDisabled` と

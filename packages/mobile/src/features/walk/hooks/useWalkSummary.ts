@@ -6,7 +6,7 @@ import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore
 import type { WalkSaveStatus, WalkSummaryStats } from "@/features/walk/types";
 
 export type UseWalkSummaryOptions = {
-  /** 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から注入する（ADR-009 決定8）。 */
+  /** 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から注入する（ADR-M-009 決定8）。 */
   isSignedIn: boolean;
 };
 

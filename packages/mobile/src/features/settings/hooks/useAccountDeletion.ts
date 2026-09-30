@@ -51,7 +51,7 @@ export type UseAccountDeletionResult = {
  * 登録済みの `queryClient.clear()`（`src/api/queryClient.ts`）が全キャッシュを捨てるため不要。
  */
 export function useAccountDeletion(): UseAccountDeletionResult {
-  // 401 の分類補正に使う（`resolveAccountDeleteErrorCode` 参照）。読むだけで書き込まない（ADR-009 決定2）。
+  // 401 の分類補正に使う（`resolveAccountDeleteErrorCode` 参照）。読むだけで書き込まない（ADR-M-009 決定2）。
   const sessionStatus = useAuthSessionStore((state) => state.status);
   const mutation = useMutation({
     mutationFn: async () => {

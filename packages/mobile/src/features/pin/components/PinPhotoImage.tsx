@@ -23,7 +23,7 @@ export type PinPhotoImageProps = {
 /**
  * PinPhotoImage — 閲覧用の写真表示を expo-image に一本化するラッパ（SS-118）。
  * キャッシュキー（`photo.id` + variant。presigned URL は応答ごとに変わるため URL をキーにしない。
- * mobile ADR-010 決定8）・プレースホルダ・失敗時の通知をここに閉じる。
+ * ADR-M-010 決定8）・プレースホルダ・失敗時の通知をここに閉じる。
  * サインアウト時のキャッシュ消去は `src/lib/imageCacheCleanup.ts` に分離している
  * （このコンポーネントが一度も読み込まれないまま出たサインアウトでも消去を保証するため。
  * SS-118 ローカルレビュー SEC-M1）。

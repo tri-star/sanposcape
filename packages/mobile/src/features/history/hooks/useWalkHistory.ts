@@ -33,7 +33,7 @@ export type UseWalkHistoryResult = {
 
 /**
  * 履歴一覧のサーバー状態（カーソルページネーション）を提供する hook。
- * `queryKey` は `["walks", ...]` 始まりにする（ADR-008 の申し送り。`useWalkSave` の
+ * `queryKey` は `["walks", ...]` 始まりにする（ADR-M-008 の申し送り。`useWalkSave` の
  * `invalidateQueries({ queryKey: ["walks"] })` に載せて、保存直後に一覧を更新するため）。
  */
 export function useWalkHistory(options?: { limit?: number }): UseWalkHistoryResult {

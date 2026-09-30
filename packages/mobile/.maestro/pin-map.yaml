@@ -3,7 +3,7 @@
 # ナビタブの旧導線（/pins/map・/pins/pick-location）は SS-147 でルートごと削除した。
 #
 # 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
-# assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-004 / ADR-012 D14）。
+# assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-M-004 / ADR-M-012 D14）。
 # マーカーのタップ → ピン詳細は E2E しない（Google Maps の描画面で testID が安定して取れないため。
 # 詳細の状態判定は pinDetailState.test.ts が担う）。ピン詳細への遷移は sanpo-map-list.yaml
 # （地図詳細のピン一覧から。SS-121）で確かめる。

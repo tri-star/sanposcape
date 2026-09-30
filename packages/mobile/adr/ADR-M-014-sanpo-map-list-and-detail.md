@@ -1,4 +1,4 @@
-# ADR-014: 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ）
+# ADR-M-014: 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ）
 
 ## 日付
 
@@ -14,7 +14,7 @@ v0.2 の画面構成の見直し（SS-145）で検索タブは廃止され、地
 （SS-146。遷移先 `/sanpo-maps`）から開く画面で行うことになった。SS-146 は `/sanpo-maps` に「準備中」の
 暫定画面（`SanpoMapListView`）を置き、「SS-121 が同じルート・testID（`sanpo-map-list-screen` /
 `sanpo-map-list-back`）のまま本実装に差し替える」「実データを出すときは認証ガード（または未サインイン案内）と
-API 側の認可を入れる」と決めている（[ADR-012](./ADR-012-pin-map-display-and-detail.md) SS-146 追補）。
+API 側の認可を入れる」と決めている（[ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) SS-146 追補）。
 
 SS-121 では次の3つを実装する。**backend の変更は不要**（既存 API で足りる）。
 
@@ -31,7 +31,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 
 - **D1: 絞り込みは地図・ピンとも端末で行い、API の `q` は使わない。** 照合は「前後の空白を除き、連続する空白
   （全角空白を含む）を1つにまとめ、小文字化した文字列同士の部分一致」（`lib/sanpoMapSearch.ts`）。
-  かな・全角半角の同一視はしない（`String.prototype.normalize` も使わない。[ADR-013](./ADR-013-pin-tag-suggestions.md)
+  かな・全角半角の同一視はしない（`String.prototype.normalize` も使わない。[ADR-M-013](./ADR-M-013-pin-tag-suggestions.md)
   のタグ候補・backend の `ILIKE` と揃える）。名前の無いピン（null・空白のみ）は、検索語が空でなければ
   一致しない（表示上の「名前のないピン」という文字には当てない）。
 - **D2: ピン一覧は 200 件 × 最大 5 ページ（1000 件）を1つの取得関数（`fetchAllPinsInSanpoMap`）で順に取り、
@@ -54,7 +54,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
   （押しても 401 になる操作を見せない）。これで SS-146 追補の「実データを出すときは認証ガード（または
   未サインイン案内）を入れる」を満たす。API 側の認可は既存（member の地図だけが返る。member でない地図は 404）。
 - **D7: ピン一覧の行に代表写真のサムネイルを出し、画像の読み込み失敗を契機に一覧を取り直す**
-  （取得から 60 秒未満なら取り直さない。ADR-012 D7 と同じ規則。`shouldRefreshPhotoUrls` を再利用）。
+  （取得から 60 秒未満なら取り直さない。ADR-M-012 D7 と同じ規則。`shouldRefreshPhotoUrls` を再利用）。
   ピン一覧の取得中は取り直さず、取り直すときも取得中のものを中断しない（`cancelRefetch: false`）。
   期限切れ URL のサムネイルが一斉に失敗しても、1件ごとに最大5ページの連続取得を中断・再開しないため。
   写真が無いピンは `PinPhotoImage` を使わず、`map-pin` アイコンの面を出す（`PinPhotoImage` の null 表示は
@@ -100,7 +100,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 - **概要**: 画面遷移で名前を入力する。
 - **メリット**: `Dialog` に入力欄を載せる前例が無い問題を避けられる。
 - **デメリット**: SS-117（ピン登録画面での地図作成）は入力を保ったまま地図を作る必要があり、Expo Router には
-  前の画面へ結果を返す正式な手段が無い（ADR-011 の SS-124 の知見）。ダイアログならそのまま載る。
+  前の画面へ結果を返す正式な手段が無い（ADR-M-011 の SS-124 の知見）。ダイアログならそのまま載る。
 
 #### 選択肢4: 地図詳細用に別の queryKey で `expand` 無しの一覧を取る（D3 で却下）
 
@@ -115,14 +115,14 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
   SS-111 追補「将来の課題」）なら、ほとんどの地図は1リクエストで終わり、反応が最も速い。
 - 既存の `useSanpoMaps`・`sanpoMapApi`・`pinReadApi`・`PinStateCard`・`PinPhotoImage` がすべて
   `features/pin` にあり、別 feature にすると feature 間 import の禁止（`docs/folder-structure.md`）に当たる。
-- ゲストの扱い・フラグ・戻る導線（`useScreenBack`）・画面ガードは ADR-009（mobile）・ADR-012 の既存方針に揃えた。
+- ゲストの扱い・フラグ・戻る導線（`useScreenBack`）・画面ガードは ADR-M-009・ADR-M-012 の既存方針に揃えた。
 
 ## 影響
 
 ### ポジティブな影響
 
 - ピンタブ →「地図一覧」から、地図とピンを名前で検索できる。検索タブ廃止（SS-145）で失われた検索手段が戻る。
-- ADR-012 の既知の限界「地図上のピン操作は支援技術で代替できない」の代替導線になる。
+- ADR-M-012 の既知の限界「地図上のピン操作は支援技術で代替できない」の代替導線になる。
 - これまで E2E できなかった「ピン詳細への遷移」を E2E で確かめられる（`.maestro/sanpo-map-list.yaml`）。
 - SS-117 は `SanpoMapCreateDialog` をそのまま使える（`testIDPrefix` で testID を変えられる）。
 
@@ -134,7 +134,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
   2つできうる（重複名は許可されているので壊れはしない。mobile は自動再送しないことで悪化させない）。
   ルート ADR-009 決定25「冪等キーは後から optional で足せる」で対応する余地がある。
 - ゲストが案内からサインインしても元の画面へ戻らない（`getPostSignInDestination` の既存の限界。
-  ADR-012 と同じ）。
+  ADR-M-012 と同じ）。
 - 地図詳細のピン件数は、ピン一覧を読み終えて打ち切っていなければ読み込んだ件数、それ以外は地図一覧の
   `pin_count`（古い可能性がある）を出す。
 
@@ -151,8 +151,8 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 
 ## 関連情報
 
-- [ADR-009（mobile）: 認証セッション状態の集約と認証ゲート](./ADR-009-auth-session-state-and-route-gate.md)
-- [ADR-012（mobile）: 登録済みピンの地図表示とピン詳細](./ADR-012-pin-map-display-and-detail.md)（D7・D9・SS-146 追補）
-- [ADR-013（mobile）: ピンのタグ入力の候補](./ADR-013-pin-tag-suggestions.md)（端末での絞り込み・照合規則）
+- [ADR-M-009: 認証セッション状態の集約と認証ゲート](./ADR-M-009-auth-session-state-and-route-gate.md)
+- [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（D7・D9・SS-146 追補）
+- [ADR-M-013: ピンのタグ入力の候補](./ADR-M-013-pin-tag-suggestions.md)（端末での絞り込み・照合規則）
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・SS-111 追補）
 - 元チケット: SS-121 / 関連: SS-113（地図 API）・SS-145・SS-146（PR #114）・SS-117・SS-119

@@ -1,4 +1,4 @@
-# ADR-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く
+# ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く
 
 ## 現在有効な決定（要約）
 
@@ -20,7 +20,7 @@
 
 ### 未解決・持ち越し
 
-- セッション失効時の未保存散歩の喪失は、散歩状態のローカル永続化で扱う。（本文: 影響・SS-37 追補、[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定5）
+- セッション失効時の未保存散歩の喪失は、散歩状態のローカル永続化で扱う。（本文: 影響・SS-37 追補、[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) 決定5）
 - 同一端末で別人がサマリの CTA を押す残余リスクと、離脱時の明示的ドラフト破棄は別途検討する。（本文: SS-37 ローカルレビュー追補）
 
 ### 変更・撤回された決定
@@ -37,7 +37,7 @@
 
 ## ステータス
 
-採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-62 追補、SS-29 追補、SS-100 追補、SS-135 追補、SS-145 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
+採用（SS-13、SS-50 追補、SS-57 追補、SS-37 追補、SS-62 追補、SS-29 追補、SS-100 追補、SS-135 追補、SS-145 追補）。[横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6（「ゲストは `AuthService` のメソッドではなく、トークン非保持の認証状態として表現する」）を実装に落とす。[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) 決定6（サインアウト時の後始末）を追補する。SS-57 で、SS-49 合意（未認証でも `/explore/*` を呼べる）に基づきゲスト散歩を解禁した。
 
 ## コンテキスト
 
@@ -65,7 +65,7 @@ SS-10（services 層の認証）・SS-11（認証画面・スプラッシュ）�
 
 不変条件: `status === "authenticated"` ⟺ `user !== null`。`status === "guest"` ⟺ `user === null`。永続化しない（`persist` ミドルウェアを使わない）。
 
-**`folder-structure.md` の `src/store/` 原則（「サーバー由来のデータを置かない」）の例外**: `user`（`/auth/session` レスポンス由来）はこの原則の例外として扱う。`user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、TanStack Query が管理する一般的なドメインデータ（散歩記録・履歴など、複数箇所からフェッチ・再検証されうるもの）とは性質が異なるため。`user` をストアから外してセッション状態だけを持たせる案は採らなかった。`authenticated ⟺ user !== null` という不変条件を弱めることになり、UI が「認証済みだがユーザー情報が無い」中間状態を扱う必要が生まれてしまうため（[ADR-008](./ADR-008-active-walk-state-and-route-cache.md) が `useFinishedWalkStore.savedWalkId` に認めている例外と同種の判断）。
+**`folder-structure.md` の `src/store/` 原則（「サーバー由来のデータを置かない」）の例外**: `user`（`/auth/session` レスポンス由来）はこの原則の例外として扱う。`user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、TanStack Query が管理する一般的なドメインデータ（散歩記録・履歴など、複数箇所からフェッチ・再検証されうるもの）とは性質が異なるため。`user` をストアから外してセッション状態だけを持たせる案は採らなかった。`authenticated ⟺ user !== null` という不変条件を弱めることになり、UI が「認証済みだがユーザー情報が無い」中間状態を扱う必要が生まれてしまうため（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) が `useFinishedWalkStore.savedWalkId` に認めている例外と同種の判断）。
 
 ### 2. ストアへの書き込み経路は2つだけにする
 
@@ -115,9 +115,9 @@ export function canEnterProtectedRoutes(status: ResolvedAuthSessionStatus): bool
 
 `onSessionChange(null)` でストアへ届き、ゲートがサインインへ戻す。**ネットワーク起因の refresh 失敗ではセッションを保持する**（`createSessionAuthService` の既存の挙動をそのまま利用する。変更しない）。
 
-### 6. サインアウト時の後始末（`runSessionCleanup()`）の実行側を移す（ADR-008 決定6 の追補）
+### 6. サインアウト時の後始末（`runSessionCleanup()`）の実行側を移す（ADR-M-008 決定6 の追補）
 
-実行側を、サインアウト導線（`SettingsView`）から「認証状態が `authenticated → guest` に落ちた時点」（`useAuthSessionStore.setSession`）へ移す。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走るようになる。詳細は [ADR-008](./ADR-008-active-walk-state-and-route-cache.md) の追補を参照。
+実行側を、サインアウト導線（`SettingsView`）から「認証状態が `authenticated → guest` に落ちた時点」（`useAuthSessionStore.setSession`）へ移す。これによりサインアウトだけでなく、refresh token 失効による非自発的なセッション終了でも後始末が走るようになる。詳細は [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) の追補を参照。
 
 **`useAuthSessionStore` 自身を `registerSessionCleanup()` に登録してはいけない**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すとゲートがスプラッシュへ送り返してしまう。
 
@@ -199,17 +199,17 @@ SS-57 のローカルレビューで、「散歩中タブの歯車 → 設定 �
 SS-57 追補（「ゲスト散歩の解禁」節末尾）で「保存失敗時のサインイン誘導 CTA の改善は SS-37 のスコープとする」としていた宿題への回答。**SS-37 で対応済み**。文言は「サインインし直すと、記録を保存できます。」から「サインインすると、この散歩の記録を保存できます。」へ変更した（`walkSaveError.ts` の `unauthorized` メッセージ。「以前サインインしていた」前提を外し、初めてのゲストにも通じる言い回しへ）。
 
 - **シナリオの整理**: `POST /walks` が 401 になる経路は2つあり、性質が異なる。
-  - **シナリオA（散歩中のセッション失効）**: `authenticated → guest` の状態遷移が起きるため、決定6 の `shouldEvacuateOnSessionEnd` が発火し `AuthGate` が自動的にサインイン画面へ退避させる。行き止まりにはならないが、`runSessionCleanup()`（ADR-008 決定6）により保存待ちドラフトが消え記録を失う。**この記録喪失は本追補では解かない**（ADR-008 決定5 のフォローアップ課題＝ローカル永続化の担当）。
+  - **シナリオA（散歩中のセッション失効）**: `authenticated → guest` の状態遷移が起きるため、決定6 の `shouldEvacuateOnSessionEnd` が発火し `AuthGate` が自動的にサインイン画面へ退避させる。行き止まりにはならないが、`runSessionCleanup()`（ADR-M-008 決定6）により保存待ちドラフトが消え記録を失う。**この記録喪失は本追補では解かない**（ADR-M-008 決定5 のフォローアップ課題＝ローカル永続化の担当）。
   - **シナリオB（ゲストのまま保存。本追補の本命）**: 起動時からずっと `guest` で状態遷移が起きないため、`runSessionCleanup()` も `shouldEvacuateOnSessionEnd` も発火しない。ドラフトは無傷のままサマリ画面に留まり、`isRetriableWalkSaveError("unauthorized") === false` のため再試行ボタンも出ない**真の行き止まり**になっていた。
 - **決定8（`features/walk` から認証への import 禁止）は維持する**。CTA に必要な認証状態（`isSignedIn`）と遷移ハンドラ（`onSignIn`）は `app/walk-summary.tsx` が `useAuthSessionStore` から読んで `WalkSummaryView` → `useWalkSummary` → `useWalkSave` へ props/引数で注入する（SS-29 で実例化した「ルートが props を注入する」パターン、architecture-guideline 参照）。
 - **サインイン画面へは `push` で送る**。他の遷移が `replace` 連鎖の原則（SS-57 ローカルレビュー対応で `settings-sign-in` も `push` → `replace` に変更済み）に対する意図的な例外とする。サマリ画面からの CTA だけ `replace` にすると、サインインをやめて端末バックしたときにサマリへ戻れず**新しい行き止まりを作ってしまう**ため。行き止まり解消が本タスクの目的であるため例外を許容した。
 - **サインイン成功後の戻り先は `router.dismissTo("/walk-summary")`**。`getPostSignInDestination`（`features/auth/lib/postSignInDestination.ts`）を「遷移先の文字列」から「遷移アクション（`replace` / `dismissTo` + href）」を返す形に拡張し、優先順を「進行中の散歩（`/(tabs)`）＞保存待ちドラフト（`/walk-summary` へ `dismissTo`）＞既定（`/walk-start` へ `replace`）」とした。（SS-145 追補: 既定はピンタブ `/(tabs)/pins` へ `replace` に変わった）進行中の散歩を保存待ちドラフトより優先するのは、決定3 の SS-57 ローカルレビュー対応と同じ理由（散歩の最中に別画面へ連れて行かない）。`dismissTo` を使うのは、CTA から `push` で来た場合に `replace` だとサマリ画面がスタックへ二重に積まれるのを避けるため（`dismissTo` はスタックに対象が無ければ現在画面を置き換えるので、設定画面からのサインインでも破綻しない）。**この「保存待ちドラフト」の判定条件は SS-37 ローカルレビュー対応で変更されている。下記「SS-37 ローカルレビュー追補」を参照。**
-- **保存の再送は遷移に依存させない（多重防御）**。`authService.signIn()` 内で `setSession(user)` が走った瞬間にサマリ画面（スタック下で mount 済み）の `isSignedIn` が `true` になり、`useWalkSave` の自動発火 effect（ADR-008 の SS-37 追補、`nextWalkSaveFireKey`）が再発火する。`dismissTo` はユーザーを保存中の画面へ**戻すだけ**であり、仮に遷移が失敗しても保存自体は走る。
-- **`continueAsGuest`（サインイン画面の「ゲストで試す」）はこの分岐の対象外**。従来どおり `/walk-start` へ `replace` する（SS-145 追補: ピンタブ。進行中の散歩があればナビタブ。`getGuestEntryDestination`）。ドラフトはメモリに残るがサマリへ戻る導線が無いため自動再送はされない。ADR-008 決定5 のローカル永続化が入るまではこの制約を許容する。
+- **保存の再送は遷移に依存させない（多重防御）**。`authService.signIn()` 内で `setSession(user)` が走った瞬間にサマリ画面（スタック下で mount 済み）の `isSignedIn` が `true` になり、`useWalkSave` の自動発火 effect（ADR-M-008 の SS-37 追補、`nextWalkSaveFireKey`）が再発火する。`dismissTo` はユーザーを保存中の画面へ**戻すだけ**であり、仮に遷移が失敗しても保存自体は走る。
+- **`continueAsGuest`（サインイン画面の「ゲストで試す」）はこの分岐の対象外**。従来どおり `/walk-start` へ `replace` する（SS-145 追補: ピンタブ。進行中の散歩があればナビタブ。`getGuestEntryDestination`）。ドラフトはメモリに残るがサマリへ戻る導線が無いため自動再送はされない。ADR-M-008 決定5 のローカル永続化が入るまではこの制約を許容する。
 
 ### SS-37 ローカルレビュー追補: サインインの起点限定（Security High 対応）
 
-SS-37 初版のセキュリティレビューで、上記の自動再発火・`dismissTo("/walk-summary")` による強制復帰が、**「どこから来たサインインか」を一切見ずグローバルな保存待ちドラフトの有無だけで発火する**ことが指摘された。詳細な実装（`useFinishedWalkStore.signInForSaveRequested` / `nextWalkSaveFireKey` 側の条件）は [ADR-008 の同名の追補](./ADR-008-active-walk-state-and-route-cache.md) を参照。本 ADR には認証・遷移側の変更点のみをまとめる。
+SS-37 初版のセキュリティレビューで、上記の自動再発火・`dismissTo("/walk-summary")` による強制復帰が、**「どこから来たサインインか」を一切見ずグローバルな保存待ちドラフトの有無だけで発火する**ことが指摘された。詳細な実装（`useFinishedWalkStore.signInForSaveRequested` / `nextWalkSaveFireKey` 側の条件）は [ADR-M-008 の同名の追補](./ADR-M-008-active-walk-state-and-route-cache.md) を参照。本 ADR には認証・遷移側の変更点のみをまとめる。
 
 - **なぜ起点限定にしたか**: 共有端末（家族の共用タブレット・店頭のデモ機など）で、人物A がゲストのまま散歩を記録して保存に失敗（401）、CTA を無視して離脱した場合、保存待ちドラフトは `useFinishedWalkStore` にメモリ上残り続ける。ここで人物B が全く無関係な理由（設定画面の確認など）でサインインすると、起点を見ていない実装では人物Aの軌跡（機微な位置情報）が人物Bのアカウントへ無確認で保存され、人物Bは強制的にサマリ画面へ連れて行かれて見覚えのない記録を目にしてしまう。これは共有端末での**他人のドラフト混入**であり、防ぐ必要がある。
 - **対応**: `getPostSignInDestination` の入力を `hasUnsavedFinishedWalk`（保存待ちドラフトがあるか）から `wantsToSaveFinishedWalk`（保存待ちドラフトが**あり、かつサマリ画面の CTA から明示的にサインインした意思表示がある**）へ変更した。`useAuthActions.ts` のセレクタも同じ条件に合わせる（`state.finishedWalk !== null && !state.saved && state.signInForSaveRequested`）。CTA を経由しない無関係なサインイン（設定画面の `settings-sign-in` など）では、保存待ちドラフトが残っていても `dismissTo("/walk-summary")` を選ばず、従来どおり `/walk-start` へ `replace` する（SS-145 追補: ピンタブ）。
@@ -351,14 +351,14 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 #### 選択肢1: クリアする（採用）
 
 - **概要**: `authenticated → guest` の遷移（サインアウトだけでなく非自発的失効も含む）で `runSessionCleanup()` を実行する。
-- **メリット**: 共有端末でのアカウント切り替え時に前ユーザーの軌跡が次ユーザーのトークンで送信される事故を防ぐという ADR-008 決定6 の目的を、非自発的失効にも広げられる。
+- **メリット**: 共有端末でのアカウント切り替え時に前ユーザーの軌跡が次ユーザーのトークンで送信される事故を防ぐという ADR-M-008 決定6 の目的を、非自発的失効にも広げられる。
 - **デメリット**: セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（下記「影響」に残存リスクとして明記）。
 
 #### 選択肢2: 保持する（不採用）
 
 - **概要**: `authenticated → guest` では何もクリアしない。
 - **メリット**: 未保存の散歩を再サインイン後に救える可能性がある。
-- **デメリット**: ADR-008 が守ろうとしたセキュリティ上の性質（前ユーザーのデータが次ユーザーのトークンで送信される事故の防止）を、非自発的失効の経路では守れないままになる。
+- **デメリット**: ADR-M-008 が守ろうとしたセキュリティ上の性質（前ユーザーのデータが次ユーザーのトークンで送信される事故の防止）を、非自発的失効の経路では守れないままになる。
 
 セキュリティ上の性質を一貫させることを優先し、選択肢1 を採用した。
 
@@ -368,7 +368,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 - **状態遷移の起点をストアの1箇所に集約することで、UI 側の認証状態参照を構造的に一本化した**。画面ごとに `authService.getCurrentUser()` を読む実装が増えるたびに同じ穴（ディープリンクでの弾き漏れ）が繰り返されるのを防ぐ。
 - **復元をルートレイアウトへ移したのは、ディープリンクのコールドスタートという既存の欠落を同時に埋めるため**。スプラッシュに閉じたままでは、ゲートを追加しても「保護ルートへ直接遷移したときだけ復元が走らない」という別の穴が残ってしまう。
 - **`onSessionChange` の配線を`services/auth/index.ts`に置いたのは、`initAuth()` と同じ「認証の合成ルート」という役割に沿わせるため**。DI を deps 経由で real/dev/mock へ配ることで、`createSessionAuthService` 自体は SS-13 のためのロジックを一切持たずに済む。
-- **セキュリティ上の性質（後始末が走ること）を非自発的失効にも一貫させることを優先し、未保存データが失われるリスクは許容した**。前ユーザーのデータ漏出という重大なリスクと比べ、未保存の散歩が失われるリスクの方が小さいと判断した（恒久対応は ADR-008 のローカル永続化フォローアップ課題に依存する）。
+- **セキュリティ上の性質（後始末が走ること）を非自発的失効にも一貫させることを優先し、未保存データが失われるリスクは許容した**。前ユーザーのデータ漏出という重大なリスクと比べ、未保存の散歩が失われるリスクの方が小さいと判断した（恒久対応は ADR-M-008 のローカル永続化フォローアップ課題に依存する）。
 
 ## 影響
 
@@ -386,7 +386,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 ### ネガティブな影響・トレードオフ
 
 - `/dev-screens` から保護画面を開くには先にサインインが必要になった（`EXPO_PUBLIC_AUTH_MODE=dev` なら1タップで済む）。
-- セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（決定6 参照。ADR-008 の「アプリを落とすと散歩状態が消える」という既存の残存リスクに、非自発的セッション失効というトリガーが新たに加わった形）。
+- セッション失効時に未保存の散歩（`useFinishedWalkStore` のドラフト）が失われる（決定6 参照。ADR-M-008 の「アプリを落とすと散歩状態が消える」という既存の残存リスクに、非自発的セッション失効というトリガーが新たに加わった形）。
 - ゲートは `loading` 中は素通しのため、ディープリンクで開いた保護画面が復元完了までの数百 ms だけ描画されうる（機微データはサーバー由来で、トークンが無ければ API が 401 になるため実害は小さいと判断している）。
 - **（SS-57 追補）** ゲストは記録タブ・履歴・設定にも入れるようになり、`/walks` 系は 401 のエラーカードで degrade する（保存誘導 CTA は **SS-37 で対応済み**。履歴・統計は引き続きエラーカードで degrade する）。
 - **（SS-37 追補）** サインイン画面への遷移だけ `push` にする例外が1つ増えた（決定3・SS-57 ローカルレビュー対応が確立した「原則 `replace` 連鎖」に対する意図的な例外）。将来別の CTA を足す際は、行き止まり解消が目的かどうかを基準に `push`/`replace` を選ぶこと。
@@ -399,7 +399,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
     横断 hook を新設して override を形式的に回避する案は、ルールの趣旨（探索・散歩・履歴のロジックを認証状態に
     依存させない）に反するため採らなかった。同種の合成が必要になった場合はこのパターンに倣うこと。
   - SS-57 時点では `features/walk` / `features/history` に認証状態を見る必要は発生しなかった（ゲスト時の差異は API の 401 分類に吸収されている）。**SS-37 で2例目が実例化された**: `app/walk-summary.tsx` が `isSignedIn` / `onSignIn` を `WalkSummaryView` → `useWalkSummary` → `useWalkSave` へ注入する。
-- **（SS-37 追補）** シナリオA（散歩中のセッション失効による記録喪失）は本追補のスコープ外のまま残っている。解消するには ADR-008 決定5 のフォローアップ課題（ローカル永続化）の着手が必要。
+- **（SS-37 追補）** シナリオA（散歩中のセッション失効による記録喪失）は本追補のスコープ外のまま残っている。解消するには ADR-M-008 決定5 のフォローアップ課題（ローカル永続化）の着手が必要。
 - backend との合意が必要になる論点（今回は決めない）としていた2点は、SS-49 で決定済み。決定内容は [横断 ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定6-1 を参照。
   - `/explore/places` `/explore/routes/walking` は認証を任意化し、未認証でも呼べるようにする（レート制限は既存の IP バケットを流用。backend 実装は SS-56）。（**SS-33 追補**）`/explore/routes/walking` を置き換えた `/explore/routes/loop` も同じ扱い。
   - `POST /walks`（散歩記録の保存）は未認証では許可せずサインインを促す。ゲスト記録のマージ機能は作らない。
@@ -408,7 +408,7 @@ MVP の要件（弾く条件を1箇所に閉じる）は選択肢1 で満たせ�
 ## 関連情報
 
 - [横断 ADR-002: 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) — 決定6「ゲストはトークン非保持の認証状態として表現する」、決定6-1（SS-49 追補、backend のゲスト API 契約）
-- [ADR-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する](./ADR-008-active-walk-state-and-route-cache.md) — 決定6（サインアウト時の後始末）を本 ADR で追補
+- [ADR-M-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する](./ADR-M-008-active-walk-state-and-route-cache.md) — 決定6（サインアウト時の後始末）を本 ADR で追補
 - [architecture-guideline](../docs/architecture-guideline.md) — 認証の扱い
 - [folder-structure](../docs/folder-structure.md) — `src/store/` の配置ルール
 - 実装: `src/store/useAuthSessionStore.ts`、`src/features/auth/lib/authGate.ts`、`src/features/auth/lib/splashDestination.ts`、`src/features/auth/lib/postSignInDestination.ts`（SS-57 ローカルレビュー対応、SS-37 追補）、`src/features/auth/components/AuthGate.tsx`、`src/features/auth/components/SignInView.tsx`、`src/features/auth/components/SignUpView.tsx`、`src/features/auth/hooks/useAuthSessionBootstrap.ts`、`src/features/auth/hooks/useAuthActions.ts`、`src/features/settings/components/SettingsView.tsx`、`src/services/auth/index.ts`、`.maestro/auth-gate.yaml`、`.maestro/logout.yaml`、`app/(tabs)/history.tsx`（SS-29、ルート経由の props 注入の実例。SS-145 追補: `app/(tabs)/account.tsx` に改名）

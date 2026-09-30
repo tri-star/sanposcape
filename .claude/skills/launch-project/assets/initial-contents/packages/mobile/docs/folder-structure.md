@@ -1,7 +1,7 @@
 # フォルダ構造ガイドライン (mobile)
 
 ReactNative(Expo) アプリのフォルダ構造の方針をまとめる。
-背景・選定理由は [ADR-001](../adr/ADR-001-folder-structure.md) を参照。
+背景・選定理由は [ADR-M-001](../adr/ADR-M-001-folder-structure.md) を参照。
 
 ## 前提
 

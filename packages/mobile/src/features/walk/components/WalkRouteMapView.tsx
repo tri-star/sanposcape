@@ -28,7 +28,7 @@ export type WalkRouteMapViewProps = {
   /**
    * `MapView` の子として描く追加レイヤー（登録済みピンなど。SS-118）。`features/walk` は
    * その中身を知らない。増減するレイヤーなので `MapView` の子の末尾に置く
-   * （mobile ADR-012 D16）。
+   * （ADR-M-012 D16）。
    */
   mapLayers?: ReactNode;
   /**

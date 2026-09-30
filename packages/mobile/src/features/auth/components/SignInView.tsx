@@ -8,7 +8,7 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
 /**
  * サインイン画面。mock `isLogin` をほぼ1:1で再現する。
  * 「Google でログイン」は押下後に散歩開始画面へ遷移する。
- * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-009 SS-57 追補参照）。
+ * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-M-009 SS-57 追補参照）。
  */
 export function SignInView() {
   const router = useRouter();

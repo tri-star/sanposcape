@@ -4,7 +4,7 @@ description: SS-62（設定画面のアカウント削除導線）レビュー�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md
+  adr: packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md
 ---
 
 SS-62（`tri-star/SS-62`、2026-09-13 レビュー）で `DELETE /users/me` によるアカウント削除を実装。

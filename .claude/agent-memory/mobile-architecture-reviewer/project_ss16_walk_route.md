@@ -30,7 +30,7 @@ metadata:
   1回に抑える設計になっている。`origin` は選択時の生の座標をそのまま `ActiveWalk.origin` に格納し、
   `buildWalkingRouteRequest` 側でのみ小数4桁に丸めることで queryKey の安定性を確保している
   （GPS の揺れでキャッシュキーがブレない）。
-- `services/location` は `real`/`mock` の2モードのみ（ADR-006 で意図的に `dev` を持たない設計）。
+- `services/location` は `real`/`mock` の2モードのみ（ADR-M-006 で意図的に `dev` を持たない設計）。
   `expo-location` を import するのは `location.real.ts` のみ、単体テストでは `@/services/location`
   バレルではなく `location.mock.ts` を直接 import する規律が守られている（`lib/` からのバレル
   import はゼロ、`useWalkTracking.ts`/`useCurrentLocation.ts` の2 hook のみが対象）。
@@ -61,4 +61,4 @@ metadata:
   （周回ルートの実値）へ rename され、「片道」表示は撤去された（`WalkRoute` が片道 `path` を持たなくなり
   `legs`〔往路/復路〕になったため）。候補一覧（`SpotCard`の往復値、`/explore/places`由来の片道×2近似）と
   選択後の `loopMinutes`（周回実値）が異なる数値ソースになる、という形でズレの構造自体は残っている
-  （ユーザー確認済みの設計判断。ADR-008 決定1・決定2の「SS-33 追補」を参照）。
+  （ユーザー確認済みの設計判断。ADR-M-008 決定1・決定2の「SS-33 追補」を参照）。

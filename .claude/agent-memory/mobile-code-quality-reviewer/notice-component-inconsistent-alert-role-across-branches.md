@@ -4,7 +4,7 @@ description: 複数 kind を分岐する通知コンポーネントで、新し�
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
 ---
 
 **SS-33 追補**: 以下で参照している `kind` 分岐（`"recalculating"` 等、SS-35 の散歩中ルート再計算まわり）は

@@ -22,7 +22,7 @@ export type RegisteredPinMarkersProps = {
  * （`MapPin category="park" icon="map-pin"`）。`title` の代わりに `accessibilityLabel`
  * （`"<表示名>の詳細を開く"`。名前が無ければ `pinDisplayName` が「名前のないピン」を返す）を
  * 付け、スクリーンリーダーでも何のマーカーかが分かるようにする（SS-118 ローカルレビュー QA-S1。
- * ただしジェスチャー操作自体の代替導線は無い。ADR-012 の既知の限界を参照）。
+ * ただしジェスチャー操作自体の代替導線は無い。ADR-M-012 の既知の限界を参照）。
  *
  * `React.memo` で包み、`pins` の参照が変わらない限り再レンダーしない
  * （`WalkActiveView` は経過時間で毎秒再レンダーされるため）。

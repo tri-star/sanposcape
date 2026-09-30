@@ -189,7 +189,7 @@ export function usePinPhotos(options: {
       // 消えた localId に対して no-op になるので実害は無い）。
       try {
         const prepared = await photoService.prepareForUpload(work.item.picked);
-        // PR #93 T9: 「上限の正は枠発行応答の max_byte_size」という設計（ADR-010 決定3）に
+        // PR #93 T9: 「上限の正は枠発行応答の max_byte_size」という設計（ADR-M-010 決定3）に
         // 反して、ここで固定 10 MiB 判定をしていたため、backend の上限を引き上げても枠発行前に
         // 失敗していた。ここでは極端な値だけを足切りし、通常の上限判定は枠発行後
         // （`pinPhotoTransfer.ts`）に委ねる。
@@ -333,7 +333,7 @@ export function usePinPhotos(options: {
       // PR #93 T11: `uploaded`（未紐付け）の写真を削除したら backend の枠も best-effort で
       // 解放する。呼んでおかないと backend 側は紐付け期限（6時間）まで枠を占有し続け、
       // 追加・削除を繰り返すと実際にはどれも使っていないのに未使用枠の上限（429）に
-      // 達してしまう（mobile ADR-010 の「PR #93 追補 T11」参照）。
+      // 達してしまう（ADR-M-010 の「PR #93 追補 T11」参照）。
       if (removedItem?.status === "uploaded" && removedItem.uploadId !== null) {
         const uploadId = removedItem.uploadId;
         heldGhostSlotsRef.current += 1;

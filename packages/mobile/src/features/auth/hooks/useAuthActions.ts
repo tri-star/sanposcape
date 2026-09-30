@@ -112,7 +112,7 @@ export function useAuthActions(): UseAuthActionsResult {
 
   // authService は呼ばない。ゲストは「トークン非保持状態」であって AuthService のメソッドでは
   // ない（ADR-002 決定6）。起動時の復元失敗で useAuthSessionStore は既に guest になっているため、
-  // ストアへの書き込みも不要（ストアの書き込み経路は2つだけ、という ADR-009 決定2 を守る）。
+  // ストアへの書き込みも不要（ストアの書き込み経路は2つだけ、という ADR-M-009 決定2 を守る）。
   // スプラッシュから来た（下に戻れる画面が無い）ときは replace（スプラッシュ→サインイン→着地点は
   // replace 連鎖で、着地点到達時に canGoBack() === false になる設計）。ピンタブなど `(tabs)` の上に
   // サインイン画面が積まれている場合は、`(tabs)` が二重にならないよう dismissTo で既存の

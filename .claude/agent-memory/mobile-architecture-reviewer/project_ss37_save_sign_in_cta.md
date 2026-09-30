@@ -14,9 +14,9 @@ SS-37（ブランチ `tri-star/ss-37`、2026-08-15）は `POST /walks` が 401�
 **設計の骨子**:
 - `app/walk-summary.tsx` が `useAuthSessionStore` から `isSignedIn`（プリミティブ selector）を読み、
   `WalkSummaryView` → `useWalkSummary` → `useWalkSave` へ props/引数で注入する
-  ([[project_ss29_route_as_composition_root]] のパターンの2例目。ADR-009 決定8は不変)。
+  ([[project_ss29_route_as_composition_root]] のパターンの2例目。ADR-M-009 決定8は不変)。
 - `src/features/walk/lib/walkSaveTrigger.ts`（新規）の `nextWalkSaveFireKey` が
-  「`clientWalkId:isSignedIn` をキーにした自動発火判定」を純粋関数化。ADR-008 決定4「1回だけ発火」を
+  「`clientWalkId:isSignedIn` をキーにした自動発火判定」を純粋関数化。ADR-M-008 決定4「1回だけ発火」を
   「同じドラフト×同じ認証状態につき1回だけ」に緩和する追補とセットで実装（決定4原文は残し、直後に
   追補を追加する既存の ADR 追補スタイルを踏襲）。
 - `walkSaveErrorAction`（`sign_in`|`retry`|`none`。`Record<WalkSaveErrorCode,_>` で網羅性を型保証）を
@@ -38,7 +38,7 @@ SS-37（ブランチ `tri-star/ss-37`、2026-08-15）は `POST /walks` が 401�
 **ドキュメント品質が高評価だった点**: 過去のレビュー（[[project_ss29_route_as_composition_root]]・
 [[project_ss13_auth_session_gate]]・[[project_ss57_guest_route_gate]]）で繰り返し指摘してきた
 「設計判断の根拠が `tmp/`（gitignore 対象）にしか残らない」問題が、SS-37 では再発していない。
-ADR-008/ADR-009 双方に SS-37 追補が入り、`docs/architecture-guideline.md`「認証の扱い」節にも
+ADR-M-008/ADR-M-009 双方に SS-37 追補が入り、`docs/architecture-guideline.md`「認証の扱い」節にも
 `app/walk-summary.tsx` を実例2として追記済み。SS-57 で見つかった「mid-walk 中の設定経由サインイン」
 問題（[[project_ss57_guest_route_gate]] 参照）も、`useAuthActions.ts`/`postSignInDestination.ts`
 双方に「SS-57 ローカルレビュー対応」として既に解消済みであることをコードで確認した

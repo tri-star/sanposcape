@@ -24,20 +24,20 @@
   - 横断: [ADR-010 Astra向けハーネスとClaude定義の差分取り込み](./docs/adr/ADR-010-codex-astra-harness-and-incremental-import.md)
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
-    - [ADR-001 フォルダ構造](./packages/mobile/adr/ADR-001-folder-structure.md)
-    - [ADR-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-002-mobile-tech-stack.md)
-    - [ADR-003 development build 前提と開発ループ](./packages/mobile/adr/ADR-003-development-build-and-dev-loop.md)
-    - [ADR-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-004-e2e-build-ci-strategy.md)
-    - [ADR-005 スタイルは Unistyles をやめる](./packages/mobile/adr/ADR-005-styling-without-unistyles.md)
-    - [ADR-006 位置情報サービスは real/mock の2モード](./packages/mobile/adr/ADR-006-location-service-real-mock.md)
-    - [ADR-007 Expo 設定と Maps SDK キーの注入](./packages/mobile/adr/ADR-007-expo-config-and-maps-key-injection.md)
-    - [ADR-008 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有](./packages/mobile/adr/ADR-008-active-walk-state-and-route-cache.md)
-    - [ADR-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md)
-    - [ADR-010 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送](./packages/mobile/adr/ADR-010-photo-service-and-direct-s3-upload.md)
-    - [ADR-011 ピンの位置の選択と調整](./packages/mobile/adr/ADR-011-pin-location-picking-and-adjustment.md)
-    - [ADR-012 登録済みピンの地図表示とピン詳細](./packages/mobile/adr/ADR-012-pin-map-display-and-detail.md)
-    - [ADR-013 ピンのタグ入力の候補](./packages/mobile/adr/ADR-013-pin-tag-suggestions.md)
-    - [ADR-014 地図一覧と地図詳細](./packages/mobile/adr/ADR-014-sanpo-map-list-and-detail.md)
+    - [ADR-M-001 フォルダ構造](./packages/mobile/adr/ADR-M-001-folder-structure.md)
+    - [ADR-M-002 技術スタック（StyleSheet + Theme Context / TanStack Query + Zustand / react-native-maps / Orval）](./packages/mobile/adr/ADR-M-002-mobile-tech-stack.md)
+    - [ADR-M-003 development build 前提と開発ループ](./packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)
+    - [ADR-M-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
+    - [ADR-M-005 スタイルは Unistyles をやめる](./packages/mobile/adr/ADR-M-005-styling-without-unistyles.md)
+    - [ADR-M-006 位置情報サービスは real/mock の2モード](./packages/mobile/adr/ADR-M-006-location-service-real-mock.md)
+    - [ADR-M-007 Expo 設定と Maps SDK キーの注入](./packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)
+    - [ADR-M-008 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有](./packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md)
+    - [ADR-M-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)
+    - [ADR-M-010 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送](./packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
+    - [ADR-M-011 ピンの位置の選択と調整](./packages/mobile/adr/ADR-M-011-pin-location-picking-and-adjustment.md)
+    - [ADR-M-012 登録済みピンの地図表示とピン詳細](./packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md)
+    - [ADR-M-013 ピンのタグ入力の候補](./packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)
+    - [ADR-M-014 地図一覧と地図詳細](./packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend
@@ -57,7 +57,7 @@
 | 言語 | TypeScript |
 | フレームワーク | React Native (Expo) + Expo Router |
 | 状態管理 | TanStack Query（サーバー状態）+ Zustand（クライアント状態） |
-| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（デザイントークン・テーマは `src/theme` で管理。Unistyles は [mobile ADR-005](./packages/mobile/adr/ADR-005-styling-without-unistyles.md) で撤回） |
+| スタイリング | React Native 標準 `StyleSheet` + テーマ Context（デザイントークン・テーマは `src/theme` で管理。Unistyles は [ADR-M-005](./packages/mobile/adr/ADR-M-005-styling-without-unistyles.md) で撤回） |
 | 地図 | react-native-maps |
 | APIクライアント | Orval（OpenAPIから生成）+ MSWモック |
 | テスト | Vitest（ユニット）/ Maestro（E2E） |

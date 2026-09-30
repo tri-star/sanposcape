@@ -1,4 +1,6 @@
-# ADR-XXXX: [タイトル]
+# ADR-XXX: [タイトル]
+
+<!-- 番号の表記: ルート docs/adr は ADR-001、package 固有は ADR-F-001（frontend）/ ADR-B-001（backend）/ ADR-M-001（mobile）。ADR 作成時にこのコメントは削除する -->
 
 ## 日付
 

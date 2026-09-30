@@ -32,7 +32,7 @@ Android のハードウェアバック経由では**実質到達しない**可�
 `packages/mobile/src/features/history/components/WalkDetailView.tsx`。
 
 **2026-09-25 追記（SS-124、ポジティブな適用例）**: `PinLocationAdjustOverlay.tsx`（位置調整の
-全画面オーバーレイ）は、この既知の問題を ADR-011 D7 で明示的に引用したうえで **RN `Modal` を
+全画面オーバーレイ）は、この既知の問題を ADR-M-011 D7 で明示的に引用したうえで **RN `Modal` を
 使わない**設計（`position: absolute` の素の `View`）を選んでいる。理由は「`Modal` 内の
 `MapView` の Android 不具合（react-native-maps #3890/#4893）」と「`Modal` が
 `onIntercept` を届かなくする」の両方。`PinRegisterView.tsx` の `useScreenBack({ onIntercept })`

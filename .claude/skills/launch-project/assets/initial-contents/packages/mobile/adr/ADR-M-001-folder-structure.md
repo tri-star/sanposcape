@@ -1,4 +1,4 @@
-# ADR-001: mobile(ReactNative/Expo) のフォルダ構造と命名規則
+# ADR-M-001: mobile(ReactNative/Expo) のフォルダ構造と命名規則
 
 ## 日付
 

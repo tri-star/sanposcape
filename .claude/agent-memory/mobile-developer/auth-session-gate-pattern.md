@@ -9,7 +9,7 @@ metadata:
 SS-13 で `packages/mobile/src/store/useAuthSessionStore.ts` / `src/features/auth/lib/authGate.ts` /
 `src/features/auth/components/AuthGate.tsx` / `src/features/auth/hooks/useAuthSessionBootstrap.ts` を
 新設し、認証状態の参照とゲートを1箇所に集約した（詳細は
-`packages/mobile/adr/ADR-009-auth-session-state-and-route-gate.md`）。
+`packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md`）。
 
 **Why**: それまで `SplashView` が `restoreSession()` を、`SettingsView` が
 `authService.getCurrentUser()` を各自で読んでおり、(1) ディープリンクのコールドスタートで
@@ -81,7 +81,7 @@ SS-37 で2例目: `app/walk-summary.tsx` が `isSignedIn`（`state.status === "a
 `onSignIn`（`router.push("/(auth)/sign-in")`）を `WalkSummaryView` props →
 `useWalkSummary({ isSignedIn })` → `useWalkSave(draft, { isSignedIn })` へ注入する。
 横断hookを作る案は「間に1枚挟むことで形式的にだけ規約を回避する」ことになり却下した
-（採用するならADR-009の追補が必要という整理）。セレクタは必ずプリミティブを返すこと
+（採用するならADR-M-009の追補が必要という整理）。セレクタは必ずプリミティブを返すこと
 （オブジェクトを返すとzustand v5で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
 文言の組み立て自体はViewに書かず、feature内の`lib/`の純粋関数（例: `greeting.ts`）に閉じる。
 
@@ -92,4 +92,4 @@ SS-37 で2例目: `app/walk-summary.tsx` が `isSignedIn`（`state.status === "a
 への import を禁止した。既存コードが依存していなければ新規違反ゼロで通り、「探索/散歩ロジックは
 認証状態に依存しない」を規律ではなく構造で担保できる。将来ゲスト散歩でwalk側が認証状態を見る
 必要が出ても、overrideを外すのではなく「ゲスト可否」をprops/引数で渡す形に寄せる方針
-（ADR-009の申し送り）。
+（ADR-M-009の申し送り）。

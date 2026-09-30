@@ -4,7 +4,7 @@ description: SS-1 で決めた Claude Design と mobile リポジトリ間の SS
 metadata:
   type: reference
   scope: durable
-  adr: packages/mobile/adr/ADR-005-styling-without-unistyles.md
+  adr: packages/mobile/adr/ADR-M-005-styling-without-unistyles.md
 ---
 
 デザイントークンの**値**の SSoT は Claude Design プロジェクト `ea6ab024-4c09-45b2-94f5-0a6a0315a88d`
