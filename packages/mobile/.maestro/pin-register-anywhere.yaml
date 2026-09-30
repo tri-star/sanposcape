@@ -1,6 +1,6 @@
-# 散歩していないときのピン登録（SS-124）: サインイン → ピンタブの「地図からピンを登録する」
-# → 地点選択画面で長押し → 登録画面 → 名前 → 位置を調整（タップ → 確定）→ 保存 → ピンタブへ戻る。
-# 保存完了トーストはピンタブの PinTabView が出す（SS-145）。
+# 散歩していないときのピン登録（SS-124 / SS-146）: サインイン → ピンタブの地図を長押し
+# → 登録画面 → 名前 → 位置を調整（タップ → 確定）→ 保存 → ピンタブへ戻る。
+# 保存完了トーストはピンタブの PinTabView が出す（SS-145 / SS-146）。
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
@@ -17,22 +17,17 @@ tags:
 - runFlow: subflows/sign-in.yaml
 - extendedWaitUntil:
     visible:
-      id: "pin-tab-add-pin"
+      id: "pin-tab-map"
     timeout: 15000
-- tapOn:
-    id: "pin-tab-add-pin"
-- extendedWaitUntil:
-    visible:
-      id: "pin-location-picker-map"
-    timeout: 15000
+# 地図の中心（= mock の現在地）を避けて長押しする。E2E ユーザーのピンは同じ地点に溜まり、
+# マーカーは座標の上側に描かれるので、中心より下を押す。
+# 不安定なら `longPressOn: { id: "pin-tab-map" }`（中心）に戻すこと。
 - longPressOn:
-    id: "pin-location-picker-map"
+    point: "50%,62%"
 - extendedWaitUntil:
     visible:
       id: "pin-register-screen"
     timeout: 10000
-- assertNotVisible:
-    id: "pin-location-picker-screen"
 - extendedWaitUntil:
     notVisible:
       id: "pin-register-sanpo-map-loading"
