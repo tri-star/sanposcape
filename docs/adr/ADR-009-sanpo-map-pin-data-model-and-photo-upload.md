@@ -1215,7 +1215,7 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 
 - **決定: ページングを続けず、1リクエスト（`limit=200`。地図ごと）で打ち切り、mobile の
   `/pins/map`（SS-147 で削除。現在はピンタブ）では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
-  （詳細・理由は mobile [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
+  （詳細・理由は [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
   backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
 - mobile は地図ごとに `GET /pins` を並列に呼んでマージする（`sanpo_map_id` 必須のまま。
   ADR-M-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数

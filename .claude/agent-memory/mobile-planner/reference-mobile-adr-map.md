@@ -27,6 +27,6 @@ ADR を覆す/追補する場合は `.claude/skills/adr-writing/SKILL.md` スキ
   決定理由 / 影響（ポジティブ・ネガティブ・移行が必要な事項）/ 関連情報。
   追補は日付行に「YYYY-MM-DD 追補（SS-XX）」を足し、本文の該当箇所に `（SS-XX 追補）` を付ける。
   「移行・対応が必要な事項」で解決済みになった項目は、消さずに**取り消し線＋`→ SS-xx で決着`** で残す
-  （ルートの ADR-003 / ADR-M-008 がこの書式の実例）。
+  （ADR-M-008 がこの書式の実例）。
 
 Related: [[reference-planning-inputs]], [[auth-architecture]]

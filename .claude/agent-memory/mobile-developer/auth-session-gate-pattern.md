@@ -81,7 +81,7 @@ SS-37 で2例目: `app/walk-summary.tsx` が `isSignedIn`（`state.status === "a
 `onSignIn`（`router.push("/(auth)/sign-in")`）を `WalkSummaryView` props →
 `useWalkSummary({ isSignedIn })` → `useWalkSave(draft, { isSignedIn })` へ注入する。
 横断hookを作る案は「間に1枚挟むことで形式的にだけ規約を回避する」ことになり却下した
-（採用するならADR-009の追補が必要という整理）。セレクタは必ずプリミティブを返すこと
+（採用するならADR-M-009の追補が必要という整理）。セレクタは必ずプリミティブを返すこと
 （オブジェクトを返すとzustand v5で毎レンダー新しい参照になり無駄な再レンダーが起きる）。
 文言の組み立て自体はViewに書かず、feature内の`lib/`の純粋関数（例: `greeting.ts`）に閉じる。
 
