@@ -22,54 +22,31 @@
     // 同様に検出される。このリポジトリでは意図的に使っている手法なので無効化する。
     "react/refs": "off"
   },
+  // no-restricted-imports は同じルールの override を「後勝ちで置き換える」（マージしない）。
+  // そのため、複数の制限を受ける範囲（features/{walk,history,pin}/**）の override には両方のパターンを持たせる。
+  // パターンと message の同期は src/config/oxlintRestrictedImports.test.ts が機械的に検査する。
   "overrides": [
     {
+      // @/config/devTools は app/ 以外のすべて（src/**）から import 禁止。
+      // devTools.ts 自身は自分を import しないので、除外は不要。相対 import は `**/devTools` で塞ぐ。
+      "files": ["src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/config/devTools", "**/devTools"],
+                "message": "@/config/devTools は expo-constants / expo-updates（ネイティブ依存）を読むため、app/ 以外から import してはいけない（Vitest の対象からも import できない）。開発ツールの可否はルート（app/）が isDevToolsEnabled() で読み、props で注入する（SS-148 / mobile ADR-007）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // 探索・散歩・履歴・ピン登録は認証にも依存させない。上の src/** の制限を置き換えるので devTools も再掲する。
       "files": ["src/features/walk/**", "src/features/history/**", "src/features/pin/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["@/services/auth", "@/services/auth/*", "@/store/useAuthSessionStore"],
-                "message": "探索・散歩・履歴・ピン登録のロジックは認証状態に依存させない（SS-13 / SS-88 / ADR-009）。認証済みかどうかはルート（app/）が useAuthSessionStore から読み、props で注入する。認証トークンは customFetch が @/api/authTokenProvider 経由で付与する。"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": [
-        "src/lib/**",
-        "src/api/**",
-        "src/hooks/**",
-        "src/store/**",
-        "src/services/**",
-        "src/theme/**",
-        "src/types/**",
-        "src/features/*/lib/**"
-      ],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["@/config/devTools"],
-                "message": "@/config/devTools は expo-constants / expo-updates（ネイティブ依存）を読むため Vitest の対象から import してはいけない。開発ツールの可否はルート（app/）が isDevToolsEnabled() で読み、props で注入する（SS-148 / mobile ADR-007）。"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": [
-        "src/features/walk/lib/**",
-        "src/features/history/lib/**",
-        "src/features/pin/lib/**"
-      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -80,8 +57,8 @@
                 "message": "探索・散歩・履歴・ピン登録のロジックは認証状態に依存させない（SS-13 / SS-88 / ADR-009）。認証済みかどうかはルート（app/）が useAuthSessionStore から読み、props で注入する。認証トークンは customFetch が @/api/authTokenProvider 経由で付与する。"
               },
               {
-                "group": ["@/config/devTools"],
-                "message": "@/config/devTools は expo-constants / expo-updates（ネイティブ依存）を読むため Vitest の対象から import してはいけない。開発ツールの可否はルート（app/）が isDevToolsEnabled() で読み、props で注入する（SS-148 / mobile ADR-007）。"
+                "group": ["@/config/devTools", "**/devTools"],
+                "message": "@/config/devTools は expo-constants / expo-updates（ネイティブ依存）を読むため、app/ 以外から import してはいけない（Vitest の対象からも import できない）。開発ツールの可否はルート（app/）が isDevToolsEnabled() で読み、props で注入する（SS-148 / mobile ADR-007）。"
               }
             ]
           }

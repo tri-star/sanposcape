@@ -149,6 +149,7 @@ describe("ビルド設定との契約", () => {
     (name) => [name, resolveEasProfile(easJson.build, name)] as const,
   );
   const others = resolved.filter(([name]) => name !== "production");
+  const production = resolved.find(([name]) => name === "production")?.[1];
 
   describe("eas.json（extends を解決した値で検査）", () => {
     it("extends の解決は循環・未定義の親を検出する", () => {
@@ -159,11 +160,11 @@ describe("ビルド設定との契約", () => {
     });
 
     it("production は APP_VARIANT=production を持つ", () => {
-      expect(easJson.build.production?.env?.APP_VARIANT).toBe("production");
+      expect(production?.env?.APP_VARIANT).toBe("production");
     });
 
     it("production の channel が PRODUCTION_UPDATES_CHANNEL と一致する", () => {
-      expect(easJson.build.production?.channel).toBe(PRODUCTION_UPDATES_CHANNEL);
+      expect(production?.channel).toBe(PRODUCTION_UPDATES_CHANNEL);
     });
 
     it("distribution が store のプロファイルは、本番相当なら APP_VARIANT=production と production チャネルの両方を持つ", () => {

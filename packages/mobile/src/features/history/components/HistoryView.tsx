@@ -12,6 +12,7 @@ import {
   HISTORY_SIGN_IN_DESCRIPTION,
   HISTORY_SIGN_IN_TITLE,
   resolveHistoryStatsState,
+  type HistoryAuthState,
 } from "@/features/history/lib/historyStatsState";
 import {
   isRetriableWalkStatsError,
@@ -23,8 +24,11 @@ import { useTheme } from "@/theme/useTheme";
 export type HistoryViewProps = {
   /** サインイン中ユーザーの表示名。未サインイン/復元中は null。 */
   displayName: string | null;
-  /** サインイン中か。ルート（app/(tabs)/account.tsx）が注入する（features/history は認証を読まない。ADR-009 決定8）。 */
-  isSignedIn: boolean;
+  /**
+   * 認証状態（サインイン中 / ゲスト / セッション復元中）。ルート（app/(tabs)/account.tsx）が注入する
+   * （features/history は認証を読まない。ADR-009 決定8）。
+   */
+  authState: HistoryAuthState;
   /** ゲスト向けサインイン案内のボタン。 */
   onSignIn: () => void;
   /**
@@ -41,15 +45,15 @@ export type HistoryViewProps = {
  * （集計 API が落ちても履歴一覧は見られるようにするため）。
  * ゲストには集計・「最近の散歩」を出さず、サインイン案内を出す（通信しない。SS-148）。
  *
- * `isSignedIn` は認証状態を boolean に圧縮した値で、`loading`（セッション復元中）と `unauthenticated` を
- * 区別できない。`loading` をゲストとして扱ってよいのは、起動時のスプラッシュ（`app/index.tsx` の `SplashView`）が出ている間に
- * セッション復元が終わり、状態が確定してからこの画面が表示される前提だから。復元中にこの画面が見える構成へ変える場合は、
- * `status` を props で渡す形に見直すこと。
+ * 復元中（`restoring`）は通信せず、集計部分に読み込み表示（`loading` と同じ見た目）を出し、サインイン案内も
+ * 「最近の散歩」も出さない。コールドスタートのディープリンクでは `AuthGate` が `loading` の間も children を通すため、
+ * 復元中にこの画面が見えうる。サインイン済みのユーザーにサインイン案内を一瞬でも見せない。
  */
-export function HistoryView({ displayName, isSignedIn, onSignIn, footer }: HistoryViewProps) {
+export function HistoryView({ displayName, authState, onSignIn, footer }: HistoryViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const isSignedIn = authState === "signed-in";
   const {
     greeting,
     period,
@@ -63,7 +67,7 @@ export function HistoryView({ displayName, isSignedIn, onSignIn, footer }: Histo
     reload,
   } = useHistorySummary({ displayName, enabled: isSignedIn });
 
-  const statsState = resolveHistoryStatsState({ isSignedIn, errorCode, isLoading });
+  const statsState = resolveHistoryStatsState({ authState, errorCode, isLoading });
 
   const renderStats = () => {
     switch (statsState.kind) {
@@ -91,6 +95,7 @@ export function HistoryView({ displayName, isSignedIn, onSignIn, footer }: Histo
             }
           />
         );
+      case "restoring":
       case "loading":
         return (
           <View style={styles.loading} testID="history-stats-loading">

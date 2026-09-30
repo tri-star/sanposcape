@@ -1,9 +1,9 @@
-import { Redirect, useRouter } from "expo-router";
-import { useCallback } from "react";
+import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 
 import { PinTabView } from "@/features/pin/components/PinTabView";
 import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
+import { useSignInNavigation } from "@/hooks/useSignInNavigation";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { useTheme } from "@/theme/useTheme";
 
@@ -20,11 +20,10 @@ import { useTheme } from "@/theme/useTheme";
  */
 export default function PinTabRoute() {
   const theme = useTheme();
-  const router = useRouter();
   const decision = usePinRegistrationGate();
   // セレクタはプリミティブを返す（zustand v5）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
-  const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
+  const handleSignIn = useSignInNavigation();
   if (decision === "pending") {
     return (
       <View

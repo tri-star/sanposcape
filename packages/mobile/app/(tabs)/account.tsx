@@ -3,9 +3,11 @@ import { useCallback } from "react";
 
 import { AccountActionBar } from "@/features/account/components/AccountActionBar";
 import type { AccountActionHref } from "@/features/account/lib/accountActions";
+import type { HistoryAuthState } from "@/features/history/lib/historyStatsState";
 import { HistoryView } from "@/features/history/components/HistoryView";
 import { isDevToolsEnabled } from "@/config/devTools";
 import { useNavigateOnce } from "@/hooks/useNavigateOnce";
+import { useSignInNavigation } from "@/hooks/useSignInNavigation";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
@@ -17,21 +19,21 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * （features/history は認証へ依存させない。ADR-009 決定8・SS-29 追補、.oxlintrc.json の
  * no-restricted-imports。feature 間の import も作らないので、帯は `footer` スロットで差し込む）。
  * タブ画面なので `useScreenBack` は使わない（backBehavior を奪うため）。二重遷移は `useNavigateOnce` で防ぐ。
- * `isSignedIn` は `status === "authenticated"` への圧縮で、`loading`（セッション復元中）もゲスト扱いになる。
- * 問題ないのは、起動時のスプラッシュ（`app/index.tsx` の `SplashView`）が出ている間にセッション復元が
- * 終わり、状態が確定してからタブ画面が表示される前提だから（`AuthGate` / `useAuthSessionBootstrap`）。この前提が崩れると、復元中にゲスト向けのサインイン案内が一瞬出る。
+ * 認証状態は `status` を3値（`signed-in` / `guest` / `restoring`）に写して渡す。`loading`（セッション復元中）を
+ * ゲストにしないのは、コールドスタートのディープリンク（`sanposcape://account` 等）では `AuthGate` が `loading` の間も
+ * children を通し、サインイン済みのユーザーにサインイン案内が一瞬見えてしまうため。復元中は `HistoryView` が読み込み表示を出す。
+ * サインイン遷移は `useSignInNavigation` に、設定・画面カタログと同じラッチ（`runOnce`）を渡して共有する。
  * 遷移は push（replace にすると `(tabs)` ごと置き換わってタブバーが消える）。
  */
 export default function AccountRoute() {
   const router = useRouter();
   // セレクタはプリミティブを返す（zustand v5）。
   const displayName = useAuthSessionStore((state) => state.user?.displayName ?? null);
-  const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
+  const status = useAuthSessionStore((state) => state.status);
+  const authState: HistoryAuthState =
+    status === "authenticated" ? "signed-in" : status === "loading" ? "restoring" : "guest";
   const { runOnce } = useNavigateOnce();
-  const handleSignIn = useCallback(
-    () => runOnce(() => router.push("/(auth)/sign-in")),
-    [runOnce, router],
-  );
+  const handleSignIn = useSignInNavigation(runOnce);
   const handleNavigate = useCallback(
     (href: AccountActionHref) => runOnce(() => router.push(href)),
     [runOnce, router],
@@ -39,7 +41,7 @@ export default function AccountRoute() {
   return (
     <HistoryView
       displayName={displayName}
-      isSignedIn={isSignedIn}
+      authState={authState}
       onSignIn={handleSignIn}
       footer={
         <AccountActionBar showScreenCatalog={isDevToolsEnabled()} onNavigate={handleNavigate} />
