@@ -5,7 +5,13 @@ import type {
   PinRead,
 } from "@/api/generated/model";
 import { isAllowedUploadUrl } from "@/features/pin/lib/presignedPostForm";
-import type { PinDetail, PinPhoto, PinPhotoPage, PinSummary } from "@/features/pin/types";
+import type {
+  PinDetail,
+  PinListEntry,
+  PinPhoto,
+  PinPhotoPage,
+  PinSummary,
+} from "@/features/pin/types";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 
 /**
@@ -44,6 +50,24 @@ export function toPinSummary(read: PinListItemRead): PinSummary | null {
     sanpoMapId: read.sanpo_map_id,
     name: read.name,
     location: { latitude: read.location.latitude, longitude: read.location.longitude },
+  };
+}
+
+/**
+ * 地図詳細のピン一覧の1件（SS-121）。座標は使わない（マーカーに渡さない）ので
+ * `isValidCoordinate` で落とさない。
+ */
+export function toPinListEntry(
+  read: PinListItemRead,
+  options: { apiBaseUrl: string },
+): PinListEntry {
+  return {
+    id: read.id,
+    name: read.name,
+    tags: read.tags.map((tag) => ({ id: tag.id, label: tag.label })),
+    coverPhoto: read.cover_photo !== null ? toPinPhoto(read.cover_photo, options) : null,
+    photoCount: read.photo_count,
+    createdAt: read.created_at,
   };
 }
 

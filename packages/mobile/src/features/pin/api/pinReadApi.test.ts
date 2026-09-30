@@ -15,6 +15,7 @@ import type {
 } from "@/api/generated/model";
 import {
   PIN_PHOTO_PAGE_SIZE,
+  fetchAllPinsInSanpoMap,
   fetchPinDetail,
   fetchPinPhotoPage,
   fetchPinsInBounds,
@@ -239,5 +240,162 @@ describe("fetchPinPhotoPage", () => {
       expect(error).toBeInstanceOf(ApiError);
       expect((error as ApiError).status).toBe(400);
     }
+  });
+});
+
+describe("fetchAllPinsInSanpoMap", () => {
+  const MAP_ID = "11111111-1111-4111-8111-111111111111";
+  const OPTIONS = { apiBaseUrl: API_BASE_URL };
+
+  /** 呼び出しごとに searchParams を記録し、pages を順に返す。 */
+  function serve(pages: Array<{ ids: string[]; next: string | null }>) {
+    const calls: URLSearchParams[] = [];
+    server.use(
+      http.get("*/pins", ({ request }) => {
+        const searchParams = new URL(request.url).searchParams;
+        calls.push(searchParams);
+        const page = pages[Math.min(calls.length - 1, pages.length - 1)]!;
+        return HttpResponse.json(
+          { items: page.ids.map((id) => listItem({ id })), next_cursor: page.next },
+          { status: 200 },
+        );
+      }),
+    );
+    return calls;
+  }
+
+  it("1ページで終わる（next_cursor null）→ truncated false・リクエスト1回", async () => {
+    const calls = serve([{ ids: ["a", "b"], next: null }]);
+
+    const result = await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS);
+
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(result.truncated).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("2ページ目の cursor に1ページ目の next_cursor が載り、1ページ目は cursor キーが無い", async () => {
+    const calls = serve([
+      { ids: ["a"], next: "cursor-1" },
+      { ids: ["b"], next: null },
+    ]);
+
+    const result = await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS);
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.has("cursor")).toBe(false);
+    expect(calls[1]!.get("cursor")).toBe("cursor-1");
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b"]);
+  });
+
+  it("クエリに sanpo_map_id・limit=200 があり、bbox・q・tags・cursor=null が無い", async () => {
+    const calls = serve([{ ids: [], next: null }]);
+
+    await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS);
+
+    const params = calls[0]!;
+    expect(params.get("sanpo_map_id")).toBe(MAP_ID);
+    expect(params.get("limit")).toBe("200");
+    for (const key of [
+      "q",
+      "tags",
+      "min_latitude",
+      "max_latitude",
+      "min_longitude",
+      "max_longitude",
+    ]) {
+      expect(params.has(key)).toBe(false);
+    }
+    expect([...params.values()]).not.toContain("null");
+  });
+
+  it("maxPages に達して next_cursor が残れば truncated true・リクエストちょうど maxPages 回", async () => {
+    const calls = serve([{ ids: ["a"], next: "more" }]);
+
+    const result = await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID, maxPages: 3 }, OPTIONS);
+
+    expect(calls).toHaveLength(3);
+    expect(result.truncated).toBe(true);
+    // 同じ id が繰り返し返っても1件にまとまる
+    expect(result.pins).toHaveLength(1);
+  });
+
+  it("maxPages ちょうどで next_cursor が null になれば truncated false", async () => {
+    const calls = serve([
+      { ids: ["a"], next: "c1" },
+      { ids: ["b"], next: null },
+    ]);
+
+    const result = await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID, maxPages: 2 }, OPTIONS);
+
+    expect(calls).toHaveLength(2);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("maxPages が 0 以下・非有限なら既定（5ページ）", async () => {
+    const calls = serve([{ ids: ["a"], next: "more" }]);
+
+    await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID, maxPages: 0 }, OPTIONS);
+
+    expect(calls).toHaveLength(5);
+  });
+
+  it("ページをまたいだ同じ id は1件にまとまる（先勝ち）", async () => {
+    serve([
+      { ids: ["a", "b"], next: "c1" },
+      { ids: ["b", "c"], next: null },
+    ]);
+
+    const result = await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS);
+
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("UUID でない sanpoMapId は通信せず ApiError(404)", async () => {
+    const calls = serve([{ ids: [], next: null }]);
+
+    await expect(
+      fetchAllPinsInSanpoMap({ sanpoMapId: "not-a-uuid" }, OPTIONS),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([404, 400])("%d は ApiError になる", async (status) => {
+    server.use(http.get("*/pins", () => new HttpResponse(null, { status })));
+
+    await expect(fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS)).rejects.toThrow(ApiError);
+  });
+
+  it("2ページ目の失敗は全体の失敗になる", async () => {
+    let count = 0;
+    server.use(
+      http.get("*/pins", () => {
+        count += 1;
+        return count === 1
+          ? HttpResponse.json({ items: [listItem({ id: "a" })], next_cursor: "c" }, { status: 200 })
+          : new HttpResponse(null, { status: 500 });
+      }),
+    );
+
+    await expect(fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS)).rejects.toThrow(ApiError);
+  });
+
+  it("cover_photo の URL が許可されなければ thumbnailUrl は null", async () => {
+    server.use(
+      getListPinsMockHandler({
+        items: [
+          listItem({
+            cover_photo: photo({
+              thumbnail: { url: "http://evil.example.com/t.jpg", width: 10, height: 10 },
+            }),
+          }),
+        ],
+        next_cursor: null,
+      }),
+    );
+
+    const result = await fetchAllPinsInSanpoMap({ sanpoMapId: MAP_ID }, OPTIONS);
+
+    expect(result.pins[0]?.coverPhoto?.thumbnailUrl).toBeNull();
   });
 });

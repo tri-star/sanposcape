@@ -6,6 +6,7 @@ import {
   pinListQueryKey,
   pinPhotosQueryKey,
   pinTagSuggestionsQueryKey,
+  sanpoMapPinsQueryKey,
 } from "@/features/pin/lib/pinQueryKeys";
 import type { GeoBounds } from "@/features/pin/types";
 
@@ -31,5 +32,13 @@ describe("pinQueryKeys", () => {
     expect(pinDetailQueryKey("pin-1")).not.toEqual(pinDetailQueryKey("pin-2"));
     expect(pinTagSuggestionsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-2"));
     expect(pinTagSuggestionsQueryKey(null)).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
+  });
+
+  it("sanpoMapPinsQueryKey は PINS_QUERY_ROOT で始まり、地図ごとに異なり、他のキーと衝突しない", () => {
+    expect(sanpoMapPinsQueryKey("map-1")[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(sanpoMapPinsQueryKey("map-1")).toEqual(sanpoMapPinsQueryKey("map-1"));
+    expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(sanpoMapPinsQueryKey("map-2"));
+    expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(pinDetailQueryKey("map-1"));
+    expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
   });
 });
