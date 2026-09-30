@@ -1214,7 +1214,7 @@ list_photo_keys_for_map()`（キー収集）と `photos/cleanup.py` の `PhotoOb
 SS-118 で決める」（本文「一覧の必須パラメータ・並び順・件数上限」）を決着させた。
 
 - **決定: ページングを続けず、1リクエスト（`limit=200`。地図ごと）で打ち切り、mobile の
-  `/pins/map` では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
+  `/pins/map`（SS-147 で削除。現在はピンタブ）では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
   （詳細・理由は mobile [ADR-012](../../packages/mobile/adr/ADR-012-pin-map-display-and-detail.md) D3）。
   backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
 - mobile は地図ごとに `GET /pins` を並列に呼んでマージする（`sanpo_map_id` 必須のまま。

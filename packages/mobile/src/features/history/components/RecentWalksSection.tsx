@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button/Button";
 import { HistoryStateCard } from "@/features/history/components/HistoryStateCard";
 import { WalkHistoryCard } from "@/features/history/components/WalkHistoryCard";
 import { useWalkHistory } from "@/features/history/hooks/useWalkHistory";
+import { recentWalksTestIds } from "@/features/history/lib/recentWalksTestIds";
 import {
   WALK_HISTORY_EMPTY_DESCRIPTION,
   WALK_HISTORY_EMPTY_TITLE,
@@ -17,18 +18,24 @@ import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type RecentWalksSectionProps = {
-  testID?: string;
+  /**
+   * testID の接頭辞（`recentWalksTestIds` を参照）。省略時は記録（アカウント）タブの既存 testID。
+   * 同じセクションを2つのタブに出すため、2つ目以降の呼び出し側は必ず指定する（SS-147）。
+   */
+  testIDPrefix?: string;
 };
 
-/** 記録タブに表示する件数の上限。 */
+/** 表示する件数の上限（両タブ共通）。 */
 const RECENT_WALKS_COUNT = 3;
 
 /**
- * RecentWalksSection — 記録タブに置く「最近の散歩」セクション。
+ * RecentWalksSection — 記録（アカウント）タブと、散歩していないときのナビタブ
+ * （SS-147。ルート `app/(tabs)/index.tsx` が合成）に置く「最近の散歩」セクション。
  * `/walk-history` と同じ queryKey（`useWalkHistory`）を共有するため、「すべて見る」で
  * 一覧へ遷移しても追加のネットワーク呼び出しは発生しない。
  */
-export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
+export function RecentWalksSection({ testIDPrefix }: RecentWalksSectionProps) {
+  const ids = recentWalksTestIds(testIDPrefix);
   const theme = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -39,7 +46,7 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
     if (history.errorCode !== null) {
       return (
         <HistoryStateCard
-          testID="recent-walks-error"
+          testID={ids.error}
           icon="alert-circle"
           tone="danger"
           title={walkHistoryErrorMessage(history.errorCode)}
@@ -54,7 +61,7 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
 
     if (history.isLoading) {
       return (
-        <View style={styles.loading} testID="recent-walks-loading">
+        <View style={styles.loading} testID={ids.loading}>
           <ActivityIndicator color={theme.colors.primary} />
         </View>
       );
@@ -63,7 +70,7 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
     if (items.length === 0) {
       return (
         <HistoryStateCard
-          testID="recent-walks-empty"
+          testID={ids.empty}
           icon="footprints"
           title={WALK_HISTORY_EMPTY_TITLE}
           description={WALK_HISTORY_EMPTY_DESCRIPTION}
@@ -77,7 +84,7 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
           <WalkHistoryCard
             key={item.id}
             item={item}
-            testID={`recent-walk-${index}`}
+            testID={ids.item(index)}
             onPress={() =>
               router.push({ pathname: "/walk-history/[walkId]", params: { walkId: item.id } })
             }
@@ -91,7 +98,7 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
   const showSeeAll = items.length > 0 || history.errorCode !== null;
 
   return (
-    <View testID={testID ?? "recent-walks-section"} style={styles.root}>
+    <View testID={ids.section} style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.title}>最近の散歩</Text>
         {showSeeAll ? (
@@ -101,7 +108,7 @@ export function RecentWalksSection({ testID }: RecentWalksSectionProps) {
             icon="chevron-right"
             iconPosition="right"
             onPress={() => router.push("/walk-history")}
-            testID="history-see-all-walks"
+            testID={ids.seeAll}
           >
             すべて見る
           </Button>

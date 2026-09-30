@@ -73,11 +73,10 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 `PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
 ダイアログを `onIntercept` で挟む。位置調整オーバーレイ（`PinLocationAdjustOverlay`。RN `Modal`
 ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124）/
-`PinLocationPickerView`（`pins/pick-location`。testID `pin-location-picker-back`。SS-124）/
-`PinMapView`（`pins/map`。testID `pin-map-back`。SS-118）/ `PinDetailView`（`pins/[pinId]`。
+`PinDetailView`（`pins/[pinId]`。
 testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` ではない画面内オーバーレイ）を
 開いている間は `onIntercept` で閉じる。SS-118）/ `SanpoMapListView`（`sanpo-maps`。
-testID `sanpo-map-list-back`。SS-146 の暫定画面。SS-121 で本実装）の8画面。
+testID `sanpo-map-list-back`。SS-146 の暫定画面。SS-121 で本実装）の6画面。
 `SettingsView` と `(tabs)` 配下の各画面は
 未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
 戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
@@ -92,10 +91,8 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 - 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
   判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
 - 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
-  遷移は1回。適用済み8画面では、戻る以外でその画面から出る遷移（例:
-  `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」、
-  `PinLocationPickerView` の長押し確定 → `router.replace("/pins/new", ...)`。SS-124、
-  `PinMapView` のピンタップ → `router.push("/pins/[pinId]", ...)`。SS-118）も
+  遷移は1回。適用済み6画面では、戻る以外でその画面から出る遷移（例:
+  `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」）も
   すべて `runOnce` 経由にする。
 - BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
 - 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
@@ -107,11 +104,10 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
     `closeKind`）は `variant="surface"`（地図の上でも視認できる影付きの面）にする。
     ピンタブは戻る/閉じるボタンを持たないため `PinMapFullScreen` ではなく `PinMapCanvas` を
     直接使う（SS-146）。
-    「画面として使う」場合（`closeKind="back"`。地点選択画面 `PinLocationPickerView`）は
-    `icon="chevron-left" / label="戻る"`、「オーバーレイとして重ねる」場合
-    （`closeKind="close"`。位置調整オーバーレイ `PinLocationAdjustOverlay`）は
-    `icon="x" / label="閉じる"` にする（SS-124）。(c) 閲覧 `/pins/map`（`PinMapView`）も
-    「画面として使う」ため `closeKind="back"` にする（SS-118）。
+    「オーバーレイとして重ねる」場合（`closeKind="close"`。位置調整オーバーレイ
+    `PinLocationAdjustOverlay`）は `icon="x" / label="閉じる"` にする（SS-124）。
+    「画面として使う」場合（`closeKind="back"`）は `icon="chevron-left" / label="戻る"`
+    （SS-124 の地点選択画面・SS-118 の `/pins/map` で使っていた。両画面は SS-147 で削除）。
 - 戻るボタンには `<画面>-back` の `testID` を付ける（例: `walk-start-back` / `walk-history-back` /
   `walk-detail-back`）。Maestro からの参照に使う。上記の「閉じる」ボタンには
   `<接頭辞>-close`（例: `pin-location-adjust-close`）を付ける（SS-124）。
@@ -203,8 +199,12 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
      付与する形にする（例: `TabBar` の `itemTestIDPrefix?: string`。未指定時は `testID={undefined}`
      のまま何も付かない）。固定 testID を埋め込むと、同じプリミティブを複数箇所で使ったときに
      testID が衝突する。登録済みピンの `Marker`（`RegisteredPinMarkers`）も同じ形で、
-     `${testIDPrefix}-${pin.id}`（実例: `walk-active-pin-<pinId>` / `pin-map-pin-<pinId>` / `pin-tab-pin-<pinId>`）になる。
+     `${testIDPrefix}-${pin.id}`（実例: `walk-active-pin-<pinId>` / `pin-tab-pin-<pinId>`）になる。
      E2E からの参照は想定しない（ピン ID をフローから知る手段が無いため。SS-118）。
+   - **複数のタブにマウントされうるセクションも同じ**。タブ画面は一度開くとマウントされたまま残るため、
+     固定 testID だと同時に存在して衝突する。呼び出し側の接頭辞から組み立て、既存 E2E が依存する
+     既定値は接頭辞なしのときだけ返す（実例: `RecentWalksSection` の `testIDPrefix` / `recentWalksTestIds`。
+     ナビタブは `walk-active-recent-walks`。SS-147）。
    - **状態によって表示が切り替わるコンポーネントは、root の `testID` を状態ごとに付け替えない**。
      root は同じ `testID` のまま据え置き、その状態でしか描画されない内側の要素にだけ
      `${testID}-<state>` を追加する（例: `WalkSaveStatus` の `walk-summary-save-status-saved`。error は

@@ -32,8 +32,6 @@ type PinMapCanvasCommonProps = {
   accessibilityHint: string;
   /** null の間は地図を出さず読み込み表示にする（現在地の初回取得中）。 */
   initialRegion: MapRegion | null;
-  /** 読み込み表示の文言。既定「現在地を取得しています…」。 */
-  loadingLabel?: string;
   /** 選択中の位置（(a) のピン）。null ならマーカーを出さない。 */
   selectedLocation: GeoCoordinates | null;
   /** 現在地。null なら出さない。 */
@@ -51,7 +49,7 @@ type PinMapCanvasCommonProps = {
 
 export type PinMapCanvasProps = PinMapCanvasCommonProps & PinMapPickProps;
 
-const DEFAULT_LOADING_LABEL = "現在地を取得しています…";
+const LOADING_LABEL = "現在地を取得しています…";
 const FOCUS_ANIMATION_MS = 400;
 /** `mapLayers` のマーカー（既定 0）より選択・現在地マーカーを上に描く（SS-118）。 */
 const SELECTED_MARKER_Z_INDEX = 1;
@@ -59,7 +57,7 @@ const CURRENT_MARKER_Z_INDEX = 2;
 
 /**
  * PinMapCanvas — ピン関連の地図そのもの（SS-146 で `PinMapFullScreen` から切り出し）。
- * (a) 位置調整・(b) 地点選択・(c) `/pins/map` は `PinMapFullScreen` 経由で、
+ * (a) 位置調整は `PinMapFullScreen` 経由で、
  * (d) ピンタブ（SS-146）は直接使う。ヘッダー・通知・ツール・下部カード・safe area は持たない
  * （呼び出し側の責務）。地図の設定を1か所に保つ（ADR-011 D8）。
  * `showsUserLocation` は使わない（`WalkRouteMapView` と同じ理由。`EXPO_PUBLIC_LOCATION_MODE=mock`
@@ -70,7 +68,6 @@ export function PinMapCanvas({
   accessibilityLabel,
   accessibilityHint,
   initialRegion,
-  loadingLabel = DEFAULT_LOADING_LABEL,
   pickGesture,
   onPick,
   selectedLocation,
@@ -96,7 +93,7 @@ export function PinMapCanvas({
 
   const handlePick = (e: MapPressEvent | PoiClickEvent | LongPressEvent) => {
     const picked = toPickedCoordinate(e.nativeEvent.coordinate);
-    if (picked !== null) onPick?.(picked);
+    if (picked !== null) onPick(picked);
   };
 
   const handleRegionChangeComplete = (region: MapRegion) => {
@@ -111,7 +108,7 @@ export function PinMapCanvas({
         style={[styles.loading, { backgroundColor: theme.map.canvas }]}
       >
         <ActivityIndicator color={theme.colors.primary} />
-        <Text style={styles.loadingLabel}>{loadingLabel}</Text>
+        <Text style={styles.loadingLabel}>{LOADING_LABEL}</Text>
       </View>
     );
   }
@@ -138,7 +135,7 @@ export function PinMapCanvas({
         toolbarEnabled={false}
         onPress={pickGesture === "tap" ? handlePick : undefined}
         onPoiClick={pickGesture === "tap" ? handlePick : undefined}
-        onLongPress={pickGesture === "none" ? undefined : handlePick}
+        onLongPress={handlePick}
         // マーカーのタップでカメラを動かさない（登録済みピンはタップで詳細へ移るため。SS-118）。
         moveOnMarkerPress={false}
         onMapReady={() => {

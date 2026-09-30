@@ -14,6 +14,11 @@ metadata:
 
 **How to apply:** プランには必ず「どの ADR に何を追補するか」を作業項目として含める。既存決定を否定しない場合でも、範囲の明確化として追補を書く価値がある。
 
+**「別課題で削除する」予告を拾う**: 過去の計画が ADR 追補・JSDoc・Maestro のコメントに「◯◯の別課題で削除」と残していることがある
+（例: SS-146 → `/pins/map`・`/pins/pick-location`）。チケット本文に書かれていなくても、プラン作成時に
+`rg '別課題'` で拾い、今回がその課題に当たるなら「分離可能なフェーズ」としてスコープに含めるかを決めて handover に残す。
+含めない場合でも、予告の文言を更新しないと陳腐化する。
+
 毎回効いてくる制約:
 - **hooks / components はテストできない**（vitest は node 環境 + `react-native` 最小スタブ）。テストしたいロジックは `features/<f>/lib/` か `src/lib/` の純粋関数へ切り出すのが原則。ストア（zustand）と `features/<f>/api/` の素の fetcher（msw 可）はテストできる。
 - **`features/walk/**` `features/history/**` から `@/services/auth*` `@/store/useAuthSessionStore` は oxlint でエラー**（ADR-009 決定8）。認証由来の値は `app/` のルートが読んで **props で注入**する（実例: `app/(tabs)/history.tsx`、`app/walk-summary.tsx`）。逆向き（`features/auth` → `features/walk/store`）は許可。
