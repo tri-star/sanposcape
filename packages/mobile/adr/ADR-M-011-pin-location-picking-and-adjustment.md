@@ -184,7 +184,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 - **D12: `useCurrentLocation` / `LocationPermissionNotice` は `features/walk` から
   `src/hooks/useCurrentLocation.ts` / `src/components/location/LocationPermissionNotice.tsx` へ
   昇格する。** `features/pin` から使うため、2機能ルールに従う（`folder-structure.md`、
-  ADR-001 決定3）。`LocationPermissionNotice` は `services/location` の文言と「設定を開く」を
+  ADR-M-001 決定3）。`LocationPermissionNotice` は `services/location` の文言と「設定を開く」を
   含む完成品で、pin 側で作り直すと重複する。
 
 ## 検討した選択肢
@@ -331,10 +331,10 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 
 ### 影響
 
-- ピンタブの現在地は、フォーカスが戻るたびに（初回除く）静かに取り直す（`useCurrentLocation().refresh()`。`isLoading` を立てず、権限をリクエストせず、失敗しても前回値を保持し、30 秒以内はスキップする。フォールバック表示からの自動移動は静かな取り直しでは行わない。詳細は ADR-012 SS-146 追補）。
+- ピンタブの現在地は、フォーカスが戻るたびに（初回除く）静かに取り直す（`useCurrentLocation().refresh()`。`isLoading` を立てず、権限をリクエストせず、失敗しても前回値を保持し、30 秒以内はスキップする。フォールバック表示からの自動移動は静かな取り直しでは行わない。詳細は ADR-M-012 SS-146 追補）。
 - ピンタブの離脱遷移（長押し・ピンのタップ・地図一覧・サインイン）の二重発火は、`BackHandler` を購読しない `useNavigateOnce` で防ぐ（`useScreenBack` はタブのシステムバックの既定を奪うので使わない）。
 - E2E `pin-register-anywhere.yaml` の入口がピンタブの長押しになる。
-- ピンタブは着地点なので、位置情報の権限リクエストがログイン直後に出る（ADR-006「必要になった時点で」の範囲内と判断）。
+- ピンタブは着地点なので、位置情報の権限リクエストがログイン直後に出る（ADR-M-006「必要になった時点で」の範囲内と判断）。
 - 既知の限界「ゲストがサインインしても登録画面へ戻らない」は、ピンタブ起点ならサインイン後にピンタブへ戻る（既存の `(tabs)` へ `dismissTo`。地点は選び直し）。
 
 ## SS-147 追補: ナビタブの FAB と地点選択画面の削除（2026-09-30）

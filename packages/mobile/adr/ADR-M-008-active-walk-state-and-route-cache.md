@@ -114,7 +114,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 - **実害シナリオ（共有端末）**: 人物A がゲストのまま散歩を記録し、電波不良などで保存に失敗（401）、CTA を無視して「ホームへ」で離脱する（`useFinishedWalkStore` の `finishedWalk` は `saved: false` のままメモリに残留する。「記録を見る」「ホームへ」はいずれも `clearFinishedWalk()` を呼ばない）。後刻、人物B が同じ端末・同じアプリプロセスで、散歩の保存とは無関係に設定画面からサインインする。起点を見ていないと、この時点で人物Aの軌跡（機微な位置情報）が人物Bのアカウントへ無確認で `POST /walks` され、人物Bは強制的にサマリ画面へ連れて行かれてその内容を目にしてしまう。
 - **対応**: `useFinishedWalkStore` に明示的な意思表示フラグ `signInForSaveRequested`（初期値 false）と action `requestSignInForSave()` を追加した。`app/walk-summary.tsx` の CTA ハンドラ（`handleSignIn`）が `router.push("/(auth)/sign-in")` の**前**にこれを呼ぶ。`finishWalk()` / `markSaved()` / `clearFinishedWalk()` のいずれでも false にリセットする（「前回の結果を持ち越さない」という既存方針に揃えた）。
   - `nextWalkSaveFireKey`（`walkSaveTrigger.ts`）: 初回発火（`lastFiredKey === null`）は従来どおり無条件。**同じドラフトへの認証状態変化による再発火だけ** `signInForSaveRequested === true` を要求する。別ドラフトへの切り替わりは意思表示の対象外（新しいドラフトの初回発火に相当するため）。
-  - `getPostSignInDestination`（`features/auth/lib/postSignInDestination.ts`）: 入力を `hasUnsavedFinishedWalk` から `wantsToSaveFinishedWalk`（`finishedWalk !== null && !saved && signInForSaveRequested`）へ変更した。CTA を経由しない無関係なサインインでは `dismissTo("/walk-summary")` を選ばず、従来どおり `/walk-start` へ `replace` する（SS-145 追補: 既定の遷移先はピンタブ `/(tabs)/pins` に変わった。詳細は ADR-009 SS-145 追補）。
+  - `getPostSignInDestination`（`features/auth/lib/postSignInDestination.ts`）: 入力を `hasUnsavedFinishedWalk` から `wantsToSaveFinishedWalk`（`finishedWalk !== null && !saved && signInForSaveRequested`）へ変更した。CTA を経由しない無関係なサインインでは `dismissTo("/walk-summary")` を選ばず、従来どおり `/walk-start` へ `replace` する（SS-145 追補: 既定の遷移先はピンタブ `/(tabs)/pins` に変わった。詳細は ADR-M-009 SS-145 追補）。
   - `useAuthActions.ts` のセレクタも同じ条件に合わせて変更した（プリミティブを返す）。
 - **ADR-002（横断）決定6-1 との関係を明確化する**: 決定6-1 は「`POST /walks` は未認証では許可しない。サインインを促す導線に倒し、ゲスト記録を後からアカウントへマージする機能は作らない」としている。本追補（および SS-37 初版）はこの決定と矛盾しない。「サインインを促す導線」は SS-37 の CTA そのものであり、決定6-1 はむしろこれを指示している。決定6-1 が禁じる「マージ機能」は**既にサーバーに永続化されたゲスト記録の所有権付け替え**（決定理由に「所有権付け替えと `client_walk_id` 冪等キーの再設計という複雑さ」と明記）を指すが、ゲストの散歩はそもそも `POST /walks` が 401 で弾かれサーバーに永続化されない。SS-37 が扱うのは「未保存のままクライアント側に残ったドラフトを、CTA を押した本人が明示的にサインインして保存する」という決定6-1 が推奨する導線そのものであり、ADR-002 の修正は不要と判断した。
 - **見送った代替案**: 「未保存ドラフト離脱時（『記録を見る』『ホームへ』）に確認ダイアログを出し、`clearFinishedWalk()` を呼ぶ」という案も提示されたが、UX 変更（離脱ダイアログの新設）を伴い SS-37 のスコープ（行き止まり解消）を超えるため見送った。起点限定（本追補）だけでも実害シナリオ（無関係な後続サインインへの混入）は解消できる。「同一端末で CTA を押したのが別人」という残余リスク（人物Aが CTA を押した直後に人物Bが横から代わりにサインインする等）は本追補の対象外とし、フォローアップ課題として離脱時の明示的破棄を起票することを推奨する。
@@ -235,7 +235,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 
 - **概要**: `useActiveWalkStore` / `useFinishedWalkStore` に persist ミドルウェアを入れ、起動時に復元・再送する。
 - **メリット**: 「保存前にアプリが落ちると記録が消える」という初版からの残存リスクを解消できる。
-- **デメリット**: 永続ストレージの依存追加（`@expo/fingerprint` の変化 → ADR-004 の E2E APK キャッシュミス）と、測位のたびの書き出しスロットリング・起動時復元・古いドラフトの期限判定という独立した設計が必要になる。SS-19 の差分に混ぜるとレビュー不能な規模になる（決定5 を参照）。
+- **デメリット**: 永続ストレージの依存追加（`@expo/fingerprint` の変化 → ADR-M-004 の E2E APK キャッシュミス）と、測位のたびの書き出しスロットリング・起動時復元・古いドラフトの期限判定という独立した設計が必要になる。SS-19 の差分に混ぜるとレビュー不能な規模になる（決定5 を参照）。
 
 ## 決定理由
 

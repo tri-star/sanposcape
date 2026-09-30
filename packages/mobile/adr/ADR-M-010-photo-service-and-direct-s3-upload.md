@@ -236,7 +236,7 @@ TestFlight のビルド5（2026-09-22 配信）を iPhone 実機で試したと�
 
 と明記されており、`Blob` か `bytes()` を持つオブジェクト以外は
 `Error: Unsupported FormDataPart implementation` で送信前に落ちる
-（ADR-010 初版の「RN の `FormData`/`fetch` 実装（XHR ベースのポリフィル）はこの形を
+（ADR-M-010 初版の「RN の `FormData`/`fetch` 実装（XHR ベースのポリフィル）はこの形を
 ファイルパートとして解釈する」という前提は、Expo のランタイムでは成り立っていなかった）。
 
 そこで **`PreparedPhoto` に `file`（`UploadFileBody`）を持たせ、`services/photo` が組み立てた
