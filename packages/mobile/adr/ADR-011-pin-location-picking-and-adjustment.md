@@ -278,4 +278,4 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 - [ADR-010（mobile）: 写真サービスと presigned POST での S3 直送](./ADR-010-photo-service-and-direct-s3-upload.md)
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ）
-- 元チケット: SS-88 / PR #93
+- 元チケット: SS-88 / PR #93 / 関連: SS-124（PR #102）・SS-146（PR #114）

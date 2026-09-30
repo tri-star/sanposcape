@@ -56,6 +56,15 @@ Expo Router には「前の画面へ結果を返す」正式な手段が無い�
 （RN `Modal` はハードウェアバックを `onRequestClose` で先に取り、`useScreenBack` の `onIntercept` が
 届かない。`Modal` の中の `MapView` には Android で不具合報告もある: react-native-maps #3890 / #4893）。
 
+## タブ画面から Stack 画面へ出るときの前提（SS-146 の計画で整理）
+
+- **タブ画面から `/pins/new` 等へは push**。タブ画面の下は `(tabs)` ルートそのものなので、replace すると
+  `(tabs)` ごと置き換わってタブバーが消える。push ならスタックは `(tabs) → 子` になり、子の
+  `canGoBack() ? back() : replace(...)` でフォーカス中だったタブへ戻る（上の「中間画面 → replace」とは逆の結論になる）。
+- **タブ画面で `useScreenBack` を使わない**。`hardwareBackPress` を奪い、`backBehavior: firstRoute` の既定を変えてしまう。
+  二重遷移の防止が要るなら、`BackHandler` を購読しない `src/hooks/useNavigateOnce`（`useScreenBack` も内部で使う。
+  フォーカスで解除）を使う。画面内に自前のラッチを書かない（SS-146 のレビューで重複を指摘され共通化した）。
+
 ## 散歩開始「前」に副作用が無いことの根拠
 
 `clientWalkId` 採番・`useActiveWalkStore.startWalk()` は `WalkStartView.handleStartWalk` の中だけ。

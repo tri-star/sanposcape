@@ -214,6 +214,9 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 状態表示: `/pins/map` と同じ `resolvePinMapNotice`・案内（`PinMapStatusNotice` に切り出し）をピンタブ上部の情報カードで出す（D3 の打ち切り案内もピンタブで出す）。`RegisteredPinsMapLayer`（状態を出さない包み）は使わず、`useRegisteredPins` + `RegisteredPinMarkers` を直接使う。
 - D9 の追補: ゲストは地図を見られるが通信せず、サインイン案内を出す。サインイン成功後は `DEFAULT_LANDING_HREF` でピンタブへ戻るので、ピンタブでは「元の画面へ戻らない」限界が当たらない。
 - ボタン配置エリア（`PinTabActionBar`）を地図の下・タブバーの上に通常フローで置く（地図に重ねない）。最初のボタン「地図一覧」は `/sanpo-maps`（SS-121 まで暫定画面）。
+  - 構造は children スロット（横並び・右寄せ・折り返し）。並べるボタンの種類・出し分け条件が未確定なので、配列＋判定関数のデータ駆動より、呼び出し側が並べる方が変更に強いと判断した。使うのはピンタブだけなので `features/pin` に置く。
+  - 「地図一覧」は SS-121 が未完了でも常に表示し、遷移先に「準備中」の暫定画面（`SanpoMapListView`）を置く。却下案「SS-121 完了までボタンを出し分ける（非表示）」は、受け入れ条件「地図一覧ボタンが右寄せで表示される」を満たせないため採らなかった。v0.2 のストアリリース前に SS-121 が同じルート・testID（`sanpo-map-list-screen` / `sanpo-map-list-back`）のまま本実装に差し替える前提。
+  - `/sanpo-maps` は現状フラグ（`pin_registration`）だけでガードする（静的表示なので露出する情報が無い）。SS-121 で実データを出すときは、認証ガード（または未サインイン案内）と API 側の認可を必ず入れる。
 - `/pins/map` はナビタブの導線が残る間は残し、別課題で削除する。D14 の E2E はピンタブへ移し、`/pins/map` は表示確認だけ残す。
 
 ### 影響
@@ -229,4 +232,4 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - [ADR-011（mobile）: ピンの位置の選択と調整](./ADR-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール・feature 間の render slot 合成）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)（画面ガードレシピ・写真の扱い）
-- 元チケット: SS-118 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）
+- 元チケット: SS-118 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）・SS-146（PR #114）

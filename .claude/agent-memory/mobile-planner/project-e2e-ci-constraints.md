@@ -37,6 +37,10 @@ ADR-004 により CI の preview APK には Maps SDK キーが無く（地図は
 - `.maestro/auth-gate.yaml` は「未認証で walk-start へディープリンク → サインインへ弾かれる」を assert していた
   フロー。SS-57 でこの仕様自体が反転するので、認証ゲート関連の変更時は真っ先に確認する。
 
+- **地図の中心を長押し/タップする手順はマーカーに当たりうる**。E2E ユーザー（`e2e-user-1`）の登録済みピンは
+  mock の現在地（= 現在地起点の地図の中心）に溜まり、`MapPin` は座標の上側に描かれる。登録済みピンを描く地図で
+  地図そのものを押したいときは中心より下の `point` を使う（SS-146 の計画で判断）。
+
 ## 既存 testID（**リネーム禁止**。現行フローが依存）
 
 `splash-screen` / `sign-in-google-button` / `walk-start-screen` / `walk-start-duration-slider` / `walk-start-begin` /
