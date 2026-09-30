@@ -7,12 +7,12 @@ import { isUuid } from "@/lib/uuid";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
- * ピン詳細（`/pins/[pinId]`。SS-118）。散歩中の地図・`/pins/map` のピンをタップして push。
+ * ピン詳細（`/pins/[pinId]`。SS-118）。散歩中の地図・ピンタブのピンをタップして push。
  *
  * `pinId` は UUID 形式を確認してから渡す（`app/walk-history/[walkId].tsx` と同じ。
  * ディープリンクの不正値を API のパスへ到達させない。詳細は `isUuid` の JSDoc を参照）。
  * `app/pins/new.tsx` と同じ画面ガードレシピ（`docs/architecture-guideline.md`）。
- * Expo Router は静的ルート（`new` / `map` / `pick-location`）を動的ルートより優先するため衝突しない。
+ * Expo Router は静的ルート（`new`）を動的ルートより優先するため衝突しない。
  */
 export default function PinDetailRoute() {
   const router = useRouter();

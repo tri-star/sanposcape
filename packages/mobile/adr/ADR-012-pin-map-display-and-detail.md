@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-09-26、2026-09-30 追補（SS-146。ピンタブでの表示）
+2026-09-26、2026-09-30 追補（SS-146。ピンタブでの表示）、2026-09-30 追補（SS-147。/pins/map の削除とナビタブ idle の合成）
 
 ## ステータス
 
-採用（SS-118、SS-146 追補）。
+採用（SS-118、SS-146 追補、SS-147 追補）。
 
 ## コンテキスト
 
@@ -37,7 +37,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   最も価値が高い。idle のナビタブには地図が無いため別画面が要る。ADR-011 のユーザー決定
   「(b) の入口は SS-118 とは別画面として作る。入口の統合は SS-118 の後で検討」とも一致する。
   `/pins/map` への入口は idle の `WalkIdleNotice` 直下のテキスト付き `Button`
-  （「登録したピンを地図で見る」）。
+  （「登録したピンを地図で見る」）。（SS-147 追補: /pins/map は削除）
 - **D1': ピンをタップしたら直接 `/pins/[pinId]` へ push する（ユーザー追加要件）。**
   Marker に `title` を付けず、OS の吹き出しも出さない。モックの吹き出しカード
   （サムネイル + 「詳細画面を開く」）は挟まない。
@@ -93,7 +93,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   walk 固有の関数名を汎用名へ変える。** `features/pin`（詳細画面の登録日時）でも使うため2機能
   ルールに従う（`docs/folder-structure.md`）。SS-120（検索タブ）の日付表示でも再利用できる。
 - **D14: E2E は `/pins/map` の表示と取得完了（エラーにならない）までとし、マーカーのタップ →
-  詳細への遷移は E2E しない。** Google Maps の描画面上の `Marker` は testID で安定して触れず、
+  詳細への遷移は E2E しない。**（SS-147 追補: /pins/map は削除） Google Maps の描画面上の `Marker` は testID で安定して触れず、
   フローからピン ID を知る手段も無いため。詳細の状態判定は `pinDetailState.test.ts` が担う。
 - **D15: 全地図の `GET /pins` の結果は、`useQueries` の `combine` にモジュールレベルの純粋関数
   （`pinRead.ts` の `combineRegisteredPinListQueries`）を渡してマージする。** `combine` 未指定の
@@ -231,6 +231,14 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 直近 30 秒以内に取得できていれば何もしない（`src/lib/locationRefreshPolicy.ts` の `LOCATION_REFRESH_MIN_INTERVAL_MS`。タブを行き来するたびに GPS を起動しないため）。
 - モードは ref ではなくリクエストの state（`{ n, silent, ... }`）で持つ。取得中の `refresh` は何もしないので、同じ tick で `retry`（ユーザー操作）と重なっても `retry`（非 silent）が勝つ。
 - 地図の視点は動かさない。フォールバック表示から静かな取り直しで初めて現在地が取れた場合も自動移動しない（`useCurrentLocation` が `coordinatesFromRefresh` を返し、`usePinLocationPicker` が判定する）。現在地マーカーと「現在地」ボタンの移動先だけが新しくなる。
+
+## SS-147 追補: /pins/map の削除（2026-09-30）
+
+### 決定・理由
+
+- D1 の追補: 表示場所から `/pins/map`（idle のナビタブの「登録したピンを地図で見る」）を外す。ボタンとルート・`PinMapView` を削除する。表示場所は「散歩中のナビタブの地図」と「ピンタブ」の2つになる。
+- D14 の追補: E2E はピンタブのみ（SS-146 で移したもの）。`/pins/map` の表示確認も削除する。
+- D5 の補足: render slot による合成を、地図以外にも使う。`WalkActiveView.idleSection` に `features/history` の `RecentWalksSection` をルートが渡す（サインイン中だけ）。詳細は `docs/folder-structure.md`。
 
 ## 関連情報
 

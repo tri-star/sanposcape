@@ -59,7 +59,7 @@ const CURRENT_MARKER_Z_INDEX = 2;
 
 /**
  * PinMapCanvas — ピン関連の地図そのもの（SS-146 で `PinMapFullScreen` から切り出し）。
- * (a) 位置調整・(b) 地点選択・(c) `/pins/map` は `PinMapFullScreen` 経由で、
+ * (a) 位置調整は `PinMapFullScreen` 経由で、
  * (d) ピンタブ（SS-146）は直接使う。ヘッダー・通知・ツール・下部カード・safe area は持たない
  * （呼び出し側の責務）。地図の設定を1か所に保つ（ADR-011 D8）。
  * `showsUserLocation` は使わない（`WalkRouteMapView` と同じ理由。`EXPO_PUBLIC_LOCATION_MODE=mock`

@@ -1,6 +1,6 @@
 import { isRetriablePinReadError, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 
-/** `/pins/map` の下部カードに何を出すかの判定結果。 */
+/** ピンタブの情報カードに何を出すかの判定結果。 */
 export type PinMapNotice =
   | { kind: "sign-in" }
   | { kind: "loading" }

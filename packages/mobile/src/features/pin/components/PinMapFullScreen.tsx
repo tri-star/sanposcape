@@ -57,9 +57,9 @@ type PinMapFullScreenCommonProps = {
 export type PinMapFullScreenProps = PinMapFullScreenCommonProps & PinMapPickProps;
 
 /**
- * PinMapFullScreen — (a)(b)(c) 共通の全画面地図の枠（SS-124 / SS-118）。
- * (b) 地点選択画面ではそのまま画面になり、(a) 位置調整ではオーバーレイの中身になり、
- * (c) 登録済みピンの閲覧（`/pins/map`。SS-118）でもそのまま画面になる。
+ * PinMapFullScreen — (a) 位置調整オーバーレイの全画面地図の枠（SS-124）。
+ * (b) 地点選択・(c) `/pins/map`（登録済みピンの閲覧。SS-118）でも使っていたが、SS-147 で両画面を削除した
+ * （props の (b)(c) 向けの記述は SS-147 以降は呼び出し元なし）。
  * `showsUserLocation` は使わない（`WalkRouteMapView` と同じ理由。`EXPO_PUBLIC_LOCATION_MODE=mock`
  * のとき OS の青い点が mock の位置と食い違って点が2つ出る）。
  */
