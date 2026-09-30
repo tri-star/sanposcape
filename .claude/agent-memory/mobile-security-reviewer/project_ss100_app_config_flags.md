@@ -19,8 +19,9 @@ SS-100（`GET /app-config` からフラグ・最低サポートバージョン�
   デフォルトでクリア対象（fail-closed な向きを維持）。ADR-009 に SS-100 追補として、
   「除外してよいのはユーザー非依存の設定に限る／ダークローンチ採用時は要再検討」まで明記されている。
 - `config_source` は型 `AppConfigSnapshot` に存在せず、プロダクトコードから構造的に参照不能。
-  `useAppConfigDiagnostics()`（診断専用）のみが読み、呼び出し元は `__DEV__` ガード付き
-  `/dev-screens`（`app/dev-screens.tsx` が `if (!__DEV__) return <Redirect href="/" />`）経由のみ。
+  `useAppConfigDiagnostics()`（診断専用）のみが読み、呼び出し元は `/dev-screens` 経由のみ。
+  SS-148 でガードが `__DEV__` から `isDevToolsEnabled()`（本番ビルド以外で許可）に変わり、
+  staging（TestFlight）でも `config_source` が見える。許容判断は mobile ADR-007 SS-148 追補。
 - 永続化なし（AsyncStorage/SecureStore への書き込みを全対象ファイルで grep して確認、ヒット無し）。
 - FeatureGate/useFeatureFlag はこの PR 時点でまだ実画面から未使用（受け皿のみ）。将来
   認可の代替に誤用されていないかは、フラグを実際の機能で使い始める PR で再確認が必要。

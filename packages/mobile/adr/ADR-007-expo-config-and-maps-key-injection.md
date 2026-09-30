@@ -22,6 +22,8 @@
 - `app.config.ts` は `extra.appVariant` を常に公開し、開発ツールの表示可否は `isDevToolsEnabled()`
   （`__DEV__` / `extra.appVariant` / `Updates.channel`）だけで判定する。未知は非表示。（本文: SS-148 追補）
 - 開発ツールのコードは本番バンドルから除外しない。（本文: SS-148 追補）
+- `eas.json` の store 配布プロファイルは、許可リスト（`staging`）を除き `APP_VARIANT=production` と production チャネルの両方を持つことを
+  契約テストで守る。`src/config/devTools.ts` は純粋な層から import しない（oxlint で禁止）。（本文: SS-148 追補）
 
 ### 未解決・持ち越し
 
@@ -290,6 +292,14 @@ SS-79 追補にも反映した。
    画面カタログは秘密を持たない（スタブの代表値とルート一覧だけ）。`src/services/auth/index.ts` の
    「dev / mock の実装が本番バンドルに入ることは許容する」と同じ判断。
 6. ビルドの種類での分岐は、開発ツールの表示可否以外に使わない（使い道を増やすと、本番と staging で挙動が違う機能が生まれる）。
+7. `eas.json` との整合は契約テスト（`src/config/appVariant.test.ts`）で守る。各プロファイルは `extends` を解決した後の値で検査する。
+   `distribution: "store"` か `environment: "production"` のプロファイルは、`APP_VARIANT=production` と `channel: "production"` の
+   両方を必須とする。例外は許可リスト `NON_PRODUCTION_STORE_PROFILES`（現状 `staging` だけ）に載せたものに限り、
+   そのプロファイルは production の値を1つも持ってはならない。新しい store プロファイルは、許可リストに足さない限り本番相当として検査される
+   （本番相当のプロファイルが `APP_VARIANT` か channel を継承し損ねて本番で開発ツールが開く事故を、ビルド前に止めるため）。
+8. `src/config/devTools.ts` は `expo-constants` / `expo-updates` を値 import するため、純粋であるべき層
+   （`src/{lib,api,hooks,store,services,theme,types}/**`、`src/features/*/lib/**`）からの import を `.oxlintrc.json` の
+   `no-restricted-imports` で禁止する。判定は `app/` のルートで呼び、結果を props で渡す。
 
 `src/services/auth/index.ts` の `!__DEV__`（mock モードの起動時ガード）は変えない。テスト専用の認証バイパスを
 非開発ビルドで禁止するためのガードで、staging でも禁止したままでなければならない。

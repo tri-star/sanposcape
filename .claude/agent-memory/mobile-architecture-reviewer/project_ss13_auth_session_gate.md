@@ -23,7 +23,7 @@ SS-13（ブランチ `feat/ss-13-auth-walk-separation`）で `src/store/useAuthS
   cleanup で abort しない（loading 永久化を回避）という判断が明示コメント付きで正しい。
 - ゲート判定12ケースが `authGate.test.ts` にテーブル形式で網羅されている。
 - `dev-screens` / `design-system` を authGate 上は「公開ルート」扱いにしているが、
-  実際は各route側で `if (!__DEV__) return <Redirect href="/" />` により本番到達不可なので
+  実際は各route側のガード（SS-148 以降は `isDevToolsEnabled()`。本番ビルドで `<Redirect href="/" />`）により本番到達不可なので
   二重の安全網になっており矛盾はない。
 
 **残課題（指摘済み・要フォロー）**:
