@@ -6,6 +6,7 @@ import {
   FlatList,
   Keyboard,
   RefreshControl,
+  ScrollView,
   Text,
   View,
   type ListRenderItemInfo,
@@ -18,6 +19,7 @@ import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
+import { useSanpoMapRecheck } from "@/features/pin/hooks/useSanpoMapRecheck";
 import { useSanpoMapPins } from "@/features/pin/hooks/useSanpoMapPins";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
@@ -47,7 +49,12 @@ export type SanpoMapDetailViewProps = {
 };
 
 /** `renderBody()` の戻り値。中央寄せするかどうかの判断をここ1箇所に閉じる。 */
-type SanpoMapDetailBody = { content: ReactNode; centered: boolean };
+type SanpoMapDetailBody = {
+  content: ReactNode;
+  centered: boolean;
+  /** centered の本文を引っ張って更新できるようにする（ScrollView で包む）。 */
+  refreshable?: boolean;
+};
 
 const MAX_PIN_TOTAL = SANPO_MAP_PIN_PAGE_SIZE * SANPO_MAP_PIN_MAX_PAGES;
 
@@ -67,7 +74,18 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const maps = useSanpoMaps({ enabled: isSignedIn });
   const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn });
   const back = useScreenBack({ fallbackHref: "/sanpo-maps" });
-  const pull = usePullToRefresh(pins.refresh);
+  // 引っ張って更新・再試行は、ピン一覧と地図一覧（地図の名前・件数・存在）の両方を取り直す。
+  // 別端末での名前変更の反映と、削除された地図の not-found 化のため（mobile ADR-014 D7）。
+  const { refresh: refreshPins, retry: retryPins } = pins;
+  const { refresh: refreshMaps, retry: retryMaps } = maps;
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshPins(), refreshMaps()]);
+  }, [refreshPins, refreshMaps]);
+  const retryAll = useCallback(() => {
+    retryPins();
+    retryMaps();
+  }, [retryPins, retryMaps]);
+  const pull = usePullToRefresh(refreshAll);
   const listContentStyle = useMemo(
     () => ({ paddingBottom: insets.bottom + theme.spacing[6] }),
     [insets.bottom, theme.spacing],
@@ -84,11 +102,22 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
     [pins.pins, deferredQuery],
   );
 
+  // 一覧に id が無いときは、古いキャッシュで not-found を確定する前に一覧を1回取り直す。
+  const recheck = useSanpoMapRecheck({
+    sanpoMapId,
+    enabled: isSignedIn,
+    mapsReady: maps.status === "ready",
+    mapFound: map !== undefined,
+    mapsFetching: maps.isFetching,
+    refreshMaps,
+  });
+
   const bodyState = resolveSanpoMapDetailBodyState({
     hasSanpoMapId: sanpoMapId !== null,
     isSignedIn,
     mapsStatus: maps.status,
     mapFound: map !== undefined,
+    mapsFetching: maps.isFetching || recheck.pending,
     pinsErrorCode: pins.errorCode,
   });
 
@@ -110,6 +139,14 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
       />
     ),
     [handleOpenPin, pins.handlePhotoLoadError],
+  );
+
+  const refreshControl = (
+    <RefreshControl
+      refreshing={pull.refreshing}
+      onRefresh={pull.onRefresh}
+      tintColor={theme.colors.primary}
+    />
   );
 
   const loadingBody = (): SanpoMapDetailBody => ({
@@ -134,6 +171,20 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
       matchedCount: matched.length,
     });
 
+    // 中央寄せではなくカード1枚の状態。FlatList が無いので ScrollView で包んで引っ張って更新できるようにする。
+    const refreshableCard = (card: ReactNode) => (
+      <ScrollView
+        style={styles.pinSectionScroll}
+        contentContainerStyle={styles.pinSectionScrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        refreshControl={refreshControl}
+        showsVerticalScrollIndicator={false}
+      >
+        {card}
+      </ScrollView>
+    );
+
     switch (sectionState) {
       case "loading":
         return (
@@ -144,7 +195,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
 
       case "error": {
         const errorCode = pins.errorCode;
-        return (
+        return refreshableCard(
           <PinStateCard
             testID="sanpo-map-detail-pins-error"
             icon="alert-circle"
@@ -152,30 +203,30 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
             title={sanpoMapReadErrorMessage(errorCode ?? "unknown", "pins")}
             action={
               errorCode === null || isRetriablePinReadError(errorCode)
-                ? { label: "再試行", onPress: pins.retry, testID: "sanpo-map-detail-pins-retry" }
+                ? { label: "再試行", onPress: retryAll, testID: "sanpo-map-detail-pins-retry" }
                 : undefined
             }
-          />
+          />,
         );
       }
 
       case "empty":
-        return (
+        return refreshableCard(
           <PinStateCard
             testID="sanpo-map-detail-pins-empty"
             icon="map-pin"
             title="この地図にはまだピンがありません"
             description="ピンタブで地図を長押しすると、ピンを登録できます"
-          />
+          />,
         );
 
       case "no-match":
-        return (
+        return refreshableCard(
           <PinStateCard
             testID="sanpo-map-detail-pins-no-match"
             icon="search-x"
             title="一致するピンがありません"
-          />
+          />,
         );
 
       case "ready":
@@ -191,13 +242,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
               renderItem={renderItem}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              refreshControl={
-                <RefreshControl
-                  refreshing={pull.refreshing}
-                  onRefresh={pull.onRefresh}
-                  tintColor={theme.colors.primary}
-                />
-              }
+              refreshControl={refreshControl}
               contentContainerStyle={listContentStyle}
               showsVerticalScrollIndicator={false}
             />
@@ -314,6 +359,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         if (errorCode === null) return loadingBody();
         return {
           centered: true,
+          refreshable: true,
           content: (
             <PinStateCard
               testID="sanpo-map-detail-error"
@@ -322,7 +368,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
               title={sanpoMapReadErrorMessage(errorCode, "maps")}
               action={
                 isRetriablePinReadError(errorCode)
-                  ? { label: "再試行", onPress: maps.retry, testID: "sanpo-map-detail-retry" }
+                  ? { label: "再試行", onPress: retryAll, testID: "sanpo-map-detail-retry" }
                   : undefined
               }
             />
@@ -364,7 +410,23 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         {/* 名前変更・削除はスコープ外。押せて何も起きないボタンを作らないため空のスペーサー。 */}
         <View style={styles.headerSpacer} />
       </View>
-      {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
+      {body.centered ? (
+        body.refreshable ? (
+          <ScrollView
+            style={styles.centerScroll}
+            contentContainerStyle={styles.centerScrollContent}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
+            {body.content}
+          </ScrollView>
+        ) : (
+          <View style={styles.centerContent}>{body.content}</View>
+        )
+      ) : (
+        body.content
+      )}
     </View>
   );
 }
@@ -393,6 +455,21 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
     justifyContent: "center",
     paddingHorizontal: theme.layout.pageGutter,
+  },
+  centerScroll: {
+    flex: 1,
+  },
+  centerScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: theme.layout.pageGutter,
+  },
+  pinSectionScroll: {
+    flex: 1,
+  },
+  pinSectionScrollContent: {
+    flexGrow: 1,
+    paddingBottom: theme.spacing[6],
   },
   centerState: {
     alignItems: "center",

@@ -18,6 +18,8 @@ export type UseSanpoMapsResult = {
   errorCode: PinReadErrorCode | null;
   /** pull-to-refresh 用。取得の完了（失敗を含む）で解決する。 */
   refresh: () => Promise<void>;
+  /** 取得中（初回・再取得を問わない）。バックグラウンドの取り直しも含む。 */
+  isFetching: boolean;
 };
 
 /**
@@ -56,5 +58,6 @@ export function useSanpoMaps(options: { enabled: boolean }): UseSanpoMapsResult 
     retry,
     errorCode: status === "error" && query.error ? toPinReadErrorCode(query.error) : null,
     refresh,
+    isFetching: query.isFetching,
   };
 }

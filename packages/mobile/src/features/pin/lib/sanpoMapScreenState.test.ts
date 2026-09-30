@@ -48,6 +48,7 @@ describe("resolveSanpoMapDetailBodyState", () => {
     isSignedIn: true,
     mapsStatus: "ready",
     mapFound: true,
+    mapsFetching: false,
     pinsErrorCode: null,
   } as const;
 
@@ -69,6 +70,27 @@ describe("resolveSanpoMapDetailBodyState", () => {
 
   it("地図一覧が ready で見つからなければ not-found", () => {
     expect(resolveSanpoMapDetailBodyState({ ...base, mapFound: false })).toBe("not-found");
+  });
+
+  it("一覧に id が無くても、一覧の取得（取り直しを含む）中は loading", () => {
+    expect(resolveSanpoMapDetailBodyState({ ...base, mapFound: false, mapsFetching: true })).toBe(
+      "loading",
+    );
+  });
+
+  it("一覧に id があれば、一覧の取得中でも ready のまま（引っ張って更新中に画面を消さない）", () => {
+    expect(resolveSanpoMapDetailBodyState({ ...base, mapsFetching: true })).toBe("ready");
+  });
+
+  it("一覧の取得中でも、ピンの 404 は not-found", () => {
+    expect(
+      resolveSanpoMapDetailBodyState({
+        ...base,
+        mapFound: false,
+        mapsFetching: true,
+        pinsErrorCode: "not_found",
+      }),
+    ).toBe("not-found");
   });
 
   it("地図一覧の error は error、loading は loading", () => {

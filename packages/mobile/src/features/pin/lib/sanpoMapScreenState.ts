@@ -42,22 +42,32 @@ export type SanpoMapDetailBodyState =
   | "ready";
 
 /**
- * 地図詳細の画面全体の状態。判定順: invalid-id → sign-in-required → not-found → error → loading → ready。
- * - not-found: 地図一覧が ready で id が見つからない、またはピン一覧が 404（削除された・member でない）
+ * 地図詳細の画面全体の状態。判定順: invalid-id → sign-in-required → not-found（ピン一覧の 404）→
+ * loading（一覧に id が無く取得中）→ not-found（一覧に id が無い）→ error → loading → ready。
+ * - not-found: ピン一覧が 404（削除された・member でない）、または地図一覧が ready で id が見つからず、
+ *   かつ一覧の取得（取り直しを含む）が終わっている
+ * - loading: 地図一覧の取得中、または id が無いまま一覧を取り直している間（古いキャッシュで誤って
+ *   not-found にしない）。ピン一覧の取得中はピン欄で出す
  * - error: 地図一覧の取得失敗（ピン一覧の失敗は画面全体ではなくピン欄で出す）
- * - loading: 地図一覧の取得中（ピン一覧の取得中はピン欄で出す）
  */
 export function resolveSanpoMapDetailBodyState(input: {
   hasSanpoMapId: boolean;
   isSignedIn: boolean;
   mapsStatus: LoadStatus;
   mapFound: boolean;
+  /**
+   * 地図一覧の取得中、または id が無いことを確かめる取り直しが済んでいない（未開始を含む）。
+   * mapFound が true のときは見ない。
+   */
+  mapsFetching: boolean;
   pinsErrorCode: PinReadErrorCode | null;
 }): SanpoMapDetailBodyState {
   if (!input.hasSanpoMapId) return "invalid-id";
   if (!input.isSignedIn) return "sign-in-required";
   if (input.pinsErrorCode === "not_found") return "not-found";
-  if (input.mapsStatus === "ready" && !input.mapFound) return "not-found";
+  if (input.mapsStatus === "ready" && !input.mapFound) {
+    return input.mapsFetching ? "loading" : "not-found";
+  }
   if (input.mapsStatus === "error") return "error";
   if (input.mapsStatus === "loading") return "loading";
   return "ready";

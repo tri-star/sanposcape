@@ -6,6 +6,7 @@ import {
   FlatList,
   Keyboard,
   RefreshControl,
+  ScrollView,
   Text,
   View,
   type ListRenderItemInfo,
@@ -40,7 +41,12 @@ export type SanpoMapListViewProps = {
 };
 
 /** `renderBody()` の戻り値。中央寄せするかどうかの判断をここ1箇所に閉じる（`PinDetailView` と同じ形）。 */
-type SanpoMapListBody = { content: ReactNode; centered: boolean };
+type SanpoMapListBody = {
+  content: ReactNode;
+  centered: boolean;
+  /** centered の本文を引っ張って更新できるようにする（ScrollView で包む）。 */
+  refreshable?: boolean;
+};
 
 /**
  * SanpoMapListView — 地図一覧（`/sanpo-maps`）の実体（SS-121。SS-146 の暫定画面を本実装に差し替え）。
@@ -131,6 +137,14 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
     [styles.listContent, insets.bottom, fabSize, theme.spacing],
   );
 
+  const refreshControl = (
+    <RefreshControl
+      refreshing={pull.refreshing}
+      onRefresh={pull.onRefresh}
+      tintColor={theme.colors.primary}
+    />
+  );
+
   const loadingBody = (): SanpoMapListBody => ({
     centered: true,
     content: (
@@ -167,6 +181,7 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
         if (errorCode === null) return loadingBody();
         return {
           centered: true,
+          refreshable: true,
           content: (
             <PinStateCard
               testID="sanpo-map-list-error"
@@ -186,6 +201,7 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
       case "empty":
         return {
           centered: true,
+          refreshable: true,
           content: (
             <PinStateCard
               testID="sanpo-map-list-empty"
@@ -199,6 +215,7 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
       case "no-match":
         return {
           centered: true,
+          refreshable: true,
           content: (
             <PinStateCard
               testID="sanpo-map-list-no-match"
@@ -219,13 +236,7 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
               renderItem={renderItem}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              refreshControl={
-                <RefreshControl
-                  refreshing={pull.refreshing}
-                  onRefresh={pull.onRefresh}
-                  tintColor={theme.colors.primary}
-                />
-              }
+              refreshControl={refreshControl}
               contentContainerStyle={listContentStyle}
               showsVerticalScrollIndicator={false}
             />
@@ -274,7 +285,24 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
           />
         </View>
       ) : null}
-      {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
+      {body.centered ? (
+        body.refreshable ? (
+          <ScrollView
+            style={styles.centerScroll}
+            contentContainerStyle={styles.centerScrollContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
+            {body.content}
+          </ScrollView>
+        ) : (
+          <View style={styles.centerContent}>{body.content}</View>
+        )
+      ) : (
+        body.content
+      )}
       {showFab ? (
         <IconButton
           variant="filled"
@@ -328,6 +356,14 @@ const useStyles = makeStyles((theme) => ({
   },
   centerContent: {
     flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: theme.layout.pageGutter,
+  },
+  centerScroll: {
+    flex: 1,
+  },
+  centerScrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: theme.layout.pageGutter,
   },
