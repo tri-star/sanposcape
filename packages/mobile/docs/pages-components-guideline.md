@@ -209,7 +209,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
    - **同じ項目を繰り返し描画する共有プリミティブ（一覧・タブなど）は、固定の `testID` を内部に
      埋め込まない**。呼び出し側から接頭辞を prop で受け取り、各項目に `${prefix}-${item.value}` のように
      付与する形にする（例: `TabBar` の `itemTestIDPrefix?: string`。未指定時は `testID={undefined}`
-     のまま何も付かない）。固定 testID を埋め込むと、同じプリミティブを複数箇所で使ったときに
+     のまま何も付かない。`Tabs` も同じ＝SS-86。例: `settings-theme-mode-dark`）。固定 testID を埋め込むと、同じプリミティブを複数箇所で使ったときに
      testID が衝突する。登録済みピンの `Marker`（`RegisteredPinMarkers`）も同じ形で、
      `${testIDPrefix}-${pin.id}`（実例: `walk-active-pin-<pinId>` / `pin-tab-pin-<pinId>`）になる。
      E2E からの参照は想定しない（ピン ID をフローから知る手段が無いため。SS-118）。

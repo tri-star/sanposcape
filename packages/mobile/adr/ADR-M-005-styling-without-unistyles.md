@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-07-22
+2026-07-22（2026-10-01 追補: SS-86）
 
 ## ステータス
 
@@ -27,7 +27,7 @@
 - **react-native-unistyles を削除する**。
 - スタイルは **React Native 標準の `StyleSheet` + React Context によるテーマ配布**で構成する。
   - `src/theme/tokens.ts` — デザイントークン（primitive / semantic）。**react-native を import しない**素の値のみ。
-  - `src/theme/themeContext.ts` / `ThemeProvider.tsx` — テーマの配布。`system` のとき `useColorScheme()` に追従する。
+  - `src/theme/themeContext.ts` / `ThemeProvider.tsx` — テーマの配布。`system` のとき `useColorScheme()` に追従する。（SS-86 追補）初期モードは保存値を注入し、`setMode` で永続化とネイティブ外観の上書きを行う。詳細は [ADR-M-015](./ADR-M-015-theme-mode-preference.md)。
   - `src/theme/useTheme.ts` — `useTheme()` / `useThemeMode()`。
   - `src/theme/makeStyles.ts` — `makeStyles((theme) => ({...}))` でテーマ依存スタイルの hook を作る。
     生成結果はテーマ名（light/dark）をキーにキャッシュする。

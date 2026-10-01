@@ -92,8 +92,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - `EXPO_PUBLIC_PHOTO_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/photoMode.ts`）。
   位置情報と同じく `dev` モードは持たない（mock はダミー画像を返すだけで実ファイルの加工を伴わない）。
 - 写真の**取得・加工**（カメラ/ライブラリ・縮小・JPEG 再圧縮）は `src/services/photo/` に閉じる
-  （`expo-image-picker` / `expo-image-manipulator` / `expo-file-system` を import してよいのは
-  `photo.real.ts` のみ）。
+  （写真の用途で `expo-image-picker` / `expo-image-manipulator` / `expo-file-system` を import してよいのは
+  `photo.real.ts` のみ。ほかに `services/preferences/preferenceStorage.file.ts`（アプリ設定の保存。SS-86）が
+  `expo-file-system` を使う）。
 - 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
   `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
 - **（SS-88）`services/photo` は「直送にそのまま載せられる実体」（`PreparedPhoto.file`、
@@ -115,6 +116,23 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   コンポーネント（`PinPhotoImage.tsx`）ではなく起動時に必ず評価されるモジュールに置くのは、
   そのコンポーネントが一度も読み込まれないまま出たサインアウトでも消去を保証するため
   （SS-118 ローカルレビュー SEC-M1）。
+
+## テーマ（外観）設定の扱い
+
+詳細は [ADR-M-015](../adr/ADR-M-015-theme-mode-preference.md)（SS-86）。
+
+- **選択値の情報源は `ThemeContext` の `mode`**（`system` | `light` | `dark`）。Zustand などに複製しない。
+- **保存先は `src/services/preferences`**（`expo-file-system` の同期 API で `Paths.document/app-preferences.json`）。
+  端末単位の設定であり、サインアウト・アカウント削除では消さない（`registerSessionCleanup` に登録しない）。
+  モード切替（real/mock の環境変数）は持たない。
+- **起動時の同期読込**: `app/_layout.tsx` のモジュール評価時に `appPreferences.loadThemeMode()` で読み、
+  `ThemeProvider` の `initialMode` に渡す（最初の描画から保存値どおりになり、ちらつかない）。
+  変更時の保存は `onModeChange={appPreferences.saveThemeMode}`。保存失敗は診断ログのみで画面は止めない。
+- **ネイティブの外観の上書き**: `ThemeProvider` が `Appearance.setColorScheme(toNativeColorScheme(mode))` を
+  effect で呼び、キーボード・ネイティブのピッカー・iOS の地図などを揃える。JS 側の配色は従来どおり
+  `resolveTheme(mode, useColorScheme())` で決めるため、古い OS でも JS の配色は正しい。
+- **ステータスバーは `ThemedStatusBar`**（`style="auto"` を使わない。`auto` はネイティブの配色を見るため）。
+- `theme.name === "dark"` で分岐する既存コードは変更不要（`ThemeProvider` が解決済みのテーマを配る）。
 
 ## フィーチャーフラグ（`/app-config`）の扱い
 
@@ -270,6 +288,8 @@ export default function SomeFeatureRoute() {
     `createMockPhotoService()`（`src/services/photo/photo.mock.ts`）を直接 import する
     （`photo.mock.test.ts` を参照）。`features/pin/api/*` からのアップロード（presigned POST）は
     実機依存でもネイティブ依存でもないため msw でテストする（`presignedPostUpload.test.ts`）。
+  - 設定の保存: `services/preferences` のバレル（`index.ts`）は `expo-file-system` に到達するので import しない。
+    `createAppPreferencesService` + `createMemoryPreferenceStorage` を直接 import する（`appPreferences.test.ts`）。
   - Backend API: スタブ実装を利用(Orvalの生成物を利用)
   - モバイル機能: スタブ実装を利用
 

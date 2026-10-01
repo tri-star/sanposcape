@@ -212,7 +212,9 @@ packages/mobile/
 - 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）、
   `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮。
   アップロード（presigned POST での S3 直送）はネイティブ依存でも実機依存でもないため
-  `services/` には置かず `features/pin/api/` に置く。ADR-M-010）。
+  `services/` には置かず `features/pin/api/` に置く。ADR-M-010）、
+  `src/services/preferences`（端末ローカルのアプリ設定。モード切替なし＝real のみ。ストレージは DI で、
+  単体テストはメモリ実装。SS-86）。
 - 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
 
 ### `src/api/` — バックエンドAPIクライアント
@@ -303,7 +305,7 @@ packages/mobile/
     （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
     `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
     詳細は [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照。
-- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。
+- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。`themeMode.ts`（モードの検証・ネイティブ値への変換。純粋）/ `ThemedStatusBar.tsx`（テーマからステータスバーを決める配線）もここに置く。選択値は `ThemeProvider` が持ち、`app/_layout.tsx` が保存値の注入と永続化コールバックを渡す（SS-86 / [ADR-M-015](../adr/ADR-M-015-theme-mode-preference.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け

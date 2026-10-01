@@ -1,0 +1,72 @@
+# ADR-M-015: テーマ（外観）設定は端末ローカルに同期保存し、ネイティブの外観も上書きする
+
+## 日付
+
+2026-10-01
+
+## ステータス
+
+採用（SS-86）。[ADR-M-005](./ADR-M-005-styling-without-unistyles.md) の `ThemeProvider` の範囲を追補する（本文の決定は覆さない）。
+
+## コンテキスト
+
+テーマは端末の外観設定に従うだけだった（`ThemeMode` / `resolveTheme` / `ThemeContext.setMode` は既にあるが、`setMode` の利用は開発用ギャラリーのみで、永続化されず再起動で `system` に戻る）。
+SS-86 で、ライト / ダーク / 端末の設定をアプリの設定として持てるようにする。足りなかったのは次の3つ。
+
+1. 永続化と起動時の復元
+2. ネイティブ側の外観（ステータスバー・キーボード・iOS の地図など）との一致
+3. 設定画面の UI
+
+制約として、ゲスト（トークン非保持。ADR-002 決定6）とオフラインでも動かす必要があり、起動時に別の配色がちらつかないこと。
+
+## 決定
+
+1. **選択値の唯一の情報源は `ThemeContext` の `mode`**。Zustand に複製しない。
+2. **外観の上書きはハイブリッド**にする。JS 側は `resolveTheme(mode, useColorScheme())`、ネイティブ側は `Appearance.setColorScheme(toNativeColorScheme(mode))`（system → `"unspecified"`）、ステータスバーは `ThemedStatusBar` でテーマから明示指定する。
+3. **永続化は `expo-file-system` の同期 API** で `Paths.document/app-preferences.json`（`src/services/preferences`）。最初の描画の前（`app/_layout.tsx` のモジュール評価時）に読む。保存形式は `{ version, themeMode, themeModeUpdatedAt }`。読込・保存の失敗は throw せず診断ログのみ（起動は止めない）。
+4. **端末単位の設定**とする。サインアウト・アカウント削除で消さない（`registerSessionCleanup` に登録しない）。
+5. **サーバー同期は行わない**（別課題）。保存形式に `themeModeUpdatedAt`（ユーザーが明示的に選んだ時刻）を持たせて備える。
+6. **フィーチャーフラグで包まない**。
+
+## 検討した選択肢
+
+上書き方式:
+
+| 方式 | 内容 | 不採用/採用の理由 |
+|---|---|---|
+| A. Context のみ | 永続化だけ足す | ステータスバー・キーボード・iOS の地図が OS の設定のまま残り、JS の配色と食い違う |
+| B. `Appearance.setColorScheme` のみ | `useColorScheme()` だけを見る | `system` と明示指定を区別できない。iOS 13+ / Android 10+ でしか効かず、効かない端末で設定が無視される |
+| **C. ハイブリッド（採用）** | mode は Context、JS は mode から直接、ネイティブは上書きで揃える | JS の配色は古い OS でも常に正しい。ネイティブ部品も対応 OS では揃う |
+
+保存先:
+
+| 保存先 | 結果 |
+|---|---|
+| **expo-file-system（採用）** | 同期で読める（`File.textSync()`）。導入済みの明示依存で development build の作り直しが不要。アンインストール・データ消去で消える |
+| expo-secure-store | 同期版はあるが秘密情報用。iOS では再インストール後も Keychain に残りうる |
+| AsyncStorage | 非同期のみ。新しいネイティブ依存で、ちらつきか起動遅延が出る |
+| backend のみ | ゲスト・オフラインで動かず、取得完了までちらつく |
+
+フィーチャーフラグ: `/app-config` は非同期取得で失敗時 OFF に倒れるため、保存値の適用をフラグで制御すると毎回ちらつき、オフラインで明示設定が無視される。UI だけを隠しても既に選んだユーザーには効き続けるので緊急停止にならない。既定値（system）は従来の挙動と同じで、backend の変更も無く、ストア公開前でもある。
+
+## 決定理由
+
+- 要件（Light/Dark/System の切替、既定は System）はローカル保存だけで満たせ、ゲスト・オフライン対応のためどの案でもローカル保存は必須になる。
+- 外観は OS 自体も端末ごとの設定であり、端末単位で違和感がない。
+- 同期を入れると「サインイン直後にサーバー値で配色が切り替わる」「どちらを優先するか」という仕様判断が増えるため、分割して別課題で決める。
+
+## 影響
+
+- `system` に戻した直後、1フレームだけ前の上書き値で描画されうる（ネイティブからの `appearanceChanged` で収束する。許容）。
+- `Appearance.setColorScheme` は iOS 13+ / Android 10+ のみ有効。古い OS ではネイティブ部品が揃わないが、JS の配色とステータスバーは正しい。
+- Android の Google Maps のタイルはもともとライト固定で、今回も変えない。
+- `DesignSystemGallery` の Switch も永続化されるようになる（開発用画面。許容）。
+- 開発中の JS リロードではネイティブに前回の上書きが残るため、保存値が `system` だと初回フレームが前回の配色になりうる（開発時のみ）。
+- `Tabs` に `itemTestIDPrefix` を追加した（E2E 用）。
+- サーバー同期（フェーズB）は別課題。保存形式の移行は不要。
+- **Android で「端末の設定」のとき OS のダーク切替に追従しない疑い**（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) の未確認事項）は、SS-86 の実装時点では**未確認**（エミュレータが使えない環境で実装したため）。手動確認（`adb shell "cmd uimode night yes"`）で再現した場合は SS-86 では深追いせず、別課題として切り出す。
+
+## 関連情報
+
+- [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) / [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) / ADR-002 決定6（ゲスト = トークン非保持）
+- [release-runbook](../../../docs/release-runbook.md)（フィーチャーフラグの要否の目安）

@@ -38,6 +38,7 @@
     - [ADR-M-012 登録済みピンの地図表示とピン詳細](./packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md)
     - [ADR-M-013 ピンのタグ入力の候補](./packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)
     - [ADR-M-014 地図一覧と地図詳細](./packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md)
+    - [ADR-M-015 テーマ（外観）設定の端末保存](./packages/mobile/adr/ADR-M-015-theme-mode-preference.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

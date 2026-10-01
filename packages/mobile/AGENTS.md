@@ -42,3 +42,4 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-012](./adr/ADR-M-012-pin-map-display-and-detail.md) | 登録済みピンの地図表示（取得範囲・上限の見せ方・散歩中の地図への合成）とピン詳細（写真のページング・画像キャッシュ）。ピンタブでの表示（SS-146 追補）。`/pins/map` の削除とナビタブ idle への「最近の散歩」の合成（SS-147 追補）。アカウントタブのゲスト表示（SS-148 追補） |
 | [ADR-M-013](./adr/ADR-M-013-pin-tag-suggestions.md) | ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一） |
 | [ADR-M-014](./adr/ADR-M-014-sanpo-map-list-and-detail.md) | 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ） |
+| [ADR-M-015](./adr/ADR-M-015-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |

@@ -1,0 +1,41 @@
+# テーマ設定（SS-86）: 設定画面でダークを選ぶと、再起動後も保持される。
+# ゲストのまま /settings へ直接入る（テーマ設定は認証に依存しない）。配色そのものは assert しない。
+appId: com.sanposcape.app.dev
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-google-button"
+    timeout: 15000
+- openLink: "sanposcape-dev://settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 10000
+# 初回は「端末の設定」が選ばれている（保存値なし → system）
+- assertVisible:
+    id: "settings-theme-mode-system"
+    selected: true
+- tapOn:
+    id: "settings-theme-mode-dark"
+- assertVisible:
+    id: "settings-theme-mode-dark"
+    selected: true
+# 状態を保ったまま再起動（clearState しない）
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-google-button"
+    timeout: 15000
+- openLink: "sanposcape-dev://settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 10000
+- assertVisible:
+    id: "settings-theme-mode-dark"
+    selected: true
