@@ -10,8 +10,8 @@ type ThemeProviderProps = {
   /** 初期モード。保存値を app/_layout.tsx が同期で読んで渡す。既定は DEFAULT_THEME_MODE（system）。 */
   initialMode?: ThemeMode;
   /**
-   * ユーザー操作で mode が変わったときに呼ばれる（永続化用）。初期化時には呼ばれない。
-   * 同じ値を選び直したときも呼ばれない。
+   * ユーザー操作で mode が選ばれたときに呼ばれる（永続化用）。初期化時には呼ばれない。
+   * 同じ値を選び直したときも呼ぶ（「明示的に選んだ」ことを `themeModeUpdatedAt` に残すため。ADR-M-015）。
    */
   onModeChange?: (mode: ThemeMode) => void;
 };
@@ -33,9 +33,9 @@ export function ThemeProvider({
 
   const setMode = useCallback(
     (next: ThemeMode) => {
-      // Tabs は選択中の項目を押しても onChange を呼ぶため
-      if (next === mode) return;
-      setModeState(next);
+      // Tabs は選択中の項目を押しても onChange を呼ぶ。同じ値なら再描画は省くが、
+      // 初回の system を明示的に選んだ場合も記録したいので永続化は行う
+      if (next !== mode) setModeState(next);
       // 永続化はイベント起点で行う（effect にしない＝初期化時に書き込まない）
       onModeChange?.(next);
     },
