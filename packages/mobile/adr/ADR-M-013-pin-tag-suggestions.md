@@ -18,8 +18,9 @@
 backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API 契約・代表表記・並び順は
 ルート ADR-009 の SS-136 追補 決定30 が正本。本 ADR には重複して書かない）。
 
-ピン編集画面（SS-119）は mobile にまだ無く、`PinTagEditor` を使っているのは登録画面だけ
-（SS-119 で実装。編集画面でも使い、`PinTagEditor` に任意 prop `canRemove` を追加した。[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)。決定は変えない）。
+本 ADR の時点では、ピン編集画面（SS-119）は mobile にまだ無く、`PinTagEditor` を使っているのは登録画面だけだった。
+その後 SS-119 で編集画面を実装し、編集画面でも `PinTagEditor` を使うようになった（任意 prop `canRemove` を追加。
+[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)。本 ADR の決定は変えない）。
 
 ## 決定
 
@@ -98,6 +99,7 @@ backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API �
 
 - タグの表記ゆれが減り、`GET /pins?tags=` で引っかかりやすくなる。
 - `PinTagEditor` は登録固有の状態を持たない props にしたので、SS-119（編集画面）がそのまま使える。
+  （SS-119 で実際に再利用した。削除できないタグを静的に出すための任意 prop `canRemove` を追加した。[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)）
 - 同じ API は検索タブ（SS-120）のタグ候補にも使える。（`TagSuggestion.pinCount` は現状未使用で、その用途を想定して保持している。）
 
 ### ネガティブな影響・トレードオフ

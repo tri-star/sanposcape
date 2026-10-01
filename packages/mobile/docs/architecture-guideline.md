@@ -240,6 +240,9 @@ export default function SomeFeatureRoute() {
     「導線が出る/出ない」の assert（`assertVisible` / `assertNotVisible`）に留め、実行ステップは
     追加しない（先例: `.maestro/auth-gate.yaml` のアカウント削除ボタンの `assertNotVisible`。
     受け入れ条件自体は単体テスト（`lib/` の純粋関数）で担保する。SS-62）。
+    **例外**: そのフロー自身が作った一意なデータ（実行ごとに名前を変えた地図・ピンなど）だけを消す
+    破壊的操作は実行してよい。共有ユーザーの他のデータには触れず、他フローとも干渉しないため
+    （先例: `.maestro/pin-edit-delete.yaml` のピンの削除。[ADR-M-017](../adr/ADR-M-017-pin-edit-and-delete.md) D9。SS-119）。
 
 - 単体テスト
   - 方針: `vitest.config.ts` は node 環境 + `react-native` の最小スタブ差し替えのため、
