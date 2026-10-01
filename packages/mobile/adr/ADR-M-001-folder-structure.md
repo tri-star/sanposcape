@@ -112,3 +112,4 @@
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)
 - [ページ・コンポーネント実装ガイドライン](../docs/pages-components-guideline.md)
 - [ツール・ライブラリ](../docs/toolsets-libraries.md)
+- [ADR-M-015](./ADR-M-015-theme-mode-preference.md): `services/preferences` は決定4 の例外（real/mock の環境変数を持たない）

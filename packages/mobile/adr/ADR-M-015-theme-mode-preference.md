@@ -27,6 +27,8 @@ SS-86 で、ライト / ダーク / 端末の設定をアプリの設定とし�
 4. **端末単位の設定**とする。サインアウト・アカウント削除で消さない（`registerSessionCleanup` に登録しない）。
 5. **サーバー同期は行わない**（別課題）。保存形式に `themeModeUpdatedAt`（ユーザーが明示的に選んだ時刻）を持たせて備える。
 6. **フィーチャーフラグで包まない**。
+7. **`services/preferences` は real/mock の環境変数を持たない**（[ADR-M-001](./ADR-M-001-folder-structure.md) 決定4 の例外）。E2E は real のまま再現できる（`clearState` で消える）。単体テストはストレージの DI（`createAppPreferencesService` + メモリ実装）で足りる。ファイル名は `tokenStore.secure.ts` / `tokenStore.memory.ts` の前例に倣い `preferenceStorage.file.ts` / `preferenceStorage.memory.ts` とした。
+8. **保存は read-modify-write**。元のファイルが JSON オブジェクトとして読めるときは未知キーを残して既知フィールドだけ上書きし、読めない（壊れている）ときは既知フィールドのみ書く。新しい版のアプリが書いたキーを旧版の保存で消さないため。ストレージ（`File`）の生成は初回利用時まで遅らせ、失敗しても起動を止めない。
 
 ## 検討した選択肢
 
@@ -63,7 +65,7 @@ SS-86 で、ライト / ダーク / 端末の設定をアプリの設定とし�
 - `DesignSystemGallery` の Switch も永続化されるようになる（開発用画面。許容）。
 - 開発中の JS リロードではネイティブに前回の上書きが残るため、保存値が `system` だと初回フレームが前回の配色になりうる（開発時のみ）。
 - `Tabs` に `itemTestIDPrefix` を追加した（E2E 用）。
-- サーバー同期（フェーズB）は別課題。保存形式の移行は不要。
+- サーバー同期（フェーズB）は別課題。保存形式の移行は不要。ただしフェーズB では、`load()`（設定全体の読み出し）と `themeModeUpdatedAt` の更新を制御できる書き込み I/F をサービスに足す必要がある（現状は `loadThemeMode` / `saveThemeMode` のみで、保存のたびに updatedAt が更新される）。今は YAGNI として I/F を広げない。
 - **Android で「端末の設定」のとき OS のダーク切替に追従しない疑い**（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) の未確認事項）は、SS-86 の実装時点では**未確認**（エミュレータが使えない環境で実装したため）。手動確認（`adb shell "cmd uimode night yes"`）で再現した場合は SS-86 では深追いせず、別課題として切り出す。
 
 ## 関連情報

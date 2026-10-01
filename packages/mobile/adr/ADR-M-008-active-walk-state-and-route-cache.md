@@ -130,7 +130,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 初版の「移行・対応が必要な事項」で M5 の保存実装時に見直すとしていた判断を、**SS-19 時点では『維持』と結論する**。`useActiveWalkStore` / `useFinishedWalkStore` のいずれにも persist ミドルウェアを入れない。理由:
 
-- **永続ストレージの依存が現状無い。** `expo-secure-store` は値サイズ上限（約 2KB）があり軌跡を置けない。`@react-native-async-storage/async-storage` は未導入。`expo-file-system` は推移的依存として存在するが、明示依存へ昇格させると `package.json` が変わって `@expo/fingerprint` が変化し、[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md) の E2E APK キャッシュを1回ミスさせる。
+- **永続ストレージの依存が現状無い。** `expo-secure-store` は値サイズ上限（約 2KB）があり軌跡を置けない。`@react-native-async-storage/async-storage` は未導入。`expo-file-system` は推移的依存として存在するが（後日注記: ADR-M-010 で明示依存化済み。SS-86 でアプリ設定の保存にも使用。ADR-M-015）、明示依存へ昇格させると `package.json` が変わって `@expo/fingerprint` が変化し、[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md) の E2E APK キャッシュを1回ミスさせる。
 - **「復帰」は保存とは独立した設計判断。** 進行中の散歩を本当に復元するには、増え続ける `track` を測位のたびにスロットリングして書き出し、起動時に復元し、古いドラフトの期限判定を入れる必要がある。SS-19 の「終了処理・ルート保存」に混ぜると差分が大きくなりレビューが成立しない。
 
 → フォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」として切り出す（保存先は `expo-file-system` の明示依存化を第一候補、`async-storage` を対案として比較する）。**着手時は本 ADR の再追補が必要**。
