@@ -1,6 +1,5 @@
 # 散歩していないときのピン登録（SS-124 / SS-146）: サインイン → ピンタブの地図を長押し
 # → 登録画面 → 名前 → 位置を調整（タップ → 確定）→ 保存 → ピンタブへ戻る。
-# 保存完了トーストはピンタブの PinTabView が出す（SS-145 / SS-146）。
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
@@ -8,9 +7,7 @@
 #   - 地図の長押し・タップは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-M-007）。
 #     タイルの描画結果は assert しない。
 # /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
-# assert しないもの: 座標の値・地図の名前・件数・地図タイル。
-# 保存完了トーストは assert する（ピンタブの PinTabView が出す。保存後の back() で戻ったときの
-# フォーカスで flashMessage を受け取る。SS-145 / SS-146）。
+# assert しないもの: 座標の値・地図の名前・件数・地図タイル・保存完了トースト（理由は保存の直後のコメント）。
 appId: com.sanposcape.app.dev
 tags:
   - pin
@@ -64,15 +61,15 @@ tags:
       id: "pin-register-save"
 - tapOn:
     id: "pin-register-save"
-# トーストは 1.9 秒で消える（useToast の既定）ので、ピンタブの表示を待ってからでは取りこぼしうる。
-# 文言が出るのを直接待ち、そのあとピンタブにいることを確かめる。
+# 保存完了トースト（「ピンを保存しました」）は assert しない（SS-152）。
+# トーストは 1.9 秒（useToast の既定）で消えるが、保存ボタンの tapOn は「タップ後に画面が変わったか」を
+# ビュー階層の取得（逼迫したランナーでは1回1〜2秒）で確かめてから返るため、返った時点で既に消えている
+# ことがある（run 36880788927 で失敗。直前の run 36868867068 では約1秒差で通っていた）。消え去った要素は
+# 待っても二度と現れないので、待ち時間を伸ばしても解決しない（sign-in.yaml のスプラッシュと同じ構造）。
+# 代わりに登録画面が閉じてピンタブへ戻ることを待つ（保存に失敗すると登録画面に残る）。
 - extendedWaitUntil:
-    visible:
-      text: "ピンを保存しました"
+    notVisible:
+      id: "pin-register-screen"
     timeout: 20000
 - assertVisible:
     id: "pin-tab-screen"
-- assertNotVisible:
-    id: "pin-register-screen"
-- assertNotVisible:
-    id: "pin-register-save-error"

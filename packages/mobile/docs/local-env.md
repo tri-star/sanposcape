@@ -179,9 +179,9 @@ pnpm --filter mobile orval          # API クライアント再生成
   （SS-152。詳細はサブフローのコメント）。
 - 画面の下の方にある要素は `assertVisible` の前に `scrollUntilVisible` で送る。CI のエミュレータ
   （pixel_6 相当）でも初期表示に収まらない画面が多い（アカウントタブの「最近の散歩」、画面カタログの後半など。SS-152）。
-- 保存完了などのトースト（`useToast` の既定で 1.9 秒で消える）は、直前の `tapOn` が画面の落ち着きを
-  待つ間に消えることがある。成否は遷移先や一覧の項目など、後に残る状態で確かめる。トーストの表示そのものを
-  確かめるのは、それが検証対象の `pin-register-anywhere.yaml`（SS-124 のフラッシュメッセージ）だけに留める（SS-152）。
+- 保存完了などのトースト（`useToast` の既定で 1.9 秒で消える）は assert しない。直前の `tapOn` が
+  「タップ後に画面が変わったか」をビュー階層の取得で確かめる間に消えることがあり、消えた要素は待っても
+  現れないため、待ち時間では解決しない。成否は遷移先や一覧の項目など、後に残る状態で確かめる（SS-152）。
 - E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-M-004](../adr/ADR-M-004-e2e-build-ci-strategy.md)。
 - 実行には Android エミュレータ/実機 + preview APK が必要。
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。
@@ -189,7 +189,7 @@ pnpm --filter mobile orval          # API クライアント再生成
   - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー（`app-tabs.yaml` はタブ構成とナビタブ idle の構成を見る。SS-145 / SS-147。`account-tab.yaml` はアカウントタブの記録・設定・画面カタログへの遷移を見る。SS-148。`theme-setting.yaml` はゲストのまま `/settings` でダークを選び、再起動後も選択が残ることを見る（配色は assert しない）。SS-86）。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
   - `pin`: ピン登録・閲覧関連フロー（`pin-register.yaml`（SS-88）/ `pin-register-anywhere.yaml`
-    （ピンタブの地図の長押し → 登録・位置調整 → 保存 → ピンタブへ戻ってトースト。SS-124 / SS-146）/
+    （ピンタブの地図の長押し → 登録・位置調整 → 保存 → ピンタブへ戻る。SS-124 / SS-146）/
     `pin-map.yaml`（ピンタブの地図表示・登録済みピン取得が落ち着くこと・「地図一覧」の往復。マーカーのタップ→詳細遷移は含まない。
     SS-118 / SS-146）/ `sanpo-map-list.yaml`（地図一覧の表示・地図の作成・地図名の検索・地図詳細・
     ピン名の検索・ピン詳細への遷移。実行ごとに一意な名前の地図とピンを作る。SS-121））。`auth-gate.yaml`（`smoke`）はゲストのピンタブ・アカウントタブにサインイン案内が出ることも見る（SS-148）。
