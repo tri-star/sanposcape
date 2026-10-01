@@ -37,8 +37,8 @@ const GOOGLE_SIGNIN_PLUGIN = "react-native-nitro-google-signin";
  * （ADR-M-007 の SS-148 追補）。
  *
  * 意図的にやらないこと:
- * - アイコンは分けない（docs/build-profiles.md の「アプリ識別子の定義」参照）。iOS の
- *   `expo.icon`（Icon Composer 形式）の variant を作るコストが見合わないため、後続課題にする。
+ * - アイコンは分けない。開発・本番とも SS-87 の採用画像を使う
+ *   （ADR-M-015）。iOS は PNG、Android は Adaptive Icon のレイヤーを静的設定で指定する。
  * - `slug` / `extra.eas.projectId` / `updates.url` / `runtimeVersion` は上書きしない
  *   （同一 EAS プロジェクトで variant を持つ）。
  */

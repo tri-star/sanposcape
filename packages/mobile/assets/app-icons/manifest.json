@@ -1,0 +1,148 @@
+{
+  "source": "../icon-concepts/sanposcape-icon-v2.png",
+  "adaptive_sources": [
+    "../icon-concepts/adaptive-walker-source.png",
+    "../icon-concepts/adaptive-scenery-source.png"
+  ],
+  "resampling": "Lanczos",
+  "images": [
+    {
+      "file": "sanposcape-icon-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/mipmap-mdpi/ic_launcher.png",
+      "width": 48,
+      "height": 48,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/mipmap-hdpi/ic_launcher.png",
+      "width": 72,
+      "height": 72,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/mipmap-xhdpi/ic_launcher.png",
+      "width": 96,
+      "height": 96,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/mipmap-xxhdpi/ic_launcher.png",
+      "width": 144,
+      "height": 144,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/mipmap-xxxhdpi/ic_launcher.png",
+      "width": 192,
+      "height": 192,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/play-store-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/adaptive-foreground.png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA"
+    },
+    {
+      "file": "android/adaptive-background.png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "file": "android/adaptive-monochrome.png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-40.png",
+      "width": 40,
+      "height": 40,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-60.png",
+      "width": 60,
+      "height": 60,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-58.png",
+      "width": 58,
+      "height": 58,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-87.png",
+      "width": 87,
+      "height": 87,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-80.png",
+      "width": 80,
+      "height": 80,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-120.png",
+      "width": 120,
+      "height": 120,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-180.png",
+      "width": 180,
+      "height": 180,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-20.png",
+      "width": 20,
+      "height": 20,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-29.png",
+      "width": 29,
+      "height": 29,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-76.png",
+      "width": 76,
+      "height": 76,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-152.png",
+      "width": 152,
+      "height": 152,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-167.png",
+      "width": 167,
+      "height": 167,
+      "mode": "RGB"
+    },
+    {
+      "file": "ios/AppIcon.appiconset/icon-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB"
+    }
+  ]
+}
