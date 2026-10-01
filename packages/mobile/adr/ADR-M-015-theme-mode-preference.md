@@ -68,6 +68,26 @@ SS-86 で、ライト / ダーク / 端末の設定をアプリの設定とし�
 - サーバー同期（フェーズB）は別課題。保存形式の移行は不要。ただしフェーズB では、`load()`（設定全体の読み出し）と `themeModeUpdatedAt` の更新を制御できる書き込み I/F をサービスに足す必要がある（現状は `loadThemeMode` / `saveThemeMode` のみで、保存のたびに updatedAt が更新される）。今は YAGNI として I/F を広げない。
 - **Android で「端末の設定」のとき OS のダーク切替に追従しない疑い**（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) の未確認事項）は、SS-86 の PR 作成後に Android エミュレータ（Pixel_6_Pro_API_35 / development build）で確認し、**再現しなかった**。「ライト」「ダーク」を選んでから「端末の設定」へ戻した状態で `adb shell "cmd uimode night yes|no"` を切り替えると、アプリはその場で追従した。保存値が `system` のまま起動した直後の追従は、この確認には含まれない。
 
+## サーバー同期（フェーズB・別課題）への申し送り
+
+SS-86 の計画時に洗い出した要件と方針の案。フェーズB で採用するかはその課題で決める（決定5を差し替えるときに、ここも更新する）。
+
+- **既存 API は流用しない**。`/auth/session` / `/auth/refresh` の `SessionRead.user` は identity snapshot として [ADR-M-009](./ADR-M-009-auth-session-state-and-route-gate.md) で例外的に許容された値なので、設定値を混ぜると情報源が二重になる。`/app-config` はユーザー非依存。
+- **API の案**（どちらも認証必須。未認証は 401。ワイヤは snake_case）:
+  - `GET /users/me/preferences` → 200 `{ "theme_mode": "system" | "light" | "dark", "updated_at": string(date-time) | null }`。一度も保存していないユーザーにも 404 にせず、既定値（`system` / `null`）を返す。
+  - `PATCH /users/me/preferences`（全フィールド任意の部分更新）→ 200 で更新後の全体を返す（`updated_at` はサーバー時刻）。同じ値を繰り返し送ってもよい（冪等）。
+  - OpenAPI の enum 名は `ThemeMode` を避ける（Orval 生成物の型名が mobile の `@/theme` の `ThemeMode` と重なる）。例: `ThemeModePreference`。
+  - 保存先（新テーブルか `users` のカラムか）は backend で決めてよい。要件は「アカウント削除で一緒に消えること（ON DELETE CASCADE。SS-12 / SS-62 の削除契約）」と「`updated_at` を返せること」。
+- **同期方針の推奨案: サーバーは新しい端末への初期値の供給源**とする。端末時計の比較（LWW）はしない。
+  - `authenticated` になった時点（セッション復元成功、またはゲストからのサインイン）で `GET` を1回呼ぶ。この端末で一度も選んでいない（`themeModeUpdatedAt === null`）かつサーバーに値がある（`updated_at !== null`）ならサーバー値を適用し、ローカルにも保存する（`themeModeUpdatedAt` はサーバー値を写し、「今」を刻まない）。
+  - ローカルで選択済みなら、ローカル値を `PATCH` で送る（ローカル優先）。設定画面で変更したときも、`authenticated` なら `PATCH` を送る（失敗は無視し、次回の同期で再送される）。
+  - ゲスト・オフライン・401 のときはローカルのみで動く。サインアウトしてもローカル値は残す（決定4）。
+  - 対案: `updated_at` の新しい方を採る LWW（端末の時計ずれが課題）、サーバー常に優先（ゲスト中に選んだ値がサインインで上書きされる）。
+- **mobile 側で必要になる変更**:
+  - サービスに、設定全体を読む `load()` と、`themeModeUpdatedAt` を指定して書ける I/F を足す（「影響」を参照）。
+  - 同期の判定は純粋関数に切り出す（例: `decideThemeModeSync({ localUpdatedAt, server })` → サーバー値を適用 / ローカル値を送る / 何もしない）。
+  - backend と mobile の両方に変更が要るので、mobile の同期処理はクライアント向けフィーチャーフラグで包む（API 自体はフラグなしで公開してよい）。
+
 ## 関連情報
 
 - [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) / [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) / ADR-002 決定6（ゲスト = トークン非保持）
