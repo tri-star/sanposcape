@@ -12,7 +12,8 @@
 - [ビルド variant の実行時判定](project-build-variant-runtime.md) — OTAでexpoConfigが変わる・eas updateはeas.jsonのenvを読まない・__DEV__ガードはバンドル除外しない
 - [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
-- [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto/永続ストレージ不在と依存追加のコスト
+- [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto 不在・永続化は expo-file-system の同期 File API が第一候補・依存追加のコスト
+- [テーマ/外観の落とし穴](project-theme-appearance.md) — StatusBar auto はネイティブ配色を見る・setColorScheme は 'unspecified'（RN0.86）・SS-86 の実装形（ADR-M-016）
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／href:null は AppTabBar に効かない／Redirect はフォーカス時のみ／タブ画面からは push・ラッチは useNavigateOnce
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場

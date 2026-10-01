@@ -12,7 +12,7 @@
 - 地図: react-native-maps（Android=Google Maps / iOS=Apple Maps）
 - 位置情報: expo-location（現在地取得。`src/services/location` で real/mock を切り替える。詳細は [ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)）
 - 写真: expo-image-picker（カメラ/ライブラリ） + expo-image-manipulator（縮小・JPEG 再圧縮） +
-  expo-file-system（加工後ファイルのバイト数取得）。`src/services/photo` で real/mock を切り替える。
+  expo-file-system（加工後ファイルのバイト数取得。アプリ設定（テーマ）の端末保存にも使う＝`src/services/preferences`、同期 API。SS-86）。`src/services/photo` で real/mock を切り替える。
   画像表示は expo-image。アップロードは presigned POST で S3 直送（`src/features/pin/api/`）。
   詳細は [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
 - スライダー: @react-native-community/slider（往復時間の指定UI）

@@ -18,8 +18,8 @@ metadata:
   導入状況は `packages/mobile/package.json` を都度確認すること（SS-70 で追加する計画があった）。
   **ネイティブモジュールを `src/api/client.ts` から到達する位置に足したら、`vitest.config.ts` の `resolve.alias` にモックを足す**
   （足さないと features の api テストが軒並み落ちる）。
-- **永続ストレージ**: `@react-native-async-storage/async-storage` は未導入。`expo-secure-store` は導入済みだが値サイズ上限が約 2KB で軌跡のような配列は置けない。
-  **`expo-file-system@57.0.1` は推移的依存として node_modules に存在する**（明示依存ではない）ので、永続化が要るときの第一候補になる。
+- **永続ストレージ**: `@react-native-async-storage/async-storage` は未導入。`expo-secure-store` は導入済みだが値サイズ上限が約 2KB で軌跡のような配列は置けない（同期版 `getItem` はあるが秘密情報用・iOS は再インストール後も残りうる）。
+  **`expo-file-system ~57.0.7` は SS-88 で明示依存になった**（`package.json` で 2026-10-01 確認。ADR-M-008 の「推移的依存」記述は古い）。新 API の `File` は**同期 I/O を持つ**（`textSync()` / `write()` / `exists` / `create()`。`write` の前に `create()` が要る。公式例も create → write）ので、「最初の描画前に読みたい」小さな設定の保存先として第一候補になる（SS-86 の計画で採用。新しいネイティブ依存ではないので development build の作り直しも不要）。
 
 ## 依存追加のコスト
 

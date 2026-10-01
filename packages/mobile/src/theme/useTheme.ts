@@ -8,7 +8,7 @@ export function useTheme(): Theme {
   return useContext(ThemeContext).theme;
 }
 
-/** ライト/ダークの切り替え UI 用。 */
+/** 設定画面のテーマ切替（`features/settings`）と開発用ギャラリーで使う。 */
 export function useThemeMode(): { mode: ThemeMode; setMode: (mode: ThemeMode) => void } {
   const { mode, setMode } = useContext(ThemeContext);
   return { mode, setMode };
