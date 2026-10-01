@@ -82,7 +82,7 @@ describe("createAppPreferencesService", () => {
     expect(JSON.parse(storage.peek() ?? "").themeModeUpdatedAt).toBe("2026-10-01T12:34:56.000Z");
   });
 
-  it("未知キーを持つ保存値は、version と既知キーで書き直される", () => {
+  it("未知キーを持つ保存値は、保存後も未知キーが残り、既知キーと version が更新される", () => {
     const storage = createMemoryPreferenceStorage('{"version":99,"themeMode":"light","future":1}');
     const service = createAppPreferencesService(storage, { now: () => FIXED_NOW });
     service.saveThemeMode("dark");
@@ -90,8 +90,23 @@ describe("createAppPreferencesService", () => {
       version: 1,
       themeMode: "dark",
       themeModeUpdatedAt: "2026-10-01T12:34:56.000Z",
+      future: 1,
     });
   });
+
+  it.each(["{", "[]", "null", "1"])(
+    "壊れた保存値 (%s) は既知フィールドのみで書き直される",
+    (raw) => {
+      const storage = createMemoryPreferenceStorage(raw);
+      const service = createAppPreferencesService(storage, { now: () => FIXED_NOW });
+      service.saveThemeMode("dark");
+      expect(JSON.parse(storage.peek() ?? "")).toEqual({
+        version: 1,
+        themeMode: "dark",
+        themeModeUpdatedAt: "2026-10-01T12:34:56.000Z",
+      });
+    },
+  );
 
   it("read が throw しても loadThemeMode は system を返し onError を1回呼ぶ", () => {
     const error = new Error("read boom");

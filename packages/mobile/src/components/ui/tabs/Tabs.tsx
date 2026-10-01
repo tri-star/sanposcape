@@ -23,6 +23,8 @@ export type TabsProps<T extends string = string> = {
   testID?: string;
   /** 各項目に付与する testID の接頭辞。指定すると `${itemTestIDPrefix}-${item.value}` になる。未指定なら何も付けない。 */
   itemTestIDPrefix?: string;
+  /** tablist に付与するラベル（スクリーンリーダー向け。例: 「テーマ」）。未指定なら何も付けない。 */
+  accessibilityLabel?: string;
 };
 
 /**
@@ -36,11 +38,17 @@ export function Tabs<T extends string = string>({
   style,
   testID,
   itemTestIDPrefix,
+  accessibilityLabel,
 }: TabsProps<T>) {
   const styles = useStyles();
 
   return (
-    <View testID={testID} accessibilityRole="tablist" style={[styles.root, style]}>
+    <View
+      testID={testID}
+      accessibilityRole="tablist"
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.root, style]}
+    >
       {items.map((item) => {
         const active = item.value === value;
         return (

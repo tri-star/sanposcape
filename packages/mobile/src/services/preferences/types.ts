@@ -12,7 +12,10 @@ export type PreferenceStorage = {
   write(raw: string): void;
 };
 
-/** 端末に保存するアプリ設定。端末単位であり、ユーザー（アカウント）単位ではない。 */
+/**
+ * 端末に保存するアプリ設定。端末単位であり、ユーザー（アカウント）単位ではない。
+ * サインアウトで消さないため、ユーザー識別情報（ID・メール等）は入れないこと。
+ */
 export type AppPreferences = {
   themeMode: ThemeMode;
   /**

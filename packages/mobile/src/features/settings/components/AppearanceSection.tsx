@@ -34,6 +34,7 @@ export function AppearanceSection({ mode, onChangeMode, testID }: AppearanceSect
         onChange={onChangeMode}
         testID="settings-theme-mode"
         itemTestIDPrefix="settings-theme-mode"
+        accessibilityLabel={THEME_MODE_FIELD_LABEL}
       />
       <Text style={styles.description}>{THEME_MODE_DESCRIPTION}</Text>
     </Card>

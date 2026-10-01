@@ -12,12 +12,20 @@ import type { PreferenceStorage } from "@/services/preferences/types";
 const PREFERENCES_FILE_NAME = "app-preferences.json";
 
 export function createFilePreferenceStorage(): PreferenceStorage {
-  const file = new File(Paths.document, PREFERENCES_FILE_NAME);
+  // File の生成もネイティブ呼び出しで throw しうる。モジュール評価時（import 時）に走らせると
+  // アプリが起動不能になるため、初回利用時に生成してメモ化する（失敗はサービス側の try/catch へ）。
+  let cached: File | null = null;
+  function getFile(): File {
+    cached ??= new File(Paths.document, PREFERENCES_FILE_NAME);
+    return cached;
+  }
   return {
     read() {
+      const file = getFile();
       return file.exists ? file.textSync() : null;
     },
     write(raw) {
+      const file = getFile();
       if (!file.exists) file.create(); // write() は既存ファイル前提（公式例も create → write）
       file.write(raw);
     },
