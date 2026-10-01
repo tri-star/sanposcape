@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { AccountDeleteDialog } from "@/features/settings/components/AccountDeleteDialog";
+import { AppearanceSection } from "@/features/settings/components/AppearanceSection";
 import { useAccountDeletion } from "@/features/settings/hooks/useAccountDeletion";
 import {
   ACCOUNT_DELETE_BUTTON_LABEL,
@@ -17,10 +18,12 @@ import { canDeleteAccount, resolveSettingsSection } from "@/features/settings/li
 import { authService } from "@/services/auth";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { makeStyles } from "@/theme/makeStyles";
-import { useTheme } from "@/theme/useTheme";
+import { useTheme, useThemeMode } from "@/theme/useTheme";
 
 /**
- * 設定画面。SS-11 時点ではログアウト導線のみを提供していたが、SS-57 でゲスト散歩を解禁した
+ * 設定画面。SS-86 でテーマ設定（表示）を追加した。認証状態にかかわらず表示する。
+ *
+ * SS-11 時点ではログアウト導線のみを提供していたが、SS-57 でゲスト散歩を解禁した
  * ことで `/settings` にゲストも到達できるようになったため、ゲストのときはログアウトの代わりに
  * サインイン導線を出す（押しても何も起きない「ログアウト」を見せない）。
  * 認証全体のルートガードは `AuthGate`（`app/_layout.tsx`）が担う（SS-13 / ADR-M-009）。
@@ -44,6 +47,7 @@ export function SettingsView() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const { mode, setMode } = useThemeMode();
   const styles = useStyles();
   const status = useAuthSessionStore((state) => state.status);
   const section = resolveSettingsSection(status);
@@ -90,6 +94,15 @@ export function SettingsView() {
           />
           <Text style={styles.title}>設定</Text>
           <View style={styles.headerSpacer} />
+        </View>
+
+        {/* テーマは認証に依存しないため、section の分岐の外に置く（loading / guest / authenticated 共通） */}
+        <View style={styles.appearanceSection}>
+          <AppearanceSection
+            mode={mode}
+            onChangeMode={setMode}
+            testID="settings-appearance-section"
+          />
         </View>
 
         {section === "loading" ? (
@@ -233,6 +246,9 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.size.xl,
     fontWeight: theme.typography.weight.heavy,
     color: theme.colors.textPrimary,
+  },
+  appearanceSection: {
+    marginTop: theme.spacing[4],
   },
   headerSpacer: {
     width: theme.control.md,
