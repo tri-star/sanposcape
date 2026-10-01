@@ -1,6 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { queryClient } from "@/api/queryClient";
@@ -11,22 +10,27 @@ import { AuthGate } from "@/features/auth/components/AuthGate";
 // （SS-118 ローカルレビュー SEC-M1。`src/lib/imageCacheCleanup.ts` の JSDoc も参照）。
 import "@/lib/imageCacheCleanup";
 import { initAuth } from "@/services/auth";
+import { appPreferences } from "@/services/preferences";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+import { ThemedStatusBar } from "@/theme/ThemedStatusBar";
 
 // Provider の生成より前に、api クライアントへトークン供給者を登録する。
 // モジュールスコープで1回だけ実行する（initAuth は冪等）。
 initAuth();
 
+// 最初の描画より前に、保存済みのテーマ設定を同期で読む（起動時のちらつき防止。SS-86 / ADR-M-015）。
+const initialThemeMode = appPreferences.loadThemeMode();
+
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppConfigBootstrap />
-      <ThemeProvider>
+      <ThemeProvider initialMode={initialThemeMode} onModeChange={appPreferences.saveThemeMode}>
         <SafeAreaProvider>
           <AuthGate>
             <Stack screenOptions={{ headerShown: false }} />
           </AuthGate>
-          <StatusBar style="auto" />
+          <ThemedStatusBar />
         </SafeAreaProvider>
       </ThemeProvider>
     </QueryClientProvider>

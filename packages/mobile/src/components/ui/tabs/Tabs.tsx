@@ -21,6 +21,8 @@ export type TabsProps<T extends string = string> = {
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** 各項目に付与する testID の接頭辞。指定すると `${itemTestIDPrefix}-${item.value}` になる。未指定なら何も付けない。 */
+  itemTestIDPrefix?: string;
 };
 
 /**
@@ -33,6 +35,7 @@ export function Tabs<T extends string = string>({
   onChange,
   style,
   testID,
+  itemTestIDPrefix,
 }: TabsProps<T>) {
   const styles = useStyles();
 
@@ -43,6 +46,7 @@ export function Tabs<T extends string = string>({
         return (
           <Pressable
             key={item.value}
+            testID={itemTestIDPrefix ? `${itemTestIDPrefix}-${item.value}` : undefined}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             onPress={() => onChange(item.value)}
