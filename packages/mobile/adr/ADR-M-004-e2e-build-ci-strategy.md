@@ -1,12 +1,45 @@
 # ADR-M-004: モバイル E2E(Maestro) のビルド方式と CI コスト戦略
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-02（SS-152）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **E2E には standalone な preview ビルド（`eas.json` の `preview`）を使う。** E2E 用の env（`AUTH_MODE=dev`・固定の dev ユーザー・`LOCATION_MODE=mock` など）を焼き込み、backend API は実物を使う（本文: 決定）
+- **地図タイルの描画・外部データの件数・履歴の件数・記録タブの集計値・周回ルートの形と凡例の文言は assert しない。** 候補は `spot-card-0` があることまで、周回ルートは凡例が存在することまでを見る（本文: 決定、SS-21/SS-44/SS-42/SS-33 追補）
+- **CI の backend は `ENV=test AUTH_MODE=dev MAPS_MODE=fake` で起動し、`.maestro/` 直下の全フローをタグで絞らずに実行する。** タグは、前提を用意できないローカル環境で除外するために使う（本文: 決定 SS-44 追補、移行・対応事項 SS-54）
+- **E2E の APK は CI ランナー上の `eas build --local` で作る（EAS クラウドビルドを使わない）。** この方針は E2E（`preview`）に限る。配布ビルドは EAS クラウドビルドを使う（本文: 決定、SS-79 追補）
+- **APK キャッシュキーは「`@expo/fingerprint` のハッシュ ＋ `packages/mobile` のソース全体のハッシュ ＋ `REACT_NATIVE_ARCHITECTURES`」。** ソースのハッシュからは `.maestro/` / `docs/` / `adr/` を除く。除外を足すときは、そのパスがソースから参照されないことを確認する（本文: 2026-08-14 追補、2026-08-15 追補 問題3、SS-85 追補）
+- **E2E の自動実行は毎週土曜 08:00 JST の定期実行と手動実行（`workflow_dispatch`）だけにする。** lint / typecheck / Vitest は `mobile-ci.yml` で常時実行する（本文: 決定、2026-08-14 追補）
+- **`eas build --local` のサンドボックスで Orval 生成物が落ちるため、`eas-build-post-install` フックで再生成する。** preview ビルドでは `lintVitalAnalyzeRelease` を無効にし、ビルドステップには `timeout-minutes: 40` を付ける（本文: 決定 SS-44 追補）
+- **Gradle のヒープを全プロファイルで `-Xmx6144m` に上げる。ABI は、CI が `REACT_NATIVE_ARCHITECTURES=x86_64` を渡したときだけ絞る**（E2E の `preview` のみ）（本文: SS-85 追補）
+- **CI エミュレータは `google_apis`（userdebug）を前提に安定化する。** `adb root` で GMS の位置プロバイダを `pm disable` し、E2E に不要な Google アプリと background dexopt を止める。タップの取りこぼしは Maestro の `retry` で吸収する（本文: 2026-08-15 追補 問題1・2）
+- **状態を消して起動するときは `subflows/launch-clean.yaml`（`clearState` → 3秒待つ → `launchApp`）を使う。** `launchApp: { clearState: true }` は使わない（本文: SS-152 追補）
+- **1〜2秒で消える一時表示（トースト・スプラッシュ）は assert しない。** 後に残る状態で確かめる。`inputText` の直後に `hideKeyboard` を置くなら入力は ASCII にし、初期表示の外にあり得る要素は `scrollUntilVisible` で送る（本文: SS-152 追補）
+
+### 未解決・持ち越し
+
+- GNSS デッドロック対策は、本文の記録時点では「再発しないと断定できる段階にはない」とされている（本文: 2026-08-15 追補 未解決の事項）
+- PinTabView がフラッシュメッセージを受け取ってトーストを出す配線は、自動テストで見ていない。コンポーネントテストの環境が整ったら追加するのが望ましい（本文: SS-152 追補 影響）
+
+### 変更・撤回された決定
+
+- APK キャッシュキーは fingerprint のみ（JS のみの変更では再ビルドしない） → ソース全体のハッシュを合成（2026-08-14 追補） → `.maestro/` / `docs/` / `adr/` を除外（2026-08-15 追補）
+- E2E の実行は nightly / 手動 / ネイティブ影響パスへの push → 週次の定期実行と手動実行だけ（2026-08-14 追補）
+- `/explore/places` は CI で常に 503 → backend の `MAPS_MODE=fake` で決定的な候補を返す（SS-21/SS-44 追補）
+- 本文の決定にある「CI の preview APK には Maps SDK キーを注入していない」は初版時点の記述。現在は `ci-e2e` environment の secret から注入している（SS-44。ADR-M-007）
+- 状態を消す起動は `launchApp: { clearState: true }` → `subflows/launch-clean.yaml`（SS-152 追補）
+
 ## 日付
 
 2026-07-19（初版）、2026-08-14 追補（fingerprint キャッシュの前提不整合）、
 2026-08-15 追補（エミュレータ環境に起因する不安定性・キャッシュキーの絞り込み）、
 2026-09-12 追補（Gradle の Java heap OOM と ABI の絞り込み、SS-85）、
 2026-09-13 追補（配布ビルドとの適用範囲の明確化、SS-79）、
-2026-09-15 追補（周回ルートの assert 範囲、SS-33）
+2026-09-15 追補（周回ルートの assert 範囲、SS-33）、
+2026-10-02 追補（フローの書き方に起因する不安定性と、Maps キー注入の記述への注記、SS-152）
 
 ## コンテキスト
 
@@ -21,7 +54,10 @@
 - **E2E には standalone な preview ビルド**（JS 埋め込み・スタブ用 env 焼き込み）を使う。日常開発の development build とは別プロファイルにする（`eas.json` の `preview`）。
   - `preview` に E2E 用 env（`EXPO_PUBLIC_AUTH_MODE=dev`、`EXPO_PUBLIC_DEV_USER_KEY=e2e-user-1`、`EXPO_PUBLIC_BACKEND_API_URL=http://10.0.2.2:8000`、`EXPO_PUBLIC_LOCATION_MODE=mock`）を焼き込む。`dev` は backend の `POST /auth/dev-session` を使う＝**backend API は実物**であり、認証の入口だけを差し替える（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。位置情報はエミュレータの位置設定がフレークになりやすいため `mock`（東京駅固定）にする（[ADR-M-006](./ADR-M-006-location-service-real-mock.md)）。
 - **地図の描画と外部データは E2E の assert 対象にしない**（SS-15 で確立）。CI の preview APK には
-  Maps SDK キーを注入していないため Android の地図は灰色のままである。`/explore/places` も
+  Maps SDK キーを注入していないため Android の地図は灰色のままである
+  （**SS-152 注記**: その後 SS-44 で、CI の APK にも `ci-e2e` environment の secret からキーを注入する
+  ようになった。地図タイルの描画を assert しない方針は変わらない。経緯は
+  [ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-44 / SS-78 追補）。`/explore/places` も
   当初は CI の backend に Google の server key が無く常に 503 を返していた（→ 下記 SS-21 追補・
   SS-44 追補で解消済み）。したがって Maestro は
   「画面と主要コントロールが表示されること」までを検証し、**候補件数・地図タイルの描画は検証しない**。
@@ -30,7 +66,7 @@
 
   **（SS-21 追補）**
   - **地図タイルの描画を assert しない方針は維持**する（CI の preview APK には Maps SDK キーを
-    注入しない）。
+    注入しない。**SS-152 注記**: キーは後に SS-44 で注入するようになった。上の注記を参照）。
   - 一方で **`/explore/places` が常に 503 という前提は、backend に `MAPS_MODE=fake`（決定的な
     fake provider）を入れることで解消する**（SS-44）。SS-21 時点で入れたのは `compose.yaml` の
     `environment:` に `MAPS_MODE` の受け口を追加するところまでで、backend の `Settings.maps_mode`
@@ -530,6 +566,66 @@ EAS の値に黙って置き換わる経路が実在した。詳細は
 漏れを検出できない**（`.maestro/` は地図タイルの描画を assert しないため）。同じ訂正を
 [ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) と
 `packages/mobile/docs/build-profiles.md` にも反映した。
+
+## SS-152 追補: フローの書き方に起因する不安定性（2026-10-02）
+
+### 問題
+
+run 36868867068 で 15 フロー中 5 フローが失敗した。成果物（logcat・スクリーンショット・ビュー階層）を
+調べると、いずれもアプリの不具合ではなかった。原因は、Maestro とエミュレータの挙動に対するフローの
+書き方だった。確認ランでも同じ種類の失敗がさらに2件見つかった（run 36880788927 / 36887167514）。
+2026-08-15 の追補（エミュレータ環境そのものの不安定性）とは別系統なので、分けて残す。
+
+1. **clearState 直後の起動が kill される。** `launchApp: { clearState: true }` は `pm clear` で
+   前面のタスクを破棄し、すぐにアプリを起動する。破棄から約1秒後に ActivityTaskManager が
+   `Destroy timeout of remove-task` を発火し、そのアプリのプロセスを kill しにいく。新しいプロセスが
+   起動してから Activity を attach するまでの間にこのタイムアウトが来ると、新しいプロセスが
+   `remove task` で kill されて `failed to attach` になる。アプリはネイティブスプラッシュのまま止まる
+   （smoke / auth-gate）。同じランの他のフローも、起動がタイムアウトより約20〜570ms 遅かったので
+   偶然通っていただけだった。`stopApp`（force-stop）や、プロセスが居ない状態での `pm clear` では、
+   このタイムアウトは出ていない。
+2. **1〜2秒で消える一時表示を捕まえられない。** 保存ボタンの `tapOn` は、タップ後に画面が変わったかを
+   ビュー階層の取得（逼迫したランナーでは1回1〜2秒）で確かめてから返る。その間に、`useToast` の既定で
+   1.9秒のトーストが消えていた（sanpo-map-list / pin-register-anywhere）。消えた要素は待っても
+   現れないので、待ち時間を延ばしても直らない。スプラッシュを assert しない理由
+   （`subflows/sign-in.yaml`）と同じ構造である。
+3. **日本語入力の後の `hideKeyboard` が「戻る」になる。** 非 ASCII の `inputText` では、Maestro が
+   一時的に自前の IME に切り替えて入力する。元のキーボードに戻ったとき再表示されないことがある
+   （logcat に `onStartInputView` が出ない）。Android の `hideKeyboard` は BACK キーを送るだけなので、
+   キーボードが出ていないと画面の「戻る」になる。ピン登録画面では破棄ダイアログが開いた（pin-register）。
+4. **初期表示に収まらない要素を、スクロールせずに assert していた**（account-tab の画面カタログ後半、
+   mvp-walk-flow のアカウントタブの「最近の散歩」）。アカウントタブ下部の帯は ScrollView の外にあり、
+   項目を覆ってはいない。したがってレイアウトは意図どおりと判断した。
+
+### 決定（SS-152 追補）
+
+- **状態を消して起動するときは `subflows/launch-clean.yaml` を使う。** 中身は `clearState` →
+  存在しない要素を `optional: true` で3秒待つ → `launchApp`。`launchApp: { clearState: true }` は使わない。
+  Maestro には固定時間の待機コマンドが無いので、optional の待ちで代用する（失敗は毎回 warning として
+  ログに出る）。3秒の根拠: タイムアウトは消去の開始から約1秒で、消去自体に約0.9秒かかる。逼迫した
+  ランナーでも余裕を取るため3秒にした。コストは1フローあたり約3秒。
+- **1〜2秒で消える一時表示（トースト・スプラッシュ）は assert しない。** 成否は、遷移先や一覧の項目など
+  後に残る状態で確かめる。保存の成功は「登録画面が閉じてピンタブへ戻ること」で見る。保存に失敗すると
+  登録画面に残るので、失敗は見逃さない。
+- **`inputText` の直後に `hideKeyboard` を置くなら、入力は ASCII にする。**
+- **初期表示の外にあり得る要素は、`assertVisible` の前に `scrollUntilVisible` で送る。**
+
+### 採らなかった選択肢
+
+- **`stopApp` → `clearState` → `launchApp` の順にして固定待ちをなくす案。** 今回の logcat では、
+  force-stop の後の `pm clear` でタイムアウトは出ていない。ただし実測は無い。現行の3秒待ちで十分に
+  安全なので採らなかった。待ちのコストが問題になったら、実測してから再検討する。
+- **トーストの表示時間を E2E 向けに延ばす案。** UX の決定（1.9秒）をテストの都合で変えることになる。
+- **`tapOn` の `waitToSettleTimeoutMs` で待ちを短くする案。** 公式ドキュメント上 best-effort で、
+  タップ後の変化確認の待ちを確実には縮められない。
+
+### 影響
+
+- **PinTabView がフラッシュメッセージを受け取ってトーストを出す配線（SS-124 / SS-146）は、自動テストで
+  見なくなった。** `flashMessage` の set/consume は Vitest にある。ただし Vitest は node 環境だけで、
+  コンポーネントは対象外である。
+- 日本語の入力そのものは E2E で見なくなった（これらのフローの検証対象ではない）。
+- 検証: run 36889631002 で 15 フローすべてが成功した。
 
 ## 関連情報
 
