@@ -50,8 +50,10 @@ tags:
     visible:
       id: "screen-catalog"
     timeout: 10000
-- assertVisible:
-    id: "catalog-link-settings"
+# 「設定」はカタログの後半（11番目）にあり、pixel_6 の画面でも初期表示の外になる（SS-152）。
+- scrollUntilVisible:
+    element:
+      id: "catalog-link-settings"
 - back
 - extendedWaitUntil:
     visible:

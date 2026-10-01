@@ -1,0 +1,26 @@
+# 共通 subflow: アプリの状態を消してから起動する（`launchApp: { clearState: true }` の代わり。SS-152）。
+# `subflows/` 配下なので単体では実行されない。
+#
+# `launchApp: { clearState: true }` を使わない理由:
+# 直前のフローでアプリが前面にいる状態から状態を消す（pm clear）と、前面にいたタスクが
+# 「プロセスが死んだ」扱いで破棄され、約1秒後に ActivityTaskManager がそのタスクの
+# 「Destroy timeout of remove-task」でアプリのプロセスを kill する。clearState と起動を
+# 1コマンドで行うと、起動がこのタイムアウトより先に来たとき、起動したばかりの *新しい*
+# プロセスが「remove task」で kill され（起動から約25ms）、「failed to attach」になって
+# ネイティブスプラッシュのまま止まる（run 36868867068 の smoke / auth-gate。logcat で確認）。
+# 同じランの他フローも、起動がタイムアウトの 19〜550ms 後だったために偶然通っていただけで、
+# 毎回同じ競合に晒されている。アプリのコードの問題ではない。
+#
+# 対応: 状態の消去と起動を分け、その間でタイムアウトが過ぎるのを待つ。
+# Maestro には固定時間の待機コマンドが無いので、存在しない要素を optional で待つことで代用する
+# （3秒待って失敗しても optional なのでフローは続く）。タイムアウトは消去の開始から約1秒で、
+# 消去自体にも約0.9秒かかるため、3秒あれば逼迫したランナーでも十分に余裕がある。
+appId: com.sanposcape.app.dev
+---
+- clearState
+- extendedWaitUntil:
+    visible:
+      id: "e2e-wait-for-task-removal"
+    timeout: 3000
+    optional: true
+- launchApp

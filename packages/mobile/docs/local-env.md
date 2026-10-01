@@ -173,6 +173,15 @@ pnpm --filter mobile orval          # API クライアント再生成
 - フローは `.maestro/` に置く（例: `.maestro/smoke.yaml`）。Maestro は既定でワークスペース直下の
   yaml だけを自動実行するため、`.maestro/subflows/` は `runFlow` からのみ呼ばれる共通手順の置き場
   になっている（単体では実行されない）。
+- アプリの状態を消して起動するときは `launchApp: { clearState: true }` ではなく
+  `runFlow: subflows/launch-clean.yaml`（サインインまで進めるなら `subflows/sign-in.yaml`）を使う。
+  clearState 直後の起動は、Android が前面にいたタスクを破棄するタイムアウトで kill されることがあるため
+  （SS-152。詳細はサブフローのコメント）。
+- 画面の下の方にある要素は `assertVisible` の前に `scrollUntilVisible` で送る。CI のエミュレータ
+  （pixel_6 相当）でも初期表示に収まらない画面が多い（アカウントタブの「最近の散歩」、画面カタログの後半など。SS-152）。
+- 保存完了などのトースト（`useToast` の既定で 1.9 秒で消える）は、直前の `tapOn` が画面の落ち着きを
+  待つ間に消えることがある。成否は遷移先や一覧の項目など、後に残る状態で確かめる。トーストの表示そのものを
+  確かめるのは、それが検証対象の `pin-register-anywhere.yaml`（SS-124 のフラッシュメッセージ）だけに留める（SS-152）。
 - E2E は **standalone な preview ビルド**（JS埋め込み・スタブenv焼き込み）を使う。日常開発の development build とは別物。詳細は [ADR-M-004](../adr/ADR-M-004-e2e-build-ci-strategy.md)。
 - 実行には Android エミュレータ/実機 + preview APK が必要。
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。

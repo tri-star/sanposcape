@@ -4,8 +4,8 @@ appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---
-- launchApp:
-    clearState: true
+# 状態の消去と起動は分ける（clearState 直後の起動が kill される競合への対策。理由は subflows/launch-clean.yaml）。
+- runFlow: subflows/launch-clean.yaml
 - extendedWaitUntil:
     visible:
       id: "sign-in-google-button"
