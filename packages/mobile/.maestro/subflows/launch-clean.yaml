@@ -4,12 +4,14 @@
 # `launchApp: { clearState: true }` を使わない理由:
 # 直前のフローでアプリが前面にいる状態から状態を消す（pm clear）と、前面にいたタスクが
 # 「プロセスが死んだ」扱いで破棄され、約1秒後に ActivityTaskManager がそのタスクの
-# 「Destroy timeout of remove-task」でアプリのプロセスを kill する。clearState と起動を
-# 1コマンドで行うと、起動がこのタイムアウトより先に来たとき、起動したばかりの *新しい*
-# プロセスが「remove task」で kill され（起動から約25ms）、「failed to attach」になって
-# ネイティブスプラッシュのまま止まる（run 36868867068 の smoke / auth-gate。logcat で確認）。
-# 同じランの他フローも、起動がタイムアウトの 19〜550ms 後だったために偶然通っていただけで、
+# 「Destroy timeout of remove-task」でアプリのプロセスを kill しにいく。clearState と起動を
+# 1コマンドで行うと、新しいプロセスが起動してから Activity を attach するまでの間にこの
+# タイムアウトが来ることがあり、その *新しい* プロセスが「remove task」で kill され
+# （起動から約25ms）、「failed to attach」になってネイティブスプラッシュのまま止まる
+# （run 36868867068 の smoke / auth-gate。logcat で確認）。
+# 同じランの他フローも、起動がタイムアウトの約20〜570ms 後だったために偶然通っていただけで、
 # 毎回同じ競合に晒されている。アプリのコードの問題ではない。
+# なお stopApp（force-stop）やプロセスが居ない状態での pm clear ではこのタイムアウトは出ていない。
 #
 # 対応: 状態の消去と起動を分け、その間でタイムアウトが過ぎるのを待つ。
 # Maestro には固定時間の待機コマンドが無いので、存在しない要素を optional で待つことで代用する
@@ -18,9 +20,11 @@
 appId: com.sanposcape.app.dev
 ---
 - clearState
+# optional の失敗は毎回 warning としてログに出る（想定どおり）。label で意図が分かるようにする。
 - extendedWaitUntil:
     visible:
       id: "e2e-wait-for-task-removal"
     timeout: 3000
     optional: true
+    label: "clearState 後のタスク破棄タイムアウトを待つ（3秒の固定待ち）"
 - launchApp
