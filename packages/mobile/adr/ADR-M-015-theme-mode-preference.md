@@ -66,7 +66,7 @@ SS-86 で、ライト / ダーク / 端末の設定をアプリの設定とし�
 - 開発中の JS リロードではネイティブに前回の上書きが残るため、保存値が `system` だと初回フレームが前回の配色になりうる（開発時のみ）。
 - `Tabs` に `itemTestIDPrefix` を追加した（E2E 用）。
 - サーバー同期（フェーズB）は別課題。保存形式の移行は不要。ただしフェーズB では、`load()`（設定全体の読み出し）と `themeModeUpdatedAt` の更新を制御できる書き込み I/F をサービスに足す必要がある（現状は `loadThemeMode` / `saveThemeMode` のみで、保存のたびに updatedAt が更新される）。今は YAGNI として I/F を広げない。
-- **Android で「端末の設定」のとき OS のダーク切替に追従しない疑い**（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) の未確認事項）は、SS-86 の実装時点では**未確認**（エミュレータが使えない環境で実装したため）。手動確認（`adb shell "cmd uimode night yes"`）で再現した場合は SS-86 では深追いせず、別課題として切り出す。
+- **Android で「端末の設定」のとき OS のダーク切替に追従しない疑い**（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) の未確認事項）は、SS-86 の PR 作成後に Android エミュレータ（Pixel_6_Pro_API_35 / development build）で確認し、**再現しなかった**。「ライト」「ダーク」を選んでから「端末の設定」へ戻した状態で `adb shell "cmd uimode night yes|no"` を切り替えると、アプリはその場で追従した。保存値が `system` のまま起動した直後の追従は、この確認には含まれない。
 
 ## 関連情報
 

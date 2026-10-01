@@ -284,7 +284,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 - **（SS-33 追補・未着手）`theme.map.routeReturn` の Claude Design 側への反映待ち**。今回はリポジトリ側（`src/theme/tokens.ts`）に semantic トークンを追加しただけで、値の SSoT である Claude Design 側には未反映。`tokens.ts` 冒頭の「デザイン側が更新されたらここを差し替える」運用と噛み合っていないため、次に Design 側のトークンを一括インポートし直すタイミングで `routeReturn` が上書き・欠落しないよう、Design 側への反映を別途依頼すること。
 - **（SS-33 追補）Android 実機での描画確認**: 2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で確認済み。帰りの線は `lineCap="round"` + `lineDashPattern` のため「丸い点の点線」に見え、凡例 `WalkRouteLegend` の破線見本（短い線）と見た目が少し違うが、ユーザー判断で許容し据え置いた。凡例の破線見本と同じ道フォールバック時の凡例は正常に描画された。揃えたくなったら復路だけ `lineCap="butt"` にする（`RoutePolyline` に `lineCap` props を追加する）。
-- **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。
+- **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。（後日注記: SS-86 で「端末の設定」のまま `cmd uimode night yes|no` を切り替え、追従することを確認した。[ADR-M-015](./ADR-M-015-theme-mode-preference.md) の「影響」を参照）
 
 ## 関連情報
 
