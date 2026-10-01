@@ -18,7 +18,8 @@
 backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API 契約・代表表記・並び順は
 ルート ADR-009 の SS-136 追補 決定30 が正本。本 ADR には重複して書かない）。
 
-ピン編集画面（SS-119）は mobile にまだ無く、`PinTagEditor` を使っているのは登録画面だけ。
+ピン編集画面（SS-119）は mobile にまだ無く、`PinTagEditor` を使っているのは登録画面だけ
+（SS-119 で実装。編集画面でも使い、`PinTagEditor` に任意 prop `canRemove` を追加した。[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)。決定は変えない）。
 
 ## 決定
 

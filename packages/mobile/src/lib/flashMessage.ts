@@ -6,6 +6,11 @@
  * 表示できない。`features/pin` → `features/walk` の直接 import を作らないため、
  * `src/lib/sessionCleanup.ts` と同じくモジュールレベルの状態をここに置く。
  *
+ * SS-119 で用途を加えた: ピン詳細の削除後に戻る先（ピンタブ・散歩中のナビタブ・地図詳細）の「ピンを削除しました」、
+ * 編集の保存後に戻る先（ピン詳細）の「ピンを更新しました」。消費する画面は `WalkActiveView`・`PinTabView`・
+ * `SanpoMapDetailView`・`PinDetailView`（フォーカス時に `consumeFlashMessage()` を呼ぶ）。消費しない戻り先があると、
+ * 文言が残って後で別の画面に遅れて出る。
+ *
  * 非永続（メモリのみ）。アプリを再起動すると消える。
  */
 let pendingMessage: string | null = null;
