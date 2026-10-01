@@ -108,6 +108,41 @@ describe("createAppPreferencesService", () => {
     },
   );
 
+  it.each([null, ""])("未保存 (%j) は正常扱いで onError を呼ばない", (raw) => {
+    const onError = vi.fn();
+    const service = createAppPreferencesService(createMemoryPreferenceStorage(raw), { onError });
+    expect(service.loadThemeMode()).toBe("system");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("正常な保存値では onError を呼ばない", () => {
+    const onError = vi.fn();
+    const storage = createMemoryPreferenceStorage('{"version":1,"themeMode":"dark"}');
+    const service = createAppPreferencesService(storage, { onError });
+    expect(service.loadThemeMode()).toBe("dark");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it.each(["{", "[]", "null", "1", '{"version":1}', '{"version":1,"themeMode":"sepia"}'])(
+    "壊れた保存値 (%s) は system に倒し、preferences_read_failed を1回通知する",
+    (raw) => {
+      const onError = vi.fn();
+      const service = createAppPreferencesService(createMemoryPreferenceStorage(raw), { onError });
+      expect(service.loadThemeMode()).toBe("system");
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith("preferences_read_failed", expect.any(Error));
+    },
+  );
+
+  it("通知するエラーに保存内容を含めない", () => {
+    const onError = vi.fn();
+    const raw = '{"themeMode":"secret-looking-value"}';
+    const service = createAppPreferencesService(createMemoryPreferenceStorage(raw), { onError });
+    service.loadThemeMode();
+    const error = onError.mock.calls[0]?.[1] as Error;
+    expect(error.message).not.toContain("secret-looking-value");
+  });
+
   it("read が throw しても loadThemeMode は system を返し onError を1回呼ぶ", () => {
     const error = new Error("read boom");
     const storage: PreferenceStorage = {

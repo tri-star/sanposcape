@@ -12,35 +12,6 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   themeModeUpdatedAt: null,
 };
 
-/**
- * 保存文字列 → AppPreferences。どんな入力でも throw せず、解釈できない項目は既定値にする。
- * `version` は見ない（古いアプリへのダウングレード時に設定を失わないため）。未知のキーは読み取りでは無視する
- * （保存時は {@link saveThemeMode} が元の未知キーを残して書き戻す）。
- */
-export function parseAppPreferences(raw: string | null): AppPreferences {
-  if (raw === null || raw === "") return { ...DEFAULT_APP_PREFERENCES };
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { ...DEFAULT_APP_PREFERENCES };
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { ...DEFAULT_APP_PREFERENCES };
-  }
-
-  const record = parsed as Record<string, unknown>;
-  // 壊れた themeMode の時刻は信用しない
-  if (!isThemeMode(record.themeMode)) return { ...DEFAULT_APP_PREFERENCES };
-
-  return {
-    themeMode: record.themeMode,
-    themeModeUpdatedAt:
-      typeof record.themeModeUpdatedAt === "string" ? record.themeModeUpdatedAt : null,
-  };
-}
-
 /** 保存文字列が JSON オブジェクトとして読めるときだけそのレコードを返す（壊れていれば null）。 */
 function parseRawRecord(raw: string | null): Record<string, unknown> | null {
   if (raw === null || raw === "") return null;
@@ -51,6 +22,38 @@ function parseRawRecord(raw: string | null): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** 保存文字列の解釈結果。`invalid` は「保存値はあるが解釈できなかった」（未保存は false）。 */
+type DecodedAppPreferences = { prefs: AppPreferences; invalid: boolean };
+
+function decodeAppPreferences(raw: string | null): DecodedAppPreferences {
+  if (raw === null || raw === "") return { prefs: { ...DEFAULT_APP_PREFERENCES }, invalid: false };
+
+  const record = parseRawRecord(raw);
+  // 不正な JSON・オブジェクト以外・themeMode が不正（壊れた themeMode の時刻は信用しない）
+  if (record === null || !isThemeMode(record.themeMode)) {
+    return { prefs: { ...DEFAULT_APP_PREFERENCES }, invalid: true };
+  }
+
+  return {
+    prefs: {
+      themeMode: record.themeMode,
+      themeModeUpdatedAt:
+        typeof record.themeModeUpdatedAt === "string" ? record.themeModeUpdatedAt : null,
+    },
+    invalid: false,
+  };
+}
+
+/**
+ * 保存文字列 → AppPreferences。どんな入力でも throw せず、解釈できない項目は既定値にする。
+ * `version` は見ない（古いアプリへのダウングレード時に設定を失わないため）。未知のキーは読み取りでは無視する
+ * （保存時は {@link saveThemeMode} が元の未知キーを残して書き戻す）。
+ * 壊れていたことの通知はサービス側（`preferences_read_failed`）で行う。
+ */
+export function parseAppPreferences(raw: string | null): AppPreferences {
+  return decodeAppPreferences(raw).prefs;
 }
 
 /**
@@ -102,13 +105,23 @@ export function createAppPreferencesService(
     }
   }
 
+  /**
+   * 保存文字列を読んで解釈する。保存値が壊れていたら既定値に倒し、onError に通知する
+   * （未保存は正常扱い。保存内容はログに出さない）。
+   */
+  function readPreferences(): { raw: string | null; prefs: AppPreferences } {
+    const raw = readRaw();
+    const { prefs, invalid } = decodeAppPreferences(raw);
+    if (invalid) onError("preferences_read_failed", new Error("app preferences are invalid"));
+    return { raw, prefs };
+  }
+
   return {
     loadThemeMode() {
-      return parseAppPreferences(readRaw()).themeMode;
+      return readPreferences().prefs.themeMode;
     },
     saveThemeMode(mode) {
-      const raw = readRaw();
-      const current = parseAppPreferences(raw);
+      const { raw, prefs: current } = readPreferences();
       const next: AppPreferences = {
         ...current,
         themeMode: mode,
