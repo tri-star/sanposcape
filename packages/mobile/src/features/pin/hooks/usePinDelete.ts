@@ -57,6 +57,14 @@ export function usePinDelete(
       void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
       onDeletedRef.current();
     },
+    onError: (error) => {
+      if (pinId === null) return;
+      // 権限が変わった可能性がある（role の変更・作成者でない等）。権限情報と詳細を取り直す。
+      if (toPinDeleteErrorCode(error) === "forbidden") {
+        void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: pinDetailQueryKey(pinId) });
+      }
+    },
     // 破壊的操作なので自動再試行しない。失敗はダイアログで見せて手動再試行させる。
     retry: false,
     onSettled: () => {

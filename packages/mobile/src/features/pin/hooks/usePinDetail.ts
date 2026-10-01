@@ -22,6 +22,8 @@ const DETAIL_GC_TIME_MS = 30 * 60_000;
 export type UsePinDetailResult = {
   pin: PinDetail | null;
   isLoading: boolean;
+  /** 詳細の（再）取得中。編集画面が、再取得の完了を待ってから基準値を確定するために使う。 */
+  isFetching: boolean;
   errorCode: PinReadErrorCode | null;
   retry: () => void;
   /** グリッド・拡大表示に使う写真（`resolvePinDetailPhotos` の結果）。 */
@@ -133,6 +135,7 @@ export function usePinDetail(
   return {
     pin: detailQuery.data ?? null,
     isLoading: detailQuery.isPending && enabled,
+    isFetching: detailQuery.isFetching,
     errorCode: detailQuery.error ? toPinReadErrorCode(detailQuery.error) : null,
     retry,
     photos,

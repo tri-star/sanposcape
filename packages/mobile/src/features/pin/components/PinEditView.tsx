@@ -24,6 +24,7 @@ import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { PinTagEditor } from "@/features/pin/components/PinTagEditor";
 import { usePinEdit } from "@/features/pin/hooks/usePinEdit";
 import { resolvePinDetailBodyState } from "@/features/pin/lib/pinDetailState";
+import { resolvePinEditBodyError } from "@/features/pin/lib/pinEditSync";
 import { saveUnavailableMessage } from "@/features/pin/lib/pinDraftValidation";
 import {
   canManuallyRetryPinEdit,
@@ -113,10 +114,12 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
     );
   };
 
+  const bodyErrorCode = resolvePinEditBodyError(edit.detail.errorCode, edit.baseline !== null);
   const bodyState = resolvePinDetailBodyState({
     hasPinId: pinId !== null,
     isSignedIn,
-    errorCode: edit.detail.errorCode,
+    // 基準値の確定後は、バックグラウンド再取得の失敗でフォームを消さない（A-3）。
+    errorCode: bodyErrorCode,
     isLoading: edit.detail.isLoading,
     hasPin: edit.baseline !== null,
   });
@@ -165,6 +168,8 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
   const goBackAction = { label: "戻る", onPress: back.goBack, testID: "pin-edit-go-back" };
 
   const renderForm = (): PinEditBody => {
+    // 詳細が取れるまでは null（baseline も null なので通常は到達しない）。
+    if (permissions === null) return loadingBody();
     const markedCount = edit.draft.photoIdsToDelete.length;
     const detail = edit.detail;
 
@@ -343,7 +348,7 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
         };
 
       case "error": {
-        const errorCode = edit.detail.errorCode;
+        const errorCode = bodyErrorCode;
         if (errorCode === null) return loadingBody();
         return {
           centered: true,

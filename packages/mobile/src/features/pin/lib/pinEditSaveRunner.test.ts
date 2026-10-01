@@ -9,6 +9,21 @@ import {
   type PinEditSaveProgress,
 } from "@/features/pin/lib/pinEditSaveRunner";
 import { PinSaveError } from "@/features/pin/lib/pinSaveError";
+import type { PinDetail } from "@/features/pin/types";
+
+const UPDATED_PIN: PinDetail = {
+  id: "pin-1",
+  name: "新",
+  memo: null,
+  location: { latitude: 0, longitude: 0 },
+  sanpoMapId: "map-1",
+  createdByUserId: "me",
+  tags: [],
+  photos: [],
+  photoCount: 0,
+  sanpoMapName: "地図",
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
 
 function buildDeps(
   overrides: Partial<PinEditSaveDeps> = {},
@@ -24,8 +39,11 @@ function buildDeps(
     markPhotoDeleted: (id) => {
       deleted.add(id);
     },
+    isUpdated: () => false,
+    onUpdated: () => {},
     updatePin: vi.fn(async () => {
       log.push("update");
+      return UPDATED_PIN;
     }),
     deletePinPhoto: vi.fn(async (_pinId: string, photoId: string) => {
       log.push(`delete:${photoId}`);
@@ -74,6 +92,39 @@ describe("runPinEditSave", () => {
 
     expect(deps.updatePin).not.toHaveBeenCalled();
     expect(deps.attachPhotos).toHaveBeenCalledTimes(1);
+  });
+
+  it("PATCH に成功したら、応答を onUpdated に渡す", async () => {
+    const onUpdated = vi.fn();
+    const deps = buildDeps({ onUpdated });
+
+    await runPinEditSave(deps);
+
+    expect(onUpdated).toHaveBeenCalledWith(UPDATED_PIN);
+  });
+
+  it("PATCH 済みの記録があれば、差分があっても updatePin を再送しない（古いスナップショットで上書きしない）", async () => {
+    const onUpdated = vi.fn();
+    const deps = buildDeps({ isUpdated: () => true, onUpdated });
+
+    await runPinEditSave(deps);
+
+    expect(deps.updatePin).not.toHaveBeenCalled();
+    expect(onUpdated).not.toHaveBeenCalled();
+  });
+
+  it("PATCH が失敗したときは onUpdated を呼ばない", async () => {
+    const onUpdated = vi.fn();
+    const deps = buildDeps({
+      onUpdated,
+      updatePin: vi.fn(async () => {
+        throw new TypeError("Network request failed");
+      }),
+    });
+
+    await catchError(runPinEditSave(deps));
+
+    expect(onUpdated).not.toHaveBeenCalled();
   });
 
   it("削除済みの記録がある写真は DELETE を呼ばない", async () => {

@@ -18,6 +18,13 @@ import {
   type PinEditSaveAvailability,
 } from "@/features/pin/lib/pinEditDraft";
 import {
+  addDeletedPhotoId,
+  canConfirmPinEditBaseline,
+  excludeDeletedPhotos,
+  rebaseBaselineAfterUpdate,
+  rebaseDraftAfterPhotoDeleted,
+} from "@/features/pin/lib/pinEditSync";
+import {
   validatePinDraftFields,
   type PinDraftFieldErrors,
 } from "@/features/pin/lib/pinDraftValidation";
@@ -56,7 +63,8 @@ export type UsePinEditResult = {
   /** null = まだ詳細が取れていない。 */
   baseline: PinEditBaseline | null;
   draft: PinEditDraft;
-  permissions: PinPermissions;
+  /** null = まだ詳細が取れていない（この間は本文を描画しないので使われない）。 */
+  permissions: PinPermissions | null;
   setName: (v: string) => void;
   setMemo: (v: string) => void;
   tagInput: string;
@@ -89,11 +97,23 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   const detail = usePinDetail(options.pinId, { enabled: options.isSignedIn });
   const pin = detail.pin;
 
-  // 基準値と下書きは、最初に詳細が取れた時点で1回だけレンダー中に確定する
+  // 基準値と下書きは、詳細が「新しく」取れた時点で1回だけレンダー中に確定する
   // （docs/architecture-guideline.md「1回だけの状態確定」）。詳細を取り直しても入力を消さない。
+  // invalidate 済みの古いキャッシュで確定しないよう、再取得が終わるまで待つ（A-2）。
+  // 部分保存の後は、PATCH の成功応答で基準値を作り直す（A-1。`onPinUpdated`）。
   const [baseline, setBaseline] = useState<PinEditBaseline | null>(null);
   const [draft, setDraft] = useState<PinEditDraft>(EMPTY_DRAFT);
-  if (baseline === null && pin !== null) {
+  // この画面で DELETE に成功した写真（既存写真の表示から外す。A-1）。
+  const [deletedPhotoIds, setDeletedPhotoIds] = useState<readonly string[]>([]);
+  if (
+    baseline === null &&
+    pin !== null &&
+    canConfirmPinEditBaseline({
+      hasPin: true,
+      isFetching: detail.isFetching,
+      hasError: detail.errorCode !== null,
+    })
+  ) {
     const created = createPinEditBaseline(pin);
     setBaseline(created);
     setDraft(initialPinEditDraft(created));
@@ -108,7 +128,7 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     role: pin !== null ? resolvePinRole(sanpoMapsQuery.maps, pin.sanpoMapId) : null,
     currentUserId: options.currentUserId,
   };
-  const permissions = resolvePinPermissions(ctx, { createdByUserId: pin?.createdByUserId ?? "" });
+  const permissions = pin !== null ? resolvePinPermissions(ctx, pin) : null;
 
   const tagSuggestionsQuery = usePinTagSuggestions({
     sanpoMapId: pin?.sanpoMapId ?? null,
@@ -129,6 +149,11 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     pinId: options.pinId,
     photos: photosBase.saveBridge,
     onSaved: options.onSaved,
+    onPinUpdated: (updated) => setBaseline(rebaseBaselineAfterUpdate(updated)),
+    onPhotoDeleted: (photoId) => {
+      setDeletedPhotoIds((prev) => addDeletedPhotoId(prev, photoId));
+      setDraft((prev) => rebaseDraftAfterPhotoDeleted(prev, photoId));
+    },
   });
 
   const fieldErrors = validatePinDraftFields(draft);
@@ -146,13 +171,14 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
 
   // 入力の入口（すべて）で保存エラー状態を解除する。手動再試行できない失敗のままでも、
   // 入力を直せば再度保存を押せるようにする（PR #93 T8 と同じ）。保存フロー自身の dispatch では呼ばない。
-  const updateDraft = (patch: Partial<PinEditDraft>) => {
-    setDraft((prev) => ({ ...prev, ...patch }));
+  // 更新は updater 形式にする（連続した操作で先の更新を失わない。A-7）。
+  const updateDraft = (update: (prev: PinEditDraft) => PinEditDraft) => {
+    setDraft(update);
     save.resetError();
   };
 
-  const setName = (v: string) => updateDraft({ name: v });
-  const setMemo = (v: string) => updateDraft({ memo: v });
+  const setName = (v: string) => updateDraft((prev) => ({ ...prev, name: v }));
+  const setMemo = (v: string) => updateDraft((prev) => ({ ...prev, memo: v }));
 
   const setTagInput = (v: string) => {
     setTagInputState(v);
@@ -165,7 +191,11 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
       setTagError(addTagErrorMessage(result.reason));
       return;
     }
-    updateDraft({ tags: result.tags });
+    // 上限・重複の判定結果（error）は現在の下書きで見て、反映は updater で最新の tags に対して行う。
+    updateDraft((prev) => {
+      const latest = addTag(prev.tags, label);
+      return latest.ok ? { ...prev, tags: latest.tags } : prev;
+    });
     setTagInputState("");
     setTagError(null);
   };
@@ -180,10 +210,16 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   const removeTag = (label: string) => {
     // UI でも出さないが、多層防御として権限の無いタグは外さない。
     if (!canRemoveTag(label)) return;
-    updateDraft({ tags: removeTagFrom(draft.tags, label) });
+    updateDraft((prev) => ({ ...prev, tags: removeTagFrom(prev.tags, label) }));
   };
 
-  const existingPhotos: PinEditExistingPhoto[] = detail.photos.map((photo) => ({
+  // DELETE 済みの写真は表示から外す（サーバーに既に無いので、印を外すと通常の写真に見えてしまう）。
+  const visiblePhotos = excludeDeletedPhotos({
+    photos: detail.photos,
+    photoCount: detail.photoCount,
+    deletedPhotoIds,
+  });
+  const existingPhotos: PinEditExistingPhoto[] = visiblePhotos.photos.map((photo) => ({
     photo,
     markedForDeletion: draft.photoIdsToDelete.includes(photo.id),
     deletable: canDeletePinPhoto(ctx, photo),
@@ -193,7 +229,10 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     const target = existingPhotos.find((entry) => entry.photo.id === photoId);
     // 権限の無い写真には印を付けない。印を外すのは常に許す。
     if (target === undefined || (!target.deletable && !target.markedForDeletion)) return;
-    updateDraft({ photoIdsToDelete: toggleDeletionMark(draft.photoIdsToDelete, photoId) });
+    updateDraft((prev) => ({
+      ...prev,
+      photoIdsToDelete: toggleDeletionMark(prev.photoIdsToDelete, photoId),
+    }));
   };
 
   const newPhotos: UsePinPhotosResult = {
@@ -213,7 +252,7 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   };
 
   const submit = () => {
-    if (baseline === null || !saveAvailability.canSave) return;
+    if (baseline === null || permissions === null || !saveAvailability.canSave) return;
     // このタイミングの内容を同期的にスナップショットする（自動再試行でも同じ内容を送る。PR #93 T12）。
     save.save({
       request: buildPinUpdateRequest({
@@ -227,7 +266,7 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   };
 
   return {
-    detail,
+    detail: { ...detail, photoCount: visiblePhotos.photoCount },
     baseline,
     draft,
     permissions,

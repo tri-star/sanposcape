@@ -80,7 +80,10 @@ export function PinTagEditor({
                 key={tag}
                 icon={locked ? "tag" : "x"}
                 onPress={removable ? () => onRemove(tag) : undefined}
-                accessibilityLabel={locked ? `${tag}（削除できません）` : `${tag}を削除`}
+                // 保存中などで押せないチップは静的表示になる。「削除」と読み上げて押せない状態を避ける。
+                accessibilityLabel={
+                  locked ? `${tag}（削除できません）` : removable ? `${tag}を削除` : undefined
+                }
                 testID={`${testID}-${index}`}
               >
                 {tag}

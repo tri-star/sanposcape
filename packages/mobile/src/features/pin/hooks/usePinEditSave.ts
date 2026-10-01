@@ -21,6 +21,7 @@ import {
   pinPhotosQueryKey,
 } from "@/features/pin/lib/pinQueryKeys";
 import { runAttachPhotosToPin } from "@/features/pin/lib/pinSaveRunner";
+import type { PinDetail } from "@/features/pin/types";
 
 /** 自動再試行の最大回数（初回 + この回数まで）。`usePinSave` と同じ値。 */
 const MAX_RETRY_COUNT = 2;
@@ -54,19 +55,36 @@ export function usePinEditSave(options: {
   pinId: string | null;
   photos: UsePinPhotosResult["saveBridge"];
   onSaved: () => void;
+  /** PATCH の成功応答。編集画面の基準値を作り直す（部分保存後も差分が正しく出るように。A-1）。 */
+  onPinUpdated: (updated: PinDetail) => void;
+  /** DELETE に成功した写真。下書きの印と既存写真の表示から外す（A-1）。 */
+  onPhotoDeleted: (photoId: string) => void;
 }): UsePinEditSaveResult {
   const { pinId, photos } = options;
   const queryClient = useQueryClient();
   const onSavedRef = useRef(options.onSaved);
   onSavedRef.current = options.onSaved;
+  const onPinUpdatedRef = useRef(options.onPinUpdated);
+  onPinUpdatedRef.current = options.onPinUpdated;
+  const onPhotoDeletedRef = useRef(options.onPhotoDeleted);
+  onPhotoDeletedRef.current = options.onPhotoDeleted;
+  // 同一フレーム内の連打で保存が2本走らないよう、同期的に立てるラッチ（`usePinDelete` と同じ）。
+  // `status` は描画を待つため、ボタンの disabled だけでは取りこぼす。
+  const submittingRef = useRef(false);
 
   const [progress, setProgress] = useState<PinEditSaveProgress | null>(null);
   const [partiallySaved, setPartiallySaved] = useState(false);
+  // ref と state の二重持ち: ref はアンマウント時の cleanup から最新値を読むため、state は描画
+  // （破棄ダイアログの文言）に使うため。cleanup はクロージャが古いので state は読めない。
   const partiallySavedRef = useRef(false);
   // 自動再試行でも同じスナップショットを使う（途中で入力が変わっても送る内容を変えない）。
   const snapshotRef = useRef<PinEditSaveSnapshot | null>(null);
   // この画面で DELETE に成功した写真。画面の寿命の間だけ持つ（成功後も画面を閉じるのでクリアしない）。
   const deletedPhotoIdsRef = useRef(new Set<string>());
+  // この保存（save() 1回分）で PATCH に成功したか。自動再試行で同じ PATCH を再送しない。
+  const updatedRef = useRef(false);
+  // PATCH の成功応答。成功時に詳細キャッシュへ先に反映する（A-5）。
+  const updatedPinRef = useRef<PinDetail | null>(null);
 
   const markPartiallySaved = useCallback(() => {
     partiallySavedRef.current = true;
@@ -88,12 +106,16 @@ export function usePinEditSave(options: {
         markPhotoDeleted: (id) => {
           deletedPhotoIdsRef.current.add(id);
           markPartiallySaved();
+          onPhotoDeletedRef.current(id);
         },
-        updatePin: async (id, request) => {
-          const result = await updatePin(id, request, { apiBaseUrl: getApiBaseUrl() });
+        isUpdated: () => updatedRef.current,
+        onUpdated: (updated) => {
+          updatedRef.current = true;
+          updatedPinRef.current = updated;
           markPartiallySaved();
-          return result;
+          onPinUpdatedRef.current(updated);
         },
+        updatePin: (id, request) => updatePin(id, request, { apiBaseUrl: getApiBaseUrl() }),
         deletePinPhoto,
         attachPhotos: async (onProgress) => {
           await runAttachPhotosToPin({
@@ -118,6 +140,13 @@ export function usePinEditSave(options: {
     },
     onSuccess: () => {
       if (pinId === null) return;
+      // 成功で画面を離れる。アンマウント時の invalidate（途中失敗用）と重複させない。
+      partiallySavedRef.current = false;
+      // 詳細に戻った直後に旧データと「更新しました」が同時に出ないよう、PATCH の応答で先に差し替える。
+      // 写真の段の結果は含まないが、直後の invalidate で取り直される。
+      if (updatedPinRef.current !== null) {
+        queryClient.setQueryData(pinDetailQueryKey(pinId), updatedPinRef.current);
+      }
       // 写真ページ（infinite）は削除・追加で並びが変わるため、先頭から読み直す。
       void queryClient.resetQueries({ queryKey: pinPhotosQueryKey(pinId) });
       // 詳細・地図のマーカー・地図詳細の一覧（名前・タグ・代表写真）・タグ候補。
@@ -138,6 +167,7 @@ export function usePinEditSave(options: {
       }
     },
     onSettled: () => {
+      submittingRef.current = false;
       photos.resume();
     },
     retry: (failureCount, error) =>
@@ -160,7 +190,11 @@ export function usePinEditSave(options: {
   const { mutate, reset, isError } = mutation;
   const save = useCallback(
     (snapshot: PinEditSaveSnapshot) => {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
       snapshotRef.current = snapshot;
+      updatedRef.current = false;
+      updatedPinRef.current = null;
       mutate();
     },
     [mutate],
