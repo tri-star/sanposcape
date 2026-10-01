@@ -6,13 +6,14 @@ import type { GeoBounds } from "@/features/pin/types";
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })` を呼び、一覧・詳細・写真ページ・タグ候補を
  * まとめて再検証する（`docs/folder-structure.md`「queryKey はドメイン名で始める」）。
  *
- * SS-119（編集・削除）は `pinDetailQueryKey` の置き換え・`PINS_QUERY_ROOT` の invalidate を使う。
+ * SS-119（編集・削除）も `PINS_QUERY_ROOT` の invalidate を使う（編集の成功時は `pinDetailQueryKey` を
+ * PATCH の応答で先に置き換える）。ADR-M-017 D7。
  */
 export const PINS_QUERY_ROOT = ["pins"] as const;
 
 /**
  * 地図一覧（`GET /sanpo-maps?expand=pin_count`）。ピン系と違い `["pins"]` 配下ではない
- * （`usePinSave` は保存成功時に個別に invalidate する。SS-119 もピン削除時に同様に行うこと）。
+ * （`usePinSave` は保存成功時に、`usePinDelete`（SS-119）はピン削除成功時に個別に invalidate する）。
  * 一覧画面・ピン登録画面・ピンタブで同じキャッシュを共有する。
  */
 export const SANPO_MAPS_QUERY_KEY = ["sanpo-maps", "list"] as const;
