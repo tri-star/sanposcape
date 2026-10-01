@@ -23,9 +23,9 @@ SS-86 で、ライト / ダーク / 端末の設定をアプリの設定とし�
 
 1. **選択値の唯一の情報源は `ThemeContext` の `mode`**。Zustand に複製しない。
 2. **外観の上書きはハイブリッド**にする。JS 側は `resolveTheme(mode, useColorScheme())`、ネイティブ側は `Appearance.setColorScheme(toNativeColorScheme(mode))`（system → `"unspecified"`）、ステータスバーは `ThemedStatusBar` でテーマから明示指定する。
-3. **永続化は `expo-file-system` の同期 API** で `Paths.document/app-preferences.json`（`src/services/preferences`）。最初の描画の前（`app/_layout.tsx` のモジュール評価時）に読む。保存形式は `{ version, themeMode, themeModeUpdatedAt }`。読込・保存の失敗は throw せず診断ログのみ（起動は止めない）。
+3. **永続化は `expo-file-system` の同期 API** で `Paths.document/app-preferences.json`（`src/services/preferences`）。最初の描画の前（`app/_layout.tsx` のモジュール評価時）に読む。保存形式は `{ version, themeMode, themeModeUpdatedAt }`。読込・保存の失敗は throw せず診断ログのみ（起動は止めない）。保存値が壊れている（不正な JSON・オブジェクト以外・不正な `themeMode`）場合も既定値に倒し、`preferences_read_failed` を記録する（未保存は正常扱いで記録しない。保存内容はログに出さない）。
 4. **端末単位の設定**とする。サインアウト・アカウント削除で消さない（`registerSessionCleanup` に登録しない）。
-5. **サーバー同期は行わない**（別課題）。保存形式に `themeModeUpdatedAt`（ユーザーが明示的に選んだ時刻）を持たせて備える。
+5. **サーバー同期は行わない**（別課題）。保存形式に `themeModeUpdatedAt`（ユーザーが明示的に選んだ時刻）を持たせて備える。現在と同じ値を選び直したときも保存して時刻を記録する（初回の `system` のまま「端末の設定」を明示的に選んだ場合を、未選択＝`null` と区別するため。再描画だけ省く）。
 6. **フィーチャーフラグで包まない**。
 7. **`services/preferences` は real/mock の環境変数を持たない**（[ADR-M-001](./ADR-M-001-folder-structure.md) 決定4 の例外）。E2E は real のまま再現できる（`clearState` で消える）。単体テストはストレージの DI（`createAppPreferencesService` + メモリ実装）で足りる。ファイル名は `tokenStore.secure.ts` / `tokenStore.memory.ts` の前例に倣い `preferenceStorage.file.ts` / `preferenceStorage.memory.ts` とした。
 8. **保存は read-modify-write**。元のファイルが JSON オブジェクトとして読めるときは未知キーを残して既知フィールドだけ上書きし、読めない（壊れている）ときは既知フィールドのみ書く。新しい版のアプリが書いたキーを旧版の保存で消さないため。ストレージ（`File`）の生成は初回利用時まで遅らせ、失敗しても起動を止めない。
