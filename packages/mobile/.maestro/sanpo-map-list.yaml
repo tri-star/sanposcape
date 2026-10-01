@@ -28,8 +28,9 @@ tags:
     timeout: 15000
 # 実行ごとに一意な名前（同じ CI ランの他フロー・前回の実行の地図と区別する）
 - evalScript: ${output.suffix = String(Date.now())}
-- evalScript: ${output.mapName = 'E2E地図' + output.suffix}
-- evalScript: ${output.pinName = 'E2Eピン' + output.suffix}
+# 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
+- evalScript: ${output.mapName = 'E2E-map-' + output.suffix}
+- evalScript: ${output.pinName = 'E2E-pin-' + output.suffix}
 
 # --- 地図一覧 → 作成 ---
 - tapOn:

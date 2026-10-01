@@ -35,7 +35,8 @@ tags:
 # 名前を先に入れ、位置調整の往復で入力が消えないことも見る
 - tapOn:
     id: "pin-register-name-input"
-- inputText: "E2Eの任意地点ピン"
+# 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
+- inputText: "E2E-anywhere-pin"
 - hideKeyboard
 - tapOn:
     id: "pin-register-location-adjust"
@@ -55,7 +56,7 @@ tags:
 - assertVisible:
     id: "pin-register-location-adjusted"
 - assertVisible:
-    text: "E2Eの任意地点ピン"
+    text: "E2E-anywhere-pin"
 - scrollUntilVisible:
     element:
       id: "pin-register-save"
