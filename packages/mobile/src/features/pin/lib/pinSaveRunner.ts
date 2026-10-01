@@ -182,3 +182,31 @@ export async function runPinSave(deps: PinSaveRunnerDeps): Promise<SavedPin> {
   }
   return pin;
 }
+
+export type AttachPhotosDeps = Omit<
+  PinSaveRunnerDeps,
+  "getSavedPinId" | "setSavedPinId" | "buildCreateRequest" | "createPin"
+> & { pinId: string };
+
+/**
+ * 既存のピンへ写真を追加する（SS-119 の編集画面）。`runPinSave` を「作成済み（savedPinId = pinId）」
+ * として実行する。pinId が非 null なので createPin / buildCreateRequest は呼ばれない
+ * （呼ばれたら到達不能のバグとして throw する）。
+ * 戻り値は最終的な写真総数（追加写真が無ければ通信せず attached 数）。
+ *
+ * `onProgress` は `{step:"creating"}` を出しうる型だが、この経路では出ない。
+ * 呼び出し側は `sending_photos` だけを写せばよい。
+ */
+export async function runAttachPhotosToPin(
+  deps: AttachPhotosDeps,
+): Promise<{ photoCount: number }> {
+  const { pinId, ...rest } = deps;
+  const pin = await runPinSave({
+    ...rest,
+    getSavedPinId: () => pinId,
+    setSavedPinId: () => {},
+    buildCreateRequest: () => null,
+    createPin: () => Promise.reject(new Error("unreachable: pin already exists")),
+  });
+  return { photoCount: pin.photoCount };
+}

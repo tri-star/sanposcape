@@ -9,7 +9,7 @@ import {
   PIN_PHOTOS_PER_REQUEST_MAX,
 } from "@/features/pin/lib/pinLimits";
 import { isPinSaveError, isPhotoSlotsBusyError } from "@/features/pin/lib/pinSaveError";
-import { runPinSave } from "@/features/pin/lib/pinSaveRunner";
+import { runAttachPhotosToPin, runPinSave } from "@/features/pin/lib/pinSaveRunner";
 import type { PinSaveRunnerDeps } from "@/features/pin/lib/pinSaveRunner";
 import type {
   PhotoDraftItem,
@@ -445,5 +445,82 @@ describe("runPinSave", () => {
     for (const call of (server.addPinPhotos as ReturnType<typeof vi.fn>).mock.calls) {
       expect((call[1] as string[]).length).toBeLessThanOrEqual(PIN_PHOTOS_PER_REQUEST_MAX);
     }
+  });
+});
+
+describe("runAttachPhotosToPin", () => {
+  function attachDeps(
+    harness: ReturnType<typeof createStateHarness>,
+    server: ReturnType<typeof createFakeServer>,
+  ) {
+    const {
+      getSavedPinId: _g,
+      setSavedPinId: _s,
+      buildCreateRequest: _b,
+      createPin: _c,
+      ...rest
+    } = buildDeps(harness, server);
+    return { ...rest, pinId: "pin-existing" };
+  }
+
+  it("写真0枚: 通信しない（createPin・addPinPhotos とも呼ばれない）", async () => {
+    const harness = createStateHarness([]);
+    const server = createFakeServer();
+
+    const result = await runAttachPhotosToPin(attachDeps(harness, server));
+
+    expect(server.createPinCallCount).toBe(0);
+    expect(server.addPinPhotosCallCount).toBe(0);
+    expect(result.photoCount).toBe(0);
+  });
+
+  it("写真12枚: addPinPhotos が既存の pinId で 10 + 2 の2回、createPin は呼ばれない", async () => {
+    const items = Array.from({ length: 12 }, (_, i) => makeItem(`u${i}`, "uploaded", `up-u${i}`));
+    const harness = createStateHarness(items);
+    const server = createFakeServer();
+
+    const result = await runAttachPhotosToPin(attachDeps(harness, server));
+
+    expect(server.createPinCallCount).toBe(0);
+    expect(server.addPinPhotosCallCount).toBe(2);
+    const calls = vi.mocked(server.addPinPhotos).mock.calls;
+    expect(calls.map(([pinId, ids]) => [pinId, ids.length])).toEqual([
+      ["pin-existing", 10],
+      ["pin-existing", 2],
+    ]);
+    expect(result.photoCount).toBe(12);
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
+  });
+
+  it("2回目のチャンクで失敗しても、再実行は紐付け済みから再開する", async () => {
+    const items = Array.from({ length: 12 }, (_, i) => makeItem(`u${i}`, "uploaded", `up-u${i}`));
+    const harness = createStateHarness(items);
+    const server = createFakeServer({
+      hooks: { onAddPinPhotos: (i) => (i === 1 ? "throw_lost" : undefined) },
+    });
+    const deps = attachDeps(harness, server);
+
+    await expect(runAttachPhotosToPin(deps)).rejects.toSatisfy(
+      (error: unknown) => isPinSaveError(error) && error.stage === "add_photos",
+    );
+    expect(harness.current.filter((item) => item.status === "attached")).toHaveLength(10);
+
+    await runAttachPhotosToPin(deps);
+
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
+    // 3回目の呼び出しは残りの2枚だけ（10枚を再送しない）。
+    expect(vi.mocked(server.addPinPhotos).mock.calls[2]?.[1]).toHaveLength(2);
+  });
+
+  it("他所の未使用枠で 429 を挟んでも、待機に戻して最終的に全件 attached", async () => {
+    const items = Array.from({ length: 12 }, (_, i) => makeItem(`w${i}`, "waiting"));
+    const harness = createStateHarness(items);
+    const server = createFakeServer({ otherPendingSlots: 25 });
+
+    await runAttachPhotosToPin(attachDeps(harness, server));
+
+    expect(server.createPinCallCount).toBe(0);
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
+    expect(server.maxPendingObserved).toBeLessThanOrEqual(BACKEND_PENDING_UPLOADS_MAX);
   });
 });
