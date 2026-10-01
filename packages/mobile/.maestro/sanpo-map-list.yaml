@@ -28,8 +28,9 @@ tags:
     timeout: 15000
 # 実行ごとに一意な名前（同じ CI ランの他フロー・前回の実行の地図と区別する）
 - evalScript: ${output.suffix = String(Date.now())}
-- evalScript: ${output.mapName = 'E2E地図' + output.suffix}
-- evalScript: ${output.pinName = 'E2Eピン' + output.suffix}
+# 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
+- evalScript: ${output.mapName = 'E2E-map-' + output.suffix}
+- evalScript: ${output.pinName = 'E2E-pin-' + output.suffix}
 
 # --- 地図一覧 → 作成 ---
 - tapOn:
@@ -136,10 +137,18 @@ tags:
       id: "pin-register-save"
 - tapOn:
     id: "pin-register-save"
+# 保存の成功はトースト（「ピンを保存しました」。useToast の既定で 1.9 秒で消える）では見ない。
+# 保存ボタンの tapOn は「タップ後に画面が変わったか」をビュー階層の取得で確かめてから返るため
+# （初回フローの冷えたエミュレータで約5秒）、
+# その間にトーストが消えて取りこぼしていた（run 36868867068。SS-152）。
+# 代わりに登録画面が閉じてピンタブへ戻ることを待つ（保存に失敗すると登録画面に残る）。
+# ピンが実際に保存されたことは、後段の地図詳細にピンが出ることで確かめる。
 - extendedWaitUntil:
-    visible:
-      text: "ピンを保存しました"
+    notVisible:
+      id: "pin-register-screen"
     timeout: 20000
+- assertVisible:
+    id: "pin-tab-screen"
 
 # --- 地図詳細にピンが出る → ピン名で検索 → ピン詳細 ---
 - tapOn:

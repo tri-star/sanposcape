@@ -6,8 +6,8 @@
 # 単体では実行されず、runFlow からのみ呼ばれる。
 appId: com.sanposcape.app.dev
 ---
-- launchApp:
-    clearState: true
+# 状態の消去と起動は分ける（clearState 直後の起動が kill される競合への対策。理由は subflows/launch-clean.yaml）。
+- runFlow: launch-clean.yaml
 # スプラッシュ（id: splash-screen）は意図的に assert しない。
 # clearState 後は復元すべきセッションが無く status がすぐ確定するため、表示窓は
 # SplashView の最低表示時間（約900ms）にほぼ等しい。Maestro のビューヒエラルキ取得は

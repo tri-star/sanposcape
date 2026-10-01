@@ -154,8 +154,13 @@ tags:
       id: "recent-walks-loading"
     timeout: 20000
 # 直前に保存した散歩が「最近の散歩」に出る（useWalkSave の invalidateQueries の検証）。
-- assertVisible:
-    id: "recent-walk-0"
+# 「最近の散歩」は集計カードの下にあり、pixel_6 の画面でも初期表示の外になるのでスクロールして探す
+# （下部の「設定 / 画面カタログ」の帯は ScrollView の外に置かれていて項目を覆わない。SS-152）。
+# 上の recent-walks-loading も画面外にあり得るので、読み込みの実質的な待ちはこの scrollUntilVisible
+# （既定の20秒）が兼ねる。一覧の取得に失敗した場合は recent-walk-0 が見つからない形で落ちる。
+- scrollUntilVisible:
+    element:
+      id: "recent-walk-0"
 
 # --- 履歴一覧 → 詳細 ---
 - tapOn:

@@ -28,7 +28,8 @@ tags:
     id: "pin-register-sanpo-map-retry"
 - tapOn:
     id: "pin-register-name-input"
-- inputText: "E2Eのピン"
+# 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
+- inputText: "E2E-pin"
 # タグ欄は位置プレビュー・位置調整ボタン（SS-124）の下にあり、キーボードを開いたままだと
 # その裏に隠れる。Maestro は隠れた要素の座標をそのままタップするので、タップがキーボードに
 # 吸われて名前欄に入力が続いてしまう。キーボードを閉じてからタグ欄を画面内に出す。
@@ -55,7 +56,7 @@ tags:
     id: "pin-register-tag-1"
 - tapOn:
     id: "pin-register-memo-input"
-- inputText: "Maestro から登録"
+- inputText: "registered-by-maestro"
 - hideKeyboard
 - scrollUntilVisible:
     element:

@@ -9,8 +9,8 @@ appId: com.sanposcape.app.dev
 tags:
   - smoke
 ---
-- launchApp:
-    clearState: true
+# 状態の消去と起動は分ける（clearState 直後の起動が kill される競合への対策。理由は subflows/launch-clean.yaml）。
+- runFlow: subflows/launch-clean.yaml
 # スプラッシュは assert しない（理由は subflows/sign-in.yaml のコメントを参照:
 # 表示窓が約900msしかなく、Maestroのポーリング間隔次第で見逃す構造的フレークになる）。
 # スプラッシュは最低 900ms 表示 + restoreSession() の通信を待つため extendedWaitUntil を使う
