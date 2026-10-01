@@ -1,25 +1,37 @@
+import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { Tag } from "@/components/ui/tag/Tag";
+import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { PinDeleteDialog } from "@/features/pin/components/PinDeleteDialog";
 import { PinLocationPreview } from "@/features/pin/components/PinLocationPreview";
 import { PinPhotoGallery } from "@/features/pin/components/PinPhotoGallery";
 import { PinPhotoViewer } from "@/features/pin/components/PinPhotoViewer";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
+import { usePinDelete } from "@/features/pin/hooks/usePinDelete";
 import { usePinDetail } from "@/features/pin/hooks/usePinDetail";
+import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import { PIN_DELETE_DONE_TITLE } from "@/features/pin/lib/pinDeleteError";
 import {
+  canShowPinActions,
   formatPinCreatedAt,
   pinDisplayName,
   resolvePinDetailBodyState,
 } from "@/features/pin/lib/pinDetailState";
+import { resolvePinPermissions, resolvePinRole } from "@/features/pin/lib/pinPermissions";
 import { clampViewerIndex } from "@/features/pin/lib/pinPhotoViewer";
 import { isRetriablePinReadError, pinReadErrorMessage } from "@/features/pin/lib/pinReadError";
+import type { UseScreenBackResult } from "@/hooks/useScreenBack";
 import { useScreenBack } from "@/hooks/useScreenBack";
+import { useToast } from "@/hooks/useToast";
+import { consumeFlashMessage, setFlashMessage } from "@/lib/flashMessage";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -27,6 +39,8 @@ export type PinDetailViewProps = {
   /** ルートで isUuid を通した値。不正なら null。 */
   pinId: string | null;
   isSignedIn: boolean;
+  /** ルートが認証ストアから読んで注入する（権限による導線の出し分けに使う。SS-119）。 */
+  currentUserId: string | null;
   onSignIn: () => void;
 };
 
@@ -34,11 +48,46 @@ export type PinDetailViewProps = {
 type PinDetailBody = { content: ReactNode; centered: boolean };
 
 /** PinDetailView — `/pins/[pinId]`（ピン詳細）の実体（SS-118。モックの `isDetail`）。 */
-export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProps) {
+export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: PinDetailViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const detail = usePinDetail(pinId, { enabled: isSignedIn });
+  const router = useRouter();
+  const toast = useToast();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // useScreenBack より前に usePinDelete を宣言する（`WalkDetailView` と同じ）。onIntercept は削除ダイアログの
+  // 状態を参照し、onDeleted は back.runOnce を呼ぶという相互参照を、back の参照だけ ref に逃がして解く。
+  const backRef = useRef<UseScreenBackResult | null>(null);
+  const deletion = usePinDelete(pinId, {
+    onDeleted: () => {
+      setDeleteDialogOpen(false);
+      // 消えた詳細に戻れてしまわないよう、開く前の画面（ピンタブ・ナビタブ・地図詳細）へ戻る。
+      // 文言は戻り先が flash として消費して出す（この画面は消えるので自分では出せない）。
+      setFlashMessage(PIN_DELETE_DONE_TITLE);
+      backRef.current?.runOnce(() =>
+        router.canGoBack() ? router.back() : router.replace("/(tabs)"),
+      );
+    },
+  });
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    // 失敗表示を残したまま再オープンしないよう、閉じるタイミングで mutation もリセットする。
+    deletion.reset();
+  };
+
+  // 削除後は取り直さない（消えたピンの詳細を取りに行って 404 になるのを避ける）。
+  const detail = usePinDetail(pinId, { enabled: isSignedIn && deletion.status !== "deleted" });
+
+  // 権限: 地図の role は GET /sanpo-maps のキャッシュから引く（不明は editor 扱い。ADR-M-017）。
+  const maps = useSanpoMaps({ enabled: isSignedIn });
+  const permissions =
+    detail.pin !== null
+      ? resolvePinPermissions(
+          { role: resolvePinRole(maps.maps, detail.pin.sanpoMapId), currentUserId },
+          detail.pin,
+        )
+      : null;
 
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // 写真の同時削除などで件数が減っても、レンダー中に viewerIndex を収める（0件なら閉じる）。
@@ -49,14 +98,37 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
     }
   }
 
+  // 注意: 削除ダイアログ表示中の Android バックは Dialog（RN Modal）の onRequestClose が先に消費する。
+  // ここの分岐は画面上の戻るボタン等 Modal を経由しない経路向けの保険として、同じ規律で書く。
   const back = useScreenBack({
     fallbackHref: "/(tabs)",
     onIntercept: () => {
+      // ダイアログ → ビューアの順。削除中は閉じさせない（消費のみ）。
+      if (deleteDialogOpen) {
+        if (deletion.status !== "deleting") closeDeleteDialog();
+        return true;
+      }
       if (viewerIndex === null) return false;
       setViewerIndex(null);
       return true;
     },
   });
+  backRef.current = back;
+
+  // 編集画面（保存後）・ピン削除後に戻った先でのトースト。画面またぎのメッセージ受け渡し
+  // （`src/lib/flashMessage.ts` 参照）。
+  const { show: showToast } = toast;
+  useFocusEffect(
+    useCallback(() => {
+      const message = consumeFlashMessage();
+      if (message) showToast(message);
+    }, [showToast]),
+  );
+
+  const handleEdit = () => {
+    if (pinId === null) return;
+    back.runOnce(() => router.push({ pathname: "/pins/[pinId]/edit", params: { pinId } }));
+  };
 
   const bodyState = resolvePinDetailBodyState({
     hasPinId: pinId !== null,
@@ -64,6 +136,7 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
     errorCode: detail.errorCode,
     isLoading: detail.isLoading,
     hasPin: detail.pin !== null,
+    deleteStatus: deletion.status,
   });
 
   const loadingBody = (): PinDetailBody => ({
@@ -144,6 +217,18 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
       case "loading":
         return loadingBody();
 
+      case "deleted":
+        return {
+          centered: true,
+          content: (
+            <PinStateCard
+              testID="pin-detail-deleted"
+              icon="check-circle-2"
+              title={PIN_DELETE_DONE_TITLE}
+            />
+          ),
+        };
+
       case "ready": {
         const pin = detail.pin;
         if (pin === null) {
@@ -220,6 +305,19 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
               {detail.photos.length > 0 ? (
                 <Text style={styles.hint}>写真をタップすると拡大表示できます</Text>
               ) : null}
+
+              {permissions?.canDeletePin ? (
+                <Button
+                  variant="danger"
+                  icon="trash-2"
+                  fullWidth
+                  disabled={deletion.status === "deleting"}
+                  onPress={() => setDeleteDialogOpen(true)}
+                  testID="pin-detail-delete"
+                >
+                  このピンを削除
+                </Button>
+              ) : null}
             </ScrollView>
           ),
         };
@@ -253,8 +351,17 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
             testID="pin-detail-back"
           />
           <Text style={styles.title}>ピンの詳細</Text>
-          {/* SS-119 でここに編集ボタンを置く。今は押せて何も起きないボタンを作らないため空のスペーサー。 */}
-          <View style={styles.headerSpacer} />
+          {canShowPinActions(bodyState) && permissions?.canOpenEditor ? (
+            <IconButton
+              icon="pencil"
+              label="ピンを編集"
+              variant="ghost"
+              onPress={handleEdit}
+              testID="pin-detail-edit"
+            />
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
         {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
       </View>
@@ -271,6 +378,16 @@ export function PinDetailView({ pinId, isSignedIn, onSignIn }: PinDetailViewProp
           onImageError={detail.handlePhotoLoadError}
         />
       ) : null}
+      {/* マウント条件は open の boolean だけにする（bodyState で条件付きにすると、削除成功で
+          "deleted" に変わった瞬間にダイアログがちらつく。WalkDetailView と同じ）。 */}
+      <PinDeleteDialog
+        open={deleteDialogOpen}
+        status={deletion.status}
+        errorCode={deletion.errorCode}
+        onCancel={closeDeleteDialog}
+        onConfirm={deletion.deletePin}
+      />
+      <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
     </View>
   );
 }

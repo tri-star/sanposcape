@@ -26,6 +26,11 @@ export type PinTagEditorProps = {
   /** 候補チップのタップ。 */
   onSelectSuggestion: (label: string) => void;
   onRemove: (label: string) => void;
+  /**
+   * そのタグを外せるか（SS-119 の編集画面で、他人が付けたタグを削除不可で出すための prop）。
+   * 省略時はすべて外せる（登録画面は渡さない）。false のタグは `x` の無い静的なチップで出す。
+   */
+  canRemove?: (label: string) => boolean;
   /** 保存中はタグの追加・削除を止める（PR #93 T12）。 */
   disabled?: boolean;
   testID: string;
@@ -41,6 +46,7 @@ export function PinTagEditor({
   onAdd,
   onSelectSuggestion,
   onRemove,
+  canRemove,
   disabled = false,
   testID,
 }: PinTagEditorProps) {
@@ -65,17 +71,22 @@ export function PinTagEditor({
     <View testID={testID} style={styles.root}>
       {tags.length > 0 ? (
         <View style={styles.chips}>
-          {tags.map((tag, index) => (
-            <Tag
-              key={tag}
-              icon="x"
-              onPress={disabled ? undefined : () => onRemove(tag)}
-              accessibilityLabel={`${tag}を削除`}
-              testID={`${testID}-${index}`}
-            >
-              {tag}
-            </Tag>
-          ))}
+          {tags.map((tag, index) => {
+            const removable = !disabled && (canRemove?.(tag) ?? true);
+            // 削除できないタグ（他人が付けたもの）は押せるように見せない静的表示にする。
+            const locked = !(canRemove?.(tag) ?? true);
+            return (
+              <Tag
+                key={tag}
+                icon={locked ? "tag" : "x"}
+                onPress={removable ? () => onRemove(tag) : undefined}
+                accessibilityLabel={locked ? `${tag}（削除できません）` : `${tag}を削除`}
+                testID={`${testID}-${index}`}
+              >
+                {tag}
+              </Tag>
+            );
+          })}
         </View>
       ) : null}
 

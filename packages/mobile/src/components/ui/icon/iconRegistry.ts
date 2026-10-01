@@ -56,6 +56,7 @@ import TrainFront from "lucide-react-native/icons/train-front";
 import Trash2 from "lucide-react-native/icons/trash-2";
 import TreePine from "lucide-react-native/icons/tree-pine";
 import Trees from "lucide-react-native/icons/trees";
+import Undo2 from "lucide-react-native/icons/undo-2";
 import User from "lucide-react-native/icons/user";
 import Wifi from "lucide-react-native/icons/wifi";
 import X from "lucide-react-native/icons/x";
@@ -107,6 +108,7 @@ export const ICONS = {
   "trash-2": Trash2,
   "tree-pine": TreePine,
   trees: Trees,
+  "undo-2": Undo2,
   user: User,
   wifi: Wifi,
   x: X,

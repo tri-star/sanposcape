@@ -21,6 +21,8 @@ export type PinPhotoGridProps = {
   onRetry: (localId: string) => void;
   /** 保存中は写真の追加・削除・再試行を止める。 */
   disabled?: boolean;
+  /** 見出し。既定は「写真」。編集画面（SS-119）は既存の写真と区別するため「写真を追加」を渡す。 */
+  title?: string;
   testID: string;
 };
 
@@ -145,6 +147,7 @@ export function PinPhotoGrid({
   onRemove,
   onRetry,
   disabled = false,
+  title = "写真",
   testID,
 }: PinPhotoGridProps) {
   const theme = useTheme();
@@ -162,7 +165,7 @@ export function PinPhotoGrid({
   return (
     <View testID={testID} style={styles.root}>
       <View style={styles.heading}>
-        <Text style={styles.headingText}>写真</Text>
+        <Text style={styles.headingText}>{title}</Text>
         <Text style={styles.count}>{summary.total} 枚</Text>
       </View>
       {caption ? <Text style={styles.caption}>{caption}</Text> : null}

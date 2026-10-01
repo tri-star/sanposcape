@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Badge } from "@/components/ui/badge/Badge";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
@@ -38,6 +39,8 @@ import {
 } from "@/features/pin/lib/sanpoMapScreenState";
 import type { PinListEntry, SanpoMap } from "@/features/pin/types";
 import { useScreenBack } from "@/hooks/useScreenBack";
+import { useToast } from "@/hooks/useToast";
+import { consumeFlashMessage } from "@/lib/flashMessage";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -74,6 +77,16 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const maps = useSanpoMaps({ enabled: isSignedIn });
   const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn });
   const back = useScreenBack({ fallbackHref: "/sanpo-maps" });
+  // ピン詳細で削除して戻ってきたときの「ピンを削除しました」を出す（画面またぎのメッセージ受け渡し。
+  // `src/lib/flashMessage.ts`）。消費しないと、文言が残って後でピンタブに遅れて出てしまう（SS-119）。
+  const toast = useToast();
+  const { show: showToast } = toast;
+  useFocusEffect(
+    useCallback(() => {
+      const message = consumeFlashMessage();
+      if (message) showToast(message);
+    }, [showToast]),
+  );
   // 引っ張って更新・再試行は、ピン一覧と地図一覧（地図の名前・件数・存在）の両方を取り直す。
   // 別端末での名前変更の反映と、削除された地図の not-found 化のため（ADR-M-014 D7）。
   const { refresh: refreshPins, retry: retryPins } = pins;
@@ -427,6 +440,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
       ) : (
         body.content
       )}
+      <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
     </View>
   );
 }
