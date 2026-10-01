@@ -37,6 +37,13 @@ SS-121 の計画（2026-09-30）で詳細を `/sanpo-maps/[sanpoMapId]` に置�
 → mobile は「期限時刻」ではなく「画像の読み込み失敗」を契機に取り直す設計にする。画像キャッシュのキーは URL ではなく
 `photo.id`（expo-image の `source.cacheKey`）。ストレージ障害時も閲覧 API は 200 で URL が null（ADR-009 決定18）。
 
+**ピンの権限判定の材料（SS-119 の計画で確認）**: `PinRead` に role は無い（ルート ADR-009 決定24 で意図的に出さない）。
+作成者は `created_by_user_id` / `tags[].created_by_user_id` / `photos[].uploaded_by_user_id` にある。role は `GET /sanpo-maps`
+の `SanpoMapRead.role` を `pin.sanpo_map.id` で引き、自分の id は `useAuthSessionStore.user.id`（= backend `users.id`）を
+ルートが注入する。role 不明はメンバーの最小権限 editor とみなす案を採った。
+**既存ピンへの写真追加は `runPinSave` をそのまま使える**: `getSavedPinId` が非 null なら `createPin` を呼ばずに
+`addPinPhotos` だけを回す。PATCH `/pins/{id}` は「送ったフィールドごとに権限判定」なので差分だけ送る。
+
 **S3 直送は mobile の3つ目の HTTP 出口**。backend 向け2箇所（`customFetch` / `authApi`）の横断ヘッダーを**付けてはいけない**側（[[project-cloudfront-client-contract]]）。
 
 Related: [[mobile-structure]], [[project-feature-flags]]

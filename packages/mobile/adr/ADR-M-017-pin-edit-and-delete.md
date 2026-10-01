@@ -133,6 +133,11 @@ SS-119 では、ピンの名前・メモの更新、タグの追加・削除、�
 - 本 ADR により、ADR-M-012 D11（編集ボタンを出さない）、ADR-M-013（`PinTagEditor` の再利用の予告）、ADR-M-014 の
   SS-119 への申し送り（`SANPO_MAPS_QUERY_KEY` の invalidate）は決着した。
 - `mobile-e2e` workflow は push トリガが無いので、マージ前に手動で実行する。
+- 招待（BK-7）の導入時に、ピン削除の確認文（`lib/pinDeleteError.ts` の `PIN_DELETE_DIALOG_DESCRIPTION`）を見直す。
+  ピンの削除では他のメンバーが付けた写真・タグも CASCADE で消える（ルート ADR-009 決定19）が、全員 owner で
+  ピンの中身がすべて自分のものである今の文言はそれを伝えていない。あわせて、editor 向けの E2E で出し分けと 403 の経路を確かめる。
+- 手動で再試行できない保存の失敗（写真の削除の 403 など）は、どの写真が原因かを示さない。必要になったら `PinEditError` に
+  対象の写真 id を持たせて文言に出す。
 
 ## 関連情報
 

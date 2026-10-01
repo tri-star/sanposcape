@@ -61,6 +61,13 @@ Expo Router には「前の画面へ結果を返す」正式な手段が無い�
 （RN `Modal` はハードウェアバックを `onRequestClose` で先に取り、`useScreenBack` の `onIntercept` が
 届かない。`Modal` の中の `MapView` には Android で不具合報告もある: react-native-maps #3890 / #4893）。
 
+## flash トーストは「消費する画面」でしか出ない（SS-119 で確認）
+
+`setFlashMessage` を消費するのは `WalkActiveView`・`PinTabView`・`PinDetailView`・`SanpoMapDetailView` の
+`useFocusEffect`（後ろの2つは SS-119 で追加。2026-10 時点）。
+ピン詳細は地図詳細（`SanpoMapDetailView`）からも開かれるので、詳細から戻る遷移で flash を使うなら戻り先すべてに
+消費を足す。足さないと文言が残り、次にピンタブへフォーカスしたとき遅れて出る。
+
 ## タブ画面から Stack 画面へ出るときの前提（SS-146 の計画で整理）
 
 - **タブ画面から `/pins/new` 等へは push**。タブ画面の下は `(tabs)` ルートそのものなので、replace すると
