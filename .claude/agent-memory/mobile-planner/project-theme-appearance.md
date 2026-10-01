@@ -4,7 +4,7 @@ description: ライト/ダークの実装実態と、アプリ側でテーマを
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-M-015-theme-mode-preference.md
+  adr: packages/mobile/adr/ADR-M-016-theme-mode-preference.md
   verify_by: 2027-03-31
 ---
 
@@ -19,9 +19,9 @@ SS-86（テーマをアプリ設定に）の計画時にコードと公式ソー
 - Expo の MainActivity は `configChanges` に `uiMode` を含む（prebuild テンプレートで確認）。そのため上書きしても Activity は作り直されない。
 - `app.json` の `userInterfaceStyle: "automatic"` は維持する（`light` にすると iOS が固定される）。Android で効かせるのに必要な `expo-system-ui` は導入済み。
 - Android の Google Maps のタイルは常にライト（`MapView` に配色指定なし）。iOS の Apple Maps はネイティブの外観に従う。
-- ADR-M-008:287 の「エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった」は、SS-86 の実装後に確認して**再現しなかった**（「端末の設定」のまま `adb shell "cmd uimode night yes|no"` で即追従。ADR-M-015「影響」）。
+- ADR-M-008:287 の「エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった」は、SS-86 の実装後に確認して**再現しなかった**（「端末の設定」のまま `adb shell "cmd uimode night yes|no"` で即追従。ADR-M-016「影響」）。
   ただし保存値 `system` のまま起動した直後の追従は未確認なので、system モードの挙動に触るプランでは手動確認に入れておく。
-- SS-86 で実装済みの形（ADR-M-015）: 保存は `src/services/preferences`、初期値は `app/_layout.tsx` のモジュール評価時に同期で読んで `ThemeProvider` の `initialMode` へ、ステータスバーは `ThemedStatusBar`。
+- SS-86 で実装済みの形（ADR-M-016）: 保存は `src/services/preferences`、初期値は `app/_layout.tsx` のモジュール評価時に同期で読んで `ThemeProvider` の `initialMode` へ、ステータスバーは `ThemedStatusBar`。
 - `Alert.alert` は 2026-10 時点で未使用。ダイアログはすべて独自の `Dialog`。
 
 **Why:** テーマの話は「Context を足せば済む」と見えやすいが、ネイティブ側の部品と起動直後の描画で食い違いが出る。

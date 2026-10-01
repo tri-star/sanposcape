@@ -27,7 +27,7 @@
 - **react-native-unistyles を削除する**。
 - スタイルは **React Native 標準の `StyleSheet` + React Context によるテーマ配布**で構成する。
   - `src/theme/tokens.ts` — デザイントークン（primitive / semantic）。**react-native を import しない**素の値のみ。
-  - `src/theme/themeContext.ts` / `ThemeProvider.tsx` — テーマの配布。`system` のとき `useColorScheme()` に追従する。（SS-86 追補）初期モードは保存値を `initialMode` で注入する。`setMode` の時だけ `onModeChange` で永続化する（同じ値を選び直したときも永続化する）。ネイティブ外観は `mode` に合わせて（初回マウントも含めて）`Appearance.setColorScheme` で上書きする。詳細は [ADR-M-015](./ADR-M-015-theme-mode-preference.md)。
+  - `src/theme/themeContext.ts` / `ThemeProvider.tsx` — テーマの配布。`system` のとき `useColorScheme()` に追従する。（SS-86 追補）初期モードは保存値を `initialMode` で注入する。`setMode` の時だけ `onModeChange` で永続化する（同じ値を選び直したときも永続化する）。ネイティブ外観は `mode` に合わせて（初回マウントも含めて）`Appearance.setColorScheme` で上書きする。詳細は [ADR-M-016](./ADR-M-016-theme-mode-preference.md)。
   - `src/theme/useTheme.ts` — `useTheme()` / `useThemeMode()`。
   - `src/theme/makeStyles.ts` — `makeStyles((theme) => ({...}))` でテーマ依存スタイルの hook を作る。
     生成結果はテーマ名（light/dark）をキーにキャッシュする。

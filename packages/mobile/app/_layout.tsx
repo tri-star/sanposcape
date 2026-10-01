@@ -18,7 +18,7 @@ import { ThemedStatusBar } from "@/theme/ThemedStatusBar";
 // モジュールスコープで1回だけ実行する（initAuth は冪等）。
 initAuth();
 
-// 最初の描画より前に、保存済みのテーマ設定を同期で読む（起動時のちらつき防止。SS-86 / ADR-M-015）。
+// 最初の描画より前に、保存済みのテーマ設定を同期で読む（起動時のちらつき防止。SS-86 / ADR-M-016）。
 const initialThemeMode = appPreferences.loadThemeMode();
 
 export default function RootLayout() {

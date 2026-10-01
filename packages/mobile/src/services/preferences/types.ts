@@ -3,7 +3,7 @@ import type { ThemeMode } from "@/theme/tokens";
 /**
  * 端末ローカルに文字列1つを同期で読み書きする最小の I/F。
  * 同期にしているのは、最初の描画の前（app/_layout.tsx のモジュール評価時）に読むため
- * （ちらつき防止。ADR-M-015）。
+ * （ちらつき防止。ADR-M-016）。
  */
 export type PreferenceStorage = {
   /** 保存済みの文字列。未保存なら null。読めない場合は throw してよい（サービス側で既定値に倒す）。 */

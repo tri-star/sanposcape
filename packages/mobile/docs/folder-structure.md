@@ -305,7 +305,7 @@ packages/mobile/
     （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
     `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
     詳細は [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照。
-- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。`themeMode.ts`（モードの検証・ネイティブ値への変換。純粋）/ `ThemedStatusBar.tsx`（テーマからステータスバーを決める配線）もここに置く。選択値は `ThemeProvider` が持ち、`app/_layout.tsx` が保存値の注入と永続化コールバックを渡す（SS-86 / [ADR-M-015](../adr/ADR-M-015-theme-mode-preference.md)）。
+- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。`themeMode.ts`（モードの検証・ネイティブ値への変換。純粋）/ `ThemedStatusBar.tsx`（テーマからステータスバーを決める配線）もここに置く。選択値は `ThemeProvider` が持ち、`app/_layout.tsx` が保存値の注入と永続化コールバックを渡す（SS-86 / [ADR-M-016](../adr/ADR-M-016-theme-mode-preference.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け

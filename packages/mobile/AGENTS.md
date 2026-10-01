@@ -32,7 +32,7 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-002](./adr/ADR-M-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント） |
 | [ADR-M-003](./adr/ADR-M-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
 | [ADR-M-004](./adr/ADR-M-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補） |
-| [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-015） |
+| [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016） |
 | [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード |
 | [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補） |
 | [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有 |
@@ -42,4 +42,5 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-012](./adr/ADR-M-012-pin-map-display-and-detail.md) | 登録済みピンの地図表示（取得範囲・上限の見せ方・散歩中の地図への合成）とピン詳細（写真のページング・画像キャッシュ）。ピンタブでの表示（SS-146 追補）。`/pins/map` の削除とナビタブ idle への「最近の散歩」の合成（SS-147 追補）。アカウントタブのゲスト表示（SS-148 追補） |
 | [ADR-M-013](./adr/ADR-M-013-pin-tag-suggestions.md) | ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一） |
 | [ADR-M-014](./adr/ADR-M-014-sanpo-map-list-and-detail.md) | 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ） |
-| [ADR-M-015](./adr/ADR-M-015-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |
+| [ADR-M-015](./adr/ADR-M-015-app-icon-assets.md) | 採用PNGとAndroid Adaptive Iconレイヤー、アイコンの再生成とネイティブビルドへの反映 |
+| [ADR-M-016](./adr/ADR-M-016-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |

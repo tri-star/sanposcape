@@ -7,7 +7,7 @@ export type ThemeContextValue = {
   theme: Theme;
   /** ユーザーが選んだモード（`system` は端末設定に追従）。 */
   mode: ThemeMode;
-  /** 呼ぶとネイティブの外観も切り替わり、ルートで永続化される（SS-86 / ADR-M-015）。 */
+  /** 呼ぶとネイティブの外観も切り替わり、ルートで永続化される（SS-86 / ADR-M-016）。 */
   setMode: (mode: ThemeMode) => void;
 };
 

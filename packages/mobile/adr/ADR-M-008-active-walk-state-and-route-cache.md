@@ -130,7 +130,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 初版の「移行・対応が必要な事項」で M5 の保存実装時に見直すとしていた判断を、**SS-19 時点では『維持』と結論する**。`useActiveWalkStore` / `useFinishedWalkStore` のいずれにも persist ミドルウェアを入れない。理由:
 
-- **永続ストレージの依存が現状無い。** `expo-secure-store` は値サイズ上限（約 2KB）があり軌跡を置けない。`@react-native-async-storage/async-storage` は未導入。`expo-file-system` は推移的依存として存在するが（後日注記: ADR-M-010 で明示依存化済み。SS-86 でアプリ設定の保存にも使用。ADR-M-015）、明示依存へ昇格させると `package.json` が変わって `@expo/fingerprint` が変化し、[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md) の E2E APK キャッシュを1回ミスさせる。
+- **永続ストレージの依存が現状無い。** `expo-secure-store` は値サイズ上限（約 2KB）があり軌跡を置けない。`@react-native-async-storage/async-storage` は未導入。`expo-file-system` は推移的依存として存在するが（後日注記: ADR-M-010 で明示依存化済み。SS-86 でアプリ設定の保存にも使用。ADR-M-016）、明示依存へ昇格させると `package.json` が変わって `@expo/fingerprint` が変化し、[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md) の E2E APK キャッシュを1回ミスさせる。
 - **「復帰」は保存とは独立した設計判断。** 進行中の散歩を本当に復元するには、増え続ける `track` を測位のたびにスロットリングして書き出し、起動時に復元し、古いドラフトの期限判定を入れる必要がある。SS-19 の「終了処理・ルート保存」に混ぜると差分が大きくなりレビューが成立しない。
 
 → フォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」として切り出す（保存先は `expo-file-system` の明示依存化を第一候補、`async-storage` を対案として比較する）。**着手時は本 ADR の再追補が必要**。
@@ -284,7 +284,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 - **（SS-33 追補・未着手）`theme.map.routeReturn` の Claude Design 側への反映待ち**。今回はリポジトリ側（`src/theme/tokens.ts`）に semantic トークンを追加しただけで、値の SSoT である Claude Design 側には未反映。`tokens.ts` 冒頭の「デザイン側が更新されたらここを差し替える」運用と噛み合っていないため、次に Design 側のトークンを一括インポートし直すタイミングで `routeReturn` が上書き・欠落しないよう、Design 側への反映を別途依頼すること。
 - **（SS-33 追補）Android 実機での描画確認**: 2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で確認済み。帰りの線は `lineCap="round"` + `lineDashPattern` のため「丸い点の点線」に見え、凡例 `WalkRouteLegend` の破線見本（短い線）と見た目が少し違うが、ユーザー判断で許容し据え置いた。凡例の破線見本と同じ道フォールバック時の凡例は正常に描画された。揃えたくなったら復路だけ `lineCap="butt"` にする（`RoutePolyline` に `lineCap` props を追加する）。
-- **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。（後日注記: SS-86 で「端末の設定」のまま `cmd uimode night yes|no` を切り替え、追従することを確認した。[ADR-M-015](./ADR-M-015-theme-mode-preference.md) の「影響」を参照）
+- **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。（後日注記: SS-86 で「端末の設定」のまま `cmd uimode night yes|no` を切り替え、追従することを確認した。[ADR-M-016](./ADR-M-016-theme-mode-preference.md) の「影響」を参照）
 
 ## 関連情報
 

@@ -11,7 +11,7 @@ type ThemeProviderProps = {
   initialMode?: ThemeMode;
   /**
    * ユーザー操作で mode が選ばれたときに呼ばれる（永続化用）。初期化時には呼ばれない。
-   * 同じ値を選び直したときも呼ぶ（「明示的に選んだ」ことを `themeModeUpdatedAt` に残すため。ADR-M-015）。
+   * 同じ値を選び直したときも呼ぶ（「明示的に選んだ」ことを `themeModeUpdatedAt` に残すため。ADR-M-016）。
    */
   onModeChange?: (mode: ThemeMode) => void;
 };
@@ -20,7 +20,7 @@ type ThemeProviderProps = {
  * アプリ全体にデザイントークンを配るProvider。
  * `mode` は Context が唯一の情報源。`system` のときは端末のライト/ダーク設定に追従する。
  * 永続化は `onModeChange`（呼び出し側が注入）、ネイティブの外観は
- * `Appearance.setColorScheme` で揃える（ADR-M-015）。
+ * `Appearance.setColorScheme` で揃える（ADR-M-016）。
  */
 export function ThemeProvider({
   children,

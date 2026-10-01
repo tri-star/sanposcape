@@ -119,7 +119,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 
 ## テーマ（外観）設定の扱い
 
-詳細は [ADR-M-015](../adr/ADR-M-015-theme-mode-preference.md)（SS-86）。
+詳細は [ADR-M-016](../adr/ADR-M-016-theme-mode-preference.md)（SS-86）。
 
 - **選択値の情報源は `ThemeContext` の `mode`**（`system` | `light` | `dark`）。Zustand などに複製しない。
 - **保存先は `src/services/preferences`**（`expo-file-system` の同期 API で `Paths.document/app-preferences.json`）。
