@@ -189,10 +189,7 @@ tags:
 - assertVisible:
     text: ${output.tagLabel}
 
-# --- 削除 → 地図詳細が0件 ---
-- scrollUntilVisible:
-    element:
-      id: "pin-detail-delete"
+# --- 削除 → 地図詳細が0件（削除はヘッダー右端のゴミ箱。編集は画面下部に固定） ---
 - tapOn:
     id: "pin-detail-delete"
 - extendedWaitUntil:

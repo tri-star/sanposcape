@@ -1,7 +1,7 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button/Button";
@@ -139,6 +139,12 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
     deleteStatus: deletion.status,
   });
 
+  // 編集は削除より頻度が高いので、指の届きやすい画面下部に固定する。削除は取り消せないので
+  // ヘッダー右端のアイコンに置き、確認ダイアログを必ず経由する（ADR-M-017 D6）。
+  const showActions = canShowPinActions(bodyState);
+  const showEditFooter = showActions && permissions?.canOpenEditor === true;
+  const showDeleteButton = showActions && permissions?.canDeletePin === true;
+
   const loadingBody = (): PinDetailBody => ({
     centered: true,
     content: (
@@ -243,7 +249,8 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
               style={styles.scrollView}
               contentContainerStyle={[
                 styles.content,
-                { paddingBottom: insets.bottom + theme.spacing[6] },
+                // 下部の編集ボタンがあるときは、セーフエリアの余白はフッター側で取る。
+                { paddingBottom: (showEditFooter ? 0 : insets.bottom) + theme.spacing[6] },
               ]}
               showsVerticalScrollIndicator={false}
               testID="pin-detail-content"
@@ -305,19 +312,6 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
               {detail.photos.length > 0 ? (
                 <Text style={styles.hint}>写真をタップすると拡大表示できます</Text>
               ) : null}
-
-              {permissions?.canDeletePin ? (
-                <Button
-                  variant="danger"
-                  icon="trash-2"
-                  fullWidth
-                  disabled={deletion.status === "deleting"}
-                  onPress={() => setDeleteDialogOpen(true)}
-                  testID="pin-detail-delete"
-                >
-                  このピンを削除
-                </Button>
-              ) : null}
             </ScrollView>
           ),
         };
@@ -351,19 +345,30 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
             testID="pin-detail-back"
           />
           <Text style={styles.title}>ピンの詳細</Text>
-          {canShowPinActions(bodyState) && permissions?.canOpenEditor ? (
+          {showDeleteButton ? (
             <IconButton
-              icon="pencil"
-              label="ピンを編集"
+              icon="trash-2"
+              label="このピンを削除"
               variant="ghost"
-              onPress={handleEdit}
-              testID="pin-detail-edit"
+              disabled={deletion.status === "deleting"}
+              onPress={() => setDeleteDialogOpen(true)}
+              testID="pin-detail-delete"
             />
           ) : (
             <View style={styles.headerSpacer} />
           )}
         </View>
         {body.centered ? <View style={styles.centerContent}>{body.content}</View> : body.content}
+        {showEditFooter ? (
+          <View
+            style={[styles.footer, { paddingBottom: insets.bottom + theme.spacing[3] }]}
+            testID="pin-detail-footer"
+          >
+            <Button icon="pencil" fullWidth onPress={handleEdit} testID="pin-detail-edit">
+              このピンを編集
+            </Button>
+          </View>
+        ) : null}
       </View>
       {viewerOpen && viewerIndex !== null ? (
         <PinPhotoViewer
@@ -387,7 +392,12 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
         onCancel={closeDeleteDialog}
         onConfirm={deletion.deletePin}
       />
-      <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
+      <ToastOverlay
+        message={toast.message}
+        visible={toast.visible}
+        // 下部の編集ボタンと重ならないよう、その分だけ上げる。
+        bottom={insets.bottom + 24 + (showEditFooter ? theme.control.md + theme.spacing[3] * 2 : 0)}
+      />
     </View>
   );
 }
@@ -466,5 +476,12 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.size.xs,
     color: theme.colors.textTertiary,
     textAlign: "center",
+  },
+  footer: {
+    paddingHorizontal: theme.layout.pageGutter,
+    paddingTop: theme.spacing[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.borderSubtle,
+    backgroundColor: theme.colors.surfaceApp,
   },
 }));
