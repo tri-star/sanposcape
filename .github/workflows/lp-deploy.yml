@@ -19,8 +19,9 @@ name: lp deploy (S3 + CloudFront)
 #   （backend-deploy.yml の release job と同じ規則。cliff.toml を共有する）。
 # ★ pull_request / pull_request_target トリガーを絶対に足さないこと。このリポジトリは public で、
 #   fork からの PR のワークフロー定義でデプロイ経路（environment と OIDC）に到達され得る。
-# ★ public リポジトリのため Actions のログは誰でも読める。バケット名（アカウント ID を含む）と
-#   distribution ID は取得直後に add-mask し、`aws s3 sync` には --only-show-errors を付ける。
+# ★ public リポジトリのため Actions のログは誰でも読める。バケット名と distribution ID は取得直後に
+#   add-mask し、`aws s3 sync` には --only-show-errors を付ける。ただしアカウント ID は秘匿対象ではない
+#   （ロール ARN がステップの env / with として表示される。backend-deploy.yml と同じ）。マスクは多層防御。
 
 on:
   push:
@@ -132,13 +133,14 @@ jobs:
         with:
           name: lp-dist
           path: packages/lp/dist
-          retention-days: 1
+          # production は承認待ちの間も成果物が残っている必要がある（承認が翌日以降になっても deploy できるように）。
+          retention-days: 7
           if-no-files-found: error
 
   deploy:
     needs: [prepare, build]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     environment:
       name: ${{ needs.prepare.outputs.environment }}
       url: ${{ needs.prepare.outputs.site-url }}
@@ -189,6 +191,12 @@ jobs:
           echo "::add-mask::$bucket"
           distribution="$(aws ssm get-parameter --name "${prefix}/distribution_id" --query Parameter.Value --output text)"
           echo "::add-mask::$distribution"
+          # ビルドに焼き込んだ公開 URL（prepare で決めたもの）が、配信面の実際の URL と食い違っていないか確かめる。
+          site_url="$(aws ssm get-parameter --name "${prefix}/site_url" --query Parameter.Value --output text)"
+          if [ "$site_url" != "$SITE_URL" ]; then
+            echo "::error::ビルドの公開 URL（$SITE_URL）が SSM の site_url（$site_url）と一致しません"
+            exit 1
+          fi
           {
             echo "bucket=$bucket"
             echo "distribution=$distribution"
@@ -217,7 +225,15 @@ jobs:
           set -euo pipefail
           id="$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" \
             --paths '/*' --query Invalidation.Id --output text)"
-          aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$id"
+          # wait は 20 秒 × 30 回（10 分）で諦めるため、最大 3 回まで待ち直す。
+          for attempt in 1 2 3; do
+            if aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION_ID" --id "$id"; then
+              exit 0
+            fi
+            echo "::warning::invalidation の完了待ちがタイムアウトしました（${attempt} 回目）"
+          done
+          echo "::error::invalidation が 30 分以内に完了しませんでした。古いファイルの掃除を行わずに終了します（再実行で回復します）"
+          exit 1
 
       # 掃除でも cache-control を付けるのは、万一ファイルが上げ直されてもメタデータが消えないようにするため。
       # 誤って消した場合はバケットのバージョニング（30日）から戻せる。

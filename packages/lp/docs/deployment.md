@@ -80,7 +80,7 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
 
 - development: Run workflow で ref に過去のコミット（を指すブランチやタグ）を指定する。
 - production: main からしか起動できないため、revert のコミットを main に入れてから実行する。
-  release job は、最新の `lp/v*` タグが祖先でない SHA のデプロイではタグを作らない。
+  revert のコミットは前回タグの子孫なので、release job は通常どおり次のバージョン（`fix` なら patch）のタグを作る。
 
 ## 注意
 
@@ -90,5 +90,9 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
   sam-deploy・feature-flags・lp-deploy のロールを AssumeRole できる。分けたくなったら LP 専用の Environment を作り、
   infra 側の tfvar で trust の Environment 名を変える。
 - dev をブランチで確認している最中に `packages/lp/**` を含む main への push があると、dev は main の内容に戻る。
+- dev の自動デプロイは `packages/lp/**` とこのワークフローの変更だけで起動する。ロックファイルだけが変わる依存の更新
+  （Dependabot の推移的依存など）は自動では出ないので、必要なら Run workflow で dev に出す。
+- 初回は、infra の apply と `AWS_LP_DEPLOY_ROLE_ARN` の設定（「前提」の 1・2）が済む前に `packages/lp/**` の変更が main に入ると、
+  dev への自動デプロイが「Check deploy role is configured」で失敗する。設定後に Run workflow で再実行すればよい。
 - CSP を変える（外部オリジンを足す等）ときは、infra 側 `live/services/lp` の tfvar `content_security_policy` を変更して apply する
   （アプリチーム所有の stack）。LP 側の制約は [AGENTS.md](../AGENTS.md) の「配信の制約」を参照。
