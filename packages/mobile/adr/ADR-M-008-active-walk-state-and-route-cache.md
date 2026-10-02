@@ -25,7 +25,7 @@
 - **ローカル永続化と起動時の復帰（SS-36）は未着手**。着手するときは決定5 を覆すため本 ADR の再追補が必要。あわせて、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す（本文: 決定5、移行・対応が必要な事項、SS-156 追補）
 - **`theme.map.routeReturn` は Claude Design 側に未反映**（本文: 移行・対応が必要な事項、SS-33 追補）
 - **ダーク表示での帰りの線の見え方と、凡例の TalkBack 読み上げは未確認**。ダークモードへの追従自体は SS-86 で確認済み（本文: 移行・対応が必要な事項、SS-33 追補）
-- **ストアの `src/store/` への昇格**: 本文は「2つ以上の機能から参照されたら昇格」とし、SS-19 時点では昇格しないとしている。2026-10-03 時点では、`useActiveWalkStore` / `useFinishedWalkStore` は `features/auth`（`useAuthActions` / `postSignInDestination`）と `features/settings`（`useAccountDeletion`）からも参照されている。昇格の要否はまだ判断していない（本文: 移行・対応が必要な事項）
+- **ストアの `src/store/` への昇格**: 本文は「2つ以上の機能から参照されたら昇格」とし、SS-19 時点では昇格しないとしている。2026-10-03 時点では、`useActiveWalkStore` / `useFinishedWalkStore` は `features/auth`（`useAuthActions` / `postSignInDestination`）と `features/settings`（`useAccountDeletion`）からも参照されている。昇格の要否はまだ判断していない（本文: 移行・対応が必要な事項。SS-167 で判断する）
 
 ### 変更・撤回された決定
 
