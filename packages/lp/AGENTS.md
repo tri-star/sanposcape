@@ -45,7 +45,7 @@ packages/lp/
   - コンポーネントの `<script>` / `<style>` は Astro が `_astro/` 配下の外部ファイルに出すので使ってよい。
     ただし `is:inline`・`set:html` でのインライン化や、`style` 属性・`define:vars`（`style` 属性を生成する）は使わない。
   - 外部オリジン（Web フォント・CDN・アクセス解析など）は読み込まない。
-  - CI（`lp-ci.yml`）がビルド後の `dist/*.html` を grep し、インラインのスクリプト本文・`<style>`・`style` 属性があれば失敗させる。
+  - CI（`lp-ci.yml`）がビルド後の `dist/` 配下のすべての HTML（サブディレクトリを含む）を grep し、インラインのスクリプト本文・`<style>`・`style` 属性・`on*` イベントハンドラ属性があれば失敗させる。
 - **URL**: 正規 URL は末尾スラッシュ付き（`trailingSlash: "always"`）。サイト内リンク・canonical・sitemap も `/privacy/` のように書く。
   出力は `build.format: "directory"`（`/privacy/` → `privacy/index.html`）。
 - **キャッシュ**: `_astro/**`（ハッシュ付き）は immutable の長期キャッシュ、それ以外は `max-age=0, s-maxage=86400` で配信される。
@@ -54,12 +54,14 @@ packages/lp/
 
 ### 環境変数（ビルド時）
 
-| 変数            | 既定値                   | 用途                                                                                                                                                                                                             |
-| --------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LP_SITE_URL`   | `https://sanposcape.com` | canonical・OGP・sitemap・robots.txt の絶対 URL。dev 環境向けビルドでは `https://dev.sanposcape.com` を渡す                                                                                                       |
-| `PUBLIC_LP_ENV` | `development`            | `development` \| `production`（`astro:env` のスキーマで検証され、それ以外はビルドエラー）。`production` 以外では `<meta name="robots" content="noindex, nofollow">` を出し、`robots.txt` を `Disallow: /` にする |
+| 変数            | 既定値                   | 用途                                                                                                                                                                                                           |
+| --------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LP_SITE_URL`   | `https://sanposcape.com` | canonical・OGP・sitemap・robots.txt の絶対 URL。dev 環境向けビルドでは `https://dev.sanposcape.com` を渡す                                                                                                     |
+| `PUBLIC_LP_ENV` | `development`            | `development` \| `production`（`astro:env` のスキーマで検証され、それ以外はビルドエラー）。`production` 以外では `<meta name="robots" content="noindex, nofollow">` を出し、`robots.txt` に Sitemap を載せない |
 
-dev 環境は CloudFront も `X-Robots-Tag: noindex` を付けるが、meta robots と robots.txt も多重防御として残す。
+dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と合わせて二重に noindex にする。
+`robots.txt` で `Disallow` にはしない（クローラーがページを取得できず noindex を読めなくなり、外部からリンクされた URL が
+「内容なし」でインデックスされうるため）。
 404 ページは環境に関係なく noindex で、canonical を出さない。sitemap（`@astrojs/sitemap`）からも除外している。
 
 ### デザインと画像
