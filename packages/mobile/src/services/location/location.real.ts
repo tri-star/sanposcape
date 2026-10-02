@@ -61,9 +61,30 @@ const BACKGROUND_TRACKING_OPTIONS: Location.LocationTaskOptions = {
 async function hasStartedSafely(): Promise<boolean> {
   try {
     return await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
-  } catch {
+  } catch (error) {
+    // 「始まっていない」とみなして開始を試みる（開始が成功すれば問題ない）。原因調査用に残す。
+    logDiagnostic("walk_background_tracking_has_started_failed", describeError(error));
     return false;
   }
+}
+
+/**
+ * タスクが動いていれば止める。止まった・もともと動いていなかったなら true。
+ * 確認や停止に失敗したら 1 回だけやり直し、それでも失敗したら false（診断ログを残す）。
+ * throw しない。
+ */
+async function stopTaskWithRetry(): Promise<boolean> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      if (await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME)) {
+        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
+      }
+      return true;
+    } catch (error) {
+      logDiagnostic("walk_background_tracking_stop_failed", { attempt, ...describeError(error) });
+    }
+  }
+  return false;
 }
 
 function toCoordinates(position: Location.LocationObject): GeoCoordinates {
@@ -87,6 +108,9 @@ function toPermissionStatus(result: {
 export function createRealLocationService(): LocationService {
   // 背景記録の開始と停止は到着順に1つずつ実行する（起動時の停止が遅れて散歩の記録を止める競合を防ぐ）。
   const enqueue = createSerialQueue();
+  // 直近の停止に失敗してタスクが動いたままかもしれない（OS の測位・通知・インジケータが残る）。
+  // 次の新規セッション開始・停止呼び出し（起動時の後始末を含む）で止め直す。
+  let stopPending = false;
 
   return {
     async getPermissionStatus() {
@@ -147,7 +171,11 @@ export function createRealLocationService(): LocationService {
       return enqueue(async () => {
         const hub = backgroundSampleHub;
         const isNewSession = hub.activeSessionId !== sessionId;
-        if (isNewSession) hub.beginSession(sessionId);
+        if (isNewSession) {
+          // 前回の停止が未了なら止め直す。止まらなくても開始へ進む（動いているタスクは開始で置き換わる）。
+          if (stopPending) stopPending = !(await stopTaskWithRetry());
+          hub.beginSession(sessionId);
+        }
         const removeListener = hub.addListener(listener);
         try {
           if (isNewSession || !(await hasStartedSafely())) {
@@ -175,13 +203,9 @@ export function createRealLocationService(): LocationService {
 
     async stopBackgroundTracking() {
       return enqueue(async () => {
-        try {
-          if (await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME)) {
-            await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
-          }
-        } catch (error) {
-          logDiagnostic("walk_background_tracking_stop_failed", describeError(error));
-        }
+        // 止まらなかったら「停止未了」を覚えて、次の新規セッション開始・停止呼び出しで止め直す。
+        // 失敗しても記録（バッファ・リスナー）は先に畳む（点はタスクが動いていても捨てられる）。
+        stopPending = !(await stopTaskWithRetry());
         // 先に止めてから消す（逆だと、止まる前に届いた点でファイルが作り直される）。
         backgroundSampleHub.endSession();
       });

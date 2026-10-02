@@ -1,3 +1,4 @@
+import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 import { registerSessionCleanup } from "@/lib/sessionCleanup";
 import { locationService } from "@/services/location";
 
@@ -11,11 +12,17 @@ import { locationService } from "@/services/location";
  * - サインアウト時: バッファ（端末上のファイル）に前のユーザーの軌跡が残らないようにする（ADR-M-008 決定6）。
  *   通常は散歩の終了・endWalk による停止で済むが、画面が無い状態でのセッション終了にも備えて登録する。
  *
- * `index.ts` から副作用 import する（起動時の停止を、どの散歩の開始よりも先に serialQueue に積むため）。
- * `src/lib` から services のバレルを import する例は他に無いが、「起動時に必ず評価される副作用モジュール」
- * という `imageCacheCleanup.ts`（`expo-image` を import する）の先例に合わせた配置。
+ * `index.ts` から副作用 import する（`expo-router/entry` より前。起動時の停止を、どの散歩の開始よりも先に
+ * serialQueue に積むため）。`src/lib` から services のバレルを import するのはこのファイルだけの例外
+ * （architecture-guideline の「単体テスト」節）。「起動時に必ず評価される副作用モジュール」であり、
+ * 純粋ロジックの `lib/` の単体テストからは import されない。
  */
-void locationService.stopBackgroundTracking();
-registerSessionCleanup(() => {
-  void locationService.stopBackgroundTracking();
-});
+function stopInBackground(): void {
+  // stopBackgroundTracking は throw しない契約だが、未処理の rejection を作らないよう念のため受ける。
+  locationService.stopBackgroundTracking().catch((error: unknown) => {
+    logDiagnostic("walk_background_tracking_cleanup_failed", describeError(error));
+  });
+}
+
+stopInBackground();
+registerSessionCleanup(stopInBackground);

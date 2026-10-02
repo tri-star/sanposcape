@@ -79,18 +79,22 @@ export function useActiveWalk(): UseActiveWalkResult {
   // （onPress からの単発呼び出しなので実害はない）。
   function finishWalk(): void {
     if (activeWalk === null) return;
-    // 裏で記録してまだ画面に反映されていない点を含めて確定させる（SS-156）。
-    const latest = tracking.flushTrack();
-    finishWalkDraft(
-      buildFinishedWalk({
-        activeWalk,
-        elapsedSec: session.elapsedSec,
-        distanceMeters: latest.distanceMeters,
-        points: latest.points,
-        endedAtMs: Date.now(),
-      }),
-    );
-    tracking.stopTracking();
+    try {
+      // 裏で記録してまだ画面に反映されていない点を含めて確定させる（SS-156）。
+      const latest = tracking.flushTrack();
+      finishWalkDraft(
+        buildFinishedWalk({
+          activeWalk,
+          elapsedSec: session.elapsedSec,
+          distanceMeters: latest.distanceMeters,
+          points: latest.points,
+          endedAtMs: Date.now(),
+        }),
+      );
+    } finally {
+      // 確定処理が throw しても記録は必ず止める（測位・通知・インジケータを残さない）。
+      tracking.stopTracking();
+    }
     endWalk();
   }
 
