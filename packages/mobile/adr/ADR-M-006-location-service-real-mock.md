@@ -1,5 +1,26 @@
 # ADR-M-006: 位置情報サービスは services 層で real/mock の2モードとし、`dev` を持たない
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-03（SS-156）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **位置情報は `src/services/location/` の `LocationService` インターフェース経由で扱う**。メソッドは `getPermissionStatus` / `requestPermission` / `getCurrentPosition` / `watchPosition` / `startBackgroundTracking` / `stopBackgroundTracking`。呼び出し側はインターフェースだけを参照する（本文: 決定、移行・対応が必要な事項、SS-156 追補。背景記録の本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）
+- **座標は自前の `GeoCoordinates` で表し、`expo-location` / `react-native-maps` の型に依存しない**。地図の表示領域も自前の `MapRegion` で扱う（本文: 決定）
+- **モードは `real` と `mock` の2つだけで、`dev` は作らない**。切り替えは `EXPO_PUBLIC_LOCATION_MODE` で、判定は `getLocationMode()` の1箇所に集約する。`"mock"` に完全一致したときだけ mock、それ以外は `real` にフォールバックする（本文: 決定）
+- **ネイティブモジュールを import するファイルを限定する**。`expo-location` は `location.real.ts` だけ、`expo-task-manager` は `backgroundLocationTask.ts` だけが import する（本文: 決定、SS-156 追補）
+- **初期化関数は持たない**。権限リクエストは、必要になった時点で画面側の hook（`src/hooks/useCurrentLocation.ts`）が行う。呼び出し側は `features/walk` / `features/pin`（本文: 決定、SS-124 追補）
+- **エラーは `LocationError` / `LocationErrorCode` に正規化する**。分類は `instanceof` ではなく型ガードで行う（本文: 決定）
+- **単体テストではバレルを import しない**。`createMockLocationService()` を直接注入する。mock の背景記録も real と同じ `createBackgroundSampleHub` を通す（本文: 決定、SS-156 追補）
+- **E2E（`preview`）は `EXPO_PUBLIC_LOCATION_MODE=mock` を焼き込む**。production に mock を入れないことは、リリース前チェックで確認する（本文: 決定、ネガティブな影響）
+
+### 変更・撤回された決定
+
+- 「バックグラウンド測位は対象外」 → SS-156 で対象にした。散歩中は背景のロケーションタスクで記録する（SS-156 追補。ADR-M-018）
+- `useCurrentLocation` は `features/walk/hooks/` にあった → `src/hooks/` へ昇格した（SS-124 追補）
+
 ## 日付
 
 2026-07-30
