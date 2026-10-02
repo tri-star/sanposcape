@@ -39,3 +39,21 @@ export async function watchPositionAsync(
 ) {
   return { remove() {} };
 }
+
+/** `location.real.ts` のモジュール評価時（オプション定数）に参照されるので必須。 */
+export const ActivityType = {
+  Other: 1,
+  AutomotiveNavigation: 2,
+  Fitness: 3,
+  OtherNavigation: 4,
+  Airborne: 5,
+} as const;
+
+/** 背景記録の API。vitest 上で import が壊れないためだけの no-op（振る舞いは hub のテストで担保する）。 */
+export async function startLocationUpdatesAsync(_taskName: string, _options: unknown) {}
+
+export async function stopLocationUpdatesAsync(_taskName: string) {}
+
+export async function hasStartedLocationUpdatesAsync(_taskName: string) {
+  return false;
+}

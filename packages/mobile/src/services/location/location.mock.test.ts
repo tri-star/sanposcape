@@ -6,7 +6,7 @@ import {
   MOCK_TRACK,
   createMockLocationService,
 } from "@/services/location/location.mock";
-import type { GeoCoordinates } from "@/services/location/types";
+import type { GeoCoordinates, LocationSample } from "@/services/location/types";
 
 describe("createMockLocationService", () => {
   it("既定では MOCK_ORIGIN（東京駅）を返す", async () => {
@@ -147,5 +147,105 @@ describe("createMockLocationService().watchPosition", () => {
     await vi.advanceTimersByTimeAsync(500 * 5);
 
     expect(received).toEqual(customTrack);
+  });
+});
+
+describe("createMockLocationService().startBackgroundTracking", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("MOCK_TRACK が LocationSample としてリスナーに届く（時刻は増える）", async () => {
+    const service = createMockLocationService({ trackIntervalMs: 100 });
+    const received: LocationSample[] = [];
+    await service.startBackgroundTracking({
+      sessionId: "w1",
+      listener: (samples) => received.push(...samples),
+    });
+    await vi.advanceTimersByTimeAsync(100 * MOCK_TRACK.length);
+    expect(received.map((s) => ({ latitude: s.latitude, longitude: s.longitude }))).toEqual(
+      MOCK_TRACK,
+    );
+    const times = received.map((s) => s.timestampMs);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(new Set(times).size).toBe(times.length);
+    await service.stopBackgroundTracking();
+  });
+
+  it("readRecordedSamples() がそれまでに記録した全サンプルを返す", async () => {
+    const service = createMockLocationService({ trackIntervalMs: 100 });
+    const sub = await service.startBackgroundTracking({ sessionId: "w1", listener: () => {} });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(sub.readRecordedSamples()).toHaveLength(3);
+    await service.stopBackgroundTracking();
+  });
+
+  it("detach() 後はリスナーに届かないが、記録は続く（再マウントの再現）", async () => {
+    const service = createMockLocationService({ trackIntervalMs: 100 });
+    const listener = vi.fn();
+    const sub = await service.startBackgroundTracking({ sessionId: "w1", listener });
+    await vi.advanceTimersByTimeAsync(200);
+    sub.detach();
+    sub.detach();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(sub.readRecordedSamples()).toHaveLength(5);
+    await service.stopBackgroundTracking();
+  });
+
+  it("同じ sessionId で呼び直すと、バッファを消さずに再開する", async () => {
+    const service = createMockLocationService({ trackIntervalMs: 100 });
+    const first = await service.startBackgroundTracking({ sessionId: "w1", listener: () => {} });
+    await vi.advanceTimersByTimeAsync(300);
+    first.detach();
+    const second = await service.startBackgroundTracking({ sessionId: "w1", listener: () => {} });
+    expect(second.readRecordedSamples()).toHaveLength(3);
+    await service.stopBackgroundTracking();
+  });
+
+  it("別の sessionId で呼ぶとバッファが空から始まる", async () => {
+    const service = createMockLocationService({ trackIntervalMs: 100 });
+    await service.startBackgroundTracking({ sessionId: "w1", listener: () => {} });
+    await vi.advanceTimersByTimeAsync(300);
+    const second = await service.startBackgroundTracking({ sessionId: "w2", listener: () => {} });
+    expect(second.readRecordedSamples()).toEqual([]);
+    await service.stopBackgroundTracking();
+  });
+
+  it("stopBackgroundTracking() で通知が止まり、readRecordedSamples が [] になる（2回呼んでも安全）", async () => {
+    const service = createMockLocationService({ trackIntervalMs: 100 });
+    const listener = vi.fn();
+    const sub = await service.startBackgroundTracking({ sessionId: "w1", listener });
+    await vi.advanceTimersByTimeAsync(200);
+    await service.stopBackgroundTracking();
+    await service.stopBackgroundTracking();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(sub.readRecordedSamples()).toEqual([]);
+  });
+
+  it("permission: 'denied' は permission_denied で reject する", async () => {
+    const service = createMockLocationService({ permission: "denied" });
+    await expect(
+      service.startBackgroundTracking({ sessionId: "w1", listener: () => {} }),
+    ).rejects.toSatisfy((e) => isLocationError(e) && e.code === "permission_denied");
+  });
+
+  it("backgroundFailWith で reject し、その場合も watchPosition は動く", async () => {
+    const service = createMockLocationService({
+      backgroundFailWith: "unavailable",
+      trackIntervalMs: 100,
+    });
+    await expect(
+      service.startBackgroundTracking({ sessionId: "w1", listener: () => {} }),
+    ).rejects.toSatisfy((e) => isLocationError(e) && e.code === "unavailable");
+    const listener = vi.fn();
+    const sub = await service.watchPosition(listener);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(listener).toHaveBeenCalledTimes(1);
+    sub.remove();
   });
 });

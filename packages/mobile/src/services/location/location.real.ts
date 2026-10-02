@@ -1,6 +1,12 @@
 import * as Location from "expo-location";
 
+import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
+import {
+  BACKGROUND_LOCATION_TASK_NAME,
+  backgroundSampleHub,
+} from "@/services/location/backgroundLocationTask";
 import { toLocationError } from "@/services/location/locationError";
+import { createSerialQueue } from "@/services/location/serialQueue";
 import type {
   GeoCoordinates,
   LocationPermissionStatus,
@@ -24,6 +30,42 @@ const WATCH_DISTANCE_INTERVAL_METERS = 10;
 /** watchPosition の既定の最短通知間隔（ms）。 */
 const WATCH_TIME_INTERVAL_MS = 3000;
 
+/** 散歩の記録中に Android のフォアグラウンドサービスが出す通知（文言は SS-157 で確定させる）。 */
+export const BACKGROUND_TRACKING_NOTIFICATION = {
+  title: "散歩を記録しています",
+  body: "散歩のルートを記録中です。散歩を終了すると記録も止まります。",
+} as const;
+
+/** 散歩の背景記録（startLocationUpdatesAsync）のオプション。理由は ADR-M-018。 */
+const BACKGROUND_TRACKING_OPTIONS: Location.LocationTaskOptions = {
+  // iOS は kCLLocationAccuracyBest、Android は PRIORITY_HIGH_ACCURACY（High と同じ）。
+  accuracy: Location.Accuracy.Highest,
+  // 間隔は従来の watchPosition と同じ（10m / 3秒。timeInterval は Android のみ有効）。
+  distanceInterval: WATCH_DISTANCE_INTERVAL_METERS,
+  timeInterval: WATCH_TIME_INTERVAL_MS,
+  activityType: Location.ActivityType.Fitness,
+  // iOS のネイティブ既定は true（型定義の「既定 false」は誤り。EXLocationTaskConsumer.m）。
+  // 止まると軌跡が欠けるので明示する。
+  pausesUpdatesAutomatically: false,
+  // iOS: 記録中であることを status bar で示す。
+  showsBackgroundLocationIndicator: true,
+  foregroundService: {
+    notificationTitle: BACKGROUND_TRACKING_NOTIFICATION.title,
+    notificationBody: BACKGROUND_TRACKING_NOTIFICATION.body,
+    // 最近使ったアプリから消したら止める。進行中の散歩は永続化していない（ADR-M-008 決定5）ので、
+    // 続けても誰も取り込めないうえ、「アプリを閉じたのに位置を取り続ける」ことになる。
+    killServiceOnDestroy: true,
+  },
+};
+
+async function hasStartedSafely(): Promise<boolean> {
+  try {
+    return await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
+  } catch {
+    return false;
+  }
+}
+
 function toCoordinates(position: Location.LocationObject): GeoCoordinates {
   return { latitude: position.coords.latitude, longitude: position.coords.longitude };
 }
@@ -43,6 +85,9 @@ function toPermissionStatus(result: {
  * 呼び出し側（`services/location/index.ts` 経由）はこの実装の詳細を知らない。
  */
 export function createRealLocationService(): LocationService {
+  // 背景記録の開始と停止は到着順に1つずつ実行する（起動時の停止が遅れて散歩の記録を止める競合を防ぐ）。
+  const enqueue = createSerialQueue();
+
   return {
     async getPermissionStatus() {
       const result = await Location.getForegroundPermissionsAsync();
@@ -94,6 +139,52 @@ export function createRealLocationService(): LocationService {
       } catch (error) {
         throw toLocationError(error);
       }
+    },
+
+    // 権限はリクエストしない（`requestBackgroundPermissionsAsync` はどこからも呼ばない。ADR-M-018）。
+    // フォアグラウンド権限は散歩開始画面（useCurrentLocation）で取得済みの前提。
+    async startBackgroundTracking({ sessionId, listener }) {
+      return enqueue(async () => {
+        const hub = backgroundSampleHub;
+        const isNewSession = hub.activeSessionId !== sessionId;
+        if (isNewSession) hub.beginSession(sessionId);
+        const removeListener = hub.addListener(listener);
+        try {
+          if (isNewSession || !(await hasStartedSafely())) {
+            await Location.startLocationUpdatesAsync(
+              BACKGROUND_LOCATION_TASK_NAME,
+              BACKGROUND_TRACKING_OPTIONS,
+            );
+          }
+        } catch (error) {
+          removeListener();
+          if (isNewSession) hub.endSession();
+          throw toLocationError(error);
+        }
+        let detached = false;
+        return {
+          readRecordedSamples: () => hub.readSamples(),
+          detach: () => {
+            if (detached) return;
+            detached = true;
+            removeListener();
+          },
+        };
+      });
+    },
+
+    async stopBackgroundTracking() {
+      return enqueue(async () => {
+        try {
+          if (await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME)) {
+            await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
+          }
+        } catch (error) {
+          logDiagnostic("walk_background_tracking_stop_failed", describeError(error));
+        }
+        // 先に止めてから消す（逆だと、止まる前に届いた点でファイルが作り直される）。
+        backgroundSampleHub.endSession();
+      });
     },
   };
 }

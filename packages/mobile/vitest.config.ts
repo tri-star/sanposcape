@@ -22,6 +22,9 @@ export default defineConfig({
       "expo-secure-store": path.resolve(__dirname, "src/test/mocks/expo-secure-store.ts"),
       "expo-location": path.resolve(__dirname, "src/test/mocks/expo-location.ts"),
       "expo-crypto": path.resolve(__dirname, "src/test/mocks/expo-crypto.ts"),
+      // location.real.ts が backgroundLocationTask.ts 経由で届くので、vitest 上で import しても壊れないようにする。
+      "expo-task-manager": path.resolve(__dirname, "src/test/mocks/expo-task-manager.ts"),
+      "expo-file-system": path.resolve(__dirname, "src/test/mocks/expo-file-system.ts"),
     },
   },
 });
