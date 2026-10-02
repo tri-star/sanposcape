@@ -73,10 +73,12 @@ describe("mergeWalkTrackSamples", () => {
     expect(state.track.points).toEqual(
       [a, b1, b2, b3, b].map((s) => ({ latitude: s.latitude, longitude: s.longitude })),
     );
-    const direct = distanceMeters(state.track.points[0]!, state.track.points[4]!);
-    expect(state.track.distanceMeters).toBeGreaterThan(0);
-    expect(state.track.points).toHaveLength(5);
-    expect(direct).toBeGreaterThan(0);
+    // 距離は各区間の合計（A→B の直線距離ではない）。
+    const points = state.track.points;
+    const segmentSum = points
+      .slice(1)
+      .reduce((sum, point, index) => sum + distanceMeters(points[index]!, point), 0);
+    expect(state.track.distanceMeters).toBeCloseTo(segmentSum, 6);
   });
 
   it("paused では軌跡に足さないが、カーソルと latestPosition は進み、再開後の最初の点は距離に加算しない", () => {

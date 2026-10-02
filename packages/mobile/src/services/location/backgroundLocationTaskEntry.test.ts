@@ -10,9 +10,12 @@ import { describe, expect, it } from "vitest";
  */
 describe("index.ts のエントリ", () => {
   const source = readFileSync(path.resolve(__dirname, "../../../index.ts"), "utf8");
-  const taskImport = source.indexOf('import "@/services/location/backgroundLocationTask"');
-  const cleanupImport = source.indexOf('import "@/lib/backgroundLocationCleanup"');
-  const routerImport = source.indexOf('import "expo-router/entry"');
+  // 行頭の import 文だけを対象にする（コメント内の同じ文字列では通らない）。
+  const importIndex = (specifier: string): number =>
+    source.search(new RegExp(`^import ["']${specifier}["'];?\\s*$`, "m"));
+  const taskImport = importIndex("@/services/location/backgroundLocationTask");
+  const cleanupImport = importIndex("@/lib/backgroundLocationCleanup");
+  const routerImport = importIndex("expo-router/entry");
 
   it("タスク定義と起動時の後始末を副作用 import している", () => {
     expect(taskImport).toBeGreaterThanOrEqual(0);

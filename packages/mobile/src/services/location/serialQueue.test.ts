@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createSerialQueue } from "@/services/location/serialQueue";
 
@@ -27,7 +27,9 @@ describe("createSerialQueue", () => {
       log.push("second:start");
     });
 
-    await Promise.resolve();
+    await vi.waitFor(() => expect(log).toEqual(["first:start"]));
+    // first が未完了の間は second が始まらない（少し待っても変わらない）。
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(log).toEqual(["first:start"]);
     first.resolve();
     await Promise.all([p1, p2]);
