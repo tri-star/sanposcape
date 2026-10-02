@@ -15,7 +15,7 @@ HTML・CSS・JS・画像を `dist/` に書き出し、S3 + CloudFront で配信�
 | `pnpm --filter lp check`                   | `astro check`（`.astro` / TS の型検査）                    |
 | `pnpm --filter lp format` / `format:check` | Prettier（`prettier-plugin-astro`）で整形 / 整形済みか検査 |
 
-CI（`.github/workflows/lp-ci.yml`）は `check` → `format:check` → `build` を回す。
+CI（`.github/workflows/lp-ci.yml`）は `check` → `format:check` → `build` → インライン混入の検査を回す（`lp-deploy.yml` からも呼ばれる）。
 
 ## 構成
 
@@ -93,4 +93,4 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付けるが、meta robo
 ## デプロイ
 
 GitHub Actions + OIDC で `dist/` を S3 に sync し、CloudFront を invalidation する（dev: main への push で自動、prod: 手動起動 + 承認）。
-ワークフローと手順はインフラ側（sanposcape-infra SS-74）の確定後に追加する。
+ワークフローは `.github/workflows/lp-deploy.yml`、手順・前提・確認項目は [デプロイ手順](./docs/deployment.md) を参照。

@@ -14,6 +14,8 @@ on:
       - "packages/lp/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/lp-ci.yml"
+  # lp-deploy.yml から、デプロイする ref そのものの検査として呼び出す。
+  workflow_call:
 
 permissions:
   contents: read
