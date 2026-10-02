@@ -16,6 +16,10 @@
   画像表示は expo-image。アップロードは presigned POST で S3 直送（`src/features/pin/api/`）。
   詳細は [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
 - スライダー: @react-native-community/slider（往復時間の指定UI）
+- ジェスチャー・アニメーション: react-native-gesture-handler + react-native-reanimated（アプリのルート `app/_layout.tsx` を
+  `GestureHandlerRootView` で包んでいる。React Compiler が有効なので shared value は `.get()` / `.set()` で読み書きする。
+  計算は worklet の純粋関数に切り出して Vitest で検証する。最初の利用はピン詳細の写真ビューアのピンチでの拡大
+  （[ADR-M-012](../adr/ADR-M-012-pin-map-display-and-detail.md) SS-153 追補））
 - 認証: react-native-nitro-google-signin（Google サインイン。[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token の永続化）
 - APIクライアント生成: Orval（backendのOpenAPIから生成）+ MSWモック（HTTPクライアントは fetch/customFetch）
 - 暗号ハッシュ: expo-crypto（CloudFront(OAC) 向けの `x-amz-content-sha256` 計算。実装は
