@@ -119,3 +119,17 @@ describe("locationErrorMessage", () => {
     expect(locationErrorMessage(code).length).toBeGreaterThan(0);
   });
 });
+
+describe("背景記録（startLocationUpdatesAsync）の開始失敗コード（SS-156）", () => {
+  // 実際のクラス名: LocationExceptions.kt の ForegroundServiceStartNotAllowedException /
+  // ForegroundServicePermissionsException / TaskManagerNotFoundException、
+  // LocationExceptions.swift の TaskManagerUnavailable。どれも fallback の対象にする。
+  it.each([
+    "ERR_FOREGROUND_SERVICE_START_NOT_ALLOWED",
+    "ERR_FOREGROUND_SERVICE_PERMISSIONS",
+    "ERR_TASK_MANAGER_NOT_FOUND",
+    "ERR_TASK_MANAGER_UNAVAILABLE",
+  ])("%s は unavailable になる", (code) => {
+    expect(toLocationError({ code }).code).toBe("unavailable");
+  });
+});

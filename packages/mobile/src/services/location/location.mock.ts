@@ -1,5 +1,8 @@
+import { createBackgroundSampleHub } from "@/services/location/backgroundSampleHub";
 import { LocationError } from "@/services/location/locationError";
+import { createMemorySampleBufferStorage } from "@/services/location/sampleBufferStorage.memory";
 import type {
+  BackgroundTrackingSubscription,
   GeoCoordinates,
   LocationErrorCode,
   LocationPermissionStatus,
@@ -39,6 +42,10 @@ export type MockLocationServiceOptions = {
   track?: readonly GeoCoordinates[];
   /** track を1点ずつ通知する間隔（ms。既定 1000）。 */
   trackIntervalMs?: number;
+  /** 指定すると startBackgroundTracking がこのコードで reject する（fallback 経路の確認用）。watchPosition は通常どおり動く。 */
+  backgroundFailWith?: LocationErrorCode;
+  /** サンプルの測位時刻（既定 Date.now）。 */
+  now?: () => number;
 };
 
 /**
@@ -51,6 +58,19 @@ export function createMockLocationService(options?: MockLocationServiceOptions):
   const failWith = options?.failWith;
   const track = options?.track ?? MOCK_TRACK;
   const trackIntervalMs = options?.trackIntervalMs ?? DEFAULT_TRACK_INTERVAL_MS;
+  const backgroundFailWith = options?.backgroundFailWith;
+  const now = options?.now ?? Date.now;
+
+  // 背景記録も real と同じ hub（統合経路）を通す。保存先だけメモリ。
+  const hub = createBackgroundSampleHub(createMemorySampleBufferStorage(), { now });
+  let backgroundInterval: ReturnType<typeof setInterval> | null = null;
+
+  function stopBackgroundInterval(): void {
+    if (backgroundInterval !== null) {
+      clearInterval(backgroundInterval);
+      backgroundInterval = null;
+    }
+  }
 
   return {
     async getPermissionStatus() {
@@ -99,6 +119,62 @@ export function createMockLocationService(options?: MockLocationServiceOptions):
           clearInterval(interval);
         },
       };
+    },
+    async startBackgroundTracking({
+      sessionId,
+      listener,
+    }): Promise<BackgroundTrackingSubscription> {
+      if (permission !== "granted") {
+        throw new LocationError("permission_denied");
+      }
+      if (failWith) {
+        throw new LocationError(failWith);
+      }
+      if (backgroundFailWith) {
+        throw new LocationError(backgroundFailWith);
+      }
+
+      if (hub.activeSessionId !== sessionId) {
+        stopBackgroundInterval();
+        hub.beginSession(sessionId);
+        let index = 0;
+        // watchPosition と同じく、track の末尾まで流したら止める（ループしない）。
+        backgroundInterval = setInterval(() => {
+          const point = track[index];
+          if (point === undefined) {
+            stopBackgroundInterval();
+            return;
+          }
+          index += 1;
+          hub.handleTaskData(
+            {
+              locations: [
+                {
+                  coords: { latitude: point.latitude, longitude: point.longitude, accuracy: 5 },
+                  timestamp: now(),
+                },
+              ],
+            },
+            null,
+          );
+          if (index >= track.length) stopBackgroundInterval();
+        }, trackIntervalMs);
+      }
+
+      const removeListener = hub.addListener(listener);
+      let detached = false;
+      return {
+        readRecordedSamples: () => hub.readSamples(),
+        detach() {
+          if (detached) return;
+          detached = true;
+          removeListener();
+        },
+      };
+    },
+    async stopBackgroundTracking() {
+      stopBackgroundInterval();
+      hub.endSession();
     },
   };
 }

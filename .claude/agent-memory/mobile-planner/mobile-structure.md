@@ -21,7 +21,7 @@ metadata:
 
 **パスエイリアス**: `@/` → `src/`、`@/assets/` → `assets/`（tsconfig）。WSL2/Linux は case 区別 → import は実ファイル名と大文字小文字まで一致。
 
-**services 層の seam パターン**: `src/services/<svc>/{types.ts,index.ts,<svc>.stub.ts,<svc>.real.ts}`。index が `process.env.EXPO_PUBLIC_*` で real/stub 選択。呼び出し側は index/types のみ参照。単体テストは常に stub、E2E(Maestro)は再現可能なら real。`src/services/auth/` は実在（SS-10 で real/dev/mock の3モードへ再設計）。`location` は未実装。認証の確定設計は [認証アーキテクチャ](auth-architecture.md) を参照。
+**services 層の seam パターン**: `src/services/<svc>/{types.ts,index.ts,<svc>.stub.ts,<svc>.real.ts}`。index が `process.env.EXPO_PUBLIC_*` で real/stub 選択。呼び出し側は index/types のみ参照。単体テストは常に stub、E2E(Maestro)は再現可能なら real。`src/services/auth/` は実在（SS-10 で real/dev/mock の3モードへ再設計）。`location`（real/mock。ADR-M-006）・`photo`・`preferences`（モード無し・ストレージ DI）も実在。認証の確定設計は [認証アーキテクチャ](auth-architecture.md) を参照。
 
 **API**: Orval 生成物は `src/api/generated/`（**gitignore 済み**。手編集禁止、`pnpm --filter mobile orval` で再生成＝プラン作成前に一度実行して現物を確認する。**作業ツリーの生成物は古いことが多い**: 2026-08 時点で openapi.yaml には walks があるのに生成物には無かった）。backend 定義済み: `health`/`spots`/`auth`/`users`/`explore`/`walks`(SS-18)。クライアントは `src/api/client.ts`（customFetch）+ `queryClient.ts`（既定 `retry:1` / `staleTime:30s`）。
 **customFetch は修正済み**（`{status, data, headers}` を返し、401→refresh→1回リトライも実装済み）。旧「res.data が undefined」問題は解消。

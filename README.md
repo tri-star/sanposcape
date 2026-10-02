@@ -38,7 +38,10 @@
     - [ADR-M-012 登録済みピンの地図表示とピン詳細](./packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md)
     - [ADR-M-013 ピンのタグ入力の候補](./packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)
     - [ADR-M-014 地図一覧と地図詳細](./packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md)
+    - [ADR-M-015 アプリアイコンのアセットとAndroid Adaptive Icon](./packages/mobile/adr/ADR-M-015-app-icon-assets.md)
     - [ADR-M-016 テーマ（外観）設定の端末保存](./packages/mobile/adr/ADR-M-016-theme-mode-preference.md)
+    - [ADR-M-017 ピンの編集・削除](./packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)
+    - [ADR-M-018 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./packages/mobile/adr/ADR-M-018-background-walk-location-tracking.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend
@@ -144,11 +147,12 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）/
 > expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算）/
 > expo-image-picker（カメラ/写真ライブラリ）/ expo-image-manipulator（写真の縮小・再圧縮）/
-> expo-file-system（加工後ファイルのバイト数取得）などの
+> expo-file-system（加工後ファイルのバイト数取得）/ expo-task-manager（散歩中の背景位置記録）などの
 > ネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
 > **SS-10（認証まわりのネイティブ依存を追加）・SS-15（expo-location の追加・Maps キー注入）・
 > SS-70（expo-crypto の追加）・SS-88（expo-image-picker / expo-image-manipulator /
-> expo-file-system の追加。ピン登録機能）適用後は development build の作り直しが必要**
+> expo-file-system の追加。ピン登録機能）・SS-156（expo-task-manager の追加と expo-location プラグイン設定の変更。
+> 散歩中の背景位置記録）適用後は development build の作り直しが必要**
 > （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。

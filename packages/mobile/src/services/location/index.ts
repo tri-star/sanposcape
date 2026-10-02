@@ -4,7 +4,10 @@ import { createRealLocationService } from "@/services/location/location.real";
 import type { LocationService } from "@/services/location/types";
 
 export type {
+  BackgroundTrackingSubscription,
   GeoCoordinates,
+  LocationSample,
+  LocationSampleListener,
   LocationPermissionStatus,
   LocationService,
 } from "@/services/location/types";

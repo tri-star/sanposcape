@@ -48,7 +48,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "散歩できる範囲のスポットを探すために現在地を利用します。"
+          "locationWhenInUsePermission": "散歩できる範囲のスポットを探すために現在地を利用します。",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": true,
+          "androidForegroundServiceIcon": "./assets/app-icons/android/adaptive-monochrome.png"
         }
       ],
       [

@@ -66,6 +66,7 @@ export function useActiveWalk(): UseActiveWalkResult {
   const [trackingAttempt, setTrackingAttempt] = useState(0);
   const tracking = useWalkTracking({
     enabled: activeWalk !== null,
+    walkId: activeWalk?.clientWalkId ?? null,
     paused: session.paused,
     initialPosition: activeWalk?.origin ?? null,
     attempt: trackingAttempt,
@@ -78,15 +79,22 @@ export function useActiveWalk(): UseActiveWalkResult {
   // （onPress からの単発呼び出しなので実害はない）。
   function finishWalk(): void {
     if (activeWalk === null) return;
-    finishWalkDraft(
-      buildFinishedWalk({
-        activeWalk,
-        elapsedSec: session.elapsedSec,
-        distanceMeters: tracking.distanceMeters,
-        points: tracking.points,
-        endedAtMs: Date.now(),
-      }),
-    );
+    try {
+      // 裏で記録してまだ画面に反映されていない点を含めて確定させる（SS-156）。
+      const latest = tracking.flushTrack();
+      finishWalkDraft(
+        buildFinishedWalk({
+          activeWalk,
+          elapsedSec: session.elapsedSec,
+          distanceMeters: latest.distanceMeters,
+          points: latest.points,
+          endedAtMs: Date.now(),
+        }),
+      );
+    } finally {
+      // 確定処理が throw しても記録は必ず止める（測位・通知・インジケータを残さない）。
+      tracking.stopTracking();
+    }
     endWalk();
   }
 

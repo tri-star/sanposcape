@@ -1,8 +1,44 @@
 # ADR-M-008: 進行中の散歩は feature スコープの Zustand で保持し、ルートは TanStack Query のキャッシュを画面間で共有する
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-03（SS-156）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **進行中の散歩は `features/walk/store/useActiveWalkStore.ts`（Zustand）に識別情報だけを持つ**。持つのは `ActiveWalk` = `{ clientWalkId, origin, destination, loopMinutes, loopKm, startedAtMs }`。ルート本体などサーバー由来のデータは入れず、画面間の受け渡しに Expo Router の params は使わない（本文: 決定1、SS-19/SS-33 追補）
+- **`clientWalkId` は散歩の開始時に端末で採番し、終了・再送でも変えない**。保存の冪等キーとして使う（本文: 決定1、SS-19 追補。ADR-003 決定3）
+- **ルート本体（周回ルート `legs: [outbound, return]`）は、2つの画面が同じ入力で `useWalkRoute` を呼び、TanStack Query のキャッシュを共有する**。queryKey は `["explore", "routeLoop", request]`。`staleTime` 1時間 / `gcTime` 2時間 / `retry: false`。`origin` は散歩の起点で固定し、小数4桁に丸める（例外なし）。散歩中にルート API は呼ばない（本文: 決定2、SS-33 追補）
+- **経過時間は `startedAtMs` からの実時刻差で算出し、一時停止は累計 ms を差し引く**（本文: 決定3）
+- **終了して保存が確定していない散歩は `useFinishedWalkStore` に別ストアとして持つ**。`FinishedWalk` と `saved` / `savedWalkId` を保持し、サマリ画面の `useWalkSave` が `POST /walks` を発火する（本文: 決定4、SS-19 追補）
+- **保存は「同じドラフト × 同じ認証状態につき1回」発火する**。サインイン後の再発火は、サマリ画面の CTA から明示的にサインインした場合（`signInForSaveRequested`）に限る（本文: 決定4 の SS-37 追補・SS-37 ローカルレビュー追補）
+- **`savedWalkId` は「サーバー由来データをストアに入れない」規律の唯一の例外**で、範囲はサーバーが採番した識別子1つだけ。用途は、履歴詳細への遷移と、削除された散歩とドラフトの同定の2つ（本文: 決定4、SS-20/SS-60 追補）
+- **散歩のストアは永続化しない**。アプリを落とすと、進行中の散歩も保存前のドラフトも消える。記録中の位置サンプルは端末のファイル（`Paths.cache`）に一時的に書くが、これはタスクと画面の間の受け渡しと再マウント時の組み直しのためで、起動時に消す（復元ではない）（本文: 決定5、SS-19/SS-156 追補。バッファの本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）
+- **認証状態が `authenticated → guest` に落ちたら、`runSessionCleanup()` で walk 系ストアと Query キャッシュを片付ける**。後始末はクリアされる側が `registerSessionCleanup` で登録し、1つが失敗しても残りは実行する。実行側は `useAuthSessionStore.setSession()`、退避と履歴スタックの破棄は `AuthGate` が担う（本文: 決定6、SS-13/SS-50/SS-100 追補）
+- **後始末には、位置記録のバッファの削除とタスクの停止も含まれる**（`src/lib/backgroundLocationCleanup.ts`）。`index.ts` から `expo-router/entry` より前に登録し、起動時にも停止・削除する（本文: 決定6、SS-156 追補）
+- **散歩がサーバーで削除されたときは、決定6 と同型のレジストリ（`walkDeletionCleanup`）で、`savedWalkId` が一致するドラフトだけを消す**（本文: 決定8、SS-60 追補）
+- **往路/復路の判定はせず、線の描き分け（行き=実線 / 帰り=破線）と凡例「行き / 帰り」で表す**（本文: 決定9、SS-33 追補）
+
+### 未解決・持ち越し
+
+- **ローカル永続化と起動時の復帰（SS-36）は未着手**。着手するときは決定5 を覆すため本 ADR の再追補が必要。あわせて、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す（本文: 決定5、移行・対応が必要な事項、SS-156 追補）
+- **`theme.map.routeReturn` は Claude Design 側に未反映**（本文: 移行・対応が必要な事項、SS-33 追補）
+- **ダーク表示での帰りの線の見え方と、凡例の TalkBack 読み上げは未確認**。ダークモードへの追従自体は SS-86 で確認済み（本文: 移行・対応が必要な事項、SS-33 追補）
+- **ストアの `src/store/` への昇格**: 本文は「2つ以上の機能から参照されたら昇格」とし、SS-19 時点では昇格しないとしている。2026-10-03 時点では、`useActiveWalkStore` / `useFinishedWalkStore` は `features/auth`（`useAuthActions` / `postSignInDestination`）と `features/settings`（`useAccountDeletion`）からも参照されている。昇格の要否はまだ判断していない（本文: 移行・対応が必要な事項。SS-167 で判断する）
+
+### 変更・撤回された決定
+
+- `ActiveWalk.roundTripMinutes/roundTripKm`（片道×2の近似） → `loopMinutes/loopKm`（周回ルートの実値）（SS-33 追補）
+- ルートは片道（`/explore/routes/walking`） → 周回（`/explore/routes/loop`。`legs` と `returnIsSamePath` を持つ）（SS-33 追補）
+- 決定7「散歩中に現在地から再計算したルートをローカル state で持つ」（SS-35 追補） → 撤回。散歩中のルート再計算はしない（SS-33 追補）
+- 後始末の実行側は `SettingsView.handleConfirmLogout` → `useAuthSessionStore.setSession()`（SS-13 追補）。退避と履歴スタックの破棄は `AuthGate` へ移した（SS-50 追補）
+- 保存の発火「1回だけ」 → 「同じドラフト × 同じ認証状態につき1回、再発火は CTA を経由したサインインのみ」（SS-37 追補・SS-37 ローカルレビュー対応）
+- 後始末の Query キャッシュのクリアは `queryClient.clear()` → `removeQueries({ predicate })` + `getMutationCache().clear()`（SS-100 追補。ADR-M-009）
+
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）、2026-10-02 追補（SS-156）
 
 ## ステータス
 
@@ -25,6 +61,8 @@
 **SS-60「mobile: 散歩履歴を削除するUIを実装」で追補**した（決定4 の `savedWalkId` に2つ目の用途が生まれたこと、決定6 と同型の後始末レジストリが2本目になったことを記録。決定そのものは変更していない）。追補部分には `（SS-60 追補）` を付けている。
 
 **SS-33「往路と復路が異なる周回ルートの提示（散歩中の再計算は撤去）」で追補**した（決定1 の `ActiveWalk` フィールドを `roundTripMinutes/roundTripKm` から `loopMinutes/loopKm` へ rename、決定2 のルート本体を片道から周回に変更しキャッシュ共有の例外（SS-35 追補分）を撤回、決定7〔散歩中の現在地起点ルート再計算〕を撤回、往路/復路の判定をしないことを新しい決定9として追加）。追補部分には `（SS-33 追補）` を付けている。
+
+**SS-156「アプリがバックグラウンドの間も散歩の位置情報を取得・記録できるようにする」で追補**した（決定5 に、記録中の位置サンプルを端末のファイルへ一時的に書くようになったことを、決定6 に、後始末へバッファの削除とタスクの停止が加わったことを追記した。決定そのものは変更していない）。追補部分には `（SS-156 追補）` を付けている。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)。
 
 ## コンテキスト
 
@@ -135,6 +173,8 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 → フォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」として切り出す（保存先は `expo-file-system` の明示依存化を第一候補、`async-storage` を対案として比較する）。**着手時は本 ADR の再追補が必要**。
 
+**（SS-156 追補）** SS-156 で、記録中の位置サンプルを端末のファイル（`Paths.cache/walk-location-samples.jsonl`）へ一時的に書くようになった。これはバックグラウンドのタスクと画面の間の受け渡しと、再マウント時の軌跡の組み直しのためで、**アプリの再起動を越えた復元はしない**（起動時にタスクを止めてバッファを消す）。`useActiveWalkStore` / `useFinishedWalkStore` は引き続き非永続のまま。SS-36 に着手するときは、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す。
+
 ### 6. サインアウト時に walk 系ストアと Query キャッシュをクリアする（SS-19 追補）
 
 `src/lib/sessionCleanup.ts` に後始末レジストリ（`registerSessionCleanup` / `runSessionCleanup`）を置き、**クリアされる側が自分の後始末を登録する**形にする。
@@ -144,6 +184,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
   - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。**SS-50 では退避と履歴スタックの破棄も `AuthGate` に移した。** `SettingsView` は `authService.signOut()` の起動だけを担い、サインアウト callback と React effect の実行順に依存しない。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
 - サインアウト導線は `authService.signOut()` を起動するだけにする。後始末は認証状態遷移、退避と履歴スタックの破棄は `AuthGate` が担うため、feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）。
+- **（SS-156 追補）後始末にバッファの削除・タスクの停止が加わった**（`src/lib/backgroundLocationCleanup.ts`）。対象が端末のファイルに残るため、「未ロード = データが無い」は成り立たない。登録元は、起動時に必ず評価される `index.ts` からの副作用 import にした（`imageCacheCleanup.ts` が `app/_layout.tsx` から import されるのと同じく、起動時に必ず評価されることを理由とする。置き場所は `src/lib/` だが、`expo-router/entry` より前に import する点が異なる）。
 - **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-M-009](./ADR-M-009-auth-session-state-and-route-gate.md) を参照。
 
 ### 7. 再計算後のルートは Query キャッシュではなく `useWalkRouteRecalculation` のローカル state で持つ（SS-35 追補・**SS-33 で撤回**）
@@ -294,6 +335,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由。候補一覧（`/explore/places`）は片道値×2の近似、選択後は `/explore/routes/loop` の周回実値（SS-33 追補）
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
 - [ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-M-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
+- [ADR-M-018: 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./ADR-M-018-background-walk-location-tracking.md) — 決定5・決定6 の SS-156 追補の本体
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
 - **（SS-60 追補）** 実装: `src/lib/walkDeletionCleanup.ts`（決定8 のレジストリ）、`src/features/history/hooks/useWalkDelete.ts`（実行側）

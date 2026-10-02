@@ -178,7 +178,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 
 | エントリ | 遷移前の副作用 | 開くと起きること |
 |---|---|---|
-| `walk-active`（散歩中） | `useActiveWalkStore.startWalk(DEFAULT_ACTIVE_WALK ...)` | ローカル状態のみ。散歩が「進行中」になる |
+| `walk-active`（散歩中） | `useActiveWalkStore.startWalk(DEFAULT_ACTIVE_WALK ...)` | 散歩が「進行中」になり、散歩中画面が位置の記録を始める（real モードでは Android に記録中の通知が出る。止めるには散歩を終了する） |
 | `walk-summary`（散歩サマリ） | `useFinishedWalkStore.finishWalk(buildSampleFinishedWalk(...))` | サマリ画面の `useWalkSave` が発火し、**実サーバーへ `POST /walks` が飛んでスタブの散歩レコードが作られる**（履歴にも並ぶ。**サインイン済みの状態で開いた場合に限る**。ゲスト状態で開くと 401 になりサインイン CTA が表示される。SS-37） |
 
 - カタログの `description` にも副作用を明記する（例: 「保存も実行される」）。
@@ -242,7 +242,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 ### テストの書き方（RN の render テストは書けない）
 
 `vitest.config.ts` は `environment: "node"` / `include: ["src/**/*.test.ts"]`（`.tsx` は対象外）で、
-`resolve.alias` が `react-native` / `expo-secure-store` / `expo-location` / `expo-crypto` を
+`resolve.alias` が `react-native` / `expo-secure-store` / `expo-location` / `expo-crypto` / `expo-task-manager` / `expo-file-system` を
 それぞれ最小スタブ（`src/test/mocks/`）に差し替えている。
 そのため**コンポーネントをレンダリングするテストは現状書けない**。
 
