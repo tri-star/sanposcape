@@ -58,19 +58,23 @@ export function toLocationSamples(data: unknown): LocationSample[] {
   return samples;
 }
 
-/** JSONL（1行1サンプル。末尾改行あり）。キーは短縮形 {"t","lat","lng","acc"}。空配列なら "" を返す。 */
+/**
+ * JSONL（1行1サンプル）。キーは短縮形 {"t","lat","lng","acc"}。空配列なら "" を返す。
+ * 先頭にも改行を置く（"\nA\nB\n"）。前回の追記が途中で切れて改行なしで終わっていても、
+ * 次の追記の先頭の改行で行が分かれ、壊れた行が次の有効な行を巻き込まないようにするため。
+ * decode は空行を読み飛ばす。
+ */
 export function encodeLocationSamples(samples: readonly LocationSample[]): string {
-  return samples
-    .map(
-      (sample) =>
-        `${JSON.stringify({
-          t: sample.timestampMs,
-          lat: sample.latitude,
-          lng: sample.longitude,
-          acc: sample.accuracyMeters,
-        })}\n`,
-    )
-    .join("");
+  if (samples.length === 0) return "";
+  const lines = samples.map((sample) =>
+    JSON.stringify({
+      t: sample.timestampMs,
+      lat: sample.latitude,
+      lng: sample.longitude,
+      acc: sample.accuracyMeters,
+    }),
+  );
+  return `\n${lines.join("\n")}\n`;
 }
 
 /**

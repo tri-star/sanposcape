@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createBackgroundSampleHub } from "@/services/location/backgroundSampleHub";
 import type { BackgroundSampleHubEvent } from "@/services/location/backgroundSampleHub";
+import { encodeLocationSamples } from "@/services/location/locationSample";
 import { createMemorySampleBufferStorage } from "@/services/location/sampleBufferStorage.memory";
 import type { SampleBufferStorage } from "@/services/location/types";
 
@@ -14,12 +15,13 @@ function data(...points: Array<[number, number, number]>) {
   };
 }
 
-function setup(storageOverride?: Partial<SampleBufferStorage>) {
+function setup(storageOverride?: Partial<SampleBufferStorage>, now: () => number = () => 0) {
   const memory = createMemorySampleBufferStorage();
   const storage: SampleBufferStorage = { ...memory, ...storageOverride };
   const errors: Array<{ event: BackgroundSampleHubEvent; detail: Record<string, unknown> }> = [];
   const hub = createBackgroundSampleHub(storage, {
     onError: (event, detail) => errors.push({ event, detail }),
+    now,
   });
   return { hub, memory, errors };
 }
@@ -151,7 +153,7 @@ describe("createBackgroundSampleHub", () => {
     ]);
   });
 
-  it("onError の detail に座標が含まれない", () => {
+  it("onError の detail は code / errorName / errorMessage のキーだけで、座標を持たない", () => {
     const { hub, errors } = setup({
       append: () => {
         throw new Error("disk full");
@@ -160,8 +162,90 @@ describe("createBackgroundSampleHub", () => {
     hub.beginSession("w1");
     hub.handleTaskData(data([35.123456, 139.654321, 1]), null);
     hub.handleTaskData(null, { code: "E", message: "m" });
-    const text = JSON.stringify(errors.map((e) => e.detail));
-    expect(text).not.toContain("35.123456");
-    expect(text).not.toContain("139.654321");
+    expect(errors).toHaveLength(2);
+    for (const { detail } of errors) {
+      const allowed = new Set(["code", "errorName", "errorMessage"]);
+      expect(Object.keys(detail).every((key) => allowed.has(key))).toBe(true);
+    }
+  });
+
+  it("locations が空・不正なデータは追記しない（空の append をしない）", () => {
+    const append = vi.fn();
+    const { hub } = setup({ append });
+    hub.beginSession("w1");
+    hub.handleTaskData({ locations: [] }, null);
+    hub.handleTaskData({ locations: "x" }, null);
+    hub.handleTaskData(undefined, null);
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["文字列", "boom"],
+    ["code の無い object", {}],
+  ])("error が%sでも throw せず onError に通知する", (_label, error) => {
+    const { hub, errors } = setup();
+    hub.beginSession("w1");
+    expect(() => hub.handleTaskData(null, error)).not.toThrow();
+    expect(errors.map((e) => e.event)).toEqual(["background_location_task_error"]);
+  });
+
+  it("配信中にリスナーが自分を外しても、残りのリスナーには配る", () => {
+    const { hub } = setup();
+    const second = vi.fn();
+    hub.beginSession("w1");
+    const removeFirst = hub.addListener(() => removeFirst());
+    hub.addListener(second);
+    hub.handleTaskData(data([35, 139, 1]), null);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("endSession は全リスナーを外す。同じ hub で次の beginSession をしても旧リスナーには配られない", () => {
+    const { hub } = setup();
+    const oldListener = vi.fn();
+    hub.beginSession("w1");
+    hub.addListener(oldListener);
+    hub.endSession();
+    hub.beginSession("w2");
+    hub.handleTaskData(data([35, 139, 1]), null);
+    expect(oldListener).not.toHaveBeenCalled();
+  });
+
+  describe("セッション開始より前の測位時刻の点", () => {
+    it("バッファの削除に失敗して前の散歩の点が残っても、readSamples では返さない", () => {
+      const memory = createMemorySampleBufferStorage();
+      const { hub, errors } = setup(
+        {
+          ...memory,
+          clear: () => {
+            throw new Error("io");
+          },
+        },
+        () => 5000,
+      );
+      // 前の散歩の点（開始時刻より前）が消せないまま残っている。
+      memory.append(
+        encodeLocationSamples([
+          { latitude: 35, longitude: 139, timestampMs: 4000, accuracyMeters: 5 },
+        ]),
+      );
+      hub.beginSession("w2");
+      hub.handleTaskData(data([36, 140, 5000], [36.1, 140.1, 5001]), null);
+      expect(hub.readSamples().map((s) => s.timestampMs)).toEqual([5000, 5001]);
+      expect(errors.map((e) => e.event)).toContain("location_sample_buffer_clear_failed");
+    });
+
+    it("handleTaskData でも捨てる（書かず、リスナーにも配らない）", () => {
+      const { hub, memory } = setup(undefined, () => 5000);
+      const listener = vi.fn();
+      hub.beginSession("w1");
+      hub.addListener(listener);
+      hub.handleTaskData(data([35, 139, 4999]), null);
+      expect(memory.peek()).toBeNull();
+      expect(listener).not.toHaveBeenCalled();
+      hub.handleTaskData(data([35, 139, 4999], [35.1, 139.1, 5000]), null);
+      expect(listener).toHaveBeenCalledWith([
+        { latitude: 35.1, longitude: 139.1, timestampMs: 5000, accuracyMeters: 5 },
+      ]);
+    });
   });
 });

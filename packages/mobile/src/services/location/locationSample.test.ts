@@ -62,6 +62,7 @@ describe("encodeLocationSamples / decodeLocationSamples", () => {
 
   it("往復できる（acc: null を含む）", () => {
     const raw = encodeLocationSamples(samples);
+    expect(raw.startsWith("\n")).toBe(true);
     expect(raw.endsWith("\n")).toBe(true);
     expect(raw.split("\n").filter(Boolean)).toHaveLength(2);
     expect(decodeLocationSamples(raw)).toEqual(samples);
@@ -69,12 +70,24 @@ describe("encodeLocationSamples / decodeLocationSamples", () => {
 
   it("行の形式は短縮キー", () => {
     expect(encodeLocationSamples([samples[0]!])).toBe(
-      '{"t":1727850000000,"lat":35.681236,"lng":139.767125,"acc":5}\n',
+      '\n{"t":1727850000000,"lat":35.681236,"lng":139.767125,"acc":5}\n',
     );
   });
 
   it("複数回の追記を連結しても復号できる", () => {
     const raw = encodeLocationSamples([samples[0]!]) + encodeLocationSamples([samples[1]!]);
+    expect(decodeLocationSamples(raw)).toEqual(samples);
+  });
+
+  it("書きかけで途切れた行に次の追記が続いても、次の有効な行は失われない", () => {
+    // 前回の追記が改行なしで途切れた状態（クラッシュ・強制終了）。
+    const torn = '\n{"t":1727850000000,"lat":35.68,"lng":139.7';
+    const raw = torn + encodeLocationSamples([samples[1]!]);
+    expect(decodeLocationSamples(raw)).toEqual([samples[1]]);
+  });
+
+  it("CRLF 区切りでも復号できる", () => {
+    const raw = encodeLocationSamples(samples).replaceAll("\n", "\r\n");
     expect(decodeLocationSamples(raw)).toEqual(samples);
   });
 

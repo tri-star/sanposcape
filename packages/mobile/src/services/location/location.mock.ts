@@ -62,7 +62,7 @@ export function createMockLocationService(options?: MockLocationServiceOptions):
   const now = options?.now ?? Date.now;
 
   // 背景記録も real と同じ hub（統合経路）を通す。保存先だけメモリ。
-  const hub = createBackgroundSampleHub(createMemorySampleBufferStorage());
+  const hub = createBackgroundSampleHub(createMemorySampleBufferStorage(), { now });
   let backgroundInterval: ReturnType<typeof setInterval> | null = null;
 
   function stopBackgroundInterval(): void {
