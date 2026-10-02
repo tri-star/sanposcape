@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { PinPhotoImage } from "@/features/pin/components/PinPhotoImage";
+import { PinPhotoZoomView } from "@/features/pin/components/PinPhotoZoomView";
 import { resolveViewerNav, viewerCounterLabel } from "@/features/pin/lib/pinPhotoViewer";
 import type { PinPhoto } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -25,8 +26,9 @@ export type PinPhotoViewerProps = {
  *
  * RN `Modal` を使わず `position: absolute` の View にする（ADR-M-011 D7 と同じ理由:
  * `Modal` は Android のハードウェアバックを `onRequestClose` で先取りし、`useScreenBack` の
- * `onIntercept` が届かなくなる）。スワイプ・ピンチズームは入れない（スコープ外。前後移動は
- * ボタンのみ、モックどおり）。
+ * `onIntercept` が届かなくなる）。前後の移動はボタンのみ（スワイプは入れない）。原本はピンチで
+ * 1〜4倍に拡大でき、拡大中はドラッグで動かせる（`PinPhotoZoomView`。SS-153）。前後に移動すると
+ * 倍率は1に戻る。
  */
 export function PinPhotoViewer({
   photos,
@@ -87,15 +89,24 @@ export function PinPhotoViewer({
       <View style={styles.body}>
         {photo ? (
           photo.originalUrl !== null ? (
-            <PinPhotoImage
-              photoId={photo.id}
-              variant="original"
-              uri={photo.originalUrl}
-              placeholderUri={photo.thumbnailUrl}
-              contentFit="contain"
-              style={styles.image}
-              onError={onImageError}
-            />
+            <PinPhotoZoomView
+              // 写真が変わったら作り直して倍率を1に戻す（前後移動・件数変化による index の収め直し）。
+              // 同じ写真の URL の取り直し（読み込み失敗時）では作り直さず、拡大状態を保つ。
+              key={photo.id}
+              contentWidth={photo.width}
+              contentHeight={photo.height}
+              testID="pin-photo-viewer-zoom"
+            >
+              <PinPhotoImage
+                photoId={photo.id}
+                variant="original"
+                uri={photo.originalUrl}
+                placeholderUri={photo.thumbnailUrl}
+                contentFit="contain"
+                style={styles.image}
+                onError={onImageError}
+              />
+            </PinPhotoZoomView>
           ) : (
             <View style={styles.unavailableWrap}>
               {photo.thumbnailUrl !== null ? (
