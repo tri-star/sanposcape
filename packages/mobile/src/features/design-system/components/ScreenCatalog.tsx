@@ -61,7 +61,7 @@ export function ScreenCatalog() {
     {
       key: "walk-active",
       label: "散歩中",
-      description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（周回${DEFAULT_WALK_GOAL.time}分）`,
+      description: `既定ゴール: ${DEFAULT_WALK_GOAL.name}（周回${DEFAULT_WALK_GOAL.time}分）。位置の記録が始まる（real では Android に記録中の通知が出る。終了は散歩画面から）`,
       icon: "navigation",
       onPress: () => {
         useActiveWalkStore.getState().startWalk({
