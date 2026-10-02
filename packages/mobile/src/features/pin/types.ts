@@ -111,9 +111,15 @@ export type PinPhoto = {
   originalUrl: string | null;
   width: number;
   height: number;
+  /** アップロードしたユーザー。写真の削除権限の判定に使う（SS-119）。 */
+  uploadedByUserId: string;
 };
 
-export type PinTagView = { id: string; label: string };
+/** タグ1件。`createdByUserId` はタグの削除権限の判定に使う（SS-119）。 */
+export type PinTagView = { id: string; label: string; createdByUserId: string };
+
+/** 地図における自分の役割（`SanpoMap.role` と同じ値）。null は「不明」として別に扱う。 */
+export type PinMemberRole = "owner" | "editor";
 
 /** 地図詳細のピン一覧の1件（`PinListItemRead` の必要部分。SS-121）。 */
 export type PinListEntry = {
@@ -134,6 +140,10 @@ export type PinDetail = {
   name: string | null;
   memo: string | null;
   location: GeoCoordinates;
+  /** 権限判定（地図の role を引く）に使う。 */
+  sanpoMapId: string;
+  /** ピンの作成者。名前・メモの更新とピンの削除の権限判定に使う。 */
+  createdByUserId: string;
   tags: PinTagView[];
   /** position 順の先頭（最大10件）。全件は GET /pins/{id}/photos。 */
   photos: PinPhoto[];

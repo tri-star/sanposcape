@@ -2,8 +2,12 @@ import type { PinPhoto, PinPhotoPage } from "@/features/pin/types";
 import type { PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 import { formatDateLabel, formatTimeLabel, parseIsoDate } from "@/lib/dateLabel";
 
+/** ピン削除の進行状態（SS-119。`walkDetailBodyState` の `WalkDeleteStatus` と同じ置き場の考え方）。 */
+export type PinDeleteStatus = "idle" | "deleting" | "deleted" | "error";
+
 export type PinDetailBodyState =
   | "invalid-id"
+  | "deleted"
   | "sign-in-required"
   | "not-found"
   | "error"
@@ -16,12 +20,14 @@ export type ResolvePinDetailBodyStateInput = {
   errorCode: PinReadErrorCode | null;
   isLoading: boolean;
   hasPin: boolean;
+  /** 省略時は "idle"（編集画面は削除状態を持たないので渡さない）。 */
+  deleteStatus?: PinDeleteStatus;
 };
 
 /**
  * 詳細画面が「今どの状態を描画するか」を決める純粋関数。
  *
- * 判定順（この順序が仕様）: invalid-id → sign-in-required → not-found → error → loading → ready
+ * 判定順（この順序が仕様）: invalid-id → deleted → sign-in-required → not-found → error → loading → ready
  * ゲストでも `hasPinId` が false（ディープリンクの不正値）なら invalid-id を先に返す
  * （サインインしても解決しない問題を優先して伝える）。
  */
@@ -30,6 +36,10 @@ export function resolvePinDetailBodyState(
 ): PinDetailBodyState {
   if (!input.hasPinId) {
     return "invalid-id";
+  }
+  // 削除後に詳細のキャッシュを消しても not-found / loading にちらつかないよう、他より先に判定する。
+  if (input.deleteStatus === "deleted") {
+    return "deleted";
   }
   if (!input.isSignedIn) {
     return "sign-in-required";
@@ -44,6 +54,11 @@ export function resolvePinDetailBodyState(
     return "loading";
   }
   return "ready";
+}
+
+/** 編集ボタン・削除ボタンを出してよい本文か（ready のときだけ）。 */
+export function canShowPinActions(bodyState: PinDetailBodyState): boolean {
+  return bodyState === "ready";
 }
 
 /** 名前なし（null・空白のみ）のときのフォールバック。 */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   UNNAMED_PIN_LABEL,
+  canShowPinActions,
   formatPinCreatedAt,
   pinDisplayName,
   resolvePinDetailBodyState,
@@ -56,6 +57,27 @@ describe("resolvePinDetailBodyState", () => {
     );
   });
 
+  it("deleteStatus が deleted なら deleted（エラーや loading より優先。invalid-id よりは後）", () => {
+    expect(
+      resolvePinDetailBodyState({
+        ...READY_INPUT,
+        deleteStatus: "deleted",
+        errorCode: "not_found",
+        isLoading: true,
+        hasPin: false,
+      }),
+    ).toBe("deleted");
+    expect(
+      resolvePinDetailBodyState({ ...READY_INPUT, hasPinId: false, deleteStatus: "deleted" }),
+    ).toBe("invalid-id");
+  });
+
+  it("deleteStatus が deleting / error / idle / 省略なら従来どおり", () => {
+    for (const deleteStatus of ["idle", "deleting", "error", undefined] as const) {
+      expect(resolvePinDetailBodyState({ ...READY_INPUT, deleteStatus })).toBe("ready");
+    }
+  });
+
   it("すべて満たせば ready", () => {
     expect(resolvePinDetailBodyState(READY_INPUT)).toBe("ready");
   });
@@ -101,7 +123,15 @@ describe("formatPinCreatedAt", () => {
 
 describe("resolvePinDetailPhotos", () => {
   function photo(id: string, position: number): PinPhoto {
-    return { id, position, thumbnailUrl: null, originalUrl: null, width: 100, height: 100 };
+    return {
+      id,
+      position,
+      thumbnailUrl: null,
+      originalUrl: null,
+      width: 100,
+      height: 100,
+      uploadedByUserId: "user-1",
+    };
   }
 
   it("pages が無く photoCount と detailPhotos.length が一致すれば hasMore false", () => {
@@ -215,5 +245,21 @@ describe("shouldRefreshPhotoUrls", () => {
 
   it("dataUpdatedAt が0（未取得）なら false", () => {
     expect(shouldRefreshPhotoUrls({ dataUpdatedAt: 0, now: 1_000_000 })).toBe(false);
+  });
+});
+
+describe("canShowPinActions", () => {
+  it("ready のときだけ true", () => {
+    expect(canShowPinActions("ready")).toBe(true);
+    for (const state of [
+      "invalid-id",
+      "deleted",
+      "sign-in-required",
+      "not-found",
+      "error",
+      "loading",
+    ] as const) {
+      expect(canShowPinActions(state)).toBe(false);
+    }
   });
 });

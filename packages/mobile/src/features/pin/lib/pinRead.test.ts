@@ -141,7 +141,7 @@ describe("toPinListEntry", () => {
     expect(toPinListEntry(READ, { apiBaseUrl: API_BASE_URL_HTTPS })).toEqual({
       id: "pin-1",
       name: "桜の木",
-      tags: [{ id: "tag-1", label: "桜" }],
+      tags: [{ id: "tag-1", label: "桜", createdByUserId: "user-1" }],
       coverPhoto: toPinPhoto(photo({ id: "cover-1" }), { apiBaseUrl: API_BASE_URL_HTTPS }),
       photoCount: 3,
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -192,9 +192,26 @@ describe("toPinDetail", () => {
     expect(detail.memo).toBeNull();
   });
 
-  it("tags を { id, label } に変換する", () => {
+  it("tags を { id, label, createdByUserId } に変換する", () => {
     const detail = toPinDetail(READ, { apiBaseUrl: API_BASE_URL_HTTPS });
-    expect(detail.tags).toEqual([{ id: "tag-1", label: "桜" }]);
+    expect(detail.tags).toEqual([{ id: "tag-1", label: "桜", createdByUserId: "user-1" }]);
+  });
+
+  it("作成者・アップロード者・地図 id を camelCase で写す（権限判定用）", () => {
+    const detail = toPinDetail(
+      {
+        ...READ,
+        created_by_user_id: "creator",
+        sanpo_map: { id: "map-9", name: "別の地図", is_default: false },
+        photos: [photo({ uploaded_by_user_id: "uploader" })],
+        tags: [{ id: "tag-2", label: "梅", created_by_user_id: "tagger" }],
+      },
+      { apiBaseUrl: API_BASE_URL_HTTPS },
+    );
+    expect(detail.createdByUserId).toBe("creator");
+    expect(detail.sanpoMapId).toBe("map-9");
+    expect(detail.photos[0]?.uploadedByUserId).toBe("uploader");
+    expect(detail.tags[0]?.createdByUserId).toBe("tagger");
   });
 
   it("sanpoMapName / photoCount / createdAt を保持する", () => {

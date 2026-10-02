@@ -123,7 +123,7 @@ export function ScreenCatalog() {
       key: "sanpo-map-list",
       label: "地図一覧",
       description:
-        "自分の地図の一覧・名前で絞り込み・右下の＋で地図を作成（作成すると POST /sanpo-maps で backend に書き込む）。タップで地図詳細とピン一覧（フラグ pin_registration が OFF だとナビへ戻される）",
+        "自分の地図の一覧・名前で絞り込み・右下の＋で地図を作成（作成すると POST /sanpo-maps で backend に書き込む）。タップで地図詳細とピン一覧（フラグ pin_registration が OFF だとナビへ戻される）。地図詳細のピン → ピン詳細から編集・削除できる（保存で PATCH/DELETE が backend に書き込まれる）",
       icon: "map",
       onPress: () => router.push("/sanpo-maps"),
     },

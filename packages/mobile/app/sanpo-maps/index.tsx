@@ -8,7 +8,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 /**
  * 地図一覧（`/sanpo-maps`）。SS-121 で本実装（SS-146 では暫定画面だった）。
  * ゲストはサインイン案内を出す（通信しない。ADR-M-014 D6）。
- * `app/pins/[pinId].tsx` と同じ画面ガードレシピ（`docs/architecture-guideline.md`）。
+ * `app/pins/[pinId]/index.tsx` と同じ画面ガードレシピ（`docs/architecture-guideline.md`）。
  * OFF 確定時の戻り先は `/(tabs)`（ピンタブも OFF ではナビタブへリダイレクトするため）。
  */
 export default function SanpoMapListRoute() {

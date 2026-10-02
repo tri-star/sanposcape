@@ -144,7 +144,7 @@ describe("fetchPinDetail", () => {
     const result = await fetchPinDetail(PIN_ID, { apiBaseUrl: API_BASE_URL });
 
     expect(result.name).toBeNull();
-    expect(result.tags).toEqual([{ id: "tag-1", label: "桜" }]);
+    expect(result.tags).toEqual([{ id: "tag-1", label: "桜", createdByUserId: "user-1" }]);
     expect(result.photos[0]?.originalUrl).toBeNull();
   });
 

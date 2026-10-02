@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）。前回: 2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -121,7 +121,8 @@ advisory lock で直列化）、
 2026-09-28 追補（SS-137: `pins` を `sanpo_maps` 配下へ統合し、`sanpo_maps/contents.py` の
 port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の一次記録は
 [ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）、
-2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）
+2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）、
+2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）
 
 ## ステータス
 
@@ -1005,6 +1006,10 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 追加は後方互換な expand でできる。それまでに editor が権限のない操作をしても 403 が
 返るので、安全性は変わらない。
 
+（SS-119 の実際: mobile は `GET /sanpo-maps` の role と、`PinRead` の作成者 ID・セッションの user id から
+操作の出し分けを判定する。role が引けないときは editor（メンバーの最小権限）とみなし、安全性は
+backend の 403 に任せる。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) D5。決定24 は変わらない）
+
 ### mobile（SS-119）への伝達事項
 
 - PATCH には**変更したフィールドだけ**を送る。`name`/`memo` を消すときは `null`
@@ -1018,6 +1023,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   なら成功扱いにしてよい。削除後は `photo_count` や代表写真が変わるので、ピンの詳細・
   一覧のキャッシュを無効化する。
 - `DELETE /pins/{id}` の 204/404 は、どちらも一覧から取り除いてよい。
+- （SS-119 で mobile 実装済み。role は `GET /sanpo-maps` から引く。詳細は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
 
 ## 追補（2026-09-26, SS-113 地図の作成・管理 API）
 
@@ -1291,4 +1297,5 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
   SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
-  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）
+  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）、
+  SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）

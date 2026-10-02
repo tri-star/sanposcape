@@ -37,6 +37,7 @@ export function toPinPhoto(read: PinPhotoRead, options: { apiBaseUrl: string }):
     originalUrl,
     width: read.width,
     height: read.height,
+    uploadedByUserId: read.uploaded_by_user_id,
   };
 }
 
@@ -64,7 +65,11 @@ export function toPinListEntry(
   return {
     id: read.id,
     name: read.name,
-    tags: read.tags.map((tag) => ({ id: tag.id, label: tag.label })),
+    tags: read.tags.map((tag) => ({
+      id: tag.id,
+      label: tag.label,
+      createdByUserId: tag.created_by_user_id,
+    })),
     coverPhoto: read.cover_photo !== null ? toPinPhoto(read.cover_photo, options) : null,
     photoCount: read.photo_count,
     createdAt: read.created_at,
@@ -77,7 +82,13 @@ export function toPinDetail(read: PinRead, options: { apiBaseUrl: string }): Pin
     name: read.name,
     memo: read.memo,
     location: { latitude: read.location.latitude, longitude: read.location.longitude },
-    tags: read.tags.map((tag) => ({ id: tag.id, label: tag.label })),
+    sanpoMapId: read.sanpo_map.id,
+    createdByUserId: read.created_by_user_id,
+    tags: read.tags.map((tag) => ({
+      id: tag.id,
+      label: tag.label,
+      createdByUserId: tag.created_by_user_id,
+    })),
     photos: read.photos.map((photo) => toPinPhoto(photo, options)),
     photoCount: read.photo_count,
     sanpoMapName: read.sanpo_map.name,

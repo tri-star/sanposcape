@@ -140,9 +140,10 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 
 ### 移行・対応が必要な事項
 
-- SS-119（ピンの編集・削除）: ピンを消したら `SANPO_MAPS_QUERY_KEY`（`features/pin/lib/pinQueryKeys.ts`）も invalidate すること（地図一覧の
+- ~~SS-119（ピンの編集・削除）: ピンを消したら `SANPO_MAPS_QUERY_KEY`（`features/pin/lib/pinQueryKeys.ts`）も invalidate すること（地図一覧の
   ピン件数が古くなる。`PINS_QUERY_ROOT` の invalidate だけでは更新されない）。地図詳細のピン一覧は
-  `["pins", ...]` 始まりなので `PINS_QUERY_ROOT` の invalidate で取り直される。
+  `["pins", ...]` 始まりなので `PINS_QUERY_ROOT` の invalidate で取り直される。~~
+  → SS-119 で決着（`usePinDelete` が invalidate する。[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)）。
 - SS-117（ピン登録画面での地図作成）: `SanpoMapCreateDialog` を使う際、ピン登録画面の `useScreenBack` の
   `onIntercept` にダイアログを閉じる分岐を足すこと。作った地図が既定になる場合がある（既定地図が無かった
   ユーザー）ので、「最初の地図」の draft は一覧の再取得で自然に消える。
