@@ -46,7 +46,8 @@ export type UseWalkTrackingResult = {
  * サインアウト・アプリ起動時の3箇所に限る。Android の戻るキーで画面だけ消えても散歩は続くため。
  *
  * `@/services/location` のバレルを import するのはこの hook だけにする
- * （`lib/` から import するとネイティブ依存に到達するため。architecture-guideline の単体テスト節）。
+ * （`lib/` から import するとネイティブ依存に到達するため。architecture-guideline の単体テスト節。
+ * 例外は起動時の副作用モジュール `src/lib/backgroundLocationCleanup.ts` のみ）。
  */
 export function useWalkTracking(input: {
   /** 散歩中のみ true。false のときは購読しない。 */
@@ -115,8 +116,63 @@ export function useWalkTracking(input: {
     }
 
     let cancelled = false;
+    // 背景記録を開始できず、前面だけの記録（watchPosition）で続けている間 true。
+    let isForegroundOnly = false;
+    let isRetrying = false;
+
+    // 背景記録の開始に失敗したときの処理。エラー表示にするか、前面だけの記録に切り替える。
+    async function handleBackgroundStartFailure(error: unknown) {
+      const code = toLocationError(error).code;
+      if (resolveBackgroundTrackingFailure(code) === "show_error") {
+        setErrorCode(code);
+        return;
+      }
+      // 古い development build・FGS 権限欠落・背面からの開始など。フォアグラウンドだけの記録で続ける。
+      // 座標は診断ログに出さない。
+      logDiagnostic("walk_background_tracking_unavailable", { code, ...describeError(error) });
+      try {
+        const watchSub = await locationService.watchPosition((position) =>
+          apply([foregroundPositionToSample(position, Date.now())]),
+        );
+        if (cancelled) {
+          watchSub.remove();
+          return;
+        }
+        isForegroundOnly = true;
+        subscriptionRef.current = {
+          readRecordedSamples: () => [],
+          detach: () => watchSub.remove(),
+        };
+      } catch (fallbackError) {
+        if (cancelled) return;
+        setErrorCode(toLocationError(fallbackError).code);
+      }
+    }
 
     async function start(id: string) {
+      let sub: BackgroundTrackingSubscription;
+      // try は開始の呼び出しだけに絞る（成功後の処理の例外を「開始失敗」と誤分類しない）。
+      try {
+        sub = await locationService.startBackgroundTracking({ sessionId: id, listener: apply });
+      } catch (error) {
+        if (cancelled) return;
+        await handleBackgroundStartFailure(error);
+        return;
+      }
+      if (cancelled) {
+        sub.detach();
+        return;
+      }
+      subscriptionRef.current = sub;
+      // 再マウント時は、ここでバッファから軌跡を組み直す。
+      syncFromRecorded();
+    }
+
+    // 前面へ戻ったとき、前面だけの記録に落ちていたら背景記録の開始をもう一度試す
+    // （背面から開始できなかった等の一時的な失敗を救う）。成功したら前面の購読を止めて切り替える。
+    async function retryBackgroundTracking(id: string) {
+      if (!isForegroundOnly || isRetrying) return;
+      isRetrying = true;
       try {
         const sub = await locationService.startBackgroundTracking({
           sessionId: id,
@@ -126,42 +182,24 @@ export function useWalkTracking(input: {
           sub.detach();
           return;
         }
+        const foregroundSub = subscriptionRef.current;
         subscriptionRef.current = sub;
-        // 再マウント時は、ここでバッファから軌跡を組み直す。
+        foregroundSub?.detach();
+        isForegroundOnly = false;
         syncFromRecorded();
-      } catch (error) {
-        if (cancelled) return;
-        const code = toLocationError(error).code;
-        if (resolveBackgroundTrackingFailure(code) === "show_error") {
-          setErrorCode(code);
-          return;
-        }
-        // 古い development build・FGS 権限欠落・背面からの開始など。フォアグラウンドだけの記録で続ける。
-        // 座標は診断ログに出さない。
-        logDiagnostic("walk_background_tracking_unavailable", { code, ...describeError(error) });
-        try {
-          const watchSub = await locationService.watchPosition((position) =>
-            apply([foregroundPositionToSample(position, Date.now())]),
-          );
-          if (cancelled) {
-            watchSub.remove();
-            return;
-          }
-          subscriptionRef.current = {
-            readRecordedSamples: () => [],
-            detach: () => watchSub.remove(),
-          };
-        } catch (fallbackError) {
-          if (cancelled) return;
-          setErrorCode(toLocationError(fallbackError).code);
-        }
+      } catch {
+        // 引き続き前面だけの記録で続ける（次に前面へ戻ったときにまた試す）。
+      } finally {
+        isRetrying = false;
       }
     }
 
     void start(walkId);
 
     const appStateSubscription = AppState.addEventListener("change", (next) => {
-      if (next === "active") syncFromRecorded();
+      if (next !== "active") return;
+      syncFromRecorded();
+      void retryBackgroundTracking(walkId);
     });
 
     return () => {
