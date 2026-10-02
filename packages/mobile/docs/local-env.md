@@ -17,7 +17,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 本アプリは **react-native-maps**、**react-native-svg**（アイコン描画）、
 **@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
 （Google サインイン）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
-（`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）という
+（`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）、**expo-location**（現在地・散歩中の位置記録）、
+**expo-task-manager**（背景の位置記録のタスク。SS-156）という
 **ネイティブモジュール**を利用する。これらは **Expo Go では動作しない**ため、動作確認には Expo の
 **development build**（dev client）が必要。
 

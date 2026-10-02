@@ -20,6 +20,9 @@ packages/mobile/
 │   │   └── index.tsx          #   画面は薄く保ち、src/features を呼ぶだけにする
 │   └── +not-found.tsx
 │
+├── index.ts                   # エントリ。`expo-router/entry` より前に位置記録のタスク定義と起動時の後始末を import する
+│                              #   （順序が不変条件。SS-156 / ADR-M-018。`backgroundLocationTaskEntry.test.ts` で固定）
+│
 ├── src/
 │   ├── components/            # 横断的に再利用するUI（機能に依存しない）
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
@@ -163,6 +166,11 @@ packages/mobile/
       評価される `app/_layout.tsx` から副作用 import する専用モジュール**に置く
       （SS-118 ローカルレビュー SEC-M1。以前はコンポーネント側で登録しており、そのコンポーネントが
       一度も読み込まれないまま出たサインアウトでは後始末が走らなかった）。
+    - **例外（store 以外・SS-156）: 散歩の位置記録のバッファ（端末のファイル）と OS のロケーションタスク**は
+      `src/lib/backgroundLocationCleanup.ts` に登録する。対象が端末のファイル・OS が再起動後も復元するタスクで、
+      「未ロード = クリアすべきデータも無い」が成立しないため、起動時にも停止・削除する
+      （進行中の散歩は永続化しないので、起動時に続けるべき記録は無い）。登録元は **`index.ts` からの副作用 import**
+      （`app/_layout.tsx` ではなく、`expo-router/entry` より前。理由は上記 `lib/` の記述を参照）。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
 - **feature をまたいで地図に要素を重ねたいときは、`app/` のルートが render slot で合成する**
   （`features/walk` が `features/pin` を import しない規約を保つため）。実例:
@@ -258,7 +266,7 @@ packages/mobile/
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
   純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`、散歩の位置記録の起動時の孤児停止・サインアウト時の後始末を登録する
-  `backgroundLocationCleanup.ts`（`imageCacheCleanup.ts` と同じく `index.ts` から副作用 import する。SS-156）。SS-34、`/app-config` のフラグ受け皿
+  `backgroundLocationCleanup.ts`（`index.ts` から `expo-router/entry` より前に副作用 import する。起動時の停止を、どの散歩の開始よりも先に `serialQueue` へ積むため。SS-156）。SS-34、`/app-config` のフラグ受け皿
   `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
   トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
   `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）、端末側の診断ログの

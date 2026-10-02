@@ -137,7 +137,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 → フォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」として切り出す（保存先は `expo-file-system` の明示依存化を第一候補、`async-storage` を対案として比較する）。**着手時は本 ADR の再追補が必要**。
 
-**（SS-156 追補）** SS-156 で、記録中の位置サンプルを端末のファイル（`Paths.document/walk-location-samples.jsonl`）へ一時的に書くようになった。これはバックグラウンドのタスクと画面の間の受け渡しと、再マウント時の軌跡の組み直しのためで、**アプリの再起動を越えた復元はしない**（起動時にタスクを止めてバッファを消す）。`useActiveWalkStore` / `useFinishedWalkStore` は引き続き非永続のまま。SS-36 に着手するときは、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す。
+**（SS-156 追補）** SS-156 で、記録中の位置サンプルを端末のファイル（`Paths.cache/walk-location-samples.jsonl`）へ一時的に書くようになった。これはバックグラウンドのタスクと画面の間の受け渡しと、再マウント時の軌跡の組み直しのためで、**アプリの再起動を越えた復元はしない**（起動時にタスクを止めてバッファを消す）。`useActiveWalkStore` / `useFinishedWalkStore` は引き続き非永続のまま。SS-36 に着手するときは、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す。
 
 ### 6. サインアウト時に walk 系ストアと Query キャッシュをクリアする（SS-19 追補）
 
@@ -148,7 +148,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
   - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。**SS-50 では退避と履歴スタックの破棄も `AuthGate` に移した。** `SettingsView` は `authService.signOut()` の起動だけを担い、サインアウト callback と React effect の実行順に依存しない。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
 - サインアウト導線は `authService.signOut()` を起動するだけにする。後始末は認証状態遷移、退避と履歴スタックの破棄は `AuthGate` が担うため、feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）。
-- **（SS-156 追補）後始末にバッファの削除・タスクの停止が加わった**（`src/lib/backgroundLocationCleanup.ts`）。対象が端末のファイルに残るため、「未ロード = データが無い」は成り立たない。登録元は、起動時に必ず評価される `index.ts` からの副作用 import にした（`imageCacheCleanup.ts` と同じ理由）。
+- **（SS-156 追補）後始末にバッファの削除・タスクの停止が加わった**（`src/lib/backgroundLocationCleanup.ts`）。対象が端末のファイルに残るため、「未ロード = データが無い」は成り立たない。登録元は、起動時に必ず評価される `index.ts` からの副作用 import にした（`imageCacheCleanup.ts` が `app/_layout.tsx` から import されるのと同じく、起動時に必ず評価されることを理由とする。置き場所は `src/lib/` だが、`expo-router/entry` より前に import する点が異なる）。
 - **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-M-009](./ADR-M-009-auth-session-state-and-route-gate.md) を参照。
 
 ### 7. 再計算後のルートは Query キャッシュではなく `useWalkRouteRecalculation` のローカル state で持つ（SS-35 追補・**SS-33 で撤回**）
