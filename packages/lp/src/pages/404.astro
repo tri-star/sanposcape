@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="ページが見つかりません — Sanposcape"
+  description="お探しのページは見つかりませんでした。"
+  noindex
+>
+  <section class="not-found container" aria-labelledby="not-found-title">
+    <p class="eyebrow">404 NOT FOUND</p>
+    <h2 id="not-found-title">
+      お探しのページは、
+      <br />
+      見つかりませんでした。
+    </h2>
+    <p class="section-description">
+      URL が変わったか、ページが削除された可能性があります。
+    </p>
+    <a class="button button-navy" href="/">
+      トップページへ{" "}
+      <svg class="icon">
+        <use href="#i-arrow"></use>
+      </svg>
+    </a>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding-block: 80px;
+    text-align: center;
+  }
+
+  .not-found h2 {
+    margin-top: 14px;
+  }
+
+  .not-found .button {
+    margin-top: 33px;
+  }
+</style>

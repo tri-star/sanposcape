@@ -1,0 +1,76 @@
+---
+import { Image } from "astro:assets";
+import routeMap from "../assets/images/route-map.svg";
+import walkStart from "../assets/images/screens/walk-start.png";
+---
+
+<section
+  class="walk-section section-wrap"
+  id="walks"
+  aria-labelledby="walk-title"
+>
+  <div class="container walk-layout">
+    <div class="walk-visual">
+      <Image class="route-art" src={routeMap} alt="" width={540} height={520} />
+      <figure class="phone walk-phone">
+        <Image
+          src={walkStart}
+          alt="散歩開始画面。往復にかけたい時間を選び、目的地の候補とルートを地図で確認できます。"
+          width={720}
+          height={1560}
+          widths={[240, 480, 720]}
+          sizes="240px"
+        />
+      </figure>
+      <div class="walk-caption">
+        <svg class="icon">
+          <use href="#i-route"></use>
+        </svg>
+        <span>今日は、どの道を歩こう。</span>
+      </div>
+    </div>
+    <div class="feature-copy">
+      <p class="eyebrow">
+        <span class="section-number">02</span> TAKE THE SCENIC ROUTE
+      </p>
+      <h2 id="walk-title">
+        ちょっと歩きたい。
+        <br />
+        そんな気分にも。
+      </h2>
+      <p class="section-description">
+        空いた時間に合わせて、行き先とルートを決める。
+        <br />
+        いつもと違う道を歩けば、
+        <br />
+        またひとつ、お気に入りに出会えるかも。
+      </p>
+      <div class="walk-points">
+        <div>
+          <span>01</span>
+          <p>
+            <strong>時間に合わせて、行き先を。</strong>
+            往復にかけたい時間から、スポットを探せます。
+          </p>
+        </div>
+        <div>
+          <span>02</span>
+          <p>
+            <strong>ルートを見ながら、気軽に散歩。</strong>
+            地図でルートと現在地を確認できます。
+          </p>
+        </div>
+        <div>
+          <span>03</span>
+          <p>
+            <strong>歩いた道も、思い出に。</strong>
+            ルート・時間・距離を記録して振り返れます。
+          </p>
+        </div>
+      </div>
+      <p class="walk-footnote">
+        散歩の途中でも、気になった場所をピンに残せます。
+      </p>
+    </div>
+  </div>
+</section>

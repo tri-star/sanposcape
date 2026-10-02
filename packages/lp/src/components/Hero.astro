@@ -1,0 +1,125 @@
+---
+import { Image } from "astro:assets";
+import pinsMap from "../assets/images/screens/pins-map.png";
+import landscape from "../assets/images/walking-landscape.webp";
+---
+
+<section class="hero container" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <h1 id="hero-title">
+      いつもの道に、
+      <br />
+      <span class="highlight">好き</span>が増える。
+    </h1>
+    <p class="hero-description">
+      ふと見つけた景色。気になった小さなお店。
+      <br />
+      散歩の「また来たい」を、地図に残そう。
+      <br />
+      あなたの街が、あなただけのお気に入りになる。
+    </p>
+    <a class="button button-navy" href="#download">
+      Sanposcape をはじめる{" "}
+      <svg class="icon">
+        <use href="#i-arrow"></use>
+      </svg>
+    </a>
+    <p class="platform-note">iOS / Android</p>
+    <div class="hero-tags">
+      <span>
+        <svg class="icon">
+          <use href="#i-pin"></use>
+        </svg>{" "}
+        発見をピンに
+      </span>
+      <span>
+        <svg class="icon">
+          <use href="#i-route"></use>
+        </svg>{" "}
+        足あとを記録
+      </span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="scenery">
+      <Image
+        src={landscape}
+        alt=""
+        width={1536}
+        height={1024}
+        widths={[640, 960, 1280, 1536]}
+        sizes="(max-width: 800px) 100vw, 660px"
+        loading="eager"
+        fetchpriority="high"
+      />
+    </div>
+    <span class="visual-caption">
+      A little walk.
+      <br />A new favorite.
+    </span>
+    <div class="orbit-stamp" aria-hidden="true">
+      <svg class="icon">
+        <use href="#i-sun"></use>
+      </svg>
+      <span>
+        今日も、
+        <br />
+        ちょっと寄り道。
+      </span>
+    </div>
+    <figure class="phone hero-phone">
+      <Image
+        src={pinsMap}
+        alt="Sanposcapeのピン画面。散歩で登録した場所が地図上に緑のピンで表示されています。"
+        width={720}
+        height={1560}
+        widths={[240, 480, 720]}
+        sizes="240px"
+        loading="eager"
+      />
+      <figcaption class="sr-only">
+        お気に入りが増えていく、あなたの地図。
+      </figcaption>
+    </figure>
+    <div class="field-note">
+      <span class="note-tape" aria-hidden="true"></span>
+      <Image
+        src={landscape}
+        alt=""
+        width={600}
+        height={400}
+        widths={[300, 600]}
+        sizes="200px"
+        loading="eager"
+      />
+      <span>
+        <svg class="icon">
+          <use href="#i-pin"></use>
+        </svg>{" "}
+        風が気持ちいい、いつもの場所。
+      </span>
+      <small>MY LITTLE DISCOVERY</small>
+    </div>
+    <div class="pin-sticker" aria-hidden="true">
+      <svg class="icon">
+        <use href="#i-pin"></use>
+      </svg>
+      <span>
+        お気に入り、
+        <br />
+        ひとつ見つけた。
+      </span>
+    </div>
+  </div>
+</section>
+<div class="intro-strip container">
+  <span class="strip-label">散歩を、もっと自分らしく。</span>
+  <p>
+    目的地までの道のりにも、
+    <br class="mobile-break" />
+    残しておきたい出会いがある。
+  </p>
+  <a href="#pins" aria-label="ピンの記録機能を見る">
+    SCROLL TO EXPLORE <span>↓</span>
+  </a>
+</div>
