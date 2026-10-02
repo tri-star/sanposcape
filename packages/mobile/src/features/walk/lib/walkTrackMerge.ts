@@ -24,7 +24,8 @@ export const INITIAL_WALK_TRACK_SYNC: WalkTrackSync = {
 /**
  * サンプルを統合する純粋関数。何度同じサンプルを渡しても結果が変わらない（冪等）。
  * 1. 座標が不正（isValidCoordinate が false）・時刻が有限でないサンプルは捨てる（カーソルも進めない）
- * 2. lastSampleAtMs 以下の時刻は捨てる（リスナーとバッファの両方から届く同じ点を二重に足さない）
+ * 2. lastSampleAtMs 以下の時刻は捨てる（リスナーとバッファの両方から届く同じ点を二重に足さない）。
+ *    同じバッチ内の同一時刻も、先に来た1点だけを採る
  * 3. 残りを時刻の昇順に並べる（Android はまとめて届くことがある。元の配列は変えない）
  * 4. 順に: latestPosition を更新し、paused でなければ appendWalkTrackPoint で軌跡に足す
  *    （一時停止中もカーソルは進める＝停止中の移動は後から取り込み直さない）
@@ -51,9 +52,11 @@ export function mergeWalkTrackSamples(
   let latestPosition = state.latestPosition;
   let lastSampleAtMs = cursor;
   for (const sample of fresh) {
+    // 同じバッチ内の同一時刻（昇順に並べたので直前と同じ時刻）も重複として捨てる。
+    // 先に来た点を採る（sort は安定）。別々のバッチで渡したときと結果を揃えるため。
+    if (lastSampleAtMs !== null && sample.timestampMs <= lastSampleAtMs) continue;
     const point: GeoCoordinates = { latitude: sample.latitude, longitude: sample.longitude };
     latestPosition = point;
-    // 同一時刻のサンプルが同じバッチに複数あっても、カーソルは最大値で止まる。
     lastSampleAtMs = sample.timestampMs;
     if (!options.paused) track = appendWalkTrackPoint(track, point);
   }

@@ -53,6 +53,28 @@ describe("mergeWalkTrackSamples", () => {
     expect(viaBuffer).toEqual(once);
   });
 
+  it("同じバッチ内の同一時刻の点は、先に来た1点だけを軌跡に入れる", () => {
+    const first = sample(2, 2000);
+    const sameTime = sample(3, 2000);
+    const next = mergeWalkTrackSamples(INITIAL_WALK_TRACK_SYNC, [sample(1), first, sameTime], run);
+    expect(next.track.points).toEqual([
+      { latitude: sample(1).latitude, longitude: 139 },
+      { latitude: first.latitude, longitude: 139 },
+    ]);
+    expect(next.lastSampleAtMs).toBe(2000);
+    expect(next.latestPosition).toEqual({ latitude: first.latitude, longitude: 139 });
+  });
+
+  it("同一時刻の点を含んでも、1バッチで渡すのと1点ずつ渡すのとで結果が同じ", () => {
+    const batch = [sample(1), sample(2, 2000), sample(3, 2000), sample(4)];
+    const once = mergeWalkTrackSamples(INITIAL_WALK_TRACK_SYNC, batch, run);
+    const oneByOne = batch.reduce(
+      (state, s) => mergeWalkTrackSamples(state, [s], run),
+      INITIAL_WALK_TRACK_SYNC,
+    );
+    expect(once).toEqual(oneByOne);
+  });
+
   it("同じ配列を2回渡すと、2回目は同じ参照を返す", () => {
     const first = mergeWalkTrackSamples(INITIAL_WALK_TRACK_SYNC, [sample(1), sample(2)], run);
     const second = mergeWalkTrackSamples(first, [sample(1), sample(2)], run);
