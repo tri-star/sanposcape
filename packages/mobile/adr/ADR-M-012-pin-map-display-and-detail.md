@@ -367,6 +367,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 二重タップでの拡大・リセットとスワイプでの前後移動は入れない（受け入れ条件外。二重タップは1本指で拡大できる代替手段として価値があるため、要望が出たら別課題で検討する）。
 - 実装: `react-native-gesture-handler`（`Gesture.Pinch` + `Gesture.Pan` を `Simultaneous`）＋ `react-native-reanimated`（shared value と `useAnimatedStyle`。React Compiler が有効なので `.get()` / `.set()`）。どちらも導入済みで、使うのは初めて。倍率・移動量の計算は `features/pin/lib/photoZoom.ts` の worklet の純粋関数に置き、Vitest で検証する。
 - アプリ全体（`app/_layout.tsx` の最外周）を `GestureHandlerRootView` で包む。RNGH の要求（ジェスチャーはこの内側でしか認識されない）で、ライブラリの推奨どおりアプリのルートに置く。ビューアは RN `Modal` を使わない画面内オーバーレイ（D8）なので、ルートの1つで足りる。
+- 新しいフィーチャーフラグは作らない。ピン詳細は既存の `pin_registration` でガード済みで、画面内の操作を足すだけのため（`docs/release-runbook.md` の例外に当たる）。
 
 ### 却下案
 
@@ -378,7 +379,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 ### 影響
 
 - Maestro はピンチを操作できず、E2E のピンには写真が無い（ADR-M-010 決定6）ため、拡大は E2E しない。計算は `photoZoom.test.ts`、操作は実機で確認する（D14 と同じく、詳細画面の見た目は手動確認に頼る）。
-- ピンチは2本指の操作なので、支援技術では代替できない（拡大しなくても従来どおり写真全体は見られる）。
+- ピンチは2本指の操作なので、支援技術では代替できない（拡大しなくても従来どおり写真全体は見られる）。スクリーンリーダー向けの代替操作（`accessibilityActions` の increment / decrement など）は要望が出たら別課題で検討する。
 - 画面の端から始めた横方向のドラッグは、Android のジェスチャーナビゲーション（端からのスワイプで戻る）と取り合うことがある。
 - 移行・対応が必要な事項: なし（backend・OpenAPI・依存の変更なし）。
 
