@@ -3,6 +3,9 @@
 Sanposcape の紹介サイト（`sanposcape.com` / `dev.sanposcape.com`）。Astro の静的出力（`output: "static"`）で
 HTML・CSS・JS・画像を `dist/` に書き出し、S3 + CloudFront で配信する（SS-155）。
 
+構成・配信・デプロイ方式を決めた経緯は [ADR-012](../../docs/adr/ADR-012-lp-static-site-astro-s3-cloudfront.md) を参照
+（変える場合は ADR の追補が要る）。
+
 ## コマンド
 
 リポジトリルートで実行する（依存はルートの `pnpm install` でワークスペース一括で入る）。
