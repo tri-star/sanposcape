@@ -1,0 +1,94 @@
+---
+import { Image } from "astro:assets";
+import landscape from "../assets/images/walking-landscape.webp";
+---
+
+<section class="how-section container" aria-labelledby="how-title">
+  <div class="section-heading">
+    <p class="eyebrow">MAKE IT YOUR MAP</p>
+    <h2 id="how-title">残し方は、かんたん。</h2>
+    <p>気になったら、その場で。あとから、ゆっくりでも。</p>
+  </div>
+  <div class="steps">
+    <article class="step">
+      <span class="step-index">STEP 01</span>
+      <div class="step-art map-art" aria-hidden="true">
+        <div class="map-block block-a"></div>
+        <div class="map-block block-b"></div>
+        <div class="map-block block-c"></div>
+        <div class="map-road"></div>
+        <span class="map-pin">
+          <svg class="icon">
+            <use href="#i-pin"></use>
+          </svg>
+        </span>
+        <span class="map-tap"></span>
+        <span class="art-label">ここ、好きかも。</span>
+      </div>
+      <h3>見つけて、ピン。</h3>
+      <p>
+        地図で場所を選んで、
+        <br />
+        気になるスポットを登録。
+      </p>
+    </article>
+    <article class="step">
+      <span class="step-index">STEP 02</span>
+      <div class="step-art journal-art" aria-hidden="true">
+        <div class="paper-photo">
+          <Image
+            src={landscape}
+            alt=""
+            width={450}
+            height={300}
+            widths={[225, 450]}
+            sizes="150px"
+          />
+        </div>
+        <div class="paper-memo">
+          <svg class="icon">
+            <use href="#i-note"></use>
+          </svg>
+          <span>
+            また来たい、
+            <br />
+            木漏れ日の道。
+          </span>
+          <i></i>
+          <i></i>
+        </div>
+        <span class="art-label">景色も、ひとことも。</span>
+      </div>
+      <h3>写真と、ひとこと。</h3>
+      <p>
+        見つけた風景や感じたことを、
+        <br />
+        写真・メモ・タグで残す。
+      </p>
+    </article>
+    <article class="step">
+      <span class="step-index">STEP 03</span>
+      <div class="step-art collection-art" aria-hidden="true">
+        <span class="collection-paper"></span>
+        <span class="collection-paper paper-second"></span>
+        <span class="collection-paper paper-third"></span>
+        <svg class="icon pin-one">
+          <use href="#i-pin"></use>
+        </svg>
+        <svg class="icon pin-two">
+          <use href="#i-pin"></use>
+        </svg>
+        <svg class="icon pin-three">
+          <use href="#i-pin"></use>
+        </svg>
+        <span class="art-label">わたしだけの地図に。</span>
+      </div>
+      <h3>積み重なる、お気に入り。</h3>
+      <p>
+        いつもの街にピンが増えて、
+        <br />
+        次の散歩の楽しみになる。
+      </p>
+    </article>
+  </div>
+</section>

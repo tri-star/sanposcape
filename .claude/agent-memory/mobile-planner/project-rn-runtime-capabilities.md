@@ -1,6 +1,6 @@
 ---
 name: project-rn-runtime-capabilities
-description: What the Expo 57 / RN 0.86 runtime in this repo does NOT provide (crypto, persistent storage) and the cost of adding it
+description: What the Expo 57 / RN 0.86 runtime in this repo does NOT provide (crypto, persistent storage), the cost of adding deps, and RNGH/Reanimated の前提（React Compiler で get/set・RootView・worklet）
 metadata:
   type: project
   scope: durable
@@ -27,5 +27,18 @@ metadata:
 - ~~ネイティブ追加で E2E APK キャッシュがミスする~~ → **ADR-M-004 の 2026-08-14 追補で撤回済み**（キャッシュキーは `packages/mobile` のソース全体ハッシュ）。`toolsets-libraries.md` も「論点にならない」と明記。
   実際のコストは development build の作り直し（ADR-M-003）と `minimumReleaseAge`。足す場合はプランに理由を書く。
 - `expo-image`（表示用）は依存にあるが SS-88 時点まで未使用。`expo-image-picker` / `expo-image-manipulator` は未導入（SS-88 プランで追加予定）。
+
+## ジェスチャー・アニメーション（SS-153 の計画で確認。2026-10-02）
+
+- `react-native-gesture-handler ~2.32` / `react-native-reanimated 4.5` / `react-native-worklets 0.10` は依存にあるが、SS-153 まで
+  **どこからも import されていなかった**。`GestureHandlerRootView` も無く、expo-router の `Stack`（native-stack）は自動で包まない。
+  SS-153 で `app/_layout.tsx` の最外周に置いた（ADR-M-012 SS-153 追補）。RN `Modal` の中でジェスチャーを使うなら中身も包む。
+- babel は触らなくてよい: `babel-preset-expo` が `react-native-worklets/plugin` を自動追加する。
+- **React Compiler が有効**（`app.json` の `experiments.reactCompiler`）→ shared value は `.get()` / `.set()`。`.value` 前提のコード例を
+  プランに書かない。worklet から呼ぶ別モジュールの純粋関数には `"worklet";` が要る（Vitest では無害なので lib に置いてテストできる）。
+- Maestro はピンチ（2本指）を打てない。ジェスチャーの検証は「計算を純粋関数でテスト＋実機の手動確認」になる。
+
+Related(追加): worktree に `node_modules` が無いときは main チェックアウト `/home/tristar/projects/sanposcape/node_modules` で
+ライブラリの `.d.ts` を読める（バージョンが `package.json` と一致するか `package.json` の `version` で確かめる）。
 
 Related: [[mobile-structure]], [[project-e2e-ci-constraints]]

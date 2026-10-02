@@ -1,0 +1,74 @@
+---
+import { Image } from "astro:assets";
+import routeMap from "../assets/images/route-map.svg";
+---
+
+<section
+  class="together-section container"
+  id="together"
+  aria-labelledby="together-title"
+>
+  <div class="together-copy">
+    <p class="eyebrow">
+      <span class="coming-soon">開発中</span> COMING NEXT
+    </p>
+    <h2 id="together-title">
+      あなたの「好き」が、
+      <br />
+      誰かの「行きたい」に。
+    </h2>
+    <p class="section-description">
+      自分の地図に、家族や友人を招待。
+      <br />
+      お気に入りの場所を、一緒に集めていく。
+      <br />
+      そんな地図への招待機能を、ただいま開発中です。
+    </p>
+    <span class="future-note">
+      <svg class="icon">
+        <use href="#i-users"></use>
+      </svg>{" "}
+      一緒に育てる地図へ。
+    </span>
+  </div>
+  <div class="together-visual" aria-hidden="true">
+    <div class="shared-map">
+      <div class="shared-map-top">
+        <svg class="icon">
+          <use href="#i-pin"></use>
+        </svg>
+        <span>みんなの寄り道マップ</span>
+        <span class="avatar-stack">
+          <i>Y</i>
+          <i>M</i>
+          <i>＋</i>
+        </span>
+      </div>
+      <div class="shared-map-body">
+        <Image src={routeMap} alt="" width={540} height={520} />
+        <span class="friend-pin friend-a">
+          <svg class="icon">
+            <use href="#i-pin"></use>
+          </svg>
+        </span>
+        <span class="friend-pin friend-b">
+          <svg class="icon">
+            <use href="#i-pin"></use>
+          </svg>
+        </span>
+        <span class="friend-pin friend-c">
+          <svg class="icon">
+            <use href="#i-pin"></use>
+          </svg>
+        </span>
+      </div>
+    </div>
+    <span class="friend-message message-a">
+      <i>Y</i> ここの景色、おすすめ！
+    </span>
+    <span class="friend-message message-b">
+      <i>M</i> 次のお休みに行こう。
+    </span>
+    <span class="concept-label">招待機能のイメージ</span>
+  </div>
+</section>

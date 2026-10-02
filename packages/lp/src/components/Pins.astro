@@ -1,0 +1,96 @@
+---
+import { Image } from "astro:assets";
+import pinDetail from "../assets/images/screens/pin-detail.png";
+---
+
+<section
+  class="pin-section section-wrap"
+  id="pins"
+  aria-labelledby="pins-title"
+>
+  <div class="container pin-layout">
+    <div class="feature-copy">
+      <p class="eyebrow light">
+        <span class="section-number">01</span> PIN YOUR FAVORITES
+      </p>
+      <h2 id="pins-title">
+        見つけた「好き」を、
+        <br />
+        地図にひとつずつ。
+      </h2>
+      <p class="section-description">
+        路地裏のカフェも、木陰のベンチも。
+        <br />
+        気になった場所にピンを立てて、写真やメモを添える。
+        <br />
+        歩くたび、自分だけの地図が育っていきます。
+      </p>
+      <div class="pin-features">
+        <div>
+          <span class="feature-icon">
+            <svg class="icon">
+              <use href="#i-pin"></use>
+            </svg>
+          </span>
+          <div>
+            <h3>その場所を、忘れない。</h3>
+            <p>地図を長押しして、お気に入りの場所を記録。</p>
+          </div>
+        </div>
+        <div>
+          <span class="feature-icon">
+            <svg class="icon">
+              <use href="#i-camera"></use>
+            </svg>
+          </span>
+          <div>
+            <h3>景色も、気持ちも、一緒に。</h3>
+            <p>写真・メモ・タグで、発見したときの思い出を残す。</p>
+          </div>
+        </div>
+        <div>
+          <span class="feature-icon">
+            <svg class="icon">
+              <use href="#i-note"></use>
+            </svg>
+          </span>
+          <div>
+            <h3>「また行こう」が、すぐ見つかる。</h3>
+            <p>地図に並んだピンから、写真やメモを振り返る。</p>
+          </div>
+        </div>
+      </div>
+      <span class="handwritten">小さな発見が、わたしの地図になる。</span>
+    </div>
+    <div class="pin-visual">
+      <div class="pin-orbit" aria-hidden="true"></div>
+      <figure class="phone detail-phone">
+        <Image
+          src={pinDetail}
+          alt="ピンの詳細画面。池のほとりのベンチに、写真・景色タグ・メモが保存されています。"
+          width={720}
+          height={1560}
+          widths={[240, 480, 720]}
+          sizes="240px"
+        />
+      </figure>
+      <div class="mini-note">
+        <span class="tiny-label">MY FAVORITE SPOT</span>
+        <svg class="icon">
+          <use href="#i-pin"></use>
+        </svg>
+        <strong>池のほとりのベンチ</strong>
+        <p>
+          朝は人が少なくて静か。
+          <br />
+          次は本を持って来よう。
+        </p>
+        <div class="note-tags">
+          <span># ベンチ</span>
+          <span># 景色</span>
+        </div>
+      </div>
+      <span class="visual-label">写真とメモで、思い出までピンに。</span>
+    </div>
+  </div>
+</section>

@@ -5,7 +5,7 @@
 - **ルート計画**: 現在地と往復時間を指定 → 範囲内のスポット候補を地図・リストで提示 → スポットを選んで散歩開始。
 - **散歩の記録**: 歩いた散歩ルート（軌跡・所要時間・距離）を記録し、履歴として振り返る。
 
-構成は **mobile（React Native / Expo）+ backend（FastAPI）** のモノレポ。
+構成は **mobile（React Native / Expo）+ backend（FastAPI）+ lp（紹介サイト。Astro）** のモノレポ。LP は [packages/lp](./packages/lp/AGENTS.md) を参照。
 
 ## ドキュメント
 

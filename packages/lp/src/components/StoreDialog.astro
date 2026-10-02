@@ -1,0 +1,53 @@
+---
+// ストアボタン（[data-store]）から開く「準備中」ダイアログ。
+// スクリプトは Astro がバンドルして _astro/ 配下の外部ファイルとして出力する
+// （CSP の script-src 'self' のため、インラインにしない）。
+---
+
+<dialog id="store-dialog" aria-labelledby="dialog-title">
+  <div class="dialog-icon">
+    <svg class="icon">
+      <use href="#i-sun"></use>
+    </svg>
+  </div>
+  <h2 id="dialog-title">お届けまで、もう少し。</h2>
+  <p>
+    <span id="dialog-store">ストア</span>へのリンクは準備中です。
+    <br />
+    公開まで、もうしばらくお待ちください。
+  </p>
+  <form method="dialog">
+    <button class="button button-navy" autofocus>
+      閉じる
+    </button>
+  </form>
+</dialog>
+
+<script>
+  const storeDialog =
+    document.querySelector<HTMLDialogElement>("#store-dialog");
+  const storeName = document.querySelector<HTMLElement>("#dialog-store");
+
+  if (storeDialog && storeName) {
+    document.querySelectorAll<HTMLElement>("[data-store]").forEach((button) => {
+      button.addEventListener("click", () => {
+        storeName.textContent = button.dataset.store ?? "ストア";
+        storeDialog.showModal();
+      });
+    });
+
+    // ダイアログの外側（::backdrop）をクリックしたら閉じる
+    storeDialog.addEventListener("click", (event) => {
+      if (event.target !== storeDialog) return;
+      const rect = storeDialog.getBoundingClientRect();
+      if (
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom
+      ) {
+        storeDialog.close();
+      }
+    });
+  }
+</script>

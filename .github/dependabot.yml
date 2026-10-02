@@ -64,9 +64,11 @@ updates:
           - "patch"
 
   # ---------------------------------------------------------------------------
-  # mobile: ルートの pnpm-lock.yaml
+  # mobile / lp: ルートの pnpm-lock.yaml
   # pnpm workspace はワークスペース全体をルートのロックファイルで一括管理するため、
-  # directory はリポジトリルートを指す (packages/mobile ではない)。
+  # directory はリポジトリルートを指す (packages/mobile や packages/lp ではない)。
+  # packages/lp (Astro) の依存もこのエントリで更新される (SS-155)。group 名は
+  # mobile-dependencies のままだが、ワークスペース全体の minor/patch をまとめる。
   # ---------------------------------------------------------------------------
   - package-ecosystem: "npm"
     directory: "/"

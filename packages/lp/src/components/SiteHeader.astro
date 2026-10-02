@@ -1,0 +1,36 @@
+---
+import { Image } from "astro:assets";
+import appIcon from "../assets/images/app-icon.png";
+
+interface Props {
+  /** トップページ以外では、ページ内リンクの前にトップページのパスを付ける */
+  isHome: boolean;
+}
+
+const { isHome } = Astro.props;
+const top = isHome ? "" : "/";
+---
+
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href={isHome ? "#" : "/"} aria-label="Sanposcape ホーム">
+      <Image
+        src={appIcon}
+        alt=""
+        width={36}
+        height={36}
+        densities={[1, 2, 3]}
+        loading="eager"
+      />
+      <span>sanposcape</span>
+    </a>
+    <nav aria-label="メインナビゲーション">
+      <a href={`${top}#pins`}>ピンで記録</a>
+      <a href={`${top}#walks`}>散歩ルート</a>
+      <a href={`${top}#together`}>開発中の機能</a>
+      <a class="nav-download" href={`${top}#download`}>
+        ダウンロード
+      </a>
+    </nav>
+  </div>
+</header>
