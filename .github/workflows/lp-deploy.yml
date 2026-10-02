@@ -202,8 +202,11 @@ jobs:
             echo "distribution=$distribution"
           } >> "$GITHUB_OUTPUT"
 
-      # 古い HTML を持っている閲覧者が旧アセットを取りに来ても 404 にならないよう、
-      # 「上げる → キャッシュ削除 → 掃除（--delete）」の順にする。
+      # 「上げる → キャッシュ削除 → 掃除（--delete）」の順にする（エッジに古い HTML が残っている間に、
+      # 参照先のページを消さないため）。
+      # _astro/ の旧ハッシュは消さずに残す。デプロイ前から開いたままのタブは旧 HTML のまま、遅延読み込みの画像などを
+      # 後から取りに来るため（invalidation はブラウザが既に持っている HTML には効かない）。
+      # 1 回のビルドで最大 1.6MB 程度と小さく、過去のコミットへのロールバックでも旧アセットがそのまま使える。
       - name: Upload hashed assets
         env:
           BUCKET: ${{ steps.targets.outputs.bucket }}
@@ -235,15 +238,13 @@ jobs:
           echo "::error::invalidation が 30 分以内に完了しませんでした。古いファイルの掃除を行わずに終了します（再実行で回復します）"
           exit 1
 
+      # _astro/ は除外して掃除しない（上の「Upload hashed assets」のコメント参照）。
       # 掃除でも cache-control を付けるのは、万一ファイルが上げ直されてもメタデータが消えないようにするため。
       # 誤って消した場合はバケットのバージョニング（30日）から戻せる。
       - name: Remove stale files
         env:
           BUCKET: ${{ steps.targets.outputs.bucket }}
         run: |
-          set -euo pipefail
-          aws s3 sync dist/_astro "s3://$BUCKET/_astro" --delete \
-            --cache-control "$CACHE_CONTROL_HASHED" --only-show-errors
           aws s3 sync dist "s3://$BUCKET" --exclude "_astro/*" --delete \
             --cache-control "$CACHE_CONTROL_DEFAULT" --only-show-errors
 

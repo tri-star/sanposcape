@@ -53,6 +53,7 @@ packages/lp/
   出力は `build.format: "directory"`（`/privacy/` → `privacy/index.html`）。
 - **キャッシュ**: `_astro/**`（ハッシュ付き）は immutable の長期キャッシュ、それ以外は `max-age=0, s-maxage=86400` で配信される。
   `public/` のファイルはハッシュが付かないため、**内容を差し替えるときはファイル名を変える**（例: `ogp.png` → `ogp-2.png`）。
+  デプロイは `_astro/` の旧ハッシュのファイルを削除しない（開いたままのタブが古い HTML から取りに来るため。ADR-012 決定5）。
 - `/.well-known/` は置いていない。
 
 ### 環境変数（ビルド時）

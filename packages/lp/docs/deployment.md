@@ -26,14 +26,19 @@ prepare（環境と公開 URL を決める。production は main 以外を拒否
 1. SSM（ap-southeast-1）から契約値を読み、ログに出ないよう `add-mask` する。
    - `/sanposcape/<env>/services/lp/bucket_name`
    - `/sanposcape/<env>/services/lp/distribution_id`
-2. `_astro/`（ハッシュ付き）を `Cache-Control: public, max-age=31536000, immutable` でアップロードする（削除はしない）。
+2. `_astro/`（ハッシュ付き）を `Cache-Control: public, max-age=31536000, immutable` でアップロードする。
 3. それ以外（HTML・`404.html`・`public/` の素材・`robots.txt`・sitemap）を `Cache-Control: public, max-age=0, s-maxage=86400` でアップロードする。
 4. `/*` を invalidation し、完了を待つ。
-5. 2・3 と同じ分け方で `--delete` を付けて同期し、古いファイルを消す。
+5. 3 と同じ範囲（`_astro/` 以外）を `--delete` 付きで同期し、消えたページなどの古いファイルを削除する。
 6. 公開 URL が 200 を返すことを確認する。
 
-「上げる → キャッシュ削除 → 掃除」の順にしているのは、古い HTML を持っている閲覧者が旧アセットを取りに来ても 404 にしないため。
+「上げる → キャッシュ削除 → 掃除」の順にしているのは、エッジに古い HTML が残っている間に、そこから参照されるファイルを消さないため。
 消しすぎた場合は、バケットのバージョニング（旧バージョンは 30 日保持）から戻せる。
+
+`_astro/` の旧ハッシュのファイルは削除せず、残し続ける。デプロイ前から開いたままのタブは古い HTML を表示しているので、
+遅延読み込みの画像などを後から旧ハッシュの名前で取りに来るため（invalidation はブラウザが既に持っている HTML には効かない）。
+増える量はビルド 1 回で最大 1.6MB 程度（画像を変えなければ CSS / JS の数十 KB）で、費用はほぼかからない。
+過去のコミットへロールバックしたときも、旧アセットがそのまま使える。
 
 `/*` の invalidation は 1 パスとして数えられ、月 1,000 パスまで無料。invalidation に失敗しても、`s-maxage=86400` により
 HTML は最大 1 日でエッジから入れ替わる。
