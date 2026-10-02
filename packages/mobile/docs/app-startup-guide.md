@@ -11,10 +11,10 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
   - iPhoneでは、iPhoneとPCを同じLANへ接続し、WSL2上のMetroを`--host lan`で公開する。
   - react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
     expo-secure-store（refresh token の永続化）/ **expo-location（現在地取得）** /
-    **expo-crypto（`x-amz-content-sha256` の計算）** を使うため
+    **expo-crypto（`x-amz-content-sha256` の計算）** / **expo-task-manager（散歩中の背景位置記録。SS-156）** を使うため
     **Expo Go は不可**（development build 必須）。
     **SS-10（認証まわりのネイティブ依存を追加）、SS-15（expo-location の追加・Maps キー注入）
-    および SS-70（expo-crypto の追加）
+    SS-70（expo-crypto の追加）および SS-156（expo-task-manager の追加・expo-location プラグイン設定の変更）
     適用後は development build の作り直しが必要**
     （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
@@ -227,9 +227,34 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 
 以下を変更したときは APK を作り直して入れ直す（A-1 → A-2）。それ以外（JSのみ）は不要:
 
-- ネイティブ依存（npm の native モジュール）の追加/削除
+- ネイティブ依存（npm の native モジュール）の追加/削除（例: SS-156 の `expo-task-manager`）
 - `app.json` / `app.config.ts` のネイティブ設定・config plugin の変更（Maps SDK キーの注入も含む）
 - Expo SDK / ネイティブ関連バージョンの更新
+
+---
+
+## 散歩中のバックグラウンド記録を確かめる（SS-156）
+
+前提: `EXPO_PUBLIC_LOCATION_MODE=real` の development build（SS-156 後に作り直し済み）。
+mock モードでは背面の記録を再現できない。Android は Google Play / Google APIs 入りの AVD（API 34 以上推奨）を使う。
+確認後は散歩を終了して保存し、履歴詳細の地図で軌跡を目視する。
+
+### Android エミュレータ
+
+1. 散歩開始 → Home → Extended Controls › Location › Routes で GPX を再生（または `adb emu geo fix <lng> <lat>` を数回）
+   → 1〜2分後にアプリへ戻る。戻った時点で背面の区間が地図に描かれ、距離が増えている（A→B の一直線にならない）。
+2. 同様に、Home の代わりに電源ボタンで画面ロック。
+3. 散歩中に通知ドロワーと「実行中のアプリ」を見る。記録中の通知（暫定文言・単色アイコン）が出る。
+4. 散歩を終了 → 通知が消える。`adb shell dumpsys activity services com.sanposcape.app.dev` に `LocationTaskService` が無い。
+5. 散歩中に戻るキーでアプリを閉じ、位置を動かしてからランチャーで開き直す → 散歩が続き、閉じている間の区間もつながっている。
+6. 散歩中に最近使ったアプリからスワイプで消す → 通知が消える。開き直しても記録は再開しない。
+7. 位置情報の権限を「許可しない」にして散歩開始 → 従来どおり `walk-active-location-notice` が出る。
+
+### iPhone 実機
+
+iOS シミュレータは使えないので実機で確認する。実際に屋外を歩き、Home・画面ロック（10〜15分）・別アプリへの切り替えのそれぞれで
+軌跡が途切れないこと、status bar に位置情報のインジケータが出ること、散歩の終了でインジケータが消えること、
+権限が「使用中のみ」のままで「常に」を求められないことを確認する。
 
 ---
 

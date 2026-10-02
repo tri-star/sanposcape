@@ -28,6 +28,9 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
   development build の作り直しが必要**（Fast Refresh では反映されない）。
 - **SS-70（CloudFront 経由の API 通信対応）の適用後も、`expo-crypto` が新規追加された
   ネイティブ依存のため development build の作り直しが必要**（Fast Refresh では反映されない）。
+- **SS-156（散歩中のバックグラウンド位置記録）の適用後は、`expo-task-manager` の追加と
+  `expo-location` プラグインの設定変更（iOS background mode・Android フォアグラウンドサービス）が
+  入るため development build の作り直しが必要**（Fast Refresh では反映されない）。
 
 ## セットアップ
 
@@ -321,6 +324,9 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   - `mock` = 東京駅の固定座標（`src/services/location/location.mock.ts`。vitest や、位置情報が
     フレークになりやすい E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは既定でこれ）。
 - 権限文言は `app.json` の `expo-location` プラグイン（`locationWhenInUsePermission`）で設定済み。
+- 散歩中はバックグラウンド・画面ロック中でも記録する（[ADR-M-018](../adr/ADR-M-018-background-walk-location-tracking.md)）。
+  権限は「使用中のみ」のまま。**mock モードでは背面の記録は再現できない**（Android は裏に回ると JS のタイマーが止まる）。
+  確認手順は [起動手順ガイド](./app-startup-guide.md) の「散歩中のバックグラウンド記録を確かめる」を参照。
 
 ## 写真（expo-image-picker / expo-image-manipulator / expo-file-system）
 

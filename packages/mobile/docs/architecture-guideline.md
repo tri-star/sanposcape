@@ -84,7 +84,11 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
 - 呼び出し側（`features/walk` / `features/pin`）は `src/services/location` のインターフェースのみを
   参照し、`expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
-
+- **散歩中の記録はバックグラウンドでも続く**（SS-156 / [ADR-M-018](../adr/ADR-M-018-background-walk-location-tracking.md)）。
+  - 記録は `startBackgroundTracking`（`expo-location` のロケーションタスク）で行う。`watchPosition` は開始に失敗したときの fallback だけ。
+  - hook のアンマウントでは記録を止めない（`detach` だけ）。止めるのは散歩の終了・サインアウト・アプリ起動時の3箇所。
+  - `expo-task-manager` を import してよいのは `src/services/location/backgroundLocationTask.ts` のみ（`defineTask` は `index.ts` から `expo-router/entry` より前に評価する）。
+  - 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。
 ## 写真の扱い
 
 - 実装方針は [ADR-M-010: 写真サービスは real/mock の2モード、アップロードは presigned POST で
@@ -264,7 +268,7 @@ export default function SomeFeatureRoute() {
         足したら、必ず `vitest.config.ts` の `resolve.alias` にモック（`src/test/mocks/`）を
         追加すること。追加を怠ると `client.ts` を推移的に import する `features/*/api/*.test.ts`
         が軒並み失敗する（現在のエイリアス対象: `react-native` / `expo-secure-store` /
-        `expo-location` / `expo-crypto`）。
+        `expo-location` / `expo-crypto` / `expo-task-manager` / `expo-file-system`）。
     - 画面の見た目: 開発確認用ルート（`/dev-screens` の `ScreenCatalog`）で目視確認する。
     - `hooks/` と `components/` は上記のいずれにも入らない（レンダリングテストが書けないため）。
       **テストしたいロジックは `lib/` の純粋関数へ切り出す**のが原則。
@@ -287,7 +291,9 @@ export default function SomeFeatureRoute() {
     しない（`getLocationMode()` の結果次第で `location.real.ts` 経由の `expo-location`
     （ネイティブ依存）に到達しうるため）。単体テストでは `createMockLocationService()`
     （`src/services/location/location.mock.ts`）を直接 import してフェイクを注入する
-    （`location.mock.test.ts` を参照）。
+    （`location.mock.test.ts` を参照）。背景記録の振る舞いは `createBackgroundSampleHub` +
+    `createMemorySampleBufferStorage`、統合は `features/walk/lib/walkTrackMerge.ts` でテストする
+    （どれも `expo-*` を値 import しない）。
   - 写真: `services/photo` も同じ規律。バレル（`index.ts`）を単体テストから import せず、
     `createMockPhotoService()`（`src/services/photo/photo.mock.ts`）を直接 import する
     （`photo.mock.test.ts` を参照）。`features/pin/api/*` からのアップロード（presigned POST）は

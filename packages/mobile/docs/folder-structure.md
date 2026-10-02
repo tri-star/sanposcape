@@ -257,7 +257,8 @@ packages/mobile/
   SS-124 で `features/walk/hooks/` から昇格）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
-  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`。SS-34、`/app-config` のフラグ受け皿
+  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`、散歩の位置記録の起動時の孤児停止・サインアウト時の後始末を登録する
+  `backgroundLocationCleanup.ts`（`imageCacheCleanup.ts` と同じく `index.ts` から副作用 import する。SS-156）。SS-34、`/app-config` のフラグ受け皿
   `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
   トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
   `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）、端末側の診断ログの

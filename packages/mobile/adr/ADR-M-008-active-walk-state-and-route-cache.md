@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）、2026-10-02 追補（SS-156）
 
 ## ステータス
 
@@ -25,6 +25,8 @@
 **SS-60「mobile: 散歩履歴を削除するUIを実装」で追補**した（決定4 の `savedWalkId` に2つ目の用途が生まれたこと、決定6 と同型の後始末レジストリが2本目になったことを記録。決定そのものは変更していない）。追補部分には `（SS-60 追補）` を付けている。
 
 **SS-33「往路と復路が異なる周回ルートの提示（散歩中の再計算は撤去）」で追補**した（決定1 の `ActiveWalk` フィールドを `roundTripMinutes/roundTripKm` から `loopMinutes/loopKm` へ rename、決定2 のルート本体を片道から周回に変更しキャッシュ共有の例外（SS-35 追補分）を撤回、決定7〔散歩中の現在地起点ルート再計算〕を撤回、往路/復路の判定をしないことを新しい決定9として追加）。追補部分には `（SS-33 追補）` を付けている。
+
+**SS-156「アプリがバックグラウンドの間も散歩の位置情報を取得・記録できるようにする」で追補**した（決定5 に、記録中の位置サンプルを端末のファイルへ一時的に書くようになったことを、決定6 に、後始末へバッファの削除とタスクの停止が加わったことを追記した。決定そのものは変更していない）。追補部分には `（SS-156 追補）` を付けている。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)。
 
 ## コンテキスト
 
@@ -135,6 +137,8 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
 
 → フォローアップ課題「mobile: 進行中の散歩と未送信の散歩記録をローカル永続化して復帰できるようにする」として切り出す（保存先は `expo-file-system` の明示依存化を第一候補、`async-storage` を対案として比較する）。**着手時は本 ADR の再追補が必要**。
 
+**（SS-156 追補）** SS-156 で、記録中の位置サンプルを端末のファイル（`Paths.document/walk-location-samples.jsonl`）へ一時的に書くようになった。これはバックグラウンドのタスクと画面の間の受け渡しと、再マウント時の軌跡の組み直しのためで、**アプリの再起動を越えた復元はしない**（起動時にタスクを止めてバッファを消す）。`useActiveWalkStore` / `useFinishedWalkStore` は引き続き非永続のまま。SS-36 に着手するときは、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す。
+
 ### 6. サインアウト時に walk 系ストアと Query キャッシュをクリアする（SS-19 追補）
 
 `src/lib/sessionCleanup.ts` に後始末レジストリ（`registerSessionCleanup` / `runSessionCleanup`）を置き、**クリアされる側が自分の後始末を登録する**形にする。
@@ -144,6 +148,7 @@ SS-37 初版のセキュリティレビューで、上記の自動再発火・�
   - 初版時点の実行側は `features/settings/components/SettingsView.tsx` の `handleConfirmLogout`（`authService.signOut()` の確定後に呼ぶ）だった。SS-13 でセッション状態を1箇所に集約する `useAuthSessionStore` を導入したことに伴い、後始末の起点も「サインアウト導線」から「認証状態そのものの遷移」へ移した。**SS-50 では退避と履歴スタックの破棄も `AuthGate` に移した。** `SettingsView` は `authService.signOut()` の起動だけを担い、サインアウト callback と React effect の実行順に依存しない。
 - 1つの後始末が例外を投げても残りは実行する（無関係なストアの失敗で、軌跡のような機微データが残留しないようにするため）。
 - サインアウト導線は `authService.signOut()` を起動するだけにする。後始末は認証状態遷移、退避と履歴スタックの破棄は `AuthGate` が担うため、feature 側のストアが増えるたびにサインアウト導線を編集させない（＝クリア漏れを構造で防ぐ）。
+- **（SS-156 追補）後始末にバッファの削除・タスクの停止が加わった**（`src/lib/backgroundLocationCleanup.ts`）。対象が端末のファイルに残るため、「未ロード = データが無い」は成り立たない。登録元は、起動時に必ず評価される `index.ts` からの副作用 import にした（`imageCacheCleanup.ts` と同じ理由）。
 - **`useAuthSessionStore` 自身は `registerSessionCleanup()` に登録しない（SS-13 追補）**。このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、`loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため。詳細は [ADR-M-009](./ADR-M-009-auth-session-state-and-route-gate.md) を参照。
 
 ### 7. 再計算後のルートは Query キャッシュではなく `useWalkRouteRecalculation` のローカル state で持つ（SS-35 追補・**SS-33 で撤回**）
@@ -294,6 +299,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - [ADR-001: 地図・POI は Google Maps Platform](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) — Routes は backend 経由。候補一覧（`/explore/places`）は片道値×2の近似、選択後は `/explore/routes/loop` の周回実値（SS-33 追補）
 - [ADR-003: 散歩記録の永続化と履歴 API](../../../docs/adr/ADR-003-walk-record-persistence-and-history-api.md) — `client_walk_id` の採番タイミング（決定3）、保存 API の契約
 - [ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-M-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
+- [ADR-M-018: 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./ADR-M-018-background-walk-location-tracking.md) — 決定5・決定6 の SS-156 追補の本体
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
 - 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
 - **（SS-60 追補）** 実装: `src/lib/walkDeletionCleanup.ts`（決定8 のレジストリ）、`src/features/history/hooks/useWalkDelete.ts`（実行側）

@@ -33,9 +33,9 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-003](./adr/ADR-M-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
 | [ADR-M-004](./adr/ADR-M-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補）。フローの書き方の注意（clearState の分離・一時表示を assert しない・ASCII 入力。SS-152 追補） |
 | [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016） |
-| [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード |
+| [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード。バックグラウンド記録（SS-156 追補。本体は ADR-M-018） |
 | [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補） |
-| [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有 |
+| [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018） |
 | [ADR-M-009](./adr/ADR-M-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート |
 | [ADR-M-010](./adr/ADR-M-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送 |
 | [ADR-M-011](./adr/ADR-M-011-pin-location-picking-and-adjustment.md) | ピンの位置の選択と調整（任意地点からの登録は長押し、登録画面での調整はタップ・画面内オーバーレイ）。ピンタブへの統合（SS-146 追補）。ナビタブの FAB と地点選択画面の削除（SS-147 追補） |
@@ -45,3 +45,4 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-015](./adr/ADR-M-015-app-icon-assets.md) | 採用PNGとAndroid Adaptive Iconレイヤー、アイコンの再生成とネイティブビルドへの反映 |
 | [ADR-M-016](./adr/ADR-M-016-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |
 | [ADR-M-017](./adr/ADR-M-017-pin-edit-and-delete.md) | ピンの編集・削除（編集画面の構成・保存の順序と冪等性・権限による出し分け・削除後のキャッシュ） |
+| [ADR-M-018](./adr/ADR-M-018-background-walk-location-tracking.md) | 散歩中の位置記録はバックグラウンドのロケーションタスクで行う（使用中のみ権限・iOS background mode・Android フォアグラウンドサービス・端末バッファと統合） |

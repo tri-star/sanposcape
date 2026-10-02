@@ -4,6 +4,7 @@
 
 2026-07-30
 2026-09-25 追補（SS-124）
+2026-10-02 追補（SS-156）
 
 ## ステータス
 
@@ -32,7 +33,8 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 
 - `src/services/location/` を新設し、`LocationService` インターフェース（`getPermissionStatus` /
   `requestPermission` / `getCurrentPosition`。**SS-16 で `watchPosition` を追加**。下記「移行・対応が必要な事項」参照）
-  を定義する。呼び出し側はこのインターフェースのみを参照する。
+  を定義する。（SS-156 追補）散歩中の記録用に `startBackgroundTracking` / `stopBackgroundTracking` を追加した
+  （背面・画面ロック中も記録する。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）。呼び出し側はこのインターフェースのみを参照する。
 - 座標は**自前の `GeoCoordinates`**（`{ latitude, longitude }`）で表現し、`expo-location` /
   `react-native-maps` のどちらの型にも依存しない。地図の表示領域も `lib/mapRegion.ts` に
   構造的互換な `MapRegion` を自前定義し、`react-native-maps` を値 import しない純粋関数として扱う。
@@ -42,6 +44,7 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   - 値の解析は `"mock"` への**完全一致のみ** mock とし、未設定・不正値・大文字混在はすべて `real` に
     フォールバックする（設定ミスを本番安全側に倒す）。
 - `expo-location` を import してよいのは `location.real.ts` **のみ**とする。
+  （SS-156 追補）同様に `expo-task-manager` を import してよいのは `backgroundLocationTask.ts` のみ。
 - `initXxx()` のような初期化関数は持たない（`services/auth` との差分）。権限リクエストは画面側の
   hook（`features/walk/hooks/useCurrentLocation.ts`）が必要になった時点で行う。
   （SS-124 追補）`useCurrentLocation` は `features/pin`（ピンの地点選択画面）からも使うため
@@ -52,7 +55,8 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   不安定になるため。`services/auth` と同じ規律）。
 - 単体テストではバレル `index.ts` を import せず、`createMockLocationService()` を直接 import して
   フェイクを注入する（バレルは `getLocationMode()` の結果次第で `location.real.ts` 経由の
-  `expo-location` に到達しうるため）。
+  `expo-location` に到達しうるため）。（SS-156 追補）mock の背景記録も real と同じ
+  `createBackgroundSampleHub`（保存先だけメモリ）を通し、統合経路を共有する。
 - E2E（`eas.json` の `preview` プロファイル）は `EXPO_PUBLIC_LOCATION_MODE=mock` を焼き込む。
 
 ## 検討した選択肢
@@ -106,13 +110,14 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   メソッドを追加する形で拡張する。`mock` 側は連続した座標列を返す実装になる想定。
 - （SS-16 で対応）`LocationService.watchPosition(listener, options)` を追加。`real` は
   `Location.watchPositionAsync`、`mock` は `MOCK_TRACK` を一定間隔で通知するスクリプト実装。
-  バックグラウンド測位は引き続き対象外。
+  ~~バックグラウンド測位は引き続き対象外。~~ → SS-156 で対応（[ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）。
 
 ## 関連情報
 
 - [ADR-M-002: 技術スタック](./ADR-M-002-mobile-tech-stack.md)
 - [ADR-002(横断): 認証は Google 直結 + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
 - [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
+- [ADR-M-018: 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./ADR-M-018-background-walk-location-tracking.md)
 - [ADR-M-007: Expo 設定と Maps キー注入](./ADR-M-007-expo-config-and-maps-key-injection.md)
 - [フォルダ構造](../docs/folder-structure.md)
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)
