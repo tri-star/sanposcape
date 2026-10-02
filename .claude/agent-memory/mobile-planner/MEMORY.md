@@ -14,6 +14,7 @@
 - [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto 不在・永続化は expo-file-system の同期 File API が第一候補・依存追加のコスト
 - [テーマ/外観の落とし穴](project-theme-appearance.md) — StatusBar auto はネイティブ配色を見る・setColorScheme は 'unspecified'（RN0.86）・SS-86 の実装形（ADR-M-016）
+- [バックグラウンド位置記録の事実](project-background-location.md) — Android は watch が裏で止まる・iOS pausesUpdatesAutomatically の既定は true・タスクは再起動後も残る・使用中のみで足りる
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／href:null は AppTabBar に効かない／Redirect はフォーカス時のみ／タブからは push／flash の消費先は限られる
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
