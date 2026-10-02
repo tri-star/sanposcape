@@ -1,0 +1,21 @@
+---
+import { Image } from "astro:assets";
+import appIcon from "../assets/images/app-icon.png";
+
+interface Props {
+  isHome: boolean;
+}
+
+const { isHome } = Astro.props;
+---
+
+<footer class="site-footer container">
+  <a class="brand" href={isHome ? "#" : "/"}>
+    <Image src={appIcon} alt="" width={32} height={32} densities={[1, 2, 3]} />
+    <span>
+      sanposcape<span class="brand-dot">.</span>
+    </span>
+  </a>
+  <p>いつもの道に、好きが増える。</p>
+  <small>© 2026 Sanposcape</small>
+</footer>

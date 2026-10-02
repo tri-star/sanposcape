@@ -1,0 +1,80 @@
+---
+import { Image } from "astro:assets";
+import appIcon from "../assets/images/app-icon.png";
+
+// ストア URL が確定するまでは、ボタンは「準備中」ダイアログ（StoreDialog）を開き、
+// QR の位置には「公開準備中」の枠を置く。公開後はボタンをストアへのリンクに、
+// 枠を実際の QR 画像に差し替える。
+const stores = [
+  {
+    platform: "iPhone をお使いの方",
+    store: "App Store",
+    icon: "#i-apple",
+    small: "Download on the",
+  },
+  {
+    platform: "Android をお使いの方",
+    store: "Google Play",
+    icon: "#i-play",
+    small: "GET IT ON",
+  },
+];
+---
+
+<section
+  class="download-section section-wrap"
+  id="download"
+  aria-labelledby="download-title"
+>
+  <div class="container">
+    <div class="download-heading">
+      <Image
+        src={appIcon}
+        alt="Sanposcapeのアプリアイコン"
+        width={76}
+        height={76}
+        densities={[1, 2, 3]}
+      />
+      <p class="eyebrow">LET'S FIND YOUR FAVORITES.</p>
+      <h2 id="download-title">
+        次の散歩から、
+        <br />
+        好きな場所を集めよう。
+      </h2>
+      <p>その一歩が、自分だけの地図のはじまり。</p>
+    </div>
+    <div class="download-cards">
+      {stores.map(({ platform, store, icon, small }) => (
+        <div class="download-card">
+          <div class="store-content">
+            <span class="store-platform">{platform}</span>
+            <button class="store-button" type="button" data-store={store}>
+              <svg class="icon">
+                <use href={icon} />
+              </svg>
+              <span>
+                <small>{small}</small>
+                <strong>{store}</strong>
+              </span>
+              <svg class="icon store-arrow">
+                <use href="#i-arrow" />
+              </svg>
+            </button>
+            <span class="store-preview">ストア公開に向けて準備中</span>
+          </div>
+          <figure class="qr">
+            <div class="qr-placeholder" aria-hidden="true">
+              <svg class="icon">
+                <use href="#i-sun" />
+              </svg>
+              <span>公開準備中</span>
+            </div>
+            <figcaption>
+              QRコード<span class="sr-only">（公開準備中）</span>
+            </figcaption>
+          </figure>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

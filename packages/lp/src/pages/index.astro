@@ -1,0 +1,24 @@
+---
+import Download from "../components/Download.astro";
+import Hero from "../components/Hero.astro";
+import Pins from "../components/Pins.astro";
+import Steps from "../components/Steps.astro";
+import StoreDialog from "../components/StoreDialog.astro";
+import Together from "../components/Together.astro";
+import Walks from "../components/Walks.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Sanposcape — いつもの道に、好きが増える。"
+  description="散歩で見つけたお気に入りを、写真やメモと一緒に地図に記録。Sanposcapeは、あなたの日常の発見が積み重なる散歩アプリです。"
+  isHome
+>
+  <Hero />
+  <Pins />
+  <Steps />
+  <Walks />
+  <Together />
+  <Download />
+  <StoreDialog slot="after-footer" />
+</BaseLayout>

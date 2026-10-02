@@ -1,0 +1,69 @@
+---
+import { PUBLIC_LP_ENV } from "astro:env/client";
+import IconSprite from "../components/IconSprite.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  /** トップページかどうか。ヘッダー・フッターのリンク先が変わる */
+  isHome?: boolean;
+  /** 404 など、環境に関係なく検索エンジンに載せないページ */
+  noindex?: boolean;
+}
+
+const { title, description, isHome = false, noindex = false } = Astro.props;
+
+// production 以外（dev.sanposcape.com やローカル）はインデックスさせない。
+// dev は CloudFront も X-Robots-Tag: noindex を付けるが、多重防御として残す。
+const robots =
+  noindex || PUBLIC_LP_ENV !== "production" ? "noindex, nofollow" : undefined;
+// 404 はどの URL でも返りうるので canonical を出さない。
+const canonical = noindex
+  ? undefined
+  : new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL("/ogp.png", Astro.site).href;
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f6ee" />
+    <meta name="description" content={description} />
+    {robots && <meta name="robots" content={robots} />}
+    <title>{title}</title>
+    {canonical && <link rel="canonical" href={canonical} />}
+    <link rel="icon" href="/favicon.png" type="image/png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sanposcape" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Sanposcape のアプリアイコンと、散歩道の風景イラスト"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <IconSprite />
+    <a class="skip-link" href="#main">
+      本文へスキップ
+    </a>
+    <SiteHeader isHome={isHome} />
+    <main id="main">
+      <slot />
+    </main>
+    <SiteFooter isHome={isHome} />
+    <slot name="after-footer" />
+  </body>
+</html>
