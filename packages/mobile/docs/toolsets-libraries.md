@@ -18,7 +18,9 @@
 - スライダー: @react-native-community/slider（往復時間の指定UI）
 - ジェスチャー・アニメーション: react-native-gesture-handler + react-native-reanimated（アプリのルート `app/_layout.tsx` を
   `GestureHandlerRootView` で包んでいる。React Compiler が有効なので shared value は `.get()` / `.set()` で読み書きする。
-  計算は worklet の純粋関数に切り出して Vitest で検証する。最初の利用はピン詳細の写真ビューアのピンチでの拡大
+  計算は worklet の純粋関数に切り出して Vitest で検証する。UI スレッドから呼ぶ関数には `"worklet"` を付ける
+  （付け忘れは Vitest では検出できず、実機で初めて落ちる）。RN `Modal`（Dialog / BottomSheet）の中でジェスチャーを使う場合は、
+  Modal の中身も `GestureHandlerRootView` で包む（Modal は別のネイティブ階層になりルートの効果が及ばない）。最初の利用はピン詳細の写真ビューアのピンチでの拡大
   （[ADR-M-012](../adr/ADR-M-012-pin-map-display-and-detail.md) SS-153 追補））
 - 認証: react-native-nitro-google-signin（Google サインイン。[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token の永続化）
 - APIクライアント生成: Orval（backendのOpenAPIから生成）+ MSWモック（HTTPクライアントは fetch/customFetch）

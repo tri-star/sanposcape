@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
+import { scheduleOnUI } from "react-native-worklets";
 import type { LayoutChangeEvent } from "react-native";
 import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -9,8 +10,9 @@ import {
   PHOTO_ZOOM_IDENTITY,
   applyPanChange,
   applyPinchChange,
-  containSize,
-  type PhotoZoomLayout,
+  reclampPhotoZoomForFrame,
+  resolvePhotoZoomLayout,
+  type ZoomSize,
   type PhotoZoomState,
 } from "@/features/pin/lib/photoZoom";
 import { makeStyles } from "@/theme/makeStyles";
@@ -43,27 +45,37 @@ export function PinPhotoZoomView({
 }: PinPhotoZoomViewProps) {
   const styles = useStyles();
   const zoom = useSharedValue<PhotoZoomState>({ ...PHOTO_ZOOM_IDENTITY });
-  // レイアウト前は null。ジェスチャーは null の間は何もしない。
-  const layout = useSharedValue<PhotoZoomLayout | null>(null);
+  // 枠の大きさだけを持つ。レイアウト前は null で、ジェスチャーは null の間は何もしない。
+  // 写真の実寸（content）は props から worklet 内で都度計算し、onLayout 時点の値で固定しない。
+  const frame = useSharedValue<ZoomSize | null>(null);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    const frame = { width, height };
-    layout.set({
-      frame,
-      content: containSize({ width: contentWidth, height: contentHeight }, frame),
-    });
+    // 枠の更新と zoom の再クランプは UI スレッドで1回にまとめる（ジェスチャーの worklet と競合させない）。
+    scheduleOnUI(
+      (w: number, h: number, cw: number, ch: number) => {
+        "worklet";
+        const next = { width: w, height: h };
+        frame.set(next);
+        zoom.set(reclampPhotoZoomForFrame(zoom.get(), { width: cw, height: ch }, next));
+      },
+      width,
+      height,
+      contentWidth,
+      contentHeight,
+    );
   };
 
   const gesture = useMemo(() => {
+    const photo = { width: contentWidth, height: contentHeight };
     const pinch = Gesture.Pinch().onChange((e) => {
-      const current = layout.get();
-      if (current === null) return;
+      const f = frame.get();
+      if (f === null) return;
       zoom.set(
         applyPinchChange(
           zoom.get(),
           { scaleChange: e.scaleChange, focalX: e.focalX, focalY: e.focalY },
-          current,
+          resolvePhotoZoomLayout(photo, f),
         ),
       );
     });
@@ -71,12 +83,18 @@ export function PinPhotoZoomView({
     const pan = Gesture.Pan()
       .averageTouches(true)
       .onChange((e) => {
-        const current = layout.get();
-        if (current === null) return;
-        zoom.set(applyPanChange(zoom.get(), { changeX: e.changeX, changeY: e.changeY }, current));
+        const f = frame.get();
+        if (f === null) return;
+        zoom.set(
+          applyPanChange(
+            zoom.get(),
+            { changeX: e.changeX, changeY: e.changeY },
+            resolvePhotoZoomLayout(photo, f),
+          ),
+        );
       });
     return Gesture.Simultaneous(pinch, pan);
-  }, [layout, zoom]);
+  }, [contentWidth, contentHeight, frame, zoom]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const z = zoom.get();

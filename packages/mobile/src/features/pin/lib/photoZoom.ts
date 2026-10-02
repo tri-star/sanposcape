@@ -20,7 +20,11 @@ export type PhotoZoomState = { scale: number; translateX: number; translateY: nu
 export type PhotoZoomLayout = { frame: ZoomSize; content: ZoomSize };
 
 /** 初期状態。shared value の初期値に渡すときは `{ ...PHOTO_ZOOM_IDENTITY }` で複製する。 */
-export const PHOTO_ZOOM_IDENTITY: PhotoZoomState = { scale: 1, translateX: 0, translateY: 0 };
+export const PHOTO_ZOOM_IDENTITY: Readonly<PhotoZoomState> = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0,
+};
 
 function isPositive(value: number): boolean {
   "worklet";
@@ -39,6 +43,12 @@ export function containSize(photo: ZoomSize, frame: ZoomSize): ZoomSize {
   }
   const ratio = Math.min(frame.width / photo.width, frame.height / photo.height);
   return { width: photo.width * ratio, height: photo.height * ratio };
+}
+
+/** 枠と写真の実寸から移動範囲の計算に使うレイアウトを求める。 */
+export function resolvePhotoZoomLayout(photo: ZoomSize, frame: ZoomSize): PhotoZoomLayout {
+  "worklet";
+  return { frame, content: containSize(photo, frame) };
 }
 
 export function clampPhotoZoomScale(scale: number): number {
@@ -68,7 +78,10 @@ export function clampPhotoZoomTranslate(
   };
 }
 
-/** ピンチの1イベント分（差分）を現在の状態に積む。焦点の下の点は動かさない。 */
+/**
+ * ピンチの1イベント分（差分）を現在の状態に積む。焦点の下の点は動かさない。
+ * 指の移動に伴う焦点の動きは含まない（それは同時に動く Pan の changeX/Y が担う）。
+ */
 export function applyPinchChange(
   state: PhotoZoomState,
   input: { scaleChange: number; focalX: number; focalY: number },
@@ -104,4 +117,14 @@ export function applyPanChange(
     { ...state, translateX: state.translateX + dx, translateY: state.translateY + dy },
     layout,
   );
+}
+
+/** 枠の大きさが変わったとき（分割画面・折りたたみ等）に、現在の状態を新しい移動範囲へ収め直す。 */
+export function reclampPhotoZoomForFrame(
+  state: PhotoZoomState,
+  photo: ZoomSize,
+  frame: ZoomSize,
+): PhotoZoomState {
+  "worklet";
+  return clampPhotoZoomTranslate(state, resolvePhotoZoomLayout(photo, frame));
 }

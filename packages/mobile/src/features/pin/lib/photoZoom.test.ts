@@ -6,6 +6,8 @@ import {
   applyPinchChange,
   clampPhotoZoomScale,
   clampPhotoZoomTranslate,
+  reclampPhotoZoomForFrame,
+  resolvePhotoZoomLayout,
   containSize,
   type PhotoZoomLayout,
 } from "@/features/pin/lib/photoZoom";
@@ -13,6 +15,10 @@ import {
 const fullLayout: PhotoZoomLayout = {
   frame: { width: 400, height: 800 },
   content: { width: 400, height: 800 },
+};
+const zeroLayout: PhotoZoomLayout = {
+  frame: { width: 0, height: 0 },
+  content: { width: 0, height: 0 },
 };
 const letterboxLayout: PhotoZoomLayout = {
   frame: { width: 400, height: 800 },
@@ -128,6 +134,40 @@ describe("applyPinchChange", () => {
     expect(after).toBeCloseTo(before);
   });
 
+  it("レターボックスで焦点が写真の外（黒い余白）でも、範囲内に収めて焦点を基準に拡大する", () => {
+    // 枠 400x800・写真 400x300。焦点は中心から縦に +300（写真の外）。
+    const result = applyPinchChange(
+      PHOTO_ZOOM_IDENTITY,
+      { scaleChange: 2, focalX: 200, focalY: 700 },
+      letterboxLayout,
+    );
+    expect(result.scale).toBe(2);
+    expect(result.translateX).toBeCloseTo(0);
+    // 縦は 2*300=600 < 800 で動かせないので 0 に収まる。
+    expect(result.translateY).toBe(0);
+  });
+
+  it("レターボックスで焦点が中心外の横方向は焦点の下の点を保つ", () => {
+    const result = applyPinchChange(
+      PHOTO_ZOOM_IDENTITY,
+      { scaleChange: 2, focalX: 300, focalY: 400 },
+      letterboxLayout,
+    );
+    expect(result.translateX).toBeCloseTo(-100);
+    expect(result.translateY).toBe(0);
+  });
+
+  it("枠が 0x0 でも壊れず 0 に収まる", () => {
+    const result = applyPinchChange(
+      PHOTO_ZOOM_IDENTITY,
+      { scaleChange: 2, focalX: 10, focalY: 10 },
+      zeroLayout,
+    );
+    expect(result.scale).toBe(2);
+    expect(result.translateX).toBe(0);
+    expect(result.translateY).toBe(0);
+  });
+
   it("上限を超える拡大は4倍で止まり、実際の倍率比 k=4/3 で移動量を計算する", () => {
     const state = { scale: 3, translateX: 0, translateY: 0 };
     const result = applyPinchChange(
@@ -192,6 +232,16 @@ describe("applyPanChange", () => {
     ).toEqual({ scale: 2, translateX: 200, translateY: 0 });
   });
 
+  it("枠が 0x0 なら動かない", () => {
+    expect(
+      applyPanChange(
+        { scale: 2, translateX: 0, translateY: 0 },
+        { changeX: 50, changeY: 50 },
+        zeroLayout,
+      ),
+    ).toEqual({ scale: 2, translateX: 0, translateY: 0 });
+  });
+
   it("changeX が NaN なら X は動かず Y だけ反映する", () => {
     expect(
       applyPanChange(
@@ -200,5 +250,37 @@ describe("applyPanChange", () => {
         fullLayout,
       ),
     ).toEqual({ scale: 2, translateX: 10, translateY: 20 });
+  });
+});
+
+describe("resolvePhotoZoomLayout / reclampPhotoZoomForFrame", () => {
+  it("枠と写真の実寸から contain のレイアウトを作る", () => {
+    expect(
+      resolvePhotoZoomLayout({ width: 4000, height: 3000 }, { width: 400, height: 800 }),
+    ).toEqual(letterboxLayout);
+  });
+
+  it("枠が広がって範囲が小さくなったら移動量を収め直す", () => {
+    // 枠 400x800・写真 4:3 → content 400x300。2倍で translateX 最大 200。
+    // 枠が 700 幅になると content 700x525、2倍の最大は 350 なので範囲は広がり値は保たれる。
+    const photo = { width: 4000, height: 3000 };
+    const state = { scale: 2, translateX: 200, translateY: 0 };
+    expect(reclampPhotoZoomForFrame(state, photo, { width: 700, height: 800 })).toEqual(state);
+    // 枠が縮むと（300 幅）content 300x225、2倍の最大は 150 に縮み、値が収まる。
+    expect(reclampPhotoZoomForFrame(state, photo, { width: 300, height: 800 })).toEqual({
+      scale: 2,
+      translateX: 150,
+      translateY: 0,
+    });
+  });
+
+  it("枠が 0x0 なら移動量は 0", () => {
+    expect(
+      reclampPhotoZoomForFrame(
+        { scale: 2, translateX: 50, translateY: 50 },
+        { width: 100, height: 100 },
+        { width: 0, height: 0 },
+      ),
+    ).toEqual({ scale: 2, translateX: 0, translateY: 0 });
   });
 });
