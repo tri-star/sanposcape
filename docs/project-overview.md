@@ -18,6 +18,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 - **散歩の記録**: 歩いている途中で見つけた場所を、位置・写真・メモとともにその場で「ピン」として記録できる（SS-88）。散歩をしていないときも、ピンタブの地図の長押しから任意の地点にピンを登録でき、登録前なら全画面の地図で位置を微調整できる（SS-124）。登録したピンはピンタブの地図に表示され、タップで詳細（写真つき）を閲覧できる（SS-118 / SS-124 / SS-146。ピンタブがメイン導線）。ピンの検索・一覧での振り返りは地図詳細で実装済み（SS-121。名前の部分一致のみ・1地図あたり新しい1000件まで）、ピンの編集・削除は今後の拡張。
 
 モバイルは React Native (Expo)、バックエンドは FastAPI + PostgreSQL。地図・POI・徒歩ルーティングは Google Maps Platform を利用する。
+紹介サイト（LP。`sanposcape.com`）は `packages/lp` の Astro 静的サイトで、S3 + CloudFront から配信する（SS-155。構成・規約は [packages/lp/AGENTS.md](../packages/lp/AGENTS.md)）。
 
 ## 2. 技術スタック
 
@@ -36,9 +37,10 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | 地図・POI・ルーティング | Google Maps Platform (Maps / Places / Routes) | 往復可能範囲・徒歩時間/距離・スポット候補の取得 |
 | 認証 | Google サインイン直結（mobile: public client / backend: 自前セッショントークン発行。テスト時は dev/mock モードへ差し替え） | 詳細は [ADR-002](./adr/ADR-002-auth-google-signin-and-stub-strategy.md) |
 | フィーチャーフラグ | AWS AppConfig（backend が boto3 `appconfigdata` で取得し `GET /app-config` で mobile / LP へ配る） | 取得失敗時は全フラグ OFF（fail-safe）。詳細は [ADR-008](./adr/ADR-008-deploy-release-separation.md) |
+| LP（紹介サイト） | Astro（静的出力）+ Prettier | `packages/lp`。S3 + CloudFront で配信し、CSP の都合でインラインのスクリプト・スタイルを出さない（SS-155） |
 | インフラ / ホスティング | TBD（backend/DBのホスティング先は未定） | mobileはExpo経由で配布想定 |
 | CI/CD | GitHub Actions | Lint/Format・ユニットテスト・Maestro E2E。デプロイとリリースは分離し、公開はフィーチャーフラグ（AWS AppConfig）とストアの手動リリースで制御する（[ADR-008](./adr/ADR-008-deploy-release-separation.md) / [リリース運用手順](./release-runbook.md)） |
-| パッケージマネージャ | pnpm (mobile) / uv (backend) | mobileは minimumReleaseAge=2日 |
+| パッケージマネージャ | pnpm (mobile / lp) / uv (backend) | pnpm ワークスペース全体で minimumReleaseAge=2日 |
 | Linter / Formatter | oxlint + oxfmt (mobile) / ruff (backend) | |
 | テスト | Vitest + Maestro (mobile) / pytest (backend) | E2EはMaestro（ローカルAndroidはWindows側） |
 | コンテナ | Docker Compose (backend) | Python/DBコマンドは compose exec 経由 |
