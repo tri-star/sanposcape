@@ -1,0 +1,585 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// お問い合わせ窓口。開示等の請求もここで受け付ける。
+const contactEmail = "support@sanposcape.com";
+// 制定日・最終改定日。本文を変えたら更新する（改定の告知は「12. 本ポリシーの変更」）。
+const enactedOn = "2026年10月3日";
+
+// URL（/privacy/）はアプリ内のリンクと App Store Connect に登録するため変えないこと。
+
+// 「3. 外部サービスへの送信」の表。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+const externalServices = [
+  {
+    provider: "Google LLC（Google でサインイン）",
+    purpose: "サインイン",
+    data: "サインインの手続きは端末と Google の間で行われ、運営者は 1-2 の情報を受け取ります",
+  },
+  {
+    provider: "Google LLC（Google Maps Platform の Places API・Routes API）",
+    purpose: "スポットの検索、徒歩ルートの計算",
+    data: "丸めた現在地、目的地や経由地の位置。運営者のサーバーから送信し、利用者を識別する情報は送りません",
+  },
+  {
+    provider: "Google LLC（Google Maps SDK for Android）",
+    purpose: "Android 版での地図の表示",
+    data: "地図を表示するため、端末から直接通信します",
+  },
+  {
+    provider: "Apple Inc.（マップ）",
+    purpose: "iPhone 版での地図の表示",
+    data: "地図を表示するため、端末から直接通信します",
+  },
+  {
+    provider: "Amazon Web Services, Inc.",
+    purpose: "サーバーの運用、写真の保存",
+    data: "本アプリが送信する情報（シンガポールのリージョンで保管）",
+  },
+  {
+    provider: "Neon（データベースサービス）",
+    purpose: "データベース",
+    data: "アカウント情報、散歩の記録、ピンなど（シンガポールのリージョンで保管）",
+  },
+  {
+    provider: "650 Industries, Inc.（Expo）",
+    purpose: "アプリの更新の配信",
+    data: "更新を確認するため、アプリのバージョン、端末の OS の種類、インストールごとに生成される識別子などを端末から直接送信します",
+  },
+];
+---
+
+<BaseLayout
+  title="プライバシーポリシー — Sanposcape"
+  description="散歩アプリ Sanposcape における位置情報などの利用者情報の取り扱いについて定めたプライバシーポリシーです。"
+>
+  <article class="legal container" aria-labelledby="legal-title">
+    <header class="legal-header">
+      <p class="eyebrow">PRIVACY POLICY</p>
+      <h1 id="legal-title">プライバシーポリシー</h1>
+      <p class="legal-date">制定日: {enactedOn}</p>
+    </header>
+
+    <p>
+      Sanposcape
+      運営者（以下「運営者」といいます）は、散歩アプリ「Sanposcape」（以下「本アプリ」といいます）および紹介サイト（sanposcape.com）における、利用者の情報の取り扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」といいます）を定めます。
+    </p>
+
+    <nav class="legal-toc" aria-labelledby="legal-toc-title">
+      <h2 id="legal-toc-title">目次</h2>
+      <ol>
+        <li>
+          <a href="#collect">取得する情報</a>
+        </li>
+        <li>
+          <a href="#purpose">利用目的</a>
+        </li>
+        <li>
+          <a href="#services">外部サービスへの送信</a>
+        </li>
+        <li>
+          <a href="#third-party">第三者への提供</a>
+        </li>
+        <li>
+          <a href="#overseas">外国でのデータの保管</a>
+        </li>
+        <li>
+          <a href="#retention">保存期間</a>
+        </li>
+        <li>
+          <a href="#delete">情報の削除方法</a>
+        </li>
+        <li>
+          <a href="#withdraw">位置情報などの利用の停止（同意の撤回）</a>
+        </li>
+        <li>
+          <a href="#security">安全管理のための措置</a>
+        </li>
+        <li>
+          <a href="#requests">開示などのご請求</a>
+        </li>
+        <li>
+          <a href="#minors">未成年の方の利用</a>
+        </li>
+        <li>
+          <a href="#changes">本ポリシーの変更</a>
+        </li>
+        <li>
+          <a href="#contact">運営者・お問い合わせ窓口</a>
+        </li>
+      </ol>
+    </nav>
+
+    <section aria-labelledby="collect">
+      <h2 id="collect">1. 取得する情報</h2>
+
+      <h3>1-1. 位置情報（正確な位置情報と散歩の軌跡）</h3>
+      <p>
+        本アプリは、端末の GPS
+        などによる正確な位置情報を、次の場面で取得します。位置情報の利用許可は「アプリの使用中」のみをお願いしており、「常に許可」は求めません。
+      </p>
+      <ul>
+        <li>
+          <strong>散歩先のスポットやルートを探すとき</strong>: 現在地を約 11m
+          単位に丸めて運営者のサーバーへ送信します。サインインしていない場合も送信します。サーバーは提案の作成にだけ使い、保存しません。
+        </li>
+        <li>
+          <strong>散歩中</strong>:
+          散歩を開始してから終了するまで、数秒または数メートルごとに位置を記録します。アプリを閉じたり画面をロックしたりしても、散歩を終了するまで記録を続けます。記録中は、iPhone
+          ではステータスバーの表示、Android
+          では通知で、記録していることが分かるようにしています。散歩を終了すると記録は止まります。
+        </li>
+        <li>
+          <strong>地図に現在地を表示するとき</strong>:
+          端末の中で現在地を表示するために使います。
+        </li>
+      </ul>
+      <p>
+        サインインした状態で散歩を終えると、散歩の記録として、軌跡（位置の並び）、開始・終了の日時、歩いた時間と距離、目的地（名称と位置）をサーバーに保存します。サインインしていない場合、散歩の記録はサーバーに保存しません（散歩の終了後にサインインして保存した場合を除きます）。
+      </p>
+
+      <h3>1-2. アカウント情報</h3>
+      <p>
+        Google アカウントでサインインしたときに、Google
+        から受け取る次の情報を保存します。サインインのたびに最新の内容に更新します。
+      </p>
+      <ul>
+        <li>Google アカウントを識別するための ID</li>
+        <li>メールアドレス</li>
+        <li>表示名</li>
+        <li>プロフィール画像の URL</li>
+      </ul>
+
+      <h3>1-3. 利用者が登録する情報</h3>
+      <ul>
+        <li>
+          ピン（お気に入りの場所）の名称・メモ・位置・タグ、ピンをまとめる地図の名称
+        </li>
+        <li>
+          ピンに添付する写真。写真は端末で縮小・再圧縮してから送信するため、撮影位置などの付加情報（Exif）は送信しません。
+        </li>
+      </ul>
+      <p>
+        写真の添付のため、カメラで撮影するときにはカメラの利用許可をお願いします。写真ライブラリからは、端末の写真選択画面で利用者が選んだ写真だけを受け取ります。
+      </p>
+
+      <h3>1-4. ログイン状態を保つための情報</h3>
+      <p>
+        サインインの状態を保つための認証情報（トークン）を、端末の安全な保存領域（iOS
+        のキーチェーン、Android
+        のキーストア）に保存します。サーバーには、照合のための変換値（ハッシュ値）だけを保存します。
+      </p>
+
+      <h3>1-5. アクセスに伴う情報</h3>
+      <p>
+        本アプリや紹介サイトからサーバーへアクセスがあったとき、IP
+        アドレス、アクセスの日時、リクエストの種類と処理の結果、ブラウザやアプリの種類などが記録されます。位置情報や入力内容は、この記録に含めません。
+      </p>
+
+      <h3>1-6. 取得しない情報</h3>
+      <ul>
+        <li>
+          本アプリと紹介サイトは、広告、アクセス解析、クラッシュ解析のためのツールを組み込んでいません。紹介サイトは
+          Cookie を使用しません。
+        </li>
+        <li>
+          他社のアプリやウェブサイトをまたいで利用者を追跡すること（トラッキング）は行いません。広告識別子も取得しません。
+        </li>
+        <li>連絡先、マイク、健康情報などにはアクセスしません。</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="purpose">
+      <h2 id="purpose">2. 利用目的</h2>
+      <p>取得した情報は、次の目的に限って利用します。</p>
+      <ul>
+        <li>散歩先のスポットや、散歩のルートを提案するため</li>
+        <li>散歩の軌跡・時間・距離を記録し、履歴として表示するため</li>
+        <li>ピンや写真を保存し、地図に表示するため</li>
+        <li>サインインの受け付け、本人の確認、アカウントの管理のため</li>
+        <li>不正な利用の防止、障害の調査と対応、セキュリティの確保のため</li>
+        <li>お問い合わせや開示などのご請求に対応するため</li>
+      </ul>
+      <p>
+        位置情報を含む利用者の情報を、広告の配信や、他社が持つ情報と組み合わせた分析に利用することはありません。
+      </p>
+    </section>
+
+    <section aria-labelledby="services">
+      <h2 id="services">3. 外部サービスへの送信</h2>
+      <p>
+        本アプリの提供のため、次の事業者のサービスを利用しています。これらの事業者には、運営者に代わって情報を処理させるか、運営者が管理する情報の保管場所として利用しています。
+      </p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">事業者・サービス</th>
+              <th scope="col">用途</th>
+              <th scope="col">送信される情報</th>
+            </tr>
+          </thead>
+          <tbody>
+            {externalServices.map((service) => (
+              <tr>
+                <td data-label="事業者・サービス">{service.provider}</td>
+                <td data-label="用途">{service.purpose}</td>
+                <td data-label="送信される情報">{service.data}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Google の情報の取り扱いは
+        <a
+          href="https://policies.google.com/privacy?hl=ja"
+          rel="noopener noreferrer"
+        >
+          Google プライバシーポリシー
+        </a>
+        をご覧ください。
+      </p>
+    </section>
+
+    <section aria-labelledby="third-party">
+      <h2 id="third-party">4. 第三者への提供</h2>
+      <p>
+        運営者は、法令に基づく場合を除き、利用者の同意を得ずに個人情報を第三者に提供しません。個人情報を販売することもありません。
+      </p>
+    </section>
+
+    <section aria-labelledby="overseas">
+      <h2 id="overseas">5. 外国でのデータの保管</h2>
+      <p>
+        サーバーとデータベースはシンガポールにあり、利用者の情報はシンガポールで保管されます。シンガポールには、個人情報の保護に関する法律として
+        Personal Data Protection Act 2012 があります。また、3
+        の事業者の多くは米国の事業者です。各国の個人情報の保護に関する制度は、個人情報保護委員会が公表している
+        <a
+          href="https://www.ppc.go.jp/personalinfo/legal/kaiseihogohou/#gaikoku"
+          rel="noopener noreferrer"
+        >
+          外国における個人情報の保護に関する制度等の調査
+        </a>
+        で確認できます。
+      </p>
+    </section>
+
+    <section aria-labelledby="retention">
+      <h2 id="retention">6. 保存期間</h2>
+      <ul>
+        <li>
+          <strong>アカウント情報、散歩の記録、ピン、写真</strong>:
+          利用者が削除するか、アカウントを削除するまで保存します。
+        </li>
+        <li>
+          <strong>スポットやルートを探すときに送信された現在地</strong>:
+          保存しません。処理のために、サーバーのメモリ上で数分のあいだ扱うことがあります。
+        </li>
+        <li>
+          <strong>散歩中に端末に一時保存する位置</strong>:
+          散歩の終了時、またはアプリの次回起動時に端末から消去します。
+        </li>
+        <li>
+          <strong>アクセスに伴う情報（1-5）</strong>:
+          不正利用の防止と障害対応のために一定期間保存し、期間の経過後に削除します。
+        </li>
+      </ul>
+      <p>
+        削除した情報は、障害に備えたバックアップに一定期間残ることがありますが、バックアップの保存期間の経過とともに消去されます。
+      </p>
+    </section>
+
+    <section aria-labelledby="delete">
+      <h2 id="delete">7. 情報の削除方法</h2>
+      <ul>
+        <li>
+          <strong>散歩の記録</strong>: アプリの「記録」から散歩を選び、1
+          件ずつ削除できます。
+        </li>
+        <li>
+          <strong>ピン・写真</strong>:
+          ピンの詳細画面や編集画面から削除できます。
+        </li>
+        <li>
+          <strong>アカウント</strong>:
+          アプリの「設定」の「アカウントを削除」から削除できます。アカウント情報とあわせて、散歩の記録、ピン、写真など、アカウントに関連する情報をすべて削除します。
+        </li>
+      </ul>
+      <p>
+        アプリから削除できない場合は、<a href="#contact">お問い合わせ窓口</a>
+        からもご依頼いただけます。
+      </p>
+    </section>
+
+    <section aria-labelledby="withdraw">
+      <h2 id="withdraw">8. 位置情報などの利用の停止（同意の撤回）</h2>
+      <p>
+        位置情報やカメラの利用許可は、端末の設定からいつでも取り消せます。取り消した場合、スポットを探す機能や散歩を記録する機能など、位置情報を使う機能は利用できなくなります。
+      </p>
+      <ul>
+        <li>
+          <strong>iPhone</strong>:
+          「設定」→「プライバシーとセキュリティ」→「位置情報サービス」→「Sanposcape」で「なし」を選びます。
+        </li>
+        <li>
+          <strong>Android</strong>:
+          「設定」→「アプリ」→「Sanposcape」→「権限」→「位置情報」で「許可しない」を選びます（機種によって名称が異なる場合があります）。
+        </li>
+      </ul>
+      <p>
+        散歩中の位置の記録は、アプリで散歩を終了するといつでも止められます。Google
+        アカウントとの連携は、Google
+        アカウントの設定画面からも解除できます（解除しても、運営者が保存している情報は削除されません。削除は
+        7 の方法で行ってください）。
+      </p>
+    </section>
+
+    <section aria-labelledby="security">
+      <h2 id="security">9. 安全管理のための措置</h2>
+      <p>
+        運営者は、取得した情報の漏えいや紛失を防ぐため、次の措置を講じています。
+      </p>
+      <ul>
+        <li>
+          通信を暗号化（HTTPS）し、保存する写真やデータを暗号化しています。
+        </li>
+        <li>
+          サーバーやデータベースへのアクセスを、必要な権限に限っています。
+        </li>
+        <li>
+          認証情報は、サーバーには照合のための変換値（ハッシュ値）だけを保存しています。
+        </li>
+        <li>
+          外国（5
+          のとおり）で情報を保管するにあたり、その国の個人情報の保護に関する制度を把握したうえで措置を講じています。
+        </li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="requests">
+      <h2 id="requests">10. 開示などのご請求</h2>
+      <p>
+        利用者は、運営者が保有するご自身の個人情報について、利用目的の通知、開示、訂正・追加・削除、利用の停止・消去、第三者への提供の停止、第三者提供の記録の開示を請求できます。
+        <a href="#contact">お問い合わせ窓口</a>
+        までご連絡ください。ご本人であることを確認したうえで、法令に従って遅滞なく対応します。
+      </p>
+    </section>
+
+    <section aria-labelledby="minors">
+      <h2 id="minors">11. 未成年の方の利用</h2>
+      <p>
+        未成年の方は、保護者の方の同意を得たうえで本アプリを利用してください。
+      </p>
+    </section>
+
+    <section aria-labelledby="changes">
+      <h2 id="changes">12. 本ポリシーの変更</h2>
+      <p>
+        運営者は、法令の変更や本アプリの機能の変更にあわせて、本ポリシーを変更することがあります。変更した場合はこのページで告知し、利用者の情報の取り扱いが大きく変わる場合は、本アプリなどでもお知らせします。
+      </p>
+    </section>
+
+    <section aria-labelledby="contact">
+      <h2 id="contact">13. 運営者・お問い合わせ窓口</h2>
+      <dl class="legal-contact">
+        <dt>運営者</dt>
+        <dd>Sanposcape 運営者</dd>
+        <dt>お問い合わせ</dt>
+        <dd>
+          <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
+        </dd>
+      </dl>
+      <p>運営者の氏名と住所は、ご請求があれば遅滞なくお知らせします。</p>
+    </section>
+  </article>
+</BaseLayout>
+
+<style>
+  .legal {
+    max-width: 760px;
+    padding-block: 64px 96px;
+    font-size: 15px;
+    line-height: 2;
+  }
+
+  .legal-header {
+    margin-bottom: 32px;
+  }
+
+  /* ページの見出しは h1 にするが、見た目はセクション見出し（global.css の h2）に揃える。 */
+  .legal h1 {
+    margin-top: 14px;
+    font-size: clamp(28px, 3.1vw, 40px);
+    font-weight: 800;
+    line-height: 1.6;
+    letter-spacing: -0.04em;
+  }
+
+  .legal-date {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .legal h2 {
+    margin-top: 56px;
+    font-size: clamp(20px, 2.2vw, 24px);
+    line-height: 1.6;
+    letter-spacing: -0.02em;
+  }
+
+  .legal h3 {
+    margin-top: 28px;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+
+  .legal p,
+  .legal ul,
+  .legal ol,
+  .legal dl,
+  .legal-table-wrap {
+    margin-top: 14px;
+  }
+
+  .legal ul,
+  .legal ol {
+    padding-left: 1.5em;
+  }
+
+  .legal li + li {
+    margin-top: 6px;
+  }
+
+  .legal strong {
+    color: var(--navy);
+  }
+
+  .legal a {
+    color: var(--navy);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    overflow-wrap: anywhere;
+  }
+
+  /* global.css の nav（ヘッダー用の横並び）を打ち消す */
+  .legal-toc {
+    display: block;
+    font-size: inherit;
+    font-weight: inherit;
+    margin-top: 40px;
+    padding: 20px 28px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fffdf5;
+  }
+
+  .legal .legal-toc h2 {
+    margin-top: 0;
+    font-size: 15px;
+  }
+
+  .legal-table-wrap {
+    overflow-x: auto;
+  }
+
+  .legal table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .legal th,
+  .legal td {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .legal th {
+    background: var(--sky-light);
+    color: var(--navy);
+  }
+
+  .legal-contact {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 24px;
+  }
+
+  .legal-contact dt {
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .legal-contact dd {
+    margin: 0;
+  }
+
+  @media (max-width: 540px) {
+    /* 狭い画面では表を横スクロールさせず、1 行を 1 枚のカードとして縦に並べる */
+    .legal table,
+    .legal tbody,
+    .legal tr,
+    .legal td {
+      display: block;
+      min-width: 0;
+    }
+
+    .legal thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .legal tr {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fffdf5;
+    }
+
+    .legal tr + tr {
+      margin-top: 12px;
+    }
+
+    .legal td {
+      border: 0;
+      padding: 8px 14px;
+    }
+
+    .legal td + td {
+      border-top: 1px solid var(--border);
+    }
+
+    .legal td::before {
+      content: attr(data-label);
+      display: block;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .legal {
+      padding-block: 40px 64px;
+      font-size: 14px;
+    }
+
+    .legal-toc {
+      padding: 16px 20px;
+    }
+
+    .legal-contact {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+
+    .legal-contact dd + dt {
+      margin-top: 10px;
+    }
+  }
+</style>
