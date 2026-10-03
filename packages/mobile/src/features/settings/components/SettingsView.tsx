@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { AboutSection } from "@/features/settings/components/AboutSection";
 import { AccountDeleteDialog } from "@/features/settings/components/AccountDeleteDialog";
 import { AppearanceSection } from "@/features/settings/components/AppearanceSection";
 import { useAccountDeletion } from "@/features/settings/hooks/useAccountDeletion";
@@ -38,6 +39,8 @@ import { useTheme, useThemeMode } from "@/theme/useTheme";
  * （PR #50 Copilot レビュー指摘）。そのため `resolveSettingsSection()` で3値のまま分岐する。
  * `AuthGate` は `loading` を最優先で `allow` にするため、ディープリンクや歯車ボタンからの直後
  * 遷移では `SettingsView` が `loading` のままレンダリングされうる（実害の窓は数百ms程度）。
+ *
+ * SS-158 でプライバシーポリシーへの導線（`AboutSection`）を追加した。認証状態にかかわらず表示する。
  *
  * SS-62 でアカウント削除（不可逆）を追加した。ログアウト（可逆）と `variant` / 配置 / 文言で
  * 区別する（誤操作防止）。削除後の遷移は `AuthGate` が担うため、この画面は `router` を触らない
@@ -103,6 +106,11 @@ export function SettingsView() {
             onChangeMode={setMode}
             testID="settings-appearance-section"
           />
+        </View>
+
+        {/* 認証に依存しないので、テーマと同じく section の分岐の外に置く（ゲストにも出す。SS-158） */}
+        <View style={styles.aboutSection}>
+          <AboutSection testID="settings-about-section" />
         </View>
 
         {section === "loading" ? (
@@ -250,6 +258,9 @@ const useStyles = makeStyles((theme) => ({
   appearanceSection: {
     marginTop: theme.spacing[4],
   },
+  aboutSection: {
+    marginTop: theme.spacing[4],
+  },
   headerSpacer: {
     width: theme.control.md,
   },
@@ -260,6 +271,7 @@ const useStyles = makeStyles((theme) => ({
   },
   logoutSection: {
     flex: 1,
+    marginTop: theme.spacing[6],
     justifyContent: "flex-end",
     gap: theme.spacing[3],
   },
@@ -267,6 +279,7 @@ const useStyles = makeStyles((theme) => ({
   // theme.spacing[6] で広く取り、誤操作防止のため視覚的に分離する（SS-62）。
   authenticatedSection: {
     flex: 1,
+    marginTop: theme.spacing[6],
     justifyContent: "flex-end",
     gap: theme.spacing[6],
   },

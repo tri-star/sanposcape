@@ -26,6 +26,7 @@ import ChevronRight from "lucide-react-native/icons/chevron-right";
 import Clock from "lucide-react-native/icons/clock";
 import Coffee from "lucide-react-native/icons/coffee";
 import Crosshair from "lucide-react-native/icons/crosshair";
+import ExternalLink from "lucide-react-native/icons/external-link";
 import Flag from "lucide-react-native/icons/flag";
 import Footprints from "lucide-react-native/icons/footprints";
 import ImageOff from "lucide-react-native/icons/image-off";
@@ -78,6 +79,7 @@ export const ICONS = {
   clock: Clock,
   coffee: Coffee,
   crosshair: Crosshair,
+  "external-link": ExternalLink,
   flag: Flag,
   footprints: Footprints,
   "image-off": ImageOff,
