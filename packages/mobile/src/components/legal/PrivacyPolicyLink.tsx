@@ -32,7 +32,7 @@ export function PrivacyPolicyLink({ testID, align = "start" }: PrivacyPolicyLink
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={PRIVACY_POLICY_LABEL}
-        accessibilityHint="アプリ内のブラウザでウェブページを開きます"
+        accessibilityHint="ウェブページを開きます"
         onPress={() => open(PRIVACY_POLICY_URL)}
         testID={testID}
         style={({ pressed }) => [

@@ -28,6 +28,8 @@ const OPENERS: ExternalUrlOpeners = {
  *
  * ネイティブ依存（expo-web-browser / RN）を持つので、Vitest 対象のモジュール
  * （`lib/`・`api/`・`config/`）から import しないこと。
+ *
+ * 失敗時は URL をそのまま診断ログに出す。トークンや ID などの機密をクエリに含む URL は渡さないこと。
  */
 export function useOpenExternalUrl(): UseOpenExternalUrlResult {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
