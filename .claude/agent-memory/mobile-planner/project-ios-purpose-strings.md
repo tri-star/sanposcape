@@ -22,6 +22,9 @@ SS-157 の計画で expo-location 57 のプラグイン・ネイティブと `@e
 - 生成結果は `expo config --type introspect --json` の `_internal.modResults.ios.infoPlist` / `.android.manifest` で確認できる（`ios/` が無くてよい）。
 - **main checkout の node_modules は lockfile より古いことがある**（2026-10: 手元 57.0.15、lockfile 57.0.20）。lockfile の版の差分は unpkg の CHANGELOG / plugin/build で確認する。
 
+**Why:** 上の事実はどれも、プラグインとネイティブのソースを読まないと分からない（ドキュメントや型からは読み取れない）。
+しかも「キーを消す」案の失敗は、TestFlight へのアップロード時（ITMS-90683）まで発覚せず、ビルドのやり直しになる。
+
 **How to apply:** 権限・Info.plist・ネイティブ設定のプランでは、プラグインの既定値と `false` の意味をソースで確かめ、
 「キーを消す」案には提出時の ITMS-90683 リスクを必ず書く。
 

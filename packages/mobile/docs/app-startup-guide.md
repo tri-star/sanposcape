@@ -245,13 +245,15 @@ mock モードでは背面の記録を再現できない。Android は Google Pl
    → 1〜2分後にアプリへ戻る。戻った時点で背面の区間が地図に描かれ、距離が増えている（A→B の一直線にならない）。
 2. 同様に、Home の代わりに電源ボタンで画面ロック。
 3. 散歩中に通知ドロワーと「実行中のアプリ」を見る。記録中の通知（確定文言「散歩を記録しています」・単色アイコン。文言は `BACKGROUND_TRACKING_NOTIFICATION`、ADR-M-018 決定14）が出る。
-   - **API 33 以上は、散歩の開始直後に「通知の送信を許可」のダイアログが出る**（SS-157。ADR-M-018 決定15）。「許可」にすると通知が通知シェードに出る。
+   - **API 33 以上で通知が未許可のとき（初回・取り消し後）は、散歩の開始直後に「通知の送信を許可」のダイアログが出る**（SS-157。ADR-M-018 決定15）。
+     許可済みなら出ない（出なくても失敗ではない）。「許可」にすると通知が通知シェードに出る。
      「許可しない」でも記録は始まるが、通知シェードには出ず「実行中のアプリ」にだけ出る。
    - ダイアログは1回の起動につき最大1回で、散歩の再開始・前面への復帰では出し直さない。
    - 確認用の操作: 許可状態の確認は `adb shell dumpsys package com.sanposcape.app.dev | grep POST_NOTIFICATIONS`（宣言されていて granted になる）。
      やり直すときは `adb shell pm revoke com.sanposcape.app.dev android.permission.POST_NOTIFICATIONS` で取り消し、アプリを再起動してから散歩を開始する。
      通知が出ないときは `adb shell appops get com.sanposcape.app.dev POST_NOTIFICATION` が `ignore` になっていないかも見る。
-4. 散歩を終了 → 通知が消える。`adb shell dumpsys activity services com.sanposcape.app.dev` に `LocationTaskService` が無い。
+4. 散歩を終了 → 通知が消える。`adb shell dumpsys activity services com.sanposcape.app.dev` の `LocationTaskService` に
+   `isForeground=true` が無い（前面サービスではなくなる。ServiceRecord 自体はしばらく一覧に残ることがある）。
 5. 散歩中に戻るキーでアプリを閉じ、位置を動かしてからランチャーで開き直す → 散歩が続き、閉じている間の区間もつながっている。
 6. 散歩中に最近使ったアプリからスワイプで消す → 通知が消える。開き直しても記録は再開しない。
 7. 位置情報の権限を「許可しない」にして散歩開始 → 従来どおり `walk-active-location-notice` が出る。
@@ -261,7 +263,9 @@ mock モードでは背面の記録を再現できない。Android は Google Pl
 iOS シミュレータは使えないので実機で確認する。実際に屋外を歩き、Home・画面ロック（10〜15分）・別アプリへの切り替えのそれぞれで
 軌跡が途切れないこと、status bar に位置情報のインジケータが出ること、散歩の終了でインジケータが消えること、
 権限が「使用中のみ」のままで「常に」を求められないことを確認する。
-権限ダイアログ（位置情報・モーション）の文言が日本語の確定文言（ADR-M-018 決定10〜12）で表示されることも確認する。
+位置情報の権限ダイアログの文言が、日本語の確定文言（ADR-M-018 決定10・11）で表示されることも確認する。
+モーションの権限ダイアログは出ない（アプリはモーション API を呼ばない。決定12）。`NSMotionUsageDescription` の文言は実機ではなく、
+`pnpm --filter mobile exec expo config --type introspect --json` の `_internal.modResults.ios.infoPlist` で確認する。
 インジケータは、使用中のみ権限なら `showsBackgroundLocationIndicator` に関係なく OS が常に出す。
 設定アプリの「常に」の出方と `showsBackgroundLocationIndicator` の関係は未検証なので、あわせて確認する（SS-161）。
 
