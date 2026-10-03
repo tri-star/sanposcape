@@ -71,7 +71,7 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 ### デザインと画像
 
 - 見た目の正解は、デザイン原本（Codex で作成した静的 HTML/CSS/JS。リポジトリ外の作業フォルダにあった）を移した現在の実装。
-  `src/styles/global.css` は原本の `styles.css` を値を変えずに移したもの（Prettier の整形のみ）。
+  `src/styles/global.css` は原本の `styles.css` を値を変えずに移したもの（Prettier の整形と、下記「原本から意図的に変えた点」を除く）。
   見た目を変えるときはデザインの更新として扱い、PC（1440px）とスマホ（390px）の全体スクリーンショットで崩れがないか確認する。
 - 本番公開に向けて原本から意図的に変えた点:
   - 「※このページはデザインプレビューです…」の注記を削除。ダイアログの文言も「公開まで、もうしばらくお待ちください。」に変更。
@@ -108,6 +108,6 @@ GitHub Actions + OIDC で `dist/` を S3 に sync し、CloudFront を invalidat
 App Store Connect の「プライバシーポリシー URL」に登録するため、**変えない**（変えると配布済みのアプリが古い URL を開き続ける）。
 
 - 本文は実装の事実（取得する情報・送信先・保存期間・削除方法）に合わせて書いている。アプリや backend のデータの扱いを変えたら本文も見直し、
-  ページ先頭の制定日（改定日）を更新する。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+  ページ先頭の最終改定日（frontmatter の `revisedOn`）を更新する。制定日（`enactedOn`）は変えない。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
 - 外部サービスの表は frontmatter の `externalServices` で持つ。540px 以下では 1 行を 1 枚のカードとして縦に並べる（見出しは `data-label` を CSS で出す）。
 - 問い合わせ先のメールアドレスは frontmatter の `contactEmail`。
