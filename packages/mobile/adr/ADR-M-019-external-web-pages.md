@@ -46,7 +46,7 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 
 ## 影響
 
-- 本番 LP に `/privacy/` がデプロイされるまでは、すべてのビルドでリンク先が 404 になる。dev の内容は `https://dev.sanposcape.com/privacy/` をブラウザで直接確認する。
+- 本番 LP に `/privacy/` がデプロイされるまでは、すべてのビルドでリンク先が 404 になるか、`sanposcape.com` に接続できない（どちらもアプリ内ブラウザの中でエラーが出るだけで、アプリ側の「開けませんでした」の案内は出ない）。dev の内容は `https://dev.sanposcape.com/privacy/` をブラウザで直接確認する。
 - LP の URL（パス・末尾スラッシュ）を変えるにはアプリの更新が要る（古いバイナリは古い URL を開き続ける）。LP 側は `/privacy/` を恒久 URL として扱う。
 - 今後の利用規約・サポートページも同じ方式（`useOpenExternalUrl` + `legalLinks.ts`）で追加する。
 - 画面から `expo-web-browser` / `Linking.openURL` を直接呼ばない（OS の設定画面を開く `Linking.openSettings()` は対象外）。
