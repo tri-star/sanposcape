@@ -22,6 +22,9 @@
 
 - SS-36（起動時の停止 → 復元）
 - SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認、審査メモで background modes に `fetch` が含まれる理由の説明、`showsBackgroundLocationIndicator` と設定アプリの「常に」の関係の iPhone 実機確認）（SS-157 追補）
+- App Privacy・プライバシーポリシーでの位置情報のサーバー保存の申告（SS-161。SS-157 追補）
+- 停止失敗時に背景タスクが残る経路の回収（未起票。SS-157 追補）
+- Android の `RECORD_AUDIO` 等の不要な権限の除去（未起票。SS-157 追補）
 - 散歩の終了忘れの自動停止（未起票）
 - `version` を上げる前に 0.1.0 のバイナリへ `eas update` を出さない
 - expo-location に expo/expo#49409 が入ったら、モーションを `false` + CoreMotion 除外に切り替えるか検討する（SS-157 追補）
@@ -143,6 +146,9 @@
 - ~~SS-157: 通知文言（`BACKGROUND_TRACKING_NOTIFICATION`）、Info.plist の文言、Android の通知チャンネル。~~ → SS-157 で決着（決定10〜14）
 - development build / 配布ビルドの作り直し（Info.plist の文言はネイティブ設定のため OTA では届かない）（SS-157 追補）。
 - SS-161: App Review / Play の FGS 申告。TestFlight での ITMS-90683 の最終確認（SS-157 追補）。
+- SS-161: 位置情報をサーバーに保存・送信する点は利用目的文言ではなく、App Privacy（Precise Location を「収集・ユーザーに紐付け」）とプライバシーポリシーで申告する（SS-157 追補。文言には書かない判断）。
+- 停止が再試行後も失敗すると、次の開始・起動まで背景タスクが動き続けうる（決定5）。利用目的文言の「散歩を終了すると止める」が崩れる経路なので、アプリ復帰時・サインアウト時の止め直しを検討する（未起票。SS-157 のレビューで判明）。
+- Android の manifest に expo-image-picker 由来の `RECORD_AUDIO` / `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` が残る（SS-157 の introspect で判明）。`android.blockedPermissions` での除去を検討する（未起票。位置情報とは別件）。
 - 散歩の終了忘れへの自動停止（未起票。必要なら起票）。
 
 ## 関連情報
