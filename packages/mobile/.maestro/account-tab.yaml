@@ -31,6 +31,9 @@ tags:
     visible:
       id: "settings-screen"
     timeout: 10000
+# プライバシーポリシーへの導線（SS-158）。存在だけ見て押さない。
+- assertVisible:
+    id: "settings-privacy-policy-link"
 - assertVisible:
     id: "settings-open-logout-dialog"
 # 導線の有無だけ見る。押さない（e2e-user-1 は全フローで共有される固定アカウント）

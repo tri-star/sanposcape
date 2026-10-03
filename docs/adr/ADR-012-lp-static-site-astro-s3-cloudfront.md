@@ -1,13 +1,62 @@
 # ADR-012: LP は packages/lp の Astro 静的サイトとし、S3 + CloudFront へ GitHub Actions でデプロイする
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-03（SS-158）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **LP は `packages/lp` の Astro（`output: "static"`）で、`build.format: "directory"`・`trailingSlash: "always"`**。
+  環境はビルド時の `LP_SITE_URL` / `PUBLIC_LP_ENV` で切り替え、production 以外は noindex。（本文: 決定1）
+- **ページは `src/pages/<name>/index.astro` か `src/pages/<name>.astro` で追加する**（どちらも `<name>/index.html` に出力される）。
+  （本文: 決定1、ポジティブな影響、SS-158 追補）
+- **配信は非公開 S3 + OAC + CloudFront（stack `live/services/lp`）**。`www.` と `*.cloudfront.net` は正規ホストへ 301、
+  存在しないパスは `/404.html` を 404 で返す。セキュリティヘッダーは Response headers policy で付け、WAF は付けない。（本文: 決定2）
+- **CSP は `'unsafe-inline'` も外部オリジンも許さず、LP はインラインの script / style を出さない**。CI（`lp-ci.yml`）が `dist/` の HTML を検査する。
+  外部オリジンを足すときは infra の tfvar `content_security_policy` とセットで変える。（本文: 決定3）
+- **デプロイは `lp-deploy.yml`。dev は main への push で自動、prod は main からの手動起動 + Environment の承認で、成功時に `lp/vX.Y.Z` タグと Release を作る**。
+  認証は Environment に紐づく OIDC、バケット名・distribution ID は SSM から実行時に読む。（本文: 決定4）
+- **キャッシュは `_astro/**` が永久、それ以外は `max-age=0, s-maxage=86400`。デプロイのたびに `/*` を invalidation し、`_astro/` の旧ハッシュは消さない**。（本文: 決定5）
+- **dev のインデックス抑止は noindex（meta と `X-Robots-Tag`）に任せ、robots.txt で Disallow にしない**。（本文: 決定6）
+- **プライバシーポリシーは `src/pages/privacy.astro` → `https://sanposcape.com/privacy/` で公開し、LP のフッターからリンクする**。
+  mobile は設定画面・サインイン / サインアップ画面からアプリ内ブラウザで開く（[ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)）。（本文: SS-158 追補）
+- **`/privacy/` は恒久 URL で、変えない**（アプリ内リンクと App Store Connect に登録するため）。（本文: SS-158 追補）
+- **お問い合わせは独立ページ・フォームにせず、`/privacy/#contact` の mailto（`support@sanposcape.com`）で代用する**。CSP は変えていない。
+  （本文: コンテキスト、移行・対応事項、SS-158 追補）
+- **ポリシーの運営者表記は屋号「Sanposcape 運営者」、保管先は AWS・Neon ともシンガポールと記載し、英語版は作らない**。（本文: SS-158 追補）
+- **ポリシーは本文が実装の事実に依存するため、データの扱いを変えたら本文を見直して `revisedOn` を更新する**。App Privacy の申告（SS-159）と揃える。（本文: SS-158 追補）
+- **ポリシーは「アカウント削除でピンの写真も削除する」と書いているため、SS-109（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) BK-2）の完了前に本番で `pin_registration` を ON にしない**。
+  （本文: SS-158 追補）
+
+### 未解決・持ち越し
+
+- **本番 LP は `/privacy/` を含まない版（`lp/v0.1.0`）のまま**。`/privacy/` を含む版を prod にデプロイしてから、アプリ内リンクを含む mobile のビルドを配布・審査に出す。
+  App Store Connect への URL 登録と、`support@sanposcape.com` で受信できることの確認も公開前に要る（手作業）。（本文: SS-158 追補「リリース時に必要な手作業」）
+- **サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いも未決**（Plane に該当課題なし）。（本文: SS-158 追補）
+- ストアの URL が決まったら、ストアボタンをリンクに、「公開準備中」の QR 枠を QR 画像に差し替える。（本文: 移行・対応事項）
+
+### 変更・撤回された決定
+
+- コンテキストの「お問い合わせページへの導線」→ 独立ページを作らず `/privacy/#contact` の mailto で代用（SS-158 追補）
+- 「お問い合わせをフォームにする場合は CSP を更新する」→ mailto にしたため CSP の変更は不要（SS-158 追補）
+- ページの追加は `src/pages/<name>/index.astro` → `src/pages/<name>.astro` も可（決定は不変、記述の補足。SS-158 追補）
+- 本文のコンテキスト・ポジティブな影響にある「プライバシーポリシー・サポートページが増える」は初版時点の見込みで、SS-158 で作ったのはプライバシーポリシーのみ（SS-158 追補）
+- ステータスの「dev / prod とも初回デプロイは未実施」は初版時点の状態で、2026-10-02 に両環境とも初回デプロイ済み（SS-158 追補）
+
 ## 日付
 
-2026-10-02（初版、SS-155 / infra 側 SS-74）
+2026-10-02（初版、SS-155 / infra 側 SS-74）、2026-10-03 追補（SS-158）
 
 ## ステータス
 
 採用（SS-155 で決定）。配信面は sanposcape-infra の `live/services/lp`（SS-74、tri-star/sanposcape-infra#47）。
-初版時点で dev / prod とも apply・初回デプロイは未実施で、手順は実運用で検証されていない。
+初版時点で dev / prod とも apply・初回デプロイは未実施で、手順は実運用で検証されていない
+（**SS-158 追補**: 2026-10-02 に dev（main への push）と prod（main からの `workflow_dispatch` + 承認。`lp/v0.1.0`）の
+初回デプロイが成功した。どちらも SS-158 の `/privacy/` を含まない版）。
+
+**SS-158「プライバシーポリシー」で追補**した。プライバシーポリシーを `/privacy/` で公開し、お問い合わせは独立ページにせず
+ポリシー内の mailto で代用した。詳細は末尾の「SS-158 追補: プライバシーポリシーを公開する」。本文中の追補部分には `（SS-158 追補）` を付けている。
 
 ## コンテキスト
 
@@ -15,6 +64,7 @@
 
 - アプリの紹介（どんなアプリか、どんな機能があるか）
 - プライバシーポリシー・お問い合わせページへの導線（ストア申請・TestFlight 外部テスト、AWS SES のサンドボックス解除申請で URL が要る。SS-158）
+  （**SS-158 追補**: お問い合わせは独立したページにせず、プライバシーポリシー内の窓口 `/privacy/#contact` の mailto で代用した）
 
 前提は次のとおり。
 
@@ -147,6 +197,8 @@ Disallow するとクローラーがページを取得できず noindex を読�
 ### ポジティブな影響
 
 - プライバシーポリシー・サポートページ（SS-158）を `src/pages/<name>/index.astro` として追加するだけで公開できる。
+  （**SS-158 追補**: `src/pages/<name>.astro` でもよい。`build.format: "directory"` によりどちらも `<name>/index.html` に出力される。
+  SS-158 ではプライバシーポリシーを `src/pages/privacy.astro` として追加した。サポートページは作っていない）
 - LP の変更は main へのマージで dev に出て、本番は承認付きで出せる。本番に出たコミットは `lp/v*` タグで追える。
 
 ### ネガティブな影響・トレードオフ
@@ -160,9 +212,44 @@ Disallow するとクローラーがページを取得できず noindex を読�
 
 - 初回: infra の dev apply → `development` に `AWS_LP_DEPLOY_ROLE_ARN` を設定 → dev で確認 → prod apply → `production` に設定 → main から承認付きでデプロイ
   （`packages/lp/docs/deployment.md`）。infra の apply より前に `packages/lp/**` の変更が main に入ると、dev の自動デプロイは失敗する（設定後に再実行で回復）。
+  （**SS-158 追補**: 2026-10-02 に dev・prod とも初回デプロイが成功しており、この初回手順は完了している。ステータスの注記を参照）
 - prod の apex に既存の A / AAAA レコードが無いかを、prod の apply 前に確認する（SS-155 時点で未確認）。
 - ストアの URL が決まったら、ストアボタンをリンクに、「公開準備中」の QR 枠を QR 画像に差し替える。
 - SS-158 のお問い合わせをフォームにする場合は、CSP の `form-action` / `connect-src` を infra の tfvar で更新する。
+  （**SS-158 追補**: お問い合わせはフォームにせず mailto にしたため、CSP の変更は不要だった）
+
+## SS-158 追補: プライバシーポリシーを公開する
+
+コンテキストに挙げた「プライバシーポリシー・お問い合わせページへの導線」に答える。
+
+### 決定
+
+- **プライバシーポリシーは `src/pages/privacy.astro` として追加し、`https://sanposcape.com/privacy/`（dev は `https://dev.sanposcape.com/privacy/`）で公開する。**
+  LP のフッターにリンクを置く（ヘッダーのナビはトップのセクションへのページ内リンクなので混ぜない）。
+  mobile は設定画面とサインイン / サインアップ画面からアプリ内ブラウザで開く
+  （[ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)。URL の定数は `packages/mobile/src/config/legalLinks.ts`）。
+- **`/privacy/` は恒久 URL とし、変えない。** アプリ内のリンクと App Store Connect の「プライバシーポリシー URL」に登録するため。
+  変えると配布済みのアプリが古い URL を開き続ける。末尾スラッシュ付き（決定1 の `trailingSlash: "always"`）・`www.` なし（決定2 で 301 される）を正とする。
+- **お問い合わせは独立したページ・フォームにせず、ポリシー内の窓口 `/privacy/#contact` の mailto（`support@sanposcape.com`）で代用する。**
+  フォームを置かないため、CSP（決定3）の `form-action` / `connect-src` の変更は不要だった。
+- **サポートページ（`/support/`）は作らない（SS-158 の範囲では）。** App Store Connect の Support URL に何を登録するかは未決で、
+  これを扱う Plane の課題も無い。
+- **ポリシー本文の判断（ユーザー判断）**: 運営者は屋号「Sanposcape 運営者」と表記し、氏名・住所は請求に応じて遅滞なく回答する旨を添える。
+  窓口は `support@sanposcape.com`。データの保管先は AWS（ap-southeast-1）・Neon ともシンガポールと記載する。英語版は作らない（アプリ・LP とも日本語のみのため）。
+- **ポリシーは「アカウントを削除すると、ピンの写真も削除する」と書く（自律判断）。** 現状の実装ではアカウント削除で S3 の写真が消えない
+  （[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2、Plane SS-109）が、ピン機能は本番ではフラグ `pin_registration`（既定 OFF）で閉じており、
+  ADR-009 が本番でフラグを ON にする前提条件に BK-2 を挙げているため、ピンを公開する時点では記述どおりになる。
+  **SS-109 を完了する前に本番で `pin_registration` を ON にしないこと**（ON にするとポリシーと実装が食い違う）。
+- **ポリシー本文は実装の事実（取得する情報・送信先・保存期間・削除方法）に依存する。** アプリや backend のデータの扱いを変えたら本文を見直し、
+  最終改定日（frontmatter の `revisedOn`）を更新する（`packages/lp/AGENTS.md`）。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+
+### リリース時に必要な手作業
+
+- 本番 LP を `/privacy/` を含む版でデプロイしてから（決定4 の prod は手動起動 + 承認）、アプリ内リンクを含む mobile のビルドを配布・審査に出す。
+  2026-10-02 に prod へ出た `lp/v0.1.0` は `/privacy/` を含まないため、それまではアプリ内のリンク先が 404 になる（ADR-M-019 の「影響」）。
+- App Store Connect の「プライバシーポリシー URL」に `https://sanposcape.com/privacy/` を登録する（手作業）。
+  TestFlight の外部テストを始めるなら、開発用のアプリレコード（`com.sanposcape.app.dev`）にも同じ URL を登録する。
+- 本番公開・ストア登録の前に、`support@sanposcape.com` で受信できることを確認する（受信設定は SS-158 の範囲外）。
 
 ## 関連情報
 
@@ -170,6 +257,10 @@ Disallow するとクローラーがページを取得できず noindex を読�
 - [ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md)（backend のデプロイを手動起動にした理由）
 - [ADR-006](./ADR-006-mobile-app-delivery-eas-hosted.md) 決定5（静的サイトの配信面は Terraform 側の S3 + CloudFront）
 - [ADR-008](./ADR-008-deploy-release-separation.md) 決定4（アプリ別のタグと Release）
+- [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2（アカウント削除時の写真削除。本番でピン機能を ON にする前提条件）（**SS-158 追補**）
+- [ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)（アプリからプライバシーポリシーを開く方法と、URL をビルドで切り替えないこと）（**SS-158 追補**）
 - `packages/lp/AGENTS.md`、`packages/lp/docs/deployment.md`、`.github/workflows/lp-ci.yml`、`.github/workflows/lp-deploy.yml`
+- `packages/lp/src/pages/privacy.astro`、`packages/mobile/src/config/legalLinks.ts`（**SS-158 追補**）
 - sanposcape-infra: ADR-0001 §2.11 / §2.15、`live/services/lp`（SS-74、tri-star/sanposcape-infra#47）
-- Plane: SS-155（LP サイトの制作）、SS-74（infra: LP の配信面）、SS-158（プライバシーポリシー）
+- Plane: SS-155（LP サイトの制作）、SS-74（infra: LP の配信面）、SS-158（プライバシーポリシー）、
+  SS-109（アカウント削除時の写真削除 = ADR-009 BK-2）、SS-159（App Store Connect の App Privacy の申告）

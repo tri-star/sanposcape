@@ -67,6 +67,8 @@ curl -sI "$SITE/"                       # 200。セキュリティヘッダー�
 curl -sI "$SITE/no-such-page/"          # 404（中身は 404.html）
 curl -sI "$SITE/index.html"             # Cache-Control: public, max-age=0, s-maxage=86400
 curl -sI "$SITE/_astro/<任意のファイル>"  # Cache-Control: public, max-age=31536000, immutable
+curl -sI "$SITE/privacy/"               # 200（アプリ内リンクと App Store Connect に登録する恒久 URL）
+curl -sI "$SITE/privacy"                # 301、Location が末尾 / 付きの /privacy/
 ```
 
 production では追加で次を確認する。

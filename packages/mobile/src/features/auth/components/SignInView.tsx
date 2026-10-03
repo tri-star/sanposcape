@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 
+import { PrivacyPolicyLink } from "@/components/legal/PrivacyPolicyLink";
 import { Button } from "@/components/ui/button/Button";
 import { AuthProviderButton } from "@/features/auth/components/AuthProviderButton";
 import { AuthScreenLayout } from "@/features/auth/components/AuthScreenLayout";
@@ -9,6 +10,7 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
  * サインイン画面。mock `isLogin` をほぼ1:1で再現する。
  * 「Google でログイン」は押下後に散歩開始画面へ遷移する。
  * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-M-009 SS-57 追補参照）。
+ * SS-158 でプライバシーポリシーへのリンクを末尾に追加した（同意文言は付けない）。
  */
 export function SignInView() {
   const router = useRouter();
@@ -47,6 +49,7 @@ export function SignInView() {
       >
         アカウントを作成する
       </Button>
+      <PrivacyPolicyLink testID="sign-in-privacy-policy-link" align="center" />
     </AuthScreenLayout>
   );
 }
