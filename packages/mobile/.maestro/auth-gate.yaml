@@ -13,6 +13,9 @@ tags:
     visible:
       id: "sign-in-google-button"
     timeout: 15000
+# プライバシーポリシーへの導線はサインイン画面にも出る（SS-158）。押さない（下の設定画面と同じ理由）。
+- assertVisible:
+    id: "sign-in-privacy-policy-link"
 # 「ゲストで試す」で保護ルート（ピンタブ。SS-145 の着地点）に入れる。
 - tapOn:
     id: "sign-in-guest-button"
