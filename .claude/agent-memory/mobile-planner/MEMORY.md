@@ -24,3 +24,4 @@
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
 - [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin・SanpoMap／S3 直送の制約／閲覧URLは期限前に失効／GET /sanpo-maps/{id} は無い／PinRead に role は無い（/sanpo-maps から引く）・runPinSave は既存ピンにも使える
 - [mobile ADR の地図](reference-mobile-adr-map.md) — mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式
+- [外部 Web ページへのリンク](project-external-links.md) — useOpenExternalUrl / legalLinks.ts を再利用・expo-web-browser は既存依存（再ビルド不要）・法的 URL は本番固定・LP の URL は恒久・E2E で押さない（ADR-M-019）
