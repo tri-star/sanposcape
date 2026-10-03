@@ -7,27 +7,28 @@
 ### 決定
 
 - 散歩中の記録は `startLocationUpdatesAsync` + `TaskManager.defineTask`。`watchPosition` は開始できなかったときの fallback だけ（本文: 決定1）
-- 権限は「使用中のみ」。`requestBackgroundPermissionsAsync` は呼ばず、`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`、Android は FGS（本文: 決定2）
+- **権限は「使用中のみ」**。`requestBackgroundPermissionsAsync` は呼ばず、`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`（実際は expo-task-manager のプラグインが足す `fetch` も含む）、Android は FGS（本文: 決定2、SS-157 追補）
 - タスクのオプション（Highest / 10m・3秒 / Fitness / `pausesUpdatesAutomatically: false` / インジケータ / `killServiceOnDestroy: true`）（本文: 決定3）
 - サンプルはバッファ（`Paths.cache` の JSONL）と hub で受け渡し、時刻カーソルで冪等に統合する（本文: 決定4・決定6）
 - 止めるのは散歩の終了・サインアウト・起動時だけ。停止失敗は「停止未了」として次で止め直す（本文: 決定5）
 - import 規律（本文: 決定7）／フラグで包まない（本文: 決定8）／バッファは復元の仕組みではない（本文: 決定9）
-- （SS-157）iOS の利用目的文言は `app.json` の expo-location プラグインのオプションだけで設定し、3用途と背景での取得・止まる条件を書く（本文: 決定10、SS-157 追補）
-- （SS-157）「常に」系2キーは消さずに使用中と同じ文言、モーションのキーも消さずに「使用しない」旨の文言（本文: 決定11・決定12、SS-157 追補）
-- （SS-157）利用目的文言は日本語のみ（本文: 決定13、SS-157 追補）
-- （SS-157）Android の FGS 通知文言を確定。通知チャンネルの名前・説明は expo-location の既定のまま（本文: 決定14、SS-157 追補）
+- **iOS の利用目的文言は `app.json` の expo-location プラグインのオプションだけで設定する**。3用途と、背景での取得・止まる条件を書く（本文: 決定10、SS-157 追補）
+- **「常に」系2キーは消さずに使用中と同じ文言、モーションのキーも消さずに「使用しない」旨の文言にする**。どちらも `false` でキーを消すと ITMS-90683 のおそれがある（本文: 決定11・決定12、SS-157 追補）
+- **利用目的文言は日本語のみ**（`locales` は使わない）。英語化はアプリ全体の i18n と同時に行う（本文: 決定13、SS-157 追補）
+- **Android の FGS 通知文言を確定する**。通知チャンネルの名前・説明は expo-location の既定のまま（本文: 決定14、SS-157 追補）
+- **Info.plist の文言はネイティブ設定なので OTA では届かない**。iOS の development build / 配布ビルドの作り直しが必要（本文: 移行・対応が必要な事項、SS-157 追補）
 
 ### 未解決・持ち越し
 
 - SS-36（起動時の停止 → 復元）
-- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認）
+- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認、審査メモで background modes に `fetch` が含まれる理由の説明、`showsBackgroundLocationIndicator` と設定アプリの「常に」の関係の iPhone 実機確認）（SS-157 追補）
 - 散歩の終了忘れの自動停止（未起票）
 - `version` を上げる前に 0.1.0 のバイナリへ `eas update` を出さない
 - expo-location に expo/expo#49409 が入ったら、モーションを `false` + CoreMotion 除外に切り替えるか検討する（SS-157 追補）
 
 ### 変更・撤回された決定
 
-- 本文の決定3にある `showsBackgroundLocationIndicator: true`「iOS で記録中であることを status bar に示す」は、使用中のみ権限では OS が常に表示するため、効くのはユーザーが設定アプリで「常に」を選んだ場合だけ（SS-157 追補）
+- 本文の決定3にある `showsBackgroundLocationIndicator: true`「iOS で記録中であることを status bar に示す」は、使用中のみ権限では OS が常に表示するため、このプロパティ自体が効く条件は未検証（iPhone 実機で確認する。SS-161）（SS-157 追補）
 
 ## 日付
 
@@ -58,13 +59,13 @@
 ## 決定
 
 1. 散歩中の位置記録は `Location.startLocationUpdatesAsync` + `TaskManager.defineTask`（`index.ts` からトップレベルで評価）で行う。`watchPosition` は背景記録を開始できなかったときの fallback だけに使う。
-2. 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`、Android はフォアグラウンドサービス（type location）で継続する（`app.json` の `expo-location` プラグイン。契約テスト `locationPluginConfig.test.ts` で固定。SS-157 で文言も追加）。
+2. 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`、Android はフォアグラウンドサービス（type location）で継続する（`app.json` の `expo-location` プラグイン。契約テスト `locationPluginConfig.test.ts` で固定。SS-157 で文言も追加）。（SS-157 追補: 実際の `UIBackgroundModes` は expo-task-manager のプラグインが足す `fetch` を含む `["fetch","location"]`。SS-157 の introspect で確認した。SS-156 から存在し、今回の変更とは無関係）
 3. タスクのオプションと理由（`location.real.ts` の `BACKGROUND_TRACKING_OPTIONS`）:
    - `distanceInterval: 10` / `timeInterval: 3000`: 従来の `watchPosition` と同じ密度（点数の性質を変えないため、backend の契約・上限に影響しない）。
    - `accuracy: Highest`: 従来の `High` より高い。iOS は `kCLLocationAccuracyBest`（`High` は 10m 精度）、Android は `High` と同じ `PRIORITY_HIGH_ACCURACY`。徒歩の軌跡の滑らかさを優先した。電池が問題になったら `High` に下げる。
    - `activityType: Fitness`: iOS の省電力・停止判定を歩行向けにする。
    - `pausesUpdatesAutomatically: false`: ネイティブ既定が true で、止まると軌跡が欠けるため明示する。
-   - `showsBackgroundLocationIndicator: true`: iOS で記録中であることを status bar に示す（SS-157 追補: 使用中のみ権限では、このプロパティに関係なく OS が背景での利用中にインジケータを出す。true が効くのはユーザーが設定アプリで「常に」を選んだときだけ）。
+   - `showsBackgroundLocationIndicator: true`: iOS で記録中であることを status bar に示す（SS-157 追補: 使用中のみ権限では、このプロパティに関係なく OS が背景での利用中にインジケータを出す。true が効く条件は未検証。設定アプリの「常に」を選んだときだけかもしれないが、断定しない。iPhone 実機で確認する（SS-161））。
    - `foregroundService.killServiceOnDestroy: true`: 最近使ったアプリから消したら止める。進行中の散歩は永続化していないので、続けても誰も取り込めず「アプリを閉じたのに位置を取り続ける」ことになる。
 4. サンプルの受け渡し: タスクがバッファ（`Paths.cache/walk-location-samples.jsonl`。JSONL 追記）に書き、同じプロセスのリスナーへも配る（`backgroundSampleHub`）。画面は測位時刻のカーソルで統合し（`walkTrackMerge`）、何度同じ点を受け取っても結果は変わらない。フォアグラウンド復帰時と再マウント時にバッファを読み直す。
    - 時刻カーソルは**端末時計が単調に進む**前提。時計が後退すると、後退後の点は（カーソルより古いので）捨てられる。同一ミリ秒の点も重複として捨てる。
@@ -78,14 +79,13 @@
 7. import 規律: `expo-task-manager` は `backgroundLocationTask.ts` だけが、位置サンプルのバッファ用途の `expo-file-system` は `sampleBufferStorage.file.ts` だけが import する。`expo-location` は引き続き `location.real.ts` だけ。
 8. フィーチャーフラグで包まない。[release-runbook](../../../docs/release-runbook.md) の「不具合修正（元の仕様に戻すもの）」に当たる。ネイティブ設定（background mode / FGS 権限）はフラグで切り替えられない。また `/app-config` の取得失敗時はフラグが全て OFF になるため、包むと不具合が戻る。開始できない環境向けの安全弁は fallback が担う。
 9. バッファは**復元の仕組みではない**。アプリの再起動を越えて散歩を引き継ぐのは SS-36 の範囲で、起動時にバッファを消す。
-
 10. （SS-157 追補）利用目的文言の置き場と内容
     - `app.json` の expo-location プラグインのオプションだけで設定する。`ios.infoPlist` に直書きしない（`applyPermissions` は「オプション → 直書き → 既定値」の順なので二重管理になる）。
     - 内容: 3用途（散歩先の探索・ピンの場所選び・散歩ルートの記録）と、記録中は画面のロック中や他のアプリの使用中も取得し、散歩を終了すると止まること。
     - `$(PRODUCT_NAME)`・アプリ名・半角の `"` `\` を使わない。「アプリを閉じても」とは書かない（実際は止まる）。用途を増やしたら文言も直す。
 11. （SS-157 追補）「常に」系のキー（`NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription`）は消さず、使用中と同じ文言にする
-    - 未指定だとプラグインの既定値（`Allow $(PRODUCT_NAME) to access your location`）が入る。`false` で消せるが、背景で `startUpdatingLocation` を使うアプリでこのキーの欠落による ITMS-90683 の報告がある（Apple Developer Forums 721395）。発覚が提出時になるため、消さない。
-    - 「常に」を求めないことは決定2（`requestBackgroundPermissionsAsync` を呼ばない）で担保する。キーがあると、呼べば「常に」のダイアログが出る状態にはなる。また、ユーザーは設定アプリで自分で「常に」を選べるようになる（アプリの挙動は変わらない。記録は散歩中だけ）。
+    - 未指定だとプラグインの既定値（`Allow $(PRODUCT_NAME) to access your location`）が入る。`false` で消せるが、このキーの欠落による ITMS-90683 の報告がある（Apple Developer Forums 721395。提出が止まった例と警告だけで済んだ例の両方がある）。発覚が提出時になり、ビルドのやり直しになるため、消さない。
+    - 「常に」を求めないことは決定2（`requestBackgroundPermissionsAsync` を呼ばない）で担保する。キーがあると、呼べば「常に」のダイアログが出る状態にはなる。設定アプリに「常に」が出る条件（「常に」を一度要求した後だけか、キーがあれば出るか）は未検証。iPhone 実機で確認する（SS-161）。なお、キーは元からプラグインの既定文言で入っていた。今回は文言を直しただけで、キーの有無は変わらない。
 12. （SS-157 追補）`NSMotionUsageDescription` は消さず、「使用しない」旨の文言にする
     - expo-location 57 は CoreMotion（`CMMotionActivityManager`）を常にリンクする。`motionUsagePermission: false` でキーを消すと ITMS-90683 で拒否される（expo/expo#49319）。修正（expo/expo#49409。Podfile のフラグで CoreMotion を除外）は 57.0.20 に入っていない。入った版に上げたら `false` への切り替えを検討する。
 13. （SS-157 追補）利用目的文言は日本語のみ（`locales` は使わない）
@@ -142,7 +142,7 @@
 - SS-36: 起動時の停止を「復元」へ差し替える。一時停止の状態の永続化。
 - ~~SS-157: 通知文言（`BACKGROUND_TRACKING_NOTIFICATION`）、Info.plist の文言、Android の通知チャンネル。~~ → SS-157 で決着（決定10〜14）
 - development build / 配布ビルドの作り直し（Info.plist の文言はネイティブ設定のため OTA では届かない）（SS-157 追補）。
-- SS-161: App Review / Play の FGS 申告。
+- SS-161: App Review / Play の FGS 申告。TestFlight での ITMS-90683 の最終確認（SS-157 追補）。
 - 散歩の終了忘れへの自動停止（未起票。必要なら起票）。
 
 ## 関連情報

@@ -14,8 +14,8 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
     **expo-crypto（`x-amz-content-sha256` の計算）** / **expo-task-manager（散歩中の背景位置記録。SS-156）** を使うため
     **Expo Go は不可**（development build 必須）。
     **SS-10（認証まわりのネイティブ依存を追加）、SS-15（expo-location の追加・Maps キー注入）
-    SS-70（expo-crypto の追加）および SS-156（expo-task-manager の追加・expo-location プラグイン設定の変更）
-    適用後は development build の作り直しが必要**
+    SS-70（expo-crypto の追加）、SS-156（expo-task-manager の追加・expo-location プラグイン設定の変更）
+    および SS-157（iOS のみ。位置情報の利用目的文言＝Info.plist の変更）適用後は development build の作り直しが必要**
     （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
 ---
@@ -244,7 +244,7 @@ mock モードでは背面の記録を再現できない。Android は Google Pl
 1. 散歩開始 → Home → Extended Controls › Location › Routes で GPX を再生（または `adb emu geo fix <lng> <lat>` を数回）
    → 1〜2分後にアプリへ戻る。戻った時点で背面の区間が地図に描かれ、距離が増えている（A→B の一直線にならない）。
 2. 同様に、Home の代わりに電源ボタンで画面ロック。
-3. 散歩中に通知ドロワーと「実行中のアプリ」を見る。記録中の通知（暫定文言・単色アイコン）が出る。
+3. 散歩中に通知ドロワーと「実行中のアプリ」を見る。記録中の通知（確定文言「散歩を記録しています」・単色アイコン。文言は `BACKGROUND_TRACKING_NOTIFICATION`、ADR-M-018 決定14）が出る。
 4. 散歩を終了 → 通知が消える。`adb shell dumpsys activity services com.sanposcape.app.dev` に `LocationTaskService` が無い。
 5. 散歩中に戻るキーでアプリを閉じ、位置を動かしてからランチャーで開き直す → 散歩が続き、閉じている間の区間もつながっている。
 6. 散歩中に最近使ったアプリからスワイプで消す → 通知が消える。開き直しても記録は再開しない。
@@ -255,6 +255,9 @@ mock モードでは背面の記録を再現できない。Android は Google Pl
 iOS シミュレータは使えないので実機で確認する。実際に屋外を歩き、Home・画面ロック（10〜15分）・別アプリへの切り替えのそれぞれで
 軌跡が途切れないこと、status bar に位置情報のインジケータが出ること、散歩の終了でインジケータが消えること、
 権限が「使用中のみ」のままで「常に」を求められないことを確認する。
+権限ダイアログ（位置情報・モーション）の文言が日本語の確定文言（ADR-M-018 決定10〜12）で表示されることも確認する。
+インジケータは、使用中のみ権限なら `showsBackgroundLocationIndicator` に関係なく OS が常に出す。
+設定アプリの「常に」の出方と `showsBackgroundLocationIndicator` の関係は未検証なので、あわせて確認する（SS-161）。
 
 ---
 
