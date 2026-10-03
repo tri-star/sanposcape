@@ -32,8 +32,10 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 - **SS-156（散歩中のバックグラウンド位置記録）の適用後は、`expo-task-manager` の追加と
   `expo-location` プラグインの設定変更（iOS background mode・Android フォアグラウンドサービス）が
   入るため development build の作り直しが必要**（Fast Refresh では反映されない）。
-- **SS-157（位置情報の利用目的文言）の適用後は、iOS のみ Info.plist の文言が変わるため
-  development build の作り直しが必要**（Fast Refresh・OTA では反映されない。Android は FGS 通知文言が JS 側のみの変更）。
+- **SS-157（位置情報の利用目的文言・FGS 通知の表示）の適用後は、iOS・Android とも
+  development build の作り直しが必要**（Fast Refresh・OTA では反映されない）。iOS は Info.plist の文言が変わる。
+  Android は `POST_NOTIFICATIONS` がマニフェストに加わる（これが無いと Android 13 以降は FGS の通知が通知シェードに出ない）。
+  FGS 通知の文言そのもの（`BACKGROUND_TRACKING_NOTIFICATION`）は JS 側の変更。
 
 ## セットアップ
 

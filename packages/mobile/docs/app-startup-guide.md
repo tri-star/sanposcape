@@ -15,7 +15,7 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
     **Expo Go は不可**（development build 必須）。
     **SS-10（認証まわりのネイティブ依存を追加）、SS-15（expo-location の追加・Maps キー注入）
     SS-70（expo-crypto の追加）、SS-156（expo-task-manager の追加・expo-location プラグイン設定の変更）
-    および SS-157（iOS のみ。位置情報の利用目的文言＝Info.plist の変更）適用後は development build の作り直しが必要**
+    および SS-157（iOS: 位置情報の利用目的文言＝Info.plist の変更。Android: `POST_NOTIFICATIONS` の宣言＝マニフェストの変更）適用後は development build の作り直しが必要**
     （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
 ---
@@ -228,7 +228,7 @@ adb install -r /tmp/sanposcape-dev.apk    # Success と出ればOK
 以下を変更したときは APK を作り直して入れ直す（A-1 → A-2）。それ以外（JSのみ）は不要:
 
 - ネイティブ依存（npm の native モジュール）の追加/削除（例: SS-156 の `expo-task-manager`）
-- `app.json` / `app.config.ts` のネイティブ設定・config plugin の変更（Maps SDK キーの注入も含む）
+- `app.json` / `app.config.ts` のネイティブ設定・config plugin の変更（Maps SDK キーの注入、`android.permissions`＝マニフェストの権限宣言も含む。例: SS-157 の `POST_NOTIFICATIONS`）
 - Expo SDK / ネイティブ関連バージョンの更新
 
 ---
@@ -245,6 +245,12 @@ mock モードでは背面の記録を再現できない。Android は Google Pl
    → 1〜2分後にアプリへ戻る。戻った時点で背面の区間が地図に描かれ、距離が増えている（A→B の一直線にならない）。
 2. 同様に、Home の代わりに電源ボタンで画面ロック。
 3. 散歩中に通知ドロワーと「実行中のアプリ」を見る。記録中の通知（確定文言「散歩を記録しています」・単色アイコン。文言は `BACKGROUND_TRACKING_NOTIFICATION`、ADR-M-018 決定14）が出る。
+   - **API 33 以上は、散歩の開始直後に「通知の送信を許可」のダイアログが出る**（SS-157。ADR-M-018 決定15）。「許可」にすると通知が通知シェードに出る。
+     「許可しない」でも記録は始まるが、通知シェードには出ず「実行中のアプリ」にだけ出る。
+   - ダイアログは1回の起動につき最大1回で、散歩の再開始・前面への復帰では出し直さない。
+   - 確認用の操作: 許可状態の確認は `adb shell dumpsys package com.sanposcape.app.dev | grep POST_NOTIFICATIONS`（宣言されていて granted になる）。
+     やり直すときは `adb shell pm revoke com.sanposcape.app.dev android.permission.POST_NOTIFICATIONS` で取り消し、アプリを再起動してから散歩を開始する。
+     通知が出ないときは `adb shell appops get com.sanposcape.app.dev POST_NOTIFICATION` が `ignore` になっていないかも見る。
 4. 散歩を終了 → 通知が消える。`adb shell dumpsys activity services com.sanposcape.app.dev` に `LocationTaskService` が無い。
 5. 散歩中に戻るキーでアプリを閉じ、位置を動かしてからランチャーで開き直す → 散歩が続き、閉じている間の区間もつながっている。
 6. 散歩中に最近使ったアプリからスワイプで消す → 通知が消える。開き直しても記録は再開しない。

@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-03（SS-157）。本節は本文（追補を含む）を要約したもので、一次記録は本文。本文と食い違う場合は本節の誤りとして本節を直す。
+> 最終更新: 2026-10-03（SS-157。決定15 を追加）。本節は本文（追補を含む）を要約したもので、一次記録は本文。本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
@@ -16,7 +16,8 @@
 - **「常に」系2キーは消さずに使用中と同じ文言、モーションのキーも消さずに「使用しない」旨の文言にする**。どちらも `false` でキーを消すと ITMS-90683 のおそれがある（本文: 決定11・決定12、SS-157 追補）
 - **利用目的文言は日本語のみ**（`locales` は使わない）。英語化はアプリ全体の i18n と同時に行う（本文: 決定13、SS-157 追補）
 - **Android の FGS 通知文言を確定する**。通知チャンネルの名前・説明は expo-location の既定のまま（本文: 決定14、SS-157 追補）
-- **Info.plist の文言はネイティブ設定なので OTA では届かない**。iOS の development build / 配布ビルドの作り直しが必要（本文: 移行・対応が必要な事項、SS-157 追補）
+- **Android 13 以上では `POST_NOTIFICATIONS` を宣言し、新しい散歩の背景記録の開始前に実行時の許可を求める**。無いと FGS の通知が通知シェードに出ない（サービスは動く）。拒否・失敗でも記録は始める。求めるのは `location.real.ts` の `startBackgroundTracking` の中（LocationService の interface は変えない）で、1サービスにつき最大1回。`PermissionsAndroid` を使い依存は足さない。iOS では何もしない（本文: 決定15、SS-157 追補）
+- **Info.plist の文言と `POST_NOTIFICATIONS` の宣言はネイティブ設定なので OTA では届かない**。iOS・Android とも development build / 配布ビルドの作り直しが必要（本文: 移行・対応が必要な事項、SS-157 追補）
 
 ### 未解決・持ち越し
 
@@ -25,6 +26,7 @@
 - App Privacy・プライバシーポリシーでの位置情報のサーバー保存の申告（SS-161。SS-157 追補）
 - 停止失敗時に背景タスクが残る経路の回収（未起票。SS-157 追補）
 - Android の `RECORD_AUDIO` 等の不要な権限の除去（未起票。SS-157 追補）
+- 通知の許可を拒否された利用者への案内（設定アプリへの誘導など）は作らない。必要になったら起票する（SS-157 追補）
 - 散歩の終了忘れの自動停止（未起票）
 - `version` を上げる前に 0.1.0 のバイナリへ `eas update` を出さない
 - expo-location に expo/expo#49409 が入ったら、モーションを `false` + CoreMotion 除外に切り替えるか検討する（SS-157 追補）
@@ -35,11 +37,11 @@
 
 ## 日付
 
-2026-10-02（初版）、2026-10-03 追補（SS-157）
+2026-10-02（初版）、2026-10-03 追補（SS-157。決定10〜15）
 
 ## ステータス
 
-採用（SS-156）。[ADR-M-006](./ADR-M-006-location-service-real-mock.md)（位置情報サービスは real/mock）と [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md)（進行中の散歩は永続化しない）に追補を入れている。SS-157 で利用目的文言・FGS 通知文言を追補。
+採用（SS-156）。[ADR-M-006](./ADR-M-006-location-service-real-mock.md)（位置情報サービスは real/mock）と [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md)（進行中の散歩は永続化しない）に追補を入れている。SS-157 で利用目的文言・FGS 通知文言・通知の実行時許可（決定15）を追補。
 
 ## コンテキスト
 
@@ -97,6 +99,16 @@
 14. （SS-157 追補）Android の FGS 通知の文言を確定。通知チャンネルの名前・説明は変えない
     - 通知: title「散歩を記録しています」、body「散歩のルートを記録するため、位置情報を取得しています。散歩を終了すると止まります。」（`BACKGROUND_TRACKING_NOTIFICATION`）。
     - チャンネルは expo-location の `LocationTaskService` が作る（名前 = アプリ名、説明 = 英語固定 "Background location notification channel"、重要度 LOW）。変えるにはネイティブのパッチか通知ライブラリの追加が要り、説明はシステムの設定画面の奥でしか見えないので、見合わない。
+15. （SS-157 追補）Android 13 以上の通知権限（`POST_NOTIFICATIONS`）を宣言し、背景記録の開始前に実行時の許可を求める
+    - 背景: エミュレータ（API 35）で、FGS（`LocationTaskService`、type location）は起動するのに、決定14の通知が通知シェードに出なかった。アプリが `POST_NOTIFICATIONS` を宣言せず、求めてもいなかったため。Android 13 以降はこの権限が無いと FGS の通知も通知シェードに出ない（「実行中のアプリ」にはアプリ名と経過時間だけが出る）。SS-156 から存在した問題。
+    - 宣言: `app.json` の `android.permissions` に `android.permission.POST_NOTIFICATIONS` を足す。`android.permissions` を指定しても、`expo config --type introspect` の uses-permission は dev / prod とも `POST_NOTIFICATIONS` が増える以外に差が無いことを確認した（既定の権限構成は変わらない）。`ACCESS_BACKGROUND_LOCATION` は入らない（決定2）。契約テスト `locationPluginConfig.test.ts` で固定。
+    - 実行時の許可: `services/location/location.real.ts` の `startBackgroundTracking` の中で、**新しい sessionId の開始時だけ**、`notificationPermission.ts`（`createNotificationPermissionRequester`）が `PermissionsAndroid` で求める。Android 13（API 33）以上・未許可のときだけ。iOS と Android 12 以下では何もしない。
+      - 置き場所を interface の外（real の内側）にした理由: ADR-M-006 は権限の要求を画面側の hook に置くが、それは権限が無いと画面の表示が変わる位置情報の権限のため。通知権限は FGS の実装の都合（Android 固有・real のみ・UI 状態を持たない）で、拒否されても記録は続ける。interface に足すと mock にも空実装が要り、呼び忘れが起きうる。開始の1箇所に閉じれば、呼び出し側（`useWalkTracking`）は変わらない。`react-native` を import するのは `location.real.ts` だけ（`expo-location` と同じ services 層の内側）。
+      - 前面にいる間に求める（FGS の開始も前面が前提のため、同じ前提に揃う）。
+      - 拒否・例外でも `throw` せず、背景記録は従来どおり始める（診断ログだけ残す）。`requestBackgroundPermissionsAsync` は引き続き呼ばない。
+      - ダイアログを出し直さない: 1つの LocationService（= アプリ起動ごとに1つ）につき最大1回（拒否の結果も覚える）。fallback からの再試行（開始失敗でセッションが巻き戻ったあとの再開始も含む）、画面の再マウント、同じ起動中の次の散歩では出さない。アプリを起動し直すと、未許可なら次の散歩の開始時にもう一度求める（OS が「今後表示しない」に達していれば、OS 側がダイアログを出さずに拒否を返す）。
+    - 拒否された利用者への案内（設定アプリへの誘導）は作らない。記録は続き、「実行中のアプリ」には出るため。
+    - 検討して採らなかった案: `expo-notifications` の追加（依存とネイティブ設定が増える。要るのは権限の要求だけ）。LocationService に `requestNotificationPermission()` を足して hook から呼ぶ（上記の理由）。
 
 ## 検討した選択肢
 
@@ -129,7 +141,7 @@
 
 ### ネガティブな影響・トレードオフ
 
-- 散歩中は Android に常に通知が出る（前面にいても）。
+- 散歩中は Android に常に通知が出る（前面にいても）。ただし Android 13 以上で通知の許可を拒否すると、通知シェードには出ない（記録は続き、「実行中のアプリ」には出る。決定15）。
 - iOS は位置情報のインジケータが出る。
 - バッテリー消費は従来より増える（背面でも GPS を使う）。
 - 点数が backend の上限（10,000 点）を超える長時間散歩は、この変更では扱わない（上限の判断は保存側）。バッファは毎回全件を読むので、長時間散歩の性能は実機で確認する。
@@ -145,6 +157,8 @@
 - SS-36: 起動時の停止を「復元」へ差し替える。一時停止の状態の永続化。
 - ~~SS-157: 通知文言（`BACKGROUND_TRACKING_NOTIFICATION`）、Info.plist の文言、Android の通知チャンネル。~~ → SS-157 で決着（決定10〜14）
 - development build / 配布ビルドの作り直し（Info.plist の文言はネイティブ設定のため OTA では届かない）（SS-157 追補）。
+- Android も development build / 配布ビルドの作り直しが必要（`POST_NOTIFICATIONS` がマニフェストに加わる。ネイティブ設定のため OTA では届かない。決定15）。SS-157 の再ビルドは iOS のみではない（SS-157 追補）。
+- Android の確認手順: API 33 以上で散歩を開始すると通知の許可ダイアログが出て、許可すると通知シェードに決定14の通知が出る。拒否しても記録は続く（[app-startup-guide](../docs/app-startup-guide.md) の背景記録の確認手順）（SS-157 追補）。
 - SS-161: App Review / Play の FGS 申告。TestFlight での ITMS-90683 の最終確認（SS-157 追補）。
 - SS-161: 位置情報をサーバーに保存・送信する点は利用目的文言ではなく、App Privacy（Precise Location を「収集・ユーザーに紐付け」）とプライバシーポリシーで申告する（SS-157 追補。文言には書かない判断）。
 - 停止が再試行後も失敗すると、次の開始・起動まで背景タスクが動き続けうる（決定5）。利用目的文言の「散歩を終了すると止める」が崩れる経路なので、アプリ復帰時・サインアウト時の止め直しを検討する（未起票。SS-157 のレビューで判明）。
@@ -156,6 +170,7 @@
 - [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)（SS-156 追補）
 - [ADR-M-008: 進行中の散歩の状態管理](./ADR-M-008-active-walk-state-and-route-cache.md)（決定5・決定6 の SS-156 追補）
 - [ADR-M-003: development build 前提の開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
+- [Android: Notification runtime permission](https://developer.android.com/develop/ui/views/notifications/notification-permission)（Android 13 以降。フォアグラウンドサービスの通知も対象）
 - [ADR-M-015: アプリアイコン](./ADR-M-015-app-icon-assets.md)（通知アイコンに使う単色レイヤー）
 - 元チケット: SS-156（追補: SS-157）/ 関連: SS-17・SS-36・SS-161
 - [expo/expo#49319](https://github.com/expo/expo/issues/49319): `motionUsagePermission: false` で ITMS-90683 になる報告

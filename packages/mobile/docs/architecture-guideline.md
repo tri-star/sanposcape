@@ -89,6 +89,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   - hook のアンマウントでは記録を止めない（`detach` だけ）。止めるのは散歩の終了・サインアウト・アプリ起動時の3箇所。
   - `expo-task-manager` を import してよいのは `src/services/location/backgroundLocationTask.ts` のみ（`defineTask` は `index.ts` から `expo-router/entry` より前に評価する）。
   - 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。
+  - Android 13 以上の通知権限（`POST_NOTIFICATIONS`。FGS の通知を通知シェードに出すため）は `app.json` で宣言し、
+    `location.real.ts` の `startBackgroundTracking` の中（`notificationPermission.ts`）で1起動につき最大1回求める。
+    拒否されても記録は始める。LocationService の interface には出さない（SS-157 / ADR-M-018 決定15）。
   - 呼び出し側は `features/walk/hooks/useWalkTracking.ts` に加えて、起動時・サインアウト時の停止を行う
     `src/lib/backgroundLocationCleanup.ts` がある（`src/lib` が services のバレルを import する**唯一の例外**。
     起動時に必ず評価される副作用モジュールで、単体テストからは import しない）。
