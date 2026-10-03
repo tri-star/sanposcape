@@ -89,10 +89,16 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   - hook のアンマウントでは記録を止めない（`detach` だけ）。止めるのは散歩の終了・サインアウト・アプリ起動時の3箇所。
   - `expo-task-manager` を import してよいのは `src/services/location/backgroundLocationTask.ts` のみ（`defineTask` は `index.ts` から `expo-router/entry` より前に評価する）。
   - 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。
+  - Android 13 以上の通知権限（`POST_NOTIFICATIONS`。FGS の通知を通知シェードに出すため）は `app.json` で宣言し、
+    `location.real.ts` の `startBackgroundTracking` の中（`notificationPermission.ts`）で1起動につき最大1回求める。
+    拒否されても記録は始める。LocationService の interface には出さない（SS-157 / ADR-M-018 決定15）。
   - 呼び出し側は `features/walk/hooks/useWalkTracking.ts` に加えて、起動時・サインアウト時の停止を行う
     `src/lib/backgroundLocationCleanup.ts` がある（`src/lib` が services のバレルを import する**唯一の例外**。
     起動時に必ず評価される副作用モジュールで、単体テストからは import しない）。
   - 開始に失敗して前面だけの記録（fallback）になった散歩は、アプリが前面に戻るたびに背景記録の開始を再試行する。
+  - 権限の利用目的文言（iOS の Info.plist）は `app.json` の `expo-location` プラグインのオプションだけで設定する。
+    「常に」系とモーションのキーも `false` で消さずに具体的な文言を入れる（消すと App Store への提出が ITMS-90683 で止まるおそれ）。
+    文言は日本語のみ。用途を増やしたら文言も直す（SS-157 / ADR-M-018 決定10〜13。契約テスト `src/config/locationPluginConfig.test.ts`）。
 
 ## 写真の扱い
 

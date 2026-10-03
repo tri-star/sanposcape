@@ -45,4 +45,4 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-015](./adr/ADR-M-015-app-icon-assets.md) | 採用PNGとAndroid Adaptive Iconレイヤー、アイコンの再生成とネイティブビルドへの反映 |
 | [ADR-M-016](./adr/ADR-M-016-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |
 | [ADR-M-017](./adr/ADR-M-017-pin-edit-and-delete.md) | ピンの編集・削除（編集画面の構成・保存の順序と冪等性・権限による出し分け・削除後のキャッシュ） |
-| [ADR-M-018](./adr/ADR-M-018-background-walk-location-tracking.md) | 散歩中の位置記録はバックグラウンドのロケーションタスクで行う（使用中のみ権限・iOS background mode・Android フォアグラウンドサービス・端末バッファと統合） |
+| [ADR-M-018](./adr/ADR-M-018-background-walk-location-tracking.md) | 散歩中の位置記録はバックグラウンドのロケーションタスクで行う（使用中のみ権限・iOS background mode・Android フォアグラウンドサービス・端末バッファと統合）。権限の利用目的文言と FGS 通知の文言（SS-157 追補） |

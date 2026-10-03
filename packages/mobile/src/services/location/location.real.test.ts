@@ -7,6 +7,22 @@ const locationMocks = vi.hoisted(() => ({
   hasStarted: vi.fn<(taskName: string) => Promise<boolean>>(),
 }));
 
+// 通知権限の要求（Android 13 以上）。既定は iOS 扱い（ダイアログを出さない）。
+const rnMocks = vi.hoisted(() => ({
+  platform: { OS: "ios", Version: "17.0" as number | string },
+  check: vi.fn<(permission: string) => Promise<boolean>>(),
+  request: vi.fn<(permission: string) => Promise<string>>(),
+}));
+
+vi.mock("react-native", () => ({
+  Platform: rnMocks.platform,
+  PermissionsAndroid: {
+    PERMISSIONS: { POST_NOTIFICATIONS: "android.permission.POST_NOTIFICATIONS" },
+    check: rnMocks.check,
+    request: rnMocks.request,
+  },
+}));
+
 vi.mock("expo-location", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   startLocationUpdatesAsync: locationMocks.start,
@@ -38,6 +54,10 @@ beforeEach(() => {
   locationMocks.start.mockReset().mockResolvedValue(undefined);
   locationMocks.stop.mockReset().mockResolvedValue(undefined);
   locationMocks.hasStarted.mockReset().mockResolvedValue(false);
+  rnMocks.platform.OS = "ios";
+  rnMocks.platform.Version = "17.0";
+  rnMocks.check.mockReset().mockResolvedValue(false);
+  rnMocks.request.mockReset().mockResolvedValue("granted");
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -207,5 +227,106 @@ describe("createRealLocationService: stopBackgroundTracking", () => {
     hub.handleTaskData(taskData(1), null);
     expect(listener).not.toHaveBeenCalled();
     expect(hub.readSamples()).toEqual([]);
+  });
+});
+
+describe("createRealLocationService: 通知権限（Android 13 以上。ADR-M-018 決定15）", () => {
+  function useAndroid(version: number) {
+    rnMocks.platform.OS = "android";
+    rnMocks.platform.Version = version;
+  }
+
+  it("Android 13 以上では、新しい散歩の開始前に通知権限を求め、その後にタスクを開始する", async () => {
+    useAndroid(34);
+    const order: string[] = [];
+    rnMocks.request.mockImplementation(async () => {
+      order.push("request");
+      return "granted";
+    });
+    locationMocks.start.mockImplementation(async () => {
+      order.push("start");
+    });
+
+    await createRealLocationService().startBackgroundTracking({
+      sessionId: "w1",
+      listener: vi.fn(),
+    });
+    expect(rnMocks.request).toHaveBeenCalledWith("android.permission.POST_NOTIFICATIONS");
+    expect(order).toEqual(["request", "start"]);
+  });
+
+  it("拒否されても背景記録は開始する", async () => {
+    useAndroid(34);
+    rnMocks.request.mockResolvedValue("never_ask_again");
+    const sub = await createRealLocationService().startBackgroundTracking({
+      sessionId: "w1",
+      listener: vi.fn(),
+    });
+    expect(locationMocks.start).toHaveBeenCalledTimes(1);
+    expect(hub.activeSessionId).toBe("w1");
+    expect(sub.readRecordedSamples()).toEqual([]);
+  });
+
+  it("要求が例外を投げても背景記録は開始する", async () => {
+    useAndroid(34);
+    rnMocks.request.mockRejectedValue(new Error("no activity"));
+    await createRealLocationService().startBackgroundTracking({
+      sessionId: "w1",
+      listener: vi.fn(),
+    });
+    expect(locationMocks.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("開始に失敗して再試行しても、ダイアログは出し直さない（fallback 経路）", async () => {
+    useAndroid(34);
+    rnMocks.request.mockResolvedValue("denied");
+    const service = createRealLocationService();
+    locationMocks.start.mockRejectedValueOnce(new Error("background start refused"));
+    await expect(
+      service.startBackgroundTracking({ sessionId: "w1", listener: vi.fn() }),
+    ).rejects.toMatchObject({ name: "LocationError" });
+    // 失敗でセッションは巻き戻るので、再試行は「新しい散歩」と同じ経路を通る。
+    await service.startBackgroundTracking({ sessionId: "w1", listener: vi.fn() });
+    expect(rnMocks.request).toHaveBeenCalledTimes(1);
+    expect(locationMocks.start).toHaveBeenCalledTimes(2);
+  });
+
+  it("画面の再マウント（同じ sessionId）や次の散歩でも、ダイアログは出し直さない", async () => {
+    useAndroid(34);
+    rnMocks.request.mockResolvedValue("denied");
+    const service = createRealLocationService();
+    await service.startBackgroundTracking({ sessionId: "w1", listener: vi.fn() });
+    locationMocks.hasStarted.mockResolvedValue(true);
+    await service.startBackgroundTracking({ sessionId: "w1", listener: vi.fn() });
+    await service.startBackgroundTracking({ sessionId: "w2", listener: vi.fn() });
+    expect(rnMocks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("すでに許可されていれば求めない", async () => {
+    useAndroid(34);
+    rnMocks.check.mockResolvedValue(true);
+    await createRealLocationService().startBackgroundTracking({
+      sessionId: "w1",
+      listener: vi.fn(),
+    });
+    expect(rnMocks.request).not.toHaveBeenCalled();
+  });
+
+  it("Android 12 以下では求めない", async () => {
+    useAndroid(32);
+    await createRealLocationService().startBackgroundTracking({
+      sessionId: "w1",
+      listener: vi.fn(),
+    });
+    expect(rnMocks.request).not.toHaveBeenCalled();
+  });
+
+  it("iOS では求めない", async () => {
+    await createRealLocationService().startBackgroundTracking({
+      sessionId: "w1",
+      listener: vi.fn(),
+    });
+    expect(rnMocks.check).not.toHaveBeenCalled();
+    expect(rnMocks.request).not.toHaveBeenCalled();
   });
 });
