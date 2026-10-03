@@ -200,9 +200,10 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 1. `sam_deploy.tf`: `lambda:GetLayerVersion` を、`arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:*` に限って許可する（dev・prod）。
 2. `sam_deploy.tf`: `ReadAttachedManagedPolicies` に `AWSXrayWriteOnlyAccess`（`Tracing: Active` で SAM が自動でアタッチする）と `CloudWatchLambdaApplicationSignalsExecutionRolePolicy`（決定2）を足す（dev・prod）。
 3. `lambda_boundary.tf`: `xray:GetSamplingRules` / `GetSamplingTargets`（使う場合）と、`/aws/application-signals/data:*` への `logs:CreateLogStream` / `PutLogEvents` を足す（dev・prod）。後者が実行ロールに本当に要るか（X-Ray がリソースポリシー経由で書いている可能性がある）は、dev で確かめて、要らなければ削る。
-4. 新しい `observability.tf`（prod のみ）: X-Ray から `aws/spans` と `/aws/application-signals/data` への書き込みを許すリソースポリシー、トレースセグメントの送信先（`CloudWatchLogs`）、インデックス化ルール（100%）、2 つのロググループ（保持 90 日）、Application Signals のサービスリンクロール。次の 2 点は、適用前に infra 側で確認する。
-   - ロググループを先に作ってから送信先を切り替える順序で、衝突しないか
-   - サービスリンクロールを `aws_iam_service_linked_role` で作れるか
+4. 新しい `observability.tf`（prod のみ）: X-Ray から `aws/spans` と `/aws/application-signals/data` への書き込みを許すリソースポリシー、トレースセグメントの送信先（`CloudWatchLogs`）、インデックス化ルール（100%）、2 つのロググループ（保持 90 日）、Application Signals のサービスリンクロール。
+   - `aws/spans` は `aws/` で始まる予約名のため、`CreateLogGroup` で先に作れない。送信先の切り替え後に X-Ray が作ったものを、次の apply で import して保持 90 日を掛ける（それまでは保持期限なし）。`/aws/application-signals/data` は先に作れる。
+   - Application Signals の有効化（`StartDiscovery`）は、サービスリンクロールのほかに CloudTrail のサービスリンクチャネルも作るが、これに当たる Terraform のリソースは無い。prod の apply 後にチャネルの有無を確認し、無ければ `aws application-signals start-discovery` を 1 回実行する。
+   - 実装は sanposcape-infra の SS-185（tri-star/sanposcape-infra#48）。
 5. dev が他プロジェクトの設定に依存していることを、`live/account/README.md` と ADR-0001 に記録する。
 
 **backend（後続の子課題）**
