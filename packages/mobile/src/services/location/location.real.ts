@@ -31,9 +31,10 @@ const WATCH_DISTANCE_INTERVAL_METERS = 10;
 const WATCH_TIME_INTERVAL_MS = 3000;
 
 /**
- * 散歩の記録中に Android のフォアグラウンドサービスが出す通知（SS-157 で確定。ADR-M-018 SS-157 追補）。
- * 位置情報を取得していることと、止まる条件を書く。通知チャンネルの名前はアプリ名、説明は expo-location が
- * 英語固定で作るため、ここからは変えられない。
+ * 散歩の記録中に Android のフォアグラウンドサービスが出す通知。
+ * 位置情報を取得していることと、止まる条件を書く。
+ * 通知チャンネルの名前はアプリ名、説明は expo-location が英語固定で作るため、ここからは変えられない。
+ * 理由は ADR-M-018 決定14。
  */
 export const BACKGROUND_TRACKING_NOTIFICATION = {
   title: "散歩を記録しています",
@@ -51,7 +52,8 @@ const BACKGROUND_TRACKING_OPTIONS: Location.LocationTaskOptions = {
   // iOS のネイティブ既定は true（型定義の「既定 false」は誤り。EXLocationTaskConsumer.m）。
   // 止まると軌跡が欠けるので明示する。
   pausesUpdatesAutomatically: false,
-  // iOS: 背景での利用中に status bar のインジケータを出す。使用中のみ権限では OS が常に出すので、効くのはユーザーが設定アプリで「常に」を選んだときだけ（Apple のドキュメント）。
+  // iOS: 背景での利用中に status bar のインジケータを出す。使用中のみ権限では OS が常に出すので、
+  // このプロパティが効く条件（設定アプリで「常に」を選べるか、選んだときだけか）は未検証（ADR-M-018 決定3。SS-161 の iPhone 実機で確認）。
   showsBackgroundLocationIndicator: true,
   foregroundService: {
     notificationTitle: BACKGROUND_TRACKING_NOTIFICATION.title,
