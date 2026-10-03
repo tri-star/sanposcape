@@ -1,12 +1,41 @@
 # ADR-M-018: 散歩中の位置記録はバックグラウンドのロケーションタスクで行う（使用中のみ権限・iOS background mode・Android フォアグラウンドサービス・端末バッファと統合）
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-03（SS-157）。本節は本文（追補を含む）を要約したもので、一次記録は本文。本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- 散歩中の記録は `startLocationUpdatesAsync` + `TaskManager.defineTask`。`watchPosition` は開始できなかったときの fallback だけ（本文: 決定1）
+- 権限は「使用中のみ」。`requestBackgroundPermissionsAsync` は呼ばず、`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`、Android は FGS（本文: 決定2）
+- タスクのオプション（Highest / 10m・3秒 / Fitness / `pausesUpdatesAutomatically: false` / インジケータ / `killServiceOnDestroy: true`）（本文: 決定3）
+- サンプルはバッファ（`Paths.cache` の JSONL）と hub で受け渡し、時刻カーソルで冪等に統合する（本文: 決定4・決定6）
+- 止めるのは散歩の終了・サインアウト・起動時だけ。停止失敗は「停止未了」として次で止め直す（本文: 決定5）
+- import 規律（本文: 決定7）／フラグで包まない（本文: 決定8）／バッファは復元の仕組みではない（本文: 決定9）
+- （SS-157）iOS の利用目的文言は `app.json` の expo-location プラグインのオプションだけで設定し、3用途と背景での取得・止まる条件を書く（本文: 決定10、SS-157 追補）
+- （SS-157）「常に」系2キーは消さずに使用中と同じ文言、モーションのキーも消さずに「使用しない」旨の文言（本文: 決定11・決定12、SS-157 追補）
+- （SS-157）利用目的文言は日本語のみ（本文: 決定13、SS-157 追補）
+- （SS-157）Android の FGS 通知文言を確定。通知チャンネルの名前・説明は expo-location の既定のまま（本文: 決定14、SS-157 追補）
+
+### 未解決・持ち越し
+
+- SS-36（起動時の停止 → 復元）
+- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認）
+- 散歩の終了忘れの自動停止（未起票）
+- `version` を上げる前に 0.1.0 のバイナリへ `eas update` を出さない
+- expo-location に expo/expo#49409 が入ったら、モーションを `false` + CoreMotion 除外に切り替えるか検討する（SS-157 追補）
+
+### 変更・撤回された決定
+
+- 本文の決定3にある `showsBackgroundLocationIndicator: true`「iOS で記録中であることを status bar に示す」は、使用中のみ権限では OS が常に表示するため、効くのはユーザーが設定アプリで「常に」を選んだ場合だけ（SS-157 追補）
+
 ## 日付
 
-2026-10-02
+2026-10-02（初版）、2026-10-03 追補（SS-157）
 
 ## ステータス
 
-採用（SS-156）。[ADR-M-006](./ADR-M-006-location-service-real-mock.md)（位置情報サービスは real/mock）と [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md)（進行中の散歩は永続化しない）に追補を入れている。
+採用（SS-156）。[ADR-M-006](./ADR-M-006-location-service-real-mock.md)（位置情報サービスは real/mock）と [ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md)（進行中の散歩は永続化しない）に追補を入れている。SS-157 で利用目的文言・FGS 通知文言を追補。
 
 ## コンテキスト
 
@@ -29,13 +58,13 @@
 ## 決定
 
 1. 散歩中の位置記録は `Location.startLocationUpdatesAsync` + `TaskManager.defineTask`（`index.ts` からトップレベルで評価）で行う。`watchPosition` は背景記録を開始できなかったときの fallback だけに使う。
-2. 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`、Android はフォアグラウンドサービス（type location）で継続する（`app.json` の `expo-location` プラグイン。契約テスト `locationPluginConfig.test.ts` で固定）。
+2. 権限は「使用中のみ」のまま。`requestBackgroundPermissionsAsync` は呼ばない。`ACCESS_BACKGROUND_LOCATION` は宣言しない。iOS は `UIBackgroundModes: location`、Android はフォアグラウンドサービス（type location）で継続する（`app.json` の `expo-location` プラグイン。契約テスト `locationPluginConfig.test.ts` で固定。SS-157 で文言も追加）。
 3. タスクのオプションと理由（`location.real.ts` の `BACKGROUND_TRACKING_OPTIONS`）:
    - `distanceInterval: 10` / `timeInterval: 3000`: 従来の `watchPosition` と同じ密度（点数の性質を変えないため、backend の契約・上限に影響しない）。
    - `accuracy: Highest`: 従来の `High` より高い。iOS は `kCLLocationAccuracyBest`（`High` は 10m 精度）、Android は `High` と同じ `PRIORITY_HIGH_ACCURACY`。徒歩の軌跡の滑らかさを優先した。電池が問題になったら `High` に下げる。
    - `activityType: Fitness`: iOS の省電力・停止判定を歩行向けにする。
    - `pausesUpdatesAutomatically: false`: ネイティブ既定が true で、止まると軌跡が欠けるため明示する。
-   - `showsBackgroundLocationIndicator: true`: iOS で記録中であることを status bar に示す。
+   - `showsBackgroundLocationIndicator: true`: iOS で記録中であることを status bar に示す（SS-157 追補: 使用中のみ権限では、このプロパティに関係なく OS が背景での利用中にインジケータを出す。true が効くのはユーザーが設定アプリで「常に」を選んだときだけ）。
    - `foregroundService.killServiceOnDestroy: true`: 最近使ったアプリから消したら止める。進行中の散歩は永続化していないので、続けても誰も取り込めず「アプリを閉じたのに位置を取り続ける」ことになる。
 4. サンプルの受け渡し: タスクがバッファ（`Paths.cache/walk-location-samples.jsonl`。JSONL 追記）に書き、同じプロセスのリスナーへも配る（`backgroundSampleHub`）。画面は測位時刻のカーソルで統合し（`walkTrackMerge`）、何度同じ点を受け取っても結果は変わらない。フォアグラウンド復帰時と再マウント時にバッファを読み直す。
    - 時刻カーソルは**端末時計が単調に進む**前提。時計が後退すると、後退後の点は（カーソルより古いので）捨てられる。同一ミリ秒の点も重複として捨てる。
@@ -50,6 +79,22 @@
 8. フィーチャーフラグで包まない。[release-runbook](../../../docs/release-runbook.md) の「不具合修正（元の仕様に戻すもの）」に当たる。ネイティブ設定（background mode / FGS 権限）はフラグで切り替えられない。また `/app-config` の取得失敗時はフラグが全て OFF になるため、包むと不具合が戻る。開始できない環境向けの安全弁は fallback が担う。
 9. バッファは**復元の仕組みではない**。アプリの再起動を越えて散歩を引き継ぐのは SS-36 の範囲で、起動時にバッファを消す。
 
+10. （SS-157 追補）利用目的文言の置き場と内容
+    - `app.json` の expo-location プラグインのオプションだけで設定する。`ios.infoPlist` に直書きしない（`applyPermissions` は「オプション → 直書き → 既定値」の順なので二重管理になる）。
+    - 内容: 3用途（散歩先の探索・ピンの場所選び・散歩ルートの記録）と、記録中は画面のロック中や他のアプリの使用中も取得し、散歩を終了すると止まること。
+    - `$(PRODUCT_NAME)`・アプリ名・半角の `"` `\` を使わない。「アプリを閉じても」とは書かない（実際は止まる）。用途を増やしたら文言も直す。
+11. （SS-157 追補）「常に」系のキー（`NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription`）は消さず、使用中と同じ文言にする
+    - 未指定だとプラグインの既定値（`Allow $(PRODUCT_NAME) to access your location`）が入る。`false` で消せるが、背景で `startUpdatingLocation` を使うアプリでこのキーの欠落による ITMS-90683 の報告がある（Apple Developer Forums 721395）。発覚が提出時になるため、消さない。
+    - 「常に」を求めないことは決定2（`requestBackgroundPermissionsAsync` を呼ばない）で担保する。キーがあると、呼べば「常に」のダイアログが出る状態にはなる。また、ユーザーは設定アプリで自分で「常に」を選べるようになる（アプリの挙動は変わらない。記録は散歩中だけ）。
+12. （SS-157 追補）`NSMotionUsageDescription` は消さず、「使用しない」旨の文言にする
+    - expo-location 57 は CoreMotion（`CMMotionActivityManager`）を常にリンクする。`motionUsagePermission: false` でキーを消すと ITMS-90683 で拒否される（expo/expo#49319）。修正（expo/expo#49409。Podfile のフラグで CoreMotion を除外）は 57.0.20 に入っていない。入った版に上げたら `false` への切り替えを検討する。
+13. （SS-157 追補）利用目的文言は日本語のみ（`locales` は使わない）
+    - 理由: UI が日本語のみ・MVP は国内向け・写真の文言も日本語のみ。英語化はアプリ全体の i18n と同時に行う。
+    - 英語化するときの形: 基底（プラグインのオプション）を英語、`locales.ja` に日本語、`ios.infoPlist.CFBundleAllowMixedLocalizations: true`。逆（基底を日本語・`locales.en` で英語）は、development region が `en` のため日本語の端末に英語が出るので不可。`InfoPlist.strings` は Expo がエスケープせずに書く。Android にも `values-b+<lang>/strings.xml` が作られる。
+14. （SS-157 追補）Android の FGS 通知の文言を確定。通知チャンネルの名前・説明は変えない
+    - 通知: title「散歩を記録しています」、body「散歩のルートを記録するため、位置情報を取得しています。散歩を終了すると止まります。」（`BACKGROUND_TRACKING_NOTIFICATION`）。
+    - チャンネルは expo-location の `LocationTaskService` が作る（名前 = アプリ名、説明 = 英語固定 "Background location notification channel"、重要度 LOW）。変えるにはネイティブのパッチか通知ライブラリの追加が要り、説明はシステムの設定画面の奥でしか見えないので、見合わない。
+
 ## 検討した選択肢
 
 - **`watchPositionAsync` + background mode だけ（タスクを使わない）**: Android は Activity が裏に回ると expo-location が watch を止める（`stopWatching()`）ので成立しない。
@@ -60,6 +105,10 @@
   - SQLite: 依存の追加が大きすぎる。
   - `expo-file-system`: 導入済み・同期 API・SS-86 と同じ使い方なので採用。
 - **全サンプルを zustand に積む**: ストアは非永続なので、再マウントやプロセスの作り直しに強くならない。
+- （SS-157 追補）「常に」系のキーを `false` で消す: 構造的に「常に」を要求できなくなる利点はあるが、ITMS-90683 の報告があり発覚が提出時。不採用。
+- （SS-157 追補）モーションのキーを `false` で消す: expo/expo#49319 で拒否の実例。不採用。
+- （SS-157 追補）利用目的文言を日本語・英語の2言語にする（`locales`）: 決定13の理由で見送り。
+- （SS-157 追補）通知チャンネルを別ライブラリで先に作って名前・説明を日本語にする: 依存追加に見合わない。不採用。
 
 ## 決定理由
 
@@ -91,7 +140,8 @@
 
 - development build の作り直し（ネイティブ依存とプラグイン設定が変わる）。
 - SS-36: 起動時の停止を「復元」へ差し替える。一時停止の状態の永続化。
-- SS-157: 通知文言（`BACKGROUND_TRACKING_NOTIFICATION`）、Info.plist の文言、Android の通知チャンネル。
+- ~~SS-157: 通知文言（`BACKGROUND_TRACKING_NOTIFICATION`）、Info.plist の文言、Android の通知チャンネル。~~ → SS-157 で決着（決定10〜14）
+- development build / 配布ビルドの作り直し（Info.plist の文言はネイティブ設定のため OTA では届かない）（SS-157 追補）。
 - SS-161: App Review / Play の FGS 申告。
 - 散歩の終了忘れへの自動停止（未起票。必要なら起票）。
 
@@ -101,4 +151,7 @@
 - [ADR-M-008: 進行中の散歩の状態管理](./ADR-M-008-active-walk-state-and-route-cache.md)（決定5・決定6 の SS-156 追補）
 - [ADR-M-003: development build 前提の開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
 - [ADR-M-015: アプリアイコン](./ADR-M-015-app-icon-assets.md)（通知アイコンに使う単色レイヤー）
-- 元チケット: SS-156 / 関連: SS-17・SS-36・SS-157・SS-161
+- 元チケット: SS-156（追補: SS-157）/ 関連: SS-17・SS-36・SS-161
+- [expo/expo#49319](https://github.com/expo/expo/issues/49319): `motionUsagePermission: false` で ITMS-90683 になる報告
+- [expo/expo#49409](https://github.com/expo/expo/pull/49409): CoreMotion を Podfile フラグで除外する修正
+- [Apple: showsBackgroundLocationIndicator](https://developer.apple.com/documentation/corelocation/cllocationmanager/showsbackgroundlocationindicator)

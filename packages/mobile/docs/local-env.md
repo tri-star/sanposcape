@@ -324,7 +324,10 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   - `real` = `expo-location`（実機/エミュレータの現在地。フォアグラウンド権限が必要）。
   - `mock` = 東京駅の固定座標（`src/services/location/location.mock.ts`。vitest や、位置情報が
     フレークになりやすい E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは既定でこれ）。
-- 権限文言は `app.json` の `expo-location` プラグイン（`locationWhenInUsePermission`）で設定済み。
+- 権限文言は `app.json` の `expo-location` プラグインで設定している（`locationWhenInUsePermission` と、同じ文言の
+  `locationAlwaysAndWhenInUsePermission` / `locationAlwaysPermission`、`motionUsagePermission`。ADR-M-018 決定10〜12）。
+  文言を変えたら development build を作り直さないとダイアログに反映されない（Info.plist はネイティブ設定）。
+  反映結果は `pnpm --filter mobile exec expo config --type introspect --json` の `_internal.modResults.ios.infoPlist` で確認できる。
 - 散歩中はバックグラウンド・画面ロック中でも記録する（[ADR-M-018](../adr/ADR-M-018-background-walk-location-tracking.md)）。
   権限は「使用中のみ」のまま。**mock モードでは背面の記録は再現できない**（Android は裏に回ると JS のタイマーが止まる）。
   確認手順は [起動手順ガイド](./app-startup-guide.md) の「散歩中のバックグラウンド記録を確かめる」を参照。

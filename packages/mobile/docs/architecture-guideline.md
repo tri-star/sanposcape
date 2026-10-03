@@ -93,6 +93,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
     `src/lib/backgroundLocationCleanup.ts` がある（`src/lib` が services のバレルを import する**唯一の例外**。
     起動時に必ず評価される副作用モジュールで、単体テストからは import しない）。
   - 開始に失敗して前面だけの記録（fallback）になった散歩は、アプリが前面に戻るたびに背景記録の開始を再試行する。
+  - 権限の利用目的文言（iOS の Info.plist）は `app.json` の `expo-location` プラグインのオプションだけで設定する。
+    「常に」系とモーションのキーも `false` で消さずに具体的な文言を入れる（消すと App Store への提出が ITMS-90683 で止まるおそれ）。
+    文言は日本語のみ。用途を増やしたら文言も直す（SS-157 / ADR-M-018 決定10〜13。契約テスト `src/config/locationPluginConfig.test.ts`）。
 
 ## 写真の扱い
 
