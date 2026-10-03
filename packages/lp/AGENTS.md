@@ -30,7 +30,7 @@ packages/lp/
     ├── assets/images/     # astro:assets の <Image> で最適化する元画像
     ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
-    ├── pages/             # index.astro / 404.astro / robots.txt.ts
+    ├── pages/             # index.astro / privacy.astro / 404.astro / robots.txt.ts
     └── styles/global.css  # LP 全体のスタイル（デザイン原本の styles.css）
 ```
 
@@ -78,6 +78,7 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
   - ダミー QR 画像は出さず、同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
   - ストアボタンは「準備中」ダイアログを開く（`StoreDialog.astro`）。ストア URL が確定したら、`Download.astro` のボタンをストアへのリンクに、
     `.qr-placeholder` を QR 画像に差し替える。
+  - フッターにプライバシーポリシー（`/privacy/`）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
 - 画像は `src/assets/images/` に置き、`astro:assets` の `<Image>` で WebP に変換・`srcset` を付けて出す。`width` / `height` を必ず指定する（CLS 防止）。
   CSS が `.field-note > img` のように `<img>` を直接指すため、`<picture>` を出す `<Picture>` は使わない。
   ファーストビューの画像は `loading="eager"`（既定は lazy）。
@@ -100,3 +101,13 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 
 GitHub Actions + OIDC で `dist/` を S3 に sync し、CloudFront を invalidation する（dev: main への push で自動、prod: 手動起動 + 承認）。
 ワークフローは `.github/workflows/lp-deploy.yml`、手順・前提・確認項目は [デプロイ手順](./docs/deployment.md) を参照。
+
+## プライバシーポリシー（`/privacy/`）
+
+`src/pages/privacy.astro`。URL `https://sanposcape.com/privacy/` はアプリ内のリンク（`packages/mobile/src/config/legalLinks.ts`）と
+App Store Connect の「プライバシーポリシー URL」に登録するため、**変えない**（変えると配布済みのアプリが古い URL を開き続ける）。
+
+- 本文は実装の事実（取得する情報・送信先・保存期間・削除方法）に合わせて書いている。アプリや backend のデータの扱いを変えたら本文も見直し、
+  ページ先頭の制定日（改定日）を更新する。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+- 外部サービスの表は frontmatter の `externalServices` で持つ。540px 以下では 1 行を 1 枚のカードとして縦に並べる（見出しは `data-label` を CSS で出す）。
+- 問い合わせ先のメールアドレスは frontmatter の `contactEmail`。
