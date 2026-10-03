@@ -120,6 +120,15 @@ describe("expo-location プラグインの設定", () => {
     }
   });
 
+  it("app.json: POST_NOTIFICATIONS を宣言し、ACCESS_BACKGROUND_LOCATION を宣言しない", () => {
+    // Android 13 以降は POST_NOTIFICATIONS が無いと FGS の通知が通知シェードに出ない（ADR-M-018 決定15）。
+    // 実行時の許可は location.real.ts が求める。宣言が無いと pm grant も効かず、ダイアログも出ない。
+    expect(appJson.expo.android?.permissions).toContain("android.permission.POST_NOTIFICATIONS");
+    expect(appJson.expo.android?.permissions).not.toContain(
+      "android.permission.ACCESS_BACKGROUND_LOCATION",
+    );
+  });
+
   it("app.json: androidForegroundServiceIcon のファイルが存在する", () => {
     const icon = findLocationOptions(appJson.expo).androidForegroundServiceIcon;
     expect(typeof icon).toBe("string");
@@ -131,5 +140,9 @@ describe("expo-location プラグインの設定", () => {
     const options = findLocationOptions(evaluateAppConfig());
     expectBackgroundContract(options);
     expect(options).toEqual(findLocationOptions(appJson.expo));
+    // 本番でも通知権限の宣言は落ちない（variant の上書きで android を作り直しても保たれる）。
+    const permissions = evaluateAppConfig().android?.permissions;
+    expect(permissions).toContain("android.permission.POST_NOTIFICATIONS");
+    expect(permissions).not.toContain("android.permission.ACCESS_BACKGROUND_LOCATION");
   });
 });

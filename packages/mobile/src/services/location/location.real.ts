@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { PermissionsAndroid, Platform } from "react-native";
 
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 import {
@@ -6,6 +7,7 @@ import {
   backgroundSampleHub,
 } from "@/services/location/backgroundLocationTask";
 import { toLocationError } from "@/services/location/locationError";
+import { createNotificationPermissionRequester } from "@/services/location/notificationPermission";
 import { createSerialQueue } from "@/services/location/serialQueue";
 import type {
   GeoCoordinates,
@@ -117,6 +119,14 @@ export function createRealLocationService(): LocationService {
   // 直近の停止に失敗してタスクが動いたままかもしれない（OS の測位・通知・インジケータが残る）。
   // 次の新規セッション開始・停止呼び出し（起動時の後始末を含む）で止め直す。
   let stopPending = false;
+  // Android 13 以上で、FGS の通知を出すための通知権限を求める（1サービスにつき最大1回。ADR-M-018 決定15）。
+  // 拒否されても記録は始める。react-native を import するのはここだけ（services 層に閉じる）。
+  const requestNotificationPermission = createNotificationPermissionRequester({
+    os: Platform.OS,
+    version: Platform.Version,
+    check: () => PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
+    request: () => PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
+  });
 
   return {
     async getPermissionStatus() {
@@ -171,8 +181,9 @@ export function createRealLocationService(): LocationService {
       }
     },
 
-    // 権限はリクエストしない（`requestBackgroundPermissionsAsync` はどこからも呼ばない。ADR-M-018）。
+    // 位置情報の権限はリクエストしない（`requestBackgroundPermissionsAsync` はどこからも呼ばない。ADR-M-018）。
     // フォアグラウンド権限は散歩開始画面（useCurrentLocation）で取得済みの前提。
+    // 求めるのは Android 13 以上の通知権限だけ（新しい散歩の開始時のみ。決定15）。
     async startBackgroundTracking({ sessionId, listener }) {
       return enqueue(async () => {
         const hub = backgroundSampleHub;
@@ -180,6 +191,8 @@ export function createRealLocationService(): LocationService {
         if (isNewSession) {
           // 前回の停止が未了なら止め直す。止まらなくても開始へ進む（動いているタスクは開始で置き換わる）。
           if (stopPending) stopPending = !(await stopTaskWithRetry());
+          // 前面にいる間に求める（FGS の開始も前面が前提）。拒否・失敗でも開始へ進む（throw しない）。
+          await requestNotificationPermission();
           hub.beginSession(sessionId);
         }
         const removeListener = hub.addListener(listener);

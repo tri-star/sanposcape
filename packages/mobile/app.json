@@ -22,7 +22,8 @@
         "monochromeImage": "./assets/app-icons/android/adaptive-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.sanposcape.app.dev"
+      "package": "com.sanposcape.app.dev",
+      "permissions": ["android.permission.POST_NOTIFICATIONS"]
     },
     "web": {
       "output": "static",
