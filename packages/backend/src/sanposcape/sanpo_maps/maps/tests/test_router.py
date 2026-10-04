@@ -337,16 +337,16 @@ class TestUpdateSanpoMapIcon:
         db_session.commit()
 
         response = sanpo_maps_client.patch(
-            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "dog"}, headers=auth_headers
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=auth_headers
         )
 
         assert response.status_code == 200
         body = response.json()
-        assert body["icon"] == "dog"
+        assert body["icon"] == "cat"
         assert body["name"] == "地図"
         assert body["pin_count"] is None
         listed = sanpo_maps_client.get("/sanpo-maps", headers=auth_headers).json()["items"]
-        assert [item["icon"] for item in listed] == ["dog"]
+        assert [item["icon"] for item in listed] == ["cat"]
 
     def test_editor_sending_icon_is_403(
         self,
@@ -363,7 +363,7 @@ class TestUpdateSanpoMapIcon:
         )
 
         response = sanpo_maps_client.patch(
-            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "dog"}, headers=auth_headers
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=auth_headers
         )
 
         assert response.status_code == 403
@@ -379,7 +379,7 @@ class TestUpdateSanpoMapIcon:
         db_session.commit()
 
         response = sanpo_maps_client.patch(
-            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "dog"}, headers=auth_headers
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=auth_headers
         )
 
         assert response.status_code == 404
@@ -434,7 +434,7 @@ class TestUpdateSanpoMapIcon:
         assert listed_ids() == expected_order
 
         response = sanpo_maps_client.patch(
-            f"/sanpo-maps/{older.id}", json={"icon": "dog"}, headers=auth_headers
+            f"/sanpo-maps/{older.id}", json={"icon": "cat"}, headers=auth_headers
         )
 
         assert response.status_code == 200

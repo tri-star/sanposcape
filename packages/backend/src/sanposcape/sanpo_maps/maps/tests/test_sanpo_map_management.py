@@ -367,7 +367,7 @@ class TestSanpoMapIconWithPins:
         before = client.get("/pins", headers=headers).json()
 
         response = client.patch(
-            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "dog"}, headers=headers
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=headers
         )
 
         assert response.status_code == 200

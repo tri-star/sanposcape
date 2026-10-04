@@ -8,15 +8,16 @@ EXPECTED_ICONS = [
     "pin",
     "tree",
     "flower",
+    "leaf",
+    "sun",
+    "rain",
+    "retreat",
+    "landmark",
     "coffee",
     "food",
     "bakery",
-    "landmark",
-    "camera",
-    "book",
-    "heart",
     "shopping",
-    "dog",
+    "cat",
 ]
 
 
@@ -100,14 +101,14 @@ class TestSanpoMapUpdate:
         assert "icon" not in SanpoMapUpdate().model_fields_set
 
     def test_icon_only_is_accepted(self) -> None:
-        payload = SanpoMapUpdate.model_validate({"icon": "dog"})
-        assert payload.icon == SanpoMapIcon.DOG
+        payload = SanpoMapUpdate.model_validate({"icon": "cat"})
+        assert payload.icon == SanpoMapIcon.CAT
         assert "name" not in payload.model_fields_set
 
     def test_name_and_icon_are_accepted_together(self) -> None:
-        payload = SanpoMapUpdate.model_validate({"name": "新名", "icon": "dog"})
+        payload = SanpoMapUpdate.model_validate({"name": "新名", "icon": "cat"})
         assert payload.name == "新名"
-        assert payload.icon == SanpoMapIcon.DOG
+        assert payload.icon == SanpoMapIcon.CAT
 
     @pytest.mark.parametrize("icon", [None, "unknown", "DOG"])
     def test_invalid_icon_is_rejected(self, icon: object) -> None:

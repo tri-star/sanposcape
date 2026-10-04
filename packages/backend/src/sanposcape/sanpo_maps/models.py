@@ -37,15 +37,16 @@ class SanpoMapIcon(StrEnum):
     PIN = "pin"
     TREE = "tree"
     FLOWER = "flower"
+    LEAF = "leaf"
+    SUN = "sun"
+    RAIN = "rain"
+    RETREAT = "retreat"
+    LANDMARK = "landmark"
     COFFEE = "coffee"
     FOOD = "food"
     BAKERY = "bakery"
-    LANDMARK = "landmark"
-    CAMERA = "camera"
-    BOOK = "book"
-    HEART = "heart"
     SHOPPING = "shopping"
-    DOG = "dog"
+    CAT = "cat"
 
 
 #: 地図のアイコンの既定値（既存の地図と、`POST /pins` が自動作成する「最初の地図」, 決定31）。

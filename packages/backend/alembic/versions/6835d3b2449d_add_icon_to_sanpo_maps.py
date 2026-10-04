@@ -38,8 +38,8 @@ def upgrade() -> None:
     op.create_check_constraint(
         'ck_sanpo_maps_icon',
         'sanpo_maps',
-        "icon IN ('pin', 'tree', 'flower', 'coffee', 'food', 'bakery', 'landmark', "
-        "'camera', 'book', 'heart', 'shopping', 'dog')",
+        "icon IN ('pin', 'tree', 'flower', 'leaf', 'sun', 'rain', 'retreat', "
+        "'landmark', 'coffee', 'food', 'bakery', 'shopping', 'cat')",
     )
 
 

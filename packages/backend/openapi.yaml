@@ -2041,15 +2041,16 @@ components:
       - pin
       - tree
       - flower
+      - leaf
+      - sun
+      - rain
+      - retreat
+      - landmark
       - coffee
       - food
       - bakery
-      - landmark
-      - camera
-      - book
-      - heart
       - shopping
-      - dog
+      - cat
       title: SanpoMapIcon
       description: 地図のアイコンの種類。
     SanpoMapListRead:

@@ -100,13 +100,13 @@ class TestListMapsIcon:
         user = make_user(db_session, subject="u1")
         service = make_service(db_session)
         first = service.create_map(user, SanpoMapCreate(name="1つ目", icon=SanpoMapIcon.TREE))
-        second = service.create_map(user, SanpoMapCreate(name="2つ目", icon=SanpoMapIcon.BOOK))
+        second = service.create_map(user, SanpoMapCreate(name="2つ目", icon=SanpoMapIcon.SUN))
 
         result = service.list_maps(user)
 
         assert {item.id: item.icon for item in result.items} == {
             first.id: SanpoMapIcon.TREE,
-            second.id: SanpoMapIcon.BOOK,
+            second.id: SanpoMapIcon.SUN,
         }
 
 
@@ -301,9 +301,9 @@ class TestUpdateMap:
         service = make_service(db_session)
         created = service.create_map(user, SanpoMapCreate(name="地図"))
 
-        result = service.update_map(user, created.id, SanpoMapUpdate(icon=SanpoMapIcon.DOG))
+        result = service.update_map(user, created.id, SanpoMapUpdate(icon=SanpoMapIcon.CAT))
 
-        assert result.icon == SanpoMapIcon.DOG
+        assert result.icon == SanpoMapIcon.CAT
         assert result.name == "地図"
         assert result.updated_at == created.updated_at
 
@@ -313,11 +313,11 @@ class TestUpdateMap:
         created = service.create_map(user, SanpoMapCreate(name="旧名"))
 
         result = service.update_map(
-            user, created.id, SanpoMapUpdate(name="新名", icon=SanpoMapIcon.DOG)
+            user, created.id, SanpoMapUpdate(name="新名", icon=SanpoMapIcon.CAT)
         )
 
         assert result.name == "新名"
-        assert result.icon == SanpoMapIcon.DOG
+        assert result.icon == SanpoMapIcon.CAT
 
     def test_owner_sending_current_icon_is_a_noop(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
@@ -349,11 +349,11 @@ class TestUpdateMap:
         created = service.create_map(user, SanpoMapCreate(name="地図", icon=SanpoMapIcon.TREE))
 
         result = service.update_map(
-            user, created.id, SanpoMapUpdate(name="地図", icon=SanpoMapIcon.DOG)
+            user, created.id, SanpoMapUpdate(name="地図", icon=SanpoMapIcon.CAT)
         )
 
-        assert (result.name, result.icon) == ("地図", SanpoMapIcon.DOG)
-        assert self._stored(created.id) == ("地図", "dog")
+        assert (result.name, result.icon) == ("地図", SanpoMapIcon.CAT)
+        assert self._stored(created.id) == ("地図", "cat")
 
     def _editor_map(self, db_session: Session) -> tuple[SanpoMapService, object, uuid.UUID]:
         owner = make_user(db_session, subject="owner")
@@ -380,7 +380,7 @@ class TestUpdateMap:
         service, editor, map_id = self._editor_map(db_session)
 
         with pytest.raises(SanpoMapPermissionDeniedError):
-            service.update_map(editor, map_id, SanpoMapUpdate(icon=SanpoMapIcon.DOG))  # type: ignore[arg-type]
+            service.update_map(editor, map_id, SanpoMapUpdate(icon=SanpoMapIcon.CAT))  # type: ignore[arg-type]
 
         assert self._stored(map_id) == ("地図", "pin")
 
@@ -399,7 +399,7 @@ class TestUpdateMap:
             service.update_map(
                 editor,  # type: ignore[arg-type]
                 map_id,
-                SanpoMapUpdate(name="改名", icon=SanpoMapIcon.DOG),
+                SanpoMapUpdate(name="改名", icon=SanpoMapIcon.CAT),
             )
 
         assert self._stored(map_id) == ("地図", "pin")
@@ -414,7 +414,7 @@ class TestUpdateMap:
         db_session.commit()
 
         with pytest.raises(SanpoMapNotFoundError):
-            service.update_map(stranger, sanpo_map.id, SanpoMapUpdate(icon=SanpoMapIcon.DOG))
+            service.update_map(stranger, sanpo_map.id, SanpoMapUpdate(icon=SanpoMapIcon.CAT))
 
 
 class TestDeleteMap:

@@ -210,12 +210,12 @@ class TestIcon:
         db_session.commit()
         original_updated_at = sanpo_map.updated_at
 
-        repo.update_icon(sanpo_map, icon=SanpoMapIcon.DOG)
+        repo.update_icon(sanpo_map, icon=SanpoMapIcon.CAT)
         db_session.commit()
 
         refreshed = db_session.get(SanpoMap, sanpo_map.id)
         assert refreshed is not None
-        assert refreshed.icon == "dog"
+        assert refreshed.icon == "cat"
         assert refreshed.updated_at == original_updated_at
 
     def test_check_constraint_rejects_unknown_icon(self, db_session: Session) -> None:

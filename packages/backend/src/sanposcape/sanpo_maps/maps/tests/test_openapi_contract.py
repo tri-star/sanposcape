@@ -173,15 +173,16 @@ class TestSanpoMapIconContract:
             "pin",
             "tree",
             "flower",
+            "leaf",
+            "sun",
+            "rain",
+            "retreat",
+            "landmark",
             "coffee",
             "food",
             "bakery",
-            "landmark",
-            "camera",
-            "book",
-            "heart",
             "shopping",
-            "dog",
+            "cat",
         ]
 
     def test_read_icon_is_required_and_not_nullable(self) -> None:

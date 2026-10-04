@@ -56,7 +56,7 @@
   `delete_map` を直列化して守る**（2026-09-27 追補, PR #103 レビュー対応。当初の
   best-effort 記述から変更）
   （本文: SS-113 追補 決定25〜27）
-- **地図はアイコン（`icon`）を持つ**。12種類の enum `SanpoMapIcon`（既定 `pin`・必須・null なし）。
+- **地図はアイコン（`icon`）を持つ**。13種類の enum `SanpoMapIcon`（既定 `pin`・必須・null なし）。
   `PATCH /sanpo-maps/{id}` で owner だけが変えられ、`updated_at` は動かさない。ピンの見た目は
   属する地図のアイコンで決まり、ピンの API は変えない。DB は `VARCHAR(16)` + CHECK
   （本文: SS-171 追補 決定31）
@@ -1301,8 +1301,8 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
 - **ドメイン**: アイコンは地図の属性で、ピンの見た目は属する地図のアイコンで決まる（ピンごとの
   アイコンは持たない）。既定は `pin`。「未設定」の状態は作らない（必須・null なし）。既存の地図と
   「最初の地図」（決定3, `POST /pins` が自動作成）は `pin`。
-- **値**: `SanpoMapIcon` の12値（`pin` / `tree` / `flower` / `coffee` / `food` / `bakery` /
-  `landmark` / `camera` / `book` / `heart` / `shopping` / `dog`。この順）。API の値はドメインの語で、
+- **値**: `SanpoMapIcon` の13値（`pin` / `tree` / `flower` / `leaf` / `sun` / `rain` /
+  `retreat` / `landmark` / `coffee` / `food` / `bakery` / `shopping` / `cat`。この順）。API の値はドメインの語で、
   Lucide のアイコン名ではない（Lucide のリネームに API を引きずられないため）。グリフ・色への
   対応は mobile が持つ。色はアイコンから決まり、属性としては持たない（将来 `color` を足すなら
   別フィールドの expand）。
