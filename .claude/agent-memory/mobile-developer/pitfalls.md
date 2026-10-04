@@ -1,6 +1,6 @@
 ---
 name: pitfalls
-description: TypeScript/React/RN でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatListのflex:1、react(set-state-in-effect)警告)
+description: TypeScript/React/RN でハマった落とし穴(__DEV__ の globalThis 型、Rules of Hooks違反、丸め済み値からの派生計算、後付けバリデーションと既存テスト、flex内のFlatListのflex:1、React Compiler の preserve-manual-memoization / set-state-in-effect 警告、app.config.ts の ConfigContext.config は Partial 型)
 metadata:
   type: feedback
   scope: durable
@@ -47,12 +47,6 @@ TypeScript の既知の挙動として、`declare global` 内の `const`/`let` �
 フィクスチャ値（特に `"xxx-1"` のような仮の識別子）が新しい検証条件を満たすか必ず確認する**。
 満たさない場合はテスト側のフィクスチャを検証条件に合う値（例: 実際のUUID形式）に更新する。
 
-## `oxfmt` はコマンド実行のたびにファイルを自動整形する
-
-`pnpm format` / `pnpm lint`(実体は oxfmt/oxlint)を実行すると、直前に Write/Edit したファイルが
-その場でフォーマットし直される。ツール呼び出し直後に diff の再確認を求められることがあるが、
-内容的な変更ではなく整形のみなので、意図した変更が保たれているかだけ確認すれば十分。
-
 ## flex column の中の `FlatList` / `ScrollView` には明示的な `flex: 1` が要る
 
 画面ルートの `View` が flex column（`{ flex: 1, backgroundColor: ... }`、第1子に非 flex の
@@ -98,3 +92,25 @@ if (startRegion === null) {
 
 条件が満たされている間しか setState を呼ばない（無限ループにならない）ことを確認すること。
 外部から見える hook の型・振る舞いは変わらないため、呼び出し側の変更は不要。
+
+## `react(preserve-manual-memoization)` 警告が出たら手動メモ化を削る
+
+`app.json` の `experiments.reactCompiler: true` 有効時、`useMemo` / `useCallback` の依存配列が
+React Compiler の静的解析と食い違うと oxlint が `react(preserve-manual-memoization): Existing
+memoization could not be preserved` を出す（exit code は 0）。典型例は、依存に毎レンダー新しい参照に
+なる値（別の `useMemo` の結果等）や state setter を含めている場合（`exhaustive-deps` 警告も併発しやすい）。
+
+**直し方（SS-88）**: 計算が軽量なら **`useMemo` / `useCallback` ごと外して素の計算・素の関数定義にする**
+（React Compiler がビルド時に自動メモ化する）。外してよい目安: 子が `React.memo` でない、計算が
+文字数チェックや10件未満の配列走査程度。残すべきもの: `useQuery` / `useMutation` の `queryKey`・
+オプションオブジェクト、`useEffect` の依存に渡すオブジェクト、実際に高コストな計算。
+参照実装: `src/features/pin/hooks/usePinRegister.ts`。
+
+## `app.config.ts` のヘルパーは `Partial<ExpoConfig>` で受ける
+
+`ConfigContext.config` の型は `Partial<ExpoConfig>`（`ExpoConfig` ではない）。ヘルパー関数の引数・戻り値を
+`ExpoConfig` にすると `config.name` 等が `string | undefined` のため tsc で型エラーになる。
+識別子・scheme の確認は `expo config --type public --json`、Maps キー注入の確認は
+`expo config --type prebuild --json`（`GOOGLE_MAPS_ANDROID_SDK_KEY=DUMMY` を付ける）を使い分ける。
+`APP_VARIANT` の分岐方針そのものは `packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md`
+（SS-79 追補）が正本。

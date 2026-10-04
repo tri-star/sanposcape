@@ -1,25 +1,22 @@
 ---
 name: services-stub-error-handling-gap
-description: src/services/*.stub.ts は常に成功するため、呼び出し側フックのエラーハンドリング欠如が単体テスト/実行時に顕在化しない
+description: src/services/* の mock/dev 実装は常に成功しがちなので、呼び出し側 hook の .catch やエラーフィードバックの欠如が開発中に表面化しない。real では失敗しうる前提でレビューする
 metadata:
   type: feedback
   scope: durable
 ---
 
-`src/services/<service>/index.ts` は `EXPO_PUBLIC_USE_*_STUB` で real/stub を切り替える設計
-（`docs/architecture-guideline.md` のスタブ差し替え方針）。stub 側は常に `Promise` を resolve
-するため、呼び出し側（例: `src/features/auth/hooks/useAuthActions.ts`）が
-`.then()` だけで `.catch()` を持たなくても、テストや通常の開発フローでは問題が表面化しない。
+`src/services/<service>/index.ts`（auth/location/photo など）は、`EXPO_PUBLIC_<SERVICE>_MODE`
+（`real`/`dev`/`mock`）で実装を切り替える。モード判定は各 `index.ts` の1か所に集約されている。
+mock や dev は通常は成功を返すため、呼び出し側（例: `src/features/auth/hooks/useAuthActions.ts`）が
+`.then()` だけで `.catch()` を持たなくても、テストや開発中には問題が見えない。
 
-**Why:** real 実装（例: `src/services/auth/auth.real.ts`）は意図的に `throw` するように
-書かれている（real/stub 切り替え漏れに早期に気づかせるため）。つまり `EXPO_PUBLIC_USE_AUTH_STUB=false`
-にした瞬間、`.catch` の無い呼び出し側は「ボタンを押しても何も起きない」（unhandled rejection）
-状態になる。同じ機能内で「非スコープ操作は Toast でフィードバックする」方針
-（`src/hooks/useToast.ts`）が既に確立されているのに、`services/*` 経由の失敗パスにはこの
-フィードバックが適用されていないことがある。
+**Why:** real 実装（例: `auth.real.ts` の Google ネイティブサインイン → `POST /auth/session`）は、
+ネットワークやキャンセル、トークン交換の失敗で reject しうる。`.catch` が無いと、本番で
+「ボタンを押しても何も起きない」（unhandled rejection）状態になる。非スコープ操作は
+Toast（`src/hooks/useToast.ts`）でフィードバックする方針が既にあるのに、services 経由の失敗には
+適用されていないことがある。
 
-**How to apply:** `src/services/*` の interface を呼ぶ hook（`useAuthActions` に限らず、
-今後 pin/spot 系の services が増えたときも同様）をレビューするときは、
-`.then()` に対応する `.catch()`（またはローディング/エラー state）があるか、
-無ければ P2 として指摘する。stub が常に成功するからといって「エラーハンドリング不要」とは
-判断しない。
+**How to apply:** `src/services/*` の interface を呼ぶ hook では、`.then()` に対応する `.catch()`
+（またはローディングとエラーの state）があるか確認する。無ければ P2 として指摘する。
+mock が常に成功することを理由に、エラーハンドリングを不要と判断しない。

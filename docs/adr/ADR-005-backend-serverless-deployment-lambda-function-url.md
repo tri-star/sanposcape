@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-183）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-04（SS-183、棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -19,6 +19,10 @@
 - **in-process のキャッシュとレート制限が Lambda の実行環境ごとに独立することを受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。費用の天井は Google Cloud 側のクォータでも設ける。prod はクォータが上がるまで予約を入れず、引き上げと予約の投入を同時に行う。（本文: 決定8、SS-183 追補）
 - **Lambda では Mangum を `lifespan="off"` で使い、FastAPI の lifespan を init で 1 回だけ起動して shutdown は走らせない**。uvicorn・TestClient では従来どおり startup / shutdown の両方が走る。
   lifespan の state（yield する値）は使わない。startup の失敗は ERROR ログを出してから init エラーにし、startup / shutdown には INFO ログを 1 行ずつ出す（dev での確認用）。（本文: SS-183 追補）
+- **mobile の一時障害（429 / 502 / 503 / 504 / 通信断）の再送は `customFetch` の GET / HEAD だけに限り、POST へ広げない**。
+  `authApi.ts` には再送を入れない。（本文: 「棚卸し追補（2026-10-04）」節）
+- **`X-App-Authorization` は標準 `Authorization` 向けの保護（クロスオリジンのリダイレクトでの削除、ログの自動マスク）を受けない**。
+  ロギングやクラッシュレポートを導入するときはマスク対象に明示的に追加する。（本文: 「棚卸し追補（2026-10-04）」節）
 - **Alembic のマイグレーションは、同じビルド成果物を使う専用 Lambda を手動で invoke して実行し、direct（非 pooled）DSN `neon_dsn_unpooled` を使う**。API 本体・lifespan・デプロイフックでは走らせない。スキーマ変更は expand → contract で入れる（[ADR-008](./ADR-008-deploy-release-separation.md) 決定7）。（本文: 決定9、SS-72 追補、SS-104 追補）
 - **SnapStart は有効化しない**。（本文: 決定11、SS-183 追補）
 - **Lambda 実行ロールには Permission Boundary を付ける**。境界を初めて入れるデプロイだけは手元の管理者権限で行う。実行時に新しい AWS 操作が要るときは、境界を外さず infra 側の境界を先に広げる。（本文: SS-72 追補）
@@ -45,7 +49,7 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）
 
 ## ステータス
 
@@ -567,6 +571,47 @@ GitHub 側の構成（Environment・Variables・job 分離）は
   pytest の境界のテスト（実際の mangum を通して 2 回呼び出す）と、dev の CloudWatch Logs で確認する。
 - 後続の可観測性の計装（SS-178）は、TracerProvider の終了（flush）を lifespan に置けない。
   Lambda では shutdown が走らないため。
+
+## 棚卸し追補（2026-10-04）: クライアント側の一時障害の再送と `X-App-Authorization` の取り扱い
+
+決定4（CloudFront + Function URL）を前提に mobile 側で決めたが、エージェントのメモリと
+コードコメントにしか残っていなかった決定を、knowledge-review の棚卸しで本 ADR に移した。
+再送ポリシーは SS-79、ヘッダーの取り扱いは SS-70 のレビューで決めたもの。
+
+### 一時障害の再送は GET / HEAD に限る（SS-79）
+
+dev の API Lambda は `ReservedConcurrentExecutions: 5`（6本目から 429）、CloudFront のオリジン待ちは
+30 秒（超過で 504）、コールドスタートは 1〜3 秒ある。mobile の `customFetch`
+（`packages/mobile/src/api/transientRetry.ts`）は、429 / 502 / 503 / 504 / 通信断に対して指数バックオフで
+軽く再送する。ただし**対象は GET / HEAD だけ**とし、POST へ広げない。理由は3つある。
+
+1. `POST /explore/*` の 429 は backend 自身のレート制限で、Lambda のスロットルと区別できない。
+   再送するとレート制限を悪化させるだけになる。
+2. `POST /walks` は `useWalkSave` がすでに指数バックオフで再送している。transport 層でも再送すると、
+   試行回数が掛け合わさって増える。
+3. `POST /auth/refresh` を再送するとセッションが壊れる。refresh token はローテーションと再利用検知
+   （[ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md) 決定1）を持つため、
+   「サーバーは成功したがレスポンスが届かなかった」ときに同じトークンで再送すると、
+   ファミリー全体が失効して強制サインアウトになる。
+
+500 は「アプリ層の決定的なエラー」として再送しない。`AbortError` も再送しない。
+`src/services/auth/authApi.ts` は `customFetch` を通らない独立した出口で、再送を意図的に入れていない
+（ヘッダーの契約は両方の出口で揃えるが、再送は片方だけという非対称になる）。
+401 → refresh → 1回リトライ（`retryPolicy.ts`）とは独立した軸で、`client.ts` では両方が効く。
+
+### `X-App-Authorization` は標準 `Authorization` 向けの保護を受けない（SS-70）
+
+`X-App-Authorization` は非標準ヘッダーなので、`Authorization` が前提にしている次の保護の対象外になる。
+
+- **クロスオリジンのリダイレクトで自動的に削除されない。** WHATWG Fetch は `Authorization` を
+  クロスオリジンのリダイレクトで落とすが、独自ヘッダーは落とさない。mobile の2つの出口
+  （`client.ts` / `authApi.ts`）は `redirect: "error"` を明示している。ただし RN の global fetch
+  （XMLHttpRequest ベースの `whatwg-fetch`）はこのオプションを読まないため、実機では防御にならない。
+  実効的な防御は「この API がリダイレクトを返さないこと」に依存し続ける。
+- **ログやクラッシュレポートの自動マスクの対象にならない。** 多くのツールは `Authorization` を前提に
+  マスクする。ロギングやクラッシュレポート（Sentry 等）を導入するときは、`X-App-Authorization` を
+  マスク対象のヘッダーに明示的に追加する。
+
 
 ## 関連情報
 

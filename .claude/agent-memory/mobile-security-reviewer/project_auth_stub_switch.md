@@ -28,5 +28,5 @@ metadata:
 2. **既定値が fail-closed か**（未設定なら安全側の値。未知の値も安全側へフォールバックするか）
 3. `eas.json` の `build.production` に該当 env が明示されているか（または明示不要な設計になっているか）
 
-未対応なら P2 として指摘する。`location` サービスも同じ `parseLocationMode()` の形を踏襲済み
-（[[project_ss15_location_maps]]）。
+未対応なら P2 として指摘する。`location`（`parseLocationMode()`）・`photo`（`parsePhotoMode()`）も同じ形を踏襲済み
+（`src/config/*Mode.ts`、`eas.json` の staging/production は明示 `real`。2026-10 確認）。

@@ -14,4 +14,4 @@ mobile-planner には Bash が無く `git show origin/<branch>:<path>` を実行
 
 **How to apply:** オーケストレーターから「前回試行のブランチを参考に」と言われたら、上の方法で読む。WebFetch は小さなモデルが要約するので、スキーマやトークン値のように正確さが要るものは「verbatim で返して」と指示する。長いファイルは要約されて細部が落ちる。
 
-Related: [[reference-planning-inputs]]
+Related: [[planning-inputs]]

@@ -2,20 +2,14 @@
 
 - [プロジェクト規約の参照先](conventions_reference.md) — naming-convention.md / folder-structure.md の要点と場所
 - [冪等化パターン(savepoint)](pattern_idempotent_savepoint.md) — begin_nested + IntegrityError 捕捉の元祖と踏襲箇所
-- [計画ドキュメントの決定コード引用アンチパターン](antipattern_plan_decision_refs.md) — D1/Q3/B-3 等がgitignore対象のtmp/にしかなく追跡不能
-- [datetime query param の AwareDatetime 抜け](pattern_aware_datetime_query_params.md) — リクエストボディはAwareDatetime必須だがQueryパラメータは素のdatetimeになりがち
-- [SS-18 walksドメインレビュー概要](project_ss18_walks_review.md) — 実装の全体像と主要な設計判断（D1〜D11）
-- [SS-42 GET /walks/statsレビュー概要](project_ss42_walks_stats_review.md) — streak安全弁のソフトキャップ未検証、mobile-plan 3.6.2の6条件テスト状況
-- [SS-44 fake maps providerの経緯](project_ss44_fake_maps_provider.md) — MAPS_MODE=fake追加の背景と意図的なスコープ外事項（mobile-e2e.ymlのTODOは指摘しない）
-- [select→delete→flushのStaleDataErrorレース](pattern_select_then_delete_race.md) — users/walks repository.delete()共通の未捕捉例外、新規delete()実装時に必ず確認
-- [SS-53 walks削除APIレビュー概要](project_ss53_walks_delete_review.md) — ADR-003決定13の背景。StaleDataErrorレースは対応済み確認(2026-08-13)。PR47フォローアップ(413統一/docstring)も指摘なし
-- [確定処理の締め切りが最初のフェーズにしか掛からない](pattern_partial_deadline_guard.md) — SS-88 photo_attacher: prepare()はdeadline付き、commit()/cleanup_stagingは無期限
-- [add_all後のループrefresh()はN+1](pattern_bulk_insert_refresh_n1.md) — SS-88 pins/repository.py。単一create()のrefreshは既存踏襲で問題なし、複数件ループが新規アンチパターン
-- [機密ログ漏洩ガード回帰テストの慣習](pattern_secret_leak_log_guard_test.md) — test_secrets.pyのARN非漏洩assertが先例。新規ログ追加時は同種テストの有無を確認
-- [configure_logging()のadd-handler分岐が事実上テスト不能](pattern_configure_logging_untestable_branch.md) — pytestがroot loggerに常時ハンドラーを持つため、ローカル/uvicorn向けの主分岐が未検証
-- [commit後のORM属性アクセスで不要なSELECTが飛ぶ](pattern_expired_orm_attr_in_post_commit_log.md) — expire_on_commit=True下でcommit後にpin.id/current_user.idをログ参照すると再読込が発生。create_upload/delete_uploadの回避パターンと対比
-- [TestClientはlifespan依存stateを使うならwith必須](pattern_testclient_lifespan_with_block.md) — R7規約(app_config/tests)。SS-131のapi_docs/tests/test_router.pyはwith省略（現状は無害）
-- [SS-131 Scalar API docsレビュー概要](project_ss131_scalar_docs_review.md) — router.py/main.py/test_router.pyの所見。tmp参照は自己完結、TestClient with省略、fragileなJSON文字列一致は計画で既知
-- [SS-112 削除S3後始末の時間予算対応レビュー](project_ss112_delete_time_budget_review.md) — C1対応は妥当。config.py↔s3.pyの_DELETE_TOTAL_MAX_ATTEMPTS整合性テストはローカルレビューR1で追加済み
-- [SS-113 地図の作成・管理APIレビュー](project_ss113_sanpo_maps_management_review.md) — B-D参照の再発は同PR（`28777e0`）で修正済み。GROUP BY集計・依存方向AST検査・削除時間予算の再利用を確認済み。既定地図の同時実行の穴（PR #103指摘）を見逃した点をレビュー観点として追記
+- [計画ドキュメントの決定コード引用アンチパターン](antipattern_plan_decision_refs.md) — D6/Q3/B-D5 等の定義が計画書にしか無く追跡不能。src には2026-10時点で約30箇所残存、CIは.pyを検査しない
+- [datetime query param の AwareDatetime 抜け](pattern_aware_datetime_query_params.md) — ボディはAwareDatetimeでもQueryは素のdatetimeになりがち（walksは修正済み）
+- [select→delete→flushの同時2重DELETE](pattern-select-then-delete-race.md) — version_id_col無しはSAWarning止まりで誤成功。walksの警告昇格＋捕捉を踏襲、usersは意図的に未対応
+- [締め切りの非対称（一部フェーズのみ／呼ぶ前だけ）](pattern_partial_deadline_guard.md) — 全I/Oフェーズが締め切り傘下か、1回の最悪時間が予算に入るか。確定処理の「呼ぶ前だけ」はADR-009で受容済み
+- [「ちょうど1つ」不変条件の並行性](pattern-singleton-invariant-concurrency.md) — 部分一意インデックスで防げない「0になる」方向の直列化とrowcountを確認（SS-113で見逃し）
+- [add_all後のループrefresh()はN+1](pattern_bulk_insert_refresh_n1.md) — 単一create()のrefreshは既存踏襲で問題なし、複数件ループが新規アンチパターン
+- [機密ログ漏洩ガード回帰テストの慣習](pattern_secret_leak_log_guard_test.md) — test_secrets.pyのARN非漏洩assertが先例。ファイル移動時はcaplogのlogger名も確認
+- [ハンドラー有無で分岐するロギング初期化のテスト](pattern_configure_logging_untestable_branch.md) — pytestがrootに常時ハンドラーを持つため退避が必要。configure_logging()は解消済み
+- [commit後のORM属性アクセスで不要なSELECTが飛ぶ](pattern_expired_orm_attr_in_post_commit_log.md) — expire_on_commit=True下でcommit後にログでobj.idを参照すると再読込。commit前にローカル変数へ退避
+- [TestClientはlifespan依存stateを使うならwith必須](pattern_testclient_lifespan_with_block.md) — R7規約。省略するなら理由をコメントに残す（test_main.py:151・api_docsの_client()が先例）
 - [lock_timeoutガードの非対称パターン](pattern_lock_timeout_guard_asymmetry.md) — 一部のDB操作だけにタイムアウトガードを足すレビューで汎用的に確認すべき観点

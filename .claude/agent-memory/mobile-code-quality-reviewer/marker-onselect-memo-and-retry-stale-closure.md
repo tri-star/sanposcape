@@ -1,51 +1,28 @@
 ---
 name: marker-onselect-memo-and-retry-stale-closure
-description: SS-118のRegisteredPinMarkers/useRegisteredPinsで見つけた「React.memo無効化」と「useCallback stale closure」の2パターン
+description: React.memo コンポーネントは、全呼び出し元で props（特にコールバック）が安定しているか横並びで確認する。配列を useCallback に閉じ込める stale closure も疑う（SS-118 の RegisteredPinMarkers/useRegisteredPins で発見、ADR-M-012 D15）
 metadata:
-  type: project
-  adr: packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md
+  type: feedback
   scope: durable
-  source_issue: SS-118
+  adr: packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md
 ---
 
-`RegisteredPinMarkers`（`packages/mobile/src/features/pin/components/RegisteredPinMarkers.tsx`）は
-`React.memo` で包まれ、JSDoc に「`pins` の参照が変わらない限り再レンダーしない
-（`WalkActiveView` は経過時間で毎秒再レンダーされるため）」と明記されている。この意図が
-呼び出し元ごとに守られているかは要チェック。
+SS-118 のレビューで見つけた2パターン。どちらも同じ PR 内で対応済み。
 
-**見つけたパターン1（メモ化の非対称）**: `app/(tabs)/index.tsx`（`WalkActiveRoute`）は
-`handleSelectPin` を `useCallback` で安定化しているが、`PinMapView.tsx` 側は
-`handleSelectPin` が素の関数（毎レンダー新規生成）だった。`visibleRegion` の更新
-（パン・ズームのたび）で `PinMapView` が再レンダーされるたびに `onSelectPin` の参照が変わり、
-`RegisteredPinMarkers` の `React.memo` が実質無効化される。`tracksViewChanges={false}` により
-ネイティブ再描画コストは抑えられるが、意図したメモ化が片方の呼び出し元だけ機能しない状態は
-見落とされやすい。
+**パターン1（メモ化の非対称）:** `RegisteredPinMarkers.tsx` は `React.memo` で包まれている。
+ところが、呼び出し元の一方は `onSelectPin` を `useCallback` で安定化し、もう一方は毎レンダー新しい
+関数を渡していたため、地図のパン・ズームのたびに memo が無効化されていた。現在の呼び出し元は
+`PinTabView.tsx` と `app/(tabs)/index.tsx`（`RegisteredPinsMapLayer` 経由）で、どちらも `useCallback` 化済み。
 
-**見つけたパターン2（useCallbackのstale closure）**: `useRegisteredPins.ts` の `retry`:
-```ts
-const retry = useCallback(() => {
-  retryMaps();
-  for (const query of queries) { void query.refetch(); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- queries は最新のクロージャ内の値を使うだけでよい
-}, [retryMaps]);
-```
-`useQueries` の戻り値 `queries` は毎レンダー新しい配列になるため依存に含めていないが、
-`useCallback` の依存が `[retryMaps]` だけだと**初回レンダー時点の `queries` 配列**を
-クロージャに固定してしまう（stale closure）。「毎レンダー新しい配列だから依存に入れない」は
-「最新の値を参照し続けたい」という目的とは矛盾する判断で、exhaustive-deps の disable コメントの
-理由付けが妥当かどうかは実際に「後から要素数が変わる配列か」を確認すべき。
+**パターン2（stale closure）:** `useRegisteredPins.ts` の `retry` が、`useQueries` の戻り値の配列を
+`useCallback` に閉じ込めて反復しており、依存配列からも外していた。そのため初回レンダー時点の配列が
+固定されていた。修正では `useQueries` の `combine` にモジュールレベルの純粋関数
+（`pinRead.ts` の `combineRegisteredPinListQueries`）を渡し、戻り値の `refetchAll` を `retry` から呼ぶ形にした。
+決定は `packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md` の D15 にある。
 
-**解消方法（同PR内で対応済み）**: パターン1は `PinMapView` の `handleSelectPin` を `useCallback` 化。
-パターン2は `useQueries` の `combine` にモジュールレベルの純粋関数を渡し、その戻り値の `refetchAll` を
-`retry` から呼ぶ形にして、生の結果配列をクロージャに閉じ込めないようにした（ADR-M-012 D15）。
-
-**Why**: `React.memo` の効果検証は「メモ化されたコンポーネントの props が全呼び出し元で
-安定しているか」を横並びで見ないと片方だけ見落とす。`useCallback`/`useMemo` の
-`eslint-disable-next-line exhaustive-deps` コメントは、意図的な最適化（[[render-phase-setstate-derived-state-pattern]]
-のような）と、単なる stale closure バグを見分ける必要がある。
-
-**How to apply**: `React.memo` コンポーネントを複数箇所から使っている実装を見たら、各呼び出し元で
-props（特にコールバック）が `useCallback` 化されているか横並びで比較する。`useQueries`/配列を
-返す hook の戻り値をクロージャで捕まえて後から反復する実装（`for (const x of arr)` を
-`useCallback` 内に置くパターン）は、配列の長さが変わりうるか（地図の増減・リストアイテムの
-増減）を確認し、変わりうるなら `combine` の戻り値経由（`useQueries` の場合）か ref 経由での最新値参照に直すべきと指摘する。
+**How to apply:**
+- `React.memo` コンポーネントが複数箇所から使われていたら、全呼び出し元で props が `useCallback`/`useMemo`
+  により安定しているか横並びで比べる。
+- `exhaustive-deps` を disable して配列を依存から外している `useCallback` は、配列の長さが後から
+  変わりうるか確認する。変わりうるなら、`combine` の戻り値経由か ref 経由で最新値を読むよう指摘する
+  （意図的な最適化との区別は [[intentional-render-phase-patterns]] を参照）。

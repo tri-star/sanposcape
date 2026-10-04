@@ -1,34 +1,20 @@
 # Backend Developer Memory Index
 
-- [backend-auth-mode-env-gotcha](project_backend_auth_mode_env_gotcha.md) — .envのAUTH_MODE既定はdev。ambientなmain.appに依存するauth_modeテストはローカル/CIで結果が変わりうるので明示Settings構築を使う
-- [auth-users-boundary-userservice](project_auth_users_boundary_userservice.md) — `auth`ドメインから`users`ドメインへのアクセスは常に`UserService`経由に統一する設計（SS-10ローカルレビューA-3で確定）。SS-12実装時の choke point
-- [project-ss18-walks-backend-complete](project_ss18_walks_backend_complete.md) — SS-18 backend（walksドメイン: 記録保存/履歴/IDOR対策）は実装完了。次はmobile側SS-19/SS-20
-- [reference-openapi-json-gitignored](reference_openapi_json_gitignored.md) — `packages/backend/openapi.json`は.gitignore対象。exportしてもgit diffに出ないのは正常
-- [project-ss18-review-followup](project_ss18_review_followup.md) — SS-18ローカルレビューの承認4項目対応（tz-aware化・境界値テスト・middleware移動・docs更新）の実装場所と判断ログ
-- [feedback-commit-splitting](feedback_commit_splitting.md) — 同一ファイルへの複数レビュー指摘は`git add -p`でhunk単位にコミット分割する。隣接hunkで割れない場合はコード並べ替え/手動patch抽出+バックアップ照合で対応（PR #93で確立）
-- [reference-stray-claude-dir](reference_stray_claude_dir.md) — エージェントメモリがpackages配下に誤生成される既知のバグ。正しい置き場所は常にリポジトリルート
-- [project-ss42-walks-stats-backend-complete](project_ss42_walks_stats_backend_complete.md) — SS-42 backend（GET /walks/stats: 週/月集計・連続日数）は実装完了。次はmobile側実装
-- [feedback-walks-stats-test-gotchas](feedback_walks_stats_test_gotchas.md) — 固定クロックclient fixtureはtest_settings注入済みclientの上に組む。monkeypatchはimport先namespaceが対象
-- [project-ss44-fake-maps-provider-complete](project_ss44_fake_maps_provider_complete.md) — SS-44 backend（MAPS_MODE=fake・決定的provider）は実装完了。SS-21 E2Eブロッカー解消
-- [project-ss53-pr47-review-followup](project_ss53_pr47_review_followup.md) — SS-53 PR #47のCopilotレビュー指摘2件（413のOpenAPI不整合・delete_walk docstring不正確）への対応と判断ログ
-- [project-ss67-backend-sam-deploy-phase1-2-complete](project_ss67_backend_sam_deploy_phase1_2_complete.md) — SS-67 backend Phase1/2（DB engine遅延生成・シークレット受け皿・Lambdaハンドラ・SAM資材）は実装完了。Phase3以降（実デプロイ）は未着手
-- [feedback-import-order-and-lru-cache-test-techniques](feedback_import_order_and_lru_cache_test_techniques.md) — import順序契約やlru_cacheのcache_clear呼び出しを回帰テストするテクニック（sys.modules退避・別名fresh import・属性spy）
-- [reference-docs-lint-tmp-reference-check](reference_docs_lint_tmp_reference_check.md) — docs-lint CIがADR/packages*/docs/agent-memoryからのtmp/参照を検出し失敗させる。新規ADR作成後は`check-tmp-references.sh`で確認する
-- [reference-sam-cli-location](reference_sam_cli_location.md) — sam CLIはPATHに無くmise管理。絶対パスで呼ぶ。sam validate --lintはDocker不要
-- [feedback-verification-revert-without-git-checkout](feedback_verification_revert_without_git_checkout.md) — フィックス検証で一時的に壊したソースを`git checkout --`で戻すと未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
-- [feedback-sandbox-constraints](feedback_sandbox_constraints.md) — sandboxが拒否する操作(.env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権)と回避策。「できない」と結論する前に読む
-- [feedback-cloudformation-sub-map-value-gotcha](feedback_cloudformation_sub_map_value_gotcha.md) — Fn::Subの変数マップの値に書いた${...}は再評価されない。値自体をさらに!Subで包む必要がある
-- [Settings の .env / OS 環境変数からの隔離](feedback_settings_env_isolation.md) — テストのSettings(...)は.env/OS環境変数から隔離済み(conftestのautouse)。DB接続だけは例外でambientから解決される
-- [project-ss88-pins-backend-complete](project_ss88_pins_backend_complete.md) — SS-88 backend（地図/ピン登録・写真アップロード, sanpo_maps/pinsドメイン）は実装完了。PR #93 Copilotレビュー対応（T2-T6,T11,T15）も完了。BK-1〜BK-10のPlaneチケット起票が未実施
-- [feedback-boto3-s3-and-pg-advisory-lock-gotchas](feedback_boto3_s3_and_pg_advisory_lock_gotchas.md) — boto3 S3のendpoint_url明示でpresigned URLのリージョンが脱落する罠、pg_advisory_xact_lockの決定的キー導出、Pydantic SkipJsonSchema[None]パターン、retries.max_attemptsはtotal_max_attemptsでないと+1される罠
-- [feedback_true_concurrency_test_pattern](feedback_true_concurrency_test_pattern.md) — threading.Thread+別Session(TestSessionLocal)で真の行ロック競合を再現するテスト手順。ORMオブジェクトをスレッド間で共有しない・Core updateの後はrefresh()が必要
-- [feedback-httpx-timeout-mocktransport](feedback_httpx_timeout_mocktransport.md) — httpxのtimeout=に単一floatを渡すとconnectにも効く。httpx.Timeoutでフェーズを分け、MockTransportのrequest.extensions["timeout"]で検証する
-- [feedback-full-suite-intermittent-401](feedback_full_suite_intermittent_401.md) — backend全体のpytestで無関係なテストがたまに有効JWTで401。まず単独実行で再現確認（原因未確認、DB負荷の推測）
-- [feedback-pydantic-optional-list-and-orm-expire-gotchas](feedback_pydantic_optional_list_and_orm_expire_gotchas.md) — SkipJsonSchema[None]+max_lengthの罠、commit後のORM属性expireでのテスト罠、サービス直呼びテストでの明示rollback。backendにmypy未導入の事実も記載
-- [project-ss131-scalar-api-docs-complete](project_ss131_scalar_api_docs_complete.md) — SS-131（/docsをSwagger UIからScalarに置き換え、production非公開）は実装完了。api_docs/router.pyのSCALAR_JS_URL定数に版固定を集約
-- [project-ss112-pr101-review-c1-c4-complete](project_ss112_pr101_review_c1_c4_complete.md) — SS-112 PR #101レビューC1〜C4（削除の時間予算・権限マトリクスdocsの記述不一致）は実装完了。返信・resolveは未実施
-- [feedback-http-delete-identity-map-staleness-in-tests](feedback_http_delete_identity_map_staleness_in_tests.md) — HTTP経由の削除を別セッションで確認するテストはdb_sessionのidentity mapが罠になる（ObjectDeletedErrorも）。TestSessionLocal()の新規セッションで確認する
-- [feedback-adr-renumber-sed-pitfall](feedback_adr_renumber_sed_pitfall.md) — ADR番号の一括sed置換はファイル名のスラッグ変更（backend-接頭辞の増減等）を見落とすと誤ったパス文字列が残る。新旧パス全体で置換するか置換後にgrepで確認する
-- [feedback-module-relocation-and-ast-arch-test-gotchas](feedback_module_relocation_and_ast_arch_test_gotchas.md) — パッケージ移動とASTアーキテクチャテストの罠: 除外条件は1ヘルパーに集約 / from X import YはX.Yも候補(公開面はprefix判定) / 違反注入で確認 / 空__init__のrename誤検出 / staleness検査はバッククォート+拡張子を拾う
-- [feedback-local-pg-alpine-collation-is-bytewise](feedback_local_pg_alpine_collation_is_bytewise.md) — ローカルDB(postgres:17-alpine/musl)は文字列ソートが実質バイト順。collation依存のORDER BYはテストで差を検出できないのでCOLLATE "C"を明示する（SS-136）
-- [feedback-fresh-exec-reimport-stale-package-attr](feedback_fresh_exec_reimport_stale_package_attr.md) — module 再 import テストは sys.modules だけでなく親パッケージ属性も戻す。さもないと文字列 monkeypatch が全体実行でだけ効かない（SS-183）
+- [テストの Settings / .env / AUTH_MODE](feedback-test-settings-env-and-auth-mode.md) — Settings(...)はambientから隔離済み（DB接続とmain.appは例外）。AUTH_MODE依存テストは明示Settings、認証付き差し替えfixtureはwalks_clientの上に組む
+- [SQLAlchemy セッションのテスト罠](feedback-sqlalchemy-session-test-gotchas.md) — 別セッション削除はTestSessionLocal()で確認 / commit後expire / サービス直呼びは明示rollback / threading+別Sessionで真の行ロック競合を再現
+- [Pydantic SkipJsonSchema パターン](feedback-pydantic-skipjsonschema-patterns.md) — 省略可・明示null 422・non-nullableの表現と、max_lengthはAnnotatedで非null側に付ける罠。mypyは未導入
+- [import 順序・monkeypatch のテスト技法](feedback-python-import-and-monkeypatch-test-techniques.md) — 別名fresh import・sys.modules退避・lru_cache属性spy、モジュール定数のmonkeypatchはimport先namespace
+- [boto3 S3 と advisory lock の罠](feedback-boto3-s3-and-pg-advisory-lock-gotchas.md) — endpoint_url明示でpresigned URLのリージョン脱落、retries.max_attemptsは+1される（total_max_attemptsを使う）、advisory lockキーはhash()で作らない
+- [OpenAPI 再出力の差分の見方](reference-openapi-export-diff-expectations.md) — openapi.jsonはgitignore、yamlは手編集せずdocstring変更でも再出力、差分ゼロが正常なケース、契約テストは存在チェックのみ
+- [sandbox の制約と回避策](feedback-sandbox-constraints.md) — .env読み書き/localhostへのcurl/dockerソケット/~/.aws/キャッシュ所有権の回避策とsam CLIの所在。「できない」と結論する前に読む
+- [全件 pytest の散発的な 401](feedback_full_suite_intermittent_401.md) — 無関係なテストがたまに有効JWTで401。まず単独実行で再現確認（SS-141でDB負荷仮説の前提は解消済み）
+- [コミット分割の手順](feedback_commit_splitting.md) — 同一ファイルへの複数レビュー指摘は`git add -p`でhunk単位に分割。隣接hunkで割れない場合はコード並べ替え/手動patch抽出+バックアップ照合
+- [検証で壊したソースを git checkout で戻さない](feedback_verification_revert_without_git_checkout.md) — 未コミットの修正ごと消える。手動で逆方向に置換するか、壊す前にWIPコミットする
+- [httpx の timeout と MockTransport](feedback_httpx_timeout_mocktransport.md) — 単一floatはconnectにも効く。httpx.Timeoutでフェーズを分け、request.extensions["timeout"]で検証する
+- [ローカル DB の collation はバイト順](feedback_local_pg_alpine_collation_is_bytewise.md) — postgres:17-alpine(musl)ではcollation依存のORDER BYをテストで検出できない。COLLATE "C"を明示する（SS-136）
+- [CloudFormation Fn::Sub の変数マップの罠](feedback_cloudformation_sub_map_value_gotcha.md) — 変数マップの値に書いた${...}は再評価されない。値自体をさらに!Subで包む
+- [パッケージ移動と AST アーキテクチャテストの罠](feedback_module_relocation_and_ast_arch_test_gotchas.md) — 除外条件は1ヘルパーに集約 / from X import YはX.Yも候補(公開面はprefix判定) / 違反注入で確認 / 空__init__のrename誤検出 / staleness検査はバッククォート+拡張子を拾う
+- [ADR 改番の一括 sed の落とし穴](feedback-adr-renumber-sed-pitfall.md) — 番号だけの置換はファイル名のスラッグ変更を見落とす。新旧パス全体で置換し、置換後にgrepで確認する
+- [docs-lint の tmp/ 参照検査](reference_docs_lint_tmp_reference_check.md) — ADR/packages*/docs/agent-memoryからのtmp/参照でCIが落ちる。新規ADR作成後は`check-tmp-references.sh`で確認する
+- [エージェントメモリの誤生成先](reference-stray-claude-dir.md) — package配下に.claude/agent-memoryが誤生成される既知の問題。正しい置き場所は常にリポジトリルート
+- [module 再 import 後の親パッケージ属性](feedback_fresh_exec_reimport_stale_package_attr.md) — sys.modules だけでなく親パッケージ属性も戻す。さもないと文字列 monkeypatch が全体実行でだけ効かない（SS-183）
