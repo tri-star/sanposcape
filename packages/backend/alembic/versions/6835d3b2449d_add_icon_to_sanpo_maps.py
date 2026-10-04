@@ -5,6 +5,12 @@
 （アプリの enum を変えても過去のリビジョンの意味を変えないため）。値を足すときは新しい
 リビジョンで `ck_sanpo_maps_icon` を drop して create し直す。
 
+注意:
+- downgrade は icon 列のデータを失う。ロールバックするときは、icon を参照しない旧コードを
+  先にデプロイしてから downgrade を流す（新コードが残ったまま流すと UndefinedColumn で 500 になる）。
+- CHECK の追加は ACCESS EXCLUSIVE ロック下で全件走査する。大きなテーブルで同様の操作をするときは
+  `NOT VALID` で追加してから `VALIDATE CONSTRAINT` に分ける（sanpo_maps は小さいのでこのまま）。
+
 Revision ID: 6835d3b2449d
 Revises: ad3075b8c45e
 Create Date: 2026-10-04 12:26:56.437095
