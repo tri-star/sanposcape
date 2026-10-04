@@ -29,6 +29,7 @@ import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { canManageSanpoMap } from "@/features/pin/lib/pinPermissions";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
 import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
+import { sanpoMapIconChangeLabel } from "@/features/pin/lib/sanpoMapIcon";
 import {
   SANPO_MAP_PIN_MAX_PAGES,
   SANPO_MAP_PIN_PAGE_SIZE,
@@ -316,7 +317,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         <View style={styles.content} testID="sanpo-map-detail-content">
           <View style={styles.info}>
             <View style={styles.nameRow}>
-              <SanpoMapIconBadge icon={found.icon} size={40} testID="sanpo-map-detail-icon" />
+              <SanpoMapIconBadge icon={found.icon} size={40} />
               <Text style={styles.name} testID="sanpo-map-detail-name">
                 {found.name}
               </Text>
@@ -337,6 +338,8 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
                 size="sm"
                 icon="pencil"
                 onPress={handleOpenIconDialog}
+                // 現在のアイコンをスクリーンリーダーと E2E に伝える（バッジは装飾で a11y から隠している）。
+                accessibilityLabel={sanpoMapIconChangeLabel(found.icon)}
                 testID="sanpo-map-detail-change-icon"
                 style={styles.changeIcon}
               >

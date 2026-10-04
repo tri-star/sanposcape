@@ -105,6 +105,14 @@ SS-171「地図毎にアイコンを選択できるようにする」と SS-172�
 - アイコンの顔ぶれを12種類から**減らす**ときは、backend の contract（既存行のデータ移行と古い mobile がいなくなるのを待つこと）になる。
   増やすのは安い（backend → `openapi.yaml` → mobile の対応表の順。backend を先に出してよい）。
 - ピン詳細をディープリンクで開いた直後は、地図一覧が届くまで既定の `pin` で描かれる（届いたら作り直される）。
+- backend が新しいアイコン値を足し、mobile がまだ古いままのとき、その値は `pin` に丸められる（`toSanpoMapIconKey`）。
+  この状態の mobile で編集ダイアログを開くと現在値が「ピン」として選ばれ、元の値は選び直せない（許容。mobile を更新すれば解消する）。
+- 位置選択の地図（`PinMapCanvas`）の選択マーカーは `key={selectedMarkerIcon}` で作り直すため、`MapView` の子の先頭側で
+  アンマウント・マウントが起きる。[ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D16 のバグは 1.28.1 で修正済み（挿入になった）で、
+  選択マーカーは元々この位置で出現・消失していたので新しいリスクではないと判断した（実機での確認項目に含める）。問題が出たら `mapLayers` と同じ末尾側へ移す。
+- E2E（`sanpo-map-list.yaml`）は地図詳細のアイコンを「アイコンを変更」ボタンの `accessibilityLabel`（`アイコンを変更（現在: <表示名>）`）で確かめる。
+  `SanpoMapIconBadge` は装飾なので a11y から隠しており（`no-hide-descendants`）、Android の Maestro は accessibility 階層を読むため
+  その中の testID は見えない。a11y から隠さない形で検証する（バッジの隠しを外して二重読み上げにするより、ボタンのラベルが現在値を伝える方が支援技術にも有益）。
 - 自動テストでは確かめられない。マーカーの先端の位置・Android での SVG の描画・ダークテーマでの縁取りは実機で確認する
   （Maestro はマーカーを安定して触れない。[ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D14）。
 
