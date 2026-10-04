@@ -11,3 +11,5 @@
 - [ファイル移動リファクタの落とし穴](feedback-backend-file-relocation-gotchas.md) — docstring=OpenAPI description / ロガー名・parents[N]・lock namespace 文字列 / __pycache__ / staleness は末尾一致
 - [既存テーブルへの列追加とデプロイの空白](feedback-existing-table-column-add-deploy-window.md) — migrate は deploy 後にしか流せず、その間そのテーブルを読む API が 500。prod 稼働後はマイグレーション単独 PR
 - [Lambda アダプタ境界で崩れる前提](feedback_lambda_adapter_boundary_assumptions.md) — Mangum auto は呼び出しごと lifespan / CloudFront 経由の sourceIp は CF の IP。TestClient では検出不可
+- [CloudWatch 可観測性クエリの罠](feedback-cloudwatch-observability-query-gotchas.md) — 名前空間は ApplicationSignals・Operation=FunctionHandler で絞る / 子スパン二重カウント / Insights に if 無し / log ウィジェットは開くたび課金
+- [infra 側の監視置き場と IAM 3 系統](reference-infra-monitoring-and-iam-layers.md) — アラート SNS の SSM 契約 / CloudFront アラームは services 層 / sam-deploy の CloudWatch は backend-* のダッシュボード・アラームのみ / app-boundary 残り約290字
