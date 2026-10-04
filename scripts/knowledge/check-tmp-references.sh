@@ -31,7 +31,13 @@ SCAN_PATHSPECS=(
 
 # プロジェクトルート相対の tmp/ のみを対象にする。
 # /tmp/ (システムのtemp)、$TMPDIR、foo.tmp/ などは除外される。
-PATTERN='(^|[^/[:alnum:]_.-])tmp/[[:alnum:]._-]|<project-root>/tmp/'
+# 絶対パスで書かれたプロジェクトの tmp/（例: /home/<user>/projects/<repo>/tmp/SS-18/...、
+# worktree の /home/<user>/projects/<repo>.worktrees/<name>/tmp/...）も対象にする。
+# 直前が `/` のため1つ目の選択肢では拾えず、検出から漏れていた。
+# リポジトリ名は worktree からでもメインのチェックアウトの名前になるよう、共通の .git から取る。
+REPO_NAME="$(basename "$(dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd)")")"
+REPO_NAME_RE="$(printf '%s' "$REPO_NAME" | sed 's/[][\\.^$*+?(){}|/]/\\&/g')"
+PATTERN="(^|[^/[:alnum:]_.-])tmp/[[:alnum:]._-]|<project-root>/tmp/|/${REPO_NAME_RE}(\\.worktrees/[^/[:space:]]+)?/tmp/[[:alnum:]._-]"
 
 collect_violations() {
   git ls-files -z --cached --others --exclude-standard -- "${SCAN_PATHSPECS[@]}" \
