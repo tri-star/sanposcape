@@ -1031,6 +1031,8 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 
 ### 外へ出さない情報
 
+**Lambda 計装の親スパンはハンドラーの後に属性を設定し直す**（dev の実測で判明。レイヤーの Lambda 計装は 0.61b0）。ハンドラーの中でスパン属性を書き換えても、イベントから `http.route`（生のパス）・`http.target`（クエリ込み）・`http.user_agent` が再設定される。そのため `aws_lambda/tracing.py` は、Mangum が `scope["aws.event"]` に持つ同じイベントを無害化している（`rawQueryString` を空、`userAgent` を削除、`requestContext.http.path` をルートのテンプレートに）。payload 2.0 のみ対象。レイヤーを上げるときは、dev の `aws/spans` で親スパンの `http.target` / `http.route` / `http.user_agent` を確認すること。
+
 クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）。
 `http.url` / `http.target` のクエリはフックで除き（失敗時は空に倒す）、`net.peer.ip` /
 `net.peer.port` / `http.user_agent` は空に上書きし、`hide_parameters=True` で例外メッセージの
