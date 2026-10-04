@@ -1,50 +1,31 @@
 ---
 name: react-native-maps-notes
-description: react-native-maps 1.27.2 の型・実装メモ（MapView ref, Marker tracksViewChanges, Maps キー注入）。ルート描画（Polyline/fitToCoordinates）は SS-16 で実装済み、SS-33 で legs（往路/復路）描画に拡張済み
+description: react-native-maps(1.29系)の実装メモ。MapViewはref+animateToRegion、Marker tracksViewChanges=falseと選択状態をkeyに含めた再マウント、nodeテスト用の自前MapRegion型、Mapsキー注入の確認方法
 metadata:
-  type: project
+  type: reference
   scope: durable
-  adr: packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md
+  adr: packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md
 ---
 
-## 導入（SS-15, 2026-07-30）
+`react-native-maps` は `package.json` で 1.29.8（2026-10 時点）。最初の実利用は SS-15 の
+`features/walk/components/SpotMapView.tsx`。
 
-`packages/mobile/src/features/walk/components/SpotMapView.tsx` が最初の実利用箇所
-（`react-native-maps` は `package.json` には元々あったが import 0件だった）。
-
-- `provider` prop は指定しない方針（Android=Google Maps / iOS=Apple Maps。iOS のキーが不要になる）。
+- `provider` prop は指定しない（Android=Google Maps / iOS=Apple Maps。iOS のキーが不要になる）。
 - `MapView` はクラスコンポーネント。`useRef<MapView>(null)` で ref を持ち、
-  `mapRef.current?.animateToRegion(region, durationMs)` で再センタリングする。
-  `initialRegion` はマウント時の1回しか読まれない（以後の変化は effect 側で animateToRegion する）。
-- `Marker` の `tracksViewChanges={false}`（既定 true）を必ず付ける。付けないと Android で
-  マーカーごとに毎フレーム再描画され重くなる。ただし `false` にすると**子 View（カスタムピン）の
-  見た目の変化がネイティブ側に反映されなくなる**ため、選択状態などを変えたい場合は
-  `key` にその状態を含めて Marker ごと再マウントさせる（`key={`${id}:${selected}`}` のような形。
-  react-native-maps の定番回避策）。
-- `Region` 型（`{ latitude, longitude, latitudeDelta, longitudeDelta }`）は vitest（node環境、
-  `react-native-maps` を import しない）でテストしたいロジックのために構造的互換の自前型
-  （`MapRegion`）を `features/<feature>/lib/` に定義する。`import type` すら react-native-maps から
-  しない（値 import はもちろん、型 import も node テストの純度を保つため避けた）。
+  `mapRef.current?.animateToRegion(region, durationMs)` で再センタリングする。`initialRegion` は
+  マウント時の1回しか読まれない（以後の変化は effect で `animateToRegion` する）。
+  範囲へのフィットは `fitToCoordinates(coordinates, options)` / `fitToElements(options)`。
+- `Marker` には `tracksViewChanges={false}` を必ず付ける（既定 true だと Android でマーカーごとに
+  毎フレーム再描画され重い）。ただし false にすると**子 View（カスタムピン）の見た目の変化が
+  ネイティブ側に反映されない**ため、選択状態などで見た目を変えるときは `key` にその状態を含めて
+  Marker ごと再マウントする（`key={`${id}:${selected}`}`）。
+- `Region` 型は、vitest（node 環境）でテストしたいロジックのために構造的互換の自前型（`MapRegion`）を
+  `lib/` に定義する。`react-native-maps` からは `import type` もしない（node テストの純度を保つ）。
 
-## Android Maps SDK キーの注入経路
+## Android Maps SDK キーの注入
 
-`app.config.ts` が `process.env.GOOGLE_MAPS_ANDROID_SDK_KEY`（`EXPO_PUBLIC_` 接頭辞ではない）を
-読んで `android.config.googleMaps.apiKey` に注入する。**確認したところ `.env` に書くだけで
-（シェル export 不要で）`expo config --type prebuild` に反映される**
-（Expo CLI は config 評価時に `.env` の全変数を process.env にロードする。`EXPO_PUBLIC_` 制限は
-「クライアントJSバンドルへの inline」の話であり、`app.config.ts` を評価する Node 側の
-`process.env` には無関係）。反映確認: `pnpm --filter mobile exec expo config --type prebuild --json`
-の `android.config.googleMaps.apiKey` を見る。
-
-## SS-16 で実装、SS-33 で legs 描画に拡張
-
-ルート描画は `Polyline`（`path` 座標列）と `fitToCoordinates`/`MapBounds` へのフィットで実装した。
-`MapView` インスタンスの `fitToCoordinates(coordinates, options)` / `fitToElements(options)` が使える
-（`node_modules/react-native-maps/dist/src/MapView.d.ts` で型確認済み）。
-
-**SS-33 追補**: `WalkRoute` が片道1本の `path` ではなく `legs: [outbound, return]` を持つ形に変わった
-ため、`Polyline` を1本ではなく往路/復路の2本（`returnIsSamePath` のときは1本）描画する形に拡張した。
-描き分け（どの区間をどの色・破線で描くか）は `features/walk/lib/walkRouteLegs.ts` の純粋関数、
-実際の描画は `features/walk/components/WalkRoutePolylines.tsx` が担う。地図フィット
-（`fitToCoordinates`）の対象範囲は API が返す `bounds`（origin/destination を含む）をそのまま使い、
-legs 単位で個別に計算し直すことはしていない。
+注入経路（`app.config.ts` が `GOOGLE_MAPS_ANDROID_SDK_KEY` を `android.config.googleMaps.apiKey` に入れる、
+`EXPO_PUBLIC_` を付けない、EAS では `.env` が載らない）は
+`packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md` が正本。
+ローカルでは `.env` に書くだけで（シェル export 不要で）反映される。確認は
+`pnpm --filter mobile exec expo config --type prebuild --json` の `android.config.googleMaps.apiKey`。
