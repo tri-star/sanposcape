@@ -6,6 +6,12 @@ Secrets Manager から取得した値を環境変数へハイドレーション�
 組み立てる必要があるため、`hydrate_environment_from_secret()` を必ず
 `sanposcape.main` の import より前に呼ぶ。この順序は `aws_lambda/tests/test_api.py` で
 呼び出し順を記録するスタブを使って固定している。
+
+さらにその後ろ（3段目）で `build_handler()` を呼ぶ。`build_handler()` は FastAPI の
+lifespan（`main._lifespan` の startup）を init フェーズで1回だけ起動する（Mangum は
+`lifespan="off"`。実行環境ごとに1回で、shutdown は走らせない。ADR-005 SS-183 追補）。
+ハイドレーション → `sanposcape.main` の import（`create_app()`）→ `build_handler()` の順で、
+lifespan の起動は app の生成より後になる。
 """
 
 import logging

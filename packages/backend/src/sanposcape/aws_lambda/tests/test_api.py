@@ -1,5 +1,6 @@
 """`aws_lambda/api.py` のハイドレーション順序と Mangum 疎通の回帰テスト。"""
 
+import asyncio
 import importlib.util
 import json
 import sys
@@ -8,6 +9,8 @@ from types import ModuleType
 
 import pytest
 
+import sanposcape
+import sanposcape.aws_lambda.asgi_handler as asgi_handler_module
 import sanposcape.config as config_module
 import sanposcape.core.runtime_config as runtime_config_module
 
@@ -51,9 +54,23 @@ def test_hydration_runs_before_main_app_is_created(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(runtime_config_module, "hydrate_environment_from_secret", _spy_hydrate)
     monkeypatch.setattr(config_module, "get_settings", _spy_get_settings)
 
+    # `build_handler()` は lifespan を起動する。ここでは捨てられる app を作るだけなので、
+    # 実際には起動せず呼び出しだけを記録する（起動すると、GC された async generator の
+    # finalizer が後のテストのループ上で `aclose()` を走らせ、無関係のテストに紛れ込む）。
+    # fresh exec の `from ... import build_handler` は実行時に属性を読むので、exec より前に
+    # 差し替えれば spy が使われる。
+    def _spy_build_handler(app: object) -> object:
+        call_order.append("build_handler")
+        return object()
+
+    monkeypatch.setattr(asgi_handler_module, "build_handler", _spy_build_handler)
+
     # `sanposcape.main` を collection 時のキャッシュから外し、`aws_lambda.api` の
     # `from sanposcape.main import app` で実際に再 import（= create_app() の再実行）が
     # 起きるようにする。他のテストへの影響を避けるため、終了後に必ず元へ戻す。
+    # 再 import は親パッケージの属性 `sanposcape.main` も新しいモジュールで上書きするので、
+    # `sys.modules` と合わせて属性も戻す（戻さないと、`monkeypatch.setattr("sanposcape.main.x")`
+    # のような文字列指定が、後続のテストで古い module オブジェクトを指してしまう）。
     original_main_module = sys.modules.get("sanposcape.main")
     sys.modules.pop("sanposcape.main", None)
     try:
@@ -61,19 +78,37 @@ def test_hydration_runs_before_main_app_is_created(monkeypatch: pytest.MonkeyPat
     finally:
         if original_main_module is not None:
             sys.modules["sanposcape.main"] = original_main_module
+            sanposcape.main = original_main_module  # type: ignore[attr-defined]
         else:
             sys.modules.pop("sanposcape.main", None)
 
-    assert call_order == ["hydrate_environment_from_secret", "main_create_app_get_settings"]
+    # lifespan の起動（build_handler）は app の生成（create_app の get_settings）より後。
+    assert call_order == [
+        "hydrate_environment_from_secret",
+        "main_create_app_get_settings",
+        "build_handler",
+    ]
 
 
-def test_handler_returns_200_for_health_check() -> None:
-    """`events/health-get.json`（payload format 2.0）を渡すと Mangum 経由で 200 が返る。"""
+def test_handler_returns_200_for_health_check(
+    lambda_event_loop: asyncio.AbstractEventLoop,
+) -> None:
+    """`events/health-get.json`（payload format 2.0）を渡すと Mangum 経由で 200 が返り、
+    同じハンドラーを2回呼んでも同じ結果になる。
+
+    実際の `api.py` を import すると、共有の `sanposcape.main.app` で lifespan が起動し
+    `app.state` が書き換わる。後続のテストは `with TestClient(app)` で lifespan を回し直して
+    上書きするので実害は無い（TestClient を抜けた後の `app.state` に close 済みの資源が残る
+    という同じ種類の状態は、もともとある）。このテストでは `handler.close()` を呼ばない:
+    `sys.modules` に残る module-level の handler を閉じても、同じプロセスで再 import
+    しても再起動はしない。`/health` は lifespan の資源を使わないので許容する。
+    """
     from sanposcape.aws_lambda.api import handler
 
     event = json.loads((_EVENTS_DIR / "health-get.json").read_text())
 
-    response = handler(event, None)
+    for _ in range(2):
+        response = handler(event, None)
 
-    assert response["statusCode"] == 200
-    assert json.loads(response["body"]) == {"status": "ok"}
+        assert response["statusCode"] == 200
+        assert json.loads(response["body"]) == {"status": "ok"}
