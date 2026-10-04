@@ -352,6 +352,10 @@ aws lambda invoke --function-name sanposcape-dev-backend-migrate \
   一致することを確認する。
 - API 本体と同じビルド成果物（同じ `CodeUri`）を使っているため、デプロイされたコードと
   マイグレーションのリビジョンは必ず一致する。
+- **既存テーブルへの列追加では、列を読むコードのデプロイからこの invoke までの間、そのテーブルを
+  読む API が `UndefinedColumn` で 500 になる。** デプロイ直後に続けて invoke する。本番稼働後は、
+  マイグレーションだけの PR を先にデプロイして invoke し、その後で列を使うコードを出す
+  （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補）。
 - `ReservedConcurrentExecutions=1`（dev。prod はクォータの都合で未設定）により、
   `upgrade head` の同時実行は防がれる。
 
@@ -503,6 +507,7 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 | `Runtime.ImportModuleError: No module named 'psycopg_binary'` | `--use-container` なしでビルドした | `sam build --use-container` でビルドし直す |
 | リクエストが 29 秒でタイムアウトする | DSN のホストに到達できない（Neon の IP allowlist が有効、または DSN の誤り） | Neon コンソールで IP allowlist が無効であることを確認する（dev では確認済み・無効） |
 | `no such table` / `relation does not exist` | マイグレーション未実行 | §5.2 を実行する |
+| `UndefinedColumn`（`column ... does not exist`、既存テーブルの API が 500） | 既存テーブルへの列追加を含むコードをデプロイしたが、マイグレーションがまだ（デプロイから migrate までの隙間） | §5.2 を実行する。本番稼働後は、列追加のマイグレーションだけの PR を先にデプロイして migrate してから、列を使うコードを出す（[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補） |
 | `prepared statement "..." already exists` | Neon の PgBouncer とプロトコルレベルの prepared statement が想定外に衝突した | `DB_DISABLE_PREPARED_STATEMENTS=true` を該当関数の環境変数に設定して再デプロイする（§9 参照） |
 | CloudFront 経由だと全エンドポイントで 401（`/health` は 200） | mobile 側が `Authorization` ヘッダーで送っている（CloudFront に上書きされる） | mobile 側が `X-App-Authorization` を送るよう実装されているか確認する（ADR-005 決定4） |
 | CloudFront 経由が全部 403（`/health` を含む） | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`）が無い、または distribution ID が不一致 | 下記の `get-policy` で確認する。**この許可は Terraform 側が付与するもので、SAM 側の対応は無い** |
