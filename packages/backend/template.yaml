@@ -122,7 +122,8 @@ Resources:
       # ADOT（AWS Distro for OpenTelemetry）の Python レイヤー。版は固定する。上げるときは dev で
       # 確かめ、pyproject.toml の dev グループの opentelemetry-* の版と
       # OTEL_PYTHON_DISABLED_INSTRUMENTATIONS（レイヤーの既定値）を一緒に見直す（docs/deployment.md）。
-      # v28 の中身は aws-opentelemetry-distro 0.20.0 相当（api/sdk 1.44.0、instrumentation 0.65b0）と想定。
+      # v28 の中身は aws-opentelemetry-distro 0.21.0（api/sdk 1.44.0、instrumentation 0.65b0）。zip を取得して
+      # 確認済み（SS-178。計装の版は v27 = 0.20.0 と同じで、dev グループの == 固定と一致する）。
       Layers:
         - arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28
       # AppConfig の ID は Api だけに渡す（Migrate はフラグを読まない。最小権限）。

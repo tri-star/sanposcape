@@ -36,7 +36,7 @@ dev = [
     # sys.path で /var/task が /opt/python より前に来て、レイヤーの SDK と版が混ざる
     # （`uv export --no-dev` が除くので requirements-lambda.txt にも入らない。Makefile の
     # build-Api に混入ガードあり）。ここに置く目的は、ローカル（compose）での送信・テスト・
-    # 型解決だけ。版はレイヤーが同梱するもの（aws-opentelemetry-distro 0.20.0 の固定版）に
+    # 型解決だけ。版はレイヤー v28 が同梱するもの（aws-opentelemetry-distro 0.21.0 の固定版）に
     # `==` で合わせる。レイヤーを上げるときは一緒に上げる（dependabot は ignore 済み）。
     "opentelemetry-api==1.44.0",
     "opentelemetry-sdk==1.44.0",
