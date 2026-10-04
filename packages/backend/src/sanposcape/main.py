@@ -64,6 +64,11 @@ def _unauthorized_response(detail: str) -> JSONResponse:
     )
 
 
+def _tracing_enabled(request: Request) -> bool:
+    settings = getattr(request.app.state, "settings", None)
+    return bool(settings and settings.tracing_enabled)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """auth ドメインの例外を HTTP レスポンスへ変換する。
 
@@ -111,7 +116,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: IdentityProviderUnavailableError
     ) -> JSONResponse:
         # 503 に変換するとこの例外は OTel のミドルウェアまで伝わらないため、スパンに残す。
-        record_exception_on_current_span(exc)
+        record_exception_on_current_span(exc, enabled=_tracing_enabled(request))
         return JSONResponse(status_code=503, content={"detail": "Identity provider unavailable"})
 
     @app.exception_handler(AuthenticationError)
@@ -131,7 +136,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(MapsUnavailableError)
     async def _maps_unavailable(request: Request, exc: MapsUnavailableError) -> JSONResponse:
-        record_exception_on_current_span(exc)
+        record_exception_on_current_span(exc, enabled=_tracing_enabled(request))
         return JSONResponse(status_code=503, content={"detail": "Map provider unavailable"})
 
     @app.exception_handler(WalkNotFoundError)
@@ -221,7 +226,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _object_storage_unavailable(
         request: Request, exc: ObjectStorageUnavailableError
     ) -> JSONResponse:
-        record_exception_on_current_span(exc)
+        record_exception_on_current_span(exc, enabled=_tracing_enabled(request))
         return JSONResponse(status_code=503, content={"detail": "Photo storage unavailable"})
 
 

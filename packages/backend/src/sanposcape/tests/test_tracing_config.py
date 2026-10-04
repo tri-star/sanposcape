@@ -1,8 +1,9 @@
 """template.yaml / compose.yaml のトレース設定の整合を検証する（ADR-013 / SS-178）。
 
-`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` はレイヤーの既定値（自動計装を botocore / urllib だけに
-する）を明示した文字列で、fastapi / sqlalchemy / httpx / threading はアプリから手動で計装する。
-自動と手動の二重計装を避けるため、この 4 つが無効リストに含まれていることを固定する。
+`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` はレイヤーの既定値に `urllib` を足した文字列で、
+自動計装を botocore だけにする。fastapi / sqlalchemy / httpx / urllib / threading は
+アプリから手動で計装する（urllib はクエリを除くフックのため）。
+自動と手動の二重計装を避けるため、この 5 つが無効リストに含まれていることを固定する。
 """
 
 from pathlib import Path
@@ -11,8 +12,8 @@ import pytest
 import yaml
 
 _BACKEND_DIR = Path(__file__).resolve().parents[3]
-_MANUALLY_INSTRUMENTED = {"fastapi", "sqlalchemy", "httpx", "threading"}
-_AUTO_INSTRUMENTED = {"botocore", "urllib"}
+_MANUALLY_INSTRUMENTED = {"fastapi", "sqlalchemy", "httpx", "urllib", "threading"}
+_AUTO_INSTRUMENTED = {"botocore"}
 
 
 class _CloudFormationLoader(yaml.SafeLoader):

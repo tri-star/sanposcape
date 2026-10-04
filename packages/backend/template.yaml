@@ -136,7 +136,7 @@ Resources:
           # 空だと UnconfiguredObjectStorage（写真 API が 503）になる。Migrate には渡さない。
           PIN_PHOTO_BUCKET_NAME: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_name}}'
           # --- トレース（ADR-013 / SS-178）。Api だけ。Globals には置かない ---
-          # アプリ側の計装（FastAPI・SQLAlchemy・httpx・threading の手動計装）を有効にする。
+          # アプリ側の計装（FastAPI・SQLAlchemy・httpx・urllib・threading の手動計装）を有効にする。
           TRACING_ENABLED: 'true'
           # ADOT の起動ラッパー。TracerProvider はこれが作る（アプリは作らない。決定7）。
           AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
@@ -146,11 +146,12 @@ Resources:
           OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true'
           # レイヤー v28 の otel-instrument の既定値と同じ文字列を明示する（レイヤーを上げて既定値が
           # 変わっても、有効な計装が黙って増減しないように。決定1）。結果として自動計装は
-          # botocore と urllib だけ。fastapi / sqlalchemy / httpx は zip 側のライブラリで、起動時
+          # botocore だけ。fastapi / sqlalchemy / httpx は zip 側のライブラリで、起動時
           # （sitecustomize）の sys.path に /var/task が無く自動計装の依存チェックを通らないため、
-          # threading は ThreadPoolExecutor の子スパンを繋ぐため、アプリから手動で計装する。
+          # urllib はクエリ（JWKS の URL など）を除くフックを付けるため、threading は
+          # ThreadPoolExecutor の子スパンを繋ぐため、アプリから手動で計装する。
           # fastapi だけを書く方式は既定値を上書きして他の計装を一斉に有効にしてしまうので真似しない。
-          OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: 'aio-pika,aiohttp-client,aiohttp-server,aiopg,asgi,asyncio,asyncpg,boto,boto3,cassandra,celery,confluent_kafka,dbapi,django,falcon,fastapi,flask,grpc_client,grpc_server,grpc_aio_client,grpc_aio_server,httpx,jinja2,kafka,logging,mysql,mysqlclient,pika,psycopg,psycopg2,pymemcache,pymongo,pymysql,pyramid,redis,remoulade,requests,sklearn,sqlalchemy,sqlite3,starlette,system_metrics,threading,tornado,tortoiseorm,wsgi,openai_agents,aws_openai_agents,aws_crewai,aws_langchain,aws_mcp,aws_llama-index'
+          OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: 'aio-pika,aiohttp-client,aiohttp-server,aiopg,asgi,asyncio,asyncpg,boto,boto3,cassandra,celery,confluent_kafka,dbapi,django,falcon,fastapi,flask,grpc_client,grpc_server,grpc_aio_client,grpc_aio_server,httpx,jinja2,kafka,logging,mysql,mysqlclient,pika,psycopg,psycopg2,pymemcache,pymongo,pymysql,pyramid,redis,remoulade,requests,sklearn,sqlalchemy,sqlite3,starlette,system_metrics,threading,tornado,tortoiseorm,urllib,wsgi,openai_agents,aws_openai_agents,aws_crewai,aws_langchain,aws_mcp,aws_llama-index'
           # 公開エンドポイントでクライアントの traceparent / baggage を親として受け入れない
           # （トレースの乗っ取り・sampled の強制を防ぐ）。mobile からトレースを繋ぐときに見直す。
           OTEL_PROPAGATORS: xray

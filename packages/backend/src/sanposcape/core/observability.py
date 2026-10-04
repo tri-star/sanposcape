@@ -32,6 +32,7 @@ import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit, urlunsplit
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -215,6 +216,18 @@ def _scrub_query_from_client_span(span: Any, request_info: Any) -> None:
             span.set_attribute("http.url", "")
 
 
+def _scrub_query_from_urllib_span(span: Any, request: Any) -> None:
+    """urllib 計装の `request_hook`: `http.url` のクエリ・フラグメントを除く。失敗時は空に倒す。"""
+    try:
+        if span.is_recording():
+            url = urlsplit(request.full_url)
+            span.set_attribute("http.url", urlunsplit((url.scheme, url.netloc, url.path, "", "")))
+    except Exception:
+        warn_once("urllib-scrub", "urllib の http.url からクエリを除けなかったため、空にした")
+        with contextlib.suppress(Exception):
+            span.set_attribute("http.url", "")
+
+
 def resolve_route_template(scope: Scope) -> str | None:
     """ルーティング済みの scope から、prefix を結合したルートのテンプレートを返す。
 
@@ -281,6 +294,18 @@ def instrument_fastapi_app(
                 tracer_provider=tracer_provider, request_hook=_scrub_query_from_client_span
             )
 
+    def _instrument_urllib() -> None:
+        from opentelemetry.instrumentation.urllib import URLLibInstrumentor
+
+        instrumentor = URLLibInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            # PyJWKClient の JWKS 取得など。`GOOGLE_JWKS_URL` は設定で変えられ、クエリが付く
+            # 可能性がある。自動計装は既定の `redact_url`（一部の署名パラメータだけ）しか
+            # 掛けないため、手動でクエリ・フラグメントを除く（決定6）。
+            instrumentor.instrument(
+                tracer_provider=tracer_provider, request_hook=_scrub_query_from_urllib_span
+            )
+
     def _instrument_threading() -> None:
         from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 
@@ -304,6 +329,7 @@ def instrument_fastapi_app(
 
     for name, instrument in (
         ("httpx", _instrument_httpx),
+        ("urllib", _instrument_urllib),
         ("threading", _instrument_threading),
         ("fastapi", _instrument_fastapi),
     ):
@@ -423,14 +449,18 @@ def _instrument_engine(instrumentor: Any, engine: Engine, **kwargs: Any) -> None
     event.listen(engine, "handle_error", _handle_error_without_message)
 
 
-def record_exception_on_current_span(exc: BaseException) -> None:
+def record_exception_on_current_span(exc: BaseException, *, enabled: bool) -> None:
     """例外ハンドラーで 5xx に変換した例外を、現在のスパンに記録する。
 
     ハンドラーで処理された例外は OTel のミドルウェアまで伝わらず、スパンに残らない。
     記録するのは**例外の型名だけ**（`span.record_exception` は使わない: スタックトレースは
     `__cause__` の連鎖を含み、httpx / botocore の URL や S3 のキーが載りうるため。決定6）。
-    OTel が無い・スパンが記録中でないときは何もしない。
+    `enabled`（`settings.tracing_enabled`）が False のときは、OpenTelemetry を import する前に
+    何もせず返る（無効時は import しない契約。503 が起きても import されない）。
+    OTel が無い・スパンが記録中でないときも何もしない。
     """
+    if not enabled:
+        return
     try:
         from opentelemetry import trace
     except ImportError:

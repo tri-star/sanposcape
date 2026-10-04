@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.threading import ThreadingInstrumentor
+from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -271,6 +272,7 @@ def clean_instrumentors() -> Generator[None, None, None]:
         for instrumentor in (
             HTTPXClientInstrumentor(),
             ThreadingInstrumentor(),
+            URLLibInstrumentor(),
             SQLAlchemyInstrumentor(),
         ):
             if instrumentor.is_instrumented_by_opentelemetry:

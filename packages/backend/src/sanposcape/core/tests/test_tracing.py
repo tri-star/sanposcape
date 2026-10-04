@@ -9,9 +9,13 @@
 """
 
 import logging
+import os
+import subprocess
 import sys
+import tempfile
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import httpcore
 import httpx
@@ -22,6 +26,7 @@ from opentelemetry import trace
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.threading import ThreadingInstrumentor
+from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from sqlalchemy import Engine, create_engine, event, insert, text
@@ -132,7 +137,7 @@ class TestOpenTelemetryUnavailable:
     ) -> None:
         monkeypatch.setitem(sys.modules, "opentelemetry", None)
 
-        record_exception_on_current_span(RuntimeError("x"))  # 例外にならない
+        record_exception_on_current_span(RuntimeError("x"), enabled=True)  # 例外にならない
 
 
 class TestUnconfiguredProvider:
@@ -276,7 +281,7 @@ class TestRecordExceptionOnCurrentSpan:
         tracer = provider.get_tracer("test")
 
         with tracer.start_as_current_span("op"):
-            record_exception_on_current_span(RuntimeError("fixed message"))
+            record_exception_on_current_span(RuntimeError("fixed message"), enabled=True)
 
         (span,) = exporter.get_finished_spans()
         assert span.status.status_code == trace.StatusCode.ERROR
@@ -297,7 +302,7 @@ class TestRecordExceptionOnCurrentSpan:
                 raise RuntimeError("wrapped") from cause
         except RuntimeError as exc:
             with tracer.start_as_current_span("op"):
-                record_exception_on_current_span(exc)
+                record_exception_on_current_span(exc, enabled=True)
 
         (span,) = exporter.get_finished_spans()
         assert "SECRET" not in repr(
@@ -305,7 +310,96 @@ class TestRecordExceptionOnCurrentSpan:
         )
 
     def test_noop_without_recording_span(self) -> None:
-        record_exception_on_current_span(RuntimeError("x"))  # 例外にならない
+        record_exception_on_current_span(RuntimeError("x"), enabled=True)  # 例外にならない
+
+
+class TestDisabledDoesNotImportOpenTelemetry:
+    def test_503_handler_does_not_import_opentelemetry_when_tracing_is_disabled(self) -> None:
+        """無効（既定）では、503 のハンドラーが走っても opentelemetry を import しない。
+
+        pytest のプロセスは既に import 済みなので、別プロセスで確かめる。
+        """
+        code = (
+            "import sys\n"
+            "from fastapi.testclient import TestClient\n"
+            "from sanposcape.config import Settings\n"
+            "from sanposcape.main import create_app\n"
+            "from sanposcape.maps.exceptions import MapsUnavailableError\n"
+            "app = create_app(Settings(env='test'))\n"
+            "@app.get('/maps-down')\n"
+            "def maps_down():\n"
+            "    raise MapsUnavailableError()\n"
+            "r = TestClient(app).get('/maps-down')\n"
+            "assert r.status_code == 503, r.status_code\n"
+            "loaded = sorted(m for m in sys.modules if m.split('.')[0] == 'opentelemetry')\n"
+            "assert not loaded, loaded\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "TRACING_ENABLED"}
+        env["PYTHONPATH"] = str(Path(__file__).resolve().parents[3])
+
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            env=env,
+            cwd=tempfile.gettempdir(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    def test_record_exception_is_noop_when_disabled(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        with provider.get_tracer("t").start_as_current_span("op"):
+            record_exception_on_current_span(RuntimeError("x"), enabled=False)
+
+        (span,) = exporter.get_finished_spans()
+        assert span.events == ()
+
+
+class TestUrllib:
+    def test_query_and_fragment_are_removed_from_http_url(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import urllib.request
+
+        instrument_fastapi_app(
+            create_app(Settings(env="test")), _tracing_on(), tracer_provider=provider
+        )
+        assert URLLibInstrumentor().is_instrumented_by_opentelemetry
+
+        monkeypatch.setattr(
+            "http.client.HTTPConnection.request", lambda *a, **k: (_ for _ in ()).throw(OSError)
+        )
+        # 実際の接続は行わない（OSError で失敗してよい。スパンの属性だけを見る）。
+        with pytest.raises(OSError):
+            urllib.request.urlopen(  # noqa: S310
+                "http://jwks.example.test/certs?key=SECRET&lat=35.1#frag", timeout=1
+            )
+
+        spans = [s for s in exporter.get_finished_spans() if s.name == "GET"]
+        assert len(spans) == 1
+        assert spans[0].attributes["http.url"] == "http://jwks.example.test/certs"
+        assert not [v for v in _all_attribute_values(tuple(spans)) if "SECRET" in v or "35.1" in v]
+
+    def test_hook_failure_blanks_http_url(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(observability, "_WARNED", set())
+        with provider.get_tracer("t").start_as_current_span(
+            "s", attributes={"http.url": "http://h/p?key=SECRET"}
+        ) as span:
+            observability._scrub_query_from_urllib_span(span, object())  # full_url が無い
+
+        (finished,) = exporter.get_finished_spans()
+        assert finished.attributes["http.url"] == ""
 
 
 class TestThreadingAndHttpx:
