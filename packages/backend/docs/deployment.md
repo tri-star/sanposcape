@@ -28,6 +28,7 @@
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
 > | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
+> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **未実施**（infra の `ManageBackendMonitoring` の dev apply 待ち）。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。Logs Insights のクエリの構文・フィールド名（`attributes.http.status_code` が数値か、`traceId`）、Application Signals の `Environment` の値、全ウィジェットの描画は **未確認（dev で確認後に追記）**。prod は SS-185 の prod 適用待ち |
 > | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
@@ -67,7 +68,8 @@ dev アカウントの CloudWatch Logs には `ENV=staging` と出る。
 | 作るもの | 所有者 |
 |---|---|
 | Lambda 関数 2 つ（API 本体 / マイグレーション）、実行ロール、CloudWatch ロググループ 2 つ、API 本体の Function URL | **SAM**（このリポジトリ） |
-| CloudFront ディストリビューション、WAF、Route53、ACM、OAC、Secrets Manager の器、アクセスログ S3 | **Terraform**（別リポジトリ `sanposcape-infra`） |
+| CloudWatch ダッシュボード 1 枚、ap-southeast-1 のアラーム（`sanposcape-<env>-backend-*`。§14 / SS-179） | **SAM**（このリポジトリ） |
+| CloudFront ディストリビューション、WAF、Route53、ACM、OAC、Secrets Manager の器、アクセスログ S3、CloudFront のアラーム（us-east-1）、アラートの SNS トピック | **Terraform**（別リポジトリ `sanposcape-infra`） |
 | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`） | **Terraform**（`enable_distribution = true` の apply 時に付与） |
 
 **デプロイ順は常に SAM → Terraform。** SAM が Lambda 関数と Function URL を作った後でないと、
@@ -131,6 +133,16 @@ aws logs describe-log-groups --log-group-name-prefix /aws/lambda/sanposcape-dev-
 aws lambda get-layer-version-by-arn --region ap-southeast-1 \
   --arn arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28 \
   --query '{Version:Version,Size:Content.CodeSize}'
+
+# （SS-179）アラートの通知先（SNS トピック）の ARN が存在すること。無いとアラームの
+# {{resolve:ssm:}} が解決できず deploy が失敗する（infra の live/platform が未 apply の環境には無い）
+aws ssm get-parameter --name /sanposcape/dev/platform/alerting/topic_arn \
+  --region ap-southeast-1 --query 'Parameter.Value' --output text
+
+# （SS-179）デプロイロールにダッシュボード・アラームの許可があること
+# （infra の ManageBackendMonitoring。無いと deploy が CloudWatch の AccessDenied で止まる）
+aws iam get-role-policy --role-name sanposcape-dev-sam-deploy --policy-name sam-deploy \
+  --query 'PolicyDocument.Statement[?Sid==`ManageBackendMonitoring`]'
 ```
 
 ## 4. デプロイ手順
@@ -315,7 +327,10 @@ CI はマイグレーションを実行しない。デプロイロールに `lam
 - 命名規則（スタック `sanposcape-backend-<env>` / 関数 `sanposcape-<env>-backend-*` /
   ロググループ `/aws/lambda/sanposcape-<env>-backend-*`）から外れるリソースの作成・変更
 - `template.yaml` に新しい種類のリソース（例: SQS、DynamoDB）を足すこと。足す場合は先に
-  infra 側のデプロイロールの権限を広げる
+  infra 側のデプロイロールの権限を広げる。**例外**: CloudWatch のダッシュボードとアラームは、
+  名前を `sanposcape-<env>-backend-*` に絞って許可する前提（infra の `ManageBackendMonitoring`。SS-179）。
+  `logs:PutQueryDefinition` は無いので、Logs Insights の保存済みクエリ（`AWS::Logs::QueryDefinition`）は
+  作れない（作らない方針。§14）
 
 ## 5. マイグレーション手順
 
@@ -1045,6 +1060,7 @@ Lambda の `sys.path` では `/var/task`（zip）が `/opt/python`（レイヤ�
 3. 新しいレイヤーの `otel-instrument` の既定の無効リストと `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS`
    （template.yaml と compose.yaml の 2 か所）が一致しているか見直す。
 4. dev のコールドスタート（`Init Duration`）・展開後のサイズ（zip + レイヤーで 250MB 未満）・スパンの中身を確かめる。
+5. ダッシュボードのルート別の表（§14 の Q1）にルートとステータスが出ること（親スパンの `http.status_code` や `kind` の付き方が変わると表が空になる）。
 
 ### 緊急停止
 
@@ -1081,3 +1097,203 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 **残るリスク**: 未処理の 500 では、ASGI / Lambda 計装が exception イベントに message と
 スタックトレースを自動で付ける（DB 例外なら DETAIL のキー値が載りうる）。ログのトレースバックと
 合わせて SS-180 で対処する（ADR-013 決定6 の追補）。
+
+## 14. メトリクス・ダッシュボード・アラーム（ADR-013 / SS-179）
+
+API の呼び出し頻度・レイテンシ・エラー率・メモリ・コールドスタートを見るための、ダッシュボード 1 枚と
+アラーム 3 本。どちらも `template.yaml` が所有し、Lambda スタックと一緒に作られ・消える。
+
+> **検証状況: dev での確認は未実施**（infra の `ManageBackendMonitoring` の dev apply 待ち。冒頭の検証状況表）。
+> 以下のクエリは設計どおりに書いた案で、次の点は **未確認（dev で確認後に追記）**。
+> 外れていたら `template.yaml` の `ApiDashboard` とこの節のクエリを直す（`test_monitoring_config.py` の期待値も合わせる）。
+>
+> - `attributes.http.status_code` が数値で入っているか（文字列なら Q1 の `floor(status / 500)` を `tonumber()` で包む）
+> - `fields` の別名を次の `fields` で参照できるか（Q1）
+> - トップレベルのフィールド名が `traceId` か（Q3）
+> - `bin(1h)` と `name` を両方 `by` に入れた線グラフが描けるか（Q4。描けなければウィジェットを外す）
+> - Application Signals の `Environment` ディメンションの値が `dev` / `prod`（`deployment.environment` と同じ）か
+> - 関数単位の `ConcurrentExecutions` が出るか
+> - タイムアウト / OOM のログの文言（Q7）
+> - `aws/spans` の件数と Lambda の `Invocations` の乖離（サンプリングの影響）
+
+### 置き場と前提
+
+- 置き場は SAM の `template.yaml`（理由は [ADR-013](../../../docs/adr/ADR-013-observability-adot-application-signals.md) 決定2 の SS-179 追補）。
+  CloudFront のアラーム（us-east-1）は Terraform 所有（infra の `live/services/backend-api/monitoring.tf`）で、ここには無い。
+- **デプロイロールの `ManageBackendMonitoring`（infra の `live/account/sam_deploy.tf`）が前提。** infra の dev への
+  apply より先に backend をマージしない（dev へのデプロイが CloudWatch の AccessDenied で全部止まる）。
+  確認コマンドは §3 Phase 0。AccessDenied の対象アクションが許可に無いときは、アクション名を infra に伝える。
+- アラームの通知先は SSM `/sanposcape/<env>/platform/alerting/topic_arn`（platform 層の SNS）。
+  メールの購読は infra の `alert_email_addresses` で設定し、確認メールのリンクを踏む必要がある。
+- 名前は必ず `sanposcape-<env>-backend-` で始める（デプロイロールの許可の接頭辞。`test_monitoring_config.py` が固定）。
+- **コンソールでダッシュボードを編集しても、次のデプロイで上書きされる。** 試すときは「名前を付けて保存」で別名にする。
+- Outputs の `DashboardName` で名前を取れる。コンソールでは CloudWatch > ダッシュボード > `sanposcape-<env>-backend-api`（ap-southeast-1）。
+
+### ダッシュボードの読み方
+
+名前は `sanposcape-<env>-backend-api`。既定の期間は 7 日。
+
+| 行 | ウィジェット | データ源 | 読み方 |
+|---|---|---|---|
+| 上段 | 説明 | — | データ源ごとの意味と、自動更新を付けないこと |
+| 1 | API 全体: リクエスト数 / 4xx / 5xx、エラー率、レイテンシ（p50/p95/p99） | Application Signals（`ApplicationSignals` 名前空間。`Latency` / `Error` / `Fault`） | スパン由来でサンプリングの影響を受ける。Latency に Init（コールドスタート）は含まれない |
+| 2 | Lambda: 呼び出し / エラー / スロットル、Duration、同時実行数 | `AWS/Lambda` | 全件。Duration には時間予算（25 秒）と Timeout（29 秒）の線。同時実行数の線は dev が予約の 5、prod がクォータの 10 |
+| 3 | ルート別（Q1）、ルート × ステータス（Q2） | `aws/spans` | ルート（`METHOD /テンプレート`）ごとの件数・p50/p95/p99・4xx/5xx 率 |
+| 4 | 直近の 5xx（Q3）、ルート別の件数の時系列（Q4） | `aws/spans` | Q3 の `traceId` から X-Ray / Transaction Search のトレースへ辿る |
+| 5 | メモリ（Q5）、コールドスタート（Q6a、Q6b） | Lambda のロググループの REPORT 行 | 全件 |
+| 6 | タイムアウト / OOM / ランタイムの異常終了（Q7） | 同上 | スパンが失われるので、ルート別の表には出ない |
+
+ルート別の集計の注意:
+
+- **スパン由来の値はサンプリングの影響を受ける。** 毎秒 1 件を超えたときの扱いは ADR-013 の未解決事項。全件の件数は
+  Lambda の `Invocations` と REPORT 行の件数を正とする。
+- `GET` / `POST` など **メソッドだけの行**は、どのルートにも一致しなかったリクエスト（404 のスキャナーなど）。
+- `GET /health` も 1 行として出る。除外するなら Q1 の `filter` に `` and `attributes.http.route` != '/health' `` を足す。
+- **タイムアウト・OOM で落ちたリクエストはスパンが失われる**ため表に出ない。Q7 と `Errors` で見る。
+- ハンドラーが例外を投げたときはステータスが欠け、Q1 の 4xx / 5xx に入らない。Lambda の `Errors` 側で拾う。
+- 4xx / 5xx の判定は、Logs Insights に `if` / `case` が無いので `floor(status / 400)` と `floor(status / 500)` から 0/1 を作って `sum` している。
+- 親スパンのステータス属性は旧 semconv の `http.status_code`（`OTEL_SEMCONV_STABILITY_OPT_IN` は未設定。ADR-013 決定6）。
+  AWS のドキュメントの例にある `http.response.status_code` ではない。
+
+### Logs Insights のクエリ（コピー用）
+
+`aws/spans` を対象にするクエリは、コンソールで ap-southeast-1 の Logs Insights を開き、ロググループに `aws/spans` を選ぶ
+（`SOURCE` 句でも指定できる）。Lambda のロググループは `/aws/lambda/sanposcape-<env>-backend-api`。
+`aws/spans` は dev では他プロジェクトと共有なので、`service.name` で必ず絞る。親スパンだけを数えるために
+`kind = 'SERVER'` と `LOCAL_ROOT` で絞る（FastAPI の子スパンが同じ名前を持ち、外すと二重に数える）。
+共通の絞り込み（以下 F と書く）:
+
+```
+filter `resource.attributes.service.name` = 'sanposcape-backend-api'
+  and kind = 'SERVER' and `attributes.aws.span.kind` = 'LOCAL_ROOT'
+```
+
+`template.yaml` の `ApiDashboard` には、これと同じクエリを 1 行にして入れてある（`deployment.environment` での絞り込みは入れていない。
+prod は専用アカウント、dev は sanposcape の dev しか無いため。入れるなら `` and `resource.attributes.deployment.environment` = '<env>' ``）。
+
+Q1: ルート別の件数・p50/p95/p99・4xx/5xx 率
+
+```
+SOURCE 'aws/spans'
+| F
+| fields name as operation, `attributes.http.status_code` as status, durationNano / 1000000 as duration_ms
+| fields floor(status / 500) as is5xx, floor(status / 400) - floor(status / 500) as is4xx
+| stats count(*) as requests,
+        pct(duration_ms, 50) as p50_ms, pct(duration_ms, 95) as p95_ms, pct(duration_ms, 99) as p99_ms,
+        sum(is4xx) as n4xx, sum(is5xx) as n5xx,
+        sum(is4xx) * 100 / count(*) as rate4xx_pct, sum(is5xx) * 100 / count(*) as rate5xx_pct
+  by operation
+| sort requests desc
+| limit 100
+```
+
+Q2: ルート × ステータス
+
+```
+SOURCE 'aws/spans'
+| F
+| stats count(*) as requests, pct(durationNano / 1000000, 95) as p95_ms by name, `attributes.http.status_code`
+| sort requests desc
+| limit 200
+```
+
+Q3: 直近の 5xx（`traceId` からトレースへ）
+
+```
+SOURCE 'aws/spans'
+| F and `attributes.http.status_code` >= 500
+| fields @timestamp, name, `attributes.http.status_code` as status, durationNano / 1000000 as duration_ms, traceId
+| sort @timestamp desc
+| limit 20
+```
+
+Q4: ルート別の件数の時系列
+
+```
+SOURCE 'aws/spans'
+| F
+| stats count(*) as requests by bin(1h), name
+```
+
+Q5: メモリ（REPORT 行。`@maxMemoryUsed` はバイト）
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter @type = 'REPORT'
+| stats max(@maxMemoryUsed / 1000 / 1000) as max_mb, pct(@maxMemoryUsed / 1000 / 1000, 95) as p95_mb,
+        avg(@maxMemoryUsed / 1000 / 1000) as avg_mb, max(@memorySize / 1000 / 1000) as limit_mb
+  by bin(1h)
+```
+
+Q6a: コールドスタートの件数と割合（`@initDuration` はコールドスタートの REPORT にだけある）
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter @type = 'REPORT'
+| stats count(*) as invocations, count(@initDuration) as cold_starts,
+        count(@initDuration) * 100 / count(*) as cold_start_pct
+  by bin(1h)
+```
+
+Q6b: Init Duration
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter @type = 'REPORT' and ispresent(@initDuration)
+| stats pct(@initDuration, 50) as init_p50_ms, pct(@initDuration, 95) as init_p95_ms, max(@initDuration) as init_max_ms
+  by bin(1h)
+```
+
+Q7: タイムアウト / OOM / ランタイムの異常終了（文言は python3.12 ランタイムの見込み。**未確認**: 実際に起きたときに確かめる）
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter @message like /Task timed out/ or @message like /Runtime exited/ or @message like /Runtime.OutOfMemory/
+| stats count(*) as n by bin(1h)
+```
+
+### SS-180（ログの JSON 化）との関係
+
+Q5〜Q7 は、REPORT 行がテキスト形式（`@type = 'REPORT'` / `@maxMemoryUsed` / `@initDuration`）であることを前提にしている。
+`LoggingConfig.LogFormat: JSON` にすると `type = 'platform.report'` / `record.metrics.*` の形式に変わる可能性がある
+（形式は未確認）。JSON にするときは `ApiDashboard` のクエリを同じ PR で直すこと。直し忘れは
+`test_monitoring_config.py`（`test_report_queries_follow_the_log_format_of_the_function`）が落ちて知らせる。
+
+### アラーム
+
+| アラーム名 | 条件（5 分、1 回で判定、欠損は正常扱い） | 疑うこと |
+|---|---|---|
+| `sanposcape-<env>-backend-api-lambda-errors` | Lambda `Errors` の合計 >= 1 | タイムアウト・OOM・初期化の失敗・ランタイムのクラッシュ。アプリの未処理例外は 500 の応答になるので通常ここには入らない。Q7 とログを見る |
+| `sanposcape-<env>-backend-api-lambda-throttles` | Lambda `Throttles` の合計 >= 1 | 同時実行数の上限（dev は予約 5、prod はクォータ 10）。同時実行数のウィジェットを見る |
+| `sanposcape-<env>-backend-api-5xx` | Application Signals `Fault` の合計 >= 3 | 5xx の件数。外部 API の障害による 503 も含む。率ではなく件数なのは、リクエストが少ないうちは 1 件で 100% になるため。Q3 から trace へ |
+
+- **dev は `ActionsEnabled: false`**（状態はコンソールで見えるが通知は飛ばない）。`AlarmActions` は dev でも設定してあるので、
+  有効にするときは `template.yaml` の `ActionsEnabled` を変えるだけでよい。prod は有効。
+- prod への通知の疎通確認は、1 回だけ
+  `aws cloudwatch set-alarm-state --alarm-name sanposcape-prod-backend-api-lambda-errors --state-value ALARM --state-reason "通知テスト"`
+  で試す（次の評価で OK に戻る）。
+
+#### 見送った候補と再検討の時期
+
+prod のベースライン（リリース後 2〜4 週間）が取れてから決める。
+
+- Application Signals の Latency p99 が閾値超過（閾値はベースラインの p99 の 2〜3 倍）
+- Lambda の Duration Maximum > 20000ms（時間予算 25 秒の 8 割）
+- 4xx 率（401 の期限切れなど正常な 4xx が多く、ベースラインが無いと閾値を決められない）
+- Application Signals の SLO（`AWS::ApplicationSignals::ServiceLevelObjective`。デプロイロールの追加権限が要る）
+- 5xx を件数から率に変える（トラフィックが増えたら `IF(req >= 20, 100*fault/req, 0) > 5` のような式にする）
+- メモリのアラームは作らない（標準メトリクスには Lambda Insights が要る。OOM は `Errors` で拾える）
+
+### 費用の目安と「量が増えたら」
+
+- ダッシュボードは 1 枚 $3/月（アカウントで 3 枚までは無料）、アラームは 1 本 $0.10/月（アカウントで 10 本までは無料）。
+  dev は共有アカウントの無料枠を他プロジェクトと分け合う。
+- **Logs Insights のウィジェット（Q1〜Q7）は、開く・更新するたびに期間内のログ全体をスキャンする**（`filter` ではスキャン量は減らない）。
+  自動更新は付けないこと（付けたまま開きっぱなしにすると何十倍にもなる）。
+- 1 リクエストあたりスパン 8 本 × 約 1.5KB と仮定すると、1,000 リクエスト/日なら 7 日分で約 84MB（1 回 $0.002 程度）、
+  10 万リクエスト/日なら 1 回あたり約 34GB（約 $0.2）。**後者の規模になったら**、既定の期間を短くする（`"start": "-PT24H"`）、
+  ダッシュボードを「metric だけの概要」と「ルート別」の 2 枚に分ける、フィールドインデックスを検討する。
+- Logs Insights の保存済みクエリ（`AWS::Logs::QueryDefinition`）は作らない。`logs:PutQueryDefinition` は
+  リソースで絞れない見込みで、共有の dev で他プロジェクトの保存済みクエリを上書き・削除できる権限になるため
+  （**要確認**: IAM の Service Authorization Reference）。同じクエリはダッシュボードのウィジェットから
+  「Logs Insights で開く」で条件を変えて使える。
