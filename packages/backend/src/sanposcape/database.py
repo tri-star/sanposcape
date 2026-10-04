@@ -6,6 +6,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from sanposcape.config import get_settings
+from sanposcape.core.observability import instrument_sqlalchemy_engine
 
 
 class Base(DeclarativeBase):
@@ -22,9 +23,14 @@ def get_engine() -> Engine:
     設定で接続してしまう（`db:5432` へ接続を試み続けてタイムアウトする）。
     そのためモジュール直下では engine を作らず、呼び出し時に `get_settings()` を
     経由して初めて生成する。
+
+    トレース（ADR-013）の計装は生成直後に掛ける（遅延生成なので、最初に使われる前に掛かる）。
+    `settings.tracing_enabled` が False のときは何もしない。
     """
     settings = get_settings()
-    return create_engine(settings.database_url, **settings.sqlalchemy_engine_kwargs)
+    engine = create_engine(settings.database_url, **settings.sqlalchemy_engine_kwargs)
+    instrument_sqlalchemy_engine(engine, settings)
+    return engine
 
 
 @lru_cache(maxsize=1)

@@ -20,7 +20,12 @@ from sanposcape.auth.router import router as auth_router
 from sanposcape.config import Settings, get_settings
 from sanposcape.core.feature_flags import FeatureFlags
 from sanposcape.core.middleware import RequestBodyTooLargeError, RequestSizeLimitMiddleware
-from sanposcape.core.observability import AccessLogMiddleware, configure_logging
+from sanposcape.core.observability import (
+    AccessLogMiddleware,
+    configure_logging,
+    instrument_fastapi_app,
+    record_exception_on_current_span,
+)
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
 from sanposcape.integrations.aws.appconfig import build_flag_document_source
@@ -105,6 +110,8 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _idp_unavailable(
         request: Request, exc: IdentityProviderUnavailableError
     ) -> JSONResponse:
+        # 503 に変換するとこの例外は OTel のミドルウェアまで伝わらないため、スパンに残す。
+        record_exception_on_current_span(exc)
         return JSONResponse(status_code=503, content={"detail": "Identity provider unavailable"})
 
     @app.exception_handler(AuthenticationError)
@@ -124,6 +131,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(MapsUnavailableError)
     async def _maps_unavailable(request: Request, exc: MapsUnavailableError) -> JSONResponse:
+        record_exception_on_current_span(exc)
         return JSONResponse(status_code=503, content={"detail": "Map provider unavailable"})
 
     @app.exception_handler(WalkNotFoundError)
@@ -213,6 +221,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _object_storage_unavailable(
         request: Request, exc: ObjectStorageUnavailableError
     ) -> JSONResponse:
+        record_exception_on_current_span(exc)
         return JSONResponse(status_code=503, content={"detail": "Photo storage unavailable"})
 
 
@@ -326,6 +335,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # `/docs` 自体が存在しない（router が include されない）。
         app.include_router(api_docs_router)
     register_exception_handlers(app)
+    # トレースの計装（ADR-013）。`settings.tracing_enabled` が False なら何もしない。
+    # ★ lifespan には置かない（決定7 / SS-183: Mangum の lifespan を使わなくなっても動くように）。
+    #   httpx の計装は、lifespan が Google Maps の `httpx.Client` を作るより前に済ませる必要が
+    #   あるため、ここ（= import 時の create_app()）で行う。
+    instrument_fastapi_app(app, settings)
     return app
 
 
