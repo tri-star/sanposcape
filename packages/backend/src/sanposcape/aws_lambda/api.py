@@ -5,7 +5,8 @@
 Secrets Manager から取得した値を環境変数へハイドレーションしてから `Settings` を
 組み立てる必要があるため、`hydrate_environment_from_secret()` を必ず
 `sanposcape.main` の import より前に呼ぶ。この順序は `aws_lambda/tests/test_api.py` で
-呼び出し順を記録するスタブを使って固定している。
+呼び出し順を記録するスタブを使って固定している。`aws_lambda.tracing`（親スパンの補正、
+ADR-013）の import も `sanposcape.main` の後ろに置く（`main` が先に `Settings` を確定させる）。
 """
 
 import logging
@@ -21,6 +22,7 @@ hydrate_environment_from_secret()
 try:
     from mangum import Mangum  # noqa: E402
 
+    from sanposcape.aws_lambda.tracing import wrap_app_for_lambda_tracing  # noqa: E402
     from sanposcape.main import app  # noqa: E402
 except ValidationError as exc:
     # Settings の組み立てに失敗した場合、不足フィールド名だけを ERROR ログに出してから
@@ -31,4 +33,4 @@ except ValidationError as exc:
     )
     raise
 
-handler = Mangum(app, lifespan="auto")
+handler = Mangum(wrap_app_for_lambda_tracing(app), lifespan="auto")
