@@ -13,3 +13,4 @@
 - [CI ではテスト用 DB を alembic 後の DB と共有](feedback_ci_test_db_shared_with_alembic.md) — テスト DB の初期化を変えるときは開始時に drop_all→create_all、消す対象は metadata のテーブルだけ
 - [openapi.yaml 変更は mobile CI を起動する](feedback_openapi_change_triggers_mobile_ci.md) — クエリ無し GET へのクエリ追加で Orval の引数が変わる / required 追加でフィクスチャが落ちる
 - [ファイル移動リファクタの落とし穴](feedback_backend_file_relocation_gotchas.md) — docstring=OpenAPI description / ロガー名・parents[N]・lock namespace 文字列 / __pycache__ / staleness は末尾一致
+- [ADOT レイヤー × Mangum/zip の罠（SS-178）](project_adot_lambda_mangum_pitfalls.md) — 操作名は FunctionHandler 固定 / zip のライブラリは手動計装 / SQLAlchemy 2.1 は skip_dep_check / 旧 semconv のみ
