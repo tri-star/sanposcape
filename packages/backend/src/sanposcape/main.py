@@ -221,7 +221,10 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Keep the Maps HTTP client and its process-local cache alive across requests.
+    """Keep process-wide resources alive across requests.
+
+    Maps の HTTP クライアントとキャッシュ、レート制限、フラグの取得元（AppConfig）、
+    S3 クライアント。
 
     close は uvicorn / TestClient の終了時に走る。Lambda では起動は実行環境ごとに1回で、
     終了は走らない（`aws_lambda/asgi_handler.py`、ADR-005 SS-183 追補）。コードは Lambda を

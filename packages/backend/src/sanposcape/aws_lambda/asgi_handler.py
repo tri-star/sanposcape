@@ -37,8 +37,16 @@ class AsgiLambdaHandler:
     - startup の例外は ERROR ログを出してから再送出する。init の例外はランタイムの
       `post_init_error` が日本語を含むトレースバックで `UnicodeEncodeError` になり原因が
       見えなくなりうる（deployment.md §7）ため。`logger.exception` はトレースバックごと
-      出すので、`_lifespan` に「秘密を含みうる例外」を足すときは、`api.py` の
-      `ValidationError` と同じく型名だけを出す形に切り替えること。
+      出すので、`_lifespan` に「秘密を含みうる例外」を足すときは、入力値を含めない形
+      （`api.py` の `ValidationError` は `exc.errors(include_input=False, ...)`）か、
+      例外の型名だけを出す形に切り替えること。
+    - イベントループ: startup を実行するループと、Mangum の `HTTPCycle` が呼び出しごとに
+      使うループは同じでなければならない。lifespan に async の資源（`httpx.AsyncClient` 等）を
+      置くなら、この前提に依存する（今の資源はすべて同期でループに依存しない）。
+      mangum 0.22.0 の `_setup_event_loop()` は `get_event_loop()` が RuntimeError のときだけ
+      `new_event_loop()` + `set_event_loop()` する。3.12 では `get_event_loop()` 自体が警告付きで
+      ループを作って set することもある。どちらでも Mangum 生成後の `get_event_loop()` は
+      同じループを返すので、生成後に取得している。
     """
 
     def __init__(self, app: FastAPI) -> None:
@@ -53,8 +61,15 @@ class AsgiLambdaHandler:
         except Exception:
             logger.exception("Application startup failed during Lambda init.")
             raise
+        # `is not None`（空 dict も拒否）は安全側の意図: state を使う lifespan は、
+        # 中身が空でも「使える」と誤解されないよう一律に拒否する。
         if state is not None:
-            self.close()
+            # 伝播させるのは元の RuntimeError（原因の説明）。後始末の close() が失敗しても
+            # それで隠さず、ERROR ログに残すだけにする（init 失敗でプロセスごと捨てられる）。
+            try:
+                self.close()
+            except Exception:
+                logger.exception("Closing lifespan failed after rejecting lifespan state.")
             raise RuntimeError(
                 "Lifespan state is not supported by AsgiLambdaHandler: "
                 "Mangum(lifespan='off') does not pass it to the request scope. "

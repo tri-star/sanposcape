@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 
-from sanposcape.aws_lambda.asgi_handler import build_handler
+from sanposcape.aws_lambda.asgi_handler import AsgiLambdaHandler, build_handler
 
 EVENTS_DIR = Path(__file__).resolve().parents[4] / "events"
 
@@ -34,15 +34,15 @@ def lambda_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 @pytest.fixture
 def make_handler(
     lambda_event_loop: asyncio.AbstractEventLoop,
-) -> Generator[Callable[[FastAPI], Any], None, None]:
+) -> Generator[Callable[[FastAPI], AsgiLambdaHandler], None, None]:
     """`build_handler(app)` を呼び、teardown でループを閉じる前に `close()` を呼ぶ。
 
     ループを閉じる前に lifespan を正しく閉じないと、async generator が閉じられないまま
     残る（`lambda_event_loop` より先に teardown されるよう依存させている）。
     """
-    handlers: list[Any] = []
+    handlers: list[AsgiLambdaHandler] = []
 
-    def _make(app: FastAPI) -> Any:
+    def _make(app: FastAPI) -> AsgiLambdaHandler:
         handler = build_handler(app)
         handlers.append(handler)
         return handler
@@ -50,9 +50,7 @@ def make_handler(
     yield _make
 
     for handler in handlers:
-        close = getattr(handler, "close", None)
-        if callable(close):
-            close()
+        handler.close()
 
 
 def _make_event(

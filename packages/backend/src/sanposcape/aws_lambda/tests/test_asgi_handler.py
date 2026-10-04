@@ -5,6 +5,7 @@ TestClient は lifespan を1回しか回さないため、「呼び出しごと�
 **同じハンドラーを複数回呼び出す**ことで、Lambda の暖かい実行環境を再現する。
 """
 
+import asyncio
 import gc
 import io
 import json
@@ -17,7 +18,7 @@ import pytest
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, Request
 
-from sanposcape.aws_lambda.asgi_handler import build_handler
+from sanposcape.aws_lambda.asgi_handler import AsgiLambdaHandler, build_handler
 from sanposcape.config import Settings
 from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
 from sanposcape.main import create_app
@@ -89,7 +90,7 @@ def _app_with_state_probe(settings: Settings | None = None) -> tuple[FastAPI, li
 
 
 def test_state_is_reused_across_invocations(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
     counting_builders: _Registry,
 ) -> None:
@@ -105,7 +106,7 @@ def test_state_is_reused_across_invocations(
 
 
 def test_resources_are_built_once_and_never_closed_across_invocations(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
     counting_builders: _Registry,
 ) -> None:
@@ -128,7 +129,7 @@ class _RoutingProvider:
 
 
 def test_explore_rate_limit_persists_across_invocations(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
 ) -> None:
     """レート制限の状態が呼び出しをまたいで残る（`auto` では毎回リセットされ 429 にならない）。"""
@@ -208,7 +209,7 @@ def _appconfig_app(monkeypatch: pytest.MonkeyPatch, client: _FakeAppConfigClient
 
 
 def test_appconfig_session_is_opened_once_across_invocations(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -228,7 +229,7 @@ def test_appconfig_session_is_opened_once_across_invocations(
 
 
 def test_appconfig_known_good_survives_fetch_failure_across_invocations(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -247,7 +248,7 @@ def test_appconfig_known_good_survives_fetch_failure_across_invocations(
 
 
 def test_lifespan_is_not_closed_by_garbage_collection(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
     counting_builders: _Registry,
 ) -> None:
@@ -266,7 +267,7 @@ def test_lifespan_is_not_closed_by_garbage_collection(
 
 
 def test_close_runs_lifespan_shutdown_once(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     counting_builders: _Registry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -282,7 +283,7 @@ def test_close_runs_lifespan_shutdown_once(
 
 
 def test_startup_failure_is_logged_and_raised(
-    lambda_event_loop: Any,
+    lambda_event_loop: asyncio.AbstractEventLoop,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -297,9 +298,11 @@ def test_startup_failure_is_logged_and_raised(
 
     errors = [r for r in caplog.records if r.levelno == logging.ERROR]
     assert [r.message for r in errors] == ["Application startup failed during Lambda init."]
+    # 注意: 失敗前に作られた資源（provider など）は閉じられない（`_lifespan` の既存の挙動。
+    # try の前に作るため finally に入らない）。Lambda では init 失敗でプロセスごと捨てられる。
 
 
-def test_lifespan_state_is_rejected(lambda_event_loop: Any) -> None:
+def test_lifespan_state_is_rejected(lambda_event_loop: asyncio.AbstractEventLoop) -> None:
     """Mangum(lifespan="off") は state を載せないため、黙って欠落させず起動時に失敗する。"""
     closed: list[bool] = []
 
@@ -318,7 +321,7 @@ def test_lifespan_state_is_rejected(lambda_event_loop: Any) -> None:
 
 
 def test_startup_log_is_emitted_once_across_invocations(
-    make_handler: Callable[[FastAPI], Any],
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
     make_event: Callable[..., dict[str, Any]],
     counting_builders: _Registry,
     caplog: pytest.LogCaptureFixture,
@@ -334,3 +337,21 @@ def test_startup_log_is_emitted_once_across_invocations(
 
     assert sum("Application lifespan started" in m for m in messages) == 1
     assert sum("Application lifespan shutting down" in m for m in messages) == 0
+
+
+def test_handler_can_be_built_when_no_event_loop_is_set(
+    make_event: Callable[..., dict[str, Any]],
+) -> None:
+    """ループが set されていない状態（他のテストの `asyncio.run()` の後など）でも、Mangum が
+    ループを用意し、`AsgiLambdaHandler` はそれを掴んで startup と呼び出しを行える。
+    """
+    asyncio.set_event_loop(None)
+    handler = None
+    try:
+        handler = build_handler(create_app(Settings(env="test")))
+        assert handler(make_event("GET", "/health"), None)["statusCode"] == 200
+    finally:
+        if handler is not None:
+            handler.close()
+            handler._loop.close()  # Mangum が用意したループ（テスト専用に private を参照）
+        asyncio.set_event_loop(None)
