@@ -1,8 +1,54 @@
 # ADR-005: backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-04（棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **公開経路は Lambda Function URL + CloudFront（OAC / SigV4）で、API Gateway を使わない**。（本文: 決定1）
+- **パッケージングは zip + `python3.12` ランタイムで、ビルドは `sam build --use-container` が実質必須**。（本文: 決定2）
+- **Lambda 固有のコードは `src/sanposcape/aws_lambda/` にだけ置き、`main.py` の `app` は ECS でもそのまま動く形を保つ**。（本文: 決定3）
+- **Function URL の `AuthType` は `AWS_IAM`。OAC が `Authorization` を上書きするため、アクセストークンは `X-App-Authorization` で運ぶ**。
+  ボディを伴うリクエストでは、mobile の2つの HTTP 出口（`client.ts` の `customFetch` と `authApi.ts`）の両方が
+  `x-amz-content-sha256` を付ける。（本文: 決定4、SS-70 追補）
+- **mobile の一時障害（429 / 502 / 503 / 504 / 通信断）の再送は `customFetch` の GET / HEAD だけに限り、POST へ広げない**。
+  `authApi.ts` には再送を入れない。（本文: 「棚卸し追補（2026-10-04）」節）
+- **`X-App-Authorization` は標準 `Authorization` 向けの保護（クロスオリジンのリダイレクトでの削除、ログの自動マスク）を受けない**。
+  ロギングやクラッシュレポートを導入するときはマスク対象に明示的に追加する。（本文: 「棚卸し追補（2026-10-04）」節）
+- **シークレットは実行時に Secrets Manager から取得する**。ARN は SSM から deploy 時に解決して `APP_SECRET_ARN` で渡し、
+  ローテーションは再デプロイで反映させる。（本文: 決定5）
+- **アプリの `ENV` は `template.yaml` の `Mappings`（dev → staging / prod → production）で変換し、`config.py` の値域を広げない**。（本文: 決定6）
+- **Lambda は VPC に入れない**。（本文: 決定7）
+- **in-process キャッシュ / レート制限がインスタンスごとに分かれることは受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。
+  prod はクォータの都合で未設定のため、クォータ引き上げと予約の投入を同時に行う。（本文: 決定8）
+- **マイグレーションは専用 Lambda の手動 invoke で実行し、direct（非 pooled）の `neon_dsn_unpooled` を使う**。
+  CI のデプロイでも自動実行しない。（本文: 決定9、SS-72 追補）
+- **アーキテクチャは x86_64、SnapStart は有効化しない**。（本文: 決定10、決定11）
+- **Lambda 実行ロールには Permission Boundary を付け、境界を初めて入れるデプロイだけは手元の管理者権限で行う**。（本文: SS-72 追補）
+- **SAM デプロイのトリガーは dev・prod とも `workflow_dispatch` のみ**（prod は main から、Required reviewers 付き）。（本文: SS-72 追補）
+- **production へのデプロイが成功したら `backend/vX.Y.Z` タグと GitHub Release を作る**。規則は
+  [ADR-008](./ADR-008-deploy-release-separation.md) 決定4・決定5 に引き継がれた。（本文: SS-72 追補、SS-104 追補）
+
+### 未解決・持ち越し
+
+- **prod へのデプロイは未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提。
+  （本文: 決定8、移行・対応が必要な事項。現状は [deployment.md](../../packages/backend/docs/deployment.md) の検証状況の表）
+- **in-process キャッシュ / レート制限の外部ストアへの移行**は別課題。（本文: 決定8、移行・対応が必要な事項）
+- **Permission Boundary の dev への初回デプロイと、GitHub Actions からのデプロイは未実施**。prod は infra 側（SS-97）待ち。
+  （本文: SS-72 追補。現状は deployment.md の検証状況の表）
+
+### 変更・撤回された決定
+
+- コンテキストの「mobile の HTTP 出口は `customFetch` 1 箇所」→ 2 箇所（`client.ts` と `authApi.ts`）（SS-70 追補）
+- `X-App-Authorization` の送出: mobile 側は別チケット → SS-70 で実装済み。`Authorization` は併記しない（SS-70 追補）
+- dev の SAM デプロイ: main への push で自動 → 手動実行のみ（SS-72 追補）
+- デプロイとリリースの分離は「別途 ADR を起こす予定」→ [ADR-008](./ADR-008-deploy-release-separation.md) として起票（SS-104 追補）
+
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）
 
 ## ステータス
 
@@ -332,6 +378,8 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
       プロファイルごとの向き先と、`eas.json` に書かない値の供給経路は
       [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) に集約した。
       残るのは §6.2 の 3 本立てを実際に踏むこと。
+      **（棚卸し追補 / 2026-10-04）dev は SS-81（2026-09-12）で検証済み**（iOS 実機から認証必須エンドポイントと
+      ボディを伴う POST を踏んで成功。[deployment.md](../../packages/backend/docs/deployment.md) の検証状況の表）。prod は未実施のため、チェックは付けない。
       **（SS-78 追補その2 / 2026-09-11）`sanposcape-infra` 側へ照会して次を確定した。**
       - **dev の CloudFront は既に稼働している。** `enable_distribution = true` は dev では apply 済みで、
         `https://app-api.dev.sanposcape.com/health` が 200 `{"status":"ok"}` を返す。
@@ -416,6 +464,46 @@ GitHub 側の構成（Environment・Variables・job 分離）は
     （**SS-104 追補**: この一文を API と DB スキーマの両方に効く一般則として
     [ADR-008 決定7](./ADR-008-deploy-release-separation.md) に展開した。
     contract に進んでよいかの判断材料は `/app-config` が返す最低サポートバージョンとする）
+
+## 棚卸し追補（2026-10-04）: クライアント側の一時障害の再送と `X-App-Authorization` の取り扱い
+
+決定4（CloudFront + Function URL）を前提に mobile 側で決めたが、エージェントのメモリと
+コードコメントにしか残っていなかった決定を、knowledge-review の棚卸しで本 ADR に移した。
+再送ポリシーは SS-79、ヘッダーの取り扱いは SS-70 のレビューで決めたもの。
+
+### 一時障害の再送は GET / HEAD に限る（SS-79）
+
+dev の API Lambda は `ReservedConcurrentExecutions: 5`（6本目から 429）、CloudFront のオリジン待ちは
+30 秒（超過で 504）、コールドスタートは 1〜3 秒ある。mobile の `customFetch`
+（`packages/mobile/src/api/transientRetry.ts`）は、429 / 502 / 503 / 504 / 通信断に対して指数バックオフで
+軽く再送する。ただし**対象は GET / HEAD だけ**とし、POST へ広げない。理由は3つある。
+
+1. `POST /explore/*` の 429 は backend 自身のレート制限で、Lambda のスロットルと区別できない。
+   再送するとレート制限を悪化させるだけになる。
+2. `POST /walks` は `useWalkSave` がすでに指数バックオフで再送している。transport 層でも再送すると、
+   試行回数が掛け合わさって増える。
+3. `POST /auth/refresh` を再送するとセッションが壊れる。refresh token はローテーションと再利用検知
+   （[ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md) 決定1）を持つため、
+   「サーバーは成功したがレスポンスが届かなかった」ときに同じトークンで再送すると、
+   ファミリー全体が失効して強制サインアウトになる。
+
+500 は「アプリ層の決定的なエラー」として再送しない。`AbortError` も再送しない。
+`src/services/auth/authApi.ts` は `customFetch` を通らない独立した出口で、再送を意図的に入れていない
+（ヘッダーの契約は両方の出口で揃えるが、再送は片方だけという非対称になる）。
+401 → refresh → 1回リトライ（`retryPolicy.ts`）とは独立した軸で、`client.ts` では両方が効く。
+
+### `X-App-Authorization` は標準 `Authorization` 向けの保護を受けない（SS-70）
+
+`X-App-Authorization` は非標準ヘッダーなので、`Authorization` が前提にしている次の保護の対象外になる。
+
+- **クロスオリジンのリダイレクトで自動的に削除されない。** WHATWG Fetch は `Authorization` を
+  クロスオリジンのリダイレクトで落とすが、独自ヘッダーは落とさない。mobile の2つの出口
+  （`client.ts` / `authApi.ts`）は `redirect: "error"` を明示している。ただし RN の global fetch
+  （XMLHttpRequest ベースの `whatwg-fetch`）はこのオプションを読まないため、実機では防御にならない。
+  実効的な防御は「この API がリダイレクトを返さないこと」に依存し続ける。
+- **ログやクラッシュレポートの自動マスクの対象にならない。** 多くのツールは `Authorization` を前提に
+  マスクする。ロギングやクラッシュレポート（Sentry 等）を導入するときは、`X-App-Authorization` を
+  マスク対象のヘッダーに明示的に追加する。
 
 ## 関連情報
 
