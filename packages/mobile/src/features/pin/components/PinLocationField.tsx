@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { PinLocationPreview } from "@/features/pin/components/PinLocationPreview";
-import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 

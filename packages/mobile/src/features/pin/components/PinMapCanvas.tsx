@@ -10,11 +10,8 @@ import MapView, {
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
-import {
-  DEFAULT_SANPO_MAP_ICON,
-  sanpoMapPinAppearance,
-  type SanpoMapIconKey,
-} from "@/features/pin/lib/sanpoMapIcon";
+import { DEFAULT_SANPO_MAP_ICON, sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import {
   regionAroundPoint,
   toPickedCoordinate,
@@ -62,6 +59,8 @@ const FOCUS_ANIMATION_MS = 400;
 /** `mapLayers` のマーカー（既定 0）より選択・現在地マーカーを上に描く（SS-118）。 */
 const SELECTED_PIN_SIZE = 38;
 const CURRENT_PIN_SIZE = 30;
+const SELECTED_PIN_PLACEMENT = mapPinMarkerPlacement(SELECTED_PIN_SIZE);
+const CURRENT_PIN_PLACEMENT = mapPinMarkerPlacement(CURRENT_PIN_SIZE);
 const SELECTED_MARKER_Z_INDEX = 1;
 const CURRENT_MARKER_Z_INDEX = 2;
 
@@ -161,7 +160,7 @@ export function PinMapCanvas({
             // tracksViewChanges={false} では子の変化が反映されないので、アイコンが変わったら作り直す。
             key={selectedMarkerIcon}
             coordinate={selectedLocation}
-            {...mapPinMarkerPlacement(SELECTED_PIN_SIZE)}
+            {...SELECTED_PIN_PLACEMENT}
             tracksViewChanges={false}
             zIndex={SELECTED_MARKER_Z_INDEX}
             testID={`${p}-marker`}
@@ -172,7 +171,7 @@ export function PinMapCanvas({
         {currentLocation !== null ? (
           <Marker
             coordinate={currentLocation}
-            {...mapPinMarkerPlacement(CURRENT_PIN_SIZE)}
+            {...CURRENT_PIN_PLACEMENT}
             tracksViewChanges={false}
             zIndex={CURRENT_MARKER_Z_INDEX}
             testID={`${p}-current-marker`}

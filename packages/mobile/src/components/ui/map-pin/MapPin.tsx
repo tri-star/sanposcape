@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { type StyleProp, Text, View, type ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
@@ -41,7 +42,7 @@ const DEFAULT_ICON: Record<MapPinCategory, IconName> = {
 export function MapPin({ category = "cafe", icon, label, size = 40, style, testID }: MapPinProps) {
   const theme = useTheme();
   const styles = useStyles();
-  const g = computeMapPinGeometry(size);
+  const g = useMemo(() => computeMapPinGeometry(size), [size]);
 
   const color =
     category === "goal"

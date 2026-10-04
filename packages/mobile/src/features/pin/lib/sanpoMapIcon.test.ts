@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { SanpoMapIcon } from "@/api/generated/model";
 import {
   attachSanpoMapIcons,
+  sanpoMapIconChangeLabel,
+  sanpoMapIconIndexFromSignature,
+  sanpoMapIconSignature,
   isSanpoMapIconKey,
   sanpoMapIconFor,
   sanpoMapPinAppearance,
@@ -71,13 +74,13 @@ describe("sanpoMapIconFor", () => {
 });
 
 describe("attachSanpoMapIcons", () => {
-  const maps = [
-    { id: "m1", icon: "dog" as const },
-    { id: "m2", icon: "coffee" as const },
-  ];
+  const index = new Map([
+    ["m1", "dog" as const],
+    ["m2", "coffee" as const],
+  ]);
 
   it("ピンの地図の icon を付け、一覧に無い地図は pin、順序を保つ", () => {
-    const result = attachSanpoMapIcons([pin("a", "m2"), pin("b", "m1"), pin("c", "gone")], maps);
+    const result = attachSanpoMapIcons([pin("a", "m2"), pin("b", "m1"), pin("c", "gone")], index);
     expect(result.map((p) => [p.id, p.sanpoMapIcon])).toEqual([
       ["a", "coffee"],
       ["b", "dog"],
@@ -87,7 +90,49 @@ describe("attachSanpoMapIcons", () => {
 
   it("入力配列を変更しない", () => {
     const input = [pin("a", "m1")];
-    attachSanpoMapIcons(input, maps);
+    attachSanpoMapIcons(input, index);
     expect(input[0]).not.toHaveProperty("sanpoMapIcon");
+  });
+});
+
+describe("sanpoMapIconSignature / sanpoMapIconIndexFromSignature", () => {
+  const uuid1 = "11111111-1111-4111-8111-111111111111";
+  const uuid2 = "22222222-2222-4222-8222-222222222222";
+  const base = [
+    { id: uuid1, icon: "dog" as const, name: "A", pinCount: 1 },
+    { id: uuid2, icon: "coffee" as const, name: "B", pinCount: 2 },
+  ];
+
+  it("名前・pinCount が変わっても同じ文字列（ピン配列の参照を変えない根拠）", () => {
+    const renamed = base.map((m) => ({ ...m, name: `${m.name}2`, pinCount: m.pinCount + 1 }));
+    expect(sanpoMapIconSignature(renamed)).toBe(sanpoMapIconSignature(base));
+  });
+
+  it("アイコン・地図の増減・順序の変化では別の文字列", () => {
+    const sig = sanpoMapIconSignature(base);
+    expect(sanpoMapIconSignature([{ ...base[0], icon: "tree" }, base[1]])).not.toBe(sig);
+    expect(sanpoMapIconSignature([base[0]])).not.toBe(sig);
+    expect(sanpoMapIconSignature([base[1], base[0]])).not.toBe(sig);
+  });
+
+  it("文字列から地図ID → アイコンを復元できる。空文字・未知の値は空 Map・pin", () => {
+    const index = sanpoMapIconIndexFromSignature(sanpoMapIconSignature(base));
+    expect(index.get(uuid1)).toBe("dog");
+    expect(index.get(uuid2)).toBe("coffee");
+    expect(sanpoMapIconIndexFromSignature("").size).toBe(0);
+    expect(sanpoMapIconIndexFromSignature(`${uuid1}:unknown`).get(uuid1)).toBe("pin");
+  });
+});
+
+describe("sanpoMapIconChangeLabel", () => {
+  it("現在のアイコンの表示名を含める", () => {
+    expect(sanpoMapIconChangeLabel("coffee")).toBe("アイコンを変更（現在: カフェ）");
+    expect(sanpoMapIconChangeLabel("pin")).toBe("アイコンを変更（現在: ピン）");
+  });
+
+  it("全アイコンで表示名を含む", () => {
+    for (const key of SANPO_MAP_ICON_ORDER) {
+      expect(sanpoMapIconChangeLabel(key)).toContain(SANPO_MAP_ICON_META[key].label);
+    }
   });
 });

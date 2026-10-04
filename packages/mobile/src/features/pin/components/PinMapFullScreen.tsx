@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
 import type { PinMapPickProps } from "@/features/pin/lib/pinLocationPicker";
-import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";

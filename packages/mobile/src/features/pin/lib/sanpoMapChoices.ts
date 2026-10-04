@@ -1,5 +1,6 @@
 import { FIRST_SANPO_MAP_NAME } from "@/features/pin/lib/pinLimits";
-import { DEFAULT_SANPO_MAP_ICON, type SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import { DEFAULT_SANPO_MAP_ICON } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { SanpoMap, SanpoMapSelection } from "@/features/pin/types";
 
 export type SanpoMapChoice = {

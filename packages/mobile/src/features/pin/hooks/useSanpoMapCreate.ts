@@ -8,7 +8,7 @@ import {
   toSanpoMapCreateErrorCode,
   type SanpoMapCreateErrorCode,
 } from "@/features/pin/lib/sanpoMapError";
-import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { SanpoMap } from "@/features/pin/types";
 
 export type UseSanpoMapCreateResult = {

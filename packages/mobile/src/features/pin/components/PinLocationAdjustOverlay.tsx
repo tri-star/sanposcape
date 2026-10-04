@@ -4,7 +4,7 @@ import { Keyboard, View } from "react-native";
 import { Button } from "@/components/ui/button/Button";
 import { PinMapFullScreen } from "@/features/pin/components/PinMapFullScreen";
 import { regionAroundPoint } from "@/features/pin/lib/pinLocationPicker";
-import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 

@@ -3,11 +3,8 @@ import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
-import {
-  DEFAULT_SANPO_MAP_ICON,
-  sanpoMapPinAppearance,
-  type SanpoMapIconKey,
-} from "@/features/pin/lib/sanpoMapIcon";
+import { DEFAULT_SANPO_MAP_ICON, sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import type { GeoCoordinates } from "@/services/location/types";
 

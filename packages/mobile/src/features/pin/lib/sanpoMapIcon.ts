@@ -1,15 +1,12 @@
-import type { SanpoMapIcon } from "@/api/generated/model";
 import type { IconName } from "@/components/ui/icon/iconRegistry";
 import type { MapPinCategory } from "@/components/ui/map-pin/MapPin";
-import type { PinSummary, RegisteredPin, SanpoMap } from "@/features/pin/types";
+import type { PinSummary, RegisteredPin, SanpoMap, SanpoMapIconKey } from "@/features/pin/types";
 
 /**
  * 地図のアイコンの定義と解決（SS-171 / SS-172。ADR-M-019）。
  * 純粋関数のみ。import はすべて型のみ（値 import すると vitest で lucide → react-native-svg に届いて落ちる）。
  */
 
-/** 画面で扱う地図アイコンの値（= backend の enum）。 */
-export type SanpoMapIconKey = SanpoMapIcon;
 export type SanpoMapIconTone = Exclude<MapPinCategory, "goal" | "current">;
 export type SanpoMapIconMeta = { glyph: IconName; tone: SanpoMapIconTone; label: string };
 
@@ -77,16 +74,43 @@ export function sanpoMapIconFor(
 }
 
 /**
+ * 「地図ID → アイコン」の内容だけを表す文字列（`id:icon` をカンマで連結）。
+ * 名前変更・pinCount 更新など、アイコンに関係しない一覧の更新では同じ文字列になるので、
+ * hook の `useMemo` の依存にして、ピン配列の参照が無関係な更新で変わらないようにする（`RegisteredPinMarkers` の memo を保つ）。
+ * id は UUID（`:` `,` を含まない）。
+ */
+export function sanpoMapIconSignature(maps: readonly Pick<SanpoMap, "id" | "icon">[]): string {
+  return maps.map((map) => `${map.id}:${map.icon}`).join(",");
+}
+
+/** `sanpoMapIconSignature` の文字列から「地図ID → アイコン」を復元する（値は検証して未知は pin）。 */
+export function sanpoMapIconIndexFromSignature(
+  signature: string,
+): ReadonlyMap<string, SanpoMapIconKey> {
+  const index = new Map<string, SanpoMapIconKey>();
+  if (signature === "") return index;
+  for (const entry of signature.split(",")) {
+    const separator = entry.lastIndexOf(":");
+    index.set(entry.slice(0, separator), toSanpoMapIconKey(entry.slice(separator + 1)));
+  }
+  return index;
+}
+
+/**
  * 地図ごとに取得した登録済みピンに、そのピンの地図のアイコンを付ける（順序は保つ）。
- * 一覧を Map(id → icon) にしてから引く（ピン数 × 地図数のループにしない）。
+ * 地図は Map(id → icon) で受ける（ピン数 × 地図数のループにしない）。一覧に無い地図は既定の pin。
  */
 export function attachSanpoMapIcons(
   pins: readonly PinSummary[],
-  maps: readonly Pick<SanpoMap, "id" | "icon">[],
+  iconById: ReadonlyMap<string, SanpoMapIconKey>,
 ): RegisteredPin[] {
-  const iconById = new Map<string, SanpoMapIconKey>(maps.map((map) => [map.id, map.icon]));
   return pins.map((pin) => ({
     ...pin,
     sanpoMapIcon: iconById.get(pin.sanpoMapId) ?? DEFAULT_SANPO_MAP_ICON,
   }));
+}
+
+/** 地図詳細の「アイコンを変更」ボタンの読み上げ・E2E 用ラベル（現在のアイコンを伝える）。 */
+export function sanpoMapIconChangeLabel(key: SanpoMapIconKey): string {
+  return `アイコンを変更（現在: ${SANPO_MAP_ICON_META[key].label}）`;
 }

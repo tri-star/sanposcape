@@ -7,7 +7,11 @@ import { resolvePinFetchBounds } from "@/features/pin/lib/pinFetchBounds";
 import { pinListQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { combineRegisteredPinListQueries } from "@/features/pin/lib/pinRead";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
-import { attachSanpoMapIcons } from "@/features/pin/lib/sanpoMapIcon";
+import {
+  attachSanpoMapIcons,
+  sanpoMapIconIndexFromSignature,
+  sanpoMapIconSignature,
+} from "@/features/pin/lib/sanpoMapIcon";
 import type { GeoBounds, RegisteredPin } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 
@@ -113,10 +117,14 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
         ? toPinReadErrorCode(combined.firstError)
         : "unknown";
 
-  // `combined.pins` は combine の構造共有で、`maps.maps` は TanStack の構造共有と空配列の定数で安定。
+  // `combined.pins` は combine の構造共有で安定。地図一覧は名前変更・pinCount 更新でも新しい参照になるので、
+  // 「地図ID → アイコン」の内容を表す文字列を依存にし、アイコンが変わったときだけピン配列を作り直す
+  // （`RegisteredPinMarkers` の memo が無関係な一覧の更新で破れない）。
+  const iconSignature = sanpoMapIconSignature(maps.maps);
+  const iconIndex = useMemo(() => sanpoMapIconIndexFromSignature(iconSignature), [iconSignature]);
   const pins = useMemo(
-    () => attachSanpoMapIcons(combined.pins, maps.maps),
-    [combined.pins, maps.maps],
+    () => attachSanpoMapIcons(combined.pins, iconIndex),
+    [combined.pins, iconIndex],
   );
 
   const { retry: retryMaps } = maps;

@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/dialog/Dialog";
 import { SanpoMapIconPicker } from "@/features/pin/components/SanpoMapIconPicker";
 import { useSanpoMapIconUpdate } from "@/features/pin/hooks/useSanpoMapIconUpdate";
 import { sanpoMapUpdateErrorMessage } from "@/features/pin/lib/sanpoMapError";
-import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { SanpoMap } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 

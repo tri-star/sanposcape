@@ -1,7 +1,10 @@
-import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIcon } from "@/api/generated/model";
 import type { PhotoUploadErrorCode } from "@/features/pin/lib/photoUploadError";
 import type { GeoCoordinates } from "@/services/location/types";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
+
+/** 画面で扱う地図アイコンの値（= backend の enum。対応表は lib/sanpoMapIcon.ts）。 */
+export type SanpoMapIconKey = SanpoMapIcon;
 
 /** 画面で扱う地図（SanpoMapRead を camelCase 化）。 */
 export type SanpoMap = {

@@ -5,9 +5,9 @@ import {
   updateSanpoMap as updateSanpoMapRequest,
 } from "@/api/generated/endpoints/sanpo-maps/sanpo-maps";
 import type { SanpoMapRead } from "@/api/generated/model";
+import { toSanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMap, SanpoMapIconKey } from "@/features/pin/types";
 import { isUuid } from "@/lib/uuid";
-import { toSanpoMapIconKey, type SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
-import type { SanpoMap } from "@/features/pin/types";
 
 /** `icon` は SS-171。生成型では必須でも、古い backend・未知の値に備えて必ず検証を通す。 */
 export function toSanpoMap(read: SanpoMapRead): SanpoMap {

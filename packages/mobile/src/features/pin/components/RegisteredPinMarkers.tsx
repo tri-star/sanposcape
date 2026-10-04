@@ -8,6 +8,8 @@ import { sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
 import type { RegisteredPin } from "@/features/pin/types";
 
 const REGISTERED_PIN_SIZE = 30;
+/** サイズ固定なので基準点はモジュール定数（pins.map の中で毎回新しいオブジェクトを Marker に渡さない）。 */
+const REGISTERED_PIN_PLACEMENT = mapPinMarkerPlacement(REGISTERED_PIN_SIZE);
 
 export type RegisteredPinMarkersProps = {
   pins: readonly RegisteredPin[];
@@ -45,7 +47,7 @@ export const RegisteredPinMarkers = memo(function RegisteredPinMarkers({
           key={`${pin.id}:${pin.sanpoMapIcon}`}
           identifier={pin.id}
           coordinate={pin.location}
-          {...mapPinMarkerPlacement(REGISTERED_PIN_SIZE)}
+          {...REGISTERED_PIN_PLACEMENT}
           tracksViewChanges={false}
           onPress={() => onSelectPin(pin.id)}
           testID={`${testIDPrefix}-${pin.id}`}
