@@ -43,7 +43,8 @@ packages/backend/
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
 │       │
 │       ├── aws_lambda/        # AWS Lambda 固有の受け皿（ECS 移植性の境界。SS-67）
-│       │   ├── api.py         #   Mangum アダプタ。main.app の import 前にシークレットをハイドレーションする
+│       │   ├── api.py         #   Lambda ハンドラ。main.app の import 前にシークレットをハイドレーションし、後で build_handler() を呼ぶ
+│       │   ├── asgi_handler.py #  Mangum を lifespan=off で包み、FastAPI の lifespan を init で1回だけ起動する。import しても副作用なし
 │       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
@@ -195,8 +196,22 @@ packages/backend/
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
-- `api.py`: Mangum アダプタ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
-  import より**前**に実行してから `app` を import する（順序が意味を持つ 1 ファイルの責務）。
+- `api.py`: Lambda ハンドラ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
+  import より**前**に実行してから `app` を import し、その**後**で `build_handler(app)` を呼ぶ
+  （ハイドレーション → `main` の import → lifespan の起動の順。順序が意味を持つ 1 ファイルの責務）。
+- `asgi_handler.py`: `build_handler(app)` / `AsgiLambdaHandler`。import しても何も起動しない
+  （副作用は生成時だけ）。Mangum を `lifespan="off"` で包み、FastAPI の lifespan
+  （`main._lifespan`）の startup を**生成時（Lambda の init）に1回だけ**起動する。
+  - mangum 0.22.0 の `lifespan="auto"` は**呼び出しごとに** startup / shutdown を回すため、
+    `_lifespan` が作る資源（Maps provider とキャッシュ・レート制限・AppConfig のセッション・
+    S3 クライアント）が呼び出しごとに作り直されていた（SS-183）。
+  - **shutdown は走らせない**（実行環境の破棄で資源も消える）。`close()` はテスト専用。
+  - lifespan の **state は使えない**（`lifespan="off"` の Mangum は state を scope に載せない。
+    state を yield する lifespan は起動時に `RuntimeError`）。共有する資源は `app.state` に置く。
+  - startup の例外は ERROR ログ（`Application startup failed during Lambda init.`）を出して
+    再送出する（init エラーになる。deployment.md §7）。
+  - 同期のコードからだけ呼ぶこと（生成時に `run_until_complete()` を使う）。
+  - 経緯と決定は [ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)。
 - `migrate.py`: Alembic `upgrade head` を実行する専用 Lambda（API 本体のハンドラでは走らせない）。
 - `main.py` の `create_app()` / `app` はこのパッケージから独立しており無変更のまま。ECS では
   従来どおり `uvicorn sanposcape.main:app` で動く。

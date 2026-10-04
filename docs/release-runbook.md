@@ -102,8 +102,11 @@ CI のデプロイ完了からマイグレーション実行までの間、**新
 - **ただし待機できる run は環境ごとに1つだけ。** 待機中にさらに起動すると、待機していた run は
   **キャンセルされて実行されない**（GitHub の concurrency の仕様）。prod で前の run が承認待ちのまま
   だと待機が長引くので、起動したら必ず run が成功（または「変更なし」）で終わったことを確認する。
-- フラグが読めない場合、backend は**全フラグ OFF** で動く（ADR-008 決定9）。
-  「フラグを ON にしたのに反映されない」ときは、AppConfig の取得自体が失敗している可能性を疑う。
+- 一度もフラグを取得できていない場合に限り、backend は**全フラグ OFF** で動く（ADR-008 決定9）。
+  一度取得できた後に取得が失敗したときは、直前の値を保つ（決定9-1）。
+  「フラグを ON にしたのに反映されない」ときは、まずベイク時間とポーリング間隔（既定60秒）を
+  待ったうえで、CloudWatch Logs の AppConfig 取得失敗の ERROR ログを確認する
+  （ログの実際の文言は `packages/backend/src/sanposcape/integrations/aws/appconfig.py` で確認すること）。
 - mobile は起動時とフォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は
   全フラグ OFF で動く（SS-100。詳細は
   [packages/mobile/docs/architecture-guideline.md](../packages/mobile/docs/architecture-guideline.md)
