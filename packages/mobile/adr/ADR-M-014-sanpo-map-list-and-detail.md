@@ -206,4 +206,4 @@ SS-171 で `icon`（`GET/POST/PATCH /sanpo-maps`）を追加した（ルート A
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・SS-111 追補）
 - [ADR-M-019: 地図のアイコンと、マップピンの形・マーカーの基準点](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)（SS-171 追補）
 - [ADR-M-021: ピンの訪問状況とアーカイブ](./ADR-M-021-pin-visit-status-and-archive.md)（SS-173 追補）
-- 元チケット: SS-121 / 関連: SS-113（地図 API）・SS-145・SS-146（PR #114）・SS-117・SS-119
+- 元チケット: SS-121 / 関連: SS-113（地図 API）・SS-145・SS-146（PR #114）・SS-117・SS-119・SS-173
