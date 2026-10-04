@@ -152,7 +152,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 
 ## 外部の Web ページを開く（SS-158）
 
-- 方針の正本は [ADR-M-019](../adr/ADR-M-019-external-web-pages.md)。
+- 方針の正本は [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)。
 - 画面からは `useOpenExternalUrl().open(url)`（`src/hooks/`）を使う。`expo-web-browser` / `Linking.openURL` を画面から直接呼ばない（失敗時の案内・診断ログ・URL 検証を通すため）。例外: OS の設定画面を開く `Linking.openSettings()`（`LocationPermissionNotice`）は対象外。
 - 開いてよいのは `https:` だけ（`isOpenableExternalUrl`）。
 - 法的文書の URL は `src/config/legalLinks.ts` の定数。ビルドの種類で切り替えない。

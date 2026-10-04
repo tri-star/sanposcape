@@ -20,7 +20,7 @@
 - **キャッシュは `_astro/**` が永久、それ以外は `max-age=0, s-maxage=86400`。デプロイのたびに `/*` を invalidation し、`_astro/` の旧ハッシュは消さない**。（本文: 決定5）
 - **dev のインデックス抑止は noindex（meta と `X-Robots-Tag`）に任せ、robots.txt で Disallow にしない**。（本文: 決定6）
 - **プライバシーポリシーは `src/pages/privacy.astro` → `https://sanposcape.com/privacy/` で公開し、LP のフッターからリンクする**。
-  mobile は設定画面・サインイン / サインアップ画面からアプリ内ブラウザで開く（[ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)）。（本文: SS-158 追補）
+  mobile は設定画面・サインイン / サインアップ画面からアプリ内ブラウザで開く（[ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)）。（本文: SS-158 追補）
 - **`/privacy/` は恒久 URL で、変えない**（アプリ内リンクと App Store Connect に登録するため）。（本文: SS-158 追補）
 - **お問い合わせは独立ページ・フォームにせず、`/privacy/#contact` の mailto（`support@sanposcape.com`）で代用する**。CSP は変えていない。
   （本文: コンテキスト、移行・対応事項、SS-158 追補）
@@ -232,7 +232,7 @@ Disallow するとクローラーがページを取得できず noindex を読�
 - **プライバシーポリシーは `src/pages/privacy.astro` として追加し、`https://sanposcape.com/privacy/`（dev は `https://dev.sanposcape.com/privacy/`）で公開する。**
   LP のフッターにリンクを置く（ヘッダーのナビはトップのセクションへのページ内リンクなので混ぜない）。
   mobile は設定画面とサインイン / サインアップ画面からアプリ内ブラウザで開く
-  （[ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)。URL の定数は `packages/mobile/src/config/legalLinks.ts`）。
+  （[ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)。URL の定数は `packages/mobile/src/config/legalLinks.ts`）。
 - **`/privacy/` は恒久 URL とし、変えない。** アプリ内のリンクと App Store Connect の「プライバシーポリシー URL」に登録するため。
   変えると配布済みのアプリが古い URL を開き続ける。末尾スラッシュ付き（決定1 の `trailingSlash: "always"`）・`www.` なし（決定2 で 301 される）を正とする。
 - **お問い合わせは独立したページ・フォームにせず、ポリシー内の窓口 `/privacy/#contact` の mailto（`support@sanposcape.com`）で代用する。**
@@ -258,7 +258,7 @@ Disallow するとクローラーがページを取得できず noindex を読�
 ### リリース時に必要な手作業
 
 - 本番 LP を `/privacy/` を含む版でデプロイしてから（決定4 の prod は手動起動 + 承認）、アプリ内リンクを含む mobile のビルドを配布・審査に出す。
-  2026-10-02 に prod へ出た `lp/v0.1.0` は `/privacy/` を含まないため、それまではアプリ内のリンク先が 404 になる（ADR-M-019 の「影響」）。
+  2026-10-02 に prod へ出た `lp/v0.1.0` は `/privacy/` を含まないため、それまではアプリ内のリンク先が 404 になる（ADR-M-020 の「影響」）。
 - App Store Connect の「プライバシーポリシー URL」に `https://sanposcape.com/privacy/` を登録する（手作業）。
   TestFlight の外部テストを始めるなら、開発用のアプリレコード（`com.sanposcape.app.dev`）にも同じ URL を登録する。
 - 本番公開・ストア登録の前に、`support@sanposcape.com` で受信できることを確認する（受信設定は SS-158 の範囲外）。
@@ -271,7 +271,7 @@ Disallow するとクローラーがページを取得できず noindex を読�
 - [ADR-006](./ADR-006-mobile-app-delivery-eas-hosted.md) 決定5（静的サイトの配信面は Terraform 側の S3 + CloudFront）
 - [ADR-008](./ADR-008-deploy-release-separation.md) 決定4（アプリ別のタグと Release）
 - [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2（アカウント削除時の写真削除。本番でピン機能を ON にする前提条件）（**SS-158 追補**）
-- [ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)（アプリからプライバシーポリシーを開く方法と、URL をビルドで切り替えないこと）（**SS-158 追補**）
+- [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)（アプリからプライバシーポリシーを開く方法と、URL をビルドで切り替えないこと）（**SS-158 追補**）
 - `packages/lp/AGENTS.md`、`packages/lp/docs/deployment.md`、`.github/workflows/lp-ci.yml`、`.github/workflows/lp-deploy.yml`
 - `packages/lp/src/pages/privacy.astro`、`packages/mobile/src/config/legalLinks.ts`（**SS-158 追補**）
 - sanposcape-infra: ADR-0001 §2.11 / §2.15、`live/services/lp`（SS-74、tri-star/sanposcape-infra#47）

@@ -18,7 +18,7 @@
 - **AWS 側に要る mobile 隣接の配信面は静的サイトで、SAM ではなく Terraform（`sanposcape-infra`）の S3 + CloudFront で扱う**。
   実体は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の LP。（本文: 決定5、SS-158 追補）
 - **プライバシーポリシーの URL は `https://sanposcape.com/privacy/`（末尾スラッシュ付き、恒久）**。公開・お問い合わせの扱いは ADR-012 の SS-158 追補、
-  アプリからの開き方は [ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)。（本文: 決定5、移行・対応事項、SS-79 追補、SS-158 追補）
+  アプリからの開き方は [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)。（本文: 決定5、移行・対応事項、SS-79 追補、SS-158 追補）
 - **URL scheme は開発用 `sanposcape-dev://` / 本番用 `sanposcape://` の2つ**。Universal Links / App Links は未使用で、将来配信する場合も静的ファイルに両 appID を列挙すればよい。
   （本文: 決定5、SS-79 追補）
 - **ビルド番号（iOS `buildNumber` / Android `versionCode`）は EAS サーバーが採番する（`cli.appVersionSource: "remote"`、`staging` / `production` に `autoIncrement: true`）**。
@@ -227,7 +227,7 @@ EAS Update をそのまま使う。
       **（SS-158 追補）プライバシーポリシーは決着、サポートページは未作成。**
       置き場は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の LP（`packages/lp` → S3 + CloudFront。SS-155 / infra SS-74）で、
       SS-158 で `https://sanposcape.com/privacy/` を追加した（アプリからの開き方は
-      [ADR-M-019](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)）。
+      [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)）。
       サポートページ（`/support/`）は作っておらず、App Store Connect の Support URL に何を登録するかは未決
       （Plane に該当課題なし）。お問い合わせはポリシー内の窓口 `/privacy/#contact` の mailto で受ける。
       サポートページが残るため、チェックは付けない。
@@ -348,7 +348,7 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
   —— `EXPO_TOKEN` の扱い。
 - [ADR-012: LP は packages/lp の Astro 静的サイトとし、S3 + CloudFront へ GitHub Actions でデプロイする](./ADR-012-lp-static-site-astro-s3-cloudfront.md)
   （**SS-158 追補**）—— 決定5 の静的サイトの実体。プライバシーポリシー `/privacy/` の公開・恒久 URL・お問い合わせの扱いは同 ADR の SS-158 追補。
-- [packages/mobile/adr/ADR-M-019: 外部の Web ページはアプリ内ブラウザで開き、法的文書の URL はビルドで切り替えない](../../packages/mobile/adr/ADR-M-019-external-web-pages.md)
+- [packages/mobile/adr/ADR-M-020: 外部の Web ページはアプリ内ブラウザで開き、法的文書の URL はビルドで切り替えない](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)
   （**SS-158 追補**）—— アプリからプライバシーポリシーを開く方法。
 - [packages/mobile/adr/ADR-M-003: development build と開発ループ](../../packages/mobile/adr/ADR-M-003-development-build-and-dev-loop.md)
 - [packages/mobile/adr/ADR-M-004: E2E ビルド・CI 戦略](../../packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)

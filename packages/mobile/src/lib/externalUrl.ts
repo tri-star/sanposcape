@@ -1,5 +1,5 @@
 /**
- * 外部の Web ページを開く判定ロジック（SS-158 / ADR-M-019）。
+ * 外部の Web ページを開く判定ロジック（SS-158 / ADR-M-020）。
  *
  * `react-native` / `expo-web-browser` を値として import しない（開く手段は引数で注入する）。
  * Vitest でテストするため。実際の配線は `src/hooks/useOpenExternalUrl.ts`。

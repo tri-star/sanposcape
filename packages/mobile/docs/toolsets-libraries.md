@@ -15,7 +15,7 @@
   expo-file-system（加工後ファイルのバイト数取得。アプリ設定（テーマ）の端末保存にも使う＝`src/services/preferences`、同期 API。SS-86。散歩中の位置サンプルの一時バッファにも使う＝`src/services/location`。SS-156）。`src/services/photo` で real/mock を切り替える。
   画像表示は expo-image。アップロードは presigned POST で S3 直送（`src/features/pin/api/`）。
   詳細は [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
-- 外部の Web ページ: expo-web-browser（アプリ内ブラウザ。開けないときは RN の Linking.openURL）。プライバシーポリシーへの導線で使用（SS-158 / [ADR-M-019](../adr/ADR-M-019-external-web-pages.md)）
+- 外部の Web ページ: expo-web-browser（アプリ内ブラウザ。開けないときは RN の Linking.openURL）。プライバシーポリシーへの導線で使用（SS-158 / [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)）
 - スライダー: @react-native-community/slider（往復時間の指定UI）
 - ジェスチャー・アニメーション: react-native-gesture-handler + react-native-reanimated（アプリのルート `app/_layout.tsx` を
   `GestureHandlerRootView` で包んでいる。React Compiler が有効なので shared value は `.get()` / `.set()` で読み書きする。

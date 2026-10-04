@@ -23,7 +23,7 @@ const OPENERS: ExternalUrlOpeners = {
 };
 
 /**
- * 外部の Web ページを開く（SS-158 / ADR-M-019）。判定は `src/lib/externalUrl.ts`、
+ * 外部の Web ページを開く（SS-158 / ADR-M-020）。判定は `src/lib/externalUrl.ts`、
  * ここは expo-web-browser / Linking / 診断ログ / 読み上げの配線だけを持つ。
  *
  * ネイティブ依存（expo-web-browser / RN）を持つので、Vitest 対象のモジュール

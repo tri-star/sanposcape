@@ -1,14 +1,14 @@
 ---
 name: project-external-links
-description: アプリから外部 Web ページ（プライバシーポリシー・利用規約・サポート等）を開くときの前提 — 既存の useOpenExternalUrl / legalLinks.ts を再利用・URL はビルドで切り替えない・LP の URL 形式・E2E で押さない（設計本体は ADR-M-019）
+description: アプリから外部 Web ページ（プライバシーポリシー・利用規約・サポート等）を開くときの前提 — 既存の useOpenExternalUrl / legalLinks.ts を再利用・URL はビルドで切り替えない・LP の URL 形式・E2E で押さない（設計本体は ADR-M-020）
 metadata:
   type: project
   scope: durable
-  adr: packages/mobile/adr/ADR-M-019-external-web-pages.md
+  adr: packages/mobile/adr/ADR-M-020-external-web-pages.md
   source_issue: SS-158
 ---
 
-SS-158（2026-10-03）でプライバシーポリシーへの導線を作ったときに確認した事実と判断。設計の正本は ADR-M-019。
+SS-158（2026-10-03）でプライバシーポリシーへの導線を作ったときに確認した事実と判断。設計の正本は ADR-M-020。
 
 - **外部ページを足すときは `src/hooks/useOpenExternalUrl.ts` と `src/config/legalLinks.ts` を再利用する**。画面から
   `expo-web-browser` / `Linking.openURL` を直接呼ばない（`Linking.openSettings()` だけ例外）。

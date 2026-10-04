@@ -18,7 +18,7 @@ export type PrivacyPolicyLinkProps = {
 /**
  * プライバシーポリシー（LP の公開ページ）へのリンク。SS-158。
  * `features/settings` と `features/auth` の2機能から使うため `src/components/legal/` に置く。
- * 開く手段・フォールバック・URL を本番固定にする理由は ADR-M-019。
+ * 開く手段・フォールバック・URL を本番固定にする理由は ADR-M-020。
  * 開く先は固定なので `onPress` は受けない（内部に必ずハンドラを持つ）。
  */
 export function PrivacyPolicyLink({ testID, align = "start" }: PrivacyPolicyLinkProps) {
