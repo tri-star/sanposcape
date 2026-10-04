@@ -7,7 +7,7 @@
 
 ### 決定
 
-- **公開経路は Lambda Function URL + CloudFront（OAC / SigV4）で、API Gateway・ALB は使わない**。（本文: 決定1）
+- **公開経路は Lambda Function URL + CloudFront（OAC / SigV4）で、API Gateway・ALB は使わない**。（本文: 決定1、選択肢2）
 - **パッケージングは zip + `python3.12`、`sam build --use-container` でビルドする**。コンテナイメージは採らない。アーキテクチャは x86_64。（本文: 決定2、決定10）
 - **Lambda 固有のコードは `src/sanposcape/aws_lambda/` にだけ置き、`main.py` の `create_app()` / `app` は Lambda を知らない**。
   FastAPI の lifespan を実行環境ごとに 1 回だけ起動する処理も `aws_lambda/asgi_handler.py` に置く。（本文: 決定3、SS-183 追補）
@@ -16,20 +16,22 @@
 - **シークレットは実行時に Secrets Manager から取得し、プロセス内でキャッシュする**。ARN は SSM から deploy 時に解決して `APP_SECRET_ARN` で渡す。ローテーションは再デプロイで反映する。（本文: 決定5）
 - **アプリの `ENV` はテンプレートの `Mappings`（`dev → staging` / `prod → production`）で変換し、`config.py` の `Literal` を広げない**。（本文: 決定6）
 - **Lambda は VPC に入れない**。（本文: 決定7）
-- **in-process のキャッシュとレート制限が Lambda の実行環境ごとに独立することを受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。prod はクォータが上がるまで予約を入れず、引き上げと予約の投入を同時に行う。（本文: 決定8、SS-183 追補）
-- **Mangum は `lifespan="off"` で使い、FastAPI の lifespan は init で 1 回だけ起動して shutdown は走らせない**。lifespan の state（yield する値）は使わない。（本文: SS-183 追補）
-- **Alembic のマイグレーションは、同じビルド成果物を使う専用 Lambda を手動で invoke して実行し、direct（非 pooled）DSN `neon_dsn_unpooled` を使う**。API 本体・lifespan・デプロイフックでは走らせない。（本文: 決定9、SS-72 追補）
+- **in-process のキャッシュとレート制限が Lambda の実行環境ごとに独立することを受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。費用の天井は Google Cloud 側のクォータでも設ける。prod はクォータが上がるまで予約を入れず、引き上げと予約の投入を同時に行う。（本文: 決定8、SS-183 追補）
+- **Lambda では Mangum を `lifespan="off"` で使い、FastAPI の lifespan を init で 1 回だけ起動して shutdown は走らせない**。uvicorn・TestClient では従来どおり startup / shutdown の両方が走る。
+  lifespan の state（yield する値）は使わない。startup の失敗は ERROR ログを出してから init エラーにし、startup / shutdown には INFO ログを 1 行ずつ出す（dev での確認用）。（本文: SS-183 追補）
+- **Alembic のマイグレーションは、同じビルド成果物を使う専用 Lambda を手動で invoke して実行し、direct（非 pooled）DSN `neon_dsn_unpooled` を使う**。API 本体・lifespan・デプロイフックでは走らせない。スキーマ変更は expand → contract で入れる（[ADR-008](./ADR-008-deploy-release-separation.md) 決定7）。（本文: 決定9、SS-72 追補、SS-104 追補）
 - **SnapStart は有効化しない**。（本文: 決定11、SS-183 追補）
-- **Lambda 実行ロールには Permission Boundary を付ける**。境界を初めて入れるデプロイだけは手元の管理者権限で行う。（本文: SS-72 追補）
-- **SAM デプロイは GitHub Actions の手動実行（`workflow_dispatch`）だけで行う**。dev は任意の ref から、prod は main から。（本文: SS-72 追補）
-- **production へのデプロイが成功したら `backend/vX.Y.Z` タグと GitHub Release を作る**。規則は [ADR-008](./ADR-008-deploy-release-separation.md) 決定4・決定5 に引き継いだ。（本文: SS-72 追補、SS-104 追補）
+- **Lambda 実行ロールには Permission Boundary を付ける**。境界を初めて入れるデプロイだけは手元の管理者権限で行う。実行時に新しい AWS 操作が要るときは、境界を外さず infra 側の境界を先に広げる。（本文: SS-72 追補）
+- **backend のデプロイ用ワークフローは手動実行（`workflow_dispatch`）でだけ起動する**（push・pull_request では起動しない）。dev は任意の ref から、prod は main からのみ（Required reviewers 付き）で、backend CI を通ったコミットだけをデプロイする。（本文: SS-72 追補）
+- **production へのデプロイが成功したら `backend/vX.Y.Z` タグと GitHub Release を作る**。規則の正本は [ADR-008](./ADR-008-deploy-release-separation.md) 決定4・決定5。（本文: SS-72 追補、SS-104 追補）
 
 ### 未解決・持ち越し
 
-各項目の実施状況は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) 冒頭の検証状況の表が新しい。
+デプロイと検証の実施状況は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) 冒頭の検証状況の表が新しい（表に無い項目もある）。
 
 - **prod の Lambda 同時実行数クォータの引き上げと、prod への `ReservedConcurrentExecutions` の投入**。`template.yaml` は prod で予約を落としたまま。（本文: 決定8、移行・対応が必要な事項）
 - **prod のシークレットの投入と、prod へのデプロイ**。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
+- **prod の CloudFront の有効化（infra の `enable_distribution = true`）と、deployment.md §6.2 の確認**。dev は確認済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
 - **in-process のキャッシュとレート制限を外部ストアへ移すかの検討**。（本文: 決定8、移行・対応が必要な事項）
 - **探索 API のレート制限のキーにしている IP が、CloudFront 経由では利用者の IP ではない疑い**。SS-183 でレート制限が初めて実際に効くようになったため顕在化した。（本文: SS-183 追補。SS-186 で継続）
 - **SS-183 の修正が dev で意図どおりに動くことの確認**（ログストリームごとに startup のログが 1 件、shutdown のログが 0 件）。（本文: SS-183 追補）
@@ -274,9 +276,11 @@ qemu エミュレーションになり実用的でない。CI 上でネイティ
 Python 3.12 では利用可能だが、init 時にシークレットをハイドレートする現構成ではスナップショットに
 秘密値が焼き込まれてしまう。採用するなら `after_restore` ランタイムフックへハイドレーション処理を
 移設することが前提になり、今回のスコープでは行わない。
-（**SS-183 追補**: SS-183 で、`main._lifespan` が作る資源（AppConfig のセッション・レート制限の状態・
-HTTP / boto3 のコネクション）も init で作るようになった。SnapStart を採るなら、これらもリストア後に
-作り直す必要がある。末尾の「SS-183 追補」の選択肢D も参照）
+（**SS-183 追補**: SS-183 で、`main._lifespan` が作る資源（AppConfig の取得元、レート制限の状態、
+Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライアント）も init で作るようになった。
+どれも生成するだけでネットワークには出ないが、実行環境が続く間に AppConfig のセッション token・
+レート制限の状態・接続を持つようになる。SnapStart を採るなら、これらもリストア後に作り直す必要がある。
+末尾の「SS-183 追補」の選択肢D も参照）
 
 ## 検討した選択肢
 
@@ -367,6 +371,8 @@ HTTP / boto3 のコネクション）も init で作るようになった。Snap
 
 - [ ] シークレットへ `neon_dsn_unpooled`（direct DSN）を投入する。マイグレーション Lambda は
       未投入の間 `MigrationConfigError` で明示的に失敗する設計になっている。
+      （**SS-183 追補**: dev は投入済み。deployment.md の検証状況の表で、dev のマイグレーション Lambda の
+      実行が検証済みになっている。prod は未投入のためチェックは付けない）
 - [ ] prod の Lambda 同時実行数クォータ引き上げの承認を待ち、承認後速やかに
       `ReservedConcurrentExecutions` を prod にも投入する（決定8の「最も危険な時間帯」を作らない）。
 - [ ] prod のシークレット（`/sanposcape/prod/shared`）に値を投入する。
@@ -388,6 +394,8 @@ HTTP / boto3 のコネクション）も init で作るようになった。Snap
       プロファイルごとの向き先と、`eas.json` に書かない値の供給経路は
       [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) に集約した。
       残るのは §6.2 の 3 本立てを実際に踏むこと。
+      （**SS-183 追補**: dev の §6.2 は 2026-09-12（SS-81）に確認済み。deployment.md の検証状況の表を参照。
+      prod は CloudFront が未有効化のため未確認で、チェックは付けない）
       **（SS-78 追補その2 / 2026-09-11）`sanposcape-infra` 側へ照会して次を確定した。**
       - **dev の CloudFront は既に稼働している。** `enable_distribution = true` は dev では apply 済みで、
         `https://app-api.dev.sanposcape.com/health` が 200 `{"status":"ok"}` を返す。
@@ -545,12 +553,16 @@ GitHub 側の構成（Environment・Variables・job 分離）は
   その場合、同じ IP を経由する利用者が 1 つの実行環境の中で回数の枠を共有し、誤った 429 が出うる。
   今の利用者数では実害は小さいと判断し、本追補では直さずに SS-186 で扱う。
 - AppConfig のフラグは、ADR-008 の記述どおりポーリング間隔（既定 60 秒）ぶん遅れて反映されるようになる。
-  これまで dev でフラグの切り替えがすぐ反映されているように見えていたのは、この不具合の副作用だった。
+  SS-183 より前の Lambda では、呼び出しごとに取得し直していたため、ポーリング間隔を待たずに次の呼び出しで
+  反映される挙動だった（dev でのフラグの切り替えの実行実績は無く、観測した事実ではない）。
 - boto3 クライアントの生成時間がウォームな呼び出しから消え、その分 init が少し長くなる。
   資源はどれも生成時にネットワークへ出ないので、コールドスタートで AppConfig を取りに行かない
   （ADR-008 SS-98 追補 D3）ことは変わらない。
 - 実行環境が長く生きることで、これまで Lambda では通らなかった経路（AppConfig のセッション token の更新、
   HTTP の keep-alive の再利用、キャッシュの上限）を初めて通る。いずれもクラス単体のテストはある。
+- Lambda では `app.router.lifespan_context` に直接入るため、ASGI の `lifespan` スコープはミドルウェアを通らない。
+  ミドルウェアに startup / shutdown の処理を持たせても Lambda では走らないので、持たせない。
+  プロセスで使い回す資源は `main._lifespan` で作る。
 - `sam local invoke` は呼び出しごとにコンテナを作るため、実行環境での使い回しは検証できない。
   pytest の境界のテスト（実際の mangum を通して 2 回呼び出す）と、dev の CloudWatch Logs で確認する。
 - 後続の可観測性の計装（SS-178）は、TracerProvider の終了（flush）を lifespan に置けない。
