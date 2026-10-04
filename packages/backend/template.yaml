@@ -11,6 +11,11 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #   - 実行ロールには Terraform が作る Permission Boundary（SSM の lambda_boundary_arn）を必ず付ける。
 #     外すと CI のデプロイロールが CreateRole を拒否する（Globals.Function の PermissionsBoundary 参照）
 #   デプロイ順は常に SAM → Terraform。詳細: docs/deployment.md
+#   - トレース（ADR-013 / SS-178）: Api だけに ADOT レイヤー・Active Tracing・OTEL_* と管理ポリシー
+#     CloudWatchLambdaApplicationSignalsExecutionRolePolicy を付ける。これらの付与（デプロイロールの
+#     lambda:GetLayerVersion / ReadAttachedManagedPolicies、境界の X-Ray / logs 許可）は infra の
+#     SS-185 が前提。prod は SS-185 の prod 適用までデプロイできない（GetLayerVersion とポリシーの
+#     付与で失敗する。docs/deployment.md「トレース」）。
 #   - AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID は SSM 契約（SS-94）から deploy 時解決。
 #     Lambda 実行ロールの Permission Boundary（SS-95）は ID までは絞れないワイルドカード ARN
 #     のため、完全 ARN への絞り込みは Api の Policies（このファイル）が唯一の場所（SS-98）。
@@ -110,6 +115,16 @@ Resources:
       ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 5]
       FunctionUrlConfig:
         AuthType: AWS_IAM  # ★ NONE にしない（Function URL の直叩きを構造的に塞ぐ）
+      # ★ トレース（ADR-013 / SS-178）。Migrate には付けない（API のリクエストだけを計装する）。
+      #   Active Tracing は Lambda サービス側の区間（Init / Invocation / Overhead）と ADOT の送信先
+      #   （X-Ray のデーモン）に要る。SAM が AWSXrayWriteOnlyAccess を実行ロールに付ける。
+      Tracing: Active
+      # ADOT（AWS Distro for OpenTelemetry）の Python レイヤー。版は固定する。上げるときは dev で
+      # 確かめ、pyproject.toml の dev グループの opentelemetry-* の版と
+      # OTEL_PYTHON_DISABLED_INSTRUMENTATIONS（レイヤーの既定値）を一緒に見直す（docs/deployment.md）。
+      # v28 の中身は aws-opentelemetry-distro 0.20.0 相当（api/sdk 1.44.0、instrumentation 0.65b0）と想定。
+      Layers:
+        - arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28
       # AppConfig の ID は Api だけに渡す（Migrate はフラグを読まない。最小権限）。
       # Globals の Variables とマージされる。
       Environment:
@@ -120,7 +135,35 @@ Resources:
           # 写真バケット名（SS-106）。名前にアカウント ID を含むため直書きしない。
           # 空だと UnconfiguredObjectStorage（写真 API が 503）になる。Migrate には渡さない。
           PIN_PHOTO_BUCKET_NAME: !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/pin_photos/bucket_name}}'
+          # --- トレース（ADR-013 / SS-178）。Api だけ。Globals には置かない ---
+          # アプリ側の計装（FastAPI・SQLAlchemy・httpx・threading の手動計装）を有効にする。
+          TRACING_ENABLED: 'true'
+          # ADOT の起動ラッパー。TracerProvider はこれが作る（アプリは作らない。決定7）。
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+          OTEL_SERVICE_NAME: sanposcape-backend-api
+          # aws.log.group.names はレイヤーも自動で付ける（重複するが値は同じで無害）。
+          OTEL_RESOURCE_ATTRIBUTES: !Sub 'deployment.environment=${Env},aws.log.group.names=/aws/lambda/sanposcape-${Env}-backend-api'
+          OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true'
+          # レイヤー v28 の otel-instrument の既定値と同じ文字列を明示する（レイヤーを上げて既定値が
+          # 変わっても、有効な計装が黙って増減しないように。決定1）。結果として自動計装は
+          # botocore と urllib だけ。fastapi / sqlalchemy / httpx / threading は zip 側のライブラリ
+          # （起動時の sys.path に /var/task が無い）なのでアプリから手動で計装する。
+          # fastapi だけを書く方式は既定値を上書きして他の計装を一斉に有効にしてしまうので真似しない。
+          OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: 'aio-pika,aiohttp-client,aiohttp-server,aiopg,asgi,asyncio,asyncpg,boto,boto3,cassandra,celery,confluent_kafka,dbapi,django,falcon,fastapi,flask,grpc_client,grpc_server,grpc_aio_client,grpc_aio_server,httpx,jinja2,kafka,logging,mysql,mysqlclient,pika,psycopg,psycopg2,pymemcache,pymongo,pymysql,pyramid,redis,remoulade,requests,sklearn,sqlalchemy,sqlite3,starlette,system_metrics,threading,tornado,tortoiseorm,wsgi,openai_agents,aws_openai_agents,aws_crewai,aws_langchain,aws_mcp,aws_llama-index'
+          # 公開エンドポイントでクライアントの traceparent / baggage を親として受け入れない
+          # （トレースの乗っ取り・sampled の強制を防ぐ）。mobile からトレースを繋ぐときに見直す。
+          OTEL_PROPAGATORS: xray
+          # flush はレスポンスの前に同期で走る。既定の 30 秒は Lambda の Timeout（29 秒）より長く、
+          # 時間予算（25 秒）の外にはみ出すため 1 秒に絞る（dev で実測して見直す）。
+          OTEL_INSTRUMENTATION_AWS_LAMBDA_FLUSH_TIMEOUT: '1000'
+          # 意図的に設定しないもの: OTEL_SEMCONV_STABILITY_OPT_IN（ADOT の Application Signals が旧
+          # semconv しか読まない）、OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_*（決定6: ヘッダーを
+          # 属性に入れない）、OTEL_TRACES_SAMPLER（決定4: 既定の parent based のまま実測する）、
+          # logging 関係（SS-180）。
       Policies:
+        # Application Signals の実行ロール用の管理ポリシー（xray:PutTraceSegments と
+        # /aws/application-signals/data への logs 書き込み）。付与に必要な権限は infra の SS-185。
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy'
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
