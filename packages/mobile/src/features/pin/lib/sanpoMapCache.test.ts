@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { insertCreatedSanpoMap } from "@/features/pin/lib/sanpoMapCache";
+import { insertCreatedSanpoMap, replaceUpdatedSanpoMap } from "@/features/pin/lib/sanpoMapCache";
 import type { SanpoMap } from "@/features/pin/types";
 
 function map(id: string, isDefault = false): SanpoMap {
-  return { id, name: id, isDefault, role: "owner", pinCount: 0 };
+  return { id, name: id, isDefault, role: "owner", pinCount: 0, icon: "pin" };
 }
 
 describe("insertCreatedSanpoMap", () => {
@@ -46,5 +46,42 @@ describe("insertCreatedSanpoMap", () => {
     const snapshot = [...old];
     insertCreatedSanpoMap(old, map("new"));
     expect(old).toEqual(snapshot);
+  });
+});
+
+describe("replaceUpdatedSanpoMap", () => {
+  it("同じ id の地図を置き換え、位置は変えない", () => {
+    const old = [map("a"), map("b"), map("c")];
+    const result = replaceUpdatedSanpoMap(old, { ...map("b"), icon: "dog" });
+    expect(result?.map((m) => [m.id, m.icon])).toEqual([
+      ["a", "pin"],
+      ["b", "dog"],
+      ["c", "pin"],
+    ]);
+  });
+
+  it("応答の pinCount が null でも既存の pinCount を残す", () => {
+    const old = [{ ...map("a"), pinCount: 7 }];
+    const result = replaceUpdatedSanpoMap(old, { ...map("a"), icon: "dog", pinCount: null });
+    expect(result?.[0]?.pinCount).toBe(7);
+  });
+
+  it("無い id は変化なし（コピーを返す）", () => {
+    const old = [map("a")];
+    const result = replaceUpdatedSanpoMap(old, map("zzz"));
+    expect(result).toEqual(old);
+    expect(result).not.toBe(old);
+  });
+
+  it("old が undefined なら undefined", () => {
+    expect(replaceUpdatedSanpoMap(undefined, map("a"))).toBeUndefined();
+  });
+
+  it("元の配列を変更しない", () => {
+    const old = [map("a")];
+    const snapshot = [...old];
+    replaceUpdatedSanpoMap(old, { ...map("a"), icon: "dog" });
+    expect(old).toEqual(snapshot);
+    expect(old[0]?.icon).toBe("pin");
   });
 });

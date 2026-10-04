@@ -1,3 +1,4 @@
+import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
 import type { PhotoUploadErrorCode } from "@/features/pin/lib/photoUploadError";
 import type { GeoCoordinates } from "@/services/location/types";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
@@ -12,6 +13,8 @@ export type SanpoMap = {
   role: "owner" | "editor";
   /** 地図のピン件数（`GET /sanpo-maps?expand=pin_count`）。作成直後は 0。値が無い（null）ときは表示しない。 */
   pinCount: number | null;
+  /** 地図のアイコン（SS-171）。API の値を toSanpoMapIconKey で検証済み。 */
+  icon: SanpoMapIconKey;
 };
 
 /** 保存先の選択。"default" は sanpo_map_id を送らない＝自分の既定地図（無ければ「最初の地図」を作る）。 */
@@ -102,6 +105,9 @@ export type PinSummary = {
   name: string | null;
   location: GeoCoordinates;
 };
+
+/** 地図に描く登録済みピン（PinSummary + そのピンの地図のアイコン。SS-172）。 */
+export type RegisteredPin = PinSummary & { sanpoMapIcon: SanpoMapIconKey };
 
 /** 表示用の写真1枚。URL は許可判定（isAllowedUploadUrl）を通したもの。不可・未生成は null。 */
 export type PinPhoto = {

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { fetchPinsInBounds } from "@/features/pin/api/pinReadApi";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
@@ -7,7 +7,8 @@ import { resolvePinFetchBounds } from "@/features/pin/lib/pinFetchBounds";
 import { pinListQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { combineRegisteredPinListQueries } from "@/features/pin/lib/pinRead";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
-import type { GeoBounds, PinSummary } from "@/features/pin/types";
+import { attachSanpoMapIcons } from "@/features/pin/lib/sanpoMapIcon";
+import type { GeoBounds, RegisteredPin } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 
 /** サーバー状態の鮮度（表示範囲を動かさない限りは取り直さない）。 */
@@ -17,7 +18,7 @@ const GC_TIME_MS = 10 * 60_000;
 const UNRESOLVED_BOUNDS: GeoBounds = { south: 0, north: 0, west: 0, east: 0 };
 
 export type UseRegisteredPinsResult = {
-  pins: PinSummary[];
+  pins: RegisteredPin[];
   /** "loading": 取得範囲の確定前・地図一覧の取得中・初回取得中（表示できるピンがまだ無い）。 */
   status: "loading" | "ready" | "error";
   errorCode: PinReadErrorCode | null;
@@ -38,6 +39,8 @@ export type UseRegisteredPinsOptions = {
  *
  * 表示範囲内のピンが上限（`PIN_MAP_FETCH_LIMIT`）を超えてもページングは続けない
  * （ルート ADR-009 の持ち越しの決着。ADR-M-012 D3）。
+ *
+ * 各ピンに地図のアイコンを付ける（SS-172）。地図のアイコンを変えると一覧キャッシュが更新され、ここで付け直される。
  */
 export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegisteredPinsResult {
   const maps = useSanpoMaps({ enabled: options.enabled });
@@ -110,6 +113,12 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
         ? toPinReadErrorCode(combined.firstError)
         : "unknown";
 
+  // `combined.pins` は combine の構造共有で、`maps.maps` は TanStack の構造共有と空配列の定数で安定。
+  const pins = useMemo(
+    () => attachSanpoMapIcons(combined.pins, maps.maps),
+    [combined.pins, maps.maps],
+  );
+
   const { retry: retryMaps } = maps;
   const { refetchAll } = combined;
   const retry = useCallback(() => {
@@ -118,7 +127,7 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
   }, [retryMaps, refetchAll]);
 
   return {
-    pins: combined.pins,
+    pins,
     status,
     errorCode,
     truncated: combined.truncated,

@@ -4,8 +4,10 @@ import { Text } from "react-native";
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { Input } from "@/components/ui/input/Input";
+import { SanpoMapIconPicker } from "@/features/pin/components/SanpoMapIconPicker";
 import { useSanpoMapCreate } from "@/features/pin/hooks/useSanpoMapCreate";
 import { sanpoMapCreateErrorMessage } from "@/features/pin/lib/sanpoMapError";
+import { DEFAULT_SANPO_MAP_ICON, type SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
 import { sanpoMapNameErrorMessage, validateSanpoMapName } from "@/features/pin/lib/sanpoMapName";
 import type { SanpoMap } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -28,7 +30,7 @@ export type SanpoMapCreateDialogProps = {
  *
  * 状態の初期化: 呼び出し側が開くたびに `key` を変えて作り直す。このコンポーネントは
  * 「マウント時が空」だけを保証する。作成中は閉じる操作をすべて止める（`dismissDisabled` と
- * `onClose` の両方）。作成ボタンは名前が空・長すぎるときは無効（自動再送はしない。冪等キーが無い）。
+ * `onClose` の両方）。アイコンを選べる（既定 pin。SS-171）。作成ボタンは名前が空・長すぎるときは無効（自動再送はしない。冪等キーが無い）。
  */
 export function SanpoMapCreateDialog({
   open,
@@ -39,6 +41,7 @@ export function SanpoMapCreateDialog({
 }: SanpoMapCreateDialogProps) {
   const styles = useStyles();
   const [name, setName] = useState("");
+  const [icon, setIcon] = useState<SanpoMapIconKey>(DEFAULT_SANPO_MAP_ICON);
   const { create, isCreating, errorCode, reset } = useSanpoMapCreate({ onCreated });
 
   useEffect(() => {
@@ -65,9 +68,14 @@ export function SanpoMapCreateDialog({
     if (errorCode !== null) reset();
   };
 
+  const handleChangeIcon = (next: SanpoMapIconKey) => {
+    setIcon(next);
+    if (errorCode !== null) reset();
+  };
+
   const handleSubmit = () => {
     if (!validation.ok || isCreating) return;
-    create(validation.name);
+    create({ name: validation.name, icon });
   };
 
   const handleClose = () => {
@@ -115,6 +123,12 @@ export function SanpoMapCreateDialog({
         onSubmitEditing={handleSubmit}
         disabled={isCreating}
         testID={`${testIDPrefix}-name-input`}
+      />
+      <SanpoMapIconPicker
+        value={icon}
+        onChange={handleChangeIcon}
+        disabled={isCreating}
+        testIDPrefix={testIDPrefix}
       />
       {createError !== null ? (
         // 失敗は非同期に出るので、スクリーンリーダーへ通知する（AccountDeleteDialog と同じ）。

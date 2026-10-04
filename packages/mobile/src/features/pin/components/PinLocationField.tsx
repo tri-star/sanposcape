@@ -2,6 +2,7 @@ import { Text, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { PinLocationPreview } from "@/features/pin/components/PinLocationPreview";
+import type { SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 
@@ -13,6 +14,8 @@ export type PinLocationFieldProps = {
   onRequestAdjust: () => void;
   /** 位置調整のオーバーレイを開いているあいだ true。プレビューの MapView を外す（`PinLocationPreview` の `mapHidden` を参照）。 */
   previewMapHidden?: boolean;
+  /** プレビューのピンの見た目（保存先の地図のアイコン）。 */
+  markerIcon?: SanpoMapIconKey;
   /** 接頭辞。`${testID}-preview`（= 既存の pin-register-location-preview と同じ値）/ `-adjust` / `-adjusted` を付ける。 */
   testID: string;
 };
@@ -28,6 +31,7 @@ export function PinLocationField({
   adjustable,
   onRequestAdjust,
   previewMapHidden = false,
+  markerIcon,
   testID,
 }: PinLocationFieldProps) {
   const styles = useStyles();
@@ -37,6 +41,7 @@ export function PinLocationField({
       <PinLocationPreview
         location={location}
         mapHidden={previewMapHidden}
+        markerIcon={markerIcon}
         testID={`${testID}-preview`}
       />
       <View style={styles.row}>

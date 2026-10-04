@@ -1,4 +1,5 @@
 import { FIRST_SANPO_MAP_NAME } from "@/features/pin/lib/pinLimits";
+import { DEFAULT_SANPO_MAP_ICON, type SanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
 import type { SanpoMap, SanpoMapSelection } from "@/features/pin/types";
 
 export type SanpoMapChoice = {
@@ -9,6 +10,8 @@ export type SanpoMapChoice = {
   /** まだサーバーに無い（保存時に作られる）。 */
   isDraft: boolean;
   selection: SanpoMapSelection;
+  /** 地図のアイコン。draft（未作成の「最初の地図」）は既定アイコン（backend も既定で作る）。 */
+  icon: SanpoMapIconKey;
 };
 
 export type SanpoMapChoicesState = {
@@ -72,6 +75,7 @@ export function resolveSanpoMapChoices(input: {
       key: "default",
       label: FIRST_SANPO_MAP_NAME,
       isDraft: true,
+      icon: DEFAULT_SANPO_MAP_ICON,
       selection: draftSelection,
       selected: isSameSelection(effectiveSelection, draftSelection),
     });
@@ -85,6 +89,7 @@ export function resolveSanpoMapChoices(input: {
       key: map.id,
       label: map.name,
       isDraft: false,
+      icon: map.icon,
       selection,
       selected: isSameSelection(effectiveSelection, selection),
     });
@@ -96,4 +101,9 @@ export function resolveSanpoMapChoices(input: {
       : null;
 
   return { status: "ready", choices, helper };
+}
+
+/** 選択中の保存先のアイコン。loading / error・選択なしは既定アイコン（登録画面のプレビュー用）。 */
+export function resolveSelectedSanpoMapIcon(state: SanpoMapChoicesState): SanpoMapIconKey {
+  return state.choices.find((choice) => choice.selected)?.icon ?? DEFAULT_SANPO_MAP_ICON;
 }
