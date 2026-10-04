@@ -207,6 +207,9 @@ export function DesignSystemGallery() {
             <MapPin category="cafe" />
             <MapPin category="culture" />
             <MapPin category="station" />
+            {/* 地図のアイコン用に足した色（雨・避暑地の水色、猫の茶色）。 */}
+            <MapPin category="sky" icon="cloud-rain" />
+            <MapPin category="brown" icon="cat" />
             <MapPin category="goal" size={44} label="川辺駅" />
             {/* 登録済みピンの既定の見た目（地図のアイコン pin）。 */}
             <MapPin category="park" icon="map-pin" size={30} />

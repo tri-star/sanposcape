@@ -200,7 +200,7 @@ describe("updateSanpoMapIcon", () => {
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     pin_count: null,
-    icon: "dog" as const,
+    icon: "cat" as const,
   };
 
   it("PATCH のパスに id が入り、body は { icon } だけ。200 で icon 付きの SanpoMap", async () => {
@@ -214,11 +214,11 @@ describe("updateSanpoMapIcon", () => {
       }),
     );
 
-    const result = await updateSanpoMapIcon({ sanpoMapId: ID, icon: "dog" });
+    const result = await updateSanpoMapIcon({ sanpoMapId: ID, icon: "cat" });
 
     expect(path).toContain(`/sanpo-maps/${ID}`);
-    expect(body).toEqual({ icon: "dog" });
-    expect(result).toMatchObject({ id: ID, icon: "dog", pinCount: null, role: "owner" });
+    expect(body).toEqual({ icon: "cat" });
+    expect(result).toMatchObject({ id: ID, icon: "cat", pinCount: null, role: "owner" });
   });
 
   it("UUID でない id は通信せず ApiError(404)", async () => {
@@ -230,7 +230,7 @@ describe("updateSanpoMapIcon", () => {
       }),
     );
 
-    await expect(updateSanpoMapIcon({ sanpoMapId: "not-uuid", icon: "dog" })).rejects.toMatchObject(
+    await expect(updateSanpoMapIcon({ sanpoMapId: "not-uuid", icon: "cat" })).rejects.toMatchObject(
       { status: 404 },
     );
     expect(called).toBe(false);
@@ -240,7 +240,7 @@ describe("updateSanpoMapIcon", () => {
     server.use(http.patch("*/sanpo-maps/:id", () => new HttpResponse(null, { status })));
 
     try {
-      await updateSanpoMapIcon({ sanpoMapId: ID, icon: "dog" });
+      await updateSanpoMapIcon({ sanpoMapId: ID, icon: "cat" });
       expect.unreachable("throw されるはず");
     } catch (error) {
       expect(error).toBeInstanceOf(ApiError);
@@ -251,6 +251,6 @@ describe("updateSanpoMapIcon", () => {
   it("通信断では TypeError がそのまま投げられる", async () => {
     server.use(http.patch("*/sanpo-maps/:id", () => HttpResponse.error()));
 
-    await expect(updateSanpoMapIcon({ sanpoMapId: ID, icon: "dog" })).rejects.toThrow(TypeError);
+    await expect(updateSanpoMapIcon({ sanpoMapId: ID, icon: "cat" })).rejects.toThrow(TypeError);
   });
 });

@@ -22,7 +22,7 @@ const OWNED_OTHER: SanpoMap = {
   isDefault: false,
   role: "owner",
   pinCount: null,
-  icon: "dog",
+  icon: "cat",
 };
 const INVITED: SanpoMap = {
   id: "map-invited",
@@ -30,7 +30,7 @@ const INVITED: SanpoMap = {
   isDefault: false,
   role: "editor",
   pinCount: null,
-  icon: "book",
+  icon: "leaf",
 };
 
 describe("resolveSanpoMapChoices", () => {
@@ -166,7 +166,7 @@ describe("resolveSelectedSanpoMapIcon", () => {
       maps: [OWNED_DEFAULT, OWNED_OTHER],
       selection: { kind: "existing", sanpoMapId: OWNED_OTHER.id },
     });
-    expect(resolveSelectedSanpoMapIcon(state)).toBe("dog");
+    expect(resolveSelectedSanpoMapIcon(state)).toBe("cat");
   });
 
   it("draft（最初の地図）を選択中は pin", () => {

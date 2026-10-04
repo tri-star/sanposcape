@@ -52,17 +52,17 @@ describe("insertCreatedSanpoMap", () => {
 describe("replaceUpdatedSanpoMap", () => {
   it("同じ id の地図を置き換え、位置は変えない", () => {
     const old = [map("a"), map("b"), map("c")];
-    const result = replaceUpdatedSanpoMap(old, { ...map("b"), icon: "dog" });
+    const result = replaceUpdatedSanpoMap(old, { ...map("b"), icon: "cat" });
     expect(result?.map((m) => [m.id, m.icon])).toEqual([
       ["a", "pin"],
-      ["b", "dog"],
+      ["b", "cat"],
       ["c", "pin"],
     ]);
   });
 
   it("応答の pinCount が null でも既存の pinCount を残す", () => {
     const old = [{ ...map("a"), pinCount: 7 }];
-    const result = replaceUpdatedSanpoMap(old, { ...map("a"), icon: "dog", pinCount: null });
+    const result = replaceUpdatedSanpoMap(old, { ...map("a"), icon: "cat", pinCount: null });
     expect(result?.[0]?.pinCount).toBe(7);
   });
 
@@ -80,7 +80,7 @@ describe("replaceUpdatedSanpoMap", () => {
   it("元の配列を変更しない", () => {
     const old = [map("a")];
     const snapshot = [...old];
-    replaceUpdatedSanpoMap(old, { ...map("a"), icon: "dog" });
+    replaceUpdatedSanpoMap(old, { ...map("a"), icon: "cat" });
     expect(old).toEqual(snapshot);
     expect(old[0]?.icon).toBe("pin");
   });

@@ -118,7 +118,7 @@ tags:
       id: "sanpo-map-icon-edit-dialog"
     timeout: 5000
 - tapOn:
-    id: "sanpo-map-icon-edit-icon-dog"
+    id: "sanpo-map-icon-edit-icon-cat"
 - tapOn:
     id: "sanpo-map-icon-edit-submit"
 - extendedWaitUntil:
@@ -127,7 +127,7 @@ tags:
     timeout: 15000
 - extendedWaitUntil:
     visible:
-      text: "アイコンを変更（現在: 犬の散歩）"
+      text: "アイコンを変更（現在: 猫）"
     timeout: 10000
 - tapOn:
     id: "sanpo-map-detail-back"

@@ -14,37 +14,39 @@ export const DEFAULT_SANPO_MAP_ICON: SanpoMapIconKey = "pin";
 
 /**
  * Record のキーを生成型にすることで、backend が値を足したのに mobile の対応表が無い状態を
- * typecheck で検出する（Orval の再生成で気づける）。色は MapPin の既存カテゴリ色に限る。
+ * typecheck で検出する（Orval の再生成で気づける）。色は MapPin のカテゴリ色（park/cafe/culture/station と、地図アイコン用に足した sky/brown）から選ぶ。
  */
 export const SANPO_MAP_ICON_META: Record<SanpoMapIconKey, SanpoMapIconMeta> = {
   pin: { glyph: "map-pin", tone: "park", label: "ピン" },
   tree: { glyph: "tree-pine", tone: "park", label: "公園・緑" },
-  flower: { glyph: "flower-2", tone: "park", label: "花" },
+  flower: { glyph: "flower-2", tone: "station", label: "花" },
+  leaf: { glyph: "leaf", tone: "station", label: "紅葉" },
+  sun: { glyph: "sun", tone: "cafe", label: "太陽" },
+  rain: { glyph: "cloud-rain", tone: "sky", label: "雨" },
+  retreat: { glyph: "mountain", tone: "sky", label: "避暑地" },
+  landmark: { glyph: "landmark", tone: "culture", label: "名所・史跡" },
   coffee: { glyph: "coffee", tone: "cafe", label: "カフェ" },
   food: { glyph: "utensils", tone: "cafe", label: "ごはん" },
   bakery: { glyph: "croissant", tone: "cafe", label: "パン" },
-  landmark: { glyph: "landmark", tone: "culture", label: "名所・史跡" },
-  camera: { glyph: "camera", tone: "culture", label: "撮影スポット" },
-  book: { glyph: "book-open", tone: "culture", label: "本・学び" },
-  heart: { glyph: "heart", tone: "station", label: "お気に入り" },
   shopping: { glyph: "shopping-bag", tone: "station", label: "買い物" },
-  dog: { glyph: "dog", tone: "station", label: "犬の散歩" },
+  cat: { glyph: "cat", tone: "brown", label: "猫" },
 };
 
-/** ピッカーの表示順（色ごとに3つずつ、6列 × 2行）。 */
+/** ピッカーの表示順（6列 × 3行。1行目: 自然・季節・天気、2行目: 場所・食・買い物、3行目: 猫）。 */
 export const SANPO_MAP_ICON_ORDER: readonly SanpoMapIconKey[] = [
   "pin",
   "tree",
   "flower",
+  "leaf",
+  "sun",
+  "rain",
+  "retreat",
+  "landmark",
   "coffee",
   "food",
   "bakery",
-  "landmark",
-  "camera",
-  "book",
-  "heart",
   "shopping",
-  "dog",
+  "cat",
 ];
 
 export function isSanpoMapIconKey(value: unknown): value is SanpoMapIconKey {

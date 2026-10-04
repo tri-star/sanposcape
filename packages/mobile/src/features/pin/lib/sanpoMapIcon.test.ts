@@ -36,7 +36,7 @@ describe("対応表", () => {
   it("pin は従来の登録済みピンと同じ見た目。tone と label が妥当", () => {
     expect(SANPO_MAP_ICON_META.pin).toMatchObject({ glyph: "map-pin", tone: "park" });
     for (const meta of Object.values(SANPO_MAP_ICON_META)) {
-      expect(["park", "cafe", "culture", "station"]).toContain(meta.tone);
+      expect(["park", "cafe", "culture", "station", "sky", "brown"]).toContain(meta.tone);
       expect(meta.label.length).toBeGreaterThan(0);
     }
   });
@@ -63,9 +63,9 @@ describe("sanpoMapPinAppearance", () => {
 });
 
 describe("sanpoMapIconFor", () => {
-  const maps = [{ id: "m1", icon: "dog" as const }];
+  const maps = [{ id: "m1", icon: "cat" as const }];
   it("一覧にある id はその icon", () => {
-    expect(sanpoMapIconFor(maps, "m1")).toBe("dog");
+    expect(sanpoMapIconFor(maps, "m1")).toBe("cat");
   });
   it("無い id・空の一覧は pin", () => {
     expect(sanpoMapIconFor(maps, "zzz")).toBe("pin");
@@ -75,7 +75,7 @@ describe("sanpoMapIconFor", () => {
 
 describe("attachSanpoMapIcons", () => {
   const index = new Map([
-    ["m1", "dog" as const],
+    ["m1", "cat" as const],
     ["m2", "coffee" as const],
   ]);
 
@@ -83,7 +83,7 @@ describe("attachSanpoMapIcons", () => {
     const result = attachSanpoMapIcons([pin("a", "m2"), pin("b", "m1"), pin("c", "gone")], index);
     expect(result.map((p) => [p.id, p.sanpoMapIcon])).toEqual([
       ["a", "coffee"],
-      ["b", "dog"],
+      ["b", "cat"],
       ["c", "pin"],
     ]);
   });
@@ -99,7 +99,7 @@ describe("sanpoMapIconSignature / sanpoMapIconIndexFromSignature", () => {
   const uuid1 = "11111111-1111-4111-8111-111111111111";
   const uuid2 = "22222222-2222-4222-8222-222222222222";
   const base = [
-    { id: uuid1, icon: "dog" as const, name: "A", pinCount: 1 },
+    { id: uuid1, icon: "cat" as const, name: "A", pinCount: 1 },
     { id: uuid2, icon: "coffee" as const, name: "B", pinCount: 2 },
   ];
 
@@ -117,7 +117,7 @@ describe("sanpoMapIconSignature / sanpoMapIconIndexFromSignature", () => {
 
   it("文字列から地図ID → アイコンを復元できる。空文字・未知の値は空 Map・pin", () => {
     const index = sanpoMapIconIndexFromSignature(sanpoMapIconSignature(base));
-    expect(index.get(uuid1)).toBe("dog");
+    expect(index.get(uuid1)).toBe("cat");
     expect(index.get(uuid2)).toBe("coffee");
     expect(sanpoMapIconIndexFromSignature("").size).toBe(0);
     expect(sanpoMapIconIndexFromSignature(`${uuid1}:unknown`).get(uuid1)).toBe("pin");
@@ -134,5 +134,13 @@ describe("sanpoMapIconChangeLabel", () => {
     for (const key of SANPO_MAP_ICON_ORDER) {
       expect(sanpoMapIconChangeLabel(key)).toContain(SANPO_MAP_ICON_META[key].label);
     }
+  });
+});
+
+describe("新しい色（sky / brown）", () => {
+  it("雨・避暑地は sky、猫は brown", () => {
+    expect(sanpoMapPinAppearance("rain")).toEqual({ category: "sky", icon: "cloud-rain" });
+    expect(sanpoMapPinAppearance("retreat").category).toBe("sky");
+    expect(sanpoMapPinAppearance("cat")).toEqual({ category: "brown", icon: "cat" });
   });
 });

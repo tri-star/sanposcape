@@ -7,7 +7,15 @@ import { computeMapPinGeometry } from "@/components/ui/map-pin/mapPinGeometry";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
-export type MapPinCategory = "park" | "cafe" | "culture" | "station" | "goal" | "current";
+export type MapPinCategory =
+  | "park"
+  | "cafe"
+  | "culture"
+  | "station"
+  | "sky"
+  | "brown"
+  | "goal"
+  | "current";
 
 export type MapPinProps = {
   category?: MapPinCategory;
@@ -26,6 +34,8 @@ const DEFAULT_ICON: Record<MapPinCategory, IconName> = {
   cafe: "coffee",
   culture: "book-open",
   station: "train-front",
+  sky: "cloud-rain",
+  brown: "cat",
   goal: "flag",
   current: "navigation",
 };
