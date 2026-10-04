@@ -17,3 +17,4 @@
 - [ADR 改番の一括 sed の落とし穴](feedback-adr-renumber-sed-pitfall.md) — 番号だけの置換はファイル名のスラッグ変更を見落とす。新旧パス全体で置換し、置換後にgrepで確認する
 - [docs-lint の tmp/ 参照検査](reference_docs_lint_tmp_reference_check.md) — ADR/packages*/docs/agent-memoryからのtmp/参照でCIが落ちる。新規ADR作成後は`check-tmp-references.sh`で確認する
 - [エージェントメモリの誤生成先](reference-stray-claude-dir.md) — package配下に.claude/agent-memoryが誤生成される既知の問題。正しい置き場所は常にリポジトリルート
+- [module 再 import 後の親パッケージ属性](feedback_fresh_exec_reimport_stale_package_attr.md) — sys.modules だけでなく親パッケージ属性も戻す。さもないと文字列 monkeypatch が全体実行でだけ効かない（SS-183）
