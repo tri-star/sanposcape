@@ -13,9 +13,24 @@ const BASE_DRAFT: PinDraft = {
   memo: "",
   tags: [],
   sanpoMapSelection: { kind: "default" },
+  visited: false,
 };
 
 describe("buildPinCreateRequest", () => {
+  it("visited は true / false ともそのままボディに入り（省略されない）、archived は送らない", () => {
+    for (const visited of [true, false]) {
+      const result = buildPinCreateRequest({
+        clientPinId: CLIENT_PIN_ID,
+        draft: { ...BASE_DRAFT, visited },
+        location: LOCATION,
+        photoUploadIds: [],
+        clientWalkId: null,
+      });
+      expect(result?.visited).toBe(visited);
+      expect("archived" in result!).toBe(false);
+    }
+  });
+
   it("最小入力: sanpo_map_id / client_walk_id のキーが存在しない", () => {
     const result = buildPinCreateRequest({
       clientPinId: CLIENT_PIN_ID,

@@ -138,6 +138,11 @@ export function resolvePinFetchBounds(input: ResolvePinFetchBoundsInput): GeoBou
  * `cursor` / `q` / `tags` のキーは作らない（`undefined` のまま。Orval の URL ビルダーは
  * `cursor: null` を渡すとリテラル文字列 `"null"` を送ってしまうため。
  * `@/features/history/lib/walkHistoryParams.ts` の落とし穴と同じ）。
+ *
+ * 地図表示（ピンタブ・散歩中の地図）はアーカイブ済みを常に除外する（`archived: false`。SS-173。ADR-M-021）。
+ * 除外は backend の絞り込みで行う（端末で捨てると上限200件をアーカイブ済みが食うため）。切り替えは
+ * SS-174 で引数化する。そのときは `pinListQueryKey` にもフィルターを入れること（今は常に同じ条件なので
+ * key に含めていない）。`visited` のキーは作らない（SS-174）。
  */
 export function buildListPinsParams(input: {
   sanpoMapId: string;
@@ -155,6 +160,7 @@ export function buildListPinsParams(input: {
     min_longitude: input.bounds.west,
     max_latitude: input.bounds.north,
     max_longitude: input.bounds.east,
+    archived: false,
     limit,
   };
 }

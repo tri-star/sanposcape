@@ -21,14 +21,18 @@ describe("resolvePinPermissions", () => {
       canDeletePin: true,
       canAddTags: true,
       canAddPhotos: true,
+      canEditVisited: true,
+      canArchive: true,
       canOpenEditor: true,
     });
   });
 
-  it("editor・自分のピン: 名前メモ編集・削除が可", () => {
+  it("editor・自分のピン: 名前メモ編集・削除・訪問状況・アーカイブが可", () => {
     const p = resolvePinPermissions({ role: "editor", currentUserId: ME }, OWN_PIN);
     expect(p.canEditFields).toBe(true);
     expect(p.canDeletePin).toBe(true);
+    expect(p.canEditVisited).toBe(true);
+    expect(p.canArchive).toBe(true);
   });
 
   it("editor・他人のピン: 編集・削除は不可、追加系と編集ボタンは可", () => {
@@ -38,6 +42,9 @@ describe("resolvePinPermissions", () => {
     expect(p.canAddTags).toBe(true);
     expect(p.canAddPhotos).toBe(true);
     expect(p.canOpenEditor).toBe(true);
+    // 訪問状況は追加系（メンバーなら可）、アーカイブは持ち主判定系（作成者でなければ不可）。
+    expect(p.canEditVisited).toBe(true);
+    expect(p.canArchive).toBe(false);
   });
 
   it("role 不明・自分のピン: editor と同じ（全部可）", () => {
@@ -50,6 +57,8 @@ describe("resolvePinPermissions", () => {
     const p = resolvePinPermissions({ role: null, currentUserId: ME }, OTHERS_PIN);
     expect(p.canEditFields).toBe(false);
     expect(p.canDeletePin).toBe(false);
+    expect(p.canEditVisited).toBe(true);
+    expect(p.canArchive).toBe(false);
     expect(p.canOpenEditor).toBe(true);
   });
 
@@ -63,6 +72,8 @@ describe("resolvePinPermissions", () => {
     const p = resolvePinPermissions({ role: "editor", currentUserId: null }, OWN_PIN);
     expect(p.canEditFields).toBe(false);
     expect(p.canDeletePin).toBe(false);
+    expect(p.canArchive).toBe(false);
+    expect(p.canEditVisited).toBe(true);
   });
 });
 

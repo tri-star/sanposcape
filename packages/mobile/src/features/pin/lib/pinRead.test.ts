@@ -101,6 +101,8 @@ describe("toPinSummary", () => {
     cover_photo: null,
     photo_count: 0,
     created_by_user_id: "user-1",
+    visited: false,
+    archived: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   };
@@ -133,6 +135,8 @@ describe("toPinListEntry", () => {
     cover_photo: photo({ id: "cover-1" }),
     photo_count: 3,
     created_by_user_id: "user-1",
+    visited: false,
+    archived: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-02T00:00:00.000Z",
   };
@@ -145,7 +149,22 @@ describe("toPinListEntry", () => {
       coverPhoto: toPinPhoto(photo({ id: "cover-1" }), { apiBaseUrl: API_BASE_URL_HTTPS }),
       photoCount: 3,
       createdAt: "2026-01-01T00:00:00.000Z",
+      visited: false,
+      archived: false,
     });
+  });
+
+  it("visited / archived を写す。フィールドが無い古い backend の応答でも false になる", () => {
+    const options = { apiBaseUrl: API_BASE_URL_HTTPS };
+    const both = toPinListEntry({ ...READ, visited: true, archived: true }, options);
+    expect([both.visited, both.archived]).toEqual([true, true]);
+
+    // 古い backend（フィールド無し）を型を外して模す。
+    const legacy = { ...READ } as Partial<PinListItemRead>;
+    delete legacy.visited;
+    delete legacy.archived;
+    const entry = toPinListEntry(legacy as PinListItemRead, options);
+    expect([entry.visited, entry.archived]).toEqual([false, false]);
   });
 
   it("cover_photo が null なら coverPhoto は null", () => {
@@ -182,9 +201,23 @@ describe("toPinDetail", () => {
     photo_count: 1,
     created_by_user_id: "user-1",
     client_walk_id: null,
+    visited: false,
+    archived: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   };
+
+  it("visited / archived を写す。フィールドが無い古い backend の応答でも false になる", () => {
+    const options = { apiBaseUrl: API_BASE_URL_HTTPS };
+    const both = toPinDetail({ ...READ, visited: true, archived: true }, options);
+    expect([both.visited, both.archived]).toEqual([true, true]);
+
+    const legacy = { ...READ } as Partial<PinRead>;
+    delete legacy.visited;
+    delete legacy.archived;
+    const detail = toPinDetail(legacy as PinRead, options);
+    expect([detail.visited, detail.archived]).toEqual([false, false]);
+  });
 
   it("name / memo が null でも保持する", () => {
     const detail = toPinDetail(READ, { apiBaseUrl: API_BASE_URL_HTTPS });

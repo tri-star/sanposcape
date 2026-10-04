@@ -13,11 +13,17 @@ export type PinEditBaseline = {
   name: string;
   memo: string;
   tags: readonly PinTagView[];
+  /** 訪問済みか（SS-173）。 */
+  visited: boolean;
+  /** アーカイブ済みか（SS-173）。 */
+  archived: boolean;
 };
 
 export type PinEditDraft = {
   name: string;
   memo: string;
+  visited: boolean;
+  archived: boolean;
   /** 表示順のタグのラベル（既存 + 追加）。 */
   tags: string[];
   /** 削除の印を付けた既存写真の id。 */
@@ -25,13 +31,21 @@ export type PinEditDraft = {
 };
 
 export function createPinEditBaseline(pin: PinDetail): PinEditBaseline {
-  return { name: pin.name ?? "", memo: pin.memo ?? "", tags: pin.tags };
+  return {
+    name: pin.name ?? "",
+    memo: pin.memo ?? "",
+    tags: pin.tags,
+    visited: pin.visited,
+    archived: pin.archived,
+  };
 }
 
 export function initialPinEditDraft(baseline: PinEditBaseline): PinEditDraft {
   return {
     name: baseline.name,
     memo: baseline.memo,
+    visited: baseline.visited,
+    archived: baseline.archived,
     tags: baseline.tags.map((tag) => tag.label),
     photoIdsToDelete: [],
   };
@@ -41,6 +55,8 @@ export function initialPinEditDraft(baseline: PinEditBaseline): PinEditDraft {
  * `PATCH /pins/{id}` のボディ。変更が無ければ `{}`。
  * - name / memo: trim 後に基準値と違うときだけ入れる。空なら null（消去）。
  *   `permissions.canEditFields` が false なら入れない（多層防御。値が同じでも送ると権限判定が走る）。
+ * - visited / archived（SS-173）: 基準値と違うときだけ入れる（値が同じなら送らない＝backend の権限判定を
+ *   走らせない）。`canEditVisited` / `canArchive` が false なら入れない（多層防御）。
  * - remove_tag_ids: 基準タグのうち、tagKey が下書きに無いもの。`canRemoveTag` が false のタグは除く。
  * - add_tags: 下書きのラベルのうち、tagKey が基準に無いもの。
  * - 空配列のキーは送らない（「変更したフィールドだけ」。ADR-009 伝達事項）。
@@ -51,7 +67,7 @@ export function initialPinEditDraft(baseline: PinEditBaseline): PinEditDraft {
 export function buildPinUpdateRequest(input: {
   baseline: PinEditBaseline;
   draft: PinEditDraft;
-  permissions: Pick<PinPermissions, "canEditFields">;
+  permissions: Pick<PinPermissions, "canEditFields" | "canEditVisited" | "canArchive">;
   canRemoveTag: (tag: PinTagView) => boolean;
 }): PinUpdate {
   const { baseline, draft } = input;
@@ -66,6 +82,13 @@ export function buildPinUpdateRequest(input: {
     if (memo !== baseline.memo.trim()) {
       request.memo = memo.length === 0 ? null : memo;
     }
+  }
+
+  if (input.permissions.canEditVisited && draft.visited !== baseline.visited) {
+    request.visited = draft.visited;
+  }
+  if (input.permissions.canArchive && draft.archived !== baseline.archived) {
+    request.archived = draft.archived;
   }
 
   const draftKeys = new Set(draft.tags.map(tagKey));
@@ -100,7 +123,7 @@ export function hasUnsavedPinEdit(input: {
   const request = buildPinUpdateRequest({
     baseline: input.baseline,
     draft: input.draft,
-    permissions: { canEditFields: true },
+    permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
     canRemoveTag: () => true,
   });
   return (

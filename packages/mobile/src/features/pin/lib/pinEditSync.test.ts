@@ -34,6 +34,8 @@ const PIN_A: PinDetail = {
   photoCount: 0,
   sanpoMapName: "地図",
   createdAt: "2026-01-01T00:00:00.000Z",
+  visited: false,
+  archived: false,
 };
 
 /** 名前を A→B に変え、タグ X を外した保存の応答（サーバーの最新状態）。 */
@@ -82,7 +84,7 @@ function createScreen(pin: PinDetail) {
     return buildPinUpdateRequest({
       baseline,
       draft,
-      permissions: { canEditFields: true },
+      permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
       canRemoveTag: () => true,
     });
   }
@@ -145,10 +147,25 @@ describe("部分保存後の基準値の作り直し（SS-119 レビュー A-1�
       buildPinUpdateRequest({
         baseline: stale,
         draft,
-        permissions: { canEditFields: true },
+        permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
         canRemoveTag: () => true,
       }),
     ).toEqual({});
+  });
+
+  it("部分保存の後は visited / archived も最新の応答が基準になる（元に戻すと差分が出る）", () => {
+    const saved: PinDetail = { ...PIN_A, visited: true, archived: true };
+    const baseline = rebaseBaselineAfterUpdate(saved);
+    expect(baseline).toMatchObject({ visited: true, archived: true });
+    const draft = { ...initialPinEditDraft(baseline), visited: false };
+    expect(
+      buildPinUpdateRequest({
+        baseline,
+        draft,
+        permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
+        canRemoveTag: () => true,
+      }),
+    ).toEqual({ visited: false });
   });
 
   it("再試行（手動）では PATCH を再送しない: 基準値が最新なので差分が空になる", async () => {
@@ -194,7 +211,14 @@ describe("部分保存後の基準値の作り直し（SS-119 レビュー A-1�
 });
 
 describe("rebaseDraftAfterPhotoDeleted / addDeletedPhotoId", () => {
-  const draft: PinEditDraft = { name: "", memo: "", tags: [], photoIdsToDelete: ["p1", "p2"] };
+  const draft: PinEditDraft = {
+    name: "",
+    memo: "",
+    visited: false,
+    archived: false,
+    tags: [],
+    photoIdsToDelete: ["p1", "p2"],
+  };
 
   it("印に無い写真なら同じ下書きを返す", () => {
     expect(rebaseDraftAfterPhotoDeleted(draft, "p9")).toBe(draft);

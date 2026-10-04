@@ -57,6 +57,9 @@ export function toPinSummary(read: PinListItemRead): PinSummary | null {
 /**
  * 地図詳細のピン一覧の1件（SS-121）。座標は使わない（マーカーに渡さない）ので
  * `isValidCoordinate` で落とさない。
+ *
+ * `visited` / `archived` は `=== true` で読む（SS-173）。backend を先にデプロイする前提だが、万一古い
+ * backend（フィールド無し）に当たっても `undefined` を流さず「未訪問・未アーカイブ」として描く。
  */
 export function toPinListEntry(
   read: PinListItemRead,
@@ -73,9 +76,12 @@ export function toPinListEntry(
     coverPhoto: read.cover_photo !== null ? toPinPhoto(read.cover_photo, options) : null,
     photoCount: read.photo_count,
     createdAt: read.created_at,
+    visited: read.visited === true,
+    archived: read.archived === true,
   };
 }
 
+/** `visited` / `archived` の読み方は `toPinListEntry` の JSDoc を参照（SS-173）。 */
 export function toPinDetail(read: PinRead, options: { apiBaseUrl: string }): PinDetail {
   return {
     id: read.id,
@@ -93,6 +99,8 @@ export function toPinDetail(read: PinRead, options: { apiBaseUrl: string }): Pin
     photoCount: read.photo_count,
     sanpoMapName: read.sanpo_map.name,
     createdAt: read.created_at,
+    visited: read.visited === true,
+    archived: read.archived === true,
   };
 }
 

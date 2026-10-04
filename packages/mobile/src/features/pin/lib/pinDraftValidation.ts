@@ -69,13 +69,21 @@ function isDefaultSelection(selection: SanpoMapSelection): boolean {
   return selection.kind === "default";
 }
 
-/** 破棄確認ダイアログを出すべきか（何か1つでも「消えると困る」入力があるか）。 */
-export function hasUnsavedInput(draft: PinDraft, photoCount: number): boolean {
+/**
+ * 破棄確認ダイアログを出すべきか（何か1つでも「消えると困る」入力があるか）。
+ * 訪問済みスイッチは初期値（入口で変わる）と違うときだけ入力とみなす（SS-173）。
+ */
+export function hasUnsavedInput(
+  draft: PinDraft,
+  photoCount: number,
+  options: { initialVisited: boolean },
+): boolean {
   return (
     draft.name.trim().length > 0 ||
     draft.memo.trim().length > 0 ||
     draft.tags.length > 0 ||
     photoCount > 0 ||
-    !isDefaultSelection(draft.sanpoMapSelection)
+    !isDefaultSelection(draft.sanpoMapSelection) ||
+    draft.visited !== options.initialVisited
   );
 }

@@ -50,6 +50,8 @@ const PIN_READ: PinRead = {
   photo_count: 2,
   created_by_user_id: USER_ID,
   client_walk_id: null,
+  visited: false,
+  archived: false,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 };

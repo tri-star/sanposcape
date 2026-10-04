@@ -67,6 +67,8 @@ export type UsePinEditResult = {
   permissions: PinPermissions | null;
   setName: (v: string) => void;
   setMemo: (v: string) => void;
+  setVisited: (v: boolean) => void;
+  setArchived: (v: boolean) => void;
   tagInput: string;
   setTagInput: (v: string) => void;
   tagError: string | null;
@@ -85,7 +87,14 @@ export type UsePinEditResult = {
   hasUnsavedChanges: boolean;
 };
 
-const EMPTY_DRAFT: PinEditDraft = { name: "", memo: "", tags: [], photoIdsToDelete: [] };
+const EMPTY_DRAFT: PinEditDraft = {
+  name: "",
+  memo: "",
+  visited: false,
+  archived: false,
+  tags: [],
+  photoIdsToDelete: [],
+};
 
 /**
  * ピン編集画面が必要とするものを1つに束ねる合成 hook（`usePinRegister` と同じ位置づけ）。
@@ -179,6 +188,9 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
 
   const setName = (v: string) => updateDraft((prev) => ({ ...prev, name: v }));
   const setMemo = (v: string) => updateDraft((prev) => ({ ...prev, memo: v }));
+  // 権限の無い変更は UI で disabled にするうえ、buildPinUpdateRequest が差分から除く（多層防御）ので弾かない。
+  const setVisited = (v: boolean) => updateDraft((prev) => ({ ...prev, visited: v }));
+  const setArchived = (v: boolean) => updateDraft((prev) => ({ ...prev, archived: v }));
 
   const setTagInput = (v: string) => {
     setTagInputState(v);
@@ -272,6 +284,8 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     permissions,
     setName,
     setMemo,
+    setVisited,
+    setArchived,
     tagInput,
     setTagInput,
     tagError,

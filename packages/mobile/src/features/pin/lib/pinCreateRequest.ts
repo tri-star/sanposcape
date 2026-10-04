@@ -14,6 +14,8 @@ function roundCoordinate(value: number): number {
 
 /**
  * `PinDraft` + 位置 + 紐付ける写真枠 ID を `POST /pins` の送信ボディに変換する。
+ * `visited` は backend の既定（false）に頼らず常に送る（SS-173）。`archived` は送らない（`PinCreate` は
+ * 受け付けず、forbid でもないので送っても黙って無視されるだけ）。
  * 送信できない条件では null を返す（既存 `buildWalkCreateRequest` と同じ「送れないなら null」規約。
  * ネットワークに出す前に保存不能と判定する）。
  *
@@ -59,6 +61,7 @@ export function buildPinCreateRequest(input: {
     },
     tags: [...input.draft.tags],
     photo_upload_ids: [...input.photoUploadIds],
+    visited: input.draft.visited,
   };
 
   if (input.draft.sanpoMapSelection.kind === "existing") {

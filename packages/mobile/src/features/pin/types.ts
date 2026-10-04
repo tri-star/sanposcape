@@ -29,6 +29,8 @@ export type PinDraft = {
   memo: string;
   tags: string[];
   sanpoMapSelection: SanpoMapSelection;
+  /** 訪問済みか。初期値は resolveInitialVisited（散歩中の登録は true、ピンタブの長押しは false。SS-173）。 */
+  visited: boolean;
 };
 
 /**
@@ -141,6 +143,10 @@ export type PinListEntry = {
   photoCount: number;
   /** ISO 文字列。 */
   createdAt: string;
+  /** 訪問済みか（ピン単位。地図のメンバーで共有。SS-173）。 */
+  visited: boolean;
+  /** アーカイブ済みか。アーカイブ済みは地図表示から除外される（SS-173。ADR-M-021）。 */
+  archived: boolean;
 };
 
 /** 詳細画面が必要とする情報（`PinRead` を camelCase 化）。 */
@@ -160,6 +166,10 @@ export type PinDetail = {
   sanpoMapName: string;
   /** ISO 文字列（表示整形は lib 側）。 */
   createdAt: string;
+  /** 訪問済みか（ピン単位。地図のメンバーで共有。SS-173）。 */
+  visited: boolean;
+  /** アーカイブ済みか。アーカイブ済みは地図表示から除外される（SS-173。ADR-M-021）。 */
+  archived: boolean;
 };
 
 /** 写真ページ1枚分（GET /pins/{id}/photos）。 */

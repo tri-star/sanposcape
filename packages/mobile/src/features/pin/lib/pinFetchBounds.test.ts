@@ -188,7 +188,13 @@ describe("resolvePinFetchBounds", () => {
 describe("buildListPinsParams", () => {
   const bounds: GeoBounds = { south: 35.6, north: 35.7, west: 139.7, east: 139.8 };
 
-  it("4つの bbox と sanpo_map_id・limit を持ち、cursor/q/tags は無い", () => {
+  it("アーカイブ済みを常に除外する（archived: false）。visited のキーは無い（SS-173）", () => {
+    const params = buildListPinsParams({ sanpoMapId: "map-1", bounds });
+    expect(params.archived).toBe(false);
+    expect("visited" in params).toBe(false);
+  });
+
+  it("4つの bbox と sanpo_map_id・limit・archived を持ち、cursor/q/tags は無い", () => {
     const params = buildListPinsParams({ sanpoMapId: "map-1", bounds });
     expect(params).toEqual({
       sanpo_map_id: "map-1",
@@ -196,6 +202,7 @@ describe("buildListPinsParams", () => {
       min_longitude: 139.7,
       max_latitude: 35.7,
       max_longitude: 139.8,
+      archived: false,
       limit: PIN_MAP_FETCH_LIMIT,
     });
     expect("cursor" in params).toBe(false);

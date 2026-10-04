@@ -10,8 +10,12 @@ import type {
  * ピンの編集・削除の権限判定（UI の出し分け用）。ルート ADR-009 決定19 の権限マトリクスを写す。
  * backend `sanpo_maps/permissions.py` の3分類と対応する。
  *
- * - 追加系（タグの追加・写真の追加）: メンバーなら誰でも可 → 常に true
- * - 持ち主判定系（名前・メモの更新、ピンの削除、タグ・写真の削除）: 地図 owner か、対象の作成者本人
+ * - 追加系（タグの追加・写真の追加・訪問状況の変更）: メンバーなら誰でも可 → 常に true
+ * - 持ち主判定系（名前・メモの更新、アーカイブの変更、ピンの削除、タグ・写真の削除）: 地図 owner か、対象の作成者本人
+ *
+ * 訪問状況・アーカイブの割り当て（SS-173）は backend の `can_update_pin_visited` /
+ * `can_update_pin_archived`（ルート ADR-009 決定32）に合わせている。backend が変わればこのファイルの
+ * `canEditVisited` / `canArchive` の2行だけ直す。
  * - 地図管理系: `canManageSanpoMap`（SS-171。owner のみ）
  *
  * **UI 用の判定であり、安全性は backend の 403 が担保する**。誤って出し分けても、
@@ -29,6 +33,10 @@ export type PinPermissions = {
   canDeletePin: boolean;
   canAddTags: boolean;
   canAddPhotos: boolean;
+  /** 訪問状況の変更（メンバーなら誰でも。追加系と同じ。SS-173）。 */
+  canEditVisited: boolean;
+  /** アーカイブの変更（地図 owner かピンの作成者本人。持ち主判定系。SS-173）。 */
+  canArchive: boolean;
   /** 詳細ヘッダーの編集ボタンを出すか（メンバーなら常に true）。 */
   canOpenEditor: boolean;
 };
@@ -67,6 +75,8 @@ export function resolvePinPermissions(
     canDeletePin: canManagePin,
     canAddTags,
     canAddPhotos,
+    canEditVisited: true,
+    canArchive: canManagePin,
     canOpenEditor: canManagePin || canAddTags || canAddPhotos,
   };
 }

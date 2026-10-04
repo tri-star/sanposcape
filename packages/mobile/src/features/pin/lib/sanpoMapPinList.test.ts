@@ -27,6 +27,12 @@ describe("buildSanpoMapPinListParams", () => {
     expect(buildSanpoMapPinListParams({ sanpoMapId: ID, cursor: null }).limit).toBe(200);
   });
 
+  it("archived / visited は送らない（一覧はアーカイブ済みも出す。SS-173）", () => {
+    const params = buildSanpoMapPinListParams({ sanpoMapId: ID, cursor: "c" });
+    expect("archived" in params).toBe(false);
+    expect("visited" in params).toBe(false);
+  });
+
   it("sanpo_map_id・limit（・cursor）以外のキーが無い", () => {
     expect(
       Object.keys(buildSanpoMapPinListParams({ sanpoMapId: ID, cursor: null })).sort(),

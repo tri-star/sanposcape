@@ -23,6 +23,8 @@ const UPDATED_PIN: PinDetail = {
   photoCount: 0,
   sanpoMapName: "地図",
   createdAt: "2026-01-01T00:00:00.000Z",
+  visited: false,
+  archived: false,
 };
 
 function buildDeps(

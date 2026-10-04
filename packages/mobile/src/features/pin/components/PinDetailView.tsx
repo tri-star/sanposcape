@@ -15,6 +15,7 @@ import { PinLocationPreview } from "@/features/pin/components/PinLocationPreview
 import { PinPhotoGallery } from "@/features/pin/components/PinPhotoGallery";
 import { PinPhotoViewer } from "@/features/pin/components/PinPhotoViewer";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
+import { PinStatusBadges } from "@/features/pin/components/PinStatusBadges";
 import { usePinDelete } from "@/features/pin/hooks/usePinDelete";
 import { usePinDetail } from "@/features/pin/hooks/usePinDetail";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
@@ -28,6 +29,7 @@ import {
 } from "@/features/pin/lib/pinDetailState";
 import { resolvePinPermissions, resolvePinRole } from "@/features/pin/lib/pinPermissions";
 import { clampViewerIndex } from "@/features/pin/lib/pinPhotoViewer";
+import { PIN_ARCHIVED_NOTICE, resolvePinStatusBadges } from "@/features/pin/lib/pinStatus";
 import { isRetriablePinReadError, pinReadErrorMessage } from "@/features/pin/lib/pinReadError";
 import type { UseScreenBackResult } from "@/hooks/useScreenBack";
 import { useScreenBack } from "@/hooks/useScreenBack";
@@ -276,6 +278,16 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 <Text style={styles.metaText}>{pin.sanpoMapName}</Text>
               </View>
 
+              <PinStatusBadges
+                badges={resolvePinStatusBadges(pin, "detail")}
+                testIDPrefix="pin-detail-status"
+              />
+              {pin.archived ? (
+                <Text style={styles.archivedNotice} testID="pin-detail-archived-notice">
+                  {PIN_ARCHIVED_NOTICE}
+                </Text>
+              ) : null}
+
               {pin.tags.length > 0 ? (
                 <View style={styles.tagsRow}>
                   {pin.tags.map((tag, i) => (
@@ -464,6 +476,10 @@ const useStyles = makeStyles((theme) => ({
   metaText: {
     fontSize: theme.typography.size.xs,
     color: theme.colors.textTertiary,
+  },
+  archivedNotice: {
+    fontSize: theme.typography.size.sm,
+    color: theme.colors.textSecondary,
   },
   tagsRow: {
     flexDirection: "row",

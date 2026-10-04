@@ -4,7 +4,9 @@ import { Pressable, Text, View } from "react-native";
 import { Icon } from "@/components/ui/icon/Icon";
 import { Tag } from "@/components/ui/tag/Tag";
 import { PinPhotoImage } from "@/features/pin/components/PinPhotoImage";
+import { PinStatusBadges } from "@/features/pin/components/PinStatusBadges";
 import { formatPinCreatedAt, pinDisplayName } from "@/features/pin/lib/pinDetailState";
+import { resolvePinStatusBadges } from "@/features/pin/lib/pinStatus";
 import { pinRowAccessibilityLabel, summarizePinTags } from "@/features/pin/lib/sanpoMapScreenState";
 import type { PinListEntry } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -27,6 +29,7 @@ function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMa
   const displayName = pinDisplayName(pin.name);
   const createdAtLabel = formatPinCreatedAt(pin.createdAt);
   const tags = summarizePinTags(pin.tags);
+  const statusBadges = resolvePinStatusBadges(pin, "list");
 
   return (
     <Pressable
@@ -35,6 +38,7 @@ function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMa
         displayName,
         createdAtLabel,
         tags: pin.tags,
+        statusLabels: statusBadges.map((badge) => badge.label),
       })}
       accessibilityHint="ピンの詳細を開きます"
       onPress={() => onPress(pin.id)}
@@ -63,6 +67,7 @@ function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMa
         <Text style={styles.name} numberOfLines={1}>
           {displayName}
         </Text>
+        <PinStatusBadges badges={statusBadges} testIDPrefix={`${testID}-status`} />
         {createdAtLabel !== null ? <Text style={styles.metaText}>{createdAtLabel}</Text> : null}
         {tags.visible.length > 0 ? (
           <View style={styles.tags}>

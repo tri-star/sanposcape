@@ -152,8 +152,10 @@ export function pinRowAccessibilityLabel(input: {
   displayName: string;
   createdAtLabel: string | null;
   tags: readonly { label: string }[];
+  /** 状態バッジの読み上げ（訪問済み・アーカイブ済み。SS-173）。名前の直後に並べる。 */
+  statusLabels?: readonly string[];
 }): string {
-  const parts = [input.displayName];
+  const parts = [input.displayName, ...(input.statusLabels ?? [])];
   if (input.createdAtLabel !== null) parts.push(input.createdAtLabel);
   const { visible, hiddenCount } = summarizePinTags(input.tags);
   if (visible.length > 0) {
