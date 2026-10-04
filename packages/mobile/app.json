@@ -48,7 +48,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "散歩できる範囲のスポットを探すために現在地を利用します。",
+          "locationWhenInUsePermission": "散歩できる範囲のスポットを探すため、また散歩中の道のりを記録するために現在地を利用します。散歩中は、画面をロックしても散歩を終えるまで記録を続けます。",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": true,
