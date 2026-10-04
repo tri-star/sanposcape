@@ -12,8 +12,24 @@ ADOT レイヤーは Lambda ハンドラーを OTel の Lambda 計装（`aws_lam
    （`aws/spans` を `http.route` / スパン名で集計する Logs Insights。SS-179）の対象はこの
    LOCAL_ROOT のスパンなので、ルートのテンプレートで付け直す。
 
+3. **ハンドラーの後に、イベントから属性を設定し直される**（dev の実測で判明）: レイヤーに
+   入っている Lambda 計装（0.61b0。他の計装は 0.65b0）は、ハンドラーが戻った**後**に、
+   イベントから `http.route`（生のパス）・`http.target`（`path?rawQueryString`）・
+   `http.user_agent` を再設定する。
+   そのため、ハンドラーの中でスパン属性を書き換えても上書きされる（スパン名は再設定されないので残る）。
+
 そこで Mangum に渡す ASGI app を 1 枚包む。この位置は OTel の ASGI ミドルウェアより外側なので、
 `trace.get_current_span()` が Lambda 計装のスパンを返す。
+
+- 入口: `http.target` と UA 系の属性を書き換える（二重の防御）。
+- 終了時: スパン名と `http.route` を付け直し、あわせて **イベントをその場で無害化する**。Mangum は
+  同じイベントの dict を `scope["aws.event"]` に入れており、計装が後で読む `rawQueryString` を空に、
+  `requestContext.http.userAgent` を消し、`requestContext.http.path` をルートのテンプレート
+  （一致しなければ空）にする。これで計装が再設定する `http.target` / `http.route` /
+  `http.user_agent` にクエリ・生のパス・UA が載らない。Mangum の応答処理は `version` しか読まず
+  （`version` は触らない）、リクエストは app の実行前に読み終えているので、応答には影響しない。
+- 対象は payload 2.0（Function URL）のイベントだけ。v1 のイベント（Function URL では来ない）は
+  対象外で、無害化しない。
 
 ★ `aws.local.operation` は設定しない。ADOT は Lambda 上の LOCAL_ROOT の操作名を
   `<関数名>/FunctionHandler` に固定し、アプリ側の上書きは効かない（dev の実データで確認。
@@ -65,6 +81,32 @@ class _LambdaRootSpanMiddleware:
         finally:
             # 例外が出る経路（500）でもルートは分かるので finally で付ける。
             self._rename(span, scope)
+            self._sanitize_event(scope)
+
+    @staticmethod
+    def _sanitize_event(scope: Scope) -> None:
+        """Lambda 計装が後で読むイベントを無害化する（モジュールの docstring の 3）。
+
+        失敗しても、最低限 `rawQueryString` と `userAgent` は消す（フェイルクローズ）。
+        """
+        event = scope.get("aws.event")
+        if not isinstance(event, dict) or event.get("version") != "2.0":
+            return
+        try:
+            event["rawQueryString"] = ""
+            http = event["requestContext"]["http"]
+            http.pop("userAgent", None)
+            http["path"] = resolve_route_template(scope) or ""
+        except Exception:
+            warn_once(
+                "lambda-event", "Lambda のイベントを無害化できなかったため、可能な範囲で消した"
+            )
+            with contextlib.suppress(Exception):
+                event["rawQueryString"] = ""
+            with contextlib.suppress(Exception):
+                event["requestContext"]["http"].pop("userAgent", None)
+            with contextlib.suppress(Exception):
+                event["requestContext"]["http"]["path"] = ""
 
     @staticmethod
     def _scrub_target(span: Span, scope: Scope) -> None:

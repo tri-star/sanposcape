@@ -195,3 +195,120 @@ def test_scrub_failure_blanks_http_target_instead_of_leaving_the_query(
 
     assert [s.attributes["http.target"] for s in exporter.get_finished_spans()] == ["", ""]
     assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
+
+
+# --- ハンドラーの後にイベントから属性を設定し直す Lambda 計装（dev の実測で判明）---
+
+
+def _lambda_instrumentation_0_61_sets_v2_attributes(lambda_event: dict, span: trace.Span) -> None:
+    """ADOT レイヤー v28 同梱の opentelemetry-instrumentation-aws-lambda 0.61b0 の
+    `_set_api_gateway_v2_proxy_attributes` の再現（出典: 同パッケージ。dev グループには 0.65b0 の
+    依存と衝突して入れられないため、テスト内に写している）。
+
+    この計装は `call_wrapped(*args, **kwargs)`（= Mangum のハンドラー）が**戻った後**に、
+    イベントからこれを呼ぶ。ハンドラーの中でスパン属性を書き換えても上書きされる。
+    """
+    if "domainName" in lambda_event["requestContext"]:
+        span.set_attribute("net.host.name", lambda_event["requestContext"]["domainName"])
+    http = lambda_event["requestContext"].get("http")
+    if http:
+        if "method" in http:
+            span.set_attribute("http.method", http["method"])
+        if "userAgent" in http:
+            span.set_attribute("http.user_agent", http["userAgent"])
+        if "path" in http:
+            span.set_attribute("http.route", http["path"])
+            span.set_attribute(
+                "http.target",
+                f"{http['path']}?{lambda_event['rawQueryString']}"
+                if lambda_event.get("rawQueryString")
+                else http["path"],
+            )
+
+
+def _invoke_like_lambda_instrumentation(
+    provider: TracerProvider, app: FastAPI, path: str, query: str = ""
+) -> dict:
+    """SERVER スパン開始 → Mangum（補正済み）→ ハンドラーの後に 0.61b0 の属性設定、の順に実行。"""
+    handler = Mangum(wrap_app_for_lambda_tracing(app), lifespan="off")
+    event = _event(path, query)
+    event["requestContext"]["http"]["userAgent"] = "ss178-verify/1.0"
+    with provider.get_tracer("lambda-root").start_as_current_span(
+        "sanposcape.aws_lambda.api.handler", kind=trace.SpanKind.SERVER
+    ) as span:
+        response = handler(event, None)
+        _lambda_instrumentation_0_61_sets_v2_attributes(event, span)
+    return response
+
+
+def test_attributes_set_by_the_instrumentation_after_the_handler_are_clean(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    response = _invoke_like_lambda_instrumentation(
+        provider, _app(provider), f"/pins/{_PIN_ID}", "secret=abc123&lat=35.1"
+    )
+
+    assert response["statusCode"] == 401
+    root = _root(exporter)
+    assert root.attributes["http.target"] == "/pins/{pin_id}"
+    assert root.attributes["http.route"] == "/pins/{pin_id}"
+    assert root.attributes.get("http.user_agent", "") == ""
+    values = [str(v) for v in root.attributes.values()]
+    assert not [v for v in values if "abc123" in v or "35.1" in v or "?" in v or _PIN_ID in v]
+    assert not [v for v in values if "ss178-verify" in v]
+
+
+def test_unmatched_route_leaves_empty_route_and_target_after_the_instrumentation(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    response = _invoke_like_lambda_instrumentation(
+        provider, _app(provider), "/no-such-route", "x=1"
+    )
+
+    assert response["statusCode"] == 404
+    root = _root(exporter)
+    assert root.attributes["http.route"] == ""
+    assert root.attributes["http.target"] == ""
+    assert root.attributes.get("http.user_agent", "") == ""
+
+
+def test_response_is_unchanged_by_event_sanitization(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    response = _invoke_like_lambda_instrumentation(provider, _app(provider), "/health", "a=b")
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"]) == {"status": "ok"}
+
+
+def test_v1_events_are_not_touched() -> None:
+    event = {"version": "1.0", "rawQueryString": "a=b", "requestContext": {"http": {"path": "/x"}}}
+
+    _LambdaRootSpanMiddleware._sanitize_event({"aws.event": event})
+
+    assert event["rawQueryString"] == "a=b"
+    assert event["requestContext"]["http"]["path"] == "/x"
+
+
+def test_sanitize_failure_still_removes_query_and_user_agent(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sanposcape.aws_lambda import tracing
+    from sanposcape.core import observability
+
+    monkeypatch.setattr(observability, "_WARNED", set())
+
+    def boom(scope: dict) -> str:
+        raise RuntimeError("resolve failed")
+
+    monkeypatch.setattr(tracing, "resolve_route_template", boom)
+    event = _event("/pins/x", "secret=abc")
+    event["requestContext"]["http"]["userAgent"] = "ua"
+
+    with caplog.at_level("WARNING", logger="sanposcape.core.observability"):
+        _LambdaRootSpanMiddleware._sanitize_event({"aws.event": event})
+
+    assert event["rawQueryString"] == ""
+    assert "userAgent" not in event["requestContext"]["http"]
+    assert event["requestContext"]["http"]["path"] == ""
+    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
