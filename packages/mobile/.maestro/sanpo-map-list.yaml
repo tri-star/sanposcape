@@ -1,6 +1,8 @@
 # 地図一覧・地図詳細（SS-121）: サインイン → ピンタブの「地図一覧」→ 地図を作成 → 地図名で検索
 # → 地図詳細（作ったばかりなのでピン0件）→ 作った地図にピンを登録 → 地図詳細にピンが出る
 # → ピン名で検索 → ピン詳細へ遷移 → 戻ると地図詳細。
+# あわせて地図のアイコンの選択・変更（SS-171）: 作成時にアイコンを選び、地図詳細で変更する。
+# マーカーへの反映は E2E しない（ADR-M-012 D14）。
 #
 # 前提: pin-register-anywhere.yaml と同じ
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
@@ -55,6 +57,9 @@ tags:
     id: "sanpo-map-create-name-input"
 - inputText: ${output.mapName}
 - hideKeyboard
+# アイコンを選ぶ（既定の pin から coffee へ）
+- tapOn:
+    id: "sanpo-map-create-icon-coffee"
 - tapOn:
     id: "sanpo-map-create-submit"
 - extendedWaitUntil:
@@ -99,6 +104,31 @@ tags:
 # 作ったばかりの地図なので必ず0件
 - assertVisible:
     id: "sanpo-map-detail-pins-empty"
+# 作成時に選んだアイコンが出る。アイコンのバッジは装飾で a11y から隠している（Maestro の Android は
+# accessibility 階層を読むので、その中の testID は見えない）ため、「アイコンを変更」ボタンの
+# accessibilityLabel（現在のアイコンの表示名を含む。ADR-M-019）で確かめる。
+- assertVisible:
+    text: "アイコンを変更（現在: カフェ）"
+# アイコンを変更する（e2e ユーザーが作った地図なので owner。変更ボタンが出る）
+# 成功トーストは一時表示なので assert しない（ADR-M-004 SS-152 追補）。
+- tapOn:
+    id: "sanpo-map-detail-change-icon"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-icon-edit-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-icon-edit-icon-cat"
+- tapOn:
+    id: "sanpo-map-icon-edit-submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-icon-edit-dialog"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      text: "アイコンを変更（現在: 猫）"
+    timeout: 10000
 - tapOn:
     id: "sanpo-map-detail-back"
 - extendedWaitUntil:

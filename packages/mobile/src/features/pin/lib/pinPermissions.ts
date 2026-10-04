@@ -12,7 +12,7 @@ import type {
  *
  * - 追加系（タグの追加・写真の追加）: メンバーなら誰でも可 → 常に true
  * - 持ち主判定系（名前・メモの更新、ピンの削除、タグ・写真の削除）: 地図 owner か、対象の作成者本人
- * - 地図管理系: このチケットの対象外
+ * - 地図管理系: `canManageSanpoMap`（SS-171。owner のみ）
  *
  * **UI 用の判定であり、安全性は backend の 403 が担保する**。誤って出し分けても、
  * 権限の無い操作は backend が拒否する。
@@ -85,4 +85,12 @@ export function canDeletePinPhoto(
   photo: Pick<PinPhoto, "uploadedByUserId">,
 ): boolean {
   return canManage(ctx, photo.uploadedByUserId);
+}
+
+/**
+ * 地図そのものの管理（アイコンの変更。将来は名前変更・削除）ができるか: 地図 owner だけ（SS-171）。
+ * 不明（null）は editor とみなして false（ADR-M-017 の「不明は最小権限」）。UI 用で、安全性は backend の 403 が担保する。
+ */
+export function canManageSanpoMap(role: PinMemberRole | null): boolean {
+  return role === "owner";
 }

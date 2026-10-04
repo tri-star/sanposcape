@@ -4,12 +4,15 @@ import { Keyboard, View } from "react-native";
 import { Button } from "@/components/ui/button/Button";
 import { PinMapFullScreen } from "@/features/pin/components/PinMapFullScreen";
 import { regionAroundPoint } from "@/features/pin/lib/pinLocationPicker";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type PinLocationAdjustOverlayProps = {
   /** 開いた時点の位置（調整済みなら調整後）。 */
   initialLocation: GeoCoordinates;
+  /** 選択位置のピンの見た目（保存先の地図のアイコン）。 */
+  markerIcon?: SanpoMapIconKey;
   onCancel: () => void;
   onConfirm: (location: GeoCoordinates) => void;
 };
@@ -23,6 +26,7 @@ export type PinLocationAdjustOverlayProps = {
  */
 export function PinLocationAdjustOverlay({
   initialLocation,
+  markerIcon,
   onCancel,
   onConfirm,
 }: PinLocationAdjustOverlayProps) {
@@ -44,6 +48,7 @@ export function PinLocationAdjustOverlay({
         pickGesture="tap"
         onPick={setDraft}
         selectedLocation={draft}
+        selectedMarkerIcon={markerIcon}
         onClose={onCancel}
         footerActions={
           <Button

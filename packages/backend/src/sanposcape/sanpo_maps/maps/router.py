@@ -43,7 +43,8 @@ def list_sanpo_maps(
     """自分が member である地図を全件返す（ページングなし。MVP は件数が少ない前提）。
 
     `?expand=pin_count` を指定すると各要素の `pin_count` が整数で埋まる（ピンが無い
-    地図は0）。未指定なら `pin_count` は null のまま。
+    地図は0）。未指定なら `pin_count` は null のまま。各要素の `icon` は地図のアイコン
+    （未設定は無く、既定は `pin`）。
     """
     return service.list_maps(current_user, include_pin_count="pin_count" in query.expand)
 
@@ -63,7 +64,8 @@ def create_sanpo_map(
     """地図を新規作成する（作成者が owner になる）。
 
     自分の既定地図がまだ無ければ、作った地図が既定になる（`is_default` はリクエストで
-    指定できない）。名前の重複は許可する。冪等キーは持たない。
+    指定できない）。名前の重複は許可する。冪等キーは持たない。`icon` を省略すると
+    `pin` になる。
     """
     return service.create_map(current_user, payload)
 
@@ -85,10 +87,10 @@ def update_sanpo_map(
     current_user: User = Depends(get_current_user),
     service: SanpoMapService = Depends(get_sanpo_map_service),
 ) -> SanpoMapRead:
-    """地図の名前を変更する。空のボディ `{}` は何も変えずに 200 を返す。
+    """地図の名前・アイコンを変更する。空のボディ `{}` は何も変えずに 200 を返す。
 
     地図 owner のみ可（editor は 403）。非メンバー・存在しない ID は 404。同名への
-    変更も 200。名前変更では `updated_at` を更新しない。
+    変更も 200。名前・アイコンの変更では `updated_at` を更新しない。
     """
     return service.update_map(current_user, sanpo_map_id, payload)
 

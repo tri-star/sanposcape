@@ -42,6 +42,7 @@
     - [ADR-M-016 テーマ（外観）設定の端末保存](./packages/mobile/adr/ADR-M-016-theme-mode-preference.md)
     - [ADR-M-017 ピンの編集・削除](./packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)
     - [ADR-M-018 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./packages/mobile/adr/ADR-M-018-background-walk-location-tracking.md)
+    - [ADR-M-019 地図のアイコンと、マップピンの形・マーカーの基準点](./packages/mobile/adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

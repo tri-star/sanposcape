@@ -11,7 +11,7 @@ SS-113）を参照。関数の形は3種類ある。
   `pin_photos.uploaded_by_user_id`）ため、`is_creator`/`is_uploader` をキーワード専用引数で
   受け取る（取り違え防止）。
 - **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）: owner のみ
-  （`role == "owner"`）。地図の名前・存続は共有メンバー全員に影響するため、対象の持ち主を
+  （`role == "owner"`）。地図の名前・アイコン・存続は共有メンバー全員に影響するため、対象の持ち主を
   判定する引数（`is_creator` 相当）は持たない（決定26）。
 
 未知の role（`_WRITE_ROLES` に無い値）は常に False にする（fail-safe）。owner 以外は
@@ -74,7 +74,7 @@ def can_delete_pin_photo(role: SanpoMapRole, *, is_uploader: bool) -> bool:
 
 
 def can_update_sanpo_map(role: SanpoMapRole) -> bool:
-    """地図の名前変更（`PATCH /sanpo-maps/{id}`, ADR-009 決定26）。owner のみ可。"""
+    """地図の名前・アイコンの変更（`PATCH /sanpo-maps/{id}`, ADR-009 決定26・31）。owner のみ可。"""
     return role == "owner"
 
 

@@ -29,6 +29,51 @@ export function toSanpoMapCreateErrorCode(error: unknown): SanpoMapCreateErrorCo
   return "unknown";
 }
 
+/** `PATCH /sanpo-maps/{id}`（アイコンの変更）の失敗分類。 */
+export type SanpoMapUpdateErrorCode =
+  | "unauthorized" // 401
+  | "forbidden" // 403（owner でない）
+  | "not_found" // 404（削除済み・非メンバー）
+  | "invalid_request" // 422（backend が知らない値など）
+  | "network" // TypeError
+  | "server" // 5xx
+  | "unknown";
+
+/** 任意の例外を `SanpoMapUpdateErrorCode` に分類する（純粋）。 */
+export function toSanpoMapUpdateErrorCode(error: unknown): SanpoMapUpdateErrorCode {
+  if (isApiError(error)) {
+    if (error.status >= 500) return "server";
+    switch (error.status) {
+      case 401:
+        return "unauthorized";
+      case 403:
+        return "forbidden";
+      case 404:
+        return "not_found";
+      case 422:
+        return "invalid_request";
+      default:
+        return "unknown";
+    }
+  }
+  if (error instanceof TypeError) return "network";
+  return "unknown";
+}
+
+const UPDATE_MESSAGES: Record<SanpoMapUpdateErrorCode, string> = {
+  unauthorized: "サインインし直してから、もう一度お試しください。",
+  forbidden: "この地図のアイコンは、地図を作った人だけが変更できます。",
+  not_found: "この地図は見つかりませんでした。削除された可能性があります。",
+  invalid_request: "このアイコンは選べませんでした。アプリを最新にしてお試しください。",
+  network: "通信に失敗しました。電波状況を確認して、もう一度お試しください。",
+  server: "サーバーで問題が発生しました。時間をおいてお試しください。",
+  unknown: "アイコンを変更できませんでした。もう一度お試しください。",
+};
+
+export function sanpoMapUpdateErrorMessage(code: SanpoMapUpdateErrorCode): string {
+  return UPDATE_MESSAGES[code];
+}
+
 const CREATE_MESSAGES: Record<SanpoMapCreateErrorCode, string> = {
   unauthorized: "サインインし直してから、もう一度お試しください。",
   invalid_name: "この名前では作成できません。1〜50文字で入力してください。",

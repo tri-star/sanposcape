@@ -27,6 +27,8 @@ export type ButtonProps = {
    */
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
+  /** 読み上げ・E2E（Maestro の text）用のラベル。省略時は子の文字列が使われる。状態（現在値など）を伝えたいときに付ける。 */
+  accessibilityLabel?: string;
   /** E2E / テスト用のラベル。 */
   testID?: string;
 };
@@ -118,6 +120,7 @@ export function Button({
   shape = "pill",
   onPress,
   style,
+  accessibilityLabel,
   testID,
 }: ButtonProps) {
   const theme = useTheme();
@@ -126,6 +129,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}

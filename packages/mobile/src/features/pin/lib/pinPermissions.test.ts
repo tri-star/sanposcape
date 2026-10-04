@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canDeletePinPhoto,
+  canManageSanpoMap,
   canRemovePinTag,
   resolvePinPermissions,
   resolvePinRole,
@@ -105,5 +106,13 @@ describe("resolvePinRole", () => {
   it("一致なし・空配列は null", () => {
     expect(resolvePinRole(maps, "m3")).toBeNull();
     expect(resolvePinRole([], "m1")).toBeNull();
+  });
+});
+
+describe("canManageSanpoMap", () => {
+  it("owner だけ true。editor・不明は false", () => {
+    expect(canManageSanpoMap("owner")).toBe(true);
+    expect(canManageSanpoMap("editor")).toBe(false);
+    expect(canManageSanpoMap(null)).toBe(false);
   });
 });

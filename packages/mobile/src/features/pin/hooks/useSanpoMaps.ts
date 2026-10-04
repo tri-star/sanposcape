@@ -7,6 +7,9 @@ import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pi
 import { resolveQueryLoadStatus } from "@/features/pin/lib/queryLoadStatus";
 import type { SanpoMap } from "@/features/pin/types";
 
+/** データ未取得の間も `maps` の参照を安定させる（`useRegisteredPins` の useMemo の依存になる）。 */
+const EMPTY_SANPO_MAPS: SanpoMap[] = [];
+
 /** サーバーから取得しなおす頻度を抑える（登録画面を開いている間はほぼ変わらない）。 */
 const STALE_TIME_MS = 5 * 60_000;
 
@@ -54,7 +57,7 @@ export function useSanpoMaps(options: { enabled: boolean }): UseSanpoMapsResult 
   // 挿入・invalidate は `useSanpoMapCreate`）。この hook は同じ queryKey のキャッシュを読むだけ。
   return {
     status,
-    maps: query.data ?? [],
+    maps: query.data ?? EMPTY_SANPO_MAPS,
     retry,
     errorCode: status === "error" && query.error ? toPinReadErrorCode(query.error) : null,
     refresh,

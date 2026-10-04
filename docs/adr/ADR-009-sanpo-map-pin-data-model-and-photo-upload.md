@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）。前回: 2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）。前回: 2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -56,6 +56,10 @@
   `delete_map` を直列化して守る**（2026-09-27 追補, PR #103 レビュー対応。当初の
   best-effort 記述から変更）
   （本文: SS-113 追補 決定25〜27）
+- **地図はアイコン（`icon`）を持つ**。13種類の enum `SanpoMapIcon`（既定 `pin`・必須・null なし）。
+  `PATCH /sanpo-maps/{id}` で owner だけが変えられ、`updated_at` は動かさない。ピンの見た目は
+  属する地図のアイコンで決まり、ピンの API は変えない。DB は `VARCHAR(16)` + CHECK
+  （本文: SS-171 追補 決定31）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
   （本文: SS-113 追補 決定28）（**SS-137 追補**: port 経由の再利用は撤去し、
@@ -122,7 +126,8 @@ advisory lock で直列化）、
 port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の一次記録は
 [ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）、
 2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）、
-2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）
+2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）、
+2026-10-04 追補（SS-171: 地図のアイコン `icon`。決定31）
 
 ## ステータス
 
@@ -842,7 +847,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 | 写真の削除 | ○（他人の写真も可） | ○（自分がアップロードした写真） | 自分がアップロードした写真だけ。他人の写真は **403** | **404** |
 
 上表はピン・タグ・写真（地図の中身）の操作を対象にしている。地図そのものの操作（名前変更・
-削除）は決定26 を参照（SS-113）。
+削除）は決定26 を参照（SS-113。**SS-171 追補**: 地図のアイコンの変更も決定26 の更新に含む。決定31）。
 
 決定2の表を実装内容で置き換える（決定2の表は「予定表」だったため）。表の読み方・実装上の
 注意:
@@ -1032,11 +1037,11 @@ BK-6（地図の新規作成・管理 API、`pin_count` の expand）を実装�
 
 ### 決定25: 地図の作成・更新・削除 API の契約
 
-- **`POST /sanpo-maps`**: body `{"name": str}`（必須）。**201 + `SanpoMapRead`**（`role="owner"`、
+- **`POST /sanpo-maps`**: body `{"name": str}`（必須。**SS-171 追補**: `icon` が省略可で加わった。決定31）。**201 + `SanpoMapRead`**（`role="owner"`、
   `is_default` は決定27 のルール、`pin_count=null`）。冪等キーは持たない（後から optional で
   足せる）。
 - **`PATCH /sanpo-maps/{sanpo_map_id}`**: `SanpoMapUpdate`（`extra="forbid"`、`name` は省略可・
-  null 不可、決定20 と同じ流儀）。**`{}` は 200 で何も変えない**。**200 + 更新後の
+  null 不可、決定20 と同じ流儀。**SS-171 追補**: `icon` も省略可・null 不可で加わった。決定31）。**`{}` は 200 で何も変えない**。**200 + 更新後の
   `SanpoMapRead`**。
 - **`DELETE /sanpo-maps/{sanpo_map_id}`**: **204**、非冪等（2回目は 404）。503 は宣言しない
   （決定22 と同じ）。
@@ -1058,12 +1063,13 @@ BK-6（地図の新規作成・管理 API、`pin_count` の expand）を実装�
 |---|---|---|---|
 | 地図の作成 | ―（作った人が owner になる） | ― | ― |
 | 地図の閲覧（`GET /sanpo-maps`, 既存） | ○ | ○ | 一覧に出ない |
-| 地図の更新（名前変更, `PATCH`） | ○ | **403** | **404** |
+| 地図の更新（名前変更, `PATCH`。**SS-171 追補**: アイコンの変更も含む。決定31） | ○ | **403** | **404** |
 | 地図の削除（`DELETE`） | ○ | **403** | **404** |
 
 判定順は決定21と同じ「member（404）→ 権限（403）」。PATCH の権限判定は決定20と同じく
 「送られたフィールド」で行う（`{}` でも member 判定は行うが、`name` を送ったときだけ
-`can_update_sanpo_map` を見るため、editor の `{}` は 200 になる）。
+`can_update_sanpo_map` を見るため、editor の `{}` は 200 になる）。**（SS-171 追補: `icon` を
+送ったときも `can_update_sanpo_map` を見る。決定31）**
 
 editor が 403 でも情報は漏れない（editor は既に `GET /sanpo-maps` で地図の存在を知っている
 ため、決定21 と同じ理由）。共有地図の名前・存続は全員に影響するので owner に限る。
@@ -1283,6 +1289,73 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
 - 1つの地図のピンが数千件を超えると集計コストが上がる。そのときは
   `pin_tags(pin_id, label_key, created_at)` のカバリングインデックスや集計テーブルを検討する。
 
+## 追補（2026-10-04, SS-171 地図のアイコン）
+
+地図ごとにアイコンを選べるようにする（SS-171）。ピンに地図のアイコンを描く処理（SS-172）は
+mobile 側で行う。既存テーブルへの列追加（マイグレーションあり）。フィーチャーフラグは使わない
+（決定10）。表示（グリフ・色）への対応と画面の判断は mobile 側の ADR（[ADR-M-019](../../packages/mobile/adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)。地図のアイコンとマップ
+ピンの形）に記録する。
+
+### 決定31: 地図はアイコン属性 `icon` を持つ
+
+- **ドメイン**: アイコンは地図の属性で、ピンの見た目は属する地図のアイコンで決まる（ピンごとの
+  アイコンは持たない）。既定は `pin`。「未設定」の状態は作らない（必須・null なし）。既存の地図と
+  「最初の地図」（決定3, `POST /pins` が自動作成）は `pin`。
+- **値**: `SanpoMapIcon` の13値（`pin` / `tree` / `flower` / `leaf` / `sun` / `rain` /
+  `retreat` / `landmark` / `coffee` / `food` / `bakery` / `shopping` / `cat`。この順）。API の値はドメインの語で、
+  Lucide のアイコン名ではない（Lucide のリネームに API を引きずられないため）。グリフ・色への
+  対応は mobile が持つ。色はアイコンから決まり、属性としては持たない（将来 `color` を足すなら
+  別フィールドの expand）。
+- **API**: `SanpoMapRead.icon` は必須（null にならない。`GET`・`POST` の 201・`PATCH` の 200）。
+  `SanpoMapCreate.icon` は省略可で既定 `pin`。`SanpoMapUpdate.icon` は省略可・null 不可
+  （`extra="forbid"` は維持）。null・未知の値・大文字は 422。`SanpoMapIcon` は OpenAPI の
+  `components/schemas` に名前付きで出す。応答のフィールド追加は古いクライアントが無視するだけで
+  後方互換（ADR-008 決定7 の「新規フィールドは任意」はリクエスト側の話として読む。決定29 の
+  `pin_count` を required にしなかったのは mobile の型付きフィクスチャを守るためで、今回は
+  mobile が required を求めている）。
+- **権限**: 決定26 の「地図の更新（`PATCH`）」にアイコンの変更も含む（owner のみ、editor 403、
+  非 member 404）。判定は「送られたフィールド」（`name`/`icon`）で行い、editor が現在と同じ値を
+  送っても 403、`{}` は member なら 200。権限判定はフィールドごとの更新より前にまとめる
+  （`{"name", "icon"}` を送った editor に一部だけ反映される状態を作らない）。新しい権限関数・
+  例外は作らない。
+- **`updated_at`**: アイコンの変更では更新しない（決定25 と同じ理由。`updated_at` は「最近ピンを
+  追加した地図」の並び順専用）。
+- **ピンの API を変えない理由**: mobile は `GET /sanpo-maps` の一覧から `sanpo_map_id` で引ける
+  （ピンタブ・散歩中の地図は元々一覧を全件取得している）。ピン1件ごとに地図の属性を重複して返さない。
+  `SanpoMapSummaryRead`（`PinRead.sanpo_map`）への追加も今は不要で、必要になれば optional な
+  フィールドの追加（expand）で足せる。
+- **DB**: `sanpo_maps.icon VARCHAR(16) NOT NULL DEFAULT 'pin'` と `ck_sanpo_maps_icon`
+  （`icon IN (...)`）。`role`・`status` と同じ `String` + `CheckConstraint` の形で、PostgreSQL の
+  ネイティブ enum は採らない（理由: リポジトリに前例が無い／ADR-B-001 のテスト DB 初期化が
+  「ネイティブ Enum が無い」前提／値の追加が `ALTER TYPE ... ADD VALUE` ではなく制約の作り直しで
+  済む／値の削除・並べ替えで型の作り直しが要らない）。NOT NULL でも server default があれば
+  古いコードの INSERT は通るので、ADR-008 決定7 の expand（NULL 許容にする目的）を満たす。
+  PG11+ では定数の既定値付き `ADD COLUMN` はテーブルを書き換えない。値の定義は
+  `sanpo_maps/models.py` の `SanpoMapIcon`（カーネルはサブパッケージを import できない
+  ADR-011 M1 のため、`maps/schemas.py` ではなくここに置き、CHECK と API スキーマで共有する）。
+  アプリ側の検証（Pydantic）が正で、CHECK は二重の防御（`role` と同じ）。
+- **値の追加・削除の手順**: 追加は (1) `SanpoMapIcon` に値を足す (2) 新しいリビジョンで
+  `ck_sanpo_maps_icon` を drop して create し直す（値はマイグレーションに直書きする。アプリの enum
+  を import すると過去のリビジョンの意味が変わるため） (3) `openapi.yaml` を更新する (4) mobile の
+  対応表に足す。古い mobile は未知の値を `pin` で描くので backend を先に出してよい。**削除は
+  contract**（既存行を `pin` に寄せるデータ移行と、その値を送ってくる古い mobile がいなくなる
+  ことの確認が要る）。
+- **デプロイ**: 既存テーブルへの列追加は、デプロイから migrate までの間、新しいコードが
+  `icon` 列の無いテーブルを SELECT して `sanpo_maps` を読む API が 500 になる（マイグレーション
+  Lambda は API と同じ成果物を使うため、マイグレーションをコードより先に流せない。ADR-005 決定9）。
+  prod は未デプロイで初回デプロイのマイグレーションに含まれるため起きない。dev は「デプロイ直後に
+  migrate を invoke する」運用で数分の 500 を許容した。厳密にするなら、マイグレーションだけの
+  コミットを ref 指定で先に dev へデプロイして migrate してから本体をデプロイする（そのために
+  マイグレーションは単独のコミットにしてある）。prod の稼働後に同様の変更をするときは、
+  マイグレーションだけの PR を先にマージする。
+- **フラグ**: 使わない（決定10）。
+- **検討した選択肢**: PostgreSQL の enum 型（上記の理由で不採用）／自由な文字列（検証なし。
+  mobile の対応表と食い違った値を許してしまう）／Lucide のアイコン名をそのまま値にする
+  （API が Lucide のリネームに縛られる）／ピンごとのアイコン（ピンの見た目は地図で決まる、という
+  ドメインの決定に反する）／null 許容（「未設定」を API に出す。常に値がある方が mobile の
+  フォールバックが単純）／`PinRead`・`PinListItemRead` に地図のアイコンを埋め込む（一覧から引けるので
+  重複になる）。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1298,4 +1371,5 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
   SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
   SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）、
-  SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
+  SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
+  SS-171（地図のアイコン。決定31）

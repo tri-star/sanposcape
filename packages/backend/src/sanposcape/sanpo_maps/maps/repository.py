@@ -9,7 +9,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.advisory_locks import advisory_lock_key
-from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.models import (
+    DEFAULT_SANPO_MAP_ICON,
+    Pin,
+    PinPhoto,
+    PinTag,
+    SanpoMap,
+    SanpoMapIcon,
+    SanpoMapMember,
+)
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`photos/repository.py`
 #: の `_PIN_PHOTO_UPLOAD_LOCK_NAMESPACE` とは別の固定値にする（衝突回避, ADR-009 決定27）。
@@ -117,14 +125,16 @@ class SanpoMapRepository:
         return self._db.scalars(stmt).first()
 
     def _insert_map_and_owner(
-        self, *, owner_user_id: uuid.UUID, name: str, is_default: bool
+        self, *, owner_user_id: uuid.UUID, name: str, is_default: bool, icon: SanpoMapIcon
     ) -> SanpoMap:
         """地図と owner の member 行を1組 INSERT する private ヘルパー（`create_with_owner()`・
         `create_owned()` で共有する。不変条件: owner の member 行はちょうど1つで
         `owner_user_id` と一致する）。呼び出し元が savepoint（`db.begin_nested()`）で
         囲むこと。
         """
-        sanpo_map = SanpoMap(owner_user_id=owner_user_id, name=name, is_default=is_default)
+        sanpo_map = SanpoMap(
+            owner_user_id=owner_user_id, name=name, is_default=is_default, icon=icon.value
+        )
         self._db.add(sanpo_map)
         self._db.flush()
         self._db.add(SanpoMapMember(sanpo_map_id=sanpo_map.id, user_id=owner_user_id, role="owner"))
@@ -136,9 +146,10 @@ class SanpoMapRepository:
     ) -> tuple[SanpoMap, bool]:
         """地図を新規作成し、owner の member 行も同時に作る。戻り値は `(sanpo_map, created)`。
 
-        `POST /pins`（`sanpo_map_id` 省略時の「最初の地図」自動作成）専用。`is_default=True`
-        での同時作成は `uq_sanpo_maps_owner_user_id_is_default`（部分一意インデックス）に
-        より片方が `IntegrityError` になる。`users/repository.py` と同じ savepoint
+        `POST /pins`（`sanpo_map_id` 省略時の「最初の地図」自動作成）専用。作る地図は既定の
+        アイコン（pin）にする（決定31）。`is_default=True` での同時作成は
+        `uq_sanpo_maps_owner_user_id_is_default`（部分一意インデックス）により片方が
+        `IntegrityError` になる。`users/repository.py` と同じ savepoint
         パターン（`db.begin_nested()`）で捕捉し、既存の既定地図を再取得して返す
         （`created=False`）。savepoint を使う理由も同様: 素の `db.rollback()` は呼び出し元
         （`PinService.create_pin`）が張っている外側のトランザクション全体を巻き戻して
@@ -147,7 +158,10 @@ class SanpoMapRepository:
         try:
             with self._db.begin_nested():
                 sanpo_map = self._insert_map_and_owner(
-                    owner_user_id=owner_user_id, name=name, is_default=is_default
+                    owner_user_id=owner_user_id,
+                    name=name,
+                    is_default=is_default,
+                    icon=DEFAULT_SANPO_MAP_ICON,
                 )
         except IntegrityError:
             if not is_default:
@@ -162,7 +176,12 @@ class SanpoMapRepository:
         return sanpo_map, True
 
     def create_owned(
-        self, *, owner_user_id: uuid.UUID, name: str, prefer_default: bool
+        self,
+        *,
+        owner_user_id: uuid.UUID,
+        name: str,
+        prefer_default: bool,
+        icon: SanpoMapIcon = DEFAULT_SANPO_MAP_ICON,
     ) -> SanpoMap:
         """`POST /sanpo-maps` 用に新しい地図を1件作成する（ADR-009 決定25・27）。
 
@@ -177,7 +196,7 @@ class SanpoMapRepository:
             try:
                 with self._db.begin_nested():
                     sanpo_map = self._insert_map_and_owner(
-                        owner_user_id=owner_user_id, name=name, is_default=True
+                        owner_user_id=owner_user_id, name=name, is_default=True, icon=icon
                     )
             except IntegrityError:
                 pass
@@ -186,7 +205,7 @@ class SanpoMapRepository:
                 return sanpo_map
         with self._db.begin_nested():
             sanpo_map = self._insert_map_and_owner(
-                owner_user_id=owner_user_id, name=name, is_default=False
+                owner_user_id=owner_user_id, name=name, is_default=False, icon=icon
             )
         self._db.refresh(sanpo_map)
         return sanpo_map
@@ -197,6 +216,13 @@ class SanpoMapRepository:
         名前変更では動かさない, 決定25）。
         """
         sanpo_map.name = name
+        self._db.flush()
+
+    def update_icon(self, sanpo_map: SanpoMap, *, icon: SanpoMapIcon) -> None:
+        """アイコンを変更して flush する（`PATCH /sanpo-maps/{id}`）。`updated_at` は触らない
+        （名前変更と同じ。「最近ピンを追加した地図」の並び順専用, 決定25・31）。
+        """
+        sanpo_map.icon = icon.value
         self._db.flush()
 
     def delete(self, sanpo_map: SanpoMap) -> None:

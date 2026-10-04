@@ -40,6 +40,10 @@ export const palette = {
   red500: "#e6484d",
   red100: "#fde0e1",
 
+  // 地図のアイコン（ADR-M-019）用。現在地・ルート線（blue600）と見分けるため、青は水色寄り（シアン側）に振る。
+  sky600: "#0e8fc7",
+  brown600: "#9a6b47",
+
   gpsGreen: "#37c873",
 
   ink900: "#1b2430",
@@ -250,6 +254,16 @@ export type ThemeMapColors = {
   cafe: string;
   culture: string;
   station: string;
+  /**
+   * 雨・避暑地など「空・水」系の地図アイコン用の水色寄りの青（ADR-M-019）。route（現在地・ルート線）の青と別の色相。
+   * 白いグリフとのコントラスト: light #0e8fc7 は 3.64:1、dark #2a9bd0 は 3.14:1（図形として 3:1 以上）。
+   */
+  sky: string;
+  /**
+   * 猫など「動物」系の地図アイコン用の茶色（ADR-M-019）。
+   * 白いグリフとのコントラスト: light #9a6b47 は 4.60:1、dark #a8754f は 3.95:1。
+   */
+  brown: string;
   route: string;
   /** 復路（往路と異なる帰り道）の線色。往路と同系色で明度を変え、破線と併用して区別する。 */
   routeReturn: string;
@@ -387,6 +401,8 @@ const lightMap: ThemeMapColors = {
   cafe: palette.orange500,
   culture: palette.purple500,
   station: palette.red500,
+  sky: palette.sky600,
+  brown: palette.brown600,
   route: palette.blue600,
   routeReturn: palette.blue900,
   canvas: "#f5f6f7",
@@ -400,6 +416,8 @@ const darkMap: ThemeMapColors = {
   cafe: "#f89e57",
   culture: "#a98cf0",
   station: "#f2686d",
+  sky: "#2a9bd0",
+  brown: "#a8754f",
   route: "#3d97fe",
   routeReturn: palette.blue300,
   canvas: "#131c28",

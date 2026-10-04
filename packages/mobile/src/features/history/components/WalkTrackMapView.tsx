@@ -3,6 +3,7 @@ import { type StyleProp, Text, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
+import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import { regionForCoordinates } from "@/lib/mapRegion";
@@ -18,6 +19,9 @@ export type WalkTrackMapViewProps = {
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
+
+const START_PIN_SIZE = 30;
+const GOAL_PIN_SIZE = 38;
 
 /**
  * WalkTrackMapView — 履歴詳細の軌跡地図。保存済みの記録は不変なので、`WalkRouteMapView` と違い
@@ -65,11 +69,11 @@ export function WalkTrackMapView({
           <Marker
             coordinate={track[0]}
             identifier="start"
-            anchor={{ x: 0.5, y: 1 }}
+            {...mapPinMarkerPlacement(START_PIN_SIZE)}
             tracksViewChanges={false}
             testID="walk-detail-start-marker"
           >
-            <MapPin category="current" size={30} />
+            <MapPin category="current" size={START_PIN_SIZE} />
           </Marker>
         ) : null}
         {isValidCoordinate(destination) ? (
@@ -77,11 +81,11 @@ export function WalkTrackMapView({
             coordinate={destination}
             identifier="goal"
             title={destinationName}
-            anchor={{ x: 0.5, y: 1 }}
+            {...mapPinMarkerPlacement(GOAL_PIN_SIZE)}
             tracksViewChanges={false}
             testID="walk-detail-goal-marker"
           >
-            <MapPin category="goal" icon="flag" size={38} />
+            <MapPin category="goal" icon="flag" size={GOAL_PIN_SIZE} />
           </Marker>
         ) : null}
       </MapView>

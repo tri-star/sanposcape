@@ -3,6 +3,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { Badge } from "@/components/ui/badge/Badge";
 import { Icon } from "@/components/ui/icon/Icon";
+import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
 import {
   formatSanpoMapPinCount,
   sanpoMapRowAccessibilityLabel,
@@ -36,7 +37,7 @@ function SanpoMapListItemBase({ map, onPress, testID }: SanpoMapListItemProps) {
       ]}
       testID={testID}
     >
-      <Icon name="map" size={22} color={theme.colors.primary} />
+      <SanpoMapIconBadge icon={map.icon} size={36} />
       <View style={styles.main}>
         <Text style={styles.name} numberOfLines={2}>
           {map.name}

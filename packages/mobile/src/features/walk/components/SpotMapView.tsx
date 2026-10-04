@@ -3,6 +3,7 @@ import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-n
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
+import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { WalkRouteLegend } from "@/features/walk/components/WalkRouteLegend";
 import { WalkRoutePolylines } from "@/features/walk/components/WalkRoutePolylines";
 import { CATEGORY_META } from "@/features/walk/data/categories";
@@ -28,6 +29,8 @@ export type SpotMapViewProps = {
 
 /** アニメーション付き再センタリングの所要時間（ms）。 */
 const RECENTER_ANIMATION_MS = 400;
+const SPOT_PIN_SIZE = 30;
+const SELECTED_PIN_SIZE = 42;
 
 /**
  * SpotMapView — react-native-maps のラッパ。実地図（Android=Google Maps / iOS=Apple Maps）を表示する。
@@ -89,6 +92,7 @@ export function SpotMapView({
         {candidates.map((spot, index) => {
           const selected = spot.id === selectedSpotId;
           const meta = CATEGORY_META[spot.category];
+          const pinSize = selected ? SELECTED_PIN_SIZE : SPOT_PIN_SIZE;
           return (
             // 選択状態を key に含めて作り直す: tracksViewChanges={false} にすると子 View の変化が
             // ネイティブに反映されないため（react-native-maps の定番回避策）。
@@ -100,10 +104,10 @@ export function SpotMapView({
               accessibilityLabel={spot.name}
               onPress={() => onSelectSpot(spot.id)}
               tracksViewChanges={false}
-              anchor={{ x: 0.5, y: 1 }}
+              {...mapPinMarkerPlacement(pinSize)}
               testID={`spot-marker-${index}`}
             >
-              <MapPin category={selected ? "goal" : meta.pin} size={selected ? 42 : 30} />
+              <MapPin category={selected ? "goal" : meta.pin} size={pinSize} />
             </Marker>
           );
         })}

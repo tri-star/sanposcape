@@ -22,3 +22,19 @@ export function insertCreatedSanpoMap(
   }
   return [...old.slice(0, index), created, ...old.slice(index)];
 }
+
+/**
+ * PATCH の応答で一覧キャッシュの1件を置き換える（SS-171）。並び順は変えない。
+ * 応答の pinCount は null（expand なし）なので、既存の pinCount を残す。
+ * 同じ id が無ければ old をそのまま（コピーして）返す。old が undefined なら undefined（キャッシュを作らない）。
+ * 元の配列は変更しない。
+ */
+export function replaceUpdatedSanpoMap(
+  old: readonly SanpoMap[] | undefined,
+  updated: SanpoMap,
+): SanpoMap[] | undefined {
+  if (old === undefined) return undefined;
+  return old.map((map) =>
+    map.id === updated.id ? { ...updated, pinCount: map.pinCount ?? updated.pinCount } : map,
+  );
+}

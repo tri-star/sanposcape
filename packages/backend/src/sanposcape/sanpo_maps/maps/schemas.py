@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
+from sanposcape.sanpo_maps.models import DEFAULT_SANPO_MAP_ICON, SanpoMapIcon
 from sanposcape.sanpo_maps.permissions import SanpoMapRole
 
 #: 地図名の長さ上限（code point 数）。DB `String(50)`・ピン名（`PIN_NAME_MAX_LENGTH`）と
@@ -35,6 +36,8 @@ SanpoMapName = Annotated[str, Field(min_length=1, max_length=SANPO_MAP_NAME_MAX_
 class SanpoMapRead(BaseModel):
     id: uuid.UUID
     name: str
+    # 地図のアイコン（SS-171, ADR-009 決定31）。常に値がある（null にならない）。
+    icon: SanpoMapIcon
     # リクエストユーザーにとっての既定地図か（`sanpo_maps.is_default AND owner_user_id
     # == 自分`）。他人の既定地図に招待された editor には false（B-D2）。
     is_default: bool
@@ -76,9 +79,13 @@ class SanpoMapTagListRead(BaseModel):
 
 
 class SanpoMapCreate(BaseModel):
-    """`POST /sanpo-maps` のリクエスト（ADR-009 決定25）。"""
+    """`POST /sanpo-maps` のリクエスト（ADR-009 決定25・31）。
+
+    `icon` は省略可（既定 pin）。null・未知の値は 422。
+    """
 
     name: SanpoMapName
+    icon: SanpoMapIcon = DEFAULT_SANPO_MAP_ICON
 
     @field_validator("name", mode="before")
     @classmethod
@@ -92,8 +99,9 @@ class SanpoMapUpdate(BaseModel):
     """`PATCH /sanpo-maps/{sanpo_map_id}` のリクエスト（ADR-009 決定25。
     `sanpo_maps/pins/schemas.py` の `PinUpdate` と同じ流儀）。
 
-    `extra="forbid"`。`name` は省略可・null 不可（`SkipJsonSchema[None]` により OpenAPI 上は
-    non-nullable の optional として出る。明示的な `null` は `model_validator` で 422）。
+    `extra="forbid"`。`name`・`icon` は省略可・null 不可（`SkipJsonSchema[None]` により
+    OpenAPI 上は non-nullable の optional として出る。明示的な `null` は `model_validator`
+    で 422, 決定31）。
     `{}` は 200 で何も変えない。
     """
 
@@ -102,6 +110,7 @@ class SanpoMapUpdate(BaseModel):
     # `max_length` は `Annotated` 側に付ける（外側の `Field()` に付けると `None` の
     # 検証で `TypeError` になる。`PinUpdate.add_tags` と同じ注意）。
     name: SanpoMapName | SkipJsonSchema[None] = None
+    icon: SanpoMapIcon | SkipJsonSchema[None] = None
 
     @field_validator("name", mode="before")
     @classmethod
@@ -111,9 +120,10 @@ class SanpoMapUpdate(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _name_must_not_be_explicit_null(self) -> "SanpoMapUpdate":
-        if "name" in self.model_fields_set and self.name is None:
-            raise ValueError("name must not be null; omit the field for no change")
+    def _fields_must_not_be_explicit_null(self) -> "SanpoMapUpdate":
+        for field in ("name", "icon"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} must not be null; omit the field for no change")
         return self
 
 

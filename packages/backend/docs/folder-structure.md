@@ -98,7 +98,9 @@ packages/backend/
 │       ├── sanpo_maps/        # ドメイン: 地図・ピン・写真（1つの境界づけられたコンテキスト。
 │       │   │                  #   SS-88, ADR-009。内部構成は ADR-011, SS-137）
 │       │   ├── models.py      #   全6モデル（SanpoMap/SanpoMapMember/Pin/PinTag/PinPhoto/
-│       │   │                  #   PinPhotoUpload）を1ファイルに集約（共有カーネル）
+│       │   │                  #   PinPhotoUpload）を1ファイルに集約（共有カーネル）。
+│       │   │                  #   値域の定義（`SANPO_MAP_ROLES`・`SanpoMapIcon`・
+│       │   │                  #   `PIN_PHOTO_UPLOAD_STATUSES`）も置き、CHECK 制約と API スキーマで共有する
 │       │   ├── exceptions.py  #   ドメイン全体の例外（共有カーネル）
 │       │   ├── permissions.py #   SanpoMapRole と role による権限判定の純粋関数（共有カーネル）。
 │       │   │                  #   追加系（can_add_pin/can_add_pin_photo/can_add_pin_tag）は role

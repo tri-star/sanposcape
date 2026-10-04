@@ -9,6 +9,9 @@ import MapView, {
 } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
+import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
+import { DEFAULT_SANPO_MAP_ICON, sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import {
   regionAroundPoint,
   toPickedCoordinate,
@@ -34,6 +37,8 @@ type PinMapCanvasCommonProps = {
   initialRegion: MapRegion | null;
   /** 選択中の位置（(a) のピン）。null ならマーカーを出さない。 */
   selectedLocation: GeoCoordinates | null;
+  /** 選択位置のピンの見た目。登録画面では保存先の地図のアイコン。既定は pin。 */
+  selectedMarkerIcon?: SanpoMapIconKey;
   /** 現在地。null なら出さない。 */
   currentLocation: GeoCoordinates | null;
   /** nonce が変わるたびに target へ animateToRegion する（WalkRouteMapView の recenterNonce と同じ考え方）。 */
@@ -52,6 +57,10 @@ export type PinMapCanvasProps = PinMapCanvasCommonProps & PinMapPickProps;
 const LOADING_LABEL = "現在地を取得しています…";
 const FOCUS_ANIMATION_MS = 400;
 /** `mapLayers` のマーカー（既定 0）より選択・現在地マーカーを上に描く（SS-118）。 */
+const SELECTED_PIN_SIZE = 38;
+const CURRENT_PIN_SIZE = 30;
+const SELECTED_PIN_PLACEMENT = mapPinMarkerPlacement(SELECTED_PIN_SIZE);
+const CURRENT_PIN_PLACEMENT = mapPinMarkerPlacement(CURRENT_PIN_SIZE);
 const SELECTED_MARKER_Z_INDEX = 1;
 const CURRENT_MARKER_Z_INDEX = 2;
 
@@ -71,6 +80,7 @@ export function PinMapCanvas({
   pickGesture,
   onPick,
   selectedLocation,
+  selectedMarkerIcon = DEFAULT_SANPO_MAP_ICON,
   currentLocation,
   focusRequest,
   mapLayers,
@@ -147,24 +157,26 @@ export function PinMapCanvas({
       >
         {selectedLocation !== null ? (
           <Marker
+            // tracksViewChanges={false} では子の変化が反映されないので、アイコンが変わったら作り直す。
+            key={selectedMarkerIcon}
             coordinate={selectedLocation}
-            anchor={{ x: 0.5, y: 1 }}
+            {...SELECTED_PIN_PLACEMENT}
             tracksViewChanges={false}
             zIndex={SELECTED_MARKER_Z_INDEX}
             testID={`${p}-marker`}
           >
-            <MapPin category="park" icon="map-pin" size={38} />
+            <MapPin {...sanpoMapPinAppearance(selectedMarkerIcon)} size={SELECTED_PIN_SIZE} />
           </Marker>
         ) : null}
         {currentLocation !== null ? (
           <Marker
             coordinate={currentLocation}
-            anchor={{ x: 0.5, y: 1 }}
+            {...CURRENT_PIN_PLACEMENT}
             tracksViewChanges={false}
             zIndex={CURRENT_MARKER_Z_INDEX}
             testID={`${p}-current-marker`}
           >
-            <MapPin category="current" size={30} />
+            <MapPin category="current" size={CURRENT_PIN_SIZE} />
           </Marker>
         ) : null}
         {mapLayers}
