@@ -27,7 +27,7 @@
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
-> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ⚠️ **dev で未実測**。`sam validate --lint` とローカルの計装（`opentelemetry-instrument` + OTLP 受信）は確認済み。dev のコールドスタート・スパンの中身・取り込みの実測は PR 後（チェックリストは SS-178 の dev 実測の手順）。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
+> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -1022,8 +1022,8 @@ aws lambda update-function-configuration --function-name sanposcape-<env>-backen
 ### 操作名とルート別の集計（ADR-013 決定2 の結論）
 
 Application Signals の操作名は、Lambda 上では ADOT が `<関数名>/FunctionHandler` に固定する
-（`aws.local.operation` をアプリが書き換えても効かない。dev の他プロジェクトの実データで確認。
-sanposcape 自身の dev では、デプロイ後に確認する）。そのため
+（`aws.local.operation` をアプリが書き換えても効かない。dev の他プロジェクトの実データで確認し、
+sanposcape 自身の dev でも操作が `sanposcape-dev-backend-api/FunctionHandler` だけになることを確認した）。そのため
 API 全体の RED・アラーム・SLO は Application Signals で、**ルート別の内訳は `aws/spans` を
 `http.route` / スパン名で集計する Logs Insights**（SS-179）で見る。Lambda 計装の親スパン
 （Mangum 構成では LOCAL_ROOT）には、スパン名 `METHOD ルートテンプレート` と `http.route` を

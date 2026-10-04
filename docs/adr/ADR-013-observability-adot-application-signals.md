@@ -20,7 +20,7 @@
 
 ### 未解決・持ち越し
 
-- **dev での実測は未了**: コールドスタート（`Init Duration`）の増分、flush の時間、UDP でのスパンの欠落、サンプリングと Transaction Search の取り込み、レイヤーと zip の重なり・展開後のサイズ、`:28` の同梱版の照合（本文: 決定1・決定4、SS-178 追補。SS-178 の dev 実測で追記する）。
+- **dev で実測済み**（SS-178）: コールドスタートは約 3.5 秒 → 約 4.2〜4.3 秒（+0.7〜0.8 秒）、flush の上乗せはほぼ無し（数 ms 以内）、メモリは +10〜20MB 程度。低トラフィックでは全リクエストがサンプリングされ、`aws/spans` に入る。レイヤー `:28` の同梱版は照合済み。Lambda の親スパンはハンドラーの後に属性を設定し直すため、イベントを無害化する（本文: 決定1・決定4・決定6 の SS-178 追補）。
 - **未処理の 500 で ASGI / Lambda 計装が自動で付ける exception イベント**には message が載りうる（DB 例外なら DETAIL のキー値）。ログのトレースバックと合わせて SS-180 で対処する（本文: 決定6、SS-178 追補）。
 - Mangum の lifespan（SS-183）。マージ後に `wrap_app_for_lambda_tracing` の適用位置を新しいハンドラー側へ移す。
 
@@ -74,7 +74,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - `aws.log.group.names=<API 関数のロググループ>`: Application Signals でトレースとログを紐付けるため（tasche と同じ）。
 - **有効にする計装は明示的に列挙する。** レイヤーは既定で多くの計装（sqlalchemy / httpx / requests / logging など）を無効にしている。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` を上書きすると、これらが一斉に有効になる。その結果、コールドスタートが延び、logging 計装が既存のログ設定と衝突する恐れがある。使うもの（FastAPI はアプリ側で手動、SQLAlchemy・botocore・httpx は自動）だけを有効にし、残りは無効のままにする。具体的な値は SS-178 で決める。
   - （**SS-178 追補**: 手動と自動の分担を変えた。**自動は botocore だけ**（当初は urllib も自動としたが、PR レビューで、urllib の自動計装は既定の `redact_url`（一部の署名パラメータだけ）しか掛けず、クエリ付きの URL が `http.url` に載るため、手動に変更した。決定6 の追補を参照）、fastapi / sqlalchemy / httpx / urllib / threading はアプリから手動で計装する。理由は 3 つ。(1) レイヤーの自動計装は起動時（sitecustomize）に依存チェックをするが、その時点の `sys.path` に `/var/task`（zip）が無い（ランタイムの `bootstrap.py` が `/var/task` を挿入するのは sitecustomize の後）ため、zip 側のライブラリは「未インストール」と判定される。(2) SQLAlchemy 2.1.0 は計装の依存条件（`< 2.1.0`）に弾かれる（upstream の issue opentelemetry-python-contrib#5118）。手動なら `skip_dep_check=True` を渡せる。(3) ローカル・Lambda・テストで同じコードの経路になる。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` は、レイヤー v28 の `otel-instrument` の既定値と同じ文字列を template.yaml と compose.yaml に明示した（レイヤーを上げて既定値が変わっても、有効な計装が黙って増減しないように）。tasche のように `fastapi,starlette,asgi` だけを書くと、既定値を上書きして他の計装が一斉に有効になる。threading の計装は `ThreadPoolExecutor` のワーカーの中のスパンをリクエストのトレースに繋ぐために手動で有効にしている。）
-- **flush とレイテンシ**: ADOT の Lambda 計装は、呼び出しごとにレスポンスの前で同期的に flush する。送信先は同じ環境内の UDP エンドポイントなので、外部 SaaS へ HTTPS で送るより小さい見込みだが、実測はしていない。UDP のサイズ上限を超えるとバッチごと落ちるという既知の issue（aws-otel-python-instrumentation#915、未確認）もある。flush の時間とスパンの欠落の有無を、SS-178 で dev 実測する。
+- **flush とレイテンシ**: ADOT の Lambda 計装は、呼び出しごとにレスポンスの前で同期的に flush する。送信先は同じ環境内の UDP エンドポイントなので、外部 SaaS へ HTTPS で送るより小さい見込みだが、実測はしていない。UDP のサイズ上限を超えるとバッチごと落ちるという既知の issue（aws-otel-python-instrumentation#915、未確認）もある。flush の時間とスパンの欠落の有無を、SS-178 で dev 実測する。（**SS-178 追補**: 2026-10-04 の dev 実測（PR #134 のブランチを dev にデプロイ）では、ウォーム時の「Lambda の Duration − アプリの計測時間」は計装前 35〜50ms、計装後 39〜47ms で、flush の上乗せはほぼ無かった（数 ms 以内）。テストで送った 10 件ほどのリクエストのスパンは、欠けずに `aws/spans` に入った。）
 - アプリのコードが依存してよいのは、OpenTelemetry の API と計装ライブラリまで。ADOT 固有の API には依存しない（ECS などへ移っても、計装コードをそのまま使えるようにするため）。
 - **zip とレイヤーのパッケージ衝突に注意する。** Lambda の `sys.path` では、zip（`/var/task`）がレイヤー（`/opt/python`）より前に来る。zip に同梱した `opentelemetry-*` が、レイヤーの SDK やディストロを上書きしてバージョンが食い違う恐れがある。どのパッケージをどちらに持たせるかは SS-178 で決め、依存が重複していないかと展開後のサイズ（レイヤー込みで上限 250MB）を確認する。
   - （**SS-178 追補**: **OpenTelemetry は zip に入れない。** `pyproject.toml` の dev グループ（boto3 と同じ扱い。版はレイヤーの同梱版に `==` で固定）に置き、`uv export --no-dev` で除く。Makefile の `build-Api` は成果物に `opentelemetry*`（dist-info を含む）があれば失敗する。dependabot は `opentelemetry-*` を ignore し、レイヤーを上げるときに手動で揃える。`sqlalchemy[asyncio]`（greenlet）だけは runtime 依存にした: SQLAlchemy の計装が `instrument()` の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1 は greenlet を既定で含まないため、無いと `get_engine()` が落ちる。重なるパッケージ（typing-extensions・pyyaml は同じ版、certifi・idna は版違いの見込み）と展開後のサイズは、dev で実測して追記する。）
@@ -107,7 +107,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 ### 決定4: サンプリングは「全件」を目標にする
 
 - 今の規模なら、全件取り込んでもコストは月 $0〜数ドルに収まる見込み。参考までに、dev アカウント全体（他プロジェクトを含む）の実績は、30 日で約 8.3 万スパンをインデックス化 100% で取り込み、2026-09 の請求は Application Signals $0.034、X-Ray のインデックス化 $0.034 だった。
-- Active Tracing 側のサンプリング（毎秒 1 件 + 5% の固定）と、Transaction Search での取り込みの関係（サンプリングされなかった呼び出しのスパンが `aws/spans` に入るか）は、SS-178 で dev 実測して確定する。全件にならない場合でも、決定3 によりログは全件残る。
+- Active Tracing 側のサンプリング（毎秒 1 件 + 5% の固定）と、Transaction Search での取り込みの関係（サンプリングされなかった呼び出しのスパンが `aws/spans` に入るか）は、SS-178 で dev 実測して確定する。全件にならない場合でも、決定3 によりログは全件残る。（**SS-178 追補**: 2026-10-04 の dev 実測（PR #134 のブランチを dev にデプロイ）では、低トラフィックのため全リクエストが `Sampled: true`（毎秒 1 件のリザーバー内）で、すべて `aws/spans` に入った。トラフィックが毎秒 1 件を超えたときに、サンプリングされない呼び出しのスパンが Transaction Search に入るかは未確認。）
 - テイルサンプリング（エラーのトレースだけ残す、など）は、Lambda 内では実質的に使えないので採らない。量が増えたら、ヘッドサンプリング（`parentbased_traceidratio`）を検討する。
 
 ### 決定5: Transaction Search / Application Signals のアカウント設定
@@ -231,7 +231,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 
 ### ネガティブな影響・トレードオフ
 
-- ADOT レイヤー（圧縮で約 14MB）と計装の分だけ、コールドスタートが延びる。どの程度かは、SS-178 で `Init Duration` の変化を dev で実測する。
+- ADOT レイヤー（圧縮で約 14MB）と計装の分だけ、コールドスタートが延びる。どの程度かは、SS-178 で `Init Duration` の変化を dev で実測する。（**SS-178 追補**: 計装前 2.9〜3.6 秒（中央値 約 3.5 秒、14 日分）→ 計装後 4.23 秒・4.34 秒（2 回）。+0.7〜0.8 秒。Max Memory Used は約 205MB → 210〜227MB。レイヤーの展開後のサイズは 48MB（ディスク上）。）
 - ADR-008 では「デプロイロールの変更を不要にする」ために AppConfig の Lambda Extension を避けた。今回はレイヤーの許可のためにデプロイロールを変える。ADOT の新しいレイヤーは常駐プロセス（拡張）を持たないので、テストのしやすさという ADR-008 のもう 1 つの理由には当たらない。それでもデプロイロールの変更は伴う。
 - dev は他プロジェクトの設定に依存する。dev の X-Ray / Application Signals のコストは `Project=sanposcape` タグで切り出せず、予算アラートに乗らない（実額は月数セント）。
 - CloudWatch の画面は、SaaS に比べてトレースを横断的に調べにくい。
@@ -251,7 +251,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 
 **backend（後続の子課題）**
 
-- SS-178（**追補**: 実装済み。dev での実測は未了）: レイヤー・`Tracing: Active`・`OTEL_*` の環境変数を `template.yaml` に追加する。`core/observability.py` に計装とフック（操作名・クエリ除去）を置く。ローカルのトレースビューアを用意する。dev で次を実測する。
+- SS-178（**追補**: 実装済み。dev で実測済み。結果は決定1・決定4・決定6 と影響の追補）: レイヤー・`Tracing: Active`・`OTEL_*` の環境変数を `template.yaml` に追加する。`core/observability.py` に計装とフック（操作名・クエリ除去）を置く。ローカルのトレースビューアを用意する。dev で次を実測する。
   - コールドスタートの増え方（`Init Duration` の変化）
   - flush の時間と、UDP 送信でのスパンの欠落
   - サンプリングと Transaction Search の取り込みの関係
