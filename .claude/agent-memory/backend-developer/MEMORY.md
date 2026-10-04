@@ -31,3 +31,4 @@
 - [feedback-adr-renumber-sed-pitfall](feedback_adr_renumber_sed_pitfall.md) — ADR番号の一括sed置換はファイル名のスラッグ変更（backend-接頭辞の増減等）を見落とすと誤ったパス文字列が残る。新旧パス全体で置換するか置換後にgrepで確認する
 - [feedback-module-relocation-and-ast-arch-test-gotchas](feedback_module_relocation_and_ast_arch_test_gotchas.md) — パッケージ移動とASTアーキテクチャテストの罠: 除外条件は1ヘルパーに集約 / from X import YはX.Yも候補(公開面はprefix判定) / 違反注入で確認 / 空__init__のrename誤検出 / staleness検査はバッククォート+拡張子を拾う
 - [feedback-local-pg-alpine-collation-is-bytewise](feedback_local_pg_alpine_collation_is_bytewise.md) — ローカルDB(postgres:17-alpine/musl)は文字列ソートが実質バイト順。collation依存のORDER BYはテストで差を検出できないのでCOLLATE "C"を明示する（SS-136）
+- [feedback-otel-sqlalchemy-greenlet-and-adot-gotchas](feedback_otel_sqlalchemy_greenlet_and_adot_gotchas.md) — OTel SQLAlchemy計装はgreenlet必須(2.1)・ADOT親スパンの癖・DB無し環境の検証手段（SS-178）
