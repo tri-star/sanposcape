@@ -19,11 +19,16 @@ if not logging.getLogger().handlers and not app_logger.handlers:
 - Lambda 向け分岐（root に既にハンドラーがある → 何もしない）は
   `core/tests/test_observability.py::TestConfigureLogging::test_does_not_add_a_handler_when_root_already_has_one`
   でテスト済み。
-- しかし **uvicorn/ローカル向けの本来の分岐（root にも app logger にもハンドラーが無い →
-  1つ追加する）は、diff時点でテストが無かった**。pytest の logging プラグインは通常セッション中
+- uvicorn/ローカル向けの本来の分岐（root にも app logger にもハンドラーが無い →
+  1つ追加する）は、SS-88 のレビュー時点ではテストが無かった（指摘後に解消済み。下記）。pytest の logging プラグインは通常セッション中
   root logger に常にハンドラー（`LogCaptureHandler` 相当）を付けているため、素朴に
   `configure_logging()` を呼ぶテストを書いても「何もしない」分岐しか通らず、
   「追加する」分岐・「2回呼んでも増えない」冪等性を検証できない。
+
+**解消済み（2026-10-04 確認）**: `core/tests/test_observability.py::TestConfigureLogging::
+test_adds_one_handler_when_neither_root_nor_the_app_logger_has_one` が
+`root.handlers, app_logger.handlers = [], []` で退避してから呼ぶ形で追加されている。
+`configure_logging()` 自体について再指摘は不要。以下は同種コードを見るときの観点として残す。
 
 **How to apply:** この関数（または同種の「ハンドラーの有無で分岐する」ロギング初期化コード）を
 レビューするときは、`root.handlers` / `app_logger.handlers` を明示的に空リストへ退避・復元してから

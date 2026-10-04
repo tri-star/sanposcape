@@ -1,16 +1,13 @@
 - [ADR-002 auth real/dev shared code path](adr002-auth-shared-codepath.md) — create_session/create_dev_sessionの共有パターンと崩れやすい箇所
 - [backend レイヤー規約](backend-layering-conventions.md) — folder-structure.mdの要点とテスト規約の要約
-- [M5 walksドメインのスコープ決定](project_m5_walks_domain.md) — SS-18の「集計/削除API無し」決定はSS-42/SS-53で覆り実装済み。再指摘しない。delete()のTOCTOU注記あり
-- [SS-44 fake Mapsプロバイダ](project_ss44_fake_maps_provider.md) — mode+許可リストfail-safeパターンのMaps版、FakeProvider命名混同リスク
-- [RequestSizeLimitMiddlewareはmethod非依存](ss53-request-size-limit-middleware-method-agnostic.md) — GET/DELETEでも413はあり得る設計。router.py側で413を書くのは正しい、再指摘しない
-- [SS-33周回ルートAPIレビュー](project_ss33_loop_route_review.md) — httpxに生floatのtimeoutを渡す罠・provider抽象の拡張パターン。実API検証は実施済み（フォールバック率69%で目標未達、改善はSS-92）
-- [SS-98 フィーチャーフラグ基盤の3層構成](project_ss98_feature_flags_architecture.md) — integrations/core/app_config分割の妥当性、「循環import」根拠は自分でgrepして確かめる、botocoreのmax_attemptsは再試行回数（total_max_attemptsを使う）
+- [walksドメインのスコープ決定](project_m5_walks_domain.md) — 正本はADR-003。集計/削除APIの不在・非冪等削除・delete()の同時実行は再指摘しない
+- [SS-44 fake Mapsプロバイダ](project_ss44_fake_maps_provider.md) — mode+許可リストfail-safeパターンのMaps版、FakeProvider命名混同（一部docstringで緩和）
+- [ミドルウェアの413と登録順](middleware-ordering-and-413.md) — RequestSizeLimitはmethod非依存（GET/DELETEの413は正しい）、AccessLogは最後に登録（回帰テストあり）
+- [周回ルートAPIの観点](project_ss33_loop_route_review.md) — 正本はADR-007（SS-92待ち）。httpxに生floatのtimeoutを渡す罠、provider拡張は別メソッド追加
+- [フラグ基盤の教訓](project_ss98_feature_flags_architecture.md) — 正本はADR-008。「循環import」根拠はgrepで確かめる、botocoreはtotal_max_attemptsを使う
 - [CloudFormation Fn::Subのネスト変数罠](feedback_cloudformation_fn_sub_nested_variables.md) — 変数マップの値の中の${...}は再評価されない。template.yamlのIAM ARN組み立てレビュー時に確認
-- [SS-88 ピン写真確定処理レビュー](project_ss88_pin_photo_confirm_review.md) — 真の同時リトライで写真付きPOST /pinsが誤409(Critical)。確定時クォータ再チェックの並行性ギャップ、commit()の締切漏れ(Warning)
-- [プラン文書の並行性設計は実装と1行ずつ突き合わせる](feedback_verify_plan_concurrency_design_against_code.md) — backend-planのエッジケース記述が共有ヘルパーの1分岐だけ実装漏れするパターン
-- [SS-88 AccessLogMiddleware登録順](ss88_access_log_middleware_order.md) — 最後に登録すべき制約がコメントのみでend-to-end回帰テスト無し(Warning)
+- [プラン文書の並行性設計は実装と1行ずつ突き合わせる](feedback_verify_plan_concurrency_design_against_code.md) — 共有ヘルパーの1分岐だけ実装漏れするパターン（SS-88の真の同時リトライ409が実例）
 - [SQLAlchemy identity mapは偽N+1](feedback_sqlalchemy_identity_map_not_n_plus_1.md) — select()直後のdb.get()は追加クエリなしのことが多い。安易にN+1指摘しない
-- [SS-111 ピン閲覧APIレビュー](project_ss111_pin_read_api.md) — Critical/High無し。get_for_member/バッチ取得/bbox4パラメータ等、SS-112/118/120が踏襲すべき確立パターン
-- [SS-113 地図の作成・管理APIレビュー](project_ss113_sanpo_map_management_api.md) — Critical/High無し。port+構造的部分型での依存逆転パターン、削除のcommit境界検証、既定地図繰り上げ
-- [SS-141 テスト用DB分離(ADR-B-001)レビュー](project_ss141_test_db_reset_review.md) — Critical/Warning無し。DELETE採用妥当、session/functionのfixture順序が壊れやすい箇所
-- [SS-137 sanpo_maps/pins統合レビュー](project_ss137_sanpo_maps_module_review.md) — port撤去後の踏襲パターン。M1の依存方向検査がM3の抜け穴も塞ぐ。Callable注入の事実上のportはASTで見えずレビューで見る。M9の導入条件
+- [ピン閲覧APIで確立した観点](project_ss111_pin_read_api.md) — 正本はADR-009決定14〜18。JOINでの認可・バッチ取得・閲覧はcommitしない
+- [テスト用DB分離(ADR-B-001)](project_ss141_test_db_reset_review.md) — 正本はADR-B-001。session→functionのfixture順序と「テスト前に空にする」を壊さない
+- [sanpo_mapsモジュール構成のレビュー観点](project_ss137_sanpo_maps_module_review.md) — 正本はADR-011。Callable注入の事実上のport・M6はASTで見えない。決定28のデッドロックは受容済み
