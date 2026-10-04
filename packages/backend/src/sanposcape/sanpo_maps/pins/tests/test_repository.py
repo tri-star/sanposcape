@@ -34,6 +34,42 @@ class TestPinCreate:
         assert pin.client_pin_id == client_pin_id
         assert pin.name == "桜のトンネル"
 
+    def test_visited_defaults_to_false_and_archived_is_false(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+        )
+        db_session.commit()
+
+        assert pin.visited is False
+        assert pin.archived is False
+
+    def test_create_with_visited_true(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        pin, _ = PinRepository(db_session).create(
+            sanpo_map_id=sanpo_map_id,
+            created_by_user_id=user.id,
+            client_pin_id=uuid.uuid4(),
+            name=None,
+            memo=None,
+            latitude=0,
+            longitude=0,
+            client_walk_id=None,
+            visited=True,
+        )
+        db_session.commit()
+
+        assert pin.visited is True
+
     def test_idempotent_resend_returns_existing(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
         sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
@@ -340,6 +376,55 @@ class TestListForMember:
         )
         db_session.commit()
         return pin
+
+    def _list(self, db_session: Session, **kwargs: object) -> list[Pin]:
+        return PinRepository(db_session).list_for_member(
+            q=None,
+            tag_keys=[],
+            bbox=None,
+            cursor=None,
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+    def test_archived_and_visited_filters(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
+        repo = PinRepository(db_session)
+        pins: dict[tuple[bool, bool], Pin] = {}
+        for visited in (False, True):
+            for archived in (False, True):
+                pin, _ = repo.create(
+                    sanpo_map_id=sanpo_map_id,
+                    created_by_user_id=user.id,
+                    client_pin_id=uuid.uuid4(),
+                    name=None,
+                    memo=None,
+                    latitude=0,
+                    longitude=0,
+                    client_walk_id=None,
+                    visited=visited,
+                )
+                pin.archived = archived
+                pins[(visited, archived)] = pin
+        db_session.commit()
+
+        def ids(archived: bool | None, visited: bool | None) -> set[uuid.UUID]:
+            rows = self._list(
+                db_session,
+                user_id=user.id,
+                sanpo_map_id=sanpo_map_id,
+                limit=10,
+                archived=archived,
+                visited=visited,
+            )
+            return {pin.id for pin in rows}
+
+        assert ids(None, None) == {pin.id for pin in pins.values()}
+        assert ids(False, None) == {pins[(False, False)].id, pins[(True, False)].id}
+        assert ids(True, None) == {pins[(False, True)].id, pins[(True, True)].id}
+        assert ids(None, True) == {pins[(True, False)].id, pins[(True, True)].id}
+        assert ids(None, False) == {pins[(False, False)].id, pins[(False, True)].id}
+        assert ids(False, False) == {pins[(False, False)].id}
 
     def test_excludes_pins_of_maps_the_user_is_not_a_member_of(self, db_session: Session) -> None:
         owner = make_user(db_session, subject="owner")
@@ -672,6 +757,24 @@ class TestUpdateFields:
 
         assert pin.name == "元の名前"  # NOT_PROVIDED のまま = 変わらない
         assert pin.memo is None  # 明示的な None = 消える
+
+    def test_updates_visited_and_archived_independently(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin = self._make_pin(db_session, user_id=user.id)
+        repo = PinRepository(db_session)
+
+        repo.update_fields(pin, visited=True, updated_at=datetime.now(UTC))
+        db_session.commit()
+        assert (pin.visited, pin.archived) == (True, False)  # archived は NOT_PROVIDED
+
+        repo.update_fields(pin, archived=True, updated_at=datetime.now(UTC))
+        db_session.commit()
+        assert (pin.visited, pin.archived) == (True, True)  # visited は変わらない
+        assert pin.name == "元の名前"
+
+        repo.update_fields(pin, visited=False, archived=False, updated_at=datetime.now(UTC))
+        db_session.commit()
+        assert (pin.visited, pin.archived) == (False, False)
 
     def test_not_provided_default_is_used_when_omitted(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")

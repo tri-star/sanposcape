@@ -671,7 +671,9 @@ paths:
 
         返す（内容が違っても既存をそのまま返す。`walks` と同じ）。`sanpo_map_id` を省略すると
 
-        自分の既定地図（無ければ「最初の地図」を同一トランザクションで作成）に登録される。'
+        自分の既定地図（無ければ「最初の地図」を同一トランザクションで作成）に登録される。
+
+        `visited`（訪問済みか）は省略すると false。`archived` は作成時には指定できない。'
       operationId: create_pin
       security:
       - HTTPBearer: []
@@ -730,7 +732,13 @@ paths:
 
         position が最小の写真（無ければ null）。写真の URL の有効期限は `urls_expire_at`。
 
-        mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。'
+        mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。
+
+        `archived`/`visited` は省略すると絞り込まない。指定すると true/false で絞り込み、
+
+        bbox・`q`・`tags` と AND で `limit` の前に適用する（`archived=false` は地図表示用,
+
+        SS-173）。'
       operationId: list_pins
       security:
       - HTTPBearer: []
@@ -802,6 +810,22 @@ paths:
             maxLength: 200
           maxItems: 10
           title: Tags
+      - name: archived
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Archived
+      - name: visited
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Visited
       - name: limit
         in: query
         required: false
@@ -990,9 +1014,9 @@ paths:
       tags:
       - pins
       summary: Update Pin
-      description: 'ピンの名前・メモの更新、タグの追加・削除（`add_tags`/`remove_tag_ids`）を
+      description: 'ピンの名前・メモ・訪問状況・アーカイブ状態の更新、タグの追加・削除
 
-        1リクエストで原子的に行う（ADR-009 決定19・20）。
+        （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32）。
 
 
         省略したフィールドは変更しない。`name`/`memo` は `null` か空白のみの値で消せる。
@@ -1004,6 +1028,10 @@ paths:
         何も反映せず 403 にする。地図 owner・対象の作成者本人（editor）は可能、作成者でない
 
         editor は名前・メモの更新はできない（タグの削除も自分が付けたものだけ）。
+
+        `visited` はメンバーなら誰でも、`archived` は地図 owner かピンの作成者本人だけ変更できる
+
+        （作成者でない editor は 403）。
 
         非メンバー・存在しないピンは 404。タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。'
       operationId: update_pin
@@ -1469,6 +1497,10 @@ components:
             format: uuid
           - type: 'null'
           title: Client Walk Id
+        visited:
+          type: boolean
+          title: Visited
+          default: false
       type: object
       required:
       - client_pin_id
@@ -1507,6 +1539,12 @@ components:
           type: string
           format: uuid
           title: Created By User Id
+        visited:
+          type: boolean
+          title: Visited
+        archived:
+          type: boolean
+          title: Archived
         created_at:
           type: string
           format: date-time
@@ -1525,6 +1563,8 @@ components:
       - cover_photo
       - photo_count
       - created_by_user_id
+      - visited
+      - archived
       - created_at
       - updated_at
       title: PinListItemRead
@@ -1767,6 +1807,12 @@ components:
             format: uuid
           - type: 'null'
           title: Client Walk Id
+        visited:
+          type: boolean
+          title: Visited
+        archived:
+          type: boolean
+          title: Archived
         created_at:
           type: string
           format: date-time
@@ -1788,6 +1834,8 @@ components:
       - photo_count
       - created_by_user_id
       - client_walk_id
+      - visited
+      - archived
       - created_at
       - updated_at
       title: PinRead
@@ -1861,6 +1909,12 @@ components:
           type: array
           maxItems: 10
           title: Remove Tag Ids
+        visited:
+          type: boolean
+          title: Visited
+        archived:
+          type: boolean
+          title: Archived
       additionalProperties: false
       type: object
       title: PinUpdate
@@ -1876,6 +1930,10 @@ components:
         タグは全置換ではなく差分（`add_tags`/`remove_tag_ids`）で送る（共同編集での
 
         lost update・タグごとの権限判定の分かりやすさ・再送の安全性のため）。
+
+        `visited`（訪問済みか）/`archived`（アーカイブ済みか）は省略可・null 不可で、送った
+
+        フィールドごとに権限を判定する（SS-173, ADR-009 決定32）。
 
 
         `extra="forbid"` にする理由: `location`/`sanpo_map_id` 等を送って「変更されたつもり」
