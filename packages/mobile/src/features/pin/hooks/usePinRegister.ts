@@ -77,7 +77,10 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   });
 
   // 散歩中の登録は訪問済み、ピンタブの長押しは未訪問で始める（ADR-M-021 D6）。clientWalkId はルート由来で不変。
-  const initialVisited = resolveInitialVisited({ clientWalkId: options.clientWalkId });
+  // 初期値は初回レンダーで1回だけ確定する（画面を開いた時点の入口で決まり、以後変えない。破棄確認の比較基準）。
+  const [initialVisited] = useState(() =>
+    resolveInitialVisited({ clientWalkId: options.clientWalkId }),
+  );
   const [visited, setVisitedState] = useState(initialVisited);
 
   const draft: PinDraft = { name, memo, tags, sanpoMapSelection, visited };

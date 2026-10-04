@@ -12,11 +12,11 @@ import type {
  *
  * - 追加系（タグの追加・写真の追加・訪問状況の変更）: メンバーなら誰でも可 → 常に true
  * - 持ち主判定系（名前・メモの更新、アーカイブの変更、ピンの削除、タグ・写真の削除）: 地図 owner か、対象の作成者本人
+ * - 地図管理系: `canManageSanpoMap`（SS-171。owner のみ）
  *
  * 訪問状況・アーカイブの割り当て（SS-173）は backend の `can_update_pin_visited` /
  * `can_update_pin_archived`（ルート ADR-009 決定32）に合わせている。backend が変わればこのファイルの
  * `canEditVisited` / `canArchive` の2行だけ直す。
- * - 地図管理系: `canManageSanpoMap`（SS-171。owner のみ）
  *
  * **UI 用の判定であり、安全性は backend の 403 が担保する**。誤って出し分けても、
  * 権限の無い操作は backend が拒否する。

@@ -18,6 +18,10 @@ export const PINS_QUERY_ROOT = ["pins"] as const;
  */
 export const SANPO_MAPS_QUERY_KEY = ["sanpo-maps", "list"] as const;
 
+/**
+ * 地図表示の取得（bbox）の key。今は取得条件が常に同じ（`archived: false` 固定）なのでフィルターを含めていない。
+ * SS-174 で `buildListPinsParams` にフィルター引数を足すときは、この key にも含めること。
+ */
 export function pinListQueryKey(sanpoMapId: string, bounds: GeoBounds) {
   return ["pins", "list", { sanpoMapId, bounds }] as const;
 }

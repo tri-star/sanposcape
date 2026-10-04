@@ -170,6 +170,9 @@ tags:
       id: "pin-edit-status-visited-switch"
 - tapOn:
     id: "pin-edit-status-visited-switch"
+- scrollUntilVisible:
+    element:
+      id: "pin-edit-status-archived-switch"
 - tapOn:
     id: "pin-edit-status-archived-switch"
 - scrollUntilVisible:

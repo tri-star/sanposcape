@@ -23,7 +23,8 @@ export const PIN_ARCHIVE_HELPER =
   "アーカイブしたピンは地図に表示されなくなります。地図一覧の各地図からは開けます。";
 export const PIN_ARCHIVE_LOCKED_HELPER =
   "アーカイブは、ピンを作った人と地図の持ち主だけが変更できます";
-export const PIN_REGISTER_VISITED_HELPER = "これから行ってみたい場所なら、オフにして登録します";
+export const PIN_REGISTER_VISITED_HELPER =
+  "行ったかどうかを記録できます。あとから編集でも変えられます";
 
 /**
  * 状態バッジの並び。
