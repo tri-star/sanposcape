@@ -317,7 +317,8 @@ Resources:
         Api の Lambda が 5 分間に 1 件以上エラーを返した（タイムアウト・OOM・初期化の失敗・
         ランタイムのクラッシュ・ハンドラーまで届いた未処理例外）。5xx のアラームとは、ハンドラーが
         例外を投げたときに両方鳴りうる（二重の通知は許容する）。
-        ダッシュボード sanposcape-<env>-backend-api の「Lambda: 呼び出し / エラー」と Q7 を見る。
+        ダッシュボード sanposcape-<env>-backend-api の「Lambda: 呼び出し (左軸) / エラー・スロットル (右軸)」と
+        「タイムアウト / OOM / ランタイムの異常終了 (Q7)」を見る。
       Namespace: AWS/Lambda
       MetricName: Errors
       Dimensions:
@@ -342,7 +343,7 @@ Resources:
       AlarmName: !Sub "sanposcape-${Env}-backend-api-lambda-throttles"
       AlarmDescription: >-
         Api が 5 分間に 1 件以上スロットルされた（同時実行数の上限: dev は予約 5、prod はアカウントの
-        クォータ 10）。ダッシュボード sanposcape-<env>-backend-api の「Lambda: 同時実行数」を見る。
+        クォータ 10）。ダッシュボード sanposcape-<env>-backend-api の「Lambda: 同時実行数 (Maximum)」を見る。
       Namespace: AWS/Lambda
       MetricName: Throttles
       Dimensions:
@@ -369,7 +370,8 @@ Resources:
         API の 5xx が 5 分間に 3 件以上（Application Signals の Fault。外部 API の障害による 503 も含む）。
         率ではなく件数なのは、リクエストが少ないうちは 1 件で 100% になるため（件数から率に変える条件は
         docs/deployment.md §14）。Lambda の Errors のアラームと二重に鳴ることがある。
-        ダッシュボード sanposcape-<env>-backend-api の「ルート別」と「直近の 5xx (Q3)」を見る。
+        ダッシュボード sanposcape-<env>-backend-api の「ルート別: 件数・レイテンシ・4xx/5xx 率 (Q1)」と
+        「直近の 5xx (Q3、traceId から X-Ray のトレースへ)」を見る。
         鳴るはずの状況で鳴らないときは、Dimension の値がずれていないか list-metrics で確かめる（§14）。
       Namespace: ApplicationSignals
       MetricName: Fault
