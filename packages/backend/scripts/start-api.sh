@@ -10,8 +10,12 @@
 # 直接受けるようにするため。
 set -eu
 
+UVICORN_ARGS="sanposcape.main:app --host 0.0.0.0 --port 8000 --reload"
+
 if [ "${TRACING_ENABLED:-false}" = "true" ]; then
-  exec opentelemetry-instrument uvicorn sanposcape.main:app --host 0.0.0.0 --port 8000 --reload
+  # shellcheck disable=SC2086 # 引数の単語分割は意図どおり
+  exec opentelemetry-instrument uvicorn $UVICORN_ARGS
 fi
 
-exec uvicorn sanposcape.main:app --host 0.0.0.0 --port 8000 --reload
+# shellcheck disable=SC2086
+exec uvicorn $UVICORN_ARGS

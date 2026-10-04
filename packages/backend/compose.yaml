@@ -111,7 +111,8 @@ services:
     image: cr.jaegertracing.io/jaegertracing/jaeger:2.21.0
     profiles: ["observability"]
     ports:
-      - "${JAEGER_UI_PORT:-16686}:16686"
+      # 127.0.0.1 にだけ公開する（UI は認証が無く、トレースを見せるため LAN に出さない）。
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"
 
 volumes:
   db-data:
