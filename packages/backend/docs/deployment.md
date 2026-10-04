@@ -28,6 +28,7 @@
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
 > | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
+> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -402,6 +403,24 @@ aws cloudformation describe-stacks --stack-name sanposcape-backend-dev \
 aws lambda list-tags --resource <上記で得た関数の ARN>
 ```
 
+### 6.1.1 lifespan が実行環境ごとに1回であることの確認（SS-183）
+
+FastAPI の lifespan（`main._lifespan`）の startup は、Lambda の**実行環境（コールドスタート）
+ごとに1回**だけ走り、shutdown は走らない（`aws_lambda/asgi_handler.py`、
+[ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)）。
+`/health` や `/app-config` を数回叩いたあと、CloudWatch Logs Insights（対象は
+`/aws/lambda/sanposcape-<env>-backend-api`）で確認する。
+
+```
+fields @logStream, @message
+| filter @message like /Application lifespan/
+| parse @message /Application lifespan (?<phase>started|shutting down)/
+| stats count() by @logStream, phase
+```
+
+期待値: ログストリーム（= 実行環境）ごとに `started` が 1 件で、`shutting down` の行は出ない
+（0 件）。`shutting down` の行が出る、または `started` が呼び出しごとに増える場合は、lifespan が呼び出しごとに走っている（SS-183 より前の挙動）。
+
 ### 6.2 Phase 5（インフラ側 `enable_distribution = true` の apply 後）
 
 > **dev は既に apply 済み（2026-09-11 時点）。** この手順は「待ち」ではなく、いつでも実施できる。
@@ -562,6 +581,11 @@ ERROR ログへ出してから再送出する**設計になっているため（
 `include_input=False` にしている）。`post_init_error` の `UnicodeEncodeError` に惑わされず、
 まずこの ERROR ログを確認すること。
 
+lifespan の startup（`main._lifespan` の資源の生成）の失敗も init で起きるため、同じく
+init エラーになる。この場合は `src/sanposcape/aws_lambda/asgi_handler.py` が
+`Application startup failed during Lambda init.` の ERROR をトレースバックごと先に出すので、
+`INIT_START` の直後のこの行が原因を示す（SS-183）。
+
 ### CloudFront からの呼び出し許可の確認
 
 ```bash
@@ -648,6 +672,10 @@ CloudFront 経由の curl が唯一の検証手段になる。
   `appconfig:GetLatestConfiguration`）が実際に足りているか
 - Neon への実接続・レイテンシ・コールドスタート時間・29 秒タイムアウトの境界
 - `ReservedConcurrentExecutions` の効果
+- **実行環境での使い回し**（SS-183）: `sam local invoke` は呼び出しごとにコンテナを作るので、
+  lifespan の資源（キャッシュ・レート制限・AppConfig のセッション）が呼び出しをまたいで残る
+  ことは検証できない。ローカルでは pytest の境界テスト（`aws_lambda/tests/test_asgi_handler.py`、
+  実際の mangum を通して同じハンドラーを複数回呼ぶ）で確認でき、実環境では dev で確認する（§6.1.1）。
 
 ## 9. Neon 接続設定
 
@@ -778,6 +806,12 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 「フラグを ON にしたのに反映されない」と感じても、まず数分待ってから切り分けること
 （即座に反映されないのは仕様であり、`Cache-Control: no-store` にしているのは CDN 側の
 キャッシュを疑わなくて済むようにするためであって、AppConfig 側の遅延は無くならない）。
+
+> **（SS-183 注記）** SS-183 より前の Lambda は、mangum の `lifespan="auto"` により
+> 呼び出しごとに `AppConfigFlagSource` を作り直し、毎回 AppConfig から取得し直していた。
+> そのため SS-183 より前の Lambda では、フラグを切り替えるとポーリング間隔を待たずに次の
+> 呼び出しで反映される挙動だった（dev でのフラグ切り替えの実行実績は無く、観測した事実では
+> ない）。今後は上記のとおり、ポーリング間隔ぶん遅れて反映される。
 
 ### CloudWatch Logs で見るポイント
 

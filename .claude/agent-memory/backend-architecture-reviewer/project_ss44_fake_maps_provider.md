@@ -26,11 +26,10 @@ staging がこの罠を踏んだ既存インシデント、config.py のコメ�
   `GoogleMapsProvider` プロトコルを構造的に満たす形（Protocol明示継承なし）で書かれて
   おり、`UnconfiguredGoogleMapsProvider` と同じ流儀。決定性（乱数・時刻・TTLキャッシュ
   不使用）が契約として docstring に明記されている。同種の fake を作る際はこの流儀を踏襲。
-- **命名混同リスク**: `maps/tests/test_service.py` と `maps/tests/test_router.py` には
-  それぞれ独立した手組みの `FakeProvider`（応答値を固定したい局所テスト用）が既に存在し、
-  今回追加された「公式」の `FakeGoogleMapsProvider` と名前が紛らわしい。役割は別
-  （`FakeProvider`は特定の数値でソート順/タイムアウト挙動を検証、`FakeGoogleMapsProvider`
-  は幾何計算ベースで決定的候補を返す）だが、docstringでの区別が無いままなので、
-  今後この周辺を触るPRでは両者の混同・意図しない統合を指摘ポイントとして持つ。
+- **命名混同リスク（緩和済み）**: `maps/tests/test_service.py`・`maps/tests/test_router.py` には
+  独立した手組みの `FakeProvider`（応答値を固定したい局所テスト用）があり、「公式」の
+  `FakeGoogleMapsProvider`（幾何計算で決定的な候補を返す）と名前が紛らわしい。SS-33 で
+  `test_service.py` の `FakeProvider` に区別を説明する docstring が追記された（`test_router.py` 側には
+  まだ無い）。この周辺を触る PR では、両者の混同・意図しない統合に注意する。
 - 関連: [[backend-layering-conventions]]（`integrations/` の配置方針）、
   [[adr002-auth-shared-codepath]]（ADR-002決定4の元ネタ）

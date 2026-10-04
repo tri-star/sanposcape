@@ -17,7 +17,7 @@ SS-18（backend）と SS-16（mobile 散歩開始・散歩中）の境界。散�
 - **履歴の queryKey は `["walks", ...]` 始まり**で統一する（保存成功時の `invalidateQueries` がこのプレフィックスを使う）。
 - 一覧 `WalkRead` は軌跡を含まない。軌跡は `GET /walks/{walk_id}`（`WalkDetailRead`）のみ → **一覧行にミニ地図は出せない**（サムネイルが欲しくなったら backend に代表点/bounds の追加を依頼する）。
 - `GET /walks` は keyset カーソル（`next_cursor: string | null`、`limit` 1..50・既定20）。不正カーソルは 400。**`cursor` を明示的に `null` で送ると 400 になる**（[[mobile-structure]] の Orval 落とし穴1）。
-- `useFinishedWalkStore.savedWalkId` は SS-19 時点でプロダクトコード未参照。SS-20 の「サマリ → その散歩の詳細」遷移で消費される想定（ADR-M-008 決定4）。
+- `useFinishedWalkStore.savedWalkId` は `WalkSummaryView` の「記録を見る」（その散歩の詳細へ遷移）と、削除時の後始末レジストリ（ADR-M-008 決定8）で使われる。
 
 ## 削除 API（SS-53 backend / SS-60 mobile 導線）
 

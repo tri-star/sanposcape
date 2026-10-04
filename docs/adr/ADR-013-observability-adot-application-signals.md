@@ -20,9 +20,8 @@
 
 ### 未解決・持ち越し
 
-- **dev で実測済み**（SS-178）: コールドスタートは約 3.5 秒 → 約 4.2〜4.3 秒（+0.7〜0.8 秒）、flush の上乗せはほぼ無し（数 ms 以内）、メモリは +10〜20MB 程度。低トラフィックでは全リクエストがサンプリングされ、`aws/spans` に入る。レイヤー `:28` の同梱版は照合済み。Lambda の親スパンはハンドラーの後に属性を設定し直すため、イベントを無害化する（本文: 決定1・決定4・決定6 の SS-178 追補）。
+- **dev での未確認事項**（SS-178 の実測で残ったもの）: トラフィックが毎秒 1 件を超えて Active Tracing でサンプリングされない呼び出しが出たときに、Transaction Search にスパンが入るか。CloudFront 経由の `X-Amzn-Trace-Id` の扱い。DB を使うルートの SQL の子スパン（dev は認証が要るため、ローカルでのみ確認）。実測できた値（コールドスタート +0.7〜0.8 秒、flush の上乗せはほぼ無し、メモリ +10〜20MB）は本文の決定1・決定4・影響の SS-178 追補。
 - **未処理の 500 で ASGI / Lambda 計装が自動で付ける exception イベント**には message が載りうる（DB 例外なら DETAIL のキー値）。ログのトレースバックと合わせて SS-180 で対処する（本文: 決定6、SS-178 追補）。
-- Mangum の lifespan（SS-183）。マージ後に `wrap_app_for_lambda_tracing` の適用位置を新しいハンドラー側へ移す。
 
 ### 変更・撤回された決定
 
@@ -149,7 +148,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 
 - 実行環境に依存しない部分（`FastAPIInstrumentor` の呼び出し、操作名とクエリ除去のフック、ログのフォーマット）は `core/observability.py` に置く。（**SS-178 追補**: トレースの関数はこのファイル末尾の独立した節に置いた。有効化は `Settings.tracing_enabled`（`TRACING_ENABLED`、既定 false）で、無効のときと OTel を import できないときは何もしない（import すらしない）。計装は `create_app()` の末尾と `get_engine()` から呼ぶ。）
 - Lambda 固有の部分（レイヤー・`AWS_LAMBDA_EXEC_WRAPPER`・`Tracing: Active`・`OTEL_*` の環境変数）は `template.yaml` に置き、アプリのコードには持ち込まない。`aws_lambda/` に手を入れる必要が出た場合も、そこに閉じる。（**SS-178 追補**: Lambda 計装の親スパンの補正（`http.target` のクエリ除去、スパン名と `http.route` の付け直し）は、Lambda 計装のスパンの形を前提にするため `aws_lambda/tracing.py` に置いた。Mangum に渡す app を包む。）
-- **TracerProvider などの初期化と終了を FastAPI の lifespan に置かない。** Mangum の `lifespan="auto"` は、Lambda の呼び出しごとに startup / shutdown を走らせている疑いがある（SS-183）。
+- **TracerProvider などの初期化と終了を FastAPI の lifespan に置かない。** Mangum の `lifespan="auto"` は、Lambda の呼び出しごとに startup / shutdown を走らせている疑いがある（SS-183）。（**SS-178 追補**: SS-183 で解消済み。Lambda では `aws_lambda/asgi_handler.py` の `build_handler()` が lifespan を実行環境ごとに 1 回だけ起動し、Mangum は `lifespan="off"`。親スパン補正のラッパーは `build_handler(app, asgi_wrapper=wrap_app_for_lambda_tracing)` で Mangum に渡す ASGI app だけを包む。）
 - **TracerProvider を作るのは、アプリのコードではなく起動ラッパー。** Lambda ではレイヤーの `otel-instrument` が起動時に 1 回だけ作る。ローカルや将来の ECS でも、同じように起動側（`opentelemetry-instrument` での起動など）が作る。`core/observability.py` は、既に構成されているプロバイダーを使うだけで、自分では構成しない（Lambda で二重に構成しないため）。この方針で無理がある場合は、SS-178 で見直して追補する。（**SS-178 追補**: 見直し不要だった。ローカルは `scripts/start-api.sh` が `TRACING_ENABLED=true` のときだけ `opentelemetry-instrument` 経由で起動する。TracerProvider が未構成のまま有効化されたら警告を出す。）
 
 ### 決定8: ローカル（docker compose）と自動テスト

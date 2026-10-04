@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -54,6 +55,8 @@ from sanposcape.sanpo_maps.pins.router import router as pins_router
 from sanposcape.users.router import router as users_router
 from sanposcape.walks.exceptions import WalkNotFoundError
 from sanposcape.walks.router import router as walks_router
+
+logger = logging.getLogger(__name__)
 
 
 def _unauthorized_response(detail: str) -> JSONResponse:
@@ -232,7 +235,15 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Keep the Maps HTTP client and its process-local cache alive across requests."""
+    """Keep process-wide resources alive across requests.
+
+    Maps の HTTP クライアントとキャッシュ、レート制限、フラグの取得元（AppConfig）、
+    S3 クライアント。
+
+    close は uvicorn / TestClient の終了時に走る。Lambda では起動は実行環境ごとに1回で、
+    終了は走らない（`aws_lambda/asgi_handler.py`、ADR-005 SS-183 追補）。コードは Lambda を
+    知らないままにしている（ADR-005 決定3）。
+    """
     provider = build_google_maps_provider(app.state.settings)
     app.state.google_maps_provider = provider
     app.state.explore_rate_limiter = ExploreRateLimiter(
@@ -248,9 +259,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # クライアントの生成のみ（ネットワークに出ない）。real/fake/unconfigured の切替は
     # `build_object_storage()` に集約している（B-D8）。
     app.state.object_storage = build_object_storage(app.state.settings)
+    logger.info("Application lifespan started: process-wide resources are ready.")
     try:
         yield
     finally:
+        logger.info("Application lifespan shutting down: closing process-wide resources.")
         for closeable in (provider, app.state.feature_flag_source, app.state.object_storage):
             close = getattr(closeable, "close", None)
             if callable(close):

@@ -15,16 +15,13 @@ metadata:
 - `assertVisible` の待ちは短い。通信・画面遷移をまたぐ箇所は `extendedWaitUntil`（`visible` / `notVisible` + `timeout`）を使う。
 - **disabled なボタンをタップしても Maestro は失敗しない**（`Button` は `Pressable disabled`）。押下可能条件を示す testID を待ってからタップする設計にする。
 
-## 「候補0件」問題の根本原因（＝差し替えの継ぎ目）
+## 地図・探索まわりの CI 前提
 
-ADR-M-004 により CI の preview APK には Maps SDK キーが無く（地図は灰色）、CI の backend にも Google server key が無い。
-キーが空だと `build_google_maps_provider()`（`packages/backend/src/sanposcape/integrations/google_maps/client.py`）が
-`UnconfiguredGoogleMapsProvider` を返し `/explore/places` が 503 → 候補0件 → スポットを選べない →
-**`(tabs)` 配下（ナビ/検索/記録タブ）とその先（履歴）に E2E から到達できない**（`(tabs)` に入る唯一の導線は `WalkStartView` の「散歩を始める」）。
-
-→ SS-21 のプランでは backend に `MAPS_MODE=real|fake` と `FakeGoogleMapsProvider` を足す案を提示した（`AUTH_MODE` と同じ fail-safe 方針）。
-**注意**: `packages/backend/compose.yaml` は環境変数を1つずつ列挙して渡す方式なので、新しい env は compose.yaml にも追加しないとコンテナに届かない。
-実キーを CI に置く案は ADR-M-004 のコスト方針（課金・シークレット管理）に反するため却下している。
+- CI の preview APK には Maps SDK キーが無い（地図は灰色。ADR-M-004）。実キーを CI に置く案はコスト方針に反するため却下済み。
+- CI の backend は `MAPS_MODE=fake`（SS-44 の `FakeGoogleMapsProvider`）で起動する（`.github/workflows/mobile-e2e.yml`）。
+  そのため `/explore/*` は固定の候補を返し、`maps-required` タグのフローも含めて全フローを実行する（SS-54）。
+  キーも fake も無い backend は `UnconfiguredGoogleMapsProvider` で `/explore/places` が 503 になる（ローカルで候補0件になる原因）。
+- **`packages/backend/compose.yaml` は環境変数を1つずつ列挙して渡す方式**なので、backend に新しい env を足すプランは compose.yaml への追加もセットにする。
 
 ## E2E で assert してはいけないもの
 
@@ -56,4 +53,4 @@ ADR-M-004 により CI の preview APK には Maps SDK キーが無く（地図�
 **その状態でしか描画されない内側の要素**に `` `${testID}-<state>` `` を足す形で拡張する。
 共有プリミティブ（`TabBar` 等）には固定 testID を埋めず、呼び出し側から prefix を注入させる。
 
-Related: [[project-explore-api-contract]], [[feedback-mobile-testing-reality]], [[project-walk-domain-contract]]
+Related: [[project-explore-api-contract]], [[mobile-testing]], [[project-walk-domain-contract]]

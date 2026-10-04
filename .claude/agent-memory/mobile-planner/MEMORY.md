@@ -1,27 +1,23 @@
 # mobile-planner メモリ索引
 
-- [mobile 構造の要点](mobile-structure.md) — packages/mobile の確定した規約・既存資産・落とし穴
-- [認証アーキテクチャ](auth-architecture.md) — ADR-002 の確定事項／認証ゲートの隠れた結合（ゲスト可否は1関数では変えられない）
-- [デザインシステムの SSoT](project_design_system_ssot.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向
-- [MCP と CI の制約](project_codegen_ci_constraint.md) — MCP は CI から呼べない。codegen は fetch/transform を分離する
+- [計画入力](planning-inputs.md) — SS 課題は Plane、読む順序、mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式、プラン出力先
+- [プラン作成時に必ず確認する制約](planning-constraints.md) — 毎回効いてくる mobile 固有の制約（oxlint の import 制限・フラグ前提・EAS の正本・E2E の識別子）
+- [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
+- [mobile 構造の要点](mobile-structure.md) — packages/mobile の確定した規約・既存資産・Orval/地図/ネイティブ設定の落とし穴
+- [モバイルテストの実態](mobile-testing.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
+- [認証](auth.md) — 正本はADR-002/ADR-M-009・client.tsはservices/authをimportしない・401の2経路（ゲスト/失効）・セッション破棄は `signOut()` 再利用が唯一の作法
+- [デザインシステムの同期](design-system-sync.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向。MCP は CI から呼べない
 - [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所（ピン系画面も有・.pen は無い）／onClick→onPress／mockよりチケット指示優先
-- [MVP画面とスタブ層](project_screens_and_stub_layer.md) — SS-8の画面一覧／data層の置き場と型制約／表示確認手段／msw不整合
-- [計画入力](reference-planning-inputs.md) — SS 課題、Module/ADR/設計資料、プラン出力先
 - [探索API契約とコスト制約](project-explore-api-contract.md) — placesは片道×2近似/routes/loopは周回実値。1探索=Places1回+Routes最大20回・30req/60sなので再探索の抑制が必須
 - [フィーチャーフラグ / app-config](project-feature-flags.md) — `/app-config` の契約・全OFFのfail-safe・dev画面は本番以外で開ける（SS-148）・clear()の巻き添え
 - [ビルド variant の実行時判定](project-build-variant-runtime.md) — OTAでexpoConfigが変わる・eas updateはeas.jsonのenvを読まない・__DEV__ガードはバンドル除外しない
-- [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・503の継ぎ目・assert してはいけないもの
-- [モバイルテストの実態](feedback-mobile-testing-reality.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
+- [E2E / CI 制約](project-e2e-ci-constraints.md) — Maestro の実行モデル・CIはMAPS_MODE=fake・assert してはいけないもの
 - [RN 実行時にないもの](project-rn-runtime-capabilities.md) — crypto 不在・永続化は expo-file-system の同期 File API が第一候補・依存追加のコスト・RNGH/Reanimated（React Compiler で get/set）
 - [テーマ/外観の落とし穴](project-theme-appearance.md) — StatusBar auto はネイティブ配色を見る・setColorScheme は 'unspecified'（RN0.86）・SS-86 の実装形（ADR-M-016）
 - [バックグラウンド位置記録の事実](project-background-location.md) — Android は watch が裏で止まる・iOS pausesUpdatesAutomatically の既定は true・タスクは再起動後も残る・使用中のみで足りる
 - [iOS 利用目的文言の扱い](project-ios-purpose-strings.md) — プラグインは既定の英語を黙って入れる・false はキー削除で ITMS-90683 の恐れ・locales は基底英語+ja の向き
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／href:null は AppTabBar に効かない／Redirect はフォーカス時のみ／タブからは push／flash の消費先は限られる
-- [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
-- [プラン作成時に必ず確認する制約](planning-constraints.md) — 読む順序と、毎回効いてくる mobile 固有の制約
-- [認証まわりの落とし穴](auth-scenarios.md) — 401 の2経路（guest / セッション失効）＋セッション破棄は `signOut()` 再利用が唯一の作法
-- [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
-- [ピン/写真の前提](project-spot-photo-domain.md) — 新機能は全レイヤー Pin・SanpoMap／S3 直送の制約／閲覧URLは期限前に失効／GET /sanpo-maps/{id} は無い／PinRead に role は無い（/sanpo-maps から引く）・runPinSave は既存ピンにも使える
-- [mobile ADR の地図](reference-mobile-adr-map.md) — mobile adr/ と横断 docs/adr/ の使い分け・番号の採り方・追補の書式
+- [ピン/写真の前提](project-spot-photo-domain.md) — 正本はADR-009/ADR-M-010〜017。どのADRに何があるかの索引と、語の衝突・サーバー制約の吸収の教訓
+- [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む

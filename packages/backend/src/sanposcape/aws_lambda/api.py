@@ -7,6 +7,13 @@ Secrets Manager から取得した値を環境変数へハイドレーション�
 `sanposcape.main` の import より前に呼ぶ。この順序は `aws_lambda/tests/test_api.py` で
 呼び出し順を記録するスタブを使って固定している。`aws_lambda.tracing`（親スパンの補正、
 ADR-013）の import も `sanposcape.main` の後ろに置く（`main` が先に `Settings` を確定させる）。
+
+さらにその後ろ（3段目）で `build_handler()` を呼ぶ。`build_handler()` は FastAPI の
+lifespan（`main._lifespan` の startup）を init フェーズで1回だけ起動する（Mangum は
+`lifespan="off"`。実行環境ごとに1回で、shutdown は走らせない。ADR-005 SS-183 追補）。
+ハイドレーション → `sanposcape.main` の import（`create_app()`）→ `build_handler()` の順で、
+lifespan の起動は app の生成より後になる。トレースの親スパン補正は `asgi_wrapper` として渡し、
+Mangum に渡す ASGI app だけを包む（lifespan は包む前の FastAPI app から起動する）。
 """
 
 import logging
@@ -20,8 +27,6 @@ logger = logging.getLogger(__name__)
 hydrate_environment_from_secret()
 
 try:
-    from mangum import Mangum  # noqa: E402
-
     from sanposcape.main import app  # noqa: E402
 except ValidationError as exc:
     # Settings の組み立てに失敗した場合、不足フィールド名だけを ERROR ログに出してから
@@ -32,7 +37,9 @@ except ValidationError as exc:
     )
     raise
 
+from sanposcape.aws_lambda.asgi_handler import build_handler  # noqa: E402
+
 # `sanposcape.main`（= Settings の確定）の後に import する（上の docstring）。
 from sanposcape.aws_lambda.tracing import wrap_app_for_lambda_tracing  # noqa: E402
 
-handler = Mangum(wrap_app_for_lambda_tracing(app), lifespan="auto")
+handler = build_handler(app, asgi_wrapper=wrap_app_for_lambda_tracing)

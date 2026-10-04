@@ -35,7 +35,8 @@ test_logs_upload_id_and_key_without_leaking_form_fields` に移った。**この
 `logging.getLogger(__name__)` のロガー名（ファイル移動で `sanposcape.pins.service` →
 `sanposcape.sanpo_maps.photos.service` に変化）にも依存する**ため、ファイル移動を伴う
 リファクタでは `caplog.at_level(..., logger=...)` の文字列引数も一緒に直っているか確認する
-（直し忘れると INFO を拾えず静かに無意味なテストになる。→[[feedback-backend-file-relocation-gotchas]]）。
+（直し忘れると INFO を拾えず静かに無意味なテストになる。ファイル移動時の同種の罠は backend-planner の
+`feedback_backend_file_relocation_gotchas.md` にまとまっている）。
 
 **How to apply:** 新しいログ出力（`logger.info/warning/error`）を追加した diff で、
 「このフィールドは出さない」という注意コメントが付いているのに `caplog` での固定テストが

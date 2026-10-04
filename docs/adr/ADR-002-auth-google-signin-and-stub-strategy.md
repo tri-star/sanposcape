@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-30（本番用 iOS OAuth クライアント追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-04（棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -40,6 +40,12 @@
   開発識別子 `com.sanposcape.app.dev` のビルド（E2E / `staging-apk` / クラウドビルド）はすべて同一の鍵を使うため、
   開発用 GCP プロジェクトに登録する Android の組は1つ。iOS クライアントは開発識別子に紐づき、クライアント ID は従来と同じ。
   （本文: 移行・対応が必要な事項、SS-81/SS-79 追補、「SS-79 追補」節）
+- **backend の `auth` から `users` へのアクセスは必ず `UserService` を経由する**（`UserRepository` を直接持たない）。
+  退会・BAN のような「このユーザーを通さない」判定を `UserService.get_by_id()` の1箇所に置けば、
+  `get_current_user` と `AuthService.refresh()` の両方に効くようにするため。（本文: 「棚卸し追補（2026-10-04）」節）
+- **認証 API のワイヤ形式は snake_case、モバイル内部は camelCase で、変換は `sessionMapper.ts`（レスポンス）と
+  `authApi.ts`（リクエスト）の2箇所だけ**。モバイルは `GET /auth/me` を呼ばない。`POST /auth/dev-session` は
+  OpenAPI に載らないため、モバイル側のローカル DTO が恒久的に必要。（本文: 「棚卸し追補（2026-10-04）」節）
 
 ### 未解決・持ち越し
 
@@ -70,7 +76,7 @@
 
 2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
 2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）、
-2026-09-30 追補（本番用 iOS OAuth クライアント）
+2026-09-30 追補（本番用 iOS OAuth クライアント）、2026-10-04 追補（棚卸し: SS-10 で確定した境界と API 契約）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -385,6 +391,38 @@ SS-79 でアプリ識別子を本番（`com.sanposcape.app`）と開発（`com.s
   `google_oauth_client_id` に Web クライアント ID + 本番用 iOS クライアント ID を設定
   （dev のクライアント ID を入れない）、本番 GCP プロジェクトでの Android の登録
   （`com.sanposcape.app` + 本番鍵の SHA-1。build-profiles.md の「アプリ識別子の定義」参照）。
+
+## 棚卸し追補（2026-10-04）: SS-10 で確定した境界と API 契約
+
+SS-10 の実装とローカルレビューで決めたが、エージェントのメモリとコードコメントにしか残っていなかった
+決定を、knowledge-review の棚卸しで本 ADR に移した。決定の時期は SS-10（2026-07 末）。
+
+### backend: `auth` → `users` のアクセスは `UserService` に一本化する
+
+- `src/sanposcape/auth/` から `src/sanposcape/users/` へのアクセスは、常に `UserService`
+  （`users/service.py`）を経由する。`AuthService` は `UserRepository` を直接受け取らず、
+  ユーザーの引き当ては `UserService.get_by_id()` を使う。
+- **理由**: SS-10 の実装では当初 `AuthService.refresh()` が `UserRepository.get_by_id()` を直接呼んでいた。
+  このままだと、将来「退会済み・BAN 済みのユーザーを弾く」判定を `get_current_user` だけに足したとき、
+  refresh は判定を素通りしてトークンを発行し続ける認可漏れになる。判定の置き場所を
+  `UserService.get_by_id()` の1箇所にしておけば、`get_current_user`（`src/sanposcape/dependencies.py`）と
+  `AuthService.refresh()` の両方に自動的に効く。
+- 当時の例外だった `dependencies.py` の `get_current_user()`（`UserRepository` を直接使っていた）も、
+  現在は `UserService` 経由になっている。
+
+### mobile ⇔ backend の認証 API 契約
+
+- **ワイヤ形式は snake_case**（`access_token` / `expires_in` / `id_token` / `user_key` / `display_name` など）。
+  他の API のレスポンス（`created_at` など）と規約を揃えるため。**モバイル内部の型は camelCase** のままとし、
+  変換はレスポンス側の `src/services/auth/sessionMapper.ts` と、リクエスト側の `src/services/auth/authApi.ts` の
+  2箇所に閉じる。
+- **モバイルは `GET /auth/me` を呼ばない**。`/auth/session` と `/auth/refresh` のレスポンスに `user` が含まれるため、
+  起動時の往復が増えるだけになる。identity の情報源は
+  [ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md) 決定1 のとおり
+  `useAuthSessionStore.user` に一本化する。
+- **`POST /auth/dev-session` は `include_in_schema=False`**（`auth/dev_router.py`）で OpenAPI に載らない。
+  本番に存在しないエンドポイントを公開の API 契約に含めないため。その結果 Orval の生成物にも出ないので、
+  モバイル側にはこのエンドポイント用のローカル DTO が恒久的に必要になる。
 
 ## 関連情報
 

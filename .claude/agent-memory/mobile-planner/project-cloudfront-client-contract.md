@@ -43,4 +43,4 @@ dev の API Lambda は `ReservedConcurrentExecutions: 5`（6 本目から 429）
 → ヘッダー契約は「出口 2 箇所（`client.ts` / `authApi.ts`）を必ず**両方**直す」だが、
 **再送は意図的に `client.ts` 側だけ**という非対称がある。両ファイルの JSDoc に理由を書かないと必ず取り違えられる。
 
-Related: [[auth-scenarios]], [[project-rn-runtime-capabilities]]
+Related: [[auth]], [[project-rn-runtime-capabilities]]

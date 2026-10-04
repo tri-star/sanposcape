@@ -38,5 +38,5 @@ service.py` へ移動）とは別ファイルになった。「同じファイ�
 ORM モデルの属性（`obj.id` 等）を直接参照していたら、そのオブジェクトが「今回のトランザクション
 で明示的に `session.delete()` された対象」かどうかを確認する。削除対象でなければ、commit 前に
 必要な値をローカル変数へ退避するか、既に引数として渡されている ID（例: `pin_id`/`photo_id`
-パラメータ）をそのままログに使うよう提案する。関連: [[pattern_select_then_delete_race]]
+パラメータ）をそのままログに使うよう提案する。関連: [[pattern-select-then-delete-race]]
 （同じ「削除まわりのSQLAlchemyの罠」系）。

@@ -1,8 +1,34 @@
 # ADR-M-001: mobile(ReactNative/Expo) のフォルダ構造と命名規則
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-04（棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **ルーティングは Expo Router（ファイルベース）で、画面は `app/`、実装の実体は `src/` に物理分離する**。（本文: 決定1）
+- **横断的な土台（`src/components/` `src/hooks/` `src/lib/` 等）と機能単位の `src/features/<feature>/` を併用するハイブリッド構成**。（本文: 決定2）
+- **コンポーネントは「2つ以上の機能から使うか」で `src/components/`（Primitive は `ui/`）か `src/features/<feature>/components/` に置く**。
+  迷ったら `features/` に置き、再利用が発生したら昇格させる。（本文: 決定3）
+- **実機依存・認証の差し替え層は `src/services/<service>/` で、`index.ts` がインターフェースを公開し、環境変数でモードを選ぶ**。
+  モードは `real` / `dev` / `mock` が基本形（既定 `real`）で、必要なモードだけ用意してよい（例: location・photo は real/mock）。
+  詳細は [フォルダ構造](../docs/folder-structure.md)。（本文: 決定4、棚卸し追補）
+- **命名はフォルダが常に kebab-case、React コンポーネントが PascalCase、hook/util/型が camelCase、`app/` のルートは kebab-case・小文字**。（本文: 決定5）
+- **API 失敗の分類（`features/*/lib/xxxError.ts`）は API 操作ごとに別ファイルにし、共通化しない**。
+  同じ HTTP ステータスでも操作によって意味が違うため。（本文: 決定6、棚卸し追補）
+
+### 変更・撤回された決定
+
+- 決定4 の「環境変数で real/stub を選択する」→ 3モード（`real` / `dev` / `mock`）が基本形
+  （[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) 決定3、[ADR-M-006](./ADR-M-006-location-service-real-mock.md)）。
+  `services/preferences` はモード切替を持たない例外（[ADR-M-016](./ADR-M-016-theme-mode-preference.md)）
+- 「移行・対応が必要な事項」のスタイル方針・Orval・パスエイリアス・環境変数の命名は、いずれも対応済み
+  （スタイルは [ADR-M-005](./ADR-M-005-styling-without-unistyles.md)）
+
 ## 日付
 
-2026-07-18
+2026-07-18（初版）、2026-10-04 追補（棚卸し: 決定6 の追加、決定4 の現状注記）
 
 ## コンテキスト
 
@@ -23,8 +49,18 @@
 1. **ルーティング: Expo Router（ファイルベース）** を採用し、画面は `app/` に、実装の実体は `src/` に物理分離する。
 2. **アーキテクチャ: ハイブリッド構成**。横断的な土台（`src/components/`, `src/hooks/`, `src/lib/` 等）と、機能単位で凝集する `src/features/<feature>/` を併用する。
 3. **コンポーネント配置の判断基準**: 「2つ以上の機能から使うか？」で `src/components/`（Primitiveは `ui/`）か `src/features/<feature>/components/` かを決める。迷ったらまず `features/` に置き、再利用発生時に昇格させる。
-4. **スタブ差し替え層: `src/services/<service>/`**。`index.ts` がインターフェースを公開し、環境変数で real/stub を選択する。E2Eでは Maestro で再現可能なものは real、不可能なもののみ stub にフォールバックする。
+4. **スタブ差し替え層: `src/services/<service>/`**。`index.ts` がインターフェースを公開し、環境変数で real/stub を選択する。E2Eでは Maestro で再現可能なものは real、不可能なもののみ stub にフォールバックする。（**棚卸し追補**: 現在のモードは real/stub の2値ではなく `real` / `dev` / `mock` が基本形。詳細は [フォルダ構造](../docs/folder-structure.md)）
 5. **命名規則**: フォルダは常に kebab-case、Reactコンポーネントは PascalCase、hook/util/型は camelCase、`app/` のルートは kebab-case・小文字。import は case まで完全一致。
+6. **API 失敗の分類は操作ごとに分ける（棚卸し追補）**: `features/*/lib/` の `xxxError.ts` は API 操作ごとに別ファイルにする
+   （例: `walkHistoryError.ts`＝GET 一覧・詳細、`walkSaveError.ts`＝POST、`walkDeleteError.ts`＝DELETE、`walkStatsError.ts`＝集計 GET）。
+   中身はどれも「`isApiError()` で status を見て、コード・文言・再試行の可否を返す」同じ形だが、DRY 違反として統合しない。
+   - **理由**: 同じ HTTP ステータスでも操作によって意味が違う。404 は GET 詳細では「見つからない＝エラー」だが、
+     DELETE では `deleteWalk()` が「既に削除済み＝成功」に読み替えるため、`walkDeleteError.ts` の分類には現れない。
+     `invalid_cursor`（400）は一覧 GET に特有で、DELETE には無い。共通化すると「このコードは今の操作で本当に有効か」を
+     毎回確かめる必要が生まれ、意味体系の異なる 404/400 を混同しやすくなる。
+   - 既存の `xxxError.ts` を別の操作から import して再利用するのは、むしろ要注意（同じ理由）。
+   - SS-19/SS-20 で `walkSaveError.ts` / `walkHistoryError.ts` を分けたのが始まりで、各ファイルの JSDoc 冒頭にも
+     同じ判断が書かれている（例: `walkDeleteError.ts`）。2026-10 時点で walk / history / pin / settings に13ファイルある。
 
 ## 検討した選択肢
 
@@ -99,6 +135,8 @@
 - スタイルライブラリが未定のため、`src/theme/` は確定後に整備する暫定の器に留まる。
 
 ### 移行・対応が必要な事項
+
+（**棚卸し追補**: 以下4件はいずれも対応済み。スタイルは [ADR-M-005](./ADR-M-005-styling-without-unistyles.md)、環境変数は `EXPO_PUBLIC_<SERVICE>_MODE` の形に確定した）
 
 - スタイル方針（スタイルライブラリ）の選定は別途決定し、`src/theme/` を整備する。
 - Orval によるAPIクライアント生成の設定（出力先 `src/api/generated/`）を初期セットアップ時に用意する。

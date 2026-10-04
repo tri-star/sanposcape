@@ -19,9 +19,9 @@ metadata:
   `replace("/(tabs)")`。「スポット一覧・検索・過去記録に届く画面」＝ `(tabs)` しかない。
 - `/walk-start` に `push` で入る経路は3つだけ: `/walk-history` の空状態 CTA、`/dev-screens`、
   そして `WalkActiveView` の idle CTA（これは `replace`）。
-- 既存の戻る実装は `canGoBack() ? back() : replace(fallback)`。`WalkHistoryListView` と
-  `WalkDetailView` に**同じコードが2箇所コピー**されている（連打ガード・システムバック対応は無い）。
-  `SettingsView` は素の `router.back()`。
+- Stack 画面の戻るは `src/hooks/useScreenBack`（`canGoBack() ? back() : replace(fallbackHref)` + 連打ラッチ +
+  Android システムバック。優先順位は `src/lib/backNavigation.ts` の純粋関数）に一本化されている（SS-34 以降）。
+  例外として `SettingsView` の戻るボタンは 2026-10 時点でも素の `router.back()`（未移行）。
 
 ## Android バックの前提
 

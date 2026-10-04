@@ -1,49 +1,36 @@
 ---
 name: project-spot-photo-domain
-description: ピン登録(SS-88)の命名決定(新機能は Pin、スポットはゴール候補のみ、地図は SanpoMap)と、写真S3直送の前提（presigned POST・ACL禁止・同一origin http・1枚10MiB/合計1GiB・10枚/リクエスト）
+description: ピン/地図/写真まわりの前提はADRが正本（命名 Pin・SanpoMap・スポットはゴール候補のみ、S3直送の制約、閲覧URLの早期失効、GET /sanpo-maps/{id}は無い、PinReadにroleは無い）。どこに書いてあるかの索引と、計画で効いた教訓
 metadata:
   type: project
-  scope: task-local
-  source_issue: SS-88
+  scope: durable
+  adr: docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md
   verify_by: 2027-03-31
 ---
 
-SS-88 で決まった、コードからはまだ読めない前提（2026-09 時点。実装後はルート ADR-009 / ADR-M-010 が正本になる予定）。
+SS-88 以降（SS-118 / SS-119 / SS-121 / SS-124）の計画で確認した前提。内容はすべて ADR に転記済みなので、ここは索引と教訓だけ残す。
 
-**命名（ユーザー決定）**: 地図上に登録する地点は**コード・API・UI すべて「ピン(Pin)」**（`features/pin`、`/pins`、`pin_registration`）。
-**「スポット」は既存の散歩ゴール候補（`SpotCandidate`）の意味だけ**。入れ物は `SanpoMap`（`Map` 単体は react-native-maps と紛らわしい）。
-**Why:** 初版プランで「コード Spot / UI ピン」と提案したらユーザーに上書きされた（スポットが2つの意味になり混乱するため）。
-**How to apply:** 新しいドメイン語を作るときは、既存 UI・コードで同じ語が別の意味に使われていないかを先に確認し、衝突するなら全レイヤーで別の語に統一する案を第一候補にする。
+## どこに書いてあるか
 
-**チケットの「地図一覧」は `SanpoMap`（散歩マップ＝ピンの入れ物）の一覧**（SS-121 地図管理画面。API は
-`GET /sanpo-maps`、`expand=pin_count` あり）。ピンを表示する地図画面（`/pins/map`）のことではない。
-SS-146 の計画では遷移先ルートを `/sanpo-maps`（`app/sanpo-maps/index.tsx`）に置いた。
-SS-121 の計画（2026-09-30）で詳細を `/sanpo-maps/[sanpoMapId]` に置き、絞り込みは端末側に決めた（ADR-M-014）。
-計画時に踏みやすい API の事実: **`GET /sanpo-maps/{id}` は無い**（詳細の地図情報は一覧キャッシュから引く）。
-**`GET /pins` の `q` は名前・メモ・タグの OR 部分一致**で「名前だけ」の検索には使えない。`POST /sanpo-maps` は冪等キーなし（自動再送しない）。
+| 前提 | 正本 |
+|---|---|
+| 用語はピン（Pin）/ 地図（SanpoMap）/ スポット（`SpotCandidate` に限定） | `docs/adr/ADR-009-...` 決定1 |
+| `PinRead` に role は無い。role は `GET /sanpo-maps` の `SanpoMapRead.role` から引く | ADR-009 決定24 |
+| role 不明時はメンバーの最小権限 editor とみなす・PATCH は差分だけ送る | `packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md` |
+| 写真の S3 直送（presigned POST・ACL/SSE ヘッダーを送らない・先行アップロード20枚・10枚ずつ紐付け・未使用枠30で429） | `packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md` |
+| S3 直送は3つ目の HTTP 出口で、backend 向けの横断ヘッダーを付けない | ADR-M-010（[[project-cloudfront-client-contract]]） |
+| `client_pin_id` の冪等な再送は内容を無視して既存ピンを返す → 作成後は位置調整を無効化 | `packages/mobile/adr/ADR-M-011-pin-location-picking-and-adjustment.md` D9 |
+| 閲覧 presigned GET は `urls_expire_at` より前に失効しうる → 読み込み失敗を契機に取り直す・`cacheKey` は `photo.id` ベース | `packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md` D7 |
+| `GET /sanpo-maps/{id}` は無い（一覧キャッシュから引く）・`GET /pins` の `q` は名前・メモ・タグの OR 部分一致 | `packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md` |
 
-**写真の前提**:
-- 1ピンの写真枚数は無制限（ユーザーは「実用上の要件」と明言。上限に当たったらユーザーに操作を求める案は却下された）。1リクエストで紐付けられるのは10枚（Lambda 29秒予算）、backend の未使用枠は30まで（429）。
-  → mobile は先行アップロードを20枚に抑え、残りは待機して保存時に「10枚揃える→紐付けて枠を空ける」を繰り返す。429 は「待機に戻す」合図。再開は紐付け済みの記録から（応答の upload_id で判定）。
-  **How to apply:** サーバーの制約をユーザー操作で回避させる設計は、ユーザーが明示した要件と衝突するなら採らない。まずクライアント側で吸収できないかを考える。
-- 1枚 10 MiB（正は枠発行応答の `max_byte_size`）、合計 1 GiB/人（アップロード者に計上）。端末で長辺2048px・JPEG再圧縮は維持。未使用枠は30個まで（429）。
-- バケットは BucketOwnerEnforced + SSE-S3 + DenyInsecureTransport → `acl`/SSE ヘッダーを送らない、https 必須。CORS なし。S3 POST 成功は 204。
-- backend の `STORAGE_MODE=fake` は `http://<backend と同じ host>/dev-storage/…` を返す → mobile は「backend が http のとき同じ origin の http だけ」許可。
+計画時の補足: チケットの「地図一覧」は `SanpoMap`（ピンの入れ物）の一覧（`/sanpo-maps`）のこと。既存ピンへの写真追加は
+`runPinSave` をそのまま使える（`getSavedPinId` が非 null なら `createPin` を飛ばして `addPinPhotos` だけ回す）。
 
-**`client_pin_id` の冪等な再送は内容を無視して既存のピンを返す**（`POST /pins`）→ ピンの作成後（`usePinSave` の `savedPinId !== null`）に編集できる項目を登録画面に足すと、「変えたのに反映されない」ことになる。作成後は無効化する（SS-124 の位置調整で `canAdjustPinLocation` として適用）。作成後の編集は backend の編集 API（BK-5）の範囲。
+## 教訓
 
-**閲覧（presigned GET）の URL は `urls_expire_at` より前に失効しうる**（backend `config.py` の
-`pin_photo_download_url_ttl_seconds` の注記: 署名した Lambda の一時認証情報の寿命が上限。既定 TTL 3600 秒）。
-→ mobile は「期限時刻」ではなく「画像の読み込み失敗」を契機に取り直す設計にする。画像キャッシュのキーは URL ではなく
-`photo.id`（expo-image の `source.cacheKey`）。ストレージ障害時も閲覧 API は 200 で URL が null（ADR-009 決定18）。
-
-**ピンの権限判定の材料（SS-119 の計画で確認）**: `PinRead` に role は無い（ルート ADR-009 決定24 で意図的に出さない）。
-作成者は `created_by_user_id` / `tags[].created_by_user_id` / `photos[].uploaded_by_user_id` にある。role は `GET /sanpo-maps`
-の `SanpoMapRead.role` を `pin.sanpo_map.id` で引き、自分の id は `useAuthSessionStore.user.id`（= backend `users.id`）を
-ルートが注入する。role 不明はメンバーの最小権限 editor とみなす案を採った。
-**既存ピンへの写真追加は `runPinSave` をそのまま使える**: `getSavedPinId` が非 null なら `createPin` を呼ばずに
-`addPinPhotos` だけを回す。PATCH `/pins/{id}` は「送ったフィールドごとに権限判定」なので差分だけ送る。
-
-**S3 直送は mobile の3つ目の HTTP 出口**。backend 向け2箇所（`customFetch` / `authApi`）の横断ヘッダーを**付けてはいけない**側（[[project-cloudfront-client-contract]]）。
+- **新しいドメイン語を作るときは、既存 UI・コードで同じ語が別の意味に使われていないかを先に確認する**。衝突するなら
+  全レイヤーで別の語に統一する案を第一候補にする（初版プランの「コード Spot / UI ピン」はユーザーに上書きされた）。
+- **サーバーの制約をユーザー操作で回避させる設計は、ユーザーが明示した要件と衝突するなら採らない**。まずクライアント側で
+  吸収できないかを考える（写真枚数の上限をユーザーに意識させる案は却下され、先行アップロード + 分割紐付けになった）。
 
 Related: [[mobile-structure]], [[project-feature-flags]]

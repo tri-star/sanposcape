@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import pytest
 from fastapi import FastAPI
@@ -93,6 +94,29 @@ def test_lifespan_closes_the_feature_flag_source_on_shutdown(
         assert closed == []
 
     assert closed == [True]
+
+
+def test_lifespan_logs_startup_and_shutdown_once_each(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """startup / shutdown の INFO ログを固定する（dev で「実行環境ごとに startup 1 回・
+    shutdown 0 回」を Logs Insights で確認するための目印。ADR-005 SS-183 追補）。
+    """
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    app = create_app(Settings(env="test"))
+
+    with caplog.at_level(logging.INFO, logger="sanposcape.main"), TestClient(app):
+        started = [r for r in caplog.records if "Application lifespan started" in r.message]
+        assert len(started) == 1
+        assert not [r for r in caplog.records if "Application lifespan shutting" in r.message]
+
+    messages = [r.message for r in caplog.records if r.name == "sanposcape.main"]
+    assert messages == [
+        "Application lifespan started: process-wide resources are ready.",
+        "Application lifespan shutting down: closing process-wide resources.",
+    ]
 
 
 def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:

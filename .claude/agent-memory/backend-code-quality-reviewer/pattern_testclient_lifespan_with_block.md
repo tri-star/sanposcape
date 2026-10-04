@@ -1,6 +1,6 @@
 ---
 name: pattern_testclient_lifespan_with_block
-description: create_app()で組み立てたappをTestClientでラップする際、_lifespanの副作用(app.state.google_maps_provider等)が必要なら`with TestClient(app) as client:`が必須という明文化された規約。api_docs/tests/test_router.pyがこれを使わずに書かれていた事例。
+description: create_app()で組み立てたappをTestClientでラップする際、_lifespanの副作用(app.state.google_maps_provider等)が必要なら`with TestClient(app) as client:`が必須という明文化された規約。意図的に省略する場合は理由をコメント/docstringに残すのが慣習。
 metadata:
   type: reference
   scope: durable
@@ -22,10 +22,10 @@ metadata:
   ミドルウェアが本文サイズ超過を検知してリクエストがルートハンドラ（＝lifespan 依存の状態）
   に到達する前に 413 を返すケース。ここでは `with` を使わなくても安全。
 
-SS-131（`api_docs/tests/test_router.py`）では6箇所すべて `client = TestClient(app)`（`with` なし）
-で書かれていた。`/docs` `/redoc` `/openapi.json` はどれも `_lifespan` が設定する state に依存
-しないため**現状は動作する**が、コメントで意図を明示していない点は
-`test_main.py:151`（意図的な省略）と非対称。
+意図的な省略の先例は2つ: `tests/test_main.py:151`（ミドルウェアが413を返しルートハンドラに
+到達しないケース）と、`api_docs/tests/test_router.py` の `_client()` ヘルパー（SS-131。`/docs`
+`/redoc` `/openapi.json` は `app.state.*` を参照せず、production 相当の Settings で lifespan を
+起動して実クライアントを構築したくないため、docstring で省略理由を明記している）。
 
 **How to apply:** 新しい `TestClient(create_app(...))` の使用箇所をレビューするときは、
 1. テスト対象のルートが `app.state.*`（lifespan 由来）に依存するか確認する。依存するなら

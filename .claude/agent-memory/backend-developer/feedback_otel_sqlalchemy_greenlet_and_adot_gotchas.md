@@ -16,6 +16,6 @@ OTel の SQLAlchemy 計装は `instrument()` の中で `sqlalchemy.ext.asyncio` 
 
 - ADOT 同梱の Lambda 計装（payload 2.0）は `http.target` に `path?rawQueryString`、`http.route` に生のパスを入れる。フックが無いので、Mangum に渡す ASGI app を包んで current span を書き換える（`aws_lambda/tracing.py`）。
 - fastapi 計装 0.65b0 は、スパン名 `METHOD route_template` と `http.route` を自分で付ける（自前のルート解決ミドルウェアは不要）。
-- テスト内で `Settings()` から DB の URL を組み立てると、conftest の環境変数の隔離で既定値（host=db）になり、CI（DB_HOST=localhost）だけで落ちる。`test_engine.url` を使う（[[feedback-settings-env-isolation]]）。
+- テスト内で `Settings()` から DB の URL を組み立てると、conftest の環境変数の隔離で既定値（host=db）になり、CI（DB_HOST=localhost）だけで落ちる。`test_engine.url` を使う（[[feedback-test-settings-env-and-auth-mode]]）。
 - `pytest --noconftest` で DB 不要のテストだけ回せる（conftest の session autouse が DB を要求するため）。ただし DB 込みの全体実行の代わりにはならない。
 - sandbox からは docker の公開ポートへ接続できない。OTLP の受信は sandbox 内の自前 HTTP サーバーで確認する。
