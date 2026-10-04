@@ -319,6 +319,42 @@ class TestUpdateMap:
         assert result.name == "新名"
         assert result.icon == SanpoMapIcon.DOG
 
+    def test_owner_sending_current_icon_is_a_noop(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        created = service.create_map(user, SanpoMapCreate(name="地図", icon=SanpoMapIcon.TREE))
+
+        result = service.update_map(user, created.id, SanpoMapUpdate(icon=SanpoMapIcon.TREE))
+
+        assert result.icon == SanpoMapIcon.TREE
+        assert result.name == "地図"
+        assert result.updated_at == created.updated_at
+        assert self._stored(created.id) == ("地図", "tree")
+
+    def test_changing_only_name_keeps_icon_when_both_are_sent(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        created = service.create_map(user, SanpoMapCreate(name="旧名", icon=SanpoMapIcon.TREE))
+
+        result = service.update_map(
+            user, created.id, SanpoMapUpdate(name="新名", icon=SanpoMapIcon.TREE)
+        )
+
+        assert (result.name, result.icon) == ("新名", SanpoMapIcon.TREE)
+        assert self._stored(created.id) == ("新名", "tree")
+
+    def test_changing_only_icon_keeps_name_when_both_are_sent(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        created = service.create_map(user, SanpoMapCreate(name="地図", icon=SanpoMapIcon.TREE))
+
+        result = service.update_map(
+            user, created.id, SanpoMapUpdate(name="地図", icon=SanpoMapIcon.DOG)
+        )
+
+        assert (result.name, result.icon) == ("地図", SanpoMapIcon.DOG)
+        assert self._stored(created.id) == ("地図", "dog")
+
     def _editor_map(self, db_session: Session) -> tuple[SanpoMapService, object, uuid.UUID]:
         owner = make_user(db_session, subject="owner")
         editor = make_user(db_session, subject="editor")
