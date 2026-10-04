@@ -1,13 +1,44 @@
 # ADR-013: backend の可観測性は ADOT（OpenTelemetry）で計装し、CloudWatch（Application Signals・Transaction Search）で見る
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-04（SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **計装は OpenTelemetry。Lambda では ADOT レイヤー（版固定）・`AWS_LAMBDA_EXEC_WRAPPER`・Active Tracing を Api 関数にだけ付ける**。ADOT 固有の API には依存しない（本文: 決定1）。
+- **自動計装は botocore と urllib だけ。fastapi / sqlalchemy / httpx / threading はアプリから手動で計装する**。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示する（本文: 決定1、SS-178 追補）。
+- **OpenTelemetry は zip に入れず、`pyproject.toml` の dev グループに置く**。版はレイヤーの同梱版に `==` で合わせる。SQLAlchemy の計装のため `sqlalchemy[asyncio]`（greenlet）は runtime 依存（本文: 決定1、SS-178 追補）。
+- **トレースの閲覧は Transaction Search（`aws/spans`）、API 全体の RED・アラーム・SLO は Application Signals**。Lambda 上では Application Signals の操作名が `<関数名>/FunctionHandler` に固定され、アプリ側の `aws.local.operation` では変えられない。**ルート別の内訳は `aws/spans` を `http.route` / スパン名で集計する Logs Insights で見る**（本文: 決定2、SS-178 追補。集計は SS-179）。
+- **Lambda 計装の親スパン（Mangum 構成の LOCAL_ROOT）にも、スパン名 `METHOD ルートテンプレート` と `http.route` を付ける**（`aws_lambda/tracing.py`）（本文: 決定2・決定7、SS-178 追補）。
+- **メモリ・コールドスタート・タイムアウトは Lambda 標準（REPORT 行・標準メトリクス）で見る。ログは JSON + `trace_id`（SS-180）。サンプリングは全件を目標にする**（本文: 決定2〜4）。
+- **外へ出さない情報**: クエリ・ヘッダー・ボディ・位置情報・秘密・SQL のバインド値。`net.peer.ip` / `net.peer.port` / `http.user_agent` は空に上書きする。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、例外メッセージは載せない。5xx に変換した例外は型名だけをスパンに残す（本文: 決定6、SS-178 追補）。
+- **TracerProvider は起動ラッパー（Lambda はレイヤー、ローカルは `opentelemetry-instrument`）が作り、アプリは作らない**。有効化は `TRACING_ENABLED`（既定 false）。lifespan に計装を置かない（本文: 決定7、SS-178 追補）。
+- **ローカルのビューアは Jaeger v2（compose の profile `observability`、UI は 127.0.0.1 のみ）。pytest は自前の TracerProvider + InMemory エクスポーター**（本文: 決定8、SS-178 追補）。
+- **dev アカウントの Transaction Search / Application Signals は他プロジェクトの設定に相乗りし、prod は専用アカウントで 100% 取り込み・保持 90 日**（本文: 決定5）。
+
+### 未解決・持ち越し
+
+- **dev での実測は未了**: コールドスタート（`Init Duration`）の増分、flush の時間、UDP でのスパンの欠落、サンプリングと Transaction Search の取り込み、レイヤーと zip の重なり・展開後のサイズ、`:28` の同梱版の照合（本文: 決定1・決定4、SS-178 追補。SS-178 の dev 実測で追記する）。
+- **未処理の 500 で ASGI / Lambda 計装が自動で付ける exception イベント**には message が載りうる（DB 例外なら DETAIL のキー値）。ログのトレースバックと合わせて SS-180 で対処する（本文: 決定6、SS-178 追補）。
+- Mangum の lifespan（SS-183）。マージ後に `wrap_app_for_lambda_tracing` の適用位置を新しいハンドラー側へ移す。
+
+### 変更・撤回された決定
+
+- 決定1「SQLAlchemy・botocore・httpx は自動」→ botocore と urllib だけ自動、sqlalchemy / httpx / threading は手動（SS-178 追補）。
+- 決定2「操作名を `GET /pins/{pin_id}` などルート単位の Application Signals にする」→ 操作名は `FunctionHandler` 固定。ルート別は Logs Insights（SS-178 追補）。選択肢4 のメリット「ルート単位の RED を Application Signals が自動で出す」もこの点で成り立たない。
+- 決定2 の代わりの手（親の `aws.local.operation` の書き換え、Lambda 計装を外す）→ どちらも効かない見込みで採らない（SS-178 追補）。
+
 ## 日付
 
-2026-10-04（初版、SS-177）
+2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）
 
 ## ステータス
 
 採用（SS-177 で決定）。実装は SS-176 の子課題（SS-178 トレース計装 / SS-179 メトリクス / SS-180 ログの構造化 / SS-181 操作経路）で行う。
 初版時点では計装コードも infra の変更も入っておらず、本 ADR の「要検証」の項目は dev で確かめていない。
+（SS-178 追補: 計装コードと template.yaml を実装した。操作名の「要検証」は他プロジェクトの dev 実データで確かめ、結論を決定2 に追記した。sanposcape 自身の dev 実測（コールドスタート・flush・取り込み・展開後サイズなど）は未了で、実測後に追記する。）
 
 ## コンテキスト
 
@@ -34,7 +65,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 
 ### 決定1: 計装は OpenTelemetry。Lambda では ADOT の `AWSOpenTelemetryDistroPython` レイヤーを使う
 
-- レイヤー: `arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:<version>`（初版時点の最新は v28。2026-10-01 公開、python3.10〜3.14、x86_64 / arm64 対応）。バージョンは template.yaml で固定し、上げるときは dev で確認してから prod へ出す。
+- レイヤー: `arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:<version>`（初版時点の最新は v28。2026-10-01 公開、python3.10〜3.14、x86_64 / arm64 対応）。バージョンは template.yaml で固定し、上げるときは dev で確認してから prod へ出す。（**SS-178 追補**: v28 を template.yaml に固定した。同梱版は aws-opentelemetry-distro 0.20.0（opentelemetry-api / sdk 1.44.0、instrumentation 0.65b0）と見込んで dev グループの版を合わせたが、公開されているリリースノートでは ap-southeast-1 の v0.20.0 は `:27` で、`:28` の中身は未確認。dev で `get-layer-version-by-arn` により照合する。）
 - `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument` で起動する。レイヤーはコレクターを含まず、プロセス内の SDK が Lambda 内の X-Ray エンドポイントへ UDP で送る。
 - **Lambda の Active Tracing（`Tracing: Active`）を有効にする。** AWS の手順では任意（推奨）だが、Lambda サービス自身の区間（Init / Invocation / Overhead）を同じトレースに入れるために有効にする。
 - 対象は API の関数（`ApiFunction`）だけ。マイグレーション用の関数には付けない（template.yaml の `Globals` には置かない）。
@@ -42,9 +73,11 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - `deployment.environment=<env>`: 共有の dev アカウントでも、他プロジェクトと区別できるようにする。
   - `aws.log.group.names=<API 関数のロググループ>`: Application Signals でトレースとログを紐付けるため（tasche と同じ）。
 - **有効にする計装は明示的に列挙する。** レイヤーは既定で多くの計装（sqlalchemy / httpx / requests / logging など）を無効にしている。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` を上書きすると、これらが一斉に有効になる。その結果、コールドスタートが延び、logging 計装が既存のログ設定と衝突する恐れがある。使うもの（FastAPI はアプリ側で手動、SQLAlchemy・botocore・httpx は自動）だけを有効にし、残りは無効のままにする。具体的な値は SS-178 で決める。
+  - （**SS-178 追補**: 手動と自動の分担を変えた。**自動は botocore と urllib だけ**、fastapi / sqlalchemy / httpx / threading はアプリから手動で計装する。理由は 3 つ。(1) レイヤーの自動計装は起動時（sitecustomize）に依存チェックをするが、その時点の `sys.path` に `/var/task`（zip）が無い（ランタイムの `bootstrap.py` が `/var/task` を挿入するのは sitecustomize の後）ため、zip 側のライブラリは「未インストール」と判定される。(2) SQLAlchemy 2.1.0 は計装の依存条件（`< 2.1.0`）に弾かれる（upstream の issue opentelemetry-python-contrib#5118）。手動なら `skip_dep_check=True` を渡せる。(3) ローカル・Lambda・テストで同じコードの経路になる。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` は、レイヤー v28 の `otel-instrument` の既定値と同じ文字列を template.yaml と compose.yaml に明示した（レイヤーを上げて既定値が変わっても、有効な計装が黙って増減しないように）。tasche のように `fastapi,starlette,asgi` だけを書くと、既定値を上書きして他の計装が一斉に有効になる。threading の計装は `ThreadPoolExecutor` のワーカーの中のスパンをリクエストのトレースに繋ぐために手動で有効にしている。）
 - **flush とレイテンシ**: ADOT の Lambda 計装は、呼び出しごとにレスポンスの前で同期的に flush する。送信先は同じ環境内の UDP エンドポイントなので、外部 SaaS へ HTTPS で送るより小さい見込みだが、実測はしていない。UDP のサイズ上限を超えるとバッチごと落ちるという既知の issue（aws-otel-python-instrumentation#915、未確認）もある。flush の時間とスパンの欠落の有無を、SS-178 で dev 実測する。
 - アプリのコードが依存してよいのは、OpenTelemetry の API と計装ライブラリまで。ADOT 固有の API には依存しない（ECS などへ移っても、計装コードをそのまま使えるようにするため）。
 - **zip とレイヤーのパッケージ衝突に注意する。** Lambda の `sys.path` では、zip（`/var/task`）がレイヤー（`/opt/python`）より前に来る。zip に同梱した `opentelemetry-*` が、レイヤーの SDK やディストロを上書きしてバージョンが食い違う恐れがある。どのパッケージをどちらに持たせるかは SS-178 で決め、依存が重複していないかと展開後のサイズ（レイヤー込みで上限 250MB）を確認する。
+  - （**SS-178 追補**: **OpenTelemetry は zip に入れない。** `pyproject.toml` の dev グループ（boto3 と同じ扱い。版はレイヤーの同梱版に `==` で固定）に置き、`uv export --no-dev` で除く。Makefile の `build-Api` は成果物に `opentelemetry*`（dist-info を含む）があれば失敗する。dependabot は `opentelemetry-*` を ignore し、レイヤーを上げるときに手動で揃える。`sqlalchemy[asyncio]`（greenlet）だけは runtime 依存にした: SQLAlchemy の計装が `instrument()` の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1 は greenlet を既定で含まないため、無いと `get_engine()` が落ちる。重なるパッケージ（typing-extensions・pyyaml は同じ版、certifi・idna は版違いの見込み）と展開後のサイズは、dev で実測して追記する。）
 - X-Ray SDK と、Powertools for AWS Lambda の Tracer（X-Ray SDK ベース）は使わない。
 
 ### 決定2: 閲覧先は CloudWatch。トレースは Transaction Search、ルート単位のメトリクスは Application Signals
@@ -52,11 +85,12 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - **トレース**: Transaction Search で、スパンを `aws/spans` ロググループに取り込む。Active Tracing により、Lambda サービス自身が作る区間（Init / Invocation / Overhead）も同じトレースに入る。サンプリングされた呼び出しでは、コールドスタートがトレース上で見える（全件の集計は、下の REPORT 行で行う）。
 - **ルート単位のメトリクス（呼び出し数・レイテンシ・エラー率）**: Application Signals が、スパンから操作（operation）ごとに自動で集計する。`OTEL_AWS_APPLICATION_SIGNALS_ENABLED=true`。実行ロールには、AWS の手順どおり管理ポリシー `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` を付ける。
   - **操作名は「HTTP メソッド + ルートテンプレート」（例: `GET /pins/{pin_id}`）にする。** パスそのものを使うと、ID ごとに別の操作になってしまう。
-  - 自動の FastAPI 計装（`fastapi` / `starlette` / `asgi`）は止め、アプリ側で `FastAPIInstrumentor.instrument_app` を呼ぶ。そのフックで、スパン名と `aws.local.operation` を上の形に書き換える。社内の前例（tasche）と同じ方法。
+  - 自動の FastAPI 計装（`fastapi` / `starlette` / `asgi`）は止め、アプリ側で `FastAPIInstrumentor.instrument_app` を呼ぶ。そのフックで、スパン名と `aws.local.operation` を上の形に書き換える。社内の前例（tasche）と同じ方法。（**SS-178 追補**: `aws.local.operation` の書き換えは行わない。下の追補を参照。FastAPI 計装がスパン名と `http.route` をルートテンプレートで付ける。）
   - **ただし、Mangum 構成でこの方法が効くかは要検証。** tasche は Lambda Web Adapter + コンテナイメージ構成（tasche の ADR-005）で、FastAPI は uvicorn 上で動き、Lambda のハンドラーには包まれていない。sanposcape では、ADOT の Lambda 計装が Mangum のハンドラーを包んで SERVER スパンを作り、FastAPI のスパンはその子になる。Application Signals が集計する SERVER スパン（関数名ベース）に、子スパンの書き換えが反映されない可能性がある。効かない場合の代わりの手は、次の 2 つ。
     - フックで親（Lambda のハンドラー）のスパンの名前と `aws.local.operation` を書き換える
     - Lambda 計装を外す（X-Ray の Lambda 区間とのつながりなど、失うものを評価してから）
   - SS-178 で dev 実測して方式を決める。
+  - （**SS-178 追補**: 結論。**どちらの代わりの手も効かず、Application Signals の操作名は Mangum 構成ではルート単位にならない。** ADOT は Lambda 環境（`AWS_LAMBDA_FUNCTION_NAME` あり）の SERVER スパンの操作を `<関数名>/FunctionHandler` に固定し、スパンに付けた `aws.local.operation` を見ずに上書きする。FastAPI のスパンは Lambda 計装のスパンの下で INTERNAL になるため、Application Signals の集計の対象にならない。dev の他プロジェクト（tasche、Lambda 上の ADOT 0.16.0-aws）の実データでも、過去 30 日の LOCAL_ROOT の SERVER スパン 462 件すべてで `aws.local.operation` が `<関数名>/FunctionHandler` で、アプリ側がルートを設定していてもルート単位の操作は一度も出ていない（スパン名と `http.route` はルート単位で入っている）。**方針（ユーザー判断）**: `aws.local.operation` の書き換えは実装しない。API 全体の RED・アラーム・SLO は Application Signals（操作 = `FunctionHandler`）で見る。ルート別の内訳は、`aws/spans` を `http.route` / スパン名で集計する Logs Insights のダッシュボードで見る（SS-179）。Mangum 構成では Lambda 計装のスパンが LOCAL_ROOT になるため、`aws_lambda/tracing.py` がそのスパンの名前を `METHOD ルートテンプレート` に、`http.route` をテンプレートに付け直す。FastAPI のスパンにも同じ名前が付く。EMF のルート次元メトリクスは費用のため採らない。スコープ名の偽装や実行中に `AWS_LAMBDA_FUNCTION_NAME` を消すといったハックも、ADOT 固有の挙動に依存するため採らない。sanposcape 自身の dev で Operations に `FunctionHandler` だけが出ることは、デプロイ後に確認して追記する。）
 - **メモリ・コールドスタート時間・タイムアウト**: Lambda が CloudWatch に標準で出すもの（REPORT 行の `Init Duration` / `Max Memory Used`、標準メトリクスの `Errors` / `Throttles` / `Duration` など）を使う。これらの値は、Lambda が関数の外で記録するので、関数内の計装や flush には頼らない。
   - 一方、**アプリのスパン**は関数内で flush するので、タイムアウトや OOM で強制終了された呼び出しでは失われる。その場合は REPORT 行と標準メトリクスで追う。
   - SS-180 で Lambda の `LoggingConfig` を JSON にすると、REPORT 行は `platform.report` 形式の JSON に変わり、Logs Insights の `@initDuration` などの自動フィールドが使えなくなる可能性がある（未確認）。SS-180 で確認し、集計クエリを合わせる。
@@ -98,6 +132,12 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - **秘密**（トークン・API キー・署名付き URL）
 - **SQL のバインド値**: SQLAlchemy の計装はプレースホルダ付きの SQL 文だけを記録する。バインド値を記録する設定は使わない。
 - **例外のメッセージ経由の漏れ**: スパンの例外イベント（`exception.message` / スタックトレース）やエラーログは、上のルールの抜け道になる。たとえば SQLAlchemy の `DBAPIError` は文字列化すると `[parameters: ...]` としてバインド値を含み、psycopg のエラー詳細にも値が出る。SQLAlchemy の `hide_parameters=True` などの対策を SS-178 / SS-180 で入れる。
+- **（SS-178 追補）クエリ除去の範囲**: FastAPI の `http.url`（`server_request_hook`）、httpx の `http.url`（`request_hook`）、Lambda 計装の親スパンの `http.target`（Lambda 計装は payload 2.0 で `path?rawQueryString` を入れる。`aws_lambda/tracing.py` が Mangum に渡す app を包んで除く）。除去に失敗したときはフェイルオープンにせず、空文字に倒して警告を 1 回出す。`OTEL_SEMCONV_STABILITY_OPT_IN` は設定しない（ADOT の Application Signals が旧 semconv の属性しか読まないため）。将来オプトインするときは `url.query` / `url.full` もフックで除くこと。
+- **（SS-178 追補）個人情報になりうる標準属性**: ASGI / Lambda 計装が入れる `net.peer.ip` / `net.peer.port` / `http.user_agent` は、フックで空文字に上書きする（API では属性を消せない）。
+- **（SS-178 追補）SQLAlchemy のエラー**: 計装は例外の文字列をスパンの status に記録する。実測で、一意制約違反では psycopg の `DETAIL: Key (...)=(...)`（Google の sub など）が載ることを確認した。計装の `handle_error` リスナーを外し、status の説明を「例外の型名 + SQLSTATE」（例: `UniqueViolation (SQLSTATE 23505)`）にした自前のリスナーに差し替える（ユーザー判断）。計装の非公開名に依存するため、版を上げて壊れたらテストが落ちる。差し替えに失敗したときは、メッセージを記録する元のリスナーを残さず、計装を諦める（DB は動き続ける）。`hide_parameters=True` は環境を問わず付ける。
+- **（SS-178 追補）例外ハンドラーで 5xx に変換した例外**（503 にする `IdentityProviderUnavailableError` など）は、`span.record_exception` を使わず、型名だけの exception イベントを付ける（スタックトレースは `__cause__` の連鎖を含み、httpx / botocore の URL や S3 のキーが載りうるため）。
+- **（SS-178 追補）残るリスク（SS-180 で対処）**: 未処理の 500 では、ASGI / Lambda 計装が exception イベントに `exception.message` とスタックトレースを自動で付ける。DB 例外なら DETAIL のキー値が載りうる。Mangum が CloudWatch Logs に出すトレースバックと同じ情報で、同じアカウントの CloudWatch に閉じる（dev の `aws/spans` は保持 30 日）。ログの構造化・マスクと合わせて SS-180 で対処する。現状の挙動はテストで固定している。
+- **（SS-178 追補）伝播**: Lambda の `OTEL_PROPAGATORS` は `xray` にした。既定の `baggage,xray,tracecontext` だと、クライアントが送る `traceparent` / `baggage` が親として使われうる。`xray` だけにすれば、クライアントの `traceparent` / `baggage` は無視される。ADOT は `_X_AMZN_TRACE_ID` を `X-Amzn-Trace-Id` として抽出するため、CloudFront が転送するクライアントの `X-Amzn-Trace-Id` の扱いは dev で確認する。
 
 ユーザーを識別する必要がある場合（SS-181）は、内部のユーザー ID だけを使う。`AccessLogMiddleware` の「パスに秘密を載せるルートを足すときは、除外またはマスクを検討する」という注意は、スパンの属性（`url.path`）にもそのまま当てはまる。
 
@@ -105,10 +145,10 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 
 ### 決定7: コードの置き場所（ADR-005 決定3 との整合）
 
-- 実行環境に依存しない部分（`FastAPIInstrumentor` の呼び出し、操作名とクエリ除去のフック、ログのフォーマット）は `core/observability.py` に置く。
-- Lambda 固有の部分（レイヤー・`AWS_LAMBDA_EXEC_WRAPPER`・`Tracing: Active`・`OTEL_*` の環境変数）は `template.yaml` に置き、アプリのコードには持ち込まない。`aws_lambda/` に手を入れる必要が出た場合も、そこに閉じる。
+- 実行環境に依存しない部分（`FastAPIInstrumentor` の呼び出し、操作名とクエリ除去のフック、ログのフォーマット）は `core/observability.py` に置く。（**SS-178 追補**: トレースの関数はこのファイル末尾の独立した節に置いた。有効化は `Settings.tracing_enabled`（`TRACING_ENABLED`、既定 false）で、無効のときと OTel を import できないときは何もしない（import すらしない）。計装は `create_app()` の末尾と `get_engine()` から呼ぶ。）
+- Lambda 固有の部分（レイヤー・`AWS_LAMBDA_EXEC_WRAPPER`・`Tracing: Active`・`OTEL_*` の環境変数）は `template.yaml` に置き、アプリのコードには持ち込まない。`aws_lambda/` に手を入れる必要が出た場合も、そこに閉じる。（**SS-178 追補**: Lambda 計装の親スパンの補正（`http.target` のクエリ除去、スパン名と `http.route` の付け直し）は、Lambda 計装のスパンの形を前提にするため `aws_lambda/tracing.py` に置いた。Mangum に渡す app を包む。）
 - **TracerProvider などの初期化と終了を FastAPI の lifespan に置かない。** Mangum の `lifespan="auto"` は、Lambda の呼び出しごとに startup / shutdown を走らせている疑いがある（SS-183）。
-- **TracerProvider を作るのは、アプリのコードではなく起動ラッパー。** Lambda ではレイヤーの `otel-instrument` が起動時に 1 回だけ作る。ローカルや将来の ECS でも、同じように起動側（`opentelemetry-instrument` での起動など）が作る。`core/observability.py` は、既に構成されているプロバイダーを使うだけで、自分では構成しない（Lambda で二重に構成しないため）。この方針で無理がある場合は、SS-178 で見直して追補する。
+- **TracerProvider を作るのは、アプリのコードではなく起動ラッパー。** Lambda ではレイヤーの `otel-instrument` が起動時に 1 回だけ作る。ローカルや将来の ECS でも、同じように起動側（`opentelemetry-instrument` での起動など）が作る。`core/observability.py` は、既に構成されているプロバイダーを使うだけで、自分では構成しない（Lambda で二重に構成しないため）。この方針で無理がある場合は、SS-178 で見直して追補する。（**SS-178 追補**: 見直し不要だった。ローカルは `scripts/start-api.sh` が `TRACING_ENABLED=true` のときだけ `opentelemetry-instrument` 経由で起動する。TracerProvider が未構成のまま有効化されたら警告を出す。）
 
 ### 決定8: ローカル（docker compose）と自動テスト
 
@@ -117,6 +157,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - compose への組み込み方（profile にして、既定では起動しない、など）
   - ローカル用の SDK と exporter を、dev 用の依存にするかどうか
 - 計装を有効にしない場合（既定）は何もしない（no-op）。pytest では、計装を無効にするか InMemory のエクスポーターでスパンを検証する。
+- （**SS-178 追補**: ビューアは **Jaeger v2**（`cr.jaegertracing.io/jaegertracing/jaeger:2.21.0`、メモリ内ストレージ）を compose の profile `observability` に置いた（既定の `docker compose up` では起動しない。UI だけを `127.0.0.1` に公開し、OTLP は compose のネットワーク内）。ログとメトリクスは CloudWatch で見る方針のため、全部入りの `grafana/otel-lgtm` は選ばなかった。ローカルの exporter は upstream の `opentelemetry-distro` + OTLP/HTTP で、SDK・exporter・計装は dev グループの依存。pytest は自前の `TracerProvider` + `InMemorySpanExporter` を `tracer_provider=` で渡し、グローバルなプロバイダーは設定しない。）
 
 ## 検討した選択肢
 
@@ -156,7 +197,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - **メリット**:
   - Lambda の計測値・Init 区間・タイムアウトを Lambda / X-Ray が自分で記録するので、関数内の flush に依存しない。
   - IAM で認証するので、秘密が要らない。
-  - ルート単位の RED メトリクス（呼び出し数・エラー率・レイテンシ）を Application Signals が自動で出す。
+  - ルート単位の RED メトリクス（呼び出し数・エラー率・レイテンシ）を Application Signals が自動で出す。（**SS-178 追補**: Mangum 構成ではルート単位にならない。関数単位の RED は Application Signals、ルート別は Logs Insights。決定2 の追補を参照。）
   - ログ・トレース・メトリクスが同じリージョンの CloudWatch に集まる。
   - dev は有効化済みの設定に相乗りでき、社内に前例（tasche）がある。
 - **デメリット**:
@@ -208,7 +249,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 
 **backend（後続の子課題）**
 
-- SS-178: レイヤー・`Tracing: Active`・`OTEL_*` の環境変数を `template.yaml` に追加する。`core/observability.py` に計装とフック（操作名・クエリ除去）を置く。ローカルのトレースビューアを用意する。dev で次を実測する。
+- SS-178（**追補**: 実装済み。dev での実測は未了）: レイヤー・`Tracing: Active`・`OTEL_*` の環境変数を `template.yaml` に追加する。`core/observability.py` に計装とフック（操作名・クエリ除去）を置く。ローカルのトレースビューアを用意する。dev で次を実測する。
   - コールドスタートの増え方（`Init Duration` の変化）
   - flush の時間と、UDP 送信でのスパンの欠落
   - サンプリングと Transaction Search の取り込みの関係
