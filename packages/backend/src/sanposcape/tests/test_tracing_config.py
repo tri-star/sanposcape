@@ -6,39 +6,22 @@
 自動と手動の二重計装を避けるため、この 5 つが無効リストに含まれていることを固定する。
 """
 
-from pathlib import Path
-
 import pytest
 import yaml
 
-_BACKEND_DIR = Path(__file__).resolve().parents[3]
+from sanposcape.tests.template_loader import BACKEND_DIR, load_resources
+
 _MANUALLY_INSTRUMENTED = {"fastapi", "sqlalchemy", "httpx", "urllib", "threading"}
 _AUTO_INSTRUMENTED = {"botocore"}
 
 
-class _CloudFormationLoader(yaml.SafeLoader):
-    """`!Sub` / `!Ref` などの CloudFormation の短縮タグを、中身のまま読む。"""
-
-
-def _construct_tag(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) -> object:
-    if isinstance(node, yaml.ScalarNode):
-        return loader.construct_scalar(node)
-    if isinstance(node, yaml.SequenceNode):
-        return loader.construct_sequence(node)
-    return loader.construct_mapping(node)
-
-
-_CloudFormationLoader.add_multi_constructor("!", _construct_tag)
-
-
 def _template_disabled() -> str:
-    template = yaml.load((_BACKEND_DIR / "template.yaml").read_text(), _CloudFormationLoader)
-    variables = template["Resources"]["Api"]["Properties"]["Environment"]["Variables"]
+    variables = load_resources()["Api"]["Properties"]["Environment"]["Variables"]
     return variables["OTEL_PYTHON_DISABLED_INSTRUMENTATIONS"]
 
 
 def _compose_disabled() -> str:
-    compose = yaml.safe_load((_BACKEND_DIR / "compose.yaml").read_text())
+    compose = yaml.safe_load((BACKEND_DIR / "compose.yaml").read_text())
     return compose["services"]["api"]["environment"]["OTEL_PYTHON_DISABLED_INSTRUMENTATIONS"]
 
 
@@ -55,8 +38,7 @@ def test_template_and_compose_use_the_same_disabled_list() -> None:
 
 
 def test_migrate_function_is_not_traced() -> None:
-    template = yaml.load((_BACKEND_DIR / "template.yaml").read_text(), _CloudFormationLoader)
-    properties = template["Resources"]["Migrate"]["Properties"]
+    properties = load_resources()["Migrate"]["Properties"]
 
     assert "Layers" not in properties
     assert "Tracing" not in properties
