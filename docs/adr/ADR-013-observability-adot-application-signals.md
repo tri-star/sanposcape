@@ -8,7 +8,7 @@
 ### 決定
 
 - **計装は OpenTelemetry。Lambda では ADOT レイヤー（版固定）・`AWS_LAMBDA_EXEC_WRAPPER`・Active Tracing を Api 関数にだけ付ける**。ADOT 固有の API には依存しない（本文: 決定1）。
-- **自動計装は botocore と urllib だけ。fastapi / sqlalchemy / httpx / threading はアプリから手動で計装する**。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示する（本文: 決定1、SS-178 追補）。
+- **自動計装は botocore だけ。fastapi / sqlalchemy / httpx / urllib / threading はアプリから手動で計装する**（urllib はクエリを除くフックを付けるため）。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示する（本文: 決定1、SS-178 追補）。
 - **OpenTelemetry は zip に入れず、`pyproject.toml` の dev グループに置く**。版はレイヤーの同梱版に `==` で合わせる。SQLAlchemy の計装のため `sqlalchemy[asyncio]`（greenlet）は runtime 依存（本文: 決定1、SS-178 追補）。
 - **トレースの閲覧は Transaction Search（`aws/spans`）、API 全体の RED・アラーム・SLO は Application Signals**。Lambda 上では Application Signals の操作名が `<関数名>/FunctionHandler` に固定され、アプリ側の `aws.local.operation` では変えられない。**ルート別の内訳は `aws/spans` を `http.route` / スパン名で集計する Logs Insights で見る**（本文: 決定2、SS-178 追補。集計は SS-179）。
 - **Lambda 計装の親スパン（Mangum 構成の LOCAL_ROOT）にも、スパン名 `METHOD ルートテンプレート` と `http.route` を付ける**（`aws_lambda/tracing.py`）（本文: 決定2・決定7、SS-178 追補）。
@@ -26,7 +26,7 @@
 
 ### 変更・撤回された決定
 
-- 決定1「SQLAlchemy・botocore・httpx は自動」→ botocore と urllib だけ自動、sqlalchemy / httpx / threading は手動（SS-178 追補）。
+- 決定1「SQLAlchemy・botocore・httpx は自動」→ botocore だけ自動、sqlalchemy / httpx / urllib / threading は手動（SS-178 追補。urllib は PR レビューで手動に変更）。
 - 決定2「操作名を `GET /pins/{pin_id}` などルート単位の Application Signals にする」→ 操作名は `FunctionHandler` 固定。ルート別は Logs Insights（SS-178 追補）。選択肢4 のメリット「ルート単位の RED を Application Signals が自動で出す」もこの点で成り立たない。
 - 決定2 の代わりの手（親の `aws.local.operation` の書き換え、Lambda 計装を外す）→ どちらも効かない見込みで採らない（SS-178 追補）。
 
@@ -73,7 +73,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - `deployment.environment=<env>`: 共有の dev アカウントでも、他プロジェクトと区別できるようにする。
   - `aws.log.group.names=<API 関数のロググループ>`: Application Signals でトレースとログを紐付けるため（tasche と同じ）。
 - **有効にする計装は明示的に列挙する。** レイヤーは既定で多くの計装（sqlalchemy / httpx / requests / logging など）を無効にしている。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` を上書きすると、これらが一斉に有効になる。その結果、コールドスタートが延び、logging 計装が既存のログ設定と衝突する恐れがある。使うもの（FastAPI はアプリ側で手動、SQLAlchemy・botocore・httpx は自動）だけを有効にし、残りは無効のままにする。具体的な値は SS-178 で決める。
-  - （**SS-178 追補**: 手動と自動の分担を変えた。**自動は botocore と urllib だけ**、fastapi / sqlalchemy / httpx / threading はアプリから手動で計装する。理由は 3 つ。(1) レイヤーの自動計装は起動時（sitecustomize）に依存チェックをするが、その時点の `sys.path` に `/var/task`（zip）が無い（ランタイムの `bootstrap.py` が `/var/task` を挿入するのは sitecustomize の後）ため、zip 側のライブラリは「未インストール」と判定される。(2) SQLAlchemy 2.1.0 は計装の依存条件（`< 2.1.0`）に弾かれる（upstream の issue opentelemetry-python-contrib#5118）。手動なら `skip_dep_check=True` を渡せる。(3) ローカル・Lambda・テストで同じコードの経路になる。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` は、レイヤー v28 の `otel-instrument` の既定値と同じ文字列を template.yaml と compose.yaml に明示した（レイヤーを上げて既定値が変わっても、有効な計装が黙って増減しないように）。tasche のように `fastapi,starlette,asgi` だけを書くと、既定値を上書きして他の計装が一斉に有効になる。threading の計装は `ThreadPoolExecutor` のワーカーの中のスパンをリクエストのトレースに繋ぐために手動で有効にしている。）
+  - （**SS-178 追補**: 手動と自動の分担を変えた。**自動は botocore だけ**（当初は urllib も自動としたが、PR レビューで、urllib の自動計装は既定の `redact_url`（一部の署名パラメータだけ）しか掛けず、クエリ付きの URL が `http.url` に載るため、手動に変更した。決定6 の追補を参照）、fastapi / sqlalchemy / httpx / urllib / threading はアプリから手動で計装する。理由は 3 つ。(1) レイヤーの自動計装は起動時（sitecustomize）に依存チェックをするが、その時点の `sys.path` に `/var/task`（zip）が無い（ランタイムの `bootstrap.py` が `/var/task` を挿入するのは sitecustomize の後）ため、zip 側のライブラリは「未インストール」と判定される。(2) SQLAlchemy 2.1.0 は計装の依存条件（`< 2.1.0`）に弾かれる（upstream の issue opentelemetry-python-contrib#5118）。手動なら `skip_dep_check=True` を渡せる。(3) ローカル・Lambda・テストで同じコードの経路になる。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` は、レイヤー v28 の `otel-instrument` の既定値と同じ文字列を template.yaml と compose.yaml に明示した（レイヤーを上げて既定値が変わっても、有効な計装が黙って増減しないように）。tasche のように `fastapi,starlette,asgi` だけを書くと、既定値を上書きして他の計装が一斉に有効になる。threading の計装は `ThreadPoolExecutor` のワーカーの中のスパンをリクエストのトレースに繋ぐために手動で有効にしている。）
 - **flush とレイテンシ**: ADOT の Lambda 計装は、呼び出しごとにレスポンスの前で同期的に flush する。送信先は同じ環境内の UDP エンドポイントなので、外部 SaaS へ HTTPS で送るより小さい見込みだが、実測はしていない。UDP のサイズ上限を超えるとバッチごと落ちるという既知の issue（aws-otel-python-instrumentation#915、未確認）もある。flush の時間とスパンの欠落の有無を、SS-178 で dev 実測する。
 - アプリのコードが依存してよいのは、OpenTelemetry の API と計装ライブラリまで。ADOT 固有の API には依存しない（ECS などへ移っても、計装コードをそのまま使えるようにするため）。
 - **zip とレイヤーのパッケージ衝突に注意する。** Lambda の `sys.path` では、zip（`/var/task`）がレイヤー（`/opt/python`）より前に来る。zip に同梱した `opentelemetry-*` が、レイヤーの SDK やディストロを上書きしてバージョンが食い違う恐れがある。どのパッケージをどちらに持たせるかは SS-178 で決め、依存が重複していないかと展開後のサイズ（レイヤー込みで上限 250MB）を確認する。
@@ -133,6 +133,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - **SQL のバインド値**: SQLAlchemy の計装はプレースホルダ付きの SQL 文だけを記録する。バインド値を記録する設定は使わない。
 - **例外のメッセージ経由の漏れ**: スパンの例外イベント（`exception.message` / スタックトレース）やエラーログは、上のルールの抜け道になる。たとえば SQLAlchemy の `DBAPIError` は文字列化すると `[parameters: ...]` としてバインド値を含み、psycopg のエラー詳細にも値が出る。SQLAlchemy の `hide_parameters=True` などの対策を SS-178 / SS-180 で入れる。
 - **（SS-178 追補）クエリ除去の範囲**: FastAPI の `http.url`（`server_request_hook`）、httpx の `http.url`（`request_hook`）、Lambda 計装の親スパンの `http.target`（Lambda 計装は payload 2.0 で `path?rawQueryString` を入れる。`aws_lambda/tracing.py` が Mangum に渡す app を包んで除く）。除去に失敗したときはフェイルオープンにせず、空文字に倒して警告を 1 回出す。`OTEL_SEMCONV_STABILITY_OPT_IN` は設定しない（ADOT の Application Signals が旧 semconv の属性しか読まないため）。将来オプトインするときは `url.query` / `url.full` もフックで除くこと。
+- **（SS-178 追補）urllib の `http.url`**: `PyJWKClient` の JWKS 取得などが urllib を使う。`GOOGLE_JWKS_URL` は設定で変えられ、クエリが付く可能性がある。urllib はアプリから手動で計装し、`request_hook` でクエリ・フラグメントを除く（失敗時は空に倒し、警告は 1 回）。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` に `urllib` を足してある（`urllib3` はレイヤーに無く、botocore 配下の HTTP は botocore の計装が抑止する）。
 - **（SS-178 追補）個人情報になりうる標準属性**: ASGI / Lambda 計装が入れる `net.peer.ip` / `net.peer.port` / `http.user_agent` は、フックで空文字に上書きする（API では属性を消せない）。
 - **（SS-178 追補）SQLAlchemy のエラー**: 計装は例外の文字列をスパンの status に記録する。実測で、一意制約違反では psycopg の `DETAIL: Key (...)=(...)`（Google の sub など）が載ることを確認した。計装の `handle_error` リスナーを外し、status の説明を「例外の型名 + SQLSTATE」（例: `UniqueViolation (SQLSTATE 23505)`）にした自前のリスナーに差し替える（ユーザー判断）。計装の非公開名に依存するため、版を上げて壊れたらテストが落ちる。差し替えに失敗したときは、メッセージを記録する元のリスナーを残さず、計装を諦める（DB は動き続ける）。`hide_parameters=True` は環境を問わず付ける。
 - **（SS-178 追補）例外ハンドラーで 5xx に変換した例外**（503 にする `IdentityProviderUnavailableError` など）は、`span.record_exception` を使わず、型名だけの exception イベントを付ける（スタックトレースは `__cause__` の連鎖を含み、httpx / botocore の URL や S3 のキーが載りうるため）。

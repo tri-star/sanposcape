@@ -977,7 +977,7 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 | `Tracing` | `Active`（SAM が `AWSXrayWriteOnlyAccess` を実行ロールに付ける） |
 | 管理ポリシー | `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` |
 | 有効化 | `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`（TracerProvider を作る）と `TRACING_ENABLED=true`（アプリ側の計装を有効にする） |
-| 自動計装 | `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示 → 自動は botocore と urllib だけ。fastapi / sqlalchemy / httpx は、起動時（sitecustomize）の `sys.path` に `/var/task`（zip）が無く自動計装の依存チェックを通らない（SQLAlchemy 2.1 は版の上限にも弾かれる）ためアプリから手動で計装する。threading は `ThreadPoolExecutor` のワーカーの子スパンをリクエストのトレースに繋ぐために手動で有効にする |
+| 自動計装 | `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示 → 自動は botocore だけ。fastapi / sqlalchemy / httpx は、起動時（sitecustomize）の `sys.path` に `/var/task`（zip）が無く自動計装の依存チェックを通らない（SQLAlchemy 2.1 は版の上限にも弾かれる）ためアプリから手動で計装する。urllib は JWKS の URL などのクエリを `http.url` から除くフックを付けるため手動で計装する。threading は `ThreadPoolExecutor` のワーカーの子スパンをリクエストのトレースに繋ぐために手動で有効にする |
 | 伝播 | `OTEL_PROPAGATORS=xray`（クライアントの `traceparent` / `baggage` は無視される。CloudFront が転送する `X-Amzn-Trace-Id` の扱いは dev で要確認） |
 | flush | `OTEL_INSTRUMENTATION_AWS_LAMBDA_FLUSH_TIMEOUT=1000`（ms。既定 30 秒は Lambda の Timeout 29 秒より長い） |
 
