@@ -30,7 +30,7 @@ packages/lp/
     ├── assets/images/     # astro:assets の <Image> で最適化する元画像
     ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
-    ├── pages/             # index.astro / 404.astro / robots.txt.ts
+    ├── pages/             # index.astro / privacy.astro / 404.astro / robots.txt.ts
     └── styles/global.css  # LP 全体のスタイル（デザイン原本の styles.css）
 ```
 
@@ -71,13 +71,14 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 ### デザインと画像
 
 - 見た目の正解は、デザイン原本（Codex で作成した静的 HTML/CSS/JS。リポジトリ外の作業フォルダにあった）を移した現在の実装。
-  `src/styles/global.css` は原本の `styles.css` を値を変えずに移したもの（Prettier の整形のみ）。
+  `src/styles/global.css` は原本の `styles.css` を値を変えずに移したもの（Prettier の整形と、下記「原本から意図的に変えた点」を除く）。
   見た目を変えるときはデザインの更新として扱い、PC（1440px）とスマホ（390px）の全体スクリーンショットで崩れがないか確認する。
 - 本番公開に向けて原本から意図的に変えた点:
   - 「※このページはデザインプレビューです…」の注記を削除。ダイアログの文言も「公開まで、もうしばらくお待ちください。」に変更。
   - ダミー QR 画像は出さず、同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
   - ストアボタンは「準備中」ダイアログを開く（`StoreDialog.astro`）。ストア URL が確定したら、`Download.astro` のボタンをストアへのリンクに、
     `.qr-placeholder` を QR 画像に差し替える。
+  - フッターにプライバシーポリシー（`/privacy/`）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
 - 画像は `src/assets/images/` に置き、`astro:assets` の `<Image>` で WebP に変換・`srcset` を付けて出す。`width` / `height` を必ず指定する（CLS 防止）。
   CSS が `.field-note > img` のように `<img>` を直接指すため、`<picture>` を出す `<Picture>` は使わない。
   ファーストビューの画像は `loading="eager"`（既定は lazy）。
@@ -100,3 +101,13 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 
 GitHub Actions + OIDC で `dist/` を S3 に sync し、CloudFront を invalidation する（dev: main への push で自動、prod: 手動起動 + 承認）。
 ワークフローは `.github/workflows/lp-deploy.yml`、手順・前提・確認項目は [デプロイ手順](./docs/deployment.md) を参照。
+
+## プライバシーポリシー（`/privacy/`）
+
+`src/pages/privacy.astro`。URL `https://sanposcape.com/privacy/` はアプリ内のリンク（`packages/mobile/src/config/legalLinks.ts`）と
+App Store Connect の「プライバシーポリシー URL」に登録するため、**変えない**（変えると配布済みのアプリが古い URL を開き続ける）。
+
+- 本文は実装の事実（取得する情報・送信先・保存期間・削除方法）に合わせて書いている。アプリや backend のデータの扱いを変えたら本文も見直し、
+  ページ先頭の最終改定日（frontmatter の `revisedOn`）を更新する。制定日（`enactedOn`）は変えない。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+- 外部サービスの表は frontmatter の `externalServices` で持つ。540px 以下では 1 行を 1 枚のカードとして縦に並べる（見出しは `data-label` を CSS で出す）。
+- 問い合わせ先のメールアドレスは frontmatter の `contactEmail`。

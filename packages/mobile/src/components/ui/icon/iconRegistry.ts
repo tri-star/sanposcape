@@ -30,6 +30,7 @@ import CloudRain from "lucide-react-native/icons/cloud-rain";
 import Coffee from "lucide-react-native/icons/coffee";
 import Croissant from "lucide-react-native/icons/croissant";
 import Crosshair from "lucide-react-native/icons/crosshair";
+import ExternalLink from "lucide-react-native/icons/external-link";
 import Flag from "lucide-react-native/icons/flag";
 import Flower2 from "lucide-react-native/icons/flower-2";
 import Footprints from "lucide-react-native/icons/footprints";
@@ -92,6 +93,7 @@ export const ICONS = {
   coffee: Coffee,
   croissant: Croissant,
   crosshair: Crosshair,
+  "external-link": ExternalLink,
   flag: Flag,
   "flower-2": Flower2,
   footprints: Footprints,

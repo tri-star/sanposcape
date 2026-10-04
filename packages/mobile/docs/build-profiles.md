@@ -134,7 +134,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
   端末を増やすときは `eas device:create` で登録し、**プロファイルを再生成して再ビルドする**
   （既存ビルドには後から端末を足せない）。
 - **関係者へ広く配るなら TestFlight（`staging`）を使う。** UDID 管理が要らず、
-  外部テスターにも配れる（ただしプライバシーポリシー URL が必要。SS-79）。
+  外部テスターにも配れる（ただしプライバシーポリシー URL が必要。SS-79。URL は `https://sanposcape.com/privacy/`（SS-158）で、本番 LP のデプロイ後に App Store Connect へ登録する）。
 - `autoIncrement` は書かない（`staging` の `true` を継承して番号が進む）。理由は `staging-apk` と同じ。
 - iOS は既定で Apple Maps を使うため **Maps SDK キーの注入は不要**（ADR-M-007）。
 
