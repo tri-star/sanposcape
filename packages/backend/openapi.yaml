@@ -2051,12 +2051,7 @@ components:
       - shopping
       - dog
       title: SanpoMapIcon
-      description: '地図のアイコン（`SanpoMap.icon` の値域。SS-171, ADR-009 決定31）。
-
-
-        値はドメインの語（Lucide のアイコン名ではない）。mobile が対応表でグリフと色に変換する。
-
-        値を足すときは `ck_sanpo_maps_icon` を作り直すマイグレーションが要る。'
+      description: 地図のアイコンの種類。
     SanpoMapListRead:
       properties:
         items:

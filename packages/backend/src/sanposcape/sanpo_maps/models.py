@@ -27,11 +27,12 @@ SANPO_MAP_ROLES = ("owner", "editor")
 
 
 class SanpoMapIcon(StrEnum):
-    """地図のアイコン（`SanpoMap.icon` の値域。SS-171, ADR-009 決定31）。
+    """地図のアイコンの種類。"""
 
-    値はドメインの語（Lucide のアイコン名ではない）。mobile が対応表でグリフと色に変換する。
-    値を足すときは `ck_sanpo_maps_icon` を作り直すマイグレーションが要る。
-    """
+    # 内部向けの注意（docstring は公開 OpenAPI の description に出るため、ここに書く）。
+    # - `SanpoMap.icon` の値域（SS-171, ADR-009 決定31）。
+    # - 値はドメインの語（Lucide のアイコン名ではない）。mobile が対応表でグリフと色に変換する。
+    # - 値を足すときは `ck_sanpo_maps_icon` を作り直すマイグレーションが要る。
 
     PIN = "pin"
     TREE = "tree"
@@ -91,7 +92,10 @@ class SanpoMap(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        CheckConstraint(f"icon IN {SANPO_MAP_ICONS}", name="ck_sanpo_maps_icon"),
+        CheckConstraint(
+            "icon IN (" + ", ".join(f"'{v}'" for v in SANPO_MAP_ICONS) + ")",
+            name="ck_sanpo_maps_icon",
+        ),
         Index("ix_sanpo_maps_owner_user_id", "owner_user_id"),
         # 部分一意インデックス: owner ごとに is_default=true の行はちょうど1つ。
         Index(
