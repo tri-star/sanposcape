@@ -23,13 +23,13 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from sqlalchemy import create_engine, insert, text
+from sqlalchemy import create_engine, event, insert, text
 from sqlalchemy.exc import IntegrityError
 
 from sanposcape.config import Settings
 from sanposcape.conftest import test_engine
+from sanposcape.core import observability
 from sanposcape.core.observability import (
     _safe_error_description,
     instrument_fastapi_app,
@@ -40,36 +40,12 @@ from sanposcape.core.observability import (
 from sanposcape.main import create_app
 from sanposcape.users.models import User
 
-TRACING_ON = Settings(env="test", tracing_enabled=True)
+pytestmark = pytest.mark.usefixtures("clean_instrumentors")
 
 
-def _reset_instrumentors() -> None:
-    for instrumentor in (
-        HTTPXClientInstrumentor(),
-        ThreadingInstrumentor(),
-        SQLAlchemyInstrumentor(),
-    ):
-        if instrumentor.is_instrumented_by_opentelemetry:
-            instrumentor.uninstrument()
-
-
-@pytest.fixture(autouse=True)
-def _clean_instrumentors() -> Generator[None, None, None]:
-    _reset_instrumentors()
-    yield
-    _reset_instrumentors()
-
-
-@pytest.fixture
-def exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture
-def provider(exporter: InMemorySpanExporter) -> TracerProvider:
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
-    return tracer_provider
+def _tracing_on() -> Settings:
+    # テスト実行時に組み立てる（import 時に Settings を作らない）。
+    return Settings(env="test", tracing_enabled=True)
 
 
 def _traced_app(provider: TracerProvider) -> FastAPI:
@@ -80,7 +56,7 @@ def _traced_app(provider: TracerProvider) -> FastAPI:
     def boom() -> None:
         raise RuntimeError("boom")
 
-    instrument_fastapi_app(app, TRACING_ON, tracer_provider=provider)
+    instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
     return app
 
 
@@ -123,11 +99,12 @@ class TestOpenTelemetryUnavailable:
         monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.fastapi", None)
 
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
-            app = create_app(TRACING_ON)
+            app = create_app(_tracing_on())
 
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        warnings = [
+            r for r in _observability_records(caplog) if "import できない" in r.getMessage()
+        ]
         assert len(warnings) == 1
-        assert "OpenTelemetry" in warnings[0].getMessage()
         assert TestClient(app).get("/health").status_code == 200
 
     def test_sqlalchemy_is_noop_and_warns(
@@ -136,9 +113,9 @@ class TestOpenTelemetryUnavailable:
         monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.sqlalchemy", None)
 
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
-            instrument_sqlalchemy_engine(test_engine, TRACING_ON)
+            instrument_sqlalchemy_engine(test_engine, _tracing_on())
 
-        assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+        assert len(_observability_records(caplog)) == 1
 
     def test_record_exception_is_noop_without_opentelemetry(
         self, monkeypatch: pytest.MonkeyPatch
@@ -155,7 +132,7 @@ class TestUnconfiguredProvider:
         app = create_app(Settings(env="test"))
 
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
-            instrument_fastapi_app(app, TRACING_ON)  # tracer_provider を渡さない
+            instrument_fastapi_app(app, _tracing_on())  # tracer_provider を渡さない
 
         assert any("TracerProvider" in r.getMessage() for r in caplog.records)
 
@@ -165,7 +142,7 @@ class TestUnconfiguredProvider:
         app = create_app(Settings(env="test"))
 
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
-            instrument_fastapi_app(app, TRACING_ON, tracer_provider=provider)
+            instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
 
         assert _observability_records(caplog) == []
 
@@ -242,11 +219,39 @@ class TestFastApiSpans:
         assert span.status.status_code == trace.StatusCode.ERROR
         assert [e.name for e in span.events] == ["exception"]
 
+    def test_unhandled_exception_event_currently_carries_message_r7(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        """R7（残るリスク）: 未処理の 500 で ASGI 計装が自動で付ける exception イベントには
+        message が載る（DB 例外なら DETAIL のキー値など）。今回は塞がず、現状の挙動を固定する。
+        SS-180 でログ（Mangum のトレースバック）と合わせて対処する（ADR-013 決定6 の追補）。
+        塞いだらこのテストを「載らない」に反転すること。
+        """
+        client = TestClient(_traced_app(provider), raise_server_exceptions=False)
+
+        client.get("/boom")
+
+        (span,) = exporter.get_finished_spans()
+        (event,) = span.events
+        assert event.attributes["exception.message"] == "boom"
+
+    def test_peer_ip_port_and_user_agent_are_blanked(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        client = TestClient(_traced_app(provider), headers={"User-Agent": "secret-agent/1.0"})
+
+        client.get("/pins/0b5b3c3e-0000-4000-8000-000000000000")
+
+        (span,) = exporter.get_finished_spans()
+        for key in ("net.peer.ip", "net.peer.port", "http.user_agent"):
+            assert span.attributes[key] == ""
+        assert not [v for v in _all_attribute_values((span,)) if "secret-agent" in v]
+
     def test_instrumenting_twice_is_idempotent(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
         app = _traced_app(provider)
-        instrument_fastapi_app(app, TRACING_ON, tracer_provider=provider)
+        instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
         client = TestClient(app)
 
         client.get("/pins/0b5b3c3e-0000-4000-8000-000000000000")
@@ -266,7 +271,28 @@ class TestRecordExceptionOnCurrentSpan:
         (span,) = exporter.get_finished_spans()
         assert span.status.status_code == trace.StatusCode.ERROR
         assert span.status.description == "RuntimeError"
-        assert [e.name for e in span.events] == ["exception"]
+        (event,) = span.events
+        assert event.name == "exception"
+        # 型名だけ。メッセージ・スタックトレース（__cause__ の連鎖）は載せない（決定6）。
+        assert dict(event.attributes) == {"exception.type": "RuntimeError"}
+
+    def test_does_not_record_message_or_cause(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        tracer = provider.get_tracer("test")
+        try:
+            try:
+                raise ValueError("https://example.test/path?token=SECRET")
+            except ValueError as cause:
+                raise RuntimeError("wrapped") from cause
+        except RuntimeError as exc:
+            with tracer.start_as_current_span("op"):
+                record_exception_on_current_span(exc)
+
+        (span,) = exporter.get_finished_spans()
+        assert "SECRET" not in repr(
+            [(e.name, dict(e.attributes)) for e in span.events] + [span.status.description]
+        )
 
     def test_noop_without_recording_span(self) -> None:
         record_exception_on_current_span(RuntimeError("x"))  # 例外にならない
@@ -277,7 +303,7 @@ class TestThreadingAndHttpx:
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
         instrument_fastapi_app(
-            create_app(Settings(env="test")), TRACING_ON, tracer_provider=provider
+            create_app(Settings(env="test")), _tracing_on(), tracer_provider=provider
         )
         tracer = provider.get_tracer("test")
 
@@ -304,7 +330,7 @@ class TestThreadingAndHttpx:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         instrument_fastapi_app(
-            create_app(Settings(env="test")), TRACING_ON, tracer_provider=provider
+            create_app(Settings(env="test")), _tracing_on(), tracer_provider=provider
         )
         tracer = provider.get_tracer("test")
         # httpx の計装は `HTTPTransport.handle_request` をクラス単位で包むため、MockTransport
@@ -332,7 +358,185 @@ class TestThreadingAndHttpx:
         assert not [v for v in values if "SECRET" in v or "35.1" in v]
 
 
+class TestPartialInstrumentation:
+    """R1: 計装は個別に守る。1 つ欠けても失敗しても、他は続行し起動を落とさない。"""
+
+    def test_missing_httpx_still_instruments_fastapi(
+        self,
+        provider: TracerProvider,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.httpx", None)
+        app = create_app(Settings(env="test"))
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
+            instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
+
+        assert app._is_instrumented_by_opentelemetry is True
+        assert ThreadingInstrumentor().is_instrumented_by_opentelemetry
+        assert len(_observability_records(caplog)) == 1
+
+    def test_failing_threading_instrumentation_does_not_raise_and_others_continue(
+        self,
+        provider: TracerProvider,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        def boom(self: object, **kwargs: object) -> None:
+            raise RuntimeError("instrument failed")
+
+        monkeypatch.setattr(ThreadingInstrumentor, "instrument", boom)
+        app = create_app(Settings(env="test"))
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
+            instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
+
+        assert app._is_instrumented_by_opentelemetry is True
+        assert HTTPXClientInstrumentor().is_instrumented_by_opentelemetry
+        assert any("threading" in r.getMessage() for r in _observability_records(caplog))
+
+    def test_missing_fastapi_instrumentation_does_not_raise(
+        self, provider: TracerProvider, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.fastapi", None)
+        app = create_app(Settings(env="test"))
+
+        instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
+
+        assert HTTPXClientInstrumentor().is_instrumented_by_opentelemetry
+        assert TestClient(app).get("/health").status_code == 200
+
+
+class TestScrubHooksFailSafe:
+    """R2: クエリ除去フックの失敗はフェイルオープンにしない（空を書き、警告は 1 回）。"""
+
+    def test_server_hook_failure_blanks_http_url_and_warns_once(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(observability, "_WARNED", set())
+        tracer = provider.get_tracer("t")
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
+            for _ in range(2):
+                with tracer.start_as_current_span(
+                    "s", attributes={"http.url": "http://h/p?secret=abc"}
+                ) as span:
+                    observability._scrub_query_from_server_span(span, None)  # scope 不正
+
+        assert [s.attributes["http.url"] for s in exporter.get_finished_spans()] == ["", ""]
+        assert len(_observability_records(caplog)) == 1
+
+    def test_client_hook_failure_blanks_http_url(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(observability, "_WARNED", set())
+        tracer = provider.get_tracer("t")
+
+        with tracer.start_as_current_span(
+            "s", attributes={"http.url": "http://h/p?key=SECRET"}
+        ) as span:
+            observability._scrub_query_from_client_span(span, object())  # url が無い
+
+        (finished,) = exporter.get_finished_spans()
+        assert finished.attributes["http.url"] == ""
+
+
+class TestHandleErrorListenerIsSafe:
+    """R3: リスナーの失敗で、アプリが受け取る SQLAlchemy の例外を置き換えない。"""
+
+    def test_exception_in_listener_is_swallowed_and_span_still_ends(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(observability, "_WARNED", set())
+        ended: list[bool] = []
+
+        class FakeSpan:
+            def is_recording(self) -> bool:
+                return True
+
+            def set_status(self, status: object) -> None:
+                raise RuntimeError("listener bug")
+
+            def end(self) -> None:
+                ended.append(True)
+
+        class FakeExecutionContext:
+            _otel_span = FakeSpan()
+
+        class FakeContext:
+            execution_context = FakeExecutionContext()
+            original_exception = RuntimeError("x")
+
+        observability._handle_error_without_message(FakeContext())  # 例外にならない
+
+        assert ended == [True]
+
+    def test_missing_execution_context_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(observability, "_WARNED", set())
+
+        observability._handle_error_without_message(object())  # 例外にならない
+
+
+class TestSqlAlchemyPrivateApiContract:
+    """計装の非公開名への依存（版上げで壊れたらここで落ちる）。"""
+
+    def test_private_names_we_depend_on_exist(self) -> None:
+        from opentelemetry.instrumentation.sqlalchemy import engine as otel_engine
+
+        assert callable(otel_engine._handle_error)
+        assert isinstance(otel_engine.EngineTracer._remove_event_listener_params, list)
+        assert callable(otel_engine.EngineTracer.remove_all_event_listeners)
+
+    def test_fail_closed_when_the_upstream_listener_cannot_be_removed(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """外せなかったら、メッセージ入りの元リスナーを残さず計装を諦める（DB は動き続ける）。"""
+        from sqlalchemy import event
+
+        def failing_remove(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("cannot remove")
+
+        monkeypatch.setattr(event, "remove", failing_remove)
+        settings = Settings()
+        engine = create_engine(settings.test_database_url, **settings.sqlalchemy_engine_kwargs)
+        subject = "subject-fail-closed-456"
+        try:
+            with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
+                instrument_sqlalchemy_engine(engine, _tracing_on(), tracer_provider=provider)
+            with engine.begin() as conn:
+                conn.execute(insert(User), {"provider": "dev", "provider_subject": subject})
+            with pytest.raises(IntegrityError), engine.begin() as conn:
+                conn.execute(insert(User), {"provider": "dev", "provider_subject": subject})
+        finally:
+            engine.dispose()
+
+        assert any("計装に失敗" in r.getMessage() for r in _observability_records(caplog))
+        assert subject not in repr(
+            [(s.status.description, s.attributes, s.events) for s in exporter.get_finished_spans()]
+        )
+
+
 class TestSqlAlchemy:
+    @pytest.fixture(autouse=True)
+    def _remove_own_listener(self) -> Generator[None, None, None]:
+        """共有の `test_engine` に付けた自前リスナーを後始末する（`uninstrument()` は
+        計装側のリスナーしか外さない）。"""
+        yield
+        if event.contains(test_engine, "handle_error", observability._handle_error_without_message):
+            event.remove(test_engine, "handle_error", observability._handle_error_without_message)
+
     def test_db_span_is_child_of_request_span_and_has_no_bind_values(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
@@ -344,7 +548,7 @@ class TestSqlAlchemy:
                 conn.execute(text("SELECT :needle AS v"), {"needle": "bind-value-xyz"})
             return {"ok": "1"}
 
-        instrument_sqlalchemy_engine(test_engine, TRACING_ON, tracer_provider=provider)
+        instrument_sqlalchemy_engine(test_engine, _tracing_on(), tracer_provider=provider)
 
         assert TestClient(app).get("/db-probe").status_code == 200
 
@@ -400,7 +604,7 @@ class TestSqlAlchemy:
         """
         settings = Settings()
         engine = create_engine(settings.test_database_url, **settings.sqlalchemy_engine_kwargs)
-        instrument_sqlalchemy_engine(engine, TRACING_ON, tracer_provider=provider)
+        instrument_sqlalchemy_engine(engine, _tracing_on(), tracer_provider=provider)
         subject = "subject-key-value-123"
         try:
             with engine.begin() as conn:

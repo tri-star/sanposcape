@@ -28,6 +28,7 @@ Lambda（Mangum）には uvicorn が居ないので**アプリ側で出さない
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -138,6 +139,29 @@ def _warn_tracing_unavailable(exc: ImportError) -> None:
     )
 
 
+_WARNED: set[str] = set()
+
+
+def warn_once(key: str, message: str, *args: object) -> None:
+    """同じ原因の警告を 1 プロセスで 1 回だけ出す（フックはリクエストごとに呼ばれる）。"""
+    if key in _WARNED:
+        return
+    _WARNED.add(key)
+    logger.warning(message, *args, exc_info=True)
+
+
+# 個人情報になりうる標準属性（決定6）。ASGI 計装は `net.peer.ip`（クライアントの IP。Lambda では
+# CloudFront のエッジ IP の見込みだが、直接アクセスなら個人の IP）/ `net.peer.port` /
+# `http.user_agent`（ヘッダー値）を入れる。API では属性を消せないので空に上書きする。
+_PRIVACY_SENSITIVE_ATTRIBUTES = ("net.peer.ip", "net.peer.port", "http.user_agent")
+
+
+def blank_privacy_sensitive_attributes(span: Any) -> None:
+    """`net.peer.*` / `http.user_agent` を空文字に上書きする（FastAPI / Lambda 共用）。"""
+    for key in _PRIVACY_SENSITIVE_ATTRIBUTES:
+        span.set_attribute(key, "")
+
+
 def _provider_is_unconfigured(tracer_provider: object | None) -> bool:
     """TracerProvider を誰も構成していない（= no-op のまま）か。"""
     if tracer_provider is not None:
@@ -159,27 +183,36 @@ def _scrub_query_from_server_span(span: Any, scope: Scope) -> None:
 
     旧 semconv の ASGI 計装は `http.url` にクエリ込みの URL を入れる（`http.target` はパスのみ）。
     トークン類をクエリに載せる経路が将来できても黙って外へ出ないよう、ここで必ず除く。
-    フックの失敗でリクエストを落とさない（計装側も握りつぶすが、自分でも防御する）。
+    あわせて `net.peer.*` / `http.user_agent` を空にする（`blank_privacy_sensitive_attributes`）。
+    フックの失敗でリクエストを落とさない。失敗時は安全側（`http.url` を空）に倒す
+    （クエリ込みの値を残さない）。警告は 1 回だけ。
     """
     try:
         if span.is_recording():
+            blank_privacy_sensitive_attributes(span)
             span.set_attribute("http.url", _url_without_query(scope))
     except Exception:
-        logger.debug("failed to scrub query from server span", exc_info=True)
+        warn_once("server-scrub", "http.url からクエリを除けなかったため、空にした")
+        with contextlib.suppress(Exception):
+            span.set_attribute("http.url", "")
 
 
 def _scrub_query_from_client_span(span: Any, request_info: Any) -> None:
     """httpx 計装の `request_hook`: 外向きリクエストの `http.url` からクエリ・フラグメントを除く。
 
     今の Google 呼び出し（Places / Routes。キーは `X-Goog-Api-Key` ヘッダー）の URL にクエリは
-    無いが、将来の抜け道（キーをクエリで渡す API の追加等）を塞ぐ。
+    無いが、将来の抜け道（キーをクエリで渡す API の追加等）を塞ぐ。失敗時は安全側（空）に倒す。
     """
     try:
         if span.is_recording():
             url = request_info.url.copy_with(query=None, fragment=None)
             span.set_attribute("http.url", str(url))
     except Exception:
-        logger.debug("failed to scrub query from client span", exc_info=True)
+        warn_once(
+            "client-scrub", "外向きリクエストの http.url からクエリを除けなかったため、空にした"
+        )
+        with contextlib.suppress(Exception):
+            span.set_attribute("http.url", "")
 
 
 def resolve_route_template(scope: Scope) -> str | None:
@@ -225,40 +258,61 @@ def instrument_fastapi_app(
     """
     if not settings.tracing_enabled:
         return
+    # 3 つの計装は個別に守る（1 つ欠けても・失敗しても他は続行し、起動は落とさない。
+    # import 時の create_app() から呼ばれるため、ここで例外を出すとプロセスの起動が失敗する）。
     try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-        from opentelemetry.instrumentation.threading import ThreadingInstrumentor
+        if _provider_is_unconfigured(tracer_provider):
+            logger.warning(
+                "TRACING_ENABLED=true だが TracerProvider が構成されていない"
+                "（opentelemetry-instrument / ADOT レイヤー経由で起動していない）。"
+                "スパンは記録されない"
+            )
     except ImportError as exc:
         _warn_tracing_unavailable(exc)
         return
 
-    if _provider_is_unconfigured(tracer_provider):
-        logger.warning(
-            "TRACING_ENABLED=true だが TracerProvider が構成されていない"
-            "（opentelemetry-instrument / ADOT レイヤー経由で起動していない）。スパンは記録されない"
-        )
-
     # グローバルな instrumentor は singleton。create_app() はテストで何度も呼ばれるため冪等にする。
-    httpx_instrumentor = HTTPXClientInstrumentor()
-    if not httpx_instrumentor.is_instrumented_by_opentelemetry:
-        httpx_instrumentor.instrument(
-            tracer_provider=tracer_provider, request_hook=_scrub_query_from_client_span
-        )
-    threading_instrumentor = ThreadingInstrumentor()
-    if not threading_instrumentor.is_instrumented_by_opentelemetry:
-        # ThreadPoolExecutor のワーカーへ context を伝え、子スパンがリクエストのトレースに繋がる
-        # ようにする（maps/service.py の周回ルート、photo_attacher.py の S3 Copy）。
-        threading_instrumentor.instrument()
+    def _instrument_httpx() -> None:
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-    if not getattr(app, "_is_instrumented_by_opentelemetry", False):
-        FastAPIInstrumentor.instrument_app(
-            app,
-            tracer_provider=tracer_provider,
-            excluded_urls=r"/health$",
-            exclude_spans=["receive", "send"],
-            server_request_hook=_scrub_query_from_server_span,
-        )
+        instrumentor = HTTPXClientInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            instrumentor.instrument(
+                tracer_provider=tracer_provider, request_hook=_scrub_query_from_client_span
+            )
+
+    def _instrument_threading() -> None:
+        from opentelemetry.instrumentation.threading import ThreadingInstrumentor
+
+        instrumentor = ThreadingInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            # ThreadPoolExecutor のワーカーへ context を伝え、子スパンがリクエストのトレースに
+            # 繋がるようにする（maps/service.py の周回ルート、photo_attacher.py の S3 Copy）。
+            instrumentor.instrument()
+
+    def _instrument_fastapi() -> None:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        if not getattr(app, "_is_instrumented_by_opentelemetry", False):
+            FastAPIInstrumentor.instrument_app(
+                app,
+                tracer_provider=tracer_provider,
+                excluded_urls=r"/health$",
+                exclude_spans=["receive", "send"],
+                server_request_hook=_scrub_query_from_server_span,
+            )
+
+    for name, instrument in (
+        ("httpx", _instrument_httpx),
+        ("threading", _instrument_threading),
+        ("fastapi", _instrument_fastapi),
+    ):
+        try:
+            instrument()
+        except ImportError as exc:
+            _warn_tracing_unavailable(exc)
+        except Exception:
+            logger.warning("%s の計装に失敗したため、その計装なしで起動する", name, exc_info=True)
 
 
 def instrument_sqlalchemy_engine(
@@ -318,16 +372,23 @@ def _handle_error_without_message(context: Any) -> None:
     upstream の `_handle_error` は `span.set_status(ERROR, str(original_exception))` として
     例外の文字列をそのまま記録する。それ以外（スパンの取得・終了）は同じ挙動にする。
     """
-    span = getattr(context.execution_context, "_otel_span", None)
-    if span is None:
-        return
-    if span.is_recording():
-        from opentelemetry.trace import Status, StatusCode
+    # ★ リスナーの中の例外は SQLAlchemy の例外（IntegrityError 等）を置き換えてしまい、
+    #   アプリの `except IntegrityError`（savepoint の再試行）が壊れる。必ず握る。
+    try:
+        span = getattr(context.execution_context, "_otel_span", None)
+        if span is None:
+            return
+        try:
+            if span.is_recording():
+                from opentelemetry.trace import Status, StatusCode
 
-        span.set_status(
-            Status(StatusCode.ERROR, _safe_error_description(context.original_exception))
-        )
-    span.end()
+                span.set_status(
+                    Status(StatusCode.ERROR, _safe_error_description(context.original_exception))
+                )
+        finally:
+            span.end()
+    except Exception:
+        warn_once("handle-error", "SQLAlchemy のエラースパンの記録に失敗した")
 
 
 def _instrument_engine(instrumentor: Any, engine: Engine, **kwargs: Any) -> None:
@@ -353,7 +414,11 @@ def _instrument_engine(instrumentor: Any, engine: Engine, **kwargs: Any) -> None
             if not (entry[0]() is engine and entry[2] is otel_engine._handle_error)
         ]
     except Exception:
-        tracer.remove_all_event_listeners()
+        # フェイルクローズ: 元のリスナー（メッセージを記録する）を残さない。
+        try:
+            tracer.remove_all_event_listeners()
+        except Exception:
+            logger.warning("計装のリスナーを外せなかった", exc_info=True)
         raise
     event.listen(engine, "handle_error", _handle_error_without_message)
 
@@ -362,7 +427,8 @@ def record_exception_on_current_span(exc: BaseException) -> None:
     """例外ハンドラーで 5xx に変換した例外を、現在のスパンに記録する。
 
     ハンドラーで処理された例外は OTel のミドルウェアまで伝わらず、スパンに残らない。
-    記録するのは型名とメッセージ・スタックトレース（ドメイン例外のメッセージは固定文言）。
+    記録するのは**例外の型名だけ**（`span.record_exception` は使わない: スタックトレースは
+    `__cause__` の連鎖を含み、httpx / botocore の URL や S3 のキーが載りうるため。決定6）。
     OTel が無い・スパンが記録中でないときは何もしない。
     """
     try:
@@ -372,5 +438,6 @@ def record_exception_on_current_span(exc: BaseException) -> None:
     span = trace.get_current_span()
     if not span.is_recording():
         return
-    span.record_exception(exc)
-    span.set_status(trace.Status(trace.StatusCode.ERROR, type(exc).__name__))
+    type_name = type(exc).__name__
+    span.add_event("exception", {"exception.type": type(exc).__qualname__})
+    span.set_status(trace.Status(trace.StatusCode.ERROR, type_name))

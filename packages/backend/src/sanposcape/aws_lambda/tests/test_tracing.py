@@ -4,22 +4,20 @@ Lambda 計装のスパンは本物を使わず、テスト側で同じ形（SERV
 クエリ込みの値と、生のパスの `http.route`）のスパンを開いてから Mangum を呼ぶ。
 """
 
+import asyncio
 import copy
 import json
-from collections.abc import Generator
+import sys
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from mangum import Mangum
 from opentelemetry import trace
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from sanposcape.aws_lambda.tracing import wrap_app_for_lambda_tracing
+from sanposcape.aws_lambda.tracing import _LambdaRootSpanMiddleware, wrap_app_for_lambda_tracing
 from sanposcape.config import Settings
 from sanposcape.core.observability import instrument_fastapi_app
 from sanposcape.main import create_app
@@ -27,29 +25,7 @@ from sanposcape.main import create_app
 _EVENTS_DIR = Path(__file__).resolve().parents[4] / "events"
 _PIN_ID = "0b5b3c3e-0000-4000-8000-000000000000"
 
-
-@pytest.fixture(autouse=True)
-def _clean_instrumentors() -> Generator[None, None, None]:
-    def reset() -> None:
-        for instrumentor in (HTTPXClientInstrumentor(), ThreadingInstrumentor()):
-            if instrumentor.is_instrumented_by_opentelemetry:
-                instrumentor.uninstrument()
-
-    reset()
-    yield
-    reset()
-
-
-@pytest.fixture
-def exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture
-def provider(exporter: InMemorySpanExporter) -> TracerProvider:
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
-    return tracer_provider
+pytestmark = pytest.mark.usefixtures("clean_instrumentors")
 
 
 def _app(provider: TracerProvider, *, enabled: bool = True) -> FastAPI:
@@ -158,8 +134,6 @@ def test_returns_app_unchanged_when_tracing_is_disabled(provider: TracerProvider
 def test_returns_app_unchanged_when_opentelemetry_is_unavailable(
     provider: TracerProvider, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sys
-
     app = _app(provider)
     monkeypatch.setitem(sys.modules, "opentelemetry.trace", None)
 
@@ -168,8 +142,6 @@ def test_returns_app_unchanged_when_opentelemetry_is_unavailable(
 
 def test_lifespan_scope_passes_through() -> None:
     """http 以外のスコープ（lifespan）は素通しする。Mangum(lifespan="auto") が使う。"""
-    import asyncio
-
     app = create_app(Settings(env="test", tracing_enabled=True))
     wrapped = wrap_app_for_lambda_tracing(app)
     received: list[str] = []
@@ -187,3 +159,39 @@ def test_lifespan_scope_passes_through() -> None:
         "lifespan.startup.complete",
         "lifespan.shutdown.complete",
     ]
+
+
+def test_user_agent_is_blanked_on_the_root_span(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    handler = Mangum(wrap_app_for_lambda_tracing(_app(provider)), lifespan="off")
+    with provider.get_tracer("lambda-root").start_as_current_span(
+        "handler",
+        kind=trace.SpanKind.SERVER,
+        attributes={"http.user_agent": "secret-agent/1.0"},
+    ):
+        handler(_event("/health"), None)
+
+    assert _root(exporter).attributes["http.user_agent"] == ""
+
+
+def test_scrub_failure_blanks_http_target_instead_of_leaving_the_query(
+    provider: TracerProvider,
+    exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sanposcape.core import observability
+
+    monkeypatch.setattr(observability, "_WARNED", set())
+    tracer = provider.get_tracer("lambda-root")
+
+    with caplog.at_level("WARNING", logger="sanposcape.core.observability"):
+        for _ in range(2):
+            with tracer.start_as_current_span(
+                "handler", attributes={"http.target": "/pins?secret=abc"}
+            ) as span:
+                _LambdaRootSpanMiddleware._scrub_target(span, {"type": "http"})  # path が無い
+
+    assert [s.attributes["http.target"] for s in exporter.get_finished_spans()] == ["", ""]
+    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1

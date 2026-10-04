@@ -26,15 +26,21 @@ Lambda 計装のスパンの属性の形を前提にしたコードなので `aw
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from sanposcape.core.observability import resolve_route_template
+from sanposcape.core.observability import (
+    blank_privacy_sensitive_attributes,
+    resolve_route_template,
+    warn_once,
+)
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+    from opentelemetry.trace import Span
 
 logger = logging.getLogger(__name__)
 
@@ -61,16 +67,22 @@ class _LambdaRootSpanMiddleware:
             self._rename(span, scope)
 
     @staticmethod
-    def _scrub_target(span: Any, scope: Scope) -> None:
+    def _scrub_target(span: Span, scope: Scope) -> None:
         try:
             if span.is_recording():
                 # `scope["path"]` はクエリを含まない。
                 span.set_attribute("http.target", scope["path"])
+                blank_privacy_sensitive_attributes(span)
         except Exception:
-            logger.debug("failed to scrub http.target", exc_info=True)
+            # フェイルオープンにしない: クエリ込みの値を残さず、パスのみ（できなければ空）にする。
+            warn_once(
+                "lambda-scrub", "Lambda の親スパンの http.target を除去できなかったため、空にした"
+            )
+            with contextlib.suppress(Exception):
+                span.set_attribute("http.target", "")
 
     @staticmethod
-    def _rename(span: Any, scope: Scope) -> None:
+    def _rename(span: Span, scope: Scope) -> None:
         try:
             if not span.is_recording():
                 return

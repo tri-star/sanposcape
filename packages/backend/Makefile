@@ -40,7 +40,7 @@ build-Api:
 	cp -r alembic "$(ARTIFACTS_DIR)/alembic_migrations"
 	cp alembic.ini "$(ARTIFACTS_DIR)/alembic.ini"
 	find "$(ARTIFACTS_DIR)" -type d -name "__pycache__" -exec rm -rf {} +
-	@if ls "$(ARTIFACTS_DIR)" | grep -qi '^opentelemetry'; then \
+	@if [ -n "$$(find "$(ARTIFACTS_DIR)" -maxdepth 1 -iname 'opentelemetry*' -print -quit)" ]; then \
 		echo "ERROR: opentelemetry* が成果物に含まれています。ADOT レイヤーと版が混ざるため zip に入れないでください（ADR-013 決定1）" >&2; \
 		exit 1; \
 	fi
