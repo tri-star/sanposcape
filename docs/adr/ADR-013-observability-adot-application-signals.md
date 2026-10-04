@@ -2,13 +2,14 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-05（dependabot #139）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
 - **計装は OpenTelemetry。Lambda では ADOT レイヤー（版固定）・`AWS_LAMBDA_EXEC_WRAPPER`・Active Tracing を Api 関数にだけ付ける**。ADOT 固有の API には依存しない（本文: 決定1）。
 - **自動計装は botocore だけ。fastapi / sqlalchemy / httpx / urllib / threading はアプリから手動で計装する**（urllib はクエリを除くフックを付けるため）。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示する（本文: 決定1、SS-178 追補）。
+- **fastapi は 0.142 未満に固定する**。0.142 以降は組み込みの OTel 対応で `import fastapi` が opentelemetry を読み込み、`opentelemetry-api` が必須依存になるため、「無効時は import しない」「zip に入れない」と両立しない（本文: 決定1、dependabot #139 追補）。
 - **OpenTelemetry は zip に入れず、`pyproject.toml` の dev グループに置く**。版はレイヤーの同梱版に `==` で合わせる。SQLAlchemy の計装のため `sqlalchemy[asyncio]`（greenlet）は runtime 依存（本文: 決定1、SS-178 追補）。
 - **トレースの閲覧は Transaction Search（`aws/spans`）、API 全体の RED・アラーム・SLO は Application Signals**。Lambda 上では Application Signals の操作名が `<関数名>/FunctionHandler` に固定され、アプリ側の `aws.local.operation` では変えられない。**ルート別の内訳は `aws/spans` を `http.route` / スパン名で集計する Logs Insights で見る**（本文: 決定2、SS-178 追補。集計は SS-179）。
 - **Lambda 計装の親スパン（Mangum 構成の LOCAL_ROOT）にも、スパン名 `METHOD ルートテンプレート` と `http.route` を付ける**（`aws_lambda/tracing.py`）（本文: 決定2・決定7、SS-178 追補）。
@@ -77,6 +78,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - アプリのコードが依存してよいのは、OpenTelemetry の API と計装ライブラリまで。ADOT 固有の API には依存しない（ECS などへ移っても、計装コードをそのまま使えるようにするため）。
 - **zip とレイヤーのパッケージ衝突に注意する。** Lambda の `sys.path` では、zip（`/var/task`）がレイヤー（`/opt/python`）より前に来る。zip に同梱した `opentelemetry-*` が、レイヤーの SDK やディストロを上書きしてバージョンが食い違う恐れがある。どのパッケージをどちらに持たせるかは SS-178 で決め、依存が重複していないかと展開後のサイズ（レイヤー込みで上限 250MB）を確認する。
   - （**SS-178 追補**: **OpenTelemetry は zip に入れない。** `pyproject.toml` の dev グループ（boto3 と同じ扱い。版はレイヤーの同梱版に `==` で固定）に置き、`uv export --no-dev` で除く。Makefile の `build-Api` は成果物に `opentelemetry*`（dist-info を含む）があれば失敗する。dependabot は `opentelemetry-*` を ignore し、レイヤーを上げるときに手動で揃える。`sqlalchemy[asyncio]`（greenlet）だけは runtime 依存にした: SQLAlchemy の計装が `instrument()` の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1 は greenlet を既定で含まないため、無いと `get_engine()` が落ちる。重なるパッケージ（typing-extensions・pyyaml は同じ版、certifi・idna は版違いの見込み）と展開後のサイズは、dev で実測して追記する。）
+  - （**dependabot #139 追補**（2026-10-05）: **fastapi は 0.142 未満に留める。** fastapi 0.142.0 は組み込みの OpenTelemetry 対応（`FastAPI(telemetry=...)`）を入れ、`opentelemetry-api` を必須依存にした。`fastapi.applications` が `fastapi.telemetry._asgi` を介して `opentelemetry` / `opentelemetry.trace` / `.context` / `.propagate` / `.metrics` / `._logs` をモジュール先頭で import するため、`import fastapi` だけで OpenTelemetry が読み込まれる。これは `telemetry={"tracing": False, ...}` や `auto_configure=False` では止められない（止まるのはスパン・メトリクス・ログの生成と、環境変数からのエクスポーター自動構成だけ）。結果として、(1) 「無効時は opentelemetry を import しない」契約（`core/tests/test_tracing.py::TestDisabledDoesNotImportOpenTelemetry`）が成り立たない、(2) fastapi が `opentelemetry-api` を引くため「OTel は zip に入れない」（`uv export --no-dev` と `build-Api` の混入ガード）と衝突し、`/var/task` の API がレイヤーの SDK と版・インスタンスが混ざるおそれがある。組み込み側のスパンは既定で有効で、プロバイダーが構成済みなら（Lambda のレイヤー経由では常に）アプリの `FastAPIInstrumentor` とは別にスパンを作りうる（`OpenTelemetryMiddleware` がスタックにあれば自分は引く）うえ、`url.query`（`_SENSITIVE_QUERY_PARAMETERS` 以外の値は載る）を出すため決定6にも反する。テストを弱めて受け入れるのではなく、`pyproject.toml` で `fastapi<0.142` に固定し、dependabot も `>=0.142` を ignore した。**0.142 以降へ上げる条件**: 契約を「アプリのコードは import しない」に改めるか、fastapi が OTel を任意依存に戻したのを確認し、`create_app()` で `telemetry={"tracing": False, "metrics": False, "logs": False, "auto_configure": False}` を渡して組み込み側を止める、zip への `opentelemetry-api` 混入の扱い（ガードの例外化とレイヤーとの版整合）を決める、の三点を ADR に追記してから。）
 - X-Ray SDK と、Powertools for AWS Lambda の Tracer（X-Ray SDK ベース）は使わない。
 
 ### 決定2: 閲覧先は CloudWatch。トレースは Transaction Search、ルート単位のメトリクスは Application Signals
