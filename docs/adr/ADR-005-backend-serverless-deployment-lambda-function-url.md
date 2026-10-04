@@ -23,7 +23,7 @@
   `authApi.ts` には再送を入れない。（本文: 「棚卸し追補（2026-10-04）」節）
 - **`X-App-Authorization` は標準 `Authorization` 向けの保護（クロスオリジンのリダイレクトでの削除、ログの自動マスク）を受けない**。
   ロギングやクラッシュレポートを導入するときはマスク対象に明示的に追加する。（本文: 「棚卸し追補（2026-10-04）」節）
-- **Alembic のマイグレーションは、同じビルド成果物を使う専用 Lambda を手動で invoke して実行し、direct（非 pooled）DSN `neon_dsn_unpooled` を使う**。API 本体・lifespan・デプロイフックでは走らせない。スキーマ変更は expand → contract で入れる（[ADR-008](./ADR-008-deploy-release-separation.md) 決定7）。（本文: 決定9、SS-72 追補、SS-104 追補）
+- **Alembic のマイグレーションは、同じビルド成果物を使う専用 Lambda を手動で invoke して実行し、direct（非 pooled）DSN `neon_dsn_unpooled` を使う**。API 本体・lifespan・デプロイフックでは走らせない。スキーマ変更は expand → contract で入れる（[ADR-008](./ADR-008-deploy-release-separation.md) 決定7。既存テーブルへの列追加は、デプロイから migrate までの間に新しいコードが旧スキーマで 500 になる隙間があるため、ADR-008 決定7 の SS-171 追補を参照）。（本文: 決定9、SS-72 追補、SS-104 追補）
 - **SnapStart は有効化しない**。（本文: 決定11、SS-183 追補）
 - **Lambda 実行ロールには Permission Boundary を付ける**。境界を初めて入れるデプロイだけは手元の管理者権限で行う。実行時に新しい AWS 操作が要るときは、境界を外さず infra 側の境界を先に広げる。（本文: SS-72 追補）
 - **backend のデプロイ用ワークフローは手動実行（`workflow_dispatch`）でだけ起動する**（push・pull_request では起動しない）。dev は任意の ref から、prod は main からのみ（Required reviewers 付き）で、backend CI を通ったコミットだけをデプロイする。（本文: SS-72 追補）
@@ -268,6 +268,9 @@ API 本体のハンドラ / lifespan で `upgrade head` を走らせる案は、
   だけがそちらを読む構成にした。ホスト名から `-pooler` を機械的に除去して direct 相当を作る案は、
   Neon のホスト命名規則への暗黙依存になり命名が変わった際にマイグレーション実行時にだけ壊れる
   （発覚が遅い）ため採らない。
+- **既存テーブルへの列追加は、デプロイから migrate までの間に新しいコードが旧スキーマで
+  `UndefinedColumn` になる隙間が残る**（マイグレーションを API 本体より先に流せないため）。
+  expand の扱いと運用は [ADR-008](./ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補を参照。
 
 ### 10. アーキテクチャは x86_64
 
