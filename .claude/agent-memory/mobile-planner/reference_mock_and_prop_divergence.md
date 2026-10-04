@@ -12,7 +12,7 @@ metadata:
 - 末尾 `<script type="text/x-dc">` の `DCLogic` クラスに `SPOTS`/`CATS`/`state`/`renderVals()` があり、
   ダミーデータ・数値計算式（km=elapsedSec/720 等）・遷移ロジックの正解が全部ここにある。
 - 補助: `docs/mock/_ds/.../{readme.md(文言トーン・ビジュアル原則),component-api.md(Props早見),tokens/*.css}`。
-- トークン値は既に `src/theme/tokens.ts` に移植済み。mock の `var(--*)` は theme キーに読み替える（[[project_design_system_ssot]]）。
+- トークン値は既に `src/theme/tokens.ts` に移植済み。mock の `var(--*)` は theme キーに読み替える（[[design-system-sync]]）。
 
 - ピン系の画面も mock にある: `isMain` の `mainPins`（地図上のピン）+ `popupOpen`（吹き出しカード）、
   `isDetail`（ピン詳細: 名前・日時・タグ・2列写真・メモ）、`lightboxOpen`（原本の拡大・前後移動・写真コメント）、

@@ -19,7 +19,8 @@ metadata:
 - `flags` は**固定キーではなく map** (`{[key: string]: boolean}`) → mobile 側でキー定数を自前定義する
   （ADR-008 追補 D1 の申し送り）。フラグの正典は backend の
   `packages/backend/src/sanposcape/core/feature_flags.py` の `FEATURE_FLAGS`（`audience: "client"`）。
-  2026-09 時点で公開フラグは疎通確認用の `app_config_probe` 1件のみ（最初の実フラグで削除される）。
+  2026-10 時点で `audience: "client"` のフラグは `pin_registration`（SS-88）のみ（疎通確認用の `app_config_probe` は削除済み）。
+  現在のフラグは `FEATURE_FLAGS` の現物で確かめる。
 - `config_source` は診断専用。**クライアントはこの値で分岐してはいけない**（内部型から落として
   構造的に防ぐのが SS-100 の方針）。
 - `minimum_supported_versions.{ios,android}` は `string | null`。`null` = 促さない。
@@ -29,7 +30,8 @@ metadata:
 
 **ローカル/テストでフラグを ON にする手段は backend 側にある**（mobile にモード env は作らない）:
 `ENV=local|test` + `FEATURE_FLAG_MODE=stub` +
-`FEATURE_FLAG_STUB_DOCUMENT='{"app_config_probe":{"enabled":true}}'`（`packages/backend/src/sanposcape/config.py`）。
+`FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'`（`packages/backend/src/sanposcape/config.py`。
+`compose.yaml` も `FEATURE_FLAG_STUB_DOCUMENT` をコンテナへ渡す）。
 E2E は実 backend を叩き、`APPCONFIG_*` の ID 未設定なら `config_source:"default"` で全 OFF。
 
 ## 計画時に踏みやすい落とし穴（SS-100 で判明）
