@@ -33,24 +33,36 @@ SS-171「地図毎にアイコンを選択できるようにする」と SS-172�
   （`features/pin/lib/sanpoMapIcon.ts` の `SANPO_MAP_ICON_META`）でグリフと色に変換する。表のキーを生成型の enum にして
   `Record` で網羅するので、backend が値を足したのに mobile の対応表が無い状態は typecheck で検出できる。
   API の `icon` が欠落・`null`・未知の値のとき（古い backend・新しい backend）は `pin` で扱う（`toSanpoMapIconKey`）。
-- **D2: アイコンは12種類で、色はアイコンから決まる（ユーザーは色を選ばない）。**
-  色は `MapPin` の既存カテゴリ色（`theme.map.park/cafe/culture/station`）に限る
-  （デザインシステムが地図ピン用に予約している色。新しい色トークンを足さない）。既定 `pin` は従来の登録済みピンと同じ見た目。
+- **D2: アイコンは13種類で、色はアイコンから決まる（ユーザーは色を選ばない）。**
+  色は `MapPin` のカテゴリ色から選ぶ。当初は既存の4系統（`theme.map.park/cafe/culture/station`）に限り新しい色を足さない方針だったが、
+  ユーザーの要望（花は赤、猫は茶色、雨・避暑地は青）で、地図アイコン用に **`sky`（水色寄りの青）と `brown`（茶色）を `theme.map` に足した**
+  （light/dark の両方。`ThemeMapColors` と `MapPinCategory` に追加）。パレットにピンクは無いので、花は既存の赤（station）にした。
+  `sky` は現在地・ルート線の青（`route`。light `#1585fe` / dark `#3d97fe`）と見分けるため、シアン寄りの色相にしている。
+  既定 `pin` は従来の登録済みピンと同じ見た目。
 
   | key（API 値） | グリフ | 色 | 表示名 |
   |---|---|---|---|
   | `pin`（既定） | `map-pin` | park | ピン |
   | `tree` | `tree-pine` | park | 公園・緑 |
-  | `flower` | `flower-2` | park | 花 |
+  | `flower` | `flower-2` | station | 花 |
+  | `leaf` | `leaf` | station | 紅葉 |
+  | `sun` | `sun` | cafe | 太陽 |
+  | `rain` | `cloud-rain` | sky | 雨 |
+  | `retreat` | `mountain` | sky | 避暑地 |
+  | `landmark` | `landmark` | culture | 名所・史跡 |
   | `coffee` | `coffee` | cafe | カフェ |
   | `food` | `utensils` | cafe | ごはん |
   | `bakery` | `croissant` | cafe | パン |
-  | `landmark` | `landmark` | culture | 名所・史跡 |
-  | `camera` | `camera` | culture | 撮影スポット |
-  | `book` | `book-open` | culture | 本・学び |
-  | `heart` | `heart` | station | お気に入り |
   | `shopping` | `shopping-bag` | station | 買い物 |
-  | `dog` | `dog` | station | 犬の散歩 |
+  | `cat` | `cat` | brown | 猫 |
+
+  ピッカーの表示順は上の表のとおり（6列 × 3行。1行目: 自然・季節・天気、2行目: 場所・食・買い物、3行目: 猫。13個なので最後の行は1個で左寄せ）。
+  追加した色の値と、白いグリフ（`onColor` = `#ffffff`）とのコントラスト比（図形として 3:1 以上を確認。`tokens.test.ts` で検査）:
+
+  | 色 | light | dark |
+  |---|---|---|
+  | `sky` | `#0e8fc7`（3.64:1） | `#2a9bd0`（3.14:1） |
+  | `brown` | `#9a6b47`（4.60:1） | `#a8754f`（3.95:1） |
 
   30px のピンではグリフだけの差は見分けにくいので、色で大まかな種類を分ける。色を別に選ばせる案は将来の拡張にする。
 - **D3: 選ぶ場所は作成ダイアログ（既定 `pin`）と、地図詳細の「アイコンを変更」（owner のみ）。新しいルートは作らない。**
@@ -78,7 +90,10 @@ SS-171「地図毎にアイコンを選択できるようにする」と SS-172�
 
 - **アイコン名（Lucide 名）をそのまま API に保存する / 自由な文字列**: Lucide のリネームや mobile 側の都合が API に漏れる。
   未知の文字列の検証もできない。却下。
-- **色も選ばせる**: ピッカーが複雑になり、色の組み合わせ（デザインシステムが予約している色の外）が増える。将来の拡張にする。
+- **色も選ばせる**: ピッカーが複雑になり、色の組み合わせが増える。将来の拡張にする。
+- **既存4系統の色だけで割り当てる（新しい色を足さない）**: 当初の案。ユーザーが「花は赤/ピンク、猫は茶色、雨・避暑地は青」を希望し、
+  既存の色には茶色・青（`route` と紛らわしくない青）が無いため却下し、`sky` と `brown` を足した。`route` の青をそのまま使う案は、
+  現在地・ルート線と区別できなくなるので採らなかった。
 - **絵文字**: デザインシステムの Iconography 規約と `pages-components-guideline.md` のルール（`Icon` 経由のみ・絵文字禁止）に反する。却下。
 - **ピンごとのアイコン**: 要件は「地図ごと」。ピンの API とデータモデルの変更が大きい。却下。
 - **`Marker.image` に PNG を渡す**: アイコン × 色ぶんの画像が要り、テーマに追従しない。却下。
@@ -96,13 +111,15 @@ SS-171「地図毎にアイコンを選択できるようにする」と SS-172�
 
 ### ポジティブな影響
 
-- ピンの色とグリフで地図を見分けられる。iOS・Android の両方で、ピンの先端が座標に一致する。
+- ピンの色とグリフで地図を見分けられる。色は6系統（park/cafe/culture/station/sky/brown）になり、旧版より区別しやすい。iOS・Android の両方で、ピンの先端が座標に一致する。
 
 ### ネガティブな影響・トレードオフ
 
+- 地図アイコン用に `theme.map` へ色を足したので、`Tag` など `theme.map[category]` を引く側のカテゴリ型を広げる場合は新しい色も考慮する。
+  `sky` の dark（3.14:1）は白との差が小さい（3:1 の下限に近い）ので、実機のダークテーマで見え方を確認する。
 - Android は背景の無い View に elevation の影が出ないので、ピンの影は iOS だけ（白い縁取りで地図と分ける）。
 - Claude Design 側の `MapPin`（CSS のティアドロップ）と実装の形が食い違う。Design 側を新しい形に更新するかは未定。
-- アイコンの顔ぶれを12種類から**減らす**ときは、backend の contract（既存行のデータ移行と古い mobile がいなくなるのを待つこと）になる。
+- アイコンの顔ぶれを13種類から**減らす**ときは、backend の contract（既存行のデータ移行と古い mobile がいなくなるのを待つこと）になる。
   増やすのは安い（backend → `openapi.yaml` → mobile の対応表の順。backend を先に出してよい）。
 - ピン詳細をディープリンクで開いた直後は、地図一覧が届くまで既定の `pin` で描かれる（届いたら作り直される）。
 - backend が新しいアイコン値を足し、mobile がまだ古いままのとき、その値は `pin` に丸められる（`toSanpoMapIconKey`）。
