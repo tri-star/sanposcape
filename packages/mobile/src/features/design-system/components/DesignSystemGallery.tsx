@@ -208,6 +208,8 @@ export function DesignSystemGallery() {
             <MapPin category="culture" />
             <MapPin category="station" />
             <MapPin category="goal" size={44} label="川辺駅" />
+            {/* 登録済みピンの既定の見た目（地図のアイコン pin）。 */}
+            <MapPin category="park" icon="map-pin" size={30} />
           </Row>
         </Section>
 

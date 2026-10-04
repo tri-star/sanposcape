@@ -25,9 +25,13 @@ import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import Clock from "lucide-react-native/icons/clock";
 import Coffee from "lucide-react-native/icons/coffee";
+import Croissant from "lucide-react-native/icons/croissant";
 import Crosshair from "lucide-react-native/icons/crosshair";
+import Dog from "lucide-react-native/icons/dog";
 import Flag from "lucide-react-native/icons/flag";
+import Flower2 from "lucide-react-native/icons/flower-2";
 import Footprints from "lucide-react-native/icons/footprints";
+import Heart from "lucide-react-native/icons/heart";
 import ImageOff from "lucide-react-native/icons/image-off";
 import ImagePlus from "lucide-react-native/icons/image-plus";
 import Info from "lucide-react-native/icons/info";
@@ -58,6 +62,7 @@ import TreePine from "lucide-react-native/icons/tree-pine";
 import Trees from "lucide-react-native/icons/trees";
 import Undo2 from "lucide-react-native/icons/undo-2";
 import User from "lucide-react-native/icons/user";
+import Utensils from "lucide-react-native/icons/utensils";
 import Wifi from "lucide-react-native/icons/wifi";
 import X from "lucide-react-native/icons/x";
 import XCircle from "lucide-react-native/icons/circle-x";
@@ -77,9 +82,13 @@ export const ICONS = {
   "chevron-right": ChevronRight,
   clock: Clock,
   coffee: Coffee,
+  croissant: Croissant,
   crosshair: Crosshair,
+  dog: Dog,
   flag: Flag,
+  "flower-2": Flower2,
   footprints: Footprints,
+  heart: Heart,
   "image-off": ImageOff,
   "image-plus": ImagePlus,
   info: Info,
@@ -110,6 +119,7 @@ export const ICONS = {
   trees: Trees,
   "undo-2": Undo2,
   user: User,
+  utensils: Utensils,
   wifi: Wifi,
   x: X,
   "x-circle": XCircle,

@@ -1,6 +1,8 @@
 import { type StyleProp, Text, View, type ViewStyle } from "react-native";
+import Svg, { Path } from "react-native-svg";
 
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
+import { computeMapPinGeometry } from "@/components/ui/map-pin/mapPinGeometry";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -12,7 +14,7 @@ export type MapPinProps = {
   icon?: IconName;
   /** ピン下に出す小さなラベル。 */
   label?: string;
-  /** ティアドロップの一辺（px）。 */
+  /** 頭の直径（= 幅。px）。高さは約1.45倍。 */
   size?: number;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -28,12 +30,18 @@ const DEFAULT_ICON: Record<MapPinCategory, IconName> = {
 };
 
 /**
- * MapPin — カテゴリごとに色分けしたティアドロップ型のマーカー。
+ * MapPin — カテゴリごとに色分けした「丸い頭 + 細く尖った尾」のマーカー（SVG のシルエット）。
  * デザイン: Sanpo Design System / components/map/MapPin
+ *
+ * `Marker` の子に置くときは `mapPinMarkerPlacement(size)`（`@/components/ui/map-pin/mapPinGeometry`）を
+ * `Marker` に spread する。`anchor` は Google Maps 専用で、iOS の Apple Maps は View の中心を座標に置く
+ * ため `centerOffset` が要る（ADR-M-019）。基準点はラベル無しの高さで計算しているので、`label` は
+ * `Marker` の子では使わない。
  */
 export function MapPin({ category = "cafe", icon, label, size = 40, style, testID }: MapPinProps) {
   const theme = useTheme();
   const styles = useStyles();
+  const g = computeMapPinGeometry(size);
 
   const color =
     category === "goal"
@@ -44,25 +52,20 @@ export function MapPin({ category = "cafe", icon, label, size = 40, style, testI
 
   return (
     <View testID={testID} style={[styles.root, style]}>
-      <View
-        style={[
-          styles.teardrop,
-          {
-            width: size,
-            height: size,
-            backgroundColor: color,
-            borderTopLeftRadius: size / 2,
-            borderTopRightRadius: size / 2,
-            borderBottomRightRadius: size / 2,
-            borderColor: theme.colors.surfaceCard,
-          },
-        ]}
-      >
-        {/* ティアドロップを -45deg 回転させているので、中のアイコンは +45deg 戻す */}
-        <View style={styles.glyph}>
+      <View style={[styles.pin, { width: g.width, height: g.height }]}>
+        <Svg width={g.width} height={g.height} viewBox={`0 0 ${g.width} ${g.height}`}>
+          <Path
+            d={g.path}
+            fill={color}
+            stroke={theme.colors.surfaceCard}
+            strokeWidth={g.outlineWidth}
+            strokeLinejoin="round"
+          />
+        </Svg>
+        <View pointerEvents="none" style={[styles.glyph, { left: g.glyph.left, top: g.glyph.top }]}>
           <Icon
             name={icon ?? DEFAULT_ICON[category]}
-            size={Math.round(size * 0.42)}
+            size={g.glyph.size}
             color={theme.colors.onColor}
             strokeWidth={2.4}
           />
@@ -81,16 +84,13 @@ const useStyles = makeStyles((theme) => ({
   root: {
     alignItems: "center",
   },
-  teardrop: {
-    alignItems: "center",
-    justifyContent: "center",
-    borderBottomLeftRadius: 0,
-    borderWidth: 2.5,
-    transform: [{ rotate: "-45deg" }],
+  pin: {
+    // iOS は中身の形に沿った影が出る。Android は背景の無い View に elevation の影が出ないので、
+    // 白い縁取りで地図と分ける。
     ...theme.shadows.pin,
   },
   glyph: {
-    transform: [{ rotate: "45deg" }],
+    position: "absolute",
   },
   label: {
     marginTop: theme.spacing[1],
