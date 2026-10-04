@@ -455,7 +455,9 @@ paths:
 
         `?expand=pin_count` を指定すると各要素の `pin_count` が整数で埋まる（ピンが無い
 
-        地図は0）。未指定なら `pin_count` は null のまま。'
+        地図は0）。未指定なら `pin_count` は null のまま。各要素の `icon` は地図のアイコン
+
+        （未設定は無く、既定は `pin`）。'
       operationId: list_sanpo_maps
       security:
       - HTTPBearer: []
@@ -492,7 +494,9 @@ paths:
 
         自分の既定地図がまだ無ければ、作った地図が既定になる（`is_default` はリクエストで
 
-        指定できない）。名前の重複は許可する。冪等キーは持たない。'
+        指定できない）。名前の重複は許可する。冪等キーは持たない。`icon` を省略すると
+
+        `pin` になる。'
       operationId: create_sanpo_map
       security:
       - HTTPBearer: []
@@ -520,12 +524,12 @@ paths:
       tags:
       - sanpo-maps
       summary: Update Sanpo Map
-      description: '地図の名前を変更する。空のボディ `{}` は何も変えずに 200 を返す。
+      description: '地図の名前・アイコンを変更する。空のボディ `{}` は何も変えずに 200 を返す。
 
 
         地図 owner のみ可（editor は 403）。非メンバー・存在しない ID は 404。同名への
 
-        変更も 200。名前変更では `updated_at` を更新しない。'
+        変更も 200。名前・アイコンの変更では `updated_at` を更新しない。'
       operationId: update_sanpo_map
       security:
       - HTTPBearer: []
@@ -2020,11 +2024,39 @@ components:
           maxLength: 50
           minLength: 1
           title: Name
+        icon:
+          $ref: '#/components/schemas/SanpoMapIcon'
+          default: pin
       type: object
       required:
       - name
       title: SanpoMapCreate
-      description: '`POST /sanpo-maps` のリクエスト（ADR-009 決定25）。'
+      description: '`POST /sanpo-maps` のリクエスト（ADR-009 決定25・31）。
+
+
+        `icon` は省略可（既定 pin）。null・未知の値は 422。'
+    SanpoMapIcon:
+      type: string
+      enum:
+      - pin
+      - tree
+      - flower
+      - coffee
+      - food
+      - bakery
+      - landmark
+      - camera
+      - book
+      - heart
+      - shopping
+      - dog
+      title: SanpoMapIcon
+      description: '地図のアイコン（`SanpoMap.icon` の値域。SS-171, ADR-009 決定31）。
+
+
+        値はドメインの語（Lucide のアイコン名ではない）。mobile が対応表でグリフと色に変換する。
+
+        値を足すときは `ck_sanpo_maps_icon` を作り直すマイグレーションが要る。'
     SanpoMapListRead:
       properties:
         items:
@@ -2051,6 +2083,8 @@ components:
         name:
           type: string
           title: Name
+        icon:
+          $ref: '#/components/schemas/SanpoMapIcon'
         is_default:
           type: boolean
           title: Is Default
@@ -2077,6 +2111,7 @@ components:
       required:
       - id
       - name
+      - icon
       - is_default
       - role
       - created_at
@@ -2133,6 +2168,9 @@ components:
           maxLength: 50
           minLength: 1
           title: Name
+        icon:
+          $ref: '#/components/schemas/SanpoMapIcon'
+          title: Icon
       additionalProperties: false
       type: object
       title: SanpoMapUpdate
@@ -2141,9 +2179,11 @@ components:
         `sanpo_maps/pins/schemas.py` の `PinUpdate` と同じ流儀）。
 
 
-        `extra="forbid"`。`name` は省略可・null 不可（`SkipJsonSchema[None]` により OpenAPI 上は
+        `extra="forbid"`。`name`・`icon` は省略可・null 不可（`SkipJsonSchema[None]` により
 
-        non-nullable の optional として出る。明示的な `null` は `model_validator` で 422）。
+        OpenAPI 上は non-nullable の optional として出る。明示的な `null` は `model_validator`
+
+        で 422, 決定31）。
 
         `{}` は 200 で何も変えない。'
     SessionCreate:

@@ -18,7 +18,7 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapUpdate,
 )
 from sanposcape.sanpo_maps.maps.service import SanpoMapService
-from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapIcon, SanpoMapMember
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 
 
@@ -95,6 +95,21 @@ class TestListMaps:
         assert result.items == []
 
 
+class TestListMapsIcon:
+    def test_each_map_has_its_own_saved_icon(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        first = service.create_map(user, SanpoMapCreate(name="1つ目", icon=SanpoMapIcon.TREE))
+        second = service.create_map(user, SanpoMapCreate(name="2つ目", icon=SanpoMapIcon.BOOK))
+
+        result = service.list_maps(user)
+
+        assert {item.id: item.icon for item in result.items} == {
+            first.id: SanpoMapIcon.TREE,
+            second.id: SanpoMapIcon.BOOK,
+        }
+
+
 class TestListMapsPinCount:
     def test_without_include_pin_count_all_items_have_null_pin_count_and_repository_is_not_called(
         self, db_session: Session, monkeypatch: pytest.MonkeyPatch
@@ -159,6 +174,22 @@ class TestCreateMap:
         assert result.is_default is True
         assert result.role == "owner"
         assert result.pin_count is None
+
+    def test_saves_given_icon(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+
+        result = service.create_map(user, SanpoMapCreate(name="地図", icon=SanpoMapIcon.COFFEE))
+
+        assert result.icon == SanpoMapIcon.COFFEE
+
+    def test_icon_defaults_to_pin(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+
+        result = service.create_map(user, SanpoMapCreate(name="地図"))
+
+        assert result.icon == SanpoMapIcon.PIN
 
     def test_second_map_is_not_default(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
@@ -262,6 +293,92 @@ class TestUpdateMap:
 
         with pytest.raises(SanpoMapNotFoundError):
             service.update_map(stranger, sanpo_map.id, SanpoMapUpdate(name="改名"))
+
+    def test_owner_can_change_icon_without_touching_name_or_updated_at(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        created = service.create_map(user, SanpoMapCreate(name="地図"))
+
+        result = service.update_map(user, created.id, SanpoMapUpdate(icon=SanpoMapIcon.DOG))
+
+        assert result.icon == SanpoMapIcon.DOG
+        assert result.name == "地図"
+        assert result.updated_at == created.updated_at
+
+    def test_owner_can_change_name_and_icon_together(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_service(db_session)
+        created = service.create_map(user, SanpoMapCreate(name="旧名"))
+
+        result = service.update_map(
+            user, created.id, SanpoMapUpdate(name="新名", icon=SanpoMapIcon.DOG)
+        )
+
+        assert result.name == "新名"
+        assert result.icon == SanpoMapIcon.DOG
+
+    def _editor_map(self, db_session: Session) -> tuple[SanpoMapService, object, uuid.UUID]:
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        service = make_service(db_session)
+        sanpo_map, _ = service._repository.create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map.id, user_id=editor.id, role="editor"))
+        db_session.commit()
+        return service, editor, sanpo_map.id
+
+    @staticmethod
+    def _stored(map_id: uuid.UUID) -> tuple[str, str]:
+        other_session = TestSessionLocal()
+        try:
+            stored = other_session.get(SanpoMap, map_id)
+            assert stored is not None
+            return stored.name, stored.icon
+        finally:
+            other_session.close()
+
+    def test_editor_sending_icon_raises_permission_denied(self, db_session: Session) -> None:
+        service, editor, map_id = self._editor_map(db_session)
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.update_map(editor, map_id, SanpoMapUpdate(icon=SanpoMapIcon.DOG))  # type: ignore[arg-type]
+
+        assert self._stored(map_id) == ("地図", "pin")
+
+    def test_editor_sending_current_icon_still_raises_permission_denied(
+        self, db_session: Session
+    ) -> None:
+        service, editor, map_id = self._editor_map(db_session)
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.update_map(editor, map_id, SanpoMapUpdate(icon=SanpoMapIcon.PIN))  # type: ignore[arg-type]
+
+    def test_editor_sending_name_and_icon_changes_nothing(self, db_session: Session) -> None:
+        service, editor, map_id = self._editor_map(db_session)
+
+        with pytest.raises(SanpoMapPermissionDeniedError):
+            service.update_map(
+                editor,  # type: ignore[arg-type]
+                map_id,
+                SanpoMapUpdate(name="改名", icon=SanpoMapIcon.DOG),
+            )
+
+        assert self._stored(map_id) == ("地図", "pin")
+
+    def test_non_member_sending_icon_raises_not_found(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        service = make_service(db_session)
+        sanpo_map, _ = service._repository.create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+
+        with pytest.raises(SanpoMapNotFoundError):
+            service.update_map(stranger, sanpo_map.id, SanpoMapUpdate(icon=SanpoMapIcon.DOG))
 
 
 class TestDeleteMap:

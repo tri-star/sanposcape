@@ -90,7 +90,7 @@ class SanpoMapService:
         )
 
     def create_map(self, current_user: User, payload: SanpoMapCreate) -> SanpoMapRead:
-        """`POST /sanpo-maps`: 地図を新規作成する（ADR-009 決定25・27）。
+        """`POST /sanpo-maps`: 地図を新規作成する（ADR-009 決定25・27・31）。`icon` は省略時 pin。
 
         自分の既定地図がまだ無ければ、作った地図を既定にする（`is_default` はリクエスト
         では受け取らない）。既定の有無の判定から作成・commit までを owner 単位の
@@ -105,7 +105,10 @@ class SanpoMapService:
             self._repository.get_default_for_owner(owner_user_id=current_user.id) is None
         )
         sanpo_map = self._repository.create_owned(
-            owner_user_id=current_user.id, name=payload.name, prefer_default=prefer_default
+            owner_user_id=current_user.id,
+            name=payload.name,
+            prefer_default=prefer_default,
+            icon=payload.icon,
         )
         self._db.commit()
         return to_sanpo_map_read(sanpo_map, role="owner", current_user_id=current_user.id)
@@ -113,11 +116,13 @@ class SanpoMapService:
     def update_map(
         self, current_user: User, sanpo_map_id: uuid.UUID, payload: SanpoMapUpdate
     ) -> SanpoMapRead:
-        """`PATCH /sanpo-maps/{sanpo_map_id}`: 名前を変更する（ADR-009 決定25・26）。
+        """`PATCH /sanpo-maps/{sanpo_map_id}`: 名前・アイコンを変更する（ADR-009 決定25・26・31）。
 
         判定順は決定21と同じ「member（404）→ 権限（403）」。権限は「送られたフィールド」
-        （ここでは `name` のみ）で判定するため、`{}` は member 判定だけで 200 になる
-        （editor でも可）。`name` を送ったときだけ `can_update_sanpo_map` を見る。
+        （`name`/`icon`）で判定するため、`{}` は member 判定だけで 200 になる（editor でも可）。
+        どちらかを送ったら `can_update_sanpo_map` を見る（editor が今と同じ値を送っても 403）。
+        権限判定はフィールドごとの更新より前にまとめる（一部だけ更新される状態を作らない）。
+        `updated_at` は更新しない（決定25・31）。
         """
         membership = self._repository.get_membership_for_update(
             user_id=current_user.id, sanpo_map_id=sanpo_map_id
@@ -126,15 +131,22 @@ class SanpoMapService:
             raise SanpoMapNotFoundError()
         sanpo_map, role = membership
 
-        if "name" in payload.model_fields_set:
-            if not can_update_sanpo_map(role):
-                raise SanpoMapPermissionDeniedError()
+        requested = payload.model_fields_set & {"name", "icon"}
+        if requested and not can_update_sanpo_map(role):
+            raise SanpoMapPermissionDeniedError()
+
+        if "name" in requested:
             if payload.name is None:
                 # `SanpoMapUpdate` の model_validator が明示 null を弾いているため
                 # 到達しないはずの不変条件違反。
                 raise AssertionError("payload.name must not be None when 'name' is set")
             if payload.name != sanpo_map.name:
                 self._repository.update_name(sanpo_map, name=payload.name)
+        if "icon" in requested:
+            if payload.icon is None:
+                raise AssertionError("payload.icon must not be None when 'icon' is set")
+            if payload.icon != sanpo_map.icon:
+                self._repository.update_icon(sanpo_map, icon=payload.icon)
 
         self._db.commit()
         return to_sanpo_map_read(sanpo_map, role=role, current_user_id=current_user.id)

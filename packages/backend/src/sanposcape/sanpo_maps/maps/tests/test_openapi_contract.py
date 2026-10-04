@@ -159,3 +159,46 @@ class TestListSanpoMapTagsContract:
         assert set(tag["required"]) == {"label", "pin_count"}
         assert set(tag["properties"]) == {"label", "pin_count"}
         assert schemas["SanpoMapTagListRead"]["required"] == ["items"]
+
+
+_ICON_REF = {"$ref": "#/components/schemas/SanpoMapIcon"}
+
+
+class TestSanpoMapIconContract:
+    def test_icon_is_a_named_string_enum_in_mobile_order(self) -> None:
+        """mobile の Orval が `SanpoMapIcon` 型を生成できるよう、名前付きスキーマで出す。"""
+        schema = _load_committed_openapi()["components"]["schemas"]["SanpoMapIcon"]
+        assert schema["type"] == "string"
+        assert schema["enum"] == [
+            "pin",
+            "tree",
+            "flower",
+            "coffee",
+            "food",
+            "bakery",
+            "landmark",
+            "camera",
+            "book",
+            "heart",
+            "shopping",
+            "dog",
+        ]
+
+    def test_read_icon_is_required_and_not_nullable(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["SanpoMapRead"]
+        assert "icon" in schema["required"]
+        assert schema["properties"]["icon"] == _ICON_REF
+
+    def test_create_icon_is_optional_with_default_pin(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["SanpoMapCreate"]
+        assert "icon" not in schema.get("required", [])
+        assert schema["properties"]["icon"]["$ref"] == _ICON_REF["$ref"]
+        assert schema["properties"]["icon"]["default"] == "pin"
+
+    def test_update_icon_is_optional_and_not_nullable(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["SanpoMapUpdate"]
+        assert "icon" not in schema.get("required", [])
+        icon = schema["properties"]["icon"]
+        assert icon["$ref"] == _ICON_REF["$ref"]
+        assert "anyOf" not in icon  # null 不可（SkipJsonSchema）
+        assert schema["additionalProperties"] is False

@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import (
     CheckConstraint,
@@ -24,6 +25,34 @@ from sanposcape.database import Base
 #: `sanpo_maps/permissions.py` 参照）。
 SANPO_MAP_ROLES = ("owner", "editor")
 
+
+class SanpoMapIcon(StrEnum):
+    """地図のアイコン（`SanpoMap.icon` の値域。SS-171, ADR-009 決定31）。
+
+    値はドメインの語（Lucide のアイコン名ではない）。mobile が対応表でグリフと色に変換する。
+    値を足すときは `ck_sanpo_maps_icon` を作り直すマイグレーションが要る。
+    """
+
+    PIN = "pin"
+    TREE = "tree"
+    FLOWER = "flower"
+    COFFEE = "coffee"
+    FOOD = "food"
+    BAKERY = "bakery"
+    LANDMARK = "landmark"
+    CAMERA = "camera"
+    BOOK = "book"
+    HEART = "heart"
+    SHOPPING = "shopping"
+    DOG = "dog"
+
+
+#: 地図のアイコンの既定値（既存の地図と、`POST /pins` が自動作成する「最初の地図」, 決定31）。
+DEFAULT_SANPO_MAP_ICON = SanpoMapIcon.PIN
+
+#: `SanpoMap.icon` に許容する値（CHECK 制約の組み立てに使うため、要素は素の `str`）。
+SANPO_MAP_ICONS = tuple(icon.value for icon in SanpoMapIcon)
+
 #: `PinPhotoUpload.status` に許容する値。
 PIN_PHOTO_UPLOAD_STATUSES = ("pending", "attached")
 
@@ -39,6 +68,8 @@ class SanpoMap(Base):
     `is_default` は「owner ごとに既定地図は1つ」を部分一意インデックスで守る。
     `sanpo_map_members` に owner の行も別途持つのは冗長だが、地図単体からオーナーを
     引ける形を残すため（B-D1〜B-D2、backend-plan.md 5.2）。
+
+    `icon` は既定 pin（決定31）。`updated_at` はアイコンの変更では動かさない。
     """
 
     __tablename__ = "sanpo_maps"
@@ -48,12 +79,19 @@ class SanpoMap(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
     name: Mapped[str] = mapped_column(String(50))
+    # 地図のアイコン（SS-171, ADR-009 決定31）。ピンの見た目は属する地図のアイコンで決まる。
+    icon: Mapped[str] = mapped_column(
+        String(16),
+        default=DEFAULT_SANPO_MAP_ICON.value,
+        server_default=DEFAULT_SANPO_MAP_ICON.value,
+    )
     is_default: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # ピン追加のたびに更新する（「最近使った地図」を先頭にする並び順に使う。5.3 (1)）。
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
+        CheckConstraint(f"icon IN {SANPO_MAP_ICONS}", name="ck_sanpo_maps_icon"),
         Index("ix_sanpo_maps_owner_user_id", "owner_user_id"),
         # 部分一意インデックス: owner ごとに is_default=true の行はちょうど1つ。
         Index(
