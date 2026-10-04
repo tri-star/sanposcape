@@ -1,2 +1,2 @@
-- [mobile ecosystem 誤判定への対処](feedback_mobile_ecosystem_detection.md) — detect-ecosystem.shがmobileをfrontend誤判定。orval生成→typecheck等の手順込み
+- [mobile依存更新の検証手順](mobile-dependency-verification-steps.md) — orval生成→expo customize tsconfig.json→typecheck/lint/format:check/testの順(mobile-ci.ymlと同じ)
 - [action.yml直接diffでGitHub Actions更新を検証](technique_github_actions_action_yml_diff.md) — release notesだけでなくaction.ymlのdiffでinputデフォルト変更を確定的に確認する

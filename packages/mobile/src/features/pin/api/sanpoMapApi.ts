@@ -2,10 +2,14 @@ import { ApiError } from "@/api/apiError";
 import {
   createSanpoMap as createSanpoMapRequest,
   listSanpoMaps as listSanpoMapsRequest,
+  updateSanpoMap as updateSanpoMapRequest,
 } from "@/api/generated/endpoints/sanpo-maps/sanpo-maps";
 import type { SanpoMapRead } from "@/api/generated/model";
-import type { SanpoMap } from "@/features/pin/types";
+import { toSanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
+import type { SanpoMap, SanpoMapIconKey } from "@/features/pin/types";
+import { isUuid } from "@/lib/uuid";
 
+/** `icon` は SS-171。生成型では必須でも、古い backend・未知の値に備えて必ず検証を通す。 */
 export function toSanpoMap(read: SanpoMapRead): SanpoMap {
   return {
     id: read.id,
@@ -14,6 +18,7 @@ export function toSanpoMap(read: SanpoMapRead): SanpoMap {
     role: read.role,
     // pin_count は OpenAPI 上 optional かつ nullable。undefined も null に揃える。
     pinCount: read.pin_count ?? null,
+    icon: toSanpoMapIconKey(read.icon),
   };
 }
 
@@ -45,10 +50,32 @@ export async function fetchSanpoMaps(options?: { signal?: AbortSignal }): Promis
  * 作ったばかりの地図にはピンが無いので pinCount は 0 にする（応答の pin_count は null）。
  * `signal` は渡さない（書き込みは画面を離れても中断しない。`usePinSave` の `createPin` と同じ考え方）。
  */
-export async function createSanpoMap(input: { name: string }): Promise<SanpoMap> {
-  const response = await createSanpoMapRequest({ name: input.name });
+export async function createSanpoMap(input: {
+  name: string;
+  icon: SanpoMapIconKey;
+}): Promise<SanpoMap> {
+  // 既定の pin でも明示的に送る。
+  const response = await createSanpoMapRequest({ name: input.name, icon: input.icon });
   if (response.status !== 201) {
     throw new ApiError(response.status);
   }
   return { ...toSanpoMap(response.data), pinCount: 0 };
+}
+
+/**
+ * `PATCH /sanpo-maps/{id}` でアイコンだけを変える（SS-171）。body は `{ icon }` のみ（差分だけ送る。ADR-M-017 と同じ方針）。
+ * `sanpoMapId` が UUID でなければ通信せず ApiError(404)（`fetchAllPinsInSanpoMap` と同じ多層防御）。
+ * 応答の pin_count は null なので、キャッシュ反映側（`replaceUpdatedSanpoMap`）で既存の件数を残す。
+ * `signal` は渡さない（書き込みは画面を離れても中断しない）。
+ */
+export async function updateSanpoMapIcon(input: {
+  sanpoMapId: string;
+  icon: SanpoMapIconKey;
+}): Promise<SanpoMap> {
+  if (!isUuid(input.sanpoMapId)) throw new ApiError(404);
+  const response = await updateSanpoMapRequest(input.sanpoMapId, { icon: input.icon });
+  if (response.status !== 200) {
+    throw new ApiError(response.status);
+  }
+  return toSanpoMap(response.data);
 }

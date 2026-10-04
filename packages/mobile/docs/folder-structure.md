@@ -97,9 +97,10 @@ packages/mobile/
 ### `src/components/` — 機能に依存しない再利用UI
 - `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。
   - **地図オーバーレイ**も `ui/` の1カテゴリとして扱う（例: `ui/map-pin/MapPin.tsx`、
-    `ui/route-polyline/RoutePolyline.tsx`）。`MapView` の子としてしか描画できない・単体では
-    見た目が確認できないという点で他の Primitive と性質が異なるため、開発確認用ギャラリーの
-    扱いも異なる（[pages-components-guideline](./pages-components-guideline.md) 参照）。
+    `ui/route-polyline/RoutePolyline.tsx`）。`RoutePolyline` は `MapView` の子としてしか描画できず
+    ギャラリーに載せられない。`MapPin` は SVG の View でギャラリーに載せられるが、基準点は地図画面でしか
+    確認できない（[pages-components-guideline](./pages-components-guideline.md) 参照）。
+    `ui/map-pin/mapPinGeometry.ts`（形・基準点を求める純粋関数）は `mapPinGeometry.test.ts` を併置する。
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
 - **UI を持たない横断的な配線コンポーネント**も、ここのカテゴリに置く
   （例: `app-config/AppConfigBootstrap.tsx`。hook を `QueryClientProvider` の内側で1回だけ実行する

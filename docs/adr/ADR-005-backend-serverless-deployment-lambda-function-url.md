@@ -1,12 +1,65 @@
 # ADR-005: backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-04（SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **公開経路は Lambda Function URL + CloudFront（OAC / SigV4）で、API Gateway・ALB は使わない**。（本文: 決定1、選択肢2）
+- **パッケージングは zip + `python3.12`、`sam build --use-container` でビルドする**。コンテナイメージは採らない。アーキテクチャは x86_64。（本文: 決定2、決定10）
+- **Lambda 固有のコードは `src/sanposcape/aws_lambda/` にだけ置き、`main.py` の `create_app()` / `app` は Lambda を知らない**。
+  FastAPI の lifespan を実行環境ごとに 1 回だけ起動する処理も `aws_lambda/asgi_handler.py` に置く。（本文: 決定3、SS-183 追補）
+  検査方法は「`aws_lambda/` の外から `sanposcape.aws_lambda` を import していないこと」（パッケージ内の相互 import は可）。（本文: 決定3、SS-178 追補）
+- **Function URL の `AuthType` は `AWS_IAM`。OAC が `Authorization` を上書きするため、アクセストークンは `X-App-Authorization` で運ぶ**。
+  ボディを伴うリクエストではクライアントが `x-amz-content-sha256` を付ける（mobile の HTTP 出口 2 箇所の両方）。自前のヘッダーは `X-App-` 接頭辞で統一する。（本文: 決定4、SS-70 追補）
+- **シークレットは実行時に Secrets Manager から取得し、プロセス内でキャッシュする**。ARN は SSM から deploy 時に解決して `APP_SECRET_ARN` で渡す。ローテーションは再デプロイで反映する。（本文: 決定5）
+- **アプリの `ENV` はテンプレートの `Mappings`（`dev → staging` / `prod → production`）で変換し、`config.py` の `Literal` を広げない**。（本文: 決定6）
+- **Lambda は VPC に入れない**。（本文: 決定7）
+- **in-process のキャッシュとレート制限が Lambda の実行環境ごとに独立することを受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。費用の天井は Google Cloud 側のクォータでも設ける。prod はクォータが上がるまで予約を入れず、引き上げと予約の投入を同時に行う。（本文: 決定8、SS-183 追補）
+- **Lambda では Mangum を `lifespan="off"` で使い、FastAPI の lifespan を init で 1 回だけ起動して shutdown は走らせない**。uvicorn・TestClient では従来どおり startup / shutdown の両方が走る。
+  lifespan の state（yield する値）は使わない。startup の失敗は ERROR ログを出してから init エラーにし、startup / shutdown には INFO ログを 1 行ずつ出す（dev での確認用）。（本文: SS-183 追補）
+- **mobile の一時障害（429 / 502 / 503 / 504 / 通信断）の再送は `customFetch` の GET / HEAD だけに限り、POST へ広げない**。
+  `authApi.ts` には再送を入れない。（本文: 「棚卸し追補（2026-10-04）」節）
+- **`X-App-Authorization` は標準 `Authorization` 向けの保護（クロスオリジンのリダイレクトでの削除、ログの自動マスク）を受けない**。
+  ロギングやクラッシュレポートを導入するときはマスク対象に明示的に追加する。（本文: 「棚卸し追補（2026-10-04）」節）
+- **Alembic のマイグレーションは、同じビルド成果物を使う専用 Lambda を手動で invoke して実行し、direct（非 pooled）DSN `neon_dsn_unpooled` を使う**。API 本体・lifespan・デプロイフックでは走らせない。スキーマ変更は expand → contract で入れる（[ADR-008](./ADR-008-deploy-release-separation.md) 決定7。既存テーブルへの列追加は、デプロイから migrate までの間に新しいコードが旧スキーマで 500 になる隙間があるため、ADR-008 決定7 の SS-171 追補を参照）。（本文: 決定9、SS-72 追補、SS-104 追補）
+- **SnapStart は有効化しない**。（本文: 決定11、SS-183 追補）
+- **Lambda 実行ロールには Permission Boundary を付ける**。境界を初めて入れるデプロイだけは手元の管理者権限で行う。実行時に新しい AWS 操作が要るときは、境界を外さず infra 側の境界を先に広げる。（本文: SS-72 追補）
+- **backend のデプロイ用ワークフローは手動実行（`workflow_dispatch`）でだけ起動する**（push・pull_request では起動しない）。dev は任意の ref から、prod は main からのみ（Required reviewers 付き）で、backend CI を通ったコミットだけをデプロイする。（本文: SS-72 追補）
+- **production へのデプロイが成功したら `backend/vX.Y.Z` タグと GitHub Release を作る**。規則の正本は [ADR-008](./ADR-008-deploy-release-separation.md) 決定4・決定5。（本文: SS-72 追補、SS-104 追補）
+
+### 未解決・持ち越し
+
+デプロイと検証の実施状況は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) 冒頭の検証状況の表が新しい（表に無い項目もある）。
+
+- **prod の Lambda 同時実行数クォータの引き上げと、prod への `ReservedConcurrentExecutions` の投入**。`template.yaml` は prod で予約を落としたまま。（本文: 決定8、移行・対応が必要な事項）
+- **prod のシークレットの投入と、prod へのデプロイ**。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
+- **prod の CloudFront の有効化（infra の `enable_distribution = true`）と、deployment.md §6.2 の確認**。dev は確認済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
+- **in-process のキャッシュとレート制限を外部ストアへ移すかの検討**。（本文: 決定8、移行・対応が必要な事項）
+- **探索 API のレート制限のキーにしている IP が、CloudFront 経由では利用者の IP ではない疑い**。SS-183 でレート制限が初めて実際に効くようになったため顕在化した。（本文: SS-183 追補。SS-186 で継続）
+- **SS-183 の修正が dev で意図どおりに動くことの確認**（ログストリームごとに startup のログが 1 件、shutdown のログが 0 件）。（本文: SS-183 追補）
+
+### 変更・撤回された決定
+
+- 本文の決定8 は「in-process のキャッシュとレート制限がインスタンスごとに独立する」ことを前提にしていたが、SS-183 まではそれ以下の「呼び出しごと」に作り直されていた（Mangum の `lifespan="auto"`）。決定の変更ではなく、挙動を前提に合わせた。（SS-183 追補）
+- mobile の HTTP 出口:「`customFetch` 1 箇所」→ 2 箇所（`customFetch` と `authApi.ts` の `post()`）（SS-70 追補）
+- dev のデプロイのトリガー: main への push で自動 → 手動実行のみ（SS-72 追補）
+- リリース戦略（フィーチャーフラグ・ストアの手動リリース）:「別途 ADR を起こす予定」→ ADR-008 として起こした（SS-104 追補）
+
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）
 
 ## ステータス
 
 採用（SS-67 で実装）
+
+**SS-183「Mangum の lifespan="auto" で、Lambda の呼び出しごとに FastAPI の lifespan が走っている疑い」で追補**した。
+疑いは事実で、決定8 などが前提にしていた「プロセスで使い回す」が SS-67 以来成り立っていなかった。
+Lambda での lifespan の起動方法を末尾の「SS-183 追補」に記録し、決定3・決定8・決定11 に注記している。
+あわせて冒頭に「現在有効な決定（要約）」を新設した。
 
 **SS-104「リリース戦略（デプロイとリリースの分離）の ADR と運用手順」で追補**した。
 SS-72 追補の末尾が「別途 ADR を起こす予定」としていたリリース戦略を
@@ -73,7 +126,14 @@ ECR リポジトリとイメージのライフサイクル管理が不要にな�
   Lambda / ECS のどちらでも同じ形になる。ハイドレーション関数（`core/runtime_config.py`）自体も
   `APP_SECRET_ARN` が未設定なら no-op になるため、ECS のエントリポイントから呼んでも害がない。
 - 検査方法: `sanposcape.aws_lambda` を import しているのが `template.yaml`（`Handler` の指定）と
-  自身のテストだけであること。
+  自身のテストだけであること。（**SS-178 追補**: 実際には `aws_lambda/` の中のモジュール同士
+  （`api.py` が `tracing.py` を import する）も import し合う。検査の趣旨は「`aws_lambda/` の外
+  （`core/` や各ドメイン）から `sanposcape.aws_lambda` を import していないこと」であり、
+  検査方法はこの形に読み替える。`aws_lambda/` から `core/` を import する向きは許す
+  （例: `tracing.py` が `core/observability.py` の `resolve_route_template` を使う）。）
+- （**SS-183 追補**: Lambda で FastAPI の lifespan を実行環境ごとに 1 回だけ起動する処理も
+  `aws_lambda/asgi_handler.py` に置いた。`main.py` の `_lifespan` は uvicorn・TestClient と共通のまま、
+  Lambda を知らない。末尾の「SS-183 追補」）
 
 ### 4. Function URL の `AuthType` は `AWS_IAM`。アクセストークンは `X-App-Authorization` ヘッダーで運ぶ
 
@@ -174,6 +234,10 @@ NAT Gateway の固定費（月額 $35 程度〜）と ENI アタッチに伴う�
 Google Maps のレスポンスキャッシュ（`integrations/google_maps/cache.py`）と `ExploreRateLimiter`
 （`maps/rate_limit.py`）は Lambda インスタンスごとに独立するため、インスタンス数が増えるほど
 キャッシュヒット率が下がり、レート制限の実効値がインスタンス数倍になる。
+（**SS-183 追補**: 実際には SS-183 まで、インスタンスごとにすら共有されていなかった。
+Mangum の `lifespan="auto"` が呼び出しごとに `main._lifespan` を startup / shutdown させていたため、
+キャッシュは毎回空で、レート制限は呼び出しごとにリセットされて実質効いていなかった。
+SS-183 でこの決定が前提にしていた「インスタンスごと」に直した。末尾の「SS-183 追補」）
 
 - **緩和策**: `ReservedConcurrentExecutions` で実効倍率の上限を固定する。加えて Google Cloud 側の
   クォータ上限で費用に天井を設ける（ADR-004 決定3 と同じ考え方）。
@@ -209,6 +273,9 @@ API 本体のハンドラ / lifespan で `upgrade head` を走らせる案は、
   だけがそちらを読む構成にした。ホスト名から `-pooler` を機械的に除去して direct 相当を作る案は、
   Neon のホスト命名規則への暗黙依存になり命名が変わった際にマイグレーション実行時にだけ壊れる
   （発覚が遅い）ため採らない。
+- **既存テーブルへの列追加は、デプロイから migrate までの間に新しいコードが旧スキーマで
+  `UndefinedColumn` になる隙間が残る**（マイグレーションを API 本体より先に流せないため）。
+  expand の扱いと運用は [ADR-008](./ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補を参照。
 
 ### 10. アーキテクチャは x86_64
 
@@ -221,6 +288,11 @@ qemu エミュレーションになり実用的でない。CI 上でネイティ
 Python 3.12 では利用可能だが、init 時にシークレットをハイドレートする現構成ではスナップショットに
 秘密値が焼き込まれてしまう。採用するなら `after_restore` ランタイムフックへハイドレーション処理を
 移設することが前提になり、今回のスコープでは行わない。
+（**SS-183 追補**: SS-183 で、`main._lifespan` が作る資源（AppConfig の取得元、レート制限の状態、
+Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライアント）も init で作るようになった。
+どれも生成するだけでネットワークには出ないが、実行環境が続く間に AppConfig のセッション token・
+レート制限の状態・接続を持つようになる。SnapStart を採るなら、これらもリストア後に作り直す必要がある。
+末尾の「SS-183 追補」の選択肢D も参照）
 
 ## 検討した選択肢
 
@@ -311,6 +383,8 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
 
 - [ ] シークレットへ `neon_dsn_unpooled`（direct DSN）を投入する。マイグレーション Lambda は
       未投入の間 `MigrationConfigError` で明示的に失敗する設計になっている。
+      （**SS-183 追補**: dev は投入済み。deployment.md の検証状況の表で、dev のマイグレーション Lambda の
+      実行が検証済みになっている。prod は未投入のためチェックは付けない）
 - [ ] prod の Lambda 同時実行数クォータ引き上げの承認を待ち、承認後速やかに
       `ReservedConcurrentExecutions` を prod にも投入する（決定8の「最も危険な時間帯」を作らない）。
 - [ ] prod のシークレット（`/sanposcape/prod/shared`）に値を投入する。
@@ -332,6 +406,8 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
       プロファイルごとの向き先と、`eas.json` に書かない値の供給経路は
       [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) に集約した。
       残るのは §6.2 の 3 本立てを実際に踏むこと。
+      （**SS-183 追補**: dev の §6.2 は 2026-09-12（SS-81）に確認済み。deployment.md の検証状況の表を参照。
+      prod は CloudFront が未有効化のため未確認で、チェックは付けない）
       **（SS-78 追補その2 / 2026-09-11）`sanposcape-infra` 側へ照会して次を確定した。**
       - **dev の CloudFront は既に稼働している。** `enable_distribution = true` は dev では apply 済みで、
         `https://app-api.dev.sanposcape.com/health` が 200 `{"status":"ok"}` を返す。
@@ -346,6 +422,10 @@ Python 3.12 では利用可能だが、init 時にシークレットをハイド
         `/sanposcape/<env>/services/backend-api/api_base_url`（公開 URL）と
         `.../distribution_id`（invalidation 用）が使える（dev のみ存在）。
 - [ ] in-process キャッシュ / レート制限の外部ストア（DynamoDB 等）への移行を別課題として検討する。
+- [ ] （**SS-183 追補**）SS-183 の修正を dev にデプロイし、CloudWatch Logs で、ログストリームごとに
+      lifespan の startup のログが 1 件、shutdown のログが 0 件であることを確認する
+      （手順は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md)）。
+- [ ] （**SS-183 追補**）探索 API のレート制限のキーの IP の取り方を見直す（SS-186）。
 - [x] SAM デプロイの CI 化（OIDC ロールの整備後）。
       **（SS-72 追補）`.github/workflows/backend-deploy.yml` を追加した。** 実行ロールへの
       Permission Boundary の導入が前提になり、境界の無い既存 dev スタックへの初回付与だけは
@@ -417,6 +497,130 @@ GitHub 側の構成（Environment・Variables・job 分離）は
     [ADR-008 決定7](./ADR-008-deploy-release-separation.md) に展開した。
     contract に進んでよいかの判断材料は `/app-config` が返す最低サポートバージョンとする）
 
+## SS-183 追補: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する
+
+### 分かった事実
+
+- `aws_lambda/api.py` は SS-67 以来 `Mangum(app, lifespan="auto")` でハンドラーを作っていた。
+  mangum 0.22.0 の `Mangum.__call__` は、`lifespan` が `auto` / `on` のとき**呼び出しのたびに**
+  `LifespanCycle` を作って enter / exit する。つまり 1 回の呼び出しごとに
+  startup → リクエストの処理 → shutdown が走る。upstream にも同じ指摘があるが、Open のまま
+  （[Kludex/mangum#342](https://github.com/Kludex/mangum/issues/342)）。
+- そのため `main._lifespan` が作る次の資源は、Lambda では呼び出しのたびに作り直され、閉じられていた。
+  - Google Maps のプロバイダー（`httpx.Client`）とレスポンスのキャッシュ: キャッシュは毎回空だった。
+  - `ExploreRateLimiter`: 呼び出しごとにリセットされ、レート制限は実質効いていなかった。
+  - AppConfig の取得元（`AppConfigFlagSource`）: `/app-config` のたびに設定のセッションを開き直していた。
+    [ADR-008](./ADR-008-deploy-release-separation.md) の決定9-1（一度取得できた値を維持する）も、
+    呼び出しをまたいでは効いていなかった。
+  - S3 と AppConfig の boto3 クライアント: ウォームな呼び出しにも、毎回クライアントの生成時間が乗っていた。
+  - `build_*` が出す WARNING / ERROR のログ（設定漏れの通知など）も、起動時 1 回ではなく毎リクエスト出ていた。
+- uvicorn（ローカル・Dockerfile）と TestClient では lifespan は 1 回しか走らないため、既存のテストでは
+  検出できなかった。
+
+### 決定（SS-183 追補）
+
+- **Mangum は `lifespan="off"` にし、FastAPI の lifespan は Lambda の init（モジュールの import 時）に
+  1 回だけ起動する。** 処理は `aws_lambda/asgi_handler.py`（`build_handler()` / `AsgiLambdaHandler`）に置き、
+  `api.py` はハイドレーション → `sanposcape.main` の import → `build_handler(app)` の順序だけを持つ。
+  - 起動は Mangum が用意したイベントループの上で、`app.router.lifespan_context(app)` に入ることで行う。
+  - lifespan のコンテキストマネージャーへの参照はハンドラーのオブジェクトが持つ。参照が切れると、
+    GC の後に async generator の後始末がループ上で走り、`_lifespan` の finally（資源の close）が実行されうるため。
+    Lambda のランタイムはハンドラーを生かし続けるので、参照は実行環境の寿命と同じだけ残る。
+- **Lambda では shutdown を走らせない。** 実行環境は破棄されるときにプロセスごと終わる。
+  `_lifespan` の finally で閉じているのは HTTP / boto3 のコネクションプールだけで、プロセスの終了で消える。
+- **lifespan の state（`yield` する値）は使わない。** `lifespan="off"` の Mangum は state をリクエストの
+  scope に載せないため、state を返す lifespan は init で例外にして気付けるようにした。
+  資源は今までどおり `app.state` に置く。
+- **init での startup の失敗は、ERROR ログを出してから再送出し、Lambda の init エラーにする。**
+  Lambda の Python ランタイムは、日本語を含むトレースバックで init エラーの報告自体が壊れることがある
+  （[deployment.md](../../packages/backend/docs/deployment.md) §7）ため、先に原因をログに残す。
+- **`main._lifespan` の startup / shutdown に INFO ログを 1 行ずつ出す。** dev で
+  「ログストリーム（= 実行環境）ごとに startup が 1 回、shutdown が 0 回」であることを
+  CloudWatch Logs で確かめられるようにするため。手順は deployment.md に置く。
+- `main.py` の `_lifespan` と `create_app()` は Lambda を知らないまま（決定3）。uvicorn と TestClient では
+  従来どおり lifespan が startup / shutdown の両方を行う。
+
+### 検討した選択肢（SS-183 追補）
+
+- **選択肢A: `lifespan="off"` にし、資源を `create_app()` かモジュールの import 時に作る（lifespan は close だけ）**:
+  同じ app に TestClient で 2 回入ると、1 回目の終了で閉じた資源を 2 回目が使ってしまう。テストの作り替えが大きく、
+  資源の生成が app の生成と結びついて uvicorn の経路も変わるため採らない。
+- **選択肢B: `_lifespan` を冪等にする（起動済みなら何もしない、Lambda では close しない）**:
+  Lambda 固有の分岐が `main.py` に入り、決定3 に反する。呼び出しごとの lifespan のやり取り自体も残るため採らない。
+- **選択肢C: mangum の `LifespanCycle` を init で 1 回だけ enter し、exit しない**:
+  ASGI の lifespan プロトコルを通るので state も扱えるが、終わらないタスクがイベントループに残り、
+  mangum の内部クラスにも依存する。今の lifespan は state を使わないので利点が効かず、採らない。
+- **選択肢D: 最初の呼び出しのときに遅延して起動する**:
+  コールドスタートの最初のリクエストに同じ時間が乗るだけで利点が無く、失敗が init エラーではなく
+  リクエストのエラーとして現れる。ただし SnapStart（決定11）を採るなら、スナップショットに資源を
+  焼き込まないためにこちらが有利になる。そのときに見直す。
+- **選択肢E: mangum を fork する、または upstream の修正を待つ**: #342 に動きが無く、fork の保守に見合わない。
+
+### 影響（SS-183 追補）
+
+- 決定8 の in-process のキャッシュとレート制限が、ここで初めて前提どおり「実行環境ごと」になる。
+  `ReservedConcurrentExecutions` による倍率の上限も、ここで初めて意味を持つ。
+- **レート制限が初めて実際に効く。** ただし、キーにしているクライアントの IP（Mangum が Function URL の
+  `requestContext.http.sourceIp` から取る値）は、CloudFront 経由では利用者ではなく CloudFront の IP である疑いがある。
+  その場合、同じ IP を経由する利用者が 1 つの実行環境の中で回数の枠を共有し、誤った 429 が出うる。
+  今の利用者数では実害は小さいと判断し、本追補では直さずに SS-186 で扱う。
+- AppConfig のフラグは、ADR-008 の記述どおりポーリング間隔（既定 60 秒）ぶん遅れて反映されるようになる。
+  SS-183 より前の Lambda では、呼び出しごとに取得し直していたため、ポーリング間隔を待たずに次の呼び出しで
+  反映される挙動だった（dev でのフラグの切り替えの実行実績は無く、観測した事実ではない）。
+- boto3 クライアントの生成時間がウォームな呼び出しから消え、その分 init が少し長くなる。
+  資源はどれも生成時にネットワークへ出ないので、コールドスタートで AppConfig を取りに行かない
+  （ADR-008 SS-98 追補 D3）ことは変わらない。
+- 実行環境が長く生きることで、これまで Lambda では通らなかった経路（AppConfig のセッション token の更新、
+  HTTP の keep-alive の再利用、キャッシュの上限）を初めて通る。いずれもクラス単体のテストはある。
+- Lambda では `app.router.lifespan_context` に直接入るため、ASGI の `lifespan` スコープはミドルウェアを通らない。
+  ミドルウェアに startup / shutdown の処理を持たせても Lambda では走らないので、持たせない。
+  プロセスで使い回す資源は `main._lifespan` で作る。
+- `sam local invoke` は呼び出しごとにコンテナを作るため、実行環境での使い回しは検証できない。
+  pytest の境界のテスト（実際の mangum を通して 2 回呼び出す）と、dev の CloudWatch Logs で確認する。
+- 後続の可観測性の計装（SS-178）は、TracerProvider の終了（flush）を lifespan に置けない。
+  Lambda では shutdown が走らないため。
+
+## 棚卸し追補（2026-10-04）: クライアント側の一時障害の再送と `X-App-Authorization` の取り扱い
+
+決定4（CloudFront + Function URL）を前提に mobile 側で決めたが、エージェントのメモリと
+コードコメントにしか残っていなかった決定を、knowledge-review の棚卸しで本 ADR に移した。
+再送ポリシーは SS-79、ヘッダーの取り扱いは SS-70 のレビューで決めたもの。
+
+### 一時障害の再送は GET / HEAD に限る（SS-79）
+
+dev の API Lambda は `ReservedConcurrentExecutions: 5`（6本目から 429）、CloudFront のオリジン待ちは
+30 秒（超過で 504）、コールドスタートは 1〜3 秒ある。mobile の `customFetch`
+（`packages/mobile/src/api/transientRetry.ts`）は、429 / 502 / 503 / 504 / 通信断に対して指数バックオフで
+軽く再送する。ただし**対象は GET / HEAD だけ**とし、POST へ広げない。理由は3つある。
+
+1. `POST /explore/*` の 429 は backend 自身のレート制限で、Lambda のスロットルと区別できない。
+   再送するとレート制限を悪化させるだけになる。
+2. `POST /walks` は `useWalkSave` がすでに指数バックオフで再送している。transport 層でも再送すると、
+   試行回数が掛け合わさって増える。
+3. `POST /auth/refresh` を再送するとセッションが壊れる。refresh token はローテーションと再利用検知
+   （[ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md) 決定1）を持つため、
+   「サーバーは成功したがレスポンスが届かなかった」ときに同じトークンで再送すると、
+   ファミリー全体が失効して強制サインアウトになる。
+
+500 は「アプリ層の決定的なエラー」として再送しない。`AbortError` も再送しない。
+`src/services/auth/authApi.ts` は `customFetch` を通らない独立した出口で、再送を意図的に入れていない
+（ヘッダーの契約は両方の出口で揃えるが、再送は片方だけという非対称になる）。
+401 → refresh → 1回リトライ（`retryPolicy.ts`）とは独立した軸で、`client.ts` では両方が効く。
+
+### `X-App-Authorization` は標準 `Authorization` 向けの保護を受けない（SS-70）
+
+`X-App-Authorization` は非標準ヘッダーなので、`Authorization` が前提にしている次の保護の対象外になる。
+
+- **クロスオリジンのリダイレクトで自動的に削除されない。** WHATWG Fetch は `Authorization` を
+  クロスオリジンのリダイレクトで落とすが、独自ヘッダーは落とさない。mobile の2つの出口
+  （`client.ts` / `authApi.ts`）は `redirect: "error"` を明示している。ただし RN の global fetch
+  （XMLHttpRequest ベースの `whatwg-fetch`）はこのオプションを読まないため、実機では防御にならない。
+  実効的な防御は「この API がリダイレクトを返さないこと」に依存し続ける。
+- **ログやクラッシュレポートの自動マスクの対象にならない。** 多くのツールは `Authorization` を前提に
+  マスクする。ロギングやクラッシュレポート（Sentry 等）を導入するときは、`X-App-Authorization` を
+  マスク対象のヘッダーに明示的に追加する。
+
+
 ## 関連情報
 
 - [ADR-004: シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
@@ -424,3 +628,4 @@ GitHub 側の構成（Environment・Variables・job 分離）は
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) — 本 ADR に基づく実際のデプロイ手順
 - [Restrict access to an AWS Lambda function URL origin (AWS 公式ドキュメント)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html) — OAC の `SigningBehavior`、`x-amz-content-sha256` の要件、権限付与の 2 コマンド
 - [Connection pooling (Neon 公式ドキュメント)](https://neon.com/docs/connect/connection-pooling) — pooled/direct 接続の使い分けと、Schema migrations が direct を要する理由
+- [Kludex/mangum#342](https://github.com/Kludex/mangum/issues/342) — Mangum が lifespan を呼び出しごとに走らせる件（SS-183 追補）

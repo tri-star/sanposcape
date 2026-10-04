@@ -14,17 +14,22 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Badge } from "@/components/ui/badge/Badge";
+import { Button } from "@/components/ui/button/Button";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
+import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
+import { SanpoMapIconEditDialog } from "@/features/pin/components/SanpoMapIconEditDialog";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMapRecheck } from "@/features/pin/hooks/useSanpoMapRecheck";
 import { useSanpoMapPins } from "@/features/pin/hooks/useSanpoMapPins";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import { canManageSanpoMap } from "@/features/pin/lib/pinPermissions";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
 import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
+import { sanpoMapIconChangeLabel } from "@/features/pin/lib/sanpoMapIcon";
 import {
   SANPO_MAP_PIN_MAX_PAGES,
   SANPO_MAP_PIN_PAGE_SIZE,
@@ -76,7 +81,20 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const router = useRouter();
   const maps = useSanpoMaps({ enabled: isSignedIn });
   const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn });
-  const back = useScreenBack({ fallbackHref: "/sanpo-maps" });
+  // アイコン変更ダイアログ。開くたびに key を +1 して作り直す（初期選択を現在のアイコンに戻す）。
+  const [iconDialogOpen, setIconDialogOpen] = useState(false);
+  const [iconDialogKey, setIconDialogKey] = useState(0);
+  // 変更中（ダイアログから通知される）。変更中はバックキーでも閉じない。
+  const [iconBusy, setIconBusy] = useState(false);
+  const back = useScreenBack({
+    fallbackHref: "/sanpo-maps",
+    onIntercept: () => {
+      if (!iconDialogOpen) return false;
+      // 変更中はダイアログを閉じず、バック操作だけ消費する（画面も戻らない）。
+      if (!iconBusy) setIconDialogOpen(false);
+      return true;
+    },
+  });
   // ピン詳細で削除して戻ってきたときの「ピンを削除しました」を出す（画面またぎのメッセージ受け渡し。
   // `src/lib/flashMessage.ts`）。消費しないと、文言が残って後でピンタブに遅れて出てしまう（SS-119）。
   const toast = useToast();
@@ -133,6 +151,17 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
     mapsFetching: maps.isFetching || recheck.pending,
     pinsErrorCode: pins.errorCode,
   });
+
+  const handleOpenIconDialog = () => {
+    Keyboard.dismiss();
+    setIconDialogKey((k) => k + 1);
+    setIconDialogOpen(true);
+  };
+
+  const handleIconUpdated = () => {
+    setIconDialogOpen(false);
+    showToast("アイコンを変更しました");
+  };
 
   const handleOpenPin = useCallback(
     (pinId: string) => {
@@ -287,9 +316,12 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
       content: (
         <View style={styles.content} testID="sanpo-map-detail-content">
           <View style={styles.info}>
-            <Text style={styles.name} testID="sanpo-map-detail-name">
-              {found.name}
-            </Text>
+            <View style={styles.nameRow}>
+              <SanpoMapIconBadge icon={found.icon} size={40} />
+              <Text style={styles.name} testID="sanpo-map-detail-name">
+                {found.name}
+              </Text>
+            </View>
             <View style={styles.infoMeta}>
               {found.isDefault ? <Badge tone="info">既定の地図</Badge> : null}
               {found.role === "editor" ? <Badge tone="neutral">招待された地図</Badge> : null}
@@ -299,6 +331,21 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
                 </Text>
               ) : null}
             </View>
+            {canManageSanpoMap(found.role) ? (
+              // editor には出さない（押しても 403 になる操作を見せない）。
+              <Button
+                variant="outline"
+                size="sm"
+                icon="pencil"
+                onPress={handleOpenIconDialog}
+                // 現在のアイコンをスクリーンリーダーと E2E に伝える（バッジは装飾で a11y から隠している）。
+                accessibilityLabel={sanpoMapIconChangeLabel(found.icon)}
+                testID="sanpo-map-detail-change-icon"
+                style={styles.changeIcon}
+              >
+                アイコンを変更
+              </Button>
+            ) : null}
           </View>
           {showSearch ? (
             <NameSearchField
@@ -441,6 +488,17 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         body.content
       )}
       <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
+      {map !== undefined ? (
+        <SanpoMapIconEditDialog
+          key={iconDialogKey}
+          open={iconDialogOpen}
+          sanpoMapId={map.id}
+          currentIcon={map.icon}
+          onClose={() => setIconDialogOpen(false)}
+          onUpdated={handleIconUpdated}
+          onBusyChange={setIconBusy}
+        />
+      ) : null}
     </View>
   );
 }
@@ -496,7 +554,16 @@ const useStyles = makeStyles((theme) => ({
   info: {
     gap: theme.spacing[2],
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[3],
+  },
+  changeIcon: {
+    alignSelf: "flex-start",
+  },
   name: {
+    flex: 1,
     fontSize: theme.typography.size["2xl"],
     fontWeight: theme.typography.weight.heavy,
     color: theme.colors.textPrimary,

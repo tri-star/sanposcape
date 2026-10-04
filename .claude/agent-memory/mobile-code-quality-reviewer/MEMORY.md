@@ -1,35 +1,22 @@
-- [pointerEvents=none a11y pitfall](pressable-pointerevents-a11y-pitfall.md) — RNの pointerEvents="none" はa11yツリーから消さない。行+装飾Checkbox等の二重読み上げに注意。
-- [services stub error-handling gap](services-stub-error-handling-gap.md) — stubは常に成功するため、hookの.catch/エラーフィードバック欠如が隠れがち。real実装はthrowする設計。
-- [review scope: verify git state](review-scope-verify-git-state.md) — 依頼文のブランチ名/コミット/「未コミット」表記は実際のgit状態とズレることがある。都度確認する。
-- [accessibilityLabel overrides children text](accessibility-label-overrides-children-text.md) — 明示的なaccessibilityLabelは子Textの自動読み上げを上書きし、隣接する説明文が読まれなくなることがある。
-- [mock .dc.html as review evidence](mock-dc-html-as-review-evidence.md) — スタブ値の食い違いを見つけたら docs/mock/*.dc.html をgrepし、元mock仕様由来か新規バグかを判定してから指摘する。
-- [no-bash-tool review approach](no-bash-tool-review-approach.md) — Bash無しセッションではgit diffが取れない。実装プランのファイル一覧をGlob+Readで突き合わせ最終状態レビューに切替える。
-- [auth cleanup asymmetric error swallow](auth-cleanup-asymmetric-error-swallow.md) — signOut等のクリーンアップで一部の失敗だけtry/catchし残りが無防備というasymmetryは頻出。横並びで機械チェックする。
-- [one-way/round-trip naming convention](oneway-roundtrip-naming-convention.md) — walk機能はplaces(片道×2近似)とroutes/loop(周回実値)を型・関数名で区別(SS-33。旧walkingは非推奨)。「往復の目安」は出典が複数ある点に注意。
-- [reused component static testID risk](reused-component-static-testid-risk.md) — 内部要素が固定testIDの共有コンポーネントを複数画面から使うと同時マウント時に重複し得る（LocationPermissionNoticeで発見）。
-- [verify generated types vs plan assumptions](verify-generated-types-vs-plan-assumptions.md) — プランの「backendの型がまだ甘い」前提はOrval再生成/backend修正で覆っていることがある。生成物とrouter.pyを直接読んで判断する。
-- [Maestro E2E review approach](maestro-e2e-review-approach.md) — .maestro/*.yamlのコメント主張（戻り先画面/canGoBack挙動）はrouter.push/replaceの実装を追跡して裏取りする。waitForAnimationToEndの時間稼ぎ用法は非自明。
-- [callback caller JSDoc drift](callback-caller-jsdoc-drift.md) — 呼び出し元を移すリファクタで、呼ばれる側関数のJSDoc内「現状の呼び出し元」記述が更新漏れになりやすい（sessionCleanup.tsで発見）。
-- [notice branch inconsistent alert role](notice-component-inconsistent-alert-role-across-branches.md) — 複数kind分岐の通知コンポーネントは新分岐だけa11y対応され「そのまま移植」の旧分岐が取り残されがち。全分岐を横並び比較する。
-- [SS-57 guest→settings sign-in push breaks canGoBack invariant](ss57-guest-settings-signin-push-breaks-canGoBack-invariant.md) — 保護ルート発の新規サインイン導線はpush/replaceの組み合わせをwalk-startのcanGoBack前提と突き合わせて確認する。
-- [Vitest のテスト対象制約](testing-constraints.md) — Vitestはnode+.tsのみ。hooks/componentsにテスト無しを指摘しない
-- [feature横断の後始末レジストリ](cross-feature-cleanup-registry.md) — sessionCleanup/walkDeletionCleanup型の後始末レジストリパターン
-- [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針。統合提案しない
-- [self-referential constant test gap](self-referential-constant-test-gap.md) — ハードコード済みハッシュ等の定数を検証するテストが、実装内の同じ定数と比較するだけの自己参照になっていないか確認する
-- [mutation success state not treated as busy](mutation-success-state-not-treated-as-busy.md) — useMutationのisPendingだけでdisabled判定すると、成功後の非同期遷移待ちの間だけ操作可能に戻る窓ができる（SS-62で発見）
-- [copy constant trivial self-check convention](copy-constant-trivial-self-check-convention.md) — *Copy.test.tsの「非空文字列チェック」は低価値だが既存の踏襲パターン。ハッシュ自己参照問題とは別物として区別する
-- [plan risk notes lost in tmp](plan-risk-notes-lost-in-tmp.md) — プランの「実機確認/既知の制約」注意書きが一時メモにしかなく、コード/ADRに転記漏れだと消える。転記有無を確認する
-- [history系Viewの分岐条件の二重定義](history-view-duplicated-branch-conditions.md) — 中央寄せ判定とrenderBody内の状態分岐を2箇所に別々に書くと片方だけ更新して表示が崩れる
-- [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。型では守られないので生成元を確認する
-- [テーブル駆動テストの模範](table-driven-test-style-reference.md) — `src/lib/backNavigation.test.ts`のit.each形式が基準。個別it()の羅列との乖離をレビューで拾う
-- [self-cancelling preupload queue effect](self-cancelling-preupload-queue-effect.md) — useEffectが自分でdispatchするstateを依存配列に持つと、await完了前にcleanupが発火し結果を握りつぶす（SS-88 usePinPhotosで発見）
-- [diagnostic log AbortError noise](diagnostic-log-abort-error-noise.md) — 削除/画面離脱由来のAbortErrorが分類関数を経て「失敗」ログに紛れ込みやすい。JSDocの「呼び出し側が握りつぶす」を鵜呑みにしない
-- [画面「戻る」導線の規約](back-navigation-convention.md) — SS-34のuseScreenBack/resolveBackActionへの一本化と既知のエッジケース
-- [render中のref代入パターン](ref-assignment-during-render-pattern.md) — 依存配列に入れず最新値を読むための確立した手法。レビューで誤指摘しない
-- [画面ヘッダーの重複](screen-header-duplication.md) — 戻るIconButton+タイトルがWalkStart/WalkHistoryList/WalkDetailでほぼ同一実装（Plane SS-40で追跡中）
-- [RN Maps Markerがandroidでpressを飲み込む](rn-maps-marker-swallows-android-press.md) — タップで座標選択する地図UIはMarker直上がdead zoneになりうる（SS-124, #1132）
-- [レンダー中setStateによる派生state](render-phase-setstate-derived-state-pattern.md) — useEffectのreact(set-state-in-effect)警告回避の正当パターン。誤指摘しない判定基準
-- [全画面地図の唯一入力手段a11y欠如](fullscreen-map-a11y-no-alternative-input.md) — タップ/長押しが唯一の選択手段だとスクリーンリーダーで操作不能。SanpoMapSelectorとの対比
-- [Marker onSelectメモ化とretryのstale closure](marker-onselect-memo-and-retry-stale-closure.md) — React.memoコンポーネントは全呼び出し元でprops安定性を横並び確認。useCallback依存配列から配列を除外する判断は要検証（SS-118）
-- [部分保存後のbaseline未更新](partial-save-baseline-not-rebased.md) — 差分PATCH+多段保存で成功段のbaselineをrebaseしないと「元に戻す編集」が反映されない（SS-119）
-- [地図中核フローの実機未検証リスク](map-core-flow-unverified-on-device.md) — 地図操作が中核要件のチケットは引き継ぎメモの「未実施の手動確認」を必ず確認しWarning級で報告する（SS-118）
+- [レビュー前のgit状態確認](review-preflight-git-state.md) — 依頼文のブランチ/未コミット前提は.git/HEADで裏取り。Bash無しならGlob+Readで最終状態レビュー
+- [一次情報を読んでから指摘する](verify-primary-source-before-flagging.md) — プランの型前提はOrval生成物/router.pyで、スタブ値の食い違いはdocs/mock/*.dc.htmlで確認
+- [プラン/引き継ぎの未確認事項と既知制約](handover-unverified-and-risk-notes.md) — 中核フローの実機未検証はWarning、制約がコード/ADRに未転記ならWarning。MarkerはAndroidでpressを飲む
+- [mobileのテスト規約](mobile-test-conventions.md) — Vitestはnode+.tsのみ。hooks/componentsにテスト無しを指摘しない。it.eachの模範はbackNavigation.test.ts
+- [定数テストの自己参照](constant-self-reference-tests.md) — ハッシュ等の既知定数は独立計算で検証させる。*Copy.test.tsの非空チェックは既存慣習で単発指摘しない
+- [RNのa11yの落とし穴](rn-a11y-review-pitfalls.md) — accessibilityLabelの子テキスト上書き/pointerEvents=noneの二重読み上げ/分岐間の不整合/地図だけが入力手段
+- [意図的なrender中パターン](intentional-render-phase-patterns.md) — render中のref代入と条件付きsetState(派生state)は正当。誤指摘しない判定基準
+- [戻る導線のレビュー観点](back-navigation-review.md) — 正本はpages-components-guideline。SettingsView未適用、ラッチの非解除、サインイン導線のpushがcanGoBack前提を崩す
+- [Maestro E2Eのレビュー手順](maestro-e2e-review-approach.md) — yamlのコメント主張(戻り先/canGoBack)はrouter.push/replaceまで追跡して裏取りする
+- [後始末レジストリとtry/catchの非対称](cleanup-registry-and-error-isolation.md) — feature間はregister/runレジストリで解決(ADR-M-008)。後始末ステップのtry/catchを横並び確認
+- [呼び出し元移動時のJSDoc陳腐化](callback-caller-jsdoc-drift.md) — 呼び出し元を移すリファクタで、呼ばれる側JSDocの「現状の呼び出し元」が更新漏れになりやすい
+- [services mockのエラー処理ギャップ](services-stub-error-handling-gap.md) — mock/devは常に成功するため、hookの.catch欠如が隠れる。realは失敗しうる前提で見る
+- [操作ごとのエラー分類](per-domain-error-classification.md) — 操作ごとに別のxxxError.tsを持つ方針(ADR-M-001)。統合提案しない
+- [片道近似と周回実値の命名](oneway-roundtrip-naming-convention.md) — places(片道×2近似)とroutes/loop(周回実値)を型名で区別(ADR-M-008)。3点チェック
+- [共有コンポーネントの固定testID](reused-component-static-testid-risk.md) — 内部要素のtestIDも注入/派生できるか確認。LocationPermissionNoticeの実例は解消済み
+- [React.memoのprops安定性とstale closure](marker-onselect-memo-and-retry-stale-closure.md) — memoコンポーネントは全呼び出し元でprops安定性を横並び確認。配列のクロージャ固定を疑う(ADR-M-012 D15)
+- [mutation成功状態をbusy扱いしない窓](mutation-success-state-not-treated-as-busy.md) — isPendingだけでdisabled判定すると、成功後の非同期遷移待ちの間だけ操作可能に戻る
+- [部分保存後のbaseline未更新](partial-save-baseline-not-rebased.md) — 差分PATCH+多段保存で成功段のbaselineをrebaseしないと「元に戻す編集」が反映されない(ADR-M-017 D11)
+- [自己キャンセルするキューeffect](self-cancelling-preupload-queue-effect.md) — effectが自分でdispatchするstateを依存配列に持つと、await完了前にcleanupが発火し結果を握りつぶす
+- [診断ログのAbortErrorノイズ](diagnostic-log-abort-error-noise.md) — 削除/画面離脱由来のAbortErrorが分類関数経由で「失敗」ログに紛れ込む。JSDocを鵜呑みにしない
+- [文字列連結の重複判定キーの脆さ](string-concat-dedup-key-fragility.md) — `${a}:${b}`は区切り文字が値に含まれると衝突する。生成元を確認して重大度を決める
+- [画面ヘッダーの重複](screen-header-duplication.md) — 戻るIconButton+タイトルが10画面で重複(SS-40で追跡中)。新規指摘にせずSS-40の優先度引き上げを提案

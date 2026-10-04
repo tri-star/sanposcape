@@ -71,6 +71,10 @@ def memory_files(root: Path) -> list[tuple[str, str]]:
 def build_stats(records: list[dict], existing: list[tuple[str, str]]) -> list[dict]:
     reads: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for record in records:
+        # MEMORY.md は索引で本文ではない（memory_files() も除外している）。集計に混ぜると
+        # existing に無いため「削除済みだが読まれた記録が残るメモリ」に毎回並んでしまう。
+        if record.get("memory") == "MEMORY.md":
+            continue
         reads[(record.get("agent", ""), record.get("memory", ""))].append(record)
 
     stats = []
@@ -159,8 +163,10 @@ def main(argv: list[str]) -> int:
             print(f"  {stat['reads']:3d}回  {stat['agent']}/{stat['memory']}")
 
     total = len(existing)
-    rate = len(used) / total * 100 if total else 0
-    print(f"\n利用率: {len(used)}/{total} ファイル ({rate:.0f}%)")
+    # 削除済みのメモリの読み取りは分子に含めない（分母は現存ファイルのため）。
+    used_existing = [s for s in used if s["exists"]]
+    rate = len(used_existing) / total * 100 if total else 0
+    print(f"\n利用率: {len(used_existing)}/{total} ファイル ({rate:.0f}%)")
     return 0
 
 

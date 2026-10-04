@@ -39,7 +39,7 @@ cleanup** を実行してしまう。`cancelled = true` のようなフラグを
 利用して安全に動く（`kick` 自身が古い render の変数を握っていても、ref はどの render の
 closure からでも同じオブジェクトを指すため）。
 
-関連: [[direct-s3-upload-and-slot-limit-pattern]]（MR2: `dispatch` が `itemsRef` を
+関連: [[pin-photo-upload-pitfalls]]（MR2: `dispatch` が `itemsRef` を
 `reducer` で同期的に進めてから `useReducer` 本来の dispatch を呼ぶことで、
 `getItems()` が dispatch 直後に必ず最新状態を返すようにする、という対の修正）
 

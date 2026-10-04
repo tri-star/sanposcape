@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
 import type { PinMapPickProps } from "@/features/pin/lib/pinLocationPicker";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -26,6 +27,8 @@ type PinMapFullScreenCommonProps = {
   initialRegion: MapRegion | null;
   /** 選択中の位置（(a) のピン）。null ならマーカーを出さない。 */
   selectedLocation: GeoCoordinates | null;
+  /** 選択位置のピンの見た目（保存先の地図のアイコン）。 */
+  selectedMarkerIcon?: SanpoMapIconKey;
   /** x「閉じる」ボタンを押したとき。 */
   onClose: () => void;
   /** 下部カードのヒントの下に置くアクション（(a) の「この位置にする」）。 */
@@ -48,6 +51,7 @@ export function PinMapFullScreen({
   hint,
   initialRegion,
   selectedLocation,
+  selectedMarkerIcon,
   onClose,
   footerActions,
   // pickGesture / onPick は canvas へそのまま渡す。
@@ -66,6 +70,7 @@ export function PinMapFullScreen({
         accessibilityHint={hint}
         initialRegion={initialRegion}
         selectedLocation={selectedLocation}
+        selectedMarkerIcon={selectedMarkerIcon}
         currentLocation={null}
         focusRequest={null}
       />

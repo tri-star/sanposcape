@@ -384,6 +384,22 @@ def test_sqlalchemy_engine_kwargs_reflects_custom_pool_settings() -> None:
     assert kwargs["max_overflow"] == 0
 
 
+def test_sqlalchemy_engine_kwargs_hides_parameters() -> None:
+    """例外メッセージ（= OTel のスパン status にも載る）からバインド値を消す（ADR-013 決定6）。"""
+    assert Settings().sqlalchemy_engine_kwargs["hide_parameters"] is True
+
+
+# --- SS-178: トレース（`tracing_enabled`） ---
+
+
+def test_tracing_is_disabled_by_default() -> None:
+    assert Settings().tracing_enabled is False
+
+
+def test_tracing_enabled_can_be_turned_on() -> None:
+    assert Settings(tracing_enabled=True).tracing_enabled is True
+
+
 # --- M-2: マイグレーション専用 direct DSN (`migrate_database_url`) ---
 
 

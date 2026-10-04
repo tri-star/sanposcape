@@ -61,8 +61,22 @@ describe("toTagSuggestions", () => {
 
 describe("resolveTagSuggestionSanpoMapId", () => {
   const maps: SanpoMap[] = [
-    { id: "default", name: "最初の地図", isDefault: true, role: "owner", pinCount: null },
-    { id: "other", name: "友達の地図", isDefault: false, role: "editor", pinCount: null },
+    {
+      id: "default",
+      name: "最初の地図",
+      isDefault: true,
+      role: "owner",
+      pinCount: null,
+      icon: "pin",
+    },
+    {
+      id: "other",
+      name: "友達の地図",
+      isDefault: false,
+      role: "editor",
+      pinCount: null,
+      icon: "pin",
+    },
   ];
   const onlyShared: SanpoMap[] = [maps[1]!];
 

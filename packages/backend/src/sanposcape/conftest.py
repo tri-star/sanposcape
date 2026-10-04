@@ -11,6 +11,13 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.instrumentation.threading import ThreadingInstrumentor
+from opentelemetry.instrumentation.urllib import URLLibInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -234,3 +241,43 @@ def dev_client(dev_settings: Settings) -> Generator[TestClient, None, None]:
     with TestClient(dev_app) as test_client:
         yield test_client
     dev_app.dependency_overrides.clear()
+
+
+# --- トレース（ADR-013 / SS-178）のテスト用フィクスチャ ---
+# テストは自前の TracerProvider + InMemorySpanExporter を作り、`tracer_provider=` で計装へ渡す。
+# `trace.set_tracer_provider` は使わない（プロセスで 1 回しか設定できず、他のテストへ漏れる）。
+
+
+@pytest.fixture
+def exporter() -> InMemorySpanExporter:
+    return InMemorySpanExporter()
+
+
+@pytest.fixture
+def provider(exporter: InMemorySpanExporter) -> TracerProvider:
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return tracer_provider
+
+
+@pytest.fixture
+def clean_instrumentors() -> Generator[None, None, None]:
+    """グローバル（singleton）な instrumentor を、テストの前後で未計装に揃える。
+
+    開発者の `.env` で `TRACING_ENABLED=true` にしていても、ambient な `main.app` 経由で
+    instrument 済みになる場合があるため。使うモジュールで `usefixtures` に指定する。
+    """
+
+    def reset() -> None:
+        for instrumentor in (
+            HTTPXClientInstrumentor(),
+            ThreadingInstrumentor(),
+            URLLibInstrumentor(),
+            SQLAlchemyInstrumentor(),
+        ):
+            if instrumentor.is_instrumented_by_opentelemetry:
+                instrumentor.uninstrument()
+
+    reset()
+    yield
+    reset()

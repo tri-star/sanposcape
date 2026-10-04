@@ -1,5 +1,7 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -50,6 +52,7 @@ class TestListSanpoMaps:
         assert item["name"] == "最初の地図"
         assert item["is_default"] is True
         assert item["role"] == "owner"
+        assert item["icon"] == "pin"
         assert body["next_cursor"] is None
 
     def test_editor_of_others_default_map_sees_is_default_false(
@@ -156,6 +159,35 @@ class TestCreateSanpoMap:
 
         assert response.status_code == 201
         assert response.json()["is_default"] is False
+
+    def test_icon_is_saved_and_returned(
+        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = sanpo_maps_client.post(
+            "/sanpo-maps", json={"name": "地図", "icon": "coffee"}, headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        assert response.json()["icon"] == "coffee"
+
+    def test_icon_defaults_to_pin(
+        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        response = sanpo_maps_client.post(
+            "/sanpo-maps", json={"name": "地図"}, headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        assert response.json()["icon"] == "pin"
+
+    @pytest.mark.parametrize("icon", [None, "unknown", "PIN"])
+    def test_invalid_icon_is_422(
+        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str], icon: object
+    ) -> None:
+        response = sanpo_maps_client.post(
+            "/sanpo-maps", json={"name": "地図", "icon": icon}, headers=auth_headers
+        )
+        assert response.status_code == 422
 
     def test_blank_name_is_422(
         self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
@@ -288,6 +320,125 @@ class TestUpdateSanpoMap:
         )
 
         assert response.status_code == 422
+
+
+class TestUpdateSanpoMapIcon:
+    def test_owner_can_change_icon_and_it_is_reflected_in_list(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(
+            owner_user_id=authenticated_user.id, name="地図", is_default=True
+        )
+        db_session.commit()
+
+        response = sanpo_maps_client.patch(
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["icon"] == "cat"
+        assert body["name"] == "地図"
+        assert body["pin_count"] is None
+        listed = sanpo_maps_client.get("/sanpo-maps", headers=auth_headers).json()["items"]
+        assert [item["icon"] for item in listed] == ["cat"]
+
+    def test_editor_sending_icon_is_403(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        owner = make_user(db_session, subject="owner")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=owner.id, name="地図", is_default=True)
+        add_member(
+            db_session, sanpo_map_id=sanpo_map.id, user_id=authenticated_user.id, role="editor"
+        )
+
+        response = sanpo_maps_client.patch(
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=auth_headers
+        )
+
+        assert response.status_code == 403
+
+    def test_other_users_map_is_404(
+        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str], db_session: Session
+    ) -> None:
+        stranger = make_user(db_session, subject="stranger")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(
+            owner_user_id=stranger.id, name="他人の地図", is_default=True
+        )
+        db_session.commit()
+
+        response = sanpo_maps_client.patch(
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=auth_headers
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize("icon", [None, "unknown"])
+    def test_invalid_icon_is_422(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+        icon: object,
+    ) -> None:
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(
+            owner_user_id=authenticated_user.id, name="地図", is_default=True
+        )
+        db_session.commit()
+
+        response = sanpo_maps_client.patch(
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": icon}, headers=auth_headers
+        )
+
+        assert response.status_code == 422
+
+    def test_changing_icon_does_not_reorder_the_list(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        repo = SanpoMapRepository(db_session)
+        default_map, _ = repo.create_with_owner(
+            owner_user_id=authenticated_user.id, name="既定", is_default=True
+        )
+        older, _ = repo.create_with_owner(
+            owner_user_id=authenticated_user.id, name="古い", is_default=False
+        )
+        newer, _ = repo.create_with_owner(
+            owner_user_id=authenticated_user.id, name="新しい", is_default=False
+        )
+        db_session.commit()
+        repo.touch(sanpo_map_id=newer.id, now=datetime.now(UTC) + timedelta(hours=1))
+        db_session.commit()
+        expected_order = [str(default_map.id), str(newer.id), str(older.id)]
+
+        def listed_ids() -> list[str]:
+            response = sanpo_maps_client.get("/sanpo-maps", headers=auth_headers)
+            return [item["id"] for item in response.json()["items"]]
+
+        assert listed_ids() == expected_order
+
+        response = sanpo_maps_client.patch(
+            f"/sanpo-maps/{older.id}", json={"icon": "cat"}, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        assert listed_ids() == expected_order
 
 
 class TestDeleteSanpoMap:

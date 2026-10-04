@@ -23,6 +23,7 @@ def to_sanpo_map_read(
     return SanpoMapRead(
         id=sanpo_map.id,
         name=sanpo_map.name,
+        icon=sanpo_map.icon,
         is_default=bool(sanpo_map.is_default and sanpo_map.owner_user_id == current_user_id),
         role=role,
         pin_count=pin_count,

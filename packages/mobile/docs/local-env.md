@@ -14,7 +14,7 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 ## 重要: Expo Go ではなく development build を使う
 
-本アプリは **react-native-maps**、**react-native-svg**（アイコン描画）、
+本アプリは **react-native-maps**、**react-native-svg**（アイコン・マップピンの描画）、
 **@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
 （Google サインイン）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
 （`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）、**expo-location**（現在地・散歩中の位置記録）、
@@ -32,6 +32,10 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 - **SS-156（散歩中のバックグラウンド位置記録）の適用後は、`expo-task-manager` の追加と
   `expo-location` プラグインの設定変更（iOS background mode・Android フォアグラウンドサービス）が
   入るため development build の作り直しが必要**（Fast Refresh では反映されない）。
+- **SS-157（位置情報の利用目的文言・FGS 通知の表示）の適用後は、iOS・Android とも
+  development build の作り直しが必要**（Fast Refresh・OTA では反映されない）。iOS は Info.plist の文言が変わる。
+  Android は `POST_NOTIFICATIONS` がマニフェストに加わる（これが無いと Android 13 以降は FGS の通知が通知シェードに出ない）。
+  FGS 通知の文言そのもの（`BACKGROUND_TRACKING_NOTIFICATION`）は JS 側の変更。
 
 ## セットアップ
 
@@ -200,7 +204,7 @@ pnpm --filter mobile orval          # API クライアント再生成
     （ピンタブの地図の長押し → 登録・位置調整 → 保存 → ピンタブへ戻る。SS-124 / SS-146）/
     `pin-map.yaml`（ピンタブの地図表示・登録済みピン取得が落ち着くこと・「地図一覧」の往復。マーカーのタップ→詳細遷移は含まない。
     SS-118 / SS-146）/ `sanpo-map-list.yaml`（地図一覧の表示・地図の作成・地図名の検索・地図詳細・
-    ピン名の検索・ピン詳細への遷移。実行ごとに一意な名前の地図とピンを作る。SS-121）/
+    ピン名の検索・ピン詳細への遷移・地図のアイコンの選択と変更。実行ごとに一意な名前の地図とピンを作る。SS-121 / SS-171）/
     `pin-edit-delete.yaml`（ピンの名前・メモ・タグの編集と保存、ピンの削除。写真は対象外。フローが作った一意な地図とピンだけを消す。SS-119））。`auth-gate.yaml`（`smoke`）はゲストのピンタブ・アカウントタブにサインイン案内が出ることも見る（SS-148）。
   - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
@@ -324,7 +328,10 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   - `real` = `expo-location`（実機/エミュレータの現在地。フォアグラウンド権限が必要）。
   - `mock` = 東京駅の固定座標（`src/services/location/location.mock.ts`。vitest や、位置情報が
     フレークになりやすい E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは既定でこれ）。
-- 権限文言は `app.json` の `expo-location` プラグイン（`locationWhenInUsePermission`）で設定済み。
+- 権限文言は `app.json` の `expo-location` プラグインで設定している（`locationWhenInUsePermission` と、同じ文言の
+  `locationAlwaysAndWhenInUsePermission` / `locationAlwaysPermission`、`motionUsagePermission`。ADR-M-018 決定10〜12）。
+  文言を変えたら development build を作り直さないとダイアログに反映されない（Info.plist はネイティブ設定）。
+  反映結果は `pnpm --filter mobile exec expo config --type introspect --json` の `_internal.modResults.ios.infoPlist` で確認できる。
 - 散歩中はバックグラウンド・画面ロック中でも記録する（[ADR-M-018](../adr/ADR-M-018-background-walk-location-tracking.md)）。
   権限は「使用中のみ」のまま。**mock モードでは背面の記録は再現できない**（Android は裏に回ると JS のタイマーが止まる）。
   確認手順は [起動手順ガイド](./app-startup-guide.md) の「散歩中のバックグラウンド記録を確かめる」を参照。

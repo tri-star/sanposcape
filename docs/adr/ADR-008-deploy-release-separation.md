@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-22（SS-93、SS-88、SS-99）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-04（SS-171: 決定7 に列追加の隙間を追補。前回 SS-183）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -27,10 +27,11 @@
   キーは `_enabled` を付けない snake_case。`client_requirements` は最低サポートバージョンを属性で配る予約キーで、常に `enabled: true` に保つ。
   （本文: SS-98 追補 D7、D9）
 - **API と DB スキーマの変更は expand → contract の2段階で行う**。置き換える API は `deprecated=True` で意味とスキーマを変えずに残し、
-  削除は `/app-config` の最低サポートバージョン以上のクライアントだけが残ってから行う。（本文: 決定7）
+  削除は `/app-config` の最低サポートバージョン以上のクライアントだけが残ってから行う。
+  列追加は「新しいコードが古いスキーマで動く隙間」が残る点に注意（本文: 決定7 の SS-171 追補）。（本文: 決定7）
 - **OTA で届けてよいのは「公開済み機能の不具合修正」と「フラグ OFF で入る新機能」だけで、channel の付け替えでリリースを制御しない**。
   `version` を上げる PR と配布ビルドはセットで計画する。（本文: 決定8）
-- **backend はフラグを一度も取得できていないときだけ全フラグ OFF に倒す**。空の応答（変化なし）では直前の値を、取得失敗では一度取得できた値（known-good）を維持する。（本文: 決定9、決定9-1）
+- **backend はフラグを一度も取得できていないときだけ全フラグ OFF に倒す**。空の応答（変化なし）では直前の値を、取得失敗では一度取得できた値（known-good）を維持する。値とセッションは Lambda の実行環境ごとに保持する。（本文: 決定2、決定9、決定9-1、SS-183 追補）
 - **公開済み機能の緊急停止（kill switch、安全側 ON）は AppConfig ではなく環境変数で持つ**。`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は環境変数のまま残す。
   （本文: SS-98 追補 D8）
 - **`GET /app-config` は認証不要で DB を触らず、`Cache-Control: no-store` を返す**（このヘッダーは OpenAPI には出ない）。
@@ -68,6 +69,7 @@
 
 ### 変更・撤回された決定
 
+- 本文の決定2「実行環境ごとにセッションを 1 回開く」、決定9-1 の known-good の維持、SS-98 追補 D3 の「`_lifespan`（コールドスタート時に1回実行される）」は、SS-183 まで Lambda では成り立っていなかった（Mangum が呼び出しごとに lifespan を回し、フラグの取得元を毎回作り直していた）。決定の変更ではなく、挙動を記述に合わせた（本文: SS-183 追補、[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) SS-183 追補）
 - 取得失敗時の挙動: 「未配信・取得失敗・空の応答のいずれも全フラグ OFF」→ 一度も取得できていないときだけ全 OFF、それ以外は直前の値・known-good を維持（本文: 決定9-1、SS-98 / PR #88）
 - 本文の「ネガティブな影響」にある「取得失敗で全 OFF に倒す＝公開済みの機能が突然見えなくなる」は決定9-1 以前の記述で、現在そうなるのは一度も取得できていない場合だけ
 - 本文の「ポジティブな影響」にある「`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` もこの基盤へ移せば…」は初版時点の見込みで、現在は環境変数のまま残す（本文: SS-98 追補 D8）
@@ -87,7 +89,8 @@
 （SS-100: PR #89 レビュー対応でフォアグラウンド復帰の再取得判定を精密化）、2026-09-21 追補
 （SS-93: SS-96 の完了を反映）、2026-09-21 追補（SS-88: `pin_registration` を最初の実フラグ
 として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
-定義ファイル）、2026-10-01 追補（SS-148: D16 の表示範囲の注記）
+定義ファイル）、2026-10-01 追補（SS-148: D16 の表示範囲の注記）、2026-10-04 追補（SS-183: Lambda で
+lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）
 
 ## ステータス
 
@@ -98,6 +101,8 @@ SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfi
 （**SS-93 追補**: 2026-09-21 時点で SS-96（フラグ切り替え用 OIDC ロール）も完了している。
 残る SS-97 / SS-99 / SS-101 / SS-102 / SS-103 は未着手）
 （**SS-99 追補**: 2026-09-21 に SS-99（フラグ切り替えワークフロー）を実装した。実行実績はまだ無い）
+（**SS-183 追補**: 2026-10-04 に、Lambda で lifespan が呼び出しごとに走り、決定2・決定9-1・SS-98 追補 D3 の
+記述が成り立っていなかった事実を末尾の「SS-183 追補」で訂正した。決定は変えていない）
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
 
@@ -198,6 +203,9 @@ Configuration Profile / Deployment Strategy）は Terraform（`sanposcape-infra`
 - 実行環境ごとにセッションを 1 回開き、次回トークンと `NextPollIntervalInSeconds` を保持して
   間隔内はキャッシュを返す。`GetLatestConfiguration` は変化が無いと空ボディを返すため、
   前回値を保持する。
+  （**SS-183 追補**: SS-183 まで、Lambda ではこれが成り立っていなかった。Mangum が呼び出しごとに
+  lifespan を回して取得元を作り直していたため、`/app-config` のたびにセッションを開き直していた。
+  末尾の「SS-183 追補」）
 - Configuration Profile は `feature-flags`、type は `AWS.AppConfig.FeatureFlags`、
   `location_uri` は `hosted`。
 - **Deployment Strategy は独自に作る。** 組み込みの `AppConfig.AllAtOnce` はベイク時間が 10 分あり、
@@ -292,6 +300,16 @@ dev に何が出ているかは GitHub Actions の実行履歴で確認する。
 - DB スキーマの変更にも同じ原則を適用する。ADR-005 決定9 によりマイグレーションは手動であり、
   デプロイ完了からマイグレーション実行までの間は**新しいコードが古いスキーマで動く**。
   expand（列の追加・NULL 許容）と contract（列の削除・NOT NULL 化）を別のデプロイに分ける。
+- **SS-171 追補（2026-10-04, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定31）**:
+  - 新規フィールドを任意にする規則は**リクエスト側**の話として読む。応答側のフィールド追加は
+    古いクライアントが無視するだけなので、required にしてよい（mobile の型付きの都合など）。
+  - NOT NULL の列でも、**server default があれば古いコードの INSERT は通る**。expand の目的
+    （古いコードを壊さない）を満たすので、NOT NULL + server default の列追加は expand として扱える。
+  - ただし**既存テーブルへの列追加には隙間が残る**。デプロイからマイグレーション実行までの間、
+    新しいコードがその列を SELECT するため、そのテーブルを読む API は `UndefinedColumn` で
+    500 になる（マイグレーション Lambda は API と同じ成果物を使うため、コードより先には流せない）。
+    prod の稼働後は、マイグレーションだけの PR を先にマージして先に流す
+    （手順は `docs/release-runbook.md`）。
 
 ### 8. OTA（EAS Update）は「配信」の手段であって「リリース」の手段ではない
 
@@ -358,6 +376,9 @@ OTA で届ける利用者向けの変更は、次のいずれかに限る。
 追補 D8 のとおり、公開済み機能の緊急停止（安全側が ON）はフィーチャーフラグではなく
 環境変数が担うため、「AppConfig が読めずに stale な ON を掴み続ける」ことは緊急停止の
 妨げにならない。
+
+（**SS-183 追補**: known-good は Lambda の実行環境の中で保持する値だが、SS-183 までは取得元が
+呼び出しごとに作り直されていたため、呼び出しをまたいでは維持されていなかった。末尾の「SS-183 追補」）
 
 ## 検討した選択肢
 
@@ -597,6 +618,9 @@ import/継承しなくても適合する。つまり型定義を `core/feature_f
 `APPCONFIG_READ_TIMEOUT_SECONDS` が最悪ケース）を乗せずに済む。同じ形は
 `google_maps_provider`（`HttpGoogleMapsProvider` も `_lifespan` でインスタンス化されるだけで、
 実際の Places/Routes 呼び出しはリクエスト時）にも使われている既存パターンである。
+（**SS-183 追補**: 「コールドスタート時に1回実行される」は、SS-183 まで Lambda では事実に反していた。
+Mangum の `lifespan="auto"` が呼び出しごとに `_lifespan` を走らせていた。SS-183 で、Lambda では init で
+1 回だけ起動する形にした。インスタンスを作るだけで取得しない、という本節の決定は変わらない。末尾の「SS-183 追補」）
 
 ### D5: モード切替（`FEATURE_FLAG_MODE`）
 
@@ -947,6 +971,31 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 `client_requirements` の属性値（`ios_minimum_version` / `android_minimum_version`）は現在値を引き継ぐだけで、
 変更する入力は無い。値を使う側（SS-101 のアップデート促進）が未実装で、今入れても検証できない入力を
 1つ増やすだけになるため。SS-101 で必要になったときに、同じワークフローへの入力追加か別ワークフローかを決める。
+
+## 追補: Lambda で lifespan が呼び出しごとに走っていた件の訂正（2026-10-04, SS-183）
+
+backend の Lambda ハンドラー（`aws_lambda/api.py`）は `Mangum(app, lifespan="auto")` で作られていた。
+mangum 0.22.0 はこの設定で、Lambda の呼び出しのたびに FastAPI の lifespan を startup / shutdown させる。
+そのため `main._lifespan` が作るフラグの取得元（`AppConfigFlagSource` と `FeatureFlags`）は、
+SS-98 以来 Lambda では呼び出しごとに作り直されていた。原因と直し方は
+[ADR-005 の SS-183 追補](./ADR-005-backend-serverless-deployment-lambda-function-url.md) に記録した。
+本 ADR に関係するのは次の訂正だけで、決定そのものは変えていない。
+
+- **決定2**「実行環境ごとにセッションを 1 回開き…」は成り立っていなかった。`/app-config` のたびに
+  `StartConfigurationSession` と `GetLatestConfiguration` が走っていた。
+- **決定9-1** の known-good の維持は、呼び出しをまたいでは効いていなかった。取得に失敗した呼び出しは、
+  直前の呼び出しで取得できた値を持たないため、`config_source: "default"`（全フラグ OFF）に倒れていた。
+- **SS-98 追補 D3** の「`_lifespan`（コールドスタート時に1回実行される）」は事実に反していた。
+  コールドスタートで AppConfig を取りに行かない、という D3 の決定自体は守られていた。
+
+SS-183 で、Lambda では lifespan を init で 1 回だけ起動する形にしたため、上の 3 つは記述どおりの挙動になった
+（pytest の境界のテストで確認済み。dev での確認は [ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) の SS-183 追補の未解決を参照）。
+
+**運用への影響**: SS-183 より前の Lambda では、呼び出しごとに取得し直していたため、フラグを切り替えると
+ポーリング間隔を待たずに次の呼び出しで反映される挙動だった（dev でのフラグの切り替えの実行実績は無く、
+観測した事実ではない）。今後は D10 と
+[packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) のとおり、
+AppConfig のベイク時間に加えてポーリング間隔（既定 60 秒）ぶん遅れて反映される。
 
 ## 関連情報
 

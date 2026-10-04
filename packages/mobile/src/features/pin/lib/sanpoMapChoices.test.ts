@@ -4,6 +4,7 @@ import { FIRST_SANPO_MAP_NAME } from "@/features/pin/lib/pinLimits";
 import {
   resolveEffectiveSanpoMapSelection,
   resolveSanpoMapChoices,
+  resolveSelectedSanpoMapIcon,
 } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMap } from "@/features/pin/types";
 
@@ -13,6 +14,7 @@ const OWNED_DEFAULT: SanpoMap = {
   isDefault: true,
   role: "owner",
   pinCount: null,
+  icon: "coffee",
 };
 const OWNED_OTHER: SanpoMap = {
   id: "map-other",
@@ -20,6 +22,7 @@ const OWNED_OTHER: SanpoMap = {
   isDefault: false,
   role: "owner",
   pinCount: null,
+  icon: "cat",
 };
 const INVITED: SanpoMap = {
   id: "map-invited",
@@ -27,6 +30,7 @@ const INVITED: SanpoMap = {
   isDefault: false,
   role: "editor",
   pinCount: null,
+  icon: "leaf",
 };
 
 describe("resolveSanpoMapChoices", () => {
@@ -63,6 +67,7 @@ describe("resolveSanpoMapChoices", () => {
         key: "default",
         label: FIRST_SANPO_MAP_NAME,
         isDraft: true,
+        icon: "pin",
         selection: { kind: "default" },
         selected: true,
       },
@@ -81,6 +86,7 @@ describe("resolveSanpoMapChoices", () => {
       key: OWNED_DEFAULT.id,
       label: OWNED_DEFAULT.name,
       isDraft: false,
+      icon: "coffee",
       selection: { kind: "default" },
       selected: true,
     });
@@ -139,5 +145,36 @@ describe("resolveEffectiveSanpoMapSelection", () => {
         selection: { kind: "existing", sanpoMapId: "map-gone" },
       }),
     ).toEqual({ kind: "default" });
+  });
+});
+
+describe("resolveSelectedSanpoMapIcon", () => {
+  it("loading / error は pin", () => {
+    for (const status of ["loading", "error"] as const) {
+      const state = resolveSanpoMapChoices({
+        status,
+        maps: [OWNED_DEFAULT],
+        selection: { kind: "default" },
+      });
+      expect(resolveSelectedSanpoMapIcon(state)).toBe("pin");
+    }
+  });
+
+  it("選択中の既存地図の icon を返す", () => {
+    const state = resolveSanpoMapChoices({
+      status: "ready",
+      maps: [OWNED_DEFAULT, OWNED_OTHER],
+      selection: { kind: "existing", sanpoMapId: OWNED_OTHER.id },
+    });
+    expect(resolveSelectedSanpoMapIcon(state)).toBe("cat");
+  });
+
+  it("draft（最初の地図）を選択中は pin", () => {
+    const state = resolveSanpoMapChoices({
+      status: "ready",
+      maps: [INVITED],
+      selection: { kind: "default" },
+    });
+    expect(resolveSelectedSanpoMapIcon(state)).toBe("pin");
   });
 });

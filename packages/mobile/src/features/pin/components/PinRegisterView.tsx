@@ -24,6 +24,7 @@ import {
   pinSaveErrorMessage,
   pinSaveProgressLabel,
 } from "@/features/pin/lib/pinSaveError";
+import { resolveSelectedSanpoMapIcon } from "@/features/pin/lib/sanpoMapChoices";
 import { saveUnavailableMessage } from "@/features/pin/lib/pinDraftValidation";
 import { setFlashMessage } from "@/lib/flashMessage";
 import { useScreenBack } from "@/hooks/useScreenBack";
@@ -66,6 +67,9 @@ export function PinRegisterView({
     },
     onPickerError: (message) => toast.show(message),
   });
+
+  // 保存先の地図のアイコン（プレビュー・位置調整のピンの見た目。選び直すと変わる。SS-172）。
+  const markerIcon = resolveSelectedSanpoMapIcon(register.sanpoMaps);
 
   // 注意（SS-88 ローカルレビュー MS1。SS-60 WalkDetailView と同じ既知の RN 挙動）:
   // `discardOpen` 中は Android の hardwareBackPress を `Dialog`（RN `Modal`）の
@@ -183,6 +187,7 @@ export function PinRegisterView({
                 })}
                 onRequestAdjust={() => setAdjustOpen(true)}
                 previewMapHidden={adjustOpen}
+                markerIcon={markerIcon}
                 testID="pin-register-location"
               />
 
@@ -297,6 +302,7 @@ export function PinRegisterView({
       {adjustOpen && pinLocation.location !== null ? (
         <PinLocationAdjustOverlay
           initialLocation={pinLocation.location}
+          markerIcon={markerIcon}
           onCancel={() => setAdjustOpen(false)}
           onConfirm={(picked) => {
             pinLocation.apply(picked);

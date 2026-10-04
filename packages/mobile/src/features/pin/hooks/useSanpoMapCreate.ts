@@ -8,11 +8,12 @@ import {
   toSanpoMapCreateErrorCode,
   type SanpoMapCreateErrorCode,
 } from "@/features/pin/lib/sanpoMapError";
+import type { SanpoMapIconKey } from "@/features/pin/types";
 import type { SanpoMap } from "@/features/pin/types";
 
 export type UseSanpoMapCreateResult = {
-  /** `validateSanpoMapName` を通した name を渡す。作成中の再呼び出しは無視する。 */
-  create: (name: string) => void;
+  /** `validateSanpoMapName` を通した name と、選んだアイコンを渡す。作成中の再呼び出しは無視する。 */
+  create: (input: { name: string; icon: SanpoMapIconKey }) => void;
   isCreating: boolean;
   errorCode: SanpoMapCreateErrorCode | null;
   /** エラー表示を消す（入力を変えたとき・ダイアログを開き直したとき）。 */
@@ -38,7 +39,7 @@ export function useSanpoMapCreate(options: {
   const submittingRef = useRef(false);
 
   const mutation = useMutation({
-    mutationFn: (name: string) => createSanpoMap({ name }),
+    mutationFn: (input: { name: string; icon: SanpoMapIconKey }) => createSanpoMap(input),
     retry: false,
     onSuccess: (map) => {
       queryClient.setQueryData<SanpoMap[]>(SANPO_MAPS_QUERY_KEY, (old) =>
@@ -57,10 +58,10 @@ export function useSanpoMapCreate(options: {
 
   const { mutate, reset, isPending } = mutation;
   const create = useCallback(
-    (name: string) => {
+    (input: { name: string; icon: SanpoMapIconKey }) => {
       if (submittingRef.current) return;
       submittingRef.current = true;
-      mutate(name);
+      mutate(input);
     },
     [mutate],
   );

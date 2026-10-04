@@ -145,6 +145,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 - index / constraint 名は `<種別接頭辞>_<table>_<cols>` にする（`cols` はアンダースコア連結）。
   - unique constraint: `uq_<table>_<cols>`（例: `uq_walks_user_client_walk_id`）
   - index: `ix_<table>_<cols>`（例: `ix_walks_user_id_started_at_id`）
+  - check constraint: `ck_<table>_<cols>`（例: `ck_sanpo_map_members_role`・`ck_sanpo_maps_icon`）
 
 ## Alembic マイグレーション
 

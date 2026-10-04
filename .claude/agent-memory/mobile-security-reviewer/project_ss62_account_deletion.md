@@ -33,11 +33,11 @@ Critical/High 指摘なし。この機能は「破壊的・不可逆な自己完
 - 401（削除できていない状態）は「非再試行」に倒し、ローカルを掃除して成功に見せない
   （`canRetryAccountDelete` が `unauthorized` を除外）。実際に到達しうる 401 経路
   （refresh token 失効）では `doRefresh()` の unauthorized 節が自律的にセッションを破棄するため
-  矛盾は生じない（[[project_ss10_token_clear_exception_safety]] の fail-safe 修正が前提）。
+  矛盾は生じない（`tokenStore.clear()` の失敗を `doRefresh()` / `signOut()` が try/catch で握りつぶす
+  fail-safe 修正が前提。SS-10）。
   `canDeleteAccount()` は `authenticated` でのみ true（`loading`/`guest` は false）。
 - HTTP 出口: `deleteMeUsersMeDelete()`（Orval生成）→ `customFetch`（`src/api/client.ts`）経由のみ。
-  生 fetch による3つ目の出口は作られていない（[[project_ss70_cloudfront_auth_header]] の
-  懸念=Backlog SS-76 を再生産していないことを確認）。
+  backend 向けの生 fetch 出口を新設していないことを確認（[[project_ss70_cloudfront_auth_header]]）。
 - エラーメッセージは固定文言（`accountDeleteError.ts` の `MESSAGES` マップ）でサーバーレスポンス
   本文を画面に出さない。ログ出力（`console.*`）にトークン・ユーザー識別子の混入なし。
   `SettingsView` は `useAuthSessionStore` から `status` のみ購読し `user`（PII）は読まない
@@ -53,5 +53,4 @@ PR では、(1) 確認ダイアログの dismiss/disabled が実行中に確実�
 クリアより前か、(3) 401 を成功に読み替えていないか、(4) `customFetch` 以外の HTTP 出口を新設して
 いないか、の4点をこのメモリのチェックリストとして再利用する。
 
-関連: [[project_ss10_token_clear_exception_safety]]、[[project_ss19_walk_finish_save]]、
-[[project_ss57_guest_walk_start]]、[[project_ss70_cloudfront_auth_header]]
+関連: [[project_ss19_walk_finish_save]]、[[auth-gate-review-checklist]]、[[project_ss70_cloudfront_auth_header]]

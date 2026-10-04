@@ -4,6 +4,7 @@ import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-n
 import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
+import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { WalkRouteLegend } from "@/features/walk/components/WalkRouteLegend";
 import { WalkRoutePolylines } from "@/features/walk/components/WalkRoutePolylines";
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
@@ -51,6 +52,8 @@ const FALLBACK_DURATION_MIN = 20;
  * マーカーの重なり順。`mapLayers` のマーカー（既定 0）より現在地・目的地を上に描く
  * （同じ座標に登録済みピンがあっても現在地が隠れないように。SS-118）。
  */
+const GOAL_PIN_SIZE = 38;
+const CURRENT_PIN_SIZE = 30;
 const GOAL_MARKER_Z_INDEX = 1;
 const CURRENT_MARKER_Z_INDEX = 2;
 
@@ -147,24 +150,24 @@ export function WalkRouteMapView({
             coordinate={walkRoute.destination.location}
             identifier="goal"
             title={destinationName}
-            anchor={{ x: 0.5, y: 1 }}
+            {...mapPinMarkerPlacement(GOAL_PIN_SIZE)}
             tracksViewChanges={false}
             zIndex={GOAL_MARKER_Z_INDEX}
             testID="walk-active-goal-marker"
           >
-            <MapPin category="goal" icon="flag" size={38} />
+            <MapPin category="goal" icon="flag" size={GOAL_PIN_SIZE} />
           </Marker>
         ) : null}
         {currentPosition ? (
           <Marker
             coordinate={currentPosition}
             identifier="current"
-            anchor={{ x: 0.5, y: 1 }}
+            {...mapPinMarkerPlacement(CURRENT_PIN_SIZE)}
             tracksViewChanges={false}
             zIndex={CURRENT_MARKER_Z_INDEX}
             testID="walk-active-current-marker"
           >
-            <MapPin category="current" size={30} />
+            <MapPin category="current" size={CURRENT_PIN_SIZE} />
           </Marker>
         ) : null}
         {mapLayers}

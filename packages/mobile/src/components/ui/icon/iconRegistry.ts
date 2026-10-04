@@ -11,32 +11,39 @@
  *
  * 新しいアイコンを使うときはここに1行足す。
  */
-import AlertCircle from "lucide-react-native/icons/circle-alert";
-import BarChart2 from "lucide-react-native/icons/chart-no-axes-column";
 import BatteryFull from "lucide-react-native/icons/battery-full";
 import BookOpen from "lucide-react-native/icons/book-open";
-import Building2 from "lucide-react-native/icons/building-2";
+import Building2 from "lucide-react-native/icons/building-complex";
 import Calendar from "lucide-react-native/icons/calendar";
 import Camera from "lucide-react-native/icons/camera";
+import Cat from "lucide-react-native/icons/cat";
+import BarChart2 from "lucide-react-native/icons/chart-no-axes-column";
 import Check from "lucide-react-native/icons/check";
-import CheckCircle2 from "lucide-react-native/icons/circle-check";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
+import AlertCircle from "lucide-react-native/icons/circle-alert";
+import CheckCircle2 from "lucide-react-native/icons/circle-check";
+import XCircle from "lucide-react-native/icons/circle-x";
 import Clock from "lucide-react-native/icons/clock";
+import CloudRain from "lucide-react-native/icons/cloud-rain";
 import Coffee from "lucide-react-native/icons/coffee";
+import Croissant from "lucide-react-native/icons/croissant";
 import Crosshair from "lucide-react-native/icons/crosshair";
 import ExternalLink from "lucide-react-native/icons/external-link";
 import Flag from "lucide-react-native/icons/flag";
+import Flower2 from "lucide-react-native/icons/flower-2";
 import Footprints from "lucide-react-native/icons/footprints";
 import ImageOff from "lucide-react-native/icons/image-off";
 import ImagePlus from "lucide-react-native/icons/image-plus";
 import Info from "lucide-react-native/icons/info";
 import Landmark from "lucide-react-native/icons/landmark";
+import Leaf from "lucide-react-native/icons/leaf";
 import MapIcon from "lucide-react-native/icons/map";
 import MapPin from "lucide-react-native/icons/map-pin";
 import Maximize2 from "lucide-react-native/icons/maximize-2";
 import MessageCircle from "lucide-react-native/icons/message-circle";
+import Mountain from "lucide-react-native/icons/mountain";
 import Navigation from "lucide-react-native/icons/navigation";
 import Pause from "lucide-react-native/icons/pause";
 import Pencil from "lucide-react-native/icons/pencil";
@@ -52,16 +59,17 @@ import Signal from "lucide-react-native/icons/signal";
 import SlidersHorizontal from "lucide-react-native/icons/sliders-horizontal";
 import Square from "lucide-react-native/icons/square";
 import Store from "lucide-react-native/icons/store";
+import Sun from "lucide-react-native/icons/sun";
 import Tag from "lucide-react-native/icons/tag";
 import TrainFront from "lucide-react-native/icons/train-front";
-import Trash2 from "lucide-react-native/icons/trash-2";
+import Trash2 from "lucide-react-native/icons/trash";
 import TreePine from "lucide-react-native/icons/tree-pine";
 import Trees from "lucide-react-native/icons/trees";
 import Undo2 from "lucide-react-native/icons/undo-2";
 import User from "lucide-react-native/icons/user";
+import Utensils from "lucide-react-native/icons/utensils";
 import Wifi from "lucide-react-native/icons/wifi";
 import X from "lucide-react-native/icons/x";
-import XCircle from "lucide-react-native/icons/circle-x";
 
 export const ICONS = {
   "alert-circle": AlertCircle,
@@ -71,6 +79,11 @@ export const ICONS = {
   "building-2": Building2,
   calendar: Calendar,
   camera: Camera,
+  cat: Cat,
+  leaf: Leaf,
+  "cloud-rain": CloudRain,
+  mountain: Mountain,
+  sun: Sun,
   check: Check,
   "check-circle-2": CheckCircle2,
   "chevron-down": ChevronDown,
@@ -78,9 +91,11 @@ export const ICONS = {
   "chevron-right": ChevronRight,
   clock: Clock,
   coffee: Coffee,
+  croissant: Croissant,
   crosshair: Crosshair,
   "external-link": ExternalLink,
   flag: Flag,
+  "flower-2": Flower2,
   footprints: Footprints,
   "image-off": ImageOff,
   "image-plus": ImagePlus,
@@ -112,6 +127,7 @@ export const ICONS = {
   trees: Trees,
   "undo-2": Undo2,
   user: User,
+  utensils: Utensils,
   wifi: Wifi,
   x: X,
   "x-circle": XCircle,

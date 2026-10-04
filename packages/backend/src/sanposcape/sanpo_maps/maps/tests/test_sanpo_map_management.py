@@ -318,6 +318,62 @@ class TestDeleteSanpoMapCascade:
         assert body["sanpo_map"]["is_default"] is True
 
 
+class TestSanpoMapIconWithPins:
+    """地図のアイコン（SS-171, ADR-009 決定31）とピン API の結合。"""
+
+    def test_first_map_auto_created_by_post_pins_has_pin_icon(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        db_session: Session,
+    ) -> None:
+        client, _storage = fake_storage_client
+        user = make_user(db_session, subject="u1")
+        headers = _auth_headers_for(user)
+
+        create_pin_response = client.post(
+            "/pins",
+            headers=headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+            },
+        )
+
+        assert create_pin_response.status_code == 201
+        items = client.get("/sanpo-maps", headers=headers).json()["items"]
+        assert [(item["name"], item["icon"]) for item in items] == [("最初の地図", "pin")]
+
+    def test_changing_icon_does_not_change_pin_list_response(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        db_session: Session,
+    ) -> None:
+        client, _storage = fake_storage_client
+        owner = make_user(db_session, subject="owner")
+        sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+            owner_user_id=owner.id, name="地図", is_default=True
+        )
+        db_session.commit()
+        headers = _auth_headers_for(owner)
+        client.post(
+            "/pins",
+            headers=headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "sanpo_map_id": str(sanpo_map.id),
+            },
+        )
+        before = client.get("/pins", headers=headers).json()
+
+        response = client.patch(
+            f"/sanpo-maps/{sanpo_map.id}", json={"icon": "cat"}, headers=headers
+        )
+
+        assert response.status_code == 200
+        assert client.get("/pins", headers=headers).json() == before
+
+
 class TestListSanpoMapsExpandPinCount:
     def test_counts_own_and_editor_maps_and_excludes_other_users_pins(
         self,

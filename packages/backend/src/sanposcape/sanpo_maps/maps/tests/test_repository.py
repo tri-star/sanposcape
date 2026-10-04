@@ -1,6 +1,9 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
+from sqlalchemy import insert, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.conftest import (
@@ -12,7 +15,7 @@ from sanposcape.sanpo_maps.conftest import (
     make_user,
 )
 from sanposcape.sanpo_maps.maps.repository import _PROMOTE_MAX_ATTEMPTS, SanpoMapRepository
-from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapIcon, SanpoMapMember
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 from sanposcape.users.models import User
 
@@ -147,6 +150,95 @@ class TestCreateWithOwner:
         # 2つ目の地図の INSERT は savepoint ごとロールバックされているため、
         # このユーザーの地図は1件のまま。
         assert len(repo.list_for_member(user_id=user.id)) == 1
+
+
+class TestIcon:
+    def test_create_with_owner_uses_default_icon(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+
+        sanpo_map, _ = repo.create_with_owner(
+            owner_user_id=user.id, name="最初の地図", is_default=True
+        )
+
+        assert sanpo_map.icon == "pin"
+
+    def test_create_owned_saves_given_icon(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+
+        sanpo_map = repo.create_owned(
+            owner_user_id=user.id, name="地図", prefer_default=False, icon=SanpoMapIcon.COFFEE
+        )
+        db_session.commit()
+
+        refreshed = db_session.get(SanpoMap, sanpo_map.id)
+        assert refreshed is not None
+        assert refreshed.icon == "coffee"
+
+    def test_create_owned_without_icon_defaults_to_pin(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+
+        sanpo_map = repo.create_owned(owner_user_id=user.id, name="地図", prefer_default=True)
+
+        assert sanpo_map.icon == "pin"
+
+    def test_create_owned_keeps_icon_when_falling_back_to_non_default(
+        self, db_session: Session
+    ) -> None:
+        """既定地図との競合で `is_default=False` に作り直す経路でもアイコンを保つ。"""
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        repo.create_with_owner(owner_user_id=user.id, name="先着の既定", is_default=True)
+        db_session.commit()
+
+        second = repo.create_owned(
+            owner_user_id=user.id, name="後発", prefer_default=True, icon=SanpoMapIcon.COFFEE
+        )
+        db_session.commit()
+
+        assert second.is_default is False
+        assert second.icon == "coffee"
+
+    def test_update_icon_changes_icon_without_touching_updated_at(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=user.id, name="地図", is_default=True)
+        db_session.commit()
+        original_updated_at = sanpo_map.updated_at
+
+        repo.update_icon(sanpo_map, icon=SanpoMapIcon.CAT)
+        db_session.commit()
+
+        refreshed = db_session.get(SanpoMap, sanpo_map.id)
+        assert refreshed is not None
+        assert refreshed.icon == "cat"
+        assert refreshed.updated_at == original_updated_at
+
+    def test_check_constraint_rejects_unknown_icon(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=user.id, name="地図", is_default=True)
+        db_session.commit()
+
+        sanpo_map.icon = "unknown"
+        with pytest.raises(IntegrityError):
+            db_session.flush()
+        db_session.rollback()
+
+    def test_server_default_is_pin_when_icon_is_not_specified(self, db_session: Session) -> None:
+        """ORM の `default=` を経由しない経路（Core の INSERT）で DB の既定値を確かめる。"""
+        user = make_user(db_session, subject="u1")
+        map_id = db_session.execute(
+            insert(SanpoMap).values(owner_user_id=user.id, name="地図").returning(SanpoMap.id)
+        ).scalar_one()
+
+        icon = db_session.scalar(select(SanpoMap.icon).where(SanpoMap.id == map_id))
+
+        assert icon == "pin"
 
 
 class TestTouch:

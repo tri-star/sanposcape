@@ -71,3 +71,22 @@ describe("タイポグラフィの換算", () => {
     expect(letterSpacing(24, -0.01)).toBeCloseTo(-0.24);
   });
 });
+
+describe("地図アイコン用の色（sky / brown）", () => {
+  const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrastWithWhite = (hex: string) => 1.05 / (luminance(hex) + 0.05);
+
+  it.each([lightTheme, darkTheme])("$name: 白いグリフとのコントラストが 3:1 以上", (theme) => {
+    expect(contrastWithWhite(theme.map.sky)).toBeGreaterThanOrEqual(3);
+    expect(contrastWithWhite(theme.map.brown)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each([lightTheme, darkTheme])("$name: ルート線の青とは別の色", (theme) => {
+    expect(theme.map.sky).not.toBe(theme.map.route);
+  });
+});

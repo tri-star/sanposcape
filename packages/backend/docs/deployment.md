@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-09-24）**
+> **検証状況（最終更新 2026-10-04）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -27,6 +27,8 @@
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
+> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
+> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -123,6 +125,12 @@ aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
 # 同名のロググループが既に存在しないこと（存在すると明示定義が CREATE_FAILED になる）
 aws logs describe-log-groups --log-group-name-prefix /aws/lambda/sanposcape-dev-backend \
   --region ap-southeast-1
+
+# （SS-178）ADOT レイヤーを参照できること（デプロイロールに lambda:GetLayerVersion が要る。
+# infra の SS-185。無いと deploy 時に Api 関数の作成が失敗する）。prod は SS-185 の prod 適用後に確認する
+aws lambda get-layer-version-by-arn --region ap-southeast-1 \
+  --arn arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28 \
+  --query '{Version:Version,Size:Content.CodeSize}'
 ```
 
 ## 4. デプロイ手順
@@ -141,7 +149,8 @@ sam validate --lint
 # 3) ビルド（--use-container 必須。Makefile の build-Api / build-Migrate が呼ばれる）
 sam build --use-container
 
-# 4) 展開後サイズの確認（250MB 制限に対する余裕。uvicorn[standard] を含むため要注意）
+# 4) 展開後サイズの確認（250MB 制限に対する余裕。uvicorn[standard] を含むため要注意。
+#    制限は**レイヤー込み**（zip + ADOT レイヤー。§13）の合計なので、ここの値にレイヤー分を足して見る）
 du -sh .aws-sam/build/Api
 
 # 5) ローカルでの疎通確認（任意。dev の有効な AWS 認証情報が必要。下の注記を参照）
@@ -156,10 +165,15 @@ sam deploy --config-env dev
 > **黙って無視される**（エラーにならないため気づきにくい）。`--container-env-vars`
 > も試したが、通常の `invoke`（デバッグセッションではない）には注入されない。
 >
-> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `FEATURE_FLAG_MODE` /
-> `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 8 つだけ
-> （`Api` 関数はこれに加えて `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` /
-> `APPCONFIG_CONFIGURATION_PROFILE_ID` の 3 本が宣言済みで、計 11 本）。
+> `template.yaml` が宣言しているのは、Globals の `ENV` / `AUTH_MODE` / `MAPS_MODE` /
+> `FEATURE_FLAG_MODE` / `STORAGE_MODE` / `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` /
+> `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 9 つと、`Api` 関数だけが持つ
+> `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID` /
+> `PIN_PHOTO_BUCKET_NAME` の 4 本、トレース関連の 8 本（`TRACING_ENABLED` /
+> `AWS_LAMBDA_EXEC_WRAPPER` / `OTEL_*`。§13）で、`Api` は計 21 本（`Migrate` は Globals の 9 本）。
+> `Api` の `AWS_LAMBDA_EXEC_WRAPPER` と `Layers` は `sam local invoke` でも有効になり、ADOT レイヤーの
+> 取得（`lambda:GetLayerVersion`）を試みる。ローカルで外したいときは `--env-vars` で
+> `AWS_LAMBDA_EXEC_WRAPPER` と `TRACING_ENABLED` を空にする。
 > `AUTH_JWT_SECRET` や `DATABASE_DSN` のような未宣言の変数を `events/local-env.json` に
 > 書いても効かず、`ENV=staging` の起動時バリデーションが
 > `AUTH_JWT_SECRET must be set (>=32 chars) when ENV=staging` のようなエラーで失敗する。
@@ -351,6 +365,10 @@ aws lambda invoke --function-name sanposcape-dev-backend-migrate \
   一致することを確認する。
 - API 本体と同じビルド成果物（同じ `CodeUri`）を使っているため、デプロイされたコードと
   マイグレーションのリビジョンは必ず一致する。
+- **既存テーブルへの列追加では、列を読むコードのデプロイからこの invoke までの間、そのテーブルを
+  読む API が `UndefinedColumn` で 500 になる。** デプロイ直後に続けて invoke する。本番稼働後は、
+  マイグレーションだけの PR を先にデプロイして invoke し、その後で列を使うコードを出す
+  （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補）。
 - `ReservedConcurrentExecutions=1`（dev。prod はクォータの都合で未設定）により、
   `upgrade head` の同時実行は防がれる。
 
@@ -388,6 +406,24 @@ aws cloudformation describe-stacks --stack-name sanposcape-backend-dev \
 # タグ（Project=sanposcape / Env=dev / ManagedBy=sam / Repo=sanposcape）
 aws lambda list-tags --resource <上記で得た関数の ARN>
 ```
+
+### 6.1.1 lifespan が実行環境ごとに1回であることの確認（SS-183）
+
+FastAPI の lifespan（`main._lifespan`）の startup は、Lambda の**実行環境（コールドスタート）
+ごとに1回**だけ走り、shutdown は走らない（`aws_lambda/asgi_handler.py`、
+[ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)）。
+`/health` や `/app-config` を数回叩いたあと、CloudWatch Logs Insights（対象は
+`/aws/lambda/sanposcape-<env>-backend-api`）で確認する。
+
+```
+fields @logStream, @message
+| filter @message like /Application lifespan/
+| parse @message /Application lifespan (?<phase>started|shutting down)/
+| stats count() by @logStream, phase
+```
+
+期待値: ログストリーム（= 実行環境）ごとに `started` が 1 件で、`shutting down` の行は出ない
+（0 件）。`shutting down` の行が出る、または `started` が呼び出しごとに増える場合は、lifespan が呼び出しごとに走っている（SS-183 より前の挙動）。
 
 ### 6.2 Phase 5（インフラ側 `enable_distribution = true` の apply 後）
 
@@ -484,6 +520,7 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 | `Runtime.ImportModuleError: No module named 'psycopg_binary'` | `--use-container` なしでビルドした | `sam build --use-container` でビルドし直す |
 | リクエストが 29 秒でタイムアウトする | DSN のホストに到達できない（Neon の IP allowlist が有効、または DSN の誤り） | Neon コンソールで IP allowlist が無効であることを確認する（dev では確認済み・無効） |
 | `no such table` / `relation does not exist` | マイグレーション未実行 | §5.2 を実行する |
+| `UndefinedColumn`（`column ... does not exist`、既存テーブルの API が 500） | 既存テーブルへの列追加を含むコードをデプロイしたが、マイグレーションがまだ（デプロイから migrate までの隙間） | §5.2 を実行する。本番稼働後は、列追加のマイグレーションだけの PR を先にデプロイして migrate してから、列を使うコードを出す（[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補） |
 | `prepared statement "..." already exists` | Neon の PgBouncer とプロトコルレベルの prepared statement が想定外に衝突した | `DB_DISABLE_PREPARED_STATEMENTS=true` を該当関数の環境変数に設定して再デプロイする（§9 参照） |
 | CloudFront 経由だと全エンドポイントで 401（`/health` は 200） | mobile 側が `Authorization` ヘッダーで送っている（CloudFront に上書きされる） | mobile 側が `X-App-Authorization` を送るよう実装されているか確認する（ADR-005 決定4） |
 | CloudFront 経由が全部 403（`/health` を含む） | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`）が無い、または distribution ID が不一致 | 下記の `get-policy` で確認する。**この許可は Terraform 側が付与するもので、SAM 側の対応は無い** |
@@ -548,6 +585,11 @@ CloudWatch Logs の `INIT_START` の直後に出る次のような `[ERROR]` 行
 ERROR ログへ出してから再送出する**設計になっているため（値には秘密情報が含まれ得るので
 `include_input=False` にしている）。`post_init_error` の `UnicodeEncodeError` に惑わされず、
 まずこの ERROR ログを確認すること。
+
+lifespan の startup（`main._lifespan` の資源の生成）の失敗も init で起きるため、同じく
+init エラーになる。この場合は `src/sanposcape/aws_lambda/asgi_handler.py` が
+`Application startup failed during Lambda init.` の ERROR をトレースバックごと先に出すので、
+`INIT_START` の直後のこの行が原因を示す（SS-183）。
 
 ### CloudFront からの呼び出し許可の確認
 
@@ -635,6 +677,10 @@ CloudFront 経由の curl が唯一の検証手段になる。
   `appconfig:GetLatestConfiguration`）が実際に足りているか
 - Neon への実接続・レイテンシ・コールドスタート時間・29 秒タイムアウトの境界
 - `ReservedConcurrentExecutions` の効果
+- **実行環境での使い回し**（SS-183）: `sam local invoke` は呼び出しごとにコンテナを作るので、
+  lifespan の資源（キャッシュ・レート制限・AppConfig のセッション）が呼び出しをまたいで残る
+  ことは検証できない。ローカルでは pytest の境界テスト（`aws_lambda/tests/test_asgi_handler.py`、
+  実際の mangum を通して同じハンドラーを複数回呼ぶ）で確認でき、実環境では dev で確認する（§6.1.1）。
 
 ## 9. Neon 接続設定
 
@@ -765,6 +811,12 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 「フラグを ON にしたのに反映されない」と感じても、まず数分待ってから切り分けること
 （即座に反映されないのは仕様であり、`Cache-Control: no-store` にしているのは CDN 側の
 キャッシュを疑わなくて済むようにするためであって、AppConfig 側の遅延は無くならない）。
+
+> **（SS-183 注記）** SS-183 より前の Lambda は、mangum の `lifespan="auto"` により
+> 呼び出しごとに `AppConfigFlagSource` を作り直し、毎回 AppConfig から取得し直していた。
+> そのため SS-183 より前の Lambda では、フラグを切り替えるとポーリング間隔を待たずに次の
+> 呼び出しで反映される挙動だった（dev でのフラグ切り替えの実行実績は無く、観測した事実では
+> ない）。今後は上記のとおり、ポーリング間隔ぶん遅れて反映される。
 
 ### CloudWatch Logs で見るポイント
 
@@ -948,3 +1000,84 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 | 端末で「アップロードに失敗しました」になるが、CloudWatch Logs にも S3（CloudTrail データイベント）にも痕跡が無い | 直送は端末 → S3 で完結し backend を通らない。CloudTrail のデータイベントは呼び出し元を特定できたリクエストしか記録せず、認証前に弾かれる失敗や「そもそも送信されていない」ケースは残らない（ADR-009 追補「直送の失敗は原理的にサーバー側から見えない」） | まず**端末側の `logDiagnostic`**（`pin-photo.upload.*`。Metro / `adb logcat -s ReactNativeJS` / Console.app）を見る。次に backend のアクセスログで枠発行（`POST /pin-photo-uploads -> 201`）まで到達しているかを確認する。サーバー側から見る必要がある場合は **S3 サーバーアクセスログ**を一時的に有効化する（infra 作業。CloudTrail では取りこぼす） |
 | `sam deploy` 自体が `{{resolve:ssm:}}` の解決に失敗する | `pin_photos/*` の SSM が当該環境に無い（SS-106 が未 apply） | infra 側の apply を待つ（上の確認 1)）。prod は「前提となる infra の apply」の順序を参照 |
 | 動的参照 + `/staging/*` の連結がどうしても ARN に解決されない | CloudFormation が連結を受け付けない（**dev では解決を確認済み**（2026-09-24）。prod で再発した場合の備え） | infra 側に prefix ごとの ARN（`staging/*` 等）を SSM の契約値として追加してもらい、連結をやめる |
+
+## 13. トレース（OpenTelemetry。ADR-013 / SS-178）
+
+`Api` 関数だけが、ADOT（AWS Distro for OpenTelemetry）レイヤーと Active Tracing でリクエストを
+トレースする。`Migrate` と Globals は対象外。トレースの出力先は X-Ray / CloudWatch
+（Transaction Search の `aws/spans`、Application Signals）。方針は
+[ADR-013](../../../docs/adr/ADR-013-observability-adot-application-signals.md)。
+
+### 構成（template.yaml の Api）
+
+| 項目 | 内容 |
+|---|---|
+| レイヤー | `arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28`（版固定） |
+| `Tracing` | `Active`（SAM が `AWSXrayWriteOnlyAccess` を実行ロールに付ける） |
+| 管理ポリシー | `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` |
+| 有効化 | `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`（TracerProvider を作る）と `TRACING_ENABLED=true`（アプリ側の計装を有効にする） |
+| 自動計装 | `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示 → 自動は botocore だけ。fastapi / sqlalchemy / httpx は、起動時（sitecustomize）の `sys.path` に `/var/task`（zip）が無く自動計装の依存チェックを通らない（SQLAlchemy 2.1 は版の上限にも弾かれる）ためアプリから手動で計装する。urllib は JWKS の URL などのクエリを `http.url` から除くフックを付けるため手動で計装する。threading は `ThreadPoolExecutor` のワーカーの子スパンをリクエストのトレースに繋ぐために手動で有効にする |
+| 伝播 | `OTEL_PROPAGATORS=xray`（クライアントの `traceparent` / `baggage` は無視される。CloudFront が転送する `X-Amzn-Trace-Id` の扱いは dev で要確認） |
+| flush | `OTEL_INSTRUMENTATION_AWS_LAMBDA_FLUSH_TIMEOUT=1000`（ms。既定 30 秒は Lambda の Timeout 29 秒より長い） |
+
+### 前提（infra）と prod
+
+- レイヤーの参照と管理ポリシーの付与には、デプロイロールの `lambda:GetLayerVersion` /
+  `iam:AttachRolePolicy` 対象の許可と、Permission Boundary 側の X-Ray / logs の許可が要る。
+  これは infra の **SS-185**（dev は適用済み）。
+- **prod は SS-185 の prod 適用までデプロイできない**（Api 関数の作成が失敗する）。
+  prod は未デプロイなので、このテンプレートの変更自体は先に main に入れてよい。
+
+### OpenTelemetry を zip に入れない理由
+
+Lambda の `sys.path` では `/var/task`（zip）が `/opt/python`（レイヤー）より前に来る。zip に
+`opentelemetry-*` を入れると、起動時にレイヤーから読み込まれた SDK と版が混ざる。
+そのため `pyproject.toml` の `dev` グループにだけ置き（boto3 と同じ扱い）、
+`uv export --no-dev` で除く。`Makefile` の `build-Api` は、成果物に `opentelemetry*` があれば失敗する。
+一方 `sqlalchemy[asyncio]`（greenlet）は runtime 依存: SQLAlchemy の計装が `sqlalchemy.ext.asyncio`
+を import するため（SQLAlchemy 2.1 は greenlet を既定で含まない）。
+
+### レイヤーの版を上げる手順
+
+1. dev で先に確かめる（ローカルでは確かめられない）。
+2. 新しい版が同梱する `opentelemetry-*` の版に、`pyproject.toml` の `dev` グループを `==` で合わせて
+   `uv lock` する（`.github/dependabot.yml` は `opentelemetry-*` を ignore している）。
+3. 新しいレイヤーの `otel-instrument` の既定の無効リストと `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS`
+   （template.yaml と compose.yaml の 2 か所）が一致しているか見直す。
+4. dev のコールドスタート（`Init Duration`）・展開後のサイズ（zip + レイヤーで 250MB 未満）・スパンの中身を確かめる。
+
+### 緊急停止
+
+```bash
+aws lambda update-function-configuration --function-name sanposcape-<env>-backend-api \
+  --region ap-southeast-1 \
+  --environment "Variables={...現在の値から AWS_LAMBDA_EXEC_WRAPPER を除き TRACING_ENABLED=false...}"
+```
+
+`update-function-configuration --environment` は**環境変数を丸ごと置き換える**ため、先に
+`aws lambda get-function-configuration` で現在の値を取得して編集すること。恒久化は template.yaml を
+戻して redeploy する。
+
+### 操作名とルート別の集計（ADR-013 決定2 の結論）
+
+Application Signals の操作名は、Lambda 上では ADOT が `<関数名>/FunctionHandler` に固定する
+（`aws.local.operation` をアプリが書き換えても効かない。dev の他プロジェクトの実データで確認し、
+sanposcape 自身の dev でも操作が `sanposcape-dev-backend-api/FunctionHandler` だけになることを確認した）。そのため
+API 全体の RED・アラーム・SLO は Application Signals で、**ルート別の内訳は `aws/spans` を
+`http.route` / スパン名で集計する Logs Insights**（SS-179）で見る。Lambda 計装の親スパン
+（Mangum 構成では LOCAL_ROOT）には、スパン名 `METHOD ルートテンプレート` と `http.route` を
+`aws_lambda/tracing.py` が付ける。
+
+### 外へ出さない情報
+
+**Lambda 計装の親スパンはハンドラーの後に属性を設定し直す**（dev の実測で判明。レイヤーの Lambda 計装は 0.61b0）。ハンドラーの中でスパン属性を書き換えても、イベントから `http.route`（生のパス）・`http.target`（クエリ込み）・`http.user_agent` が再設定される。そのため `aws_lambda/tracing.py` は、Mangum が `scope["aws.event"]` に持つ同じイベントを無害化している（`rawQueryString` を空、`userAgent` を削除、`requestContext.http.path` をルートのテンプレートに）。payload 2.0 のみ対象。レイヤーを上げるときは、dev の `aws/spans` で親スパンの `http.target` / `http.route` / `http.user_agent` を確認すること。
+
+クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）。
+`http.url` / `http.target` のクエリはフックで除き（失敗時は空に倒す）、`net.peer.ip` /
+`net.peer.port` / `http.user_agent` は空に上書きし、`hide_parameters=True` で例外メッセージの
+`[parameters: ...]` を消している。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、
+例外メッセージ（一意制約違反の `DETAIL` のキー値）は載せない（自前リスナーに差し替え。
+`core/observability.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
+**残るリスク**: 未処理の 500 では、ASGI / Lambda 計装が exception イベントに message と
+スタックトレースを自動で付ける（DB 例外なら DETAIL のキー値が載りうる）。ログのトレースバックと
+合わせて SS-180 で対処する（ADR-013 決定6 の追補）。

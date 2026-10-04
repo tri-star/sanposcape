@@ -18,6 +18,7 @@ import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { usePinDelete } from "@/features/pin/hooks/usePinDelete";
 import { usePinDetail } from "@/features/pin/hooks/usePinDetail";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import { DEFAULT_SANPO_MAP_ICON, sanpoMapIconFor } from "@/features/pin/lib/sanpoMapIcon";
 import { PIN_DELETE_DONE_TITLE } from "@/features/pin/lib/pinDeleteError";
 import {
   canShowPinActions,
@@ -88,6 +89,12 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
           detail.pin,
         )
       : null;
+
+  // ピンの地図のアイコン。一覧が未取得の間は既定のピンで描き、届いたら作り直される（SS-172）。
+  const markerIcon =
+    detail.pin !== null
+      ? sanpoMapIconFor(maps.maps, detail.pin.sanpoMapId)
+      : DEFAULT_SANPO_MAP_ICON;
 
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // 写真の同時削除などで件数が減っても、レンダー中に viewerIndex を収める（0件なら閉じる）。
@@ -306,6 +313,7 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 location={pin.location}
                 accessibilityLabel="ピンの位置の地図"
                 mapHidden={viewerIndex !== null}
+                markerIcon={markerIcon}
                 testID="pin-detail-map"
               />
 

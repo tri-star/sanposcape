@@ -21,7 +21,7 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
 
 ```
 packages/backend/
-├── compose.yaml               # api / db コンテナ定義
+├── compose.yaml               # api / db コンテナ定義（+ profile `observability` の jaeger。SS-178）
 ├── Dockerfile
 ├── pyproject.toml             # uv 依存管理・ruff 設定・pytest 設定
 ├── uv.lock
@@ -43,15 +43,17 @@ packages/backend/
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
 │       │
 │       ├── aws_lambda/        # AWS Lambda 固有の受け皿（ECS 移植性の境界。SS-67）
-│       │   ├── api.py         #   Mangum アダプタ。main.app の import 前にシークレットをハイドレーションする
+│       │   ├── api.py         #   Lambda ハンドラ。main.app の import 前にシークレットをハイドレーションし、後で build_handler() を呼ぶ
+│       │   ├── asgi_handler.py #  Mangum を lifespan=off で包み、FastAPI の lifespan を init で1回だけ起動する。import しても副作用なし
 │       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
+│       │   ├── tracing.py     #   Lambda 計装の親スパンの補正（http.target のクエリ除去、スパン名・http.route の付け直し。SS-178/ADR-013）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── core/              # 横断的関心事（ドメインに属さない土台）
 │       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
-│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware）とロギング設定（configure_logging）。SS-88/ADR-009 決定13
+│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware）とロギング設定（configure_logging）。SS-88/ADR-009 決定13。末尾にトレース計装（FastAPI・SQLAlchemy・httpx・threading の手動計装、クエリ除去フック、resolve_route_template。SS-178/ADR-013）
 │       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
 │       │   ├── feature_flags.py  #   フィーチャーフラグの評価層（登録簿 + AppConfig 文書 → 判定。SS-98/ADR-008）
 │       │   └── tests/         #   このモジュールのテスト（併置）
@@ -97,7 +99,9 @@ packages/backend/
 │       ├── sanpo_maps/        # ドメイン: 地図・ピン・写真（1つの境界づけられたコンテキスト。
 │       │   │                  #   SS-88, ADR-009。内部構成は ADR-011, SS-137）
 │       │   ├── models.py      #   全6モデル（SanpoMap/SanpoMapMember/Pin/PinTag/PinPhoto/
-│       │   │                  #   PinPhotoUpload）を1ファイルに集約（共有カーネル）
+│       │   │                  #   PinPhotoUpload）を1ファイルに集約（共有カーネル）。
+│       │   │                  #   値域の定義（`SANPO_MAP_ROLES`・`SanpoMapIcon`・
+│       │   │                  #   `PIN_PHOTO_UPLOAD_STATUSES`）も置き、CHECK 制約と API スキーマで共有する
 │       │   ├── exceptions.py  #   ドメイン全体の例外（共有カーネル）
 │       │   ├── permissions.py #   SanpoMapRole と role による権限判定の純粋関数（共有カーネル）。
 │       │   │                  #   追加系（can_add_pin/can_add_pin_photo/can_add_pin_tag）は role
@@ -148,6 +152,7 @@ packages/backend/
 │   └── versions/              # マイグレーションスクリプト
 │
 ├── scripts/
+│   ├── start-api.sh                  # api コンテナの起動コマンド（TRACING_ENABLED=true なら opentelemetry-instrument 経由。SS-178）
 │   ├── seed.py                       # Seeder（初期データ投入）
 │   ├── export_openapi.py             # openapi.yaml/json の再生成（mobile の Orval が消費）
 │   ├── feature_flags_document.py     # フラグ切り替えワークフローが AppConfig に投入する版の組み立て（SS-99。標準ライブラリのみ）
@@ -195,8 +200,22 @@ packages/backend/
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
-- `api.py`: Mangum アダプタ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
-  import より**前**に実行してから `app` を import する（順序が意味を持つ 1 ファイルの責務）。
+- `api.py`: Lambda ハンドラ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
+  import より**前**に実行してから `app` を import し、その**後**で `build_handler(app)` を呼ぶ
+  （ハイドレーション → `main` の import → lifespan の起動の順。順序が意味を持つ 1 ファイルの責務）。
+- `asgi_handler.py`: `build_handler(app)` / `AsgiLambdaHandler`。import しても何も起動しない
+  （副作用は生成時だけ）。Mangum を `lifespan="off"` で包み、FastAPI の lifespan
+  （`main._lifespan`）の startup を**生成時（Lambda の init）に1回だけ**起動する。
+  - mangum 0.22.0 の `lifespan="auto"` は**呼び出しごとに** startup / shutdown を回すため、
+    `_lifespan` が作る資源（Maps provider とキャッシュ・レート制限・AppConfig のセッション・
+    S3 クライアント）が呼び出しごとに作り直されていた（SS-183）。
+  - **shutdown は走らせない**（実行環境の破棄で資源も消える）。`close()` はテスト専用。
+  - lifespan の **state は使えない**（`lifespan="off"` の Mangum は state を scope に載せない。
+    state を yield する lifespan は起動時に `RuntimeError`）。共有する資源は `app.state` に置く。
+  - startup の例外は ERROR ログ（`Application startup failed during Lambda init.`）を出して
+    再送出する（init エラーになる。deployment.md §7）。
+  - 同期のコードからだけ呼ぶこと（生成時に `run_until_complete()` を使う）。
+  - 経緯と決定は [ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)。
 - `migrate.py`: Alembic `upgrade head` を実行する専用 Lambda（API 本体のハンドラでは走らせない）。
 - `main.py` の `create_app()` / `app` はこのパッケージから独立しており無変更のまま。ECS では
   従来どおり `uvicorn sanposcape.main:app` で動く。

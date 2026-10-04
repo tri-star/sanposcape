@@ -42,6 +42,7 @@
     - [ADR-M-016 テーマ（外観）設定の端末保存](./packages/mobile/adr/ADR-M-016-theme-mode-preference.md)
     - [ADR-M-017 ピンの編集・削除](./packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)
     - [ADR-M-018 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./packages/mobile/adr/ADR-M-018-background-walk-location-tracking.md)
+    - [ADR-M-019 地図のアイコンと、マップピンの形・マーカーの基準点](./packages/mobile/adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend
@@ -153,6 +154,6 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > **SS-10（認証まわりのネイティブ依存を追加）・SS-15（expo-location の追加・Maps キー注入）・
 > SS-70（expo-crypto の追加）・SS-88（expo-image-picker / expo-image-manipulator /
 > expo-file-system の追加。ピン登録機能）・SS-156（expo-task-manager の追加と expo-location プラグイン設定の変更。
-> 散歩中の背景位置記録）適用後は development build の作り直しが必要**
+> 散歩中の背景位置記録）・SS-157（iOS: 位置情報の利用目的文言。Android: 通知権限 `POST_NOTIFICATIONS` の宣言）適用後は development build の作り直しが必要**
 > （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。
