@@ -502,7 +502,18 @@ class PinService:
                 updated_at=self._now(),
             )
 
+        # commit 前に控える（R2: commit 後は ORM 属性に触れない）。
+        user_id = current_user.id
         self._db.commit()
+
+        if visited_changed or archived_changed:
+            logger.info(
+                "Pin status changed: pin_id=%s by user_id=%s visited=%s archived=%s",
+                pin_id,
+                user_id,
+                new_visited if visited_changed else None,
+                new_archived if archived_changed else None,
+            )
 
         # `pin_id` は引数（commit の影響を受けない）をそのまま使う（R2）。
         read_model = self._require_read_model(pin_id)

@@ -15,7 +15,10 @@
 - downgrade は 2 列のデータ（埋め戻した値を含む）を失う。ロールバックするときは、新しい列を
   参照しない旧コードを先にデプロイしてから downgrade を流す（新コードが残ったまま流すと
   UndefinedColumn で 500 になる）。
-- 埋め戻しの UPDATE は対象行をロックする。pins は小さいのでこのままでよい。
+- ADD COLUMN は ACCESS EXCLUSIVE ロックを取り、同じトランザクション内の UPDATE（行ロックと
+  全件走査）が終わって commit するまで解放されない。つまり埋め戻しの間は pins の読み書きが
+  すべて待たされる。pins は小さい（MVP）のでこのままでよいが、prod の稼働後に大きなテーブルで
+  同様の変更をするときは、ADD COLUMN と埋め戻し（バッチ UPDATE）を別のリビジョンに分ける。
 
 Revision ID: 34290cf1f4e6
 Revises: 6835d3b2449d

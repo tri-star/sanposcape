@@ -1,6 +1,7 @@
 import struct
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2228,7 +2229,9 @@ class TestPinVisitedAndArchived:
 
         assert patched["visited"] is True
         assert patched["archived"] is False
-        assert patched["updated_at"] > pin["updated_at"]  # type: ignore[operator]
+        assert datetime.fromisoformat(str(patched["updated_at"])) > datetime.fromisoformat(
+            str(pin["updated_at"])
+        )
         assert client.get(f"/pins/{pin['id']}", headers=auth_headers).json() == patched
 
     def test_patch_same_value_does_not_advance_updated_at(

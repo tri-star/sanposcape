@@ -15,6 +15,9 @@ SS-113）を参照。関数の形は3種類ある。
   （`role == "owner"`）。地図の名前・アイコン・存続は共有メンバー全員に影響するため、対象の持ち主を
   判定する引数（`is_creator` 相当）は持たない（決定26）。
 
+ピンの訪問状況（`can_update_pin_visited`: 追加系の形）とアーカイブ状態
+（`can_update_pin_archived`: 持ち主判定系の形）の変更は ADR-009 決定32（SS-173）。
+
 未知の role（`_WRITE_ROLES` に無い値）は常に False にする（fail-safe）。owner 以外は
 `role in _WRITE_ROLES` を満たさない限り何もできないため、`SanpoMapRole` の想定外の値が
 渡っても構造的に安全側へ倒れる。

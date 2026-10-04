@@ -878,13 +878,13 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   結果で、ピン単位の削除である以上避けられない。
 - 実装は `sanpo_maps/permissions.py` の純粋関数で、形は3種類ある
   （2026-09-26 追補, PR #101 レビュー対応。3種類目は SS-113 で追加）。
-  - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`。SS-173 追補で
-    `can_update_pin_visited`）: `role in {"owner",
+  - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: `role in {"owner",
     "editor"}` のみで判定する。作成者は判定しないので `is_creator` 引数は持たない。
+    （SS-173 追補: `can_update_pin_visited` もこの形。決定32）
   - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
-    SS-173 追補で `can_update_pin_archived`/
     `can_delete_pin_tag`/`can_delete_pin_photo`）: `role == "owner" or (role in {"owner",
     "editor"} and is_creator)`。写真だけは `is_uploader`。
+    （SS-173 追補: `can_update_pin_archived` もこの形。決定32）
   - **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）:
     `role == "owner"` のみで判定する。地図の持ち主は owner の role そのものなので、
     「対象の持ち主」を判定する引数（`is_creator`/`is_uploader`）は持たない（決定26）。
@@ -922,7 +922,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - 同じラベルを「削除」と「追加」の両方に含めた場合は、削除してから追加し直すことになる
   （結果として作成者が付け替わる）。仕様として許容する。
 - 空のボディ `{}` も 200 で受け付け、何も変えずに `PinRead` を返す（`updated_at` も更新しない）。
-- 更新できるのは `name`/`memo`/タグのみ。`location`/`sanpo_map_id`/`client_walk_id` は対象外
+- 更新できるのは `name`/`memo`/タグのみ（**SS-173 追補**: `visited`/`archived` も加わった。決定32）。`location`/`sanpo_map_id`/`client_walk_id` は対象外
   （SS-119 の要件に含まれない。地図間の移動は権限の意味が変わるため別途設計が要る）。
 
 ### 決定21: 404 と 403 の使い分け（IDOR 対策の継続）
