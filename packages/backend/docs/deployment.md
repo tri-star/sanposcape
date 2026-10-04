@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-09-24）**
+> **検証状況（最終更新 2026-10-04）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -27,6 +27,7 @@
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
+> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -400,12 +401,12 @@ FastAPI の lifespan（`main._lifespan`）の startup は、Lambda の**実行�
 ```
 fields @logStream, @message
 | filter @message like /Application lifespan/
-| stats count() by @logStream, @message
+| parse @message /Application lifespan (?<phase>started|shutting down)/
+| stats count() by @logStream, phase
 ```
 
-期待値: ログストリーム（= 実行環境）ごとに `Application lifespan started: ...` が 1 件、
-`Application lifespan shutting down: ...` が 0 件。shutting down が出る、または started が
-呼び出しごとに増える場合は、lifespan が呼び出しごとに走っている（SS-183 より前の挙動）。
+期待値: ログストリーム（= 実行環境）ごとに `started` が 1 件で、`shutting down` の行は出ない
+（0 件）。`shutting down` の行が出る、または `started` が呼び出しごとに増える場合は、lifespan が呼び出しごとに走っている（SS-183 より前の挙動）。
 
 ### 6.2 Phase 5（インフラ側 `enable_distribution = true` の apply 後）
 
@@ -644,11 +645,6 @@ aws secretsmanager get-secret-value --secret-id <ARN> --query SecretString --out
 - `--env-vars` で注入した環境変数での起動時バリデーション（ただし注入できるのは
   `template.yaml` に宣言済みの変数だけ。§4 の注記を参照）
 
-- **実行環境での使い回し**（SS-183）: `sam local invoke` は呼び出しごとにコンテナを作るので、
-  lifespan の資源（キャッシュ・レート制限・AppConfig のセッション）が呼び出しをまたいで残る
-  ことは検証できない。pytest の境界テスト（`aws_lambda/tests/test_asgi_handler.py`）と、
-  dev での確認（§6.1.1）で確かめる。
-
 **次は検証できない。** デプロイ後の `aws lambda invoke` + CloudWatch Logs、および
 CloudFront 経由の curl が唯一の検証手段になる。
 
@@ -663,6 +659,10 @@ CloudFront 経由の curl が唯一の検証手段になる。
   `appconfig:GetLatestConfiguration`）が実際に足りているか
 - Neon への実接続・レイテンシ・コールドスタート時間・29 秒タイムアウトの境界
 - `ReservedConcurrentExecutions` の効果
+- **実行環境での使い回し**（SS-183）: `sam local invoke` は呼び出しごとにコンテナを作るので、
+  lifespan の資源（キャッシュ・レート制限・AppConfig のセッション）が呼び出しをまたいで残る
+  ことは検証できない。ローカルでは pytest の境界テスト（`aws_lambda/tests/test_asgi_handler.py`、
+  実際の mangum を通して同じハンドラーを複数回呼ぶ）で確認でき、実環境では dev で確認する（§6.1.1）。
 
 ## 9. Neon 接続設定
 
@@ -796,8 +796,9 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 
 > **（SS-183 注記）** SS-183 より前の Lambda は、mangum の `lifespan="auto"` により
 > 呼び出しごとに `AppConfigFlagSource` を作り直し、毎回 AppConfig から取得し直していた。
-> そのためフラグが即時に反映されているように見えていたが、それは不具合の副作用だった。
-> 今は上記のとおり、実行環境ごとにポーリング間隔ぶん遅れて反映される。
+> そのため SS-183 より前の Lambda では、フラグを切り替えるとポーリング間隔を待たずに次の
+> 呼び出しで反映される挙動だった（dev でのフラグ切り替えの実行実績は無く、観測した事実では
+> ない）。今後は上記のとおり、ポーリング間隔ぶん遅れて反映される。
 
 ### CloudWatch Logs で見るポイント
 
