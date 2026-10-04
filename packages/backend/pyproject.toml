@@ -6,7 +6,10 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.32",
-    "sqlalchemy>=2.0.52",
+    # [asyncio] extra = greenlet。アプリは同期 SQLAlchemy だが、OpenTelemetry の SQLAlchemy 計装
+    # （ADR-013 / SS-178）は instrument() の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1
+    # は greenlet を既定の依存に含まない（入っていないと ImportError で get_engine() が落ちる）。
+    "sqlalchemy[asyncio]>=2.0.52",
     "alembic>=1.19.1",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",

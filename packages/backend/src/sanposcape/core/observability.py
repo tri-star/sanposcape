@@ -280,16 +280,21 @@ def instrument_sqlalchemy_engine(
     instrumentor = SQLAlchemyInstrumentor()
     if instrumentor.is_instrumented_by_opentelemetry:
         return
-    instrumentor.instrument(
-        engine=engine,
-        tracer_provider=tracer_provider,
-        # `db.statement` はプレースホルダ付きの文のまま（バインド値は記録されない）。
-        enable_commenter=False,
-        # TODO(SS-178): SQLAlchemy 2.1.0 は計装の `_instruments`（< 2.1.0）の依存チェックで
-        # 弾かれるため回避する。upstream の修正後に外す:
-        # https://github.com/open-telemetry/opentelemetry-python-contrib/issues/5118
-        skip_dep_check=True,
-    )
+    try:
+        instrumentor.instrument(
+            engine=engine,
+            tracer_provider=tracer_provider,
+            # `db.statement` はプレースホルダ付きの文のまま（バインド値は記録されない）。
+            enable_commenter=False,
+            # TODO(SS-178): SQLAlchemy 2.1.0 は計装の `_instruments`（< 2.1.0）の依存チェックで
+            # 弾かれるため回避する。upstream の修正後に外す:
+            # https://github.com/open-telemetry/opentelemetry-python-contrib/issues/5118
+            skip_dep_check=True,
+        )
+    except Exception:
+        # トレースのために DB アクセスを落とさない（get_engine() の中で呼ばれる）。
+        # 例: 計装が `sqlalchemy.ext.asyncio` を import するため greenlet が無いと ImportError。
+        logger.warning("SQLAlchemy の計装に失敗したため、DB のスパンは記録されない", exc_info=True)
 
 
 def record_exception_on_current_span(exc: BaseException) -> None:
