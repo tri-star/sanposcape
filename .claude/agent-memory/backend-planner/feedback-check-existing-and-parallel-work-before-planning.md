@@ -25,6 +25,9 @@ M5（SS-18〜21）と SS-112 / SS-113 で実際に起きた2つの型をまと�
 - ADR の移行事項（BK-n）を実装するプランでは、同じ ADR の他の BK 項目が進行中でないかをコーディネーター／ユーザーに
   確認する（`../` の兄弟 worktree や Plane の状態も手掛かりになる）。
 - 重なりそうなら、共通部品は先に入るチケットに寄せ、後のチケットは「流用する」前提で書く。ADR の決定番号はプランで固定しない。
+- 兄弟 worktree（`/home/tristar/orca/workspaces/sanposcape/*/`）の `alembic/versions/` と ADR（ルート・`packages/mobile/adr/`）を
+  glob すると、未マージの衝突を見つけられる。SS-173 では、SS-171/172 が同じ Alembic head からリビジョンを切っており、
+  ADR-009 決定31 と ADR-M-019 も先に使っていた。後からマージする側が `down_revision` と番号を付け替える。
 - 改訂するときは、既存の private ヘルパーを切り出すより、既存の service が port を直接満たす方が差分が小さく、既存のテストを
   壊しにくいことがある（SS-113 では `PinService` が `sanpo_maps` の port を満たし、`_delete_photo_keys_best_effort` を
   無変更で再利用した）。
