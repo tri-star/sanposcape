@@ -11,6 +11,7 @@
 - OpenAPI定義生成: Fast APIの機能を利用
 - API ドキュメント UI: `scalar-fastapi`（`/docs`。SS-131）。Swagger UI / ReDoc は使わない（`docs_url=None` / `redoc_url=None`）。JS の版は `api_docs/router.py`（`SCALAR_JS_URL`）で固定し、telemetry と Agent 機能は無効化している。`ENV=production` では登録しない
 - AWS SDK: boto3。Secrets Manager（`integrations/aws/secrets.py`, SS-67）、AWS AppConfig（`integrations/aws/appconfig.py`, SS-98）、S3（`integrations/aws/s3.py`, SS-88）の取得層で使用。Lambda の python3.12 管理ランタイムに同梱されるため zip には含めず、`[dependency-groups] dev` にのみ追加（ユニットテスト・型解決用）
+- ASGI→Lambda アダプター: Mangum（`aws_lambda/asgi_handler.py`, SS-67 / SS-183）。`lifespan="off"` で使い、FastAPI の lifespan は init で1回だけ起動する。バージョンを上げるときは lifespan の扱いを確認する（[ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)）
 - 画像処理: Pillow（`sanpo_maps/photos/thumbnails.py`, SS-88。SS-137 で `pins/` から移動）。ピン写真のサムネイル生成（デコード検証・EXIF回転補正・リサイズ・再エンコード）に使用。boto3 と異なりランタイム同梱ではないため `pyproject.toml` の `dependencies`（本体）に追加し、Lambda の zip に含める（`sam build --use-container` で manylinux wheel が入ることを BK-1 で確認する）
 - multipart フォーム解析: `python-multipart`。`STORAGE_MODE=fake` 用の `/dev-storage/uploads`（`sanpo_maps/photos/dev_storage_router.py`。SS-137 で `pins/` から移動）が FastAPI の `Form`/`File` を使うため必要（本番では S3 へ直接アップロードするため経路自体が存在しないが、依存としては zip に含める）
 
