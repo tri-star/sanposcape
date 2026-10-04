@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）
 
 ## ステータス
 
@@ -73,7 +73,11 @@ ECR リポジトリとイメージのライフサイクル管理が不要にな�
   Lambda / ECS のどちらでも同じ形になる。ハイドレーション関数（`core/runtime_config.py`）自体も
   `APP_SECRET_ARN` が未設定なら no-op になるため、ECS のエントリポイントから呼んでも害がない。
 - 検査方法: `sanposcape.aws_lambda` を import しているのが `template.yaml`（`Handler` の指定）と
-  自身のテストだけであること。
+  自身のテストだけであること。（**SS-178 追補**: 実際には `aws_lambda/` の中のモジュール同士
+  （`api.py` が `tracing.py` を import する）も import し合う。検査の趣旨は「`aws_lambda/` の外
+  （`core/` や各ドメイン）から `sanposcape.aws_lambda` を import していないこと」であり、
+  検査方法はこの形に読み替える。`aws_lambda/` から `core/` を import する向きは許す
+  （例: `tracing.py` が `core/observability.py` の `resolve_route_template` を使う）。）
 
 ### 4. Function URL の `AuthType` は `AWS_IAM`。アクセストークンは `X-App-Authorization` ヘッダーで運ぶ
 
