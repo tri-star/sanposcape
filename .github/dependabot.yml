@@ -55,6 +55,12 @@ updates:
     cooldown:
       default-days: 3
       semver-major-days: 7
+    ignore:
+      # OpenTelemetry は Lambda では ADOT レイヤー（packages/backend/template.yaml の `Layers`）が
+      # 提供するもので、pyproject.toml の dev グループの版はレイヤーの同梱版に `==` で合わせている
+      # （ADR-013 決定1 / SS-178）。Dependabot が個別に上げるとレイヤーとの版ずれを作るため、
+      # レイヤーを上げるとき（dev で確認してから）に手動で一緒に上げる。
+      - dependency-name: "opentelemetry-*"
     groups:
       backend-dependencies:
         patterns:
