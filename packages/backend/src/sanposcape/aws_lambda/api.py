@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 hydrate_environment_from_secret()
 
 try:
-    from mangum import Mangum  # noqa: E402
-
     from sanposcape.main import app  # noqa: E402
 except ValidationError as exc:
     # Settings の組み立てに失敗した場合、不足フィールド名だけを ERROR ログに出してから
@@ -31,4 +29,6 @@ except ValidationError as exc:
     )
     raise
 
-handler = Mangum(app, lifespan="auto")
+from sanposcape.aws_lambda.asgi_handler import build_handler  # noqa: E402
+
+handler = build_handler(app)
