@@ -22,7 +22,6 @@ hydrate_environment_from_secret()
 try:
     from mangum import Mangum  # noqa: E402
 
-    from sanposcape.aws_lambda.tracing import wrap_app_for_lambda_tracing  # noqa: E402
     from sanposcape.main import app  # noqa: E402
 except ValidationError as exc:
     # Settings の組み立てに失敗した場合、不足フィールド名だけを ERROR ログに出してから
@@ -32,5 +31,8 @@ except ValidationError as exc:
         exc.errors(include_input=False, include_url=False),
     )
     raise
+
+# `sanposcape.main`（= Settings の確定）の後に import する（上の docstring）。
+from sanposcape.aws_lambda.tracing import wrap_app_for_lambda_tracing  # noqa: E402
 
 handler = Mangum(wrap_app_for_lambda_tracing(app), lifespan="auto")
