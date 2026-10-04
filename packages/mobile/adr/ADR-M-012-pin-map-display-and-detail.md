@@ -51,6 +51,8 @@
   地図詳細のピン一覧から確かめる。写真の拡大（ピンチ）は E2E しない。（本文: D14、SS-146 追補、SS-147 追補、SS-121 追補、SS-153 追補）
 - **`react-native-maps` は 1.29.8。増減するレイヤーは `MapView` の子の末尾に置き、重なり順は `zIndex` で決め、
   `moveOnMarkerPress={false}`、`onMapReady` での表示範囲の報告は初回だけ**。（本文: D16）
+- **登録済みピンは、そのピンが属する地図のアイコン（グリフと色）で描く**。`useRegisteredPins` が地図一覧のキャッシュから付け、`tracksViewChanges={false}` のマーカーは key にアイコンを含めて作り直す。（本文: SS-172 追補。本体は [ADR-M-019](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）
+- **ピンの Marker は `mapPinMarkerPlacement` で基準点を渡す**（Android は `anchor`、iOS の Apple Maps は `centerOffset`）。（本文: SS-172 追補）
 
 ### 未解決・持ち越し
 
@@ -62,8 +64,6 @@
 - **表示範囲に地図ごとに200件を超えるピンがあると古いピンが出ない**（拡大すると取り直す）。件数が増えたらクラスタ表示を再検討。
   （本文: 影響「ネガティブな影響」、選択肢4）
 - **地図が増えたら `GET /pins` の `sanpo_map_id` 任意化を backend に依頼する**。（本文: D4、選択肢6）
-- **登録済みピンは、そのピンが属する地図のアイコン（グリフと色）で描く**。`useRegisteredPins` が地図一覧のキャッシュから付け、`tracksViewChanges={false}` のマーカーは key にアイコンを含めて作り直す。（本文: SS-172 追補。本体は [ADR-M-019](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）
-- **ピンの Marker は `mapPinMarkerPlacement` で基準点を渡す**（Android は `anchor`、iOS の Apple Maps は `centerOffset`）。（本文: SS-172 追補）
 - **散歩中はナビタブとピンタブの2つの地図が同時に生きる**（許容。問題が出たら `freezeOnBlur` 等を検討）。（本文: SS-146 追補の影響）
 
 ### 変更・撤回された決定

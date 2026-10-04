@@ -14,7 +14,7 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 ## 重要: Expo Go ではなく development build を使う
 
-本アプリは **react-native-maps**、**react-native-svg**（アイコン描画）、
+本アプリは **react-native-maps**、**react-native-svg**（アイコン・マップピンの描画）、
 **@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
 （Google サインイン）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
 （`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）、**expo-location**（現在地・散歩中の位置記録）、

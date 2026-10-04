@@ -62,10 +62,11 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 - 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で
   実機確認できる。プロダクトの起動画面（`app/index.tsx`）は SS-8 でスプラッシュ（`SplashView`）に
   置き換わったため、ギャラリーはこの専用ルートから開く。
-  - **例外**: `MapPin` / `RoutePolyline` などの地図オーバーレイは `MapView` の子としてしか
-    描画されないため、`DesignSystemGallery` に単体で並べることができない。ギャラリーには載せず、
-    実際に使われている画面（散歩開始・散歩中・履歴詳細の各地図）や `/dev-screens` で見た目を確認する。
-    `MapPin` を `Marker` の子に置くときは `mapPinMarkerPlacement(size)`（`@/components/ui/map-pin/mapPinGeometry`）を `Marker` に
+  - **例外**: `RoutePolyline` などの地図オーバーレイは `MapView` の子としてしか描画されないため、
+    `DesignSystemGallery` に単体で並べることができない。ギャラリーには載せず、実際に使われている画面
+    （散歩開始・散歩中・履歴詳細の各地図）や `/dev-screens` で見た目を確認する。
+    `MapPin` は SVG の View なのでギャラリーで形・色・グリフを確認できるが、基準点（先端が地点を指すか）は
+    地図画面（`Marker` の子）でしか確認できない。`MapPin` を `Marker` の子に置くときは `mapPinMarkerPlacement(size)`（`@/components/ui/map-pin/mapPinGeometry`）を `Marker` に
     spread する（iOS の Apple Maps は `anchor` を無視し View の中心を座標に置くため `centerOffset` が要る。ADR-M-019）。
 
 ### 画面の「戻る」導線の規約
