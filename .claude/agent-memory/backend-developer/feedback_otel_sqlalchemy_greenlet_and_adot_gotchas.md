@@ -3,6 +3,8 @@ name: feedback-otel-sqlalchemy-greenlet-and-adot-gotchas
 description: OTel SQLAlchemy計装はSQLAlchemy 2.1でgreenlet必須（無いとget_engineが落ちる）。ADOT/Lambda計装のhttp.route・http.targetの癖、DB無し環境での検証手段（SS-178）
 metadata:
   type: feedback
+  scope: task-local
+  source_issue: SS-178
 ---
 
 OTel の SQLAlchemy 計装は `instrument()` 内で `sqlalchemy.ext.asyncio` を import する。SQLAlchemy 2.1 は greenlet を既定依存にしないため、`sqlalchemy[asyncio]` を runtime 依存にしないと ImportError で `get_engine()` が落ち全 DB ルートが 500 になる。

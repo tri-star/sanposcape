@@ -24,7 +24,7 @@ from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from sqlalchemy import create_engine, event, insert, text
+from sqlalchemy import Engine, create_engine, event, insert, text
 from sqlalchemy.exc import IntegrityError
 
 from sanposcape.config import Settings
@@ -41,6 +41,16 @@ from sanposcape.main import create_app
 from sanposcape.users.models import User
 
 pytestmark = pytest.mark.usefixtures("clean_instrumentors")
+
+
+def _new_test_engine() -> Engine:
+    """共有の `test_engine` と同じ接続先で、計装を試すための専用の engine を作る。
+
+    接続先は `test_engine.url`（conftest が collection 時に `.env` / OS 環境変数から解決した値）
+    を使う。テスト内で `Settings()` から組み立てると、`_isolate_settings_from_ambient_env` が
+    環境変数を消した後なので既定値（host=db）になり、CI（DB_HOST=localhost）で繋がらない。
+    """
+    return create_engine(test_engine.url, **Settings().sqlalchemy_engine_kwargs)
 
 
 def _tracing_on() -> Settings:
@@ -509,8 +519,7 @@ class TestSqlAlchemyPrivateApiContract:
             raise RuntimeError("cannot remove")
 
         monkeypatch.setattr(event, "remove", failing_remove)
-        settings = Settings()
-        engine = create_engine(settings.test_database_url, **settings.sqlalchemy_engine_kwargs)
+        engine = _new_test_engine()
         subject = "subject-fail-closed-456"
         try:
             with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
@@ -577,8 +586,7 @@ class TestSqlAlchemy:
         assert exporter.get_finished_spans() == ()
 
     def test_hide_parameters_removes_parameters_from_integrity_error(self) -> None:
-        settings = Settings()
-        engine = create_engine(settings.test_database_url, **settings.sqlalchemy_engine_kwargs)
+        engine = _new_test_engine()
         try:
             with engine.begin() as conn:
                 conn.execute(
@@ -602,8 +610,7 @@ class TestSqlAlchemy:
         計装の非公開名（`_handle_error`・`_otel_span`）に依存するため、opentelemetry の版を
         上げて壊れたらこのテストが落ちる。
         """
-        settings = Settings()
-        engine = create_engine(settings.test_database_url, **settings.sqlalchemy_engine_kwargs)
+        engine = _new_test_engine()
         instrument_sqlalchemy_engine(engine, _tracing_on(), tracer_provider=provider)
         subject = "subject-key-value-123"
         try:
