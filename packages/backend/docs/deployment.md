@@ -389,6 +389,24 @@ aws cloudformation describe-stacks --stack-name sanposcape-backend-dev \
 aws lambda list-tags --resource <上記で得た関数の ARN>
 ```
 
+### 6.1.1 lifespan が実行環境ごとに1回であることの確認（SS-183）
+
+FastAPI の lifespan（`main._lifespan`）の startup は、Lambda の**実行環境（コールドスタート）
+ごとに1回**だけ走り、shutdown は走らない（`aws_lambda/asgi_handler.py`、
+[ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)）。
+`/health` や `/app-config` を数回叩いたあと、CloudWatch Logs Insights（対象は
+`/aws/lambda/sanposcape-<env>-backend-api`）で確認する。
+
+```
+fields @logStream, @message
+| filter @message like /Application lifespan/
+| stats count() by @logStream, @message
+```
+
+期待値: ログストリーム（= 実行環境）ごとに `Application lifespan started: ...` が 1 件、
+`Application lifespan shutting down: ...` が 0 件。shutting down が出る、または started が
+呼び出しごとに増える場合は、lifespan が呼び出しごとに走っている（SS-183 より前の挙動）。
+
 ### 6.2 Phase 5（インフラ側 `enable_distribution = true` の apply 後）
 
 > **dev は既に apply 済み（2026-09-11 時点）。** この手順は「待ち」ではなく、いつでも実施できる。
@@ -549,6 +567,11 @@ ERROR ログへ出してから再送出する**設計になっているため（
 `include_input=False` にしている）。`post_init_error` の `UnicodeEncodeError` に惑わされず、
 まずこの ERROR ログを確認すること。
 
+lifespan の startup（`main._lifespan` の資源の生成）の失敗も init で起きるため、同じく
+init エラーになる。この場合は `src/sanposcape/aws_lambda/asgi_handler.py` が
+`Application startup failed during Lambda init.` の ERROR をトレースバックごと先に出すので、
+`INIT_START` の直後のこの行が原因を示す（SS-183）。
+
 ### CloudFront からの呼び出し許可の確認
 
 ```bash
@@ -620,6 +643,11 @@ aws secretsmanager get-secret-value --secret-id <ARN> --query SecretString --out
 - Lambda のメモリ / タイムアウト設定を反映した実行
 - `--env-vars` で注入した環境変数での起動時バリデーション（ただし注入できるのは
   `template.yaml` に宣言済みの変数だけ。§4 の注記を参照）
+
+- **実行環境での使い回し**（SS-183）: `sam local invoke` は呼び出しごとにコンテナを作るので、
+  lifespan の資源（キャッシュ・レート制限・AppConfig のセッション）が呼び出しをまたいで残る
+  ことは検証できない。pytest の境界テスト（`aws_lambda/tests/test_asgi_handler.py`）と、
+  dev での確認（§6.1.1）で確かめる。
 
 **次は検証できない。** デプロイ後の `aws lambda invoke` + CloudWatch Logs、および
 CloudFront 経由の curl が唯一の検証手段になる。
@@ -765,6 +793,11 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 「フラグを ON にしたのに反映されない」と感じても、まず数分待ってから切り分けること
 （即座に反映されないのは仕様であり、`Cache-Control: no-store` にしているのは CDN 側の
 キャッシュを疑わなくて済むようにするためであって、AppConfig 側の遅延は無くならない）。
+
+> **（SS-183 注記）** SS-183 より前の Lambda は、mangum の `lifespan="auto"` により
+> 呼び出しごとに `AppConfigFlagSource` を作り直し、毎回 AppConfig から取得し直していた。
+> そのためフラグが即時に反映されているように見えていたが、それは不具合の副作用だった。
+> 今は上記のとおり、実行環境ごとにポーリング間隔ぶん遅れて反映される。
 
 ### CloudWatch Logs で見るポイント
 
