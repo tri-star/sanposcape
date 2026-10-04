@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from sanposcape.config import Settings
 from sanposcape.conftest import test_engine
 from sanposcape.core.observability import (
+    _safe_error_description,
     instrument_fastapi_app,
     instrument_sqlalchemy_engine,
     record_exception_on_current_span,
@@ -40,11 +41,6 @@ from sanposcape.main import create_app
 from sanposcape.users.models import User
 
 TRACING_ON = Settings(env="test", tracing_enabled=True)
-
-# D11（handover-notes）: SQLAlchemy 計装がエラー時に記録する status の説明に、一意制約違反の
-# キー値（psycopg の `DETAIL: Key (...)=(...)`）が載るか。現状は B 案（受け入れて記録）。
-# A 案（説明を「例外の型名 + SQLSTATE」に差し替え）を採ったら False にする。
-STATUS_DESCRIPTION_MAY_CONTAIN_KEY_VALUES = True
 
 
 def _reset_instrumentors() -> None:
@@ -394,14 +390,13 @@ class TestSqlAlchemy:
 
         assert "[parameters:" not in str(exc_info.value)
 
-    def test_unique_violation_status_description_records_key_value_decision_d11(
+    def test_unique_violation_status_has_type_and_sqlstate_but_no_key_value(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
-        """D11 の判断材料: エラー status の説明に一意制約違反のキー値が載るか。
+        """D11 A 案: エラー status の説明に一意制約違反のキー値を載せない。
 
-        現状は B 案（受け入れて記録）。`STATUS_DESCRIPTION_MAY_CONTAIN_KEY_VALUES` が
-        実測と食い違ったら、この定数を実測に合わせ、A 案を採るなら False に変えて
-        説明を差し替える実装を入れる（handover-notes D11）。
+        計装の非公開名（`_handle_error`・`_otel_span`）に依存するため、opentelemetry の版を
+        上げて壊れたらこのテストが落ちる。
         """
         settings = Settings()
         engine = create_engine(settings.test_database_url, **settings.sqlalchemy_engine_kwargs)
@@ -415,14 +410,18 @@ class TestSqlAlchemy:
         finally:
             engine.dispose()
 
-        error_spans = [
-            s
-            for s in exporter.get_finished_spans()
-            if s.status.status_code == trace.StatusCode.ERROR
-        ]
-        assert error_spans
-        description = " ".join(s.status.description or "" for s in error_spans)
-        assert (subject in description) is STATUS_DESCRIPTION_MAY_CONTAIN_KEY_VALUES
+        spans = exporter.get_finished_spans()
+        error_spans = [s for s in spans if s.status.status_code == trace.StatusCode.ERROR]
+        assert len(error_spans) == 1
+        assert error_spans[0].status.description == "UniqueViolation (SQLSTATE 23505)"
+        assert not [v for v in _all_attribute_values(spans) if subject in v]
+        assert subject not in repr([(s.status.description, s.events) for s in spans])
+        # 失敗したスパンも終了している（リークしない）。
+        assert all(s.end_time is not None for s in spans)
+
+    def test_safe_error_description_without_sqlstate_is_type_name_only(self) -> None:
+        assert _safe_error_description(RuntimeError("secret")) == "RuntimeError"
+        assert _safe_error_description(None) == "Error"
 
 
 class TestResolveRouteTemplate:

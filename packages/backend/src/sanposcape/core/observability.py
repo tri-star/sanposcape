@@ -281,8 +281,9 @@ def instrument_sqlalchemy_engine(
     if instrumentor.is_instrumented_by_opentelemetry:
         return
     try:
-        instrumentor.instrument(
-            engine=engine,
+        _instrument_engine(
+            instrumentor,
+            engine,
             tracer_provider=tracer_provider,
             # `db.statement` はプレースホルダ付きの文のまま（バインド値は記録されない）。
             enable_commenter=False,
@@ -295,6 +296,66 @@ def instrument_sqlalchemy_engine(
         # トレースのために DB アクセスを落とさない（get_engine() の中で呼ばれる）。
         # 例: 計装が `sqlalchemy.ext.asyncio` を import するため greenlet が無いと ImportError。
         logger.warning("SQLAlchemy の計装に失敗したため、DB のスパンは記録されない", exc_info=True)
+
+
+def _safe_error_description(exception: BaseException | None) -> str:
+    """スパンの status 説明用。例外の型名と SQLSTATE だけ（メッセージは入れない）。
+
+    psycopg の例外の文字列は `DETAIL: Key (provider_subject)=(...)` のように一意制約違反の
+    キー値（Google の sub 等）を含む。SQLSTATE が取れなければ型名のみ。
+    """
+    if exception is None:
+        return "Error"
+    name = type(exception).__name__
+    orig = getattr(exception, "orig", exception)
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return f"{name} (SQLSTATE {sqlstate})" if sqlstate else name
+
+
+def _handle_error_without_message(context: Any) -> None:
+    """計装の `handle_error` リスナーの代替（ADR-013 決定6 / D11 A 案）。
+
+    upstream の `_handle_error` は `span.set_status(ERROR, str(original_exception))` として
+    例外の文字列をそのまま記録する。それ以外（スパンの取得・終了）は同じ挙動にする。
+    """
+    span = getattr(context.execution_context, "_otel_span", None)
+    if span is None:
+        return
+    if span.is_recording():
+        from opentelemetry.trace import Status, StatusCode
+
+        span.set_status(
+            Status(StatusCode.ERROR, _safe_error_description(context.original_exception))
+        )
+    span.end()
+
+
+def _instrument_engine(instrumentor: Any, engine: Engine, **kwargs: Any) -> None:
+    """計装を掛け、`handle_error` リスナーを「メッセージを記録しない版」に差し替える。
+
+    ★ 計装の非公開名（`opentelemetry.instrumentation.sqlalchemy.engine._handle_error`）と、
+      `context.execution_context._otel_span` に依存する。版を上げて壊れたら
+      `core/tests/test_tracing.py` の D11 のテストが落ちる（フェイルクローズ: 外せなかったときは
+      メッセージが漏れないよう、この engine の計装リスナーをすべて外してスパンを諦める）。
+    """
+    from opentelemetry.instrumentation.sqlalchemy import engine as otel_engine
+    from sqlalchemy import event
+
+    tracer = instrumentor.instrument(engine=engine, **kwargs)
+    try:
+        event.remove(engine, "handle_error", otel_engine._handle_error)
+        # `uninstrument()` が外し済みのリスナーを再度 remove して失敗しないよう、
+        # 計装側の登録簿からも消す。
+        registry = type(tracer)._remove_event_listener_params
+        registry[:] = [
+            entry
+            for entry in registry
+            if not (entry[0]() is engine and entry[2] is otel_engine._handle_error)
+        ]
+    except Exception:
+        tracer.remove_all_event_listeners()
+        raise
+    event.listen(engine, "handle_error", _handle_error_without_message)
 
 
 def record_exception_on_current_span(exc: BaseException) -> None:
