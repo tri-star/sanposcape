@@ -103,8 +103,9 @@ packages/backend/
 │       │   │                  #   `PIN_PHOTO_UPLOAD_STATUSES`）も置き、CHECK 制約と API スキーマで共有する
 │       │   ├── exceptions.py  #   ドメイン全体の例外（共有カーネル）
 │       │   ├── permissions.py #   SanpoMapRole と role による権限判定の純粋関数（共有カーネル）。
-│       │   │                  #   追加系（can_add_pin/can_add_pin_photo/can_add_pin_tag）は role
-│       │   │                  #   だけ、更新・削除系（can_update_pin/can_delete_pin/
+│       │   │                  #   追加系（can_add_pin/can_add_pin_photo/can_add_pin_tag/
+│       │   │                  #   can_update_pin_visited）は role だけ、更新・削除系
+│       │   │                  #   （can_update_pin/can_update_pin_archived/can_delete_pin/
 │       │   │                  #   can_delete_pin_tag/can_delete_pin_photo）は is_creator/
 │       │   │                  #   is_uploader をキーワード専用引数に取る（SS-112）。地図そのものの
 │       │   │                  #   管理系（can_update_sanpo_map/can_delete_sanpo_map）は role の
