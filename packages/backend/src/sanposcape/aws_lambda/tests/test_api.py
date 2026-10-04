@@ -60,7 +60,8 @@ def test_hydration_runs_before_main_app_is_created(monkeypatch: pytest.MonkeyPat
     # finalizer が後のテストのループ上で `aclose()` を走らせ、無関係のテストに紛れ込む）。
     # fresh exec の `from ... import build_handler` は実行時に属性を読むので、exec より前に
     # 差し替えれば spy が使われる。
-    def _spy_build_handler(app: object) -> object:
+    def _spy_build_handler(app: object, **kwargs: object) -> object:
+        # `asgi_wrapper`（トレースの親スパン補正。ADR-013）を受け取る。順序の検証だけが目的。
         call_order.append("build_handler")
         return object()
 

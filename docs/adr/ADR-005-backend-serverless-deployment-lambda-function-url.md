@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-183、棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-04（SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -11,6 +11,7 @@
 - **パッケージングは zip + `python3.12`、`sam build --use-container` でビルドする**。コンテナイメージは採らない。アーキテクチャは x86_64。（本文: 決定2、決定10）
 - **Lambda 固有のコードは `src/sanposcape/aws_lambda/` にだけ置き、`main.py` の `create_app()` / `app` は Lambda を知らない**。
   FastAPI の lifespan を実行環境ごとに 1 回だけ起動する処理も `aws_lambda/asgi_handler.py` に置く。（本文: 決定3、SS-183 追補）
+  検査方法は「`aws_lambda/` の外から `sanposcape.aws_lambda` を import していないこと」（パッケージ内の相互 import は可）。（本文: 決定3、SS-178 追補）
 - **Function URL の `AuthType` は `AWS_IAM`。OAC が `Authorization` を上書きするため、アクセストークンは `X-App-Authorization` で運ぶ**。
   ボディを伴うリクエストではクライアントが `x-amz-content-sha256` を付ける（mobile の HTTP 出口 2 箇所の両方）。自前のヘッダーは `X-App-` 接頭辞で統一する。（本文: 決定4、SS-70 追補）
 - **シークレットは実行時に Secrets Manager から取得し、プロセス内でキャッシュする**。ARN は SSM から deploy 時に解決して `APP_SECRET_ARN` で渡す。ローテーションは再デプロイで反映する。（本文: 決定5）
@@ -49,7 +50,7 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）
 
 ## ステータス
 
@@ -125,7 +126,11 @@ ECR リポジトリとイメージのライフサイクル管理が不要にな�
   Lambda / ECS のどちらでも同じ形になる。ハイドレーション関数（`core/runtime_config.py`）自体も
   `APP_SECRET_ARN` が未設定なら no-op になるため、ECS のエントリポイントから呼んでも害がない。
 - 検査方法: `sanposcape.aws_lambda` を import しているのが `template.yaml`（`Handler` の指定）と
-  自身のテストだけであること。
+  自身のテストだけであること。（**SS-178 追補**: 実際には `aws_lambda/` の中のモジュール同士
+  （`api.py` が `tracing.py` を import する）も import し合う。検査の趣旨は「`aws_lambda/` の外
+  （`core/` や各ドメイン）から `sanposcape.aws_lambda` を import していないこと」であり、
+  検査方法はこの形に読み替える。`aws_lambda/` から `core/` を import する向きは許す
+  （例: `tracing.py` が `core/observability.py` の `resolve_route_template` を使う）。）
 - （**SS-183 追補**: Lambda で FastAPI の lifespan を実行環境ごとに 1 回だけ起動する処理も
   `aws_lambda/asgi_handler.py` に置いた。`main.py` の `_lifespan` は uvicorn・TestClient と共通のまま、
   Lambda を知らない。末尾の「SS-183 追補」）

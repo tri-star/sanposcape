@@ -355,3 +355,38 @@ def test_handler_can_be_built_when_no_event_loop_is_set(
             handler.close()
             handler._loop.close()  # Mangum が用意したループ（テスト専用に private を参照）
         asyncio.set_event_loop(None)
+
+
+def test_asgi_wrapper_wraps_only_the_app_passed_to_mangum(
+    lambda_event_loop: asyncio.AbstractEventLoop,
+    make_event: Callable[..., dict[str, Any]],
+    counting_builders: _Registry,
+) -> None:
+    """`asgi_wrapper`（トレースの親スパン補正。ADR-013 / SS-178）は Mangum に渡す ASGI app だけを
+    包み、lifespan は包む前の FastAPI app から 1 回だけ起動する（state は呼び出しをまたいで同じ）。
+    """
+    app, seen = _app_with_state_probe()
+    wrapped_with: list[object] = []
+    scope_types: list[str] = []
+
+    def _wrapper(inner: FastAPI) -> Callable[..., Any]:
+        wrapped_with.append(inner)
+
+        async def _asgi(scope: dict[str, Any], receive: Any, send: Any) -> None:
+            scope_types.append(scope["type"])
+            await inner(scope, receive, send)
+
+        return _asgi
+
+    handler = build_handler(app, asgi_wrapper=_wrapper)
+    try:
+        for _ in range(2):
+            assert handler(make_event("GET", "/_probe"), None)["statusCode"] == 200
+    finally:
+        handler.close()
+
+    assert wrapped_with == [app]
+    assert scope_types == ["http", "http"]
+    assert counting_builders.built == {"provider": 1, "flag_source": 1, "storage": 1}
+    for name in _STATE_NAMES:
+        assert seen[0][name] is seen[1][name], name

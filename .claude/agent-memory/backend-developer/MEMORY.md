@@ -18,3 +18,4 @@
 - [docs-lint の tmp/ 参照検査](reference_docs_lint_tmp_reference_check.md) — ADR/packages*/docs/agent-memoryからのtmp/参照でCIが落ちる。新規ADR作成後は`check-tmp-references.sh`で確認する
 - [エージェントメモリの誤生成先](reference-stray-claude-dir.md) — package配下に.claude/agent-memoryが誤生成される既知の問題。正しい置き場所は常にリポジトリルート
 - [module 再 import 後の親パッケージ属性](feedback_fresh_exec_reimport_stale_package_attr.md) — sys.modules だけでなく親パッケージ属性も戻す。さもないと文字列 monkeypatch が全体実行でだけ効かない（SS-183）
+- [OTel 計装の罠](feedback_otel_sqlalchemy_greenlet_and_adot_gotchas.md) — 計装を足したら実起動で DB ルートを叩く（SQLAlchemy 2.1 は greenlet 必須）・ADOT 親スパンの癖・テストの DB URL は test_engine.url（ADR-013 参照）

@@ -99,6 +99,14 @@ class Settings(BaseSettings):
     # これを WARNING に上げると障害調査の手掛かりが `START`/`END` だけに戻るので注意する。
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
+    # --- トレース（OpenTelemetry。ADR-013 / SS-178） ---
+    # アプリ側の計装（`core/observability.py` の `instrument_fastapi_app` ほか）を有効にするか。
+    # 既定は無効（OTel を import すらしない）。Lambda では template.yaml の Api だけが true にする。
+    # ★ TracerProvider はここでは作らない。Lambda は ADOT レイヤー（AWS_LAMBDA_EXEC_WRAPPER）、
+    #   ローカルは `opentelemetry-instrument`（scripts/start-api.sh）が起動時に構成する
+    #   （決定7）。`OTEL_*` は OTel SDK 自身が読む名前空間なので、別名にしている。
+    tracing_enabled: bool = False
+
     # --- 認証モード（ADR-002 決定4。既定は fail-safe な real） ---
     auth_mode: Literal["real", "dev"] = "real"
 
@@ -386,6 +394,11 @@ class Settings(BaseSettings):
             "pool_pre_ping": True,
             "pool_recycle": self.db_pool_recycle_seconds,
             "connect_args": connect_args,
+            # 例外メッセージに `[parameters: (...)]`（バインド値 = ユーザーの位置情報・トークンの
+            # ハッシュ等）が入るのを防ぐ。OTel の SQLAlchemy 計装はエラー時に例外の文字列を
+            # スパンの status に記録するため、トレース経由の漏れ（ADR-013 決定6）も同時に塞ぐ。
+            # 環境で分岐しない（ローカルで値を見たいときは一時的に外して調べる）。
+            "hide_parameters": True,
         }
 
 
