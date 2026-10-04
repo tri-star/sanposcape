@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-09-24）**
+> **検証状況（最終更新 2026-10-04）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -27,7 +27,7 @@
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
-> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ⚠️ **dev で未実測**。`sam validate --lint` とローカルの計装（`opentelemetry-instrument` + OTLP 受信）は確認済み。dev のコールドスタート・スパンの中身・取り込みの実測は PR 後（チェックリストは SS-178 の計画書）。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
+> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ⚠️ **dev で未実測**。`sam validate --lint` とローカルの計装（`opentelemetry-instrument` + OTLP 受信）は確認済み。dev のコールドスタート・スパンの中身・取り込みの実測は PR 後（チェックリストは SS-178 の dev 実測の手順）。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -148,7 +148,8 @@ sam validate --lint
 # 3) ビルド（--use-container 必須。Makefile の build-Api / build-Migrate が呼ばれる）
 sam build --use-container
 
-# 4) 展開後サイズの確認（250MB 制限に対する余裕。uvicorn[standard] を含むため要注意）
+# 4) 展開後サイズの確認（250MB 制限に対する余裕。uvicorn[standard] を含むため要注意。
+#    制限は**レイヤー込み**（zip + ADOT レイヤー。§13）の合計なので、ここの値にレイヤー分を足して見る）
 du -sh .aws-sam/build/Api
 
 # 5) ローカルでの疎通確認（任意。dev の有効な AWS 認証情報が必要。下の注記を参照）
@@ -163,10 +164,15 @@ sam deploy --config-env dev
 > **黙って無視される**（エラーにならないため気づきにくい）。`--container-env-vars`
 > も試したが、通常の `invoke`（デバッグセッションではない）には注入されない。
 >
-> `template.yaml` が宣言しているのは `ENV` / `AUTH_MODE` / `MAPS_MODE` / `FEATURE_FLAG_MODE` /
-> `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 8 つだけ
-> （`Api` 関数はこれに加えて `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` /
-> `APPCONFIG_CONFIGURATION_PROFILE_ID` の 3 本が宣言済みで、計 11 本）。
+> `template.yaml` が宣言しているのは、Globals の `ENV` / `AUTH_MODE` / `MAPS_MODE` /
+> `FEATURE_FLAG_MODE` / `STORAGE_MODE` / `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` /
+> `DB_POOL_RECYCLE_SECONDS` / `APP_SECRET_ARN` の 9 つと、`Api` 関数だけが持つ
+> `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID` /
+> `PIN_PHOTO_BUCKET_NAME` の 4 本、トレース関連の 8 本（`TRACING_ENABLED` /
+> `AWS_LAMBDA_EXEC_WRAPPER` / `OTEL_*`。§13）で、`Api` は計 21 本（`Migrate` は Globals の 9 本）。
+> `Api` の `AWS_LAMBDA_EXEC_WRAPPER` と `Layers` は `sam local invoke` でも有効になり、ADOT レイヤーの
+> 取得（`lambda:GetLayerVersion`）を試みる。ローカルで外したいときは `--env-vars` で
+> `AWS_LAMBDA_EXEC_WRAPPER` と `TRACING_ENABLED` を空にする。
 > `AUTH_JWT_SECRET` や `DATABASE_DSN` のような未宣言の変数を `events/local-env.json` に
 > 書いても効かず、`ENV=staging` の起動時バリデーションが
 > `AUTH_JWT_SECRET must be set (>=32 chars) when ENV=staging` のようなエラーで失敗する。
@@ -971,8 +977,8 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 | `Tracing` | `Active`（SAM が `AWSXrayWriteOnlyAccess` を実行ロールに付ける） |
 | 管理ポリシー | `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` |
 | 有効化 | `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`（TracerProvider を作る）と `TRACING_ENABLED=true`（アプリ側の計装を有効にする） |
-| 自動計装 | `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示 → 自動は botocore と urllib だけ。fastapi / sqlalchemy / httpx / threading は zip 側のライブラリなのでアプリから手動で計装する |
-| 伝播 | `OTEL_PROPAGATORS=xray`（クライアントの `traceparent` で親を乗っ取られない） |
+| 自動計装 | `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示 → 自動は botocore と urllib だけ。fastapi / sqlalchemy / httpx は、起動時（sitecustomize）の `sys.path` に `/var/task`（zip）が無く自動計装の依存チェックを通らない（SQLAlchemy 2.1 は版の上限にも弾かれる）ためアプリから手動で計装する。threading は `ThreadPoolExecutor` のワーカーの子スパンをリクエストのトレースに繋ぐために手動で有効にする |
+| 伝播 | `OTEL_PROPAGATORS=xray`（クライアントの `traceparent` / `baggage` は無視される。CloudFront が転送する `X-Amzn-Trace-Id` の扱いは dev で要確認） |
 | flush | `OTEL_INSTRUMENTATION_AWS_LAMBDA_FLUSH_TIMEOUT=1000`（ms。既定 30 秒は Lambda の Timeout 29 秒より長い） |
 
 ### 前提（infra）と prod
@@ -999,7 +1005,7 @@ Lambda の `sys.path` では `/var/task`（zip）が `/opt/python`（レイヤ�
    `uv lock` する（`.github/dependabot.yml` は `opentelemetry-*` を ignore している）。
 3. 新しいレイヤーの `otel-instrument` の既定の無効リストと `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS`
    （template.yaml と compose.yaml の 2 か所）が一致しているか見直す。
-4. dev のコールドスタート（`Init Duration`）・展開後のサイズ（250MB 未満）・スパンの中身を確かめる。
+4. dev のコールドスタート（`Init Duration`）・展開後のサイズ（zip + レイヤーで 250MB 未満）・スパンの中身を確かめる。
 
 ### 緊急停止
 
@@ -1016,7 +1022,8 @@ aws lambda update-function-configuration --function-name sanposcape-<env>-backen
 ### 操作名とルート別の集計（ADR-013 決定2 の結論）
 
 Application Signals の操作名は、Lambda 上では ADOT が `<関数名>/FunctionHandler` に固定する
-（`aws.local.operation` をアプリが書き換えても効かない。dev の実データで確認）。そのため
+（`aws.local.operation` をアプリが書き換えても効かない。dev の他プロジェクトの実データで確認。
+sanposcape 自身の dev では、デプロイ後に確認する）。そのため
 API 全体の RED・アラーム・SLO は Application Signals で、**ルート別の内訳は `aws/spans` を
 `http.route` / スパン名で集計する Logs Insights**（SS-179）で見る。Lambda 計装の親スパン
 （Mangum 構成では LOCAL_ROOT）には、スパン名 `METHOD ルートテンプレート` と `http.route` を
@@ -1025,8 +1032,11 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 ### 外へ出さない情報
 
 クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）。
-`http.url` / `http.target` のクエリはフックで除き、`hide_parameters=True` で例外メッセージの
-`[parameters: ...]` を消している。残るリスク: SQLAlchemy の計装がエラー時にスパンの status へ
-記録する例外の文字列に、psycopg の `DETAIL`（一意制約違反のキー値）が載りうる
-（`users(provider, provider_subject)` の競合など）。方針は SS-178 の判断事項 D11。
-
+`http.url` / `http.target` のクエリはフックで除き（失敗時は空に倒す）、`net.peer.ip` /
+`net.peer.port` / `http.user_agent` は空に上書きし、`hide_parameters=True` で例外メッセージの
+`[parameters: ...]` を消している。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、
+例外メッセージ（一意制約違反の `DETAIL` のキー値）は載せない（自前リスナーに差し替え。
+`core/observability.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
+**残るリスク**: 未処理の 500 では、ASGI / Lambda 計装が exception イベントに message と
+スタックトレースを自動で付ける（DB 例外なら DETAIL のキー値が載りうる）。ログのトレースバックと
+合わせて SS-180 で対処する（ADR-013 決定6 の追補）。

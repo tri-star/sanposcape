@@ -120,11 +120,13 @@ docker compose up -d --force-recreate api
 
 ### 確認
 
-http://localhost:16686（`JAEGER_UI_PORT` で変更可）を開き、サービス `sanposcape-backend-api` を選ぶ。
+http://localhost:16686（`JAEGER_UI_PORT` で変更可。ポートは `127.0.0.1` にだけ公開する）を開き、サービス `sanposcape-backend-api` を選ぶ。
 
 - スパン名は `GET /pins/{pin_id}` のようにルートのテンプレート単位。`/health` は出ない
 - DB（SQLAlchemy）・Google（httpx）・S3 / AppConfig（botocore）・JWKS 取得（urllib。`AUTH_MODE=real` の
-  サインイン時のみ）が子スパンとして付く。周回ルートの並列取得（`ThreadPoolExecutor`）の子スパンも
+  サインイン時のみ）が子スパンとして付く。子スパンは、その処理が実際に走ったときだけ出る
+  （例: DB のスパンは DB を使うルート、Google のスパンは `MAPS_MODE=real`、S3 のスパンは
+  `STORAGE_MODE=real` のとき。`fake` はネットワークに出ないのでスパンが出ない）周回ルートの並列取得（`ThreadPoolExecutor`）の子スパンも
   同じトレースに入る
 - クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）
 

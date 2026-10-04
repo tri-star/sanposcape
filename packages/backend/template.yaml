@@ -15,7 +15,7 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #     CloudWatchLambdaApplicationSignalsExecutionRolePolicy を付ける。これらの付与（デプロイロールの
 #     lambda:GetLayerVersion / ReadAttachedManagedPolicies、境界の X-Ray / logs 許可）は infra の
 #     SS-185 が前提。prod は SS-185 の prod 適用までデプロイできない（GetLayerVersion とポリシーの
-#     付与で失敗する。docs/deployment.md「トレース」）。
+#     付与で失敗する。docs/deployment.md §13）。
 #   - AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID は SSM 契約（SS-94）から deploy 時解決。
 #     Lambda 実行ロールの Permission Boundary（SS-95）は ID までは絞れないワイルドカード ARN
 #     のため、完全 ARN への絞り込みは Api の Policies（このファイル）が唯一の場所（SS-98）。
@@ -146,8 +146,9 @@ Resources:
           OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true'
           # レイヤー v28 の otel-instrument の既定値と同じ文字列を明示する（レイヤーを上げて既定値が
           # 変わっても、有効な計装が黙って増減しないように。決定1）。結果として自動計装は
-          # botocore と urllib だけ。fastapi / sqlalchemy / httpx / threading は zip 側のライブラリ
-          # （起動時の sys.path に /var/task が無い）なのでアプリから手動で計装する。
+          # botocore と urllib だけ。fastapi / sqlalchemy / httpx は zip 側のライブラリで、起動時
+          # （sitecustomize）の sys.path に /var/task が無く自動計装の依存チェックを通らないため、
+          # threading は ThreadPoolExecutor の子スパンを繋ぐため、アプリから手動で計装する。
           # fastapi だけを書く方式は既定値を上書きして他の計装を一斉に有効にしてしまうので真似しない。
           OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: 'aio-pika,aiohttp-client,aiohttp-server,aiopg,asgi,asyncio,asyncpg,boto,boto3,cassandra,celery,confluent_kafka,dbapi,django,falcon,fastapi,flask,grpc_client,grpc_server,grpc_aio_client,grpc_aio_server,httpx,jinja2,kafka,logging,mysql,mysqlclient,pika,psycopg,psycopg2,pymemcache,pymongo,pymysql,pyramid,redis,remoulade,requests,sklearn,sqlalchemy,sqlite3,starlette,system_metrics,threading,tornado,tortoiseorm,wsgi,openai_agents,aws_openai_agents,aws_crewai,aws_langchain,aws_mcp,aws_llama-index'
           # 公開エンドポイントでクライアントの traceparent / baggage を親として受け入れない
