@@ -246,6 +246,26 @@ describe("pinRowAccessibilityLabel", () => {
     ).toBe("カフェ、2026/09/01、タグ a、b、c、ほか1件");
   });
 
+  it("状態ラベルは名前の直後に並ぶ。省略時は従来どおり", () => {
+    const tags = [{ label: "a" }];
+    expect(
+      pinRowAccessibilityLabel({
+        displayName: "カフェ",
+        createdAtLabel: "2026/09/01",
+        tags,
+        statusLabels: ["訪問済み", "アーカイブ済み"],
+      }),
+    ).toBe("カフェ、訪問済み、アーカイブ済み、2026/09/01、タグ a");
+    expect(
+      pinRowAccessibilityLabel({
+        displayName: "カフェ",
+        createdAtLabel: null,
+        tags: [],
+        statusLabels: [],
+      }),
+    ).toBe("カフェ");
+  });
+
   it("日時もタグも無ければ名前だけ", () => {
     expect(
       pinRowAccessibilityLabel({ displayName: "カフェ", createdAtLabel: null, tags: [] }),

@@ -67,6 +67,7 @@ def create_pin(
     `client_pin_id` の再送は同じピンとして扱い、新規作成のみ 201、冪等な再送は 200 を
     返す（内容が違っても既存をそのまま返す。`walks` と同じ）。`sanpo_map_id` を省略すると
     自分の既定地図（無ければ「最初の地図」を同一トランザクションで作成）に登録される。
+    `visited`（訪問済みか）は省略すると false。`archived` は作成時には指定できない。
     """
     pin, created = service.create_pin(current_user, payload, base_url=str(request.base_url))
     if not created:
@@ -133,6 +134,9 @@ def list_pins(
     （複数指定は AND）は SS-120（検索タブ）向け。各要素の `cover_photo` は
     position が最小の写真（無ければ null）。写真の URL の有効期限は `urls_expire_at`。
     mobile の画像キャッシュのキーには URL ではなく `id` を使う（ADR-M-010 決定8）。
+    `archived`/`visited` は省略すると絞り込まない。指定すると true/false で絞り込み、
+    bbox・`q`・`tags` と AND で `limit` の前に適用する（`archived=false` は地図表示用,
+    SS-173）。
     """
     return service.list_pins(current_user, query, base_url=str(request.base_url))
 
@@ -214,14 +218,16 @@ def update_pin(
     current_user: User = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinRead:
-    """ピンの名前・メモの更新、タグの追加・削除（`add_tags`/`remove_tag_ids`）を
-    1リクエストで原子的に行う（ADR-009 決定19・20）。
+    """ピンの名前・メモ・訪問状況・アーカイブ状態の更新、タグの追加・削除
+    （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32）。
 
     省略したフィールドは変更しない。`name`/`memo` は `null` か空白のみの値で消せる。
     タグは全置換ではなく差分で送る（既にあるタグの再追加、このピンに無い ID の削除は
     何もせず成功扱い）。権限は「送られたフィールド」ごとに判定し、1つでも権限が無ければ
     何も反映せず 403 にする。地図 owner・対象の作成者本人（editor）は可能、作成者でない
     editor は名前・メモの更新はできない（タグの削除も自分が付けたものだけ）。
+    `visited` はメンバーなら誰でも、`archived` は地図 owner かピンの作成者本人だけ変更できる
+    （作成者でない editor は 403）。
     非メンバー・存在しないピンは 404。タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。
     """
     return service.update_pin(current_user, pin_id, payload, base_url=str(request.base_url))

@@ -55,6 +55,8 @@ function listItem(overrides: Partial<PinListItemRead> = {}): PinListItemRead {
     cover_photo: null,
     photo_count: 0,
     created_by_user_id: "user-1",
+    visited: false,
+    archived: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -74,6 +76,8 @@ function pinRead(overrides: Partial<PinRead> = {}): PinRead {
     photo_count: 0,
     created_by_user_id: "user-1",
     client_walk_id: null,
+    visited: false,
+    archived: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -98,6 +102,9 @@ describe("fetchPinsInBounds", () => {
     expect(searchParams?.get("min_longitude")).toBe("139.7");
     expect(searchParams?.get("max_longitude")).toBe("139.8");
     expect(searchParams?.get("limit")).toBe("200");
+    // 地図表示はアーカイブ済みを常に除外する（SS-173）。visited は SS-174 まで送らない。
+    expect(searchParams?.get("archived")).toBe("false");
+    expect(searchParams?.has("visited")).toBe(false);
     expect(searchParams?.has("cursor")).toBe(false);
     expect(searchParams?.has("q")).toBe(false);
     expect(searchParams?.has("tags")).toBe(false);
@@ -146,6 +153,15 @@ describe("fetchPinDetail", () => {
     expect(result.name).toBeNull();
     expect(result.tags).toEqual([{ id: "tag-1", label: "桜", createdByUserId: "user-1" }]);
     expect(result.photos[0]?.originalUrl).toBeNull();
+  });
+
+  it("200: visited / archived を PinDetail に写す", async () => {
+    server.use(getGetPinMockHandler(pinRead({ visited: true, archived: true })));
+
+    const result = await fetchPinDetail(PIN_ID, { apiBaseUrl: API_BASE_URL });
+
+    expect(result.visited).toBe(true);
+    expect(result.archived).toBe(true);
   });
 
   it("非UUIDのpinIdはfetchせずにApiError(404)", async () => {
@@ -303,6 +319,9 @@ describe("fetchAllPinsInSanpoMap", () => {
       "max_latitude",
       "min_longitude",
       "max_longitude",
+      // 地図詳細の一覧はアーカイブ済みも出す（SS-173）ので絞り込みを送らない。
+      "archived",
+      "visited",
     ]) {
       expect(params.has(key)).toBe(false);
     }

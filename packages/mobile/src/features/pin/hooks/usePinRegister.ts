@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
+import { resolveInitialVisited } from "@/features/pin/lib/pinStatus";
 import { buildPinCreateRequest } from "@/features/pin/lib/pinCreateRequest";
 import type { PinDraftFieldErrors, SaveAvailability } from "@/features/pin/lib/pinDraftValidation";
 import {
@@ -37,6 +38,7 @@ export type UsePinRegisterResult = {
   draft: PinDraft;
   setName: (v: string) => void;
   setMemo: (v: string) => void;
+  setVisited: (v: boolean) => void;
   tagInput: string;
   setTagInput: (v: string) => void;
   tagError: string | null;
@@ -74,7 +76,14 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     kind: "default",
   });
 
-  const draft: PinDraft = { name, memo, tags, sanpoMapSelection };
+  // 散歩中の登録は訪問済み、ピンタブの長押しは未訪問で始める（ADR-M-021 D6）。clientWalkId はルート由来で不変。
+  // 初期値は初回レンダーで1回だけ確定する（画面を開いた時点の入口で決まり、以後変えない。破棄確認の比較基準）。
+  const [initialVisited] = useState(() =>
+    resolveInitialVisited({ clientWalkId: options.clientWalkId }),
+  );
+  const [visited, setVisitedState] = useState(initialVisited);
+
+  const draft: PinDraft = { name, memo, tags, sanpoMapSelection, visited };
   // 保存中に入力が変わっても作成内容が揺れないよう、保存開始時点（submit() 呼び出し時）の
   // draft を ref で固定する（PR #93 T12）。以前は毎レンダーで `draftRef.current = draft` を
   // 上書きしていたため、コメントの意図（「保存開始時点で固定」）と実装が一致していなかった
@@ -159,6 +168,11 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     save.resetError();
   };
 
+  const setVisited = (v: boolean) => {
+    setVisitedState(v);
+    save.resetError();
+  };
+
   // 入力が変わったら前回のエラー（「同じタグがすでにあります」など）は消す。
   const setTagInput = (v: string) => {
     setTagInputState(v);
@@ -220,6 +234,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     draft,
     setName,
     setMemo,
+    setVisited,
     tagInput,
     setTagInput,
     tagError,
@@ -234,6 +249,6 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     saveAvailability,
     save,
     submit,
-    hasUnsavedInput: hasUnsavedInput(draft, photos.summary.total),
+    hasUnsavedInput: hasUnsavedInput(draft, photos.summary.total, { initialVisited }),
   };
 }

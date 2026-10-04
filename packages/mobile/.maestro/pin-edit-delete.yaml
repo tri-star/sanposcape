@@ -1,6 +1,8 @@
 # ピンの編集・削除（SS-119）: サインイン → 地図を作成 → その地図にピンを登録
 # → 地図詳細からピン詳細 → 編集（名前・メモ・タグ）→ 保存して詳細に反映
 # → ピンを削除 → 地図詳細が0件。
+# SS-173: 詳細の「未訪問」（ピンタブの長押しからの登録の初期値）→ 編集で「訪問済み」「アーカイブ」を
+# ON → 詳細のバッジと案内 → 地図詳細の一覧にアーカイブ済みのピンが残る、までを確かめる。
 #
 # 前提: pin-register-anywhere.yaml と同じ
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
@@ -11,7 +13,8 @@
 # 写真の追加・削除は E2E の対象外: mock の photo サービスは実ファイルを返さない（ADR-M-010 決定6）。
 # 単体テストと、/dev-screens からの手動確認で担保する。
 #
-# assert しないもの: トースト（「ピンを更新しました」「ピンを削除しました」は 1.9 秒で消え、画面遷移の
+# assert しないもの: アーカイブで地図上のマーカーが消えること（Google Maps の描画面のマーカーは testID で
+# 触れない。ADR-M-012 D14。除外の送信条件は単体テストで担保する）、トースト（「ピンを更新しました」「ピンを削除しました」は 1.9 秒で消え、画面遷移の
 # 検出待ちの間に取りこぼす。SS-152）、件数、ほかの地図・ピン。
 # このフローが作る地図とピンにだけ依存する（実行ごとに一意な名前）。
 #
@@ -141,6 +144,9 @@ tags:
     visible:
       id: "pin-detail-name"
     timeout: 15000
+# ピンタブの長押しからの登録は「未訪問」で始まる（登録時の初期値と backend の往復を確かめる。SS-173）。
+- assertVisible:
+    id: "pin-detail-status-unvisited"
 
 # --- 編集（名前・メモ・タグ）→ 保存 ---
 - tapOn:
@@ -158,6 +164,17 @@ tags:
     id: "pin-edit-memo-input"
 - inputText: "E2E memo"
 - hideKeyboard
+# 状態: 訪問済み・アーカイブを ON にする（SS-173）。
+- scrollUntilVisible:
+    element:
+      id: "pin-edit-status-visited-switch"
+- tapOn:
+    id: "pin-edit-status-visited-switch"
+- scrollUntilVisible:
+    element:
+      id: "pin-edit-status-archived-switch"
+- tapOn:
+    id: "pin-edit-status-archived-switch"
 - scrollUntilVisible:
     element:
       id: "pin-edit-tag-input"
@@ -188,6 +205,32 @@ tags:
     id: "pin-detail-memo"
 - assertVisible:
     text: ${output.tagLabel}
+# 状態の保存結果: 訪問済み・アーカイブ済みのバッジとアーカイブの案内（SS-173）。
+- assertVisible:
+    id: "pin-detail-status-visited"
+- assertVisible:
+    id: "pin-detail-status-archived"
+- assertVisible:
+    id: "pin-detail-archived-notice"
+
+# --- 地図詳細の一覧にはアーカイブ済みのピンが残る（アーカイブを解除できる唯一の導線。SS-173） ---
+- tapOn:
+    id: "pin-detail-back"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+# 保存成功の invalidate で一覧が取り直されるのを待つ。
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pin-0-status-archived"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-detail-pin-0"
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-name"
+    timeout: 15000
 
 # --- 削除 → 地図詳細が0件（削除はヘッダー右端のゴミ箱。編集は画面下部に固定） ---
 - tapOn:

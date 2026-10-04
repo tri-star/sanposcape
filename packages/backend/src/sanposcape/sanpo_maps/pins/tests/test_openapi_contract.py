@@ -142,6 +142,47 @@ class TestListPinsQuerySchema:
         assert string_schema["maxLength"] == 100
 
 
+class TestPinVisitedAndArchivedSchema:
+    """SS-173: `visited` / `archived` の契約（ADR-009 決定32）。"""
+
+    def _schemas(self) -> dict[str, dict]:
+        return _load_committed_openapi()["components"]["schemas"]
+
+    def test_read_schemas_require_boolean_visited_and_archived(self) -> None:
+        schemas = self._schemas()
+        for name in ("PinRead", "PinListItemRead"):
+            schema = schemas[name]
+            for field_name in ("visited", "archived"):
+                assert field_name in schema["required"]
+                assert schema["properties"][field_name]["type"] == "boolean"
+                assert "anyOf" not in schema["properties"][field_name]
+
+    def test_create_visited_is_optional_boolean_defaulting_to_false(self) -> None:
+        schema = self._schemas()["PinCreate"]
+        assert "visited" not in schema.get("required", [])
+        assert schema["properties"]["visited"]["type"] == "boolean"
+        assert schema["properties"]["visited"]["default"] is False
+        assert "archived" not in schema["properties"]
+
+    def test_update_fields_are_optional_and_not_nullable(self) -> None:
+        schema = self._schemas()["PinUpdate"]
+        assert schema["additionalProperties"] is False
+        for field_name in ("visited", "archived"):
+            assert field_name not in schema.get("required", [])
+            assert schema["properties"][field_name]["type"] == "boolean"
+            assert "anyOf" not in schema["properties"][field_name]
+
+    def test_list_query_filters_are_optional_and_accept_boolean(self) -> None:
+        params = {
+            param["name"]: param
+            for param in _load_committed_openapi()["paths"]["/pins"]["get"]["parameters"]
+        }
+        for name in ("archived", "visited"):
+            assert params[name]["required"] is False
+            types = {item.get("type") for item in params[name]["schema"]["anyOf"]}
+            assert "boolean" in types
+
+
 class TestListPinPhotosQuerySchema:
     def test_limit_maximum_is_100(self) -> None:
         document = _load_committed_openapi()

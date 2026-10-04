@@ -74,6 +74,7 @@ class PinRepository:
         latitude: float,
         longitude: float,
         client_walk_id: uuid.UUID | None,
+        visited: bool = False,
     ) -> tuple[Pin, bool]:
         """ピンを新規作成する。戻り値は `(pin, created)`。
 
@@ -90,6 +91,7 @@ class PinRepository:
             latitude=latitude,
             longitude=longitude,
             client_walk_id=client_walk_id,
+            visited=visited,
         )
         try:
             with self._db.begin_nested():
@@ -147,6 +149,8 @@ class PinRepository:
         tag_keys: list[str],
         limit: int,
         cursor: tuple[datetime, uuid.UUID] | None,
+        archived: bool | None = None,
+        visited: bool | None = None,
     ) -> list[Pin]:
         """`created_at DESC, id DESC` で並べたピンを最大 `limit + 1` 件返す（SS-111）。
 
@@ -154,6 +158,9 @@ class PinRepository:
         `get_role()` で先に検証していても、多重防御として repository 側でも絞る）。
         `limit + 1` 件目の有無で `next_cursor` の要否を判断するのは `WalkRepository.
         list_for_user()` と同じ形。
+
+        `archived`/`visited` は `None`（既定）なら絞り込まず、`True`/`False` なら等号で絞る
+        （SS-173）。他の条件と AND で、`limit` の前（WHERE）に適用する。
         """
         stmt = (
             select(Pin)
@@ -181,6 +188,10 @@ class PinRepository:
             stmt = stmt.where(
                 exists(select(1).where(PinTag.pin_id == Pin.id, PinTag.label_key == key))
             )
+        if archived is not None:
+            stmt = stmt.where(Pin.archived == archived)
+        if visited is not None:
+            stmt = stmt.where(Pin.visited == visited)
         stmt = stmt.order_by(Pin.created_at.desc(), Pin.id.desc()).limit(limit + 1)
         if cursor is not None:
             cursor_created_at, cursor_id = cursor
@@ -368,9 +379,11 @@ class PinRepository:
         *,
         name: str | None = NOT_PROVIDED,
         memo: str | None = NOT_PROVIDED,
+        visited: bool = NOT_PROVIDED,
+        archived: bool = NOT_PROVIDED,
         updated_at: datetime,
     ) -> None:
-        """`name`/`memo` のうち、実際に渡されたものだけを更新して flush する
+        """`name`/`memo`/`visited`/`archived` のうち、実際に渡されたものだけを更新して flush する
         （`PATCH /pins/{pin_id}`, ADR-009 決定20）。
 
         呼び出し元（service）はこのメソッドを実際に変化がある場合だけ呼ぶこと。
@@ -380,6 +393,10 @@ class PinRepository:
             pin.name = name
         if memo is not NOT_PROVIDED:
             pin.memo = memo
+        if visited is not NOT_PROVIDED:
+            pin.visited = visited
+        if archived is not NOT_PROVIDED:
+            pin.archived = archived
         pin.updated_at = updated_at
         self._db.flush()
 

@@ -29,6 +29,8 @@ const PIN: PinDetail = {
   photoCount: 0,
   sanpoMapName: "地図",
   createdAt: "2026-01-01T00:00:00.000Z",
+  visited: false,
+  archived: false,
 };
 
 const BASELINE = createPinEditBaseline(PIN);
@@ -38,6 +40,8 @@ function build(
   options: {
     baseline?: PinEditBaseline;
     canEditFields?: boolean;
+    canEditVisited?: boolean;
+    canArchive?: boolean;
     canRemoveTag?: (tag: PinTagView) => boolean;
   } = {},
 ) {
@@ -45,7 +49,11 @@ function build(
   return buildPinUpdateRequest({
     baseline,
     draft: { ...initialPinEditDraft(baseline), ...patch },
-    permissions: { canEditFields: options.canEditFields ?? true },
+    permissions: {
+      canEditFields: options.canEditFields ?? true,
+      canEditVisited: options.canEditVisited ?? true,
+      canArchive: options.canArchive ?? true,
+    },
     canRemoveTag: options.canRemoveTag ?? (() => true),
   });
 }
@@ -58,9 +66,17 @@ describe("createPinEditBaseline / initialPinEditDraft", () => {
     expect(initialPinEditDraft(BASELINE)).toEqual({
       name: "旧名前",
       memo: "旧メモ",
+      visited: false,
+      archived: false,
       tags: ["Cafe", "桜"],
       photoIdsToDelete: [],
     });
+  });
+
+  it("visited / archived は詳細から基準値と下書きに写る", () => {
+    const baseline = createPinEditBaseline({ ...PIN, visited: true, archived: true });
+    expect(baseline).toMatchObject({ visited: true, archived: true });
+    expect(initialPinEditDraft(baseline)).toMatchObject({ visited: true, archived: true });
   });
 });
 
@@ -97,6 +113,44 @@ describe("buildPinUpdateRequest", () => {
 
   it("canEditFields が false なら name / memo は含まない", () => {
     expect(build({ name: "x", memo: "y" }, { canEditFields: false })).toEqual({});
+  });
+
+  it("visited だけ変えると visited だけが入る", () => {
+    expect(build({ visited: true })).toEqual({ visited: true });
+  });
+
+  it("archived だけ変えると archived だけが入る", () => {
+    expect(build({ archived: true })).toEqual({ archived: true });
+  });
+
+  it("基準が true のものを false にすると false が入る（省略ではなく明示）", () => {
+    const baseline = createPinEditBaseline({ ...PIN, visited: true, archived: true });
+    expect(build({ visited: false, archived: false }, { baseline })).toEqual({
+      visited: false,
+      archived: false,
+    });
+  });
+
+  it("visited / archived を同時に変えて元に戻すと差分なし・未保存なし", () => {
+    const draft = { ...initialPinEditDraft(BASELINE), visited: true, archived: true };
+    expect(hasUnsavedPinEdit({ baseline: BASELINE, draft, newPhotoCount: 0 })).toBe(true);
+    const restored = { ...draft, visited: false, archived: false };
+    expect(hasUnsavedPinEdit({ baseline: BASELINE, draft: restored, newPhotoCount: 0 })).toBe(
+      false,
+    );
+    expect(build({ visited: false, archived: false })).toEqual({});
+  });
+
+  it("canArchive が false なら archived は含めない（visited は含む）", () => {
+    expect(build({ visited: true, archived: true }, { canArchive: false })).toEqual({
+      visited: true,
+    });
+  });
+
+  it("canEditVisited が false なら visited は含めない（archived は含む）", () => {
+    expect(build({ visited: true, archived: true }, { canEditVisited: false })).toEqual({
+      archived: true,
+    });
   });
 
   it("既存タグを削除すると remove_tag_ids", () => {

@@ -154,6 +154,10 @@ class Pin(Base):
     longitude: Mapped[float] = mapped_column(Float)
     # FK ではない紐付けキー（散歩は登録時点で未保存のことがあるため）。
     client_walk_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), default=None)
+    # 訪問済みか（ピン単位。地図のメンバーで共有。SS-173 / ADR-009 決定32）。
+    visited: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    # アーカイブ済みか。地図表示からの除外は mobile が GET /pins?archived=false で行う。
+    archived: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

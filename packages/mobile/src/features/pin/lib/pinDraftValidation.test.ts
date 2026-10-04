@@ -14,6 +14,7 @@ const BASE_DRAFT: PinDraft = {
   memo: "",
   tags: [],
   sanpoMapSelection: { kind: "default" },
+  visited: false,
 };
 
 describe("validatePinDraftFields", () => {
@@ -119,24 +120,42 @@ describe("saveUnavailableMessage", () => {
 });
 
 describe("hasUnsavedInput", () => {
+  const INITIAL = { initialVisited: false };
+
   it("すべて空なら false", () => {
-    expect(hasUnsavedInput(BASE_DRAFT, 0)).toBe(false);
+    expect(hasUnsavedInput(BASE_DRAFT, 0, INITIAL)).toBe(false);
   });
 
   it("name / memo / tags / 写真 / 地図選択のいずれかがあれば true", () => {
-    expect(hasUnsavedInput({ ...BASE_DRAFT, name: "桜" }, 0)).toBe(true);
-    expect(hasUnsavedInput({ ...BASE_DRAFT, memo: "メモ" }, 0)).toBe(true);
-    expect(hasUnsavedInput({ ...BASE_DRAFT, tags: ["タグ"] }, 0)).toBe(true);
-    expect(hasUnsavedInput(BASE_DRAFT, 1)).toBe(true);
+    expect(hasUnsavedInput({ ...BASE_DRAFT, name: "桜" }, 0, INITIAL)).toBe(true);
+    expect(hasUnsavedInput({ ...BASE_DRAFT, memo: "メモ" }, 0, INITIAL)).toBe(true);
+    expect(hasUnsavedInput({ ...BASE_DRAFT, tags: ["タグ"] }, 0, INITIAL)).toBe(true);
+    expect(hasUnsavedInput(BASE_DRAFT, 1, INITIAL)).toBe(true);
     expect(
       hasUnsavedInput(
         { ...BASE_DRAFT, sanpoMapSelection: { kind: "existing", sanpoMapId: "id" } },
         0,
+        INITIAL,
       ),
     ).toBe(true);
   });
 
   it("空白のみの name/memo は false 扱い", () => {
-    expect(hasUnsavedInput({ ...BASE_DRAFT, name: "   ", memo: "  " }, 0)).toBe(false);
+    expect(hasUnsavedInput({ ...BASE_DRAFT, name: "   ", memo: "  " }, 0, INITIAL)).toBe(false);
+  });
+
+  it("訪問済みスイッチは初期値と違うときだけ true（初期値 false・true の両方）", () => {
+    expect(hasUnsavedInput({ ...BASE_DRAFT, visited: false }, 0, { initialVisited: false })).toBe(
+      false,
+    );
+    expect(hasUnsavedInput({ ...BASE_DRAFT, visited: true }, 0, { initialVisited: false })).toBe(
+      true,
+    );
+    expect(hasUnsavedInput({ ...BASE_DRAFT, visited: true }, 0, { initialVisited: true })).toBe(
+      false,
+    );
+    expect(hasUnsavedInput({ ...BASE_DRAFT, visited: false }, 0, { initialVisited: true })).toBe(
+      true,
+    );
   });
 });

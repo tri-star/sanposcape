@@ -145,6 +145,8 @@ def to_pin_read(
         photo_count=photo_count,
         created_by_user_id=pin.created_by_user_id,
         client_walk_id=pin.client_walk_id,
+        visited=pin.visited,
+        archived=pin.archived,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
     )
@@ -181,6 +183,8 @@ def to_pin_list_item_read(
         ),
         photo_count=photo_count,
         created_by_user_id=pin.created_by_user_id,
+        visited=pin.visited,
+        archived=pin.archived,
         created_at=pin.created_at,
         updated_at=pin.updated_at,
     )

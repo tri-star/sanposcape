@@ -84,6 +84,9 @@ class PinCreate(BaseModel):
         default_factory=list, max_length=PIN_PHOTOS_PER_REQUEST_MAX
     )
     client_walk_id: uuid.UUID | None = None
+    # 訪問済みか。省略は false。null は bool 型なので 422。`archived` は受け付けない
+    # （作成時にアーカイブする操作は無い。送られても他の未知のキーと同様に無視される）。
+    visited: bool = False
 
     @field_validator("name", "memo", mode="before")
     @classmethod
@@ -138,6 +141,8 @@ class PinUpdate(BaseModel):
     しない。`name`/`memo` は `null` か空白のみの値で「消す」（`PinCreate` と同じ正規化）。
     タグは全置換ではなく差分（`add_tags`/`remove_tag_ids`）で送る（共同編集での
     lost update・タグごとの権限判定の分かりやすさ・再送の安全性のため）。
+    `visited`（訪問済みか）/`archived`（アーカイブ済みか）は省略可・null 不可で、送った
+    フィールドごとに権限を判定する（SS-173, ADR-009 決定32）。
 
     `extra="forbid"` にする理由: `location`/`sanpo_map_id` 等を送って「変更されたつもり」
     になる事故を防ぐため（PATCH は「送ったものだけが変わる」という意味を持つ）。
@@ -148,7 +153,7 @@ class PinUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=PIN_NAME_MAX_LENGTH)
     memo: str | None = Field(default=None, max_length=PIN_MEMO_MAX_LENGTH)
     # `SkipJsonSchema[None]` により OpenAPI 上は non-nullable の optional として出る
-    # （明示的な `null` は `_add_tags_and_remove_tag_ids_must_not_be_explicit_null` で 422）。
+    # （明示的な `null` は `_optional_fields_must_not_be_explicit_null` で 422）。
     # `max_length` は `Annotated` でリスト側の型にだけ付ける（外側の `Field()` に付けると、
     # `None` を検証するときにも `len(None)` を試みて `TypeError` になる）。
     add_tags: (
@@ -157,6 +162,8 @@ class PinUpdate(BaseModel):
     remove_tag_ids: (
         Annotated[list[uuid.UUID], Field(max_length=PIN_TAGS_MAX_COUNT)] | SkipJsonSchema[None]
     ) = Field(default_factory=list)
+    visited: bool | SkipJsonSchema[None] = None
+    archived: bool | SkipJsonSchema[None] = None
 
     @field_validator("name", "memo", mode="before")
     @classmethod
@@ -188,8 +195,8 @@ class PinUpdate(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _add_tags_and_remove_tag_ids_must_not_be_explicit_null(self) -> "PinUpdate":
-        for field_name in ("add_tags", "remove_tag_ids"):
+    def _optional_fields_must_not_be_explicit_null(self) -> "PinUpdate":
+        for field_name in ("add_tags", "remove_tag_ids", "visited", "archived"):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} must not be null; omit the field for no change")
         return self
@@ -248,6 +255,8 @@ class PinRead(BaseModel):
     photo_count: int
     created_by_user_id: uuid.UUID
     client_walk_id: uuid.UUID | None
+    visited: bool
+    archived: bool
     created_at: datetime
     updated_at: datetime
 
@@ -270,6 +279,10 @@ class PinListQuery(BaseModel):
     q: str | None = Field(default=None, max_length=PIN_SEARCH_QUERY_MAX_LENGTH)
     # 複数指定は AND。`tag_key()` で正規化した値同士の完全一致で絞る。
     tags: list[PinTagLabel] = Field(default_factory=list, max_length=PIN_SEARCH_TAGS_MAX_COUNT)
+    # 省略時は絞り込まない（後方互換）。true/false で等号の絞り込み。limit の前に適用する
+    # （SS-173, ADR-009 決定32）。
+    archived: bool | None = None
+    visited: bool | None = None
     limit: int = Field(default=PIN_LIST_DEFAULT_LIMIT, ge=1, le=PIN_LIST_MAX_LIMIT)
     cursor: str | None = Field(default=None)
 
@@ -331,6 +344,8 @@ class PinListItemRead(BaseModel):
     cover_photo: PinPhotoRead | None
     photo_count: int
     created_by_user_id: uuid.UUID
+    visited: bool
+    archived: bool
     created_at: datetime
     updated_at: datetime
 

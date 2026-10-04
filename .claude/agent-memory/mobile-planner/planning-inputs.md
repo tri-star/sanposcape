@@ -23,7 +23,9 @@ naming-conventions / pages-components-guideline / toolsets-libraries / build-pro
 - **mobile 固有**: `packages/mobile/adr/ADR-M-0XX-*.md`（SS-132 で改名）。本文中でも `ADR-M-0XX` と書く。番号だけの `ADR-0XX` は
   ルートの `docs/adr/`（frontend/backend 横断・ドメイン知識）を指す。
 - 使用済みの番号は `packages/mobile/adr/` の現物で確かめる。並行チケットが同じ番号を取り合うことがあるので、
-  プランには「着手時に main の `adr/` を見て番号を決める」と書く。
+  プランには「着手時に main の `adr/` を見て番号を決める」と書く。**main だけでは足りない**: 未マージの兄弟 worktree
+  （`/home/tristar/orca/workspaces/sanposcape/*/packages/mobile/adr/`）を Glob で見る（SS-173 では 019 を2つの worktree が既に使っていた）。
+  埋まっていればプラン中は `ADR-M-0XX`（見込み番号を併記）と仮置きする。ルート ADR-009 の決定番号も同じ問題がある（backend 側が採番）。
 - ADR を覆す/追補する場合は `adr-writing` skill を使う。ADR を追加したら `packages/mobile/AGENTS.md` の ADR 一覧表にも行を足す
   （ルートの `README.md` / `docs/project-overview.md` の一覧も確認）。
 - 章立ては既存に揃える（日付 / ステータス / コンテキスト / 決定 / 検討した選択肢 / 決定理由 / 影響 / 関連情報）。

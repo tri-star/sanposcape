@@ -33,6 +33,8 @@ from sanposcape.sanpo_maps.permissions import (
     can_delete_pin_photo,
     can_delete_pin_tag,
     can_update_pin,
+    can_update_pin_archived,
+    can_update_pin_visited,
 )
 from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner, flatten_photo_keys
 from sanposcape.sanpo_maps.photos.photo_attacher import (
@@ -155,6 +157,7 @@ class PinService:
             latitude=payload.location.latitude,
             longitude=payload.location.longitude,
             client_walk_id=payload.client_walk_id,
+            visited=payload.visited,
         )
         if not created:
             # 同時に別リクエストが同じ client_pin_id で先着した（真に同時な再送）。
@@ -233,6 +236,8 @@ class PinService:
             tag_keys=query.tags,
             limit=query.limit,
             cursor=cursor,
+            archived=query.archived,
+            visited=query.visited,
         )
 
         has_more = len(rows) > query.limit
@@ -408,12 +413,13 @@ class PinService:
     def update_pin(
         self, current_user: User, pin_id: uuid.UUID, payload: PinUpdate, *, base_url: str
     ) -> PinRead:
-        """`PATCH /pins/{pin_id}`: 名前・メモの更新とタグの追加・削除を1リクエストで
-        原子的に行う（ADR-009 決定19・20）。
+        """`PATCH /pins/{pin_id}`: 名前・メモ・訪問状況・アーカイブ状態の更新とタグの
+        追加・削除を1リクエストで原子的に行う（ADR-009 決定19・20・32）。
 
-        権限は「送られたフィールド」ごとに判定し、1つでも権限が無ければ何も反映せず
-        403 にする（決定20）。判定の順序は決定21のとおり: member（404）→ 権限（403）→
-        タグ件数（409）。`updated_at` は実際に変化があった場合だけ進める（決定23）。
+        権限は「送られたフィールド」ごとに判定し（値が今と同じでも判定する）、1つでも
+        権限が無ければ何も反映せず 403 にする（決定20）。判定の順序は決定21のとおり:
+        member（404）→ 権限（403）→ タグ件数（409）。`updated_at` は実際に変化があった
+        場合（`visited`/`archived` が実際に変わった場合を含む）だけ進める（決定23・32）。
         """
         result = self._repository.get_for_member_for_update(user_id=current_user.id, pin_id=pin_id)
         if result is None:
@@ -423,14 +429,21 @@ class PinService:
         fields_set = payload.model_fields_set
         wants_name_update = "name" in fields_set
         wants_memo_update = "memo" in fields_set
+        wants_visited_update = "visited" in fields_set
+        wants_archived_update = "archived" in fields_set
         wants_tag_add = bool(payload.add_tags)
         wants_tag_remove = bool(payload.remove_tag_ids)
 
         # --- 権限チェック（この時点ではまだ何も変更しない。1つでも NG なら全体を 403） ---
-        if wants_name_update or wants_memo_update:
-            is_creator = pin.created_by_user_id == current_user.id
-            if not can_update_pin(role, is_creator=is_creator):
-                raise SanpoMapPermissionDeniedError()
+        is_creator = pin.created_by_user_id == current_user.id
+        if (wants_name_update or wants_memo_update) and not can_update_pin(
+            role, is_creator=is_creator
+        ):
+            raise SanpoMapPermissionDeniedError()
+        if wants_visited_update and not can_update_pin_visited(role):
+            raise SanpoMapPermissionDeniedError()
+        if wants_archived_update and not can_update_pin_archived(role, is_creator=is_creator):
+            raise SanpoMapPermissionDeniedError()
 
         tags_to_remove: list[PinTag] = []
         if wants_tag_remove:
@@ -450,6 +463,12 @@ class PinService:
         # --- 適用: 削除 → 追加 → 件数チェック（決定20） ---
         name_changed = wants_name_update and payload.name != pin.name
         memo_changed = wants_memo_update and payload.memo != pin.memo
+        # `PinUpdate` が明示的な null を弾いているので、送られた値は bool（静的には
+        # `bool | None` のままなので、None でないことを条件に含めて絞り込む）。
+        new_visited = payload.visited if wants_visited_update else None
+        new_archived = payload.archived if wants_archived_update else None
+        visited_changed = new_visited is not None and new_visited != pin.visited
+        archived_changed = new_archived is not None and new_archived != pin.archived
 
         if tags_to_remove:
             self._repository.delete_tags(tags_to_remove)
@@ -473,15 +492,28 @@ class PinService:
             raise PinTagLimitExceededError()
 
         tags_changed = bool(added_tags) or bool(tags_to_remove)
-        if name_changed or memo_changed or tags_changed:
+        if name_changed or memo_changed or visited_changed or archived_changed or tags_changed:
             self._repository.update_fields(
                 pin,
                 name=payload.name if wants_name_update else NOT_PROVIDED,
                 memo=payload.memo if wants_memo_update else NOT_PROVIDED,
+                visited=new_visited if visited_changed else NOT_PROVIDED,
+                archived=new_archived if archived_changed else NOT_PROVIDED,
                 updated_at=self._now(),
             )
 
+        # commit 前に控える（R2: commit 後は ORM 属性に触れない）。
+        user_id = current_user.id
         self._db.commit()
+
+        if visited_changed or archived_changed:
+            logger.info(
+                "Pin status changed: pin_id=%s by user_id=%s visited=%s archived=%s",
+                pin_id,
+                user_id,
+                new_visited if visited_changed else None,
+                new_archived if archived_changed else None,
+            )
 
         # `pin_id` は引数（commit の影響を受けない）をそのまま使う（R2）。
         read_model = self._require_read_model(pin_id)

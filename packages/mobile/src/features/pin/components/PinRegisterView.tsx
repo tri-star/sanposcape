@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { Input } from "@/components/ui/input/Input";
 import { ProgressBar } from "@/components/ui/progress-bar/ProgressBar";
+import { Switch } from "@/components/ui/switch/Switch";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinDiscardDialog } from "@/features/pin/components/PinDiscardDialog";
 import { PinLocationAdjustOverlay } from "@/features/pin/components/PinLocationAdjustOverlay";
@@ -26,6 +27,10 @@ import {
 } from "@/features/pin/lib/pinSaveError";
 import { resolveSelectedSanpoMapIcon } from "@/features/pin/lib/sanpoMapChoices";
 import { saveUnavailableMessage } from "@/features/pin/lib/pinDraftValidation";
+import {
+  PIN_REGISTER_VISITED_HELPER,
+  PIN_VISITED_SWITCH_LABEL,
+} from "@/features/pin/lib/pinStatus";
 import { setFlashMessage } from "@/lib/flashMessage";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
@@ -204,6 +209,17 @@ export function PinRegisterView({
                 />
               </View>
 
+              <View style={styles.field}>
+                <Switch
+                  label={PIN_VISITED_SWITCH_LABEL}
+                  checked={register.draft.visited}
+                  onChange={register.setVisited}
+                  disabled={isSaving}
+                  testID="pin-register-visited-switch"
+                />
+                <Text style={styles.visitedHelper}>{PIN_REGISTER_VISITED_HELPER}</Text>
+              </View>
+
               <SanpoMapSelector
                 state={register.sanpoMaps}
                 onSelect={register.selectSanpoMap}
@@ -349,6 +365,11 @@ const useStyles = makeStyles((theme) => ({
   },
   field: {
     paddingHorizontal: theme.layout.pageGutter,
+  },
+  visitedHelper: {
+    marginTop: theme.spacing[1],
+    fontSize: theme.typography.size.xs,
+    color: theme.colors.textTertiary,
   },
   invalidLocation: {
     flex: 1,

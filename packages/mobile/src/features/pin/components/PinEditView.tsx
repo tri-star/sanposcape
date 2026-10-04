@@ -21,6 +21,7 @@ import { PinEditDiscardDialog } from "@/features/pin/components/PinEditDiscardDi
 import { PinEditExistingPhotos } from "@/features/pin/components/PinEditExistingPhotos";
 import { PinPhotoGrid } from "@/features/pin/components/PinPhotoGrid";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
+import { PinStatusFields } from "@/features/pin/components/PinStatusFields";
 import { PinTagEditor } from "@/features/pin/components/PinTagEditor";
 import { usePinEdit } from "@/features/pin/hooks/usePinEdit";
 import { resolvePinDetailBodyState } from "@/features/pin/lib/pinDetailState";
@@ -212,6 +213,17 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
                 testID="pin-edit-memo-input"
               />
             </View>
+
+            <PinStatusFields
+              visited={edit.draft.visited}
+              archived={edit.draft.archived}
+              onChangeVisited={edit.setVisited}
+              onChangeArchived={edit.setArchived}
+              visitedDisabled={isSaving || !permissions.canEditVisited}
+              archivedDisabled={isSaving || !permissions.canArchive}
+              archiveLocked={!permissions.canArchive}
+              testID="pin-edit-status"
+            />
 
             <PinTagEditor
               tags={edit.draft.tags}

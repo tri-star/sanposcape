@@ -23,6 +23,8 @@ const PIN_READ: PinRead = {
   photo_count: 0,
   created_by_user_id: USER_ID,
   client_walk_id: null,
+  visited: true,
+  archived: true,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-02T00:00:00.000Z",
 };
@@ -50,6 +52,26 @@ describe("updatePin", () => {
     expect(result.id).toBe(PIN_ID);
     expect(result.sanpoMapId).toBe("map-1");
     expect(result.createdByUserId).toBe(USER_ID);
+  });
+
+  it("visited / archived の差分もそのままボディに載る", async () => {
+    let body: unknown;
+    server.use(
+      http.patch("*/pins/:id", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(PIN_READ);
+      }),
+    );
+
+    const result = await updatePin(
+      PIN_ID,
+      { visited: true, archived: true },
+      { apiBaseUrl: API_BASE_URL },
+    );
+
+    expect(body).toEqual({ visited: true, archived: true });
+    expect(result.visited).toBe(true);
+    expect(result.archived).toBe(true);
   });
 
   it("タグの差分と null（消去）もそのまま送る", async () => {

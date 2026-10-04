@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）。前回: 2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）。前回: 2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -60,6 +60,12 @@
   `PATCH /sanpo-maps/{id}` で owner だけが変えられ、`updated_at` は動かさない。ピンの見た目は
   属する地図のアイコンで決まり、ピンの API は変えない。DB は `VARCHAR(16)` + CHECK
   （本文: SS-171 追補 決定31）
+- **ピンは訪問状況 `visited` とアーカイブ状態 `archived` を持つ**（ともに真偽値・必須・既定 false。
+  日時は持たない。訪問状況はピン単位でメンバーで共有）。`PATCH /pins/{id}` で `visited` はメンバー
+  全員、`archived` は地図 owner かピン作成者だけが変えられる。`GET /pins?archived=&visited=` は
+  省略すると絞り込まず、指定は `limit` の前に AND で適用する。DB は `BOOLEAN NOT NULL DEFAULT false`
+  の2列。既存ピンは `client_walk_id` がある（散歩中に登録した）ものだけ訪問済みに埋め戻した
+  （本文: SS-173 追補 決定32）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
   （本文: SS-113 追補 決定28）（**SS-137 追補**: port 経由の再利用は撤去し、
@@ -127,7 +133,8 @@ port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の�
 [ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）、
 2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）、
 2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）、
-2026-10-04 追補（SS-171: 地図のアイコン `icon`。決定31）
+2026-10-04 追補（SS-171: 地図のアイコン `icon`。決定31）、
+2026-10-04 追補（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived`。決定32）
 
 ## ステータス
 
@@ -792,6 +799,8 @@ role・操作可否を応答に含めない方針も決定24として確定し�
 
 ### 一覧の必須パラメータ・並び順・件数上限
 
+（**SS-173 追補**: クエリに `archived`/`visited`（省略時は絞り込まない）を追加した。決定32）
+
 - **`sanpo_map_id` は必須にした。** 任意のパラメータを後から必須にすると破壊的変更になるが、
   必須を任意に緩めるのは互換を保てる（expand）。MVP ではユーザーごとに地図は実質1つで、mobile は
   `GET /sanpo-maps` で既定の地図の ID を取れる。地図をまたいだ検索が必要になったら任意に変え、
@@ -848,6 +857,8 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 
 上表はピン・タグ・写真（地図の中身）の操作を対象にしている。地図そのものの操作（名前変更・
 削除）は決定26 を参照（SS-113。**SS-171 追補**: 地図のアイコンの変更も決定26 の更新に含む。決定31）。
+（**SS-173 追補**: ピンの訪問状況（`visited`）・アーカイブ状態（`archived`）の変更の行は決定32。
+`visited` はメンバー全員の追加系、`archived` は owner かピン作成者の持ち主判定系）
 
 決定2の表を実装内容で置き換える（決定2の表は「予定表」だったため）。表の読み方・実装上の
 注意:
@@ -869,9 +880,11 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   （2026-09-26 追補, PR #101 レビュー対応。3種類目は SS-113 で追加）。
   - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: `role in {"owner",
     "editor"}` のみで判定する。作成者は判定しないので `is_creator` 引数は持たない。
+    （SS-173 追補: `can_update_pin_visited` もこの形。決定32）
   - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
     `can_delete_pin_tag`/`can_delete_pin_photo`）: `role == "owner" or (role in {"owner",
     "editor"} and is_creator)`。写真だけは `is_uploader`。
+    （SS-173 追補: `can_update_pin_archived` もこの形。決定32）
   - **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）:
     `role == "owner"` のみで判定する。地図の持ち主は owner の role そのものなので、
     「対象の持ち主」を判定する引数（`is_creator`/`is_uploader`）は持たない（決定26）。
@@ -881,7 +894,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 ### 決定20: `PATCH /pins/{id}` はフィールド単位の部分更新とタグの差分（`add_tags`/`remove_tag_ids`）
 
 - `name`・`memo`・タグの追加・削除を1つの `PATCH /pins/{pin_id}` にまとめ、1リクエストで
-  原子的に反映する。タグ専用のエンドポイントは作らない。
+  原子的に反映する（**SS-173 追補**: 更新できるものに `visited`/`archived` も加わった。決定32）。タグ専用のエンドポイントは作らない。
   - 理由: 編集画面の「保存」1回を1リクエストにでき、途中で失敗しても一部だけ反映された
     状態にならない。タグは1ピン最大10件と小さいため、差分を1リクエストに載せても重くない。
 - タグは**全置換ではなく差分**（`add_tags`: ラベルの配列、`remove_tag_ids`: `PinTagRead.id`
@@ -909,7 +922,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - 同じラベルを「削除」と「追加」の両方に含めた場合は、削除してから追加し直すことになる
   （結果として作成者が付け替わる）。仕様として許容する。
 - 空のボディ `{}` も 200 で受け付け、何も変えずに `PinRead` を返す（`updated_at` も更新しない）。
-- 更新できるのは `name`/`memo`/タグのみ。`location`/`sanpo_map_id`/`client_walk_id` は対象外
+- 更新できるのは `name`/`memo`/タグのみ（**SS-173 追補**: `visited`/`archived` も加わった。決定32）。`location`/`sanpo_map_id`/`client_walk_id` は対象外
   （SS-119 の要件に含まれない。地図間の移動は権限の意味が変わるため別途設計が要る）。
 
 ### 決定21: 404 と 403 の使い分け（IDOR 対策の継続）
@@ -997,6 +1010,8 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   BK-3 の定期掃除でまとめて回収する対象に追加した。
 
 ### 決定23: `updated_at` はピン本体とタグの変更でだけ更新する
+
+（**SS-173 追補**: `visited`/`archived` が実際に変わったときも更新する。決定32）
 
 `Pin.updated_at` は、`name`/`memo`/タグのどれかが**実際に変わった場合だけ**、注入した
 `now()` で更新する（`onupdate` は使わない。`sanpo_maps.touch()` と同じく明示的に更新する）。
@@ -1356,6 +1371,92 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
   フォールバックが単純）／`PinRead`・`PinListItemRead` に地図のアイコンを埋め込む（一覧から引けるので
   重複になる）。
 
+## 追補（2026-10-04, SS-173 ピンの訪問状況・アーカイブ状態）
+
+ピンに「訪問済みか」（`visited`）と「アーカイブ済みか」（`archived`）を持たせる（SS-173）。
+閉店した店などをアーカイブすると、場所・写真を残したまま地図表示から外せる。地図表示から
+アーカイブ済みを除くのは、mobile が `archived=false` を指定し、除外は backend の WHERE で行う（SS-173）。
+フィルター UI は SS-174。mobile 固有の判断は mobile の ADR に記録する。既存テーブルへの列追加（マイグレーションあり）。
+フィーチャーフラグは使わない（決定10）。
+
+### 決定32: ピンは `visited` と `archived` を持つ
+
+- **DB**: `pins.visited BOOLEAN NOT NULL DEFAULT false`、`pins.archived BOOLEAN NOT NULL DEFAULT
+  false`。API のフィールド名も同じ（変換の層を作らない）。真偽値の前例は `SanpoMap.is_default`
+  （`default=False, server_default=text("false")`）。NOT NULL でも server default があれば古い
+  コードの INSERT は通るので、ADR-008 決定7 の expand の条件を満たす（決定31 の `icon` と同じ）。
+  PG11+ では定数の既定値付き `ADD COLUMN` はテーブルを書き換えない。インデックスは足さない
+  （絞り込みは `ix_pins_sanpo_map_id_created_at_id` で地図に絞った後の行フィルタ。1地図あたり
+  数百件の規模では十分。遅くなったら `WHERE NOT archived` の部分インデックスなどを検討する。
+  将来の課題）。
+- **日時（`visited_at`/`archived_at`）は持たない**: 使う要件が無い。切り替えた時刻を `visited_at`
+  に入れると「実際に訪れた日」と誤読されやすい。必要になったら列を足す（expand）だけで済む。
+- **訪問状況はピン単位でメンバー共有**: メンバーごとの訪問状況は持たない。招待（BK-7）は
+  未実装で、メンバーごとに持つには別テーブルと「誰にとっての未訪問か」という絞り込みの意味付けが
+  要る。要件が見えてから決める（必要になればデータ移行を伴う）。
+- **API**:
+  - `PinRead`/`PinListItemRead`: `visited: bool`・`archived: bool`（ともに必須。null にならない）。
+  - `POST /pins`: `PinCreate.visited` は省略可で既定 false（OpenAPI では `default: false`）。
+    null は 422。`archived` は受け付けない（作成時にアーカイブする操作は無い。`PinCreate` は
+    `extra="forbid"` ではないので、送られても他の未知のキーと同様に黙って無視される。後方
+    互換のため forbid には変えない）。冪等な再送は決定どおり既存のピンをそのまま返す
+    （`visited` だけ違っても既存の値）。
+  - `PATCH /pins/{id}`: `PinUpdate.visited`/`archived` は省略可・null 不可（`SkipJsonSchema[None]`。
+    明示的な null は 422。`extra="forbid"` は維持）。
+  - `GET /pins`: クエリ `archived: bool | None`・`visited: bool | None`（OpenAPI では
+    `anyOf: [boolean, null]`）。**省略すると絞り込まない**（従来どおり全件。リリース済みの
+    アプリの一覧が変わらないため）。指定すると等号で絞る。bbox・`q`・`tags`・cursor と AND で、
+    **`limit` の前に WHERE で絞る**（最新のピンがアーカイブ済みでも `archived=false&limit=1` は
+    残りの1件を返す。keyset カーソルは変えない）。`?archived=null`・不正な値は 422。
+    `visited` の絞り込みは SS-174（地図のフィルター UI）が backend を再び変えずに使えるよう、
+    今回入れた。
+- **権限**（決定19 の表に2行足す形）:
+
+  | 操作 | 地図 owner | editor（対象の作成者本人） | editor（作成者ではない） | 非メンバー / 存在しない ID |
+  |---|---|---|---|---|
+  | 訪問状況の変更（`visited`） | ○ | ○ | ○ | **404** |
+  | アーカイブ状態の変更（`archived`） | ○（他人のピンも可） | ○ | **403** | **404** |
+
+  新しい関数は `can_update_pin_visited(role)`（追加系の形）と `can_update_pin_archived(role, *,
+  is_creator)`（持ち主判定系の形。ピンの作成者が持ち主）。訪問は「行った人が付ける」事実で
+  取り消しも容易なので全員、アーカイブは全員の地図から消えるので削除に近く持ち主判定にした。
+  `can_update_pin` を流用せず別関数にするのは、表の1行に1関数を対応させ、将来どちらかだけ
+  変えるときに呼び出し側を直さずに済むようにするため（式は同じ）。判定は決定20 のとおり
+  「送られたフィールド」で行い（値が今と同じでも判定する）、1つでも権限が無ければ全体を 403 に
+  して何も反映しない。判定順は決定21 のとおり member（404）→ 権限（403）→ タグ件数（409）。
+- **`updated_at`**: `visited`/`archived` が**実際に変わったときは進める**（同じ値を送っただけでは
+  進めない）。決定23 は「ピン本体とタグの変更で更新」としており、`visited`/`archived` はピン本体の
+  属性。`pins.updated_at` は並び順に使っていない（並びは `created_at`）ので副作用は無い。
+  地図の `mark_used()` は呼ばない（PATCH は呼ばない既存方針のまま）。
+- **集計系は変えない**: `pin_count`（`GET /sanpo-maps?expand=pin_count`）と地図のタグ一覧
+  （`GET /sanpo-maps/{id}/tags`）はアーカイブ済みも数える。アーカイブは地図表示から「隠す」だけで、
+  地図の中身であることは変わらない。
+- **アーカイブ済みでもロックしない**: 編集・写真やタグの追加・削除はできる。要件が無く、ロック
+  するとアーカイブを解除する手順が煩雑になる。
+- **既存データの埋め戻し**: `archived` は全件 false。`visited` は `client_walk_id IS NOT NULL` の
+  ピンだけ true（散歩中に登録したピンはその場で登録しているので訪問済みとみなす。mobile の登録時の
+  初期値の規則と揃えた）。ピンタブの長押しで登録したピンは、実際に訪れていても未訪問から始まる
+  （編集画面で直せる）。全件 false にしたい場合はマイグレーションの UPDATE 文を消せばよい。
+  downgrade は2列のデータ（埋め戻した値を含む）を失う。
+- **デプロイ**: 決定31 の「デプロイ」項と同じ手順に従う。既存テーブルへの列追加は、デプロイから
+  migrate までの間、新しいコードが列の無い `pins` を SELECT するためピン系の API が 500 になる
+  （マイグレーション Lambda は API と同じ成果物のため、先に流せない。ADR-005 決定9）。prod は
+  未デプロイで初回デプロイのマイグレーションに含まれるため起きない。dev は「デプロイ直後に migrate
+  を invoke する」運用で数分の 500 を許容する。厳密にするなら、マイグレーションだけのコミットを
+  ref 指定で先に dev へデプロイして migrate してから本体をデプロイする（そのためにマイグレーションは
+  単独のコミットにしてある）。prod の稼働後は、マイグレーションだけの PR を先にマージする。
+  mobile のリリースは backend のデプロイ後に行う（古い backend に `visited` を PATCH すると
+  `extra="forbid"` で 422 になる）。
+- **フラグ**: 使わない（決定10）。
+- **mobile への伝達事項**: 検索（`q`/`tags`）の結果にもアーカイブ済みが含まれる（省略時は全件のため）。
+  検索で除外したいなら mobile 側で `archived=false` を付ける。応答に必須のフィールドを足したので、
+  Orval の型を使う mobile の型付きフィクスチャは更新が必要になる。
+- **検討した選択肢**: `visit_status` の enum（2値なので過剰で、mobile の分岐も増える）／日時の列
+  （上記）／メンバーごとの訪問状況のテーブル（上記）／`GET /pins` で既定でアーカイブ済みを除外する
+  （リリース済みのアプリの一覧が変わり、後方互換性が崩れる）／アーカイブ専用のエンドポイント
+  （`POST /pins/{id}/archive` など。PATCH のフィールド単位の権限判定で表現でき、mobile も保存1回で
+  送れる）／`can_update_pin` の流用（上記）。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1372,4 +1473,5 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
   SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
   SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）、
   SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
-  SS-171（地図のアイコン。決定31）
+  SS-171（地図のアイコン。決定31）、
+  SS-173（ピンの訪問状況・アーカイブ状態。決定32）
