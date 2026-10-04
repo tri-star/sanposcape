@@ -23,4 +23,4 @@ backend のデプロイが全部止まる。template は dev/prod 共通なの�
 - S3 の実行ロール付与は SSM の `bucket_arn` で prefix まで絞る（境界は `sanposcape-<env>-*` と広いため）。
   存在しないキーの HEAD を 404 にしたいなら `s3:ListBucket` も要る（無いと 403）。
 
-関連: [[feedback_appconfig_feature_flag_gotchas]] / [[project-ss88-pin-naming-and-photo-limits]]
+関連: [[feedback_appconfig_feature_flag_gotchas]] / ピン写真の S3 の決定は `docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md`

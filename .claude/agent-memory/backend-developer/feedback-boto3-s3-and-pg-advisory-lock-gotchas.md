@@ -1,12 +1,12 @@
 ---
 name: feedback-boto3-s3-and-pg-advisory-lock-gotchas
-description: SS-88実装で踏んだboto3 S3クライアントのendpoint_url罠・retries.max_attempts罠、pg_advisory_xact_lockの決定的キー導出、PydanticのSkipJsonSchema[None]パターン
+description: SS-88実装で踏んだboto3 S3クライアントのendpoint_url罠・retries.max_attempts罠と、pg_advisory_xact_lockの決定的キー導出
 metadata:
   type: feedback
   scope: durable
 ---
 
-SS-88（`integrations/aws/s3.py`, `pins/repository.py`, `pins/schemas.py`）実装で確認した、
+SS-88（`integrations/aws/s3.py`, `pins/repository.py`）実装で確認した、
 再発しやすい実装上の罠と、このリポジトリで採用したパターン。
 
 **Why:** それぞれ気づきにくく（テストが通っていても本番挙動が変わる／テストの書き方次第で
@@ -41,9 +41,5 @@ SS-88（`integrations/aws/s3.py`, `pins/repository.py`, `pins/schemas.py`）実�
   で先に踏んでいた罠と同じ。SS-88のローカルレビューで再発を確認、修正済み）。この手の
   「新しい`boto3.client`のretries設定を書くたびに同じ罠を踏む」パターンなので、
   新規にAWS SDKクライアントを作る際は`total_max_attempts`を使う一択にする。
-- **Pydantic v2で「省略可・明示nullは422・OpenAPI上はnon-nullable」を表現するパターン**:
-  `field: T | SkipJsonSchema[None] = None` + `model_validator(mode="after")`で
-  `"field" in self.model_fields_set and self.field is None`ならValueError。
-  `model_fields_set`は「リクエストJSONにそのキーが存在したか」を返すため、省略時は
-  チェックをすり抜け、明示`null`だけを弾ける。`pydantic.json_schema.SkipJsonSchema`から
-  import する。
+
+関連: Pydantic の `SkipJsonSchema[None]` パターンは [[feedback-pydantic-skipjsonschema-patterns]] に分けた。

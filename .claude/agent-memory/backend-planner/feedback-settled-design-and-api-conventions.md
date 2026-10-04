@@ -37,4 +37,4 @@ metadata:
 その場合は分割前提を捨て、mobile プランの「backend が main に入るまで待つ」前提が不要になる点をプランの伝達事項に書く。
 依頼があればそちらを優先し、無ければ上の2本分割を既定とする。
 
-関連: [[project-auth-architecture-ss10]]
+関連: 認証まわりの確定済み設計は `docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md`。

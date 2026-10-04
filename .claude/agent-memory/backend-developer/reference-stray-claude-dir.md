@@ -14,9 +14,10 @@ metadata:
 リポジトリルートではなく最寄りの `AGENTS.md`/`CLAUDE.md` があるディレクトリと誤解釈すると、
 package 配下に別の `.claude/agent-memory/` が生成されてしまう。過去にも一度この問題が起き、
 コミット `038f1bb`（`chore: packages配下に誤って作られたagent-memoryをルートへ統合する`）で
-mobile/backend 双方の重複メモリをルートへ手動統合した実績がある。2026-08-01 時点でも
-`packages/backend/src/sanposcape/.claude/agent-memory/` に他の reviewer 系エージェント
-（backend-security-reviewer 等）のメモリが同様に誤生成されているのを確認した（未整理のまま残存）。
+mobile/backend 双方の重複メモリをルートへ手動統合した実績がある。2026-08-01 時点では
+`packages/backend/src/sanposcape/.claude/agent-memory/` に reviewer 系エージェントのメモリも誤生成されていたが、
+2026-10-04 の棚卸しの時点ではファイルは残っておらず、空のディレクトリだけだった（棚卸しで掃除）。
+空ディレクトリだけが再び現れることがあるので、見つけたら中身が空かを確認してから報告する。
 
 **How to apply:**
 - 自分（backend-developer）がメモリを書く際は、たとえタスクの指示文に

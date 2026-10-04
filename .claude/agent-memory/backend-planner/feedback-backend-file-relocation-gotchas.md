@@ -31,4 +31,4 @@ metadata:
 **How to apply:** ファイル移動・モジュール統合・パッケージ改名を含むプランでは、不変条件の表（OpenAPI の docstring、
 ロガー名、lock namespace、S3 キー、ログ文言）と、`__pycache__` 掃除・staleness の前後比較を実装ステップに入れる。
 
-関連: [[feedback-openapi-change-triggers-mobile-ci]] / [[feedback-check-sibling-tickets-before-shared-infra]]
+関連: [[feedback-openapi-change-triggers-mobile-ci]] / [[feedback-check-existing-and-parallel-work-before-planning]]

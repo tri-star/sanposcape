@@ -6,13 +6,12 @@ metadata:
   scope: durable
 ---
 
-SS-141のローカルレビュー対応（2026-09-29）で、ADRを `docs/adr/ADR-011-backend-test-db-isolation-by-table-reset.md`
-から `packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md`（移動先ではファイル名から
-`backend-` が抜けた）へ移動した際、`.claude/agent-memory/` 内の参照を
-`sed -i 's/ADR-011/ADR-B-001/g'` で一括置換した。この置換は「番号だけが変わり、それ以外の
-ファイル名は同じ」という前提で書いたため、`ADR-011-backend-test-db-isolation-by-table-reset.md`
-という文字列が `ADR-B-001-backend-test-db-isolation-by-table-reset.md`（実際のファイル名には
-無い `backend-` が残った誤ったパス）になってしまった1件を見落としかけた。
+SS-141のローカルレビュー対応（2026-09-29）で、ADR-011（backend のテストDB隔離）を
+`packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md` へ移動した。移動元のファイル名は
+「ADR-011-backend-test-db-isolation-…」で、移動先ではファイル名から「backend-」が抜けた。
+このとき `.claude/agent-memory/` 内の参照を `sed -i 's/ADR-011/ADR-B-001/g'` で一括置換したため、
+旧ファイル名を含む参照が「ADR-B-001-backend-test-db-isolation-…」という実在しないファイル名に化けた
+1件を見落としかけた（この置換は「番号だけが変わり、ファイル名の残りは同じ」という前提で書いていた）。
 
 **Why:** ADRの移動・改番では「番号の書式」と「ファイル名（スラッグ）」が同時に変わることがある
 （今回は backend 配下への移動でファイル名から `backend-` が落ちた）。番号だけを機械的に置換すると、

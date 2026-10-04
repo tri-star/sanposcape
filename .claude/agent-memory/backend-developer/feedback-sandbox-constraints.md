@@ -1,6 +1,6 @@
 ---
-name: feedback_sandbox_constraints
-description: sandbox が拒否する操作（.env編集・localhostへのcurl・dockerソケット・~/.aws・キャッシュ所有権）とそれぞれの回避策。「できない」と結論する前にここを読む
+name: feedback-sandbox-constraints
+description: sandbox が拒否する操作（.env編集・localhostへのcurl・dockerソケット・~/.aws・キャッシュ所有権）とそれぞれの回避策、sam CLI の所在（PATH に無く mise 管理）。「できない」と結論する前にここを読む
 metadata:
   type: feedback
   scope: durable
@@ -74,8 +74,12 @@ Error: Running AWS SAM projects locally requires a container runtime. Do you hav
 `sam build --use-container` も通ると判断しないこと。**
 
 **How to apply:** `sam build --use-container` / `sam local invoke` は最初から
-`dangerouslyDisableSandbox: true` で実行する。`sam validate --lint` は Docker を使わないため
-sandbox 内でも成功する。関連: [[reference-sam-cli-location]]
+`dangerouslyDisableSandbox: true` で実行する。`sam validate --lint` は Docker もネットワークも使わないため
+sandbox 内でも成功する。
+
+**`sam` CLI は PATH に無い。** `mise`（`aws-sam-cli` プラグイン）で入っているが、シェルの `PATH` には
+載っていないので絶対パスで呼ぶ: `~/.local/share/mise/installs/aws-sam-cli/<version>/.mise-bins/sam`
+（`latest` のディレクトリもある。版は `ls ~/.local/share/mise/installs/aws-sam-cli/` で確認する）。
 
 ## AWS の認証情報は「存在する」。sandbox から見えないだけ
 
@@ -114,4 +118,4 @@ sandbox 内でも成功する。関連: [[reference-sam-cli-location]]
 （`.pytest_cache` も同様）を実行してから再実行する。ホスト側から `rm -rf .ruff_cache` を試みても
 同じ権限問題で削除できないことが多いので、コンテナ内から `-u root` で chown するのが手早い。
 
-関連: [[reference-sam-cli-location]], [[reference-openapi-json-gitignored]]
+関連: [[reference-openapi-export-diff-expectations]]

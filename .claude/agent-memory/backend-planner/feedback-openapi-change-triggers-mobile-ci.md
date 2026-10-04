@@ -13,7 +13,9 @@ mobile の型が変わる。
 壊れる典型:
 - **クエリパラメータが1つも無い GET にクエリを足す**と、Orval の fetch クライアントのシグネチャが
   `fn(options?)` → `fn(params?, options?)` に変わる。mobile が `fn({ signal })` と呼んでいると型エラー
-  （実行時は signal がクエリ扱い）。例: `sanpoMapApi.ts` の `listSanpoMapsRequest({ signal })`。
+  （実行時は signal がクエリ扱い）。実例: SS-113 で `GET /sanpo-maps` にクエリ（`expand=pin_count` 等）を足したとき、
+  mobile の `sanpoMapApi.ts` の `listSanpoMapsRequest({ signal })` が壊れ、同じ PR で
+  `(params, options)` の形に直した（現在は `listSanpoMapsRequest({ expand: ["pin_count"] }, { signal })`）。
   既にクエリがある GET（`listWalksWalksGet(params, { signal })`）は影響なし。
 - **応答スキーマに required フィールドを足す**と、mobile の手書き型付きテストフィクスチャ（`const RESPONSE: XxxRead = {...}`）が落ちる。
 
