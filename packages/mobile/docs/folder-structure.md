@@ -28,7 +28,8 @@ packages/mobile/
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
-│   │   └── location/          #   位置情報まわりの横断UI（LocationPermissionNotice。SS-124）
+│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice。SS-124）
+│   │   └── legal/             #   法的文書への導線（PrivacyPolicyLink。settings と auth から使う。SS-158）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
 │   │   └── <feature>/         #   例: walk, history
@@ -263,10 +264,10 @@ packages/mobile/
   `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
   `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、
   `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。`features/walk` と `features/pin` から使うため
-  SS-124 で `features/walk/hooks/` から昇格）。
+  SS-124 で `features/walk/hooks/` から昇格）、`useOpenExternalUrl.ts`（外部の Web ページを開く。アプリ内ブラウザ → OS ブラウザ。SS-158）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
-  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`、散歩の位置記録の起動時の孤児停止・サインアウト時の後始末を登録する
+  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`、外部 URL の検証とフォールバックの判定 `externalUrl.ts`（SS-158）、散歩の位置記録の起動時の孤児停止・サインアウト時の後始末を登録する
   `backgroundLocationCleanup.ts`（`index.ts` から `expo-router/entry` より前に副作用 import する。起動時の停止を、どの散歩の開始よりも先に `serialQueue` へ積むため。SS-156）。SS-34、`/app-config` のフラグ受け皿
   `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
   トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
@@ -299,7 +300,7 @@ packages/mobile/
 - `src/config/`: 環境変数の読み取りと定数。ビルド variant の判定（`appVariant.ts` は純粋関数、`devTools.ts` は
   `expo-constants` / `expo-updates` を読む実行時の入口。SS-148）も含む。フィーチャーフラグのキー定数（`featureFlags.ts`。
   `/app-config` の `flags` は map で返るためキーの型情報が OpenAPI に無く、mobile 側で自前定義する。
-  SS-100）も含む。
+  SS-100）も含む。法的文書の URL（`legalLinks.ts`。ビルドで切り替えない定数。SS-158）も置く。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
   - 実例: `useAuthSessionStore.ts`（認証セッション状態 `loading | authenticated | guest`。SS-13）。
     参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線 /

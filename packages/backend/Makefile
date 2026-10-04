@@ -16,6 +16,13 @@
 #   事故になる）。下のとおり対象を明示列挙することで構造的に混入を防いでいる
 #   （`cp -r . "$(ARTIFACTS_DIR)"` のような丸ごとコピーは絶対にしないこと）。
 
+# ★ 成果物に `opentelemetry*` を入れてはいけない（ADR-013 決定1 / SS-178）。
+#   OpenTelemetry は ADOT レイヤー（template.yaml の `Layers`）が提供する。Lambda の sys.path では
+#   /var/task（この成果物）が /opt/python（レイヤー）より前に来るため、zip に入れると
+#   レイヤーの SDK と版が混ざる。pyproject.toml では dev グループに置いて
+#   `uv export --no-dev` で除いている。build-Api の末尾のガードは、誰かが dev から
+#   dependencies に移したときに気付くためのもの。
+
 .PHONY: lambda-requirements build-Api build-Migrate
 
 lambda-requirements:
@@ -33,6 +40,10 @@ build-Api:
 	cp -r alembic "$(ARTIFACTS_DIR)/alembic_migrations"
 	cp alembic.ini "$(ARTIFACTS_DIR)/alembic.ini"
 	find "$(ARTIFACTS_DIR)" -type d -name "__pycache__" -exec rm -rf {} +
+	@if [ -n "$$(find "$(ARTIFACTS_DIR)" -maxdepth 1 -iname 'opentelemetry*' -print -quit)" ]; then \
+		echo "ERROR: opentelemetry* が成果物に含まれています。ADOT レイヤーと版が混ざるため zip に入れないでください（ADR-013 決定1）" >&2; \
+		exit 1; \
+	fi
 
 # API 本体と同じ成果物を使う（decision6: デプロイされたコードとマイグレーションの
 # リビジョンを必ず一致させるため）。

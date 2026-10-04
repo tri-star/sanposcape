@@ -13,10 +13,12 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import FastAPI
 from mangum import Mangum
+from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +51,15 @@ class AsgiLambdaHandler:
       同じループを返すので、生成後に取得している。
     """
 
-    def __init__(self, app: FastAPI) -> None:
+    def __init__(
+        self, app: FastAPI, *, asgi_wrapper: Callable[[FastAPI], ASGIApp] | None = None
+    ) -> None:
+        # `asgi_wrapper` は Mangum に渡す ASGI app だけを包む（トレースの親スパン補正。
+        # ADR-013 / SS-178）。lifespan は包む前の FastAPI app から起動する。
+        asgi_app: ASGIApp = asgi_wrapper(app) if asgi_wrapper is not None else app
         # Mangum がイベントループを用意（必要なら set）してから、同じループを掴む。
         # この順序なら「現在のループが無い」という DeprecationWarning を自分では増やさない。
-        self._mangum = Mangum(app, lifespan="off")
+        self._mangum = Mangum(asgi_app, lifespan="off")
         self._loop = asyncio.get_event_loop()
         self._lifespan = app.router.lifespan_context(app)
         self._closed = False
@@ -90,5 +97,7 @@ class AsgiLambdaHandler:
         self._loop.run_until_complete(self._lifespan.__aexit__(None, None, None))
 
 
-def build_handler(app: FastAPI) -> AsgiLambdaHandler:
-    return AsgiLambdaHandler(app)
+def build_handler(
+    app: FastAPI, *, asgi_wrapper: Callable[[FastAPI], ASGIApp] | None = None
+) -> AsgiLambdaHandler:
+    return AsgiLambdaHandler(app, asgi_wrapper=asgi_wrapper)

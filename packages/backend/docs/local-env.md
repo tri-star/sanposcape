@@ -121,6 +121,20 @@ docker compose exec api uv run python scripts/export_openapi.py
   `feature_flag_mode="real"` のような値を渡し回る対症療法は避け、テストが期待する挙動を検証したい
   フィールドだけを明示すれば、それ以外は常にコード上のデフォルトになることを前提にしてよい。
 
+## トレース関連の環境変数（SS-178）
+
+`compose.yaml` の `api` は、次の環境変数を渡す（`TRACING_ENABLED` / `OTEL_EXPORTER_OTLP_ENDPOINT` は
+`.env` やシェルで上書きでき、その他は固定値）。既定は無効で、手順は
+[local-development.md](./local-development.md)の「トレースをローカルで確認する」 を参照。
+
+| 変数 | 既定 | 役割 |
+|---|---|---|
+| `TRACING_ENABLED` | `false` | `true` で `scripts/start-api.sh` が `opentelemetry-instrument` 経由で起動し、アプリ側の計装も有効になる |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://jaeger:4318` | 送信先（compose のネットワーク内の jaeger） |
+| `OTEL_SERVICE_NAME` / `OTEL_RESOURCE_ATTRIBUTES` / `OTEL_*_EXPORTER` / `OTEL_EXPORTER_OTLP_PROTOCOL` | 固定 | サービス名・traces のみ OTLP/HTTP で送る |
+| `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` | 固定 | Lambda（template.yaml）と同じ値。自動計装は botocore のみ（urllib を含む他はアプリから手動） |
+| `JAEGER_UI_PORT` | `16686` | jaeger の UI のホスト側ポート（compose の変数。`127.0.0.1` にだけ公開）。`.env` に書けば使える（`initialize-dotenv.sh` は生成しない） |
+
 ## `.venv` volume の移行と UID/GID 変更
 
 - `.venv` は `venv-app-user` named volume に保存する。従来の `venv` volume は参照しないため、root 所有の旧 volume による権限エラーは引き継がれない。

@@ -21,7 +21,7 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
 
 ```
 packages/backend/
-├── compose.yaml               # api / db コンテナ定義
+├── compose.yaml               # api / db コンテナ定義（+ profile `observability` の jaeger。SS-178）
 ├── Dockerfile
 ├── pyproject.toml             # uv 依存管理・ruff 設定・pytest 設定
 ├── uv.lock
@@ -46,13 +46,14 @@ packages/backend/
 │       │   ├── api.py         #   Lambda ハンドラ。main.app の import 前にシークレットをハイドレーションし、後で build_handler() を呼ぶ
 │       │   ├── asgi_handler.py #  Mangum を lifespan=off で包み、FastAPI の lifespan を init で1回だけ起動する。import しても副作用なし
 │       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
+│       │   ├── tracing.py     #   Lambda 計装の親スパンの補正（http.target のクエリ除去、スパン名・http.route の付け直し。SS-178/ADR-013）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── core/              # 横断的関心事（ドメインに属さない土台）
 │       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
-│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware）とロギング設定（configure_logging）。SS-88/ADR-009 決定13
+│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware）とロギング設定（configure_logging）。SS-88/ADR-009 決定13。末尾にトレース計装（FastAPI・SQLAlchemy・httpx・threading の手動計装、クエリ除去フック、resolve_route_template。SS-178/ADR-013）
 │       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
 │       │   ├── feature_flags.py  #   フィーチャーフラグの評価層（登録簿 + AppConfig 文書 → 判定。SS-98/ADR-008）
 │       │   └── tests/         #   このモジュールのテスト（併置）
@@ -152,6 +153,7 @@ packages/backend/
 │   └── versions/              # マイグレーションスクリプト
 │
 ├── scripts/
+│   ├── start-api.sh                  # api コンテナの起動コマンド（TRACING_ENABLED=true なら opentelemetry-instrument 経由。SS-178）
 │   ├── seed.py                       # Seeder（初期データ投入）
 │   ├── export_openapi.py             # openapi.yaml/json の再生成（mobile の Orval が消費）
 │   ├── feature_flags_document.py     # フラグ切り替えワークフローが AppConfig に投入する版の組み立て（SS-99。標準ライブラリのみ）

@@ -150,6 +150,14 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - **ステータスバーは `ThemedStatusBar`**（`style="auto"` を使わない。`auto` はネイティブの配色を見るため）。
 - `theme.name === "dark"` で分岐する既存コードは変更不要（`ThemeProvider` が解決済みのテーマを配る）。
 
+## 外部の Web ページを開く（SS-158）
+
+- 方針の正本は [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)。
+- 画面からは `useOpenExternalUrl().open(url)`（`src/hooks/`）を使う。`expo-web-browser` / `Linking.openURL` を画面から直接呼ばない（失敗時の案内・診断ログ・URL 検証を通すため）。例外: OS の設定画面を開く `Linking.openSettings()`（`LocationPermissionNotice`）は対象外。
+- 開いてよいのは `https:` だけ（`isOpenableExternalUrl`）。
+- 法的文書の URL は `src/config/legalLinks.ts` の定数。ビルドの種類で切り替えない。
+- フィーチャーフラグで包まない（ストア審査の必須導線を `/app-config` の取得失敗で消さないため）。
+
 ## フィーチャーフラグ（`/app-config`）の扱い
 
 - 実装方針の根拠は [ADR-008（ルート、横断）: デプロイとリリースを分離し、公開はフィーチャーフラグと
