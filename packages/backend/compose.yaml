@@ -53,6 +53,22 @@ services:
       GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS: ${GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS:-60}
       GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES: ${GOOGLE_MAPS_EXPLORE_REQUEST_MAX_BYTES:-32768}
       GOOGLE_MAPS_LOOP_ROUTE_ENABLED: ${GOOGLE_MAPS_LOOP_ROUTE_ENABLED:-true}
+      # --- トレース（OpenTelemetry。ADR-013 / SS-178。既定は無効） ---
+      # TRACING_ENABLED=true にすると scripts/start-api.sh が `opentelemetry-instrument` 経由で起動し、
+      # jaeger（`docker compose --profile observability up -d jaeger`）へ送る。
+      # 手順は docs/local-development.md「トレースをローカルで確認する」。
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
+      OTEL_SERVICE_NAME: sanposcape-backend-api
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+      # Lambda（template.yaml）と同じ値。自動計装は botocore / urllib だけにして、fastapi・
+      # sqlalchemy・httpx・threading はアプリから手動で計装する（二重計装を避ける）。
+      OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "aio-pika,aiohttp-client,aiohttp-server,aiopg,asgi,asyncio,asyncpg,boto,boto3,cassandra,celery,confluent_kafka,dbapi,django,falcon,fastapi,flask,grpc_client,grpc_server,grpc_aio_client,grpc_aio_server,httpx,jinja2,kafka,logging,mysql,mysqlclient,pika,psycopg,psycopg2,pymemcache,pymongo,pymysql,pyramid,redis,remoulade,requests,sklearn,sqlalchemy,sqlite3,starlette,system_metrics,threading,tornado,tortoiseorm,wsgi,openai_agents,aws_openai_agents,aws_crewai,aws_langchain,aws_mcp,aws_llama-index"
+    command: ["sh", "./scripts/start-api.sh"]
     volumes:
       - ./:/app
       # コンテナ内で構築した .venv をホストのコピーで潰さないよう分離
@@ -85,6 +101,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # ローカルのトレースビューア（ADR-013 決定8）。profile `observability` を指定したときだけ起動する
+  # （既定の `docker compose up` では起動しない。api から depends_on もしない）。
+  # Jaeger v2 の all-in-one（メモリ内ストレージ）。トレースだけを見るので軽い。ログとメトリクスは
+  # CloudWatch で見る方針（決定2・3）なので、grafana/otel-lgtm のような全部入りは使わない。
+  # ホストに出すのは UI だけ。OTLP（4318）はコンテナ間の通信のみ。
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.21.0
+    profiles: ["observability"]
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
 
 volumes:
   db-data:

@@ -97,3 +97,48 @@ docker compose --project-directory packages/backend -f packages/backend/compose.
 `staging/` のオブジェクトは S3 のライフサイクルで1日後に消える。すぐ消したい場合は
 `aws s3 rm` で個別に削除する。確認が終わったら `.env` を `STORAGE_MODE=fake` に戻し、
 api コンテナを作り直すこと（コンテナは作成時の環境変数を保持する）。
+
+## トレースをローカルで確認する（Jaeger。ADR-013 / SS-178）
+
+API のリクエストを OpenTelemetry でトレースし、「どの部分（DB・外部 API・S3 など）で時間が
+掛かっているか」をローカルで見る。既定は無効（`TRACING_ENABLED=false`）で、無効のときは
+OpenTelemetry を import すらしない。
+
+### 起動
+
+```bash
+cd packages/backend
+# 1. ビューア（Jaeger v2）を起動。profile `observability` を付けたときだけ起動する
+docker compose --profile observability up -d jaeger
+# 2. .env に TRACING_ENABLED=true を足す（.env.example にコメント付きの行がある）
+# 3. api を作り直す（コンテナは作成時の環境変数を保持するため restart では反映されない）
+docker compose up -d --force-recreate api
+```
+
+`TRACING_ENABLED=true` のとき、`scripts/start-api.sh` が `opentelemetry-instrument uvicorn ...`
+で api を起動する（TracerProvider とエクスポーターはこの起動ラッパーが構成する。アプリは構成しない）。
+
+### 確認
+
+http://localhost:16686（`JAEGER_UI_PORT` で変更可）を開き、サービス `sanposcape-backend-api` を選ぶ。
+
+- スパン名は `GET /pins/{pin_id}` のようにルートのテンプレート単位。`/health` は出ない
+- DB（SQLAlchemy）・Google（httpx）・S3 / AppConfig（botocore）・JWKS 取得（urllib。`AUTH_MODE=real` の
+  サインイン時のみ）が子スパンとして付く。周回ルートの並列取得（`ThreadPoolExecutor`）の子スパンも
+  同じトレースに入る
+- クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）
+
+### 戻し方
+
+`TRACING_ENABLED=false`（または行を消す）にして `docker compose up -d --force-recreate api`。
+Jaeger は `docker compose --profile observability stop jaeger`（履歴はメモリ内なので停止で消える）。
+
+### 注意
+
+- jaeger を起動せずに `TRACING_ENABLED=true` にすると、エクスポーターの接続エラーがログに出る
+  （API の動作には影響しない）。
+- Lambda との違い: ローカルは ADOT ではなく upstream の `opentelemetry-distro` + OTLP/HTTP で送る。
+  Application Signals 用の属性は付かない。Lambda では ADOT レイヤーが TracerProvider を構成する
+  （[deployment.md](./deployment.md)「トレース」）。
+- pytest はこの設定に依存しない（`conftest.py` が `TRACING_ENABLED` を環境変数から外し、
+  テストは自前の `TracerProvider` を使う）。
