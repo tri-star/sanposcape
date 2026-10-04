@@ -9,4 +9,5 @@
 - [CI ではテスト用 DB を alembic 後の DB と共有](feedback-ci-test-db-shared-with-alembic.md) — テスト DB の初期化を変えるプランは ADR-B-001 を読む。開始時に drop_all→create_all、対象は metadata のテーブルだけ
 - [openapi.yaml 変更は mobile CI を起動する](feedback-openapi-change-triggers-mobile-ci.md) — クエリ無し GET へのクエリ追加で Orval の引数が変わる / required 追加でフィクスチャが落ちる
 - [ファイル移動リファクタの落とし穴](feedback-backend-file-relocation-gotchas.md) — docstring=OpenAPI description / ロガー名・parents[N]・lock namespace 文字列 / __pycache__ / staleness は末尾一致
+- [既存テーブルへの列追加とデプロイの空白](feedback-existing-table-column-add-deploy-window.md) — migrate は deploy 後にしか流せず、その間そのテーブルを読む API が 500。prod 稼働後はマイグレーション単独 PR
 - [Lambda アダプタ境界で崩れる前提](feedback_lambda_adapter_boundary_assumptions.md) — Mangum auto は呼び出しごと lifespan / CloudFront 経由の sourceIp は CF の IP。TestClient では検出不可

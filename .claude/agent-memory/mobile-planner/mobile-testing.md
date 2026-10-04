@@ -18,6 +18,9 @@ metadata:
    `expo-task-manager` / `expo-file-system` もモック）。→ **`.test.tsx` を計画しない**。hooks / components はテストできない。
 3. テストしたい判定・整形・文言は `features/<f>/lib/*.ts` か `src/lib/` の純粋関数へ切り出す（`react-native` を値 import しない。
    型は `import type` 可）。Zustand ストアと素の fetcher もテストできる。テストは co-location。
+   `@/components/ui/*`（`IconName` / `MapPinCategory` など）も lib からは **`import type` だけ**にする。値 import は
+   `Icon` → `lucide-react-native` → `react-native-svg` に届き、vitest の alias に無いので落ちる。UI プリミティブの計算を
+   テストしたいときは `components/ui/<x>/` に何も import しない `.ts` を併置する（`iconRegistry.ts` と同じ置き方）。
 4. services の単体テストは具体ファクトリ（`createMockLocationService`、`createSessionAuthService` 等）を直接 import する。
    `services/<x>/index.ts` のバレルはモード切替経由でネイティブに届きうるので使わない。
 5. 表示の担保は「純粋関数での文言テスト（自動）」+「`/dev-screens` の `ScreenCatalog` からの目視（手動）」の二段。
