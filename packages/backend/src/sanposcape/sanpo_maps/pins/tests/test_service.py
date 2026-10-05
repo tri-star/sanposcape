@@ -14,8 +14,10 @@ from sanposcape.integrations.aws.s3 import (
     UnconfiguredObjectStorage,
 )
 from sanposcape.sanpo_maps.conftest import (
+    BASE_URL,
     create_pin_photo_row,
     create_upload_row,
+    make_pin_service,
     make_user,
     seed_staging_photo,
 )
@@ -28,11 +30,9 @@ from sanposcape.sanpo_maps.exceptions import (
     SanpoMapPermissionDeniedError,
     StorageQuotaExceededError,
 )
-from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.models import SanpoMapMember
-from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
-from sanposcape.sanpo_maps.photos.photo_attacher import PhotoAttacher, PreparedPhoto
+from sanposcape.sanpo_maps.photos.photo_attacher import PreparedPhoto
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 from sanposcape.sanpo_maps.pins.schemas import (
@@ -44,55 +44,7 @@ from sanposcape.sanpo_maps.pins.schemas import (
 from sanposcape.sanpo_maps.pins.service import PinService
 from sanposcape.users.models import User
 
-BASE_URL = "http://testserver/"
 _LOCK_WAIT_TIMEOUT = 5.0
-
-
-def make_pin_service(db_session: Session, storage: FakeObjectStorage, **overrides) -> PinService:
-    """`**overrides` のうち `photo_delete_deadline_seconds`・
-    `photo_delete_call_worst_case_seconds`・`monotonic` は `PhotoObjectCleaner`
-    （`PinService` ではなく削除の後始末を担う部品, ADR-011）側の引数に振り分ける。
-    `photo_cleaner` を直接渡した場合はそちらを使う。
-    """
-    photo_cleaner = overrides.pop("photo_cleaner", None)
-    if photo_cleaner is None:
-        cleaner_kwargs = {
-            "deadline_seconds": overrides.pop("photo_delete_deadline_seconds", 10),
-            "call_worst_case_seconds": overrides.pop("photo_delete_call_worst_case_seconds", 6),
-        }
-        if "monotonic" in overrides:
-            cleaner_kwargs["monotonic"] = overrides.pop("monotonic")
-        photo_cleaner = PhotoObjectCleaner(storage, **cleaner_kwargs)
-    else:
-        overrides.pop("photo_delete_deadline_seconds", None)
-        overrides.pop("photo_delete_call_worst_case_seconds", None)
-        overrides.pop("monotonic", None)
-
-    kwargs = {
-        "user_quota_bytes": 1024**3,
-        "confirm_deadline_seconds": 20,
-        "read_photos_limit": 10,
-        "download_url_ttl_seconds": 3600,
-    }
-    kwargs.update(overrides)
-    photo_attacher = PhotoAttacher(
-        storage,
-        max_bytes=10 * 1024 * 1024,
-        max_pixels=1_000_000,
-        thumbnail_max_edge=512,
-        thumbnail_quality=80,
-        concurrency=3,
-    )
-    return PinService(
-        db_session,
-        PinRepository(db_session),
-        PinPhotoUploadRepository(db_session),
-        SanpoMapAccess(SanpoMapRepository(db_session)),
-        photo_attacher,
-        photo_cleaner,
-        storage,
-        **kwargs,
-    )
 
 
 class TestPinServiceCreatePin:

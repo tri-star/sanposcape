@@ -26,6 +26,7 @@ from sanposcape.sanpo_maps.exceptions import (
 from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.models import PinPhotoUpload, PinTag
 from sanposcape.sanpo_maps.permissions import (
+    SanpoMapRole,
     can_add_pin,
     can_add_pin_photo,
     can_add_pin_tag,
@@ -415,7 +416,7 @@ class PinService:
     def update_pin(
         self, current_user: User, pin_id: uuid.UUID, payload: PinUpdate, *, base_url: str
     ) -> PinRead:
-        """`PATCH /pins/{pin_id}`: 名前・メモ・訪問状況・アーカイブ状態・地図の更新とタグの
+        """`PATCH /pins/{pin_id}`: 名前・メモ・訪問状況・アーカイブ状態・地図の移動とタグの
         追加・削除を1リクエストで原子的に行う（ADR-009 決定19・20・32・33）。
 
         権限は「送られたフィールド」ごとに判定し（値が今と同じでも判定する）、1つでも
@@ -443,19 +444,18 @@ class PinService:
         # `PinUpdate` が明示的な null を弾いているので、送られた値は UUID（静的には
         # `UUID | None` のままなので、None でないことを条件に含めて絞り込む）。
         target_sanpo_map_id = payload.sanpo_map_id if "sanpo_map_id" in fields_set else None
-        wants_move = target_sanpo_map_id is not None
         wants_tag_add = bool(payload.add_tags)
         wants_tag_remove = bool(payload.remove_tag_ids)
 
-        # 移動先の member 確認（404）は権限（403）より前に確定させる（決定21・33）。移動先の
-        # 地図行は FOR KEY SHARE でロックされ、同時に削除されていれば None（404）になる。
-        target_role = None
-        if target_sanpo_map_id is not None:
-            target_role = self._sanpo_map_access.get_role_for_pin_move(
-                current_user, target_sanpo_map_id
-            )
-            if target_role is None:
-                raise SanpoMapNotFoundError()
+        # 移動先の member 確認（404）は権限（403）より前に確定させる（決定21・33）。
+        # `target_role` は移動を求められたときだけ入る（None = 移動なし）。
+        target_role = self._resolve_move_target(
+            current_user,
+            pin_sanpo_map_id=pin.sanpo_map_id,
+            role=role,
+            target_sanpo_map_id=target_sanpo_map_id,
+        )
+        wants_move = target_role is not None
 
         # --- 権限チェック（この時点ではまだ何も変更しない。1つでも NG なら全体を 403） ---
         is_creator = pin.created_by_user_id == current_user.id
@@ -497,7 +497,13 @@ class PinService:
         visited_changed = new_visited is not None and new_visited != pin.visited
         archived_changed = new_archived is not None and new_archived != pin.archived
         from_sanpo_map_id = pin.sanpo_map_id  # commit 前に控える（R2）
-        map_changed = target_sanpo_map_id is not None and target_sanpo_map_id != from_sanpo_map_id
+        # 実際に地図が変わるときだけ移動先の ID が入る（同じ地図への PATCH は変更なし）。
+        moved_to_sanpo_map_id = (
+            target_sanpo_map_id
+            if target_sanpo_map_id is not None and target_sanpo_map_id != from_sanpo_map_id
+            else None
+        )
+        map_changed = moved_to_sanpo_map_id is not None
 
         if tags_to_remove:
             self._repository.delete_tags(tags_to_remove)
@@ -535,12 +541,14 @@ class PinService:
                 memo=payload.memo if wants_memo_update else NOT_PROVIDED,
                 visited=new_visited if visited_changed else NOT_PROVIDED,
                 archived=new_archived if archived_changed else NOT_PROVIDED,
-                sanpo_map_id=target_sanpo_map_id if map_changed else NOT_PROVIDED,
+                sanpo_map_id=(
+                    moved_to_sanpo_map_id if moved_to_sanpo_map_id is not None else NOT_PROVIDED
+                ),
                 updated_at=self._now(),
             )
-        if map_changed and target_sanpo_map_id is not None:
+        if moved_to_sanpo_map_id is not None:
             # ピン行 → 地図行の順でロックする（`add_photos` と同じ。決定33）。
-            self._sanpo_map_access.mark_used(target_sanpo_map_id)
+            self._sanpo_map_access.mark_used(moved_to_sanpo_map_id)
 
         # commit 前に控える（R2: commit 後は ORM 属性に触れない）。
         user_id = current_user.id
@@ -551,7 +559,7 @@ class PinService:
                 "Pin moved: pin_id=%s from_sanpo_map_id=%s to_sanpo_map_id=%s by user_id=%s",
                 pin_id,
                 from_sanpo_map_id,
-                target_sanpo_map_id,
+                moved_to_sanpo_map_id,
                 user_id,
             )
         if visited_changed or archived_changed:
@@ -566,6 +574,35 @@ class PinService:
         # `pin_id` は引数（commit の影響を受けない）をそのまま使う（R2）。
         read_model = self._require_read_model(pin_id)
         return self._to_pin_read(read_model, current_user, base_url)
+
+    def _resolve_move_target(
+        self,
+        current_user: User,
+        *,
+        pin_sanpo_map_id: uuid.UUID,
+        role: SanpoMapRole,
+        target_sanpo_map_id: uuid.UUID | None,
+    ) -> SanpoMapRole | None:
+        """`update_pin` の移動先の role を解決する。移動を求められていなければ `None`。
+
+        移動先が今の地図と同じなら、取得済みの `role`（= 移動元 = 移動先）をそのまま返し、
+        地図行をロックしに行かない。ピン行を `FOR UPDATE` で握ったまま同じ地図行を
+        `FOR KEY SHARE` で取りに行くと、地図削除（地図行 → ピン行の順）とデッドロックする
+        ため（決定33）。同値でも `can_move_pin_to` の判定は呼び出し元で行う（決定20・33）。
+
+        違う地図なら `get_role_for_pin_move`（`FOR KEY SHARE`）で引き、member でない・存在
+        しない・同時に削除された場合は `SanpoMapNotFoundError`（404）。
+        """
+        if target_sanpo_map_id is None:
+            return None
+        if target_sanpo_map_id == pin_sanpo_map_id:
+            return role
+        target_role = self._sanpo_map_access.get_role_for_pin_move(
+            current_user, target_sanpo_map_id
+        )
+        if target_role is None:
+            raise SanpoMapNotFoundError()
+        return target_role
 
     def delete_pin(self, current_user: User, pin_id: uuid.UUID) -> None:
         """`DELETE /pins/{pin_id}`: ピンを削除する（ADR-009 決定19）。

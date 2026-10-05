@@ -2,10 +2,16 @@
 
 `threading.Thread` + 別 `Session`（= 別コネクション）で実 DB 上の真の競合を再現する
 （`pins/tests/test_service.py::TestCreatePinTrueConcurrentIdempotentResend` と同じ手法）。
-固定するのは次の2点。デッドロックしないことの網羅はテストせず、ADR-009 決定33 の分析で担保する。
+固定するのは次の3点。デッドロックしないことの網羅はテストせず、ADR-009 決定33 の分析で担保する
+（3点目は分析で見つかった具体的なデッドロックの回帰テスト）。
 
 - 移動中（未 commit）のピンがある地図を削除しても、移動先で生き残るピンの写真は S3 から消えない
 - 移動先の地図が同時に削除されたら、移動は 500 ではなく `SanpoMapNotFoundError`（404）になる
+- 今と同じ地図の ID を送る PATCH と地図削除が、ピン行 ↔ 地図行のロック順の食い違いで
+  デッドロックしない
+
+別スレッドがロック待ちに入ったかどうかは固定 sleep ではなく `pg_stat_activity` の
+`wait_event_type = 'Lock'` をポーリングして判定する。
 """
 
 import threading
@@ -13,22 +19,54 @@ import time
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from sanposcape.conftest import TestSessionLocal
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
-from sanposcape.sanpo_maps.conftest import create_pin_photo_row, make_user
-from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError
+from sanposcape.sanpo_maps.conftest import (
+    BASE_URL,
+    create_pin_photo_row,
+    make_pin_service,
+    make_user,
+)
+from sanposcape.sanpo_maps.exceptions import PinNotFoundError, SanpoMapNotFoundError
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.maps.service import SanpoMapService
 from sanposcape.sanpo_maps.models import Pin, SanpoMap
 from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 from sanposcape.sanpo_maps.pins.schemas import PinUpdate
-from sanposcape.sanpo_maps.pins.tests.test_service import BASE_URL, make_pin_service
 from sanposcape.users.models import User
 
 _LOCK_WAIT_TIMEOUT = 5.0
+_POLL_INTERVAL = 0.02
+
+
+def _wait_for_lock_waiter(timeout: float = _LOCK_WAIT_TIMEOUT) -> bool:
+    """別セッションがロック待ち（`wait_event_type = 'Lock'`）に入るまで最大 `timeout` 秒待つ。
+
+    固定 sleep だと遅い環境で「待ちに入る前」に判定してしまうため、DB 側の待機状態を見る。
+    入ったら True、タイムアウトしたら False。
+    """
+    deadline = time.monotonic() + timeout
+    session = TestSessionLocal()
+    try:
+        while time.monotonic() < deadline:
+            waiting = session.execute(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND pid <> pg_backend_pid() "
+                    "AND wait_event_type = 'Lock'"
+                )
+            ).scalar_one()
+            if waiting:
+                return True
+            time.sleep(_POLL_INTERVAL)
+            session.rollback()  # 毎回新しいスナップショットで見る
+        return False
+    finally:
+        session.close()
 
 
 def _setup(db_session: Session, storage: FakeObjectStorage):
@@ -129,7 +167,7 @@ class TestDeleteSourceMapWhilePinIsBeingMoved:
         assert holder_locked.wait(timeout=_LOCK_WAIT_TIMEOUT)
         waiter_thread.start()
 
-        time.sleep(0.3)
+        assert _wait_for_lock_waiter(), "地図削除がロック待ちに入らなかった(競合の再現に失敗)"
         assert not waiter_done.is_set(), "地図削除が移動の commit 前に完了した(競合の再現に失敗)"
 
         holder_may_commit.set()
@@ -206,7 +244,7 @@ class TestMovePinWhileDestinationMapIsBeingDeleted:
         assert holder_locked.wait(timeout=_LOCK_WAIT_TIMEOUT)
         waiter_thread.start()
 
-        time.sleep(0.3)
+        assert _wait_for_lock_waiter(), "移動がロック待ちに入らなかった(競合の再現に失敗)"
         assert "not_found" not in results, "移動が地図削除の commit 前に完了した(競合の再現に失敗)"
 
         holder_may_commit.set()
@@ -219,3 +257,91 @@ class TestMovePinWhileDestinationMapIsBeingDeleted:
         assert results["not_found"] is True
         assert _map_exists(map_b) is False
         assert _pin_map_id(pin_id) == map_a
+
+
+class TestSameMapPatchWhileMapIsBeingDeleted:
+    """今と同じ地図の ID を送る PATCH × 地図削除（修正前はデッドロックして 500 になっていた）。
+
+    PATCH はピン行を `FOR UPDATE` で握った後、同じ地図行を `FOR KEY SHARE` で取りに行っていた。
+    地図削除は地図行 → ピン行の順なので、互いに相手を待って循環した。修正後は同値の PATCH が
+    地図行をロックしない。
+    """
+
+    def test_does_not_deadlock(self, db_session: Session) -> None:
+        storage = FakeObjectStorage(secret="s" * 32)
+        owner_id, map_a, _map_b, pin_id, _photo = _setup(db_session, storage)
+
+        patch_locked_pin = threading.Event()
+        delete_is_waiting = threading.Event()
+        outcomes: dict[str, str] = {}
+        errors: list[BaseException] = []
+
+        def _patcher() -> None:
+            session = TestSessionLocal()
+            try:
+                owner = session.get(User, owner_id)
+                assert owner is not None
+                service = make_pin_service(session, storage)
+                original = service._repository.get_for_member_for_update
+
+                def _lock_pin_then_let_delete_start(*args, **kwargs):
+                    # ピン行をロックした直後で止まり、地図削除がそのピン行を待つ状態を作ってから
+                    # 続きの処理（地図行のロック有無が分かれ目）へ進む。
+                    result = original(*args, **kwargs)
+                    patch_locked_pin.set()
+                    delete_is_waiting.wait(timeout=_LOCK_WAIT_TIMEOUT)
+                    return result
+
+                service._repository.get_for_member_for_update = _lock_pin_then_let_delete_start  # type: ignore[method-assign]
+                try:
+                    service.update_pin(
+                        owner, pin_id, PinUpdate(sanpo_map_id=map_a), base_url=BASE_URL
+                    )
+                except PinNotFoundError:
+                    # commit 後に地図削除がピンごと消した場合（競合の正常な結末の1つ）。
+                    outcomes["patch"] = "pin_not_found"
+                else:
+                    outcomes["patch"] = "ok"
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+                patch_locked_pin.set()
+            finally:
+                session.close()
+
+        def _deleter() -> None:
+            session = TestSessionLocal()
+            try:
+                owner = session.get(User, owner_id)
+                assert owner is not None
+                service = SanpoMapService(
+                    session,
+                    SanpoMapRepository(session),
+                    PhotoObjectCleaner(storage, deadline_seconds=10, call_worst_case_seconds=6),
+                )
+                service.delete_map(owner, map_a)
+                outcomes["delete"] = "ok"
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+            finally:
+                session.close()
+
+        patcher_thread = threading.Thread(target=_patcher)
+        deleter_thread = threading.Thread(target=_deleter)
+        patcher_thread.start()
+        assert patch_locked_pin.wait(timeout=_LOCK_WAIT_TIMEOUT)
+        deleter_thread.start()
+        assert _wait_for_lock_waiter(), (
+            "地図削除がピン行のロック待ちに入らなかった(競合の再現に失敗)"
+        )
+        delete_is_waiting.set()
+
+        patcher_thread.join(timeout=_LOCK_WAIT_TIMEOUT)
+        deleter_thread.join(timeout=_LOCK_WAIT_TIMEOUT)
+
+        assert not patcher_thread.is_alive()
+        assert not deleter_thread.is_alive()
+        assert not errors, f"スレッド内で例外が発生した(デッドロックの疑い): {errors}"
+        assert outcomes["delete"] == "ok"
+        assert outcomes["patch"] in {"ok", "pin_not_found"}
+        assert _map_exists(map_a) is False
+        assert _pin_map_id(pin_id) is None
