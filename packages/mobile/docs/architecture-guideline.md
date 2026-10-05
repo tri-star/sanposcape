@@ -267,6 +267,8 @@ export default function SomeFeatureRoute() {
     **例外**: そのフロー自身が作った一意なデータ（実行ごとに名前を変えた地図・ピンなど）だけを消す
     破壊的操作は実行してよい。共有ユーザーの他のデータには触れず、他フローとも干渉しないため
     （先例: `.maestro/pin-edit-delete.yaml` のピンの削除。[ADR-M-017](../adr/ADR-M-017-pin-edit-and-delete.md) D9。SS-119）。
+  - 地図一覧は移動先の `mark_used()` で並びが変わるので、検索欄で1件に絞ってから `item-0` を押す（並び順に頼る `item-N` を指定しない。
+    先例: `.maestro/pin-move-sanpo-map.yaml`。SS-175）。
 
 - 単体テスト
   - 方針: `vitest.config.ts` は node 環境 + `react-native` の最小スタブ差し替えのため、

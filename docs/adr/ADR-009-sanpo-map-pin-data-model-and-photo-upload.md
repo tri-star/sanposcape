@@ -1491,7 +1491,7 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
 対象外（地図間の移動は権限の意味が変わるため別途設計が要る）」としていた。その設計を本決定で行い、
 `PATCH /pins/{pin_id}` の `PinUpdate` に `sanpo_map_id` を足す。DB スキーマは変えない
 （`pins.sanpo_map_id` は既にある）。マイグレーションは無い。フィーチャーフラグは使わない（決定10）。
-mobile 固有の判断は mobile の ADR（ADR-M-017 追補）に記録する。
+mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）に記録する。
 
 ### 決定33: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移す
 
@@ -1631,4 +1631,4 @@ mobile 固有の判断は mobile の ADR（ADR-M-017 追補）に記録する。
   SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
   SS-171（地図のアイコン。決定31）、
   SS-173（ピンの訪問状況・アーカイブ状態。決定32）、
-  SS-175（ピンの地図の移動。決定33）
+  SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
