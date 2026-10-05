@@ -16,6 +16,15 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #     lambda:GetLayerVersion / ReadAttachedManagedPolicies、境界の X-Ray / logs 許可）は infra の
 #     SS-185 が前提。prod は SS-185 の prod 適用までデプロイできない（GetLayerVersion とポリシーの
 #     付与で失敗する。docs/deployment.md §13）。
+#   - 監視（ADR-013 / SS-179）: ダッシュボード 1 枚と、ap-southeast-1 のアラーム
+#     （sanposcape-<env>-backend-*）はこのファイルが所有する。CloudFront のアラーム（us-east-1）は
+#     Terraform 所有（live/services/backend-api/monitoring.tf）で、ここでは作らない。デプロイロールの
+#     ManageBackendMonitoring（infra の sanposcape-infra PR #53。名前を sanposcape-<env>-backend-* に
+#     絞った CloudWatch のダッシュボード・アラーム操作。DescribeAlarms だけ Resource: "*"）が前提。
+#     infra の dev への apply より先にマージしない（dev へのデプロイが AccessDenied で止まる。
+#     docs/deployment.md §3 / §14）。prod は ManageBackendMonitoring の prod 適用（SS-185 の prod 適用と
+#     同じタイミング）と、platform 層の SNS（SSM alerting/topic_arn）の prod 値が前提。通知先の SNS は
+#     SSM /sanposcape/<env>/platform/alerting/topic_arn から deploy 時解決する。
 #   - AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID は SSM 契約（SS-94）から deploy 時解決。
 #     Lambda 実行ロールの Permission Boundary（SS-95）は ID までは絞れないワイルドカード ARN
 #     のため、完全 ARN への絞り込みは Api の Policies（このファイル）が唯一の場所（SS-98）。
@@ -124,6 +133,8 @@ Resources:
       # OTEL_PYTHON_DISABLED_INSTRUMENTATIONS（レイヤーの既定値）を一緒に見直す（docs/deployment.md）。
       # v28 の中身は aws-opentelemetry-distro 0.21.0（api/sdk 1.44.0、instrumentation 0.65b0）。zip を取得して
       # 確認済み（SS-178。計装の版は v27 = 0.20.0 と同じで、dev グループの == 固定と一致する）。
+      # 上げたら、ダッシュボードのクエリが読むスパンのフィールド名（kind / http.status_code /
+      # traceId / scope.name など）も dev で確かめる（docs/deployment.md §14 の Q1。Lambda 計装の版は 0.61b0）。
       Layers:
         - arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28
       # AppConfig の ID は Api だけに渡す（Migrate はフラグを読まない。最小権限）。
@@ -217,6 +228,175 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/sanposcape-${Env}-backend-api"
       RetentionInDays: !If [IsProd, 400, 30]
 
+  # ===========================================================================
+  # 監視（ADR-013 / SS-179）: ダッシュボード 1 枚とアラーム 3 本
+  #   - 置き場の理由: ADR-013 決定2 の SS-179 追補。クエリの読み方・アラームの意味・
+  #     デプロイ後の確認: docs/deployment.md §14
+  #   - ★ Application Signals の Service ディメンション・Logs Insights の service.name は
+  #     Api の OTEL_SERVICE_NAME と同じ文字列でなければならない。ダッシュボードは Sub の変数
+  #     ServiceName、アラームは直書きで持ち、一致は
+  #     src/sanposcape/tests/test_monitoring_config.py が固定する。
+  #   - ★ Application Signals のメトリクスとアラームは Operation = <関数名>/FunctionHandler で絞る。
+  #     サービス単位 {Environment, Service} には LambdaService / InternalOperation（初期化時の
+  #     Secrets Manager 呼び出しなど）の操作も含まれ、そのまま数えると二重計上になる
+  #     （dev で確認済み、2026-10-05）。
+  #   - ★ アラームは TreatMissingData: notBreaching。Dimension の値（Environment / Operation /
+  #     Service）が実際のメトリクスとずれると、データ無し = 正常として黙って鳴らなくなる。
+  #     デプロイ後に docs/deployment.md §14 の list-metrics で値を確かめること。
+  #   - ★ コンソールでダッシュボードを編集しても、次のデプロイで上書きされる。試すときは
+  #     「名前を付けて保存」で別名にする。
+  #   - ★ SS-180 で Api に LoggingConfig.LogFormat: JSON を入れるなら、メモリ / コールドスタート /
+  #     異常終了のクエリ（REPORT 行を @type = 'REPORT' で読むもの）も platform.report の形式に直す
+  #     （Q5〜Q6b は直さないと test_monitoring_config.py が落ちる。Q7 は @message の文言で
+  #     引いていて見張りの対象外なので、JSON 化のときに手で見直すこと）。
+  #   - 名前は必ず sanposcape-<env>-backend- で始める（デプロイロールの許可の接頭辞）。
+  #   - Migrate（手動で invoke する）にはアラームを付けない。結果は呼び出した人が受け取り、
+  #     失敗は §5.2 の手順の中で気づくため。
+  #   - dev の実測で確認済みのフィールド名・次元と、まだ確認できていないもの（全ウィジェットの
+  #     描画、Q4、Q7 の文言、サンプリング）は docs/deployment.md §14 を参照。
+  # ===========================================================================
+  ApiDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "sanposcape-${Env}-backend-api"
+      # Sub の変数マップ:
+      #   ConcurrencyLimit: 同時実行数のグラフに引く水平線（dev は Api の予約 5 / prod はアカウントの
+      #     クォータ 10）。Api の ReservedConcurrentExecutions と一致することはテストで固定する。
+      #   ServiceName: Api の OTEL_SERVICE_NAME（上の ★ を参照）。
+      DashboardBody: !Sub
+        - |
+          {"start":"-P7D","periodOverride":"auto","widgets":[
+          {"type":"text","x":0,"y":0,"width":24,"height":4,"properties":{"markdown":"## sanposcape backend API (${Env})\n- **Application Signals 由来**(上段の API 全体): 操作 `<関数名>/FunctionHandler` のメトリクス。Latency に Init(コールドスタート)は含まれない。ユーザー体感の遅さは CloudFront の OriginLatency(infra のアラーム)と Init Duration の表で見る。\n- **aws/spans 由来**(ルート別の表・直近の 5xx): サンプリングされたスパンだけ。\n- **Lambda 標準メトリクス / REPORT 行由来**(Lambda・メモリ・コールドスタート): 全件。件数の正はこちら。\n- ログのウィジェット(表・メモリ等)は開く・更新するたびにスキャンが走る。**自動更新は付けないこと**。\n- 読み方・クエリのコピー・アラームの意味: docs/deployment.md §14"}},
+          {"type":"metric","x":0,"y":4,"width":8,"height":6,"properties":{"title":"API 全体: リクエスト数 / 4xx / 5xx","region":"${AWS::Region}","view":"timeSeries","period":300,"metrics":[
+          ["ApplicationSignals","Latency","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"SampleCount","id":"req","label":"requests"}],
+          ["ApplicationSignals","Error","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"Sum","id":"err","label":"4xx"}],
+          ["ApplicationSignals","Fault","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"Sum","id":"fault","label":"5xx"}]]}},
+          {"type":"metric","x":8,"y":4,"width":8,"height":6,"properties":{"title":"API 全体: エラー率 (%)","region":"${AWS::Region}","view":"timeSeries","period":300,"yAxis":{"left":{"min":0}},"metrics":[
+          ["ApplicationSignals","Latency","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"SampleCount","id":"req","visible":false}],
+          ["ApplicationSignals","Error","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"Sum","id":"err","visible":false}],
+          ["ApplicationSignals","Fault","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"Sum","id":"fault","visible":false}],
+          [{"expression":"100*FILL(fault,0)/req","label":"5xx %","id":"fault_pct"}],
+          [{"expression":"100*FILL(err,0)/req","label":"4xx %","id":"err_pct"}]]}},
+          {"type":"metric","x":16,"y":4,"width":8,"height":6,"properties":{"title":"API 全体: レイテンシ (ms、Init を含まない)","region":"${AWS::Region}","view":"timeSeries","period":300,"metrics":[
+          ["ApplicationSignals","Latency","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"p50","label":"p50"}],
+          ["ApplicationSignals","Latency","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"p95","label":"p95"}],
+          ["ApplicationSignals","Latency","Environment","${Env}","Operation","${Api}/FunctionHandler","Service","${ServiceName}",{"stat":"p99","label":"p99"}]]}},
+          {"type":"metric","x":0,"y":10,"width":8,"height":6,"properties":{"title":"Lambda: 呼び出し (左軸) / エラー・スロットル (右軸)","region":"${AWS::Region}","view":"timeSeries","period":300,"stat":"Sum","yAxis":{"left":{"min":0},"right":{"min":0}},"metrics":[
+          ["AWS/Lambda","Invocations","FunctionName","${Api}"],
+          ["AWS/Lambda","Errors","FunctionName","${Api}",{"yAxis":"right"}],
+          ["AWS/Lambda","Throttles","FunctionName","${Api}",{"yAxis":"right"}]]}},
+          {"type":"metric","x":8,"y":10,"width":8,"height":6,"properties":{"title":"Lambda: Duration (ms)","region":"${AWS::Region}","view":"timeSeries","period":300,"metrics":[
+          ["AWS/Lambda","Duration","FunctionName","${Api}",{"stat":"p50","label":"p50"}],
+          ["AWS/Lambda","Duration","FunctionName","${Api}",{"stat":"p95","label":"p95"}],
+          ["AWS/Lambda","Duration","FunctionName","${Api}",{"stat":"p99","label":"p99"}],
+          ["AWS/Lambda","Duration","FunctionName","${Api}",{"stat":"Maximum","label":"max"}]],
+          "annotations":{"horizontal":[{"label":"アプリの時間予算 25s (config.py)","value":25000},{"label":"Lambda Timeout 29s (template.yaml)","value":29000}]}}},
+          {"type":"metric","x":16,"y":10,"width":8,"height":6,"properties":{"title":"Lambda: 同時実行数 (Maximum)","region":"${AWS::Region}","view":"timeSeries","period":300,"stat":"Maximum","metrics":[
+          ["AWS/Lambda","ConcurrentExecutions","FunctionName","${Api}"]],
+          "annotations":{"horizontal":[{"label":"上限","value":${ConcurrencyLimit}}]}}},
+          {"type":"log","x":0,"y":16,"width":14,"height":8,"properties":{"title":"ルート別: 件数・レイテンシ・4xx/5xx 率 (Q1)","region":"${AWS::Region}","view":"table","query":"SOURCE 'aws/spans' | filter `resource.attributes.service.name` = '${ServiceName}' and kind = 'SERVER' and `attributes.aws.span.kind` = 'LOCAL_ROOT' | fields name as operation, `attributes.http.status_code` as status, durationNano / 1000000 as duration_ms | fields floor(status / 500) as is5xx, floor(status / 400) - floor(status / 500) as is4xx | stats count(*) as requests, pct(duration_ms, 50) as p50_ms, pct(duration_ms, 95) as p95_ms, pct(duration_ms, 99) as p99_ms, sum(is4xx) as n4xx, sum(is5xx) as n5xx, sum(is4xx) * 100 / count(*) as rate4xx_pct, sum(is5xx) * 100 / count(*) as rate5xx_pct by operation | sort requests desc | limit 100"}},
+          {"type":"log","x":14,"y":16,"width":10,"height":8,"properties":{"title":"ルート × ステータス (Q2)","region":"${AWS::Region}","view":"table","query":"SOURCE 'aws/spans' | filter `resource.attributes.service.name` = '${ServiceName}' and kind = 'SERVER' and `attributes.aws.span.kind` = 'LOCAL_ROOT' | stats count(*) as requests, pct(durationNano / 1000000, 95) as p95_ms by name, `attributes.http.status_code` | sort requests desc | limit 200"}},
+          {"type":"log","x":0,"y":24,"width":12,"height":8,"properties":{"title":"直近の 5xx (Q3、traceId から X-Ray のトレースへ)","region":"${AWS::Region}","view":"table","query":"SOURCE 'aws/spans' | filter `resource.attributes.service.name` = '${ServiceName}' and kind = 'SERVER' and `attributes.aws.span.kind` = 'LOCAL_ROOT' and `attributes.http.status_code` >= 500 | fields @timestamp, name, `attributes.http.status_code` as status, durationNano / 1000000 as duration_ms, traceId | sort @timestamp desc | limit 20"}},
+          {"type":"log","x":12,"y":24,"width":12,"height":8,"properties":{"title":"ルート別の件数の時系列 (Q4)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE 'aws/spans' | filter `resource.attributes.service.name` = '${ServiceName}' and kind = 'SERVER' and `attributes.aws.span.kind` = 'LOCAL_ROOT' | stats count(*) as requests by bin(1h), name"}},
+          {"type":"log","x":0,"y":32,"width":8,"height":6,"properties":{"title":"メモリ (MB、REPORT 行) (Q5)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE '${ApiLogGroup}' | filter @type = 'REPORT' | stats max(@maxMemoryUsed / 1000 / 1000) as max_mb, pct(@maxMemoryUsed / 1000 / 1000, 95) as p95_mb, avg(@maxMemoryUsed / 1000 / 1000) as avg_mb, max(@memorySize / 1000 / 1000) as limit_mb by bin(1h)"}},
+          {"type":"log","x":8,"y":32,"width":8,"height":6,"properties":{"title":"コールドスタート 件数・割合 (Q6a)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE '${ApiLogGroup}' | filter @type = 'REPORT' | stats count(*) as invocations, count(@initDuration) as cold_starts, count(@initDuration) * 100 / count(*) as cold_start_pct by bin(1h)"}},
+          {"type":"log","x":16,"y":32,"width":8,"height":6,"properties":{"title":"コールドスタート Init Duration (ms) (Q6b)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE '${ApiLogGroup}' | filter @type = 'REPORT' and ispresent(@initDuration) | stats pct(@initDuration, 50) as init_p50_ms, pct(@initDuration, 95) as init_p95_ms, max(@initDuration) as init_max_ms by bin(1h)"}},
+          {"type":"log","x":0,"y":38,"width":24,"height":6,"properties":{"title":"タイムアウト / OOM / ランタイムの異常終了 (Q7)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE '${ApiLogGroup}' | filter @message like /Task timed out/ or @message like /Runtime exited/ or @message like /Runtime.OutOfMemory/ | stats count(*) as n by bin(1h)"}}
+          ]}
+        - ConcurrencyLimit: !If [IsProd, '10', '5']
+          ServiceName: sanposcape-backend-api  # Api の OTEL_SERVICE_NAME と一致させる（テストで固定）
+
+  # 通知先は platform 層の SNS（SSM の契約値）。dev は ActionsEnabled: false で、状態はコンソールで見られるが
+  # 通知は飛ばない（AlarmActions は dev でも設定しておく。有効化するときは ActionsEnabled を変えるだけ）。
+  # レイテンシ / 4xx 率 / SLO のアラームは prod のベースラインが取れてから足す（docs/deployment.md §14）。
+  ApiLambdaErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "sanposcape-${Env}-backend-api-lambda-errors"
+      AlarmDescription: >-
+        Api の Lambda が 5 分間に 1 件以上エラーを返した（タイムアウト・OOM・初期化の失敗・
+        ランタイムのクラッシュ・ハンドラーまで届いた未処理例外）。5xx のアラームとは、ハンドラーが
+        例外を投げたときに両方鳴りうる（二重の通知は許容する）。
+        ダッシュボード sanposcape-<env>-backend-api の「Lambda: 呼び出し (左軸) / エラー・スロットル (右軸)」と
+        「タイムアウト / OOM / ランタイムの異常終了 (Q7)」を見る。
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref Api
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/alerting/topic_arn}}'
+      OKActions:
+        - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/alerting/topic_arn}}'
+
+  ApiLambdaThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "sanposcape-${Env}-backend-api-lambda-throttles"
+      AlarmDescription: >-
+        Api が 5 分間に 1 件以上スロットルされた（同時実行数の上限: dev は予約 5、prod はアカウントの
+        クォータ 10）。ダッシュボード sanposcape-<env>-backend-api の「Lambda: 同時実行数 (Maximum)」を見る。
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref Api
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/alerting/topic_arn}}'
+      OKActions:
+        - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/alerting/topic_arn}}'
+
+  ApiFaultsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "sanposcape-${Env}-backend-api-5xx"
+      AlarmDescription: >-
+        API の 5xx が 5 分間に 3 件以上（Application Signals の Fault。外部 API の障害による 503 も含む）。
+        率ではなく件数なのは、リクエストが少ないうちは 1 件で 100% になるため（件数から率に変える条件は
+        docs/deployment.md §14）。Lambda の Errors のアラームと二重に鳴ることがある。
+        ダッシュボード sanposcape-<env>-backend-api の「ルート別: 件数・レイテンシ・4xx/5xx 率 (Q1)」と
+        「直近の 5xx (Q3、traceId から X-Ray のトレースへ)」を見る。
+        鳴るはずの状況で鳴らないときは、Dimension の値がずれていないか list-metrics で確かめる（§14）。
+      Namespace: ApplicationSignals
+      MetricName: Fault
+      # ダッシュボードの Application Signals と同じ 3 つ組（dev で存在を確認済み）。
+      # Operation を外すと LambdaService / InternalOperation も数えて二重計上になる。
+      Dimensions:
+        - Name: Environment
+          Value: !Ref Env
+        - Name: Operation
+          Value: !Sub "${Api}/FunctionHandler"
+        - Name: Service
+          Value: sanposcape-backend-api  # Api の OTEL_SERVICE_NAME と一致させる（テストで固定）
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/alerting/topic_arn}}'
+      OKActions:
+        - !Sub '{{resolve:ssm:/sanposcape/${Env}/platform/alerting/topic_arn}}'
+
   Migrate:
     Type: AWS::Serverless::Function
     Metadata:
@@ -249,3 +429,6 @@ Outputs:
   FunctionName:
     Description: Terraform が lambda:AddPermission を付ける対象
     Value: !Ref Api
+  DashboardName:
+    Description: API のダッシュボード名（CloudWatch コンソールで開く。docs/deployment.md §14）
+    Value: !Ref ApiDashboard

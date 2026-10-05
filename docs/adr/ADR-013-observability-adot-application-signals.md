@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-05（SS-179）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -11,6 +11,7 @@
 - **自動計装は botocore だけ。fastapi / sqlalchemy / httpx / urllib / threading はアプリから手動で計装する**（urllib はクエリを除くフックを付けるため）。`OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` にレイヤーの既定値を明示する（本文: 決定1、SS-178 追補）。
 - **OpenTelemetry は zip に入れず、`pyproject.toml` の dev グループに置く**。版はレイヤーの同梱版に `==` で合わせる。SQLAlchemy の計装のため `sqlalchemy[asyncio]`（greenlet）は runtime 依存（本文: 決定1、SS-178 追補）。
 - **トレースの閲覧は Transaction Search（`aws/spans`）、API 全体の RED・アラーム・SLO は Application Signals**。Lambda 上では Application Signals の操作名が `<関数名>/FunctionHandler` に固定され、アプリ側の `aws.local.operation` では変えられない。**ルート別の内訳は `aws/spans` を `http.route` / スパン名で集計する Logs Insights で見る**（本文: 決定2、SS-178 追補。集計は SS-179）。
+- **ダッシュボードとアラームは `template.yaml`（SAM）に置く。アラームは Lambda の Errors / Throttles と Application Signals の 5xx 件数の 3 本だけで、dev は通知無効。保存済みクエリは作らない。Application Signals のメトリクスとアラームは操作 `<関数名>/FunctionHandler` に絞る**（サービス単位には `LambdaService` / `InternalOperation` も含まれ二重計上になる）（本文: 決定2、SS-179 追補）。
 - **Lambda 計装の親スパン（Mangum 構成の LOCAL_ROOT）にも、スパン名 `METHOD ルートテンプレート` と `http.route` を付ける**（`aws_lambda/tracing.py`）（本文: 決定2・決定7、SS-178 追補）。
 - **メモリ・コールドスタート・タイムアウトは Lambda 標準（REPORT 行・標準メトリクス）で見る。ログは JSON + `trace_id`（SS-180）。サンプリングは全件を目標にする**（本文: 決定2〜4）。
 - **外へ出さない情報**: クエリ・ヘッダー・ボディ・位置情報・秘密・SQL のバインド値。`net.peer.ip` / `net.peer.port` / `http.user_agent` は空に上書きする。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、例外メッセージは載せない。5xx に変換した例外は型名だけをスパンに残す（本文: 決定6、SS-178 追補）。
@@ -20,6 +21,8 @@
 
 ### 未解決・持ち越し
 
+- **dev での未確認事項（SS-179）**: ダッシュボードの全ウィジェットの描画、Q4（`bin` + `name` の折れ線）、Q7（タイムアウト / OOM）のログ文言、`aws/spans` の件数と Lambda の `Invocations` / Application Signals の `SampleCount(Latency)` の差（Application Signals のメトリクスがサンプリングの影響を受けるかは未確認）、デプロイそのもの（infra の `ManageBackendMonitoring` の dev apply 待ち）。スパンのフィールド名・型と Application Signals の次元は 2026-10-05 に dev の読み取りで確認済み（本文: 決定2、SS-179 追補）。
+- **見送ったアラーム（SS-179）**: レイテンシ・4xx 率・SLO・Duration Maximum は prod のベースライン（リリース後 2〜4 週間）が取れてから決める。5xx の件数アラームを率に切り替える条件は deployment.md §14。
 - **dev での未確認事項**（SS-178 の実測で残ったもの）: トラフィックが毎秒 1 件を超えて Active Tracing でサンプリングされない呼び出しが出たときに、Transaction Search にスパンが入るか。CloudFront 経由の `X-Amzn-Trace-Id` の扱い。DB を使うルートの SQL の子スパン（dev は認証が要るため、ローカルでのみ確認）。実測できた値（コールドスタート +0.7〜0.8 秒、flush の上乗せはほぼ無し、メモリ +10〜20MB）は本文の決定1・決定4・影響の SS-178 追補。
 - **未処理の 500 で ASGI / Lambda 計装が自動で付ける exception イベント**には message が載りうる（DB 例外なら DETAIL のキー値）。ログのトレースバックと合わせて SS-180 で対処する（本文: 決定6、SS-178 追補）。
 
@@ -31,13 +34,14 @@
 
 ## 日付
 
-2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）
+2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）、2026-10-05 追補（SS-179）
 
 ## ステータス
 
 採用（SS-177 で決定）。実装は SS-176 の子課題（SS-178 トレース計装 / SS-179 メトリクス / SS-180 ログの構造化 / SS-181 操作経路）で行う。
 初版時点では計装コードも infra の変更も入っておらず、本 ADR の「要検証」の項目は dev で確かめていない。
-（SS-178 追補: 計装コードと template.yaml を実装した。操作名の「要検証」は他プロジェクトの dev 実データで確かめ、結論を決定2 に追記した。sanposcape 自身の dev 実測（コールドスタート・flush・取り込み・展開後サイズなど）は未了で、実測後に追記する。）
+（SS-178 追補: 計装コードと template.yaml を実装した。操作名の「要検証」は他プロジェクトの dev 実データで確かめ、結論を決定2 に追記した。sanposcape 自身の dev 実測（コールドスタート・flush・取り込み・展開後サイズなど）は実施済みで、決定1・決定4・影響の SS-178 追補に記録した。）
+（SS-179 追補: ダッシュボードとアラームの置き場を決定2 に追記し、`template.yaml` に実装した。スパンのフィールド名・型と Application Signals の次元は 2026-10-05 に dev の読み取りで確認済み。infra の `ManageBackendMonitoring`（sanposcape-infra PR #53）の dev apply 待ちで、ダッシュボードの描画などは未確認。確認後に決定2 の SS-179 追補へ追記する。）
 
 ## コンテキスト
 
@@ -67,7 +71,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - レイヤー: `arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:<version>`（初版時点の最新は v28。2026-10-01 公開、python3.10〜3.14、x86_64 / arm64 対応）。バージョンは template.yaml で固定し、上げるときは dev で確認してから prod へ出す。（**SS-178 追補**: v28 を template.yaml に固定した。同梱版は aws-opentelemetry-distro 0.20.0（opentelemetry-api / sdk 1.44.0、instrumentation 0.65b0）と見込んで dev グループの版を合わせたが、公開されているリリースノートでは ap-southeast-1 の v0.20.0 は `:27` で、`:28` の中身は未確認。dev で `get-layer-version-by-arn` により照合する。）（**SS-178 追補**: `:27` と `:28` の zip を取得して照合した。`:28` は aws-opentelemetry-distro **0.21.0** だが、opentelemetry-api / sdk 1.44.0 と、使う計装（fastapi / sqlalchemy / httpx / threading / urllib / botocore）0.65b0 は `:27` と同じで、dev グループの `==` 固定と一致する。`otel-instrument` の無効リストの既定値も `:27` と同一。展開後のサイズは 48MB（ディスク上）。Lambda 計装 `aws_lambda` は dist-info を持たず `otel_wrapper.py` 経由で掛かる（0.61b0）。`:28` のまま使う。）
 - `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument` で起動する。レイヤーはコレクターを含まず、プロセス内の SDK が Lambda 内の X-Ray エンドポイントへ UDP で送る。
 - **Lambda の Active Tracing（`Tracing: Active`）を有効にする。** AWS の手順では任意（推奨）だが、Lambda サービス自身の区間（Init / Invocation / Overhead）を同じトレースに入れるために有効にする。
-- 対象は API の関数（`ApiFunction`）だけ。マイグレーション用の関数には付けない（template.yaml の `Globals` には置かない）。
+- 対象は API の関数（`Api`）だけ。マイグレーション用の関数には付けない（template.yaml の `Globals` には置かない）。
 - `OTEL_SERVICE_NAME` は `sanposcape-backend-api`。`OTEL_RESOURCE_ATTRIBUTES` に次の 2 つを付ける。
   - `deployment.environment=<env>`: 共有の dev アカウントでも、他プロジェクトと区別できるようにする。
   - `aws.log.group.names=<API 関数のロググループ>`: Application Signals でトレースとログを紐付けるため（tasche と同じ）。
@@ -88,7 +92,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - **ただし、Mangum 構成でこの方法が効くかは要検証。** tasche は Lambda Web Adapter + コンテナイメージ構成（tasche の ADR-005）で、FastAPI は uvicorn 上で動き、Lambda のハンドラーには包まれていない。sanposcape では、ADOT の Lambda 計装が Mangum のハンドラーを包んで SERVER スパンを作り、FastAPI のスパンはその子になる。Application Signals が集計する SERVER スパン（関数名ベース）に、子スパンの書き換えが反映されない可能性がある。効かない場合の代わりの手は、次の 2 つ。
     - フックで親（Lambda のハンドラー）のスパンの名前と `aws.local.operation` を書き換える
     - Lambda 計装を外す（X-Ray の Lambda 区間とのつながりなど、失うものを評価してから）
-  - SS-178 で dev 実測して方式を決める。
+  - SS-178 で dev 実測して方式を決める（結論は次の SS-178 追補）。
   - （**SS-178 追補**: 結論。**どちらの代わりの手も効かず、Application Signals の操作名は Mangum 構成ではルート単位にならない。** ADOT は Lambda 環境（`AWS_LAMBDA_FUNCTION_NAME` あり）の SERVER スパンの操作を `<関数名>/FunctionHandler` に固定し、スパンに付けた `aws.local.operation` を見ずに上書きする。FastAPI のスパンは Lambda 計装のスパンの下で INTERNAL になるため、Application Signals の集計の対象にならない。dev の他プロジェクト（tasche、Lambda 上の ADOT 0.16.0-aws）の実データでも、過去 30 日の LOCAL_ROOT の SERVER スパン 462 件すべてで `aws.local.operation` が `<関数名>/FunctionHandler` で、アプリ側がルートを設定していてもルート単位の操作は一度も出ていない（スパン名と `http.route` はルート単位で入っている）。**方針（ユーザー判断）**: `aws.local.operation` の書き換えは実装しない。API 全体の RED・アラーム・SLO は Application Signals（操作 = `FunctionHandler`）で見る。ルート別の内訳は、`aws/spans` を `http.route` / スパン名で集計する Logs Insights のダッシュボードで見る（SS-179）。Mangum 構成では Lambda 計装のスパンが LOCAL_ROOT になるため、`aws_lambda/tracing.py` がそのスパンの名前を `METHOD ルートテンプレート` に、`http.route` をテンプレートに付け直す。FastAPI のスパンにも同じ名前が付く。EMF のルート次元メトリクスは費用のため採らない。スコープ名の偽装や実行中に `AWS_LAMBDA_FUNCTION_NAME` を消すといったハックも、ADOT 固有の挙動に依存するため採らない。sanposcape 自身の dev で Operations に `FunctionHandler` だけが出ることは、デプロイ後に確認して追記する。）
 - **メモリ・コールドスタート時間・タイムアウト**: Lambda が CloudWatch に標準で出すもの（REPORT 行の `Init Duration` / `Max Memory Used`、標準メトリクスの `Errors` / `Throttles` / `Duration` など）を使う。これらの値は、Lambda が関数の外で記録するので、関数内の計装や flush には頼らない。
   - 一方、**アプリのスパン**は関数内で flush するので、タイムアウトや OOM で強制終了された呼び出しでは失われる。その場合は REPORT 行と標準メトリクスで追う。
@@ -96,6 +100,17 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - Lambda Insights（約 $2.40/関数/月）は当面入れない。REPORT 行の Logs Insights 集計で足りなくなったら検討する。
 - **カスタムメトリクス**（散歩の記録数などの業務指標）が要るときは EMF（構造化ログに埋め込み、CloudWatch メトリクスにする方式）を使う。`cloudwatch:PutMetricData` の権限は足さない。
 - ダッシュボードとアラームの置き場（infra 層か services 層か）は SS-179 で決める。
+  - （**SS-179 追補**: 決定。**置き場は SAM の `template.yaml`。** 理由は 4 点。(1) クエリが壊れる原因はほぼこのリポジトリ側の変更（`aws_lambda/tracing.py` のスパン名・`http.route`、`OTEL_SERVICE_NAME`、SS-180 の `LoggingConfig`）で、同じ PR・同じ pytest（`test_monitoring_config.py`）で整合を固定できるのは SAM だけ。(2) infra の services 層に置くとダッシュボードの権限のために app-boundary の残り（約 290 文字）を消費する。SAM なら広げるのは `live/account` のデプロイロール（インラインポリシー）だけで、余裕がある。(3) SS-185 でデプロイロールを広げた前例があり、名前で絞る同じ型で足せる。(4) ダッシュボードだけ SAM・アラームだけ infra の混成は、権限の追加を省けても利点が小さく、見る場所が 2 か所になる。CloudFront のアラーム（us-east-1）は、今までどおり infra の services 層（`live/services/backend-api/monitoring.tf`）に置く。
+    - **ダッシュボード**は 1 枚（`sanposcape-<env>-backend-api`、既定 7 日）。Application Signals の API 全体の RED、Lambda の標準メトリクス、`aws/spans` のルート別の表（親スパンを `service.name` + `kind = SERVER` + `LOCAL_ROOT` で絞る）、REPORT 行のメモリ・コールドスタート、タイムアウト / OOM。`deployment.environment` での絞り込みは入れない（prod は専用アカウント、dev は sanposcape の dev しか無く、フィールド名の誤りで全件 0 になるリスクだけが残るため）。CloudFront のメトリクス（us-east-1）は載せない（ディストリビューションが SAM の後に作られ、循環するため）。`Fn::ToJsonString`（`AWS::LanguageExtensions`）は、デプロイロールが `Serverless` 以外の Transform を許さないため使わず、`DashboardBody` は `!Sub` の JSON を pytest で検証する。
+    - **保存済みクエリ（`AWS::Logs::QueryDefinition`）は作らない。** `logs:PutQueryDefinition` はリソースで絞れない見込みで、共有の dev で他プロジェクトの保存済みクエリに触れる権限になる。同じクエリはダッシュボードのウィジェットに入れ、手で使う分は deployment.md §14 に載せる。
+    - **アラームは 3 本**（5 分・1 回で判定・欠損は正常扱い）: Lambda `Errors` >= 1、`Throttles` >= 1、Application Signals `Fault`（5xx）>= 3 件。5xx を率でなく件数にしたのは、リクエストが少ないうちは 1 件で 100% になるため。レイテンシ・4xx 率・SLO は prod のベースライン（リリース後 2〜4 週間）が取れてから決める（deployment.md §14 に候補と時期）。メモリのアラームは作らない（標準メトリクスには Lambda Insights が要り、OOM は `Errors` で拾える）。**dev は `ActionsEnabled: false`**（状態はコンソールで見える。`AlarmActions` は設定済み）、prod は有効。通知先は platform 層の SNS（SSM `/sanposcape/<env>/platform/alerting/topic_arn`）。
+    - **Application Signals の名前空間は `ApplicationSignals`**（`AWS/` は付かない。社内の前例の tasche の `AWS/ApplicationSignals` は真似しない）。メトリクスは `Latency` / `Error`（4xx）/ `Fault`（5xx とスパンの ERROR）/ `Throttle`。リクエスト数は `SampleCount(Latency)`。（**dev で確認済み、2026-10-05**: `Environment` の値は `dev`。**サービス単位 `{Environment, Service}` には `<関数名>/FunctionHandler` のほか `<関数名>/LambdaService` と `InternalOperation`（初期化時の Secrets Manager 呼び出しなど）の操作も含まれる**ため、ダッシュボードの metric と 5xx アラームは `{Environment, Operation, Service}`（`Operation` = `<関数名>/FunctionHandler`）で見る。サービス単位のままだと件数が二重になる。）
+    - 親スパンのステータス属性は旧 semconv の `http.status_code`（決定6 で `OTEL_SEMCONV_STABILITY_OPT_IN` を設定しないため）。
+    - **dev で確認済み（2026-10-05、infra 経由の読み取り）**: `kind` は文字列 `'SERVER'`、`attributes.http.status_code` と `durationNano` は数値、トレース ID はトップレベルの `traceId`（32 桁の 16 進。REPORT 行の `XRAY TraceId: 1-xxxxxxxx-…` から `1-` とハイフンを除いた形と一致）、`resource.attributes.deployment.environment` は `dev`、`scope.name` は `opentelemetry.instrumentation.aws_lambda`。ルート未一致の 404 は `name` がメソッドだけで `http.route` が無い。`LOCAL_ROOT` には初期化時の Secrets Manager の CLIENT スパンも入るので、`kind = 'SERVER'` の併用が必須。Q1 の 2 段の `fields`、Q2、REPORT 行のクエリは構文エラーなく通った。関数単位の `ConcurrentExecutions` がある。SSM のトピック ARN は dev / prod とも存在し購読確認済みで、SNS のトピックポリシーは CloudWatch の Publish を許可している。
+    - **未確認（dev へのデプロイ後に追記）**: ダッシュボードの全ウィジェットの描画、Q4（`bin` と `name` の線グラフ）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差。**Application Signals のメトリクスがサンプリングの影響を受けるかは断定しない**（`aws/spans` は sampled なスパンだけだが、ADOT は sampled でないスパンもメトリクス化する設計の可能性がある）。SS-180 でログを JSON にすると REPORT 行が `platform.report` 形式に変わる可能性があり、そのときは REPORT 系のクエリを直す（Q5〜Q6b の直し忘れは pytest が検知する。Q7 は `@message` の文言で引いていて対象外）。
+    - **アラームの注意**: `TreatMissingData: notBreaching` のため、Dimension の値が実際のメトリクスとずれると黙って鳴らなくなる。デプロイ後に `aws cloudwatch list-metrics` で値を確かめる手順を deployment.md §14 に置いた。Fault と Lambda の Errors はハンドラーが例外を投げたときに両方鳴りうるが、二重の通知は許容する。`missing`（データ無しを INSUFFICIENT_DATA にする）は採らなかった。低トラフィックの間は、リクエストが無いだけで常に INSUFFICIENT_DATA になり、状態が意味を持たなくなるため。次元の値は dev の実データで確認済み。
+    - **infra の apply との順序**: infra の apply より先にマージすると、その後のデプロイ（緊急修正を含む）が AccessDenied で止まる（`backend-deploy.yml` は手動起動なので、マージ自体は何も壊さない）。この順序は、PR のマージ前のチェック項目と deployment.md §3 Phase 0 の確認コマンドで担保する。スタックのパラメータでダッシュボード・アラームを作らない設定にする案（`Condition`）は採らなかった。`Parameters` を増やすと、samconfig と CI の引数が環境ごとに増え、監視が無いままの環境が黙って残りうるため。
+    - **デプロイロールの権限（ADR-008 との関係）**: ADR-008 が避けた「デプロイロールの変更」の**例外**であり、ADR-008 を改訂するものではない（SS-178 のレイヤー・管理ポリシーの許可と同じ型）。**権限のスコープの上限**は、(1) CloudWatch のダッシュボード・アラームの操作とタグ系に限る、(2) 名前を `sanposcape-<env>-backend-*` に絞る（`DescribeAlarms` だけ読み取りで `Resource: "*"` の別 statement。名前で絞った許可でハンドラーの呼び方が通るかを確かめられなかったため）、(3) SNS の権限は付与しない（`PutMetricAlarm` は通知先の Publish 権限を確認しない）、(4) `logs:PutQueryDefinition` と `cloudwatch:ListDashboards` は付けない（スタック操作では呼ばれない）。範囲を広げる変更（保存済みクエリ、SLO など）は、そのつど infra と判断する。
 
 ### 決定3: ログは CloudWatch Logs に JSON で出し、trace_id で紐付ける
 
@@ -231,7 +246,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 ### ネガティブな影響・トレードオフ
 
 - ADOT レイヤー（圧縮で約 14MB）と計装の分だけ、コールドスタートが延びる。どの程度かは、SS-178 で `Init Duration` の変化を dev で実測する。（**SS-178 追補**: 計装前 2.9〜3.6 秒（中央値 約 3.5 秒、14 日分）→ 計装後 4.23 秒・4.34 秒（2 回）。+0.7〜0.8 秒。Max Memory Used は約 205MB → 210〜227MB。レイヤーの展開後のサイズは 48MB（ディスク上）。）
-- ADR-008 では「デプロイロールの変更を不要にする」ために AppConfig の Lambda Extension を避けた。今回はレイヤーの許可のためにデプロイロールを変える。ADOT の新しいレイヤーは常駐プロセス（拡張）を持たないので、テストのしやすさという ADR-008 のもう 1 つの理由には当たらない。それでもデプロイロールの変更は伴う。
+- ADR-008 では「デプロイロールの変更を不要にする」ために AppConfig の Lambda Extension を避けた。今回はレイヤーの許可のためにデプロイロールを変える（SS-179 のダッシュボード・アラームの許可も同じ型の例外で、スコープの上限は決定2 の SS-179 追補）。ADOT の新しいレイヤーは常駐プロセス（拡張）を持たないので、テストのしやすさという ADR-008 のもう 1 つの理由には当たらない。それでもデプロイロールの変更は伴う。
 - dev は他プロジェクトの設定に依存する。dev の X-Ray / Application Signals のコストは `Project=sanposcape` タグで切り出せず、予算アラートに乗らない（実額は月数セント）。
 - CloudWatch の画面は、SaaS に比べてトレースを横断的に調べにくい。
 
@@ -247,6 +262,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
    - Application Signals の有効化（`StartDiscovery`）は、サービスリンクロールのほかに CloudTrail のサービスリンクチャネルも作るが、これに当たる Terraform のリソースは無い。prod の apply 後にチャネルの有無を確認し、無ければ `aws application-signals start-discovery` を 1 回実行する。
    - 実装は sanposcape-infra の SS-185（tri-star/sanposcape-infra#48）。
 5. dev が他プロジェクトの設定に依存していることを、`live/account/README.md` と ADR-0001 に記録する。
+6. （**SS-179 追補**）`sam_deploy.tf`: `ManageBackendMonitoring` の statement を足す（dev・prod。sanposcape-infra PR #53、2026-10-05 時点で未 apply）。`cloudwatch:PutDashboard` / `GetDashboard` / `DeleteDashboards`、`PutMetricAlarm` / `DeleteAlarms`、`TagResource` / `UntagResource` / `ListTagsForResource` を、名前が `sanposcape-<env>-backend-*` のダッシュボード（リージョン無しの ARN）と ap-southeast-1 のアラームに限って許可する。`DescribeAlarms` は `Resource: "*"` の別 statement（`DescribeAlarms`）。CloudFormation のリソースハンドラーのスキーマに合わせたので `ListDashboards` は不要と判断された。タグ系はスタックのタグが CloudFormation から伝播するために要る。`logs:PutQueryDefinition` は依頼しない。**dev への apply が済むまで、SS-179 の backend をマージしない**（dev へのデプロイが CloudWatch の AccessDenied で全部止まる）。prod は SS-185 の prod 適用と同じタイミングでよい。初回デプロイで CloudFormation が別のアクションを要求したら、AccessDenied のアクション名を infra に伝えて足す。ap-southeast-1 の `sanposcape-<env>-backend-*` のアラームは SAM 所有とし、infra の services 層が同じ接頭辞のアラームを ap-southeast-1 に作らないことを infra の README に記録する。lambda_boundary と app-boundary の変更は不要（実行時の権限は増えない）。
 
 **backend（後続の子課題）**
 
@@ -256,7 +272,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
   - サンプリングと Transaction Search の取り込みの関係
   - Mangum 構成で操作名がルート単位になるか
   - zip とレイヤーの依存の重複・展開後のサイズ
-- SS-179: Application Signals と Lambda の標準メトリクス・REPORT 行を使ったダッシュボード。必要ならアラーム。
+- SS-179（**追補**: 実装済み。スパンのフィールド名・型と Application Signals の次元は dev の読み取りで確認済み。デプロイと描画の確認は未了）: Application Signals と Lambda の標準メトリクス・REPORT 行を使ったダッシュボードと、アラーム 3 本を `template.yaml` に置く（決定2 の SS-179 追補）。deployment.md §14 に読み方とクエリ。
 - SS-180: ログの JSON 化と `trace_id` の付与。
 - SS-181: ユーザー ID（内部 ID のみ）を span・ログに付け、エラーから操作経路を辿る手順を文書化する。
 - SS-183: Mangum の lifespan の件（決定7 の前提）。
