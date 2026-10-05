@@ -2,6 +2,7 @@
 # → 詳細の地図名が B になる → 地図 A の詳細は0件 → 地図 B の詳細にそのピンが出る → ピンを削除。
 #
 # 前提: pin-edit-delete.yaml と同じ
+#   - Android 前提（appId は com.sanposcape.app.dev。iOS では tapOn の text 一致や hideKeyboard の挙動が未検証）
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
 #   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
 #   - 地図の長押しは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-M-007）。
@@ -217,8 +218,6 @@ tags:
 - tapOn:
     id: "sanpo-map-list-search-input"
 - eraseText: 100
-- tapOn:
-    id: "sanpo-map-list-search-input"
 - inputText: ${output.mapB}
 - hideKeyboard
 - tapOn:
