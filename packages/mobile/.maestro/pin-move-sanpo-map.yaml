@@ -1,0 +1,259 @@
+# ピンの地図の変更（SS-175）: サインイン → 地図 A・B を作成 → A にピンを登録 → 編集で B に移す
+# → 詳細の地図名が B になる → 地図 A の詳細は0件 → 地図 B の詳細にそのピンが出る → ピンを削除。
+#
+# 前提: pin-edit-delete.yaml と同じ
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
+#   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
+#   - 地図の長押しは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-M-007）。
+# /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
+#
+# assert しないもの: トースト（「ピンを「◯◯」に移動しました」は 1.9 秒で消え、画面遷移の検出待ちの間に
+# 取りこぼす。SS-152）、ピンタブの地図のマーカー（Google Maps の描画面は testID で触れない。ADR-M-012 D14）、
+# 地図一覧の件数・並び順。
+# 地図一覧は移動先の mark_used() で並びが変わるので、検索欄で1件に絞ってから sanpo-map-list-item-0 を押す
+# （並び順に頼る item-N の指定を足さないこと）。
+#
+# 共有ユーザーへの影響: このフローが作ったピンだけを削除する。地図は2つ残る（mobile に地図の削除が無い）。
+# CI のランごとに地図が2つ増えるが、pin-edit-delete.yaml と同じ扱い。
+#
+# 注意:
+#   - 入力はすべて ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が
+#     画面の「戻る」に化けることがある。SS-152）。
+#   - 保存の成功は「編集画面が閉じて詳細へ戻り、詳細の地図名が移動先になる」ことで確かめる。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-map"
+    timeout: 15000
+# 実行ごとに一意な値（同じ CI ランの他フロー・前回の実行の地図と区別する）
+- evalScript: ${output.suffix = String(Date.now())}
+- evalScript: ${output.mapA = 'E2E-move-a-' + output.suffix}
+- evalScript: ${output.mapB = 'E2E-move-b-' + output.suffix}
+- evalScript: ${output.pinName = 'E2E-move-pin-' + output.suffix}
+
+# --- 地図一覧 → A・B を作成 → ピンタブへ戻る ---
+- tapOn:
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-list-create-fab"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-create-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-create-name-input"
+- inputText: ${output.mapA}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-create-submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-create-dialog"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      text: ${output.mapA}
+    timeout: 10000
+- tapOn:
+    id: "sanpo-map-list-create-fab"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-create-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-create-name-input"
+- inputText: ${output.mapB}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-create-submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-create-dialog"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      text: ${output.mapB}
+    timeout: 10000
+- tapOn:
+    id: "sanpo-map-list-back"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 10000
+
+# --- 地図 A にピンを登録する（pin-edit-delete.yaml と同じ長押しの地点） ---
+- longPressOn:
+    point: "50%,62%"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-sanpo-map-loading"
+    timeout: 15000
+- tapOn:
+    id: "pin-register-name-input"
+- inputText: ${output.pinName}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: ${output.mapA}
+- tapOn:
+    text: ${output.mapA}
+- scrollUntilVisible:
+    element:
+      id: "pin-register-save"
+- tapOn:
+    id: "pin-register-save"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-screen"
+    timeout: 20000
+- assertVisible:
+    id: "pin-tab-screen"
+
+# --- 地図 A の詳細 → ピン詳細（地図名は A） ---
+- tapOn:
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- inputText: ${output.mapA}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pin-0"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-detail-pin-0"
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-name"
+    timeout: 15000
+- assertVisible:
+    id: "pin-detail-sanpo-map-name"
+    text: ${output.mapA}
+
+# --- 編集で地図 B に移す ---
+- tapOn:
+    id: "pin-detail-edit"
+- extendedWaitUntil:
+    visible:
+      id: "pin-edit-form"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-edit-sanpo-map-loading"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: ${output.mapB}
+- tapOn:
+    text: ${output.mapB}
+- scrollUntilVisible:
+    element:
+      id: "pin-edit-save"
+- tapOn:
+    id: "pin-edit-save"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-edit-screen"
+    timeout: 20000
+- assertVisible:
+    id: "pin-detail-screen"
+# 詳細は PATCH の応答で差し替わる。移動先の地図名が出るのを待つ。
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-sanpo-map-name"
+      text: ${output.mapB}
+    timeout: 15000
+
+# --- 移動元（A）の詳細は0件になる ---
+- tapOn:
+    id: "pin-detail-back"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+# 保存成功の invalidate で一覧が取り直されるのを待つ。
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pins-empty"
+    timeout: 15000
+
+# --- 移動先（B）の詳細にそのピンが出る ---
+- tapOn:
+    id: "sanpo-map-detail-back"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- eraseText: 100
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- inputText: ${output.mapB}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pin-0"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-detail-pin-0"
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-name"
+    timeout: 15000
+
+# --- 後始末: このフローが作ったピンを削除 → 地図 B の詳細が0件 ---
+- tapOn:
+    id: "pin-detail-delete"
+- extendedWaitUntil:
+    visible:
+      id: "pin-delete-dialog"
+    timeout: 5000
+- tapOn:
+    id: "pin-delete-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-detail-screen"
+    timeout: 20000
+- assertVisible:
+    id: "sanpo-map-detail-screen"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pins-empty"
+    timeout: 15000
