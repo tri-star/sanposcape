@@ -92,6 +92,44 @@ describe("updatePin", () => {
     expect(body).toEqual({ memo: null, add_tags: ["a"], remove_tag_ids: ["t"] });
   });
 
+  it("sanpo_map_id もそのままボディに載り、応答の sanpo_map で地図が変わる", async () => {
+    let body: unknown;
+    server.use(
+      http.patch("*/pins/:id", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          ...PIN_READ,
+          sanpo_map: { id: "map-2", name: "移動先", is_default: false },
+        });
+      }),
+    );
+
+    const result = await updatePin(PIN_ID, { sanpo_map_id: "map-2" }, { apiBaseUrl: API_BASE_URL });
+
+    expect(body).toEqual({ sanpo_map_id: "map-2" });
+    expect(result.sanpoMapId).toBe("map-2");
+    expect(result.sanpoMapName).toBe("移動先");
+  });
+
+  it.each(["sanpo_map_not_found", "pin_not_found"])(
+    "404 + code %s: ApiError(404) で code が読める",
+    async (code) => {
+      server.use(
+        http.patch("*/pins/:id", () => HttpResponse.json({ detail: "x", code }, { status: 404 })),
+      );
+
+      const error = await updatePin(
+        PIN_ID,
+        { sanpo_map_id: "map-2" },
+        { apiBaseUrl: API_BASE_URL },
+      ).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(404);
+      expect(getApiErrorCode(error)).toBe(code);
+    },
+  );
+
   it("409 tag_limit_exceeded: ApiError(409) で body.code が残る", async () => {
     server.use(
       http.patch("*/pins/:id", () =>

@@ -15,15 +15,18 @@ export type SanpoMapSelectorProps = {
   onRetry: () => void;
   /** 保存中は選び直しを止める（PR #93 T12）。 */
   disabled?: boolean;
+  /** 見出し。登録画面は既定（保存先の地図）、編集画面は「地図」を渡す（SS-175）。 */
+  title?: string;
   testID: string;
 };
 
-/** SanpoMapSelector — 保存先の地図を選ぶチップ群。 */
+/** SanpoMapSelector — 保存先の地図を選ぶチップ群（登録・編集で共用。編集は `title="地図"`。SS-175）。 */
 export function SanpoMapSelector({
   state,
   onSelect,
   onRetry,
   disabled = false,
+  title = "保存先の地図",
   testID,
 }: SanpoMapSelectorProps) {
   const theme = useTheme();
@@ -33,7 +36,7 @@ export function SanpoMapSelector({
     <View testID={testID} style={styles.root}>
       <View style={styles.heading}>
         <Icon name="map" size={16} color={theme.colors.textSecondary} />
-        <Text style={styles.headingText}>保存先の地図</Text>
+        <Text style={styles.headingText}>{title}</Text>
       </View>
 
       {state.status === "loading" ? (

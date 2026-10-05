@@ -85,6 +85,8 @@ export function usePinEditSave(options: {
   const updatedRef = useRef(false);
   // PATCH の成功応答。成功時に詳細キャッシュへ先に反映する（A-5）。
   const updatedPinRef = useRef<PinDetail | null>(null);
+  // この画面で地図の移動を含む PATCH が成功したか（SS-175）。画面の寿命の間持つ＝save() ごとに戻さない。
+  const movedRef = useRef(false);
 
   const markPartiallySaved = useCallback(() => {
     partiallySavedRef.current = true;
@@ -112,6 +114,7 @@ export function usePinEditSave(options: {
         onUpdated: (updated) => {
           updatedRef.current = true;
           updatedPinRef.current = updated;
+          if (snapshot.request.sanpo_map_id !== undefined) movedRef.current = true;
           markPartiallySaved();
           onPinUpdatedRef.current(updated);
         },
@@ -150,8 +153,12 @@ export function usePinEditSave(options: {
       // 写真ページ（infinite）は削除・追加で並びが変わるため、先頭から読み直す。
       void queryClient.resetQueries({ queryKey: pinPhotosQueryKey(pinId) });
       // 詳細・地図のマーカー・地図詳細の一覧（名前・タグ・代表写真）・タグ候補。
-      // 地図一覧の pin_count は変わらないので触らない。
+      // 地図を移したときだけ地図一覧も取り直す（SS-175）。
       void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
+      // 移動元・移動先の pin_count と、並び順（backend は移動先の mark_used() を呼ぶ。ルート ADR-009 決定33）が変わる。
+      if (movedRef.current) {
+        void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
+      }
       onSavedRef.current();
     },
     onError: (error) => {
@@ -160,6 +167,9 @@ export function usePinEditSave(options: {
       if (code === "pin_not_found") {
         // 戻った詳細画面を not-found にする。
         void queryClient.invalidateQueries({ queryKey: pinDetailQueryKey(pinId) });
+      } else if (code === "sanpo_map_not_found") {
+        // 消えた地図を選択肢から外す（有効な選択は今の地図に戻る）。
+        void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
       } else if (code === "forbidden") {
         // role や作成者が変わった可能性がある。
         void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
@@ -182,6 +192,9 @@ export function usePinEditSave(options: {
     () => () => {
       if (partiallySavedRef.current) {
         void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
+        if (movedRef.current) {
+          void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
+        }
       }
     },
     [queryClient],
