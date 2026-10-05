@@ -72,6 +72,17 @@ class SanpoMapAccess:
         )
         return None if membership is None else membership[1]
 
+    def get_role_for_pin_move(
+        self, current_user: User, sanpo_map_id: uuid.UUID
+    ) -> SanpoMapRole | None:
+        """ピンの移動先の role を、地図行を `FOR KEY SHARE` でロックして引く（決定33）。
+        member でない・存在しない・同時に削除された場合は `None`。commit しない。
+        """
+        membership = self._repository.get_membership_for_key_share(
+            user_id=current_user.id, sanpo_map_id=sanpo_map_id
+        )
+        return None if membership is None else membership[1]
+
     def mark_used(self, sanpo_map_id: uuid.UUID) -> None:
         """ピン追加時に地図の `updated_at` を更新する（commit しない）。"""
         self._repository.touch(sanpo_map_id=sanpo_map_id, now=self._now())

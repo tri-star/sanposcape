@@ -120,6 +120,21 @@ class SanpoMapRepository:
         row = self._db.execute(stmt).first()
         return None if row is None else (row[0], row[1])
 
+    def get_membership_for_key_share(
+        self, *, user_id: uuid.UUID, sanpo_map_id: uuid.UUID
+    ) -> tuple[SanpoMap, str] | None:
+        """ピンの移動先用（ADR-009 決定33）。member 判定込みで地図を取得し、`sanpo_maps` 行を
+        `FOR KEY SHARE` でロックする。
+
+        地図削除（`FOR UPDATE`）とだけ衝突し、削除が先なら待った後に行が無いので `None`
+        （404）になる。名前変更・`touch()`（`FOR NO KEY UPDATE`）とは衝突しない。
+        """
+        stmt = self._membership_stmt(user_id=user_id, sanpo_map_id=sanpo_map_id).with_for_update(
+            key_share=True, of=SanpoMap
+        )
+        row = self._db.execute(stmt).first()
+        return None if row is None else (row[0], row[1])
+
     def get_default_for_owner(self, *, owner_user_id: uuid.UUID) -> SanpoMap | None:
         stmt = select(SanpoMap).where(SanpoMap.owner_user_id == owner_user_id, SanpoMap.is_default)
         return self._db.scalars(stmt).first()
@@ -277,6 +292,18 @@ class SanpoMapRepository:
     def touch(self, *, sanpo_map_id: uuid.UUID, now: datetime) -> None:
         """ピン追加時に `updated_at` を更新する（「最近使った地図」を先頭にする並び順に使う）。"""
         self._db.execute(update(SanpoMap).where(SanpoMap.id == sanpo_map_id).values(updated_at=now))
+
+    def lock_pins_for_map(self, sanpo_map_id: uuid.UUID) -> None:
+        """地図に属するピン行を `FOR UPDATE` でロックする（地図削除用, ADR-009 決定33）。
+
+        写真キーの収集（`list_photo_keys_for_map`）の前に呼ぶ。移動中（未 commit）のピンが
+        あればその commit を待ち、commit 後は再評価でこの地図から外れるので、生き残る
+        ピンの写真を S3 から消さない。書き込みではなくロック付きの読み取りなので M6 の範囲内。
+        認可済みの ID を渡すこと。
+        """
+        self._db.execute(
+            select(Pin.id).where(Pin.sanpo_map_id == sanpo_map_id).with_for_update()
+        ).all()
 
     def list_photo_keys_for_map(self, sanpo_map_id: uuid.UUID) -> list[tuple[str, str | None]]:
         """地図に属する全ピンの写真の `(s3_key, thumbnail_s3_key)` を列だけ取る

@@ -155,7 +155,8 @@ class SanpoMapService:
         """`DELETE /sanpo-maps/{sanpo_map_id}`: 地図を削除する（ADR-009 決定28）。
 
         手順: owner 単位の advisory lock（`lock_owner()`）を取る → 地図行を `FOR UPDATE`
-        でロックして member・role を読み直す → 権限確認 → 写真キーを集める（認可・ロックの
+        でロックして member・role を読み直す → 権限確認 → 地図のピン行を `FOR UPDATE` で
+        ロック（移動中のピンの commit を待つ。決定33）→ 写真キーを集める（認可・ロックの
         後）→ DB 削除・既定地図の繰り上げ・commit → best-effort な後始末（commit 後、例外を
         出さない）。非冪等（2回目は 404）。
 
@@ -175,6 +176,9 @@ class SanpoMapService:
         if not can_delete_sanpo_map(role):
             raise SanpoMapPermissionDeniedError()
 
+        # 写真キーの収集の前にピン行をロックする（ADR-009 決定33）。別の地図へ移動中のピンが
+        # あると、その commit 後に再評価で対象から外れ、生き残るピンの写真を S3 から消さない。
+        self._repository.lock_pins_for_map(sanpo_map_id)
         photo_keys = flatten_photo_keys(self._repository.list_photo_keys_for_map(sanpo_map_id))
 
         # commit 前に控える（R2: commit 後は expire_on_commit により ORM 属性へのアクセスが

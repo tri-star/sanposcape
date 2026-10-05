@@ -4,8 +4,8 @@
 SS-113）を参照。関数の形は3種類ある。
 
 - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/
-  `can_update_pin_visited`/`can_move_pin_to`）: role だけで判定する（`role in _WRITE_ROLES`）。作成者は
-  判定しないので `is_creator` 引数は持たない。
+  `can_update_pin_visited`/`can_move_pin_to`）: role だけで判定する（`role in
+  _WRITE_ROLES`）。作成者は判定しないので `is_creator` 引数は持たない。
 - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_update_pin_archived`/
   `can_move_pin_from`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに対象が違う（ピンなら
   `pins.created_by_user_id`、タグなら `pin_tags.created_by_user_id`、写真なら
