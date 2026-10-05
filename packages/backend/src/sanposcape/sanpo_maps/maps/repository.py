@@ -290,7 +290,10 @@ class SanpoMapRepository:
         return None
 
     def touch(self, *, sanpo_map_id: uuid.UUID, now: datetime) -> None:
-        """ピン追加時に `updated_at` を更新する（「最近使った地図」を先頭にする並び順に使う）。"""
+        """ピン追加時・ピンの移動先に `updated_at` を更新する。
+
+        「最近使った地図」を先頭にする並び順に使う。
+        """
         self._db.execute(update(SanpoMap).where(SanpoMap.id == sanpo_map_id).values(updated_at=now))
 
     def lock_pins_for_map(self, sanpo_map_id: uuid.UUID) -> None:

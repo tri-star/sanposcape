@@ -229,7 +229,7 @@ def update_pin(
     current_user: User = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinRead:
-    """ピンの名前・メモ・訪問状況・アーカイブ状態の更新、タグの追加・削除
+    """ピンの名前・メモ・訪問状況・アーカイブ状態の更新、地図の移動、タグの追加・削除
     （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32・33）。
 
     省略したフィールドは変更しない。`name`/`memo` は `null` か空白のみの値で消せる。

@@ -23,7 +23,11 @@ class ResolvedSanpoMap:
 
 
 class SanpoMapAccess:
-    """ピン作成・写真操作のために地図を解決する部品（ADR-011）。
+    """ピン作成・写真操作・ピンの移動のために地図を解決する部品（ADR-011）。
+
+    ピンの移動先については、member 判定と地図行の `FOR KEY SHARE` ロック
+    （`get_role_for_pin_move`）、実際に地図が変わったときの `updated_at` 更新（`mark_used`）
+    を担う（ADR-009 決定33）。
 
     Session を持たず commit しない。呼び出し元 Service のトランザクションに乗る
     （ADR-011 M3・M4）。
@@ -84,5 +88,5 @@ class SanpoMapAccess:
         return None if membership is None else membership[1]
 
     def mark_used(self, sanpo_map_id: uuid.UUID) -> None:
-        """ピン追加時に地図の `updated_at` を更新する（commit しない）。"""
+        """ピン追加時・ピンの移動先に地図の `updated_at` を更新する（commit しない）。"""
         self._repository.touch(sanpo_map_id=sanpo_map_id, now=self._now())
