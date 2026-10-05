@@ -1547,6 +1547,7 @@ class TestUpdatePinRouter:
         client, _storage = fake_storage_client
         response = client.patch(f"/pins/{uuid.uuid4()}", headers=auth_headers, json={"name": "X"})
         assert response.status_code == 404
+        assert response.json() == {"detail": "Pin not found", "code": "pin_not_found"}
 
     def test_unknown_field_is_422(
         self,
@@ -2329,6 +2330,34 @@ def _add_editor(db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.U
     db_session.commit()
 
 
+@dataclass
+class _MoveEnv:
+    client: TestClient
+    storage: FakeObjectStorage
+    db: Session
+    user: User
+    headers: dict[str, str]
+    map_a: uuid.UUID
+    map_b: uuid.UUID
+
+
+@dataclass
+class _MoveWorld:
+    client: TestClient
+    storage: FakeObjectStorage
+    owner: User
+    editor_a: User
+    editor_b: User
+    outsider: User
+    shared_map: uuid.UUID  # owner の地図。editor_a / editor_b が editor
+    owner_only_map: uuid.UUID
+    editor_a_only_map: uuid.UUID
+    editor_b_only_map: uuid.UUID
+    other_owner_map: uuid.UUID  # 別 owner の地図。editor_a が editor
+    other_owner: User
+    pin_by_editor_a_id: str
+
+
 class TestMovePinRouter:
     """`PATCH /pins/{id}` の `sanpo_map_id`（地図の移動, ADR-009 決定33, SS-175）。"""
 
@@ -2339,7 +2368,7 @@ class TestMovePinRouter:
         db_session: Session,
         authenticated_user: User,
         auth_headers: dict[str, str],
-    ) -> "_MoveEnv":
+    ) -> _MoveEnv:
         client, storage = fake_storage_client
         map_a = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         map_b = _create_extra_map(db_session, owner_user_id=authenticated_user.id)
@@ -2354,7 +2383,7 @@ class TestMovePinRouter:
         )
 
     @staticmethod
-    def _create_pin(env: "_MoveEnv", **extra: object) -> str:
+    def _create_pin(env: _MoveEnv, **extra: object) -> str:
         response = env.client.post(
             "/pins",
             headers=env.headers,
@@ -2368,21 +2397,21 @@ class TestMovePinRouter:
         assert response.status_code == 201
         return response.json()["id"]
 
-    def test_explicit_null_sanpo_map_id_is_422(self, env: "_MoveEnv") -> None:
+    def test_explicit_null_sanpo_map_id_is_422(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env)
         response = env.client.patch(
             f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": None}
         )
         assert response.status_code == 422
 
-    def test_non_uuid_sanpo_map_id_is_422(self, env: "_MoveEnv") -> None:
+    def test_non_uuid_sanpo_map_id_is_422(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env)
         response = env.client.patch(
             f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": "not-a-uuid"}
         )
         assert response.status_code == 422
 
-    def test_location_is_still_rejected(self, env: "_MoveEnv") -> None:
+    def test_location_is_still_rejected(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env)
         response = env.client.patch(
             f"/pins/{pin_id}",
@@ -2391,7 +2420,7 @@ class TestMovePinRouter:
         )
         assert response.status_code == 422
 
-    def test_unknown_destination_is_404_with_code(self, env: "_MoveEnv") -> None:
+    def test_unknown_destination_is_404_with_code(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env)
         response = env.client.patch(
             f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(uuid.uuid4())}
@@ -2402,14 +2431,7 @@ class TestMovePinRouter:
             "code": "sanpo_map_not_found",
         }
 
-    def test_missing_pin_is_404_with_code(self, env: "_MoveEnv") -> None:
-        response = env.client.patch(
-            f"/pins/{uuid.uuid4()}", headers=env.headers, json={"name": "X"}
-        )
-        assert response.status_code == 404
-        assert response.json() == {"detail": "Pin not found", "code": "pin_not_found"}
-
-    def test_missing_pin_wins_over_missing_destination(self, env: "_MoveEnv") -> None:
+    def test_missing_pin_wins_over_missing_destination(self, env: _MoveEnv) -> None:
         response = env.client.patch(
             f"/pins/{uuid.uuid4()}",
             headers=env.headers,
@@ -2418,7 +2440,7 @@ class TestMovePinRouter:
         assert response.status_code == 404
         assert response.json()["code"] == "pin_not_found"
 
-    def test_moves_pin_and_response_matches_get(self, env: "_MoveEnv") -> None:
+    def test_moves_pin_and_response_matches_get(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env, tags=["たこ焼き"])
         before = env.client.get(f"/pins/{pin_id}", headers=env.headers).json()
 
@@ -2430,13 +2452,15 @@ class TestMovePinRouter:
         body = response.json()
         assert body["sanpo_map"]["id"] == str(env.map_b)
         assert body == env.client.get(f"/pins/{pin_id}", headers=env.headers).json()
-        assert body["updated_at"] > before["updated_at"]
+        assert datetime.fromisoformat(body["updated_at"]) > datetime.fromisoformat(
+            before["updated_at"]
+        )
         assert body["tags"] == before["tags"]
         assert body["created_by_user_id"] == before["created_by_user_id"]
         assert body["client_pin_id"] == before["client_pin_id"]
         assert body["created_at"] == before["created_at"]
 
-    def test_same_map_id_is_a_noop(self, env: "_MoveEnv") -> None:
+    def test_same_map_id_is_a_noop(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env)
         before = env.client.get(f"/pins/{pin_id}", headers=env.headers).json()
         maps_before = {
@@ -2456,7 +2480,7 @@ class TestMovePinRouter:
         }
         assert maps_after == maps_before
 
-    def test_moves_with_other_fields_together(self, env: "_MoveEnv") -> None:
+    def test_moves_with_other_fields_together(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env, name="元")
 
         response = env.client.patch(
@@ -2471,7 +2495,7 @@ class TestMovePinRouter:
         assert [t["label"] for t in body["tags"]] == ["公園"]
         assert body["sanpo_map"]["id"] == str(env.map_b)
 
-    def test_tag_limit_409_does_not_move(self, env: "_MoveEnv") -> None:
+    def test_tag_limit_409_does_not_move(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env, tags=[f"tag{i}" for i in range(10)])
 
         response = env.client.patch(
@@ -2486,7 +2510,7 @@ class TestMovePinRouter:
             "id"
         ] == str(env.map_a)
 
-    def test_listing_counts_and_tags_follow_the_move(self, env: "_MoveEnv") -> None:
+    def test_listing_counts_and_tags_follow_the_move(self, env: _MoveEnv) -> None:
         pin_id = self._create_pin(env, tags=["公園"])
         moved = env.client.patch(
             f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(env.map_b)}
@@ -2517,7 +2541,7 @@ class TestMovePinRouter:
         assert _tag_labels(env.map_a) == []
         assert _tag_labels(env.map_b) == ["公園"]
 
-    def test_moves_destination_map_to_the_front_of_recent_maps(self, env: "_MoveEnv") -> None:
+    def test_moves_destination_map_to_the_front_of_recent_maps(self, env: _MoveEnv) -> None:
         # 既定地図は先頭固定なので、既定でない2つの地図で並びを確認する。
         map_c = _create_extra_map(env.db, owner_user_id=env.user.id, name="C")
         pin_id = self._create_pin(env)
@@ -2535,34 +2559,6 @@ class TestMovePinRouter:
             m["id"] for m in env.client.get("/sanpo-maps", headers=env.headers).json()["items"]
         ]
         assert order_after.index(str(env.map_b)) < order_after.index(str(map_c))
-
-
-@dataclass
-class _MoveEnv:
-    client: TestClient
-    storage: FakeObjectStorage
-    db: Session
-    user: User
-    headers: dict[str, str]
-    map_a: uuid.UUID
-    map_b: uuid.UUID
-
-
-@dataclass
-class _MoveWorld:
-    client: TestClient
-    storage: FakeObjectStorage
-    owner: User
-    editor_a: User
-    editor_b: User
-    outsider: User
-    shared_map: uuid.UUID  # owner の地図。editor_a / editor_b が editor
-    owner_only_map: uuid.UUID
-    editor_a_only_map: uuid.UUID
-    editor_b_only_map: uuid.UUID
-    other_owner_map: uuid.UUID  # 別 owner の地図。editor_a が editor
-    other_owner: User
-    pin_by_editor_a_id: str
 
 
 class TestPinMovePermissionMatrix:
