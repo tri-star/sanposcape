@@ -44,7 +44,7 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-014](./adr/ADR-M-014-sanpo-map-list-and-detail.md) | 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ）。地図のアイコンの選択・変更（SS-171 追補。本体は ADR-M-019）。ピン一覧のアーカイブ済みの扱い（SS-173 追補。本体は ADR-M-021） |
 | [ADR-M-015](./adr/ADR-M-015-app-icon-assets.md) | 採用PNGとAndroid Adaptive Iconレイヤー、アイコンの再生成とネイティブビルドへの反映 |
 | [ADR-M-016](./adr/ADR-M-016-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |
-| [ADR-M-017](./adr/ADR-M-017-pin-edit-and-delete.md) | ピンの編集・削除（編集画面の構成・保存の順序と冪等性・権限による出し分け・削除後のキャッシュ）。訪問状況・アーカイブの編集（SS-173 追補。本体は ADR-M-021） |
+| [ADR-M-017](./adr/ADR-M-017-pin-edit-and-delete.md) | ピンの編集・削除（編集画面の構成・保存の順序と冪等性・権限による出し分け・削除後のキャッシュ）。訪問状況・アーカイブの編集（SS-173 追補。本体は ADR-M-021）。地図の変更（SS-175 追補） |
 | [ADR-M-018](./adr/ADR-M-018-background-walk-location-tracking.md) | 散歩中の位置記録はバックグラウンドのロケーションタスクで行う（使用中のみ権限・iOS background mode・Android フォアグラウンドサービス・端末バッファと統合）。権限の利用目的文言と FGS 通知の文言（SS-157 追補） |
 | [ADR-M-019](./adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) | 地図のアイコン（13種類・色はアイコンから決まる・作成時と地図詳細で選ぶ）、登録済みピンの地図アイコンでの描画、`MapPin` の SVG シルエットとマーカーの基準点（`anchor` + `centerOffset`） |
 | [ADR-M-020](./adr/ADR-M-020-external-web-pages.md) | アプリから外部の Web ページ（プライバシーポリシー）を開く方式（アプリ内ブラウザ + OS ブラウザへのフォールバック）と、法的文書の URL をビルドで切り替えないこと |
