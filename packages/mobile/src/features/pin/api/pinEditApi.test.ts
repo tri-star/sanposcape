@@ -1,7 +1,7 @@
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { ApiError, getApiErrorCode } from "@/api/apiError";
+import { ApiError, getApiErrorCode, isApiError } from "@/api/apiError";
 import type { PinRead } from "@/api/generated/model";
 import { deletePin, deletePinPhoto, updatePin } from "@/features/pin/api/pinEditApi";
 import { server } from "@/test/setup";
@@ -124,8 +124,9 @@ describe("updatePin", () => {
         { apiBaseUrl: API_BASE_URL },
       ).catch((e: unknown) => e);
 
-      expect(error).toBeInstanceOf(ApiError);
-      expect((error as ApiError).status).toBe(404);
+      expect(isApiError(error)).toBe(true);
+      if (!isApiError(error)) return;
+      expect(error.status).toBe(404);
       expect(getApiErrorCode(error)).toBe(code);
     },
   );

@@ -13,6 +13,11 @@ import {
   type PinEditErrorCode,
   type PinEditStage,
 } from "@/features/pin/lib/pinEditError";
+import {
+  INITIAL_PIN_EDIT_UPDATE_RECORD,
+  recordPinEditUpdate,
+  shouldInvalidateSanpoMapsAfterSave,
+} from "@/features/pin/lib/pinEditSanpoMap";
 import { runPinEditSave, type PinEditSaveProgress } from "@/features/pin/lib/pinEditSaveRunner";
 import {
   PINS_QUERY_ROOT,
@@ -54,7 +59,11 @@ export type UsePinEditSaveResult = {
 export function usePinEditSave(options: {
   pinId: string | null;
   photos: UsePinPhotosResult["saveBridge"];
-  onSaved: () => void;
+  /**
+   * 保存の成功。`lastUpdated` はこの画面で最後に成功した PATCH の応答（部分保存の分を含む。
+   * PATCH が一度も成功していなければ null）。移動のトースト判定に使う（SS-175）。
+   */
+  onSaved: (lastUpdated: PinDetail | null) => void;
   /** PATCH の成功応答。編集画面の基準値を作り直す（部分保存後も差分が正しく出るように。A-1）。 */
   onPinUpdated: (updated: PinDetail) => void;
   /** DELETE に成功した写真。下書きの印と既存写真の表示から外す（A-1）。 */
@@ -85,8 +94,9 @@ export function usePinEditSave(options: {
   const updatedRef = useRef(false);
   // PATCH の成功応答。成功時に詳細キャッシュへ先に反映する（A-5）。
   const updatedPinRef = useRef<PinDetail | null>(null);
-  // この画面で地図の移動を含む PATCH が成功したか（SS-175）。画面の寿命の間持つ＝save() ごとに戻さない。
-  const movedRef = useRef(false);
+  // この画面で成功した PATCH の記録（SS-175 M3）。画面の寿命の間持つ＝save() ごとに戻さない。
+  // 地図一覧を取り直す判定と、onSaved に渡す最後の応答の両方をここから出す（二重管理しない）。
+  const updateRecordRef = useRef(INITIAL_PIN_EDIT_UPDATE_RECORD);
 
   const markPartiallySaved = useCallback(() => {
     partiallySavedRef.current = true;
@@ -114,7 +124,10 @@ export function usePinEditSave(options: {
         onUpdated: (updated) => {
           updatedRef.current = true;
           updatedPinRef.current = updated;
-          if (snapshot.request.sanpo_map_id !== undefined) movedRef.current = true;
+          updateRecordRef.current = recordPinEditUpdate(updateRecordRef.current, {
+            request: snapshot.request,
+            updated,
+          });
           markPartiallySaved();
           onPinUpdatedRef.current(updated);
         },
@@ -156,10 +169,10 @@ export function usePinEditSave(options: {
       // 地図を移したときだけ地図一覧も取り直す（SS-175）。
       void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
       // 移動元・移動先の pin_count と、並び順（backend は移動先の mark_used() を呼ぶ。ルート ADR-009 決定33）が変わる。
-      if (movedRef.current) {
+      if (shouldInvalidateSanpoMapsAfterSave(updateRecordRef.current)) {
         void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
       }
-      onSavedRef.current();
+      onSavedRef.current(updateRecordRef.current.lastUpdated);
     },
     onError: (error) => {
       if (pinId === null) return;
@@ -192,7 +205,7 @@ export function usePinEditSave(options: {
     () => () => {
       if (partiallySavedRef.current) {
         void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
-        if (movedRef.current) {
+        if (shouldInvalidateSanpoMapsAfterSave(updateRecordRef.current)) {
           void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
         }
       }

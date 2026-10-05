@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { usePinDetail, type UsePinDetailResult } from "@/features/pin/hooks/usePinDetail";
 import { usePinEditSave, type UsePinEditSaveResult } from "@/features/pin/hooks/usePinEditSave";
@@ -18,6 +18,7 @@ import {
   type PinEditSaveAvailability,
 } from "@/features/pin/lib/pinEditDraft";
 import {
+  resolveDraftSanpoMapReset,
   resolveEffectivePinEditSanpoMapId,
   resolveMovedSanpoMapName,
   resolvePinEditSanpoMapChoices,
@@ -80,7 +81,10 @@ export type UsePinEditResult = {
   setMemo: (v: string) => void;
   setVisited: (v: boolean) => void;
   setArchived: (v: boolean) => void;
-  /** 「地図」欄（SanpoMapSelector にそのまま渡す。SS-175）。 */
+  /**
+   * 「地図」欄（SanpoMapSelector にそのまま渡す。SS-175）。地図の表示・送信は `sanpoMaps` と
+   * `submit` を使う。`draft.sanpoMapId` は生の選択（一覧に無い地図は下書きごと基準値へ戻される）。
+   */
   sanpoMaps: SanpoMapChoicesState & { retry: () => void };
   selectSanpoMap: (selection: SanpoMapSelection) => void;
   tagInput: string;
@@ -170,6 +174,21 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
           baselineSanpoMapId: baseline.sanpoMapId,
           draftSanpoMapId: draft.sanpoMapId,
         });
+  // 下書きの地図が一覧から消えていたら（sanpo_map_not_found で取り直した結果など）基準値へ戻す。
+  // 戻さないと、他項目を変えた保存で地図の差分が黙って落ちる（M2）。エラー行は消さない
+  // （resetError を通さない）ので「地図を選び直してください」の案内が残る。
+  const draftSanpoMapReset =
+    baseline === null
+      ? null
+      : resolveDraftSanpoMapReset({
+          status: sanpoMapsQuery.status,
+          maps: sanpoMapsQuery.maps,
+          baselineSanpoMapId: baseline.sanpoMapId,
+          draftSanpoMapId: draft.sanpoMapId,
+        });
+  if (draftSanpoMapReset !== null) {
+    setDraft({ ...draft, sanpoMapId: draftSanpoMapReset });
+  }
   const effectiveDraft: PinEditDraft =
     effectiveSanpoMapId === null ? draft : { ...draft, sanpoMapId: effectiveSanpoMapId };
 
@@ -189,18 +208,18 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     onPickerError: options.onPickerError,
   });
 
-  // PATCH の成功応答のたびに更新する（同期的に呼ばれ、onSaved より先に走る）。
-  const movedToRef = useRef<string | null>(null);
   const save = usePinEditSave({
     pinId: options.pinId,
     photos: photosBase.saveBridge,
-    onSaved: () => options.onSaved({ movedToSanpoMapName: movedToRef.current }),
-    onPinUpdated: (updated) => {
-      setBaseline(rebaseBaselineAfterUpdate(updated));
-      if (originalSanpoMapId !== null) {
-        movedToRef.current = resolveMovedSanpoMapName({ originalSanpoMapId, updated });
-      }
-    },
+    // 移動先は最後に成功した PATCH の応答から求める（ref の受け渡しに頼らない。M3）。
+    onSaved: (lastUpdated) =>
+      options.onSaved({
+        movedToSanpoMapName:
+          originalSanpoMapId === null
+            ? null
+            : resolveMovedSanpoMapName({ originalSanpoMapId, lastUpdated }),
+      }),
+    onPinUpdated: (updated) => setBaseline(rebaseBaselineAfterUpdate(updated)),
     onPhotoDeleted: (photoId) => {
       setDeletedPhotoIds((prev) => addDeletedPhotoId(prev, photoId));
       setDraft((prev) => rebaseDraftAfterPhotoDeleted(prev, photoId));

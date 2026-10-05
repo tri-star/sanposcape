@@ -21,9 +21,9 @@ import { PinEditDiscardDialog } from "@/features/pin/components/PinEditDiscardDi
 import { PinEditExistingPhotos } from "@/features/pin/components/PinEditExistingPhotos";
 import { PinPhotoGrid } from "@/features/pin/components/PinPhotoGrid";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
-import { SanpoMapSelector } from "@/features/pin/components/SanpoMapSelector";
 import { PinStatusFields } from "@/features/pin/components/PinStatusFields";
 import { PinTagEditor } from "@/features/pin/components/PinTagEditor";
+import { SanpoMapSelector } from "@/features/pin/components/SanpoMapSelector";
 import { usePinEdit } from "@/features/pin/hooks/usePinEdit";
 import { resolvePinDetailBodyState } from "@/features/pin/lib/pinDetailState";
 import { PIN_EDIT_SANPO_MAP_TITLE, pinEditSavedMessage } from "@/features/pin/lib/pinEditSanpoMap";
@@ -233,6 +233,7 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
               onSelect={edit.selectSanpoMap}
               onRetry={edit.sanpoMaps.retry}
               disabled={isSaving || !permissions.canChangeSanpoMap}
+              retryDisabled={isSaving}
               testID="pin-edit-sanpo-map"
             />
 

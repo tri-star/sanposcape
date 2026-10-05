@@ -15,6 +15,11 @@ export type SanpoMapSelectorProps = {
   onRetry: () => void;
   /** 保存中は選び直しを止める（PR #93 T12）。 */
   disabled?: boolean;
+  /**
+   * 「再読み込み」だけを止める指定。省略時は `disabled` に従う（登録画面）。編集画面は権限で
+   * `disabled` にしても、取得失敗からの復旧（再読み込み）は押せるようにする（SS-175 M1）。
+   */
+  retryDisabled?: boolean;
   /** 見出し。登録画面は既定（保存先の地図）、編集画面は「地図」を渡す（SS-175）。 */
   title?: string;
   testID: string;
@@ -26,6 +31,7 @@ export function SanpoMapSelector({
   onSelect,
   onRetry,
   disabled = false,
+  retryDisabled = disabled,
   title = "保存先の地図",
   testID,
 }: SanpoMapSelectorProps) {
@@ -68,7 +74,7 @@ export function SanpoMapSelector({
           <Button
             variant="ghost"
             size="sm"
-            disabled={disabled}
+            disabled={retryDisabled}
             onPress={onRetry}
             testID={`${testID}-retry`}
           >
@@ -76,7 +82,10 @@ export function SanpoMapSelector({
           </Button>
         </View>
       ) : state.status === "ready" && state.helper ? (
-        <Text style={styles.helper}>{state.helper}</Text>
+        // 移動の案内などが変わったことをスクリーンリーダーに伝える（M5）。
+        <Text style={styles.helper} accessibilityLiveRegion="polite">
+          {state.helper}
+        </Text>
       ) : null}
     </View>
   );

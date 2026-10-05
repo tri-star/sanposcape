@@ -21,6 +21,8 @@ export type PinDeleteResult = {
  * 「ピンが削除された」と解釈するため、不正 id と区別する（`walkDeleteApi.ts` と同じ理由）。
  * `signal` は受け取らない（画面離脱で送信を止めない。`saveWalk` / `createPin` と同じ）。
  * 非2xx は `customFetch` が `ApiError(status, msg, body)` で throw する（409 の `body.code` は残る）。
+ * 404 は `body.code` が `pin_not_found`（ピン無し）か `sanpo_map_not_found`（移動先の地図無し）かで
+ * 意味が分かれる。呼び出し側は `getApiErrorCode` で読み分ける（`pinEditError.ts`）。
  */
 export async function updatePin(
   pinId: string,
