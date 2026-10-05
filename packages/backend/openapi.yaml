@@ -1016,7 +1016,7 @@ paths:
       summary: Update Pin
       description: 'ピンの名前・メモ・訪問状況・アーカイブ状態の更新、タグの追加・削除
 
-        （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32）。
+        （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32・33）。
 
 
         省略したフィールドは変更しない。`name`/`memo` は `null` か空白のみの値で消せる。
@@ -1033,7 +1033,17 @@ paths:
 
         （作成者でない editor は 403）。
 
-        非メンバー・存在しないピンは 404。タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。'
+        `sanpo_map_id` を送るとピンを別の地図へ移す。移動元の地図 owner かピンの作成者本人だけが
+
+        移せ（作成者でない editor は 403）、移動先はメンバーなら owner/editor のどちらでもよい。
+
+        移動先が存在しない・メンバーでない場合は 404（`code: "sanpo_map_not_found"`）。
+
+        タグ・写真・訪問状況・アーカイブ状態・作成者はそのまま移る。値が今と同じでも権限は判定する。
+
+        非メンバー・存在しないピンは 404（`code: "pin_not_found"`）。
+
+        タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。'
       operationId: update_pin
       security:
       - HTTPBearer: []
@@ -1063,9 +1073,15 @@ paths:
         '413':
           description: Request body too large
         '403':
-          description: Permission denied
+          description: Permission denied (including moving the pin out of / into a
+            sanpo map)
         '404':
-          description: Pin not found
+          description: 'Pin not found (code: pin_not_found), or the destination sanpo
+            map does not exist or the user is not a member (code: sanpo_map_not_found)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinUpdateNotFoundErrorRead'
         '409':
           description: Applying add_tags/remove_tag_ids would exceed the per-pin tag
             limit
@@ -1915,6 +1931,10 @@ components:
         archived:
           type: boolean
           title: Archived
+        sanpo_map_id:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
       additionalProperties: false
       type: object
       title: PinUpdate
@@ -1935,10 +1955,38 @@ components:
 
         フィールドごとに権限を判定する（SS-173, ADR-009 決定32）。
 
+        `sanpo_map_id` はピンを別の地図へ移す（省略可・null 不可。SS-175, 決定33）。移動元は
 
-        `extra="forbid"` にする理由: `location`/`sanpo_map_id` 等を送って「変更されたつもり」
+        owner かピン作成者のみ、移動先はメンバーなら owner/editor のどちらでも可。
+
+
+        `extra="forbid"` にする理由: `location`/`client_walk_id` 等を送って「変更されたつもり」
 
         になる事故を防ぐため（PATCH は「送ったものだけが変わる」という意味を持つ）。'
+    PinUpdateNotFoundErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          enum:
+          - pin_not_found
+          - sanpo_map_not_found
+          title: Code
+      type: object
+      required:
+      - detail
+      - code
+      title: PinUpdateNotFoundErrorRead
+      description: '`PATCH /pins/{pin_id}` の 404 応答本体（ADR-009 決定33, SS-175）。
+
+
+        `pin_not_found` はピンが無い・非メンバー、`sanpo_map_not_found` は `sanpo_map_id` で
+
+        指定した移動先が存在しない・非メンバー（両者は区別しない）。`code` は例外ハンドラで
+
+        全エンドポイントの同名 404 に付くが、OpenAPI に宣言するのはこの PATCH だけ。'
     PlaceCandidate:
       properties:
         id:
