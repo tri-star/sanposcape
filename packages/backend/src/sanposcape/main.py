@@ -152,7 +152,12 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(SanpoMapNotFoundError)
     async def _sanpo_map_not_found(request: Request, exc: SanpoMapNotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": "Sanpo map not found"})
+        # `code` は ADR-009 決定33（SS-175）。決定12 と同じくハンドラで付ける。全エンドポイントの
+        # 404 に付くが、OpenAPI で宣言しているのは PATCH /pins/{pin_id} だけ。`detail` は不変。
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Sanpo map not found", "code": "sanpo_map_not_found"},
+        )
 
     @app.exception_handler(SanpoMapPermissionDeniedError)
     async def _sanpo_map_permission_denied(
@@ -162,7 +167,10 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(PinNotFoundError)
     async def _pin_not_found(request: Request, exc: PinNotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": "Pin not found"})
+        # `code` の扱いは `_sanpo_map_not_found` と同じ（決定33）。
+        return JSONResponse(
+            status_code=404, content={"detail": "Pin not found", "code": "pin_not_found"}
+        )
 
     @app.exception_handler(PinPhotoUploadNotReadyError)
     async def _pin_photo_upload_not_ready(

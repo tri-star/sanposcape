@@ -2311,3 +2311,412 @@ class TestPinVisitedAndArchived:
         unchanged = client.get(f"/pins/{pin['id']}", headers=auth_headers).json()
         assert unchanged["visited"] is False
         assert unchanged["archived"] is False
+
+
+def _create_extra_map(
+    db_session: Session, *, owner_user_id: uuid.UUID, name: str = "移動先の地図"
+) -> uuid.UUID:
+    """既定でない地図を1件作る（同じ owner の2つ目以降。既定地図は owner ごとに1つ）。"""
+    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+        owner_user_id=owner_user_id, name=name, is_default=False
+    )
+    db_session.commit()
+    return sanpo_map.id
+
+
+def _add_editor(db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role="editor"))
+    db_session.commit()
+
+
+class TestMovePinRouter:
+    """`PATCH /pins/{id}` の `sanpo_map_id`（地図の移動, ADR-009 決定33, SS-175）。"""
+
+    @pytest.fixture
+    def env(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        db_session: Session,
+        authenticated_user: User,
+        auth_headers: dict[str, str],
+    ) -> "_MoveEnv":
+        client, storage = fake_storage_client
+        map_a = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        map_b = _create_extra_map(db_session, owner_user_id=authenticated_user.id)
+        return _MoveEnv(
+            client=client,
+            storage=storage,
+            db=db_session,
+            user=authenticated_user,
+            headers=auth_headers,
+            map_a=map_a,
+            map_b=map_b,
+        )
+
+    @staticmethod
+    def _create_pin(env: "_MoveEnv", **extra: object) -> str:
+        response = env.client.post(
+            "/pins",
+            headers=env.headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "sanpo_map_id": str(env.map_a),
+                "location": {"latitude": 1, "longitude": 2},
+                **extra,
+            },
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    def test_explicit_null_sanpo_map_id_is_422(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env)
+        response = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": None}
+        )
+        assert response.status_code == 422
+
+    def test_non_uuid_sanpo_map_id_is_422(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env)
+        response = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": "not-a-uuid"}
+        )
+        assert response.status_code == 422
+
+    def test_location_is_still_rejected(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env)
+        response = env.client.patch(
+            f"/pins/{pin_id}",
+            headers=env.headers,
+            json={"sanpo_map_id": str(env.map_b), "location": {"latitude": 0, "longitude": 0}},
+        )
+        assert response.status_code == 422
+
+    def test_unknown_destination_is_404_with_code(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env)
+        response = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(uuid.uuid4())}
+        )
+        assert response.status_code == 404
+        assert response.json() == {
+            "detail": "Sanpo map not found",
+            "code": "sanpo_map_not_found",
+        }
+
+    def test_missing_pin_is_404_with_code(self, env: "_MoveEnv") -> None:
+        response = env.client.patch(
+            f"/pins/{uuid.uuid4()}", headers=env.headers, json={"name": "X"}
+        )
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Pin not found", "code": "pin_not_found"}
+
+    def test_missing_pin_wins_over_missing_destination(self, env: "_MoveEnv") -> None:
+        response = env.client.patch(
+            f"/pins/{uuid.uuid4()}",
+            headers=env.headers,
+            json={"sanpo_map_id": str(uuid.uuid4())},
+        )
+        assert response.status_code == 404
+        assert response.json()["code"] == "pin_not_found"
+
+    def test_moves_pin_and_response_matches_get(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env, tags=["たこ焼き"])
+        before = env.client.get(f"/pins/{pin_id}", headers=env.headers).json()
+
+        response = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(env.map_b)}
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["sanpo_map"]["id"] == str(env.map_b)
+        assert body == env.client.get(f"/pins/{pin_id}", headers=env.headers).json()
+        assert body["updated_at"] > before["updated_at"]
+        assert body["tags"] == before["tags"]
+        assert body["created_by_user_id"] == before["created_by_user_id"]
+        assert body["client_pin_id"] == before["client_pin_id"]
+        assert body["created_at"] == before["created_at"]
+
+    def test_same_map_id_is_a_noop(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env)
+        before = env.client.get(f"/pins/{pin_id}", headers=env.headers).json()
+        maps_before = {
+            m["id"]: m["updated_at"]
+            for m in env.client.get("/sanpo-maps", headers=env.headers).json()["items"]
+        }
+
+        response = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(env.map_a)}
+        )
+
+        assert response.status_code == 200
+        assert response.json() == before
+        maps_after = {
+            m["id"]: m["updated_at"]
+            for m in env.client.get("/sanpo-maps", headers=env.headers).json()["items"]
+        }
+        assert maps_after == maps_before
+
+    def test_moves_with_other_fields_together(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env, name="元")
+
+        response = env.client.patch(
+            f"/pins/{pin_id}",
+            headers=env.headers,
+            json={"name": "新", "add_tags": ["公園"], "sanpo_map_id": str(env.map_b)},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["name"] == "新"
+        assert [t["label"] for t in body["tags"]] == ["公園"]
+        assert body["sanpo_map"]["id"] == str(env.map_b)
+
+    def test_tag_limit_409_does_not_move(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env, tags=[f"tag{i}" for i in range(10)])
+
+        response = env.client.patch(
+            f"/pins/{pin_id}",
+            headers=env.headers,
+            json={"add_tags": ["overflow"], "sanpo_map_id": str(env.map_b)},
+        )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "tag_limit_exceeded"
+        assert env.client.get(f"/pins/{pin_id}", headers=env.headers).json()["sanpo_map"][
+            "id"
+        ] == str(env.map_a)
+
+    def test_listing_counts_and_tags_follow_the_move(self, env: "_MoveEnv") -> None:
+        pin_id = self._create_pin(env, tags=["公園"])
+        moved = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(env.map_b)}
+        )
+        assert moved.status_code == 200
+
+        def _ids(map_id: uuid.UUID) -> list[str]:
+            response = env.client.get(
+                "/pins", headers=env.headers, params={"sanpo_map_id": str(map_id)}
+            )
+            assert response.status_code == 200
+            return [item["id"] for item in response.json()["items"]]
+
+        assert _ids(env.map_a) == []
+        assert _ids(env.map_b) == [pin_id]
+
+        maps = env.client.get(
+            "/sanpo-maps", headers=env.headers, params={"expand": "pin_count"}
+        ).json()["items"]
+        counts = {m["id"]: m["pin_count"] for m in maps}
+        assert counts[str(env.map_a)] == 0
+        assert counts[str(env.map_b)] == 1
+
+        def _tag_labels(map_id: uuid.UUID) -> list[str]:
+            response = env.client.get(f"/sanpo-maps/{map_id}/tags", headers=env.headers)
+            return [item["label"] for item in response.json()["items"]]
+
+        assert _tag_labels(env.map_a) == []
+        assert _tag_labels(env.map_b) == ["公園"]
+
+    def test_moves_destination_map_to_the_front_of_recent_maps(self, env: "_MoveEnv") -> None:
+        # 既定地図は先頭固定なので、既定でない2つの地図で並びを確認する。
+        map_c = _create_extra_map(env.db, owner_user_id=env.user.id, name="C")
+        pin_id = self._create_pin(env)
+        order_before = [
+            m["id"] for m in env.client.get("/sanpo-maps", headers=env.headers).json()["items"]
+        ]
+        assert order_before.index(str(map_c)) < order_before.index(str(env.map_b))
+
+        response = env.client.patch(
+            f"/pins/{pin_id}", headers=env.headers, json={"sanpo_map_id": str(env.map_b)}
+        )
+
+        assert response.status_code == 200
+        order_after = [
+            m["id"] for m in env.client.get("/sanpo-maps", headers=env.headers).json()["items"]
+        ]
+        assert order_after.index(str(env.map_b)) < order_after.index(str(map_c))
+
+
+@dataclass
+class _MoveEnv:
+    client: TestClient
+    storage: FakeObjectStorage
+    db: Session
+    user: User
+    headers: dict[str, str]
+    map_a: uuid.UUID
+    map_b: uuid.UUID
+
+
+@dataclass
+class _MoveWorld:
+    client: TestClient
+    storage: FakeObjectStorage
+    owner: User
+    editor_a: User
+    editor_b: User
+    outsider: User
+    shared_map: uuid.UUID  # owner の地図。editor_a / editor_b が editor
+    owner_only_map: uuid.UUID
+    editor_a_only_map: uuid.UUID
+    editor_b_only_map: uuid.UUID
+    other_owner_map: uuid.UUID  # 別 owner の地図。editor_a が editor
+    other_owner: User
+    pin_by_editor_a_id: str
+
+
+class TestPinMovePermissionMatrix:
+    """ピンの地図の移動の権限（ADR-009 決定33）を router レベルで固定する。"""
+
+    @pytest.fixture
+    def world(
+        self, fake_storage_client: tuple[TestClient, FakeObjectStorage], db_session: Session
+    ) -> _MoveWorld:
+        client, storage = fake_storage_client
+        owner = make_user(db_session, subject="mv-owner")
+        editor_a = make_user(db_session, subject="mv-editor-a")
+        editor_b = make_user(db_session, subject="mv-editor-b")
+        outsider = make_user(db_session, subject="mv-outsider")
+        other_owner = make_user(db_session, subject="mv-other-owner")
+
+        shared_map = _create_sanpo_map(db_session, owner_user_id=owner.id)
+        _add_editor(db_session, sanpo_map_id=shared_map, user_id=editor_a.id)
+        _add_editor(db_session, sanpo_map_id=shared_map, user_id=editor_b.id)
+        owner_only_map = _create_extra_map(db_session, owner_user_id=owner.id, name="O")
+        editor_a_only_map = _create_sanpo_map(db_session, owner_user_id=editor_a.id)
+        editor_b_only_map = _create_sanpo_map(db_session, owner_user_id=editor_b.id)
+        other_owner_map = _create_sanpo_map(db_session, owner_user_id=other_owner.id)
+        _add_editor(db_session, sanpo_map_id=other_owner_map, user_id=editor_a.id)
+
+        pin = client.post(
+            "/pins",
+            headers=_auth_headers_for(editor_a),
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "sanpo_map_id": str(shared_map),
+                "location": {"latitude": 0, "longitude": 0},
+                "name": "元の名前",
+            },
+        ).json()
+        return _MoveWorld(
+            client=client,
+            storage=storage,
+            owner=owner,
+            editor_a=editor_a,
+            editor_b=editor_b,
+            outsider=outsider,
+            shared_map=shared_map,
+            owner_only_map=owner_only_map,
+            editor_a_only_map=editor_a_only_map,
+            editor_b_only_map=editor_b_only_map,
+            other_owner_map=other_owner_map,
+            other_owner=other_owner,
+            pin_by_editor_a_id=pin["id"],
+        )
+
+    @staticmethod
+    def _patch(world: _MoveWorld, user: User, json: dict[str, object], pin_id: str | None = None):
+        return world.client.patch(
+            f"/pins/{pin_id or world.pin_by_editor_a_id}",
+            headers=_auth_headers_for(user),
+            json=json,
+        )
+
+    @staticmethod
+    def _get(world: _MoveWorld, user: User, pin_id: str | None = None):
+        return world.client.get(
+            f"/pins/{pin_id or world.pin_by_editor_a_id}", headers=_auth_headers_for(user)
+        )
+
+    def test_owner_can_move_editors_pin_to_map_editor_is_not_member_of(
+        self, world: _MoveWorld
+    ) -> None:
+        response = self._patch(world, world.owner, {"sanpo_map_id": str(world.owner_only_map)})
+
+        assert response.status_code == 200
+        assert response.json()["sanpo_map"]["id"] == str(world.owner_only_map)
+        # editor_a は移動先のメンバーでないので、以後ピンは見えない（決定33 の D8）。
+        after = self._get(world, world.editor_a)
+        assert after.status_code == 404
+        assert after.json()["code"] == "pin_not_found"
+
+    def test_editor_can_move_own_pin_to_own_map(self, world: _MoveWorld) -> None:
+        response = self._patch(
+            world, world.editor_a, {"sanpo_map_id": str(world.editor_a_only_map)}
+        )
+
+        assert response.status_code == 200
+        assert self._get(world, world.owner).status_code == 404
+
+    def test_editor_can_move_own_pin_to_map_where_editor(self, world: _MoveWorld) -> None:
+        response = self._patch(world, world.editor_a, {"sanpo_map_id": str(world.other_owner_map)})
+
+        assert response.status_code == 200
+        assert response.json()["sanpo_map"]["id"] == str(world.other_owner_map)
+
+    def test_non_creator_editor_cannot_move_out_and_nothing_changes(
+        self, world: _MoveWorld
+    ) -> None:
+        response = self._patch(
+            world, world.editor_b, {"sanpo_map_id": str(world.editor_b_only_map)}
+        )
+
+        assert response.status_code == 403
+        after = self._get(world, world.owner).json()
+        assert after["sanpo_map"]["id"] == str(world.shared_map)
+
+    def test_move_denied_rolls_back_other_allowed_fields(self, world: _MoveWorld) -> None:
+        response = self._patch(
+            world,
+            world.editor_b,
+            {"visited": True, "sanpo_map_id": str(world.editor_b_only_map)},
+        )
+
+        assert response.status_code == 403
+        assert self._get(world, world.owner).json()["visited"] is False
+
+    def test_destination_non_member_is_404_sanpo_map_not_found(self, world: _MoveWorld) -> None:
+        response = self._patch(world, world.editor_a, {"sanpo_map_id": str(world.owner_only_map)})
+
+        assert response.status_code == 404
+        assert response.json()["code"] == "sanpo_map_not_found"
+        assert self._get(world, world.owner).json()["sanpo_map"]["id"] == str(world.shared_map)
+
+    def test_destination_404_wins_over_403(self, world: _MoveWorld) -> None:
+        # 作成者でない editor_b が、メンバーでない地図へ移そうとすると 403 ではなく 404。
+        response = self._patch(world, world.editor_b, {"sanpo_map_id": str(world.owner_only_map)})
+
+        assert response.status_code == 404
+        assert response.json()["code"] == "sanpo_map_not_found"
+
+    def test_outsider_gets_pin_not_found(self, world: _MoveWorld) -> None:
+        response = self._patch(world, world.outsider, {"sanpo_map_id": str(world.owner_only_map)})
+
+        assert response.status_code == 404
+        assert response.json()["code"] == "pin_not_found"
+
+    def test_photo_delete_after_move_uses_destination_role(
+        self, world: _MoveWorld, db_session: Session
+    ) -> None:
+        photo = create_pin_photo_row(
+            db_session,
+            world.storage,
+            pin_id=uuid.UUID(world.pin_by_editor_a_id),
+            uploaded_by_user_id=world.editor_a.id,
+            position=0,
+        )
+        moved = self._patch(world, world.editor_a, {"sanpo_map_id": str(world.other_owner_map)})
+        assert moved.status_code == 200
+
+        # 元の owner は移動後のピンにアクセスできない。
+        old_owner_delete = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{photo.id}",
+            headers=_auth_headers_for(world.owner),
+        )
+        assert old_owner_delete.status_code == 404
+        # 移動先の owner は他人の写真も削除できる。
+        new_owner_delete = world.client.delete(
+            f"/pins/{world.pin_by_editor_a_id}/photos/{photo.id}",
+            headers=_auth_headers_for(world.other_owner),
+        )
+        assert new_owner_delete.status_code == 204

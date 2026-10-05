@@ -18,6 +18,7 @@ from sanposcape.sanpo_maps.pins.schemas import (
     PinRead,
     PinTagConflictErrorRead,
     PinUpdate,
+    PinUpdateNotFoundErrorRead,
 )
 from sanposcape.sanpo_maps.pins.service import PinService
 from sanposcape.users.models import User
@@ -202,8 +203,18 @@ def list_pin_photos(
     operation_id="update_pin",
     responses={
         **_ERROR_RESPONSES,
-        403: {"description": "Permission denied"},
-        404: {"description": "Pin not found"},
+        403: {
+            "description": (
+                "Permission denied (including moving the pin out of / into a sanpo map)"
+            )
+        },
+        404: {
+            "model": PinUpdateNotFoundErrorRead,
+            "description": (
+                "Pin not found (code: pin_not_found), or the destination sanpo map does not "
+                "exist or the user is not a member (code: sanpo_map_not_found)"
+            ),
+        },
         409: {
             "model": PinTagConflictErrorRead,
             "description": "Applying add_tags/remove_tag_ids would exceed the per-pin tag limit",
@@ -219,7 +230,7 @@ def update_pin(
     service: PinService = Depends(get_pin_service),
 ) -> PinRead:
     """ピンの名前・メモ・訪問状況・アーカイブ状態の更新、タグの追加・削除
-    （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32）。
+    （`add_tags`/`remove_tag_ids`）を1リクエストで原子的に行う（ADR-009 決定19・20・32・33）。
 
     省略したフィールドは変更しない。`name`/`memo` は `null` か空白のみの値で消せる。
     タグは全置換ではなく差分で送る（既にあるタグの再追加、このピンに無い ID の削除は
@@ -228,7 +239,12 @@ def update_pin(
     editor は名前・メモの更新はできない（タグの削除も自分が付けたものだけ）。
     `visited` はメンバーなら誰でも、`archived` は地図 owner かピンの作成者本人だけ変更できる
     （作成者でない editor は 403）。
-    非メンバー・存在しないピンは 404。タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。
+    `sanpo_map_id` を送るとピンを別の地図へ移す。移動元の地図 owner かピンの作成者本人だけが
+    移せ（作成者でない editor は 403）、移動先はメンバーなら owner/editor のどちらでもよい。
+    移動先が存在しない・メンバーでない場合は 404（`code: "sanpo_map_not_found"`）。
+    タグ・写真・訪問状況・アーカイブ状態・作成者はそのまま移る。値が今と同じでも権限は判定する。
+    非メンバー・存在しないピンは 404（`code: "pin_not_found"`）。
+    タグが10件を超えると 409（`code: "tag_limit_exceeded"`）。
     """
     return service.update_pin(current_user, pin_id, payload, base_url=str(request.base_url))
 
