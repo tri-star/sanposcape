@@ -35,6 +35,10 @@ SS-88 以降（SS-118 / SS-119 / SS-121 / SS-124）の計画で確認した前�
   除外しない（解除できなくなる）**。SS-173 で採った形。
 - **`PinRead` / `PinListItemRead` に必須フィールドを足すと、型付きフィクスチャを持つテスト（`pinReadApi` / `pinEditApi` /
   `pinApi` / `pinRead` / `pinEditDraft` / `pinEditSync` / `pinEditSaveRunner`）が typecheck で壊れる**。プランの変更ファイルに含める。
+  同様に `PinPermissions` に項目を足すと、`buildPinUpdateRequest` の `permissions`（`Pick`）を渡す `pinEditDraft.test` の `build()` と
+  `pinEditSync.test` のリテラルが落ちる（SS-175 の計画で確認）。
+- **登録画面の地図選択（`SanpoMapSelection` の `default`＝`sanpo_map_id` を送らない・「最初の地図」の draft）は登録固有の意味を持つ**。
+  既存ピンの地図を扱う画面では流用せず、`SanpoMapChoicesState` を返す別の解決関数を作って `SanpoMapSelector` だけ再利用する（SS-175 の計画）。
 - **サーバーの制約をユーザー操作で回避させる設計は、ユーザーが明示した要件と衝突するなら採らない**。まずクライアント側で
   吸収できないかを考える（写真枚数の上限をユーザーに意識させる案は却下され、先行アップロード + 分割紐付けになった）。
 
