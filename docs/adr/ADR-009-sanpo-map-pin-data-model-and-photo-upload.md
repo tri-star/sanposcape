@@ -892,11 +892,13 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   （2026-09-26 追補, PR #101 レビュー対応。3種類目は SS-113 で追加）。
   - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: `role in {"owner",
     "editor"}` のみで判定する。作成者は判定しないので `is_creator` 引数は持たない。
-    （SS-173 追補: `can_update_pin_visited` もこの形。決定32）
+    （SS-173 追補: `can_update_pin_visited` もこの形。決定32。SS-175 追補: ピンの移動先を判定する
+    `can_move_pin_to` もこの形。決定33）
   - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
     `can_delete_pin_tag`/`can_delete_pin_photo`）: `role == "owner" or (role in {"owner",
     "editor"} and is_creator)`。写真だけは `is_uploader`。
-    （SS-173 追補: `can_update_pin_archived` もこの形。決定32）
+    （SS-173 追補: `can_update_pin_archived` もこの形。決定32。SS-175 追補: ピンの移動元を判定する
+    `can_move_pin_from(role, *, is_creator)` もこの形。決定33）
   - **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）:
     `role == "owner"` のみで判定する。地図の持ち主は owner の role そのものなので、
     「対象の持ち主」を判定する引数（`is_creator`/`is_uploader`）は持たない（決定26）。
@@ -958,6 +960,10 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   mobile は 404 を「既に存在しない」として成功と同じに扱ってよい。
 - 判定の順序: 認証（401） → ボディのバリデーション（422） → member 判定（404） →
   写真の存在（404） → 権限（403） → タグ件数（409）。
+  （**SS-175 追補**: 404 の本文に `code` が付く（`PinNotFoundError` → `"pin_not_found"`、
+  `SanpoMapNotFoundError` → `"sanpo_map_not_found"`。決定33）。`PATCH` の判定順は「ピンの member
+  （404 `pin_not_found`）→ 移動先の member（404 `sanpo_map_not_found`）→ 権限（403）→ タグ件数
+  （409）」。）
 
 ### 決定22: 削除時の S3 は「DB commit → best-effort の即時削除」
 
@@ -1059,6 +1065,9 @@ backend の 403 に任せる。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-p
   なら成功扱いにしてよい。削除後は `photo_count` や代表写真が変わるので、ピンの詳細・
   一覧のキャッシュを無効化する。
 - `DELETE /pins/{id}` の 204/404 は、どちらも一覧から取り除いてよい。
+- （**SS-175 追補**: PATCH の 404 は本文の `code` で `pin_not_found`（ピンが無い → 一覧から取り除く）
+  と `sanpo_map_not_found`（移動先が無い・メンバーでない → ピンは元の地図に残る）を区別できる。
+  決定33）
 - （SS-119 で mobile 実装済み。role は `GET /sanpo-maps` から引く。詳細は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
 
 ## 追補（2026-09-26, SS-113 地図の作成・管理 API）
@@ -1489,7 +1498,9 @@ mobile 固有の判断は mobile の ADR（ADR-M-017 追補）に記録する。
 - **API**: `PinUpdate.sanpo_map_id: UUID`（省略可・null 不可。`SkipJsonSchema[None]` により OpenAPI
   上は素の `{type: string, format: uuid}`。明示的な null は 422。`extra="forbid"` は維持するので
   `location`/`client_walk_id` は引き続き 422）。応答は 200 + `PinRead` で、`sanpo_map` は**移動先**。
-- **移るもの・移らないもの**: `pins.sanpo_map_id` だけを UPDATE する。タグ・写真・`visited`・
+- **移るもの・移らないもの**: `pins.sanpo_map_id` だけを UPDATE する。作成者・owner がピンを移すと、
+  他人がアップロードした写真・付けたタグも一緒に移り、その人が移動先のメンバーでなければ以後それらに
+  アクセスできなくなる（下の「owner が editor のピンを…」と同じ性質）。タグ・写真・`visited`・
   `archived`・`location`・`client_pin_id`・`client_walk_id`・`created_by_user_id`・`created_at`・
   タグの作成者・写真のアップロード者・容量の計上先は変えない。**S3 は触らない**（写真のキーは
   `original/pins/<user_id>/<upload_id>.jpg` で地図に依存しない）。`pin_count`・地図のタグ一覧は
@@ -1512,7 +1523,8 @@ mobile 固有の判断は mobile の ADR（ADR-M-017 追補）に記録する。
   地図で JOIN するため）。1つでも権限が無ければ全体を 403 にして何も反映しない（決定20）。
 - **同じ値を送ったとき**: `sanpo_map_id` が今の地図と同じでも、送れば移動の権限判定は行う（決定20
   「値が今と同じでも送れば判定」をそのまま適用）。実際の変更・`updated_at`・`mark_used()` は値が
-  違うときだけ。
+  違うときだけ。値が同じときは移動先の地図行をロックしに行かず、取得済みの移動元の role を移動先の
+  role として `can_move_pin_to` に渡す（理由は「並行実行」のデッドロックの分析）。
 - **判定順**: 401 → 422 → ピンの member（404 `pin_not_found`）→ 移動先の member（404
   `sanpo_map_not_found`。存在しない・非メンバーを区別しない）→ 権限（403）→ タグ件数（409）。決定21
   の「存在の確認（404）を権限（403）より先」に収まる。
@@ -1546,9 +1558,16 @@ mobile 固有の判断は mobile の ADR（ADR-M-017 追補）に記録する。
     再評価で A から外れるので、その後のキー収集にも入らない。CASCADE は同じ行をロックするので、取る
     ロックの範囲は増えず時刻が早まるだけ。書き込みではないロック付きの読み取りなので ADR-011 M6 の
     範囲内（`list_photo_keys_for_map` が既に `pins` を読むのと同じ扱い）。
-  - **デッドロックしない根拠**（ロックの取得順の分析）: 移動は「`pins` 行 P（FOR UPDATE）→ 移動先 B の
-    地図行（KEY SHARE）→ P を UPDATE → B を `touch()`」で、移動元 A の地図行は取らない。地図削除は
-    「owner advisory lock → 地図行（FOR UPDATE）→ その地図のピン行（FOR UPDATE。新規）→ CASCADE」。
+  - **デッドロックの分析**（ロックの取得順。以下は**分析したケースについての結論**で、網羅の証明ではない）:
+    移動は「`pins` 行 P（FOR UPDATE）→ 移動先 B の地図行（KEY SHARE）→ P を UPDATE → B を
+    `touch()`」で、移動元 A の地図行は取らない。地図削除は「owner advisory lock → 地図行
+    （FOR UPDATE）→ その地図のピン行（FOR UPDATE。新規）→ CASCADE」。
+    **同じ地図の ID を送る PATCH（B = A）は特別扱いが要る**（レビューで発見・SS-175）: そのまま
+    B の地図行（= A）を KEY SHARE で取りに行くと、「PATCH が P を握る → 削除が A の地図行（FOR
+    UPDATE）を握って P を待つ → PATCH が A の KEY SHARE を待つ」で循環し、DeadlockDetected の 500
+    になる。そこで `update_pin` は移動先が今の地図と同じときは地図行をロックせず、取得済みの role
+    （移動元 = 移動先）をそのまま移動先の role に使う（`can_move_pin_to` の判定は残す。
+    `PinService._resolve_move_target`）。違う地図なら次のとおり。
     「P を移動中 × A を削除」は削除が P を待つだけで移動は A を要らない。「P を B へ移動中 × B を
     削除」は移動が B を待つだけで、削除は B のピン（P はまだ A）しかロックしない。「P1 を A→B ×
     P2 を B→A」は KEY SHARE 同士で衝突しない。「同じ B へ2件同時に移動」は `touch(B)` の
@@ -1558,9 +1577,14 @@ mobile 固有の判断は mobile の ADR（ADR-M-017 追補）に記録する。
   - **テストで固定したもの・していないもの**: 固定したのは (a)「移動中（未 commit）のピンがある地図を
     削除しても、移動先で生き残るピンの写真の原本・サムネイルが S3 に残る」（修正前に落ちることを確認
     済み）と (b)「移動先の地図が同時に削除されたら移動は 404 `sanpo_map_not_found` になり、ピンは元の
-    地図に残る」（`maps/tests/test_delete_map_concurrency.py`。`threading` + 別 Session の実 DB）。
+    地図に残る」（`maps/tests/test_delete_map_concurrency.py`。`threading` + 別 Session の実 DB）、
+    (c)「同じ地図の ID を送る PATCH と地図削除がデッドロックしない」（同ファイル）。
     **デッドロックしないこと・「移動が先にロックを取り、移動先が後から削除される」順序は分析上の結論で、
-    テストでは固定していない**。
+    テストでは固定していない**（それ以外の組み合わせ、特に3者・4者以上のロックの循環は分析して
+    いない。既存の `add_photos`/`create_pin` × 地図削除の許容した循環は決定28）。
+    上記の同値 PATCH × 地図削除だけは具体的なデッドロックが見つかったので、(c) として回帰テストで
+    固定した（修正前のコードで `DeadlockDetected` になることを確認済み）。(a)(b)(c) の待機判定は
+    固定 sleep ではなく `pg_stat_activity` の `wait_event_type = 'Lock'` のポーリング。
   - **残る限界（許容）**: 移動の commit を待っていた同じピンへの別の操作（2台目の端末からの PATCH・
     写真の追加・削除など）は、`get_for_member_for_update()` の JOIN が再評価で外れるため、移動先の
     メンバーであっても 404 `pin_not_found` になる。2台の端末で同じピンを同時に操作しない限り起きず、
