@@ -105,10 +105,11 @@ packages/backend/
 │       │   ├── exceptions.py  #   ドメイン全体の例外（共有カーネル）
 │       │   ├── permissions.py #   SanpoMapRole と role による権限判定の純粋関数（共有カーネル）。
 │       │   │                  #   追加系（can_add_pin/can_add_pin_photo/can_add_pin_tag/
-│       │   │                  #   can_update_pin_visited）は role だけ、更新・削除系
+│       │   │                  #   can_update_pin_visited/can_move_pin_to）は role だけ、更新・削除系
 │       │   │                  #   （can_update_pin/can_update_pin_archived/can_delete_pin/
-│       │   │                  #   can_delete_pin_tag/can_delete_pin_photo）は is_creator/
-│       │   │                  #   is_uploader をキーワード専用引数に取る（SS-112）。地図そのものの
+│       │   │                  #   can_delete_pin_tag/can_delete_pin_photo/can_move_pin_from）は
+│       │   │                  #   is_creator/is_uploader をキーワード専用引数に取る（SS-112。
+│       │   │                  #   ピンの地図の移動の can_move_pin_from/to は SS-175）。地図そのものの
 │       │   │                  #   管理系（can_update_sanpo_map/can_delete_sanpo_map）は role の
 │       │   │                  #   みで owner 限定（SS-113）
 │       │   ├── advisory_locks.py #   advisory_lock_key()（共有カーネル。owner 単位ロックと
@@ -118,7 +119,9 @@ packages/backend/
 │       │   ├── maps/          #   サブパッケージ: 地図（SanpoMap）とメンバーシップ。
 │       │   │   ├── router.py  #     GET/POST /sanpo-maps, PATCH/DELETE /sanpo-maps/{id}（SS-113）,
 │       │   │   │              #     GET /sanpo-maps/{id}/tags（SS-136）
-│       │   │   ├── access.py  #     SanpoMapAccess（ピン作成・写真操作のための地図解決。
+│       │   │   ├── access.py  #     SanpoMapAccess（ピン作成・写真操作のための地図解決と、
+│       │   │   │              #     ピンの移動先の role 取得 get_role_for_pin_move（地図行を
+│       │   │   │              #     FOR KEY SHARE でロック）・移動先の mark_used（SS-175）。
 │       │   │   │              #     commit しない部品。SS-137）
 │       │   │   └── mappers.py #     to_sanpo_map_read() に SanpoMapRead の組み立てを集約（SS-113）
 │       │   ├── pins/          #   サブパッケージ: ピン・タグ・ピンに紐付いた写真（行）。
