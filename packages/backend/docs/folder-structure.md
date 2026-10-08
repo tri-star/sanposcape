@@ -27,7 +27,7 @@ packages/backend/
 ├── uv.lock
 ├── alembic.ini
 ├── .env / .env.example        # ポート・DB接続・プロジェクト名など
-├── template.yaml               # AWS SAM テンプレート（Lambda / Function URL / ロググループ。SS-67）
+├── template.yaml               # AWS SAM テンプレート（Lambda / Function URL / ロググループ。SS-67。トレース設定は SS-178、ダッシュボード 1 枚とアラーム 3 本は SS-179 / deployment.md §14）
 ├── samconfig.toml              # SAM の dev/prod config-env（stack_name / region / tags 等。SS-67）
 ├── Makefile                    # SAM `BuildMethod: makefile` のビルドターゲット（SS-67）
 ├── events/                     # `sam local invoke` / `aws lambda invoke` 用の payload・env-vars（SS-67）
@@ -41,6 +41,8 @@ packages/backend/
 │       ├── dependencies.py    # 横断的な依存（DBセッション, 認証済みユーザー取得 等）
 │       ├── all_models.py      # 全ドメインの models を import して Base.metadata に集約（Alembic autogenerate 用）
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
+│       ├── tests/             # ドメインに属さない横断テスト（併置の例外）。config / database / main のほか、template.yaml の整合を検証する
+│       │                      #   test_tracing_config.py（SS-178）/ test_monitoring_config.py（SS-179）。template_loader.py は両者が使う YAML ローダー（キャッシュ付き）
 │       │
 │       ├── aws_lambda/        # AWS Lambda 固有の受け皿（ECS 移植性の境界。SS-67）
 │       │   ├── api.py         #   Lambda ハンドラ。main.app の import 前にシークレットをハイドレーションし、後で build_handler() を呼ぶ
