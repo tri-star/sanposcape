@@ -61,6 +61,11 @@ updates:
       # （ADR-013 決定1 / SS-178）。Dependabot が個別に上げるとレイヤーとの版ずれを作るため、
       # レイヤーを上げるとき（dev で確認してから）に手動で一緒に上げる。
       - dependency-name: "opentelemetry-*"
+      # FastAPI 0.142 以降は opentelemetry-api を必須依存にし、`import fastapi` で opentelemetry を
+      # import する（ネイティブ OTel 計装）。zip に OTel を入れない・無効時は import しない
+      # という ADR-013 決定1 と両立しないため、ADR を見直すまで上げない（pyproject.toml も <0.142）。
+      - dependency-name: "fastapi"
+        versions: [">=0.142"]
     groups:
       backend-dependencies:
         patterns:
