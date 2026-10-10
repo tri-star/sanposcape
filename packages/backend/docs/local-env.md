@@ -80,6 +80,10 @@ docker compose exec api sh -c 'grep -E "^Uid:" /proc/1/status'
 ```
 
 `docker compose logs api` で Uvicorn の stdout/stderr を確認できる。ファイルログ用の volume は作成しない。
+ログの形式は `LOG_FORMAT`（`console` | `json`。SS-180）で選べる。compose の既定は `console`（読みやすい 1 行表記。
+`12:34:56.789 INFO  sanposcape.core.observability: GET /pins -> 200 (1.2ms) [http_method=GET http_route=/pins]`）。
+`json` にすると Lambda と同じ 1 レコード 1 行の JSON（`trace_id` などのキーつき）で確かめられる
+（[local-development.md](./local-development.md)「ログの形式」）。
 
 ## よく使うコマンド
 
@@ -166,6 +170,7 @@ docker compose up -d --build
 設計の詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
 - `ENV`: 実行環境（`local` / `test` / `staging` / `production`）。`local` / `test` 以外（`staging` / `production`）では厳格な起動時バリデーションが有効になる（許可リスト方式。新しい `env` 値を追加してもデフォルトで安全側になる）。
+- `LOG_FORMAT`: ログの形式。`json`（コード既定。Lambda / 将来の ECS と同じ 1 行の JSON）または `console`（ローカルで読みやすい 1 行表記。compose の既定）。`console` は `ENV` が `local` / `test` のときだけ許可され、`staging` / `production` で指定すると起動時に失敗する。`exception_message`（例外メッセージ）も `local` / `test` でしか出ない（ADR-013 決定6）。
 - `AUTH_MODE`: `real`（既定・fail-safe）または `dev`。
   - `real`: `POST /auth/session` で Google ID token を検証するモード。
   - `dev`: `real` に加えて `POST /auth/dev-session`（`{"user_key": "..."}` で任意のユーザーを JIT 作成してセッションを発行）が有効になる。ローカル開発・Maestro E2E 専用。
