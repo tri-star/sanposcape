@@ -175,3 +175,35 @@ def test_handler_accepts_direct_endpoint(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     assert migrate.handler({}, None) == {"head": "fake-head-revision"}
+
+
+def test_importing_the_module_switches_runtime_handlers_to_json_in_lambda(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """migrate Lambda も api.py と同じく、ランタイムのログハンドラーを JSON にする（SS-180）。"""
+    import importlib.util
+    import logging
+    import sys
+
+    from sanposcape.core.observability import JsonLogFormatter
+
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "sanposcape-dev-backend-migrate")
+    runtime_handler = logging.NullHandler()
+    runtime_handler.setFormatter(logging.Formatter("[%(levelname)s]\t%(message)s"))
+    root = logging.getLogger()
+    root.addHandler(runtime_handler)
+    # pytest が root に付けているハンドラーの書式も書き換わるので、後で戻す
+    saved = {handler: handler.formatter for handler in root.handlers}
+    spec = importlib.util.find_spec("sanposcape.aws_lambda.migrate")
+    assert spec is not None and spec.loader is not None
+    fresh = importlib.util.module_from_spec(spec)
+    alias = "sanposcape._aws_lambda_migrate_logging_probe"
+    sys.modules[alias] = fresh
+    try:
+        spec.loader.exec_module(fresh)
+        assert isinstance(runtime_handler.formatter, JsonLogFormatter)
+    finally:
+        sys.modules.pop(alias, None)
+        root.removeHandler(runtime_handler)
+        for handler, formatter in saved.items():
+            handler.setFormatter(formatter)

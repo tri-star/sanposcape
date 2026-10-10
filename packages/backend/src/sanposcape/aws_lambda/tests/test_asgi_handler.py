@@ -468,3 +468,35 @@ def test_unhandled_exception_returns_500_and_logs_exactly_one_error_through_mang
     assert errors[0]["logger"] == "sanposcape.core.observability"
     assert errors[0]["aws_request_id"] == "req-9"
     assert errors[0]["exception_type"] == "RuntimeError"
+
+
+def test_staging_settings_never_emit_the_exception_message_through_mangum(
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
+    make_event: Callable[..., dict[str, Any]],
+    counting_builders: _Registry,
+    json_logs: list[dict[str, Any]],
+) -> None:
+    """本番相当（local / test 以外）では、Mangum 経由でも全ログに例外メッセージが出ない。"""
+    app = create_app(
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            database_dsn="postgres://user:pw@host.example.com/db",
+        )
+    )
+    # ソースの行はスタックトレースに出るため、メッセージは実行時に組み立てる
+    secret = "-".join(["secret", "boom"])
+
+    @app.get("/_boom")
+    def _boom() -> None:
+        raise RuntimeError(secret)
+
+    response = make_handler(app)(make_event("GET", "/_boom"), _FakeLambdaContext("req-s"))
+
+    assert response["statusCode"] == 500
+    errors = [r for r in json_logs if r["level"] == "ERROR"]
+    assert len(errors) == 1 and "exception_message" not in errors[0]
+    assert all(secret not in json.dumps(r) for r in json_logs)

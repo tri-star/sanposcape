@@ -37,16 +37,23 @@ use_json_format_for_runtime_handlers()
 
 hydrate_environment_from_secret()
 
+_settings_validation_failed = False
 try:
     from sanposcape.main import app  # noqa: E402
 except ValidationError as exc:
-    # Settings の組み立てに失敗した場合、不足フィールド名だけを ERROR ログに出してから
-    # 再送出する。include_input=False は必須（input には秘密値が入り得るため）。
+    # Settings の組み立てに失敗した場合、不足フィールド名だけを ERROR ログに出す。
+    # include_input=False は必須（input には秘密値が入り得るため）。
     logger.error(
         "Settings validation failed at startup: %s",
         exc.errors(include_input=False, include_url=False),
     )
-    raise
+    _settings_validation_failed = True
+
+if _settings_validation_failed:
+    # ★ except 節の外で、元の例外を引き継がずに送出する。ValidationError の文字列には入力値
+    #   （秘密値）が含まれうるため、ランタイムが `errorMessage` や `__context__` 経由で
+    #   出力しないようにする（ADR-013 決定6 と同じ狙い）。
+    raise RuntimeError("Settings validation failed") from None
 
 from sanposcape.aws_lambda.asgi_handler import build_handler  # noqa: E402
 

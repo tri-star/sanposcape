@@ -17,7 +17,10 @@
 **`AWS_LAMBDA_FUNCTION_NAME` があるときだけ**行う。pytest では root に caplog のハンドラーが付いて
 おり、`test_api.py` が本物の `api.py` を import するため、条件が無いと pytest のハンドラーの
 書式を書き換えてしまう。root にハンドラーが無ければ何もしない（`configure_logging()` が
-`sanposcape` ロガーに足す経路に任せる）。
+`sanposcape` ロガーに足す経路に任せる）が、Lambda ではランタイムが必ず付けるはずなので
+**WARNING を 1 回出す**（ランタイムの実装が変わって JSON 化が静かに効かなくなるのに
+気付けるように）。
+既に `JsonLogFormatter` のハンドラーは再設定しない（冪等。api と migrate のどちらからも呼べる）。
 
 ランタイムを上げるときは、ログが JSON になっていること（`fields level, trace_id | limit 20`）を
 再確認すること（awslambdaric の実装に依存する）。
@@ -28,10 +31,25 @@ import os
 
 from sanposcape.core.observability import JsonLogFormatter
 
+logger = logging.getLogger(__name__)
+
+_warned_no_handler = False
+
 
 def use_json_format_for_runtime_handlers() -> None:
+    global _warned_no_handler
     if not os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         return
+    handlers = logging.getLogger().handlers
+    if not handlers:
+        if not _warned_no_handler:
+            _warned_no_handler = True
+            logger.warning(
+                "Lambda のランタイムが root にログハンドラーを付けていないため、"
+                "ログの JSON 化を行わない（ランタイムの実装が変わった可能性がある）"
+            )
+        return
     formatter = JsonLogFormatter()
-    for handler in logging.getLogger().handlers:
-        handler.setFormatter(formatter)
+    for handler in handlers:
+        if not isinstance(handler.formatter, JsonLogFormatter):
+            handler.setFormatter(formatter)

@@ -94,6 +94,40 @@ def test_hydration_runs_before_main_app_is_created(monkeypatch: pytest.MonkeyPat
     ]
 
 
+def test_settings_validation_failure_is_reraised_without_the_input_values(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Settings の検証エラーの文字列には入力値（秘密値）が含まれうる。ランタイムが
+    `errorMessage` や `__context__` から出力しないよう、入力値を持たない例外に置き換える。"""
+    from pydantic import BaseModel, ValidationError
+
+    class _Model(BaseModel):
+        number: int
+
+    try:
+        _Model(number="super-secret-input")  # type: ignore[arg-type]
+    except ValidationError as caught:
+        validation_error = caught
+
+    monkeypatch.delenv("APP_SECRET_ARN", raising=False)
+
+    def _failing_get_settings() -> config_module.Settings:
+        raise validation_error
+
+    monkeypatch.setattr(config_module, "get_settings", _failing_get_settings)
+    monkeypatch.setattr(sanposcape, "main", sanposcape.main)
+    monkeypatch.delitem(sys.modules, "sanposcape.main")
+
+    with pytest.raises(RuntimeError) as raised:
+        _fresh_exec_module("sanposcape.aws_lambda.api", "sanposcape._aws_lambda_api_failure_probe")
+
+    assert str(raised.value) == "Settings validation failed"
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+    assert "super-secret-input" not in caplog.text
+    assert any("Settings validation failed at startup" in r.getMessage() for r in caplog.records)
+
+
 def test_handler_returns_200_for_health_check(
     lambda_event_loop: asyncio.AbstractEventLoop,
     monkeypatch: pytest.MonkeyPatch,
