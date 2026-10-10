@@ -19,6 +19,6 @@
 - [散歩ドメインの契約](project-walk-domain-contract.md) — walks API と mobile 側の値の対応・冪等キーの採番位置・削除APIの非冪等性
 - [ナビゲーションの実態](project-navigation-model.md) — replace 連鎖で canGoBack=false／Android バックの前提／href:null は AppTabBar に効かない／Redirect はフォーカス時のみ／タブからは push／flash の消費先は限られる
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
-- [ピン/写真の前提](project-spot-photo-domain.md) — 正本はADR-009/ADR-M-010〜017。どのADRに何があるかの索引と、語の衝突・サーバー制約の吸収の教訓
+- [ピン/写真の前提](project-spot-photo-domain.md) — 正本はADR-009/ADR-M-010〜017。どのADRに何があるかの索引と、語の衝突・サーバー制約の吸収・原本にEXIFが無い教訓
 - [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
 - [外部 Web ページへのリンク](project-external-links.md) — useOpenExternalUrl / legalLinks.ts を再利用・expo-web-browser は既存依存（再ビルド不要）・法的 URL は本番固定・LP の URL は恒久・E2E で押さない（ADR-M-020）
