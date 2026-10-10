@@ -34,6 +34,8 @@ export type ExtractTakenAtOptions = {
 
 const DATE_TIME_PATTERN = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/;
 const OFFSET_PATTERN = /^([+-])(\d{2}):(\d{2})$/;
+/** 年の下限。Date.UTC は 0〜99 年を 1900+year に読み替えるため、範囲外の年はここで弾く。 */
+const MIN_YEAR = new Date(TAKEN_AT_MIN_EPOCH_MS).getUTCFullYear();
 const MAX_OFFSET_MINUTES = 14 * 60;
 
 /** "YYYY:MM:DD HH:MM:SS"（後ろのサブ秒・空白・NUL は無視）を解釈する。不正・暦にない日付は null。 */
@@ -53,7 +55,7 @@ export function parseExifDateTime(value: unknown): ExifLocalDateTime | null {
     number,
     number,
   ];
-  if (year === 0 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) {
+  if (year < MIN_YEAR || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) {
     return null;
   }
   // 暦にない日付（2月30日など）は Date.UTC の繰り上がりで一致しなくなる。
@@ -74,7 +76,8 @@ export function parseExifOffset(value: unknown): number | null {
   if (typeof value !== "string") {
     return null;
   }
-  const match = OFFSET_PATTERN.exec(value.trim());
+  // 日時側と同様に、末尾の NUL（EXIF の文字列終端）と空白は無視する。
+  const match = OFFSET_PATTERN.exec(value.replaceAll("\u0000", "").trim());
   if (match === null) {
     return null;
   }
@@ -120,10 +123,6 @@ function defaultLocalOffsetMinutes(local: ExifLocalDateTime): number {
   return -date.getTimezoneOffset();
 }
 
-function readString(exif: Record<string, unknown>, key: string): unknown {
-  return exif[key];
-}
-
 /**
  * EXIF から撮影日時を取り出す。取れなければ null。
  * 優先順: (DateTimeOriginal, OffsetTimeOriginal) → (DateTimeDigitized, OffsetTimeDigitized)。
@@ -145,11 +144,11 @@ export function extractTakenAtFromExif(
     ["DateTimeDigitized", "OffsetTimeDigitized"],
   ];
   for (const [dateKey, offsetKey] of candidates) {
-    const local = parseExifDateTime(readString(record, dateKey));
+    const local = parseExifDateTime(record[dateKey]);
     if (local === null) {
       continue;
     }
-    const offset = parseExifOffset(readString(record, offsetKey)) ?? localOffset(local);
+    const offset = parseExifOffset(record[offsetKey]) ?? localOffset(local);
     const epoch =
       Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute, local.second) -
       offset * 60_000;
@@ -177,4 +176,16 @@ export function takenAtFromDate(date: Date): string {
     },
     -date.getTimezoneOffset(),
   );
+}
+
+/**
+ * 端末時刻の Date を撮影日時にする。範囲 [1900Z, 2100Z) の外（端末時計が狂っている等）や
+ * 不正な Date は null（backend が 422 で弾くため送らない）。
+ */
+export function takenAtFromDateInRange(date: Date): string | null {
+  const time = date.getTime();
+  if (Number.isNaN(time) || time < TAKEN_AT_MIN_EPOCH_MS || time >= TAKEN_AT_MAX_EPOCH_MS) {
+    return null;
+  }
+  return takenAtFromDate(date);
 }

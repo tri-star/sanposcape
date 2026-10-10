@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { toPhotoError } from "@/services/photo/photoError";
 import { PHOTO_JPEG_QUALITY, computeResizeTarget } from "@/services/photo/photoResize";
-import { extractTakenAtFromExif, takenAtFromDate } from "@/services/photo/photoTakenAt";
+import { extractTakenAtFromExif, takenAtFromDateInRange } from "@/services/photo/photoTakenAt";
 import type { PhotoService, PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 
 /**
@@ -50,8 +50,8 @@ export function createRealPhotoService(): PhotoService {
           if (result.canceled) {
             return [];
           }
-          // カメラで EXIF から取れなかったときは、ピッカーが戻った時刻を撮影日時にする。
-          const capturedAt = takenAtFromDate(new Date());
+          // カメラで EXIF から取れなかったときは、ピッカーが戻った時刻を撮影日時にする（範囲外なら null）。
+          const capturedAt = takenAtFromDateInRange(new Date());
           return result.assets.map((asset) => toPickedPhoto(asset, capturedAt));
         }
 

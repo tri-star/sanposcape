@@ -6,6 +6,7 @@ import {
   parseExifDateTime,
   parseExifOffset,
   takenAtFromDate,
+  takenAtFromDateInRange,
 } from "@/services/photo/photoTakenAt";
 
 const JST = { localOffsetMinutes: () => 540, now: new Date("2026-10-10T00:00:00Z") };
@@ -147,6 +148,19 @@ describe("parseExifDateTime", () => {
     expect(parseExifDateTime("2024:02:29 00:00:00")).not.toBeNull();
     expect(parseExifDateTime("2025:02:29 00:00:00")).toBeNull();
   });
+
+  it.each([
+    "0000:01:01 00:00:00",
+    "0001:01:01 00:00:00",
+    "0099:01:01 00:00:00",
+    "1899:12:31 23:59:59",
+  ])("年が下限（1900）未満は弾く: %s", (value) => {
+    expect(parseExifDateTime(value)).toBeNull();
+  });
+
+  it("1900 年は受け付ける", () => {
+    expect(parseExifDateTime("1900:01:01 00:00:00")).not.toBeNull();
+  });
 });
 
 describe("parseExifOffset", () => {
@@ -155,6 +169,17 @@ describe("parseExifOffset", () => {
     expect(parseExifOffset("-12:00")).toBe(-720);
     expect(parseExifOffset("+14:01")).toBeNull();
     expect(parseExifOffset(540)).toBeNull();
+  });
+
+  it.each(["+09:00\u0000", "+09:00\u0000\u0000", " +09:00 \u0000"])(
+    "末尾の NUL・空白を無視する: %j",
+    (value) => {
+      expect(parseExifOffset(value)).toBe(540);
+    },
+  );
+
+  it("末尾に余分な文字があれば null", () => {
+    expect(parseExifOffset("+09:00x")).toBeNull();
   });
 });
 
@@ -172,5 +197,27 @@ describe("takenAtFromDate", () => {
     const result = takenAtFromDate(date);
     expect(result).toMatch(/^2026-07-02T09:14:05[+-]\d{2}:\d{2}$/);
     expect(new Date(result).getTime()).toBe(date.getTime());
+  });
+});
+
+describe("takenAtFromDateInRange", () => {
+  it("範囲内ならオフセット付きの文字列にする", () => {
+    expect(takenAtFromDateInRange(new Date(2026, 6, 2, 9, 14, 5))).toMatch(
+      /^2026-07-02T09:14:05[+-]\d{2}:\d{2}$/,
+    );
+  });
+
+  it("下限（1900-01-01T00:00:00Z）は含み、その直前は null", () => {
+    expect(takenAtFromDateInRange(new Date("1900-01-01T00:00:00Z"))).not.toBeNull();
+    expect(takenAtFromDateInRange(new Date("1899-12-31T23:59:59Z"))).toBeNull();
+  });
+
+  it("上限（2100-01-01T00:00:00Z）は含まない", () => {
+    expect(takenAtFromDateInRange(new Date("2099-12-31T23:59:59Z"))).not.toBeNull();
+    expect(takenAtFromDateInRange(new Date("2100-01-01T00:00:00Z"))).toBeNull();
+  });
+
+  it("不正な Date は null", () => {
+    expect(takenAtFromDateInRange(new Date(Number.NaN))).toBeNull();
   });
 });
