@@ -38,7 +38,7 @@ memory: project
 
 プロジェクトのソースコード分析に入る前に、まず `<mobile-root>/docs/` 配下の設計ドキュメントを読み込み、モバイル固有の前提を把握してください。
 
-- `<mobile-root>/docs/toolsets-libraries.md` — 使用するツール・ライブラリ（TypeScript / pnpm / Expo / Vitest / Maestro / oxlint / oxfmt。スタイルライブラリは未定）
+- `<mobile-root>/docs/toolsets-libraries.md` — 使用するツール・ライブラリ（TypeScript / pnpm / Expo / Vitest / Maestro / oxlint / oxfmt。スタイルは RN 標準の `StyleSheet` + `src/theme` のテーマ Context＝ADR-M-005）
 - `<mobile-root>/docs/architecture-guideline.md` — スタブ差し替え方針、テスト方針（E2E/単体）、UIとロジックの分離
 - `<mobile-root>/docs/folder-structure.md` — `app/`(薄いルート) + `src/features` + `src/services` + `src/api` などの配置ルール
 - `<mobile-root>/docs/naming-conventions.md` — `src/` は PascalCase / `app/` は kebab-case、WSL2でのcase一致
@@ -55,7 +55,7 @@ memory: project
 
 - `app/` のルート構成（Expo Router のファイルベースルーティング）
 - 既存の `src/features/<feature>/` の凝集パターン（components / hooks / api / types）
-- `src/services/` のスタブ差し替え層の実装パターン（`index.ts` / `types.ts` / `*.real.ts` / `*.stub.ts`）
+- `src/services/` のスタブ差し替え層の実装パターン（`index.ts` / `types.ts` / `*.real.ts` / `*.dev.ts` / `*.mock.ts`。サービスごとに必要なモードだけを持つ）
 - `src/api/generated/`（Orval生成物）と `src/api/client.ts` の設定
 - 既存の Vitest / Maestro テストの書き方
 
@@ -94,13 +94,15 @@ packages/mobile/
 │   ├── features/
 │   │   └── walk/
 │   │       ├── components/
-│   │       │   ├── WalkHistoryList.tsx            [新規]
-│   │       │   └── WalkHistoryList.test.tsx       [新規]
+│   │       │   └── WalkHistoryList.tsx            [新規]  # レンダリングテストは書けないのでテストなし
 │   │       ├── hooks/
-│   │       │   ├── useWalkHistory.ts              [新規]
-│   │       │   └── useWalkHistory.test.ts         [新規]
+│   │       │   └── useWalkHistory.ts              [新規]  # hook もテストなし。ロジックは lib/ へ
+│   │       ├── lib/
+│   │       │   ├── formatWalkHistory.ts           [新規]  # 純粋関数（react-native を値 import しない）
+│   │       │   └── formatWalkHistory.test.ts      [新規]
 │   │       ├── api/
-│   │       │   └── walkHistory.ts                 [新規]
+│   │       │   ├── walkHistoryApi.ts              [新規]  # Orval 生成の素の fetcher をラップ
+│   │       │   └── walkHistoryApi.test.ts         [新規]  # msw でテスト
 │   │       └── types.ts                           [新規]
 │   ├── components/
 │   │   └── ui/
@@ -111,7 +113,7 @@ packages/mobile/
 │           ├── index.ts                           [編集]
 │           ├── types.ts                           [編集]
 │           ├── location.real.ts                   [編集]
-│           └── location.stub.ts                   [編集]
+│           └── location.mock.ts                   [編集]
 ```
 
 ### 4. 各ファイルの詳細仕様
@@ -146,7 +148,7 @@ packages/mobile/
 <example>
 #### `src/features/walk/hooks/useWalkHistory.ts` [新規]
 
-**目的**: 散歩履歴の取得・整形ロジックを担う hook（画面から UI ロジックを分離し Vitest でテスト可能にする）
+**目的**: 散歩履歴の取得・整形を担う hook（画面から UI ロジックを分離する。hook 自体は Vitest で実行できないため、整形ロジックは `lib/` の純粋関数に切り出してテストする）
 
 **エクスポートする関数**:
 
@@ -164,13 +166,13 @@ type UseWalkHistoryResult = {
 
 **内部のロジック**:
 
-- `src/api/generated/` の Orval 生成 hook を呼び出して履歴を取得する
-- 取得したレスポンスを `WalkHistoryItem` に整形する純粋関数（`src/features/walk/lib` などに切り出し、単体テストしやすくする）
+- `src/features/walk/api/walkHistoryApi.ts`（Orval 生成の素の fetcher をラップした関数）を TanStack Query の `useQuery` から呼び出して履歴を取得する
+- 取得したレスポンスを `WalkHistoryItem` に整形する純粋関数（`src/features/walk/lib/formatWalkHistory.ts` に切り出し、単体テストする）
 
 **使用するもの**:
 
-- Orval 生成 client from `@/api/generated/...`
-- 位置情報が必要な場合は `@/services/location`（interface のみ参照。real/stub は意識しない）
+- `src/features/walk/api/walkHistoryApi.ts`（中で `@/api/generated/...` の fetcher を呼ぶ）
+- 位置情報が必要な場合は `@/services/location`（interface のみ参照。モードごとの実体は意識しない）
 
 **備考**: 画面 `app/(tabs)/walk-history.tsx` はこの hook と `WalkHistoryList` を import するだけの薄い実装にする
 </example>
@@ -178,14 +180,14 @@ type UseWalkHistoryResult = {
 <example>
 #### `src/services/location/index.ts` [新規/編集]
 
-**目的**: 位置情報機能を抽象化し、環境に応じて real/stub を切り替えるエントリポイント
+**目的**: 位置情報機能を抽象化し、環境に応じて実装を切り替えるエントリポイント
 
 **方針**:
 
-- 呼び出し側は `types.ts` が定義する**インターフェースのみ**を参照する（real/stub の実体を知らない）
-- `index.ts` で環境変数（例: `EXPO_PUBLIC_*`）を見て `location.real.ts` / `location.stub.ts` を選択して export する
-- **ユニットテスト**: 常に stub を利用
-- **E2E（Maestro）**: Maestro で再現可能なら real、不可なら stub にフォールバック
+- 呼び出し側は `types.ts` が定義する**インターフェースのみ**を参照する（モードごとの実体を知らない）
+- `index.ts` で環境変数（`EXPO_PUBLIC_LOCATION_MODE`。判定は `src/config/locationMode.ts`）を見て `location.real.ts` / `location.mock.ts` を選択して export する。モードは real/dev/mock が基本形だが、必要なものだけ用意する（location は dev を持たない。ADR-M-006）
+- **ユニットテスト**: バレル（`index.ts`）は import せず、`location.mock.ts` などの個別モジュールを直接 import する
+- **E2E（Maestro）**: `EXPO_PUBLIC_LOCATION_MODE=mock`（エミュレータの位置がフレークになりやすいため）
 </example>
 
 #### 編集ファイル
@@ -194,7 +196,7 @@ type UseWalkHistoryResult = {
 完全なコードを示す必要はなく、例を挙げたり、ヒントを箇条書きするなどで表現してください。
 
 **重要： OpenAPI定義はbackendが自動生成するので、mobile側では更新せず、Orvalにより `src/api/generated/` へclientコードを自動生成してください（生成物は手編集禁止）。**
-**mobileでは msw は使いません。** ユニットテストのバックエンドAPIモックは **Orval生成物のスタブ**を利用し、認証・実機依存機能は **`src/services/` 層の stub** を利用します。
+**ユニットテストのバックエンドAPIモックには msw を使います。** Orval が生成した MSW ハンドラ（`*.msw.ts`）を `src/test/setup.ts` の `server` に渡して差し替えます。認証・実機依存機能は **`src/services/` の mock 実装**を個別モジュールから直接 import して使います。
 **backendについてAPI設計の伝達が必要な場合、プランの中でbackend伝達事項として残してください。**
 
 <example>
@@ -220,26 +222,28 @@ type UseWalkHistoryResult = {
 
 ### 5. 実装上の注意事項
 
-- **UIとロジックの分離**: `app/` の画面は薄く保ち、ロジックは hook / 純粋関数に切り出して Vitest で広くテストできるようにする。
+- **UIとロジックの分離**: `app/` の画面は薄く保つ。テストしたいロジックは `lib/` の純粋関数に切り出して Vitest でテストできるようにする（hooks / components はテストできない）。
 - **パスエイリアス**: `@/` を `src/` に割り当てる。`app/` から `src/` を参照する際も `@/` を使い、深い相対パスを避ける。
 - **WSL2 / Linux の case 一致**: 開発環境は大文字小文字を区別する。import パスは実ファイル名と **case まで完全一致**させる（例: `@/components/ui/button/Button` は OK、`.../button/button` は NG）。
 - **`app/` にはルート（画面）以外を置かない**。再利用するコンポーネントは必ず `src/` に置く。
 - **components 直下の肥大化を避ける**。カテゴリ（サブフォルダ）に分ける。
-- **サービス層**: 認証（OAuth/OIDC）・実機依存機能（カメラ・位置情報など）は `src/services/<service>/` に interface + real/stub を用意し、呼び出し側は interface のみ参照する。
+- **サービス層**: 認証（OAuth/OIDC）・実機依存機能（カメラ・位置情報など）は `src/services/<service>/` に interface と必要なモード（real/dev/mock）の実装を用意し、呼び出し側は interface のみ参照する。
 - エラーハンドリングの方針、パフォーマンス上の考慮事項（必要な場合）。
 
 ### 6. テスト方針
 
-`<mobile-root>/docs/architecture-guideline.md` のテスト方針に沿ってください。テストは**テスト対象と同じ場所に併置（co-location）**します（例: `Button.tsx` → `Button.test.tsx`、`useWalkHistory.ts` → `useWalkHistory.test.ts`）。
+`<mobile-root>/docs/architecture-guideline.md`（テストの方針）と `<mobile-root>/docs/pages-components-guideline.md`（テストの書き方）に沿ってください。テストは**テスト対象と同じ場所に併置（co-location）**し、`.test.ts` のみとします（`.test.tsx` は計画しない）。
 
-- **単体テスト（Vitest）**: コンポーネント単位／ロジック単位で動作を検証する。
-  - 認証: スタブ実装を利用
-  - Backend API: スタブ実装を利用（Orval の生成物を利用）
-  - モバイル機能: スタブ実装（`src/services/` の stub）を利用
+- **単体テスト（Vitest）**: node 環境で `react-native` を最小スタブに差し替えているため、**コンポーネントのレンダリングや hook を実行するテストは書けない**。次の層でロジックを担保する。
+  - 純粋ロジック（`lib/`）、静的スタブの不変条件（`data/`）、Zustand ストア（`store/`）
+  - API 呼び出し（`api/`）: msw（Orval 生成の MSW ハンドラ）でレスポンスを差し替える
+  - 認証・実機依存機能: `src/services/` の mock 実装を個別モジュールから直接 import する（バレルは import しない）
+- **画面の見た目**: 開発確認用ルート（`/dev-screens` の `ScreenCatalog`）で目視確認する。
 - **E2Eテスト（Maestro）**: フローは `<mobile-root>/.maestro/` に集約する。
-  - 認証: スタブ実装を利用
+  - 認証: `EXPO_PUBLIC_AUTH_MODE=dev`（backend の `/auth/dev-session` を利用）
+  - 位置情報: `EXPO_PUBLIC_LOCATION_MODE=mock`
   - Backend API: 実際のAPIを利用する
-  - モバイル機能: Maestro 経由で利用可能な機能はそのまま（real）利用し、利用できない機能のみ stub にフォールバックする。
+  - その他のモバイル機能: Maestro で再現できる機能は real のまま利用し、できない機能のみ dev / mock にフォールバックする。
 
 テストすべきケースの一覧と、参考にすべき既存テストファイルのパスを記述してください。
 
@@ -268,8 +272,8 @@ type UseWalkHistoryResult = {
 - [ ] すべての編集ファイルで「何を変更するか」が具体的に記述されているか
 - [ ] 使用するライブラリ・コンポーネント・フックのインポート元が明記されているか
 - [ ] `app/`（kebab-case・薄いルート）と `src/`（PascalCase 実体）の命名規則・配置ルールに沿っているか
-- [ ] 認証・実機依存機能について `src/services/` の stub/real 差し替え方針が示されているか
-- [ ] API モックが mobile 方針（Orval スタブ・services の stub。msw 不使用）に沿っているか
+- [ ] 認証・実機依存機能について `src/services/` のモード（real/dev/mock）の切り替え方針が示されているか
+- [ ] テストが mobile 方針（`.test.ts` は `lib/`・`data/`・`store/`・`api/` などに限る、API は msw、services は mock を直接 import）に沿っているか
 - [ ] ファイルツリーとファイル詳細の内容が一致しているか
 
 不足があれば、プランを修正してから保存してください。
@@ -286,13 +290,12 @@ type UseWalkHistoryResult = {
 - Orval 生成物（`src/api/generated/`）とクライアント設定の使い方
 - Vitest / Maestro のテスト構成パターンとよく使うユーティリティ
 - 過去のIssueで発見した注意すべき設計上の制約や依存関係
-- **スタイルライブラリは現時点で未定**。確定後は design-token 対応の要否をここに追記する。
 
 ## その他の注意事項
 
 - 分析が不十分な状態でプランを作成しないでください。不明点はソースコードと `<mobile-root>/docs/` を読んで確認してください
 - 推測でプランを書かないでください。実際のコードに基づいた内容にしてください
-- プロジェクトで使用していないライブラリや存在しないファイルを参照しないでください（**スタイルライブラリは未定のため、特定のスタイルライブラリを前提にしない**）
+- プロジェクトで使用していないライブラリや存在しないファイルを参照しないでください（スタイルは RN 標準の `StyleSheet` + `src/theme` で書く方針のため、別のスタイルライブラリを前提にしない）
 - タスクのスコープを超えた変更をプランに含めないでください
 
 # 永続エージェントメモリ

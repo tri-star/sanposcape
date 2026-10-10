@@ -19,7 +19,7 @@ memory: project
 
 1. **設計ドキュメントの参照**: タスク開始時に必ず `<mobile-root>/docs/` 配下のドキュメントを読み、プロジェクトの規約・技術スタック・フォルダ構成・命名規則・テスト方針・スタブ差し替え方針を把握してから作業を進める。
 
-   - `<mobile-root>/docs/toolsets-libraries.md` — 使用するツール・ライブラリ（TypeScript / pnpm / Expo / Vitest / Maestro / oxlint / oxfmt。スタイルライブラリは未定）
+   - `<mobile-root>/docs/toolsets-libraries.md` — 使用するツール・ライブラリ（TypeScript / pnpm / Expo / Vitest / Maestro / oxlint / oxfmt。スタイルは RN 標準の `StyleSheet` + `src/theme` のテーマ Context＝ADR-M-005）
    - `<mobile-root>/docs/architecture-guideline.md` — スタブ差し替え方針、テスト方針（E2E/単体）、UIとロジックの分離
    - `<mobile-root>/docs/folder-structure.md` — `app/`(薄いルート) + `src/features` + `src/services` + `src/api` などの配置ルール
    - `<mobile-root>/docs/naming-conventions.md` — `src/` は PascalCase / `app/` は kebab-case、WSL2でのcase一致
@@ -36,7 +36,7 @@ memory: project
 
    - `app/`（Expo Router）の画面ファイルは**薄く**保ち、UI/ロジックを直接書かず `src/features/<feature>/` のコンポーネントや hook を import する（UIとロジックの分離）。
    - 実体（コンポーネント・hook・API ラッパ・型）は `src/features/<feature>/` に凝集させ、2つ以上の機能から使うものだけ `src/components/` へ昇格させる。
-   - 認証・実機依存機能（カメラ・位置情報など）は `src/services/<service>/` の interface のみを参照し、real/stub の実体は意識しない。
+   - 認証・実機依存機能（カメラ・位置情報など）は `src/services/<service>/` の interface のみを参照し、モード（real/dev/mock など）ごとの実体は意識しない。
    - 命名規則を厳守する（`app/` は kebab-case・小文字、`src/` のコンポーネントは PascalCase、hook は camelCase、フォルダは常に kebab-case）。
 
 5. **テスト実装**: テストを実装する際は、以下に定義する構造化フローに従う。
@@ -53,34 +53,31 @@ memory: project
 
 ## テスト実装フロー
 
-テストを実装する際は、以下のフローを厳守すること。
+テストを実装する際は、以下のフローを厳守すること。単体テストの範囲と書き方の正本は `<mobile-root>/docs/architecture-guideline.md`（テストの方針）と `<mobile-root>/docs/pages-components-guideline.md`（テストの書き方）で、食い違う場合は正本に従う。
 
-### Step 1: 対象の分析
+### Step 1: テスト対象の切り出し
 
-- テスト対象のコンポーネント・hook・画面を理解する
-- すべての props・state・イベント・ユーザー操作を洗い出す
-- エッジケースとエラー状態を把握する
-- UIとロジックが分離されているか確認し、ロジックは hook / 純粋関数として Vitest でテスト可能にする
+- `vitest.config.ts` は node 環境・`src/**/*.test.ts` のみ（`.tsx` は対象外）で、`react-native` を最小スタブに差し替えている。**コンポーネントのレンダリングや hook を実行するテストは書けない**ため、`hooks/` と `components/` はテストしない。
+- テストしたい判定・整形・文言などのロジックは、`react-native` を値 import しない純粋関数として `lib/`（`src/features/<feature>/lib/` または `src/lib/`）へ切り出す。
+- 単体テストの対象は次の層に限る:
+  - 純粋ロジック（`lib/`）
+  - 静的スタブの不変条件（`data/`）
+  - Zustand ストア（`store/`。`getState()` / `setState()` で直接操作する）
+  - API 呼び出し（`api/`。Orval 生成 hook ではなく素の fetcher をラップした関数）
+  - `src/services/` の個別モジュール（mock 実装や、`vi.mock` でネイティブ依存を差し替えた real 実装）
 
 ### Step 2: テストケースの計画
 
-- 以下をカバーするテストケースを定義する:
-  - 正常なレンダリング（ハッピーパス）
-  - props のバリエーション
-  - ユーザー操作（タップ・入力・フォーム送信）
-  - 条件付きレンダリング
-  - エラー状態とエッジケース
-  - アクセシビリティへの考慮（`accessibilityRole` / `accessibilityLabel` 等）
+- 正常系・異常系・境界値・エッジケースを洗い出す
+- `api/` では成功時の戻り値・送信ボディ・ステータス別の `ApiError` を検証する
+- ストアでは初期値・状態遷移・リセットの不変条件を検証する（各テストの冒頭で初期状態へ戻す）
 
 ### Step 3: テスト環境のセットアップ
 
-- `<mobile-root>/docs/architecture-guideline.md` のテスト方針を参照し、使用するテストフレームワークとスタブ方針を確認する。
-- **単体テスト（Vitest）**では以下を利用する:
-  - 認証: `src/services/` の **stub** 実装
-  - Backend API: **Orval 生成物のスタブ**（msw は使わない）
-  - モバイル機能（カメラ・位置情報など）: `src/services/` の **stub** 実装
-- テストは**テスト対象と同じ場所に併置（co-location）**する（例: `Button.tsx` → `Button.test.tsx`、`useWalkHistory.ts` → `useWalkHistory.test.ts`）。
-- 必要なプロバイダーやラッパーをセットアップする。
+- Backend API: **msw を使う**。`src/test/setup.ts` の `server` に、Orval が生成した MSW ハンドラ（`*.msw.ts`）を渡してレスポンスを差し替える。不変条件を持つレスポンスは faker の乱数に任せず明示的に渡す。
+- 認証・位置情報・写真などの `src/services/`: バレル（`index.ts`）は import しない（モード判定の結果ネイティブ依存に到達しうるため）。`createMockAuthService()` / `createMockLocationService()` / `createMockPhotoService()` などの個別モジュールを直接 import してフェイクを注入する。
+- `api/` から到達する位置にネイティブ依存を足した場合は、`vitest.config.ts` の `resolve.alias` にモック（`src/test/mocks/`）を追加する。
+- テストは**テスト対象と同じ場所に併置（co-location）**する（例: `formatDistance.ts` → `formatDistance.test.ts`、`walkApi.ts` → `walkApi.test.ts`）。
 
 ### Step 4: テストの実装
 
@@ -96,7 +93,9 @@ memory: project
 - 不足しているエッジケースがないか確認する
 - テストの説明が明確で意味のあるものかを検証する
 
-> E2E（Maestro）のフローが必要な場合は `<mobile-root>/.maestro/` に集約する。E2Eでは認証=stub、Backend API=実API、モバイル機能=Maestroで再現可能なら real、不可なら stub を利用する。
+> 画面の見た目は開発確認用ルート（`/dev-screens` の `ScreenCatalog`）で目視確認する。
+>
+> E2E（Maestro）のフローが必要な場合は `<mobile-root>/.maestro/` に集約する。E2E では認証=`EXPO_PUBLIC_AUTH_MODE=dev`、位置情報=`EXPO_PUBLIC_LOCATION_MODE=mock`、Backend API=実 API を使い、その他のモバイル機能は Maestro で再現できるなら real、できなければ dev / mock を使う。
 
 ## 実装ガイドライン
 
@@ -105,7 +104,7 @@ memory: project
 - プロジェクトで定義された TypeScript の型・インターフェースを使用する
 - **パスエイリアス `@/` を `src/` に割り当てる**。`app/` から `src/` を参照する際も `@/` を使い、深い相対パスを避ける
 - **WSL2 / Linux では大文字小文字を区別する**。import パスは実ファイル名と case まで完全一致させる
-- スタイルライブラリは**未定**のため、特定のスタイルライブラリを前提とした実装をしない（プロジェクトの現状に合わせる）
+- スタイルは RN 標準の `StyleSheet` + `src/theme` のテーマ Context で書く（ADR-M-005）。色・余白などはテーマのトークンから取り、別のスタイルライブラリを持ち込まない
 - コンポーネント実装においてアクセシビリティ（`accessibilityRole` / `accessibilityLabel` などの RN アクセシビリティ props）を確保する
 - 必要な箇所ではクリーンで保守性の高いコードを記述し、適切にコメントする
 - 画面・コンポーネントではローディング状態・エラー状態・空状態を適切に処理する
@@ -116,7 +115,7 @@ memory: project
 
 1. 実装がプロジェクトの規約（フォルダ構成・命名規則・スタブ方針）に沿っているか検証する
 2. TypeScript のエラーや型の不一致がないか確認する
-3. テストが重要なパスとエッジケースをカバーしているか確認する
+3. テストしたいロジックが `lib/` などテスト可能な層に切り出され、重要なパスとエッジケースがカバーされているか確認する
 4. コードが Lint/Format（oxlint / oxfmt）に通るか確認する
 5. インポートと依存関係が正しく参照されているか（case 一致を含む）検証する
 6. `app/` の画面が薄く保たれ、ロジックが `src/` 側に分離されているか確認する
@@ -133,9 +132,9 @@ memory: project
 記録すべき例:
 
 - 再利用可能なコンポーネントパターンとその所在（`src/components/` と `src/features/`）
-- テストユーティリティ・カスタムレンダー関数・スタブパターン（Orval スタブ / `src/services/` の stub）
+- テストユーティリティ・モックパターン（Orval 生成の MSW ハンドラ / `src/services/` の mock 実装）
 - `app/`（Expo Router）のルート構成と画面の薄い配置パターン
-- サービス層（real/stub 差し替え）の規約
+- サービス層（real/dev/mock の切り替え）の規約
 - 実装中に発見したよくある落とし穴や注意点（WSL2 の case 不一致など）
 
 # 永続エージェントメモリ
