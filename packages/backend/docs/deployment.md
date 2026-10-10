@@ -611,12 +611,15 @@ JSON にしてから `Settings` を組み立てるため、検証エラーも JS
 {"timestamp":"...","level":"ERROR","logger":"sanposcape.aws_lambda.api","message":"Settings validation failed at startup: [{'type': 'missing', 'loc': ('database_dsn',), ...}]"}
 ```
 
-（`ValidationError` の再送出はランタイムが出すテキストの `[ERROR]` 行として続くことがある。）
+その後に、ランタイムが init エラーとして `RuntimeError: Settings validation failed` を出す
+（入力値を含まない固定のメッセージ）。**元の `ValidationError` は送出し直さず、例外の連鎖
+（`__context__`）にも残さない**ので、ランタイムの出力にも元の例外のテキストは出ない。
 これは `src/sanposcape/aws_lambda/api.py` が `ValidationError` を捕捉した際に
 `exc.errors(include_input=False, include_url=False)` で**不足フィールド名だけを先に
-ERROR ログへ出してから再送出する**設計になっているため（値には秘密情報が含まれ得るので
-`include_input=False` にしている）。`post_init_error` の `UnicodeEncodeError` に惑わされず、
-まずこの ERROR ログを確認すること。
+ERROR ログへ出し、except 節の外で `RuntimeError(...) from None` に置き換えて送出する**
+設計になっているため（`ValidationError` の文字列や `input` には秘密値が含まれ得るので、
+`include_input=False` にし、元の例外も外へ出さない。ADR-013 決定6）。
+`post_init_error` の `UnicodeEncodeError` に惑わされず、まずこの ERROR ログを確認すること。
 
 lifespan の startup（`main._lifespan` の資源の生成）の失敗も init で起きるため、同じく
 init エラーになる。この場合は `src/sanposcape/aws_lambda/asgi_handler.py` が
