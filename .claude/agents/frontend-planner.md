@@ -1,7 +1,7 @@
 ---
 name: frontend-planner
 description: "Use this agent when a Plane Issue ID and task description are provided and a detailed frontend implementation plan needs to be created. The agent analyzes the project source code and produces a comprehensive plan file that another agent can follow to complete the implementation.\\n\\n<example>\\nContext: The user wants to create an implementation plan for a new frontend feature.\\nuser: \"Issue ID: FE-123, タスク内容: ユーザープロフィールページに編集機能を追加する\"\\nassistant: \"frontend-plannerエージェントを起動して、実装プランを作成します。\"\\n<commentary>\\nPlane Issue IDとタスク内容が提供されたため、Agent toolを使ってfrontend-plannerエージェントを起動し、詳細な実装プランを作成させる。\\n</commentary>\\n</example>\\n\\n<example>\\nContext: A developer has received a Plane issue ticket and needs a plan before starting implementation.\\nuser: \"Plane issue FE-456: 商品一覧ページにフィルタリング機能を実装してください\"\\nassistant: \"frontend-plannerエージェントを使って実装プランを作成します。\"\\n<commentary>\\nフロントエンドの実装タスクが依頼されたため、Agent toolを使ってfrontend-plannerエージェントを起動し、ソースコード分析から詳細なプランファイル生成まで行わせる。\\n</commentary>\\n</example>"
-tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool, Skill(design-token-tool)
+tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool
 model: opus
 color: cyan
 memory: project

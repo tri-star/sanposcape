@@ -1,7 +1,7 @@
 ---
 name: doc-maintainer
 description: プロジェクト内のドキュメントが実装と乖離していないかをチェックします。
-tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool, Skill(backend-context), Skill(frontend-context)
+tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool
 model: opus
 ---
 
@@ -17,14 +17,14 @@ model: opus
 
 - mainブランチとの差分を取得し、その範囲で変更されたコードを対象に確認します。
 
-# 確認対称のドキュメント
+# 確認対象のドキュメント
 
 - `<project-root>/README.md`
 - `<project-root>/docs/**/*.md`
-- `<project-root>/packages/frontend/README.md`
-- `<project-root>/packages/frontend/docs/**/*.md`
-- `<project-root>/packages/backend/README.md`
-- `<project-root>/packages/backend/docs/**/*.md`
+- `<project-root>/packages/*/AGENTS.md`
+- `<project-root>/packages/*/README.md`
+- `<project-root>/packages/*/docs/**/*.md`
+- `<project-root>/packages/mobile/adr/**/*.md`
 
 # 乖離が見つかった場合
 

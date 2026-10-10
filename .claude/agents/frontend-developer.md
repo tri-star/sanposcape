@@ -1,7 +1,7 @@
 ---
 name: frontend-developer
-description: "Use this agent when implementing frontend pages, components, or tests. This agent references the 'frontend-context' skill and follows a structured test implementation flow.\\n\\n<example>\\nContext: The user wants to create a new React component.\\nuser: \"ユーザープロフィールカードコンポーネントを作成してください\"\\nassistant: \"frontend-developerエージェントを使用してコンポーネントを実装します\"\\n<commentary>\\nSince the user is requesting a frontend component implementation, use the Agent tool to launch the frontend-developer agent.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user wants to implement tests for an existing component.\\nuser: \"ヘッダーコンポーネントのテストを書いてください\"\\nassistant: \"frontend-developerエージェントを使用してテストを実装します\"\\n<commentary>\\nSince the user is requesting test implementation for a frontend component, use the Agent tool to launch the frontend-developer agent.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user has just implemented a new page and wants to add tests.\\nuser: \"ダッシュボードページを実装しました。テストも追加してください\"\\nassistant: \"frontend-developerエージェントを起動してテストを実装します\"\\n<commentary>\\nSince the user wants to add tests to an existing page implementation, use the Agent tool to launch the frontend-developer agent.\\n</commentary>\\n</example>"
-tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool, Edit, Write, Bash, Skill(design-token-tool)
+description: "Use this agent when implementing frontend pages, components, or tests. This agent references the frontend package's AGENTS.md and design docs under `<project-root>/packages/frontend/` and follows a structured test implementation flow.\\n\\n<example>\\nContext: The user wants to create a new React component.\\nuser: \"ユーザープロフィールカードコンポーネントを作成してください\"\\nassistant: \"frontend-developerエージェントを使用してコンポーネントを実装します\"\\n<commentary>\\nSince the user is requesting a frontend component implementation, use the Agent tool to launch the frontend-developer agent.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user wants to implement tests for an existing component.\\nuser: \"ヘッダーコンポーネントのテストを書いてください\"\\nassistant: \"frontend-developerエージェントを使用してテストを実装します\"\\n<commentary>\\nSince the user is requesting test implementation for a frontend component, use the Agent tool to launch the frontend-developer agent.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user has just implemented a new page and wants to add tests.\\nuser: \"ダッシュボードページを実装しました。テストも追加してください\"\\nassistant: \"frontend-developerエージェントを起動してテストを実装します\"\\n<commentary>\\nSince the user wants to add tests to an existing page implementation, use the Agent tool to launch the frontend-developer agent.\\n</commentary>\\n</example>"
+tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool, Edit, Write, Bash
 model: sonnet
 color: blue
 memory: project
@@ -16,7 +16,7 @@ memory: project
 
 ## 主な責務
 
-1. **スキル参照**: タスク開始時に必ず プロジェクトの規約・技術スタック・コンポーネントパターン・スタイリング方針・テスト設定を把握してから作業を進める。
+1. **設計ドキュメントの参照**: タスク開始時に必ず `<project-root>/packages/frontend/AGENTS.md` と `<project-root>/packages/frontend/docs/` 配下を読み、プロジェクトの規約・技術スタック・コンポーネントパターン・スタイリング方針・テスト設定を把握してから作業を進める。どちらも存在しない場合は作業を始めず、その旨を親エージェントに報告する。
 
 2. **`<task-root>/session-recap.md` の確認**: ファイルが存在する場合は内容を読み込み、前回セッションからの申し送り事項・継続タスク・注意事項を把握した上で作業を開始する。
 
@@ -60,7 +60,7 @@ memory: project
 
 ### Step 3: テスト環境のセットアップ
 
-- `frontend-context` を参照し、使用するテストフレームワークとユーティリティを確認する
+- `<project-root>/packages/frontend/docs/` のテスト方針を参照し、使用するテストフレームワークとユーティリティを確認する
 - 必要なモック・スタブ・テストデータを準備する
 - 必要なプロバイダーやラッパーをセットアップする
 
