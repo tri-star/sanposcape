@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
+from sanposcape.sanpo_maps.models import PinPhotoUpload
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.photos.schemas import PinPhotoUploadCreate
 from sanposcape.sanpo_maps.photos.service import PinPhotoUploadService
@@ -96,6 +98,54 @@ class TestPinPhotoUploadServiceCreateUpload:
             assert all(value not in message for message in messages), (
                 f"presigned POST の fields がログに漏れている: {value[:16]}..."
             )
+
+    def test_stores_taken_at_on_the_upload_row(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_upload_service(db_session, FakeObjectStorage(secret="s" * 32))
+        taken_at = datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC)
+
+        result = service.create_upload(
+            user,
+            PinPhotoUploadCreate(content_type="image/jpeg", byte_size=1000, taken_at=taken_at),
+            base_url=BASE_URL,
+        )
+
+        db_session.expire_all()
+        upload = db_session.get(PinPhotoUpload, result.upload_id)
+        assert upload is not None
+        assert upload.taken_at == taken_at
+
+    def test_does_not_log_taken_at(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # 撮影日時は行動の履歴に当たるのでログに出さない（ADR-009 決定34）。
+        user = make_user(db_session, subject="u1")
+        service = make_upload_service(db_session, FakeObjectStorage(secret="s" * 32))
+
+        # 申告オフセット（+09:00 の 09:14:05）と UTC 換算（00:14:05）の両方を検査する。
+        taken_at = datetime(2026, 7, 2, 9, 14, 5, tzinfo=timezone(timedelta(hours=9)))
+
+        with caplog.at_level(logging.DEBUG, logger="sanposcape.sanpo_maps.photos.service"):
+            result = service.create_upload(
+                user,
+                PinPhotoUploadCreate(content_type="image/jpeg", byte_size=1000, taken_at=taken_at),
+                base_url=BASE_URL,
+            )
+
+        messages = [record.getMessage() for record in caplog.records]
+        # ログ自体は出ている（空では「出ていない」の確認にならない）。
+        assert any(str(result.upload_id) in message for message in messages)
+        text = "\n".join(messages)
+        for leaked in (
+            "2026-07-02",
+            "20260702",
+            "2026/07/02",
+            "09:14",
+            "00:14",
+            "+09:00",
+            "taken_at",
+        ):
+            assert leaked not in text, f"撮影日時がログに漏れている: {leaked}"
 
     def test_too_large_raises(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")

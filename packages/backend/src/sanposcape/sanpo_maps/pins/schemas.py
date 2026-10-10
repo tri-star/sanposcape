@@ -255,6 +255,10 @@ class PinPhotoRead(BaseModel):
     # 先に切れると早く無効になりうる）。
     urls_expire_at: datetime
     uploaded_by_user_id: uuid.UUID
+    # 撮影日時（端末が EXIF から読んで送った値。決定34）。
+    # 取れなかった写真・SS-163 より前の写真は null。
+    # 送られたときのオフセットは保持しないので、UTC 換算の瞬間として返す。キーは常に出す。
+    taken_at: datetime | None
     created_at: datetime
 
 

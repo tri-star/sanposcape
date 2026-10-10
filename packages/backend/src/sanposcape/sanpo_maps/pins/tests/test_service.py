@@ -31,7 +31,7 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
 )
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import SanpoMapMember
+from sanposcape.sanpo_maps.models import PinPhotoUpload, SanpoMapMember
 from sanposcape.sanpo_maps.photos.photo_attacher import PreparedPhoto
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.pins.repository import PinRepository
@@ -348,7 +348,99 @@ def _make_prepared_photo(*, user_id: uuid.UUID, upload_id: uuid.UUID) -> Prepare
         thumbnail_byte_size=1,
         thumbnail_width=5,
         thumbnail_height=5,
+        taken_at=None,
     )
+
+
+_TAKEN_AT = datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC)
+
+
+class TestPhotoTakenAtCarryOver:
+    """枠の `taken_at` が `pin_photos` へ写り、枠の側は NULL に戻る（ADR-009 決定34）。"""
+
+    def _seed_upload(
+        self,
+        db_session: Session,
+        storage: FakeObjectStorage,
+        user: User,
+        *,
+        taken_at: datetime | None,
+    ) -> uuid.UUID:
+        upload_id = uuid.uuid4()
+        seed_staging_photo(storage, user_id=user.id, upload_id=upload_id)
+        create_upload_row(db_session, user_id=user.id, upload_id=upload_id, taken_at=taken_at)
+        return upload_id
+
+    def _upload_taken_at(self, db_session: Session, upload_id: uuid.UUID) -> datetime | None:
+        db_session.expire_all()
+        upload = db_session.get(PinPhotoUpload, upload_id)
+        assert upload is not None
+        return upload.taken_at
+
+    def test_create_pin_copies_taken_at_to_photos_and_clears_upload(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        with_value = self._seed_upload(db_session, storage, user, taken_at=_TAKEN_AT)
+        without_value = self._seed_upload(db_session, storage, user, taken_at=None)
+        service = make_pin_service(db_session, storage)
+
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(
+                client_pin_id=uuid.uuid4(),
+                location={"latitude": 0, "longitude": 0},
+                photo_upload_ids=[with_value, without_value],
+            ),
+            base_url=BASE_URL,
+        )
+
+        assert [p.taken_at for p in pin_read.photos] == [_TAKEN_AT, None]
+        assert self._upload_taken_at(db_session, with_value) is None
+
+    def test_add_photos_copies_taken_at_to_photos_and_clears_upload(
+        self, db_session: Session
+    ) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        pin_read, _ = service.create_pin(
+            user,
+            PinCreate(client_pin_id=uuid.uuid4(), location={"latitude": 0, "longitude": 0}),
+            base_url=BASE_URL,
+        )
+        upload_id = self._seed_upload(db_session, storage, user, taken_at=_TAKEN_AT)
+
+        result = service.add_photos(
+            user, pin_read.id, PinPhotosAdd(photo_upload_ids=[upload_id]), base_url=BASE_URL
+        )
+
+        assert [p.taken_at for p in result.items] == [_TAKEN_AT]
+        assert self._upload_taken_at(db_session, upload_id) is None
+
+    def test_idempotent_resends_keep_photo_taken_at(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        storage = FakeObjectStorage(secret="s" * 32)
+        service = make_pin_service(db_session, storage)
+        client_pin_id = uuid.uuid4()
+        first_upload = self._seed_upload(db_session, storage, user, taken_at=_TAKEN_AT)
+        payload = PinCreate(
+            client_pin_id=client_pin_id,
+            location={"latitude": 0, "longitude": 0},
+            photo_upload_ids=[first_upload],
+        )
+        pin_read, _ = service.create_pin(user, payload, base_url=BASE_URL)
+        second_upload = self._seed_upload(db_session, storage, user, taken_at=_TAKEN_AT)
+        add_payload = PinPhotosAdd(photo_upload_ids=[second_upload])
+        service.add_photos(user, pin_read.id, add_payload, base_url=BASE_URL)
+
+        resent_pin, created = service.create_pin(user, payload, base_url=BASE_URL)
+        resent_add = service.add_photos(user, pin_read.id, add_payload, base_url=BASE_URL)
+
+        assert created is False
+        assert [p.taken_at for p in resent_pin.photos] == [_TAKEN_AT, _TAKEN_AT]
+        assert [p.taken_at for p in resent_add.items] == [_TAKEN_AT]
 
 
 class TestCreatePinTrueConcurrentIdempotentResend:

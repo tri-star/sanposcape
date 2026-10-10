@@ -7,6 +7,12 @@ export type PickedPhoto = {
   height: number;
   /** HEIC の場合もある（加工で JPEG にする）。 */
   mimeType: string | null;
+  /**
+   * 撮影日時（RFC 3339・オフセット付き。例 "2026-07-02T09:14:05+09:00"）。取れなければ null。
+   * real は EXIF から `extractTakenAtFromExif` で作る（カメラで取れなければ撮影した時刻）。
+   * ★ EXIF の他の値（GPS など）はこの型に持たせない。位置情報を services の外へ出さないため（SS-163）。
+   */
+  takenAt: string | null;
 };
 
 /**

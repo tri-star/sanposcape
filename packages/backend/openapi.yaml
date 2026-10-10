@@ -1684,6 +1684,12 @@ components:
           type: string
           format: uuid
           title: Uploaded By User Id
+        taken_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Taken At
         created_at:
           type: string
           format: date-time
@@ -1701,6 +1707,7 @@ components:
       - original_url
       - urls_expire_at
       - uploaded_by_user_id
+      - taken_at
       - created_at
       title: PinPhotoRead
     PinPhotoThumbnailRead:
@@ -1730,6 +1737,12 @@ components:
           type: integer
           minimum: 1.0
           title: Byte Size
+        taken_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Taken At
       type: object
       required:
       - content_type
@@ -1738,7 +1751,9 @@ components:
       description: '`POST /pin-photo-uploads` のリクエスト。
 
 
-        `width`/`height` は受け取らない（サーバーが確定時にデコードして実寸を得るため）。'
+        `width`/`height` は受け取らない（サーバーが確定時にデコードして実寸を得るため）。
+
+        `taken_at` は写真の撮影日時（オフセット付きの RFC 3339。不明なら省略か null）。'
     PinPhotoUploadRead:
       properties:
         upload_id:

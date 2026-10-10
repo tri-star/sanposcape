@@ -203,6 +203,7 @@ def create_pin_photo_row(
     position: int,
     upload_id: uuid.UUID | None = None,
     with_thumbnail: bool = True,
+    taken_at: datetime | None = None,
 ) -> PinPhoto:
     """`pin_photos` に直接1行 INSERT する（`PhotoAttacher`/確定処理を経由しない近道。
 
@@ -233,6 +234,7 @@ def create_pin_photo_row(
         thumbnail_width=100 if with_thumbnail else None,
         thumbnail_height=100 if with_thumbnail else None,
         position=position,
+        taken_at=taken_at,
     )
     db_session.add(photo)
     db_session.commit()
@@ -248,6 +250,7 @@ def create_upload_row(
     declared_byte_size: int = 1024,
     status: str = "pending",
     expires_at: datetime | None = None,
+    taken_at: datetime | None = None,
 ) -> PinPhotoUpload:
     """`pin_photo_uploads` に直接1行 INSERT する（`PinPhotoUploadService` を経由しない）。"""
     upload_id = upload_id or uuid.uuid4()
@@ -259,6 +262,7 @@ def create_upload_row(
         declared_byte_size=declared_byte_size,
         status=status,
         expires_at=expires_at or (datetime.now(UTC) + timedelta(hours=1)),
+        taken_at=taken_at,
     )
     db_session.add(upload)
     db_session.commit()

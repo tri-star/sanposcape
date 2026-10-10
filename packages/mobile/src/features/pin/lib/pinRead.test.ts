@@ -28,6 +28,7 @@ function photo(overrides: Partial<PinPhotoRead> = {}): PinPhotoRead {
     original_url: "https://cdn.example.com/original.jpg",
     urls_expire_at: "2026-01-01T01:00:00.000Z",
     uploaded_by_user_id: "user-1",
+    taken_at: null,
     created_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
@@ -88,6 +89,26 @@ describe("toPinPhoto", () => {
       apiBaseUrl: API_BASE_URL_HTTPS,
     });
     expect(result).toMatchObject({ id: "photo-9", position: 3, width: 100, height: 200 });
+  });
+
+  it("taken_at を takenAt に、created_at を uploadedAt に写す", () => {
+    const result = toPinPhoto(
+      photo({ taken_at: "2026-07-02T00:14:05Z", created_at: "2026-07-03T01:00:00Z" }),
+      { apiBaseUrl: API_BASE_URL_HTTPS },
+    );
+    expect(result.takenAt).toBe("2026-07-02T00:14:05Z");
+    expect(result.uploadedAt).toBe("2026-07-03T01:00:00Z");
+  });
+
+  it("taken_at が null なら takenAt は null", () => {
+    expect(
+      toPinPhoto(photo({ taken_at: null }), { apiBaseUrl: API_BASE_URL_HTTPS }).takenAt,
+    ).toBeNull();
+  });
+
+  it("taken_at のキーが無い（古い backend）なら takenAt は null", () => {
+    const legacy = { ...photo(), taken_at: undefined } as unknown as PinPhotoRead;
+    expect(toPinPhoto(legacy, { apiBaseUrl: API_BASE_URL_HTTPS }).takenAt).toBeNull();
   });
 });
 

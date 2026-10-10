@@ -203,6 +203,7 @@ class TestPhotosAndTags:
                 thumbnail_byte_size=1,
                 thumbnail_width=5,
                 thumbnail_height=5,
+                taken_at=None,
             )
             for i in range(3)
         ]
@@ -215,6 +216,36 @@ class TestPhotosAndTags:
         assert [p.position for p in photos] == [0, 1, 2]
         assert repo.count_photos(pin_id) == 3
         assert repo.next_photo_position(pin_id) == 3
+
+    def test_add_photos_writes_taken_at(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        pin_id = self._make_pin(db_session, user.id)
+        taken_at = datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC)
+        prepared = [
+            PreparedPhoto(
+                upload_id=uuid.uuid4(),
+                staging_key=f"s{i}",
+                original_key=f"o{i}",
+                thumbnail_key=f"t{i}",
+                content_type="image/jpeg",
+                byte_size=100,
+                width=10,
+                height=10,
+                thumbnail_bytes=b"x",
+                thumbnail_byte_size=1,
+                thumbnail_width=5,
+                thumbnail_height=5,
+                taken_at=value,
+            )
+            for i, value in enumerate([taken_at, None])
+        ]
+
+        photos = PinRepository(db_session).add_photos(
+            pin_id=pin_id, uploaded_by_user_id=user.id, prepared=prepared, start_position=0
+        )
+        db_session.commit()
+
+        assert [p.taken_at for p in photos] == [taken_at, None]
 
     def test_next_photo_position_is_zero_when_no_photos(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
@@ -255,6 +286,7 @@ class TestPhotosAndTags:
                 thumbnail_byte_size=1,
                 thumbnail_width=5,
                 thumbnail_height=5,
+                taken_at=None,
             )
             for i in range(3)
         ]

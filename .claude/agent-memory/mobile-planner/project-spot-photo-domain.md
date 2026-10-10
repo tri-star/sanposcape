@@ -39,6 +39,10 @@ SS-88 以降（SS-118 / SS-119 / SS-121 / SS-124）の計画で確認した前�
   `pinEditSync.test` のリテラルが落ちる（SS-175 の計画で確認）。
 - **登録画面の地図選択（`SanpoMapSelection` の `default`＝`sanpo_map_id` を送らない・「最初の地図」の draft）は登録固有の意味を持つ**。
   既存ピンの地図を扱う画面では流用せず、`SanpoMapChoicesState` を返す別の解決関数を作って `SanpoMapSelector` だけ再利用する（SS-175 の計画）。
+- **写真のメタデータ（撮影日時など）は S3 の原本からは読めない**。端末の再エンコード（ADR-M-010 決定3）で EXIF が落ちるため、
+  「backend が原本から抽出」案は成り立たない。読むならピッカーの `exif: true`（SS-163 の計画）。`expo-image-picker` 57 の
+  Android は返すタグが固定リスト（`ImagePickerConstants.EXIF_TAGS`）で `OffsetTime*` が無い。iOS は Exif 辞書を平らに返し、GPS も
+  `GPS*` キーで混ざる → `services/photo` の中（`photo.real.ts` が `photoTakenAt.ts` の純粋関数に渡す）で必要な値だけ取り出して捨てる（ADR-M-010 決定12）。ライブラリの挙動は main チェックアウトの node_modules のネイティブ実装で確かめた。
 - **サーバーの制約をユーザー操作で回避させる設計は、ユーザーが明示した要件と衝突するなら採らない**。まずクライアント側で
   吸収できないかを考える（写真枚数の上限をユーザーに意識させる案は却下され、先行アップロード + 分割紐付けになった）。
 

@@ -461,6 +461,133 @@ def _create_sanpo_map(db_session: Session, *, owner_user_id: uuid.UUID) -> uuid.
     return sanpo_map.id
 
 
+class TestPhotoTakenAtEndToEnd:
+    """撮影日時（`taken_at`）が枠の発行から全ての写真の応答まで通る（ADR-009 決定34）。
+
+    日時は文字列ではなく瞬間で比べる（応答は UTC で、`Z` か `+00:00` かは直列化しだい）。
+    """
+
+    _SENT = "2026-07-02T09:14:05+09:00"
+
+    def _issue_upload(
+        self,
+        client: TestClient,
+        storage: FakeObjectStorage,
+        auth_headers: dict[str, str],
+        user: User,
+        *,
+        taken_at: str | None,
+    ) -> str:
+        body: dict[str, object] = {"content_type": "image/jpeg", "byte_size": 1000}
+        if taken_at is not None:
+            body["taken_at"] = taken_at
+        response = client.post("/pin-photo-uploads", headers=auth_headers, json=body)
+        assert response.status_code == 201
+        upload_id = response.json()["upload_id"]
+        seed_staging_photo(storage, user_id=user.id, upload_id=uuid.UUID(upload_id))
+        return upload_id
+
+    @staticmethod
+    def _assert_taken_at(photo: dict, expected: str | None) -> None:
+        assert "taken_at" in photo
+        if expected is None:
+            assert photo["taken_at"] is None
+        else:
+            assert datetime.fromisoformat(photo["taken_at"]) == datetime.fromisoformat(expected)
+
+    def test_taken_at_flows_through_every_photo_response(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        first = self._issue_upload(
+            client, storage, auth_headers, authenticated_user, taken_at=self._SENT
+        )
+
+        # POST /pins
+        created = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={
+                "client_pin_id": str(uuid.uuid4()),
+                "location": {"latitude": 0, "longitude": 0},
+                "photo_upload_ids": [first],
+            },
+        )
+        assert created.status_code == 201
+        pin = created.json()
+        pin_id = pin["id"]
+        self._assert_taken_at(pin["photos"][0], self._SENT)
+
+        # GET /pins/{id}
+        detail = client.get(f"/pins/{pin_id}", headers=auth_headers).json()
+        self._assert_taken_at(detail["photos"][0], self._SENT)
+
+        # GET /pins?sanpo_map_id= (cover_photo)
+        listed = client.get(
+            "/pins", headers=auth_headers, params={"sanpo_map_id": pin["sanpo_map"]["id"]}
+        ).json()
+        cover = next(item for item in listed["items"] if item["id"] == pin_id)["cover_photo"]
+        self._assert_taken_at(cover, self._SENT)
+
+        # POST /pins/{id}/photos（2枚目は taken_at なし）
+        second = self._issue_upload(
+            client, storage, auth_headers, authenticated_user, taken_at=None
+        )
+        added = client.post(
+            f"/pins/{pin_id}/photos",
+            headers=auth_headers,
+            json={"photo_upload_ids": [second]},
+        )
+        assert added.status_code == 200
+        self._assert_taken_at(added.json()["items"][0], None)
+
+        # 既存の写真（taken_at を持たない行）も null で返る。
+        create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin_id),
+            uploaded_by_user_id=authenticated_user.id,
+            position=2,
+        )
+
+        # GET /pins/{id}/photos
+        photos = client.get(f"/pins/{pin_id}/photos", headers=auth_headers).json()["items"]
+        assert len(photos) == 3
+        self._assert_taken_at(photos[0], self._SENT)
+        self._assert_taken_at(photos[1], None)
+        self._assert_taken_at(photos[2], None)
+
+    def test_photo_with_taken_at_row_is_returned(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+    ) -> None:
+        client, storage = fake_storage_client
+        pin = client.post(
+            "/pins",
+            headers=auth_headers,
+            json={"client_pin_id": str(uuid.uuid4()), "location": {"latitude": 0, "longitude": 0}},
+        ).json()
+        create_pin_photo_row(
+            db_session,
+            storage,
+            pin_id=uuid.UUID(pin["id"]),
+            uploaded_by_user_id=authenticated_user.id,
+            position=0,
+            taken_at=datetime.fromisoformat(self._SENT),
+        )
+
+        photos = client.get(f"/pins/{pin['id']}/photos", headers=auth_headers).json()["items"]
+
+        self._assert_taken_at(photos[0], self._SENT)
+
+
 class TestListPins:
     def _create_pin(
         self,

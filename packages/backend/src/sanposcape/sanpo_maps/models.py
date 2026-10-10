@@ -175,6 +175,8 @@ class PinPhoto(Base):
     `thumbnail_*` は NULL 許容にしてある（B-D20: 現在は確定時に同期生成するため常に
     埋まるが、将来サムネイルを非同期生成に変える場合に列追加なしで「生成待ち」を
     表現できるようにするため）。
+
+    `taken_at` は端末が申告した撮影日時で、元のオフセットは保持しない（ADR-009 決定34）。
     """
 
     __tablename__ = "pin_photos"
@@ -197,6 +199,9 @@ class PinPhoto(Base):
     thumbnail_width: Mapped[int | None] = mapped_column(Integer, default=None)
     thumbnail_height: Mapped[int | None] = mapped_column(Integer, default=None)
     position: Mapped[int] = mapped_column(Integer)
+    # 撮影日時（クライアントの申告値。取れなかった写真・SS-163 より前の写真は NULL）。
+    # backend は EXIF を読まない（原本は端末で再エンコード済みで EXIF が無い）。
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
@@ -254,6 +259,9 @@ class PinPhotoUpload(Base):
     # 十分短くする（`PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS`）。
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     attached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # 撮影日時（端末が EXIF から読んで枠の発行時に送った値。SS-163 / ADR-009 決定34）。
+    # 紐付け時に pin_photos.taken_at へ写し、ここは NULL に戻す（写真を消した後に残さないため）。
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

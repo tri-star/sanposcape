@@ -4,6 +4,7 @@ import { isPhotoError } from "@/services/photo/photoError";
 import {
   MOCK_PICKED_PHOTO,
   MOCK_PREPARED_BYTE_SIZE,
+  MOCK_TAKEN_AT,
   createMockPhotoService,
 } from "@/services/photo/photo.mock";
 
@@ -26,6 +27,19 @@ describe("createMockPhotoService.pickPhotos", () => {
     const service = createMockPhotoService({ count: 3 });
     const result = await service.pickPhotos({ source: "camera", selectionLimit: 1 });
     expect(result).toHaveLength(1);
+  });
+
+  it("takenAt: 既定は MOCK_TAKEN_AT、null 指定で撮影日時なし", async () => {
+    const [byDefault] = await createMockPhotoService().pickPhotos({
+      source: "library",
+      selectionLimit: 0,
+    });
+    expect(byDefault?.takenAt).toBe(MOCK_TAKEN_AT);
+    const [none] = await createMockPhotoService({ takenAt: null }).pickPhotos({
+      source: "library",
+      selectionLimit: 0,
+    });
+    expect(none?.takenAt).toBeNull();
   });
 
   it("cancel: 空配列を返す（エラーにしない）", async () => {

@@ -71,6 +71,7 @@ class PinPhotoUploadRepository:
         content_type: str,
         declared_byte_size: int,
         expires_at: datetime,
+        taken_at: datetime | None,
     ) -> PinPhotoUpload:
         upload = PinPhotoUpload(
             id=upload_id,
@@ -79,6 +80,7 @@ class PinPhotoUploadRepository:
             content_type=content_type,
             declared_byte_size=declared_byte_size,
             expires_at=expires_at,
+            taken_at=taken_at,
         )
         self._db.add(upload)
         self._db.flush()
@@ -97,10 +99,17 @@ class PinPhotoUploadRepository:
         return list(self._db.scalars(stmt).all())
 
     def mark_attached(self, *, upload_ids: list[uuid.UUID], attached_at: datetime) -> None:
+        """枠を `attached` にし、枠の `taken_at` を NULL に戻す（ADR-009 決定34）。
+
+        `attached` の枠は写真やピンを削除しても残る（アカウント削除まで）。撮影日時は
+        行動の履歴に当たるので、`pin_photos.taken_at` へ写した後に枠へ残さない。
+        紐付け後に枠の `taken_at` を読む処理は無い（冪等な再送は `pin_photos` を見る）。
+        呼び出し元が `lock_for_attach()` で行ロックした枠から値を読み終えた後に呼ぶこと。
+        """
         self._db.execute(
             update(PinPhotoUpload)
             .where(PinPhotoUpload.id.in_(upload_ids))
-            .values(status="attached", attached_at=attached_at)
+            .values(status="attached", attached_at=attached_at, taken_at=None)
         )
 
     def find_own_for_update(

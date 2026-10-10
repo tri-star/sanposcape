@@ -111,6 +111,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   `photo.real.ts` のみ。ほかに `services/preferences/preferenceStorage.file.ts`（アプリ設定の保存。SS-86）と
   `services/location/sampleBufferStorage.file.ts`（散歩の位置サンプルのバッファ。SS-156 / ADR-M-018）が
   `expo-file-system` を使う）。
+- **（SS-163）撮影日時はピッカーの EXIF から `services/photo/photoTakenAt.ts` で取り出し、`PickedPhoto.takenAt` だけを外へ出す。**
+  EXIF のオブジェクト（GPS を含みうる）を `services/photo` の外へ出さない（`photo.real.ts` が `photoTakenAt.ts` の純粋関数で日時に変換し、その場で捨てる）・保存しない・ログに出さない。
+  詳細は ADR-M-010 の SS-163 追補（決定11〜14）。
 - 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
   `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
 - **（SS-88）`services/photo` は「直送にそのまま載せられる実体」（`PreparedPhoto.file`、
