@@ -62,7 +62,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
   （`truncated`）。`cursor` は空でない文字列のときだけキーを立てる（`?cursor=null` を送らない）。取り直しは
   常に1ページ目から。
 - **D3: `fetchSanpoMaps` は常に `expand=pin_count` を付け、queryKey（`["sanpo-maps","list"]`）を
-  ピン登録画面・ピンタブ・地図一覧で共有する。** 地図詳細の地図情報は、この一覧のキャッシュから id で引く。
+  ピン登録画面・ピンタブ・地図一覧・ピン詳細（SS-119）・ピン編集画面（SS-175）で共有する。** 地図詳細の地図情報は、この一覧のキャッシュから id で引く。
 - **D4: ルートは `/sanpo-maps`（既存）と `/sanpo-maps/[sanpoMapId]`（新設）。実体は `features/pin` に置く**
   （新しい feature は作らない）。
 - **D5: 地図の作成 UI は画面内のダイアログ（`SanpoMapCreateDialog` + `useSanpoMapCreate`）にする。**

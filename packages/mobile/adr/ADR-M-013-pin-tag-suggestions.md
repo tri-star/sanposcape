@@ -20,7 +20,8 @@ backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API �
 
 本 ADR の時点では、ピン編集画面（SS-119）は mobile にまだ無く、`PinTagEditor` を使っているのは登録画面だけだった。
 その後 SS-119 で編集画面を実装し、編集画面でも `PinTagEditor` を使うようになった（任意 prop `canRemove` を追加。
-[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)。本 ADR の決定は変えない）。
+[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)。本 ADR の決定は変えない）。SS-175 以降、編集画面では選んでいる地図から候補を取り、
+消えた地図は今の地図に戻す（[ADR-M-017 SS-175 追補](./ADR-M-017-pin-edit-and-delete.md)）。
 
 ## 決定
 

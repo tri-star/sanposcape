@@ -23,6 +23,7 @@ describe("resolvePinPermissions", () => {
       canAddPhotos: true,
       canEditVisited: true,
       canArchive: true,
+      canChangeSanpoMap: true,
       canOpenEditor: true,
     });
   });
@@ -74,6 +75,25 @@ describe("resolvePinPermissions", () => {
     expect(p.canDeletePin).toBe(false);
     expect(p.canArchive).toBe(false);
     expect(p.canEditVisited).toBe(true);
+  });
+});
+
+describe("canChangeSanpoMap（SS-175）", () => {
+  const can = (role: "owner" | "editor" | null, pin: { createdByUserId: string }) =>
+    resolvePinPermissions({ role, currentUserId: ME }, pin).canChangeSanpoMap;
+
+  it("owner は他人のピンでも可", () => {
+    expect(can("owner", OTHERS_PIN)).toBe(true);
+  });
+
+  it("editor は作成者本人なら可、そうでなければ不可", () => {
+    expect(can("editor", OWN_PIN)).toBe(true);
+    expect(can("editor", OTHERS_PIN)).toBe(false);
+  });
+
+  it("role 不明は editor 扱い（作成者本人だけ可）", () => {
+    expect(can(null, OWN_PIN)).toBe(true);
+    expect(can(null, OTHERS_PIN)).toBe(false);
   });
 });
 

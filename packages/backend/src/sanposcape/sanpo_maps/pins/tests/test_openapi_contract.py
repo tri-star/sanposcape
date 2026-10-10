@@ -288,6 +288,42 @@ class TestPinUpdateSchema:
         assert schema["properties"]["add_tags"]["maxItems"] == 10
         assert schema["properties"]["remove_tag_ids"]["maxItems"] == 10
 
+    def test_sanpo_map_id_is_optional_and_not_nullable(self) -> None:
+        """SS-175（決定33）: `sanpo_map_id` は素の uuid 文字列（`anyOf` で null を許さない）。"""
+        schema = self._schema()
+        assert "sanpo_map_id" not in schema.get("required", [])
+        prop = schema["properties"]["sanpo_map_id"]
+        assert prop["type"] == "string"
+        assert prop["format"] == "uuid"
+        assert "anyOf" not in prop
+
+
+class TestPinUpdateNotFoundErrorSchema:
+    """SS-175（決定33）: `PATCH /pins/{pin_id}` の 404 だけが `code` 付きのスキーマを宣言する。"""
+
+    def test_patch_404_references_schema(self) -> None:
+        document = _load_committed_openapi()
+        content = document["paths"]["/pins/{pin_id}"]["patch"]["responses"]["404"]["content"]
+        assert (
+            content["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/PinUpdateNotFoundErrorRead"
+        )
+
+    def test_code_enum(self) -> None:
+        document = _load_committed_openapi()
+        schema = document["components"]["schemas"]["PinUpdateNotFoundErrorRead"]
+        assert set(schema["properties"]["code"]["enum"]) == {
+            "pin_not_found",
+            "sanpo_map_not_found",
+        }
+        assert set(schema["required"]) == {"detail", "code"}
+
+    def test_other_pin_endpoints_do_not_declare_it(self) -> None:
+        document = _load_committed_openapi()
+        for method in ("get", "delete"):
+            response_404 = document["paths"]["/pins/{pin_id}"][method]["responses"]["404"]
+            assert "content" not in response_404
+
 
 class TestNewEndpointsResponses:
     """SS-112 の3エンドポイントは 503 を宣言せず、403・404 を宣言する（ADR-009 決定22）。"""

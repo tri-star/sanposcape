@@ -4,10 +4,10 @@
 SS-113）を参照。関数の形は3種類ある。
 
 - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/
-  `can_update_pin_visited`）: role だけで判定する（`role in _WRITE_ROLES`）。作成者は
-  判定しないので `is_creator` 引数は持たない。
+  `can_update_pin_visited`/`can_move_pin_to`）: role だけで判定する（`role in
+  _WRITE_ROLES`）。作成者は判定しないので `is_creator` 引数は持たない。
 - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_update_pin_archived`/
-  `can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに対象が違う（ピンなら
+  `can_move_pin_from`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに対象が違う（ピンなら
   `pins.created_by_user_id`、タグなら `pin_tags.created_by_user_id`、写真なら
   `pin_photos.uploaded_by_user_id`）ため、`is_creator`/`is_uploader` をキーワード専用引数で
   受け取る（取り違え防止）。
@@ -17,6 +17,9 @@ SS-113）を参照。関数の形は3種類ある。
 
 ピンの訪問状況（`can_update_pin_visited`: 追加系の形）とアーカイブ状態
 （`can_update_pin_archived`: 持ち主判定系の形）の変更は ADR-009 決定32（SS-173）。
+
+ピンの地図の移動（`can_move_pin_from`: 持ち主判定系の形・移動元、`can_move_pin_to`: 追加系の形・
+移動先）は ADR-009 決定33（SS-175）。
 
 未知の role（`_WRITE_ROLES` に無い値）は常に False にする（fail-safe）。owner 以外は
 `role in _WRITE_ROLES` を満たさない限り何もできないため、`SanpoMapRole` の想定外の値が
@@ -61,6 +64,23 @@ def can_update_pin_archived(role: SanpoMapRole, *, is_creator: bool) -> bool:
     表の1行に1関数を対応させ、将来どちらかだけ変えられるよう別関数にしている）。
     """
     return role == "owner" or (role in _WRITE_ROLES and is_creator)
+
+
+def can_move_pin_from(role: SanpoMapRole, *, is_creator: bool) -> bool:
+    """ピンを今の地図から出す（`PATCH /pins/{id}` の `sanpo_map_id`、移動元の role で判定。
+    ADR-009 決定33, SS-175）。移動元のメンバーから見るとピンが消える操作なので、削除・アーカイブ
+    と同じく owner（他人のピンも可）かピン作成者の editor のみ可。`can_update_pin` と同じ式だが、
+    表の1行に1関数を対応させ、片方だけ変えるときに呼び出し側を直さずに済むよう流用しない
+    （決定32 と同じ理由）。
+    """
+    return role == "owner" or (role in _WRITE_ROLES and is_creator)
+
+
+def can_move_pin_to(role: SanpoMapRole) -> bool:
+    """ピンを地図に入れる（移動先の role で判定。ADR-009 決定33, SS-175）。移動先から見ると
+    ピンの追加なので `can_add_pin` と同じく owner/editor とも可（式は同じだが別関数にする）。
+    """
+    return role in _WRITE_ROLES
 
 
 def can_delete_pin(role: SanpoMapRole, *, is_creator: bool) -> bool:

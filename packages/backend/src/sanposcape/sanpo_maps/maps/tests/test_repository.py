@@ -280,6 +280,73 @@ class TestGetMembershipForUpdate:
         )
 
 
+class TestGetMembershipForKeyShare:
+    def test_returns_map_and_role_for_member(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=user.id, name="地図", is_default=True)
+        db_session.commit()
+
+        result = repo.get_membership_for_key_share(user_id=user.id, sanpo_map_id=sanpo_map.id)
+
+        assert result == (sanpo_map, "owner")
+
+    def test_returns_none_for_non_member(self, db_session: Session) -> None:
+        owner = make_user(db_session, subject="owner")
+        stranger = make_user(db_session, subject="stranger")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=owner.id, name="地図", is_default=True)
+        db_session.commit()
+
+        assert (
+            repo.get_membership_for_key_share(user_id=stranger.id, sanpo_map_id=sanpo_map.id)
+            is None
+        )
+
+    def test_returns_none_for_missing_map(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+
+        assert repo.get_membership_for_key_share(user_id=user.id, sanpo_map_id=uuid.uuid4()) is None
+
+
+class TestLockPinsForMap:
+    def test_locks_pins_without_error_and_leaves_them_unchanged(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=user.id, name="地図", is_default=True)
+        pin_repo = PinRepository(db_session)
+        pins = [
+            pin_repo.create(
+                sanpo_map_id=sanpo_map.id,
+                created_by_user_id=user.id,
+                client_pin_id=uuid.uuid4(),
+                name=f"P{i}",
+                memo=None,
+                latitude=0,
+                longitude=0,
+                client_walk_id=None,
+            )[0]
+            for i in range(2)
+        ]
+        db_session.commit()
+
+        repo.lock_pins_for_map(sanpo_map.id)  # 例外を投げない
+
+        assert {p.sanpo_map_id for p in pins} == {sanpo_map.id}
+
+    def test_empty_map_does_not_error(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        repo = SanpoMapRepository(db_session)
+        sanpo_map, _ = repo.create_with_owner(owner_user_id=user.id, name="地図", is_default=True)
+        db_session.commit()
+
+        repo.lock_pins_for_map(sanpo_map.id)
+
+    def test_unknown_map_does_not_error(self, db_session: Session) -> None:
+        SanpoMapRepository(db_session).lock_pins_for_map(uuid.uuid4())
+
+
 class TestCreateOwned:
     def test_prefer_default_true_creates_default_map(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")

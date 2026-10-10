@@ -23,8 +23,10 @@ import { PinPhotoGrid } from "@/features/pin/components/PinPhotoGrid";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { PinStatusFields } from "@/features/pin/components/PinStatusFields";
 import { PinTagEditor } from "@/features/pin/components/PinTagEditor";
+import { SanpoMapSelector } from "@/features/pin/components/SanpoMapSelector";
 import { usePinEdit } from "@/features/pin/hooks/usePinEdit";
 import { resolvePinDetailBodyState } from "@/features/pin/lib/pinDetailState";
+import { PIN_EDIT_SANPO_MAP_TITLE, pinEditSavedMessage } from "@/features/pin/lib/pinEditSanpoMap";
 import { resolvePinEditBodyError } from "@/features/pin/lib/pinEditSync";
 import { saveUnavailableMessage } from "@/features/pin/lib/pinDraftValidation";
 import {
@@ -55,7 +57,7 @@ const NAME_HELPER = "空欄にすると名前のないピンになります";
 
 /**
  * PinEditView — `/pins/[pinId]/edit`（ピン編集）の実体（SS-119）。
- * 名前・メモ・タグ・写真の変更を、最後の「変更を保存」でまとめて反映する。
+ * 名前・メモ・タグ・写真・地図（SS-175）の変更を、最後の「変更を保存」でまとめて反映する。
  * 登録画面（`PinRegisterView`）は流用せず、部品（Input・PinTagEditor・PinPhotoGrid）だけを再利用する。
  */
 export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinEditViewProps) {
@@ -70,8 +72,8 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
     pinId,
     isSignedIn,
     currentUserId,
-    onSaved: () => {
-      setFlashMessage("ピンを更新しました");
+    onSaved: ({ movedToSanpoMapName }) => {
+      setFlashMessage(pinEditSavedMessage(movedToSanpoMapName));
       back.runOnce(() =>
         router.canGoBack()
           ? router.back()
@@ -223,6 +225,16 @@ export function PinEditView({ pinId, isSignedIn, currentUserId, onSignIn }: PinE
               archivedDisabled={isSaving || !permissions.canArchive}
               archiveLocked={!permissions.canArchive}
               testID="pin-edit-status"
+            />
+
+            <SanpoMapSelector
+              title={PIN_EDIT_SANPO_MAP_TITLE}
+              state={edit.sanpoMaps}
+              onSelect={edit.selectSanpoMap}
+              onRetry={edit.sanpoMaps.retry}
+              disabled={isSaving || !permissions.canChangeSanpoMap}
+              retryDisabled={isSaving}
+              testID="pin-edit-sanpo-map"
             />
 
             <PinTagEditor

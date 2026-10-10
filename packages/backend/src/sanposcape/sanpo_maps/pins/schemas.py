@@ -70,6 +70,18 @@ class PinTagConflictErrorRead(BaseModel):
     code: Literal["tag_limit_exceeded"]
 
 
+class PinUpdateNotFoundErrorRead(BaseModel):
+    """`PATCH /pins/{pin_id}` の 404 応答本体（ADR-009 決定33, SS-175）。
+
+    `pin_not_found` はピンが無い・非メンバー、`sanpo_map_not_found` は `sanpo_map_id` で
+    指定した移動先が存在しない・非メンバー（両者は区別しない）。`code` は例外ハンドラで
+    全エンドポイントの同名 404 に付くが、OpenAPI に宣言するのはこの PATCH だけ。
+    """
+
+    detail: str
+    code: Literal["pin_not_found", "sanpo_map_not_found"]
+
+
 class PinCreate(BaseModel):
     # 冪等キー。`UNIQUE(created_by_user_id, client_pin_id)`。再送は 200 + 既存ピン。
     client_pin_id: uuid.UUID
@@ -143,8 +155,10 @@ class PinUpdate(BaseModel):
     lost update・タグごとの権限判定の分かりやすさ・再送の安全性のため）。
     `visited`（訪問済みか）/`archived`（アーカイブ済みか）は省略可・null 不可で、送った
     フィールドごとに権限を判定する（SS-173, ADR-009 決定32）。
+    `sanpo_map_id` はピンを別の地図へ移す（省略可・null 不可。SS-175, 決定33）。移動元は
+    owner かピン作成者のみ、移動先はメンバーなら owner/editor のどちらでも可。
 
-    `extra="forbid"` にする理由: `location`/`sanpo_map_id` 等を送って「変更されたつもり」
+    `extra="forbid"` にする理由: `location`/`client_walk_id` 等を送って「変更されたつもり」
     になる事故を防ぐため（PATCH は「送ったものだけが変わる」という意味を持つ）。
     """
 
@@ -164,6 +178,7 @@ class PinUpdate(BaseModel):
     ) = Field(default_factory=list)
     visited: bool | SkipJsonSchema[None] = None
     archived: bool | SkipJsonSchema[None] = None
+    sanpo_map_id: uuid.UUID | SkipJsonSchema[None] = None
 
     @field_validator("name", "memo", mode="before")
     @classmethod
@@ -196,7 +211,13 @@ class PinUpdate(BaseModel):
 
     @model_validator(mode="after")
     def _optional_fields_must_not_be_explicit_null(self) -> "PinUpdate":
-        for field_name in ("add_tags", "remove_tag_ids", "visited", "archived"):
+        for field_name in (
+            "add_tags",
+            "remove_tag_ids",
+            "visited",
+            "archived",
+            "sanpo_map_id",
+        ):
             if field_name in self.model_fields_set and getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} must not be null; omit the field for no change")
         return self

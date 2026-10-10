@@ -31,6 +31,8 @@ naming-conventions / pages-components-guideline / toolsets-libraries / build-pro
 - 章立ては既存に揃える（日付 / ステータス / コンテキスト / 決定 / 検討した選択肢 / 決定理由 / 影響 / 関連情報）。
   追補は日付行に「YYYY-MM-DD 追補（SS-XX）」、本文の該当箇所に `（SS-XX 追補）`。解決済みの「移行・対応が必要な事項」は
   消さずに取り消し線 + `→ SS-xx で決着`（ADR-M-008 が実例）。
+- プランに ADR の本文を指示するとき「理由は本プラン §X」と書かない（実装者がそのまま ADR に書き写すと、ADR からプラン置き場への
+  リンク切れ参照になる。docs/knowledge-management.md の禁止事項）。理由は ADR 本文に書き写すよう指示する（SS-175 で自分のプランに混入していた）。
 
 ## 出力先
 

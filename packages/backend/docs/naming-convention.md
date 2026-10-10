@@ -67,14 +67,14 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 
 | ファイル | 役割 |
 |---|---|
-| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112。ピンの訪問状況・アーカイブ状態 `can_update_pin_visited`/`can_update_pin_archived`, SS-173。地図そのものの管理系 `can_update_sanpo_map`/`can_delete_sanpo_map`, SS-113）。DB に依存しない純粋関数。追加系（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin_visited`）は role だけで判定する。対象の持ち主を判定する更新・削除系（`can_update_pin`/`can_update_pin_archived`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`）は、操作ごとに材料が違う（ピン/タグ/写真）ため `is_creator`/`is_uploader` をキーワード専用引数にする。地図そのものの管理系（`can_update_sanpo_map`/`can_delete_sanpo_map`）は role のみで判定し owner 限定（地図の持ち主 = owner の role のため、対象の持ち主を判定する引数は無い）。`SanpoMapRole` もここで定義する（SS-137 で `maps/schemas.py` から移動） |
+| `permissions.py` | 地図の role（`owner`/`editor`）による権限判定（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`, SS-112。ピンの訪問状況・アーカイブ状態 `can_update_pin_visited`/`can_update_pin_archived`, SS-173。ピンの地図の移動 `can_move_pin_to`（移動先。role のみ）/`can_move_pin_from`（移動元。`is_creator` を取る）, SS-175。地図そのものの管理系 `can_update_sanpo_map`/`can_delete_sanpo_map`, SS-113）。DB に依存しない純粋関数。追加系（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`/`can_update_pin_visited`/`can_move_pin_to`）は role だけで判定する。対象の持ち主を判定する更新・削除系（`can_update_pin`/`can_update_pin_archived`/`can_delete_pin`/`can_delete_pin_tag`/`can_delete_pin_photo`/`can_move_pin_from`）は、操作ごとに材料が違う（ピン/タグ/写真）ため `is_creator`/`is_uploader` をキーワード専用引数にする。地図そのものの管理系（`can_update_sanpo_map`/`can_delete_sanpo_map`）は role のみで判定し owner 限定（地図の持ち主 = owner の role のため、対象の持ち主を判定する引数は無い）。`SanpoMapRole` もここで定義する（SS-137 で `maps/schemas.py` から移動） |
 | `advisory_locks.py` | `advisory_lock_key(user_id)`。owner 単位ロック（`sanpo_maps/maps/repository.py`）とアップロード枠ロック（`sanpo_maps/photos/repository.py`）が共通で使う鍵導出（SS-137。旧 `_advisory_lock_key` の重複を統合） |
 
 `maps/` サブパッケージ（地図・メンバーシップ）:
 
 | ファイル | 役割 |
 |---|---|
-| `access.py` | `SanpoMapAccess`。ピン作成時の地図解決・権限判定・`updated_at` 更新（旧 `SanpoMapService.resolve_map_for_new_pin`/`get_role`/`mark_used`）。Session を持たず commit しない部品として `sanpo_maps/pins/service.py` から使われる（SS-137, ADR-011） |
+| `access.py` | `SanpoMapAccess`。ピン作成時の地図解決・権限判定・`updated_at` 更新（旧 `SanpoMapService.resolve_map_for_new_pin`/`get_role`/`mark_used`）に加え、ピンの移動先の role を地図行 `FOR KEY SHARE` で引く `get_role_for_pin_move` と、移動先の `mark_used`（SS-175）。Session を持たず commit しない部品として `sanpo_maps/pins/service.py` から使われる（SS-137, ADR-011） |
 
 `pins/` サブパッケージ（ピン・タグ・ピンに紐付いた写真の行）:
 

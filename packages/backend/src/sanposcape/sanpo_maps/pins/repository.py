@@ -381,10 +381,11 @@ class PinRepository:
         memo: str | None = NOT_PROVIDED,
         visited: bool = NOT_PROVIDED,
         archived: bool = NOT_PROVIDED,
+        sanpo_map_id: uuid.UUID = NOT_PROVIDED,
         updated_at: datetime,
     ) -> None:
-        """`name`/`memo`/`visited`/`archived` のうち、実際に渡されたものだけを更新して flush する
-        （`PATCH /pins/{pin_id}`, ADR-009 決定20）。
+        """`name`/`memo`/`visited`/`archived`/`sanpo_map_id`（地図の移動, 決定33）のうち、
+        実際に渡されたものだけを更新して flush する（`PATCH /pins/{pin_id}`, ADR-009 決定20）。
 
         呼び出し元（service）はこのメソッドを実際に変化がある場合だけ呼ぶこと。
         `updated_at` は呼ばれるたびに必ず注入した値へ更新する（決定23）。
@@ -397,6 +398,8 @@ class PinRepository:
             pin.visited = visited
         if archived is not NOT_PROVIDED:
             pin.archived = archived
+        if sanpo_map_id is not NOT_PROVIDED:
+            pin.sanpo_map_id = sanpo_map_id
         pin.updated_at = updated_at
         self._db.flush()
 

@@ -275,7 +275,9 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                     <Text style={styles.metaText}>{createdAtLabel}</Text>
                   </View>
                 ) : null}
-                <Text style={styles.metaText}>{pin.sanpoMapName}</Text>
+                <Text style={styles.metaText} testID="pin-detail-sanpo-map-name">
+                  {pin.sanpoMapName}
+                </Text>
               </View>
 
               <PinStatusBadges
