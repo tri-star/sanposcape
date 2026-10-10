@@ -34,7 +34,7 @@
   [ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D7）
 
 - **撮影日時は端末が EXIF から読み、`POST /pin-photo-uploads` の `taken_at` で送る。** ピッカーは `exif: true` にするが、
-  返った EXIF（GPS を含みうる）は `photo.real.ts` の中で撮影日時に変換して捨て、`PickedPhoto` には `takenAt` だけを持たせる。
+  返った EXIF（GPS を含みうる）は `services/photo` の中で（`photo.real.ts` が `photoTakenAt.ts` の純粋関数で）撮影日時に変換してその場で捨て、`PickedPhoto` には `takenAt` だけを持たせる。
   アップロードするファイルの EXIF は決定3のとおり落ちる。`DateTimeOriginal` → `DateTimeDigitized` の順（TIFF の `DateTime` は使わない）、
   時差は `OffsetTimeOriginal` があれば使い、無ければ端末のタイムゾーンで補う（本文: 追補（2026-10-10）決定11〜14、SS-163）
 
@@ -312,23 +312,24 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
   どちらも `transferPinPhoto` を通るので、送る場所は1つで済む。ネイティブモジュールの追加ではない（オプションの変更だけ）ので
   development build の作り直しは要らない。
 
-### 決定12（追補）: EXIF は `photo.real.ts` の中で日時に変換して捨てる
+### 決定12（追補）: EXIF は `services/photo` の中で日時に変換して捨てる
 
-- ピッカーは `exif: true` にする。返る EXIF は GPS を含みうるので、`toPickedPhoto` で撮影日時の文字列に変換したら
-  その場で捨てる。`PickedPhoto` には `takenAt: string | null` だけを持たせ（型で他の EXIF を持ち出せないようにする）、
+- ピッカーは `exif: true` にする。返る EXIF は GPS を含みうるので、`photo.real.ts` の `toPickedPhoto` が `photoTakenAt.ts` の純粋関数で
+  撮影日時の文字列に変換したらその場で捨てる（EXIF のオブジェクトは `services/photo` の外へ出さない）。`PickedPhoto` には `takenAt: string | null` だけを持たせ（型で他の EXIF を持ち出せないようにする）、
   `logDiagnostic` にも EXIF も `takenAt` も出さない（撮影日時は行動履歴に当たる）。
 - アップロードするファイルは決定3のとおり再エンコードで EXIF が落ちる。送るのは撮影日時だけで、
   GPS から UTC を逆算するような位置情報に依存する処理は作らない。
 
 ### 決定13（追補）: 取り出し規則
 
-- `DateTimeOriginal` を使い、無いか不正なら `DateTimeDigitized`。TIFF の `DateTime` は編集アプリで書き換わる
-  更新日時なので使わない。形式は `YYYY:MM:DD HH:MM:SS`（サブ秒・空白・NUL は無視）。`0000:00:00 00:00:00`・
-  空白埋め・暦にない日付は「不明」。
+- `DateTimeOriginal` を使い、無い・不正・範囲外（下記の範囲と未来の判定を含む）なら `DateTimeDigitized` で同じ判定をする。両方だめなら不明。TIFF の `DateTime` は編集アプリで書き換わる
+  更新日時なので使わない。形式は `YYYY:MM:DD HH:MM:SS`（サブ秒・空白・NUL は無視。`OffsetTime*` も末尾の NUL・空白は無視）。`0000:00:00 00:00:00`・
+  空白埋め・暦にない日付・年が 1900 未満（`Date.UTC` が 0〜99 年を 1900+年に読み替えるため、日時の段階で弾く）は「不明」。
 - 範囲は `[1900-01-01Z, 2100-01-01Z)`（UTC 換算の瞬間。backend と共有する静的な範囲）。加えて mobile だけの判定として、
   端末時刻 + 24時間より未来は送らない（時計が狂ったカメラの値で表示を壊さない。backend は実行時刻に依存する上限を
   持たないので、これを送って 422 になることはない）。
 - カメラで撮った写真で EXIF から取れなければ、ピッカーが戻った時刻を撮影日時にする（「今」が撮影時刻そのもの）。
+  ただしこれも上の範囲 `[1900Z, 2100Z)` を通し（`takenAtFromDateInRange`）、端末時計が狂って範囲外なら `null`（422 でアップロードが失敗するのを避ける）。
   ライブラリの写真は取れなければ `null`（取り込み時刻を撮影日時にすると誤りになる）。
 - 実装は `services/photo/photoTakenAt.ts` の純粋関数（`react-native` も `expo-*` も import しない）。
 
@@ -361,5 +362,6 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
 
 - [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
 - [ADR-009（横断・backend）: ピンの写真ストレージとサムネイル](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（SS-163 追補: 写真ビューアの撮影日時の表示）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)
 - [フォルダ構造](../docs/folder-structure.md)
