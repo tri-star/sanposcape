@@ -17,7 +17,7 @@ class PinPhotoUploadCreate(BaseModel):
     """
 
     # `extra="forbid"` にしない: 古い backend と新しいアプリ／新しい backend と古いアプリの
-    # 両方で未知のキーを無視するため（SS-163 R8）。
+    # 両方で未知のキーを無視するため（ADR-009 決定34）。
     # GPS・EXIF は受け取らない（原本は端末で再エンコード済みで EXIF が無い, ADR-009 決定34）。
     content_type: Literal["image/jpeg"]
     byte_size: int = Field(ge=1)
@@ -34,8 +34,8 @@ class PinPhotoUploadCreate(BaseModel):
         # 写真を落とさない（端末の時計ずれ対策, 決定34）。
         if not (TAKEN_AT_MIN <= value < TAKEN_AT_MAX):
             raise ValueError(
-                "taken_at must be between 1900-01-01T00:00:00Z (inclusive) "
-                "and 2100-01-01T00:00:00Z (exclusive)"
+                f"taken_at must be between {TAKEN_AT_MIN.isoformat()} (inclusive) "
+                f"and {TAKEN_AT_MAX.isoformat()} (exclusive)"
             )
         return value
 

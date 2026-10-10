@@ -55,7 +55,8 @@ class TestPinPhotoUploadCreateTakenAt:
             _build(taken_at=raw)
 
     def test_ignores_unknown_keys(self) -> None:
-        # R8: 古い／新しい backend とアプリの組み合わせで未知のキーを無視する契約を固定する。
+        # ADR-009 決定34: 古い/新しい backend とアプリの組み合わせで
+        # 未知のキーを無視する契約を固定する。
         payload = _build(unknown=1)
 
         assert not hasattr(payload, "unknown")

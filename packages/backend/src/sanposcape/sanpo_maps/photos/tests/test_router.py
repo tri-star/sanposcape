@@ -73,7 +73,7 @@ class TestCreatePinPhotoUpload:
 
         assert response.status_code == 201
         body = response.json()
-        # R8: 応答（PinPhotoUploadRead）には taken_at を出さない。
+        # 決定34: 応答（PinPhotoUploadRead）には taken_at を出さない。
         assert "taken_at" not in body
         session = TestSessionLocal()
         try:
@@ -122,6 +122,12 @@ class TestCreatePinPhotoUpload:
         )
 
         assert response.status_code == 422
+        # 422 の後に枠（行）が作られていないこと。
+        session = TestSessionLocal()
+        try:
+            assert session.query(PinPhotoUpload).count() == 0
+        finally:
+            session.close()
 
     def test_rejects_non_jpeg_content_type(
         self,

@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -122,20 +122,30 @@ class TestPinPhotoUploadServiceCreateUpload:
         user = make_user(db_session, subject="u1")
         service = make_upload_service(db_session, FakeObjectStorage(secret="s" * 32))
 
-        with caplog.at_level(logging.DEBUG):
-            service.create_upload(
+        # 申告オフセット（+09:00 の 09:14:05）と UTC 換算（00:14:05）の両方を検査する。
+        taken_at = datetime(2026, 7, 2, 9, 14, 5, tzinfo=timezone(timedelta(hours=9)))
+
+        with caplog.at_level(logging.DEBUG, logger="sanposcape.sanpo_maps.photos.service"):
+            result = service.create_upload(
                 user,
-                PinPhotoUploadCreate(
-                    content_type="image/jpeg",
-                    byte_size=1000,
-                    taken_at=datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC),
-                ),
+                PinPhotoUploadCreate(content_type="image/jpeg", byte_size=1000, taken_at=taken_at),
                 base_url=BASE_URL,
             )
 
-        text = "\n".join(record.getMessage() for record in caplog.records)
-        assert "2026-07-02" not in text
-        assert "taken_at" not in text
+        messages = [record.getMessage() for record in caplog.records]
+        # ログ自体は出ている（空では「出ていない」の確認にならない）。
+        assert any(str(result.upload_id) in message for message in messages)
+        text = "\n".join(messages)
+        for leaked in (
+            "2026-07-02",
+            "20260702",
+            "2026/07/02",
+            "09:14",
+            "00:14",
+            "+09:00",
+            "taken_at",
+        ):
+            assert leaked not in text, f"撮影日時がログに漏れている: {leaked}"
 
     def test_too_large_raises(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
