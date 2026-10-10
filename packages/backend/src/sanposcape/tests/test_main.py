@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 import pytest
@@ -224,6 +225,40 @@ def test_unhandled_exception_returns_500_and_leaves_exactly_one_error_across_all
     errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
     assert [r.name for r in errors] == ["sanposcape.core.observability"]
     assert errors[0].exc_info is not None
+
+
+def test_staging_settings_never_emit_the_exception_message_in_any_log(
+    json_logs: list[dict],
+) -> None:
+    """本番相当の設定（allowlist 方式で local / test 以外）では、例外メッセージが全ログに出ない
+    （ADR-013 決定6。メッセージ経由で DB の DETAIL・入力値・URL が 400 日残るのを防ぐ）。"""
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    settings = Settings(
+        env="staging",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://user:pw@host.example.com/db",
+    )
+    app = create_app(settings)
+
+    # ソースの行はスタックトレースに出るため、メッセージは実行時に組み立てる
+    secret = "-".join(["secret", "boom"])
+
+    @app.get("/_boom")
+    def _boom() -> None:
+        raise RuntimeError(secret)
+
+    response = TestClient(app).get("/_boom")
+
+    assert response.status_code == 500
+    (error,) = [r for r in json_logs if r["level"] == "ERROR"]
+    assert error["exception_type"] == "RuntimeError"
+    assert "exception_message" not in error
+    assert all(secret not in json.dumps(r) for r in json_logs)
 
 
 def test_user_id_is_attached_to_endpoint_and_access_logs_for_authenticated_requests(
