@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-05（SS-175: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せるようにした。決定33）。前回: 2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）、2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-10（SS-163: 写真に撮影日時 `taken_at` を持たせた。決定34）。前回: 2026-10-05（SS-175: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せるようにした。決定33）、2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）、2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -73,6 +73,12 @@
   ときだけ `updated_at` を進め、移動先の `mark_used()` を呼ぶ。S3 は触らない。**地図削除は写真キーの
   収集前に地図のピン行を `FOR UPDATE` でロックするようになった**（移動と重なっても生き残るピンの
   写真を S3 から消さない）（本文: SS-175 追補 決定33）
+- **写真は撮影日時 `taken_at` を持つ**。端末が EXIF から読んだ申告値を `POST /pin-photo-uploads`
+  （任意・null 可・オフセット必須。naive と範囲外は 422、範囲は瞬間で `[1900-01-01Z, 2100-01-01Z)`）
+  で受け取り、紐付け時に枠から `pin_photos` へ写して、枠の側は NULL に戻す。`PinPhotoRead.taken_at`
+  は必須キー・null 可で、全ての写真の応答に載る（UTC 換算の瞬間。元のオフセットは保持しない）。
+  backend は EXIF を読まず、GPS も受け取らない。既存の写真は遡及せず null。ログには出さない。
+  DB は `timestamptz NULL` の2列（本文: SS-163 追補 決定34）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
   （本文: SS-113 追補 決定28）（**SS-137 追補**: port 経由の再利用は撤去し、
@@ -142,7 +148,8 @@ port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の�
 2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）、
 2026-10-04 追補（SS-171: 地図のアイコン `icon`。決定31）、
 2026-10-04 追補（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived`。決定32）、
-2026-10-05 追補（SS-175: ピンの地図の移動。決定33）
+2026-10-05 追補（SS-175: ピンの地図の移動。決定33）、
+2026-10-10 追補（SS-163: 写真の撮影日時 `taken_at`。決定34）
 
 ## ステータス
 
@@ -280,6 +287,7 @@ ADR-008 決定7（expand → contract）の例外として直接削除してい�
 1. mobile は `POST /pin-photo-uploads`（`content_type`, `byte_size`）で
    アップロード枠を取得する。応答は presigned POST の `url`/`fields`
    （`upload_id` 別に発行、S3 の `content-length-range` で1枚の上限を強制）。
+   （**SS-163 追補**: 枠の発行は `taken_at`（撮影日時）も任意で受け取る。決定34）
 2. mobile はフィールドをそのまま multipart で S3 の `staging/pins/<user_id>/<upload_id>.jpg`
    へ POST する（成功は S3 既定の 204）。
 3. `POST /pins`（新規ピン作成）に `photo_upload_ids` を含めると、**同じリクエストの中で
@@ -1618,6 +1626,76 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
   残ることに限られ、既存の `POST /pins`（`add_pin`）も同じ性質を持つ（今回の差分で悪化していない）。
   メンバーを外す機能（BK-7）を作るときに、追加系の操作全体の横断課題としてまとめて扱う。
 
+## 追補（2026-10-10, SS-163 写真の撮影日時）
+
+ピンの写真ビューアに撮影日時を出すため、写真に撮影日時 `taken_at` を持たせる（SS-163）。
+既存テーブル2つへの列追加（マイグレーションあり）と、リクエスト・レスポンスへの任意フィールドの
+追加。フィーチャーフラグは使わない（決定10）。mobile 固有の判断（EXIF の取り出し規則・
+タイムゾーンの補い方・表示）は mobile の ADR（[ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・
+[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）に記録する。
+
+### 決定34: 写真は撮影日時 `taken_at` を持つ。端末が EXIF から読み、枠の発行で受け取る
+
+- **取得方式**: 端末が EXIF（`DateTimeOriginal` → `DateTimeDigitized`）から読んだ値の**申告**を受け取る。
+  backend は EXIF を解析しない。原本は端末で縮小・再エンコードされ EXIF が残らない（ADR-M-010 決定3）ので、
+  backend が原本から読むには、端末が EXIF を残したまま送る必要があり、GPS も S3 に載ってしまう。
+  **GPS は受け取らない**。原本・サムネイルが EXIF なしであること（決定6）と BK-10 は変えない。
+- **API**:
+  - `PinPhotoUploadCreate.taken_at`: 任意・null 可・オフセット必須（`AwareDatetime | None`。OpenAPI では
+    `anyOf: [string(date-time), null]` で required に入らない）。`PinPhotoUploadRead` は変えない。
+    撮影日時を直す API（PATCH）は作らない。`PinPhotoUploadCreate` は `extra="forbid"` にしない
+    （古い backend と新しいアプリ、新しい backend と古いアプリの両方で、未知のキーを無視するため）。
+  - `PinPhotoRead.taken_at`: 必須キー・null 可（`original_url` と同じ形）。`to_pin_photo_read()` が
+    唯一の組み立て口なので、`GET /pins/{id}`・`GET /pins`（`cover_photo`）・`GET /pins/{id}/photos`・
+    `POST /pins`・`POST /pins/{id}/photos` の全ての応答に載る。値は UTC 換算の瞬間で、送られた
+    オフセットは戻らない。秒未満は送られれば保持する。`created_at` は変えない（ピンに紐付けた時刻）。
+- **検証**: naive・日付だけ・解釈できない文字列は 422。範囲は**瞬間（UTC 換算）で**
+  `[1900-01-01T00:00:00Z, 2100-01-01T00:00:00Z)`（mobile と共有する静的な範囲。例:
+  `1900-01-01T08:59:59+09:00` は下端より前なので 422）。
+  - 範囲外を null に丸めない: mobile の不具合が見えなくなり、契約もあいまいになる。mobile は同じ範囲で
+    先に捨てるので、422 になるのは mobile の不具合のときだけ。
+  - 範囲を設ける理由は表示だけではない。`0001-01-01T00:00:00+09:00` のような値を保存すると、UTC に
+    直した時点で年が 0 になり、**読み出しで 500 になりうる**のを防ぐ。
+  - **実行時刻に依存する上限（「現在より未来は 422」）は付けない**: `WalkCreate.ended_at` にはあるが、
+    ここで 422 にすると写真のアップロード自体が失敗する。表示にしか使わない申告値で、端末の時計ずれ
+    のために写真を落とさない。
+  - オフセットの値域は検証しない（保持せず瞬間に直すだけのため）。数値（Unix 時刻）は Pydantic の
+    lax モードで受理される（`WalkCreate` と同じ扱い）。契約は文字列で、mobile は数値を送らない。
+- **DB**: `pin_photo_uploads.taken_at`・`pin_photos.taken_at` はともに `timestamptz NULL`。CHECK 制約は
+  付けない（書き込み口はこの API だけで二重の防御にしかならず、範囲を変えるたびにマイグレーションが
+  要る）。インデックスも付けない（並べ替え・絞り込みに使わない）。
+- **紐付け**: 確定処理（決定4）で枠の `taken_at` を `pin_photos.taken_at` へ写す（`PhotoUploadInput` →
+  `PreparedPhoto` で運び、`PhotoAttacher` は値を渡すだけ）。写した後は**枠の `taken_at` を NULL に戻す**。
+  `attached` の枠は写真やピンを削除しても残る（アカウント削除まで）ので、撮影日時という行動の履歴を
+  写真を消した後まで残さないため。紐付け後に枠の値を読む処理は無い（冪等な再送は `pin_photos` を見る）。
+  `lock_for_attach` で行ロックした枠から読んだ後に同じトランザクションで消すので、競合は無い。
+  冪等な再送で写真の `taken_at` は変わらない（枠の発行時にしか受け取らず、直す API も無い）。
+  紐付けずに期限切れになった `pending` の枠には、掃除（BK-3）で行ごと消えるまで残る。
+- **オフセット**: 保持しない。表示は端末のタイムゾーン（mobile の判断）。Android では EXIF の
+  `OffsetTime*` が取れず端末のオフセットで補っているので、残しても撮影地の時刻にはならない。
+  必要になったら列を足す（それ以前の写真のオフセットは戻らない）。
+- **既存データ**: 遡及しない（原本に EXIF が無く、埋める材料が無い）。既存の写真は null で、
+  mobile は `created_at`（紐付けた時刻）にフォールバックして表示する。
+- **ログ**: `taken_at` はログに出さない（枠発行の INFO ログにも足さない）。行動の履歴に当たり、
+  障害の調査に要らない。
+- **デプロイ**: 決定31 の「デプロイ」項と同じ。既存テーブルへの列追加は、デプロイから migrate までの
+  間、新しいコードが列の無い `pin_photos`・`pin_photo_uploads` を SELECT・INSERT するため、枠の発行・
+  写真付きのピン作成・写真の閲覧などが 500 になる。prod は未作成で初回デプロイのマイグレーションに
+  含まれるため起きない。dev は「デプロイ直後に migrate を invoke する」運用で数分の 500 を許容する。
+  厳密にするなら、マイグレーションだけのコミットを ref 指定で先に dev へデプロイして migrate してから
+  本体をデプロイする（そのためにマイグレーションは単独のコミットにしてある）。**リリース順の制約は無い**
+  （古い backend は `taken_at` を無視し、応答にも無いので mobile は null として扱う。新しい backend は
+  古いアプリから `taken_at` が来なければ null で保存する）。撮影日時を記録し始めたいなら backend を先に出す。
+  ロールバックするときは、列を参照しない旧コードを先にデプロイしてから downgrade を流す。
+- **フラグ**: 使わない（決定10）。
+- **mobile への伝達事項**: `PinPhotoRead` に必須キーが増えるので、Orval の型を使う mobile の型付き
+  フィクスチャは更新が必要になる。応答の `taken_at` は UTC で返る。
+- **検討した選択肢**: backend が原本の EXIF を読む（端末が EXIF を残して送ると GPS も S3 に載るので
+  成り立たない）／`POST /pins` の `photo_upload_ids` を `{upload_id, taken_at}` のオブジェクトにする
+  （破壊的変更で、`POST /pins` と `POST /pins/{id}/photos` の両方と mobile の保存の分割処理に手が入る）／
+  元のオフセットの列（上記）／範囲外を null に丸める／未来の上限／CHECK 制約／枠に `taken_at` を
+  残したままにする（上記）。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1636,4 +1714,5 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
   SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
   SS-171（地図のアイコン。決定31）、
   SS-173（ピンの訪問状況・アーカイブ状態。決定32）、
-  SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
+  SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
+  SS-163（写真の撮影日時。決定34。mobile: [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）
