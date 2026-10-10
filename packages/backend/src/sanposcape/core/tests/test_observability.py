@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sys
 from collections.abc import Generator
 from typing import Any
 
@@ -649,6 +650,24 @@ class TestConfigureLogging:
         configure_logging("INFO", log_format="console")
         assert app_logger_state.handlers == [handler]
         assert isinstance(handler.formatter, ConsoleLogFormatter)
+
+    def test_tracing_unavailable_warning_goes_through_the_configured_handler(
+        self,
+        app_logger_state: logging.Logger,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """ローカルの経路で OTel を import できないときの警告も、`lastResort` のプレーンテキスト
+        ではなく、足したハンドラー（JSON）で出る（trace lookup はハンドラーの確定後に作る）。"""
+        logging.getLogger().handlers, app_logger_state.handlers = [], []
+        monkeypatch.setitem(sys.modules, "opentelemetry", None)  # import を ImportError にする
+
+        configure_logging("INFO", log_format="json", tracing_enabled=True)
+
+        (line,) = [ln for ln in capsys.readouterr().err.splitlines() if "TRACING_ENABLED" in ln]
+        payload = json.loads(line)
+        assert payload["level"] == "WARNING"
+        assert observability._LOG_OPTIONS.trace_lookup is None
 
     def test_updates_the_options_read_by_the_formatters(self) -> None:
         configure_logging("INFO", include_exception_messages=True)

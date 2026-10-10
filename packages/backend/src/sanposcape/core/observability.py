@@ -421,7 +421,6 @@ def configure_logging(
     app_logger = logging.getLogger("sanposcape")
     app_logger.setLevel(level)
     _LOG_OPTIONS.include_exception_messages = include_exception_messages
-    _LOG_OPTIONS.trace_lookup = _build_trace_lookup() if tracing_enabled else None
     formatter: logging.Formatter = (
         ConsoleLogFormatter() if log_format == "console" else JsonLogFormatter()
     )
@@ -433,6 +432,9 @@ def configure_logging(
         handler.setFormatter(formatter)
         setattr(handler, _OWNED_HANDLER_ATTR, True)
         app_logger.addHandler(handler)
+    # ★ ハンドラーとフォーマッターを確定させてから作る。OTel を import できないときの警告が、
+    #   ハンドラーの無いローカルの経路で `logging.lastResort`（プレーンテキスト）に落ちないように。
+    _LOG_OPTIONS.trace_lookup = _build_trace_lookup() if tracing_enabled else None
 
 
 class UnhandledErrorAfterResponseStart(Exception):  # noqa: N818
