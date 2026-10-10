@@ -1,15 +1,15 @@
 ---
 name: mobile-testing
-description: mobile テストの実態 — msw は使う(汎用プロンプトと矛盾)、RN の render テストは書けない(vitest は node 環境 + RN スタブ)。判定・文言は純粋関数へ切り出し、表示は /dev-screens で目視
+description: mobile テストの実態 — msw は Orval 生成ハンドラで使う、RN の render テストは書けない(vitest は node 環境 + RN スタブ)。判定・文言は純粋関数へ切り出し、表示は /dev-screens で目視
 metadata:
   type: feedback
   scope: durable
 ---
 
-汎用の mobile-planner プロンプトとこの repo の実態が食い違う点。**repo に従う**。
-リポジトリ側の記述は `packages/mobile/docs/architecture-guideline.md`（テスト方針）と `pages-components-guideline.md`「テストの書き方」節。
+正本は `packages/mobile/docs/architecture-guideline.md`（テスト方針）と `pages-components-guideline.md`「テストの書き方」節。
+ここにはプランを書くときに踏みやすい点を残す。
 
-1. **msw は使う**。プロンプトの「mobile では msw は使いません」は誤り。`orval.config.ts` が `mock: true` で MSW ハンドラ
+1. **msw は使う**。`orval.config.ts` が `mock: true` で MSW ハンドラ
    （`get` + PascalCase(operationId) + `MockHandler`）を生成し、`src/test/setup.ts` が `setupServer({ onUnhandledRequest: "error" })` を
    全テスト共通で起動する。`src/api/client.ts` と `features/*/api/*.ts`（素の fetcher）は msw でテストする（例: `walkApi.test.ts`）。
    引数なしの faker モックは enum や map のキーを乱数で作るので、不変条件を持つレスポンスは明示的に渡すようプランに書く。

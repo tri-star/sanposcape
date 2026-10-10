@@ -4,7 +4,7 @@
 - [プラン作成時に必ず確認する制約](planning-constraints.md) — 毎回効いてくる mobile 固有の制約（oxlint の import 制限・フラグ前提・EAS の正本・E2E の識別子）
 - [ユーザー/オーケストレーターとの協働](workflow-preferences.md) — 離席前提で「推奨案を自分で決めて確定させる」運用、成果物の置き場
 - [mobile 構造の要点](mobile-structure.md) — packages/mobile の確定した規約・既存資産・Orval/地図/ネイティブ設定の落とし穴
-- [モバイルテストの実態](mobile-testing.md) — MSWは使う(汎用プロンプトと矛盾)。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
+- [モバイルテストの実態](mobile-testing.md) — MSWはOrval生成ハンドラで使う。RNのrenderテストは書けないので判定ロジックを純粋関数へ切り出す
 - [認証](auth.md) — 正本はADR-002/ADR-M-009・client.tsはservices/authをimportしない・401の2経路（ゲスト/失効）・セッション破棄は `signOut()` 再利用が唯一の作法
 - [デザインシステムの同期](design-system-sync.md) — トークン値は Claude Design、実装はリポジトリ。同期は一方向。MCP は CI から呼べない
 - [mock と prop 名の食い違い](reference_mock_and_prop_divergence.md) — 画面一次資料の場所（ピン系画面も有・.pen は無い）／onClick→onPress／mockよりチケット指示優先
