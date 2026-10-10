@@ -5,8 +5,12 @@
 FastAPI の DB 依存を差し替えた TestClient を提供する。
 """
 
+import json
+import logging
 from collections.abc import Generator
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -23,6 +27,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from sanposcape.all_models import Base
 from sanposcape.config import Settings, get_settings
+from sanposcape.core import observability
 from sanposcape.database import get_db
 from sanposcape.main import app, create_app
 
@@ -75,6 +80,51 @@ def _isolate_settings_from_ambient_env(monkeypatch: pytest.MonkeyPatch, tmp_path
     for name in Settings.model_fields:
         monkeypatch.delenv(name.upper(), raising=False)
     monkeypatch.chdir(tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def _restore_log_options() -> Generator[None, None, None]:
+    """`create_app()` / `configure_logging()` が書き換えるモジュール単位のログ設定
+    （例外メッセージを出すか・トレースの取り出し）を、テストごとに元へ戻す（SS-180）。"""
+    saved = replace(observability._LOG_OPTIONS)
+    yield
+    observability._LOG_OPTIONS.include_exception_messages = saved.include_exception_messages
+    observability._LOG_OPTIONS.trace_lookup = saved.trace_lookup
+
+
+class _FormatAtEmitHandler(logging.Handler):
+    """emit の時点で `JsonLogFormatter` で format し、dict にして溜める（SS-180）。
+
+    文脈（ContextVar・current span）は format の時点で読むため、`caplog` のように後から
+    LogRecord を見ても残っていない。文脈つきのログを検証するときはこちらを使う。
+    """
+
+    def __init__(self, sink: list[dict[str, Any]]) -> None:
+        super().__init__(logging.DEBUG)
+        self.setFormatter(observability.JsonLogFormatter())
+        self._sink = sink
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._sink.append(json.loads(self.format(record)))
+
+
+@pytest.fixture
+def json_logs() -> Generator[list[dict[str, Any]], None, None]:
+    """全ロガーのログを、emit の時点で JSON にして溜めたリスト（INFO 以上）。"""
+    records: list[dict[str, Any]] = []
+    handler = _FormatAtEmitHandler(records)
+    root = logging.getLogger()
+    app_logger = logging.getLogger("sanposcape")
+    saved_levels = (root.level, app_logger.level)
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    app_logger.setLevel(logging.INFO)
+    try:
+        yield records
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(saved_levels[0])
+        app_logger.setLevel(saved_levels[1])
 
 
 # `_setup_test_db_schema` の drop_all/create_all、`_delete_all` の DELETE に共通で使う

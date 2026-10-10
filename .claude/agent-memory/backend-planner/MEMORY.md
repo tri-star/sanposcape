@@ -14,4 +14,5 @@
 - [親の付け替え × キー収集→CASCADE 削除の競合](feedback-reparent-vs-collect-then-cascade-delete.md) — FK 付け替えを足すと削除側が生き残った子の S3 実体を消す。収集前に子を FOR UPDATE、新親は KEY SHARE
 - [Lambda アダプタ境界で崩れる前提](feedback_lambda_adapter_boundary_assumptions.md) — Mangum auto は呼び出しごと lifespan / CloudFront 経由の sourceIp は CF の IP。TestClient では検出不可
 - [CloudWatch 可観測性クエリの罠](feedback-cloudwatch-observability-query-gotchas.md) — 名前空間は ApplicationSignals・Operation=FunctionHandler で絞る / 子スパン二重カウント / Insights に if 無し / log ウィジェットは開くたび課金
+- [ログの JSON 化・例外ログの罠](feedback-structured-logging-lambda-otel-gotchas.md) — Lambda の LogFormat JSON は例外メッセージを必ず出す / OTel の例外記録はユーザーのミドルウェアより外 / 同期の依存の ContextVar.set は戻らない
 - [infra 側の監視置き場と IAM 3 系統](reference-infra-monitoring-and-iam-layers.md) — アラート SNS の SSM 契約 / CloudFront アラームは services 層 / sam-deploy の CloudWatch は backend-* のダッシュボード・アラームのみ / app-boundary 残り約290字

@@ -28,6 +28,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from sanposcape.aws_lambda.runtime_logging import use_json_format_for_runtime_handlers
 from sanposcape.config import get_settings
 from sanposcape.core.runtime_config import (
     hydrate_environment_from_secret,
@@ -35,6 +36,11 @@ from sanposcape.core.runtime_config import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ランタイムのログハンドラーを JSON にする（api.py と同じ。ADR-013 決定3 の SS-180 追補）。
+# この Lambda は `create_app()` を通らないため、`include_exception_messages` は既定の False の
+# まま（例外メッセージは JSON に出さない）。トレースも見ない。
+use_json_format_for_runtime_handlers()
 
 # Makefile が alembic/ を Lambda の CWD（/var/task）へコピーする。
 # ★ コピー先が `alembic` ではないのは、pip が PyPI の `alembic` パッケージを

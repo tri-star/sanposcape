@@ -19,3 +19,4 @@
 - [エージェントメモリの誤生成先](reference-stray-claude-dir.md) — package配下に.claude/agent-memoryが誤生成される既知の問題。正しい置き場所は常にリポジトリルート
 - [module 再 import 後の親パッケージ属性](feedback_fresh_exec_reimport_stale_package_attr.md) — sys.modules だけでなく親パッケージ属性も戻す。さもないと文字列 monkeypatch が全体実行でだけ効かない（SS-183）
 - [OTel 計装の罠](feedback_otel_sqlalchemy_greenlet_and_adot_gotchas.md) — 計装を足したら実起動で DB ルートを叩く（SQLAlchemy 2.1 は greenlet 必須）・ADOT 親スパンの癖・テストの DB URL は test_engine.url（ADR-013 参照）
+- [ログ文脈のテスト罠](feedback_log_context_testing_gotchas.md) — caplogでは文脈が取れない(json_logs fixture)・メッセージ非出力テストにソースのリテラルを書かない（SS-180）

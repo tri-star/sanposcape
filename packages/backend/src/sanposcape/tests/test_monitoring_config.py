@@ -287,7 +287,9 @@ def test_duration_annotations_match_the_time_budget_and_the_lambda_timeout() -> 
 
 
 def test_report_queries_follow_the_log_format_of_the_function() -> None:
-    """SS-180 が LogFormat: JSON にしたら、REPORT 系のクエリも platform.report の形式に直す。
+    """SS-180 は LogFormat を Text のままにした（アプリが JSON を出す）。
+
+    将来 LogFormat: JSON にしたら、REPORT 系のクエリも platform.report の形式に直す。
 
     LoggingConfig は Api に直接置いても Globals.Function に置いても効くので、両方を見る。
     """

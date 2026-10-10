@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     # 既定を INFO にしているのは、アクセスログ（1リクエスト1行）を出すため。Lambda では
     # これを WARNING に上げると障害調査の手掛かりが `START`/`END` だけに戻るので注意する。
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    # ログの出力形式（ADR-013 決定3 の SS-180 追補）。既定の json は 1 レコード 1 行の JSON
+    # （Lambda / 将来の ECS と同じ形）。console はローカルで読みやすい 1 行表記で、
+    # ENV が local / test のときだけ許可する（それ以外で console にすると Logs Insights の
+    # フィールドが消えて気づきにくいため。`_validate_environment_settings` で弾く）。
+    log_format: Literal["json", "console"] = "json"
 
     # --- トレース（OpenTelemetry。ADR-013 / SS-178） ---
     # アプリ側の計装（`core/observability.py` の `instrument_fastapi_app` ほか）を有効にするか。
@@ -279,6 +284,22 @@ class Settings(BaseSettings):
         """`LOG_LEVEL=info` のような小文字表記も受け付ける（Literal は大小を区別するため）。"""
         return v.upper() if isinstance(v, str) else v
 
+    @field_validator("log_format", mode="before")
+    @classmethod
+    def _normalize_log_format(cls, v: object) -> object:
+        """`LOG_FORMAT=JSON` のような大文字表記も受け付ける。"""
+        return v.lower() if isinstance(v, str) else v
+
+    @property
+    def log_exception_messages(self) -> bool:
+        """ログに例外メッセージ（`exception_message`）を出してよいか。
+
+        許可リスト方式: local / test だけ。staging / production ではメッセージ経由で
+        psycopg の DETAIL（キー値）・検証エラーの入力値・URL などが 400 日保持の
+        ロググループに残るため出さない（ADR-013 決定6 / 決定3 の SS-180 追補）。
+        """
+        return self.env in ("local", "test")
+
     @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
     @classmethod
     def _split_csv(cls, v: object) -> object:
@@ -315,6 +336,8 @@ class Settings(BaseSettings):
         # （実際に staging がこの罠を踏み、AUTH_JWT_SECRET 未設定時にリポジトリ内の固定文字列が
         # 署名鍵になり、AUTH_MODE=dev も阻止されないという認証バイパスの脆弱性になっていた）。
         if self.env not in ("local", "test"):
+            if self.log_format != "json":
+                raise ValueError(f"LOG_FORMAT must be 'json' when ENV={self.env}")
             if self.auth_mode != "real":
                 raise ValueError(f"AUTH_MODE must be 'real' when ENV={self.env}")
             if self.maps_mode != "real":

@@ -15,7 +15,10 @@ import sys
 import tempfile
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 import httpcore
 import httpx
@@ -64,8 +67,16 @@ def _tracing_on() -> Settings:
 
 
 def _traced_app(provider: TracerProvider) -> FastAPI:
-    """計装は `create_app()` ではなく、テスト用 provider を渡して明示的に行う。"""
-    app = create_app(Settings(env="test"))
+    """計装はテスト用 provider を渡して明示的に行う。
+
+    `create_app()` の中の計装（グローバルの provider を使う）はテスト用 provider に差し替える。
+    設定は tracing 有効にする（`AccessLogMiddleware` が未処理例外をスパンに記録するため）。
+    """
+    with patch(
+        "sanposcape.main.instrument_fastapi_app",
+        partial(instrument_fastapi_app, tracer_provider=provider),
+    ):
+        app = create_app(_tracing_on())
 
     @app.get("/boom")
     def boom() -> None:
@@ -234,13 +245,12 @@ class TestFastApiSpans:
         assert span.status.status_code == trace.StatusCode.ERROR
         assert [e.name for e in span.events] == ["exception"]
 
-    def test_unhandled_exception_event_currently_carries_message_r7(
+    def test_unhandled_exception_event_does_not_carry_the_message(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
-        """R7（残るリスク）: 未処理の 500 で ASGI 計装が自動で付ける exception イベントには
-        message が載る（DB 例外なら DETAIL のキー値など）。今回は塞がず、現状の挙動を固定する。
-        SS-180 でログ（Mangum のトレースバック）と合わせて対処する（ADR-013 決定6 の追補）。
-        塞いだらこのテストを「載らない」に反転すること。
+        """R7 の解消（ADR-013 決定6 の SS-180 追補）: 未処理の 500 は `AccessLogMiddleware` が握る
+        ため、OTel の `ExceptionHandlerMiddleware`（例外メッセージ・スタックトレースを自動で付ける）
+        に届かない。スパンには型名だけの exception イベントと、メッセージの無い status が残る。
         """
         client = TestClient(_traced_app(provider), raise_server_exceptions=False)
 
@@ -248,7 +258,26 @@ class TestFastApiSpans:
 
         (span,) = exporter.get_finished_spans()
         (event,) = span.events
-        assert event.attributes["exception.message"] == "boom"
+        assert event.attributes == {"exception.type": "RuntimeError"}
+        assert "boom" not in (span.status.description or "")
+        assert not [k for k in span.attributes if k.startswith("exception.")]
+
+    def test_access_log_carries_the_trace_and_span_ids_of_the_fastapi_span(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        json_logs: list[dict[str, Any]],
+    ) -> None:
+        client = TestClient(_traced_app(provider))
+
+        client.get("/pins/0b5b3c3e-0000-4000-8000-000000000000")
+
+        (span,) = exporter.get_finished_spans()
+        (access,) = [r for r in json_logs if r.get("log_type") == "access"]
+        assert access["trace_id"] == format(span.context.trace_id, "032x")
+        assert access["span_id"] == format(span.context.span_id, "016x")
+        assert access["trace_sampled"] is True
+        assert access["http_route"] == "/pins/{pin_id}"
 
     def test_peer_ip_port_and_user_agent_are_blanked(
         self, provider: TracerProvider, exporter: InMemorySpanExporter

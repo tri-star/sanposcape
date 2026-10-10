@@ -98,6 +98,24 @@ docker compose --project-directory packages/backend -f packages/backend/compose.
 `aws s3 rm` で個別に削除する。確認が終わったら `.env` を `STORAGE_MODE=fake` に戻し、
 api コンテナを作り直すこと（コンテナは作成時の環境変数を保持する）。
 
+## ログの形式（`LOG_FORMAT`。ADR-013 / SS-180）
+
+ログの形式は `LOG_FORMAT` で選ぶ。
+
+| 値 | 内容 |
+|---|---|
+| `console`（compose の既定） | 読みやすい 1 行表記。文脈があれば末尾に `[http_method=… http_route=… user_id=… trace_id=…]`（JSON と同じキー名・順。値が無いものは出ない）。例外は標準のトレースバック（メッセージ込み） |
+| `json` | Lambda / 将来の ECS と同じ 1 レコード 1 行の JSON。`timestamp` / `level` / `logger` / `message` と、`trace_id` / `span_id`（`TRACING_ENABLED=true` のとき）・`http_method` / `http_route`・`user_id`（認証済み）など |
+
+JSON の見え方を確かめたいときは、`.env` に `LOG_FORMAT=json` を足す（または
+`LOG_FORMAT=json docker compose up -d --force-recreate api`）。コンテナは作成時の環境変数を
+保持するので、変えたら作り直す。`TRACING_ENABLED=true` + Jaeger と組み合わせると、ログの `trace_id` で
+Jaeger のトレースを引ける。JSON は `docker compose logs --no-log-prefix api | jq -R 'fromjson? // empty'` で整形できる
+（uvicorn 自身の起動・アクセスログの行はテキストのまま混ざるため、`fromjson?` で JSON でない行を読み飛ばす。
+`-R` を付けないと jq がテキスト行で止まる）。
+`console` は `ENV=local` / `test` のときだけ許可される。ログの項目・Logs Insights のクエリは
+[deployment.md](./deployment.md) §15。
+
 ## トレースをローカルで確認する（Jaeger。ADR-013 / SS-178）
 
 API のリクエストを OpenTelemetry でトレースし、「どの部分（DB・外部 API・S3 など）で時間が

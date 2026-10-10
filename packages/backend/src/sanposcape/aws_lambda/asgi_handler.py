@@ -20,6 +20,8 @@ from fastapi import FastAPI
 from mangum import Mangum
 from starlette.types import ASGIApp
 
+from sanposcape.core.observability import log_context
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,7 +86,11 @@ class AsgiLambdaHandler:
             )
 
     def __call__(self, event: dict[str, Any], context: Any) -> dict[str, Any]:
-        return self._mangum(event, context)
+        # 呼び出しごとに request id を束ねる。Mangum が作るタスクには context がコピーされるので、
+        # アプリのログに加え Mangum 自身のログにも付く（`REPORT` 行の `@requestId` と同じ値）。
+        # 終わったら reset するので、次の呼び出しに残らない。
+        with log_context(aws_request_id=getattr(context, "aws_request_id", None)):
+            return self._mangum(event, context)
 
     def close(self) -> None:
         """lifespan の shutdown を実行する。テスト専用（Lambda からは呼ばない）。

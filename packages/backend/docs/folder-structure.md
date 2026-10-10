@@ -47,6 +47,7 @@ packages/backend/
 │       ├── aws_lambda/        # AWS Lambda 固有の受け皿（ECS 移植性の境界。SS-67）
 │       │   ├── api.py         #   Lambda ハンドラ。main.app の import 前にシークレットをハイドレーションし、後で build_handler() を呼ぶ
 │       │   ├── asgi_handler.py #  Mangum を lifespan=off で包み、FastAPI の lifespan を init で1回だけ起動する。import しても副作用なし
+│       │   ├── runtime_logging.py #  ランタイムが root に付けたログハンドラーのフォーマッターを JSON に差し替える（ハンドラーは足さない）。api.py の先頭で呼ぶ。SS-180/ADR-013
 │       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
 │       │   ├── tracing.py     #   Lambda 計装の親スパンの補正（http.target のクエリ除去、スパン名・http.route の付け直し。SS-178/ADR-013）
 │       │   └── tests/         #   このモジュールのテスト（併置）
@@ -55,7 +56,7 @@ packages/backend/
 │       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
-│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware）とロギング設定（configure_logging）。SS-88/ADR-009 決定13。末尾にトレース計装（FastAPI・SQLAlchemy・httpx・threading の手動計装、クエリ除去フック、resolve_route_template。SS-178/ADR-013）
+│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware。未処理例外を握って 500 を返す）・ログ設定（configure_logging）・JSON/console フォーマッター・ログの文脈（LogContext）。SS-88/ADR-009 決定13、SS-180/ADR-013。末尾にトレース計装（FastAPI・SQLAlchemy・httpx・threading の手動計装、クエリ除去フック、resolve_route_template。SS-178/ADR-013）
 │       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
 │       │   ├── feature_flags.py  #   フィーチャーフラグの評価層（登録簿 + AppConfig 文書 → 判定。SS-98/ADR-008）
 │       │   └── tests/         #   このモジュールのテスト（併置）
@@ -206,9 +207,16 @@ packages/backend/
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
-- `api.py`: Lambda ハンドラ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
+- `api.py`: Lambda ハンドラ。先頭で `use_json_format_for_runtime_handlers()`（ランタイムのログハンドラーの JSON 化）を呼び、
+  続けて `core/runtime_config.py` のハイドレーションを `sanposcape.main` の
   import より**前**に実行してから `app` を import し、その**後**で `build_handler(app)` を呼ぶ
   （ハイドレーション → `main` の import → lifespan の起動の順。順序が意味を持つ 1 ファイルの責務）。
+- `runtime_logging.py`: `use_json_format_for_runtime_handlers()`。Lambda のランタイムが root に付けた
+  ログハンドラーの**フォーマッターだけ**を `JsonLogFormatter` に差し替える（ハンドラーは足しも外しもしない。
+  二重出力を避け、フレーム単位の出力を保つため）。`api.py` の先頭（ハイドレーションより前）で呼ぶ。
+  `AWS_LAMBDA_FUNCTION_NAME` があるときだけ動く（pytest の root のハンドラーを書き換えないため）。
+  ランタイムのハンドラーが無いときは WARNING を 1 回出す。`migrate.py` も import 時に呼ぶ。
+  `LoggingConfig` は Text のまま。経緯は deployment.md §15 と ADR-013 決定3 の SS-180 追補。
 - `asgi_handler.py`: `build_handler(app)` / `AsgiLambdaHandler`。import しても何も起動しない
   （副作用は生成時だけ）。Mangum を `lifespan="off"` で包み、FastAPI の lifespan
   （`main._lifespan`）の startup を**生成時（Lambda の init）に1回だけ**起動する。
@@ -221,6 +229,7 @@ packages/backend/
   - startup の例外は ERROR ログ（`Application startup failed during Lambda init.`）を出して
     再送出する（init エラーになる。deployment.md §7）。
   - 同期のコードからだけ呼ぶこと（生成時に `run_until_complete()` を使う）。
+  - 呼び出しごとに `aws_request_id` を `LogContext` に束ねる（`__call__`）。Mangum 自身のログにも付く（SS-180）。
   - 経緯と決定は [ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)。
 - `migrate.py`: Alembic `upgrade head` を実行する専用 Lambda（API 本体のハンドラでは走らせない）。
 - `main.py` の `create_app()` / `app` はこのパッケージから独立しており無変更のまま。ECS では

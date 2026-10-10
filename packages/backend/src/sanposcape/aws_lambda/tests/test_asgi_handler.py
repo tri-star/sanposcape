@@ -390,3 +390,113 @@ def test_asgi_wrapper_wraps_only_the_app_passed_to_mangum(
     assert counting_builders.built == {"provider": 1, "flag_source": 1, "storage": 1}
     for name in _STATE_NAMES:
         assert seen[0][name] is seen[1][name], name
+
+
+# --- ログの文脈（ADR-013 決定3 の SS-180 追補） ---
+
+
+class _FakeLambdaContext:
+    def __init__(self, aws_request_id: str) -> None:
+        self.aws_request_id = aws_request_id
+
+
+def _app_with_log_probe() -> FastAPI:
+    app = create_app(Settings(env="test"))
+
+    @app.get("/_log")
+    def _log() -> dict[str, bool]:
+        logging.getLogger("sanposcape.probe").info("inside the endpoint")
+        return {"ok": True}
+
+    @app.get("/_boom")
+    def _boom() -> None:
+        raise RuntimeError("secret-boom")
+
+    return app
+
+
+def test_each_invocation_logs_its_own_aws_request_id_and_leaves_no_context(
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
+    make_event: Callable[..., dict[str, Any]],
+    counting_builders: _Registry,
+    json_logs: list[dict[str, Any]],
+) -> None:
+    from sanposcape.core.observability import _log_context
+
+    handler = make_handler(_app_with_log_probe())
+
+    for request_id in ("req-1", "req-2"):
+        response = handler(make_event("GET", "/_log"), _FakeLambdaContext(request_id))
+        assert response["statusCode"] == 200
+        assert _log_context.get() is None
+
+    probes = [r for r in json_logs if r["logger"] == "sanposcape.probe"]
+    accesses = [r for r in json_logs if r.get("log_type") == "access"]
+    assert [r["aws_request_id"] for r in probes] == ["req-1", "req-2"]
+    assert [r["aws_request_id"] for r in accesses] == ["req-1", "req-2"]
+    assert all(r["http_method"] == "GET" and r["http_route"] == "/_log" for r in probes + accesses)
+
+
+def test_handler_works_without_a_lambda_context(
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
+    make_event: Callable[..., dict[str, Any]],
+    counting_builders: _Registry,
+    json_logs: list[dict[str, Any]],
+) -> None:
+    handler = make_handler(_app_with_log_probe())
+
+    assert handler(make_event("GET", "/_log"), None)["statusCode"] == 200
+
+    (access,) = [r for r in json_logs if r.get("log_type") == "access"]
+    assert "aws_request_id" not in access
+
+
+def test_unhandled_exception_returns_500_and_logs_exactly_one_error_through_mangum(
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
+    make_event: Callable[..., dict[str, Any]],
+    counting_builders: _Registry,
+    json_logs: list[dict[str, Any]],
+) -> None:
+    """AccessLogMiddleware が例外を握るので、Mangum の `logger.exception` は出ない。"""
+    handler = make_handler(_app_with_log_probe())
+
+    response = handler(make_event("GET", "/_boom"), _FakeLambdaContext("req-9"))
+
+    assert response["statusCode"] == 500
+    errors = [r for r in json_logs if r["level"] == "ERROR"]
+    assert len(errors) == 1
+    assert errors[0]["logger"] == "sanposcape.core.observability"
+    assert errors[0]["aws_request_id"] == "req-9"
+    assert errors[0]["exception_type"] == "RuntimeError"
+
+
+def test_staging_settings_never_emit_the_exception_message_through_mangum(
+    make_handler: Callable[[FastAPI], AsgiLambdaHandler],
+    make_event: Callable[..., dict[str, Any]],
+    counting_builders: _Registry,
+    json_logs: list[dict[str, Any]],
+) -> None:
+    """本番相当（local / test 以外）では、Mangum 経由でも全ログに例外メッセージが出ない。"""
+    app = create_app(
+        Settings(
+            env="staging",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            database_dsn="postgres://user:pw@host.example.com/db",
+        )
+    )
+    # ソースの行はスタックトレースに出るため、メッセージは実行時に組み立てる
+    secret = "-".join(["secret", "boom"])
+
+    @app.get("/_boom")
+    def _boom() -> None:
+        raise RuntimeError(secret)
+
+    response = make_handler(app)(make_event("GET", "/_boom"), _FakeLambdaContext("req-s"))
+
+    assert response["statusCode"] == 500
+    errors = [r for r in json_logs if r["level"] == "ERROR"]
+    assert len(errors) == 1 and "exception_message" not in errors[0]
+    assert all(secret not in json.dumps(r) for r in json_logs)

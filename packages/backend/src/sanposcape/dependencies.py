@@ -12,6 +12,7 @@ from sanposcape.auth.exceptions import InvalidAccessTokenError, MalformedAuthori
 from sanposcape.auth.headers import extract_bearer_token
 from sanposcape.auth.tokens import decode_access_token
 from sanposcape.config import Settings, get_settings
+from sanposcape.core.observability import bind_log_user_id
 from sanposcape.database import get_db
 from sanposcape.users.dependencies import get_user_service
 from sanposcape.users.models import User
@@ -50,6 +51,9 @@ def _authenticate_access_token(
     user = user_service.get_by_id(user_id)
     if user is None:
         raise _unauthorized()  # 削除済みユーザーのトークン
+    # アクセスログ・エンドポイント内のログに内部 UUID を付ける（SS-180）。この関数は同期の依存
+    # （スレッドプールで動く）だが、`LogContext` は可変オブジェクトなので呼び出し元に届く。
+    bind_log_user_id(user.id)
     return user
 
 

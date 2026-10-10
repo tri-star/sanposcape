@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-10-05）**
+> **検証状況（最終更新 2026-10-10）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -29,6 +29,7 @@
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
 > | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
 > | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **デプロイ未実施**（infra の `ManageBackendMonitoring`＝sanposcape-infra PR #53 の dev apply 待ち）。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。**dev の読み取りで確認済み（2026-10-05、infra 経由）**: スパンのフィールド名と型、Q1 / Q2 の構文と実データでの集計、REPORT 行のクエリ、Application Signals の `Environment`＝`dev` と `Operation` を含む次元、関数単位の `ConcurrentExecutions`、SSM の通知先トピック（dev / prod とも存在・購読確認済み・SNS のポリシーは CloudWatch の Publish を許可）。**未確認**: ダッシュボードの全ウィジェットの描画、Q4（bin + name の折れ線）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差（サンプリング）、デプロイそのもの。prod は ManageBackendMonitoring の prod 適用（SS-185 の prod 適用と同時期）待ち。**この行は dev へのデプロイと §14「デプロイ後の確認」を済ませたら ✅ に更新する（マージ前の完了条件）** |
+> | ログの JSON 化（§15 / SS-180） | ⚠️ **デプロイ未実施**（dev へはデプロイしていない）。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
 > | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
@@ -550,7 +551,7 @@ Application Signals の次元の値がアラームの Dimension と一致する�
 | `prepared statement "..." already exists` | Neon の PgBouncer とプロトコルレベルの prepared statement が想定外に衝突した | `DB_DISABLE_PREPARED_STATEMENTS=true` を該当関数の環境変数に設定して再デプロイする（§9 参照） |
 | CloudFront 経由だと全エンドポイントで 401（`/health` は 200） | mobile 側が `Authorization` ヘッダーで送っている（CloudFront に上書きされる） | mobile 側が `X-App-Authorization` を送るよう実装されているか確認する（ADR-005 決定4） |
 | CloudFront 経由が全部 403（`/health` を含む） | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`）が無い、または distribution ID が不一致 | 下記の `get-policy` で確認する。**この許可は Terraform 側が付与するもので、SAM 側の対応は無い** |
-| `Runtime exited with error: exit status 1` / `Init failed` としか見えず、原因が分からない | init 時の例外報告そのものが壊れている（下記「init 失敗時にエラー報告自体が壊れる」を参照） | **CloudWatch Logs の `INIT_START` 直後の `[ERROR]` 行を読む**。真の原因はそこに出ている |
+| `Runtime exited with error: exit status 1` / `Init failed` としか見えず、原因が分からない | init 時の例外報告そのものが壊れている（下記「init 失敗時にエラー報告自体が壊れる」を参照） | **CloudWatch Logs の `INIT_START` 直後の ERROR を読む**（アプリのログは JSON なので `"level":"ERROR"` の行。`message` に原因が出ている。§15）。真の原因はそこに出ている |
 | （CI）`iam:CreateRole` の `AccessDenied` | 実行ロールに Permission Boundary が付いていない（`template.yaml` の `Globals.Function.PermissionsBoundary` が消えた）、SSM `lambda_boundary_arn` の値と infra 側の境界 ARN が不一致、または `RoleName` を明示した | `template.yaml` の境界指定を戻す / SSM の値を確認する / `RoleName` を外す（SS-72） |
 | （CI）`iam:PutRolePermissionsBoundary` の `AccessDenied`（`UPDATE_ROLLBACK`） | 境界の無い既存ロールへ、境界を後付けしようとした。デプロイロールはこの操作を明示的に拒否している | **手元の管理者権限で 1 回デプロイする**（下記「境界を初めて入れるデプロイ」）。以後は CI から通る |
 | （CI）`Environment '...' に Variables 'AWS_SAM_DEPLOY_ROLE_ARN' が設定されていません` | Environment に Variables が未設定（Repository Variables ではなく Environment 側に置く必要がある） | §4.1 の `gh variable set ... --env <環境>` で設定する |
@@ -602,23 +603,30 @@ UnicodeEncodeError: 'latin-1' codec can't encode character 'の' in position 123
 `Init failed` に化けて見えなくなる。
 
 ただし**真の原因は stdout/stderr にログとして出力済み**であり、消えているわけではない。
-CloudWatch Logs の `INIT_START` の直後に出る次のような `[ERROR]` 行を読めば原因が分かる。
+CloudWatch Logs の `INIT_START` の直後に出る次のような ERROR の行を読めば原因が分かる。
+アプリのログは 1 行の JSON（SS-180。`aws_lambda/api.py` の先頭でランタイムのハンドラーを
+JSON にしてから `Settings` を組み立てるため、検証エラーも JSON で出る）。
 
 ```
-[ERROR] Settings validation failed at startup: [...]
-[ERROR] ValidationError: [...]
+{"timestamp":"...","level":"ERROR","logger":"sanposcape.aws_lambda.api","message":"Settings validation failed at startup: [{'type': 'missing', 'loc': ('database_dsn',), ...}]"}
 ```
 
+その後に、ランタイムが init エラーとして `RuntimeError: Settings validation failed` を出す
+（入力値を含まない固定のメッセージ）。**元の `ValidationError` は送出し直さず、例外の連鎖
+（`__context__`）にも残さない**ので、ランタイムの出力にも元の例外のテキストは出ない。
 これは `src/sanposcape/aws_lambda/api.py` が `ValidationError` を捕捉した際に
 `exc.errors(include_input=False, include_url=False)` で**不足フィールド名だけを先に
-ERROR ログへ出してから再送出する**設計になっているため（値には秘密情報が含まれ得るので
-`include_input=False` にしている）。`post_init_error` の `UnicodeEncodeError` に惑わされず、
-まずこの ERROR ログを確認すること。
+ERROR ログへ出し、except 節の外で `RuntimeError(...) from None` に置き換えて送出する**
+設計になっているため（`ValidationError` の文字列や `input` には秘密値が含まれ得るので、
+`include_input=False` にし、元の例外も外へ出さない。ADR-013 決定6）。
+`post_init_error` の `UnicodeEncodeError` に惑わされず、まずこの ERROR ログを確認すること。
 
 lifespan の startup（`main._lifespan` の資源の生成）の失敗も init で起きるため、同じく
 init エラーになる。この場合は `src/sanposcape/aws_lambda/asgi_handler.py` が
-`Application startup failed during Lambda init.` の ERROR をトレースバックごと先に出すので、
-`INIT_START` の直後のこの行が原因を示す（SS-183）。
+`Application startup failed during Lambda init.` の ERROR を先に出すので、
+`INIT_START` の直後のこの行が原因を示す（SS-183）。SS-180 以降は JSON で、`exception_type` と
+`exception_stacktrace`（型名とフレームだけ）が付く。**staging / production では例外メッセージは
+出ない**（`exception_message` は local / test のみ。§15）ので、メッセージが要る調査はローカルで再現する。
 
 ### CloudFront からの呼び出し許可の確認
 
@@ -860,6 +868,8 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 ```bash
 aws logs tail /aws/lambda/sanposcape-<env>-backend-api --since 15m --region ap-southeast-1
 ```
+
+（ログは JSON。以下の文言は `message` フィールドに入る。`filter message like /AppConfig/` で引ける。§15）
 
 - `AppConfig has no deployed configuration yet; using default flags.`（INFO）: 未配信。
   SS-99 が一度も流れていなければ正常。
@@ -1117,9 +1127,13 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 `[parameters: ...]` を消している。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、
 例外メッセージ（一意制約違反の `DETAIL` のキー値）は載せない（自前リスナーに差し替え。
 `core/observability.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
-**残るリスク**: 未処理の 500 では、ASGI / Lambda 計装が exception イベントに message と
-スタックトレースを自動で付ける（DB 例外なら DETAIL のキー値が載りうる）。ログのトレースバックと
-合わせて SS-180 で対処する（ADR-013 決定6 の追補）。
+**未処理の 500（SS-180 で解消）**: `AccessLogMiddleware` が未処理例外を握って 500 を返す
+（再送出しない）ため、OTel の FastAPI 計装の `ExceptionHandlerMiddleware`（message とスタック
+トレースを exception イベントに自動で付ける）に例外が届かない。スパンには型名だけの
+exception イベントが残る。ログの例外も、staging / production では型名・フレーム・SQLSTATE
+だけで message は出さない（§15、ADR-013 決定6 の SS-180 追補）。
+**応答の開始後**に出た例外だけは握れず、OTel の既定の挙動に戻る（今はストリーミング応答も
+BackgroundTasks も無く、実際には起きない）。
 
 ## 14. メトリクス・ダッシュボード・アラーム（ADR-013 / SS-179）
 
@@ -1339,11 +1353,16 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
 
 ### SS-180（ログの JSON 化）との関係
 
+SS-180 では Lambda の `LoggingConfig` を **Text のまま**にした（アプリのフォーマッターが JSON を出す。
+理由は ADR-013 決定3 の SS-180 追補、§15）。そのため REPORT 行は従来どおりテキスト形式で、
+Q5〜Q7 は変更なし。
+
 Q5〜Q6b は、REPORT 行がテキスト形式（`@type = 'REPORT'` / `@maxMemoryUsed` / `@initDuration`。dev で確認済み）であることを前提にしている。
-`LoggingConfig.LogFormat: JSON` にすると `type = 'platform.report'` / `record.metrics.*` の形式に変わる可能性がある
-（形式は未確認）。JSON にするときは `ApiDashboard` のクエリを同じ PR で直すこと。直し忘れは
+将来 `LoggingConfig.LogFormat: JSON` にするなら、`type = 'platform.report'` / `record.metrics.*` の形式に変わる可能性がある
+（形式は未確認）ので、`ApiDashboard` のクエリを同じ PR で直すこと。直し忘れは
 `test_monitoring_config.py`（`test_report_queries_follow_the_log_format_of_the_function`。`Api` と `Globals.Function` の両方の
 `LoggingConfig` を見る）が落ちて知らせる。**Q7 は `@message` の文言で引いていて、この見張りの対象外**なので、JSON 化のときに手で見直す。
+（アプリのログが JSON になっても Q7 の `Task timed out` / `Runtime exited` は Lambda のプラットフォームが出すテキストの行で、影響を受けない。）
 
 ### アラーム
 
@@ -1391,3 +1410,102 @@ prod のベースライン（リリース後 2〜4 週間）が取れてから�
   リソースで絞れない見込みで、共有の dev で他プロジェクトの保存済みクエリを上書き・削除できる権限になるため
   （**要確認**: IAM の Service Authorization Reference）。同じクエリはダッシュボードのウィジェットから
   「Logs Insights で開く」で条件を変えて使える。
+
+## 15. ログ（JSON。ADR-013 / SS-180）
+
+アプリのログは **1 レコード 1 行の JSON** で出る。`LoggingConfig.LogFormat` は Text のままなので、
+**START / END / REPORT などプラットフォームの行はテキスト**で、アプリのログだけが JSON になる
+（Logs Insights は JSON の行からフィールドを自動で見つける）。決定の理由は
+[ADR-013](../../../docs/adr/ADR-013-observability-adot-application-signals.md) 決定3 の SS-180 追補。
+
+### 仕組み
+
+- Lambda: ランタイムが root に付けたハンドラーの**フォーマッターだけ**を `JsonLogFormatter` に差し替える
+  （`aws_lambda/runtime_logging.py`。`api.py` の先頭で呼ぶ）。ハンドラーは足しも外しもしない。
+  `AWS_LAMBDA_FUNCTION_NAME` があるときだけ行う。
+- **JSON が一律に掛かるのは Lambda だけ**（root のハンドラー = ライブラリのログも含む全ロガー）。
+  uvicorn（ローカル）や将来の ECS では、足すハンドラーが `sanposcape` ロガーだけなので、`sanposcape.*` 以外
+  （uvicorn 自身のアクセスログ・Exception ログ、ライブラリ）は JSON にならず、例外メッセージの抑止も及ばない。
+  ECS へ移すときは root・`uvicorn.*` ロガーのハンドラーとフォーマッターを見直す
+  （例: uvicorn の `--no-access-log` と、root へのハンドラー付与）こと。
+- ローカル（uvicorn）: `configure_logging()` が `sanposcape` ロガーにハンドラーを足す。形式は `LOG_FORMAT`
+  （`json` | `console`）。コードの既定は `json`、compose の既定は `console`（読みやすい 1 行表記）。
+  **console は ENV が local / test のときだけ許可**され、staging / production で `LOG_FORMAT=console` だと起動時に失敗する。
+  Lambda と同じ形で確かめたいときは `LOG_FORMAT=json docker compose up -d --force-recreate api`（[local-development.md](./local-development.md)）。
+- **ランタイムを上げるとき**は、ログが JSON のままか（下の「デプロイ後の確認」1）を確認する。
+  差し替えは awslambdaric が root にハンドラーを付ける実装に依存している。
+
+### 項目
+
+| 項目 | 出る条件 | 備考 |
+|---|---|---|
+| `timestamp` / `level` / `logger` / `message` | 常に | UTC・ミリ秒・`Z` 終わり |
+| `trace_id` / `span_id` / `trace_sampled` | `TRACING_ENABLED` で current span が有効なとき | `trace_id` は 32 桁の 16 進で、`aws/spans` の `traceId` と同じ形。`trace_sampled=false` なら `aws/spans` に無い可能性がある |
+| `aws_request_id` | Lambda の呼び出し中 | REPORT 行の `@requestId` と同じ値 |
+| `http_method` / `http_route` | リクエスト処理中 | `http_route` はテンプレート（`/pins/{pin_id}`）。ルート不一致（404）は出ない |
+| `user_id` | 認証済みのリクエスト中 | **内部 UUID のみ**。ログイン（`/auth/session`）・リフレッシュの経路は対象外 |
+| `log_type` / `http_status_code` / `duration_ms` | アクセスログだけ | `log_type` は `"access"` |
+| `exception_type` / `exception_stacktrace` / `exception_sqlstate` | `exc_info` があるとき | 型名（`module.QualName`）、型名とフレームだけのリスト（200 行を超えたら先頭側を省いて末尾を残し、`exception_stacktrace_truncated`）、DB 例外の SQLSTATE |
+| `exception_message` | `exc_info` があり、かつ ENV が local / test のとき | **staging / production では出ない**（下記） |
+
+- キー名は snake_case。値が無い項目は出さない。`extra=` で渡した属性は許可リストのキーだけ出る。
+- アクセスログの `message` は `METHOD path -> status (N.Nms)`。**`message` には生のパスが入る**（`http_route` はテンプレート）。
+  クエリ文字列・ヘッダー・ボディは出さない。パスに秘密を載せるルートを足すときは
+  `AccessLogMiddleware` の `exclude_paths` かマスクを検討すること。
+- ログのレベル: 未処理例外 → ERROR（**全ロガーを通じて 1 リクエストに 1 件**。応答の開始後の例外は除く: Mangum / uvicorn がもう 1 件出す）。例外ハンドラーで変換した 5xx（503 など）→ WARNING。それ以外 → INFO。
+- スレッドプールのワーカー（周回ルートの計算、写真の S3 Copy）の中のログには `aws_request_id` / `http_*` / `user_id` が付かない（`trace_id` は付く）。
+
+### 例外メッセージをログに出さない理由とローカルでの再現
+
+psycopg の `DETAIL`（Google の sub など）、pydantic / FastAPI の検証エラーの入力値、httpx / botocore の URL などが
+メッセージ経由でロググループ（prod は 400 日保持）に残るため、**staging / production では `exception_message` を出さない**
+（ADR-013 決定6）。型名・フレーム（ソースの行を含む）・SQLSTATE で発生箇所は特定できる。
+**例外を `message` に `%s` や f 文字列で展開しないこと**（`exc_info` を使う。展開した文字列はフォーマッターで外せない）。
+メッセージが要る調査は、`exception_type` とスタックトレースの発生箇所からローカル（`ENV=local`。メッセージ込みで出る）で再現する。
+退会（`DELETE /users/me`）後も、ログには内部 UUID の `user_id` が残る（プライバシーポリシー上の扱いは未確認）。
+
+### Logs Insights のクエリ（コピー用）
+
+```
+# ログ → トレース: ERROR の一覧（trace_id から aws/spans・X-Ray へ）
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter level = 'ERROR'
+| fields @timestamp, http_method, http_route, exception_type, exception_sqlstate, trace_id, aws_request_id, user_id
+| sort @timestamp desc | limit 50
+
+# トレース → ログ: aws/spans の traceId（Q3 など）で引く
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter trace_id = '<32桁>' or @message like '<32桁>'
+| fields @timestamp, level, logger, message | sort @timestamp asc
+
+# REPORT 行（メモリ・時間）と突き合わせる: request id で引く
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter aws_request_id = '<id>' or @requestId = '<id>'
+```
+
+### トレース ⇔ ログの辿り方
+
+- **ログ → トレース**: ERROR などの行の `trace_id` を、`aws/spans` で `filter traceId = '<trace_id>'` と引く。
+  X-Ray / Transaction Search のコンソールで開くときは **X-Ray の形**に直す: 先頭 8 桁と残り 24 桁に分け、
+  `1-<先頭8桁>-<残り24桁>`（REPORT 行の `XRAY TraceId` と同じ形）。
+- **トレース → ログ**: `aws/spans` の `traceId`（ダッシュボードの Q3 など）を 32 桁のまま、上のクエリで引く。
+  コンソールのトレース詳細の「ログ」欄（`aws.log.group.names` を見る）に相関ログが**自動で出るかは dev で未確認**。
+  出ない場合は上の手動のクエリを正式な手順とする（X-Ray 形式の `xray_trace_id` を足すかは別課題）。
+- `trace_sampled` が `false` のログは、対応するトレースが `aws/spans` に無い可能性がある（ログは全件残る）。
+
+### デプロイ後の確認（環境ごとに 1 回。**dev は未実施**）
+
+1. Phase 0 の確認コマンド（§3）が通る（SS-180 は infra の変更を要しない）。
+2. Lambda のロググループで、アプリのログが 1 レコード 1 イベントの JSON になり、Logs Insights がフィールドとして見つける:
+   `fields level, trace_id, http_route | limit 20`。START / END / REPORT はテキストのまま。
+3. ダッシュボードの Q5〜Q6b が今までどおり描ける（REPORT 行が変わっていない）。
+4. ログ → トレース: アクセスログの `trace_id` で `aws/spans` を引ける。X-Ray の形で開ける。
+5. トレース → ログ: Q3 や Transaction Search で見つけたトレースの `traceId` で、上のクエリでログが引ける。コンソールの「ログ」欄の自動相関の有無を確認し、結果を ADR-013 に書く。
+6. `trace_sampled` が `true`、`aws_request_id` が REPORT 行の `@requestId` と一致する。
+7. クエリ・UA が残らない: `/explore/...?secret=abc` のようなクエリ付きのリクエストを送り、ロググループを `secret=abc` で検索して 0 件。
+8. 500 の経路は dev で意図的に起こす手段が無い（テスト用のルートは作らない）。自然に起きた 500 があれば、ERROR が 1 件で `exception_message` が無いことを確認する。無ければ自動テストとローカルで代える。
+
+### 費用の目安
+
+1 行あたり 50 バイト程度 → 300〜600 バイト程度に増える。1,000 リクエスト/日で月 20MB 前後（取り込みの単価は小さく、保持は prod 400 日 / dev 30 日）。
+ダッシュボードにログのウィジェットは足していない（開くたびにロググループ全体をスキャンして課金されるため。§14）。
