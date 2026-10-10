@@ -70,10 +70,17 @@ logger = logging.getLogger(__name__)
 #   中のログには `LogContext` が付かない（ContextVar は新しいスレッドへ伝わらない）。OTel の
 #   threading 計装は OTel の context だけを運ぶので `trace_id` / `span_id` は付く。
 
-# 例外のスタックトレースの行数の上限（超えたら打ち切って `exception_stacktrace_truncated`）。
+# 例外のスタックトレースの行数の上限（超えたら**先頭側を省いて**末尾を残し、
+# `exception_stacktrace_truncated`）。送出箇所と最終例外の型名は末尾にあるため。
 _MAX_STACKTRACE_LINES = 200
-# `__cause__` / `__context__` の連鎖をたどる段数の上限。
+# `__cause__` / `__context__` の連鎖をたどる段数の上限（外側 = 新しい例外から数える。
+# 超えたら原因側の古い例外を省く）。
 _MAX_EXCEPTION_CHAIN = 20
+# `message` の長さ（文字数）の上限。超えたら切り詰めて `message_truncated: true`。
+_MAX_MESSAGE_CHARS = 16_000
+# 1 行（1 ログイベント）の大きさ（UTF-8 のバイト数）の上限。CloudWatch Logs は 1 イベント
+# 256KB までで、超えると分割・拒否される。余裕を持たせた値で、超えたらスタックトレースを落とす。
+_MAX_LOG_LINE_BYTES = 200_000
 # `extra=` で渡されたもののうち、JSON に出してよいキー（許可リスト）。ライブラリが付けた想定外の
 # 属性を黙って出さない。
 _EXTRA_KEYS = ("log_type", "http_status_code", "duration_ms")
@@ -218,7 +225,8 @@ def _render_stacktrace(exc: BaseException) -> tuple[list[str], bool]:
     """スタックトレースを行のリストにする。各例外は**型名だけ**の行（メッセージは入れない）。
 
     フレームはファイル・行番号・関数名・ソースの行（コードであって実行時の値ではない）。
-    ローカル変数は出さない。上限を超えたら打ち切る。
+    ローカル変数は出さない。上限を超えたら**先頭側を省いて末尾を残す**（送出箇所と最終例外の
+    型名が末尾にあるため）。省いたことは先頭の 1 行（`... (N lines omitted)`）で示す。
     """
     lines: list[str] = []
     chain = _exception_chain(exc)
@@ -233,7 +241,9 @@ def _render_stacktrace(exc: BaseException) -> tuple[list[str], bool]:
             lines.extend(line.rstrip() for line in frame.splitlines())
         lines.append(_qualified_type_name(item))
     if len(lines) > _MAX_STACKTRACE_LINES:
-        return lines[:_MAX_STACKTRACE_LINES], True
+        kept = max(_MAX_STACKTRACE_LINES - 1, 0)
+        omitted = len(lines) - kept
+        return [f"... ({omitted} lines omitted)", *lines[len(lines) - kept :]], True
     return lines, False
 
 
@@ -284,6 +294,8 @@ class JsonLogFormatter(logging.Formatter):
     """1 レコード 1 行の JSON にする（キーは snake_case。値が無い項目は出さない）。
 
     - 常に: `timestamp`（UTC・ミリ秒・`Z` 終わり）/ `level` / `logger` / `message`
+      （長すぎる `message` は切り詰めて `message_truncated: true`。1 行が大きすぎるときは
+      スタックトレースを落とす。CloudWatch の 1 イベントは 256KB まで）
     - 文脈: `aws_request_id` / `http_method` / `http_route` / `user_id`（`LogContext`）、
       `trace_id` / `span_id` / `trace_sampled`（トレース有効で current span が有効なとき）
     - `extra=` は `_EXTRA_KEYS` の許可リストだけ（アクセスログの `log_type` など）
@@ -297,11 +309,23 @@ class JsonLogFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         try:
-            return json.dumps(
-                self._payload(record), ensure_ascii=False, default=str, separators=(",", ":")
-            )
+            payload = self._payload(record)
+            line = self._dumps(payload)
+            if (
+                len(line.encode("utf-8")) > _MAX_LOG_LINE_BYTES
+                and "exception_stacktrace" in payload
+            ):
+                # CloudWatch の 1 イベントの上限対策。まずスタックトレースを落とす。
+                payload["exception_stacktrace"] = ["... (omitted: log line too large)"]
+                payload["exception_stacktrace_truncated"] = True
+                line = self._dumps(payload)
+            return line
         except Exception as exc:
             return self._fallback(record, exc)
+
+    @staticmethod
+    def _dumps(payload: dict[str, Any]) -> str:
+        return json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":"))
 
     def _payload(self, record: logging.LogRecord) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -310,6 +334,9 @@ class JsonLogFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+        if len(payload["message"]) > _MAX_MESSAGE_CHARS:
+            payload["message"] = payload["message"][:_MAX_MESSAGE_CHARS]
+            payload["message_truncated"] = True
         for key in _EXTRA_KEYS:
             if key in record.__dict__:
                 payload[key] = record.__dict__[key]
@@ -344,7 +371,8 @@ class JsonLogFormatter(logging.Formatter):
 class ConsoleLogFormatter(logging.Formatter):
     """ローカル用の読みやすい 1 行表記（`LOG_FORMAT=console`。local / test だけ許可）。
 
-    例: `12:34:56.789 INFO  sanposcape.core.observability: GET /pins -> 200 (1.2ms) [route=… ]`。
+    例: `12:34:56.789 INFO  sanposcape.core.observability: GET /pins -> 200 (1.2ms)
+    [http_method=GET http_route=/pins]`（文脈の項目は JSON と同じキー名・順）。
     例外は標準のトレースバック（メッセージ込み。local / test だけなので決定6 と矛盾しない）。
     """
 
@@ -450,7 +478,8 @@ class AccessLogMiddleware:
       `UnhandledErrorAfterResponseStart` を送出し、Mangum が状態を見て 500 にできるようにする。
       この経路だけは Mangum / uvicorn がもう 1 件 ERROR を出す（メッセージは無害）。今は
       ストリーミング応答も BackgroundTasks も無いので実際には起きない。
-    - `BaseException`（`CancelledError` など）は捕まえない。
+    - `BaseException`（`CancelledError` など）は捕まえない。**キャンセルされたリクエストの
+      アクセスログは残らない**（切断された接続の追跡が必要になったら別途検討する）。
 
     このミドルウェアは **`create_app()` で最後に登録する**こと。Starlette の
     `add_middleware` は先頭に挿入する（= 最後に登録したものが最も外側になる）ので、
@@ -481,6 +510,7 @@ class AccessLogMiddleware:
             started = time.perf_counter()
             status = 500
             response_started = False
+            failed_after_response_start = False
 
             async def send_wrapper(message: Message) -> None:
                 nonlocal status, response_started
@@ -493,14 +523,25 @@ class AccessLogMiddleware:
                 await self.app(scope, receive, send_wrapper)
             except Exception as exc:
                 self._log(scope, status, started, exc=exc)
-                record_exception_on_current_span(exc, enabled=self._tracing_enabled)
-                if response_started:
-                    raise UnhandledErrorAfterResponseStart from None
-                response = PlainTextResponse("Internal Server Error", status_code=500)
-                await response(scope, receive, send)
-                return
+                self._record_on_span(exc)
+                if not response_started:
+                    response = PlainTextResponse("Internal Server Error", status_code=500)
+                    await response(scope, receive, send)
+                    return
+                failed_after_response_start = True
+            if failed_after_response_start:
+                # ★ except 節の**外**で送出する。節内だと元の例外が `__context__` に残り、
+                #   Mangum の `logger.exception` などが元のメッセージを描きうる。
+                raise UnhandledErrorAfterResponseStart from None
             if not excluded:
                 self._log(scope, status, started)
+
+    def _record_on_span(self, exc: BaseException) -> None:
+        """スパンへの記録の失敗で 500 の応答を妨げない（except 節の中で呼ばれるため）。"""
+        try:
+            record_exception_on_current_span(exc, enabled=self._tracing_enabled)
+        except Exception:
+            warn_once("record-exception", "未処理例外のスパンへの記録に失敗した")
 
     def _log(
         self, scope: Scope, status: int, started: float, *, exc: BaseException | None = None
@@ -854,9 +895,10 @@ def _instrument_engine(instrumentor: Any, engine: Engine, **kwargs: Any) -> None
 
 
 def record_exception_on_current_span(exc: BaseException, *, enabled: bool) -> None:
-    """例外ハンドラーで 5xx に変換した例外を、現在のスパンに記録する。
+    """握った例外（例外ハンドラーで 5xx に変換したもの・`AccessLogMiddleware` が握った
+    未処理例外）を、現在のスパンに記録する。
 
-    ハンドラーで処理された例外は OTel のミドルウェアまで伝わらず、スパンに残らない。
+    握られた例外は OTel のミドルウェアまで伝わらず、スパンに残らない。
     記録するのは**例外の型名だけ**（`span.record_exception` は使わない: スタックトレースは
     `__cause__` の連鎖を含み、httpx / botocore の URL や S3 のキーが載りうるため。決定6）。
     `enabled`（`settings.tracing_enabled`）が False のときは、OpenTelemetry を import する前に

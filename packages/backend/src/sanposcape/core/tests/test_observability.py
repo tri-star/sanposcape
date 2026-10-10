@@ -132,6 +132,24 @@ class TestAccessLogMiddleware:
         assert str(raised.value) == ""
         assert raised.value.__cause__ is None
         assert raised.value.__suppress_context__ is True
+        # 元の例外（メッセージを持つ）が `__context__` 経由で描かれる抜け道も塞ぐ
+        assert raised.value.__context__ is None
+
+    def test_a_failing_span_record_does_not_prevent_the_500_response(
+        self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _fail(exc: BaseException, *, enabled: bool) -> None:
+            raise RuntimeError("otel is broken")
+
+        monkeypatch.setattr(observability, "record_exception_on_current_span", _fail)
+        monkeypatch.setattr(observability, "_WARNED", set())
+
+        with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
+            sent = _run_middleware("/pins", raises=True, tracing_enabled=True)
+
+        assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [500]
+        levels = [r.levelno for r in caplog.records]
+        assert levels == [logging.ERROR, logging.WARNING]  # 元の ERROR 1 件 + 記録失敗の警告
 
     def test_cancelled_error_passes_through_without_a_log(
         self, caplog: pytest.LogCaptureFixture
@@ -289,6 +307,33 @@ class TestJsonLogFormatter:
         assert payload["duration_ms"] == 1.5
         assert "password" not in payload and "request" not in payload
 
+    def test_overlong_message_is_truncated_and_flagged(
+        self, json_formatter: JsonLogFormatter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(observability, "_MAX_MESSAGE_CHARS", 5)
+
+        payload = json.loads(json_formatter.format(_record("abcdefghij")))
+
+        assert payload["message"] == "abcde"
+        assert payload["message_truncated"] is True
+
+    def test_short_message_is_not_flagged(self, json_formatter: JsonLogFormatter) -> None:
+        assert "message_truncated" not in json.loads(json_formatter.format(_record("hello")))
+
+    def test_oversized_line_drops_the_stacktrace_but_keeps_the_rest(
+        self, json_formatter: JsonLogFormatter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(observability, "_MAX_LOG_LINE_BYTES", 300)
+        monkeypatch.setattr(observability, "_MAX_MESSAGE_CHARS", 10_000)
+
+        line = json_formatter.format(_record("x" * 100, exc=_raise(RuntimeError("boom"))))
+
+        payload = json.loads(line)
+        assert payload["exception_type"] == "RuntimeError"
+        assert payload["exception_stacktrace"] == ["... (omitted: log line too large)"]
+        assert payload["exception_stacktrace_truncated"] is True
+        assert payload["message"] == "x" * 100
+
     def test_non_serializable_extra_falls_back_to_str(
         self, json_formatter: JsonLogFormatter
     ) -> None:
@@ -434,6 +479,40 @@ class TestExceptionFields:
         assert len(payload["exception_stacktrace"]) == 3
         assert payload["exception_stacktrace_truncated"] is True
 
+    def test_truncation_keeps_the_tail_with_the_final_exception_type(
+        self, json_formatter: JsonLogFormatter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """送出箇所と最終例外の型名は末尾にある。切るなら先頭側（外側のフレーム）を省く。"""
+        monkeypatch.setattr(observability, "_MAX_STACKTRACE_LINES", 3)
+
+        payload = json.loads(json_formatter.format(_record(exc=_raise(KeyError("k")))))
+
+        rows = payload["exception_stacktrace"]
+        assert len(rows) == 3
+        assert rows[0].startswith("... (") and "omitted" in rows[0]
+        assert rows[-1] == "KeyError"
+        assert payload["exception_stacktrace_truncated"] is True
+
+    def test_exception_chain_cap_drops_the_oldest_causes(
+        self, json_formatter: JsonLogFormatter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(observability, "_MAX_EXCEPTION_CHAIN", 2)
+        try:
+            try:
+                try:
+                    raise ValueError("oldest")
+                except ValueError as first:
+                    raise KeyError("middle") from first
+            except KeyError as second:
+                raise RuntimeError("newest") from second
+        except RuntimeError as outer:
+            exc = outer
+
+        rows = json.loads(json_formatter.format(_record(exc=exc)))["exception_stacktrace"]
+
+        assert "ValueError" not in rows
+        assert rows[-1] == "RuntimeError" and "KeyError" in rows
+
     def test_short_stacktrace_is_not_flagged(self, json_formatter: JsonLogFormatter) -> None:
         payload = json.loads(json_formatter.format(_record(exc=_raise(RuntimeError()))))
 
@@ -502,7 +581,9 @@ class TestLogContext:
 def app_logger_state() -> Generator[logging.Logger, None, None]:
     app_logger = logging.getLogger("sanposcape")
     root = logging.getLogger()
-    saved = (root.handlers, app_logger.handlers, app_logger.level)
+    # list は**コピー**して退避する（`addHandler` は同じ list を書き換えるため、参照のままだと
+    # テスト中に足したハンドラーが復元後にも残ってリークする）。
+    saved = (list(root.handlers), list(app_logger.handlers), app_logger.level)
     yield app_logger
     root.handlers, app_logger.handlers = saved[0], saved[1]
     app_logger.setLevel(saved[2])
