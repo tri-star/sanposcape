@@ -380,6 +380,31 @@ class TestPinTagConflictErrorSchema:
         assert set(code_schema["enum"]) == {"storage_quota_exceeded", "photo_upload_not_ready"}
 
 
+class TestPinPhotoTakenAtSchema:
+    """SS-163（ADR-009 決定34）: 撮影日時 `taken_at` の契約。"""
+
+    _NULLABLE_DATE_TIME = [{"type": "string", "format": "date-time"}, {"type": "null"}]
+
+    def test_pin_photo_read_taken_at_is_required_and_nullable(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["PinPhotoRead"]
+        assert "taken_at" in schema["required"]
+        assert schema["properties"]["taken_at"]["anyOf"] == self._NULLABLE_DATE_TIME
+
+    def test_upload_create_taken_at_is_optional_and_nullable(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["PinPhotoUploadCreate"]
+        assert "taken_at" not in schema["required"]
+        # このリポジトリの OpenAPI 出力は `default: null` を含まない（他の任意フィールドも同じ）。
+        assert schema["properties"]["taken_at"]["anyOf"] == self._NULLABLE_DATE_TIME
+
+    def test_upload_create_does_not_forbid_unknown_keys(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["PinPhotoUploadCreate"]
+        assert "additionalProperties" not in schema
+
+    def test_upload_read_has_no_taken_at(self) -> None:
+        schema = _load_committed_openapi()["components"]["schemas"]["PinPhotoUploadRead"]
+        assert "taken_at" not in schema["properties"]
+
+
 class TestStorageModeDoesNotAffectPublicSchema:
     def test_fake_and_real_produce_identical_openapi(self) -> None:
         real_settings = Settings(

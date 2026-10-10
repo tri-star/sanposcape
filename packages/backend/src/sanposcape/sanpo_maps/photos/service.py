@@ -84,6 +84,7 @@ class PinPhotoUploadService:
             content_type=payload.content_type,
             declared_byte_size=payload.byte_size,
             expires_at=attach_expires_at,
+            taken_at=payload.taken_at,
         )
         # ストレージ障害時はここで例外が伝播し、上の flush 済み行は commit されないまま
         # セッション終了時に暗黙ロールバックされる（router からは 503 として見える）。
@@ -100,6 +101,7 @@ class PinPhotoUploadService:
         # 「どのオブジェクトが届くはずだったのか」を後から S3 と突き合わせられない
         # （SS-88 の実機調査での反省。`core/observability.py` の冒頭も参照）。
         # ★ `form.fields` は絶対にログへ出さないこと（policy / 署名 / 一時認証情報を含む）。
+        # `taken_at` も出さない（行動の履歴に当たり、障害調査に要らない, 決定34）。
         logger.info(
             "pin photo upload issued: upload_id=%s key=%s content_type=%s "
             "declared_bytes=%d max_bytes=%d storage=%s",

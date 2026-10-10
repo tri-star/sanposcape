@@ -304,6 +304,7 @@ class PinRepository:
                 thumbnail_width=item.thumbnail_width,
                 thumbnail_height=item.thumbnail_height,
                 position=start_position + offset,
+                taken_at=item.taken_at,
             )
             for offset, item in enumerate(prepared)
         ]

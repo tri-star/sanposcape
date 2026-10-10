@@ -699,7 +699,11 @@ class PinService:
 
         confirm_deadline_at = self._photo_attacher.compute_deadline(self._confirm_deadline_seconds)
         inputs = [
-            PhotoUploadInput(upload_id=upload_id, staging_key=uploads_by_id[upload_id].s3_key)
+            PhotoUploadInput(
+                upload_id=upload_id,
+                staging_key=uploads_by_id[upload_id].s3_key,
+                taken_at=uploads_by_id[upload_id].taken_at,
+            )
             for upload_id in upload_ids
         ]
         try:

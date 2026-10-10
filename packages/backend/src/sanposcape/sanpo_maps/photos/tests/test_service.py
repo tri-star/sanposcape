@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
+from sanposcape.sanpo_maps.models import PinPhotoUpload
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.photos.schemas import PinPhotoUploadCreate
 from sanposcape.sanpo_maps.photos.service import PinPhotoUploadService
@@ -96,6 +98,44 @@ class TestPinPhotoUploadServiceCreateUpload:
             assert all(value not in message for message in messages), (
                 f"presigned POST の fields がログに漏れている: {value[:16]}..."
             )
+
+    def test_stores_taken_at_on_the_upload_row(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        service = make_upload_service(db_session, FakeObjectStorage(secret="s" * 32))
+        taken_at = datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC)
+
+        result = service.create_upload(
+            user,
+            PinPhotoUploadCreate(content_type="image/jpeg", byte_size=1000, taken_at=taken_at),
+            base_url=BASE_URL,
+        )
+
+        db_session.expire_all()
+        upload = db_session.get(PinPhotoUpload, result.upload_id)
+        assert upload is not None
+        assert upload.taken_at == taken_at
+
+    def test_does_not_log_taken_at(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # 撮影日時は行動の履歴に当たるのでログに出さない（ADR-009 決定34）。
+        user = make_user(db_session, subject="u1")
+        service = make_upload_service(db_session, FakeObjectStorage(secret="s" * 32))
+
+        with caplog.at_level(logging.DEBUG):
+            service.create_upload(
+                user,
+                PinPhotoUploadCreate(
+                    content_type="image/jpeg",
+                    byte_size=1000,
+                    taken_at=datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC),
+                ),
+                base_url=BASE_URL,
+            )
+
+        text = "\n".join(record.getMessage() for record in caplog.records)
+        assert "2026-07-02" not in text
+        assert "taken_at" not in text
 
     def test_too_large_raises(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
