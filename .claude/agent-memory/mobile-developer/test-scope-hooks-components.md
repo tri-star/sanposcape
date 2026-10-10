@@ -1,6 +1,6 @@
 ---
 name: test-scope-hooks-components
-description: This project's vitest setup cannot render RN components or run hooks — only lib/ (pure functions) and api/ (fetch wrappers) get .test.ts files
+description: This project's vitest setup cannot render RN components or run hooks — .test.ts files go to lib/ (pure functions), api/ (fetch wrappers) and other non-React layers (data/, store/, services modules), never hooks/ or components/
 metadata:
   type: reference
   scope: durable
