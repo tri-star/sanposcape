@@ -5,16 +5,16 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 const contactEmail = "support@sanposcape.com";
 // 制定日は変えない。本文を改定したら revisedOn を更新する（改定の告知は「12. 本ポリシーの変更」）。
 const enactedOn = "2026年10月3日";
-const revisedOn: string | undefined = undefined;
+const revisedOn: string | undefined = "2026年10月10日";
 
 // URL（/privacy/）はアプリ内のリンクと App Store Connect に登録するため変えないこと。
 
-// 「3. 外部サービスへの送信」の表。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+// 「3. 外部サービスへの送信」の表。App Store Connect の App Privacy の申告（docs/app-privacy-label.md）と食い違わないようにする。
 const externalServices = [
   {
     provider: "Google LLC（米国）: Google でサインイン",
     purpose: "サインイン",
-    data: "サインインの手続きは端末と Google の間で行われ、運営者は 1-2 の情報を受け取ります",
+    data: "サインインの手続きは端末と Google の間で行われ、運営者は 1-2 の情報を受け取ります。このとき、アプリに組み込んだ Google の部品（SDK）が、端末の識別子、おおよその位置、サインイン機能の利用状況などを Google へ直接送信することがあります（iPhone 版。Google が公表している内容によります）",
   },
   {
     provider:
@@ -45,7 +45,7 @@ const externalServices = [
   {
     provider: "650 Industries, Inc.（米国）: Expo",
     purpose: "アプリの更新の配信",
-    data: "更新を確認するため、アプリのバージョン、端末の OS の種類、インストールごとに生成される識別子などを端末から直接送信します",
+    data: "更新を確認するため、アプリのバージョン、端末の OS の種類、インストールごとに生成される識別子、前回の起動時に発生したエラーの内容などを端末から直接送信します",
   },
 ];
 ---
@@ -196,8 +196,11 @@ const externalServices = [
       <h3>1-6. 取得しない情報</h3>
       <ul>
         <li>
-          本アプリと紹介サイトは、現在、広告、アクセス解析、クラッシュ解析のためのツールを組み込んでいません。紹介サイトは
-          Cookie を使用していません。
+          本アプリと紹介サイトは、現在、広告、アクセス解析、クラッシュ解析のためのツールを組み込んでいません。ただし、3
+          の外部サービスのうち、Google でサインインと Expo
+          の部品は、サインインや更新の配信のため、利用状況やエラーの情報を各社へ直接送信することがあります（Google
+          は、その情報を分析にも使うと公表しています）。紹介サイトは Cookie
+          を使用していません。
         </li>
         <li>
           現在、他社のアプリやウェブサイトをまたいで利用者を追跡すること（トラッキング）は行っておらず、広告識別子も取得していません。

@@ -108,6 +108,6 @@ GitHub Actions + OIDC で `dist/` を S3 に sync し、CloudFront を invalidat
 App Store Connect の「プライバシーポリシー URL」に登録するため、**変えない**（変えると配布済みのアプリが古い URL を開き続ける）。
 
 - 本文は実装の事実（取得する情報・送信先・保存期間・削除方法）に合わせて書いている。アプリや backend のデータの扱いを変えたら本文も見直し、
-  ページ先頭の最終改定日（frontmatter の `revisedOn`）を更新する。制定日（`enactedOn`）は変えない。App Store Connect の App Privacy の申告（SS-159）と食い違わないようにする。
+  ページ先頭の最終改定日（frontmatter の `revisedOn`）を更新する。制定日（`enactedOn`）は変えない。App Store Connect の App Privacy の申告（[docs/app-privacy-label.md](../../docs/app-privacy-label.md)）と食い違わないようにする。
 - 外部サービスの表は frontmatter の `externalServices` で持つ。540px 以下では 1 行を 1 枚のカードとして縦に並べる（見出しは `data-label` を CSS で出す）。
 - 問い合わせ先のメールアドレスは frontmatter の `contactEmail`。
