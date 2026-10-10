@@ -207,13 +207,15 @@ packages/backend/
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。
-- `api.py`: Lambda ハンドラ。`core/runtime_config.py` のハイドレーションを `sanposcape.main` の
+- `api.py`: Lambda ハンドラ。先頭で `use_json_format_for_runtime_handlers()`（ランタイムのログハンドラーの JSON 化）を呼び、
+  続けて `core/runtime_config.py` のハイドレーションを `sanposcape.main` の
   import より**前**に実行してから `app` を import し、その**後**で `build_handler(app)` を呼ぶ
   （ハイドレーション → `main` の import → lifespan の起動の順。順序が意味を持つ 1 ファイルの責務）。
 - `runtime_logging.py`: `use_json_format_for_runtime_handlers()`。Lambda のランタイムが root に付けた
   ログハンドラーの**フォーマッターだけ**を `JsonLogFormatter` に差し替える（ハンドラーは足しも外しもしない。
   二重出力を避け、フレーム単位の出力を保つため）。`api.py` の先頭（ハイドレーションより前）で呼ぶ。
   `AWS_LAMBDA_FUNCTION_NAME` があるときだけ動く（pytest の root のハンドラーを書き換えないため）。
+  ランタイムのハンドラーが無いときは WARNING を 1 回出す。`migrate.py` も import 時に呼ぶ。
   `LoggingConfig` は Text のまま。経緯は deployment.md §15 と ADR-013 決定3 の SS-180 追補。
 - `asgi_handler.py`: `build_handler(app)` / `AsgiLambdaHandler`。import しても何も起動しない
   （副作用は生成時だけ）。Mangum を `lifespan="off"` で包み、FastAPI の lifespan

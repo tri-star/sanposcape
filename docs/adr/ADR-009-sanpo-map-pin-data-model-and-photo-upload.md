@@ -677,6 +677,7 @@ TestFlight のビルド5を iPhone 実機で試したところ、写真の直送
 ローカル（uvicorn）は uvicorn 自身がアクセスログを出すため気付きにくいが、**Lambda（Mangum）には
 uvicorn が居ないので、アプリ側で出さない限り何も残らない**。`core/observability.py` に
 `AccessLogMiddleware` を追加し、`method path -> status (N.Nms)` を INFO で出す。
+（**SS-180 追補**: ログは JSON 構造化し、未処理例外は `AccessLogMiddleware` が握って 500 を返すようになった。詳細は [ADR-013](./ADR-013-observability-adot-application-signals.md) 決定3・決定6 の SS-180 追補。）
 
 - `RequestSizeLimitMiddleware` と同じく**素の ASGI ミドルウェア**として書く
   （`BaseHTTPMiddleware` を使わない = ストリーミング応答やバックグラウンドタスクの挙動を変えない）。

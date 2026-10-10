@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-10-05）**
+> **検証状況（最終更新 2026-10-10）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -1420,6 +1420,11 @@ prod のベースライン（リリース後 2〜4 週間）が取れてから�
 - Lambda: ランタイムが root に付けたハンドラーの**フォーマッターだけ**を `JsonLogFormatter` に差し替える
   （`aws_lambda/runtime_logging.py`。`api.py` の先頭で呼ぶ）。ハンドラーは足しも外しもしない。
   `AWS_LAMBDA_FUNCTION_NAME` があるときだけ行う。
+- **JSON が一律に掛かるのは Lambda だけ**（root のハンドラー = ライブラリのログも含む全ロガー）。
+  uvicorn（ローカル）や将来の ECS では、足すハンドラーが `sanposcape` ロガーだけなので、`sanposcape.*` 以外
+  （uvicorn 自身のアクセスログ・Exception ログ、ライブラリ）は JSON にならず、例外メッセージの抑止も及ばない。
+  ECS へ移すときは root・`uvicorn.*` ロガーのハンドラーとフォーマッターを見直す
+  （例: uvicorn の `--no-access-log` と、root へのハンドラー付与）こと。
 - ローカル（uvicorn）: `configure_logging()` が `sanposcape` ロガーにハンドラーを足す。形式は `LOG_FORMAT`
   （`json` | `console`）。コードの既定は `json`、compose の既定は `console`（読みやすい 1 行表記）。
   **console は ENV が local / test のときだけ許可**され、staging / production で `LOG_FORMAT=console` だと起動時に失敗する。
@@ -1437,14 +1442,14 @@ prod のベースライン（リリース後 2〜4 週間）が取れてから�
 | `http_method` / `http_route` | リクエスト処理中 | `http_route` はテンプレート（`/pins/{pin_id}`）。ルート不一致（404）は出ない |
 | `user_id` | 認証済みのリクエスト中 | **内部 UUID のみ**。ログイン（`/auth/session`）・リフレッシュの経路は対象外 |
 | `log_type` / `http_status_code` / `duration_ms` | アクセスログだけ | `log_type` は `"access"` |
-| `exception_type` / `exception_stacktrace` / `exception_sqlstate` | `exc_info` があるとき | 型名（`module.QualName`）、型名とフレームだけのリスト（200 行で打ち切り、`exception_stacktrace_truncated`）、DB 例外の SQLSTATE |
+| `exception_type` / `exception_stacktrace` / `exception_sqlstate` | `exc_info` があるとき | 型名（`module.QualName`）、型名とフレームだけのリスト（200 行を超えたら先頭側を省いて末尾を残し、`exception_stacktrace_truncated`）、DB 例外の SQLSTATE |
 | `exception_message` | `exc_info` があり、かつ ENV が local / test のとき | **staging / production では出ない**（下記） |
 
 - キー名は snake_case。値が無い項目は出さない。`extra=` で渡した属性は許可リストのキーだけ出る。
 - アクセスログの `message` は `METHOD path -> status (N.Nms)`。**`message` には生のパスが入る**（`http_route` はテンプレート）。
   クエリ文字列・ヘッダー・ボディは出さない。パスに秘密を載せるルートを足すときは
   `AccessLogMiddleware` の `exclude_paths` かマスクを検討すること。
-- ログのレベル: 未処理例外 → ERROR（**全ロガーを通じて 1 リクエストに 1 件**）。例外ハンドラーで変換した 5xx（503 など）→ WARNING。それ以外 → INFO。
+- ログのレベル: 未処理例外 → ERROR（**全ロガーを通じて 1 リクエストに 1 件**。応答の開始後の例外は除く: Mangum / uvicorn がもう 1 件出す）。例外ハンドラーで変換した 5xx（503 など）→ WARNING。それ以外 → INFO。
 - スレッドプールのワーカー（周回ルートの計算、写真の S3 Copy）の中のログには `aws_request_id` / `http_*` / `user_id` が付かない（`trace_id` は付く）。
 
 ### 例外メッセージをログに出さない理由とローカルでの再現
@@ -1452,6 +1457,7 @@ prod のベースライン（リリース後 2〜4 週間）が取れてから�
 psycopg の `DETAIL`（Google の sub など）、pydantic / FastAPI の検証エラーの入力値、httpx / botocore の URL などが
 メッセージ経由でロググループ（prod は 400 日保持）に残るため、**staging / production では `exception_message` を出さない**
 （ADR-013 決定6）。型名・フレーム（ソースの行を含む）・SQLSTATE で発生箇所は特定できる。
+**例外を `message` に `%s` や f 文字列で展開しないこと**（`exc_info` を使う。展開した文字列はフォーマッターで外せない）。
 メッセージが要る調査は、`exception_type` とスタックトレースの発生箇所からローカル（`ENV=local`。メッセージ込みで出る）で再現する。
 退会（`DELETE /users/me`）後も、ログには内部 UUID の `user_id` が残る（プライバシーポリシー上の扱いは未確認）。
 
