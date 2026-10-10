@@ -1,12 +1,18 @@
 """API 本体の Lambda ハンドラ（Mangum で FastAPI アプリを ASGI→Lambda アダプトする）。
 
-★ 順序が意味を持つ: `sanposcape.main` は import 時に `create_app()` を実行して
-`Settings` を確定させる（`main.py` の `app = create_app()`）。Lambda では起動時に
-Secrets Manager から取得した値を環境変数へハイドレーションしてから `Settings` を
-組み立てる必要があるため、`hydrate_environment_from_secret()` を必ず
-`sanposcape.main` の import より前に呼ぶ。この順序は `aws_lambda/tests/test_api.py` で
-呼び出し順を記録するスタブを使って固定している。`aws_lambda.tracing`（親スパンの補正、
-ADR-013）の import も `sanposcape.main` の後ろに置く（`main` が先に `Settings` を確定させる）。
+★ 順序が意味を持つ。
+
+0 段目: `use_json_format_for_runtime_handlers()`（ランタイムのログハンドラーを JSON にする。
+ADR-013 決定3 の SS-180 追補）。ハイドレーションや `Settings` の検証の失敗も JSON で出すため、
+`Settings` が無くてもできるこの差し替えを最初に行う。
+
+1〜2段目: `sanposcape.main` は import 時に `create_app()` を実行して `Settings` を確定させる
+（`main.py` の `app = create_app()`）。Lambda では起動時に Secrets Manager から取得した値を
+環境変数へハイドレーションしてから `Settings` を組み立てる必要があるため、
+`hydrate_environment_from_secret()` を必ず `sanposcape.main` の import より前に呼ぶ。この順序は
+`aws_lambda/tests/test_api.py` で呼び出し順を記録するスタブを使って固定している。
+`aws_lambda.tracing`（親スパンの補正、ADR-013）の import も `sanposcape.main` の後ろに置く
+（`main` が先に `Settings` を確定させる）。
 
 さらにその後ろ（3段目）で `build_handler()` を呼ぶ。`build_handler()` は FastAPI の
 lifespan（`main._lifespan` の startup）を init フェーズで1回だけ起動する（Mangum は
@@ -20,9 +26,14 @@ import logging
 
 from pydantic import ValidationError
 
+from sanposcape.aws_lambda.runtime_logging import use_json_format_for_runtime_handlers
 from sanposcape.core.runtime_config import hydrate_environment_from_secret
 
 logger = logging.getLogger(__name__)
+
+# 0 段目: ランタイムのログハンドラーのフォーマッターを JSON にする。ハイドレーションや
+# `Settings` の検証の失敗（下の `logger.error`）も JSON で出すため、最初に行う。
+use_json_format_for_runtime_handlers()
 
 hydrate_environment_from_secret()
 
