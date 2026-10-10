@@ -180,3 +180,85 @@ def test_access_log_records_the_413_returned_by_the_size_limit_middleware(
     assert response.status_code == 413
     messages = [record.getMessage() for record in caplog.records]
     assert any("POST /pin-photo-uploads -> 413" in message for message in messages), messages
+
+
+# --- ログの構造化（ADR-013 決定3 の SS-180 追補） ---
+
+
+def _app_with_probe_routes(settings):
+    import logging as _logging
+
+    from fastapi import Depends
+
+    from sanposcape.dependencies import get_current_user
+    from sanposcape.main import create_app
+
+    app = create_app(settings)
+
+    @app.get("/_boom")
+    def _boom() -> None:
+        raise RuntimeError("never-in-the-response")
+
+    @app.get("/_whoami")
+    def _whoami(user=Depends(get_current_user)) -> dict[str, str]:
+        # 認証の依存はスレッドプールで動く。その後のエンドポイント内のログにも user_id が付く。
+        _logging.getLogger("sanposcape.probe").info("inside the endpoint")
+        return {"id": str(user.id)}
+
+    return app
+
+
+def test_unhandled_exception_returns_500_and_leaves_exactly_one_error_across_all_loggers(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AccessLogMiddleware が例外を握るので、uvicorn / Starlette / Mangum の ERROR は重ならない。"""
+    from sanposcape.config import Settings
+
+    client = TestClient(_app_with_probe_routes(Settings(env="test")))
+
+    with caplog.at_level(logging.ERROR):
+        response = client.get("/_boom")
+
+    assert response.status_code == 500
+    assert response.text == "Internal Server Error"
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert [r.name for r in errors] == ["sanposcape.core.observability"]
+    assert errors[0].exc_info is not None
+
+
+def test_user_id_is_attached_to_endpoint_and_access_logs_for_authenticated_requests(
+    db_session,
+    test_settings,
+    json_logs: list[dict],
+) -> None:
+    from sanposcape.auth.tokens import create_access_token
+    from sanposcape.config import get_settings
+    from sanposcape.conftest import override_get_db
+    from sanposcape.database import get_db
+    from sanposcape.walks.tests.conftest import make_user
+
+    user = make_user(db_session, subject="log-context-user")
+    token, _ = create_access_token(user_id=user.id, settings=test_settings)
+    app = _app_with_probe_routes(test_settings)
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_settings] = lambda: test_settings
+
+    response = TestClient(app).get("/_whoami", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    (inside,) = [r for r in json_logs if r["logger"] == "sanposcape.probe"]
+    (access,) = [r for r in json_logs if r.get("log_type") == "access"]
+    assert inside["user_id"] == str(user.id)
+    assert access["user_id"] == str(user.id)
+    assert access["http_route"] == "/_whoami"
+
+
+def test_user_id_is_absent_for_unauthenticated_requests(
+    test_settings,
+    json_logs: list[dict],
+) -> None:
+    response = TestClient(_app_with_probe_routes(test_settings)).get("/_whoami")
+
+    assert response.status_code == 401
+    (access,) = [r for r in json_logs if r.get("log_type") == "access"]
+    assert "user_id" not in access
