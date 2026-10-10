@@ -444,6 +444,47 @@ def test_log_level_rejects_unknown_value() -> None:
         Settings(log_level="verbose")
 
 
+def test_log_format_defaults_to_json_and_accepts_uppercase() -> None:
+    assert Settings().log_format == "json"
+    assert Settings(log_format="JSON").log_format == "json"
+    assert Settings(log_format="Console").log_format == "console"
+
+
+def test_log_format_rejects_unknown_value() -> None:
+    with pytest.raises(ValidationError):
+        Settings(log_format="yaml")
+
+
+@pytest.mark.parametrize("env", ["local", "test"])
+def test_console_log_format_is_allowed_in_local_and_test(env: str) -> None:
+    assert Settings(env=env, log_format="console").log_format == "console"
+
+
+@pytest.mark.parametrize("env", ["staging", "production"])
+def test_console_log_format_fails_to_start_outside_local_and_test(env: str) -> None:
+    """console だと Logs Insights のフィールドが消えて気づきにくいため、起動時に弾く。"""
+    with pytest.raises(ValidationError, match="LOG_FORMAT"):
+        Settings(
+            env=env,
+            log_format="console",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["aud"],
+            google_maps_server_api_key="test-server-key",
+            database_dsn="postgres://user:pw@host.example.com/db",
+        )
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [("local", True), ("test", True), ("staging", False), ("production", False)],
+)
+def test_log_exception_messages_is_allowed_only_in_local_and_test(env: str, expected: bool) -> None:
+    """許可リスト方式: 例外メッセージ経由の漏れを staging / production では塞ぐ（決定6）。"""
+    settings = Settings.model_construct(env=env)
+    assert settings.log_exception_messages is expected
+
+
 def test_object_storage_delete_call_worst_case_seconds_default() -> None:
     """既定値（delete connect=1.0 / delete read=5.0）では 6.0 秒になり、既定の締め切り
     （10秒）との和（16秒）は `_REQUEST_TIME_BUDGET_SECONDS`（25秒）以下で起動できる
