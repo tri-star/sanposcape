@@ -25,7 +25,11 @@ describe("requestPinPhotoUpload", () => {
   it("201 で ticket（fields の順序・maxByteSize）に変換される", async () => {
     server.use(getCreatePinPhotoUploadMockHandler(RESPONSE));
 
-    const result = await requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg" });
+    const result = await requestPinPhotoUpload({
+      byteSize: 500_000,
+      mimeType: "image/jpeg",
+      takenAt: null,
+    });
 
     expect(result).toEqual({
       uploadId: RESPONSE.upload_id,
@@ -40,7 +44,10 @@ describe("requestPinPhotoUpload", () => {
     });
   });
 
-  it("送信ボディが content_type と byte_size の2キーだけ", async () => {
+  it.each([
+    ["撮影日時あり", "2026-07-02T09:14:05+09:00"],
+    ["撮影日時なし", null],
+  ])("送信ボディは content_type・byte_size・taken_at の3キー（%s）", async (_label, takenAt) => {
     let receivedBody: PinPhotoUploadCreate | undefined;
     server.use(
       getCreatePinPhotoUploadMockHandler(async (info) => {
@@ -49,16 +56,20 @@ describe("requestPinPhotoUpload", () => {
       }),
     );
 
-    await requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg" });
+    await requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg", takenAt });
 
-    expect(receivedBody).toEqual({ content_type: "image/jpeg", byte_size: 500_000 });
+    expect(receivedBody).toEqual({
+      content_type: "image/jpeg",
+      byte_size: 500_000,
+      taken_at: takenAt,
+    });
   });
 
   it.each([401, 409, 413, 422, 429, 503])("%d は ApiError(status) になる", async (status) => {
     server.use(http.post("*/pin-photo-uploads", () => new HttpResponse(null, { status })));
 
     try {
-      await requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg" });
+      await requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg", takenAt: null });
       expect.unreachable("throw されるはず");
     } catch (error) {
       expect(error).toBeInstanceOf(ApiError);
@@ -75,7 +86,7 @@ describe("requestPinPhotoUpload", () => {
     );
 
     await expect(
-      requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg" }),
+      requestPinPhotoUpload({ byteSize: 500_000, mimeType: "image/jpeg", takenAt: null }),
     ).rejects.toThrow(ApiError);
   });
 });

@@ -38,6 +38,9 @@ export function toPinPhoto(read: PinPhotoRead, options: { apiBaseUrl: string }):
     width: read.width,
     height: read.height,
     uploadedByUserId: read.uploaded_by_user_id,
+    // 古い backend（taken_at を返さない）に当たっても undefined を流さない（visited/archived と同じ防御。SS-173）。
+    takenAt: typeof read.taken_at === "string" ? read.taken_at : null,
+    uploadedAt: read.created_at,
   };
 }
 

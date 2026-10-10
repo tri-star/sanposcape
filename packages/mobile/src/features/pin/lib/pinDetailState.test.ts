@@ -131,6 +131,8 @@ describe("resolvePinDetailPhotos", () => {
       width: 100,
       height: 100,
       uploadedByUserId: "user-1",
+      takenAt: null,
+      uploadedAt: "2026-01-01T00:00:00.000Z",
     };
   }
 

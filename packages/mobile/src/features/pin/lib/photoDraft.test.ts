@@ -21,6 +21,7 @@ const PICKED: PickedPhoto = {
   width: 4032,
   height: 3024,
   mimeType: "image/jpeg",
+  takenAt: null,
 };
 const PREPARED: PreparedPhoto = {
   uri: "mock://photo/1-prepared.jpg",

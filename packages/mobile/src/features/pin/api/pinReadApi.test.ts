@@ -40,6 +40,7 @@ function photo(overrides: Partial<PinPhotoRead> = {}): PinPhotoRead {
     original_url: null,
     urls_expire_at: "2026-01-01T01:00:00.000Z",
     uploaded_by_user_id: "user-1",
+    taken_at: null,
     created_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };

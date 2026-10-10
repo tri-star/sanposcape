@@ -7,11 +7,14 @@ import type {
   PreparedPhoto,
 } from "@/services/photo/types";
 
+export const MOCK_TAKEN_AT = "2026-07-02T09:14:05+09:00";
+
 export const MOCK_PICKED_PHOTO: PickedPhoto = {
   uri: "mock://photo/1.jpg",
   width: 4032,
   height: 3024,
   mimeType: "image/jpeg",
+  takenAt: MOCK_TAKEN_AT,
 };
 
 export const MOCK_PREPARED_BYTE_SIZE = 480_000;
@@ -42,6 +45,8 @@ export type MockPhotoServiceOptions = {
   prepareFailWith?: PhotoErrorCode;
   /** prepareForUpload が返すバイト数（上限超過の UI 確認用）。 */
   preparedByteSize?: number;
+  /** pickPhotos が返す撮影日時。既定 MOCK_TAKEN_AT。null で「撮影日時なし」。 */
+  takenAt?: string | null;
 };
 
 /**
@@ -57,6 +62,7 @@ export function createMockPhotoService(options?: MockPhotoServiceOptions): Photo
   const pickFailWith = options?.pickFailWith;
   const prepareFailWith = options?.prepareFailWith;
   const preparedByteSize = options?.preparedByteSize ?? MOCK_PREPARED_BYTE_SIZE;
+  const takenAt = options?.takenAt === undefined ? MOCK_TAKEN_AT : options.takenAt;
 
   return {
     async pickPhotos({ source, selectionLimit }) {
@@ -74,6 +80,7 @@ export function createMockPhotoService(options?: MockPhotoServiceOptions): Photo
         width: MOCK_PICKED_PHOTO.width,
         height: MOCK_PICKED_PHOTO.height,
         mimeType: MOCK_PICKED_PHOTO.mimeType,
+        takenAt,
       }));
     },
 
