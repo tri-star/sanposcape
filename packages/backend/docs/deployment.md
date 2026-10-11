@@ -1129,6 +1129,7 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 **Lambda 計装の親スパンはハンドラーの後に属性を設定し直す**（dev の実測で判明。レイヤーの Lambda 計装は 0.61b0）。ハンドラーの中でスパン属性を書き換えても、イベントから `http.route`（生のパス）・`http.target`（クエリ込み）・`http.user_agent` が再設定される。そのため `aws_lambda/tracing.py` は、Mangum が `scope["aws.event"]` に持つ同じイベントを無害化している（`rawQueryString` を空、`userAgent` を削除、`requestContext.http.path` をルートのテンプレートに）。payload 2.0 のみ対象。レイヤーを上げるときは、dev の `aws/spans` で親スパンの `http.target` / `http.route` / `http.user_agent` を確認すること。
 
 クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）。
+例外は 2 つだけ: 内部 UUID の `enduser.id` と、検証を通った `X-App-Session-Id` の `session.id`（§16）。
 `http.url` / `http.target` のクエリはフックで除き（失敗時は空に倒す）、`net.peer.ip` /
 `net.peer.port` / `http.user_agent` は空に上書きし、`hide_parameters=True` で例外メッセージの
 `[parameters: ...]` を消している。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、
@@ -1275,7 +1276,7 @@ filter `resource.attributes.service.name` = 'sanposcape-backend-api'
 `template.yaml` の `ApiDashboard` には、これと同じクエリを 1 行にして入れてある（サービス名は Sub の変数 `ServiceName`。
 `deployment.environment` での絞り込みは入れていない。prod は専用アカウント、dev は sanposcape の dev しか無いため。
 入れるなら `` and `resource.attributes.deployment.environment` = '<env>' ``）。**ダッシュボードのクエリとこの節のコピーは二重持ち**で、
-片方を直したらもう片方も直す（一致を検査するテストは無い）。
+片方を直したらもう片方も直す（一致を検査するテストは無い）。§16 Step 3 のクエリも同じ条件なので、三重持ちになる。
 
 Q1: ルート別の件数・p50/p95/p99・4xx/5xx 率（dev で確認済み）
 
@@ -1540,11 +1541,16 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
 |---|---|---|
 | ログ | `user_id`（内部 UUID） | 認証済みのリクエスト、ログイン・refresh・logout（§15 の項目表） |
 | ログ | `app_session_id` | `X-App-Session-Id` が検証を通ったとき |
-| スパン（`aws/spans`） | `attributes.enduser.id` | 同上の `user_id`。**親（サーバー / LOCAL_ROOT）スパンだけ**。子スパン（DB・httpx）には付けない |
-| スパン | `attributes.session.id` | 同上の `app_session_id`（親スパンだけ） |
+| スパン（`aws/spans`） | `attributes.enduser.id` | 同上の `user_id`。付くのは FastAPI のサーバースパン（ローカルは SERVER、Lambda では LOCAL_ROOT の子の INTERNAL）と Lambda の LOCAL_ROOT。DB・httpx の子スパンには付かない |
+| スパン | `attributes.session.id` | 同上の `app_session_id`（`enduser.id` と同じスパン） |
 
 - ログの `user_id` とスパンの `enduser.id` は同じ値。入口は `core/logs.py` の `bind_user_id(uuid.UUID)` 1 つで、
-  リクエストの終わりに `AccessLogMiddleware`（FastAPI のサーバースパン）と `aws_lambda/tracing.py`（Lambda の親スパン）が写す。
+  写すタイミングは 2 通り:
+  - `AccessLogMiddleware`（FastAPI のサーバースパン）: ミドルウェアの入口で捕まえたサーバースパンに、**応答の開始時**と
+    **最後の body を送る直前**（OTel の ASGI 計装は最後の body でスパンを閉じるため、送った後では遅い）に写す。応答前の例外
+    （500 を返す直前）でも写す。手動の子スパンの中で応答を送っても、応答の開始後に bind しても、サーバースパンに載る。
+    記録中でないスパン（サンプリングされない・トレース無効）には何もしない。
+  - `aws_lambda/tracing.py`（Lambda の LOCAL_ROOT）: リクエストの終わり（`finally`）に写す。
 - 属性名に `enduser.id` を選んだ理由: OTel の semconv で「リクエストを送った認証済みのエンドユーザー」を表す名前で、
   collector-contrib の X-Ray 変換が X-Ray のセグメントの `user` に写す（`user.id` は写さない）。詳細は ADR-013。
 - **X-App-Session-Id**: mobile がアプリの起動ごとに作る UUID v4（小文字）。backend は検証を通ったものだけを載せる
@@ -1614,7 +1620,8 @@ SOURCE 'aws/spans'
 
 ### 読み方の注意
 
-- `/auth/refresh`・`/auth/logout` の `user_id` は**提示した refresh token の持ち主**。再利用の検知（401）では攻撃者の
+- `/auth/login`・`/auth/refresh`・`/auth/logout` の `user_id` は、ログインは確定したユーザー、refresh / logout は**提示した
+  refresh token の持ち主**で、送信者本人とは限らない。再利用の検知（401）では攻撃者の
   リクエストに被害者の ID が付く。調査では「どのユーザーのトークンファミリーが失効したか」を見るのに使う
   （そのユーザーが攻撃したという意味ではない）。
 - 認証ヘッダーが不正な 401、未知の refresh token には `user_id` が付かない。
