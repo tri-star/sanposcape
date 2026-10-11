@@ -4,14 +4,14 @@
 - [Expo Router のアプリ構造](expo-router-app-structure.md) — typedRoutes生成、index.tsx+(tabs)/index.tsx共存、非推奨Tabsとカスタムタブバー
 - [ネストしたPressable+Checkbox](nested-pressable-checkbox.md) — 行全体Pressable+内側Checkboxはpointer Events="none"で表示専用に
 - [アセット/lint設定の落とし穴](asset-and-lint-setup.md) — png importの型宣言、oxlintrcにdocs/mock除外、slider追加メモ
-- [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — real/stubの2値ではない。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)。locationは2モード(real/mock)が正当な例外
+- [services層はreal/dev/mockの3モード](services-real-dev-mock-pattern.md) — 必要なモードだけ持つ(locationはreal/mock)。起動時configure系は同期throwせず使用時に遅延throw。persistence失敗はtry/catchで握りつぶす(finally不可)。locationは2モード(real/mock)が正当な例外
 - [mobileのHTTP層](mobile-http-layer.md) — HTTP出口は3箇所(customFetch/authApi.ts/S3直送)。customFetchは`{status,data,headers}`契約、原因分岐は`ApiError.body`→`getApiErrorCode`、Orvalは`cursor:null`を`?cursor=null`にする
 - [react-native-mapsの実装メモ](react-native-maps-notes.md) — MapViewはref+animateToRegion、Marker tracksViewChanges=falseはkeyに選択状態を含めて再マウント、nodeテスト用の自前MapRegion型、Maps keyは`.env`のみで注入可
 - [useMutationの初導入パターン](tanstack-mutation-pattern.md) — SS-19 useWalkSaveが最初の例。null検証→ApiError(422)throw、useRefで冪等発火、retryDelay指数バックオフ
 - [認証セッションとサインアウト時後始末](auth-session-and-cleanup.md) — 正本はADR-M-009/M-008。storeバレル非import・segments配列を依存に入れない・ラッチをcleanupで中断しない・store自身をsessionCleanupに登録しない・後始末はクリアされる側が登録
 - [共有層への昇格手順](promotion-workflow.md) — `features/<x>/lib|components` から `src/lib`/`src/components/ui` へ安全に移す順序
 - [巨大な座標配列の計算](large-point-array-pitfall.md) — 軌跡(最大1万点)に `Math.max(...points)` を使わない
-- [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`と`api/`のみ。hooks/componentsは設計上テストしない
+- [hooks/componentsのテスト範囲](test-scope-hooks-components.md) — `.test.ts`は`lib/`・`api/`などReact非依存の層のみ。hooks/componentsは設計上テストしない
 - [renderBody の中央寄せ判定パターン](render-body-centered-pattern.md) — `{content, centered}`を返す形で判定条件を1箇所に閉じる（features/history一覧・詳細）
 - [Maestro E2Eのフロー設計パターン](maestro-e2e-patterns.md) — subflows分離、tagでのCI除外、disabled誤タップ対策、状態別testID(root据え置き+内側`${testID}-<state>`)、itemTestIDPrefix
 - [画面の戻る導線パターン](screen-back-navigation-pattern.md) — `useScreenBack`+`resolveBackAction`に一本化。intercepted>navigating>canGoBackの優先順位、戻る処理でストアを触らない

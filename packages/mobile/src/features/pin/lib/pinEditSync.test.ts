@@ -46,12 +46,12 @@ function photo(id: string): PinPhoto {
 }
 
 /** 編集画面の状態（基準値・下書き・DELETE 済み）を、hook と同じ規則で動かす最小のハーネス。 */
-function createScreen(pin: PinDetail) {
+function createScreen(pin: PinDetail, response: PinDetail = PIN_B) {
   let baseline: PinEditBaseline = createPinEditBaseline(pin);
   let draft: PinEditDraft = initialPinEditDraft(baseline);
   let deletedPhotoIds: readonly string[] = [];
   let updated = false;
-  const updatePin = vi.fn(async (_id: string, _request: unknown) => PIN_B);
+  const updatePin = vi.fn(async (_id: string, _request: unknown) => response);
   const deletePinPhoto = vi.fn(async (_pinId: string, photoId: string) => {
     if (photoId === "p-fail") throw new TypeError("Network request failed");
     return { alreadyDeleted: false };
@@ -84,7 +84,12 @@ function createScreen(pin: PinDetail) {
     return buildPinUpdateRequest({
       baseline,
       draft,
-      permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
+      permissions: {
+        canEditFields: true,
+        canEditVisited: true,
+        canArchive: true,
+        canChangeSanpoMap: true,
+      },
       canRemoveTag: () => true,
     });
   }
@@ -147,7 +152,12 @@ describe("部分保存後の基準値の作り直し（SS-119 レビュー A-1�
       buildPinUpdateRequest({
         baseline: stale,
         draft,
-        permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
+        permissions: {
+          canEditFields: true,
+          canEditVisited: true,
+          canArchive: true,
+          canChangeSanpoMap: true,
+        },
         canRemoveTag: () => true,
       }),
     ).toEqual({});
@@ -162,7 +172,12 @@ describe("部分保存後の基準値の作り直し（SS-119 レビュー A-1�
       buildPinUpdateRequest({
         baseline,
         draft,
-        permissions: { canEditFields: true, canEditVisited: true, canArchive: true },
+        permissions: {
+          canEditFields: true,
+          canEditVisited: true,
+          canArchive: true,
+          canChangeSanpoMap: true,
+        },
         canRemoveTag: () => true,
       }),
     ).toEqual({ visited: false });
@@ -192,6 +207,23 @@ describe("部分保存後の基準値の作り直し（SS-119 レビュー A-1�
     expect(screen.updatePin).not.toHaveBeenCalled();
   });
 
+  it("地図の移動: PATCH 成功 → 写真の段で失敗 → 基準値が移動先になり、再試行で sanpo_map_id を再送しない（SS-175）", async () => {
+    const moved: PinDetail = { ...PIN_A, sanpoMapId: "map-b", sanpoMapName: "B地図" };
+    const screen = createScreen(PIN_A, moved);
+    screen.edit({ sanpoMapId: "map-b", photoIdsToDelete: ["p-fail"] });
+    expect(screen.request()).toEqual({ sanpo_map_id: "map-b" });
+
+    await expect(screen.submit()).rejects.toSatisfy(isPinEditError);
+    expect(screen.updatePin).toHaveBeenCalledTimes(1);
+    expect(screen.baseline).toMatchObject({ sanpoMapId: "map-b", sanpoMapName: "B地図" });
+
+    // 下書きも map-b なので差分に sanpo_map_id は出ない。
+    expect(screen.request()).toEqual({});
+    screen.updatePin.mockClear();
+    await expect(screen.submit()).rejects.toSatisfy(isPinEditError);
+    expect(screen.updatePin).not.toHaveBeenCalled();
+  });
+
   it("DELETE 済みの写真は、削除の印と既存写真の表示から外れる", async () => {
     const screen = createScreen(PIN_A);
     screen.edit({ photoIdsToDelete: ["p1", "p-fail"] });
@@ -216,6 +248,7 @@ describe("rebaseDraftAfterPhotoDeleted / addDeletedPhotoId", () => {
     memo: "",
     visited: false,
     archived: false,
+    sanpoMapId: "map-1",
     tags: [],
     photoIdsToDelete: ["p1", "p2"],
   };

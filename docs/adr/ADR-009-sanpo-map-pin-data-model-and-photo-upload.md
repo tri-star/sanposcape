@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）。前回: 2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-10（SS-163: 写真に撮影日時 `taken_at` を持たせた。決定34）。前回: 2026-10-05（SS-175: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せるようにした。決定33）、2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）、2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -25,8 +25,9 @@
 - **`DELETE /pin-photo-uploads/{upload_id}` で未使用の枠を取り消せる**（本文: 決定11、PR #93 追補）
 - **409 応答は機械可読な `code` を持つ**（`storage_quota_exceeded` / `photo_upload_not_ready`）
   （本文: 決定12、PR #93 追補）
-- **backend はアクセスログを1リクエスト1行で出す**（`core/observability.py`。`create_app()` で
-  最後に登録して最外層に置く。クエリ文字列・ヘッダー・ボディは出さない）（本文: 決定13、SS-88 追補）
+- **backend はアクセスログを1リクエスト1行で出す**（`core/access_log.py`。`create_app()` で
+  最後に登録して最外層に置く。クエリ文字列・ボディは出さない。ヘッダーも出さない（例外: 検証済みの
+  `X-App-Session-Id` を `app_session_id` として出す。ADR-013 の SS-181 追補））（本文: 決定13、SS-88 追補）
 - **直送の失敗は原理的にサーバー側から見えない**ので、可観測性は端末側に持たせる。サーバー側から
   見る必要がある場合は S3 サーバーアクセスログが唯一の手段（本文: SS-88 追補）
 - **閲覧 API（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）を追加した**
@@ -66,6 +67,19 @@
   省略すると絞り込まず、指定は `limit` の前に AND で適用する。DB は `BOOLEAN NOT NULL DEFAULT false`
   の2列。既存ピンは `client_walk_id` がある（散歩中に登録した）ものだけ訪問済みに埋め戻した
   （本文: SS-173 追補 決定32）
+- **`PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せる**（省略可・null 不可）。移動元は
+  owner かピン作成者（`can_move_pin_from`）、移動先はメンバーなら owner/editor（`can_move_pin_to`）。
+  判定順は ピン404 → 移動先404 → 403 → 409。404 の本文には `code`（`pin_not_found` /
+  `sanpo_map_not_found`）が全エンドポイントで付く（OpenAPI の宣言は PATCH だけ）。地図が実際に変わった
+  ときだけ `updated_at` を進め、移動先の `mark_used()` を呼ぶ。S3 は触らない。**地図削除は写真キーの
+  収集前に地図のピン行を `FOR UPDATE` でロックするようになった**（移動と重なっても生き残るピンの
+  写真を S3 から消さない）（本文: SS-175 追補 決定33）
+- **写真は撮影日時 `taken_at` を持つ**。端末が EXIF から読んだ申告値を `POST /pin-photo-uploads`
+  （任意・null 可・オフセット必須。naive と範囲外は 422、範囲は瞬間で `[1900-01-01Z, 2100-01-01Z)`）
+  で受け取り、紐付け時に枠から `pin_photos` へ写して、枠の側は NULL に戻す。`PinPhotoRead.taken_at`
+  は必須キー・null 可で、全ての写真の応答に載る（UTC 換算の瞬間。元のオフセットは保持しない）。
+  backend は EXIF を読まず、GPS も受け取らない。既存の写真は遡及せず null。ログには出さない。
+  DB は `timestamptz NULL` の2列（本文: SS-163 追補 決定34）
 - **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
   新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
   （本文: SS-113 追補 決定28）（**SS-137 追補**: port 経由の再利用は撤去し、
@@ -134,7 +148,9 @@ port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の�
 2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）、
 2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）、
 2026-10-04 追補（SS-171: 地図のアイコン `icon`。決定31）、
-2026-10-04 追補（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived`。決定32）
+2026-10-04 追補（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived`。決定32）、
+2026-10-05 追補（SS-175: ピンの地図の移動。決定33）、
+2026-10-10 追補（SS-163: 写真の撮影日時 `taken_at`。決定34）
 
 ## ステータス
 
@@ -272,6 +288,7 @@ ADR-008 決定7（expand → contract）の例外として直接削除してい�
 1. mobile は `POST /pin-photo-uploads`（`content_type`, `byte_size`）で
    アップロード枠を取得する。応答は presigned POST の `url`/`fields`
    （`upload_id` 別に発行、S3 の `content-length-range` で1枚の上限を強制）。
+   （**SS-163 追補**: 枠の発行は `taken_at`（撮影日時）も任意で受け取る。決定34）
 2. mobile はフィールドをそのまま multipart で S3 の `staging/pins/<user_id>/<upload_id>.jpg`
    へ POST する（成功は S3 既定の 204）。
 3. `POST /pins`（新規ピン作成）に `photo_upload_ids` を含めると、**同じリクエストの中で
@@ -640,7 +657,9 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
 - [x] **BK-6**: `POST /sanpo-maps`（地図の新規作成）、地図管理、`pin_count` の expand。
       **SS-113 で実装完了**（detail は「追補（2026-09-26, SS-113 地図の作成・管理 API）」）
 - [ ] **BK-7**: 招待・メンバー管理。招待ユーザー退会時に他人の地図へ付けたピン・写真・
-      タグを消すかは未決（MVP は全て `ON DELETE CASCADE`）。**BK-10 が前提**
+      タグを消すかは未決（MVP は全て `ON DELETE CASCADE`）。**BK-10 が前提**。
+      ピンの地図の移動やメンバーの除外でアクセスを失ったメンバーの写真が、その人の容量に計上され
+      続ける（本人は消せない）点も併せて決める（決定33）
 - [ ] **BK-8**: `GET /users/me/storage-usage`（使用量 / 上限の表示）
 - [ ] **BK-9**: サムネイルの非同期化（負荷・枚数要件が変わった場合のみ。
       `pin_photos.thumbnail_*` の NULL 許容で列追加なしに移行できる）
@@ -667,6 +686,8 @@ TestFlight のビルド5を iPhone 実機で試したところ、写真の直送
 ローカル（uvicorn）は uvicorn 自身がアクセスログを出すため気付きにくいが、**Lambda（Mangum）には
 uvicorn が居ないので、アプリ側で出さない限り何も残らない**。`core/observability.py` に
 `AccessLogMiddleware` を追加し、`method path -> status (N.Nms)` を INFO で出す。
+（**SS-180 追補**: ログは JSON 構造化し、未処理例外は `AccessLogMiddleware` が握って 500 を返すようになった。詳細は [ADR-013](./ADR-013-observability-adot-application-signals.md) 決定3・決定6 の SS-180 追補。）
+（**SS-181 追補**: 検証済みの `X-App-Session-Id` を `app_session_id` としてログに付けるようになり（実体は `core/access_log.py`）、詳細は ADR-013 の SS-181 追補。）
 
 - `RequestSizeLimitMiddleware` と同じく**素の ASGI ミドルウェア**として書く
   （`BaseHTTPMiddleware` を使わない = ストリーミング応答やバックグラウンドタスクの挙動を変えない）。
@@ -859,6 +880,8 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 削除）は決定26 を参照（SS-113。**SS-171 追補**: 地図のアイコンの変更も決定26 の更新に含む。決定31）。
 （**SS-173 追補**: ピンの訪問状況（`visited`）・アーカイブ状態（`archived`）の変更の行は決定32。
 `visited` はメンバー全員の追加系、`archived` は owner かピン作成者の持ち主判定系）
+（**SS-175 追補**: ピンの地図の移動（`sanpo_map_id`）の2行（移動元・移動先）は決定33。
+`can_move_pin_from` は持ち主判定系、`can_move_pin_to` は追加系の形）
 
 決定2の表を実装内容で置き換える（決定2の表は「予定表」だったため）。表の読み方・実装上の
 注意:
@@ -880,11 +903,13 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   （2026-09-26 追補, PR #101 レビュー対応。3種類目は SS-113 で追加）。
   - **追加系**（`can_add_pin`/`can_add_pin_photo`/`can_add_pin_tag`）: `role in {"owner",
     "editor"}` のみで判定する。作成者は判定しないので `is_creator` 引数は持たない。
-    （SS-173 追補: `can_update_pin_visited` もこの形。決定32）
+    （SS-173 追補: `can_update_pin_visited` もこの形。決定32。SS-175 追補: ピンの移動先を判定する
+    `can_move_pin_to` もこの形。決定33）
   - **対象の持ち主を判定する更新・削除系**（`can_update_pin`/`can_delete_pin`/
     `can_delete_pin_tag`/`can_delete_pin_photo`）: `role == "owner" or (role in {"owner",
     "editor"} and is_creator)`。写真だけは `is_uploader`。
-    （SS-173 追補: `can_update_pin_archived` もこの形。決定32）
+    （SS-173 追補: `can_update_pin_archived` もこの形。決定32。SS-175 追補: ピンの移動元を判定する
+    `can_move_pin_from(role, *, is_creator)` もこの形。決定33）
   - **地図そのものの管理系**（`can_update_sanpo_map`/`can_delete_sanpo_map`）:
     `role == "owner"` のみで判定する。地図の持ち主は owner の role そのものなので、
     「対象の持ち主」を判定する引数（`is_creator`/`is_uploader`）は持たない（決定26）。
@@ -907,6 +932,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - `PinUpdate` は `model_config = ConfigDict(extra="forbid")`。`location`/`sanpo_map_id` 等を
   送って「変更されたつもり」になる事故を防ぐため（既存の `PinCreate` は forbid にしていない
   が、PATCH は「送ったものだけが変わる」という意味を持つため区別する）。
+  （**SS-175 追補**: `sanpo_map_id` は決定33 で PATCH の対象に加えたので、この例からは外れる。）
 - 権限は**「リクエストに含まれるフィールド」に対して判定する**。値が現在と同じでも `name`
   を送れば「名前の更新権限」が必要になる（`model_fields_set` で判定。省略と明示的な `null`
   も同じ仕組みで区別する、`PinCreate.sanpo_map_id` と同じ）。**1つでも権限が無ければ全体を
@@ -924,6 +950,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 - 空のボディ `{}` も 200 で受け付け、何も変えずに `PinRead` を返す（`updated_at` も更新しない）。
 - 更新できるのは `name`/`memo`/タグのみ（**SS-173 追補**: `visited`/`archived` も加わった。決定32）。`location`/`sanpo_map_id`/`client_walk_id` は対象外
   （SS-119 の要件に含まれない。地図間の移動は権限の意味が変わるため別途設計が要る）。
+  （**SS-175 追補**: `sanpo_map_id` は決定33 で対象に加えた。`location`/`client_walk_id` は引き続き対象外）
 
 ### 決定21: 404 と 403 の使い分け（IDOR 対策の継続）
 
@@ -944,6 +971,10 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
   mobile は 404 を「既に存在しない」として成功と同じに扱ってよい。
 - 判定の順序: 認証（401） → ボディのバリデーション（422） → member 判定（404） →
   写真の存在（404） → 権限（403） → タグ件数（409）。
+  （**SS-175 追補**: 404 の本文に `code` が付く（`PinNotFoundError` → `"pin_not_found"`、
+  `SanpoMapNotFoundError` → `"sanpo_map_not_found"`。決定33）。`PATCH` の判定順は「ピンの member
+  （404 `pin_not_found`）→ 移動先の member（404 `sanpo_map_not_found`）→ 権限（403）→ タグ件数
+  （409）」。）
 
 ### 決定22: 削除時の S3 は「DB commit → best-effort の即時削除」
 
@@ -1012,6 +1043,8 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 ### 決定23: `updated_at` はピン本体とタグの変更でだけ更新する
 
 （**SS-173 追補**: `visited`/`archived` が実際に変わったときも更新する。決定32）
+（**SS-175 追補**: 地図の移動で地図が実際に変わったときも `Pin.updated_at` を進め、**移動先の
+`mark_used()` を呼ぶ**（「PATCH は `mark_used()` を呼ばない」の例外。決定33））
 
 `Pin.updated_at` は、`name`/`memo`/タグのどれかが**実際に変わった場合だけ**、注入した
 `now()` で更新する（`onupdate` は使わない。`sanpo_maps.touch()` と同じく明示的に更新する）。
@@ -1043,6 +1076,9 @@ backend の 403 に任せる。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-p
   なら成功扱いにしてよい。削除後は `photo_count` や代表写真が変わるので、ピンの詳細・
   一覧のキャッシュを無効化する。
 - `DELETE /pins/{id}` の 204/404 は、どちらも一覧から取り除いてよい。
+- （**SS-175 追補**: PATCH の 404 は本文の `code` で `pin_not_found`（ピンが無い → 一覧から取り除く）
+  と `sanpo_map_not_found`（移動先が無い・メンバーでない → ピンは元の地図に残る）を区別できる。
+  決定33）
 - （SS-119 で mobile 実装済み。role は `GET /sanpo-maps` から引く。詳細は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
 
 ## 追補（2026-09-26, SS-113 地図の作成・管理 API）
@@ -1191,6 +1227,9 @@ SS-112 で pins の更新・削除系はすべて `pins` 行を `FOR UPDATE` で
 起きない**ため許容する。**このデッドロック・500 のシナリオは分析上の結論であり、テストで
 固定していない**（真の同時実行を再現するテストの追加は本チケットのスコープに含めない）。
 共有地図を owner が消すと editor のデータも消える点は BK-7 で再検討する。
+（**SS-175 追補**: 写真キーの収集の前に、地図のピン行を `FOR UPDATE` でロックするようにした
+（`SanpoMapRepository.lock_pins_for_map()`）。ピンの地図の移動（決定33）と重なったとき、生き残る
+ピンの写真を S3 から消さないため。理由と並行テストは決定33。）
 
 **未確認事項**: 写真バケットで S3 のバージョニングが有効かどうかは、このリポジトリからは
 確認できていない（バケットは infra 側で管理している）。有効な場合、DeleteObjects は削除
@@ -1457,6 +1496,209 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
   （`POST /pins/{id}/archive` など。PATCH のフィールド単位の権限判定で表現でき、mobile も保存1回で
   送れる）／`can_update_pin` の流用（上記）。
 
+## 追補（2026-10-05, SS-175 ピンの地図の移動）
+
+ピンの編集画面で、ピンが属する地図も変えられるようにする（SS-175）。決定20 は「`sanpo_map_id` は
+対象外（地図間の移動は権限の意味が変わるため別途設計が要る）」としていた。その設計を本決定で行い、
+`PATCH /pins/{pin_id}` の `PinUpdate` に `sanpo_map_id` を足す。DB スキーマは変えない
+（`pins.sanpo_map_id` は既にある）。マイグレーションは無い。フィーチャーフラグは使わない（決定10）。
+mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）に記録する。
+
+### 決定33: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移す
+
+- **API**: `PinUpdate.sanpo_map_id: UUID`（省略可・null 不可。`SkipJsonSchema[None]` により OpenAPI
+  上は素の `{type: string, format: uuid}`。明示的な null は 422。`extra="forbid"` は維持するので
+  `location`/`client_walk_id` は引き続き 422）。応答は 200 + `PinRead` で、`sanpo_map` は**移動先**。
+- **移るもの・移らないもの**: `pins.sanpo_map_id` だけを UPDATE する。作成者・owner がピンを移すと、
+  他人がアップロードした写真・付けたタグも一緒に移り、その人が移動先のメンバーでなければ以後それらに
+  アクセスできなくなる（下の「owner が editor のピンを…」と同じ性質）。タグ・写真・`visited`・
+  `archived`・`location`・`client_pin_id`・`client_walk_id`・`created_by_user_id`・`created_at`・
+  タグの作成者・写真のアップロード者・容量の計上先は変えない。**S3 は触らない**（写真のキーは
+  `original/pins/<user_id>/<upload_id>.jpg` で地図に依存しない）。`pin_count`・地図のタグ一覧は
+  ピンの `sanpo_map_id` で集計しているので、変更なしで移動先の集計に入る。
+- **権限**（決定19 の表に2行足す形）:
+
+  | 操作 | 地図 owner | editor（ピンの作成者本人） | editor（作成者ではない） | 非メンバー / 存在しない ID |
+  |---|---|---|---|---|
+  | ピンを地図から出す（移動元。ピンの今の地図の role） | ○（他人のピンも可） | ○ | **403** | ピンが **404**（`pin_not_found`） |
+  | ピンを地図に入れる（移動先の role） | ○ | ○ | ○ | 移動先が **404**（`sanpo_map_not_found`） |
+
+  関数は `can_move_pin_from(role, *, is_creator)`（持ち主判定系の形）と `can_move_pin_to(role)`
+  （追加系の形）。移動元のメンバーから見るとピンが消える操作で、削除・アーカイブ（決定32）に近いので
+  持ち主判定にした。移動先から見るとピンの追加なので、`can_add_pin` が owner/editor を許すのと揃えた。
+  式は `can_update_pin`/`can_add_pin` と同じだが、決定32 と同じ理由（表の1行に1関数。片方だけ変える
+  ときに呼び出し側を直さずに済む）で流用しない。2つの role を取る `can_move_pin` という4種類目の形は
+  作らず、既存の3種類の形に収めた。ほかのフィールド（name/memo/タグ/visited/archived）の権限は
+  **移動元（リクエスト時点の地図）の role** で判定する（今の `update_pin` のまま）。**移動後**の写真の
+  追加・削除などの操作は、移動後の地図の role で判定される（`get_for_member_for_update()` が今の
+  地図で JOIN するため）。1つでも権限が無ければ全体を 403 にして何も反映しない（決定20）。
+- **同じ値を送ったとき**: `sanpo_map_id` が今の地図と同じでも、送れば移動の権限判定は行う（決定20
+  「値が今と同じでも送れば判定」をそのまま適用）。実際の変更・`updated_at`・`mark_used()` は値が
+  違うときだけ。値が同じときは移動先の地図行をロックしに行かず、取得済みの移動元の role を移動先の
+  role として `can_move_pin_to` に渡す（理由は「並行実行」のデッドロックの分析）。
+- **判定順**: 401 → 422 → ピンの member（404 `pin_not_found`）→ 移動先の member（404
+  `sanpo_map_not_found`。存在しない・非メンバーを区別しない）→ 権限（403）→ タグ件数（409）。決定21
+  の「存在の確認（404）を権限（403）より先」に収まる。
+- **404 の `code`**: `SanpoMapNotFoundError` → `{"detail": "Sanpo map not found", "code":
+  "sanpo_map_not_found"}`、`PinNotFoundError` → `{"detail": "Pin not found", "code":
+  "pin_not_found"}`。決定12 の前例どおり `main.py` の例外ハンドラで付けるので、**全エンドポイントの
+  同名の 404 本文に付く**（`detail` の文言は変えない。フィールドが増えるだけなので古いクライアントは
+  無視するだけで済む）。OpenAPI に宣言するのは `PATCH /pins/{pin_id}` の 404 だけで、新スキーマ
+  `PinUpdateNotFoundErrorRead { detail, code: "pin_not_found" | "sanpo_map_not_found" }`。
+  `PinConflictErrorRead`/`PinTagConflictErrorRead` の enum は広げない（決定20 と同じ理由）。
+  `PinPhotoNotFoundError` などには付けない（区別の要求が無い）。
+- **`updated_at`・`mark_used()`**: 地図が実際に変わったときは `Pin.updated_at` を進め（決定23）、
+  **移動先の `mark_used()` を呼ぶ**（決定23 の「PATCH は `mark_used()` を呼ばない」の例外。移動は
+  移動先へのピンの追加とみなし、地図一覧の「最近使った地図」が先頭に来る）。移動元は触らない。
+  commit 後に INFO ログ `Pin moved: pin_id=… from_sanpo_map_id=… to_sanpo_map_id=… by user_id=…`
+  （ID だけ）を出す。
+- **並行実行**:
+  - **移動先**: membership を `FOR KEY SHARE OF sanpo_maps` で取る
+    （`SanpoMapRepository.get_membership_for_key_share()`）。地図削除（`FOR UPDATE`）とは衝突して
+    片方が待つが、名前変更・`touch()`（`FOR NO KEY UPDATE`）とは衝突しない。削除が先なら、待った後の
+    再評価で行が消えていて 404 `sanpo_map_not_found` になる（FK 違反の 500 にならない）。移動が先なら、
+    削除はその commit を待ち、移動したピンごと地図を消す。
+  - **移動元（既存の `delete_map` の穴）**: `delete_map` は「地図行 FOR UPDATE → ピン行をロックせずに
+    写真キーを収集 → CASCADE → commit → S3 削除」の順だった。地図 A の削除と、A のピン P を B へ移す
+    PATCH が重なると、(1) PATCH が P を B に UPDATE（未 commit）→ (2) 削除が A の写真キーを収集
+    （未 commit の移動は見えないので P の写真が入る）→ (3) CASCADE が P のロックを待ち、PATCH の
+    commit 後に P を対象から外す → (4) 削除が commit し、B で生き残った P の写真を S3 から消す、
+    となり、決定4 の不変条件（DB が存在しない S3 オブジェクトを指さない）が崩れる。**対処として
+    `delete_map` が、写真キーの収集の前に地図のピン行を `FOR UPDATE` でロックする**
+    （`SanpoMapRepository.lock_pins_for_map()`）。移動中のピンがあればその commit を待ち、commit 後は
+    再評価で A から外れるので、その後のキー収集にも入らない。CASCADE は同じ行をロックするので、取る
+    ロックの範囲は増えず時刻が早まるだけ。書き込みではないロック付きの読み取りなので ADR-011 M6 の
+    範囲内（`list_photo_keys_for_map` が既に `pins` を読むのと同じ扱い）。
+  - **デッドロックの分析**（ロックの取得順。以下は**分析したケースについての結論**で、網羅の証明ではない）:
+    移動は「`pins` 行 P（FOR UPDATE）→ 移動先 B の地図行（KEY SHARE）→ P を UPDATE → B を
+    `touch()`」で、移動元 A の地図行は取らない。地図削除は「owner advisory lock → 地図行
+    （FOR UPDATE）→ その地図のピン行（FOR UPDATE。新規）→ CASCADE」。
+    **同じ地図の ID を送る PATCH（B = A）は特別扱いが要る**（レビューで発見・SS-175）: そのまま
+    B の地図行（= A）を KEY SHARE で取りに行くと、「PATCH が P を握る → 削除が A の地図行（FOR
+    UPDATE）を握って P を待つ → PATCH が A の KEY SHARE を待つ」で循環し、DeadlockDetected の 500
+    になる。そこで `update_pin` は移動先が今の地図と同じときは地図行をロックせず、取得済みの role
+    （移動元 = 移動先）をそのまま移動先の role に使う（`can_move_pin_to` の判定は残す。
+    `PinService._resolve_move_target`）。違う地図なら次のとおり。
+    「P を移動中 × A を削除」は削除が P を待つだけで移動は A を要らない。「P を B へ移動中 × B を
+    削除」は移動が B を待つだけで、削除は B のピン（P はまだ A）しかロックしない。「P1 を A→B ×
+    P2 を B→A」は KEY SHARE 同士で衝突しない。「同じ B へ2件同時に移動」は `touch(B)` の
+    NO KEY UPDATE 同士で片方が待つだけ。決定28 で許容した `add_photos`/`create_pin`（ピン行 →
+    地図行）× 地図削除（地図行 → ピン行）のデッドロックは、ピン行を待つ時刻が CASCADE から少し前に
+    移るだけで性質は変わらない。
+  - **テストで固定したもの・していないもの**: 固定したのは (a)「移動中（未 commit）のピンがある地図を
+    削除しても、移動先で生き残るピンの写真の原本・サムネイルが S3 に残る」（修正前に落ちることを確認
+    済み）と (b)「移動先の地図が同時に削除されたら移動は 404 `sanpo_map_not_found` になり、ピンは元の
+    地図に残る」（`maps/tests/test_delete_map_concurrency.py`。`threading` + 別 Session の実 DB）、
+    (c)「同じ地図の ID を送る PATCH と地図削除がデッドロックしない」（同ファイル）。
+    **デッドロックしないこと・「移動が先にロックを取り、移動先が後から削除される」順序は分析上の結論で、
+    テストでは固定していない**（それ以外の組み合わせ、特に3者・4者以上のロックの循環は分析して
+    いない。既存の `add_photos`/`create_pin` × 地図削除の許容した循環は決定28）。
+    上記の同値 PATCH × 地図削除だけは具体的なデッドロックが見つかったので、(c) として回帰テストで
+    固定した（修正前のコードで `DeadlockDetected` になることを確認済み）。(a)(b)(c) の待機判定は
+    固定 sleep ではなく `pg_stat_activity` の `wait_event_type = 'Lock'` のポーリング。
+  - **残る限界（許容）**: 移動の commit を待っていた同じピンへの別の操作（2台目の端末からの PATCH・
+    写真の追加・削除など）は、`get_for_member_for_update()` の JOIN が再評価で外れるため、移動先の
+    メンバーであっても 404 `pin_not_found` になる。2台の端末で同じピンを同時に操作しない限り起きず、
+    mobile は 404 を「ピンが無い」として扱い、取得し直せば移動先で見える。
+- **owner が editor のピンを、その editor が参加していない地図へ移せる**（許す）。理由: (1) owner は
+  editor のピンを削除できる（決定19）ので、データを残すぶん弱い移動だけを禁じると権限の強弱が逆転する。
+  (2) 制限するなら「作成者が移動先のメンバーであること」だけでは足りず、ピンに写真・タグを付けた他の
+  メンバーも同じようにアクセスを失うため、「関わった全員が移動先のメンバー」まで要り、判定が重く
+  分かりにくい。(3) 逆向き（editor が自分のピンを共有地図から自分の地図へ移し、owner が付けた写真ごと
+  出ていく）も同じ形で起き、片方だけ禁じる理由が無い。(4) 招待（BK-7）が未実装で editor が存在せず、
+  今は実データで起きない。**副作用**: アクセスを失ったメンバーが上げた写真は、そのメンバーの容量に
+  計上され続ける（決定7）のに本人は消せない。BK-7 の「メンバーを外したとき」と同じ種類の問題なので、
+  BK-7 でまとめて決める。制限に変えるなら、`update_pin` に「作成者が移動先のメンバー」の確認を足して
+  403 にするだけで済む。
+- **デプロイ・リリース順**: マイグレーションは無い。backend を先に出す（古い backend に `sanpo_map_id`
+  を送ると `extra="forbid"` で 422）。mobile はそのあとに配布する。
+- **フラグ**: 使わない（決定10）。
+- **検討した選択肢**: 移動専用エンドポイント（`POST /pins/{id}/move`。PATCH のフィールド単位の権限
+  判定で表現でき、mobile も保存1回で送れるため不採用）／`can_update_pin`・`can_add_pin` の流用
+  （決定32 と同じ理由で不採用）／2つの role を取る `can_move_pin`（関数の形が増えるため不採用）／
+  「作成者も移動先のメンバーであること」の制限（上記の理由で不採用）／PATCH 専用の例外で 404 の
+  `code` を出す（決定12 の前例どおりハンドラで付ける方が差分が小さい）／移動元の地図行もロックする案
+  （ピン行より先に地図行を取らないとデッドロックするため、ピンを読む前に移動元を知る二段の読み取りと
+  再確認が要る。地図削除側でピン行を取る方が単純）。
+- **範囲外（既存の未対処の競合）**: `POST /pins` で指定した地図が同時に削除されると、
+  `resolve_map_for_new_pin` がロックを取らないので FK 違反で 500 になりうる。必要なら別チケットで、
+  `get_membership_for_key_share()` を流用して直せる。
+- **範囲外（メンバー行のロック）**: 移動先の判定で `FOR KEY SHARE` を取るのは地図行だけで、
+  `sanpo_map_members` の行はロックしない。そのため、移動先のメンバーが外されるのと同時に、外される
+  本人の PATCH が走ると、判定の後・commit の前の短い間にピンが移動先へ入りうる。被害はピン1件が移動先に
+  残ることに限られ、既存の `POST /pins`（`add_pin`）も同じ性質を持つ（今回の差分で悪化していない）。
+  メンバーを外す機能（BK-7）を作るときに、追加系の操作全体の横断課題としてまとめて扱う。
+
+## 追補（2026-10-10, SS-163 写真の撮影日時）
+
+ピンの写真ビューアに撮影日時を出すため、写真に撮影日時 `taken_at` を持たせる（SS-163）。
+既存テーブル2つへの列追加（マイグレーションあり）と、リクエスト・レスポンスへの任意フィールドの
+追加。フィーチャーフラグは使わない（決定10）。mobile 固有の判断（EXIF の取り出し規則・
+タイムゾーンの補い方・表示）は mobile の ADR（[ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・
+[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）に記録する。
+
+### 決定34: 写真は撮影日時 `taken_at` を持つ。端末が EXIF から読み、枠の発行で受け取る
+
+- **取得方式**: 端末が EXIF（`DateTimeOriginal` → `DateTimeDigitized`）から読んだ値の**申告**を受け取る。
+  backend は EXIF を解析しない。原本は端末で縮小・再エンコードされ EXIF が残らない（ADR-M-010 決定3）ので、
+  backend が原本から読むには、端末が EXIF を残したまま送る必要があり、GPS も S3 に載ってしまう。
+  **GPS は受け取らない**。原本・サムネイルが EXIF なしであること（決定6）と BK-10 は変えない。
+- **API**:
+  - `PinPhotoUploadCreate.taken_at`: 任意・null 可・オフセット必須（`AwareDatetime | None`。OpenAPI では
+    `anyOf: [string(date-time), null]` で required に入らない）。`PinPhotoUploadRead` は変えない。
+    撮影日時を直す API（PATCH）は作らない。`PinPhotoUploadCreate` は `extra="forbid"` にしない
+    （古い backend と新しいアプリ、新しい backend と古いアプリの両方で、未知のキーを無視するため）。
+  - `PinPhotoRead.taken_at`: 必須キー・null 可（`original_url` と同じ形）。`to_pin_photo_read()` が
+    唯一の組み立て口なので、`GET /pins/{id}`・`GET /pins`（`cover_photo`）・`GET /pins/{id}/photos`・
+    `POST /pins`・`POST /pins/{id}/photos` の全ての応答に載る。値は UTC 換算の瞬間で、送られた
+    オフセットは戻らない。秒未満は送られれば保持する。`created_at` は変えない（ピンに紐付けた時刻）。
+- **検証**: naive・日付だけ・解釈できない文字列は 422。範囲は**瞬間（UTC 換算）で**
+  `[1900-01-01T00:00:00Z, 2100-01-01T00:00:00Z)`（mobile と共有する静的な範囲。例:
+  `1900-01-01T08:59:59+09:00` は下端より前なので 422）。
+  - 範囲外を null に丸めない: mobile の不具合が見えなくなり、契約もあいまいになる。mobile は同じ範囲で
+    先に捨てるので、422 になるのは mobile の不具合のときだけ。
+  - 範囲を設ける理由は表示だけではない。`0001-01-01T00:00:00+09:00` のような値を保存すると、UTC に
+    直した時点で年が 0 になり、**読み出しで 500 になりうる**のを防ぐ。
+  - **実行時刻に依存する上限（「現在より未来は 422」）は付けない**: `WalkCreate.ended_at` にはあるが、
+    ここで 422 にすると写真のアップロード自体が失敗する。表示にしか使わない申告値で、端末の時計ずれ
+    のために写真を落とさない。
+  - オフセットの値域は検証しない（保持せず瞬間に直すだけのため）。数値（Unix 時刻）は Pydantic の
+    lax モードで受理される（`WalkCreate` と同じ扱い）。契約は文字列で、mobile は数値を送らない。
+- **DB**: `pin_photo_uploads.taken_at`・`pin_photos.taken_at` はともに `timestamptz NULL`。CHECK 制約は
+  付けない（書き込み口はこの API だけで二重の防御にしかならず、範囲を変えるたびにマイグレーションが
+  要る）。インデックスも付けない（並べ替え・絞り込みに使わない）。
+- **紐付け**: 確定処理（決定4）で枠の `taken_at` を `pin_photos.taken_at` へ写す（`PhotoUploadInput` →
+  `PreparedPhoto` で運び、`PhotoAttacher` は値を渡すだけ）。写した後は**枠の `taken_at` を NULL に戻す**。
+  `attached` の枠は写真やピンを削除しても残る（アカウント削除まで）ので、撮影日時という行動の履歴を
+  写真を消した後まで残さないため。紐付け後に枠の値を読む処理は無い（冪等な再送は `pin_photos` を見る）。
+  `lock_for_attach` で行ロックした枠から読んだ後に同じトランザクションで消すので、競合は無い。
+  冪等な再送で写真の `taken_at` は変わらない（枠の発行時にしか受け取らず、直す API も無い）。
+  紐付けずに期限切れになった `pending` の枠には、掃除（BK-3）で行ごと消えるまで残る。
+- **オフセット**: 保持しない。表示は端末のタイムゾーン（mobile の判断）。Android では EXIF の
+  `OffsetTime*` が取れず端末のオフセットで補っているので、残しても撮影地の時刻にはならない。
+  必要になったら列を足す（それ以前の写真のオフセットは戻らない）。
+- **既存データ**: 遡及しない（原本に EXIF が無く、埋める材料が無い）。既存の写真は null で、
+  mobile は `created_at`（紐付けた時刻）にフォールバックして表示する。
+- **ログ**: `taken_at` はログに出さない（枠発行の INFO ログにも足さない）。行動の履歴に当たり、
+  障害の調査に要らない。
+- **デプロイ**: 決定31 の「デプロイ」項と同じ。既存テーブルへの列追加は、デプロイから migrate までの
+  間、新しいコードが列の無い `pin_photos`・`pin_photo_uploads` を SELECT・INSERT するため、枠の発行・
+  写真付きのピン作成・写真の閲覧などが 500 になる。prod は未作成で初回デプロイのマイグレーションに
+  含まれるため起きない。dev は「デプロイ直後に migrate を invoke する」運用で数分の 500 を許容する。
+  厳密にするなら、モデルの列定義を含まずマイグレーションファイルだけを載せた ref を用意して先に dev へ
+  デプロイ・migrate してから、本体をデプロイする。**リリース順の制約は無い**
+  （古い backend は `taken_at` を無視し、応答にも無いので mobile は null として扱う。新しい backend は
+  古いアプリから `taken_at` が来なければ null で保存する）。撮影日時を記録し始めたいなら backend を先に出す。
+  ロールバックするときは、列を参照しない旧コードを先にデプロイしてから downgrade を流す。
+- **フラグ**: 使わない（決定10）。
+- **mobile への伝達事項**: `PinPhotoRead` に必須キーが増えるので、Orval の型を使う mobile の型付き
+  フィクスチャは更新が必要になる。応答の `taken_at` は UTC で返る。
+- **検討した選択肢**: backend が原本の EXIF を読む（端末が EXIF を残して送ると GPS も S3 に載るので
+  成り立たない）／`POST /pins` の `photo_upload_ids` を `{upload_id, taken_at}` のオブジェクトにする
+  （破壊的変更で、`POST /pins` と `POST /pins/{id}/photos` の両方と mobile の保存の分割処理に手が入る）／
+  元のオフセットの列（上記）／範囲外を null に丸める／未来の上限／CHECK 制約／枠に `taken_at` を
+  残したままにする（上記）。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1474,4 +1716,6 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
   SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）、
   SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
   SS-171（地図のアイコン。決定31）、
-  SS-173（ピンの訪問状況・アーカイブ状態。決定32）
+  SS-173（ピンの訪問状況・アーカイブ状態。決定32）、
+  SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
+  SS-163（写真の撮影日時。決定34。mobile: [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）

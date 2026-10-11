@@ -1,16 +1,12 @@
-"""`aws_lambda/migrate.py` の Config 組み立て・実行前ガードの回帰テスト。"""
+"""`aws_lambda/migrate.py` の Config 組み立て・実行前ガード・ログの回帰テスト。"""
 
-from collections.abc import Generator
+import logging
+from collections.abc import Callable, Generator
 
 import pytest
 
 from sanposcape.aws_lambda import migrate
 from sanposcape.config import get_settings
-
-
-class _FakeScriptDirectory:
-    def get_current_head(self) -> str:
-        return "fake-head-revision"
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +16,26 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _restore_logger_levels() -> Generator[None, None, None]:
+    """handler が `sanposcape` / `alembic` / root のレベルを書き換えるので、テストごとに戻す。"""
+    loggers = [logging.getLogger(), logging.getLogger("sanposcape"), logging.getLogger("alembic")]
+    saved = [logger.level for logger in loggers]
+    yield
+    for logger, level in zip(loggers, saved, strict=True):
+        logger.setLevel(level)
+
+
+def _fake_db_revisions(*revisions: str | None) -> Callable[[str], str | None]:
+    """`_read_db_revision` の代わり。呼ばれるたびに `revisions` を先頭から返す（適用前→適用後）。"""
+    remaining = list(revisions)
+
+    def _read(database_url: str) -> str | None:
+        return remaining.pop(0)
+
+    return _read
 
 
 def test_handler_raises_when_migrate_dsn_is_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -49,7 +65,7 @@ def test_handler_runs_alembic_upgrade_with_absolute_script_location(
 
     monkeypatch.setattr(migrate.command, "upgrade", _fake_upgrade)
     monkeypatch.setattr(
-        migrate.ScriptDirectory, "from_config", lambda config: _FakeScriptDirectory()
+        migrate, "_read_db_revision", _fake_db_revisions("old-revision", "new-revision")
     )
 
     result = migrate.handler({}, None)
@@ -60,7 +76,7 @@ def test_handler_runs_alembic_upgrade_with_absolute_script_location(
     assert config.attributes[migrate.DATABASE_URL_ATTRIBUTE] == (
         "postgresql+psycopg://user:pw@direct-host.example.com/db?sslmode=require"
     )
-    assert result == {"head": "fake-head-revision"}
+    assert result == {"before": "old-revision", "head": "new-revision"}
 
 
 def test_handler_calls_both_hydration_functions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -76,7 +92,7 @@ def test_handler_calls_both_hydration_functions(monkeypatch: pytest.MonkeyPatch)
     )
     monkeypatch.setattr(migrate.command, "upgrade", lambda config, revision: None)
     monkeypatch.setattr(
-        migrate.ScriptDirectory, "from_config", lambda config: _FakeScriptDirectory()
+        migrate, "_read_db_revision", _fake_db_revisions("old-revision", "new-revision")
     )
 
     migrate.handler({}, None)
@@ -132,12 +148,12 @@ def test_url_with_percent_encoded_password_does_not_break_configparser(
 
     monkeypatch.setattr(migrate.command, "upgrade", lambda config, revision: None)
     monkeypatch.setattr(
-        migrate.ScriptDirectory, "from_config", lambda config: _FakeScriptDirectory()
+        migrate, "_read_db_revision", _fake_db_revisions("old-revision", "new-revision")
     )
 
     result = migrate.handler({}, None)
 
-    assert result == {"head": "fake-head-revision"}
+    assert result == {"before": "old-revision", "head": "new-revision"}
 
 
 def test_handler_rejects_pooled_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -171,7 +187,106 @@ def test_handler_accepts_direct_endpoint(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(migrate.command, "upgrade", lambda config, revision: None)
     monkeypatch.setattr(
-        migrate.ScriptDirectory, "from_config", lambda config: _FakeScriptDirectory()
+        migrate, "_read_db_revision", _fake_db_revisions("old-revision", "new-revision")
     )
 
-    assert migrate.handler({}, None) == {"head": "fake-head-revision"}
+    assert migrate.handler({}, None) == {"before": "old-revision", "head": "new-revision"}
+
+
+def test_handler_returns_same_revisions_when_nothing_is_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """適用するものが無いときは `before` と `head` が同じになること。
+
+    戻り値の `head` は成果物の head ではなく DB から読んだ値。古いコードで invoke しても
+    （デプロイの完了前に invoke した等）、`before == head` で何も入らなかったと分かる。
+    """
+    monkeypatch.setenv("MIGRATE_DATABASE_DSN", "postgres://user:pw@direct-host.example.com/db")
+    get_settings.cache_clear()
+
+    monkeypatch.setattr(migrate.command, "upgrade", lambda config, revision: None)
+    monkeypatch.setattr(
+        migrate, "_read_db_revision", _fake_db_revisions("same-revision", "same-revision")
+    )
+
+    assert migrate.handler({}, None) == {"before": "same-revision", "head": "same-revision"}
+
+
+class _ListHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(logging.NOTSET)
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+def test_handler_emits_info_logs_even_when_root_is_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lambda と同じく root が WARNING のままでも、完了ログと alembic の適用ログが出ること。
+
+    Migrate の `LoggingConfig` は Text でアプリのログレベルを指定していないため、ランタイムは
+    root のレベルを設定しない。以前は `sanposcape` / `alembic` のレベルも設定していなかったので、
+    CloudWatch に `START` / `END` / `REPORT` しか残らず、何が適用されたか追えなかった。
+    """
+    monkeypatch.setenv("MIGRATE_DATABASE_DSN", "postgres://user:pw@direct-host.example.com/db")
+    get_settings.cache_clear()
+
+    def _fake_upgrade(config: migrate.Config, revision: str) -> None:
+        # alembic 本体が適用のたびに出すログ（`alembic.runtime.migration`, INFO）の代わり
+        logging.getLogger("alembic.runtime.migration").info(
+            "Running upgrade old-revision -> new-revision"
+        )
+
+    monkeypatch.setattr(migrate.command, "upgrade", _fake_upgrade)
+    monkeypatch.setattr(
+        migrate, "_read_db_revision", _fake_db_revisions("old-revision", "new-revision")
+    )
+    # Lambda のランタイムと同じ状態（root にハンドラーがあり、レベルは既定の WARNING）
+    root = logging.getLogger()
+    runtime_handler = _ListHandler()
+    root.addHandler(runtime_handler)
+    root.setLevel(logging.WARNING)
+    logging.getLogger("sanposcape").setLevel(logging.NOTSET)
+    logging.getLogger("alembic").setLevel(logging.NOTSET)
+    try:
+        migrate.handler({}, None)
+    finally:
+        root.removeHandler(runtime_handler)
+
+    messages = [record.getMessage() for record in runtime_handler.records]
+    assert "Running upgrade old-revision -> new-revision" in messages
+    assert "migration completed: before=old-revision head=new-revision" in messages
+
+
+def test_importing_the_module_switches_runtime_handlers_to_json_in_lambda(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """migrate Lambda も api.py と同じく、ランタイムのログハンドラーを JSON にする（SS-180）。"""
+    import importlib.util
+    import logging
+    import sys
+
+    from sanposcape.core.observability import JsonLogFormatter
+
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "sanposcape-dev-backend-migrate")
+    runtime_handler = logging.NullHandler()
+    runtime_handler.setFormatter(logging.Formatter("[%(levelname)s]\t%(message)s"))
+    root = logging.getLogger()
+    root.addHandler(runtime_handler)
+    # pytest が root に付けているハンドラーの書式も書き換わるので、後で戻す
+    saved = {handler: handler.formatter for handler in root.handlers}
+    spec = importlib.util.find_spec("sanposcape.aws_lambda.migrate")
+    assert spec is not None and spec.loader is not None
+    fresh = importlib.util.module_from_spec(spec)
+    alias = "sanposcape._aws_lambda_migrate_logging_probe"
+    sys.modules[alias] = fresh
+    try:
+        spec.loader.exec_module(fresh)
+        assert isinstance(runtime_handler.formatter, JsonLogFormatter)
+    finally:
+        sys.modules.pop(alias, None)
+        root.removeHandler(runtime_handler)
+        for handler, formatter in saved.items():
+            handler.setFormatter(formatter)

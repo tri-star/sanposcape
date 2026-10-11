@@ -1,5 +1,7 @@
 import uuid
+from datetime import datetime
 
+import pytest
 from fastapi.testclient import TestClient
 
 from sanposcape.conftest import TestSessionLocal
@@ -52,6 +54,80 @@ class TestCreatePinPhotoUpload:
         assert "upload_id" in body
         assert body["upload"]["url"].endswith("/dev-storage/uploads")
         assert "key" in body["upload"]["fields"]
+
+    def test_stores_taken_at_on_the_upload_row(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.post(
+            "/pin-photo-uploads",
+            headers=auth_headers,
+            json={
+                "content_type": "image/jpeg",
+                "byte_size": 1000,
+                "taken_at": "2026-07-02T09:14:05+09:00",
+            },
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        # 決定34: 応答（PinPhotoUploadRead）には taken_at を出さない。
+        assert "taken_at" not in body
+        session = TestSessionLocal()
+        try:
+            upload = session.get(PinPhotoUpload, uuid.UUID(body["upload_id"]))
+            assert upload is not None
+            assert upload.taken_at == datetime.fromisoformat("2026-07-02T09:14:05+09:00")
+        finally:
+            session.close()
+
+    def test_taken_at_is_null_when_omitted(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.post(
+            "/pin-photo-uploads",
+            headers=auth_headers,
+            json={"content_type": "image/jpeg", "byte_size": 1000},
+        )
+
+        assert response.status_code == 201
+        session = TestSessionLocal()
+        try:
+            upload = session.get(PinPhotoUpload, uuid.UUID(response.json()["upload_id"]))
+            assert upload is not None
+            assert upload.taken_at is None
+        finally:
+            session.close()
+
+    @pytest.mark.parametrize(
+        "taken_at",
+        ["2026-07-02T09:14:05", "1899-12-31T23:59:59Z", "2100-01-01T00:00:00Z"],
+    )
+    def test_rejects_naive_or_out_of_range_taken_at(
+        self,
+        fake_storage_client: tuple[TestClient, FakeObjectStorage],
+        auth_headers: dict[str, str],
+        taken_at: str,
+    ) -> None:
+        client, _storage = fake_storage_client
+        response = client.post(
+            "/pin-photo-uploads",
+            headers=auth_headers,
+            json={"content_type": "image/jpeg", "byte_size": 1000, "taken_at": taken_at},
+        )
+
+        assert response.status_code == 422
+        # 422 の後に枠（行）が作られていないこと。
+        session = TestSessionLocal()
+        try:
+            assert session.query(PinPhotoUpload).count() == 0
+        finally:
+            session.close()
 
     def test_rejects_non_jpeg_content_type(
         self,

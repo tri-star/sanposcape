@@ -111,6 +111,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   `photo.real.ts` のみ。ほかに `services/preferences/preferenceStorage.file.ts`（アプリ設定の保存。SS-86）と
   `services/location/sampleBufferStorage.file.ts`（散歩の位置サンプルのバッファ。SS-156 / ADR-M-018）が
   `expo-file-system` を使う）。
+- **（SS-163）撮影日時はピッカーの EXIF から `services/photo/photoTakenAt.ts` で取り出し、`PickedPhoto.takenAt` だけを外へ出す。**
+  EXIF のオブジェクト（GPS を含みうる）を `services/photo` の外へ出さない（`photo.real.ts` が `photoTakenAt.ts` の純粋関数で日時に変換し、その場で捨てる）・保存しない・ログに出さない。
+  詳細は ADR-M-010 の SS-163 追補（決定11〜14）。
 - 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
   `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
 - **（SS-88）`services/photo` は「直送にそのまま載せられる実体」（`PreparedPhoto.file`、
@@ -267,6 +270,8 @@ export default function SomeFeatureRoute() {
     **例外**: そのフロー自身が作った一意なデータ（実行ごとに名前を変えた地図・ピンなど）だけを消す
     破壊的操作は実行してよい。共有ユーザーの他のデータには触れず、他フローとも干渉しないため
     （先例: `.maestro/pin-edit-delete.yaml` のピンの削除。[ADR-M-017](../adr/ADR-M-017-pin-edit-and-delete.md) D9。SS-119）。
+  - 地図一覧は移動先の `mark_used()` で並びが変わるので、検索欄で1件に絞ってから `item-0` を押す（並び順に頼る `item-N` を指定しない。
+    先例: `.maestro/pin-move-sanpo-map.yaml`。SS-175）。
 
 - 単体テスト
   - 方針: `vitest.config.ts` は node 環境 + `react-native` の最小スタブ差し替えのため、

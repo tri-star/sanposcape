@@ -27,6 +27,7 @@ function photo(uploadId: string, position: number): PinPhotoRead {
     original_url: null,
     urls_expire_at: "2026-01-01T01:00:00.000Z",
     uploaded_by_user_id: USER_ID,
+    taken_at: null,
     created_at: "2026-01-01T00:00:00.000Z",
   };
 }

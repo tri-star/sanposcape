@@ -12,17 +12,22 @@ import type { PreparedPhoto } from "@/services/photo/types";
  * 例外はそのまま投げる（分類は呼び出し側が `toPhotoUploadErrorCode` で行う）。
  */
 export async function transferPinPhoto(
-  input: { localId: string; prepared: PreparedPhoto },
+  input: { localId: string; prepared: PreparedPhoto; takenAt: string | null },
   options: { signal?: AbortSignal; apiBaseUrl: string },
 ): Promise<string> {
   const ticket = await requestPinPhotoUpload(
-    { byteSize: input.prepared.byteSize, mimeType: input.prepared.mimeType },
+    {
+      byteSize: input.prepared.byteSize,
+      mimeType: input.prepared.mimeType,
+      takenAt: input.takenAt,
+    },
     { signal: options.signal },
   );
 
   // 直送の前に、backend が発行した枠の形を残す。backend 側のアクセスログ
   // （`upload_id=... key=...`）と `uploadId` で突き合わせられる。
   // ★ `fields` は**名前だけ**（値は policy・署名・一時認証情報を含む）。
+  // ★ takenAt はログに出さない（撮影日時は行動履歴に当たり、障害調査にも要らない。SS-163）。
   logDiagnostic("pin-photo.upload.start", {
     localId: input.localId,
     uploadId: ticket.uploadId,

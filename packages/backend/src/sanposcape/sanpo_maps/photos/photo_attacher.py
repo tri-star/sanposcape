@@ -11,6 +11,7 @@ import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 
 from sanposcape.integrations.aws.s3 import (
     ObjectNotFoundError,
@@ -36,6 +37,8 @@ class PhotoUploadInput:
 
     upload_id: uuid.UUID
     staging_key: str
+    # 確定処理では使わず、`PreparedPhoto` へそのまま渡す（枠 → `pin_photos` の運搬用, 決定34）。
+    taken_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,8 @@ class PreparedPhoto:
     thumbnail_byte_size: int
     thumbnail_width: int
     thumbnail_height: int
+    # 既定値を置かない: 組み立て元（`prepare()`）での渡し忘れを型で防ぐ。
+    taken_at: datetime | None
 
 
 class PhotoAttacher:
@@ -148,6 +153,7 @@ class PhotoAttacher:
                 thumbnail_byte_size=len(thumbnail.jpeg_bytes),
                 thumbnail_width=thumbnail.width,
                 thumbnail_height=thumbnail.height,
+                taken_at=item.taken_at,
             )
 
         results: dict[uuid.UUID, PreparedPhoto] = {}

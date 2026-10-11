@@ -8,6 +8,8 @@ from sanposcape.sanpo_maps.permissions import (
     can_delete_pin_photo,
     can_delete_pin_tag,
     can_delete_sanpo_map,
+    can_move_pin_from,
+    can_move_pin_to,
     can_update_pin,
     can_update_pin_archived,
     can_update_pin_visited,
@@ -89,6 +91,31 @@ class TestCanDeletePin:
     )
     def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
         assert can_delete_pin(role, is_creator=is_creator) is expected
+
+
+class TestCanMovePinFrom:
+    @pytest.mark.parametrize(
+        ("role", "is_creator", "expected"),
+        [
+            ("owner", True, True),
+            ("owner", False, True),
+            ("editor", True, True),
+            ("editor", False, False),
+            ("unknown", True, False),
+            ("unknown", False, False),
+        ],
+    )
+    def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
+        assert can_move_pin_from(role, is_creator=is_creator) is expected
+
+
+class TestCanMovePinTo:
+    @pytest.mark.parametrize(
+        ("role", "expected"),
+        [("owner", True), ("editor", True), ("unknown", False)],
+    )
+    def test_matrix(self, role: str, expected: bool) -> None:
+        assert can_move_pin_to(role) is expected
 
 
 class TestCanAddPinTag:

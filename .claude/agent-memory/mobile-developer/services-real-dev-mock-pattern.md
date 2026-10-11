@@ -1,6 +1,6 @@
 ---
 name: services-real-dev-mock-pattern
-description: sanposcape の src/services/ は real/stub の2値ではなく real/dev/mock の3モード。tokenStore.clear() 等の永続化失敗は catch で握りつぶす。
+description: sanposcape の src/services/ は real/dev/mock の3モードが基本形（必要なモードだけ持つ）。configure 系は使用時に遅延 throw、tokenStore.clear() 等の永続化失敗は catch で握りつぶす。
 metadata:
   type: reference
   scope: durable
@@ -20,9 +20,7 @@ metadata:
   バレルはモード判定の結果ネイティブ依存（例: `react-native-nitro-google-signin`）に
   到達しうるため、個別モジュール／ファクトリ関数を直接 import してフェイクを注入する。
 
-参照実装: `packages/mobile/src/services/auth/`。エージェント定義（`.claude/agents/*.md`
-`.codex/agents/*.toml`）にはまだ旧 real/stub 前提の記述が残っている箇所があるので注意
-（doc-maintainer への申し送り事項。mobile-developer 側で書き換える対象ではない）。
+参照実装: `packages/mobile/src/services/auth/`。
 
 ### 例外: 2モード（real/mock）で正当な場合もある
 

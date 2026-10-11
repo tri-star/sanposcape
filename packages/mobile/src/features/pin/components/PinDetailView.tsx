@@ -275,7 +275,9 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                     <Text style={styles.metaText}>{createdAtLabel}</Text>
                   </View>
                 ) : null}
-                <Text style={styles.metaText}>{pin.sanpoMapName}</Text>
+                <Text style={styles.metaText} testID="pin-detail-sanpo-map-name">
+                  {pin.sanpoMapName}
+                </Text>
               </View>
 
               <PinStatusBadges
@@ -326,6 +328,7 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 accessibilityLabel="ピンの位置の地図"
                 mapHidden={viewerIndex !== null}
                 markerIcon={markerIcon}
+                variant="interactive"
                 testID="pin-detail-map"
               />
 

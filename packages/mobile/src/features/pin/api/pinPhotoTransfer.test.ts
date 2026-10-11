@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/apiError";
 import { getCreatePinPhotoUploadMockHandler } from "@/api/generated/endpoints/pins/pins.msw";
-import type { PinPhotoUploadRead } from "@/api/generated/model";
+import type { PinPhotoUploadCreate, PinPhotoUploadRead } from "@/api/generated/model";
 import { transferPinPhoto } from "@/features/pin/api/pinPhotoTransfer";
 import type { PreparedPhoto } from "@/services/photo/types";
 import { server } from "@/test/setup";
@@ -35,7 +35,7 @@ describe("transferPinPhoto", () => {
     server.use(http.post(S3_URL, () => new HttpResponse(null, { status: 204 })));
 
     const uploadId = await transferPinPhoto(
-      { localId: "local-1", prepared: PREPARED },
+      { localId: "local-1", prepared: PREPARED, takenAt: null },
       { apiBaseUrl: APP_API_BASE_URL },
     );
 
@@ -54,7 +54,7 @@ describe("transferPinPhoto", () => {
 
     await expect(
       transferPinPhoto(
-        { localId: "local-1", prepared: PREPARED },
+        { localId: "local-1", prepared: PREPARED, takenAt: null },
         { apiBaseUrl: APP_API_BASE_URL },
       ),
     ).rejects.toThrow(ApiError);
@@ -66,9 +66,27 @@ describe("transferPinPhoto", () => {
 
     await expect(
       transferPinPhoto(
-        { localId: "local-1", prepared: PREPARED },
+        { localId: "local-1", prepared: PREPARED, takenAt: null },
         { apiBaseUrl: APP_API_BASE_URL },
       ),
     ).rejects.toThrow(ApiError);
+  });
+
+  it("takenAt は枠発行のボディの taken_at に載る", async () => {
+    let receivedBody: PinPhotoUploadCreate | undefined;
+    server.use(
+      getCreatePinPhotoUploadMockHandler(async (info) => {
+        receivedBody = (await info.request.json()) as PinPhotoUploadCreate;
+        return ticket(10 * 1024 * 1024);
+      }),
+    );
+    server.use(http.post(S3_URL, () => new HttpResponse(null, { status: 204 })));
+
+    await transferPinPhoto(
+      { localId: "local-1", prepared: PREPARED, takenAt: "2026-07-02T09:14:05+09:00" },
+      { apiBaseUrl: APP_API_BASE_URL },
+    );
+
+    expect(receivedBody?.taken_at).toBe("2026-07-02T09:14:05+09:00");
   });
 });

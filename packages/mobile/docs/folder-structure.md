@@ -220,7 +220,7 @@ packages/mobile/
   - **E2Eテスト(Maestro)**: 実機に近い動作を優先。**Maestroで再現可能な機能は real のまま**利用し、
     再現できない機能は `dev` または `mock` にフォールバックする。
 - 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）、
-  `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮。
+  `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮・EXIF からの撮影日時の取り出し（`photoTakenAt.ts`）。
   アップロード（presigned POST での S3 直送）はネイティブ依存でも実機依存でもないため
   `services/` には置かず `features/pin/api/` に置く。ADR-M-010）、
   `src/services/preferences`（端末ローカルのアプリ設定。モード切替なし＝real のみ。ストレージは DI で、

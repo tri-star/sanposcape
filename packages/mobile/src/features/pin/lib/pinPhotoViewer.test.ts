@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { formatDateLabel, formatTimeLabel } from "@/lib/dateLabel";
 import {
   clampViewerIndex,
   resolveViewerNav,
+  resolveViewerPhotoDate,
   viewerCounterLabel,
 } from "@/features/pin/lib/pinPhotoViewer";
 
@@ -92,4 +94,52 @@ describe("viewerCounterLabel", () => {
   it("「3 / 12」のように整形する", () => {
     expect(viewerCounterLabel(2, 12)).toBe("3 / 12");
   });
+});
+
+describe("resolveViewerPhotoDate", () => {
+  const now = new Date(2026, 9, 10, 12, 0);
+  const local = (y: number, m: number, d: number, h: number, mi: number) =>
+    new Date(y, m - 1, d, h, mi).toISOString();
+  const uploadedAt = local(2026, 7, 3, 10, 0);
+
+  it("撮影日時があれば「撮影」で出す", () => {
+    expect(resolveViewerPhotoDate({ takenAt: local(2026, 7, 2, 9, 14), uploadedAt }, now)).toEqual({
+      kind: "taken",
+      label: "撮影 7月2日(木) 09:14",
+    });
+  });
+
+  it("年が違えば年を前置する", () => {
+    expect(resolveViewerPhotoDate({ takenAt: local(2025, 7, 2, 9, 14), uploadedAt }, now)).toEqual({
+      kind: "taken",
+      label: "撮影 2025年7月2日(水) 09:14",
+    });
+  });
+
+  it("takenAt が null ならアップロード日時", () => {
+    expect(resolveViewerPhotoDate({ takenAt: null, uploadedAt }, now)).toEqual({
+      kind: "uploaded",
+      label: "アップロード 7月3日(金) 10:00",
+    });
+  });
+
+  it("takenAt が不正な文字列ならアップロード日時にフォールバックする", () => {
+    expect(resolveViewerPhotoDate({ takenAt: "not-a-date", uploadedAt }, now)?.kind).toBe(
+      "uploaded",
+    );
+  });
+
+  it("両方不正なら null", () => {
+    expect(resolveViewerPhotoDate({ takenAt: "x", uploadedAt: "y" }, now)).toBeNull();
+  });
+
+  it.each(["2026-07-02T00:14:00Z", "2026-07-02T00:14:00+00:00"])(
+    "backend の UTC 形式（%s）を端末のタイムゾーンで出す",
+    (takenAt) => {
+      const date = new Date(takenAt);
+      expect(resolveViewerPhotoDate({ takenAt, uploadedAt }, now)?.label).toBe(
+        `撮影 ${formatDateLabel(date, now)} ${formatTimeLabel(date)}`,
+      );
+    },
+  );
 });

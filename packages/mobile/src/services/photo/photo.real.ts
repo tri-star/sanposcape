@@ -4,14 +4,23 @@ import * as ImagePicker from "expo-image-picker";
 
 import { toPhotoError } from "@/services/photo/photoError";
 import { PHOTO_JPEG_QUALITY, computeResizeTarget } from "@/services/photo/photoResize";
+import { extractTakenAtFromExif, takenAtFromDateInRange } from "@/services/photo/photoTakenAt";
 import type { PhotoService, PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 
-function toPickedPhoto(asset: ImagePicker.ImagePickerAsset): PickedPhoto {
+/**
+ * ★ `asset.exif` は GPS を含みうる。ここで撮影日時の文字列に変換したら捨て、変数に持ち回さない・
+ * ログに出さない（SS-163。`PickedPhoto` には `takenAt` だけを持たせる）。
+ */
+function toPickedPhoto(
+  asset: ImagePicker.ImagePickerAsset,
+  fallbackTakenAt: string | null,
+): PickedPhoto {
   return {
     uri: asset.uri,
     width: asset.width,
     height: asset.height,
     mimeType: asset.mimeType ?? null,
+    takenAt: extractTakenAtFromExif(asset.exif) ?? fallbackTakenAt,
   };
 }
 
@@ -31,15 +40,19 @@ export function createRealPhotoService(): PhotoService {
 
           // quality: 1（無圧縮）にする理由: ピッカーと `prepareForUpload`（manipulator）の
           // 二重劣化を避け、圧縮は `prepareForUpload` の1回に寄せるため。
+          // exif: true の理由: 撮影日時を読むため。返る EXIF には GPS も含まれうるので、
+          // `toPickedPhoto` で撮影日時に変換したら捨てる。
           const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
             quality: 1,
-            exif: false,
+            exif: true,
           });
           if (result.canceled) {
             return [];
           }
-          return result.assets.map(toPickedPhoto);
+          // カメラで EXIF から取れなかったときは、ピッカーが戻った時刻を撮影日時にする（範囲外なら null）。
+          const capturedAt = takenAtFromDateInRange(new Date());
+          return result.assets.map((asset) => toPickedPhoto(asset, capturedAt));
         }
 
         // library は OS の Photo Picker（Android 13+ / iOS PHPicker）を使うため権限要求しない。
@@ -49,13 +62,15 @@ export function createRealPhotoService(): PhotoService {
           selectionLimit,
           orderedSelection: true,
           quality: 1,
-          exif: false,
+          // exif: true の理由はカメラ側のコメントと同じ（撮影日時を読むため。GPS は捨てる）。
+          exif: true,
         });
         if (result.canceled) {
           return [];
         }
         const assets = selectionLimit > 0 ? result.assets.slice(0, selectionLimit) : result.assets;
-        return assets.map(toPickedPhoto);
+        // ライブラリの写真は取れなければ null（取り込み時刻を撮影日時にすると誤りになる）。
+        return assets.map((asset) => toPickedPhoto(asset, null));
       } catch (error) {
         if (source === "camera" && isCameraUnavailableError(error)) {
           throw toPhotoError(error, "camera_unavailable");
@@ -102,7 +117,8 @@ export function createRealPhotoService(): PhotoService {
       }
       // NOTE(プライバシー): EXIF（撮影位置 GPS を含む）が再エンコードで落ちるのは意図的。
       // 招待機能で他ユーザーに原本が見えるようになるため。backend 側のサーバー除去（BK-10）は
-      // 招待機能の前提として別チケットで扱う。
+      // 招待機能の前提として別チケットで扱う。pickPhotos で exif: true にした後も、
+      // アップロードするファイルの EXIF はこの再エンコードで落ちる（SS-163）。
     },
   };
 }

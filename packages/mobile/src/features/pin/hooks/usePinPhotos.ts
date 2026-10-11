@@ -227,7 +227,11 @@ export function usePinPhotos(options: {
       const uploadId = await withTimeout(
         (signal) =>
           transferPinPhoto(
-            { localId: work.item.localId, prepared: preparedPhoto },
+            {
+              localId: work.item.localId,
+              prepared: preparedPhoto,
+              takenAt: work.item.picked.takenAt,
+            },
             { signal, apiBaseUrl: getApiBaseUrl() },
           ),
         controller,
@@ -276,7 +280,7 @@ export function usePinPhotos(options: {
     return withTimeout(
       (signal) =>
         transferPinPhoto(
-          { localId: item.localId, prepared },
+          { localId: item.localId, prepared, takenAt: item.picked.takenAt },
           { signal, apiBaseUrl: getApiBaseUrl() },
         ),
       controller,

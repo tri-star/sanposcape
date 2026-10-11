@@ -225,6 +225,11 @@ Lambda の環境変数である。操作手順は
 SS-102 の実装後は、`mobile/vX.Y.Z` の GitHub Release 用に生成した CHANGELOG を
 ストアの「新機能」欄の下書きとしても使う（ADR-008 決定4）。
 
+### 5.4 App Store の App Privacy（プライバシー栄養ラベル）
+
+入力する内容と根拠は [App Privacy の申告内容](./app-privacy-label.md) にまとめてある。
+回答は審査なしでいつでも更新できるので、データの扱いを変えたら同文書の「見直すタイミング」に従って更新する。
+
 ## 6. OTA（EAS Update）
 
 > **未実装**。SS-103（本番配信ワークフローの追加、`EXPO_TOKEN` の Environment Secret 化）の

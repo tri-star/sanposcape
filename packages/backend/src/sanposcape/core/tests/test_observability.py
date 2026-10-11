@@ -1,135 +1,122 @@
-import asyncio
-import logging
+"""`core/observability.py`（再エクスポートのファサード）のテスト。
+
+実体は `core/logs.py` / `core/access_log.py` / `core/tracing.py` にあり、それぞれのテストは
+`test_logs.py` / `test_access_log.py` / `test_tracing.py` にある。ここでは分割の契約
+（公開名の同一性・OTel を import しない・依存方向）だけを固定する。
+"""
+
+import ast
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 import pytest
 
-from sanposcape.core.observability import AccessLogMiddleware, configure_logging
+from sanposcape.core import access_log, logs, observability, tracing
+
+CORE_DIR = Path(__file__).resolve().parents[1]
+
+# 分割前の `core/observability.py` が公開していた名前（再エクスポートで維持する）。
+EXPECTED_PUBLIC_NAMES = {
+    "AccessLogMiddleware",
+    "ConsoleLogFormatter",
+    "JsonLogFormatter",
+    "LogContext",
+    "TraceLookup",
+    "UnhandledErrorAfterResponseStart",
+    "bind_user_id",
+    "blank_privacy_sensitive_attributes",
+    "configure_logging",
+    "current_span_attributes",
+    "instrument_fastapi_app",
+    "instrument_sqlalchemy_engine",
+    "log_context",
+    "record_exception_on_current_span",
+    "resolve_route_template",
+    "set_span_attributes",
+    "warn_once",
+}
 
 
-def _run_middleware(
-    path: str,
-    *,
-    method: str = "GET",
-    status: int = 200,
-    raises: bool = False,
-    exclude_paths: tuple[str, ...] = ("/health",),
+def test_public_names_are_the_expected_ones() -> None:
+    assert set(observability.__all__) == EXPECTED_PUBLIC_NAMES
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED_PUBLIC_NAMES))
+def test_each_public_name_is_the_same_object_as_its_implementation(name: str) -> None:
+    exported = getattr(observability, name)
+    owners = [m for m in (logs, access_log, tracing) if hasattr(m, name)]
+
+    assert owners, f"{name} がどのモジュールにも無い"
+    assert any(getattr(m, name) is exported for m in owners)
+
+
+@pytest.mark.parametrize("name", ["_LOG_OPTIONS", "_WARNED", "_MAX_MESSAGE_CHARS", "_log_context"])
+def test_private_names_are_not_reexported(name: str) -> None:
+    # 再エクスポートした名前への monkeypatch は実体に効かない。AttributeError で気づけるようにする。
+    assert not hasattr(observability, name)
+
+
+def test_all_logger_names_stay_the_same_as_before_the_split() -> None:
+    assert tracing.logger.name == "sanposcape.core.observability"
+    assert logs.logger.name == "sanposcape.core.observability"
+    assert access_log.logger.name == "sanposcape.core.observability"
+
+
+def test_importing_the_facade_does_not_import_opentelemetry() -> None:
+    code = (
+        "import sys\n"
+        "import sanposcape.core.observability\n"
+        "loaded = sorted(m for m in sys.modules if m.split('.')[0] == 'opentelemetry')\n"
+        "assert not loaded, loaded\n"
+    )
+    env = {"PYTHONPATH": str(CORE_DIR.parents[1])}
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env=env,
+        cwd=tempfile.gettempdir(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def _imported_modules(path: Path) -> set[str]:
+    """ファイルが import するモジュール名（`from X import Y` は `X` と `X.Y` の両方）。"""
+    modules: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            modules.add(node.module)
+            modules.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return modules
+
+
+@pytest.mark.parametrize(
+    ("module_file", "forbidden"),
+    [
+        ("tracing.py", {"logs", "access_log", "observability"}),
+        ("logs.py", {"access_log", "observability"}),
+        ("access_log.py", {"observability"}),
+    ],
+)
+def test_dependency_direction_is_access_log_to_logs_to_tracing(
+    module_file: str, forbidden: set[str]
 ) -> None:
-    async def inner_app(scope, receive, send) -> None:
-        if raises:
-            raise RuntimeError("boom")
-        await send({"type": "http.response.start", "status": status, "headers": []})
-        await send({"type": "http.response.body", "body": b"ok"})
+    imported = _imported_modules(CORE_DIR / module_file)
 
-    async def receive() -> dict:
-        return {"type": "http.request", "body": b"", "more_body": False}
-
-    async def send(message: dict) -> None:
-        return None
-
-    scope = {"type": "http", "path": path, "method": method, "headers": []}
-    asyncio.run(AccessLogMiddleware(inner_app, exclude_paths=exclude_paths)(scope, receive, send))
+    violations = {f"sanposcape.core.{name}" for name in forbidden} & imported
+    assert not violations, f"{module_file} が上位のモジュールを import している: {violations}"
 
 
-class TestAccessLogMiddleware:
-    def test_logs_one_line_with_method_path_and_status(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
-            _run_middleware("/pin-photo-uploads", method="POST", status=201)
+def test_dependency_check_detects_a_violation(tmp_path: Path) -> None:
+    # 検査自体が空振りしていないことの確認（違反を注入して検出されること）。
+    bad = tmp_path / "bad.py"
+    bad.write_text("from sanposcape.core import logs\n", encoding="utf-8")
 
-        assert len(caplog.records) == 1
-        assert "POST /pin-photo-uploads -> 201" in caplog.records[0].getMessage()
-
-    def test_logs_error_status_as_sent(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
-            _run_middleware("/pin-photo-uploads", method="POST", status=401)
-
-        assert "-> 401" in caplog.records[0].getMessage()
-
-    def test_logs_and_reraises_when_the_app_raises(self, caplog: pytest.LogCaptureFixture) -> None:
-        """応答が始まる前に落ちた場合も1行は残す（ServerErrorMiddleware が 500 にする経路）。"""
-        with (
-            caplog.at_level(logging.INFO, logger="sanposcape.core.observability"),
-            pytest.raises(RuntimeError),
-        ):
-            _run_middleware("/pins", method="POST", raises=True)
-
-        assert "POST /pins -> 500" in caplog.records[0].getMessage()
-
-    def test_excluded_path_is_not_logged(self, caplog: pytest.LogCaptureFixture) -> None:
-        """compose のヘルスチェックが5秒ごとに叩くため、既定で /health を除く。"""
-        with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
-            _run_middleware("/health")
-
-        assert caplog.records == []
-
-    def test_query_string_is_not_logged(self, caplog: pytest.LogCaptureFixture) -> None:
-        """クエリ文字列は出さない（将来トークン等が載ったときに黙って漏れる経路を作らない）。"""
-        with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
-            _run_middleware("/walks")
-
-        assert "?" not in caplog.records[0].getMessage()
-
-    def test_non_http_scope_passes_through(self) -> None:
-        received: list[str] = []
-
-        async def inner_app(scope, receive, send) -> None:
-            received.append(scope["type"])
-
-        async def noop(*args: object, **kwargs: object) -> None:
-            return None
-
-        asyncio.run(AccessLogMiddleware(inner_app)({"type": "lifespan"}, noop, noop))
-
-        assert received == ["lifespan"]
-
-
-class TestConfigureLogging:
-    def test_sets_the_level_of_the_app_logger(self) -> None:
-        app_logger = logging.getLogger("sanposcape")
-        original_level = app_logger.level
-        try:
-            configure_logging("WARNING")
-            assert app_logger.level == logging.WARNING
-            configure_logging("INFO")
-            assert app_logger.level == logging.INFO
-        finally:
-            app_logger.setLevel(original_level)
-
-    def test_adds_one_handler_when_neither_root_nor_the_app_logger_has_one(self) -> None:
-        """ローカル（uvicorn）の経路。uvicorn は自分のロガーしか設定せず root は手付かずなので、
-        ここでハンドラーを足さないと INFO が `logging.lastResort` に飲まれて消える。
-
-        pytest はセッション中 root にハンドラーを付けるため、退避しないとこの分岐に到達できない
-        （= 素朴に書くと「Lambda の分岐だけテストされ、ローカルの分岐は壊れても CI が緑」という
-        非対称な状態になる）。
-        """
-        app_logger = logging.getLogger("sanposcape")
-        root = logging.getLogger()
-        saved_root, saved_app = root.handlers, app_logger.handlers
-        original_level = app_logger.level
-        root.handlers, app_logger.handlers = [], []
-        try:
-            configure_logging("INFO")
-            assert len(app_logger.handlers) == 1
-
-            configure_logging("INFO")  # 冪等: 2回目で増えない
-            assert len(app_logger.handlers) == 1
-        finally:
-            root.handlers, app_logger.handlers = saved_root, saved_app
-            app_logger.setLevel(original_level)
-
-    def test_does_not_add_a_handler_when_root_already_has_one(self) -> None:
-        """Lambda の python ランタイムは root にハンドラーを付ける。ここで足すと二重に出る。"""
-        app_logger = logging.getLogger("sanposcape")
-        root = logging.getLogger()
-        original_level = app_logger.level
-        added = logging.NullHandler()
-        root.addHandler(added)
-        try:
-            before = list(app_logger.handlers)
-            configure_logging("INFO")
-            assert app_logger.handlers == before
-        finally:
-            root.removeHandler(added)
-            app_logger.setLevel(original_level)
+    assert "sanposcape.core.logs" in _imported_modules(bad)

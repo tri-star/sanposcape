@@ -42,6 +42,7 @@ function build(
     canEditFields?: boolean;
     canEditVisited?: boolean;
     canArchive?: boolean;
+    canChangeSanpoMap?: boolean;
     canRemoveTag?: (tag: PinTagView) => boolean;
   } = {},
 ) {
@@ -53,6 +54,7 @@ function build(
       canEditFields: options.canEditFields ?? true,
       canEditVisited: options.canEditVisited ?? true,
       canArchive: options.canArchive ?? true,
+      canChangeSanpoMap: options.canChangeSanpoMap ?? true,
     },
     canRemoveTag: options.canRemoveTag ?? (() => true),
   });
@@ -68,6 +70,7 @@ describe("createPinEditBaseline / initialPinEditDraft", () => {
       memo: "旧メモ",
       visited: false,
       archived: false,
+      sanpoMapId: "map-1",
       tags: ["Cafe", "桜"],
       photoIdsToDelete: [],
     });
@@ -151,6 +154,40 @@ describe("buildPinUpdateRequest", () => {
     expect(build({ visited: true, archived: true }, { canEditVisited: false })).toEqual({
       archived: true,
     });
+  });
+
+  it("地図だけ変えると sanpo_map_id だけが入る（SS-175）", () => {
+    expect(build({ sanpoMapId: "map-2" })).toEqual({ sanpo_map_id: "map-2" });
+  });
+
+  it("同じ地図に戻すと差分なし・未保存なし", () => {
+    expect(build({ sanpoMapId: "map-1" })).toEqual({});
+    const moved = { ...initialPinEditDraft(BASELINE), sanpoMapId: "map-2" };
+    expect(hasUnsavedPinEdit({ baseline: BASELINE, draft: moved, newPhotoCount: 0 })).toBe(true);
+    expect(
+      hasUnsavedPinEdit({
+        baseline: BASELINE,
+        draft: { ...moved, sanpoMapId: "map-1" },
+        newPhotoCount: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("canChangeSanpoMap が false なら sanpo_map_id は含めない", () => {
+    expect(build({ sanpoMapId: "map-2", name: "N" }, { canChangeSanpoMap: false })).toEqual({
+      name: "N",
+    });
+  });
+
+  it("名前と地図を同時に変えると両方入る", () => {
+    expect(build({ name: "N", sanpoMapId: "map-2" })).toEqual({
+      name: "N",
+      sanpo_map_id: "map-2",
+    });
+  });
+
+  it("基準値の地図の名前は詳細から写る", () => {
+    expect(BASELINE).toMatchObject({ sanpoMapId: "map-1", sanpoMapName: "地図" });
   });
 
   it("既存タグを削除すると remove_tag_ids", () => {

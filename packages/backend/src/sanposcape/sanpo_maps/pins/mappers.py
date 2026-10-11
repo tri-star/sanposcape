@@ -82,6 +82,7 @@ def to_pin_photo_read(
         original_url=original_url,
         urls_expire_at=now + timedelta(seconds=download_url_ttl_seconds),
         uploaded_by_user_id=photo.uploaded_by_user_id,
+        taken_at=photo.taken_at,
         created_at=photo.created_at,
     )
 

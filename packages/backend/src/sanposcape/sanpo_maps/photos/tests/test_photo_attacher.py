@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 
@@ -64,6 +65,29 @@ class TestPrepare:
             assert item.thumbnail_key == thumbnail_key(
                 user_id=USER_ID, upload_id=item.upload_id, size=50
             )
+
+    def test_passes_taken_at_through_in_input_order(self) -> None:
+        storage = FakeObjectStorage(secret="s" * 32)
+        upload_ids = [uuid.uuid4() for _ in range(3)]
+        for upload_id in upload_ids:
+            seed(storage, upload_id)
+        attacher = make_attacher(storage)
+        taken = [datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC), None, datetime(2025, 1, 1, tzinfo=UTC)]
+        inputs = [
+            PhotoUploadInput(
+                upload_id=upload_id,
+                staging_key=staging_key(user_id=USER_ID, upload_id=upload_id),
+                taken_at=value,
+            )
+            for upload_id, value in zip(upload_ids, taken, strict=True)
+        ]
+
+        prepared = attacher.prepare(
+            inputs, user_id=USER_ID, deadline_at=attacher.compute_deadline(20)
+        )
+
+        assert [item.upload_id for item in prepared] == upload_ids
+        assert [item.taken_at for item in prepared] == taken
 
     def test_missing_object_raises_invalid_photo_error_and_writes_nothing(self) -> None:
         storage = FakeObjectStorage(secret="s" * 32)

@@ -30,18 +30,20 @@ export function toPinPhotoUploadTicket(read: PinPhotoUploadRead): PinPhotoUpload
 
 /**
  * `POST /pin-photo-uploads`。写真のアップロード枠（presigned POST）を発行する。
- * リクエストは `content_type` と `byte_size` のみ（幅・高さはサーバーがデコードして得る）。
+ * リクエストは `content_type` と `byte_size` + `taken_at`（撮影日時。SS-163）。
+ * 幅・高さはサーバーがデコードして得る。`taken_at` は `photoTakenAt.ts` が作った文字列か null だけを
+ * 渡す（数値や Date は渡さない。backend は lax モードで数値も受理してしまうため）。
  *
  * transport 層では再送しない（POST は `transientRetry` 対象外）。失敗時の再試行は
  * `usePinPhotos` / `runPinSave` が新しい枠を取り直して行う（古い枠は backend の期限切れ・
  * S3 staging のライフサイクルで消える）。
  */
 export async function requestPinPhotoUpload(
-  photo: Pick<PreparedPhoto, "byteSize" | "mimeType">,
+  photo: Pick<PreparedPhoto, "byteSize" | "mimeType"> & { takenAt: string | null },
   options?: { signal?: AbortSignal },
 ): Promise<PinPhotoUploadTicket> {
   const response = await createPinPhotoUploadRequest(
-    { content_type: photo.mimeType, byte_size: photo.byteSize },
+    { content_type: photo.mimeType, byte_size: photo.byteSize, taken_at: photo.takenAt },
     { signal: options?.signal },
   );
   if (response.status === 201) {

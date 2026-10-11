@@ -26,7 +26,13 @@ function makeItem(
   return {
     localId,
     previewUri: `mock://${localId}.jpg`,
-    picked: { uri: `mock://${localId}.jpg`, width: 2048, height: 1536, mimeType: "image/jpeg" },
+    picked: {
+      uri: `mock://${localId}.jpg`,
+      width: 2048,
+      height: 1536,
+      mimeType: "image/jpeg",
+      takenAt: null,
+    },
     prepared:
       status === "processing"
         ? null

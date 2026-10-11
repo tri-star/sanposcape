@@ -18,6 +18,7 @@ const ALL_CODES: PinEditErrorCode[] = [
   "unauthorized",
   "forbidden",
   "pin_not_found",
+  "sanpo_map_not_found",
   "tag_limit_exceeded",
   "photo_not_ready",
   "quota_exceeded",
@@ -82,6 +83,16 @@ describe("toPinEditErrorCode（update / delete_photos 段）", () => {
     );
     expect(toPinEditErrorCode(new ApiError(404))).toBe("pin_not_found");
   });
+
+  it("update 段の 404 は code で区別する（sanpo_map_not_found 以外はピンが無い）", () => {
+    expect(toPinEditErrorCode(new ApiError(404, "x", { code: "sanpo_map_not_found" }))).toBe(
+      "sanpo_map_not_found",
+    );
+    expect(toPinEditErrorCode(new ApiError(404, "x", { code: "pin_not_found" }))).toBe(
+      "pin_not_found",
+    );
+    expect(toPinEditErrorCode(new PinEditError("update", new ApiError(404)))).toBe("pin_not_found");
+  });
 });
 
 describe("toPinEditErrorCode（add_photos 段）", () => {
@@ -103,6 +114,10 @@ describe("toPinEditErrorCode（add_photos 段）", () => {
 
   it("sanpo_map_not_found（404）は pin_not_found に写す", () => {
     expect(classify(wrap(new ApiError(404)))).toBe("pin_not_found");
+  });
+
+  it("404 に code が付いていても従来どおり pin_not_found", () => {
+    expect(classify(wrap(new ApiError(404, "x", { code: "pin_not_found" })))).toBe("pin_not_found");
   });
 
   it("PhotoSlotsBusyError は photo_slots_busy", () => {
@@ -127,6 +142,17 @@ describe("pinEditErrorMessage", () => {
 
   it("tag_limit_exceeded はタグを減らすよう案内する", () => {
     expect(pinEditErrorMessage("tag_limit_exceeded", "update")).toContain("タグを減らして");
+  });
+});
+
+describe("sanpo_map_not_found（SS-175）", () => {
+  it("update 段は地図の選び直しを案内する", () => {
+    expect(pinEditErrorMessage("sanpo_map_not_found", "update")).toContain("地図を選び直して");
+  });
+
+  it("自動・手動のどちらの再試行にも入れない", () => {
+    expect(isRetriablePinEditError("sanpo_map_not_found")).toBe(false);
+    expect(canManuallyRetryPinEdit("sanpo_map_not_found")).toBe(false);
   });
 });
 

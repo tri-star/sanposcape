@@ -124,6 +124,17 @@ export type PinPhoto = {
   height: number;
   /** アップロードしたユーザー。写真の削除権限の判定に使う（SS-119）。 */
   uploadedByUserId: string;
+  /**
+   * 撮影日時（`PinPhotoRead.taken_at`。UTC 換算の ISO 文字列。送ったときのオフセットは backend が保持しない）。
+   * 端末が EXIF から読んで送ったもの。取れなかった写真・SS-163 以前の写真は null
+   * （表示は uploadedAt にフォールバック。`resolveViewerPhotoDate`）。表示は端末のタイムゾーン。
+   */
+  takenAt: string | null;
+  /**
+   * ピンに紐付いた日時（`PinPhotoRead.created_at`。ISO 文字列）。確定処理の開始時刻なので、
+   * 同じ保存で紐付けた写真は同じ値になる。
+   */
+  uploadedAt: string;
 };
 
 /** タグ1件。`createdByUserId` はタグの削除権限の判定に使う（SS-119）。 */

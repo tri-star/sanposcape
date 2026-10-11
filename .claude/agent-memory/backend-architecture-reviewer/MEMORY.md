@@ -10,4 +10,5 @@
 - [SQLAlchemy identity mapは偽N+1](feedback_sqlalchemy_identity_map_not_n_plus_1.md) — select()直後のdb.get()は追加クエリなしのことが多い。安易にN+1指摘しない
 - [ピン閲覧APIで確立した観点](project_ss111_pin_read_api.md) — 正本はADR-009決定14〜18。JOINでの認可・バッチ取得・閲覧はcommitしない
 - [テスト用DB分離(ADR-B-001)](project_ss141_test_db_reset_review.md) — 正本はADR-B-001。session→functionのfixture順序と「テスト前に空にする」を壊さない
+- [SS-180 ログ構造化レビュー](project_ss180_structured_logging_review.md) — 正本はADR-013追補。例外を握るAccessLog・可変LogContextは妥当と確認済み、持ち越し論点あり
 - [sanpo_mapsモジュール構成のレビュー観点](project_ss137_sanpo_maps_module_review.md) — 正本はADR-011。Callable注入の事実上のport・M6はASTで見えない。決定28のデッドロックは受容済み

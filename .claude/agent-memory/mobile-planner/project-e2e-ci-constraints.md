@@ -41,6 +41,9 @@ metadata:
   mock の現在地（= 現在地起点の地図の中心）に溜まり、`MapPin` は座標の上側に描かれる。登録済みピンを描く地図で
   地図そのものを押したいときは中心より下の `point` を使う（SS-146 の計画で判断）。
 
+- **操作できる地図がある画面で `scrollUntilVisible` を使わない**。スワイプは画面の中央から始まるので、地図に当たると地図が動き、
+  画面はスクロールしない。地図より上の要素だけを見るか、スクロール前に見える位置で assert する（SS-149 の計画。ピン詳細は CI の Pixel 6 = 411×915dp）。
+
 ## 既存 testID（**リネーム禁止**。現行フローが依存）
 
 `splash-screen` / `sign-in-google-button` / `walk-start-screen` / `walk-start-duration-slider` / `walk-start-begin` /

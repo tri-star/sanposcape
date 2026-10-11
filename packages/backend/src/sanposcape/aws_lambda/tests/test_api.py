@@ -12,6 +12,7 @@ import pytest
 import sanposcape
 import sanposcape.aws_lambda
 import sanposcape.aws_lambda.asgi_handler as asgi_handler_module
+import sanposcape.aws_lambda.runtime_logging as runtime_logging_module
 import sanposcape.config as config_module
 import sanposcape.core.runtime_config as runtime_config_module
 
@@ -52,6 +53,12 @@ def test_hydration_runs_before_main_app_is_created(monkeypatch: pytest.MonkeyPat
         call_order.append("main_create_app_get_settings")
         return original_get_settings()
 
+    def _spy_use_json_format() -> None:
+        call_order.append("use_json_format_for_runtime_handlers")
+
+    monkeypatch.setattr(
+        runtime_logging_module, "use_json_format_for_runtime_handlers", _spy_use_json_format
+    )
     monkeypatch.setattr(runtime_config_module, "hydrate_environment_from_secret", _spy_hydrate)
     monkeypatch.setattr(config_module, "get_settings", _spy_get_settings)
 
@@ -78,11 +85,47 @@ def test_hydration_runs_before_main_app_is_created(monkeypatch: pytest.MonkeyPat
     _fresh_exec_module("sanposcape.aws_lambda.api", "sanposcape._aws_lambda_api_order_probe")
 
     # lifespan の起動（build_handler）は app の生成（create_app の get_settings）より後。
+    # ログの JSON 化は、ハイドレーションや Settings の検証の失敗も JSON で出すため最初。
     assert call_order == [
+        "use_json_format_for_runtime_handlers",
         "hydrate_environment_from_secret",
         "main_create_app_get_settings",
         "build_handler",
     ]
+
+
+def test_settings_validation_failure_is_reraised_without_the_input_values(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Settings の検証エラーの文字列には入力値（秘密値）が含まれうる。ランタイムが
+    `errorMessage` や `__context__` から出力しないよう、入力値を持たない例外に置き換える。"""
+    from pydantic import BaseModel, ValidationError
+
+    class _Model(BaseModel):
+        number: int
+
+    try:
+        _Model(number="super-secret-input")  # type: ignore[arg-type]
+    except ValidationError as caught:
+        validation_error = caught
+
+    monkeypatch.delenv("APP_SECRET_ARN", raising=False)
+
+    def _failing_get_settings() -> config_module.Settings:
+        raise validation_error
+
+    monkeypatch.setattr(config_module, "get_settings", _failing_get_settings)
+    monkeypatch.setattr(sanposcape, "main", sanposcape.main)
+    monkeypatch.delitem(sys.modules, "sanposcape.main")
+
+    with pytest.raises(RuntimeError) as raised:
+        _fresh_exec_module("sanposcape.aws_lambda.api", "sanposcape._aws_lambda_api_failure_probe")
+
+    assert str(raised.value) == "Settings validation failed"
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+    assert "super-secret-input" not in caplog.text
+    assert any("Settings validation failed at startup" in r.getMessage() for r in caplog.records)
 
 
 def test_handler_returns_200_for_health_check(

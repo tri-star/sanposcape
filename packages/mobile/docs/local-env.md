@@ -185,7 +185,7 @@ pnpm --filter mobile orval          # API クライアント再生成
   `runFlow: subflows/launch-clean.yaml`（サインインまで進めるなら `subflows/sign-in.yaml`）を使う。
   clearState 直後の起動は、Android が前面にいたタスクを破棄するタイムアウトで kill されることがあるため
   （SS-152。詳細はサブフローのコメント）。
-- 画面の下の方にある要素は `assertVisible` の前に `scrollUntilVisible` で送る。CI のエミュレータ
+- 画面の下の方にある要素は `assertVisible` の前に `scrollUntilVisible` で送る（例外: 操作できる地図がある画面＝ピン詳細では使わない。画面中央からのスワイプが地図に当たり、地図が動いて画面がスクロールしない。ADR-M-012 SS-149 追補）。CI のエミュレータ
   （pixel_6 相当）でも初期表示に収まらない画面が多い（アカウントタブの「最近の散歩」、画面カタログの後半など。SS-152）。
 - `inputText` の直後に `hideKeyboard` を置くなら、入力は ASCII にする。日本語などの非 ASCII は Maestro が
   一時的に自前の IME へ切り替えて入力し、元のキーボードに戻ったときに再表示されないことがある。Android の
@@ -205,7 +205,7 @@ pnpm --filter mobile orval          # API クライアント再生成
     `pin-map.yaml`（ピンタブの地図表示・登録済みピン取得が落ち着くこと・「地図一覧」の往復。マーカーのタップ→詳細遷移は含まない。
     SS-118 / SS-146）/ `sanpo-map-list.yaml`（地図一覧の表示・地図の作成・地図名の検索・地図詳細・
     ピン名の検索・ピン詳細への遷移・地図のアイコンの選択と変更。実行ごとに一意な名前の地図とピンを作る。SS-121 / SS-171）/
-    `pin-edit-delete.yaml`（ピンの名前・メモ・タグの編集と保存、訪問状況・アーカイブの変更と詳細のバッジ・地図詳細の一覧に残ることの確認、ピンの削除。写真は対象外。フローが作った一意な地図とピンだけを消す。SS-119 / SS-173））。`auth-gate.yaml`（`smoke`）はゲストのピンタブ・アカウントタブにサインイン案内が出ることも見る（SS-148）。
+    `pin-edit-delete.yaml`（ピンの名前・メモ・タグの編集と保存、訪問状況・アーカイブの変更と詳細のバッジ・地図詳細の一覧に残ることの確認、詳細の地図の「ピンの位置に戻す」の表示・タップ（パン・ピンチは対象外）、ピンの削除。写真は対象外。フローが作った一意な地図とピンだけを消す。SS-119 / SS-173 / SS-149）、`pin-move-sanpo-map.yaml`（ピンの地図の変更。地図 A・B を作って A のピンを B へ移し、詳細の地図名と両方の地図詳細の一覧を確認し、ピンを削除する。SS-175））。`auth-gate.yaml`（`smoke`）はゲストのピンタブ・アカウントタブにサインイン案内が出ることも見る（SS-148）。
   - `maps-required`: `/explore/places` が候補を返す環境（backend の `MAPS_MODE=fake`、
     または実の `GOOGLE_MAPS_SERVER_API_KEY` 設定）が前提のフロー。無い環境では
     `--exclude-tags` で除外する。`MAPS_MODE=fake` は SS-44 で実装済みなので、

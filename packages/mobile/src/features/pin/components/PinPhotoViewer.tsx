@@ -4,7 +4,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { PinPhotoImage } from "@/features/pin/components/PinPhotoImage";
 import { PinPhotoZoomView } from "@/features/pin/components/PinPhotoZoomView";
-import { resolveViewerNav, viewerCounterLabel } from "@/features/pin/lib/pinPhotoViewer";
+import {
+  resolveViewerNav,
+  resolveViewerPhotoDate,
+  viewerCounterLabel,
+} from "@/features/pin/lib/pinPhotoViewer";
 import type { PinPhoto } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -28,7 +32,7 @@ export type PinPhotoViewerProps = {
  * `Modal` は Android のハードウェアバックを `onRequestClose` で先取りし、`useScreenBack` の
  * `onIntercept` が届かなくなる）。前後の移動はボタンのみ（スワイプは入れない）。原本はピンチで
  * 1〜4倍に拡大でき、拡大中はドラッグで動かせる（`PinPhotoZoomView`。SS-153）。前後に移動すると
- * 倍率は1に戻る。
+ * 倍率は1に戻る。上部にカウンタと撮影日時（無ければアップロード日時。SS-163）を出す。
  */
 export function PinPhotoViewer({
   photos,
@@ -46,6 +50,7 @@ export function PinPhotoViewer({
   const insets = useSafeAreaInsets();
 
   const photo = photos[index];
+  const photoDate = photo ? resolveViewerPhotoDate(photo) : null;
   const nav = resolveViewerNav({
     index,
     loadedCount: photos.length,
@@ -71,12 +76,23 @@ export function PinPhotoViewer({
       style={[StyleSheet.absoluteFill, styles.root, { backgroundColor: theme.palette.ink900 }]}
     >
       <View style={[styles.topBar, { paddingTop: insets.top + theme.spacing[2] }]}>
-        <Text
-          style={[styles.counter, { color: theme.colors.onColor }]}
-          testID="pin-photo-viewer-counter"
-        >
-          {viewerCounterLabel(index, photoCount)}
-        </Text>
+        <View style={styles.topInfo}>
+          <Text
+            style={[styles.counter, { color: theme.colors.onColor }]}
+            testID="pin-photo-viewer-counter"
+          >
+            {viewerCounterLabel(index, photoCount)}
+          </Text>
+          {photoDate !== null ? (
+            <Text
+              style={[styles.date, { color: theme.colors.onColor }]}
+              numberOfLines={1}
+              testID="pin-photo-viewer-date"
+            >
+              {photoDate.label}
+            </Text>
+          ) : null}
+        </View>
         <IconButton
           icon="x"
           label="閉じる"
@@ -161,6 +177,15 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: theme.layout.pageGutter,
+  },
+  topInfo: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: theme.spacing[3],
+    gap: theme.spacing[1],
+  },
+  date: {
+    fontSize: theme.typography.size.xs,
   },
   counter: {
     fontSize: theme.typography.size.sm,

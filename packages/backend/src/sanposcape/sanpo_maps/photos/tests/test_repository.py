@@ -85,6 +85,7 @@ class TestPinPhotoUploadRepository:
                 thumbnail_byte_size=1,
                 thumbnail_width=5,
                 thumbnail_height=5,
+                taken_at=None,
             )
         ]
         PinRepository(db_session).add_photos(
@@ -130,6 +131,37 @@ class TestPinPhotoUploadRepository:
         assert refreshed.status == "attached"
         assert refreshed.attached_at is not None
 
+    def test_create_stores_taken_at(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        taken_at = datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC)
+
+        upload = PinPhotoUploadRepository(db_session).create(
+            upload_id=uuid.uuid4(),
+            user_id=user.id,
+            s3_key="staging/k",
+            content_type="image/jpeg",
+            declared_byte_size=10,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+            taken_at=taken_at,
+        )
+
+        assert upload.taken_at == taken_at
+
+    def test_mark_attached_clears_taken_at_only_for_targets(self, db_session: Session) -> None:
+        user = make_user(db_session, subject="u1")
+        taken_at = datetime(2026, 7, 2, 0, 14, 5, tzinfo=UTC)
+        target = create_upload_row(db_session, user_id=user.id, taken_at=taken_at)
+        other = create_upload_row(db_session, user_id=user.id, taken_at=taken_at)
+
+        PinPhotoUploadRepository(db_session).mark_attached(
+            upload_ids=[target.id], attached_at=datetime.now(UTC)
+        )
+        db_session.commit()
+
+        db_session.expire_all()
+        assert db_session.get(PinPhotoUpload, target.id).taken_at is None  # type: ignore[union-attr]
+        assert db_session.get(PinPhotoUpload, other.id).taken_at == taken_at  # type: ignore[union-attr]
+
     def test_find_attachments_returns_pin_and_client_pin_id(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
         sanpo_map_id = make_sanpo_map(db_session, owner_user_id=user.id)
@@ -160,6 +192,7 @@ class TestPinPhotoUploadRepository:
                 thumbnail_byte_size=1,
                 thumbnail_width=5,
                 thumbnail_height=5,
+                taken_at=None,
             )
         ]
         PinRepository(db_session).add_photos(
@@ -222,6 +255,7 @@ class TestPinPhotoUploadRepository:
                 thumbnail_byte_size=1,
                 thumbnail_width=5,
                 thumbnail_height=5,
+                taken_at=None,
             )
         ]
         PinRepository(db_session).add_photos(

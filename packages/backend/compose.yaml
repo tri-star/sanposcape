@@ -24,6 +24,8 @@ services:
       FEATURE_FLAG_MODE: ${FEATURE_FLAG_MODE:-real}
       FEATURE_FLAG_STUB_DOCUMENT: ${FEATURE_FLAG_STUB_DOCUMENT:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # ログの形式: console（ローカルで読みやすい 1 行表記。local / test 専用）| json（Lambda と同じ形）
+      LOG_FORMAT: ${LOG_FORMAT:-console}
       STORAGE_MODE: ${STORAGE_MODE:-real}
       DEV_STORAGE_DIR: ${DEV_STORAGE_DIR:-storages/dev-storage}
       # STORAGE_MODE=real でローカルから実 S3 に繋いで確認するときだけ使う

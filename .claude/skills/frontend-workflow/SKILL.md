@@ -26,7 +26,7 @@ argument-hint: "[plane-issue-id] [今回の作業範囲: plan|implementation|pla
 
 - 1. `plane-project-manager` エージェントを利用し、 plane-issue-id からタスクの内容を取得します。
 - 2. 今回の作業範囲が"plan"の場合は、次の作業を行います。
-  - 2-1. `frontend-plan` エージェントを起動させ、プランを作成します。プランの作成結果は、 `<task-root>/frontend-plan.md` に保存されています。
+  - 2-1. `frontend-planner` エージェントを起動させ、プランを作成します。プランの作成結果は、 `<task-root>/frontend-plan.md` に保存されています。
   - 2-2. 作成したプランの概要をユーザーに提示します。
   - 2-3. 作業範囲が"plan"のみの場合はここでワークフローを終了します。それ以外の場合(後続で実装まで行う場合)は、ユーザーの承認を待たずに推奨プランのまま次の作業に自動的に進みます。
 - 3. 今回の作業範囲が"implementation"の場合は、次の作業を行います。
@@ -34,9 +34,9 @@ argument-hint: "[plane-issue-id] [今回の作業範囲: plan|implementation|pla
   - 3-1. `<task-root>/frontend-plan.md` の内容を元に、 `frontend-developer` エージェントを起動させ、実装タスクを実行します。
   - 3-2. `frontend-developer` が正常にタスクを完了できなかった場合、起きている問題をユーザーに伝えます。
   - 3-3. `doc-maintainer` エージェントを起動させ、既存ドキュメントとの乖離を確認します。
-  - 3-4. `frontend-developer` がタスクを正常に完了した場合、以下のエージェントを並列で起動しレビューを行い、レビュー結果を `<task-root>/frontend-local-review.md` に保存、ユーザーに対し対応の要否を求めます。
+  - 3-4. `frontend-developer` がタスクを正常に完了した場合、以下のエージェントを並列で起動しレビューを行い、レビュー結果を `<task-root>/frontend-local-review.md` に保存します。ユーザーの承認は待たず、指摘ごとに対応の要否を推奨案で判断し、判断内容と理由を `<task-root>/handover-notes.md` に記録します。
     - `frontend-security-reviewer`
     - `frontend-architecture-reviewer`
     - `frontend-code-quality-reviewer`
-  - 3-5. 修正を行う場合、 `<task-root>/frontend-local-review.md` とユーザーの指示に従って `frontend-developer` エージェントを起動させ修正を行います。エージェントが正常に完了した場合、ワークフローは終了です。
+  - 3-5. 対応すると判断した指摘がある場合、 `<task-root>/frontend-local-review.md` と 3-4 の判断に従って `frontend-developer` エージェントを起動させ修正を行います。エージェントが正常に完了した場合、ワークフローは終了です。
 - 4. 今回の作業範囲が"plan+implementation"の場合は、上記 2と3を順番に実行します。この場合、2-3のプラン提示後もユーザーの承認を待たず、自動的に3の実装作業に進みます。

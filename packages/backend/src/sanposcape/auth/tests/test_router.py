@@ -1,4 +1,6 @@
+import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest import mock
 
 from fastapi.testclient import TestClient
@@ -253,3 +255,116 @@ class TestMeEndpoint:
         )
 
         assert res.status_code == 200
+
+
+def _access_log(json_logs: list[dict[str, Any]], route: str) -> dict[str, Any]:
+    (access,) = [
+        r for r in json_logs if r.get("log_type") == "access" and r.get("http_route") == route
+    ]
+    return access
+
+
+class TestUserIdInLogs:
+    """ログイン・refresh・logout の経路は `get_current_user` を通らないが、
+    ユーザーが確定した時点でログに内部 UUID を付ける（SS-181）。"""
+
+    def test_session_access_log_has_the_created_users_id(
+        self, auth_client: TestClient, make_google_id_token, json_logs: list[dict[str, Any]]
+    ) -> None:
+        body = _create_session(auth_client, make_google_id_token)
+
+        assert _access_log(json_logs, "/auth/session")["user_id"] == body["user"]["id"]
+
+    def test_invalid_id_token_has_no_user_id(
+        self, auth_client: TestClient, json_logs: list[dict[str, Any]]
+    ) -> None:
+        res = auth_client.post("/auth/session", json={"provider": "google", "id_token": "bad"})
+
+        assert res.status_code == 401
+        assert "user_id" not in _access_log(json_logs, "/auth/session")
+
+    def test_refresh_access_log_has_the_token_owners_id(
+        self, auth_client: TestClient, make_google_id_token, json_logs: list[dict[str, Any]]
+    ) -> None:
+        session = _create_session(auth_client, make_google_id_token)
+        json_logs.clear()
+
+        res = auth_client.post("/auth/refresh", json={"refresh_token": session["refresh_token"]})
+
+        assert res.status_code == 200
+        assert _access_log(json_logs, "/auth/refresh")["user_id"] == session["user"]["id"]
+
+    def test_reuse_detection_logs_carry_the_token_owners_id(
+        self, auth_client: TestClient, make_google_id_token, json_logs: list[dict[str, Any]]
+    ) -> None:
+        session = _create_session(auth_client, make_google_id_token)
+        auth_client.post("/auth/refresh", json={"refresh_token": session["refresh_token"]})
+        json_logs.clear()
+
+        res = auth_client.post("/auth/refresh", json={"refresh_token": session["refresh_token"]})
+
+        assert res.status_code == 401
+        user_id = session["user"]["id"]
+        assert _access_log(json_logs, "/auth/refresh")["user_id"] == user_id
+        (warning,) = [r for r in json_logs if "reuse detected" in r["message"]]
+        assert warning["level"] == "WARNING"
+        assert warning["user_id"] == user_id
+
+    def test_expired_refresh_token_access_log_has_the_token_owners_id(
+        self,
+        auth_client: TestClient,
+        make_google_id_token,
+        db_session: Session,
+        json_logs: list[dict[str, Any]],
+    ) -> None:
+        session = _create_session(auth_client, make_google_id_token)
+        row = db_session.scalars(select(RefreshToken)).first()
+        assert row is not None
+        row.expires_at = datetime.now(UTC) - timedelta(days=1)
+        db_session.commit()
+        json_logs.clear()
+
+        res = auth_client.post("/auth/refresh", json={"refresh_token": session["refresh_token"]})
+
+        assert res.status_code == 401
+        assert _access_log(json_logs, "/auth/refresh")["user_id"] == session["user"]["id"]
+
+    def test_unknown_refresh_token_has_no_user_id(
+        self, auth_client: TestClient, json_logs: list[dict[str, Any]]
+    ) -> None:
+        res = auth_client.post("/auth/refresh", json={"refresh_token": "unknown-token"})
+
+        assert res.status_code == 401
+        assert "user_id" not in _access_log(json_logs, "/auth/refresh")
+
+    def test_logout_access_log_has_the_token_owners_id(
+        self, auth_client: TestClient, make_google_id_token, json_logs: list[dict[str, Any]]
+    ) -> None:
+        session = _create_session(auth_client, make_google_id_token)
+        json_logs.clear()
+
+        res = auth_client.post("/auth/logout", json={"refresh_token": session["refresh_token"]})
+
+        assert res.status_code == 204
+        assert _access_log(json_logs, "/auth/logout")["user_id"] == session["user"]["id"]
+
+    def test_logout_with_an_unknown_token_has_no_user_id(
+        self, auth_client: TestClient, json_logs: list[dict[str, Any]]
+    ) -> None:
+        res = auth_client.post("/auth/logout", json={"refresh_token": "unknown-token"})
+
+        assert res.status_code == 204
+        assert "user_id" not in _access_log(json_logs, "/auth/logout")
+
+    def test_no_log_line_carries_the_email_or_display_name(
+        self, auth_client: TestClient, make_google_id_token, json_logs: list[dict[str, Any]]
+    ) -> None:
+        session = _create_session(auth_client, make_google_id_token)
+        auth_client.post("/auth/refresh", json={"refresh_token": session["refresh_token"]})
+        auth_client.post("/auth/refresh", json={"refresh_token": session["refresh_token"]})
+        auth_client.post("/auth/logout", json={"refresh_token": session["refresh_token"]})
+
+        dumped = json.dumps(json_logs, ensure_ascii=False)
+        assert json_logs
+        assert session["user"]["email"] not in dumped
+        assert session["user"]["display_name"] not in dumped

@@ -577,7 +577,10 @@ class TestListSanpoMapTags:
         response = sanpo_maps_client.get(f"/sanpo-maps/{map_id}/tags", headers=auth_headers)
 
         assert response.status_code == 404
-        assert response.json() == {"detail": "Sanpo map not found"}
+        assert response.json() == {
+            "detail": "Sanpo map not found",
+            "code": "sanpo_map_not_found",
+        }
 
     def test_unknown_map_is_404(
         self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
@@ -585,7 +588,10 @@ class TestListSanpoMapTags:
         response = sanpo_maps_client.get(f"/sanpo-maps/{uuid.uuid4()}/tags", headers=auth_headers)
 
         assert response.status_code == 404
-        assert response.json() == {"detail": "Sanpo map not found"}
+        assert response.json() == {
+            "detail": "Sanpo map not found",
+            "code": "sanpo_map_not_found",
+        }
 
     def test_non_uuid_map_id_is_422(
         self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]

@@ -152,7 +152,12 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(SanpoMapNotFoundError)
     async def _sanpo_map_not_found(request: Request, exc: SanpoMapNotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": "Sanpo map not found"})
+        # `code` は ADR-009 決定33（SS-175）。決定12 と同じくハンドラで付ける。全エンドポイントの
+        # 404 に付くが、OpenAPI で宣言しているのは PATCH /pins/{pin_id} だけ。`detail` は不変。
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Sanpo map not found", "code": "sanpo_map_not_found"},
+        )
 
     @app.exception_handler(SanpoMapPermissionDeniedError)
     async def _sanpo_map_permission_denied(
@@ -162,7 +167,10 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(PinNotFoundError)
     async def _pin_not_found(request: Request, exc: PinNotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": "Pin not found"})
+        # `code` の扱いは `_sanpo_map_not_found` と同じ（決定33）。
+        return JSONResponse(
+            status_code=404, content={"detail": "Pin not found", "code": "pin_not_found"}
+        )
 
     @app.exception_handler(PinPhotoUploadNotReadyError)
     async def _pin_photo_upload_not_ready(
@@ -273,7 +281,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     # ルーターや依存関係が組み立て中に出すログも拾えるよう、最初に呼ぶ。
-    configure_logging(settings.log_level)
+    configure_logging(
+        settings.log_level,
+        log_format=settings.log_format,
+        tracing_enabled=settings.tracing_enabled,
+        include_exception_messages=settings.log_exception_messages,
+    )
     app = FastAPI(
         title="sanposcape API",
         version="0.1.0",
@@ -328,7 +341,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     # ★ 必ず最後に登録する（= 最も外側になる）。こうしないと RequestSizeLimitMiddleware が
     #   自前で返す 413 を観測できず、アクセスログのステータスが実際の応答とずれる。
-    app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(AccessLogMiddleware, tracing_enabled=settings.tracing_enabled)
     app.include_router(health_router)
     app.include_router(app_config_router)
     app.include_router(auth_router)

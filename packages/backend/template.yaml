@@ -173,7 +173,8 @@ Resources:
           # 意図的に設定しないもの: OTEL_SEMCONV_STABILITY_OPT_IN（ADOT の Application Signals が旧
           # semconv しか読まない）、OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_*（決定6: ヘッダーを
           # 属性に入れない）、OTEL_TRACES_SAMPLER（決定4: 既定の parent based のまま実測する）、
-          # logging 関係（SS-180）。
+          # logging 関係（SS-180）: LoggingConfig は Text のまま（アプリが JSON を出す。ADR-013 決定3
+          # の SS-180 追補）。OTEL_PYTHON_LOG_CORRELATION も使わない（logging 計装は上の無効リスト）。
       Policies:
         # Application Signals の実行ロール用の管理ポリシー（xray:PutTraceSegments と
         # /aws/application-signals/data への logs 書き込み）。付与に必要な権限は infra の SS-185。
@@ -245,7 +246,8 @@ Resources:
   #     デプロイ後に docs/deployment.md §14 の list-metrics で値を確かめること。
   #   - ★ コンソールでダッシュボードを編集しても、次のデプロイで上書きされる。試すときは
   #     「名前を付けて保存」で別名にする。
-  #   - ★ SS-180 で Api に LoggingConfig.LogFormat: JSON を入れるなら、メモリ / コールドスタート /
+  #   - ★ SS-180 では Api の LoggingConfig を Text のままにした（アプリのフォーマッターが JSON を
+  #     出す）。将来 LoggingConfig.LogFormat: JSON にするなら、メモリ / コールドスタート /
   #     異常終了のクエリ（REPORT 行を @type = 'REPORT' で読むもの）も platform.report の形式に直す
   #     （Q5〜Q6b は直さないと test_monitoring_config.py が落ちる。Q7 は @message の文言で
   #     引いていて見張りの対象外なので、JSON 化のときに手で見直すこと）。

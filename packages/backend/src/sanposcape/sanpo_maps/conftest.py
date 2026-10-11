@@ -14,12 +14,20 @@ from sanposcape.conftest import override_get_db
 from sanposcape.database import get_db
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.main import app, create_app
+from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.models import PinPhoto, PinPhotoUpload, PinTag
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
+from sanposcape.sanpo_maps.photos.photo_attacher import PhotoAttacher
 from sanposcape.sanpo_maps.photos.photo_keys import original_key, staging_key, thumbnail_key
+from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.pins.repository import PinRepository
+from sanposcape.sanpo_maps.pins.service import PinService
 from sanposcape.sanpo_maps.pins.tag_labels import tag_key
 from sanposcape.users.models import User
+
+#: `TestClient` の既定 base URL（サービス直呼びのテストが `base_url` に渡す）。
+BASE_URL = "http://testserver/"
 
 
 def make_user(db_session: Session, *, subject: str) -> User:
@@ -195,6 +203,7 @@ def create_pin_photo_row(
     position: int,
     upload_id: uuid.UUID | None = None,
     with_thumbnail: bool = True,
+    taken_at: datetime | None = None,
 ) -> PinPhoto:
     """`pin_photos` に直接1行 INSERT する（`PhotoAttacher`/確定処理を経由しない近道。
 
@@ -225,6 +234,7 @@ def create_pin_photo_row(
         thumbnail_width=100 if with_thumbnail else None,
         thumbnail_height=100 if with_thumbnail else None,
         position=position,
+        taken_at=taken_at,
     )
     db_session.add(photo)
     db_session.commit()
@@ -240,6 +250,7 @@ def create_upload_row(
     declared_byte_size: int = 1024,
     status: str = "pending",
     expires_at: datetime | None = None,
+    taken_at: datetime | None = None,
 ) -> PinPhotoUpload:
     """`pin_photo_uploads` に直接1行 INSERT する（`PinPhotoUploadService` を経由しない）。"""
     upload_id = upload_id or uuid.uuid4()
@@ -251,6 +262,7 @@ def create_upload_row(
         declared_byte_size=declared_byte_size,
         status=status,
         expires_at=expires_at or (datetime.now(UTC) + timedelta(hours=1)),
+        taken_at=taken_at,
     )
     db_session.add(upload)
     db_session.commit()
@@ -311,3 +323,50 @@ def add_pin_tag(
         )
     )
     db_session.flush()
+
+
+def make_pin_service(db_session: Session, storage: FakeObjectStorage, **overrides) -> PinService:
+    """`**overrides` のうち `photo_delete_deadline_seconds`・
+    `photo_delete_call_worst_case_seconds`・`monotonic` は `PhotoObjectCleaner`
+    （`PinService` ではなく削除の後始末を担う部品, ADR-011）側の引数に振り分ける。
+    `photo_cleaner` を直接渡した場合はそちらを使う。
+    """
+    photo_cleaner = overrides.pop("photo_cleaner", None)
+    if photo_cleaner is None:
+        cleaner_kwargs = {
+            "deadline_seconds": overrides.pop("photo_delete_deadline_seconds", 10),
+            "call_worst_case_seconds": overrides.pop("photo_delete_call_worst_case_seconds", 6),
+        }
+        if "monotonic" in overrides:
+            cleaner_kwargs["monotonic"] = overrides.pop("monotonic")
+        photo_cleaner = PhotoObjectCleaner(storage, **cleaner_kwargs)
+    else:
+        overrides.pop("photo_delete_deadline_seconds", None)
+        overrides.pop("photo_delete_call_worst_case_seconds", None)
+        overrides.pop("monotonic", None)
+
+    kwargs = {
+        "user_quota_bytes": 1024**3,
+        "confirm_deadline_seconds": 20,
+        "read_photos_limit": 10,
+        "download_url_ttl_seconds": 3600,
+    }
+    kwargs.update(overrides)
+    photo_attacher = PhotoAttacher(
+        storage,
+        max_bytes=10 * 1024 * 1024,
+        max_pixels=1_000_000,
+        thumbnail_max_edge=512,
+        thumbnail_quality=80,
+        concurrency=3,
+    )
+    return PinService(
+        db_session,
+        PinRepository(db_session),
+        PinPhotoUploadRepository(db_session),
+        SanpoMapAccess(SanpoMapRepository(db_session)),
+        photo_attacher,
+        photo_cleaner,
+        storage,
+        **kwargs,
+    )

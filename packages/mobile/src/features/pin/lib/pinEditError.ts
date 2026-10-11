@@ -31,6 +31,7 @@ export type PinEditErrorCode =
   | "unauthorized" // 401
   | "forbidden" // 403
   | "pin_not_found" // 404（PATCH・写真追加）
+  | "sanpo_map_not_found" // 404 + code（PATCH の移動先。SS-175）
   | "tag_limit_exceeded" // 409 + code
   | "photo_not_ready" // 写真追加の 409
   | "quota_exceeded" // 写真追加の容量超過
@@ -67,7 +68,10 @@ export function toPinEditErrorCode(error: unknown): PinEditErrorCode {
       case 403:
         return "forbidden";
       case 404:
-        return "pin_not_found";
+        // sanpo_map_not_found 以外の 404（code 無しを含む）はピンが無いと読む（SS-175）。
+        return getApiErrorCode(cause) === "sanpo_map_not_found"
+          ? "sanpo_map_not_found"
+          : "pin_not_found";
       case 409:
         return getApiErrorCode(cause) === "tag_limit_exceeded" ? "tag_limit_exceeded" : "unknown";
       case 413:
@@ -108,6 +112,11 @@ const MESSAGES: Record<PinEditErrorCode, StageMessages> = {
     update: "このピンは削除されています。",
     delete_photos: "このピンは削除されています。",
     add_photos: "このピンは削除されています。",
+  },
+  sanpo_map_not_found: {
+    update: "移動先の地図が見つかりませんでした。地図を選び直してください。",
+    delete_photos: `${PARTIAL_PREFIX_DELETE}${RESUME}`, // 到達しない（型の網羅のため）
+    add_photos: `${PARTIAL_PREFIX_ADD}${RESUME}`, // 到達しない（add_photos の 404 は pin_not_found に写す）
   },
   tag_limit_exceeded: {
     update:

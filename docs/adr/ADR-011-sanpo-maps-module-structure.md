@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）
+2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）、2026-10-05（追補、SS-175）
 
 ## ステータス
 
@@ -203,6 +203,9 @@ Service のコンストラクタ引数に `Callable[...]` 型があり、それ�
   「ピン作成」「地図削除」の2つで、どちらも `pins` の Service が自然に持てる（決定4）
   ため該当しない。3つ目の横断処理が増えたら、それが既存の持ち主（`pins` の Service）に
   自然に収まるかをまず確認し、収まらなければ該当するとみなす。
+  （**SS-175 追補**: ピンの地図の移動（`PATCH /pins/{id}` の `sanpo_map_id`。ADR-009 決定33）が
+  3つ目のサブパッケージ横断ユースケース（`pins` の Service が `maps` の `SanpoMapAccess` を使う）に
+  なったが、持ち主は既存の `PinService` に自然に収まるので、この導入条件には該当しない。）
 
 **導入時の形**: モジュール直下に `usecases/` を設け、双方向に必要となった処理をそこへ移す。
 **各サブパッケージの `router.py` だけが `usecases` を import してよい**（`usecases` は
@@ -232,6 +235,16 @@ Service/部品を import 可）を加えたうえで、「`router.py` だけの�
 | `PinService._delete_photo_keys_best_effort()` | `PhotoObjectCleaner.delete_best_effort(keys)`。`PinService`・`SanpoMapService` は `photo_cleaner` を受け取る | ピン削除・写真削除・地図削除の3箇所で同じ時間予算の判定を使うため（ADR-009 決定22 追補・決定28）。本文は移すだけで、判定・ログ文言は変えない |
 | `SanpoMapService(db, repository, now)` | `SanpoMapService(db, repository, photo_cleaner)` | `now` は `mark_used` でしか使っていなかった（`SanpoMapAccess` へ移る） |
 | `PinService(db, repo, upload_repo, sanpo_map_service, photo_attacher, storage, *, …, photo_delete_deadline_seconds, photo_delete_call_worst_case_seconds, now, monotonic)` | `PinService(db, repo, upload_repo, sanpo_map_access, photo_attacher, photo_cleaner, storage, *, user_quota_bytes, confirm_deadline_seconds, read_photos_limit, download_url_ttl_seconds, now)` | 削除の時間予算の設定と `monotonic` は cleaner へ移る |
+
+（**SS-175 追補**: `SanpoMapAccess` に4つ目のメソッド `get_role_for_pin_move(current_user,
+sanpo_map_id)` を足した。ピンの移動先の membership を地図行 `FOR KEY SHARE` でロックして role を
+返す（member でない・存在しない・同時に削除された場合は `None`）。`mark_used` はピンの移動先にも
+呼ばれる。ADR-009 決定33。）
+
+（**SS-175 追補**: `SanpoMapService.delete_map` の手順は「`lock_owner` → 地図行 `FOR UPDATE` →
+認可 → **ピン行 `FOR UPDATE`（`lock_pins_for_map`）** → キー収集 → 削除・繰り上げ → commit → ログ →
+後始末」に変わった。移動中のピンの commit を待ち、生き残るピンの写真を S3 から消さないため。
+ADR-009 決定33。）
 
 トランザクション境界は変えない。`get_db` は FastAPI の依存キャッシュで1リクエスト1セッション
 なので、`SanpoMapAccess`・`SanpoMapRepository`・`PinRepository` は同じセッションを共有する

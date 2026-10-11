@@ -11,12 +11,18 @@ import type {
  * backend `sanpo_maps/permissions.py` の3分類と対応する。
  *
  * - 追加系（タグの追加・写真の追加・訪問状況の変更）: メンバーなら誰でも可 → 常に true
- * - 持ち主判定系（名前・メモの更新、アーカイブの変更、ピンの削除、タグ・写真の削除）: 地図 owner か、対象の作成者本人
+ * - 持ち主判定系（名前・メモの更新、アーカイブの変更、地図の変更（SS-175）、ピンの削除、タグ・写真の削除）: 地図 owner か、対象の作成者本人
  * - 地図管理系: `canManageSanpoMap`（SS-171。owner のみ）
  *
  * 訪問状況・アーカイブの割り当て（SS-173）は backend の `can_update_pin_visited` /
  * `can_update_pin_archived`（ルート ADR-009 決定32）に合わせている。backend が変わればこのファイルの
  * `canEditVisited` / `canArchive` の2行だけ直す。
+ *
+ * 地図の変更（SS-175）の移動元の判定は backend の `can_move_pin_from(role, *, is_creator)`
+ * （ルート ADR-009 決定33）に合わせている。backend の判定が変わればこのファイルの `canChangeSanpoMap` の1行を直す。
+ * 移動先の判定 `can_move_pin_to(role)`（owner/editor。追加系）は、候補を `GET /sanpo-maps` に出る地図
+ * （=メンバーの地図）に絞ることで満たすので、ここでは見ない。将来 viewer 等の role が増え
+ * `can_move_pin_to` が偽になりうるなら、そのとき候補の絞り込み（`pinEditSanpoMap.ts`）に条件を足す。
  *
  * **UI 用の判定であり、安全性は backend の 403 が担保する**。誤って出し分けても、
  * 権限の無い操作は backend が拒否する。
@@ -37,6 +43,11 @@ export type PinPermissions = {
   canEditVisited: boolean;
   /** アーカイブの変更（地図 owner かピンの作成者本人。持ち主判定系。SS-173）。 */
   canArchive: boolean;
+  /**
+   * ピンの地図の変更（移動元の地図 owner かピンの作成者本人。持ち主判定系。backend の `can_move_pin_from`。SS-175）。
+   * 移動先（`can_move_pin_to`）は候補を絞ることで満たすので、ここでは見ない。
+   */
+  canChangeSanpoMap: boolean;
   /** 詳細ヘッダーの編集ボタンを出すか（メンバーなら常に true）。 */
   canOpenEditor: boolean;
 };
@@ -77,6 +88,7 @@ export function resolvePinPermissions(
     canAddPhotos,
     canEditVisited: true,
     canArchive: canManagePin,
+    canChangeSanpoMap: canManagePin,
     canOpenEditor: canManagePin || canAddTags || canAddPhotos,
   };
 }
