@@ -104,8 +104,8 @@ api コンテナを作り直すこと（コンテナは作成時の環境変数�
 
 | 値 | 内容 |
 |---|---|
-| `console`（compose の既定） | 読みやすい 1 行表記。文脈があれば末尾に `[http_method=… http_route=… user_id=… trace_id=…]`（JSON と同じキー名・順。値が無いものは出ない）。例外は標準のトレースバック（メッセージ込み） |
-| `json` | Lambda / 将来の ECS と同じ 1 レコード 1 行の JSON。`timestamp` / `level` / `logger` / `message` と、`trace_id` / `span_id`（`TRACING_ENABLED=true` のとき）・`http_method` / `http_route`・`user_id`（認証済み）など |
+| `console`（compose の既定） | 読みやすい 1 行表記。文脈があれば末尾に `[http_method=… http_route=… user_id=… app_session_id=… trace_id=…]`（JSON と同じキー名・順。値が無いものは出ない）。例外は標準のトレースバック（メッセージ込み） |
+| `json` | Lambda / 将来の ECS と同じ 1 レコード 1 行の JSON。`timestamp` / `level` / `logger` / `message` と、`trace_id` / `span_id`（`TRACING_ENABLED=true` のとき）・`http_method` / `http_route`・`user_id`（認証済み・ログイン / refresh / logout）・`app_session_id`（`X-App-Session-Id` があるとき）など |
 
 JSON の見え方を確かめたいときは、`.env` に `LOG_FORMAT=json` を足す（または
 `LOG_FORMAT=json docker compose up -d --force-recreate api`）。コンテナは作成時の環境変数を
@@ -146,7 +146,7 @@ http://localhost:16686（`JAEGER_UI_PORT` で変更可。ポートは `127.0.0.1
   （例: DB のスパンは DB を使うルート、Google のスパンは `MAPS_MODE=real`、S3 のスパンは
   `STORAGE_MODE=real` のとき。`fake` はネットワークに出ないのでスパンが出ない）周回ルートの並列取得（`ThreadPoolExecutor`）の子スパンも
   同じトレースに入る
-- クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）
+- クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）。例外は内部 UUID の `enduser.id` と、検証済みの `X-App-Session-Id` の `session.id`（[deployment.md §16](./deployment.md)）。認証済みのリクエストのスパンで、タグ `enduser.id` が見える
 
 ### 戻し方
 

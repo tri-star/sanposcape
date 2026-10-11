@@ -1129,11 +1129,12 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 **Lambda 計装の親スパンはハンドラーの後に属性を設定し直す**（dev の実測で判明。レイヤーの Lambda 計装は 0.61b0）。ハンドラーの中でスパン属性を書き換えても、イベントから `http.route`（生のパス）・`http.target`（クエリ込み）・`http.user_agent` が再設定される。そのため `aws_lambda/tracing.py` は、Mangum が `scope["aws.event"]` に持つ同じイベントを無害化している（`rawQueryString` を空、`userAgent` を削除、`requestContext.http.path` をルートのテンプレートに）。payload 2.0 のみ対象。レイヤーを上げるときは、dev の `aws/spans` で親スパンの `http.target` / `http.route` / `http.user_agent` を確認すること。
 
 クエリ文字列・ヘッダー・ボディ・SQL のバインド値は属性に載せない（ADR-013 決定6）。
+例外は 2 つだけ: 内部 UUID の `enduser.id` と、検証を通った `X-App-Session-Id` の `session.id`（§16）。
 `http.url` / `http.target` のクエリはフックで除き（失敗時は空に倒す）、`net.peer.ip` /
 `net.peer.port` / `http.user_agent` は空に上書きし、`hide_parameters=True` で例外メッセージの
 `[parameters: ...]` を消している。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、
 例外メッセージ（一意制約違反の `DETAIL` のキー値）は載せない（自前リスナーに差し替え。
-`core/observability.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
+`core/tracing.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
 **未処理の 500（SS-180 で解消）**: `AccessLogMiddleware` が未処理例外を握って 500 を返す
 （再送出しない）ため、OTel の FastAPI 計装の `ExceptionHandlerMiddleware`（message とスタック
 トレースを exception イベントに自動で付ける）に例外が届かない。スパンには型名だけの
@@ -1275,7 +1276,7 @@ filter `resource.attributes.service.name` = 'sanposcape-backend-api'
 `template.yaml` の `ApiDashboard` には、これと同じクエリを 1 行にして入れてある（サービス名は Sub の変数 `ServiceName`。
 `deployment.environment` での絞り込みは入れていない。prod は専用アカウント、dev は sanposcape の dev しか無いため。
 入れるなら `` and `resource.attributes.deployment.environment` = '<env>' ``）。**ダッシュボードのクエリとこの節のコピーは二重持ち**で、
-片方を直したらもう片方も直す（一致を検査するテストは無い）。
+片方を直したらもう片方も直す（一致を検査するテストは無い）。§16 Step 3 のクエリも同じ条件なので、三重持ちになる。
 
 Q1: ルート別の件数・p50/p95/p99・4xx/5xx 率（dev で確認済み）
 
@@ -1450,12 +1451,20 @@ prod のベースライン（リリース後 2〜4 週間）が取れてから�
 | `trace_id` / `span_id` / `trace_sampled` | `TRACING_ENABLED` で current span が有効なとき | `trace_id` は 32 桁の 16 進で、`aws/spans` の `traceId` と同じ形。`trace_sampled=false` なら `aws/spans` に無い可能性がある |
 | `aws_request_id` | Lambda の呼び出し中 | REPORT 行の `@requestId` と同じ値 |
 | `http_method` / `http_route` | リクエスト処理中 | `http_route` はテンプレート（`/pins/{pin_id}`）。ルート不一致（404）は出ない |
-| `user_id` | 認証済みのリクエスト中 | **内部 UUID のみ**。ログイン（`/auth/session`）・リフレッシュの経路は対象外 |
+| `user_id` | 認証済みのリクエスト中。ログイン（`/auth/session`・`/auth/dev-session`）・`/auth/refresh`・`/auth/logout` も、ユーザーが確定した後 | **内部 UUID のみ**（`bind_user_id(uuid.UUID)` が唯一の入口）。refresh / logout は**提示された refresh token の持ち主**で、認証済みの主体ではない（再利用の検知では攻撃者のリクエストに被害者の ID が付く）。未知のトークン・不正な認証ヘッダーの 401 には付かない。スパンには `enduser.id` として付く（§16） |
+| `app_session_id` | `X-App-Session-Id` が検証を通ったとき | mobile がアプリの起動ごとに付ける UUID v4（小文字）。クライアントの申告で、端末の証明ではない。不正な値は出さない。スパンには `session.id`（§16） |
 | `log_type` / `http_status_code` / `duration_ms` | アクセスログだけ | `log_type` は `"access"` |
 | `exception_type` / `exception_stacktrace` / `exception_sqlstate` | `exc_info` があるとき | 型名（`module.QualName`）、型名とフレームだけのリスト（200 行を超えたら先頭側を省いて末尾を残し、`exception_stacktrace_truncated`）、DB 例外の SQLSTATE |
 | `exception_message` | `exc_info` があり、かつ ENV が local / test のとき | **staging / production では出ない**（下記） |
 
 - キー名は snake_case。値が無い項目は出さない。`extra=` で渡した属性は許可リストのキーだけ出る。
+- **ログの項目を足す手順**（許可リストに無い `extra=` のキーは黙って捨てられるため、テストが機械的に検査する）:
+  - リクエストの文脈（ユーザーや端末の印など）→ `core/logs.py` の `LogContext` にフィールドを足す
+    （JSON / console の両方に出る。定義順が出力順。スパンにも写すなら metadata の `span_attribute` に属性名を宣言する）。
+  - 個別のログ呼び出しの `extra=` → (a) 値が ADR-013 決定6（個人情報・秘密・クエリ・ボディ）に当たらないことを確かめる、
+    (b) `core/logs.py` の `_EXTRA_KEYS` に足す、(c) 上の表に行を足す、(d) `core/tests/test_logs.py` の許可リストの期待値に足す。
+  - `core/tests/test_logs.py` が、本番コードのログ呼び出しの `extra=` のキーが `_EXTRA_KEYS` に含まれること（AST）、
+    `_EXTRA_KEYS`・文脈のキー・基本キーが重ならないことを検査する。
 - アクセスログの `message` は `METHOD path -> status (N.Nms)`。**`message` には生のパスが入る**（`http_route` はテンプレート）。
   クエリ文字列・ヘッダー・ボディは出さない。パスに秘密を載せるルートを足すときは
   `AccessLogMiddleware` の `exclude_paths` かマスクを検討すること。
@@ -1469,7 +1478,7 @@ psycopg の `DETAIL`（Google の sub など）、pydantic / FastAPI の検証�
 （ADR-013 決定6）。型名・フレーム（ソースの行を含む）・SQLSTATE で発生箇所は特定できる。
 **例外を `message` に `%s` や f 文字列で展開しないこと**（`exc_info` を使う。展開した文字列はフォーマッターで外せない）。
 メッセージが要る調査は、`exception_type` とスタックトレースの発生箇所からローカル（`ENV=local`。メッセージ込みで出る）で再現する。
-退会（`DELETE /users/me`）後も、ログには内部 UUID の `user_id` が残る（プライバシーポリシー上の扱いは未確認）。
+退会（`DELETE /users/me`）後も、ログには内部 UUID の `user_id` が残る（スパンの `enduser.id` も `aws/spans` に残る。プライバシーポリシー上の扱いは未確認）。
 
 ### Logs Insights のクエリ（コピー用）
 
@@ -1499,6 +1508,7 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
   コンソールのトレース詳細の「ログ」欄（`aws.log.group.names` を見る）に相関ログが**自動で出るかは dev で未確認**。
   出ない場合は上の手動のクエリを正式な手順とする（X-Ray 形式の `xray_trace_id` を足すかは別課題）。
 - `trace_sampled` が `false` のログは、対応するトレースが `aws/spans` に無い可能性がある（ログは全件残る）。
+- **エラーからユーザーの直前の操作を辿る手順**は §16。
 
 ### デプロイ後の確認（環境ごとに 1 回。**dev は未実施**）
 
@@ -1516,3 +1526,121 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
 
 1 行あたり 50 バイト程度 → 300〜600 バイト程度に増える。1,000 リクエスト/日で月 20MB 前後（取り込みの単価は小さく、保持は prod 400 日 / dev 30 日）。
 ダッシュボードにログのウィジェットは足していない（開くたびにロググループ全体をスキャンして課金されるため。§14）。
+
+## 16. 障害調査: エラーからユーザーの直前の操作を辿る（ADR-013 / SS-181）
+
+「エラー → ユーザー → 直前の操作（API 呼び出しの連なり）」を辿る手順。ログ（§15）とスパン（§13）の両方に
+内部 UUID のユーザー ID が付いているので、ユーザー単位で時系列に引ける。クエリはコピー用。`<env>` と
+**時間の範囲を書き換えて**使う。Logs Insights の画面は ap-southeast-1 で、時間の範囲は**エラーの前後に絞る**
+（`filter` はスキャン量を減らさない。範囲を絞らないと費用がかさむ）。ダッシュボードには入れない
+（ログのウィジェットは開くたびに課金される。§14）。
+
+### 付いている情報
+
+| 場所 | 項目 | 付く条件 |
+|---|---|---|
+| ログ | `user_id`（内部 UUID） | 認証済みのリクエスト、ログイン・refresh・logout（§15 の項目表） |
+| ログ | `app_session_id` | `X-App-Session-Id` が検証を通ったとき |
+| スパン（`aws/spans`） | `attributes.enduser.id` | 同上の `user_id`。付くのは FastAPI のサーバースパン（ローカルは SERVER、Lambda では LOCAL_ROOT の子の INTERNAL）と Lambda の LOCAL_ROOT。DB・httpx の子スパンには付かない |
+| スパン | `attributes.session.id` | 同上の `app_session_id`（`enduser.id` と同じスパン） |
+
+- ログの `user_id` とスパンの `enduser.id` は同じ値。入口は `core/logs.py` の `bind_user_id(uuid.UUID)` 1 つで、
+  写すタイミングは 2 通り:
+  - `AccessLogMiddleware`（FastAPI のサーバースパン）: ミドルウェアの入口で捕まえたサーバースパンに、**応答の開始時**と
+    **最後の body を送る直前**（OTel の ASGI 計装は最後の body でスパンを閉じるため、送った後では遅い）に写す。応答前の例外
+    （500 を返す直前）でも写す。手動の子スパンの中で応答を送っても、応答の開始後に bind しても、サーバースパンに載る。
+    記録中でないスパン（サンプリングされない・トレース無効）には何もしない。
+  - `aws_lambda/tracing.py`（Lambda の LOCAL_ROOT）: リクエストの終わり（`finally`）に写す。
+- 属性名に `enduser.id` を選んだ理由: OTel の semconv で「リクエストを送った認証済みのエンドユーザー」を表す名前で、
+  collector-contrib の X-Ray 変換が X-Ray のセグメントの `user` に写す（`user.id` は写さない）。詳細は ADR-013。
+- **X-App-Session-Id**: mobile がアプリの起動ごとに作る UUID v4（小文字）。backend は検証を通ったものだけを載せる
+  （小文字の UUID v4 以外・同名の複数ヘッダー・36 バイト以外は捨てる。捨てた値はログにもスパンにも出さず、リクエストも拒否しない）。
+  調査の目印にだけ使い、認可・レート制限には使わない。**クライアントの申告なので、他人の ID を名乗れる**。
+  同じ `app_session_id` が同じ端末である証明にはならない。OpenAPI には載せない（`X-App-Authorization` と同じく OpenAPI の外のヘッダー）。
+  mobile が付けるのは別課題（それまでは `app_session_id` は付かない）。
+
+### Step 1: エラーを見つけて、ユーザーを特定する
+
+起点は 3 通り: アラーム、ダッシュボード（Q3 の 5xx）、ユーザーからの問い合わせ。
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter level = 'ERROR' or (log_type = 'access' and http_status_code >= 500)
+| fields @timestamp, http_method, http_route, http_status_code, exception_type, user_id, app_session_id, trace_id, aws_request_id
+| sort @timestamp desc | limit 50
+```
+
+- Q3（`aws/spans` の 5xx）から始めた場合は、`traceId` で §15 のクエリ（トレース → ログ）を引いて `user_id` を得る。
+  スパンから直接引くなら、そのスパンの `attributes.enduser.id`。
+- スレッドプールのワーカー（周回ルートの計算、写真の S3 Copy）の中のログには `user_id` が付かない（`trace_id` は付く）。
+  `trace_id` で同じリクエストのアクセスログを引いて補う。
+- ユーザーからの問い合わせが起点の場合: 問い合わせのメールアドレスから内部 ID を引くには DB の `users` を見る必要がある
+  （個人情報へのアクセス）。手順と権限はこの文書の範囲外（**要相談**）。
+
+### Step 2: そのユーザーの直前の操作（時系列）
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter user_id = '<内部UUID>' and log_type = 'access'
+| fields @timestamp, http_method, http_route, http_status_code, duration_ms, app_session_id, trace_id
+| sort @timestamp asc | limit 200
+```
+
+- アクセスログに絞ると 1 リクエスト 1 行になる。アプリ内のログ（WARNING など）も見たいときは `log_type = 'access'` を外す。
+- エラーの時刻の前後に時間の範囲を絞る。
+
+### Step 2b: ログイン前の操作・起動の区切り（`app_session_id` がある場合）
+
+`user_id` はログイン前のリクエストには付かない。同じ起動の一連の操作は `app_session_id` で束ねる。
+
+```
+SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
+| filter app_session_id = '<uuid>' and log_type = 'access'
+| fields @timestamp, user_id, http_method, http_route, http_status_code, trace_id
+| sort @timestamp asc | limit 200
+```
+
+### Step 3: スパンで見る（ルートごとの時間の内訳）
+
+§14 の共通の絞り込み F と同じ条件（F を直したらここも直す。二重持ち）。
+
+```
+SOURCE 'aws/spans'
+| filter `resource.attributes.service.name` = 'sanposcape-backend-api'
+    and kind = 'SERVER' and `attributes.aws.span.kind` = 'LOCAL_ROOT'
+    and `attributes.enduser.id` = '<内部UUID>'
+| fields @timestamp, name, `attributes.http.status_code` as status, durationNano / 1000000 as duration_ms, traceId
+| sort @timestamp asc | limit 200
+```
+
+- 個々のトレースは、`traceId` を X-Ray の形（`1-<先頭8桁>-<残り24桁>`）に直して Transaction Search / X-Ray のコンソールで開く（§15）。
+- **未確認（dev）**: `attributes.enduser.id` のフィールド名の平坦化が `attributes.http.status_code` と同じ形になるか、
+  Transaction Search の画面でスパンを属性 `enduser.id` で絞れるか、X-Ray のフィルター式 `user = "<uuid>"` が使えるか
+  （ADOT が X-Ray へ送る経路で `enduser.id` が `user` に写るか）。dev で確かめてからこの節に結果を書く。
+
+### 読み方の注意
+
+- `/auth/login`・`/auth/refresh`・`/auth/logout` の `user_id` は、ログインは確定したユーザー、refresh / logout は**提示した
+  refresh token の持ち主**で、送信者本人とは限らない。再利用の検知（401）では攻撃者の
+  リクエストに被害者の ID が付く。調査では「どのユーザーのトークンファミリーが失効したか」を見るのに使う
+  （そのユーザーが攻撃したという意味ではない）。
+- 認証ヘッダーが不正な 401、未知の refresh token には `user_id` が付かない。
+- `trace_sampled=false` のトレースは `aws/spans` に無いことがある（ログは全件ある）。
+- 保持期間: ログは prod 400 日 / dev 30 日。`aws/spans` は prod 90 日 / dev 30 日。
+- 退会後も `user_id`（ログ）と `enduser.id`（スパン）は残る。プライバシーポリシー上の扱いは未確認（ADR-013 の「未解決」）。
+
+### ローカルでの確認
+
+- Jaeger の UI（`docker compose --profile observability up -d jaeger`。[local-development.md](./local-development.md)）で、
+  タグ `enduser.id=<uuid>` を検索する。
+- console 形式のログでは、行末の `[... user_id=… app_session_id=…]` を見る。
+- `X-App-Session-Id` を付けて確かめる例: `curl -H 'X-App-Session-Id: 0b5b3c3e-1111-4222-8333-444455556666' http://localhost:8000/pins`
+  （認証が無いので 401 になるが、アクセスログに `app_session_id` が付く。`/health` はアクセスログを出さない）。
+
+### デプロイ後の確認（dev は未実施）
+
+1. `aws/spans` の親スパンに `attributes.enduser.id`（と `attributes.session.id`）があり、Step 3 のクエリで引ける。
+2. X-Ray のセグメントの `user` に写るか。X-Ray のフィルター式 `user = "..."` / Transaction Search の属性の絞り込みが使えるか。結果をここと ADR-013 に追記する。
+3. ログイン・refresh のアクセスログに `user_id` が付く。
+4. `X-App-Session-Id` を付けた curl で `app_session_id` がログに出る。不正な値は出ない。CloudFront 経由でヘッダーが届く
+   （origin request policy は `Managed-AllViewerExceptHostHeader`。ADR-005。infra の変更は不要の見込み）。

@@ -25,8 +25,9 @@
 - **`DELETE /pin-photo-uploads/{upload_id}` で未使用の枠を取り消せる**（本文: 決定11、PR #93 追補）
 - **409 応答は機械可読な `code` を持つ**（`storage_quota_exceeded` / `photo_upload_not_ready`）
   （本文: 決定12、PR #93 追補）
-- **backend はアクセスログを1リクエスト1行で出す**（`core/observability.py`。`create_app()` で
-  最後に登録して最外層に置く。クエリ文字列・ヘッダー・ボディは出さない）（本文: 決定13、SS-88 追補）
+- **backend はアクセスログを1リクエスト1行で出す**（`core/access_log.py`。`create_app()` で
+  最後に登録して最外層に置く。クエリ文字列・ボディは出さない。ヘッダーも出さない（例外: 検証済みの
+  `X-App-Session-Id` を `app_session_id` として出す。ADR-013 の SS-181 追補））（本文: 決定13、SS-88 追補）
 - **直送の失敗は原理的にサーバー側から見えない**ので、可観測性は端末側に持たせる。サーバー側から
   見る必要がある場合は S3 サーバーアクセスログが唯一の手段（本文: SS-88 追補）
 - **閲覧 API（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）を追加した**
@@ -686,6 +687,7 @@ TestFlight のビルド5を iPhone 実機で試したところ、写真の直送
 uvicorn が居ないので、アプリ側で出さない限り何も残らない**。`core/observability.py` に
 `AccessLogMiddleware` を追加し、`method path -> status (N.Nms)` を INFO で出す。
 （**SS-180 追補**: ログは JSON 構造化し、未処理例外は `AccessLogMiddleware` が握って 500 を返すようになった。詳細は [ADR-013](./ADR-013-observability-adot-application-signals.md) 決定3・決定6 の SS-180 追補。）
+（**SS-181 追補**: 検証済みの `X-App-Session-Id` を `app_session_id` としてログに付けるようになり（実体は `core/access_log.py`）、詳細は ADR-013 の SS-181 追補。）
 
 - `RequestSizeLimitMiddleware` と同じく**素の ASGI ミドルウェア**として書く
   （`BaseHTTPMiddleware` を使わない = ストリーミング応答やバックグラウンドタスクの挙動を変えない）。

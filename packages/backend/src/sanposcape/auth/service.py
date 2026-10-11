@@ -16,6 +16,7 @@ from sanposcape.auth.providers.base import IdentityProvider, ProviderIdentity
 from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.tokens import create_access_token, generate_refresh_token, hash_refresh_token
 from sanposcape.config import Settings
+from sanposcape.core.observability import bind_user_id
 from sanposcape.users.models import User
 from sanposcape.users.service import UserService
 
@@ -123,6 +124,10 @@ class AuthService:
                 if row is None:
                     raise InvalidRefreshTokenError("Unknown refresh token")
 
+                # 「提示された refresh token の持ち主」。認証済みの主体ではない（再利用の検知では
+                # 攻撃者のリクエストに被害者の ID が付く）。失敗の 401 も辿れるよう先に付ける。
+                bind_user_id(row.user_id)
+
                 if row.used_at is not None or row.revoked_at is not None:
                     # 再利用検知: family_id 全体を即時失効させる。
                     # 攻撃者・正規ユーザーの双方をログアウトする。
@@ -179,18 +184,22 @@ class AuthService:
         token_hash = hash_refresh_token(refresh_token)
         row = self._refresh_repo.get_by_hash_for_update(token_hash)
         if row is not None:
+            bind_user_id(row.user_id)  # 提示されたトークンの持ち主（refresh と同じ意味）
             self._refresh_repo.revoke_family(row.family_id, "logout", self._now())
         self._db.commit()
 
     # --- 共通（real/dev で完全共有。ここを分岐させたらレビューで差し戻す） ---
     def _resolve_user(self, identity: ProviderIdentity) -> User:
-        return self._user_service.find_or_create(
+        user = self._user_service.find_or_create(
             provider=identity.provider,
             subject=identity.subject,
             email=identity.email,
             display_name=identity.display_name,
             photo_url=identity.photo_url,
         )
+        # ログイン経路は `get_current_user` を通らない。ユーザーが確定したここで付ける（SS-181）。
+        bind_user_id(user.id)
+        return user
 
     def _issue_session(self, user: User, family_id: uuid.UUID | None = None) -> SessionResult:
         now = self._now()

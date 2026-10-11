@@ -49,14 +49,17 @@ packages/backend/
 │       │   ├── asgi_handler.py #  Mangum を lifespan=off で包み、FastAPI の lifespan を init で1回だけ起動する。import しても副作用なし
 │       │   ├── runtime_logging.py #  ランタイムが root に付けたログハンドラーのフォーマッターを JSON に差し替える（ハンドラーは足さない）。api.py の先頭で呼ぶ。SS-180/ADR-013
 │       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
-│       │   ├── tracing.py     #   Lambda 計装の親スパンの補正（http.target のクエリ除去、スパン名・http.route の付け直し。SS-178/ADR-013）
+│       │   ├── tracing.py     #   Lambda 計装の親スパンの補正（http.target のクエリ除去、スパン名・http.route の付け直し、LogContext のユーザー ID・セッション ID を親スパンに写す。SS-178/SS-181/ADR-013）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
 │       ├── core/              # 横断的関心事（ドメインに属さない土台）
 │       │   ├── pagination.py  #   keyset（cursor）ページネーションの汎用ユーティリティ
 │       │   ├── geo.py         #   ドメイン横断で使う共有スキーマ（GeoPoint 等）
 │       │   ├── middleware.py  #   ASGI ミドルウェア（RequestSizeLimitMiddleware 等）
-│       │   ├── observability.py #  アクセスログ（AccessLogMiddleware。未処理例外を握って 500 を返す）・ログ設定（configure_logging）・JSON/console フォーマッター・ログの文脈（LogContext）。SS-88/ADR-009 決定13、SS-180/ADR-013。末尾にトレース計装（FastAPI・SQLAlchemy・httpx・threading の手動計装、クエリ除去フック、resolve_route_template。SS-178/ADR-013）
+│       │   ├── observability.py #  公開名だけを再エクスポートするファサード（import 先を変えないため。private 名は出さない）。実体は下の 3 つ
+│       │   ├── access_log.py #  アクセスログ（AccessLogMiddleware。未処理例外を握って 500 を返す）。SS-88/ADR-009 決定13、SS-180/ADR-013
+│       │   ├── logs.py #  ログ設定（configure_logging）・JSON/console フォーマッター・ログの文脈（LogContext）・ユーザー ID の入口 `bind_user_id`。SS-180/SS-181/ADR-013
+│       │   ├── tracing.py #  トレース計装（FastAPI・SQLAlchemy・httpx・threading の手動計装、クエリ除去フック、resolve_route_template）。最下層で他の兄弟を import しない。SS-178/ADR-013
 │       │   ├── runtime_config.py #   シークレット JSON → 環境変数のハイドレーション（SS-67）
 │       │   ├── feature_flags.py  #   フィーチャーフラグの評価層（登録簿 + AppConfig 文書 → 判定。SS-98/ADR-008）
 │       │   └── tests/         #   このモジュールのテスト（併置）
@@ -189,7 +192,7 @@ packages/backend/
   （`get_sanpo_map_contents()`）は撤去した（ADR-011）。
 
 ### `core/` — 横断的関心事
-- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`observability.py` の `AccessLogMiddleware` / `configure_logging()` のような**可観測性の土台**（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
+- どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`access_log.py` の `AccessLogMiddleware` / `logs.py` の `configure_logging()` のような**可観測性の土台**（`observability.py` は公開名の再エクスポート）（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
 - ドメインを import しない（依存の向きは `domain → core`）。
 - 認証（Google ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
