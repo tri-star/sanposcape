@@ -27,7 +27,7 @@ SS-53 の PR #47 対応で `walks/router.py` は GET/DELETE を含む全エン�
 
 ## AccessLogMiddleware は最後に登録する（SS-88 追補）
 
-`main.py::create_app()` は `AccessLogMiddleware`（`core/observability.py`）を**必ず最後に**
+`main.py::create_app()` は `AccessLogMiddleware`（`core/access_log.py`。`core/observability.py` から再エクスポート）を**必ず最後に**
 `add_middleware()` する。Starlette の `add_middleware` は先頭挿入なので、最後に登録して初めて
 最外層になり、`RequestSizeLimitMiddleware` が自前で返す413をアクセスログに記録できる
 （ADR-009 決定13、`docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md`）。
