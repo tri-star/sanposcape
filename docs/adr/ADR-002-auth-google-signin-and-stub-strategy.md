@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-11（SS-195 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -34,6 +34,9 @@
   未認証時は `ExploreRateLimiter` の client_ip バケットで制御し、匿名の上限は認証済み以下
   （既定 10 / 30）。（本文: 決定6-1、SS-49/SS-93 追補、6-1 追補（SS-33））
 - **`POST /walks` は認証必須で、ゲストの記録を後からアカウントへマージする機能は作らない**。（本文: 決定6-1、SS-49 追補）
+- **Sign in with Apple は iOS だけで Google と併設し、Google のアカウントとは統合しない**（`provider="apple"` の別ユーザー）。
+  Apple は氏名を初回の認可時だけ端末へ返すため `POST /auth/session` に任意の氏名を足し、アカウント削除時は
+  サインイン時に交換・保存した Apple の refresh token を REST API で失効させる。（本文: 「SS-195 追補」節）
 - **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
   （本文: 移行・対応が必要な事項）
 - **Google OAuth クライアントは Android が「識別子 + SHA-1」の組ごと、iOS が bundle ID ごとに1つ必要**。
@@ -59,8 +62,8 @@
   EAS `production` 環境の `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`、
   本番 Secrets Manager の `google_oauth_client_id` 設定（dev のクライアント ID を入れない）。
   （本文: 「SS-79 追補」節、「本番用 iOS OAuth クライアント追補」節）
-- **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が必要**（2026-09 時点で未実装）。
-  （本文: 移行・対応が必要な事項）
+- **iOS は審査ガイドライン 4.8 により Sign in with Apple の併設が必要**（2026-10-11 に条文で確認。未実装で、
+  SS-196〜SS-199 で対応）。（本文: 移行・対応が必要な事項、「SS-195 追補」節）
 
 ### 変更・撤回された決定
 
@@ -76,7 +79,8 @@
 
 2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
 2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）、
-2026-09-30 追補（本番用 iOS OAuth クライアント）、2026-10-04 追補（棚卸し: SS-10 で確定した境界と API 契約）
+2026-09-30 追補（本番用 iOS OAuth クライアント）、2026-10-04 追補（棚卸し: SS-10 で確定した境界と API 契約）、
+2026-10-11 追補（SS-195: 審査ガイドライン 4.8 と Sign in with Apple）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -325,6 +329,7 @@ SS-33 で新設した `POST /explore/routes/loop` も、`/explore/places` `/expl
 - backend に JWT/JWKS 依存（`pyjwt[crypto]` 等）と `users` / `refresh_tokens` のマイグレーションを追加する。
 - backend の OpenAPI 更新後、`pnpm --filter mobile orval` を再実行する。
 - **iOS で Google ログインを提供する場合、App Store 審査で Sign in with Apple の併設が要求される**。MVP のリリース計画に織り込む必要がある。
+  （**SS-195 追補**: 審査ガイドライン 4.8 の条文で該当を確認し、併設の方針を決めた。下記「SS-195 追補」節を参照）
 - （**SS-81 追補。SS-79 でアプリ識別子分割に伴い更新: 下記「SS-79 追補」参照**）
   **Android の OAuth クライアントは署名鍵ごとに SHA-1 の登録が必要**。
   EAS のビルドクレデンシャルは1つの既定構成が E2E / `staging-apk` / クラウドビルドの
@@ -424,6 +429,53 @@ SS-10 の実装とローカルレビューで決めたが、エージェント�
   本番に存在しないエンドポイントを公開の API 契約に含めないため。その結果 Orval の生成物にも出ないので、
   モバイル側にはこのエンドポイント用のローカル DTO が恒久的に必要になる。
 
+## SS-195 追補（2026-10-11）: App Store 審査ガイドライン 4.8 と Sign in with Apple
+
+「影響」節で「iOS で Google ログインを提供する場合、Sign in with Apple の併設が要求される」と見込みで
+書いていた点を、ガイドラインの条文で確認し、併設の方針を決めた。実装は後続タスク（SS-196: Apple Developer の設定と鍵の登録、SS-197: backend の ID token 検証、SS-198: backend の削除時のトークン失効、SS-199: mobile のサインイン画面）で行う。
+
+### 結論: 4.8 に該当し、iOS では Sign in with Apple の併設が必要
+
+- 4.8（Login Services）は、サードパーティやソーシャルのログイン（例として Google Sign-In を明記）で
+  **ユーザーの主アカウント**を作成・認証するアプリに、次の3条件を満たす別のログイン手段を
+  **同等の選択肢として**併せて提供するよう求める: 収集を名前とメールアドレスに限る / メールアドレスを
+  非公開にできる / 同意なく広告目的でアプリ内の行動を収集しない。Sign in with Apple はこれを満たす。
+- 本アプリは Google サインインで `users`（`provider="google"`）を JIT 作成し、散歩記録・履歴の持ち主として
+  識別に使っているので、これが 4.8 の「主アカウント」に当たる。
+- 例外（自社のアカウントのみを使う / 代替アプリマーケットプレイス / 既存の教育・企業アカウントが必須 /
+  政府・業界の電子 ID / 特定のサードパーティサービスのクライアント）は、いずれにも当たらない。
+- ゲストのまま散歩できること（決定6・6-1）は 5.1.1(v) を満たすが、4.8 の例外にはならない。
+  記録の保存と履歴にはサインインが要り、その手段が Google だけだからである。
+- 確認した条文: [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) の
+  4.8・5.1.1(v)（2026-10-11 に参照）。
+
+### 併設の方針
+
+- **iOS は Google と Sign in with Apple の両方を出す**（Apple だけにする案は採らない）。
+  iOS を Apple だけにすれば 4.8 から外れるが、Android（Google のみ）で作ったアカウントに iOS から入れなくなる。
+- **Sign in with Apple は iOS だけで出し、Android には出さない**。4.8 は App Store の要件であり、Android で
+  Apple を出すには Web フローと Services ID が別に要る。このため、iOS で Apple を選んだアカウントには
+  Android から入れない（MVP では許容する）。
+- **Google と Apple のアカウントは自動で統合しない**。`users` は `(provider, provider_subject)` の一意制約のままで、
+  Apple は `provider="apple"` の別ユーザーになる。Apple はメールアドレスを非公開リレーにできるため、
+  メールアドレスで名寄せすることはできない。
+- **追加の形は決定2のとおり**とする: モバイルは `expo-apple-authentication` を1つ足し、`AuthService.signIn("apple")` で呼ぶ。
+  backend は `POST /auth/session` の `provider` に `"apple"` を足し、Apple の ID token を検証する
+  `IdentityProvider` を1つ足す（JWKS は `https://appleid.apple.com/auth/keys`、`aud` は bundle ID）。
+  ただし Apple は**氏名を ID token に入れず、初回の認可時にだけ端末へ返す**ため、`POST /auth/session` には
+  任意の氏名を足す必要がある（決定2の「下流は無変更」から外れる点）。
+- **アカウント削除（`DELETE /users/me`）では Apple のトークンを失効させる**。Apple は Sign in with Apple を使う
+  アプリに、削除時に REST API で失効させるよう求めている
+  （[Offering account deletion in your app](https://developer.apple.com/support/offering-account-deletion-in-your-app/)）。
+  失効には Apple の refresh token が要るので、backend はサインイン時に端末から受け取った authorization code を
+  Apple と交換して保存する。交換・失効に使う client secret は Sign in with Apple 用の秘密鍵（.p8）で署名するため、
+  その鍵を Secrets Manager に置く（[ADR-004](./ADR-004-secrets-management-and-cicd-aws-credentials.md)）。
+  決定1の「ID token はサインイン直後の1回だけ使う」は変わらない。
+- **Server-to-Server 通知（同意の取り消し・Apple ID の削除）は初回の対応に含めない**。必須なのは韓国に拠点を置く
+  開発者だけで、本アプリは該当しない。
+- サインイン画面では、Sign in with Apple のボタンを Google と同等以上に目立たせる
+  （4.8 の「同等の選択肢」と Human Interface Guidelines に合わせる）。
+
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
@@ -436,4 +488,4 @@ SS-10 の実装とローカルレビューで決めたが、エージェント�
 - [RFC 7636: PKCE](https://datatracker.ietf.org/doc/html/rfc7636)
 - [Expo: Using Google authentication](https://docs.expo.dev/guides/google-authentication/)
 - [Expo: AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/)
-- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）
+- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）
