@@ -382,8 +382,15 @@ aws lambda invoke --function-name sanposcape-dev-backend-migrate \
   生 JSON を base64 と解釈して失敗する）。`--cli-read-timeout` は CLI 既定が 60 秒で
   Lambda の `Timeout: 300` より短いため明示する（無いと**実際は成功しているのに
   CLI だけタイムアウトする**）。
-- 成功すると `{"head": "<リビジョンID>"}` が返る。`alembic/versions/` の最新リビジョンと
-  一致することを確認する。
+- 成功すると `{"before": "<適用前のリビジョンID>", "head": "<適用後のリビジョンID>"}` が返る
+  （どちらも DB の `alembic_version` から読んだ値）。`head` が `alembic/versions/` の最新リビジョンと
+  一致することを確認する。`before` と `head` が同じなら何も適用されていない。
+- **`sam deploy` が完了してから invoke する**（スタックが `UPDATE_COMPLETE` になるまで待つ）。
+  `Migrate` 関数の更新前に invoke すると古い成果物で `upgrade head` が走り、新しいリビジョンを
+  含まないまま「成功」で終わる（dev で実際に起きた。2026-10-10）。期待したリビジョンにならなければ、
+  デプロイの完了を確かめてから invoke し直す。
+- CloudWatch Logs（`/aws/lambda/sanposcape-<env>-backend-migrate`）には alembic の
+  `Running upgrade A -> B` と `migration completed: ...` が JSON で残る。
 - API 本体と同じビルド成果物（同じ `CodeUri`）を使っているため、デプロイされたコードと
   マイグレーションのリビジョンは必ず一致する。
 - **既存テーブルへの列追加では、列を読むコードのデプロイからこの invoke までの間、そのテーブルを

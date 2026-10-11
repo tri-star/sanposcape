@@ -26,10 +26,12 @@ from urllib.parse import urlsplit
 
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import create_engine, pool
 
 from sanposcape.aws_lambda.runtime_logging import use_json_format_for_runtime_handlers
 from sanposcape.config import get_settings
+from sanposcape.core.observability import configure_logging
 from sanposcape.core.runtime_config import (
     hydrate_environment_from_secret,
     hydrate_migration_environment_from_secret,
@@ -40,6 +42,8 @@ logger = logging.getLogger(__name__)
 # ランタイムのログハンドラーを JSON にする（api.py と同じ。ADR-013 決定3 の SS-180 追補）。
 # この Lambda は `create_app()` を通らないため、`include_exception_messages` は既定の False の
 # まま（例外メッセージは JSON に出さない）。トレースも見ない。
+# ★ ここではフォーマッターを替えるだけでレベルは設定しない。レベルは handler の
+#   `_configure_migration_logging()` で設定する（無いと INFO が全部捨てられる。同関数の注記参照）。
 use_json_format_for_runtime_handlers()
 
 # Makefile が alembic/ を Lambda の CWD（/var/task）へコピーする。
@@ -71,6 +75,32 @@ def _build_alembic_config(database_url: str) -> Config:
     return config
 
 
+def _configure_migration_logging(level: str) -> None:
+    """`sanposcape.*` と alembic のログを `level` 以上で出す。
+
+    ★ これが無いとアプリのログが1行も残らない。Migrate の `LoggingConfig` は Text のままで
+      アプリのログレベルを指定していないため、ランタイムは root にハンドラーを付けるだけで
+      root のレベルは Python 既定の WARNING のまま。API は `create_app()` の
+      `configure_logging()` で `sanposcape` のレベルを設定するが、この Lambda はそこを通らない。
+      alembic の `Running upgrade A -> B` も INFO で、ローカルでは `alembic.ini` の
+      `[logger_alembic]` が効くが、ここでは `Config()` をファイル無しで組み立てるため
+      `env.py` の `fileConfig` が走らない。結果として、新しいリビジョンを含まない古いコードで
+      invoke しても（デプロイ完了前に invoke した等）、ログから気付けなかった。
+    """
+    configure_logging(level)
+    logging.getLogger("alembic").setLevel(level)
+
+
+def _read_db_revision(database_url: str) -> str | None:
+    """DB の `alembic_version` に入っているリビジョンを読む（未作成なら None）。"""
+    engine = create_engine(database_url, poolclass=pool.NullPool)
+    try:
+        with engine.connect() as connection:
+            return MigrationContext.configure(connection).get_current_revision()
+    finally:
+        engine.dispose()
+
+
 def _reject_pooled_endpoint(database_url: str) -> None:
     """pooled エンドポイントでのマイグレーション実行を拒否する。
 
@@ -96,14 +126,20 @@ def _reject_pooled_endpoint(database_url: str) -> None:
 
 
 def handler(event: dict[str, Any], context: object) -> dict[str, str]:
-    """`alembic upgrade head` を実行し、適用後の head リビジョンを返す。
+    """`alembic upgrade head` を実行し、適用前後の DB のリビジョンを返す。
 
     `aws lambda invoke` の出力（戻り値の JSON）でリビジョンを確認できるようにする。
+    `head` は適用後に DB から読んだ値（成果物の head ではない）、`before` は適用前の値。
+    両者が同じなら何も適用されていない。期待したリビジョンが新しく入らなかったときは、
+    invoke したコードが古い（デプロイの完了前に invoke した等）ことを疑う。
     """
     hydrate_environment_from_secret()
     hydrate_migration_environment_from_secret()
 
-    database_url = get_settings().migrate_database_url
+    settings = get_settings()
+    _configure_migration_logging(settings.log_level)
+
+    database_url = settings.migrate_database_url
     if database_url is None:
         raise MigrationConfigError(
             "migrate_database_dsn (MIGRATE_DATABASE_DSN) is not set; the secret may be "
@@ -115,8 +151,13 @@ def handler(event: dict[str, Any], context: object) -> dict[str, str]:
     _reject_pooled_endpoint(database_url)
 
     config = _build_alembic_config(database_url)
+    before = _read_db_revision(database_url)
+    logger.info("migration starting: before=%s", before)
     command.upgrade(config, "head")
 
-    head_revision = ScriptDirectory.from_config(config).get_current_head()
-    logger.info("migration completed: head=%s", head_revision)
-    return {"head": head_revision or ""}
+    head = _read_db_revision(database_url)
+    if head == before:
+        logger.info("migration completed: no pending revisions (head=%s)", head)
+    else:
+        logger.info("migration completed: before=%s head=%s", before, head)
+    return {"before": before or "", "head": head or ""}
