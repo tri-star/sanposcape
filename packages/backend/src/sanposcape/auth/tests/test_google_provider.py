@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import pytest
 from jwt.algorithms import RSAAlgorithm
-from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
+from jwt.exceptions import DecodeError, PyJWKClientConnectionError, PyJWKClientError
 from jwt.jwks_client import PyJWKClient
 
 from sanposcape.auth.exceptions import IdentityProviderUnavailableError, InvalidIdTokenError
@@ -154,6 +154,28 @@ def test_verify_maps_unknown_kid_to_invalid_id_token(
 
     with pytest.raises(InvalidIdTokenError):
         provider.verify(token)
+
+
+def test_verify_maps_decode_error_while_resolving_key_to_invalid_id_token(
+    provider_settings,
+) -> None:
+    # 実機の PyJWKClient は JWT として読めない入力で DecodeError を投げる
+    provider = GoogleIdentityProvider(
+        provider_settings, jwks_client=_RaisingJWKSClient(DecodeError("Not enough segments"))
+    )
+
+    with pytest.raises(InvalidIdTokenError):
+        provider.verify("not-a-jwt")
+
+
+def test_verify_non_jwt_with_real_jwks_client_is_invalid_id_token(provider_settings) -> None:
+    # JWKS の取得より前に失敗するのでネットワークには出ない
+    provider = GoogleIdentityProvider(
+        provider_settings, jwks_client=PyJWKClient("https://example.invalid/keys", timeout=1)
+    )
+
+    with pytest.raises(InvalidIdTokenError):
+        provider.verify("not-a-jwt")
 
 
 def test_jwks_conversion_resolves_signing_key_from_real_jwks_json(

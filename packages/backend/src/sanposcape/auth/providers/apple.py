@@ -51,6 +51,11 @@ class AppleIdentityProvider:
         except PyJWKClientError as exc:
             logger.warning("Failed to resolve Apple signing key: %s", type(exc).__name__)
             raise InvalidIdTokenError("Unable to resolve signing key") from exc
+        except jwt.PyJWTError as exc:
+            # JWT として読めない入力（"not-a-jwt" 等）は、署名鍵の解決中に DecodeError で落ちる。
+            # PyJWKClientError ではないのでここで受け、500 ではなく 401 にする。
+            logger.warning("Apple ID token is malformed: %s", type(exc).__name__)
+            raise InvalidIdTokenError("Invalid Apple ID token") from exc
 
         try:
             claims = jwt.decode(
@@ -71,9 +76,13 @@ class AppleIdentityProvider:
         # token の nonce クレームは Apple に渡した値そのものなので、ここで同じ変換をして比較する。
         # raw のままの一致は受け付けない（token が漏れたとき、token の値をそのまま送れば
         # 通ってしまい、リプレイ防止にならないため）。
+        # bytes で比較する: str 同士の compare_digest は非 ASCII で TypeError（500）になり、
+        # nonce クレームは端末が Apple に渡した任意の文字列でありうる。
         expected = hashlib.sha256(nonce.encode("utf-8")).hexdigest()
         claim = claims["nonce"]
-        if not isinstance(claim, str) or not hmac.compare_digest(expected, claim.lower()):
+        if not isinstance(claim, str) or not hmac.compare_digest(
+            expected.encode("ascii"), claim.lower().encode("utf-8")
+        ):
             logger.warning("Apple ID token nonce mismatch")
             raise InvalidIdTokenError("Invalid Apple ID token nonce")
 
@@ -87,12 +96,17 @@ class AppleIdentityProvider:
             else None
         )
 
+        subject = claims["sub"]
+        if not isinstance(subject, str) or not subject:
+            logger.warning("Apple ID token has an invalid sub claim")
+            raise InvalidIdTokenError("Invalid Apple ID token subject")
+
         # Apple は氏名を ID token に入れない。氏名は初回の認可時に端末へ返るだけなので、
-        # リクエストの display_name を `UserService` が新規作成時だけ使う。
+        # リクエストの display_name を `UserService` が新規作成時・氏名が未設定のときだけ使う。
         # is_private_email / real_user_status / nonce_supported は使わない。
         return ProviderIdentity(
             provider="apple",
-            subject=claims["sub"],
+            subject=subject,
             email=email,
             display_name=None,
             photo_url=None,

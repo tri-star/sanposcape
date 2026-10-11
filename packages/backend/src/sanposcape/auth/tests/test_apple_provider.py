@@ -1,7 +1,9 @@
 from datetime import timedelta
 
+import jwt
 import pytest
-from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
+from jwt.exceptions import DecodeError, PyJWKClientConnectionError, PyJWKClientError
+from jwt.jwks_client import PyJWKClient
 
 from sanposcape.auth.exceptions import IdentityProviderUnavailableError, InvalidIdTokenError
 from sanposcape.auth.providers.apple import AppleIdentityProvider
@@ -100,6 +102,55 @@ class TestRejectsInvalidClaims:
         with pytest.raises(InvalidIdTokenError):
             provider.verify("not-a-jwt", nonce=RAW_NONCE)
 
+    def test_rejects_missing_iat(self, provider, make_apple_id_token) -> None:
+        token = make_apple_id_token(include_iat=False)
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify(token, nonce=RAW_NONCE)
+
+    def test_rejects_alg_none_token(self, provider, make_apple_id_token) -> None:
+        signed = jwt.decode(make_apple_id_token(), options={"verify_signature": False})
+        token = jwt.encode(signed, None, algorithm="none", headers={"kid": "test-key-1"})
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify(token, nonce=RAW_NONCE)
+
+    def test_rejects_hs256_token(self, provider, make_apple_id_token) -> None:
+        # alg 混同攻撃: RS256 以外（HMAC）で署名した token は alg で弾く
+        # （PyJWT は公開鍵 PEM を HMAC の秘密にできないため、固定の秘密で署名する）
+        claims = jwt.decode(make_apple_id_token(), options={"verify_signature": False})
+        token = jwt.encode(claims, "x" * 32, algorithm="HS256", headers={"kid": "test-key-1"})
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify(token, nonce=RAW_NONCE)
+
+    @pytest.mark.parametrize("sub", ["", 12345, None])
+    def test_rejects_empty_or_non_string_sub(self, provider, make_apple_id_token, sub) -> None:
+        token = make_apple_id_token(sub=sub)  # type: ignore[arg-type]
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify(token, nonce=RAW_NONCE)
+
+    def test_decode_error_while_resolving_key_is_invalid_token(
+        self, provider_settings, make_apple_id_token
+    ) -> None:
+        # 実機の PyJWKClient は JWT として読めない入力で DecodeError を投げる
+        provider = AppleIdentityProvider(
+            provider_settings, jwks_client=_RaisingJWKSClient(DecodeError("Not enough segments"))
+        )
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify("not-a-jwt", nonce=RAW_NONCE)
+
+    def test_non_jwt_with_real_jwks_client_is_invalid_token(self, provider_settings) -> None:
+        # JWKS の取得より前に失敗するのでネットワークには出ない
+        provider = AppleIdentityProvider(
+            provider_settings, jwks_client=PyJWKClient("https://example.invalid/keys", timeout=1)
+        )
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify("not-a-jwt", nonce=RAW_NONCE)
+
 
 class TestNonce:
     def test_rejects_nonce_mismatch(self, provider, make_apple_id_token) -> None:
@@ -142,6 +193,13 @@ class TestNonce:
         token = make_apple_id_token(nonce=hash_nonce(RAW_NONCE).upper())
 
         assert provider.verify(token, nonce=RAW_NONCE).provider == "apple"
+
+    def test_rejects_non_ascii_nonce_claim(self, provider, make_apple_id_token) -> None:
+        # 署名済み token でも nonce クレームは任意の文字列でありうる。500 にならず 401 にする。
+        token = make_apple_id_token(nonce="é" + hash_nonce(RAW_NONCE))
+
+        with pytest.raises(InvalidIdTokenError):
+            provider.verify(token, nonce=RAW_NONCE)
 
     def test_rejects_non_string_nonce_claim(self, provider, make_apple_id_token) -> None:
         token = make_apple_id_token(nonce=123)  # type: ignore[arg-type]

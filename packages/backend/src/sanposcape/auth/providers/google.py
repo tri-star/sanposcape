@@ -37,6 +37,11 @@ class GoogleIdentityProvider:
             # kid が JWK Set に存在しない等（1回の自動再取得後も見つからない）→ 不正トークン扱い
             logger.warning("Failed to resolve Google signing key: %s", type(exc).__name__)
             raise InvalidIdTokenError("Unable to resolve signing key") from exc
+        except jwt.PyJWTError as exc:
+            # JWT として読めない入力は、署名鍵の解決中に DecodeError で落ちる。
+            # PyJWKClientError ではないのでここで受け、500 ではなく 401 にする。
+            logger.warning("Google ID token is malformed: %s", type(exc).__name__)
+            raise InvalidIdTokenError("Invalid Google ID token") from exc
 
         try:
             claims = jwt.decode(

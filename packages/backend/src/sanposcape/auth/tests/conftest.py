@@ -28,7 +28,8 @@ def hash_nonce(raw: str) -> str:
 class FakeJWKSClient:
     """`PyJWKClient.get_signing_key_from_jwt` だけを模した最小のフェイク。
 
-    ネットワークに一切出ずに Google ID token 検証ロジックだけをテストするための DI 差し替え先。
+    ネットワークに一切出ずに Google / Apple の ID token 検証ロジックだけをテストするための
+    DI 差し替え先。
     """
 
     public_key: object
@@ -91,6 +92,7 @@ def make_apple_id_token(rsa_keypair):
         nonce: str | None = None,
         include_nonce: bool = True,
         include_sub: bool = True,
+        include_iat: bool = True,
         email: str | None = "user@example.com",
         email_verified: object = "true",
         is_private_email: object = "false",
@@ -103,6 +105,8 @@ def make_apple_id_token(rsa_keypair):
             "iat": int(now.timestamp()),
             "exp": int((now + exp_delta).timestamp()),
         }
+        if not include_iat:
+            del claims["iat"]
         if include_sub:
             claims["sub"] = sub
         if include_nonce:
@@ -123,7 +127,7 @@ def make_apple_id_token(rsa_keypair):
 def auth_client(
     client: TestClient, rsa_keypair, test_settings: Settings
 ) -> Generator[TestClient, None, None]:
-    """FakeJWKSClient を注入した `/auth/*` 用クライアント（Google へは一切接続しない）。"""
+    """FakeJWKSClient を注入した `/auth/*` 用クライアント（Google / Apple へは一切接続しない）。"""
     _, public_key = rsa_keypair
     providers = {
         "google": GoogleIdentityProvider(test_settings, jwks_client=FakeJWKSClient(public_key)),
