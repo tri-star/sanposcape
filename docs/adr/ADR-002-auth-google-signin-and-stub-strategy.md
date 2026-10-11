@@ -546,6 +546,16 @@ authorization code の交換・Apple の refresh token の保存・削除時の�
 - 従来の `lru_cache(maxsize=1)` を Apple と共有すると、交互のリクエストで互いのクライアントを追い出し、
   毎回 JWKS を HTTP 取得する（キャッシュが効かないことはテストでは見えない）。
 
+### 今回スコープ外とした事項
+
+- **検証済み `aud` を `ProviderIdentity` に持たせない**。SS-198 の authorization code 交換では検証済み token の
+  `aud`（bundle ID）を `client_id` に使うのが安全だが、SS-197 では使わないため足さなかった。`ProviderIdentity` に
+  持たせるか、交換を `verify` とは別のメソッドに切り出すかは SS-198 で決める（外部 HTTP は DB トランザクションの前に置く）。
+- **未知の `kid` を持つ不正 JWT による JWKS 再取得の誘発**は対策しない。PyJWT は `kid` が一致しないたびに JWKS を
+  取り直すため、未認証のリクエストで Apple / Google への HTTPS 取得（タイムアウト 5 秒）を起こせる。
+  `/auth/*` にレート制限を入れるときにまとめて扱う。
+- **OpenAPI の `/auth/session` に 400 / 401 / 503 を宣言しない**。SS-197 以前からの欠落で Apple 固有ではないため、別途扱う。
+
 ### 影響
 
 - DB スキーマは変えない（`provider` は CHECK 制約の無い `String(32)`、Apple の `sub` は約 44 文字で `String(255)` に入る。
