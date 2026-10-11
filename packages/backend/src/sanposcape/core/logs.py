@@ -2,7 +2,8 @@
 
 - 出力は 1 レコード 1 行の JSON（`JsonLogFormatter`。依存なし）。ローカルは `LOG_FORMAT=console`。
 - `trace_id` / `span_id`（トレース有効時）、Lambda の `aws_request_id`、`http_method` /
-  `http_route`、認証済みなら `user_id`（内部 UUID）を付ける。
+  `http_route`、認証済みなら `user_id`（内部 UUID。ログイン・refresh・logout を含む）、
+  `X-App-Session-Id` が検証を通ったとき `app_session_id` を付ける。
 - **例外メッセージは local / test でしか出さない**（ADR-013 決定6: メッセージ経由の漏れを塞ぐ）。
 
 トレースの helper は `core/tracing.py` から import する（依存は `logs → tracing` の一方向。
@@ -19,7 +20,8 @@ import traceback
 import uuid
 from collections.abc import Iterator
 from contextvars import ContextVar
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
+from dataclasses import fields as dataclass_fields
 from datetime import UTC, datetime
 from typing import Any
 
@@ -87,7 +89,10 @@ class LogContext:
     aws_request_id: str | None = None
     http_method: str | None = None
     http_route: str | None = None
-    # 内部 UUID のみ（`bind_user_id`）。スパンには `enduser.id` として写す。
+    # 内部 UUID のみ（`bind_user_id`）。スパンには `enduser.id` として写す。認証済みのリクエストでは
+    # 認証されたユーザー。ログイン・refresh・logout では確定したユーザー（失敗の 401・
+    # `reuse_detected` を含む）で、refresh / logout では**提示されたトークンの持ち主**であり、
+    # 送信者本人とは限らない（盗まれたトークンの再利用でも持ち主の ID が付く）。
     user_id: str | None = field(default=None, metadata={"span_attribute": "enduser.id"})
     # アプリの起動ごとのセッション ID（`X-App-Session-Id`。検証済みの UUID v4 だけ）。クライアントの
     # 申告で、端末の証明ではない。スパンには `session.id`（ログインセッションと混同しない名前）。
@@ -97,7 +102,9 @@ class LogContext:
 
 
 # ログに出す文脈のキー（`LogContext` の定義順）。固定の tuple を別に持たず、フィールドから導く。
-_LOG_CONTEXT_KEYS = tuple(f.name for f in fields(LogContext) if f.metadata.get("emit", True))
+_LOG_CONTEXT_KEYS = tuple(
+    f.name for f in dataclass_fields(LogContext) if f.metadata.get("emit", True)
+)
 
 
 _log_context: ContextVar[LogContext | None] = ContextVar("sanposcape_log_context", default=None)
@@ -136,7 +143,8 @@ def bind_user_id(user_id: uuid.UUID) -> None:
 
     ここでは `LogContext` に入れるだけで、スパンには触れない。スパンへは、
     `current_span_attributes()` の値を、`AccessLogMiddleware`（FastAPI のサーバースパン。
-    応答の開始時）と `aws_lambda/tracing.py`（Lambda の親スパン。リクエストの終わり）が写す。
+    応答の開始時と最後の body を送る直前。入口で捕まえたスパンへ）と `aws_lambda/tracing.py`
+    （Lambda の親スパン。リクエストの終わり）が写す。
     bind 時点の current span はサーバースパンとは限らず、`Settings`（`tracing_enabled`）も
     知らないため。
 
@@ -160,7 +168,7 @@ def current_span_attributes() -> dict[str, str]:
     if current is None:
         return {}
     attributes: dict[str, str] = {}
-    for item in fields(LogContext):
+    for item in dataclass_fields(LogContext):
         name = item.metadata.get("span_attribute")
         value = getattr(current, item.name)
         if name and value is not None:
@@ -284,7 +292,8 @@ class JsonLogFormatter(logging.Formatter):
     - 常に: `timestamp`（UTC・ミリ秒・`Z` 終わり）/ `level` / `logger` / `message`
       （長すぎる `message` は切り詰めて `message_truncated: true`。1 行が大きすぎるときは
       スタックトレースを落とす。CloudWatch の 1 イベントは 256KB まで）
-    - 文脈: `aws_request_id` / `http_method` / `http_route` / `user_id`（`LogContext`）、
+    - 文脈: `aws_request_id` / `http_method` / `http_route` / `user_id` / `app_session_id`
+      （`LogContext`）、
       `trace_id` / `span_id` / `trace_sampled`（トレース有効で current span が有効なとき）
     - `extra=` は `_EXTRA_KEYS` の許可リストだけ（アクセスログの `log_type` など）
     - `exc_info` があるとき: `exception_type` / `exception_stacktrace` / `exception_sqlstate`。

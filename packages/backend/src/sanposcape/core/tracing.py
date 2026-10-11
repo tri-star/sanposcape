@@ -114,18 +114,33 @@ def set_span_attributes(span: Any, attributes: dict[str, str]) -> None:
         warn_once("span-attributes", "スパンへの属性の設定に失敗した")
 
 
-def annotate_current_span(attributes: dict[str, str], *, enabled: bool) -> None:
-    """現在のスパンに属性を設定する。`enabled`（`settings.tracing_enabled`）が False か、
-    `attributes` が空なら、OpenTelemetry を import する前に何もせず返る（ADR-013 決定7）。
-    OTel が無いときも何もしない。
+def capture_current_span(*, enabled: bool) -> Any | None:
+    """現在のスパンを、後で属性を書くために捕まえる。記録中でなければ None（何もしない合図）。
+
+    `enabled`（`settings.tracing_enabled`）が False のときは、OpenTelemetry を import する前に
+    None を返す（ADR-013 決定7）。OTel が無いとき・取得に失敗したときも None。
     """
-    if not enabled or not attributes:
-        return
+    if not enabled:
+        return None
     try:
         from opentelemetry import trace
-    except ImportError:
+
+        span = trace.get_current_span()
+        return span if span.is_recording() else None
+    except Exception:
+        warn_once("capture-span", "現在のスパンを取得できなかった")
+        return None
+
+
+def annotate_span(span: Any | None, attributes: dict[str, str]) -> None:
+    """`capture_current_span` で捕まえたスパンに属性を設定する。
+
+    `span` が None か `attributes` が空なら何もしない。スパンが既に終わっていれば
+    （`set_span_attributes` が記録中かを見る）何もしない。
+    """
+    if span is None or not attributes:
         return
-    set_span_attributes(trace.get_current_span(), attributes)
+    set_span_attributes(span, attributes)
 
 
 def _provider_is_unconfigured(tracer_provider: object | None) -> bool:

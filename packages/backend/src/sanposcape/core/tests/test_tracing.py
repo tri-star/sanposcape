@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Generator
+from collections.abc import AsyncIterator, Generator
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
@@ -25,6 +25,7 @@ import httpcore
 import httpx
 import pytest
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 from opentelemetry import trace
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -100,6 +101,29 @@ def _traced_app(provider: TracerProvider) -> FastAPI:
     def probe_bound_boom() -> None:
         bind_user_id(_PROBE_USER_ID)
         raise RuntimeError("boom")
+
+    @app.get("/probe/stream-in-child-span")
+    async def probe_stream_in_child_span() -> StreamingResponse:
+        """ユーザー ID は先に bind し、手動の子スパンの中で応答（body）を送る。"""
+        bind_user_id(_PROBE_USER_ID)
+
+        async def body() -> AsyncIterator[bytes]:
+            with provider.get_tracer("probe").start_as_current_span("child"):
+                yield b"a"
+                yield b"b"
+
+        return StreamingResponse(body())
+
+    @app.get("/probe/bind-after-response-start")
+    async def probe_bind_after_response_start() -> StreamingResponse:
+        """応答の開始（`http.response.start`）の後で、ユーザー ID を bind する。"""
+
+        async def body() -> AsyncIterator[bytes]:
+            yield b"a"  # この時点で応答は開始済み
+            bind_user_id(_PROBE_USER_ID)
+            yield b"b"
+
+        return StreamingResponse(body())
 
     instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
     return app
@@ -355,6 +379,58 @@ class TestEndUserIdOnServerSpan:
         (span,) = exporter.get_finished_spans()
         assert span.attributes["enduser.id"] == str(_PROBE_USER_ID)
 
+    def test_enduser_id_reaches_the_server_span_when_the_response_is_sent_in_a_child_span(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        """送信時の current span が子スパンでも、入口で捕まえたサーバースパンに載る。"""
+        client = TestClient(_traced_app(provider))
+
+        assert client.get("/probe/stream-in-child-span").content == b"ab"
+
+        spans = exporter.get_finished_spans()
+        server = next(s for s in spans if s.name == "GET /probe/stream-in-child-span")
+        child = next(s for s in spans if s.name == "child")
+        assert server.attributes["enduser.id"] == str(_PROBE_USER_ID)
+        assert "enduser.id" not in child.attributes
+
+    def test_enduser_id_bound_after_the_response_started_reaches_the_server_span(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        """最後の body を送る前に、もう一度写す（応答の開始後の bind も載る）。"""
+        client = TestClient(_traced_app(provider))
+
+        assert client.get("/probe/bind-after-response-start").content == b"ab"
+
+        server = next(
+            s
+            for s in exporter.get_finished_spans()
+            if s.name == "GET /probe/bind-after-response-start"
+        )
+        assert server.attributes["enduser.id"] == str(_PROBE_USER_ID)
+
+    def test_nothing_is_written_when_the_captured_span_is_not_recording(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """記録中でないスパン（サンプリングされない・既に終わった）には書かず、警告も出さない。"""
+        written: list[tuple[str, str]] = []
+
+        class _NotRecording:
+            def is_recording(self) -> bool:
+                return False
+
+            def set_attribute(self, key: str, value: str) -> None:
+                written.append((key, value))
+
+        with caplog.at_level(logging.WARNING):
+            tracing.annotate_span(_NotRecording(), {"enduser.id": "x"})
+
+        assert written == []
+        assert caplog.records == []
+
+    def test_capture_current_span_returns_none_for_a_non_recording_span(self) -> None:
+        # TracerProvider を構成していない（no-op の）環境では、current span は記録中でない
+        assert tracing.capture_current_span(enabled=True) is None
+
     def test_no_span_attribute_carries_an_email_address(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
@@ -372,10 +448,10 @@ class TestEndUserIdOnServerSpan:
         exporter: InMemorySpanExporter,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        def _fail(attributes: dict[str, str], *, enabled: bool) -> None:
+        def _fail(span: object, attributes: dict[str, str]) -> None:
             raise RuntimeError("otel is broken")
 
-        monkeypatch.setattr(access_log, "annotate_current_span", _fail)
+        monkeypatch.setattr(access_log, "annotate_span", _fail)
         monkeypatch.setattr(tracing, "_WARNED", set())
         client = TestClient(_traced_app(provider))
 
@@ -419,30 +495,51 @@ class TestEndUserIdOnServerSpan:
 
         tracing.set_span_attributes(_BrokenSpan(), {"enduser.id": "x"})  # 例外にならない
 
-    def test_annotate_current_span_is_noop_when_disabled_or_empty(
+    def test_annotate_span_is_noop_without_a_span_or_attributes(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        with provider.get_tracer("t").start_as_current_span("op") as span:
+            tracing.annotate_span(None, {"enduser.id": "x"})
+            tracing.annotate_span(span, {})
+
+        (finished,) = exporter.get_finished_spans()
+        assert "enduser.id" not in finished.attributes
+
+    def test_capture_current_span_returns_none_when_disabled(
+        self, provider: TracerProvider
+    ) -> None:
+        with provider.get_tracer("t").start_as_current_span("op"):
+            assert tracing.capture_current_span(enabled=False) is None
+
+    def test_captured_span_receives_attributes_even_if_current_span_changes(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        tracer = provider.get_tracer("t")
+        with tracer.start_as_current_span("outer"):
+            captured = tracing.capture_current_span(enabled=True)
+            with tracer.start_as_current_span("inner"):
+                tracing.annotate_span(captured, {"enduser.id": "x"})
+
+        spans = {s.name: s for s in exporter.get_finished_spans()}
+        assert spans["outer"].attributes["enduser.id"] == "x"
+        assert "enduser.id" not in spans["inner"].attributes
+
+    def test_annotate_span_does_not_write_to_a_finished_span(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
     ) -> None:
         with provider.get_tracer("t").start_as_current_span("op"):
-            tracing.annotate_current_span({"enduser.id": "x"}, enabled=False)
-            tracing.annotate_current_span({}, enabled=True)
+            captured = tracing.capture_current_span(enabled=True)
 
-        (span,) = exporter.get_finished_spans()
-        assert "enduser.id" not in span.attributes
+        tracing.annotate_span(captured, {"enduser.id": "late"})
 
-    def test_annotate_current_span_sets_attributes_when_enabled(
-        self, provider: TracerProvider, exporter: InMemorySpanExporter
-    ) -> None:
-        with provider.get_tracer("t").start_as_current_span("op"):
-            tracing.annotate_current_span({"enduser.id": "x"}, enabled=True)
+        (finished,) = exporter.get_finished_spans()
+        assert "enduser.id" not in finished.attributes
 
-        (span,) = exporter.get_finished_spans()
-        assert span.attributes["enduser.id"] == "x"
-
-    def test_annotate_current_span_does_not_import_opentelemetry_when_disabled(self) -> None:
+    def test_capture_current_span_does_not_import_opentelemetry_when_disabled(self) -> None:
         code = (
             "import sys\n"
-            "from sanposcape.core.tracing import annotate_current_span\n"
-            "annotate_current_span({'enduser.id': 'x'}, enabled=False)\n"
+            "from sanposcape.core.tracing import capture_current_span\n"
+            "assert capture_current_span(enabled=False) is None\n"
             "loaded = sorted(m for m in sys.modules if m.split('.')[0] == 'opentelemetry')\n"
             "assert not loaded, loaded\n"
         )

@@ -87,9 +87,22 @@ class _LambdaRootSpanMiddleware:
             finally:
                 # 例外が出る経路（500）でもルートは分かるので finally で付ける。
                 self._rename(span, scope)
-                # ユーザー ID を親スパンに写す（子スパンには付けない。`bind_user_id` 参照）。
-                set_span_attributes(span, current_span_attributes())
+                # ★ 無害化を先に行う。写し（可観測性の付加機能）の失敗で、クエリや UA を外へ出さない
+                #   ための処理が飛ばないようにする。
                 self._sanitize_event(scope)
+                self._annotate_root(span)
+
+    @staticmethod
+    def _annotate_root(span: Span) -> None:
+        """ユーザー ID・セッション ID を Lambda の親スパン（LOCAL_ROOT）に写す。
+
+        このミドルウェアは親にだけ写す（FastAPI のサーバースパンへは `AccessLogMiddleware` が写す。
+        DB・httpx の子スパンには付かない。`bind_user_id` 参照）。失敗しても応答を妨げない。
+        """
+        try:
+            set_span_attributes(span, current_span_attributes())
+        except Exception:
+            warn_once("lambda-root-annotate", "Lambda の親スパンへの属性の記録に失敗した")
 
     @staticmethod
     def _sanitize_event(scope: Scope) -> None:

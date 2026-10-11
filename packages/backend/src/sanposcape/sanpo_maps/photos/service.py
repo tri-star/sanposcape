@@ -99,7 +99,7 @@ class PinPhotoUploadService:
 
         # 直送（端末 → S3）は backend を通らないため、発行した枠とキーを残しておかないと
         # 「どのオブジェクトが届くはずだったのか」を後から S3 と突き合わせられない
-        # （SS-88 の実機調査での反省。`core/observability.py` の冒頭も参照）。
+        # （SS-88 の実機調査での反省。`core/access_log.py` の冒頭も参照）。
         # ★ `form.fields` は絶対にログへ出さないこと（policy / 署名 / 一時認証情報を含む）。
         # `taken_at` も出さない（行動の履歴に当たり、障害調査に要らない, 決定34）。
         logger.info(

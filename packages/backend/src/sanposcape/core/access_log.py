@@ -19,13 +19,15 @@ from __future__ import annotations
 import logging
 import re
 import time
+from typing import Any
 
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from sanposcape.core.logs import current_span_attributes, log_context
 from sanposcape.core.tracing import (
-    annotate_current_span,
+    annotate_span,
+    capture_current_span,
     record_exception_on_current_span,
     warn_once,
 )
@@ -153,16 +155,24 @@ class AccessLogMiddleware:
             status = 500
             response_started = False
             failed_after_response_start = False
+            # ★ 入口でサーバースパンを捕まえる（OTel の ASGI 計装の内側なので、ここではサーバー
+            #   スパンが current）。送信時の current は手動の子スパン内だと子スパンになるため、
+            #   送信時に current を引かない。記録中でなければ None で、以降は何もしない。
+            server_span = capture_current_span(enabled=self._tracing_enabled)
 
             async def send_wrapper(message: Message) -> None:
                 nonlocal status, response_started
                 if message["type"] == "http.response.start":
                     status = message["status"]
                     response_started = True
-                    # ★ 応答の開始時に写す。OTel の ASGI 計装は最後の body を送ると
-                    #   **サーバースパンを終える**ので、`self.app` が戻った後は記録中でない。
-                    #   ユーザー ID を bind する認証の依存は、応答の開始より前に走っている。
-                    self._annotate_span()
+                    # ★ 応答の開始時に写す。ユーザー ID を bind する認証の依存は、応答の開始より
+                    #   前に走っている。
+                    self._annotate_span(server_span)
+                elif message["type"] == "http.response.body" and not message.get("more_body"):
+                    # ★ 最後の body を送る「前」にもう一度写す。OTel の ASGI 計装は最後の body を
+                    #   送るとサーバースパンを終えるので、送った後では遅い。ストリーミング中に
+                    #   bind された値もここで載る。
+                    self._annotate_span(server_span)
                 await send(message)
 
             try:
@@ -171,7 +181,9 @@ class AccessLogMiddleware:
                 self._log(scope, status, started, exc=exc)
                 self._record_on_span(exc)
                 if not response_started:
-                    self._annotate_span()  # 応答の開始前の例外。スパンはまだ終わっていない
+                    self._annotate_span(
+                        server_span
+                    )  # 応答の開始前の例外。スパンはまだ終わっていない
                     response = PlainTextResponse("Internal Server Error", status_code=500)
                     await response(scope, receive, send)
                     return
@@ -190,15 +202,22 @@ class AccessLogMiddleware:
         except Exception:
             warn_once("record-exception", "未処理例外のスパンへの記録に失敗した")
 
-    def _annotate_span(self) -> None:
-        """`LogContext` のユーザー ID などを、サーバースパンの属性に写す。
+    def _annotate_span(self, span: Any | None) -> None:
+        """`LogContext` のユーザー ID・セッション ID を、入口で捕まえたサーバースパンに写す。
 
-        `bind_user_id` の docstring を参照。記録の失敗で応答を妨げない。
+        `bind_user_id` の docstring を参照。前提: `span` はミドルウェア入口の current span
+        （OTel の ASGI 計装の内側）で、その時点で記録中だったもの。None（トレース無効・記録中
+        でない）なら `current_span_attributes()` も計算せず返る。既に終わったスパンへは
+        `set_span_attributes` が書かない。記録の失敗で応答を妨げない。
         """
+        if span is None:
+            return
         try:
-            annotate_current_span(current_span_attributes(), enabled=self._tracing_enabled)
+            annotate_span(span, current_span_attributes())
         except Exception:
-            warn_once("annotate-span", "スパンへのユーザー ID の記録に失敗した")
+            warn_once(
+                "annotate-span", "スパンへの属性（ユーザー ID・セッション ID）の記録に失敗した"
+            )
 
     def _log(
         self, scope: Scope, status: int, started: float, *, exc: BaseException | None = None

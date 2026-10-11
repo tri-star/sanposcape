@@ -147,10 +147,11 @@ class TestAccessLogMiddleware:
     def test_a_failing_span_annotation_does_not_change_the_response(
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        def _fail(attributes: dict[str, str], *, enabled: bool) -> None:
+        def _fail(span: object, attributes: dict[str, str]) -> None:
             raise RuntimeError("otel is broken")
 
-        monkeypatch.setattr(access_log, "annotate_current_span", _fail)
+        monkeypatch.setattr(access_log, "capture_current_span", lambda *, enabled: object())
+        monkeypatch.setattr(access_log, "annotate_span", _fail)
         monkeypatch.setattr(tracing, "_WARNED", set())
 
         with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
@@ -162,10 +163,11 @@ class TestAccessLogMiddleware:
     def test_a_failing_span_annotation_does_not_prevent_the_500_response(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        def _fail(attributes: dict[str, str], *, enabled: bool) -> None:
+        def _fail(span: object, attributes: dict[str, str]) -> None:
             raise RuntimeError("otel is broken")
 
-        monkeypatch.setattr(access_log, "annotate_current_span", _fail)
+        monkeypatch.setattr(access_log, "capture_current_span", lambda *, enabled: object())
+        monkeypatch.setattr(access_log, "annotate_span", _fail)
         monkeypatch.setattr(tracing, "_WARNED", set())
 
         sent = _run_middleware("/pins", raises=True, tracing_enabled=True)
@@ -326,11 +328,13 @@ class TestAppSessionId:
         assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [201]
         assert json_logs
         assert all("app_session_id" not in line for line in json_logs), label
-        dumped = json.dumps(json_logs, ensure_ascii=False)
+        # パース済みの値（JSON エスケープ前）と比べる。エスケープ後の文字列と比べると、
+        # 改行・引用符を含む値は漏れていても一致せず、検査が常に通ってしまう。
+        values = [str(value) for line in json_logs for value in line.values()]
         text = raw.decode("utf-8", errors="replace")
         if text:
-            assert text not in dumped, label
-            assert "CRITICAL" not in dumped
+            assert not any(text in value for value in values), label
+        assert all(line["level"] != "CRITICAL" for line in json_logs), label
 
     def test_duplicate_headers_are_all_dropped(self, json_logs: list[dict[str, Any]]) -> None:
         other = "1b5b3c3e-1111-4222-8333-444455556666"

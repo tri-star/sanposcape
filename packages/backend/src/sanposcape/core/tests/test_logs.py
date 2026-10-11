@@ -1,4 +1,5 @@
 import ast
+import contextvars
 import json
 import logging
 import sys
@@ -385,8 +386,6 @@ class TestLogContext:
 
     def test_user_id_bound_in_a_copied_context_reaches_the_caller(self) -> None:
         """同期の依存はスレッドプール（context のコピー）で動く。可変オブジェクトなので届く。"""
-        import contextvars
-
         with log_context() as ctx:
             contextvars.copy_context().run(bind_user_id, _USER_ID)
 
@@ -433,6 +432,24 @@ def _log_calls_with_extra() -> list[tuple[str, int, ast.keyword]]:
     return found
 
 
+def _extra_key_violations(calls: list[tuple[str, int, ast.keyword]]) -> list[str]:
+    """`extra=` の違反（dict リテラルでない・キーが文字列リテラルでない・許可リスト外）。"""
+    violations: list[str] = []
+    for file, line, keyword in calls:
+        where = f"{file}:{line}"
+        if not isinstance(keyword.value, ast.Dict):
+            violations.append(f"{where}: extra= は dict リテラルにする")
+            continue
+        for key in keyword.value.keys:
+            if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+                violations.append(f"{where}: extra= のキーは文字列リテラルにする")
+            elif key.value not in logs._EXTRA_KEYS:
+                violations.append(
+                    f"{where}: {key.value!r} が _EXTRA_KEYS に無い（黙って捨てられる）"
+                )
+    return violations
+
+
 class TestLogKeys:
     def test_log_context_keys_are_derived_from_the_dataclass_in_definition_order(self) -> None:
         assert logs._LOG_CONTEXT_KEYS == (
@@ -468,25 +485,47 @@ class TestLogKeys:
         calls = _log_calls_with_extra()
         assert calls, "extra= を使うログ呼び出しが 1 件も見つからない（検査が空振りしている）"
 
-        for file, line, keyword in calls:
-            where = f"{file}:{line}"
-            assert isinstance(keyword.value, ast.Dict), f"{where}: extra= は dict リテラルにする"
-            for key in keyword.value.keys:
-                assert isinstance(key, ast.Constant) and isinstance(key.value, str), (
-                    f"{where}: extra= のキーは文字列リテラルにする"
-                )
-                assert key.value in logs._EXTRA_KEYS, (
-                    f"{where}: {key.value!r} が _EXTRA_KEYS に無い（黙って捨てられる）"
-                )
+        assert _extra_key_violations(calls) == []
 
     def test_the_extra_check_detects_an_unknown_key(self) -> None:
-        tree = ast.parse('logger.info("x", extra={"unknown_key": 1})')
-        (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
-        (keyword,) = call.keywords
-        assert isinstance(keyword.value, ast.Dict)
+        """本物の検査（`_extra_key_violations`）が違反を見つけられることを確かめる。"""
+        tree = ast.parse(
+            'logger.info("a", extra={"unknown_key": 1})\n'
+            'logger.info("b", extra={"log_type": "access"})\n'
+            'logger.info("c", extra=build())\n'
+            'logger.info("d", extra={key: 1})\n'
+        )
+        calls = [
+            ("x.py", node.lineno, kw)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            for kw in node.keywords
+            if kw.arg == "extra"
+        ]
 
-        (key,) = keyword.value.keys
-        assert isinstance(key, ast.Constant) and key.value not in logs._EXTRA_KEYS
+        violations = _extra_key_violations(calls)
+
+        assert len(violations) == 3  # a（許可リスト外）/ c（dict リテラルでない）/ d（キーが変数）
+        assert any("unknown_key" in v for v in violations)
+        assert not any("log_type" in v for v in violations)
+
+    def test_base_keys_cover_every_key_the_formatter_emits(
+        self, json_formatter: JsonLogFormatter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`_BASE_KEYS`（手書き）が古くならないよう、出力のキーが 3 グループに収まるか見る。"""
+        monkeypatch.setattr(logs, "_MAX_MESSAGE_CHARS", 5)
+        logs._LOG_OPTIONS.include_exception_messages = True
+        extra = dict.fromkeys(logs._EXTRA_KEYS, 1)
+        with log_context(
+            aws_request_id="r", http_method="GET", app_session_id="s", scope={"type": "http"}
+        ):
+            bind_user_id(_USER_ID)
+            line = json_formatter.format(
+                _record("long message", exc=_raise(RuntimeError("boom")), **extra)
+            )
+
+        known = _BASE_KEYS | set(logs._EXTRA_KEYS) | set(logs._LOG_CONTEXT_KEYS)
+        assert set(json.loads(line)) <= known
 
 
 @pytest.fixture

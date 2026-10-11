@@ -374,3 +374,48 @@ def test_wrapper_does_nothing_for_users_when_tracing_is_disabled(provider: Trace
     app = _probe_app(provider, enabled=False)
 
     assert wrap_app_for_lambda_tracing(app) is app
+
+
+def test_event_is_sanitized_even_when_copying_the_user_id_to_the_span_fails(
+    provider: TracerProvider,
+    exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """可観測性の写しが例外でも、`rawQueryString` と `userAgent` の無害化は先に済んでいる。"""
+    from sanposcape.aws_lambda import tracing as lambda_tracing
+    from sanposcape.core import tracing as core_tracing
+
+    def _fail() -> dict[str, str]:
+        raise RuntimeError("attribute mapping is broken")
+
+    monkeypatch.setattr(lambda_tracing, "current_span_attributes", _fail)
+    monkeypatch.setattr(core_tracing, "_WARNED", set())
+    event = _event("/pins/x", "secret=abc")
+    event["requestContext"]["http"]["userAgent"] = "ua"
+
+    async def inner(scope, receive, send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message) -> None:
+        return None
+
+    scope = {"type": "http", "path": "/pins/x", "method": "GET", "headers": [], "aws.event": event}
+    middleware = _LambdaRootSpanMiddleware(inner)
+
+    with (
+        caplog.at_level("WARNING", logger="sanposcape.core.observability"),
+        provider.get_tracer("lambda-root").start_as_current_span(
+            "sanposcape.aws_lambda.api.handler", kind=trace.SpanKind.SERVER
+        ),
+    ):
+        asyncio.run(middleware(scope, receive, send))  # 例外にならない
+
+    assert event["rawQueryString"] == ""
+    assert "userAgent" not in event["requestContext"]["http"]
+    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
+    assert "enduser.id" not in _root(exporter).attributes
