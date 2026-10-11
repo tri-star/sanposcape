@@ -183,6 +183,8 @@ docker compose up -d --build
 - `GOOGLE_JWKS_URL`: Google の JWKS エンドポイント。既定値（`https://www.googleapis.com/oauth2/v3/certs`）があり、通常は変更不要。
 - `GOOGLE_ALLOWED_ISSUERS`: Google ID token の許容 issuer（カンマ区切り可）。既定値（`https://accounts.google.com`, `accounts.google.com`）があり、通常は変更不要。
 - `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`: JWKS の `lru_cache` を破棄して再取得するまでの秒数。既定値（3600）があり、通常は変更不要。
+- `APPLE_ALLOWED_AUDIENCES`: Apple ID token（Sign in with Apple）の許容 audience（カンマ区切り可）。iOS ネイティブの `aud` は bundle ID（dev は `com.sanposcape.app.dev`、本番は `com.sanposcape.app`）。**空だと `provider="apple"` の `POST /auth/session` は 400**（Google は影響を受けない）。起動時の必須チェックには含めない。既存の開発者の `.env` には自動では入らないので、`.env.example` を見て足す。
+- `APPLE_JWKS_URL` / `APPLE_ISSUER` / `APPLE_JWKS_CACHE_LIFESPAN_SECONDS`: Apple の JWKS エンドポイント・`iss`・JWKS の再取得間隔。既定値（`https://appleid.apple.com/auth/keys` / `https://appleid.apple.com` / 3600）があり、通常は変更不要。
 
 ## Google Maps Platform（探索・徒歩経路）
 
@@ -379,6 +381,7 @@ print(r.status_code); print(r.text[:800])"
 
 - `AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE`
 - `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` / `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`
+- `APPLE_JWKS_URL` / `APPLE_ISSUER` / `APPLE_JWKS_CACHE_LIFESPAN_SECONDS`
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
 - `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`

@@ -79,7 +79,7 @@ packages/backend/
 │       │   ├── exceptions.py  #   ドメイン固有の例外
 │       │   ├── headers.py     #   X-App-Authorization → Authorization の順で Bearer を読む（SS-67）
 │       │   ├── tokens.py      #   自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化
-│       │   ├── providers/     #   IdP ごとの ID token 検証実装（google.py 等）を隔離する層
+│       │   ├── providers/     #   IdP ごとの ID token 検証実装（google.py / apple.py）と、IdP 共通の JWKS クライアント（jwks.py）を隔離する層
 │       │   └── tests/         #   このドメインのテスト（併置）
 │       │
 │       ├── users/             # ドメイン: ユーザー・アカウント
