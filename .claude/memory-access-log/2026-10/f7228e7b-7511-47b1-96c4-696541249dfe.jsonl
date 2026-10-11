@@ -1,0 +1,13 @@
+{"ts": "2026-10-11T14:04:32Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback-backend-file-relocation-gotchas.md", "via": "Read"}
+{"ts": "2026-10-11T14:04:33Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback-structured-logging-lambda-otel-gotchas.md", "via": "Read"}
+{"ts": "2026-10-11T14:04:34Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback-cloudwatch-observability-query-gotchas.md", "via": "Read"}
+{"ts": "2026-10-11T14:04:34Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback_lambda_adapter_boundary_assumptions.md", "via": "Read"}
+{"ts": "2026-10-11T14:04:35Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback-check-existing-and-parallel-work-before-planning.md", "via": "Read"}
+{"ts": "2026-10-11T14:34:10Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-architecture-reviewer", "memory": "project_ss180_structured_logging_review.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:19Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-security-reviewer", "memory": "sanposcape-backend-security-conventions.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:20Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-code-quality-reviewer", "memory": "pattern_configure_logging_untestable_branch.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:21Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-architecture-reviewer", "memory": "middleware-ordering-and-413.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:22Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-architecture-reviewer", "memory": "project_ss180_structured_logging_review.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:28Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback-backend-file-relocation-gotchas.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:29Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-planner", "memory": "feedback-structured-logging-lambda-otel-gotchas.md", "via": "Read"}
+{"ts": "2026-10-11T14:35:29Z", "session": "f7228e7b-7511-47b1-96c4-696541249dfe", "agent": "backend-developer", "memory": "feedback_log_context_testing_gotchas.md", "via": "Read"}

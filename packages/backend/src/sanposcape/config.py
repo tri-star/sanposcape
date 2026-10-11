@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     env: Literal["local", "test", "staging", "production"] = "local"
 
     # --- ログ ---
-    # `sanposcape.*` のログレベル（`core/observability.py` の `configure_logging()` が適用）。
+    # `sanposcape.*` のログレベル（`core/logs.py` の `configure_logging()` が適用）。
     # 既定を INFO にしているのは、アクセスログ（1リクエスト1行）を出すため。Lambda では
     # これを WARNING に上げると障害調査の手掛かりが `START`/`END` だけに戻るので注意する。
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     log_format: Literal["json", "console"] = "json"
 
     # --- トレース（OpenTelemetry。ADR-013 / SS-178） ---
-    # アプリ側の計装（`core/observability.py` の `instrument_fastapi_app` ほか）を有効にするか。
+    # アプリ側の計装（`core/tracing.py` の `instrument_fastapi_app` ほか）を有効にするか。
     # 既定は無効（OTel を import すらしない）。Lambda では template.yaml の Api だけが true にする。
     # ★ TracerProvider はここでは作らない。Lambda は ADOT レイヤー（AWS_LAMBDA_EXEC_WRAPPER）、
     #   ローカルは `opentelemetry-instrument`（scripts/start-api.sh）が起動時に構成する

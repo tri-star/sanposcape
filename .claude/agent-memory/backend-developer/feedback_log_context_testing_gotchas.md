@@ -11,5 +11,5 @@ metadata:
 **Why:** SS-180 で caplog の LogRecord を後から format して文脈が無く詰まりかけた。
 **How to apply:**
 - 「例外メッセージがログに出ない」テストでは、メッセージをソースにリテラルで書かない(`raise X("secret")` の行がスタックトレースの source 行として出力に入る)。実行時に組み立てる。
-- ambient な `main.app` は ENV=local なので `_LOG_OPTIONS.include_exception_messages=True`。JsonLogFormatter のテストは fixture で安全側(False)に揃える。conftest の autouse `_restore_log_options` が復元する。
+- ambient な `main.app` は ENV=local なので `_LOG_OPTIONS.include_exception_messages=True`。JsonLogFormatter のテストは fixture で安全側(False)に揃える。conftest の autouse `_restore_log_options` が復元する。monkeypatch の対象は実体のモジュール（`sanposcape.core.logs`）で、ファサード（`core/observability.py`）ではない。
 - Python の traceback は同一フレームの繰り返しを畳むので、行数上限のテストは再帰ではなく上限定数を monkeypatch する。

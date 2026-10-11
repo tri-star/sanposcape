@@ -45,8 +45,13 @@ metadata:
 
 ## ログに出さないもの
 
-- `AccessLogMiddleware`（`core/observability.py`）は method・`scope["path"]`・status・経過msだけを出し、
-  クエリ文字列・ヘッダー・本文は出さない。path を出すのが安全なのは、**全ルーターの path パラメータが
+- `AccessLogMiddleware`（`core/access_log.py`。`core/observability.py` から再エクスポート）は method・
+  `scope["path"]`・status・経過msを出し、クエリ文字列・本文は出さない。ヘッダーも出さないが、**例外が 1 つ**:
+  検証済みの `X-App-Session-Id`（小文字の UUID v4 だけ。不正値・同名の複数ヘッダーは捨てて、ログにもスパンにも
+  出さない。認可には使わない）を `app_session_id`（スパンは `session.id`）として出す。これは受容済みの設計で、
+  再指摘しない（クライアントの申告で、他人の ID を名乗れても影響は自分のリクエストの印だけ）。
+  `LogContext` の項目（`user_id`＝認証済み・ログイン / refresh / logout、`http_route` など）も出る。
+  path を出すのが安全なのは、**全ルーターの path パラメータが
   `uuid.UUID` で、トークン類（id_token・refresh_token・cursor 等）はすべて本文かクエリにある**から。
   これは強制された不変条件ではないので、ルーターを追加する PR のたびに確認する。
 - 写真アップロード枠の発行ログは `form.fields`（presigned POST の policy・署名・一時認証情報）を出さない。

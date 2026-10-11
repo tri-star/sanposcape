@@ -13,7 +13,7 @@ metadata:
 - ContextVar に可変 `LogContext` を入れる方式は、同期依存（anyio スレッド）で set が戻らない問題の正解。
 - Lambda `LoggingConfig` は Text のまま、フォーマッターだけ差し替える方針は受容済み。
 
-持ち越し論点（`observability.py` の 3 分割、`_EXTRA_KEYS` の拡張点、ThreadPoolExecutor ワーカーに文脈が伝わらない件、uvicorn 経路の第三者ロガー、ExceptionGroup）は ADR-013 の要約「未解決・持ち越し」と決定7 の SS-180 追補にある。
+持ち越し論点のうち、`observability.py` の 3 分割と `_EXTRA_KEYS` の拡張点は SS-181 で解消済み（`core/access_log.py` / `core/logs.py` / `core/tracing.py` とファサード。`extra=` は機械検査）。残りは ThreadPoolExecutor ワーカーに文脈が伝わらない件、uvicorn 経路の第三者ロガー、ExceptionGroup で、ADR-013 の要約「未解決・持ち越し」と決定7 の SS-180 追補にある。
 
 **Why:** レビュー時の再調査コストを減らす。
-**How to apply:** SS-181 や observability.py に触れる変更をレビューするとき、上記を前提にし、ADR の持ち越し論点が解消されたか・分割と拡張点の観点だけ確認する。
+**How to apply:** ログ・トレース周りの変更をレビューするとき、上記を前提にし、残りの持ち越し論点が解消されたかと、依存方向（`access_log → logs → tracing` の一方向。ファサード `observability.py` を内部から import しない。private 名を再エクスポートしない）が守られているかを確認する。

@@ -421,7 +421,7 @@ def test_each_invocation_logs_its_own_aws_request_id_and_leaves_no_context(
     counting_builders: _Registry,
     json_logs: list[dict[str, Any]],
 ) -> None:
-    from sanposcape.core.observability import _log_context
+    from sanposcape.core.logs import _log_context
 
     handler = make_handler(_app_with_log_probe())
 

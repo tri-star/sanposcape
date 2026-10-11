@@ -15,6 +15,9 @@ SS-180 のプラン作成時（2026-10-10）にソースで確認した。dev �
 - **同期の依存（`def` の Depends）はスレッドプールで動き、そこでの `ContextVar.set` は呼び出し元に戻らない。** ユーザー ID などをログの文脈に足すなら、ContextVar にはリクエストごとの可変オブジェクトを入れて属性を書き換える。
 - 文脈を format の時点で読む設計では、`caplog` の LogRecord を後で format しても文脈は消えている。テストは emit の時点で format するハンドラーを使う。
 
+- **ログ・スパンに識別子（ユーザー ID・セッション ID など）を足すときは `docs/app-privacy-label.md` の根拠の記述と照合する。** SS-181 の時点で「トレースはユーザ ID も持たない」と書いてあり、スパンに `enduser.id` を足すと記述が偽になった（申告の回答は既に「紐づく」で変わらなかった）。LP のプライバシーポリシー 1-5 も見る。
+- スパンのユーザー属性は `enduser.id`。collector-contrib の X-Ray 変換は `enduser.id` をセグメントの `user` に写し、`user.id` は写さない（ADOT Python の UDP 経路で同じかは未確認）。クライアントの `traceparent` は `OTEL_PROPAGATORS=xray` で意図的に無視しているので、mobile との相関は独自ヘッダーで考える。
+
 **Why:** どれもコードの見た目やミドルウェア単体のテストからは分からず、「二重ログ」「本番ログへのメッセージ漏れ」「ユーザー ID が付かない」として後から気づく種類の問題だから。
 
 **How to apply:** ログ・例外処理・リクエストの文脈を扱うプランでは、例外がどのミドルウェアを通るかを計装の版のソースで確かめ、Lambda の LogFormat を変えるならダッシュボードのクエリへの影響を書く。関連: [[feedback-cloudwatch-observability-query-gotchas]]、[[feedback-lambda-adapter-boundary-assumptions]]
