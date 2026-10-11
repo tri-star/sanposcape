@@ -223,7 +223,7 @@ def test_initial_display_name_is_not_applied_to_existing_user(db_session: Sessio
     assert again.display_name == "最初の名前"
 
 
-def test_initial_display_name_does_not_fill_null_display_name_of_existing_user(
+def test_initial_display_name_fills_null_display_name_of_existing_user(
     db_session: Session,
 ) -> None:
     service = _make_service(db_session)
@@ -231,4 +231,15 @@ def test_initial_display_name_does_not_fill_null_display_name_of_existing_user(
 
     again = _find_or_create(service, initial_display_name="後から来た名前")
 
-    assert again.display_name is None
+    assert again.display_name == "後から来た名前"
+
+
+def test_idp_display_name_still_overwrites_and_initial_is_ignored_for_existing_user(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+    _find_or_create(service)
+
+    again = _find_or_create(service, display_name="IdP の名前", initial_display_name="端末の名前")
+
+    assert again.display_name == "IdP の名前"

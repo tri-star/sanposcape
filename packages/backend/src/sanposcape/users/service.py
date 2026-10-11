@@ -9,8 +9,8 @@ from sanposcape.users.repository import UserRepository
 class UserService:
     """ユーザーに関するユースケース。
 
-    `auth` ドメインの入口（Google ID token 検証 / dev モード、および access/refresh
-    トークンからのユーザー引き当て）から呼ばれる。循環 import を避けるため
+    `auth` ドメインの入口（Google / Apple の ID token 検証 / dev モード、および
+    access/refresh トークンからのユーザー引き当て）から呼ばれる。循環 import を避けるため
     `ProviderIdentity` 型は受け取らず、プレーンな引数だけを取る。
     `auth` ドメインは `UserRepository` を直接持たず、常にこの `UserService` を経由して
     `users` ドメインへアクセスする（依存の向きは常に `auth -> users` の一方向、かつ単一の境界）。
@@ -43,11 +43,12 @@ class UserService:
     ) -> User:
         """ユーザーを引き当て、無ければ作成する。
 
-        `initial_display_name` は**新規作成時、`display_name`（IdP の ID token の氏名）が
-        無い場合だけ**使う。既存ユーザーには一切反映しない（NULL の補完もしない）。
-        Apple は氏名を初回の認可時にしか端末へ返さず、2 回目以降は端末側に値が無いため、
-        毎回上書きすると消えたり古い値に戻ったりする。`display_name` に詰めて渡すと
-        既存ユーザーにも毎回上書きされるので、必ずこの引数で渡すこと。
+        `initial_display_name` は、新規作成時に `display_name`（IdP の ID token の氏名）が
+        無い場合に使う。既存ユーザーでは、保存済みの `display_name` が NULL のときだけ補完し、
+        非 NULL の値は上書きしない。Apple は氏名を初回の認可時にしか端末へ返さず、2 回目以降は
+        端末側に値が無いため、毎回上書きすると消えたり古い値に戻ったりする。一方 NULL の補完は、
+        初回のセッション応答を端末が受け取れなかった場合に再送で回復できる。`display_name` に
+        詰めて渡すと既存ユーザーにも毎回上書きされるので、必ずこの引数で渡すこと。
 
         INSERT が競合して先勝ちの行を再取得した場合、後から来た側の
         `initial_display_name` は捨てられる（同一端末の二重送信なので実害は無い）。
@@ -68,6 +69,8 @@ class UserService:
             user.email = email
         if display_name is not None:
             user.display_name = display_name
+        elif user.display_name is None and initial_display_name is not None:
+            user.display_name = initial_display_name
         if photo_url is not None:
             user.photo_url = photo_url
         self._db.flush()

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
+import pytest
 from fastapi.testclient import TestClient
 from psycopg.errors import ForeignKeyViolation, UniqueViolation
 from sqlalchemy import select
@@ -253,13 +254,52 @@ class TestAppleSessionEndpoint:
 
         assert res.status_code == 422
 
-    def test_display_name_with_control_characters_returns_422(
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "山田\x00太郎",  # Cc: NUL
+            "山田\n太郎",  # Cc: 改行
+            "山田\t太郎",  # Cc: タブ
+            "山田\u2028太郎",  # Zl: 行区切り
+            "山田\u2029太郎",  # Zp: 段落区切り
+            "山田\u202e太郎",  # Cf: bidi 上書き
+            "山田\u200b太郎",  # Cf: ゼロ幅スペース
+            "山田\u2066太郎",  # Cf: bidi 分離
+        ],
+    )
+    def test_display_name_with_control_or_format_characters_returns_422(
+        self, auth_client: TestClient, make_apple_id_token, name: str
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, display_name=name)
+
+        assert res.status_code == 422
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "👩\u200d👩\u200d👧",  # ZWJ（絵文字の合字）
+            "می\u200cخواهم",  # ZWNJ（ペルシア語の正書法）
+        ],
+    )
+    def test_display_name_with_zwj_or_zwnj_is_accepted(
+        self, auth_client: TestClient, make_apple_id_token, name: str
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, display_name=name)
+
+        assert res.status_code == 200
+        assert res.json()["user"]["display_name"] == name
+
+    def test_relogin_fills_null_display_name(
         self, auth_client: TestClient, make_apple_id_token
     ) -> None:
-        for name in ("山田\x00太郎", "山田\n太郎", "山田\t太郎"):
-            res = _post_apple_session(auth_client, make_apple_id_token, display_name=name)
+        first = _post_apple_session(auth_client, make_apple_id_token)
+        second = _post_apple_session(
+            auth_client, make_apple_id_token, display_name="後から来た名前"
+        )
 
-            assert res.status_code == 422, name
+        assert first.json()["user"]["id"] == second.json()["user"]["id"]
+        assert first.json()["user"]["display_name"] is None
+        assert second.json()["user"]["display_name"] == "後から来た名前"
 
     def test_google_session_applies_display_name_only_when_token_has_no_name(
         self, auth_client: TestClient, make_google_id_token

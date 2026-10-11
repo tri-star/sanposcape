@@ -2330,7 +2330,8 @@ components:
             maxLength: 255
           - type: 'null'
           title: Display Name
-          description: ユーザーの表示名。新規作成時、ID token に氏名が無い場合だけ使う（Apple は初回の認可時だけ端末に氏名を返す）。既存ユーザーには反映しない。前後の空白は除去され、空になった場合は未指定として扱う。
+          description: ユーザーの表示名。ID token に氏名が無い場合だけ使う（Apple は初回の認可時だけ端末に氏名を返す）。保存済みの表示名は上書きせず、既存ユーザーでも未設定（null）の場合だけ補完する。前後の空白は除去され、空になった場合は未指定として扱う。制御文字・行区切り・書式制御文字（双方向制御やゼロ幅文字など。ZWJ・ZWNJ
+            は除く）を含むと 422 になる。
       type: object
       required:
       - provider

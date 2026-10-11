@@ -17,6 +17,11 @@ _NONCE_MIN_LENGTH = 16
 _NONCE_MAX_LENGTH = 256
 # users.display_name の列幅。超えると DB の DataError（500）になるため入口で弾く。
 SESSION_DISPLAY_NAME_MAX_LENGTH = 255
+# 表示名に入れさせない Unicode カテゴリ。Cc（NUL・改行等）、Zl/Zp（行・段落区切り）、
+# Cf（書式制御。bidi 上書きやゼロ幅文字による表示なりすまし）。
+_DISPLAY_NAME_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+# Cf だが、絵文字の合字（ZWJ）や一部言語の正しい表記（ZWNJ）に必要なので許可する。
+_DISPLAY_NAME_ALLOWED_FORMAT_CHARS = frozenset({"\u200d", "\u200c"})
 
 
 class SessionCreate(BaseModel):
@@ -34,9 +39,12 @@ class SessionCreate(BaseModel):
     display_name: Annotated[str, Field(max_length=SESSION_DISPLAY_NAME_MAX_LENGTH)] | None = Field(
         default=None,
         description=(
-            "ユーザーの表示名。新規作成時、ID token に氏名が無い場合だけ使う"
-            "（Apple は初回の認可時だけ端末に氏名を返す）。既存ユーザーには反映しない。"
+            "ユーザーの表示名。ID token に氏名が無い場合だけ使う"
+            "（Apple は初回の認可時だけ端末に氏名を返す）。保存済みの表示名は上書きせず、"
+            "既存ユーザーでも未設定（null）の場合だけ補完する。"
             "前後の空白は除去され、空になった場合は未指定として扱う。"
+            "制御文字・行区切り・書式制御文字（双方向制御やゼロ幅文字など。"
+            "ZWJ・ZWNJ は除く）を含むと 422 になる。"
         ),
     )
 
@@ -51,8 +59,12 @@ class SessionCreate(BaseModel):
     @classmethod
     def _reject_control_characters(cls, value: str | None) -> str | None:
         # NUL は PostgreSQL の text に入らず 500 になる。改行・タブ等も氏名としては不正。
-        if value is not None and any(unicodedata.category(ch) == "Cc" for ch in value):
-            raise ValueError("display_name must not contain control characters")
+        if value is not None and any(
+            unicodedata.category(ch) in _DISPLAY_NAME_FORBIDDEN_CATEGORIES
+            and ch not in _DISPLAY_NAME_ALLOWED_FORMAT_CHARS
+            for ch in value
+        ):
+            raise ValueError("display_name must not contain control or invisible format characters")
         return value
 
     @model_validator(mode="after")

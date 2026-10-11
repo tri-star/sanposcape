@@ -53,7 +53,7 @@ class AuthService:
     """認証・セッションに関するユースケース。トランザクション境界を持つ。
 
     設計の中核（ADR-002 決定3）: `create_session`（real）と `create_dev_session`
-    （dev）で異なるのは「Google ID token を検証して sub を得る」か「user_key から
+    （dev）で異なるのは「IdP（Google / Apple）の ID token を検証して sub を得る」か「user_key から
     開発用ユーザーを引き当てる」かの入口だけ。`_resolve_user` / `_issue_session`
     は real/dev で同一メソッドを共有する。ここを分岐させてはいけない。
     """
@@ -83,7 +83,10 @@ class AuthService:
         nonce: str | None = None,
         display_name: str | None = None,
     ) -> SessionResult:
-        """`display_name` は新規作成時、IdP の ID token に氏名が無い場合だけ使われる。"""
+        """`display_name` は、IdP の ID token に氏名が無い場合だけ使われる。
+
+        新規作成時、または既存ユーザーの表示名が未設定（NULL）のときに反映する。
+        """
         idp = self._providers.get(provider)
         if idp is None:
             # provider は Literal 検証済みなのでログに出してよい（未設定の診断用）。
