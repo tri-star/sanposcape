@@ -72,8 +72,8 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 | 写真またはビデオ | ピンに添付する写真（S3）。Google のプロフィール画像の URL（`users.photo_url`）もここに含める | `sanpo_maps/photos/`、`users/models.py` | 1-2、1-3 |
 | その他のユーザコンテンツ | ピンの名称・メモ・タグ、地図（sanpo map）の名称 | `sanpo_maps/models.py`、`pins/schemas.py` | 1-3 |
 | ユーザ ID | Google アカウントの ID（`users.provider_subject` = sub）、アカウントの内部 ID（`users.id`） | `users/models.py` | 1-2、1-5 |
-| パフォーマンスデータ | CloudFront のアクセスログの処理時間（IP アドレスと同じ行に残る）、backend のトレースの処理時間（トレースは IP・UA を消しており、ユーザ ID も持たない） | `core/observability.py`、ADR-013 | 1-5 |
-| その他の診断データ | backend のログ（アカウントの内部 ID を含む行がある）、CloudFront のアクセスログ（IP アドレス、URL、ブラウザ・アプリの種類）。最長 400 日保存 | `core/observability.py`、`template.yaml`（ロググループの保持期間）、ADR-005（アクセスログ S3 は infra 所有） | 1-5、6 |
+| パフォーマンスデータ | CloudFront のアクセスログの処理時間（IP アドレスと同じ行に残る）、backend のトレースの処理時間（トレースは IP・UA を消している。アカウントの内部 ID を `enduser.id` として持つ。SS-181） | `core/tracing.py`、`core/logs.py`、ADR-013 | 1-5 |
+| その他の診断データ | backend のログ（アカウントの内部 ID と、アプリの起動ごとの乱数のセッション ID を含む行がある）、CloudFront のアクセスログ（IP アドレス、URL、ブラウザ・アプリの種類）。最長 400 日保存 | `core/logs.py`、`core/access_log.py`、`template.yaml`（ロググループの保持期間）、ADR-005（アクセスログ S3 は infra 所有） | 1-5、6 |
 
 「紐づく」は、アカウント（内部 ID）と結び付けて保存しているため。診断データも、ログにアカウントの内部 ID や IP アドレスが含まれるため「紐づく」とする。
 
