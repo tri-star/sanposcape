@@ -39,14 +39,26 @@ class UserService:
         email: str | None,
         display_name: str | None,
         photo_url: str | None,
+        initial_display_name: str | None = None,
     ) -> User:
+        """ユーザーを引き当て、無ければ作成する。
+
+        `initial_display_name` は**新規作成時、`display_name`（IdP の ID token の氏名）が
+        無い場合だけ**使う。既存ユーザーには一切反映しない（NULL の補完もしない）。
+        Apple は氏名を初回の認可時にしか端末へ返さず、2 回目以降は端末側に値が無いため、
+        毎回上書きすると消えたり古い値に戻ったりする。`display_name` に詰めて渡すと
+        既存ユーザーにも毎回上書きされるので、必ずこの引数で渡すこと。
+
+        INSERT が競合して先勝ちの行を再取得した場合、後から来た側の
+        `initial_display_name` は捨てられる（同一端末の二重送信なので実害は無い）。
+        """
         user = self._repository.get_by_provider_subject(provider, subject)
         if user is None:
             return self._repository.create(
                 provider=provider,
                 provider_subject=subject,
                 email=email,
-                display_name=display_name,
+                display_name=display_name if display_name is not None else initial_display_name,
                 photo_url=photo_url,
             )
 

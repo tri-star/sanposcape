@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 
 from sanposcape.auth.models import RefreshToken
 from sanposcape.auth.repository import RefreshTokenRepository
+from sanposcape.auth.tests.conftest import RAW_NONCE
+from sanposcape.config import Settings, get_settings
+from sanposcape.conftest import override_get_db
+from sanposcape.database import get_db
+from sanposcape.main import create_app
+from sanposcape.users.models import User
 
 
 def _create_session(auth_client: TestClient, make_google_id_token, **token_kwargs) -> dict:
@@ -61,7 +67,7 @@ class TestSessionEndpoint:
         self, auth_client: TestClient, make_google_id_token
     ) -> None:
         token = make_google_id_token()
-        res = auth_client.post("/auth/session", json={"provider": "apple", "id_token": token})
+        res = auth_client.post("/auth/session", json={"provider": "facebook", "id_token": token})
         assert res.status_code == 422
 
     def test_missing_id_token_returns_422(self, auth_client: TestClient) -> None:
@@ -77,6 +83,227 @@ class TestSessionEndpoint:
             json={"provider": "google", "id_token": "a" * 4097},
         )
         assert res.status_code == 422
+
+
+def _post_apple_session(auth_client: TestClient, make_apple_id_token, *, token_kwargs=None, **body):
+    token = make_apple_id_token(**(token_kwargs or {}))
+    payload = {"provider": "apple", "id_token": token, "nonce": RAW_NONCE, **body}
+    return auth_client.post("/auth/session", json=payload)
+
+
+class TestAppleSessionEndpoint:
+    def test_returns_session_and_creates_apple_user(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(
+            auth_client,
+            make_apple_id_token,
+            token_kwargs={"sub": "apple-sub-1", "email": "user@example.com"},
+            display_name="山田 太郎",
+        )
+
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["access_token"]
+        assert body["refresh_token"]
+        assert body["user"]["display_name"] == "山田 太郎"
+        assert body["user"]["email"] == "user@example.com"
+        assert body["user"]["photo_url"] is None
+
+        me = auth_client.get(
+            "/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"}
+        )
+        assert me.status_code == 200
+        assert me.json()["id"] == body["user"]["id"]
+
+    def test_user_is_persisted_with_apple_provider(
+        self, auth_client: TestClient, make_apple_id_token, db_session: Session
+    ) -> None:
+        res = _post_apple_session(
+            auth_client, make_apple_id_token, token_kwargs={"sub": "apple-sub-1"}
+        )
+        assert res.status_code == 200, res.text
+
+        user = db_session.scalar(select(User).where(User.provider_subject == "apple-sub-1"))
+        assert user is not None
+        assert user.provider == "apple"
+
+    def test_nonce_mismatch_returns_401(self, auth_client: TestClient, make_apple_id_token) -> None:
+        res = _post_apple_session(
+            auth_client, make_apple_id_token, nonce="another-raw-nonce-0123456789"
+        )
+
+        assert res.status_code == 401
+
+    def test_unhashed_nonce_in_token_returns_401(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(
+            auth_client, make_apple_id_token, token_kwargs={"nonce": RAW_NONCE}
+        )
+
+        assert res.status_code == 401
+
+    def test_missing_nonce_returns_422(self, auth_client: TestClient, make_apple_id_token) -> None:
+        token = make_apple_id_token()
+        res = auth_client.post("/auth/session", json={"provider": "apple", "id_token": token})
+
+        assert res.status_code == 422
+
+    def test_explicit_null_nonce_returns_422(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        token = make_apple_id_token()
+        res = auth_client.post(
+            "/auth/session", json={"provider": "apple", "id_token": token, "nonce": None}
+        )
+
+        assert res.status_code == 422
+
+    def test_short_nonce_returns_422(self, auth_client: TestClient, make_apple_id_token) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, nonce="a" * 15)
+
+        assert res.status_code == 422
+
+    def test_too_long_nonce_returns_422(self, auth_client: TestClient, make_apple_id_token) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, nonce="a" * 257)
+
+        assert res.status_code == 422
+
+    def test_wrong_audience_returns_401(self, auth_client: TestClient, make_apple_id_token) -> None:
+        res = _post_apple_session(
+            auth_client, make_apple_id_token, token_kwargs={"aud": "host.exp.Exponent"}
+        )
+
+        assert res.status_code == 401
+
+    def test_google_token_sent_as_apple_returns_401(
+        self, auth_client: TestClient, make_google_id_token
+    ) -> None:
+        token = make_google_id_token()
+        res = auth_client.post(
+            "/auth/session", json={"provider": "apple", "id_token": token, "nonce": RAW_NONCE}
+        )
+
+        assert res.status_code == 401
+
+    def test_same_sub_in_google_and_apple_are_different_users(
+        self, auth_client: TestClient, make_google_id_token, make_apple_id_token
+    ) -> None:
+        google = _create_session(auth_client, make_google_id_token, sub="shared-sub")
+        apple = _post_apple_session(
+            auth_client, make_apple_id_token, token_kwargs={"sub": "shared-sub"}
+        )
+
+        assert apple.status_code == 200
+        assert apple.json()["user"]["id"] != google["user"]["id"]
+
+    def test_relogin_does_not_overwrite_display_name(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        first = _post_apple_session(auth_client, make_apple_id_token, display_name="最初の名前")
+        second = _post_apple_session(auth_client, make_apple_id_token, display_name="別の名前")
+
+        assert first.json()["user"]["id"] == second.json()["user"]["id"]
+        assert second.json()["user"]["display_name"] == "最初の名前"
+
+    def test_relogin_without_display_name_keeps_it(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        _post_apple_session(auth_client, make_apple_id_token, display_name="最初の名前")
+        second = _post_apple_session(auth_client, make_apple_id_token)
+
+        assert second.json()["user"]["display_name"] == "最初の名前"
+
+    def test_first_login_without_display_name_leaves_it_null(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token)
+
+        assert res.status_code == 200
+        assert res.json()["user"]["display_name"] is None
+
+    def test_display_name_is_stripped(self, auth_client: TestClient, make_apple_id_token) -> None:
+        res = _post_apple_session(
+            auth_client, make_apple_id_token, display_name="\u3000 山田 太郎 \n"
+        )
+
+        assert res.json()["user"]["display_name"] == "山田 太郎"
+
+    def test_blank_display_name_is_treated_as_unspecified(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, display_name="  \u3000 ")
+
+        assert res.status_code == 200
+        assert res.json()["user"]["display_name"] is None
+
+    def test_display_name_at_max_length_is_accepted(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, display_name="あ" * 255)
+
+        assert res.status_code == 200
+        assert res.json()["user"]["display_name"] == "あ" * 255
+
+    def test_too_long_display_name_returns_422(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, display_name="あ" * 256)
+
+        assert res.status_code == 422
+
+    def test_display_name_with_control_characters_returns_422(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        for name in ("山田\x00太郎", "山田\n太郎", "山田\t太郎"):
+            res = _post_apple_session(auth_client, make_apple_id_token, display_name=name)
+
+            assert res.status_code == 422, name
+
+    def test_google_session_applies_display_name_only_when_token_has_no_name(
+        self, auth_client: TestClient, make_google_id_token
+    ) -> None:
+        token = make_google_id_token(sub="google-sub-nn", name=None)
+        res = auth_client.post(
+            "/auth/session",
+            json={"provider": "google", "id_token": token, "display_name": "端末の名前"},
+        )
+        assert res.json()["user"]["display_name"] == "端末の名前"
+
+        token = make_google_id_token(sub="google-sub-nm", name="トークンの名前")
+        res = auth_client.post(
+            "/auth/session",
+            json={"provider": "google", "id_token": token, "display_name": "端末の名前"},
+        )
+        assert res.json()["user"]["display_name"] == "トークンの名前"
+
+
+class TestAppleUnconfigured:
+    def test_apple_returns_400_when_audience_is_not_configured(self, make_apple_id_token) -> None:
+        settings = Settings(
+            env="test",
+            auth_mode="real",
+            auth_jwt_secret="x" * 32,
+            google_allowed_audiences=["test-audience"],
+            apple_allowed_audiences=[],
+        )
+        # get_identity_providers は上書きせず、実際の build_identity_providers を通す
+        app = create_app(settings)
+        app.dependency_overrides[get_settings] = lambda: settings
+        app.dependency_overrides[get_db] = override_get_db
+        with TestClient(app) as client:
+            res = client.post(
+                "/auth/session",
+                json={
+                    "provider": "apple",
+                    "id_token": make_apple_id_token(),
+                    "nonce": RAW_NONCE,
+                },
+            )
+
+        assert res.status_code == 400
+        assert res.json() == {"detail": "Unsupported provider"}
 
 
 class TestRefreshEndpoint:

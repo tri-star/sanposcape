@@ -111,7 +111,8 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _unsupported_provider(
         request: Request, exc: UnsupportedProviderError
     ) -> JSONResponse:
-        # 通常は SessionCreate.provider の Literal 検証で 422 になるため到達しない保険。
+        # Literal にある provider でも、未設定（例: APPLE_ALLOWED_AUDIENCES が空）なら到達する。
+        # 未知の provider 文字列は SessionCreate の Literal 検証で 422 になる。
         return JSONResponse(status_code=400, content={"detail": "Unsupported provider"})
 
     @app.exception_handler(IdentityProviderUnavailableError)

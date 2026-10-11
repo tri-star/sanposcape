@@ -1,12 +1,27 @@
+import logging
+
+from sanposcape.auth.providers.apple import AppleIdentityProvider
 from sanposcape.auth.providers.base import IdentityProvider
 from sanposcape.auth.providers.google import GoogleIdentityProvider
 from sanposcape.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 def build_identity_providers(settings: Settings) -> dict[str, IdentityProvider]:
     """有効な identity provider のレジストリを組み立てる。
 
-    Apple 等を追加する場合は provider 実装を追加してここに 1 行足すだけでよい
-    （`AuthService` / router / tokens / `get_current_user` は無変更のまま）。
+    provider 実装を追加してここに足す。ただし ID token 以外の入力（Apple の nonce・氏名）を
+    受け渡すため、`AuthService` / router / schemas も provider 追加の影響を受ける
+    （ADR-002 SS-195 追補が「決定2 の下流無変更から外れる」と書いている点）。
+
+    Apple は `APPLE_ALLOWED_AUDIENCES` が空なら登録しない。このとき
+    `provider="apple"` は `UnsupportedProviderError`（400）になり、
+    「トークンが悪い」（401）と「サーバ未設定」を端末側で区別できる。
     """
-    return {"google": GoogleIdentityProvider(settings)}
+    providers: dict[str, IdentityProvider] = {"google": GoogleIdentityProvider(settings)}
+    if settings.apple_allowed_audiences:
+        providers["apple"] = AppleIdentityProvider(settings)
+    else:
+        logger.warning("APPLE_ALLOWED_AUDIENCES is empty; Sign in with Apple is disabled")
+    return providers

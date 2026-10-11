@@ -269,6 +269,7 @@ def test_settings() -> Settings:
         auth_mode="real",
         auth_jwt_secret="x" * 32,
         google_allowed_audiences=["test-audience"],
+        apple_allowed_audiences=["test-apple-audience"],
     )
 
 
@@ -279,6 +280,7 @@ def dev_settings() -> Settings:
         auth_mode="dev",
         auth_jwt_secret="x" * 32,
         google_allowed_audiences=["test-audience"],
+        apple_allowed_audiences=["test-apple-audience"],
     )
 
 
