@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from sanposcape.all_models import Base
 from sanposcape.config import Settings, get_settings
-from sanposcape.core import observability
+from sanposcape.core import logs
 from sanposcape.database import get_db
 from sanposcape.main import app, create_app
 
@@ -86,10 +86,10 @@ def _isolate_settings_from_ambient_env(monkeypatch: pytest.MonkeyPatch, tmp_path
 def _restore_log_options() -> Generator[None, None, None]:
     """`create_app()` / `configure_logging()` が書き換えるモジュール単位のログ設定
     （例外メッセージを出すか・トレースの取り出し）を、テストごとに元へ戻す（SS-180）。"""
-    saved = replace(observability._LOG_OPTIONS)
+    saved = replace(logs._LOG_OPTIONS)
     yield
-    observability._LOG_OPTIONS.include_exception_messages = saved.include_exception_messages
-    observability._LOG_OPTIONS.trace_lookup = saved.trace_lookup
+    logs._LOG_OPTIONS.include_exception_messages = saved.include_exception_messages
+    logs._LOG_OPTIONS.trace_lookup = saved.trace_lookup
 
 
 class _FormatAtEmitHandler(logging.Handler):
@@ -101,7 +101,7 @@ class _FormatAtEmitHandler(logging.Handler):
 
     def __init__(self, sink: list[dict[str, Any]]) -> None:
         super().__init__(logging.DEBUG)
-        self.setFormatter(observability.JsonLogFormatter())
+        self.setFormatter(logs.JsonLogFormatter())
         self._sink = sink
 
     def emit(self, record: logging.LogRecord) -> None:

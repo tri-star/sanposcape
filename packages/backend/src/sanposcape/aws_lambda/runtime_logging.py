@@ -11,7 +11,7 @@
   `REPORT` 行も `platform.report` に変わる（ダッシュボードの Q5〜Q7 が未確認の形式になる）ため。
   アプリのフォーマッターなら出す・出さないを制御でき、ローカル・ECS とキーが揃う。
 - `Settings` が確定する前（`api.py` の先頭）に呼ぶ。そのためフォーマッターは設定を持たず、
-  format のたびに `core.observability` のモジュール単位の設定を読む（後から `create_app()` の
+  format のたびに `core.logs` のモジュール単位の設定を読む（後から `create_app()` の
   `configure_logging()` が更新する）。
 
 **`AWS_LAMBDA_FUNCTION_NAME` があるときだけ**行う。pytest では root に caplog のハンドラーが付いて

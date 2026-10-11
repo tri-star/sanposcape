@@ -1133,7 +1133,7 @@ API 全体の RED・アラーム・SLO は Application Signals で、**ルート
 `net.peer.port` / `http.user_agent` は空に上書きし、`hide_parameters=True` で例外メッセージの
 `[parameters: ...]` を消している。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、
 例外メッセージ（一意制約違反の `DETAIL` のキー値）は載せない（自前リスナーに差し替え。
-`core/observability.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
+`core/tracing.py`）。5xx に変換した例外のスパンのイベントも型名だけ。
 **未処理の 500（SS-180 で解消）**: `AccessLogMiddleware` が未処理例外を握って 500 を返す
 （再送出しない）ため、OTel の FastAPI 計装の `ExceptionHandlerMiddleware`（message とスタック
 トレースを exception イベントに自動で付ける）に例外が届かない。スパンには型名だけの

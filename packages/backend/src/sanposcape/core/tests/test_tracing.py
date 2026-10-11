@@ -37,14 +37,14 @@ from sqlalchemy.exc import IntegrityError
 
 from sanposcape.config import Settings
 from sanposcape.conftest import test_engine
-from sanposcape.core import observability
+from sanposcape.core import tracing
 from sanposcape.core.observability import (
-    _safe_error_description,
     instrument_fastapi_app,
     instrument_sqlalchemy_engine,
     record_exception_on_current_span,
     resolve_route_template,
 )
+from sanposcape.core.tracing import _safe_error_description
 from sanposcape.main import create_app
 from sanposcape.users.models import User
 
@@ -421,11 +421,11 @@ class TestUrllib:
         exporter: InMemorySpanExporter,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(observability, "_WARNED", set())
+        monkeypatch.setattr(tracing, "_WARNED", set())
         with provider.get_tracer("t").start_as_current_span(
             "s", attributes={"http.url": "http://h/p?key=SECRET"}
         ) as span:
-            observability._scrub_query_from_urllib_span(span, object())  # full_url が無い
+            tracing._scrub_query_from_urllib_span(span, object())  # full_url が無い
 
         (finished,) = exporter.get_finished_spans()
         assert finished.attributes["http.url"] == ""
@@ -551,7 +551,7 @@ class TestScrubHooksFailSafe:
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        monkeypatch.setattr(observability, "_WARNED", set())
+        monkeypatch.setattr(tracing, "_WARNED", set())
         tracer = provider.get_tracer("t")
 
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
@@ -559,7 +559,7 @@ class TestScrubHooksFailSafe:
                 with tracer.start_as_current_span(
                     "s", attributes={"http.url": "http://h/p?secret=abc"}
                 ) as span:
-                    observability._scrub_query_from_server_span(span, None)  # scope 不正
+                    tracing._scrub_query_from_server_span(span, None)  # scope 不正
 
         assert [s.attributes["http.url"] for s in exporter.get_finished_spans()] == ["", ""]
         assert len(_observability_records(caplog)) == 1
@@ -570,13 +570,13 @@ class TestScrubHooksFailSafe:
         exporter: InMemorySpanExporter,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(observability, "_WARNED", set())
+        monkeypatch.setattr(tracing, "_WARNED", set())
         tracer = provider.get_tracer("t")
 
         with tracer.start_as_current_span(
             "s", attributes={"http.url": "http://h/p?key=SECRET"}
         ) as span:
-            observability._scrub_query_from_client_span(span, object())  # url が無い
+            tracing._scrub_query_from_client_span(span, object())  # url が無い
 
         (finished,) = exporter.get_finished_spans()
         assert finished.attributes["http.url"] == ""
@@ -588,7 +588,7 @@ class TestHandleErrorListenerIsSafe:
     def test_exception_in_listener_is_swallowed_and_span_still_ends(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(observability, "_WARNED", set())
+        monkeypatch.setattr(tracing, "_WARNED", set())
         ended: list[bool] = []
 
         class FakeSpan:
@@ -608,14 +608,14 @@ class TestHandleErrorListenerIsSafe:
             execution_context = FakeExecutionContext()
             original_exception = RuntimeError("x")
 
-        observability._handle_error_without_message(FakeContext())  # 例外にならない
+        tracing._handle_error_without_message(FakeContext())  # 例外にならない
 
         assert ended == [True]
 
     def test_missing_execution_context_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(observability, "_WARNED", set())
+        monkeypatch.setattr(tracing, "_WARNED", set())
 
-        observability._handle_error_without_message(object())  # 例外にならない
+        tracing._handle_error_without_message(object())  # 例外にならない
 
 
 class TestSqlAlchemyPrivateApiContract:
@@ -666,8 +666,8 @@ class TestSqlAlchemy:
         """共有の `test_engine` に付けた自前リスナーを後始末する（`uninstrument()` は
         計装側のリスナーしか外さない）。"""
         yield
-        if event.contains(test_engine, "handle_error", observability._handle_error_without_message):
-            event.remove(test_engine, "handle_error", observability._handle_error_without_message)
+        if event.contains(test_engine, "handle_error", tracing._handle_error_without_message):
+            event.remove(test_engine, "handle_error", tracing._handle_error_without_message)
 
     def test_db_span_is_child_of_request_span_and_has_no_bind_values(
         self, provider: TracerProvider, exporter: InMemorySpanExporter

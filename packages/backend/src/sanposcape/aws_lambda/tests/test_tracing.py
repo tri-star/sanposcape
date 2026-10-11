@@ -181,9 +181,9 @@ def test_scrub_failure_blanks_http_target_instead_of_leaving_the_query(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sanposcape.core import observability
+    from sanposcape.core import tracing as core_tracing
 
-    monkeypatch.setattr(observability, "_WARNED", set())
+    monkeypatch.setattr(core_tracing, "_WARNED", set())
     tracer = provider.get_tracer("lambda-root")
 
     with caplog.at_level("WARNING", logger="sanposcape.core.observability"):
@@ -294,9 +294,9 @@ def test_sanitize_failure_still_removes_query_and_user_agent(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sanposcape.aws_lambda import tracing
-    from sanposcape.core import observability
+    from sanposcape.core import tracing as core_tracing
 
-    monkeypatch.setattr(observability, "_WARNED", set())
+    monkeypatch.setattr(core_tracing, "_WARNED", set())
 
     def boom(scope: dict) -> str:
         raise RuntimeError("resolve failed")
