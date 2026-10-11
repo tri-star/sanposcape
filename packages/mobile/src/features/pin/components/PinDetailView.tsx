@@ -328,6 +328,7 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 accessibilityLabel="ピンの位置の地図"
                 mapHidden={viewerIndex !== null}
                 markerIcon={markerIcon}
+                variant="interactive"
                 testID="pin-detail-map"
               />
 
