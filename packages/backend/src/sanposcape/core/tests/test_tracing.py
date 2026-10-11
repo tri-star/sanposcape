@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import uuid
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -37,8 +38,9 @@ from sqlalchemy.exc import IntegrityError
 
 from sanposcape.config import Settings
 from sanposcape.conftest import test_engine
-from sanposcape.core import tracing
+from sanposcape.core import access_log, tracing
 from sanposcape.core.observability import (
+    bind_user_id,
     instrument_fastapi_app,
     instrument_sqlalchemy_engine,
     record_exception_on_current_span,
@@ -61,6 +63,9 @@ def _new_test_engine() -> Engine:
     return create_engine(test_engine.url, **Settings().sqlalchemy_engine_kwargs)
 
 
+_PROBE_USER_ID = uuid.UUID("11111111-2222-4333-8444-555555555555")
+
+
 def _tracing_on() -> Settings:
     # テスト実行時に組み立てる（import 時に Settings を作らない）。
     return Settings(env="test", tracing_enabled=True)
@@ -80,6 +85,20 @@ def _traced_app(provider: TracerProvider) -> FastAPI:
 
     @app.get("/boom")
     def boom() -> None:
+        raise RuntimeError("boom")
+
+    @app.get("/probe/bound")
+    def probe_bound() -> dict[str, str]:
+        bind_user_id(_PROBE_USER_ID)
+        return {"ok": "yes"}
+
+    @app.get("/probe/unbound")
+    def probe_unbound() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    @app.get("/probe/bound-boom")
+    def probe_bound_boom() -> None:
+        bind_user_id(_PROBE_USER_ID)
         raise RuntimeError("boom")
 
     instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
@@ -301,6 +320,123 @@ class TestFastApiSpans:
         client.get("/pins/0b5b3c3e-0000-4000-8000-000000000000")
 
         assert len(exporter.get_finished_spans()) == 1
+
+
+class TestEndUserIdOnServerSpan:
+    """`bind_user_id` の値を、サーバースパンの `enduser.id` へ写す（SS-181）。"""
+
+    def test_bound_user_id_is_set_on_the_server_span(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        client = TestClient(_traced_app(provider))
+
+        assert client.get("/probe/bound").status_code == 200
+
+        (span,) = exporter.get_finished_spans()
+        assert span.attributes["enduser.id"] == str(_PROBE_USER_ID)
+
+    def test_span_has_no_enduser_id_when_nobody_bound_a_user(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        client = TestClient(_traced_app(provider))
+
+        client.get("/probe/unbound")
+
+        (span,) = exporter.get_finished_spans()
+        assert "enduser.id" not in span.attributes
+
+    def test_enduser_id_is_set_on_the_500_path_too(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        client = TestClient(_traced_app(provider), raise_server_exceptions=False)
+
+        assert client.get("/probe/bound-boom").status_code == 500
+
+        (span,) = exporter.get_finished_spans()
+        assert span.attributes["enduser.id"] == str(_PROBE_USER_ID)
+
+    def test_no_span_attribute_carries_an_email_address(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        client = TestClient(_traced_app(provider))
+
+        client.get("/probe/bound")
+
+        spans = exporter.get_finished_spans()
+        assert spans
+        assert not [v for v in _all_attribute_values(spans) if "@" in v]
+
+    def test_a_failing_annotation_does_not_change_the_response(
+        self,
+        provider: TracerProvider,
+        exporter: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def _fail(attributes: dict[str, str], *, enabled: bool) -> None:
+            raise RuntimeError("otel is broken")
+
+        monkeypatch.setattr(access_log, "annotate_current_span", _fail)
+        monkeypatch.setattr(tracing, "_WARNED", set())
+        client = TestClient(_traced_app(provider))
+
+        response = client.get("/probe/bound")
+
+        assert response.status_code == 200
+        (span,) = exporter.get_finished_spans()
+        assert "enduser.id" not in span.attributes
+
+    def test_set_span_attributes_swallows_failures(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _BrokenSpan:
+            def is_recording(self) -> bool:
+                return True
+
+            def set_attribute(self, key: str, value: str) -> None:
+                raise RuntimeError("broken")
+
+        monkeypatch.setattr(tracing, "_WARNED", set())
+
+        tracing.set_span_attributes(_BrokenSpan(), {"enduser.id": "x"})  # 例外にならない
+
+    def test_annotate_current_span_is_noop_when_disabled_or_empty(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        with provider.get_tracer("t").start_as_current_span("op"):
+            tracing.annotate_current_span({"enduser.id": "x"}, enabled=False)
+            tracing.annotate_current_span({}, enabled=True)
+
+        (span,) = exporter.get_finished_spans()
+        assert "enduser.id" not in span.attributes
+
+    def test_annotate_current_span_sets_attributes_when_enabled(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        with provider.get_tracer("t").start_as_current_span("op"):
+            tracing.annotate_current_span({"enduser.id": "x"}, enabled=True)
+
+        (span,) = exporter.get_finished_spans()
+        assert span.attributes["enduser.id"] == "x"
+
+    def test_annotate_current_span_does_not_import_opentelemetry_when_disabled(self) -> None:
+        code = (
+            "import sys\n"
+            "from sanposcape.core.tracing import annotate_current_span\n"
+            "annotate_current_span({'enduser.id': 'x'}, enabled=False)\n"
+            "loaded = sorted(m for m in sys.modules if m.split('.')[0] == 'opentelemetry')\n"
+            "assert not loaded, loaded\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "TRACING_ENABLED"}
+        env["PYTHONPATH"] = str(Path(__file__).resolve().parents[3])
+
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            env=env,
+            cwd=tempfile.gettempdir(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
 
 
 class TestRecordExceptionOnCurrentSpan:

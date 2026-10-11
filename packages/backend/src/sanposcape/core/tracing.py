@@ -104,6 +104,30 @@ def blank_privacy_sensitive_attributes(span: Any) -> None:
         span.set_attribute(key, "")
 
 
+def set_span_attributes(span: Any, attributes: dict[str, str]) -> None:
+    """記録中のスパンに属性を設定する。失敗してもリクエストを妨げない（警告は 1 回だけ）。"""
+    try:
+        if span.is_recording():
+            for key, value in attributes.items():
+                span.set_attribute(key, value)
+    except Exception:
+        warn_once("span-attributes", "スパンへの属性の設定に失敗した")
+
+
+def annotate_current_span(attributes: dict[str, str], *, enabled: bool) -> None:
+    """現在のスパンに属性を設定する。`enabled`（`settings.tracing_enabled`）が False か、
+    `attributes` が空なら、OpenTelemetry を import する前に何もせず返る（ADR-013 決定7）。
+    OTel が無いときも何もしない。
+    """
+    if not enabled or not attributes:
+        return
+    try:
+        from opentelemetry import trace
+    except ImportError:
+        return
+    set_span_attributes(trace.get_current_span(), attributes)
+
+
 def _provider_is_unconfigured(tracer_provider: object | None) -> bool:
     """TracerProvider を誰も構成していない（= no-op のまま）か。"""
     if tracer_provider is not None:

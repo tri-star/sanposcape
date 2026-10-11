@@ -2,8 +2,10 @@ import ast
 import json
 import logging
 import sys
+import uuid
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -13,10 +15,13 @@ from sanposcape.core.logs import (
     ConsoleLogFormatter,
     JsonLogFormatter,
     LogContext,
-    bind_log_user_id,
+    bind_user_id,
     configure_logging,
+    current_span_attributes,
     log_context,
 )
+
+_USER_ID = uuid.UUID("11111111-2222-4333-8444-555555555555")
 
 
 @pytest.fixture
@@ -144,12 +149,12 @@ class TestJsonLogFormatter:
         assert "user_id" not in json.loads(json_formatter.format(_record()))
 
         with log_context(aws_request_id="req-1", http_method="GET"):
-            bind_log_user_id("u-1")
+            bind_user_id(_USER_ID)
             payload = json.loads(json_formatter.format(_record()))
 
         assert payload["aws_request_id"] == "req-1"
         assert payload["http_method"] == "GET"
-        assert payload["user_id"] == "u-1"
+        assert payload["user_id"] == str(_USER_ID)
         assert "http_route" not in payload
 
     def test_trace_fields_come_from_the_lookup_when_tracing_is_enabled(
@@ -347,18 +352,45 @@ class TestLogContext:
             assert ctx.aws_request_id == "req-1"
 
     def test_bind_user_id_without_a_context_is_a_noop(self) -> None:
-        bind_log_user_id("u-1")  # 例外にならない
+        bind_user_id(_USER_ID)  # 例外にならない
 
         assert logs._log_context.get() is None
+
+    def test_bind_user_id_sets_the_internal_uuid_as_a_string(self) -> None:
+        with log_context() as ctx:
+            bind_user_id(_USER_ID)
+
+        assert ctx.user_id == str(_USER_ID)
+
+    @pytest.mark.parametrize("not_a_uuid", ["a@example.com", str(_USER_ID), 123, None, b"x"])
+    def test_bind_user_id_ignores_anything_but_a_uuid(
+        self, not_a_uuid: Any, json_formatter: JsonLogFormatter
+    ) -> None:
+        with log_context(aws_request_id="req-1") as ctx:
+            bind_user_id(not_a_uuid)  # 例外にならない
+            line = json_formatter.format(_record())
+
+        assert ctx.user_id is None
+        assert "user_id" not in json.loads(line)
+        assert "example.com" not in line
+
+    def test_current_span_attributes_maps_log_context_fields_to_span_attribute_names(self) -> None:
+        with log_context(http_method="GET", aws_request_id="req-1"):
+            assert current_span_attributes() == {}  # 値が無ければ含めない
+            bind_user_id(_USER_ID)
+            assert current_span_attributes() == {"enduser.id": str(_USER_ID)}
+
+    def test_current_span_attributes_is_empty_without_a_context(self) -> None:
+        assert current_span_attributes() == {}
 
     def test_user_id_bound_in_a_copied_context_reaches_the_caller(self) -> None:
         """同期の依存はスレッドプール（context のコピー）で動く。可変オブジェクトなので届く。"""
         import contextvars
 
         with log_context() as ctx:
-            contextvars.copy_context().run(bind_log_user_id, "u-2")
+            contextvars.copy_context().run(bind_user_id, _USER_ID)
 
-        assert isinstance(ctx, LogContext) and ctx.user_id == "u-2"
+        assert isinstance(ctx, LogContext) and ctx.user_id == str(_USER_ID)
 
 
 # `JsonLogFormatter` が自分で付けるキー。`payload.update(_context_fields())` が後から上書きする

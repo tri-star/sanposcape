@@ -22,8 +22,12 @@ import time
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from sanposcape.core.logs import log_context
-from sanposcape.core.tracing import record_exception_on_current_span, warn_once
+from sanposcape.core.logs import current_span_attributes, log_context
+from sanposcape.core.tracing import (
+    annotate_current_span,
+    record_exception_on_current_span,
+    warn_once,
+)
 
 # ★ 分割前と同じロガー名に固定する（`logger` フィールドが出力の一部のため。`tracing.py` 参照）。
 logger = logging.getLogger("sanposcape.core.observability")
@@ -111,6 +115,10 @@ class AccessLogMiddleware:
                 if message["type"] == "http.response.start":
                     status = message["status"]
                     response_started = True
+                    # ★ 応答の開始時に写す。OTel の ASGI 計装は最後の body を送ると
+                    #   **サーバースパンを終える**ので、`self.app` が戻った後は記録中でない。
+                    #   ユーザー ID を bind する認証の依存は、応答の開始より前に走っている。
+                    self._annotate_span()
                 await send(message)
 
             try:
@@ -119,6 +127,7 @@ class AccessLogMiddleware:
                 self._log(scope, status, started, exc=exc)
                 self._record_on_span(exc)
                 if not response_started:
+                    self._annotate_span()  # 応答の開始前の例外。スパンはまだ終わっていない
                     response = PlainTextResponse("Internal Server Error", status_code=500)
                     await response(scope, receive, send)
                     return
@@ -136,6 +145,16 @@ class AccessLogMiddleware:
             record_exception_on_current_span(exc, enabled=self._tracing_enabled)
         except Exception:
             warn_once("record-exception", "未処理例外のスパンへの記録に失敗した")
+
+    def _annotate_span(self) -> None:
+        """`LogContext` のユーザー ID などを、サーバースパンの属性に写す。
+
+        `bind_user_id` の docstring を参照。記録の失敗で応答を妨げない。
+        """
+        try:
+            annotate_current_span(current_span_attributes(), enabled=self._tracing_enabled)
+        except Exception:
+            warn_once("annotate-span", "スパンへのユーザー ID の記録に失敗した")
 
     def _log(
         self, scope: Scope, status: int, started: float, *, exc: BaseException | None = None

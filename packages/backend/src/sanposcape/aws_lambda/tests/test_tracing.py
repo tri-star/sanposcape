@@ -8,7 +8,10 @@ import asyncio
 import copy
 import json
 import sys
+import uuid
+from functools import partial
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -19,11 +22,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from sanposcape.aws_lambda.tracing import _LambdaRootSpanMiddleware, wrap_app_for_lambda_tracing
 from sanposcape.config import Settings
-from sanposcape.core.observability import instrument_fastapi_app
+from sanposcape.core.observability import bind_user_id, instrument_fastapi_app
 from sanposcape.main import create_app
 
 _EVENTS_DIR = Path(__file__).resolve().parents[4] / "events"
 _PIN_ID = "0b5b3c3e-0000-4000-8000-000000000000"
+_USER_ID = uuid.UUID("11111111-2222-4333-8444-555555555555")
 
 pytestmark = pytest.mark.usefixtures("clean_instrumentors")
 
@@ -33,6 +37,27 @@ def _app(provider: TracerProvider, *, enabled: bool = True) -> FastAPI:
     app = create_app(Settings(env="test"))
     app.state.settings = settings
     instrument_fastapi_app(app, settings, tracer_provider=provider)
+    return app
+
+
+def _probe_app(provider: TracerProvider, *, enabled: bool = True) -> FastAPI:
+    """`bind_user_id` を呼ぶルートを持つアプリ。`AccessLogMiddleware` もトレース有効にする。"""
+    settings = Settings(env="test", tracing_enabled=enabled)
+    with patch(
+        "sanposcape.main.instrument_fastapi_app",
+        partial(instrument_fastapi_app, tracer_provider=provider),
+    ):
+        app = create_app(settings)
+
+    @app.get("/probe/bound")
+    def probe_bound() -> dict[str, str]:
+        bind_user_id(_USER_ID)
+        return {"ok": "yes"}
+
+    @app.get("/probe/unbound")
+    def probe_unbound() -> dict[str, str]:
+        return {"ok": "yes"}
+
     return app
 
 
@@ -312,3 +337,40 @@ def test_sanitize_failure_still_removes_query_and_user_agent(
     assert "userAgent" not in event["requestContext"]["http"]
     assert event["requestContext"]["http"]["path"] == ""
     assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
+
+
+def test_bound_user_id_is_set_on_the_lambda_root_span_and_the_fastapi_span(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    response = _invoke(provider, _probe_app(provider), "/probe/bound")
+
+    assert response["statusCode"] == 200
+    assert _root(exporter).attributes["enduser.id"] == str(_USER_ID)
+    assert _child(exporter).attributes["enduser.id"] == str(_USER_ID)
+
+
+def test_spans_have_no_enduser_id_when_nobody_bound_a_user(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    _invoke(provider, _probe_app(provider), "/probe/unbound")
+
+    assert "enduser.id" not in _root(exporter).attributes
+    assert "enduser.id" not in _child(exporter).attributes
+
+
+def test_user_id_does_not_leak_into_the_next_invocation(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    app = _probe_app(provider)
+    _invoke(provider, app, "/probe/bound")
+    exporter.clear()
+
+    _invoke(provider, app, "/probe/unbound")
+
+    assert "enduser.id" not in _root(exporter).attributes
+
+
+def test_wrapper_does_nothing_for_users_when_tracing_is_disabled(provider: TracerProvider) -> None:
+    app = _probe_app(provider, enabled=False)
+
+    assert wrap_app_for_lambda_tracing(app) is app

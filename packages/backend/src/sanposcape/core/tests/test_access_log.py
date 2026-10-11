@@ -139,6 +139,34 @@ class TestAccessLogMiddleware:
         levels = [r.levelno for r in caplog.records]
         assert levels == [logging.ERROR, logging.WARNING]  # 元の ERROR 1 件 + 記録失敗の警告
 
+    def test_a_failing_span_annotation_does_not_change_the_response(
+        self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _fail(attributes: dict[str, str], *, enabled: bool) -> None:
+            raise RuntimeError("otel is broken")
+
+        monkeypatch.setattr(access_log, "annotate_current_span", _fail)
+        monkeypatch.setattr(tracing, "_WARNED", set())
+
+        with caplog.at_level(logging.INFO, logger="sanposcape.core.observability"):
+            sent = _run_middleware("/pins", status=201, tracing_enabled=True)
+
+        assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [201]
+        assert [r.levelno for r in caplog.records] == [logging.WARNING, logging.INFO]
+
+    def test_a_failing_span_annotation_does_not_prevent_the_500_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _fail(attributes: dict[str, str], *, enabled: bool) -> None:
+            raise RuntimeError("otel is broken")
+
+        monkeypatch.setattr(access_log, "annotate_current_span", _fail)
+        monkeypatch.setattr(tracing, "_WARNED", set())
+
+        sent = _run_middleware("/pins", raises=True, tracing_enabled=True)
+
+        assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [500]
+
     def test_cancelled_error_passes_through_without_a_log(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:

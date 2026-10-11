@@ -16,6 +16,7 @@ import json
 import logging
 import time
 import traceback
+import uuid
 from collections.abc import Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field, fields
@@ -76,15 +77,18 @@ class LogContext:
     呼び出し元に戻らない（context がコピーされるため）。コピーされた context も同じオブジェクトを
     指すので、属性の書き換えなら届く。
 
-    **ログに出すキーはこの dataclass のフィールドから導く**（`_LOG_CONTEXT_KEYS`。定義順が出力順）
+    **ログに出すキーはこの dataclass のフィールドから導く**（`_LOG_CONTEXT_KEYS`。定義順が出力順）。
     フィールドを足せば JSON / console の両方に出る。ログに出さないフィールドは
-    `metadata={"emit": False}` にする。
+    `metadata={"emit": False}` にする。スパンにも写すフィールドは
+    `metadata={"span_attribute": "<属性名>"}` で属性名を宣言する
+    （`current_span_attributes()`。ログとスパンの対応をここ 1 か所で決める）。
     """
 
     aws_request_id: str | None = None
     http_method: str | None = None
     http_route: str | None = None
-    user_id: str | None = None
+    # 内部 UUID のみ（`bind_user_id`）。スパンには `enduser.id` として写す。
+    user_id: str | None = field(default=None, metadata={"span_attribute": "enduser.id"})
     # `http_route` は routing の後でないと決まらず、format の時点で解決する。ログには出さない。
     scope: Scope | None = field(default=None, metadata={"emit": False})
 
@@ -124,14 +128,41 @@ def _fill_log_context(target: LogContext, fields: dict[str, Any]) -> None:
             setattr(target, key, value)
 
 
-def bind_log_user_id(user_id: object) -> None:
-    """認証で確定したユーザー ID（内部 UUID）を、現在のリクエストのログに付ける。
+def bind_user_id(user_id: uuid.UUID) -> None:
+    """ユーザー ID（内部 UUID）を、現在のリクエストのログとスパンに付ける**唯一の入口**。
 
-    `LogContext` が無ければ何もしない。呼ぶのは `dependencies.py` の認証の成功時だけ。
+    ここでは `LogContext` に入れるだけで、スパンには触れない。スパンへは、
+    `current_span_attributes()` の値を、`AccessLogMiddleware`（FastAPI のサーバースパン。
+    応答の開始時）と `aws_lambda/tracing.py`（Lambda の親スパン。リクエストの終わり）が写す。
+    bind 時点の current span はサーバースパンとは限らず、`Settings`（`tracing_enabled`）も
+    知らないため。
+
+    `uuid.UUID` 以外は無視する（メールアドレスなどが誤って渡る経路を型で塞ぐ。例外にもしない）。
+    `LogContext` が無ければ何もしない。呼ぶのは認証の成功時（`dependencies.py`）と、ログイン・
+    refresh・logout でユーザーが確定した時点（`auth/service.py`）。
     """
+    if not isinstance(user_id, uuid.UUID):
+        return
     current = _log_context.get()
     if current is not None:
         current.user_id = str(user_id)
+
+
+def current_span_attributes() -> dict[str, str]:
+    """現在の `LogContext` から、スパンに写す `{属性名: 値}` を返す（値が無いものは含めない）。
+
+    `LogContext` が無ければ空。写す先の属性名は `LogContext` のフィールドの metadata で宣言する。
+    """
+    current = _log_context.get()
+    if current is None:
+        return {}
+    attributes: dict[str, str] = {}
+    for item in fields(LogContext):
+        name = item.metadata.get("span_attribute")
+        value = getattr(current, item.name)
+        if name and value is not None:
+            attributes[name] = str(value)
+    return attributes
 
 
 @dataclass(slots=True)

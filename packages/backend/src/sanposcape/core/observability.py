@@ -14,8 +14,9 @@ from sanposcape.core.logs import (
     ConsoleLogFormatter,
     JsonLogFormatter,
     LogContext,
-    bind_log_user_id,
+    bind_user_id,
     configure_logging,
+    current_span_attributes,
     log_context,
 )
 from sanposcape.core.tracing import (
@@ -25,6 +26,7 @@ from sanposcape.core.tracing import (
     instrument_sqlalchemy_engine,
     record_exception_on_current_span,
     resolve_route_template,
+    set_span_attributes,
     warn_once,
 )
 
@@ -35,13 +37,15 @@ __all__ = [
     "LogContext",
     "TraceLookup",
     "UnhandledErrorAfterResponseStart",
-    "bind_log_user_id",
+    "bind_user_id",
     "blank_privacy_sensitive_attributes",
     "configure_logging",
+    "current_span_attributes",
     "instrument_fastapi_app",
     "instrument_sqlalchemy_engine",
     "log_context",
     "record_exception_on_current_span",
     "resolve_route_template",
+    "set_span_attributes",
     "warn_once",
 ]

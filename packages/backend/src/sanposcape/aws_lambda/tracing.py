@@ -50,7 +50,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sanposcape.core.observability import (
     blank_privacy_sensitive_attributes,
+    current_span_attributes,
+    log_context,
     resolve_route_template,
+    set_span_attributes,
     warn_once,
 )
 
@@ -76,12 +79,17 @@ class _LambdaRootSpanMiddleware:
 
         span = trace.get_current_span()
         self._scrub_target(span, scope)
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            # 例外が出る経路（500）でもルートは分かるので finally で付ける。
-            self._rename(span, scope)
-            self._sanitize_event(scope)
+        # Lambda では `AsgiLambdaHandler` が用意した文脈をそのまま使う（既にあれば書き足すだけ）。
+        # 内側の `bind_user_id` の値を、このスパンを閉じる前に読めるよう、文脈の寿命をここで包む。
+        with log_context():
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                # 例外が出る経路（500）でもルートは分かるので finally で付ける。
+                self._rename(span, scope)
+                # ユーザー ID を親スパンに写す（子スパンには付けない。`bind_user_id` 参照）。
+                set_span_attributes(span, current_span_attributes())
+                self._sanitize_event(scope)
 
     @staticmethod
     def _sanitize_event(scope: Scope) -> None:
