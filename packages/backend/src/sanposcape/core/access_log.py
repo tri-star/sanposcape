@@ -17,6 +17,7 @@ Lambda（Mangum）には uvicorn が居ないので**アプリ側で出さない
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from starlette.responses import PlainTextResponse
@@ -28,6 +29,35 @@ from sanposcape.core.tracing import (
     record_exception_on_current_span,
     warn_once,
 )
+
+# `X-App-Session-Id` ヘッダー（アプリの起動ごとの UUID v4。mobile が付ける）。クライアント由来の
+# 信頼できない入力なので、小文字の正規形の UUID v4 だけを受ける。
+_APP_SESSION_ID_HEADER = b"x-app-session-id"
+_APP_SESSION_ID_LENGTH = 36
+_APP_SESSION_ID_PATTERN = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+)
+
+
+def _read_app_session_id(scope: Scope) -> str | None:
+    """`X-App-Session-Id` を検証して返す。受け付けられない値は None（理由は出さない）。
+
+    - 同名のヘッダーが 1 件でなければ捨てる（どれが正か曖昧なため）。
+    - 長さ（bytes）が 36 でなければ、デコードも正規表現にもかけずに捨てる（長い値を渡さない）。
+    - ASCII でデコードできない、小文字の UUID v4 の形でない値も捨てる。
+    不正な値は**ログにもスパンにも出さず**（警告も出さない）、リクエストも拒否しない。
+    """
+    values = [
+        value for name, value in scope.get("headers", []) if name.lower() == _APP_SESSION_ID_HEADER
+    ]
+    if len(values) != 1 or len(values[0]) != _APP_SESSION_ID_LENGTH:
+        return None
+    try:
+        text = values[0].decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    return text if _APP_SESSION_ID_PATTERN.fullmatch(text) else None
+
 
 # ★ 分割前と同じロガー名に固定する（`logger` フィールドが出力の一部のため。`tracing.py` 参照）。
 logger = logging.getLogger("sanposcape.core.observability")
@@ -51,6 +81,16 @@ class AccessLogMiddleware:
     意図的に出さないもの:
     - **クエリ文字列**（将来トークン等が載ったときに黙って漏れる経路を作らない）
     - **ヘッダー・ボディ**（同上）
+
+    **`X-App-Session-Id`**（mobile がアプリの起動ごとに付ける UUID v4）は、検証を通ったときだけ
+    `LogContext.app_session_id`（ログの `app_session_id`、スパンの `session.id`）に載せる。
+    routing より前に読むので、401 / 404 / 413 のアクセスログにも付く。
+    **クライアント由来の信頼できない入力**として扱う: 小文字の UUID v4 以外・同名の複数ヘッダー・
+    長さ違いは捨て、捨てた値は**どこにも出さず**（警告も出さない）、リクエストも拒否しない
+    （可観測性で可用性を落とさない）。
+    用途は調査の目印だけで、認可・レート制限・重複排除には使わない（他人の ID を名乗れても
+    影響は自分のリクエストの印が変わるだけ。同じ ID が同じ端末の証明にもならない）。
+    OpenAPI には載せない（ルートの引数にすると `openapi.yaml` が変わり、mobile の CI が走るため）。
 
     ★ 逆に言うと **`path` は無条件に `message` に出す**（`http_route` はテンプレートなので安全）。
     現在のルートのパスパラメータは UUID だけで、トークン類はすべてリクエストボディで受けて
@@ -104,7 +144,11 @@ class AccessLogMiddleware:
             return
 
         excluded = scope["path"] in self._exclude_paths
-        with log_context(http_method=scope.get("method"), scope=scope):
+        with log_context(
+            http_method=scope.get("method"),
+            scope=scope,
+            app_session_id=_read_app_session_id(scope),
+        ):
             started = time.perf_counter()
             status = 500
             response_started = False

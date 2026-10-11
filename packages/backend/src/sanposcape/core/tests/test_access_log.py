@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -18,10 +19,14 @@ def _run_middleware(
     raises_after_start: bool = False,
     exclude_paths: tuple[str, ...] = ("/health",),
     tracing_enabled: bool = False,
+    headers: list[tuple[bytes, bytes]] | None = None,
+    inner_log: str | None = None,
 ) -> list[Message]:
     sent: list[Message] = []
 
     async def inner_app(scope, receive, send) -> None:
+        if inner_log is not None:
+            logging.getLogger("sanposcape.test_inner").info(inner_log)
         if raises:
             raise RuntimeError("boom")
         await send({"type": "http.response.start", "status": status, "headers": []})
@@ -35,7 +40,7 @@ def _run_middleware(
     async def send(message: Message) -> None:
         sent.append(message)
 
-    scope = {"type": "http", "path": path, "method": method, "headers": []}
+    scope = {"type": "http", "path": path, "method": method, "headers": headers or []}
     middleware = AccessLogMiddleware(
         inner_app, exclude_paths=exclude_paths, tracing_enabled=tracing_enabled
     )
@@ -249,3 +254,109 @@ class TestAccessLogMiddleware:
         _run_middleware("/walks")
 
         assert logs._log_context.get() is None
+
+
+_SESSION_ID = "0b5b3c3e-1111-4222-8333-444455556666"
+_SESSION_HEADER = b"x-app-session-id"
+
+
+class TestAppSessionId:
+    """`X-App-Session-Id`（クライアント由来の信頼できない入力）の受け口。"""
+
+    def test_valid_value_is_in_the_access_log_and_in_app_logs(
+        self, json_logs: list[dict[str, Any]]
+    ) -> None:
+        _run_middleware(
+            "/pins",
+            headers=[(_SESSION_HEADER, _SESSION_ID.encode())],
+            inner_log="inside the app",
+        )
+
+        inner, access = json_logs
+        assert inner["message"] == "inside the app"
+        assert inner["app_session_id"] == _SESSION_ID
+        assert access["app_session_id"] == _SESSION_ID
+
+    def test_header_name_is_case_insensitive(self, json_logs: list[dict[str, Any]]) -> None:
+        _run_middleware("/pins", headers=[(b"X-App-Session-Id", _SESSION_ID.encode())])
+
+        (access,) = json_logs
+        assert access["app_session_id"] == _SESSION_ID
+
+    def test_is_attached_even_to_requests_rejected_before_routing(
+        self, json_logs: list[dict[str, Any]]
+    ) -> None:
+        _run_middleware("/nope", status=404, headers=[(_SESSION_HEADER, _SESSION_ID.encode())])
+
+        (access,) = json_logs
+        assert access["http_status_code"] == 404
+        assert access["app_session_id"] == _SESSION_ID
+
+    def test_absent_header_means_no_field(self, json_logs: list[dict[str, Any]]) -> None:
+        _run_middleware("/pins")
+
+        (access,) = json_logs
+        assert "app_session_id" not in access
+
+    @pytest.mark.parametrize(
+        ("label", "raw"),
+        [
+            ("uppercase", _SESSION_ID.upper().encode()),
+            ("37 chars", (_SESSION_ID + "0").encode()),
+            ("35 chars", _SESSION_ID[:-1].encode()),
+            ("uuid v1", b"0b5b3c3e-1111-1222-8333-444455556666"),
+            ("bad variant", b"0b5b3c3e-1111-4222-c333-444455556666"),
+            ("no hyphens", _SESSION_ID.replace("-", "x").encode()),
+            ("newline inside", b"0b5b3c3e-1111-4222-8333-4444555566\n6"),
+            ("trailing newline", (_SESSION_ID[:-1] + "\n").encode()),
+            ("non-ascii", ("0b5b3c3e-1111-4222-8333-44445555666" + "é").encode()),
+            ("invalid utf-8", b"\xff" * 36),
+            ("empty", b""),
+            ("10KB", b"a" * 10_240),
+            ("log injection", b'" \\n{"level":"CRITICAL"}' + b"0" * 20),
+        ],
+    )
+    def test_invalid_value_is_dropped_everywhere_and_the_request_is_not_rejected(
+        self, label: str, raw: bytes, json_logs: list[dict[str, Any]]
+    ) -> None:
+        sent = _run_middleware(
+            "/pins", status=201, headers=[(_SESSION_HEADER, raw)], inner_log="inside the app"
+        )
+
+        assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [201]
+        assert json_logs
+        assert all("app_session_id" not in line for line in json_logs), label
+        dumped = json.dumps(json_logs, ensure_ascii=False)
+        text = raw.decode("utf-8", errors="replace")
+        if text:
+            assert text not in dumped, label
+            assert "CRITICAL" not in dumped
+
+    def test_duplicate_headers_are_all_dropped(self, json_logs: list[dict[str, Any]]) -> None:
+        other = "1b5b3c3e-1111-4222-8333-444455556666"
+
+        _run_middleware(
+            "/pins",
+            headers=[(_SESSION_HEADER, _SESSION_ID.encode()), (_SESSION_HEADER, other.encode())],
+        )
+
+        (access,) = json_logs
+        assert "app_session_id" not in access
+        assert _SESSION_ID not in json.dumps(json_logs)
+        assert other not in json.dumps(json_logs)
+
+    def test_invalid_value_emits_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.DEBUG, logger="sanposcape"):
+            _run_middleware("/pins", headers=[(_SESSION_HEADER, b"x" * 10_240)])
+
+        assert [r.levelno for r in caplog.records] == [logging.INFO]  # アクセスログだけ
+
+    def test_context_does_not_leak_to_the_next_request(
+        self, json_logs: list[dict[str, Any]]
+    ) -> None:
+        _run_middleware("/pins", headers=[(_SESSION_HEADER, _SESSION_ID.encode())])
+        _run_middleware("/pins")
+
+        first, second = json_logs
+        assert first["app_session_id"] == _SESSION_ID
+        assert "app_session_id" not in second

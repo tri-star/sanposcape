@@ -435,7 +435,13 @@ def _log_calls_with_extra() -> list[tuple[str, int, ast.keyword]]:
 
 class TestLogKeys:
     def test_log_context_keys_are_derived_from_the_dataclass_in_definition_order(self) -> None:
-        assert logs._LOG_CONTEXT_KEYS == ("aws_request_id", "http_method", "http_route", "user_id")
+        assert logs._LOG_CONTEXT_KEYS == (
+            "aws_request_id",
+            "http_method",
+            "http_route",
+            "user_id",
+            "app_session_id",
+        )
 
     def test_scope_is_not_emitted(self, json_formatter: JsonLogFormatter) -> None:
         with log_context(http_method="GET", scope={"type": "http"}):

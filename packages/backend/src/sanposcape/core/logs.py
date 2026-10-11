@@ -89,6 +89,9 @@ class LogContext:
     http_route: str | None = None
     # 内部 UUID のみ（`bind_user_id`）。スパンには `enduser.id` として写す。
     user_id: str | None = field(default=None, metadata={"span_attribute": "enduser.id"})
+    # アプリの起動ごとのセッション ID（`X-App-Session-Id`。検証済みの UUID v4 だけ）。クライアントの
+    # 申告で、端末の証明ではない。スパンには `session.id`（ログインセッションと混同しない名前）。
+    app_session_id: str | None = field(default=None, metadata={"span_attribute": "session.id"})
     # `http_route` は routing の後でないと決まらず、format の時点で解決する。ログには出さない。
     scope: Scope | None = field(default=None, metadata={"emit": False})
 

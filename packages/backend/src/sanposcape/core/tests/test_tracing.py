@@ -385,6 +385,28 @@ class TestEndUserIdOnServerSpan:
         (span,) = exporter.get_finished_spans()
         assert "enduser.id" not in span.attributes
 
+    def test_valid_app_session_id_header_is_set_as_session_id(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        session_id = "0b5b3c3e-1111-4222-8333-444455556666"
+        client = TestClient(_traced_app(provider), headers={"X-App-Session-Id": session_id})
+
+        client.get("/probe/unbound")
+
+        (span,) = exporter.get_finished_spans()
+        assert span.attributes["session.id"] == session_id
+
+    def test_invalid_app_session_id_header_never_reaches_the_span(
+        self, provider: TracerProvider, exporter: InMemorySpanExporter
+    ) -> None:
+        client = TestClient(_traced_app(provider), headers={"X-App-Session-Id": "not-a-uuid"})
+
+        assert client.get("/probe/unbound").status_code == 200
+
+        (span,) = exporter.get_finished_spans()
+        assert "session.id" not in span.attributes
+        assert not [v for v in _all_attribute_values((span,)) if "not-a-uuid" in v]
+
     def test_set_span_attributes_swallows_failures(self, monkeypatch: pytest.MonkeyPatch) -> None:
         class _BrokenSpan:
             def is_recording(self) -> bool:
