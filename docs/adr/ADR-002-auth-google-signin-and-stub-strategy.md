@@ -17,7 +17,8 @@
 - **Google サインインのライブラリは `react-native-nitro-google-signin`**。Android Credential Manager に無償で対応するため。
   （本文: 決定1、検討した選択肢「Google サインインのライブラリ」）
 - **複数プロバイダへの抽象化点は `POST /auth/session` の `provider` フィールド**。Apple 等の追加は
-  モバイルのライブラリ1つ + backend の ID token 検証1つで済ませる。（本文: 決定2）
+  モバイルのライブラリ1つ + backend の ID token 検証1つが中心だが、ID token 以外の入力（Apple の nonce・氏名）を
+  受け渡すため、schemas・`AuthService`・`UserService` にも影響する。（本文: 決定2、「SS-195 追補」節、「SS-197 追補」節）
 - **モバイルの認証は `EXPO_PUBLIC_AUTH_MODE = real | dev | mock` の3モードで、既定は `real`（fail-safe）**。
   `dev` は実物の backend を使い、トークン発行と `get_current_user` は real と同一のコードパスを通る。（本文: 決定3）
 - **backend は `AUTH_MODE`（既定 `real`）を持ち、`POST /auth/dev-session` は `AUTH_MODE=dev` のときだけ存在する**。
@@ -38,7 +39,7 @@
   Apple は氏名を初回の認可時だけ端末へ返すため `POST /auth/session` に任意の氏名を足し、アカウント削除時は
   サインイン時に交換・保存した Apple の refresh token を REST API で失効させる。
   backend の ID token 検証は `provider="apple"` で受け付け済み（`nonce` は端末の raw 値を SHA256 の hex と
-  token の `nonce` で比較し apple では必須、氏名は新規作成時だけ使い、`APPLE_ALLOWED_AUDIENCES` が空なら 400）。
+  token の `nonce` で比較し apple では必須、氏名は新規作成時と未設定の既存ユーザーにだけ使い、`APPLE_ALLOWED_AUDIENCES` が空なら 400）。
   （本文: 「SS-195 追補」節、「SS-197 追補」節）
 - **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
   （本文: 移行・対応が必要な事項）
@@ -501,16 +502,20 @@ authorization code の交換・Apple の refresh token の保存・削除時の�
   （16 文字未満はエントロピー不足、上限は低コスト DoS 対策）。
 - Google は従来どおり nonce を検証しない（受けても無視する）。端末が渡すようになったら同じ方式で足せる。
 
-### 氏名（`display_name`）は新規作成時、ID token に氏名が無い場合だけ使う
+### 氏名（`display_name`）は ID token に氏名が無い場合だけ使い、保存済みの値は上書きしない
 
 - Apple は 2 回目以降に氏名を返さない。既存ユーザーに反映すると、消えたり端末側の古い値に戻ったりするため、
-  **既存ユーザーには一切反映しない**（NULL の補完もしない）。provider を問わない意味にした
+  **保存済み（非 NULL）の値は上書きしない**。一方、既存ユーザーの `display_name` が NULL のときは補完する
+  （初回のセッション応答を端末が受け取れなかった場合に、再送で回復できるようにするため。NULL を埋める限り
+  「消える」「古い値に戻る」は起きない）。provider を問わない意味にした
   （Google は token の `name` が優先されるので挙動は変わらない）。
 - `ProviderIdentity.display_name` には詰めない。詰めると `find_or_create` の「None 以外なら更新」で
   既存ユーザーにも毎回上書きされる。別経路の `initial_display_name` として渡す。
 - 入力検証: 前後の空白（全角を含む）を除去し、空なら未指定として扱う（422 にしてサインイン自体を失敗させない）。
-  除去後 255 文字まで（`users.display_name` の列幅）。制御文字（NUL・改行・タブ等）を含めば 422
-  （NUL は PostgreSQL の text に入らず 500 になる）。
+  除去後 255 文字まで（`users.display_name` の列幅）。制御文字（Cc: NUL・改行・タブ等）、行・段落区切り
+  （Zl・Zp）、書式制御文字（Cf: 双方向制御やゼロ幅スペースによる表示なりすまし）を含めば 422
+  （NUL は PostgreSQL の text に入らず 500 になる）。絵文字の合字と一部言語の表記に必要な
+  ZWJ（U+200D）・ZWNJ（U+200C）だけは許可する。
 
 ### メールは `email_verified` が真のときだけ保存する
 
@@ -531,6 +536,9 @@ authorization code の交換・Apple の refresh token の保存・削除時の�
   デプロイした時点で Google を含む API 全体が起動しなくなる。空でも認証は閉じる側（apple だけ使えない）に倒れる。
   必須化は本番リリース前（SS-198・SS-199 が揃い、本番シークレットへ投入した後）に再判断する。
 - 未投入のままデプロイすると、cold start ごとに `missing expected keys` の ERROR ログが出る（API は起動する）。
+  あわせて、`APPLE_ALLOWED_AUDIENCES` が空であることを示す WARNING が**プロセスにつき 1 回だけ**出る
+  （最初の auth 系リクエストで。レジストリの組み立てはリクエストごとに呼ばれ、未認証でもログ量を増やせるため、
+  組み立て自体は副作用を持たせない）。
   投入してからデプロイする（手順は [デプロイ手順](../../packages/backend/docs/deployment.md)）。
 
 ### JWKS クライアントのキャッシュは Google と Apple で共有し、`maxsize=4` にする

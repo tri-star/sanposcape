@@ -67,7 +67,7 @@ packages/backend/
 │       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）。
 │       │                       #   s3.py は写真ストレージ（S3 / fake / unconfigured）の抽象化層（SS-88）
 │       │
-│       ├── auth/              # ドメイン: 認証・セッション（Google ID token検証・自前トークン）
+│       ├── auth/              # ドメイン: 認証・セッション（Google / Apple ID token検証・自前トークン）
 │       │   ├── __init__.py
 │       │   ├── router.py      #   APIRouter（/auth/session, /auth/refresh, /auth/logout, /auth/me）
 │       │   ├── dev_router.py  #   AUTH_MODE=dev 限定の /auth/dev-session（include_in_schema=False）
@@ -191,7 +191,7 @@ packages/backend/
 ### `core/` — 横断的関心事
 - どのドメインにも属さない土台。ページングなどの汎用処理に加え、`geo.py` の `GeoPoint` のようなドメイン横断で使う**共有スキーマ**、`middleware.py` の `RequestSizeLimitMiddleware` のような**ASGI ミドルウェア**、`observability.py` の `AccessLogMiddleware` / `configure_logging()` のような**可観測性の土台**（1リクエスト1行のアクセスログとロギング設定。SS-88/ADR-009 決定13）、`feature_flags.py` の `FeatureFlags` のようなフィーチャーフラグの評価層（登録簿 + 取得済み文書 → 判定。ADR-008/SS-98）もここに置く。「特定のドメインに閉じない」ものを置く場所であり、対象はユーティリティ関数に限らない。
 - ドメインを import しない（依存の向きは `domain → core`）。
-- 認証（Google ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
+- 認証（Google / Apple ID token 検証・自前セッショントークン）は `core/` ではなく `auth/` ドメインに実装している。「認証専用の入出力・ロジック・状態（`refresh_tokens` テーブル等）を持つ」という点で他ドメインと同じ形をしており、`core/` の「どのドメインにも属さない」という性質に当てはまらないため。詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) を参照。
 
 ### `integrations/` — 外部API連携（隔離層）
 - Google Maps Platform（Places / Routes）などの外部クライアントとキャッシュをここに閉じ込める。

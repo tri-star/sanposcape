@@ -172,7 +172,7 @@ docker compose up -d --build
 - `ENV`: 実行環境（`local` / `test` / `staging` / `production`）。`local` / `test` 以外（`staging` / `production`）では厳格な起動時バリデーションが有効になる（許可リスト方式。新しい `env` 値を追加してもデフォルトで安全側になる）。
 - `LOG_FORMAT`: ログの形式。`json`（コード既定。Lambda / 将来の ECS と同じ 1 行の JSON）または `console`（ローカルで読みやすい 1 行表記。compose の既定）。`console` は `ENV` が `local` / `test` のときだけ許可され、`staging` / `production` で指定すると起動時に失敗する。`exception_message`（例外メッセージ）も `local` / `test` でしか出ない（ADR-013 決定6）。
 - `AUTH_MODE`: `real`（既定・fail-safe）または `dev`。
-  - `real`: `POST /auth/session` で Google ID token を検証するモード。
+  - `real`: `POST /auth/session` で Google / Apple の ID token を検証するモード。
   - `dev`: `real` に加えて `POST /auth/dev-session`（`{"user_key": "..."}` で任意のユーザーを JIT 作成してセッションを発行）が有効になる。ローカル開発・Maestro E2E 専用。
   - `.env.example` は開発者の利便性のため `AUTH_MODE=dev` を既定にしている。**本番デプロイでは絶対に `dev` にしないこと**（`ENV=production` かつ `AUTH_MODE != real` の場合はプロセスが起動しない）。
   - **重要**: `AUTH_MODE=dev` で `docker compose up` していても、`POST /auth/dev-session` は API ドキュメント（`/docs` の Scalar。SS-131 で Swagger UI から置き換え）や `openapi.yaml` には一切現れない（`include_in_schema=False` を指定しているため）。「`/docs` に出ない」ことは「無効である」ことの証明にはならないので注意する。実際に有効かどうかは `curl` で直接 `POST /auth/dev-session` を叩いて確認すること。
@@ -182,8 +182,8 @@ docker compose up -d --build
 - `GOOGLE_ALLOWED_AUDIENCES`: Google ID token の許容 audience（カンマ区切り可）。`local` / `test` 以外では必須。
 - `GOOGLE_JWKS_URL`: Google の JWKS エンドポイント。既定値（`https://www.googleapis.com/oauth2/v3/certs`）があり、通常は変更不要。
 - `GOOGLE_ALLOWED_ISSUERS`: Google ID token の許容 issuer（カンマ区切り可）。既定値（`https://accounts.google.com`, `accounts.google.com`）があり、通常は変更不要。
-- `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`: JWKS の `lru_cache` を破棄して再取得するまでの秒数。既定値（3600）があり、通常は変更不要。
-- `APPLE_ALLOWED_AUDIENCES`: Apple ID token（Sign in with Apple）の許容 audience（カンマ区切り可）。iOS ネイティブの `aud` は bundle ID（dev は `com.sanposcape.app.dev`、本番は `com.sanposcape.app`）。**空だと `provider="apple"` の `POST /auth/session` は 400**（Google は影響を受けない）。起動時の必須チェックには含めない。既存の開発者の `.env` には自動では入らないので、`.env.example` を見て足す。
+- `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`: Google の JWKS を `PyJWKClient` のキャッシュに保持する秒数（これを過ぎると次の検証で再取得する）。既定値（3600）があり、通常は変更不要。
+- `APPLE_ALLOWED_AUDIENCES`: Apple ID token（Sign in with Apple）の許容 audience（カンマ区切り可）。iOS ネイティブの `aud` は bundle ID（dev は `com.sanposcape.app.dev`、本番は `com.sanposcape.app`）。**空だと `provider="apple"` の `POST /auth/session` は 400**（Google は影響を受けない）。空のときは WARNING が 1 回（プロセスにつき）出る。起動時の必須チェックには含めない。既存の開発者の `.env` には自動では入らないので、`.env.example` を見て足す。
 - `APPLE_JWKS_URL` / `APPLE_ISSUER` / `APPLE_JWKS_CACHE_LIFESPAN_SECONDS`: Apple の JWKS エンドポイント・`iss`・JWKS の再取得間隔。既定値（`https://appleid.apple.com/auth/keys` / `https://appleid.apple.com` / 3600）があり、通常は変更不要。
 
 ## Google Maps Platform（探索・徒歩経路）

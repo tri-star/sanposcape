@@ -182,6 +182,8 @@ aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
 - **投入してからデプロイする。** 未投入のままデプロイすると、cold start ごとに
   `secret is missing expected keys: ['apple_allowed_audiences']` の ERROR ログが出る。
   API は起動し、`provider="apple"` だけが 400 `Unsupported provider` になる（Google 等は通常どおり）。
+  最初の auth 系リクエストで `APPLE_ALLOWED_AUDIENCES is empty; Sign in with Apple is disabled` の
+  WARNING も 1 回出る（プロセスにつき 1 回。リクエストごとには出ない）。
   起動時の必須チェックには含めていない理由は [ADR-002 の SS-197 追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)。
 - infra リポジトリのコード変更・`template.yaml` の変更は不要（シークレットの中身は Terraform 管理外で、
   Lambda の実行ロールは同じシークレットを既に読めている。§2）。
