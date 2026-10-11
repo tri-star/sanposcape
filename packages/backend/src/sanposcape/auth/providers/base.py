@@ -6,8 +6,8 @@ from typing import Protocol
 class ProviderIdentity:
     """外部 identity provider から検証済みで得られたユーザー情報。"""
 
-    provider: str  # "google" / 将来 "apple"
-    subject: str  # IdP 内で不変のユーザー ID（Google の sub）
+    provider: str  # "google" / "apple"
+    subject: str  # IdP 内で不変のユーザー ID（Google / Apple の sub）
     email: str | None
     display_name: str | None
     photo_url: str | None
@@ -16,8 +16,11 @@ class ProviderIdentity:
 class IdentityProvider(Protocol):
     name: str
 
-    def verify(self, id_token: str) -> ProviderIdentity:
+    def verify(self, id_token: str, *, nonce: str | None = None) -> ProviderIdentity:
         """ID token を検証し、`ProviderIdentity` を返す。
+
+        `nonce` は端末が生成した raw 値。検証方法は provider ごとに異なる
+        （Apple は SHA256 の hex を ID token の nonce クレームと比較する。Google は検証しない）。
 
         検証に失敗した場合は `sanposcape.auth.exceptions.InvalidIdTokenError` を送出する
         （ID token 自体が不正・期限切れ・署名不一致など、トークン起因の失敗。401 に変換される）。

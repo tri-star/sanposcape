@@ -5,39 +5,16 @@ DI で差し替え、ネットワークに一切出ずに検証ロジックを�
 """
 
 import logging
-from functools import lru_cache
-from typing import Protocol
 
 import jwt
-from jwt import PyJWKClient
 from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
 
 from sanposcape.auth.exceptions import IdentityProviderUnavailableError, InvalidIdTokenError
 from sanposcape.auth.providers.base import ProviderIdentity
+from sanposcape.auth.providers.jwks import JWKSClientProtocol, get_jwks_client
 from sanposcape.config import Settings
 
 logger = logging.getLogger(__name__)
-
-
-class SigningKey(Protocol):
-    key: object
-
-
-class JWKSClientProtocol(Protocol):
-    """`PyJWKClient` のうち、この provider が使う部分だけを表す最小インターフェース。"""
-
-    def get_signing_key_from_jwt(self, token: str) -> SigningKey: ...
-
-
-@lru_cache(maxsize=1)
-def _jwks_client(uri: str, lifespan: int) -> PyJWKClient:
-    """プロセス内シングルトンの JWKS クライアント。
-
-    リクエストごとに生成すると JWKS キャッシュが一切効かず、毎回 Google に
-    HTTP が飛んでしまう（レビュー時の落とし穴）。`timeout=5` は必須
-    （未指定だと既定 30 秒でワーカーが詰まる）。
-    """
-    return PyJWKClient(uri, cache_jwk_set=True, lifespan=lifespan, cache_keys=True, timeout=5)
 
 
 class GoogleIdentityProvider:
@@ -45,11 +22,11 @@ class GoogleIdentityProvider:
 
     def __init__(self, settings: Settings, jwks_client: JWKSClientProtocol | None = None) -> None:
         self._settings = settings
-        self._jwks = jwks_client or _jwks_client(
+        self._jwks = jwks_client or get_jwks_client(
             settings.google_jwks_url, settings.google_jwks_cache_lifespan_seconds
         )
 
-    def verify(self, id_token: str) -> ProviderIdentity:
+    def verify(self, id_token: str, *, nonce: str | None = None) -> ProviderIdentity:
         try:
             signing_key = self._jwks.get_signing_key_from_jwt(id_token)
         except PyJWKClientConnectionError as exc:
@@ -90,8 +67,9 @@ class GoogleIdentityProvider:
         #
         # `email` はユーザー識別子として使わない（同一性は必ず sub）。表示用の付随情報のみ。
         #
-        # TODO: nonce は本タスクでは検証しない（モバイル側が送らないため）。ID token の
-        # 有効期間内のリプレイは理論上可能だが、盗まれた時点で他の攻撃も成立するため
+        # TODO: nonce は検証しない（`nonce` 引数は受けて無視する。モバイル側が送らないため）。
+        # Apple は検証している。Google も端末が nonce を渡すようになったら同じ方式で検証する。
+        # ID token の有効期間内のリプレイは理論上可能だが、盗まれた時点で他の攻撃も成立するため
         # MVP では許容する。将来のハードニング項目。
         return ProviderIdentity(
             provider="google",
