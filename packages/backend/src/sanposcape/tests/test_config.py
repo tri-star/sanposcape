@@ -517,3 +517,31 @@ def test_pin_photo_delete_deadline_over_field_limit_fails_to_start() -> None:
     """締め切り自体の Field 上限（`le=20`）を超えると起動に失敗する。"""
     with pytest.raises(ValidationError):
         Settings(pin_photo_delete_deadline_seconds=21)
+
+
+def test_apple_allowed_audiences_accepts_comma_separated_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APPLE_ALLOWED_AUDIENCES", "com.sanposcape.app.dev, com.sanposcape.app")
+
+    settings = Settings()
+
+    assert settings.apple_allowed_audiences == ["com.sanposcape.app.dev", "com.sanposcape.app"]
+
+
+def test_apple_allowed_audiences_defaults_to_empty() -> None:
+    assert Settings().apple_allowed_audiences == []
+
+
+def test_staging_starts_without_apple_allowed_audiences() -> None:
+    """Apple の audience は起動時必須にしない（未投入でデプロイしても Google 等を止めない）。"""
+    settings = Settings(
+        env="staging",
+        auth_mode="real",
+        auth_jwt_secret="x" * 32,
+        google_allowed_audiences=["aud"],
+        google_maps_server_api_key="test-server-key",
+        database_dsn="postgres://user:pw@host.example.com/db",
+    )
+
+    assert settings.apple_allowed_audiences == []

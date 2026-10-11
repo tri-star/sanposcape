@@ -26,6 +26,9 @@ SECRET_KEY_TO_ENV: dict[str, str] = {
     "jwt_signing_key": "AUTH_JWT_SECRET",
     "google_oauth_client_id": "GOOGLE_ALLOWED_AUDIENCES",
     "google_maps_server_api_key": "GOOGLE_MAPS_SERVER_API_KEY",
+    # iOS の Sign in with Apple の `aud`（bundle ID）。キー名は環境変数名に揃える。
+    # 未投入でも起動は止めない（apple だけ 400 になる）。投入手順は docs/deployment.md。
+    "apple_allowed_audiences": "APPLE_ALLOWED_AUDIENCES",
 }
 
 # マイグレーション Lambda 専用のマッピング。意図的に `SECRET_KEY_TO_ENV` へ含めない:

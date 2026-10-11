@@ -135,6 +135,17 @@ class Settings(BaseSettings):
     ]
     google_jwks_cache_lifespan_seconds: int = 3600
 
+    # --- Apple ID token 検証（Sign in with Apple。ADR-002 の SS-197 追補） ---
+    # iOS ネイティブの `aud` は bundle ID（dev=com.sanposcape.app.dev / prod=com.sanposcape.app）。
+    # 空のときは provider="apple" をレジストリに登録せず、`POST /auth/session` は 400 を返す。
+    # ここは `_validate_environment_settings` の必須チェックに含めない: 必須にすると、
+    # シークレットへ投入する前にデプロイした時点で Google を含む API 全体が起動しなくなる。
+    # 空でも認証は閉じる側（apple だけ使えない）に倒れる。必須化は本番リリース前に再判断する。
+    apple_allowed_audiences: Annotated[list[str], NoDecode] = []
+    apple_jwks_url: str = "https://appleid.apple.com/auth/keys"
+    apple_issuer: str = "https://appleid.apple.com"
+    apple_jwks_cache_lifespan_seconds: int = 3600
+
     # --- Maps provider モード（ADR-002 決定4 と同じ fail-safe 方針。既定は real） ---
     # fake = ネットワークを使わない決定的な provider（Maestro E2E / キー未所持の開発者用）。
     # ENV=local / test 以外で fake を選ぶと下の許可リスト検証で起動に失敗する。
@@ -300,7 +311,12 @@ class Settings(BaseSettings):
         """
         return self.env in ("local", "test")
 
-    @field_validator("google_allowed_audiences", "google_allowed_issuers", mode="before")
+    @field_validator(
+        "google_allowed_audiences",
+        "google_allowed_issuers",
+        "apple_allowed_audiences",
+        mode="before",
+    )
     @classmethod
     def _split_csv(cls, v: object) -> object:
         """`.env` のカンマ区切り記法（GOOGLE_ALLOWED_AUDIENCES=aaa,bbb）を受け付ける。

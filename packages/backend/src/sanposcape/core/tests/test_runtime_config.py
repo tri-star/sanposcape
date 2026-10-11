@@ -18,6 +18,7 @@ _FULL_SECRET = {
     "jwt_signing_key": "x" * 32,
     "google_oauth_client_id": "client-id.apps.googleusercontent.com",
     "google_maps_server_api_key": "maps-key-value",
+    "apple_allowed_audiences": "com.sanposcape.app.dev",
     "google_oauth_client_secret": "unused-by-backend",
 }
 
@@ -56,6 +57,7 @@ def test_hydrates_environment_variables_from_secret(monkeypatch: pytest.MonkeyPa
     assert os.environ["AUTH_JWT_SECRET"] == _FULL_SECRET["jwt_signing_key"]
     assert os.environ["GOOGLE_ALLOWED_AUDIENCES"] == _FULL_SECRET["google_oauth_client_id"]
     assert os.environ["GOOGLE_MAPS_SERVER_API_KEY"] == _FULL_SECRET["google_maps_server_api_key"]
+    assert os.environ["APPLE_ALLOWED_AUDIENCES"] == _FULL_SECRET["apple_allowed_audiences"]
     # google_oauth_client_secret はマッピングに含まれないので、対応する環境変数は無い
     assert "GOOGLE_OAUTH_CLIENT_SECRET" not in os.environ
 
@@ -94,6 +96,7 @@ def test_missing_keys_are_logged_without_secret_values(
         "jwt_signing_key",
         "google_oauth_client_id",
         "google_maps_server_api_key",
+        "apple_allowed_audiences",
     )
     for expected_missing in expected_missing_keys:
         assert any(expected_missing in r.getMessage() for r in error_records)
