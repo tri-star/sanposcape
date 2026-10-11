@@ -6,13 +6,13 @@ import type { GeoCoordinates } from "@/services/location/types";
 export type PinLocationPreviewVariant = "compact" | "interactive";
 
 /** 登録フォームのプレビューの表示範囲（従来の REGION_DELTA。変えない）。 */
-export const PIN_PREVIEW_COMPACT_DELTA = 0.004;
+const PIN_PREVIEW_COMPACT_DELTA = 0.004;
 
 /**
  * ピン詳細の地図の初期表示範囲。約 330m 四方（緯度 0.003° ≈ 333m）。
  * 正方形の枠に収めるので、横長 140 に 0.004 を収めていた従来（約 1070m × 445m）より約 3.5 倍拡大して見える。
  */
-export const PIN_PREVIEW_INTERACTIVE_DELTA = 0.003;
+const PIN_PREVIEW_INTERACTIVE_DELTA = 0.003;
 
 export type PinLocationPreviewConfig = {
   /** 初期表示（interactive は「ピンの位置に戻す」の戻り先も）の緯度・経度の差。 */
@@ -39,7 +39,7 @@ const COMPACT_CONFIG: Readonly<PinLocationPreviewConfig> = {
   showRecenter: false,
   shape: "wide",
   regionMode: "controlled",
-} as const;
+};
 
 const INTERACTIVE_CONFIG: Readonly<PinLocationPreviewConfig> = {
   delta: PIN_PREVIEW_INTERACTIVE_DELTA,
@@ -48,11 +48,11 @@ const INTERACTIVE_CONFIG: Readonly<PinLocationPreviewConfig> = {
   showRecenter: true,
   shape: "square",
   regionMode: "initial",
-} as const;
+};
 
 export function resolvePinLocationPreviewConfig(
   variant: PinLocationPreviewVariant,
-): PinLocationPreviewConfig {
+): Readonly<PinLocationPreviewConfig> {
   switch (variant) {
     case "compact":
       return COMPACT_CONFIG;

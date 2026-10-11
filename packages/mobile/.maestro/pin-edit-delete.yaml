@@ -149,19 +149,24 @@ tags:
 - assertVisible:
     id: "pin-detail-status-unvisited"
 
-# ピン詳細の地図（SS-149）: 正方形の地図と「ピンの位置に戻す」が出て、押しても画面がそのまま。
+# ピン詳細の地図（SS-149）: 「ピンの位置に戻す」が出て、押しても画面がそのまま。
 # パン・ピンチは E2E しない（Maestro は2本指を打てない。地図の描画面は testID で触れない。ADR-M-012 D14）。
+# 地図本体（pin-detail-map）は assert しない: accessible な親の内側にあり、testID が見えない恐れがある。
+# 地図の兄弟にある pin-detail-map-recenter は地図の表示中だけ描画されるので、これで地図の表示も間接的に確かめる。
 # この時点（メモ・写真なし）なら Pixel 6 では地図全体がスクロールせずに見える。
 # 詳細画面では scrollUntilVisible を使わない: 画面中央からのスワイプが地図に当たると地図が動き、
 # 画面はスクロールしない（地図の操作を優先する仕様。SS-149）。
 - assertVisible:
-    id: "pin-detail-map"
-- assertVisible:
     id: "pin-detail-map-recenter"
 - tapOn:
     id: "pin-detail-map-recenter"
+# 戻す操作は画面遷移しない: 詳細画面・ピン名・戻すボタンがそのまま残る。
 - assertVisible:
     id: "pin-detail-screen"
+- assertVisible:
+    id: "pin-detail-name"
+- assertVisible:
+    id: "pin-detail-map-recenter"
 
 # --- 編集（名前・メモ・タグ）→ 保存 ---
 - tapOn:

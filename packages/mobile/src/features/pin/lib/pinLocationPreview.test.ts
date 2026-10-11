@@ -40,11 +40,14 @@ describe("resolvePinLocationPreviewConfig", () => {
   });
 
   it("操作を許す variant は initialRegion を使う（region のままだと再レンダーでカメラが戻る）", () => {
-    for (const variant of VARIANTS) {
+    const interactiveVariants = VARIANTS.filter((variant) => {
       const config = resolvePinLocationPreviewConfig(variant);
-      if (config.panEnabled || config.zoomEnabled) {
-        expect(config.regionMode).toBe("initial");
-      }
+      return config.panEnabled || config.zoomEnabled;
+    });
+    // 空だと下の検証が素通りするので、対象が存在することを先に固定する
+    expect(interactiveVariants.length).toBeGreaterThan(0);
+    for (const variant of interactiveVariants) {
+      expect(resolvePinLocationPreviewConfig(variant).regionMode).toBe("initial");
     }
   });
 });
