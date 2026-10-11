@@ -17,7 +17,7 @@
 - **Gradle のヒープを全プロファイルで `-Xmx6144m` に上げる。ABI は、CI が `REACT_NATIVE_ARCHITECTURES=x86_64` を渡したときだけ絞る**（E2E の `preview` のみ）（本文: SS-85 追補）
 - **CI エミュレータは `google_apis`（userdebug）を前提に安定化する。** `adb root` で GMS の位置プロバイダを `pm disable` し、E2E に不要な Google アプリと background dexopt を止める。タップの取りこぼしは Maestro の `retry` で吸収する（本文: 2026-08-15 追補 問題1・2）
 - **状態を消して起動するときは `subflows/launch-clean.yaml`（`clearState` → 3秒待つ → `launchApp`）を使う。** `launchApp: { clearState: true }` は使わない（本文: SS-152 追補）
-- **1〜2秒で消える一時表示（トースト・スプラッシュ）は assert しない。** 後に残る状態で確かめる。`inputText` の直後に `hideKeyboard` を置くなら入力は ASCII にし、初期表示の外にあり得る要素は `scrollUntilVisible` で送る（本文: SS-152 追補）
+- **1〜2秒で消える一時表示（トースト・スプラッシュ）は assert しない。** 後に残る状態で確かめる。`inputText` の直後に `hideKeyboard` を置くなら入力は ASCII にし、初期表示の外にあり得る要素は `scrollUntilVisible` で送る（例外: 操作できる地図がある画面では使わない。ADR-M-012 SS-149 追補）（本文: SS-152 追補）
 
 ### 未解決・持ち越し
 
@@ -608,7 +608,7 @@ run 36868867068 で 15 フロー中 5 フローが失敗した。成果物（log
   後に残る状態で確かめる。保存の成功は「登録画面が閉じてピンタブへ戻ること」で見る。保存に失敗すると
   登録画面に残るので、失敗は見逃さない。
 - **`inputText` の直後に `hideKeyboard` を置くなら、入力は ASCII にする。**
-- **初期表示の外にあり得る要素は、`assertVisible` の前に `scrollUntilVisible` で送る。**
+- **初期表示の外にあり得る要素は、`assertVisible` の前に `scrollUntilVisible` で送る。**（例外: 操作できる地図がある画面では使わない。ADR-M-012 SS-149 追補）
 
 ### 採らなかった選択肢
 
