@@ -18,7 +18,7 @@ import time
 import traceback
 from collections.abc import Iterator
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from datetime import UTC, datetime
 from typing import Any
 
@@ -56,7 +56,14 @@ _MAX_MESSAGE_CHARS = 16_000
 # 256KB までで、超えると分割・拒否される。余裕を持たせた値で、超えたらスタックトレースを落とす。
 _MAX_LOG_LINE_BYTES = 200_000
 # `extra=` で渡されたもののうち、JSON に出してよいキー（許可リスト）。ライブラリが付けた想定外の
-# 属性を黙って出さない。
+# 属性を黙って出さない。**許可リストに無いキーは黙って捨てられる**ので、キーを足す手順は次のとおり:
+#   (a) 値が ADR-013 決定6（個人情報・秘密・クエリ・ボディ）に当たらないことを確かめる。
+#   (b) ここに足す（JSON の基本キーや `LogContext` のキーと重ならない名前にする）。
+#   (c) `docs/deployment.md` §15 のログの項目表に行を足す。
+#   (d) `core/tests/test_logs.py` のキーの検査（許可リストの期待値）に足す。
+# ログ呼び出しの `extra=` のキーがここに含まれること、キーが重ならないことは
+# `core/tests/test_logs.py` が機械的に検査する。リクエストの文脈（`user_id` など）は
+# `extra=` でなく `LogContext` のフィールドとして足す（下の `LogContext` を参照）。
 _EXTRA_KEYS = ("log_type", "http_status_code", "duration_ms")
 
 
@@ -68,14 +75,22 @@ class LogContext:
     （`_authenticate_access_token`）は anyio のスレッドプールで動き、そこでの `ContextVar.set` は
     呼び出し元に戻らない（context がコピーされるため）。コピーされた context も同じオブジェクトを
     指すので、属性の書き換えなら届く。
+
+    **ログに出すキーはこの dataclass のフィールドから導く**（`_LOG_CONTEXT_KEYS`。定義順が出力順）
+    フィールドを足せば JSON / console の両方に出る。ログに出さないフィールドは
+    `metadata={"emit": False}` にする。
     """
 
     aws_request_id: str | None = None
     http_method: str | None = None
     http_route: str | None = None
     user_id: str | None = None
-    # `http_route` は routing の後でないと決まらないため、format の時点で解決する。
-    scope: Scope | None = None
+    # `http_route` は routing の後でないと決まらず、format の時点で解決する。ログには出さない。
+    scope: Scope | None = field(default=None, metadata={"emit": False})
+
+
+# ログに出す文脈のキー（`LogContext` の定義順）。固定の tuple を別に持たず、フィールドから導く。
+_LOG_CONTEXT_KEYS = tuple(f.name for f in fields(LogContext) if f.metadata.get("emit", True))
 
 
 _log_context: ContextVar[LogContext | None] = ContextVar("sanposcape_log_context", default=None)
@@ -214,7 +229,7 @@ def _context_fields() -> dict[str, Any]:
                 pass
             finally:
                 _formatting.reset(token)
-        for key in ("aws_request_id", "http_method", "http_route", "user_id"):
+        for key in _LOG_CONTEXT_KEYS:
             value = getattr(context, key)
             if value is not None:
                 fields[key] = value

@@ -1,7 +1,9 @@
+import ast
 import json
 import logging
 import sys
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -357,6 +359,96 @@ class TestLogContext:
             contextvars.copy_context().run(bind_log_user_id, "u-2")
 
         assert isinstance(ctx, LogContext) and ctx.user_id == "u-2"
+
+
+# `JsonLogFormatter` が自分で付けるキー。`payload.update(_context_fields())` が後から上書きする
+# ので、許可リスト・文脈のキーと重なると片方が黙って消える。
+_BASE_KEYS = {
+    "timestamp",
+    "level",
+    "logger",
+    "message",
+    "message_truncated",
+    "trace_id",
+    "span_id",
+    "trace_sampled",
+    "exception_type",
+    "exception_stacktrace",
+    "exception_stacktrace_truncated",
+    "exception_sqlstate",
+    "exception_message",
+}
+_SRC_DIR = Path(__file__).resolve().parents[2]
+_LOG_METHODS = {"debug", "info", "warning", "warn", "error", "exception", "critical", "log"}
+
+
+def _log_calls_with_extra() -> list[tuple[str, int, ast.keyword]]:
+    """本番コード（tests を除く）の、ログ呼び出しの `extra=` 引数。"""
+    found: list[tuple[str, int, ast.keyword]] = []
+    for path in sorted(_SRC_DIR.rglob("*.py")):
+        relative = path.relative_to(_SRC_DIR)
+        if "tests" in relative.parts or path.name == "conftest.py":
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in _LOG_METHODS
+            ):
+                found.extend(
+                    (str(relative), node.lineno, kw) for kw in node.keywords if kw.arg == "extra"
+                )
+    return found
+
+
+class TestLogKeys:
+    def test_log_context_keys_are_derived_from_the_dataclass_in_definition_order(self) -> None:
+        assert logs._LOG_CONTEXT_KEYS == ("aws_request_id", "http_method", "http_route", "user_id")
+
+    def test_scope_is_not_emitted(self, json_formatter: JsonLogFormatter) -> None:
+        with log_context(http_method="GET", scope={"type": "http"}):
+            payload = json.loads(json_formatter.format(_record()))
+
+        assert "scope" not in payload
+        assert payload["http_method"] == "GET"
+
+    def test_extra_keys_are_the_allow_list(self) -> None:
+        assert logs._EXTRA_KEYS == ("log_type", "http_status_code", "duration_ms")
+
+    def test_extra_keys_context_keys_and_base_keys_do_not_overlap(self) -> None:
+        groups = {
+            "_EXTRA_KEYS": set(logs._EXTRA_KEYS),
+            "_LOG_CONTEXT_KEYS": set(logs._LOG_CONTEXT_KEYS),
+            "基本キー": _BASE_KEYS,
+        }
+        names = list(groups)
+        for i, left in enumerate(names):
+            for right in names[i + 1 :]:
+                assert not groups[left] & groups[right], f"{left} と {right} が重なっている"
+
+    def test_log_call_extra_keys_are_all_in_the_allow_list(self) -> None:
+        calls = _log_calls_with_extra()
+        assert calls, "extra= を使うログ呼び出しが 1 件も見つからない（検査が空振りしている）"
+
+        for file, line, keyword in calls:
+            where = f"{file}:{line}"
+            assert isinstance(keyword.value, ast.Dict), f"{where}: extra= は dict リテラルにする"
+            for key in keyword.value.keys:
+                assert isinstance(key, ast.Constant) and isinstance(key.value, str), (
+                    f"{where}: extra= のキーは文字列リテラルにする"
+                )
+                assert key.value in logs._EXTRA_KEYS, (
+                    f"{where}: {key.value!r} が _EXTRA_KEYS に無い（黙って捨てられる）"
+                )
+
+    def test_the_extra_check_detects_an_unknown_key(self) -> None:
+        tree = ast.parse('logger.info("x", extra={"unknown_key": 1})')
+        (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+        (keyword,) = call.keywords
+        assert isinstance(keyword.value, ast.Dict)
+
+        (key,) = keyword.value.keys
+        assert isinstance(key, ast.Constant) and key.value not in logs._EXTRA_KEYS
 
 
 @pytest.fixture
