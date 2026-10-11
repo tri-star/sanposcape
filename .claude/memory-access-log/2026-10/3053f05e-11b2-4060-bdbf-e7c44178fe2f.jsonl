@@ -1,0 +1,7 @@
+{"ts": "2026-10-11T13:47:13Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-planner", "memory": "feedback-settled-design-and-api-conventions.md", "via": "Read"}
+{"ts": "2026-10-11T13:47:14Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-planner", "memory": "feedback-openapi-change-triggers-mobile-ci.md", "via": "Read"}
+{"ts": "2026-10-11T13:47:15Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-planner", "memory": "feedback-template-ssm-resolve-blocks-deploy.md", "via": "Read"}
+{"ts": "2026-10-11T13:47:15Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-planner", "memory": "feedback-existing-table-column-add-deploy-window.md", "via": "Read"}
+{"ts": "2026-10-11T13:52:20Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-planner", "memory": "feedback-check-existing-and-parallel-work-before-planning.md", "via": "Read"}
+{"ts": "2026-10-11T13:55:35Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-planner", "memory": "MEMORY.md", "via": "Read"}
+{"ts": "2026-10-11T14:03:30Z", "session": "3053f05e-11b2-4060-bdbf-e7c44178fe2f", "agent": "backend-architecture-reviewer", "memory": "adr002-auth-shared-codepath.md", "via": "Read"}

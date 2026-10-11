@@ -21,7 +21,12 @@ def create_session(
     payload: SessionCreate,
     service: AuthService = Depends(get_auth_service),
 ) -> SessionRead:
-    result = service.create_session(payload.provider, payload.id_token)
+    result = service.create_session(
+        payload.provider,
+        payload.id_token,
+        nonce=payload.nonce,
+        display_name=payload.display_name,
+    )
     return to_session_read(result)
 
 

@@ -65,13 +65,13 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 
 | データの種類 | 実際のデータ | 根拠（実装） | ポリシー |
 | --- | --- | --- | --- |
-| 名前 | Google から受け取る表示名（`users.display_name`） | `auth/providers/google.py`、`users/models.py` | 1-2 |
-| メールアドレス | Google から受け取るメールアドレス（`users.email`）。重要なお知らせの連絡にも使うが、マーケティングには使わない | 同上 | 1-2、2 |
+| 名前 | Google から受け取る表示名、または Apple のサインイン時に端末から受け取る氏名（`users.display_name`） | `auth/providers/google.py`、`auth/schemas.py`、`users/models.py` | 1-2 |
+| メールアドレス | Google / Apple から受け取るメールアドレス（`users.email`。Apple は非公開リレーのアドレスの場合がある）。重要なお知らせの連絡にも使うが、マーケティングには使わない | 同上 | 1-2、2 |
 | フィットネス | 散歩の記録の歩いた時間・距離（`walks.duration_seconds` / `distance_meters`）。Motion & Fitness API・HealthKit は使っていないが、運動の記録にあたるため申告する | `walks/models.py` | 1-1 |
 | 正確な位置情報 | 散歩の軌跡（小数 6 桁）、目的地の座標、ピンの座標。ピン地図の表示範囲（小数 4 桁）は `GET /pins` のクエリに載るため、CloudFront のアクセスログに残りうる。Apple の定義では小数 3 桁以上は「正確」。なお、スポット・ルート検索の現在地（小数 4 桁 ≒ 11m）は POST のボディで送り、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、DB にもログにも残らない | `walks/models.py`、`sanpo_maps/models.py`、mobile の `walkTrackPayload.ts` / `pinFetchBounds.ts` / `placeSearchRequest.ts`、backend の `config.py`（キャッシュの TTL） | 1-1、1-5 |
 | 写真またはビデオ | ピンに添付する写真（S3）。Google のプロフィール画像の URL（`users.photo_url`）もここに含める | `sanpo_maps/photos/`、`users/models.py` | 1-2、1-3 |
 | その他のユーザコンテンツ | ピンの名称・メモ・タグ、地図（sanpo map）の名称 | `sanpo_maps/models.py`、`pins/schemas.py` | 1-3 |
-| ユーザ ID | Google アカウントの ID（`users.provider_subject` = sub）、アカウントの内部 ID（`users.id`） | `users/models.py` | 1-2、1-5 |
+| ユーザ ID | Google / Apple アカウントの ID（`users.provider_subject` = sub）、アカウントの内部 ID（`users.id`） | `users/models.py` | 1-2、1-5 |
 | パフォーマンスデータ | CloudFront のアクセスログの処理時間（IP アドレスと同じ行に残る）、backend のトレースの処理時間（トレースは IP・UA を消している。アカウントの内部 ID を `enduser.id`、アプリの起動ごとの乱数を `session.id` として持つ。SS-181） | `core/tracing.py`、`core/logs.py`、`core/access_log.py`、`aws_lambda/tracing.py`、ADR-013 | 1-5 |
 | その他の診断データ | backend のログ（アカウントの内部 ID と、アプリの起動ごとの乱数のセッション ID を含む行がある）、CloudFront のアクセスログ（IP アドレス、URL、ブラウザ・アプリの種類）。最長 400 日保存 | `core/logs.py`、`core/access_log.py`、`template.yaml`（ロググループの保持期間）、ADR-005（アクセスログ S3 は infra 所有） | 1-5、6 |
 

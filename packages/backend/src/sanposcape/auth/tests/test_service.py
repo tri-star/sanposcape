@@ -8,7 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from sanposcape.auth.exceptions import InvalidRefreshTokenError, RefreshTokenReuseDetectedError
+from sanposcape.auth.exceptions import (
+    InvalidRefreshTokenError,
+    RefreshTokenReuseDetectedError,
+    UnsupportedProviderError,
+)
 from sanposcape.auth.models import RefreshToken
 from sanposcape.auth.providers.base import ProviderIdentity
 from sanposcape.auth.repository import RefreshTokenRepository
@@ -23,7 +27,7 @@ from sanposcape.users.service import UserService
 class _FakeGoogleProvider:
     name: str = "google"
 
-    def verify(self, id_token: str) -> ProviderIdentity:
+    def verify(self, id_token: str, *, nonce: str | None = None) -> ProviderIdentity:
         return ProviderIdentity(
             provider="google",
             subject=id_token,  # テストの簡略化のため id_token をそのまま subject として使う
@@ -236,3 +240,43 @@ def test_resolve_user_and_issue_session_shared_between_real_and_dev(db_session: 
 
     assert resolve_spy.call_count == 2
     assert issue_spy.call_count == 2
+
+
+def test_create_session_uses_display_name_only_for_new_user(db_session: Session) -> None:
+    service = _make_service(db_session)
+
+    # _FakeGoogleProvider は display_name を id_token と同じ値で返すので、
+    # 引数の display_name は優先されない
+    first = service.create_session("google", "google-sub-1", display_name="端末の名前")
+
+    assert first.user.display_name == "google-sub-1"
+
+
+def test_create_session_passes_nonce_to_provider(db_session: Session) -> None:
+    received: dict[str, str | None] = {}
+
+    @dataclass
+    class _Recording:
+        name: str = "apple"
+
+        def verify(self, id_token: str, *, nonce: str | None = None) -> ProviderIdentity:
+            received["nonce"] = nonce
+            return ProviderIdentity("apple", id_token, None, None, None)
+
+    service = _make_service(db_session)
+    service._providers["apple"] = _Recording()
+
+    result = service.create_session("apple", "apple-sub-1", nonce="n" * 16, display_name="山田")
+
+    assert received["nonce"] == "n" * 16
+    assert result.user.provider == "apple"
+    assert result.user.display_name == "山田"
+
+
+def test_create_session_with_unconfigured_provider_raises_unsupported(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+
+    with pytest.raises(UnsupportedProviderError):
+        service.create_session("apple", "apple-sub-1", nonce="n" * 16)

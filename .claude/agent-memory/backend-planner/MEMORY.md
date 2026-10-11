@@ -1,7 +1,8 @@
 # backend-planner memory index
 
 - [確定済み設計の扱いと API 命名規約](feedback-settled-design-and-api-conventions.md) — 確定 ADR は再検討しない / snake_case 統一 / 開発専用エンドポイントは OpenAPI に載せない / PR 分割は既定だが同一 PR 指示があれば従う
-- [着手前に既存の仕込みと並行チケットを確認](feedback-check-existing-and-parallel-work-before-planning.md) — 「追加する」でも先行タスクの受け口が無いか見る / 共通部品・ADR 決定番号・Alembic head が並行チケットと衝突（SS-113/112, SS-173/171）
+- [着手前に既存の仕込みと並行チケットを確認](feedback-check-existing-and-parallel-work-before-planning.md) — 「追加する」でも先行タスクの受け口が無いか見る / 共通部品・ADR 決定番号・Alembic head が並行チケットと衝突 / 参照 ADR 節が未マージブランチにだけある
+- [Sign in with Apple の backend の罠](feedback-sign-in-with-apple-backend-gotchas.md) — nonce は SHA256 hex を Apple・raw を backend / 氏名は初回だけ / email_verified は文字列も / find_or_create の上書き / JWKS 共有の maxsize / 非JWT・非ASCII nonce の500
 - [CloudFront OAC は Authorization を上書きする](feedback_cloudfront_oac_authorization_header.md) — Lambda Function URL 構成では認証ヘッダー名の設計を必ず立てる。/health では露見しない
 - [AWS AppConfig フィーチャーフラグ 4 つの罠](feedback_appconfig_feature_flag_gotchas.md) — OFF フラグの属性は配信されない / トークン1回限り24h / 空ボディ / IAM は appconfig 名前空間
 - [infra 未 apply の SSM resolve は deploy を止める](feedback-template-ssm-resolve-blocks-deploy.md) — アプリは Unconfigured で先行、template 結線は infra apply 後の別チケット

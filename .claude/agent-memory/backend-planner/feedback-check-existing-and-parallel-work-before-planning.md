@@ -28,6 +28,10 @@ M5（SS-18〜21）と SS-112 / SS-113 で実際に起きた2つの型をまと�
 - 兄弟 worktree（`/home/tristar/orca/workspaces/sanposcape/*/`）の `alembic/versions/` と ADR（ルート・`packages/mobile/adr/`）を
   glob すると、未マージの衝突を見つけられる。SS-173 では、SS-171/172 が同じ Alembic head からリビジョンを切っており、
   ADR-009 決定31 と ADR-M-019 も先に使っていた。後からマージする側が `down_revision` と番号を付け替える。
+- **指示が参照する ADR の節が worktree に無いことがある**（SS-197: 「ADR-002 SS-195 追補」は未マージの `tri-star/ss-195` にだけあった）。
+  Bash が無くても、worktree の `.git` ファイル → `<main>/.git/refs/heads/` / `refs/remotes/origin/` を Read すれば、どのブランチが main より先かが分かる。
+  メインのチェックアウト（`/home/tristar/projects/sanposcape`）が先行チケットのブランチになっていることがあり、そこで節を読める。
+  その ADR を同じチケットで編集する場合は「先行のマージ → rebase → 追補」の順をプランとユーザー確認事項に書く。
 - 改訂するときは、既存の private ヘルパーを切り出すより、既存の service が port を直接満たす方が差分が小さく、既存のテストを
   壊しにくいことがある（SS-113 では `PinService` が `sanpo_maps` の port を満たし、`_delete_photo_keys_best_effort` を
   無変更で再利用した）。

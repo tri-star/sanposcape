@@ -54,7 +54,7 @@ class AuthService:
     """認証・セッションに関するユースケース。トランザクション境界を持つ。
 
     設計の中核（ADR-002 決定3）: `create_session`（real）と `create_dev_session`
-    （dev）で異なるのは「Google ID token を検証して sub を得る」か「user_key から
+    （dev）で異なるのは「IdP（Google / Apple）の ID token を検証して sub を得る」か「user_key から
     開発用ユーザーを引き当てる」かの入口だけ。`_resolve_user` / `_issue_session`
     は real/dev で同一メソッドを共有する。ここを分岐させてはいけない。
     """
@@ -76,12 +76,25 @@ class AuthService:
         self._now = now
 
     # --- 入口（real） ---
-    def create_session(self, provider: str, id_token: str) -> SessionResult:
+    def create_session(
+        self,
+        provider: str,
+        id_token: str,
+        *,
+        nonce: str | None = None,
+        display_name: str | None = None,
+    ) -> SessionResult:
+        """`display_name` は、IdP の ID token に氏名が無い場合だけ使われる。
+
+        新規作成時、または既存ユーザーの表示名が未設定（NULL）のときに反映する。
+        """
         idp = self._providers.get(provider)
         if idp is None:
+            # provider は Literal 検証済みなのでログに出してよい（未設定の診断用）。
+            logger.warning("Identity provider is not available: %s", provider)
             raise UnsupportedProviderError(provider)
-        identity = idp.verify(id_token)  # ← real 固有はここだけ
-        user = self._resolve_user(identity)  # ← 共通
+        identity = idp.verify(id_token, nonce=nonce)  # ← real 固有はここだけ
+        user = self._resolve_user(identity, initial_display_name=display_name)  # ← 共通
         result = self._issue_session(user)  # ← 共通
         self._db.commit()
         return result
@@ -189,13 +202,16 @@ class AuthService:
         self._db.commit()
 
     # --- 共通（real/dev で完全共有。ここを分岐させたらレビューで差し戻す） ---
-    def _resolve_user(self, identity: ProviderIdentity) -> User:
+    def _resolve_user(
+        self, identity: ProviderIdentity, *, initial_display_name: str | None = None
+    ) -> User:
         user = self._user_service.find_or_create(
             provider=identity.provider,
             subject=identity.subject,
             email=identity.email,
             display_name=identity.display_name,
             photo_url=identity.photo_url,
+            initial_display_name=initial_display_name,
         )
         # ログイン経路は `get_current_user` を通らない。ユーザーが確定したここで付ける（SS-181）。
         bind_user_id(user.id)

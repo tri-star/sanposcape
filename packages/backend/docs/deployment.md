@@ -127,7 +127,8 @@ aws ssm get-parameter --name /sanposcape/dev/platform/pin_photos/bucket_arn --re
 aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
   --query SecretString --output text | python3 -c "import sys,json; print(*sorted(json.load(sys.stdin)), sep='\n')"
 # → neon_dsn / neon_dsn_unpooled / jwt_signing_key / google_oauth_client_id /
-#   google_maps_server_api_key が揃っていること（google_oauth_client_secret は未使用）
+#   google_maps_server_api_key / apple_allowed_audiences が揃っていること
+#   （google_oauth_client_secret は未使用。apple_allowed_audiences は §3.1 で投入する）
 
 # 同名のロググループが既に存在しないこと（存在すると明示定義が CREATE_FAILED になる）
 aws logs describe-log-groups --log-group-name-prefix /aws/lambda/sanposcape-dev-backend \
@@ -150,6 +151,42 @@ aws ssm get-parameter --name /sanposcape/dev/platform/alerting/topic_arn \
 aws iam get-role-policy --role-name sanposcape-dev-sam-deploy --policy-name sam-deploy \
   --query 'PolicyDocument.Statement[?Sid==`ManageBackendMonitoring` || Sid==`DescribeAlarms`]'
 ```
+
+### 3.1 `apple_allowed_audiences` の投入（SS-197。Apple 対応版を deploy する前に）
+
+`POST /auth/session` の `provider="apple"` が許容する `aud`（iOS の bundle ID。カンマ区切りで複数可）。
+値は bundle ID で秘密ではないが、投入手順は §5.1 と同じ read-modify-write に揃える
+（`put-secret-value` は値を丸ごと置き換えるため、既存キーを含めた JSON 全体を書き戻す）。
+
+| 環境 | シークレット | 値 |
+|---|---|---|
+| dev | `/sanposcape/dev/shared` | `com.sanposcape.app.dev` |
+| prod | `/sanposcape/prod/shared` | `com.sanposcape.app`（本番デプロイより前に） |
+
+```bash
+export AWS_PROFILE=sanposcape-dev
+NEW_VALUE='com.sanposcape.app.dev'
+
+aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
+  --query SecretString --output text \
+| NEW_VALUE="$NEW_VALUE" python3 -c \
+  'import sys,json,os; d=json.load(sys.stdin); d["apple_allowed_audiences"]=os.environ["NEW_VALUE"]; print(json.dumps(d))' \
+| aws secretsmanager put-secret-value --secret-id /sanposcape/dev/shared \
+  --secret-string file:///dev/stdin
+
+# 投入後、キー名だけを確認する
+aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
+  --query SecretString --output text | python3 -c 'import sys,json; print(*sorted(json.load(sys.stdin)), sep="\n")'
+```
+
+- **投入してからデプロイする。** 未投入のままデプロイすると、cold start ごとに
+  `secret is missing expected keys: ['apple_allowed_audiences']` の ERROR ログが出る。
+  API は起動し、`provider="apple"` だけが 400 `Unsupported provider` になる（Google 等は通常どおり）。
+  最初の auth 系リクエストで `APPLE_ALLOWED_AUDIENCES is empty; Sign in with Apple is disabled` の
+  WARNING も 1 回出る（プロセスにつき 1 回。リクエストごとには出ない）。
+  起動時の必須チェックには含めていない理由は [ADR-002 の SS-197 追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)。
+- infra リポジトリのコード変更・`template.yaml` の変更は不要（シークレットの中身は Terraform 管理外で、
+  Lambda の実行ロールは同じシークレットを既に読めている。§2）。
 
 ## 4. デプロイ手順
 
@@ -547,6 +584,7 @@ Application Signals の次元の値がアラームの Dimension と一致する�
 | 症状 | 原因 | 対処 |
 |---|---|---|
 | `secret is missing expected keys: [...]`（CloudWatch Logs） | シークレット JSON のキー不足 | シークレットの値を投入し直す（器は Terraform 所有なので触らない） |
+| `POST /auth/session` が `provider="apple"` で 400 `Unsupported provider` | `apple_allowed_audiences` が未投入または空 | §3.1 の手順で投入し、Lambda を再起動（再デプロイ）する |
 | `AccessDeniedException` on `GetSecretValue` | `Policies` の `Resource`（`{{resolve:ssm:}}` の解決結果）とシークレットの実際の ARN が不一致 | SSM パラメータの値とシークレットの ARN を突き合わせる |
 | `ResourceNotFoundException`（CloudWatch Logs） | シークレットに値が未投入（prod で起きやすい） | 値の投入を待つ、または投入する |
 | `ValidationError` + `loc=('database_dsn',)` | `neon_dsn` の写し漏れ | `core/runtime_config.py` の `SECRET_KEY_TO_ENV` を確認する |

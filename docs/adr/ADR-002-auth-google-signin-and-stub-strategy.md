@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-11（SS-195 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-11（SS-197 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -17,7 +17,8 @@
 - **Google サインインのライブラリは `react-native-nitro-google-signin`**。Android Credential Manager に無償で対応するため。
   （本文: 決定1、検討した選択肢「Google サインインのライブラリ」）
 - **複数プロバイダへの抽象化点は `POST /auth/session` の `provider` フィールド**。Apple 等の追加は
-  モバイルのライブラリ1つ + backend の ID token 検証1つで済ませる。（本文: 決定2）
+  モバイルのライブラリ1つ + backend の ID token 検証1つが中心だが、ID token 以外の入力（Apple の nonce・氏名）を
+  受け渡すため、schemas・`AuthService`・`UserService` にも影響する。（本文: 決定2、「SS-195 追補」節、「SS-197 追補」節）
 - **モバイルの認証は `EXPO_PUBLIC_AUTH_MODE = real | dev | mock` の3モードで、既定は `real`（fail-safe）**。
   `dev` は実物の backend を使い、トークン発行と `get_current_user` は real と同一のコードパスを通る。（本文: 決定3）
 - **backend は `AUTH_MODE`（既定 `real`）を持ち、`POST /auth/dev-session` は `AUTH_MODE=dev` のときだけ存在する**。
@@ -36,7 +37,10 @@
 - **`POST /walks` は認証必須で、ゲストの記録を後からアカウントへマージする機能は作らない**。（本文: 決定6-1、SS-49 追補）
 - **Sign in with Apple は iOS だけで Google と併設し、Google のアカウントとは統合しない**（`provider="apple"` の別ユーザー）。
   Apple は氏名を初回の認可時だけ端末へ返すため `POST /auth/session` に任意の氏名を足し、アカウント削除時は
-  サインイン時に交換・保存した Apple の refresh token を REST API で失効させる。（本文: 「SS-195 追補」節）
+  サインイン時に交換・保存した Apple の refresh token を REST API で失効させる。
+  backend の ID token 検証は `provider="apple"` で受け付け済み（`nonce` は端末の raw 値を SHA256 の hex と
+  token の `nonce` で比較し apple では必須、氏名は新規作成時と未設定の既存ユーザーにだけ使い、`APPLE_ALLOWED_AUDIENCES` が空なら 400）。
+  （本文: 「SS-195 追補」節、「SS-197 追補」節）
 - **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
   （本文: 移行・対応が必要な事項）
 - **Google OAuth クライアントは Android が「識別子 + SHA-1」の組ごと、iOS が bundle ID ごとに1つ必要**。
@@ -62,8 +66,12 @@
   EAS `production` 環境の `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`、
   本番 Secrets Manager の `google_oauth_client_id` 設定（dev のクライアント ID を入れない）。
   （本文: 「SS-79 追補」節、「本番用 iOS OAuth クライアント追補」節）
-- **iOS は審査ガイドライン 4.8 により Sign in with Apple の併設が必要**（2026-10-11 に条文で確認。未実装で、
-  SS-196〜SS-199 で対応）。（本文: 移行・対応が必要な事項、「SS-195 追補」節）
+- **iOS は審査ガイドライン 4.8 により Sign in with Apple の併設が必要**（2026-10-11 に条文で確認）。
+  backend の ID token 検証は実装済み（SS-197）。残りは SS-196（Apple Developer の設定と鍵）、
+  SS-198（削除時のトークン失効）、SS-199（mobile のサインイン画面）。
+  （本文: 移行・対応が必要な事項、「SS-195 追補」節、「SS-197 追補」節）
+- **`APPLE_ALLOWED_AUDIENCES` を staging / production の起動時必須にするかは、本番リリース前に再判断する**。
+  現状は必須にしていない（本文: 「SS-197 追補」節）。
 
 ### 変更・撤回された決定
 
@@ -80,7 +88,8 @@
 2026-07-25（初版）、2026-08-11 追補（SS-49）、2026-09-06 追補（SS-70）、
 2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）、
 2026-09-30 追補（本番用 iOS OAuth クライアント）、2026-10-04 追補（棚卸し: SS-10 で確定した境界と API 契約）、
-2026-10-11 追補（SS-195: 審査ガイドライン 4.8 と Sign in with Apple）
+2026-10-11 追補（SS-195: 審査ガイドライン 4.8 と Sign in with Apple）、
+2026-10-11 追補（SS-197: backend の Apple ID token 検証）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -476,6 +485,85 @@ SS-10 の実装とローカルレビューで決めたが、エージェント�
 - サインイン画面では、Sign in with Apple のボタンを Google と同等以上に目立たせる
   （4.8 の「同等の選択肢」と Human Interface Guidelines に合わせる）。
 
+## SS-197 追補（2026-10-11）: backend の Apple ID token 検証
+
+SS-195 追補の「併設の方針」のうち、`POST /auth/session` が Apple の ID token を受け付ける部分を実装した。
+決定1〜2・SS-195 追補の方針は変えない。実装にあたり、追補に書いていなかった次の点を決めた。
+authorization code の交換・Apple の refresh token の保存・削除時の失効は SS-198 の範囲で、本追補は扱わない。
+
+### nonce は端末の raw 値を受け、SHA256 の hex と token の nonce を比較する。apple では必須
+
+- 端末は Apple に `sha256(raw).hexdigest()`（小文字 hex）を渡し、backend には raw を `nonce` で送る。
+  backend は同じ変換をして token の `nonce` クレームと定数時間比較する（hex の大小文字は無視）。
+- **token の `nonce` と同じ値をそのまま送っても通らない**。token が漏れたとき、`nonce` クレームを送り返すだけで
+  通ってしまうと、nonce を検証する意味（盗んだ token の再送を防ぐ）が無くなるため。raw は token から逆算できない。
+- `provider="apple"` では `nonce` を必須にする（スキーマで 422、provider でも 401 で二重に防御し、router を経由しない
+  呼び出しでも素通りさせない）。token に `nonce` クレームが無い場合も 401。長さは 16〜256 文字
+  （16 文字未満はエントロピー不足、上限は低コスト DoS 対策）。
+- Google は従来どおり nonce を検証しない（受けても無視する）。端末が渡すようになったら同じ方式で足せる。
+
+### 氏名（`display_name`）は ID token に氏名が無い場合だけ使い、保存済みの値は上書きしない
+
+- Apple は 2 回目以降に氏名を返さない。既存ユーザーに反映すると、消えたり端末側の古い値に戻ったりするため、
+  **保存済み（非 NULL）の値は上書きしない**。一方、既存ユーザーの `display_name` が NULL のときは補完する
+  （初回のセッション応答を端末が受け取れなかった場合に、再送で回復できるようにするため。NULL を埋める限り
+  「消える」「古い値に戻る」は起きない）。provider を問わない意味にした
+  （Google は token の `name` が優先されるので挙動は変わらない）。
+- `ProviderIdentity.display_name` には詰めない。詰めると `find_or_create` の「None 以外なら更新」で
+  既存ユーザーにも毎回上書きされる。別経路の `initial_display_name` として渡す。
+- 入力検証: 前後の空白（全角を含む）を除去し、空なら未指定として扱う（422 にしてサインイン自体を失敗させない）。
+  除去後 255 文字まで（`users.display_name` の列幅）。制御文字（Cc: NUL・改行・タブ等）、行・段落区切り
+  （Zl・Zp）、書式制御文字（Cf: 双方向制御やゼロ幅スペースによる表示なりすまし）を含めば 422
+  （NUL は PostgreSQL の text に入らず 500 になる）。絵文字の合字と一部言語の表記に必要な
+  ZWJ（U+200D）・ZWNJ（U+200C）だけは許可する。
+
+### メールは `email_verified` が真のときだけ保存する
+
+- Apple は `email_verified` / `is_private_email` を bool と文字列 `"true"` の両方で返す。bool の `True` または
+  文字列 `"true"` のときだけ保存し、それ以外は保存しない。非公開リレー（`@privaterelay.appleid.com`）はそのまま保存する。
+- メールは識別に使わない（同一性は `sub`）表示用の付随情報であり、未検証のアドレスは持たない方が安全側。
+  `is_private_email` は使う機能が無いので保存しない。
+
+### 許可 audience は Secrets Manager の `apple_allowed_audiences`。未設定なら apple だけ 400
+
+- iOS ネイティブの `aud` は bundle ID（dev=`com.sanposcape.app.dev`、本番=`com.sanposcape.app`）。
+  `APPLE_ALLOWED_AUDIENCES` に入れ、AWS では Secrets Manager のキー `apple_allowed_audiences` から写す。
+  キー名は環境変数名に揃えた（`google_oauth_client_id` が単数形で複数値を持ち設定漏れを誘発した SS-84 の轍を踏まない）。
+  bundle ID は秘密ではないが、Google の audience と同じ置き場所にして、運用者が探す場所を1つにした。
+- 空のときは `"apple"` をレジストリに登録せず、`POST /auth/session` は 400 `Unsupported provider` を返す。
+  401 にしないのは「トークンが悪い」と「サーバが未設定」を端末側で区別できるようにするため。Google は影響を受けない。
+- **staging / production の起動時必須チェック（決定4）には含めない**。必須にすると、シークレットへ投入する前に
+  デプロイした時点で Google を含む API 全体が起動しなくなる。空でも認証は閉じる側（apple だけ使えない）に倒れる。
+  必須化は本番リリース前（SS-198・SS-199 が揃い、本番シークレットへ投入した後）に再判断する。
+- 未投入のままデプロイすると、cold start ごとに `missing expected keys` の ERROR ログが出る（API は起動する）。
+  あわせて、`APPLE_ALLOWED_AUDIENCES` が空であることを示す WARNING が**プロセスにつき 1 回だけ**出る
+  （最初の auth 系リクエストで。レジストリの組み立てはリクエストごとに呼ばれ、未認証でもログ量を増やせるため、
+  組み立て自体は副作用を持たせない）。
+  投入してからデプロイする（手順は [デプロイ手順](../../packages/backend/docs/deployment.md)）。
+
+### JWKS クライアントのキャッシュは Google と Apple で共有し、`maxsize=4` にする
+
+- 従来の `lru_cache(maxsize=1)` を Apple と共有すると、交互のリクエストで互いのクライアントを追い出し、
+  毎回 JWKS を HTTP 取得する（キャッシュが効かないことはテストでは見えない）。
+
+### 今回スコープ外とした事項
+
+- **検証済み `aud` を `ProviderIdentity` に持たせない**。SS-198 の authorization code 交換では検証済み token の
+  `aud`（bundle ID）を `client_id` に使うのが安全だが、SS-197 では使わないため足さなかった。`ProviderIdentity` に
+  持たせるか、交換を `verify` とは別のメソッドに切り出すかは SS-198 で決める（外部 HTTP は DB トランザクションの前に置く）。
+- **未知の `kid` を持つ不正 JWT による JWKS 再取得の誘発**は対策しない。PyJWT は `kid` が一致しないたびに JWKS を
+  取り直すため、未認証のリクエストで Apple / Google への HTTPS 取得（タイムアウト 5 秒）を起こせる。
+  `/auth/*` にレート制限を入れるときにまとめて扱う。
+- **OpenAPI の `/auth/session` に 400 / 401 / 503 を宣言しない**。SS-197 以前からの欠落で Apple 固有ではないため、別途扱う。
+
+### 影響
+
+- DB スキーマは変えない（`provider` は CHECK 制約の無い `String(32)`、Apple の `sub` は約 44 文字で `String(255)` に入る。
+  `UNIQUE(provider, provider_subject)` により Google と同じ `sub` でも別ユーザーになる）。
+- `SessionCreate` に任意の `nonce` / `display_name` を足した。required は増えないので既存の mobile の呼び出しは壊れない。
+- 実機の Apple ID token での疎通は SS-196（Sign in with Apple capability）と SS-199（端末側）が揃うまで確認できない。
+  Expo Go 経由の token は `aud=host.exp.Exponent` になり拒否される（development build 前提）。
+
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
@@ -488,4 +576,4 @@ SS-10 の実装とローカルレビューで決めたが、エージェント�
 - [RFC 7636: PKCE](https://datatracker.ietf.org/doc/html/rfc7636)
 - [Expo: Using Google authentication](https://docs.expo.dev/guides/google-authentication/)
 - [Expo: AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/)
-- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）
+- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）

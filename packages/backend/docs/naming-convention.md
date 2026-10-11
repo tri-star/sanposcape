@@ -48,7 +48,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 |---|---|
 | `tokens.py` | 自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化 |
 | `dev_router.py` | `AUTH_MODE=dev` 限定エンドポイントの `APIRouter`。本番相当の `router.py` と分離し、`include_in_schema=False` の制御をここに閉じ込める |
-| `providers/` | IdP（Google 等）ごとの ID token 検証実装を隔離するサブパッケージ。プロバイダ追加時はここに1ファイル足すだけで済む |
+| `providers/` | IdP（Google / Apple）ごとの ID token 検証実装を隔離するサブパッケージ。`__init__.py` のレジストリ（`build_identity_providers`）に登録し、`schemas.py` の `provider` の `Literal` にも値を足す。JWKS クライアントは IdP 共通の `jwks.py` |
 | `headers.py` | アクセストークンを HTTP ヘッダーから取り出す（`X-App-Authorization` → `Authorization` の優先順）。CloudFront OAC がビューアの `Authorization` を上書きするための対処（SS-67） |
 
 `walks/` ドメインでは以下を追加している。

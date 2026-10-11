@@ -182,3 +182,64 @@ def test_delete_current_user_does_not_commit_when_delete_fails(db_session: Sessi
         service.delete_current_user(user)
 
     commit_spy.assert_not_called()
+
+
+def _find_or_create(service: UserService, **overrides):
+    params = {
+        "provider": "apple",
+        "subject": "apple-sub-1",
+        "email": None,
+        "display_name": None,
+        "photo_url": None,
+    }
+    params.update(overrides)
+    return service.find_or_create(**params)
+
+
+def test_initial_display_name_is_used_for_new_user(db_session: Session) -> None:
+    service = _make_service(db_session)
+
+    user = _find_or_create(service, initial_display_name="山田太郎")
+
+    assert user.display_name == "山田太郎"
+
+
+def test_idp_display_name_takes_precedence_over_initial_display_name(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+
+    user = _find_or_create(service, display_name="IdP の名前", initial_display_name="端末の名前")
+
+    assert user.display_name == "IdP の名前"
+
+
+def test_initial_display_name_is_not_applied_to_existing_user(db_session: Session) -> None:
+    service = _make_service(db_session)
+    _find_or_create(service, initial_display_name="最初の名前")
+
+    again = _find_or_create(service, initial_display_name="別の名前")
+
+    assert again.display_name == "最初の名前"
+
+
+def test_initial_display_name_fills_null_display_name_of_existing_user(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+    _find_or_create(service)  # display_name = NULL で作成
+
+    again = _find_or_create(service, initial_display_name="後から来た名前")
+
+    assert again.display_name == "後から来た名前"
+
+
+def test_idp_display_name_still_overwrites_and_initial_is_ignored_for_existing_user(
+    db_session: Session,
+) -> None:
+    service = _make_service(db_session)
+    _find_or_create(service)
+
+    again = _find_or_create(service, display_name="IdP の名前", initial_display_name="端末の名前")
+
+    assert again.display_name == "IdP の名前"
