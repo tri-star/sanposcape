@@ -1,7 +1,7 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from sanposcape.auth.providers import build_identity_providers
+from sanposcape.auth.providers import build_identity_providers, warn_apple_disabled_once
 from sanposcape.auth.providers.base import IdentityProvider
 from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.service import AuthService
@@ -15,7 +15,10 @@ def get_identity_providers(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, IdentityProvider]:
     """テストでは `dependency_overrides` で差し替え、テスト用 JWKS を注入する（§11.2）。"""
-    return build_identity_providers(settings)
+    providers = build_identity_providers(settings)
+    if "apple" not in providers:
+        warn_apple_disabled_once()
+    return providers
 
 
 def get_auth_service(

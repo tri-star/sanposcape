@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 from sanposcape.auth.providers.apple import AppleIdentityProvider
 from sanposcape.auth.providers.base import IdentityProvider
@@ -22,6 +23,15 @@ def build_identity_providers(settings: Settings) -> dict[str, IdentityProvider]:
     providers: dict[str, IdentityProvider] = {"google": GoogleIdentityProvider(settings)}
     if settings.apple_allowed_audiences:
         providers["apple"] = AppleIdentityProvider(settings)
-    else:
-        logger.warning("APPLE_ALLOWED_AUDIENCES is empty; Sign in with Apple is disabled")
     return providers
+
+
+@lru_cache(maxsize=1)
+def warn_apple_disabled_once() -> None:
+    """Apple が未設定であることを、プロセスにつき 1 回だけ WARNING で知らせる。
+
+    `build_identity_providers` はリクエストごとに呼ばれ、未認証の入力でログ量を増やせて
+    しまうため、そこには副作用を持たせない。呼び出し側が未登録を見て呼ぶ。
+    テストでは `cache_clear()` で状態を戻す。
+    """
+    logger.warning("APPLE_ALLOWED_AUDIENCES is empty; Sign in with Apple is disabled")
