@@ -2,12 +2,12 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-03（SS-156）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-12（SS-160）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
-- **位置情報は `src/services/location/` の `LocationService` インターフェース経由で扱う**。メソッドは `getPermissionStatus` / `requestPermission` / `getCurrentPosition` / `watchPosition` / `startBackgroundTracking` / `stopBackgroundTracking`。呼び出し側はインターフェースだけを参照する（本文: 決定、移行・対応が必要な事項、SS-156 追補。背景記録の本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）
+- **位置情報は `src/services/location/` の `LocationService` インターフェース経由で扱う**。メソッドは `getPermissionStatus` / `getPrecision` / `requestPermission` / `getCurrentPosition` / `watchPosition` / `startBackgroundTracking` / `stopBackgroundTracking`。呼び出し側はインターフェースだけを参照する（本文: 決定、移行・対応が必要な事項、SS-156 追補、SS-160 追補。背景記録の本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)、`getPrecision`（精度の許可。ダイアログを出さず、未許可・失敗は null）の本体は [ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)）
 - **座標は自前の `GeoCoordinates` で表し、`expo-location` / `react-native-maps` の型に依存しない**。地図の表示領域も自前の `MapRegion` で扱う（本文: 決定）
 - **モードは `real` と `mock` の2つだけで、`dev` は作らない**。切り替えは `EXPO_PUBLIC_LOCATION_MODE` で、判定は `getLocationMode()` の1箇所に集約する。`"mock"` に完全一致したときだけ mock、それ以外は `real` にフォールバックする（本文: 決定）
 - **ネイティブモジュールを import するファイルを限定する**。`expo-location` は `location.real.ts` だけ、`expo-task-manager` は `backgroundLocationTask.ts` だけが import する（本文: 決定、SS-156 追補）
@@ -26,6 +26,7 @@
 2026-07-30
 2026-09-25 追補（SS-124）
 2026-10-02 追補（SS-156）
+2026-10-12 追補（SS-160）
 
 ## ステータス
 
@@ -55,7 +56,7 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 - `src/services/location/` を新設し、`LocationService` インターフェース（`getPermissionStatus` /
   `requestPermission` / `getCurrentPosition`。**SS-16 で `watchPosition` を追加**。下記「移行・対応が必要な事項」参照）
   を定義する。（SS-156 追補）散歩中の記録用に `startBackgroundTracking` / `stopBackgroundTracking` を追加した
-  （背面・画面ロック中も記録する。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）。呼び出し側はこのインターフェースのみを参照する。
+  （背面・画面ロック中も記録する。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)）。（SS-160 追補）精度の許可（「正確な位置情報」）を返す `getPrecision` を追加した（本体は [ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)）。呼び出し側はこのインターフェースのみを参照する。
 - 座標は**自前の `GeoCoordinates`**（`{ latitude, longitude }`）で表現し、`expo-location` /
   `react-native-maps` のどちらの型にも依存しない。地図の表示領域も `lib/mapRegion.ts` に
   構造的互換な `MapRegion` を自前定義し、`react-native-maps` を値 import しない純粋関数として扱う。
@@ -139,6 +140,7 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
 - [ADR-002(横断): 認証は Google 直結 + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
 - [ADR-M-004: E2E ビルド・CI 戦略](./ADR-M-004-e2e-build-ci-strategy.md)
 - [ADR-M-018: 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./ADR-M-018-background-walk-location-tracking.md)
+- [ADR-M-022: 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./ADR-M-022-location-permission-flow-and-approximate-location.md)（SS-160 追補）
 - [ADR-M-007: Expo 設定と Maps キー注入](./ADR-M-007-expo-config-and-maps-key-injection.md)
 - [フォルダ構造](../docs/folder-structure.md)
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)

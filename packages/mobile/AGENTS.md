@@ -49,3 +49,4 @@ mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` 
 | [ADR-M-019](./adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) | 地図のアイコン（13種類・色はアイコンから決まる・作成時と地図詳細で選ぶ）、登録済みピンの地図アイコンでの描画、`MapPin` の SVG シルエットとマーカーの基準点（`anchor` + `centerOffset`） |
 | [ADR-M-020](./adr/ADR-M-020-external-web-pages.md) | アプリから外部の Web ページ（プライバシーポリシー）を開く方式（アプリ内ブラウザ + OS ブラウザへのフォールバック）と、法的文書の URL をビルドで切り替えないこと |
 | [ADR-M-021](./adr/ADR-M-021-pin-visit-status-and-archive.md) | ピンの訪問状況・アーカイブ（詳細はバッジ・編集はスイッチ + 既存の保存・地図表示からアーカイブ済みを常に除外し地図詳細の一覧には出す・権限の出し分け・登録時の初期値（散歩中=訪問済み）） |
+| [ADR-M-022](./adr/ADR-M-022-location-permission-flow-and-approximate-location.md) | 位置情報の権限の求め方（事前説明画面を置かない）と、拒否・大まかな位置のときの挙動（文脈ごとの中立な案内・前面復帰での回復・大まかな位置の案内） |

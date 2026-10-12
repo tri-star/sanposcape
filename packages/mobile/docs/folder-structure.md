@@ -28,7 +28,7 @@ packages/mobile/
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
-│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice。SS-124）
+│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160）
 │   │   └── legal/             #   法的文書への導線（PrivacyPolicyLink。settings と auth から使う。SS-158）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
