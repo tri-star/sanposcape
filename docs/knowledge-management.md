@@ -151,18 +151,19 @@ agent 名ごとに分けていた時期（〜SS-202）は、同じ領域の知�
 
 - 記録: `scripts/knowledge/record-memory-access.sh`（PreToolUse フック / `Read`・`Bash`）
 - 手元の保存先: `<git-common-dir>/memory-access-log/<YYYY-MM>/<session-id>.jsonl`（作業ツリーの外。同じ clone の worktree で共有）
-- 共有の保存先: `.claude/memory-access-log/<YYYY-MM>/<session-id>.jsonl`（コミットする）
+- 共有の保存先: `.claude/memory-access-log/<YYYY-MM>/<session-id>.<移した時刻>-<乱数>.jsonl`（コミットする）
 - 移し込み: `scripts/knowledge/flush-memory-access-log.sh`
 - 集計: `scripts/knowledge/memory-access-report.py`（共有と手元の両方を読む）
 
 フックは作業ツリーの外に記録するので、作業の途中や PR 作成の後にメモリを読んでも作業ツリーは汚れない。
 PR を作るとき（`knowledge-harvest` のコミット）に移し込みスクリプトで共有の保存先へ移してコミットする。
 移した後に読んだ分は手元に残り、次の PR で移される。人が手で PR を作るときも、PR 前に同じスクリプトを実行する。
-セッションごとに別ファイルへ追記するため、**別マシン・複数人のログをコミットしても衝突せず合算できる**。
+移すたびに一意なファイル名にするため、**別マシン・複数人のログや、同じセッションのログを別々の PR に移しても衝突せず合算できる**
+（手元の置き場所は全 worktree で共有されるので、同じセッションの分が別々のブランチへ移ることがある）。
 
 移す前に clone を消した分と、ログを移した PR がマージされずに閉じた分は失われる（許容している。経緯は SS-204）。
-`Bash` での読み取りは、コマンド中の agent-memory のパスと読み取り系のコマンド名（`cat`・`sed` など）から推定する近似で、
-`git show <rev>:<path>` のような読み方は記録しない。
+`Bash` での読み取りは、読み取り系のコマンド（`cat`・`head`・`sed` など）の引数に書かれた agent-memory のパスから推定する近似。
+リダイレクトの書き込み先・`sed -i`・`git log` / `diff` / `rm` の引数は数えない。`cd` してから相対パスで読む、`grep`・`git show` で読む、は記録されない。
 
 ```bash
 scripts/knowledge/memory-access-report.py --days 30

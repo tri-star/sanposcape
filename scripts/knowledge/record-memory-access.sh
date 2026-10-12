@@ -10,7 +10,7 @@
 # 溜まったログは PR 作成時に scripts/knowledge/flush-memory-access-log.sh で
 # .claude/memory-access-log/ へ移してコミットし、別マシン・他のメンバーの分と合算できるようにする。
 #
-# Bash での読み取りは、コマンドに含まれる agent-memory のパスと読み取り系のコマンド名から推定する（近似）。
+# Bash での読み取りは、読み取り系のコマンド（cat・sed など）の引数に書かれた agent-memory のパスから推定する（近似）。
 #
 # 集計: scripts/knowledge/memory-access-report.py
 #
@@ -49,11 +49,24 @@ if tool == "Read":
     if match:
         hits.append((match.group(1), match.group(2)))
 elif tool == "Bash":
-    command = tool_input.get("command", "")
-    # 書き込み・移動（git mv / rm、sed -i、リダイレクト先など）まで数えないよう、
-    # 読み取り系のコマンド名を含むときだけ記録する。完全には区別できない近似。
-    if re.search(r"(^|[\s;&|(])(cat|head|tail|less|more|bat|nl|sed|awk)\s", command):
-        hits.extend(dict.fromkeys(memory_path.findall(command)))
+    # 読み取り系のコマンド（cat・head・tail・sed など）の引数に書かれたパスだけを数える近似。
+    # 数えないもの: リダイレクトの書き込み先（> / >>）、sed -i、git log / diff / rm / mv など読み取り系でないコマンドの引数。
+    # 拾えないもの: cd してから相対パスで読む、grep・git show で読む。
+    readers = {"cat", "head", "tail", "less", "more", "bat", "nl", "sed", "awk"}
+    seen: dict[tuple[str, str], None] = {}
+    for segment in re.split(r"&&|\|\||[;|\n]", tool_input.get("command", "")):
+        words = segment.split()
+        if not words or words[0] not in readers:
+            continue
+        if words[0] == "sed" and any(w.startswith("-i") or w == "--in-place" for w in words[1:]):
+            continue
+        previous = ""
+        for word in words[1:]:
+            if not (previous in (">", ">>") or word.startswith(">")):
+                for match in memory_path.finditer(word):
+                    seen[(match.group(1), match.group(2))] = None
+            previous = word
+    hits.extend(seen)
 
 if not hits:
     sys.exit(0)

@@ -121,11 +121,14 @@ PR ごとのレビュー（`change-review` の `doc-maintainer`）は、その P
 手作業の修正や Dependabot の更新など、ワークフローを通らない変更で古くなった文書を拾うため、
 前回の棚卸しから後の main の変更を対象に `doc-maintainer` を起動します（経緯は ADR-014 決定5）。
 
+前回の棚卸しは、直近の knowledge-review の PR（`chore/knowledge-review-YYYYMMDD` ブランチ）のマージコミットで分かる。
+
 ```bash
-git log --oneline --since=<前回の棚卸しの日付> origin/main   # 対象のコミット範囲を決める
+gh pr list --state merged --search 'head:chore/knowledge-review' --limit 1 --json number,mergeCommit,mergedAt
+git log --oneline <前回のマージコミット>..origin/main   # 対象のコミット範囲を確かめる
 ```
 
-依頼文には、比較対象（`git diff <前回の棚卸し時点のコミット>..origin/main`）と、
+依頼文には、比較対象（`git diff <前回のマージコミット>..origin/main`）と、
 「ワークフロー外の変更（Dependabot・手作業）を重点的に」という観点を書きます。
 見つかった乖離は、直すか後続課題にするかをユーザーに提示して決めます（このスキルの中では直しません）。
 
