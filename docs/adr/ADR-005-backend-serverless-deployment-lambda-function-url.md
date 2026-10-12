@@ -205,7 +205,7 @@ deploy 時に `{{resolve:ssm:...}}` で解決し、`APP_SECRET_ARN` 環境変数
   Lambda（`sanposcape-<env>-backend-migrate`）の実行ロールにも同じ
   `secretsmanager:GetSecretValue` を付与している。IAM はシークレット単位でしか権限を絞れず、
   1 つの JSON に複数キーをまとめている構成では**キー単位でのアクセス制御ができない**ため、
-  マイグレーション Lambda は `jwt_signing_key` や `google_maps_server_api_key` も読める状態になる。
+  マイグレーション Lambda は `jwt_signing_key` や `google_maps_server_api_key`、`apple_sign_in_private_key` も読める状態になる。
   2 つの Lambda が同じリポジトリ・同じデプロイ経路・同じ信頼境界にあることを踏まえ、
   **現時点ではこれを許容する**。器を分けるとコンテナ 1 つあたりの固定費が乗り、
   1 コンテナに集約した本構成の判断そのものと矛盾するためである。将来「マイグレーションは
