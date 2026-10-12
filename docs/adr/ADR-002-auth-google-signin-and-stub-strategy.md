@@ -694,7 +694,9 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
 - 設定は Secrets Manager の `apple_team_id` / `apple_sign_in_key_id` / `apple_sign_in_private_key`（キー名は環境変数名に揃える）。
   PEM は `SecretStr`。**起動時の必須チェックには含めない**（SS-197 と同じ理由）。3つとも空なら交換・失効だけが無効
   （Apple が有効なときだけ WARNING を1回）、一部だけ・PEM 不正・EC P-256 でない場合は ERROR を1回出して無効扱い
-  （項目名だけを出し、値は出さない）。ローカルは鍵不要（Apple ユーザーは dev では作れない）。fake モードは足さない。
+  （項目名だけを出し、値は出さない）。ローカルは通常鍵不要。`AUTH_MODE=dev` でも `POST /auth/session` は使えるので、
+  iOS 実機の ID token があればローカルでも Apple ユーザーは作れるが、鍵が無ければ code の交換と失効は行われない
+  （失効まで確かめるときだけ鍵を `.env` に書く）。fake モードは足さない（テストは DI の Fake で足りる）。
 - client secret の生成に失敗したとき（起動時の検査をすり抜けた鍵の不備など）は、専用の `AppleSignInClientSecretError` にして
   設定ミスとして扱う（交換は ERROR でサインイン続行、削除は ERROR で削除を進める）。一時障害（Unavailable）にすると
   削除が 503 のまま永久に進まなくなり、未設定（NotConfigured）にすると交換側でログが出ず気付けず、
