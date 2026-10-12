@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.sanposcape.app.dev",
+      "usesAppleSignIn": true,
       "icon": "./assets/app-icons/sanposcape-icon-1024.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -46,6 +47,7 @@
           "iosUrlScheme": "com.googleusercontent.apps.647949159303-53e8cedj7ochfqqhhccc9b9l77jvt7gq"
         }
       ],
+      "expo-apple-authentication",
       [
         "expo-location",
         {
