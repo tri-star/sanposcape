@@ -1,3 +1,5 @@
+import type { LocationErrorCode } from "@/services/location/types";
+
 /**
  * 現在地の静かな取り直し（`useCurrentLocation().refresh`）を省く猶予時間（ミリ秒）。
  * ピンタブはタブを行き来するたびにフォーカスを取り戻すが、そのたびに GPS を起動すると
@@ -20,4 +22,14 @@ export function shouldSkipSilentRefresh(input: {
   const elapsed = input.now - input.lastFetchedAt;
   if (elapsed < 0) return false;
   return elapsed < (input.minIntervalMs ?? LOCATION_REFRESH_MIN_INTERVAL_MS);
+}
+
+/**
+ * アプリが前面に戻ったときに権限を確認し直すか（純粋）。
+ * permission_denied の間だけ true（設定アプリで許可して戻ったときに回復させるため）。
+ * 確認は getPermissionStatus（ダイアログを出さない）だけで行い、requestPermission は呼ばない
+ * （前面復帰のたびに OS のダイアログを出し直すと、5.1.1(iv) の「繰り返し求める」になる）。
+ */
+export function shouldRecheckPermissionOnForeground(errorCode: LocationErrorCode | null): boolean {
+  return errorCode === "permission_denied";
 }

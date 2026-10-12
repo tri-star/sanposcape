@@ -6,6 +6,13 @@ export type GeoCoordinates = {
 
 export type LocationPermissionStatus = "granted" | "denied" | "undetermined";
 
+/**
+ * 位置情報の精度の許可。iOS 14+ の「正確な位置情報」/ Android 12+ の「正確な位置情報を使用」。
+ * - precise: 正確な位置を使える
+ * - approximate: 大まかな位置だけ（数 km ずれることがあり、iOS は更新の頻度も落ちる）
+ */
+export type LocationPrecision = "precise" | "approximate";
+
 /** watchPosition の購読ハンドル。remove() は多重呼び出しされても安全にする。 */
 export type LocationSubscription = {
   remove(): void;
@@ -64,11 +71,18 @@ export type WatchPositionOptions = {
 
 /**
  * 位置情報サービスのインターフェース。
- * 呼び出し側（features/walk）はこれのみを参照し、real/mock の実体を知らない。
+ * 呼び出し側（features/walk / features/pin）はこれのみを参照し、real/mock の実体を知らない。
  */
 export type LocationService = {
   /** 現在の権限状態を返す（ダイアログを出さない）。 */
   getPermissionStatus(): Promise<LocationPermissionStatus>;
+  /**
+   * 精度の許可を返す（ダイアログを出さない）。位置情報の権限が無ければ null。
+   * 確認に失敗した場合も null（案内を出さない側に倒す）。throw しない。
+   * 「正確な位置情報」の一時的な要求（iOS の requestTemporaryFullAccuracyAuthorization）は
+   * expo-location に無いため持たない。変えるのは利用者が設定アプリで行う（ADR-M-022）。
+   */
+  getPrecision(): Promise<LocationPrecision | null>;
   /** 権限をリクエストする（必要ならOSダイアログを出す）。 */
   requestPermission(): Promise<LocationPermissionStatus>;
   /**

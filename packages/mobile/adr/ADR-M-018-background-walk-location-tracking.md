@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-03（SS-157。決定15 を追加）。本節は本文（追補を含む）を要約したもので、一次記録は本文。本文と食い違う場合は本節の誤りとして本節を直す。
+> 最終更新: 2026-10-12（SS-160。大まかな位置でも点を捨てないことを追記）。本節は本文（追補を含む）を要約したもので、一次記録は本文。本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
@@ -11,6 +11,7 @@
 - タスクのオプション（Highest / 10m・3秒 / Fitness / `pausesUpdatesAutomatically: false` / インジケータ / `killServiceOnDestroy: true`）（本文: 決定3）
 - サンプルはバッファ（`Paths.cache` の JSONL）と hub で受け渡し、時刻カーソルで冪等に統合する（本文: 決定4・決定6）
 - 止めるのは散歩の終了・サインアウト・起動時だけ。停止失敗は「停止未了」として次で止め直す（本文: 決定5）
+- 精度（`accuracyMeters`）による点の除外はしない。「正確な位置情報」がオフ（大まかな位置）のときも除外せず、散歩中画面に案内を出してバッジを「位置が大まか」にするだけにする（本文: ネガティブな影響、SS-160 追補。[ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)）
 - import 規律（本文: 決定7）／フラグで包まない（本文: 決定8）／バッファは復元の仕組みではない（本文: 決定9）
 - **iOS の利用目的文言は `app.json` の expo-location プラグインのオプションだけで設定する**。3用途と、背景での取得・止まる条件を書く（本文: 決定10、SS-157 追補）
 - **「常に」系2キーは消さずに使用中と同じ文言、モーションのキーも消さずに「使用しない」旨の文言にする**。どちらも `false` でキーを消すと ITMS-90683 のおそれがある（本文: 決定11・決定12、SS-157 追補）
@@ -22,7 +23,7 @@
 ### 未解決・持ち越し
 
 - SS-36（起動時の停止 → 復元）
-- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認、審査メモで background modes に `fetch` が含まれる理由の説明、`showsBackgroundLocationIndicator` と設定アプリの「常に」の関係の iPhone 実機確認）（SS-157 追補）
+- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認、審査メモで background modes に `fetch` が含まれる理由の説明（または config plugin による `fetch` の除去。アプリでは使っていない。SS-160 追補）、`showsBackgroundLocationIndicator` と設定アプリの「常に」の関係の iPhone 実機確認）（SS-157 追補）
 - App Privacy・プライバシーポリシーでの位置情報のサーバー保存の申告（SS-161。SS-157 追補）
 - 停止失敗時に背景タスクが残る経路の回収（未起票。SS-157 追補）
 - Android の `RECORD_AUDIO` 等の不要な権限の除去（未起票。SS-157 追補）
@@ -37,7 +38,7 @@
 
 ## 日付
 
-2026-10-02（初版）、2026-10-03 追補（SS-157。決定10〜15）
+2026-10-02（初版）、2026-10-03 追補（SS-157。決定10〜15）、2026-10-12 追補（SS-160）
 
 ## ステータス
 
@@ -149,7 +150,7 @@
 - 古いバイナリに OTA で今回の JS を配ると、`expo-task-manager` のネイティブモジュールが無く、起動時にクラッシュする（`version` を上げて互換境界を切る。[build-profiles](../docs/build-profiles.md) の運用ルール）。SS-156 の PR では `version`（0.1.0）を据え置いた。`version` を上げる PR と配布ビルドはセットで計画する運用のため、次の配布の前に上げる。それまで 0.1.0 のバイナリへ `eas update` を出してはならない。
 - fallback に入った散歩は前面だけの記録になる。アプリが前面に戻るたびに背景記録の開始を再試行し、成功したら前面の購読を止めて切り替える（背面から開始して失敗した場合などを救う）。fallback 中であることを画面には出さない（別課題）。
 - mock モードでは背面の記録を再現できない（Android は裏に回ると JS のタイマーが止まる）。背面の確認は real のエミュレータ・実機で行う。このため E2E（Maestro）のフローは変えていない。Home へ出て戻る手順を足しても背面の記録を検証できず、フレークの要因だけが増える。
-- 精度（`accuracyMeters`）による点の除外はしない（従来の挙動を変えないため）。背面の点の品質に問題が報告されたら、後続の課題でしきい値を検討する。
+- 精度（`accuracyMeters`）による点の除外はしない（従来の挙動を変えないため）。背面の点の品質に問題が報告されたら、後続の課題でしきい値を検討する。（SS-160 追補）「正確な位置情報」がオフ（大まかな位置）のときも除外しない。散歩中画面に案内を出し、バッジを「位置が大まか」にするだけにする（[ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)）。
 
 ### 移行・対応が必要な事項
 
@@ -169,6 +170,7 @@
 
 - [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)（SS-156 追補）
 - [ADR-M-008: 進行中の散歩の状態管理](./ADR-M-008-active-walk-state-and-route-cache.md)（決定5・決定6 の SS-156 追補）
+- [ADR-M-022: 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./ADR-M-022-location-permission-flow-and-approximate-location.md)（SS-160 追補）
 - [ADR-M-003: development build 前提の開発ループ](./ADR-M-003-development-build-and-dev-loop.md)
 - [Android: Notification runtime permission](https://developer.android.com/develop/ui/views/notifications/notification-permission)（Android 13 以降。フォアグラウンドサービスの通知も対象）
 - [ADR-M-015: アプリアイコン](./ADR-M-015-app-icon-assets.md)（通知アイコンに使う単色レイヤー）

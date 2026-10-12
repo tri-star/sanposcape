@@ -14,11 +14,11 @@ export type LocationObject = {
 };
 
 export async function getForegroundPermissionsAsync() {
-  return { status: "granted", canAskAgain: true };
+  return { status: "granted", granted: true, canAskAgain: true };
 }
 
 export async function requestForegroundPermissionsAsync() {
-  return { status: "granted", canAskAgain: true };
+  return { status: "granted", granted: true, canAskAgain: true };
 }
 
 export async function getLastKnownPositionAsync() {

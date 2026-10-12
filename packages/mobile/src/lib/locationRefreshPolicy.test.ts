@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   LOCATION_REFRESH_MIN_INTERVAL_MS,
+  shouldRecheckPermissionOnForeground,
   shouldSkipSilentRefresh,
 } from "@/lib/locationRefreshPolicy";
 
@@ -38,4 +39,17 @@ describe("shouldSkipSilentRefresh", () => {
       true,
     );
   });
+});
+
+describe("shouldRecheckPermissionOnForeground", () => {
+  it("permission_denied の間だけ true", () => {
+    expect(shouldRecheckPermissionOnForeground("permission_denied")).toBe(true);
+  });
+
+  it.each(["services_disabled", "timeout", "unavailable", "unknown", null] as const)(
+    "%s は false",
+    (code) => {
+      expect(shouldRecheckPermissionOnForeground(code)).toBe(false);
+    },
+  );
 });

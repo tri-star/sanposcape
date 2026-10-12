@@ -152,6 +152,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
           {picker.locationErrorCode !== null ? (
             <LocationPermissionNotice
               errorCode={picker.locationErrorCode}
+              context="map"
               onRetry={picker.retryLocation}
               testID="pin-tab-location-notice"
             />

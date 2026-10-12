@@ -14,4 +14,5 @@
 - [ネイティブ・Expo 設定の事実](native-config.md) — 位置記録プラグインの既定と FGS アイコン・Appearance.setColorScheme の値・expo-file-system の同期 API・app.config.ts の型と expo config
 - [ピンと写真の落とし穴](pins-and-photos.md) — 検証失敗は 422 で包む・応答の ID で再開・模型サーバーでテスト・必須フィールド追加で壊れるテスト・EXIF は picker から・隠す状態はサーバーで除外
 - [sandbox とツールの落とし穴](sandbox-and-tooling.md) — expo の HOME・EAS は sandbox 外・format:check のスコープ・git 書き込み不可・古い .expo の型・eslint-disable の位置・main の node_modules と lockfile の版差
+- [位置情報の権限と審査の落とし穴](location-permission-review.md) — Androidの拒否はundeterminedに写る・前面復帰でrequestPermissionを呼ぶと繰り返し出る・精度APIはあるが一時要求は無い・pre-promptの審査実例
 - [画面ヘッダーの重複は SS-40 で追跡中](screen-header-duplication-ss40.md) — task-local。レビューで新規指摘にせず SS-40 に言及する

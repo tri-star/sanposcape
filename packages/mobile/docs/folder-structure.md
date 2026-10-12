@@ -28,7 +28,7 @@ packages/mobile/
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
-│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice。SS-124）
+│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160）
 │   │   └── legal/             #   法的文書への導線（PrivacyPolicyLink。settings と auth から使う。SS-158）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
@@ -197,7 +197,7 @@ packages/mobile/
 > `components/` 直下にファイルを並べて肥大化させない。カテゴリのサブフォルダに分ける。
 
 - 実際の昇格例: `LocationPermissionNotice`（`features/walk/components/` → `src/components/location/`。
-  `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `features/walk` の画面と `features/pin` の `PinMapFullScreen` / `PinTabView`）。
+  `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `WalkStartView` / `WalkActiveView` / `PinTabView`）。
 - 実際の昇格例: `TabActionBar`（`features/pin/components/PinTabActionBar.tsx` → `src/components/layout/TabActionBar.tsx`。
   アカウントタブの下部の帯でも使うため。SS-148）。
 - 昇格の手順（`components/` / `src/lib/` / `src/store/` 共通）: 移動先に同じ実装のファイルを作り（JSDoc に昇格の理由と元の場所を書く）→
@@ -266,7 +266,7 @@ packages/mobile/
   `useScreenBack.ts`（画面の「戻る」導線を一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
   `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
   `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、
-  `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。`features/walk` と `features/pin` から使うため
+  `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。拒否中は前面復帰で権限の状態だけを確かめて回復する（SS-160）。`features/walk` と `features/pin` から使うため
   SS-124 で `features/walk/hooks/` から昇格）、`useOpenExternalUrl.ts`（外部の Web ページを開く。アプリ内ブラウザ → OS ブラウザ。SS-158）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を

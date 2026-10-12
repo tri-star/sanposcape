@@ -7,6 +7,7 @@ import {
   backgroundSampleHub,
 } from "@/services/location/backgroundLocationTask";
 import { toLocationError } from "@/services/location/locationError";
+import { toLocationPrecision } from "@/services/location/locationPrecision";
 import { createNotificationPermissionRequester } from "@/services/location/notificationPermission";
 import { createSerialQueue } from "@/services/location/serialQueue";
 import type {
@@ -132,6 +133,21 @@ export function createRealLocationService(): LocationService {
     async getPermissionStatus() {
       const result = await Location.getForegroundPermissionsAsync();
       return toPermissionStatus(result);
+    },
+
+    async getPrecision() {
+      try {
+        const result = await Location.getForegroundPermissionsAsync();
+        return toLocationPrecision({
+          granted: result.granted,
+          ios: result.ios,
+          android: result.android,
+        });
+      } catch (error) {
+        // 案内を出さない側に倒す（判定できないことで画面を止めない）。
+        logDiagnostic("location_precision_check_failed", describeError(error));
+        return null;
+      }
     },
 
     async requestPermission() {

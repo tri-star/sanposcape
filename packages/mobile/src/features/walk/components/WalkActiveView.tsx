@@ -12,6 +12,7 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
+import { ApproximateLocationNotice } from "@/features/walk/components/ApproximateLocationNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
 import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
@@ -21,6 +22,7 @@ import {
   resolveAddPinAction,
   resolveMapLongPressPinAction,
 } from "@/features/walk/lib/addPinAction";
+import { shouldShowApproximateLocationNotice } from "@/features/walk/lib/locationPrecisionNotice";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -133,6 +135,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
   }
 
   const { activeWalk } = walk;
+  const approximateLocation = shouldShowApproximateLocationNotice(walk.locationPrecision);
 
   return (
     <View testID="walk-active-screen" style={styles.root}>
@@ -191,9 +194,13 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
       {walk.trackingErrorCode !== null ? (
         <LocationPermissionNotice
           errorCode={walk.trackingErrorCode}
+          context="tracking"
           onRetry={walk.retryTracking}
           testID="walk-active-location-notice"
         />
+      ) : null}
+      {walk.trackingErrorCode === null && approximateLocation ? (
+        <ApproximateLocationNotice context="tracking" testID="walk-active-approximate-notice" />
       ) : null}
 
       <View style={styles.statsWrap}>
@@ -203,6 +210,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
           steps={walk.steps}
           paused={walk.paused}
           trackingStatus={walk.trackingStatus}
+          approximateLocation={approximateLocation}
           onTogglePause={walk.togglePause}
           onEnd={() => setEndDialogOpen(true)}
           onAddPin={handleAddPin}
