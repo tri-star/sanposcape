@@ -16,6 +16,20 @@
 - EAS のビルドプロファイル（どの backend を向くか・環境変数の供給元・アプリ識別子の SSoT・
   配布手順）は [ビルドプロファイルと環境変数](./docs/build-profiles.md) を参照
 
+## 作業の進め方
+
+- 作業を始める前に `.claude/agent-memory/mobile/MEMORY.md` を読み、関係する話題のメモリを読む。
+- `src/api/generated/`（Orval の生成物）は gitignore 対象で、worktree には無いか古いことが多い。
+  API に触る計画・実装の前に `pnpm --filter mobile orval` で作り直し、現物の型を確かめる。
+  backend の API 変更と同じブランチで進めるときは、`packages/backend/openapi.yaml` を更新した後に作り直す
+  （`orval.config.ts` の入力は `../backend/openapi.yaml`）。
+- 変更後は `pnpm --filter mobile typecheck` / `lint` / `format:check` / `test` を通す。
+  - ルートを追加・削除したとき、ブランチを切り替えたときは、`typecheck` の前に
+    `pnpm --filter mobile exec expo customize tsconfig.json` で `.expo/types/router.d.ts` を作り直す
+    （古い型が残ると、存在しないルートで型検査される）。
+  - 整形の確認は `format:check` スクリプトで行う。対象は `src` / `app` と設定ファイルだけで、
+    `oxfmt --check .` は対象外の docs・adr まで差分として報告する。
+
 ## ADR（設計判断の記録）
 
 **設計を変える実装に着手する前に、該当する ADR を読むこと。** ガイドラインが「何をするか」を、
@@ -26,13 +40,15 @@ mobile 固有の判断は `adr/` 配下、frontend/backend にまたがる判断
 ドメイン知識は [`docs/adr/`](../../docs/adr/)（リポジトリルート）にある。
 mobile 固有の ADR は `ADR-M-{番号}`、ルートの ADR は `ADR-{番号}` と書き分ける（参照するときも同じ。接頭辞の無い `ADR-009` はルートの ADR を指す）。
 
+ADR を新しく作ったら、下の表に1行足す。追補で主題が広がったら、その行の説明にも追記する。
+
 | ADR | 主題 |
 |---|---|
 | [ADR-M-001](./adr/ADR-M-001-folder-structure.md) | フォルダ構造と命名規則 |
 | [ADR-M-002](./adr/ADR-M-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント） |
 | [ADR-M-003](./adr/ADR-M-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
 | [ADR-M-004](./adr/ADR-M-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補）。フローの書き方の注意（clearState の分離・一時表示を assert しない・ASCII 入力。SS-152 追補） |
-| [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016） |
+| [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016）。デザイントークンの SSoT は Claude Design で同期は一方向（SS-202 追補） |
 | [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード。バックグラウンド記録（SS-156 追補。本体は ADR-M-018） |
 | [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補） |
 | [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018） |

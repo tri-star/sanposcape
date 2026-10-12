@@ -258,8 +258,8 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 - CI 設定と本項の整合は、次のコマンドで起動条件、実行範囲、タグ定義を確認する:
 
   ```bash
-  # nightly・手動実行・mainへの対象パス変更を確認
-  sed -n '18,34p' .github/workflows/mobile-e2e.yml
+  # 定期実行（週次）・手動実行を確認
+  sed -n '30,34p' .github/workflows/mobile-e2e.yml
 
   # CIがタグで絞り込まず全フローを実行することを確認
   rg -n 'maestro test packages/mobile/\.maestro/' .github/workflows/mobile-e2e.yml
