@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-11（SS-197 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-12（SS-198 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -41,6 +41,14 @@
   backend の ID token 検証は `provider="apple"` で受け付け済み（`nonce` は端末の raw 値を SHA256 の hex と
   token の `nonce` で比較し apple では必須、氏名は新規作成時と未設定の既存ユーザーにだけ使い、`APPLE_ALLOWED_AUDIENCES` が空なら 400）。
   （本文: 「SS-195 追補」節、「SS-197 追補」節）
+- **Apple のトークン失効は、サインイン時の code 交換（ベストエフォート）と削除時の失効で実装済み**（SS-198）。
+  `POST /auth/session` に任意の `authorization_code` を足し、検証済み ID token の `aud` を `client_id` に
+  Apple の `/auth/token` で交換して refresh token を新テーブル `apple_authorizations` に**平文で**保存する
+  （交換は DB の前。失敗してもサインインは成功させる）。`DELETE /users/me` は Apple ユーザーの token を
+  `/auth/revoke` で失効させてから削除する。**一時障害（タイムアウト・5xx・429）は削除せず 503**、
+  恒久的な拒否・設定ミス・鍵の未設定・token 無しはログに残して削除を進める。
+  client secret（ES256）は呼び出しごとに生成しキャッシュしない。鍵の設定が無くても起動は止めない。
+  （本文: 「SS-198 追補」節）
 - **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
   （本文: 移行・対応が必要な事項）
 - **Google OAuth クライアントは Android が「識別子 + SHA-1」の組ごと、iOS が bundle ID ごとに1つ必要**。
@@ -67,11 +75,14 @@
   本番 Secrets Manager の `google_oauth_client_id` 設定（dev のクライアント ID を入れない）。
   （本文: 「SS-79 追補」節、「本番用 iOS OAuth クライアント追補」節）
 - **iOS は審査ガイドライン 4.8 により Sign in with Apple の併設が必要**（2026-10-11 に条文で確認）。
-  backend の ID token 検証は実装済み（SS-197）。残りは SS-196（Apple Developer の設定と鍵）、
-  SS-198（削除時のトークン失効）、SS-199（mobile のサインイン画面）。
+  backend の ID token 検証（SS-197）と削除時のトークン失効（SS-198）は実装済み。残りは SS-196（Apple Developer の設定と鍵）、
+  SS-199（mobile のサインイン画面と code の送信）。
   （本文: 移行・対応が必要な事項、「SS-195 追補」節、「SS-197 追補」節）
-- **`APPLE_ALLOWED_AUDIENCES` を staging / production の起動時必須にするかは、本番リリース前に再判断する**。
-  現状は必須にしていない（本文: 「SS-197 追補」節）。
+- **`APPLE_ALLOWED_AUDIENCES` と Apple の鍵（`APPLE_TEAM_ID` / `APPLE_SIGN_IN_KEY_ID` / `APPLE_SIGN_IN_PRIVATE_KEY`）を
+  staging / production の起動時必須にするかは、本番リリース前に再判断する**。現状はどちらも必須にしていない
+  （本文: 「SS-197 追補」節、「SS-198 追補」節）。
+- **実機で「削除後に『Apple でサインイン』の連携一覧からアプリが消える」ことは未確認**。SS-196（鍵の登録と投入）と
+  SS-199（端末が code を送る）が揃うまで確認できず、SS-162（アカウント削除導線の確認）で行う。（本文: 「SS-198 追補」節）
 
 ### 変更・撤回された決定
 
@@ -89,7 +100,8 @@
 2026-09-12 追補（SS-81）、2026-09-13 追補（SS-79）、2026-09-21 追補（SS-93）、
 2026-09-30 追補（本番用 iOS OAuth クライアント）、2026-10-04 追補（棚卸し: SS-10 で確定した境界と API 契約）、
 2026-10-11 追補（SS-195: 審査ガイドライン 4.8 と Sign in with Apple）、
-2026-10-11 追補（SS-197: backend の Apple ID token 検証）
+2026-10-11 追補（SS-197: backend の Apple ID token 検証）、
+2026-10-12 追補（SS-198: アカウント削除時の Apple トークン失効）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -551,6 +563,7 @@ authorization code の交換・Apple の refresh token の保存・削除時の�
 - **検証済み `aud` を `ProviderIdentity` に持たせない**。SS-198 の authorization code 交換では検証済み token の
   `aud`（bundle ID）を `client_id` に使うのが安全だが、SS-197 では使わないため足さなかった。`ProviderIdentity` に
   持たせるか、交換を `verify` とは別のメソッドに切り出すかは SS-198 で決める（外部 HTTP は DB トランザクションの前に置く）。
+  （SS-198 追補: `ProviderIdentity.audience` に持たせた。「SS-198 追補」節）
 - **未知の `kid` を持つ不正 JWT による JWKS 再取得の誘発**は対策しない。PyJWT は `kid` が一致しないたびに JWKS を
   取り直すため、未認証のリクエストで Apple / Google への HTTPS 取得（タイムアウト 5 秒）を起こせる。
   `/auth/*` にレート制限を入れるときにまとめて扱う。
@@ -564,6 +577,118 @@ authorization code の交換・Apple の refresh token の保存・削除時の�
 - 実機の Apple ID token での疎通は SS-196（Sign in with Apple capability）と SS-199（端末側）が揃うまで確認できない。
   Expo Go 経由の token は `aud=host.exp.Exponent` になり拒否される（development build 前提）。
 
+## SS-198 追補（2026-10-12）: アカウント削除時に Sign in with Apple のトークンを失効させる
+
+SS-195 追補の「アカウント削除（`DELETE /users/me`）では Apple のトークンを失効させる」を実装した。
+決定1〜2・SS-195 追補・SS-197 追補の方針は変えない（決定1の「ID token はサインイン直後の1回だけ」も不変）。
+実装にあたり、追補に書いていなかった次の点を決めた。Apple の REST API の仕様は 2026-10-12 に
+Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revoke` は form-urlencoded、`/auth/revoke` の 200 は
+「失効させた、または既に無効だった」で冪等、失敗は 400 + `{"error": ...}`、code は 1 回限り・5 分）。
+
+### `authorization_code` は任意。apple のときだけ使い、google では無視する
+
+- `SessionCreate` に任意の `authorization_code`（1〜512 文字）を足した。required は増やさない。apple でも必須にしない
+  （SS-199 より前の端末・古いビルドが壊れないため。code が無ければ交換しないだけ）。google では `nonce` と同じく無視する。
+- 形式（文字種）は検証しない。Apple は形式を公開しておらず、厳しくすると Apple 側の変更でサインイン自体が 422 になる。
+  上限 512 は低コスト DoS 対策のみ。
+
+### 交換の `client_id` は検証済み ID token の `aud`。`ProviderIdentity.audience` に持たせる
+
+- 交換に要るのは署名検証済みの `aud` だけなので、`verify` の結果（`ProviderIdentity`）に `audience` を1項目足した
+  （別メソッドに切り出す案は、token を2回デコードするか、`IdentityProvider` に Apple 専用のメソッドが増えるため採らない）。
+  Apple の `aud` は単一の文字列。list で来たときは `client_id` を一意に決められないので `None`（= 交換しない）。
+- `client_id` をリクエストから受け取らない（改ざんできる）。`APPLE_ALLOWED_AUDIENCES` の先頭も使わない
+  （dev と prod の bundle ID を両方入れたときに取り違える）。失効にも同じ `client_id` が要るので、保存しておく。
+
+### refresh token は新テーブル `apple_authorizations` に保存する。`users` ドメインに置く
+
+- 1 ユーザー 1 行（`user_id` が主キー、`users.id` への `ON DELETE CASCADE`）。列は `client_id` / `refresh_token` /
+  `created_at` / `updated_at`。再サインインのたびに upsert で最新の token に上書きする
+  （古い token は失効させない。最新を失効させれば認可全体が取り消される）。
+- **`users` に列を足さず新テーブルにする**: 既存テーブルへの列追加は、deploy から migrate までの間に `users` を読む全 API が
+  500 になる（[ADR-008](./ADR-008-deploy-release-separation.md) 決定7の SS-171 追補）。新テーブルなら影響はこのテーブルを読む
+  経路だけで、さらに**読むのを Apple ユーザーの削除と code 付きのサインインに限る**ので、Google ユーザーには空白が無い。
+  この「Apple ユーザーのときだけ読む」条件を崩さないこと。`User` に relationship を定義しないのも同じ理由
+  （ORM の `session.delete(user)` が子を読みに行くと、migrate 前に Google ユーザーの削除まで 500 になる）。
+- **`users` ドメインに置く**: 削除（`users`）が token を読む必要があり、`users` から `auth` は import できない。
+  保存は `auth` から `UserService` 経由で行う（棚卸し追補の境界を守る）。
+- Apple の REST API クライアントは `integrations/apple/`（`users` と `auth` の両方から使うため `auth/providers/` には置けない）。
+  lifespan で1つ作り、`get_apple_sign_in_client` で DI する。
+
+### refresh token は暗号化せず平文で保存する
+
+- この token は Apple の API（更新・失効）にしか使えず、使うには .p8 で署名した client secret が要る。DB だけが漏れても使えない。
+  暗号鍵を置く先も .p8 と同じ Secrets Manager になるため、シークレットが漏れる場面では暗号化も破られる。
+  得る防御がほぼ無いのに、鍵の管理・ローテーション・復号失敗時の扱いが増える。SQL のバインド値は既に例外に出ない（`hide_parameters`）。
+- .p8 と DB の両方が漏れた場合にできるのは、ユーザーの認可の取り消しと Apple の ID token（nonce 無し）の取得まで。
+  backend は Apple の ID token に nonce を必須にしているので、それでこのアプリにサインインはできない。
+- 暗号化したくなった場合の代替は、`cryptography` の Fernet で暗号化し、鍵を Secrets Manager の別キーに置く
+  （列は暗号文の `Text`。鍵のローテーションに MultiFernet が要る）。
+
+### サインイン時の交換は DB の前に行い、失敗してもサインインは成功させる
+
+- 順序: ID token の検証 → **交換（Apple の HTTP）** → ユーザーの解決 → token の保存 → セッション発行 → commit。
+  外部 HTTP の間に DB のトランザクション（Neon の pooled 接続）を握らない。
+- **交換が失敗（タイムアウト・5xx・429・400・鍵の未設定）してもサインインは失敗させない**。token を保存しないだけ。
+  Apple の一時障害で Apple ユーザーがサインインできなくなる方が影響が大きい。token の無いユーザーは、次のサインインで
+  端末が新しい code を送れば自己回復する（SS-199 で毎回送る）。code は 1 回限りなので**再試行しない**
+  （タイムアウトでも Apple 側は成功している可能性があり、再送は `invalid_grant` になる）。
+- **交換レスポンスの `id_token` の `sub`・`aud` が、検証済みのユーザーと一致するときだけ保存する**。他人の code を自分の
+  アカウントに紐付けられると、自分のアカウント削除で他人の認可を取り消せてしまうため。この `id_token` は TLS で Apple から
+  直接受け取ったので署名は検証しない（OIDC Core 3.1.3.7）。不一致・デコード不能は WARNING を出して保存しない。
+- ログの重み: 未設定は出さない（起動時に1回出している）/ 一時障害・`invalid_grant` は WARNING /
+  `invalid_client`・`unauthorized_client` は ERROR（鍵・Team ID・Key ID・bundle ID の設定ミス。運用者が直すもの）。
+
+### 削除は「token を読む → トランザクションを閉じる → 失効 → 削除」。一時障害は 503 で削除しない
+
+| 失効の結果 | 扱い | ログ |
+|---|---|---|
+| 200 | 削除へ進む | なし |
+| 一時障害（タイムアウト・接続失敗・5xx・429・想定外の応答） | **削除せず 503** | WARNING |
+| 恒久的な拒否（400 `invalid_grant` 等） | 削除へ進む | WARNING |
+| 設定ミス（`invalid_client`・`unauthorized_client`）・鍵の未設定 | 削除へ進む | **ERROR** |
+| Apple ユーザーだが token が無い | 削除へ進む（失効の手段が無い） | INFO |
+| Google / dev ユーザー | 失効しない（テーブルも読まない） | なし |
+
+- 一時障害で止めるのは、token が残るのでユーザーの再試行で失効まで完了できるから（Apple の失効は冪等）。mobile は 5xx を
+  「時間をおいて再試行」として扱っており、変更は要らない。503 は `{"detail": "Account deletion temporarily unavailable"}`。
+  Apple の障害中に削除が続くと 5xx アラームが鳴りうる（意図どおり）。
+- 恒久的な失敗で止めないのは、再試行しても直らず、削除できない状態を作る方がアカウント削除の要件（審査 5.1.1(v)）上まずいから。
+  ユーザーは iOS の設定から連携を外せる。
+- 常に削除を優先する案は採らない: Apple の障害中に削除したユーザーの認可は残り、token も CASCADE で消えるので後から失効できない。
+  失効待ちの token を別テーブルに退避して後で再試行する案は、定期実行の仕組みが無いので採らない。
+- token を読んだ後・外部 HTTP の前に `commit()` で読み取りだけのトランザクションを閉じる（変更は無い）。再試行はしない。
+  失効の後に DB の削除が失敗して 500 になっても、再試行で失効は冪等に成功して削除へ進める。
+- 競合（受け入れる）: 読んだ後・削除の前に別端末で再サインインして token を更新すると、新しい token は失効されずに CASCADE で
+  消える。ロックを握ったまま外部 HTTP をしない方を優先する（実害は連携一覧に残るだけで、ユーザーが手で外せる）。
+
+### client secret は呼び出しごとに生成し、キャッシュしない。鍵が無くても起動は止めない
+
+- Sign in with Apple 用の秘密鍵（.p8）で ES256 署名した JWT（`iss`=Team ID、`sub`=`client_id`、`aud`=`https://appleid.apple.com`、
+  `kid`=Key ID、`exp`=`iat`+300 秒）。署名は 1 ms 未満で、呼ぶのは code のあるサインインと Apple ユーザーの削除だけ。
+  キャッシュすると有効期限・鍵の差し替え・時計の扱いが増え、長命の secret が漏れたときの影響も大きくなる。
+- 設定は Secrets Manager の `apple_team_id` / `apple_sign_in_key_id` / `apple_sign_in_private_key`（キー名は環境変数名に揃える）。
+  PEM は `SecretStr`。**起動時の必須チェックには含めない**（SS-197 と同じ理由）。3つとも空なら交換・失効だけが無効
+  （Apple が有効なときだけ WARNING を1回）、一部だけ・PEM 不正・EC P-256 でない場合は ERROR を1回出して無効扱い
+  （項目名だけを出し、値は出さない）。ローカルは鍵不要（Apple ユーザーは dev では作れない）。fake モードは足さない。
+- 秘密（code・refresh token・client secret・交換レスポンスの `id_token`）はログ・例外メッセージ・スパンに出さない
+  （[ADR-013](./ADR-013-observability-adot-application-signals.md)）。Apple の応答の `error` は既知の集合に正規化し、任意の文字列を反映させない。
+
+### 影響
+
+- 新テーブル `apple_authorizations`（マイグレーション `add_apple_authorizations`）。deploy から migrate までの間に
+  500 になるのは、Apple ユーザーの削除と code 付きの Apple サインインだけ（SS-199 が未リリースなので後者は実質起きない）。
+- `SessionCreate` に任意の `authorization_code` を足した（required は増えない）。`DELETE /users/me` の OpenAPI に 503 を宣言した。
+- 鍵を投入するまで、Apple ユーザーの削除は Apple のトークンを失効させずに進む（ERROR ログ）。投入手順は
+  [デプロイ手順](../../packages/backend/docs/deployment.md) §3.2。
+
+### 未解決
+
+- 鍵（と `APPLE_ALLOWED_AUDIENCES`）を staging / production の起動時必須にするかは、本番リリース前に再判断する。
+- 実機で「削除後に『Apple でサインイン』の連携一覧からアプリが消える」ことは、SS-196（鍵の登録と投入）と SS-199
+  （端末が code を送る）が揃うまで確認できない。SS-162（アカウント削除導線の確認）で確認する。
+- Server-to-Server 通知（同意の取り消し・Apple ID の削除）は対象外のまま（SS-195 追補）。
+
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
@@ -576,4 +701,4 @@ authorization code の交換・Apple の refresh token の保存・削除時の�
 - [RFC 7636: PKCE](https://datatracker.ietf.org/doc/html/rfc7636)
 - [Expo: Using Google authentication](https://docs.expo.dev/guides/google-authentication/)
 - [Expo: AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/)
-- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）
+- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-198（「SS-198 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）

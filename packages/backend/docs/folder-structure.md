@@ -66,6 +66,10 @@ packages/backend/
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   ├── google_maps/   #   Places / Routes クライアント + キャッシュ
+│       │   ├── apple/         #   Sign in with Apple の REST API（authorization code の交換 /auth/token と
+│       │   │                  #   トークンの失効 /auth/revoke。SS-198）。client_secret.py は ES256 の
+│       │   │                  #   client secret（JWT）の生成、client.py は Http / Unconfigured と
+│       │   │                  #   build_apple_sign_in_client。auth と users の両方から使う
 │       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）。
 │       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）。
 │       │                       #   s3.py は写真ストレージ（S3 / fake / unconfigured）の抽象化層（SS-88）
@@ -80,6 +84,8 @@ packages/backend/
 │       │   ├── repository.py  #   DBアクセス（RefreshTokenRepository）
 │       │   ├── dependencies.py#   ドメイン固有の依存（get_auth_service 等）
 │       │   ├── exceptions.py  #   ドメイン固有の例外
+│       │   ├── apple_authorization.py #   サインイン時の Apple の code 交換（DB を持たない関数。ベストエフォート・
+│       │   │                  #   sub/aud の一致確認・ログの重み。SS-198）
 │       │   ├── headers.py     #   X-App-Authorization → Authorization の順で Bearer を読む（SS-67）
 │       │   ├── tokens.py      #   自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化
 │       │   ├── providers/     #   IdP ごとの ID token 検証実装（google.py / apple.py）と、IdP 共通の JWKS クライアント（jwks.py）を隔離する層
@@ -90,10 +96,11 @@ packages/backend/
 │       │   ├── router.py      #   APIRouter（エンドポイント定義のみ、薄く）
 │       │   ├── schemas.py     #   Pydantic（リクエスト/レスポンス）
 │       │   ├── models.py      #   SQLAlchemy モデル
-│       │   ├── service.py     #   ビジネスロジック
-│       │   ├── repository.py  #   DBアクセス（クエリ）
-│       │   ├── dependencies.py#   ドメイン固有の依存
-│       │   ├── exceptions.py  #   ドメイン固有の例外
+│       │   ├── service.py     #   ビジネスロジック（UserService。アカウント削除の AccountDeletionService は
+│       │   │                  #   Apple ユーザーの削除前にトークンを失効させる。SS-198）
+│       │   ├── repository.py  #   DBアクセス（クエリ。UserRepository / AppleAuthorizationRepository）
+│       │   ├── dependencies.py#   ドメイン固有の依存（get_apple_sign_in_client は auth と共有）
+│       │   ├── exceptions.py  #   ドメイン固有の例外（AccountDeletionUnavailableError → 503）
 │       │   └── tests/         #   このドメインのテスト（併置）
 │       │       ├── test_service.py
 │       │       └── test_router.py

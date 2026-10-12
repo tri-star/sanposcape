@@ -7,7 +7,7 @@
 - ユニットテスト: pytest
 - Lint, Formatter: ruff
 - スキーマ管理: Pydantic
-- 認証: Google Sign-In（モバイルが public client として Google と直接対話）+ Sign in with Apple（iOS のみ。backend は ID token の検証だけを行う）+ backend 自前セッショントークン。ID token 検証・自前 JWT 発行ともに `pyjwt[crypto]` を使用（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
+- 認証: Google Sign-In（モバイルが public client として Google と直接対話）+ Sign in with Apple（iOS のみ。backend は ID token の検証と、アカウント削除時にトークンを失効させるための authorization code の交換・失効（Apple の REST API。`httpx` で呼び、client secret は `pyjwt[crypto]` で ES256 署名）を行う）+ backend 自前セッショントークン。ID token 検証・自前 JWT 発行ともに `pyjwt[crypto]` を使用（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
 - OpenAPI定義生成: Fast APIの機能を利用
 - API ドキュメント UI: `scalar-fastapi`（`/docs`。SS-131）。Swagger UI / ReDoc は使わない（`docs_url=None` / `redoc_url=None`）。JS の版は `api_docs/router.py`（`SCALAR_JS_URL`）で固定し、telemetry と Agent 機能は無効化している。`ENV=production` では登録しない
 - AWS SDK: boto3。Secrets Manager（`integrations/aws/secrets.py`, SS-67）、AWS AppConfig（`integrations/aws/appconfig.py`, SS-98）、S3（`integrations/aws/s3.py`, SS-88）の取得層で使用。Lambda の python3.12 管理ランタイムに同梱されるため zip には含めず、`[dependency-groups] dev` にのみ追加（ユニットテスト・型解決用）
