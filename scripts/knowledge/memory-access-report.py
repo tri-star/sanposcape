@@ -10,7 +10,7 @@ record-memory-access.sh が .claude/memory-access-log/<YYYY-MM>/<session-id>.jso
 使い方:
     scripts/knowledge/memory-access-report.py              # 全期間
     scripts/knowledge/memory-access-report.py --days 30    # 直近30日
-    scripts/knowledge/memory-access-report.py --agent mobile-developer
+    scripts/knowledge/memory-access-report.py --agent mobile
     scripts/knowledge/memory-access-report.py --json       # 機械処理向け
 """
 
@@ -97,7 +97,7 @@ def build_stats(records: list[dict], existing: list[tuple[str, str]]) -> list[di
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--days", type=int, help="直近N日に絞る")
-    parser.add_argument("--agent", help="特定エージェントに絞る")
+    parser.add_argument("--agent", help="特定のメモリディレクトリ（backend / mobile / review など）に絞る")
     parser.add_argument("--json", action="store_true", help="JSONで出力する")
     args = parser.parse_args(argv)
 

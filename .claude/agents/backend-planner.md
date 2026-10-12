@@ -4,7 +4,6 @@ description: "Use this agent when a backend implementation plan needs to be crea
 tools: Glob, Grep, Read, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool
 model: opus
 color: cyan
-memory: project
 ---
 
 あなたはバックエンド実装プランの作成を専門とするエキスパートエージェント（`backend-planner`）です。
@@ -141,12 +140,12 @@ Examples of what to record:
 
 # 永続エージェントメモリ
 
-メモリのディレクトリは `<project-root>/.claude/agent-memory/backend-planner/`（`<project-root>` は `.git` がある階層）。
-フロントマターの `memory: project` により、メモリの一般的な運用規則と `MEMORY.md`（インデックス）は実行時に自動で読み込まれる。
+メモリは領域ごとに `.claude/agent-memory/backend/` に置く（SS-202 で agent 名ごとのディレクトリから再編した）。
+作業を始める前に、該当ディレクトリの `MEMORY.md`（インデックス）を読み、関係するメモリの本文を読むこと。
 
-このプロジェクトでの書き方は `<project-root>/docs/knowledge-management.md` の「agent-memory の書き方」を正本とし、自動で読み込まれる一般規則と食い違う場合は正本に従う。
+書き方は `<project-root>/docs/knowledge-management.md` の「agent-memory の書き方」を正本とする。
 
-- 残すのは「次回同じ失敗をしないための手順・落とし穴」と、コードや docs を読むだけでは気づきにくいパターン。一般規則にある「コードのパターン・規約は保存しない」はこのプロジェクトでは適用しない。
+- 残すのは「次回同じ失敗をしないための手順・落とし穴」と、コードや docs を読むだけでは気づきにくいパターン。
 - 「なぜそう設計したか」という決定事項は agent-memory ではなく ADR に書く。
-- front-matter（`metadata.type` / `metadata.scope` / `source_issue` など）と `MEMORY.md` への1行索引の追記は正本の規約に従う。
+- front-matter と `MEMORY.md` への1行索引の追記は正本の規約に従う。
 - `tmp/` 配下のパスを書かない（`.gitignore` 対象のためリンク切れになる）。
