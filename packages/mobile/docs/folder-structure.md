@@ -200,6 +200,9 @@ packages/mobile/
   `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `features/walk` の画面と `features/pin` の `PinMapFullScreen` / `PinTabView`）。
 - 実際の昇格例: `TabActionBar`（`features/pin/components/PinTabActionBar.tsx` → `src/components/layout/TabActionBar.tsx`。
   アカウントタブの下部の帯でも使うため。SS-148）。
+- 昇格の手順（`components/` / `src/lib/` / `src/store/` 共通）: 移動先に同じ実装のファイルを作り（JSDoc に昇格の理由と元の場所を書く）→
+  古いパスの import を `src/` と `app/` からすべて置き換え → `typecheck` と `test` が通ってから古いファイル（とその `.test.ts`）を消す。
+  昇格は機能追加とは別のコミットにする（例: `refactor(mobile): xxx を src/lib へ昇格する`。差分を機械的に読めるようにするため。SS-20）。
 
 ### `src/services/` — スタブ差し替えの層
 - 認証(OAuth/OIDC)や実機依存機能（カメラ・位置情報など）を抽象化する層。

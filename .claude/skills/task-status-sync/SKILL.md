@@ -1,6 +1,6 @@
 ---
 name: task-status-sync
-description: "開発の進行状況(着手・PR作成・レビュー指摘対応・PRマージ)に合わせて、プロジェクト管理ツール上のタスクの状態を更新するスキル。task-workflow/backend-workflow/frontend-workflow/mobile-workflow等の開発ワークフローから自動的に呼び出されることを想定しているが、「TCH-123に着手します」「PRを作成したのでタスクを更新して」「PRがマージされたのでタスクを完了にして」のようにユーザーから直接指示された場合にも使用する。"
+description: "開発の進行状況(着手・PR作成・レビュー指摘対応・PRマージ)に合わせて、プロジェクト管理ツール上のタスクの状態を更新するスキル。task-workflow 等の開発ワークフローから自動的に呼び出されることを想定しているが、「TCH-123に着手します」「PRを作成したのでタスクを更新して」「PRがマージされたのでタスクを完了にして」のようにユーザーから直接指示された場合にも使用する。"
 argument-hint: "<task-id> <trigger: start|pr-created|review-fix|pr-merged> [pr-url]"
 ---
 
@@ -57,9 +57,9 @@ argument-hint: "<task-id> <trigger: start|pr-created|review-fix|pr-merged> [pr-u
 
 ## 他のワークフローへの組み込み方
 
-このプロジェクトでは、以下のタイミングで各スキルからこのスキルを呼び出す形で組み込み済みです(該当箇所は `backend-workflow` / `frontend-workflow` / `mobile-workflow` / `task-workflow` の SKILL.md を参照)。
+このプロジェクトでは、以下のタイミングで `task-workflow` からこのスキルを呼び出す形で組み込み済みです(該当箇所は `task-workflow` の SKILL.md を参照)。
 
-- `backend-workflow` / `frontend-workflow` / `mobile-workflow` が実装エージェントを初めて起動する直前 → `start`
+- `task-workflow` が実装に着手する直前 → `start`
 - `task-workflow` が、指示内容にGitHubのPR番号が含まれレビュー指摘対応と判断した直後 → `review-fix`
 - `task-workflow` がPR作成後 → `pr-created`(取得したPR URLを渡す)
 - ユーザーから「PRがマージされました」等の報告を受けた時 → `pr-merged`(この場合、他のワークフローを経由せずこのスキルが単体で呼ばれることが多い)。`pr-merged` は状態更新後、知識の収穫に取りこぼしがある場合のみ `knowledge-harvest` skill を呼び出す(通常の収穫は `task-workflow` がPR作成後に行う)

@@ -10,7 +10,7 @@
 
 使い方:
     scripts/knowledge/check-memory-staleness.py                # 全メモリを検査
-    scripts/knowledge/check-memory-staleness.py --agent mobile-developer
+    scripts/knowledge/check-memory-staleness.py --agent mobile
     scripts/knowledge/check-memory-staleness.py --json
 """
 
@@ -123,7 +123,7 @@ def check_file(path: Path, root: Path, paths: set[str], basenames: set[str]) -> 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--agent", help="特定エージェントに絞る")
+    parser.add_argument("--agent", help="特定のメモリディレクトリ（backend / mobile / review など）に絞る")
     parser.add_argument("--json", action="store_true", help="JSONで出力する")
     args = parser.parse_args(argv)
 

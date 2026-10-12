@@ -21,3 +21,5 @@
   - 決定事項は ADR、エージェントの作業記憶は `.claude/agent-memory/`、
     一時的な作業メモは `tmp/<issue-id>/` に置く（3層モデル）
   - **ADR・agent-memory から `tmp/` を参照しない**（`tmp/` は .gitignore 対象でリンク切れになる）
+- 作業を始める前に `.claude/agent-memory/common/MEMORY.md`（領域に属さない落とし穴）を読む。
+  領域ごとのメモリは各 package の `AGENTS.md` の指示に従って読む。

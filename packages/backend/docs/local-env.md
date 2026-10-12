@@ -157,6 +157,9 @@ docker compose up -d --build
 - `scripts/export_openapi.py` が `packages/backend/openapi.yaml`（および `openapi.json`）を出力する。
 - `openapi.yaml` は API 契約として commit し、mobile の Orval がこれを参照してクライアント・MSW モックを生成する。
 - **API を変更したら `export_openapi.py` を再実行して `openapi.yaml` を更新する**こと。
+- `openapi.yaml` が変わると、backend だけの PR でも mobile CI（Orval の再生成 → typecheck → test）が走る（`.github/workflows/mobile-ci.yml` の `paths`）。壊れやすいのは次の2つ。
+  - クエリパラメータが1つも無い GET にクエリを足す: Orval の関数が `fn(options?)` から `fn(params?, options?)` に変わり、`fn({ signal })` の呼び出しが型エラーになる（実行時は `signal` がクエリ扱いになる）。
+  - 応答のスキーマに required のフィールドを足す: mobile の型付きテストフィクスチャ（`const RESPONSE: XxxRead = {...}`）が落ちる。
 
 ## データベース
 

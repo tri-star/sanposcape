@@ -50,6 +50,15 @@
 - 各コンポーネントの Props は `_ds/.../component-api.md`、ビジュアル原則・文言トーンは
   `_ds/.../readme.md` を参照。
 
+## 実装に使うときの注意
+
+- モックは Web の JSX なので、prop 名が RN の実装と違います（`onClick` → `onPress`、
+  `onChange`（input）→ `onChangeText`、`full-width` → `fullWidth`）。プランや実装には、
+  `src/components/ui/*` の `export type XxxProps` に読み替えて書いてください。
+- モックは叩き台です。課題やユーザーの指示と食い違うときは指示を優先します
+  （例: SS-118 ではピンのタップで吹き出しカードを出さず詳細へ遷移する）。写真コメントは API がありません。
+- `.pen` のデザインファイルはリポジトリにありません。
+
 ## 取り込みに関する注記
 
 - 元プロジェクトの写真のうち `bench.jpg` / `river.jpg` / `sunset.jpg` の3枚は取り込みツールの

@@ -41,7 +41,7 @@ python3 scripts/knowledge/check-memory-staleness.py
 cat scripts/knowledge/tmp-reference-baseline.txt
 ```
 
-加えて、インデックスの肥大を確認します。1エージェント 25 行が目安です。
+加えて、インデックスの肥大を確認します。1ディレクトリ 25 行が目安です。
 
 ```bash
 wc -l .claude/agent-memory/*/MEMORY.md | sort -rn | head
@@ -55,7 +55,7 @@ front-matter だけで判断しないこと。
 | 分類 | 典型的な条件 | 処理 |
 | --- | --- | --- |
 | **削除** | チケット固有の進捗・状況メモ。そのチケットは完了済み。読まれていない | ファイルと `MEMORY.md` の行を削除 |
-| **統合** | 同一エージェント内に近い内容が複数ある。インデックスが 25 行を超えている | 1ファイルにまとめ、`MEMORY.md` も1行にする |
+| **統合** | 同じディレクトリに近い内容が複数ある。インデックスが 25 行を超えている | 1ファイルにまとめ、`MEMORY.md` も1行にする |
 | **ADR昇格** | 「なぜそう決めたか」が書かれている（`type: project` に多い） | `adr-writing` skill で ADR へ転記し、メモリは要点＋ADRへの参照に縮退。`metadata.adr` を設定 |
 | **再検証** | 参照先が消えている / `verify_by` 超過 | 現在のコードを確認し、本文を更新するか削除する |
 | **維持** | 汎用的な落とし穴・手順で、内容が今も正しい | `scope: durable` を確認し、front-matter を規約に合わせる |
@@ -115,7 +115,24 @@ dry-run の結果を確認し、消してよいものだけになっているこ
 `--apply` を付けて実行します。進行中チケットのディレクトリと、git 管理下から参照されている
 ものは自動的に保持されます。
 
-## Step 6: 検査とベースライン更新
+## Step 6: main 全体の文書の乖離を確かめる
+
+PR ごとのレビュー（`change-review` の `doc-maintainer`）は、その PR の差分しか見ません。
+手作業の修正や Dependabot の更新など、ワークフローを通らない変更で古くなった文書を拾うため、
+前回の棚卸しから後の main の変更を対象に `doc-maintainer` を起動します（経緯は ADR-014 決定5）。
+
+前回の棚卸しは、直近の knowledge-review の PR（`chore/knowledge-review-YYYYMMDD` ブランチ）のマージコミットで分かる。
+
+```bash
+gh pr list --state merged --search 'head:chore/knowledge-review' --limit 1 --json number,mergeCommit,mergedAt
+git log --oneline <前回のマージコミット>..origin/main   # 対象のコミット範囲を確かめる
+```
+
+依頼文には、比較対象（`git diff <前回のマージコミット>..origin/main`）と、
+「ワークフロー外の変更（Dependabot・手作業）を重点的に」という観点を書きます。
+見つかった乖離は、直すか後続課題にするかをユーザーに提示して決めます（このスキルの中では直しません）。
+
+## Step 7: 検査とベースライン更新
 
 ```bash
 scripts/knowledge/check-tmp-references.sh
@@ -129,15 +146,16 @@ scripts/knowledge/check-tmp-references.sh --baseline
 python3 scripts/knowledge/check-memory-frontmatter.py --baseline
 ```
 
-## Step 7: コミットと報告
+## Step 8: コミットと報告
 
-変更をコミットし、次を報告してください。ベースラインの件数は**棚卸しが機能しているかの指標**なので、
+手元のアクセスログを移してから（`scripts/knowledge/flush-memory-access-log.sh --stage`）変更をコミットし、次を報告してください。ベースラインの件数は**棚卸しが機能しているかの指標**なので、
 毎回の増減を記録します。
 
 - メモリ総数の増減（例: `126 → 108 件`）
 - ベースラインの増減（例: `front-matter 未整備 126 → 108`、`tmp/参照 27 → 19`）
 - ADR に昇格した件数と転記先
 - 削除した `tmp/` の件数
+- main 全体の文書の乖離の確認結果（指摘の件数と、直すか後続課題にするかの決定）
 
 ## 定期実行
 

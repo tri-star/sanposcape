@@ -8,7 +8,7 @@
 | 層 | 置き場所 | 何を置くか | git | 寿命 |
 | --- | --- | --- | --- | --- |
 | **決定事項** | `docs/adr/`, `packages/{frontend,backend}/docs/adr/`, `packages/mobile/adr/` | 「なぜそう設計したか」。採用案・却下案・影響 | 管理下 | 恒久（変更時は追補） |
-| **エージェントの作業記憶** | `.claude/agent-memory/<agent>/` | 「次回同じ失敗をしないための手順・落とし穴」 | 管理下 | 恒久だが棚卸し対象 |
+| **エージェントの作業記憶** | `.claude/agent-memory/<domain>/` | 「次回同じ失敗をしないための手順・落とし穴」 | 管理下 | 恒久だが棚卸し対象 |
 | **一時的な作業記憶** | `tmp/<issue-id>/` | プラン・レビュー結果・引き継ぎメモ | **対象外** | チケット完了まで |
 
 ### 層をまたぐ参照ルール
@@ -20,6 +20,11 @@
 
 `tmp/` は `.gitignore` 対象のため、参照は別環境・別担当者・時間経過で必ずリンク切れになる。
 この規則は CI（`scripts/knowledge/check-tmp-references.sh`）で機械的に検査される。
+
+- ❌ コードのコメントから計画書の決定コード（`D3`・`B-D1` など）を参照する
+- ✅ ADR の決定番号で参照する（または、コメントだけで意図が分かるように書く）
+
+計画書はチケット完了時に破棄されるため、決定コードは追跡できない記号になる。CI はソースコードのコメントを検査しない。
 
 ## どの層に書くかの判断
 
@@ -115,9 +120,23 @@ metadata:
 
 ### インデックス
 
-`.claude/agent-memory/<agent>/MEMORY.md` に1行追記する（`- [タイトル](file.md) — 要約`）。
-MEMORY.md はセッション開始時に読み込まれるインデックスで、本文は必要時のみロードされる。
-1エージェントあたり 25 行を超えたら、追記の前に既存メモリの統合を検討すること。
+`.claude/agent-memory/<domain>/MEMORY.md` に1行追記する（`- [タイトル](file.md) — 要約`）。
+MEMORY.md は作業の最初に読むインデックスで、本文は必要時のみ読む。
+1ディレクトリあたり 25 行を超えたら、追記の前に既存メモリの統合を検討すること。
+
+### ディレクトリ（`<domain>`）
+
+| ディレクトリ | 置くもの | 読む契機 |
+| --- | --- | --- |
+| `backend/` | backend の実装・計画の落とし穴と手順 | `packages/backend/AGENTS.md` の指示 |
+| `mobile/` | mobile の実装・計画の落とし穴と手順 | `packages/mobile/AGENTS.md` の指示 |
+| `common/` | 領域に属さない git・ドキュメント作業の落とし穴 | ルートの `AGENTS.md` の指示 |
+| `plane-project-manager/`、`dependabot-update-resolver/` | その agent 固有の手順 | agent の `memory: project` による自動読込 |
+
+agent 名ごとに分けていた時期（〜SS-202）は、同じ領域の知識が planner / developer / reviewer に分散し、
+メインエージェントが直接作業する構成では読む場所が定まらなかったため、領域ごとに再編した。
+レビューで繰り返し使う確認項目はメモリではなく `.claude/skills/change-review/references/` に置く
+（レビュアーが必ず読むのは参照資料で、メモリは索引から関係するものだけを読むため。経緯は [ADR-014](./adr/ADR-014-claude-harness-main-agent-and-review-structure.md)）。
 
 ## tmp/ の扱い
 
@@ -130,12 +149,22 @@ MEMORY.md はセッション開始時に読み込まれるインデックスで�
 
 メモリの取捨選択を感覚で行わないために、**本文が読まれた回数**を記録している。
 
-- 記録: `scripts/knowledge/record-memory-access.sh`（PreToolUse フック / `Read`）
-- 保存先: `.claude/memory-access-log/<YYYY-MM>/<session-id>.jsonl`
-- 集計: `scripts/knowledge/memory-access-report.py`
+- 記録: `scripts/knowledge/record-memory-access.sh`（PreToolUse フック / `Read`・`Bash`）
+- 手元の保存先: `<git-common-dir>/memory-access-log/<YYYY-MM>/<session-id>.jsonl`（作業ツリーの外。同じ clone の worktree で共有）
+- 共有の保存先: `.claude/memory-access-log/<YYYY-MM>/<session-id>.<移した時刻>-<乱数>.jsonl`（コミットする）
+- 移し込み: `scripts/knowledge/flush-memory-access-log.sh`
+- 集計: `scripts/knowledge/memory-access-report.py`（共有と手元の両方を読む）
 
-セッションごとに別ファイルへ追記するため、**複数人がログをコミットしても衝突せず合算できる**。
-ログは `task-workflow` の最後の操作としてコミットされ、PR に含まれる（未コミットのまま作業を終えない）。
+フックは作業ツリーの外に記録するので、作業の途中や PR 作成の後にメモリを読んでも作業ツリーは汚れない。
+PR を作るとき（`knowledge-harvest` のコミット）に移し込みスクリプトで共有の保存先へ移してコミットする。
+移した後に読んだ分は手元に残り、次の PR で移される。人が手で PR を作るときも、PR 前に同じスクリプトを実行する。
+移すたびに一意なファイル名にするため、**別マシン・複数人のログや、同じセッションのログを別々の PR に移しても衝突せず合算できる**
+（手元の置き場所は全 worktree で共有されるので、同じセッションの分が別々のブランチへ移ることがある）。
+
+移す前に clone を消した分と、ログを移した PR がマージされずに閉じた分は失われる（許容している。経緯は SS-204）。
+`Bash` での読み取りは、読み取り系のコマンド（`cat`・`head`・`sed` など）の引数に書かれた agent-memory のパスから推定する近似。
+リダイレクトの書き込み先・`sed -i`・`git log` / `diff` / `rm` の引数は数えない。`cd` してから相対パスで読む、`grep`・`git show` で読む、は記録されない。
+フックや移し込みを試すと、試したコマンド自体も記録される。試した後は、移す前に手元のログから該当する行を取り除く（SS-204 で、試験の記録をそのままコミットしかけた）。
 
 ```bash
 scripts/knowledge/memory-access-report.py --days 30
@@ -145,8 +174,8 @@ scripts/knowledge/memory-access-report.py --days 30
 ただし読まれた回数が少ないだけで無価値とは限らないため（稀にしか起きない事故を防ぐメモは
 読まれる頻度が低い）、最終判断は内容を見て行う。
 
-なお、`MEMORY.md`（インデックス）はセッション開始時に自動で読み込まれるため
-`Read` を経由せず、この計測には現れない。計測対象はあくまで**本文のロード**である。
+なお、agent の `memory: project` で自動読込される `MEMORY.md` は `Read` を経由しないため、この計測には現れない。
+領域別ディレクトリの `MEMORY.md` は作業の最初に `Read` で読むので生ログには残るが、集計（`memory-access-report.py`）は `MEMORY.md` を除外する。
 
 ## 検査
 
@@ -154,10 +183,11 @@ scripts/knowledge/memory-access-report.py --days 30
 | --- | --- | --- |
 | tmp/ への参照 | `scripts/knowledge/check-tmp-references.sh` | CI（docs lint） |
 | agent-memory の front-matter | `scripts/knowledge/check-memory-frontmatter.py` | メモリ書き込み時のフック / CI |
+| 文書中のリンク・ファイルパス・pnpm script の実在（インラインのリンク、ルート相対のインラインコードのパス、`pnpm --filter`。範囲外は doc-maintainer） | `scripts/knowledge/check-doc-references.py` | CI（docs lint。全 PR・main への push） |
 | メモリの陳腐化（参照先の実在・`verify_by`） | `scripts/knowledge/check-memory-staleness.py` | 棚卸し時 |
 | tmp/ の掃除 | `scripts/knowledge/gc-tmp.sh` | 棚卸し時（既定 dry-run） |
 
-前2つはベースライン方式で、既存の未解消分は据え置き、新規の流入のみを止める。
+tmp/ 参照・front-matter・文書中の参照の3つはベースライン方式で、既存の未解消分は据え置き、新規の流入のみを止める。
 ベースラインは棚卸しによって減らしていく。**ベースラインの件数が減っているかどうかが、
 この仕組みが機能しているかの指標**になる。
 
@@ -168,11 +198,11 @@ scripts/knowledge/memory-access-report.py --days 30
 | いつ | 何を | 誰が |
 | --- | --- | --- |
 | メモリ書き込みの都度 | front-matter 規約の検査 | PostToolUse フック（自動） |
-| メモリ本文を読む都度 | アクセスの記録 | PreToolUse フック（自動） |
-| PR時 | tmp/ 参照・front-matter 規約の検査 | CI（docs lint） |
-| **チケット完了時（PR作成直後）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄し、結果を PR に含める | `knowledge-harvest` skill（`task-workflow` から自動モードで） |
+| メモリ本文を読む都度 | アクセスの記録（手元へ） | PreToolUse フック（自動） |
+| PR時 | tmp/ 参照・front-matter 規約・文書中のリンク・パス・pnpm script の実在の検査 | CI（docs lint） |
+| **チケット完了時（PR作成直後）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄し、手元のアクセスログを移して、結果を PR に含める | `knowledge-harvest` skill（`task-workflow` から自動モードで） |
 | PRマージ時 | 収穫の取りこぼし（残った `tmp/<issue-id>`・task-local メモリ）がある場合のみ回収 | `task-status-sync` の `pr-merged` → `knowledge-harvest` skill |
-| **週次〜月次** | 取りこぼしの棚卸し、古い `tmp/` の削除 | `knowledge-review` skill |
+| **週次〜月次** | 取りこぼしの棚卸し、古い `tmp/` の削除、main 全体での文書の乖離の確認 | `knowledge-review` skill |
 
 チケット完了時の仕分けが主役で、定期棚卸しは取りこぼしの回収に徹する。
 PR作成直後は文脈が残っているため仕分けの精度が最も高く、時間が経つほど
