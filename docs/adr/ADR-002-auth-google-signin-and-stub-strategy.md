@@ -695,6 +695,10 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
   PEM は `SecretStr`。**起動時の必須チェックには含めない**（SS-197 と同じ理由）。3つとも空なら交換・失効だけが無効
   （Apple が有効なときだけ WARNING を1回）、一部だけ・PEM 不正・EC P-256 でない場合は ERROR を1回出して無効扱い
   （項目名だけを出し、値は出さない）。ローカルは鍵不要（Apple ユーザーは dev では作れない）。fake モードは足さない。
+- client secret の生成に失敗したとき（起動時の検査をすり抜けた鍵の不備など）は、専用の `AppleSignInClientSecretError` にして
+  設定ミスとして扱う（交換は ERROR でサインイン続行、削除は ERROR で削除を進める）。一時障害（Unavailable）にすると
+  削除が 503 のまま永久に進まなくなり、未設定（NotConfigured）にすると交換側でログが出ず気付けず、
+  Apple の拒否（Rejected）に見せると `error` とステータスが実態と食い違うため、どれにも寄せない。
 - 秘密（code・refresh token・client secret・交換レスポンスの `id_token`）はログ・例外メッセージ・スパンに出さない
   （[ADR-013](./ADR-013-observability-adot-application-signals.md)）。Apple の応答の `error` は既知の集合に正規化し、任意の文字列を反映させない。
 
@@ -714,6 +718,9 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
 - 実機で「削除後に『Apple でサインイン』の連携一覧からアプリが消える」ことは、SS-196（鍵の登録と投入）と SS-199
   （端末が code を送る）が揃うまで確認できない。SS-162（アカウント削除導線の確認）で確認する。
 - Server-to-Server 通知（同意の取り消し・Apple ID の削除）は対象外のまま（SS-195 追補）。
+- Lambda が凍結から戻った後、Apple への古い keep-alive 接続が使われて失効が接続エラー（= 削除が 503）になる可能性がある。
+  ユーザーの再試行で回復するので、いまは対策しない。SS-162 の実機確認で起きるようなら
+  `httpx.Limits` の `keepalive_expiry` を短くするか keep-alive を切ることを検討する。
 
 ## 関連情報
 
