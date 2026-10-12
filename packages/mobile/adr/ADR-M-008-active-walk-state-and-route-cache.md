@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-03（SS-156）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-13（SS-168）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -19,12 +19,14 @@
 - **後始末には、位置記録のバッファの削除とタスクの停止も含まれる**（`src/lib/backgroundLocationCleanup.ts`）。`index.ts` から `expo-router/entry` より前に登録し、起動時にも停止・削除する（本文: 決定6、SS-156 追補）
 - **散歩がサーバーで削除されたときは、決定6 と同型のレジストリ（`walkDeletionCleanup`）で、`savedWalkId` が一致するドラフトだけを消す**（本文: 決定8、SS-60 追補）
 - **往路/復路の判定はせず、線の描き分け（行き=実線 / 帰り=破線）と凡例「行き / 帰り」で表す**（本文: 決定9、SS-33 追補）
+- **散歩中の地図には、歩いた軌跡（`useActiveWalk().points`）を `accent` の半透明（0.55）の太線（8px）でルート線の下に描き、凡例に「歩いた道」を足す**。点線にはしない。地図用の新しいトークンは足さない（本文: 決定10、SS-168 追補）
 
 ### 未解決・持ち越し
 
 - **ローカル永続化と起動時の復帰（SS-36）は未着手**。着手するときは決定5 を覆すため本 ADR の再追補が必要。あわせて、ADR-M-018 のバッファと起動時の停止を「復元」へ見直す（本文: 決定5、移行・対応が必要な事項、SS-156 追補）
 - **`theme.map.routeReturn` は Claude Design 側に未反映**（本文: 移行・対応が必要な事項、SS-33 追補）
 - **ダーク表示での帰りの線の見え方と、凡例の TalkBack 読み上げは未確認**。ダークモードへの追従自体は SS-86 で確認済み（本文: 移行・対応が必要な事項、SS-33 追補）
+- **歩いた軌跡とルート線が重なったときの見え方、iOS で `Polyline` の `zIndex` が効くか、軌跡の色がカフェのカテゴリ色と同じことの是非は未確認**（本文: 決定10・移行・対応が必要な事項、SS-168 追補）
 - **ストアの `src/store/` への昇格**: 本文は「2つ以上の機能から参照されたら昇格」とし、SS-19 時点では昇格しないとしている。2026-10-03 時点では、`useActiveWalkStore` / `useFinishedWalkStore` は `features/auth`（`useAuthActions` / `postSignInDestination`）と `features/settings`（`useAccountDeletion`）からも参照されている。昇格の要否はまだ判断していない（本文: 移行・対応が必要な事項。SS-167 で判断する）
 
 ### 変更・撤回された決定
@@ -38,7 +40,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）、2026-10-02 追補（SS-156）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）、2026-10-02 追補（SS-156）、2026-10-13 追補（SS-168）
 
 ## ステータス
 
@@ -63,6 +65,8 @@
 **SS-33「往路と復路が異なる周回ルートの提示（散歩中の再計算は撤去）」で追補**した（決定1 の `ActiveWalk` フィールドを `roundTripMinutes/roundTripKm` から `loopMinutes/loopKm` へ rename、決定2 のルート本体を片道から周回に変更しキャッシュ共有の例外（SS-35 追補分）を撤回、決定7〔散歩中の現在地起点ルート再計算〕を撤回、往路/復路の判定をしないことを新しい決定9として追加）。追補部分には `（SS-33 追補）` を付けている。
 
 **SS-156「アプリがバックグラウンドの間も散歩の位置情報を取得・記録できるようにする」で追補**した（決定5 に、記録中の位置サンプルを端末のファイルへ一時的に書くようになったことを、決定6 に、後始末へバッファの削除とタスクの停止が加わったことを追記した。決定そのものは変更していない）。追補部分には `（SS-156 追補）` を付けている。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)。
+
+**SS-168「散歩中に、自分が歩いてきた軌跡を地図上に表示する」で追補**した（散歩中の地図に歩いた軌跡を描く方式を決定10として追加した。決定1〜9 は変更していない）。追補部分には `（SS-168 追補）` を付けている。
 
 ## コンテキスト
 
@@ -234,6 +238,20 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
   - 凡例の語彙を「往路・復路」にする: 散歩アプリの語彙として硬いため、平易な「行き・帰り」を採用。
   - 復路の色を Claude Design で先に定義してから実装する: 着手が遅れるため、既存 primitive を使った semantic トークン（`routeReturn`）の追加で先行し、Design 側への反映は後追いにした（「移行・対応が必要な事項」を参照）。
 
+### 10. 散歩中の地図に歩いた軌跡を半透明の太線で描き、凡例に「歩いた道」を足す（SS-168 追補）
+
+課題本文の「散歩中に、自分が歩いてきた軌跡を地図上に表示する（細かな点線、または半透明の線）」を、次の形で満たす。
+
+- **データ**: 保存用に既に持っている `useActiveWalk().points`（`useWalkTracking` の軌跡）をそのまま描く。新しい状態・API・依存は増やさない。一時停止中は軌跡に点を足さない（既存の仕様）ため、一時停止の前後は直線で結ばれる。保存される軌跡も同じ形。
+- **見た目**（`features/walk/lib/walkTrailStyle.ts`）: `theme.colors.accent` を不透明度 0.55 にした実線、太さ 8px（ルート線は 5px）。`zIndex` 0 でルート線（復路 1・往路 2）の下に敷く。ルートどおりに歩くと、軌跡はルート線の縁取りとして見え、ルート線を隠さない。線は既存の `RoutePolyline` で描く。
+- **凡例**（`walkMapLegendItems`）: 周回ルートの項目の後ろに「歩いた道」を足す。軌跡が2点以上（`isDrawableTrail`。`RoutePolyline` が描ける条件と同じ）のときだけ出す。周回ルートが未取得でも軌跡があれば凡例を出す。散歩開始画面（`SpotMapView`）は軌跡を渡さないので変わらない。
+- **E2E**: 凡例は軌跡だけでも出るため、`mvp-walk-flow.yaml` は周回ルートの描画を凡例全体ではなく「行き」の項目（`walk-active-route-legend-outbound`）で確かめる。
+- **検討した選択肢**:
+  - 細かな点線（課題のもう1案）: 復路の破線が `lineCap="round"` で既に「丸い点の点線」に見えており（決定9 の Android 実機確認）、区別がつかないため不採用。
+  - 地図用の新しいトークン（`theme.map.trail` など）を足す: トークンの値の SSoT は Claude Design で、同期は Design → コードの一方向（[ADR-M-005](./ADR-M-005-styling-without-unistyles.md) の SS-202 追補）。決定9 の `routeReturn` のように Design 側への反映待ちを増やさないため、既存の `accent` を半透明にして使う。
+  - ルート線と同系色（青）を半透明にする: 重なったときにルート線が太く見えるだけで、歩いた区間と区別できないため不採用。
+  - 軌跡をルート線の上に描く: 予定ルートどおりに歩くとルート線（とくに破線の復路）が隠れるため不採用。
+
 ## 検討した選択肢
 
 ### 選択肢1: Expo Router の params で持ち回る（SS-15 の延長）
@@ -325,6 +343,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - 機能スコープのストアが**2つ以上の機能から参照されるようになったら `src/store/` へ昇格**させる。SS-19 時点では `useActiveWalkStore` / `useFinishedWalkStore` とも `features/walk` 配下（と開発確認用の `ScreenCatalog`）からのみ参照しており、昇格しない。
 - **（SS-33 追補・未着手）`theme.map.routeReturn` の Claude Design 側への反映待ち**。今回はリポジトリ側（`src/theme/tokens.ts`）に semantic トークンを追加しただけで、値の SSoT である Claude Design 側には未反映。`tokens.ts` 冒頭の「デザイン側が更新されたらここを差し替える」運用と噛み合っていないため、次に Design 側のトークンを一括インポートし直すタイミングで `routeReturn` が上書き・欠落しないよう、Design 側への反映を別途依頼すること。
 - **（SS-33 追補）Android 実機での描画確認**: 2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で確認済み。帰りの線は `lineCap="round"` + `lineDashPattern` のため「丸い点の点線」に見え、凡例 `WalkRouteLegend` の破線見本（短い線）と見た目が少し違うが、ユーザー判断で許容し据え置いた。凡例の破線見本と同じ道フォールバック時の凡例は正常に描画された。揃えたくなったら復路だけ `lineCap="butt"` にする（`RoutePolyline` に `lineCap` props を追加する）。
+- **（SS-168 追補・未確認）歩いた軌跡の見え方**: 2026-10-13 にエミュレータ（Pixel_6_Pro_API_35）で、軌跡が現在地まで伸びることと、周回ルートが未取得のとき凡例に「歩いた道」だけが出ることを確認した。サーバー用の Maps キーが無くルートを取得できなかったため、ルート線と重なったときの見え方（縁取りに見えるか）は未確認。iOS（Apple Maps）で `Polyline` の `zIndex` が効くかも未確認（効かないと軌跡がルート線の上に出る。決定9 の描き分けも同じ前提）。軌跡の色は `theme.map.cafe` と同じ hex で、ピンと紛らわしければ Design 側で軌跡の色を決めてトークン化する。
 - **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。（後日注記: SS-86 で「端末の設定」のまま `cmd uimode night yes|no` を切り替え、追従することを確認した。[ADR-M-016](./ADR-M-016-theme-mode-preference.md) の「影響」を参照）
 
 ## 関連情報
@@ -343,5 +362,6 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - （SS-37 追補）実装: `src/features/walk/lib/walkSaveTrigger.ts`、`src/features/walk/lib/walkSaveError.ts`（`walkSaveErrorAction`）、`src/features/auth/lib/postSignInDestination.ts`
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
 - （SS-33 追補）実装: `src/features/walk/lib/walkRouteLegs.ts`（描き分け・凡例・注記の純粋関数）、`src/features/walk/components/WalkRoutePolylines.tsx`、`src/features/walk/components/WalkRouteLegend.tsx`、`src/features/walk/lib/walkRoute.ts`（`toWalkRoute` の legs 整形・`toRouteMinutes`）、`src/features/walk/api/walkRouteApi.ts`（`/explore/routes/loop`）、`src/features/walk/components/WalkRouteNotice.tsx`（縮小版）、`src/theme/tokens.ts`（`ThemeMapColors.routeReturn` 追加）、`src/components/ui/route-polyline/RoutePolyline.tsx`（`color`/`dashPattern`/`strokeWidth`/`zIndex` の任意 props 追加）
+- （SS-168 追補）実装: `src/features/walk/lib/walkTrailStyle.ts`（軌跡の線の見た目）、`src/features/walk/lib/walkRouteLegs.ts`（`isDrawableTrail` / `walkMapLegendItems`）、`src/features/walk/components/WalkRouteMapView.tsx`（`trail` props）、`src/features/walk/components/WalkRouteLegend.tsx`、`.maestro/mvp-walk-flow.yaml`
 - [ADR-007: 周回ルート生成](../../../docs/adr/ADR-007-loop-route-generation.md) — backend 側の周回ルート生成方式（SS-33 の発生元）
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元。決定7 は SS-33 で撤回）、SS-50（本追補の発生元）、SS-37（本追補の発生元）、SS-33（本追補の発生元。決定1/2 更新、決定7 撤回、決定9 新設）
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元。決定7 は SS-33 で撤回）、SS-50（本追補の発生元）、SS-37（本追補の発生元）、SS-33（本追補の発生元。決定1/2 更新、決定7 撤回、決定9 新設）、SS-168（本追補の発生元。決定10 新設）
