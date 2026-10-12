@@ -9,8 +9,10 @@ export type WalkRoutePolylineSegment = {
 };
 
 export type WalkRouteLegendItem = {
-  /** 凡例の線見本のスタイル（outbound = 実線 / return = 破線）。 */
-  kind: WalkRouteLegKind;
+  /**
+   * 凡例の線見本のスタイル（outbound = 実線 / return = 破線 / trail = 歩いた軌跡の半透明の線。SS-168）。
+   */
+  kind: WalkRouteLegKind | "trail";
   label: string;
 };
 
@@ -20,6 +22,8 @@ const LEGEND_LABELS = {
   return: "帰り",
   /** returnIsSamePath のときの outbound 項目のラベル。 */
   outboundSamePath: "行き・帰り（同じ道）",
+  /** 散歩中に実際に歩いた軌跡（SS-168）。 */
+  trail: "歩いた道",
 } as const;
 
 /**
@@ -70,6 +74,30 @@ export function walkRouteLegendItems(route: WalkRoute): WalkRouteLegendItem[] {
   }
   if (kinds.has("return")) {
     items.push({ kind: "return", label: LEGEND_LABELS.return });
+  }
+  return items;
+}
+
+/**
+ * 歩いた軌跡が線として描けるか（2点以上。`RoutePolyline` は2点未満で何も描かない）。
+ * 線と凡例で同じ判定を使うために切り出している（SS-168）。
+ */
+export function isDrawableTrail(trail: readonly GeoCoordinates[]): boolean {
+  return trail.length >= 2;
+}
+
+/**
+ * 散歩中の地図の凡例の項目。周回ルートの項目（`walkRouteLegendItems`）の後ろに「歩いた道」を足す（SS-168）。
+ * - ルートが未取得（null）でも、軌跡が描けるなら「歩いた道」だけを出す
+ * - 軌跡が描けない（2点未満）なら「歩いた道」は出さない
+ */
+export function walkMapLegendItems(
+  route: WalkRoute | null,
+  trail: readonly GeoCoordinates[],
+): WalkRouteLegendItem[] {
+  const items = route ? walkRouteLegendItems(route) : [];
+  if (isDrawableTrail(trail)) {
+    items.push({ kind: "trail", label: LEGEND_LABELS.trail });
   }
   return items;
 }

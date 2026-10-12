@@ -1,24 +1,35 @@
 import { Text, View } from "react-native";
 
-import { walkRouteLegendItems } from "@/features/walk/lib/walkRouteLegs";
+import { walkMapLegendItems } from "@/features/walk/lib/walkRouteLegs";
+import { walkTrailStyle } from "@/features/walk/lib/walkTrailStyle";
 import type { WalkRoute } from "@/features/walk/types";
+import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type WalkRouteLegendProps = {
-  walkRoute: WalkRoute;
+  /** 周回ルート。未取得（null）なら往路/復路の項目は出さない。 */
+  walkRoute: WalkRoute | null;
+  /**
+   * 散歩中に歩いた軌跡（SS-168）。線として描ける（2点以上）なら「歩いた道」を足す。
+   * 散歩開始画面では渡さない。
+   */
+  trail?: readonly GeoCoordinates[];
   testID?: string;
 };
 
+const NO_TRAIL: readonly GeoCoordinates[] = [];
+
 /**
- * WalkRouteLegend — 地図の左下に重ねる、往路/復路の凡例。
+ * WalkRouteLegend — 地図の左下に重ねる、往路/復路（散歩中は歩いた道も。SS-168）の凡例。
  * 散歩開始画面（`SpotMapView`）と散歩中画面（`WalkRouteMapView`）の両方から使う。
  * 判定（現在どちらの区間にいるか）は行わない。描き分け＋凡例だけで表現する（SS-33）。
  */
-export function WalkRouteLegend({ walkRoute, testID }: WalkRouteLegendProps) {
+export function WalkRouteLegend({ walkRoute, trail = NO_TRAIL, testID }: WalkRouteLegendProps) {
   const theme = useTheme();
   const styles = useStyles();
-  const items = walkRouteLegendItems(walkRoute);
+  const items = walkMapLegendItems(walkRoute, trail);
+  const trailStyle = walkTrailStyle(theme);
 
   if (items.length === 0) {
     return null;
@@ -50,7 +61,9 @@ export function WalkRouteLegend({ walkRoute, testID }: WalkRouteLegendProps) {
               styles.swatch,
               item.kind === "return"
                 ? { borderColor: theme.map.routeReturn, borderStyle: "dashed" }
-                : { borderColor: theme.map.route, borderStyle: "solid" },
+                : item.kind === "trail"
+                  ? [styles.trailSwatch, { borderColor: trailStyle.color }]
+                  : { borderColor: theme.map.route, borderStyle: "solid" },
             ]}
           />
           <Text style={styles.label}>{item.label}</Text>
@@ -83,6 +96,12 @@ const useStyles = makeStyles((theme) => ({
     width: 20,
     height: 0,
     borderTopWidth: 3,
+  },
+  /** 歩いた道の見本。地図の線と同じく太めの半透明の実線にする（SS-168）。 */
+  trailSwatch: {
+    borderStyle: "solid",
+    borderTopWidth: 5,
+    borderRadius: 3,
   },
   label: {
     fontSize: theme.typography.size["2xs"],

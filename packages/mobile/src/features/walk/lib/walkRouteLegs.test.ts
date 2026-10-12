@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isDrawableTrail,
+  walkMapLegendItems,
   walkRouteLegendItems,
   walkRouteLoopNote,
   walkRoutePolylineSegments,
@@ -151,6 +153,43 @@ describe("walkRouteLegendItems", () => {
     const segmentKinds = new Set(walkRoutePolylineSegments(route).map((segment) => segment.kind));
     const legendKinds = new Set(walkRouteLegendItems(route).map((item) => item.kind));
     expect(legendKinds).toEqual(segmentKinds);
+  });
+});
+
+describe("isDrawableTrail", () => {
+  it("2点以上なら描ける", () => {
+    expect(isDrawableTrail(OUTBOUND_PATH.slice(0, 2))).toBe(true);
+  });
+
+  it.each([
+    ["0点", []],
+    ["1点", OUTBOUND_PATH.slice(0, 1)],
+  ])("%sなら描けない", (_label, trail) => {
+    expect(isDrawableTrail(trail)).toBe(false);
+  });
+});
+
+describe("walkMapLegendItems", () => {
+  it("ルートと軌跡があれば、ルートの項目の後ろに「歩いた道」", () => {
+    expect(walkMapLegendItems(buildRoute(), OUTBOUND_PATH)).toEqual([
+      { kind: "outbound", label: "行き" },
+      { kind: "return", label: "帰り" },
+      { kind: "trail", label: "歩いた道" },
+    ]);
+  });
+
+  it("軌跡が1点だけならルートの項目のみ", () => {
+    expect(walkMapLegendItems(buildRoute(), OUTBOUND_PATH.slice(0, 1))).toEqual(
+      walkRouteLegendItems(buildRoute()),
+    );
+  });
+
+  it("ルートが未取得でも、軌跡があれば「歩いた道」だけ", () => {
+    expect(walkMapLegendItems(null, OUTBOUND_PATH)).toEqual([{ kind: "trail", label: "歩いた道" }]);
+  });
+
+  it("ルートも軌跡も無ければ空配列", () => {
+    expect(walkMapLegendItems(null, [])).toEqual([]);
   });
 });
 
