@@ -62,7 +62,7 @@ export function WalkRouteLegend({ walkRoute, trail = NO_TRAIL, testID }: WalkRou
               item.kind === "return"
                 ? { borderColor: theme.map.routeReturn, borderStyle: "dashed" }
                 : item.kind === "trail"
-                  ? [styles.trailSwatch, { borderColor: trailStyle.color }]
+                  ? { borderColor: trailStyle.color, borderStyle: "solid" }
                   : { borderColor: theme.map.route, borderStyle: "solid" },
             ]}
           />
@@ -96,12 +96,6 @@ const useStyles = makeStyles((theme) => ({
     width: 20,
     height: 0,
     borderTopWidth: 3,
-  },
-  /** 歩いた道の見本。地図の線と同じく太めの半透明の実線にする（SS-168）。 */
-  trailSwatch: {
-    borderStyle: "solid",
-    borderTopWidth: 5,
-    borderRadius: 3,
   },
   label: {
     fontSize: theme.typography.size["2xs"],

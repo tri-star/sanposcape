@@ -21,7 +21,7 @@ export type WalkRouteMapViewProps = {
   walkRoute: WalkRoute | null;
   currentPosition: GeoCoordinates | null;
   /**
-   * 散歩中に歩いた軌跡（SS-168）。周回ルートの線の下に半透明の線で描く。
+   * 散歩中に歩いた軌跡（SS-168）。周回ルートの線の上に、細い半透明の線で描く。
    * 一時停止中は点が増えないため、一時停止の前後は直線で結ばれる。
    */
   trail: readonly GeoCoordinates[];
@@ -64,10 +64,11 @@ const CURRENT_PIN_SIZE = 30;
 const GOAL_MARKER_Z_INDEX = 1;
 const CURRENT_MARKER_Z_INDEX = 2;
 /**
- * 歩いた軌跡の線の重なり順。周回ルートの線（復路 1・往路 2。`WalkRoutePolylines`）より下に敷き、
- * ルートどおりに歩いたときはルート線の縁取りとして見えるようにする（SS-168）。
+ * 歩いた軌跡の線の重なり順。周回ルートの線（復路 1・往路 2。`WalkRoutePolylines`）より上に重ねる（SS-168）。
+ * `zIndex` が効くのは Android（Google Maps）だけ。iOS（Apple Maps）は効かず、後から足した線・座標が変わった線が上に来る。
+ * 軌跡は位置が届くたびに座標が変わるので iOS でも上に来る。描く順序も軌跡を後ろに置き、両方で同じ重なりにする。
  */
-const TRAIL_Z_INDEX = 0;
+const TRAIL_Z_INDEX = 3;
 
 /**
  * WalkRouteMapView — 散歩中画面の実地図。ルート・歩いた軌跡（SS-168）・目的地・現在地を描く。
@@ -158,13 +159,13 @@ export function WalkRouteMapView({
           if (sanitized) onRegionChangeComplete?.(sanitized);
         }}
       >
+        {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         <RoutePolyline
           path={trail}
           color={trailStyle.color}
           strokeWidth={trailStyle.strokeWidth}
           zIndex={TRAIL_Z_INDEX}
         />
-        {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         {walkRoute ? (
           <Marker
             coordinate={walkRoute.destination.location}

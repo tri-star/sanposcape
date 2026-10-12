@@ -43,8 +43,10 @@ const useStyles = makeStyles((theme) => ({
 - 地図のカテゴリ色は `theme.map`（`park` / `cafe` / `culture` / `station` …）を使う。
   ルート線には `theme.map.route`（往路・既定の1本道ルート）と `theme.map.routeReturn`
   （周回ルートの復路。破線と併用して描き分ける、SS-33）がある。
-  散歩中に歩いた軌跡は `theme.colors.accent` を半透明にした太い実線で、ルート線の下に敷く
+  散歩中に歩いた軌跡は `theme.colors.accent` を半透明にした細い実線で、ルート線の上に重ねる
   （`features/walk/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
+  `Polyline` の `zIndex` は iOS の Apple Maps では効かず、座標が変わった線が一番上に来るため、
+  重なり順に頼る見た目（下に太く敷いて縁取りに見せる等）にしない。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
   `lineHeight()` / `letterSpacing()` で px に換算して指定する。
 

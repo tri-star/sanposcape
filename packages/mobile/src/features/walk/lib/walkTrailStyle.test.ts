@@ -14,7 +14,7 @@ describe("walkTrailStyle", () => {
     expect(color.slice(0, 7)).not.toBe(theme.map.routeReturn);
   });
 
-  it("ルート線（5px）より太い", () => {
-    expect(walkTrailStyle(lightTheme).strokeWidth).toBeGreaterThan(5);
+  it("ルート線（5px）より細い", () => {
+    expect(walkTrailStyle(lightTheme).strokeWidth).toBeLessThan(5);
   });
 });
