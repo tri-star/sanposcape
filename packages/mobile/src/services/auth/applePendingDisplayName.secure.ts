@@ -15,6 +15,7 @@ const PENDING_APPLE_DISPLAY_NAME_KEY = "sanposcape.applePendingDisplayName";
  * 氏名は個人情報なので refresh token と同じ Keychain に置く。値は最大でも 255 コードポイント + Apple の user で、
  * SecureStore の値の上限（約 2KB）に収まる。
  * iOS の Keychain はアプリを再インストールしても残りうるが、Apple のユーザーが一致したときに再送されるだけで害は無い。
+ * サインアウト（アカウント削除成功後を含む）では `realSignOut.ts` が消す。1ユーザー分しか保持しない（単一スロット）。
  */
 export const securePendingAppleDisplayNameStore: PendingAppleDisplayNameStore = {
   async load() {

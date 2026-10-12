@@ -40,6 +40,8 @@ export function createAppleSessionIssuer(deps: AppleSessionIssuerDeps): () => Pr
     const credential = await requestCredential(nonce.hashed);
 
     const freshName = sanitizeAppleDisplayName(credential.displayName);
+    // 今回の save が成功したか。失敗したとき、ストアに残る別ユーザーの保留分を成功後の clear で消さないために使う。
+    let saved = false;
     if (freshName !== null) {
       // Apple が氏名を返すのは初回だけ。送信が失敗しても失わないよう、送る前に保持する。
       try {
@@ -47,6 +49,7 @@ export function createAppleSessionIssuer(deps: AppleSessionIssuerDeps): () => Pr
           appleUserId: credential.user,
           displayName: freshName,
         });
+        saved = true;
       } catch {
         // 保存できなくても、このリクエストでは送れる。
       }
@@ -68,7 +71,8 @@ export function createAppleSessionIssuer(deps: AppleSessionIssuerDeps): () => Pr
       });
 
     // 保持中の氏名がこの Apple ユーザーのものか（別ユーザーの保持分には触れない）。
-    const ownsPending = freshName !== null || pendingForThisUser !== null;
+    // ストアは1ユーザー分の単一スロットなので、save 成功なら今回のユーザーの保留分で上書き済み。
+    const ownsPending = saved || pendingForThisUser !== null;
     const clearOwnedPending = async () => {
       if (!ownsPending) return;
       try {
@@ -86,8 +90,11 @@ export function createAppleSessionIssuer(deps: AppleSessionIssuerDeps): () => Pr
         // 氏名が弾かれ続けると保持 → 再送 → 422 を繰り返し、その Apple ID でサインインできなくなる。
         // 422 はハンドラ前の検証で返るので code は消費されておらず、nonce 検証は状態を持たない。
         // 同じ token / code / nonce で、氏名を外して1回だけ再送する。
+        // 再送が成功したときだけ保留を消す。失敗したら保留を残してエラーを投げる
+        // （原因が氏名以外でも、Apple が初回しか返さない氏名を失わないため）。
+        const retried = await send(null);
         await clearOwnedPending();
-        return send(null);
+        return retried;
       }
       throw error;
     }

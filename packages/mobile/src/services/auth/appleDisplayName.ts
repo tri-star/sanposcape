@@ -12,8 +12,8 @@ type NameComponents = {
   nickname: string | null;
 };
 
-const ZWJ = "‍";
-const ZWNJ = "‌";
+const ZWJ = "\u200D";
+const ZWNJ = "\u200C";
 
 /**
  * 禁止文字（Cc・Cf・Zl・Zp）にマッチする正規表現。

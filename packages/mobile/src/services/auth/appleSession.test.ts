@@ -35,6 +35,10 @@ function memoryStore(initial: PendingAppleDisplayName | null = null) {
   return { state, store };
 }
 
+/**
+ * `credentials` は requestCredential の呼び出し順の結果（Error は reject）。
+ * 呼び出し回数が配列より多いときは最後の要素を繰り返す。
+ */
 function setup(options?: {
   credentials?: Array<AppleCredential | Error>;
   pending?: PendingAppleDisplayName | null;
@@ -121,7 +125,9 @@ describe("createAppleSessionIssuer", () => {
 
     await issue();
 
-    expect(createSession.mock.calls[0]![0]).toMatchObject({ displayName: undefined });
+    expect(
+      (createSession.mock.calls[0]![0] as { displayName?: string }).displayName,
+    ).toBeUndefined();
     expect(memory.state.value).toEqual(other);
   });
 
@@ -211,6 +217,72 @@ describe("createAppleSessionIssuer", () => {
 
     await expect(issue()).rejects.toMatchObject({ status: 422 });
     expect(createSession).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["ApiError(503)", new ApiError(503)],
+    ["TypeError", new TypeError("Failed to fetch")],
+  ])("422 後の氏名なし再送が %s で失敗: 例外が投げられ、保留中の氏名は残る", async (_l, error) => {
+    let calls = 0;
+    const { issue, memory } = setup({
+      createSession: async () => {
+        calls += 1;
+        if (calls === 1) throw new ApiError(422);
+        throw error;
+      },
+    });
+
+    await expect(issue()).rejects.toBe(error);
+    expect(memory.state.value).toEqual({ appleUserId: "apple-user-1", displayName: "田中 太郎" });
+  });
+
+  it("保留から再送した氏名で 422: 氏名なしで再送し、成功後に保留を消す", async () => {
+    const pending = { appleUserId: "apple-user-1", displayName: "保留の氏名" };
+    let calls = 0;
+    const { issue, memory, createSession } = setup({
+      credentials: [credential({ displayName: null })],
+      pending,
+      createSession: async () => {
+        calls += 1;
+        if (calls === 1) throw new ApiError(422);
+        return RAW_SESSION;
+      },
+    });
+
+    await expect(issue()).resolves.toBe(RAW_SESSION);
+    expect(createSession).toHaveBeenCalledTimes(2);
+    expect(createSession.mock.calls[0]![0]).toMatchObject({ displayName: "保留の氏名" });
+    expect(
+      (createSession.mock.calls[1]![0] as { displayName?: string }).displayName,
+    ).toBeUndefined();
+    expect(memory.state.value).toBeNull();
+  });
+
+  it("他人の保留がある状態で今回の save が失敗: 成功後も他人の保留は消えない", async () => {
+    const other = { appleUserId: "someone-else", displayName: "他人" };
+    const memory = memoryStore(other);
+    memory.store.save = vi.fn(async () => {
+      throw new Error("keychain");
+    });
+    const { issue, createSession } = setup({ store: memory.store });
+
+    await expect(issue()).resolves.toBe(RAW_SESSION);
+    expect(createSession.mock.calls[0]![0]).toMatchObject({ displayName: "田中 太郎" });
+    expect(memory.store.clear).not.toHaveBeenCalled();
+    expect(memory.state.value).toEqual(other);
+  });
+
+  it("他人の保留がある状態で氏名つきのサインイン失敗: 保留は新ユーザーで上書きされる（単一スロット）", async () => {
+    const other = { appleUserId: "someone-else", displayName: "他人" };
+    const { issue, memory } = setup({
+      pending: other,
+      createSession: async () => {
+        throw new ApiError(503);
+      },
+    });
+
+    await expect(issue()).rejects.toBeInstanceOf(ApiError);
+    expect(memory.state.value).toEqual({ appleUserId: "apple-user-1", displayName: "田中 太郎" });
   });
 
   it("save が reject してもサインインは続き、氏名はそのリクエストで送られる", async () => {

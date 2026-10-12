@@ -5,6 +5,7 @@ import type { AuthApi } from "@/services/auth/authApi";
 import { AuthError } from "@/services/auth/authError";
 import { createSessionAuthService } from "@/services/auth/createSessionAuthService";
 import { signInWithGoogle, signOutFromGoogle } from "@/services/auth/googleSignIn";
+import { createRealSignOutHandler } from "@/services/auth/realSignOut";
 import type {
   AuthService,
   AuthUser,
@@ -50,8 +51,12 @@ export function createRealAuthService(deps: {
     },
     api: deps.api,
     tokenStore: deps.tokenStore,
-    // Apple ユーザーでも呼んで害は無い（Google のセッションが無ければ何もしない。失敗は signOut 側で握りつぶす）。
-    onSignOut: signOutFromGoogle,
+    // Google のネイティブセッション破棄と、保留中の Apple の氏名（個人情報）の消去。どちらの失敗も他方を止めない。
+    // アカウント削除成功後も authService.signOut() を経由するので、ここで消える（SS-199）。
+    onSignOut: createRealSignOutHandler({
+      signOutFromGoogle,
+      clearPendingAppleDisplayName: () => deps.pendingAppleDisplayName.clear(),
+    }),
     onSessionChange: deps.onSessionChange,
   });
 }

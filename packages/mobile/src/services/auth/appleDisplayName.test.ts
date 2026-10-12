@@ -26,16 +26,16 @@ describe("sanitizeAppleDisplayName", () => {
   });
 
   it("書式制御（RLO・ZWSP・BOM）を除く", () => {
-    expect(sanitizeAppleDisplayName("a‮b​c﻿d")).toBe("abcd");
+    expect(sanitizeAppleDisplayName("a\u202Eb\u200Bc\uFEFFd")).toBe("abcd");
   });
 
   it("ZWJ を含む絵文字と ZWNJ は残す", () => {
-    expect(sanitizeAppleDisplayName("👨‍👩‍👧")).toBe("👨‍👩‍👧");
-    expect(sanitizeAppleDisplayName("a‌b")).toBe("a‌b");
+    expect(sanitizeAppleDisplayName("👨\u200D👩\u200D👧")).toBe("👨\u200D👩\u200D👧");
+    expect(sanitizeAppleDisplayName("a\u200Cb")).toBe("a\u200Cb");
   });
 
   it("行区切り・段落区切りを除く", () => {
-    expect(sanitizeAppleDisplayName("a b c")).toBe("abc");
+    expect(sanitizeAppleDisplayName("a\u2028b\u2029c")).toBe("abc");
   });
 
   it("300 コードポイントは 255 に切り詰め、サロゲートペアを壊さない", () => {
