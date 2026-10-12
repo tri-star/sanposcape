@@ -21,6 +21,7 @@ export type RoutePolylineProps = {
  * 元は `features/walk/components/WalkRoutePolyline.tsx`。SS-20 で `features/history` からも
  * 使うため `src/components/ui` へ昇格した（`MapPin` と同じカテゴリ）。
  * SS-33: 往路/復路の描き分けのため見た目の props を任意で受ける。
+ * SS-168: 散歩中の地図の「歩いた軌跡」にも使う（見た目は呼び出し側が渡す）。
  */
 export function RoutePolyline({
   path,
