@@ -891,6 +891,12 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   `MemorySize` を下げる場合は `PIN_PHOTO_CONFIRM_CONCURRENCY` も
   合わせて見直すこと（CPU 割り当ても `MemorySize` に比例するため、下げると確定処理の
   所要時間が伸び `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` に近づくリスクもある）。
+- **infra が未 apply の SSM パラメータを `{{resolve:ssm:}}` で参照する変更を、アプリ本体の PR に入れない。** apply 前に
+  デプロイすると `sam deploy` 自体が失敗し、無関係な修正のデプロイも止まる（template は dev/prod 共通なので、main に入った時点で
+  prod の初回デプロイの前提にもなる）。新しい AWS リソースを使う機能は、アプリ側を `XXX_MODE=real|fake` と「設定が空なら
+  Unconfigured（503 などの安全側）」で先に入れ、`template.yaml` の結線と実行ロールの権限は、infra の dev apply を
+  `aws ssm get-parameter` で確かめてから別の PR で入れる（前例: ADR-009 決定8 の SS-108 追補）。S3 の権限は SSM の `bucket_arn` で
+  プレフィックスまで絞り、存在しないキーの HEAD を 404 にしたいなら `s3:ListBucket` も付ける（無いと 403）。
 - **（SS-179）監視の分担を崩さない。** ap-southeast-1 の `sanposcape-<env>-backend-*` のダッシュボード・アラームは
   SAM（`template.yaml`）の所有で、infra の services 層（Terraform）はこの接頭辞を ap-southeast-1 に作らない。
   CloudFront のアラーム（us-east-1）は Terraform の所有で、SAM には作らない。名前は必ず

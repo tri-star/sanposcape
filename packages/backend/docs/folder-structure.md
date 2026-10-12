@@ -330,6 +330,10 @@ packages/backend/
 >
 > 迷ったらまず `service.py` に書き、DBアクセスが増えたら `repository.py` に切り出す。
 
+### 例外と冪等な INSERT
+- router に `try/except` を書かない。ドメイン例外は各ドメインの `exceptions.py` に定義し、`main.py` の `register_exception_handlers()` で HTTP 応答に変換する。
+- 一意制約による冪等な INSERT は、`with self._db.begin_nested():` の中で `add()`＋`flush()` し、`IntegrityError` を捕まえて既存行を取り直す（`users/repository.py`・`walks/repository.py`）。素の `rollback()` は呼び出し元の外側のトランザクションまで壊すので使わない。
+
 ### 現在時刻の扱い（クロック注入）
 - **現在時刻に依存する service・部品は、`now: Callable[[], datetime] = lambda: datetime.now(UTC)` を
   コンストラクタ引数で注入可能にする**。採用済み: `auth/service.py` の `AuthService`（トークンの有効期限）、
@@ -371,6 +375,7 @@ packages/backend/
   python_files = ["test_*.py"]
   ```
 - 共通フィクスチャ（テスト用DB・FastAPI `TestClient` 等）は `src/sanposcape/conftest.py` に集約する。
+- `create_app()` の app を `TestClient` で包むとき、対象のルートが lifespan で設定される `app.state.*` を使うなら `with TestClient(app) as client:` にする。`with` を省くときは理由をコメントに書く（例: `tests/test_main.py` の 413 のテスト、`api_docs/tests/test_router.py` の `_client()`）。
 - テスト用DBは本番/開発用DBと分離する（`TEST_DB_NAME`）。
 - テスト用DBの分離方式: スキーマは pytest の session スコープで1回だけ作り、各テストの前に
   テーブルの中身を DELETE で空にする（テストごとに `create_all`/`drop_all` はしない）。
