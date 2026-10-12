@@ -43,6 +43,10 @@ const useStyles = makeStyles((theme) => ({
 - 地図のカテゴリ色は `theme.map`（`park` / `cafe` / `culture` / `station` …）を使う。
   ルート線には `theme.map.route`（往路・既定の1本道ルート）と `theme.map.routeReturn`
   （周回ルートの復路。破線と併用して描き分ける、SS-33）がある。
+  散歩中に歩いた軌跡は `theme.colors.accent` を半透明にした細い実線で、ルート線の上に重ねる
+  （`features/walk/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
+  `Polyline` の `zIndex` は iOS の Apple Maps では効かず、座標が変わった線が一番上に来るため、
+  重なり順に頼る見た目（下に太く敷いて縁取りに見せる等）にしない。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
   `lineHeight()` / `letterSpacing()` で px に換算して指定する。
 
@@ -57,6 +61,7 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 既定スタイルになる（SS-33）。往路/復路の描き分け自体（どの区間をどの見た目で描くか）は
 `features/walk` 側の `WalkRoutePolylines.tsx` と `lib/walkRouteLegs.ts` が担い、`RoutePolyline` 自身は
 往復の概念を持たない（渡された1本の折れ線を渡された見た目で描くだけ）。
+散歩中の地図の「歩いた軌跡」も同じく `RoutePolyline` で描き、見た目は `lib/walkTrailStyle.ts` が決める（SS-168）。
 まずはこれらを組み合わせて画面を作り、足りないものが出たら追加する。
 
 - 一覧は開発確認用ルート（`app/design-system.tsx` → `DesignSystemGallery`、`/design-system`）で

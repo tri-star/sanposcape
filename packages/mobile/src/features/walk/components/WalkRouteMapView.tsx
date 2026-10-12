@@ -5,10 +5,12 @@ import MapView, { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
+import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
 import { WalkRouteLegend } from "@/features/walk/components/WalkRouteLegend";
 import { WalkRoutePolylines } from "@/features/walk/components/WalkRoutePolylines";
 import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
+import { walkTrailStyle } from "@/features/walk/lib/walkTrailStyle";
 import type { WalkRoute } from "@/features/walk/types";
 import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
@@ -18,6 +20,11 @@ import { useTheme } from "@/theme/useTheme";
 export type WalkRouteMapViewProps = {
   walkRoute: WalkRoute | null;
   currentPosition: GeoCoordinates | null;
+  /**
+   * 散歩中に歩いた軌跡（SS-168）。周回ルートの線の上に、細い半透明の線で描く。
+   * 一時停止中は点が増えないため、一時停止の前後は直線で結ばれる。
+   */
+  trail: readonly GeoCoordinates[];
   /** 目的地ピンのラベル。 */
   destinationName: string;
   /** インクリメントされるたびに現在地へ再センタリングする。 */
@@ -56,9 +63,15 @@ const GOAL_PIN_SIZE = 38;
 const CURRENT_PIN_SIZE = 30;
 const GOAL_MARKER_Z_INDEX = 1;
 const CURRENT_MARKER_Z_INDEX = 2;
+/**
+ * 歩いた軌跡の線の重なり順。周回ルートの線（復路 1・往路 2。`WalkRoutePolylines`）より上に重ねる（SS-168）。
+ * `zIndex` が効くのは Android（Google Maps）だけ。iOS（Apple Maps）は効かず、後から足した線・座標が変わった線が上に来る。
+ * 軌跡は位置が届くたびに座標が変わるので iOS でも上に来る。描く順序も軌跡を後ろに置き、両方で同じ重なりにする。
+ */
+const TRAIL_Z_INDEX = 3;
 
 /**
- * WalkRouteMapView — 散歩中画面の実地図。ルート・目的地・現在地を描く。
+ * WalkRouteMapView — 散歩中画面の実地図。ルート・歩いた軌跡（SS-168）・目的地・現在地を描く。
  * `showsUserLocation` は使わない。`EXPO_PUBLIC_LOCATION_MODE=mock` のとき OS の青ドットは
  * mock 軌跡と食い違い、点が2つ出て混乱するため、現在地は必ず `locationService` 由来の値で描く。
  * 周回ルートは参考表示。現在地がどちらの区間にいるかは判定しない（SS-33）。
@@ -66,6 +79,7 @@ const CURRENT_MARKER_Z_INDEX = 2;
 export function WalkRouteMapView({
   walkRoute,
   currentPosition,
+  trail,
   destinationName,
   recenterNonce,
   height = 322,
@@ -78,6 +92,7 @@ export function WalkRouteMapView({
 }: WalkRouteMapViewProps) {
   const theme = useTheme();
   const styles = useStyles();
+  const trailStyle = walkTrailStyle(theme);
   const mapRef = useRef<MapView>(null);
   const isFirstRecenter = useRef(true);
   // `onMapReady` は画面を離れて戻る（ネイティブの地図が window から外れて付き直す）たびにも
@@ -145,6 +160,12 @@ export function WalkRouteMapView({
         }}
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
+        <RoutePolyline
+          path={trail}
+          color={trailStyle.color}
+          strokeWidth={trailStyle.strokeWidth}
+          zIndex={TRAIL_Z_INDEX}
+        />
         {walkRoute ? (
           <Marker
             coordinate={walkRoute.destination.location}
@@ -172,9 +193,8 @@ export function WalkRouteMapView({
         ) : null}
         {mapLayers}
       </MapView>
-      {walkRoute ? (
-        <WalkRouteLegend walkRoute={walkRoute} testID="walk-active-route-legend" />
-      ) : null}
+      {/* ルートが未取得でも、軌跡が描ければ「歩いた道」の凡例を出す（項目が無ければ凡例は null を返す）。 */}
+      <WalkRouteLegend walkRoute={walkRoute} trail={trail} testID="walk-active-route-legend" />
       {children}
     </View>
   );

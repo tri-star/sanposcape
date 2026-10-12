@@ -39,6 +39,7 @@
 - 差分 PATCH + 多段保存（PATCH → 写真削除 → 写真追加）で途中失敗しても画面に留まれるとき、成功した段の応答で基準値を作り直しているか。作り直さないと「A→B を保存→A に戻す」編集が差分ゼロになりサーバーに届かない（SS-119。ADR-M-017 D11）。基準値の確定で fetching 中のキャッシュを掴んでいないか、「A→B→A」のテストがあるか。
 - `queryKey` のドメイン接頭辞・カーソルに `null` を渡さない・復旧は `resetQueries`。正本: folder-structure.md「状態管理の使い分け」
 - `pinSaveRunner` の DI テストは `dispatch()` のたびに `items` を同期で書き換えるが、`usePinPhotos.ts` は `useReducer` + render 時に同期する `itemsRef`。`await` を挟まない連続 dispatch の直後は古い配列を見うる（未確認の既知ギャップ。冪等なので実害は追加リクエスト程度）。両ファイルを触る差分で確かめる。
+- React Compiler が有効（`app.json` の `reactCompiler: true`）なので、render 中の `[...path]` のような派生値は入力の参照ごとにメモ化される。「毎レンダー新しい配列になる」と指摘する前に、そのコンポーネントが `"use no memo"` で外されていないか、Compiler が諦める書き方（render 中の ref の読み書きなど）になっていないかを確かめる（SS-168 で `RoutePolyline` の `[...path]` を誤って負荷として挙げた）。
 - render 中の ref への代入（`pausedRef.current = paused`、`useScreenBack` の `interceptRef`）と、render 中の条件付き setState（派生 state）は規約どおり（architecture-guideline.md「1回だけの状態確定」）。前者は依存配列から外す理由が書かれているか、後者は無限ループ・二重発火しないかだけを見る。
 
 ## エラー処理と後始末
@@ -65,5 +66,6 @@
 - 既知の定数（ハッシュ等）を、実装と同じ定数を import して比べるだけのテストは指摘する。別ルートで計算した値と比べさせる（SS-70: 空文字列の SHA-256 の typo を検出できない形だった）。
 - 不変条件を持つレスポンスを Orval の faker モック（引数なしの `get...ResponseMock()`）の乱数に任せていないか。単体テストが services のバレル（`index.ts`）を import していないか（ネイティブ依存に到達しうる）。
 - Maestro の yaml のコメントの主張（「戻ると◯◯になる」「`canGoBack()` が true」）は、対象の `router.push`/`replace` を grep してスタックを手でたどって確かめる。`openLink` を使うフローは `app/_layout.tsx` と `app/` のグループ構造も見る。`waitForAnimationToEnd` を時間稼ぎに使っていたら非自明な依存として指摘する。
+- 「存在だけを assert する」testID（凡例・コンテナなど）の表示条件を広げる差分では、その testID を `.maestro/` で grep し、フローが確かめたい中身を今も保証しているかを見る。保証しなくなったら、中身に当たる子の testID を待つ形にさせる（SS-168: 凡例が歩いた軌跡だけでも出るようになり、`walk-active-route-legend` の待ちが周回ルートの取得失敗を見逃すようになった）。
 - E2E が共有 dev ユーザーを壊す破壊的操作を実行していないか（自分で作った一意なデータの削除は可）。地図一覧を並び順（`item-N`）で選んでいないか。正本: architecture-guideline.md「テストの方針」、ADR-M-004
 - 誤指摘しない慣習: `*Copy.test.ts` の非空チェックは既存の慣習なので単発で Medium にしない。プランが模範に名指しした形式（`src/lib/backNavigation.test.ts` の `it.each` テーブル）に倣っていなくても Low に留める。

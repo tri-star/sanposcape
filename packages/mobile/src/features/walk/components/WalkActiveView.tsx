@@ -169,6 +169,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
       <WalkRouteMapView
         walkRoute={walk.walkRoute}
         currentPosition={walk.currentPosition}
+        trail={walk.points}
         destinationName={activeWalk.destination.name}
         recenterNonce={recenterNonce}
         height={322}
