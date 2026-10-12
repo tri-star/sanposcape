@@ -149,12 +149,20 @@ agent 名ごとに分けていた時期（〜SS-202）は、同じ領域の知�
 
 メモリの取捨選択を感覚で行わないために、**本文が読まれた回数**を記録している。
 
-- 記録: `scripts/knowledge/record-memory-access.sh`（PreToolUse フック / `Read`）
-- 保存先: `.claude/memory-access-log/<YYYY-MM>/<session-id>.jsonl`
-- 集計: `scripts/knowledge/memory-access-report.py`
+- 記録: `scripts/knowledge/record-memory-access.sh`（PreToolUse フック / `Read`・`Bash`）
+- 手元の保存先: `<git-common-dir>/memory-access-log/<YYYY-MM>/<session-id>.jsonl`（作業ツリーの外。同じ clone の worktree で共有）
+- 共有の保存先: `.claude/memory-access-log/<YYYY-MM>/<session-id>.jsonl`（コミットする）
+- 移し込み: `scripts/knowledge/flush-memory-access-log.sh`
+- 集計: `scripts/knowledge/memory-access-report.py`（共有と手元の両方を読む）
 
-セッションごとに別ファイルへ追記するため、**複数人がログをコミットしても衝突せず合算できる**。
-ログは `task-workflow` の最後の操作としてコミットされ、PR に含まれる（未コミットのまま作業を終えない）。
+フックは作業ツリーの外に記録するので、作業の途中や PR 作成の後にメモリを読んでも作業ツリーは汚れない。
+PR を作るとき（`knowledge-harvest` のコミット）に移し込みスクリプトで共有の保存先へ移してコミットする。
+移した後に読んだ分は手元に残り、次の PR で移される。人が手で PR を作るときも、PR 前に同じスクリプトを実行する。
+セッションごとに別ファイルへ追記するため、**別マシン・複数人のログをコミットしても衝突せず合算できる**。
+
+移す前に clone を消した分と、ログを移した PR がマージされずに閉じた分は失われる（許容している。経緯は SS-204）。
+`Bash` での読み取りは、コマンド中の agent-memory のパスと読み取り系のコマンド名（`cat`・`sed` など）から推定する近似で、
+`git show <rev>:<path>` のような読み方は記録しない。
 
 ```bash
 scripts/knowledge/memory-access-report.py --days 30
@@ -187,11 +195,11 @@ scripts/knowledge/memory-access-report.py --days 30
 | いつ | 何を | 誰が |
 | --- | --- | --- |
 | メモリ書き込みの都度 | front-matter 規約の検査 | PostToolUse フック（自動） |
-| メモリ本文を読む都度 | アクセスの記録 | PreToolUse フック（自動） |
+| メモリ本文を読む都度 | アクセスの記録（手元へ） | PreToolUse フック（自動） |
 | PR時 | tmp/ 参照・front-matter 規約の検査 | CI（docs lint） |
-| **チケット完了時（PR作成直後）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄し、結果を PR に含める | `knowledge-harvest` skill（`task-workflow` から自動モードで） |
+| **チケット完了時（PR作成直後）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄し、手元のアクセスログを移して、結果を PR に含める | `knowledge-harvest` skill（`task-workflow` から自動モードで） |
 | PRマージ時 | 収穫の取りこぼし（残った `tmp/<issue-id>`・task-local メモリ）がある場合のみ回収 | `task-status-sync` の `pr-merged` → `knowledge-harvest` skill |
-| **週次〜月次** | 取りこぼしの棚卸し、古い `tmp/` の削除 | `knowledge-review` skill |
+| **週次〜月次** | 取りこぼしの棚卸し、古い `tmp/` の削除、main 全体での文書の乖離の確認 | `knowledge-review` skill |
 
 チケット完了時の仕分けが主役で、定期棚卸しは取りこぼしの回収に徹する。
 PR作成直後は文脈が残っているため仕分けの精度が最も高く、時間が経つほど

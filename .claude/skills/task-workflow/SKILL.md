@@ -89,16 +89,15 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
 ### 7. 知識を収穫する
 
 - `knowledge-harvest` skill を `<issue-id>`（無ければ `<task-root>` のディレクトリ名）と「自動モード（task-workflow から呼び出し、PRあり）」で呼ぶ。
-  決定事項の ADR への転記、agent-memory の仕分け、ベースラインの更新をコミットして PR へ push し、`<task-root>` と `tmp/<PR番号>-comments.md` を削除するところまで、承認を待たずに行う。
+  決定事項の ADR への転記、agent-memory の仕分け、ベースラインの更新、手元のアクセスログの移し込みをコミットして PR へ push し、`<task-root>` と `tmp/<PR番号>-comments.md` を削除するところまで、承認を待たずに行う。
   - 手順6で `handover-notes.md` を PR 本文に反映した後に行う（収穫の後では tmp が消えている）。
   - 手順6の状態更新の後に行う（その過程で追記されたメモリも仕分けの対象に含めるため）。
 - 収穫の結果（追補した ADR、昇格・削除・統合したメモリの内訳、削除した tmp）を `gh pr edit` で PR 本文の末尾に「## 知識の収穫」として追記する
   （レビュー指摘対応では既存の節に追記する）。収穫したものが無ければこの節は省く。
 
-### 8. 作業記録をコミットして終える
+### 8. 残りがないことを確かめて終える
 
-- 未コミットのまま残ったエージェントの作業記録をコミットし、PR へ push する。
-  対象は `.claude/memory-access-log/` 配下（メモリの本文を読むたびにフックが追記するアクセスログ）と、手順7以降に追加・変更された `.claude/agent-memory/` 配下・`.claude/skills/change-review/references/` 配下のファイル。
-  アクセスログはセッションごとの追記専用ファイルなので、今回のセッションに限らず配下の未コミットファイルをすべて含めてよい。
-- この手順をワークフローの最後の操作とし、以降はメモリを読まない（読むとアクセスログが再び未コミットで残る）。最終報告は手元の情報だけで行う。
-- コミット後、`git status --porcelain -- .claude/agent-memory .claude/memory-access-log .claude/skills/change-review/references` の出力が空で、`<task-root>` が存在しないことを確かめて終える（`tmp/` は `.gitignore` 対象のため `git status` には現れない）。
+- `git status --porcelain -- .claude/agent-memory .claude/memory-access-log .claude/skills/change-review/references` の出力が空で、
+  `<task-root>` が存在しないことを確かめる（`tmp/` は `.gitignore` 対象のため `git status` には現れない）。
+  手順7の後にメモリや参照資料を変えていたら、コミットして PR へ push する。
+- メモリのアクセスログはフックが作業ツリーの外に記録し、手順7の収穫で移してコミットする。その後にメモリを読んでも作業ツリーは汚れない（読んだ分は次の PR で移される）。
