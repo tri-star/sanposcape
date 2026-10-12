@@ -11,6 +11,9 @@ class ProviderIdentity:
     email: str | None
     display_name: str | None
     photo_url: str | None
+    # 検証済みの aud。Apple の code 交換の client_id（= bundle ID）に使う（SS-198）。
+    # 検証した token から読むので、リクエストの値は使わない。Apple 以外・取れないときは None。
+    audience: str | None = None
 
 
 class IdentityProvider(Protocol):

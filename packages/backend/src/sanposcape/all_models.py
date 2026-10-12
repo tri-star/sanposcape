@@ -15,7 +15,7 @@ from sanposcape.sanpo_maps.models import (  # noqa: F401
     SanpoMap,
     SanpoMapMember,
 )
-from sanposcape.users.models import User  # noqa: F401
+from sanposcape.users.models import AppleAuthorization, User  # noqa: F401
 from sanposcape.walks.models import Walk  # noqa: F401
 
 __all__ = ["Base"]

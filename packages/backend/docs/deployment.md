@@ -31,6 +31,7 @@
 > | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **デプロイ未実施**（infra の `ManageBackendMonitoring`＝sanposcape-infra PR #53 の dev apply 待ち）。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。**dev の読み取りで確認済み（2026-10-05、infra 経由）**: スパンのフィールド名と型、Q1 / Q2 の構文と実データでの集計、REPORT 行のクエリ、Application Signals の `Environment`＝`dev` と `Operation` を含む次元、関数単位の `ConcurrentExecutions`、SSM の通知先トピック（dev / prod とも存在・購読確認済み・SNS のポリシーは CloudWatch の Publish を許可）。**未確認**: ダッシュボードの全ウィジェットの描画、Q4（bin + name の折れ線）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差（サンプリング）、デプロイそのもの。prod は ManageBackendMonitoring の prod 適用（SS-185 の prod 適用と同時期）待ち。**この行は dev へのデプロイと §14「デプロイ後の確認」を済ませたら ✅ に更新する（マージ前の完了条件）** |
 > | ログの JSON 化（§15 / SS-180） | ⚠️ **デプロイ未実施**（dev へはデプロイしていない）。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
 > | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
+> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **デプロイ未実施・実機未確認**。pytest（Apple の REST API はモック通信）は通過。**鍵は未投入で SS-196 待ち**。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。実機での確認は SS-199（端末が code を送る）と SS-162（アカウント削除導線の確認） |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -129,6 +130,8 @@ aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
 # → neon_dsn / neon_dsn_unpooled / jwt_signing_key / google_oauth_client_id /
 #   google_maps_server_api_key / apple_allowed_audiences が揃っていること
 #   （google_oauth_client_secret は未使用。apple_allowed_audiences は §3.1 で投入する）
+#   Sign in with Apple のトークン失効用の apple_team_id / apple_sign_in_key_id /
+#   apple_sign_in_private_key は §3.2 で投入する（未投入でも API は起動する）
 
 # 同名のロググループが既に存在しないこと（存在すると明示定義が CREATE_FAILED になる）
 aws logs describe-log-groups --log-group-name-prefix /aws/lambda/sanposcape-dev-backend \
@@ -187,6 +190,59 @@ aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
   起動時の必須チェックには含めていない理由は [ADR-002 の SS-197 追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)。
 - infra リポジトリのコード変更・`template.yaml` の変更は不要（シークレットの中身は Terraform 管理外で、
   Lambda の実行ロールは同じシークレットを既に読めている。§2）。
+
+### 3.2 Sign in with Apple の鍵の投入（SS-196 / SS-198。アカウント削除時のトークン失効を有効にする）
+
+アカウント削除時に Apple のトークンを失効させる（Apple の審査 5.1.1(v) の要件）には、サインイン時の
+authorization code の交換と失効で使う client secret（ES256 の JWT）を署名する鍵が要る。鍵（.p8）は
+Apple Developer で SS-196 が発行する。投入する 3 キー（シークレットのキー名は環境変数名の小文字）:
+
+| キー | 環境変数 | 値 |
+|---|---|---|
+| `apple_team_id` | `APPLE_TEAM_ID` | Team ID（10 文字） |
+| `apple_sign_in_key_id` | `APPLE_SIGN_IN_KEY_ID` | 鍵の Key ID（10 文字） |
+| `apple_sign_in_private_key` | `APPLE_SIGN_IN_PRIVATE_KEY` | .p8 の PEM 全文（改行を含む） |
+
+鍵は環境ごとに別のものを入れるのが素直（dev=`/sanposcape/dev/shared`、prod=`/sanposcape/prod/shared`）。
+鍵の Primary App ID（またはそのグループ）に、その環境の bundle ID（`apple_allowed_audiences`）が
+含まれている必要がある。合っていないと Apple が `invalid_client` を返す。
+
+PEM は改行を含むため、`--secret-string` に直接書かず、§3.1 と同じ read-modify-write で `python3` に JSON 化させる。
+**値（特に PEM）をシェルの履歴・ログ・チャットに残さない。**
+
+```bash
+export AWS_PROFILE=sanposcape-dev
+P8_FILE=/path/to/AuthKey_XXXXXXXXXX.p8   # 投入後は手元から消してよい（紛失しても Apple で再発行できる）
+
+aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
+  --query SecretString --output text \
+| TEAM_ID='XXXXXXXXXX' KEY_ID='YYYYYYYYYY' P8_FILE="$P8_FILE" python3 -c \
+  'import sys,json,os; d=json.load(sys.stdin); d["apple_team_id"]=os.environ["TEAM_ID"]; d["apple_sign_in_key_id"]=os.environ["KEY_ID"]; d["apple_sign_in_private_key"]=open(os.environ["P8_FILE"]).read(); print(json.dumps(d))' \
+| aws secretsmanager put-secret-value --secret-id /sanposcape/dev/shared \
+  --secret-string file:///dev/stdin
+
+# 投入後、キー名だけを確認する
+aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
+  --query SecretString --output text | python3 -c 'import sys,json; print(*sorted(json.load(sys.stdin)), sep="\n")'
+```
+
+- **未投入でもデプロイしてよい。** API は起動し、交換・失効だけが無効になる。ただし cold start ごとに
+  `secret is missing expected keys: [...]`（`apple_team_id` などの名前）の ERROR と、
+  `Sign in with Apple is enabled but its key is not configured` の WARNING が 1 回ずつ出る。
+  この間、Apple ユーザーのアカウントは Apple のトークンを失効させずに削除される
+  （`ERROR: Apple sign-in key is not configured; deleting the account without revoking...`）。
+  アラーム（Errors / Throttles / 5xx）には影響しない。
+- 一部だけ投入した・PEM が壊れている・EC P-256 の鍵でない場合は、起動時に ERROR（欠けている項目名だけ。値は出ない）が
+  1 回出て、同じく無効扱いになる。
+- 投入後は Lambda の再起動（再デプロイ）で反映される（設定は cold start で一度だけ読む）。
+- **デプロイと migrate の順序（`apple_authorizations` の追加）**: テーブル追加は migrate を先に流すのが推奨
+  （[リリース手順 7.4](../../../docs/release-runbook.md)）。先にコードをデプロイした場合に影響するのは、
+  Apple ユーザーのアカウント削除（500）と、code 付きの Apple サインイン（token が保存されないだけで、
+  サインインは成功する。WARNING が出る）。Google / dev ユーザーはこのテーブルを読まないので影響しない。
+- Apple への通信のタイムアウトは `APPLE_SIGN_IN_CONNECT_TIMEOUT_SECONDS`（既定 2・上限 3）と
+  `APPLE_SIGN_IN_READ_TIMEOUT_SECONDS`（既定 5・上限 10）。write と pool は connect と同じ値で、
+  1 回の最悪時間は `connect * 3 + read`（既定 11 秒・上限 19 秒）。再試行はしない。
+- 判断の記録は [ADR-002 の SS-198 追補](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)。
 
 ## 4. デプロイ手順
 
@@ -585,6 +641,12 @@ Application Signals の次元の値がアラームの Dimension と一致する�
 |---|---|---|
 | `secret is missing expected keys: [...]`（CloudWatch Logs） | シークレット JSON のキー不足 | シークレットの値を投入し直す（器は Terraform 所有なので触らない） |
 | `POST /auth/session` が `provider="apple"` で 400 `Unsupported provider` | `apple_allowed_audiences` が未投入または空 | §3.1 の手順で投入し、Lambda を再起動（再デプロイ）する |
+| `Sign in with Apple is enabled but its key is not configured` の WARNING / `Apple sign-in key settings are incomplete` / `APPLE_SIGN_IN_PRIVATE_KEY is not a valid EC P-256 PEM` の ERROR（SS-198） | Apple の鍵（`apple_team_id` / `apple_sign_in_key_id` / `apple_sign_in_private_key`）が未投入・一部だけ・PEM 不正 | §3.2 の手順で投入し、Lambda を再起動（再デプロイ）する。それまで交換・失効は無効（アカウント削除は Apple のトークンを失効させずに進む） |
+| `Apple authorization code exchange was rejected: invalid_client` / `Apple rejected the token revocation: invalid_client`（ERROR。SS-198） | 鍵・Team ID・Key ID・bundle ID の組み合わせが違う（鍵の Primary App ID にその bundle ID が含まれない、環境違いの鍵、Team ID/Key ID の取り違え） | §3.2 の値を Apple Developer の登録と突き合わせて直す。直るまで、サインイン時の保存と削除時の失効が効かない（サインイン・削除自体は成功する） |
+| `... was rejected:` / `Apple rejected the token revocation:` で `invalid_grant` 以外（`unauthorized_client`・`invalid_request`・`unknown` など。ERROR。SS-198） | 設定ミス（`unauthorized_client`）または想定外の拒否。`invalid_grant`（code の期限切れ・使用済み）だけが想定内で WARNING | `error_code` と HTTP ステータスを見て、§3.2 の値と Apple Developer の登録を確認する。`unknown` は Apple が JSON でない 4xx や未知のコードを返した。サインイン・削除自体は成功する |
+| `Apple client secret could not be generated: <例外の型名>`（ERROR。SS-198） | 鍵はあるが client secret を署名できない（鍵の種類・形式の不整合など。EC P-256 の検査は起動時に済んでいるので、通常は起きない） | §3.2 の鍵を入れ直す。サインイン・削除自体は成功する |
+| `Failed to store the Apple refresh token; continuing sign-in: <例外の型名>`（WARNING。SS-198） | `apple_authorizations` への保存に失敗した。典型は migrate 前の空白（`ProgrammingError`: テーブルが無い） | §5.2 を実行する。サインインは成功しており、token が保存されないだけ（次のサインインで自己回復する）。**テーブル追加は migrate を先に流すのが推奨**（[リリース手順 7.4](../../../docs/release-runbook.md)） |
+| `DELETE /users/me` が 503 `Account deletion temporarily unavailable`（SS-198） | Apple のトークン失効が一時的に失敗した（タイムアウト・接続失敗・5xx・429・408・425・想定外の応答）。アカウントは削除されていない | ユーザーの再試行で完了する（Apple の失効は冪等）。Apple の障害中は 5xx アラームが鳴りうる（prod のみ通知。意図どおり）。続くときは Apple のシステム状況を確認する |
 | `AccessDeniedException` on `GetSecretValue` | `Policies` の `Resource`（`{{resolve:ssm:}}` の解決結果）とシークレットの実際の ARN が不一致 | SSM パラメータの値とシークレットの ARN を突き合わせる |
 | `ResourceNotFoundException`（CloudWatch Logs） | シークレットに値が未投入（prod で起きやすい） | 値の投入を待つ、または投入する |
 | `ValidationError` + `loc=('database_dsn',)` | `neon_dsn` の写し漏れ | `core/runtime_config.py` の `SECRET_KEY_TO_ENV` を確認する |

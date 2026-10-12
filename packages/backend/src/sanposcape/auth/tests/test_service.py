@@ -1,10 +1,11 @@
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from unittest import mock
 
 import pytest
 from psycopg.errors import DeadlockDetected, ForeignKeyViolation
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -17,8 +18,12 @@ from sanposcape.auth.models import RefreshToken
 from sanposcape.auth.providers.base import ProviderIdentity
 from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.service import AuthService
+from sanposcape.auth.tests.conftest import APPLE_AUDIENCE, FakeAppleSignInClient
 from sanposcape.auth.tokens import hash_refresh_token
 from sanposcape.config import Settings
+from sanposcape.conftest import TestSessionLocal
+from sanposcape.integrations.apple.exceptions import AppleSignInUnavailableError
+from sanposcape.users.models import AppleAuthorization, User
 from sanposcape.users.repository import UserRepository
 from sanposcape.users.service import UserService
 
@@ -37,8 +42,29 @@ class _FakeGoogleProvider:
         )
 
 
+@dataclass
+class _FakeAppleProvider:
+    name: str = "apple"
+
+    def verify(self, id_token: str, *, nonce: str | None = None) -> ProviderIdentity:
+        return ProviderIdentity(
+            provider="apple",
+            subject=id_token,
+            email=None,
+            display_name=None,
+            photo_url=None,
+            audience=APPLE_AUDIENCE,
+        )
+
+
 def _make_service(
-    db_session: Session, *, auth_mode: str = "real", now: datetime | None = None
+    db_session: Session,
+    *,
+    auth_mode: str = "real",
+    now: datetime | None = None,
+    apple_sign_in_client: FakeAppleSignInClient | None = None,
+    include_apple: bool = False,
+    user_service: UserService | None = None,
 ) -> AuthService:
     settings = Settings(
         env="test",
@@ -49,12 +75,118 @@ def _make_service(
     user_repository = UserRepository(db_session)
     return AuthService(
         db_session,
-        UserService(db_session, user_repository),
+        user_service or UserService(db_session, user_repository),
         RefreshTokenRepository(db_session),
-        {"google": _FakeGoogleProvider()},
+        {
+            "google": _FakeGoogleProvider(),
+            **({"apple": _FakeAppleProvider()} if include_apple else {}),
+        },
         settings,
         now=(now and (lambda: now)) or (lambda: datetime.now(UTC)),
+        apple_sign_in_client=apple_sign_in_client,
     )
+
+
+class _UserServiceWhoseTokenStoreFails(UserService):
+    """保存だけが本物の DB エラーで失敗する（テーブルが無い migrate 前の空白を模す）。"""
+
+    def save_apple_authorization(self, user_id, *, client_id: str, refresh_token: str) -> None:
+        self._db.execute(text("INSERT INTO apple_authorizations_that_does_not_exist VALUES (1)"))
+
+
+class TestAppleAuthorizationExchange:
+    def test_exchange_happens_before_the_db_transaction_starts(self, db_session: Session) -> None:
+        """外部 HTTP（Apple）の間に DB のトランザクション（pooled 接続）を握らない。"""
+        observed: list[bool] = []
+        client = FakeAppleSignInClient(
+            subject="apple-sub-1", on_exchange=lambda: observed.append(db_session.in_transaction())
+        )
+        service = _make_service(db_session, apple_sign_in_client=client, include_apple=True)
+
+        service.create_session("apple", "apple-sub-1", nonce="n", authorization_code="code-1")
+
+        assert observed == [False]
+        assert client.exchange_calls == [("code-1", APPLE_AUDIENCE)]
+
+    def test_saves_refresh_token_with_client_id(self, db_session: Session) -> None:
+        client = FakeAppleSignInClient(subject="apple-sub-1")
+        service = _make_service(db_session, apple_sign_in_client=client, include_apple=True)
+
+        session = service.create_session(
+            "apple", "apple-sub-1", nonce="n", authorization_code="code-1"
+        )
+
+        row = db_session.get(AppleAuthorization, session.user.id)
+        assert row is not None
+        assert (row.client_id, row.refresh_token) == (APPLE_AUDIENCE, "refresh-token-for-code-1")
+
+    def test_exchange_failure_still_issues_a_session(self, db_session: Session) -> None:
+        client = FakeAppleSignInClient(
+            exchange_error=AppleSignInUnavailableError("down", reason="http_5xx")
+        )
+        service = _make_service(db_session, apple_sign_in_client=client, include_apple=True)
+
+        session = service.create_session(
+            "apple", "apple-sub-1", nonce="n", authorization_code="code-1"
+        )
+
+        assert session.access_token
+        assert session.refresh_token
+        assert db_session.scalars(select(AppleAuthorization)).all() == []
+
+    def test_store_failure_still_issues_a_session_and_keeps_the_user(
+        self, db_session: Session, caplog
+    ) -> None:
+        """保存の失敗は SAVEPOINT で閉じ込める。ユーザー作成とセッション発行は巻き込まない。"""
+        client = FakeAppleSignInClient(subject="apple-sub-1")
+        service = _make_service(
+            db_session,
+            apple_sign_in_client=client,
+            include_apple=True,
+            user_service=_UserServiceWhoseTokenStoreFails(db_session, UserRepository(db_session)),
+        )
+
+        with caplog.at_level(logging.DEBUG, logger="sanposcape.auth.service"):
+            session = service.create_session(
+                "apple", "apple-sub-1", nonce="n", authorization_code="code-1"
+            )
+
+        assert session.access_token
+        assert session.refresh_token
+        with TestSessionLocal() as other:  # commit 済みの状態を別セッションから確かめる
+            assert other.get(User, session.user.id) is not None
+            assert other.scalars(select(RefreshToken)).all() != []
+            assert other.scalars(select(AppleAuthorization)).all() == []
+        records = [r for r in caplog.records if r.name == "sanposcape.auth.service"]
+        assert [r.levelno for r in records] == [logging.WARNING]
+        assert "ProgrammingError" in caplog.text
+        assert "refresh-token-for-code-1" not in caplog.text
+        assert "apple_authorizations_that_does_not_exist" not in caplog.text
+
+    def test_no_code_means_no_exchange(self, db_session: Session) -> None:
+        client = FakeAppleSignInClient(subject="apple-sub-1")
+        service = _make_service(db_session, apple_sign_in_client=client, include_apple=True)
+
+        service.create_session("apple", "apple-sub-1", nonce="n")
+
+        assert client.exchange_calls == []
+
+    def test_works_without_an_apple_client(self, db_session: Session) -> None:
+        service = _make_service(db_session, include_apple=True)
+
+        session = service.create_session(
+            "apple", "apple-sub-1", nonce="n", authorization_code="code-1"
+        )
+
+        assert session.access_token
+
+    def test_google_ignores_authorization_code(self, db_session: Session) -> None:
+        client = FakeAppleSignInClient()
+        service = _make_service(db_session, apple_sign_in_client=client, include_apple=True)
+
+        service.create_session("google", "google-sub-1", authorization_code="code-1")
+
+        assert client.exchange_calls == []
 
 
 def test_reuse_detection_revokes_whole_family(db_session: Session) -> None:

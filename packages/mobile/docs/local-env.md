@@ -411,7 +411,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
      （`680740561437`）に作成済み**（2026-09-30）。その URL スキームは `app.config.ts` の
      `PRODUCTION_VARIANT` にあり、`APP_VARIANT=production` のときだけ `iosUrlScheme` を上書きする。
 4. **App Store 審査**: iOS で Google ログインを提供する場合、Sign in with Apple の併設が要求される
-   （MVP のリリース計画に織り込む）。
+   （審査ガイドライン 4.8 に該当することを確認済み。backend は SS-197・SS-198 で実装済み、mobile は SS-199）。
 
 ### リリース前チェックリスト（production ビルド）
 

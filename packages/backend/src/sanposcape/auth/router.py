@@ -25,6 +25,7 @@ def create_session(
         payload.provider,
         payload.id_token,
         nonce=payload.nonce,
+        authorization_code=payload.authorization_code,
         display_name=payload.display_name,
     )
     return to_session_read(result)

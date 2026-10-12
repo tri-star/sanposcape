@@ -35,7 +35,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | スキーマ管理 | Pydantic | |
 | データベース | PostgreSQL | ローカル用DB + テスト用DBを分離 |
 | 地図・POI・ルーティング | Google Maps Platform (Maps / Places / Routes) | 往復可能範囲・徒歩時間/距離・スポット候補の取得 |
-| 認証 | Google サインイン直結（mobile: public client / backend: 自前セッショントークン発行。テスト時は dev/mock モードへ差し替え） | 詳細は [ADR-002](./adr/ADR-002-auth-google-signin-and-stub-strategy.md) |
+| 認証 | Google サインイン直結（iOS は審査ガイドライン 4.8 により Sign in with Apple も併設）（mobile: public client / backend: 自前セッショントークン発行。テスト時は dev/mock モードへ差し替え） | 詳細は [ADR-002](./adr/ADR-002-auth-google-signin-and-stub-strategy.md) |
 | フィーチャーフラグ | AWS AppConfig（backend が boto3 `appconfigdata` で取得し `GET /app-config` で mobile / LP へ配る） | 取得失敗時は全フラグ OFF（fail-safe）。詳細は [ADR-008](./adr/ADR-008-deploy-release-separation.md) |
 | LP（紹介サイト） | Astro（静的出力）+ Prettier | `packages/lp`。S3 + CloudFront で配信し、CSP の都合でインラインのスクリプト・スタイルを出さない（SS-155） |
 | インフラ / ホスティング | TBD（backend/DBのホスティング先は未定） | mobileはExpo経由で配布想定 |
@@ -60,9 +60,9 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | # | 機能名 | 概要 | 優先度 |
 | --- | --- | --- | --- |
 | 1 | スプラッシュ画面 | 起動時の初期化。認証状態の復元は `AuthGate`（ルートレイアウト）が担い、スプラッシュは復元確定まで待って遷移を振り分ける | Must |
-| 2 | サインアップ / サインイン | Google サインインによるログイン（初回は backend が JIT でユーザー作成） | Must |
+| 2 | サインアップ / サインイン | Google サインイン（iOS は Sign in with Apple も）によるログイン（初回は backend が JIT でユーザー作成） | Must |
 | 3 | ログアウト | 散歩中画面の設定ボタンから設定画面を開き、画面下部の操作でセッションを破棄してサインイン画面へ戻る | Must |
-| 4 | アカウント削除 | 設定画面の確認ダイアログから `DELETE /users/me` を呼び、ユーザーと関連データ（散歩記録など）を削除してサインイン画面へ戻る（backend側の削除APIを含む） | Must |
+| 4 | アカウント削除 | 設定画面の確認ダイアログから `DELETE /users/me` を呼び、ユーザーと関連データ（散歩記録など）を削除してサインイン画面へ戻る（backend側の削除APIを含む）。Apple ユーザーは削除の前に Apple のトークンを失効させる（失効が一時的に失敗したときは削除せず再試行を促す） | Must |
 | 5 | 現在地取得・地図表示 | 位置情報を取得し地図上に現在地を表示（services層でスタブ差し替え可能に） | Must |
 | 6 | 往復範囲のスポット検索・提示 | 「往復◯分」を指定 → Google Places/Routes で範囲内のスポット候補を地図・リスト表示。名称は日本語を優先し、提供されない場合は別言語名を利用 | Must |
 | 7 | スポット選択で散歩開始 | 候補から目的地を選び、周回ルート（往路と異なる道、作れない場合は同じ道）を提示して散歩を開始（SS-33） | Must |

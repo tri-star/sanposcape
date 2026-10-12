@@ -14,7 +14,7 @@ FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構�
     - `router`: HTTPの入出力の受け渡しのみ。**薄く保つ**（バリデーションと依存解決、serviceの呼び出し）。
     - `service`: ビジネスロジック。トランザクション境界・ユースケースを持つ。
     - `repository`: DBアクセス（SQLAlchemyクエリ）を隔離する。
-- **外部API（Google Maps Platform）は `integrations/` に隔離**し、ドメインの service から利用する。コスト/レート対策のキャッシュもここに閉じ込め、クライアントから直接叩かない。
+- **外部API（Google Maps Platform・Sign in with Apple）は `integrations/` に隔離**し、ドメインの service から利用する。コスト/レート対策のキャッシュもここに閉じ込め、クライアントから直接叩かない。
 - **テストはテスト対象の近くに `tests/` サブフォルダで併置（co-location）** する（詳細は後述）。
 
 ## 全体構造
@@ -66,6 +66,10 @@ packages/backend/
 │       │
 │       ├── integrations/      # 外部API連携（隔離層）
 │       │   ├── google_maps/   #   Places / Routes クライアント + キャッシュ
+│       │   ├── apple/         #   Sign in with Apple の REST API（authorization code の交換 /auth/token と
+│       │   │                  #   トークンの失効 /auth/revoke。SS-198）。client_secret.py は ES256 の
+│       │   │                  #   client secret（JWT）の生成、client.py は Http / Unconfigured と
+│       │   │                  #   build_apple_sign_in_client。auth と users の両方から使う
 │       │   └── aws/           #   Secrets Manager 取得（boto3）+ プロセス内キャッシュ（SS-67）。
 │       │                       #   appconfig.py は AppConfig（boto3 appconfigdata）の取得層（SS-98）。
 │       │                       #   s3.py は写真ストレージ（S3 / fake / unconfigured）の抽象化層（SS-88）
@@ -80,6 +84,8 @@ packages/backend/
 │       │   ├── repository.py  #   DBアクセス（RefreshTokenRepository）
 │       │   ├── dependencies.py#   ドメイン固有の依存（get_auth_service 等）
 │       │   ├── exceptions.py  #   ドメイン固有の例外
+│       │   ├── apple_authorization.py #   サインイン時の Apple の code 交換（DB を持たない関数。ベストエフォート・
+│       │   │                  #   sub/aud の一致確認・ログの重み。SS-198）
 │       │   ├── headers.py     #   X-App-Authorization → Authorization の順で Bearer を読む（SS-67）
 │       │   ├── tokens.py      #   自前 access token(HS256) の発行・検証、refresh token の生成/ハッシュ化
 │       │   ├── providers/     #   IdP ごとの ID token 検証実装（google.py / apple.py）と、IdP 共通の JWKS クライアント（jwks.py）を隔離する層
@@ -88,12 +94,12 @@ packages/backend/
 │       ├── users/             # ドメイン: ユーザー・アカウント
 │       │   ├── __init__.py
 │       │   ├── router.py      #   APIRouter（エンドポイント定義のみ、薄く）
-│       │   ├── schemas.py     #   Pydantic（リクエスト/レスポンス）
-│       │   ├── models.py      #   SQLAlchemy モデル
-│       │   ├── service.py     #   ビジネスロジック
-│       │   ├── repository.py  #   DBアクセス（クエリ）
-│       │   ├── dependencies.py#   ドメイン固有の依存
-│       │   ├── exceptions.py  #   ドメイン固有の例外
+│       │   ├── models.py      #   SQLAlchemy モデル（User / AppleAuthorization）
+│       │   ├── service.py     #   ビジネスロジック（UserService。アカウント削除の AccountDeletionService は
+│       │   │                  #   Apple ユーザーの削除前にトークンを失効させる。SS-198）
+│       │   ├── repository.py  #   DBアクセス（クエリ。UserRepository / AppleAuthorizationRepository）
+│       │   ├── dependencies.py#   ドメイン固有の依存（get_apple_sign_in_client は auth と共有）
+│       │   ├── exceptions.py  #   ドメイン固有の例外（AccountDeletionUnavailableError → 503）
 │       │   └── tests/         #   このドメインのテスト（併置）
 │       │       ├── test_service.py
 │       │       └── test_router.py
@@ -198,7 +204,7 @@ packages/backend/
 
 ### `integrations/` — 外部API連携（隔離層）
 - Google Maps Platform（Places / Routes）などの外部クライアントとキャッシュをここに閉じ込める。
-- ドメインの `service` からのみ呼び出す。router から直接呼ばない。
+- ドメインの `service`（またはその補助モジュール。例: `auth/apple_authorization.py`）からのみ呼び出す。router から直接呼ばない。
 - 差し替え・モックしやすいよう、インターフェースを介して公開する。
 - `integrations/aws/`: AWS SDK（boto3）連携を隔離する層。`secrets.py` が Secrets Manager から
   シークレット JSON を取得し `lru_cache` でプロセス内キャッシュする。boto3 は Lambda の
@@ -207,6 +213,13 @@ packages/backend/
   `appconfig.py` は AWS AppConfig（boto3 `appconfigdata`）の取得層（transport）で、
   「AppConfig からどう取るか」だけをここに閉じ込め、評価ロジックは `core/feature_flags.py`
   に持たせる（ADR-008 追補 D3, SS-98）。
+- `integrations/apple/`: Sign in with Apple の REST API 連携（SS-198）。`AppleSignInClient`（Protocol）と
+  2 つの実装（`HttpAppleSignInClient` / 鍵未設定時の `UnconfiguredAppleSignInClient`）を持つ。
+  lifespan で 1 つだけ作って `app.state` に置き、`users/dependencies.get_apple_sign_in_client` で DI する
+  （`auth` と `users` の両方が使う。テストはこの依存を Fake に差し替える）。
+  **クライアント自身はログを出さない**（結果の重み付けは呼び出し側）。失敗は `AppleSignInError` のサブクラス
+  （Unavailable は一時障害で固定語彙の `reason` を持つ / Rejected は 4xx / NotConfigured / ClientSecret）に分類して送出する。
+  code・refresh token・client secret・交換レスポンスの `id_token` を、ログ・例外メッセージ・スパンに出さない（ADR-013）。
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
 - Lambda 固有のコードは**このパッケージにのみ**置く。ECS へ移す際はこのパッケージを使わないだけで済むようにする制約（grep で機械的に検査できる）。

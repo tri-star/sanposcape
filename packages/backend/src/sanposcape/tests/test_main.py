@@ -21,6 +21,62 @@ def test_users_router_registers_delete_me_operation() -> None:
     assert operation["security"] == [{"HTTPBearer": []}]
 
 
+def test_delete_me_declares_503_for_apple_revocation_outage() -> None:
+    from sanposcape.main import app
+
+    operation = app.openapi()["paths"]["/users/me"]["delete"]
+
+    assert "503" in operation["responses"]
+
+
+def test_account_deletion_unavailable_error_returns_503() -> None:
+    from sanposcape.users.exceptions import AccountDeletionUnavailableError
+
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise AccountDeletionUnavailableError
+
+    res = TestClient(app, raise_server_exceptions=False).get("/boom")
+
+    assert res.status_code == 503
+    assert res.json() == {"detail": "Account deletion temporarily unavailable"}
+
+
+def test_lifespan_provides_an_unconfigured_apple_client_without_key_settings() -> None:
+    from sanposcape.config import Settings
+    from sanposcape.integrations.apple.client import UnconfiguredAppleSignInClient
+    from sanposcape.main import create_app
+
+    app = create_app(Settings(env="test"))
+
+    with TestClient(app):
+        assert isinstance(app.state.apple_sign_in_client, UnconfiguredAppleSignInClient)
+
+
+def test_lifespan_closes_the_apple_client_on_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sanposcape.config import Settings
+    from sanposcape.main import create_app
+
+    closed: list[bool] = []
+
+    class _FakeAppleClient:
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr("sanposcape.main.build_apple_sign_in_client", lambda s: _FakeAppleClient())
+    app = create_app(Settings(env="test"))
+
+    with TestClient(app):
+        assert closed == []
+
+    assert closed == [True]
+
+
 class _UnregisteredAuthError(AuthenticationError):
     """テスト専用のサブクラス。`main.py` への個別ハンドラ登録を忘れたケースを模す。"""
 

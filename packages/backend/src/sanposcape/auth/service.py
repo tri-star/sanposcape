@@ -4,9 +4,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from sanposcape.auth.apple_authorization import (
+    VerifiedAppleGrant,
+    exchange_apple_authorization_code,
+)
 from sanposcape.auth.exceptions import (
     InvalidRefreshTokenError,
     RefreshTokenReuseDetectedError,
@@ -17,6 +21,7 @@ from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.tokens import create_access_token, generate_refresh_token, hash_refresh_token
 from sanposcape.config import Settings
 from sanposcape.core.observability import bind_user_id
+from sanposcape.integrations.apple.client import AppleSignInClient
 from sanposcape.users.models import User
 from sanposcape.users.service import UserService
 
@@ -67,6 +72,7 @@ class AuthService:
         providers: dict[str, IdentityProvider],
         settings: Settings,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        apple_sign_in_client: AppleSignInClient | None = None,
     ) -> None:
         self._db = db
         self._user_service = user_service
@@ -74,6 +80,8 @@ class AuthService:
         self._providers = providers
         self._settings = settings
         self._now = now
+        # None は「Apple の交換は使えない」扱い（code が来ても交換しない）。
+        self._apple_sign_in_client = apple_sign_in_client
 
     # --- 入口（real） ---
     def create_session(
@@ -83,10 +91,15 @@ class AuthService:
         *,
         nonce: str | None = None,
         display_name: str | None = None,
+        authorization_code: str | None = None,
     ) -> SessionResult:
         """`display_name` は、IdP の ID token に氏名が無い場合だけ使われる。
 
         新規作成時、または既存ユーザーの表示名が未設定（NULL）のときに反映する。
+
+        `authorization_code` は Apple のときだけ使う（SS-198）。アカウント削除時の失効のため
+        refresh token に交換して保存する。交換は ID token の検証の直後・DB に触る前に行い
+        （外部 HTTP の間に DB のトランザクションを握らない）、失敗してもサインインは失敗させない。
         """
         idp = self._providers.get(provider)
         if idp is None:
@@ -94,7 +107,12 @@ class AuthService:
             logger.warning("Identity provider is not available: %s", provider)
             raise UnsupportedProviderError(provider)
         identity = idp.verify(id_token, nonce=nonce)  # ← real 固有はここだけ
+        apple_grant = exchange_apple_authorization_code(
+            self._apple_sign_in_client, identity, authorization_code
+        )  # ← real 固有（Apple の HTTP。DB の前）
         user = self._resolve_user(identity, initial_display_name=display_name)  # ← 共通
+        if apple_grant is not None:
+            self._store_apple_authorization(user, apple_grant)  # ← 失敗してもサインインは続ける
         result = self._issue_session(user)  # ← 共通
         self._db.commit()
         return result
@@ -200,6 +218,26 @@ class AuthService:
             bind_user_id(row.user_id)  # 提示されたトークンの持ち主（refresh と同じ意味）
             self._refresh_repo.revoke_family(row.family_id, "logout", self._now())
         self._db.commit()
+
+    def _store_apple_authorization(self, user: User, grant: VerifiedAppleGrant) -> None:
+        """交換済みの refresh token を保存する。失敗してもサインインは失敗させない。
+
+        SAVEPOINT で囲むので、失敗（テーブルが無い migrate 前の空白など）はこの INSERT だけが
+        巻き戻り、同じトランザクション上のユーザー作成・セッション発行は継続できる。
+        失敗すると token は保存されず、アカウント削除時に Apple 側の失効ができない
+        （次回サインインで端末が新しい code を送れば自己回復する）。
+        """
+        try:
+            with self._db.begin_nested():
+                self._user_service.save_apple_authorization(
+                    user.id, client_id=grant.client_id, refresh_token=grant.refresh_token
+                )
+        except SQLAlchemyError as exc:
+            # 例外メッセージに SQL の引数（refresh token）が入りうるので、型名だけを出す。
+            logger.warning(
+                "Failed to store the Apple refresh token; continuing sign-in: %s",
+                type(exc).__name__,
+            )
 
     # --- 共通（real/dev で完全共有。ここを分岐させたらレビューで差し戻す） ---
     def _resolve_user(

@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Annotated, Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -145,6 +145,22 @@ class Settings(BaseSettings):
     apple_jwks_url: str = "https://appleid.apple.com/auth/keys"
     apple_issuer: str = "https://appleid.apple.com"
     apple_jwks_cache_lifespan_seconds: int = 3600
+
+    # --- Apple の REST API（code の交換・トークンの失効。ADR-002 の SS-198 追補） ---
+    # client secret（ES256 の JWT）を署名するための、Sign in with Apple 用の鍵（.p8）の情報。
+    # 3 つとも空なら交換・失効だけが無効になる（サインイン自体は動く）。一部だけ設定・PEM 不正は
+    # 起動時に ERROR を 1 回出して無効扱い。`_validate_environment_settings` の必須チェックには
+    # 含めない（理由は上の `apple_allowed_audiences` と同じ。必須化は本番リリース前に再判断する）。
+    apple_team_id: str = ""
+    apple_sign_in_key_id: str = ""
+    # .p8 の PEM 全文。`SecretStr` なので repr・検証エラーに出ない。
+    apple_sign_in_private_key: SecretStr = SecretStr("")
+    # 交換・失効は再試行しない（code は 1 回限り / 失効はユーザーの再試行に任せる）。
+    # httpx のタイムアウトはフェーズごとの上限なので、実効の最悪時間は
+    # connect * 3（connect + write + pool）+ read。上限値の組み合わせで 3*3 + 10 = 19 秒となり、
+    # Lambda / API Gateway の 29 秒に収まる（既定は 2*3 + 5 = 11 秒）。
+    apple_sign_in_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=3)
+    apple_sign_in_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
 
     # --- Maps provider モード（ADR-002 決定4 と同じ fail-safe 方針。既定は real） ---
     # fake = ネットワークを使わない決定的な provider（Maestro E2E / キー未所持の開発者用）。
@@ -310,6 +326,16 @@ class Settings(BaseSettings):
         ロググループに残るため出さない（ADR-013 決定6 / 決定3 の SS-180 追補）。
         """
         return self.env in ("local", "test")
+
+    @field_validator("apple_sign_in_private_key", mode="before")
+    @classmethod
+    def _restore_pem_newlines(cls, v: object) -> object:
+        """`.env` に 1 行で書かれた PEM のリテラル `\\n` を改行に戻す（保険）。"""
+        if isinstance(v, SecretStr):
+            v = v.get_secret_value()
+        if isinstance(v, str):
+            return v.replace("\\n", "\n")
+        return v
 
     @field_validator(
         "google_allowed_audiences",

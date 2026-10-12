@@ -46,6 +46,28 @@ def test_verify_maps_valid_token_to_provider_identity(provider, make_apple_id_to
     assert identity.photo_url is None
 
 
+def test_verify_exposes_verified_audience(provider, make_apple_id_token) -> None:
+    identity = provider.verify(make_apple_id_token(), nonce=RAW_NONCE)
+
+    assert identity.audience == APPLE_AUDIENCE
+
+
+def test_verify_exposes_the_audience_of_the_token_not_the_first_allowed_one(
+    provider, make_apple_id_token
+) -> None:
+    token = make_apple_id_token(aud="second-apple-audience")
+
+    assert provider.verify(token, nonce=RAW_NONCE).audience == "second-apple-audience"
+
+
+def test_verify_gives_no_audience_when_aud_claim_is_a_list(provider, make_apple_id_token) -> None:
+    token = make_apple_id_token(aud=[APPLE_AUDIENCE, "second-apple-audience"])
+
+    identity = provider.verify(token, nonce=RAW_NONCE)
+
+    assert identity.audience is None
+
+
 def test_verify_accepts_any_allowed_audience(provider, make_apple_id_token) -> None:
     token = make_apple_id_token(aud="second-apple-audience")
 

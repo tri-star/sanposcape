@@ -184,6 +184,8 @@ docker compose up -d --build
 - `GOOGLE_ALLOWED_ISSUERS`: Google ID token の許容 issuer（カンマ区切り可）。既定値（`https://accounts.google.com`, `accounts.google.com`）があり、通常は変更不要。
 - `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`: Google の JWKS を `PyJWKClient` のキャッシュに保持する秒数（これを過ぎると次の検証で再取得する）。既定値（3600）があり、通常は変更不要。
 - `APPLE_ALLOWED_AUDIENCES`: Apple ID token（Sign in with Apple）の許容 audience（カンマ区切り可）。iOS ネイティブの `aud` は bundle ID（dev は `com.sanposcape.app.dev`、本番は `com.sanposcape.app`）。**空だと `provider="apple"` の `POST /auth/session` は 400**（Google は影響を受けない）。空のときは WARNING が 1 回（プロセスにつき）出る。起動時の必須チェックには含めない。既存の開発者の `.env` には自動では入らないので、`.env.example` を見て足す。
+- `APPLE_TEAM_ID` / `APPLE_SIGN_IN_KEY_ID` / `APPLE_SIGN_IN_PRIVATE_KEY`: Sign in with Apple の REST API（authorization code の交換と、アカウント削除時のトークン失効。SS-198）で、client secret（ES256 の JWT）を署名するための Team ID・Key ID・.p8 の PEM 全文（`SecretStr`。`repr` や検証エラーに出ない）。**ローカルでは通常不要**: 3 つとも空なら交換・失効だけが無効になり、サインイン自体は動く（`AUTH_MODE=dev` でも `POST /auth/session` は使えるので、iOS 実機の Apple ID token があればローカルでも Apple ユーザーは作れる。鍵が無いと code の交換とトークンの失効は行われないので、失効まで確かめるときだけ鍵を設定する）。一部だけ設定・PEM が読めない・EC P-256 でないときは、起動時に ERROR を 1 回出して無効扱い（起動は止めない）。`.env` に PEM を 1 行で書くときは改行をリテラルの `\n` にしてよい（読み込み時に改行へ戻す）。**`compose.yaml` の `environment:` には意図的に足していない**（秘密であり、既定で無効なため。ホストの環境から秘密を流す経路を作らない）。使うときは `.env` に書く（Settings は `env_file=".env"` で、コンテナ内の `/app/.env` = `packages/backend/.env` を直接読むので、`environment:` に無い変数もコンテナに反映される）。Secrets Manager のキー名は環境変数名の小文字（`apple_team_id` など）。
+- `APPLE_SIGN_IN_CONNECT_TIMEOUT_SECONDS` / `APPLE_SIGN_IN_READ_TIMEOUT_SECONDS`: Apple の REST API の接続・読み取りのタイムアウト（既定 2.0 / 5.0 秒、上限 3 / 10）。write と pool は connect と同じ値で、再試行しないので 1 回の最悪時間は `connect * 3 + read`（既定 11 秒、上限値で 19 秒）。通常は変更不要。
 - `APPLE_JWKS_URL` / `APPLE_ISSUER` / `APPLE_JWKS_CACHE_LIFESPAN_SECONDS`: Apple の JWKS エンドポイント・`iss`・JWKS の再取得間隔。既定値（`https://appleid.apple.com/auth/keys` / `https://appleid.apple.com` / 3600）があり、通常は変更不要。
 
 ## Google Maps Platform（探索・徒歩経路）
@@ -382,6 +384,8 @@ print(r.status_code); print(r.text[:800])"
 - `AUTH_TOKEN_ISSUER` / `AUTH_TOKEN_AUDIENCE`
 - `GOOGLE_JWKS_URL` / `GOOGLE_ALLOWED_ISSUERS` / `GOOGLE_JWKS_CACHE_LIFESPAN_SECONDS`
 - `APPLE_JWKS_URL` / `APPLE_ISSUER` / `APPLE_JWKS_CACHE_LIFESPAN_SECONDS`
+- `APPLE_TEAM_ID` / `APPLE_SIGN_IN_KEY_ID` / `APPLE_SIGN_IN_PRIVATE_KEY`（秘密で、既定で無効。`.env` にだけ書く）
+- `APPLE_SIGN_IN_CONNECT_TIMEOUT_SECONDS` / `APPLE_SIGN_IN_READ_TIMEOUT_SECONDS`
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
 - `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`

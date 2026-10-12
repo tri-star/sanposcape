@@ -4,7 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from sanposcape.auth.models import RefreshToken
-from sanposcape.users.repository import UserRepository
+from sanposcape.users.models import AppleAuthorization, User
+from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 
 
 def test_create_with_duplicate_provider_subject_returns_existing_user(
@@ -122,3 +123,58 @@ def test_delete_cascades_only_deleted_users_refresh_tokens(db_session: Session) 
         .id
         == remaining_token.id
     )
+
+
+class TestAppleAuthorizationRepository:
+    def _user(self, db_session: Session) -> User:
+        user = User(provider="apple", provider_subject="apple-sub-1")
+        db_session.add(user)
+        db_session.commit()
+        return user
+
+    def test_upsert_inserts_a_row(self, db_session: Session) -> None:
+        user = self._user(db_session)
+        repository = AppleAuthorizationRepository(db_session)
+
+        repository.upsert(user.id, client_id="com.sanposcape.app.dev", refresh_token="r1")
+        db_session.commit()
+
+        row = repository.get(user.id)
+        assert row is not None
+        assert (row.client_id, row.refresh_token) == ("com.sanposcape.app.dev", "r1")
+
+    def test_upsert_overwrites_existing_row_and_keeps_one_row(self, db_session: Session) -> None:
+        user = self._user(db_session)
+        repository = AppleAuthorizationRepository(db_session)
+        repository.upsert(user.id, client_id="old.client", refresh_token="r1")
+        db_session.commit()
+        first = repository.get(user.id)
+        assert first is not None
+        created_at, first_updated_at = first.created_at, first.updated_at
+
+        repository.upsert(user.id, client_id="new.client", refresh_token="r2")
+        db_session.commit()
+
+        rows = db_session.scalars(select(AppleAuthorization)).all()
+        assert len(rows) == 1
+        row = repository.get(user.id)
+        assert row is not None
+        assert (row.client_id, row.refresh_token) == ("new.client", "r2")
+        assert row.created_at == created_at
+        assert row.updated_at > first_updated_at
+
+    def test_get_returns_none_when_absent(self, db_session: Session) -> None:
+        user = self._user(db_session)
+
+        assert AppleAuthorizationRepository(db_session).get(user.id) is None
+
+    def test_deleting_user_cascades_to_the_row(self, db_session: Session) -> None:
+        user = self._user(db_session)
+        repository = AppleAuthorizationRepository(db_session)
+        repository.upsert(user.id, client_id="c", refresh_token="r1")
+        db_session.commit()
+
+        UserRepository(db_session).delete(user)
+        db_session.commit()
+
+        assert db_session.scalars(select(AppleAuthorization)).all() == []
