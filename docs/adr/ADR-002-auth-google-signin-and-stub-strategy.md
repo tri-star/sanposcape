@@ -18,7 +18,10 @@
   （本文: 決定1、検討した選択肢「Google サインインのライブラリ」）
 - **複数プロバイダへの抽象化点は `POST /auth/session` の `provider` フィールド**。Apple 等の追加は
   モバイルのライブラリ1つ + backend の ID token 検証1つが中心だが、ID token 以外の入力（Apple の nonce・氏名）を
-  受け渡すため、schemas・`AuthService`・`UserService` にも影響する。（本文: 決定2、「SS-195 追補」節、「SS-197 追補」節）
+  受け渡すため、schemas・`AuthService`・`UserService` にも影響する。Apple の authorization code
+  （サインイン時に refresh token へ交換して保存し、アカウント削除時に失効させる）は、`integrations/apple/`
+  （REST API クライアント）・`AccountDeletionService`・新テーブル `apple_authorizations` にも影響する。
+  （本文: 決定2、「SS-195 追補」節、「SS-197 追補」節、「SS-198 追補」節）
 - **モバイルの認証は `EXPO_PUBLIC_AUTH_MODE = real | dev | mock` の3モードで、既定は `real`（fail-safe）**。
   `dev` は実物の backend を使い、トークン発行と `get_current_user` は real と同一のコードパスを通る。（本文: 決定3）
 - **backend は `AUTH_MODE`（既定 `real`）を持ち、`POST /auth/dev-session` は `AUTH_MODE=dev` のときだけ存在する**。
@@ -45,8 +48,8 @@
   `POST /auth/session` に任意の `authorization_code` を足し、検証済み ID token の `aud` を `client_id` に
   Apple の `/auth/token` で交換して refresh token を新テーブル `apple_authorizations` に**平文で**保存する
   （交換は DB の前。失敗してもサインインは成功させる）。`DELETE /users/me` は Apple ユーザーの token を
-  `/auth/revoke` で失効させてから削除する。**一時障害（タイムアウト・5xx・429）は削除せず 503**、
-  恒久的な拒否・設定ミス・鍵の未設定・token 無しはログに残して削除を進める。
+  `/auth/revoke` で失効させてから削除する。**一時障害（タイムアウト・接続失敗・5xx・429・408・425・
+  想定外の応答）は削除せず 503**、恒久的な拒否・設定ミス・鍵の未設定・token 無しはログに残して削除を進める。
   client secret（ES256）は呼び出しごとに生成しキャッシュしない。鍵の設定が無くても起動は止めない。
   （本文: 「SS-198 追補」節）
 - **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
@@ -629,7 +632,7 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
 
 - 順序: ID token の検証 → **交換（Apple の HTTP）** → ユーザーの解決 → token の保存 → セッション発行 → commit。
   外部 HTTP の間に DB のトランザクション（Neon の pooled 接続）を握らない。
-- **交換が失敗（タイムアウト・5xx・429・400・鍵の未設定）してもサインインは失敗させない**。token を保存しないだけ。
+- **交換が失敗（タイムアウト・5xx・429・400・鍵の未設定・想定外の例外）してもサインインは失敗させない**。token を保存しないだけ。
   Apple の一時障害で Apple ユーザーがサインインできなくなる方が影響が大きい。token の無いユーザーは、次のサインインで
   端末が新しい code を送れば自己回復する（SS-199 で毎回送る）。code は 1 回限りなので**再試行しない**
   （タイムアウトでも Apple 側は成功している可能性があり、再送は `invalid_grant` になる）。
@@ -637,21 +640,35 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
   アカウントに紐付けられると、自分のアカウント削除で他人の認可を取り消せてしまうため。この `id_token` は TLS で Apple から
   直接受け取ったので署名は検証しない（OIDC Core 3.1.3.7）。不一致・デコード不能は WARNING を出して保存しない。
 - ログの重み: 未設定は出さない（起動時に1回出している）/ 一時障害・`invalid_grant` は WARNING /
-  `invalid_client`・`unauthorized_client` は ERROR（鍵・Team ID・Key ID・bundle ID の設定ミス。運用者が直すもの）。
+  **`invalid_grant` 以外の拒否はすべて ERROR**（`invalid_client`・`unauthorized_client` は鍵・Team ID・Key ID・bundle ID の
+  設定ミス。`invalid_request`・未知のコード・JSON でない 4xx は想定外。どちらも運用者が確認するもの）/
+  client secret を生成できない（鍵はあるが署名できない）場合と、クライアントの想定外の例外（安全網。型名だけを出す）も ERROR。
+  `invalid_grant`（code の期限切れ・使用済み）だけが利用者・端末起因の想定内で、判定は
+  `AppleSignInRejectedError.is_expected_rejection` の1箇所。一時障害のログには固定語彙の `reason`
+  （`timeout` / `connect_error` / `request_error` / `http_5xx` / `http_408` / `http_425` / `http_429` /
+  `unexpected_status` / `invalid_response`）だけを出し、任意の文字列は載せない。
+- **保存の失敗でもサインインは失敗させない**。交換に成功した後の `apple_authorizations` への upsert は SAVEPOINT
+  （`db.begin_nested()`）で囲み、`SQLAlchemyError` は型名だけを WARNING に出して続ける。マイグレーション前の空白
+  （テーブルが無い）でも、ユーザー作成とセッション発行を巻き込まない。この場合 token は保存されず（code は消費済み）、
+  次のサインインで自己回復する。
+- **交換結果の `sub`・`aud` が一致しないとき、取得した token は破棄するだけで失効させない（受容）**。入手に他人の code が要り、
+  悪用の余地が小さい。失効まで試みると、他人の認可に触る経路が増える。
 
 ### 削除は「token を読む → トランザクションを閉じる → 失効 → 削除」。一時障害は 503 で削除しない
 
 | 失効の結果 | 扱い | ログ |
 |---|---|---|
 | 200 | 削除へ進む | なし |
-| 一時障害（タイムアウト・接続失敗・5xx・429・想定外の応答） | **削除せず 503** | WARNING |
-| 恒久的な拒否（400 `invalid_grant` 等） | 削除へ進む | WARNING |
-| 設定ミス（`invalid_client`・`unauthorized_client`）・鍵の未設定 | 削除へ進む | **ERROR** |
+| 一時障害（タイムアウト・接続失敗・5xx・429・408・425・想定外の応答） | **削除せず 503** | WARNING（`reason` 付き） |
+| 400 `invalid_grant`（token が既に無効） | 削除へ進む | WARNING |
+| それ以外の拒否（`invalid_client`・`unauthorized_client`・未知のコード・JSON でない 4xx）・client secret の生成失敗・鍵の未設定 | 削除へ進む | **ERROR** |
 | Apple ユーザーだが token が無い | 削除へ進む（失効の手段が無い） | INFO |
 | Google / dev ユーザー | 失効しない（テーブルも読まない） | なし |
 
 - 一時障害で止めるのは、token が残るのでユーザーの再試行で失効まで完了できるから（Apple の失効は冪等）。mobile は 5xx を
-  「時間をおいて再試行」として扱っており、変更は要らない。503 は `{"detail": "Account deletion temporarily unavailable"}`。
+  「時間をおいて再試行」として扱っており、変更は要らない。503 は `{"detail": "Account deletion temporarily unavailable"}`
+  （OpenAPI の説明は `Account deletion temporarily unavailable; the account was not deleted`）。
+  408・425 は 4xx だが待てば通りうるので一時障害に分類する。3xx は想定外の応答（リダイレクトは追わない）。
   Apple の障害中に削除が続くと 5xx アラームが鳴りうる（意図どおり）。
 - 恒久的な失敗で止めないのは、再試行しても直らず、削除できない状態を作る方がアカウント削除の要件（審査 5.1.1(v)）上まずいから。
   ユーザーは iOS の設定から連携を外せる。
@@ -660,7 +677,14 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
 - token を読んだ後・外部 HTTP の前に `commit()` で読み取りだけのトランザクションを閉じる（変更は無い）。再試行はしない。
   失効の後に DB の削除が失敗して 500 になっても、再試行で失効は冪等に成功して削除へ進める。
 - 競合（受け入れる）: 読んだ後・削除の前に別端末で再サインインして token を更新すると、新しい token は失効されずに CASCADE で
-  消える。ロックを握ったまま外部 HTTP をしない方を優先する（実害は連携一覧に残るだけで、ユーザーが手で外せる）。
+  消える。ロックを握ったまま外部 HTTP をしない方を優先する（実害は連携一覧に残るだけで、ユーザーが手で外せる。発生頻度が低く、
+  読み直しやロックの追加は見合わない）。
+- 競合（対処済み）: 失効している間（外部 HTTP の間）に同じユーザーが別のリクエストで先に削除された場合、期限切れの
+  `User` を削除しようとすると `ObjectDeletedError`（500）になる。失効の後にユーザーを読み直し、既に無ければ何もせず 204 とする
+  （冪等。再現テストあり）。
+- タイムアウトは httpx のフェーズごとの上限で、全体の上限ではない。write と pool は connect と同じ値にし、実効の最悪時間は
+  `connect * 3 + read`（設定の上限値で 3*3 + 10 = 19 秒。既定は 11 秒）。API Gateway の 29 秒に収まるよう、
+  connect の上限は 3 秒、read は 10 秒にした。応答本文のサイズ上限は設けない（相手は TLS の Apple 固定）。
 
 ### client secret は呼び出しごとに生成し、キャッシュしない。鍵が無くても起動は止めない
 
@@ -677,7 +701,9 @@ Apple の公式ドキュメントで確認した（`/auth/token` と `/auth/revo
 ### 影響
 
 - 新テーブル `apple_authorizations`（マイグレーション `add_apple_authorizations`）。deploy から migrate までの間に
-  500 になるのは、Apple ユーザーの削除と code 付きの Apple サインインだけ（SS-199 が未リリースなので後者は実質起きない）。
+  500 になるのは Apple ユーザーの削除だけ。code 付きの Apple サインインは、保存を SAVEPOINT で囲んでいるので失敗しても
+  サインインは成功する（token が保存されないだけ）。それでも migrate を先に流すのが推奨
+  （[リリース手順](../release-runbook.md) 7.4）。
 - `SessionCreate` に任意の `authorization_code` を足した（required は増えない）。`DELETE /users/me` の OpenAPI に 503 を宣言した。
 - 鍵を投入するまで、Apple ユーザーの削除は Apple のトークンを失効させずに進む（ERROR ログ）。投入手順は
   [デプロイ手順](../../packages/backend/docs/deployment.md) §3.2。
