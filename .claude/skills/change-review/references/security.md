@@ -85,7 +85,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 
 # mobile
 
-対象は `packages/mobile/`。正本は ADR-002・ADR-M-009（ゲート・ゲスト）・ADR-M-008 決定4・6（保存と後始末）・ADR-008（フラグ）・ADR-005 決定4（ヘッダー）・ADR-M-010〜M-012（写真）。HTTP 出口の構成は `docs/architecture-guideline.md`「送信側のヘッダー契約」。
+対象は `packages/mobile/`。正本は ADR-002・ADR-M-009（ゲート・ゲスト）・ADR-M-008 決定4・6（保存と後始末）・ADR-008（フラグ）・ADR-005 決定4（ヘッダー）・ADR-M-010〜M-012（写真）。HTTP 出口の構成は `packages/mobile/docs/architecture-guideline.md`「送信側のヘッダー契約」。
 
 ## 認証ゲートとゲスト
 - `PUBLIC_ROOT_SEGMENTS` に新しいルートの先頭セグメントが誤って足されていないか（`app/` 直下への追加だけなら `AuthGate` が自動で保護する）。

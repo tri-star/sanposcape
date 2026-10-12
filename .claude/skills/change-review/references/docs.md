@@ -2,6 +2,7 @@
 
 `doc-maintainer` が読む。変更によって、ADR 以外の文書の記述が古くなっていないかを確かめる。
 ADR との整合（設計判断に反していないか、追補が要るか）は `change-reviewer` の担当なので、ここでは扱わない。
+リンク・ファイルパス・`pnpm --filter` の script が実在するかは CI（`scripts/knowledge/check-doc-references.py`）が機械的に見る。ここでは、記述が変更後の動作を正しく説明しているかに集中する。
 
 ## 対象の文書
 

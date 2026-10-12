@@ -183,10 +183,11 @@ scripts/knowledge/memory-access-report.py --days 30
 | --- | --- | --- |
 | tmp/ への参照 | `scripts/knowledge/check-tmp-references.sh` | CI（docs lint） |
 | agent-memory の front-matter | `scripts/knowledge/check-memory-frontmatter.py` | メモリ書き込み時のフック / CI |
+| 文書中のリンク・ファイルパス・pnpm script の実在 | `scripts/knowledge/check-doc-references.py` | CI（docs lint。全 PR） |
 | メモリの陳腐化（参照先の実在・`verify_by`） | `scripts/knowledge/check-memory-staleness.py` | 棚卸し時 |
 | tmp/ の掃除 | `scripts/knowledge/gc-tmp.sh` | 棚卸し時（既定 dry-run） |
 
-前2つはベースライン方式で、既存の未解消分は据え置き、新規の流入のみを止める。
+tmp/ 参照・front-matter・文書中の参照の3つはベースライン方式で、既存の未解消分は据え置き、新規の流入のみを止める。
 ベースラインは棚卸しによって減らしていく。**ベースラインの件数が減っているかどうかが、
 この仕組みが機能しているかの指標**になる。
 
