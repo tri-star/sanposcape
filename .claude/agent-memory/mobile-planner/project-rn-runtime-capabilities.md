@@ -15,7 +15,8 @@ metadata:
 - **`crypto.randomUUID` / `crypto.getRandomValues`**: `node_modules/expo` にも `node_modules/react-native/Libraries` にも実装が無い。
   → UUID が要るなら `src/lib/uuid.ts` に `randomUuidV4(random = Math.random)` を自前実装するのが最小コスト（冪等キー用途なら暗号強度は不要）。
   ハッシュ（SHA-256 等）が要る場合は `expo-crypto` の `digestStringAsync`（既定 HEX。大文字小文字は仕様上保証されないので `.toLowerCase()` を通す）。
-  導入状況は `packages/mobile/package.json` を都度確認すること（SS-70 で追加する計画があった）。
+  導入状況は `packages/mobile/package.json` を都度確認すること（SS-70 で追加済み。2026-10-12 確認）。
+  暗号論的乱数が要るとき（nonce 等）は `expo-crypto` の `getRandomBytes(n)` を使う（SS-199。vitest のモックへの追加が要る）。
   **ネイティブモジュールを `src/api/client.ts` から到達する位置に足したら、`vitest.config.ts` の `resolve.alias` にモックを足す**
   （足さないと features の api テストが軒並み落ちる）。
 - **永続ストレージ**: `@react-native-async-storage/async-storage` は未導入。`expo-secure-store` は導入済みだが値サイズ上限が約 2KB で軌跡のような配列は置けない（同期版 `getItem` はあるが秘密情報用・iOS は再インストール後も残りうる）。
