@@ -13,17 +13,9 @@ on:
       - "*.md"
       - "scripts/knowledge/**"
       - ".github/workflows/docs-lint.yml"
+  # PR は paths で絞らない。コードの改名・削除だけの PR でも、それを参照する文書が古くなる
+  # （check-doc-references.py が拾う）ため。どの検査も依存のインストールが要らず、数秒で終わる。
   pull_request:
-    paths:
-      - "docs/**"
-      - "packages/*/docs/**"
-      - ".claude/agent-memory/**"
-      - ".agents/skills/**"
-      - ".codex/**"
-      - "packages/*/AGENTS.md"
-      - "*.md"
-      - "scripts/knowledge/**"
-      - ".github/workflows/docs-lint.yml"
 
 jobs:
   tmp-references:
@@ -40,6 +32,11 @@ jobs:
       # ベースラインに載っている既存メモリは対象外で、新規流入のみを止める。
       - name: Check agent-memory front-matter
         run: python3 scripts/knowledge/check-memory-frontmatter.py --all
+
+      # 文書中のリンク・ファイルパス・pnpm script が実在するか検査する（名前やパスのずれによる文書の乖離）。
+      # ベースラインに載っている既存の違反は対象外で、新規流入のみを止める。
+      - name: Check links, paths and pnpm scripts in docs
+        run: python3 scripts/knowledge/check-doc-references.py
 
       # ハーネス専用の標準ライブラリ検証。アプリ環境や外部サービスは不要。
       - name: Validate Codex harness references and formats
