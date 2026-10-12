@@ -5,8 +5,9 @@ SS-203 で change-review の参照資料へ移すまでの置き場所。
 ## mobile
 
 - [mobile レビューの進め方](mobile-review-method.md) — 一次情報で裏取りしてから指摘・一覧外ファイルの JSDoc の陳腐化・引き継ぎの未検証事項・Maestro のコメントの裏取り・誤指摘しないパターン・テストの見方
-- [mobile の境界の確認](mobile-architecture-boundaries.md) — app/ からの注入・feature 間 import は lint 非強制・src/api 直下・フラグガードと render slot・後始末の try/catch・戻る導線のラッチとサインインの push・ヘッダー重複（SS-40）
+- [mobile の境界の確認](mobile-architecture-boundaries.md) — app/ からの注入・feature 間 import は lint 非強制・src/api 直下・フラグガードと render slot・後始末の try/catch・戻る導線のラッチとサインインの push
 - [React と TanStack の静かな不具合](mobile-react-correctness.md) — useQueries の combine・memo の props・自己キャンセルする effect・成功後の busy・部分保存の基準値・AbortError のログ・連結キー・mock が隠す catch 漏れ
+- [画面ヘッダーの重複は SS-40 で追跡中](mobile-screen-header-duplication.md) — task-local。新規指摘にせず SS-40 に言及する
 - [RN の a11y の落とし穴](mobile-a11y.md) — accessibilityLabel の上書き・pointerEvents="none" の二重読み上げ・分岐ごとの差・地図だけの入力
 - [mobile の認証まわりのセキュリティ観点](security-mobile-auth.md) — 認証ゲートとゲスト・mode 系 env の fail-closed・保存 CTA のゲート・破壊的操作の4点・/app-config
 - [mobile の通信とデータのセキュリティ観点](security-mobile-network.md) — HTTP 出口と CloudFront ヘッダー・動的ルートの検証・写真の直送と閲覧・位置情報・散歩の保存

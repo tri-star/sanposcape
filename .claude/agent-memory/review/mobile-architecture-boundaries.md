@@ -1,6 +1,6 @@
 ---
 name: mobile-architecture-boundaries
-description: mobile レビューで確認する境界 — 認証は app/ からプリミティブ注入、feature 間 import は lint 非強制、src/api 直下の2本目、フラグガードと render slot、後始末の try/catch の非対称、戻る導線のラッチとサインインの push、ヘッダー重複（SS-40）
+description: mobile レビューで確認する境界 — 認証は app/ からプリミティブ注入、feature 間 import は lint 非強制、src/api 直下の2本目、フラグガードと render slot、後始末の try/catch の非対称、戻る導線のラッチとサインインの push
 metadata:
   type: feedback
   scope: durable
@@ -40,10 +40,3 @@ metadata:
 - `pinSaveRunner` の DI テストは `dispatch()` のたびに `items` を同期で書き換えるが、`usePinPhotos.ts` は `useReducer` + render 時に同期する `itemsRef`。
   `await` を挟まない連続 dispatch の直後は古い配列を見うる（冪等なので実害は追加リクエスト程度）。両ファイルを触る差分で確認する。
 - `isAllowedUploadUrl` はアップロードと閲覧 presigned GET の2用途。3つ目が出たら `isAllowedStorageUrl` のような一般名への改名を提案する。
-
-## 画面ヘッダーの重複（task-local: SS-40。SS-40 が閉じたらこの節を消す）
-
-「戻る IconButton（`chevron-left`）+ タイトル + スペーサー」のヘッダーが10画面で重複している（2026-10。共通の `ScreenHeader` は未作成）。
-Plane の SS-40「mobile: 共通 ScreenHeader コンポーネントを切り出す」で追跡中。
-
-**How to apply:** 新規指摘にせず SS-40 に言及する。新しい画面がまた同じヘッダーを複製していたら、SS-40 の優先度を上げる提案を添える。

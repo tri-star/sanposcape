@@ -164,7 +164,7 @@ scripts/knowledge/memory-access-report.py --days 30
 読まれる頻度が低い）、最終判断は内容を見て行う。
 
 なお、agent の `memory: project` で自動読込される `MEMORY.md` は `Read` を経由しないため、この計測には現れない。
-領域別ディレクトリの `MEMORY.md` は作業の最初に `Read` で読むので、本文と同じく計測に現れる。
+領域別ディレクトリの `MEMORY.md` は作業の最初に `Read` で読むので生ログには残るが、集計（`memory-access-report.py`）は `MEMORY.md` を除外する。
 
 ## 検査
 

@@ -375,7 +375,7 @@ packages/backend/
   python_files = ["test_*.py"]
   ```
 - 共通フィクスチャ（テスト用DB・FastAPI `TestClient` 等）は `src/sanposcape/conftest.py` に集約する。
-- `create_app()` の app を `TestClient` で包むとき、対象のルートが lifespan で設定される `app.state.*` を使うなら `with TestClient(app) as client:` にする。`with` を省くときは理由をコメントに書く（例: `tests/test_main.py` の 413 のテスト、`api_docs/tests/test_router.py` の `_client()`）。
+- `create_app()` の app を `TestClient` で包むとき、対象のルートが lifespan で設定される `app.state.*` を使うなら `with TestClient(app) as client:` にする。`with` を省くときは理由をコメントに書く（例: `api_docs/tests/test_router.py` の `_client()`）。
 - テスト用DBは本番/開発用DBと分離する（`TEST_DB_NAME`）。
 - テスト用DBの分離方式: スキーマは pytest の session スコープで1回だけ作り、各テストの前に
   テーブルの中身を DELETE で空にする（テストごとに `create_all`/`drop_all` はしない）。

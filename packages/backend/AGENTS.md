@@ -15,5 +15,5 @@
 ## 計画・実装の約束事
 
 - 確定済みの ADR・API 契約は前提として扱い、設計を蒸し返さない。プランには、まだ決まっていない事項だけを理由付きで書き、迷うものは確認事項に回す。
-- `openapi.yaml` の変更は、backend だけの PR でも mobile CI（Orval の再生成 → typecheck → test）を起動する。壊れやすい変更は [ローカル環境構築](./docs/local-env.md) の「OpenAPI 定義」にまとめてある。mobile が壊れるときは、mobile の最小限の修正を同じ PR に入れ、`pnpm --filter mobile orval` と mobile の typecheck・test を通す。
+- `openapi.yaml` の変更は、backend だけの PR でも mobile CI（Orval の再生成 → typecheck → test）を起動する。壊れやすい変更は [ローカル環境構築](./docs/local-env.md) の「OpenAPI 定義」にまとめてある。mobile が壊れるときは、mobile の最小限の修正を同じ PR に入れ、`pnpm --filter mobile orval` と mobile の typecheck・test を通す（新しい worktree での手順は [mobile の作業の進め方](../mobile/AGENTS.md) を参照）。
 - 完了前の確認は `ruff check`・`ruff format --check`・`pytest`（いずれもコンテナ内）。mypy は導入していないので、型チェックを求められてもこの3つで足りる。

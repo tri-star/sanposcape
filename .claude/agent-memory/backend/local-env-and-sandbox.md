@@ -19,6 +19,10 @@ Claude Code の sandbox（設定は `.claude/settings.json`）の中で backend 
 - `MAPS_MODE=fake` のような一時的な切り替えは、シェル変数を前に付けて compose を作り直す
   （`compose.yaml` の `environment: KEY: ${KEY:-default}` がホストのシェル変数を拾う）。例:
   `MAPS_MODE=fake docker compose -p <project> -f packages/backend/compose.yaml up -d`
+- sandbox の設定によっては、`docker` で始まるコマンドだけが sandbox 外で実行できる（環境変数を前に付けると対象外になり、
+  docker のソケットに届かず失敗する）。その場合は上書き用の env ファイルを作り、
+  `docker compose --env-file packages/backend/.env --env-file <上書き用> -p <project> -f packages/backend/compose.yaml up -d`
+  のように後ろに渡す（後のファイルが優先される）。効いたかは `docker compose ... config` で値を確かめる。
 - 確認が終わったらプレフィックス無しで `up -d` し直し、`.env` の値へ戻す。
 - `compose.yaml` の `environment:` に列挙されていない設定（安全な既定値があるとして省略されているもの。`docs/local-env.md` 参照）は
   この方法では上書きできない。テストで `Settings(...)` を明示構築して検証する。
