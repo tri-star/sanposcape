@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-10-03
+2026-10-03（初版、SS-158）、2026-10-13 追補（SS-187）
 
 ## ステータス
 
-採用（SS-158）。
+採用（SS-158）。SS-187 で利用規約を同じ方式で追加した（追補）。
 
 ## コンテキスト
 
@@ -51,7 +51,17 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 - 今後の利用規約・サポートページも同じ方式（`useOpenExternalUrl` + `legalLinks.ts`）で追加する。
 - 画面から `expo-web-browser` / `Linking.openURL` を直接呼ばない（OS の設定画面を開く `Linking.openSettings()` は対象外）。
 
+## SS-187 追補: 利用規約を同じ方式で開く
+
+利用規約（LP の `/terms/`）を、決定1〜6 と同じ方式で追加した。
+
+- 開く対象は プライバシーポリシーと利用規約の2つ。URL は `legalLinks.ts` の定数（`PRIVACY_POLICY_URL` / `TERMS_URL`）で、どちらもビルドの種類で切り替えない（決定4）。
+- リンクは汎用の `LegalDocumentLink`（URL と表示名を受ける）に集約し、`PrivacyPolicyLink` / `TermsLink` を薄いラッパーにした（却下: 規約用に `PrivacyPolicyLink` を複製する案。開く手段・失敗時の案内が二重になる）。
+- サインイン・サインアップ画面は、リンク単体ではなく `LegalConsentNotice`（「下記の利用規約とプライバシーポリシーに同意のうえ、ご利用ください。」+ 2リンク）を出す。チェックボックスは付けない。設定の「このアプリについて」にも規約リンクを足した。
+- E2E は導線の存在だけを assert し、押さない（決定6）。testID は `sign-in-` / `sign-up-` / `settings-` + `terms-link`。
+- 影響: 本番 LP に `/terms/` がデプロイされるまで、規約リンクも 404 になる（`/privacy/` と同じ。LP を先に出す）。
+
 ## 関連情報
 
-- 実装: `src/config/legalLinks.ts`、`src/lib/externalUrl.ts`、`src/hooks/useOpenExternalUrl.ts`、`src/components/legal/PrivacyPolicyLink.tsx`
+- 実装: `src/config/legalLinks.ts`、`src/components/legal/LegalDocumentLink.tsx`・`TermsLink.tsx`・`LegalConsentNotice.tsx`（SS-187）、`src/lib/externalUrl.ts`、`src/hooks/useOpenExternalUrl.ts`、`src/components/legal/PrivacyPolicyLink.tsx`
 - [ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md)（E2E で外部依存を避ける方針）
