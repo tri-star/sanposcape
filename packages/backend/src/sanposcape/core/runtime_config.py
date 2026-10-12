@@ -29,6 +29,11 @@ SECRET_KEY_TO_ENV: dict[str, str] = {
     # iOS の Sign in with Apple の `aud`（bundle ID）。キー名は環境変数名に揃える。
     # 未投入でも起動は止めない（apple だけ 400 になる）。投入手順は docs/deployment.md。
     "apple_allowed_audiences": "APPLE_ALLOWED_AUDIENCES",
+    # Sign in with Apple の code 交換・トークン失効用（client secret の署名に使う鍵 .p8）。
+    # 未投入でも起動は止めない（交換・失効だけが無効になる）。投入手順は docs/deployment.md。
+    "apple_team_id": "APPLE_TEAM_ID",
+    "apple_sign_in_key_id": "APPLE_SIGN_IN_KEY_ID",
+    "apple_sign_in_private_key": "APPLE_SIGN_IN_PRIVATE_KEY",
 }
 
 # マイグレーション Lambda 専用のマッピング。意図的に `SECRET_KEY_TO_ENV` へ含めない:
