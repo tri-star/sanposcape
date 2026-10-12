@@ -16,7 +16,7 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 本アプリは **react-native-maps**、**react-native-svg**（アイコン・マップピンの描画）、
 **@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
-（Google サインイン）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
+（Google サインイン）、**expo-apple-authentication**（iOS の Sign in with Apple）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
 （`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）、**expo-location**（現在地・散歩中の位置記録）、
 **expo-task-manager**（背景の位置記録のタスク。SS-156）という
 **ネイティブモジュール**を利用する。これらは **Expo Go では動作しない**ため、動作確認には Expo の
@@ -410,8 +410,8 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
    - **本番識別子（`com.sanposcape.app`）用の iOS クライアントは本番 GCP プロジェクト
      （`680740561437`）に作成済み**（2026-09-30）。その URL スキームは `app.config.ts` の
      `PRODUCTION_VARIANT` にあり、`APP_VARIANT=production` のときだけ `iosUrlScheme` を上書きする。
-4. **App Store 審査**: iOS で Google ログインを提供する場合、Sign in with Apple の併設が要求される
-   （審査ガイドライン 4.8 に該当することを確認済み。backend は SS-197・SS-198 で実装済み、mobile は SS-199）。
+4. **App Store 審査**: iOS では Sign in with Apple の併設が必要（審査ガイドライン 4.8。
+   下記「[Sign in with Apple](#sign-in-with-apple)」を参照）。
 
 ### リリース前チェックリスト（production ビルド）
 
@@ -449,6 +449,26 @@ EAS ダッシュボード（`production` 環境）で以下が別途注入され
 クライアントID自体は秘密情報ではないが、値が本番用に未確定な部分（iOS クライアント ID）が
 残っているため、`eas.json` の `production.env` には追記せず EAS の環境変数側で管理する。
 値が確定した時点で追記を検討する。
+
+## Sign in with Apple
+
+iOS だけ。Android / web にはボタンを出さない（[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) の SS-195 追補・SS-199 追補）。
+
+- ライブラリは `expo-apple-authentication`。`app.json` の `ios.usesAppleSignIn` とプラグインで entitlement
+  （`com.apple.developer.applesignin`）が入る。**Expo Go では動かない**（token の `aud` が `host.exp.Exponent` になり backend が 401）。development build を使う。
+- `real` モードで実機確認する前提: App ID の Sign in with Apple capability（SS-196）、backend の `APPLE_ALLOWED_AUDIENCES` に
+  bundle ID（dev は `com.sanposcape.app.dev`。AWS の dev は Secrets Manager の `apple_allowed_audiences`）。
+  code の交換と削除時の失効まで確かめるときだけ backend に Apple の鍵が要る（[backend ローカル環境構築手順](../../backend/docs/local-env.md)）。
+- `dev` / `mock` モードでは Apple のボタンも `/auth/dev-session` / ダミーユーザーになる（Apple には触れない）。
+
+| 症状 | 原因 |
+| --- | --- |
+| 「サインインの設定が未完了です」のトースト | backend の 400（`APPLE_ALLOWED_AUDIENCES` 未設定） |
+| 汎用の失敗トースト | 401（token・nonce・`aud` の不正。Expo Go を含む）、503（Apple の JWKS 取得失敗）、`ERR_REQUEST_UNKNOWN`（capability 欠落・端末が Apple ID 未サインイン） |
+| 何も出ない | キャンセル |
+
+氏名は初回の認可時だけ Apple から返る。もう一度取りたいときは iOS の「設定 → Apple アカウント → Apple でサインイン」から
+アプリの連携を解除してからサインインし直す。
 
 ## 状態管理・スタイルの方針
 

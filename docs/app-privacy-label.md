@@ -87,6 +87,7 @@ Apple の定義では、アプリに組み込んだ SDK が収集するデータ
 | Google Sign-In for iOS（`GoogleSignIn` ~> 9.0。`react-native-nitro-google-signin` の podspec が依存する） | マニフェストの申告どおり、すべて「紐づく」「トラッキングしない」: 名前（機能）、メールアドレス（機能）、電話番号（機能）、その他のデータタイプ（機能・分析）、おおよその位置情報（機能）、ユーザ ID（機能・分析）、デバイス ID（分析）、その他の使用状況データ（分析） | [GoogleSignIn-iOS の PrivacyInfo.xcprivacy](https://github.com/google/GoogleSignIn-iOS/blob/9.0.0/GoogleSignIn/Sources/Resources/PrivacyInfo.xcprivacy)（2026-10-10 に 9.0.0 と main が同一であることを確認） | 1-6、3（Google でサインインの行） |
 | expo-updates（`app.json` の `updates.url` で本番ビルドでも有効） | 更新を確認するリクエストのヘッダー: インストールごとのランダムな ID（`EAS-Client-ID`）→ デバイス ID（機能・紐づかない）。前回の起動時の致命的なエラーのメッセージ（`Expo-Fatal-Error`、最大 1024 文字）→ クラッシュデータ（機能・紐づかない）。Expo がこれらを保持するかは公開情報で確認できないため、保守的に申告する | `expo-updates` の `FileDownloader.swift` / `FileDownloader.kt`、[Expo: Privacy explained](https://expo.dev/privacy-explained) | 1-6、3（Expo の行） |
 | react-native-maps（iOS は Apple MapKit） | マニフェストで正確な位置情報（紐づかない）を申告している。運営者の「正確な位置情報（紐づく）」に含まれる。MapKit 自体が収集するデータは Apple のため申告不要 | `react-native-maps` の `PrivacyInfo.xcprivacy` | 3（Apple の行） |
+| expo-apple-authentication（iOS の AuthenticationServices。SS-199） | プライバシーマニフェストを持たない。認可のシートは Apple のフレームワークで、Apple が収集するデータは申告不要（1. の前提）。アプリが受け取る氏名・メールアドレス・ユーザ ID は運営者の収集として上の表に含めている | expo-apple-authentication のパッケージ（PrivacyInfo.xcprivacy が無い） | 1-2 |
 
 ### 3.2 申告しないもの
 
