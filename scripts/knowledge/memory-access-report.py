@@ -2,12 +2,12 @@
 """agent-memory のアクセスログを集計する。
 
 record-memory-access.sh の記録を読み、「どのメモリが実際に使われているか」を数値で出す。
-読むのは次の2か所の <YYYY-MM>/<session-id>.jsonl。
-- .claude/memory-access-log/（PR 作成時に移してコミットした分。別マシン・他のメンバーの分も含む）
-- <git-common-dir>/memory-access-log/（この clone の手元に溜まっていて、まだ移していない分）
+読むのは次の2か所の <YYYY-MM>/ 配下の *.jsonl。数えるのはレコードの session で、ファイル名には依らない。
+- .claude/memory-access-log/（PR 作成時に移してコミットした分。<session-id>.<移した時刻>-<乱数>.jsonl。別マシン・他のメンバーの分も含む）
+- <git-common-dir>/memory-access-log/（この clone の手元に溜まっていて、まだ移していない分。<session-id>.jsonl）
 棚卸し（削除・統合・ADR昇格）の判断材料に使う。
 
-セッションごとにファイルが分かれているため、複数人のログをコミットしてもそのまま合算できる。
+移すたびに別ファイルになるため、別マシン・複数人のログをコミットしてもそのまま合算できる。
 
 使い方:
     scripts/knowledge/memory-access-report.py              # 全期間

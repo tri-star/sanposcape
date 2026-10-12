@@ -37,16 +37,37 @@ if [[ ! -d "$SPOOL" ]]; then
 fi
 
 # 複数の worktree から同時に移さないよう、移し込み全体を排他にする。
-exec 9> "$SPOOL/.lock"
-flock 9
+# macOS（flock が無く bash 3.2）でも動くよう、mkdir の原子性でロックする。
+LOCK="$SPOOL/.lock.d"
+acquired=0
+for _ in $(seq 1 150); do
+  if mkdir "$LOCK" 2>/dev/null; then
+    acquired=1
+    break
+  fi
+  # 中断で残ったロック（10分以上前）は取り除いて取り直す。
+  if [[ -n "$(find "$LOCK" -maxdepth 0 -mmin +10 2>/dev/null)" ]]; then
+    rmdir "$LOCK" 2>/dev/null || true
+    continue
+  fi
+  sleep 0.2
+done
+if [[ "$acquired" -ne 1 ]]; then
+  echo "ロックを取れませんでした（他の移し込みが実行中）: $LOCK" >&2
+  exit 1
+fi
+trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 moved=0
 lines=0
 # 中断で残った退避ファイル（*.jsonl.flushing.*）も対象にする（ロックの内側なので、残っているのは中断の残り）。
 # 先に一覧を確定させる（ループ中に作る退避ファイルを find が拾わないように）。
-mapfile -d '' files < <(find "$SPOOL" -type f \( -name '*.jsonl' -o -name '*.jsonl.flushing.*' \) -print0)
-for file in "${files[@]}"; do
+files=()
+while IFS= read -r -d '' found; do
+  files+=("$found")
+done < <(find "$SPOOL" -type f \( -name '*.jsonl' -o -name '*.jsonl.flushing.*' \) -print0)
+for file in ${files[@]+"${files[@]}"}; do
   rel="${file#"$SPOOL"/}"
   rel="${rel%%.flushing.*}"            # <YYYY-MM>/<session>.jsonl
   case "$rel" in
