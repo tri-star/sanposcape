@@ -80,7 +80,7 @@ grep -rl 'source_issue: <task-id>' .claude/agent-memory
 
 レビュー（`tmp/<task-id>/review.md`）で見つかった指摘のうち、他の変更でも繰り返し確認する価値がある観点は、
 メモリではなく `change-review` skill の参照資料（`.claude/skills/change-review/references/` の該当領域のファイル）に確認項目として追記します。
-レビュアーが読むのはメモリではなく参照資料だからです。
+レビュアーが必ず読むのは参照資料で、メモリは索引から関係するものだけを読むためです。
 
 判断に迷ったら「**次のチケットでこのメモを読んで嬉しいか**」を基準にしてください。
 「SS-42 のバックエンドは実装完了した」のような進捗の記録は、チケットが閉じた時点で価値を失うため削除します。
@@ -125,7 +125,7 @@ python3 scripts/knowledge/check-memory-frontmatter.py --baseline
 
 ### Step 6: コミット
 
-ADR の追加・追補、agent-memory の変更、ベースラインの更新をコミットします。
+ADR の追加・追補、agent-memory の変更、change-review の参照資料への追記、ベースラインの更新をコミットします。
 コミットメッセージは [Git コミットに関するガイドライン](../../../docs/git-commit-guideline.md) に従ってください。
 
 コミット先はモードによって異なります(「実行モード」参照)。自動モードでは現在のPRのブランチへ push し、
@@ -142,6 +142,7 @@ ADR の追加・追補、agent-memory の変更、ベースラインの更新を
 
 - ADR に転記した決定事項（どの ADR に何を追補したか）
 - 昇格したメモリ / 削除したメモリ / 統合したメモリの件数と内訳
+- change-review の参照資料に追記した確認項目（あれば）
 - 削除した `tmp/` ディレクトリ
 - ベースラインの増減（例: `tmp/ 参照 27 → 25 ファイル`）
 

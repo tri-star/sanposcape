@@ -23,6 +23,8 @@
 
 ## トランザクションと並行性
 
+並行テストの書き方（threading + 別 Session、`pg_stat_activity` で待つ）は `.claude/agent-memory/backend/sqlalchemy-and-db.md`、最悪時間の見積もり方は `.claude/agent-memory/backend/aws-and-external-calls.md` にある。
+
 - 冪等キー（`client_*_id`）・advisory lock・`FOR UPDATE`・確定処理を含む変更では、プランや ADR の並行性・冪等性の設計を箇条書き単位で実装の分岐と突き合わせる。「この判断はどのファイルのどの分岐で実現されているか」を指せなければ実装漏れを疑う。SS-88 では「真に同時なリトライで枠が attached なら成功扱い」が共有ヘルパー `_prepare_photos` に無く、`add_photos` 側の事前チェックにしか無かった（`create_pin` 経由の2回目が 409 になった）。
 - 共有ヘルパーは、呼び出し元の片方のテストだけでもう片方も安全と判断しない。
 - 新しい `repository.delete()`（select → `session.delete()` → flush）は、同時2重 DELETE で後発が0行になっても `version_id_col` が無いと `SAWarning` しか出ず、`True` を返す（ADR-003 の「2回目の DELETE は 404」に反する）。呼び出し元が成否を区別するなら、`WalkRepository.delete()` と同じく flush の間だけ `SAWarning` を例外に昇格して捕捉しているか。`StaleDataError` だけの捕捉では何も捕まらない。`UserRepository.delete()` は docstring に理由がある意図的な未対応なので再指摘しない。
@@ -35,7 +37,7 @@
 
 - 一覧は「本体1 + 付随情報 N 種類を `IN (...)` でバッチ取得」の型か（`list_tags_for_pins`・`get_cover_photos`・`count_photos_for_pins`）。ループ内のクエリは本物の N+1。
 - `add_all()` → `flush()` の後にループで `refresh()` していないか。SQLAlchemy 2.0 + psycopg は複数行 INSERT でも RETURNING でサーバー生成値を flush 時点で埋めるので、1件ずつ SELECT し直すだけになる（SS-88 の `add_photos()`/`add_tags()`）。単一 `create()` の1回の `refresh()` は問題ない。
-- 同じ PK の取得が2回に見えても、同じセッションの identity map に載っていれば SQL は出ない（SS-111 の `sanpo_maps/pins/service.py::get_pin()`）。間に `populate_existing()` や別セッションが無ければ、N+1 として指摘する前に SQL ログで確かめるか、重要度を Suggestion に留める。
+- 同じ PK の取得が2回に見えても、同じセッションの identity map に載っていれば SQL は出ない（SS-111 の `sanpo_maps/pins/service.py::get_pin()`）。間に `populate_existing()` や別セッションが無ければ、N+1 として指摘する前に SQL ログで確かめるか、重要度を Low に留める。
 - commit の後のログで、削除していない ORM オブジェクトの属性（`current_user.id` など）を読んでいないか。`expire_on_commit=True` なのでログのためだけに再 SELECT が飛ぶ。`session.delete()` した対象は expunge されるので飛ばない（SS-112）。commit 前にローカル変数へ控える（お手本: `sanpo_maps/photos/service.py` の `PinPhotoUploadService`）。
 
 ## 時間予算と外部呼び出し
@@ -53,4 +55,4 @@
 ## テストと設計根拠の裏取り
 
 - 並行性・冪等性の設計に対して、逐次リトライのテストしか無いなら、「真に同時なリクエスト」を再現するテスト（threading + 別 Session）が無いこと自体を指摘してよい。逐次のテストが通ることと、並行で不変条件が崩れないことは別の観点（上の並行性の項目はどれもテスト網羅を確認して OK とした後に見つかった）。
-- 新しいコードのコメントが計画書の決定コード（`D6`・`Q3`・`B-D5`）を参照していないか。規則は `docs/knowledge-management.md`「層をまたぐ参照ルール」で、CI（check-tmp-references.sh）は `.py` を見ない。既存コードに多く残る（2026-10-12 時点で `src/` に数十箇所）ので、コメントだけで意図が自己完結していれば Suggestion、ラベルしか手掛かりが無ければ Medium で「ADR の決定番号で参照するか自己完結させる」を提案する。その PR 固有の問題として厳しく扱いすぎない。
+- 新しいコードのコメントが計画書の決定コード（`D6`・`Q3`・`B-D5`）を参照していないか。規則は `docs/knowledge-management.md`「層をまたぐ参照ルール」で、CI（check-tmp-references.sh）は `.py` を見ない。既存コードに多く残る（2026-10-12 時点で `src/` に数十箇所）ので、コメントだけで意図が自己完結していれば Low、ラベルしか手掛かりが無ければ Medium で「ADR の決定番号で参照するか自己完結させる」を提案する。その PR 固有の問題として厳しく扱いすぎない。

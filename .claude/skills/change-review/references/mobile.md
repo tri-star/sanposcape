@@ -25,8 +25,6 @@
 
 ## 画面遷移・戻る導線・フラグガード
 
-- 「戻る IconButton + タイトル + スペーサー」のヘッダーの重複は SS-40 で追跡中（`.claude/agent-memory/mobile/screen-header-duplication-ss40.md`）。新規指摘にせず SS-40 に言及する。
-
 - 画面ごとフラグで隠すルートが「画面ガードレシピ」どおりか。`pending` で `<Redirect>` しない（フラグ ON でも起動直後に必ず弾かれる）、ナビタブ経由でしか到達しない画面の戻り先は `"/(tabs)"`、タブは `AppTabBar` の項目から外す（`href: null` は効かない）。フラグ値を Zustand に複製していないか。正本: architecture-guideline.md「フィーチャーフラグ」「画面ガードレシピ」、ADR-008
 - 戻る操作と、その画面から出る他の遷移が同じ `runOnce` を共有しているか（共有しないと連打で push が二重に積まれる）。正本: pages-components-guideline.md「画面の『戻る』導線の規約」
 - `useNavigateOnce` のラッチはフォーカスでしか解除されない。`replace`/`back` が blur を起こさない異常系（ガードのリダイレクト失敗など）で、その画面の離脱操作が永久に無反応にならないか。
@@ -50,7 +48,7 @@
 - `src/services/*` の mock / dev は常に成功するので、呼び出し側 hook の `.catch` 欠如が開発中に見えない。real（Google サインイン → `POST /auth/session` など）は reject しうる。services を呼ぶ hook に `.catch` かエラー state があるか。
 - 能動的に `AbortController.abort()` する経路（削除・画面離脱）があるなら、分類の前に意図した中断を除いているか（`isAbortError()`）。AbortError が診断ログに「失敗」として紛れる（SS-88）。JSDoc の「呼び出し側で弾く」を鵜呑みにせず catch ブロックを読む。
 - 操作ごとに別の `xxxError.ts` は意図的（ADR-M-001 決定6）なので統合を提案しない。逆に、別の操作の分類を再利用していたら要注意。
-- `${a}:${b}` の連結キーで重複判定していたら、区切り文字が値に含まれて衝突し処理が黙ってスキップされうる。値の生成元（`randomUuidV4()` など）を grep し、今起こりうるかで重大度を決める（起こりえなければ Suggestion）。
+- `${a}:${b}` の連結キーで重複判定していたら、区切り文字が値に含まれて衝突し処理が黙ってスキップされうる。値の生成元（`randomUuidV4()` など）を grep し、今起こりうるかで重大度を決める（起こりえなければ Low）。
 
 ## アクセシビリティ
 
@@ -68,4 +66,4 @@
 - 不変条件を持つレスポンスを Orval の faker モック（引数なしの `get...ResponseMock()`）の乱数に任せていないか。単体テストが services のバレル（`index.ts`）を import していないか（ネイティブ依存に到達しうる）。
 - Maestro の yaml のコメントの主張（「戻ると◯◯になる」「`canGoBack()` が true」）は、対象の `router.push`/`replace` を grep してスタックを手でたどって確かめる。`openLink` を使うフローは `app/_layout.tsx` と `app/` のグループ構造も見る。`waitForAnimationToEnd` を時間稼ぎに使っていたら非自明な依存として指摘する。
 - E2E が共有 dev ユーザーを壊す破壊的操作を実行していないか（自分で作った一意なデータの削除は可）。地図一覧を並び順（`item-N`）で選んでいないか。正本: architecture-guideline.md「テストの方針」、ADR-M-004
-- 誤指摘しない慣習: `*Copy.test.ts` の非空チェックは既存の慣習なので単発で Warning にしない。プランが模範に名指しした形式（`src/lib/backNavigation.test.ts` の `it.each` テーブル）に倣っていなくても Suggestion に留める。
+- 誤指摘しない慣習: `*Copy.test.ts` の非空チェックは既存の慣習なので単発で Medium にしない。プランが模範に名指しした形式（`src/lib/backNavigation.test.ts` の `it.each` テーブル）に倣っていなくても Low に留める。

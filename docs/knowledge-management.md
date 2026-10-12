@@ -136,7 +136,7 @@ MEMORY.md は作業の最初に読むインデックスで、本文は必要時�
 agent 名ごとに分けていた時期（〜SS-202）は、同じ領域の知識が planner / developer / reviewer に分散し、
 メインエージェントが直接作業する構成では読む場所が定まらなかったため、領域ごとに再編した。
 レビューで繰り返し使う確認項目はメモリではなく `.claude/skills/change-review/references/` に置く
-（レビュアーはメモリの索引ではなく参照資料を読むため。経緯は [ADR-014](./adr/ADR-014-claude-harness-main-agent-and-review-structure.md)）。
+（レビュアーが必ず読むのは参照資料で、メモリは索引から関係するものだけを読むため。経緯は [ADR-014](./adr/ADR-014-claude-harness-main-agent-and-review-structure.md)）。
 
 ## tmp/ の扱い
 

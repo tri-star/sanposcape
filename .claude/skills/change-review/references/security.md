@@ -12,6 +12,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 ## mode 系の設定は fail-closed
 - 認証・外部連携・ストレージを real/dev/fake で切り替える設定を足す差分では、未設定・未知の値が安全側（real または Unconfigured）に倒れるか。前例: SS-8 で mobile の fail-open な既定と変数名の不一致が重なり、production だけ認証バイパスになる構造だった（SS-10 で是正）。backend の `AUTH_MODE` / `MAPS_MODE` でも同じ罠を踏んだ。
 - コードが読む変数名と、ビルド・デプロイ定義（`eas.json`・`app.config.ts`・SAM / ワークフロー）の変数名が一致しているか。不一致は既定値に落ちるので、既定が fail-open なら即バイパスになる。
+- mobile では、`src/config/*Mode.ts` が許可リストとの完全一致で判定しているか、`eas.json` の `build.production` にモード変数が明示されているか（または不要な設計か）。
 
 ## クライアントに焼き込まれる値
 - `EXPO_PUBLIC_*`（mobile）と `PUBLIC_*` / `context: "client"`（lp の `astro:env`）は配布物から読める。秘密（API シークレット・署名鍵）を入れていないか。
@@ -113,6 +114,8 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 - 横断ヘッダーの変更が backend 向けの2出口（`client.ts` / `authApi.ts`）の両方に入り、S3 直送には入っていないか。付け忘れはローカルでは発覚せず、CloudFront に向けた瞬間に 401/403 になる。
 - `grep -rn "await fetch(\|= fetch\b" src/` で想定外の出口が増えていないか（生の `fetch` を禁止する lint は無い）。`customFetch` 以外の HTTP 出口の新設は指摘する。
 - 401 → refresh → 再送で、ハッシュ計算済みの options を使い回していないか（ボディとハッシュの不整合）。
+- backend の変更で、リダイレクトを返しうる応答が増えていないか（RN の実機では `redirect: "error"` が効かないので、mobile 側の設定では防げない）。
+- 撤去系の差分では、旧関数・旧ファイル名の参照が grep で0件か。
 - ロギング・クラッシュレポートを導入する差分では `X-App-Authorization` / `x-amz-content-sha256` をマスク対象に明示しているか（非標準ヘッダーは自動でマスクされない）。
 - `app.config.ts` の `usesCleartextTraffic` は `EXPO_PUBLIC_BACKEND_API_URL` が `http://` のときだけ（preview の E2E 用）。条件を広げて production に cleartext が入らないか。
 
@@ -122,7 +125,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 
 ## 写真の直送と閲覧
 - backend 以外への直送経路が増えたら、認証ヘッダーや `x-amz-content-sha256` を付けていないか（`customFetch` を通さない）。送信先は `isAllowedUploadUrl` のホワイトリスト（https は許可、http は backend と同一 origin のみ。origin は protocol/hostname/port を個別比較）か。
-- 閲覧の presigned GET にも `isAllowedUploadUrl` を通しているか。画像キャッシュのキーは URL を含まない `pin-photo:<photo.id>:<variant>` か。
+- 閲覧の presigned GET にも `isAllowedUploadUrl` を通しているか（アップロードと閲覧の2用途。3つ目の用途が出たら `isAllowedStorageUrl` のような一般名への改名を提案する）。画像キャッシュのキーは URL を含まない `pin-photo:<photo.id>:<variant>` か。
 - サインアウト時のキャッシュ消去を、起動時に必ず読み込まれるモジュール（`imageCacheCleanup.ts`）で登録しているか。
 - EXIF は撮影日時だけを取り出して捨てているか（GPS を外へ出さない・保存しない・ログに出さない）。
 - UI の disabled（`canAdjustPinLocation` 等）だけに頼っていないか。`client_pin_id` の冪等再送で実害が無いか。

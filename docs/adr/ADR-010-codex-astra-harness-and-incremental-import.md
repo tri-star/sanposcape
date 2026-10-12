@@ -43,5 +43,6 @@ Claude Code側で今後も主に定義を管理する。Codex側の最適化を�
 - [運用と移行対応](../codex-harness.md)
 - [知識の置き場所](../knowledge-management.md)
 - [取り込みskill](../../.agents/skills/import-claude-skill/SKILL.md)
+- [ADR-014: Claude Code のハーネスの構成](./ADR-014-claude-harness-main-agent-and-review-structure.md)（SS-203。Claude 側も、メインが計画・実装し、レビューを観点で分けたレビュアーに任せる構成へ再編した。取り込み元の構成が変わったことに注意）
 - [Astra公式ガイド](https://developers.openai.com/api/docs/guides/latest-model)
 - [Subagents](https://developers.openai.com/codex/subagents)

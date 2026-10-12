@@ -31,6 +31,8 @@ argument-hint: "[比較対象(option): PR番号 / ブランチ / コミット範
 - 入力の扱い: リクエストのスキーマと検証、ファイルのアップロード、URL・ディープリンク・ルートのパラメータ、外部から受け取る値を SQL・シェル・HTML に渡す箇所
 - 外部への公開範囲: 新しいエンドポイント、CORS、CloudFront・S3・Function URL の公開設定、CSP、ログや応答に出す情報（個人情報・内部 ID）
 - 秘密情報: 環境変数・SSM・Secrets Manager・鍵、端末への保存（SecureStore / AsyncStorage）、CI の認証情報
+- 依存の追加・更新: `package.json`・`pyproject.toml`・lockfile（typosquat や `postinstall` を確かめる）
+- CI・デプロイのワークフロー: トリガー（`pull_request_target` など）・`permissions`・`environment` の変更
 
 観点別のレビュアーは今は security だけ。他の観点で取りこぼしが続いたら、ここに条件と agent を足す。
 

@@ -66,6 +66,9 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
 - 意図が明確で量の多い機械的な変更（多数のファイルへの同じ置き換え、生成物に合わせた追随など）だけは、
   [委譲のテンプレート](references/delegation.md) に従って Sonnet のサブエージェントに任せてよい。
 - プランから外れる判断をしたら、`plan.md` と `handover-notes.md` を更新する。
+- 作業中に見つけた、コードや docs を読むだけでは気づきにくい落とし穴・手順は、[知識の置き場所ガイドライン](../../../docs/knowledge-management.md) に従って
+  `.claude/agent-memory/<domain>/` に書く（まず `scope: task-local` と `source_issue: <issue-id>` を付ける。手順7の収穫で残すか決める）。
+  Claude Code の自動メモリ（リポジトリの外）には書かない。決定事項はメモリではなく ADR に書く。
 
 ### 5. レビューを受ける
 
@@ -80,7 +83,7 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
   - レビュー指摘対応では新しい PR を作らず、既存の PR のブランチへ push する。
 - PR の作成（またはレビュー指摘対応の push）の後、`mobile-pr-verification` skill を `<PR番号>` `<issue-id>` で呼ぶ。
   mobile の画面変更を含む場合だけ、エミュレータで確認してスクリーンショットを PR にコメントで添付する（判定と省略の条件は同 skill にある）。
-  省略された場合も止めず、省略した旨と理由を最終報告に含める。スクリーンショットは `<task-root>` に置くので、手順8より前に行う。
+  省略された場合も止めず、省略した旨と理由を最終報告に含める。スクリーンショットは `<task-root>` に置くので、手順7（収穫で `<task-root>` が消える）より前に行う。
 - `task-status-sync` skill を `<issue-id>` `pr-created` `<PRのURL>` で呼ぶ（レビュー指摘対応でも push 後に呼び、レビュー待ちへ戻す）。
 
 ### 7. 知識を収穫する
@@ -95,7 +98,7 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
 ### 8. 作業記録をコミットして終える
 
 - 未コミットのまま残ったエージェントの作業記録をコミットし、PR へ push する。
-  対象は `.claude/memory-access-log/` 配下（メモリの本文を読むたびにフックが追記するアクセスログ）と、手順7以降に追加・変更された `.claude/agent-memory/` 配下のファイル。
+  対象は `.claude/memory-access-log/` 配下（メモリの本文を読むたびにフックが追記するアクセスログ）と、手順7以降に追加・変更された `.claude/agent-memory/` 配下・`.claude/skills/change-review/references/` 配下のファイル。
   アクセスログはセッションごとの追記専用ファイルなので、今回のセッションに限らず配下の未コミットファイルをすべて含めてよい。
 - この手順をワークフローの最後の操作とし、以降はメモリを読まない（読むとアクセスログが再び未コミットで残る）。最終報告は手元の情報だけで行う。
-- コミット後、`git status --porcelain -- .claude/agent-memory .claude/memory-access-log` の出力が空で、`<task-root>` が存在しないことを確かめて終える（`tmp/` は `.gitignore` 対象のため `git status` には現れない）。
+- コミット後、`git status --porcelain -- .claude/agent-memory .claude/memory-access-log .claude/skills/change-review/references` の出力が空で、`<task-root>` が存在しないことを確かめて終える（`tmp/` は `.gitignore` 対象のため `git status` には現れない）。

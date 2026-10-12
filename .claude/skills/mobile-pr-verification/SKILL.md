@@ -152,4 +152,4 @@ task-workflow の完了処理（knowledge-harvest）で `<task-root>` ととも�
 ## 関連
 
 - [mobile-local-verification](../mobile-local-verification/SKILL.md) — エミュレータ起動から画面操作・スクリーンショットまでの手順と落とし穴
-- [task-workflow](../task-workflow/SKILL.md) — PR作成（手順9）の直後にこのスキルを呼ぶ
+- [task-workflow](../task-workflow/SKILL.md) — PR作成（手順6「PR を作る」）の直後にこのスキルを呼ぶ
