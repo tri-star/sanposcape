@@ -12,7 +12,7 @@ export type AuthScreenLayoutProps = {
   heroCaption: string;
   /** `useAuthActions().toast` の状態。失敗時のフィードバックを表示する。 */
   toast: { visible: boolean; message: string };
-  /** 下部のアクション（Google ボタン・ゲスト導線 等）。 */
+  /** 下部のアクション（iOS の Apple ボタン・Google ボタン・ゲスト導線 等）。 */
   children: ReactNode;
 };
 

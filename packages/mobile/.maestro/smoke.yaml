@@ -19,3 +19,6 @@ tags:
     visible:
       id: "sign-in-google-button"
     timeout: 15000
+# Sign in with Apple のボタンは iOS だけに出す（SS-199 / ADR-002 SS-195 追補）。CI は Android なので出ないことを確かめる。
+- assertNotVisible:
+    id: "sign-in-apple-button"
