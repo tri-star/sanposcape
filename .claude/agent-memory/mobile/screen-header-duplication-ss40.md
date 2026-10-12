@@ -1,5 +1,5 @@
 ---
-name: mobile-screen-header-duplication
+name: screen-header-duplication-ss40
 description: 画面ヘッダー（戻る IconButton + タイトル + スペーサー）の重複は SS-40 で追跡中。新規指摘にせず SS-40 に言及する
 metadata:
   type: project

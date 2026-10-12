@@ -7,7 +7,7 @@ metadata:
 ---
 
 hooks はユニットテストの対象外なので、ここに挙げる不具合はレビューか実機でしか見つからない。判定は `lib/` の純粋関数に寄せる。
-レビュー側の観点は `.claude/agent-memory/review/mobile-react-correctness.md`。
+レビュー側の観点は `.claude/skills/change-review/references/mobile.md` の「React と TanStack Query の静かな不具合」。
 
 ## effect の依存配列で駆動するキューは自分をキャンセルする
 
