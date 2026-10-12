@@ -5,10 +5,12 @@
 レビュアーと違い、途中で検査を打ち切らない。意味の乖離（記述が動作と合っているか）は
 change-review の doc-maintainer が見る。
 
-検査すること:
-- link    : Markdown の相対リンク `[text](path)` の行き先が実在するか
-- path    : インラインコード中のファイルパス（`packages/...`・`./docs/...` など）が実在するか
-- pnpm    : `pnpm --filter <package> <script>` の package と script が package.json にあるか
+検査すること（これ以外の書き方は検査しない。範囲外は doc-maintainer が見る）:
+- link    : インラインの Markdown リンク `[text](path)` の行き先が実在するか（コードブロックの外）
+- path    : インラインコードがパスだけで、`packages/`・`docs/`・`scripts/`・`.claude/`・`.github/`・`.agents/`・`.codex/`・
+            `./`・`../` で始まるとき、実在するか（コードブロックの外）
+- pnpm    : `pnpm --filter <package> <script>` の package と script が package.json にあるか（コードブロックの中も）
+検査しないもの: package 相対の `src/...` などのパス、コマンドの形のインラインコード、コードブロック内のパス、参照形式のリンク
 
 既存の違反はベースラインに載せて据え置き、新しい違反だけを止める（他の検査と同じ方式）。
 例外は該当行に `doc-ref-ok` を含むコメントを添える。
@@ -27,6 +29,7 @@ import json
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 BASELINE = Path("scripts/knowledge/doc-reference-baseline.txt")
@@ -41,11 +44,6 @@ SCAN_PATTERNS = [
 ]
 
 # 存在しないパスを意図して書いている文書。検査しない。
-IGNORED_FILES = {
-    # 旧 frontend-* の内容を React 前提のまま残した参照資料。packages/frontend などは存在しないと冒頭で断っている（ADR-014 決定7）。
-    ".claude/skills/change-review/references/web-frontend.md",
-    ".claude/skills/task-workflow/references/web-frontend.md",
-}
 IGNORED_PREFIXES = (
     # launch-project が新しいプロジェクトへコピーする雛形。コピー先での相対パスで書かれている。
     ".claude/skills/launch-project/assets/",
@@ -55,14 +53,13 @@ IGNORED_PREFIXES = (
 PATH_PREFIXES = ("packages/", "docs/", "scripts/", ".claude/", ".github/", ".agents/", ".codex/", "./", "../")
 
 # 生成物・gitignore 対象など、文書が「作られる場所」として書くパス。実在しなくてよい。
-GENERATED_PARTS = (
-    "/src/api/generated",
-    "/.expo",
-    "/node_modules",
-    "/dist",
-    "/.aws-sam",
-    "/android/",
-    "/ios/",
+# 部分文字列ではなくパスの区切り単位で照合する（`/dist` が `distance_*.py` に当たらないように）。
+GENERATED_SEGMENTS = {"node_modules", "dist", ".aws-sam", ".expo"}
+GENERATED_PREFIXES = (
+    "packages/mobile/src/api/generated",
+    "src/api/generated",
+    "packages/mobile/android/",
+    "packages/mobile/ios/",
     "tmp/",
     ".claude/memory-access-log/",
 )
@@ -70,7 +67,7 @@ GENERATED_PARTS = (
 # pnpm の組み込みコマンド（package.json の script ではないもの）。
 PNPM_BUILTINS = {
     "add", "install", "i", "remove", "rm", "update", "up", "exec", "dlx", "why",
-    "list", "ls", "outdated", "audit", "run", "test", "start", "store", "rebuild",
+    "list", "ls", "outdated", "audit", "run", "store", "rebuild",
 }
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
@@ -90,7 +87,7 @@ def target_files(root: Path) -> list[str]:
     )
     return sorted(
         f for f in out.stdout.splitlines()
-        if any(p.match(f) for p in SCAN_PATTERNS) and f not in IGNORED_FILES and not f.startswith(IGNORED_PREFIXES)
+        if any(p.match(f) for p in SCAN_PATTERNS) and not f.startswith(IGNORED_PREFIXES)
     )
 
 
@@ -117,8 +114,11 @@ def _found(candidate: Path) -> bool:
         return False
     if candidate.exists():
         return True
-    # `ADR-M-003` のように、ファイル名の先頭（番号）だけで参照する書き方を許す。
-    return candidate.parent.is_dir() and any(candidate.parent.glob(candidate.name + "*"))
+    # `ADR-M-003` のように、ADR を番号だけで参照する書き方を許す。前方一致はこの形に限る
+    # （一般のパスに許すと `walk/` が `walks/` に当たるような名前のずれを見逃す）。
+    if re.fullmatch(r"ADR-(?:[A-Z]-)?\d+", candidate.name):
+        return candidate.parent.is_dir() and any(candidate.parent.glob(candidate.name + "-*"))
+    return False
 
 
 def link_exists(base: Path, value: str) -> bool:
@@ -147,7 +147,10 @@ def path_exists(root: Path, rel: str, base: Path, value: str) -> bool:
 
 
 def is_generated(value: str) -> bool:
-    return any(part in f"/{value}" for part in GENERATED_PARTS)
+    normalized = re.sub(r"^(\./|\.\./)+", "", value)
+    if normalized.startswith(GENERATED_PREFIXES):
+        return True
+    return any(segment in GENERATED_SEGMENTS for segment in normalized.split("/"))
 
 
 def scan(root: Path) -> list[str]:
@@ -178,7 +181,7 @@ def scan(root: Path) -> list[str]:
                 if script in PNPM_BUILTINS:
                     continue
                 if package not in scripts:
-                    violations.append(f"{rel}:{number}: pnpm: package `{package}` が無い")
+                    violations.append(f"{rel}:{number}: pnpm: package `{package}` が無い（script `{script}`）")
                 elif script not in scripts[package]:
                     violations.append(f"{rel}:{number}: pnpm: `{package}` に script `{script}` が無い")
 
@@ -222,41 +225,49 @@ def main(argv: list[str]) -> int:
     violations = scan(root)
 
     if args.baseline:
-        lines = sorted({key(v) for v in violations})
+        # 同じ違反が同じファイルに何か所あるかも数えるため、出現ごとに1行ずつ書く。
+        lines = sorted(key(v) for v in violations)
         (root / BASELINE).write_text(
             "# 文書中のリンク・パス・pnpm script の既知の違反（棚卸しで直して減らしていく対象）\n"
             "# 再生成: scripts/knowledge/check-doc-references.py --baseline\n"
-            "# ここに無い違反が新しく入ると CI が失敗する。\n"
+            "# 同じ行が複数あるのは、同じファイルの複数か所にある違反。ここより多く出ると CI が失敗する。\n"
             + "".join(f"{line}\n" for line in lines),
             encoding="utf-8",
         )
         print(f"ベースラインを再生成しました: {len(lines)} 件")
         return 0
 
-    known: set[str] = set()
+    known: Counter[str] = Counter()
     if (root / BASELINE).exists():
-        known = {
+        known = Counter(
             line for line in (root / BASELINE).read_text(encoding="utf-8").splitlines()
             if line and not line.startswith("#")
-        }
+        )
 
     if args.all:
         for violation in violations:
             print(violation)
-        print(f"\n全 {len(violations)} 件（うちベースライン {sum(key(v) in known for v in violations)} 件）")
+        print(f"\n全 {len(violations)} 件（ベースライン {sum(known.values())} 件）")
         return 0
 
-    new = [v for v in violations if key(v) not in known]
-    resolved = known - {key(v) for v in violations}
+    # キーごとに、ベースラインの件数を超えた分を新しい違反とする。
+    remaining = known.copy()
+    new: list[str] = []
+    for violation in violations:
+        if remaining[key(violation)] > 0:
+            remaining[key(violation)] -= 1
+        else:
+            new.append(violation)
+    resolved = sum(remaining.values())
     if new:
         print("❌ 文書中の参照先が見つかりません（ベースラインに無い新しい違反）:")
         for violation in new:
             print(f"  {violation}")
         print("\n直すか、意図的なら該当行に `doc-ref-ok` のコメントを添えてください。")
         return 1
-    message = f"✅ 文書中のリンク・パス・pnpm script に新しい違反はありません（既知の未解消: {len(known) - len(resolved)} 件）"
+    message = f"✅ 文書中のリンク・パス・pnpm script に新しい違反はありません（既知の未解消: {sum(known.values()) - resolved} 件）"
     if resolved:
-        message += f"。解消済み {len(resolved)} 件はベースラインから外せます（--baseline）"
+        message += f"。解消済み {resolved} 件はベースラインから外せます（--baseline）"
     print(message)
     return 0
 

@@ -1,27 +1,25 @@
 name: docs lint
 
 on:
+  # paths で絞らない。コードの改名・削除だけの変更でも、それを参照する文書が古くなる
+  # （check-doc-references.py が拾う）ため。main への push も、別々の PR の組み合わせで壊れうるので同じ。
+  # どの検査も依存のインストールが要らず、数秒で終わる。
   push:
     branches: [main]
-    paths:
-      - "docs/**"
-      - "packages/*/docs/**"
-      - ".claude/agent-memory/**"
-      - ".agents/skills/**"
-      - ".codex/**"
-      - "packages/*/AGENTS.md"
-      - "*.md"
-      - "scripts/knowledge/**"
-      - ".github/workflows/docs-lint.yml"
-  # PR は paths で絞らない。コードの改名・削除だけの PR でも、それを参照する文書が古くなる
-  # （check-doc-references.py が拾う）ため。どの検査も依存のインストールが要らず、数秒で終わる。
   pull_request:
+
+# 全 PR・main への push で走らせるので、リポジトリの既定に頼らず読み取りだけに絞る（lp-ci.yml と同じ）。
+permissions:
+  contents: read
 
 jobs:
   tmp-references:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       # 恒久ドキュメント(ADR・docs・agent-memory)が .gitignore 対象の tmp/ を
       # 参照していないか検査する。tmp/ 参照は別環境でリンク切れになるため。

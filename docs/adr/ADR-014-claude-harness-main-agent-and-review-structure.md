@@ -91,7 +91,7 @@ Codex 側は既に「メインが計画から実装まで担い、独立レビ�
 
 - 削除した agent / skill（backend / mobile / frontend の workflow、planner・developer 6体、reviewer 9体）は Git 履歴から復元できる（SS-203 の直前のコミット）
 - ~~task-workflow の終了手順（アクセスログのコミット）の簡素化は SS-204 で行う~~ → SS-204 で決着（決定8）
-- docs-lint の機械検査は SS-205 で行う
+- ~~docs-lint の機械検査は SS-205 で行う~~ → SS-205 で決着（`scripts/knowledge/check-doc-references.py`）
 - Codex 側への取り込みは SS-206 で `import-claude-skill` を通して確認する。Codex は既に同様の構成のため、多くは対応不要の見込み
 
 ## 関連情報

@@ -2,7 +2,8 @@
 
 `doc-maintainer` が読む。変更によって、ADR 以外の文書の記述が古くなっていないかを確かめる。
 ADR との整合（設計判断に反していないか、追補が要るか）は `change-reviewer` の担当なので、ここでは扱わない。
-リンク・ファイルパス・`pnpm --filter` の script が実在するかは CI（`scripts/knowledge/check-doc-references.py`）が機械的に見る。ここでは、記述が変更後の動作を正しく説明しているかに集中する。
+CI（`scripts/knowledge/check-doc-references.py`）が機械的に見るのは、インラインのリンク、ルート相対（`packages/`・`docs/`・`scripts/` など）か `./`・`../` で始まるインラインコード単体のパス、`pnpm --filter` の package と script だけ。
+package 相対のパス（`src/...`・`app/...` など）、コマンドの形のインラインコード、コードブロック内のパス、参照形式のリンクは CI が見ないので、ここで確かめる。
 
 ## 対象の文書
 

@@ -183,7 +183,7 @@ scripts/knowledge/memory-access-report.py --days 30
 | --- | --- | --- |
 | tmp/ への参照 | `scripts/knowledge/check-tmp-references.sh` | CI（docs lint） |
 | agent-memory の front-matter | `scripts/knowledge/check-memory-frontmatter.py` | メモリ書き込み時のフック / CI |
-| 文書中のリンク・ファイルパス・pnpm script の実在 | `scripts/knowledge/check-doc-references.py` | CI（docs lint。全 PR） |
+| 文書中のリンク・ファイルパス・pnpm script の実在（インラインのリンク、ルート相対のインラインコードのパス、`pnpm --filter`。範囲外は doc-maintainer） | `scripts/knowledge/check-doc-references.py` | CI（docs lint。全 PR・main への push） |
 | メモリの陳腐化（参照先の実在・`verify_by`） | `scripts/knowledge/check-memory-staleness.py` | 棚卸し時 |
 | tmp/ の掃除 | `scripts/knowledge/gc-tmp.sh` | 棚卸し時（既定 dry-run） |
 
@@ -199,7 +199,7 @@ tmp/ 参照・front-matter・文書中の参照の3つはベースライン方�
 | --- | --- | --- |
 | メモリ書き込みの都度 | front-matter 規約の検査 | PostToolUse フック（自動） |
 | メモリ本文を読む都度 | アクセスの記録（手元へ） | PreToolUse フック（自動） |
-| PR時 | tmp/ 参照・front-matter 規約の検査 | CI（docs lint） |
+| PR時 | tmp/ 参照・front-matter 規約・文書中のリンク・パス・pnpm script の実在の検査 | CI（docs lint） |
 | **チケット完了時（PR作成直後）** | 決定事項をADRへ、メモリを昇格/削除、`tmp/<issue-id>` を破棄し、手元のアクセスログを移して、結果を PR に含める | `knowledge-harvest` skill（`task-workflow` から自動モードで） |
 | PRマージ時 | 収穫の取りこぼし（残った `tmp/<issue-id>`・task-local メモリ）がある場合のみ回収 | `task-status-sync` の `pr-merged` → `knowledge-harvest` skill |
 | **週次〜月次** | 取りこぼしの棚卸し、古い `tmp/` の削除、main 全体での文書の乖離の確認 | `knowledge-review` skill |
