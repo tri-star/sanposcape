@@ -9,6 +9,7 @@
 from datetime import datetime
 
 import jwt
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
@@ -24,7 +25,7 @@ def load_private_key(pem: str) -> ec.EllipticCurvePrivateKey:
     """
     try:
         key = load_pem_private_key(pem.encode("utf-8"), password=None)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, UnsupportedAlgorithm) as exc:
         raise ValueError("Apple sign-in private key could not be loaded") from exc
     if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(key.curve, ec.SECP256R1):
         raise ValueError("Apple sign-in private key must be an EC P-256 key")

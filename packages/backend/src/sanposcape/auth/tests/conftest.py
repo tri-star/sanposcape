@@ -134,7 +134,7 @@ def make_apple_id_token(rsa_keypair):
 
     def _make(
         *,
-        sub: str = "001234.0123456789abcdef0123456789abcdef.1234",
+        sub: str = APPLE_DEFAULT_SUB,
         aud: str = APPLE_AUDIENCE,
         iss: str = "https://appleid.apple.com",
         exp_delta: timedelta = timedelta(minutes=10),

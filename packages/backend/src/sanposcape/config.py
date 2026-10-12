@@ -155,9 +155,11 @@ class Settings(BaseSettings):
     apple_sign_in_key_id: str = ""
     # .p8 の PEM 全文。`SecretStr` なので repr・検証エラーに出ない。
     apple_sign_in_private_key: SecretStr = SecretStr("")
-    # 交換・失効は再試行しない（code は 1 回限り / 失効はユーザーの再試行に任せる）ので、
-    # 1 回の最悪時間（connect + read）がそのまま上限になる。Lambda の 29 秒に収まる値にする。
-    apple_sign_in_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=5)
+    # 交換・失効は再試行しない（code は 1 回限り / 失効はユーザーの再試行に任せる）。
+    # httpx のタイムアウトはフェーズごとの上限なので、実効の最悪時間は
+    # connect * 3（connect + write + pool）+ read。上限値の組み合わせで 3*3 + 10 = 19 秒となり、
+    # Lambda / API Gateway の 29 秒に収まる（既定は 2*3 + 5 = 11 秒）。
+    apple_sign_in_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=3)
     apple_sign_in_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
 
     # --- Maps provider モード（ADR-002 決定4 と同じ fail-safe 方針。既定は real） ---

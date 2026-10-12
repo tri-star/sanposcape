@@ -220,7 +220,7 @@ class TestDeleteMeForAppleUser:
             auth_client, make_apple_id_token, authorization_code="code-1"
         )
         user_id = uuid.UUID(session["user"]["id"])
-        fake_apple_client.revoke_error = AppleSignInUnavailableError("down")
+        fake_apple_client.revoke_error = AppleSignInUnavailableError("down", reason="http_5xx")
 
         failed = _delete_me(auth_client, session)
 

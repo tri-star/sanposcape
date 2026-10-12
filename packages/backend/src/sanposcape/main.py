@@ -391,8 +391,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
     # トレースの計装（ADR-013）。`settings.tracing_enabled` が False なら何もしない。
     # ★ lifespan には置かない（決定7 / SS-183: Mangum の lifespan を使わなくなっても動くように）。
-    #   httpx の計装は、lifespan が Google Maps の `httpx.Client` を作るより前に済ませる必要が
-    #   あるため、ここ（= import 時の create_app()）で行う。
+    #   httpx の計装は、lifespan が Google Maps と Apple の `httpx.Client` を作るより前に
+    #   済ませる必要があるため、ここ（= import 時の create_app()）で行う。
     instrument_fastapi_app(app, settings)
     return app
 

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 import jwt
 import pytest
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
@@ -66,6 +67,21 @@ class TestLoadPrivateKey:
             load_private_key(pem)
 
         assert pem.strip() == "" or pem not in str(excinfo.value)
+
+    def test_unsupported_algorithm_is_a_value_error(self, monkeypatch) -> None:
+        """OpenSSL が扱えない鍵種別の PEM は `UnsupportedAlgorithm`。ValueError に揃える。"""
+
+        def raise_unsupported(*args, **kwargs):
+            raise UnsupportedAlgorithm("unsupported key type: SECRET-DETAIL")
+
+        monkeypatch.setattr(
+            "sanposcape.integrations.apple.client_secret.load_pem_private_key", raise_unsupported
+        )
+
+        with pytest.raises(ValueError, match="could not be loaded") as excinfo:
+            load_private_key("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----")
+
+        assert "SECRET-DETAIL" not in str(excinfo.value)
 
     def test_rejects_non_ec_key(self) -> None:
         rsa_pem = (

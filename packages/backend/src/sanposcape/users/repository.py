@@ -27,8 +27,9 @@ class UserRepository:
     def delete(self, user: User) -> None:
         """ユーザーを削除する。
 
-        `refresh_tokens.user_id` の ON DELETE CASCADE により、紐づく refresh token も
-        同じトランザクションで削除される。commit はユースケース境界の service が担う。
+        `refresh_tokens.user_id` / `apple_authorizations.user_id` の ON DELETE CASCADE により、
+        紐づく refresh token と Apple の認可も同じトランザクションで削除される。
+        commit はユースケース境界の service が担う。
 
         既知の未対応事項（SS-53 の調査結果から）: `User` にも `version_id_col` が無いため、
         真に同時な2重削除では SQLAlchemy の `confirm_deleted_rows` が

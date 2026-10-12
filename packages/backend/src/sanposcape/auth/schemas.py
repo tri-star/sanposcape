@@ -43,6 +43,7 @@ class SessionCreate(BaseModel):
         Annotated[str, Field(min_length=1, max_length=_AUTHORIZATION_CODE_MAX_LENGTH)] | None
     ) = Field(
         default=None,
+        repr=False,  # 1 回限りの秘密。repr（ログ・pytest の差分表示）に出さない。
         description=(
             "Sign in with Apple の authorization code。provider が apple のときだけ使い、"
             "アカウント削除時にトークンを失効させるため Apple の refresh token に交換して保存する。"

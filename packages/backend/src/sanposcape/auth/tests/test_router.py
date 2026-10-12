@@ -130,7 +130,10 @@ class TestAppleAuthorizationCode:
 
     @pytest.mark.parametrize(
         "error",
-        [AppleSignInUnavailableError("down"), AppleSignInRejectedError("invalid_grant", 400)],
+        [
+            AppleSignInUnavailableError("down", reason="http_5xx"),
+            AppleSignInRejectedError("invalid_grant", 400),
+        ],
         ids=["unavailable", "invalid_grant"],
     )
     def test_exchange_failure_does_not_fail_sign_in(

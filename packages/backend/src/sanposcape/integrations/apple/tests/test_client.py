@@ -5,8 +5,10 @@ from urllib.parse import parse_qs
 import httpx
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from sanposcape.config import Settings
+from sanposcape.integrations.apple import client as client_module
 from sanposcape.integrations.apple.client import (
     AppleTokenGrant,
     HttpAppleSignInClient,
@@ -14,6 +16,7 @@ from sanposcape.integrations.apple.client import (
     build_apple_sign_in_client,
 )
 from sanposcape.integrations.apple.exceptions import (
+    AppleSignInClientSecretError,
     AppleSignInNotConfiguredError,
     AppleSignInRejectedError,
     AppleSignInUnavailableError,
@@ -220,33 +223,56 @@ class TestErrorClassification:
         assert excinfo.value.error_code == error_code
         assert excinfo.value.status_code == status
 
-    @pytest.mark.parametrize("status", [429, 500, 502, 503, 504])
-    def test_429_and_5xx_are_unavailable(self, ec_private_key, call, status) -> None:
+    @pytest.mark.parametrize(
+        ("status", "reason"),
+        [
+            (408, "http_408"),
+            (425, "http_425"),
+            (429, "http_429"),
+            (500, "http_5xx"),
+            (502, "http_5xx"),
+            (503, "http_5xx"),
+            (504, "http_5xx"),
+        ],
+    )
+    def test_retryable_statuses_are_unavailable(self, ec_private_key, call, status, reason) -> None:
+        """5xx と、待てば通りうる 4xx（408・425・429）は一時障害。"""
         client = _client(lambda request: httpx.Response(status), ec_private_key)
 
-        with pytest.raises(AppleSignInUnavailableError):
+        with pytest.raises(AppleSignInUnavailableError) as excinfo:
             call(client)
+
+        assert excinfo.value.reason == reason
 
     @pytest.mark.parametrize("status", [201, 204, 302])
     def test_other_statuses_are_unavailable(self, ec_private_key, call, status) -> None:
+        """リダイレクトは追わない（3xx は想定外の応答）。"""
         client = _client(lambda request: httpx.Response(status), ec_private_key)
 
-        with pytest.raises(AppleSignInUnavailableError):
+        with pytest.raises(AppleSignInUnavailableError) as excinfo:
             call(client)
 
+        assert excinfo.value.reason == "unexpected_status"
+
     @pytest.mark.parametrize(
-        "error",
+        ("error", "reason"),
         [
-            httpx.ConnectTimeout("t"),
-            httpx.ReadTimeout("t"),
-            httpx.ConnectError("c"),
-            httpx.ReadError("r"),
+            (httpx.ConnectTimeout("SECRET-DETAIL"), "timeout"),
+            (httpx.ReadTimeout("SECRET-DETAIL"), "timeout"),
+            (httpx.PoolTimeout("SECRET-DETAIL"), "timeout"),
+            (httpx.ConnectError("SECRET-DETAIL"), "connect_error"),
+            (httpx.ReadError("SECRET-DETAIL"), "request_error"),
+            (httpx.RemoteProtocolError("SECRET-DETAIL"), "request_error"),
+            (httpx.DecodingError("SECRET-DETAIL"), "request_error"),
+            (httpx.TooManyRedirects("SECRET-DETAIL"), "request_error"),
         ],
-        ids=lambda e: type(e).__name__,
+        ids=lambda e: type(e).__name__ if isinstance(e, Exception) else e,
     )
-    def test_timeouts_and_transport_errors_are_unavailable(
-        self, ec_private_key, call, error
+    def test_timeouts_and_request_errors_are_unavailable(
+        self, ec_private_key, call, error, reason
     ) -> None:
+        """`httpx.RequestError` 全般（本文の復号失敗を含む）を握る。生の例外を漏らさない。"""
+
         def handler(request):
             raise error
 
@@ -255,7 +281,28 @@ class TestErrorClassification:
         with pytest.raises(AppleSignInUnavailableError) as excinfo:
             call(client)
 
-        assert type(error).__name__ in str(excinfo.value)
+        assert excinfo.value.reason == reason
+        assert "SECRET-DETAIL" not in str(excinfo.value)
+
+    def test_client_secret_failure_is_a_configuration_error(self, call) -> None:
+        """鍵はあるが署名できない（EC でない鍵など）。Apple には出ず、原因の型名だけを残す。"""
+        sent: list[httpx.Request] = []
+
+        def handler(request):
+            sent.append(request)
+            return httpx.Response(200)
+
+        rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        client = _client(handler, rsa_key)
+
+        with pytest.raises(AppleSignInClientSecretError) as excinfo:
+            call(client)
+
+        assert sent == []
+        # PyJWT は EC でない鍵を `TypeError`（PyJWTError ではない）で拒否する。
+        # 例外の種類を絞らない理由。
+        assert "TypeError" in str(excinfo.value)
+        assert excinfo.value.__cause__ is not None
 
     def test_secrets_never_appear_in_exception_messages_or_logs(
         self, ec_private_key, call, caplog
@@ -276,7 +323,24 @@ class TestErrorClassification:
 
 
 class TestTimeouts:
-    def test_default_client_uses_configured_connect_and_read_timeouts(self, ec_private_key) -> None:
+    def test_default_client_sets_every_phase_timeout(self, ec_private_key, monkeypatch) -> None:
+        """リクエストに実際に載るタイムアウトで検証する（private 属性は見ない）。
+
+        write と pool は connect と同じ値。実効の最悪時間は connect * 3 + read。
+        """
+        seen: list[dict[str, float | None]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.extensions["timeout"])
+            return httpx.Response(200)
+
+        # 既定のクライアント（`httpx.Client(timeout=...)`）の通信先だけをモックに差し替える。
+        real_client = httpx.Client
+        monkeypatch.setattr(
+            client_module.httpx,
+            "Client",
+            lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+        )
         client = HttpAppleSignInClient(
             _settings(
                 apple_sign_in_connect_timeout_seconds=1.5,
@@ -285,11 +349,11 @@ class TestTimeouts:
             private_key=ec_private_key,
         )
         try:
-            timeout = client._client.timeout
-            assert timeout.connect == 1.5
-            assert timeout.read == 4.0
+            client.revoke_refresh_token(REFRESH_TOKEN, client_id=CLIENT_ID)
         finally:
             client.close()
+
+        assert seen == [{"connect": 1.5, "read": 4.0, "write": 1.5, "pool": 1.5}]
 
     def test_injected_client_is_not_closed_by_close(self, ec_private_key) -> None:
         injected = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
@@ -400,3 +464,17 @@ class TestSettings:
     def test_timeouts_are_bounded(self, field: str, value: float) -> None:
         with pytest.raises(ValueError):  # noqa: PT011
             Settings(**{field: value})
+
+    def test_worst_case_total_stays_within_lambda_timeout(self) -> None:
+        """実効の最悪時間 connect * 3 + read が、上限値でも 29 秒（API Gateway）に収まる。"""
+        fields = Settings.model_fields
+        connect_max = next(
+            m.le
+            for m in fields["apple_sign_in_connect_timeout_seconds"].metadata
+            if hasattr(m, "le")
+        )
+        read_max = next(
+            m.le for m in fields["apple_sign_in_read_timeout_seconds"].metadata if hasattr(m, "le")
+        )
+
+        assert connect_max * 3 + read_max <= 29

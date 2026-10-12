@@ -1,19 +1,26 @@
+import contextlib
 import logging
 import uuid
 from unittest import mock
+from urllib.parse import parse_qs
 
+import httpx
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from sanposcape.auth.tests.conftest import FakeAppleSignInClient
+from sanposcape.config import Settings
+from sanposcape.conftest import TestSessionLocal
+from sanposcape.integrations.apple.client import AppleSignInClient, HttpAppleSignInClient
 from sanposcape.integrations.apple.exceptions import (
+    AppleSignInClientSecretError,
     AppleSignInNotConfiguredError,
     AppleSignInRejectedError,
     AppleSignInUnavailableError,
 )
 from sanposcape.users.exceptions import AccountDeletionUnavailableError
-from sanposcape.users.models import AppleAuthorization
+from sanposcape.users.models import AppleAuthorization, User
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 from sanposcape.users.service import AccountDeletionService, UserService
 
@@ -255,9 +262,26 @@ def test_idp_display_name_still_overwrites_and_initial_is_ignored_for_existing_u
     assert again.display_name == "IdP の名前"
 
 
+SERVICE_LOGGER = "sanposcape.users.service"
+
+
+def _service_records(caplog) -> list[logging.LogRecord]:
+    return [r for r in caplog.records if r.name == SERVICE_LOGGER]
+
+
+class _CountingAppleAuthorizationRepository(AppleAuthorizationRepository):
+    """`get` の呼び出し回数を数える（Google / dev ユーザーが読まないことの検証用）。"""
+
+    get_calls = 0
+
+    def get(self, user_id: uuid.UUID) -> AppleAuthorization | None:
+        self.get_calls += 1
+        return super().get(user_id)
+
+
 class TestAccountDeletionService:
     def _build(
-        self, db_session: Session, client: FakeAppleSignInClient
+        self, db_session: Session, client: AppleSignInClient
     ) -> tuple[AccountDeletionService, UserService, AppleAuthorizationRepository]:
         user_service = _make_service(db_session)
         authorizations = AppleAuthorizationRepository(db_session)
@@ -282,59 +306,115 @@ class TestAccountDeletionService:
     def test_revokes_stored_token_before_deleting_and_outside_a_transaction(
         self, db_session: Session
     ) -> None:
-        events: list[str] = []
-        in_transaction: list[bool] = []
+        """失効の瞬間はユーザーも token も残っていて、DB のトランザクションは閉じている。"""
+        during_revoke: dict[str, bool] = {}
+        user_id_holder: list[uuid.UUID] = []
 
         def on_revoke() -> None:
-            events.append("revoke")
-            in_transaction.append(db_session.in_transaction())
+            # 別セッションから見て、失効の時点ではまだ何も消えていないことを確かめる。
+            with TestSessionLocal() as other:
+                during_revoke["user_exists"] = other.get(User, user_id_holder[0]) is not None
+                during_revoke["token_exists"] = (
+                    other.get(AppleAuthorization, user_id_holder[0]) is not None
+                )
+            during_revoke["in_transaction"] = db_session.in_transaction()
 
         client = FakeAppleSignInClient(on_revoke=on_revoke)
         service, user_service, _ = self._build(db_session, client)
         user = self._apple_user(db_session, user_service)
+        user_id_holder.append(user.id)
         user_id = user.id
-        original_delete = user_service.delete_current_user
-
-        def spy_delete(u):
-            events.append("delete")
-            original_delete(u)
-
-        user_service.delete_current_user = spy_delete  # type: ignore[method-assign]
 
         service.delete_account(user)
 
         assert client.revoke_calls == [("stored-refresh-token", "com.sanposcape.app.dev")]
-        assert events == ["revoke", "delete"]
-        assert in_transaction == [False]
-        assert user_service.get_by_id(user_id) is None
-        assert db_session.scalars(select(AppleAuthorization)).all() == []
+        assert during_revoke == {
+            "user_exists": True,
+            "token_exists": True,
+            "in_transaction": False,
+        }
+        with TestSessionLocal() as other:
+            assert other.get(User, user_id) is None
+            assert other.scalars(select(AppleAuthorization)).all() == []
 
     def test_temporary_failure_does_not_delete(self, db_session: Session) -> None:
-        client = FakeAppleSignInClient(revoke_error=AppleSignInUnavailableError("down"))
+        client = FakeAppleSignInClient(
+            revoke_error=AppleSignInUnavailableError("down", reason="http_5xx")
+        )
         service, user_service, authorizations = self._build(db_session, client)
         user = self._apple_user(db_session, user_service)
         user_id = user.id
 
+        with pytest.raises(AccountDeletionUnavailableError):
+            service.delete_account(user)
+
+        with TestSessionLocal() as other:
+            assert other.get(User, user_id) is not None
+            assert other.get(AppleAuthorization, user_id) is not None
+
+    def test_temporary_failure_logs_only_the_fixed_reason(
+        self, db_session: Session, caplog
+    ) -> None:
+        error = AppleSignInUnavailableError("arbitrary detail", reason="timeout")
+        service, user_service, _ = self._build(
+            db_session, FakeAppleSignInClient(revoke_error=error)
+        )
+        user = self._apple_user(db_session, user_service)
+
         with (
-            mock.patch.object(user_service, "delete_current_user") as delete_spy,
+            caplog.at_level(logging.DEBUG, logger=SERVICE_LOGGER),
             pytest.raises(AccountDeletionUnavailableError),
         ):
             service.delete_account(user)
 
-        delete_spy.assert_not_called()
-        assert user_service.get_by_id(user_id) is not None
-        assert authorizations.get(user_id) is not None
+        assert [r.levelno for r in _service_records(caplog)] == [logging.WARNING]
+        assert "timeout" in caplog.text
+        assert "arbitrary detail" not in caplog.text
+
+    def test_user_deleted_by_another_request_during_revocation_is_a_noop_success(
+        self, db_session: Session
+    ) -> None:
+        """失効の間に別のリクエストが同じユーザーを削除しても、500 にならず冪等に終わる。"""
+        user_id_holder: list[uuid.UUID] = []
+
+        def delete_from_another_session() -> None:
+            with TestSessionLocal() as other:
+                other.delete(other.get(User, user_id_holder[0]))
+                other.commit()
+
+        client = FakeAppleSignInClient(on_revoke=delete_from_another_session)
+        service, user_service, _ = self._build(db_session, client)
+        user = self._apple_user(db_session, user_service)
+        user_id_holder.append(user.id)
+        user_id = user.id
+
+        service.delete_account(user)  # 例外にならない
+
+        assert len(client.revoke_calls) == 1
+        with TestSessionLocal() as other:
+            assert other.get(User, user_id) is None
+            assert other.scalars(select(AppleAuthorization)).all() == []
 
     @pytest.mark.parametrize(
         ("error", "expected_level"),
         [
             (AppleSignInRejectedError("invalid_grant", 400), logging.WARNING),
-            (AppleSignInRejectedError("unknown", 400), logging.WARNING),
+            (AppleSignInRejectedError("unknown", 400), logging.ERROR),
+            (AppleSignInRejectedError("invalid_request", 400), logging.ERROR),
             (AppleSignInRejectedError("invalid_client", 401), logging.ERROR),
             (AppleSignInRejectedError("unauthorized_client", 400), logging.ERROR),
+            (AppleSignInClientSecretError("secret generation failed: TypeError"), logging.ERROR),
             (AppleSignInNotConfiguredError("x"), logging.ERROR),
         ],
-        ids=["invalid_grant", "unknown", "invalid_client", "unauthorized_client", "not-configured"],
+        ids=[
+            "invalid_grant",
+            "unknown",
+            "invalid_request",
+            "invalid_client",
+            "unauthorized_client",
+            "client-secret-error",
+            "not-configured",
+        ],
     )
     def test_permanent_failures_still_delete_and_log(
         self, db_session: Session, caplog, error: Exception, expected_level: int
@@ -348,7 +428,7 @@ class TestAccountDeletionService:
             service.delete_account(user)
 
         assert user_service.get_by_id(user_id) is None
-        assert [r.levelno for r in caplog.records] == [expected_level]
+        assert [r.levelno for r in _service_records(caplog)] == [expected_level]
         assert "stored-refresh-token" not in caplog.text
 
     def test_apple_user_without_token_is_deleted_without_revoking(
@@ -364,7 +444,7 @@ class TestAccountDeletionService:
 
         assert client.revoke_calls == []
         assert user_service.get_by_id(user_id) is None
-        assert [r.levelno for r in caplog.records] == [logging.INFO]
+        assert [r.levelno for r in _service_records(caplog)] == [logging.INFO]
 
     @pytest.mark.parametrize("provider", ["google", "dev"])
     def test_non_apple_user_never_reads_apple_authorizations(
@@ -372,7 +452,9 @@ class TestAccountDeletionService:
     ) -> None:
         """Google / dev ユーザーはテーブルを読まない（migrate 前の空白で削除を壊さない）。"""
         client = FakeAppleSignInClient()
-        service, user_service, authorizations = self._build(db_session, client)
+        user_service = _make_service(db_session)
+        authorizations = _CountingAppleAuthorizationRepository(db_session)
+        service = AccountDeletionService(db_session, user_service, authorizations, client)
         user = user_service.find_or_create(
             provider=provider,
             subject="sub-1",
@@ -382,9 +464,54 @@ class TestAccountDeletionService:
         )
         user_id = user.id
 
-        with mock.patch.object(authorizations, "get") as get_spy:
-            service.delete_account(user)
+        service.delete_account(user)
 
-        get_spy.assert_not_called()
+        assert authorizations.get_calls == 0
         assert client.revoke_calls == []
         assert user_service.get_by_id(user_id) is None
+
+    def test_refresh_token_and_client_secret_never_logged(
+        self, db_session: Session, ec_private_key, caplog
+    ) -> None:
+        """実際の HTTP クライアント（モック通信）で、Apple に送った値がログに出ないこと。"""
+        client_secrets: list[str] = []
+        responses = [
+            httpx.Response(500, content=b"stored-refresh-token"),
+            httpx.Response(400, json={"error": "invalid_grant", "echo": "stored-refresh-token"}),
+            httpx.Response(401, json={"error": "invalid_client"}),
+        ]
+        settings = Settings(apple_team_id="TEAM123456", apple_sign_in_key_id="KEY1234567")
+
+        with caplog.at_level(logging.DEBUG):
+            for index, response in enumerate(responses):
+
+                def handler(request: httpx.Request, response=response) -> httpx.Response:
+                    client_secrets.append(parse_qs(request.content.decode())["client_secret"][0])
+                    return response
+
+                http_client = HttpAppleSignInClient(
+                    settings,
+                    private_key=ec_private_key,
+                    client=httpx.Client(transport=httpx.MockTransport(handler)),
+                )
+                service, user_service, _ = self._build(db_session, http_client)
+                user = user_service.find_or_create(
+                    provider="apple",
+                    subject=f"apple-sub-{index}",
+                    email=None,
+                    display_name=None,
+                    photo_url=None,
+                )
+                user_service.save_apple_authorization(
+                    user.id,
+                    client_id="com.sanposcape.app.dev",
+                    refresh_token="stored-refresh-token",
+                )
+                db_session.commit()
+                # 500 は一時障害（削除しない）。ここではログの中身だけを見る。
+                with contextlib.suppress(AccountDeletionUnavailableError):
+                    service.delete_account(user)
+
+        assert len(client_secrets) == len(responses)
+        for secret in ["stored-refresh-token", *client_secrets]:
+            assert secret not in caplog.text

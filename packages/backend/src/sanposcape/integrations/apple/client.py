@@ -25,6 +25,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from sanposcape.config import Settings
 from sanposcape.integrations.apple.client_secret import build_client_secret, load_private_key
 from sanposcape.integrations.apple.exceptions import (
+    AppleSignInClientSecretError,
     AppleSignInNotConfiguredError,
     AppleSignInRejectedError,
     AppleSignInUnavailableError,
@@ -34,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://appleid.apple.com/auth/token"
 _REVOKE_URL = "https://appleid.apple.com/auth/revoke"
+# 4xx のうち「待てば通りうる」もの（Rejected ではなく Unavailable に分類する）。
+_RETRYABLE_CLIENT_ERROR_STATUSES = frozenset({408, 425, 429})
 # Apple の ErrorResponse.error の既知の値。それ以外は "unknown" に丸める。
 _KNOWN_ERROR_CODES = frozenset(
     {
@@ -123,10 +126,16 @@ class HttpAppleSignInClient:
         self._private_key = private_key
         self._now = now
         self._owns_client = client is None
+        # httpx のタイムアウトはフェーズごとの上限で、全体の上限ではない。送るボディは小さく
+        # プールも 1 リクエスト分しか待たないので、write と pool は connect と同じ値にする。
+        # 実効の最悪時間は connect * 3 + read（設定の上限値で 19 秒。Lambda の 29 秒に収まる）。
+        connect_timeout = settings.apple_sign_in_connect_timeout_seconds
         self._client = client or httpx.Client(
             timeout=httpx.Timeout(
-                settings.apple_sign_in_read_timeout_seconds,
-                connect=settings.apple_sign_in_connect_timeout_seconds,
+                connect=connect_timeout,
+                read=settings.apple_sign_in_read_timeout_seconds,
+                write=connect_timeout,
+                pool=connect_timeout,
             )
         )
 
@@ -147,10 +156,14 @@ class HttpAppleSignInClient:
         try:
             body = response.json()
         except ValueError as exc:
-            raise AppleSignInUnavailableError("Apple token response is not JSON") from exc
+            raise AppleSignInUnavailableError(
+                "Apple token response is not JSON", reason="invalid_response"
+            ) from exc
         refresh_token = body.get("refresh_token") if isinstance(body, dict) else None
         if not isinstance(refresh_token, str) or not refresh_token:
-            raise AppleSignInUnavailableError("Apple token response has no refresh_token")
+            raise AppleSignInUnavailableError(
+                "Apple token response has no refresh_token", reason="invalid_response"
+            )
         subject, audience = _read_id_token_claims(body.get("id_token"))
         return AppleTokenGrant(refresh_token=refresh_token, subject=subject, audience=audience)
 
@@ -167,30 +180,54 @@ class HttpAppleSignInClient:
         )
 
     def _client_secret(self, client_id: str) -> str:
-        return build_client_secret(
-            team_id=self._team_id,
-            key_id=self._key_id,
-            private_key=self._private_key,
-            client_id=client_id,
-            now=self._now(),
-        )
+        try:
+            return build_client_secret(
+                team_id=self._team_id,
+                key_id=self._key_id,
+                private_key=self._private_key,
+                client_id=client_id,
+                now=self._now(),
+            )
+        except Exception as exc:
+            # PyJWT / cryptography の例外は種類が多く、メッセージに鍵の情報が入りうる。
+            # 型名だけを残して設定ミスの例外にまとめる（`from exc` で原因は辿れる）。
+            raise AppleSignInClientSecretError(
+                f"Apple client secret could not be generated: {type(exc).__name__}"
+            ) from exc
 
     def _post_form(self, url: str, data: dict[str, str]) -> httpx.Response:
         """form を POST し、200 以外を `Unavailable` / `Rejected` に分類して送出する。"""
         try:
             response = self._client.post(url, data=data)
-        except httpx.TransportError as exc:  # TimeoutException を含む
+        except httpx.TimeoutException as exc:
+            raise AppleSignInUnavailableError("Apple request timed out", reason="timeout") from exc
+        except httpx.ConnectError as exc:
             raise AppleSignInUnavailableError(
-                f"Apple request failed: {type(exc).__name__}"
+                "Apple request could not connect", reason="connect_error"
+            ) from exc
+        except httpx.RequestError as exc:  # 切断・本文の復号失敗・リダイレクト過多など
+            raise AppleSignInUnavailableError(
+                f"Apple request failed: {type(exc).__name__}", reason="request_error"
             ) from exc
         status = response.status_code
         if status == 200:
             return response
-        if status == 429 or status >= 500:
-            raise AppleSignInUnavailableError(f"Apple responded with HTTP {status}")
+        if status >= 500:
+            raise AppleSignInUnavailableError(
+                f"Apple responded with HTTP {status}", reason="http_5xx"
+            )
+        if status in _RETRYABLE_CLIENT_ERROR_STATUSES:
+            # 429（レート制限）・408（リクエストタイムアウト）・425（早すぎる）は待てば通りうる。
+            raise AppleSignInUnavailableError(
+                f"Apple responded with HTTP {status}", reason=f"http_{status}"
+            )
         if 400 <= status < 500:
             raise AppleSignInRejectedError(_error_code(response), status)
-        raise AppleSignInUnavailableError(f"Apple responded with unexpected HTTP {status}")
+        # 1xx / 3xx。リダイレクトは追わない（`follow_redirects` 既定 False。URL は定数で、
+        # Apple がリダイレクトを返すのは想定外）。
+        raise AppleSignInUnavailableError(
+            f"Apple responded with unexpected HTTP {status}", reason="unexpected_status"
+        )
 
 
 def build_apple_sign_in_client(settings: Settings) -> AppleSignInClient:

@@ -5,18 +5,17 @@ from sqlalchemy.orm import Session
 
 from sanposcape.integrations.apple.client import AppleSignInClient
 from sanposcape.integrations.apple.exceptions import (
+    AppleSignInClientSecretError,
     AppleSignInError,
     AppleSignInNotConfiguredError,
     AppleSignInRejectedError,
+    AppleSignInUnavailableError,
 )
 from sanposcape.users.exceptions import AccountDeletionUnavailableError
 from sanposcape.users.models import User
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 
 logger = logging.getLogger(__name__)
-
-# 鍵・Team ID・Key ID・App ID の設定ミスを示す。運用者が直すものなので ERROR にする。
-_CONFIGURATION_ERROR_CODES = frozenset({"invalid_client", "unauthorized_client"})
 
 
 class UserService:
@@ -117,17 +116,23 @@ class AccountDeletionService:
     失効の結果ごとの扱い:
 
     - 成功 → 削除へ進む。
-    - 一時障害（タイムアウト・接続失敗・5xx・429・想定外の応答）→ **削除せず**
+    - 一時障害（タイムアウト・接続失敗・5xx・429・408・425・想定外の応答）→ **削除せず**
       `AccountDeletionUnavailableError`（503）。token が残るので、ユーザーの再試行で失効まで
       完了できる（Apple の失効は冪等）。
     - 恒久的な拒否（`invalid_grant` 等）・設定ミス・鍵の未設定 → 削除へ進む（ログに残す。
       再試行しても直らず、削除できない状態の方がアカウント削除の要件上まずい）。
-      設定ミス・未設定は ERROR（運用者が直す）。
+      `invalid_grant` だけが WARNING。それ以外の拒否・client secret の生成失敗・未設定は
+      ERROR（運用者が直す）。
     - Apple ユーザーだが token が無い → 削除へ進む（INFO。失効の手段が無い）。
 
     再試行はしない。失効の後に DB の削除が失敗しても、再試行で失効は冪等に成功して削除へ進む。
-    競合（受け入れる）: 読んだ後・削除の前に別端末で再サインインされると、新しい token は
-    失効されずに CASCADE で消える。ロックを握ったまま外部 HTTP をしない方を優先する。
+    競合:
+
+    - 読んだ後・削除の前に別端末で再サインインされると、新しい token は失効されずに CASCADE で
+      消える（受け入れる。ADR-002 の SS-198 追補）。ロックを握ったまま外部 HTTP をしない方を
+      優先する。
+    - 失効している間に同じユーザーが別のリクエストで先に削除された場合は、失効後にユーザーを
+      読み直し、既に無ければ何もせず成功（204）とする（冪等）。
     """
 
     def __init__(
@@ -145,11 +150,18 @@ class AccountDeletionService:
     def delete_account(self, user: User) -> None:
         # commit で属性が期限切れになり再読み込み（= 新しいトランザクション）が走るので、
         # 先に素の値として控える。
+        user_id = user.id
         revocation = self._read_revocation_target(user)
         if revocation is not None:
             client_id, refresh_token = revocation
             self._db.commit()
             self._revoke(refresh_token, client_id=client_id)
+            # 失効の間（外部 HTTP の間）に、別のリクエストが同じユーザーを削除したかもしれない。
+            # 期限切れのままの `user` を削除しようとすると `ObjectDeletedError`（500）になる。
+            current = self._user_service.get_by_id(user_id)
+            if current is None:
+                return
+            user = current
         self._user_service.delete_current_user(user)
 
     def _read_revocation_target(self, user: User) -> tuple[str, str] | None:
@@ -172,16 +184,19 @@ class AccountDeletionService:
                 "Apple sign-in key is not configured; deleting the account without "
                 "revoking its Apple token"
             )
+        except AppleSignInClientSecretError as exc:
+            logger.error("%s; deleting the account without revoking its Apple token", exc)
         except AppleSignInRejectedError as exc:
-            level = (
-                logging.ERROR if exc.error_code in _CONFIGURATION_ERROR_CODES else logging.WARNING
-            )
+            # invalid_grant（token が既に無効）だけが想定内。それ以外は設定ミスや想定外の拒否。
             logger.log(
-                level,
+                logging.WARNING if exc.is_expected_rejection else logging.ERROR,
                 "Apple rejected the token revocation: %s (HTTP %s); deleting the account anyway",
                 exc.error_code,
                 exc.status_code,
             )
+        except AppleSignInUnavailableError as exc:
+            logger.warning("Apple token revocation failed: %s", exc.reason)
+            raise AccountDeletionUnavailableError from exc
         except AppleSignInError as exc:
             logger.warning("Apple token revocation failed: %s", type(exc).__name__)
             raise AccountDeletionUnavailableError from exc
