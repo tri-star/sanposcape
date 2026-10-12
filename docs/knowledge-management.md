@@ -131,11 +131,12 @@ MEMORY.md は作業の最初に読むインデックスで、本文は必要時�
 | `backend/` | backend の実装・計画の落とし穴と手順 | `packages/backend/AGENTS.md` の指示 |
 | `mobile/` | mobile の実装・計画の落とし穴と手順 | `packages/mobile/AGENTS.md` の指示 |
 | `common/` | 領域に属さない git・ドキュメント作業の落とし穴 | ルートの `AGENTS.md` の指示 |
-| `review/` | レビューの観点（SS-203 で change-review の参照資料へ移す） | レビュー時 |
 | `plane-project-manager/`、`dependabot-update-resolver/` | その agent 固有の手順 | agent の `memory: project` による自動読込 |
 
 agent 名ごとに分けていた時期（〜SS-202）は、同じ領域の知識が planner / developer / reviewer に分散し、
 メインエージェントが直接作業する構成では読む場所が定まらなかったため、領域ごとに再編した。
+レビューで繰り返し使う確認項目はメモリではなく `.claude/skills/change-review/references/` に置く
+（レビュアーはメモリの索引ではなく参照資料を読むため。経緯は [ADR-014](./adr/ADR-014-claude-harness-main-agent-and-review-structure.md)）。
 
 ## tmp/ の扱い
 
