@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 
+import { useLocationPrecision } from "@/features/walk/hooks/useLocationPrecision";
 import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
 import { useWalkSession } from "@/features/walk/hooks/useWalkSession";
 import { useWalkTracking } from "@/features/walk/hooks/useWalkTracking";
@@ -10,7 +11,11 @@ import type { WalkTrackingStatus } from "@/features/walk/lib/walkTrackingStatus"
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import type { ActiveWalk, WalkRoute } from "@/features/walk/types";
-import type { GeoCoordinates, LocationErrorCode } from "@/services/location/types";
+import type {
+  GeoCoordinates,
+  LocationErrorCode,
+  LocationPrecision,
+} from "@/services/location/types";
 
 export type UseActiveWalkResult = {
   activeWalk: ActiveWalk | null;
@@ -32,6 +37,8 @@ export type UseActiveWalkResult = {
   steps: number;
   trackingStatus: WalkTrackingStatus;
   trackingErrorCode: LocationErrorCode | null;
+  /** 散歩中の精度の許可（`useLocationPrecision`）。 */
+  locationPrecision: LocationPrecision | null;
   /** 位置トラッキングを貼り直す（権限エラーからの復帰用）。 */
   retryTracking: () => void;
 
@@ -71,6 +78,7 @@ export function useActiveWalk(): UseActiveWalkResult {
     initialPosition: activeWalk?.origin ?? null,
     attempt: trackingAttempt,
   });
+  const locationPrecision = useLocationPrecision({ enabled: activeWalk !== null });
   const retryTracking = useCallback(() => setTrackingAttempt((n) => n + 1), []);
 
   const steps = estimateStepsFromMeters(tracking.distanceMeters);
@@ -116,6 +124,7 @@ export function useActiveWalk(): UseActiveWalkResult {
     steps,
     trackingStatus: tracking.status,
     trackingErrorCode: tracking.errorCode,
+    locationPrecision,
     retryTracking,
 
     finishWalk,

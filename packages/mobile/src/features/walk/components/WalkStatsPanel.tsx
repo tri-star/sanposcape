@@ -16,6 +16,8 @@ export type WalkStatsPanelProps = {
   steps: number;
   paused: boolean;
   trackingStatus: WalkTrackingStatus;
+  /** 「正確な位置情報」がオフ。記録中のバッジを「位置が大まか」にする。 */
+  approximateLocation: boolean;
   onTogglePause: () => void;
   onEnd: () => void;
   onAddPin: () => void;
@@ -31,12 +33,13 @@ export function WalkStatsPanel({
   steps,
   paused,
   trackingStatus,
+  approximateLocation,
   onTogglePause,
   onEnd,
   onAddPin,
 }: WalkStatsPanelProps) {
   const styles = useStyles();
-  const gps = walkTrackingBadge(trackingStatus);
+  const gps = walkTrackingBadge(trackingStatus, { approximate: approximateLocation });
 
   return (
     <Card style={styles.root} testID="walk-stats-panel">

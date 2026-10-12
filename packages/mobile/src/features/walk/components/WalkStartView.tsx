@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
+import { ApproximateLocationNotice } from "@/features/walk/components/ApproximateLocationNotice";
 import { CategorySheet } from "@/features/walk/components/CategorySheet";
 import { DurationSlider } from "@/features/walk/components/DurationSlider";
 import { SpotListSection } from "@/features/walk/components/SpotListSection";
@@ -15,6 +16,7 @@ import { WalkRouteSummary } from "@/features/walk/components/WalkRouteSummary";
 import { CATEGORY_ORDER } from "@/features/walk/data/categories";
 import { useWalkPlan } from "@/features/walk/hooks/useWalkPlan";
 import { categorySummary } from "@/features/walk/lib/categorySummary";
+import { shouldShowApproximateLocationNotice } from "@/features/walk/lib/locationPrecisionNotice";
 import { DURATION_MAX, DURATION_MIN, DURATION_STEP } from "@/features/walk/lib/placeSearchRequest";
 import { toRouteMinutes } from "@/features/walk/lib/walkRoute";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
@@ -123,11 +125,15 @@ export function WalkStartView() {
         {plan.locationErrorCode !== null ? (
           <LocationPermissionNotice
             errorCode={plan.locationErrorCode}
+            context="explore"
             onRetry={plan.retryLocation}
             testID="walk-start-location-notice"
           />
         ) : (
           <>
+            {shouldShowApproximateLocationNotice(plan.locationPrecision) ? (
+              <ApproximateLocationNotice context="explore" testID="walk-start-approximate-notice" />
+            ) : null}
             <SpotMapView
               origin={plan.origin}
               durationMin={plan.durationMin}

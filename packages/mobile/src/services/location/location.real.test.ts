@@ -5,6 +5,7 @@ const locationMocks = vi.hoisted(() => ({
   start: vi.fn<(taskName: string, options: unknown) => Promise<void>>(),
   stop: vi.fn<(taskName: string) => Promise<void>>(),
   hasStarted: vi.fn<(taskName: string) => Promise<boolean>>(),
+  getForegroundPermissions: vi.fn<() => Promise<unknown>>(),
 }));
 
 // 通知権限の要求（Android 13 以上）。既定は iOS 扱い（ダイアログを出さない）。
@@ -28,6 +29,7 @@ vi.mock("expo-location", async (importOriginal) => ({
   startLocationUpdatesAsync: locationMocks.start,
   stopLocationUpdatesAsync: locationMocks.stop,
   hasStartedLocationUpdatesAsync: locationMocks.hasStarted,
+  getForegroundPermissionsAsync: locationMocks.getForegroundPermissions,
 }));
 
 // ファイル実装ではなくメモリ実装の hub を共有 singleton として使う。
@@ -54,11 +56,54 @@ beforeEach(() => {
   locationMocks.start.mockReset().mockResolvedValue(undefined);
   locationMocks.stop.mockReset().mockResolvedValue(undefined);
   locationMocks.hasStarted.mockReset().mockResolvedValue(false);
+  locationMocks.getForegroundPermissions
+    .mockReset()
+    .mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
   rnMocks.platform.OS = "ios";
   rnMocks.platform.Version = "17.0";
   rnMocks.check.mockReset().mockResolvedValue(false);
   rnMocks.request.mockReset().mockResolvedValue("granted");
   vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+describe("createRealLocationService: getPrecision", () => {
+  it("iOS の reduced は approximate", async () => {
+    locationMocks.getForegroundPermissions.mockResolvedValue({
+      status: "granted",
+      granted: true,
+      canAskAgain: true,
+      ios: { accuracy: "reduced" },
+    });
+    await expect(createRealLocationService().getPrecision()).resolves.toBe("approximate");
+  });
+
+  it("Android の coarse は approximate", async () => {
+    locationMocks.getForegroundPermissions.mockResolvedValue({
+      status: "granted",
+      granted: true,
+      canAskAgain: true,
+      android: { accuracy: "coarse" },
+    });
+    await expect(createRealLocationService().getPrecision()).resolves.toBe("approximate");
+  });
+
+  it("精度の情報が無ければ precise", async () => {
+    await expect(createRealLocationService().getPrecision()).resolves.toBe("precise");
+  });
+
+  it("未許可は null", async () => {
+    locationMocks.getForegroundPermissions.mockResolvedValue({
+      status: "denied",
+      granted: false,
+      canAskAgain: false,
+    });
+    await expect(createRealLocationService().getPrecision()).resolves.toBeNull();
+  });
+
+  it("確認に失敗しても throw せず null", async () => {
+    locationMocks.getForegroundPermissions.mockRejectedValue(new Error("boom"));
+    await expect(createRealLocationService().getPrecision()).resolves.toBeNull();
+  });
 });
 
 describe("createRealLocationService: startBackgroundTracking", () => {

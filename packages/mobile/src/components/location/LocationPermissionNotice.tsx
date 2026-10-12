@@ -1,15 +1,20 @@
 import { Linking, Text, View } from "react-native";
 
+import {
+  type LocationNoticeContext,
+  locationNoticeMessage,
+} from "@/components/location/locationNoticeMessage";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
-import { locationErrorMessage } from "@/services/location/locationError";
 import type { LocationErrorCode } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type LocationPermissionNoticeProps = {
   errorCode: LocationErrorCode;
+  /** 案内を出す画面の文脈。文言を画面ごとに中立に決める（ADR-M-022）。 */
+  context: LocationNoticeContext;
   onRetry: () => void;
   testID?: string;
   /**
@@ -26,9 +31,11 @@ export type LocationPermissionNoticeProps = {
  * LocationPermissionNotice — 位置情報の権限拒否・取得失敗時の案内カード。
  * 散歩開始画面（探索できないため `SpotMapView` の代わりに表示）・散歩中画面・
  * ピンの地点選択画面（SS-124。地図の上に重ねる）から使うため `src/components/location/` に置く。
+ * 文言は文脈（context）ごとに中立に書く（ADR-M-022）。
  */
 export function LocationPermissionNotice({
   errorCode,
+  context,
   onRetry,
   testID,
   retryTestID,
@@ -42,7 +49,7 @@ export function LocationPermissionNotice({
   return (
     <Card style={styles.root} testID={rootTestID}>
       <Icon name="crosshair" size={22} color={theme.colors.textTertiary} />
-      <Text style={styles.message}>{locationErrorMessage(errorCode)}</Text>
+      <Text style={styles.message}>{locationNoticeMessage(errorCode, context)}</Text>
       <View style={styles.actions}>
         <Button variant="secondary" onPress={onRetry} testID={retryTestID ?? `${rootTestID}-retry`}>
           再試行

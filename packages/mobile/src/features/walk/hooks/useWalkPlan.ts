@@ -8,8 +8,13 @@ import { useWalkRoute } from "@/features/walk/hooks/useWalkRoute";
 import type { ExploreErrorCode } from "@/features/walk/lib/exploreError";
 import { clampRoundTripMinutes } from "@/features/walk/lib/placeSearchRequest";
 import type { SpotCandidate, WalkDestination, WalkRoute } from "@/features/walk/types";
+import { useLocationPrecision } from "@/features/walk/hooks/useLocationPrecision";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
-import type { GeoCoordinates, LocationErrorCode } from "@/services/location/types";
+import type {
+  GeoCoordinates,
+  LocationErrorCode,
+  LocationPrecision,
+} from "@/services/location/types";
 
 export type UseWalkPlanResult = {
   /** スライダー表示用の値（ドラッグ中も追従）。 */
@@ -32,6 +37,8 @@ export type UseWalkPlanResult = {
 
   origin: GeoCoordinates | null;
   locationErrorCode: LocationErrorCode | null;
+  /** 精度の許可（「正確な位置情報」）。現在地が取れるまでは null。 */
+  locationPrecision: LocationPrecision | null;
   isLocating: boolean;
   retryLocation: () => void;
 
@@ -81,6 +88,8 @@ export function useWalkPlan(): UseWalkPlanResult {
     isLoading: isLocating,
     retry: retryCurrentLocation,
   } = useCurrentLocation();
+  // 現在地が取れてから確かめる（初回のダイアログで許可された直後でも正しい値を読める）。
+  const locationPrecision = useLocationPrecision({ enabled: origin !== null });
 
   const commitDurationMin = useCallback((value: number) => {
     const clamped = clampRoundTripMinutes(value);
@@ -163,6 +172,7 @@ export function useWalkPlan(): UseWalkPlanResult {
 
     origin,
     locationErrorCode,
+    locationPrecision,
     isLocating,
     retryLocation,
 

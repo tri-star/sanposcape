@@ -20,6 +20,20 @@ describe("createMockLocationService", () => {
     await expect(service.requestPermission()).resolves.toBe("granted");
   });
 
+  it("getPrecision の既定は precise", async () => {
+    await expect(createMockLocationService().getPrecision()).resolves.toBe("precise");
+  });
+
+  it("precision: 'approximate' を渡すと approximate を返す", async () => {
+    const service = createMockLocationService({ precision: "approximate" });
+    await expect(service.getPrecision()).resolves.toBe("approximate");
+  });
+
+  it("permission が granted でなければ precision の指定にかかわらず getPrecision は null", async () => {
+    const service = createMockLocationService({ permission: "denied", precision: "approximate" });
+    await expect(service.getPrecision()).resolves.toBeNull();
+  });
+
   it("coordinates を上書きできる", async () => {
     const custom = { latitude: 1, longitude: 2 };
     const service = createMockLocationService({ coordinates: custom });

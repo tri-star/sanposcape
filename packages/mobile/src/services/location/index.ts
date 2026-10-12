@@ -9,6 +9,7 @@ export type {
   LocationSample,
   LocationSampleListener,
   LocationPermissionStatus,
+  LocationPrecision,
   LocationService,
 } from "@/services/location/types";
 export {

@@ -6,6 +6,7 @@ import type {
   GeoCoordinates,
   LocationErrorCode,
   LocationPermissionStatus,
+  LocationPrecision,
   LocationService,
   LocationSubscription,
 } from "@/services/location/types";
@@ -36,6 +37,8 @@ const DEFAULT_TRACK_INTERVAL_MS = 1000;
 export type MockLocationServiceOptions = {
   coordinates?: GeoCoordinates;
   permission?: LocationPermissionStatus;
+  /** getPrecision が返す精度（既定 "precise"）。permission が granted でなければ null を返す。 */
+  precision?: LocationPrecision;
   /** 指定すると getCurrentPosition が必ずこのエラーを throw する（エラー系UIの確認用）。 */
   failWith?: LocationErrorCode;
   /** watchPosition が順に通知する座標列（既定 MOCK_TRACK）。 */
@@ -55,6 +58,7 @@ export type MockLocationServiceOptions = {
 export function createMockLocationService(options?: MockLocationServiceOptions): LocationService {
   const coordinates = options?.coordinates ?? MOCK_ORIGIN;
   const permission = options?.permission ?? "granted";
+  const precision = options?.precision ?? "precise";
   const failWith = options?.failWith;
   const track = options?.track ?? MOCK_TRACK;
   const trackIntervalMs = options?.trackIntervalMs ?? DEFAULT_TRACK_INTERVAL_MS;
@@ -75,6 +79,9 @@ export function createMockLocationService(options?: MockLocationServiceOptions):
   return {
     async getPermissionStatus() {
       return permission;
+    },
+    async getPrecision() {
+      return permission === "granted" ? precision : null;
     },
     async requestPermission() {
       return permission;

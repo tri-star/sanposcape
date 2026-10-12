@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { AppState } from "react-native";
 
-import { shouldSkipSilentRefresh } from "@/lib/locationRefreshPolicy";
+import {
+  shouldRecheckPermissionOnForeground,
+  shouldSkipSilentRefresh,
+} from "@/lib/locationRefreshPolicy";
 import { locationService } from "@/services/location";
 import { toLocationError } from "@/services/location/locationError";
 import type {
@@ -48,6 +52,9 @@ type LocationRequest = {
 /**
  * 現在地取得の hook。
  * `@/services/location` の `locationService` のみを参照し、real/mock の実体を知らない。
+ *
+ * 拒否中は前面に戻るたびに権限の状態だけを確かめ、許可されていれば取り直す（ダイアログは出さない。
+ * ADR-M-022）。
  *
  * 配置について: `features/walk`（散歩開始画面の `useWalkPlan`）と `features/pin`（地点選択画面の
  * `usePinLocationPicker`。SS-124）から使うため `src/hooks/` に置く（`docs/folder-structure.md` の
@@ -140,6 +147,28 @@ export function useCurrentLocation(): UseCurrentLocationResult {
       cancelled = true;
     };
   }, [requestN, silent]);
+
+  // 設定アプリで許可して戻ったときに回復させる（SS-160 / ADR-M-022）。
+  // 拒否中だけ購読する。確認はダイアログを出さない getPermissionStatus だけで、granted のときだけ retry する
+  // （requestPermission は呼ばない: Android の「1回目の拒否」は undetermined に写るので、呼ぶと前面復帰のたびに
+  //  ダイアログが出てしまう）。OS の権限ダイアログの開閉でも AppState は変わるが、状態は granted にならないのでループしない。
+  useEffect(() => {
+    if (!shouldRecheckPermissionOnForeground(errorCode)) return;
+    let cancelled = false;
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next !== "active") return;
+      locationService.getPermissionStatus().then(
+        (status) => {
+          if (!cancelled && status === "granted") retry();
+        },
+        () => {},
+      );
+    });
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [errorCode, retry]);
 
   return { coordinates, permission, isLoading, errorCode, coordinatesFromRefresh, retry, refresh };
 }
