@@ -1,10 +1,19 @@
+import { createAppleNonce } from "@/services/auth/appleNonce";
+import { createAppleSessionIssuer } from "@/services/auth/appleSession";
+import { requestAppleCredential } from "@/services/auth/appleSignIn";
 import type { AuthApi } from "@/services/auth/authApi";
+import { AuthError } from "@/services/auth/authError";
 import { createSessionAuthService } from "@/services/auth/createSessionAuthService";
 import { signInWithGoogle, signOutFromGoogle } from "@/services/auth/googleSignIn";
-import type { AuthService, AuthUser, TokenStore } from "@/services/auth/types";
+import type {
+  AuthService,
+  AuthUser,
+  PendingAppleDisplayNameStore,
+  TokenStore,
+} from "@/services/auth/types";
 
 /**
- * real: Google のネイティブサインイン → POST /auth/session でアプリ自前トークンへ交換する。
+ * real: Google / Apple のネイティブサインイン → POST /auth/session でアプリ自前トークンへ交換する。
  *
  * 従来の `export const authServiceReal` （オブジェクト定数）ではなくファクトリ関数にしている。
  * `index.ts` で `tokenStore` / `api` を組み立てて注入するための DI であり、
@@ -14,15 +23,34 @@ import type { AuthService, AuthUser, TokenStore } from "@/services/auth/types";
 export function createRealAuthService(deps: {
   tokenStore: TokenStore;
   api: AuthApi;
+  pendingAppleDisplayName: PendingAppleDisplayNameStore;
   onSessionChange?: (user: AuthUser | null) => void;
 }): AuthService {
+  const issueAppleSession = createAppleSessionIssuer({
+    createNonce: () => createAppleNonce(),
+    requestCredential: requestAppleCredential,
+    pendingDisplayName: deps.pendingAppleDisplayName,
+    api: deps.api,
+  });
+
   return createSessionAuthService({
     issueSession: async (provider) => {
-      const idToken = await signInWithGoogle();
-      return deps.api.createSession({ provider, idToken });
+      switch (provider) {
+        case "google": {
+          const idToken = await signInWithGoogle();
+          return deps.api.createSession({ provider, idToken });
+        }
+        case "apple":
+          return issueAppleSession();
+        default: {
+          const unsupported: never = provider;
+          throw new AuthError("configuration", `Unsupported provider: ${String(unsupported)}`);
+        }
+      }
     },
     api: deps.api,
     tokenStore: deps.tokenStore,
+    // Apple ユーザーでも呼んで害は無い（Google のセッションが無ければ何もしない。失敗は signOut 側で握りつぶす）。
     onSignOut: signOutFromGoogle,
     onSessionChange: deps.onSessionChange,
   });

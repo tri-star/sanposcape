@@ -20,6 +20,16 @@ describe("createMockAuthService", () => {
     expect(await service.refreshAccessToken()).toBe("mock-access-token");
   });
 
+  it('signIn("apple") も既定のダミーユーザーを返し、onSessionChange に通知する', async () => {
+    const onSessionChange = vi.fn();
+    const service = createMockAuthService({ onSessionChange });
+
+    const user = await service.signIn("apple");
+
+    expect(user.id).toBe("mock-user-1");
+    expect(onSessionChange).toHaveBeenCalledWith(user);
+  });
+
   it("signOut 後は再び null を返す", async () => {
     const service = createMockAuthService();
     await service.signIn("google");

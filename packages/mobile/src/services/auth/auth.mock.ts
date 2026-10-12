@@ -12,6 +12,7 @@ const DEFAULT_ACCESS_TOKEN = "mock-access-token";
 /**
  * mock: 通信を一切せず、メモリ上の固定ダミーで完結する（vitest 用）。
  * backend API 自体のモックは Orval 生成の MSW ハンドラが担当する（役割分担）。
+ * `signIn()` は provider（google / apple）を問わず同じダミーユーザーを返す。
  * ネットワーク前提の `createSessionAuthService` は使わず、単純な実装にする。
  *
  * `onSessionChange` を real/dev と同じ形（`signIn` で user、`signOut` で null を通知）で

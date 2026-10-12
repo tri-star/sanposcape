@@ -1,5 +1,6 @@
 import { ApiError } from "@/api/apiError";
 import { withContentHashHeader } from "@/api/contentHash";
+import type { SessionCreate } from "@/api/generated/model";
 import { getApiBaseUrl } from "@/config/env";
 import type { AuthProvider } from "@/services/auth/types";
 
@@ -19,7 +20,16 @@ import type { AuthProvider } from "@/services/auth/types";
  * 戻り値は生の unknown。検証と camelCase 変換は sessionMapper.toSession に任せる。
  */
 export type AuthApi = {
-  createSession(input: { provider: AuthProvider; idToken: string }): Promise<unknown>;
+  createSession(input: {
+    provider: AuthProvider;
+    idToken: string;
+    /** apple では必須（raw nonce。Apple には sha256 hex を渡したもの）。google では送らない。 */
+    nonce?: string;
+    /** Sign in with Apple の authorization code（約5分・1回限り）。毎回のサインインで送る。 */
+    authorizationCode?: string;
+    /** 初回の認可で Apple が返した氏名（サニタイズ済み）。 */
+    displayName?: string;
+  }): Promise<unknown>;
   createDevSession(input: { userKey: string }): Promise<unknown>;
   refresh(refreshToken: string, options?: { signal?: AbortSignal }): Promise<unknown>;
   logout(refreshToken: string): Promise<void>;
@@ -55,8 +65,16 @@ export function createAuthApi(deps?: { baseUrl?: () => string; fetchFn?: typeof 
   }
 
   return {
-    async createSession({ provider, idToken }) {
-      const response = await post("/auth/session", { provider, id_token: idToken });
+    async createSession({ provider, idToken, nonce, authorizationCode, displayName }) {
+      // undefined のキーは本文に入れない（google の本文は従来どおり { provider, id_token } のまま）。
+      const body: SessionCreate = {
+        provider,
+        id_token: idToken,
+        ...(nonce !== undefined ? { nonce } : {}),
+        ...(authorizationCode !== undefined ? { authorization_code: authorizationCode } : {}),
+        ...(displayName !== undefined ? { display_name: displayName } : {}),
+      };
+      const response = await post("/auth/session", body);
       return response.json();
     },
     async createDevSession({ userKey }) {

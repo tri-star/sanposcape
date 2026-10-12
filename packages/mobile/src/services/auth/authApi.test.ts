@@ -113,6 +113,67 @@ describe("createAuthApi().createSession", () => {
   });
 });
 
+describe("createAuthApi().createSession（apple）", () => {
+  const APPLE_INPUT = {
+    provider: "apple",
+    idToken: "apple-id-token",
+    nonce: "raw-nonce-0123456789",
+    authorizationCode: "auth-code-1",
+    displayName: "田中 太郎",
+  } as const;
+
+  it("apple の本文が snake_case で送られる（camelCase のキーが漏れていない）", async () => {
+    let receivedBody: unknown;
+    server.use(
+      getCreateSessionAuthSessionPostMockHandler(async (info) => {
+        receivedBody = await info.request.json();
+        return SESSION;
+      }),
+    );
+
+    await createAuthApi().createSession(APPLE_INPUT);
+
+    expect(receivedBody).toEqual({
+      provider: "apple",
+      id_token: "apple-id-token",
+      nonce: "raw-nonce-0123456789",
+      authorization_code: "auth-code-1",
+      display_name: "田中 太郎",
+    });
+  });
+
+  it("displayName を省くと display_name のキーが本文に無い", async () => {
+    let receivedBody: Record<string, unknown> = {};
+    server.use(
+      getCreateSessionAuthSessionPostMockHandler(async (info) => {
+        receivedBody = (await info.request.json()) as Record<string, unknown>;
+        return SESSION;
+      }),
+    );
+
+    await createAuthApi().createSession({ ...APPLE_INPUT, displayName: undefined });
+
+    expect(Object.keys(receivedBody)).not.toContain("display_name");
+    expect(receivedBody.nonce).toBe("raw-nonce-0123456789");
+  });
+
+  it("x-amz-content-sha256 が本文の SHA-256 と一致する", async () => {
+    let contentHash: string | null = null;
+    let rawText = "";
+    server.use(
+      getCreateSessionAuthSessionPostMockHandler(async (info) => {
+        contentHash = info.request.headers.get(CONTENT_SHA256_HEADER);
+        rawText = await info.request.text();
+        return SESSION;
+      }),
+    );
+
+    await createAuthApi().createSession(APPLE_INPUT);
+
+    expect(contentHash).toBe(sha256Hex(rawText));
+  });
+});
+
 describe("createAuthApi().refresh", () => {
   it("200 で JSON が返り、送信ボディが refresh_token である", async () => {
     let receivedBody: unknown;
