@@ -206,7 +206,7 @@ packages/mobile/
 - 呼び出し側は `index.ts` が公開する**インターフェースのみ**を参照し、real/dev/mock の実体を知らない。
 - 実装の選択は環境変数で切り替える（例: `EXPO_PUBLIC_AUTH_MODE`。`real` | `dev` | `mock`、既定 `real`）。
 - `real` / `dev` / `mock` の3モードが基本形。`dev` は「本物に近いが実機/外部IdPに依存しない」実装
-  （例: `services/auth` の `auth.dev.ts` は backend の `/auth/dev-session` を使い Google には触れない）、
+  （例: `services/auth` の `auth.dev.ts` は backend の `/auth/dev-session` を使い Google / Apple には触れない）、
   `mock` はユニットテスト向けの最小スタブ（メモリ上のダミー実装等）という役割分担にする。
 - ただし**必要なモードだけ用意してよい**。例: `services/location` は real/mock の2モードのみ
   （Android エミュレータ / 実機の位置設定・`adb emu geo fix` で real のまま再現できるため、

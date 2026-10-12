@@ -120,6 +120,7 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 - ローカルのE2E（Maestro）で Android を使う場合、WSL2 ではなく Windows 側で動作させる必要があり、一部ユーザーの協力が前提。
 - 開発環境は WSL2/Linux（大文字小文字を区別）。import パスは実ファイル名と case まで完全一致させる。
 - mobile の依存追加は minimumReleaseAge を設定し、公開から2日以上経過したバージョンのみ利用する。
+- Apple Developer Program（App ID の Sign in with Apple capability と、Sign in with Apple の鍵 `.p8`。iOS の審査ガイドライン 4.8 のため。SS-196）。
 - Google Maps Platform / Google Cloud（Maps・OAuth クライアント）の利用にはアカウント・APIキー・課金設定が必要（キーは環境変数管理、リポジトリにコミットしない）。Android は署名鍵ごとに SHA-1 の登録が必要。
 - 初期化・セットアップは各ツールの公式ドキュメントを参照した手順で行う。
 

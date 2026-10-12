@@ -147,8 +147,8 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > **⚠️ mobile は Expo Go ではなく development build が必要**
 > react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
 > expo-apple-authentication（iOS の Sign in with Apple）/
-> expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）/
-> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算）/
+> expo-secure-store（refresh token と、送り切れていない Apple の氏名の永続化）/ expo-location（現在地取得）/
+> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算と、Apple サインインの nonce 生成）/
 > expo-image-picker（カメラ/写真ライブラリ）/ expo-image-manipulator（写真の縮小・再圧縮）/
 > expo-file-system（加工後ファイルのバイト数取得）/ expo-task-manager（散歩中の背景位置記録）などの
 > ネイティブモジュールを使うため、

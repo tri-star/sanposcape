@@ -44,6 +44,10 @@
   backend の ID token 検証は `provider="apple"` で受け付け済み（`nonce` は端末の raw 値を SHA256 の hex と
   token の `nonce` で比較し apple では必須、氏名は新規作成時と未設定の既存ユーザーにだけ使い、`APPLE_ALLOWED_AUDIENCES` が空なら 400）。
   （本文: 「SS-195 追補」節、「SS-197 追補」節）
+- **mobile は `expo-apple-authentication` で `signIn("apple")` を実装済み**（raw nonce を送り、authorization code は毎回、
+  氏名は `/auth/session` の成功まで保持して再送。iOS だけ Apple の公式ボタンを Google の上に置く。フィーチャーフラグでは包まない）。
+  保留中の氏名はサインアウト（アカウント削除成功後を含む）で消し、422 の氏名なし再送は成功してから保留を消す。
+  （本文: 「SS-199 追補」節）
 - **Apple のトークン失効は、サインイン時の code 交換（ベストエフォート）と削除時の失効で実装済み**（SS-198）。
   `POST /auth/session` に任意の `authorization_code` を足し、検証済み ID token の `aud` を `client_id` に
   Apple の `/auth/token` で交換して refresh token を新テーブル `apple_authorizations` に**平文で**保存する
@@ -81,14 +85,14 @@
   backend の ID token 検証（SS-197）と削除時のトークン失効（SS-198）、mobile のサインイン画面と code の送信（SS-199）は
   実装済み。iOS 実機での疎通確認は SS-196（Apple Developer の設定と鍵）と dev の `apple_allowed_audiences` の投入の後。
   （本文: 移行・対応が必要な事項、「SS-195 追補」節、「SS-197 追補」節、「SS-199 追補」節）
-- **mobile は `expo-apple-authentication` で `signIn("apple")` を実装済み**（raw nonce を送り、authorization code は毎回、
-  氏名は `/auth/session` の成功まで保持して再送。iOS だけ Apple の公式ボタンを Google の上に置く。フィーチャーフラグでは包まない）。
-  （本文: 「SS-199 追補」節）
 - **`APPLE_ALLOWED_AUDIENCES` と Apple の鍵（`APPLE_TEAM_ID` / `APPLE_SIGN_IN_KEY_ID` / `APPLE_SIGN_IN_PRIVATE_KEY`）を
   staging / production の起動時必須にするかは、本番リリース前に再判断する**。現状はどちらも必須にしていない
   （本文: 「SS-197 追補」節、「SS-198 追補」節）。
 - **実機で「削除後に『Apple でサインイン』の連携一覧からアプリが消える」ことは未確認**。SS-196（鍵の登録と投入）と
-  SS-199 で端末が code を送るようになった。SS-196 の後に SS-162（アカウント削除導線の確認）で確認する。（本文: 「SS-198 追補」節）
+  SS-199 で端末が code を送るようになった（対応済み）。SS-196（鍵の登録と投入）の後に SS-162（アカウント削除導線の確認）で確認する。
+  （本文: 「SS-198 追補」節）
+- **mobile の Sign in with Apple は iOS 実機で未確認**（サインイン・サインアウト・再サインイン、氏名つきの初回サインインが 422 にならず
+  氏名が保存されること、Apple のボタンの文言が日本語で出ること）。（本文: 「SS-199 追補」節「未確認」）
 
 ### 変更・撤回された決定
 
@@ -189,7 +193,7 @@ app --X-App-Authorization: Bearer <自前 access token>--> 以降の全 API
 
 | モード | モバイル実装 | トークン取得元 | backend API | 用途 |
 |---|---|---|---|---|
-| `real` | `auth.real.ts` | Google → `POST /auth/session` | 実物 | 本番 |
+| `real` | `auth.real.ts` | Google → `POST /auth/session`（SS-199 追補: Apple も同じ） | 実物 | 本番 |
 | `dev` | `auth.dev.ts` | `POST /auth/dev-session { user_key }` | **実物** | ローカル開発 / Maestro E2E |
 | `mock` | `auth.mock.ts` | メモリ上の固定ダミー | **Orval MSW** | vitest |
 
@@ -747,6 +751,11 @@ backend は毎回 code を refresh token に交換して上書きする。初回
 
 Apple が氏名を返すのは初回の認可だけで、backend への送信に失敗すると二度と取れない。そのため `/auth/session` を呼ぶ前に
 SecureStore（refresh token と同じ Keychain。個人情報なので同じ扱い）へ Apple のユーザー識別子と組で保存し、200 の後に消す。
+保留は1ユーザー分の単一スロットで、別の Apple ユーザーの氏名つきサインインが保存に成功すると上書きされる。保存に失敗したときは、
+ストアに残る別ユーザーの保留分を成功後の消去で巻き込まない（消すのは「今回の保存が成功した」または「保留がこのユーザーのもの」のときだけ）。
+**サインアウトでも消す。** 保留が残るのはサインインに失敗した場合だけで、サインアウトした時点で再送の必要は無く、個人情報を端末に残さないため。
+real の `onSignOut` が Google のサインアウトと保留の消去を両方試し、どちらの失敗も握りつぶして他方を止めない。
+アカウント削除の成功後もローカルのセッション破棄は `authService.signOut()` を経由するので、同じ経路で消える。
 識別子が一致するときだけ再送するのは、同じ端末で別の Apple ID がサインインしたとき、前の人の氏名を別アカウントに書き込まないため。
 端末側で禁止文字（Cc・Cf・Zl・Zp。ZWJ・ZWNJ は残す）の除去、前後の空白の除去、255 コードポイントへの切り詰めをしてから送る
 （backend は禁止文字を含むと 422 にするので、端末側で取り除いて氏名を活かす）。禁止文字の正規表現は Unicode property escapes を使うが、
@@ -756,13 +765,17 @@ Hermes が解釈できなくても起動を壊さないよう実行時に生成�
 その Apple ID ではサインインできなくなる（iOS の Keychain はアプリを再インストールしても残りうるので、利用者には直せない）。
 同じ token / code / nonce で再送できるのは、422 が FastAPI のリクエスト検証（ハンドラの前）で返るので code がまだ消費されておらず、
 nonce の検証は状態を持たない（token のクレームとハッシュを比べるだけ）ため。
+**保留は、氏名なしの再送が成功した後に消す。** 再送の前に消すと、422 の原因が氏名以外（nonce や code の長さなど）で再送も失敗したときに、
+Apple が初回しか返さない氏名を失う。再送が失敗したら保留を残してエラーを投げる（次回も「氏名つき → 422 → 氏名なし」を1回ずつ試すだけで、
+無限ループにはならない）。422 の `detail.loc` で氏名が原因かを絞り込むことは、backend の 422 の形への依存が増えるためしない。
 
 ### エラーの扱い
 
 - `ERR_REQUEST_CANCELED` はキャンセル（無反応）。
 - `ERR_REQUEST_UNKNOWN` は capability の欠落など設定ミスでも同じコードになるので、キャンセル扱いにしない（汎用の失敗トースト）。原因が見えなくなるのを避けるため。
+- `ERR_UNAVAILABLE`（ネイティブモジュールが無い。iOS 以外・Expo Go 等）も `configuration`。
 - `ApiError` 400 は `configuration`（backend の `APPLE_ALLOWED_AUDIENCES` 未設定。`/auth/session` の 400 は `Unsupported provider` だけ）。`/auth/refresh` は 400 を返さないのでセッション破棄の判定には影響しない。
-- `AppleAuthentication.signOutAsync` は使わない（サインインのシートが出る。Expo の推奨）。サインアウトは既存の `signOut()` で完結する。
+- `AppleAuthentication.signOutAsync` は使わない（サインインのシートが出る。Expo の推奨）。サインアウトは既存の `signOut()` で完結する（保留中の氏名の消去も `onSignOut` に含める）。
 
 ### dev / mock は provider を無視する
 

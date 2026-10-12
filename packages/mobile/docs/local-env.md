@@ -16,8 +16,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 
 本アプリは **react-native-maps**、**react-native-svg**（アイコン・マップピンの描画）、
 **@react-native-community/slider**（往復時間スライダー）、**react-native-nitro-google-signin**
-（Google サインイン）、**expo-apple-authentication**（iOS の Sign in with Apple）、**expo-secure-store**（refresh token の永続化）、**expo-crypto**
-（`x-amz-content-sha256` の計算。`src/api/contentHash.ts`）、**expo-location**（現在地・散歩中の位置記録）、
+（Google サインイン）、**expo-apple-authentication**（iOS の Sign in with Apple）、**expo-secure-store**（refresh token と、送り切れていない Apple の氏名の永続化）、**expo-crypto**
+（`x-amz-content-sha256` の計算 `src/api/contentHash.ts` と、Apple サインインの nonce 生成 `appleNonce.ts`）、**expo-location**（現在地・散歩中の位置記録）、
 **expo-task-manager**（背景の位置記録のタスク。SS-156）という
 **ネイティブモジュール**を利用する。これらは **Expo Go では動作しない**ため、動作確認には Expo の
 **development build**（dev client）が必要。
@@ -36,6 +36,9 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
   development build の作り直しが必要**（Fast Refresh・OTA では反映されない）。iOS は Info.plist の文言が変わる。
   Android は `POST_NOTIFICATIONS` がマニフェストに加わる（これが無いと Android 13 以降は FGS の通知が通知シェードに出ない）。
   FGS 通知の文言そのもの（`BACKGROUND_TRACKING_NOTIFICATION`）は JS 側の変更。
+- **SS-199（iOS の Sign in with Apple）の適用後は、`expo-apple-authentication` の追加と
+  entitlement `com.apple.developer.applesignin` の追加が入るため development build の作り直しが必要**
+  （Fast Refresh では反映されない）。iOS 実機・シミュレータで Apple ボタンを確認するときに要る。
 
 ## セットアップ
 

@@ -299,7 +299,8 @@ export default function SomeFeatureRoute() {
       **テストしたいロジックは `lib/` の純粋関数へ切り出す**のが原則。
   - 認証: `services/auth` のバレル（`index.ts`）は import しない。バレルはモード判定
     (`getAuthMode()`) の結果に応じて `googleSignIn.ts`（ネイティブ依存
-    `react-native-nitro-google-signin`。エイリアス未設定）へ到達しうるため、テスト環境の
+    `react-native-nitro-google-signin`。エイリアス未設定）や `appleSignIn.ts`（ネイティブ依存
+    `expo-apple-authentication`。SS-199）へ到達しうるため、テスト環境の
     `EXPO_PUBLIC_AUTH_MODE` 設定だけでは安全にならない。単体テストでは
     `createMockAuthService()`（`src/services/auth/auth.mock.ts`）や `createSessionAuthService()`
     などの個別モジュールを直接 import し、フェイクを注入してテストする
