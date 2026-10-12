@@ -16,6 +16,27 @@ describe("toAuthError", () => {
     expect(toAuthError(new ApiError(404)).code).toBe("configuration");
   });
 
+  it("ApiError 400（apple の APPLE_ALLOWED_AUDIENCES 未設定）は configuration になる", () => {
+    expect(toAuthError(new ApiError(400)).code).toBe("configuration");
+  });
+
+  it("ApiError 422 と 503 は unknown になる", () => {
+    expect(toAuthError(new ApiError(422)).code).toBe("unknown");
+    expect(toAuthError(new ApiError(503)).code).toBe("unknown");
+  });
+
+  it("Apple の ERR_REQUEST_CANCELED は cancelled になる", () => {
+    expect(toAuthError({ code: "ERR_REQUEST_CANCELED" }).code).toBe("cancelled");
+  });
+
+  it("Apple の ERR_UNAVAILABLE は configuration になる", () => {
+    expect(toAuthError({ code: "ERR_UNAVAILABLE" }).code).toBe("configuration");
+  });
+
+  it("Apple の ERR_REQUEST_UNKNOWN はキャンセル扱いにせず unknown のまま", () => {
+    expect(toAuthError({ code: "ERR_REQUEST_UNKNOWN" }).code).toBe("unknown");
+  });
+
   it("その他の ApiError は unknown になる", () => {
     expect(toAuthError(new ApiError(500)).code).toBe("unknown");
   });

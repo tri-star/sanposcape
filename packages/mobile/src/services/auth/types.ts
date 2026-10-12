@@ -1,7 +1,7 @@
 import type { SessionRead } from "@/api/generated/model";
 
 /** 認証プロバイダ。追加時は backend の provider フィールドに対応値を足す（ADR-002 決定2）。 */
-export type AuthProvider = "google";
+export type AuthProvider = "google" | "apple";
 
 /** アプリが扱うユーザー表現。トークンは含めない（UI へトークンを漏らさない）。 */
 export type AuthUser = {
@@ -89,6 +89,33 @@ export type AuthUserResponse = {
   email: string | null;
   display_name: string | null;
   photo_url: string | null;
+};
+
+/**
+ * Sign in with Apple の結果のうち、backend へ送るもの。
+ * `displayName` は Apple が返した氏名をそのまま整形した文字列（初回の認可時だけ非 null）。
+ * サニタイズは `appleDisplayName.ts` の `sanitizeAppleDisplayName` で行う（ここでは未加工）。
+ */
+export type AppleCredential = {
+  /** Apple のユーザー識別子（ID token の sub と同じ値。同じ開発者のアプリ間で不変）。 */
+  user: string;
+  identityToken: string;
+  authorizationCode: string;
+  displayName: string | null;
+};
+
+/** backend へ送り切れていない氏名。Apple のユーザー識別子に紐付けて保持する。 */
+export type PendingAppleDisplayName = {
+  appleUserId: string;
+  displayName: string;
+};
+
+/** 保留中の氏名の永続化先（real は SecureStore、テストはメモリのフェイク）。 */
+export type PendingAppleDisplayNameStore = {
+  /** 無い・読めない・壊れている場合は null（throw しない）。 */
+  load(): Promise<PendingAppleDisplayName | null>;
+  save(value: PendingAppleDisplayName): Promise<void>;
+  clear(): Promise<void>;
 };
 
 /** 認証エラーの分類。 */

@@ -19,6 +19,8 @@ export function createDevAuthService(deps: {
 }): AuthService {
   return createSessionAuthService({
     // provider 引数は無視する（開発用ユーザーは provider に依存しない）。
+    // "apple" でも /auth/dev-session を呼び、Apple には触れない（ADR-002 決定3: 継ぎ目はトークンの発行元だけ）。
+    // iOS シミュレータの dev ビルドで Apple ボタンを押すと、Google と同じ開発用ユーザーでサインインする。
     issueSession: () => deps.api.createDevSession({ userKey: getDevUserKey() }),
     api: deps.api,
     tokenStore: deps.tokenStore,

@@ -113,6 +113,8 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
     それを DELETE の中で `/{walk_id}` より前に宣言する必要があるが、既存の GET 側の宣言順とは
     無関係（`walks/router.py` のコメントも参照）。
 - パスパラメータ名は snake_case（`{walk_id}`）。
+- リクエスト・レスポンスの JSON のフィールド名は snake_case にする（`created_at`・`access_token`）。mobile 内部の camelCase への変換は mobile 側で行う（[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)「mobile ⇔ backend の認証 API 契約」）。
+- 開発・テスト専用のエンドポイント（`AUTH_MODE=dev`・`STORAGE_MODE=fake` 限定など）は `include_in_schema=False` で OpenAPI に載せない。router を include するか（モード次第でよい）と、スキーマに載せるか（常に載せない）は別に決める。モードを変えても `app.openapi()` の出力が変わらないことをテストで固定する（`auth/tests/test_dev_router.py::test_openapi_output_is_identical_regardless_of_auth_mode`）。
 - エンドポイント関数名は操作を表す snake_case（`create_walk`, `list_walks`, `get_walk`, `get_walk_stats`, `delete_walk`）。
 
 ## Pydantic スキーマの接尾辞

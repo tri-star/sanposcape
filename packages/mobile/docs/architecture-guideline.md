@@ -299,12 +299,19 @@ export default function SomeFeatureRoute() {
         追加すること。追加を怠ると `client.ts` を推移的に import する `features/*/api/*.test.ts`
         が軒並み失敗する（現在のエイリアス対象: `react-native` / `expo-secure-store` /
         `expo-location` / `expo-crypto` / `expo-task-manager` / `expo-file-system`）。
+      - Orval の faker モック（引数なしの `get...ResponseMock()`）は enum や map のキーも乱数で作る
+        （例: `/app-config` の `flags`）。不変条件を持つレスポンスは、msw ハンドラに明示的な値を渡す。
+    - `lib/` から `@/components/ui/*` の型（`IconName` など）を使うときは `import type` だけにする。
+      値として import すると `Icon` → `lucide-react-native` → `react-native-svg` に届き、
+      `resolve.alias` に無いので Vitest が落ちる。UI プリミティブの計算をテストしたいときは、
+      何も import しない `.ts` を `components/ui/<x>/` に併置する（例: `map-pin/mapPinGeometry.ts`）。
     - 画面の見た目: 開発確認用ルート（`/dev-screens` の `ScreenCatalog`）で目視確認する。
     - `hooks/` と `components/` は上記のいずれにも入らない（レンダリングテストが書けないため）。
       **テストしたいロジックは `lib/` の純粋関数へ切り出す**のが原則。
   - 認証: `services/auth` のバレル（`index.ts`）は import しない。バレルはモード判定
     (`getAuthMode()`) の結果に応じて `googleSignIn.ts`（ネイティブ依存
-    `react-native-nitro-google-signin`。エイリアス未設定）へ到達しうるため、テスト環境の
+    `react-native-nitro-google-signin`。エイリアス未設定）や `appleSignIn.ts`（ネイティブ依存
+    `expo-apple-authentication`。SS-199）へ到達しうるため、テスト環境の
     `EXPO_PUBLIC_AUTH_MODE` 設定だけでは安全にならない。単体テストでは
     `createMockAuthService()`（`src/services/auth/auth.mock.ts`）や `createSessionAuthService()`
     などの個別モジュールを直接 import し、フェイクを注入してテストする

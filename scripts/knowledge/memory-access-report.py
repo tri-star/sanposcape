@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """agent-memory のアクセスログを集計する。
 
-record-memory-access.sh が .claude/memory-access-log/<YYYY-MM>/<session-id>.jsonl に
-残した記録を読み、「どのメモリが実際に使われているか」を数値で出す。
+record-memory-access.sh の記録を読み、「どのメモリが実際に使われているか」を数値で出す。
+読むのは次の2か所の <YYYY-MM>/ 配下の *.jsonl。数えるのはレコードの session で、ファイル名には依らない。
+- .claude/memory-access-log/（PR 作成時に移してコミットした分。<session-id>.<移した時刻>-<乱数>.jsonl。別マシン・他のメンバーの分も含む）
+- <git-common-dir>/memory-access-log/（この clone の手元に溜まっていて、まだ移していない分。<session-id>.jsonl）
 棚卸し（削除・統合・ADR昇格）の判断材料に使う。
 
-セッションごとにファイルが分かれているため、複数人のログをコミットしてもそのまま合算できる。
+移すたびに別ファイルになるため、別マシン・複数人のログをコミットしてもそのまま合算できる。
 
 使い方:
     scripts/knowledge/memory-access-report.py              # 全期間
     scripts/knowledge/memory-access-report.py --days 30    # 直近30日
-    scripts/knowledge/memory-access-report.py --agent mobile-developer
+    scripts/knowledge/memory-access-report.py --agent mobile
     scripts/knowledge/memory-access-report.py --json       # 機械処理向け
 """
 
@@ -38,9 +40,30 @@ def repo_root() -> Path:
     return Path(out.stdout.strip())
 
 
+def spool_root() -> Path | None:
+    """この clone の手元のログ（未コミット）の置き場所。取れなければ None。"""
+    out = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True,
+        text=True,
+    )
+    if out.returncode != 0:
+        return None
+    return Path(out.stdout.strip()) / "memory-access-log"
+
+
+def log_files(root: Path) -> list[Path]:
+    files = sorted((root / LOG_ROOT).rglob("*.jsonl"))
+    spool = spool_root()
+    if spool and spool.is_dir():
+        # 移し込みの途中で残った退避ファイル（*.jsonl.flushing.*）も読む。
+        files += sorted(spool.rglob("*.jsonl*"))
+    return files
+
+
 def load_records(root: Path, since: datetime | None) -> list[dict]:
     records: list[dict] = []
-    for path in sorted((root / LOG_ROOT).rglob("*.jsonl")):
+    for path in log_files(root):
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
@@ -97,7 +120,7 @@ def build_stats(records: list[dict], existing: list[tuple[str, str]]) -> list[di
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--days", type=int, help="直近N日に絞る")
-    parser.add_argument("--agent", help="特定エージェントに絞る")
+    parser.add_argument("--agent", help="特定のメモリディレクトリ（backend / mobile / review など）に絞る")
     parser.add_argument("--json", action="store_true", help="JSONで出力する")
     args = parser.parse_args(argv)
 

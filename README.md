@@ -22,6 +22,7 @@
   - 横断: [ADR-008 デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./docs/adr/ADR-008-deploy-release-separation.md)
   - 横断: [ADR-009 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   - 横断: [ADR-010 Astra向けハーネスとClaude定義の差分取り込み](./docs/adr/ADR-010-codex-astra-harness-and-incremental-import.md)
+  - 横断: [ADR-014 Claude Code のハーネスは、メインが計画・実装し、レビューは観点で分けたレビュアーに任せる](./docs/adr/ADR-014-claude-harness-main-agent-and-review-structure.md)
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-M-001 フォルダ構造](./packages/mobile/adr/ADR-M-001-folder-structure.md)
@@ -81,7 +82,7 @@
 | ORM / マイグレーション | SQLAlchemy + Alembic |
 | スキーマ | Pydantic |
 | データベース | PostgreSQL（開発用DB + テスト用DBを分離） |
-| 認証 | Google Sign-In 直結 + 自前セッショントークン（pyjwt[crypto]） |
+| 認証 | Google Sign-In 直結（iOS は Sign in with Apple も）+ 自前セッショントークン（pyjwt[crypto]） |
 | テスト | pytest |
 | Lint / Format | ruff |
 | パッケージ管理 | uv |
@@ -148,13 +149,14 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 
 > **⚠️ mobile は Expo Go ではなく development build が必要**
 > react-native-maps / react-native-svg / react-native-nitro-google-signin（Google サインイン）/
-> expo-secure-store（refresh token の永続化）/ expo-location（現在地取得）/
-> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算）/
+> expo-apple-authentication（iOS の Sign in with Apple）/
+> expo-secure-store（refresh token と、送り切れていない Apple の氏名の永続化）/ expo-location（現在地取得）/
+> expo-crypto（`x-amz-content-sha256` 用のボディ SHA-256 計算と、Apple サインインの nonce 生成）/
 > expo-image-picker（カメラ/写真ライブラリ）/ expo-image-manipulator（写真の縮小・再圧縮）/
 > expo-file-system（加工後ファイルのバイト数取得）/ expo-task-manager（散歩中の背景位置記録）などの
 > ネイティブモジュールを使うため、
 > 動作確認には Expo の development build（dev client）を利用する（Expo Go では動作しない）。
-> **SS-10（認証まわりのネイティブ依存を追加）・SS-15（expo-location の追加・Maps キー注入）・
+> **SS-10（認証まわりのネイティブ依存を追加）・SS-199（expo-apple-authentication の追加。iOS）・SS-15（expo-location の追加・Maps キー注入）・
 > SS-70（expo-crypto の追加）・SS-88（expo-image-picker / expo-image-manipulator /
 > expo-file-system の追加。ピン登録機能）・SS-156（expo-task-manager の追加と expo-location プラグイン設定の変更。
 > 散歩中の背景位置記録）・SS-157（iOS: 位置情報の利用目的文言。Android: 通知権限 `POST_NOTIFICATIONS` の宣言）適用後は development build の作り直しが必要**

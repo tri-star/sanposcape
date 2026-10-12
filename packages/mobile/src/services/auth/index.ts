@@ -1,5 +1,6 @@
 import { setAuthTokenProvider } from "@/api/authTokenProvider";
 import { getAuthMode } from "@/config/authMode";
+import { securePendingAppleDisplayNameStore } from "@/services/auth/applePendingDisplayName.secure";
 import { createAuthApi } from "@/services/auth/authApi";
 import { createDevAuthService } from "@/services/auth/auth.dev";
 import { createMockAuthService } from "@/services/auth/auth.mock";
@@ -52,7 +53,12 @@ export const authService: AuthService =
     ? createMockAuthService({ onSessionChange: notifySessionChange })
     : mode === "dev"
       ? createDevAuthService({ tokenStore, api, onSessionChange: notifySessionChange })
-      : createRealAuthService({ tokenStore, api, onSessionChange: notifySessionChange });
+      : createRealAuthService({
+          tokenStore,
+          api,
+          pendingAppleDisplayName: securePendingAppleDisplayNameStore,
+          onSessionChange: notifySessionChange,
+        });
 
 let initialized = false;
 

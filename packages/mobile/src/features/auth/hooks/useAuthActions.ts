@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   getGuestEntryDestination,
@@ -8,15 +8,19 @@ import {
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import { useToast } from "@/hooks/useToast";
-import { authService, isAuthError } from "@/services/auth";
+import { authService, isAuthError, type AuthProvider } from "@/services/auth";
 
 export type UseAuthActionsResult = {
   signInWithGoogle: () => void;
   signUpWithGoogle: () => void;
+  signInWithApple: () => void;
+  signUpWithApple: () => void;
   /** ゲストのまま着地点（ピンタブ。進行中の散歩があればナビタブ）へ進む。認証状態は変えない＝トークン非保持のまま（ADR-002 決定6）。 */
   continueAsGuest: () => void;
-  /** サインイン処理中かどうか。ボタンの `disabled` 制御に使う（多重タップ防止）。 */
+  /** いずれかのサインイン処理中か。全ボタンの `disabled` 制御に使う（多重タップ防止）。 */
   isSubmitting: boolean;
+  /** 処理中のプロバイダ。「ログイン中...」の表示を押したボタンだけに出すために使う。 */
+  submittingProvider: AuthProvider | null;
   /** 失敗時のフィードバック用トースト状態（呼び出し側の画面で描画する）。 */
   toast: { visible: boolean; message: string };
 };
@@ -27,7 +31,7 @@ export type UseAuthActionsResult = {
  * 進行中の散歩の有無と、保存待ちドラフトかつサマリ画面の CTA から来た意思表示
  * （`useFinishedWalkStore.signInForSaveRequested`）の有無から、遷移方法（`replace`/`dismissTo`）
  * 込みで決める。
- * `AuthService.signIn("google")` を real/dev/mock いずれのモードでも同じ形で呼ぶ
+ * `AuthService.signIn(provider)`（Google / Apple）を real/dev/mock いずれのモードでも同じ形で呼ぶ
  * （`docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md` 決定5: signIn/signUp は区別しない）。
  * キャンセル（`AuthError("cancelled")`）はユーザー操作なのでトーストを出さない。
  *
@@ -49,7 +53,10 @@ export function useAuthActions(): UseAuthActionsResult {
   const router = useRouter();
   const toast = useToast();
   const { show } = toast;
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingProvider, setSubmittingProvider] = useState<AuthProvider | null>(null);
+  const isSubmitting = submittingProvider !== null;
+  // 二重押下の同期ロック。state は再 render まで古い値のままなので、連打の2回目を防げない（Google / Apple 共通）。
+  const submittingRef = useRef(false);
   const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
   // セレクタはプリミティブを返す（zustand v5 の再レンダー対策）。
   // `signInForSaveRequested` を条件に含めるのが SS-37 ローカルレビュー対応の要点。
@@ -60,14 +67,15 @@ export function useAuthActions(): UseAuthActionsResult {
   );
 
   const runSignIn = useCallback(
-    (failureMessage: string) => {
-      if (isSubmitting) {
+    (provider: AuthProvider, failureMessage: string) => {
+      if (submittingRef.current) {
         // 多重タップ防止。
         return;
       }
-      setIsSubmitting(true);
+      submittingRef.current = true;
+      setSubmittingProvider(provider);
       authService
-        .signIn("google")
+        .signIn(provider)
         .then(() => {
           // 保存の再送はこの遷移に依存しない（多重防御）。`authService.signIn()` の中で
           // `setSession(user)` が走った瞬間にサマリ画面（スタック下で mount 済み）の
@@ -97,17 +105,28 @@ export function useAuthActions(): UseAuthActionsResult {
           }
           show(failureMessage);
         })
-        .finally(() => setIsSubmitting(false));
+        .finally(() => {
+          submittingRef.current = false;
+          setSubmittingProvider(null);
+        });
     },
-    [isSubmitting, router, show, hasActiveWalk, wantsToSaveFinishedWalk],
+    [router, show, hasActiveWalk, wantsToSaveFinishedWalk],
   );
 
   const signInWithGoogle = useCallback(() => {
-    runSignIn("サインインに失敗しました。もう一度お試しください。");
+    runSignIn("google", "サインインに失敗しました。もう一度お試しください。");
   }, [runSignIn]);
 
   const signUpWithGoogle = useCallback(() => {
-    runSignIn("登録に失敗しました。もう一度お試しください。");
+    runSignIn("google", "登録に失敗しました。もう一度お試しください。");
+  }, [runSignIn]);
+
+  const signInWithApple = useCallback(() => {
+    runSignIn("apple", "サインインに失敗しました。もう一度お試しください。");
+  }, [runSignIn]);
+
+  const signUpWithApple = useCallback(() => {
+    runSignIn("apple", "登録に失敗しました。もう一度お試しください。");
   }, [runSignIn]);
 
   // authService は呼ばない。ゲストは「トークン非保持状態」であって AuthService のメソッドでは
@@ -133,8 +152,11 @@ export function useAuthActions(): UseAuthActionsResult {
   return {
     signInWithGoogle,
     signUpWithGoogle,
+    signInWithApple,
+    signUpWithApple,
     continueAsGuest,
     isSubmitting,
+    submittingProvider,
     toast: { visible: toast.visible, message: toast.message },
   };
 }

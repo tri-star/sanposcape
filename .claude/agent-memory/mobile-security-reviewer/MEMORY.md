@@ -1,9 +1,0 @@
-- [認証モードenvのfail-safeパース](project_auth_stub_switch.md) — SS-8のfail-open実装はSS-10で是正済み。新しいmode系envを足すPRでは変数名一致・fail-closedな既定値・production指定を確認する
-- [認証ゲート・ゲスト・戻る導線のレビュー観点](auth-gate-review-checklist.md) — SS-13/34/57統合。PUBLIC_ROOT_SEGMENTSへの誤追加、ゲストは保護ルートに入れる前提で画面/通信側で止める、fallbackHrefはハードコードか、setSessionの同期cleanup順。_sitemap・loading素通しは受容済み
-- [散歩・位置情報系のレビュー観点](walk-location-review-checklist.md) — SS-16/33統合。watchPositionリークガード、place_id非露出、外部応答は値マッチ＋件数で検証、撤去系PRは残骸grep、ログ/エラー文言は定型
-- [ピン・写真・動的ルートパラメータのレビュー観点](pin-and-route-param-review-checklist.md) — SS-20/88/118/124統合。isUuid2層防御、座標の送受信二重検証、直送3点(認証ヘッダー非送出/URLホワイトリスト/redirectはRN実機で無効)、画像キャッシュ消去は起動時importで登録
-- [散歩記録保存(POST /walks)のレビュー観点](project_ss19_walk_finish_save.md) — 冪等キーの強度判定は一意制約のスコープを実コードで確認、軌跡送信整形の定数同期、dev-screensガード
-- [SS-37: 保存CTA・自動再送のゲートと査読の教訓](project_ss37_guest_walk_signin_merge.md) — signInForSaveRequestedゲートが外れていないか。ADRの文言でseverityを上げるときは決定の対象を本文で確かめる
-- [CloudFront経由API通信(X-App-Authorization)のレビュー観点](project_ss70_cloudfront_auth_header.md) — 正本ADR-005決定4。2出口の同時更新・リトライ時のハッシュ使い回し・redirect:"error"維持・ログ導入時のヘッダーマスク
-- [SS-62: アカウント削除導線(DELETE /users/me)レビュー](project_ss62_account_deletion.md) — 問題なし。破壊的操作の確認ダイアログ/順序(token破棄→cache clear)/401非再試行/customFetch単一出口の模範実装として参照
-- [SS-100: /app-configフィーチャーフラグ受け皿のレビュー](project_ss100_app_config_flags.md) — 問題なし。flags===true厳密比較でfail-safe、サインアウトclear()除外はapp-config1件のみ明示、config_sourceは型から構造的に非露出

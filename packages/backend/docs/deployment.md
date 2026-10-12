@@ -31,7 +31,7 @@
 > | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **デプロイ未実施**（infra の `ManageBackendMonitoring`＝sanposcape-infra PR #53 の dev apply 待ち）。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。**dev の読み取りで確認済み（2026-10-05、infra 経由）**: スパンのフィールド名と型、Q1 / Q2 の構文と実データでの集計、REPORT 行のクエリ、Application Signals の `Environment`＝`dev` と `Operation` を含む次元、関数単位の `ConcurrentExecutions`、SSM の通知先トピック（dev / prod とも存在・購読確認済み・SNS のポリシーは CloudWatch の Publish を許可）。**未確認**: ダッシュボードの全ウィジェットの描画、Q4（bin + name の折れ線）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差（サンプリング）、デプロイそのもの。prod は ManageBackendMonitoring の prod 適用（SS-185 の prod 適用と同時期）待ち。**この行は dev へのデプロイと §14「デプロイ後の確認」を済ませたら ✅ に更新する（マージ前の完了条件）** |
 > | ログの JSON 化（§15 / SS-180） | ⚠️ **デプロイ未実施**（dev へはデプロイしていない）。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
 > | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
-> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **デプロイ未実施・実機未確認**。pytest（Apple の REST API はモック通信）は通過。**鍵は未投入で SS-196 待ち**。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。実機での確認は SS-199（端末が code を送る）と SS-162（アカウント削除導線の確認） |
+> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **デプロイ未実施・実機未確認**。pytest（Apple の REST API はモック通信）は通過。**鍵は未投入で SS-196 待ち**。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-196 の鍵投入後に SS-162（アカウント削除導線の確認）で行う |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -891,6 +891,12 @@ Lambda は VPC に入れていない。Neon の **IP allowlist は無効**であ
   `MemorySize` を下げる場合は `PIN_PHOTO_CONFIRM_CONCURRENCY` も
   合わせて見直すこと（CPU 割り当ても `MemorySize` に比例するため、下げると確定処理の
   所要時間が伸び `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` に近づくリスクもある）。
+- **infra が未 apply の SSM パラメータを `{{resolve:ssm:}}` で参照する変更を、アプリ本体の PR に入れない。** apply 前に
+  デプロイすると `sam deploy` 自体が失敗し、無関係な修正のデプロイも止まる（template は dev/prod 共通なので、main に入った時点で
+  prod の初回デプロイの前提にもなる）。新しい AWS リソースを使う機能は、アプリ側を `XXX_MODE=real|fake` と「設定が空なら
+  Unconfigured（503 などの安全側）」で先に入れ、`template.yaml` の結線と実行ロールの権限は、infra の dev apply を
+  `aws ssm get-parameter` で確かめてから別の PR で入れる（前例: ADR-009 決定8 の SS-108 追補）。S3 の権限は SSM の `bucket_arn` で
+  プレフィックスまで絞り、存在しないキーの HEAD を 404 にしたいなら `s3:ListBucket` も付ける（無いと 403）。
 - **（SS-179）監視の分担を崩さない。** ap-southeast-1 の `sanposcape-<env>-backend-*` のダッシュボード・アラームは
   SAM（`template.yaml`）の所有で、infra の services 層（Terraform）はこの接頭辞を ap-southeast-1 に作らない。
   CloudFront のアラーム（us-east-1）は Terraform の所有で、SAM には作らない。名前は必ず

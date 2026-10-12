@@ -1,0 +1,39 @@
+# 文書中のリンク・パス・pnpm script の既知の違反（棚卸しで直して減らしていく対象）
+# 再生成: scripts/knowledge/check-doc-references.py --baseline
+# 同じ行が複数あるのは、同じファイルの複数か所にある違反。ここより多く出ると CI が失敗する。
+.claude/agents/dependabot-update-resolver.md:path: `packages/frontend/package.json` が無い
+.claude/agents/dependabot-update-resolver.md:pnpm: package `frontend` が無い（script `build`）
+.claude/agents/dependabot-update-resolver.md:pnpm: package `frontend` が無い（script `lint`）
+.claude/agents/dependabot-update-resolver.md:pnpm: package `frontend` が無い（script `test`）
+.claude/skills/adr-writing/SKILL.md:path: `packages/backend/docs/adr/ADR-B-001-some-title.md` が無い
+.claude/skills/adr-writing/SKILL.md:path: `packages/frontend/docs/adr/ADR-F-001-some-title.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/api-design.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/api-design.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/components.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/components.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/components.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/screens.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `docs/screens.md` が無い
+.claude/skills/change-review/references/web-frontend.md:path: `packages/frontend` が無い
+.claude/skills/launch-project/references/build-local-env.md:path: `scripts/copy-initial-contents.sh` が無い
+.claude/skills/local-env-setup/SKILL.md:path: `packages/frontend/.env.example` が無い
+.claude/skills/local-env-setup/SKILL.md:pnpm: package `frontend` が無い（script `dev`）
+.claude/skills/task-scheduling/SKILL.md:path: `docs/concept.md` が無い
+.claude/skills/task-scheduling/SKILL.md:path: `docs/glossary.md` が無い
+.claude/skills/task-scheduling/SKILL.md:path: `docs/hearing-memo.md` が無い
+.claude/skills/task-scheduling/SKILL.md:path: `docs/mvp.md` が無い
+.claude/skills/task-workflow/references/web-frontend.md:path: `packages/frontend/AGENTS.md` が無い
+.claude/skills/task-workflow/references/web-frontend.md:path: `packages/frontend/` が無い
+.claude/skills/task-workflow/references/web-frontend.md:path: `packages/frontend/docs/` が無い
+.claude/skills/task-workflow/references/web-frontend.md:path: `packages/frontend/docs/` が無い
+docs/adr/ADR-007-loop-route-generation.md:path: `scripts/loop_route_probe.py` が無い
+docs/adr/ADR-007-loop-route-generation.md:path: `scripts/loop_route_probe.py` が無い
+docs/adr/ADR-007-loop-route-generation.md:path: `scripts/loop_route_probe.py` が無い
+docs/adr/ADR-007-loop-route-generation.md:path: `scripts/loop_route_probe_cases.yaml` が無い
+docs/adr/ADR-007-loop-route-generation.md:path: `scripts/loop_route_probe_cases.yaml` が無い
+docs/adr/ADR-011-sanpo-maps-module-structure.md:path: `packages/backend/src/sanposcape/pins/` が無い
+docs/adr/ADR-013-observability-adot-application-signals.md:path: `docs/adr/ADR-005-backend-lambda-packaging.md` が無い
+docs/adr/ADR-013-observability-adot-application-signals.md:path: `packages/backend/infra/template.yaml` が無い
+docs/adr/ADR-013-observability-adot-application-signals.md:path: `packages/backend/src/tasche/main.py` が無い
+docs/adr/ADR-013-observability-adot-application-signals.md:path: `scripts/start-api.sh` が無い
+docs/knowledge-management.md:path: `packages/frontend/docs/adr/` が無い

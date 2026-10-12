@@ -32,7 +32,7 @@ export type UseAccountDeletionResult = {
  * 2. `authService.signOut()`（既存実装をそのまま再利用。`AuthService` に新メソッドを足さない）。
  *    a. `POST /auth/logout` … 既に存在しない refresh token だが backend の logout は冪等
  *       （未知のトークンでも 204）。失敗しても握りつぶされる。
- *    b. real モードのみ `signOutFromGoogle()`（Google のネイティブセッション破棄）。
+ *    b. real モードのみ `onSignOut`（Google のネイティブセッション破棄と、保留中の Apple の氏名の消去。SS-199）。
  *    c. `tokenStore.clear()` … メモリの access token と SecureStore の refresh token を破棄。
  *    d. `setCurrentUser(null)` → `onSessionChange(null)` → `useAuthSessionStore.setSession(null)`。
  * 3. `useAuthSessionStore.setSession(null)`: status を `authenticated → guest` にし、
