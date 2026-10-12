@@ -21,7 +21,7 @@ App Store 申請に向けて、位置情報の「許可の求め方」「拒否�
 
 足りなかったのは次の点。
 
-- 拒否時の案内文が全画面で「設定から位置情報を許可してください。」の共通文言だった。位置情報なしでも使える着地点のピンタブに、許可を迫る調子のカードが常駐していた。
+- 拒否時の案内文が全画面で「現在地の利用が許可されていません。設定から位置情報を許可してください。」の共通文言だった。位置情報なしでも使える着地点のピンタブに、許可を迫る調子のカードが常駐していた。
 - 設定アプリで許可して戻っても、「再試行」を押すまで回復しなかった。
 - 「正確な位置情報」（iOS の reduced accuracy / Android の approximate）のオフを扱っておらず、大まかな位置のまま「GPS良好」と表示していた。探索の起点が数 km ずれ、散歩の軌跡・距離・歩数が実態と合わなくなりうる。
 
@@ -46,6 +46,8 @@ App Store 申請に向けて、位置情報の「許可の求め方」「拒否�
    - iOS は端末全体がオフでも権限が denied として返るので、iOS ではこの場合も `permission_denied` の案内になる。
 5. **拒否中に前面へ戻ったら、権限の状態だけを確かめ、`granted` なら取り直す**（`useCurrentLocation`。拒否中だけ `AppState` を購読する）。
    - 確認は `getPermissionStatus`（ダイアログを出さない）だけで行い、`requestPermission` は呼ばない。Android の1回目の拒否は `undetermined` に写るので、呼ぶと前面に戻るたびにダイアログが出る（「繰り返し求める」になる）。判定は `shouldRecheckPermissionOnForeground`（`src/lib/locationRefreshPolicy.ts`）。
+   - 自動回復は `retry`（非 silent）と同じ扱いで、ピンタブの地図は現在地へ移動する。許可しに行った直後なので自然な動きとして維持する。
+   - `services_disabled`（端末全体のオフ）は、権限 API では検知できないため対象外にする。再試行ボタンが担う。
    - 対象はピンタブ・散歩開始（`useCurrentLocation`）。散歩中画面は対象外にする。散歩中に `permission_denied` になるのは開始後に設定で取り消したときだけで頻度が低く、既存の「再試行」で足りる。
 6. **`LocationService.getPrecision(): Promise<"precise" | "approximate" | null>` を追加する**（ADR-M-006 追補）。
    - expo-location の `getForegroundPermissionsAsync` の応答を使う（iOS は `ios.accuracy === "reduced"`、Android は `android.accuracy === "coarse"` で approximate）。判定は `expo-location` を import しない純粋関数 `toLocationPrecision`（`src/services/location/locationPrecision.ts`）。

@@ -23,7 +23,7 @@
 ### 未解決・持ち越し
 
 - SS-36（起動時の停止 → 復元）
-- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認、審査メモで background modes に `fetch` が含まれる理由の説明、`showsBackgroundLocationIndicator` と設定アプリの「常に」の関係の iPhone 実機確認）（SS-157 追補）
+- SS-161（App Review・Play の FGS 申告、TestFlight での ITMS-90683 の最終確認、審査メモで background modes に `fetch` が含まれる理由の説明（または config plugin による `fetch` の除去。アプリでは使っていない。SS-160 追補）、`showsBackgroundLocationIndicator` と設定アプリの「常に」の関係の iPhone 実機確認）（SS-157 追補）
 - App Privacy・プライバシーポリシーでの位置情報のサーバー保存の申告（SS-161。SS-157 追補）
 - 停止失敗時に背景タスクが残る経路の回収（未起票。SS-157 追補）
 - Android の `RECORD_AUDIO` 等の不要な権限の除去（未起票。SS-157 追補）
