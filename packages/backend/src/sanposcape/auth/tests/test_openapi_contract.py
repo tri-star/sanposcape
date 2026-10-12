@@ -1,7 +1,7 @@
 """`POST /auth/session` の OpenAPI 契約テスト（コミット済み `openapi.yaml` を読む）。
 
 mobile の Orval はこの定義からクライアントを生成する。`nonce` / `display_name` は任意
-（required に足さない）ことで、既存の呼び出しを壊さない。
+（required に足さない）ことで、既存の呼び出しを壊さない。`authorization_code`（SS-198）も同じ。
 """
 
 from pathlib import Path
@@ -41,3 +41,14 @@ def test_display_name_is_optional_with_max_length() -> None:
 
     assert display_name["type"] == "string"
     assert display_name["maxLength"] == 255
+
+
+def test_authorization_code_is_optional_with_length_bounds() -> None:
+    """SS-198: 後方互換のため任意（required に足さない）。形式は検証せず長さだけ縛る。"""
+    properties = _session_create_schema()["properties"]
+    authorization_code = _non_null(properties["authorization_code"])
+
+    assert authorization_code["type"] == "string"
+    assert authorization_code["minLength"] == 1
+    assert authorization_code["maxLength"] == 512
+    assert "authorization_code" not in _session_create_schema()["required"]

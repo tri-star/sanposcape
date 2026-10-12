@@ -132,11 +132,18 @@ paths:
       tags:
       - users
       summary: Delete Me
-      description: Bearer token で解決した本人のアカウントを削除する。
+      description: 'Bearer token で解決した本人のアカウントを削除する。
+
+
+        Apple ユーザーは削除の前に Apple のトークンを失効させる。Apple の一時障害で失効できない
+
+        ときは、アカウントを削除せず 503 を返す（再試行すれば完了できる）。'
       operationId: delete_me_users_me_delete
       responses:
         '204':
           description: Successful Response
+        '503':
+          description: Identity provider unavailable; the account was not deleted
       security:
       - HTTPBearer: []
   /explore/places:
@@ -2324,6 +2331,16 @@ components:
           title: Nonce
           description: 端末が生成した raw nonce。provider が apple のときは必須（Apple には SHA256 の
             hex を渡し、ここには raw を送る）。google では無視される。
+        authorization_code:
+          anyOf:
+          - type: string
+            maxLength: 512
+            minLength: 1
+          - type: 'null'
+          title: Authorization Code
+          description: Sign in with Apple の authorization code。provider が apple のときだけ使い、アカウント削除時にトークンを失効させるため
+            Apple の refresh token に交換して保存する。省略可（省略時は交換しない）。交換に失敗してもサインインは失敗しない。code
+            は 1 回限り・約 5 分で失効する。google では無視される。
         display_name:
           anyOf:
           - type: string
