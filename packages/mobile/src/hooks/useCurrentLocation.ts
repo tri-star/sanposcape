@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 
+import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 import {
   shouldRecheckPermissionOnForeground,
   shouldSkipSilentRefresh,
@@ -54,9 +55,11 @@ type LocationRequest = {
  * `@/services/location` の `locationService` のみを参照し、real/mock の実体を知らない。
  *
  * 拒否中は前面に戻るたびに権限の状態だけを確かめ、許可されていれば取り直す（ダイアログは出さない。
- * ADR-M-022）。
+ * ADR-M-022）。この自動回復は `retry`（非 silent）と同じ扱いで、ピンタブの地図は現在地へ移動する
+ * （許可しに行った直後なので自然な動きとして維持する）。端末全体の位置情報サービスのオフ
+ * （`services_disabled`）は権限 API で検知できないので対象外で、再試行ボタンが担う。
  *
- * 配置について: `features/walk`（散歩開始画面の `useWalkPlan`）と `features/pin`（地点選択画面の
+ * 配置について: `features/walk`（散歩開始画面の `useWalkPlan`）と `features/pin`（ピンタブの
  * `usePinLocationPicker`。SS-124）から使うため `src/hooks/` に置く（`docs/folder-structure.md` の
  * 昇格ルール）。
  */
@@ -161,7 +164,8 @@ export function useCurrentLocation(): UseCurrentLocationResult {
         (status) => {
           if (!cancelled && status === "granted") retry();
         },
-        () => {},
+        // 確認に失敗しても画面は直前の状態を保つ。診断のために記録だけ残す。
+        (error) => logDiagnostic("location_permission_recheck_failed", describeError(error)),
       );
     });
     return () => {

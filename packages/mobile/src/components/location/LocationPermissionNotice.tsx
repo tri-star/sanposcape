@@ -30,7 +30,7 @@ export type LocationPermissionNoticeProps = {
 /**
  * LocationPermissionNotice — 位置情報の権限拒否・取得失敗時の案内カード。
  * 散歩開始画面（探索できないため `SpotMapView` の代わりに表示）・散歩中画面・
- * ピンの地点選択画面（SS-124。地図の上に重ねる）から使うため `src/components/location/` に置く。
+ * ピンタブ（`PinTabView`。地図の上に重ねる）から使うため `src/components/location/` に置く（SS-124 で昇格）。
  * 文言は文脈（context）ごとに中立に書く（ADR-M-022）。
  */
 export function LocationPermissionNotice({
