@@ -29,6 +29,7 @@ from sanposcape.core.observability import (
 )
 from sanposcape.core.pagination import InvalidCursorError
 from sanposcape.health.router import router as health_router
+from sanposcape.integrations.apple.client import build_apple_sign_in_client
 from sanposcape.integrations.aws.appconfig import build_flag_document_source
 from sanposcape.integrations.aws.s3 import ObjectStorageUnavailableError, build_object_storage
 from sanposcape.integrations.google_maps.client import build_google_maps_provider
@@ -247,7 +248,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Keep process-wide resources alive across requests.
 
     Maps の HTTP クライアントとキャッシュ、レート制限、フラグの取得元（AppConfig）、
-    S3 クライアント。
+    S3 クライアント、Apple の REST API クライアント。
 
     close は uvicorn / TestClient の終了時に走る。Lambda では起動は実行環境ごとに1回で、
     終了は走らない（`aws_lambda/asgi_handler.py`、ADR-005 SS-183 追補）。コードは Lambda を
@@ -268,12 +269,21 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # クライアントの生成のみ（ネットワークに出ない）。real/fake/unconfigured の切替は
     # `build_object_storage()` に集約している（B-D8）。
     app.state.object_storage = build_object_storage(app.state.settings)
+    # Apple の REST API（code の交換・トークンの失効。SS-198）。鍵が無ければ Unconfigured
+    # （起動は止めない）。ここで 1 回だけ作り、設定ミスのログも 1 回だけ出す。
+    apple_sign_in_client = build_apple_sign_in_client(app.state.settings)
+    app.state.apple_sign_in_client = apple_sign_in_client
     logger.info("Application lifespan started: process-wide resources are ready.")
     try:
         yield
     finally:
         logger.info("Application lifespan shutting down: closing process-wide resources.")
-        for closeable in (provider, app.state.feature_flag_source, app.state.object_storage):
+        for closeable in (
+            provider,
+            app.state.feature_flag_source,
+            app.state.object_storage,
+            apple_sign_in_client,
+        ):
             close = getattr(closeable, "close", None)
             if callable(close):
                 close()

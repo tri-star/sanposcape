@@ -15,6 +15,9 @@ _ID_TOKEN_MAX_LENGTH = 4096
 # 16文字未満はエントロピー不足で nonce の意味が薄い。上限は ID token と同じ低コスト DoS 対策。
 _NONCE_MIN_LENGTH = 16
 _NONCE_MAX_LENGTH = 256
+# Apple の authorization code。形式は公開されておらず、厳しくすると Apple 側の変更でサインイン自体が
+# 422 になるので検証しない。上限は低コスト DoS 対策のみ（実測の code は 100 文字未満）。
+_AUTHORIZATION_CODE_MAX_LENGTH = 512
 # users.display_name の列幅。超えると DB の DataError（500）になるため入口で弾く。
 SESSION_DISPLAY_NAME_MAX_LENGTH = 255
 # 表示名に入れさせない Unicode カテゴリ。Cc（NUL・改行等）、Zl/Zp（行・段落区切り）、
@@ -34,6 +37,17 @@ class SessionCreate(BaseModel):
         description=(
             "端末が生成した raw nonce。provider が apple のときは必須"
             "（Apple には SHA256 の hex を渡し、ここには raw を送る）。google では無視される。"
+        ),
+    )
+    authorization_code: (
+        Annotated[str, Field(min_length=1, max_length=_AUTHORIZATION_CODE_MAX_LENGTH)] | None
+    ) = Field(
+        default=None,
+        description=(
+            "Sign in with Apple の authorization code。provider が apple のときだけ使い、"
+            "アカウント削除時にトークンを失効させるため Apple の refresh token に交換して保存する。"
+            "省略可（省略時は交換しない）。交換に失敗してもサインインは失敗しない。"
+            "code は 1 回限り・約 5 分で失効する。google では無視される。"
         ),
     )
     display_name: Annotated[str, Field(max_length=SESSION_DISPLAY_NAME_MAX_LENGTH)] | None = Field(

@@ -1,10 +1,11 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from sanposcape.users.models import User
+from sanposcape.users.models import AppleAuthorization, User
 
 
 class UserRepository:
@@ -85,3 +86,33 @@ class UserRepository:
             return existing
         self._db.refresh(user)
         return user
+
+
+class AppleAuthorizationRepository:
+    """apple_authorizations テーブルへの DB アクセスを隔離する層（SS-198）。"""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get(self, user_id: uuid.UUID) -> AppleAuthorization | None:
+        # upsert は ORM を介さない SQL なので、identity map に古い行が残らないよう毎回読み直す。
+        return self._db.get(AppleAuthorization, user_id, populate_existing=True)
+
+    def upsert(self, user_id: uuid.UUID, *, client_id: str, refresh_token: str) -> None:
+        """ユーザーの Apple の認可を保存する（1 ユーザー 1 行。再サインインで上書き）。
+
+        古い token は失効させない: 最新の token を失効させれば、ユーザーの認可全体が取り消される。
+        commit は呼び出し元（ユースケース境界の service）が担う。
+        """
+        stmt = pg_insert(AppleAuthorization).values(
+            user_id=user_id, client_id=client_id, refresh_token=refresh_token
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[AppleAuthorization.user_id],
+            set_={
+                "client_id": stmt.excluded.client_id,
+                "refresh_token": stmt.excluded.refresh_token,
+                "updated_at": func.now(),
+            },
+        )
+        self._db.execute(stmt)

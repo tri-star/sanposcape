@@ -4,7 +4,8 @@ JWKS の取得・キャッシュは `PyJWKClient` に任せる。テストでは
 DI で差し替え、ネットワークに一切出ずに検証ロジックをテストする（Google と同じ方式）。
 
 この provider は ID token の検証だけを行う。authorization code の交換・Apple の
-refresh token の保存・削除時の失効は SS-198 の範囲。
+refresh token の保存・削除時の失効は `integrations/apple/` と `auth/apple_authorization.py`
+（SS-198）が担う。ここでは、交換の client_id に使う検証済みの `aud` を `ProviderIdentity` に載せる。
 """
 
 import hashlib
@@ -101,6 +102,10 @@ class AppleIdentityProvider:
             logger.warning("Apple ID token has an invalid sub claim")
             raise InvalidIdTokenError("Invalid Apple ID token subject")
 
+        # 検証済みの aud（`jwt.decode` が許可リストと照合済み）。Apple の aud は単一の文字列で、
+        # list で来た場合は client_id を一意に決められないので None（= code を交換しない）。
+        audience = claims["aud"]
+
         # Apple は氏名を ID token に入れない。氏名は初回の認可時に端末へ返るだけなので、
         # リクエストの display_name を `UserService` が新規作成時・氏名が未設定のときだけ使う。
         # is_private_email / real_user_status / nonce_supported は使わない。
@@ -110,4 +115,5 @@ class AppleIdentityProvider:
             email=email,
             display_name=None,
             photo_url=None,
+            audience=audience if isinstance(audience, str) else None,
         )

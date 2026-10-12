@@ -12,12 +12,16 @@ from sqlalchemy.orm import Session
 
 from sanposcape.auth.models import RefreshToken
 from sanposcape.auth.repository import RefreshTokenRepository
-from sanposcape.auth.tests.conftest import RAW_NONCE
+from sanposcape.auth.tests.conftest import APPLE_AUDIENCE, RAW_NONCE, FakeAppleSignInClient
 from sanposcape.config import Settings, get_settings
 from sanposcape.conftest import override_get_db
 from sanposcape.database import get_db
+from sanposcape.integrations.apple.exceptions import (
+    AppleSignInRejectedError,
+    AppleSignInUnavailableError,
+)
 from sanposcape.main import create_app
-from sanposcape.users.models import User
+from sanposcape.users.models import AppleAuthorization, User
 
 
 def _create_session(auth_client: TestClient, make_google_id_token, **token_kwargs) -> dict:
@@ -92,6 +96,118 @@ def _post_apple_session(auth_client: TestClient, make_apple_id_token, *, token_k
     token = make_apple_id_token(**(token_kwargs or {}))
     payload = {"provider": "apple", "id_token": token, "nonce": RAW_NONCE, **body}
     return auth_client.post("/auth/session", json=payload)
+
+
+class TestAppleAuthorizationCode:
+    """SS-198: 端末から受け取った authorization code を refresh token に交換して保存する。"""
+
+    def test_exchanges_code_and_stores_refresh_token(
+        self,
+        auth_client: TestClient,
+        make_apple_id_token,
+        fake_apple_client: FakeAppleSignInClient,
+        db_session: Session,
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, authorization_code="code-1")
+
+        assert res.status_code == 200, res.text
+        assert fake_apple_client.exchange_calls == [("code-1", APPLE_AUDIENCE)]
+        rows = db_session.scalars(select(AppleAuthorization)).all()
+        assert len(rows) == 1
+        assert str(rows[0].user_id) == res.json()["user"]["id"]
+        assert rows[0].client_id == APPLE_AUDIENCE
+        assert rows[0].refresh_token == "refresh-token-for-code-1"
+
+    def test_relogin_overwrites_the_token_and_keeps_one_row(
+        self, auth_client: TestClient, make_apple_id_token, db_session: Session
+    ) -> None:
+        _post_apple_session(auth_client, make_apple_id_token, authorization_code="code-1")
+        _post_apple_session(auth_client, make_apple_id_token, authorization_code="code-2")
+
+        db_session.expire_all()
+        rows = db_session.scalars(select(AppleAuthorization)).all()
+        assert [r.refresh_token for r in rows] == ["refresh-token-for-code-2"]
+
+    @pytest.mark.parametrize(
+        "error",
+        [AppleSignInUnavailableError("down"), AppleSignInRejectedError("invalid_grant", 400)],
+        ids=["unavailable", "invalid_grant"],
+    )
+    def test_exchange_failure_does_not_fail_sign_in(
+        self,
+        auth_client: TestClient,
+        make_apple_id_token,
+        fake_apple_client: FakeAppleSignInClient,
+        db_session: Session,
+        error: Exception,
+    ) -> None:
+        fake_apple_client.exchange_error = error
+
+        res = _post_apple_session(auth_client, make_apple_id_token, authorization_code="code-1")
+
+        assert res.status_code == 200, res.text
+        assert res.json()["access_token"]
+        assert db_session.scalars(select(AppleAuthorization)).all() == []
+
+    def test_result_for_another_user_is_not_stored(
+        self,
+        auth_client: TestClient,
+        make_apple_id_token,
+        fake_apple_client: FakeAppleSignInClient,
+        db_session: Session,
+    ) -> None:
+        fake_apple_client.subject = "someone-elses-sub"
+
+        res = _post_apple_session(auth_client, make_apple_id_token, authorization_code="code-1")
+
+        assert res.status_code == 200
+        assert db_session.scalars(select(AppleAuthorization)).all() == []
+
+    def test_without_code_apple_is_not_called(
+        self,
+        auth_client: TestClient,
+        make_apple_id_token,
+        fake_apple_client: FakeAppleSignInClient,
+        db_session: Session,
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token)
+
+        assert res.status_code == 200
+        assert fake_apple_client.exchange_calls == []
+        assert db_session.scalars(select(AppleAuthorization)).all() == []
+
+    def test_google_ignores_authorization_code(
+        self,
+        auth_client: TestClient,
+        make_google_id_token,
+        fake_apple_client: FakeAppleSignInClient,
+    ) -> None:
+        res = auth_client.post(
+            "/auth/session",
+            json={
+                "provider": "google",
+                "id_token": make_google_id_token(),
+                "authorization_code": "code-1",
+            },
+        )
+
+        assert res.status_code == 200
+        assert fake_apple_client.exchange_calls == []
+
+    @pytest.mark.parametrize("code", ["", "a" * 513])
+    def test_invalid_length_returns_422(
+        self, auth_client: TestClient, make_apple_id_token, code: str
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, authorization_code=code)
+
+        assert res.status_code == 422
+
+    def test_max_length_code_is_accepted(
+        self, auth_client: TestClient, make_apple_id_token
+    ) -> None:
+        res = _post_apple_session(auth_client, make_apple_id_token, authorization_code="a" * 512)
+
+        assert res.status_code == 200
 
 
 class TestAppleSessionEndpoint:

@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from sanposcape.auth.apple_authorization import exchange_apple_authorization_code
 from sanposcape.auth.exceptions import (
     InvalidRefreshTokenError,
     RefreshTokenReuseDetectedError,
@@ -17,6 +18,7 @@ from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.tokens import create_access_token, generate_refresh_token, hash_refresh_token
 from sanposcape.config import Settings
 from sanposcape.core.observability import bind_user_id
+from sanposcape.integrations.apple.client import AppleSignInClient
 from sanposcape.users.models import User
 from sanposcape.users.service import UserService
 
@@ -67,6 +69,7 @@ class AuthService:
         providers: dict[str, IdentityProvider],
         settings: Settings,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        apple_sign_in_client: AppleSignInClient | None = None,
     ) -> None:
         self._db = db
         self._user_service = user_service
@@ -74,6 +77,8 @@ class AuthService:
         self._providers = providers
         self._settings = settings
         self._now = now
+        # None は「Apple の交換は使えない」扱い（code が来ても交換しない）。
+        self._apple_sign_in_client = apple_sign_in_client
 
     # --- 入口（real） ---
     def create_session(
@@ -83,10 +88,15 @@ class AuthService:
         *,
         nonce: str | None = None,
         display_name: str | None = None,
+        authorization_code: str | None = None,
     ) -> SessionResult:
         """`display_name` は、IdP の ID token に氏名が無い場合だけ使われる。
 
         新規作成時、または既存ユーザーの表示名が未設定（NULL）のときに反映する。
+
+        `authorization_code` は Apple のときだけ使う（SS-198）。アカウント削除時の失効のため
+        refresh token に交換して保存する。交換は ID token の検証の直後・DB に触る前に行い
+        （外部 HTTP の間に DB のトランザクションを握らない）、失敗してもサインインは失敗させない。
         """
         idp = self._providers.get(provider)
         if idp is None:
@@ -94,7 +104,14 @@ class AuthService:
             logger.warning("Identity provider is not available: %s", provider)
             raise UnsupportedProviderError(provider)
         identity = idp.verify(id_token, nonce=nonce)  # ← real 固有はここだけ
+        apple_grant = exchange_apple_authorization_code(
+            self._apple_sign_in_client, identity, authorization_code
+        )  # ← real 固有（Apple の HTTP。DB の前）
         user = self._resolve_user(identity, initial_display_name=display_name)  # ← 共通
+        if apple_grant is not None and identity.audience is not None:
+            self._user_service.save_apple_authorization(
+                user.id, client_id=identity.audience, refresh_token=apple_grant.refresh_token
+            )
         result = self._issue_session(user)  # ← 共通
         self._db.commit()
         return result

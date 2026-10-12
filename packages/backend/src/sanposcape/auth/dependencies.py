@@ -7,6 +7,8 @@ from sanposcape.auth.repository import RefreshTokenRepository
 from sanposcape.auth.service import AuthService
 from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
+from sanposcape.integrations.apple.client import AppleSignInClient
+from sanposcape.users.dependencies import get_apple_sign_in_client
 from sanposcape.users.repository import UserRepository
 from sanposcape.users.service import UserService
 
@@ -25,6 +27,7 @@ def get_auth_service(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
     providers: dict[str, IdentityProvider] = Depends(get_identity_providers),
+    apple_sign_in_client: AppleSignInClient = Depends(get_apple_sign_in_client),
 ) -> AuthService:
     return AuthService(
         db,
@@ -32,4 +35,5 @@ def get_auth_service(
         RefreshTokenRepository(db),
         providers,
         settings,
+        apple_sign_in_client=apple_sign_in_client,
     )

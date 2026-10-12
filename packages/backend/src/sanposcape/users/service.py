@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from sanposcape.users.models import User
-from sanposcape.users.repository import UserRepository
+from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 
 
 class UserService:
@@ -19,12 +19,24 @@ class UserService:
     双方に効く（SS-12 で想定している choke point）。
     """
 
-    def __init__(self, db: Session, repository: UserRepository) -> None:
+    def __init__(
+        self,
+        db: Session,
+        repository: UserRepository,
+        apple_authorizations: AppleAuthorizationRepository | None = None,
+    ) -> None:
         self._db = db
         self._repository = repository
+        self._apple_authorizations = apple_authorizations or AppleAuthorizationRepository(db)
 
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return self._repository.get_by_id(user_id)
+
+    def save_apple_authorization(
+        self, user_id: uuid.UUID, *, client_id: str, refresh_token: str
+    ) -> None:
+        """Apple の refresh token を保存する（削除時の失効用。SS-198）。commit は呼び出し元。"""
+        self._apple_authorizations.upsert(user_id, client_id=client_id, refresh_token=refresh_token)
 
     def delete_current_user(self, current_user: User) -> None:
         """認証済み本人のアカウントとセッション情報を削除する。"""
