@@ -53,6 +53,7 @@ from sanposcape.sanpo_maps.maps.router import router as sanpo_maps_router
 from sanposcape.sanpo_maps.photos.dev_storage_router import router as pins_dev_storage_router
 from sanposcape.sanpo_maps.photos.router import router as pin_photo_uploads_router
 from sanposcape.sanpo_maps.pins.router import router as pins_router
+from sanposcape.users.exceptions import AccountDeletionUnavailableError
 from sanposcape.users.router import router as users_router
 from sanposcape.walks.exceptions import WalkNotFoundError
 from sanposcape.walks.router import router as walks_router
@@ -233,6 +234,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         # `PATCH /pins/{pin_id}` 専用（ADR-009 決定20, SS-112）。
         return JSONResponse(
             status_code=409, content={"detail": "Too many tags", "code": "tag_limit_exceeded"}
+        )
+
+    @app.exception_handler(AccountDeletionUnavailableError)
+    async def _account_deletion_unavailable(
+        request: Request, exc: AccountDeletionUnavailableError
+    ) -> JSONResponse:
+        # `DELETE /users/me` 専用（SS-198）。Apple のトークン失効が一時的に失敗したので、
+        # アカウントは削除していない。
+        record_exception_on_current_span(exc, enabled=_tracing_enabled(request))
+        return JSONResponse(
+            status_code=503, content={"detail": "Account deletion temporarily unavailable"}
         )
 
     @app.exception_handler(ObjectStorageUnavailableError)
