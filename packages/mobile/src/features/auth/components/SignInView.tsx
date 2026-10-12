@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 
 import { PrivacyPolicyLink } from "@/components/legal/PrivacyPolicyLink";
 import { Button } from "@/components/ui/button/Button";
+import { AppleSignInButton } from "@/features/auth/components/AppleSignInButton";
 import { AuthProviderButton } from "@/features/auth/components/AuthProviderButton";
 import { AuthScreenLayout } from "@/features/auth/components/AuthScreenLayout";
 import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
@@ -10,11 +11,19 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
  * サインイン画面。mock `isLogin` をほぼ1:1で再現する。
  * 「Google でログイン」は押下後に散歩開始画面へ遷移する。
  * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-M-009 SS-57 追補参照）。
+ * SS-199 で iOS だけ Apple のボタンを Google の上に追加した。
  * SS-158 でプライバシーポリシーへのリンクを末尾に追加した（同意文言は付けない）。
  */
 export function SignInView() {
   const router = useRouter();
-  const { signInWithGoogle, continueAsGuest, isSubmitting, toast } = useAuthActions();
+  const {
+    signInWithGoogle,
+    signInWithApple,
+    continueAsGuest,
+    isSubmitting,
+    submittingProvider,
+    toast,
+  } = useAuthActions();
 
   return (
     <AuthScreenLayout
@@ -23,12 +32,18 @@ export function SignInView() {
       heroCaption={"往復の時間を決めるだけ。\n歩いて行けるスポットへ案内します。"}
       toast={toast}
     >
+      <AppleSignInButton
+        kind="sign-in"
+        testID="sign-in-apple-button"
+        disabled={isSubmitting}
+        onPress={signInWithApple}
+      />
       <AuthProviderButton
         testID="sign-in-google-button"
         disabled={isSubmitting}
         onPress={signInWithGoogle}
       >
-        {isSubmitting ? "ログイン中..." : "Google でログイン"}
+        {submittingProvider === "google" ? "ログイン中..." : "Google でログイン"}
       </AuthProviderButton>
       <Button
         testID="sign-in-guest-button"

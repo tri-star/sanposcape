@@ -23,10 +23,11 @@
   （付け忘れは Vitest では検出できず、実機で初めて落ちる）。RN `Modal`（Dialog / BottomSheet）の中でジェスチャーを使う場合は、
   Modal の中身も `GestureHandlerRootView` で包む（Modal は別のネイティブ階層になりルートの効果が及ばない）。最初の利用はピン詳細の写真ビューアのピンチでの拡大
   （[ADR-M-012](../adr/ADR-M-012-pin-map-display-and-detail.md) SS-153 追補））
-- 認証: react-native-nitro-google-signin（Google サインイン。[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token の永続化）
+- 認証: react-native-nitro-google-signin（Google サインイン）+ expo-apple-authentication（iOS の Sign in with Apple。SS-199）（[ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で採用決定）+ expo-secure-store（refresh token と、送り切れていない Apple の氏名の永続化）
 - APIクライアント生成: Orval（backendのOpenAPIから生成）+ MSWモック（HTTPクライアントは fetch/customFetch）
-- 暗号ハッシュ: expo-crypto（CloudFront(OAC) 向けの `x-amz-content-sha256` 計算。実装は
-  `src/api/contentHash.ts`。判断の記録は
+- 暗号ハッシュ・乱数: expo-crypto（CloudFront(OAC) 向けの `x-amz-content-sha256` 計算。実装は
+  `src/api/contentHash.ts`。Apple サインインの nonce 生成＝`getRandomBytes` と SHA-256。実装は
+  `src/services/auth/appleNonce.ts`、判断は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) SS-199 追補。判断の記録は
   [docs/adr/ADR-005](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定4）
 - ユニットテスト: Vitest
 - E2Eテスト: Maestro

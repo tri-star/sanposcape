@@ -610,7 +610,9 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
 - **識別子ごとに別セットになるもの**: EAS の Android キーストア / iOS プロビジョニング
   プロファイル、Google Maps キーのアプリ制限（package + SHA-1 の組）、Google サインインの
   Android OAuth クライアント（package + SHA-1 の組ごとに 1 つ）、iOS OAuth クライアント
-  （bundle ID ごと）、App Store Connect のアプリレコード。
+  （bundle ID ごと）、App Store Connect のアプリレコード、App ID の Sign in with Apple capability（SS-196）、
+  backend の `APPLE_ALLOWED_AUDIENCES`（Secrets Manager の `apple_allowed_audiences`。aud = bundle ID。
+  dev は `com.sanposcape.app.dev`、本番は `com.sanposcape.app`）。
 - **本番識別子に対して `eas credentials` / `eas submit` を手元で実行するときは、
   シェルでも `APP_VARIANT=production` を付けること。** 付けないと dev 識別子のクレデンシャルを
   操作してしまう。

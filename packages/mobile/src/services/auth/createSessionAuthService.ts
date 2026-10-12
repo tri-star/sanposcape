@@ -5,7 +5,7 @@ import { isAccessTokenExpired } from "@/services/auth/tokenExpiry";
 import type { AuthProvider, AuthService, AuthUser, TokenStore } from "@/services/auth/types";
 
 export type SessionAuthDeps = {
-  /** トークンの発行元。real=Google→/auth/session、dev=/auth/dev-session。ここだけが real/dev の差分。 */
+  /** トークンの発行元。real=Google / Apple→/auth/session、dev=/auth/dev-session。ここだけが real/dev の差分。 */
   issueSession: (provider: AuthProvider) => Promise<unknown>;
   api: Pick<AuthApi, "refresh" | "logout">;
   tokenStore: TokenStore;

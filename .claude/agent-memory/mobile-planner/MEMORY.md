@@ -21,4 +21,5 @@
 - [CloudFront 経由の送信契約](project-cloudfront-client-contract.md) — X-App-Authorization / x-amz-content-sha256。出口は2箇所、発覚が遅い 401/403、再送してよい経路
 - [ピン/写真の前提](project-spot-photo-domain.md) — 正本はADR-009/ADR-M-010〜017。どのADRに何があるかの索引と、語の衝突・サーバー制約の吸収・原本にEXIFが無い教訓
 - [別ブランチのファイル参照](reference-remote-branch-access.md) — git が使えないとき raw.githubusercontent で閉じた PR のブランチを読む
+- [Sign in with Apple（mobile）の事実](project-sign-in-with-apple-mobile.md) — SDK57 は ~57.0.2・プラグインは無条件で entitlement・公式ボタンは Android で自ら null・CodedError のコード・422 は code を消費しない
 - [外部 Web ページへのリンク](project-external-links.md) — useOpenExternalUrl / legalLinks.ts を再利用・expo-web-browser は既存依存（再ビルド不要）・法的 URL は本番固定・LP の URL は恒久・E2E で押さない（ADR-M-020）

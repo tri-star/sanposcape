@@ -74,7 +74,7 @@ SS-10（services 層の認証）・SS-11（認証画面・スプラッシュ）�
 
 UI（features / app）は `authService.getCurrentUser()` を直接呼ばない。`AuthService.getCurrentUser()` の JSDoc に「UI からは呼ばない」旨を明記した。
 
-`useAuthSessionStore` は `@/services/auth`（バレル）を**実行時 import しない**。`AuthUser` は `import type` で `@/services/auth/types` から取る。バレルは `getAuthMode()` の結果次第で `expo-secure-store` / `react-native-nitro-google-signin` に到達し、node 環境の vitest（このストアのテスト）を壊すため。逆向き（`services/auth/index.ts` → `@/store/useAuthSessionStore`）は許可する。バレルは既に `@/api/authTokenProvider` へ自分を登録しており、「認証の合成ルート」という同じ役割の延長にあたる。ストア側は純粋なので循環参照にならない。
+`useAuthSessionStore` は `@/services/auth`（バレル）を**実行時 import しない**。`AuthUser` は `import type` で `@/services/auth/types` から取る。バレルは `getAuthMode()` の結果次第で `expo-secure-store` / `react-native-nitro-google-signin` / `expo-apple-authentication` に到達し、node 環境の vitest（このストアのテスト）を壊すため。逆向き（`services/auth/index.ts` → `@/store/useAuthSessionStore`）は許可する。バレルは既に `@/api/authTokenProvider` へ自分を登録しており、「認証の合成ルート」という同じ役割の延長にあたる。ストア側は純粋なので循環参照にならない。
 
 ### 3. 認証ゲートは `app/_layout.tsx` に置いた `AuthGate` の1箇所だけにする
 

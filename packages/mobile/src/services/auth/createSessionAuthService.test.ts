@@ -85,6 +85,15 @@ function setup(options?: {
 
 describe("createSessionAuthService", () => {
   describe("signIn", () => {
+    it("issueSession が ERR_REQUEST_CANCELED を投げると AuthError(cancelled) になる（Apple のキャンセルの結線）", async () => {
+      const { service, issueSession } = setup();
+      issueSession.mockRejectedValue(
+        Object.assign(new Error("canceled"), { code: "ERR_REQUEST_CANCELED" }),
+      );
+
+      await expect(service.signIn("apple")).rejects.toMatchObject({ code: "cancelled" });
+    });
+
     it("issueSession が1回呼ばれ、user/refreshToken/currentUser が更新される", async () => {
       const { service, issueSession, persistence } = setup();
       issueSession.mockResolvedValue(rawSession());
