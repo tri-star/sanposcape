@@ -19,7 +19,8 @@ SS-158（プライバシーポリシーの公開）のレビューで、長期�
 
 - 散歩の記録には位置の軌跡が含まれる。使われなくなったアカウントの情報を持ち続けるほど、漏洩時の影響が大きくなる。
 - backend には「最後に使われた日時」を表す列が無い。`users.updated_at` は IdP から受け取るプロフィールが変わったときにしか動かない。
-  セッションは自前のトークンで、access token は 15 分、refresh token は 30 日でローテーションする（[ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md)）。
+  セッションは自前のトークンで（方式は [ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md)）、access token の有効期限は 15 分、
+  refresh token は使うたびにローテーションし、発行から 30 日で失効する（`packages/backend/src/sanposcape/config.py`）。
 - メールを送る仕組み（SES など）も、定期実行の仕組み（EventBridge Scheduler など）も無い。
 - アカウント削除は `AccountDeletionService`（`packages/backend/src/sanposcape/users/service.py`）が行う。Apple ユーザーはトークンを失効させてから、
   `ON DELETE CASCADE` で関連する行を消す。写真の画像ファイルは保存領域に残る（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2、SS-109 で対応予定）。
