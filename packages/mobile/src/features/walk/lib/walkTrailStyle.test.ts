@@ -9,12 +9,16 @@ describe("walkTrailStyle", () => {
     ["dark", darkTheme],
   ])("%s: アクセント色を半透明にした色で、ルート線と別の色", (_label, theme) => {
     const { color } = walkTrailStyle(theme);
-    expect(color).toMatch(new RegExp(`^${theme.colors.accent}[0-9a-f]{2}$`));
+    // 不透明度 0.7（0.7 × 255 = 178.5 → 179 = 0xb3）。実装の定数を import せず、仕様の値を手で書く。
+    expect(color).toBe(`${theme.colors.accent}b3`);
     expect(color.slice(0, 7)).not.toBe(theme.map.route);
     expect(color.slice(0, 7)).not.toBe(theme.map.routeReturn);
   });
 
-  it("ルート線（5px）より細い", () => {
-    expect(walkTrailStyle(lightTheme).strokeWidth).toBeLessThan(5);
+  it.each([
+    ["light", lightTheme],
+    ["dark", darkTheme],
+  ])("%s: 太さは 4px（ルート線の 5px より細い）", (_label, theme) => {
+    expect(walkTrailStyle(theme).strokeWidth).toBe(4);
   });
 });
