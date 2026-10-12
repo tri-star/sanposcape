@@ -2,13 +2,13 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-02（SS-152）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-13（SS-168）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
 - **E2E には standalone な preview ビルド（`eas.json` の `preview`）を使う。** E2E 用の env（`AUTH_MODE=dev`・固定の dev ユーザー・`LOCATION_MODE=mock` など）を焼き込み、backend API は実物を使う（本文: 決定）
-- **地図タイルの描画・外部データの件数・履歴の件数・記録タブの集計値・周回ルートの形と凡例の文言は assert しない。** 候補は `spot-card-0` があることまで、周回ルートは凡例が存在することまでを見る（本文: 決定、SS-21/SS-44/SS-42/SS-33 追補）
+- **地図タイルの描画・外部データの件数・履歴の件数・記録タブの集計値・周回ルートの形と凡例の文言は assert しない。** 候補は `spot-card-0` があることまで、周回ルートは凡例の「行き」の項目（`walk-active-route-legend-outbound`）が存在することまでを見る（本文: 決定、SS-21/SS-44/SS-42/SS-33/SS-168 追補）
 - **CI の backend は `ENV=test AUTH_MODE=dev MAPS_MODE=fake` で起動し、`.maestro/` 直下の全フローをタグで絞らずに実行する。** タグは、前提を用意できないローカル環境で除外するために使う（本文: 決定 SS-44 追補、移行・対応事項 SS-54）
 - **E2E の APK は CI ランナー上の `eas build --local` で作る（EAS クラウドビルドを使わない）。** この方針は E2E（`preview`）に限る。配布ビルドは EAS クラウドビルドを使う（本文: 決定、SS-79 追補）
 - **APK キャッシュキーは「`@expo/fingerprint` のハッシュ ＋ `packages/mobile` のソース全体のハッシュ ＋ `REACT_NATIVE_ARCHITECTURES`」。** ソースのハッシュからは `.maestro/` / `docs/` / `adr/` を除く。除外を足すときは、そのパスがソースから参照されないことを確認する（本文: 2026-08-14 追補、2026-08-15 追補 問題3、SS-85 追補）
@@ -31,6 +31,7 @@
 - `/explore/places` は CI で常に 503 → backend の `MAPS_MODE=fake` で決定的な候補を返す（SS-21/SS-44 追補）
 - 本文の決定にある「CI の preview APK には Maps SDK キーを注入していない」は初版時点の記述。現在は `ci-e2e` environment の secret から注入している（SS-44。ADR-M-007）
 - 状態を消す起動は `launchApp: { clearState: true }` → `subflows/launch-clean.yaml`（SS-152 追補）
+- 周回ルートの確認は凡例（`walk-active-route-legend`）の存在 → 凡例の「行き」の項目（`walk-active-route-legend-outbound`）の存在（SS-168 追補）
 
 ## 日付
 
@@ -39,7 +40,8 @@
 2026-09-12 追補（Gradle の Java heap OOM と ABI の絞り込み、SS-85）、
 2026-09-13 追補（配布ビルドとの適用範囲の明確化、SS-79）、
 2026-09-15 追補（周回ルートの assert 範囲、SS-33）、
-2026-10-02 追補（フローの書き方に起因する不安定性と、Maps キー注入の記述への注記、SS-152）
+2026-10-02 追補（フローの書き方に起因する不安定性と、Maps キー注入の記述への注記、SS-152）、
+2026-10-13 追補（周回ルートの確認に使う凡例の testID、SS-168）
 
 ## コンテキスト
 
@@ -105,6 +107,13 @@
   網羅する責務とし、E2E とテスト範囲を重複させない。散歩開始画面側の凡例
   （`SpotMapView` の testID `walk-start-route-legend`）は既存の共有 subflow
   （`subflows/start-walk-from-spot.yaml`）には足していない（他フローへの影響を避けるため）。
+
+  **（SS-168 追補）待つ testID を凡例の「行き」の項目に変えた**。SS-168 で散歩中の地図に歩いた軌跡を描き、
+  凡例に「歩いた道」を足した。凡例は周回ルートが未取得でも軌跡だけで出るため（[ADR-M-008](./ADR-M-008-active-walk-state-and-route-cache.md) 決定10）、
+  凡例全体（`walk-active-route-legend`）の存在では、周回ルートが描けない回帰を見逃す（mock の測位で軌跡が2点たまれば通る）。
+  そこで `mvp-walk-flow.yaml` は、凡例の「行き」の項目（testID `walk-active-route-legend-outbound`）の存在を待つ。
+  この項目は通常の周回でも同じ道の周回（`returnIsSamePath`）でも、往路の経路があれば必ず出て、ルートが未取得なら出ない。
+  線の形・区間数・`returnIsSamePath`・凡例の文言を assert しない方針は変えない（「帰り」「歩いた道」の項目は待たない）。
 
   **（SS-44 追補: `eas build --local` が Orval 生成物を除外する問題への対応）**
   - `mobile-e2e.yml` の「Generate API client (Orval)」ステップでチェックアウト先には
