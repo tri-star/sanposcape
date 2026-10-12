@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   getGuestEntryDestination,
@@ -55,6 +55,8 @@ export function useAuthActions(): UseAuthActionsResult {
   const { show } = toast;
   const [submittingProvider, setSubmittingProvider] = useState<AuthProvider | null>(null);
   const isSubmitting = submittingProvider !== null;
+  // 二重押下の同期ロック。state は再 render まで古い値のままなので、連打の2回目を防げない（Google / Apple 共通）。
+  const submittingRef = useRef(false);
   const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
   // セレクタはプリミティブを返す（zustand v5 の再レンダー対策）。
   // `signInForSaveRequested` を条件に含めるのが SS-37 ローカルレビュー対応の要点。
@@ -66,10 +68,11 @@ export function useAuthActions(): UseAuthActionsResult {
 
   const runSignIn = useCallback(
     (provider: AuthProvider, failureMessage: string) => {
-      if (isSubmitting) {
+      if (submittingRef.current) {
         // 多重タップ防止。
         return;
       }
+      submittingRef.current = true;
       setSubmittingProvider(provider);
       authService
         .signIn(provider)
@@ -102,9 +105,12 @@ export function useAuthActions(): UseAuthActionsResult {
           }
           show(failureMessage);
         })
-        .finally(() => setSubmittingProvider(null));
+        .finally(() => {
+          submittingRef.current = false;
+          setSubmittingProvider(null);
+        });
     },
-    [isSubmitting, router, show, hasActiveWalk, wantsToSaveFinishedWalk],
+    [router, show, hasActiveWalk, wantsToSaveFinishedWalk],
   );
 
   const signInWithGoogle = useCallback(() => {

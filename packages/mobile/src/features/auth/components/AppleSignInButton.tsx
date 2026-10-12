@@ -24,7 +24,8 @@ const HEIGHT = 54;
  *
  * 公式ボタンの背景色・borderRadius は `style` で指定できない（Apple のガイドライン違反）。
  * 高さと幅は `style` で必ず指定する（無いと描画されない）。
- * 公式ボタンには `disabled` が無いので、外側の View で不透明度とタップ無効を表現する。
+ * 公式ボタンには `disabled` が無いので、外側の View で不透明度とタップ無効を表現し、
+ * `disabled` 中の押下はハンドラ側でも無視する（`pointerEvents` は VoiceOver のダブルタップを止めないため）。
  */
 export function AppleSignInButton({
   kind,
@@ -40,14 +41,16 @@ export function AppleSignInButton({
   }
 
   const variant = appleButtonVariantFor(theme.name);
+  // VoiceOver のダブルタップは pointerEvents に関係なく届くため、disabled 中はここで確実に無視する。
+  const handlePress = () => {
+    if (disabled) return;
+    onPress();
+  };
 
   return (
-    // accessible を付けない（付けると子の公式ボタンの読み上げラベルが隠れる）。
-    <View
-      testID={testID}
-      accessibilityState={{ disabled }}
-      style={[styles.root, disabled ? styles.disabled : null]}
-    >
+    // accessible を付けない（付けると子の公式ボタンの読み上げラベル＝OS のローカライズ文言が隠れる）。
+    // そのため View に accessibilityState を付けても VoiceOver には伝わらないので付けない。
+    <View testID={testID} style={[styles.root, disabled ? styles.disabled : null]}>
       <AppleAuthentication.AppleAuthenticationButton
         // ネイティブのボタンは配色・種別を後から変えても描き直されないことがあるため、変更時に作り直す。
         key={`${variant}-${kind}`}
@@ -63,7 +66,7 @@ export function AppleSignInButton({
         }
         cornerRadius={HEIGHT / 2}
         style={styles.button}
-        onPress={onPress}
+        onPress={handlePress}
       />
     </View>
   );
