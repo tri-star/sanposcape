@@ -17,7 +17,6 @@
 .claude/skills/change-review/references/web-frontend.md:path: `packages/frontend` が無い
 .claude/skills/launch-project/references/build-local-env.md:path: `scripts/copy-initial-contents.sh` が無い
 .claude/skills/local-env-setup/SKILL.md:path: `packages/frontend/.env.example` が無い
-.claude/skills/local-env-setup/SKILL.md:path: `packages/frontend/.env` が無い
 .claude/skills/local-env-setup/SKILL.md:pnpm: package `frontend` が無い（script `dev`）
 .claude/skills/task-scheduling/SKILL.md:path: `docs/concept.md` が無い
 .claude/skills/task-scheduling/SKILL.md:path: `docs/glossary.md` が無い

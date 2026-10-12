@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -107,27 +108,53 @@ def looks_like_placeholder(value: str) -> bool:
     return any(ch in value for ch in "<>*?{}$|…") or "..." in value or "XXX" in value or "YYYY" in value
 
 
-def _found(candidate: Path) -> bool:
-    try:
-        candidate = candidate.resolve()
-    except OSError:
-        return False
-    if candidate.exists():
-        return True
-    # `ADR-M-003` のように、ADR を番号だけで参照する書き方を許す。前方一致はこの形に限る
-    # （一般のパスに許すと `walk/` が `walks/` に当たるような名前のずれを見逃す）。
-    if re.fullmatch(r"ADR-(?:[A-Z]-)?\d+", candidate.name):
-        return candidate.parent.is_dir() and any(candidate.parent.glob(candidate.name + "-*"))
-    return False
+class RepoFiles:
+    """実在の判定を、ファイルシステムではなく git の管理下（追跡中と、無視されていない未追跡）のファイルで行う。
+
+    手元にだけある gitignore 対象のファイル（`.env` など）で判定すると、手元では通り CI の checkout では落ちる。
+    gitignore 対象のパスは、文書が「作られる場所・置く場所」として書くものとして違反にしない。
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.root = root.resolve()
+        out = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+            capture_output=True, text=True, check=True, cwd=self.root,
+        )
+        self.files = set(out.stdout.splitlines())
+        self.dirs = {str(parent) for f in self.files for parent in Path(f).parents if str(parent) != "."}
+        self._ignored: dict[str, bool] = {}
+
+    def is_ignored(self, rel: str) -> bool:
+        if rel not in self._ignored:
+            result = subprocess.run(
+                ["git", "check-ignore", "-q", "--no-index", rel], cwd=self.root, capture_output=True,
+            )
+            self._ignored[rel] = result.returncode == 0
+        return self._ignored[rel]
+
+    def found(self, candidate: Path) -> bool:
+        rel = os.path.relpath(os.path.normpath(candidate), self.root)
+        if rel == "." or rel in self.files or rel in self.dirs:
+            return True
+        if rel.startswith(".."):
+            return False  # リポジトリの外を指すパスは違反にする
+        # `ADR-M-003` のように、ADR を番号だけで参照する書き方を許す。前方一致はこの形に限る
+        # （一般のパスに許すと `walk/` が `walks/` に当たるような名前のずれを見逃す）。
+        name = Path(rel).name
+        if re.fullmatch(r"ADR-(?:[A-Z]-)?\d+", name):
+            prefix = str(Path(rel).parent / name) + "-"
+            return any(f.startswith(prefix) for f in self.files)
+        return self.is_ignored(rel)
 
 
-def link_exists(base: Path, value: str) -> bool:
+def link_exists(repo: RepoFiles, base: Path, value: str) -> bool:
     """Markdown のリンクは、その文書のディレクトリからの相対パス。"""
     value = value.split("#", 1)[0].split("?", 1)[0]
-    return not value or _found(base / value)
+    return not value or repo.found(base / value)
 
 
-def path_exists(root: Path, rel: str, base: Path, value: str) -> bool:
+def path_exists(repo: RepoFiles, root: Path, rel: str, base: Path, value: str) -> bool:
     """インラインコードのパスは、書き方がまちまちなので複数の起点を試す。
 
     ./ や ../ で始まればその文書から。そうでなければリポジトリのルート、文書が属する package のルート、文書のディレクトリの順。
@@ -137,13 +164,13 @@ def path_exists(root: Path, rel: str, base: Path, value: str) -> bool:
     if not value:
         return True
     if value.startswith(("./", "../")):
-        return _found(base / value)
+        return repo.found(base / value)
     starts = [root]
     parts = Path(rel).parts
     if len(parts) > 2 and parts[0] == "packages":
         starts.append(root / parts[0] / parts[1])
     starts.append(base)
-    return any(_found(start / value) for start in starts)
+    return any(repo.found(start / value) for start in starts)
 
 
 def is_generated(value: str) -> bool:
@@ -155,6 +182,7 @@ def is_generated(value: str) -> bool:
 
 def scan(root: Path) -> list[str]:
     scripts = pnpm_scripts(root)
+    repo = RepoFiles(root)
     violations: list[str] = []
     for rel in target_files(root):
         path = root / rel
@@ -195,7 +223,7 @@ def scan(root: Path) -> list[str]:
                     continue  # http(s)・mailto などと、同じ文書内のアンカー
                 if looks_like_placeholder(target) or is_generated(target):
                     continue
-                if not link_exists(base, target):
+                if not link_exists(repo, base, target):
                     violations.append(f"{rel}:{number}: link: `{target}` が無い")
 
             for match in CODE_RE.finditer(line):
@@ -204,7 +232,7 @@ def scan(root: Path) -> list[str]:
                     continue
                 if looks_like_placeholder(value) or is_generated(value):
                     continue
-                if not path_exists(root, rel, base, value):
+                if not path_exists(repo, root, rel, base, value):
                     violations.append(f"{rel}:{number}: path: `{value}` が無い")
     return violations
 
