@@ -28,6 +28,8 @@ mainモデルは実行環境の選択に従い、取り込みでユーザー設�
 
 backendはDockerで開発し、mobileは必要な端末確認と依頼範囲内のPR証拠添付を行う。Webはpackages/lpのAstro静的サイト。React用テンプレートを既存構成として扱わない。対象のAGENTS.md・規約・ADRと指定された領域メモリを先に読み、規約をskillへ複製しない。
 
+計画には「プライバシーへの影響」と、影響が無い場合も理由を書く。[データ取扱い台帳](privacy/data-inventory.md)の対象パスとデータの扱いの変更から判断し、影響があれば台帳・ポリシー本文/revisedOn・App Privacy申告を同じ変更で更新する。対象パスに触れる差分や、パス外でもデータの扱いを変える差分ではsecurityを起動し、6番目の観点で実装と台帳の整合を確認する。対象パスは台帳にだけ置く。
+
 ## 差分取り込み
 
 [import-claude-skill](../.agents/skills/import-claude-skill/SKILL.md) が具体的なコマンドと判断手順を持つ。
