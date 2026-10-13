@@ -130,6 +130,24 @@ describe("fetchPinsInBounds", () => {
     expect(searchParams?.has("archived")).toBe(false);
   });
 
+  it("未訪問だけの絞り込みは visited=false を送る（false が落ちない。SS-174）", async () => {
+    let searchParams: URLSearchParams | undefined;
+    server.use(
+      http.get("*/pins", ({ request }) => {
+        searchParams = new URL(request.url).searchParams;
+        return HttpResponse.json({ items: [], next_cursor: null }, { status: 200 });
+      }),
+    );
+
+    await fetchPinsInBounds(
+      { sanpoMapId: "map-1", bounds: BOUNDS, filter: { archived: false, visited: false } },
+      {},
+    );
+
+    expect(searchParams?.get("visited")).toBe("false");
+    expect(searchParams?.get("archived")).toBe("false");
+  });
+
   it("200: items を PinSummary に変換し、不正座標の要素は除外する。next_cursor 非nullなら hasMore true", async () => {
     server.use(
       getListPinsMockHandler({
