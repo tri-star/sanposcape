@@ -31,7 +31,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | mobile | 地図を表示するコンポーネント（`packages/mobile/src/features/*/components/*MapView.tsx` など。`showsUserLocation`・地図の provider） | 地図 SDK へ渡るもの |
 | 共通 | `packages/backend/pyproject.toml`、`packages/mobile/package.json` の依存の追加・更新（Dependabot の更新を含む） | SDK が第三者へ直接送るもの（バージョンでプライバシーマニフェストが変わりうるので確かめる） |
 | lp | `packages/lp/src/`、`packages/lp/astro.config.mjs` | 紹介サイトで読み込む外部オリジン・アクセス解析・Cookie |
-| infra（別リポジトリ） | sanposcape-infra の CloudFront・S3 のログ設定（`log_retention_days`）・S3 のライフサイクル | アクセスログの保存期間。このリポジトリの差分には現れないので、infra を変えるときに台帳を見る |
+| infra（別リポジトリ） | sanposcape-infra の CloudFront・S3 のログ設定（`log_retention_days`）、トレース（`aws/spans`）の保持期間（observability の設定）、S3 のライフサイクル | アクセスログ・トレースの保存期間。このリポジトリの差分には現れないので、infra を変えるときに台帳を見る |
 
 ## 2. 変更したときの手順
 
@@ -94,10 +94,10 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
-| CloudFront のアクセスログ（IP アドレス・日時・URL とクエリ・ステータス・処理時間・UA） | CloudFront（infra） | — | S3（infra 所有）。本番 400 日 | 期間の経過（アカウント削除後も残る） | 1-5、6 | その他の診断データ、パフォーマンスデータ |
+| CloudFront のアクセスログ（IP アドレス・日時・URL とクエリ・ステータス・処理時間・UA） | CloudFront（infra） | — | S3（infra 所有）。本番 400 日（5 の注記） | 期間の経過（アカウント削除後も残る） | 1-5、6 | その他の診断データ、パフォーマンスデータ |
 | backend のログ（メソッド・パス・ステータス・処理時間・アカウントの内部 ID・`X-App-Session-Id`・S3 のキー） | `core/access_log.py`・`core/logs.py`、各 service のログ | CloudWatch Logs | 本番 400 日・dev 30 日（`template.yaml` の `RetentionInDays`） | 同上 | 1-5、6 | その他の診断データ |
 | backend の例外ログ | `core/logs.py`（型名・スタックトレース・SQLSTATE。例外のメッセージは local / test だけ） | CloudWatch Logs | 同上 | 同上 | 1-5（「障害の調査用の記録に含まれることがある」） | その他の診断データ |
-| backend のトレース（処理時間、`enduser.id` = アカウントの内部 ID、`session.id`。IP・UA・クエリは消す） | `core/tracing.py`、`aws_lambda/tracing.py` | X-Ray・CloudWatch（`aws/spans`） | 本番 90 日・dev 30 日 | 同上 | 1-5、6 | パフォーマンスデータ |
+| backend のトレース（処理時間、`enduser.id` = アカウントの内部 ID、`session.id`。IP・UA・クエリは消す） | `core/tracing.py`、`aws_lambda/tracing.py` | X-Ray・CloudWatch（`aws/spans`） | 本番 90 日・dev 30 日（infra の設定。5 の注記） | 同上 | 1-5、6 | パフォーマンスデータ |
 | 探索のレート制限のキー（アカウントの内部 ID・IP アドレス） | `maps/rate_limit.py` | — | backend のメモリに 60 秒 | 自動 | 1-5 | 収集にあたらない（すぐ捨てる） |
 
 ### 3.5 端末に保存するその他のもの
@@ -127,6 +127,8 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 
 ## 5. この台帳で確かめていないこと
 
-- CloudFront のアクセスログの項目と保持期間、S3 の `staging/` のライフサイクルは infra リポジトリ（sanposcape-infra）の設定で、ここでは SS-158 時点の確認結果（本番 400 日）を書いている。
+- CloudFront のアクセスログの項目と保持期間、トレース（`aws/spans`）の保持期間、S3 の `staging/` のライフサイクルは infra リポジトリ（sanposcape-infra）の設定で、このリポジトリからは確かめられない。
+  保持期間は、SS-158 の PR（#131）の申し送りにある確認結果（sanposcape-infra `e09dcf8` の `live/platform/logging.tf`・`prod.tfvars` の `log_retention_days = 400`、トレースは 90 日）による。
+  一方 ADR-012 の SS-159 追補はこれらを「infra 側で未確認」としており、記録が食い違う。400 日はポリシーで「最長 400 日」と言い切った値なので、infra を変えるときは infra 側で実際の値を確かめる。
 - 第三者 SDK が送る内容は、各 SDK のプライバシーマニフェストと公開情報による（`app-privacy-label.md` 3.1）。Expo が更新の確認で受け取った情報を保持するかは確認できていない。
 - 本番では Apple の鍵が未投入のため、アカウント削除時の Apple の失効が実際に動くかは確認していない（SS-196）。
