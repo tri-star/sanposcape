@@ -28,7 +28,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | mobile | `packages/mobile/src/services/location/`・`photo/`・`auth/`・`preferences/` | 端末で取得・保存するもの（位置・写真・EXIF・トークン・設定） |
 | mobile | 送信内容を組み立てる処理: `packages/mobile/src/features/*/lib/*Request.ts`・`*Payload.ts`・`pinFetchBounds.ts`・`pinEditDraft.ts`、`packages/mobile/src/features/*/api/`、`packages/mobile/src/api/`（共通ヘッダー） | backend へ送るもの・座標の精度・クエリに載るもの |
 | mobile | `packages/mobile/src/lib/sessionCleanup.ts`・`backgroundLocationCleanup.ts`・`imageCacheCleanup.ts`、`packages/mobile/src/features/pin/components/PinPhotoImage.tsx`（画像のキャッシュの方針） | 端末に残るものと、それを消す時 |
-| mobile | 地図を表示するコンポーネント（`packages/mobile/src/features/*/components/*MapView.tsx` など。`showsUserLocation`・地図の provider） | 地図 SDK へ渡るもの |
+| mobile | `react-native-maps` を import するファイル（`SpotMapView.tsx`・`PinMapCanvas.tsx` など。`showsUserLocation`・地図の provider） | 地図 SDK へ渡るもの |
 | 共通 | `packages/backend/pyproject.toml`、`packages/mobile/package.json` の依存の追加・更新（Dependabot の更新を含む） | SDK が第三者へ直接送るもの（バージョンでプライバシーマニフェストが変わりうるので確かめる） |
 | lp | `packages/lp/src/`、`packages/lp/astro.config.mjs` | 紹介サイトで読み込む外部オリジン・アクセス解析・Cookie |
 | infra（別リポジトリ） | sanposcape-infra の CloudFront・S3 のログ設定（`log_retention_days`）、トレース（`aws/spans`）の保持期間（observability の設定）、S3 のライフサイクル | アクセスログ・トレースの保存期間。このリポジトリの差分には現れないので、infra を変えるときに台帳を見る |
