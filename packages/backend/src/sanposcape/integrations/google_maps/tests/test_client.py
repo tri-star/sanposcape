@@ -621,6 +621,14 @@ def test_reverse_geocode_ignores_number_only_premise_and_plus_code_results() -> 
         {"results": []},
         # 海上など: 住所（formattedAddress）の無い結果だけが返る。
         {"results": [{"types": [], "location": {"longitude": -140}}]},
+        # 海上・山中など: Plus Code・国・郵便番号だけの粗い結果しか無い。
+        {
+            "results": [
+                {"types": ["plus_code"], "formattedAddress": "日本、東京都大田区 GVJH+2X"},
+                {"types": ["country", "political"], "formattedAddress": "日本"},
+                {"types": ["postal_code"], "formattedAddress": "日本 〒400-0241"},
+            ]
+        },
     ],
 )
 def test_reverse_geocode_returns_none_without_an_address_and_caches_it(body) -> None:

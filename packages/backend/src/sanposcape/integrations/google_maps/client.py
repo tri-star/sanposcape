@@ -53,6 +53,9 @@ _POSTAL_CODE_PREFIX = re.compile(r"^〒?\d{3}-\d{4}\s*")
 _NUMBER_ONLY = re.compile(r"^[\d\-]+$")
 # NFKC で `-` にならないハイフン・マイナスの類（Google は丁目以下の区切りに U+2212 を使う）。
 _DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2212", "-"))
+# 住所として粗すぎる結果の種類。これだけで構成される結果（海上の「日本」、「日本 〒400-0241」、
+# Plus Code）はピン名に使えないので読み飛ばす。
+_COARSE_RESULT_TYPES = frozenset({"plus_code", "country", "postal_code", "political"})
 
 
 class UnconfiguredGoogleMapsProvider:
@@ -553,7 +556,8 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
 def _parse_geocode_results(results: object) -> ProviderAddress | None:
     """Geocoding API v4 の `results` から、最も詳しい結果の住所と建物名を取り出す。
 
-    `results` は詳しい順に並ぶ。Plus Code だけの結果（住所の無い場所）は読み飛ばす。
+    `results` は詳しい順に並ぶ。Plus Code・国・郵便番号だけの粗い結果（住所の無い場所）は
+    読み飛ばす。
     建物名は同じ結果の `premise` のうち番地ではないもの（best-effort。日本の住所で
     建物名が入るかは場所による）。住所の末尾に同じ建物名が付いていれば住所から外す。
     """
@@ -563,7 +567,7 @@ def _parse_geocode_results(results: object) -> ProviderAddress | None:
         if not isinstance(result, dict):
             raise GoogleMapsUnavailableError()
         types = result.get("types")
-        if isinstance(types, list) and "plus_code" in types:
+        if isinstance(types, list) and set(types) <= _COARSE_RESULT_TYPES:
             continue
         formatted = result.get("formattedAddress")
         if not isinstance(formatted, str):
