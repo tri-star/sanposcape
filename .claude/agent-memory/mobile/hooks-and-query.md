@@ -1,6 +1,6 @@
 ---
 name: hooks-and-query
-description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、Rules of Hooks、手動メモ化の警告
+description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、useQueries では keepPreviousData が効かない、Rules of Hooks、手動メモ化の警告
 metadata:
   type: feedback
   scope: durable
@@ -44,6 +44,20 @@ hooks はユニットテストの対象外なので、ここに挙げる不具�
 `invalidateQueries({ queryKey: ["walks"] })` はマウント中の詳細クエリも再取得させる。削除直後に呼ぶと 404 を引き、遷移の直前に「見つかりませんでした」が一瞬出る。
 
 **How to apply:** `removeQueries(["walks","detail",id])` も呼び、画面の表示状態を決める純粋関数で「削除済み」をエラーより優先させる。
+
+## useQueries では key が変わると keepPreviousData が効かない
+
+`@tanstack/query-core` 5.104 の `QueriesObserver` は、各クエリのオブザーバを `queryHash` で対応付ける（`#findMatchingObservers`）。
+key が変わると一致するオブザーバが無いので新しく作り、新しいオブザーバは「最後にデータを持っていたクエリ」を知らない。
+そのため `placeholderData: keepPreviousData` には `undefined` が渡り、placeholder が付かない（型も `QueriesPlaceholderDataFunction` で前回の値を受け取らない形）。
+SS-174 で実測: key を変えた直後の結果は `isPending: true`・`isPlaceholderData: false`・`data: undefined`。
+
+**Why:** `useQuery` と同じ感覚で「key を変えても前のデータが出続ける」と書くと、JSDoc・ADR・E2E の待ち方が実際と食い違う
+（SS-174 では実装者とレビュアーの両方がこの誤解をした）。`useRegisteredPins` の `keepPreviousData` も、表示範囲の変更では効いていない（ADR-M-021 の SS-174 追補）。
+
+**How to apply:** `useQueries` で key を変えたときの表示を決める・説明するときは、前のデータは残らない前提で考える。
+前のデータを残したいなら、key を変えずに済む構造にするか、前回の結果を自前で持つ。挙動に迷ったら、
+`QueriesObserver` を node の vitest で直接動かして `getCurrentResult()` を見ると数分で確かめられる。
 
 ## Rules of Hooks と手動メモ化
 

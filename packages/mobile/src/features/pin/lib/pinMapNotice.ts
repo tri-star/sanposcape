@@ -6,7 +6,7 @@ export type PinMapNotice =
   | { kind: "loading" }
   | { kind: "error"; code: PinReadErrorCode; retriable: boolean }
   | { kind: "truncated" }
-  | { kind: "empty" }
+  | { kind: "empty"; filtered: boolean }
   | { kind: "none" };
 
 export type ResolvePinMapNoticeInput = {
@@ -15,6 +15,8 @@ export type ResolvePinMapNoticeInput = {
   errorCode: PinReadErrorCode | null;
   truncated: boolean;
   pinCount: number;
+  /** 表示するピンを既定から絞り込んでいるか（0件の案内を「条件に合うピンが無い」にする。SS-174）。 */
+  filtered: boolean;
 };
 
 /**
@@ -36,7 +38,7 @@ export function resolvePinMapNotice(input: ResolvePinMapNoticeInput): PinMapNoti
     return { kind: "truncated" };
   }
   if (input.pinCount === 0) {
-    return { kind: "empty" };
+    return { kind: "empty", filtered: input.filtered };
   }
   return { kind: "none" };
 }

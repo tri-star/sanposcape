@@ -39,6 +39,11 @@ export type WalkActiveViewProps = {
    */
   renderMapLayers?: (visibleRegion: MapRegion | null) => ReactNode;
   /**
+   * 散歩中の地図の右上のツール列（現在地ボタンの上）に足すボタン（SS-174）。`renderMapLayers` と同じ理由で、
+   * ルートが登録済みピンの絞り込み（`PinMapFilterControl`）を合成して渡す。省略時は現在地ボタンだけ。
+   */
+  mapTools?: ReactNode;
+  /**
    * 散歩していないとき、`WalkIdleNotice` の下に描く追加セクション（SS-147）。
    * `features/walk` は `features/history` を import しないため、ルート（`app/(tabs)/index.tsx`）が
    * 「最近の散歩」（`RecentWalksSection`）を合成して渡す。散歩中は描かない（マウントしないので、
@@ -56,7 +61,11 @@ export type WalkActiveViewProps = {
  * 出す（ピンの導線はピンタブに集約。SS-146/SS-147）。散歩中は地図の長押しでその地点のピン登録へ進める
  * （SS-124）。散歩中の地図には登録済みピンが重なる（ルートが合成。SS-118）。
  */
-export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewProps = {}) {
+export function WalkActiveView({
+  renderMapLayers,
+  mapTools,
+  idleSection,
+}: WalkActiveViewProps = {}) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -179,6 +188,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
         testID="walk-active-map"
       >
         <View style={styles.mapTools}>
+          {mapTools}
           <IconButton
             icon="crosshair"
             label="現在地"

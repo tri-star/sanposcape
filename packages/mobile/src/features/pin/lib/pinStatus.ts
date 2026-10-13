@@ -2,6 +2,8 @@
  * ピンの訪問状況・アーカイブの表示（バッジ・文言・読み上げ）と、登録時の初期値の判定（SS-173。ADR-M-021）。
  * 純粋関数だけを置く（`react-native` を値 import しない。Vitest でテストする）。
  */
+import { pinDisplayName } from "@/features/pin/lib/pinDetailState";
+
 export type PinStatus = { visited: boolean; archived: boolean };
 
 /** Badge の tone に代入できる値だけを使う（components を import しない）。 */
@@ -15,12 +17,13 @@ export const PIN_VISITED_LABEL = "訪問済み";
 export const PIN_UNVISITED_LABEL = "未訪問";
 export const PIN_ARCHIVED_LABEL = "アーカイブ済み";
 /** 詳細でアーカイブ済みのときに出す一文。 */
-export const PIN_ARCHIVED_NOTICE = "アーカイブ済みのピンです。地図には表示されません。";
+export const PIN_ARCHIVED_NOTICE =
+  "アーカイブ済みのピンです。地図には、表示するピンで「アーカイブ済みも表示」にしたときだけ表示されます。";
 /** 編集・登録のスイッチのラベルと案内文。 */
 export const PIN_VISITED_SWITCH_LABEL = "訪問済み";
 export const PIN_ARCHIVE_SWITCH_LABEL = "アーカイブする";
 export const PIN_ARCHIVE_HELPER =
-  "アーカイブしたピンは地図に表示されなくなります。地図一覧の各地図からは開けます。";
+  "アーカイブしたピンは、地図に表示されなくなります（表示するピンで切り替えられます）。地図一覧の各地図からは開けます。";
 export const PIN_ARCHIVE_LOCKED_HELPER =
   "アーカイブは、ピンを作った人と地図の持ち主だけが変更できます";
 export const PIN_REGISTER_VISITED_HELPER =
@@ -53,6 +56,24 @@ export function pinStatusAccessibilityLabels(
   context: "detail" | "list",
 ): string[] {
   return resolvePinStatusBadges(status, context).map((badge) => badge.label);
+}
+
+/**
+ * 地図で「アーカイブ済みも表示」にしたときの、アーカイブ済みのマーカーの不透明度（SS-174）。
+ * 色や形はピンが属する地図のアイコンで決まる（ADR-M-019）ので、それを保ったまま薄くして見分ける。
+ */
+export const ARCHIVED_PIN_MARKER_OPACITY = 0.5;
+
+/**
+ * 地図のマーカーの読み上げ（`"<表示名>の詳細を開く"`）。アーカイブ済みなら名前の直後に状態を入れる
+ * （見た目の半透明と同じ情報を読み上げにも出す。地図詳細の一覧の行と同じ位置。SS-174）。
+ */
+export function registeredPinMarkerAccessibilityLabel(pin: {
+  name: string | null;
+  archived: boolean;
+}): string {
+  const name = pinDisplayName(pin.name);
+  return pin.archived ? `${name}（${PIN_ARCHIVED_LABEL}）の詳細を開く` : `${name}の詳細を開く`;
 }
 
 /**

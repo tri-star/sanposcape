@@ -143,6 +143,9 @@ packages/mobile/
     サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
   - 判断の背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) を参照。
+  - 実例3: `features/pin/store/usePinMapFilterStore.ts`（地図に描く登録済みピンの絞り込み。ピンタブと散歩中の地図で共有する。
+    散歩中の地図へは `app/` のルートが `PinMapFilterControl` を合成するので、store を参照するのは features/pin だけ。
+    これも永続化しない（アプリの再起動で既定に戻る）。判断の背景は [ADR-M-021](../adr/ADR-M-021-pin-visit-status-and-archive.md) D9。SS-174）。
   - **feature をまたぐイベントで他 feature の store をクリアしたくなったら、直接 import せず
     `src/lib/` に後始末レジストリを置き、クリアされる側（store）が自分の後始末を登録する**
     （ストアのファイル末尾で1回）。呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに

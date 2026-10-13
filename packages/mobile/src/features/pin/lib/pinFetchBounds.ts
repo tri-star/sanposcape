@@ -1,4 +1,5 @@
 import type { ListPinsParams } from "@/api/generated/model";
+import type { PinListFilterParams } from "@/features/pin/lib/pinMapFilter";
 import type { GeoBounds } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 
@@ -139,14 +140,15 @@ export function resolvePinFetchBounds(input: ResolvePinFetchBoundsInput): GeoBou
  * `cursor: null` を渡すとリテラル文字列 `"null"` を送ってしまうため。
  * `@/features/history/lib/walkHistoryParams.ts` の落とし穴と同じ）。
  *
- * 地図表示（ピンタブ・散歩中の地図）はアーカイブ済みを常に除外する（`archived: false`。SS-173。ADR-M-021）。
- * 除外は backend の絞り込みで行う（端末で捨てると上限200件をアーカイブ済みが食うため）。切り替えは
- * SS-174 で引数化する。そのときは `pinListQueryKey` にもフィルターを入れること（今は常に同じ条件なので
- * key に含めていない）。`visited` のキーは作らない（SS-174）。
+ * 地図表示（ピンタブ・散歩中の地図）の絞り込み（`archived` / `visited`）は `filter` をそのまま入れる
+ * （`toPinListFilterParams` の結果。絞らない項目はキーが無い。SS-174。ADR-M-021）。
+ * 絞り込みは backend で行う（端末で捨てると上限200件を表示しないピンが食うため）。
+ * `filter` は省略させない（省略できると既定の「アーカイブ済みを除く」を付け忘れるため）。
  */
 export function buildListPinsParams(input: {
   sanpoMapId: string;
   bounds: GeoBounds;
+  filter: PinListFilterParams;
   limit?: number;
 }): ListPinsParams {
   const rawLimit = input.limit ?? PIN_MAP_FETCH_LIMIT;
@@ -160,7 +162,7 @@ export function buildListPinsParams(input: {
     min_longitude: input.bounds.west,
     max_latitude: input.bounds.north,
     max_longitude: input.bounds.east,
-    archived: false,
+    ...input.filter,
     limit,
   };
 }
