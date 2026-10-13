@@ -134,7 +134,15 @@ describe("toPinSummary", () => {
       sanpoMapId: "map-1",
       name: "桜の木",
       location: { latitude: 35.681236, longitude: 139.767125 },
+      archived: false,
     });
+  });
+
+  it("archived を写す。フィールドが無い古い backend の応答でも false になる（SS-174）", () => {
+    expect(toPinSummary({ ...READ, archived: true })?.archived).toBe(true);
+    const legacy: Partial<PinListItemRead> = { ...READ };
+    delete legacy.archived;
+    expect(toPinSummary(legacy as PinListItemRead)?.archived).toBe(false);
   });
 
   it("緯度91（不正座標）は null", () => {
@@ -279,7 +287,13 @@ describe("toPinDetail", () => {
 
 describe("mergeRegisteredPinPages", () => {
   function pin(id: string): PinSummary {
-    return { id, sanpoMapId: "map-1", name: null, location: { latitude: 0, longitude: 0 } };
+    return {
+      id,
+      sanpoMapId: "map-1",
+      name: null,
+      location: { latitude: 0, longitude: 0 },
+      archived: false,
+    };
   }
 
   it("複数地図の結合", () => {
@@ -316,7 +330,13 @@ describe("mergeRegisteredPinPages", () => {
 
 describe("combineRegisteredPinListQueries", () => {
   function pin(id: string): PinSummary {
-    return { id, sanpoMapId: "map-1", name: null, location: { latitude: 0, longitude: 0 } };
+    return {
+      id,
+      sanpoMapId: "map-1",
+      name: null,
+      location: { latitude: 0, longitude: 0 },
+      archived: false,
+    };
   }
 
   function outcome(overrides: Partial<PinListQueryOutcome> = {}): PinListQueryOutcome {

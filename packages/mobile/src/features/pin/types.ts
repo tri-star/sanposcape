@@ -109,6 +109,11 @@ export type PinSummary = {
   /** null は「名前なし」。表示名は pinDisplayName() を通す。 */
   name: string | null;
   location: GeoCoordinates;
+  /**
+   * アーカイブ済みか。地図の絞り込みで「アーカイブ済みも表示」にしたときだけ true のピンが来る
+   * （マーカーを半透明にして見分ける。SS-174）。読み方は `toPinListEntry` と同じ `=== true`。
+   */
+  archived: boolean;
 };
 
 /** 地図に描く登録済みピン（PinSummary + そのピンの地図のアイコン。SS-172）。 */
