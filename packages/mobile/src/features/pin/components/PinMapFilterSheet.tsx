@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox/Checkbox";
 import { Switch } from "@/components/ui/switch/Switch";
 import {
   canUncheckPinVisitFilterOption,
+  isPinVisitFilterOptionChecked,
   type PinMapFilter,
   type PinVisitFilterOption,
 } from "@/features/pin/lib/pinMapFilter";
@@ -64,7 +65,7 @@ export function PinMapFilterSheet({
       <View style={styles.section}>
         <Text style={styles.heading}>訪問状況</Text>
         {VISIT_OPTIONS.map(({ option, label }) => {
-          const checked = option === "visited" ? filter.showVisited : filter.showUnvisited;
+          const checked = isPinVisitFilterOptionChecked(filter, option);
           return (
             <Checkbox
               key={option}
