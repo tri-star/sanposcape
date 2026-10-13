@@ -38,6 +38,7 @@
 - `useMutation` の `isPending` は settle と同時に false になる。成功後の遷移が非同期チェーン（`signOut()` → store → `AuthGate` の effect）だと、その間ボタンが押せる見た目に戻る（SS-62 のアカウント削除で2回目が 401 になりうる）。破壊的操作の disabled が成功状態も busy に含めているか。成功時に同期で遷移するなら問題ない。
 - 差分 PATCH + 多段保存（PATCH → 写真削除 → 写真追加）で途中失敗しても画面に留まれるとき、成功した段の応答で基準値を作り直しているか。作り直さないと「A→B を保存→A に戻す」編集が差分ゼロになりサーバーに届かない（SS-119。ADR-M-017 D11）。基準値の確定で fetching 中のキャッシュを掴んでいないか、「A→B→A」のテストがあるか。
 - `queryKey` のドメイン接頭辞・カーソルに `null` を渡さない・復旧は `resetQueries`。正本: folder-structure.md「状態管理の使い分け」
+- `useQueries` は key が変わるとオブザーバを作り直すので、`placeholderData: keepPreviousData` は効かない（`useQuery` とは違う）。「条件を変えても前のデータが出続ける／読み込み中にならない」という記述や指摘は、`useQuery` か `useQueries` かを確かめてから書く（SS-174 で実装の JSDoc・ADR とレビューの指摘が同じ誤解をした。確かめ方は agent-memory の hooks-and-query）。
 - `pinSaveRunner` の DI テストは `dispatch()` のたびに `items` を同期で書き換えるが、`usePinPhotos.ts` は `useReducer` + render 時に同期する `itemsRef`。`await` を挟まない連続 dispatch の直後は古い配列を見うる（未確認の既知ギャップ。冪等なので実害は追加リクエスト程度）。両ファイルを触る差分で確かめる。
 - React Compiler が有効（`app.json` の `reactCompiler: true`）なので、render 中の `[...path]` のような派生値は入力の参照ごとにメモ化される。「毎レンダー新しい配列になる」と指摘する前に、そのコンポーネントが `"use no memo"` で外されていないか、Compiler が諦める書き方（render 中の ref の読み書きなど）になっていないかを確かめる（SS-168 で `RoutePolyline` の `[...path]` を誤って負荷として挙げた）。
 - render 中の ref への代入（`pausedRef.current = paused`、`useScreenBack` の `interceptRef`）と、render 中の条件付き setState（派生 state）は規約どおり（architecture-guideline.md「1回だけの状態確定」）。前者は依存配列から外す理由が書かれているか、後者は無限ループ・二重発火しないかだけを見る。
