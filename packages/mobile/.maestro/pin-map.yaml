@@ -1,9 +1,12 @@
 # ピンタブ（SS-146）: サインイン → 地図が出る → 登録済みピンの取得が落ち着く（エラーにならない）
+# → 表示するピンの絞り込み（SS-174）: シートの既定値（アーカイブ off・未訪問/訪問済みとも on）→ 訪問済みを外すと
+#   未訪問は外せなくなる → アーカイブ済みも表示にして閉じても取得がエラーにならない → 既定に戻す
 # → ボタン配置エリアの「地図一覧」→ 地図一覧（SS-121）→ 戻るとピンタブ。
 # ナビタブの旧導線（/pins/map・/pins/pick-location）は SS-147 でルートごと削除した。
 #
 # 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
 # assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-M-004 / ADR-M-012 D14）。
+# 絞り込みの結果（どのピンが出るか）も同じ理由で見ない。送信条件は pinMapFilter.test.ts / pinReadApi.test.ts が担う。
 # マーカーのタップ → ピン詳細は E2E しない（Google Maps の描画面で testID が安定して取れないため。
 # 詳細の状態判定は pinDetailState.test.ts が担う）。ピン詳細への遷移は sanpo-map-list.yaml
 # （地図詳細のピン一覧から。SS-121）で確かめる。
@@ -28,6 +31,69 @@ tags:
     id: "pin-tab-sign-in"
 - assertVisible:
     id: "pin-tab-action-bar"
+- tapOn:
+    id: "pin-tab-pin-filter"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-pin-filter-sheet"
+    timeout: 5000
+- assertVisible:
+    id: "pin-tab-pin-filter-archived-switch"
+    checked: false
+- assertVisible:
+    id: "pin-tab-pin-filter-unvisited"
+    checked: true
+    enabled: true
+- assertVisible:
+    id: "pin-tab-pin-filter-visited"
+    checked: true
+- tapOn:
+    id: "pin-tab-pin-filter-visited"
+- assertVisible:
+    id: "pin-tab-pin-filter-visited"
+    checked: false
+# 最後の1つは外せない（無効になる）。
+- assertVisible:
+    id: "pin-tab-pin-filter-unvisited"
+    checked: true
+    enabled: false
+- tapOn:
+    id: "pin-tab-pin-filter-archived-switch"
+- assertVisible:
+    id: "pin-tab-pin-filter-archived-switch"
+    checked: true
+- tapOn:
+    id: "pin-tab-pin-filter-done"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-tab-pin-filter-sheet"
+    timeout: 5000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-tab-pins-loading"
+    timeout: 20000
+- assertNotVisible:
+    id: "pin-tab-pins-error"
+# 既定に戻す（状態はアプリの実行中だけ残る。後続の手順に絞り込みを持ち越さない）。
+- tapOn:
+    id: "pin-tab-pin-filter"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-pin-filter-sheet"
+    timeout: 5000
+- tapOn:
+    id: "pin-tab-pin-filter-visited"
+- tapOn:
+    id: "pin-tab-pin-filter-archived-switch"
+- assertVisible:
+    id: "pin-tab-pin-filter-archived-switch"
+    checked: false
+- tapOn:
+    id: "pin-tab-pin-filter-done"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-tab-pin-filter-sheet"
+    timeout: 5000
 - tapOn:
     id: "pin-tab-open-sanpo-map-list"
 - extendedWaitUntil:
