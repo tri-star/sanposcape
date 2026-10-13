@@ -82,7 +82,8 @@ SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加す�
   （未訪問・訪問済み。既定は両方）。`toPinListFilterParams` が送る条件に変える: アーカイブ off → `archived=false`、on → 送らない。
   訪問状況が両方 → 送らない、片方だけ → `visited=true|false`。`pinListQueryKey` には送る条件を入れる（選び方ではなく条件で key を作るので、
   同じ条件はキャッシュを共有する）。`buildListPinsParams` の `filter` は必須にした（省略で既定の除外を付け忘れないため）。
-  条件を変えると新しい key の取得になり、取得中は `keepPreviousData` で前の条件のピンを出し続ける。
+  条件を変えると新しい key の取得になり、取得が終わるまでピンは出ず読み込み中になる（`useQueries` は key が変わるとオブザーバを
+  作り直すので、`placeholderData: keepPreviousData` に前回のデータが渡らない。前の条件のピンは残らない）。
   未サインイン・フラグ OFF のときはピンを描かないので、ボタンも出さない。
 - **D9: 状態は Zustand（`features/pin/store/usePinMapFilterStore`）で2つの地図に共有し、端末には保存しない（SS-174 追補）。**
   画面ごとに持つと、どちらの地図で何を選んだか分かりにくいため。保存しないのは、課題が既定値を指定しているだけで保存を求めておらず、

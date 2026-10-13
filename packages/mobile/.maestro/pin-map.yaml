@@ -68,6 +68,8 @@ tags:
     notVisible:
       id: "pin-tab-pin-filter-sheet"
     timeout: 5000
+# 条件を変えると新しい key の取得になり、終わるまで pins-loading が出る（前の条件のピンを残さない。ADR-M-021 D8）。
+# 冒頭の確認と同じく目安: 取得がシートを開いている間に終わっていれば即パスする。
 - extendedWaitUntil:
     notVisible:
       id: "pin-tab-pins-loading"
