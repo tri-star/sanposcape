@@ -40,6 +40,20 @@ export async function watchPositionAsync(
   return { remove() {} };
 }
 
+export type LocationHeadingObject = {
+  trueHeading: number;
+  magHeading: number;
+  accuracy: number;
+};
+
+/** `watchPositionAsync` と同じく、import が壊れないためだけのスタブ（SS-169）。 */
+export async function watchHeadingAsync(
+  _callback: (heading: LocationHeadingObject) => void,
+  _errorHandler?: (reason: string) => void,
+) {
+  return { remove() {} };
+}
+
 /** `location.real.ts` のモジュール評価時（オプション定数）に参照されるので必須。 */
 export const ActivityType = {
   Other: 1,

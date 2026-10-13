@@ -48,6 +48,7 @@
     - [ADR-M-020 アプリから外部の Web ページを開く方式](./packages/mobile/adr/ADR-M-020-external-web-pages.md)
     - [ADR-M-021 ピンの訪問状況とアーカイブ](./packages/mobile/adr/ADR-M-021-pin-visit-status-and-archive.md)
     - [ADR-M-022 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./packages/mobile/adr/ADR-M-022-location-permission-flow-and-approximate-location.md)
+    - [ADR-M-023 地図上に現在地の向き（端末の方位）を扇形で表示する](./packages/mobile/adr/ADR-M-023-current-heading-on-map.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

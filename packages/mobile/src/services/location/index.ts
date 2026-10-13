@@ -6,6 +6,7 @@ import type { LocationService } from "@/services/location/types";
 export type {
   BackgroundTrackingSubscription,
   GeoCoordinates,
+  HeadingListener,
   LocationSample,
   LocationSampleListener,
   LocationPermissionStatus,

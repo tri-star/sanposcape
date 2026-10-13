@@ -5,7 +5,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 const contactEmail = "support@sanposcape.com";
 // 制定日は変えない。本文を改定したら revisedOn を更新する（改定の告知は「12. 本ポリシーの変更」）。
 const enactedOn = "2026年10月3日";
-const revisedOn: string | undefined = "2026年10月10日";
+const revisedOn: string | undefined = "2026年10月14日";
 
 // URL（/privacy/）はアプリ内のリンクと App Store Connect に登録するため変えないこと。
 
@@ -136,7 +136,7 @@ const externalServices = [
         </li>
         <li>
           <strong>地図に現在地を表示するとき</strong>:
-          端末の中で現在地を表示するために使います。
+          端末の中で現在地を表示するために使います。あわせて、端末のセンサーで向いている方角を取得し、現在地の向きとして表示します。方角は送信・保存しません。
         </li>
         <li>
           <strong>ピンの地図を表示するとき</strong>:

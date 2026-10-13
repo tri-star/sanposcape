@@ -104,6 +104,10 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   - 拒否時の文言は `LocationPermissionNotice` の `context` で画面ごとに決める（`src/components/location/locationNoticeMessage.ts`）。
   - 拒否中は前面に戻るたびに状態だけを確かめて回復する（`useCurrentLocation`。`requestPermission` は呼ばない）。
   - 精度は `locationService.getPrecision()`（`features/walk/hooks/useLocationPrecision.ts`）で見て、大まかなら案内を出す。点は捨てない。
+- **地図上の現在地の向き**（SS-169 / [ADR-M-023](../adr/ADR-M-023-current-heading-on-map.md)）:
+  - 端末の方位は `locationService.watchHeading()` で購読する。ネイティブの購読はサービスの中で1本にまとめる（Android は1本しか持てない）。
+  - 地図には `src/components/location/CurrentHeadingBeam.tsx`（`MapView` の子）を置く。扇形は `Polygon` で描き、半径は `useHeadingBeamRadius` で地図の高さと表示範囲から換算する。
+  - 購読は画面にフォーカスがあり、アプリが前面にいる間だけ（`src/hooks/useDeviceHeading.ts`）。
 
 ## 写真の扱い
 
