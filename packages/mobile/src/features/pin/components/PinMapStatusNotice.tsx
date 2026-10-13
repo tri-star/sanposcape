@@ -65,7 +65,9 @@ export function PinMapStatusNotice({
     case "empty":
       return (
         <Text style={styles.text} testID={`${p}-pins-empty`}>
-          この範囲に登録したピンはありません
+          {notice.filtered
+            ? "この範囲に、表示する条件に合うピンはありません"
+            : "この範囲に登録したピンはありません"}
         </Text>
       );
     case "none":

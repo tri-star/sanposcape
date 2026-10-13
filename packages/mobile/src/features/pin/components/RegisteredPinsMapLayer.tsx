@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
+import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore";
 import type { MapRegion } from "@/lib/mapRegion";
 
 export type RegisteredPinsMapLayerProps = {
@@ -22,12 +23,16 @@ export type RegisteredPinsMapLayerProps = {
  * 取得失敗・打ち切りは表示しない（散歩中の画面は下部カードで埋まっており、ピンは付加情報の
  * ため静かに劣化させる。案内が要る画面はピンタブ（`PinTabView`）で出す。
  * ピンタブはこの包みではなく `useRegisteredPins` + `RegisteredPinMarkers` を直接使う）。
+ *
+ * 表示するピンの絞り込みはピンタブと共有する `usePinMapFilterStore` から読む（SS-174）。変えるボタンは
+ * ルートが `WalkActiveView` の `mapTools` に `PinMapFilterControl` を合成して置く。
  */
 export function RegisteredPinsMapLayer({
   visibleRegion,
   onSelectPin,
   testIDPrefix,
 }: RegisteredPinsMapLayerProps): ReactNode {
-  const { pins } = useRegisteredPins({ visibleRegion, enabled: true });
+  const filter = usePinMapFilterStore((state) => state.filter);
+  const { pins } = useRegisteredPins({ visibleRegion, enabled: true, filter });
   return <RegisteredPinMarkers pins={pins} onSelectPin={onSelectPin} testIDPrefix={testIDPrefix} />;
 }

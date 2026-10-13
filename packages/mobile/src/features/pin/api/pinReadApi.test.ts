@@ -95,7 +95,10 @@ describe("fetchPinsInBounds", () => {
       }),
     );
 
-    await fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS }, {});
+    await fetchPinsInBounds(
+      { sanpoMapId: "map-1", bounds: BOUNDS, filter: { archived: false } },
+      {},
+    );
 
     expect(searchParams?.get("sanpo_map_id")).toBe("map-1");
     expect(searchParams?.get("min_latitude")).toBe("35.6");
@@ -103,13 +106,28 @@ describe("fetchPinsInBounds", () => {
     expect(searchParams?.get("min_longitude")).toBe("139.7");
     expect(searchParams?.get("max_longitude")).toBe("139.8");
     expect(searchParams?.get("limit")).toBe("200");
-    // 地図表示はアーカイブ済みを常に除外する（SS-173）。visited は SS-174 まで送らない。
+    // 既定の絞り込み（アーカイブ済みを除く・訪問状況は両方）。visited は送らない（SS-174）。
     expect(searchParams?.get("archived")).toBe("false");
     expect(searchParams?.has("visited")).toBe(false);
     expect(searchParams?.has("cursor")).toBe(false);
     expect(searchParams?.has("q")).toBe(false);
     expect(searchParams?.has("tags")).toBe(false);
     expect([...(searchParams?.values() ?? [])]).not.toContain("null");
+  });
+
+  it("絞り込み（訪問済みだけ・アーカイブ済みも）を送る。archived のキーは無い（SS-174）", async () => {
+    let searchParams: URLSearchParams | undefined;
+    server.use(
+      http.get("*/pins", ({ request }) => {
+        searchParams = new URL(request.url).searchParams;
+        return HttpResponse.json({ items: [], next_cursor: null }, { status: 200 });
+      }),
+    );
+
+    await fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS, filter: { visited: true } }, {});
+
+    expect(searchParams?.get("visited")).toBe("true");
+    expect(searchParams?.has("archived")).toBe(false);
   });
 
   it("200: items を PinSummary に変換し、不正座標の要素は除外する。next_cursor 非nullなら hasMore true", async () => {
@@ -123,7 +141,7 @@ describe("fetchPinsInBounds", () => {
       }),
     );
 
-    const result = await fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS }, {});
+    const result = await fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS, filter: {} }, {});
 
     expect(result.pins.map((p) => p.id)).toEqual(["a"]);
     expect(result.hasMore).toBe(true);
@@ -132,9 +150,9 @@ describe("fetchPinsInBounds", () => {
   it.each([401, 404, 422, 500])("%d は ApiError になる", async (status) => {
     server.use(http.get("*/pins", () => new HttpResponse(null, { status })));
 
-    await expect(fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS }, {})).rejects.toThrow(
-      ApiError,
-    );
+    await expect(
+      fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS, filter: {} }, {}),
+    ).rejects.toThrow(ApiError);
   });
 });
 
