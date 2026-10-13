@@ -49,7 +49,7 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-003](./adr/ADR-M-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
 | [ADR-M-004](./adr/ADR-M-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補）。フローの書き方の注意（clearState の分離・一時表示を assert しない・ASCII 入力。SS-152 追補） |
 | [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016）。デザイントークンの SSoT は Claude Design で同期は一方向（SS-202 追補） |
-| [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。精度の許可 `getPrecision`（SS-160 追補。本体は ADR-M-022） |
+| [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。精度の許可 `getPrecision`（SS-160 追補。本体は ADR-M-022）。端末の向き `watchHeading`（SS-169 追補。本体は ADR-M-023） |
 | [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補） |
 | [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。散歩中の地図への歩いた軌跡の表示（SS-168 追補） |
 | [ADR-M-009](./adr/ADR-M-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート |
@@ -66,3 +66,4 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-020](./adr/ADR-M-020-external-web-pages.md) | アプリから外部の Web ページ（プライバシーポリシー）を開く方式（アプリ内ブラウザ + OS ブラウザへのフォールバック）と、法的文書の URL をビルドで切り替えないこと |
 | [ADR-M-021](./adr/ADR-M-021-pin-visit-status-and-archive.md) | ピンの訪問状況・アーカイブ（詳細はバッジ・編集はスイッチ + 既存の保存・地図表示からアーカイブ済みを常に除外し地図詳細の一覧には出す・権限の出し分け・登録時の初期値（散歩中=訪問済み））。地図表示の絞り込み（アーカイブ済み・訪問状況。共有・保存しない・アーカイブ済みは半透明。SS-174 追補） |
 | [ADR-M-022](./adr/ADR-M-022-location-permission-flow-and-approximate-location.md) | 位置情報の権限の求め方（事前説明画面を置かない）と、拒否・大まかな位置のときの挙動（文脈ごとの中立な案内・前面復帰での回復・大まかな位置の案内） |
+| [ADR-M-023](./adr/ADR-M-023-current-heading-on-map.md) | 地図上の現在地の向きの表示（端末の方位を `watchHeading` で購読・ネイティブの購読を1本にまとめる・`Polygon` の扇形で描く・ズームに合わせた半径・フォーカス中だけ購読） |
