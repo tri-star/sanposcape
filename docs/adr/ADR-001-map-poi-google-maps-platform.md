@@ -17,7 +17,7 @@
   候補だけを除き、mobile は空・不正な名前を「目的地」に置き換えて 256 code point に制限する。（本文: SS-43 追補）
 - **往復の時間範囲の絞り込みは、徒歩片道×2の近似**。選択後のルートは周回全体の実測値（[ADR-007](./ADR-007-loop-route-generation.md)）。
   （本文: 移行・対応事項、SS-33 追補）
-- **ピン登録時のピン名の初期値は、ピンの位置の住所**。backend の `POST /explore/reverse-geocode`（サインイン必須）が Geocoding API（legacy）
+- **ピン登録時のピン名の初期値は、ピンの位置の住所**。backend の `POST /explore/reverse-geocode`（サインイン必須）が Geocoding API v4
   で住所と建物名を返し、mobile が `{住所} {建物名}付近` を組み立てて、未編集の名前欄にだけ入れる。ピン名の上限（50）は変えず、超えたら
   建物名を落とし、さらに住所を切り詰める。（本文: SS-138 追補）
 - **位置データは緯度経度の列 + 単純検索**。PostGIS 等への移行余地を残す。（本文: 決定）
@@ -70,7 +70,8 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 - （SS-138 追補）**ピン登録時のピン名の初期値を、ピンの位置の住所にする**。backend の
   `POST /explore/reverse-geocode`（サインイン必須。`/explore` 配下でボディ上限・レート制限・例外の変換を共有）が
-  Google Geocoding API（legacy JSON）で逆ジオコーディングする。座標は GET のクエリに載せない（CloudFront のログに残るため）。
+  Google Geocoding API v4（`GET /v4/geocode/location`）で逆ジオコーディングする。アプリから backend へは座標を GET のクエリに載せない
+  （CloudFront のログに残るため）。
   - 応答は `address`（国名・郵便番号を落とし、全角の数字・記号を半角に揃えた住所）と `building_name`（`premise` のうち
     番地ではないもの。best-effort）の構造化した値。住所が無い場所は 200 + `null`。
   - 「付近」を付けた表示用のラベルと、ピン名の上限（50 code point）に合わせた切り詰め（建物名を落とし、それでも超えたら
@@ -78,8 +79,9 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
   - **ピン名の最大長（50）は変えない**。住所と建物名は典型的には 30〜40 文字に収まり、上限を上げると DB の列変更・API 契約・
     mobile の定数を同時に動かす必要がある。
   - 他の Places / Routes と同じく、backend のメモリに座標5桁の TTL キャッシュ（住所なしも含む）+ SingleFlight を置き、DB・ログには残さない。
-  - Geocoding API（legacy）は API キーと座標をクエリで受け取る。ログは `_endpoint()` でクエリを落とし、httpx の INFO ログ
-    （URL 全体）は `core/logs.py` で WARNING に固定し、HTTP エラーの例外連鎖も切る（`raise ... from None`）。
+  - API キーは Places / Routes と同じくヘッダー（`X-Goog-Api-Key`）で送る。座標は Google へのクエリ（`locationQuery`）で送り、
+    パスの形（`/location/{lat},{lng}`）は使わない（ログの `_endpoint()` と `core/tracing.py` はクエリしか落とさないため）。
+    httpx の INFO ログ（URL 全体）は `core/logs.py` で WARNING に固定し、HTTP エラーの例外連鎖も切る（`raise ... from None`）。
   - mobile の名前欄は「未編集（null）」と入力値を分けて持ち、未編集の間だけ住所を表示・保存する（effect で書き込まない）。
     取得が遅れて届いても入力中の名前を上書きせず、未編集のまま位置を調整すれば新しい位置の住所に変わる。初期値のままの名前は
     破棄確認の未保存入力に数えない。取得が終わる前に保存すると「無題のピン」になる（保存を住所の取得に左右させない）。
@@ -115,9 +117,15 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 ### SS-138追補: ピン名の初期値に使う住所の取り方
 
-- **Geocoding API（legacy JSON）で逆ジオコーディングする（採用）**: ピンの位置そのものの住所が得られ、日本の住所では建物名が
-  `premise` として返ることがある。GA で、Places / Routes と同じ server key に API を許可するだけで使える。
-- **Geocoding API v4**: キーをヘッダーで渡せるが、Preview（25 QPS の上限・SLA 無し）のため採用しない。
+- **Geocoding API v4 で逆ジオコーディングする（採用）**: ピンの位置そのものの住所が得られ、日本の住所では建物名が
+  `premise` として返ることがある。2026-03-30 に GA。キーをヘッダーで渡せ、エラーも Places / Routes と同じ HTTP のステータスと
+  `error` 本文で返る。既定の上限は 25 QPS で、この用途には足りる。Places / Routes と同じ server key に「Geocoding API」を許可するだけで使える。
+- **Geocoding API v3（`maps/api/geocode/json`）**: 応答の内訳は v4 と同じだが、API キーを URL のクエリでしか受け取らない
+  （ログ・トレースにキーが残らないよう気を配り続ける必要がある）。失敗も HTTP 200 + `status` で返り、他の API と扱いが揃わない。
+  v4 が後継として GA になっているため採用しない（最初は v4 を Preview と誤認して v3 で実装し、同じ PR の中で v4 に切り替えた）。
+  なお v3 は Google の Legacy 一覧には入っておらず、廃止予定も発表されていない（2026-10 時点）。
+- **逆ジオコーディングの address descriptors（周辺の目印と位置関係）**: 建物の「中にいる」判定が取れるが、v3 だけの機能で日本では
+  実験的な提供。v4 では SearchDestinations の landmarks（一部 Preview）に置き換わっている。今回はピン名の建物名の取り方を変えないので使わない。
 - **Places API の Nearby Search で最寄りの施設名を使う**: 施設名は得られるが「ピンの位置の住所」にならず、ビルの中の店舗名を
   物件名と取り違える。施設が無い場所では何も返らないため採用しない。
 - **応答で表示用のラベル（「付近」込み）を返す**: mobile は受け取るだけで済むが、文言・上限の変更に backend のデプロイが要り、
@@ -158,7 +166,7 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - 往復“時間”範囲は Routes `computeRoutes` の徒歩片道時間・距離を 2 倍して算出する。将来、複数目的地や交通条件が要件になった場合のみ方式を再評価する。（**SS-33 追補**: 候補の絞り込み（`/explore/places`）は引き続き片道×2の近似のまま（補正係数は入れない）。選択後のルートは `/explore/routes/loop` が返す周回全体の実測値になる。詳細は [ADR-007](./ADR-007-loop-route-generation.md) を参照。）
 - SS-43 で Places の日本語優先指定、backend の非空表示名契約、mobile の防御的フォールバックを実装した。
 - 地理検索の要件が育った段階で PostGIS 等への移行を検討する。
-- （SS-138 追補）server key に Geocoding API を許可し、API を有効化する（dev / prod とも。未対応だと `REQUEST_DENIED` で 503 になり、名前欄が空のままになる）。実キーで建物名の返り方を確かめ、必要なら住所からの建物名の外し方を見直す。
+- （SS-138 追補）server key に Geocoding API を許可し、API を有効化する（dev / prod とも。未対応だと Google が HTTP 403（`SERVICE_DISABLED` / `API_KEY_SERVICE_BLOCKED`）を返して 503 になり、名前欄が空のままになる）。実キーで建物名の返り方を確かめ、必要なら住所からの建物名の外し方を見直す。
 
 ## 関連情報
 

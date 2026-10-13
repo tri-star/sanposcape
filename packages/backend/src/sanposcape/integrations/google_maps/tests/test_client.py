@@ -538,11 +538,11 @@ def test_build_provider_returns_http_when_real_mode_with_key() -> None:
         provider.close()
 
 
-# --- reverse_geocode（SS-138） -------------------------------------------------
+# --- reverse_geocode（SS-138。Geocoding API v4） ------------------------------
 
 
-def _geocode_response(results: list[dict], status: str = "OK") -> httpx.Response:
-    return httpx.Response(200, json={"status": status, "results": results})
+def _geocode_response(results: list[dict]) -> httpx.Response:
+    return httpx.Response(200, json={"results": results})
 
 
 def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None:
@@ -551,26 +551,33 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
     def handler(request):
         nonlocal calls
         calls += 1
-        assert request.url.path == "/maps/api/geocode/json"
-        assert request.url.params["latlng"] == "35.681236,139.767125"
-        assert request.url.params["language"] == "ja"
-        assert request.url.params["region"] == "jp"
-        assert request.url.params["key"] == "server-key"
+        assert request.url.host == "geocode.googleapis.com"
+        assert request.url.path == "/v4/geocode/location"
+        # 座標はパスではなくクエリで送る（ログ・トレースはクエリを落とす）。キーはヘッダーで送る。
+        assert dict(request.url.params) == {
+            "locationQuery": "35.681236,139.767125",
+            "languageCode": "ja",
+            "regionCode": "JP",
+        }
+        assert request.headers["x-goog-api-key"] == "server-key"
+        assert (
+            request.headers["x-goog-fieldmask"]
+            == "results.formattedAddress,results.addressComponents,results.types"
+        )
         return _geocode_response(
             [
                 {
-                    "types": ["premise"],
-                    "formatted_address": (
-                        "日本、〒100-0005 東京都千代田区丸の内１丁目９−１ "
-                        "グラントウキョウノースタワー"
+                    "types": ["street_address", "subpremise"],
+                    "formattedAddress": (
+                        "日本、〒100-0005 東京都千代田区丸の内２丁目４−１ 丸の内ビルディング"
                     ),
-                    "address_components": [
-                        {"long_name": "グラントウキョウノースタワー", "types": ["premise"]},
-                        {"long_name": "１", "types": ["premise"]},
-                        {"long_name": "９", "types": ["political", "sublocality_level_4"]},
+                    "addressComponents": [
+                        {"longText": "丸の内ビルディング", "types": ["premise"]},
+                        {"longText": "１", "types": ["premise"]},
+                        {"longText": "４", "types": ["political", "sublocality_level_4"]},
                     ],
                 },
-                {"types": ["locality"], "formatted_address": "日本、東京都千代田区"},
+                {"types": ["locality"], "formattedAddress": "日本、東京都千代田区"},
             ]
         )
 
@@ -581,8 +588,8 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
     second = provider.reverse_geocode(point, timeout_seconds=8)
 
     assert first is not None
-    assert first.address == "東京都千代田区丸の内1丁目9-1"
-    assert first.building_name == "グラントウキョウノースタワー"
+    assert first.address == "東京都千代田区丸の内2丁目4-1"
+    assert first.building_name == "丸の内ビルディング"
     assert second == first
     assert calls == 1
 
@@ -591,11 +598,11 @@ def test_reverse_geocode_ignores_number_only_premise_and_plus_code_results() -> 
     def handler(request):
         return _geocode_response(
             [
-                {"types": ["plus_code"], "formatted_address": "MQ6M+F4 日本、東京都"},
+                {"types": ["plus_code"], "formattedAddress": "MQ6M+F4 日本、東京都"},
                 {
                     "types": ["street_address"],
-                    "formatted_address": "日本、〒150-0002 東京都渋谷区渋谷２丁目２１−１",
-                    "address_components": [{"long_name": "２１−１", "types": ["premise"]}],
+                    "formattedAddress": "日本、〒150-0002 東京都渋谷区渋谷２丁目２１−１",
+                    "addressComponents": [{"longText": "２１−１", "types": ["premise"]}],
                 },
             ]
         )
@@ -607,16 +614,25 @@ def test_reverse_geocode_ignores_number_only_premise_and_plus_code_results() -> 
     assert result.building_name is None
 
 
-def test_reverse_geocode_returns_none_for_zero_results_and_caches_it() -> None:
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"results": []},
+        # 海上など: 住所（formattedAddress）の無い結果だけが返る。
+        {"results": [{"types": [], "location": {"longitude": -140}}]},
+    ],
+)
+def test_reverse_geocode_returns_none_without_an_address_and_caches_it(body) -> None:
     calls = 0
 
     def handler(request):
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json={"status": "ZERO_RESULTS", "results": []})
+        return httpx.Response(200, json=body)
 
     provider = _provider(handler)
-    point = ProviderPoint(0, 0)
+    point = ProviderPoint(0, -140)
 
     assert provider.reverse_geocode(point, timeout_seconds=8) is None
     assert provider.reverse_geocode(point, timeout_seconds=8) is None
@@ -624,34 +640,41 @@ def test_reverse_geocode_returns_none_for_zero_results_and_caches_it() -> None:
 
 
 @pytest.mark.parametrize(
-    ("status", "expected"),
+    ("status_code", "expected"),
     [
-        ("OVER_QUERY_LIMIT", GoogleMapsQuotaError),
-        ("OVER_DAILY_LIMIT", GoogleMapsQuotaError),
-        ("REQUEST_DENIED", GoogleMapsUnavailableError),
-        ("INVALID_REQUEST", GoogleMapsUnavailableError),
-        ("UNKNOWN_ERROR", GoogleMapsUnavailableError),
+        (429, GoogleMapsQuotaError),
+        (403, GoogleMapsUnavailableError),
+        (400, GoogleMapsUnavailableError),
+        (503, GoogleMapsUnavailableError),
     ],
 )
-def test_reverse_geocode_maps_error_statuses(status, expected, caplog) -> None:
+def test_reverse_geocode_maps_http_errors(status_code, expected, caplog) -> None:
     def handler(request):
         return httpx.Response(
-            200,
-            json={"status": status, "error_message": "denied for key server-key", "results": []},
+            status_code,
+            json={
+                "error": {
+                    "status": "PERMISSION_DENIED",
+                    "message": "denied for key server-key",
+                    "details": [{"reason": "API_KEY_SERVICE_BLOCKED"}],
+                }
+            },
         )
 
-    with pytest.raises(expected):
+    with pytest.raises(expected) as exc_info:
         _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
 
-    assert status in caplog.text
-    # キーはログに出さない（エラー文言に含まれても伏せる・URL はクエリを落とす）。
+    assert "/v4/geocode/location" in caplog.text
+    # キー・座標はログに出さない（エラー文言のキーは伏せ、URL はクエリを落とす）。
     assert "server-key" not in caplog.text
-    assert "35" not in caplog.text
+    assert "35,139" not in caplog.text
+    # HTTPStatusError のメッセージはクエリ込みの URL（座標）を持つので連鎖させない。
+    assert exc_info.value.__cause__ is None
 
 
 def test_reverse_geocode_rejects_malformed_results() -> None:
     def handler(request):
-        return httpx.Response(200, json={"status": "OK", "results": "broken"})
+        return httpx.Response(200, json={"results": "broken"})
 
     with pytest.raises(GoogleMapsUnavailableError):
         _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
@@ -660,16 +683,3 @@ def test_reverse_geocode_rejects_malformed_results() -> None:
 def test_unconfigured_provider_reverse_geocode_is_unavailable() -> None:
     with pytest.raises(GoogleMapsUnavailableError):
         UnconfiguredGoogleMapsProvider().reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
-
-
-def test_reverse_geocode_http_error_does_not_chain_the_url_with_the_key() -> None:
-    """HTTPStatusError のメッセージにはクエリ込みの URL（キー・座標）が入るので連鎖させない。"""
-
-    def handler(request):
-        return httpx.Response(403, json={"error_message": "denied"})
-
-    with pytest.raises(GoogleMapsUnavailableError) as exc_info:
-        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
-
-    assert exc_info.value.__cause__ is None
-    assert exc_info.value.__suppress_context__ is True

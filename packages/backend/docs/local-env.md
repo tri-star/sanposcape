@@ -347,10 +347,9 @@ docker compose logs -f api | grep "Google Maps"
 | 何も出ない（かつ即座に 503） | `GOOGLE_MAPS_SERVER_API_KEY` が未設定。`UnconfiguredGoogleMapsProvider` が選ばれ、外部リクエスト自体が発生していない | `.env` にキーを設定して `docker compose up -d`。**`restart` では反映されない**（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため） |
 | 候補は返るが名前が「テスト◯◯」・座標が origin の北東に等間隔（ピン名の初期値は「テスト県テスト市…テストビル付近」） | `MAPS_MODE=fake` で起動している（`docker compose logs api \| grep MAPS_MODE` で WARNING を確認） | Maestro E2E / キー未所持のローカル開発ではこれが意図した挙動。実 API の疎通確認をしたい場合は `MAPS_MODE` を外して `docker compose up -d` し直す |
 | `HTTP 403 status=PERMISSION_DENIED reasons=API_KEY_ANDROID_APP_BLOCKED` | mobile 用の **Android アプリ制限付きキー**を backend に設定している。サーバーからのリクエストにはパッケージ名・SHA-1 が無いため拒否される | アプリケーションの制限が「なし」または「IPアドレス」の**サーバー用キーを別途作成**する。mobile 側の `GOOGLE_MAPS_ANDROID_SDK_KEY` とは必ず別キーにする（[ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)） |
-| `reasons=SERVICE_DISABLED` | Places API (New) / Routes API が有効化されていない | Google Cloud Console で両APIを有効化する |
-| `GET /maps/api/geocode/json -> status=REQUEST_DENIED` | Geocoding API が有効化されていない、またはキーのAPI制限で許可されていない（Geocoding API は失敗も HTTP 200 で返し、`status` に理由が出る）。ピン登録画面の名前欄に住所が入らない | Geocoding API を有効化し、キーのAPI制限に追加する |
-| `reasons=API_KEY_SERVICE_BLOCKED` | キーのAPI制限で Places/Routes が許可されていない | キーのAPI制限に両APIを追加する |
-| `status=PERMISSION_DENIED` で請求関連の message | 請求先アカウント未設定（両APIとも課金必須） | プロジェクトに請求先アカウントを紐づける |
+| `reasons=SERVICE_DISABLED` | Places API (New) / Routes API / Geocoding API が有効化されていない（Geocoding API は `GET /v4/geocode/location` の行に出る。ピン登録画面の名前欄に住所が入らない） | Google Cloud Console で該当の API を有効化する |
+| `reasons=API_KEY_SERVICE_BLOCKED` | キーのAPI制限で Places/Routes/Geocoding が許可されていない | キーのAPI制限に該当の API を追加する |
+| `status=PERMISSION_DENIED` で請求関連の message | 請求先アカウント未設定（いずれのAPIも課金必須） | プロジェクトに請求先アカウントを紐づける |
 | `request timed out` / `ConnectError` | コンテナから外部 HTTPS に到達できない | ネットワーク・プロキシ設定を確認する |
 
 ### `/explore/routes/loop` のログと応答の対応（SS-33。ADR-007 参照）

@@ -550,7 +550,7 @@ class TestConfigureLogging:
     def test_keeps_httpx_request_lines_out_even_when_root_is_info(
         self, app_logger_state: logging.Logger, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Geocoding API はキーと座標をクエリで受け取る（SS-138）。httpx の INFO の
+        """Geocoding API には座標をクエリで送る（SS-138）。httpx の INFO の
         「HTTP Request: GET <URL>」が root の設定次第で出ないよう、WARNING に固定する。"""
         httpx_logger = logging.getLogger("httpx")
         monkeypatch.setattr(httpx_logger, "level", logging.NOTSET)

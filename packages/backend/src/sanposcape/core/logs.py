@@ -417,8 +417,8 @@ def configure_logging(
     """
     app_logger = logging.getLogger("sanposcape")
     app_logger.setLevel(level)
-    # httpx は INFO で「HTTP Request: GET <URL 全体>」を出す。Geocoding API はキーと座標を
-    # クエリで受け取るので（SS-138。`integrations/google_maps/client.py`）、root が INFO の
+    # httpx は INFO で「HTTP Request: GET <URL 全体>」を出す。Geocoding API には座標を
+    # クエリで送るので（SS-138。`integrations/google_maps/client.py`）、root が INFO の
     # 実行環境でも URL が残らないよう、httpx のロガーは WARNING 以上に固定する。
     logging.getLogger("httpx").setLevel(logging.WARNING)
     _LOG_OPTIONS.include_exception_messages = include_exception_messages

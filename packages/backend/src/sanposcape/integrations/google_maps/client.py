@@ -38,13 +38,12 @@ _ROUTES_BASE_URL = "https://routes.googleapis.com/directions/v2"
 _LOOP_ROUTE_FIELD_MASK = (
     "routes.legs.duration,routes.legs.distanceMeters,routes.legs.polyline.encodedPolyline"
 )
-# 逆ジオコーディングは Geocoding API（legacy JSON）。v4 は Preview のため使わない（SS-138）。
-# このエンドポイントは API キーをクエリの `key` で受け取る（公式の例はクエリだけ）。ログは
-# `_endpoint()` でクエリを落とし、トレースも `core/tracing.py` がクエリを落とすので、
-# キーは残らない。
-_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-# HTTP 200 で返る Geocoding API の `status` のうち、利用量の上限に当たったもの。
-_GEOCODING_QUOTA_STATUSES = frozenset({"OVER_QUERY_LIMIT", "OVER_DAILY_LIMIT"})
+# 逆ジオコーディングは Geocoding API v4（2026-03 GA。SS-138）。キーは他の API と同じく
+# ヘッダーで送る。
+# 座標はクエリ（`locationQuery`）で送る（パスの形 `/location/{lat},{lng}` にすると、クエリを落とす
+# `_endpoint()` と `core/tracing.py` でも座標が残るため）。
+_GEOCODING_URL = "https://geocode.googleapis.com/v4/geocode/location"
+_GEOCODING_FIELD_MASK = "results.formattedAddress,results.addressComponents,results.types"
 # 住所・建物名の上限（Unicode code point）。応答の契約（`maps/schemas.py`）と揃える。
 _ADDRESS_MAX_CHARS = 256
 # 「日本、〒100-0005 」のような国名と郵便番号の接頭辞（NFKC で半角に揃えた後に当てる）。
@@ -294,48 +293,23 @@ class HttpGoogleMapsProvider:
         cached = self._geocode_cache.get(key)
         if cached is not None:
             return cached
+        # 失敗は他の API と同じく HTTP のステータスと `error` 本文で返る（`_request` が扱う）。
+        # 住所の無い場所（海上など）は、住所の無い結果か空の `results` が返る。
         response = self._request(
             "GET",
             _GEOCODING_URL,
             params={
-                "latlng": f"{point.latitude},{point.longitude}",
-                "language": "ja",
-                "region": "jp",
-                "key": self._key,
+                "locationQuery": f"{point.latitude},{point.longitude}",
+                "languageCode": "ja",
+                "regionCode": "JP",
             },
+            headers={"X-Goog-FieldMask": _GEOCODING_FIELD_MASK},
             timeout_seconds=timeout_seconds,
         )
-        # Geocoding API（legacy）は失敗も HTTP 200 で返し、`status` で結果を伝える。
-        status = response.get("status")
-        if status == "ZERO_RESULTS":
-            result: tuple[ProviderAddress, ...] = ()
-        elif status == "OK":
-            address = _parse_geocode_results(response.get("results"))
-            result = () if address is None else (address,)
-        else:
-            self._log_geocoding_status(status, response.get("error_message"))
-            if status in _GEOCODING_QUOTA_STATUSES:
-                raise GoogleMapsQuotaError()
-            raise GoogleMapsUnavailableError()
+        address = _parse_geocode_results(response.get("results", []))
+        result: tuple[ProviderAddress, ...] = () if address is None else (address,)
         self._geocode_cache.put(key, result)
         return result
-
-    def _log_geocoding_status(self, status: object, error_message: object) -> None:
-        """HTTP 200 で返る失敗の `status` を残す。
-
-        `REQUEST_DENIED`（キーの API 制限で Geocoding API が許可されていない等）を追うため。
-        """
-        message = (
-            self._redact_key(error_message[:_MAX_LOGGED_MESSAGE_CHARS])
-            if isinstance(error_message, str)
-            else "-"
-        )
-        logger.warning(
-            "Google Maps API error: GET %s -> status=%s message=%s",
-            _endpoint(_GEOCODING_URL),
-            status if isinstance(status, str) else "-",
-            message,
-        )
 
     def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
         timeout_seconds = kwargs.pop("timeout_seconds")
@@ -377,7 +351,7 @@ class HttpGoogleMapsProvider:
         except (httpx.HTTPError, json.JSONDecodeError, ValueError):
             self._log_error_response(method, url, response)
             # 連鎖を切る: `raise_for_status()` の HTTPStatusError はメッセージにクエリ込みの URL を
-            # 持ち、Geocoding API ではキーと座標が入る（SS-138）。要点は上でログに残している。
+            # 持ち、Geocoding API では座標が入る（SS-138）。要点は上でログに残している。
             raise GoogleMapsUnavailableError() from None
         return body if isinstance(body, dict) else {}
 
@@ -577,7 +551,7 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
 
 
 def _parse_geocode_results(results: object) -> ProviderAddress | None:
-    """Geocoding API の `results` から、最も詳しい結果の住所と建物名を取り出す。
+    """Geocoding API v4 の `results` から、最も詳しい結果の住所と建物名を取り出す。
 
     `results` は詳しい順に並ぶ。Plus Code だけの結果（住所の無い場所）は読み飛ばす。
     建物名は同じ結果の `premise` のうち番地ではないもの（best-effort。日本の住所で
@@ -591,13 +565,13 @@ def _parse_geocode_results(results: object) -> ProviderAddress | None:
         types = result.get("types")
         if isinstance(types, list) and "plus_code" in types:
             continue
-        formatted = result.get("formatted_address")
+        formatted = result.get("formattedAddress")
         if not isinstance(formatted, str):
             continue
         address = _normalize_address(formatted)
         if not address:
             continue
-        building_name = _building_name(result.get("address_components"))
+        building_name = _building_name(result.get("addressComponents"))
         if building_name is not None and address.endswith(building_name):
             address = address[: -len(building_name)].rstrip()
             if not address:
@@ -627,7 +601,7 @@ def _building_name(components: object) -> str | None:
         if not isinstance(component, dict):
             continue
         types = component.get("types")
-        name = component.get("long_name")
+        name = component.get("longText")
         if not isinstance(types, list) or "premise" not in types or not isinstance(name, str):
             continue
         normalized = _normalize_text(name)
