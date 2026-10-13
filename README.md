@@ -13,7 +13,7 @@
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
 - [データ取扱い台帳](./docs/privacy/data-inventory.md) — 利用者のデータの取得・送信・保存・削除の正本。プライバシーポリシーと [App Privacy の申告](./docs/app-privacy-label.md) はここから書く
 - ADR（アーキテクチャ決定記録）
-  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
+  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）。ピン名の初期値の住所（Geocoding API。SS-138 追補）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
   - 横断: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
   - 横断: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - 横断: [ADR-004 シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./docs/adr/ADR-004-secrets-management-and-cicd-aws-credentials.md)
