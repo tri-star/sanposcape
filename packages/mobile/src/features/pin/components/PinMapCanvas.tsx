@@ -8,6 +8,7 @@ import MapView, {
   type PoiClickEvent,
 } from "react-native-maps";
 
+import { CurrentHeadingBeam } from "@/components/location/CurrentHeadingBeam";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { DEFAULT_SANPO_MAP_ICON, sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
@@ -18,6 +19,7 @@ import {
   type PinMapFocusRequest,
   type PinMapPickProps,
 } from "@/features/pin/lib/pinLocationPicker";
+import { useHeadingBeamRadius } from "@/hooks/useHeadingBeamRadius";
 import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -39,7 +41,7 @@ type PinMapCanvasCommonProps = {
   selectedLocation: GeoCoordinates | null;
   /** 選択位置のピンの見た目。登録画面では保存先の地図のアイコン。既定は pin。 */
   selectedMarkerIcon?: SanpoMapIconKey;
-  /** 現在地。null なら出さない。 */
+  /** 現在地。null なら出さない（現在地の向きの扇形も出さない。SS-169）。 */
   currentLocation: GeoCoordinates | null;
   /** nonce が変わるたびに target へ animateToRegion する（WalkRouteMapView の recenterNonce と同じ考え方）。 */
   focusRequest: PinMapFocusRequest | null;
@@ -93,6 +95,7 @@ export function PinMapCanvas({
   // `onMapReady` は画面を離れて戻るたびにも呼ばれる。カメラは離れる前の位置のままなので、
   // `initialRegion` を表示範囲として報告するのは初回だけにする（`WalkRouteMapView` と同じ）。
   const hasReportedInitialRegion = useRef(false);
+  const headingBeam = useHeadingBeamRadius();
 
   useEffect(() => {
     if (focusRequest === null) return;
@@ -108,7 +111,9 @@ export function PinMapCanvas({
 
   const handleRegionChangeComplete = (region: MapRegion) => {
     const sanitized = sanitizeMapRegion(region);
-    if (sanitized !== null) onRegionChangeComplete?.(sanitized);
+    if (sanitized === null) return;
+    headingBeam.onMapRegion(sanitized);
+    onRegionChangeComplete?.(sanitized);
   };
 
   if (initialRegion === null) {
@@ -135,6 +140,7 @@ export function PinMapCanvas({
       // 呼び出し側が渡す文言が変わる）。
       accessibilityHint={accessibilityHint}
       style={styles.mapWrap}
+      onLayout={headingBeam.onMapLayout}
     >
       <MapView
         ref={mapRef}
@@ -155,6 +161,7 @@ export function PinMapCanvas({
         }}
         onRegionChangeComplete={handleRegionChangeComplete}
       >
+        <CurrentHeadingBeam center={currentLocation} radiusMeters={headingBeam.radiusMeters} />
         {selectedLocation !== null ? (
           <Marker
             // tracksViewChanges={false} では子の変化が反映されないので、アイコンが変わったら作り直す。

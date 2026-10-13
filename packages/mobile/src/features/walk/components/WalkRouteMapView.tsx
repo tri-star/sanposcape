@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
+import { CurrentHeadingBeam } from "@/components/location/CurrentHeadingBeam";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
@@ -12,6 +13,7 @@ import { useMapRouteFit } from "@/features/walk/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegion";
 import { walkTrailStyle } from "@/features/walk/lib/walkTrailStyle";
 import type { WalkRoute } from "@/features/walk/types";
+import { useHeadingBeamRadius } from "@/hooks/useHeadingBeamRadius";
 import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -69,9 +71,12 @@ const CURRENT_MARKER_Z_INDEX = 2;
  * 軌跡は位置が届くたびに座標が変わるので iOS でも上に来る。描く順序も軌跡を後ろに置き、両方で同じ重なりにする。
  */
 const TRAIL_Z_INDEX = 3;
+/** 現在地の向きの扇形（SS-169）。半透明の面なので、ルート線・軌跡より下に敷く（Google Maps のみ有効）。 */
+const HEADING_BEAM_Z_INDEX = 0;
 
 /**
- * WalkRouteMapView — 散歩中画面の実地図。ルート・歩いた軌跡（SS-168）・目的地・現在地を描く。
+ * WalkRouteMapView — 散歩中画面の実地図。ルート・歩いた軌跡（SS-168）・目的地・現在地と、
+ * 現在地の向き（SS-169）を描く。
  * `showsUserLocation` は使わない。`EXPO_PUBLIC_LOCATION_MODE=mock` のとき OS の青ドットは
  * mock 軌跡と食い違い、点が2つ出て混乱するため、現在地は必ず `locationService` 由来の値で描く。
  * 周回ルートは参考表示。現在地がどちらの区間にいるかは判定しない（SS-33）。
@@ -99,6 +104,7 @@ export function WalkRouteMapView({
   // 呼ばれる。そのときのカメラは離れる前の位置のままなので、`initialRegion` を表示範囲として
   // 報告するのは初回だけにする（2回目以降は `onRegionChangeComplete` に任せる）。
   const hasReportedInitialRegion = useRef(false);
+  const headingBeam = useHeadingBeamRadius();
 
   const initialRegion = walkRoute
     ? regionForBounds(walkRoute.bounds)
@@ -135,7 +141,7 @@ export function WalkRouteMapView({
   }
 
   return (
-    <View style={[{ height }, style]}>
+    <View style={[{ height }, style]} onLayout={headingBeam.onMapLayout}>
       <MapView
         ref={mapRef}
         testID={testID}
@@ -152,13 +158,22 @@ export function WalkRouteMapView({
           if (hasReportedInitialRegion.current) return;
           hasReportedInitialRegion.current = true;
           const sanitized = sanitizeMapRegion(initialRegion);
-          if (sanitized) onRegionChangeComplete?.(sanitized);
+          if (!sanitized) return;
+          headingBeam.onMapRegion(sanitized);
+          onRegionChangeComplete?.(sanitized);
         }}
         onRegionChangeComplete={(region) => {
           const sanitized = sanitizeMapRegion(region);
-          if (sanitized) onRegionChangeComplete?.(sanitized);
+          if (!sanitized) return;
+          headingBeam.onMapRegion(sanitized);
+          onRegionChangeComplete?.(sanitized);
         }}
       >
+        <CurrentHeadingBeam
+          center={currentPosition}
+          radiusMeters={headingBeam.radiusMeters}
+          zIndex={HEADING_BEAM_Z_INDEX}
+        />
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         <RoutePolyline
           path={trail}
