@@ -30,6 +30,11 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 ## 依存の追加
 - スコープなし・typosquat 疑いのパッケージや `postinstall` の追加がないか。`package.json` / `pyproject.toml` の差分で確かめる。
 
+## データ取扱い台帳（観点6）
+- 台帳（`docs/privacy/data-inventory.md`）の行を足す・直す差分では、その行の取得箇所が §1 の対象パスに含まれているか。含まれないと、そのファイルの変更が観点6の確認から漏れる。前例: SS-184 の初版で `auth/apple_authorization.py`・レート制限・画像キャッシュ・地図のコンポーネントが漏れていた。
+- 保存期間・削除の記述は、主な経路だけでなく途中で止まった経路まで追う。前例: 写真の撮影日時は紐付けた写真の側だけ書かれ、登録を破棄した枠（`pin_photo_uploads`）に残ることが抜けていた。Apple の失効も「失効できなくても削除する」と書かれていたが、一時障害では削除をやめて 503 を返す。
+- infra（sanposcape-infra）側の値（ログ・トレースの保持期間など）は、出どころ（確認したコミット・ファイル）が書かれているか。このリポジトリからは確かめられない。
+
 ## 反証のときに確かめること
 - ADR の文言を根拠に重大度を上げるときは、その決定が何を対象にしているかを本文で確かめる。前例: ADR-002 決定6-1 の「マージ」はサーバーに永続化済みのゲスト記録の所有権の付け替えで、SS-37（未保存の散歩の保存）には当たらなかった。
 - 「冪等キーやカーソルに暗号強度は要らない」という主張は、一意制約や WHERE のスコープが `user_id` / メンバーシップで絞られていることを実コードで確かめてから受け入れる。スコープがグローバルなら判定は変わる。
@@ -166,7 +171,7 @@ lp は Astro の静的出力（`output: "static"`）を非公開 S3 + OAC + Clou
 ## 公開範囲
 - dev は meta robots と CloudFront の `X-Robots-Tag` の二重で noindex。`robots.txt` で `Disallow` にしていないか（noindex を読めなくなる。ADR-012 決定6）。
 - `public/` に置いたものはそのままの名前で公開される。設計資料・下書き・ソース画像を置いていないか。`/.well-known/` は置いていない（足すなら意図を確かめる）。
-- `/privacy/` は恒久 URL（アプリ内リンクと App Store Connect に登録済み）。backend / mobile のデータの扱い（取得する情報・送信先・保存期間）を変える差分では、`privacy.astro` と `docs/app-privacy-label.md` の更新が要るかを見る。
+- `/privacy/` は恒久 URL（アプリ内リンクと App Store Connect に登録済み）。backend / mobile のデータの扱い（取得する情報・送信先・保存期間）を変える差分は、観点6（台帳との整合）で `docs/privacy/data-inventory.md`・`privacy.astro`・`docs/app-privacy-label.md` の更新が要るかを見る。
 
 ## デプロイ経路（`lp-deploy.yml`）
 - 共通の「CI・デプロイのワークフロー」に加え、バケット名・distribution ID を SSM から実行時に読み、取得直後に `add-mask` しているか。リポジトリや GitHub に直書きしていないか。
