@@ -41,7 +41,9 @@ export function useDeviceHeading(enabled: boolean): number | null {
 
     locationService
       .watchHeading((degrees) => {
-        if (!cancelled) setHeading(quantizeHeadingDegrees(degrees, HEADING_STEP_DEGREES));
+        if (cancelled) return;
+        // null は購読が途中で失敗したとき。最後の向きを出し続けない。
+        setHeading(degrees === null ? null : quantizeHeadingDegrees(degrees, HEADING_STEP_DEGREES));
       })
       .then((started) => {
         if (cancelled) started.remove();

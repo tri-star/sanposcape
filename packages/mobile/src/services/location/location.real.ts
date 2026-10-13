@@ -150,15 +150,19 @@ export function createRealLocationService(): LocationService {
     request: () => PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
   });
   // 方位のネイティブ購読は1本にまとめる（Android の expo-location は1本しか持てない。SS-169）。
-  const heading = createHeadingMultiplexer(async (emit) => {
+  const heading = createHeadingMultiplexer(async ({ emit, fail }) => {
     try {
       const subscription = await Location.watchHeadingAsync(
         (raw) => {
           const degrees = toHeadingDegrees(raw);
           if (degrees !== null) emit(degrees);
         },
-        // 開始後の失敗（iOS のストリームの例外）。表示は止まるだけなので、原因調査用に残す。
-        (reason) => logDiagnostic("location_heading_watch_error", { reason }),
+        // 開始後の失敗（iOS のストリームの例外。強い磁気の干渉・権限の取り消しなど）。ストリームはもう値を流さないので、
+        // 最後の向きを出し続けないよう多重化に伝えて表示を消す。原因調査用にログも残す。
+        (reason) => {
+          logDiagnostic("location_heading_watch_error", { reason });
+          fail();
+        },
       );
       return { remove: () => subscription.remove() };
     } catch (error) {

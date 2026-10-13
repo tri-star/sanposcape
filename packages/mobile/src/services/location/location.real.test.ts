@@ -160,10 +160,34 @@ describe("createRealLocationService: watchHeading", () => {
     expect(a).toHaveBeenCalledWith(10);
     expect(b).toHaveBeenCalledWith(10);
 
-    subA.remove();
-    subB.remove();
-    await Promise.resolve();
-    expect(remove).toHaveBeenCalledTimes(1);
+    vi.useFakeTimers();
+    try {
+      subA.remove();
+      subB.remove();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(remove).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("開始後に失敗が届いたら null を配る（最後の向きを出し続けない）", async () => {
+    let emit:
+      | ((heading: { trueHeading: number; magHeading: number; accuracy: number }) => void)
+      | null = null;
+    let fail: ((reason: string) => void) | undefined;
+    locationMocks.watchHeading.mockImplementation(async (callback, errorHandler) => {
+      emit = callback;
+      fail = errorHandler;
+      return { remove() {} };
+    });
+    const listener = vi.fn();
+    await createRealLocationService().watchHeading(listener);
+
+    emit!({ trueHeading: 30, magHeading: 23, accuracy: 3 });
+    fail!("Heading updates not available");
+
+    expect(listener.mock.calls).toEqual([[30], [null]]);
   });
 
   it("開始の失敗は LocationError に正規化する", async () => {
