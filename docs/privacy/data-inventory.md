@@ -6,7 +6,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
   [App Privacy の申告](../app-privacy-label.md)は、この台帳から書く。3つが食い違えば、まず実装を確かめて台帳を直し、ポリシーと申告を合わせる。
 - ポリシーとのずれは、ポリシーを書くときより、backend・mobile の変更（DB モデル、ログ、送信内容、権限、外部 SDK の追加）で生まれる。
   そのため、ずれを生みうるパスを「[対象パス](#1-対象パスポリシーに関係する変更)」に挙げ、計画（`task-workflow`）とレビュー（`security-reviewer`）でここを確かめる。
-- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）
+- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）
 
 ## 1. 対象パス（ポリシーに関係する変更）
 
@@ -65,6 +65,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | 散歩の目的地（名称・座標・Google の場所 ID） | 探索 API の応答（座標は丸めない）→ `src/features/walk/lib/walkCreateRequest.ts` | 同上 | DB `walks.destination_*`。削除まで | 同上 | 1-1 | 正確な位置情報 |
 | 散歩中に端末に一時保存する位置 | `src/services/location/sampleBufferStorage.file.ts`（`Paths.cache/walk-location-samples.jsonl`。時刻・緯度経度・精度を生の値で） | 送らない | 端末。散歩の開始・終了時、アプリの起動時、サインアウト時に消す（`backgroundSampleHub.ts`、`src/lib/backgroundLocationCleanup.ts`） | 自動 | 6 | 対象外（端末内） |
 | スポット・ルート探索の現在地 | `src/features/walk/lib/placeSearchRequest.ts`・`walkRouteRequest.ts`（小数4桁 ≒ 11m に丸める。周回ルートの目的地は丸めない） | backend `POST /explore/*` のボディ（ゲストも送る）→ backend から Google Places API・Routes API（`integrations/google_maps/`） | backend のメモリのキャッシュに既定 300 秒（`config.py` の `google_maps_cache_ttl_seconds`）。DB・ログには残さない | 自動 | 1-1、3、6 | 収集にあたらない（`app-privacy-label.md` 3.1 の正確な位置情報の注記） |
+| ピンの位置の住所の取得（ピン名の初期値。SS-138） | 登録画面を開いたとき・位置を調整したとき。`src/features/pin/lib/pinAddressRequest.ts`（座標は保存するピンと同じ小数6桁）。サインイン時だけ | backend `POST /explore/reverse-geocode` のボディ → backend から Google Geocoding API v4（`integrations/google_maps/client.py`。座標はクエリで送るため、httpx の URL を出すログは `core/logs.py` で止めている） | backend のメモリのキャッシュに既定 300 秒（座標と得られた住所）。DB・ログには残さない。得られた住所は名前欄に入るだけで、利用者が保存したときだけピンの名称として保存される | 自動 | 1-1、3、6 | 収集にあたらない（ピンの座標そのものは「ピン」の行で申告済み） |
 | ピン地図の表示範囲 | `src/features/pin/lib/pinFetchBounds.ts`（表示範囲を 25% 広げ、外側へ小数4桁に丸める） | backend `GET /pins` の**クエリ** | DB には保存しない。CloudFront のアクセスログに URL として残る（最長 400 日。infra） | 期間の経過 | 1-1、1-5、6 | 正確な位置情報 |
 | 地図に表示する現在地 | `src/services/location/location.real.ts`、`SpotMapView.tsx` の `showsUserLocation` | 送らない（地図 SDK の扱いは 3.6） | 端末のメモリ | — | 1-1 | 対象外（端末内） |
 | 地図に表示する向き（端末の方位） | `src/services/location/location.real.ts` の `watchHeading`（`expo-location` の方位センサー。地図を前面で表示している間だけ。SS-169） | 送らない（扇形の図形として地図に描くだけ） | 端末のメモリ | — | 1-1 | 対象外（端末内） |

@@ -201,7 +201,7 @@ docker compose up -d --build
     - 起動時に `MAPS_MODE=fake: using FakeGoogleMapsProvider` の WARNING をログに出すので、`docker compose logs api | grep MAPS_MODE` でどちらの provider で動いているか確認できる。
     - **（SS-33）`/explore/routes/loop` も対応する**: 往路は既存の直線ルートを再利用し、復路は `目的地 → 経由点 → 現在地` を直線で結んだ決定的な周回を返す（`return_is_same_path: false`）。経由点は `maps/loop_route.py`（実 provider と共通）が生成するため、fake でも周回の判定ロジック自体は本物と同じものを通る。
   - `docker compose restart` では反映されない。`MAPS_MODE=fake docker compose up -d` のように `up -d` でコンテナを作り直すこと（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため）。
-- `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New) と Routes API のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
+- `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New)・Routes API・Geocoding API（ピンの住所。SS-138）のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
 - `GOOGLE_MAPS_SEARCH_DEADLINE_SECONDS`: `/explore/places` の Places 検索から徒歩経路による候補絞り込みまでの合計時間上限。期限までに評価できなかった候補は返さない。Nearby Search の上限に合わせ、1探索で評価する候補・Routes 呼び出しは最大20件である。
 - `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: 認証済みの `/explore` リクエストに、ユーザーと接続元IPの両方へ適用する process-local の上限（既定 30 リクエスト/60 秒）。
@@ -345,11 +345,11 @@ docker compose logs -f api | grep "Google Maps"
 | ログ | 原因 | 対処 |
 | --- | --- | --- |
 | 何も出ない（かつ即座に 503） | `GOOGLE_MAPS_SERVER_API_KEY` が未設定。`UnconfiguredGoogleMapsProvider` が選ばれ、外部リクエスト自体が発生していない | `.env` にキーを設定して `docker compose up -d`。**`restart` では反映されない**（`compose.yaml` の `${...}` はコンテナ生成時に展開されるため） |
-| 候補は返るが名前が「テスト◯◯」・座標が origin の北東に等間隔 | `MAPS_MODE=fake` で起動している（`docker compose logs api \| grep MAPS_MODE` で WARNING を確認） | Maestro E2E / キー未所持のローカル開発ではこれが意図した挙動。実 API の疎通確認をしたい場合は `MAPS_MODE` を外して `docker compose up -d` し直す |
+| 候補は返るが名前が「テスト◯◯」・座標が origin の北東に等間隔（ピン名の初期値は「テスト県テスト市…テストビル付近」） | `MAPS_MODE=fake` で起動している（`docker compose logs api \| grep MAPS_MODE` で WARNING を確認） | Maestro E2E / キー未所持のローカル開発ではこれが意図した挙動。実 API の疎通確認をしたい場合は `MAPS_MODE` を外して `docker compose up -d` し直す |
 | `HTTP 403 status=PERMISSION_DENIED reasons=API_KEY_ANDROID_APP_BLOCKED` | mobile 用の **Android アプリ制限付きキー**を backend に設定している。サーバーからのリクエストにはパッケージ名・SHA-1 が無いため拒否される | アプリケーションの制限が「なし」または「IPアドレス」の**サーバー用キーを別途作成**する。mobile 側の `GOOGLE_MAPS_ANDROID_SDK_KEY` とは必ず別キーにする（[ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md)） |
-| `reasons=SERVICE_DISABLED` | Places API (New) / Routes API が有効化されていない | Google Cloud Console で両APIを有効化する |
-| `reasons=API_KEY_SERVICE_BLOCKED` | キーのAPI制限で Places/Routes が許可されていない | キーのAPI制限に両APIを追加する |
-| `status=PERMISSION_DENIED` で請求関連の message | 請求先アカウント未設定（両APIとも課金必須） | プロジェクトに請求先アカウントを紐づける |
+| `reasons=SERVICE_DISABLED` | Places API (New) / Routes API / Geocoding API が有効化されていない（Geocoding API は `GET /v4/geocode/location` の行に出る。ピン登録画面の名前欄に住所が入らない） | Google Cloud Console で該当の API を有効化する |
+| `reasons=API_KEY_SERVICE_BLOCKED` | キーのAPI制限で Places/Routes/Geocoding が許可されていない | キーのAPI制限に該当の API を追加する |
+| `status=PERMISSION_DENIED` で請求関連の message | 請求先アカウント未設定（いずれのAPIも課金必須） | プロジェクトに請求先アカウントを紐づける |
 | `request timed out` / `ConnectError` | コンテナから外部 HTTPS に到達できない | ネットワーク・プロキシ設定を確認する |
 
 ### `/explore/routes/loop` のログと応答の対応（SS-33。ADR-007 参照）
@@ -376,7 +376,7 @@ r = httpx.post('https://places.googleapis.com/v1/places:searchNearby',
   headers={'X-Goog-Api-Key':os.environ['GOOGLE_MAPS_SERVER_API_KEY'],'X-Goog-FieldMask':'places.id'}, timeout=15)
 print(r.status_code); print(r.text[:800])"
 ```
-- server key は Google Cloud Console で API 制限（Places API (New)、Routes API）と環境別の制限を設定する。地図タイルに使う mobile SDK key は別の key として SS-15 で管理する。
+- server key は Google Cloud Console で API 制限（Places API (New)、Routes API、Geocoding API）と環境別の制限を設定する。地図タイルに使う mobile SDK key は別の key として SS-15 で管理する。
 
 **既定値を持つ以下の env は `compose.yaml` の `environment:` には列挙していない**（他の env とは
 扱いが非対称に見えるが意図的）。`config.py` の `Settings` は `env_file=".env"` を指定しており、

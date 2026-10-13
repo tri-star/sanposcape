@@ -1,6 +1,8 @@
 import json
 import logging
 import math
+import re
+import unicodedata
 from typing import Any
 
 import httpx
@@ -14,6 +16,7 @@ from sanposcape.integrations.google_maps.exceptions import (
 from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     GoogleMapsProvider,
+    ProviderAddress,
     ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
@@ -35,6 +38,24 @@ _ROUTES_BASE_URL = "https://routes.googleapis.com/directions/v2"
 _LOOP_ROUTE_FIELD_MASK = (
     "routes.legs.duration,routes.legs.distanceMeters,routes.legs.polyline.encodedPolyline"
 )
+# 逆ジオコーディングは Geocoding API v4（2026-03 GA。SS-138）。キーは他の API と同じく
+# ヘッダーで送る。
+# 座標はクエリ（`locationQuery`）で送る（パスの形 `/location/{lat},{lng}` にすると、クエリを落とす
+# `_endpoint()` と `core/tracing.py` でも座標が残るため）。
+_GEOCODING_URL = "https://geocode.googleapis.com/v4/geocode/location"
+_GEOCODING_FIELD_MASK = "results.formattedAddress,results.addressComponents,results.types"
+# 住所・建物名の上限（Unicode code point）。応答の契約（`maps/schemas.py`）と揃える。
+_ADDRESS_MAX_CHARS = 256
+# 「日本、〒100-0005 」のような国名と郵便番号の接頭辞（NFKC で半角に揃えた後に当てる）。
+_JAPAN_PREFIX = re.compile(r"^日本、\s*")
+_POSTAL_CODE_PREFIX = re.compile(r"^〒?\d{3}-\d{4}\s*")
+# 番地だけの `premise`（例: `9-1`）。建物名として扱わない。
+_NUMBER_ONLY = re.compile(r"^[\d\-]+$")
+# NFKC で `-` にならないハイフン・マイナスの類（Google は丁目以下の区切りに U+2212 を使う）。
+_DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2212", "-"))
+# 住所として粗すぎる結果の種類。これだけで構成される結果（海上の「日本」、「日本 〒400-0241」、
+# Plus Code）はピン名に使えないので読み飛ばす。
+_COARSE_RESULT_TYPES = frozenset({"plus_code", "country", "postal_code", "political"})
 
 
 class UnconfiguredGoogleMapsProvider:
@@ -65,6 +86,11 @@ class UnconfiguredGoogleMapsProvider:
     ) -> ProviderLoopRoute:
         raise GoogleMapsUnavailableError()
 
+    def reverse_geocode(
+        self, point: ProviderPoint, *, timeout_seconds: float
+    ) -> ProviderAddress | None:
+        raise GoogleMapsUnavailableError()
+
 
 class HttpGoogleMapsProvider:
     def __init__(self, settings: Settings, client: httpx.Client | None = None) -> None:
@@ -87,9 +113,15 @@ class HttpGoogleMapsProvider:
         self._loop_cache: TtlCache[ProviderLoopRoute] = TtlCache(
             settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
         )
+        # 「住所なし」もキャッシュしたいので、0 または 1 要素のタプルで持つ
+        # （`get` の None は未登録の意味）。
+        self._geocode_cache: TtlCache[tuple[ProviderAddress, ...]] = TtlCache(
+            settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
+        )
         self._places_flight: SingleFlight[tuple[ProviderPlace, ...]] = SingleFlight()
         self._routes_flight: SingleFlight[ProviderRoute] = SingleFlight()
         self._loop_flight: SingleFlight[ProviderLoopRoute] = SingleFlight()
+        self._geocode_flight: SingleFlight[tuple[ProviderAddress, ...]] = SingleFlight()
 
     def search_places(
         self,
@@ -247,6 +279,41 @@ class HttpGoogleMapsProvider:
         self._loop_cache.put(key, result)
         return result
 
+    def reverse_geocode(
+        self, point: ProviderPoint, *, timeout_seconds: float
+    ) -> ProviderAddress | None:
+        key = self._geocode_key(point)
+        cached = self._geocode_cache.get(key)
+        if cached is None:
+            cached = self._geocode_flight.do(
+                key, lambda: self._load_geocode(key, point, timeout_seconds)
+            )
+        return cached[0] if cached else None
+
+    def _load_geocode(
+        self, key: str, point: ProviderPoint, timeout_seconds: float
+    ) -> tuple[ProviderAddress, ...]:
+        cached = self._geocode_cache.get(key)
+        if cached is not None:
+            return cached
+        # 失敗は他の API と同じく HTTP のステータスと `error` 本文で返る（`_request` が扱う）。
+        # 住所の無い場所（海上など）は、住所の無い結果か空の `results` が返る。
+        response = self._request(
+            "GET",
+            _GEOCODING_URL,
+            params={
+                "locationQuery": f"{point.latitude},{point.longitude}",
+                "languageCode": "ja",
+                "regionCode": "JP",
+            },
+            headers={"X-Goog-FieldMask": _GEOCODING_FIELD_MASK},
+            timeout_seconds=timeout_seconds,
+        )
+        address = _parse_geocode_results(response.get("results", []))
+        result: tuple[ProviderAddress, ...] = () if address is None else (address,)
+        self._geocode_cache.put(key, result)
+        return result
+
     def _request(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
         timeout_seconds = kwargs.pop("timeout_seconds")
         # ★ 単一の float を httpx に渡すと、それが connect/read/write/pool の全フェーズに
@@ -284,9 +351,11 @@ class HttpGoogleMapsProvider:
         try:
             response.raise_for_status()
             body = response.json()
-        except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
+        except (httpx.HTTPError, json.JSONDecodeError, ValueError):
             self._log_error_response(method, url, response)
-            raise GoogleMapsUnavailableError() from exc
+            # 連鎖を切る: `raise_for_status()` の HTTPStatusError はメッセージにクエリ込みの URL を
+            # 持ち、Geocoding API では座標が入る（SS-138）。要点は上でログに残している。
+            raise GoogleMapsUnavailableError() from None
         return body if isinstance(body, dict) else {}
 
     def _log_error_response(self, method: str, url: str, response: httpx.Response) -> None:
@@ -434,6 +503,10 @@ class HttpGoogleMapsProvider:
         )
 
     @staticmethod
+    def _geocode_key(point: ProviderPoint) -> str:
+        return f"geocode:{point.latitude:.5f}:{point.longitude:.5f}"
+
+    @staticmethod
     def _loop_key(origin: ProviderPoint, destination: ProviderPoint, via: ProviderPoint) -> str:
         """片道の `route:` とは名前空間を分ける（決定4）。"""
         return (
@@ -478,6 +551,67 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
         reasons,
         message[:_MAX_LOGGED_MESSAGE_CHARS] if isinstance(message, str) else None,
     )
+
+
+def _parse_geocode_results(results: object) -> ProviderAddress | None:
+    """Geocoding API v4 の `results` から、最も詳しい結果の住所と建物名を取り出す。
+
+    `results` は詳しい順に並ぶ。Plus Code・国・郵便番号だけの粗い結果（住所の無い場所）は
+    読み飛ばす。
+    建物名は同じ結果の `premise` のうち番地ではないもの（best-effort。日本の住所で
+    建物名が入るかは場所による）。住所の末尾に同じ建物名が付いていれば住所から外す。
+    """
+    if not isinstance(results, list):
+        raise GoogleMapsUnavailableError()
+    for result in results:
+        if not isinstance(result, dict):
+            raise GoogleMapsUnavailableError()
+        types = result.get("types")
+        if isinstance(types, list) and set(types) <= _COARSE_RESULT_TYPES:
+            continue
+        formatted = result.get("formattedAddress")
+        if not isinstance(formatted, str):
+            continue
+        address = _normalize_address(formatted)
+        if not address:
+            continue
+        building_name = _building_name(result.get("addressComponents"))
+        if building_name is not None and address.endswith(building_name):
+            address = address[: -len(building_name)].rstrip()
+            if not address:
+                continue
+        return ProviderAddress(
+            address=address[:_ADDRESS_MAX_CHARS],
+            building_name=building_name[:_ADDRESS_MAX_CHARS] if building_name else None,
+        )
+    return None
+
+
+def _normalize_text(text: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", text).translate(_DASHES).split())
+
+
+def _normalize_address(formatted: str) -> str:
+    """国名・郵便番号の接頭辞を落とし、全角の数字・記号を半角に揃える。"""
+    text = _normalize_text(formatted)
+    text = _JAPAN_PREFIX.sub("", text)
+    return _POSTAL_CODE_PREFIX.sub("", text).strip()
+
+
+def _building_name(components: object) -> str | None:
+    if not isinstance(components, list):
+        return None
+    for component in components:
+        if not isinstance(component, dict):
+            continue
+        types = component.get("types")
+        name = component.get("longText")
+        if not isinstance(types, list) or "premise" not in types or not isinstance(name, str):
+            continue
+        normalized = _normalize_text(name)
+        if normalized and not _NUMBER_ONLY.match(normalized):
+            return normalized
+    return None
 
 
 def build_google_maps_provider(settings: Settings) -> GoogleMapsProvider:

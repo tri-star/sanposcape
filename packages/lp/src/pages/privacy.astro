@@ -18,9 +18,9 @@ const externalServices = [
   },
   {
     provider:
-      "Google LLC（米国）: Google Maps Platform の Places API・Routes API",
-    purpose: "スポットの検索、徒歩ルートの計算",
-    data: "丸めた現在地、目的地や経由地の位置。運営者のサーバーから送信し、利用者を識別する情報は送りません",
+      "Google LLC（米国）: Google Maps Platform の Places API・Routes API・Geocoding API",
+    purpose: "スポットの検索、徒歩ルートの計算、ピンを登録する位置の住所の取得",
+    data: "丸めた現在地、目的地や経由地の位置、ピンを登録する位置。運営者のサーバーから送信し、利用者を識別する情報は送りません",
   },
   {
     provider: "Google LLC（米国）: Google Maps SDK for Android",
@@ -297,7 +297,8 @@ const externalServices = [
       <p>
         サーバーとデータベースはシンガポールにあり、利用者の情報はシンガポールで保管されます。シンガポールには、個人情報の保護に関する法律として
         Personal Data Protection Act 2012 があります。また、3
-        の事業者はいずれも米国の事業者で、Google の Places API・Routes API
+        の事業者はいずれも米国の事業者で、Google の Places API・Routes
+        API・Geocoding API
         への送信など、米国で処理される情報があります。米国には、連邦法として包括的な個人情報保護法はなく、分野ごとの連邦法と州法（カリフォルニア州消費者プライバシー法など）があります。各国の個人情報の保護に関する制度は、個人情報保護委員会が公表している
         <a
           href="https://www.ppc.go.jp/personalinfo/legal/kaiseihogohou/#gaikoku"

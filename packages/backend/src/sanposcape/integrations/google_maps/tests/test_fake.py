@@ -241,3 +241,15 @@ def test_shortest_requested_duration_keeps_at_least_one_candidate() -> None:
     )
 
     assert len(result.candidates) >= 1
+
+
+def test_reverse_geocode_returns_a_fixed_address_regardless_of_location() -> None:
+    provider = FakeGoogleMapsProvider()
+
+    first = provider.reverse_geocode(ProviderPoint(35.0, 139.0), timeout_seconds=8)
+    second = provider.reverse_geocode(ProviderPoint(-33.9, 151.2), timeout_seconds=8)
+
+    assert first is not None
+    assert first == second
+    assert first.address == "テスト県テスト市テスト町1丁目2-3"
+    assert first.building_name == "テストビル"

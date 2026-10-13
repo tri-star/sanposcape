@@ -21,6 +21,8 @@ __all__ = [
     "WalkingRouteLegKind",
     "WalkingRouteLeg",
     "LoopWalkingRouteResponse",
+    "ReverseGeocodeRequest",
+    "ReverseGeocodeResponse",
 ]
 
 
@@ -148,4 +150,30 @@ class LoopWalkingRouteResponse(BaseModel):
     )
     bounds: MapBounds = Field(
         description="Covers both legs' paths as well as origin and destination."
+    )
+
+
+class ReverseGeocodeRequest(BaseModel):
+    """SS-138: ピンの位置の住所を引く（ピン名の初期値に使う）。"""
+
+    location: GeoPoint
+
+
+class ReverseGeocodeResponse(BaseModel):
+    """SS-138: 住所が見つからない場所では 200 で `address=null` を返す（エラーにしない）。"""
+
+    address: str | None = Field(
+        max_length=256,
+        description=(
+            "Japanese-preferred address of the location without the country name and postal "
+            "code, with full-width digits and symbols normalized to half-width "
+            "(e.g. '東京都千代田区丸の内1丁目9-1'). Null when no address is available."
+        ),
+    )
+    building_name: str | None = Field(
+        max_length=256,
+        description=(
+            "Building name at the location when the provider supplies one (best-effort). "
+            "Not included in address. Null when unavailable or when address is null."
+        ),
     )

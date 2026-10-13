@@ -27,6 +27,8 @@ from sanposcape.maps.schemas import (
     PlaceCandidate,
     PlaceSearchRequest,
     PlaceSearchResponse,
+    ReverseGeocodeRequest,
+    ReverseGeocodeResponse,
     RouteDestinationRead,
     WalkingRouteLeg,
     WalkingRouteLegKind,
@@ -53,6 +55,7 @@ class MapsService:
         *,
         loop_route_enabled: bool = True,
         route_deadline_seconds: float = 12.0,
+        geocode_timeout_seconds: float = 8.0,
     ) -> None:
         self._provider = provider
         self._max_place_candidates = max_place_candidates
@@ -61,6 +64,7 @@ class MapsService:
         self._route_timeout_seconds = route_timeout_seconds
         self._loop_route_enabled = loop_route_enabled
         self._route_deadline_seconds = route_deadline_seconds
+        self._geocode_timeout_seconds = geocode_timeout_seconds
 
     def search_places(self, request: PlaceSearchRequest) -> PlaceSearchResponse:
         origin = self._provider_point(request.origin)
@@ -111,6 +115,20 @@ class MapsService:
             round_trip_duration_minutes=request.round_trip_duration_minutes,
             candidates=candidates,
         )
+
+    def reverse_geocode(self, request: ReverseGeocodeRequest) -> ReverseGeocodeResponse:
+        try:
+            address = self._provider.reverse_geocode(
+                self._provider_point(request.location),
+                timeout_seconds=self._geocode_timeout_seconds,
+            )
+        except GoogleMapsQuotaError as exc:
+            raise MapsQuotaError() from exc
+        except GoogleMapsUnavailableError as exc:
+            raise MapsUnavailableError() from exc
+        if address is None:
+            return ReverseGeocodeResponse(address=None, building_name=None)
+        return ReverseGeocodeResponse(address=address.address, building_name=address.building_name)
 
     def get_walking_route(self, request: WalkingRouteRequest) -> WalkingRouteResponse:
         origin = self._provider_point(request.origin)

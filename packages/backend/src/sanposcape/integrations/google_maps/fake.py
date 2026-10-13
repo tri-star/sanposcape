@@ -18,11 +18,15 @@ Maestro E2E と Google Maps API キーを持たないローカル開発者専用
 **周回にも対応する**（SS-33）: 経由点（`via`）は `maps/loop_route.py` を使う service 側が
 生成し、fake はそれを直線で結ぶだけ。往路は既存の `get_walking_route` を再利用し、
 復路は destination → via → origin を直線で結ぶ。ここでも乱数・時刻は使わない。
+
+**逆ジオコーディングは座標によらない固定の住所を返す**（SS-138）。ピン名の初期値の導線
+（E2E・キーを持たない開発者の動作確認）を通すためのもので、住所の形の再現ではない。
 """
 
 from math import cos, degrees, hypot, radians
 
 from sanposcape.integrations.google_maps.provider import (
+    ProviderAddress,
     ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
@@ -47,6 +51,9 @@ _CATEGORY_LABELS = {
     "station": "テスト駅",
 }
 _DEFAULT_CATEGORY_LABEL = "テストスポット"
+_FAKE_ADDRESS = ProviderAddress(
+    address="テスト県テスト市テスト町1丁目2-3", building_name="テストビル"
+)
 
 
 class FakeGoogleMapsProvider:
@@ -133,6 +140,15 @@ class FakeGoogleMapsProvider:
             path=inbound_path,
         )
         return ProviderLoopRoute(outbound=outbound, inbound=inbound)
+
+    def reverse_geocode(
+        self, point: ProviderPoint, *, timeout_seconds: float
+    ) -> ProviderAddress | None:
+        """座標によらず固定の住所（建物名つき）を返す。
+
+        `point`・`timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
+        """
+        return _FAKE_ADDRESS
 
 
 def _offset(origin: ProviderPoint, north_meters: float, east_meters: float) -> ProviderPoint:

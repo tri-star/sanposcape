@@ -252,6 +252,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /explore/reverse-geocode:
+    post:
+      tags:
+      - explore
+      summary: Reverse Geocode
+      description: 'SS-138: ピンの位置の住所（ピン名の初期値）。ピン登録と同じくサインインが要る。
+
+
+        座標を Google へ送るのはサーバーからだけで、DB・ログには残さない（メモリのキャッシュのみ）。
+
+        住所が無い場所では 200 + `address=null`。'
+      operationId: reverse_geocode_explore
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReverseGeocodeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReverseGeocodeResponse'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Explore request body too large
+        '429':
+          description: Map provider quota exceeded or explore rate limit reached
+        '503':
+          description: Map provider unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /walks:
     post:
       tags:
@@ -2101,6 +2142,41 @@ components:
       - fields
       title: PresignedUploadRead
       description: presigned POST の応答。`fields` はクライアントが解釈せず、そのまま multipart で送る。
+    ReverseGeocodeRequest:
+      properties:
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+      type: object
+      required:
+      - location
+      title: ReverseGeocodeRequest
+      description: 'SS-138: ピンの位置の住所を引く（ピン名の初期値に使う）。'
+    ReverseGeocodeResponse:
+      properties:
+        address:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Address
+          description: Japanese-preferred address of the location without the country
+            name and postal code, with full-width digits and symbols normalized to
+            half-width (e.g. '東京都千代田区丸の内1丁目9-1'). Null when no address is available.
+        building_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Building Name
+          description: Building name at the location when the provider supplies one
+            (best-effort). Not included in address. Null when unavailable or when
+            address is null.
+      type: object
+      required:
+      - address
+      - building_name
+      title: ReverseGeocodeResponse
+      description: 'SS-138: 住所が見つからない場所では 200 で `address=null` を返す（エラーにしない）。'
     RouteDestination:
       properties:
         place_id:

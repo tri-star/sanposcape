@@ -26,8 +26,16 @@ tags:
     timeout: 15000
 - assertNotVisible:
     id: "pin-register-sanpo-map-retry"
+# 名前欄には位置の住所が初期値として入る（SS-138。E2E の backend は MAPS_MODE=fake で固定の住所を返す）。
+# 入力は既存の文字に追記されるので、住所が入るのを待ってから消して入れる（後から届いて混ざらないように）。
+- extendedWaitUntil:
+    visible:
+      text: "この場所の住所を入れました.*"
+    timeout: 15000
 - tapOn:
     id: "pin-register-name-input"
+- eraseText:
+    charactersToErase: 60
 # 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
 - inputText: "E2E-pin"
 # タグ欄は位置プレビュー・位置調整ボタン（SS-124）の下にあり、キーボードを開いたままだと

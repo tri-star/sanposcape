@@ -536,3 +536,158 @@ def test_build_provider_returns_http_when_real_mode_with_key() -> None:
         assert isinstance(provider, HttpGoogleMapsProvider)
     finally:
         provider.close()
+
+
+# --- reverse_geocode（SS-138。Geocoding API v4） ------------------------------
+
+
+def _geocode_response(results: list[dict]) -> httpx.Response:
+    return httpx.Response(200, json={"results": results})
+
+
+def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None:
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        assert request.url.host == "geocode.googleapis.com"
+        assert request.url.path == "/v4/geocode/location"
+        # 座標はパスではなくクエリで送る（ログ・トレースはクエリを落とす）。キーはヘッダーで送る。
+        assert dict(request.url.params) == {
+            "locationQuery": "35.681236,139.767125",
+            "languageCode": "ja",
+            "regionCode": "JP",
+        }
+        assert request.headers["x-goog-api-key"] == "server-key"
+        assert (
+            request.headers["x-goog-fieldmask"]
+            == "results.formattedAddress,results.addressComponents,results.types"
+        )
+        return _geocode_response(
+            [
+                {
+                    "types": ["street_address", "subpremise"],
+                    "formattedAddress": (
+                        "日本、〒100-0005 東京都千代田区丸の内２丁目４−１ 丸の内ビルディング"
+                    ),
+                    "addressComponents": [
+                        {"longText": "丸の内ビルディング", "types": ["premise"]},
+                        {"longText": "１", "types": ["premise"]},
+                        {"longText": "４", "types": ["political", "sublocality_level_4"]},
+                    ],
+                },
+                {"types": ["locality"], "formattedAddress": "日本、東京都千代田区"},
+            ]
+        )
+
+    provider = _provider(handler)
+    point = ProviderPoint(35.681236, 139.767125)
+
+    first = provider.reverse_geocode(point, timeout_seconds=8)
+    second = provider.reverse_geocode(point, timeout_seconds=8)
+
+    assert first is not None
+    assert first.address == "東京都千代田区丸の内2丁目4-1"
+    assert first.building_name == "丸の内ビルディング"
+    assert second == first
+    assert calls == 1
+
+
+def test_reverse_geocode_ignores_number_only_premise_and_plus_code_results() -> None:
+    def handler(request):
+        return _geocode_response(
+            [
+                {"types": ["plus_code"], "formattedAddress": "MQ6M+F4 日本、東京都"},
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒150-0002 東京都渋谷区渋谷２丁目２１−１",
+                    "addressComponents": [{"longText": "２１−１", "types": ["premise"]}],
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(ProviderPoint(35.6, 139.7), timeout_seconds=8)
+
+    assert result is not None
+    assert result.address == "東京都渋谷区渋谷2丁目21-1"
+    assert result.building_name is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"results": []},
+        # 海上など: 住所（formattedAddress）の無い結果だけが返る。
+        {"results": [{"types": [], "location": {"longitude": -140}}]},
+        # 海上・山中など: Plus Code・国・郵便番号だけの粗い結果しか無い。
+        {
+            "results": [
+                {"types": ["plus_code"], "formattedAddress": "日本、東京都大田区 GVJH+2X"},
+                {"types": ["country", "political"], "formattedAddress": "日本"},
+                {"types": ["postal_code"], "formattedAddress": "日本 〒400-0241"},
+            ]
+        },
+    ],
+)
+def test_reverse_geocode_returns_none_without_an_address_and_caches_it(body) -> None:
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=body)
+
+    provider = _provider(handler)
+    point = ProviderPoint(0, -140)
+
+    assert provider.reverse_geocode(point, timeout_seconds=8) is None
+    assert provider.reverse_geocode(point, timeout_seconds=8) is None
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected"),
+    [
+        (429, GoogleMapsQuotaError),
+        (403, GoogleMapsUnavailableError),
+        (400, GoogleMapsUnavailableError),
+        (503, GoogleMapsUnavailableError),
+    ],
+)
+def test_reverse_geocode_maps_http_errors(status_code, expected, caplog) -> None:
+    def handler(request):
+        return httpx.Response(
+            status_code,
+            json={
+                "error": {
+                    "status": "PERMISSION_DENIED",
+                    "message": "denied for key server-key",
+                    "details": [{"reason": "API_KEY_SERVICE_BLOCKED"}],
+                }
+            },
+        )
+
+    with pytest.raises(expected) as exc_info:
+        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+
+    assert "/v4/geocode/location" in caplog.text
+    # キー・座標はログに出さない（エラー文言のキーは伏せ、URL はクエリを落とす）。
+    assert "server-key" not in caplog.text
+    assert "35,139" not in caplog.text
+    # HTTPStatusError のメッセージはクエリ込みの URL（座標）を持つので連鎖させない。
+    assert exc_info.value.__cause__ is None
+
+
+def test_reverse_geocode_rejects_malformed_results() -> None:
+    def handler(request):
+        return httpx.Response(200, json={"results": "broken"})
+
+    with pytest.raises(GoogleMapsUnavailableError):
+        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+
+
+def test_unconfigured_provider_reverse_geocode_is_unavailable() -> None:
+    with pytest.raises(GoogleMapsUnavailableError):
+        UnconfiguredGoogleMapsProvider().reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
