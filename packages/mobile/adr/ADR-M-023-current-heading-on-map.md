@@ -38,6 +38,8 @@
    - 扇形は距離（m）で描く図形なので、画面上でおおよそ 64px に見えるよう、地図の高さ（px）と表示範囲の緯度方向の幅から
      半径を換算し直す（`useHeadingBeamRadius`）。ズームの確定（`onRegionChangeComplete`）で更新するので、ピンチの最中は地図と一緒に拡大縮小する。
    - Google Maps では図形は常にマーカーより下に描かれるので、現在地ピンは扇形の上に出る。散歩中の地図では `zIndex` 0 でルート線・軌跡より下に敷く。
+   - 扇形は向きが取れない・フォーカスが無い間は描かない（増減する）ので、`MapView` の子の**末尾**（`mapLayers` の後ろ）に置く
+     （[ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) D16）。重なり順は子の並びではなく `zIndex` で決める。
 5. **方位は 5° 刻みに丸め、扇形のコンポーネント（`components/location/CurrentHeadingBeam.tsx`）に購読を閉じる**。
    向きが変わっても地図全体（`MapView` と他のマーカー）を再描画しない。
 6. **画面にフォーカスがあり、アプリが前面にいて、現在地を描けている間だけ購読する**（`hooks/useDeviceHeading.ts`）。

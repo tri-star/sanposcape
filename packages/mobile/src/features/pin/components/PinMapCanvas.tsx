@@ -161,7 +161,6 @@ export function PinMapCanvas({
         }}
         onRegionChangeComplete={handleRegionChangeComplete}
       >
-        <CurrentHeadingBeam center={currentLocation} radiusMeters={headingBeam.radiusMeters} />
         {selectedLocation !== null ? (
           <Marker
             // tracksViewChanges={false} では子の変化が反映されないので、アイコンが変わったら作り直す。
@@ -187,6 +186,8 @@ export function PinMapCanvas({
           </Marker>
         ) : null}
         {mapLayers}
+        {/* 向きが取れない・フォーカスが無い間は描かない（増減する）ので、末尾に置く（ADR-M-012 D16）。 */}
+        <CurrentHeadingBeam center={currentLocation} radiusMeters={headingBeam.radiusMeters} />
       </MapView>
     </View>
   );

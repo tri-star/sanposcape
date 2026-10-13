@@ -169,11 +169,6 @@ export function WalkRouteMapView({
           onRegionChangeComplete?.(sanitized);
         }}
       >
-        <CurrentHeadingBeam
-          center={currentPosition}
-          radiusMeters={headingBeam.radiusMeters}
-          zIndex={HEADING_BEAM_Z_INDEX}
-        />
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         <RoutePolyline
           path={trail}
@@ -207,6 +202,13 @@ export function WalkRouteMapView({
           </Marker>
         ) : null}
         {mapLayers}
+        {/* 向きが取れない・フォーカスが無い間は描かない（増減する）ので、末尾に置く（ADR-M-012 D16）。
+            重なり順は zIndex で決める（iOS は効かない。ADR-M-023）。 */}
+        <CurrentHeadingBeam
+          center={currentPosition}
+          radiusMeters={headingBeam.radiusMeters}
+          zIndex={HEADING_BEAM_Z_INDEX}
+        />
       </MapView>
       {/* ルートが未取得でも、軌跡が描ければ「歩いた道」の凡例を出す（項目が無ければ凡例は null を返す）。 */}
       <WalkRouteLegend walkRoute={walkRoute} trail={trail} testID="walk-active-route-legend" />
