@@ -6,6 +6,7 @@ import {
   BACKGROUND_LOCATION_TASK_NAME,
   backgroundSampleHub,
 } from "@/services/location/backgroundLocationTask";
+import { createHeadingMultiplexer } from "@/services/location/headingMultiplexer";
 import { toLocationError } from "@/services/location/locationError";
 import { toLocationPrecision } from "@/services/location/locationPrecision";
 import { createNotificationPermissionRequester } from "@/services/location/notificationPermission";
@@ -100,6 +101,17 @@ function toCoordinates(position: Location.LocationObject): GeoCoordinates {
   return { latitude: position.coords.latitude, longitude: position.coords.longitude };
 }
 
+/**
+ * expo-location の方位 → 北を 0 とした時計回りの度数。真北（`trueHeading`）を優先し、
+ * 取れない（権限が無い・磁気偏角を求める位置が無いときは -1）なら磁北（`magHeading`）を使う。
+ * どちらも不正なら null。範囲の正規化は多重化（`createHeadingMultiplexer`）で行う。
+ */
+export function toHeadingDegrees(heading: Location.LocationHeadingObject): number | null {
+  if (Number.isFinite(heading.trueHeading) && heading.trueHeading >= 0) return heading.trueHeading;
+  if (Number.isFinite(heading.magHeading) && heading.magHeading >= 0) return heading.magHeading;
+  return null;
+}
+
 function toPermissionStatus(result: {
   status: Location.PermissionStatus;
   canAskAgain: boolean;
@@ -127,6 +139,22 @@ export function createRealLocationService(): LocationService {
     version: Platform.Version,
     check: () => PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
     request: () => PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
+  });
+  // 方位のネイティブ購読は1本にまとめる（Android の expo-location は1本しか持てない。SS-169）。
+  const heading = createHeadingMultiplexer(async (emit) => {
+    try {
+      const subscription = await Location.watchHeadingAsync(
+        (raw) => {
+          const degrees = toHeadingDegrees(raw);
+          if (degrees !== null) emit(degrees);
+        },
+        // 開始後の失敗（iOS のストリームの例外）。表示は止まるだけなので、原因調査用に残す。
+        (reason) => logDiagnostic("location_heading_watch_error", { reason }),
+      );
+      return { remove: () => subscription.remove() };
+    } catch (error) {
+      throw toLocationError(error);
+    }
   });
 
   return {
@@ -195,6 +223,10 @@ export function createRealLocationService(): LocationService {
       } catch (error) {
         throw toLocationError(error);
       }
+    },
+
+    watchHeading(listener) {
+      return heading.subscribe(listener);
     },
 
     // 位置情報の権限はリクエストしない（`requestBackgroundPermissionsAsync` はどこからも呼ばない。ADR-M-018）。

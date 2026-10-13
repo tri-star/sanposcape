@@ -31,6 +31,9 @@ export const MOCK_TRACK: readonly GeoCoordinates[] = [
   { latitude: 35.683666, longitude: 139.769555 },
 ];
 
+/** mock の方位（度）。MOCK_TRACK の進行方向（北東）に揃える。 */
+export const MOCK_HEADING_DEGREES = 45;
+
 /** track を1点ずつ通知する既定間隔（ms）。 */
 const DEFAULT_TRACK_INTERVAL_MS = 1000;
 
@@ -45,6 +48,8 @@ export type MockLocationServiceOptions = {
   track?: readonly GeoCoordinates[];
   /** track を1点ずつ通知する間隔（ms。既定 1000）。 */
   trackIntervalMs?: number;
+  /** watchHeading が通知する方位（既定 MOCK_HEADING_DEGREES）。null なら通知しない（センサーが無い端末の再現）。 */
+  heading?: number | null;
   /** 指定すると startBackgroundTracking がこのコードで reject する（fallback 経路の確認用）。watchPosition は通常どおり動く。 */
   backgroundFailWith?: LocationErrorCode;
   /** サンプルの測位時刻（既定 Date.now）。 */
@@ -63,6 +68,7 @@ export function createMockLocationService(options?: MockLocationServiceOptions):
   const track = options?.track ?? MOCK_TRACK;
   const trackIntervalMs = options?.trackIntervalMs ?? DEFAULT_TRACK_INTERVAL_MS;
   const backgroundFailWith = options?.backgroundFailWith;
+  const heading = options?.heading === undefined ? MOCK_HEADING_DEGREES : options.heading;
   const now = options?.now ?? Date.now;
 
   // 背景記録も real と同じ hub（統合経路）を通す。保存先だけメモリ。
@@ -124,6 +130,26 @@ export function createMockLocationService(options?: MockLocationServiceOptions):
           if (removed) return;
           removed = true;
           clearInterval(interval);
+        },
+      };
+    },
+    async watchHeading(listener): Promise<LocationSubscription> {
+      if (permission !== "granted") {
+        throw new LocationError("permission_denied");
+      }
+      let removed = false;
+      // 購読を返した後に1回だけ通知する（決定的。端末を回す操作は再現しない）。
+      const timeout =
+        heading === null
+          ? null
+          : setTimeout(() => {
+              if (!removed) listener(heading);
+            }, 0);
+      return {
+        remove() {
+          if (removed) return;
+          removed = true;
+          if (timeout !== null) clearTimeout(timeout);
         },
       };
     },

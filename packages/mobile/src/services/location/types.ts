@@ -62,6 +62,9 @@ export type SampleBufferStorage = {
 
 export type PositionListener = (position: GeoCoordinates) => void;
 
+/** 端末の向き（方位）。北を 0 とした時計回りの度数 [0, 360)（SS-169）。 */
+export type HeadingListener = (headingDegrees: number) => void;
+
 export type WatchPositionOptions = {
   /** 何m移動したら通知するか（既定 10）。 */
   distanceIntervalMeters?: number;
@@ -99,6 +102,13 @@ export type LocationService = {
     listener: PositionListener,
     options?: WatchPositionOptions,
   ): Promise<LocationSubscription>;
+  /**
+   * 端末の向き（方位）の変化を購読する（フォアグラウンドのみ。SS-169）。真北が取れれば真北、取れなければ磁北。
+   * 呼び出し側が複数でもネイティブの購読は1本にまとめる（Android は1本しか持てない）。
+   * 開始できなければ LocationError を reject する。センサーが無い端末では reject せず、通知が来ないことがある。
+   * 呼び出し側は必ず戻り値の remove() を cleanup で呼ぶこと。
+   */
+  watchHeading(listener: HeadingListener): Promise<LocationSubscription>;
   /**
    * 散歩の位置記録を始める。アプリがバックグラウンド・画面ロック中でも記録を続ける（ADR-M-018）。
    * - 別の sessionId（または記録していない状態）からの呼び出し: バッファを空にして記録を始める。
