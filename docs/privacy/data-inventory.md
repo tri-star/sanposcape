@@ -85,7 +85,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | ピン（名称・メモ・座標・タグ・訪問状況・アーカイブ） | mobile `src/features/pin/lib/pinCreateRequest.ts`（座標は小数6桁）・`pinEditDraft.ts` | backend `POST /pins`・`PATCH /pins/{id}` | DB `pins`・`pin_tags`。削除まで | `DELETE /pins/{id}`、地図の削除、アカウント削除（CASCADE） | 1-3、6、7 | 正確な位置情報、その他のユーザコンテンツ |
 | 地図（名称・アイコン） | mobile `src/features/pin/api/sanpoMapApi.ts` | backend `POST /sanpo-maps`・`PATCH` | DB `sanpo_maps`。削除まで | `DELETE /sanpo-maps/{id}`、アカウント削除 | 1-3 | その他のユーザコンテンツ |
 | ピンの写真 | mobile `src/services/photo/`（カメラ・OS の写真選択画面。長辺 2048px・JPEG 品質 0.7 に再圧縮し、EXIF は落ちる） | S3 へ presigned POST で直送（`src/features/pin/api/presignedPostUpload.ts`） | S3 `original/`・`thumb/`（SSE-S3）。未紐付けの `staging/` は S3 のライフサイクルで消える（infra） | ピン・写真の削除でベストエフォートで消す（`sanpo_maps/photos/cleanup.py`）。**アカウント削除では S3 に残る**（SS-109） | 1-3、6、7 | 写真またはビデオ |
-| 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない） | backend `POST /pin-photo-uploads` の `taken_at`（写真を選んだ時点の先行アップロードで送る） | DB `pin_photo_uploads.taken_at`（枠の発行時）→ 紐付けで `pin_photos.taken_at` へ移し、枠の側は NULL に戻す。**紐付けずに終わった枠（登録の破棄・アプリの終了）には、期限切れの枠の掃除（ADR-009 BK-3）が無いためアカウント削除まで残る**。写真の側は削除まで | 写真・ピンの削除、アカウント削除（未紐付けの枠はアカウント削除だけ） | **未反映**（1-3 は「Exif は送信しません」とだけ書いている） | 写真またはビデオ（写真に付随する情報として） |
+| 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない。EXIF から取れないとき、カメラで撮った写真は撮影直後の時刻、ライブラリの写真は null） | backend `POST /pin-photo-uploads` の `taken_at`（写真を選んだ時点の先行アップロードで送る） | DB `pin_photo_uploads.taken_at`（枠の発行時）→ 紐付けで `pin_photos.taken_at` へ移し、枠の側は NULL に戻す。**紐付けずに終わった枠（登録の破棄・アプリの終了）には、期限切れの枠の掃除（ADR-009 BK-3）が無いためアカウント削除まで残る**。写真の側は削除まで | 写真・ピンの削除、アカウント削除（未紐付けの枠はアカウント削除だけ） | **未反映**（1-3 は「Exif は送信しません」とだけ書いている） | 写真またはビデオ（写真に付随する情報として） |
 | 写真のアップロード枠 | backend `sanpo_maps/photos/` | — | DB `pin_photo_uploads`（S3 のキー・サイズ。未紐付けの間は撮影日時も）。紐付け済みの行は写真・ピンを消しても残る。紐付けずに期限切れになった行も掃除（ADR-009 BK-3）が無いため残る。どちらもアカウント削除で消える | アカウント削除 | **未反映**（7 は写真・ピンを消すと画像ファイルも消すとだけ書き、管理情報の行と未紐付けの枠の撮影日時が残ることを書いていない） | 対象外（写真の管理情報） |
 | 端末に残る写真の一時ファイル | expo-image-picker・image-manipulator の出力 | — | 端末のキャッシュ領域（消すコードは無い。OS が消す） | OS | — | 対象外（端末内） |
 | ピンの写真の表示用キャッシュ | `src/features/pin/components/PinPhotoImage.tsx`（expo-image） | — | 端末のメモリ・ディスク。サインアウトで消す（`src/lib/imageCacheCleanup.ts`） | サインアウト | — | 対象外（端末内） |
@@ -95,9 +95,9 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
 | CloudFront のアクセスログ（IP アドレス・日時・URL とクエリ・ステータス・処理時間・UA） | CloudFront（infra） | — | S3（infra 所有）。本番 400 日（5 の注記） | 期間の経過（アカウント削除後も残る） | 1-5、6 | その他の診断データ、パフォーマンスデータ |
-| backend のログ（メソッド・パス・ステータス・処理時間・アカウントの内部 ID・`X-App-Session-Id`・S3 のキー） | `core/access_log.py`・`core/logs.py`、各 service のログ | CloudWatch Logs | 本番 400 日・dev 30 日（`template.yaml` の `RetentionInDays`） | 同上 | 1-5、6 | その他の診断データ |
+| backend のログ（メソッド・パス・ステータス・処理時間・アカウントの内部 ID・S3 のキー。`X-App-Session-Id` の受け口もあるが、mobile はまだ送っていない） | `core/access_log.py`・`core/logs.py`、各 service のログ | CloudWatch Logs | 本番 400 日・dev 30 日（`template.yaml` の `RetentionInDays`） | 同上 | 1-5、6 | その他の診断データ |
 | backend の例外ログ | `core/logs.py`（型名・スタックトレース・SQLSTATE。例外のメッセージは local / test だけ） | CloudWatch Logs | 同上 | 同上 | 1-5（「障害の調査用の記録に含まれることがある」） | その他の診断データ |
-| backend のトレース（処理時間、`enduser.id` = アカウントの内部 ID、`session.id`。IP・UA・クエリは消す） | `core/tracing.py`、`aws_lambda/tracing.py` | X-Ray・CloudWatch（`aws/spans`） | 本番 90 日・dev 30 日（infra の設定。5 の注記） | 同上 | 1-5、6 | パフォーマンスデータ |
+| backend のトレース（処理時間、`enduser.id` = アカウントの内部 ID。`session.id` の受け口もあるが、mobile はまだ送っていない。IP・UA・クエリは消す） | `core/tracing.py`、`aws_lambda/tracing.py` | X-Ray・CloudWatch（`aws/spans`） | 本番 90 日・dev 30 日（infra の設定。5 の注記） | 同上 | 1-5、6 | パフォーマンスデータ |
 | 探索のレート制限のキー（アカウントの内部 ID・IP アドレス） | `maps/rate_limit.py` | — | backend のメモリに 60 秒 | 自動 | 1-5 | 収集にあたらない（すぐ捨てる） |
 
 ### 3.5 端末に保存するその他のもの
