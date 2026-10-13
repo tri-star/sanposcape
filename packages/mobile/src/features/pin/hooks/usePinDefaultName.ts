@@ -27,7 +27,8 @@ export type UsePinDefaultNameOptions = {
  * ピン登録画面の名前の初期値（位置の住所。SS-138）。
  * 補助機能なので、失敗してもエラーは出さず null にする（名前は自由入力でき、空なら「無題のピン」）。
  * 位置を調整すると別のキーで取り直し、取得中は null になる（前の位置の住所を出さない）。
- * 一時障害の再送は `customFetch` が行うので `retry: false`。
+ * `customFetch` の一時障害の再送は GET / HEAD だけでこの POST には効かないので、読み取りだけの冪等な
+ * 呼び出しとして TanStack Query で1回だけ再試行する（それでも失敗したら、位置を変えるまで初期値なし）。
  */
 export function usePinDefaultName(options: UsePinDefaultNameOptions): UsePinDefaultNameResult {
   const request =
@@ -40,7 +41,7 @@ export function usePinDefaultName(options: UsePinDefaultNameOptions): UsePinDefa
     queryFn:
       request !== null ? ({ signal }) => fetchPinDefaultName(request, { signal }) : skipToken,
     staleTime: STALE_TIME_MS,
-    retry: false,
+    retry: 1,
   });
 
   if (request === null) return { name: null, status: "idle" };
