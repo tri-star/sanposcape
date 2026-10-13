@@ -6,6 +6,7 @@ import {
   PIN_NAME_HELPER_LOADING,
   buildDefaultPinName,
   pinNameHelperText,
+  resolvePinName,
 } from "@/features/pin/lib/pinDefaultName";
 import { PIN_NAME_MAX_LENGTH } from "@/features/pin/lib/pinLimits";
 
@@ -79,5 +80,39 @@ describe("pinNameHelperText", () => {
     expect(pinNameHelperText({ status: "idle", isNameDefault: false, name: "" })).toBe(
       PIN_NAME_HELPER_DEFAULT,
     );
+  });
+});
+
+describe("resolvePinName", () => {
+  it("未編集なら初期値（住所）を名前にする", () => {
+    expect(resolvePinName({ nameInput: null, defaultName: "x付近" })).toEqual({
+      name: "x付近",
+      isNameDefault: true,
+    });
+  });
+
+  it("未編集で初期値が無い（取得中・失敗・住所なし）なら空欄", () => {
+    expect(resolvePinName({ nameInput: null, defaultName: null })).toEqual({
+      name: "",
+      isNameDefault: false,
+    });
+  });
+
+  it("編集した後は、住所が後から届いても・位置の調整で変わっても入力値を保つ", () => {
+    expect(resolvePinName({ nameInput: "桜", defaultName: null })).toEqual({
+      name: "桜",
+      isNameDefault: false,
+    });
+    expect(resolvePinName({ nameInput: "桜", defaultName: "別の住所付近" })).toEqual({
+      name: "桜",
+      isNameDefault: false,
+    });
+  });
+
+  it("空欄にした後は初期値に戻さない", () => {
+    expect(resolvePinName({ nameInput: "", defaultName: "x付近" })).toEqual({
+      name: "",
+      isNameDefault: false,
+    });
   });
 });

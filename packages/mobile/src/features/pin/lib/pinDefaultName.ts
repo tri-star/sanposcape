@@ -33,6 +33,19 @@ function codePointLength(text: string): number {
   return Array.from(text).length;
 }
 
+/**
+ * 登録画面の名前（SS-138）。`nameInput` が null（名前欄をまだ編集していない）の間だけ初期値（位置の住所）を使う。
+ * 一度でも編集したら、空欄にしても初期値には戻さず、後から住所が届いても・位置を調整しても入力値を保つ。
+ */
+export function resolvePinName(input: { nameInput: string | null; defaultName: string | null }): {
+  name: string;
+  isNameDefault: boolean;
+} {
+  if (input.nameInput !== null) return { name: input.nameInput, isNameDefault: false };
+  if (input.defaultName !== null) return { name: input.defaultName, isNameDefault: true };
+  return { name: "", isNameDefault: false };
+}
+
 export const PIN_NAME_HELPER_DEFAULT = "空欄なら「無題のピン」になります";
 export const PIN_NAME_HELPER_LOADING = "この場所の住所を調べています…";
 export const PIN_NAME_HELPER_FILLED = "この場所の住所を入れました。自由に書き換えられます";

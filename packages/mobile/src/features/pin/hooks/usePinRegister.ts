@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
+import { resolvePinName } from "@/features/pin/lib/pinDefaultName";
 import { resolveInitialVisited } from "@/features/pin/lib/pinStatus";
 import { buildPinCreateRequest } from "@/features/pin/lib/pinCreateRequest";
 import type { PinDraftFieldErrors, SaveAvailability } from "@/features/pin/lib/pinDraftValidation";
@@ -98,8 +99,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     location: options.locationValid ? options.location : null,
     enabled: options.isSignedIn,
   });
-  const isNameDefault = nameInput === null && defaultName.name !== null;
-  const name = nameInput ?? defaultName.name ?? "";
+  const { name, isNameDefault } = resolvePinName({ nameInput, defaultName: defaultName.name });
 
   const draft: PinDraft = { name, memo, tags, sanpoMapSelection, visited };
   // 保存中に入力が変わっても作成内容が揺れないよう、保存開始時点（submit() 呼び出し時）の
