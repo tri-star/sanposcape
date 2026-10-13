@@ -135,6 +135,8 @@ packages/mobile/
   2つ以上の機能から参照されるようになったら `src/store/` へ昇格させる（コンポーネントの昇格ルールと同じ判断基準）。
   - 実例1: `features/walk/store/useActiveWalkStore.ts`（進行中の散歩 `ActiveWalk`。「今どの散歩をしているか」の識別情報だけを持ち、ルート本体は持たない）。
   - 実例2: `features/walk/store/useFinishedWalkStore.ts`（終了したが保存が確定していない散歩 `FinishedWalk` と保存状態）。
+  - 実例3: `features/pin/store/usePinMapFilterStore.ts`（地図に描く登録済みピンの絞り込み。ピンタブと散歩中の地図で共有する。
+    散歩中の地図へは `app/` のルートが `PinMapFilterControl` を合成するので、store を参照するのは features/pin だけ。SS-174）。
     散歩中画面 → サマリ画面をまたいで保存対象を渡すために、`useActiveWalkStore` とは責務を分けて別ファイルにしている。
   - **いずれも永続化しない**（AsyncStorage / SecureStore を使わない）。保存前にアプリを落とすと記録は失われる。
     ローカル永続化（起動時の再送・散歩の復帰）は SS-19 のスコープ外でフォローアップ課題に送っており、
