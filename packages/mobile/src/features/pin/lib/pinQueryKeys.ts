@@ -56,3 +56,11 @@ export function pinTagSuggestionsQueryKey(sanpoMapId: string | null) {
 export function sanpoMapPinsQueryKey(sanpoMapId: string) {
   return ["pins", "by-sanpo-map", sanpoMapId] as const;
 }
+
+/**
+ * ピン名の初期値（位置の住所。SS-138）。送る座標（小数6桁に丸めた値）で作る。
+ * ピンの保存で変わるものではないので `["pins"]` 配下に置かない（保存成功時の invalidate の対象外）。
+ */
+export function pinDefaultNameQueryKey(latitude: number, longitude: number) {
+  return ["pin-default-name", latitude, longitude] as const;
+}
