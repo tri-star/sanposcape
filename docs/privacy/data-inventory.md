@@ -76,8 +76,8 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | ピン（名称・メモ・座標・タグ・訪問状況・アーカイブ） | mobile `src/features/pin/lib/pinCreateRequest.ts`（座標は小数6桁）・`pinEditDraft.ts` | backend `POST /pins`・`PATCH /pins/{id}` | DB `pins`・`pin_tags`。削除まで | `DELETE /pins/{id}`、地図の削除、アカウント削除（CASCADE） | 1-3、6、7 | 正確な位置情報、その他のユーザコンテンツ |
 | 地図（名称・アイコン） | mobile `src/features/pin/api/sanpoMapApi.ts` | backend `POST /sanpo-maps`・`PATCH` | DB `sanpo_maps`。削除まで | `DELETE /sanpo-maps/{id}`、アカウント削除 | 1-3 | その他のユーザコンテンツ |
 | ピンの写真 | mobile `src/services/photo/`（カメラ・OS の写真選択画面。長辺 2048px・JPEG 品質 0.7 に再圧縮し、EXIF は落ちる） | S3 へ presigned POST で直送（`src/features/pin/api/presignedPostUpload.ts`） | S3 `original/`・`thumb/`（SSE-S3）。未紐付けの `staging/` は S3 のライフサイクルで消える（infra） | ピン・写真の削除でベストエフォートで消す（`sanpo_maps/photos/cleanup.py`）。**アカウント削除では S3 に残る**（SS-109） | 1-3、6、7 | 写真またはビデオ |
-| 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない） | backend `POST /pin-photo-uploads` の `taken_at` | DB `pin_photos.taken_at`。削除まで | 写真・ピンの削除、アカウント削除 | **未反映**（1-3 は「Exif は送信しません」とだけ書いている） | 写真またはビデオ（写真に付随する情報として） |
-| 写真のアップロード枠 | backend `sanpo_maps/photos/` | — | DB `pin_photo_uploads`（S3 のキー・サイズ）。紐付け済みの行は写真・ピンを消しても残り、アカウント削除で消える | アカウント削除 | 7（写真の削除に含めて扱う） | 対象外（写真の管理情報） |
+| 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない） | backend `POST /pin-photo-uploads` の `taken_at`（写真を選んだ時点の先行アップロードで送る） | DB `pin_photo_uploads.taken_at`（枠の発行時）→ 紐付けで `pin_photos.taken_at` へ移し、枠の側は NULL に戻す。**紐付けずに終わった枠（登録の破棄・アプリの終了）には、期限切れの枠の掃除（ADR-009 BK-3）が無いためアカウント削除まで残る**。写真の側は削除まで | 写真・ピンの削除、アカウント削除（未紐付けの枠はアカウント削除だけ） | **未反映**（1-3 は「Exif は送信しません」とだけ書いている） | 写真またはビデオ（写真に付随する情報として） |
+| 写真のアップロード枠 | backend `sanpo_maps/photos/` | — | DB `pin_photo_uploads`（S3 のキー・サイズ。未紐付けの間は撮影日時も）。紐付け済みの行は写真・ピンを消しても残る。紐付けずに期限切れになった行も掃除（ADR-009 BK-3）が無いため残る。どちらもアカウント削除で消える | アカウント削除 | 7（写真の削除に含めて扱う） | 対象外（写真の管理情報） |
 | 端末に残る写真の一時ファイル | expo-image-picker・image-manipulator の出力 | — | 端末のキャッシュ領域（消すコードは無い。OS が消す） | OS | — | 対象外（端末内） |
 | ピンの写真の表示用キャッシュ | `src/features/pin/components/PinPhotoImage.tsx`（expo-image） | — | 端末のメモリ・ディスク。サインアウトで消す（`src/lib/imageCacheCleanup.ts`） | サインアウト | — | 対象外（端末内） |
 
