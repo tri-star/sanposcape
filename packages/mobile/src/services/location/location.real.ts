@@ -2,6 +2,7 @@ import * as Location from "expo-location";
 import { PermissionsAndroid, Platform } from "react-native";
 
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
+import { normalizeHeadingDegrees } from "@/lib/heading";
 import {
   BACKGROUND_LOCATION_TASK_NAME,
   backgroundSampleHub,
@@ -101,15 +102,23 @@ function toCoordinates(position: Location.LocationObject): GeoCoordinates {
   return { latitude: position.coords.latitude, longitude: position.coords.longitude };
 }
 
+/** expo-location が「真北が取れない」ことを表す値（Android・iOS とも -1）。 */
+const UNAVAILABLE_TRUE_HEADING = -1;
+
 /**
- * expo-location の方位 → 北を 0 とした時計回りの度数。真北（`trueHeading`）を優先し、
- * 取れない（権限が無い・磁気偏角を求める位置が無いときは -1）なら磁北（`magHeading`）を使う。
- * どちらも不正なら null。範囲の正規化は多重化（`createHeadingMultiplexer`）で行う。
+ * expo-location の方位 → 北を 0 とした時計回りの度数 [0, 360)。真北（`trueHeading`）を優先し、
+ * 取れない（権限が無い・磁気偏角を求める位置が無いときは -1）なら磁北（`magHeading`）を使う。どちらも不正なら null。
+ *
+ * 「取れない」は -1 だけで判定する（負の値を一律に捨てない）。Android は真北を `(磁北 + 偏角) % 360` で求め、
+ * Kotlin の `%` は符号を残すので、西偏の地域（東京は約 -7.6°）で北を向くと正当な負の値（例 -5.6 = 354.4°）になる。
  */
 export function toHeadingDegrees(heading: Location.LocationHeadingObject): number | null {
-  if (Number.isFinite(heading.trueHeading) && heading.trueHeading >= 0) return heading.trueHeading;
-  if (Number.isFinite(heading.magHeading) && heading.magHeading >= 0) return heading.magHeading;
-  return null;
+  if (heading.trueHeading !== UNAVAILABLE_TRUE_HEADING) {
+    const trueHeading = normalizeHeadingDegrees(heading.trueHeading);
+    if (trueHeading !== null) return trueHeading;
+  }
+  if (heading.magHeading < 0) return null;
+  return normalizeHeadingDegrees(heading.magHeading);
 }
 
 function toPermissionStatus(result: {

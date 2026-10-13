@@ -125,6 +125,14 @@ describe("toHeadingDegrees", () => {
     expect(toHeadingDegrees({ trueHeading: -1, magHeading: 93, accuracy: 3 })).toBe(93);
   });
 
+  it("Android の負の真北（西偏の地域で北を向いたとき）は [0, 360) に回して使う", () => {
+    // 磁北 2° + 偏角 -7.6°（東京）を Kotlin の % で求めると -5.6
+    expect(toHeadingDegrees({ trueHeading: -5.6, magHeading: 2, accuracy: 3 })).toBeCloseTo(
+      354.4,
+      5,
+    );
+  });
+
   it("どちらも不正なら null", () => {
     expect(toHeadingDegrees({ trueHeading: -1, magHeading: Number.NaN, accuracy: 0 })).toBeNull();
   });
