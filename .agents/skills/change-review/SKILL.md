@@ -11,6 +11,8 @@ description: 実装差分の敵対的レビューと設計文書・ADRとの乖�
 
 変更に応じて [backend](references/backend.md)、[Web](references/frontend.md)、[mobile](references/mobile.md) を読む。文書確認では [文書](references/docs.md)、security確認では [security](references/security.md) を必ず読む。規約は対象packageのAGENTS.mdと関連docs・ADRを正本とし、参照資料は見落としやすい確認項目を持つ。
 
+[データ取扱い台帳](../../../docs/privacy/data-inventory.md)の対象パスに触れる変更、または利用者のデータの取得・送信・保存・削除・公開範囲が変わる変更では台帳も読み、実装と台帳・ポリシー・App Privacyの申告の整合を確認する。
+
 ## 独立レビュー
 
 通常のコード変更や重要なハーネス変更では、同じ型の `adversarial_reviewer` を以下の観点で、新しいインスタンスとして逐次起動する。前のレビューが完了してから次を起動し、同時に走らせるのは1体まで。定型文言・書式だけならメインで確認してよい。ユーザーがSubagent不使用を指定した場合もメインで確認し、独立性の制約を明示する。
