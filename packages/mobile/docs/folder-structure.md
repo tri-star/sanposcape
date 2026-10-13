@@ -28,7 +28,7 @@ packages/mobile/
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
-│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160）
+│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160。地図の子として現在地の向きを描く CurrentHeadingBeam。SS-169）
 │   │   └── legal/             #   法的文書への導線（PrivacyPolicyLink。settings と auth から使う。SS-158）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
@@ -97,7 +97,7 @@ packages/mobile/
 ### `src/components/` — 機能に依存しない再利用UI
 - `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。
   - **地図オーバーレイ**も `ui/` の1カテゴリとして扱う（例: `ui/map-pin/MapPin.tsx`、
-    `ui/route-polyline/RoutePolyline.tsx`）。`RoutePolyline` は `MapView` の子としてしか描画できず
+    `ui/route-polyline/RoutePolyline.tsx`、現在地の向きの扇形 `ui/heading-beam/HeadingBeam.tsx`。SS-169）。`RoutePolyline` は `MapView` の子としてしか描画できず
     ギャラリーに載せられない。`MapPin` は SVG の View でギャラリーに載せられるが、基準点は地図画面でしか
     確認できない（[pages-components-guideline](./pages-components-guideline.md) 参照）。
     `ui/map-pin/mapPinGeometry.ts`（形・基準点を求める純粋関数）は `mapPinGeometry.test.ts` を併置する。
