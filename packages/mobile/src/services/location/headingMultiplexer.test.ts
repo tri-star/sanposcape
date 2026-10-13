@@ -181,6 +181,43 @@ describe("createHeadingMultiplexer", () => {
       expect(survivor.mock.calls).toEqual([[null], [30]]);
     });
 
+    it("停止の猶予中に失敗しても、止めるのは1回だけで、次の購読で開始し直す", async () => {
+      const { multiplexer, state } = setup();
+      const subscription = await multiplexer.subscribe(vi.fn());
+      subscription.remove();
+      state.handlers!.fail();
+      await vi.advanceTimersByTimeAsync(STOP_DELAY_MS);
+
+      expect(state.removes).toBe(1);
+      await multiplexer.subscribe(vi.fn());
+      expect(state.starts).toBe(2);
+    });
+
+    it("開始が終わる前に失敗が届いたら、購読は返すが古い方位は渡さず、開始の後に止める", async () => {
+      let handlers: HeadingSourceHandlers | null = null;
+      let resolveStart: (() => void) | null = null;
+      const remove = vi.fn();
+      const multiplexer = createHeadingMultiplexer(
+        (h) =>
+          new Promise((resolve) => {
+            handlers = h;
+            resolveStart = () => resolve({ remove });
+          }),
+        { stopDelayMs: STOP_DELAY_MS },
+      );
+      const listener = vi.fn();
+      const pending = multiplexer.subscribe(listener);
+
+      handlers!.emit(45);
+      handlers!.fail();
+      resolveStart!();
+      await expect(pending).resolves.toBeDefined();
+      await Promise.resolve();
+
+      expect(listener.mock.calls).toEqual([[45], [null]]);
+      expect(remove).toHaveBeenCalledTimes(1);
+    });
+
     it("捨てた購読から後で届く emit・fail は無視する", async () => {
       const { multiplexer, state } = setup();
       const listener = vi.fn();
