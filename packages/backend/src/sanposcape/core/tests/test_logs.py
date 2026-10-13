@@ -547,6 +547,19 @@ class TestConfigureLogging:
         configure_logging("INFO")
         assert app_logger_state.level == logging.INFO
 
+    def test_keeps_httpx_request_lines_out_even_when_root_is_info(
+        self, app_logger_state: logging.Logger, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Geocoding API はキーと座標をクエリで受け取る（SS-138）。httpx の INFO の
+        「HTTP Request: GET <URL>」が root の設定次第で出ないよう、WARNING に固定する。"""
+        httpx_logger = logging.getLogger("httpx")
+        monkeypatch.setattr(httpx_logger, "level", logging.NOTSET)
+        monkeypatch.setattr(logging.getLogger(), "level", logging.INFO)
+
+        configure_logging("INFO")
+
+        assert not httpx_logger.isEnabledFor(logging.INFO)
+
     def test_adds_one_handler_when_neither_root_nor_the_app_logger_has_one(
         self, app_logger_state: logging.Logger
     ) -> None:
