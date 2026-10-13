@@ -374,9 +374,11 @@ class HttpGoogleMapsProvider:
         try:
             response.raise_for_status()
             body = response.json()
-        except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
+        except (httpx.HTTPError, json.JSONDecodeError, ValueError):
             self._log_error_response(method, url, response)
-            raise GoogleMapsUnavailableError() from exc
+            # 連鎖を切る: `raise_for_status()` の HTTPStatusError はメッセージにクエリ込みの URL を
+            # 持ち、Geocoding API ではキーと座標が入る（SS-138）。要点は上でログに残している。
+            raise GoogleMapsUnavailableError() from None
         return body if isinstance(body, dict) else {}
 
     def _log_error_response(self, method: str, url: str, response: httpx.Response) -> None:

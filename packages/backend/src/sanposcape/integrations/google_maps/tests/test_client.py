@@ -660,3 +660,16 @@ def test_reverse_geocode_rejects_malformed_results() -> None:
 def test_unconfigured_provider_reverse_geocode_is_unavailable() -> None:
     with pytest.raises(GoogleMapsUnavailableError):
         UnconfiguredGoogleMapsProvider().reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+
+
+def test_reverse_geocode_http_error_does_not_chain_the_url_with_the_key() -> None:
+    """HTTPStatusError のメッセージにはクエリ込みの URL（キー・座標）が入るので連鎖させない。"""
+
+    def handler(request):
+        return httpx.Response(403, json={"error_message": "denied"})
+
+    with pytest.raises(GoogleMapsUnavailableError) as exc_info:
+        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__ is True
