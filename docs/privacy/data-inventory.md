@@ -18,16 +18,18 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | --- | --- | --- |
 | backend | `packages/backend/src/sanposcape/**/models.py`、`packages/backend/alembic/versions/` | 保存するデータ・列・削除時の連鎖（`ON DELETE CASCADE`） |
 | backend | `packages/backend/src/sanposcape/**/schemas.py` | 受け取るデータ（リクエストのフィールド、GET のクエリ） |
-| backend | `packages/backend/src/sanposcape/integrations/`、`packages/backend/src/sanposcape/auth/providers/` | 外部サービスへ送るもの |
+| backend | `packages/backend/src/sanposcape/integrations/`、`packages/backend/src/sanposcape/auth/providers/`、`packages/backend/src/sanposcape/auth/apple_authorization.py` | 外部サービスへ送るもの・外部サービスから受け取って保存するもの |
 | backend | `packages/backend/src/sanposcape/core/logs.py`・`access_log.py`・`tracing.py`、`packages/backend/src/sanposcape/aws_lambda/`、ログを出す行の追加（`logger.*`） | ログ・トレースに残るもの |
+| backend | `packages/backend/src/sanposcape/maps/rate_limit.py`・`maps/dependencies.py` | メモリに一時保持する識別子（アカウントの内部 ID・IP アドレス） |
 | backend | `packages/backend/template.yaml`（ロググループの保持期間・ADOT）、`packages/backend/src/sanposcape/config.py`（キャッシュの TTL・URL の有効期限など） | 保存期間・一時保持の長さ |
 | backend | `packages/backend/src/sanposcape/users/service.py`（アカウント削除）、`packages/backend/src/sanposcape/sanpo_maps/photos/` | 削除の手段と、削除後に残るもの |
 | backend | `packages/backend/feature-flags.json` | データを扱う機能の公開（フラグを ON にすると、その機能のデータの扱いが利用者に及ぶ） |
 | mobile | `packages/mobile/app.json`、`packages/mobile/app.config.ts` | 権限と利用目的の文言、plugin（SDK）、`updates.url` |
 | mobile | `packages/mobile/src/services/location/`・`photo/`・`auth/`・`preferences/` | 端末で取得・保存するもの（位置・写真・EXIF・トークン・設定） |
 | mobile | 送信内容を組み立てる処理: `packages/mobile/src/features/*/lib/*Request.ts`・`*Payload.ts`・`pinFetchBounds.ts`・`pinEditDraft.ts`、`packages/mobile/src/features/*/api/`、`packages/mobile/src/api/`（共通ヘッダー） | backend へ送るもの・座標の精度・クエリに載るもの |
-| mobile | `packages/mobile/src/lib/sessionCleanup.ts`・`backgroundLocationCleanup.ts`・`imageCacheCleanup.ts` | 端末に残るものを消す時 |
-| 共通 | `packages/backend/pyproject.toml`、`packages/mobile/package.json` の依存の追加 | SDK が第三者へ直接送るもの（プライバシーマニフェストを確かめる） |
+| mobile | `packages/mobile/src/lib/sessionCleanup.ts`・`backgroundLocationCleanup.ts`・`imageCacheCleanup.ts`、`packages/mobile/src/features/pin/components/PinPhotoImage.tsx`（画像のキャッシュの方針） | 端末に残るものと、それを消す時 |
+| mobile | 地図を表示するコンポーネント（`packages/mobile/src/features/*/components/*MapView.tsx` など。`showsUserLocation`・地図の provider） | 地図 SDK へ渡るもの |
+| 共通 | `packages/backend/pyproject.toml`、`packages/mobile/package.json` の依存の追加・更新（Dependabot の更新を含む） | SDK が第三者へ直接送るもの（バージョンでプライバシーマニフェストが変わりうるので確かめる） |
 | lp | `packages/lp/src/`、`packages/lp/astro.config.mjs` | 紹介サイトで読み込む外部オリジン・アクセス解析・Cookie |
 | infra（別リポジトリ） | sanposcape-infra の CloudFront・S3 のログ設定（`log_retention_days`）・S3 のライフサイクル | アクセスログの保存期間。このリポジトリの差分には現れないので、infra を変えるときに台帳を見る |
 

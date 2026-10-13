@@ -33,7 +33,8 @@ argument-hint: "[比較対象(option): PR番号 / ブランチ / コミット範
 - 秘密情報: 環境変数・SSM・Secrets Manager・鍵、端末への保存（SecureStore / AsyncStorage）、CI の認証情報
 - 依存の追加・更新: `package.json`・`pyproject.toml`・lockfile（typosquat や `postinstall` を確かめる）
 - CI・デプロイのワークフロー: トリガー（`pull_request_target` など）・`permissions`・`environment` の変更
-- 利用者のデータの扱い: [データ取扱い台帳](../../../docs/privacy/data-inventory.md)の「対象パス」に触れる差分（DB モデル・ログ・送信内容・権限・SDK の追加など）。
+- 利用者のデータの扱い: [データ取扱い台帳](../../../docs/privacy/data-inventory.md)の「対象パス」に触れる差分（DB モデル・ログ・送信内容・権限・SDK の追加と更新など）と、
+  パスに当たらなくても利用者のデータの取得・送信・保存・削除・公開範囲を変える差分。
   プライバシーポリシーとのずれは、データ機能ではない変更からも生まれるため
 
 観点別のレビュアーは今は security だけ。他の観点で取りこぼしが続いたら、ここに条件と agent を足す。

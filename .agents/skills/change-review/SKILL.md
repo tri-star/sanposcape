@@ -9,7 +9,7 @@ description: 実装差分の敵対的レビューと設計文書・ADRとの乖�
 
 依頼された比較対象を使う。PRならbaseとのmerge-base、ローカルならコミット差分・未コミット・新規ファイルを区別し、他の作業を混ぜない。対象コミットと作業ツリー状態を記録する。
 
-変更に応じて [backend](references/backend.md)、[frontend](references/frontend.md)、[mobile](references/mobile.md)、[文書](references/docs.md) を読む。[データ取扱い台帳](../../../docs/privacy/data-inventory.md)の対象パスに触れる変更では台帳も読み、変更後の実装が台帳・プライバシーポリシー・App Privacyの申告と食い違っていないか、食い違うなら同じ変更で直っているかを確認する。
+変更に応じて [backend](references/backend.md)、[frontend](references/frontend.md)、[mobile](references/mobile.md)、[文書](references/docs.md) を読む。[データ取扱い台帳](../../../docs/privacy/data-inventory.md)の対象パスに触れる変更、または利用者のデータの取得・送信・保存・削除が変わる変更では台帳も読み、変更後の実装が台帳・プライバシーポリシー・App Privacyの申告と食い違っていないか、食い違うなら同じ変更で直っているかを確認する。
 
 ## 独立レビュー
 
