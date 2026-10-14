@@ -54,5 +54,7 @@ const useStyles = makeStyles((theme) => ({
   },
   column: {
     flex: 1,
+    // 片方の値だけが StatBlock の安全策で縮んだときも、ラベルの高さを揃える
+    justifyContent: "space-between",
   },
 }));
