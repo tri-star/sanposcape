@@ -42,12 +42,14 @@ SCAN_PATTERNS = [
     re.compile(r"^packages/[^/]+/(AGENTS|README)\.md$"),
     re.compile(r"^packages/[^/]+/(docs|adr)/.+\.md$"),
     re.compile(r"^\.claude/(skills|agents)/.+\.md$"),
+    re.compile(r"^\.agents/skills/.+\.md$"),
 ]
 
 # 存在しないパスを意図して書いている文書。検査しない。
 IGNORED_PREFIXES = (
     # launch-project が新しいプロジェクトへコピーする雛形。コピー先での相対パスで書かれている。
     ".claude/skills/launch-project/assets/",
+    ".agents/skills/launch-project/assets/",
 )
 
 # インラインコードのうち、リポジトリのパスとして検査するものの先頭。

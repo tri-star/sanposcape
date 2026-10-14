@@ -14,3 +14,5 @@ backend変更を伴う場合はスキーマ → OpenAPI → Orval → mobile実�
 package scriptsで型・lint・関連テストを行う。Vitestで扱う純粋ロジックと端末で確認するRN/ネイティブ動作を区別する。画面・端末変更は [端末確認](references/device-verification.md)。`.env` 不在なら [local-env-setup](../local-env-setup/SKILL.md)。
 
 実装後は [change-review](../change-review/SKILL.md)。端末検証不能なら試したこと・未確認操作・必要な環境を報告し、型チェックだけで動作確認済みにしない。
+
+PR作成・review-fixのpush後、または明示的な依頼では [PRの確認証拠](references/pr-verification.md) に従い、画面変更の判定・端末確認・依頼範囲内の証拠添付を行う。
