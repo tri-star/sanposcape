@@ -5,10 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
-import { StatBlock } from "@/components/ui/stat-block/StatBlock";
 import { WalkSaveStatus } from "@/features/walk/components/WalkSaveStatus";
+import { WalkStatGrid } from "@/features/walk/components/WalkStatGrid";
 import { useWalkSummary } from "@/features/walk/hooks/useWalkSummary";
-import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -24,7 +23,7 @@ export type WalkSummaryViewProps = {
 
 /**
  * 散歩終了サマリ画面。mock に直接該当なし。
- * `isMain` の終了導線＋`isRecord` の StatBlock/Card トーンで補完する。
+ * `isMain` の終了導線＋`isRecord` の StatBlock/Card トーン（統計の並べ方は `WalkStatGrid`）で補完する。
  * 表示値・保存状態は `useWalkSummary`（`useFinishedWalkStore` + `useWalkSave` の合成）から受け取る。
  * ドラフトが無い（deep link・画面カタログ直叩き）場合は代表値を表示し、保存は行わない。
  */
@@ -51,11 +50,11 @@ export function WalkSummaryView({ isSignedIn, onSignIn }: WalkSummaryViewProps) 
       </View>
 
       <Card style={styles.statsCard}>
-        <View style={styles.statRow}>
-          <StatBlock value={formatClock(stats.elapsedSec)} label="経過時間" />
-          <StatBlock value={stats.distanceKm.toFixed(1)} unit="km" label="歩行距離" />
-          <StatBlock value={stats.steps.toLocaleString()} unit="歩" label="歩数" />
-        </View>
+        <WalkStatGrid
+          elapsedSec={stats.elapsedSec}
+          distanceKm={stats.distanceKm}
+          steps={stats.steps}
+        />
       </Card>
 
       <WalkSaveStatus
@@ -128,10 +127,6 @@ const useStyles = makeStyles((theme) => ({
   },
   statsCard: {
     marginTop: theme.spacing[6],
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
   },
   actions: {
     gap: theme.spacing[3],

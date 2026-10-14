@@ -3,10 +3,9 @@ import { View } from "react-native";
 import { Badge } from "@/components/ui/badge/Badge";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
-import { StatBlock } from "@/components/ui/stat-block/StatBlock";
+import { WalkStatGrid } from "@/features/walk/components/WalkStatGrid";
 import type { WalkTrackingStatus } from "@/features/walk/lib/walkTrackingStatus";
 import { walkTrackingBadge } from "@/features/walk/lib/walkTrackingStatus";
-import { formatClock } from "@/lib/formatClock";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type WalkStatsPanelProps = {
@@ -50,16 +49,12 @@ export function WalkStatsPanel({
         <Badge tone={gps.tone}>{gps.label}</Badge>
       </View>
 
-      <View style={styles.statRow}>
-        <StatBlock size="sm" value={formatClock(elapsedSec)} label="経過時間" />
-        <StatBlock
-          size="sm"
-          value={(distanceMeters / 1000).toFixed(1)}
-          unit="km"
-          label="歩行距離"
-        />
-        <StatBlock size="sm" value={steps.toLocaleString()} unit="歩" label="歩数" />
-      </View>
+      <WalkStatGrid
+        size="sm"
+        elapsedSec={elapsedSec}
+        distanceKm={distanceMeters / 1000}
+        steps={steps}
+      />
 
       <View style={styles.buttonRow}>
         <Button
@@ -103,10 +98,6 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
   },
   buttonRow: {
     flexDirection: "row",
