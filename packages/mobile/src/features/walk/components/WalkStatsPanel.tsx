@@ -50,6 +50,7 @@ export function WalkStatsPanel({
       </View>
 
       <WalkStatGrid
+        layout="inline"
         size="sm"
         elapsedSec={elapsedSec}
         distanceKm={distanceMeters / 1000}
