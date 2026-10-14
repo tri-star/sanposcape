@@ -1,6 +1,6 @@
 ---
 name: testing-and-e2e
-description: Vitest と Maestro で踏む点 — 副作用登録のテストで reset しない、disabled を押しても Maestro は失敗しない、config.yaml を書かない、地図の中心はピンに当たる、既存 testID のリネーム禁止、appId のハードコード
+description: Vitest と Maestro で踏む点 — エミュレータで画面幅・文字サイズを変える手順、副作用登録のテストで reset しない、disabled を押しても Maestro は失敗しない、config.yaml を書かない、地図の中心はピンに当たる、既存 testID のリネーム禁止、appId のハードコード
 metadata:
   type: feedback
   scope: durable
@@ -31,6 +31,18 @@ metadata:
 - 作ったものを確かめたいときは、フロー内で一意な名前のデータを作ってそれだけを見る。`evalScript` + `${output.*}` で名前を作る案は未検証なので、使う前に動かして確かめる。
 - **地図の中心を長押し・タップする手順は登録済みピンに当たりうる。** `e2e-user-1` のピンは mock の現在地（= 地図の中心）に溜まり、`MapPin` は座標の上側に描かれる。地図そのものを押すときは中心より下の `point` を使う。
 - 外部ブラウザを開く導線（プライバシーポリシー等）は押さず、存在だけを assert する。
+
+## エミュレータで画面サイズ・文字サイズを変えて確かめる
+
+レイアウトの変更は、既定の AVD（Pixel 6 Pro。411×891dp）だけでは小さい端末での崩れを見逃す（SS-64 で、散歩中画面の下端のボタンがタブバーの裏に押し出されるのを、最初は見逃した）。
+
+- 幅 360dp: `adb shell wm density 640`（1440px ÷ 4）。高さ 640dp にするなら `adb shell wm size 1440x2560` も足す。
+- 文字サイズ: `adb shell settings put system font_scale 1.3`。
+- 変えるとアプリが再起動し、サインイン画面に戻る（「ゲストで試す」から入り直す）。終わったら必ず `wm size reset` / `wm density reset` / `font_scale 1.0` で戻す。
+- 桁数の多い値など、普段出ない値を見るときは、画面カタログ（`design-system` の先頭など）に検証用の部品を一時的に置く。**コミットしない**。
+  散歩中画面は画面カタログの「散歩中」から開ける（backend なしだとルート取得失敗の通知が出て、そのぶん縦が詰まる）。
+
+**How to apply:** 縦に要素を足す・横に値を並べる変更では、360×640dp と 360×780dp で、下端のボタンと最も長い値を確かめる。
 
 ## 変更前に確認すること
 
