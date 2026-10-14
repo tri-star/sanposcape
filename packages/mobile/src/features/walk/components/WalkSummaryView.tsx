@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button/Button";
@@ -37,60 +37,70 @@ export function WalkSummaryView({ isSignedIn, onSignIn }: WalkSummaryViewProps) 
   const { stats } = summary;
 
   return (
-    <View
-      testID="walk-summary-screen"
-      style={[styles.root, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 }]}
-    >
-      <View style={styles.hero}>
-        <View style={styles.iconCircle}>
-          <Icon name="footprints" size={40} color={theme.colors.primary} />
+    <View testID="walk-summary-screen" style={styles.root}>
+      {/*
+        背の低い端末（高さ 640dp 級）で保存の失敗表示が出ると下のボタンが画面外へ出るため、
+        収まらないときだけスクロールできるようにする。収まるときは flexGrow で画面いっぱいに広げ、従来どおり上下に振り分ける。
+      */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.hero}>
+          <View style={styles.iconCircle}>
+            <Icon name="footprints" size={40} color={theme.colors.primary} />
+          </View>
+          <Text style={styles.title}>おつかれさまでした</Text>
+          <Text style={styles.subtitle}>{`${stats.goalName}までの散歩を記録しました。`}</Text>
         </View>
-        <Text style={styles.title}>おつかれさまでした</Text>
-        <Text style={styles.subtitle}>{`${stats.goalName}までの散歩を記録しました。`}</Text>
-      </View>
 
-      <Card style={styles.statsCard}>
-        <WalkStatGrid
-          elapsedSec={stats.elapsedSec}
-          distanceKm={stats.distanceKm}
-          steps={stats.steps}
+        <Card style={styles.statsCard}>
+          <WalkStatGrid
+            elapsedSec={stats.elapsedSec}
+            distanceKm={stats.distanceKm}
+            steps={stats.steps}
+          />
+        </Card>
+
+        <WalkSaveStatus
+          status={summary.saveStatus}
+          errorCode={summary.saveErrorCode}
+          onRetry={summary.retrySave}
+          onSignIn={onSignIn}
+          testID="walk-summary-save-status"
         />
-      </Card>
 
-      <WalkSaveStatus
-        status={summary.saveStatus}
-        errorCode={summary.saveErrorCode}
-        onRetry={summary.retrySave}
-        onSignIn={onSignIn}
-        testID="walk-summary-save-status"
-      />
-
-      <View style={styles.actions}>
-        <Button
-          testID="walk-summary-view-history"
-          variant="primary"
-          fullWidth
-          icon="bar-chart-2"
-          onPress={() =>
-            summary.savedWalkId !== null
-              ? router.replace({
-                  pathname: "/walk-history/[walkId]",
-                  params: { walkId: summary.savedWalkId },
-                })
-              : router.replace("/(tabs)/account")
-          }
-        >
-          記録を見る
-        </Button>
-        <Button
-          testID="walk-summary-back-home"
-          variant="ghost"
-          fullWidth
-          onPress={() => router.replace("/(tabs)")}
-        >
-          ホームへ
-        </Button>
-      </View>
+        <View style={styles.actions}>
+          <Button
+            testID="walk-summary-view-history"
+            variant="primary"
+            fullWidth
+            icon="bar-chart-2"
+            onPress={() =>
+              summary.savedWalkId !== null
+                ? router.replace({
+                    pathname: "/walk-history/[walkId]",
+                    params: { walkId: summary.savedWalkId },
+                  })
+                : router.replace("/(tabs)/account")
+            }
+          >
+            記録を見る
+          </Button>
+          <Button
+            testID="walk-summary-back-home"
+            variant="ghost"
+            fullWidth
+            onPress={() => router.replace("/(tabs)")}
+          >
+            ホームへ
+          </Button>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -99,8 +109,16 @@ const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surfaceApp,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     paddingHorizontal: theme.layout.pageGutter + 4,
     justifyContent: "space-between",
+    // スクロールになったときも、保存状態とボタンが密着しないようにする
+    gap: theme.spacing[4],
   },
   hero: {
     alignItems: "center",
