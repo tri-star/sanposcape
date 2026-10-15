@@ -419,6 +419,10 @@ print(r.status_code); print(r.text[:800])"
 使えるようにするため。以前は「妥当な既定値を持つため省略」としていたが、E2E で
 `pin_registration` を確実に ON にする・写真の上限値を CI から上書きできるようにする目的で
 明示列挙に変更した）。
+**（SS-109 追補）`ACCOUNT_PHOTO_RETENTION_DAYS`（アカウント削除後の写真の保持期間、既定 30）も
+`compose.yaml` の `environment:` に追加した。** `.env` を編集せず
+`ACCOUNT_PHOTO_RETENTION_DAYS=0 docker compose up -d` で、削除したアカウントの写真をすぐ消して確かめられるようにするため
+（[local-development.md](./local-development.md) の「アカウント削除後の写真の削除を手で動かす」）。`.env.example` には書かない（既定値で足りる）。
 
 **（SS-88 追補）`LOG_LEVEL`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION`・
 `AWS_REGION`・`AWS_ACCESS_KEY_ID`・`AWS_SECRET_ACCESS_KEY`・`AWS_SESSION_TOKEN` も
