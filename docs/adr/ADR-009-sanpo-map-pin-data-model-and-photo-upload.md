@@ -78,7 +78,8 @@
   （任意・null 可・オフセット必須。naive と範囲外は 422、範囲は瞬間で `[1900-01-01Z, 2100-01-01Z)`）
   で受け取り、紐付け時に枠から `pin_photos` へ写して、枠の側は NULL に戻す。`PinPhotoRead.taken_at`
   は必須キー・null 可で、全ての写真の応答に載る（UTC 換算の瞬間。元のオフセットは保持しない）。
-  backend は EXIF を読まず、GPS も受け取らない。既存の写真は遡及せず null。ログには出さない。
+  backend は EXIF を読まず、GPS も受け取らない（**SS-116 追補**: 撮影日時の取得の話。原本からメタデータを
+  除去するとき、向きを残すために Orientation だけは読む。決定35）。既存の写真は遡及せず null。ログには出さない。
   DB は `timestamptz NULL` の2列（本文: SS-163 追補 決定34）
 - **原本は確定時に EXIF などのメタデータを無劣化で除去してから `original/` に置く**（BK-10）。
   JPEG のマーカーを走査し、APP1（Exif・XMP）、JFIF/ICC/Adobe 以外の APPn（IPTC・MPF など）、COM、
@@ -1651,7 +1652,8 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
 ### 決定34: 写真は撮影日時 `taken_at` を持つ。端末が EXIF から読み、枠の発行で受け取る
 
 - **取得方式**: 端末が EXIF（`DateTimeOriginal` → `DateTimeDigitized`）から読んだ値の**申告**を受け取る。
-  backend は EXIF を解析しない。原本は端末で縮小・再エンコードされ EXIF が残らない（ADR-M-010 決定3）ので、
+  backend は EXIF を解析しない（**SS-116 追補**: 撮影日時のためには解析しない。原本のメタデータ除去では
+  向きを残すために Orientation だけを読む。決定35）。原本は端末で縮小・再エンコードされ EXIF が残らない（ADR-M-010 決定3）ので、
   backend が原本から読むには、端末が EXIF を残したまま送る必要があり、GPS も S3 に載ってしまう。
   **GPS は受け取らない**。原本・サムネイルが EXIF なしであること（決定6）と BK-10 は変えない。
 - **API**:
