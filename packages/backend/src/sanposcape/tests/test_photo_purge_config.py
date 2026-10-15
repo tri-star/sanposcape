@@ -116,7 +116,8 @@ def test_only_scheduled_functions_have_the_prefix_the_scheduler_role_can_invoke(
     functions = {
         logical_id: resource["Properties"]
         for logical_id, resource in load_resources().items()
-        if resource["Type"] == "AWS::Serverless::Function"
+        # 素の AWS::Lambda::Function を足しても検査から漏れないようにする。
+        if resource["Type"] in ("AWS::Serverless::Function", "AWS::Lambda::Function")
     }
     assert {"Api", "Migrate", "PhotoPurge"} <= functions.keys()
     for logical_id, properties in functions.items():
