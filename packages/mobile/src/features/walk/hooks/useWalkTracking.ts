@@ -45,7 +45,8 @@ export type UseWalkTrackingResult = {
  * **hook のアンマウントでは記録を止めない**（`detach` だけ）。止めるのは散歩の終了（`stopTracking`）・
  * サインアウト・アプリ起動時の3箇所に限る。Android の戻るキーで画面だけ消えても散歩は続くため。
  *
- * `@/services/location` のバレルを import するのはこの hook だけにする
+ * `features/walk` で `@/services/location` のバレルを import するのは hooks（この hook と
+ * `useLocationPrecision`）だけにする
  * （`lib/` から import するとネイティブ依存に到達するため。architecture-guideline の単体テスト節。
  * 例外は起動時の副作用モジュール `src/lib/backgroundLocationCleanup.ts` のみ）。
  */

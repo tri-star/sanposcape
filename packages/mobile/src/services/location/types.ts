@@ -6,6 +6,13 @@ export type GeoCoordinates = {
 
 export type LocationPermissionStatus = "granted" | "denied" | "undetermined";
 
+/**
+ * 位置情報の精度の許可。iOS 14+ の「正確な位置情報」/ Android 12+ の「正確な位置情報を使用」。
+ * - precise: 正確な位置を使える
+ * - approximate: 大まかな位置だけ（数 km ずれることがあり、iOS は更新の頻度も落ちる）
+ */
+export type LocationPrecision = "precise" | "approximate";
+
 /** watchPosition の購読ハンドル。remove() は多重呼び出しされても安全にする。 */
 export type LocationSubscription = {
   remove(): void;
@@ -55,6 +62,12 @@ export type SampleBufferStorage = {
 
 export type PositionListener = (position: GeoCoordinates) => void;
 
+/**
+ * 端末の向き（方位）。北を 0 とした時計回りの度数 [0, 360)（SS-169）。
+ * null は「購読が途中で失敗して、もう方位が届かない」ことを表す（表示を消すため）。
+ */
+export type HeadingListener = (headingDegrees: number | null) => void;
+
 export type WatchPositionOptions = {
   /** 何m移動したら通知するか（既定 10）。 */
   distanceIntervalMeters?: number;
@@ -64,11 +77,18 @@ export type WatchPositionOptions = {
 
 /**
  * 位置情報サービスのインターフェース。
- * 呼び出し側（features/walk）はこれのみを参照し、real/mock の実体を知らない。
+ * 呼び出し側（features/walk / features/pin）はこれのみを参照し、real/mock の実体を知らない。
  */
 export type LocationService = {
   /** 現在の権限状態を返す（ダイアログを出さない）。 */
   getPermissionStatus(): Promise<LocationPermissionStatus>;
+  /**
+   * 精度の許可を返す（ダイアログを出さない）。位置情報の権限が無ければ null。
+   * 確認に失敗した場合も null（案内を出さない側に倒す）。throw しない。
+   * 「正確な位置情報」の一時的な要求（iOS の requestTemporaryFullAccuracyAuthorization）は
+   * expo-location に無いため持たない。変えるのは利用者が設定アプリで行う（ADR-M-022）。
+   */
+  getPrecision(): Promise<LocationPrecision | null>;
   /** 権限をリクエストする（必要ならOSダイアログを出す）。 */
   requestPermission(): Promise<LocationPermissionStatus>;
   /**
@@ -85,6 +105,14 @@ export type LocationService = {
     listener: PositionListener,
     options?: WatchPositionOptions,
   ): Promise<LocationSubscription>;
+  /**
+   * 端末の向き（方位）の変化を購読する（フォアグラウンドのみ。SS-169）。真北が取れれば真北、取れなければ磁北。
+   * 呼び出し側が複数でもネイティブの購読は1本にまとめる（Android は1本しか持てない）。
+   * 開始できなければ LocationError を reject する。センサーが無い端末では reject せず、通知が来ないことがある。
+   * 開始後に失敗したら（iOS のストリームの例外）null を通知する。
+   * 呼び出し側は必ず戻り値の remove() を cleanup で呼ぶこと。
+   */
+  watchHeading(listener: HeadingListener): Promise<LocationSubscription>;
   /**
    * 散歩の位置記録を始める。アプリがバックグラウンド・画面ロック中でも記録を続ける（ADR-M-018）。
    * - 別の sessionId（または記録していない状態）からの呼び出し: バッファを空にして記録を始める。

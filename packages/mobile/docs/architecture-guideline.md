@@ -99,6 +99,15 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   - 権限の利用目的文言（iOS の Info.plist）は `app.json` の `expo-location` プラグインのオプションだけで設定する。
     「常に」系とモーションのキーも `false` で消さずに具体的な文言を入れる（消すと App Store への提出が ITMS-90683 で止まるおそれ）。
     文言は日本語のみ。用途を増やしたら文言も直す（SS-157 / ADR-M-018 決定10〜13。契約テスト `src/config/locationPluginConfig.test.ts`）。
+- **権限の求め方と拒否・大まかな位置のときの挙動**（SS-160 / [ADR-M-022](../adr/ADR-M-022-location-permission-flow-and-approximate-location.md)）:
+  - 独自の事前説明画面は置かない。
+  - 拒否時の文言は `LocationPermissionNotice` の `context` で画面ごとに決める（`src/components/location/locationNoticeMessage.ts`）。
+  - 拒否中は前面に戻るたびに状態だけを確かめて回復する（`useCurrentLocation`。`requestPermission` は呼ばない）。
+  - 精度は `locationService.getPrecision()`（`features/walk/hooks/useLocationPrecision.ts`）で見て、大まかなら案内を出す。点は捨てない。
+- **地図上の現在地の向き**（SS-169 / [ADR-M-023](../adr/ADR-M-023-current-heading-on-map.md)）:
+  - 端末の方位は `locationService.watchHeading()` で購読する。ネイティブの購読はサービスの中で1本にまとめる（Android は1本しか持てない）。
+  - 地図には `src/components/location/CurrentHeadingBeam.tsx`（`MapView` の子）を置く。扇形は `Polygon` で描き、半径は `useHeadingBeamRadius` で地図の高さと表示範囲から換算する。
+  - 購読は画面にフォーカスがあり、アプリが前面にいる間だけ（`src/hooks/useDeviceHeading.ts`）。
 
 ## 写真の扱い
 
@@ -156,7 +165,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 ## 外部の Web ページを開く（SS-158）
 
 - 方針の正本は [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)。
-- 画面からは `useOpenExternalUrl().open(url)`（`src/hooks/`）を使う。`expo-web-browser` / `Linking.openURL` を画面から直接呼ばない（失敗時の案内・診断ログ・URL 検証を通すため）。例外: OS の設定画面を開く `Linking.openSettings()`（`LocationPermissionNotice`）は対象外。
+- 画面からは `useOpenExternalUrl().open(url)`（`src/hooks/`）を使う。`expo-web-browser` / `Linking.openURL` を画面から直接呼ばない（失敗時の案内・診断ログ・URL 検証を通すため）。例外: OS の設定画面を開く `Linking.openSettings()`（`LocationPermissionNotice` / `ApproximateLocationNotice`）は対象外。
 - 開いてよいのは `https:` だけ（`isOpenableExternalUrl`）。
 - 法的文書（プライバシーポリシー・利用規約）の URL は `src/config/legalLinks.ts` の定数。ビルドの種類で切り替えない。
   リンクは `components/legal/` の `LegalDocumentLink`（ラッパーは `PrivacyPolicyLink` / `TermsLink`）、サインイン・サインアップ画面の同意文言は `LegalConsentNotice`。

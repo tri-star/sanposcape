@@ -6,7 +6,7 @@ import "../styles/legal.css";
 const contactEmail = "support@sanposcape.com";
 // 制定日は変えない。本文を改定したら revisedOn を更新する（改定の告知は「12. 本ポリシーの変更」）。
 const enactedOn = "2026年10月3日";
-const revisedOn: string | undefined = "2026年10月13日";
+const revisedOn: string | undefined = "2026年10月14日";
 
 // URL（/privacy/）はアプリ内のリンクと App Store Connect に登録するため変えないこと。
 
@@ -19,9 +19,9 @@ const externalServices = [
   },
   {
     provider:
-      "Google LLC（米国）: Google Maps Platform の Places API・Routes API",
-    purpose: "スポットの検索、徒歩ルートの計算",
-    data: "丸めた現在地、目的地や経由地の位置。運営者のサーバーから送信し、利用者を識別する情報は送りません",
+      "Google LLC（米国）: Google Maps Platform の Places API・Routes API・Geocoding API",
+    purpose: "スポットの検索、徒歩ルートの計算、ピンを登録する位置の住所の取得",
+    data: "丸めた現在地、目的地や経由地の位置、ピンを登録する位置。運営者のサーバーから送信し、利用者を識別する情報は送りません",
   },
   {
     provider: "Google LLC（米国）: Google Maps SDK for Android",
@@ -138,7 +138,7 @@ const externalServices = [
         </li>
         <li>
           <strong>地図に現在地を表示するとき</strong>:
-          端末の中で現在地を表示するために使います。
+          端末の中で現在地を表示するために使います。あわせて、端末のセンサーで向いている方角を取得し、現在地の向きとして表示します。方角は送信・保存しません。
         </li>
         <li>
           <strong>ピンの地図を表示するとき</strong>:
@@ -299,7 +299,8 @@ const externalServices = [
       <p>
         サーバーとデータベースはシンガポールにあり、利用者の情報はシンガポールで保管されます。シンガポールには、個人情報の保護に関する法律として
         Personal Data Protection Act 2012 があります。また、3
-        の事業者はいずれも米国の事業者で、Google の Places API・Routes API
+        の事業者はいずれも米国の事業者で、Google の Places API・Routes
+        API・Geocoding API
         への送信など、米国で処理される情報があります。米国には、連邦法として包括的な個人情報保護法はなく、分野ごとの連邦法と州法（カリフォルニア州消費者プライバシー法など）があります。各国の個人情報の保護に関する制度は、個人情報保護委員会が公表している
         <a
           href="https://www.ppc.go.jp/personalinfo/legal/kaiseihogohou/#gaikoku"

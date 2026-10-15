@@ -2,11 +2,14 @@ import * as Location from "expo-location";
 import { PermissionsAndroid, Platform } from "react-native";
 
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
+import { normalizeHeadingDegrees } from "@/lib/heading";
 import {
   BACKGROUND_LOCATION_TASK_NAME,
   backgroundSampleHub,
 } from "@/services/location/backgroundLocationTask";
+import { createHeadingMultiplexer } from "@/services/location/headingMultiplexer";
 import { toLocationError } from "@/services/location/locationError";
+import { toLocationPrecision } from "@/services/location/locationPrecision";
 import { createNotificationPermissionRequester } from "@/services/location/notificationPermission";
 import { createSerialQueue } from "@/services/location/serialQueue";
 import type {
@@ -99,6 +102,25 @@ function toCoordinates(position: Location.LocationObject): GeoCoordinates {
   return { latitude: position.coords.latitude, longitude: position.coords.longitude };
 }
 
+/** expo-location が「真北が取れない」ことを表す値（Android・iOS とも -1）。 */
+const UNAVAILABLE_TRUE_HEADING = -1;
+
+/**
+ * expo-location の方位 → 北を 0 とした時計回りの度数 [0, 360)。真北（`trueHeading`）を優先し、
+ * 取れない（権限が無い・磁気偏角を求める位置が無いときは -1）なら磁北（`magHeading`）を使う。どちらも不正なら null。
+ *
+ * 「取れない」は -1 だけで判定する（負の値を一律に捨てない）。Android は真北を `(磁北 + 偏角) % 360` で求め、
+ * Kotlin の `%` は符号を残すので、西偏の地域（東京は約 -7.6°）で北を向くと正当な負の値（例 -5.6 = 354.4°）になる。
+ */
+export function toHeadingDegrees(heading: Location.LocationHeadingObject): number | null {
+  if (heading.trueHeading !== UNAVAILABLE_TRUE_HEADING) {
+    const trueHeading = normalizeHeadingDegrees(heading.trueHeading);
+    if (trueHeading !== null) return trueHeading;
+  }
+  if (heading.magHeading < 0) return null;
+  return normalizeHeadingDegrees(heading.magHeading);
+}
+
 function toPermissionStatus(result: {
   status: Location.PermissionStatus;
   canAskAgain: boolean;
@@ -127,11 +149,46 @@ export function createRealLocationService(): LocationService {
     check: () => PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
     request: () => PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
   });
+  // 方位のネイティブ購読は1本にまとめる（Android の expo-location は1本しか持てない。SS-169）。
+  const heading = createHeadingMultiplexer(async ({ emit, fail }) => {
+    try {
+      const subscription = await Location.watchHeadingAsync(
+        (raw) => {
+          const degrees = toHeadingDegrees(raw);
+          if (degrees !== null) emit(degrees);
+        },
+        // 開始後の失敗（iOS のストリームの例外。強い磁気の干渉・権限の取り消しなど）。ストリームはもう値を流さないので、
+        // 最後の向きを出し続けないよう多重化に伝えて表示を消す。原因調査用にログも残す。
+        (reason) => {
+          logDiagnostic("location_heading_watch_error", { reason });
+          fail();
+        },
+      );
+      return { remove: () => subscription.remove() };
+    } catch (error) {
+      throw toLocationError(error);
+    }
+  });
 
   return {
     async getPermissionStatus() {
       const result = await Location.getForegroundPermissionsAsync();
       return toPermissionStatus(result);
+    },
+
+    async getPrecision() {
+      try {
+        const result = await Location.getForegroundPermissionsAsync();
+        return toLocationPrecision({
+          granted: result.granted,
+          ios: result.ios,
+          android: result.android,
+        });
+      } catch (error) {
+        // 案内を出さない側に倒す（判定できないことで画面を止めない）。
+        logDiagnostic("location_precision_check_failed", describeError(error));
+        return null;
+      }
     },
 
     async requestPermission() {
@@ -179,6 +236,10 @@ export function createRealLocationService(): LocationService {
       } catch (error) {
         throw toLocationError(error);
       }
+    },
+
+    watchHeading(listener) {
+      return heading.subscribe(listener);
     },
 
     // 位置情報の権限はリクエストしない（`requestBackgroundPermissionsAsync` はどこからも呼ばない。ADR-M-018）。

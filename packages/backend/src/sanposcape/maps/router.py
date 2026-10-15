@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends
 
+from sanposcape.dependencies import get_current_user
 from sanposcape.maps.dependencies import enforce_explore_rate_limit, get_maps_service
 from sanposcape.maps.schemas import (
     LoopWalkingRouteResponse,
     PlaceSearchRequest,
     PlaceSearchResponse,
+    ReverseGeocodeRequest,
+    ReverseGeocodeResponse,
     WalkingRouteRequest,
     WalkingRouteResponse,
 )
 from sanposcape.maps.service import MapsService
+from sanposcape.users.models import User
 
 router = APIRouter(prefix="/explore", tags=["explore"])
 
@@ -68,3 +72,23 @@ def get_loop_walking_route(
     （エラーにしない）。
     """
     return service.get_loop_walking_route(payload)
+
+
+@router.post(
+    "/reverse-geocode",
+    response_model=ReverseGeocodeResponse,
+    operation_id="reverse_geocode_explore",
+    responses=_ERROR_RESPONSES,
+)
+def reverse_geocode(
+    payload: ReverseGeocodeRequest,
+    _current_user: User = Depends(get_current_user),
+    service: MapsService = Depends(get_maps_service),
+    _rate_limit: None = Depends(enforce_explore_rate_limit),
+) -> ReverseGeocodeResponse:
+    """SS-138: ピンの位置の住所（ピン名の初期値）。ピン登録と同じくサインインが要る。
+
+    座標を Google へ送るのはサーバーからだけで、DB・ログには残さない（メモリのキャッシュのみ）。
+    住所が無い場所では 200 + `address=null`。
+    """
+    return service.reverse_geocode(payload)

@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-30（SS-147）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-12（SS-160）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -28,13 +28,14 @@
   `PinSignInRequired` に任せる**。ピンタブでも同じ。（本文: D4、SS-146 追補、SS-147 追補）
 - **現在地が取れない（権限拒否・取得失敗）ときは、日本全体（`JAPAN_DISPLAY_BOUNDS`）を初期表示にする**。
   `LocationPermissionNotice` を重ね、長押しでの選択はそのまま使える。ピンタブでも同じ。
-  （本文: D5、SS-146 追補、SS-147 追補）
+  拒否時の案内文言は画面の文脈ごとに中立に書き（ピンタブは「ピンは地図を長押しして登録できます」）、設定アプリで許可して戻ると自動で現在地へ回復する（[ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)）。
+  （本文: D5、SS-146 追補、SS-147 追補、SS-160 追補）
 - **ピンタブの現在地は、フォーカスが戻るたびに（初回を除き）静かに取り直す**（`useCurrentLocation().refresh()`）。
   地図の視点は動かさない。詳細は [ADR-M-012](./ADR-M-012-pin-map-display-and-detail.md) の SS-146 追補。（本文: SS-146 追補の影響）
 - **ピンタブの離脱遷移（長押し・ピンのタップ・地図一覧・サインイン）の二重発火は `useNavigateOnce` で防ぐ**。
   タブのシステムバックの既定を奪うため `useScreenBack` は使わない。（本文: SS-146 追補の影響）
 - **`useCurrentLocation` / `LocationPermissionNotice` は `src/hooks/` / `src/components/location/` に置く**
-  （2機能ルールによる昇格）。（本文: D12）
+  （2機能ルールによる昇格）。`LocationPermissionNotice` は文脈（`context`）ごとに文言を決める（本文: D12、SS-160 追補）
 
 ### 未解決・持ち越し
 
@@ -70,11 +71,11 @@
 
 ## 日付
 
-2026-09-25、2026-09-30 追補（SS-146。ピンタブへの統合）、2026-09-30 追補（SS-147。ナビタブの FAB と地点選択画面の削除）
+2026-09-25、2026-09-30 追補（SS-146。ピンタブへの統合）、2026-09-30 追補（SS-147。ナビタブの FAB と地点選択画面の削除）、2026-10-12 追補（SS-160。拒否時の案内と回復）
 
 ## ステータス
 
-採用（SS-124、SS-146 追補、SS-147 追補）。
+採用（SS-124、SS-146 追補、SS-147 追補、SS-160 追補）。
 
 ## コンテキスト
 
@@ -352,8 +353,18 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
   `mapLayers` / `onRegionChangeComplete` はピンタブが使うので `PinMapCanvas` に残る）
 - E2E の FAB 経由の表示確認（`pin-map.yaml` 後半）を削除した。
 
+## SS-160 追補: 位置情報の拒否時の案内と回復（2026-10-12）
+
+### 決定・理由
+
+- D5 の「現在地が取れない（権限拒否）」のときの案内文言を、画面の文脈ごとの中立な文言にした。ピンタブは位置情報なしで使える着地点なので、「現在地は表示されません。ピンは地図を長押しして登録できます。」と代替（長押し登録）を書く。許可を迫る言い方（「〜してください」）はしない。
+- D12 の `LocationPermissionNotice` は、文言を `context`（`explore` / `tracking` / `map`）で決める。ピンタブは `map`。
+- 拒否中に設定アプリから前面へ戻ると、`useCurrentLocation` が権限の状態だけを確かめ、許可されていれば取り直す。ピンタブの地図は現在地へ1回移動する。
+- 理由と詳細は [ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)。
+
 ## 関連情報
 
+- [ADR-M-022: 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./ADR-M-022-location-permission-flow-and-approximate-location.md)（SS-160 追補）
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
 - [ADR-008（ルート）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md)（D3 で流用した `pin_registration` フラグの仕組み）
 - [ADR-M-001: フォルダ構造と命名規則](./ADR-M-001-folder-structure.md)（D12 の昇格ルール）

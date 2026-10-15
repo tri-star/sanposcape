@@ -5,7 +5,8 @@ import yaml
 from fastapi.testclient import TestClient
 
 from sanposcape.config import Settings, get_settings
-from sanposcape.dependencies import get_current_user_optional
+from sanposcape.dependencies import get_current_user, get_current_user_optional
+from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     ProviderLoopRoute,
     ProviderPoint,
@@ -404,3 +405,79 @@ def test_openapi_declares_non_empty_japanese_preferred_place_names() -> None:
     assert name["minLength"] == 1
     assert "Japanese-preferred" in name["description"]
     assert "falls back" in name["description"]
+
+
+# --- /explore/reverse-geocode（SS-138） ----------------------------------------
+
+_GEOCODE_PAYLOAD = {"location": {"latitude": 35.681236, "longitude": 139.767125}}
+
+
+def _override_signed_in_with_fake_provider() -> None:
+    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeGoogleMapsProvider(), 20, 20, 10, 8
+    )
+
+
+def test_reverse_geocode_requires_authentication(client: TestClient) -> None:
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeGoogleMapsProvider(), 20, 20, 10, 8
+    )
+    try:
+        response = client.post("/explore/reverse-geocode", json=_GEOCODE_PAYLOAD)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 401
+
+
+def test_reverse_geocode_returns_address_and_building_name(client: TestClient) -> None:
+    _override_signed_in_with_fake_provider()
+    try:
+        response = client.post("/explore/reverse-geocode", json=_GEOCODE_PAYLOAD)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "address": "テスト県テスト市テスト町1丁目2-3",
+        "building_name": "テストビル",
+    }
+
+
+def test_reverse_geocode_validates_payload(client: TestClient) -> None:
+    _override_signed_in_with_fake_provider()
+    try:
+        response = client.post(
+            "/explore/reverse-geocode", json={"location": {"latitude": 91, "longitude": 0}}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "make_error, status",
+    [(MapsQuotaError, 429), (MapsUnavailableError, 503)],
+)
+def test_reverse_geocode_maps_upstream_errors(client: TestClient, make_error, status) -> None:
+    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
+    app.dependency_overrides[get_maps_service] = lambda: (_ for _ in ()).throw(make_error())
+    try:
+        response = client.post("/explore/reverse-geocode", json=_GEOCODE_PAYLOAD)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == status
+
+
+def test_reverse_geocode_is_documented_as_an_authenticated_endpoint() -> None:
+    operation = create_app(Settings(env="test")).openapi()["paths"]["/explore/reverse-geocode"][
+        "post"
+    ]
+
+    assert operation["operationId"] == "reverse_geocode_explore"
+    assert operation["security"] == [{"HTTPBearer": []}]

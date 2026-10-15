@@ -188,14 +188,25 @@ describe("resolvePinFetchBounds", () => {
 describe("buildListPinsParams", () => {
   const bounds: GeoBounds = { south: 35.6, north: 35.7, west: 139.7, east: 139.8 };
 
-  it("アーカイブ済みを常に除外する（archived: false）。visited のキーは無い（SS-173）", () => {
-    const params = buildListPinsParams({ sanpoMapId: "map-1", bounds });
-    expect(params.archived).toBe(false);
-    expect("visited" in params).toBe(false);
+  it("絞り込みをそのまま入れる。絞らない項目のキーは作らない（SS-174）", () => {
+    const all = buildListPinsParams({ sanpoMapId: "map-1", bounds, filter: {} });
+    expect("archived" in all).toBe(false);
+    expect("visited" in all).toBe(false);
+    const filtered = buildListPinsParams({
+      sanpoMapId: "map-1",
+      bounds,
+      filter: { archived: false, visited: true },
+    });
+    expect(filtered.archived).toBe(false);
+    expect(filtered.visited).toBe(true);
   });
 
   it("4つの bbox と sanpo_map_id・limit・archived を持ち、cursor/q/tags は無い", () => {
-    const params = buildListPinsParams({ sanpoMapId: "map-1", bounds });
+    const params = buildListPinsParams({
+      sanpoMapId: "map-1",
+      bounds,
+      filter: { archived: false },
+    });
     expect(params).toEqual({
       sanpo_map_id: "map-1",
       min_latitude: 35.6,
@@ -215,7 +226,7 @@ describe("buildListPinsParams", () => {
     [500, 200],
     [Number.NaN, 200],
   ])("limit %s は %s に正規化される", (input, expected) => {
-    const params = buildListPinsParams({ sanpoMapId: "map-1", bounds, limit: input });
+    const params = buildListPinsParams({ sanpoMapId: "map-1", bounds, filter: {}, limit: input });
     expect(params.limit).toBe(expected);
   });
 });

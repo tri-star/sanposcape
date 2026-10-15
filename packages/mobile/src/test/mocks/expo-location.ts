@@ -14,11 +14,11 @@ export type LocationObject = {
 };
 
 export async function getForegroundPermissionsAsync() {
-  return { status: "granted", canAskAgain: true };
+  return { status: "granted", granted: true, canAskAgain: true };
 }
 
 export async function requestForegroundPermissionsAsync() {
-  return { status: "granted", canAskAgain: true };
+  return { status: "granted", granted: true, canAskAgain: true };
 }
 
 export async function getLastKnownPositionAsync() {
@@ -36,6 +36,20 @@ export async function getCurrentPositionAsync() {
 export async function watchPositionAsync(
   _options: unknown,
   _callback: (position: LocationObject) => void,
+) {
+  return { remove() {} };
+}
+
+export type LocationHeadingObject = {
+  trueHeading: number;
+  magHeading: number;
+  accuracy: number;
+};
+
+/** `watchPositionAsync` と同じく、import が壊れないためだけのスタブ（SS-169）。 */
+export async function watchHeadingAsync(
+  _callback: (heading: LocationHeadingObject) => void,
+  _errorHandler?: (reason: string) => void,
 ) {
   return { remove() {} };
 }

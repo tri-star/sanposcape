@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isLocationError } from "@/services/location/locationError";
 import {
+  MOCK_HEADING_DEGREES,
   MOCK_ORIGIN,
   MOCK_TRACK,
   createMockLocationService,
@@ -18,6 +19,20 @@ describe("createMockLocationService", () => {
     const service = createMockLocationService();
     await expect(service.getPermissionStatus()).resolves.toBe("granted");
     await expect(service.requestPermission()).resolves.toBe("granted");
+  });
+
+  it("getPrecision の既定は precise", async () => {
+    await expect(createMockLocationService().getPrecision()).resolves.toBe("precise");
+  });
+
+  it("precision: 'approximate' を渡すと approximate を返す", async () => {
+    const service = createMockLocationService({ precision: "approximate" });
+    await expect(service.getPrecision()).resolves.toBe("approximate");
+  });
+
+  it("permission が granted でなければ precision の指定にかかわらず getPrecision は null", async () => {
+    const service = createMockLocationService({ permission: "denied", precision: "approximate" });
+    await expect(service.getPrecision()).resolves.toBeNull();
   });
 
   it("coordinates を上書きできる", async () => {
@@ -247,5 +262,47 @@ describe("createMockLocationService().startBackgroundTracking", () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(listener).toHaveBeenCalledTimes(1);
     sub.remove();
+  });
+});
+
+describe("createMockLocationService().watchHeading", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("購読を返した後に既定の方位を1回だけ通知する", async () => {
+    const listener = vi.fn();
+    const sub = await createMockLocationService().watchHeading(listener);
+    expect(listener).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(listener.mock.calls).toEqual([[MOCK_HEADING_DEGREES]]);
+    sub.remove();
+  });
+
+  it("heading: null なら通知しない", async () => {
+    const listener = vi.fn();
+    await createMockLocationService({ heading: null }).watchHeading(listener);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("通知の前に remove() すれば通知しない", async () => {
+    const listener = vi.fn();
+    const sub = await createMockLocationService({ heading: 90 }).watchHeading(listener);
+    sub.remove();
+    sub.remove();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("permission: 'denied' は permission_denied で reject する", async () => {
+    const service = createMockLocationService({ permission: "denied" });
+    await expect(service.watchHeading(() => {})).rejects.toSatisfy(
+      (e) => isLocationError(e) && e.code === "permission_denied",
+    );
   });
 });

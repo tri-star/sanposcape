@@ -35,6 +35,18 @@ class ProviderLoopRoute:
     inbound: ProviderRoute
 
 
+@dataclass(frozen=True)
+class ProviderAddress:
+    """逆ジオコーディングの結果（SS-138）。
+
+    `address` は郵便番号と国名を落とし半角に揃えた住所（例: `東京都千代田区丸の内1丁目9-1`）。
+    `building_name` は取れたときだけの建物名（Google の `premise` のうち番地ではないもの）。
+    """
+
+    address: str
+    building_name: str | None
+
+
 class GoogleMapsProvider(Protocol):
     def search_places(
         self,
@@ -57,3 +69,7 @@ class GoogleMapsProvider(Protocol):
         *,
         timeout_seconds: float,
     ) -> ProviderLoopRoute: ...
+
+    def reverse_geocode(
+        self, point: ProviderPoint, *, timeout_seconds: float
+    ) -> ProviderAddress | None: ...

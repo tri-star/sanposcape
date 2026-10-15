@@ -258,7 +258,7 @@ mock モードでは背面の記録を再現できない。Android は Google Pl
    `isForeground=true` が無い（前面サービスではなくなる。ServiceRecord 自体はしばらく一覧に残ることがある）。
 5. 散歩中に戻るキーでアプリを閉じ、位置を動かしてからランチャーで開き直す → 散歩が続き、閉じている間の区間もつながっている。
 6. 散歩中に最近使ったアプリからスワイプで消す → 通知が消える。開き直しても記録は再開しない。
-7. 位置情報の権限を「許可しない」にして散歩開始 → 従来どおり `walk-active-location-notice` が出る。
+7. 散歩開始後に設定アプリで位置情報の権限を取り消してアプリへ戻る → `walk-active-location-notice` が出る（拒否状態では散歩を開始できないため、開始後に取り消す。Android は権限の取り消しでプロセスが終了されることがあり、その場合は開き直す。散歩は非永続なので失われる）。
 
 ### iPhone 実機
 
@@ -270,6 +270,34 @@ iOS シミュレータは使えないので実機で確認する。実際に屋�
 `pnpm --filter mobile exec expo config --type introspect --json` の `_internal.modResults.ios.infoPlist` で確認する。
 インジケータは、使用中のみ権限なら `showsBackgroundLocationIndicator` に関係なく OS が常に出す。
 設定アプリの「常に」の出方と `showsBackgroundLocationIndicator` の関係は未検証なので、あわせて確認する（SS-161）。
+
+---
+
+## 位置情報の権限と「正確な位置情報」を確かめる（SS-160）
+
+前提: `EXPO_PUBLIC_LOCATION_MODE=real` の development build（mock モードは権限・精度を再現しない）。
+ネイティブの変更は無いので、ビルドの作り直しは不要。方針は ADR-M-022。
+
+### Android エミュレータ（API 31 以上）
+
+1. アプリの権限を消してからピンタブに着地する → ダイアログで「許可しない」を選ぶ。
+   - 地図（代替の範囲）が出る。
+   - `pin-tab-location-notice` に「現在地は表示されません。ピンは地図を長押しして登録できます。」が出る。
+   - 長押しで `/pins/new` へ進める。
+2. ナビタブ・アカウント・設定が普通に使える。
+3. `pin-tab-location-notice-open-settings` → 設定アプリで位置情報を「アプリの使用中のみ許可」にする → アプリへ戻る。
+   - 再試行を押さなくても案内が消え、地図が現在地へ移動する。
+4. 位置情報の権限で「正確な位置情報を使用」をオフにする → 散歩開始画面を開く。
+   - `walk-start-approximate-notice` が出る。
+   - 散歩を始めると `walk-active-approximate-notice` が出て、バッジが「位置が大まか」になる。
+   - 設定でオンに戻してアプリへ戻ると、どちらも消える。
+   - 注記: エミュレータでは「おおよその位置情報」だと現在地の取得に失敗することがある（トラブルシュート参照）。その場合は `walk-start-location-notice` が出て精度の案内は確認できない。確実な確認は実機で行う。
+5. 権限の取り消しは `adb shell pm revoke com.sanposcape.app.dev android.permission.ACCESS_FINE_LOCATION`（＋ `ACCESS_COARSE_LOCATION`）で行い、アプリを再起動する。
+
+### iPhone 実機
+
+- 1〜4 と同じ流れを、iOS の「設定 › プライバシーとセキュリティ › 位置情報サービス › アプリ」で確認する（「正確な位置情報」のスイッチ）。
+- 大まかな位置で散歩を記録し、背景での点の頻度と保存結果を見る（ADR-M-022 の実機確認事項）。
 
 ---
 

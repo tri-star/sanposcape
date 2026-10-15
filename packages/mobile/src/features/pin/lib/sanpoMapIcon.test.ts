@@ -20,6 +20,7 @@ const pin = (id: string, sanpoMapId: string): PinSummary => ({
   sanpoMapId,
   name: null,
   location: { latitude: 35, longitude: 139 },
+  archived: false,
 });
 
 describe("対応表", () => {

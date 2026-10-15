@@ -19,9 +19,10 @@ tags:
 - runFlow: subflows/start-walk-from-spot.yaml
 
 # 周回ルートが散歩中画面にも描かれていること（凡例の存在だけを見る。線の形・区間の数・文言は assert しない。ADR-M-004）
+# 凡例は歩いた軌跡（SS-168）だけでも出るため、周回ルートの項目（行き。同じ道の周回でも出る）を待つ。
 - extendedWaitUntil:
     visible:
-      id: "walk-active-route-legend"
+      id: "walk-active-route-legend-outbound"
     timeout: 10000
 
 # 散歩中はナビタブの idle 表示（カード・最近の散歩）を出さない（SS-147）

@@ -1,3 +1,4 @@
+import type { PinListFilterParams } from "@/features/pin/lib/pinMapFilter";
 import type { GeoBounds } from "@/features/pin/types";
 
 /**
@@ -19,11 +20,15 @@ export const PINS_QUERY_ROOT = ["pins"] as const;
 export const SANPO_MAPS_QUERY_KEY = ["sanpo-maps", "list"] as const;
 
 /**
- * 地図表示の取得（bbox）の key。今は取得条件が常に同じ（`archived: false` 固定）なのでフィルターを含めていない。
- * SS-174 で `buildListPinsParams` にフィルター引数を足すときは、この key にも含めること。
+ * 地図表示の取得（bbox）の key。`filter` は `GET /pins` に送る絞り込み（`toPinListFilterParams` の結果）を
+ * そのまま入れる（SS-174）。画面の選択肢ではなく送る条件で作るので、同じ条件になる選び方はキャッシュを共有する。
  */
-export function pinListQueryKey(sanpoMapId: string, bounds: GeoBounds) {
-  return ["pins", "list", { sanpoMapId, bounds }] as const;
+export function pinListQueryKey(
+  sanpoMapId: string,
+  bounds: GeoBounds,
+  filter: PinListFilterParams,
+) {
+  return ["pins", "list", { sanpoMapId, bounds, filter }] as const;
 }
 
 export function pinDetailQueryKey(pinId: string) {
@@ -50,4 +55,12 @@ export function pinTagSuggestionsQueryKey(sanpoMapId: string | null) {
  */
 export function sanpoMapPinsQueryKey(sanpoMapId: string) {
   return ["pins", "by-sanpo-map", sanpoMapId] as const;
+}
+
+/**
+ * ピン名の初期値（位置の住所。SS-138）。送る座標（小数6桁に丸めた値）で作る。
+ * ピンの保存で変わるものではないので `["pins"]` 配下に置かない（保存成功時の invalidate の対象外）。
+ */
+export function pinDefaultNameQueryKey(latitude: number, longitude: number) {
+  return ["pin-default-name", latitude, longitude] as const;
 }

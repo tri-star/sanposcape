@@ -2,6 +2,7 @@ import { ApiError } from "@/api/apiError";
 import { getPin, listPinPhotos, listPins } from "@/api/generated/endpoints/pins/pins";
 import type { ListPinPhotosParams } from "@/api/generated/model";
 import { buildListPinsParams } from "@/features/pin/lib/pinFetchBounds";
+import type { PinListFilterParams } from "@/features/pin/lib/pinMapFilter";
 import {
   toPinDetail,
   toPinListEntry,
@@ -35,7 +36,7 @@ export const PIN_PHOTO_PAGE_SIZE = 30;
  * 中断してよい）。
  */
 export async function fetchPinsInBounds(
-  input: { sanpoMapId: string; bounds: GeoBounds; limit?: number },
+  input: { sanpoMapId: string; bounds: GeoBounds; filter: PinListFilterParams; limit?: number },
   options: { signal?: AbortSignal },
 ): Promise<{ pins: PinSummary[]; hasMore: boolean }> {
   const params = buildListPinsParams(input);

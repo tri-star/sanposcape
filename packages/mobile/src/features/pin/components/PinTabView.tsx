@@ -11,12 +11,15 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
+import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
 import { PinMapStatusNotice } from "@/features/pin/components/PinMapStatusNotice";
 import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
 import { buildPinNewRouteParams } from "@/features/pin/lib/pinLocationPicker";
+import { isDefaultPinMapFilter } from "@/features/pin/lib/pinMapFilter";
 import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
+import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore";
 import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -45,6 +48,8 @@ const PIN_TAB_HINT =
  * - 長押しは `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
  *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
  * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
+ * - 表示するピンの絞り込み（SS-174）は地図右上のツール列の `PinMapFilterControl` から。状態は散歩中の地図と共有する
+ *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。
  * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  */
 export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
@@ -56,9 +61,11 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
   const { show } = toast;
   const [visibleRegion, setVisibleRegion] = useState<MapRegion | null>(null);
   const picker = usePinLocationPicker();
-  const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn });
+  const pinFilter = usePinMapFilterStore((state) => state.filter);
+  const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn, filter: pinFilter });
   const notice = resolvePinMapNotice({
     isSignedIn,
+    filtered: !isDefaultPinMapFilter(pinFilter),
     status: registered.status,
     errorCode: registered.errorCode,
     truncated: registered.truncated,
@@ -152,20 +159,24 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
           {picker.locationErrorCode !== null ? (
             <LocationPermissionNotice
               errorCode={picker.locationErrorCode}
+              context="map"
               onRetry={picker.retryLocation}
               testID="pin-tab-location-notice"
             />
           ) : null}
-          {picker.currentLocation ? (
+          {isSignedIn || picker.currentLocation ? (
             <View pointerEvents="box-none" style={styles.mapTools}>
-              <IconButton
-                icon="crosshair"
-                label="現在地"
-                variant="surface"
-                size="sm"
-                onPress={picker.recenter}
-                testID="pin-tab-recenter"
-              />
+              {isSignedIn ? <PinMapFilterControl testIDPrefix="pin-tab-pin-filter" /> : null}
+              {picker.currentLocation ? (
+                <IconButton
+                  icon="crosshair"
+                  label="現在地"
+                  variant="surface"
+                  size="sm"
+                  onPress={picker.recenter}
+                  testID="pin-tab-recenter"
+                />
+              ) : null}
             </View>
           ) : null}
         </View>

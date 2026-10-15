@@ -1,8 +1,32 @@
 # ADR-014: Claude Code のハーネスは、メインが計画・実装し、レビューは観点で分けたレビュアーに任せる
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-14（SS-206）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **計画・実装・検証はメインが直接行う**。領域別 workflow・planner・developer への委譲はしない。プランは `tmp/<issue-id>/plan.md` に短く書き、
+  方針・影響範囲・更新する文書・プライバシーへの影響・完了条件・判断の記録を持つ（シグネチャは書かない）。（本文: 決定1、SS-184 追補）
+- **領域の規約は各 package の `AGENTS.md` から辿る docs・ADR にだけ置き、skill・agent は「X を読む」とだけ書く**。（本文: 決定2）
+- **サブエージェントは広い調査・独立したレビュー・量の多い機械的な変更の3用途に絞る**。（本文: 決定3）
+- **レビューは層ではなく観点で分ける**。`change-reviewer`（毎回）、`doc-maintainer`（毎回、並列）、条件付きの `security-reviewer`。
+  security の条件には、認証・認可、入力、公開範囲、秘密情報、依存、CI に加え、[データ取扱い台帳](../privacy/data-inventory.md)の対象パスに触れる差分と、パスに当たらなくても利用者のデータの扱いを変える差分を含み、
+  `security-reviewer` は観点6で台帳・ポリシー・App Privacy の申告との整合を確かめる。観点ごとの確認結果の出力と、反証してからの指摘を強制する。（本文: 決定4、SS-184 追補）
+- **文書の乖離はプラン・doc-maintainer・docs-lint・定期の棚卸しの4段で防ぐ**。（本文: 決定5）
+- **agent-memory は領域（`backend/`・`mobile/`・`common/`）で分け、メインは各 `AGENTS.md` の指示で `MEMORY.md` を読む**。（本文: 決定6）
+- **Web フロントエンド（`packages/lp`）もメインが直接行う**。旧 frontend-* の中身は参照資料として残す。（本文: 決定7）
+- **メモリのアクセスログは作業ツリーの外に溜め、PR 作成時の収穫でリポジトリへ移す**。（本文: 決定8）
+- **承認を待たずに推奨案で進めて判断を記録する方針、PR 作成 → task-status-sync → knowledge-harvest の順序、3回失敗で止まる条件は残す**。（本文: 決定9）
+
+### 移行の確認
+
+- **Codexの取り込み基準はSS-206で更新済み**。SS-202〜205の再構成とSS-184の台帳連携を評価し、観点別の逐次レビュー構成へ適応する。（本文: SS-206追補）
+
 ## 日付
 
-2026-10-12（SS-194 の方針決定、SS-202・SS-203・SS-204 で実装）
+2026-10-12（SS-194 の方針決定、SS-202・SS-203・SS-204 で実装）、2026-10-13 追補（SS-184）、2026-10-14 追補（SS-206）
 
 ## コンテキスト
 
@@ -19,13 +43,14 @@ Codex 側は既に「メインが計画から実装まで担い、独立レビ�
 
 ## 決定
 
-1. **計画・実装・検証はメインのエージェントが直接行う。** 領域別 workflow、planner、developer への委譲をやめる。プランは `tmp/<issue-id>/plan.md` に短く書く（方針・影響範囲・更新する文書・完了条件・判断の記録）。シグネチャまでは書かない。
+1. **計画・実装・検証はメインのエージェントが直接行う。** 領域別 workflow、planner、developer への委譲をやめる。プランは `tmp/<issue-id>/plan.md` に短く書く（方針・影響範囲・更新する文書・完了条件・判断の記録）（**SS-184 追補**: 「プライバシーへの影響」欄を必須で足した）。シグネチャまでは書かない。
 2. **領域の規約は正本にだけ置く。** 各 package の `AGENTS.md` から辿る docs・ADR が正本で、skill・agent には「X を読む」とだけ書く。
 3. **サブエージェントは3つの用途に絞る。** 広い範囲の調査（Explore を並列で）、独立したレビュー、意図が明確で量の多い機械的な変更（Sonnet に短いテンプレートで任せる。`task-workflow/references/delegation.md`）。
 4. **レビューは層ではなく観点で分ける**（`change-review` skill）。
    - 基本のレビュアー `change-reviewer`（毎回1体、メインと同じモデル）: 変更全体・プラン・関連 ADR を層をまたいで見る
    - `doc-maintainer`（毎回、change-reviewer と並列、Sonnet）: ADR 以外の文書の乖離
    - 観点別のレビュアー（条件付き）: 今は `security-reviewer` だけ。認証・認可、入力の扱い、外部への公開範囲、秘密情報に触れる差分で起動し、変更全体を見せる
+     （**SS-184 追補**: データ取扱い台帳の対象パスに触れる差分と、パスに当たらなくても利用者のデータの扱いを変える差分も起動の条件に足し、観点6「台帳との整合」を足した）
    - 早めの打ち切りを防ぐため、観点ごとに「何を確認したか／問題なしならその根拠」を必ず出力させる。指摘は「本当に問題が起きるか」で反証してから返させる
 5. **文書の乖離は4段で防ぐ。** (1) プランに「更新する文書」を書いて予防する。(2) 独立した doc-maintainer を毎回起動する。(3) docs-lint の機械検査（SS-205）。(4) knowledge-review の定期棚卸しで、ワークフロー外の変更による乖離を拾う（SS-204）。
 6. **agent-memory は agent 名ではなく領域で分ける**（SS-202）。`backend/`・`mobile/`・`common/`。メインは subagent の `memory: project` による自動読込を使えないので、各 `AGENTS.md` の指示で `MEMORY.md` を読む。レビューで繰り返し使える確認項目は、メモリではなく `change-review/references/` に置く。
@@ -92,11 +117,35 @@ Codex 側は既に「メインが計画から実装まで担い、独立レビ�
 - 削除した agent / skill（backend / mobile / frontend の workflow、planner・developer 6体、reviewer 9体）は Git 履歴から復元できる（SS-203 の直前のコミット）
 - ~~task-workflow の終了手順（アクセスログのコミット）の簡素化は SS-204 で行う~~ → SS-204 で決着（決定8）
 - ~~docs-lint の機械検査は SS-205 で行う~~ → SS-205 で決着（`scripts/knowledge/check-doc-references.py`）
-- Codex 側への取り込みは SS-206 で `import-claude-skill` を通して確認する。Codex は既に同様の構成のため、多くは対応不要の見込み
+- ~~Codex 側への取り込みは SS-206 で確認する~~ → SS-206で再構成と台帳連携を評価し取り込み基準を更新（下記追補）。
+  （**SS-184 追補**: 2026-10-13 時点で基準は SS-193 のまま。SS-184 は関係するユニットに未評価の SS-203 の変更が含まれるため基準を進めず、意図だけを Codex に手で適応した）
+
+## SS-184 追補: 計画とレビューにデータ取扱い台帳との整合確認を組み込む
+
+プライバシーポリシーとのずれは backend・mobile の変更で生まれるが、「データの扱いを変えたら本文を見直す」規則は `packages/lp/AGENTS.md` にしか無く、
+その作業中には読まれなかった。そこで、ポリシーと App Privacy の申告の正本として [データ取扱い台帳](../privacy/data-inventory.md) を置き
+（決定の本体は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-184 追補）、この ADR の構成に次の形で組み込んだ。
+課題の起票時は planner・developer・領域別の security-reviewer への組み込みを想定していたが、決定1・4で廃止済みのため読み替えた。
+
+### 決定
+
+- **プランに「プライバシーへの影響」欄を必須にする**（`task-workflow` 手順3。旧 planner の役割）。台帳の対象パスに触れるか、データの取得・送信・保存・削除が変わるかを書き、
+  影響が無い場合も理由を1行書く。影響があれば、台帳・ポリシー本文と `revisedOn`・申告の更新を実装の範囲に含める（同 手順4。旧 developer の役割）。
+- **`change-review` の security の条件に「台帳の対象パスに触れる差分」と「パスに当たらなくても利用者のデータの取得・送信・保存・削除・公開範囲を変える差分」を足し、`security-reviewer` に観点6「台帳との整合」を足す**（旧 backend / mobile の security-reviewer の役割）。
+  観点6は攻撃の成立ではなく食い違いの実在で確かめ、食い違う台帳の行・ポリシーの節を示させる。ポリシーの文面の良し悪しは指摘にしない。
+  - 却下: プライバシー専用の観点別レビュアーを足す案。security と見る対象（ログ・公開範囲・送信内容）が重なり、レビュアーが増える。
+  - 却下: 条件に足さず、`security-reviewer` の観点だけを足す案。DB モデルの列の追加やログの追加は既存の security の条件に当たらないことがあり、レビュアーが起動されない。
+- **対象パスは台帳にだけ書く。** skill・agent からは台帳を参照する（決定2）。
+- **Codex 側は `task-workflow`・`change-review`・`adversarial_reviewer` に同じ意図を適応した。** 取り込みの基準は進めていない（移行・対応事項）。
+
+## SS-206追補: Codexへの取り込みの確認
+
+SS-184で未評価だった再構成は6466ba7で評価・適応済み。その後PR #165のsource変更3unitもimport-claude-skillで評価し、Codexの計画の影響欄、security起動条件、6番目の観点、security参照に反映して基準を更新した。SS-184時点の基準未更新の説明は当時の経緯である。CodexはADR-010に従い、単一reviewer型を観点別の独立文脈で逐次実行する。
 
 ## 関連情報
 
 - [ADR-010: Astra向けハーネスとClaude定義の差分取り込み](./ADR-010-codex-astra-harness-and-incremental-import.md)（Codex 側の同様の再編）
 - [知識の置き場所ガイドライン](../knowledge-management.md)
 - `.claude/skills/task-workflow/SKILL.md`、`.claude/skills/change-review/SKILL.md`
-- Plane: SS-194（親）、SS-202〜SS-206
+- Plane: SS-194（親）、SS-202〜SS-206、SS-184（データ取扱い台帳との整合確認）
+- [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-184 追補（データ取扱い台帳を正本にする）

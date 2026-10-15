@@ -3,6 +3,7 @@ import { useCallback } from "react";
 
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { RecentWalksSection } from "@/features/history/components/RecentWalksSection";
+import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
 import { RegisteredPinsMapLayer } from "@/features/pin/components/RegisteredPinsMapLayer";
 import { WalkActiveView } from "@/features/walk/components/WalkActiveView";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
@@ -12,7 +13,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 /**
  * 散歩中（ナビタブ）。`features/walk` は `features/pin` を import しない規約を保つため、
  * 登録済みピンのレイヤー（`RegisteredPinsMapLayer`）の合成と認証値・フラグの注入はこのルートが担う
- * （SS-118。`docs/architecture-guideline.md`「認証の扱い」）。
+ * （SS-118。`docs/architecture-guideline.md`「認証の扱い」）。表示するピンの絞り込みのボタン（`PinMapFilterControl`）も
+ * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。
  * `features/walk` は `features/history` も import しないため、散歩していないときの
  * 「最近の散歩」（`RecentWalksSection`）もこのルートが合成して `idleSection` に渡す（SS-147）。
  */
@@ -43,6 +45,11 @@ export default function WalkActiveRoute() {
     [showRegisteredPins, handleSelectPin],
   );
 
+  // ピンを描かないときは絞り込みのボタンも出さない（効く対象が無いため）。
+  const mapTools = showRegisteredPins ? (
+    <PinMapFilterControl testIDPrefix="walk-active-pin-filter" />
+  ) : null;
+
   // 散歩していないときの「最近の散歩」（features/history）。features/walk は features/history を import しない
   // ため、ここで合成して slot に渡す（SS-147。renderMapLayers と同じ形）。
   // ゲストは記録を持てず GET /walks が 401 になるだけなので、セクションごと出さない
@@ -51,5 +58,11 @@ export default function WalkActiveRoute() {
     <RecentWalksSection testIDPrefix="walk-active-recent-walks" />
   ) : null;
 
-  return <WalkActiveView renderMapLayers={renderMapLayers} idleSection={idleSection} />;
+  return (
+    <WalkActiveView
+      renderMapLayers={renderMapLayers}
+      mapTools={mapTools}
+      idleSection={idleSection}
+    />
+  );
 }

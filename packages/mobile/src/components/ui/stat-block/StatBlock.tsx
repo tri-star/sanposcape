@@ -40,8 +40,14 @@ export function StatBlock({
       style={[styles.root, { alignItems: align === "center" ? "center" : "flex-start" }, style]}
     >
       <View style={styles.valueRow}>
+        {/*
+          幅の足りない値を切らずに縮める安全策（端末の文字サイズを大きくしたときなど）。
+          並べる側は、想定する値が既定の文字サイズで収まる配置にしておく（例: WalkStatGrid）。
+        */}
         <Text
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
           style={[
             styles.value,
             {
@@ -68,14 +74,18 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     alignItems: "baseline",
     gap: 3,
+    maxWidth: "100%",
   },
   value: {
+    // 値の側だけが縮む（単位は縮めない）
+    flexShrink: 1,
     fontWeight: theme.typography.weight.heavy,
     color: theme.colors.textPrimary,
     // 数字が更新されても幅が揺れないようにする
     fontVariant: ["tabular-nums"],
   },
   unit: {
+    flexShrink: 0,
     fontSize: theme.typography.size.sm,
     fontWeight: theme.typography.weight.medium,
     color: theme.colors.textSecondary,

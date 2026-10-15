@@ -44,7 +44,10 @@ export function toPinPhoto(read: PinPhotoRead, options: { apiBaseUrl: string }):
   };
 }
 
-/** `location` が `isValidCoordinate` を満たさなければ null（Marker に渡す直前の防波堤）。 */
+/**
+ * `location` が `isValidCoordinate` を満たさなければ null（Marker に渡す直前の防波堤）。
+ * `archived` の読み方は `toPinListEntry` の JSDoc を参照（SS-174）。
+ */
 export function toPinSummary(read: PinListItemRead): PinSummary | null {
   if (!isValidCoordinate(read.location)) {
     return null;
@@ -54,6 +57,7 @@ export function toPinSummary(read: PinListItemRead): PinSummary | null {
     sanpoMapId: read.sanpo_map_id,
     name: read.name,
     location: { latitude: read.location.latitude, longitude: read.location.longitude },
+    archived: read.archived === true,
   };
 }
 

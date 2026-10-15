@@ -3,7 +3,10 @@ import { Marker } from "react-native-maps";
 
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
-import { pinDisplayName } from "@/features/pin/lib/pinDetailState";
+import {
+  ARCHIVED_PIN_MARKER_OPACITY,
+  registeredPinMarkerAccessibilityLabel,
+} from "@/features/pin/lib/pinStatus";
 import { sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
 import type { RegisteredPin } from "@/features/pin/types";
 
@@ -32,6 +35,10 @@ export type RegisteredPinMarkersProps = {
  * 付け、スクリーンリーダーでも何のマーカーかが分かるようにする（SS-118 ローカルレビュー QA-S1。
  * ただしジェスチャー操作自体の代替導線は無い。ADR-M-012 の既知の限界を参照）。
  *
+ * アーカイブ済みのピン（地図の絞り込みで「アーカイブ済みも表示」にしたときだけ来る）は `Marker` の
+ * `opacity` で半透明にし、読み上げにも状態を入れる（SS-174）。`opacity` は子 View ではなく Marker 自身の
+ * プロパティだが、状態が変わったときに確実に作り直すよう key にも含める。
+ *
  * `React.memo` で包み、`pins` の参照が変わらない限り再レンダーしない
  * （`WalkActiveView` は経過時間で毎秒再レンダーされるため）。
  */
@@ -44,15 +51,16 @@ export const RegisteredPinMarkers = memo(function RegisteredPinMarkers({
     <>
       {pins.map((pin) => (
         <Marker
-          key={`${pin.id}:${pin.sanpoMapIcon}`}
+          key={`${pin.id}:${pin.sanpoMapIcon}:${pin.archived}`}
           identifier={pin.id}
           coordinate={pin.location}
           {...REGISTERED_PIN_PLACEMENT}
           tracksViewChanges={false}
+          opacity={pin.archived ? ARCHIVED_PIN_MARKER_OPACITY : 1}
           onPress={() => onSelectPin(pin.id)}
           testID={`${testIDPrefix}-${pin.id}`}
           accessibilityRole="button"
-          accessibilityLabel={`${pinDisplayName(pin.name)}の詳細を開く`}
+          accessibilityLabel={registeredPinMarkerAccessibilityLabel(pin)}
         >
           <MapPin {...sanpoMapPinAppearance(pin.sanpoMapIcon)} size={REGISTERED_PIN_SIZE} />
         </Marker>

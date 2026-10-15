@@ -1,5 +1,5 @@
 import type { WalkDetailRead } from "@/api/generated/model";
-import { formatPace } from "@/features/history/lib/walkMetrics";
+import { toAverageSpeedKmh } from "@/features/history/lib/walkMetrics";
 import type { WalkDetail } from "@/features/history/types";
 import { formatDateLabel, formatTimeRangeLabel, parseIsoDate } from "@/lib/dateLabel";
 import { formatClock } from "@/lib/formatClock";
@@ -29,7 +29,7 @@ export function toWalkDetail(read: WalkDetailRead, now: Date = new Date()): Walk
     },
     elapsedLabel: formatClock(Math.floor(toNonNegative(read.duration_seconds))),
     distanceKm: toKilometers(read.distance_meters),
-    paceLabel: formatPace(read.duration_seconds, read.distance_meters),
+    averageSpeedKmh: toAverageSpeedKmh(read.duration_seconds, read.distance_meters),
     track: read.track
       .map((point) => ({ latitude: point.latitude, longitude: point.longitude }))
       .filter(isValidCoordinate),

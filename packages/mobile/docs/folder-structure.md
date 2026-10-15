@@ -28,7 +28,7 @@ packages/mobile/
 │   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
-│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice。SS-124）
+│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160。地図の子として現在地の向きを描く CurrentHeadingBeam。SS-169）
 │   │   └── legal/             #   法的文書への導線（LegalDocumentLink と、その薄いラッパー PrivacyPolicyLink / TermsLink、認証画面の同意文言 LegalConsentNotice。settings と auth から使う。SS-158 / SS-187）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
@@ -97,7 +97,7 @@ packages/mobile/
 ### `src/components/` — 機能に依存しない再利用UI
 - `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。
   - **地図オーバーレイ**も `ui/` の1カテゴリとして扱う（例: `ui/map-pin/MapPin.tsx`、
-    `ui/route-polyline/RoutePolyline.tsx`）。`RoutePolyline` は `MapView` の子としてしか描画できず
+    `ui/route-polyline/RoutePolyline.tsx`、現在地の向きの扇形 `ui/heading-beam/HeadingBeam.tsx`。SS-169）。`RoutePolyline` は `MapView` の子としてしか描画できず
     ギャラリーに載せられない。`MapPin` は SVG の View でギャラリーに載せられるが、基準点は地図画面でしか
     確認できない（[pages-components-guideline](./pages-components-guideline.md) 参照）。
     `ui/map-pin/mapPinGeometry.ts`（形・基準点を求める純粋関数）は `mapPinGeometry.test.ts` を併置する。
@@ -143,6 +143,9 @@ packages/mobile/
     サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
     散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
   - 判断の背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) を参照。
+  - 実例3: `features/pin/store/usePinMapFilterStore.ts`（地図に描く登録済みピンの絞り込み。ピンタブと散歩中の地図で共有する。
+    散歩中の地図へは `app/` のルートが `PinMapFilterControl` を合成するので、store を参照するのは features/pin だけ。
+    これも永続化しない（アプリの再起動で既定に戻る）。判断の背景は [ADR-M-021](../adr/ADR-M-021-pin-visit-status-and-archive.md) D9。SS-174）。
   - **feature をまたぐイベントで他 feature の store をクリアしたくなったら、直接 import せず
     `src/lib/` に後始末レジストリを置き、クリアされる側（store）が自分の後始末を登録する**
     （ストアのファイル末尾で1回）。呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに
@@ -197,7 +200,7 @@ packages/mobile/
 > `components/` 直下にファイルを並べて肥大化させない。カテゴリのサブフォルダに分ける。
 
 - 実際の昇格例: `LocationPermissionNotice`（`features/walk/components/` → `src/components/location/`。
-  `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `features/walk` の画面と `features/pin` の `PinMapFullScreen` / `PinTabView`）。
+  `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `WalkStartView` / `WalkActiveView` / `PinTabView`）。
 - 実際の昇格例: `TabActionBar`（`features/pin/components/PinTabActionBar.tsx` → `src/components/layout/TabActionBar.tsx`。
   アカウントタブの下部の帯でも使うため。SS-148）。
 - 昇格の手順（`components/` / `src/lib/` / `src/store/` 共通）: 移動先に同じ実装のファイルを作り（JSDoc に昇格の理由と元の場所を書く）→
@@ -266,7 +269,7 @@ packages/mobile/
   `useScreenBack.ts`（画面の「戻る」導線を一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
   `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
   `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、
-  `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。`features/walk` と `features/pin` から使うため
+  `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。拒否中は前面復帰で権限の状態だけを確かめて回復する（SS-160）。`features/walk` と `features/pin` から使うため
   SS-124 で `features/walk/hooks/` から昇格）、`useOpenExternalUrl.ts`（外部の Web ページを開く。アプリ内ブラウザ → OS ブラウザ。SS-158）。
 - `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
   （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を

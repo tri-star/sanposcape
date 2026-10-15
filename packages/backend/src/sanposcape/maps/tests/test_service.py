@@ -8,6 +8,7 @@ from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsUnavailableError,
 )
 from sanposcape.integrations.google_maps.provider import (
+    ProviderAddress,
     ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
@@ -16,7 +17,11 @@ from sanposcape.integrations.google_maps.provider import (
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.geometry import haversine_meters
 from sanposcape.maps.loop_route import loop_waypoint_candidates
-from sanposcape.maps.schemas import PlaceSearchRequest, WalkingRouteRequest
+from sanposcape.maps.schemas import (
+    PlaceSearchRequest,
+    ReverseGeocodeRequest,
+    WalkingRouteRequest,
+)
 from sanposcape.maps.service import MapsService
 
 
@@ -470,3 +475,59 @@ def test_get_loop_walking_route_logs_never_include_coordinates(
     assert str(_LOOP_DESTINATION.latitude) not in caplog.text
     assert str(_LOOP_RIGHT.via.latitude) not in caplog.text
     assert str(_LOOP_LEFT.via.latitude) not in caplog.text
+
+
+# --- reverse_geocode（SS-138） -------------------------------------------------
+
+
+class GeocodeProvider(FakeProvider):
+    def __init__(self, result=None, error: Exception | None = None) -> None:
+        super().__init__()
+        self.result = result
+        self.error = error
+        self.calls: list[tuple[ProviderPoint, float]] = []
+
+    def reverse_geocode(self, point, *, timeout_seconds):
+        self.calls.append((point, timeout_seconds))
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+def _geocode_service(provider) -> MapsService:
+    return MapsService(provider, 20, 20, 10, 8, geocode_timeout_seconds=5)
+
+
+def test_reverse_geocode_returns_address_and_building_name() -> None:
+    provider = GeocodeProvider(ProviderAddress("東京都千代田区丸の内1丁目9-1", "テストビル"))
+
+    response = _geocode_service(provider).reverse_geocode(
+        ReverseGeocodeRequest(location={"latitude": 35.68, "longitude": 139.76})
+    )
+
+    assert response.address == "東京都千代田区丸の内1丁目9-1"
+    assert response.building_name == "テストビル"
+    assert provider.calls == [(ProviderPoint(35.68, 139.76), 5)]
+
+
+def test_reverse_geocode_returns_nulls_when_no_address() -> None:
+    response = _geocode_service(GeocodeProvider(None)).reverse_geocode(
+        ReverseGeocodeRequest(location={"latitude": 0, "longitude": 0})
+    )
+
+    assert response.address is None
+    assert response.building_name is None
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (GoogleMapsQuotaError(), MapsQuotaError),
+        (GoogleMapsUnavailableError(), MapsUnavailableError),
+    ],
+)
+def test_reverse_geocode_maps_provider_failures(error, expected) -> None:
+    with pytest.raises(expected):
+        _geocode_service(GeocodeProvider(error=error)).reverse_geocode(
+            ReverseGeocodeRequest(location={"latitude": 35, "longitude": 139})
+        )

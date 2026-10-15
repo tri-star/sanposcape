@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { fetchPinsInBounds } from "@/features/pin/api/pinReadApi";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { resolvePinFetchBounds } from "@/features/pin/lib/pinFetchBounds";
+import { toPinListFilterParams, type PinMapFilter } from "@/features/pin/lib/pinMapFilter";
 import { pinListQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { combineRegisteredPinListQueries } from "@/features/pin/lib/pinRead";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
@@ -34,6 +35,8 @@ export type UseRegisteredPinsOptions = {
   visibleRegion: MapRegion | null;
   /** ルートから注入（サインイン済み && pin_registration ON）。false なら一切通信しない。 */
   enabled: boolean;
+  /** 表示するピンの絞り込み（SS-174。呼び出し元が `usePinMapFilterStore` から渡す）。 */
+  filter: PinMapFilter;
 };
 
 /**
@@ -43,6 +46,11 @@ export type UseRegisteredPinsOptions = {
  *
  * 表示範囲内のピンが上限（`PIN_MAP_FETCH_LIMIT`）を超えてもページングは続けない
  * （ルート ADR-009 の持ち越しの決着。ADR-M-012 D3）。
+ *
+ * 絞り込み（アーカイブ済み・訪問状況）は `GET /pins` のクエリで行い、queryKey にも入れる（SS-174。ADR-M-021）。
+ * 条件を変えると新しい key の取得になり、取得が終わるまでピンは出ず `status` が "loading" になる
+ * （`useQueries` は key が変わるとオブザーバを作り直すため、`keepPreviousData` に前回のデータが渡らない。
+ * 前の条件のピン（例: 非表示に戻したアーカイブ済み）が残ることはない）。
  *
  * 各ピンに地図のアイコンを付ける（SS-172）。地図のアイコンを変えると一覧キャッシュが更新され、ここで付け直される。
  */
@@ -70,12 +78,13 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
   // クエリの実データが変わらない限り戻り値（`pins` を含む）の参照が安定するため、
   // `WalkActiveView` の毎秒の再レンダーで `RegisteredPinMarkers` の `React.memo` が
   // 無効化されない（SS-118 ローカルレビュー ARCH-W1。詳細は `pinRead.ts` の JSDoc）。
+  const filterParams = toPinListFilterParams(options.filter);
   const combined = useQueries({
     queries: maps.maps.map((map) => ({
-      queryKey: pinListQueryKey(map.id, fetchBounds ?? UNRESOLVED_BOUNDS),
+      queryKey: pinListQueryKey(map.id, fetchBounds ?? UNRESOLVED_BOUNDS, filterParams),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchPinsInBounds(
-          { sanpoMapId: map.id, bounds: fetchBounds ?? UNRESOLVED_BOUNDS },
+          { sanpoMapId: map.id, bounds: fetchBounds ?? UNRESOLVED_BOUNDS, filter: filterParams },
           { signal },
         ),
       // 一時障害の再送は customFetch の transientRetry が既に行うため重ねない。

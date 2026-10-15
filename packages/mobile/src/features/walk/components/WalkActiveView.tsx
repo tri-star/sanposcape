@@ -12,6 +12,7 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
+import { ApproximateLocationNotice } from "@/features/walk/components/ApproximateLocationNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
 import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
@@ -21,6 +22,7 @@ import {
   resolveAddPinAction,
   resolveMapLongPressPinAction,
 } from "@/features/walk/lib/addPinAction";
+import { shouldShowApproximateLocationNotice } from "@/features/walk/lib/locationPrecisionNotice";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -36,6 +38,11 @@ export type WalkActiveViewProps = {
    * 登録済みピンのレイヤーを合成して渡す。省略時は何も重ねない。
    */
   renderMapLayers?: (visibleRegion: MapRegion | null) => ReactNode;
+  /**
+   * 散歩中の地図の右上のツール列（現在地ボタンの上）に足すボタン（SS-174）。`renderMapLayers` と同じ理由で、
+   * ルートが登録済みピンの絞り込み（`PinMapFilterControl`）を合成して渡す。省略時は現在地ボタンだけ。
+   */
+  mapTools?: ReactNode;
   /**
    * 散歩していないとき、`WalkIdleNotice` の下に描く追加セクション（SS-147）。
    * `features/walk` は `features/history` を import しないため、ルート（`app/(tabs)/index.tsx`）が
@@ -54,7 +61,11 @@ export type WalkActiveViewProps = {
  * 出す（ピンの導線はピンタブに集約。SS-146/SS-147）。散歩中は地図の長押しでその地点のピン登録へ進める
  * （SS-124）。散歩中の地図には登録済みピンが重なる（ルートが合成。SS-118）。
  */
-export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewProps = {}) {
+export function WalkActiveView({
+  renderMapLayers,
+  mapTools,
+  idleSection,
+}: WalkActiveViewProps = {}) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -133,6 +144,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
   }
 
   const { activeWalk } = walk;
+  const approximateLocation = shouldShowApproximateLocationNotice(walk.locationPrecision);
 
   return (
     <View testID="walk-active-screen" style={styles.root}>
@@ -166,6 +178,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
       <WalkRouteMapView
         walkRoute={walk.walkRoute}
         currentPosition={walk.currentPosition}
+        trail={walk.points}
         destinationName={activeWalk.destination.name}
         recenterNonce={recenterNonce}
         height={322}
@@ -175,6 +188,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
         testID="walk-active-map"
       >
         <View style={styles.mapTools}>
+          {mapTools}
           <IconButton
             icon="crosshair"
             label="現在地"
@@ -191,9 +205,13 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
       {walk.trackingErrorCode !== null ? (
         <LocationPermissionNotice
           errorCode={walk.trackingErrorCode}
+          context="tracking"
           onRetry={walk.retryTracking}
           testID="walk-active-location-notice"
         />
+      ) : null}
+      {walk.trackingErrorCode === null && approximateLocation ? (
+        <ApproximateLocationNotice context="tracking" testID="walk-active-approximate-notice" />
       ) : null}
 
       <View style={styles.statsWrap}>
@@ -203,6 +221,7 @@ export function WalkActiveView({ renderMapLayers, idleSection }: WalkActiveViewP
           steps={walk.steps}
           paused={walk.paused}
           trackingStatus={walk.trackingStatus}
+          approximateLocation={approximateLocation}
           onTogglePause={walk.togglePause}
           onEnd={() => setEndDialogOpen(true)}
           onAddPin={handleAddPin}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   pinStatusAccessibilityLabels,
+  registeredPinMarkerAccessibilityLabel,
   resolveInitialVisited,
   resolvePinStatusBadges,
 } from "@/features/pin/lib/pinStatus";
@@ -52,5 +53,22 @@ describe("resolveInitialVisited", () => {
   it("散歩中の登録（clientWalkId あり）は true、ピンタブの長押し（なし）は false", () => {
     expect(resolveInitialVisited({ clientWalkId: "walk-1" })).toBe(true);
     expect(resolveInitialVisited({ clientWalkId: null })).toBe(false);
+  });
+});
+
+describe("registeredPinMarkerAccessibilityLabel", () => {
+  it("アーカイブ済みでなければ名前だけ", () => {
+    expect(registeredPinMarkerAccessibilityLabel({ name: "桜の木", archived: false })).toBe(
+      "桜の木の詳細を開く",
+    );
+  });
+
+  it("アーカイブ済みなら名前の直後に状態を入れる。名前が無ければ表示名を使う", () => {
+    expect(registeredPinMarkerAccessibilityLabel({ name: "桜の木", archived: true })).toBe(
+      "桜の木（アーカイブ済み）の詳細を開く",
+    );
+    expect(registeredPinMarkerAccessibilityLabel({ name: null, archived: true })).toBe(
+      "名前のないピン（アーカイブ済み）の詳細を開く",
+    );
   });
 });

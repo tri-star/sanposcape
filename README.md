@@ -11,8 +11,9 @@
 
 - [プロジェクト概要](./docs/project-overview.md) — 目的・MVP・技術スタック・ビジョン・用語集
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
+- [データ取扱い台帳](./docs/privacy/data-inventory.md) — 利用者のデータの取得・送信・保存・削除の正本。プライバシーポリシーと [App Privacy の申告](./docs/app-privacy-label.md) はここから書く
 - ADR（アーキテクチャ決定記録）
-  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
+  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）。ピン名の初期値の住所（Geocoding API。SS-138 追補）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
   - 横断: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
   - 横断: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - 横断: [ADR-004 シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./docs/adr/ADR-004-secrets-management-and-cicd-aws-credentials.md)
@@ -44,7 +45,10 @@
     - [ADR-M-017 ピンの編集・削除](./packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)
     - [ADR-M-018 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./packages/mobile/adr/ADR-M-018-background-walk-location-tracking.md)
     - [ADR-M-019 地図のアイコンと、マップピンの形・マーカーの基準点](./packages/mobile/adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)
+    - [ADR-M-020 アプリから外部の Web ページを開く方式](./packages/mobile/adr/ADR-M-020-external-web-pages.md)
     - [ADR-M-021 ピンの訪問状況とアーカイブ](./packages/mobile/adr/ADR-M-021-pin-visit-status-and-archive.md)
+    - [ADR-M-022 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./packages/mobile/adr/ADR-M-022-location-permission-flow-and-approximate-location.md)
+    - [ADR-M-023 地図上に現在地の向き（端末の方位）を扇形で表示する](./packages/mobile/adr/ADR-M-023-current-heading-on-map.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

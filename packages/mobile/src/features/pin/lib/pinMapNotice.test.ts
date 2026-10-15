@@ -8,6 +8,7 @@ const READY_INPUT = {
   errorCode: null,
   truncated: false,
   pinCount: 3,
+  filtered: false,
 };
 
 describe("resolvePinMapNotice", () => {
@@ -57,7 +58,17 @@ describe("resolvePinMapNotice", () => {
   });
 
   it("0件は empty", () => {
-    expect(resolvePinMapNotice({ ...READY_INPUT, pinCount: 0 })).toEqual({ kind: "empty" });
+    expect(resolvePinMapNotice({ ...READY_INPUT, pinCount: 0 })).toEqual({
+      kind: "empty",
+      filtered: false,
+    });
+  });
+
+  it("絞り込み中の0件は empty に filtered を立てる（SS-174）", () => {
+    expect(resolvePinMapNotice({ ...READY_INPUT, pinCount: 0, filtered: true })).toEqual({
+      kind: "empty",
+      filtered: true,
+    });
   });
 
   it("それ以外は none", () => {

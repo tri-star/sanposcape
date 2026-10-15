@@ -11,24 +11,36 @@ import {
 import type { GeoBounds } from "@/features/pin/types";
 
 const BOUNDS: GeoBounds = { south: 35.6, west: 139.7, north: 35.7, east: 139.8 };
+const FILTER = { archived: false } as const;
 
 describe("pinQueryKeys", () => {
   it("すべて PINS_QUERY_ROOT[0] で始まる", () => {
-    expect(pinListQueryKey("map-1", BOUNDS)[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)[0]).toBe(PINS_QUERY_ROOT[0]);
     expect(pinDetailQueryKey("pin-1")[0]).toBe(PINS_QUERY_ROOT[0]);
     expect(pinPhotosQueryKey("pin-1")[0]).toBe(PINS_QUERY_ROOT[0]);
     expect(pinTagSuggestionsQueryKey("map-1")[0]).toBe(PINS_QUERY_ROOT[0]);
   });
 
   it("同じ引数なら同じ構造のキーになる", () => {
-    expect(pinListQueryKey("map-1", BOUNDS)).toEqual(pinListQueryKey("map-1", { ...BOUNDS }));
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)).toEqual(
+      pinListQueryKey("map-1", { ...BOUNDS }, { archived: false }),
+    );
     expect(pinDetailQueryKey("pin-1")).toEqual(pinDetailQueryKey("pin-1"));
     expect(pinPhotosQueryKey("pin-1")).toEqual(pinPhotosQueryKey("pin-1"));
     expect(pinTagSuggestionsQueryKey("map-1")).toEqual(pinTagSuggestionsQueryKey("map-1"));
   });
 
   it("引数が異なれば異なる構造のキーになる", () => {
-    expect(pinListQueryKey("map-1", BOUNDS)).not.toEqual(pinListQueryKey("map-2", BOUNDS));
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)).not.toEqual(
+      pinListQueryKey("map-2", BOUNDS, FILTER),
+    );
+    // 絞り込みが違えば別のキャッシュ（SS-174）。
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)).not.toEqual(
+      pinListQueryKey("map-1", BOUNDS, {}),
+    );
+    expect(pinListQueryKey("map-1", BOUNDS, { visited: true })).not.toEqual(
+      pinListQueryKey("map-1", BOUNDS, { visited: false }),
+    );
     expect(pinDetailQueryKey("pin-1")).not.toEqual(pinDetailQueryKey("pin-2"));
     expect(pinTagSuggestionsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-2"));
     expect(pinTagSuggestionsQueryKey(null)).not.toEqual(pinTagSuggestionsQueryKey("map-1"));

@@ -62,7 +62,7 @@ bash scripts/mobile-tools/dev-doctor.sh
 
 ユーザーに依頼するときは次を伝える。
 
-- Google Cloud で **Places API (New)** と **Routes API** を有効化し、APIキーを発行する
+- Google Cloud で **Places API (New)**・**Routes API**・**Geocoding API**（ピン名の初期値の住所。SS-138）を有効化し、APIキーを発行する
 - `packages/backend/.env` の `GOOGLE_MAPS_SERVER_API_KEY` に設定する
 - 設定後は **api コンテナの作り直しが必要**
   （コンテナは作成時の環境変数を保持するので `.env` の書き換えだけでは反映されない）

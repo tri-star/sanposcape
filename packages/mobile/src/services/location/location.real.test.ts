@@ -5,6 +5,14 @@ const locationMocks = vi.hoisted(() => ({
   start: vi.fn<(taskName: string, options: unknown) => Promise<void>>(),
   stop: vi.fn<(taskName: string) => Promise<void>>(),
   hasStarted: vi.fn<(taskName: string) => Promise<boolean>>(),
+  getForegroundPermissions: vi.fn<() => Promise<unknown>>(),
+  watchHeading:
+    vi.fn<
+      (
+        callback: (heading: { trueHeading: number; magHeading: number; accuracy: number }) => void,
+        errorHandler?: (reason: string) => void,
+      ) => Promise<{ remove(): void }>
+    >(),
 }));
 
 // 通知権限の要求（Android 13 以上）。既定は iOS 扱い（ダイアログを出さない）。
@@ -28,6 +36,8 @@ vi.mock("expo-location", async (importOriginal) => ({
   startLocationUpdatesAsync: locationMocks.start,
   stopLocationUpdatesAsync: locationMocks.stop,
   hasStartedLocationUpdatesAsync: locationMocks.hasStarted,
+  getForegroundPermissionsAsync: locationMocks.getForegroundPermissions,
+  watchHeadingAsync: locationMocks.watchHeading,
 }));
 
 // ファイル実装ではなくメモリ実装の hub を共有 singleton として使う。
@@ -43,7 +53,8 @@ vi.mock("@/services/location/backgroundLocationTask", async () => {
 });
 
 import { backgroundSampleHub as hub } from "@/services/location/backgroundLocationTask";
-import { createRealLocationService } from "@/services/location/location.real";
+import { createRealLocationService, toHeadingDegrees } from "@/services/location/location.real";
+import { isLocationError } from "@/services/location/locationError";
 
 function taskData(timestamp: number) {
   return { locations: [{ coords: { latitude: 35, longitude: 139, accuracy: 5 }, timestamp }] };
@@ -54,11 +65,139 @@ beforeEach(() => {
   locationMocks.start.mockReset().mockResolvedValue(undefined);
   locationMocks.stop.mockReset().mockResolvedValue(undefined);
   locationMocks.hasStarted.mockReset().mockResolvedValue(false);
+  locationMocks.getForegroundPermissions
+    .mockReset()
+    .mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+  locationMocks.watchHeading.mockReset().mockResolvedValue({ remove() {} });
   rnMocks.platform.OS = "ios";
   rnMocks.platform.Version = "17.0";
   rnMocks.check.mockReset().mockResolvedValue(false);
   rnMocks.request.mockReset().mockResolvedValue("granted");
   vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+describe("createRealLocationService: getPrecision", () => {
+  it("iOS の reduced は approximate", async () => {
+    locationMocks.getForegroundPermissions.mockResolvedValue({
+      status: "granted",
+      granted: true,
+      canAskAgain: true,
+      ios: { accuracy: "reduced" },
+    });
+    await expect(createRealLocationService().getPrecision()).resolves.toBe("approximate");
+  });
+
+  it("Android の coarse は approximate", async () => {
+    locationMocks.getForegroundPermissions.mockResolvedValue({
+      status: "granted",
+      granted: true,
+      canAskAgain: true,
+      android: { accuracy: "coarse" },
+    });
+    await expect(createRealLocationService().getPrecision()).resolves.toBe("approximate");
+  });
+
+  it("精度の情報が無ければ precise", async () => {
+    await expect(createRealLocationService().getPrecision()).resolves.toBe("precise");
+  });
+
+  it("未許可は null", async () => {
+    locationMocks.getForegroundPermissions.mockResolvedValue({
+      status: "denied",
+      granted: false,
+      canAskAgain: false,
+    });
+    await expect(createRealLocationService().getPrecision()).resolves.toBeNull();
+  });
+
+  it("確認に失敗しても throw せず null", async () => {
+    locationMocks.getForegroundPermissions.mockRejectedValue(new Error("boom"));
+    await expect(createRealLocationService().getPrecision()).resolves.toBeNull();
+  });
+});
+
+describe("toHeadingDegrees", () => {
+  it("真北を優先する", () => {
+    expect(toHeadingDegrees({ trueHeading: 100, magHeading: 93, accuracy: 3 })).toBe(100);
+  });
+
+  it("真北が -1（取れない）なら磁北", () => {
+    expect(toHeadingDegrees({ trueHeading: -1, magHeading: 93, accuracy: 3 })).toBe(93);
+  });
+
+  it("Android の負の真北（西偏の地域で北を向いたとき）は [0, 360) に回して使う", () => {
+    // 磁北 2° + 偏角 -7.6°（東京）を Kotlin の % で求めると -5.6
+    expect(toHeadingDegrees({ trueHeading: -5.6, magHeading: 2, accuracy: 3 })).toBeCloseTo(
+      354.4,
+      5,
+    );
+  });
+
+  it("どちらも不正なら null", () => {
+    expect(toHeadingDegrees({ trueHeading: -1, magHeading: Number.NaN, accuracy: 0 })).toBeNull();
+  });
+});
+
+describe("createRealLocationService: watchHeading", () => {
+  it("複数の購読でも watchHeadingAsync は1回だけ呼び、全員に配る", async () => {
+    let emit:
+      | ((heading: { trueHeading: number; magHeading: number; accuracy: number }) => void)
+      | null = null;
+    const remove = vi.fn();
+    locationMocks.watchHeading.mockImplementation(async (callback) => {
+      emit = callback;
+      return { remove };
+    });
+    const service = createRealLocationService();
+    const a = vi.fn();
+    const b = vi.fn();
+
+    const subA = await service.watchHeading(a);
+    const subB = await service.watchHeading(b);
+    emit!({ trueHeading: -1, magHeading: 370, accuracy: 3 });
+
+    expect(locationMocks.watchHeading).toHaveBeenCalledTimes(1);
+    expect(a).toHaveBeenCalledWith(10);
+    expect(b).toHaveBeenCalledWith(10);
+
+    vi.useFakeTimers();
+    try {
+      subA.remove();
+      subB.remove();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(remove).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("開始後に失敗が届いたら null を配る（最後の向きを出し続けない）", async () => {
+    let emit:
+      | ((heading: { trueHeading: number; magHeading: number; accuracy: number }) => void)
+      | null = null;
+    let fail: ((reason: string) => void) | undefined;
+    locationMocks.watchHeading.mockImplementation(async (callback, errorHandler) => {
+      emit = callback;
+      fail = errorHandler;
+      return { remove() {} };
+    });
+    const listener = vi.fn();
+    await createRealLocationService().watchHeading(listener);
+
+    emit!({ trueHeading: 30, magHeading: 23, accuracy: 3 });
+    fail!("Heading updates not available");
+
+    expect(listener.mock.calls).toEqual([[30], [null]]);
+  });
+
+  it("開始の失敗は LocationError に正規化する", async () => {
+    locationMocks.watchHeading.mockRejectedValue(
+      Object.assign(new Error("denied"), { code: "ERR_DENIED_FOREGROUND_LOCATION_PERMISSION" }),
+    );
+    await expect(createRealLocationService().watchHeading(() => {})).rejects.toSatisfy(
+      (e) => isLocationError(e) && e.code === "permission_denied",
+    );
+  });
 });
 
 describe("createRealLocationService: startBackgroundTracking", () => {

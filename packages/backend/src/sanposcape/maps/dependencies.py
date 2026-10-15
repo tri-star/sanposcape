@@ -39,4 +39,5 @@ def get_maps_service(
         route_timeout_seconds=settings.google_maps_read_timeout_seconds,
         loop_route_enabled=settings.google_maps_loop_route_enabled,
         route_deadline_seconds=settings.google_maps_route_deadline_seconds,
+        geocode_timeout_seconds=settings.google_maps_read_timeout_seconds,
     )
