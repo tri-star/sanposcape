@@ -1,4 +1,4 @@
-"""写真の確定処理（検証・メタデータ除去・サムネイル生成・Copy）。
+"""写真の確定処理（検証・メタデータ除去・サムネイル生成・原本の Put）。
 
 `POST /pins` と `POST /pins/{pin_id}/photos` で共通（backend-plan.md 5.5）。DB や FastAPI
 に依存しない（S3 / Pillow の呼び出しのみ）。時間予算・並列度は呼び出し元（`pins/service.py`）
@@ -44,7 +44,7 @@ class PhotoUploadInput:
 
 @dataclass(frozen=True)
 class PreparedPhoto:
-    """検証・サムネイル生成まで終えた1枚分の結果（DB 書き込み・S3 Copy の直前まで進んだ状態）。"""
+    """検証・サムネイル生成まで終えた1枚分の結果（DB 書き込み・S3 への Put の直前の状態）。"""
 
     upload_id: uuid.UUID
     staging_key: str
@@ -60,10 +60,10 @@ class PreparedPhoto:
     thumbnail_height: int
     # 既定値を置かない: 組み立て元（`prepare()`）での渡し忘れを型で防ぐ。
     taken_at: datetime | None
-    # メタデータを除去して原本が変わったときの原本のバイト列（ADR-009 BK-10, SS-116）。
-    # None なら staging のままで良く、`commit()` は Copy する（変わったときだけ Put する）。
-    # 既定値を置かない: 渡し忘れるとメタデータ付きの staging がそのまま Copy されるため。
-    original_bytes: bytes | None
+    # 原本として保存するバイト列（メタデータを除去・検証済み。ADR-009 決定35, SS-116）。
+    # `commit()` は staging を Copy せず、常にこれを Put する。staging は検証の後でも
+    # 同じ枠の presigned POST で上書きされうるため、Copy すると未検証のバイト列が原本に入る。
+    original_bytes: bytes
 
 
 class PhotoAttacher:
@@ -80,8 +80,9 @@ class PhotoAttacher:
     `commit()`・`cleanup_staging()` の3つ全て）に共通の締め切りを1つだけ算出し、
     各メソッドに同じ `deadline_at` を渡す。こうすることで「確定処理全体が
     `PIN_PHOTO_CONFIRM_DEADLINE_SECONDS` 以内」という設計意図（backend-plan.md 5.5）を、
-    Copy/サムネイル Put・staging 削除まで含めて実現する（PR #93 T3/T4: 以前は `commit()`
-    冒頭の1回しか締め切りを見ておらず、Put が時間を使い切った後も Copy を開始しえた。
+    原本とサムネイルの Put・staging 削除まで含めて実現する（PR #93 T3/T4: 以前は `commit()`
+    冒頭の1回しか締め切りを見ておらず、Put が時間を使い切った後も（当時の）原本の Copy を
+    開始しえた。
     `cleanup_staging()` も締め切りの対象外で無期限に実行されていた）。
     """
 
@@ -162,7 +163,7 @@ class PhotoAttacher:
                 thumbnail_width=thumbnail.width,
                 thumbnail_height=thumbnail.height,
                 taken_at=item.taken_at,
-                original_bytes=cleaned if cleaned != data else None,
+                original_bytes=cleaned,
             )
 
         results: dict[uuid.UUID, PreparedPhoto] = {}
@@ -185,21 +186,23 @@ class PhotoAttacher:
         return [results[item.upload_id] for item in uploads]
 
     def commit(self, prepared: list[PreparedPhoto], *, deadline_at: float) -> None:
-        """検証済みの写真を確定する（サムネイル Put → staging から原本へ Copy）。
+        """検証済みの写真を確定する（サムネイル Put → 原本 Put）。
 
-        メタデータの除去で原本が変わった写真（`original_bytes` あり）は、Copy の代わりに
-        除去後のバイト列を原本のキーへ Put する（ADR-009 BK-10, SS-116）。
+        原本は `prepare()` で検証・メタデータ除去したバイト列を Put する（ADR-009 決定35,
+        SS-116。以前は staging から Copy していたが、検証の後に staging を上書きされると
+        未検証のバイト列が原本に入った）。
 
-        コピー先・サムネイルのキーは upload_id から決定的なので、再送では同じキーに
+        原本・サムネイルのキーは upload_id から決定的なので、再送では同じキーに
         上書きされるだけで冪等（backend-plan.md 5.5 手順5）。`prepare()` と同じ並列度・
         締め切りチェックを適用する（R2: 以前は逐次・無期限で、S3 が劣化した状況で
         Lambda の29秒ハード制限まで無制御に時間を消費しうる不具合があった）。
 
-        締め切りは Put の前だけでなく、**Put の後にも**確認する（PR #93 T3: 以前は
-        `commit_one` の先頭1回しか確認しておらず、Put が時間予算を使い切った後も
-        Copy が開始され、20秒を超えても成功を返しうる不具合があった）。さらに、
-        **全 Future を集約した後（＝最後の Copy が終わった後）にも**締め切りを確認する
-        （個々の Copy 呼び出し自体は `object_storage_read_timeout_seconds` で有界だが、
+        締め切りはサムネイルの Put の前だけでなく、**その後（原本の Put の前）にも**確認する
+        （PR #93 T3: 以前は `commit_one` の先頭1回しか確認しておらず、Put が時間予算を
+        使い切った後も（当時の）原本の Copy が開始され、20秒を超えても成功を返しうる不具合が
+        あった）。さらに、**全 Future を集約した後（＝最後の原本の Put が終わった後）にも**
+        締め切りを確認する（個々の Put 呼び出し自体は `object_storage_read_timeout_seconds` で
+        有界だが、
         並列実行の合計時間が締め切りを超えた状態で「全部成功」と扱ってしまうのを防ぐ）。
         超過していれば `ObjectStorageUnavailableError`（503。再送で回復しうる冪等な操作）
         にする。
@@ -213,12 +216,9 @@ class PhotoAttacher:
             )
             if self._monotonic() > deadline_at:
                 raise ObjectStorageUnavailableError("Photo commit deadline exceeded")
-            if item.original_bytes is not None:
-                self._storage.put_bytes(
-                    item.original_key, item.original_bytes, content_type=item.content_type
-                )
-            else:
-                self._storage.copy(source_key=item.staging_key, dest_key=item.original_key)
+            self._storage.put_bytes(
+                item.original_key, item.original_bytes, content_type=item.content_type
+            )
 
         errors: list[Exception] = []
         with ThreadPoolExecutor(max_workers=self._concurrency) as executor:
