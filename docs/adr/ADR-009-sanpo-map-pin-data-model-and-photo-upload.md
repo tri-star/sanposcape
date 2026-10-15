@@ -100,16 +100,17 @@
 
 - **アカウント削除後の写真は、保持期間（既定 30 日）の後にバックグラウンドで S3 から消す**（BK-2 の決着）。
   アカウント削除と同じトランザクションで削除予約 `account_photo_purges`（利用者 ID・期限。`users` への FK なし）を
-  入れ、EventBridge Scheduler が1日1回起動する Lambda `sanposcape-<env>-backend-photo-purge` が、期限を過ぎた
+  入れ、EventBridge Scheduler が1日1回起動する Lambda `sanposcape-<env>-backend-scheduled-photo-purge` が、期限を過ぎた
   利用者の `staging/`・`original/`・`thumb/` の `pins/<user_id>/` を列挙→`DeleteObjects` で消して予約を消す。
   冪等で、S3 の失敗・時間切れは予約を残して翌日に続きから消す。保持中に予約を消せば写真は残る（ただし DB の行は
   削除時点で消えているので、戻すには DB の復元が要る）。構成は単一 Lambda（案A）で、SQS のファンアウト（案B）は
-  詰まり始めたら移る。スケジュールのグループと Scheduler 用ロールは infra 所有（本文: SS-109 追補 決定36）
+  詰まり始めたら移る。スケジュールとグループは SAM、Scheduler 用ロールは infra 所有で、ロールが起動できるのは
+  `sanposcape-<env>-backend-scheduled-*` の関数だけ（本文: SS-109 追補 決定36）
 
 ### 未解決・持ち越し
 
 - ~~**BK-2**: アカウント削除時の写真削除。**prod でフラグ ON にする前提条件**（本文: 移行・対応事項）~~
-  → **SS-109 で決着**（決定36）。prod で動かすには infra の live/account（Scheduler 用ロール・グループ）の
+  → **SS-109 で決着**（決定36）。prod で動かすには infra の live/account（Scheduler 用ロールとデプロイロールの許可）の
   apply → backend のデプロイが要る
 - **保持期間と DB の復元期間（Neon の PITR）の整合**は未確認。PITR より長く写真を残しても持ち主の行に
   戻せない（本文: SS-109 追補 決定36）
@@ -173,7 +174,7 @@ port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の�
 **dev での疎通確認も完了**（2026-09-24。下の「追補（2026-09-24）」）。prod は infra 側の
 prod apply 待ち。
 （**SS-109 追補**: アカウント削除後の写真の削除（決定36）は backend 実装済み。dev / prod とも、infra の
-live/account（Scheduler 用ロール・グループ）の apply → backend のデプロイの後に動き始める。）
+live/account（Scheduler 用ロールとデプロイロールの許可）の apply → backend のデプロイの後に動き始める。）
 
 ## コンテキスト
 
@@ -1748,16 +1749,21 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
   - prefix で消すので、過去の best-effort 削除（決定22・28）の失敗で残った孤立オブジェクトも一緒に消える。
   - prefix は UUID の利用者 ID からしか組み立てない（空文字だと `original/pins//` で全員の写真を消しうる。
     削除の IAM 権限は `original/pins/*` までしか絞れず、利用者を区別できないため）。
-- **起動**: Lambda `sanposcape-<env>-backend-photo-purge`（`aws_lambda/photo_purge.py`。API・migrate と同じ
+- **起動**: Lambda `sanposcape-<env>-backend-scheduled-photo-purge`（`aws_lambda/photo_purge.py`。API・migrate と同じ
   成果物の別ハンドラ、Timeout 300 秒）を EventBridge Scheduler（SAM の `ScheduleV2`）で毎日 JST 04:00 に起動する。
   S3 の失敗で消し切れなかった利用者がいれば、結果をログに出して実行を失敗にする（Errors のアラーム）。
   起動されなかったこと（Scheduler 側の不備）は Errors では分からないので、`Invocations` が2日続けて 0 の
   アラームも置く。dev は予約同時実行数 1（prod はクォータの都合で未予約）。
 - **権限と責務の境界**（infra との合意。詳細は [deployment.md](../../packages/backend/docs/deployment.md) §17）:
-  - スケジュール本体（cron 式）は SAM。スケジュールグループ `sanposcape-<env>-backend` と、Scheduler が起動に
-    使うロール（SSM `/sanposcape/<env>/account/backend_scheduler_role_arn`）は Terraform（live/account）。
-    ロールが起動できる関数は infra の変数に名前で列挙したものだけ（ワイルドカードにすると、デプロイロールが
-    スケジュールを作るだけで migrate を任意の入力で起動できてしまう）。デプロイ順は infra の apply → SAM。
+  - スケジュール本体（cron 式）とスケジュールグループ `sanposcape-<env>-backend`（`AWS::Scheduler::ScheduleGroup`。
+    デプロイロールが作れるのはこの名前だけ）は SAM。Scheduler が起動に使うロール（SSM
+    `/sanposcape/<env>/account/backend_scheduler_role_arn`）は Terraform（live/account）。デプロイ順は infra の apply → SAM。
+  - **ロールが起動できるのは `sanposcape-<env>-backend-scheduled-*` の関数だけ**。そのため定期実行する関数の名前は
+    `backend-scheduled-` で始め（写真の削除は `sanposcape-<env>-backend-scheduled-photo-purge`）、定期実行しない関数
+    （Api・Migrate など）には付けない。付けると、デプロイロールがスケジュールを作るだけで、その関数を任意の入力で
+    起動できてしまう（`backend-*` 全体を許すと migrate が起動できる）。両方をテスト（`test_photo_purge_config.py`）で固定した。
+    （infra との最初の合意は「infra の変数に関数名を列挙し、グループも Terraform が作る」だったが、定期実行の関数を足すたびに
+    infra の変更が要らないよう、infra の PR #55 の中で接頭辞方式と SAM 所有のグループに変えた。）
   - SAM にロールを作らせる構成は採らない（デプロイロールの `iam:PassRole` は Lambda 向けだけ、境界に
     `lambda:InvokeFunction` を足すと全関数の実行ロールの上限が広がる）。EventBridge のルールも採らない
     （`lambda:AddPermission` はデプロイロールに無い）。
@@ -1777,14 +1783,14 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
 | 構成 | Scheduler → 単一 Lambda が予約を順に処理 | Scheduler → dispatcher Lambda が予約を SQS へ（1利用者1メッセージ）→ worker Lambda（SQS のイベントソース、最大同時実行数で制御）+ DLQ |
 | 持ち越し | 時間切れなら翌日 | 続きを SQS へ再投入、失敗は DLQ |
 | 処理量の目安 | 1回数分。1回の呼び出しで 1000 キーずつ。現状の規模では十分 | worker の並列度に比例。S3 のレート上限（prefix ごと 3,500 DELETE/秒）まで伸ばせる |
-| infra の変更 | live/account に Scheduler 用ロール・グループ・デプロイロールの2 statement（約 150 行、PR 1 本） | 加えて SQS とイベントソースマッピングの管理（デプロイロール）、SQS の送受信（境界）。約 120 行、ESM の条件付き許可を dev で確かめる手間がある |
+| infra の変更 | live/account に Scheduler 用ロールとデプロイロールの許可（スケジュール・グループの管理、PassRole）（PR 1 本） | 加えて SQS とイベントソースマッピングの管理（デプロイロール）、SQS の送受信（境界）。約 120 行、ESM の条件付き許可を dev で確かめる手間がある |
 | prod の同時実行数（クォータ 10） | 1日1回、1枠を数分 | dispatcher 1 + worker 最小 2 の 3枠。API が 7 枠に減る時間帯ができる |
 | 監視 | Errors + 起動されなかったこと | 加えて DLQ の滞留 |
 
 案A を採った理由: 現状の利用者数・写真枚数では1日1回の単一 Lambda で間に合い、新しい種類のリソース（SQS）と
 権限を増やさずに済む。prod の同時実行数のクォータも取り合わない。予約テーブルと1利用者分の処理
 （`_purge_user`）は案B でもそのまま使えるので、詰まり始めたら（持ち越しが毎日続く、予約の滞留が増える）handler と
-テンプレートの差し替えと、infra の SQS 分の PR で移れる。案A で作る Scheduler 用のロールとグループは案B でも使う。
+テンプレートの差し替えと、infra の SQS 分の PR で移れる。案A で作る Scheduler 用のロールとスケジュールグループは案B でも使う（dispatcher の名前を `backend-scheduled-` で始めれば infra の変更は要らない）。
 
 採らなかったその他の案:
 
