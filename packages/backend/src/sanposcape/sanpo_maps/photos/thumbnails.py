@@ -7,6 +7,8 @@
 （EXIF の回転補正を適用する前）。mobile が端末で EXIF を除去してからアップロードする
 前提（B-Y6）のため通常は補正の要否自体が発生しないが、万一 EXIF 付きの画像が来ても
 サムネイル自体は `ImageOps.exif_transpose` で正しい向きに補正して生成する。
+確定処理は、メタデータを除去した後の原本（`jpeg_metadata.strip_jpeg_metadata()`。向きは
+Orientation だけの最小の Exif として残る）をここに渡す（ADR-009 BK-10, SS-116）。
 """
 
 import io

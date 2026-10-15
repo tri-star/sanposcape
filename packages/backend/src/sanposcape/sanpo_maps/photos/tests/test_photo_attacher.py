@@ -1,8 +1,10 @@
+import io
 import logging
 import uuid
 from datetime import UTC, datetime
 
 import pytest
+from PIL import ExifTags, Image
 
 from sanposcape.integrations.aws.s3 import FakeObjectStorage, ObjectStorageUnavailableError
 from sanposcape.sanpo_maps.conftest import make_jpeg_bytes
@@ -381,6 +383,69 @@ class TestCommit:
         bad_item = next(item for item in prepared if item.upload_id == bad_id)
         assert storage.head(ok_item.original_key) is not None
         assert storage.head(bad_item.original_key) is None
+
+
+class TestMetadataStripping:
+    """ADR-009 BK-10（SS-116）: 原本は EXIF などのメタデータを除去してから保存する。"""
+
+    class RecordingStorage(FakeObjectStorage):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self.copied: list[str] = []
+            self.put: list[str] = []
+
+        def copy(self, *, source_key: str, dest_key: str) -> None:
+            self.copied.append(dest_key)
+            super().copy(source_key=source_key, dest_key=dest_key)
+
+        def put_bytes(self, key: str, data: bytes, *, content_type: str) -> None:
+            self.put.append(key)
+            super().put_bytes(key, data, content_type=content_type)
+
+    def _attach(self, storage: FakeObjectStorage, data: bytes) -> PreparedPhoto:
+        upload_id = uuid.uuid4()
+        key = staging_key(user_id=USER_ID, upload_id=upload_id)
+        storage.put_bytes(key, data, content_type="image/jpeg")
+        attacher = make_attacher(storage)
+        deadline = attacher.compute_deadline(20)
+        prepared = attacher.prepare(
+            [PhotoUploadInput(upload_id=upload_id, staging_key=key)],
+            user_id=USER_ID,
+            deadline_at=deadline,
+        )
+        attacher.commit(prepared, deadline_at=deadline)
+        return prepared[0]
+
+    def test_puts_stripped_original_when_metadata_present(self) -> None:
+        storage = self.RecordingStorage(secret="s" * 32)
+        exif = Image.Exif()
+        gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
+        gps[ExifTags.GPS.GPSProcessingMethod] = b"GPS-SECRET"
+        buffer = io.BytesIO()
+        Image.new("RGB", (100, 100), color="blue").save(buffer, format="JPEG", exif=exif)
+        data = buffer.getvalue()
+
+        item = self._attach(storage, data)
+
+        stored = storage.get_bytes(item.original_key, max_bytes=10 * 1024 * 1024)
+        assert b"GPS-SECRET" in data
+        assert b"GPS-SECRET" not in stored
+        assert item.byte_size == len(stored) < len(data)
+        assert item.original_key in storage.put
+        assert item.original_key not in storage.copied
+        assert storage.head(item.original_key).content_type == "image/jpeg"
+
+    def test_copies_original_when_no_metadata(self) -> None:
+        storage = self.RecordingStorage(secret="s" * 32)
+        data = make_jpeg_bytes((100, 100))
+
+        item = self._attach(storage, data)
+
+        assert item.original_bytes is None
+        assert item.byte_size == len(data)
+        assert storage.copied == [item.original_key]
+        assert item.original_key not in storage.put
+        assert storage.get_bytes(item.original_key, max_bytes=10 * 1024 * 1024) == data
 
 
 class TestCleanupStaging:

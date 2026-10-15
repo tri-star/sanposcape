@@ -1,4 +1,4 @@
-"""写真の確定処理（検証・サムネイル生成・Copy）。
+"""写真の確定処理（検証・メタデータ除去・サムネイル生成・Copy）。
 
 `POST /pins` と `POST /pins/{pin_id}/photos` で共通（backend-plan.md 5.5）。DB や FastAPI
 に依存しない（S3 / Pillow の呼び出しのみ）。時間予算・並列度は呼び出し元（`pins/service.py`）
@@ -19,6 +19,7 @@ from sanposcape.integrations.aws.s3 import (
     ObjectStorageUnavailableError,
     ObjectTooLargeError,
 )
+from sanposcape.sanpo_maps.photos.jpeg_metadata import strip_jpeg_metadata
 from sanposcape.sanpo_maps.photos.photo_keys import original_key, thumbnail_key
 from sanposcape.sanpo_maps.photos.thumbnails import InvalidImageError, make_thumbnail
 
@@ -59,6 +60,10 @@ class PreparedPhoto:
     thumbnail_height: int
     # 既定値を置かない: 組み立て元（`prepare()`）での渡し忘れを型で防ぐ。
     taken_at: datetime | None
+    # メタデータを除去して原本が変わったときの原本のバイト列（ADR-009 BK-10, SS-116）。
+    # None なら staging のままで良く、`commit()` は Copy する（変わったときだけ Put する）。
+    # 既定値を置かない: 渡し忘れるとメタデータ付きの staging がそのまま Copy されるため。
+    original_bytes: bytes | None
 
 
 class PhotoAttacher:
@@ -129,8 +134,11 @@ class PhotoAttacher:
                 raise InvalidPhotoError("Photo exceeds the size limit") from exc
 
             try:
+                # 原本は EXIF などのメタデータを除去してから保存し、サムネイルも除去後の
+                # バイト列から作る（保存する原本がデコードできることの検証を兼ねる）。
+                cleaned = strip_jpeg_metadata(data)
                 thumbnail = make_thumbnail(
-                    data,
+                    cleaned,
                     max_edge=self._thumbnail_max_edge,
                     quality=self._thumbnail_quality,
                     max_pixels=self._max_pixels,
@@ -146,7 +154,7 @@ class PhotoAttacher:
                     user_id=user_id, upload_id=item.upload_id, size=self._thumbnail_max_edge
                 ),
                 content_type="image/jpeg",
-                byte_size=len(data),
+                byte_size=len(cleaned),
                 width=thumbnail.original_width,
                 height=thumbnail.original_height,
                 thumbnail_bytes=thumbnail.jpeg_bytes,
@@ -154,6 +162,7 @@ class PhotoAttacher:
                 thumbnail_width=thumbnail.width,
                 thumbnail_height=thumbnail.height,
                 taken_at=item.taken_at,
+                original_bytes=cleaned if cleaned != data else None,
             )
 
         results: dict[uuid.UUID, PreparedPhoto] = {}
@@ -178,6 +187,9 @@ class PhotoAttacher:
     def commit(self, prepared: list[PreparedPhoto], *, deadline_at: float) -> None:
         """検証済みの写真を確定する（サムネイル Put → staging から原本へ Copy）。
 
+        メタデータの除去で原本が変わった写真（`original_bytes` あり）は、Copy の代わりに
+        除去後のバイト列を原本のキーへ Put する（ADR-009 BK-10, SS-116）。
+
         コピー先・サムネイルのキーは upload_id から決定的なので、再送では同じキーに
         上書きされるだけで冪等（backend-plan.md 5.5 手順5）。`prepare()` と同じ並列度・
         締め切りチェックを適用する（R2: 以前は逐次・無期限で、S3 が劣化した状況で
@@ -201,7 +213,12 @@ class PhotoAttacher:
             )
             if self._monotonic() > deadline_at:
                 raise ObjectStorageUnavailableError("Photo commit deadline exceeded")
-            self._storage.copy(source_key=item.staging_key, dest_key=item.original_key)
+            if item.original_bytes is not None:
+                self._storage.put_bytes(
+                    item.original_key, item.original_bytes, content_type=item.content_type
+                )
+            else:
+                self._storage.copy(source_key=item.staging_key, dest_key=item.original_key)
 
         errors: list[Exception] = []
         with ThreadPoolExecutor(max_workers=self._concurrency) as executor:
