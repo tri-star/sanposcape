@@ -57,10 +57,16 @@ def test_schedule_uses_the_group_and_role_owned_by_terraform() -> None:
     )
 
 
-def test_timeout_leaves_room_after_the_app_deadline() -> None:
-    """締め切りの後に、実行中の S3 の呼び出し1回分（再試行込み）がはみ出しても収まる。"""
-    deadline = Settings.model_fields["account_photo_purge_deadline_seconds"].default
-    assert _properties()["Timeout"] >= deadline + 30
+def test_timeout_leaves_room_after_the_largest_allowed_deadline() -> None:
+    """締め切りの後に、実行中の S3 の呼び出し1回分（再試行込み）がはみ出しても収まる。
+
+    既定値ではなく、環境変数で設定できる上限（`le`）で確かめる。上限まで上げても
+    Lambda の Timeout を超えないようにするため。
+    """
+    field = Settings.model_fields["account_photo_purge_deadline_seconds"]
+    upper = next(m.le for m in field.metadata if getattr(m, "le", None) is not None)
+    assert field.default <= upper
+    assert _properties()["Timeout"] >= upper + 30
 
 
 def test_s3_permissions_cover_exactly_the_prefixes_the_app_deletes() -> None:

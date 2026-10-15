@@ -277,9 +277,11 @@ class Settings(BaseSettings):
     # 1回の実行で取り出す予約の上限（利用者の数）。残りは次回に回る。
     account_photo_purge_batch_size: int = Field(default=200, ge=1, le=1000)
     # 1回の実行の締め切り。過ぎたら新しい S3 の呼び出しを始めない。実行中の呼び出し1回分
-    # （通常の client の再試行込み）がはみ出すので、template.yaml の PhotoPurge の Timeout は
-    # これより十分長くする。
-    account_photo_purge_deadline_seconds: float = Field(default=240, ge=10, le=840)
+    # （通常の client の再試行込みで約 30 秒）がはみ出すので、上限は template.yaml の PhotoPurge の
+    # Timeout（300 秒）から 30 秒を引いた値にする。これを超えると締め切りの後の呼び出しで毎回
+    # タイムアウトし、エラー扱いの再試行とアラームが続く。Timeout を変えたら上限も変える
+    # （`tests/test_photo_purge_config.py` が両者の関係を固定する）。
+    account_photo_purge_deadline_seconds: float = Field(default=240, ge=10, le=270)
     # /pins・/pin-photo-uploads・/sanpo-maps の本文上限（軌跡を含まないので walks より
     # 小さい。/sanpo-maps は SS-113 でこの値を流用するようになった）。
     pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)
