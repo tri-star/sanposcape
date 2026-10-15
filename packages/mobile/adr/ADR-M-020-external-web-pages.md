@@ -1,5 +1,27 @@
 # ADR-M-020: 外部の Web ページはアプリ内ブラウザで開き、法的文書の URL はビルドで切り替えない
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-15（SS-187）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **アプリから開く外部の Web ページ（プライバシーポリシー・利用規約）は expo-web-browser の `openBrowserAsync`（アプリ内ブラウザ）で開く**。
+  失敗時だけ `Linking.openURL` にフォールバックし、両方失敗したら画面内に URL 付きの案内を出す。`locked` のときは何もしない。（本文: 決定1、SS-187 追補）
+- **判定は `src/lib/externalUrl.ts`（純粋関数）、配線は `src/hooks/useOpenExternalUrl.ts` に置き、`src/services/` の real/mock 層は作らない**。
+  画面から `expo-web-browser` / `Linking.openURL` を直接呼ばない（`Linking.openSettings()` は対象外）。（本文: 決定2、影響）
+- **開いてよい URL は `https:` のみ**（`isOpenableExternalUrl`）。（本文: 決定3）
+- **法的文書の URL はビルドの種類で切り替えず、`src/config/legalLinks.ts` の定数（`PRIVACY_POLICY_URL` / `TERMS_URL`）に本番 URL を置く**。
+  `EXPO_PUBLIC_*` / `extra` は使わない。（本文: 決定4、SS-187 追補）
+- **フィーチャーフラグで包まない**。（本文: 決定5）
+- **リンクは汎用の `LegalDocumentLink` に集約し、`PrivacyPolicyLink` / `TermsLink` はその薄いラッパー**。（本文: SS-187 追補）
+- **サインイン・サインアップ画面には `LegalConsentNotice`（同意の文言 + 利用規約・プライバシーポリシーの2リンク）を出し、チェックボックスは付けない**。
+  設定の「このアプリについて」にも両方のリンクを出す。認証画面は高さが足りないときだけスクロールする。（本文: SS-187 追補）
+- **E2E は導線の存在だけを assert し、押さない**。testID は `sign-in-` / `sign-up-` / `settings-` + `terms-link` / `privacy-policy-link`。（本文: 決定6、SS-187 追補）
+- **LP の `/privacy/`・`/terms/` は恒久 URL として扱い、本番は LP を先にデプロイしてから mobile を配布する**。
+  URL を変えるにはアプリの更新が要り、LP より先に配布するとリンク先が 404 になる。（本文: 影響、SS-187 追補。LP 側は [ADR-012](../../../docs/adr/ADR-012-lp-static-site-astro-s3-cloudfront.md)）
+
 ## 日付
 
 2026-10-03（初版、SS-158）、2026-10-13 追補（SS-187）
