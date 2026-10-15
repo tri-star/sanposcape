@@ -29,7 +29,14 @@ _OPERATION_SUFFIX = "/FunctionHandler"
 # Api に予約を入れたら、予約の値とダッシュボードの水平線を揃える（下のテストが落ちて知らせる）。
 _PROD_ACCOUNT_CONCURRENCY_QUOTA = 10
 _NO_VALUE = "AWS::NoValue"
-_ALARM_LOGICAL_IDS = ["ApiLambdaErrorsAlarm", "ApiLambdaThrottlesAlarm", "ApiFaultsAlarm"]
+_ALARM_LOGICAL_IDS = [
+    "ApiLambdaErrorsAlarm",
+    "ApiLambdaThrottlesAlarm",
+    "ApiFaultsAlarm",
+    # 写真の削除（SS-109）。中身の検証は test_photo_purge_config.py。
+    "PhotoPurgeErrorsAlarm",
+    "PhotoPurgeNotRunAlarm",
+]
 _SUB_VARIABLE = re.compile(r"\$\{(!)?([^}]+)\}")
 
 

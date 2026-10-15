@@ -23,7 +23,7 @@
 #   `uv export --no-dev` で除いている。build-Api の末尾のガードは、誰かが dev から
 #   dependencies に移したときに気付くためのもの。
 
-.PHONY: lambda-requirements build-Api build-Migrate
+.PHONY: lambda-requirements build-Api build-Migrate build-PhotoPurge
 
 lambda-requirements:
 	uv export --frozen --no-dev --no-emit-project --format requirements-txt > requirements-lambda.txt
@@ -48,3 +48,6 @@ build-Api:
 # API 本体と同じ成果物を使う（decision6: デプロイされたコードとマイグレーションの
 # リビジョンを必ず一致させるため）。
 build-Migrate: build-Api
+
+# アカウント削除後の写真の削除（SS-109）も API 本体と同じ成果物の別ハンドラ。
+build-PhotoPurge: build-Api
