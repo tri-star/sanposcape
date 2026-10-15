@@ -207,7 +207,8 @@ Resources:
             #     先に infra 側の境界（SS-107: Put/Get/Delete/AbortMultipartUpload + ListBucket）を広げる。
             #   - staging/* の PutObject は presigned POST の署名者権限として必須。外すと署名の発行は
             #     成功するのに実際のアップロードが全て 403 になる（デプロイでは検知できない）。
-            #   - CopyObject（staging/ → original/）はコピー元の GetObject + コピー先の PutObject で足りる。
+            #   - 原本は staging/ を GetObject で読み、検証・メタデータ除去したバイト列を original/ へ PutObject する
+            #     （CopyObject は使わない。SS-116, ADR-009 決定35）。
             - Effect: Allow
               Action:
                 - s3:PutObject
