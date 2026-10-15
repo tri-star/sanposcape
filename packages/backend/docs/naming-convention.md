@@ -93,6 +93,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | `thumbnails.py` | Pillow によるサムネイル生成（`bytes -> ThumbnailResult`）。DB/S3 に依存しない純粋関数 |
 | `photo_keys.py` | `staging`/`original`/`thumb` の S3 キー組み立て。DB/S3 に依存しない純粋関数 |
 | `cleanup.py` | `PhotoObjectCleaner`。DB commit 後に写真の S3 オブジェクトを best-effort で削除する部品（旧 `PinService._delete_photo_keys_best_effort`。ピン削除・写真削除・地図削除の3箇所から使われる。SS-137, ADR-011） |
+| `account_purge.py` | アカウント削除後の写真の削除（SS-109, ADR-009 決定36）のモジュールの外への公開面（ADR-011 M7）。予約を入れる commit しない部品 `AccountPhotoPurgeScheduler` と、処理の組み立て `build_account_photo_purge_service()`。実体は `repository.py`・`service.py` |
 
 ## FastAPI / API 関連
 
