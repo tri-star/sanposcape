@@ -13,9 +13,28 @@ tags:
     visible:
       id: "sign-in-google-button"
     timeout: 15000
-# プライバシーポリシーへの導線はサインイン画面にも出る（SS-158）。押さない（下の設定画面と同じ理由）。
+# 利用規約・プライバシーポリシーへの導線はサインイン画面にも出る（SS-158 / SS-187）。押さない（下の設定画面と同じ理由）。
+- assertVisible:
+    id: "sign-in-terms-link"
 - assertVisible:
     id: "sign-in-privacy-policy-link"
+# サインアップ画面にも同じ導線が出る（SS-187）。確認したらサインイン画面へ戻る。
+- tapOn:
+    id: "sign-in-to-sign-up-link"
+- extendedWaitUntil:
+    visible:
+      id: "sign-up-screen"
+    timeout: 10000
+- assertVisible:
+    id: "sign-up-terms-link"
+- assertVisible:
+    id: "sign-up-privacy-policy-link"
+- tapOn:
+    id: "sign-up-to-sign-in-link"
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-guest-button"
+    timeout: 10000
 # 「ゲストで試す」で保護ルート（ピンタブ。SS-145 の着地点）に入れる。
 - tapOn:
     id: "sign-in-guest-button"
@@ -48,6 +67,8 @@ tags:
 - assertVisible:
     id: "settings-sign-in"
 # プライバシーポリシーへの導線はゲストにも出る（SS-158）。押さない: 外部サイトと端末のブラウザに E2E を依存させない。
+- assertVisible:
+    id: "settings-terms-link"
 - assertVisible:
     id: "settings-privacy-policy-link"
 - assertNotVisible:

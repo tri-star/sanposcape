@@ -29,7 +29,7 @@ packages/mobile/
 │   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
 │   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
 │   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160。地図の子として現在地の向きを描く CurrentHeadingBeam。SS-169）
-│   │   └── legal/             #   法的文書への導線（PrivacyPolicyLink。settings と auth から使う。SS-158）
+│   │   └── legal/             #   法的文書への導線（LegalDocumentLink と、その薄いラッパー PrivacyPolicyLink / TermsLink、認証画面の同意文言 LegalConsentNotice。settings と auth から使う。SS-158 / SS-187）
 │   │
 │   ├── features/             # 機能固有のまとまり（凝集の単位）
 │   │   └── <feature>/         #   例: walk, history

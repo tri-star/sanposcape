@@ -1,0 +1,188 @@
+/* 法的文書ページ（privacy / terms）の共通スタイル。各ページのフロントマターで import する。 */
+.legal {
+  max-width: 760px;
+  padding-block: 64px 96px;
+  font-size: 15px;
+  line-height: 2;
+}
+
+.legal-header {
+  margin-bottom: 32px;
+}
+
+/* ページの見出しは h1 にするが、見た目はセクション見出し（global.css の h2）に揃える。 */
+.legal h1 {
+  margin-top: 14px;
+  font-size: clamp(28px, 3.1vw, 40px);
+  font-weight: 800;
+  line-height: 1.6;
+  letter-spacing: -0.04em;
+}
+
+.legal-date {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.legal h2 {
+  margin-top: 56px;
+  font-size: clamp(20px, 2.2vw, 24px);
+  line-height: 1.6;
+  letter-spacing: -0.02em;
+}
+
+.legal h3 {
+  margin-top: 28px;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.legal p,
+.legal ul,
+.legal ol,
+.legal dl,
+.legal-table-wrap {
+  margin-top: 14px;
+}
+
+.legal ul,
+.legal ol {
+  padding-left: 1.5em;
+}
+
+.legal li + li {
+  margin-top: 6px;
+}
+
+.legal strong {
+  color: var(--navy);
+}
+
+.legal a {
+  color: var(--navy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+/* global.css の nav（ヘッダー用の横並び）を打ち消す */
+.legal-toc {
+  display: block;
+  font-size: inherit;
+  font-weight: inherit;
+  margin-top: 40px;
+  padding: 20px 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fffdf5;
+}
+
+.legal .legal-toc h2 {
+  margin-top: 0;
+  font-size: 15px;
+}
+
+.legal-table-wrap {
+  overflow-x: auto;
+}
+
+.legal table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.legal th,
+.legal td {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal th {
+  background: var(--sky-light);
+  color: var(--navy);
+}
+
+.legal-contact {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 24px;
+}
+
+.legal-contact dt {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.legal-contact dd {
+  margin: 0;
+}
+
+@media (max-width: 540px) {
+  /* 狭い画面では表を横スクロールさせず、1 行を 1 枚のカードとして縦に並べる */
+  .legal table,
+  .legal tbody,
+  .legal tr,
+  .legal td {
+    display: block;
+    min-width: 0;
+  }
+
+  .legal thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .legal tr {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fffdf5;
+  }
+
+  .legal tr + tr {
+    margin-top: 12px;
+  }
+
+  .legal td {
+    border: 0;
+    padding: 8px 14px;
+  }
+
+  .legal td + td {
+    border-top: 1px solid var(--border);
+  }
+
+  .legal td::before {
+    content: attr(data-label);
+    display: block;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .legal {
+    padding-block: 40px 64px;
+    font-size: 14px;
+  }
+
+  .legal-toc {
+    padding: 16px 20px;
+  }
+
+  .legal-contact {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .legal-contact dd + dt {
+    margin-top: 10px;
+  }
+}

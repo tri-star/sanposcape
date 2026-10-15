@@ -31,7 +31,9 @@ tags:
     visible:
       id: "settings-screen"
     timeout: 10000
-# プライバシーポリシーへの導線（SS-158）。存在だけ見て押さない。
+# 利用規約・プライバシーポリシーへの導線（SS-158 / SS-187）。存在だけ見て押さない。
+- assertVisible:
+    id: "settings-terms-link"
 - assertVisible:
     id: "settings-privacy-policy-link"
 - assertVisible:

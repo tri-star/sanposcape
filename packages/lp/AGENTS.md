@@ -30,8 +30,8 @@ packages/lp/
     ├── assets/images/     # astro:assets の <Image> で最適化する元画像
     ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
-    ├── pages/             # index.astro / privacy.astro / 404.astro / robots.txt.ts
-    └── styles/global.css  # LP 全体のスタイル（デザイン原本の styles.css）
+    ├── pages/             # index.astro / privacy.astro / terms.astro / 404.astro / robots.txt.ts
+    └── styles/            # global.css（LP 全体。デザイン原本の styles.css）/ legal.css（privacy・terms 共通）
 ```
 
 ページを増やすとき（プライバシーポリシー・サポート等）は `src/pages/<name>/index.astro` か `src/pages/<name>.astro` を作り、
@@ -78,7 +78,7 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
   - ダミー QR 画像は出さず、同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
   - ストアボタンは「準備中」ダイアログを開く（`StoreDialog.astro`）。ストア URL が確定したら、`Download.astro` のボタンをストアへのリンクに、
     `.qr-placeholder` を QR 画像に差し替える。
-  - フッターにプライバシーポリシー（`/privacy/`）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
+  - フッターに利用規約（`/terms/`、SS-187）とプライバシーポリシー（`/privacy/`）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
 - 画像は `src/assets/images/` に置き、`astro:assets` の `<Image>` で WebP に変換・`srcset` を付けて出す。`width` / `height` を必ず指定する（CLS 防止）。
   CSS が `.field-note > img` のように `<img>` を直接指すため、`<picture>` を出す `<Picture>` は使わない。
   ファーストビューの画像は `loading="eager"`（既定は lazy）。
@@ -113,3 +113,12 @@ App Store Connect の「プライバシーポリシー URL」に登録するた�
   どの変更が対象になるか（対象パス）と手順は台帳に書いてある。
 - 外部サービスの表は frontmatter の `externalServices` で持つ。540px 以下では 1 行を 1 枚のカードとして縦に並べる（見出しは `data-label` を CSS で出す）。
 - 問い合わせ先のメールアドレスは frontmatter の `contactEmail`。
+
+## 利用規約（`/terms/`）
+
+`src/pages/terms.astro`。URL `https://sanposcape.com/terms/` もアプリ内のリンク（`legalLinks.ts` の `TERMS_URL`）に使うため**変えない**（SS-187）。
+
+- スタイルはプライバシーポリシーと共通の `src/styles/legal.css`（各ページのフロントマターで import）。
+- 制定日 `enactedOn` は変えず、改定したら `revisedOn` を更新する。年齢の制限（13 歳未満は不可）と、削除後も不正利用の調査・再登録の防止のために情報を保存することは、
+  プライバシーポリシー（11・6）と同じ内容にしておく。どちらかを変えたら両方を見直す。
+- 損害賠償の上限額（10）と専属的合意管轄裁判所（13）は運営者が決める値。変えるときは運営者の確認を取る。
