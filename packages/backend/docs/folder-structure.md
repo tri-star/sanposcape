@@ -97,7 +97,8 @@ packages/backend/
 │       │   ├── router.py      #   APIRouter（エンドポイント定義のみ、薄く）
 │       │   ├── models.py      #   SQLAlchemy モデル（User / AppleAuthorization）
 │       │   ├── service.py     #   ビジネスロジック（UserService。アカウント削除の AccountDeletionService は
-│       │   │                  #   Apple ユーザーの削除前にトークンを失効させる。SS-198）
+│       │   │                  #   Apple ユーザーの削除前にトークンを失効させる。SS-198。利用者の削除と同じ commit で
+│       │   │                  #   写真の削除予約を入れる（AccountPhotoPurgeScheduler。SS-109））
 │       │   ├── repository.py  #   DBアクセス（クエリ。UserRepository / AppleAuthorizationRepository）
 │       │   ├── dependencies.py#   ドメイン固有の依存（get_apple_sign_in_client は auth と共有）
 │       │   ├── exceptions.py  #   ドメイン固有の例外（AccountDeletionUnavailableError → 503）
