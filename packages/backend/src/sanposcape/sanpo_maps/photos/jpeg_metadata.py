@@ -12,9 +12,16 @@
   落とすと、EXIF の向きを解釈する端末の表示と、`exif_transpose` 済みのサムネイルとで
   向きが食い違うため。
 
-構造を辿れない入力（SOI が無い・セグメント長が壊れている・EOI が無い）は
-`InvalidImageError`。メタデータを残したまま保存するより安全側に倒す。
+構造を辿れない入力（SOI が無い・セグメント長が壊れている・EOI が無い・途中に SOI がある・
+セグメントが多すぎる）は `InvalidImageError`。メタデータを残したまま保存するより安全側に倒す。
+
+計算量: 入力は利用者が直送した任意のバイト列（最大 `PIN_PHOTO_MAX_BYTES`）で、デコードの検証
+（`make_thumbnail()`）より前に走る。Python のループはセグメント単位で `_MAX_SEGMENTS` までに抑え、
+0xFF の連続とエントロピー符号化データの読み飛ばしは `re` に任せる（1バイトずつの Python ループに
+すると、短いセグメントや 0xFF00 を詰めた 10 MiB で秒単位の CPU を使う。SS-116 レビュー）。
 """
+
+import re
 
 from PIL import Image
 
@@ -33,6 +40,15 @@ _EXIF_IDENTIFIER = b"Exif\x00\x00"
 
 # 長さを持たない単独のマーカー（TEM・RST0〜7）。
 _STANDALONE_MARKERS = frozenset([0x01, *range(0xD0, 0xD8)])
+
+# セグメント（スキャンを1つと数える）の上限。カメラの JPEG は数十、progressive でも百に届かない。
+# 分割した ICC プロファイル（APP2 は最大255個）を含めても足りる値にしてある。
+_MAX_SEGMENTS = 1024
+
+_FILL_BYTES = re.compile(rb"\xff+")
+# エントロピー符号化データの中で、スキャンを終えるマーカー（0xFF の直後が 0x00＝スタッフィング・
+# RST0〜7・0xFF＝詰め物 のいずれでもない）。各位置で1バイトしか見ないので線形時間。
+_SCAN_END_MARKER = re.compile(rb"\xff[^\x00\xd0-\xd7\xff]")
 
 # 残す APPn: (マーカー, ペイロードの先頭)。
 _KEPT_APP_SEGMENTS = (
@@ -59,7 +75,11 @@ def strip_jpeg_metadata(data: bytes) -> bytes:
     pos = 2
     length = len(data)
 
+    segment_count = 0
     while True:
+        segment_count += 1
+        if segment_count > _MAX_SEGMENTS:
+            raise InvalidImageError("Too many JPEG segments")
         marker, segment_start, pos = _read_marker(data, pos)
         if marker == _EOI:
             kept.append(data[segment_start:pos])
@@ -67,6 +87,9 @@ def strip_jpeg_metadata(data: bytes) -> bytes:
         if marker in _STANDALONE_MARKERS:
             kept.append(data[segment_start:pos])
             continue
+        if marker == _SOI or marker == 0x00:
+            # 途中の SOI（別の画像の連結）・マーカーでない 0xFF00 は構造が壊れている。
+            raise InvalidImageError("Unexpected JPEG marker")
 
         if pos + 2 > length:
             raise InvalidImageError("Truncated JPEG segment header")
@@ -104,37 +127,25 @@ def strip_jpeg_metadata(data: bytes) -> bytes:
 
 def _read_marker(data: bytes, pos: int) -> tuple[int, int, int]:
     """`pos` から次のマーカーを読み、(マーカー, マーカーの開始位置, マーカー直後の位置) を返す。"""
-    length = len(data)
-    if pos >= length or data[pos] != 0xFF:
-        raise InvalidImageError("Expected a JPEG marker")
-    start = pos
     # マーカーの前の詰め物（0xFF の連続）を読み飛ばす。
-    while pos < length and data[pos] == 0xFF:
-        pos += 1
-    if pos >= length:
+    fill = _FILL_BYTES.match(data, pos)
+    if fill is None:
+        raise InvalidImageError("Expected a JPEG marker")
+    pos = fill.end()
+    if pos >= len(data):
         raise InvalidImageError("JPEG ended without EOI")
-    return data[pos], start, pos + 1
+    return data[pos], fill.start(), pos + 1
 
 
 def _skip_entropy_coded_data(data: bytes, pos: int) -> int:
-    """エントロピー符号化データを読み飛ばし、次のマーカー（RST 以外）の開始位置を返す。"""
-    length = len(data)
-    while True:
-        marker_start = data.find(b"\xff", pos)
-        if marker_start < 0:
-            raise InvalidImageError("JPEG ended without EOI")
-        # 0xFF の連続（詰め物）の後ろの1バイトでマーカーかどうかを判定する。
-        pos = marker_start
-        while pos < length and data[pos] == 0xFF:
-            pos += 1
-        if pos >= length:
-            raise InvalidImageError("JPEG ended without EOI")
-        following = data[pos]
-        if following == 0x00 or 0xD0 <= following <= 0xD7:
-            # バイトスタッフィング（0xFF00）か RST。スキャンの続き。
-            pos += 1
-            continue
-        return marker_start
+    """エントロピー符号化データを読み飛ばし、スキャンを終えるマーカーの位置（0xFF）を返す。
+
+    バイトスタッフィング（0xFF00）・RST・マーカー前の詰め物の 0xFF はスキャンの一部として写す。
+    """
+    found = _SCAN_END_MARKER.search(data, pos)
+    if found is None:
+        raise InvalidImageError("JPEG ended without EOI")
+    return found.start()
 
 
 def _read_orientation(payload: bytes) -> int | None:

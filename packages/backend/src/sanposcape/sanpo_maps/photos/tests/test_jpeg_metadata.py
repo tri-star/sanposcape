@@ -211,6 +211,50 @@ class TestStripJpegMetadata:
         assert b"BROKEN-SECRET" not in cleaned
         assert 0xE1 not in markers(cleaned)
 
+    def test_fill_bytes_before_markers_are_handled(self) -> None:
+        data = save_jpeg(make_image(), exif=make_exif())
+        # セグメント間（SOI の直後）とスキャンの後（EOI の前）に詰め物の 0xFF を入れる。
+        padded = data[:2] + b"\xff\xff\xff" + data[2:-2] + b"\xff\xff" + data[-2:]
+
+        cleaned = strip_jpeg_metadata(padded)
+
+        assert GPS_MARKER not in cleaned
+        assert decoded_pixels(cleaned) == decoded_pixels(data)
+
+    def test_orientation_is_inserted_after_soi_without_jfif(self) -> None:
+        data = save_jpeg(make_image(), exif=make_exif(orientation=8))
+        app0_length = int.from_bytes(data[4:6], "big")
+        without_jfif = data[:2] + data[4 + app0_length :]
+        assert markers(without_jfif)[0] == 0xE1
+
+        cleaned = strip_jpeg_metadata(without_jfif)
+
+        assert markers(cleaned)[0] == 0xE1
+        with Image.open(io.BytesIO(cleaned)) as reopened:
+            assert dict(reopened.getexif()) == {ExifTags.Base.Orientation: 8}
+
+    def test_nested_soi_raises(self) -> None:
+        # 先頭の SOI の直後に別の SOI を置き、その後ろに GPS 付きの画像を続けたもの。
+        data = b"\xff\xd8" + save_jpeg(make_image(), exif=make_exif())
+
+        with pytest.raises(InvalidImageError):
+            strip_jpeg_metadata(data)
+
+    def test_too_many_segments_raises(self) -> None:
+        # 長さ 4 の短い APPn を大量に並べる（1セグメントずつの処理で CPU を使わせる入力）。
+        data = b"\xff\xd8" + segment(0xE5, b"xx") * 2000 + save_jpeg(make_image())[2:]
+
+        with pytest.raises(InvalidImageError):
+            strip_jpeg_metadata(data)
+
+    def test_many_stuffed_bytes_in_scan_are_copied(self) -> None:
+        data = save_jpeg(make_image())
+        eoi = len(data) - 2
+        # スキャンの末尾に 0xFF00（スタッフィング）と RST を大量に足しても、スキャンとして写す。
+        flooded = data[:eoi] + b"\xff\x00" * 500_000 + b"\xff\xd0" * 1000 + data[eoi:]
+
+        assert strip_jpeg_metadata(flooded) == flooded
+
     @pytest.mark.parametrize(
         "data",
         [
