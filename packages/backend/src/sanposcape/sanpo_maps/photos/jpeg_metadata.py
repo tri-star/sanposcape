@@ -5,15 +5,18 @@
 符号化データ）はバイト列のまま写すので、画素は1ビットも変わらない（再エンコードしない）。
 
 - 残す: APP0（JFIF・JFXX）、APP2 の `ICC_PROFILE`（色）、APP14 の `Adobe`（色変換の指定）、
-  APPn・COM 以外の全セグメント。
+  画像データのセグメント（SOFn・DHT・DAC・DQT・DNL・DRI・DHP・EXP・SOS とスキャン・RST）。
 - 落とす: APP1（Exif・XMP）、上記以外の APPn（APP13 の IPTC/Photoshop、APP2 の MPF など）、
-  COM、EOI より後ろの付加データ（MPF の副画像は自前の EXIF を持ちうる）。
+  JPGn（0xF0〜0xFD の拡張）、COM、EOI より後ろの付加データ（MPF の副画像は自前の EXIF を持ちうる）。
+- 予約のマーカー（0x02〜0xBF）は構造の破損として拒否する。未知のセグメントを写すと、そこに載った
+  メタデータを保存しないことがデコーダ（Pillow）の拒否に依存してしまうため。
 - 向き（Exif の Orientation）だけは、Orientation タグ1つの最小の Exif として書き戻す。
   落とすと、EXIF の向きを解釈する端末の表示と、`exif_transpose` 済みのサムネイルとで
   向きが食い違うため。
 
 構造を辿れない入力（SOI が無い・セグメント長が壊れている・EOI が無い・途中に SOI がある・
-セグメントが多すぎる）は `InvalidImageError`。メタデータを残したまま保存するより安全側に倒す。
+予約のマーカーがある・セグメントが多すぎる）は `InvalidImageError`。メタデータを残したまま
+保存するより安全側に倒す。
 
 計算量: 入力は利用者が直送した任意のバイト列（最大 `PIN_PHOTO_MAX_BYTES`）で、デコードの検証
 （`make_thumbnail()`）より前に走る。Python のループはセグメント単位で `_MAX_SEGMENTS` までに抑え、
@@ -35,6 +38,11 @@ _APP0 = 0xE0
 _APP1 = 0xE1
 _APP2 = 0xE2
 _APP14 = 0xEE
+# 長さ付きのセグメントのうち、画像データ（SOF0〜15・DHT・DAC）の最初のマーカー。これより小さい
+# 0x02〜0xBF は予約で、0x01（TEM）は単独のマーカー。
+_FIRST_IMAGE_MARKER = 0xC0
+# APP0〜15 に続く JPGn（0xF0〜0xFD）も、APPn と同じく許可したもの以外を落とす。
+_LAST_JPG_EXTENSION = 0xFD
 _ORIENTATION_TAG = 0x0112
 _EXIF_IDENTIFIER = b"Exif\x00\x00"
 
@@ -87,8 +95,8 @@ def strip_jpeg_metadata(data: bytes) -> bytes:
         if marker in _STANDALONE_MARKERS:
             kept.append(data[segment_start:pos])
             continue
-        if marker == _SOI or marker == 0x00:
-            # 途中の SOI（別の画像の連結）・マーカーでない 0xFF00 は構造が壊れている。
+        if marker == _SOI or marker < _FIRST_IMAGE_MARKER:
+            # 途中の SOI（別の画像の連結）・マーカーでない 0xFF00・予約のマーカーは構造の破損。
             raise InvalidImageError("Unexpected JPEG marker")
 
         if pos + 2 > length:
@@ -108,7 +116,7 @@ def strip_jpeg_metadata(data: bytes) -> bytes:
             kept.append(data[segment_start:pos])
             continue
 
-        if _APP0 <= marker <= 0xEF or marker == _COM:
+        if _APP0 <= marker <= _LAST_JPG_EXTENSION or marker == _COM:
             if marker == _APP1 and payload.startswith(_EXIF_IDENTIFIER) and orientation is None:
                 orientation = _read_orientation(payload)
             if any(marker == m and payload.startswith(p) for m, p in _KEPT_APP_SEGMENTS):

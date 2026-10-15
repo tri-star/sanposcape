@@ -240,6 +240,22 @@ class TestStripJpegMetadata:
         with pytest.raises(InvalidImageError):
             strip_jpeg_metadata(data)
 
+    def test_jpg_extension_segments_are_removed(self) -> None:
+        base = save_jpeg(make_image())
+        data = insert_after_soi(base, segment(0xF0, b"JPG0-SECRET"))
+
+        cleaned = strip_jpeg_metadata(data)
+
+        # Pillow は JPGn を含む入力をデコードできないので、元の JPEG と比べる。
+        assert cleaned == base
+
+    def test_reserved_marker_raises(self) -> None:
+        # 予約のマーカーに載ったメタデータを写さない（保存しないことをデコーダの拒否に頼らない）。
+        data = insert_after_soi(save_jpeg(make_image()), segment(0x60, b"Exif\x00\x00SECRET"))
+
+        with pytest.raises(InvalidImageError):
+            strip_jpeg_metadata(data)
+
     def test_too_many_segments_raises(self) -> None:
         # 長さ 4 の短い APPn を大量に並べる（1セグメントずつの処理で CPU を使わせる入力）。
         data = b"\xff\xd8" + segment(0xE5, b"xx") * 2000 + save_jpeg(make_image())[2:]
