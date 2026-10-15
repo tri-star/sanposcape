@@ -1,5 +1,7 @@
 import uuid
 
+import pytest
+
 from sanposcape.config import Settings
 from sanposcape.sanpo_maps.photos.photo_keys import (
     THUMBNAIL_SIZES,
@@ -64,3 +66,9 @@ class TestUserPhotoPrefixes:
             original_key(user_id=other, upload_id=UPLOAD_ID).startswith(prefix)
             for prefix in prefixes
         )
+
+    @pytest.mark.parametrize("user_id", ["", str(USER_ID), None])
+    def test_rejects_anything_but_a_uuid(self, user_id: object) -> None:
+        """空文字の利用者 ID で全員の写真を消す prefix を作らない。"""
+        with pytest.raises(TypeError):
+            user_photo_prefixes(user_id=user_id)  # type: ignore[arg-type]

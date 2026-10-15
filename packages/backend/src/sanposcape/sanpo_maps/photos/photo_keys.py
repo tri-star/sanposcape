@@ -32,7 +32,13 @@ def user_photo_prefixes(*, user_id: uuid.UUID) -> tuple[str, ...]:
 
     上の3つのキーの組み立てと対で保つ。キーの置き場所を足したら、ここにも足す
     （足し忘れるとアカウント削除後もその置き場所の写真が残る）。
+
+    ★ 削除の権限（IAM）は `original/pins/*` までしか絞れず、どの利用者の写真かは区別できない。
+    利用者 ID が空文字などになると `original/pins//` のような prefix で他人の写真まで
+    消しうるため、UUID 以外は受け付けない（型ヒントだけに頼らない）。
     """
+    if not isinstance(user_id, uuid.UUID):
+        raise TypeError(f"user_id must be a UUID, got {type(user_id).__name__}")
     return (
         f"staging/pins/{user_id}/",
         f"original/pins/{user_id}/",
