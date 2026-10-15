@@ -18,6 +18,23 @@ tags:
     id: "sign-in-terms-link"
 - assertVisible:
     id: "sign-in-privacy-policy-link"
+# サインアップ画面にも同じ導線が出る（SS-187）。確認したらサインイン画面へ戻る。
+- tapOn:
+    id: "sign-in-to-sign-up-link"
+- extendedWaitUntil:
+    visible:
+      id: "sign-up-screen"
+    timeout: 10000
+- assertVisible:
+    id: "sign-up-terms-link"
+- assertVisible:
+    id: "sign-up-privacy-policy-link"
+- tapOn:
+    id: "sign-up-to-sign-in-link"
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-guest-button"
+    timeout: 10000
 # 「ゲストで試す」で保護ルート（ピンタブ。SS-145 の着地点）に入れる。
 - tapOn:
     id: "sign-in-guest-button"
