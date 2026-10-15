@@ -1812,6 +1812,20 @@ aws lambda invoke --function-name sanposcape-dev-backend-photo-purge --payload '
 - Scheduler は at-least-once で、Lambda の非同期呼び出しはエラー時に既定で 2 回再試行する。処理は冪等なので二重に動いても壊れない
   （dev は予約同時実行数 1 で重ならない。prod はクォータの都合で未予約）。
 
+### 設定値
+
+| 環境変数 | 既定 | 意味 |
+|---|---|---|
+| `ACCOUNT_PHOTO_RETENTION_DAYS` | 30 | 保持期間（日）。**Api が予約を入れる時に使う**（PhotoPurge は予約の `purge_after` を見るだけ）。変えた値は、その後に削除したアカウントにだけ効く |
+| `ACCOUNT_PHOTO_PURGE_BATCH_SIZE` | 200 | 1回の実行で取り出す予約の上限 |
+| `ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS` | 240 | 1回の実行の締め切り。上限 270（Timeout 300 秒から S3 の呼び出し1回分を引いた値） |
+
+- **`template.yaml` はどれも渡していない（既定値で動く）。** 保持期間を変えるとき（Neon の PITR の期間に合わせるなど）は、`template.yaml` の
+  Api の `Environment` に `ACCOUNT_PHOTO_RETENTION_DAYS` を足して再デプロイし、ポリシー 7 の「30 日」と台帳も同じ PR で直す。
+- 写真バケットのバージョニングが有効になると、`DeleteObjects`（バージョン指定なし）は削除マーカーを置くだけで旧バージョンが残る。
+  一方で列挙は空になるので、処理は「消し終えた」と判断して予約を消してしまう。バージョニングを有効にする変更（infra）を入れるときは、
+  この処理をバージョン単位の削除に変えるか、非現行バージョンを失効させるライフサイクルを同時に入れること。
+
 ### 予約を手で操作する（リカバリ・前倒し・取りこぼし）
 
 予約は DB の `account_photo_purges`（`user_id`・`requested_at`・`purge_after`）。手で触るときは Neon の SQL エディタなどで行う。
