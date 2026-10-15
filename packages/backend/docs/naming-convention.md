@@ -89,7 +89,8 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 |---|---|
 | `router.py` | `POST /pin-photo-uploads`（写真アップロード枠の発行）、`DELETE /pin-photo-uploads/{upload_id}` 専用の `APIRouter`（旧 `pins/upload_router.py`。`pins/router.py` と役割名を揃えるため改名） |
 | `dev_storage_router.py` | `STORAGE_MODE=fake` 限定の `/dev-storage/*`。`include_in_schema=False`（`auth/dev_router.py` と同じ規律） |
-| `photo_attacher.py` | 写真の確定処理（検証・サムネイル生成・並列化・時間予算のガード）。DB に依存しない |
+| `photo_attacher.py` | 写真の確定処理（検証・メタデータ除去・サムネイル生成・並列化・時間予算のガード）。DB に依存しない |
+| `jpeg_metadata.py` | 原本の JPEG から EXIF・XMP などのメタデータを再エンコードせずに除去する（`strip_jpeg_metadata`。向きだけ最小の Exif で残す）。DB/S3 に依存しない純粋関数（SS-116, ADR-009 決定35） |
 | `thumbnails.py` | Pillow によるサムネイル生成（`bytes -> ThumbnailResult`）。DB/S3 に依存しない純粋関数 |
 | `photo_keys.py` | `staging`/`original`/`thumb` の S3 キー組み立て。DB/S3 に依存しない純粋関数 |
 | `cleanup.py` | `PhotoObjectCleaner`。DB commit 後に写真の S3 オブジェクトを best-effort で削除する部品（旧 `PinService._delete_photo_keys_best_effort`。ピン削除・写真削除・地図削除の3箇所から使われる。SS-137, ADR-011） |

@@ -6,7 +6,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
   [App Privacy の申告](../app-privacy-label.md)は、この台帳から書く。3つが食い違えば、まず実装を確かめて台帳を直し、ポリシーと申告を合わせる。
 - ポリシーとのずれは、ポリシーを書くときより、backend・mobile の変更（DB モデル、ログ、送信内容、権限、外部 SDK の追加）で生まれる。
   そのため、ずれを生みうるパスを「[対象パス](#1-対象パスポリシーに関係する変更)」に挙げ、計画（`task-workflow`）とレビュー（`security-reviewer`）でここを確かめる。
-- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）
+- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）、2026-10-15（SS-116。ピンの写真の原本のメタデータを backend が取り除くことを足した）
 
 ## 1. 対象パス（ポリシーに関係する変更）
 
@@ -86,7 +86,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | --- | --- | --- | --- | --- | --- | --- |
 | ピン（名称・メモ・座標・タグ・訪問状況・アーカイブ） | mobile `src/features/pin/lib/pinCreateRequest.ts`（座標は小数6桁）・`pinEditDraft.ts` | backend `POST /pins`・`PATCH /pins/{id}` | DB `pins`・`pin_tags`。削除まで | `DELETE /pins/{id}`、地図の削除、アカウント削除（CASCADE） | 1-3、6、7 | 正確な位置情報、その他のユーザコンテンツ |
 | 地図（名称・アイコン） | mobile `src/features/pin/api/sanpoMapApi.ts` | backend `POST /sanpo-maps`・`PATCH` | DB `sanpo_maps`。削除まで | `DELETE /sanpo-maps/{id}`、アカウント削除 | 1-3 | その他のユーザコンテンツ |
-| ピンの写真 | mobile `src/services/photo/`（カメラ・OS の写真選択画面。長辺 2048px・JPEG 品質 0.7 に再圧縮し、EXIF は落ちる） | S3 へ presigned POST で直送（`src/features/pin/api/presignedPostUpload.ts`） | S3 `original/`・`thumb/`（SSE-S3）。未紐付けの `staging/` は S3 のライフサイクルで消える（infra） | ピン・写真の削除でベストエフォートで消す（`sanpo_maps/photos/cleanup.py`）。**アカウント削除では S3 に残る**（SS-109） | 1-3、6、7 | 写真またはビデオ |
+| ピンの写真 | mobile `src/services/photo/`（カメラ・OS の写真選択画面。長辺 2048px・JPEG 品質 0.7 に再圧縮し、EXIF は落ちる） | S3 へ presigned POST で直送（`src/features/pin/api/presignedPostUpload.ts`） | S3 `original/`・`thumb/`（SSE-S3）。原本は backend が紐付けの時に EXIF・XMP などのメタデータを画質を変えずに取り除いたバイト列を置く（staging からはコピーしない。向きだけ残す。`sanpo_maps/photos/jpeg_metadata.py`、SS-116）。サムネイルは EXIF なしで作る。未紐付けの `staging/` は元のまま置かれ、S3 のライフサイクルで消える（infra） | ピン・写真の削除でベストエフォートで消す（`sanpo_maps/photos/cleanup.py`）。**アカウント削除では S3 に残る**（SS-109） | 1-3、6、7 | 写真またはビデオ |
 | 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない。EXIF から取れないとき、カメラで撮った写真は撮影直後の時刻、ライブラリの写真は null） | backend `POST /pin-photo-uploads` の `taken_at`（写真を選んだ時点の先行アップロードで送る） | DB `pin_photo_uploads.taken_at`（枠の発行時）→ 紐付けで `pin_photos.taken_at` へ移し、枠の側は NULL に戻す。**紐付けずに終わった枠（登録の破棄・アプリの終了）には、期限切れの枠の掃除（ADR-009 BK-3）が無いためアカウント削除まで残る**。写真の側は削除まで | 写真・ピンの削除、アカウント削除（未紐付けの枠はアカウント削除だけ） | **未反映**（1-3 は「Exif は送信しません」とだけ書いている） | 写真またはビデオ（写真に付随する情報として） |
 | 写真のアップロード枠 | backend `sanpo_maps/photos/` | — | DB `pin_photo_uploads`（S3 のキー・サイズ。未紐付けの間は撮影日時も）。紐付け済みの行は写真・ピンを消しても残る。紐付けずに期限切れになった行も掃除（ADR-009 BK-3）が無いため残る。どちらもアカウント削除で消える | アカウント削除 | **未反映**（7 は写真・ピンを消すと画像ファイルも消すとだけ書き、管理情報の行と未紐付けの枠の撮影日時が残ることを書いていない） | 対象外（写真の管理情報） |
 | 端末に残る写真の一時ファイル | expo-image-picker・image-manipulator の出力 | — | 端末のキャッシュ領域（消すコードは無い。OS が消す） | OS | — | 対象外（端末内） |

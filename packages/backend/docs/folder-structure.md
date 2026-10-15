@@ -146,7 +146,8 @@ packages/backend/
 │       │       ├── router.py  #     POST /pin-photo-uploads, DELETE /pin-photo-uploads/{upload_id}
 │       │       │              #     （旧 pins/upload_router.py。SS-137 で改名）
 │       │       ├── dev_storage_router.py # STORAGE_MODE=fake 限定の /dev-storage/*（include_in_schema=False）
-│       │       ├── photo_attacher.py     # 写真の確定処理（検証・サムネイル生成・並列化・時間予算）
+│       │       ├── photo_attacher.py     # 写真の確定処理（検証・メタデータ除去・サムネイル生成・並列化・時間予算）
+│       │       ├── jpeg_metadata.py      # 原本の JPEG から EXIF などを再エンコードせずに除去（純粋関数, SS-116）
 │       │       ├── thumbnails.py         # Pillow によるサムネイル生成（純粋関数）
 │       │       ├── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
 │       │       └── cleanup.py            # PhotoObjectCleaner（DB commit 後の best-effort な
