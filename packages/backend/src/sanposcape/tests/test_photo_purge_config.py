@@ -1,9 +1,11 @@
 """template.yaml の写真の削除（PhotoPurge、SS-109 / ADR-009 決定36）の整合を検証する。
 
-スケジュールのグループ・ロール・関数名は infra（live/account/backend_scheduler.tf）との契約で、
-ずれるとデプロイが AccessDenied になるか、Scheduler が関数を起動できない。実行ロールの S3 の
-許可は、アプリが消す prefix（`user_photo_prefixes`）と一致していないと、削除が AccessDenied で
-全て失敗する（予約が残り続ける）。
+スケジュールのグループ名・ロール・関数名の接頭辞は infra（live/account/backend_scheduler.tf）
+との契約で、ずれるとデプロイが AccessDenied になるか、Scheduler が関数を起動できない。
+Scheduler 用ロールは `sanposcape-<env>-backend-scheduled-*` の関数をどれでも起動できるので、
+定期実行しない関数がこの接頭辞を持たないことも固定する。実行ロールの S3 の許可は、アプリが
+消す prefix（`user_photo_prefixes`）と一致していないと、削除が AccessDenied で全て失敗する
+（予約が残り続ける）。
 """
 
 import uuid
@@ -38,19 +40,25 @@ def _prefix_patterns() -> list[str]:
 
 def test_function_and_log_group_names_follow_the_contract() -> None:
     resources = load_resources()
-    assert _properties()["FunctionName"] == "sanposcape-${Env}-backend-photo-purge"
+    assert _properties()["FunctionName"] == "sanposcape-${Env}-backend-scheduled-photo-purge"
     assert _properties()["Handler"] == "sanposcape.aws_lambda.photo_purge.handler"
     assert (
         resources["PhotoPurgeLogGroup"]["Properties"]["LogGroupName"]
-        == "/aws/lambda/sanposcape-${Env}-backend-photo-purge"
+        == "/aws/lambda/sanposcape-${Env}-backend-scheduled-photo-purge"
     )
 
 
-def test_schedule_uses_the_group_and_role_owned_by_terraform() -> None:
+def test_schedule_uses_the_group_of_this_stack_and_the_role_owned_by_terraform() -> None:
+    resources = load_resources()
+    group = resources["BackendScheduleGroup"]
+    assert group["Type"] == "AWS::Scheduler::ScheduleGroup"
+    # デプロイロールが作れるのはこの名前のグループだけ（infra の ManageBackendScheduleGroup）。
+    assert group["Properties"]["Name"] == "sanposcape-${Env}-backend"
+
     schedule = _properties()["Events"]["Daily"]
     assert schedule["Type"] == "ScheduleV2"
     properties = schedule["Properties"]
-    assert properties["GroupName"] == "sanposcape-${Env}-backend"
+    assert properties["GroupName"] == "BackendScheduleGroup"  # !Ref
     assert (
         properties["RoleArn"]
         == "{{resolve:ssm:/sanposcape/${Env}/account/backend_scheduler_role_arn}}"
@@ -96,3 +104,24 @@ def test_alarms_watch_the_photo_purge_function() -> None:
 
 def test_makefile_builds_the_function_from_the_api_artifact() -> None:
     assert "build-PhotoPurge: build-Api" in (BACKEND_DIR / "Makefile").read_text()
+
+
+def test_only_scheduled_functions_have_the_prefix_the_scheduler_role_can_invoke() -> None:
+    """Scheduler 用ロールは `backend-scheduled-*` をどれでも起動できる（infra）。
+
+    定期実行する関数（ScheduleV2 のイベントを持つ）は必ずこの接頭辞を持ち、持たない関数
+    （Api・Migrate など）には付けない。付けると Scheduler 経由で任意の入力で起動できる経路になる。
+    """
+    prefix = "sanposcape-${Env}-backend-scheduled-"
+    functions = {
+        logical_id: resource["Properties"]
+        for logical_id, resource in load_resources().items()
+        if resource["Type"] == "AWS::Serverless::Function"
+    }
+    assert {"Api", "Migrate", "PhotoPurge"} <= functions.keys()
+    for logical_id, properties in functions.items():
+        scheduled = any(
+            event["Type"] == "ScheduleV2" for event in properties.get("Events", {}).values()
+        )
+        has_prefix = properties["FunctionName"].startswith(prefix)
+        assert scheduled == has_prefix, logical_id

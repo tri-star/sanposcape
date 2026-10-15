@@ -31,8 +31,12 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #   - ピン写真バケット（S3、SS-106/ADR-009）の名前・ARN は SSM 契約（pin_photos/*）から deploy 時解決。
 #     バケットは live/platform 所有で、ここでは作らない。境界（SS-107）は sanposcape-<env>-* 全体を
 #     上限にしているため、写真バケットの ARN・prefix への絞り込みは Api の Policies が唯一の場所（SS-108）。
-#   - 写真の削除（PhotoPurge、SS-109）のスケジュールは ScheduleV2 で、グループと Scheduler 用ロールは
-#     Terraform 所有（live/account/backend_scheduler.tf）。infra の apply が先（下の PhotoPurge の注記）。
+#   - 写真の削除（PhotoPurge、SS-109）のスケジュールとスケジュールグループは SAM（ScheduleV2 と
+#     AWS::Scheduler::ScheduleGroup）、Scheduler 用ロールは Terraform 所有（live/account/backend_scheduler.tf）。
+#     infra の apply が先（下の PhotoPurge の注記）。
+#   - ★ Scheduler 用ロールが起動できるのは sanposcape-<env>-backend-scheduled-* の関数だけ。定期実行する関数の
+#     名前は必ず backend-scheduled- で始め、定期実行しない関数（Api・Migrate など）には付けない（付けると
+#     Scheduler から起動できるようになる）。src/sanposcape/tests/test_photo_purge_config.py が固定する。
 
 Parameters:
   Env:
@@ -430,21 +434,28 @@ Resources:
   # アカウント削除後の写真の削除（SS-109 / ADR-009 決定36）
   #   - EventBridge Scheduler から1日1回起動し、保持期間を過ぎた削除予約（account_photo_purges）の
   #     利用者の写真を S3 から消す（aws_lambda/photo_purge.py）。API・Migrate と同じ成果物の別ハンドラ。
-  #   - ★ スケジュールグループ sanposcape-<env>-backend と、Scheduler が起動に使うロール
+  #   - ★ スケジュールグループ sanposcape-<env>-backend は SAM（BackendScheduleGroup。デプロイロールが
+  #     作れるのはこの名前のグループだけ）。Scheduler が起動に使うロール
   #     （SSM /sanposcape/<env>/account/backend_scheduler_role_arn）は Terraform 所有（infra の
   #     live/account/backend_scheduler.tf, SS-109）。GroupName と RoleArn は省けない（省くとデプロイ
-  #     ロールの許可の外で AccessDenied）。ロールが起動できるのは infra の変数
-  #     backend_scheduled_functions に書いた関数だけなので、関数名を変えるときは infra も変える。
+  #     ロールの許可の外で AccessDenied）。ロールが起動できるのは sanposcape-<env>-backend-scheduled-* の
+  #     関数だけなので、関数名は scheduled- を外さない。
   #     デプロイ順は infra の apply → SAM（SSM の値が無いと resolve が失敗する）。docs/deployment.md §17
+  #   - グループを消すと中のスケジュールも消える。グループはこのスタックの中だけで使う。
   #   - EventBridge のルール（Schedule イベント）は使わない（lambda:AddPermission はデプロイロールに無い）。
   #   - 写真バケットのバージョニングは無効（infra）。DeleteObjects は即時の完全削除で、戻せない。
   # ===========================================================================
+  BackendScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Sub "sanposcape-${Env}-backend"  # この名前以外はデプロイロールが作れない（infra の ManageBackendScheduleGroup）
+
   PhotoPurge:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
     Properties:
-      FunctionName: !Sub "sanposcape-${Env}-backend-photo-purge"  # infra の Scheduler ロールの許可がこの名前を指す
+      FunctionName: !Sub "sanposcape-${Env}-backend-scheduled-photo-purge"  # scheduled- は Scheduler ロールが起動できる接頭辞（infra）
       CodeUri: .
       Handler: sanposcape.aws_lambda.photo_purge.handler
       # アプリの締め切り（ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS、既定 240 秒）の後に、実行中の S3 の
@@ -486,8 +497,8 @@ Resources:
         Daily:
           Type: ScheduleV2
           Properties:
-            Name: !Sub "sanposcape-${Env}-backend-photo-purge"
-            GroupName: !Sub "sanposcape-${Env}-backend"
+            Name: !Sub "sanposcape-${Env}-backend-scheduled-photo-purge"
+            GroupName: !Ref BackendScheduleGroup
             RoleArn: !Sub '{{resolve:ssm:/sanposcape/${Env}/account/backend_scheduler_role_arn}}'
             # API の利用が少ない時間帯（prod は同時実行数のクォータ 10 を API と取り合う）。
             ScheduleExpression: cron(0 4 * * ? *)
@@ -500,17 +511,17 @@ Resources:
   PhotoPurgeLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/sanposcape-${Env}-backend-photo-purge"
+      LogGroupName: !Sub "/aws/lambda/sanposcape-${Env}-backend-scheduled-photo-purge"
       RetentionInDays: !If [IsProd, 400, 30]
 
   PhotoPurgeErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "sanposcape-${Env}-backend-photo-purge-errors"
+      AlarmName: !Sub "sanposcape-${Env}-backend-scheduled-photo-purge-errors"
       AlarmDescription: >-
         アカウント削除後の写真の削除（PhotoPurge）が失敗した。S3 の失敗で消し切れなかった利用者がいる
         （予約は残り、翌日に続きから消す）か、タイムアウト・初期化の失敗。ロググループ
-        /aws/lambda/sanposcape-<env>-backend-photo-purge の "Account photo purge" を見る（docs/deployment.md §17）。
+        /aws/lambda/sanposcape-<env>-backend-scheduled-photo-purge の "Account photo purge" を見る（docs/deployment.md §17）。
       Namespace: AWS/Lambda
       MetricName: Errors
       Dimensions:
@@ -532,11 +543,11 @@ Resources:
   PhotoPurgeNotRunAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "sanposcape-${Env}-backend-photo-purge-not-run"
+      AlarmName: !Sub "sanposcape-${Env}-backend-scheduled-photo-purge-not-run"
       AlarmDescription: >-
         PhotoPurge が2日続けて1度も起動されていない。Scheduler のロール・権限の不備で起動に失敗すると、
         関数は動かず Errors も 0 のままなので、起動の回数で見る。スケジュール
-        sanposcape-<env>-backend-photo-purge と、Scheduler のメトリクス（AWS/Scheduler の
+        sanposcape-<env>-backend-scheduled-photo-purge と、Scheduler のメトリクス（AWS/Scheduler の
         TargetErrorCount）を確かめる（docs/deployment.md §17）。
       Namespace: AWS/Lambda
       MetricName: Invocations
