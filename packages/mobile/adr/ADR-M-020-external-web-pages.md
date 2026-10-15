@@ -58,6 +58,7 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 - 開く対象は プライバシーポリシーと利用規約の2つ。URL は `legalLinks.ts` の定数（`PRIVACY_POLICY_URL` / `TERMS_URL`）で、どちらもビルドの種類で切り替えない（決定4）。
 - リンクは汎用の `LegalDocumentLink`（URL と表示名を受ける）に集約し、`PrivacyPolicyLink` / `TermsLink` を薄いラッパーにした（却下: 規約用に `PrivacyPolicyLink` を複製する案。開く手段・失敗時の案内が二重になる）。
 - サインイン・サインアップ画面は、リンク単体ではなく `LegalConsentNotice`（「下記の利用規約とプライバシーポリシーに同意のうえ、ご利用ください。」+ 2リンク）を出す。チェックボックスは付けない。設定の「このアプリについて」にも規約リンクを足した。
+- 同意の文言を足すと、375×667 級の小さい画面（iOS の Apple ボタンあり）や文字サイズの拡大時に認証画面が画面の高さを超えるため、`AuthScreenLayout` を `ScrollView`（`contentContainerStyle` の `flexGrow: 1`）にし、収まらないときだけスクロールさせる。収まるときの見た目（ヒーローが中央・アクションが下部）は変えない。
 - E2E は導線の存在だけを assert し、押さない（決定6）。testID は `sign-in-` / `sign-up-` / `settings-` + `terms-link`。
 - 影響: 本番 LP に `/terms/` がデプロイされるまで、規約リンクも 404 になる（`/privacy/` と同じ。LP を先に出す）。
 
