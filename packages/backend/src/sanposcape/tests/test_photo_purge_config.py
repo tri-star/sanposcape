@@ -1,4 +1,4 @@
-"""template.yaml の写真の削除（PhotoPurge、SS-109 / ADR-009 決定35）の整合を検証する。
+"""template.yaml の写真の削除（PhotoPurge、SS-109 / ADR-009 決定36）の整合を検証する。
 
 スケジュールのグループ・ロール・関数名は infra（live/account/backend_scheduler.tf）との契約で、
 ずれるとデプロイが AccessDenied になるか、Scheduler が関数を起動できない。実行ロールの S3 の

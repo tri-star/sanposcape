@@ -427,7 +427,7 @@ Resources:
       RetentionInDays: !If [IsProd, 400, 30]
 
   # ===========================================================================
-  # アカウント削除後の写真の削除（SS-109 / ADR-009 決定35）
+  # アカウント削除後の写真の削除（SS-109 / ADR-009 決定36）
   #   - EventBridge Scheduler から1日1回起動し、保持期間を過ぎた削除予約（account_photo_purges）の
   #     利用者の写真を S3 から消す（aws_lambda/photo_purge.py）。API・Migrate と同じ成果物の別ハンドラ。
   #   - ★ スケジュールグループ sanposcape-<env>-backend と、Scheduler が起動に使うロール
@@ -435,7 +435,7 @@ Resources:
   #     live/account/backend_scheduler.tf, SS-109）。GroupName と RoleArn は省けない（省くとデプロイ
   #     ロールの許可の外で AccessDenied）。ロールが起動できるのは infra の変数
   #     backend_scheduled_functions に書いた関数だけなので、関数名を変えるときは infra も変える。
-  #     デプロイ順は infra の apply → SAM（SSM の値が無いと resolve が失敗する）。docs/deployment.md §15
+  #     デプロイ順は infra の apply → SAM（SSM の値が無いと resolve が失敗する）。docs/deployment.md §17
   #   - EventBridge のルール（Schedule イベント）は使わない（lambda:AddPermission はデプロイロールに無い）。
   #   - 写真バケットのバージョニングは無効（infra）。DeleteObjects は即時の完全削除で、戻せない。
   # ===========================================================================
@@ -510,7 +510,7 @@ Resources:
       AlarmDescription: >-
         アカウント削除後の写真の削除（PhotoPurge）が失敗した。S3 の失敗で消し切れなかった利用者がいる
         （予約は残り、翌日に続きから消す）か、タイムアウト・初期化の失敗。ロググループ
-        /aws/lambda/sanposcape-<env>-backend-photo-purge の "Account photo purge" を見る（docs/deployment.md §15）。
+        /aws/lambda/sanposcape-<env>-backend-photo-purge の "Account photo purge" を見る（docs/deployment.md §17）。
       Namespace: AWS/Lambda
       MetricName: Errors
       Dimensions:
@@ -537,7 +537,7 @@ Resources:
         PhotoPurge が2日続けて1度も起動されていない。Scheduler のロール・権限の不備で起動に失敗すると、
         関数は動かず Errors も 0 のままなので、起動の回数で見る。スケジュール
         sanposcape-<env>-backend-photo-purge と、Scheduler のメトリクス（AWS/Scheduler の
-        TargetErrorCount）を確かめる（docs/deployment.md §15）。
+        TargetErrorCount）を確かめる（docs/deployment.md §17）。
       Namespace: AWS/Lambda
       MetricName: Invocations
       Dimensions:

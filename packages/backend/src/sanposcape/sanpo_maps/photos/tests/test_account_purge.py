@@ -1,4 +1,4 @@
-"""アカウント削除後の写真の削除（SS-109 / ADR-009 決定35）。"""
+"""アカウント削除後の写真の削除（SS-109 / ADR-009 決定36）。"""
 
 import uuid
 from datetime import UTC, datetime, timedelta

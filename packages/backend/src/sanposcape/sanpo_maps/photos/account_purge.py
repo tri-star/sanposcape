@@ -1,4 +1,4 @@
-"""アカウント削除後の写真の削除（SS-109 / ADR-009 決定35）の、モジュールの外への公開面。
+"""アカウント削除後の写真の削除（SS-109 / ADR-009 決定36）の、モジュールの外への公開面。
 
 `sanpo_maps` の外（`users` のアカウント削除・`aws_lambda/photo_purge.py`）は、このモジュール
 だけを import する（ADR-011 M7 の公開面）。実体は `photos/repository.py`・`photos/service.py`。

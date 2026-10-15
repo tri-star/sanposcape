@@ -113,7 +113,7 @@ class AccountDeletionService:
        DB の接続（Neon の pooled 接続）を握らないため。変更は無いので何も書かれない。
     3. Apple の `/auth/revoke` で失効させる。
     4. 写真の削除を予約し（`AccountPhotoPurgeScheduler`。S3 の写真は保持期間の後に
-       バックグラウンドで消す。SS-109 / ADR-009 決定35）、`UserService.delete_current_user`
+       バックグラウンドで消す。SS-109 / ADR-009 決定36）、`UserService.delete_current_user`
        で利用者を消す（CASCADE で `apple_authorizations` も消える）。予約と削除は同じ
        commit に乗る。
 

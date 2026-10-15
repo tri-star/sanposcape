@@ -270,7 +270,7 @@ class Settings(BaseSettings):
     # 増えるだけのため）。
     object_storage_delete_connect_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
     object_storage_delete_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
-    # --- アカウント削除後の写真の削除（SS-109 / ADR-009 決定35）---
+    # --- アカウント削除後の写真の削除（SS-109 / ADR-009 決定36）---
     # アカウント削除から写真を S3 から消すまでの保持期間（日）。この間は予約の行を消せば
     # 写真が残る（リカバリの手段。docs/deployment.md）。0 は次回の実行で消す（ローカル確認用）。
     account_photo_retention_days: int = Field(default=30, ge=0, le=365)

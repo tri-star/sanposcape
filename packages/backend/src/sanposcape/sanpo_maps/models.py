@@ -273,7 +273,7 @@ class PinPhotoUpload(Base):
 
 
 class AccountPhotoPurge(Base):
-    """アカウント削除後の写真の削除予約（SS-109 / ADR-009 決定35）。
+    """アカウント削除後の写真の削除予約（SS-109 / ADR-009 決定36）。
 
     アカウント削除と同じトランザクションで1行入れ、`purge_after` を過ぎたらバックグラウンドの
     処理（`aws_lambda/photo_purge.py`）が `staging/`・`original/`・`thumb/` の

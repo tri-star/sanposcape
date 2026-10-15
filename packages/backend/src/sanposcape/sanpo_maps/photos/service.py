@@ -182,7 +182,7 @@ class _UserPurgeOutcome(StrEnum):
 
 
 class AccountPhotoPurgeService:
-    """期限を過ぎた削除予約について、利用者の写真を S3 から消す（SS-109 / ADR-009 決定35）。
+    """期限を過ぎた削除予約について、利用者の写真を S3 から消す（SS-109 / ADR-009 決定36）。
 
     `aws_lambda/photo_purge.py` から1日1回呼ばれる。順序:
 

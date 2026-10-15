@@ -1,4 +1,4 @@
-"""アカウント削除後の写真を S3 から消す Lambda ハンドラ（SS-109 / ADR-009 決定35）。
+"""アカウント削除後の写真を S3 から消す Lambda ハンドラ（SS-109 / ADR-009 決定36）。
 
 EventBridge Scheduler から1日1回呼ばれ、保持期間を過ぎた削除予約（`account_photo_purges`）に
 ついて、利用者の写真の prefix を S3 から消す（`AccountPhotoPurgeService`）。API 本体・migrate と

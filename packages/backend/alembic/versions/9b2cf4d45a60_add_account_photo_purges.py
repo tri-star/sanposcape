@@ -1,6 +1,6 @@
 """add_account_photo_purges
 
-アカウント削除後の写真の削除予約 `account_photo_purges` を足す（SS-109, ADR-009 決定35）。
+アカウント削除後の写真の削除予約 `account_photo_purges` を足す（SS-109, ADR-009 決定36）。
 アカウント削除と同じトランザクションで1行入れ、保持期間の後にバックグラウンドの Lambda
 （`aws_lambda/photo_purge.py`）が S3 の写真を消して行を消す。利用者は CASCADE で消えるので
 `users` への FK は持たない。
