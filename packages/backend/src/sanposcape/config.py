@@ -270,6 +270,16 @@ class Settings(BaseSettings):
     # 増えるだけのため）。
     object_storage_delete_connect_timeout_seconds: float = Field(default=1.0, gt=0, le=5)
     object_storage_delete_read_timeout_seconds: float = Field(default=5.0, gt=0, le=10)
+    # --- アカウント削除後の写真の削除（SS-109 / ADR-009 決定35）---
+    # アカウント削除から写真を S3 から消すまでの保持期間（日）。この間は予約の行を消せば
+    # 写真が残る（リカバリの手段。docs/deployment.md）。0 は次回の実行で消す（ローカル確認用）。
+    account_photo_retention_days: int = Field(default=30, ge=0, le=365)
+    # 1回の実行で取り出す予約の上限（利用者の数）。残りは次回に回る。
+    account_photo_purge_batch_size: int = Field(default=200, ge=1, le=1000)
+    # 1回の実行の締め切り。過ぎたら新しい S3 の呼び出しを始めない。実行中の呼び出し1回分
+    # （通常の client の再試行込み）がはみ出すので、template.yaml の PhotoPurge の Timeout は
+    # これより十分長くする。
+    account_photo_purge_deadline_seconds: float = Field(default=240, ge=10, le=840)
     # /pins・/pin-photo-uploads・/sanpo-maps の本文上限（軌跡を含まないので walks より
     # 小さい。/sanpo-maps は SS-113 でこの値を流用するようになった）。
     pins_request_max_bytes: int = Field(default=16_384, gt=0, le=65_536)

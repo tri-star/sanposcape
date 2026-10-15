@@ -25,3 +25,16 @@ def original_key(*, user_id: uuid.UUID, upload_id: uuid.UUID) -> str:
 def thumbnail_key(*, user_id: uuid.UUID, upload_id: uuid.UUID, size: int) -> str:
     """サムネイルのキー（永続）。"""
     return f"thumb/pins/{user_id}/{upload_id}/{size}.jpg"
+
+
+def user_photo_prefixes(*, user_id: uuid.UUID) -> tuple[str, ...]:
+    """利用者の写真が置かれる全ての prefix（アカウント削除後の削除に使う。SS-109）。
+
+    上の3つのキーの組み立てと対で保つ。キーの置き場所を足したら、ここにも足す
+    （足し忘れるとアカウント削除後もその置き場所の写真が残る）。
+    """
+    return (
+        f"staging/pins/{user_id}/",
+        f"original/pins/{user_id}/",
+        f"thumb/pins/{user_id}/",
+    )

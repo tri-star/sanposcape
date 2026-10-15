@@ -2,11 +2,12 @@ import uuid
 import zlib
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.advisory_locks import advisory_lock_key
-from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinPhotoUpload
+from sanposcape.sanpo_maps.models import AccountPhotoPurge, Pin, PinPhoto, PinPhotoUpload
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。他用途のロックと
 #: 衝突しない固定値にする（backend-plan.md 10章の注意）。値はロックキーそのもの。
@@ -159,3 +160,33 @@ class PinPhotoUploadRepository:
             .where(PinPhoto.upload_id.in_(upload_ids), PinPhoto.uploaded_by_user_id == user_id)
         )
         return {row[0]: (row[1], row[2]) for row in self._db.execute(stmt)}
+
+
+class AccountPhotoPurgeRepository:
+    """account_photo_purges（アカウント削除後の写真の削除予約, SS-109）への DB アクセス。"""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def add(self, *, user_id: uuid.UUID, requested_at: datetime, purge_after: datetime) -> None:
+        """予約を1行入れる。既にあれば何もしない（同じ利用者の削除が並行したときに
+        一意制約違反で削除を失敗させないため。先に入った予約を残す）。
+        """
+        self._db.execute(
+            insert(AccountPhotoPurge)
+            .values(user_id=user_id, requested_at=requested_at, purge_after=purge_after)
+            .on_conflict_do_nothing(index_elements=[AccountPhotoPurge.user_id])
+        )
+
+    def list_due_user_ids(self, *, now: datetime, limit: int) -> list[uuid.UUID]:
+        """期限を過ぎた予約の利用者 ID を、期限の古い順に返す。"""
+        stmt = (
+            select(AccountPhotoPurge.user_id)
+            .where(AccountPhotoPurge.purge_after <= now)
+            .order_by(AccountPhotoPurge.purge_after, AccountPhotoPurge.user_id)
+            .limit(limit)
+        )
+        return list(self._db.scalars(stmt))
+
+    def delete(self, *, user_id: uuid.UUID) -> None:
+        self._db.execute(delete(AccountPhotoPurge).where(AccountPhotoPurge.user_id == user_id))

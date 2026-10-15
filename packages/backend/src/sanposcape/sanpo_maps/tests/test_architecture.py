@@ -26,7 +26,7 @@ _ALLOWED_SUBPACKAGE_DEPENDENCIES: dict[str, set[str]] = {
 }
 
 #: モジュールの外（`main.py`・`all_models.py`・他ドメイン）から import してよい公開面
-#: （M7）。将来 BK-2・BK-7 等で公開面を広げる場合は ADR-011 の追補で決めてから足す。
+#: （M7）。将来 BK-7 等で公開面を広げる場合は ADR-011 の追補で決めてから足す。
 _ALLOWED_PUBLIC_SURFACE = {
     "sanposcape.sanpo_maps.models",
     "sanposcape.sanpo_maps.exceptions",
@@ -34,6 +34,9 @@ _ALLOWED_PUBLIC_SURFACE = {
     "sanposcape.sanpo_maps.pins.router",
     "sanposcape.sanpo_maps.photos.router",
     "sanposcape.sanpo_maps.photos.dev_storage_router",
+    # アカウント削除後の写真の削除（SS-109。ADR-011 の SS-109 追補）。`users` の
+    # アカウント削除と `aws_lambda/photo_purge.py` が使う。
+    "sanposcape.sanpo_maps.photos.account_purge",
 }
 
 

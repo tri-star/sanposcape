@@ -270,3 +270,19 @@ class PinPhotoUpload(Base):
         ),
         Index("ix_pin_photo_uploads_user_id_status_expires_at", "user_id", "status", "expires_at"),
     )
+
+
+class AccountPhotoPurge(Base):
+    """アカウント削除後の写真の削除予約（SS-109 / ADR-009 決定35）。
+
+    アカウント削除と同じトランザクションで1行入れ、`purge_after` を過ぎたらバックグラウンドの
+    処理（`aws_lambda/photo_purge.py`）が `staging/`・`original/`・`thumb/` の
+    `pins/<user_id>/` 配下を S3 から消して行を消す。利用者の行は CASCADE で既に消えているので、
+    `users` への FK は持たない。保持期間中にこの行を消せば写真は S3 に残る（リカバリの手段）。
+    """
+
+    __tablename__ = "account_photo_purges"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    purge_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

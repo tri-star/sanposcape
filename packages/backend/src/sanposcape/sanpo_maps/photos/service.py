@@ -1,13 +1,20 @@
 """写真アップロード枠のユースケース。トランザクション境界（commit）はここが持つ。"""
 
 import logging
+import time
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 
 from sqlalchemy.orm import Session
 
-from sanposcape.integrations.aws.s3 import ObjectStorage, ObjectStorageUnavailableError
+from sanposcape.integrations.aws.s3 import (
+    S3_DELETE_OBJECTS_MAX_KEYS,
+    ObjectStorage,
+    ObjectStorageUnavailableError,
+)
 from sanposcape.sanpo_maps.exceptions import (
     PinPhotoTooLargeError,
     PinPhotoUploadAlreadyAttachedError,
@@ -15,8 +22,11 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
-from sanposcape.sanpo_maps.photos.photo_keys import staging_key
-from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
+from sanposcape.sanpo_maps.photos.photo_keys import staging_key, user_photo_prefixes
+from sanposcape.sanpo_maps.photos.repository import (
+    AccountPhotoPurgeRepository,
+    PinPhotoUploadRepository,
+)
 from sanposcape.sanpo_maps.photos.schemas import (
     PinPhotoUploadCreate,
     PinPhotoUploadRead,
@@ -148,3 +158,133 @@ class PinPhotoUploadService:
             self._storage.delete(s3_key)
         except ObjectStorageUnavailableError:
             logger.warning("Failed to delete staging object for a cancelled upload: %s", s3_key)
+
+
+@dataclass(frozen=True)
+class AccountPhotoPurgeResult:
+    """1回の実行の結果（件数は利用者の数。`deleted_objects` だけがオブジェクトの数）。"""
+
+    #: 期限を過ぎていた予約のうち、今回取り出した数。
+    due: int
+    #: 写真を消し終えて予約を消した数。
+    purged: int
+    #: S3 の失敗で打ち切った数（予約は残り、次回に続きから消す）。
+    failed: int
+    #: 時間切れで手を付けなかった、または途中で止めた数（予約は残る）。
+    deferred: int
+    deleted_objects: int
+
+
+class _UserPurgeOutcome(StrEnum):
+    COMPLETE = "complete"
+    FAILED = "failed"
+    DEADLINE = "deadline"
+
+
+class AccountPhotoPurgeService:
+    """期限を過ぎた削除予約について、利用者の写真を S3 から消す（SS-109 / ADR-009 決定35）。
+
+    `aws_lambda/photo_purge.py` から1日1回呼ばれる。順序:
+
+    1. 期限を過ぎた予約を古い順に `batch_size` 件読み、`commit()` で読み取りのトランザクションを
+       閉じる（S3 を呼ぶ間に DB の接続を握らない。`AccountDeletionService` と同じ方針）。
+    2. 利用者ごとに `user_photo_prefixes()` の各 prefix を「先頭 1000 件を列挙 → `DeleteObjects`」で
+       空になるまで繰り返す。
+    3. 全ての prefix が空になったら予約を消して `commit()` する。
+
+    冪等: どこで止まっても予約が残り、次回に残りを消す（消し済みのキーは列挙に出てこない）。
+    S3 の失敗（列挙の例外・削除に失敗したキー）があった利用者はそこで打ち切って次の利用者へ
+    進む（失敗したキーを列挙し直して同じ失敗を繰り返さないため）。
+    締め切り（`deadline_seconds`）を過ぎたら、新しい S3 の呼び出しを始めずに終える。
+    1回の S3 の呼び出しは締め切りの後にはみ出しうるので、Lambda の Timeout には
+    その分の余裕を持たせる（`template.yaml`）。
+    """
+
+    def __init__(
+        self,
+        db: Session,
+        repository: AccountPhotoPurgeRepository,
+        storage: ObjectStorage,
+        *,
+        batch_size: int,
+        deadline_seconds: float,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._db = db
+        self._repository = repository
+        self._storage = storage
+        self._batch_size = batch_size
+        self._deadline_seconds = deadline_seconds
+        self._now = now
+        self._monotonic = monotonic
+
+    def purge_due(self) -> AccountPhotoPurgeResult:
+        deadline_at = self._monotonic() + self._deadline_seconds
+        user_ids = self._repository.list_due_user_ids(now=self._now(), limit=self._batch_size)
+        self._db.commit()
+
+        purged = failed = deleted_objects = 0
+        for index, user_id in enumerate(user_ids):
+            outcome, deleted = self._purge_user(user_id, deadline_at)
+            deleted_objects += deleted
+            if outcome is _UserPurgeOutcome.DEADLINE:
+                deferred = len(user_ids) - index
+                logger.warning(
+                    "Account photo purge reached its deadline; %d of %d due accounts are "
+                    "left for the next run",
+                    deferred,
+                    len(user_ids),
+                )
+                return AccountPhotoPurgeResult(
+                    due=len(user_ids),
+                    purged=purged,
+                    failed=failed,
+                    deferred=deferred,
+                    deleted_objects=deleted_objects,
+                )
+            if outcome is _UserPurgeOutcome.FAILED:
+                failed += 1
+                continue
+            self._repository.delete(user_id=user_id)
+            self._db.commit()
+            purged += 1
+            logger.info("Purged %d photo objects of deleted account %s", deleted, user_id)
+
+        return AccountPhotoPurgeResult(
+            due=len(user_ids),
+            purged=purged,
+            failed=failed,
+            deferred=0,
+            deleted_objects=deleted_objects,
+        )
+
+    def _purge_user(self, user_id: uuid.UUID, deadline_at: float) -> tuple[_UserPurgeOutcome, int]:
+        """利用者1人分の prefix を空にする。`(結果, 消したオブジェクトの数)` を返す。"""
+        deleted = 0
+        for prefix in user_photo_prefixes(user_id=user_id):
+            while True:
+                if self._monotonic() >= deadline_at:
+                    return _UserPurgeOutcome.DEADLINE, deleted
+                try:
+                    keys = self._storage.list_keys(prefix, max_keys=S3_DELETE_OBJECTS_MAX_KEYS)
+                    if not keys:
+                        break
+                    failed_keys = self._storage.delete_many(keys)
+                except ObjectStorageUnavailableError as exc:
+                    logger.warning(
+                        "Account photo purge failed for %s: %s: %s",
+                        user_id,
+                        type(exc).__name__,
+                        exc,
+                    )
+                    return _UserPurgeOutcome.FAILED, deleted
+                deleted += len(keys) - len(failed_keys)
+                if failed_keys:
+                    logger.warning(
+                        "Account photo purge could not delete %d objects of %s",
+                        len(failed_keys),
+                        user_id,
+                    )
+                    return _UserPurgeOutcome.FAILED, deleted
+        return _UserPurgeOutcome.COMPLETE, deleted

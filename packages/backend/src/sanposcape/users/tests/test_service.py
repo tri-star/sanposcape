@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 from urllib.parse import parse_qs
 
@@ -19,6 +20,8 @@ from sanposcape.integrations.apple.exceptions import (
     AppleSignInRejectedError,
     AppleSignInUnavailableError,
 )
+from sanposcape.sanpo_maps.models import AccountPhotoPurge
+from sanposcape.sanpo_maps.photos.account_purge import AccountPhotoPurgeScheduler
 from sanposcape.users.exceptions import AccountDeletionUnavailableError
 from sanposcape.users.models import AppleAuthorization, User
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
@@ -27,6 +30,13 @@ from sanposcape.users.service import AccountDeletionService, UserService
 
 def _make_service(db_session: Session) -> UserService:
     return UserService(db_session, UserRepository(db_session))
+
+
+_FIXED_NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
+
+
+def _make_photo_purges(db_session: Session) -> AccountPhotoPurgeScheduler:
+    return AccountPhotoPurgeScheduler(db_session, retention_days=30, now=lambda: _FIXED_NOW)
 
 
 def test_get_by_id_returns_existing_user(db_session: Session) -> None:
@@ -285,7 +295,9 @@ class TestAccountDeletionService:
     ) -> tuple[AccountDeletionService, UserService, AppleAuthorizationRepository]:
         user_service = _make_service(db_session)
         authorizations = AppleAuthorizationRepository(db_session)
-        service = AccountDeletionService(db_session, user_service, authorizations, client)
+        service = AccountDeletionService(
+            db_session, user_service, authorizations, client, _make_photo_purges(db_session)
+        )
         return service, user_service, authorizations
 
     def _apple_user(self, db_session: Session, user_service: UserService, *, token: bool = True):
@@ -454,7 +466,9 @@ class TestAccountDeletionService:
         client = FakeAppleSignInClient()
         user_service = _make_service(db_session)
         authorizations = _CountingAppleAuthorizationRepository(db_session)
-        service = AccountDeletionService(db_session, user_service, authorizations, client)
+        service = AccountDeletionService(
+            db_session, user_service, authorizations, client, _make_photo_purges(db_session)
+        )
         user = user_service.find_or_create(
             provider=provider,
             subject="sub-1",
@@ -515,3 +529,74 @@ class TestAccountDeletionService:
         assert len(client_secrets) == len(responses)
         for secret in ["stored-refresh-token", *client_secrets]:
             assert secret not in caplog.text
+
+
+class TestAccountDeletionSchedulesPhotoPurge:
+    """アカウント削除は写真の削除を予約し、利用者の削除と同じ commit に乗せる（SS-109）。"""
+
+    def _service(self, db_session: Session) -> tuple[AccountDeletionService, UserService]:
+        user_service = _make_service(db_session)
+        service = AccountDeletionService(
+            db_session,
+            user_service,
+            AppleAuthorizationRepository(db_session),
+            FakeAppleSignInClient(),
+            _make_photo_purges(db_session),
+        )
+        return service, user_service
+
+    def _google_user(self, db_session: Session, user_service: UserService) -> User:
+        user = user_service.find_or_create(
+            provider="google", subject="sub-purge", email=None, display_name=None, photo_url=None
+        )
+        db_session.commit()
+        return user
+
+    def test_schedules_purge_after_the_retention_period(self, db_session: Session) -> None:
+        service, user_service = self._service(db_session)
+        user = self._google_user(db_session, user_service)
+        user_id = user.id
+
+        service.delete_account(user)
+
+        with TestSessionLocal() as other:
+            assert other.get(User, user_id) is None
+            purges = other.scalars(select(AccountPhotoPurge)).all()
+        assert [(p.user_id, p.requested_at, p.purge_after) for p in purges] == [
+            (user_id, _FIXED_NOW, _FIXED_NOW + timedelta(days=30))
+        ]
+
+    def test_failed_deletion_leaves_no_purge(self, db_session: Session) -> None:
+        service, user_service = self._service(db_session)
+        user = self._google_user(db_session, user_service)
+        user_id = user.id
+
+        with (
+            mock.patch.object(UserRepository, "delete", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError),
+        ):
+            service.delete_account(user)
+        db_session.rollback()
+
+        with TestSessionLocal() as other:
+            assert other.get(User, user_id) is not None
+            assert other.scalars(select(AccountPhotoPurge)).all() == []
+
+    def test_existing_purge_for_the_same_user_is_kept(self, db_session: Session) -> None:
+        """並行した削除で予約が先に入っていても、一意制約違反で削除を失敗させない。"""
+        service, user_service = self._service(db_session)
+        user = self._google_user(db_session, user_service)
+        user_id = user.id
+        earlier = _FIXED_NOW - timedelta(minutes=1)
+        db_session.add(
+            AccountPhotoPurge(user_id=user_id, requested_at=earlier, purge_after=earlier)
+        )
+        db_session.commit()
+
+        service.delete_account(user)
+
+        with TestSessionLocal() as other:
+            assert other.get(User, user_id) is None
+            purge = other.get(AccountPhotoPurge, user_id)
+            assert purge is not None
+            assert purge.purge_after == earlier
