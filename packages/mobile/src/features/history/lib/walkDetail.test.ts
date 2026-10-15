@@ -33,6 +33,7 @@ describe("toWalkDetail", () => {
     expect(detail.destination).toEqual({ latitude: 35.6875, longitude: 139.7625 });
     expect(detail.distanceKm).toBe(2.1);
     expect(detail.elapsedLabel).toBe("00:32:00");
+    expect(detail.averageSpeedKmh).toBe(4);
     expect(detail.track).toEqual(READ.track);
   });
 

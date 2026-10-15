@@ -36,8 +36,8 @@ export type WalkDetail = {
   /** 「00:32:14」（formatClock）。 */
   elapsedLabel: string;
   distanceKm: number;
-  /** 「12'30"/km」。算出不能なら「—」。 */
-  paceLabel: string;
+  /** 平均時速（km/h、小数1桁）。算出不能なら null。 */
+  averageSpeedKmh: number | null;
   /** 妥当な座標だけを残した軌跡。0〜2点のこともある。 */
   track: GeoCoordinates[];
 };

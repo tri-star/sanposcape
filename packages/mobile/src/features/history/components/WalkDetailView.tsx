@@ -232,7 +232,12 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
                   label="歩行距離"
                   size="sm"
                 />
-                <StatBlock value={walk.paceLabel} label="平均ペース" size="sm" />
+                <StatBlock
+                  value={walk.averageSpeedKmh === null ? "—" : walk.averageSpeedKmh.toFixed(1)}
+                  unit={walk.averageSpeedKmh === null ? undefined : "km/h"}
+                  label="平均時速"
+                  size="sm"
+                />
               </Card>
             </ScrollView>
           ),
