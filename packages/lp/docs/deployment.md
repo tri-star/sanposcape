@@ -69,6 +69,7 @@ curl -sI "$SITE/index.html"             # Cache-Control: public, max-age=0, s-ma
 curl -sI "$SITE/_astro/<任意のファイル>"  # Cache-Control: public, max-age=31536000, immutable
 curl -sI "$SITE/privacy/"               # 200（アプリ内リンクと App Store Connect に登録する恒久 URL）
 curl -sI "$SITE/privacy"                # 301、Location が末尾 / 付きの /privacy/
+curl -sI "$SITE/terms/"                 # 200（アプリ内リンクに登録する恒久 URL。SS-187）
 ```
 
 production では追加で次を確認する。

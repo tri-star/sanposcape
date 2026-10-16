@@ -1,8 +1,10 @@
+import io
 import logging
 import uuid
 from datetime import UTC, datetime
 
 import pytest
+from PIL import ExifTags, Image
 
 from sanposcape.integrations.aws.s3 import FakeObjectStorage, ObjectStorageUnavailableError
 from sanposcape.sanpo_maps.conftest import make_jpeg_bytes
@@ -194,7 +196,7 @@ def _prepare_n(
 
 
 class TestCommit:
-    def test_puts_thumbnail_and_copies_to_original(self) -> None:
+    def test_puts_thumbnail_and_original(self) -> None:
         storage = FakeObjectStorage(secret="s" * 32)
         upload_id = uuid.uuid4()
         seed(storage, upload_id)
@@ -247,21 +249,22 @@ class TestCommit:
 
         assert storage.head(prepared[0].original_key) is None
 
-    def test_deadline_exceeded_after_put_raises_before_copy(self) -> None:
-        """PR #93 T3 回帰テスト: Put 完了直後・Copy 開始前にも締め切りを確認する。
+    def test_deadline_exceeded_after_thumbnail_put_raises_before_original_put(self) -> None:
+        """PR #93 T3 回帰テスト: サムネイルの Put 完了直後・原本の Put 開始前にも締め切りを
+        確認する。
 
         以前は `commit_one` の先頭1回しか確認しておらず、Put が時間予算を使い切った
-        後も Copy が開始されえた。
+        後も（当時の）原本の Copy が開始されえた。
         """
 
         class TrackingStorage(FakeObjectStorage):
             def __init__(self, **kwargs) -> None:
                 super().__init__(**kwargs)
-                self.copy_called = False
+                self.put_keys: list[str] = []
 
-            def copy(self, *, source_key: str, dest_key: str) -> None:
-                self.copy_called = True
-                super().copy(source_key=source_key, dest_key=dest_key)
+            def put_bytes(self, key: str, data: bytes, *, content_type: str) -> None:
+                self.put_keys.append(key)
+                super().put_bytes(key, data, content_type=content_type)
 
         storage = TrackingStorage(secret="s" * 32)
         upload_id = uuid.uuid4()
@@ -277,7 +280,7 @@ class TestCommit:
             user_id=USER_ID,
             deadline_at=prepare_attacher.compute_deadline(20),
         )
-        # 1つ目の呼び出し(Put の前)は締め切り内、2つ目(Put の後・Copy の前)は締め切り超過。
+        # 1つ目の呼び出し(サムネイルの Put の前)は締め切り内、2つ目(原本の Put の前)は締め切り超過。
         times = iter([0.0, 20.0])
         commit_attacher = PhotoAttacher(
             storage,
@@ -292,14 +295,14 @@ class TestCommit:
         with pytest.raises(ObjectStorageUnavailableError):
             commit_attacher.commit(prepared, deadline_at=10.0)
 
-        assert storage.copy_called is False
+        assert prepared[0].original_key not in storage.put_keys
         assert storage.head(prepared[0].original_key) is None
         # サムネイルの Put 自体は締め切り確認の前に完了している。
         assert storage.head(prepared[0].thumbnail_key) is not None
 
-    def test_deadline_exceeded_after_all_copies_finish_still_raises(self) -> None:
-        """PR #93 T3 回帰テスト: 個々の Put/Copy が全て成功しても、全 Future を集約した
-        時点（＝最後の Copy が終わった後）で締め切りを超えていれば 503 にする。
+    def test_deadline_exceeded_after_all_puts_finish_still_raises(self) -> None:
+        """PR #93 T3 回帰テスト: 個々の Put が全て成功しても、全 Future を集約した
+        時点（＝最後の原本の Put が終わった後）で締め切りを超えていれば 503 にする。
         """
         storage = FakeObjectStorage(secret="s" * 32)
         upload_id = uuid.uuid4()
@@ -315,7 +318,8 @@ class TestCommit:
             user_id=USER_ID,
             deadline_at=prepare_attacher.compute_deadline(20),
         )
-        # commit_one 内の2回の確認(Put 前・Put 後)は締め切り内。Future 集約後の確認だけ超過させる。
+        # commit_one 内の2回の確認(サムネイルの Put 前・原本の Put 前)は締め切り内。
+        # Future 集約後の確認だけ超過させる。
         times = iter([0.0, 0.0, 999.0])
         commit_attacher = PhotoAttacher(
             storage,
@@ -330,7 +334,7 @@ class TestCommit:
         with pytest.raises(ObjectStorageUnavailableError):
             commit_attacher.commit(prepared, deadline_at=10.0)
 
-        # Copy 自体は成功済み（集約時点の確認だけが失敗の原因）。
+        # 原本の Put 自体は成功済み（集約時点の確認だけが失敗の原因）。
         assert storage.head(prepared[0].original_key) is not None
 
     def test_partial_failure_propagates_and_stops_remaining_writes(self) -> None:
@@ -339,25 +343,25 @@ class TestCommit:
         整合は壊れない）。
         """
 
-        class FlakyOnCopyStorage(FakeObjectStorage):
+        class FlakyOnOriginalPutStorage(FakeObjectStorage):
             def __init__(self, *, fail_key: str, **kwargs) -> None:
                 super().__init__(**kwargs)
                 self._fail_key = fail_key
 
-            def copy(self, *, source_key: str, dest_key: str) -> None:
-                if source_key == self._fail_key:
+            def put_bytes(self, key: str, data: bytes, *, content_type: str) -> None:
+                if key == self._fail_key:
                     raise ObjectStorageUnavailableError("boom")
-                super().copy(source_key=source_key, dest_key=dest_key)
+                super().put_bytes(key, data, content_type=content_type)
 
         ok_id = uuid.uuid4()
         bad_id = uuid.uuid4()
         base_storage = FakeObjectStorage(secret="s" * 32)
         seed(base_storage, ok_id)
         seed(base_storage, bad_id)
-        storage = FlakyOnCopyStorage(
-            fail_key=staging_key(user_id=USER_ID, upload_id=bad_id), secret="s" * 32
+        storage = FlakyOnOriginalPutStorage(
+            fail_key=original_key(user_id=USER_ID, upload_id=bad_id), secret="s" * 32
         )
-        # FlakyOnCopyStorage は独自のオブジェクト辞書を持つので、prepare() が読む
+        # FlakyOnOriginalPutStorage は独自のオブジェクト辞書を持つので、prepare() が読む
         # staging データを改めて置いておく。
         seed(storage, ok_id)
         seed(storage, bad_id)
@@ -381,6 +385,83 @@ class TestCommit:
         bad_item = next(item for item in prepared if item.upload_id == bad_id)
         assert storage.head(ok_item.original_key) is not None
         assert storage.head(bad_item.original_key) is None
+
+
+class TestMetadataStripping:
+    """ADR-009 決定35（SS-116）: 原本はメタデータを除去・検証したバイト列を Put する。"""
+
+    class RecordingStorage(FakeObjectStorage):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self.copied: list[str] = []
+
+        def copy(self, *, source_key: str, dest_key: str) -> None:
+            self.copied.append(dest_key)
+            super().copy(source_key=source_key, dest_key=dest_key)
+
+    @staticmethod
+    def _gps_jpeg() -> bytes:
+        exif = Image.Exif()
+        gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
+        gps[ExifTags.GPS.GPSProcessingMethod] = b"GPS-SECRET"
+        buffer = io.BytesIO()
+        Image.new("RGB", (100, 100), color="blue").save(buffer, format="JPEG", exif=exif)
+        return buffer.getvalue()
+
+    def _prepare(self, storage: FakeObjectStorage, data: bytes) -> tuple[PhotoAttacher, list]:
+        upload_id = uuid.uuid4()
+        key = staging_key(user_id=USER_ID, upload_id=upload_id)
+        storage.put_bytes(key, data, content_type="image/jpeg")
+        attacher = make_attacher(storage)
+        prepared = attacher.prepare(
+            [PhotoUploadInput(upload_id=upload_id, staging_key=key)],
+            user_id=USER_ID,
+            deadline_at=attacher.compute_deadline(20),
+        )
+        return attacher, prepared
+
+    def test_puts_stripped_original_when_metadata_present(self) -> None:
+        storage = self.RecordingStorage(secret="s" * 32)
+        data = self._gps_jpeg()
+        attacher, prepared = self._prepare(storage, data)
+
+        attacher.commit(prepared, deadline_at=attacher.compute_deadline(20))
+
+        item = prepared[0]
+        stored = storage.get_bytes(item.original_key, max_bytes=10 * 1024 * 1024)
+        assert b"GPS-SECRET" in data
+        assert b"GPS-SECRET" not in stored
+        assert item.byte_size == len(stored) < len(data)
+        assert storage.copied == []
+        assert storage.head(item.original_key).content_type == "image/jpeg"
+
+    def test_puts_original_unchanged_when_no_metadata(self) -> None:
+        storage = self.RecordingStorage(secret="s" * 32)
+        data = make_jpeg_bytes((100, 100))
+        attacher, prepared = self._prepare(storage, data)
+
+        attacher.commit(prepared, deadline_at=attacher.compute_deadline(20))
+
+        item = prepared[0]
+        assert item.byte_size == len(data)
+        assert storage.copied == []
+        assert storage.get_bytes(item.original_key, max_bytes=10 * 1024 * 1024) == data
+
+    def test_staging_overwritten_after_prepare_does_not_reach_original(self) -> None:
+        """検証の後に同じ枠の staging を上書きされても、原本は検証したバイト列のまま。
+
+        staging から Copy すると、上書きされた未検証（GPS 付き）のバイト列が原本に入る。
+        """
+        storage = self.RecordingStorage(secret="s" * 32)
+        data = make_jpeg_bytes((100, 100))
+        attacher, prepared = self._prepare(storage, data)
+        storage.put_bytes(prepared[0].staging_key, self._gps_jpeg(), content_type="image/jpeg")
+
+        attacher.commit(prepared, deadline_at=attacher.compute_deadline(20))
+
+        stored = storage.get_bytes(prepared[0].original_key, max_bytes=10 * 1024 * 1024)
+        assert stored == data
+        assert b"GPS-SECRET" not in stored
 
 
 class TestCleanupStaging:

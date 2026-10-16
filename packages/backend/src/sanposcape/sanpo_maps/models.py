@@ -200,7 +200,8 @@ class PinPhoto(Base):
     thumbnail_height: Mapped[int | None] = mapped_column(Integer, default=None)
     position: Mapped[int] = mapped_column(Integer)
     # 撮影日時（クライアントの申告値。取れなかった写真・SS-163 より前の写真は NULL）。
-    # backend は EXIF を読まない（原本は端末で再エンコード済みで EXIF が無い）。
+    # 撮影日時のために backend が EXIF を読むことはない（原本は端末で再エンコード済みで
+    # EXIF が無く、確定時のメタデータ除去でも向き以外は落とす。ADR-009 決定34・35）。
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

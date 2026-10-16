@@ -204,6 +204,7 @@ class TestPhotosAndTags:
                 thumbnail_width=5,
                 thumbnail_height=5,
                 taken_at=None,
+                original_bytes=None,
             )
             for i in range(3)
         ]
@@ -236,6 +237,7 @@ class TestPhotosAndTags:
                 thumbnail_width=5,
                 thumbnail_height=5,
                 taken_at=value,
+                original_bytes=None,
             )
             for i, value in enumerate([taken_at, None])
         ]
@@ -287,6 +289,7 @@ class TestPhotosAndTags:
                 thumbnail_width=5,
                 thumbnail_height=5,
                 taken_at=None,
+                original_bytes=None,
             )
             for i in range(3)
         ]

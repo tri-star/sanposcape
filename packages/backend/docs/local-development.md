@@ -89,7 +89,7 @@ docker compose --project-directory packages/backend -f packages/backend/compose.
 確認できること・できないこと:
 
 - ✅ presigned POST の発行と、端末からの直送が実 S3 で通るか
-- ✅ 確定処理（HEAD/GET → サムネイル生成 → Copy → `staging/` 削除）
+- ✅ 確定処理（HEAD/GET → メタデータ除去 → サムネイル生成 → 原本とサムネイルを Put → `staging/` 削除）
 - ❌ **Lambda 実行ロールの権限**。署名者はローカルの AWS プロファイル（通常は管理者権限）になるため、
   IAM の付与漏れ・境界（SS-107）の不足はこの方法では再現しない
   （[deployment.md](./deployment.md) §12 の「初回デプロイで確認すること」3) で静的に確認する）

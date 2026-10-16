@@ -10,3 +10,12 @@ export const PRIVACY_POLICY_URL = "https://sanposcape.com/privacy/";
 
 /** リンクの表示名。画面ごとに言い換えない（ストア審査・利用者の検索の目印になる）。 */
 export const PRIVACY_POLICY_LABEL = "プライバシーポリシー";
+
+/**
+ * 利用規約の公開 URL（LP の /terms/。SS-187）。プライバシーポリシーと同じ理由（ADR-M-020）で、
+ * ビルドの種類や OTA で切り替えない定数にし、末尾スラッシュを付ける。
+ */
+export const TERMS_URL = "https://sanposcape.com/terms/";
+
+/** リンクの表示名。画面ごとに言い換えない。 */
+export const TERMS_LABEL = "利用規約";

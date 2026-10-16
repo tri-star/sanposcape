@@ -78,6 +78,8 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 - presigned POST が `content-length-range` と Content-Type の完全一致を条件に持ち、key が完全一致（`${filename}` を使わない）か（決定4）。
 - サムネイル生成で `Image.open()`（ヘッダーのみ）の直後に `width*height > max_pixels` を確かめてからデコードしているか。`Image.MAX_IMAGE_PIXELS` に頼らないのは `ThreadPoolExecutor` で並列実行するため（決定6）。
 - `integrations/aws/*` に連携を足すときも `STORAGE_MODE=real|fake` + Unconfigured の fail-safe の形か（決定8）。
+- 検証・加工したバイト列と、`original/` に保存するバイト列が同じか。staging は枠の presigned POST の有効期限内なら上書きできるので、検証の後に staging を Copy（再読み込み）すると未検証のバイト列が入る。確定は検証したバイト列そのものを Put する（決定35。SS-116 で Copy 経路の TOCTOU を再現）。
+- 利用者が直送したバイト列を、デコードの検証（Pillow）より前に Python で走査する処理は、10 MiB の悪意ある入力で計算量・メモリを測る。1バイトずつの Python ループ・セグメントごとの slice の蓄積は、短いセグメントや 0xFF00 の繰り返しで秒単位・数百 MiB になる（SS-116）。走査の対象外（未知・予約のマーカーなど）を「写す」扱いにすると、保証が後段のデコーダの拒否に依存する点も見る。
 
 ## テスト DB の到達経路
 - `conftest.py` / `config.py` の DB まわりの差分では、`Settings.test_database_url` が `database_dsn`（本番 / staging のシークレット由来）を参照していないか。参照していなければ、テストの drop/delete が本番に届く経路は構造的に無い（ローカルの誤設定の防止はスコープ外。ADR-B-001 決定7）。

@@ -23,6 +23,17 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | テストファイル | `test_<対象>.py` | `test_service.py`, `test_router.py` |
 | テスト関数 | `test_` + snake_case | `def test_create_walk_success():` |
 
+## テストの docstring（検証意図）
+
+テスト関数名は英語の snake_case で短く保ち、何を確かめているかは日本語の docstring に書く。名前だけでは前提や「何が変わらないこと」まで読み取れず、レビューや失敗時の調査で本文を読み解く必要が出るため（SS-142。PR #103 のレビュー指摘）。
+
+- 新しく書く・書き換えるテストには、**前提・操作・期待結果**を1〜2文の docstring で書く。
+  - 例: `"""editor が地図の名前を送ると 403 になり、名前は変わらないこと。"""`
+  - 例: `"""同じ client_walk_id で再送すると 200 で既存の散歩を返し、行は増えないこと。"""`
+- 期待結果には、応答のステータスだけでなく、確かめている副作用（DB の行が変わらない・ログが出る等）も書く。
+- その検証が必要な理由（過去の不具合・ADR の決定）が名前と本文から読めないときは、docstring に1文足す（ADR は決定番号で参照する）。
+- 既存のテストに一括で足す必要はない。触ったテストから足していく。
+
 ## 役割別ファイル名（ドメイン内で固定）
 
 | ファイル | 役割 |
@@ -89,7 +100,8 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 |---|---|
 | `router.py` | `POST /pin-photo-uploads`（写真アップロード枠の発行）、`DELETE /pin-photo-uploads/{upload_id}` 専用の `APIRouter`（旧 `pins/upload_router.py`。`pins/router.py` と役割名を揃えるため改名） |
 | `dev_storage_router.py` | `STORAGE_MODE=fake` 限定の `/dev-storage/*`。`include_in_schema=False`（`auth/dev_router.py` と同じ規律） |
-| `photo_attacher.py` | 写真の確定処理（検証・サムネイル生成・並列化・時間予算のガード）。DB に依存しない |
+| `photo_attacher.py` | 写真の確定処理（検証・メタデータ除去・サムネイル生成・並列化・時間予算のガード）。DB に依存しない |
+| `jpeg_metadata.py` | 原本の JPEG から EXIF・XMP などのメタデータを再エンコードせずに除去する（`strip_jpeg_metadata`。向きだけ最小の Exif で残す）。DB/S3 に依存しない純粋関数（SS-116, ADR-009 決定35） |
 | `thumbnails.py` | Pillow によるサムネイル生成（`bytes -> ThumbnailResult`）。DB/S3 に依存しない純粋関数 |
 | `photo_keys.py` | `staging`/`original`/`thumb` の S3 キー組み立て。DB/S3 に依存しない純粋関数 |
 | `cleanup.py` | `PhotoObjectCleaner`。DB commit 後に写真の S3 オブジェクトを best-effort で削除する部品（旧 `PinService._delete_photo_keys_best_effort`。ピン削除・写真削除・地図削除の3箇所から使われる。SS-137, ADR-011） |

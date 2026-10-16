@@ -1,6 +1,7 @@
 import { Text } from "react-native";
 
 import { PrivacyPolicyLink } from "@/components/legal/PrivacyPolicyLink";
+import { TermsLink } from "@/components/legal/TermsLink";
 import { Card } from "@/components/ui/card/Card";
 import { makeStyles } from "@/theme/makeStyles";
 
@@ -8,7 +9,8 @@ export type AboutSectionProps = { testID?: string };
 
 const ABOUT_SECTION_TITLE = "このアプリについて";
 // 本文の中身（保存期間・第三者提供など）に踏み込む約束は書かない。正本は LP のポリシー本文（SS-158）。
-const ABOUT_SECTION_DESCRIPTION = "位置情報など、アプリが扱う情報の取り扱いを説明しています。";
+const ABOUT_SECTION_DESCRIPTION =
+  "アプリの利用条件と、位置情報など、アプリが扱う情報の取り扱いを説明しています。";
 
 /** 設定画面の「このアプリについて」カード。表示だけを担い、状態は持たない。 */
 export function AboutSection({ testID }: AboutSectionProps) {
@@ -20,6 +22,7 @@ export function AboutSection({ testID }: AboutSectionProps) {
         {ABOUT_SECTION_TITLE}
       </Text>
       <Text style={styles.description}>{ABOUT_SECTION_DESCRIPTION}</Text>
+      <TermsLink testID="settings-terms-link" />
       <PrivacyPolicyLink testID="settings-privacy-policy-link" />
     </Card>
   );

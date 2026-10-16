@@ -167,7 +167,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - 方針の正本は [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)。
 - 画面からは `useOpenExternalUrl().open(url)`（`src/hooks/`）を使う。`expo-web-browser` / `Linking.openURL` を画面から直接呼ばない（失敗時の案内・診断ログ・URL 検証を通すため）。例外: OS の設定画面を開く `Linking.openSettings()`（`LocationPermissionNotice` / `ApproximateLocationNotice`）は対象外。
 - 開いてよいのは `https:` だけ（`isOpenableExternalUrl`）。
-- 法的文書の URL は `src/config/legalLinks.ts` の定数。ビルドの種類で切り替えない。
+- 法的文書（プライバシーポリシー・利用規約）の URL は `src/config/legalLinks.ts` の定数。ビルドの種類で切り替えない。
+  リンクは `components/legal/` の `LegalDocumentLink`（ラッパーは `PrivacyPolicyLink` / `TermsLink`）、サインイン・サインアップ画面の同意文言は `LegalConsentNotice`。
 - フィーチャーフラグで包まない（ストア審査の必須導線を `/app-config` の取得失敗で消さないため）。
 
 ## フィーチャーフラグ（`/app-config`）の扱い
@@ -255,6 +256,18 @@ export default function SomeFeatureRoute() {
 （`src/lib/featureGate.ts`）を呼ぶだけに保つ。
 
 ## テストの方針
+
+- テストの説明文（検証意図）
+  - Vitest の `it()` の説明文に、何を確かめているか（**前提・操作 → 期待結果**）を日本語で書く。
+    テスト本文を読まなくても、壊れたときに何が保証されなくなったかが分かるようにするため（SS-142）。
+    - 例: `it("進行中の散歩があれば ナビタブ（/(tabs)）へ replace する（無警告での上書きを防ぐ。SS-57）", ...)`
+    - 「正しく動く」「ケース2」のような、期待結果が読めない説明文にしない。
+    - 純粋関数の入力と期待値を並べる `it.each` の表は、`"1234m → 1.2km"` のような「入力 → 期待値」の形式でよい（日本語の文にしなくてよい）。
+      行ごとの理由は表の行コメントに書く（例: `src/lib/backNavigation.test.ts`）。
+  - 前提が複数ある・理由が長いなど説明文に収まらないときは、`it()` の直前にコメントで補う。
+    共通の前提は `describe()` の説明文に寄せる。
+  - その検証が必要な理由（過去の不具合・ADR の決定）は、説明文かコメントに課題 ID か ADR の決定番号で残す。
+  - 既存のテストに一括で足す必要はない。新しく書く・書き換えるテストが対象。
 
 - E2Eテスト
   - 方針: 実機に近い体験、backendとの統合をテストする。

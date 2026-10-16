@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 
-import { PrivacyPolicyLink } from "@/components/legal/PrivacyPolicyLink";
+import { LegalConsentNotice } from "@/components/legal/LegalConsentNotice";
 import { Button } from "@/components/ui/button/Button";
 import { AppleSignInButton } from "@/features/auth/components/AppleSignInButton";
 import { AuthProviderButton } from "@/features/auth/components/AuthProviderButton";
@@ -12,7 +12,7 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
  * 「Google でログイン」は押下後に散歩開始画面へ遷移する。
  * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-M-009 SS-57 追補参照）。
  * SS-199 で iOS だけ Apple のボタンを Google の上に追加した。
- * SS-158 でプライバシーポリシーへのリンクを末尾に追加した（同意文言は付けない）。
+ * SS-158 でプライバシーポリシーへのリンクを末尾に追加し、SS-187 で利用規約への同意の文言とリンクに置き換えた。
  */
 export function SignInView() {
   const router = useRouter();
@@ -64,7 +64,7 @@ export function SignInView() {
       >
         アカウントを作成する
       </Button>
-      <PrivacyPolicyLink testID="sign-in-privacy-policy-link" align="center" />
+      <LegalConsentNotice testIDPrefix="sign-in" />
     </AuthScreenLayout>
   );
 }
