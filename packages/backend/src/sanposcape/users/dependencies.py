@@ -1,8 +1,10 @@
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
 from sanposcape.integrations.apple.client import AppleSignInClient
+from sanposcape.sanpo_maps.photos.account_purge import AccountPhotoPurgeScheduler
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 from sanposcape.users.service import AccountDeletionService, UserService
 
@@ -24,10 +26,12 @@ def get_apple_sign_in_client(request: Request) -> AppleSignInClient:
 def get_account_deletion_service(
     db: Session = Depends(get_db),
     apple_sign_in_client: AppleSignInClient = Depends(get_apple_sign_in_client),
+    settings: Settings = Depends(get_settings),
 ) -> AccountDeletionService:
     return AccountDeletionService(
         db,
         UserService(db, UserRepository(db)),
         AppleAuthorizationRepository(db),
         apple_sign_in_client,
+        AccountPhotoPurgeScheduler(db, retention_days=settings.account_photo_retention_days),
     )

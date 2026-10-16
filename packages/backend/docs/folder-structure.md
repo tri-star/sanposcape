@@ -27,7 +27,7 @@ packages/backend/
 ├── uv.lock
 ├── alembic.ini
 ├── .env / .env.example        # ポート・DB接続・プロジェクト名など
-├── template.yaml               # AWS SAM テンプレート（Lambda / Function URL / ロググループ。SS-67。トレース設定は SS-178、ダッシュボード 1 枚とアラーム 3 本は SS-179 / deployment.md §14）
+├── template.yaml               # AWS SAM テンプレート（Lambda / Function URL / ロググループ。SS-67。トレース設定は SS-178、ダッシュボード 1 枚とアラーム 3 本は SS-179 / deployment.md §14、写真の削除の関数・スケジュール・アラーム 2 本は SS-109 / deployment.md §17）
 ├── samconfig.toml              # SAM の dev/prod config-env（stack_name / region / tags 等。SS-67）
 ├── Makefile                    # SAM `BuildMethod: makefile` のビルドターゲット（SS-67）
 ├── events/                     # `sam local invoke` / `aws lambda invoke` 用の payload・env-vars（SS-67）
@@ -42,13 +42,14 @@ packages/backend/
 │       ├── all_models.py      # 全ドメインの models を import して Base.metadata に集約（Alembic autogenerate 用）
 │       ├── conftest.py        # テスト共通フィクスチャ（DB, TestClient 等）
 │       ├── tests/             # ドメインに属さない横断テスト（併置の例外）。config / database / main のほか、template.yaml の整合を検証する
-│       │                      #   test_tracing_config.py（SS-178）/ test_monitoring_config.py（SS-179）。template_loader.py は両者が使う YAML ローダー（キャッシュ付き）
+│       │                      #   test_tracing_config.py（SS-178）/ test_monitoring_config.py（SS-179）/ test_photo_purge_config.py（SS-109）。template_loader.py はこれらが使う YAML ローダー（キャッシュ付き）
 │       │
 │       ├── aws_lambda/        # AWS Lambda 固有の受け皿（ECS 移植性の境界。SS-67）
 │       │   ├── api.py         #   Lambda ハンドラ。main.app の import 前にシークレットをハイドレーションし、後で build_handler() を呼ぶ
 │       │   ├── asgi_handler.py #  Mangum を lifespan=off で包み、FastAPI の lifespan を init で1回だけ起動する。import しても副作用なし
 │       │   ├── runtime_logging.py #  ランタイムが root に付けたログハンドラーのフォーマッターを JSON に差し替える（ハンドラーは足さない）。api.py の先頭で呼ぶ。SS-180/ADR-013
 │       │   ├── migrate.py     #   Alembic upgrade head を実行する専用 Lambda ハンドラ
+│       │   ├── photo_purge.py #   アカウント削除後の写真を消す Lambda ハンドラ（EventBridge Scheduler から1日1回。SS-109）
 │       │   ├── tracing.py     #   Lambda 計装の親スパンの補正（http.target のクエリ除去、スパン名・http.route の付け直し、LogContext のユーザー ID・セッション ID を親スパンに写す。SS-178/SS-181/ADR-013）
 │       │   └── tests/         #   このモジュールのテスト（併置）
 │       │
@@ -96,7 +97,8 @@ packages/backend/
 │       │   ├── router.py      #   APIRouter（エンドポイント定義のみ、薄く）
 │       │   ├── models.py      #   SQLAlchemy モデル（User / AppleAuthorization）
 │       │   ├── service.py     #   ビジネスロジック（UserService。アカウント削除の AccountDeletionService は
-│       │   │                  #   Apple ユーザーの削除前にトークンを失効させる。SS-198）
+│       │   │                  #   Apple ユーザーの削除前にトークンを失効させる。SS-198。利用者の削除と同じ commit で
+│       │   │                  #   写真の削除予約を入れる（AccountPhotoPurgeScheduler。SS-109））
 │       │   ├── repository.py  #   DBアクセス（クエリ。UserRepository / AppleAuthorizationRepository）
 │       │   ├── dependencies.py#   ドメイン固有の依存（get_apple_sign_in_client は auth と共有）
 │       │   ├── exceptions.py  #   ドメイン固有の例外（AccountDeletionUnavailableError → 503）
@@ -150,9 +152,12 @@ packages/backend/
 │       │       ├── jpeg_metadata.py      # 原本の JPEG から EXIF などを再エンコードせずに除去（純粋関数, SS-116）
 │       │       ├── thumbnails.py         # Pillow によるサムネイル生成（純粋関数）
 │       │       ├── photo_keys.py         # staging/original/thumb の S3 キー組み立て（純粋関数）
-│       │       └── cleanup.py            # PhotoObjectCleaner（DB commit 後の best-effort な
-│       │                                 #   S3 オブジェクト削除。旧 PinService._delete_photo_
-│       │                                 #   keys_best_effort。SS-137）
+│       │       ├── cleanup.py            # PhotoObjectCleaner（DB commit 後の best-effort な
+│       │       │                         #   S3 オブジェクト削除。旧 PinService._delete_photo_
+│       │       │                         #   keys_best_effort。SS-137）
+│       │       └── account_purge.py      # アカウント削除後の写真の削除の公開面（M7）。予約を入れる
+│       │                                 #   AccountPhotoPurgeScheduler（commit しない）と処理の組み立て。
+│       │                                 #   実体は repository.py / service.py（SS-109）
 │       ├── health/            # ドメイン: 疎通確認（GET /health）。router.py のみ（DB もロジックも持たない）
 │       ├── api_docs/          # ドメイン: API ドキュメント UI（GET /docs = Scalar）。router.py のみ。
 │       │                       #   include_in_schema=False（openapi.yaml に載せない）。
@@ -249,6 +254,9 @@ packages/backend/
   - 呼び出しごとに `aws_request_id` を `LogContext` に束ねる（`__call__`）。Mangum 自身のログにも付く（SS-180）。
   - 経緯と決定は [ADR-005 SS-183 追補](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)。
 - `migrate.py`: Alembic `upgrade head` を実行する専用 Lambda（API 本体のハンドラでは走らせない）。
+- `photo_purge.py`: アカウント削除後の写真を S3 から消す Lambda（SS-109、ADR-009 決定36）。`create_app()` を通らないので、
+  `migrate.py` と同じくシークレットのハイドレーションとログの設定を自分で行う。処理の本体は
+  `sanpo_maps/photos/account_purge.py`（公開面）経由の `AccountPhotoPurgeService`。
 - `main.py` の `create_app()` / `app` はこのパッケージから独立しており無変更のまま。ECS では
   従来どおり `uvicorn sanposcape.main:app` で動く。
 

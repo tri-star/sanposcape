@@ -149,6 +149,14 @@ class ObjectStorage(Protocol):
         """
         ...
 
+    def list_keys(self, prefix: str, *, max_keys: int) -> list[str]:
+        """`prefix` で始まるキーを先頭から最大 `max_keys` 件返す（アカウント削除後の写真の
+        削除, SS-109）。続きのページは返さない: 呼び出し側は返ったキーを消してから同じ
+        `prefix` で呼び直す（消した分だけ先頭が進むので、継続トークンを持ち回らずに済む）。
+        失敗は `ObjectStorageUnavailableError`。
+        """
+        ...
+
 
 class S3ObjectStorage:
     """boto3 による実装。リージョナルエンドポイントを明示し、SigV4 で署名する。"""
@@ -315,6 +323,18 @@ class S3ObjectStorage:
             failed.extend(error["Key"] for error in response.get("Errors", []))
         return failed
 
+    def list_keys(self, prefix: str, *, max_keys: int) -> list[str]:
+        """`ListObjectsV2` を1回呼ぶ。通常の client（再試行あり）を使う（呼ぶのは
+        バックグラウンドの処理だけで、API の時間予算に乗らないため）。
+        """
+        try:
+            response = self._client.list_objects_v2(
+                Bucket=self._bucket, Prefix=prefix, MaxKeys=max_keys
+            )
+        except (ClientError, BotoCoreError) as exc:
+            raise self._unavailable(exc) from exc
+        return [item["Key"] for item in response.get("Contents", [])]
+
     @staticmethod
     def _error_code(exc: ClientError) -> str:
         return exc.response.get("Error", {}).get("Code", "")
@@ -367,6 +387,9 @@ class UnconfiguredObjectStorage:
         raise ObjectStorageUnavailableError("Photo storage is not configured")
 
     def delete_many(self, keys: list[str]) -> list[str]:
+        raise ObjectStorageUnavailableError("Photo storage is not configured")
+
+    def list_keys(self, prefix: str, *, max_keys: int) -> list[str]:
         raise ObjectStorageUnavailableError("Photo storage is not configured")
 
 
@@ -477,6 +500,20 @@ class FakeObjectStorage:
         for key in keys:
             self.delete(key)
         return []
+
+    def list_keys(self, prefix: str, *, max_keys: int) -> list[str]:
+        """S3 と同じくキーの昇順で、先頭から `max_keys` 件を返す。"""
+        with self._lock:
+            if self._root_dir is not None:
+                objects_dir = self._root_dir / "objects"
+                keys = (
+                    path.relative_to(objects_dir).as_posix()
+                    for path in objects_dir.rglob("*")
+                    if path.is_file()
+                )
+            else:
+                keys = iter(self._objects)
+            return sorted(key for key in keys if key.startswith(prefix))[:max_keys]
 
     # --- dev_storage_router 専用の検証・出し入れ ---
 

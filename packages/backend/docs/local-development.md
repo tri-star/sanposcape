@@ -162,3 +162,17 @@ Jaeger は `docker compose --profile observability stop jaeger`（履歴はメ�
   （[deployment.md](./deployment.md)「トレース」）。
 - pytest はこの設定に依存しない（`conftest.py` が `TRACING_ENABLED` を環境変数から外し、
   テストは自前の `TracerProvider` を使う）。
+
+## アカウント削除後の写真の削除を手で動かす（SS-109）
+
+デプロイ先では EventBridge Scheduler が1日1回起動する処理（`aws_lambda/photo_purge.py`）を、ローカルでは手で1回実行する。
+対象は保持期間（`ACCOUNT_PHOTO_RETENTION_DAYS`、既定 30 日）を過ぎた削除予約（`account_photo_purges`）だけ。
+すぐ確かめたいときは `.env` を編集せず `ACCOUNT_PHOTO_RETENTION_DAYS=0 docker compose up -d` で起動した backend からアカウントを削除するか、
+予約の `purge_after` を過去に書き換える（[deployment.md](./deployment.md) §17）。
+
+```bash
+docker compose exec api uv run python -m sanposcape.aws_lambda.photo_purge
+```
+
+`STORAGE_MODE=fake` なら `DEV_STORAGE_DIR` 配下の `objects/{staging,original,thumb}/pins/<user_id>/` が消える（空のディレクトリは残る）。
+

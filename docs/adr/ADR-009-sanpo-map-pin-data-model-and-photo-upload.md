@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-15（SS-116: 原本の EXIF などのメタデータを確定時に無劣化で除去する。BK-10 完了。決定35）。前回: 2026-10-10（SS-163: 写真に撮影日時 `taken_at` を持たせた。決定34）、2026-10-05（SS-175: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せるようにした。決定33）、2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）、2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-15（SS-109: アカウント削除後の写真を、保持期間の後にバックグラウンドで S3 から消すようにした。BK-2 の決着。決定36）。前回: 2026-10-15（SS-116: 原本の EXIF などのメタデータを確定時に無劣化で除去する。BK-10 完了。決定35）、2026-10-10（SS-163: 写真に撮影日時 `taken_at` を持たせた。決定34）、2026-10-05（SS-175: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せるようにした。決定33）、2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）、2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -107,9 +107,22 @@
   `limit` 既定100・最大200、member のみ・非メンバーは404）。置き場所は `sanpo_maps/maps/`
   （本文: SS-136 追補 決定30）
 
+- **アカウント削除後の写真は、保持期間（既定 30 日）の後にバックグラウンドで S3 から消す**（BK-2 の決着）。
+  アカウント削除と同じトランザクションで削除予約 `account_photo_purges`（利用者 ID・期限。`users` への FK なし）を
+  入れ、EventBridge Scheduler が1日1回起動する Lambda `sanposcape-<env>-backend-scheduled-photo-purge` が、期限を過ぎた
+  利用者の `staging/`・`original/`・`thumb/` の `pins/<user_id>/` を列挙→`DeleteObjects` で消して予約を消す。
+  冪等で、S3 の失敗・時間切れは予約を残して翌日に続きから消す。保持中に予約を消せば写真は残る（ただし DB の行は
+  削除時点で消えているので、戻すには DB の復元が要る）。構成は単一 Lambda（案A）で、SQS のファンアウト（案B）は
+  詰まり始めたら移る。スケジュールとグループは SAM、Scheduler 用ロールは infra 所有で、ロールが起動できるのは
+  `sanposcape-<env>-backend-scheduled-*` の関数だけ（本文: SS-109 追補 決定36）
+
 ### 未解決・持ち越し
 
-- **BK-2**: アカウント削除時の写真削除。**prod でフラグ ON にする前提条件**（本文: 移行・対応事項）
+- ~~**BK-2**: アカウント削除時の写真削除。**prod でフラグ ON にする前提条件**（本文: 移行・対応事項）~~
+  → **SS-109 で決着**（決定36）。prod で動かすには infra の live/account（Scheduler 用ロールとデプロイロールの許可）の
+  apply → backend のデプロイが要る
+- **保持期間と DB の復元期間（Neon の PITR）の整合**は未確認。PITR より長く写真を残しても持ち主の行に
+  戻せない（本文: SS-109 追補 決定36）
 - **BK-3, BK-7〜BK-9**: 期限切れ枠の掃除、招待、使用量 API、サムネイルの非同期化
   （本文: 移行・対応事項。BK-10「原本の EXIF 除去」は SS-116 で完了した。BK-4「閲覧 API」は SS-111、BK-5「編集・削除 API」は SS-112、
   BK-6「地図の作成・管理 API」は SS-113 で完了した）
@@ -122,8 +135,10 @@
   apply 待ちで、backend の prod デプロイ自体がまだできない（本文: 決定8 の SS-108 追補）
 - **Lambda 実行ロールでの直送**は未再現。2026-09-24 の dev 疎通確認はローカルの管理者権限で
   署名しており、IAM の付与・境界は静的確認で代替している（本文: SS-88 追補）
-- **写真バケットの S3 バージョニング**が有効かは未確認（infra 側の管理）。有効なら、削除した写真の
-  実データがいつ消えるかは infra のライフサイクル設定次第になる（本文: SS-113 追補 決定28）
+- ~~**写真バケットの S3 バージョニング**が有効かは未確認（infra 側の管理）。有効なら、削除した写真の
+  実データがいつ消えるかは infra のライフサイクル設定次第になる（本文: SS-113 追補 決定28）~~
+  → **SS-109 で確認**: infra のコード上は dev / prod とも無効で、削除は即時の完全削除（実環境の確認は
+  SSO 切れで未実施。本文: SS-109 追補）
 
 ### 変更・撤回された決定
 
@@ -160,13 +175,16 @@ port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の�
 2026-10-04 追補（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived`。決定32）、
 2026-10-05 追補（SS-175: ピンの地図の移動。決定33）、
 2026-10-10 追補（SS-163: 写真の撮影日時 `taken_at`。決定34）、
-2026-10-15 追補（SS-116: 原本のメタデータの無劣化除去。BK-10 完了。決定35）
+2026-10-15 追補（SS-116: 原本のメタデータの無劣化除去。BK-10 完了。決定35）、
+2026-10-15 追補（SS-109: アカウント削除後の写真の保持期間付きバックグラウンド削除。BK-2 の決着。決定36）
 
 ## ステータス
 
 採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は SS-108 で実施済みで、
 **dev での疎通確認も完了**（2026-09-24。下の「追補（2026-09-24）」）。prod は infra 側の
 prod apply 待ち。
+（**SS-109 追補**: アカウント削除後の写真の削除（決定36）は backend 実装済み。dev / prod とも、infra の
+live/account（Scheduler 用ロールとデプロイロールの許可）の apply → backend のデプロイの後に動き始める。）
 
 ## コンテキスト
 
@@ -645,7 +663,7 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       `original/` と `thumb/` にオブジェクトが作られ `staging/` が削除されることまで確認した。
       prod は infra 側の apply 待ちで未実施。detail は
       [deployment.md](../../packages/backend/docs/deployment.md) §12）
-- [ ] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
+- [x] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
       S3 のオブジェクトは残るため）。決定22 の `ObjectStorage.delete_many()` と
       `PinService._delete_photo_keys_best_effort()`（決定28 で地図単位にも使われるように
@@ -653,7 +671,9 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       再利用先は `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner.delete_best_effort()`
       に置き換わった。`users` ドメインから呼ぶ場合は `sanpo_maps` の外からの呼び出しになるため、
       先に ADR-011 M7 の公開面（現在は `models`/`exceptions`/各 `router` のみ）へ
-      `PhotoObjectCleaner` を追補してから使う）
+      `PhotoObjectCleaner` を追補してから使う）→ **SS-109 で決着**（決定36）。削除リクエストの中では
+      消さず、保持期間の後にバックグラウンドで prefix ごと消す方式にしたため、`PhotoObjectCleaner` は
+      再利用していない。M7 の公開面には `sanpo_maps.photos.account_purge` を足した（ADR-011 の SS-109 追補）
 - [ ] **BK-3**: 期限切れ `pending` 枠の行削除と、対応する未参照 S3 オブジェクトの掃除
       （定期実行）。**SS-112 の編集・削除 API で残りうる不整合が増えた**: S3 削除が
       時間予算の不足による打ち切り・ストレージ障害で失敗した場合の `original/`・`thumb/`
@@ -1772,6 +1792,104 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
   Orientation を不要にする（MCU 境界で完全には無劣化にならず、ネイティブ依存が Lambda の zip に増える）／
   除去を presigned POST の前（端末）だけに任せる（現状どおり。非正規のクライアントを防げない）。
 
+## 追補（2026-10-15, SS-109 アカウント削除後の写真の削除）
+
+`DELETE /users/me` で DB は CASCADE で消えるが、写真の S3 オブジェクトは残っていた（BK-2）。ユーザーの要望は
+「削除リクエストの中で全部消すと削除処理の負荷が大きい。万一のリカバリに備えて一定期間保持し、期間の後に
+バックグラウンドで消す」。AWS 上の構成はシンプルな案とスケールする案を比較し、インフラ（sanposcape-infra）と
+相談して決めた。
+
+### 決定36: アカウント削除後の写真は、保持期間の後にバックグラウンドで prefix ごと消す
+
+- **削除予約**: アカウント削除（`AccountDeletionService.delete_account`）が、利用者を消すのと**同じ
+  トランザクション**で `account_photo_purges` に1行入れる（`user_id` PK・`requested_at`・`purge_after`
+  （= 削除時刻 + 保持期間）、`purge_after` に索引）。利用者の行は CASCADE で消えるので `users` への FK は持たない。
+  予約と削除のどちらかだけが残る状態は作らない。同じ利用者の予約が既にあれば何もしない（`ON CONFLICT DO NOTHING`。
+  並行した削除を一意制約違反で 500 にしない）。
+- **保持期間**: `ACCOUNT_PHOTO_RETENTION_DAYS`（既定 30 日、0〜365）。保持中に予約の行を消せば写真は残る。
+  ただし DB の行（ピン・写真の管理情報）は削除の時点で消えているので、写真だけでは元に戻せない。戻すには DB の
+  復元（Neon の PITR）と組み合わせる。保持期間を PITR の期間より長くしても戻せない写真を持ち続けるだけになる
+  （infra の回答。PITR の期間は未確認）。
+- **削除の処理**（`sanpo_maps/photos/service.py` の `AccountPhotoPurgeService`）: 期限を過ぎた予約を古い順に
+  `ACCOUNT_PHOTO_PURGE_BATCH_SIZE`（既定 200）件読み、読み取りのトランザクションを閉じてから、利用者ごとに
+  `user_photo_prefixes()`（`staging/pins/<uid>/`・`original/pins/<uid>/`・`thumb/pins/<uid>/`）を
+  「先頭 1000 件を列挙（`ObjectStorage.list_keys`）→ `DeleteObjects`」で空になるまで繰り返し、空になったら
+  予約を消して commit する。S3 を呼ぶ間は DB のトランザクションを握らない。
+  - 冪等: どこで止まっても予約が残り、次回に残りを消す（消し済みのキーは列挙に出てこないので継続トークンを持たない）。
+  - S3 の失敗（列挙の例外・削除に失敗したキー）があった利用者はそこで打ち切り、次の利用者へ進む。
+  - 締め切り（`ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS`、既定 240 秒）を過ぎたら新しい S3 の呼び出しを始めずに
+    終え、残りを翌日に持ち越す（失敗にはしない）。
+  - prefix で消すので、過去の best-effort 削除（決定22・28）の失敗で残った孤立オブジェクトも一緒に消える。
+  - prefix は UUID の利用者 ID からしか組み立てない（空文字だと `original/pins//` で全員の写真を消しうる。
+    削除の IAM 権限は `original/pins/*` までしか絞れず、利用者を区別できないため）。
+- **起動**: Lambda `sanposcape-<env>-backend-scheduled-photo-purge`（`aws_lambda/photo_purge.py`。API・migrate と同じ
+  成果物の別ハンドラ、Timeout 300 秒）を EventBridge Scheduler（SAM の `ScheduleV2`）で毎日 JST 04:00 に起動する。
+  S3 の失敗で消し切れなかった利用者がいれば、結果をログに出して実行を失敗にする（Errors のアラーム）。
+  起動されなかったこと（Scheduler 側の不備）は Errors では分からないので、`Invocations` が2日続けて 0 の
+  アラームも置く。dev は予約同時実行数 1（prod はクォータの都合で未予約）。
+- **権限と責務の境界**（infra との合意。詳細は [deployment.md](../../packages/backend/docs/deployment.md) §17）:
+  - スケジュール本体（cron 式）とスケジュールグループ `sanposcape-<env>-backend`（`AWS::Scheduler::ScheduleGroup`。
+    デプロイロールが作れるのはこの名前だけ）は SAM。Scheduler が起動に使うロール（SSM
+    `/sanposcape/<env>/account/backend_scheduler_role_arn`）は Terraform（live/account）。デプロイ順は infra の apply → SAM。
+  - **ロールが起動できるのは `sanposcape-<env>-backend-scheduled-*` の関数だけ**。そのため定期実行する関数の名前は
+    `backend-scheduled-` で始め（写真の削除は `sanposcape-<env>-backend-scheduled-photo-purge`）、定期実行しない関数
+    （Api・Migrate など）には付けない。付けると、デプロイロールがスケジュールを作るだけで、その関数を任意の入力で
+    起動できてしまう（`backend-*` 全体を許すと migrate が起動できる）。両方をテスト（`test_photo_purge_config.py`）で固定した。
+    （infra との最初の合意は「infra の変数に関数名を列挙し、グループも Terraform が作る」だったが、定期実行の関数を足すたびに
+    infra の変更が要らないよう、infra の PR #55 の中で接頭辞方式と SAM 所有のグループに変えた。）
+  - SAM にロールを作らせる構成は採らない（デプロイロールの `iam:PassRole` は Lambda 向けだけ、境界に
+    `lambda:InvokeFunction` を足すと全関数の実行ロールの上限が広がる）。EventBridge のルールも採らない
+    （`lambda:AddPermission` はデプロイロールに無い）。
+  - 実行ロールは写真バケットの `s3:ListBucket`（`s3:prefix` 条件で3か所）と、3か所の `s3:DeleteObject` だけ。
+    境界（SS-107）の変更は要らない。
+  - 写真バケットのバージョニングは無効（infra のコード上。実環境は SSO 切れで未確認）。削除は即時の完全削除で、
+    S3 側では戻せない。
+- **モジュール構成**: 予約のテーブルと処理は写真のキーの構成を知っている `sanpo_maps/photos` が持つ。`users` と
+  `aws_lambda` からは新しい公開面 `sanpo_maps.photos.account_purge`（commit しない部品
+  `AccountPhotoPurgeScheduler` と、処理の組み立て `build_account_photo_purge_service`）だけを使う
+  （[ADR-011](./ADR-011-sanpo-maps-module-structure.md) の SS-109 追補）。
+
+#### 検討した選択肢
+
+| | 案A（シンプル）**採用** | 案B（スケールする構成） |
+|---|---|---|
+| 構成 | Scheduler → 単一 Lambda が予約を順に処理 | Scheduler → dispatcher Lambda が予約を SQS へ（1利用者1メッセージ）→ worker Lambda（SQS のイベントソース、最大同時実行数で制御）+ DLQ |
+| 持ち越し | 時間切れなら翌日 | 続きを SQS へ再投入、失敗は DLQ |
+| 処理量の目安 | 1回数分。1回の呼び出しで 1000 キーずつ。現状の規模では十分 | worker の並列度に比例。S3 のレート上限（prefix ごと 3,500 DELETE/秒）まで伸ばせる |
+| infra の変更 | live/account に Scheduler 用ロールとデプロイロールの許可（スケジュール・グループの管理、PassRole）（PR 1 本） | 加えて SQS とイベントソースマッピングの管理（デプロイロール）、SQS の送受信（境界）。約 120 行、ESM の条件付き許可を dev で確かめる手間がある |
+| prod の同時実行数（クォータ 10） | 1日1回、1枠を数分 | dispatcher 1 + worker 最小 2 の 3枠。API が 7 枠に減る時間帯ができる |
+| 監視 | Errors + 起動されなかったこと | 加えて DLQ の滞留 |
+
+案A を採った理由: 現状の利用者数・写真枚数では1日1回の単一 Lambda で間に合い、新しい種類のリソース（SQS）と
+権限を増やさずに済む。prod の同時実行数のクォータも取り合わない。予約テーブルと1利用者分の処理
+（`_purge_user`）は案B でもそのまま使えるので、詰まり始めたら（持ち越しが毎日続く、予約の滞留が増える）handler と
+テンプレートの差し替えと、infra の SQS 分の PR で移れる。案A で作る Scheduler 用のロールとスケジュールグループは案B でも使う（dispatcher の名前を `backend-scheduled-` で始めれば infra の変更は要らない）。
+
+採らなかったその他の案:
+
+- **削除リクエストの中で即時に消す**: ユーザーの要望に反する。写真の多い利用者で API の時間予算（25 秒）に収まらない。
+- **オブジェクトにタグを付けて S3 のライフサイクルで失効させる**: ライフサイクルの日数はオブジェクトの作成日から
+  数えるので、古い写真はタグを付けた翌日に消え、保持期間にならない。タグ付け自体が1オブジェクトずつで、避けたかった
+  削除時の負荷もかかる。
+- **`deleted/` へコピー + ライフサイクル**: 保持期間としては成り立つが、削除時に全オブジェクトのコピーが要る。
+- **削除対象のキーを全て DB に書き出す**: prefix で消せば行は1利用者1行で済み、孤立オブジェクトも一緒に消せる。
+- **S3 Batch Operations（Inventory のマニフェスト）**: さらに大規模向けで、現状は過剰。
+
+#### 影響・残る事項
+
+- **プライバシー**: ポリシー 7 の「アカウントを削除しても画像ファイルは残る」を「削除から 30 日間保存したのち
+  削除する」に改めた（[ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-109 追補、データ取扱い台帳）。
+  削除予約の行（削除したアカウントの内部 ID と日時）が、写真を消し終えるまで DB に残る。
+- **地図の招待（BK-8）との関係**: 写真のキーはアップロード者の prefix の下にあるので、この方式で消えるのは本人が
+  アップロードした写真。招待が入ると、地図の owner のアカウント削除で、他の利用者がその地図に載せた写真の行が
+  CASCADE で消えるが、その写真は owner の prefix の外にあり予約では消えない。招待の課題で、owner 削除時の地図の
+  扱いとあわせて決める。
+- **この版より前に削除されたアカウント**の写真は予約が無く、S3 に残る（prod は写真機能の結線前なので dev だけの
+  見込み）。必要なら予約を手で入れる（deployment.md §17）。
+- **確かめていないこと**: dev / prod の実環境のバージョニング・ライフサイクル（infra の SSO 切れ）、Neon の PITR の
+  期間、デプロイしたスケジュールからの実際の起動（infra の apply 待ち）。
+- 持ち越しの件数のメトリクス（EMF）とそのアラームは入れていない。案B へ移る判断材料が要るようになったら足す。
+
 ## 関連情報
 
 - [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
@@ -1792,4 +1910,5 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
   SS-173（ピンの訪問状況・アーカイブ状態。決定32）、
   SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
   SS-116（原本のメタデータの無劣化除去。BK-10。決定35）、
-  SS-163（写真の撮影日時。決定34。mobile: [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）
+  SS-163（写真の撮影日時。決定34。mobile: [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）、
+  SS-109（アカウント削除後の写真の削除。決定36。infra: sanposcape-infra の live/account/backend_scheduler.tf）

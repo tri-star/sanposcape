@@ -1,8 +1,31 @@
 # ADR-011: `sanpo_maps` モジュール構成（地図・ピン・写真の統合とモジュール内依存規則）
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-15（SS-109: M7 の公開面に `sanpo_maps.photos.account_purge` を足した）。前回: 2026-10-05（SS-175）、2026-09-29（SS-136）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **地図・ピン・写真は1つのモジュール `sanpo_maps`**（共有カーネル + `maps/`・`pins/`・`photos/`）（本文: 決定1・2）
+- **モジュール内規則 M1〜M8 を AST テスト（`test_architecture.py`）で固定する**。Service は他の Service を使わず、
+  サブパッケージを跨いで共有するのは Repository と commit しない部品だけ。commit は `service.py` だけ（本文: 決定3）
+- **M7 の公開面**（モジュールの外から import してよいもの）: `sanpo_maps.models`・`sanpo_maps.exceptions`・
+  `sanpo_maps.{maps,pins,photos}.router`・`sanpo_maps.photos.dev_storage_router`・
+  **`sanpo_maps.photos.account_purge`**（SS-109: アカウント削除後の写真の削除の入口）（本文: 決定3、SS-109 追補）
+- **ユースケース層（`usecases/`）は M9 の条件に当たるまで作らない**。ピンの地図の移動（SS-175）は既存の
+  `PinService` に収まり、条件に当たらない（本文: 決定3'）
+- **Service 循環は commit しない部品（`SanpoMapAccess`・`PhotoAttacher`・`PhotoObjectCleaner`）と Repository の
+  クエリで解く**。port は作らない（本文: 決定4、SS-175 追補）
+
+### 未解決・持ち越し
+
+- `pins/service.py` の写真確定処理の切り出し、`delete_upload` の commit 後の例外の扱い（本文: 移行・対応が必要な事項）
+- BK-7（招待）などで他ドメインが地図の権限を必要とする場合は、M7 の公開面を追補で広げる（本文: 移行・対応が必要な事項）
+
 ## 日付
 
-2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）、2026-10-05（追補、SS-175）
+2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）、2026-10-05（追補、SS-175）、2026-10-15（追補、SS-109）
 
 ## ステータス
 
@@ -140,7 +163,7 @@ import は常に `sanposcape.sanpo_maps.maps.*` と完全修飾なので実害�
 | M4 | **commit/rollback を呼ぶのは `service.py` だけ** | AST |
 | M5 | 複数サブパッケージにまたがるユースケースは、依存の向きで**上位のサブパッケージの Service が持つ**（地図削除 = maps が photos の部品を使う。ピン作成 = pins が maps の部品と photos の部品を使う）。下位が上位の情報を要する場合は、クエリを下位の Repository に置く（モデルは共有なので可能）か、処理を下位へ移す。**Protocol の port・メソッド引数での注入は作らない**。下位が上位の業務ロジックそのものを必要とし、これらで解けなくなったら決定3'（M9）のユースケース層を導入する | AST（`test_no_protocol_ports`）+ レビュー |
 | M6 | テーブルへの書き込み（INSERT/UPDATE/DELETE）は、そのテーブルを持つサブパッケージの Repository だけが行う。他サブパッケージのテーブルは JOIN・集計（読み取り）にだけ使ってよい。`ON DELETE CASCADE` は対象外 | レビュー |
-| M7 | モジュールの外（`main.py`・`all_models.py`・他ドメイン）から import してよいのは公開面だけ: `sanpo_maps.models`・`sanpo_maps.exceptions`・`sanpo_maps.{maps,pins,photos}.router`・`sanpo_maps.photos.dev_storage_router`。公開面を広げる場合は本 ADR への追補で決めてから許可リストを広げる | AST |
+| M7 | モジュールの外（`main.py`・`all_models.py`・他ドメイン）から import してよいのは公開面だけ: `sanpo_maps.models`・`sanpo_maps.exceptions`・`sanpo_maps.{maps,pins,photos}.router`・`sanpo_maps.photos.dev_storage_router`（**SS-109 追補**: `sanpo_maps.photos.account_purge` を足した。下の「M7 の公開面の追補（SS-109）」）。公開面を広げる場合は本 ADR への追補で決めてから許可リストを広げる | AST |
 | M8 | モジュール内の import は絶対 import のみ（相対 import 禁止） | AST |
 
 上記のうち AST で決定的に判定できるもの（M1・M2・M3・M4・M5・M7・M8）は
@@ -424,6 +447,8 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 - [ ] 将来 BK-2（アカウント削除時の写真削除）・BK-7（招待）等の他ドメインが地図の権限・
       写真削除を必要とする場合は、M7 の公開面（`sanpo_maps.models`・`sanpo_maps.exceptions`・
       各 `router`）を本 ADR への追補で意識的に広げてから使う。
+      （**SS-109 追補**: BK-2 は `sanpo_maps.photos.account_purge` を足して解決した（下の追補）。
+      BK-7 は未着手。）
 - [ ] `sanpo_maps/photos/service.py` の `PinPhotoUploadService.delete_upload`（アップロード枠の
       取り消し）は、commit 後の staging 削除で `ObjectStorageUnavailableError` だけを捕捉している
       （他の commit 後の後始末は `PhotoObjectCleaner.delete_best_effort()` の `except Exception`）。
@@ -431,6 +456,25 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
       からの挙動をそのまま移したもので、揃えると振る舞いが変わるため本チケットでは直さず、
       別チケットで「commit 後の後始末は例外を外に出さない」に揃えるかを判断する
       （SS-137 ローカルレビュー、2026-09-28 ユーザー判断で見送り）。
+
+## M7 の公開面の追補（2026-10-15, SS-109）
+
+アカウント削除後の写真の削除（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36）で、
+`users` のアカウント削除が削除予約を入れ、`aws_lambda/photo_purge.py` が期限を過ぎた予約を処理する。
+どちらも `sanpo_maps` の外なので、**公開面に `sanpo_maps.photos.account_purge` を1つ足した**
+（`test_architecture.py` の `_ALLOWED_PUBLIC_SURFACE`）。
+
+- 公開するのは、予約を入れる commit しない部品 `AccountPhotoPurgeScheduler`（呼び出し元のアカウント削除の
+  トランザクションに乗る）と、処理の組み立て `build_account_photo_purge_service()`（と結果の型）だけ。
+  実体（`AccountPhotoPurgeRepository` は `photos/repository.py`、commit する `AccountPhotoPurgeService` は
+  `photos/service.py`）は公開面に出さない。M4（commit は `service.py` だけ）を守るため、処理の本体を
+  公開面のモジュールには置かず、組み立て関数を通して渡す。
+- `photos/service.py` や `photos/repository.py` を丸ごと公開面にする案は採らなかった（写真アップロード枠の
+  Service・Repository まで外から使えるようになる）。
+- 予約のテーブル（`account_photo_purges`）は、写真のキーの構成（`photo_keys.py` の prefix）を知っている
+  `photos` が持つ（M6）。`users` は公開面の部品を通してだけ書き込む。
+- 依存の向き: `users.service` → `sanpo_maps.photos.account_purge` → `sanpo_maps.photos.{service,repository}` →
+  `sanpo_maps.models` → `users.models`。`users.models` は `users.service` を import しないので循環しない。
 
 ## 関連情報
 

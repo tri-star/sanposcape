@@ -45,6 +45,7 @@
 - `deadline_seconds`/`monotonic` の時間予算は、Lambda の29秒で強制終了される前に制御された応答（503/204）を返すためのもの。すべてのネットワーク I/O フェーズ（特に応答直前まで続く書き込み・削除）が同じ締め切りの傘下にあるか。SS-88 の `PhotoAttacher` は最初のフェーズにしか掛かっていなかった。
 - 呼ぶ前だけ締め切りを確かめる形なら、1回の最悪時間（timeout × 試行回数）が予算に収まるか（SS-112）。確定処理の「呼ぶ前だけ」は ADR-009 決定22 の 2026-09-26 追補で受容済みなので再指摘しない。
 - 時間予算の計算が他モジュールの定数（例: `integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS`）を前提にしているなら、その前提をテストで固定しているか（`integrations/aws/tests/test_s3.py::test_delete_total_max_attempts_is_one`）。
+- 締め切りを `Settings` の設定値にしたとき、`template.yaml` の Lambda の `Timeout` と整合しているかを**既定値ではなく設定できる上限（`Field(le=...)`）**で確かめているか。上限が Timeout −（1回の最悪時間）を超えると、環境変数で上げただけで毎回タイムアウトする。SS-109 の `ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS` は上限 840 で Timeout 300 を超えられた（270 に修正。`tests/test_photo_purge_config.py`）。
 - タイムアウト・ロックのガードを一部の操作にだけ足していないか。同じファイル・同じ関心事の中で同種のロックを要求する操作を横並びで見る。SS-141 では `_delete_all()`（DML）にだけ `lock_timeout` を足し、より広く衝突する `drop_all`/`create_all`（DDL）に無かった（ADR-B-001 決定1・決定4）。「頻度が低いから」はガードを省く理由にならない。
 
 ## スキーマ変更とデプロイ順

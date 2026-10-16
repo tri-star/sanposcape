@@ -32,6 +32,7 @@
 > | ログの JSON 化（§15 / SS-180） | ⚠️ **デプロイ未実施**（dev へはデプロイしていない）。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
 > | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
 > | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **デプロイ未実施・実機未確認**。pytest（Apple の REST API はモック通信）は通過。**鍵は未投入で SS-196 待ち**。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-196 の鍵投入後に SS-162（アカウント削除導線の確認）で行う |
+> | 写真の削除（PhotoPurge・ScheduleV2・アラーム。§17 / SS-109） | ⚠️ **デプロイ未実施**（infra の PR #55＝Scheduler 用ロールとデプロイロールの許可の dev apply 待ち）。`sam validate --lint`・pytest・ローカルでの1回実行（`STORAGE_MODE=fake`）は確認済み |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
 
 ## 1. 前提
@@ -59,9 +60,10 @@
 | SAM スタック名 | `sanposcape-backend-dev` | `sanposcape-backend-prod` |
 | API 関数名 | `sanposcape-dev-backend-api` | `sanposcape-prod-backend-api` |
 | マイグレーション関数名 | `sanposcape-dev-backend-migrate` | `sanposcape-prod-backend-migrate` |
+| 写真の削除の関数名（SS-109、§17） | `sanposcape-dev-backend-scheduled-photo-purge` | `sanposcape-prod-backend-scheduled-photo-purge` |
 | アプリの `ENV` | `staging` | `production` |
 | ロググループ保持期間 | 30日 | 400日 |
-| `ReservedConcurrentExecutions` | Api=5 / Migrate=1 | 未設定（後述） |
+| `ReservedConcurrentExecutions` | Api=5 / Migrate=1 / PhotoPurge=1 | 未設定（後述） |
 | API ドキュメント（`/docs`、SS-131） | 公開（Scalar、200） | 非公開（404） |
 
 **`Env=dev` はアプリの `ENV=staging` に対応する。** `template.yaml` の `Mappings`
@@ -73,10 +75,11 @@ dev アカウントの CloudWatch Logs には `ENV=staging` と出る。
 
 | 作るもの | 所有者 |
 |---|---|
-| Lambda 関数 2 つ（API 本体 / マイグレーション）、実行ロール、CloudWatch ロググループ 2 つ、API 本体の Function URL | **SAM**（このリポジトリ） |
+| Lambda 関数 3 つ（API 本体 / マイグレーション / 写真の削除（SS-109））、実行ロール、CloudWatch ロググループ 3 つ、API 本体の Function URL、写真の削除のスケジュールとスケジュールグループ `sanposcape-<env>-backend`（EventBridge Scheduler、`ScheduleV2`・`AWS::Scheduler::ScheduleGroup`。§17） | **SAM**（このリポジトリ） |
 | CloudWatch ダッシュボード 1 枚、ap-southeast-1 のアラーム（`sanposcape-<env>-backend-*`。§14 / SS-179） | **SAM**（このリポジトリ） |
 | CloudFront ディストリビューション、WAF、Route53、ACM、OAC、Secrets Manager の器、アクセスログ S3、CloudFront のアラーム（us-east-1）、アラートの SNS トピック | **Terraform**（別リポジトリ `sanposcape-infra`） |
 | CloudFront からの呼び出し許可（`lambda:InvokeFunctionUrl` / `lambda:InvokeFunction`） | **Terraform**（`enable_distribution = true` の apply 時に付与） |
+| Scheduler が関数を起動するロール（`sanposcape-<env>-backend-scheduled-*` の関数だけを起動できる。SSM `/sanposcape/<env>/account/backend_scheduler_role_arn`）（§17 / SS-109） | **Terraform**（live/account。sanposcape-infra PR #55） |
 
 **デプロイ順は常に SAM → Terraform。** SAM が Lambda 関数と Function URL を作った後でないと、
 Terraform 側が CloudFront のオリジンとして参照できない。
@@ -257,7 +260,7 @@ make lambda-requirements
 # 2) テンプレートの静的検証（sam CLI が使える環境で行うこと。本セッションでは未実行）
 sam validate --lint
 
-# 3) ビルド（--use-container 必須。Makefile の build-Api / build-Migrate が呼ばれる）
+# 3) ビルド（--use-container 必須。Makefile の build-Api / build-Migrate / build-PhotoPurge が呼ばれる）
 sam build --use-container
 
 # 4) 展開後サイズの確認（250MB 制限に対する余裕。uvicorn[standard] を含むため要注意。
@@ -1087,7 +1090,8 @@ prod の backend デプロイは、写真と関係なく既に `platform/appconf
 > 204 を返す（S3 側の削除は失敗して WARNING ログのみ残り、`original/`・`thumb/` の
 > オブジェクトが孤立して残る。ADR-009 決定22, SS-112。地図削除は決定28, SS-113）。prod で
 > `pin_registration` を ON にするのは BK-2（アカウント削除時の写真削除）の後なので、
-> それまでは利用者影響は無い。
+> それまでは利用者影響は無い（**SS-109 追補**: BK-2 は実装済み（§17）。prod で動き始めるのは infra の
+> prod apply と backend の prod デプロイの後）。
 
 Fn::If で prod だけ結線を外す案は採らなかった。prod のデプロイは上記のとおり `platform` の apply を
 待つ必要があり分岐の効果が無いこと、非選択分岐の動的参照が解決されないかを本リポジトリで
@@ -1496,6 +1500,7 @@ Q5〜Q6b は、REPORT 行がテキスト形式（`@type = 'REPORT'` / `@maxMemor
 - **dev は `ActionsEnabled: false`**（状態はコンソールで見えるが通知は飛ばない）。`AlarmActions` は dev でも設定してあるので、
   有効にするときは `template.yaml` の `ActionsEnabled` を変えるだけでよい。prod は有効。
 - Migrate（手動で invoke する関数）にはアラームを付けない。結果は呼び出した人が受け取り、失敗は §5.2 の手順の中で気づくため。
+- 写真の削除（PhotoPurge）のアラーム2本（`…-scheduled-photo-purge-errors` / `…-scheduled-photo-purge-not-run`）は §17。
 - prod への通知の疎通確認は、1 回だけ
   `aws cloudwatch set-alarm-state --alarm-name sanposcape-prod-backend-api-lambda-errors --state-value ALARM --state-reason "通知テスト"`
   で試す（次の評価で OK に戻る）。
@@ -1750,3 +1755,104 @@ SOURCE 'aws/spans'
 3. ログイン・refresh のアクセスログに `user_id` が付く。
 4. `X-App-Session-Id` を付けた curl で `app_session_id` がログに出る。不正な値は出ない。CloudFront 経由でヘッダーが届く
    （origin request policy は `Managed-AllViewerExceptHostHeader`。ADR-005。infra の変更は不要の見込み）。
+
+## 17. アカウント削除後の写真の削除（EventBridge Scheduler + Lambda。SS-109 / ADR-009 決定36）
+
+アカウント削除（`DELETE /users/me`）は写真を S3 から消さず、削除予約（DB `account_photo_purges`）を入れる。
+`PhotoPurge`（`sanposcape-<env>-backend-scheduled-photo-purge`、`aws_lambda/photo_purge.py`）が毎日 JST 04:00 に起動し、
+保持期間（`ACCOUNT_PHOTO_RETENTION_DAYS`、既定 30 日）を過ぎた予約の利用者の
+`staging/pins/<user_id>/`・`original/pins/<user_id>/`・`thumb/pins/<user_id>/` を消して予約を消す。
+設計と、採らなかった構成（SQS のファンアウトなど）は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36。
+
+### 構成と責務の境界
+
+| もの | 所有 |
+|---|---|
+| 関数 `PhotoPurge`・ロググループ・スケジュールグループ `sanposcape-<env>-backend`（`BackendScheduleGroup`）・`ScheduleV2`（cron・時刻帯）・アラーム2本 | SAM（`template.yaml`） |
+| Scheduler 用ロール `sanposcape-<env>-backend-scheduler`（起動できるのは `sanposcape-<env>-backend-scheduled-*` の関数だけ）、SSM `/sanposcape/<env>/account/backend_scheduler_role_arn`、デプロイロールの `ManageBackendScheduleGroup`（この名前のグループだけ）/ `ManageBackendSchedules` / `PassSchedulerRole` | Terraform（live/account、sanposcape-infra PR #55） |
+
+- **`ScheduleV2` の `GroupName`（`!Ref BackendScheduleGroup`）と `RoleArn` は省けない。** 省くとデプロイロールの許可の外になり AccessDenied。
+- **定期実行する関数の名前は `sanposcape-<env>-backend-scheduled-` で始める。** 外すと Scheduler が起動できず、`not-run` のアラームが鳴る。
+  逆に、**定期実行しない関数（Api・Migrate など）には `scheduled-` を付けない**（付けると Scheduler 経由で任意の入力で起動できるようになる）。
+  両方を `src/sanposcape/tests/test_photo_purge_config.py` が固定する。定期実行の関数を足すときに infra の変更は要らない。
+- スケジュールグループを消すと、中のスケジュールも消える。グループはこのスタックの中だけで使う。
+- 実行ロールは写真バケットの `s3:ListBucket`（`s3:prefix` 条件で上の3か所）と、3か所の `s3:DeleteObject` だけ。Put / Get は付けない。
+  権限の prefix がアプリの消す prefix と一致することは `src/sanposcape/tests/test_photo_purge_config.py` が固定する。
+- 写真バケットはバージョニング無効（infra のコード上）。消した写真は S3 側では戻せない。
+
+### デプロイ順（環境ごと）
+
+1. infra の live/account を apply する（sanposcape-infra PR #55。dev → prod）。SSM の `backend_scheduler_role_arn`（Scheduler 用ロール）と、デプロイロールのスケジュール・グループの許可ができる。
+2. backend をデプロイする（migrate → コードの順。`account_photo_purges` が無いままアカウント削除のコードが動くと `DELETE /users/me` が 500）。
+   1 より先に `sam deploy` すると、`{{resolve:ssm:…/backend_scheduler_role_arn}}` が解決できず失敗する。
+
+### デプロイ後の確認（環境ごとに 1 回。**dev は未実施**）
+
+```bash
+# スケジュールができていること（グループ・ロール・時刻）
+aws scheduler get-schedule --group-name sanposcape-dev-backend --name sanposcape-dev-backend-scheduled-photo-purge \
+  --query '{State:State,Expr:ScheduleExpression,Tz:ScheduleExpressionTimezone,Role:Target.RoleArn,Arn:Target.Arn}'
+
+# 手で 1 回起動して結果を見る（期限を過ぎた予約が無ければ due=0 で終わる）
+aws lambda invoke --function-name sanposcape-dev-backend-scheduled-photo-purge --payload '{}' /dev/stdout
+```
+
+- 実際の削除まで見るには、dev でアカウントを1つ作って写真付きのピンを登録し、削除してから、その利用者の予約の
+  `purge_after` を過去に書き換えて（下の「予約を手で操作する」）invoke し、3つの prefix が空になることと予約が消えることを確かめる。
+- 翌日以降に、スケジュールからの起動がロググループ `/aws/lambda/sanposcape-dev-backend-scheduled-photo-purge` に
+  `Account photo purge finished` として残っていることを確かめる。
+
+### アラーム
+
+| アラーム名 | 条件 | 疑うこと |
+|---|---|---|
+| `sanposcape-<env>-backend-scheduled-photo-purge-errors` | Lambda `Errors` >= 1（1 日） | S3 の失敗で消し切れなかった利用者がいた（`Account photo purge failed for <user_id>` / `could not delete N objects`。予約は残り翌日に続きから消す）、タイムアウト、初期化の失敗（シークレット・DB）。権限の不足なら実行ロールの prefix 条件を確かめる |
+| `sanposcape-<env>-backend-scheduled-photo-purge-not-run` | Lambda `Invocations` < 1 が 2 日続く（欠損は異常扱い） | Scheduler が起動できていない。スケジュールの `State`、Scheduler 用ロール（infra）、関数名が `sanposcape-<env>-backend-scheduled-` で始まっているか、`AWS/Scheduler` の `TargetErrorCount`（次元 `ScheduleGroup`）を見る |
+
+- 時間切れでの持ち越し（`reached its deadline; N of M due accounts are left for the next run`、WARNING）は失敗にしない。
+  これが毎日続くなら処理量が足りていない。バッチの上限（`ACCOUNT_PHOTO_PURGE_BATCH_SIZE`）・締め切り（`ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS`。
+  `Timeout` 300 秒より十分短く保つ）を見直すか、ADR-009 決定36 の案B（SQS のファンアウト）へ移る。
+- Scheduler は at-least-once で、Lambda の非同期呼び出しはエラー時に既定で 2 回再試行する。処理は冪等なので二重に動いても壊れない
+  （dev は予約同時実行数 1 で重ならない。prod はクォータの都合で未予約）。
+
+### 設定値
+
+| 環境変数 | 既定 | 意味 |
+|---|---|---|
+| `ACCOUNT_PHOTO_RETENTION_DAYS` | 30 | 保持期間（日）。**Api が予約を入れる時に使う**（PhotoPurge は予約の `purge_after` を見るだけ）。変えた値は、その後に削除したアカウントにだけ効く |
+| `ACCOUNT_PHOTO_PURGE_BATCH_SIZE` | 200 | 1回の実行で取り出す予約の上限 |
+| `ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS` | 240 | 1回の実行の締め切り。上限 270（Timeout 300 秒から S3 の呼び出し1回分を引いた値） |
+
+- **`template.yaml` はどれも渡していない（既定値で動く）。** 保持期間を変えるとき（Neon の PITR の期間に合わせるなど）は、`template.yaml` の
+  Api の `Environment` に `ACCOUNT_PHOTO_RETENTION_DAYS` を足して再デプロイし、ポリシー 7 の「30 日」と台帳も同じ PR で直す。
+- 写真バケットのバージョニングが有効になると、`DeleteObjects`（バージョン指定なし）は削除マーカーを置くだけで旧バージョンが残る。
+  一方で列挙は空になるので、処理は「消し終えた」と判断して予約を消してしまう。バージョニングを有効にする変更（infra）を入れるときは、
+  この処理をバージョン単位の削除に変えるか、非現行バージョンを失効させるライフサイクルを同時に入れること。
+
+### 予約を手で操作する（リカバリ・前倒し・取りこぼし）
+
+予約は DB の `account_photo_purges`（`user_id`・`requested_at`・`purge_after`）。手で触るときは Neon の SQL エディタなどで行う。
+
+- **写真の削除を止める（リカバリ）**: 保持期間中に予約の行を消すと、その利用者の写真は S3 に残り続ける。
+  ただし DB の行（ピン・写真の管理情報）はアカウント削除の時点で消えているので、写真を元どおりに見せるには DB の復元（Neon の PITR）が要る。
+  復元が済んだら（または諦めたら）、予約を入れ直す（下）か、写真を手で消すこと（残したままにしない）。
+  ```sql
+  DELETE FROM account_photo_purges WHERE user_id = '<user_id>';
+  ```
+- **前倒しで消す・確認用に期限を過ぎさせる**:
+  ```sql
+  UPDATE account_photo_purges SET purge_after = now() WHERE user_id = '<user_id>';
+  ```
+- **この仕組みより前に削除されたアカウントの写真**（予約が無く残っている）を消す: 利用者 ID が分かれば予約を入れる
+  （`INSERT INTO account_photo_purges (user_id, requested_at, purge_after) VALUES ('<user_id>', now(), now());`）。
+  **存在するアカウントの ID を入れないこと**（使用中の写真が消える）。入れる前に `users` に無いことを確かめる。
+
+### ローカル
+
+`STORAGE_MODE=fake` のまま1回実行できる（期限を過ぎた予約だけが対象。`ACCOUNT_PHOTO_RETENTION_DAYS=0` で起動した backend からアカウントを
+削除すると、すぐ対象になる）。
+
+```bash
+docker compose exec api uv run python -m sanposcape.aws_lambda.photo_purge
+```
+

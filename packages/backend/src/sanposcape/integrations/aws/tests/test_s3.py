@@ -661,3 +661,60 @@ def _body(data: bytes):
     from botocore.response import StreamingBody
 
     return StreamingBody(BytesIO(data), len(data))
+
+
+class TestListKeys:
+    """`list_keys`（アカウント削除後の写真の削除, SS-109）。"""
+
+    def test_s3_lists_one_page_under_the_prefix(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_response(
+            "list_objects_v2",
+            {"Contents": [{"Key": "original/pins/u1/a.jpg"}, {"Key": "original/pins/u1/b.jpg"}]},
+            {"Bucket": BUCKET, "Prefix": "original/pins/u1/", "MaxKeys": 1000},
+        )
+        with stubber:
+            assert storage.list_keys("original/pins/u1/", max_keys=1000) == [
+                "original/pins/u1/a.jpg",
+                "original/pins/u1/b.jpg",
+            ]
+
+    def test_s3_empty_prefix_returns_empty_list(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_response(
+            "list_objects_v2",
+            {"KeyCount": 0},
+            {"Bucket": BUCKET, "Prefix": "thumb/pins/u1/", "MaxKeys": 10},
+        )
+        with stubber:
+            assert storage.list_keys("thumb/pins/u1/", max_keys=10) == []
+
+    def test_s3_failure_is_unavailable(self) -> None:
+        storage, stubber = make_storage()
+        stubber.add_client_error("list_objects_v2", service_error_code="AccessDenied")
+        with stubber, pytest.raises(ObjectStorageUnavailableError):
+            storage.list_keys("original/pins/u1/", max_keys=10)
+
+    def test_unconfigured_is_unavailable(self) -> None:
+        with pytest.raises(ObjectStorageUnavailableError):
+            UnconfiguredObjectStorage().list_keys("original/pins/u1/", max_keys=10)
+
+    @pytest.mark.parametrize("on_disk", [False, True], ids=["memory", "disk"])
+    def test_fake_lists_sorted_keys_under_the_prefix_only(
+        self, tmp_path: Path, on_disk: bool
+    ) -> None:
+        storage = FakeObjectStorage(secret="s" * 32, root_dir=tmp_path if on_disk else None)
+        for key in (
+            "original/pins/u1/b.jpg",
+            "original/pins/u1/a.jpg",
+            "original/pins/u10/c.jpg",
+            "thumb/pins/u1/a/512.jpg",
+        ):
+            storage.put_bytes(key, b"x", content_type="image/jpeg")
+
+        assert storage.list_keys("original/pins/u1/", max_keys=10) == [
+            "original/pins/u1/a.jpg",
+            "original/pins/u1/b.jpg",
+        ]
+        assert storage.list_keys("original/pins/u1/", max_keys=1) == ["original/pins/u1/a.jpg"]
+        assert storage.list_keys("staging/pins/u1/", max_keys=10) == []

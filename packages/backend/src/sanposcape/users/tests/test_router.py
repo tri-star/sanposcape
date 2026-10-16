@@ -20,6 +20,7 @@ from sanposcape.integrations.apple.exceptions import (
     AppleSignInRejectedError,
     AppleSignInUnavailableError,
 )
+from sanposcape.sanpo_maps.models import AccountPhotoPurge
 from sanposcape.users.models import AppleAuthorization, User
 from sanposcape.walks.models import Walk
 from sanposcape.walks.repository import WalkRepository
@@ -44,6 +45,24 @@ class TestDeleteMeEndpoint:
 
         assert response.status_code == 204
         assert response.content == b""
+
+    def test_deletion_schedules_photo_purge_after_the_retention_period(
+        self, auth_client: TestClient, make_google_id_token, db_session: Session
+    ) -> None:
+        """写真は削除の時点では消さず、保持期間（既定 30 日）の後に消す予約を入れる（SS-109）。"""
+        session = _create_session(auth_client, make_google_id_token, sub="purge-photos")
+        user_id = uuid.UUID(session["user"]["id"])
+        before = datetime.now(UTC)
+
+        response = auth_client.delete(
+            "/users/me", headers={"Authorization": f"Bearer {session['access_token']}"}
+        )
+
+        assert response.status_code == 204
+        purge = db_session.get(AccountPhotoPurge, user_id)
+        assert purge is not None
+        assert purge.purge_after - purge.requested_at == timedelta(days=30)
+        assert purge.requested_at >= before
 
     def test_missing_authorization_returns_401(self, auth_client: TestClient) -> None:
         response = auth_client.delete("/users/me")
