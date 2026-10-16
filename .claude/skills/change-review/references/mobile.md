@@ -79,4 +79,5 @@
 - Maestro の yaml のコメントの主張（「戻ると◯◯になる」「`canGoBack()` が true」）は、対象の `router.push`/`replace` を grep してスタックを手でたどって確かめる。`openLink` を使うフローは `app/_layout.tsx` と `app/` のグループ構造も見る。`waitForAnimationToEnd` を時間稼ぎに使っていたら非自明な依存として指摘する。
 - 「存在だけを assert する」testID（凡例・コンテナなど）の表示条件を広げる差分では、その testID を `.maestro/` で grep し、フローが確かめたい中身を今も保証しているかを見る。保証しなくなったら、中身に当たる子の testID を待つ形にさせる（SS-168: 凡例が歩いた軌跡だけでも出るようになり、`walk-active-route-legend` の待ちが周回ルートの取得失敗を見逃すようになった）。
 - E2E が共有 dev ユーザーを壊す破壊的操作を実行していないか（自分で作った一意なデータの削除は可）。地図一覧を並び順（`item-N`）で選んでいないか。正本: architecture-guideline.md「テストの方針」、ADR-M-004
+- 追加・書き換えた `it()` の説明文から、前提・操作と期待結果が読めるか（「正しく動く」「ケース2」のような説明文でないか）。読めなければ Low で書き直しを提案する。触っていない既存テストは指摘しない（SS-142）。正本: architecture-guideline.md「テストの方針」
 - 誤指摘しない慣習: `*Copy.test.ts` の非空チェックは既存の慣習なので単発で Medium にしない。プランが模範に名指しした形式（`src/lib/backNavigation.test.ts` の `it.each` テーブル）に倣っていなくても Low に留める。
