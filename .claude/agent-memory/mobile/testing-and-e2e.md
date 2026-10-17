@@ -1,6 +1,6 @@
 ---
 name: testing-and-e2e
-description: Vitest と Maestro で踏む点 — エミュレータで画面幅・文字サイズを変える手順、副作用登録のテストで reset しない、disabled を押しても Maestro は失敗しない、config.yaml を書かない、地図の中心はピンに当たる、既存 testID のリネーム禁止、appId のハードコード
+description: Vitest と Maestro で踏む点 — エミュレータで画面幅・文字サイズを変える手順、副作用登録のテストで reset しない、disabled を押しても Maestro は失敗しない、config.yaml を書かない、地図の中心はピンに当たる、既存 testID のリネーム禁止、appId のハードコード、全画面の案内（最低サポートバージョン）の確かめ方
 metadata:
   type: feedback
   scope: durable
@@ -43,6 +43,14 @@ metadata:
   散歩中画面は画面カタログの「散歩中」から開ける（backend なしだとルート取得失敗の通知が出て、そのぶん縦が詰まる）。
 
 **How to apply:** 縦に要素を足す・横に値を並べる変更では、360×640dp と 360×780dp で、下端のボタンと最も長い値を確かめる。
+
+## 全画面をふさぐ案内（最低サポートバージョン）をエミュレータで確かめる
+
+- 案内は全画面をふさぐので、散歩中・サマリでの挙動は「最低バージョンなしで散歩を始める → 99.0.0 に上げて再取得させる」順で確かめる（SS-101）。
+  backend の値は `.env` を書き換えず、`--env-file` の上書きで api だけを作り直して切り替える（[[local-env-and-sandbox]]）。
+- `/app-config` の再取得は、前面復帰（前回の取得から60秒以上）か、画面カタログの `/app-config` 診断カードの「再取得」で起こせる。
+  効いたかは backend のログの `GET /app-config` の回数で確かめる。
+- Pixel_6_Pro_API_35 には Play ストアが無く、`play.google.com` の URL は Chrome で開く（未公開の掲載ページは 404）。
 
 ## 変更前に確認すること
 

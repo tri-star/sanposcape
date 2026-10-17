@@ -143,5 +143,5 @@ sanposcape は「散歩」に特化したモバイルアプリ + バックエン
 | Orval | OpenAPI定義からAPIクライアントとMSWモックを生成するツール |
 | デプロイ / リリース | デプロイ＝コードを本番環境に置くこと、リリース＝利用者に機能を見せること。この2つを分離し、未完成の機能もフラグ OFF のまま本番にデプロイしてよいとする（[ADR-008](./adr/ADR-008-deploy-release-separation.md)） |
 | フィーチャーフラグ | 機能の公開・非公開を AWS AppConfig の値（ON/OFF）で切り替える仕組み。値は `GET /app-config` を通じて mobile / LP に配られ、取得に失敗した場合は全フラグ OFF に倒す（fail-safe。ADR-008） |
-| 最低サポートバージョン | `/app-config` の `minimum_supported_versions.{ios,android}` が返す `X.Y.Z` 形式のバージョン。これを下回るアプリにはアップデートを促す（backend の配信経路は SS-98 で実装済み、アプリ側の促進は SS-101）。`null` は「指定なし＝強制アップデートしない」を意味する（ADR-008） |
+| 最低サポートバージョン | `/app-config` の `minimum_supported_versions.{ios,android}` が返す `X.Y.Z` 形式のバージョン。これを下回るアプリにはアップデートを促す（backend の配信経路は SS-98、アプリ側の全画面の案内は SS-101 で実装済み。散歩中と、未保存の散歩をまだ保存できる間は出さない）。`null` は「指定なし＝強制アップデートしない」を意味する（ADR-008） |
 | expand / contract | backend の API 変更を「新しいフィールド/エンドポイントを追加する（expand）→ 新しいクライアントへの移行を待つ → 古いものを削除する（contract）」の2段階で行う規約。配布済みの mobile ビルドが更新されないまま backend を叩き続けることに対応するため（ADR-008 決定7） |

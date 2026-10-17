@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（prod の稼働とフラグ切り替えの実行を「未解決」に反映。前回 SS-213、SS-171）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内を追補。前回は prod の稼働とフラグ切り替えの実行の反映、SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -53,21 +53,25 @@
 - **mobile は直近の成功値が無い間（初回ロード中・初回取得失敗）と、未知キー・bool 以外の値を OFF として扱う**。
   成功値があれば再取得の失敗中もその値を使い、画面を隠す判定は `pending` / `enabled` / `disabled` の3値で行う。
   キー定数は backend の登録簿の写しを自前で持ち、`config_source` は内部型から除き、`services/` の real/mock 層は作らない。（本文: SS-100 追補 D12、D13、D16、D18）
+- **mobile は最低サポートバージョンを下回ると、閉じられない全画面の案内でストアへ誘導する**。判定は `/app-config` の成功値があるときだけで、
+  `null`・形式不正・取得前・取得失敗では出さない（強制しない側）。散歩中と、未保存の散歩をサマリ画面などでまだ保存できる間は出さない。実行中のバージョンは
+  `Constants.expoConfig.version`（`runtimeVersion` が `appVersion` のため）、ストアの URL は本番の掲載ページに固定する。
+  最低バージョンを変える入力はまだ足していない。（本文: SS-101 追補 D29〜D33）
 - **最初の実フラグ `pin_registration`（ピン登録, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）が登録され、疎通確認用の `app_config_probe` は削除済み**。
   backend の API 自体はこのフラグでガードしない（ADR-009 決定10）。（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
 
 ### 未解決・持ち越し
 
-課題ID付きの項目（SS-97 / SS-101 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
+課題ID付きの項目（SS-97 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
 
 - ~~**prod が未構築**~~ → SS-97 は完了し、backend は 2026-10-01 から prod で稼働している（2026-10-17 に `backend/v0.2.0` をデプロイし、タグと Release も作られた）。（本文: 前提となる制約、移行・対応が必要な事項）
 - ~~**フラグ切り替えワークフロー（SS-99）は実行実績が無い**~~ → 2026-09-22 に dev で初回を実行し、2026-10-17 に production で `pin_registration` を ON にした。
   prod には 2026-10-17 まで AppConfig の版が一度も配信されておらず、それまでの prod は全フラグ OFF（`config_source: default`）で動いていた（設計どおり）。（本文: SS-99 追補 D22、2026-10-17 棚卸し追補）
-- **最低サポートバージョン（`client_requirements` の属性）を変える入力が切り替えワークフローに無い**。現在値を引き継ぐだけ（SS-101 で必要になったら足す）。（本文: SS-99 追補 D23）
+- **最低サポートバージョン（`client_requirements` の属性）を変える経路が無い**。ワークフローは現在値を引き継ぐだけで、決定6 によりコンソールからも
+  操作しない。SS-101 でも足さず、最初の contract を計画するときに入力を足す。値が `null` の間はアップデートの案内は出ない。
+  （本文: SS-99 追補 D23、SS-101 追補 D33）
 - ~~**production ではフラグ切り替えワークフローをまだ実行できない**~~ → prod の `live/platform` は apply 済みで、`production` Environment に
   `AWS_FEATURE_FLAGS_ROLE_ARN` が設定され、2026-10-17 に production で実行した。（本文: SS-99 追補 D21）
-- **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
-  （本文: 決定7、SS-100 追補 D17）
 - **OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
   mobile のタグ・Release（SS-102）は iOS 分を SS-213 で実装した。TestFlight 配信は 2026-10-17 に実行済みで、Release 作成はストア公開が未実施のため未実行。Android の本番提出とタグは未整備。
   （本文: 決定4、決定8、移行・対応が必要な事項、SS-213 追補の未解決）
@@ -82,6 +86,8 @@
   mobile は `app.json` の `version` をそのままタグにし、スキップ・失敗の条件も変えた（本文: SS-213 追補 D26）
 - 決定4「Release 用に生成した CHANGELOG を『新機能』欄の下書きにも使う（SS-102）」→ TestFlight 配信の時点のプレビューを使う（本文: SS-213 追補 D27）
 - 本文の「ポジティブな影響」にある「`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` もこの基盤へ移せば…」は初版時点の見込みで、現在は環境変数のまま残す（本文: SS-98 追補 D8）
+- `minimum_supported_versions` の扱い: mobile は保持のみ（SS-100 追補 D17）→ 下回るとアップデートの案内を出す（本文: SS-101 追補 D29〜D32）
+- 最低サポートバージョンの変更入力: 「SS-101 で必要になったら足す」（SS-99 追補 D23）→ SS-101 でも足さず、最初の contract の計画時に足す（本文: SS-101 追補 D33）
 - mobile のサインイン後の `/app-config` 再取得: D2 で申し送り → 実装しない（本文: SS-100 追補 D14）
 - フォアグラウンド復帰時の再取得間隔（60秒）の起点: 直近の成功時刻 → 直近の取得試行（成功または失敗）の時刻（本文: SS-100 追補 D14、SS-100 / PR #89 追補）
 - mobile で永続キャッシュを持たない理由②: E2E 用 APK のキャッシュミス → development build の作り直しと依存追加の待機コスト（理由①と結論は不変。本文: SS-100 追補 D14、2026-09-20 訂正）
@@ -100,7 +106,8 @@
 として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
 定義ファイル）、2026-10-01 追補（SS-148: D16 の表示範囲の注記）、2026-10-04 追補（SS-183: Lambda で
 lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）、
-2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）、2026-10-17 棚卸し追補（prod の稼働とフラグ切り替えの実行を反映）
+2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）、2026-10-17 棚卸し追補（prod の稼働とフラグ切り替えの実行を反映）、
+2026-10-17 追補（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内）
 
 ## ステータス
 
@@ -115,6 +122,7 @@ SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfi
 （**SS-183 追補**: 2026-10-04 に、Lambda で lifespan が呼び出しごとに走り、決定2・決定9-1・SS-98 追補 D3 の
 記述が成り立っていなかった事実を末尾の「SS-183 追補」で訂正した。決定は変えていない）
 （**SS-213 追補**: 2026-10-17 に、SS-102 の iOS 分（タグ・Release の作成）を本番の TestFlight 配信と合わせて実装した。TestFlight 配信は同日に実行済みで、Release 作成はストア公開が未実施のため未実行）
+（**SS-101 追補**: 2026-10-17 に、mobile の最低サポートバージョンを下回るアプリへのアップデートの案内を実装した。最低バージョンを変える入力は無い）
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
 
@@ -508,7 +516,8 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
       下記「SS-99 追補」で決定した）
 - [x] SS-100: mobile が `/app-config` のフラグで機能表示をガードする（**完了**。詳細は下記
       「SS-100 追補」を参照）
-- [ ] SS-101: 最低サポートバージョンを下回るアプリにアップデートを促す（決定7 の contract の前提）
+- [x] SS-101: 最低サポートバージョンを下回るアプリにアップデートを促す（決定7 の contract の前提。**完了**。
+      末尾の「SS-101 追補」を参照。最低バージョンを変える入力は D33 で持ち越し）
 - [ ] SS-102: mobile の `mobile/vX.Y.Z` タグ・Release・CHANGELOG を自動生成する
       （**SS-213 追補**: iOS 分は SS-213 で実装した。Android 分が残る。末尾の「SS-213 追補」を参照）
 - [ ] SS-103: OTA の本番配信ワークフローを追加し、`EXPO_TOKEN` を Environment Secret へ移す
@@ -901,6 +910,7 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 `AppConfigSnapshot.minimumSupportedVersions`（`{ ios: string | null; android: string | null }`。
 `undefined` は `null` に畳み済み）として保持するところまでが SS-100 のスコープ。バージョン比較・
 アップデート促進 UI は SS-101 の責務（D1 の表の docstring どおり）。
+（**SS-101 追補**: 比較と全画面の案内は末尾の「SS-101 追補」D29〜D32 で実装した）
 
 ### D18: mobile 側に `services/` の real/mock 層は作らなかった
 
@@ -986,6 +996,7 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 `client_requirements` の属性値（`ios_minimum_version` / `android_minimum_version`）は現在値を引き継ぐだけで、
 変更する入力は無い。値を使う側（SS-101 のアップデート促進）が未実装で、今入れても検証できない入力を
 1つ増やすだけになるため。SS-101 で必要になったときに、同じワークフローへの入力追加か別ワークフローかを決める。
+（**SS-101 追補**: SS-101 でも入力は足さず、最初の contract を計画するときに決める。末尾の「SS-101 追補」D33）
 
 ## 追補: Lambda で lifespan が呼び出しごとに走っていた件の訂正（2026-10-04, SS-183）
 
@@ -1100,6 +1111,79 @@ Android（Google Play）の本番提出は未整備で、どちらのワーク�
 - `npx eas-cli` の版を固定していない（既存の `mobile-release-build.yml` と同じ）。npm の公開が乗っ取られると、公開直後の版が
   `EXPO_TOKEN` を読める（`pnpm-workspace.yaml` の `minimumReleaseAge` も効かない）。mobile のワークフロー全体で固定の方法を揃えて決める。
 
+## 追補: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内（2026-10-17, SS-101）
+
+決定7 の contract の前提（「最低サポートバージョンを下回るアプリにはアップデートを促す」）の mobile 側の実装記録。
+SS-100 追補 D17 で保持だけにしていた `AppConfigSnapshot.minimumSupportedVersions` を使う。
+実装は `packages/mobile/src/features/app-update/`（判定は `lib/`、表示は `components/UpdateRequiredGate.tsx`）で、
+`app/_layout.tsx` に1つ置く。`/app-config` のスキーマは変えていない。節番号は D29 以降を使う。
+
+### D29: 閉じられない全画面の案内にする
+
+- 最低サポートバージョンを下回ったら、全画面の案内（「アップデートが必要です」とストアを開くボタン）を出し、**閉じる手段を置かない**
+  （Android の戻る操作も受け止めて何もしない）。contract は「最低バージョン未満の端末が API を使わない」ことを前提にするため、
+  「後で」で閉じられる案内では前提にならない。推奨と必須の2段階にするには `/app-config` の拡張が要り、今の要件に無い。
+- 判定は起動時だけでなく、`/app-config` の値が変わるたびに行う（フォアグラウンド復帰の再取得で上がった最低バージョンも拾う。D14）。
+  最低バージョンが下がれば案内は消える。
+- 表示は RN の `Modal` で `<Stack>` の上に重ねる。`<Stack>` を条件付きで差し替えるとナビゲータが作り直されるため。
+  `Modal` にしたのは、画面側の `Dialog` / `BottomSheet`（これも `Modal`）より上に出し、Android の戻る操作を受け止めるため。
+
+### D30: 判定できないときは出さない（強制しない側に倒す）
+
+- 出すのは `status: "ready"`（直近の成功値がある。再取得の失敗中を含む）で、その OS の最低バージョンより実行中のバージョンが
+  小さいときだけ。`loading`・`unavailable`、最低バージョンが `null`・形式不正、実行中のバージョンが取れない・形式不正のときは出さない。
+  D1 の「`null` = 強制アップデートしない」、決定9 の fail-safe と同じ向きで、通信断や設定の誤りで全端末をふさがないため。
+- 比較は `X.Y.Z` を数値の組として行う（`0.10.0` > `0.9.0`）。backend の `_VERSION_PATTERN` が形式不正を `null` に畳んで配るので、
+  mobile の検査は防御のための二重チェック。ただし backend は Python の `re` の `\d` と `$` で検査するため、末尾の改行や
+  ASCII 以外の数字（例: アラビア数字）を通す。mobile はこれを形式不正として扱い、案内は出ない（強制しない側）。値は ASCII の `X.Y.Z` で入れる。
+
+### D31: 散歩中と、保存されていない散歩をまだ保存できる間は出さない
+
+散歩は永続化されず（ADR-M-008）、ストアへ移ってアプリが終了すると記録を失う。そのため、**まだ記録を残せる間だけ**案内を遅らせる
+（判定は `shouldDeferForWalk`）。
+
+- 進行中の散歩がある（`useActiveWalkStore`）。
+- 終了したが保存されていない散歩があり（`useFinishedWalkStore` の未保存）、サマリ画面（`/walk-summary`）にいる。
+- 同じく未保存の散歩があり、サマリの CTA から来た保存のためのサインインの途中（`signInForSaveRequested` かつ `(auth)` の画面）。
+- 未保存の散歩が、まだサマリ画面に着いていない（散歩の終了からサマリへの遷移の途中）。`useSegments()` はナビゲーションの状態が
+  変わったコミットより1つ遅れて更新されるため、終了の直後は散歩中の画面のセグメントのまま「散歩中」だけが外れる。ここで遅らせないと、
+  終了確認の `Dialog` が閉じるのと同時に案内の `Modal` が一瞬開く。サマリで表示したドラフトの `clientWalkId` を hook が覚えて判定する。
+  散歩を終える導線はどれもサマリへ遷移する前提で、サマリを経ないドラフトを作る導線を足すときはこの条件を見直す。
+
+サマリに着いた後に「ホームへ」で離れた未保存のドラフトは、サインアウトか次の散歩まで残るが、戻って保存する導線が無い。
+これを条件に含めると、保存が失敗し続けた端末（ゲスト・422・再試行上限）ではアプリを再起動するまで案内が出なくなるため、
+サマリを離れた時点で遅らせるのをやめる（SS-101 のレビューで判明）。
+contract は最低バージョンを上げてから古いクライアントが減るのを待って行うので、散歩の終了まで遅らせても互換の問題にはならない。
+
+### D32: 実行中のバージョンは `Constants.expoConfig.version`、ストアの URL はビルドで切り替えない
+
+- 実行中のバージョンは `expo-constants` の `Constants.expoConfig?.version` を読む。OTA の update で起動すると update の manifest の値になるが、
+  `runtimeVersion.policy` が `appVersion` なので update は同じ `version` のバイナリにしか届かず、バイナリの `version` と一致する
+  （`runtimeVersion` の方針を変えるときはこの前提も見直す）。`expo-application` の `nativeApplicationVersion` は、ネイティブ依存の追加
+  （development build の作り直し・`minimumReleaseAge` の待機）に見合わないので使わない。`expo-constants` 57 に `nativeAppVersion` は無い。
+- ストアは本番の掲載ページに固定する（iOS: `https://apps.apple.com/app/id<submit.production.ios.ascAppId>`、
+  Android: `https://play.google.com/store/apps/details?id=com.sanposcape.app`）。[ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)
+  の法的文書の URL と同じく、ビルドの種類でプロダクトの挙動を分けない（ADR-M-007 の SS-148 追補）。staging・開発ビルドで開くと本番の
+  掲載ページになるが、それらは TestFlight・APK で更新する。URL と本番の識別子（`eas.json`・`app.config.ts`）の一致は Vitest で検査する。
+- ストアはアプリ内ブラウザではなく `Linking.openURL` で OS に開かせる。アプリ内ブラウザでは Web の掲載ページが開くだけで、ストアのアプリに渡らない。
+  開けなければ画面内に URL 付きの案内を出す。
+
+### D33: 最低サポートバージョンを変える入力は SS-101 でも足さない（D23 の持ち越しの判断）
+
+D23 は「SS-101 で必要になったときに、同じワークフローへの入力追加か別ワークフローかを決める」としていた。SS-101 では mobile の受け皿だけを
+作り、入力は足さない。最初の contract がまだ計画されておらず、OIDC を持つワークフローの変更は検証の手段も含めて
+この課題（mobile）の範囲を超えるため。値が `null` の間は案内は出ない（D30）。最初の contract を計画するときに入力を足す
+（それまでは `client_requirements` の属性は現在値の引き継ぎのまま）。ローカルでは backend の `FEATURE_FLAG_STUB_DOCUMENT` の
+`client_requirements` で試せる（`packages/mobile/docs/architecture-guideline.md`）。
+
+### 未解決・持ち越し（SS-101 追補）
+
+- **最低サポートバージョンを変える経路が無い**（D33）。決定6 によりコンソールからの直接操作もしない。最初の contract の前に整える。
+- E2E（Maestro）は足していない。CI の backend のスタブ文書は `client_requirements` を持たず（= `null`）、案内が出ると他のフローを
+  すべてふさぐため。判定は Vitest で守る。2026-10-17 に Android エミュレータ（backend のスタブで最低バージョン 99.0.0）で、
+  起動時の表示・戻る操作で閉じないこと・ストアの URL を開くこと・散歩中とサマリ画面では出ないこと・サマリから離れると出ることを確かめた。
+  iOS の実機と、散歩の終了の瞬間に一瞬開かないこと（D31 の4つ目の条件）は目視では確かめられていない。
+
 ## 関連情報
 
 - [ADR-004: シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
@@ -1117,7 +1201,7 @@ Android（Google Play）の本番提出は未整備で、どちらのワーク�
 - [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md)
   —— ビルドプロファイル、ビルド番号の採番、表示用 `version` の運用ルール
 - Plane: SS-104（本 ADR）、SS-72（起点）、SS-94 / SS-95 / SS-96 / SS-97（infra）、
-  SS-98 / SS-99（backend・CI）、SS-100 / SS-101（mobile のフラグ受け皿・強制アップデート）、
+  SS-98 / SS-99（backend・CI）、SS-100 / SS-101（mobile のフラグ受け皿・アップデートの案内）、
   SS-102 / SS-103（mobile のリリース自動化・OTA）、SS-213（mobile（iOS）の本番の TestFlight 配信とタグ・Release）
 - [AWS AppConfig feature flags (AWS 公式ドキュメント)](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-configuration-and-profile-feature-flags.html)
 - [AWS AppConfig deployment strategies (AWS 公式ドキュメント)](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-deployment-strategy.html)
