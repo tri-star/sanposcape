@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-11（SS-181）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（棚卸し追補: dev・prod へのデプロイと、SS-179・SS-180 のデプロイ後の確認を反映。前回 SS-181）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -28,12 +28,12 @@
 
 ### 未解決・持ち越し
 
-- **dev での未確認事項（SS-179）**: ダッシュボードの全ウィジェットの描画、Q4（`bin` + `name` の折れ線）、Q7（タイムアウト / OOM）のログ文言、`aws/spans` の件数と Lambda の `Invocations` / Application Signals の `SampleCount(Latency)` の差（Application Signals のメトリクスがサンプリングの影響を受けるかは未確認）、デプロイそのもの（infra の `ManageBackendMonitoring` の dev apply 待ち）。スパンのフィールド名・型と Application Signals の次元は 2026-10-05 に dev の読み取りで確認済み（本文: 決定2、SS-179 追補）。
+- **SS-179 のデプロイ後の確認**: 2026-10-17 に作業者が dev・prod で deployment.md §14「デプロイ後の確認」を行った（ダッシュボードとアラーム。prod のアラームの通知の疎通を含む）。ウィジェットごとの結果は記録しておらず、次は記録が無いので未確認のまま扱う: Q4（`bin` + `name` の折れ線）、Q7（タイムアウト / OOM）のログ文言、`aws/spans` の件数と Lambda の `Invocations` / Application Signals の `SampleCount(Latency)` の差（Application Signals のメトリクスがサンプリングの影響を受けるか）。スパンのフィールド名・型と Application Signals の次元は 2026-10-05 に dev の読み取りで確認済み（本文: 決定2、SS-179 追補）。
 - **見送ったアラーム（SS-179）**: レイテンシ・4xx 率・SLO・Duration Maximum は prod のベースライン（リリース後 2〜4 週間）が取れてから決める。5xx の件数アラームを率に切り替える条件は deployment.md §14。
 - **dev での未確認事項**（SS-178 の実測で残ったもの）: トラフィックが毎秒 1 件を超えて Active Tracing でサンプリングされない呼び出しが出たときに、Transaction Search にスパンが入るか。CloudFront 経由の `X-Amzn-Trace-Id` の扱い。DB を使うルートの SQL の子スパン（dev は認証が要るため、ローカルでのみ確認）。実測できた値（コールドスタート +0.7〜0.8 秒、flush の上乗せはほぼ無し、メモリ +10〜20MB）は本文の決定1・決定4・影響の SS-178 追補。
-- **dev での未確認事項（SS-180）**: 2026-10-10 時点で dev へデプロイしていないため、次は未確認。(1) Lambda のロググループでアプリのログが 1 レコード 1 イベントの JSON になり、Logs Insights が `level` / `trace_id` などをフィールドとして見つけること（ランタイムの root のハンドラーのフォーマッター差し替えが効くこと）。(2) START / END / REPORT がテキストのままで、ダッシュボードの Q5〜Q6b が変わらず描けること。(3) ログ → トレース（`trace_id` で `aws/spans` を引ける、X-Ray の形 `1-<先頭8桁>-<残り24桁>` で開ける）とトレース → ログ（コンソールのトレース詳細の「ログ」欄に相関ログが自動で出るか。出なければ手動のクエリを正式な手順とし、X-Ray 形式の `xray_trace_id` を足すかは別課題）。(4) `trace_sampled` が `true` で、`aws_request_id` が REPORT 行の `@requestId` と一致すること。(5) クエリ付きのリクエストの `secret=abc` がロググループに残らないこと。500 の経路は dev で意図的に起こす手段が無く、自動テストとローカルで代える（本文: 決定3 の SS-180 追補、deployment.md §15）。
+- **SS-180 のデプロイ後の確認**: 2026-10-17 に作業者が dev・prod で deployment.md §15「デプロイ後の確認」を行った（ログの JSON 化）。項目ごとの結果は記録していない。2026-10-10 時点で未確認として挙げていた項目は次のとおり。(1) Lambda のロググループでアプリのログが 1 レコード 1 イベントの JSON になり、Logs Insights が `level` / `trace_id` などをフィールドとして見つけること（ランタイムの root のハンドラーのフォーマッター差し替えが効くこと）。(2) START / END / REPORT がテキストのままで、ダッシュボードの Q5〜Q6b が変わらず描けること。(3) ログ → トレース（`trace_id` で `aws/spans` を引ける、X-Ray の形 `1-<先頭8桁>-<残り24桁>` で開ける）とトレース → ログ（コンソールのトレース詳細の「ログ」欄に相関ログが自動で出るか。出なければ手動のクエリを正式な手順とし、X-Ray 形式の `xray_trace_id` を足すかは別課題）。(4) `trace_sampled` が `true` で、`aws_request_id` が REPORT 行の `@requestId` と一致すること。(5) クエリ付きのリクエストの `secret=abc` がロググループに残らないこと。500 の経路は dev で意図的に起こす手段が無く、自動テストとローカルで代える（本文: 決定3 の SS-180 追補、deployment.md §15）。
 - **退会後も `user_id`（内部 UUID）がログ（prod 400 日）とスパンの `enduser.id`（`aws/spans`、prod 90 日 / dev 30 日）に残る**。プライバシーポリシー上の扱いはユーザー判断で、未確認（本文: 決定6、SS-180/SS-181 追補）。
-- **dev での未確認事項（SS-181）**: 2026-10-11 時点で dev へデプロイしていないため、次は未確認。(1) `aws/spans` で `attributes.enduser.id` / `attributes.session.id` が引けること。(2) X-Ray のセグメントの `user` に `enduser.id` が写るか（collector-contrib の変換では写るが、ADOT Python の UDP 経路は未確認）。(3) ログイン・refresh のアクセスログに `user_id` が付くこと。(4) CloudFront 経由で `X-App-Session-Id` が届くこと（deployment.md §16「デプロイ後の確認」）。新しい semconv で `enduser.id` が非推奨とされている可能性があり、(2) の結果とあわせて属性名を見直す（属性名は `LogContext` の metadata 1 か所）（本文: 決定6、SS-181 追補）。
+- **dev での未確認事項（SS-181）**: dev・prod にはデプロイ済み（2026-10-17 時点）だが、次は確認した記録が無い。(1) `aws/spans` で `attributes.enduser.id` / `attributes.session.id` が引けること。(2) X-Ray のセグメントの `user` に `enduser.id` が写るか（collector-contrib の変換では写るが、ADOT Python の UDP 経路は未確認）。(3) ログイン・refresh のアクセスログに `user_id` が付くこと。(4) CloudFront 経由で `X-App-Session-Id` が届くこと（deployment.md §16「デプロイ後の確認」）。新しい semconv で `enduser.id` が非推奨とされている可能性があり、(2) の結果とあわせて属性名を見直す（属性名は `LogContext` の metadata 1 か所）（本文: 決定6、SS-181 追補）。
 - **mobile が `X-App-Session-Id` を付ける別課題は未起票**（ユーザー判断）。それまで `app_session_id` / `session.id` は付かない（本文: 決定6、SS-181 追補）。
 - **別課題（SS-180 で見送り、SS-181 でも未対応）**: `ThreadPoolExecutor` のワーカーのログに文脈が付かない件と `ExceptionGroup` の展開（本文: 決定7、SS-180 追補）。SS-181 のレビューで見送った整理: `core/tracing.py` の共有ヘルパー（`warn_once`・`sqlstate_of`・`resolve_route_template`）の切り出しと、`AccessLogMiddleware` の責務（アクセスログ・文脈の初期化とヘッダー解析・スパンへの写し）の分離は、次に機能を足すときに行う（本文: 決定7、SS-181 追補）。
 
@@ -50,7 +50,7 @@
 
 ## 日付
 
-2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）、2026-10-05 追補（SS-179）、2026-10-10 追補（SS-180）、2026-10-11 追補（SS-181）
+2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）、2026-10-05 追補（SS-179）、2026-10-10 追補（SS-180）、2026-10-11 追補（SS-181）、2026-10-17 棚卸し追補（dev・prod へのデプロイと、SS-179・SS-180 のデプロイ後の確認を反映）
 
 ## ステータス
 

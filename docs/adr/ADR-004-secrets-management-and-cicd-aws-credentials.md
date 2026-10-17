@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）、2026-09-18 追補（デプロイの手動起動化・release job の権限、SS-72）
+2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）、2026-09-18 追補（デプロイの手動起動化・release job の権限、SS-72）、2026-10-17 棚卸し追補（prod の稼働状況を反映）
 
 ## ステータス
 
@@ -12,6 +12,7 @@ CD（SAM/Lambda のビルド・デプロイ）と dev/prod の AWS アカウン�
 本 ADR はそれらを実装する際の前提方針を先に固定するものである。
 **SS-72 追補（2026-09-15）**: SAM のビルド・デプロイを `.github/workflows/backend-deploy.yml` として
 実装した（dev は GitHub Actions からデプロイ可能な構成まで。prod はインフラ側の apply 待ち）。
+（**2026-10-17 棚卸し追補**: prod もインフラ側の apply を終え、2026-10-01 から GitHub Actions でデプロイしている）
 決定5・6 の GitHub 側の構成と、実装で確定した事項は末尾の「SS-72 追補」を参照。
 
 ## コンテキスト
@@ -307,7 +308,7 @@ GitHub 側に増える秘密は無く、`EXPO_TOKEN` だけで CI（`mobile-rele
 
 ### 残っている事項（SS-72 追補）
 
-- [ ] prod の `live/account` apply（infra タスク SS-97）後、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する。
+- [x] prod の `live/account` apply（infra タスク SS-97）後、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する。（**2026-10-17 棚卸し追補**: 設定済み。prod へのデプロイが成功している）
 - [ ] ruleset で Code Owners のレビューを必須にするか判断する（コラボレーターが増える段で）。
 
 ## 関連情報

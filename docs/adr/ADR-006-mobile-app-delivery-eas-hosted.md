@@ -40,7 +40,7 @@
 - **サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いは未決**（Plane に該当課題なし）。（本文: 移行・対応事項、SS-158 追補）
 - `eas update` による OTA 配信の実運用手順（channel / branch、`runtimeVersion` を上げるべき変更の見分け方、ロールバック）の文書化。（本文: 移行・対応事項）
 - EAS Update の MAU が無料枠（1K MAU）に近づいた際の判断基準（未着手。実利用者が付いてから）。（本文: 移行・対応事項、ネガティブな影響）
-- **本番の TestFlight 配信ワークフローは実行実績が無い**。初回の前に人手の準備が要る。（本文: SS-213 追補）
+- ~~**本番の TestFlight 配信ワークフローは実行実績が無い**~~ → 人手の準備を済ませ、2026-10-17 に初回を実行した（成功）。（本文: SS-213 追補）
 - **remote 化後の `eas build --local`（`mobile-e2e.yml` の `preview`）は未実証**。失敗時は `build-profiles.md` の「切り戻し（remote → local）」に従う。（本文: SS-89 追補「未検証・未確認として残すもの」）
 
 ### 変更・撤回された決定
