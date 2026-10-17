@@ -13,9 +13,11 @@ name: mobile production TestFlight (EAS)
 on:
   workflow_dispatch:
 
-# EAS の同時実行は1なので、mobile-release-build.yml と同じグループで直列化する。
+# 本番の run 同士だけを直列化する。mobile-release-build.yml（staging）とはグループを分ける:
+# 同じグループだと、待機中の本番の run が staging の次のディスパッチに置き換えられて実行されずに終わる
+# （待機できる run はグループに1つだけ）。EAS 側も同時実行1でキューに積むので、GitHub 側で staging と直列化しなくても壊れない。
 concurrency:
-  group: mobile-release-build
+  group: mobile-production-testflight
   cancel-in-progress: false
 
 permissions:
