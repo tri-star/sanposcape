@@ -18,6 +18,8 @@
 - **mobile（iOS）は TestFlight 配信（`mobile-production-testflight.yml`、main のみ・承認なし）と、ストアで公開した後に人が起動する
   タグ・Release の作成（`mobile-production-release.yml`、`production` Environment の承認あり）を分ける**。
   Release 作成は EAS の BUILD_ID を入力に、EAS が記録したビルドのコミットへタグを付け、再ビルドしない。
+  検査（承認の前・Environment と書き込み権限なし）と作成（承認の後）の2 job に分け、承認者は Summary の version・buildNumber を
+  App Store Connect で公開したビルドと照合する。
   mobile のタグの version は git-cliff で bump せず `app.json` の `version` をそのまま使い、同じ version のタグが別のコミットにあれば失敗する。
   「新機能」欄の下書きは TestFlight 配信の Job Summary にプレビューとして出す。（本文: SS-213 追補 D24〜D28）
 - **フラグは「追加 → ON → 削除」の3段階で、削除まで終えて1つの機能追加とみなす**。
@@ -1025,6 +1027,15 @@ backend では production へのデプロイの成功がその時点にあたる
 CI からは公開の時点を検知できないため、**公開した後に人が Release 作成のワークフローを起動する**。
 `production` Environment の承認者が、承認の際に公開済みであることを確かめる。
 
+そのために、Release 作成のワークフローは2つの job に分ける。Environment の承認は job の開始前に求められるので、
+1つの job にすると検査が承認の後にしか走らず、承認者は入力の BUILD_ID（UUID）しか見られない。
+
+- `resolve`（Environment 無し・`contents: read`）: ビルドを引いて検査し、作成するタグ・version・buildNumber・コミットを Job Summary に出す。
+  承認者はこの version・buildNumber を App Store Connect で公開したビルドと照合してから承認する。
+- `release`（`production`・`contents: write`）: checkout・ハッシュで検証した git-cliff・`gh` だけでタグと Release を作る。
+  `pnpm install` と `npx eas-cli` のコード（版を固定していない npm の依存）は書き込み権限を持つ job で動かさない
+  （backend-deploy.yml・feature-flags.yml の prepare と同じ考え方）。
+
 TestFlight に上げたが公開しなかったビルドにはタグを付けない。
 
 ### D25: Release 作成の入力は EAS の BUILD_ID とし、再ビルドしない
@@ -1035,7 +1046,7 @@ Release 作成のワークフローは、TestFlight 配信のワークフロー�
 
 - コミット SHA や version を入力にすると、人が対応を調べることになり、公開したビルドとは別のコミットにタグを付けうる。
   BUILD_ID ならストアに出したバイナリとタグの対応が機械的に決まる。
-- 本番の iOS ストア向けの完了済みビルドであること、コミットが main にあること、そのコミットの `app.json` の `version` と
+- 本番の iOS ストア向けの完了済みビルド（bundle ID `com.sanposcape.app`）であること、コミットが main にあること、そのコミットの `app.json` の `version` と
   ビルドの version が一致することを確かめてから作る。
 - `eas build:view --json` の出力は成果物（.ipa）のダウンロード URL を含むため、ログに出さない（public リポジトリ。ADR-006 の SS-79 追補と同じ配慮）。
 

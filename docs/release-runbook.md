@@ -200,11 +200,14 @@ dev 向けの配布（上の 3.）とは別のワークフローを使う。初�
    → ビルドと TestFlight への提出まで進む。**タグ・Release はまだ作らない**
 3. Job Summary の **BUILD_ID** を控える。**リリースノートのプレビュー**はストアの「新機能」欄の下書きにする（§5.3）
 4. TestFlight で確認し、問題なければ App Store Connect で審査に提出し、承認後に公開する（§5.1）
-5. **公開した後に** `.github/workflows/mobile-production-release.yml` を BUILD_ID を入力にして main で `workflow_dispatch` し、
-   `production` Environment の承認で公開済みであることを確かめて承認する
-   → ビルドのコミットにタグ `mobile/v<version>` と GitHub Release が作られる（再ビルドはしない）
+5. **公開した後に** `.github/workflows/mobile-production-release.yml` を BUILD_ID を入力にして main で `workflow_dispatch` する
+   → 先に `resolve` job がビルドを検査し、Job Summary に作成するタグ・version・**buildNumber**・コミットを出して、
+   `release` job が `production` Environment の承認待ちになる
+6. App Store Connect で**公開したビルドの version・ビルド番号**が Summary の値と一致することを確かめてから承認する
+   → ビルドのコミットにタグ `mobile/v<version>` と GitHub Release が作られる（再ビルドはしない）。
+   一致しなければ承認せずに却下し、正しい BUILD_ID で起動し直す
 
-Release 作成のワークフローは、BUILD_ID が本番の iOS ストア向けの完了済みビルドであること、そのコミットが main にあり
+Release 作成のワークフローは、承認の前に、BUILD_ID が本番の iOS ストア向けの完了済みビルド（bundle ID `com.sanposcape.app`）であること、そのコミットが main にあり
 `app.json` の `version` がビルドの version と一致することを確かめる。同じタグが同じコミットに既にあれば何もしない（再実行してよい）。
 TestFlight に上げたが公開しなかったビルドには、タグを作らない（公開したビルドの BUILD_ID だけを渡す）。
 
@@ -228,7 +231,7 @@ TestFlight に上げたが公開しなかったビルドには、タグを作ら
    - 「自動的に段階的リリースを行う」と組み合わせると、公開開始後 7 日かけて配信先を広げられる
 3. 審査に提出する
 4. 承認後、公開したいタイミングで「このバージョンをリリース」を押す
-5. 公開した後に、§4.1 の 5. で `mobile/vX.Y.Z` タグと GitHub Release を作る
+5. 公開した後に、§4.1 の 5.〜6. で `mobile/vX.Y.Z` タグと GitHub Release を作る
 
 ### 5.2 Google Play（Android）: 公開の管理と段階的公開
 
