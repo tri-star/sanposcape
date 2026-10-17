@@ -203,11 +203,9 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 > distribution / WAF / レート制限 / 認証方式を独立させるため意図的に分けられている。
 > **mobile からは必ず `app-api` 側を向けること。**
 
-> **ただし prod の実体はまだ存在しない。** `live/services/backend-api/envs/prod.tfvars` は
-> `enable_distribution = false` のままで、`app-api.sanposcape.com` は現時点で名前解決しない
-> （2026-09-11 時点で `curl` が `Could not resolve host`）。前提となる
-> SAM スタック `sanposcape-backend-prod` のデプロイが未実施で、**予定日も未定**。
-> prod ビルドの疎通確認は当面できないため、dev（`staging` プロファイル）での確認を先に進めること。
+> **prod は稼働している（2026-10-17 更新）。** 2026-09-11 時点では `app-api.sanposcape.com` が名前解決せず、
+> prod ビルドの疎通確認ができなかった。その後 2026-09-30 に SAM スタック `sanposcape-backend-prod` をデプロイし、
+> CloudFront 経由で稼働している（2026-10-17 に `/health` 200 を確認。最新は `backend/v0.2.0`）。
 
 ## `eas.json` に書かない値（EAS の環境変数で供給する）
 

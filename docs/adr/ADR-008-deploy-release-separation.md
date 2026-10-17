@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release を追補。前回 SS-171）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（prod の稼働とフラグ切り替えの実行を「未解決」に反映。前回 SS-213、SS-171）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -60,14 +60,12 @@
 
 課題ID付きの項目（SS-97 / SS-101 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
 
-- **prod が未構築**。前提の SS-97（prod の `live/account` の apply と `production` Environment への `AWS_SAM_DEPLOY_ROLE_ARN` の設定）が未完了で、
-  本 ADR の手順は実運用で検証されていない。（本文: 前提となる制約、移行・対応が必要な事項）
-- **フラグ切り替えワークフロー（SS-99）は実行実績が無い**。dev の初回実行で `release-runbook.md` §3 の手順を検証する。
+- ~~**prod が未構築**~~ → SS-97 は完了し、backend は 2026-09-30 から prod で稼働している（2026-10-17 に `backend/v0.2.0` をデプロイし、タグと Release も作られた）。（本文: 前提となる制約、移行・対応が必要な事項）
+- ~~**フラグ切り替えワークフロー（SS-99）は実行実績が無い**~~ → 2026-09-21 に初回を実行し、2026-10-17 に production で `pin_registration` を ON にした。
   最低サポートバージョン（`client_requirements` の属性）を変える入力はまだ無く、現在値を引き継ぐだけ（SS-101 で必要になったら足す）。
   （本文: SS-99 追補 D22、D23）
-- **production ではフラグ切り替えワークフローをまだ実行できない**。2026-09-21 時点で sanposcape-infra の prod の `live/platform` が
-  未 apply で、prod の AppConfig も `sanposcape-prod-feature-flags` ロールも存在しない（SS-97 の `live/account` とは別に必要）。
-  apply 後に `production` Environment へ `AWS_FEATURE_FLAGS_ROLE_ARN` を設定する。（本文: SS-99 追補 D21）
+- ~~**production ではフラグ切り替えワークフローをまだ実行できない**~~ → prod の `live/platform` は apply 済みで、`production` Environment に
+  `AWS_FEATURE_FLAGS_ROLE_ARN` が設定され、2026-10-17 に production で実行した。（本文: SS-99 追補 D21）
 - **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
   （本文: 決定7、SS-100 追補 D17）
 - **OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
@@ -184,6 +182,7 @@ backend のデプロイが GitHub Actions から実行できるようになり�
 - **prod はまだ存在しない。** `sanposcape-backend-prod` スタックは未デプロイ、
   `app-api.sanposcape.com` は名前解決せず、ストアへの公開も未実施である。
   したがって本 ADR の手順は**実運用による検証を経ていない**。
+  （2026-10-17 注記: backend は 2026-09-30 から prod で稼働し、production でのフラグの切り替えも実行した。ストアへの公開は未実施）
 
 ## 決定
 

@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（prod の稼働状況を反映。前回 SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -35,8 +35,8 @@
 デプロイと検証の実施状況は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) 冒頭の検証状況の表が新しい（表に無い項目もある）。
 
 - **prod の Lambda 同時実行数クォータの引き上げと、prod への `ReservedConcurrentExecutions` の投入**。`template.yaml` は prod で予約を落としたまま。（本文: 決定8、移行・対応が必要な事項）
-- **prod のシークレットの投入と、prod へのデプロイ**。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
-- **prod の CloudFront の有効化（infra の `enable_distribution = true`）と、deployment.md §6.2 の確認**。dev は確認済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
+- ~~**prod のシークレットの投入と、prod へのデプロイ**~~ → 2026-09-30 にデプロイ済み。Apple のキーを含むシークレットは 2026-10-17 に揃った。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
+- ~~**prod の CloudFront の有効化（infra の `enable_distribution = true`）**~~ → 有効化済み。deployment.md §6.2 の確認は `/health` と Function URL の直叩きまで済み（2026-10-17）、認証必須エンドポイントは SS-208 で確認する。dev は確認済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
 - **in-process のキャッシュとレート制限を外部ストアへ移すかの検討**。（本文: 決定8、移行・対応が必要な事項）
 - **探索 API のレート制限のキーにしている IP が、CloudFront 経由では利用者の IP ではない疑い**。SS-183 でレート制限が初めて実際に効くようになったため顕在化した。（本文: SS-183 追補。SS-186 で継続）
 - **SS-183 の修正が dev で意図どおりに動くことの確認**（ログストリームごとに startup のログが 1 件、shutdown のログが 0 件）。（本文: SS-183 追補）
@@ -416,6 +416,7 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
         infra 側 ADR-0001 §2.11 が「モバイルアプリに焼き込まれ後から変更が効かないため本 ADR で確定とする」
         と明記している。ただし prod は `enable_distribution = false` のままで名前解決せず、
         前提の SAM スタック `sanposcape-backend-prod` のデプロイも**未実施・予定日未定**。
+        （2026-10-17 注記: prod は 2026-09-30 にデプロイし、`app-api.sanposcape.com` は CloudFront 経由で稼働している）
       - **`app-api` と `api` は別ホスト。** モバイル用が `app-api.<zone>`、外部向けが `api.<zone>` で、
         distribution / WAF / レート制限 / 認証方式を独立させるため意図的に分けられている。
       - CI やスクリプトから参照する場合は SSM の
