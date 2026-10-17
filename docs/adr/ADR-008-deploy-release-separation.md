@@ -1073,7 +1073,8 @@ TestFlight 配信のワークフローは、`app.json` の `version` が最新�
 
 決定4 は Release 用に生成した CHANGELOG を「新機能」欄の下書きにも使うとしていたが、「新機能」欄は審査提出の時点で要り、
 Release を作る（公開後）のでは遅い。そこで TestFlight 配信のワークフローが、同じ規則（前回の `mobile/v*` タグ以降の
-`packages/mobile/**`）で生成したリリースノートを Job Summary にプレビューとして出す。公開後の Release の本文は、
+`packages/mobile/**`）で生成したリリースノートを Job Summary にプレビューとして出す。EAS の枠を使わないので、ビルドの前に出す
+（提出だけが失敗して手元でやり直す場合も下書きが得られる）。公開後の Release の本文は、
 タグを付けるコミットまでで生成し直したものになる。
 
 ### D28: TestFlight 配信は main からのみで、承認は付けない
