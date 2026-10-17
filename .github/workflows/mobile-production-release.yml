@@ -1,0 +1,220 @@
+name: mobile production release (tag & GitHub Release)
+
+# ストアで公開した本番アプリのビルドに `mobile/vX.Y.Z` タグと GitHub Release を作る（ADR-008 決定4・決定5）。
+# ★ 実行するタイミング: App Store Connect で「このバージョンをリリース」を押した後（docs/release-runbook.md §5.1）。
+#   公開操作は手動のため、ストアの状態はこのワークフローからは確かめない。承認（production Environment）の際に
+#   公開済みであることを確かめる。
+# ★ 再ビルドしない。入力は mobile-production-testflight.yml の Job Summary に出た EAS の BUILD_ID で、
+#   EAS が記録したビルドのコミット（gitCommitHash）と version（appVersion）にタグを付ける。
+# ★ version は git-cliff で bump せず、app.json の `version`（= ビルドの appVersion）をそのまま使う
+#   （ADR-008 決定4。mobile の version は OTA の互換境界として手動管理している）。git-cliff はリリースノートの生成だけに使う。
+# ★ ビルドの詳細（eas build:view --json）は成果物（.ipa）のダウンロード URL を含むので、ファイルに置いて必要な値だけ取り出し、
+#   内容をログに出さない（public リポジトリ）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: "ストアで公開したビルドの EAS BUILD_ID（mobile-production-testflight.yml の Job Summary に出る）"
+        type: string
+        required: true
+
+# タグの採番が並行しないように直列化する。
+concurrency:
+  group: mobile-production-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # 承認者（Required reviewers）と main 限定の保護ルールを使う。AWS には触らないので id-token は付けない。
+    environment: production
+    permissions:
+      contents: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GIT_CLIFF_VERSION: "2.14.1"
+      # https://github.com/orhun/git-cliff/releases/download/v2.14.1/git-cliff-2.14.1-x86_64-unknown-linux-musl.tar.gz.sha512
+      GIT_CLIFF_SHA512: b5ce5da0189e50fe6c64753bb205b4c8a4a657b5ab9301d2690d7bb66238388e8146237ba0eb407a5b8ee49d9a1646ea02b392b470d8ca19f0b948cf8a62965f
+      TAG_PREFIX: mobile/v
+      BUILD_ID: ${{ inputs.build_id }}
+    steps:
+      - name: Validate inputs
+        env:
+          GIT_REF: ${{ github.ref }}
+        run: |
+          # Environment の Deployment branches（main 限定）でも弾かれるが、理由が分かるようにここで落とす。
+          if [ "$GIT_REF" != "refs/heads/main" ]; then
+            echo "::error::main からのみ実行できます（現在: $GIT_REF）"
+            exit 1
+          fi
+          if ! [[ "$BUILD_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "::error::build_id は EAS の BUILD_ID（UUID）を指定してください: $BUILD_ID"
+            exit 1
+          fi
+
+      # 前回タグの検出・祖先関係の確認・差分の算出に全履歴とタグが要る。タグの作成は gh（API）で行うので git の認証情報は残さない。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # eas build:view はプロジェクトを特定するために app.config.ts を評価するので、依存が要る。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve build
+        id: build
+        working-directory: packages/mobile
+        run: |
+          set +e
+          npx eas-cli build:view "$BUILD_ID" --json \
+            > "$RUNNER_TEMP/build.json" 2> "$RUNNER_TEMP/build-view.stderr.log"
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::ビルドの取得（eas-cli build:view）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+            sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/build-view.stderr.log"
+            exit "$STATUS"
+          fi
+          field() { jq -r --arg k "$1" '.[$k] // empty' "$RUNNER_TEMP/build.json"; }
+          status=$(field status)
+          platform=$(field platform)
+          profile=$(field buildProfile)
+          distribution=$(field distribution)
+          app_version=$(field appVersion)
+          build_number=$(field appBuildVersion)
+          sha=$(field gitCommitHash)
+          # TestFlight に上げた本番のストア向けビルドであることを確かめる（staging のビルド ID の取り違えを防ぐ）。
+          if [ "$status" != "FINISHED" ] || [ "$platform" != "IOS" ] || [ "$profile" != "production" ] || [ "$distribution" != "STORE" ]; then
+            echo "::error::本番の iOS ストア向けの完了済みビルドではありません（status=${status} platform=${platform} buildProfile=${profile} distribution=${distribution}）"
+            exit 1
+          fi
+          if ! [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::ビルドの version が X.Y.Z の形ではありません: ${app_version}"
+            exit 1
+          fi
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::ビルドのコミット（gitCommitHash）を取得できませんでした: ${sha}"
+            exit 1
+          fi
+          {
+            echo "version=${app_version}"
+            echo "build_number=${build_number}"
+            echo "sha=${sha}"
+          } >> "$GITHUB_OUTPUT"
+
+      # 次の場合は失敗させる（タグを付けると誤った記録が残る）。
+      # - ビルドのコミットが main に無い / ビルドの version とそのコミットの app.json の version が食い違う
+      # - 同じ version のタグが別のコミットにある（公開済みの version を上げずにビルドした）
+      # - 最新の mobile/v* タグがビルドのコミットの祖先ではない（古いコミットのビルドを公開した）
+      # 同じ version のタグが同じコミットにあれば、作成済みとしてスキップする（再実行）。
+      # backend と違い、リリースノートに載るコミットが無くてもタグは作る（ストアには公開済みのため）。
+      - name: Check release target
+        id: target
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tag="${TAG_PREFIX}${VERSION}"
+
+          if ! git cat-file -e "${BUILD_SHA}^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BUILD_SHA" HEAD; then
+            echo "::error::ビルドのコミット ${BUILD_SHA} が main にありません"
+            exit 1
+          fi
+          repo_version=$(git show "${BUILD_SHA}:packages/mobile/app.json" | jq -r '.expo.version')
+          if [ "$repo_version" != "$VERSION" ]; then
+            echo "::error::ビルドの version（${VERSION}）とコミット ${BUILD_SHA} の app.json の version（${repo_version}）が一致しません"
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${tag}" > /dev/null; then
+            tagged=$(git rev-parse "${tag}^{commit}")
+            if [ "$tagged" = "$BUILD_SHA" ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              {
+                echo "## リリース作成をスキップしました"
+                echo
+                echo "\`${tag}\` は既にコミット \`${BUILD_SHA}\` に作成済みです。"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::error::タグ ${tag} は別のコミット（${tagged}）に既にあります。公開済みの version のままビルドしていないか確認してください"
+            exit 1
+          fi
+
+          latest="$(git tag --list "${TAG_PREFIX}*" --sort=-v:refname | head -n 1)"
+          if [ -n "$latest" ] && ! git merge-base --is-ancestor "$latest" "$BUILD_SHA"; then
+            echo "::error::最新のタグ ${latest} がビルドのコミット ${BUILD_SHA} の祖先ではありません（古いコミットのビルド）"
+            exit 1
+          fi
+
+          {
+            echo "skip=false"
+            echo "tag=${tag}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install git-cliff
+        if: steps.target.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          archive="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/${archive}"
+          echo "${GIT_CLIFF_SHA512}  $RUNNER_TEMP/$archive" | sha512sum -c -
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
+          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
+
+      # ビルドのコミットまでの差分にするため、そのコミットへ移ってから生成する（--unreleased は HEAD までを対象にする）。
+      - name: Generate release notes
+        if: steps.target.outputs.skip == 'false'
+        env:
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git checkout --quiet --detach "$BUILD_SHA"
+          # --unreleased を必ず付ける（cliff.toml 冒頭コメント参照）。
+          git-cliff --offline --unreleased \
+            --include-path 'packages/mobile/**' \
+            --tag-pattern '^mobile/v[0-9]+\.[0-9]+\.[0-9]+$' \
+            --strip all --output "$RUNNER_TEMP/release-notes.md"
+          if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
+            echo "前回のリリース以降に、リリースノートに載る packages/mobile のコミットはありません。" > "$RUNNER_TEMP/release-notes.md"
+          fi
+
+      - name: Create tag and GitHub Release
+        if: steps.target.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
+          BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          # タグが無ければ --target の SHA に作られる。GITHUB_TOKEN で作ったタグは他のワークフローを起動しない。
+          gh release create "$RELEASE_TAG" \
+            --target "$BUILD_SHA" \
+            --title "$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+          {
+            echo "## リリースを作成しました: $RELEASE_TAG"
+            echo
+            echo "対象コミット: \`$BUILD_SHA\` / EAS BUILD_ID: \`$BUILD_ID\` / iOS buildNumber: ${BUILD_NUMBER:-不明}"
+            echo
+            cat "$RUNNER_TEMP/release-notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
