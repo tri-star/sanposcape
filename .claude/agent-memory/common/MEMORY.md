@@ -6,3 +6,4 @@
 - [ADR 改番の一括 sed の落とし穴](adr-renumber-sed-pitfall.md) — 番号だけの置換はスラッグの変更を見落とす。旧パス全体→新パス全体で置換し、置換後に grep で確認
 - [指摘単位のコミット分割の手順](commit-splitting.md) — printf で git add -p に答える / 隣接 hunk は並べ替えか patch 抽出 / 最後にバックアップと diff で照合
 - [ADR の「決定N」の番号の衝突](adr-decision-number-collision.md) — 既存 ADR への追補の決定番号も並行 worktree と衝突する。git log --all -S と各 worktree の grep で空きを確かめ、コメントに書く前に確定
+- [sandbox が置く追跡外ファイル](sandbox-placeholder-untracked-files.md) — git status の .bashrc・.gitconfig・.claude/hooks 等は sandbox の /dev/null（文字デバイス 1,3）。add はパスを名指し
