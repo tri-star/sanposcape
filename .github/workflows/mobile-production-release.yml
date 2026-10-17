@@ -12,6 +12,7 @@ name: mobile production release (tag & GitHub Release)
 #   - resolve: 依存（pnpm install・eas-cli）のコードを実行するので、environment も書き込み権限も持たせない。
 #     検査を承認の前に済ませ、承認者が照合する値を出す。
 #   - release: production Environment の承認の後に、checkout・ハッシュで検証した git-cliff・gh だけでタグと Release を作る。
+#     resolve の出力は信用せず、コミットが main 上にあることと version をこの job で確かめ直す。
 # ★ ビルドの詳細（eas build:view --json）は成果物（.ipa）のダウンロード URL を含むので、ファイルに置いて必要な値だけ取り出し、
 #   内容をログに出さない（public リポジトリ）。
 
@@ -218,18 +219,31 @@ jobs:
             exit 1
           fi
 
-      # 差分の算出に全履歴とタグが要る。ビルドのコミットまでの差分にするため、そのコミットを checkout する
-      # （--unreleased は HEAD までを対象にする）。タグの作成は gh（API）で行うので git の認証情報は残さない。
+      # main（github.sha。Environment のポリシーで main に限られる）を checkout する。resolve の出力の sha をそのまま checkout しない:
+      # resolve は依存のコードを動かす job で、その出力は信用しない。sha が main 上にあることをこの job で確かめてから移る。
+      # 差分の算出に全履歴とタグが要る。タグの作成は gh（API）で行うので git の認証情報は残さない。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.resolve.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      # 承認を待つ間に別の run がタグを作っていないか（concurrency で直列化しているが、手で作られた場合に備える）。
-      - name: Recheck tag
+      # resolve の検査のうち、書き込みに関わるものをこの job でやり直す。
+      # - sha が main の祖先であること（main に無いコミット、例えば fork の PR のコミットを checkout しない）
+      # - そのコミットの app.json の version がタグと一致すること
+      # - 承認を待つ間にタグが作られていないこと（concurrency で直列化しているが、手で作られた場合に備える）
+      - name: Recheck release target
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" > /dev/null; then
+          set -euo pipefail
+          if ! git cat-file -e "${BUILD_SHA}^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BUILD_SHA" HEAD; then
+            echo "::error::ビルドのコミット ${BUILD_SHA} が main にありません"
+            exit 1
+          fi
+          repo_version=$(git show "${BUILD_SHA}:packages/mobile/app.json" | jq -r '.expo.version')
+          if [ "${TAG_PREFIX}${repo_version}" != "$RELEASE_TAG" ]; then
+            echo "::error::コミット ${BUILD_SHA} の app.json の version（${repo_version}）がタグ ${RELEASE_TAG} と一致しません"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" > /dev/null; then
             echo "::error::タグ ${RELEASE_TAG} が承認待ちの間に作られています。再実行して状態を確かめてください"
             exit 1
           fi
@@ -244,11 +258,15 @@ jobs:
           tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
           echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
 
+      # ビルドのコミットまでの差分にするため、そのコミットへ移ってから生成する（--unreleased は HEAD までを対象にする）。
+      # 設定は main の先頭の cliff.toml を使う（設定は commit_preprocessors の replace_command でコマンドを実行できるため、出どころを固定する）。
       - name: Generate release notes
         run: |
           set -euo pipefail
+          cp cliff.toml "$RUNNER_TEMP/cliff.toml"
+          git checkout --quiet --detach "$BUILD_SHA"
           # --unreleased を必ず付ける（cliff.toml 冒頭コメント参照）。
-          git-cliff --offline --unreleased \
+          git-cliff --offline --unreleased --config "$RUNNER_TEMP/cliff.toml" \
             --include-path 'packages/mobile/**' \
             --tag-pattern '^mobile/v[0-9]+\.[0-9]+\.[0-9]+$' \
             --strip all --output "$RUNNER_TEMP/release-notes.md"
