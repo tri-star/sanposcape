@@ -128,6 +128,6 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
   保持期間は、SS-158 の PR（#131）の申し送りにある確認結果（sanposcape-infra `e09dcf8` の `live/platform/logging.tf`・`prod.tfvars` の `log_retention_days = 400`、トレースは 90 日）による。
   一方 ADR-012 の SS-159 追補はこれらを「infra 側で未確認」としており、記録が食い違う。400 日はポリシーで「最長 400 日」と言い切った値なので、infra を変えるときは infra 側で実際の値を確かめる。
 - 第三者 SDK が送る内容は、各 SDK のプライバシーマニフェストと公開情報による（`app-privacy-label.md` 3.1）。Expo が更新の確認で受け取った情報を保持するかは確認できていない。
-- 本番では Apple の鍵が未投入のため、アカウント削除時の Apple の失効が実際に動くかは確認していない（SS-196）。
+- 本番の Apple の鍵は 2026-10-17 に投入したが、アカウント削除時の Apple の失効が実際に動くかは確認していない（SS-208 の実機確認で確かめる）。
   鍵を入れずに `apple_allowed_audiences` だけを設定すると、Apple のサインインは通るが refresh token を保存せず、削除時も失効させない（ポリシー 1-4・7 はこの場合を「受け取れた場合にだけ保存」「解除しないまま削除」と書いている）。本番は鍵を入れてから audiences を設定する。
 - ポリシー 10 の本人確認のメールと 2 の重要なお知らせを Apple の転送用アドレス（`privaterelay.appleid.com`）へ届けるには、Apple Developer の「Sign in with Apple for Email Communication」に送信元（`support@sanposcape.com` のドメインまたはアドレス）を登録する必要がある。登録は手作業で、本番で Apple のサインインを公開する前に行う（SS-210 の時点で未登録）。
