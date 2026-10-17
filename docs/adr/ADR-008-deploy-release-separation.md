@@ -1092,6 +1092,8 @@ Android（Google Play）の本番提出は未整備で、どちらのワーク�
 - **Android の本番提出とタグ**: Google Play への提出を整備するときに、Release 作成の入力（iOS の BUILD_ID）をどう広げるかを決める。
   iOS と Android で同じ version を公開する前提なら、タグは1つのまま。
 - SS-103 で `EXPO_TOKEN` を Environment Secret に移すとき、TestFlight 配信のワークフローにも Environment を付けることになる（D28 の見直し）。
+- `npx eas-cli` の版を固定していない（既存の `mobile-release-build.yml` と同じ）。npm の公開が乗っ取られると、公開直後の版が
+  `EXPO_TOKEN` を読める（`pnpm-workspace.yaml` の `minimumReleaseAge` も効かない）。mobile のワークフロー全体で固定の方法を揃えて決める。
 
 ## 関連情報
 
