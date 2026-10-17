@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-171: 決定7 に列追加の隙間を追補。前回 SS-183）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release を追補。前回 SS-171）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -15,6 +15,11 @@
 - **mobile の公開時期は App Store の手動リリースと Google Play の公開の管理・段階的公開で制御する**。これはバイナリの配信の制御で、機能の公開はフラグで別に制御する。（本文: 決定3）
 - **バージョンはアプリ別に採番し、タグ `<app>/vX.Y.Z` と GitHub Release は production へのデプロイ成功時だけ作る**。
   リリースノートは git-cliff で生成して `CHANGELOG.md` はコミットせず、mobile のキーは `app.json` の `version` のみとする。（本文: 決定4、決定5）
+- **mobile（iOS）は TestFlight 配信（`mobile-production-testflight.yml`、main のみ・承認なし）と、ストアで公開した後に人が起動する
+  タグ・Release の作成（`mobile-production-release.yml`、`production` Environment の承認あり）を分ける**。
+  Release 作成は EAS の BUILD_ID を入力に、EAS が記録したビルドのコミットへタグを付け、再ビルドしない。
+  mobile のタグの version は git-cliff で bump せず `app.json` の `version` をそのまま使い、同じ version のタグが別のコミットにあれば失敗する。
+  「新機能」欄の下書きは TestFlight 配信の Job Summary にプレビューとして出す。（本文: SS-213 追補 D24〜D28）
 - **フラグは「追加 → ON → 削除」の3段階で、削除まで終えて1つの機能追加とみなす**。
   定義はリポジトリ内のファイルで管理し、切り替えは GitHub Actions の `workflow_dispatch`（prod は承認あり）が hosted configuration version を作って `StartDeployment` する形でだけ行う。
   認証には sam-deploy とは別の OIDC ロール `sanposcape-<env>-feature-flags` を使う。（本文: 決定6）
@@ -63,8 +68,9 @@
   apply 後に `production` Environment へ `AWS_FEATURE_FLAGS_ROLE_ARN` を設定する。（本文: SS-99 追補 D21）
 - **最低サポートバージョンを下回るアプリへのアップデート促進が未実装**（SS-101）。mobile は値を保持するだけで、expand → contract の contract に進む前提がまだ無い。
   （本文: 決定7、SS-100 追補 D17）
-- **mobile のタグ・Release・CHANGELOG の自動生成（SS-102）と、OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
-  （本文: 決定4、決定8、移行・対応が必要な事項）
+- **OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
+  mobile のタグ・Release（SS-102）は iOS 分を SS-213 で実装したが、実行実績は無い。Android の本番提出とタグは未整備。
+  （本文: 決定4、決定8、移行・対応が必要な事項、SS-213 追補の未解決）
 - **ストア側の設定（App Store の手動リリース / Google Play の公開の管理）が未実施**で、`release-runbook.md` の該当記述は未検証。（本文: 移行・対応が必要な事項）
 
 ### 変更・撤回された決定
@@ -72,6 +78,9 @@
 - 本文の決定2「実行環境ごとにセッションを 1 回開く」、決定9-1 の known-good の維持、SS-98 追補 D3 の「`_lifespan`（コールドスタート時に1回実行される）」は、SS-183 まで Lambda では成り立っていなかった（Mangum が呼び出しごとに lifespan を回し、フラグの取得元を毎回作り直していた）。決定の変更ではなく、挙動を記述に合わせた（本文: SS-183 追補、[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) SS-183 追補）
 - 取得失敗時の挙動: 「未配信・取得失敗・空の応答のいずれも全フラグ OFF」→ 一度も取得できていないときだけ全 OFF、それ以外は直前の値・known-good を維持（本文: 決定9-1、SS-98 / PR #88）
 - 本文の「ネガティブな影響」にある「取得失敗で全 OFF に倒す＝公開済みの機能が突然見えなくなる」は決定9-1 以前の記述で、現在そうなるのは一度も取得できていない場合だけ
+- 決定4「バージョン規則・スキップ条件は ADR-005 の SS-72 追補をそのまま他アプリへ適用する」は、mobile には適用しない。
+  mobile は `app.json` の `version` をそのままタグにし、スキップ・失敗の条件も変えた（本文: SS-213 追補 D26）
+- 決定4「Release 用に生成した CHANGELOG を『新機能』欄の下書きにも使う（SS-102）」→ TestFlight 配信の時点のプレビューを使う（本文: SS-213 追補 D27）
 - 本文の「ポジティブな影響」にある「`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` もこの基盤へ移せば…」は初版時点の見込みで、現在は環境変数のまま残す（本文: SS-98 追補 D8）
 - mobile のサインイン後の `/app-config` 再取得: D2 で申し送り → 実装しない（本文: SS-100 追補 D14）
 - フォアグラウンド復帰時の再取得間隔（60秒）の起点: 直近の成功時刻 → 直近の取得試行（成功または失敗）の時刻（本文: SS-100 追補 D14、SS-100 / PR #89 追補）
@@ -90,7 +99,8 @@
 （SS-93: SS-96 の完了を反映）、2026-09-21 追補（SS-88: `pin_registration` を最初の実フラグ
 として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
 定義ファイル）、2026-10-01 追補（SS-148: D16 の表示範囲の注記）、2026-10-04 追補（SS-183: Lambda で
-lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）
+lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）、
+2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）
 
 ## ステータス
 
@@ -103,6 +113,7 @@ SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfi
 （**SS-99 追補**: 2026-09-21 に SS-99（フラグ切り替えワークフロー）を実装した。実行実績はまだ無い）
 （**SS-183 追補**: 2026-10-04 に、Lambda で lifespan が呼び出しごとに走り、決定2・決定9-1・SS-98 追補 D3 の
 記述が成り立っていなかった事実を末尾の「SS-183 追補」で訂正した。決定は変えていない）
+（**SS-213 追補**: 2026-10-17 に、SS-102 の iOS 分（タグ・Release の作成）を本番の TestFlight 配信と合わせて実装した。実行実績はまだ無い）
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
 
@@ -496,6 +507,7 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
       「SS-100 追補」を参照）
 - [ ] SS-101: 最低サポートバージョンを下回るアプリにアップデートを促す（決定7 の contract の前提）
 - [ ] SS-102: mobile の `mobile/vX.Y.Z` タグ・Release・CHANGELOG を自動生成する
+      （**SS-213 追補**: iOS 分は SS-213 で実装した。Android 分が残る。末尾の「SS-213 追補」を参照）
 - [ ] SS-103: OTA の本番配信ワークフローを追加し、`EXPO_TOKEN` を Environment Secret へ移す
 - [x] `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` を AppConfig のフラグへ移行するかを判断する。
       **（SS-98 追補）環境変数のまま残すと結論した。** 理由は下記「SS-98 追補」§D8 を参照
@@ -997,6 +1009,78 @@ SS-183 で、Lambda では lifespan を init で 1 回だけ起動する形に�
 [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) のとおり、
 AppConfig のベイク時間に加えてポーリング間隔（既定 60 秒）ぶん遅れて反映される。
 
+## 追補: mobile（iOS）の本番の TestFlight 配信と、公開後のタグ・Release の作成（2026-10-17, SS-213）
+
+決定4・決定5 の mobile 分（SS-102 が予定していたもの）を、iOS について実装した。
+ワークフローは `.github/workflows/mobile-production-testflight.yml`（TestFlight 配信）と
+`.github/workflows/mobile-production-release.yml`（タグ・Release の作成）の2本で、手順は
+[release-runbook.md](../release-runbook.md) §4.1、初回の準備は
+[build-profiles.md](../../packages/mobile/docs/build-profiles.md)「本番の TestFlight 配信」にある。
+
+### D24: TestFlight への配信と、タグ・Release の作成を別のワークフローに分ける
+
+TestFlight に上げただけでは利用者に公開していない。決定5 は「本番に出ているもの」に番号を振る規則で、
+backend では production へのデプロイの成功がその時点にあたる。mobile ではストアでの公開がその時点にあたり、
+公開操作（審査提出・「このバージョンをリリース」）は App Store Connect で手動で行う（決定3）。
+CI からは公開の時点を検知できないため、**公開した後に人が Release 作成のワークフローを起動する**。
+`production` Environment の承認者が、承認の際に公開済みであることを確かめる。
+
+TestFlight に上げたが公開しなかったビルドにはタグを付けない。
+
+### D25: Release 作成の入力は EAS の BUILD_ID とし、再ビルドしない
+
+Release 作成のワークフローは、TestFlight 配信のワークフローの Job Summary に出る BUILD_ID を受け取り、
+`eas build:view` で EAS が記録したビルドのコミット（`gitCommitHash`）と version（`appVersion`）を引いて、
+そのコミットにタグを付ける。
+
+- コミット SHA や version を入力にすると、人が対応を調べることになり、公開したビルドとは別のコミットにタグを付けうる。
+  BUILD_ID ならストアに出したバイナリとタグの対応が機械的に決まる。
+- 本番の iOS ストア向けの完了済みビルドであること、コミットが main にあること、そのコミットの `app.json` の `version` と
+  ビルドの version が一致することを確かめてから作る。
+- `eas build:view --json` の出力は成果物（.ipa）のダウンロード URL を含むため、ログに出さない（public リポジトリ。ADR-006 の SS-79 追補と同じ配慮）。
+
+### D26: mobile のタグの version は git-cliff で bump せず、`app.json` の `version` をそのまま使う
+
+決定4 は「バージョン規則・スキップ条件は ADR-005 の SS-72 追補をそのまま他アプリへ適用する」としているが、
+同じ決定4 が mobile のキーを「`app.json` の表示用 `version` のみ」としている。mobile の `version` は OTA の互換境界として
+人がリリース単位で上げる値で（ADR-006 の SS-89 追補）、ストアに出した version と別の番号をタグに振ると対応が崩れる。
+そこで mobile では **git-cliff の bump 規則を使わず、タグは `mobile/v<app.json の version>`** とし、git-cliff はリリースノートの生成だけに使う。
+
+スキップ・失敗の条件も backend から変える。
+
+| 状況 | backend | mobile |
+|---|---|---|
+| 同じタグが同じコミットにある | スキップ | スキップ（再実行） |
+| 同じ version のタグが別のコミットにある | （bump するので起きない） | 失敗（公開済みの version のままビルドした） |
+| 最新のタグがコミットの祖先ではない | スキップ（ロールバック） | 失敗（古いコミットのビルドを公開した） |
+| リリースノートに載るコミットが無い | スキップ | **タグを作る**（ストアには公開済みのため） |
+
+TestFlight 配信のワークフローは、`mobile/v<version>` のタグが既にある version ではビルドの前に失敗する。
+公開済みの version には App Store Connect がビルドを追加できず、EAS の枠を消費してから提出で失敗するため。
+
+### D27: ストアの「新機能」欄の下書きは、TestFlight 配信の時点でプレビューとして出す
+
+決定4 は Release 用に生成した CHANGELOG を「新機能」欄の下書きにも使うとしていたが、「新機能」欄は審査提出の時点で要り、
+Release を作る（公開後）のでは遅い。そこで TestFlight 配信のワークフローが、同じ規則（前回の `mobile/v*` タグ以降の
+`packages/mobile/**`）で生成したリリースノートを Job Summary にプレビューとして出す。公開後の Release の本文は、
+タグを付けるコミットまでで生成し直したものになる。
+
+### D28: TestFlight 配信は main からのみで、承認は付けない
+
+TestFlight 配信のワークフローは main からのみ実行できる（D25 でタグを付けるコミットが main 上にある必要があるため）。
+`production` Environment の承認は付けない。TestFlight の内部配信は公開ではなく、公開の判断は App Store Connect の手動操作と
+Release 作成の承認で行うため。`EXPO_TOKEN` はリポジトリ Secret のまま使う（Environment Secret への移動は SS-103）。
+Android（Google Play）の本番提出は未整備で、どちらのワークフローも iOS だけを扱う。
+
+### 未解決・持ち越し（SS-213 追補）
+
+- **どちらのワークフローも実行実績が無い。** 本番のアプリレコード・本番識別子のクレデンシャル・ビルド番号の初期化などの
+  手作業の準備（build-profiles.md）が終わってから初回を実行する。`eas build:view --json` の出力のキー（`gitCommitHash` など）は
+  eas-cli 23.2.0 のソースで確かめたもので、実際の応答では未確認。
+- **Android の本番提出とタグ**: Google Play への提出を整備するときに、Release 作成の入力（iOS の BUILD_ID）をどう広げるかを決める。
+  iOS と Android で同じ version を公開する前提なら、タグは1つのまま。
+- SS-103 で `EXPO_TOKEN` を Environment Secret に移すとき、TestFlight 配信のワークフローにも Environment を付けることになる（D28 の見直し）。
+
 ## 関連情報
 
 - [ADR-004: シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./ADR-004-secrets-management-and-cicd-aws-credentials.md)
@@ -1015,7 +1099,7 @@ AppConfig のベイク時間に加えてポーリング間隔（既定 60 秒）
   —— ビルドプロファイル、ビルド番号の採番、表示用 `version` の運用ルール
 - Plane: SS-104（本 ADR）、SS-72（起点）、SS-94 / SS-95 / SS-96 / SS-97（infra）、
   SS-98 / SS-99（backend・CI）、SS-100 / SS-101（mobile のフラグ受け皿・強制アップデート）、
-  SS-102 / SS-103（mobile のリリース自動化・OTA）
+  SS-102 / SS-103（mobile のリリース自動化・OTA）、SS-213（mobile（iOS）の本番の TestFlight 配信とタグ・Release）
 - [AWS AppConfig feature flags (AWS 公式ドキュメント)](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-configuration-and-profile-feature-flags.html)
 - [AWS AppConfig deployment strategies (AWS 公式ドキュメント)](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-creating-deployment-strategy.html)
   —— 定義済み Deployment Strategy のベイク時間

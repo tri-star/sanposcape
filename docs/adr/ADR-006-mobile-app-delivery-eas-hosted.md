@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-03（SS-158）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -14,6 +14,9 @@
 - **iOS は TestFlight の内部テスターのみで始める**。外部テストの前提のプライバシーポリシー URL は、`/privacy/` を含む本番 LP のデプロイ後に
   App Store Connect へ登録すれば満たせる。（本文: SS-79 追補、SS-158 追補）
 - **配布ビルドは `.github/workflows/mobile-release-build.yml`（`workflow_dispatch` 専用）で起動する**（Android の EAS ビルド、iOS の EAS ビルド + `eas submit`）。（本文: SS-79 追補）
+- **本番アプリ（`production`）の iOS は `.github/workflows/mobile-production-testflight.yml`（`workflow_dispatch` 専用・main のみ）で
+  EAS ビルド + `eas submit` して TestFlight まで上げる**。ストアの公開は App Store Connect で手動、公開後のタグ・Release は
+  [ADR-008](./ADR-008-deploy-release-separation.md) の SS-213 追補。（本文: SS-213 追補）
 - **mobile アプリ本体の Web 版は配信しない**。（本文: 決定4）
 - **AWS 側に要る mobile 隣接の配信面は静的サイトで、SAM ではなく Terraform（`sanposcape-infra`）の S3 + CloudFront で扱う**。
   実体は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の LP。（本文: 決定5、SS-158 追補）
@@ -37,6 +40,7 @@
 - **サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いは未決**（Plane に該当課題なし）。（本文: 移行・対応事項、SS-158 追補）
 - `eas update` による OTA 配信の実運用手順（channel / branch、`runtimeVersion` を上げるべき変更の見分け方、ロールバック）の文書化。（本文: 移行・対応事項）
 - EAS Update の MAU が無料枠（1K MAU）に近づいた際の判断基準（未着手。実利用者が付いてから）。（本文: 移行・対応事項、ネガティブな影響）
+- **本番の TestFlight 配信ワークフローは実行実績が無い**。初回の前に人手の準備が要る。（本文: SS-213 追補）
 - **remote 化後の `eas build --local`（`mobile-e2e.yml` の `preview`）は未実証**。失敗時は `build-profiles.md` の「切り戻し（remote → local）」に従う。（本文: SS-89 追補「未検証・未確認として残すもの」）
 
 ### 変更・撤回された決定
@@ -49,7 +53,7 @@
 
 ## 日付
 
-2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）
+2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）
 
 ## ステータス
 
@@ -333,6 +337,23 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
 運用手順・切り戻し手順の詳細は
 [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md) の
 「ビルド番号の採番」「表示用バージョン `version` の運用ルール」を参照。
+
+## SS-213 追補: 本番アプリの TestFlight 配信ワークフロー（2026-10-17）
+
+決定3（iOS は EAS Build → `eas submit` → TestFlight）を、本番アプリ（`production` プロファイル、`com.sanposcape.app`）について
+`.github/workflows/mobile-production-testflight.yml` として実装した。dev 向けの `mobile-release-build.yml` とは分けた
+（main 限定・ビルド前の検査・リリースノートのプレビューなど、本番に固有の扱いがあるため）。
+
+- `workflow_dispatch` のみ（EAS の枠を守る SS-79 追補と同じ理由）・main からのみ・iOS のみ。
+- ビルドの前に、`eas.json` の `submit.production.ios`（`ascAppId` / `appleTeamId`）の有無と、
+  `app.json` の `version` が公開済み（`mobile/v<version>` タグあり）でないことを検査して落とす。
+- `eas submit` はビルドプロファイルの `env` を適用しないため、`APP_VARIANT=production` を明示する
+  （付けないと開発用の識別子で App Store Connect の API キーを探す）。
+- ビルド・成果物の URL をログに出さない配慮（SS-79 追補）を引き継ぐ。
+- ストアへの公開と、公開後の `mobile/vX.Y.Z` タグ・GitHub Release の作成は
+  [ADR-008](./ADR-008-deploy-release-separation.md) の SS-213 追補（D24〜D28）が決める。
+- 実行実績は無い。初回の前に、本番のアプリレコード・本番識別子のクレデンシャル・`production` のビルド番号の初期化を人手で行う
+  （[build-profiles.md](../../packages/mobile/docs/build-profiles.md)「本番の TestFlight 配信」）。
 
 ## 関連情報
 
