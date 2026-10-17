@@ -1563,7 +1563,7 @@ prod のベースライン（リリース後 2〜4 週間）が取れてから�
 | `aws_request_id` | Lambda の呼び出し中 | REPORT 行の `@requestId` と同じ値 |
 | `http_method` / `http_route` | リクエスト処理中 | `http_route` はテンプレート（`/pins/{pin_id}`）。ルート不一致（404）は出ない |
 | `user_id` | 認証済みのリクエスト中。ログイン（`/auth/session`・`/auth/dev-session`）・`/auth/refresh`・`/auth/logout` も、ユーザーが確定した後 | **内部 UUID のみ**（`bind_user_id(uuid.UUID)` が唯一の入口）。refresh / logout は**提示された refresh token の持ち主**で、認証済みの主体ではない（再利用の検知では攻撃者のリクエストに被害者の ID が付く）。未知のトークン・不正な認証ヘッダーの 401 には付かない。スパンには `enduser.id` として付く（§16） |
-| `app_session_id` | `X-App-Session-Id` が検証を通ったとき | mobile がアプリの起動ごとに付ける UUID v4（小文字）。クライアントの申告で、端末の証明ではない。不正な値は出さない。スパンには `session.id`（§16） |
+| `app_session_id` | `X-App-Session-Id` が検証を通ったとき | mobile がアプリの起動ごとに付ける想定の UUID v4（小文字。mobile はまだ送っていないので、現状は付かない）。クライアントの申告で、端末の証明ではない。不正な値は出さない。スパンには `session.id`（§16） |
 | `log_type` / `http_status_code` / `duration_ms` | アクセスログだけ | `log_type` は `"access"` |
 | `exception_type` / `exception_stacktrace` / `exception_sqlstate` | `exc_info` があるとき | 型名（`module.QualName`）、型名とフレームだけのリスト（200 行を超えたら先頭側を省いて末尾を残し、`exception_stacktrace_truncated`）、DB 例外の SQLSTATE |
 | `exception_message` | `exc_info` があり、かつ ENV が local / test のとき | **staging / production では出ない**（下記） |
@@ -1664,11 +1664,11 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
   - `aws_lambda/tracing.py`（Lambda の LOCAL_ROOT）: リクエストの終わり（`finally`）に写す。
 - 属性名に `enduser.id` を選んだ理由: OTel の semconv で「リクエストを送った認証済みのエンドユーザー」を表す名前で、
   collector-contrib の X-Ray 変換が X-Ray のセグメントの `user` に写す（`user.id` は写さない）。詳細は ADR-013。
-- **X-App-Session-Id**: mobile がアプリの起動ごとに作る UUID v4（小文字）。backend は検証を通ったものだけを載せる
+- **X-App-Session-Id**: mobile がアプリの起動ごとに作る想定の UUID v4（小文字）。backend は検証を通ったものだけを載せる
   （小文字の UUID v4 以外・同名の複数ヘッダー・36 バイト以外は捨てる。捨てた値はログにもスパンにも出さず、リクエストも拒否しない）。
   調査の目印にだけ使い、認可・レート制限には使わない。**クライアントの申告なので、他人の ID を名乗れる**。
   同じ `app_session_id` が同じ端末である証明にはならない。OpenAPI には載せない（`X-App-Authorization` と同じく OpenAPI の外のヘッダー）。
-  mobile が付けるのは別課題（それまでは `app_session_id` は付かない）。
+  mobile が付けるのは別課題で、未起票（それまでは `app_session_id` は付かない。App Privacy の申告も「受け口だけある」と書いている）。
 
 ### Step 1: エラーを見つけて、ユーザーを特定する
 
