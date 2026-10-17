@@ -23,17 +23,17 @@
 > | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200（検証当時。`spots` ドメインは SS-88 で削除済みで現存しないが、他のエンドポイントでも成り立つ結論として psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことを確認済み、§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
 > | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は 2026-10-17 に CloudFront 経由の `/health` が 200、Function URL の直叩きが 403 であることを確認（infra 経由）。prod の認証必須エンドポイントの確認は未記録 |
-> | prod へのデプロイ | ✅ **実施済み**（GitHub Actions。2026-09-30 に `backend/v0.1.0`（3f77562）、2026-10-17 に `backend/v0.2.0`（f3c7e1d））。同時実行数のクォータは初期値（10）のままで、予約（`ReservedConcurrentExecutions`）は入れていない（ADR-005 決定8 の SS-183 追補）。prod の前提（SSM・シークレットのキー・デプロイロールの権限）は 2026-10-17 に infra 経由で確認した |
+> | prod へのデプロイ | ✅ **実施済み**（GitHub Actions。2026-10-01 に `backend/v0.1.0`（3f77562）、2026-10-17 に `backend/v0.2.0`（f3c7e1d）。日付は JST）。⚠️ 同時実行数のクォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）だが、prod の予約（`ReservedConcurrentExecutions`）はまだ入れていない。ADR-005 決定8 の「最も危険な時間帯」に当たるので、予約の投入を急ぐ。prod の前提（SSM・シークレットのキー・デプロイロールの権限）は 2026-10-17 に infra 経由で確認した |
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ✅ **dev・prod とも付与済み**。dev は GitHub Actions からのデプロイが通っている（境界が無いと §7 のとおり失敗する）。prod は `ApiRole` / `MigrateRole` に `sanposcape-prod-lambda-boundary` が付いていることを 2026-10-17 に infra 経由で確認 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ✅ **dev・prod とも実施済み**（prod は infra の SS-97 の apply 後。上の「prod へのデプロイ」の行） |
-> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。prod は SSM（`pin_photos/bucket_name` / `bucket_arn`）があることを 2026-10-17 に infra 経由で確認し、デプロイ済み。prod でのピン登録の実地確認は未記録 |
-> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev（2026-10-04）・prod（2026-10-17）で確認済み**。dev ではデプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。prod は SS-185 の prod 適用の後に 2026-10-17 にデプロイし、スパンが入ることを作業者が確認した |
-> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ✅ **dev・prod にデプロイ済みで、§14「デプロイ後の確認」を 2026-10-17 に作業者が確認済み**（`ManageBackendMonitoring`＝sanposcape-infra PR #53 は dev・prod とも適用済み）。`sam validate --lint` と pytest（`test_monitoring_config.py`）も通過。クエリとメトリクスの次元は 2026-10-05 に dev の実データで確認済み（§14 冒頭の検証状況） |
-> | ログの JSON 化（§15 / SS-180） | ✅ **dev・prod にデプロイ済みで、§15「デプロイ後の確認」を 2026-10-17 に作業者が確認済み**（2026-10-16 / 2026-10-17 にデプロイ）。pytest・ローカル（compose）でも確認済み |
-> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ✅ **確認済み**（2026-10-17 に作業者が Logs Insights で確認。pytest の境界テストも通過） |
-> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **dev・prod にデプロイ済み・実機未確認**。pytest（Apple の REST API はモック通信）は通過。鍵は dev（SS-196）・prod（2026-10-17。`apple_allowed_audiences` も同時に投入）とも投入済み。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-208（iOS 実機での Sign in with Apple の確認）で行う |
-> | 写真の削除（PhotoPurge・ScheduleV2・アラーム。§17 / SS-109） | ⚠️ **dev・prod にデプロイ済み・定期実行の実地確認は未記録**。infra の PR #55（Scheduler 用ロールとデプロイロールの許可）は dev・prod とも適用済み。dev のスタックで `BackendScheduleGroup` / `PhotoPurge` / `PhotoPurgeDaily` が `CREATE_COMPLETE`（2026-10-17 に infra 経由で確認）。`sam validate --lint`・pytest・ローカルでの1回実行（`STORAGE_MODE=fake`）は確認済み |
-> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ✅ **実施済み**（`backend/v0.1.0` 2026-09-30、`backend/v0.2.0` 2026-10-17） |
+> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。デプロイ済み Lambda 経由での写真付きの登録（手順 3〜4）も、prod で `pin_registration` を ON にする前に作業者が dev で確認した（2026-10-17 の報告）。prod は SSM（`pin_photos/bucket_name` / `bucket_arn`）があることを 2026-10-17 に infra 経由で確認し、デプロイ済み。prod でのピン登録の実地確認は未記録 |
+> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev（2026-10-04）・prod（2026-10-17）で確認済み**。dev ではデプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。prod は SS-185 の prod 適用の後に 2026-10-17 にデプロイし、スパンが入ることを作業者が確認した（2026-10-17） |
+> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ✅ **dev・prod にデプロイ済みで、§14「デプロイ後の確認」を 2026-10-17 に作業者が dev・prod で確認済み**（prod のアラームの通知の疎通を含む。ウィジェットごとの結果は記録していない。`ManageBackendMonitoring`＝sanposcape-infra PR #53 は dev・prod とも適用済み）。`sam validate --lint` と pytest（`test_monitoring_config.py`）も通過。クエリとメトリクスの次元は 2026-10-05 に dev の実データで確認済み（§14 冒頭の検証状況） |
+> | ログの JSON 化（§15 / SS-180） | ✅ **dev・prod にデプロイ済みで、§15「デプロイ後の確認」を 2026-10-17 に作業者が dev・prod で確認済み**（項目ごとの結果は記録していない）。pytest・ローカル（compose）でも確認済み |
+> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ✅ **確認済み**（2026-10-17 に作業者が dev・prod の Logs Insights で確認。pytest の境界テストも通過） |
+> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **dev・prod にデプロイ済み・実機未確認**。pytest（Apple の REST API はモック通信）は通過。prod は 2026-10-17 に鍵の3キーと `apple_allowed_audiences`（`com.sanposcape.app`）を投入した。dev の投入状況はこの表では記録していない。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-208（iOS 実機での Sign in with Apple の確認）で行う |
+> | 写真の削除（PhotoPurge・ScheduleV2・アラーム。§17 / SS-109） | ⚠️ **定期実行の実地確認は未記録**。infra の PR #55（Scheduler 用ロールとデプロイロールの許可）は dev・prod とも適用済み。dev のスタックで `BackendScheduleGroup` / `PhotoPurge` / `PhotoPurgeDaily` が `CREATE_COMPLETE`（2026-10-17 に infra 経由で確認）。prod は 2026-10-17 のデプロイ（f3c7e1d。テンプレートにこれらを含む）が成功しているが、prod のスタックのリソースは直接は確かめていない。`sam validate --lint`・pytest・ローカルでの1回実行（`STORAGE_MODE=fake`）は確認済み |
+> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ✅ **実施済み**（`backend/v0.1.0` 2026-10-01、`backend/v0.2.0` 2026-10-17） |
 
 ## 1. 前提
 
@@ -304,8 +304,8 @@ sam deploy --config-env dev
   パラメータに渡る。
 - prod へのデプロイも同様に `sam deploy --config-env prod` だが、通常は GitHub Actions（§4.1）から行う。
   当初は「prod は Lambda の同時実行数クォータが引き上げ承認されるまでデプロイしない」としていたが、
-  ADR-005 決定8 の SS-183 追補のとおり、prod はクォータ（初期値 10）が上がるまで予約を入れずにデプロイしている
-  （2026-09-30 から稼働。クォータの引き上げと予約の投入は未完了）。
+  ADR-005 決定8 のとおり、prod はクォータ（初期値 10）が上がるまで予約を入れずにデプロイしていた（2026-10-01 から稼働）。
+  クォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）で、**予約の投入はまだ**（決定8 の「最も危険な時間帯」）。
   prod のシークレットに値が未投入の間は Lambda が起動時に `ResourceNotFoundException` で落ちる。
 
 ### 4.1 GitHub Actions からのデプロイ（SS-72）
@@ -397,7 +397,7 @@ production へのデプロイが成功すると、`release` job がデプロイ�
 | Environment | Variables `AWS_SAM_DEPLOY_ROLE_ARN` | 保護ルール |
 |---|---|---|
 | `development` | `sanposcape-infra` の dev で `mise run output live/account -raw sam_deploy_role_arn` の値 | なし（ブランチ制限もなし） |
-| `production` | prod の `live/account` apply 後に同じ output の値（**未設定**） | Required reviewers = tri-star / Deployment branches = `main` のみ / 管理者によるバイパス不可 |
+| `production` | prod の `live/account` apply 後に同じ output の値（設定済み。prod へのデプロイが成功している） | Required reviewers = tri-star / Deployment branches = `main` のみ / 管理者によるバイパス不可 |
 
 ```bash
 gh variable set AWS_SAM_DEPLOY_ROLE_ARN --env development --body '<arn>'
@@ -559,7 +559,7 @@ fields @logStream, @message
 > ホスト名は infra 側 ADR-0001 §2.11 で確定しており、mobile 用が `app-api.<zone>`、
 > 外部向けが `api.<zone>` で**別ホスト**（distribution / WAF / レート制限 / 認証方式を独立させるため）。
 > CI やスクリプトから参照する場合は SSM の
-> `/sanposcape/<env>/services/backend-api/api_base_url` と `.../distribution_id` が使える（dev のみ存在）。
+> `/sanposcape/<env>/services/backend-api/api_base_url` と `.../distribution_id` が使える（dev・prod とも存在。prod は 2026-10-17 に infra 経由で確認）。
 
 **完了確認は 3 本立てにする。** インフラ資料の当初案（`/health` 200 / 直叩き 403 の 2 本）
 だけでは**認証経路の破綻が露見しない**。`GET /health` は認証不要なので、
@@ -623,7 +623,7 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 > プラットフォームに依存しない**。
 >
 > **prod は `/health` と Function URL の直叩きまで確認済み**（2026-10-17、infra 経由）。
-> 認証必須エンドポイントの確認（上の 2)〜3)）は、本番の TestFlight ビルドで行う（SS-208）。
+> 認証必須エンドポイントの確認（上の 3)）は、本番の TestFlight ビルドで行う（SS-208）。
 
 **あわせて確認する完了条件**:
 
@@ -689,7 +689,7 @@ dev は既存スタックがあるため必須。**GitHub Actions からの最�
 済ませること**（未実施だとそのデプロイは上表の `PutRolePermissionsBoundary` で失敗する）。
 （SS-72 の途中で main push による自動デプロイを廃止したため、PR のマージ自体はデプロイを起こさない。）
 
-prod はスタックが未作成の状態から、SS-97 の apply 後に最初から境界付きで作った（2026-09-30）ので、この手順は不要だった。
+prod はスタックが未作成の状態から、SS-97 の apply 後に最初から境界付きで作った（2026-10-01）ので、この手順は不要だった。
 prod では SCP でも `iam:PutRolePermissionsBoundary` を拒否しているため、境界の無いスタックを後から作らないこと。
 
 ### init 失敗時にエラー報告自体が壊れる（日本語コメントを含むトレースバック）
@@ -1061,12 +1061,12 @@ transform と組み込み関数の評価が終わった**後**の独立したス
 | 環境 | 必要な apply | 状況（2026-09-22） |
 |---|---|---|
 | dev | `deployments/dev/account`（SS-107: 境界に S3）と `deployments/dev/platform`（SS-106: バケット + SSM） | ✅ どちらも apply 済み |
-| prod | `deployments/prod/account`（2026-09-05 から main に追随していない。Lambda 境界そのもの・sam-deploy ロール・`lambda_boundary_arn` の SSM（SS-97）に、境界の AppConfig（SS-95）・S3（SS-107）の追加も含めて1回の apply にまとまる）と `deployments/prod/platform`（SS-106 + AppConfig 一式 + フラグ切り替えロール） | ⚠️ **未 apply** |
+| prod | `deployments/prod/account`（2026-09-05 から main に追随していない。Lambda 境界そのもの・sam-deploy ロール・`lambda_boundary_arn` の SSM（SS-97）に、境界の AppConfig（SS-95）・S3（SS-107）の追加も含めて1回の apply にまとまる）と `deployments/prod/platform`（SS-106 + AppConfig 一式 + フラグ切り替えロール） | ⚠️ **未 apply**（2026-10-17 追記: どちらも apply 済みで、prod は 2026-10-01 から稼働している） |
 
 **prod を壊さないための整理**: `template.yaml` は dev/prod 共通で、環境による条件分岐は入れていない。
 prod の backend デプロイは、写真と関係なく既に `platform/appconfig/*`（SS-98）と
 `account/lambda_boundary_arn`（SS-72）の SSM を前提にしており、どちらも prod には未 apply のため
-**現時点で prod デプロイはそもそもできない**。`deployments/prod/platform` の apply で AppConfig と
+**現時点で prod デプロイはそもそもできない**（2026-09-22 時点。2026-10-17 追記: 下の順序で apply し、prod は 2026-10-01 から稼働している）。`deployments/prod/platform` の apply で AppConfig と
 `pin_photos/*` の SSM が同時に作られる（SS-106 は main にマージ済み）ので、この結線で prod の
 前提が新たに増えることはない。prod の順序は次のとおり（infra 側の作業はユーザーの承認のうえで行う）:
 
@@ -1258,7 +1258,7 @@ API の呼び出し頻度・レイテンシ・エラー率・メモリ・コー�
 アラーム 3 本。どちらも `template.yaml` が所有し、Lambda スタックと一緒に作られ・消える。
 
 > **検証状況（2026-10-05、infra 経由の dev 読み取り）: クエリとメトリクスの次元は dev の実データで確認済み。デプロイは未実施。**
-> （2026-10-17 追記: dev・prod にデプロイし、下の「デプロイ後の確認」を作業者が確認した。以下は 2026-10-05 時点の記録）
+> （2026-10-17 追記: dev・prod にデプロイし、下の「デプロイ後の確認」を作業者が dev・prod で確認した（prod のアラームの通知の疎通を含む）。以下は 2026-10-05 時点の記録）
 >
 > 確認済み（クエリの案どおりで確定）:
 >
@@ -1621,7 +1621,7 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
 - `trace_sampled` が `false` のログは、対応するトレースが `aws/spans` に無い可能性がある（ログは全件残る）。
 - **エラーからユーザーの直前の操作を辿る手順**は §16。
 
-### デプロイ後の確認（環境ごとに 1 回。2026-10-17 に作業者が確認済み）
+### デプロイ後の確認（環境ごとに 1 回。2026-10-17 に作業者が dev・prod で確認済み）
 
 1. Phase 0 の確認コマンド（§3）が通る（SS-180 は infra の変更を要しない）。
 2. Lambda のロググループで、アプリのログが 1 レコード 1 イベントの JSON になり、Logs Insights がフィールドとして見つける:
