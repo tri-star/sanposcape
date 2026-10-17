@@ -1066,8 +1066,8 @@ Release 作成のワークフローは、TestFlight 配信のワークフロー�
 | 最新のタグがコミットの祖先ではない | スキップ（ロールバック） | 失敗（古いコミットのビルドを公開した） |
 | リリースノートに載るコミットが無い | スキップ | **タグを作る**（ストアには公開済みのため） |
 
-TestFlight 配信のワークフローは、`mobile/v<version>` のタグが既にある version ではビルドの前に失敗する。
-公開済みの version には App Store Connect がビルドを追加できず、EAS の枠を消費してから提出で失敗するため。
+TestFlight 配信のワークフローは、`app.json` の `version` が最新の `mobile/v*` タグの version 以下ならビルドの前に失敗する。
+公開済みの version 以下には App Store Connect がビルドを追加できず、EAS の枠を消費してから提出で失敗するため。
 
 ### D27: ストアの「新機能」欄の下書きは、TestFlight 配信の時点でプレビューとして出す
 

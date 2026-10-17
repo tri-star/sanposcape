@@ -448,8 +448,8 @@ pnpm --filter mobile exec eas env:create \
 
 - **`workflow_dispatch` のみ・main からのみ・iOS のみ。** Android（Google Play）の本番提出は未整備。
 - **ビルドの前に次を検査して落とす**（EAS の枠を消費しない）:
-  `submit.production.ios` の `ascAppId` / `appleTeamId` が無い、`app.json` の `version` に対応する
-  `mobile/v<version>` タグが既にある（公開済みの version。`version` を上げてから実行する）。
+  `submit.production.ios` の `ascAppId` / `appleTeamId` が無い、`app.json` の `version` が最新の
+  `mobile/v*` タグの version 以下（公開済みの version 以下。`version` を上げてから実行する）。
 - **Job Summary に BUILD_ID とリリースノートのプレビューを出す。** BUILD_ID は公開後の Release 作成の入力、
   プレビューは審査提出時の「新機能」欄の下書きに使う。ビルド URL は出さない（上記の public リポジトリの配慮と同じ）。
 - **`eas submit` は手元で実行するときも `APP_VARIANT=production` を付ける**（下記「アプリ識別子の定義」）。

@@ -195,7 +195,7 @@ dev 向けの配布（上の 3.）とは別のワークフローを使う。初�
 [build-profiles.md](../packages/mobile/docs/build-profiles.md)「本番の TestFlight 配信」にある。
 
 1. `app.json` の `version` が公開済みの version（`mobile/v*` タグがあるもの）より大きいことを確かめる。
-   同じなら上の 1.〜2. で上げる（タグが既にある version ではワークフローがビルド前に失敗する）
+   同じか低ければ上の 1.〜2. で上げる（公開済みの最新の version 以下ではワークフローがビルド前に失敗する）
 2. `.github/workflows/mobile-production-testflight.yml` を main で `workflow_dispatch` する
    → ビルドと TestFlight への提出まで進む。**タグ・Release はまだ作らない**
 3. Job Summary の **BUILD_ID** を控える。**リリースノートのプレビュー**はストアの「新機能」欄の下書きにする（§5.3）

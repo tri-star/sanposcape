@@ -346,7 +346,7 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
 
 - `workflow_dispatch` のみ（EAS の枠を守る SS-79 追補と同じ理由）・main からのみ・iOS のみ。
 - ビルドの前に、`eas.json` の `submit.production.ios`（`ascAppId` / `appleTeamId`）の有無と、
-  `app.json` の `version` が公開済み（`mobile/v<version>` タグあり）でないことを検査して落とす。
+  `app.json` の `version` が公開済みの最新（最新の `mobile/v*` タグ）以下でないことを検査して落とす。
 - `eas submit` はビルドプロファイルの `env` を適用しないため、`APP_VARIANT=production` を明示する
   （付けないと開発用の識別子で App Store Connect の API キーを探す）。
 - ビルド・成果物の URL をログに出さない配慮（SS-79 追補）を引き継ぐ。
