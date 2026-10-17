@@ -25,10 +25,6 @@ _IS_PROD = "IsProd"
 # Application Signals の Lambda のメトリクスの操作名の接尾辞。サービス単位には LambdaService /
 # InternalOperation も含まれるので、ダッシュボードとアラームはこの操作に絞る。
 _OPERATION_SUFFIX = "/FunctionHandler"
-# prod はアカウントの Lambda 同時実行数クォータ（初期値 10）のまま予約しない。クォータが上がって
-# Api に予約を入れたら、予約の値とダッシュボードの水平線を揃える（下のテストが落ちて知らせる）。
-_PROD_ACCOUNT_CONCURRENCY_QUOTA = 10
-_NO_VALUE = "AWS::NoValue"
 _ALARM_LOGICAL_IDS = [
     "ApiLambdaErrorsAlarm",
     "ApiLambdaThrottlesAlarm",
@@ -262,16 +258,17 @@ def test_function_name_and_log_group_name_agree(env: str) -> None:
 
 @pytest.mark.parametrize("env", _ENVS)
 def test_concurrency_limit_line_matches_the_reserved_concurrency(env: str) -> None:
+    """どちらの env でも、同時実行数のグラフの水平線が Api の予約と同じ値で1本だけ引かれること。
+
+    prod の予約を落とすと（SS-217 まで `AWS::NoValue`）、`int()` が失敗して知らせる
+    （ADR-005 決定8）。
+    """
     _template, variable_map = _dashboard_body()
     limit = int(_resolve_if(variable_map["ConcurrencyLimit"], env))
     api_properties = load_resources()["Api"]["Properties"]
     reserved = _resolve_if(api_properties["ReservedConcurrentExecutions"], env)
 
-    if reserved == _NO_VALUE:
-        # 予約が無いときの上限はアカウントのクォータ。
-        assert limit == _PROD_ACCOUNT_CONCURRENCY_QUOTA
-    else:
-        assert limit == int(reserved)
+    assert limit == int(reserved)
     lines = [
         annotation["value"]
         for widget in _widgets(env, "metric")

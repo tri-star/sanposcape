@@ -123,11 +123,10 @@ Resources:
       CodeUri: .
       Handler: sanposcape.aws_lambda.api.handler
       # in-process キャッシュ / レート制限の実効倍率と Neon への接続数をここで有界化する。
-      # prod は Lambda 同時実行数クォータが初期値10のままで、予約すると必ず
-      # InvalidParameterValueException になる（クォータ引き上げが通るまで）。
-      # 引き上げが通ったら dev と同じ値を入れる
-      # （docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定8 / docs/deployment.md）。
-      ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 5]
+      # 6 本目の同時リクエストから 429（スロットル）になる。prod は Throttles のアラームが通知する。
+      # 予約後の未予約がアカウントで 100 を下回ると AWS が拒否する（prod のクォータは 1,000。SS-217 で
+      # dev と同じ値を入れた。docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md 決定8 / docs/deployment.md）。
+      ReservedConcurrentExecutions: 5
       FunctionUrlConfig:
         AuthType: AWS_IAM  # ★ NONE にしない（Function URL の直叩きを構造的に塞ぐ）
       # ★ トレース（ADR-013 / SS-178）。Migrate には付けない（API のリクエストだけを計装する）。
@@ -269,8 +268,8 @@ Resources:
     Properties:
       DashboardName: !Sub "sanposcape-${Env}-backend-api"
       # Sub の変数マップ:
-      #   ConcurrencyLimit: 同時実行数のグラフに引く水平線（dev は Api の予約 5 / prod はアカウントの
-      #     クォータ 10）。Api の ReservedConcurrentExecutions と一致することはテストで固定する。
+      #   ConcurrencyLimit: 同時実行数のグラフに引く水平線（Api の予約 5）。Api の
+      #     ReservedConcurrentExecutions と一致することはテストで固定する。
       #   ServiceName: Api の OTEL_SERVICE_NAME（上の ★ を参照）。
       DashboardBody: !Sub
         - |
@@ -312,7 +311,7 @@ Resources:
           {"type":"log","x":16,"y":32,"width":8,"height":6,"properties":{"title":"コールドスタート Init Duration (ms) (Q6b)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE '${ApiLogGroup}' | filter @type = 'REPORT' and ispresent(@initDuration) | stats pct(@initDuration, 50) as init_p50_ms, pct(@initDuration, 95) as init_p95_ms, max(@initDuration) as init_max_ms by bin(1h)"}},
           {"type":"log","x":0,"y":38,"width":24,"height":6,"properties":{"title":"タイムアウト / OOM / ランタイムの異常終了 (Q7)","region":"${AWS::Region}","view":"timeSeries","stacked":false,"query":"SOURCE '${ApiLogGroup}' | filter @message like /Task timed out/ or @message like /Runtime exited/ or @message like /Runtime.OutOfMemory/ | stats count(*) as n by bin(1h)"}}
           ]}
-        - ConcurrencyLimit: !If [IsProd, '10', '5']
+        - ConcurrencyLimit: '5'
           ServiceName: sanposcape-backend-api  # Api の OTEL_SERVICE_NAME と一致させる（テストで固定）
 
   # 通知先は platform 層の SNS（SSM の契約値）。dev は ActionsEnabled: false で、状態はコンソールで見られるが
@@ -351,8 +350,8 @@ Resources:
     Properties:
       AlarmName: !Sub "sanposcape-${Env}-backend-api-lambda-throttles"
       AlarmDescription: >-
-        Api が 5 分間に 1 件以上スロットルされた（同時実行数の上限: dev は予約 5、prod はアカウントの
-        クォータ 10）。ダッシュボード sanposcape-<env>-backend-api の「Lambda: 同時実行数 (Maximum)」を見る。
+        Api が 5 分間に 1 件以上スロットルされた（同時実行数の上限は予約の 5）。
+        ダッシュボード sanposcape-<env>-backend-api の「Lambda: 同時実行数 (Maximum)」を見る。
       Namespace: AWS/Lambda
       MetricName: Throttles
       Dimensions:
@@ -415,8 +414,8 @@ Resources:
       CodeUri: .
       Handler: sanposcape.aws_lambda.migrate.handler
       Timeout: 300  # Function URL を持たないので CloudFront 由来の 29 秒制約の対象外
-      # alembic upgrade head の同時実行を防ぐ（prod はクォータの都合で未予約。Api と同じ理由）。
-      ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 1]
+      # alembic upgrade head の同時実行を防ぐ。
+      ReservedConcurrentExecutions: 1
       # FunctionUrlConfig は付けない（外から叩けない。手動 invoke のみ）
       Policies:
         - Version: '2012-10-17'
@@ -464,8 +463,8 @@ Resources:
       # 落ちるとエラー扱いで非同期呼び出しの再試行が走るため、締め切りで正常に終わらせる。
       Timeout: 300
       # 同時に2つ動かさない（Scheduler は at-least-once で、二重に起動されうる。処理は冪等なので
-      # 重なっても壊れないが無駄になる）。prod はクォータの都合で未予約（Api と同じ理由）。
-      ReservedConcurrentExecutions: !If [IsProd, !Ref "AWS::NoValue", 1]
+      # 重なっても壊れないが無駄になる）。
+      ReservedConcurrentExecutions: 1
       Environment:
         Variables:
           # 写真バケット名（SS-106）。空だと UnconfiguredObjectStorage になり、全ての予約が失敗として残る。
@@ -501,7 +500,7 @@ Resources:
             Name: !Sub "sanposcape-${Env}-backend-scheduled-photo-purge"
             GroupName: !Ref BackendScheduleGroup
             RoleArn: !Sub '{{resolve:ssm:/sanposcape/${Env}/account/backend_scheduler_role_arn}}'
-            # API の利用が少ない時間帯（prod は同時実行数のクォータ 10 を API と取り合う）。
+            # API の利用が少ない時間帯。
             ScheduleExpression: cron(0 4 * * ? *)
             ScheduleExpressionTimezone: Asia/Tokyo
             FlexibleTimeWindow:

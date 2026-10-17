@@ -77,6 +77,15 @@ def test_timeout_leaves_room_after_the_largest_allowed_deadline() -> None:
     assert _properties()["Timeout"] >= upper + 30
 
 
+def test_reserved_concurrency_is_one_regardless_of_env() -> None:
+    """予約同時実行数が env の分岐なしで 1 になっていて、prod でも二重の起動が並んで動かないこと。
+
+    Scheduler は at-least-once で、二重の起動が重なると無駄になる
+    （SS-217 まで prod は予約を落としていた）。
+    """
+    assert _properties()["ReservedConcurrentExecutions"] == 1
+
+
 def test_s3_permissions_cover_exactly_the_prefixes_the_app_deletes() -> None:
     patterns = _prefix_patterns()
     by_action = {statement["Action"]: statement for statement in _statements()}
