@@ -78,6 +78,10 @@
         "appleTeamId": "F946L3T4HH"
       }
     },
-    "production": {}
+    "production": {
+      "ios": {
+        "appleTeamId": "F946L3T4HH"
+      }
+    }
   }
 }
