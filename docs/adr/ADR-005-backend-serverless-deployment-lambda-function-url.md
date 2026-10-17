@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（棚卸し追補: prod の稼働状況・クォータの引き上げ・lifespan の確認を反映。前回 SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-18（SS-217: prod への予約の投入。前回 2026-10-17 棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -17,7 +17,7 @@
 - **シークレットは実行時に Secrets Manager から取得し、プロセス内でキャッシュする**。ARN は SSM から deploy 時に解決して `APP_SECRET_ARN` で渡す。ローテーションは再デプロイで反映する。（本文: 決定5）
 - **アプリの `ENV` はテンプレートの `Mappings`（`dev → staging` / `prod → production`）で変換し、`config.py` の `Literal` を広げない**。（本文: 決定6）
 - **Lambda は VPC に入れない**。（本文: 決定7）
-- **in-process のキャッシュとレート制限が Lambda の実行環境ごとに独立することを受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。費用の天井は Google Cloud 側のクォータでも設ける。prod はクォータが上がるまで予約を入れず、引き上げと予約の投入を同時に行う。（本文: 決定8、SS-183 追補）
+- **in-process のキャッシュとレート制限が Lambda の実行環境ごとに独立することを受容し、`ReservedConcurrentExecutions` で倍率の上限を固定する**。費用の天井は Google Cloud 側のクォータでも設ける。値は dev・prod とも Api=5 / Migrate=1 / PhotoPurge=1（prod はクォータが 1,000 に上がった後に SS-217 で投入した）。（本文: 決定8、SS-183 追補、SS-217 追補）
 - **Lambda では Mangum を `lifespan="off"` で使い、FastAPI の lifespan を init で 1 回だけ起動して shutdown は走らせない**。uvicorn・TestClient では従来どおり startup / shutdown の両方が走る。
   lifespan の state（yield する値）は使わない。startup の失敗は ERROR ログを出してから init エラーにし、startup / shutdown には INFO ログを 1 行ずつ出す（dev での確認用）。（本文: SS-183 追補）
 - **mobile の一時障害（429 / 502 / 503 / 504 / 通信断）の再送は `customFetch` の GET / HEAD だけに限り、POST へ広げない**。
@@ -34,7 +34,7 @@
 
 デプロイと検証の実施状況は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) 冒頭の検証状況の表が新しい（表に無い項目もある）。
 
-- **prod への `ReservedConcurrentExecutions` の投入（急ぎ）**。クォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）だが、`template.yaml` は prod で予約を落としたまま。決定8 の「最も危険な時間帯」に当たる。（本文: 決定8、移行・対応が必要な事項、2026-10-17 棚卸し追補）
+- ~~**prod への `ReservedConcurrentExecutions` の投入（急ぎ）**~~ → SS-217 で `template.yaml` に入れた。prod へのデプロイと `get-function-concurrency` での確認は deployment.md の検証状況の表で追う。（本文: 決定8、移行・対応が必要な事項、SS-217 追補）
 - ~~**prod のシークレットの投入と、prod へのデプロイ**~~ → 2026-10-01 にデプロイ済み。Apple のキーを含むシークレットは 2026-10-17 に揃った。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
 - ~~**prod の CloudFront の有効化（infra の `enable_distribution = true`）**~~ → 有効化済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
 - **prod の deployment.md §6.2 の 3)（認証必須エンドポイント）の確認**。`/health` と Function URL の直叩きは 2026-10-17 に確認済み。本番の TestFlight ビルドで SS-208 として確認する。dev は確認済み。（本文: 移行・対応が必要な事項、2026-10-17 棚卸し追補）
@@ -51,11 +51,14 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）、2026-10-17 棚卸し追補（prod の稼働状況・クォータの引き上げ・lifespan の確認の反映）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）、2026-10-17 棚卸し追補（prod の稼働状況・クォータの引き上げ・lifespan の確認の反映）、2026-10-18 追補（SS-217: prod への予約の投入）
 
 ## ステータス
 
 採用（SS-67 で実装）
+
+**SS-217「prod の Lambda に ReservedConcurrentExecutions を入れる」で追補**した。クォータの引き上げを受けて
+prod にも dev と同じ予約を入れた（末尾の「SS-217 追補」。決定8 に注記）。
 
 **SS-183「Mangum の lifespan="auto" で、Lambda の呼び出しごとに FastAPI の lifespan が走っている疑い」で追補**した。
 疑いは事実で、決定8 などが前提にしていた「プロセスで使い回す」が SS-67 以来成り立っていなかった。
@@ -249,6 +252,7 @@ SS-183 でこの決定が前提にしていた「インスタンスごと」に�
   このため `template.yaml` は `Env` 別に分岐し、prod では属性ごと `AWS::NoValue` で落としている。
   クォータ引き上げはインフラ側から申請済みで承認待ちである。
   （**2026-10-17 棚卸し追補**: クォータは 1,000 に引き上げ済み（作業者の報告）。prod の予約はまだ入っておらず、下の「最も危険な時間帯」に当たる）
+  （**SS-217 追補**: prod にも dev と同じ予約を入れ、`Env` による分岐をやめた。末尾の「SS-217 追補」）
   **引き上げが承認された直後が最も危険な時間帯になる**（上限だけ 1000 に上がり、
   予約がまだ入っていない状態では in-process キャッシュ / レート制限の分裂が一気に広がりうる）。
   この時間帯を作らないよう、**クォータ引き上げの反映と `ReservedConcurrentExecutions` の投入を
@@ -373,7 +377,7 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
   ヘッダーへの切り替え）が漏れ、backend 単独では完結しない。
 - in-process キャッシュ / レート制限のヒット率がインスタンス数に応じて下がる。prod は
   クォータ引き上げが完了するまで `ReservedConcurrentExecutions` による上限固定ができず、
-  決定8のとおり一時的にこのリスクが顕在化しうる。
+  決定8のとおり一時的にこのリスクが顕在化しうる。（**SS-217 追補**: prod にも予約を入れ、この期間は終わった）
 - マイグレーション Lambda がシークレット全体（DB 接続情報以外も含む）を読める状態にある
   （決定5参照）。
 - シークレットのローテーションが Lambda 実行環境の再生成まで反映されない。
@@ -388,9 +392,10 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
       （**SS-183 追補**: dev は投入済み。deployment.md の検証状況の表で、dev のマイグレーション Lambda の
       実行が検証済みになっている。prod は未投入のためチェックは付けない）
       （**2026-10-17 棚卸し追補**: prod も投入済み。2026-10-17 の prod のデプロイ後にマイグレーション Lambda を実行した）
-- [ ] prod の Lambda 同時実行数クォータ引き上げの承認を待ち、承認後速やかに
+- [x] prod の Lambda 同時実行数クォータ引き上げの承認を待ち、承認後速やかに
       `ReservedConcurrentExecutions` を prod にも投入する（決定8の「最も危険な時間帯」を作らない）。
       （**2026-10-17 棚卸し追補**: クォータは 1,000 に引き上げ済み。予約の投入が残っている）
+      → **SS-217 で決着**（`template.yaml` に dev と同じ値を入れた。末尾の「SS-217 追補」）
 - [x] prod のシークレット（`/sanposcape/prod/shared`）に値を投入する。（**2026-10-17 棚卸し追補**: 2026-10-01 のデプロイ前に投入。Apple のキーは 2026-10-17 に追加）
 - [x] mobile 側の CloudFront 対応（`x-amz-content-sha256` の付与、`X-App-Authorization` への
       切り替え）を別チケットで実施する。**（SS-70 追補）SS-70 で完了**。GET/HEAD 以外の全リクエストに
@@ -629,6 +634,27 @@ dev の API Lambda は `ReservedConcurrentExecutions: 5`（6本目から 429）�
   マスクする。ロギングやクラッシュレポート（Sentry 等）を導入するときは、`X-App-Authorization` を
   マスク対象のヘッダーに明示的に追加する。
 
+
+## SS-217 追補: prod にも予約同時実行数を入れる
+
+prod の Lambda 同時実行数のクォータが 1,000 に上がった（作業者の報告、2026-10-17 時点）ため、決定8 の
+「最も危険な時間帯」（上限だけ上がり、予約が無い状態）を閉じる。
+
+### 決定（SS-217 追補）
+
+- **`template.yaml` の `Env` による分岐（prod だけ `AWS::NoValue`）をやめ、dev と同じ値を入れる**。
+  Api=5、Migrate=1、PhotoPurge=1。予約後の未予約は 993 で、AWS の「未予約が 100 を下回る変更は拒否」に当たらない。
+- **Api の 5 は dev と同じ値で始める**。6 本目の同時リクエストから 429（Lambda のスロットル）になり、mobile は
+  GET / HEAD だけを再送する（棚卸し追補の SS-79）。prod ではスロットルのアラーム
+  （`sanposcape-prod-backend-api-lambda-throttles`）が通知されるので、鳴り続けたら値を見直す。
+  上げるほど in-process のキャッシュとレート制限の分裂と、Neon への同時接続数（`DB_POOL_SIZE=1` なので実行環境数と同じ）が増える。
+- ダッシュボードの同時実行数の水平線は env によらず 5（Api の予約と一致することは `test_monitoring_config.py` が固定する）。
+
+### 影響（SS-217 追補）
+
+- 予約の反映はマージ後の prod のデプロイで行う。確認は `aws lambda get-function-concurrency`
+  （手順は [deployment.md](../../packages/backend/docs/deployment.md) §4）。
+- 予約に費用はかからない（常時ウォームで課金される Provisioned Concurrency とは別物）。
 
 ## 関連情報
 
