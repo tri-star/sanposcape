@@ -436,7 +436,8 @@ pnpm --filter mobile exec eas env:create \
 - **`ascAppId` / `appleTeamId` は `eas.json` の `submit.staging.ios` にコミット済み**（dev 用
   App Store Connect アプリレコードの値。秘密情報ではない）。App Store Connect API Key は
   GitHub Secrets に置かず EAS 側に保管させている（`docs/adr/ADR-004` の SS-79 追補）。
-  本番は `submit.production.ios`（下記「本番の TestFlight 配信」）。
+  本番の値は `submit.production.ios` にコミット済み（本番のアプリレコード。SS-213。下記「本番の TestFlight 配信」）。
+  開発・本番とも同じ Apple Developer チームで、アプリレコードと bundle ID で分けている。
 
 ### 本番の TestFlight 配信（SS-213）
 
