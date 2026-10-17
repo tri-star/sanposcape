@@ -32,8 +32,9 @@ from sanposcape.core.tracing import (
     warn_once,
 )
 
-# `X-App-Session-Id` ヘッダー（アプリの起動ごとの UUID v4。mobile が付ける）。クライアント由来の
-# 信頼できない入力なので、小文字の正規形の UUID v4 だけを受ける。
+# `X-App-Session-Id` ヘッダー（アプリの起動ごとの UUID v4。mobile が付ける想定で、
+# まだ送っていない）。クライアント由来の信頼できない入力なので、
+# 小文字の正規形の UUID v4 だけを受ける。
 _APP_SESSION_ID_HEADER = b"x-app-session-id"
 _APP_SESSION_ID_LENGTH = 36
 _APP_SESSION_ID_PATTERN = re.compile(
