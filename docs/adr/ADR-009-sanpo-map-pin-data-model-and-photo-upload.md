@@ -1834,7 +1834,7 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
   成果物の別ハンドラ、Timeout 300 秒）を EventBridge Scheduler（SAM の `ScheduleV2`）で毎日 JST 04:00 に起動する。
   S3 の失敗で消し切れなかった利用者がいれば、結果をログに出して実行を失敗にする（Errors のアラーム）。
   起動されなかったこと（Scheduler 側の不備）は Errors では分からないので、`Invocations` が2日続けて 0 の
-  アラームも置く。dev は予約同時実行数 1（prod はクォータの都合で未予約）（**SS-217 追補**: prod も 1 を予約した。ADR-005 の SS-217 追補）。
+  アラームも置く。予約同時実行数は dev・prod とも 1（**SS-217 追補**: それまで prod はクォータの都合で未予約だった。prod は SS-217 のデプロイ以降。ADR-005 の SS-217 追補）。
 - **権限と責務の境界**（infra との合意。詳細は [deployment.md](../../packages/backend/docs/deployment.md) §17）:
   - スケジュール本体（cron 式）とスケジュールグループ `sanposcape-<env>-backend`（`AWS::Scheduler::ScheduleGroup`。
     デプロイロールが作れるのはこの名前だけ）は SAM。Scheduler が起動に使うロール（SSM
