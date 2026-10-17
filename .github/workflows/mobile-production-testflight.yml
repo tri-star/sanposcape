@@ -184,6 +184,6 @@ jobs:
           set -e
           sed -E 's#https://expo\.dev/[^[:space:]"]*#https://expo.dev/<redacted>#g' "$RUNNER_TEMP/ios-submit.log"
           if [ "$STATUS" -ne 0 ]; then
-            echo "::error::TestFlight への提出（eas-cli submit）が失敗しました（exit ${STATUS}）。再ビルドせずに提出だけやり直すには、手元で APP_VARIANT=production pnpm exec eas submit -p ios --profile production --id ${BUILD_ID} を実行してください。"
+            echo "::error::TestFlight への提出（eas-cli submit）が失敗しました（exit ${STATUS}）。再ビルドせずに提出だけやり直すには、手元で APP_VARIANT=production pnpm --filter mobile exec eas submit -p ios --profile production --id ${BUILD_ID} を実行してください。"
             exit "$STATUS"
           fi

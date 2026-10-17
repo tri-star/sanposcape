@@ -454,13 +454,13 @@ pnpm --filter mobile exec eas env:create \
   プレビューは審査提出時の「新機能」欄の下書きに使う。ビルド URL は出さない（上記の public リポジトリの配慮と同じ）。
 - **`eas submit` は手元で実行するときも `APP_VARIANT=production` を付ける**（下記「アプリ識別子の定義」）。
   ワークフローの提出ステップだけが失敗したときは、再ビルドせずに
-  `APP_VARIANT=production pnpm exec eas submit -p ios --profile production --id <BUILD_ID>` で提出だけやり直せる。
+  `APP_VARIANT=production pnpm --filter mobile exec eas submit -p ios --profile production --id <BUILD_ID>` で提出だけやり直せる。
 
 初回の実行前に人手で済ませる準備（本番識別子のクレデンシャルは非対話の CI では作れない）:
 
 1. App Store Connect に本番のアプリレコード（bundle ID `com.sanposcape.app`）を作り、
    App 情報の「Apple ID」を `eas.json` の `submit.production.ios.ascAppId` に入れる
-2. `APP_VARIANT=production pnpm exec eas credentials -p ios` で `production` の配布証明書・
+2. `APP_VARIANT=production pnpm --filter mobile exec eas credentials -p ios` で `production` の配布証明書・
    プロビジョニングプロファイルを用意し、提出用の App Store Connect API Key を割り当てる
    （App ID の Sign in with Apple capability も確認する）
 3. `production` のリモートのビルド番号を初期化する（下記「ビルド番号の採番」の未完了事項）
@@ -558,7 +558,7 @@ pnpm --filter mobile exec eas env:create \
   上記で確認済みなので、**本番ビルドを始める段で `--profile production` に対して
   `build:version:set` を実行すればよい**（未初期化のまま最初のビルドを流すと、どこから
   採番されるかがこのプロジェクトでは未実測になる）。
-  `pnpm exec eas build:version:set -p ios --profile production` を端末から実行する
+  `pnpm --filter mobile exec eas build:version:set -p ios --profile production` を端末から実行する
   （`build:version:set` はプロファイルの `env` の `APP_VARIANT=production` を適用して評価するので、本番識別子のカウンタに入る。
   出力の `bundle identifier "com.sanposcape.app"` で確かめる）。
 - **`eas build --local`（`preview`）と remote の組み合わせは Expo 公式ドキュメントに記載がない。**
