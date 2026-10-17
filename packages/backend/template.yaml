@@ -14,16 +14,16 @@ Description: sanposcape backend API on Lambda (Function URL origin for CloudFron
 #   - トレース（ADR-013 / SS-178）: Api だけに ADOT レイヤー・Active Tracing・OTEL_* と管理ポリシー
 #     CloudWatchLambdaApplicationSignalsExecutionRolePolicy を付ける。これらの付与（デプロイロールの
 #     lambda:GetLayerVersion / ReadAttachedManagedPolicies、境界の X-Ray / logs 許可）は infra の
-#     SS-185 が前提。prod は SS-185 の prod 適用までデプロイできない（GetLayerVersion とポリシーの
-#     付与で失敗する。docs/deployment.md §13）。
+#     SS-185 が前提（dev・prod とも適用済み）。SS-185 の許可が無い環境では GetLayerVersion とポリシーの
+#     付与で失敗する（docs/deployment.md §13）。
 #   - 監視（ADR-013 / SS-179）: ダッシュボード 1 枚と、ap-southeast-1 のアラーム
 #     （sanposcape-<env>-backend-*）はこのファイルが所有する。CloudFront のアラーム（us-east-1）は
 #     Terraform 所有（live/services/backend-api/monitoring.tf）で、ここでは作らない。デプロイロールの
 #     ManageBackendMonitoring（infra の sanposcape-infra PR #53。名前を sanposcape-<env>-backend-* に
 #     絞った CloudWatch のダッシュボード・アラーム操作。DescribeAlarms だけ Resource: "*"）が前提。
 #     infra の dev への apply より先にマージしない（dev へのデプロイが AccessDenied で止まる。
-#     docs/deployment.md §3 / §14）。prod は ManageBackendMonitoring の prod 適用（SS-185 の prod 適用と
-#     同じタイミング）と、platform 層の SNS（SSM alerting/topic_arn）の prod 値が前提。通知先の SNS は
+#     docs/deployment.md §3 / §14）。prod も ManageBackendMonitoring と platform 層の SNS（SSM alerting/topic_arn）が
+#     揃っている（2026-10-17 確認）。通知先の SNS は
 #     SSM /sanposcape/<env>/platform/alerting/topic_arn から deploy 時解決する。
 #   - AppConfig（フィーチャーフラグ、SS-94/ADR-008）の ID は SSM 契約（SS-94）から deploy 時解決。
 #     Lambda 実行ロールの Permission Boundary（SS-95）は ID までは絞れないワイルドカード ARN
