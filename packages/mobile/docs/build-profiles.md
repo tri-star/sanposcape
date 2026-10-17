@@ -204,7 +204,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 > **mobile からは必ず `app-api` 側を向けること。**
 
 > **prod は稼働している（2026-10-17 更新）。** 2026-09-11 時点では `app-api.sanposcape.com` が名前解決せず、
-> prod ビルドの疎通確認ができなかった。その後 2026-09-30 に SAM スタック `sanposcape-backend-prod` をデプロイし、
+> prod ビルドの疎通確認ができなかった。その後 2026-10-01 に SAM スタック `sanposcape-backend-prod` をデプロイし、
 > CloudFront 経由で稼働している（2026-10-17 に `/health` 200 を確認。最新は `backend/v0.2.0`）。
 
 ## `eas.json` に書かない値（EAS の環境変数で供給する）
