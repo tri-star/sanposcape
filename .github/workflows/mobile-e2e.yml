@@ -177,6 +177,24 @@ jobs:
           path: packages/mobile/e2e-build/app-preview.apk
           key: mobile-apk-${{ steps.fp.outputs.hash }}
 
+      # `eas build --local` が起動した Gradle デーモン（-Xmx6144m。app.config.ts の withAndroidGradleProperties）と
+      # Kotlin デーモンは、ビルドが終わっても常駐し続け、ジョブの最後に orphan として kill されるまで残っていた
+      # （run 38980207557 の後片付けで java が4プロセス）。この後のエミュレータ（ram-size 4096M）・Maestro の JVM・
+      # backend の docker と同じ 16GB のランナーに同居させる理由は無いので、ここで止める。
+      # 同じ run ではエミュレータの QEMU がハングしてクラッシュし、続けてランナー自体が
+      # 「The runner has received a shutdown signal」で落ちた（run 38003510980 も「lost communication」で落ちている）。
+      # 実測では、止める前は available 4651MB、止めた後は 14869MB だった（run 39006127267）。デーモンは約10GB を
+      # 持っていた。エミュレータは実行中に RSS が 8.8GB まで増えるので、残したままだとメモリが足りなくなる。
+      # 止める前後の空きは、引き続き記録しておく（ADR-M-004 の 2026-10-17 追補）。
+      - name: Stop Gradle / Kotlin daemons left by the build
+        if: steps.apk-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "--- before"; free -m; ps -eo pid,rss,comm,args --sort=-rss | head -6 | cut -c1-160
+          pkill -f 'org.gradle.launcher.daemon.bootstrap.GradleDaemon' || true
+          pkill -f 'org.jetbrains.kotlin.daemon.KotlinCompileDaemon' || true
+          sleep 5
+          echo "--- after"; free -m
+
       # backend(実API)をエミュレータから 10.0.2.2:8000 で到達可能に起動
       - name: Start backend
         working-directory: packages/backend
@@ -198,7 +216,12 @@ jobs:
           done
           docker compose exec -T api uv run alembic upgrade head
 
+      # 版を固定する（以前は実行のたびに最新版を入れていて、フローの成否が Maestro の更新でも変わりえた）。
+      # フローは Maestro 2.0.4 以降の、要素の中の位置を指定する `tapOn` の `point` を使う
+      # （.maestro/subflows/replace-text.yaml）。2.11.0 は run 38980207557 で使われていた版。
       - name: Install Maestro
+        env:
+          MAESTRO_VERSION: "2.11.0"
         run: |
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
@@ -344,7 +367,19 @@ jobs:
             # maps-required を含む全フローを実行する（backend の MAPS_MODE=fake が
             # /explore/places の候補と /explore/routes/loop の周回を決定的に返すため、
             # 外部データへの依存はない）。
-            maestro test packages/mobile/.maestro/
+            #
+            # フローの実行中は、ステップの env の MEM_MONITOR でランナーのメモリをこのステップのログに出す（理由は env の
+            # コメント）。このスクリプトは1行ずつ別の `sh -c` で実行されるので、監視の開始・Maestro・監視の停止を1行に
+            # まとめる。監視は setsid で別のプロセスグループにし、グループごと止める（ループの中の sleep が残ると
+            # 出力の流れが閉じず、行の終わりを待たせる）。Maestro の終了コードをそのまま返す。
+            setsid sh -c "$MEM_MONITOR" & MON=$!; maestro test packages/mobile/.maestro/; RC=$?; kill -- -$MON; exit $RC
+        env:
+          # 1分ごとに使用量・空き・swap・RSS の上位3プロセスを1行で出す。ランナーごと落ちると後続のステップは
+          # 動かず成果物も残らないが、このステップのログは落ちる直前まで残る（run 38980207557）。
+          MEM_MONITOR: >-
+            while :; do sleep 60;
+            echo "[mem] $(date -u +%T) $(free -m | awk '/^Mem:/{printf "used=%sMB avail=%sMB", $3, $7} /^Swap:/{printf " swap=%sMB", $3}') top: $(ps -eo rss=,comm= --sort=-rss | head -3 | awk '{printf "%s=%dMB ", $2, $1/1024}')";
+            done
 
       - name: Upload Maestro debug output
         if: failure()
@@ -355,3 +390,11 @@ jobs:
           if-no-files-found: ignore
           # Public リポジトリのため既定の保持期間（90日）に任せず明示的に短くする。
           retention-days: 7
+
+      # ランナーが生きたままジョブが失敗したときに、カーネルの OOM killer が動いたかを残す
+      # （エミュレータや Maestro が kill されても、フローの失敗としか見えないため）。
+      - name: Report OOM kills
+        if: always()
+        run: |
+          free -m
+          sudo dmesg | grep -iE 'out of memory|oom-kill|killed process' || echo "no OOM kill in dmesg"
