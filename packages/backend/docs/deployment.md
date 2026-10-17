@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-10-10）**
+> **検証状況（最終更新 2026-10-17）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -22,18 +22,18 @@
 > | マイグレーション Lambda（§5.2） | ✅ 検証済み（`{"head": "ecd8f161fedb"}`。2 回目の invoke が no-op になる冪等性も確認） |
 > | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200（検証当時。`spots` ドメインは SS-88 で削除済みで現存しないが、他のエンドポイントでも成り立つ結論として psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことを確認済み、§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
-> | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は未実施 |
-> | prod へのデプロイ | ⚠️ **未実施**。Lambda 同時実行数クォータの引き上げとシークレット値の投入が前提 |
-> | 実行ロールへの Permission Boundary 付与（SS-72） | ⚠️ **未デプロイ**。`sam validate --lint` と SAM Transform 後に `ApiRole` / `MigrateRole` の両方へ境界が入ることは確認済み。dev への初回デプロイ（手元の管理者権限。§7 参照）が前提 |
-> | GitHub Actions からのデプロイ（§4.1 / SS-72） | ⚠️ **未実施**。ワークフローは actionlint / zizmor を通過。`development` Environment の `AWS_SAM_DEPLOY_ROLE_ARN` 設定と上の初回デプロイが前提。prod は infra 側のデプロイロール・`lambda_boundary_arn` の apply（SS-97）待ち |
-> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。**prod は未実施**（infra の prod apply 待ち） |
-> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。**prod は infra の SS-185 の prod 適用までデプロイ不可** |
-> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **デプロイ未実施**（infra の `ManageBackendMonitoring`＝sanposcape-infra PR #53 の dev apply 待ち）。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。**dev の読み取りで確認済み（2026-10-05、infra 経由）**: スパンのフィールド名と型、Q1 / Q2 の構文と実データでの集計、REPORT 行のクエリ、Application Signals の `Environment`＝`dev` と `Operation` を含む次元、関数単位の `ConcurrentExecutions`、SSM の通知先トピック（dev / prod とも存在・購読確認済み・SNS のポリシーは CloudWatch の Publish を許可）。**未確認**: ダッシュボードの全ウィジェットの描画、Q4（bin + name の折れ線）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差（サンプリング）、デプロイそのもの。prod は ManageBackendMonitoring の prod 適用（SS-185 の prod 適用と同時期）待ち。**この行は dev へのデプロイと §14「デプロイ後の確認」を済ませたら ✅ に更新する（マージ前の完了条件）** |
-> | ログの JSON 化（§15 / SS-180） | ⚠️ **デプロイ未実施**（dev へはデプロイしていない）。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
-> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **未実施**（pytest の境界テストは通過。マージ後に dev で Logs Insights により確認する） |
-> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **デプロイ未実施・実機未確認**。pytest（Apple の REST API はモック通信）は通過。**鍵は未投入で SS-196 待ち**。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-196 の鍵投入後に SS-162（アカウント削除導線の確認）で行う |
-> | 写真の削除（PhotoPurge・ScheduleV2・アラーム。§17 / SS-109） | ⚠️ **デプロイ未実施**（infra の PR #55＝Scheduler 用ロールとデプロイロールの許可の dev apply 待ち）。`sam validate --lint`・pytest・ローカルでの1回実行（`STORAGE_MODE=fake`）は確認済み |
-> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ⚠️ **未実施**（prod デプロイ自体が未実施のため）。採番・リリースノート・スキップ条件は git-cliff 2.14.1 を手元の複製リポジトリで実行して確認済み |
+> | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は 2026-10-17 に CloudFront 経由の `/health` が 200、Function URL の直叩きが 403 であることを確認（infra 経由）。prod の認証必須エンドポイントの確認は未記録 |
+> | prod へのデプロイ | ✅ **実施済み**（GitHub Actions。2026-09-30 に `backend/v0.1.0`（3f77562）、2026-10-17 に `backend/v0.2.0`（f3c7e1d））。同時実行数のクォータは初期値（10）のままで、予約（`ReservedConcurrentExecutions`）は入れていない（ADR-005 決定8 の SS-183 追補）。prod の前提（SSM・シークレットのキー・デプロイロールの権限）は 2026-10-17 に infra 経由で確認した |
+> | 実行ロールへの Permission Boundary 付与（SS-72） | ✅ **dev・prod とも付与済み**。dev は GitHub Actions からのデプロイが通っている（境界が無いと §7 のとおり失敗する）。prod は `ApiRole` / `MigrateRole` に `sanposcape-prod-lambda-boundary` が付いていることを 2026-10-17 に infra 経由で確認 |
+> | GitHub Actions からのデプロイ（§4.1 / SS-72） | ✅ **dev・prod とも実施済み**（prod は infra の SS-97 の apply 後。上の「prod へのデプロイ」の行） |
+> | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。prod は SSM（`pin_photos/bucket_name` / `bucket_arn`）があることを 2026-10-17 に infra 経由で確認し、デプロイ済み。prod でのピン登録の実地確認は未記録 |
+> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。prod は SS-185 の prod 適用の後、2026-10-17 にデプロイした（prod でのスパンの確認は未記録） |
+> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **dev・prod にデプロイ済み**（`ManageBackendMonitoring`＝sanposcape-infra PR #53 は dev・prod とも適用済み。prod は 2026-10-17 に infra 経由で確認）。**§14「デプロイ後の確認」の結果は未記録**。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。**dev の読み取りで確認済み（2026-10-05、infra 経由）**: スパンのフィールド名と型、Q1 / Q2 の構文と実データでの集計、REPORT 行のクエリ、Application Signals の `Environment`＝`dev` と `Operation` を含む次元、関数単位の `ConcurrentExecutions`、SSM の通知先トピック（dev / prod とも存在・購読確認済み・SNS のポリシーは CloudWatch の Publish を許可）。**未確認**: ダッシュボードの全ウィジェットの描画、Q4（bin + name の折れ線）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差（サンプリング）、デプロイ後の描画。**この行は §14「デプロイ後の確認」を済ませたら ✅ に更新する** |
+> | ログの JSON 化（§15 / SS-180） | ⚠️ **dev・prod にデプロイ済み**（2026-10-16 / 2026-10-17）。**§15「デプロイ後の確認」の結果は未記録**。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
+> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **確認結果は未記録**（dev・prod にはデプロイ済み。pytest の境界テストは通過。dev で Logs Insights により確認する） |
+> | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **dev・prod にデプロイ済み・実機未確認**。pytest（Apple の REST API はモック通信）は通過。鍵は dev（SS-196）・prod（2026-10-17。`apple_allowed_audiences` も同時に投入）とも投入済み。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-208（iOS 実機での Sign in with Apple の確認）で行う |
+> | 写真の削除（PhotoPurge・ScheduleV2・アラーム。§17 / SS-109） | ⚠️ **dev・prod にデプロイ済み・定期実行の実地確認は未記録**。infra の PR #55（Scheduler 用ロールとデプロイロールの許可）は dev・prod とも適用済み。dev のスタックで `BackendScheduleGroup` / `PhotoPurge` / `PhotoPurgeDaily` が `CREATE_COMPLETE`（2026-10-17 に infra 経由で確認）。`sam validate --lint`・pytest・ローカルでの1回実行（`STORAGE_MODE=fake`）は確認済み |
+> | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ✅ **実施済み**（`backend/v0.1.0` 2026-09-30、`backend/v0.2.0` 2026-10-17） |
 
 ## 1. 前提
 
@@ -47,11 +47,11 @@
   境界付与（§7）・CI が使えない場合の緊急時・changeset を目で確認したい場合に限る。
 - `sanposcape-infra` の `live/account` が apply 済みで、次が存在すること（§3 Phase 0 で確認する）。
   - SSM `/sanposcape/<env>/account/lambda_boundary_arn`（実行ロールに付ける Permission Boundary の ARN）
-  - GitHub Actions 用のデプロイロール（`sam_deploy_role_arn` の output）。**prod はどちらも未 apply（infra タスク SS-97 で対応予定）。prod の初回デプロイは SS-97 の完了待ち**
+  - GitHub Actions 用のデプロイロール（`sam_deploy_role_arn` の output）。prod も apply 済み（infra の SS-97）
 - （SS-179）デプロイロールの `ManageBackendMonitoring`（CloudWatch のダッシュボード・アラームの操作。sanposcape-infra PR #53）と、
   SSM `/sanposcape/<env>/platform/alerting/topic_arn`（アラームの通知先）。どちらも §3 Phase 0 で確認する。
   **dev に apply されるまで backend をマージしない**（次のデプロイが CloudWatch の AccessDenied で止まる）。
-  prod は `ManageBackendMonitoring` が SS-185 の prod 適用と同じタイミング、トピックの SSM は prod にも存在する（2026-10-05 確認）
+  prod も `ManageBackendMonitoring` とトピックの SSM の両方が揃っている（2026-10-17 に infra 経由で確認）
 
 ### dev / prod の対応表
 
@@ -141,7 +141,7 @@ aws logs describe-log-groups --log-group-name-prefix /aws/lambda/sanposcape-dev-
   --region ap-southeast-1
 
 # （SS-178）ADOT レイヤーを参照できること（デプロイロールに lambda:GetLayerVersion が要る。
-# infra の SS-185。無いと deploy 時に Api 関数の作成が失敗する）。prod は SS-185 の prod 適用後に確認する
+# infra の SS-185。無いと deploy 時に Api 関数の作成が失敗する）。SS-185 は dev・prod とも適用済み
 aws lambda get-layer-version-by-arn --region ap-southeast-1 \
   --arn arn:aws:lambda:ap-southeast-1:615299751070:layer:AWSOpenTelemetryDistroPython:28 \
   --query '{Version:Version,Size:Content.CodeSize}'
@@ -302,10 +302,11 @@ sam deploy --config-env dev
 - `samconfig.toml` の `[dev.deploy.parameters]` にスタック名・リージョン・タグを固定しているため、
   `--config-env dev` だけで完結する。`parameter_overrides = "Env=dev"` がテンプレートの `Env`
   パラメータに渡る。
-- prod へのデプロイも同様に `sam deploy --config-env prod` だが、**prod は Lambda の同時実行数
-  クォータが引き上げ承認されるまでデプロイしない**（§9「Neon 接続設定」の下、および
-  ADR-005 決定8を参照）。加えて prod のシークレットに値が未投入の間は Lambda が起動時に
-  `ResourceNotFoundException` で落ちる。
+- prod へのデプロイも同様に `sam deploy --config-env prod` だが、通常は GitHub Actions（§4.1）から行う。
+  当初は「prod は Lambda の同時実行数クォータが引き上げ承認されるまでデプロイしない」としていたが、
+  ADR-005 決定8 の SS-183 追補のとおり、prod はクォータ（初期値 10）が上がるまで予約を入れずにデプロイしている
+  （2026-09-30 から稼働。クォータの引き上げと予約の投入は未完了）。
+  prod のシークレットに値が未投入の間は Lambda が起動時に `ResourceNotFoundException` で落ちる。
 
 ### 4.1 GitHub Actions からのデプロイ（SS-72）
 
@@ -552,8 +553,8 @@ fields @logStream, @message
 ### 6.2 Phase 5（インフラ側 `enable_distribution = true` の apply 後）
 
 > **dev は既に apply 済み（2026-09-11 時点）。** この手順は「待ち」ではなく、いつでも実施できる。
-> prod は `enable_distribution = false` のままで `app-api.sanposcape.com` は名前解決しない
-> （前提の SAM スタック `sanposcape-backend-prod` のデプロイが未実施・予定日未定）。
+> prod も apply 済みで、`app-api.sanposcape.com` は CloudFront 経由で稼働している
+> （2026-10-17 に `/health` 200 と Function URL の直叩き 403 を確認）。
 >
 > ホスト名は infra 側 ADR-0001 §2.11 で確定しており、mobile 用が `app-api.<zone>`、
 > 外部向けが `api.<zone>` で**別ホスト**（distribution / WAF / レート制限 / 認証方式を独立させるため）。
@@ -621,8 +622,8 @@ CloudWatch Logs で該当時間帯の 18 リクエストを確認し、**エラ�
 > `x-amz-content-sha256` の計算は JS 側の共有コードなので、**HTTP 契約としては
 > プラットフォームに依存しない**。
 >
-> **prod は未実施。** `enable_distribution = false` のままで `app-api.sanposcape.com` は
-> 名前解決せず、前提の SAM スタック `sanposcape-backend-prod` も未デプロイ。
+> **prod は `/health` と Function URL の直叩きまで確認済み**（2026-10-17、infra 経由）。
+> 認証必須エンドポイントの確認（上の 2)〜3)）は、本番の TestFlight ビルドで行う（SS-208）。
 
 **あわせて確認する完了条件**:
 
@@ -688,10 +689,8 @@ dev は既存スタックがあるため必須。**GitHub Actions からの最�
 済ませること**（未実施だとそのデプロイは上表の `PutRolePermissionsBoundary` で失敗する）。
 （SS-72 の途中で main push による自動デプロイを廃止したため、PR のマージ自体はデプロイを起こさない。）
 
-prod はスタックが未作成の想定なので、最初から境界付きで作られ、この手順は不要。**ただし prod に
-境界の無い既存スタックがあった場合、prod では SCP でも `iam:PutRolePermissionsBoundary` を拒否して
-いるため、手元の管理者権限でも境界を後付けできない可能性がある**（infra タスク SS-97 の中で確認する）。
-prod の初回デプロイは、デプロイロールと `lambda_boundary_arn` の apply（SS-97）を待って行う。
+prod はスタックが未作成の状態から、SS-97 の apply 後に最初から境界付きで作った（2026-09-30）ので、この手順は不要だった。
+prod では SCP でも `iam:PutRolePermissionsBoundary` を拒否しているため、境界の無いスタックを後から作らないこと。
 
 ### init 失敗時にエラー報告自体が壊れる（日本語コメントを含むトレースバック）
 
@@ -1190,8 +1189,8 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 - レイヤーの参照と管理ポリシーの付与には、デプロイロールの `lambda:GetLayerVersion` /
   `iam:AttachRolePolicy` 対象の許可と、Permission Boundary 側の X-Ray / logs の許可が要る。
   これは infra の **SS-185**（dev は適用済み）。
-- **prod は SS-185 の prod 適用までデプロイできない**（Api 関数の作成が失敗する）。
-  prod は未デプロイなので、このテンプレートの変更自体は先に main に入れてよい。
+- SS-185 は dev・prod とも適用済みで、prod には 2026-10-17 にこの構成でデプロイした。
+  SS-185 の許可が無い環境では Api 関数の作成が失敗する（新しい環境を作るときの注意）。
 
 ### OpenTelemetry を zip に入れない理由
 
