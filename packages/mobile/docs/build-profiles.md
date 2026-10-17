@@ -430,8 +430,8 @@ pnpm --filter mobile exec eas env:create \
   貼らないこと。**`staging-apk`（Android internal distribution）と `staging-ios`（iOS Ad Hoc /
   TestFlight 手前のビルド）の両方に適用する。**
 - `production` プロファイルの `autoIncrement: true` は SS-89 の方針（remote + autoIncrement）と
-  そのまま整合するため手を付けていない。ただし **`production` のリモートバージョンは未初期化**で、
-  本番ビルドを始める前に初期化の要否を確認する必要がある（下記「ビルド番号の採番」の未完了事項）。
+  そのまま整合するため手を付けていない。`production` のリモートバージョンは SS-213 で iOS を `0` に初期化した
+  （下記「ビルド番号の採番」。Android は未初期化）。
   SS-80 Phase 4（local 管理方針）は SS-89 で取り下げ済み。
 - **`ascAppId` / `appleTeamId` は `eas.json` の `submit.staging.ios` にコミット済み**（dev 用
   App Store Connect アプリレコードの値。秘密情報ではない）。App Store Connect API Key は
@@ -556,14 +556,12 @@ pnpm --filter mobile exec eas env:create \
 
 #### 未完了事項
 
-- **`production`（`com.sanposcape.app`）のリモートバージョンは初期化していない。** 本番の
-  アプリレコードがまだ存在せず、初期化すべき既存値が無いため。識別子ごとにカウンタが分かれることは
-  上記で確認済みなので、**本番ビルドを始める段で `--profile production` に対して
-  `build:version:set` を実行すればよい**（未初期化のまま最初のビルドを流すと、どこから
-  採番されるかがこのプロジェクトでは未実測になる）。
-  `pnpm --filter mobile exec eas build:version:set -p ios --profile production` を端末から実行する
-  （`build:version:set` はプロファイルの `env` の `APP_VARIANT=production` を適用して評価するので、本番識別子のカウンタに入る。
-  出力の `bundle identifier "com.sanposcape.app"` で確かめる）。
+- ~~**`production`（`com.sanposcape.app`）のリモートバージョンは初期化していない。**~~
+  → **iOS は SS-213（2026-10-17）で `0` に初期化した**（本番のアプリレコードを作った直後で、使用済みの番号は無い）。
+  `build:version:set` は `0` を受け付けた。`autoIncrement` は「現在値 +1」なので、最初の本番ビルドの buildNumber は `1` になる。
+  実行したのは `pnpm --filter mobile exec eas build:version:set -p ios --profile production`（端末から）で、
+  `build:version:set` はプロファイルの `env` の `APP_VARIANT=production` を適用して評価するので、本番識別子のカウンタに入る。
+  **Android（`versionCode`）の `production` は未初期化**で、Google Play の本番提出を整備するときに同じ手順で初期化する。
 - **`eas build --local`（`preview`）と remote の組み合わせは Expo 公式ドキュメントに記載がない。**
   `build:version:get --profile preview` が `1` を返すことは確認済みで、**読み取り経路そのものは
   成立している**。ただし `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、
