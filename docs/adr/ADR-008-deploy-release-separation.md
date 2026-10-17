@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内を追補。前回 SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内を追補。前回は prod の稼働とフラグ切り替えの実行の反映、SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -64,18 +64,16 @@
 
 課題ID付きの項目（SS-97 / SS-102 / SS-103）は、2026-09-21 時点で Plane 上 Todo。
 
-- **prod が未構築**。前提の SS-97（prod の `live/account` の apply と `production` Environment への `AWS_SAM_DEPLOY_ROLE_ARN` の設定）が未完了で、
-  本 ADR の手順は実運用で検証されていない。（本文: 前提となる制約、移行・対応が必要な事項）
-- **フラグ切り替えワークフロー（SS-99）は実行実績が無い**。dev の初回実行で `release-runbook.md` §3 の手順を検証する。
-  （本文: SS-99 追補 D22）
+- ~~**prod が未構築**~~ → SS-97 は完了し、backend は 2026-10-01 から prod で稼働している（2026-10-17 に `backend/v0.2.0` をデプロイし、タグと Release も作られた）。（本文: 前提となる制約、移行・対応が必要な事項）
+- ~~**フラグ切り替えワークフロー（SS-99）は実行実績が無い**~~ → 2026-09-22 に dev で初回を実行し、2026-10-17 に production で `pin_registration` を ON にした。
+  prod には 2026-10-17 まで AppConfig の版が一度も配信されておらず、それまでの prod は全フラグ OFF（`config_source: default`）で動いていた（設計どおり）。（本文: SS-99 追補 D22、2026-10-17 棚卸し追補）
 - **最低サポートバージョン（`client_requirements` の属性）を変える経路が無い**。ワークフローは現在値を引き継ぐだけで、決定6 によりコンソールからも
   操作しない。SS-101 でも足さず、最初の contract を計画するときに入力を足す。値が `null` の間はアップデートの案内は出ない。
   （本文: SS-99 追補 D23、SS-101 追補 D33）
-- **production ではフラグ切り替えワークフローをまだ実行できない**。2026-09-21 時点で sanposcape-infra の prod の `live/platform` が
-  未 apply で、prod の AppConfig も `sanposcape-prod-feature-flags` ロールも存在しない（SS-97 の `live/account` とは別に必要）。
-  apply 後に `production` Environment へ `AWS_FEATURE_FLAGS_ROLE_ARN` を設定する。（本文: SS-99 追補 D21）
+- ~~**production ではフラグ切り替えワークフローをまだ実行できない**~~ → prod の `live/platform` は apply 済みで、`production` Environment に
+  `AWS_FEATURE_FLAGS_ROLE_ARN` が設定され、2026-10-17 に production で実行した。（本文: SS-99 追補 D21）
 - **OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。
-  mobile のタグ・Release（SS-102）は iOS 分を SS-213 で実装したが、実行実績は無い。Android の本番提出とタグは未整備。
+  mobile のタグ・Release（SS-102）は iOS 分を SS-213 で実装した。TestFlight 配信は 2026-10-17 に実行済みで、Release 作成はストア公開が未実施のため未実行。Android の本番提出とタグは未整備。
   （本文: 決定4、決定8、移行・対応が必要な事項、SS-213 追補の未解決）
 - **ストア側の設定（App Store の手動リリース / Google Play の公開の管理）が未実施**で、`release-runbook.md` の該当記述は未検証。（本文: 移行・対応が必要な事項）
 
@@ -108,7 +106,7 @@
 として追加し `app_config_probe` を削除）、2026-09-21 追補（SS-99: フラグ切り替えワークフローと
 定義ファイル）、2026-10-01 追補（SS-148: D16 の表示範囲の注記）、2026-10-04 追補（SS-183: Lambda で
 lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）、
-2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）、
+2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）、2026-10-17 棚卸し追補（prod の稼働とフラグ切り替えの実行を反映）、
 2026-10-17 追補（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内）
 
 ## ステータス
@@ -120,9 +118,10 @@ SS-102 / SS-103 に分かれており、2026-09-20 時点では SS-94（AppConfi
 （**SS-93 追補**: 2026-09-21 時点で SS-96（フラグ切り替え用 OIDC ロール）も完了している。
 残る SS-97 / SS-99 / SS-101 / SS-102 / SS-103 は未着手）
 （**SS-99 追補**: 2026-09-21 に SS-99（フラグ切り替えワークフロー）を実装した。実行実績はまだ無い）
+（**2026-10-17 棚卸し追補**: SS-97 も完了し、backend は 2026-10-01 から prod で稼働している。フラグ切り替えは 2026-09-22 に dev で、2026-10-17 に production で実行した）
 （**SS-183 追補**: 2026-10-04 に、Lambda で lifespan が呼び出しごとに走り、決定2・決定9-1・SS-98 追補 D3 の
 記述が成り立っていなかった事実を末尾の「SS-183 追補」で訂正した。決定は変えていない）
-（**SS-213 追補**: 2026-10-17 に、SS-102 の iOS 分（タグ・Release の作成）を本番の TestFlight 配信と合わせて実装した。実行実績はまだ無い）
+（**SS-213 追補**: 2026-10-17 に、SS-102 の iOS 分（タグ・Release の作成）を本番の TestFlight 配信と合わせて実装した。TestFlight 配信は同日に実行済みで、Release 作成はストア公開が未実施のため未実行）
 （**SS-101 追補**: 2026-10-17 に、mobile の最低サポートバージョンを下回るアプリへのアップデートの案内を実装した。最低バージョンを変える入力は無い）
 **本 ADR は実装に先行して方針を固定するものであり、「決まっていること」と「各実装チケットが
 これから決めること」を節ごとに区別して書いている。**
@@ -192,6 +191,7 @@ backend のデプロイが GitHub Actions から実行できるようになり�
 - **prod はまだ存在しない。** `sanposcape-backend-prod` スタックは未デプロイ、
   `app-api.sanposcape.com` は名前解決せず、ストアへの公開も未実施である。
   したがって本 ADR の手順は**実運用による検証を経ていない**。
+  （**2026-10-17 棚卸し追補**: backend は 2026-10-01 から prod で稼働し、production でのフラグの切り替えも実行した。ストアへの公開は未実施）
 
 ## 決定
 
@@ -500,6 +500,7 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
   古いフィールドを消すまでの間はスキーマに冗長さが残る。
 - **本 ADR の手順は未検証である。** prod はまだ存在せず、ストアへの公開も未実施のため、
   ストア側の設定手順は公式ドキュメントに基づく記述に留まる。
+  （**2026-10-17 棚卸し追補**: prod は 2026-10-01 から稼働し、backend のデプロイとフラグの切り替えは prod でも実行した。ストア側の設定は依然として未検証）
 
 ### 移行・対応が必要な事項
 
@@ -507,7 +508,7 @@ OTA の扱いが明示されていなかったが、SS-103 が本課題と `rela
 - [x] SS-95: Lambda 実行ロールの境界に `appconfig:StartConfigurationSession` / `GetLatestConfiguration` を追加する（**完了**）
 - [x] SS-96: フラグ切り替え用の OIDC ロール `sanposcape-<env>-feature-flags` を作る（`sanposcape-infra` 側。**完了**。
       **SS-93 追補**で反映）
-- [ ] SS-97: prod の `live/account` を apply し、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する
+- [x] SS-97: prod の `live/account` を apply し、`production` Environment に `AWS_SAM_DEPLOY_ROLE_ARN` を設定する（**2026-10-17 棚卸し追補**: 完了。prod は 2026-10-01 から稼働）
 - [x] SS-98: backend に AppConfig 読み取り基盤と `/app-config` エンドポイントを追加する（**完了**）。
       **（SS-98 追補）** レスポンススキーマ・ダークローンチの要否・
       `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の移行要否は下記「SS-98 追補」で決定した。
@@ -970,7 +971,7 @@ mobile 側の `AppConfigSnapshot`（`src/lib/appConfigSnapshot.ts`）は意図�
 - GitHub Environment は backend のデプロイと共用の `development` / `production`（infra のロールの trust の既定）。
   production の Required reviewers と main 限定がそのまま効き、ワークフロー側でも production は main 以外から起動すると落とす。
 - 2026-09-21 時点で dev はロールと AppConfig が揃っている（infra 側で確認済み）。prod は `live/platform` が未 apply で、
-  ロールも AppConfig も無い。
+  ロールも AppConfig も無い。（**2026-10-17 棚卸し追補**: prod の `live/platform` も apply 済みで、`production` Environment に `AWS_FEATURE_FLAGS_ROLE_ARN` を設定し、2026-10-17 に production で実行した）
 - AppConfig の ID は SSM `/sanposcape/<env>/platform/appconfig/*` から読み、`::add-mask::` でログから隠す
   （public リポジトリの Actions ログは公開されるため。リポジトリに ID を置かないのと同じ理由）。
 - OIDC トークンを持つ job ではサードパーティの依存を入れない（aws CLI と python3 の標準ライブラリのみ）。
@@ -1015,10 +1016,11 @@ SS-98 以来 Lambda では呼び出しごとに作り直されていた。原因
 
 SS-183 で、Lambda では lifespan を init で 1 回だけ起動する形にしたため、上の 3 つは記述どおりの挙動になった
 （pytest の境界のテストで確認済み。dev での確認は [ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) の SS-183 追補の未解決を参照）。
+（**2026-10-17 棚卸し追補**: 2026-10-17 に作業者が dev・prod で確認した）
 
 **運用への影響**: SS-183 より前の Lambda では、呼び出しごとに取得し直していたため、フラグを切り替えると
 ポーリング間隔を待たずに次の呼び出しで反映される挙動だった（dev でのフラグの切り替えの実行実績は無く、
-観測した事実ではない）。今後は D10 と
+観測した事実ではない）。（**2026-10-17 棚卸し追補**: 実際には 2026-09-22 に dev で切り替えを実行していた。この挙動を観測した記録は無い）今後は D10 と
 [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) のとおり、
 AppConfig のベイク時間に加えてポーリング間隔（既定 60 秒）ぶん遅れて反映される。
 
@@ -1102,6 +1104,7 @@ Android（Google Play）の本番提出は未整備で、どちらのワーク�
 - **どちらのワークフローも実行実績が無い。** 本番のアプリレコード・本番識別子のクレデンシャル・ビルド番号の初期化などの
   手作業の準備（build-profiles.md）が終わってから初回を実行する。`eas build:view --json` の出力のキー（`gitCommitHash` など）は
   eas-cli 23.2.0 のソースで確かめたもので、実際の応答では未確認。
+  （**2026-10-17 棚卸し追補**: 手作業の準備を済ませ、TestFlight 配信は 2026-10-17 に実行した（成功）。Release 作成はストア公開が未実施のため未実行で、`eas build:view --json` の実際の応答も未確認のまま）
 - **Android の本番提出とタグ**: Google Play への提出を整備するときに、Release 作成の入力（iOS の BUILD_ID）をどう広げるかを決める。
   iOS と Android で同じ version を公開する前提なら、タグは1つのまま。
 - SS-103 で `EXPO_TOKEN` を Environment Secret に移すとき、TestFlight 配信のワークフローにも Environment を付けることになる（D28 の見直し）。
@@ -1168,7 +1171,7 @@ contract は最低バージョンを上げてから古いクライアントが�
 ### D33: 最低サポートバージョンを変える入力は SS-101 でも足さない（D23 の持ち越しの判断）
 
 D23 は「SS-101 で必要になったときに、同じワークフローへの入力追加か別ワークフローかを決める」としていた。SS-101 では mobile の受け皿だけを
-作り、入力は足さない。prod が未構築（SS-97）で最初の contract もまだ計画されておらず、OIDC を持つワークフローの変更は検証の手段も含めて
+作り、入力は足さない。最初の contract がまだ計画されておらず、OIDC を持つワークフローの変更は検証の手段も含めて
 この課題（mobile）の範囲を超えるため。値が `null` の間は案内は出ない（D30）。最初の contract を計画するときに入力を足す
 （それまでは `client_requirements` の属性は現在値の引き継ぎのまま）。ローカルでは backend の `FEATURE_FLAG_STUB_DOCUMENT` の
 `client_requirements` で試せる（`packages/mobile/docs/architecture-guideline.md`）。

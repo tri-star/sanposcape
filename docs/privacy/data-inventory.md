@@ -6,7 +6,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
   [App Privacy の申告](../app-privacy-label.md)は、この台帳から書く。3つが食い違えば、まず実装を確かめて台帳を直し、ポリシーと申告を合わせる。
 - ポリシーとのずれは、ポリシーを書くときより、backend・mobile の変更（DB モデル、ログ、送信内容、権限、外部 SDK の追加）で生まれる。
   そのため、ずれを生みうるパスを「[対象パス](#1-対象パスポリシーに関係する変更)」に挙げ、計画（`task-workflow`）とレビュー（`security-reviewer`）でここを確かめる。
-- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）、2026-10-15（SS-116。ピンの写真の原本のメタデータを backend が取り除くことを足した）、2026-10-15（SS-109。アカウント削除後の写真の削除を反映し、削除予約の行を足した）
+- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）、2026-10-15（SS-116。ピンの写真の原本のメタデータを backend が取り除くことを足した）、2026-10-15（SS-109。アカウント削除後の写真の削除を反映し、削除予約の行を足した）、2026-10-17（SS-210。Sign in with Apple・写真の撮影日時・写真のアップロード枠の残存をポリシーに反映し、「未反映」の印と既知の差分を外した）
 
 ## 1. 対象パス（ポリシーに関係する変更）
 
@@ -75,8 +75,8 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
 | Google アカウントの ID・メールアドレス・表示名・プロフィール画像の URL | mobile `src/services/auth/googleSignIn.ts`（ID token だけを backend へ送る）→ backend `auth/providers/google.py` が ID token から取り出す | backend `POST /auth/session` | DB `users.provider_subject`・`email`・`display_name`・`photo_url`。サインインのたびに更新。削除まで | アカウント削除 | 1-2 | ユーザ ID、メールアドレス、名前、写真またはビデオ（画像の URL） |
-| Apple アカウントの ID・メールアドレス（非公開リレーの場合あり）・氏名 | mobile `src/services/auth/appleSignIn.ts`・`appleSession.ts`（ID token・nonce・authorization code、初回だけ氏名）→ backend `auth/providers/apple.py` | backend `POST /auth/session` | DB `users`（同上。氏名は未設定のときだけ埋める）。削除まで。端末は送信待ちの氏名を SecureStore（`applePendingDisplayName.secure.ts`）に置き、送信成功・サインアウトで消す | アカウント削除 | **未反映**（1-2） | ユーザ ID、メールアドレス、名前 |
-| Apple の refresh token | backend が authorization code を Apple `/auth/token` で交換（`integrations/apple/`、`auth/apple_authorization.py`） | Apple（`/auth/token`、アカウント削除時に `/auth/revoke`） | DB `apple_authorizations.refresh_token`（**平文**。理由は ADR-002 の SS-198 追補）。再サインインで上書き、削除まで | アカウント削除（`users/service.py`。失効させてから CASCADE で削除。Apple の一時障害（タイムアウト・5xx・429 など）では削除せず 503 を返し、利用者の再試行で完了する。恒久的な拒否・設定の不備・鍵の未設定では失効させずに削除する） | **未反映**（1-4・9 の「ハッシュ値だけを保存」と食い違う） | 対象外（データの種類に当たらない） |
+| Apple アカウントの ID・メールアドレス（非公開リレーの場合あり）・氏名 | mobile `src/services/auth/appleSignIn.ts`・`appleSession.ts`（ID token・nonce・authorization code、初回だけ氏名）→ backend `auth/providers/apple.py` | backend `POST /auth/session` | DB `users`（同上。氏名は未設定のときだけ埋める）。削除まで。端末は送信待ちの氏名を SecureStore（`applePendingDisplayName.secure.ts`）に置き、送信成功・サインアウトで消す | アカウント削除 | 1-2、3、7、8 | ユーザ ID、メールアドレス、名前 |
+| Apple の refresh token | backend が authorization code を Apple `/auth/token` で交換（`integrations/apple/`、`auth/apple_authorization.py`） | Apple（`/auth/token`、アカウント削除時に `/auth/revoke`） | DB `apple_authorizations.refresh_token`（**平文**。理由は ADR-002 の SS-198 追補）。再サインインで上書き、削除まで | アカウント削除（`users/service.py`。失効させてから CASCADE で削除。Apple の一時障害（タイムアウト・5xx・429 など）では削除せず 503 を返し、利用者の再試行で完了する。恒久的な拒否・設定の不備・鍵の未設定では失効させずに削除する） | 1-4、3、7、9（元の値で保存することを書いている） | 対象外（データの種類に当たらない。`app-privacy-label.md` 3.2 の認証トークン） |
 | セッションの refresh token | backend が発行 | 端末へ返す | 端末: SecureStore（`tokenStore.secure.ts`）。サーバー: `refresh_tokens.token_hash`（sha256 だけ）。失効・期限切れの行も論理失効のまま残り、アカウント削除で消える | サインアウト（端末）、アカウント削除（サーバー） | 1-4、9 | 対象外（`app-privacy-label.md` 3.2 の認証トークン） |
 | アクセストークン | backend が発行 | 端末へ返す。以後 `X-App-Authorization` で送る | 端末のメモリだけ | — | 1-4 | 対象外 |
 
@@ -87,9 +87,9 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | ピン（名称・メモ・座標・タグ・訪問状況・アーカイブ） | mobile `src/features/pin/lib/pinCreateRequest.ts`（座標は小数6桁）・`pinEditDraft.ts` | backend `POST /pins`・`PATCH /pins/{id}` | DB `pins`・`pin_tags`。削除まで | `DELETE /pins/{id}`、地図の削除、アカウント削除（CASCADE） | 1-3、6、7 | 正確な位置情報、その他のユーザコンテンツ |
 | 地図（名称・アイコン） | mobile `src/features/pin/api/sanpoMapApi.ts` | backend `POST /sanpo-maps`・`PATCH` | DB `sanpo_maps`。削除まで | `DELETE /sanpo-maps/{id}`、アカウント削除 | 1-3 | その他のユーザコンテンツ |
 | ピンの写真 | mobile `src/services/photo/`（カメラ・OS の写真選択画面。長辺 2048px・JPEG 品質 0.7 に再圧縮し、EXIF は落ちる） | S3 へ presigned POST で直送（`src/features/pin/api/presignedPostUpload.ts`） | S3 `original/`・`thumb/`（SSE-S3。バージョニングは無効（infra のコード上）で、削除は即時の完全削除）。原本は backend が紐付けの時に EXIF・XMP などのメタデータを画質を変えずに取り除いたバイト列を置く（staging からはコピーしない。向きだけ残す。`sanpo_maps/photos/jpeg_metadata.py`、SS-116）。サムネイルは EXIF なしで作る。未紐付けの `staging/` は元のまま置かれ、S3 のライフサイクルで消える（infra） | ピン・写真の削除でベストエフォートで消す（`sanpo_maps/photos/cleanup.py`）。アカウント削除では削除予約を入れ、**削除から 30 日（`ACCOUNT_PHOTO_RETENTION_DAYS`）の後**に1日1回の Lambda（`aws_lambda/photo_purge.py`、毎日 JST 04:00）が本人の `staging/`・`original/`・`thumb/` の `pins/<user_id>/` を消す。S3 の失敗・時間切れは翌日に続きから消す（SS-109、ADR-009 決定36） | 1-3、6、7 | 写真またはビデオ |
-| 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない。EXIF から取れないとき、カメラで撮った写真は撮影直後の時刻、ライブラリの写真は null） | backend `POST /pin-photo-uploads` の `taken_at`（写真を選んだ時点の先行アップロードで送る） | DB `pin_photo_uploads.taken_at`（枠の発行時）→ 紐付けで `pin_photos.taken_at` へ移し、枠の側は NULL に戻す。**紐付けずに終わった枠（登録の破棄・アプリの終了）には、期限切れの枠の掃除（ADR-009 BK-3）が無いためアカウント削除まで残る**。写真の側は削除まで | 写真・ピンの削除、アカウント削除（未紐付けの枠はアカウント削除だけ） | **未反映**（1-3 は「Exif は送信しません」とだけ書いている） | 写真またはビデオ（写真に付随する情報として） |
+| 写真の撮影日時 | mobile `src/services/photo/photoTakenAt.ts`（EXIF の撮影日時だけを読む。位置は読まない。EXIF から取れないとき、カメラで撮った写真は撮影直後の時刻、ライブラリの写真は null） | backend `POST /pin-photo-uploads` の `taken_at`（写真を選んだ時点の先行アップロードで送る） | DB `pin_photo_uploads.taken_at`（枠の発行時）→ 紐付けで `pin_photos.taken_at` へ移し、枠の側は NULL に戻す。**紐付けずに終わった枠（登録の破棄・アプリの終了）には、期限切れの枠の掃除（ADR-009 BK-3。Plane SS-218）が無いためアカウント削除まで残る**。写真の側は削除まで | 写真・ピンの削除、登録画面で先行アップロード済みの写真を外す（`DELETE /pin-photo-uploads/{id}` が枠の行ごと消す）、アカウント削除（登録を破棄・アプリを終了して紐付けずに終わった枠はアカウント削除だけ） | 1-3、7（未紐付けの枠に残ること） | 写真またはビデオ（写真に付随する情報として） |
 | アカウント削除後の写真の削除予約（削除したアカウントの内部 ID・削除日時・削除予定日時） | backend `users/service.py`（アカウント削除）→ `sanpo_maps/photos/account_purge.py` | — | DB `account_photo_purges`。写真を消し終えるまで（削除から 30 日 + 処理の持ち越し） | 写真の削除の完了で消える | 7（写真の削除の一部。行そのものは書いていない。内部 ID だけで、利用者と結び付ける情報は残らない） | 対象外（写真の管理情報） |
-| 写真のアップロード枠 | backend `sanpo_maps/photos/` | — | DB `pin_photo_uploads`（S3 のキー・サイズ。未紐付けの間は撮影日時も）。紐付け済みの行は写真・ピンを消しても残る。紐付けずに期限切れになった行も掃除（ADR-009 BK-3）が無いため残る。どちらもアカウント削除で消える | アカウント削除 | **未反映**（7 は写真・ピンを消すと画像ファイルも消すとだけ書き、管理情報の行と未紐付けの枠の撮影日時が残ることを書いていない） | 対象外（写真の管理情報） |
+| 写真のアップロード枠 | backend `sanpo_maps/photos/` | — | DB `pin_photo_uploads`（S3 のキー・サイズ・形式・状態と、作成・紐付け・期限の日時。未紐付けの間は撮影日時も）。紐付け済みの行は写真・ピンを消しても残る。紐付けずに期限切れになった行も掃除（ADR-009 BK-3）が無いため残る。どちらも残さないようにするのは Plane SS-218。どちらもアカウント削除で消える | アカウント削除 | 6、7（保存場所の名前・大きさ・写真を選んだ日時やピンに添付した日時などと、未紐付けの枠の撮影日時がアカウント削除まで残る。残さないようにする後続は Plane SS-218（ADR-009 BK-3 と、削除時の枠の行の削除）） | 対象外（写真の管理情報） |
 | 端末に残る写真の一時ファイル | expo-image-picker・image-manipulator の出力 | — | 端末のキャッシュ領域（消すコードは無い。OS が消す） | OS | — | 対象外（端末内） |
 | ピンの写真の表示用キャッシュ | `src/features/pin/components/PinPhotoImage.tsx`（expo-image） | — | 端末のメモリ・ディスク。サインアウトで消す（`src/lib/imageCacheCleanup.ts`） | サインアウト | — | 対象外（端末内） |
 
@@ -114,19 +114,13 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
 | Google でサインインの SDK が送るもの | `react-native-nitro-google-signin`（iOS は GoogleSignIn ~> 9.0） | Google | Google のポリシーによる | Google のアカウント設定 | 1-6、3 | `app-privacy-label.md` 3.1 の Google Sign-In の行 |
-| Apple のサインインの認可 | `expo-apple-authentication`（iOS の AuthenticationServices） | Apple | Apple のポリシーによる | Apple ID の設定 | **未反映**（3） | 申告不要（Apple） |
+| Apple のサインインの認可 | `expo-apple-authentication`（iOS の AuthenticationServices） | Apple | Apple のポリシーによる | Apple ID の設定 | 3、8 | 申告不要（Apple） |
 | 地図データの要求（表示範囲・IP・端末の情報） | `react-native-maps`（Android は Google Maps SDK、iOS は MapKit） | Google（Android）、Apple（iOS） | 各社のポリシーによる | — | 3 | 正確な位置情報（react-native-maps のマニフェスト） |
 | 更新の確認（インストールごとの ID・前回の致命的なエラー） | `expo-updates`（`app.json` の `updates.url`） | Expo | 未確認 | — | 1-6、3 | デバイス ID、クラッシュデータ（いずれも紐づかない） |
 
 ## 4. 実装とポリシー・申告の既知の差分
 
-| 差分 | 後続 |
-| --- | --- |
-| Sign in with Apple（SS-197〜199）がポリシーに無い。1-2 が Google だけ、1-4・9 の「ハッシュ値だけを保存」が Apple の refresh token の平文保存と食い違う、3 に Apple のサインインの行が無い、7・8・10 が Google だけを前提にしている | SS-210 |
-| 写真の撮影日時（SS-163）を送って保存しているが、ポリシー 1-3 は「Exif は送信しません」とだけ書いている | SS-210 |
-| 写真・ピンを消しても、写真のアップロード枠の行（S3 のキー・サイズ）は残る。紐付けずに終わった枠には撮影日時も残る（期限切れの枠の掃除 ADR-009 BK-3 が無い）。いずれもアカウント削除まで。ポリシー 7 には書いていない | SS-210（掃除を入れるなら BK-3） |
-| App Privacy の申告がパフォーマンスデータに `session.id`（アプリの起動ごとの乱数）を挙げているが、mobile はまだ `X-App-Session-Id` を送っていない（backend の受け口だけある。ADR-013） | SS-210 |
-| App Privacy の申告 3.2 の「認証トークン: サーバーには照合用のハッシュだけを保存」が、Apple の refresh token に当てはまらない | SS-210 |
+現在、既知の差分は無い（SS-210 で解消した）。見つけたら、該当行に「未反映」の印を付け、ここに差分と後続の課題を表で挙げる。
 
 ## 5. この台帳で確かめていないこと
 
@@ -134,4 +128,6 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
   保持期間は、SS-158 の PR（#131）の申し送りにある確認結果（sanposcape-infra `e09dcf8` の `live/platform/logging.tf`・`prod.tfvars` の `log_retention_days = 400`、トレースは 90 日）による。
   一方 ADR-012 の SS-159 追補はこれらを「infra 側で未確認」としており、記録が食い違う。400 日はポリシーで「最長 400 日」と言い切った値なので、infra を変えるときは infra 側で実際の値を確かめる。
 - 第三者 SDK が送る内容は、各 SDK のプライバシーマニフェストと公開情報による（`app-privacy-label.md` 3.1）。Expo が更新の確認で受け取った情報を保持するかは確認できていない。
-- 本番では Apple の鍵が未投入のため、アカウント削除時の Apple の失効が実際に動くかは確認していない（SS-196）。
+- 本番の Apple の鍵は 2026-10-17 に投入したが、アカウント削除時の Apple の失効が実際に動くかは確認していない（SS-208 の実機確認で確かめる）。
+  鍵を入れずに `apple_allowed_audiences` だけを設定すると、Apple のサインインは通るが refresh token を保存せず、削除時も失効させない（ポリシー 1-4・7 はこの場合を「受け取れた場合にだけ保存」「解除しないまま削除」と書いている）。本番は鍵を入れてから audiences を設定する。
+- ポリシー 10 の本人確認のメールと 2 の重要なお知らせを Apple の転送用アドレス（`privaterelay.appleid.com`）へ届けるには、Apple Developer の「Sign in with Apple for Email Communication」に送信元（`support@sanposcape.com` のドメインまたはアドレス）を登録する必要がある。登録は手作業で、本番で Apple のサインインを公開する前に行う（SS-210 の時点で未登録）。

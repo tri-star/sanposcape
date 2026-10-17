@@ -104,6 +104,44 @@ gh pr comment --help 2>/dev/null | grep -q -- '--attach' \
 
 PR本文は後続の手順（task-workflow の「知識の収穫」追記など）で編集されるため、本文ではなく**コメント**に添付する。
 
+#### 4-1. 添付用に縮小する
+
+エミュレータのスクリーンショット（例: 1080×2400）をそのまま添付すると、コメント上で縦に大きく表示されて読みにくい。
+添付用に**幅 360px** へ縮小したコピーを `<task-root>/screenshots/pr/` に作り、添付にはこちらを使う（元画像は残す）。
+PIL はシステムに無いため `uv` で一時的に入れて実行する。
+
+```bash
+uv run --no-project --with pillow python -I - \
+  <task-root の絶対パス>/screenshots <task-root の絶対パス>/screenshots/pr 360 <<'EOF'
+import sys
+from pathlib import Path
+from PIL import Image
+src, dst, width = Path(sys.argv[1]), Path(sys.argv[2]), int(sys.argv[3])
+dst.mkdir(parents=True, exist_ok=True)
+for p in sorted(src.glob("*.png")):
+    with Image.open(p) as im:
+        if im.width > width:
+            im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
+        im.save(dst / p.name, optimize=True)
+        print(dst / p.name, im.size)
+EOF
+```
+
+- 幅は 360px を基本にする。文字の細部を見せたい画像だけ、480px 程度まで広げてよい
+- `uv` が使えず縮小できない場合も添付は省略しない。元画像のまま 4-2 の表に並べ、縮小できなかったことを報告に含める
+
+#### 4-2. 本文を書く
+
+画像は本文の**表の中から参照して横に並べる**。`gh` は本文中の `![alt](<パス>)` のうち `--attach` と同じパスを
+アップロード先の URL に書き換える。本文から参照しない添付はコメント末尾に縦に 1 枚ずつ追加され、大きく表示されるので、
+**添付する画像はすべて本文から参照する**。
+
+- 1 行に並べるのは **3 枚まで**（4 枚以上は次の行に送る）。比較したい状態（通常表示 / 空表示 / エラー表示、変更前 / 変更後など）を同じ行に置く
+- 画像の参照パスは `--attach` に渡すパスと**一字一句同じ絶対パス**にする（相対パスや表記揺れがあると書き換わらず、末尾に別途追加される）
+- 幅の指定は画像そのものの縮小（4-1）で行う。`<img src="<パス>" width="...">` は `gh` の書き換え対象として
+  ヘルプに記載が無いため使わない
+- 1 枚だけのときは表にしなくてよいが、縮小した画像を本文から参照する
+
 本文を `<task-root>/pr-verification.md` に書く:
 
 ```markdown
@@ -117,18 +155,30 @@ PR本文は後続の手順（task-workflow の「知識の収穫」追記など�
 |---|---|---|
 | 1 | <操作と期待値> | OK / NG（NG なら内容） |
 
+### スクリーンショット
+
+| 地図一覧: 通常表示 | 地図一覧: 空表示 | 地図一覧: エラー表示 |
+|---|---|---|
+| ![地図一覧: 通常表示](<task-root の絶対パス>/screenshots/pr/01-sanpo-map-list.png) | ![地図一覧: 空表示](<task-root の絶対パス>/screenshots/pr/02-sanpo-map-list-empty.png) | ![地図一覧: エラー表示](<task-root の絶対パス>/screenshots/pr/03-sanpo-map-list-error.png) |
+
 <確認できなかった操作・状態があれば、その理由>
 ```
+
+#### 4-3. 添付する
 
 ```bash
 gh pr comment <PR番号> \
   --body-file <task-root の絶対パス>/pr-verification.md \
-  --attach '<task-root の絶対パス>/screenshots/01-sanpo-map-list.png#地図一覧: 通常表示' \
-  --attach '<task-root の絶対パス>/screenshots/02-sanpo-map-list-empty.png#地図一覧: 空表示'
+  --attach '<task-root の絶対パス>/screenshots/pr/01-sanpo-map-list.png' \
+  --attach '<task-root の絶対パス>/screenshots/pr/02-sanpo-map-list-empty.png' \
+  --attach '<task-root の絶対パス>/screenshots/pr/03-sanpo-map-list-error.png'
 ```
 
-- 本文から画像を参照しなくてよい。添付した画像は alt テキスト（`#` の後ろ）付きでコメント末尾に追加される
+- 本文から参照している画像は、本文に書いた alt テキストが使われる（`--attach` の `#` の後ろは不要）
 - パスは**絶対パス**で渡す（`gh` がサンドボックス外で動く場合も同じファイルを指すため）
+- 投稿後に `gh pr view <PR番号> --comments` で、画像が表の中に並び、コメント末尾に縮小前の画像や重複した画像が
+  追加されていないことを確かめる。末尾に追加されていれば参照パスの不一致なので、次回のために原因（どのパスが食い違ったか）を報告に含める
+  （投稿し直して重複させない）
 - `gh` が非ゼロ終了しても、コメントが作成済みの場合がある（`gh pr create` / `gh pr edit` のヘルプには
   「一部の添付だけ失敗しても成功分で作成・更新して非ゼロ終了する」とある。`gh pr comment` のヘルプには記載が無い）。
   そのまま再実行せず、まず `gh pr view <PR番号> --comments` でコメントの有無と添付された画像を確認する。

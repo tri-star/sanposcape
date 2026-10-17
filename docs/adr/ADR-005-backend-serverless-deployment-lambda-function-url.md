@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-17（棚卸し追補: prod の稼働状況・クォータの引き上げ・lifespan の確認を反映。前回 SS-183、棚卸し追補、SS-178）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -34,12 +34,13 @@
 
 デプロイと検証の実施状況は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) 冒頭の検証状況の表が新しい（表に無い項目もある）。
 
-- **prod の Lambda 同時実行数クォータの引き上げと、prod への `ReservedConcurrentExecutions` の投入**。`template.yaml` は prod で予約を落としたまま。（本文: 決定8、移行・対応が必要な事項）
-- **prod のシークレットの投入と、prod へのデプロイ**。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
-- **prod の CloudFront の有効化（infra の `enable_distribution = true`）と、deployment.md §6.2 の確認**。dev は確認済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
+- **prod への `ReservedConcurrentExecutions` の投入（急ぎ）**。クォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）だが、`template.yaml` は prod で予約を落としたまま。決定8 の「最も危険な時間帯」に当たる。（本文: 決定8、移行・対応が必要な事項、2026-10-17 棚卸し追補）
+- ~~**prod のシークレットの投入と、prod へのデプロイ**~~ → 2026-10-01 にデプロイ済み。Apple のキーを含むシークレットは 2026-10-17 に揃った。（本文: 移行・対応が必要な事項、SS-72 追補。SS-97）
+- ~~**prod の CloudFront の有効化（infra の `enable_distribution = true`）**~~ → 有効化済み。（本文: 移行・対応が必要な事項、SS-78 追補その2、SS-183 追補）
+- **prod の deployment.md §6.2 の 3)（認証必須エンドポイント）の確認**。`/health` と Function URL の直叩きは 2026-10-17 に確認済み。本番の TestFlight ビルドで SS-208 として確認する。dev は確認済み。（本文: 移行・対応が必要な事項、2026-10-17 棚卸し追補）
 - **in-process のキャッシュとレート制限を外部ストアへ移すかの検討**。（本文: 決定8、移行・対応が必要な事項）
 - **探索 API のレート制限のキーにしている IP が、CloudFront 経由では利用者の IP ではない疑い**。SS-183 でレート制限が初めて実際に効くようになったため顕在化した。（本文: SS-183 追補。SS-186 で継続）
-- **SS-183 の修正が dev で意図どおりに動くことの確認**（ログストリームごとに startup のログが 1 件、shutdown のログが 0 件）。（本文: SS-183 追補）
+- ~~**SS-183 の修正が dev で意図どおりに動くことの確認**（ログストリームごとに startup のログが 1 件、shutdown のログが 0 件）~~ → 2026-10-17 に作業者が dev・prod で確認した。（本文: SS-183 追補、2026-10-17 棚卸し追補）
 
 ### 変更・撤回された決定
 
@@ -50,7 +51,7 @@
 
 ## 日付
 
-2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）
+2026-09-06（初版）、2026-09-06 追補（SS-70）、2026-09-07 追補（SS-78）、2026-09-11 追補（SS-78 その2）、2026-09-15 追補（SS-72）、2026-09-18 追補（SS-72: 手動起動化・production デプロイ後のタグと Release）、2026-09-20 追補（SS-104: 予約していたリリース戦略 ADR の起票）、2026-10-04 追補（SS-183: FastAPI の lifespan を実行環境ごとに 1 回だけ起動する）、2026-10-04 追補（棚卸し: クライアントの再送ポリシーと `X-App-Authorization` の取り扱い）、2026-10-04 追補（SS-178: 決定3 の検査方法の記述）、2026-10-17 棚卸し追補（prod の稼働状況・クォータの引き上げ・lifespan の確認の反映）
 
 ## ステータス
 
@@ -247,6 +248,7 @@ SS-183 でこの決定が前提にしていた「インスタンスごと」に�
   `ReservedConcurrentExecutions` も設定できない**（`InvalidParameterValueException`）。
   このため `template.yaml` は `Env` 別に分岐し、prod では属性ごと `AWS::NoValue` で落としている。
   クォータ引き上げはインフラ側から申請済みで承認待ちである。
+  （**2026-10-17 棚卸し追補**: クォータは 1,000 に引き上げ済み（作業者の報告）。prod の予約はまだ入っておらず、下の「最も危険な時間帯」に当たる）
   **引き上げが承認された直後が最も危険な時間帯になる**（上限だけ 1000 に上がり、
   予約がまだ入っていない状態では in-process キャッシュ / レート制限の分裂が一気に広がりうる）。
   この時間帯を作らないよう、**クォータ引き上げの反映と `ReservedConcurrentExecutions` の投入を
@@ -381,13 +383,15 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
 
 以下は本 ADR では方針決定のみで、実施は別タスクとする。
 
-- [ ] シークレットへ `neon_dsn_unpooled`（direct DSN）を投入する。マイグレーション Lambda は
+- [x] シークレットへ `neon_dsn_unpooled`（direct DSN）を投入する。マイグレーション Lambda は
       未投入の間 `MigrationConfigError` で明示的に失敗する設計になっている。
       （**SS-183 追補**: dev は投入済み。deployment.md の検証状況の表で、dev のマイグレーション Lambda の
       実行が検証済みになっている。prod は未投入のためチェックは付けない）
+      （**2026-10-17 棚卸し追補**: prod も投入済み。2026-10-17 の prod のデプロイ後にマイグレーション Lambda を実行した）
 - [ ] prod の Lambda 同時実行数クォータ引き上げの承認を待ち、承認後速やかに
       `ReservedConcurrentExecutions` を prod にも投入する（決定8の「最も危険な時間帯」を作らない）。
-- [ ] prod のシークレット（`/sanposcape/prod/shared`）に値を投入する。
+      （**2026-10-17 棚卸し追補**: クォータは 1,000 に引き上げ済み。予約の投入が残っている）
+- [x] prod のシークレット（`/sanposcape/prod/shared`）に値を投入する。（**2026-10-17 棚卸し追補**: 2026-10-01 のデプロイ前に投入。Apple のキーは 2026-10-17 に追加）
 - [x] mobile 側の CloudFront 対応（`x-amz-content-sha256` の付与、`X-App-Authorization` への
       切り替え）を別チケットで実施する。**（SS-70 追補）SS-70 で完了**。GET/HEAD 以外の全リクエストに
       ボディの SHA-256 を付け、アクセストークンは `X-App-Authorization` 単独で送る（`Authorization`
@@ -408,6 +412,7 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
       残るのは §6.2 の 3 本立てを実際に踏むこと。
       （**SS-183 追補**: dev の §6.2 は 2026-09-12（SS-81）に確認済み。deployment.md の検証状況の表を参照。
       prod は CloudFront が未有効化のため未確認で、チェックは付けない）
+      （**2026-10-17 棚卸し追補**: prod の CloudFront は有効化済みで、`/health` と Function URL の直叩きは確認済み。3) は SS-208 で確認する）
       **（SS-78 追補その2 / 2026-09-11）`sanposcape-infra` 側へ照会して次を確定した。**
       - **dev の CloudFront は既に稼働している。** `enable_distribution = true` は dev では apply 済みで、
         `https://app-api.dev.sanposcape.com/health` が 200 `{"status":"ok"}` を返す。
@@ -416,15 +421,17 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
         infra 側 ADR-0001 §2.11 が「モバイルアプリに焼き込まれ後から変更が効かないため本 ADR で確定とする」
         と明記している。ただし prod は `enable_distribution = false` のままで名前解決せず、
         前提の SAM スタック `sanposcape-backend-prod` のデプロイも**未実施・予定日未定**。
+        （**2026-10-17 棚卸し追補**: prod は 2026-10-01 にデプロイし、`app-api.sanposcape.com` は CloudFront 経由で稼働している）
       - **`app-api` と `api` は別ホスト。** モバイル用が `app-api.<zone>`、外部向けが `api.<zone>` で、
         distribution / WAF / レート制限 / 認証方式を独立させるため意図的に分けられている。
       - CI やスクリプトから参照する場合は SSM の
         `/sanposcape/<env>/services/backend-api/api_base_url`（公開 URL）と
-        `.../distribution_id`（invalidation 用）が使える（dev のみ存在）。
+        `.../distribution_id`（invalidation 用）が使える（dev のみ存在）。（**2026-10-17 棚卸し追補**: prod にもある）
 - [ ] in-process キャッシュ / レート制限の外部ストア（DynamoDB 等）への移行を別課題として検討する。
-- [ ] （**SS-183 追補**）SS-183 の修正を dev にデプロイし、CloudWatch Logs で、ログストリームごとに
+- [x] （**SS-183 追補**）SS-183 の修正を dev にデプロイし、CloudWatch Logs で、ログストリームごとに
       lifespan の startup のログが 1 件、shutdown のログが 0 件であることを確認する
       （手順は [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md)）。
+      （**2026-10-17 棚卸し追補**: 作業者が dev・prod で確認した）
 - [ ] （**SS-183 追補**）探索 API のレート制限のキーの IP の取り方を見直す（SS-186）。
 - [x] SAM デプロイの CI 化（OIDC ロールの整備後）。
       **（SS-72 追補）`.github/workflows/backend-deploy.yml` を追加した。** 実行ロールへの
@@ -432,6 +439,7 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
       手元の管理者権限で行う必要がある（末尾の「SS-72 追補」）。GitHub Actions からの実デプロイは
       その初回付与と `development` Environment の Variables 設定の後に行うため、本追補の時点では未実証。
       prod は infra 側のデプロイロールと SSM `lambda_boundary_arn` の apply（SS-97）待ち。
+      （**2026-10-17 棚卸し追補**: SS-97 は完了し、prod も GitHub Actions でデプロイしている）
 
 ## SS-72 追補: SAM デプロイの CI 化と Lambda 実行ロールの Permission Boundary
 
@@ -462,6 +470,7 @@ GitHub 側の構成（Environment・Variables・job 分離）は
   prod はスタック未作成の想定のため最初から境界付きで作られ、この手順は不要。ただし prod に境界の無い
   既存スタックがあった場合は、SCP の拒否により手元の管理者権限でも後付けできない可能性があり、
   infra 側（SS-97）で確認する。
+  （**2026-10-17 棚卸し追補**: prod は SS-97 の後にスタックを最初から境界付きで作った。`ApiRole` / `MigrateRole` に境界が付いていることを infra 経由で確認済み）
 - **トリガーは dev・prod とも手動実行（`workflow_dispatch`）のみ。** dev は任意の ref から、
   prod は main からのみ（main 限定 + Required reviewers）。backend CI を通過したコミットだけをデプロイする。
   `pull_request` 系のトリガーは付けない。
