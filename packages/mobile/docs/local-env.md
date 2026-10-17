@@ -199,6 +199,8 @@ pnpm --filter mobile orval          # API クライアント再生成
   クリアボタンがある検索欄は、クリアボタン（`*-search-input-clear`）で消す。Android の `eraseText` はカーソルより前しか
   消さず、`tapOn` は欄の中央を押すので、長い文字の後ろ半分が残ったまま入力が足される
   （run 38980207557 の pin-register-anywhere / pin-move-sanpo-map。ADR-M-004 の 2026-10-17 追補）。
+  この subflow は要素の中の位置を指定する `tapOn` の `point` を使うので、ローカルでも Maestro 2.0.4 以降が要る
+  （CI は `mobile-e2e.yml` で版を固定している）。
 - 保存完了などのトースト（`useToast` の既定で 1.9 秒で消える）は assert しない。直前の `tapOn` が
   「タップ後に画面が変わったか」をビュー階層の取得で確かめる間に消えることがあり、消えた要素は待っても
   現れないため、待ち時間では解決しない。成否は遷移先や一覧の項目など、後に残る状態で確かめる（SS-152）。
