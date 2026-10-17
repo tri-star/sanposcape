@@ -12,7 +12,7 @@
 |---|---|
 | 2. backend のデプロイ | **実績あり**（dev のみ。prod スタックは未作成） |
 | 3. フラグの操作 | backend の読み取り基盤（SS-98）は**実装済み**（dev への実デプロイでの検証は未実施）。切り替えワークフロー（SS-99）は**実装済み・実行実績なし**（dev の初回実行で下記手順を確認すること）。mobile 側の受け皿（SS-100）は**実装済み**（起動時・フォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は全フラグ OFF で動く） |
-| 4. mobile の配布 | **実績あり**（dev 向けの `staging` 系のみ。ストア公開は未実施） |
+| 4. mobile の配布 | **実績あり**（dev 向けの `staging` 系のみ）。本番の TestFlight 配信・Release 作成のワークフロー（SS-213）は**実装済み・実行実績なし**（本番のアプリレコード等の準備が前提。ストア公開は未実施） |
 | 5. ストアの設定 | **未検証**（公式ドキュメントに基づく記述。本番のストアレコードが未作成で確認できない） |
 | 6. OTA | **未実装**（SS-103 が未着手） |
 | 7. API の expand/contract | 規約は確定。backend の配信経路（SS-98）は実装済み。アプリ側のアップデート促進（SS-101）は未実装 |
@@ -189,6 +189,25 @@ Lambda の環境変数である。操作手順は
 4. ビルド番号（iOS の `buildNumber` / Android の `versionCode`）は **EAS サーバーが自動で採番する**。
    手で上げる PR は不要（ADR-006 の SS-89 追補）
 
+### 4.1 本番アプリ（iOS）: TestFlight からストア公開まで
+
+dev 向けの配布（上の 3.）とは別のワークフローを使う。初回の実行前の準備は
+[build-profiles.md](../packages/mobile/docs/build-profiles.md)「本番の TestFlight 配信」にある。
+
+1. `app.json` の `version` が公開済みの version（`mobile/v*` タグがあるもの）より大きいことを確かめる。
+   同じなら上の 1.〜2. で上げる（タグが既にある version ではワークフローがビルド前に失敗する）
+2. `.github/workflows/mobile-production-testflight.yml` を main で `workflow_dispatch` する
+   → ビルドと TestFlight への提出まで進む。**タグ・Release はまだ作らない**
+3. Job Summary の **BUILD_ID** を控える。**リリースノートのプレビュー**はストアの「新機能」欄の下書きにする（§5.3）
+4. TestFlight で確認し、問題なければ App Store Connect で審査に提出し、承認後に公開する（§5.1）
+5. **公開した後に** `.github/workflows/mobile-production-release.yml` を BUILD_ID を入力にして main で `workflow_dispatch` し、
+   `production` Environment の承認で公開済みであることを確かめて承認する
+   → ビルドのコミットにタグ `mobile/v<version>` と GitHub Release が作られる（再ビルドはしない）
+
+Release 作成のワークフローは、BUILD_ID が本番の iOS ストア向けの完了済みビルドであること、そのコミットが main にあり
+`app.json` の `version` がビルドの version と一致することを確かめる。同じタグが同じコミットに既にあれば何もしない（再実行してよい）。
+TestFlight に上げたが公開しなかったビルドには、タグを作らない（公開したビルドの BUILD_ID だけを渡す）。
+
 **`version` を上げる PR と配布ビルドは必ずセットで計画すること。**
 `version` を上げたまま配布しないと、その version 向けの OTA の配信先が存在しない状態になる。
 
@@ -209,6 +228,7 @@ Lambda の環境変数である。操作手順は
    - 「自動的に段階的リリースを行う」と組み合わせると、公開開始後 7 日かけて配信先を広げられる
 3. 審査に提出する
 4. 承認後、公開したいタイミングで「このバージョンをリリース」を押す
+5. 公開した後に、§4.1 の 5. で `mobile/vX.Y.Z` タグと GitHub Release を作る
 
 ### 5.2 Google Play（Android）: 公開の管理と段階的公開
 
@@ -222,8 +242,9 @@ Lambda の環境変数である。操作手順は
 
 ### 5.3 「新機能」欄の下書き
 
-SS-102 の実装後は、`mobile/vX.Y.Z` の GitHub Release 用に生成した CHANGELOG を
-ストアの「新機能」欄の下書きとしても使う（ADR-008 決定4）。
+`mobile-production-testflight.yml` の Job Summary に出るリリースノートのプレビューを、
+ストアの「新機能」欄の下書きにする（ADR-008 決定4）。中身は公開後に `mobile/vX.Y.Z` の GitHub Release の本文になるものと同じ
+（前回の `mobile/v*` タグ以降の `packages/mobile/**` のコミット）。開発者向けの文面なので、利用者向けに書き直してから貼る。
 
 ### 5.4 App Store の App Privacy（プライバシー栄養ラベル）
 

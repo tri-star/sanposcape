@@ -436,6 +436,37 @@ pnpm --filter mobile exec eas env:create \
 - **`ascAppId` / `appleTeamId` は `eas.json` の `submit.staging.ios` にコミット済み**（dev 用
   App Store Connect アプリレコードの値。秘密情報ではない）。App Store Connect API Key は
   GitHub Secrets に置かず EAS 側に保管させている（`docs/adr/ADR-004` の SS-79 追補）。
+  本番は `submit.production.ios`（下記「本番の TestFlight 配信」）。
+
+### 本番の TestFlight 配信（SS-213）
+
+本番アプリ（`production` プロファイル、`com.sanposcape.app`）は
+`.github/workflows/mobile-production-testflight.yml` で EAS ビルド → `eas submit` し、TestFlight まで上げる。
+ストアへの公開（審査提出・「このバージョンをリリース」）は App Store Connect で手動で行い、
+公開した後に `.github/workflows/mobile-production-release.yml` でタグ `mobile/vX.Y.Z` と GitHub Release を作る
+（運用の手順は [release-runbook.md](../../../docs/release-runbook.md) §4・§5.1）。
+
+- **`workflow_dispatch` のみ・main からのみ・iOS のみ。** Android（Google Play）の本番提出は未整備。
+- **ビルドの前に次を検査して落とす**（EAS の枠を消費しない）:
+  `submit.production.ios` の `ascAppId` / `appleTeamId` が無い、`app.json` の `version` に対応する
+  `mobile/v<version>` タグが既にある（公開済みの version。`version` を上げてから実行する）。
+- **Job Summary に BUILD_ID とリリースノートのプレビューを出す。** BUILD_ID は公開後の Release 作成の入力、
+  プレビューは審査提出時の「新機能」欄の下書きに使う。ビルド URL は出さない（上記の public リポジトリの配慮と同じ）。
+- **`eas submit` は手元で実行するときも `APP_VARIANT=production` を付ける**（下記「アプリ識別子の定義」）。
+  ワークフローの提出ステップだけが失敗したときは、再ビルドせずに
+  `APP_VARIANT=production pnpm exec eas submit -p ios --profile production --id <BUILD_ID>` で提出だけやり直せる。
+
+初回の実行前に人手で済ませる準備（本番識別子のクレデンシャルは非対話の CI では作れない）:
+
+1. App Store Connect に本番のアプリレコード（bundle ID `com.sanposcape.app`）を作り、
+   App 情報の「Apple ID」を `eas.json` の `submit.production.ios.ascAppId` に入れる
+2. `APP_VARIANT=production pnpm exec eas credentials -p ios` で `production` の配布証明書・
+   プロビジョニングプロファイルを用意し、提出用の App Store Connect API Key を割り当てる
+   （App ID の Sign in with Apple capability も確認する）
+3. `production` のリモートのビルド番号を初期化する（下記「ビルド番号の採番」の未完了事項）
+4. EAS の `production` 環境に `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+   （本番 GCP プロジェクトの値）があることを `eas env:list --environment production` で確かめる
+5. TestFlight の内部テストのグループを作り、テスターを登録する
 
 ### ビルド番号の採番（SS-89 で EAS サーバー側へ移行）
 
@@ -527,6 +558,9 @@ pnpm --filter mobile exec eas env:create \
   上記で確認済みなので、**本番ビルドを始める段で `--profile production` に対して
   `build:version:set` を実行すればよい**（未初期化のまま最初のビルドを流すと、どこから
   採番されるかがこのプロジェクトでは未実測になる）。
+  `pnpm exec eas build:version:set -p ios --profile production` を端末から実行する
+  （`build:version:set` はプロファイルの `env` の `APP_VARIANT=production` を適用して評価するので、本番識別子のカウンタに入る。
+  出力の `bundle identifier "com.sanposcape.app"` で確かめる）。
 - **`eas build --local`（`preview`）と remote の組み合わせは Expo 公式ドキュメントに記載がない。**
   `build:version:get --profile preview` が `1` を返すことは確認済みで、**読み取り経路そのものは
   成立している**。ただし `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、
