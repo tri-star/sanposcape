@@ -183,7 +183,9 @@ jobs:
       # backend の docker と同じ 16GB のランナーに同居させる理由は無いので、ここで止める。
       # 同じ run ではエミュレータの QEMU がハングしてクラッシュし、続けてランナー自体が
       # 「The runner has received a shutdown signal」で落ちた（run 38003510980 も「lost communication」で落ちている）。
-      # メモリの逼迫が原因かは未確定なので、止める前後の空きを記録して次の実行で確かめる。
+      # 実測では、止める前は available 4651MB、止めた後は 14869MB だった（run 39006127267）。デーモンは約10GB を
+      # 持っていた。エミュレータは実行中に RSS が 8.8GB まで増えるので、残したままだとメモリが足りなくなる。
+      # 止める前後の空きは、引き続き記録しておく（ADR-M-004 の 2026-10-17 追補）。
       - name: Stop Gradle / Kotlin daemons left by the build
         if: steps.apk-cache.outputs.cache-hit != 'true'
         run: |
