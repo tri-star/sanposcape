@@ -210,7 +210,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - **最低サポートバージョン**（`AppConfigSnapshot.minimumSupportedVersions`）を下回ると、ルートレイアウトの
   `UpdateRequiredGate`（`src/features/app-update/`）が閉じられない全画面の案内を出してストアへ誘導する（SS-101）。
   判定は `shouldShowUpdateRequired`（`lib/updateRequired.ts`）に閉じてあり、`ready` 以外・`null`・形式不正では出さない
-  （強制しない側）。散歩中・保存されていない散歩がある間も出さない（散歩は永続化されないため）。
+  （強制しない側）。散歩中と、保存されていない散歩をまだ保存できる間（サマリ画面・保存のためのサインイン。
+  `shouldDeferForWalk`）も出さない（散歩は永続化されないため）。
   根拠は ADR-008 の SS-101 追補 D29〜D33。ローカルでは上の `FEATURE_FLAG_STUB_DOCUMENT` に
   `"client_requirements":{"enabled":true,"android_minimum_version":"99.0.0","ios_minimum_version":"99.0.0"}` を足すと出る。
   見た目だけなら画面カタログの「アップデートの案内」で閉じられるプレビューを開ける。

@@ -1,7 +1,9 @@
 import Constants from "expo-constants";
+import { useSegments } from "expo-router";
 import { Platform } from "react-native";
 
 import {
+  shouldDeferForWalk,
   shouldShowUpdateRequired,
   toStorePlatform,
 } from "@/features/app-update/lib/updateRequired";
@@ -31,10 +33,17 @@ export function useUpdateRequired(): boolean {
   const hasUnsavedWalk = useFinishedWalkStore(
     (state) => state.finishedWalk !== null && !state.saved,
   );
+  const signInForSaveRequested = useFinishedWalkStore((state) => state.signInForSaveRequested);
+  const rootSegment: string | undefined = useSegments()[0];
   return shouldShowUpdateRequired({
     snapshot,
     platform: STORE_PLATFORM,
     currentVersion: CURRENT_APP_VERSION,
-    walkInProgress: hasActiveWalk || hasUnsavedWalk,
+    deferForWalk: shouldDeferForWalk({
+      hasActiveWalk,
+      hasUnsavedWalk,
+      signInForSaveRequested,
+      rootSegment,
+    }),
   });
 }

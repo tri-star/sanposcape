@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import appConfig from "../../../../app.config";
 import {
   STORE_URLS,
+  shouldDeferForWalk,
   shouldShowUpdateRequired,
   storeOpenFailedMessage,
   toStorePlatform,
@@ -27,7 +28,7 @@ describe("shouldShowUpdateRequired", () => {
         snapshot: ready("0.2.0", null),
         platform: "ios",
         currentVersion: "0.1.0",
-        walkInProgress: false,
+        deferForWalk: false,
       }),
     ).toBe(true);
     expect(
@@ -35,7 +36,7 @@ describe("shouldShowUpdateRequired", () => {
         snapshot: ready(null, "0.2.0"),
         platform: "android",
         currentVersion: "0.1.0",
-        walkInProgress: false,
+        deferForWalk: false,
       }),
     ).toBe(true);
   });
@@ -46,7 +47,7 @@ describe("shouldShowUpdateRequired", () => {
         snapshot: ready("9.0.0", null),
         platform: "android",
         currentVersion: "0.1.0",
-        walkInProgress: false,
+        deferForWalk: false,
       }),
     ).toBe(false);
   });
@@ -57,7 +58,7 @@ describe("shouldShowUpdateRequired", () => {
         snapshot: ready("0.1.0", "0.1.0"),
         platform: "ios",
         currentVersion: "0.1.0",
-        walkInProgress: false,
+        deferForWalk: false,
       }),
     ).toBe(false);
   });
@@ -68,18 +69,18 @@ describe("shouldShowUpdateRequired", () => {
         snapshot: { status, minimumSupportedVersions: { ios: "9.0.0", android: "9.0.0" } },
         platform: "ios",
         currentVersion: "0.1.0",
-        walkInProgress: false,
+        deferForWalk: false,
       }),
     ).toBe(false);
   });
 
-  it("散歩中・保存されていない散歩があるときは出さない", () => {
+  it("散歩のために遅らせるときは出さない", () => {
     expect(
       shouldShowUpdateRequired({
         snapshot: ready("9.0.0", "9.0.0"),
         platform: "ios",
         currentVersion: "0.1.0",
-        walkInProgress: true,
+        deferForWalk: true,
       }),
     ).toBe(false);
   });
@@ -90,9 +91,64 @@ describe("shouldShowUpdateRequired", () => {
         snapshot: ready("9.0.0", "9.0.0"),
         platform: null,
         currentVersion: "0.1.0",
-        walkInProgress: false,
+        deferForWalk: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("shouldDeferForWalk", () => {
+  const base = {
+    hasActiveWalk: false,
+    hasUnsavedWalk: false,
+    signInForSaveRequested: false,
+    rootSegment: "(tabs)",
+  };
+
+  it("散歩中は画面に関わらず遅らせる", () => {
+    expect(shouldDeferForWalk({ ...base, hasActiveWalk: true })).toBe(true);
+    expect(shouldDeferForWalk({ ...base, hasActiveWalk: true, rootSegment: undefined })).toBe(true);
+  });
+
+  it("未保存の散歩があり、サマリ画面にいる間は遅らせる", () => {
+    expect(shouldDeferForWalk({ ...base, hasUnsavedWalk: true, rootSegment: "walk-summary" })).toBe(
+      true,
+    );
+  });
+
+  it("保存のためのサインインの途中（認証画面）は遅らせる", () => {
+    expect(
+      shouldDeferForWalk({
+        ...base,
+        hasUnsavedWalk: true,
+        signInForSaveRequested: true,
+        rootSegment: "(auth)",
+      }),
+    ).toBe(true);
+  });
+
+  it("サマリから離れた未保存の散歩では遅らせない（戻って保存する導線が無いため）", () => {
+    expect(shouldDeferForWalk({ ...base, hasUnsavedWalk: true, rootSegment: "(tabs)" })).toBe(
+      false,
+    );
+    expect(
+      shouldDeferForWalk({
+        ...base,
+        hasUnsavedWalk: true,
+        signInForSaveRequested: true,
+        rootSegment: "(tabs)",
+      }),
+    ).toBe(false);
+  });
+
+  it("保存のためでないサインインでは遅らせない", () => {
+    expect(shouldDeferForWalk({ ...base, hasUnsavedWalk: true, rootSegment: "(auth)" })).toBe(
+      false,
+    );
+  });
+
+  it("未保存の散歩が無ければサマリ画面でも遅らせない", () => {
+    expect(shouldDeferForWalk({ ...base, rootSegment: "walk-summary" })).toBe(false);
   });
 });
 

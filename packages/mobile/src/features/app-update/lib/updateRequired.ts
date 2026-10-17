@@ -31,14 +31,44 @@ export function toStorePlatform(os: string): StorePlatform | null {
   return os === "ios" || os === "android" ? os : null;
 }
 
+/** サマリ画面（`app/walk-summary.tsx`）と認証画面（`app/(auth)/`）の先頭セグメント。 */
+const WALK_SUMMARY_SEGMENT = "walk-summary";
+const AUTH_GROUP_SEGMENT = "(auth)";
+
+/**
+ * 散歩の記録を失わないために、案内を遅らせるべきか（SS-101）。
+ *
+ * 散歩は永続化されず（ADR-M-008）、ストアへ移ってアプリが終了すると記録を失う。遅らせるのは
+ * **まだ記録を残せる間**だけにする:
+ * - 散歩中（`hasActiveWalk`）。
+ * - 保存されていない散歩があり、サマリ画面にいる（保存の実行中・再試行・サインインの CTA）。
+ * - 保存されていない散歩があり、サマリの CTA から来た保存のためのサインインの途中
+ *   （`signInForSaveRequested` かつ認証画面。サインイン後にサマリへ戻って保存する。SS-37）。
+ *
+ * サマリから「ホームへ」で離れたドラフトは、サインアウトか次の散歩まで残るが、戻って保存する導線が無い。
+ * これを条件に入れると、アプリを再起動するまで案内が出なくなるため、画面を離れたら遅らせない。
+ */
+export function shouldDeferForWalk(input: {
+  hasActiveWalk: boolean;
+  hasUnsavedWalk: boolean;
+  signInForSaveRequested: boolean;
+  /** `useSegments()` の先頭。ルートの外（初回描画前）では undefined。 */
+  rootSegment: string | undefined;
+}): boolean {
+  if (input.hasActiveWalk) return true;
+  if (!input.hasUnsavedWalk) return false;
+  if (input.rootSegment === WALK_SUMMARY_SEGMENT) return true;
+  return input.signInForSaveRequested && input.rootSegment === AUTH_GROUP_SEGMENT;
+}
+
 /**
  * アップデートを求める全画面の案内を出すか（SS-101）。
  *
  * - `ready` のときだけ判定する。`loading`（初回取得前）・`unavailable`（取得失敗・成功値なし）は出さない。
  *   取得完了を起動条件にしない方針（`architecture-guideline.md`「フィーチャーフラグの扱い」）と同じで、
  *   通信断でアプリを使えなくしないため。成功値があれば再取得の失敗中も `ready` のまま判定する。
- * - `walkInProgress`（進行中の散歩・保存されていない散歩がある）の間は出さない。散歩は永続化されず
- *   （ADR-M-008）、ストアへ送るとアプリの終了で記録を失うため。散歩が終われば出る。
+ * - `deferForWalk`（`shouldDeferForWalk`。散歩中・保存できる間の未保存の散歩）の間は出さない。
+ *   散歩を終えて保存するか、サマリ画面を離れれば出る。
  *   contract（API の削除）は最低バージョンを上げてから古いクライアントが減るのを待って行うので、
  *   散歩の終了まで遅らせても互換の問題にはならない（ADR-008 決定7）。
  */
@@ -46,9 +76,9 @@ export function shouldShowUpdateRequired(input: {
   snapshot: Pick<AppConfigSnapshot, "status" | "minimumSupportedVersions">;
   platform: StorePlatform | null;
   currentVersion: string | null;
-  walkInProgress: boolean;
+  deferForWalk: boolean;
 }): boolean {
-  if (input.walkInProgress) return false;
+  if (input.deferForWalk) return false;
   if (input.snapshot.status !== "ready" || input.platform === null) return false;
   return isBelowMinimumVersion({
     currentVersion: input.currentVersion,
