@@ -1,8 +1,10 @@
 import Constants from "expo-constants";
 import { useSegments } from "expo-router";
+import { useState } from "react";
 import { Platform } from "react-native";
 
 import {
+  isOnWalkSummary,
   shouldDeferForWalk,
   shouldShowUpdateRequired,
   toStorePlatform,
@@ -30,18 +32,31 @@ const STORE_PLATFORM = toStorePlatform(Platform.OS);
 export function useUpdateRequired(): boolean {
   const snapshot = useAppConfig();
   const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
-  const hasUnsavedWalk = useFinishedWalkStore(
-    (state) => state.finishedWalk !== null && !state.saved,
+  const unsavedWalkId = useFinishedWalkStore((state) =>
+    state.finishedWalk !== null && !state.saved ? state.finishedWalk.clientWalkId : null,
   );
   const signInForSaveRequested = useFinishedWalkStore((state) => state.signInForSaveRequested);
   const rootSegment: string | undefined = useSegments()[0];
+
+  // サマリ画面で表示したドラフトを覚える。レンダー中に state を更新する形（React の「props の変化で
+  // state を調整する」パターン）にして、記録前の値でコミットされる回を作らない。
+  const [summaryVisitedWalkId, setSummaryVisitedWalkId] = useState<string | null>(null);
+  if (
+    isOnWalkSummary(rootSegment) &&
+    unsavedWalkId !== null &&
+    summaryVisitedWalkId !== unsavedWalkId
+  ) {
+    setSummaryVisitedWalkId(unsavedWalkId);
+  }
+
   return shouldShowUpdateRequired({
     snapshot,
     platform: STORE_PLATFORM,
     currentVersion: CURRENT_APP_VERSION,
     deferForWalk: shouldDeferForWalk({
       hasActiveWalk,
-      hasUnsavedWalk,
+      unsavedWalkId,
+      summaryVisitedWalkId,
       signInForSaveRequested,
       rootSegment,
     }),

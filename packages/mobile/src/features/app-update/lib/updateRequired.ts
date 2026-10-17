@@ -44,21 +44,34 @@ const AUTH_GROUP_SEGMENT = "(auth)";
  * - 保存されていない散歩があり、サマリ画面にいる（保存の実行中・再試行・サインインの CTA）。
  * - 保存されていない散歩があり、サマリの CTA から来た保存のためのサインインの途中
  *   （`signInForSaveRequested` かつ認証画面。サインイン後にサマリへ戻って保存する。SS-37）。
+ * - 保存されていない散歩が、まだサマリ画面に着いていない（散歩の終了からサマリへの遷移の途中）。
+ *   `useSegments()` はナビゲーションの状態が変わったコミットより1つ遅れて更新されるので、終了の直後は
+ *   散歩中の画面のセグメントのまま `hasActiveWalk` だけが false になる。ここで遅らせないと、
+ *   終了確認の `Dialog` が閉じるのと同時に案内の `Modal` が一瞬開く（SS-101 のレビューで判明）。
  *
- * サマリから「ホームへ」で離れたドラフトは、サインアウトか次の散歩まで残るが、戻って保存する導線が無い。
- * これを条件に入れると、アプリを再起動するまで案内が出なくなるため、画面を離れたら遅らせない。
+ * サマリに着いた後に「ホームへ」で離れたドラフトは、サインアウトか次の散歩まで残るが、戻って保存する導線が無い。
+ * これを条件に入れると、アプリを再起動するまで案内が出なくなるため、サマリを離れたら遅らせない。
  */
 export function shouldDeferForWalk(input: {
   hasActiveWalk: boolean;
-  hasUnsavedWalk: boolean;
+  /** 保存されていない散歩の `clientWalkId`。無ければ null。 */
+  unsavedWalkId: string | null;
+  /** サマリ画面で表示したことのある、保存されていない散歩の `clientWalkId`。 */
+  summaryVisitedWalkId: string | null;
   signInForSaveRequested: boolean;
   /** `useSegments()` の先頭。ルートの外（初回描画前）では undefined。 */
   rootSegment: string | undefined;
 }): boolean {
   if (input.hasActiveWalk) return true;
-  if (!input.hasUnsavedWalk) return false;
+  if (input.unsavedWalkId === null) return false;
   if (input.rootSegment === WALK_SUMMARY_SEGMENT) return true;
-  return input.signInForSaveRequested && input.rootSegment === AUTH_GROUP_SEGMENT;
+  if (input.signInForSaveRequested && input.rootSegment === AUTH_GROUP_SEGMENT) return true;
+  return input.summaryVisitedWalkId !== input.unsavedWalkId;
+}
+
+/** サマリ画面にいるか（`summaryVisitedWalkId` を記録する条件）。 */
+export function isOnWalkSummary(rootSegment: string | undefined): boolean {
+  return rootSegment === WALK_SUMMARY_SEGMENT;
 }
 
 /**

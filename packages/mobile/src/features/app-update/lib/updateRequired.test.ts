@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import appConfig from "../../../../app.config";
 import {
   STORE_URLS,
+  isOnWalkSummary,
   shouldDeferForWalk,
   shouldShowUpdateRequired,
   storeOpenFailedMessage,
@@ -100,10 +101,12 @@ describe("shouldShowUpdateRequired", () => {
 describe("shouldDeferForWalk", () => {
   const base = {
     hasActiveWalk: false,
-    hasUnsavedWalk: false,
+    unsavedWalkId: null,
+    summaryVisitedWalkId: null,
     signInForSaveRequested: false,
     rootSegment: "(tabs)",
   };
+  const unsaved = { ...base, unsavedWalkId: "walk-1", summaryVisitedWalkId: "walk-1" };
 
   it("散歩中は画面に関わらず遅らせる", () => {
     expect(shouldDeferForWalk({ ...base, hasActiveWalk: true })).toBe(true);
@@ -111,44 +114,41 @@ describe("shouldDeferForWalk", () => {
   });
 
   it("未保存の散歩があり、サマリ画面にいる間は遅らせる", () => {
-    expect(shouldDeferForWalk({ ...base, hasUnsavedWalk: true, rootSegment: "walk-summary" })).toBe(
-      true,
-    );
+    expect(shouldDeferForWalk({ ...unsaved, rootSegment: "walk-summary" })).toBe(true);
   });
 
   it("保存のためのサインインの途中（認証画面）は遅らせる", () => {
     expect(
-      shouldDeferForWalk({
-        ...base,
-        hasUnsavedWalk: true,
-        signInForSaveRequested: true,
-        rootSegment: "(auth)",
-      }),
+      shouldDeferForWalk({ ...unsaved, signInForSaveRequested: true, rootSegment: "(auth)" }),
     ).toBe(true);
   });
 
-  it("サマリから離れた未保存の散歩では遅らせない（戻って保存する導線が無いため）", () => {
-    expect(shouldDeferForWalk({ ...base, hasUnsavedWalk: true, rootSegment: "(tabs)" })).toBe(
-      false,
-    );
+  it("散歩を終えた直後、サマリに着く前（セグメントが散歩中の画面のまま）は遅らせる", () => {
     expect(
-      shouldDeferForWalk({
-        ...base,
-        hasUnsavedWalk: true,
-        signInForSaveRequested: true,
-        rootSegment: "(tabs)",
-      }),
-    ).toBe(false);
+      shouldDeferForWalk({ ...base, unsavedWalkId: "walk-2", summaryVisitedWalkId: "walk-1" }),
+    ).toBe(true);
+    expect(shouldDeferForWalk({ ...base, unsavedWalkId: "walk-1" })).toBe(true);
+  });
+
+  it("サマリに着いた後に離れた未保存の散歩では遅らせない（戻って保存する導線が無いため）", () => {
+    expect(shouldDeferForWalk(unsaved)).toBe(false);
+    expect(shouldDeferForWalk({ ...unsaved, signInForSaveRequested: true })).toBe(false);
   });
 
   it("保存のためでないサインインでは遅らせない", () => {
-    expect(shouldDeferForWalk({ ...base, hasUnsavedWalk: true, rootSegment: "(auth)" })).toBe(
-      false,
-    );
+    expect(shouldDeferForWalk({ ...unsaved, rootSegment: "(auth)" })).toBe(false);
   });
 
   it("未保存の散歩が無ければサマリ画面でも遅らせない", () => {
     expect(shouldDeferForWalk({ ...base, rootSegment: "walk-summary" })).toBe(false);
+  });
+});
+
+describe("isOnWalkSummary", () => {
+  it("サマリ画面のセグメントだけ true", () => {
+    expect(isOnWalkSummary("walk-summary")).toBe(true);
+    expect(isOnWalkSummary("(tabs)")).toBe(false);
+    expect(isOnWalkSummary(undefined)).toBe(false);
   });
 });
 
