@@ -98,11 +98,11 @@ tags:
     visible:
       text: "この場所の住所を入れました.*"
     timeout: 15000
-- tapOn:
-    id: "pin-register-name-input"
-- eraseText:
-    charactersToErase: 60
-- inputText: ${output.pinName}
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-register-name-input"
+      TEXT: ${output.pinName}
 - hideKeyboard
 - scrollUntilVisible:
     element:
@@ -183,10 +183,11 @@ tags:
     visible:
       id: "pin-edit-form"
     timeout: 15000
-- tapOn:
-    id: "pin-edit-name-input"
-- eraseText: 100
-- inputText: ${output.editedName}
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-edit-name-input"
+      TEXT: ${output.editedName}
 - hideKeyboard
 - tapOn:
     id: "pin-edit-memo-input"

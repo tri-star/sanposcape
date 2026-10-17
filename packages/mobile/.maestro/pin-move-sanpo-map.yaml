@@ -111,11 +111,11 @@ tags:
     visible:
       text: "この場所の住所を入れました.*"
     timeout: 15000
-- tapOn:
-    id: "pin-register-name-input"
-- eraseText:
-    charactersToErase: 60
-- inputText: ${output.pinName}
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-register-name-input"
+      TEXT: ${output.pinName}
 - hideKeyboard
 - scrollUntilVisible:
     element:
@@ -223,9 +223,12 @@ tags:
     visible:
       id: "sanpo-map-list-screen"
     timeout: 10000
+# 検索欄に残る地図 A の名前はクリアボタンで消す（eraseText はカーソルより前しか消さず、欄の中央を押すと
+# 名前の後ろ半分が残って地図 B の検索が0件になっていた。run 38980207557。subflows/replace-text.yaml）。
+- tapOn:
+    id: "sanpo-map-list-search-input-clear"
 - tapOn:
     id: "sanpo-map-list-search-input"
-- eraseText: 100
 - inputText: ${output.mapB}
 - hideKeyboard
 - tapOn:

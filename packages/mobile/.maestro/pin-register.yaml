@@ -32,12 +32,12 @@ tags:
     visible:
       text: "この場所の住所を入れました.*"
     timeout: 15000
-- tapOn:
-    id: "pin-register-name-input"
-- eraseText:
-    charactersToErase: 60
 # 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
-- inputText: "E2E-pin"
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-register-name-input"
+      TEXT: "E2E-pin"
 # タグ欄は位置プレビュー・位置調整ボタン（SS-124）の下にあり、キーボードを開いたままだと
 # その裏に隠れる。Maestro は隠れた要素の座標をそのままタップするので、タップがキーボードに
 # 吸われて名前欄に入力が続いてしまう。キーボードを閉じてからタグ欄を画面内に出す。
