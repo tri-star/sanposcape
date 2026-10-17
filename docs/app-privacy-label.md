@@ -66,15 +66,15 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 
 | データの種類 | 実際のデータ | 根拠（実装） | ポリシー |
 | --- | --- | --- | --- |
-| 名前 | Google から受け取る表示名、または Apple のサインイン時に端末から受け取る氏名（`users.display_name`） | `auth/providers/google.py`、`auth/schemas.py`、`users/models.py` | 1-2 |
+| 名前 | Google から受け取る表示名、または Apple のサインイン時に端末から受け取る氏名（`users.display_name`） | `auth/providers/google.py`、`auth/providers/apple.py`、`auth/schemas.py`、`users/service.py`、`users/models.py` | 1-2 |
 | メールアドレス | Google / Apple から受け取るメールアドレス（`users.email`。Apple は非公開リレーのアドレスの場合がある）。重要なお知らせの連絡にも使うが、マーケティングには使わない | 同上 | 1-2、2 |
 | フィットネス | 散歩の記録の歩いた時間・距離（`walks.duration_seconds` / `distance_meters`）。Motion & Fitness API・HealthKit は使っていないが、運動の記録にあたるため申告する | `walks/models.py` | 1-1 |
 | 正確な位置情報 | 散歩の軌跡（小数 6 桁）、目的地の座標、ピンの座標。ピン地図の表示範囲（小数 4 桁）は `GET /pins` のクエリに載るため、CloudFront のアクセスログに残りうる。Apple の定義では小数 3 桁以上は「正確」。なお、スポット・ルート検索の現在地（小数 4 桁 ≒ 11m）と、ピン名の初期値に使う住所を引くためのピンの座標（SS-138。Google Geocoding API へ送る）は POST のボディで送り、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、DB にもログにも残らない | `walks/models.py`、`sanpo_maps/models.py`、mobile の `walkTrackPayload.ts` / `pinFetchBounds.ts` / `placeSearchRequest.ts`、backend の `config.py`（キャッシュの TTL） | 1-1、1-5 |
 | 写真またはビデオ | ピンに添付する写真（S3）。Google のプロフィール画像の URL（`users.photo_url`）もここに含める | `sanpo_maps/photos/`、`users/models.py` | 1-2、1-3 |
 | その他のユーザコンテンツ | ピンの名称・メモ・タグ、地図（sanpo map）の名称 | `sanpo_maps/models.py`、`pins/schemas.py` | 1-3 |
 | ユーザ ID | Google / Apple アカウントの ID（`users.provider_subject` = sub）、アカウントの内部 ID（`users.id`） | `users/models.py` | 1-2、1-5 |
-| パフォーマンスデータ | CloudFront のアクセスログの処理時間（IP アドレスと同じ行に残る）、backend のトレースの処理時間（トレースは IP・UA を消している。アカウントの内部 ID を `enduser.id`、アプリの起動ごとの乱数を `session.id` として持つ。SS-181） | `core/tracing.py`、`core/logs.py`、`core/access_log.py`、`aws_lambda/tracing.py`、ADR-013 | 1-5 |
-| その他の診断データ | backend のログ（アカウントの内部 ID と、アプリの起動ごとの乱数のセッション ID を含む行がある）、CloudFront のアクセスログ（IP アドレス、URL、ブラウザ・アプリの種類）。最長 400 日保存 | `core/logs.py`、`core/access_log.py`、`template.yaml`（ロググループの保持期間）、ADR-005（アクセスログ S3 は infra 所有） | 1-5、6 |
+| パフォーマンスデータ | CloudFront のアクセスログの処理時間（IP アドレスと同じ行に残る）、backend のトレースの処理時間（トレースは IP・UA を消している。アカウントの内部 ID を `enduser.id` として持つ。アプリの起動ごとの乱数を `session.id` として持つ受け口もあるが、mobile はまだ `X-App-Session-Id` を送っていない。SS-181） | `core/tracing.py`、`core/logs.py`、`core/access_log.py`、`aws_lambda/tracing.py`、ADR-013 | 1-5 |
+| その他の診断データ | backend のログ（アカウントの内部 ID を含む行がある。アプリの起動ごとの乱数のセッション ID の受け口もあるが、mobile はまだ送っていない）、CloudFront のアクセスログ（IP アドレス、URL、ブラウザ・アプリの種類）。最長 400 日保存 | `core/logs.py`、`core/access_log.py`、`template.yaml`（ロググループの保持期間）、ADR-005（アクセスログ S3 は infra 所有） | 1-5、6 |
 
 「紐づく」は、アカウント（内部 ID）と結び付けて保存しているため。診断データも、ログにアカウントの内部 ID や IP アドレスが含まれるため「紐づく」とする。
 
@@ -95,7 +95,7 @@ Apple の定義では、アプリに組み込んだ SDK が収集するデータ
 | データの種類 | 申告しない理由 |
 | --- | --- |
 | 検索履歴 | アプリから検索語を送っていない。`GET /pins` の `q` / `tags` は API にあるが、mobile で `GET /pins` を呼ぶ `pinFetchBounds.ts` と `sanpoMapPinList.ts` のどちらも送らない。スポット探索の条件は POST のボディで送り、DB にもログにも残さない（メモリに数分キャッシュするだけで、利用者の識別子と結び付けない） |
-| 認証トークン | サーバーには照合用のハッシュだけを保存し、読める形で保持しない |
+| 認証トークン | セッションのトークンは、サーバーには照合用のハッシュだけを保存し、読める形で保持しない。Apple でサインインした場合の Apple の refresh token は平文で保存する（アカウント削除時に Apple で失効させるため。ADR-002 の SS-198 追補）が、利用者についての情報ではなく Apple の定義のデータの種類に当たらない。ポリシーには 1-4・9 に書いている |
 | 製品の操作（Product Interaction） | アクセス解析のツールを組み込んでいない。backend のアクセスログはリクエスト単位の記録で、診断データとして申告している（Google SDK の利用状況は「その他の使用状況データ」として申告している） |
 | 広告データ・購入履歴・財務情報・連絡先・健康・機密情報・音声・閲覧履歴など | 該当する機能が無い（マイクの権限も要求しない）。組み込んだ SDK のマニフェストにも無い |
 
