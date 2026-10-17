@@ -231,6 +231,7 @@ jobs:
       # - sha が main の祖先であること（main に無いコミット、例えば fork の PR のコミットを checkout しない）
       # - そのコミットの app.json の version がタグと一致すること
       # - 承認を待つ間にタグが作られていないこと（concurrency で直列化しているが、手で作られた場合に備える）
+      # - 最新の mobile/v* タグがビルドのコミットの祖先であること（main 上の古いコミットにタグを付けない）
       - name: Recheck release target
         run: |
           set -euo pipefail
@@ -245,6 +246,11 @@ jobs:
           fi
           if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" > /dev/null; then
             echo "::error::タグ ${RELEASE_TAG} が承認待ちの間に作られています。再実行して状態を確かめてください"
+            exit 1
+          fi
+          latest="$(git tag --list "${TAG_PREFIX}*" --sort=-v:refname | head -n 1)"
+          if [ -n "$latest" ] && ! git merge-base --is-ancestor "$latest" "$BUILD_SHA"; then
+            echo "::error::最新のタグ ${latest} がビルドのコミット ${BUILD_SHA} の祖先ではありません（古いコミットのビルド）"
             exit 1
           fi
 
