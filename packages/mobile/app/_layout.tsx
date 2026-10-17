@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { queryClient } from "@/api/queryClient";
 import { AppConfigBootstrap } from "@/components/app-config/AppConfigBootstrap";
+import { UpdateRequiredGate } from "@/features/app-update/components/UpdateRequiredGate";
 import { AuthGate } from "@/features/auth/components/AuthGate";
 // サインアウト時の expo-image キャッシュ消去登録（副作用 import）。起動時に必ず評価される
 // このファイルから読み込むことで、写真を表示する画面が一度も開かれなくても登録が確実に走る
@@ -36,6 +37,8 @@ export default function RootLayout() {
             <AuthGate>
               <Stack screenOptions={{ headerShown: false }} />
             </AuthGate>
+            {/* 最低サポートバージョン未満なら全画面の案内で操作をふさぐ（SS-101）。Stack は包まない。 */}
+            <UpdateRequiredGate />
             <ThemedStatusBar />
           </SafeAreaProvider>
         </ThemeProvider>
