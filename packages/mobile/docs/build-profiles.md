@@ -467,6 +467,8 @@ pnpm --filter mobile exec eas env:create \
 4. EAS の `production` 環境に `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
    （本番 GCP プロジェクトの値）があることを `eas env:list --environment production` で確かめる
 5. TestFlight の内部テストのグループを作り、テスターを登録する
+6. 本番の backend（`app-api.sanposcape.com`）が動いていることを確かめる。TestFlight への提出自体は backend が無くても通るが、
+   インストールしたアプリはサインインから先が動かず、TestFlight での確認ができない（上記「`production`」節）
 
 ### ビルド番号の採番（SS-89 で EAS サーバー側へ移行）
 
