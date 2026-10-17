@@ -1035,6 +1035,8 @@ CI からは公開の時点を検知できないため、**公開した後に人
 - `release`（`production`・`contents: write`）: checkout・ハッシュで検証した git-cliff・`gh` だけでタグと Release を作る。
   `pnpm install` と `npx eas-cli` のコード（版を固定していない npm の依存）は書き込み権限を持つ job で動かさない
   （backend-deploy.yml・feature-flags.yml の prepare と同じ考え方）。
+  resolve の出力は信用せず、release job でコミットが main 上にあることとそのコミットの version を確かめ直す。
+  git-cliff の設定（`cliff.toml`。`replace_command` でコマンドを実行できる）は、ビルドのコミットのものではなく main の先頭のものを使う。
 
 TestFlight に上げたが公開しなかったビルドにはタグを付けない。
 
