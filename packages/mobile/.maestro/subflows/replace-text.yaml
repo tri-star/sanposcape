@@ -26,11 +26,11 @@ appId: com.sanposcape.app.dev
     id: ${FIELD_ID}
     point: "95%,50%"
 - eraseText: 100
-# 既にフォーカスがあるので、押しても画面は変わらない。変化が無いことによる再タップは不要。
+# 既にフォーカスがあるので、押しても画面は変わらない（変化が無いときの再タップ `retryTapIfNoChange` は
+# 既定で無効なので指定しない。未知のキーを書くとフローの読み込みで全フローが落ちる）。
 - tapOn:
     id: ${FIELD_ID}
     point: "95%,50%"
-    retryIfNoChange: false
 - eraseText: 100
 - inputText: ${TEXT}
 # 文字が残っていれば、ここで（後段の別の assert ではなく）落ちる。
