@@ -278,6 +278,23 @@ def test_concurrency_limit_line_matches_the_reserved_concurrency(env: str) -> No
     assert lines == [limit]
 
 
+@pytest.mark.parametrize("env", _ENVS)
+def test_reserved_concurrency_is_set_for_every_function_in_every_env(env: str) -> None:
+    """どちらの env でも Api / Migrate / PhotoPurge の予約が 5 / 1 / 1 で、prod で落ちないこと。
+
+    Api は in-process のキャッシュ・レート制限の倍率と Neon への接続数の上限、Migrate と
+    PhotoPurge は二重起動の防止（ADR-005 決定8 の SS-217 追補。それまで prod は
+    `AWS::NoValue` で落としていた）。
+    """
+    resources = load_resources()
+    reserved = {
+        name: _resolve_if(resources[name]["Properties"]["ReservedConcurrentExecutions"], env)
+        for name in ("Api", "Migrate", "PhotoPurge")
+    }
+
+    assert reserved == {"Api": 5, "Migrate": 1, "PhotoPurge": 1}
+
+
 def test_duration_annotations_match_the_time_budget_and_the_lambda_timeout() -> None:
     """Duration の水平線は config.py の時間予算と Globals の Timeout の二重持ち。ずれたら落ちる。"""
     timeout_seconds = load_template()["Globals"]["Function"]["Timeout"]
