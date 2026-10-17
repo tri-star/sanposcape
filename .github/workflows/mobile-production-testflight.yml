@@ -16,6 +16,7 @@ on:
 # 本番の run 同士だけを直列化する。mobile-release-build.yml（staging）とはグループを分ける:
 # 同じグループだと、待機中の本番の run が staging の次のディスパッチに置き換えられて実行されずに終わる
 # （待機できる run はグループに1つだけ）。EAS 側も同時実行1でキューに積むので、GitHub 側で staging と直列化しなくても壊れない。
+# ただし EAS の順番待ちは下の timeout-minutes に含まれるので、staging の iOS ビルドの実行中は起動しない（release-runbook.md §4.1）。
 concurrency:
   group: mobile-production-testflight
   cancel-in-progress: false
