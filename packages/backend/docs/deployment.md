@@ -494,7 +494,7 @@ aws lambda invoke --function-name sanposcape-dev-backend-migrate \
   読む API が `UndefinedColumn` で 500 になる。** デプロイ直後に続けて invoke する。本番稼働後は、
   マイグレーションだけの PR を先にデプロイして invoke し、その後で列を使うコードを出す
   （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補）。
-- `ReservedConcurrentExecutions=1`（dev。prod はクォータの都合で未設定）により、
+- `ReservedConcurrentExecutions=1`（dev。prod は未設定。クォータは 1,000 に引き上げ済みで、予約の投入待ち）により、
   `upgrade head` の同時実行は防がれる。
 
 ### 5.3 緊急時のローカル実行（代替手段）
@@ -1346,7 +1346,7 @@ aws cloudwatch list-metrics --namespace ApplicationSignals --metric-name Fault -
 |---|---|---|---|
 | 上段 | 説明 | — | データ源ごとの意味と、自動更新を付けないこと |
 | 1 | API 全体: リクエスト数 / 4xx / 5xx、エラー率、レイテンシ（p50/p95/p99） | Application Signals（`ApplicationSignals` 名前空間。`Latency` / `Error` / `Fault`。操作 `<関数名>/FunctionHandler`） | スパン由来。サンプリングの影響を受けるかは未確認（上の検証状況）。Latency に Init（コールドスタート）は含まれない |
-| 2 | Lambda: 呼び出し（左軸）/ エラー・スロットル（右軸）、Duration、同時実行数 | `AWS/Lambda` | 全件。Duration には時間予算（25 秒）と Timeout（29 秒）の線（値は `config.py` と `Globals` の二重持ちで、`test_monitoring_config.py` が一致を固定）。同時実行数の線は dev が予約の 5、prod がクォータの 10 |
+| 2 | Lambda: 呼び出し（左軸）/ エラー・スロットル（右軸）、Duration、同時実行数 | `AWS/Lambda` | 全件。Duration には時間予算（25 秒）と Timeout（29 秒）の線（値は `config.py` と `Globals` の二重持ちで、`test_monitoring_config.py` が一致を固定）。同時実行数の線は dev が予約の 5、prod がクォータの 10（2026-10-17 時点でクォータは 1,000 に引き上げ済み。予約を入れたら線の値も見直す） |
 | 3 | ルート別（Q1）、ルート × ステータス（Q2） | `aws/spans` | ルート（`METHOD /テンプレート`）ごとの件数・p50/p95/p99・4xx/5xx 率。**sampled なスパンだけ** |
 | 4 | 直近の 5xx（Q3）、ルート別の件数の時系列（Q4） | `aws/spans` | Q3 の `traceId` から X-Ray / Transaction Search のトレースへ辿る |
 | 5 | メモリ（Q5）、コールドスタート（Q6a、Q6b） | Lambda のロググループの REPORT 行 | 全件 |
@@ -1487,7 +1487,7 @@ Q5〜Q6b は、REPORT 行がテキスト形式（`@type = 'REPORT'` / `@maxMemor
 | アラーム名 | 条件（5 分、1 回で判定、欠損は正常扱い） | 疑うこと |
 |---|---|---|
 | `sanposcape-<env>-backend-api-lambda-errors` | Lambda `Errors` の合計 >= 1 | タイムアウト・OOM・初期化の失敗・ランタイムのクラッシュ・ハンドラーが投げた例外。アプリの未処理例外は 500 の応答になるので通常ここには入らない。Q7 とログを見る |
-| `sanposcape-<env>-backend-api-lambda-throttles` | Lambda `Throttles` の合計 >= 1 | 同時実行数の上限（dev は予約 5、prod はクォータ 10）。同時実行数のウィジェットを見る |
+| `sanposcape-<env>-backend-api-lambda-throttles` | Lambda `Throttles` の合計 >= 1 | 同時実行数の上限（dev は予約 5。prod はクォータ 1,000 で、予約は投入待ち）。同時実行数のウィジェットを見る |
 | `sanposcape-<env>-backend-api-5xx` | Application Signals `Fault`（5xx と、スパンのステータスが ERROR のもの。次元は `Environment` / `Operation`=`<関数名>/FunctionHandler` / `Service`）の合計 >= 3 | 5xx の件数。外部 API の障害による 503 も含む。Q3 から trace へ |
 
 - **Fault と Lambda の Errors は、ハンドラーが例外を投げたときに両方鳴りうる。** 二重の通知は許容する（片方に寄せると、
@@ -1813,7 +1813,7 @@ aws lambda invoke --function-name sanposcape-dev-backend-scheduled-photo-purge -
   これが毎日続くなら処理量が足りていない。バッチの上限（`ACCOUNT_PHOTO_PURGE_BATCH_SIZE`）・締め切り（`ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS`。
   `Timeout` 300 秒より十分短く保つ）を見直すか、ADR-009 決定36 の案B（SQS のファンアウト）へ移る。
 - Scheduler は at-least-once で、Lambda の非同期呼び出しはエラー時に既定で 2 回再試行する。処理は冪等なので二重に動いても壊れない
-  （dev は予約同時実行数 1 で重ならない。prod はクォータの都合で未予約）。
+  （dev は予約同時実行数 1 で重ならない。prod は未予約。クォータは 1,000 に引き上げ済みで、予約の投入待ち）。
 
 ### 設定値
 
