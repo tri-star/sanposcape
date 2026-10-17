@@ -2,12 +2,16 @@ name: mobile production release (tag & GitHub Release)
 
 # ストアで公開した本番アプリのビルドに `mobile/vX.Y.Z` タグと GitHub Release を作る（ADR-008 決定4・決定5）。
 # ★ 実行するタイミング: App Store Connect で「このバージョンをリリース」を押した後（docs/release-runbook.md §5.1）。
-#   公開操作は手動のため、ストアの状態はこのワークフローからは確かめない。承認（production Environment）の際に
-#   公開済みであることを確かめる。
+#   公開操作は手動のため、ストアの状態はこのワークフローからは確かめない。resolve job が Job Summary に出す
+#   version・buildNumber を、承認者が App Store Connect で公開したビルドと照合してから承認する。
 # ★ 再ビルドしない。入力は mobile-production-testflight.yml の Job Summary に出た EAS の BUILD_ID で、
 #   EAS が記録したビルドのコミット（gitCommitHash）と version（appVersion）にタグを付ける。
 # ★ version は git-cliff で bump せず、app.json の `version`（= ビルドの appVersion）をそのまま使う
 #   （ADR-008 決定4。mobile の version は OTA の互換境界として手動管理している）。git-cliff はリリースノートの生成だけに使う。
+# ★ job を2つに分ける（backend-deploy.yml / feature-flags.yml の prepare と同じ考え方）。
+#   - resolve: 依存（pnpm install・eas-cli）のコードを実行するので、environment も書き込み権限も持たせない。
+#     検査を承認の前に済ませ、承認者が照合する値を出す。
+#   - release: production Environment の承認の後に、checkout・ハッシュで検証した git-cliff・gh だけでタグと Release を作る。
 # ★ ビルドの詳細（eas build:view --json）は成果物（.ipa）のダウンロード URL を含むので、ファイルに置いて必要な値だけ取り出し、
 #   内容をログに出さない（public リポジトリ）。
 
@@ -27,27 +31,28 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  TAG_PREFIX: mobile/v
+  BUILD_ID: ${{ inputs.build_id }}
+
 jobs:
-  release:
+  resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # 承認者（Required reviewers）と main 限定の保護ルールを使う。AWS には触らないので id-token は付けない。
-    environment: production
-    permissions:
-      contents: write
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      sha: ${{ steps.build.outputs.sha }}
+      build_number: ${{ steps.build.outputs.build_number }}
+      skip: ${{ steps.target.outputs.skip }}
+      tag: ${{ steps.target.outputs.tag }}
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      GIT_CLIFF_VERSION: "2.14.1"
-      # https://github.com/orhun/git-cliff/releases/download/v2.14.1/git-cliff-2.14.1-x86_64-unknown-linux-musl.tar.gz.sha512
-      GIT_CLIFF_SHA512: b5ce5da0189e50fe6c64753bb205b4c8a4a657b5ab9301d2690d7bb66238388e8146237ba0eb407a5b8ee49d9a1646ea02b392b470d8ca19f0b948cf8a62965f
-      TAG_PREFIX: mobile/v
-      BUILD_ID: ${{ inputs.build_id }}
     steps:
       - name: Validate inputs
         env:
           GIT_REF: ${{ github.ref }}
         run: |
-          # Environment の Deployment branches（main 限定）でも弾かれるが、理由が分かるようにここで落とす。
+          # release job の Environment（Deployment branches は main 限定）でも弾かれるが、承認待ちに入る前に理由が分かるように落とす。
           if [ "$GIT_REF" != "refs/heads/main" ]; then
             echo "::error::main からのみ実行できます（現在: $GIT_REF）"
             exit 1
@@ -57,7 +62,7 @@ jobs:
             exit 1
           fi
 
-      # 前回タグの検出・祖先関係の確認・差分の算出に全履歴とタグが要る。タグの作成は gh（API）で行うので git の認証情報は残さない。
+      # 前回タグの検出・祖先関係の確認に全履歴とタグが要る。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -95,16 +100,22 @@ jobs:
           platform=$(field platform)
           profile=$(field buildProfile)
           distribution=$(field distribution)
+          app_identifier=$(field appIdentifier)
           app_version=$(field appVersion)
           build_number=$(field appBuildVersion)
           sha=$(field gitCommitHash)
           # TestFlight に上げた本番のストア向けビルドであることを確かめる（staging のビルド ID の取り違えを防ぐ）。
-          if [ "$status" != "FINISHED" ] || [ "$platform" != "IOS" ] || [ "$profile" != "production" ] || [ "$distribution" != "STORE" ]; then
-            echo "::error::本番の iOS ストア向けの完了済みビルドではありません（status=${status} platform=${platform} buildProfile=${profile} distribution=${distribution}）"
+          if [ "$status" != "FINISHED" ] || [ "$platform" != "IOS" ] || [ "$profile" != "production" ] \
+            || [ "$distribution" != "STORE" ] || [ "$app_identifier" != "com.sanposcape.app" ]; then
+            echo "::error::本番の iOS ストア向けの完了済みビルドではありません（status=${status} platform=${platform} buildProfile=${profile} distribution=${distribution} appIdentifier=${app_identifier}）"
             exit 1
           fi
           if ! [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::ビルドの version が X.Y.Z の形ではありません: ${app_version}"
+            exit 1
+          fi
+          if ! [[ "$build_number" =~ ^[0-9]+$ ]]; then
+            echo "::error::ビルドの buildNumber（appBuildVersion）を取得できませんでした: ${build_number}"
             exit 1
           fi
           if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
@@ -128,6 +139,7 @@ jobs:
         env:
           VERSION: ${{ steps.build.outputs.version }}
           BUILD_SHA: ${{ steps.build.outputs.sha }}
+          BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: |
           set -euo pipefail
           tag="${TAG_PREFIX}${VERSION}"
@@ -147,9 +159,9 @@ jobs:
             if [ "$tagged" = "$BUILD_SHA" ]; then
               echo "skip=true" >> "$GITHUB_OUTPUT"
               {
-                echo "## リリース作成をスキップしました"
+                echo "## リリース作成をスキップします"
                 echo
-                echo "\`${tag}\` は既にコミット \`${BUILD_SHA}\` に作成済みです。"
+                echo "\`${tag}\` は既にコミット \`${BUILD_SHA}\` に作成済みです。release job は実行しません。"
               } >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
@@ -167,9 +179,62 @@ jobs:
             echo "skip=false"
             echo "tag=${tag}"
           } >> "$GITHUB_OUTPUT"
+          {
+            echo "## 承認の前に照合すること"
+            echo
+            echo "App Store Connect で公開したビルドと、次の version・buildNumber が一致することを確かめてから release job を承認してください。"
+            echo
+            echo "- 作成するタグ: \`${tag}\`"
+            echo "- version: ${VERSION}"
+            echo "- iOS buildNumber: ${BUILD_NUMBER}"
+            echo "- 対象コミット: \`${BUILD_SHA}\`"
+            echo "- EAS BUILD_ID: \`${BUILD_ID}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # 承認者（Required reviewers）と main 限定の保護ルールを使う。AWS には触らないので id-token は付けない。
+    # 依存のコードは実行しない（先頭コメント参照）。
+    environment: production
+    permissions:
+      contents: write
+    env:
+      GIT_CLIFF_VERSION: "2.14.1"
+      # https://github.com/orhun/git-cliff/releases/download/v2.14.1/git-cliff-2.14.1-x86_64-unknown-linux-musl.tar.gz.sha512
+      GIT_CLIFF_SHA512: b5ce5da0189e50fe6c64753bb205b4c8a4a657b5ab9301d2690d7bb66238388e8146237ba0eb407a5b8ee49d9a1646ea02b392b470d8ca19f0b948cf8a62965f
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      BUILD_SHA: ${{ needs.resolve.outputs.sha }}
+      BUILD_NUMBER: ${{ needs.resolve.outputs.build_number }}
+    steps:
+      # resolve job の出力は検証済みだが、書き込み権限を持つ job でもう一度形を確かめてから使う。
+      - name: Validate resolved values
+        run: |
+          if ! [[ "$RELEASE_TAG" =~ ^mobile/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! [[ "$BUILD_SHA" =~ ^[0-9a-f]{40}$ ]] \
+            || ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error::resolve job の出力が想定外の形です（tag=${RELEASE_TAG} sha=${BUILD_SHA} buildNumber=${BUILD_NUMBER}）"
+            exit 1
+          fi
+
+      # 差分の算出に全履歴とタグが要る。ビルドのコミットまでの差分にするため、そのコミットを checkout する
+      # （--unreleased は HEAD までを対象にする）。タグの作成は gh（API）で行うので git の認証情報は残さない。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 承認を待つ間に別の run がタグを作っていないか（concurrency で直列化しているが、手で作られた場合に備える）。
+      - name: Recheck tag
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" > /dev/null; then
+            echo "::error::タグ ${RELEASE_TAG} が承認待ちの間に作られています。再実行して状態を確かめてください"
+            exit 1
+          fi
 
       - name: Install git-cliff
-        if: steps.target.outputs.skip == 'false'
         run: |
           set -euo pipefail
           archive="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz"
@@ -179,14 +244,9 @@ jobs:
           tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
           echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
 
-      # ビルドのコミットまでの差分にするため、そのコミットへ移ってから生成する（--unreleased は HEAD までを対象にする）。
       - name: Generate release notes
-        if: steps.target.outputs.skip == 'false'
-        env:
-          BUILD_SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
-          git checkout --quiet --detach "$BUILD_SHA"
           # --unreleased を必ず付ける（cliff.toml 冒頭コメント参照）。
           git-cliff --offline --unreleased \
             --include-path 'packages/mobile/**' \
@@ -197,13 +257,9 @@ jobs:
           fi
 
       - name: Create tag and GitHub Release
-        if: steps.target.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ steps.target.outputs.tag }}
-          BUILD_SHA: ${{ steps.build.outputs.sha }}
-          BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: |
           set -euo pipefail
           # タグが無ければ --target の SHA に作られる。GITHUB_TOKEN で作ったタグは他のワークフローを起動しない。
@@ -214,7 +270,7 @@ jobs:
           {
             echo "## リリースを作成しました: $RELEASE_TAG"
             echo
-            echo "対象コミット: \`$BUILD_SHA\` / EAS BUILD_ID: \`$BUILD_ID\` / iOS buildNumber: ${BUILD_NUMBER:-不明}"
+            echo "対象コミット: \`$BUILD_SHA\` / EAS BUILD_ID: \`$BUILD_ID\` / iOS buildNumber: ${BUILD_NUMBER}"
             echo
             cat "$RUNNER_TEMP/release-notes.md"
           } >> "$GITHUB_STEP_SUMMARY"
