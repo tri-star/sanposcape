@@ -383,7 +383,7 @@ Google Maps の httpx クライアント、S3 / AppConfig の boto3 クライア
 
 以下は本 ADR では方針決定のみで、実施は別タスクとする。
 
-- [ ] シークレットへ `neon_dsn_unpooled`（direct DSN）を投入する。マイグレーション Lambda は
+- [x] シークレットへ `neon_dsn_unpooled`（direct DSN）を投入する。マイグレーション Lambda は
       未投入の間 `MigrationConfigError` で明示的に失敗する設計になっている。
       （**SS-183 追補**: dev は投入済み。deployment.md の検証状況の表で、dev のマイグレーション Lambda の
       実行が検証済みになっている。prod は未投入のためチェックは付けない）
