@@ -78,6 +78,11 @@
         "appleTeamId": "F946L3T4HH"
       }
     },
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6823866201",
+        "appleTeamId": "F946L3T4HH"
+      }
+    }
   }
 }

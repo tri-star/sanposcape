@@ -430,12 +430,46 @@ pnpm --filter mobile exec eas env:create \
   貼らないこと。**`staging-apk`（Android internal distribution）と `staging-ios`（iOS Ad Hoc /
   TestFlight 手前のビルド）の両方に適用する。**
 - `production` プロファイルの `autoIncrement: true` は SS-89 の方針（remote + autoIncrement）と
-  そのまま整合するため手を付けていない。ただし **`production` のリモートバージョンは未初期化**で、
-  本番ビルドを始める前に初期化の要否を確認する必要がある（下記「ビルド番号の採番」の未完了事項）。
+  そのまま整合するため手を付けていない。`production` のリモートバージョンは SS-213 で iOS を `0` に初期化した
+  （下記「ビルド番号の採番」。Android は未初期化）。
   SS-80 Phase 4（local 管理方針）は SS-89 で取り下げ済み。
 - **`ascAppId` / `appleTeamId` は `eas.json` の `submit.staging.ios` にコミット済み**（dev 用
   App Store Connect アプリレコードの値。秘密情報ではない）。App Store Connect API Key は
   GitHub Secrets に置かず EAS 側に保管させている（`docs/adr/ADR-004` の SS-79 追補）。
+  本番の値は `submit.production.ios` にコミット済み（本番のアプリレコード。SS-213。下記「本番の TestFlight 配信」）。
+  開発・本番とも同じ Apple Developer チームで、アプリレコードと bundle ID で分けている。
+
+### 本番の TestFlight 配信（SS-213）
+
+本番アプリ（`production` プロファイル、`com.sanposcape.app`）は
+`.github/workflows/mobile-production-testflight.yml` で EAS ビルド → `eas submit` し、TestFlight まで上げる。
+ストアへの公開（審査提出・「このバージョンをリリース」）は App Store Connect で手動で行い、
+公開した後に `.github/workflows/mobile-production-release.yml` でタグ `mobile/vX.Y.Z` と GitHub Release を作る
+（運用の手順は [release-runbook.md](../../../docs/release-runbook.md) §4・§5.1）。
+
+- **`workflow_dispatch` のみ・main からのみ・iOS のみ。** Android（Google Play）の本番提出は未整備。
+- **ビルドの前に次を検査して落とす**（EAS の枠を消費しない）:
+  `submit.production.ios` の `ascAppId` / `appleTeamId` が無い、`app.json` の `version` が最新の
+  `mobile/v*` タグの version 以下（公開済みの version 以下。`version` を上げてから実行する）。
+- **Job Summary に BUILD_ID とリリースノートのプレビューを出す。** BUILD_ID は公開後の Release 作成の入力、
+  プレビューは審査提出時の「新機能」欄の下書きに使う。ビルド URL は出さない（上記の public リポジトリの配慮と同じ）。
+- **`eas submit` は手元で実行するときも `APP_VARIANT=production` を付ける**（下記「アプリ識別子の定義」）。
+  ワークフローの提出ステップだけが失敗したときは、再ビルドせずに
+  `APP_VARIANT=production pnpm --filter mobile exec eas submit -p ios --profile production --id <BUILD_ID>` で提出だけやり直せる。
+
+初回の実行前に人手で済ませる準備（本番識別子のクレデンシャルは非対話の CI では作れない）:
+
+1. App Store Connect に本番のアプリレコード（bundle ID `com.sanposcape.app`）を作り、
+   App 情報の「Apple ID」を `eas.json` の `submit.production.ios.ascAppId` に入れる
+2. `APP_VARIANT=production pnpm --filter mobile exec eas credentials -p ios` で `production` の配布証明書・
+   プロビジョニングプロファイルを用意し、提出用の App Store Connect API Key を割り当てる
+   （App ID の Sign in with Apple capability も確認する）
+3. `production` のリモートのビルド番号を初期化する（下記「ビルド番号の採番」の未完了事項）
+4. EAS の `production` 環境に `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+   （本番 GCP プロジェクトの値）があることを `eas env:list --environment production` で確かめる
+5. TestFlight の内部テストのグループを作り、テスターを登録する
+6. 本番の backend（`app-api.sanposcape.com`）が動いていることを確かめる。TestFlight への提出自体は backend が無くても通るが、
+   インストールしたアプリはサインインから先が動かず、TestFlight での確認ができない（上記「`production`」節）
 
 ### ビルド番号の採番（SS-89 で EAS サーバー側へ移行）
 
@@ -522,11 +556,12 @@ pnpm --filter mobile exec eas env:create \
 
 #### 未完了事項
 
-- **`production`（`com.sanposcape.app`）のリモートバージョンは初期化していない。** 本番の
-  アプリレコードがまだ存在せず、初期化すべき既存値が無いため。識別子ごとにカウンタが分かれることは
-  上記で確認済みなので、**本番ビルドを始める段で `--profile production` に対して
-  `build:version:set` を実行すればよい**（未初期化のまま最初のビルドを流すと、どこから
-  採番されるかがこのプロジェクトでは未実測になる）。
+- ~~**`production`（`com.sanposcape.app`）のリモートバージョンは初期化していない。**~~
+  → **iOS は SS-213（2026-10-17）で `0` に初期化した**（本番のアプリレコードを作った直後で、使用済みの番号は無い）。
+  `build:version:set` は `0` を受け付けた。`autoIncrement` は「現在値 +1」なので、最初の本番ビルドの buildNumber は `1` になる。
+  実行したのは `pnpm --filter mobile exec eas build:version:set -p ios --profile production`（端末から）で、
+  `build:version:set` はプロファイルの `env` の `APP_VARIANT=production` を適用して評価するので、本番識別子のカウンタに入る。
+  **Android（`versionCode`）の `production` は未初期化**で、Google Play の本番提出を整備するときに同じ手順で初期化する。
 - **`eas build --local`（`preview`）と remote の組み合わせは Expo 公式ドキュメントに記載がない。**
   `build:version:get --profile preview` が `1` を返すことは確認済みで、**読み取り経路そのものは
   成立している**。ただし `eas build --local` がビルド実行時に同じ経路を使うかは未実測なので、

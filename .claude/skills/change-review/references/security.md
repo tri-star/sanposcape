@@ -26,6 +26,13 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 - `backend-deploy.yml` / `lp-deploy.yml` に `pull_request` / `pull_request_target` トリガーを足していないか。リポジトリは public で、fork の PR からデプロイ経路（environment と OIDC）に到達されうる（ADR-012 決定4）。
 - 依存のコードを実行する build job に `id-token: write` や `environment` を付けていないか。ロールの trust は `environment:<名前>` の subject だけを許す前提で成り立っている。
 - prod へのデプロイが `workflow_dispatch` + main からのみ + Environment の承認のままか。
+- `contents: write` や Environment を持つ job で、`pnpm install` や版を固定していない `npx` のコードを動かしていないか。
+  後続ステップの `gh` / `git` を `$GITHUB_PATH` で差し替えられ、`GH_TOKEN` が渡る。依存を動かす job と書き込む job を分ける（`mobile-production-release.yml` の resolve / release）。
+- 書き込む job が、依存を動かす job の outputs（コミット SHA など）をそのまま `checkout` の `ref` や git の操作に使っていないか。
+  fork の PR のコミットも SHA を指定すれば取得できる。書き込む job の中で main の祖先であることを確かめ直す。
+  git-cliff の設定（`cliff.toml`）は `replace_command` でコマンドを実行できるので、取り出したコミットのものではなく main の先頭のものを `--config` で渡す。
+- Environment の承認は job の開始前に求められる。承認者が判断に使う値を出す検査を、承認付きの job の中に置いていないか（前段の job に分けて Job Summary に出す）。
+- public リポジトリで、ビルドや成果物の URL を Job Summary・ログに出していないか。`eas build --json` / `eas build:view --json` の応答は `artifacts`（.ipa / .apk のダウンロード URL）を含み、eas-cli の進行ログは stderr にビルド URL を出す。
 
 ## 依存の追加
 - スコープなし・typosquat 疑いのパッケージや `postinstall` の追加がないか。`package.json` / `pyproject.toml` の差分で確かめる。

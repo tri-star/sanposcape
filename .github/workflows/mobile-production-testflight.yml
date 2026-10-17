@@ -1,0 +1,190 @@
+name: mobile production TestFlight (EAS)
+
+# 本番アプリ（`production` プロファイル、bundle ID com.sanposcape.app）を EAS でビルドし、
+# TestFlight（App Store Connect）まで上げる。dev 向けの配布ビルドは mobile-release-build.yml。
+# ★ ストアへの公開（審査提出・「このバージョンをリリース」）は App Store Connect で手動で行う（ADR-008 決定3）。
+#   この時点ではタグも GitHub Release も作らない。公開した後に mobile-production-release.yml を
+#   このワークフローの Job Summary に出た BUILD_ID で実行し、`mobile/vX.Y.Z` タグと Release を作る（ADR-008 決定4・決定5）。
+# ★ 自動実行しない（workflow_dispatch のみ）。EAS Free プランの iOS ビルド枠（月15回）を守るため
+#   （枠の詳細は mobile-release-build.yml の冒頭）。設定ミスはビルドを始める前の検査で落とす。
+# ★ main からのみ。Release は「TestFlight に上げたビルドのコミット」にタグを付けるので、そのコミットが main 上にある必要がある。
+# ★ iOS のみ。Android（Google Play）の本番提出はまだ整備していない。
+
+on:
+  workflow_dispatch:
+
+# 本番の run 同士だけを直列化する。mobile-release-build.yml（staging）とはグループを分ける:
+# 同じグループだと、待機中の本番の run が staging の次のディスパッチに置き換えられて実行されずに終わる
+# （待機できる run はグループに1つだけ）。EAS 側も同時実行1でキューに積むので、GitHub 側で staging と直列化しなくても壊れない。
+# ただし EAS の順番待ちは下の timeout-minutes に含まれるので、staging の iOS ビルドの実行中は起動しない（release-runbook.md §4.1）。
+concurrency:
+  group: mobile-production-testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # low-priority キューの待ち + iOS のビルド処理を含むため長めに取る（mobile-release-build.yml と同じ）。
+    timeout-minutes: 180
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GIT_CLIFF_VERSION: "2.14.1"
+      # https://github.com/orhun/git-cliff/releases/download/v2.14.1/git-cliff-2.14.1-x86_64-unknown-linux-musl.tar.gz.sha512
+      GIT_CLIFF_SHA512: b5ce5da0189e50fe6c64753bb205b4c8a4a657b5ab9301d2690d7bb66238388e8146237ba0eb407a5b8ee49d9a1646ea02b392b470d8ca19f0b948cf8a62965f
+    steps:
+      - name: Require main
+        env:
+          GIT_REF: ${{ github.ref }}
+        run: |
+          if [ "$GIT_REF" != "refs/heads/main" ]; then
+            echo "::error::本番ビルドは main からのみ実行できます（現在: $GIT_REF）"
+            exit 1
+          fi
+
+      # 前回の mobile/v* タグの検出とリリースノートのプレビューに全履歴とタグが要る。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # ビルドを始める前（= EAS の枠を消費する前）に落とせる設定ミスを検査する。
+      # - submit.production.ios の ascAppId / appleTeamId が無いと、非対話の eas submit はアプリを特定できず、
+      #   ビルドだけ済んで提出で失敗する。
+      # - app.json の version が最新の mobile/v* タグの version 以下 = 公開済みの version 以下。App Store Connect は
+      #   公開済みの version へのビルド追加を受け付けず、それより低い version も受け付けないので、version の上げ忘れである。
+      - name: Check submit config and app version
+        id: app
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          missing=$(jq -r '(.submit.production.ios // {}) as $o | ["ascAppId", "appleTeamId"] | map(select(($o[.] // "") == "")) | join(", ")' eas.json)
+          if [ -n "$missing" ]; then
+            echo "::error::eas.json の submit.production.ios に ${missing} がありません（packages/mobile/docs/build-profiles.md の「本番の TestFlight 配信」を参照）"
+            exit 1
+          fi
+          version=$(jq -r '.expo.version' app.json)
+          latest=$(git tag --list 'mobile/v*' --sort=-v:refname | head -n 1)
+          latest_version="${latest#mobile/v}"
+          # sort -V で並べて version が末尾（最大）に来て、かつ最新の公開済みと等しくないこと。
+          if [ -n "$latest" ] && { [ "$version" = "$latest_version" ] \
+            || [ "$(printf '%s\n%s\n' "$latest_version" "$version" | sort -V | tail -n 1)" != "$version" ]; }; then
+            echo "::error::app.json の version ${version} は公開済みの ${latest} 以下です。version を上げてから実行してください（docs/release-runbook.md §4）"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      # ストアの「新機能」欄の下書き（ADR-008 決定4）。審査提出の時点で要るので、Release 作成（公開後）ではなくここで出す。
+      # 内容は mobile-production-release.yml が Release の本文にするものと同じ規則（前回の mobile/v* タグ以降の packages/mobile/**）。
+      # EAS の枠を使わないのでビルドの前に出す（提出だけが失敗して手元でやり直す場合も、この run で下書きが得られる）。
+      # ここでの失敗はビルドに関係しないので、ジョブを落とさない。
+      - name: Install git-cliff
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          archive="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/${archive}"
+          echo "${GIT_CLIFF_SHA512}  $RUNNER_TEMP/$archive" | sha512sum -c -
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
+          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
+
+      - name: Preview release notes
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          # --unreleased を必ず付ける（cliff.toml 冒頭コメント参照）。
+          git-cliff --offline --unreleased \
+            --include-path 'packages/mobile/**' \
+            --tag-pattern '^mobile/v[0-9]+\.[0-9]+\.[0-9]+$' \
+            --strip all --output "$RUNNER_TEMP/release-notes.md"
+          {
+            echo "### リリースノートのプレビュー（ストアの「新機能」欄の下書き）"
+            echo
+            if [ -s "$RUNNER_TEMP/release-notes.md" ]; then
+              cat "$RUNNER_TEMP/release-notes.md"
+            else
+              echo "前回の mobile/v* タグ以降に、リリースノートに載る packages/mobile のコミットがありません。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # EAS の枠を消費する前に OpenAPI 定義の破損や orval の失敗を落とす（mobile-release-build.yml と同じ早期失敗ゲート）。
+      - name: Generate API client (Orval)
+        run: pnpm --filter mobile orval
+
+      # ビルド URL を Job Summary / ログに残さない理由と、stderr を退避する理由は mobile-release-build.yml の
+      # 「Build Android APK (staging-apk)」の上のコメントを参照（public リポジトリ）。
+      # 応答の JSON も成果物（.ipa）の URL を含むので、そのままは出さない。
+      - name: Build iOS (production)
+        id: ios_build
+        working-directory: packages/mobile
+        env:
+          APP_VERSION: ${{ steps.app.outputs.version }}
+        run: |
+          set +e
+          BUILD_JSON=$(npx eas-cli build \
+            --platform ios --profile production \
+            --non-interactive --json \
+            --message "production TestFlight (run ${GITHUB_RUN_ID})" \
+            2>"$RUNNER_TEMP/ios-build.stderr.log")
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::iOS ビルド（eas-cli build）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+            sed -E 's#https://expo\.dev/[^[:space:]"]*#https://expo.dev/<redacted>#g' "$RUNNER_TEMP/ios-build.stderr.log"
+            exit "$STATUS"
+          fi
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id // empty')
+          if [ -z "$BUILD_ID" ]; then
+            echo "::error::iOS ビルドの BUILD_ID を応答 JSON から取得できませんでした。expo.dev のビルド一覧を確認してください。"
+            exit 1
+          fi
+          echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+          # 取れなくても落とさない（mobile-release-build.yml と同じ best-effort）。
+          APP_BUILD_VERSION=$(echo "$BUILD_JSON" | jq -r '.[0].appBuildVersion // empty' 2>/dev/null || true)
+          {
+            echo "### iOS (production)"
+            echo "- BUILD_ID: \`${BUILD_ID}\`（ストアで公開した後、mobile-production-release.yml にこの値を渡す）"
+            echo "- version: ${APP_VERSION}"
+            echo "- buildNumber（EAS が採番）: ${APP_BUILD_VERSION:-応答 JSON から取得できませんでした。App Store Connect で確認してください。}"
+            echo "- ビルド詳細は expo.dev のプロジェクト（メンバーのみ閲覧可）から開いてください。public リポジトリのため URL は出しません。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # build --auto-submit-with-profile ではなく submit を分けている理由は mobile-release-build.yml と同じ
+      # （ビルドと提出の失敗を切り分け、提出だけをやり直せるようにする）。
+      - name: Submit iOS to TestFlight
+        working-directory: packages/mobile
+        env:
+          BUILD_ID: ${{ steps.ios_build.outputs.build_id }}
+          # eas build はビルドプロファイルの env（APP_VARIANT=production）を適用して app.config.ts を評価するが、
+          # eas submit は適用しない。付けないと開発用の bundle ID で App Store Connect の API キーを探してしまう
+          # （build-profiles.md「アプリ識別子の定義」）。
+          APP_VARIANT: production
+        run: |
+          set +e
+          npx eas-cli submit \
+            --platform ios --profile production \
+            --id "$BUILD_ID" \
+            --non-interactive \
+            > "$RUNNER_TEMP/ios-submit.log" 2>&1
+          STATUS=$?
+          set -e
+          sed -E 's#https://expo\.dev/[^[:space:]"]*#https://expo.dev/<redacted>#g' "$RUNNER_TEMP/ios-submit.log"
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::TestFlight への提出（eas-cli submit）が失敗しました（exit ${STATUS}）。再ビルドせずに提出だけやり直すには、手元で APP_VARIANT=production pnpm --filter mobile exec eas submit -p ios --profile production --id ${BUILD_ID} を実行してください。"
+            exit "$STATUS"
+          fi
