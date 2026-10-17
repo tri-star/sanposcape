@@ -27,10 +27,10 @@
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ✅ **dev・prod とも付与済み**。dev は GitHub Actions からのデプロイが通っている（境界が無いと §7 のとおり失敗する）。prod は `ApiRole` / `MigrateRole` に `sanposcape-prod-lambda-boundary` が付いていることを 2026-10-17 に infra 経由で確認 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ✅ **dev・prod とも実施済み**（prod は infra の SS-97 の apply 後。上の「prod へのデプロイ」の行） |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。⚠️ **デプロイ済み Lambda 経由での登録（手順 3〜4）は未実施**で、Lambda 実行ロールでの直送は再現していない（付与・境界の静的確認で代替）。prod は SSM（`pin_photos/bucket_name` / `bucket_arn`）があることを 2026-10-17 に infra 経由で確認し、デプロイ済み。prod でのピン登録の実地確認は未記録 |
-> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev で確認済み（2026-10-04）**。デプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。prod は SS-185 の prod 適用の後、2026-10-17 にデプロイした（prod でのスパンの確認は未記録） |
-> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ⚠️ **dev・prod にデプロイ済み**（`ManageBackendMonitoring`＝sanposcape-infra PR #53 は dev・prod とも適用済み。prod は 2026-10-17 に infra 経由で確認）。**§14「デプロイ後の確認」の結果は未記録**。`sam validate --lint` と pytest（`test_monitoring_config.py`）は通過。**dev の読み取りで確認済み（2026-10-05、infra 経由）**: スパンのフィールド名と型、Q1 / Q2 の構文と実データでの集計、REPORT 行のクエリ、Application Signals の `Environment`＝`dev` と `Operation` を含む次元、関数単位の `ConcurrentExecutions`、SSM の通知先トピック（dev / prod とも存在・購読確認済み・SNS のポリシーは CloudWatch の Publish を許可）。**未確認**: ダッシュボードの全ウィジェットの描画、Q4（bin + name の折れ線）、Q7 のログ文言、`aws/spans` の件数と `Invocations` / Application Signals の `SampleCount(Latency)` の差（サンプリング）、デプロイ後の描画。**この行は §14「デプロイ後の確認」を済ませたら ✅ に更新する** |
-> | ログの JSON 化（§15 / SS-180） | ⚠️ **dev・prod にデプロイ済み**（2026-10-16 / 2026-10-17）。**§15「デプロイ後の確認」の結果は未記録**。pytest・ローカル（compose）では確認済み。**未確認**: Lambda のロググループでアプリのログが JSON になること（ランタイムの root のハンドラーのフォーマッター差し替え）、Logs Insights が `level` / `trace_id` をフィールドとして見つけること、START / END / REPORT がテキストのままでダッシュボードの Q5〜Q6b が変わらないこと、ログ ⇔ トレースの往復（`trace_id` ⇔ `aws/spans` の `traceId`、コンソールの「ログ」欄の自動相関）、`aws_request_id` と REPORT 行の `@requestId` の一致、クエリ文字列がログに残らないこと。**この行は §15「デプロイ後の確認」を済ませたら ✅ に更新する** |
-> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ⚠️ **確認結果は未記録**（dev・prod にはデプロイ済み。pytest の境界テストは通過。dev で Logs Insights により確認する） |
+> | トレース（ADOT レイヤー・Active Tracing・OTEL_*。§13 / SS-178） | ✅ **dev（2026-10-04）・prod（2026-10-17）で確認済み**。dev ではデプロイ成功（レイヤー参照・管理ポリシーのアタッチとも権限エラーなし）、`aws/spans` にスパンが入る、Application Signals の操作は `FunctionHandler` のみ、Lambda の親スパンにクエリ・User-Agent が残らない（イベント無害化の後）、Init Duration は約 +0.8 秒。prod は SS-185 の prod 適用の後に 2026-10-17 にデプロイし、スパンが入ることを作業者が確認した |
+> | メトリクス・ダッシュボード・アラーム（§14 / SS-179） | ✅ **dev・prod にデプロイ済みで、§14「デプロイ後の確認」を 2026-10-17 に作業者が確認済み**（`ManageBackendMonitoring`＝sanposcape-infra PR #53 は dev・prod とも適用済み）。`sam validate --lint` と pytest（`test_monitoring_config.py`）も通過。クエリとメトリクスの次元は 2026-10-05 に dev の実データで確認済み（§14 冒頭の検証状況） |
+> | ログの JSON 化（§15 / SS-180） | ✅ **dev・prod にデプロイ済みで、§15「デプロイ後の確認」を 2026-10-17 に作業者が確認済み**（2026-10-16 / 2026-10-17 にデプロイ）。pytest・ローカル（compose）でも確認済み |
+> | lifespan が実行環境ごとに 1 回（§6.1.1 / SS-183） | ✅ **確認済み**（2026-10-17 に作業者が Logs Insights で確認。pytest の境界テストも通過） |
 > | Apple のトークン失効（§3.2 / SS-198） | ⚠️ **dev・prod にデプロイ済み・実機未確認**。pytest（Apple の REST API はモック通信）は通過。鍵は dev（SS-196）・prod（2026-10-17。`apple_allowed_audiences` も同時に投入）とも投入済み。**未確認**: 実際の Apple への `/auth/token`・`/auth/revoke`、削除後に「Apple でサインイン」の連携一覧からアプリが消えること（複数回サインインした後に削除した場合を含む）。SS-199 で端末が code を送るようになった（対応済み）。実機確認は SS-208（iOS 実機での Sign in with Apple の確認）で行う |
 > | 写真の削除（PhotoPurge・ScheduleV2・アラーム。§17 / SS-109） | ⚠️ **dev・prod にデプロイ済み・定期実行の実地確認は未記録**。infra の PR #55（Scheduler 用ロールとデプロイロールの許可）は dev・prod とも適用済み。dev のスタックで `BackendScheduleGroup` / `PhotoPurge` / `PhotoPurgeDaily` が `CREATE_COMPLETE`（2026-10-17 に infra 経由で確認）。`sam validate --lint`・pytest・ローカルでの1回実行（`STORAGE_MODE=fake`）は確認済み |
 > | production デプロイ後のタグ・Release 作成（§4.1 / SS-72） | ✅ **実施済み**（`backend/v0.1.0` 2026-09-30、`backend/v0.2.0` 2026-10-17） |
@@ -1258,6 +1258,7 @@ API の呼び出し頻度・レイテンシ・エラー率・メモリ・コー�
 アラーム 3 本。どちらも `template.yaml` が所有し、Lambda スタックと一緒に作られ・消える。
 
 > **検証状況（2026-10-05、infra 経由の dev 読み取り）: クエリとメトリクスの次元は dev の実データで確認済み。デプロイは未実施。**
+> （2026-10-17 追記: dev・prod にデプロイし、下の「デプロイ後の確認」を作業者が確認した。以下は 2026-10-05 時点の記録）
 >
 > 確認済み（クエリの案どおりで確定）:
 >
@@ -1620,7 +1621,7 @@ SOURCE '/aws/lambda/sanposcape-<env>-backend-api'
 - `trace_sampled` が `false` のログは、対応するトレースが `aws/spans` に無い可能性がある（ログは全件残る）。
 - **エラーからユーザーの直前の操作を辿る手順**は §16。
 
-### デプロイ後の確認（環境ごとに 1 回。**dev は未実施**）
+### デプロイ後の確認（環境ごとに 1 回。2026-10-17 に作業者が確認済み）
 
 1. Phase 0 の確認コマンド（§3）が通る（SS-180 は infra の変更を要しない）。
 2. Lambda のロググループで、アプリのログが 1 レコード 1 イベントの JSON になり、Logs Insights がフィールドとして見つける:
