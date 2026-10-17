@@ -1093,6 +1093,7 @@ Android（Google Play）の本番提出は未整備で、どちらのワーク�
 - **どちらのワークフローも実行実績が無い。** 本番のアプリレコード・本番識別子のクレデンシャル・ビルド番号の初期化などの
   手作業の準備（build-profiles.md）が終わってから初回を実行する。`eas build:view --json` の出力のキー（`gitCommitHash` など）は
   eas-cli 23.2.0 のソースで確かめたもので、実際の応答では未確認。
+  （**2026-10-17 棚卸し追補**: 手作業の準備を済ませ、TestFlight 配信は 2026-10-17 に実行した（成功）。Release 作成はストア公開が未実施のため未実行で、`eas build:view --json` の実際の応答も未確認のまま）
 - **Android の本番提出とタグ**: Google Play への提出を整備するときに、Release 作成の入力（iOS の BUILD_ID）をどう広げるかを決める。
   iOS と Android で同じ version を公開する前提なら、タグは1つのまま。
 - SS-103 で `EXPO_TOKEN` を Environment Secret に移すとき、TestFlight 配信のワークフローにも Environment を付けることになる（D28 の見直し）。
