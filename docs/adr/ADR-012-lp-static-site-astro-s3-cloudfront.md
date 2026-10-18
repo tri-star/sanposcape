@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（SS-210: Sign in with Apple などをポリシーに反映し、本人確認の方式を変えた）。前回: 2026-10-15（SS-109）、2026-10-15（SS-187）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-18（SS-214: サポートページ `/support/` を公開した）。前回: 2026-10-17（SS-210）、2026-10-15（SS-109）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -22,8 +22,10 @@
 - **プライバシーポリシーは `src/pages/privacy.astro` → `https://sanposcape.com/privacy/` で公開し、LP のフッターからリンクする**。
   mobile は設定画面・サインイン / サインアップ画面からアプリ内ブラウザで開く（[ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)）。（本文: SS-158 追補）
 - **`/privacy/` は恒久 URL で、変えない**（アプリ内リンクと App Store Connect に登録するため）。（本文: SS-158 追補）
-- **お問い合わせは独立ページ・フォームにせず、`/privacy/#contact` の mailto（`support@sanposcape.com`）で代用する**。CSP は変えていない。
-  （本文: コンテキスト、移行・対応事項、SS-158 追補）
+- **お問い合わせはフォームにせず、mailto（`support@sanposcape.com`）で受ける**。窓口はポリシー（`/privacy/#contact`）・規約・サポートページ（`/support/#contact`）に載せる。CSP は変えていない。
+  （本文: コンテキスト、移行・対応事項、SS-158 追補、SS-214 追補）
+- **サポートページは `src/pages/support.astro` → `https://sanposcape.com/support/` で公開し、LP のフッターからリンクする。`/support/` も恒久 URL で変えない**（App Store Connect の Support URL に登録するため）。
+  よくある質問・動作環境・お問い合わせを載せ、利用者のデータの扱いは事実を書き写さずポリシーの節へリンクする。アプリ内の導線は作っていない。（本文: SS-214 追補）
 - **ポリシーの運営者表記は屋号「Sanposcape 運営者」で、氏名・住所は利用者本人の請求に応じて回答する。保管先は AWS・Neon ともシンガポールと記載し、英語版は作らない**。
   アプリはストアの配信国を日本に限定し、ポリシーにも日本国内での利用が前提と書く（GDPR 等の対象にしないため）。13 歳未満は利用不可。（本文: SS-158 追補）
 - **ポリシーは本文が実装の事実に依存するため、データの扱いを変えたら本文を見直して `revisedOn` を更新する**。App Privacy の申告（SS-159）と揃える。（本文: SS-158 追補）
@@ -48,7 +50,10 @@
 
 - **本番 LP は `/privacy/` を含まない版（`lp/v0.1.0`）のまま**。`/privacy/` を含む版を prod にデプロイしてから、アプリ内リンクを含む mobile のビルドを配布・審査に出す。
   App Store Connect への URL 登録と、`support@sanposcape.com` で受信できることの確認も公開前に要る（手作業）。（本文: SS-158 追補「リリース時に必要な手作業」）
-- **サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いも未決**（Plane に該当課題なし）。（本文: SS-158 追補）
+- ~~**サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いも未決**（Plane に該当課題なし）。（本文: SS-158 追補）~~ → SS-214 で決着（`/support/` を作り、Support URL に登録する）
+- **`/support/` は本番 LP に未デプロイで、App Store Connect の Support URL にも未登録**（手作業。ストア情報の入力は Plane SS-215）。本番の LP デプロイは `/privacy/`・`/terms/` も同時に出す。（本文: SS-214 追補）
+- **サポートページの動作環境（iOS 16.4 以降・Android 7.0 以降）はビルド設定から書いた値で、最低バージョンの実機では確かめていない**。Expo SDK を上げたら見直す。（本文: SS-214 追補）
+- **問い合わせのメール（送り主のアドレス・本文）の保存先・期間がポリシー 1・6 に無い**。台帳 3.7 に「未反映」として載せた（Plane SS-220）。（本文: SS-214 追補）
 - **App Privacy は App Store Connect に未入力**（アプリレコードの作成時に手作業で入力する）。Expo が更新確認時の ID・エラーを保持するかは未確認で、
   保持しないと分かれば申告から外せる。Google Play のデータ セーフティは未整理。（本文: SS-159 追補）
 - ~~**Sign in with Apple（SS-197〜199）と写真の撮影日時（SS-163）がポリシーに未反映**。台帳の該当行に「未反映」を付けており、改定は Plane SS-210 で行う。（本文: SS-184 追補）~~ → SS-210 で決着
@@ -61,19 +66,21 @@
 ### 変更・撤回された決定
 
 - コンテキストの「お問い合わせページへの導線」→ 独立ページを作らず `/privacy/#contact` の mailto で代用（SS-158 追補）
+  → **SS-214 で `/support/`（よくある質問と `#contact` の mailto）を作り、ストア申請の Support URL はここにした**（SS-214 追補）
 - 「お問い合わせをフォームにする場合は CSP を更新する」→ mailto にしたため CSP の変更は不要（SS-158 追補）
 - ページの追加は `src/pages/<name>/index.astro` → `src/pages/<name>.astro` も可（決定は不変、記述の補足。SS-158 追補）
-- 本文のコンテキスト・ポジティブな影響にある「プライバシーポリシー・サポートページが増える」は初版時点の見込みで、SS-158 で作ったのはプライバシーポリシーのみ（SS-158 追補）
+- 本文のコンテキスト・ポジティブな影響にある「プライバシーポリシー・サポートページが増える」は初版時点の見込みで、SS-158 で作ったのはプライバシーポリシーのみ（SS-158 追補）。サポートページは SS-214 で作った（SS-214 追補）
 - ステータスの「dev / prod とも初回デプロイは未実施」は初版時点の状態で、2026-10-02 に両環境とも初回デプロイ済み（SS-158 追補）
 - SS-158 追補の当初案「ポリシーに『アカウント削除で写真も削除する』と書き、SS-109 の完了前に本番で `pin_registration` を ON にしない」
   → 本文を現状の実装（写真の画像ファイルは残る）に合わせて書き直したため、ADR-012 としてのこのガードは不要になった。
   本番でフラグを ON にする前提条件（BK-2）は ADR-009 側に残る（SS-158 追補）（**SS-109 追補**: BK-2 は ADR-009 決定36 で決着した）
 - SS-158 追補の「ポリシーはアカウント削除時の写真が保存領域に残ると書く」→ **SS-109 で「削除から 30 日間保存したのち削除する」に変更**（SS-109 追補）
 - SS-158 追補の「本人確認はサインインに使っている Google アカウントのメールアドレスからの送信を原則」→ **SS-210 で確認用コードの返信に変更**（SS-210 追補）
+- SS-158 追補の「サポートページ（`/support/`）は作らない（SS-158 の範囲では）」→ **SS-214 で `/support/` を作った**。お問い合わせを mailto で受けることは変わらない（SS-214 追補）
 
 ## 日付
 
-2026-10-02（初版、SS-155 / infra 側 SS-74）、2026-10-03 追補（SS-158）、2026-10-10 追補（SS-159）、2026-10-13 追補（SS-184）、2026-10-13 追補（SS-187）、2026-10-15 追補（SS-109）、2026-10-17 追補（SS-210）
+2026-10-02（初版、SS-155 / infra 側 SS-74）、2026-10-03 追補（SS-158）、2026-10-10 追補（SS-159）、2026-10-13 追補（SS-184）、2026-10-13 追補（SS-187）、2026-10-15 追補（SS-109）、2026-10-17 追補（SS-210）、2026-10-18 追補（SS-214）
 
 ## ステータス
 
@@ -94,6 +101,9 @@ SDK の収集に合わせてポリシーを改定した。詳細は末尾の「S
 **SS-210「Sign in with Apple のポリシーへの反映」で追補**した。台帳の「未反映」を解消し、開示等の請求の本人確認を確認用コードの返信に変えた。
 詳細は末尾の「SS-210 追補: Sign in with Apple などをポリシーに反映する」。
 
+**SS-214「サポートページ」で追補**した。`/support/` を公開し、App Store Connect の Support URL の扱いを決めた。
+詳細は末尾の「SS-214 追補: サポートページを公開する」。
+
 ## コンテキスト
 
 アプリの紹介サイト（LP）を `sanposcape.com`（dev は `dev.sanposcape.com`）で運営する必要が生じた。目的は次のとおり。
@@ -101,6 +111,7 @@ SDK の収集に合わせてポリシーを改定した。詳細は末尾の「S
 - アプリの紹介（どんなアプリか、どんな機能があるか）
 - プライバシーポリシー・お問い合わせページへの導線（ストア申請・TestFlight 外部テスト、AWS SES のサンドボックス解除申請で URL が要る。SS-158）
   （**SS-158 追補**: お問い合わせは独立したページにせず、プライバシーポリシー内の窓口 `/privacy/#contact` の mailto で代用した）
+  （**SS-214 追補**: サポートページ `/support/` を作り、そこにも mailto の窓口を置いた。お問い合わせはフォームにしていない）
 
 前提は次のとおり。
 
@@ -235,6 +246,7 @@ Disallow するとクローラーがページを取得できず noindex を読�
 - プライバシーポリシー・サポートページ（SS-158）を `src/pages/<name>/index.astro` として追加するだけで公開できる。
   （**SS-158 追補**: `src/pages/<name>.astro` でもよい。`build.format: "directory"` によりどちらも `<name>/index.html` に出力される。
   SS-158 ではプライバシーポリシーを `src/pages/privacy.astro` として追加した。サポートページは作っていない）
+  （**SS-214 追補**: サポートページを `src/pages/support.astro` として追加した）
 - LP の変更は main へのマージで dev に出て、本番は承認付きで出せる。本番に出たコミットは `lp/v*` タグで追える。
 
 ### ネガティブな影響・トレードオフ
@@ -268,8 +280,9 @@ Disallow するとクローラーがページを取得できず noindex を読�
   変えると配布済みのアプリが古い URL を開き続ける。末尾スラッシュ付き（決定1 の `trailingSlash: "always"`）・`www.` なし（決定2 で 301 される）を正とする。
 - **お問い合わせは独立したページ・フォームにせず、ポリシー内の窓口 `/privacy/#contact` の mailto（`support@sanposcape.com`）で代用する。**
   フォームを置かないため、CSP（決定3）の `form-action` / `connect-src` の変更は不要だった。
+  （**SS-214 追補**: 独立したページとしてサポートページ `/support/` を作った。窓口を mailto にしてフォームを置かないことは変わらない）
 - **サポートページ（`/support/`）は作らない（SS-158 の範囲では）。** App Store Connect の Support URL に何を登録するかは未決で、
-  これを扱う Plane の課題も無い。
+  これを扱う Plane の課題も無い。（**SS-214 追補**: `/support/` を作り、Support URL に登録することにした。下の「SS-214 追補」）
 - **ポリシー本文の判断（ユーザー判断）**: 運営者は屋号「Sanposcape 運営者」と表記し、氏名・住所は「利用者本人から個人情報の取り扱いに関する請求があった場合に遅滞なく回答する」旨を添える
   （個人情報保護法 32 条 1 項の「本人の知り得る状態」は求めに応じた回答でも満たせるが、記述ごと消すとその手段を示せないため、回答の相手を利用者本人に限って残した）。
   窓口は `support@sanposcape.com`。データの保管先は AWS（ap-southeast-1）・Neon ともシンガポールと記載する。英語版は作らない（アプリ・LP とも日本語のみのため）。
@@ -443,6 +456,41 @@ SS-184 の台帳で「未反映」とした食い違い（Sign in with Apple（S
 - ポリシー 3 の「運営者のサーバーから Apple へ認可コード・トークンを送る」が、個人情報保護法の委託・第三者提供のどちらに当たるかは法務で判断していない。
 - 範囲外で見つかったもの: `packages/backend/docs/deployment.md` §16 周辺と `core/access_log.py`・`core/logs.py` のコメントは「mobile が `X-App-Session-Id` を付ける」前提のまま。
 
+## SS-214 追補: サポートページを公開する
+
+SS-158 追補で未決とした「App Store Connect の Support URL（必須項目）に何を登録するか」に答える。
+
+### 決定
+
+- **サポートページを `src/pages/support.astro` として追加し、`https://sanposcape.com/support/`（dev は `https://dev.sanposcape.com/support/`）で公開する。**
+  App Store Connect の「サポート URL」にはこの URL を登録する。`/privacy/`・`/terms/` と同じく恒久 URL とし、変えない（末尾スラッシュ付き・`www.` なし）。
+  LP のフッターに「サポート」のリンクを足した（利用規約・プライバシーポリシーの下）。見た目は `legal.css` を共用する。
+- **載せる内容は、よくある質問（サインインの方法・位置情報の許可とバックグラウンドでの記録・アカウントの削除・データの扱い）、動作環境、お問い合わせ。**
+  - 利用者のデータの扱い（取得・保存期間・削除の対象）の事実は書き写さず、ポリシーの該当の節（`/privacy/#delete`・`#withdraw`・`#requests`）へリンクする。
+    事実の正本は台帳で、ポリシーはそこから書く（SS-184 追補）。サポートページに複製すると、データの扱いを変えたときの見直し先が増えてずれる。
+  - 画面名・ボタン名（「アカウント」タブ →「設定」→「アカウントを削除」、「サインインして保存」、サインイン画面の「Appleでサインイン」「Google でログイン」「ゲストで試す」など）はアプリの表記に合わせた。アプリの表記を変えたら見直す。
+  - 動作環境は iPhone が iOS 16.4 以降（Expo SDK 57 のテンプレートの `IPHONEOS_DEPLOYMENT_TARGET`）、Android が 7.0 以降（React Native の `minSdk` 24）。
+    `supportsTablet` を付けていないので iPad は挙げない。
+- **お問い合わせはメール（mailto: `support@sanposcape.com`）のままとし、フォームは作らない。** 受信は infra の SS-216（SES）で整った。
+  フォームは CSP の `form-action` / `connect-src` の変更と受け口（backend か外部サービス）の追加が要り、利用者の情報を新たに受け取る経路になるため採らない。
+- **アプリ内からサポートページを開く導線は作らない（SS-214 の範囲では）。** Apple はサポート URL をストアのメタデータとして求めるだけで、アプリ内のリンクは必須ではない。
+  アプリの設定画面からプライバシーポリシーを開けば窓口（`#contact`）に辿れる。mobile に足すと、本番 LP のデプロイ後に mobile を配布する順序（SS-187 追補）にも絡む。
+  足す場合は [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md) の方式（`legalLinks.ts` の定数 + `useOpenExternalUrl`）に従う。
+- **プライバシーへの影響は無い。** 静的な HTML と mailto だけで、外部オリジン・アクセス解析・Cookie を足していない（台帳の対象パス `packages/lp/src/` の観点）。
+  ポリシー・申告は変えていない。
+
+### リリース時に必要な手作業
+
+- main へのマージ後、`lp-deploy.yml` を production で起動・承認して本番 LP に出し、`https://sanposcape.com/support/` が 200 を返すことを確かめる。
+  本番はまだ `lp/v0.1.0`（`/privacy/` を含まない版）のため、このデプロイで `/privacy/`・`/terms/` も初めて本番に出る。SS-109 追補の「本番との順序」を確かめてから行う。
+- App Store Connect の「サポート URL」に `https://sanposcape.com/support/` を登録する（手作業。ストア情報の入力は Plane SS-215）。
+
+### 影響
+
+- アプリへの問い合わせを受けるメール（送り主のアドレスと本文）を、運営者がどこにどれだけ保存するかは台帳・ポリシーに書いていない（ポリシー 2 の利用目的には「お問い合わせへの対応」がある）。
+  窓口は SS-158 から `/privacy/#contact` にあったが、サポートページは問い合わせを積極的に促す。受信したメールの保存先は infra の SS-216 で決めたもので、
+  SS-214 では確かめていない。台帳 3.7 に「未反映」として行を足し、4 章に差分を挙げた。保存先・期間を確かめてポリシー 1・6 に書くのは Plane SS-220。
+
 ## 関連情報
 
 - [ADR-004](./ADR-004-secrets-management-and-cicd-aws-credentials.md)（CI から AWS への認証は OIDC）
@@ -454,6 +502,7 @@ SS-184 の台帳で「未反映」とした食い違い（Sign in with Apple（S
 - `packages/lp/AGENTS.md`、`packages/lp/docs/deployment.md`、`.github/workflows/lp-ci.yml`、`.github/workflows/lp-deploy.yml`
 - `packages/lp/src/pages/privacy.astro`、`packages/mobile/src/config/legalLinks.ts`（**SS-158 追補**）
 - `packages/lp/src/pages/terms.astro`、`packages/lp/src/styles/legal.css`（**SS-187 追補**）
+- `packages/lp/src/pages/support.astro`（**SS-214 追補**）
 - [`docs/app-privacy-label.md`](../app-privacy-label.md)（App Privacy の申告内容と根拠）（**SS-159 追補**）
 - [`docs/privacy/data-inventory.md`](../privacy/data-inventory.md)（データ取扱い台帳）、[ADR-014](./ADR-014-claude-harness-main-agent-and-review-structure.md) の SS-184 追補（計画とレビューへの組み込み）（**SS-184 追補**）
 - sanposcape-infra: ADR-0001 §2.11 / §2.15、`live/services/lp`（SS-74、tri-star/sanposcape-infra#47）
@@ -461,4 +510,6 @@ SS-184 の台帳で「未反映」とした食い違い（Sign in with Apple（S
   SS-109（アカウント削除時の写真削除 = ADR-009 BK-2）、SS-159（App Store Connect の App Privacy の申告）、
   SS-187（利用規約）、SS-189（悪質な利用者への対策。規約と連動）、SS-188（長期間使われていないアカウントの扱い）、
   SS-184（データ取扱い台帳）、SS-210（Sign in with Apple などのポリシーへの反映）（**SS-210 追補**: 2026-10-17 に改定）、
-  SS-218（写真のアップロード枠の行を残さない。ADR-009 BK-3 を含む）（**SS-210 追補**）
+  SS-218（写真のアップロード枠の行を残さない。ADR-009 BK-3 を含む）（**SS-210 追補**）、
+  SS-214（サポートページ）、SS-215（App Store Connect のストア情報の入力）、SS-216（infra: `support@` の受信）、
+  SS-220（問い合わせのメールを台帳・ポリシーに反映する）（**SS-214 追補**）
