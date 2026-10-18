@@ -1,0 +1,144 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import "../styles/legal.css";
+
+// お問い合わせ窓口。プライバシーポリシー・利用規約と同じ。
+const contactEmail = "support@sanposcape.com";
+
+// URL（/support/）は App Store Connect の「サポート URL」に登録するため変えないこと。
+// 利用者のデータの扱い（取得・保存・削除）の事実はここに書き写さず、プライバシーポリシーの該当の節へリンクする
+// （事実の正本は docs/privacy/data-inventory.md で、ポリシーはそこから書く。ここに複製するとずれる）。
+// 画面名・ボタン名はアプリの表記（packages/mobile）に合わせている。アプリの表記を変えたらここも見直す。
+---
+
+<BaseLayout
+  title="サポート — Sanposcape"
+  description="散歩アプリ Sanposcape のよくある質問、動作環境、お問い合わせ先をまとめたサポートページです。"
+>
+  <article class="legal container" aria-labelledby="legal-title">
+    <header class="legal-header">
+      <p class="eyebrow">SUPPORT</p>
+      <h1 id="legal-title">サポート</h1>
+    </header>
+
+    <p>
+      散歩アプリ「Sanposcape」（以下「本アプリ」といいます）のよくある質問と動作環境、お問い合わせ先をまとめています。解決しない場合は、
+      <a href="#contact">お問い合わせ</a>
+      からご連絡ください。
+    </p>
+
+    <nav class="legal-toc" aria-labelledby="legal-toc-title">
+      <h2 id="legal-toc-title">目次</h2>
+      <ol>
+        <li>
+          <a href="#faq">よくある質問</a>
+        </li>
+        <li>
+          <a href="#requirements">動作環境</a>
+        </li>
+        <li>
+          <a href="#contact">お問い合わせ</a>
+        </li>
+      </ol>
+    </nav>
+
+    <section aria-labelledby="faq">
+      <h2 id="faq">1. よくある質問</h2>
+
+      <h3 id="sign-in">サインインの方法を教えてください</h3>
+      <p>
+        Google アカウント、または Apple アカウント（iPhone
+        版のみ）でサインインできます。サインインしなくても、散歩先のスポットやルートを探して散歩できますが、歩いた記録は保存されません。散歩を終えたあとに「サインインして保存」を選ぶと、その散歩を保存できます。
+      </p>
+      <p>
+        サインインした状態で利用を始めるには、「アカウント」タブの「設定」から「サインイン」を選んでください。
+      </p>
+
+      <h3 id="location">位置情報の利用許可はどう設定すればよいですか</h3>
+      <p>
+        位置情報の利用許可は「アプリの使用中」のみで足ります。「常に許可」にする必要はありません。散歩を開始してから終了するまでは、アプリをバックグラウンドに移したり画面をロックしたりしても、位置の記録を続けます。記録中は、iPhone
+        ではステータスバーの表示で、Android では通知でお知らせします。
+      </p>
+      <ul>
+        <li>
+          Android 13
+          以降では、散歩を始めるときに通知の許可をお願いします。許可しなくても記録は続きますが、記録中の通知は表示されません。
+        </li>
+        <li>
+          散歩中にアプリを終了（最近使ったアプリの一覧から消去）すると、記録は止まり、その散歩は保存されません。散歩を終えるときは、アプリで散歩を終了してください。
+        </li>
+        <li>
+          位置情報の利用を許可していないと、スポットを探す機能や散歩を記録する機能は使えません。許可の変更方法は、プライバシーポリシーの
+          <a href="/privacy/#withdraw">
+            「8. 位置情報などの利用の停止（同意の撤回）」
+          </a>
+          をご覧ください（許可するときも同じ画面から変更できます）。
+        </li>
+      </ul>
+
+      <h3 id="delete-account">アカウントを削除するにはどうすればよいですか</h3>
+      <p>
+        アプリの「アカウント」タブ
+        →「設定」の「アカウントを削除」から削除できます。アカウントを削除すると、散歩の記録やピンなど、アカウントに関連する情報もあわせて削除します。削除の対象と、Apple
+        でサインインしている場合の扱いは、プライバシーポリシーの
+        <a href="/privacy/#delete">「7. 情報の削除方法」</a>
+        をご覧ください。
+      </p>
+      <p>
+        散歩の記録やピンは、アカウントを削除しなくても 1
+        件ずつ削除できます（同じく「7.
+        情報の削除方法」をご覧ください）。アプリを削除済みなどでアプリから削除できない場合は、
+        <a href="#contact">お問い合わせ</a>
+        からご依頼ください。
+      </p>
+
+      <h3 id="data">登録した情報や位置情報はどのように扱われますか</h3>
+      <p>
+        取得する情報、利用目的、外部サービスへの送信、保存期間は、
+        <a href="/privacy/">プライバシーポリシー</a>
+        に定めています。ピン、写真、散歩の記録は、現在、ご本人だけが見られます。ほかの利用者や一般には公開されません。
+      </p>
+    </section>
+
+    <section aria-labelledby="requirements">
+      <h2 id="requirements">2. 動作環境</h2>
+      <dl class="legal-contact">
+        <dt>iPhone</dt>
+        <dd>iOS 16.4 以降</dd>
+        <dt>Android</dt>
+        <dd>Android 7.0 以降</dd>
+      </dl>
+      <ul>
+        <li>
+          散歩先のスポットやルートの検索、記録の保存には、インターネットへの接続が必要です。
+        </li>
+        <li>散歩の記録には、端末の位置情報（GPS など）を使います。</li>
+        <li>本アプリは、日本国内での利用を前提として提供しています。</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="contact">
+      <h2 id="contact">3. お問い合わせ</h2>
+      <p>
+        本アプリに関するご質問、不具合のご報告、ご意見は、次のメールアドレスで受け付けます。
+      </p>
+      <dl class="legal-contact">
+        <dt>運営者</dt>
+        <dd>Sanposcape 運営者</dd>
+        <dt>お問い合わせ</dt>
+        <dd>
+          <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
+        </dd>
+      </dl>
+      <p>
+        不具合のご報告の際は、お使いの端末の機種と OS
+        のバージョン、起きたことと、そのときの操作をお知らせください。
+      </p>
+      <p>
+        ご自身の情報の開示・削除などのご請求は、プライバシーポリシーの
+        <a href="/privacy/#requests">「10. 開示などのご請求」</a>
+        の方法でご連絡ください。
+      </p>
+    </section>
+  </article>
+</BaseLayout>
