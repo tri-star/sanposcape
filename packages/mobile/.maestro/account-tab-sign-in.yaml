@@ -31,12 +31,10 @@ tags:
     timeout: 10000
 - tapOn:
     id: "sign-in-google-button"
-# ピンタブではなくアカウントタブ（記録）に戻り、案内は消えている。
+# アカウントタブ（記録）に戻り、案内は消えている。ピンタブの不在は assert しない（訪問済みタブは階層に残りうる）。
 - extendedWaitUntil:
     visible:
       id: "history-screen"
     timeout: 20000
 - assertNotVisible:
     id: "history-sign-in-required"
-- assertNotVisible:
-    id: "pin-tab-screen"
