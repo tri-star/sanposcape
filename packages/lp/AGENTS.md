@@ -30,8 +30,8 @@ packages/lp/
     ├── assets/images/     # astro:assets の <Image> で最適化する元画像
     ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
-    ├── pages/             # index.astro / privacy.astro / terms.astro / 404.astro / robots.txt.ts
-    └── styles/            # global.css（LP 全体。デザイン原本の styles.css）/ legal.css（privacy・terms 共通）
+    ├── pages/             # index.astro / privacy.astro / terms.astro / support.astro / 404.astro / robots.txt.ts
+    └── styles/            # global.css（LP 全体。デザイン原本の styles.css）/ legal.css（privacy・terms・support 共通）
 ```
 
 ページを増やすとき（プライバシーポリシー・サポート等）は `src/pages/<name>/index.astro` か `src/pages/<name>.astro` を作り、
@@ -78,7 +78,7 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
   - ダミー QR 画像は出さず、同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
   - ストアボタンは「準備中」ダイアログを開く（`StoreDialog.astro`）。ストア URL が確定したら、`Download.astro` のボタンをストアへのリンクに、
     `.qr-placeholder` を QR 画像に差し替える。
-  - フッターに利用規約（`/terms/`、SS-187）とプライバシーポリシー（`/privacy/`）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
+  - フッターに利用規約（`/terms/`、SS-187）・プライバシーポリシー（`/privacy/`）・サポート（`/support/`、SS-214）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
 - 画像は `src/assets/images/` に置き、`astro:assets` の `<Image>` で WebP に変換・`srcset` を付けて出す。`width` / `height` を必ず指定する（CLS 防止）。
   CSS が `.field-note > img` のように `<img>` を直接指すため、`<picture>` を出す `<Picture>` は使わない。
   ファーストビューの画像は `loading="eager"`（既定は lazy）。
@@ -122,3 +122,13 @@ App Store Connect の「プライバシーポリシー URL」に登録するた�
 - 制定日 `enactedOn` は変えず、改定したら `revisedOn` を更新する。年齢の制限（13 歳未満は不可）と、削除後も不正利用の調査・再登録の防止のために情報を保存することは、
   プライバシーポリシー（11・6）と同じ内容にしておく。どちらかを変えたら両方を見直す。
 - 損害賠償の上限額（10）と専属的合意管轄裁判所（13）は運営者が決める値。変えるときは運営者の確認を取る。
+
+## サポート（`/support/`）
+
+`src/pages/support.astro`（SS-214）。URL `https://sanposcape.com/support/` は App Store Connect の「サポート URL」に登録するため**変えない**。
+よくある質問・動作環境・お問い合わせ（mailto）を載せる。決めた経緯は ADR-012 の SS-214 追補。
+
+- 利用者のデータの扱い（取得・保存期間・削除の対象）の事実は書き写さず、プライバシーポリシーの節（`/privacy/#delete` など）へリンクする。
+  ポリシーの節の番号・アンカーを変えたら、このページのリンクも直す。
+- 画面名・ボタン名（「アカウント」タブ →「設定」→「アカウントを削除」など）はアプリの表記に合わせている。アプリの表記を変えたら見直す。
+- 動作環境（iOS 16.4 以降・Android 7.0 以降）は Expo SDK のテンプレートの iOS のデプロイターゲットと React Native の `minSdk` から書いた値。Expo SDK を上げたら見直す。
