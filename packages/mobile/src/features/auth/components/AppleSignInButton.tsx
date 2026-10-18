@@ -9,8 +9,6 @@ import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type AppleSignInButtonProps = {
-  /** サインイン画面は "sign-in"（「Appleでサインイン」）、サインアップ画面は "sign-up"（「Appleで登録」）。文言は OS が出す。 */
-  kind: "sign-in" | "sign-up";
   onPress: () => void;
   disabled?: boolean;
   testID?: string;
@@ -27,12 +25,7 @@ const HEIGHT = 54;
  * 公式ボタンには `disabled` が無いので、外側の View で不透明度とタップ無効を表現し、
  * `disabled` 中の押下はハンドラ側でも無視する（`pointerEvents` は VoiceOver のダブルタップを止めないため）。
  */
-export function AppleSignInButton({
-  kind,
-  onPress,
-  disabled = false,
-  testID,
-}: AppleSignInButtonProps) {
+export function AppleSignInButton({ onPress, disabled = false, testID }: AppleSignInButtonProps) {
   const theme = useTheme();
   const styles = useStyles();
 
@@ -53,12 +46,8 @@ export function AppleSignInButton({
     <View testID={testID} style={[styles.root, disabled ? styles.disabled : null]}>
       <AppleAuthentication.AppleAuthenticationButton
         // ネイティブのボタンは配色・種別を後から変えても描き直されないことがあるため、変更時に作り直す。
-        key={`${variant}-${kind}`}
-        buttonType={
-          kind === "sign-up"
-            ? AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
-            : AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-        }
+        key={variant}
+        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
         buttonStyle={
           variant === "white"
             ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE

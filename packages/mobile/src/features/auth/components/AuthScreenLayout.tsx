@@ -17,9 +17,9 @@ export type AuthScreenLayoutProps = {
 };
 
 /**
- * AuthScreenLayout — サインイン/サインアップ画面の共通レイアウト。
- * `SignInView`/`SignUpView` で完全一致していたスタイル（root/hero/actions）と
- * トースト表示を1箇所にまとめる。
+ * AuthScreenLayout — 認証画面の共通レイアウト。
+ * スタイル（root/hero/actions）とトースト表示を1箇所にまとめる（SS-221 までは
+ * サインイン/サインアップの2画面で共有していた）。
  * デザイン: mock `isLogin` の構成（ロゴ＋キャッチ＋下部アクション）。
  */
 export function AuthScreenLayout({

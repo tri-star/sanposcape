@@ -18,8 +18,8 @@ const WALKER_ASPECT_RATIO = 242 / 120;
 const WALKER_WIDTH = 210;
 
 /**
- * ロゴ「Sanpo」＋イラスト＋キャッチの共通ヘッダー。
- * スプラッシュ / サインイン / サインアップで共有する（mock `isLogin` 上部を再現）。
+ * ロゴ「Sanposcape」＋イラスト＋キャッチの共通ヘッダー。
+ * スプラッシュ / サインインで共有する（mock `isLogin` 上部を再現）。
  * デザイン: docs/mock の `isLogin` ブロック。イラストはライトのみ（DS readme のイラスト原則）。
  */
 export function AuthHero({ subtitle, caption }: AuthHeroProps) {
@@ -41,7 +41,9 @@ export function AuthHero({ subtitle, caption }: AuthHeroProps) {
           style={styles.illustration}
         />
       )}
-      <Text style={styles.wordmark}>Sanpo</Text>
+      <Text style={styles.wordmark} numberOfLines={1} adjustsFontSizeToFit>
+        Sanposcape
+      </Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {caption ? <Text style={styles.caption}>{caption}</Text> : null}
     </View>
