@@ -22,7 +22,8 @@ name: backend deploy (SAM)
 # ★ production のデプロイに成功したときだけ、release job がデプロイした SHA に `backend/vX.Y.Z` タグと
 #   GitHub Release を作る（development ではバージョンを振らない）。バージョンとリリースノートは
 #   リポジトリ直下の cliff.toml（git-cliff）で、前回の backend/v* タグ以降の packages/backend/** の
-#   コミットから算出する。
+#   コミットから算出する。入力 `release_version` を指定したときは算出せずその値を使う
+#   （1.0.0 への移行など、人が番号を決めるとき。production のみ）。
 # ★ pull_request / pull_request_target トリガーを絶対に足さないこと。このリポジトリは public で、
 #   fork からの PR のワークフロー定義でデプロイ経路（environment と OIDC）に到達され得る。
 #   インフラ側のロールの trust も pull_request の subject を含めていない。
@@ -36,6 +37,11 @@ on:
         options: [development, production]
         default: development
         required: true
+      release_version:
+        description: "production のみ・任意。タグのバージョンを X.Y.Z で指定する（空なら git-cliff が算出）。前回タグより大きい値だけ指定できる"
+        type: string
+        default: ""
+        required: false
 
 # 実行単位（ビルド・リリースを含む）で環境ごとに直列化する。deploy job 単位の直列化だけだと、
 # 後から来た run のビルドが先に終わった場合に古いコミットが後からデプロイされて巻き戻る。
@@ -61,7 +67,9 @@ jobs:
         id: resolve
         env:
           INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
           GIT_REF: ${{ github.ref }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           environment="$INPUT_ENVIRONMENT"
@@ -78,6 +86,25 @@ jobs:
           if [ "$environment" = "production" ] && [ "$GIT_REF" != "refs/heads/main" ]; then
             echo "::error::production へのデプロイは main からのみ実行できます（ref: $GIT_REF）"
             exit 1
+          fi
+          # release_version は production の release job が使う。承認待ちやデプロイに入る前に、
+          # 形式・対象・前回タグとの大小を確かめて落とす（デプロイ後にタグだけ作れない事態を避ける）。
+          if [ -n "$INPUT_RELEASE_VERSION" ]; then
+            if [ "$environment" != "production" ]; then
+              echo "::error::release_version は production でのみ指定できます（development ではバージョンを振りません）"
+              exit 1
+            fi
+            if ! [[ "$INPUT_RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::release_version は X.Y.Z の形式で指定してください: $INPUT_RELEASE_VERSION"
+              exit 1
+            fi
+            # 公開リポジトリなので checkout せずにタグ一覧を取れる。
+            latest="$(git ls-remote --tags --refs "https://github.com/$GH_REPO.git" 'refs/tags/backend/v*' \
+              | sed 's#.*refs/tags/backend/v##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+            if [ -n "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$INPUT_RELEASE_VERSION" | sort -V | tail -n 1)" != "$INPUT_RELEASE_VERSION" -o "$latest" = "$INPUT_RELEASE_VERSION" ]; then
+              echo "::error::release_version は前回のタグ backend/v$latest より大きい値にしてください: $INPUT_RELEASE_VERSION"
+              exit 1
+            fi
           fi
           {
             echo "environment=$environment"
@@ -222,6 +249,7 @@ jobs:
 
   # production へのデプロイ成功後に、デプロイした SHA へ backend/vX.Y.Z タグと GitHub Release を作る。
   # - バージョン: git-cliff の bump 規則（cliff.toml の [bump]）。タグが無い初回は backend/v0.1.0。
+#   入力 release_version があればその値（1.0.0 への移行など、人が決める場合）。
   # - 本文: 前回の backend/v* タグ以降で packages/backend/** に触れたコミット（Conventional Commits で分類）。
   # 次の場合はタグを作らずにスキップし、理由を Job Summary に出す（デプロイ自体は成功扱いのまま）。
   # - デプロイした SHA が既に backend/v* タグ付き（同じコミットの再デプロイ）
@@ -242,6 +270,8 @@ jobs:
       GIT_CLIFF_SHA512: b5ce5da0189e50fe6c64753bb205b4c8a4a657b5ab9301d2690d7bb66238388e8146237ba0eb407a5b8ee49d9a1646ea02b392b470d8ca19f0b948cf8a62965f
       TAG_PREFIX: backend/v
       DEPLOYED_SHA: ${{ github.sha }}
+      # 空なら git-cliff の算出値を使う。形式と前回タグとの大小は prepare で確かめ済み。
+      RELEASE_VERSION_OVERRIDE: ${{ inputs.release_version }}
     steps:
       # 前回タグの検出と差分の算出に全履歴とタグが要る。タグの作成は gh（API）で行うので git の認証情報は残さない。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -297,7 +327,11 @@ jobs:
             skip "前回のタグ（${latest:-なし}）以降に、リリースノートに載る packages/backend のコミットがありません。"
           fi
 
-          next="$("${cliff[@]}" --bumped-version)"
+          if [ -n "$RELEASE_VERSION_OVERRIDE" ]; then
+            next="${TAG_PREFIX}${RELEASE_VERSION_OVERRIDE}"
+          else
+            next="$("${cliff[@]}" --bumped-version)"
+          fi
           if ! [[ "$next" =~ ^backend/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::git-cliff が想定外のバージョンを返しました: $next"
             exit 1

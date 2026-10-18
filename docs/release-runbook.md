@@ -67,7 +67,8 @@
 2. **スキーマ変更を含む場合は、デプロイ後に手元からマイグレーションを実行する。**
    CI はマイグレーションを実行しない（ADR-005 決定9）。Job Summary にコマンドが出る
 3. production へのデプロイが成功すると、`release` job が `backend/vX.Y.Z` タグと
-   GitHub Release を自動生成する（development では作らない）
+   GitHub Release を自動生成する（development では作らない）。番号は git-cliff が算出するが、
+   1.0.0 への移行など人が決めるときは、起動時の入力 `release_version`（production のみ）に `X.Y.Z` を指定する
 
 ### デプロイとマイグレーションの間に生じる隙間
 
