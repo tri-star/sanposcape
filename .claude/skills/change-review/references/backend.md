@@ -52,6 +52,7 @@
 
 - 既存テーブルへの列追加では、列を読むコードのデプロイから migrate の invoke までの間、そのテーブルを読む API が `UndefinedColumn` で 500 になる。デプロイのワークフローはマイグレーションを実行せず、migrate の invoke は手動で別。順序の前提や影響範囲がプラン・PR に書かれているか。正本: deployment.md §5、ADR-005 決定9、`docs/release-runbook.md`
 - 新しいドメインの models を `all_models.py` に import しているか（無いと autogenerate がモデルを認識しない）。拡張やマスタデータに依存するモデルを足したら、テスト DB の `_delete_all` の対象を見直したか。正本: folder-structure.md「`models.py` の配置と Alembic」「テストファイルの配置」、ADR-B-001
+- `template.yaml` の設定（予約同時実行数・環境変数・権限など）を変える PR では、ADR・deployment.md が「入れた」「〜になっている」「解消した」と、**デプロイ前なのに実環境へ反映済みのように**書いていないか。prod のデプロイは main からの手動実行でマージより後になるため、マージからデプロイまでの間に文書だけ読んだ人が誤解する。「`template.yaml` に入れた／prod への反映はデプロイ以降」と分け、反映の確認は deployment.md の検証状況の表で追う形になっているか（SS-217 で ADR-005 の要約・決定8 の注記・移行事項と deployment.md のアラームの表に残った）。
 
 ## テストと設計根拠の裏取り
 

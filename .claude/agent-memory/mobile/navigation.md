@@ -1,6 +1,6 @@
 ---
 name: navigation
-description: mobile のスタックと戻る導線の実態 — replace の連鎖で canGoBack=false、index.tsx と (tabs)/index.tsx、BackHandler は useFocusEffect で購読、Redirect はフォーカス時のみ、flash の消費先、戻る処理でストアを触らない
+description: mobile のスタックと戻る導線の実態 — replace の連鎖で canGoBack=false、index.tsx と (tabs)/index.tsx、BackHandler は useFocusEffect で購読、Redirect はフォーカス時のみ、useSegments は1コミット遅れる、flash の消費先、戻る処理でストアを触らない
 metadata:
   type: feedback
   scope: durable
@@ -28,6 +28,18 @@ metadata:
   `onIntercept` などの最新値はレンダー中に ref へ代入して読む（呼び出し側で `useCallback` 不要）。
 - **expo-router の `<Redirect>` は `useFocusEffect` の中で `replace` する**ので、フォーカス中の画面でしか動かない。タブ内の画面ガードが、別のタブにいるユーザーを引き戻すことはない。
 - `Tabs` の `backBehavior` の既定は `firstRoute`（ナビタブへ戻ってから終了）。
+
+## `useSegments()` はナビゲーションの状態より1コミット遅れる
+
+expo-router 57 の `useSegments` は `store.onStateChange` で更新され、それは `BaseNavigationContainer` の `useEffect` から呼ばれる。
+同じイベントの中でストアを変えて `router.push` すると（例: 散歩の終了で `endWalk()` → `push("/walk-summary")`）、
+**新しいストアの値と古いセグメントの組で1回コミットされる**。
+
+**Why:** SS-101 のアップデートの案内は「未保存の散歩があり、サマリ画面にいる間は出さない」としていたため、散歩の終了直後に
+セグメントが散歩中の画面のままになり、案内の `Modal` が `visible=true` で一瞬コミットされた（レビューで判明。screencap では捉えられない）。
+
+**How to apply:** 「今どの画面にいるか」と「ストアの状態」の組で表示を決めるときは、遷移の途中のコミットでどうなるかを確かめる。
+画面に着いたことを state で覚える（`useUpdateRequired` の `summaryVisitedWalkId`）などで、セグメントの遅れに頼らない形にする。
 
 ## flash トーストは消費する画面でしか出ない
 

@@ -12,7 +12,7 @@ import type { AppConfigRead } from "@/api/generated/model";
  */
 export type AppConfigStatus = "loading" | "ready" | "unavailable";
 
-/** `X.Y.Z` 形式 or null（= 指定なし = 強制アップデートしない）。比較は SS-101 の責務でここでは行わない。 */
+/** `X.Y.Z` 形式 or null（= 指定なし = 強制アップデートしない）。比較と案内は `@/features/app-update`（SS-101）。 */
 export type MinimumSupportedVersions = { ios: string | null; android: string | null };
 
 /**

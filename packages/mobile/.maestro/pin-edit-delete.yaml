@@ -98,11 +98,11 @@ tags:
     visible:
       text: "この場所の住所を入れました.*"
     timeout: 15000
-- tapOn:
-    id: "pin-register-name-input"
-- eraseText:
-    charactersToErase: 60
-- inputText: ${output.pinName}
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-register-name-input"
+      TEXT: ${output.pinName}
 - hideKeyboard
 - scrollUntilVisible:
     element:
@@ -183,10 +183,11 @@ tags:
     visible:
       id: "pin-edit-form"
     timeout: 15000
-- tapOn:
-    id: "pin-edit-name-input"
-- eraseText: 100
-- inputText: ${output.editedName}
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-edit-name-input"
+      TEXT: ${output.editedName}
 - hideKeyboard
 - tapOn:
     id: "pin-edit-memo-input"
@@ -209,9 +210,17 @@ tags:
 - tapOn:
     id: "pin-edit-tag-input"
 - inputText: ${output.tagLabel}
+# タグ欄は画面の下端にあり、キーボードが開くとその裏に隠れて「追加」が見つからなくなる（run 39006127267）。
+# pin-register.yaml と同じく、キーボードを閉じてから「追加」を画面内に出して押す。
+# 「追加」はキーボードを開き直さないので、押した後に hideKeyboard を置かない（BACK が画面の「戻る」になる。SS-152）。
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "pin-edit-tag-add"
 - tapOn:
     id: "pin-edit-tag-add"
-- hideKeyboard
+- assertVisible:
+    id: "pin-edit-tag-0"
 - scrollUntilVisible:
     element:
       id: "pin-edit-save"

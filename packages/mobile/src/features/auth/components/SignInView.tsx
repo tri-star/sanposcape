@@ -1,5 +1,3 @@
-import { useRouter } from "expo-router";
-
 import { LegalConsentNotice } from "@/components/legal/LegalConsentNotice";
 import { Button } from "@/components/ui/button/Button";
 import { AppleSignInButton } from "@/features/auth/components/AppleSignInButton";
@@ -12,10 +10,10 @@ import { useAuthActions } from "@/features/auth/hooks/useAuthActions";
  * 「Google でログイン」は押下後に散歩開始画面へ遷移する。
  * ゲスト導線は SS-13 で一旦外し、SS-57 で復活した（ADR-M-009 SS-57 追補参照）。
  * SS-199 で iOS だけ Apple のボタンを Google の上に追加した。
+ * SS-221 で「アカウントを作成する」導線とサインアップ画面を削除した（サインインは Google / Apple のみ）。
  * SS-158 でプライバシーポリシーへのリンクを末尾に追加し、SS-187 で利用規約への同意の文言とリンクに置き換えた。
  */
 export function SignInView() {
-  const router = useRouter();
   const {
     signInWithGoogle,
     signInWithApple,
@@ -33,7 +31,6 @@ export function SignInView() {
       toast={toast}
     >
       <AppleSignInButton
-        kind="sign-in"
         testID="sign-in-apple-button"
         disabled={isSubmitting}
         onPress={signInWithApple}
@@ -54,15 +51,6 @@ export function SignInView() {
         onPress={continueAsGuest}
       >
         ゲストで試す
-      </Button>
-      <Button
-        testID="sign-in-to-sign-up-link"
-        variant="ghost"
-        size="sm"
-        disabled={isSubmitting}
-        onPress={() => router.push("/(auth)/sign-up")}
-      >
-        アカウントを作成する
       </Button>
       <LegalConsentNotice testIDPrefix="sign-in" />
     </AuthScreenLayout>

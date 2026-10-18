@@ -173,7 +173,8 @@ lp は Astro の静的出力（`output: "static"`）を非公開 S3 + OAC + Clou
 
 ## 外部オリジン
 - Web フォント・CDN・アクセス解析・埋め込み（iframe・フォーム）など外部オリジンを足していないか。足すなら infra の tfvar `content_security_policy` とセットで変える必要がある（ADR-012 決定3）。解析タグを足す差分は、プライバシーポリシーの「広告・アクセス解析・クラッシュ解析のツールを組み込んでいない」（`privacy.astro` 1-6）とも食い違う（mobile にクラッシュレポートを足す差分も同じ）。
-- お問い合わせはフォームにせず `/privacy/#contact` の mailto で代用している。フォームを足すと `form-action` / `connect-src` の変更と、受け取った入力の扱いが新たに要る。
+- お問い合わせはフォームにせず、mailto（`/privacy/#contact`・`/terms/#contact`・`/support/#contact`）で受けている。フォームを足すと `form-action` / `connect-src` の変更と、受け取った入力の扱いが新たに要る。
+- 利用者に情報を送るよう促す記述（問い合わせ・不具合の報告・削除の依頼の案内、書いてほしい項目）を足す差分は、受け取るデータが台帳 3.7（問い合わせのメール）と食い違わないかを観点6で見る。削除・開示の依頼の案内は、本人確認の手順（ポリシー 10、`/privacy/#requests`）へ向けているか（SS-214 で見つかった）。
 
 ## ビルドに焼き込まれる値
 - `astro:env` に足す変数が `context: "client"` / `access: "public"` なら `dist/` に焼き込まれて公開される。秘密は置かない（そもそも静的サイトに秘密の使い道は無いはず）。
@@ -182,7 +183,8 @@ lp は Astro の静的出力（`output: "static"`）を非公開 S3 + OAC + Clou
 ## 公開範囲
 - dev は meta robots と CloudFront の `X-Robots-Tag` の二重で noindex。`robots.txt` で `Disallow` にしていないか（noindex を読めなくなる。ADR-012 決定6）。
 - `public/` に置いたものはそのままの名前で公開される。設計資料・下書き・ソース画像を置いていないか。`/.well-known/` は置いていない（足すなら意図を確かめる）。
-- `/privacy/` は恒久 URL（アプリ内リンクと App Store Connect に登録済み）。backend / mobile のデータの扱い（取得する情報・送信先・保存期間）を変える差分は、観点6（台帳との整合）で `docs/privacy/data-inventory.md`・`privacy.astro`・`docs/app-privacy-label.md` の更新が要るかを見る。
+- `/privacy/`・`/terms/`・`/support/` は恒久 URL（アプリ内リンクと App Store Connect に登録する）。
+- ポリシー以外のページ（`/support/` など）が、データの扱いの事実（取得・公開範囲・保存期間・削除の対象）をポリシーから書き写していないか。書き写すとポリシーだけ直したときに古い説明が残るので、ポリシーの節へのリンクにする（SS-214 で見つかった）。backend / mobile のデータの扱い（取得する情報・送信先・保存期間）を変える差分は、観点6（台帳との整合）で `docs/privacy/data-inventory.md`・`privacy.astro`・`docs/app-privacy-label.md` の更新が要るかを見る。
 
 ## デプロイ経路（`lp-deploy.yml`）
 - 共通の「CI・デプロイのワークフロー」に加え、バケット名・distribution ID を SSM から実行時に読み、取得直後に `add-mask` しているか。リポジトリや GitHub に直書きしていないか。

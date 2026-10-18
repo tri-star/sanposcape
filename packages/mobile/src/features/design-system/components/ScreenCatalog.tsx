@@ -1,9 +1,11 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card/Card";
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
+import { UpdateRequiredPreview } from "@/features/app-update/components/UpdateRequiredPreview";
 import { AppConfigDebugCard } from "@/features/design-system/components/AppConfigDebugCard";
 import {
   DEFAULT_ACTIVE_WALK,
@@ -35,6 +37,7 @@ export function ScreenCatalog() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [updateRequiredPreviewOpen, setUpdateRequiredPreviewOpen] = useState(false);
 
   const links: CatalogLink[] = [
     {
@@ -43,13 +46,6 @@ export function ScreenCatalog() {
       description: "Googleサインインで開始する画面",
       icon: "user",
       onPress: () => router.push("/(auth)/sign-in"),
-    },
-    {
-      key: "sign-up",
-      label: "サインアップ",
-      description: "新規登録画面",
-      icon: "user",
-      onPress: () => router.push("/(auth)/sign-up"),
     },
     {
       key: "walk-start",
@@ -136,6 +132,14 @@ export function ScreenCatalog() {
       onPress: () => router.push("/settings"),
     },
     {
+      key: "update-required",
+      label: "アップデートの案内",
+      description:
+        "最低サポートバージョン未満のときに出る全画面の案内（ルートではなく全画面の重ね表示。確認用の「閉じる」付き。ストアのボタンは本番の掲載ページを開く。副作用なし）",
+      icon: "refresh-cw",
+      onPress: () => setUpdateRequiredPreviewOpen(true),
+    },
+    {
       key: "design-system",
       label: "デザインシステム",
       description: "トークン/UIプリミティブの一覧",
@@ -189,6 +193,10 @@ export function ScreenCatalog() {
           ))}
         </View>
       </ScrollView>
+      <UpdateRequiredPreview
+        open={updateRequiredPreviewOpen}
+        onClose={() => setUpdateRequiredPreviewOpen(false)}
+      />
     </View>
   );
 }

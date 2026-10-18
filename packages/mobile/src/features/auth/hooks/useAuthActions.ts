@@ -12,9 +12,7 @@ import { authService, isAuthError, type AuthProvider } from "@/services/auth";
 
 export type UseAuthActionsResult = {
   signInWithGoogle: () => void;
-  signUpWithGoogle: () => void;
   signInWithApple: () => void;
-  signUpWithApple: () => void;
   /** ゲストのまま着地点（ピンタブ。進行中の散歩があればナビタブ）へ進む。認証状態は変えない＝トークン非保持のまま（ADR-002 決定6）。 */
   continueAsGuest: () => void;
   /** いずれかのサインイン処理中か。全ボタンの `disabled` 制御に使う（多重タップ防止）。 */
@@ -117,16 +115,8 @@ export function useAuthActions(): UseAuthActionsResult {
     runSignIn("google", "サインインに失敗しました。もう一度お試しください。");
   }, [runSignIn]);
 
-  const signUpWithGoogle = useCallback(() => {
-    runSignIn("google", "登録に失敗しました。もう一度お試しください。");
-  }, [runSignIn]);
-
   const signInWithApple = useCallback(() => {
     runSignIn("apple", "サインインに失敗しました。もう一度お試しください。");
-  }, [runSignIn]);
-
-  const signUpWithApple = useCallback(() => {
-    runSignIn("apple", "登録に失敗しました。もう一度お試しください。");
   }, [runSignIn]);
 
   // authService は呼ばない。ゲストは「トークン非保持状態」であって AuthService のメソッドでは
@@ -151,9 +141,7 @@ export function useAuthActions(): UseAuthActionsResult {
 
   return {
     signInWithGoogle,
-    signUpWithGoogle,
     signInWithApple,
-    signUpWithApple,
     continueAsGuest,
     isSubmitting,
     submittingProvider,

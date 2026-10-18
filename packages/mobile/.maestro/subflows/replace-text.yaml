@@ -1,0 +1,41 @@
+# 共通 subflow: 入力欄の文字をすべて消してから入力し、欄の文字が入力どおりになったことを確かめる。
+# `subflows/` 配下なので単体では実行されない。
+#
+# 使い方（env の値は呼び出し側で決める）:
+#   - runFlow:
+#       file: subflows/replace-text.yaml
+#       env:
+#         FIELD_ID: "pin-register-name-input"   # 入力欄（TextInput）の testID
+#         TEXT: ${output.pinName}               # 入れる文字（ASCII。docs/local-env.md の E2E 節。SS-152）
+# キーボードは開いたままで返る。hideKeyboard は呼び出し側で行う。
+#
+# `tapOn` → `eraseText` だけで済ませない理由:
+# Android の `eraseText` は、カーソルの位置から前へ KEYCODE_DEL を送るだけで、カーソルの後ろの文字は消さない
+# （Maestro の MaestroDriverService.eraseAllText）。`tapOn: { id }` は欄の中央を押すので、欄の半分より長い文字が
+# 入っているとカーソルが文の途中に置かれ、後ろ半分が残ったまま入力が足される。ピン登録画面の名前欄には
+# 住所の初期値（SS-138）が入るため、名前が「入力 + 住所の残り」になり、全体一致の assert が落ちていた
+# （run 38980207557 の pin-register-anywhere）。
+#
+# 対応: 欄の右端を押してカーソルを表示中の末尾に置いてから消す。1行の欄に収まらない長さだと、右端を押しても
+# カーソルは見えている範囲の端にしか置けず、はみ出た分が残る。残った分は欄に収まるので、もう一度右端を押して
+# 消せば空になる。したがって欄の幅の約2倍までの文字を消せる（CI の pixel_6 の名前欄で全角約46字。fake の住所の
+# 初期値（26字）やフローの ASCII の名前はこの範囲）。全角で上限の 50 文字に近い名前は2回では消しきれないが、
+# そのときは下の assert で落ちる。
+# 要素の中の位置を指定する `tapOn` の `point` は Maestro 2.0.4 以降の機能（CI は mobile-e2e.yml で版を固定）。
+appId: com.sanposcape.app.dev
+---
+- tapOn:
+    id: ${FIELD_ID}
+    point: "95%,50%"
+- eraseText: 100
+# 既にフォーカスがあるので、押しても画面は変わらない（変化が無いときの再タップ `retryTapIfNoChange` は
+# 既定で無効なので指定しない。未知のキーを書くとフローの読み込みで全フローが落ちる）。
+- tapOn:
+    id: ${FIELD_ID}
+    point: "95%,50%"
+- eraseText: 100
+- inputText: ${TEXT}
+# 文字が残っていれば、ここで（後段の別の assert ではなく）落ちる。
+- assertVisible:
+    id: ${FIELD_ID}
+    text: ${TEXT}

@@ -66,7 +66,9 @@ export function AppConfigDebugCard() {
       </View>
 
       <View style={styles.row}>
-        <Text style={styles.label}>最低サポートバージョン（SS-101 で使用）</Text>
+        <Text style={styles.label}>
+          最低サポートバージョン（下回るとアップデートの案内。SS-101）
+        </Text>
         <Text style={styles.value}>ios: {snapshot.minimumSupportedVersions.ios ?? "指定なし"}</Text>
         <Text style={styles.value}>
           android: {snapshot.minimumSupportedVersions.android ?? "指定なし"}

@@ -70,6 +70,7 @@ curl -sI "$SITE/_astro/<任意のファイル>"  # Cache-Control: public, max-ag
 curl -sI "$SITE/privacy/"               # 200（アプリ内リンクと App Store Connect に登録する恒久 URL）
 curl -sI "$SITE/privacy"                # 301、Location が末尾 / 付きの /privacy/
 curl -sI "$SITE/terms/"                 # 200（アプリ内リンクに登録する恒久 URL。SS-187）
+curl -sI "$SITE/support/"               # 200（App Store Connect の Support URL に登録する恒久 URL。SS-214）
 ```
 
 production では追加で次を確認する。

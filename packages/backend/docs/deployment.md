@@ -10,7 +10,7 @@
 > リリース全体の流れ・フラグの操作・引き返し方は
 > [docs/release-runbook.md](../../../docs/release-runbook.md) を参照。
 
-> **検証状況（最終更新 2026-10-17）**
+> **検証状況（最終更新 2026-10-18）**
 >
 > | 手順 | 状況 |
 > |---|---|
@@ -23,7 +23,7 @@
 > | API 本体 → Neon（pooled）の疎通 | ✅ `GET /spots` が 200（検証当時。`spots` ドメインは SS-88 で削除済みで現存しないが、他のエンドポイントでも成り立つ結論として psycopg3 のプロトコルレベル prepared statement が Neon の PgBouncer で問題なく動くことを確認済み、§9） |
 > | `sam local invoke`（§4 手順5） | ⚠️ **未検証**。`APP_SECRET_ARN` に各自の dev シークレット ARN を埋める必要がある |
 > | CloudFront 経由（§6.2） | ✅ **dev は検証済み**（2026-09-12 / SS-81）。`/health` 200 に加え、**iOS 実機から認証必須エンドポイントとボディを伴う POST を実際に踏んで成功**した（下記）。prod は 2026-10-17 に CloudFront 経由の `/health` が 200、Function URL の直叩きが 403 であることを確認（infra 経由）。prod の認証必須エンドポイントの確認は未記録 |
-> | prod へのデプロイ | ✅ **実施済み**（GitHub Actions。2026-10-01 に `backend/v0.1.0`（3f77562）、2026-10-17 に `backend/v0.2.0`（f3c7e1d）。日付は JST）。⚠️ 同時実行数のクォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）だが、prod の予約（`ReservedConcurrentExecutions`）はまだ入れていない。ADR-005 決定8 の「最も危険な時間帯」に当たるので、予約の投入を急ぐ。prod の前提（SSM・シークレットのキー・デプロイロールの権限）は 2026-10-17 に infra 経由で確認した |
+> | prod へのデプロイ | ✅ **実施済み**（GitHub Actions。2026-10-01 に `backend/v0.1.0`（3f77562）、2026-10-17 に `backend/v0.2.0`（f3c7e1d）。日付は JST）。同時実行数のクォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）。prod の予約（`ReservedConcurrentExecutions`。Api=5 / Migrate=1 / PhotoPurge=1）は SS-217 で `template.yaml` に入れた。⚠️ **SS-217 を含む prod のデプロイと、§4 の `get-function-concurrency` での確認は未記録**（済んだらこの注記を消す）。prod の前提（SSM・シークレットのキー・デプロイロールの権限）は 2026-10-17 に infra 経由で確認した |
 > | 実行ロールへの Permission Boundary 付与（SS-72） | ✅ **dev・prod とも付与済み**。dev は GitHub Actions からのデプロイが通っている（境界が無いと §7 のとおり失敗する）。prod は `ApiRole` / `MigrateRole` に `sanposcape-prod-lambda-boundary` が付いていることを 2026-10-17 に infra 経由で確認 |
 > | GitHub Actions からのデプロイ（§4.1 / SS-72） | ✅ **dev・prod とも実施済み**（prod は infra の SS-97 の apply 後。上の「prod へのデプロイ」の行） |
 > | ピン写真バケット（S3）の結線（§12 / SS-108） | ✅ **dev は検証済み**（2026-09-24 / SS-88）。確認 1)〜3)（SSM・環境変数・実行ロールの `Resource` が完全な ARN に解決されていること）に加え、**ローカル backend（`STORAGE_MODE=real`）から dev の実バケット**へ写真付きピン登録を通し、`original/` と `thumb/` の生成・`staging/` の削除まで確認。デプロイ済み Lambda 経由での写真付きの登録（手順 3〜4）も、prod で `pin_registration` を ON にする前に作業者が dev で確認した（2026-10-17 の報告）。prod は SSM（`pin_photos/bucket_name` / `bucket_arn`）があることを 2026-10-17 に infra 経由で確認し、デプロイ済み。prod でのピン登録の実地確認は未記録 |
@@ -63,7 +63,7 @@
 | 写真の削除の関数名（SS-109、§17） | `sanposcape-dev-backend-scheduled-photo-purge` | `sanposcape-prod-backend-scheduled-photo-purge` |
 | アプリの `ENV` | `staging` | `production` |
 | ロググループ保持期間 | 30日 | 400日 |
-| `ReservedConcurrentExecutions` | Api=5 / Migrate=1 / PhotoPurge=1 | 未設定（後述） |
+| `ReservedConcurrentExecutions` | Api=5 / Migrate=1 / PhotoPurge=1 | dev と同じ（SS-217。後述） |
 | API ドキュメント（`/docs`、SS-131） | 公開（Scalar、200） | 非公開（404） |
 
 **`Env=dev` はアプリの `ENV=staging` に対応する。** `template.yaml` の `Mappings`
@@ -305,7 +305,10 @@ sam deploy --config-env dev
 - prod へのデプロイも同様に `sam deploy --config-env prod` だが、通常は GitHub Actions（§4.1）から行う。
   当初は「prod は Lambda の同時実行数クォータが引き上げ承認されるまでデプロイしない」としていたが、
   ADR-005 決定8 のとおり、prod はクォータ（初期値 10）が上がるまで予約を入れずにデプロイしていた（2026-10-01 から稼働）。
-  クォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）で、**予約の投入はまだ**（決定8 の「最も危険な時間帯」）。
+  クォータは 1,000 に引き上げ済み（作業者の報告、2026-10-17 時点）で、SS-217 で dev と同じ予約を入れた
+  （予約後の未予約がアカウントで 100 を下回ると AWS が拒否する。1,000 − 7 で満たす）。デプロイ後に予約が入ったことを確かめる:
+  `aws lambda get-function-concurrency --function-name sanposcape-prod-backend-api`（`-migrate` / `-scheduled-photo-purge` も同様。
+  それぞれ `ReservedConcurrentExecutions` が 5 / 1 / 1）。
   prod のシークレットに値が未投入の間は Lambda が起動時に `ResourceNotFoundException` で落ちる。
 
 ### 4.1 GitHub Actions からのデプロイ（SS-72）
@@ -502,7 +505,7 @@ aws lambda invoke --function-name sanposcape-dev-backend-migrate \
   読む API が `UndefinedColumn` で 500 になる。** デプロイ直後に続けて invoke する。本番稼働後は、
   マイグレーションだけの PR を先にデプロイして invoke し、その後で列を使うコードを出す
   （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) 決定7 の SS-171 追補）。
-- `ReservedConcurrentExecutions=1`（dev。prod は未設定。クォータは 1,000 に引き上げ済みで、予約の投入待ち）により、
+- `ReservedConcurrentExecutions=1`（dev・prod とも。prod は SS-217 のデプロイ以降）により、
   `upgrade head` の同時実行は防がれる。
 
 ### 5.3 緊急時のローカル実行（代替手段）
@@ -1354,7 +1357,7 @@ aws cloudwatch list-metrics --namespace ApplicationSignals --metric-name Fault -
 |---|---|---|---|
 | 上段 | 説明 | — | データ源ごとの意味と、自動更新を付けないこと |
 | 1 | API 全体: リクエスト数 / 4xx / 5xx、エラー率、レイテンシ（p50/p95/p99） | Application Signals（`ApplicationSignals` 名前空間。`Latency` / `Error` / `Fault`。操作 `<関数名>/FunctionHandler`） | スパン由来。サンプリングの影響を受けるかは未確認（上の検証状況）。Latency に Init（コールドスタート）は含まれない |
-| 2 | Lambda: 呼び出し（左軸）/ エラー・スロットル（右軸）、Duration、同時実行数 | `AWS/Lambda` | 全件。Duration には時間予算（25 秒）と Timeout（29 秒）の線（値は `config.py` と `Globals` の二重持ちで、`test_monitoring_config.py` が一致を固定）。同時実行数の線は dev が予約の 5、prod がクォータの 10（2026-10-17 時点でクォータは 1,000 に引き上げ済み。予約を入れたら線の値も見直す） |
+| 2 | Lambda: 呼び出し（左軸）/ エラー・スロットル（右軸）、Duration、同時実行数 | `AWS/Lambda` | 全件。Duration には時間予算（25 秒）と Timeout（29 秒）の線（値は `config.py` と `Globals` の二重持ちで、`test_monitoring_config.py` が一致を固定）。同時実行数の線は Api の予約の 5（dev・prod とも。SS-217 より前の prod はクォータの 10） |
 | 3 | ルート別（Q1）、ルート × ステータス（Q2） | `aws/spans` | ルート（`METHOD /テンプレート`）ごとの件数・p50/p95/p99・4xx/5xx 率。**sampled なスパンだけ** |
 | 4 | 直近の 5xx（Q3）、ルート別の件数の時系列（Q4） | `aws/spans` | Q3 の `traceId` から X-Ray / Transaction Search のトレースへ辿る |
 | 5 | メモリ（Q5）、コールドスタート（Q6a、Q6b） | Lambda のロググループの REPORT 行 | 全件 |
@@ -1495,7 +1498,7 @@ Q5〜Q6b は、REPORT 行がテキスト形式（`@type = 'REPORT'` / `@maxMemor
 | アラーム名 | 条件（5 分、1 回で判定、欠損は正常扱い） | 疑うこと |
 |---|---|---|
 | `sanposcape-<env>-backend-api-lambda-errors` | Lambda `Errors` の合計 >= 1 | タイムアウト・OOM・初期化の失敗・ランタイムのクラッシュ・ハンドラーが投げた例外。アプリの未処理例外は 500 の応答になるので通常ここには入らない。Q7 とログを見る |
-| `sanposcape-<env>-backend-api-lambda-throttles` | Lambda `Throttles` の合計 >= 1 | 同時実行数の上限（dev は予約 5。prod はクォータ 1,000 で、予約は投入待ち）。同時実行数のウィジェットを見る |
+| `sanposcape-<env>-backend-api-lambda-throttles` | Lambda `Throttles` の合計 >= 1 | 同時実行数の上限（予約の 5。dev・prod とも）。6 本目の同時リクエストから 429 になる（prod は SS-217 のデプロイ以降）。鳴り続けるなら予約の値を見直す（ADR-005 SS-217 追補）。同時実行数のウィジェットを見る |
 | `sanposcape-<env>-backend-api-5xx` | Application Signals `Fault`（5xx と、スパンのステータスが ERROR のもの。次元は `Environment` / `Operation`=`<関数名>/FunctionHandler` / `Service`）の合計 >= 3 | 5xx の件数。外部 API の障害による 503 も含む。Q3 から trace へ |
 
 - **Fault と Lambda の Errors は、ハンドラーが例外を投げたときに両方鳴りうる。** 二重の通知は許容する（片方に寄せると、
@@ -1821,7 +1824,7 @@ aws lambda invoke --function-name sanposcape-dev-backend-scheduled-photo-purge -
   これが毎日続くなら処理量が足りていない。バッチの上限（`ACCOUNT_PHOTO_PURGE_BATCH_SIZE`）・締め切り（`ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS`。
   `Timeout` 300 秒より十分短く保つ）を見直すか、ADR-009 決定36 の案B（SQS のファンアウト）へ移る。
 - Scheduler は at-least-once で、Lambda の非同期呼び出しはエラー時に既定で 2 回再試行する。処理は冪等なので二重に動いても壊れない
-  （dev は予約同時実行数 1 で重ならない。prod は未予約。クォータは 1,000 に引き上げ済みで、予約の投入待ち）。
+  （予約同時実行数 1 で重ならない。dev・prod とも。prod は SS-217 のデプロイ以降）。
 
 ### 設定値
 

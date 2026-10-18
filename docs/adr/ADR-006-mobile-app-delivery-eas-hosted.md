@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（棚卸し追補: 本番の TestFlight 配信の初回実行を反映。前回 SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-18（SS-214: サポートページの置き場の決着）。前回: 2026-10-17（棚卸し追補: 本番の TestFlight 配信の初回実行）、2026-10-17（SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -20,8 +20,9 @@
 - **mobile アプリ本体の Web 版は配信しない**。（本文: 決定4）
 - **AWS 側に要る mobile 隣接の配信面は静的サイトで、SAM ではなく Terraform（`sanposcape-infra`）の S3 + CloudFront で扱う**。
   実体は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の LP。（本文: 決定5、SS-158 追補）
-- **プライバシーポリシーの URL は `https://sanposcape.com/privacy/`（末尾スラッシュ付き、恒久）**。公開・お問い合わせの扱いは ADR-012 の SS-158 追補、
-  アプリからの開き方は [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)。（本文: 決定5、移行・対応事項、SS-79 追補、SS-158 追補）
+- **プライバシーポリシーの URL は `https://sanposcape.com/privacy/`、サポート URL は `https://sanposcape.com/support/`（どちらも末尾スラッシュ付き、恒久）**。
+  公開・お問い合わせの扱いは ADR-012 の SS-158 追補・SS-214 追補、アプリからの開き方は [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)
+  （サポートページへのアプリ内の導線は作っていない）。（本文: 決定5、移行・対応事項、SS-79 追補、SS-158 追補、SS-214 追補）
 - **URL scheme は開発用 `sanposcape-dev://` / 本番用 `sanposcape://` の2つ**。Universal Links / App Links は未使用で、将来配信する場合も静的ファイルに両 appID を列挙すればよい。
   （本文: 決定5、SS-79 追補）
 - **ビルド番号（iOS `buildNumber` / Android `versionCode`）は EAS サーバーが採番する（`cli.appVersionSource: "remote"`、`staging` / `production` に `autoIncrement: true`）**。
@@ -37,7 +38,9 @@
 
 - **TestFlight の外部テスト・ストア審査の前に、`/privacy/` を含む版の本番 LP をデプロイし、App Store Connect に URL を登録する**（手作業）。
   （本文: SS-79 追補、SS-158 追補。手順は ADR-012 の SS-158 追補）
-- **サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いは未決**（Plane に該当課題なし）。（本文: 移行・対応事項、SS-158 追補）
+- ~~**サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いは未決**（Plane に該当課題なし）。（本文: 移行・対応事項、SS-158 追補）~~
+  → SS-214 で決着。`https://sanposcape.com/support/` を LP に作った
+- **`/support/` を本番 LP にデプロイし、App Store Connect の Support URL に登録する**（手作業。ストア情報の入力は Plane SS-215。手順は ADR-012 の SS-214 追補）。（本文: 移行・対応事項）
 - `eas update` による OTA 配信の実運用手順（channel / branch、`runtimeVersion` を上げるべき変更の見分け方、ロールバック）の文書化。（本文: 移行・対応事項）
 - EAS Update の MAU が無料枠（1K MAU）に近づいた際の判断基準（未着手。実利用者が付いてから）。（本文: 移行・対応事項、ネガティブな影響）
 - ~~**本番の TestFlight 配信ワークフローは実行実績が無い**~~ → 人手の準備を済ませ、2026-10-17 に初回を実行した（成功）。（本文: SS-213 追補）
@@ -49,11 +52,12 @@
 - URL scheme `sanposcape://` のみ → 開発用 `sanposcape-dev://` / 本番用 `sanposcape://` の2つ（SS-79 追補）
 - ビルド番号は `app.json` で管理し配布前に PR で上げる → EAS remote 採番。SS-80 Phase 4（`local` 管理方針）は取り下げ（SS-89 追補）
 - プライバシーポリシーの提案ホスト名 `https://sanposcape.com/privacy`（未確定）→ `https://sanposcape.com/privacy/` で確定（SS-158 追補）
+- サポートページの提案ホスト名 `https://sanposcape.com/support`（未確定）→ `https://sanposcape.com/support/` で確定（SS-214 追補）
 - SS-79 追補の「外部テストの前提の配信面（SS-74）がまだ存在しない」は SS-79 時点の状態で、配信面は ADR-012 の LP として存在する（SS-158 追補）
 
 ## 日付
 
-2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）、2026-10-17 棚卸し追補（本番の TestFlight 配信の初回実行）
+2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）、2026-10-17 棚卸し追補（本番の TestFlight 配信の初回実行）、2026-10-18 追補（SS-214: サポートページの置き場の決着）
 
 ## ステータス
 
@@ -63,6 +67,10 @@
 プライバシーポリシーの置き場は、[ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md)（SS-155）の LP に
 `https://sanposcape.com/privacy/` として置くことで決着した。サポートページは作っていない。
 追補部分には `（SS-158 追補）` を付けている。
+
+**SS-214「サポートページ」で追補**した。サポートページも同じ LP に `https://sanposcape.com/support/` として置き、
+App Store Connect の Support URL に登録することで「移行・対応が必要な事項」の静的サイトの項目が決着した
+（決定の詳細は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-214 追補）。追補部分には `（SS-214 追補）` を付けている。
 
 SS-77「app: Web配信対象を確定し、SS-74向けのSAMデプロイを実装する」の調査結果として本 ADR を作成し、
 SS-77 自体は「作らない」決定に到達した時点で Cancelled とした。実作業は SS-78 / SS-79 が引き継ぐ。
@@ -141,6 +149,7 @@ EAS Update をそのまま使う。
    **（SS-158 追補）** プライバシーポリシーは [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の LP
    （`packages/lp` → S3 + CloudFront、`live/services/lp`）に置き、URL は `https://sanposcape.com/privacy/` とした。
    サポート URL 用のページは作っていない。
+   **（SS-214 追補）** サポート URL も同じ LP に置き、`https://sanposcape.com/support/` とした。
 2. **APK ダウンロード配布**（SS-79 の Android 側の選択肢の一つ）
    EAS の internal distribution や GitHub Releases のほうが軽い。S3 を選ぶ場合も素の
    S3 + CloudFront であり、SAM は関与しない。
@@ -226,7 +235,7 @@ EAS Update をそのまま使う。
 - [ ] `eas update` を使った OTA 配信の実運用手順（channel / branch の運用、`runtimeVersion` を
       上げるべき変更の見分け方、ロールバック手順）を文書化する。ストア配信を実際に始める
       SS-79 と同時期に必要になる。
-- [ ] プライバシーポリシー / サポートページの静的サイトをどこに置くかを SS-74 側と確定する。
+- [x] プライバシーポリシー / サポートページの静的サイトをどこに置くかを SS-74 側と確定する。
       TestFlight の外部テストを始める前に必要になる。
       **（SS-158 追補）プライバシーポリシーは決着、サポートページは未作成。**
       置き場は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の LP（`packages/lp` → S3 + CloudFront。SS-155 / infra SS-74）で、
@@ -235,6 +244,8 @@ EAS Update をそのまま使う。
       サポートページ（`/support/`）は作っておらず、App Store Connect の Support URL に何を登録するかは未決
       （Plane に該当課題なし）。お問い合わせはポリシー内の窓口 `/privacy/#contact` の mailto で受ける。
       サポートページが残るため、チェックは付けない。
+      **（SS-214 追補）サポートページも決着。** 同じ LP に `https://sanposcape.com/support/` を追加し、App Store Connect の Support URL に登録する
+      （[ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-214 追補）。置き場が両方決まったのでチェックを付けた。
 - [ ] EAS Update の MAU が無料枠に近づいた際の判断基準を決める（未着手。実利用者が付いてから）。
 
 ## SS-79 追補: ストア公開前の配布経路を確定する
@@ -260,6 +271,7 @@ EAS Update をそのまま使う。
   （提案ホスト名 `https://sanposcape.com/privacy` / `/support`。未確定）。
   （**SS-158 追補**: プライバシーポリシーは決着した。URL は末尾スラッシュ付きの `https://sanposcape.com/privacy/` で確定し、
   恒久 URL として変えない（ADR-012 の SS-158 追補）。`/support` は作っていない。上記「移行・対応が必要な事項」を参照）
+  （**SS-214 追補**: サポートページも `https://sanposcape.com/support/` で確定した（ADR-012 の SS-214 追補））
 - 新設した `.github/workflows/mobile-release-build.yml`（`workflow_dispatch` 専用）が
   Android の EAS ビルド起動と iOS の EAS ビルド + `eas submit` を担う。
 
