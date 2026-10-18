@@ -92,6 +92,54 @@ describe("canGoBack（サインイン画面の下に (tabs) 等がある場合�
   });
 });
 
+describe("returnTo（呼び出し元へ戻す。SS-151）", () => {
+  it("戻れるなら アカウントタブへ dismissTo する", () => {
+    expect(
+      getPostSignInDestination({
+        hasActiveWalk: false,
+        wantsToSaveFinishedWalk: false,
+        canGoBack: true,
+        returnTo: "account",
+      }),
+    ).toEqual({ type: "dismissTo", href: "/(tabs)/account" });
+  });
+
+  it("進行中の散歩があっても呼び出し元へ戻す（戻すだけで散歩の画面は隠れない）", () => {
+    expect(
+      getPostSignInDestination({
+        hasActiveWalk: true,
+        wantsToSaveFinishedWalk: false,
+        canGoBack: true,
+        returnTo: "account",
+      }),
+    ).toEqual({ type: "dismissTo", href: "/(tabs)/account" });
+  });
+
+  it("戻れないときは returnTo を無視して従来の着地点へ replace する", () => {
+    expect(
+      getPostSignInDestination({
+        hasActiveWalk: false,
+        wantsToSaveFinishedWalk: false,
+        canGoBack: false,
+        returnTo: "account",
+      }),
+    ).toEqual({ type: "replace", href: "/(tabs)/pins" });
+  });
+
+  it("returnTo が null / 省略なら従来どおり（他の入口の遷移は変わらない）", () => {
+    for (const returnTo of [null, undefined]) {
+      expect(
+        getPostSignInDestination({
+          hasActiveWalk: false,
+          wantsToSaveFinishedWalk: false,
+          canGoBack: true,
+          returnTo,
+        }),
+      ).toEqual({ type: "dismissTo", href: "/(tabs)/pins" });
+    }
+  });
+});
+
 describe("getGuestEntryDestination", () => {
   it("進行中の散歩が無ければピンタブへ replace（戻れない場合）", () => {
     expect(getGuestEntryDestination({ hasActiveWalk: false, canGoBack: false })).toEqual({

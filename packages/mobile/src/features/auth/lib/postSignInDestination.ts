@@ -1,10 +1,15 @@
 import { ACTIVE_WALK_LANDING_HREF, DEFAULT_LANDING_HREF } from "@/features/auth/lib/landingHref";
+import {
+  SIGN_IN_RETURN_TO_HREFS,
+  type SignInReturnTo,
+  type SignInReturnToHref,
+} from "@/features/auth/lib/signInReturnTo";
 
 export type LandingHref = typeof DEFAULT_LANDING_HREF | typeof ACTIVE_WALK_LANDING_HREF;
 
 export type PostSignInDestination =
   | { type: "replace"; href: LandingHref }
-  | { type: "dismissTo"; href: LandingHref | "/walk-summary" };
+  | { type: "dismissTo"; href: LandingHref | "/walk-summary" | SignInReturnToHref };
 
 export type PostSignInInput = {
   /** 進行中の散歩がある（`useActiveWalkStore.activeWalk !== null`）。 */
@@ -28,6 +33,11 @@ export type PostSignInInput = {
    * 既存の `(tabs)` へ `dismissTo` で戻る。
    */
   canGoBack: boolean;
+  /**
+   * サインイン画面を開いた呼び出し元（ルートパラメータ `returnTo` を `parseSignInReturnTo` で検証した値。SS-151）。
+   * 省略・null は従来どおり。`canGoBack` が false のときは戻る先が無いので無視する。
+   */
+  returnTo?: SignInReturnTo | null;
 };
 
 /** 着地点（`LandingHref`）へ、戻れるなら dismissTo、戻れないなら replace で向かう遷移を作る（純粋）。 */
@@ -45,6 +55,8 @@ export type GuestEntryDestination = {
  * サインイン成功後の遷移先と遷移方法を決める（純粋）。
  *
  * 優先順:
+ * 0. 呼び出し元の指定（`returnTo`）があり戻れる → その画面（アカウントタブ）へ `dismissTo`（SS-151）。
+ *    戻すだけで進行中の散歩の画面を隠さないので、進行中の散歩より先に見る。サマリの CTA は `returnTo` を渡さない。
  * 1. 進行中の散歩がある → `/(tabs)`（ナビタブ。`WalkActiveView` を隠さない。SS-57 ローカルレビュー対応）。
  *    保存待ちドラフトより優先する。散歩の最中にユーザーを別画面へ連れて行かないため
  *    （この2つが同時に立つのは「保存待ちのまま次の散歩を始めた」稀なケース）。
@@ -66,6 +78,9 @@ export type GuestEntryDestination = {
  * 引き続き有効。
  */
 export function getPostSignInDestination(input: PostSignInInput): PostSignInDestination {
+  if (input.returnTo && input.canGoBack) {
+    return { type: "dismissTo", href: SIGN_IN_RETURN_TO_HREFS[input.returnTo] };
+  }
   if (input.hasActiveWalk) return landingNavigation(ACTIVE_WALK_LANDING_HREF, input.canGoBack);
   if (input.wantsToSaveFinishedWalk) return { type: "dismissTo", href: "/walk-summary" };
   return landingNavigation(DEFAULT_LANDING_HREF, input.canGoBack);
