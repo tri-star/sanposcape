@@ -2,7 +2,7 @@
   "expo": {
     "name": "sanposcape (Dev)",
     "slug": "sanposcape",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/app-icons/sanposcape-icon-1024.png",
     "scheme": "sanposcape-dev",

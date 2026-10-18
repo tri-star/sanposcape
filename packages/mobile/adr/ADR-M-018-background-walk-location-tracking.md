@@ -29,7 +29,7 @@
 - Android の `RECORD_AUDIO` 等の不要な権限の除去（未起票。SS-157 追補）
 - 通知の許可を拒否された利用者への案内（設定アプリへの誘導など）は作らない。必要になったら起票する（SS-157 追補）
 - 散歩の終了忘れの自動停止（未起票）
-- `version` を上げる前に 0.1.0 のバイナリへ `eas update` を出さない
+- ~~`version` を上げる前に 0.1.0 のバイナリへ `eas update` を出さない~~ → ストア公開に合わせ `version` を `1.0.0` に上げて決着。0.1.0 のバイナリへは `eas update` が届かなくなる（`runtimeVersion` が `appVersion`）
 - expo-location に expo/expo#49409 が入ったら、モーションを `false` + CoreMotion 除外に切り替えるか検討する（SS-157 追補）
 
 ### 変更・撤回された決定
