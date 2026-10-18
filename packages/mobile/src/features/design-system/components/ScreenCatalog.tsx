@@ -48,13 +48,6 @@ export function ScreenCatalog() {
       onPress: () => router.push("/(auth)/sign-in"),
     },
     {
-      key: "sign-up",
-      label: "サインアップ",
-      description: "新規登録画面",
-      icon: "user",
-      onPress: () => router.push("/(auth)/sign-up"),
-    },
-    {
       key: "walk-start",
       label: "散歩開始",
       description: "スポット選択〜散歩を始める導線",

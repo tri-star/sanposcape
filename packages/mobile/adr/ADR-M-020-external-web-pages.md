@@ -88,3 +88,7 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 
 - 実装: `src/config/legalLinks.ts`、`src/components/legal/LegalDocumentLink.tsx`・`TermsLink.tsx`・`LegalConsentNotice.tsx`（SS-187）、`src/lib/externalUrl.ts`、`src/hooks/useOpenExternalUrl.ts`、`src/components/legal/PrivacyPolicyLink.tsx`
 - [ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md)（E2E で外部依存を避ける方針）
+
+## SS-221 追補: サインアップ画面の削除（2026-10-18）
+
+サインアップ画面を削除した（ADR-M-009 SS-221 追補）。`LegalConsentNotice` を出す認証画面はサインインだけで、testID は `sign-in-` と `settings-` + `terms-link` / `privacy-policy-link` のみになった（`sign-up-` は無い）。

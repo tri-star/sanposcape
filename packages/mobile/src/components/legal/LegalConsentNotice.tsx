@@ -10,7 +10,7 @@ export type LegalConsentNoticeProps = {
 };
 
 /**
- * サインイン・サインアップ画面の下部に出す、利用規約とプライバシーポリシーへの同意の文言とリンク。SS-187。
+ * サインイン画面の下部に出す、利用規約とプライバシーポリシーへの同意の文言とリンク。SS-187。
  * チェックボックスは付けず、文言とリンクの表示だけにする（ゲストで試す場合も同じ画面で表示される）。
  */
 export function LegalConsentNotice({ testIDPrefix }: LegalConsentNoticeProps) {

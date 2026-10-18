@@ -506,3 +506,19 @@ E2E のサインインのサブフローの終点がピンタブになり、全�
 ### 影響
 
 `dismissTo` は下に `(tabs)` が無い場合は現在の画面を置き換える（SS-37 追補と同じ）ので、`canGoBack` が true でも `(tabs)` が無い経路で破綻しない。
+
+## SS-221 追補: サインアップ画面を削除し、認証画面はサインインだけにする（2026-10-18）
+
+### 背景
+
+サインインは Google / Apple のみで、新規登録と再ログインを区別しない（ADR-002 決定5）。サインイン画面の「アカウントを作成する」から開くサインアップ画面は、文言が違うだけで同じ処理を呼んでおり、利用者に不要な分岐だった。
+
+### 決定・理由
+
+- `SignUpView`・`/(auth)/sign-up` ルート・画面カタログの「サインアップ」・`useAuthActions` の `signUpWithGoogle` / `signUpWithApple`・サインイン画面の `sign-in-to-sign-up-link` を削除した。
+- `AppleSignInButton` の `kind`（「Appleで登録」の出し分け）は使い道が無くなったので削除し、常に「Appleでサインイン」にした。
+- スプラッシュ / サインインで共有する `AuthHero` のワードマークを「Sanpo」から「Sanposcape」に変えた。長い名前で 360dp 幅でも折り返さないよう `numberOfLines={1}` + `adjustsFontSizeToFit` を付けた。
+
+### 影響
+
+- 決定7 の `sign-up-guest-button` と、ADR-M-020 の `sign-up-` で始まる testID は無くなった。E2E（`auth-gate.yaml`）のサインアップ画面の往復も削除した。
