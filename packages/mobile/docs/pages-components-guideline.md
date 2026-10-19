@@ -100,6 +100,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 サインイン遷移（ゲスト向けサインイン案内のボタン）は両タブで `src/hooks/useSignInNavigation.ts` に共通化し、
 アカウントタブは設定・画面カタログと同じ `runOnce` を渡してラッチを共有する。ピンタブはルートでは自前のラッチ、
 `PinTabView` 内では他の遷移と共有するラッチを通す（SS-148）。
+アカウントタブだけが第2引数 `returnTo: "account"` を渡し、サインイン後にアカウントタブへ戻す（SS-151。ADR-M-009 SS-151 追補）。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。

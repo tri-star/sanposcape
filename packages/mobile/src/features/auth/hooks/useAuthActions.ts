@@ -1,10 +1,11 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 
 import {
   getGuestEntryDestination,
   getPostSignInDestination,
 } from "@/features/auth/lib/postSignInDestination";
+import { parseSignInReturnTo } from "@/features/auth/lib/signInReturnTo";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import { useToast } from "@/hooks/useToast";
@@ -49,6 +50,9 @@ export type UseAuthActionsResult = {
  */
 export function useAuthActions(): UseAuthActionsResult {
   const router = useRouter();
+  // 呼び出し元の指定（SS-151）。ディープリンクからも書けるので許可リストで検証する。
+  const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string }>();
+  const returnTo = parseSignInReturnTo(returnToParam);
   const toast = useToast();
   const { show } = toast;
   const [submittingProvider, setSubmittingProvider] = useState<AuthProvider | null>(null);
@@ -83,6 +87,7 @@ export function useAuthActions(): UseAuthActionsResult {
             hasActiveWalk,
             wantsToSaveFinishedWalk,
             canGoBack: router.canGoBack(),
+            returnTo,
           });
           if (destination.type === "dismissTo") {
             router.dismissTo(destination.href);
@@ -108,7 +113,7 @@ export function useAuthActions(): UseAuthActionsResult {
           setSubmittingProvider(null);
         });
     },
-    [router, show, hasActiveWalk, wantsToSaveFinishedWalk],
+    [router, show, hasActiveWalk, wantsToSaveFinishedWalk, returnTo],
   );
 
   const signInWithGoogle = useCallback(() => {

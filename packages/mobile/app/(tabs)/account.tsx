@@ -23,6 +23,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * ゲストにしないのは、コールドスタートのディープリンク（`sanposcape://account` 等）では `AuthGate` が `loading` の間も
  * children を通し、サインイン済みのユーザーにサインイン案内が一瞬見えてしまうため。復元中は `HistoryView` が読み込み表示を出す。
  * サインイン遷移は `useSignInNavigation` に、設定・画面カタログと同じラッチ（`runOnce`）を渡して共有する。
+ * サインイン後はこのタブへ戻す（`returnTo: "account"`。SS-151）。
  * 遷移は push（replace にすると `(tabs)` ごと置き換わってタブバーが消える）。
  */
 export default function AccountRoute() {
@@ -33,7 +34,7 @@ export default function AccountRoute() {
   const authState: HistoryAuthState =
     status === "authenticated" ? "signed-in" : status === "loading" ? "restoring" : "guest";
   const { runOnce } = useNavigateOnce();
-  const handleSignIn = useSignInNavigation(runOnce);
+  const handleSignIn = useSignInNavigation(runOnce, "account");
   const handleNavigate = useCallback(
     (href: AccountActionHref) => runOnce(() => router.push(href)),
     [runOnce, router],

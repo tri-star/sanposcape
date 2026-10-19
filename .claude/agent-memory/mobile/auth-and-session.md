@@ -18,8 +18,8 @@ metadata:
 2. `AuthGate` の `useEffect` の依存に `useSegments()` の配列を入れない。`redirectHref: string | null` を依存にする（配列だと毎レンダー発火し `replace` を連打しうる）。
 3. `AuthGate` は `children` を条件分岐で差し替えない（`<Stack>` が作り直されて遷移が壊れる）。
 4. `useAuthSessionBootstrap` のラッチはモジュールスコープに置き、cleanup で中断しない（StrictMode の二重実行で `status` が `loading` のまま止まる）。
-5. ログイン直後の遷移先は `features/auth/lib/postSignInDestination.ts` の純粋関数にある。変えるときは「進行中の散歩を隠さない」最優先条件と、
-   保存目的のサインイン意思（`signInForSaveRequested`）のゲートを壊さない（全象限をテストで固定済み）。
+5. ログイン直後の遷移先は `features/auth/lib/postSignInDestination.ts` の純粋関数にある。変えるときは「進行中の散歩を隠さない」条件と、
+   保存目的のサインイン意思（`signInForSaveRequested`）のゲートを壊さない（全象限をテストで固定済み）。呼び出し元へ戻す `returnTo`（SS-151）は散歩の判定より先に見る＝戻すだけで散歩の画面は隠れない。値は許可リストで検証し、任意の href を渡さない。。
 6. セッションを終わらせるときは自前でトークンを消さず `authService.signOut()` を呼ぶ（ADR-M-009）。呼び出し側は reject に備えて catch しておく（ダイアログを操作不能にしないため）。
 
 ## services の初期化と後始末
