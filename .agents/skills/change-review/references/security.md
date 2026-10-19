@@ -168,7 +168,7 @@ lp は Astro の静的出力（`output: "static"`）を非公開 S3 + OAC + Clou
 - CI（`lp-ci.yml`）のインライン検査の grep を緩めていないか。ただし検査は `dist/**/*.html` だけを見る。`javascript:` URL は CSP の `script-src` で止まるが、検査には掛からない。
 
 ## 外部オリジン
-- Web フォント・CDN・アクセス解析・埋め込み（iframe・フォーム）など外部オリジンを足していないか。足すなら infra の tfvar `content_security_policy` とセットで変える必要がある（ADR-012 決定3）。解析タグを足す差分は、プライバシーポリシーの「広告・アクセス解析・クラッシュ解析のツールを組み込んでいない」（`privacy.astro` 1-6）とも食い違う（mobile にクラッシュレポートを足す差分も同じ）。
+- Web フォント・CDN・アクセス解析・埋め込み（iframe・フォーム）など外部オリジンを足していないか。足すなら infra の tfvar `content_security_policy` とセットで変える必要がある（ADR-012 決定3）。解析タグを足す差分は、プライバシーポリシーの「広告・アクセス解析・クラッシュ解析のツールを組み込んでいない」（`privacy.astro` 1-7）とも食い違う（mobile にクラッシュレポートを足す差分も同じ）。
 - お問い合わせはフォームにせず `/privacy/#contact` の mailto で代用している。フォームを足すと `form-action` / `connect-src` の変更と、受け取った入力の扱いが新たに要る。
 
 ## ビルドに焼き込まれる値
