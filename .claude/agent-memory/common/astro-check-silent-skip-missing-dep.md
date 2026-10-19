@@ -3,7 +3,7 @@ name: astro-check-silent-skip-missing-dep
 description: pnpm --filter lp check が「@astrojs/check を入れますか？」の対話で止まる、または stdin が無いと exit 0 で型検査をせずに終わる。原因は hoisted の node_modules に @napi-rs/wasm-runtime が欠けていること。pnpm install --frozen-lockfile --force で直る
 metadata:
   type: feedback
-  scope: task-local
+  scope: durable
   source_issue: SS-220
 ---
 
