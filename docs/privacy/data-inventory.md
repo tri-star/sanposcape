@@ -123,7 +123,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
 | 問い合わせのメールの原本（送り主のアドレスと名前・件名・本文・添付・ヘッダー。利用者が書いた端末の情報を含む） | `support@sanposcape.com` 宛てのメール。窓口はポリシー・規約の `#contact` とサポートページ（`packages/lp/src/pages/support.astro`。SS-214）。受信は infra の SES（ap-southeast-1）の受信ルール `forward`（SS-216） | — | S3（infra 所有、`<prefix>-inbound-mail-<account>` の `inbound/<messageId>`。SSE-S3・パブリックアクセス遮断）に 90 日（infra の `mail_retention_days`）。用途は転送に失敗したときの拾い直し | ライフサイクルで自動削除（アカウント削除とは無関係） | 1-6、3（AWS）、5、6、7 | 申告不要（アプリの外から届く。`app-privacy-label.md` 3.3） |
-| 問い合わせのメール（運営者の受信箱。上と同じ内容と運営者の返信） | infra の転送 Lambda（`live/platform/mail_forwarder/`）がヘッダーを書き換えて送り直す | Google（Gmail。運営者の受信箱）。返信は Gmail から SES の SMTP で送る | Gmail。対応を終えてから最長 3 年（運営者の手作業で消す。自動の削除は無い） | 期間の経過、または窓口への依頼で運営者が消す。アカウント削除では消えない | 1-6、3（Gmail）、5、6、7 | 同上 |
+| 問い合わせのメール（運営者の受信箱。上と同じ内容と運営者の返信） | infra の転送 Lambda（`live/platform/mail_forwarder/`）がヘッダーを書き換えて送り直す | Google（Gmail。運営者の受信箱）。返信は Gmail から SES の SMTP で送る | Gmail。対応を終えてから最長 3 年（運営者の手作業で消す。自動の削除は無い） | 期間の経過、または窓口への依頼で運営者が消す（依頼元のアドレス宛てに新しく確認のメールを送って本人を確かめる。転送メールの Reply-To は差出人が自由に決められるので「返信」で確かめない）。アカウント削除では消えない | 1-6、3（Gmail）、5、6、7 | 同上 |
 | 返信がバウンス・苦情になった宛先（問い合わせた人のアドレス・理由・イベントの詳細） | 運営者の返信（SES の SMTP）が SES の設定セット `sanposcape-<env>-default` を通り、`suppression_options` が BOUNCE / COMPLAINT を抑制リストに入れる（infra `live/platform/mail.tf`） | AWS（SES、ap-southeast-1）。同じイベントを SNS の `alerts` 経由で運営者の Gmail にメールで通知する（宛先・件名を含む） | SES のアカウント単位の抑制リスト。運営者が外すまで残る。通知のメールは受信箱の行と同じ扱い | 窓口への依頼で運営者が `aws sesv2 delete-suppressed-destination` で外す。アカウント削除では消えない | 3（AWS）、6、7 | 同上 |
 
 ## 4. 実装とポリシー・申告の既知の差分
