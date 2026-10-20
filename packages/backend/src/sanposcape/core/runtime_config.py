@@ -19,6 +19,7 @@ from sanposcape.integrations.aws.secrets import get_secret_json
 logger = logging.getLogger(__name__)
 
 # シークレット JSON のキー → 環境変数名のマッピング。
+# 変えたら docs/deployment.md §2.1 のキー一覧表も直す。
 # `google_oauth_client_secret` は backend では未使用（ADR-002 の public client 方式）なので
 # 意図的にここへ含めない。
 SECRET_KEY_TO_ENV: dict[str, str] = {
