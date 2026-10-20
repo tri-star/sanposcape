@@ -113,6 +113,13 @@ backend が使うシークレットは dev=`/sanposcape/dev/shared`、prod=`/san
 | `neon_dsn_unpooled` | `MIGRATE_DATABASE_DSN` | マイグレーション用の direct（非 pooled）DSN | **Migrate のみ** | 起動はする。Migrate の invoke が `MigrationConfigError` で失敗（`neon_dsn` へのフォールバックなし） | [§5.1](#51-neon_dsn_unpooled-の投入初回のみphase-4-までに必要) |
 | `google_oauth_client_secret` | （写さない） | **未使用**（public client 方式。ADR-002）。入っていても無害 | なし | なし | 不要 |
 
+- 「初期投入」の 4 キー（`neon_dsn` / `jwt_signing_key` / `google_oauth_client_id` / `google_maps_server_api_key`）の投入手順は
+  このリポジトリに専用の節が無い。投入は §3.1 と同じ read-modify-write（`put-secret-value` は値を丸ごと置き換える）で行い、
+  値の入手元と形式は次のとおり。
+  `neon_dsn`=Neon の pooled 接続文字列 / `jwt_signing_key`=32 文字以上のランダム文字列（環境ごとに別の値。32 文字未満は起動時に弾かれる） /
+  `google_oauth_client_id`=Google Cloud の OAuth クライアント ID（Android=Web・iOS をカンマ区切り。dev のクライアント ID を prod に入れない。ADR-002） /
+  `google_maps_server_api_key`=Google Maps Platform のサーバー側 API キー。
+  シークレットの器は infra（`sanposcape-infra`）が作る（§2）。
 - 「使う関数」の API は `Api`、Migrate は `Migrate`、PhotoPurge は `PhotoPurge`（§2）。3 つとも起動時に
   `hydrate_environment_from_secret()` を呼ぶので、「起動に失敗する」4 キーが欠けると Migrate・PhotoPurge も
   Settings の検証で失敗する（`neon_dsn_unpooled` は `hydrate_migration_environment_from_secret()` 経由で Migrate だけが読む）。
