@@ -64,7 +64,7 @@ updates:
       # fastapi 0.142 以降は opentelemetry-api を必須依存にし、import 時に読み込み、FastAPI 自身が
       # スパン・メトリクス・ログ（例外メッセージ込み）を出す。zip に OpenTelemetry を入れない方針
       # （ADR-013 決定1）・手動計装・外部へ出してよい情報のルール（決定6）と衝突するため、
-      # 対応方針を決めるまで 0.142 未満に固定する（pyproject.toml の fastapi の上限と対）。
+      # 対応方針を決めるまで 0.142 未満に固定する（SS-223。pyproject.toml の fastapi の上限と対）。
       - dependency-name: "fastapi"
         versions: [">=0.142"]
     groups:
