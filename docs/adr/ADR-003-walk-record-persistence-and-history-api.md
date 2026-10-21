@@ -29,7 +29,7 @@ M4（SS-15 / SS-16）で「スポット候補の提示 → 徒歩ルートの提
 - **アカウント削除が DB の `ON DELETE CASCADE` に依存している**。`users/repository.py:delete()` は `refresh_tokens` の CASCADE を前提に1トランザクションで完結する実装で、新しい子テーブルが CASCADE を持たないと `DELETE /users/me` が FK 違反で壊れる。
 - **認証は自前セッショントークン**で、`get_current_user` が single choke point（[ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md)）。認証失敗はすべて 401 に正規化し、403 は返していない。
 - **mobile の経過時間は一時停止を除外した値**（`lib/walkElapsed.ts`）。`ended_at - started_at` とは一致しない。
-- **mobile の実測距離は GPS ノイズ除去済み**（`lib/walkTrack.ts` が 5m 未満の移動を捨てる）。
+- **mobile の実測距離は GPS ノイズ除去済み**（`lib/walkTrack.ts` が 5m 未満の移動を捨てる）。（後日注記: SS-91 で、GPS の飛び（50m 以上・10 m/s 超の移動）も距離に加算しないようになった。[ADR-M-018](../../packages/mobile/adr/ADR-M-018-background-walk-location-tracking.md) 決定16）
 - **mobile の依存追加には `minimumReleaseAge` の制約**があり、新規ライブラリの導入コストが小さくない。
 
 ## 決定
