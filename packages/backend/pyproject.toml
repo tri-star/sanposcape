@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "sanposcape backend API (FastAPI)"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.141.1",
+    # 0.142 以降は opentelemetry-api を必須依存にし、import 時に読み込み、さらに FastAPI 自身が
+    # スパン・メトリクス・ログ（例外メッセージ・スタックトレース込み）を出す。OpenTelemetry は zip に
+    # 入れない方針（ADR-013 決定1・Makefile の検査）、手動計装との二重化、外部へ出してよい情報の
+    # ルール（決定6）と衝突するため、対応方針が決まるまで 0.142 未満に固定する。
+    "fastapi>=0.141.1,<0.142",
     "uvicorn[standard]>=0.32",
     # [asyncio] extra = greenlet。アプリは同期 SQLAlchemy だが、OpenTelemetry の SQLAlchemy 計装
     # （ADR-013 / SS-178）は instrument() の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1
