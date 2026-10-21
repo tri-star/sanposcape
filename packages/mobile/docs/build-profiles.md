@@ -338,6 +338,8 @@ git を見ても原因に辿り着けない。
 >   `eas build --local` での挙動は、`secret` 化後の E2E のビルドログで確認する（下記）。
 > - CI（`mobile-release-build.yml` の `npx eas-cli`）は最新版を使うため、手元の版（21.0.2）と
 >   異なる。eas-cli の版で優先順位が変わる可能性はゼロではない。
+>   （**2026-10-22 追記, SS-103**: eas-cli は `packages/mobile` の devDependency に固定版で入れ、
+>   CI も手元も `pnpm exec eas` で同じ版を使うようになった。版の更新は Dependabot の PR で行う）
 
 **visibility の `secret` への変更（8-2, SS-79）— 2026-09-14 実施済み**:
 
