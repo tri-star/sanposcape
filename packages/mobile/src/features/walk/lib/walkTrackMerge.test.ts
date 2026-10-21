@@ -137,6 +137,23 @@ describe("mergeWalkTrackSamples", () => {
     expect(Object.keys(next.track.points[0]!).sort()).toEqual(["latitude", "longitude"]);
   });
 
+  it("散歩中に数 km 先へ一気に移った点は距離に加算せず、続きの移動から数える（SS-91）", () => {
+    const teleported: LocationSample = { ...sample(3), latitude: 35.045 };
+    const afterTeleport: LocationSample = {
+      ...sample(4),
+      latitude: 35.045 + 0.00018,
+      timestampMs: 14_000,
+    };
+    let state = mergeWalkTrackSamples(INITIAL_WALK_TRACK_SYNC, [sample(1), sample(2)], run);
+    const beforeTeleport = state.track.distanceMeters;
+    state = mergeWalkTrackSamples(state, [teleported, afterTeleport], run);
+    expect(state.track.points).toHaveLength(4);
+    expect(state.track.distanceMeters).toBeCloseTo(
+      beforeTeleport + distanceMeters(state.track.points[2]!, state.track.points[3]!),
+      6,
+    );
+  });
+
   it("5m 未満の移動は appendWalkTrackPoint の規則どおり捨てる", () => {
     const near: LocationSample = {
       ...sample(1),

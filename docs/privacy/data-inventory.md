@@ -6,7 +6,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
   [App Privacy の申告](../app-privacy-label.md)は、この台帳から書く。3つが食い違えば、まず実装を確かめて台帳を直し、ポリシーと申告を合わせる。
 - ポリシーとのずれは、ポリシーを書くときより、backend・mobile の変更（DB モデル、ログ、送信内容、権限、外部 SDK の追加）で生まれる。
   そのため、ずれを生みうるパスを「[対象パス](#1-対象パスポリシーに関係する変更)」に挙げ、計画（`task-workflow`）とレビュー（`security-reviewer`）でここを確かめる。
-- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）、2026-10-15（SS-116。ピンの写真の原本のメタデータを backend が取り除くことを足した）、2026-10-15（SS-109。アカウント削除後の写真の削除を反映し、削除予約の行を足した）、2026-10-17（SS-210。Sign in with Apple・写真の撮影日時・写真のアップロード枠の残存をポリシーに反映し、「未反映」の印と既知の差分を外した）、2026-10-18（SS-214。サポートページの公開に合わせて問い合わせのメールの行を「未反映」で足した）
+- 確認日: 2026-10-13（SS-184 の作成時。backend・mobile のコードを読んで照合した）、2026-10-14（SS-169。端末の方位の行を足した）、2026-10-14（SS-138。ピンの位置の住所の取得の行を足した）、2026-10-15（SS-116。ピンの写真の原本のメタデータを backend が取り除くことを足した）、2026-10-15（SS-109。アカウント削除後の写真の削除を反映し、削除予約の行を足した）、2026-10-17（SS-210。Sign in with Apple・写真の撮影日時・写真のアップロード枠の残存をポリシーに反映し、「未反映」の印と既知の差分を外した）、2026-10-18（SS-214。サポートページの公開に合わせて問い合わせのメールの行を「未反映」で足した）、2026-10-19（SS-220。問い合わせのメールの行を infra（SS-216）の実装で埋め、ポリシーに反映して「未反映」を外した）
 
 ## 1. 対象パス（ポリシーに関係する変更）
 
@@ -31,7 +31,7 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 | mobile | `react-native-maps` を import するファイル（`SpotMapView.tsx`・`PinMapCanvas.tsx` など。`showsUserLocation`・地図の provider） | 地図 SDK へ渡るもの |
 | 共通 | `packages/backend/pyproject.toml`、`packages/mobile/package.json` の依存の追加・更新（Dependabot の更新を含む） | SDK が第三者へ直接送るもの（バージョンでプライバシーマニフェストが変わりうるので確かめる） |
 | lp | `packages/lp/src/`、`packages/lp/astro.config.mjs` | 紹介サイトで読み込む外部オリジン・アクセス解析・Cookie |
-| infra（別リポジトリ） | sanposcape-infra の CloudFront・S3 のログ設定（`log_retention_days`）、トレース（`aws/spans`）の保持期間（observability の設定）、S3 のライフサイクル、SES の受信と受信したメールの保存先（SS-216） | アクセスログ・トレース・問い合わせのメールの保存期間。このリポジトリの差分には現れないので、infra を変えるときに台帳を見る |
+| infra（別リポジトリ） | sanposcape-infra の CloudFront・S3 のログ設定（`log_retention_days`）、トレース（`aws/spans`）の保持期間（observability の設定）、S3 のライフサイクル、SES の受信と受信したメールの保存先・転送先（`live/platform/mail_inbound.tf`・`mail_forward_to`）、SES の設定セットの抑制とバウンス・苦情の通知（`live/platform/mail.tf`・`alerting.tf`）（SS-216） | アクセスログ・トレース・問い合わせのメールの保存期間。このリポジトリの差分には現れないので、infra を変えるときに台帳を見る |
 
 ## 2. 変更したときの手順
 
@@ -113,30 +113,36 @@ Sanposcape が扱う利用者のデータを、実装の事実（どこで取得
 
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
-| Google でサインインの SDK が送るもの | `react-native-nitro-google-signin`（iOS は GoogleSignIn ~> 9.0） | Google | Google のポリシーによる | Google のアカウント設定 | 1-6、3 | `app-privacy-label.md` 3.1 の Google Sign-In の行 |
+| Google でサインインの SDK が送るもの | `react-native-nitro-google-signin`（iOS は GoogleSignIn ~> 9.0） | Google | Google のポリシーによる | Google のアカウント設定 | 1-7、3 | `app-privacy-label.md` 3.1 の Google Sign-In の行 |
 | Apple のサインインの認可 | `expo-apple-authentication`（iOS の AuthenticationServices） | Apple | Apple のポリシーによる | Apple ID の設定 | 3、8 | 申告不要（Apple） |
 | 地図データの要求（表示範囲・IP・端末の情報） | `react-native-maps`（Android は Google Maps SDK、iOS は MapKit） | Google（Android）、Apple（iOS） | 各社のポリシーによる | — | 3 | 正確な位置情報（react-native-maps のマニフェスト） |
-| 更新の確認（インストールごとの ID・前回の致命的なエラー） | `expo-updates`（`app.json` の `updates.url`） | Expo | 未確認 | — | 1-6、3 | デバイス ID、クラッシュデータ（いずれも紐づかない） |
+| 更新の確認（インストールごとの ID・前回の致命的なエラー） | `expo-updates`（`app.json` の `updates.url`） | Expo | 未確認 | — | 1-7、3 | デバイス ID、クラッシュデータ（いずれも紐づかない） |
 
 ### 3.7 お問い合わせ
 
 | データ | 取得箇所 | 送信先 | 保存先・保存期間 | 削除の手段 | ポリシー | App Privacy |
 | --- | --- | --- | --- | --- | --- | --- |
-| **未反映** 問い合わせのメール（送り主のアドレス・本文・利用者が書いた端末の情報） | `support@sanposcape.com` 宛てのメール。窓口はポリシー・規約の `#contact` とサポートページ（`packages/lp/src/pages/support.astro`。SS-214） | — | 受信は infra の SS-216（SES）。保存先・期間は未確認 | 未確認 | 2（利用目的のみ） | 対象外の見込み（アプリの外から届く） |
+| 問い合わせのメールの原本（送り主のアドレスと名前・件名・本文・添付・ヘッダー。利用者が書いた端末の情報を含む） | `support@sanposcape.com` 宛てのメール。窓口はポリシー・規約の `#contact` とサポートページ（`packages/lp/src/pages/support.astro`。SS-214）。受信は infra の SES（ap-southeast-1）の受信ルール `forward`（SS-216） | — | S3（infra 所有、`<prefix>-inbound-mail-<account>` の `inbound/<messageId>`。SSE-S3・パブリックアクセス遮断）に 90 日（infra の `mail_retention_days`）。用途は転送に失敗したときの拾い直し | ライフサイクルで自動削除（アカウント削除とは無関係） | 1-6、3（AWS）、5、6、7 | 申告不要（アプリの外から届く。`app-privacy-label.md` 3.3） |
+| 問い合わせのメール（運営者の受信箱。上と同じ内容と運営者の返信） | infra の転送 Lambda（`live/platform/mail_forwarder/`）がヘッダーを書き換えて送り直す | Google（Gmail。運営者の受信箱）。返信は Gmail から SES の SMTP で送る | Gmail。対応を終えてから最長 3 年（運営者の手作業で消す。自動の削除は無い） | 期間の経過、または窓口への依頼で運営者が消す（依頼元のアドレス宛てに新しく確認のメールを送って本人を確かめる。転送メールの Reply-To は差出人が自由に決められるので「返信」で確かめない）。アカウント削除では消えない | 1-6、3（Gmail）、5、6、7 | 同上 |
+| 返信がバウンス・苦情になった宛先（問い合わせた人のアドレス・理由・イベントの詳細） | 運営者の返信（SES の SMTP）が SES の設定セット `sanposcape-<env>-default` を通り、`suppression_options` が BOUNCE / COMPLAINT を抑制リストに入れる（infra `live/platform/mail.tf`） | AWS（SES、ap-southeast-1）。同じイベントを SNS の `alerts` 経由で運営者の Gmail にメールで通知する（宛先・件名を含む） | SES のアカウント単位の抑制リスト。運営者が外すまで残る。通知のメールは受信箱の行と同じ扱い | 窓口への依頼で運営者が `aws sesv2 delete-suppressed-destination` で外す。アカウント削除では消えない | 3（AWS）、6、7 | 同上 |
 
 ## 4. 実装とポリシー・申告の既知の差分
 
-見つけたら、該当行に「未反映」の印を付け、ここに差分と後続の課題を表で挙げる（SS-210 で一度すべて解消した）。
+見つけたら、該当行に「未反映」の印を付け、ここに差分と後続の課題を表で挙げる（SS-210 で一度すべて解消し、SS-214 で足した 3.7 も SS-220 で解消した）。
 
 | 行 | 差分 | 後続の課題 |
 | --- | --- | --- |
-| 3.7 問い合わせのメール | ポリシー 1・6 に取得・保存期間・削除の手段が無い。窓口は SS-158 から `/privacy/#contact` にあったが、サポートページ（SS-214）が問い合わせと端末の情報の記入を促し、Support URL としてストアにも出る | Plane SS-220 |
+| （現在なし） | SS-220 で 3.7 問い合わせのメールを反映し、すべて解消した | — |
 
 ## 5. この台帳で確かめていないこと
 
 - CloudFront のアクセスログの項目と保持期間、トレース（`aws/spans`）の保持期間、S3 の `staging/` のライフサイクルは infra リポジトリ（sanposcape-infra）の設定で、このリポジトリからは確かめられない。
   保持期間は、SS-158 の PR（#131）の申し送りにある確認結果（sanposcape-infra `e09dcf8` の `live/platform/logging.tf`・`prod.tfvars` の `log_retention_days = 400`、トレースは 90 日）による。
   一方 ADR-012 の SS-159 追補はこれらを「infra 側で未確認」としており、記録が食い違う。400 日はポリシーで「最長 400 日」と言い切った値なので、infra を変えるときは infra 側で実際の値を確かめる。
+- 問い合わせのメールの受信の仕組み（3.7）は、sanposcape-infra `a999114`（SS-216 のマージ後）の ADR-0003・`live/platform/mail_inbound.tf`・`envs/prod.tfvars` で確かめた。
+  転送 Lambda のログ（CloudWatch Logs、90 日）は messageId と判定結果だけで、宛先・本文は出さない（`forwarder.py`）ため行を設けていない。
+  ハードバウンスのアドレスは AWS が管理する SES のグローバル抑制リストにも入るが、保管場所・期間は運営者が管理できず確かめられない。
+  受信箱（Gmail）の「最長 3 年」は運営者の運用で守るもので、仕組みでは強制されていない。infra の転送先（`mail_forward_to`）や保持日数を変えるときは 3.7 とポリシー 3・5・6 を見る。
 - 第三者 SDK が送る内容は、各 SDK のプライバシーマニフェストと公開情報による（`app-privacy-label.md` 3.1）。Expo が更新の確認で受け取った情報を保持するかは確認できていない。
 - 本番の Apple の鍵は 2026-10-17 に投入したが、アカウント削除時の Apple の失効が実際に動くかは確認していない（SS-208 の実機確認で確かめる）。
   鍵を入れずに `apple_allowed_audiences` だけを設定すると、Apple のサインインは通るが refresh token を保存せず、削除時も失効させない（ポリシー 1-4・7 はこの場合を「受け取れた場合にだけ保存」「解除しないまま削除」と書いている）。本番は鍵を入れてから audiences を設定する。

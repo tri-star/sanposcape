@@ -94,6 +94,43 @@ Terraform 側が CloudFront のオリジンとして参照できない。
 > **ただし infra 側の実装が変われば前提は崩れる**ので、値を管理する変更が入った疑いがあるときは
 > 再確認すること。
 
+### 2.1 Secrets Manager のキー一覧（SS-200）
+
+backend が使うシークレットは dev=`/sanposcape/dev/shared`、prod=`/sanposcape/prod/shared` の 1 つで、
+中身は JSON。キーの列挙はこの表が正本で、他の節（Phase 0・§3.1・§3.2・§5.1）はここを参照する。
+**`src/sanposcape/core/runtime_config.py` の `SECRET_KEY_TO_ENV` / `MIGRATE_SECRET_KEY_TO_ENV` を変えたら、この表も同じ PR で直す。**
+
+| キー | 写し先の環境変数 | 用途 | 使う関数 | 欠けたときの挙動 | 投入 |
+|---|---|---|---|---|---|
+| `neon_dsn` | `DATABASE_DSN` | DB 接続（Neon の pooled DSN） | API / Migrate / PhotoPurge | **起動に失敗する**（`DATABASE_DSN must be set`） | 初期投入（infra 側の手順） |
+| `jwt_signing_key` | `AUTH_JWT_SECRET` | 自前 JWT の署名鍵（32 文字以上） | API / Migrate / PhotoPurge | **起動に失敗する**（`AUTH_JWT_SECRET must be set`） | 初期投入 |
+| `google_oauth_client_id` | `GOOGLE_ALLOWED_AUDIENCES` | Google ID トークンの `aud`（Android=Web / iOS のクライアント ID。**キー名は単数形だが値は複数**。カンマ区切り。dev と prod で別の値） | API / Migrate / PhotoPurge | **起動に失敗する**（`GOOGLE_ALLOWED_AUDIENCES must be set`） | 初期投入 |
+| `google_maps_server_api_key` | `GOOGLE_MAPS_SERVER_API_KEY` | Google Maps Platform（サーバー側）の API キー | API / Migrate / PhotoPurge | **起動に失敗する**（`GOOGLE_MAPS_SERVER_API_KEY must be set`） | 初期投入 |
+| `apple_allowed_audiences` | `APPLE_ALLOWED_AUDIENCES` | Sign in with Apple の `aud`（iOS の bundle ID。カンマ区切り） | API | 起動はする。`provider="apple"` だけ 400 | [§3.1](#31-apple_allowed_audiences-の投入ss-197apple-対応版を-deploy-する前に) |
+| `apple_team_id` | `APPLE_TEAM_ID` | Apple のトークン交換・失効の client secret 署名（Team ID） | API | 起動はする。交換・失効だけ無効（アカウント削除時にトークンを失効させない） | [§3.2](#32-sign-in-with-apple-の鍵の投入ss-196--ss-198アカウント削除時のトークン失効を有効にする) |
+| `apple_sign_in_key_id` | `APPLE_SIGN_IN_KEY_ID` | 同上（鍵の Key ID） | API | 同上 | §3.2 |
+| `apple_sign_in_private_key` | `APPLE_SIGN_IN_PRIVATE_KEY` | 同上（.p8 の PEM 全文） | API | 同上 | §3.2 |
+| `neon_dsn_unpooled` | `MIGRATE_DATABASE_DSN` | マイグレーション用の direct（非 pooled）DSN | **Migrate のみ** | 起動はする。Migrate の invoke が `MigrationConfigError` で失敗（`neon_dsn` へのフォールバックなし） | [§5.1](#51-neon_dsn_unpooled-の投入初回のみphase-4-までに必要) |
+| `google_oauth_client_secret` | （写さない） | **未使用**（public client 方式。ADR-002）。入っていても無害 | なし | なし | 不要 |
+
+- 「初期投入」の 4 キー（`neon_dsn` / `jwt_signing_key` / `google_oauth_client_id` / `google_maps_server_api_key`）の投入手順は
+  このリポジトリに専用の節が無い。投入は §3.1 と同じ read-modify-write（`put-secret-value` は値を丸ごと置き換える）で行い、
+  値の入手元と形式は次のとおり。
+  `neon_dsn`=Neon の pooled 接続文字列 / `jwt_signing_key`=32 文字以上のランダム文字列（環境ごとに別の値。32 文字未満は起動時に弾かれる） /
+  `google_oauth_client_id`=Google Cloud の OAuth クライアント ID（Android=Web・iOS をカンマ区切り。dev のクライアント ID を prod に入れない。ADR-002） /
+  `google_maps_server_api_key`=Google Maps Platform のサーバー側 API キー。
+  シークレットの器は infra（`sanposcape-infra`）が作る（§2）。
+- 「使う関数」の API は `Api`、Migrate は `Migrate`、PhotoPurge は `PhotoPurge`（§2）。3 つとも起動時に
+  `hydrate_environment_from_secret()` を呼ぶので、「起動に失敗する」4 キーが欠けると Migrate・PhotoPurge も
+  Settings の検証で失敗する（`neon_dsn_unpooled` は `hydrate_migration_environment_from_secret()` 経由で Migrate だけが読む）。
+- 欠けたキーは、`SECRET_KEY_TO_ENV` / `MIGRATE_SECRET_KEY_TO_ENV` のキー名だけが cold start ごとに
+  `secret is missing expected keys` の ERROR ログに出る（値は出ない）。ログを出すだけで起動は止めないが、
+  **`ENV` が `local` / `test` 以外（dev=`staging` / prod=`production`）では、上の表で「起動に失敗する」とした 4 キーは
+  `config.py` の検証で別途はじかれる**（`Settings validation failed at startup`）。ログの有無と起動の可否は別。
+- 環境変数が既に設定されている項目はシークレットで上書きしない（明示設定が優先）。
+- 新しい環境（dev / prod）を作るときは、この表の「起動に失敗する」4 キー → Apple 関係（§3.1・§3.2）→ `neon_dsn_unpooled`（§5.1）の
+  順に揃える。揃ったかは Phase 0 のキー名確認コマンドで見る。値の更新は read-modify-write（§3.1・§5.1）。
+
 ## 3. 初回セットアップ
 
 - `sam --version` で AWS SAM CLI が利用可能であることを確認する。
@@ -130,11 +167,8 @@ aws ssm get-parameter --name /sanposcape/dev/platform/pin_photos/bucket_arn --re
 # シークレットのキー名だけを確認する（値は絶対に出さない）
 aws secretsmanager get-secret-value --secret-id <上記で得たARN> \
   --query SecretString --output text | python3 -c "import sys,json; print(*sorted(json.load(sys.stdin)), sep='\n')"
-# → neon_dsn / neon_dsn_unpooled / jwt_signing_key / google_oauth_client_id /
-#   google_maps_server_api_key / apple_allowed_audiences が揃っていること
-#   （google_oauth_client_secret は未使用。apple_allowed_audiences は §3.1 で投入する）
-#   Sign in with Apple のトークン失効用の apple_team_id / apple_sign_in_key_id /
-#   apple_sign_in_private_key は §3.2 で投入する（未投入でも API は起動する）
+# → §2.1 の表のキーが揃っていること（必須度・投入手順は表を参照。
+#   「起動に失敗する」キーが欠けているとデプロイ後に起動しない）
 
 # 同名のロググループが既に存在しないこと（存在すると明示定義が CREATE_FAILED になる）
 aws logs describe-log-groups --log-group-name-prefix /aws/lambda/sanposcape-dev-backend \
@@ -161,6 +195,7 @@ aws iam get-role-policy --role-name sanposcape-dev-sam-deploy --policy-name sam-
 ### 3.1 `apple_allowed_audiences` の投入（SS-197。Apple 対応版を deploy する前に）
 
 `POST /auth/session` の `provider="apple"` が許容する `aud`（iOS の bundle ID。カンマ区切りで複数可）。
+キーの一覧と必須度は [§2.1](#21-secrets-manager-のキー一覧ss-200) を参照。
 値は bundle ID で秘密ではないが、投入手順は §5.1 と同じ read-modify-write に揃える
 （`put-secret-value` は値を丸ごと置き換えるため、既存キーを含めた JSON 全体を書き戻す）。
 
@@ -195,6 +230,8 @@ aws secretsmanager get-secret-value --secret-id /sanposcape/dev/shared \
   Lambda の実行ロールは同じシークレットを既に読めている。§2）。
 
 ### 3.2 Sign in with Apple の鍵の投入（SS-196 / SS-198。アカウント削除時のトークン失効を有効にする）
+
+キーの一覧と必須度は [§2.1](#21-secrets-manager-のキー一覧ss-200) を参照。
 
 アカウント削除時に Apple のトークンを失効させる（Apple の審査 5.1.1(v) の要件）には、サインイン時の
 authorization code の交換と失効で使う client secret（ES256 の JWT）を署名する鍵が要る。鍵（.p8）は
@@ -452,7 +489,7 @@ CI はマイグレーションを実行しない。デプロイロールに `lam
 
 マイグレーション Lambda は direct（非 pooled）DSN を使う（理由は
 [ADR-005 決定9](../../../docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md#9-alembic-マイグレーションは専用-lambda-の手動-invoke-で実行するapi-本体では走らせない)）。
-シークレットに `neon_dsn_unpooled` キーがまだ無い場合は投入する。
+シークレットに `neon_dsn_unpooled` キーがまだ無い場合は投入する。（キーの一覧は [§2.1](#21-secrets-manager-のキー一覧ss-200)）
 
 **`put-secret-value` は値を丸ごと置き換える。** キー単位の追記 API は無いため、
 既存キーを含めた JSON 全体を読んで書き戻す（read-modify-write）。値は画面にも `ps` にも

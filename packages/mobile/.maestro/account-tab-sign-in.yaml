@@ -1,0 +1,40 @@
+# アカウントタブの案内からサインインすると、サインイン後にアカウントタブへ戻る（SS-151）。
+# 他の入口（設定画面など）の着地点が変わらないことは auth-gate.yaml（ピンタブへ着地）が見る。
+# preview E2E ビルド（EXPO_PUBLIC_AUTH_MODE=dev）前提。外部データ（/explore/*）には依存しない。
+appId: com.sanposcape.app.dev
+tags:
+  - smoke
+---
+# 状態の消去と起動は分ける（理由は subflows/launch-clean.yaml）。
+- runFlow: subflows/launch-clean.yaml
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-guest-button"
+    timeout: 15000
+- tapOn:
+    id: "sign-in-guest-button"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 15000
+- tapOn:
+    id: "app-tab-account"
+- extendedWaitUntil:
+    visible:
+      id: "history-sign-in-required"
+    timeout: 10000
+- tapOn:
+    id: "history-sign-in"
+- extendedWaitUntil:
+    visible:
+      id: "sign-in-google-button"
+    timeout: 10000
+- tapOn:
+    id: "sign-in-google-button"
+# アカウントタブ（記録）に戻り、案内は消えている。ピンタブの不在は assert しない（訪問済みタブは階層に残りうる）。
+- extendedWaitUntil:
+    visible:
+      id: "history-screen"
+    timeout: 20000
+- assertNotVisible:
+    id: "history-sign-in-required"
