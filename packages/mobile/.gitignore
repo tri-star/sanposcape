@@ -17,6 +17,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# `eas credentials` のダウンロードで作られ、keystore・p12 のパスワードが平文で入る
+credentials.json
 
 # Metro
 .metro-health-check*
