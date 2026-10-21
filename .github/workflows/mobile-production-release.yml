@@ -47,6 +47,9 @@ jobs:
       skip: ${{ steps.target.outputs.skip }}
       tag: ${{ steps.target.outputs.tag }}
     env:
+      # リポジトリ Secret の EXPO_TOKEN は Expo の Developer ロールの robot user のトークン（保護された
+      # production channel には OTA を出せない）。この job に `environment: production` を付けると、
+      # 同名の Environment Secret（Release Manager。OTA の本番配信用）に黙って切り替わる（ADR-008 D34）。
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - name: Validate inputs
@@ -87,7 +90,7 @@ jobs:
         working-directory: packages/mobile
         run: |
           set +e
-          npx eas-cli build:view "$BUILD_ID" --json \
+          pnpm exec eas build:view "$BUILD_ID" --json \
             > "$RUNNER_TEMP/build.json" 2> "$RUNNER_TEMP/build-view.stderr.log"
           STATUS=$?
           set -e

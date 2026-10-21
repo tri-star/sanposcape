@@ -36,6 +36,9 @@ jobs:
     # low-priority キューの待ち + iOS のビルド処理を含むため長めに取る（GitHub の上限は 6 時間）。
     timeout-minutes: 180
     env:
+      # リポジトリ Secret の EXPO_TOKEN は Expo の Developer ロールの robot user のトークン（保護された
+      # production channel には OTA を出せない）。この job に `environment: production` を付けると、
+      # 同名の Environment Secret（Release Manager。OTA の本番配信用）に黙って切り替わる（ADR-008 D34）。
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -100,7 +103,7 @@ jobs:
           # secret visibility で登録した値がワーカー側で注入される（SS-79 / ADR-M-007 追補。
           # 2026-09-14 に secret 化済み。記録は packages/mobile/docs/build-profiles.md の実測欄）。
           set +e
-          BUILD_JSON=$(npx eas-cli build \
+          BUILD_JSON=$(pnpm exec eas build \
             --platform android --profile staging-apk \
             --non-interactive --json \
             --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})" \
@@ -143,7 +146,7 @@ jobs:
         working-directory: packages/mobile
         run: |
           set +e
-          BUILD_JSON=$(npx eas-cli build \
+          BUILD_JSON=$(pnpm exec eas build \
             --platform ios --profile staging \
             --non-interactive --json \
             --message "SS-79 manual dispatch (run ${GITHUB_RUN_ID})" \
@@ -182,7 +185,7 @@ jobs:
         if: (inputs.platform == 'ios' || inputs.platform == 'all') && inputs.submit_ios
         working-directory: packages/mobile
         run: |
-          npx eas-cli submit \
+          pnpm exec eas submit \
             --platform ios --profile staging \
             --id "${{ steps.ios_build.outputs.build_id }}" \
             --non-interactive

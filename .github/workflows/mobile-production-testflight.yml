@@ -30,6 +30,9 @@ jobs:
     # low-priority キューの待ち + iOS のビルド処理を含むため長めに取る（mobile-release-build.yml と同じ）。
     timeout-minutes: 180
     env:
+      # リポジトリ Secret の EXPO_TOKEN は Expo の Developer ロールの robot user のトークン（保護された
+      # production channel には OTA を出せない）。この job に `environment: production` を付けると、
+      # 同名の Environment Secret（Release Manager。OTA の本番配信用）に黙って切り替わる（ADR-008 D34）。
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       GIT_CLIFF_VERSION: "2.14.1"
       # https://github.com/orhun/git-cliff/releases/download/v2.14.1/git-cliff-2.14.1-x86_64-unknown-linux-musl.tar.gz.sha512
@@ -136,7 +139,7 @@ jobs:
           APP_VERSION: ${{ steps.app.outputs.version }}
         run: |
           set +e
-          BUILD_JSON=$(npx eas-cli build \
+          BUILD_JSON=$(pnpm exec eas build \
             --platform ios --profile production \
             --non-interactive --json \
             --message "production TestFlight (run ${GITHUB_RUN_ID})" \
@@ -176,7 +179,7 @@ jobs:
           APP_VARIANT: production
         run: |
           set +e
-          npx eas-cli submit \
+          pnpm exec eas submit \
             --platform ios --profile production \
             --id "$BUILD_ID" \
             --non-interactive \
