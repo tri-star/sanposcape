@@ -5,7 +5,7 @@ ARG APP_UID=1000
 ARG APP_GID=1000
 
 # uv を公式イメージからコピー（公式推奨の方法）
-COPY --from=ghcr.io/astral-sh/uv:0.7.13 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.4 /uv /uvx /bin/
 
 ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
