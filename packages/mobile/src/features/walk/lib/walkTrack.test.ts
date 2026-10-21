@@ -23,7 +23,7 @@ vi.mock("@/features/walk/lib/geoDistance", async (importOriginal) => {
 });
 
 const ORIGIN: GeoCoordinates = { latitude: 35.681236, longitude: 139.767125 };
-/** ORIGIN からおおよそ 30m 北東（appendWalkTrackPoint.ts の MOCK_TRACK と同じ刻み幅）。 */
+/** ORIGIN からおおよそ 30m 北東（location.mock.ts の MOCK_TRACK と同じ刻み幅）。 */
 const NEXT: GeoCoordinates = { latitude: 35.681506, longitude: 139.767395 };
 /** ORIGIN からおおよそ 1m 程度しか動かない、GPS の揺れとみなされる点。 */
 const JITTER: GeoCoordinates = { latitude: 35.681245, longitude: 139.767125 };
