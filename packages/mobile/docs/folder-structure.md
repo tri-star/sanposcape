@@ -83,6 +83,9 @@ packages/mobile/
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
 - **UI を持たない横断的な配線コンポーネント**も、ここのカテゴリに置く（例: `app-config/`）。
   機能固有の配線（`AuthGate` など）は `features/<feature>/components/` に置く。
+- `ui/`・`layout/` 以外のカテゴリは用途（関係する機能・API）単位で切り、UI の有無で分けない
+  （例: `app-config/` には `/app-config` の配線コンポーネントと、フラグで描画を出し分ける UI 付きの `FeatureGate` が同居する）。
+  ファイルを足すときも「そのカテゴリの用途に関係するか」で判断する。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
 - 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `store` / `types` をこの配下に凝集させる。
