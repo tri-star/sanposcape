@@ -72,16 +72,14 @@ function isDefaultSelection(selection: SanpoMapSelection): boolean {
 /**
  * 破棄確認ダイアログを出すべきか（何か1つでも「消えると困る」入力があるか）。
  * 訪問済みスイッチは初期値（入口で変わる）と違うときだけ入力とみなす（SS-173）。
- * 名前も初期値（位置の住所。SS-138）のままなら入力とみなさない。
  */
 export function hasUnsavedInput(
   draft: PinDraft,
   photoCount: number,
-  options: { initialVisited: boolean; defaultName?: string | null },
+  options: { initialVisited: boolean },
 ): boolean {
-  const name = draft.name.trim();
   return (
-    (name.length > 0 && name !== (options.defaultName ?? "").trim()) ||
+    draft.name.trim().length > 0 ||
     draft.memo.trim().length > 0 ||
     draft.tags.length > 0 ||
     photoCount > 0 ||

@@ -16,10 +16,12 @@ import { PinPhotoGallery } from "@/features/pin/components/PinPhotoGallery";
 import { PinPhotoViewer } from "@/features/pin/components/PinPhotoViewer";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { PinStatusBadges } from "@/features/pin/components/PinStatusBadges";
+import { usePinAddress } from "@/features/pin/hooks/usePinAddress";
 import { usePinDelete } from "@/features/pin/hooks/usePinDelete";
 import { usePinDetail } from "@/features/pin/hooks/usePinDetail";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { DEFAULT_SANPO_MAP_ICON, sanpoMapIconFor } from "@/features/pin/lib/sanpoMapIcon";
+import { pinAddressText } from "@/features/pin/lib/pinAddress";
 import { PIN_DELETE_DONE_TITLE } from "@/features/pin/lib/pinDeleteError";
 import {
   canShowPinActions,
@@ -91,6 +93,9 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
           detail.pin,
         )
       : null;
+
+  // ピンの位置の住所。DB には保存せず、詳細を開いたときに引く（SS-212）。
+  const address = usePinAddress({ location: detail.pin?.location ?? null, enabled: isSignedIn });
 
   // ピンの地図のアイコン。一覧が未取得の間は既定のピンで描き、届いたら作り直される（SS-172）。
   const markerIcon =
@@ -278,6 +283,13 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 <Text style={styles.metaText} testID="pin-detail-sanpo-map-name">
                   {pin.sanpoMapName}
                 </Text>
+                {/* 住所は地図の上の大きな欄にせず、メタ情報の1行にする（地図を押し下げない。SS-212）。 */}
+                <View style={styles.metaLine}>
+                  <Icon name="map-pin" size={14} color={theme.colors.textTertiary} />
+                  <Text style={[styles.metaText, styles.addressText]} testID="pin-detail-address">
+                    {pinAddressText(address)}
+                  </Text>
+                </View>
               </View>
 
               <PinStatusBadges
@@ -479,6 +491,10 @@ const useStyles = makeStyles((theme) => ({
   metaText: {
     fontSize: theme.typography.size.xs,
     color: theme.colors.textTertiary,
+  },
+  addressText: {
+    // 長い住所は折り返す（アイコンの横の残り幅に収める）。
+    flexShrink: 1,
   },
   archivedNotice: {
     fontSize: theme.typography.size.sm,

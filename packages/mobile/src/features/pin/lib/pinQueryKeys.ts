@@ -58,9 +58,10 @@ export function sanpoMapPinsQueryKey(sanpoMapId: string) {
 }
 
 /**
- * ピン名の初期値（位置の住所。SS-138）。送る座標（小数6桁に丸めた値）で作る。
+ * ピンの位置の住所（ピン詳細に表示する。SS-212）。送る座標（小数6桁に丸めた値）で作るので、
+ * 同じ位置のピンは住所を共有する。
  * ピンの保存で変わるものではないので `["pins"]` 配下に置かない（保存成功時の invalidate の対象外）。
  */
-export function pinDefaultNameQueryKey(latitude: number, longitude: number) {
-  return ["pin-default-name", latitude, longitude] as const;
+export function pinAddressQueryKey(latitude: number, longitude: number) {
+  return ["pin-address", latitude, longitude] as const;
 }

@@ -122,17 +122,6 @@ describe("saveUnavailableMessage", () => {
 describe("hasUnsavedInput", () => {
   const INITIAL = { initialVisited: false };
 
-  it("名前が初期値（位置の住所。SS-138）のままなら入力とみなさない", () => {
-    const options = { initialVisited: false, defaultName: "東京都千代田区丸の内1丁目付近" };
-    expect(
-      hasUnsavedInput({ ...BASE_DRAFT, name: "東京都千代田区丸の内1丁目付近" }, 0, options),
-    ).toBe(false);
-    expect(hasUnsavedInput({ ...BASE_DRAFT, name: "東京都千代田区丸の内" }, 0, options)).toBe(true);
-    expect(
-      hasUnsavedInput({ ...BASE_DRAFT, name: "桜" }, 0, { ...options, defaultName: null }),
-    ).toBe(true);
-  });
-
   it("すべて空なら false", () => {
     expect(hasUnsavedInput(BASE_DRAFT, 0, INITIAL)).toBe(false);
   });

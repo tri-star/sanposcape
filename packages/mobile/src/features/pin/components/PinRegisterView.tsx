@@ -19,7 +19,6 @@ import { PinTagEditor } from "@/features/pin/components/PinTagEditor";
 import { SanpoMapSelector } from "@/features/pin/components/SanpoMapSelector";
 import { usePinLocationDraft } from "@/features/pin/hooks/usePinLocationDraft";
 import { usePinRegister } from "@/features/pin/hooks/usePinRegister";
-import { pinNameHelperText } from "@/features/pin/lib/pinDefaultName";
 import { canAdjustPinLocation } from "@/features/pin/lib/pinLocationAdjust";
 import {
   canManuallyRetryPinSave,
@@ -65,7 +64,6 @@ export function PinRegisterView({
   const register = usePinRegister({
     // location が null のときは register hook を無害な既定値で走らせる（下の early return で描画しない）。
     location: pinLocation.location ?? { latitude: 0, longitude: 0 },
-    locationValid: pinLocation.location !== null,
     clientWalkId,
     isSignedIn,
     onSaved: () => {
@@ -202,11 +200,7 @@ export function PinRegisterView({
                 <Input
                   label="名前"
                   placeholder="例：桜のトンネル"
-                  helper={pinNameHelperText({
-                    status: register.defaultNameStatus,
-                    isNameDefault: register.isNameDefault,
-                    name: register.draft.name,
-                  })}
+                  helper="空欄なら「名前のないピン」になります"
                   value={register.draft.name}
                   onChangeText={register.setName}
                   error={register.fieldErrors.name ?? undefined}
