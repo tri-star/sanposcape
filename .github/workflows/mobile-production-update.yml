@@ -330,9 +330,9 @@ jobs:
     timeout-minutes: 30
     # 承認者（Required reviewers）と main 限定の保護ルールを使う。AWS には触らないので id-token は付けない。
     environment: production
+    # EXPO_TOKEN（Release Manager）は job 全体ではなく、eas を動かす「Publish OTA update」の step にだけ渡す。
+    # pnpm install・orval などトークンを使わない step（依存のコードが動く）には渡さない。
     env:
-      # production Environment の Secret の EXPO_TOKEN（Release Manager）。同名のリポジトリ Secret（Developer）より優先される（ADR-008 D34）。
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       VERSION: ${{ needs.prepare.outputs.version }}
       PLATFORM: ${{ needs.prepare.outputs.platform }}
     steps:
@@ -386,6 +386,8 @@ jobs:
       - name: Publish OTA update
         working-directory: packages/mobile
         env:
+          # production Environment の Secret の EXPO_TOKEN（Release Manager）。同名のリポジトリ Secret（Developer）より優先される（ADR-008 D34）。
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           MESSAGE: ${{ inputs.message }}
         run: |
           set +e
