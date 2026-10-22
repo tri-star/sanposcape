@@ -1,4 +1,5 @@
 import logging
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
 
@@ -116,10 +117,13 @@ class MapsService:
             candidates=candidates,
         )
 
-    def reverse_geocode(self, request: ReverseGeocodeRequest) -> ReverseGeocodeResponse:
+    def reverse_geocode(
+        self, request: ReverseGeocodeRequest, *, user_id: uuid.UUID
+    ) -> ReverseGeocodeResponse:
         try:
             address = self._provider.reverse_geocode(
                 self._provider_point(request.location),
+                cache_scope=str(user_id),
                 timeout_seconds=self._geocode_timeout_seconds,
             )
         except GoogleMapsQuotaError as exc:

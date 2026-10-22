@@ -43,7 +43,9 @@ _LOOP_ROUTE_FIELD_MASK = (
 # 座標はクエリ（`locationQuery`）で送る（パスの形 `/location/{lat},{lng}` にすると、クエリを落とす
 # `_endpoint()` と `core/tracing.py` でも座標が残るため）。
 _GEOCODING_URL = "https://geocode.googleapis.com/v4/geocode/location"
-_GEOCODING_FIELD_MASK = "results.formattedAddress,results.addressComponents,results.types"
+_GEOCODING_FIELD_MASK = (
+    "results.formattedAddress,results.addressComponents,results.types,results.bounds"
+)
 # 住所・建物名の上限（Unicode code point）。応答の契約（`maps/schemas.py`）と揃える。
 _ADDRESS_MAX_CHARS = 256
 # 「日本、〒100-0005 」のような国名と郵便番号の接頭辞（NFKC で半角に揃えた後に当てる）。
@@ -87,7 +89,7 @@ class UnconfiguredGoogleMapsProvider:
         raise GoogleMapsUnavailableError()
 
     def reverse_geocode(
-        self, point: ProviderPoint, *, timeout_seconds: float
+        self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
     ) -> ProviderAddress | None:
         raise GoogleMapsUnavailableError()
 
@@ -280,9 +282,9 @@ class HttpGoogleMapsProvider:
         return result
 
     def reverse_geocode(
-        self, point: ProviderPoint, *, timeout_seconds: float
+        self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
     ) -> ProviderAddress | None:
-        key = self._geocode_key(point)
+        key = self._geocode_key(cache_scope, point)
         cached = self._geocode_cache.get(key)
         if cached is None:
             cached = self._geocode_flight.do(
@@ -309,7 +311,7 @@ class HttpGoogleMapsProvider:
             headers={"X-Goog-FieldMask": _GEOCODING_FIELD_MASK},
             timeout_seconds=timeout_seconds,
         )
-        address = _parse_geocode_results(response.get("results", []))
+        address = _parse_geocode_results(response.get("results", []), point)
         result: tuple[ProviderAddress, ...] = () if address is None else (address,)
         self._geocode_cache.put(key, result)
         return result
@@ -503,8 +505,10 @@ class HttpGoogleMapsProvider:
         )
 
     @staticmethod
-    def _geocode_key(point: ProviderPoint) -> str:
-        return f"geocode:{point.latitude:.5f}:{point.longitude:.5f}"
+    def _geocode_key(cache_scope: str, point: ProviderPoint) -> str:
+        # 住所のキャッシュは利用者ごとに分け、他の利用者に使い回さない（Geocoding API の
+        # 利用規約。SS-212 / ADR-001）。
+        return f"geocode:{cache_scope}:{point.latitude:.5f}:{point.longitude:.5f}"
 
     @staticmethod
     def _loop_key(origin: ProviderPoint, destination: ProviderPoint, via: ProviderPoint) -> str:
@@ -553,17 +557,20 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
     )
 
 
-def _parse_geocode_results(results: object) -> ProviderAddress | None:
+def _parse_geocode_results(results: object, point: ProviderPoint) -> ProviderAddress | None:
     """Geocoding API v4 の `results` から、最も詳しい結果の住所と建物名を取り出す。
 
     `results` は詳しい順に並ぶ。Plus Code・国・郵便番号だけの粗い結果（住所の無い場所）は
     読み飛ばす。
-    建物名は同じ結果の `premise` のうち番地ではないもの（best-effort。日本の住所で
-    建物名が入るかは場所による）。住所の末尾に同じ建物名が付いていれば住所から外す。
+    建物名は `premise` のうち番地ではないもの（best-effort。日本の住所で建物名が入るかは
+    場所による）。住所の結果に無ければ、後ろの結果のうち範囲（`bounds`）にピンの位置が入る
+    ものから最初に見つかったものを使う（先頭が入居者の結果で、建物名が2番目以降にだけ入る
+    ことがある。範囲で絞るのは、近くの別の建物を拾わないため。SS-212）。
+    住所の末尾に同じ建物名が付いていれば住所から外す。
     """
     if not isinstance(results, list):
         raise GoogleMapsUnavailableError()
-    for result in results:
+    for index, result in enumerate(results):
         if not isinstance(result, dict):
             raise GoogleMapsUnavailableError()
         types = result.get("types")
@@ -576,6 +583,8 @@ def _parse_geocode_results(results: object) -> ProviderAddress | None:
         if not address:
             continue
         building_name = _building_name(result.get("addressComponents"))
+        if building_name is None:
+            building_name = _building_name_within(results[index + 1 :], point)
         if building_name is not None and address.endswith(building_name):
             address = address[: -len(building_name)].rstrip()
             if not address:
@@ -612,6 +621,38 @@ def _building_name(components: object) -> str | None:
         if normalized and not _NUMBER_ONLY.match(normalized):
             return normalized
     return None
+
+
+def _building_name_within(results: list[object], point: ProviderPoint) -> str | None:
+    """範囲（`bounds`）にピンの位置が入る結果から、最初に見つかった建物名を返す。
+
+    範囲を持たない結果は使わない（その建物の上にピンがあるか確かめられないため）。
+    """
+    for result in results:
+        if not isinstance(result, dict) or not _bounds_contains(result.get("bounds"), point):
+            continue
+        building_name = _building_name(result.get("addressComponents"))
+        if building_name is not None:
+            return building_name
+    return None
+
+
+def _bounds_contains(bounds: object, point: ProviderPoint) -> bool:
+    if not isinstance(bounds, dict):
+        return False
+    low = bounds.get("low")
+    high = bounds.get("high")
+    if not isinstance(low, dict) or not isinstance(high, dict):
+        return False
+    try:
+        south = float(low["latitude"])
+        west = float(low["longitude"])
+        north = float(high["latitude"])
+        east = float(high["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    # 日付変更線をまたぐ範囲（west > east）は考えない（日本の建物の範囲では起きない）。
+    return south <= point.latitude <= north and west <= point.longitude <= east
 
 
 def build_google_maps_provider(settings: Settings) -> GoogleMapsProvider:

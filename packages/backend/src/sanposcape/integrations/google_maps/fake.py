@@ -142,11 +142,11 @@ class FakeGoogleMapsProvider:
         return ProviderLoopRoute(outbound=outbound, inbound=inbound)
 
     def reverse_geocode(
-        self, point: ProviderPoint, *, timeout_seconds: float
+        self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
     ) -> ProviderAddress | None:
         """座標によらず固定の住所（建物名つき）を返す。
 
-        `point`・`timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
+        `point`・`cache_scope`・`timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
         """
         return _FAKE_ADDRESS
 

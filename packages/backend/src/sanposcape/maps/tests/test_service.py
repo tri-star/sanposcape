@@ -1,3 +1,4 @@
+import uuid
 from dataclasses import replace
 from itertools import pairwise
 
@@ -485,13 +486,16 @@ class GeocodeProvider(FakeProvider):
         super().__init__()
         self.result = result
         self.error = error
-        self.calls: list[tuple[ProviderPoint, float]] = []
+        self.calls: list[tuple[ProviderPoint, str, float]] = []
 
-    def reverse_geocode(self, point, *, timeout_seconds):
-        self.calls.append((point, timeout_seconds))
+    def reverse_geocode(self, point, *, cache_scope, timeout_seconds):
+        self.calls.append((point, cache_scope, timeout_seconds))
         if self.error is not None:
             raise self.error
         return self.result
+
+
+_GEOCODE_USER_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
 
 
 def _geocode_service(provider) -> MapsService:
@@ -502,17 +506,20 @@ def test_reverse_geocode_returns_address_and_building_name() -> None:
     provider = GeocodeProvider(ProviderAddress("東京都千代田区丸の内1丁目9-1", "テストビル"))
 
     response = _geocode_service(provider).reverse_geocode(
-        ReverseGeocodeRequest(location={"latitude": 35.68, "longitude": 139.76})
+        ReverseGeocodeRequest(location={"latitude": 35.68, "longitude": 139.76}),
+        user_id=_GEOCODE_USER_ID,
     )
 
     assert response.address == "東京都千代田区丸の内1丁目9-1"
     assert response.building_name == "テストビル"
-    assert provider.calls == [(ProviderPoint(35.68, 139.76), 5)]
+    # キャッシュは利用者ごとに分ける（SS-212）。
+    assert provider.calls == [(ProviderPoint(35.68, 139.76), str(_GEOCODE_USER_ID), 5)]
 
 
 def test_reverse_geocode_returns_nulls_when_no_address() -> None:
     response = _geocode_service(GeocodeProvider(None)).reverse_geocode(
-        ReverseGeocodeRequest(location={"latitude": 0, "longitude": 0})
+        ReverseGeocodeRequest(location={"latitude": 0, "longitude": 0}),
+        user_id=_GEOCODE_USER_ID,
     )
 
     assert response.address is None
@@ -529,5 +536,6 @@ def test_reverse_geocode_returns_nulls_when_no_address() -> None:
 def test_reverse_geocode_maps_provider_failures(error, expected) -> None:
     with pytest.raises(expected):
         _geocode_service(GeocodeProvider(error=error)).reverse_geocode(
-            ReverseGeocodeRequest(location={"latitude": 35, "longitude": 139})
+            ReverseGeocodeRequest(location={"latitude": 35, "longitude": 139}),
+            user_id=_GEOCODE_USER_ID,
         )

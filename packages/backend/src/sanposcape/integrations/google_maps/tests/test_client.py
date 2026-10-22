@@ -562,7 +562,7 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
         assert request.headers["x-goog-api-key"] == "server-key"
         assert (
             request.headers["x-goog-fieldmask"]
-            == "results.formattedAddress,results.addressComponents,results.types"
+            == "results.formattedAddress,results.addressComponents,results.types,results.bounds"
         )
         return _geocode_response(
             [
@@ -584,8 +584,8 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
     provider = _provider(handler)
     point = ProviderPoint(35.681236, 139.767125)
 
-    first = provider.reverse_geocode(point, timeout_seconds=8)
-    second = provider.reverse_geocode(point, timeout_seconds=8)
+    first = provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
+    second = provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
 
     assert first is not None
     assert first.address == "東京都千代田区丸の内2丁目4-1"
@@ -607,7 +607,9 @@ def test_reverse_geocode_ignores_number_only_premise_and_plus_code_results() -> 
             ]
         )
 
-    result = _provider(handler).reverse_geocode(ProviderPoint(35.6, 139.7), timeout_seconds=8)
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.6, 139.7), cache_scope="user-a", timeout_seconds=8
+    )
 
     assert result is not None
     assert result.address == "東京都渋谷区渋谷2丁目21-1"
@@ -642,8 +644,8 @@ def test_reverse_geocode_returns_none_without_an_address_and_caches_it(body) -> 
     provider = _provider(handler)
     point = ProviderPoint(0, -140)
 
-    assert provider.reverse_geocode(point, timeout_seconds=8) is None
-    assert provider.reverse_geocode(point, timeout_seconds=8) is None
+    assert provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8) is None
+    assert provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8) is None
     assert calls == 1
 
 
@@ -670,7 +672,9 @@ def test_reverse_geocode_maps_http_errors(status_code, expected, caplog) -> None
         )
 
     with pytest.raises(expected) as exc_info:
-        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+        _provider(handler).reverse_geocode(
+            ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )
 
     assert "/v4/geocode/location" in caplog.text
     # キー・座標はログに出さない（エラー文言のキーは伏せ、URL はクエリを落とす）。
@@ -685,9 +689,109 @@ def test_reverse_geocode_rejects_malformed_results() -> None:
         return httpx.Response(200, json={"results": "broken"})
 
     with pytest.raises(GoogleMapsUnavailableError):
-        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+        _provider(handler).reverse_geocode(
+            ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )
+
+
+def _bounds(south: float, west: float, north: float, east: float) -> dict:
+    return {
+        "low": {"latitude": south, "longitude": west},
+        "high": {"latitude": north, "longitude": east},
+    }
+
+
+def test_reverse_geocode_takes_building_name_from_a_later_result_containing_the_point() -> None:
+    """先頭（入居者の結果）に建物名が無いとき、ピンの位置を範囲に含む後ろの結果の建物名を使う（SS-212）。
+
+    範囲の外の結果（近くの別の建物）と、範囲を持たない結果の建物名は使わない。
+    """
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["establishment"],
+                    "formattedAddress": "日本、〒100-0005 東京都千代田区丸の内２丁目４−１",
+                    "addressComponents": [{"longText": "１", "types": ["premise"]}],
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都千代田区丸の内２丁目４ 隣のビル",
+                    "addressComponents": [{"longText": "隣のビル", "types": ["premise"]}],
+                    "bounds": _bounds(35.6815, 139.7640, 35.6820, 139.7645),
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都千代田区丸の内２丁目 範囲なしビル",
+                    "addressComponents": [{"longText": "範囲なしビル", "types": ["premise"]}],
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都千代田区丸の内２丁目４−１ 丸の内ビルディング",
+                    "addressComponents": [{"longText": "丸の内ビルディング", "types": ["premise"]}],
+                    "bounds": _bounds(35.6805, 139.7660, 35.6815, 139.7680),
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.681, 139.767), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result is not None
+    assert result.address == "東京都千代田区丸の内2丁目4-1"
+    assert result.building_name == "丸の内ビルディング"
+
+
+def test_reverse_geocode_has_no_building_name_when_no_result_contains_the_point() -> None:
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒150-0002 東京都渋谷区渋谷２丁目２１−１",
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都渋谷区渋谷２丁目 隣のビル",
+                    "addressComponents": [{"longText": "隣のビル", "types": ["premise"]}],
+                    "bounds": _bounds(35.0, 139.0, 35.1, 139.1),
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.6, 139.7), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result is not None
+    assert result.building_name is None
+
+
+def test_reverse_geocode_does_not_share_the_cache_between_users() -> None:
+    """住所のキャッシュは利用者ごと。同じ位置でも別の利用者には使い回さない（SS-212。利用規約）。"""
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        return _geocode_response(
+            [{"types": ["street_address"], "formattedAddress": "日本、東京都渋谷区渋谷２丁目"}]
+        )
+
+    provider = _provider(handler)
+    point = ProviderPoint(35.6, 139.7)
+
+    provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
+    provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
+    provider.reverse_geocode(point, cache_scope="user-b", timeout_seconds=8)
+
+    assert calls == 2
 
 
 def test_unconfigured_provider_reverse_geocode_is_unavailable() -> None:
     with pytest.raises(GoogleMapsUnavailableError):
-        UnconfiguredGoogleMapsProvider().reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+        UnconfiguredGoogleMapsProvider().reverse_geocode(
+            ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )
