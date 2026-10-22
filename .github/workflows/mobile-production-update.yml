@@ -14,7 +14,8 @@ name: mobile production OTA update (EAS Update)
 #   ネイティブの変更は OTA では届かず、互換の無い JS が既存の端末で落ちる。version を上げてストアで配布する。
 # ★ OTA の JS は本番バイナリと同じ env で作る（ADR-008 D36）。eas update は eas.json の build profile の env を読まないので、
 #   build.production.env（APP_VARIANT・接続先・各 MODE）を GITHUB_ENV に書いてから実行する。値の正本は eas.json。
-# ★ 戻すとき（ロールバック）は、Owner が手元で eas update:republish / eas update:rollback を行う（docs/release-runbook.md §8.4）。
+#   eas update は EAS の環境変数を GITHUB_ENV の値より優先する（eas build とは逆）ので、同じ名前の変数が EAS 側にあれば prepare で止める。
+# ★ 戻すとき（ロールバック）は、Owner が手元で eas update:republish / eas update:roll-back-to-embedded を行う（docs/release-runbook.md §8.4）。
 
 on:
   workflow_dispatch:
@@ -85,6 +86,63 @@ jobs:
           set -euo pipefail
           jq -r '.build.production.env | to_entries[] | "\(.key)=\(.value)"' eas.json >> "$GITHUB_ENV"
           jq -r '.build.production.env | keys | join(", ")' eas.json | sed 's/^/eas.json の build.production.env を適用: /'
+
+      # production channel が protected でなければ止める。保護が外れていると、Developer のトークン（どのブランチの job にも届く）で
+      # 承認なしに本番へ OTA を出せる（ADR-008 D34）。Expo は project を別のアカウントへ移すと保護を外す。
+      - name: Check production channel is protected
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          set +e
+          pnpm exec eas channel:view production --json --non-interactive \
+            > "$RUNNER_TEMP/channel.out" 2> "$RUNNER_TEMP/channel.stderr.log"
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::production channel の取得（eas channel:view）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+            sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/channel.stderr.log"
+            exit "$STATUS"
+          fi
+          protected=$(sed -n '/^{/,$p' "$RUNNER_TEMP/channel.out" | jq -r '.currentPage.isProtected // empty')
+          if [ "$protected" != "true" ]; then
+            echo "::error::production channel が protected ではありません（isProtected=${protected:-不明}）。Owner が手元で eas channel:protect production を実行してから起動し直してください（docs/release-runbook.md §6.1）"
+            exit 1
+          fi
+          echo "production channel は protected です"
+
+      # eas update は EAS の環境変数を GITHUB_ENV の値より優先する（本番ビルドの eas build は逆に eas.json の値を優先する）。
+      # 同じ名前の変数が EAS の production 環境にあると、OTA の JS だけがそちらの値で作られ、fingerprint にも Summary にも現れない
+      # （ADR-008 D36）。名前が重なれば止め、変数名の一覧を承認者に見せる。値は読まない・出さない。
+      - name: Check EAS environment variables do not override eas.json
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/eas-env-names.txt"
+          for scope in project account; do
+            set +e
+            pnpm exec eas env:list production --format short --scope "$scope" \
+              > "$RUNNER_TEMP/env-$scope.out" 2> "$RUNNER_TEMP/env-$scope.stderr.log"
+            STATUS=$?
+            set -e
+            if [ "$STATUS" -ne 0 ]; then
+              echo "::error::EAS の環境変数の一覧（eas env:list, ${scope}）の取得が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+              sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/env-$scope.stderr.log"
+              exit "$STATUS"
+            fi
+            # 「NAME=値」の行から名前だけを取る（色の制御文字を除く）。値は捨てる。
+            sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/env-$scope.out" \
+              | grep -oE '^[A-Z_][A-Z0-9_]*=' | sed 's/=$//' | sed "s/\$/ (${scope})/" \
+              >> "$RUNNER_TEMP/eas-env-names.txt" || true
+            rm -f "$RUNNER_TEMP/env-$scope.out"
+          done
+          overlap=$(jq -r '.build.production.env | keys[]' eas.json \
+            | grep -Fxf - <(sed 's/ (.*)$//' "$RUNNER_TEMP/eas-env-names.txt") | sort -u | paste -sd, - || true)
+          if [ -n "$overlap" ]; then
+            echo "::error::EAS の production 環境に、eas.json の build.production.env と同じ名前の変数があります: ${overlap}。OTA の JS だけがその値で作られるため配信しません。EAS 側の変数を消すか、eas.json と揃えてから起動し直してください（ADR-008 D36）"
+            exit 1
+          fi
+          echo "EAS の production 環境の変数（名前）:"
+          cat "$RUNNER_TEMP/eas-env-names.txt"
 
       # プラットフォームごとに、OTA が届く本番ビルド（production channel・この version・production profile・ストア向け・完了済み）の最新を引く。
       # 本番ビルドが無いプラットフォームには配信しない（届く端末が無い。2026-10 時点で Android の本番ビルドは未作成）。
@@ -221,6 +279,14 @@ jobs:
             echo "- 配信するプラットフォーム: ${PLATFORM}"
             echo "- 配信するコミット: \`${GITHUB_SHA}\`"
             echo "- message: ${MESSAGE}"
+            echo
+            echo "OTA の JS には、eas.json の build.production.env に加えて、EAS の production 環境の次の変数が入ります（名前だけ。値は出しません）。見覚えの無い変数があれば承認しないでください。"
+            echo
+            if [ -s "$RUNNER_TEMP/eas-env-names.txt" ]; then
+              sed 's/^/- /' "$RUNNER_TEMP/eas-env-names.txt"
+            else
+              echo "- （ありません）"
+            fi
             for p in ios android; do
               [ -s "$RUNNER_TEMP/build-$p.json" ] || continue
               id=$(jq -r '.id' "$RUNNER_TEMP/build-$p.json")
