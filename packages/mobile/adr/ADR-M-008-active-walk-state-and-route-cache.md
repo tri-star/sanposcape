@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-13（SS-168）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-23（SS-211）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -20,6 +20,7 @@
 - **散歩がサーバーで削除されたときは、決定6 と同型のレジストリ（`walkDeletionCleanup`）で、`savedWalkId` が一致するドラフトだけを消す**（本文: 決定8、SS-60 追補）
 - **往路/復路の判定はせず、線の描き分け（行き=実線 / 帰り=破線）と凡例「行き / 帰り」で表す**（本文: 決定9、SS-33 追補）
 - **散歩中の地図には、歩いた軌跡（`useActiveWalk().points`）を `accent` の半透明（0.7）の細線（4px）でルート線の上に重ね、凡例に「歩いた道」を足す**。点線にはしない。地図用の新しいトークンは足さない。iOS の Apple Maps では `Polyline` の `zIndex` が効かないため、重なり順に頼らない見た目にした（本文: 決定10、SS-168 追補）
+- **軌跡の線は、地図が付き直すたび（`onMapReady` のたび）に作り直す**。`WalkRouteMapView` が `onMapReady` の回数を軌跡の `RoutePolyline` の `key` に含める。Android の `react-native-maps` は、画面を離れて戻ったときに線を「最初に地図へ足した時点の座標」で作り直すため、そのままだと軌跡が描き始めの数点に戻る（本文: 決定10、SS-211 追補）
 
 ### 未解決・持ち越し
 
@@ -27,6 +28,7 @@
 - **`theme.map.routeReturn` は Claude Design 側に未反映**（本文: 移行・対応が必要な事項、SS-33 追補）
 - **ダーク表示での帰りの線の見え方と、凡例の TalkBack 読み上げは未確認**。ダークモードへの追従自体は SS-86 で確認済み（本文: 移行・対応が必要な事項、SS-33 追補）
 - **歩いた軌跡とルート線が重なったときの見え方（Android・iOS とも）、iOS の実機・シミュレータでの見え方、軌跡の色がカフェのカテゴリ色と同じことの是非は未確認**（本文: 決定10・移行・対応が必要な事項、SS-168 追補）
+- **散歩開始画面（`SpotMapView`）の周回ルートの線も、目的地を変えた後に画面を離れて戻ると最初のルートに戻りうる（未確認・未対応）**。軌跡の作り直し（SS-211）を iOS で確かめていないこと、上流が直れば `key` の回避策を外せることもあわせて持ち越す（本文: 決定10・移行・対応が必要な事項、SS-211 追補）
 - **ストアの `src/store/` への昇格**: 本文は「2つ以上の機能から参照されたら昇格」とし、SS-19 時点では昇格しないとしている。2026-10-03 時点では、`useActiveWalkStore` / `useFinishedWalkStore` は `features/auth`（`useAuthActions` / `postSignInDestination`）と `features/settings`（`useAccountDeletion`）からも参照されている。昇格の要否はまだ判断していない（本文: 移行・対応が必要な事項。SS-167 で判断する）
 
 ### 変更・撤回された決定
@@ -40,7 +42,7 @@
 
 ## 日付
 
-2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）、2026-10-02 追補（SS-156）、2026-10-13 追補（SS-168）
+2026-08-01（初版 / SS-16）、2026-08-02 追補（SS-19）、2026-08-02 追補（SS-20）、2026-08-06 追補（SS-13）、2026-08-11 追補（SS-35）、2026-08-11 追補（SS-50）、2026-08-15 追補（SS-37）、2026-08-15 追補（SS-37 ローカルレビュー対応）、2026-08-16 追補（SS-60）、2026-09-15 追補（SS-33）、2026-09-20 追補（SS-100。決定6 の登録側記述を実装に合わせて更新）、2026-10-02 追補（SS-156）、2026-10-13 追補（SS-168）、2026-10-23 追補（SS-211）
 
 ## ステータス
 
@@ -67,6 +69,8 @@
 **SS-156「アプリがバックグラウンドの間も散歩の位置情報を取得・記録できるようにする」で追補**した（決定5 に、記録中の位置サンプルを端末のファイルへ一時的に書くようになったことを、決定6 に、後始末へバッファの削除とタスクの停止が加わったことを追記した。決定そのものは変更していない）。追補部分には `（SS-156 追補）` を付けている。本体は [ADR-M-018](./ADR-M-018-background-walk-location-tracking.md)。
 
 **SS-168「散歩中に、自分が歩いてきた軌跡を地図上に表示する」で追補**した（散歩中の地図に歩いた軌跡を描く方式を決定10として追加した。決定1〜9 は変更していない）。追補部分には `（SS-168 追補）` を付けている。
+
+**SS-211「散歩中の軌跡が、ピン登録画面や別タブから戻ってきた時に消えてしまう」で追補**した（決定10 に、地図が付き直すたびに軌跡の線を作り直すことを追記した。見た目と描く内容は変えていない）。追補部分には `（SS-211 追補）` を付けている。
 
 ## コンテキスト
 
@@ -255,6 +259,24 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
   - 軌跡をルート線の下に太く（8px）敷き、縁取りに見せる（PR #163 の初版）: Android では `zIndex` で成り立つが、iOS の Apple Maps では上記のとおり軌跡がルート線の上に戻り、太い線がルート線（とくに破線の復路）を覆う。レビューで指摘され不採用。
   - 軌跡が描けるようになった時点でルート線を再マウントし、上に付け直す: Apple Maps では軌跡の次の座標の更新でまた逆転するため不採用。毎回ルート線を付け直すのは、更新のたびに線を作り直すうえ、ネイティブで操作が反映される順序に依存するので採らない。
 
+#### SS-211 追補: 地図が付き直すたびに軌跡の線を作り直す
+
+散歩中にピン登録画面へ移ったり別のタブへ切り替えたりして戻ると、軌跡が描き始めの数点の短い線に戻っていた。
+
+- **原因**: JS の軌跡（`useActiveWalk().points`）は消えていない（ナビタブの画面は、タブの切り替えでもスタックへの push でもアンマウントされない）。
+  `react-native-maps` 1.29.8 の Android 実装では、画面を離れると `MapView.onDetachedFromWindow` が線などを退避し、戻ると `onAttachedToWindow` → `onMapReady` の後に `addToMap(getPolylineOptions())` で作り直す。
+  `MapPolyline` の `PolylineOptions` は最初に地図へ足した時点で1回だけ作ってキャッシュされ、後からの座標の更新（`setCoordinates`）は反映されない。
+  このため、戻った直後の軌跡は「軌跡が初めて描けた時点（2点）」の線になり、次に点が足されるまで戻らない。上流の 1.29.11・2.0.0-beta.15 でも同じ作り。
+  `MapPolygon` も同じくキャッシュする。`MapMarker` は毎回座標を詰め直すので影響しない。周回ルートの線は描いた後に座標が変わらないので影響しない。
+- **対処**: `WalkRouteMapView` で `onMapReady`（付き直すたびに呼ばれる）の回数を state に持ち、軌跡の `RoutePolyline` の `key` に含める。付き直すたびに、復元された古い線が外れ、新しい線が現在の座標で足される。
+  付き直しの復元は UI スレッドの同じコールバックで同期に終わるので、`key` の変更はその後に届く。JS の変更が先に届いても、退避中の追加は退避先に入り、復元のときに現在の座標で作られる。
+  iOS（Apple Maps）は `onMapReady` を1回しか出さない（`AIRMapManager.m` の `hasStartedRendering`）ので、軌跡が1回作り直されるだけ。
+- **向きの扇形（`Polygon`。ADR-M-023）には入れない**: フォーカスが外れると描かなくなり、戻ると新しく足されるので当たらない。
+- **検討した選択肢**:
+  - `pnpm patch` で `react-native-maps` を直す（`setCoordinates` で options のキャッシュを捨てる）: 根本の修正だが、ネイティブの変更なので development build と E2E の APK キャッシュ（[ADR-M-004](./ADR-M-004-e2e-build-ci-strategy.md)）を作り直すことになり、ライブラリの更新のたびにパッチの追随も要るため不採用。
+  - 座標が変わるたびに `key` を変えて線を作り直す: 位置の更新のたびに線を外して足し直すことになるため不採用。
+  - `useFocusEffect` で回数を数える: フォーカスとネイティブの付き直しの前後関係に依存する。`onMapReady` は付き直しそのものに結びつくので、こちらにした。
+
 ## 検討した選択肢
 
 ### 選択肢1: Expo Router の params で持ち回る（SS-15 の延長）
@@ -347,6 +369,9 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - **（SS-33 追補・未着手）`theme.map.routeReturn` の Claude Design 側への反映待ち**。今回はリポジトリ側（`src/theme/tokens.ts`）に semantic トークンを追加しただけで、値の SSoT である Claude Design 側には未反映。`tokens.ts` 冒頭の「デザイン側が更新されたらここを差し替える」運用と噛み合っていないため、次に Design 側のトークンを一括インポートし直すタイミングで `routeReturn` が上書き・欠落しないよう、Design 側への反映を別途依頼すること。
 - **（SS-33 追補）Android 実機での描画確認**: 2026-09-16 にエミュレータ（Pixel_6_Pro_API_35・実 API）で確認済み。帰りの線は `lineCap="round"` + `lineDashPattern` のため「丸い点の点線」に見え、凡例 `WalkRouteLegend` の破線見本（短い線）と見た目が少し違うが、ユーザー判断で許容し据え置いた。凡例の破線見本と同じ道フォールバック時の凡例は正常に描画された。揃えたくなったら復路だけ `lineCap="butt"` にする（`RoutePolyline` に `lineCap` props を追加する）。
 - **（SS-168 追補・未確認）歩いた軌跡の見え方**: 2026-10-13 にエミュレータ（Pixel_6_Pro_API_35）で、軌跡が現在地まで伸びることと、周回ルートが未取得のとき凡例に「歩いた道」だけが出ることを確認した（太線の初版と、細線に直した版の両方）。サーバー用の Maps キーが無くルートを取得できなかったため、ルート線と重なったときの見え方は未確認。iOS は、`zIndex` が効かないことを前提に重なり順に頼らない見た目にした。ただし、iOS の実機・シミュレータでの見え方は確認していない。軌跡の色は `theme.map.cafe` と同じ hex で、ピンと紛らわしければ Design 側で軌跡の色を決めてトークン化する。
+- **（SS-211 追補・未確認）軌跡の作り直し**: 2026-10-23 にエミュレータ（Pixel_6_Pro_API_35・実 API）で、修正前はピンタブへ切り替えて戻ると軌跡が描き始めの2点の線に戻ることを再現し、修正後は新しい点が届かない状態でタブの切り替え・ピン登録画面への移動のどちらで戻っても軌跡全体が出ることを確かめた。iOS と、バックグラウンドから前面へ戻る経路（地図が window から外れない。コード上は線を作り直さない）は確認していない。
+- **（SS-211 追補・未着手）散歩開始画面の周回ルートの線**: `SpotMapView` の周回ルートは目的地を変えると座標が変わるので、変えた後に画面を離れて戻ると同じ理由で最初のルートに戻りうる（未確認）。直すときは軌跡と同じく `onMapReady` の回数を `key` に含める。
+- **（SS-211 追補）上流の修正待ち**: 上流（`react-native-maps`）で `setCoordinates` がキャッシュを更新するようになれば、`key` の回避策は外せる。上流への報告はしていない。
 - **（SS-33 追補・未確認）ダークモードと TalkBack**: ダークモード（`routeReturn` の dark 値 blue300）での見え方と、凡例の TalkBack 読み上げは未確認。エミュレータで `cmd uimode night yes` にしてもアプリが追従しなかった（原因未調査）。（後日注記: SS-86 で「端末の設定」のまま `cmd uimode night yes|no` を切り替え、追従することを確認した。[ADR-M-016](./ADR-M-016-theme-mode-preference.md) の「影響」を参照）
 
 ## 関連情報
@@ -366,5 +391,6 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
 - （SS-33 追補）実装: `src/features/walk/lib/walkRouteLegs.ts`（描き分け・凡例・注記の純粋関数）、`src/features/walk/components/WalkRoutePolylines.tsx`、`src/features/walk/components/WalkRouteLegend.tsx`、`src/features/walk/lib/walkRoute.ts`（`toWalkRoute` の legs 整形・`toRouteMinutes`）、`src/features/walk/api/walkRouteApi.ts`（`/explore/routes/loop`）、`src/features/walk/components/WalkRouteNotice.tsx`（縮小版）、`src/theme/tokens.ts`（`ThemeMapColors.routeReturn` 追加）、`src/components/ui/route-polyline/RoutePolyline.tsx`（`color`/`dashPattern`/`strokeWidth`/`zIndex` の任意 props 追加）
 - （SS-168 追補）実装: `src/features/walk/lib/walkTrailStyle.ts`（軌跡の線の見た目）、`src/features/walk/lib/walkRouteLegs.ts`（`isDrawableTrail` / `walkMapLegendItems`）、`src/features/walk/components/WalkRouteMapView.tsx`（`trail` props）、`src/features/walk/components/WalkRouteLegend.tsx`、`.maestro/mvp-walk-flow.yaml`
+- （SS-211 追補）実装: `src/features/walk/components/WalkRouteMapView.tsx`（`onMapReady` の回数を軌跡の `key` に含める）
 - [ADR-007: 周回ルート生成](../../../docs/adr/ADR-007-loop-route-generation.md) — backend 側の周回ルート生成方式（SS-33 の発生元）
-- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元。決定7 は SS-33 で撤回）、SS-50（本追補の発生元）、SS-37（本追補の発生元）、SS-33（本追補の発生元。決定1/2 更新、決定7 撤回、決定9 新設）、SS-168（本追補の発生元。決定10 新設）
+- Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元。決定7 は SS-33 で撤回）、SS-50（本追補の発生元）、SS-37（本追補の発生元）、SS-33（本追補の発生元。決定1/2 更新、決定7 撤回、決定9 新設）、SS-168（本追補の発生元。決定10 新設）、SS-211（本追補の発生元。決定10 に軌跡の作り直しを追記）

@@ -1,6 +1,6 @@
 ---
 name: maps
-description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される
+description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）
 metadata:
   type: feedback
   scope: durable
@@ -31,6 +31,17 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
   付け直した線がいちばん上に来るので、位置が届くたびに座標が変わる線（散歩中の軌跡）は、毎回ほかの線より上に戻る。マウント順や再マウントで順序を作っても、次の更新で崩れる。
 - **How to apply:** 線どうしの重なり順に頼る見た目（下に太く敷いて縁取りにする等）を iOS で成り立たせようとしない。動く線は上に来る前提でデザインする（SS-168 の軌跡は「ルート線の上に細く重ねる」にした。ADR-M-008 決定10）。
   `zIndex` を足すレビューでは iOS を見落としやすい（SS-168 は Copilot のレビューで発覚）。
+
+## 画面を離れて戻ると、座標が後から変わった線が古い座標に戻る（Android。SS-211）
+
+- 画面を離れて戻る（タブ切り替え・スタックへの push）と、Android の `MapView` は線などを退避し、`onMapReady` の後に `addToMap(getPolylineOptions())` で作り直す。
+  `MapPolyline` の `PolylineOptions` は**最初に地図へ足した時点で1回だけ作ってキャッシュ**され、後からの `setCoordinates` は反映されない（1.29.11・2.0.0-beta.15 でも同じ）。
+  `MapPolygon` も同じ。`MapMarker` は毎回座標を詰め直すので影響しない。
+- 症状: 座標が後から変わる線（散歩中の軌跡）が、戻った直後に描き始めの数点に戻る。次に座標の props が変わるまで直らない。JS の状態は消えていないので、`useWalkTracking` やバッファを疑って時間を溶かしやすい。
+- **How to apply:** 後から座標が変わる線・図形を地図に足すときは、`onMapReady`（付き直すたびに呼ばれる）の回数を `key` に含めて作り直す（`WalkRouteMapView`。ADR-M-008 決定10 の SS-211 追補）。
+  `SpotMapView` の周回ルート（目的地を変えると座標が変わる）は未対応。
+- エミュレータで確かめるときは、歩行の流し込みを終えて**歩数・距離が止まってから**画面を行き来する。バックグラウンドの位置はまとめて遅れて届き、行き来の最中に点が足されると修正が無くても線が直って見える。
+- `ui.sh screenshot` の画像はリポジトリの中（作業用の gitignore 対象のディレクトリ）に置かれ、Metro が拾って「Refreshing...」を出すことがある。Fast Refresh の反映は Metro のログに出ないので、修正の効果を確かめるときは `ui.sh reload` で読み込み直してから操作をやり直す。
 
 ## 向き・回転を地図に描く（SS-169）
 
