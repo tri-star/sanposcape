@@ -92,10 +92,10 @@ packages/backend/
   [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）。
 
 ### `integrations/` — 外部API連携（隔離層）
-- 外部クライアントとキャッシュをここに閉じ込める。「どう取るか」（transport）だけを持ち、
-  取得した値の解釈は呼び出し側に置く（例: AppConfig の取得は `integrations/aws/`、フラグの評価は `core/feature_flags.py`）。
+- 外部クライアントとキャッシュをここに閉じ込める。AppConfig は取得層（`integrations/aws/`）と
+  評価層（`core/feature_flags.py`）に分けている（ADR-008 追補 D3）。
 - ドメインの `service`（またはその補助モジュール）からのみ呼び出す。router から直接呼ばない。
-- 差し替え・モックしやすいよう、インターフェース（Protocol）を介して公開する。
+- 差し替え・モックしやすいよう、インターフェース（Protocol など）を介して公開する。
 - シークレット・トークンの値をログ・例外メッセージ・スパンに出さない（[ADR-013](../../../docs/adr/ADR-013-observability-adot-application-signals.md)）。
 
 ### `aws_lambda/` — AWS Lambda 固有の受け皿（ECS 移植性の境界）
