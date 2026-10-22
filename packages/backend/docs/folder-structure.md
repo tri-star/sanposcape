@@ -3,7 +3,7 @@
 FastAPI + SQLAlchemy + Alembic + Pydantic による backend のフォルダ構造の方針をまとめる。
 ツール・ライブラリの詳細は [ツール・ライブラリ](./toolsets-libraries.md) を、命名規則は [命名規則](./naming-convention.md) を参照。
 
-この文書は大まかな構造と配置のルールだけを持つ。個々のファイルの役割はファイル冒頭の docstring を、設計の経緯は ADR を正とする。
+この文書は大まかな構造と配置のルールだけを持つ。個々のファイルの役割はコード（docstring・コメント）を、設計の経緯は ADR を正とする。
 
 ## 前提・設計方針
 
