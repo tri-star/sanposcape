@@ -415,5 +415,5 @@ jobs:
             echo
             echo "${groups:-update group の ID を応答から取得できませんでした。expo.dev の production ブランチの update 一覧を確認してください。}"
             echo
-            echo "戻すときは docs/release-runbook.md §8.4（Owner が手元で eas update:republish / eas update:rollback）。public リポジトリのため URL は出しません。"
+            echo "戻すときは docs/release-runbook.md §8.4（Owner が手元で eas update:republish / eas update:roll-back-to-embedded）。public リポジトリのため URL は出しません。"
           } >> "$GITHUB_STEP_SUMMARY"
