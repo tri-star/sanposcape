@@ -194,7 +194,7 @@ pnpm --filter mobile orval          # API クライアント再生成
   一時的に自前の IME へ切り替えて入力し、元のキーボードに戻ったときに再表示されないことがある。Android の
   `hideKeyboard` は BACK キーを送るだけなので、キーボードが出ていないと画面の「戻る」になり、ピン登録画面では
   破棄ダイアログが開いてしまう（run 36887167514 の pin-register。SS-152）。
-- 既に文字が入っている入力欄（住所の初期値が入るピン登録の名前欄、編集画面の名前欄など）に入れ直すときは、
+- 既に文字が入っている入力欄（編集画面の名前欄など）に入れ直すときは、
   `tapOn` → `eraseText` ではなく `runFlow: subflows/replace-text.yaml`（env の `FIELD_ID` と `TEXT`）を使う。
   クリアボタンがある検索欄は、クリアボタン（`*-search-input-clear`）で消す。Android の `eraseText` はカーソルより前しか
   消さず、`tapOn` は欄の中央を押すので、長い文字の後ろ半分が残ったまま入力が足される
