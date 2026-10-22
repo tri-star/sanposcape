@@ -128,7 +128,8 @@ packages/backend/
   `sanpo_maps/tests/test_architecture.py` が AST で検査している。
 - `sanpo_maps/maps/` はアプリ直下の `maps/` と同名になるため、ドキュメント・コメント・agent-memory では
   **必ずモジュール名から書く**（`sanpo_maps/maps/service.py` と書き、単に `maps/service.py` と書かない）。
-- サブパッケージを増やしたら、`test_architecture.py` の許可表と ADR-011 を追補として更新する。
+- 新しいエンティティ群が独自の `router` とテーブルを持ち、既存サブパッケージとの依存が一方向（上の並びのどこかに追加できる形）に
+  収まるなら、サブパッケージとして追加してよい。追加したら、`test_architecture.py` の許可表と ADR-011 を追補として更新する。
 
 ### レイヤーの配置判断
 > - HTTPの入出力・依存解決だけ → `router.py`
