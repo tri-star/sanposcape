@@ -103,7 +103,7 @@ jobs:
             sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/channel.stderr.log"
             exit "$STATUS"
           fi
-          protected=$(sed -n '/^{/,$p' "$RUNNER_TEMP/channel.out" | jq -r '.currentPage.isProtected // empty')
+          protected=$(sed -n '/^{/,$p' "$RUNNER_TEMP/channel.out" | jq -r '.currentPage.isProtected | if . == null then "" else tostring end')
           if [ "$protected" != "true" ]; then
             echo "::error::production channel が protected ではありません（isProtected=${protected:-不明}）。Owner が手元で eas channel:protect production を実行してから起動し直してください（docs/release-runbook.md §6.1）"
             exit 1
