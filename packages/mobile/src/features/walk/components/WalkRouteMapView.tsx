@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
@@ -104,6 +104,10 @@ export function WalkRouteMapView({
   // 呼ばれる。そのときのカメラは離れる前の位置のままなので、`initialRegion` を表示範囲として
   // 報告するのは初回だけにする（2回目以降は `onRegionChangeComplete` に任せる）。
   const hasReportedInitialRegion = useRef(false);
+  // 地図が付き直した回数（`onMapReady` の回数）。軌跡の線の key に使い、付き直すたびに線を作り直す。
+  // Android の react-native-maps は、付き直すときに線を「最初に地図へ足した時点の座標」で作り直すため、
+  // 作り直さないと軌跡が描き始めの数点に戻る（SS-211）。
+  const [mapAttachCount, setMapAttachCount] = useState(0);
   const headingBeam = useHeadingBeamRadius();
 
   const initialRegion = walkRoute
@@ -155,6 +159,7 @@ export function WalkRouteMapView({
         moveOnMarkerPress={false}
         onLongPress={onLongPress ? (event) => onLongPress(event.nativeEvent.coordinate) : undefined}
         onMapReady={() => {
+          setMapAttachCount((n) => n + 1);
           if (hasReportedInitialRegion.current) return;
           hasReportedInitialRegion.current = true;
           const sanitized = sanitizeMapRegion(initialRegion);
@@ -171,6 +176,7 @@ export function WalkRouteMapView({
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         <RoutePolyline
+          key={`trail-${mapAttachCount}`}
           path={trail}
           color={trailStyle.color}
           strokeWidth={trailStyle.strokeWidth}
