@@ -249,10 +249,17 @@ jobs:
             fi
             mismatch=1
             echo "::error::${p}: 本番ビルド ${id} とネイティブの fingerprint が違います（ビルド ${build_hash} / 今のコミット ${local_hash}）。ネイティブの変更は OTA で配れません。version を上げてストアで配布してください（ADR-008 決定8）"
-            # 項目の見出しとファイルのパスだけを出す（差分の中身の行は出さない。上のコメント参照）。
+            # 項目の見出しとファイルのパスの行だけを出す（差分の中身の行は出さない。上のコメント参照）。
+            # パスの行のラベルは new / removed / modified の file / directory で、幅を揃える空白の後に `:` が付く。色の制御文字は除く。
             pnpm exec eas fingerprint:compare --build-id "$id" --environment production --non-interactive 2>/dev/null \
-              | grep -E '^(📁|📝|[[:space:]]+(added|removed|modified)( file| dir)?:)' \
-              | tee -a "$RUNNER_TEMP/fp-diff-$p.txt" || true
+              | sed -E 's/\x1b\[[0-9;]*m//g' \
+              | grep -E '^(📁|📝|[[:space:]]+(new|removed|modified) (file|directory)[[:space:]]*:)' \
+              > "$RUNNER_TEMP/fp-diff-$p.txt" || true
+            if [ -s "$RUNNER_TEMP/fp-diff-$p.txt" ]; then
+              cat "$RUNNER_TEMP/fp-diff-$p.txt"
+            else
+              echo "（違う項目を取得できませんでした。ビルドの fingerprint の source が期限切れの可能性があります）" > "$RUNNER_TEMP/fp-diff-$p.txt"
+            fi
           done
           if [ "$mismatch" -ne 0 ]; then
             {
