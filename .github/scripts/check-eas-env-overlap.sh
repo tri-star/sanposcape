@@ -40,14 +40,29 @@ for scope in project account; do
   fi
   # long 形式の各変数は「ID <UUID>」の行の直後の「Name <名前>」の行で始まり、値（複数行になりうる）はその後に来る。
   # ID 行の直後の Name 行からだけ名前を取るので、値の続きの行を名前と取り違えない。値の行は読まない。
-  # 名前は EAS が受け付ける \w+（小文字・数字始まりを含む）。更新日時は表示用。
-  awk -v scope="$scope" '
+  # 名前は EAS が受け付ける \w+（小文字・数字始まりを含む）。
+  # 更新日時は各変数の最後の欄なので、その変数の中で最後に見つけた「Updated at」を採り、日時の形の行だけを受け付ける
+  # （複数行の plaintext の値に同じ形の行があっても、その値を public な Summary に出さないように）。
+  scope_names=$(awk -v scope="$scope" '
     /^ID[[:space:]]+[0-9a-f-]{36}$/ { want_name = 1; next }
     want_name && /^Name[[:space:]]+[A-Za-z0-9_]+$/ { if (name != "") print name " (" scope ", 更新 " updated ")"; name = $2; updated = "?"; want_name = 0; next }
     { want_name = 0 }
-    name != "" && /^Updated at[[:space:]]+/ { sub(/^Updated at[[:space:]]+/, ""); if (updated == "?") updated = $0 }
+    name != "" && /^Updated at[[:space:]]+[A-Z][a-z][a-z] [0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]$/ { sub(/^Updated at[[:space:]]+/, ""); updated = $0 }
     END { if (name != "") print name " (" scope ", 更新 " updated ")" }
-  ' <<< "$plain" >> "$names_file"
+  ' <<< "$plain")
+  # 各欄の書式が変わると名前が取れないまま通ってしまうので、ID の行の数と取れた名前の数を合わせる。
+  # 0 件のときは「No variables found」の行があることを確かめる。
+  # ID の行は形（UUID）を問わずに数える。ID の形が変わったら名前が取れず、数が合わなくなって止まる。
+  id_count=$(grep -cE '^ID[[:space:]]' <<< "$plain" || true)
+  name_count=$(grep -c . <<< "$scope_names" || true)
+  if [ "$id_count" -ne "$name_count" ] \
+    || { [ "$id_count" -eq 0 ] && ! grep -q '^No variables found' <<< "$plain"; }; then
+    echo "::error::eas env:list（${scope}）の出力から変数名を読み取れませんでした（ID の行 ${id_count} 件・名前 ${name_count} 件）。eas-cli の更新で出力の形が変わった可能性があります"
+    exit 1
+  fi
+  if [ -n "$scope_names" ]; then
+    printf '%s\n' "$scope_names" >> "$names_file"
+  fi
 done
 
 overlap=$(jq -r '.build.production.env | keys[]' eas.json \
