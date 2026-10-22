@@ -1274,8 +1274,11 @@ EAS の production 環境に `eas.json` と同じ名前の変数（例 `EXPO_PUB
 `build.production.env` と名前が重なれば失敗する（`.github/scripts/check-eas-env-overlap.sh`）。
 承認を待つ間に変数が足されうるので、prepare に加えて publish の `eas update` の直前でも同じ検査をする。
 変数の名前と更新日時は承認者の Summary にも出す（値は出さない）。名前が同じまま値だけを書き換えられた場合は名前に現れないので、更新日時で気づけるようにする。
+さらに、prepare の一覧（名前・scope・更新日時）のハッシュを publish に渡し、配信の直前の一覧と違えば失敗する。
+承認の後に足された名前の重ならない変数や、値だけの書き換え（更新日時が変わる）を、承認者が見た状態のまま配信しないため。
 名前は `env:list --format long` の各変数の先頭（ID の行の直後の Name の行）から取り、複数行の値の続きの行を名前と取り違えないようにしている。
-`env:list` の出力の形が eas-cli の更新で変わったとき（見出しの行が無いとき）は失敗する。
+`env:list` の出力の形が eas-cli の更新で変わったとき（見出しの行が無い・ID の行の数と取れた名前の数が合わない・0 件なのに「No variables found」の行が無い）は失敗する。
+更新日時は各変数の最後の欄から日時の形の行だけを採る（複数行の plaintext の値の行を public な Summary に出さないため）。
 2026-10-22 時点の EAS の production 環境の変数は `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`・`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`・`GOOGLE_MAPS_ANDROID_SDK_KEY` で、重なりは無い。
 
 ### D37: 承認の前に、配信先の本番ビルドとネイティブの fingerprint を比べる

@@ -40,6 +40,7 @@ jobs:
     outputs:
       version: ${{ steps.target.outputs.version }}
       platform: ${{ steps.target.outputs.platform }}
+      eas_env_hash: ${{ steps.eas_env.outputs.hash }}
     env:
       # リポジトリ Secret の EXPO_TOKEN（Developer。保護された production channel には OTA を出せない）。
       # この job には environment を付けない: `environment: production` を付けると Release Manager のトークンに切り替わる（ADR-008 D34）。
@@ -113,9 +114,14 @@ jobs:
       # eas update は EAS の環境変数を GITHUB_ENV の値より優先する（本番ビルドの eas build は逆に eas.json の値を優先する）。
       # 同じ名前の変数が EAS の production 環境にあると、OTA の JS だけがそちらの値で作られ、fingerprint にも Summary にも現れない
       # （ADR-008 D36）。名前が重なれば止め、変数名の一覧を承認者に見せる。値は読まない・出さない。publish の eas update の直前でも同じ検査をする。
+      # 承認者が見る一覧（名前・scope・更新日時）のハッシュを publish に渡し、配信の直前の一覧と一致することを確かめる。
       - name: Check EAS environment variables do not override eas.json
+        id: eas_env
         working-directory: packages/mobile
-        run: ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
+        run: |
+          set -euo pipefail
+          ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
+          echo "hash=$(sha256sum < "$RUNNER_TEMP/eas-env-names.txt" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       # プラットフォームごとに、OTA が届く本番ビルド（production channel・この version・production profile・ストア向け・完了済み）の最新を引く。
       # 本番ビルドが無いプラットフォームには配信しない（届く端末が無い。2026-10 時点で Android の本番ビルドは未作成）。
@@ -309,12 +315,14 @@ jobs:
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       PLATFORM: ${{ needs.prepare.outputs.platform }}
+      EAS_ENV_HASH: ${{ needs.prepare.outputs.eas_env_hash }}
     steps:
       # prepare の出力をもう一度形で確かめてから使う。
       - name: Validate prepared values
         run: |
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! [[ "$PLATFORM" =~ ^(ios|android|all)$ ]]; then
-            echo "::error::prepare job の出力が想定外の形です（version=${VERSION} platform=${PLATFORM}）"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! [[ "$PLATFORM" =~ ^(ios|android|all)$ ]] \
+            || ! [[ "$EAS_ENV_HASH" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::prepare job の出力が想定外の形です（version=${VERSION} platform=${PLATFORM} eas_env_hash=${EAS_ENV_HASH}）"
             exit 1
           fi
 
@@ -367,6 +375,12 @@ jobs:
         run: |
           # 承認を待つ間に EAS 側へ同じ名前の変数が足されていないかを、配信の直前にもう一度確かめる（prepare と同じ検査）。
           ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
+          # 承認者が prepare の Summary で見た一覧（名前・scope・更新日時）から変わっていれば止める
+          # （名前の重ならない変数の追加や、値だけの書き換えは上の検査では止まらないため）。
+          if [ "$(sha256sum < "$RUNNER_TEMP/eas-env-names.txt" | cut -d' ' -f1)" != "$EAS_ENV_HASH" ]; then
+            echo "::error::承認を待つ間に EAS の production 環境の変数（名前・更新日時）が変わりました。変わった内容を確かめてから起動し直してください"
+            exit 1
+          fi
           set +e
           pnpm exec eas update --channel production --environment production \
             --platform "$PLATFORM" --message "$MESSAGE" \
