@@ -314,10 +314,13 @@ jobs:
               echo "- EAS BUILD_ID: \`${id}\` / buildNumber: ${build_number} / コミット: \`${sha}\`"
               echo "- fingerprint: 一致"
               echo
-              echo "このビルドのコミットから今までの packages/mobile のコミット（OTA でこのビルドに届く差分）:"
+              echo "このビルドのコミットから今までの、OTA の JS に入りうるコミット（OTA でこのビルドに届く差分）:"
               echo
-              commits=$(git log --no-merges --format='- `%h` %s' "${sha}..HEAD" -- packages/mobile)
-              echo "${commits:-（packages/mobile のコミットはありません）}"
+              # packages/mobile に加えて、API クライアントを生成する openapi.yaml（orval の入力）と、バンドルする依存を決める
+              # lockfile・ワークスペースの設定も含める（mobile-ci.yml の paths と同じ考え方。推移的依存の更新は lockfile だけが変わる）。
+              commits=$(git log --no-merges --format='- `%h` %s' "${sha}..HEAD" -- \
+                packages/mobile packages/backend/openapi.yaml pnpm-lock.yaml pnpm-workspace.yaml package.json)
+              echo "${commits:-（該当するコミットはありません）}"
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
