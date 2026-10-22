@@ -9,7 +9,8 @@
 #
 # 使い方（packages/mobile で、EXPO_TOKEN を与えて実行する）:
 #   ../../.github/scripts/check-eas-env-overlap.sh <変数名の一覧を書くファイル>
-# 重なりがあれば exit 1。値は読まない・出さない（一覧に書くのは「名前 (scope)」だけ）。
+# 重なりがあれば exit 1。値は出さない（一覧に書くのは「名前 (scope, 更新日時)」だけ）。
+# 更新日時を出すのは、名前が同じまま値だけ書き換えられた変数に承認者が気づけるようにするため。
 
 set -euo pipefail
 
@@ -21,7 +22,7 @@ for scope in project account; do
   out="$tmp_dir/eas-env-$scope.out"
   err="$tmp_dir/eas-env-$scope.stderr.log"
   set +e
-  pnpm exec eas env:list production --format short --scope "$scope" > "$out" 2> "$err"
+  pnpm exec eas env:list production --format long --scope "$scope" > "$out" 2> "$err"
   status=$?
   set -e
   if [ "$status" -ne 0 ]; then
@@ -37,8 +38,16 @@ for scope in project account; do
     echo "::error::eas env:list（${scope}）の出力の形が想定と違います（「Environment: production」の行がありません）。eas-cli の更新で変わった可能性があります"
     exit 1
   fi
-  # 「NAME=値」の行から名前だけを取る。値は捨てる。
-  grep -oE '^[A-Z_][A-Z0-9_]*=' <<< "$plain" | sed 's/=$//' | sed "s/\$/ (${scope})/" >> "$names_file" || true
+  # long 形式の各変数は「ID <UUID>」の行の直後の「Name <名前>」の行で始まり、値（複数行になりうる）はその後に来る。
+  # ID 行の直後の Name 行からだけ名前を取るので、値の続きの行を名前と取り違えない。値の行は読まない。
+  # 名前は EAS が受け付ける \w+（小文字・数字始まりを含む）。更新日時は表示用。
+  awk -v scope="$scope" '
+    /^ID[[:space:]]+[0-9a-f-]{36}$/ { want_name = 1; next }
+    want_name && /^Name[[:space:]]+[A-Za-z0-9_]+$/ { if (name != "") print name " (" scope ", 更新 " updated ")"; name = $2; updated = "?"; want_name = 0; next }
+    { want_name = 0 }
+    name != "" && /^Updated at[[:space:]]+/ { sub(/^Updated at[[:space:]]+/, ""); if (updated == "?") updated = $0 }
+    END { if (name != "") print name " (" scope ", 更新 " updated ")" }
+  ' <<< "$plain" >> "$names_file"
 done
 
 overlap=$(jq -r '.build.production.env | keys[]' eas.json \

@@ -269,7 +269,7 @@ jobs:
             echo "- 配信するコミット: \`${GITHUB_SHA}\`"
             echo "- message: ${MESSAGE}"
             echo
-            echo "OTA の JS には、eas.json の build.production.env に加えて、EAS の production 環境の次の変数が入ります（名前だけ。値は出しません）。見覚えの無い変数があれば承認しないでください。"
+            echo "OTA の JS には、eas.json の build.production.env に加えて、EAS の production 環境の次の変数が入ります（名前と更新日時だけ。値は出しません）。見覚えの無い変数や、心当たりの無い最近の更新があれば承認しないでください（値だけを書き換えられていても名前には現れません）。"
             echo
             if [ -s "$RUNNER_TEMP/eas-env-names.txt" ]; then
               sed 's/^/- /' "$RUNNER_TEMP/eas-env-names.txt"
