@@ -112,37 +112,10 @@ jobs:
 
       # eas update は EAS の環境変数を GITHUB_ENV の値より優先する（本番ビルドの eas build は逆に eas.json の値を優先する）。
       # 同じ名前の変数が EAS の production 環境にあると、OTA の JS だけがそちらの値で作られ、fingerprint にも Summary にも現れない
-      # （ADR-008 D36）。名前が重なれば止め、変数名の一覧を承認者に見せる。値は読まない・出さない。
+      # （ADR-008 D36）。名前が重なれば止め、変数名の一覧を承認者に見せる。値は読まない・出さない。publish の eas update の直前でも同じ検査をする。
       - name: Check EAS environment variables do not override eas.json
         working-directory: packages/mobile
-        run: |
-          set -euo pipefail
-          : > "$RUNNER_TEMP/eas-env-names.txt"
-          for scope in project account; do
-            set +e
-            pnpm exec eas env:list production --format short --scope "$scope" \
-              > "$RUNNER_TEMP/env-$scope.out" 2> "$RUNNER_TEMP/env-$scope.stderr.log"
-            STATUS=$?
-            set -e
-            if [ "$STATUS" -ne 0 ]; then
-              echo "::error::EAS の環境変数の一覧（eas env:list, ${scope}）の取得が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
-              sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/env-$scope.stderr.log"
-              exit "$STATUS"
-            fi
-            # 「NAME=値」の行から名前だけを取る（色の制御文字を除く）。値は捨てる。
-            sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/env-$scope.out" \
-              | grep -oE '^[A-Z_][A-Z0-9_]*=' | sed 's/=$//' | sed "s/\$/ (${scope})/" \
-              >> "$RUNNER_TEMP/eas-env-names.txt" || true
-            rm -f "$RUNNER_TEMP/env-$scope.out"
-          done
-          overlap=$(jq -r '.build.production.env | keys[]' eas.json \
-            | grep -Fxf - <(sed 's/ (.*)$//' "$RUNNER_TEMP/eas-env-names.txt") | sort -u | paste -sd, - || true)
-          if [ -n "$overlap" ]; then
-            echo "::error::EAS の production 環境に、eas.json の build.production.env と同じ名前の変数があります: ${overlap}。OTA の JS だけがその値で作られるため配信しません。EAS 側の変数を消すか、eas.json と揃えてから起動し直してください（ADR-008 D36）"
-            exit 1
-          fi
-          echo "EAS の production 環境の変数（名前）:"
-          cat "$RUNNER_TEMP/eas-env-names.txt"
+        run: ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
 
       # プラットフォームごとに、OTA が届く本番ビルド（production channel・この version・production profile・ストア向け・完了済み）の最新を引く。
       # 本番ビルドが無いプラットフォームには配信しない（届く端末が無い。2026-10 時点で Android の本番ビルドは未作成）。
@@ -391,6 +364,8 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           MESSAGE: ${{ inputs.message }}
         run: |
+          # 承認を待つ間に EAS 側へ同じ名前の変数が足されていないかを、配信の直前にもう一度確かめる（prepare と同じ検査）。
+          ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
           set +e
           pnpm exec eas update --channel production --environment production \
             --platform "$PLATFORM" --message "$MESSAGE" \
