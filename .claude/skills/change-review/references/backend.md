@@ -46,6 +46,7 @@
 - 呼ぶ前だけ締め切りを確かめる形なら、1回の最悪時間（timeout × 試行回数）が予算に収まるか（SS-112）。確定処理の「呼ぶ前だけ」は ADR-009 決定22 の 2026-09-26 追補で受容済みなので再指摘しない。
 - 時間予算の計算が他モジュールの定数（例: `integrations/aws/s3.py` の `_DELETE_TOTAL_MAX_ATTEMPTS`）を前提にしているなら、その前提をテストで固定しているか（`integrations/aws/tests/test_s3.py::test_delete_total_max_attempts_is_one`）。
 - 締め切りを `Settings` の設定値にしたとき、`template.yaml` の Lambda の `Timeout` と整合しているかを**既定値ではなく設定できる上限（`Field(le=...)`）**で確かめているか。上限が Timeout −（1回の最悪時間）を超えると、環境変数で上げただけで毎回タイムアウトする。SS-109 の `ACCOUNT_PHOTO_PURGE_DEADLINE_SECONDS` は上限 840 で Timeout 300 を超えられた（270 に修正。`tests/test_photo_purge_config.py`）。
+- 外部 API（Google Maps Platform など）の応答をキャッシュ・保存する変更では、そのサービスの規約のキャッシュ条項に合っているかを確かめる。キャッシュのキーが利用者をまたいで共有されていないか（Geocoding API の住所は「利用者ごとに分け、複数の利用者で使わない」条件付き。SS-138 の座標だけのキーはこれに合わず、SS-212 で利用者 ID を足した）、DB への保存が許されているか。根拠は ADR-001 の SS-212 追補（条項の出典つき）。
 - タイムアウト・ロックのガードを一部の操作にだけ足していないか。同じファイル・同じ関心事の中で同種のロックを要求する操作を横並びで見る。SS-141 では `_delete_all()`（DML）にだけ `lock_timeout` を足し、より広く衝突する `drop_all`/`create_all`（DDL）に無かった（ADR-B-001 決定1・決定4）。「頻度が低いから」はガードを省く理由にならない。
 
 ## スキーマ変更とデプロイ順
