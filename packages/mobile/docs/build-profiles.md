@@ -690,13 +690,15 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
 | `preview`（E2E） | false | `"development"` | `"preview"` | 表示 |
 | `staging` / `staging-apk` / `staging-ios` | false | `"development"` | `"staging"` | 表示 |
 | `production`（埋め込みバンドル） | false | `"production"` | `"production"` | 非表示 |
-| `production` + 将来の OTA | false | `"development"` になりうる | `"production"` | 非表示（channel で止まる） |
+| `production` + OTA（`mobile-production-update.yml`） | false | `"production"`（`APP_VARIANT` を与えて作る。与え忘れると `"development"`） | `"production"` | 非表示（与え忘れても channel で止まる） |
 | 値が取れない・未知の値 | false | `null` | 任意 | 非表示（fail-closed） |
 
 - **production の `channel` 名を変えるときは `src/config/appVariant.ts` の `PRODUCTION_UPDATES_CHANNEL` も変える**
   （`appVariant.test.ts` の契約テストが落ちて気づける）。
-- **`eas update` では `eas.json` のビルドプロファイルの `env` が効かない**（SDK 55 以降は EAS サーバーの環境変数だけを使う）。
-  OTA の手順（SS-103）で扱う。
+- **`eas update` では `eas.json` のビルドプロファイルの `env` が効かない**（SDK 55 以降は `--environment` で EAS サーバーの環境変数だけを読む）。
+  OTA の本番配信のワークフローは `build.production.env` を環境変数として与えてから `eas update --environment production` を実行する
+  （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) の SS-103 追補 D36、手順は [release-runbook.md](../../../docs/release-runbook.md) §6）。
+  手元で `eas update` を実行するときも同じ env を与える。
 - ビルドの種類での分岐は開発ツールの表示可否だけに使う。プロダクトの挙動の分岐には使わない。
 
 ## 切り替え後の検証
