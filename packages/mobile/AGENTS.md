@@ -51,7 +51,7 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016）。デザイントークンの SSoT は Claude Design で同期は一方向（SS-202 追補） |
 | [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。精度の許可 `getPrecision`（SS-160 追補。本体は ADR-M-022）。端末の向き `watchHeading`（SS-169 追補。本体は ADR-M-023） |
 | [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補） |
-| [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。散歩中の地図への歩いた軌跡の表示（SS-168 追補） |
+| [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。散歩中の地図への歩いた軌跡の表示（SS-168 追補）。画面を行き来したときの軌跡の線の作り直し（SS-211 追補） |
 | [ADR-M-009](./adr/ADR-M-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート。サインイン後の戻り先（`returnTo`・許可リスト。SS-151 追補） |
 | [ADR-M-010](./adr/ADR-M-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送。撮影日時を EXIF から読み、位置情報は捨てる（SS-163 追補） |
 | [ADR-M-011](./adr/ADR-M-011-pin-location-picking-and-adjustment.md) | ピンの位置の選択と調整（任意地点からの登録は長押し、登録画面での調整はタップ・画面内オーバーレイ）。ピンタブへの統合（SS-146 追補）。ナビタブの FAB と地点選択画面の削除（SS-147 追補） |

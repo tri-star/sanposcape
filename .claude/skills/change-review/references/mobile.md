@@ -53,6 +53,7 @@
 - `pinSaveRunner` の DI テストは `dispatch()` のたびに `items` を同期で書き換えるが、`usePinPhotos.ts` は `useReducer` + render 時に同期する `itemsRef`。`await` を挟まない連続 dispatch の直後は古い配列を見うる（未確認の既知ギャップ。冪等なので実害は追加リクエスト程度）。両ファイルを触る差分で確かめる。
 - React Compiler が有効（`app.json` の `reactCompiler: true`）なので、render 中の `[...path]` のような派生値は入力の参照ごとにメモ化される。「毎レンダー新しい配列になる」と指摘する前に、そのコンポーネントが `"use no memo"` で外されていないか、Compiler が諦める書き方（render 中の ref の読み書きなど）になっていないかを確かめる（SS-168 で `RoutePolyline` の `[...path]` を誤って負荷として挙げた）。
 - render 中の ref への代入（`pausedRef.current = paused`、`useScreenBack` の `interceptRef`）と、render 中の条件付き setState（派生 state）は規約どおり（architecture-guideline.md「1回だけの状態確定」）。前者は依存配列から外す理由が書かれているか、後者は無限ループ・二重発火しないかだけを見る。
+- 地図（`react-native-maps`）に、描いた後で座標が変わる `Polyline` / `Polygon` を足す差分では、画面を離れて戻ったとき（タブ切り替え・スタックへの push）に古い座標に戻らないかを見る。Android は付き直すときに、最初に地図へ足した時点の座標で線を作り直す。`onMapReady` の回数を `key` に含めて作り直しているかを確かめる（SS-211。ADR-M-008 決定10。`WalkRouteMapView` が実例）。フォーカス中だけ描く図形と、座標が変わらない線は当たらない。
 
 ## エラー処理と後始末
 
