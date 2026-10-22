@@ -1,6 +1,6 @@
 ---
 name: sandbox-and-tooling
-description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、main の node_modules と lockfile の版差
+description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手
 metadata:
   type: feedback
   scope: durable
@@ -43,6 +43,19 @@ typed routes の生成は飛ばさない（`tsc --noEmit` が `.expo/types/route
 - worktree には node_modules が無いことが多い。main のチェックアウト（`git worktree list` の先頭のパス配下の `node_modules`）で `.d.ts` やネイティブ実装を読める。
 - **main の node_modules は lockfile より古いことがある**（2026-10: lucide-react-native は lockfile 1.50.0 / 手元 1.39.0、expo-location は 57.0.20 / 57.0.15）。
   `pnpm-lock.yaml` の版を先に確かめ、差があれば unpkg の CHANGELOG や該当ファイルで確認する。
+
+## 依存を足した直後の node_modules は CI と配置が違う
+
+`pnpm add` の直後の配置と、lockfile からの `pnpm install --frozen-lockfile` の配置は一致しない（SS-103: eas-cli の追加後、frozen の install で 138 パッケージが外れた）。
+hoisted linker では配置が `@expo/fingerprint` のハッシュに入るので、追加前後の fingerprint やバンドルを比べるときは、比べる前に `pnpm install --frozen-lockfile` をかけて CI と同じ配置にする。
+
+## eas CLI の `--json` と、ワークフローの検証の道具
+
+- `eas` の `--json` の標準出力には、JSON の前に案内の行（「Environment variables ... loaded」など）が混ざることがある。`sed -n '/^{/,$p'`（配列なら `^\[`）で JSON の始まりから読む。
+  `fingerprint:compare --json` はハッシュが違っても終了コード 0。
+- 手元で `eas` を使う確認は、ログイン済みの実 HOME を使うため sandbox の外で行う（読み取りの操作に限る。`channel:view`・`env:list`・`build:list`・`fingerprint:*`）。
+- actionlint と shellcheck はリポジトリにも手元にも無く、Docker での実行は許可されないことがある。公式のリリースを `$TMPDIR` に落とし、チェックサムを確かめてから使う
+  （actionlint は `actionlint_<版>_checksums.txt` で照合。shellcheck は `PATH` に足すと actionlint が `run:` の中も検査する）。
 
 ## git の書き込みが read-only で失敗する
 
