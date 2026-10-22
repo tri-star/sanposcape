@@ -58,6 +58,8 @@ _DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2212", "-"))
 # 住所として粗すぎる結果の種類。これだけで構成される結果（海上の「日本」、「日本 〒400-0241」、
 # Plus Code）はピン名に使えないので読み飛ばす。
 _COARSE_RESULT_TYPES = frozenset({"plus_code", "country", "postal_code", "political"})
+# 駅・停留所の結果。住所の後ろに停留所の名前が付くので、住所に使わない（SS-212）。
+_TRANSIT_RESULT_TYPE = "transit_station"
 
 
 class UnconfiguredGoogleMapsProvider:
@@ -558,41 +560,70 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
 
 
 def _parse_geocode_results(results: object, point: ProviderPoint) -> ProviderAddress | None:
-    """Geocoding API v4 の `results` から、最も詳しい結果の住所と建物名を取り出す。
+    """Geocoding API v4 の `results` から、ピンの位置の住所と建物名を取り出す。
 
-    `results` は詳しい順に並ぶ。Plus Code・国・郵便番号だけの粗い結果（住所の無い場所）は
-    読み飛ばす。
-    建物名は `premise` のうち番地ではないもの（best-effort。日本の住所で建物名が入るかは
-    場所による）。住所の結果に無ければ、後ろの結果のうち範囲（`bounds`）にピンの位置が入る
-    ものから最初に見つかったものを使う（先頭が入居者の結果で、建物名が2番目以降にだけ入る
-    ことがある。範囲で絞るのは、近くの別の建物を拾わないため。SS-212）。
-    住所の末尾に同じ建物名が付いていれば住所から外す。
+    `results` は近い順に並ぶ。Plus Code・国・郵便番号だけの粗い結果（住所の無い場所）と、
+    駅・停留所の結果（住所の後ろに「東京駅南口」のような停留所の名前が付く）は読み飛ばし、
+    最初の結果を住所にする。住所に建物名・階（`subpremise`）が付いていれば、そこから後ろを
+    外す（入居者の施設の結果は「丸の内ビルディング 5階」のように階まで付き、番地の結果は隣の
+    建物の名前を付けることがあるため）。
+    建物名は `premise` のうち番地ではないもので、範囲（`bounds`）にピンの位置が入る結果から
+    最初に見つかったものだけを使う（best-effort。近くの別の建物を拾わないため）。
+    いずれも SS-212 で実キーの応答（丸ビル・都庁・横浜市中区の付近など）を見て決めた。
     """
     if not isinstance(results, list):
         raise GoogleMapsUnavailableError()
-    for index, result in enumerate(results):
+    for result in results:
         if not isinstance(result, dict):
             raise GoogleMapsUnavailableError()
         types = result.get("types")
-        if isinstance(types, list) and set(types) <= _COARSE_RESULT_TYPES:
+        if isinstance(types, list) and (
+            set(types) <= _COARSE_RESULT_TYPES or _TRANSIT_RESULT_TYPE in types
+        ):
             continue
         formatted = result.get("formattedAddress")
         if not isinstance(formatted, str):
             continue
-        address = _normalize_address(formatted)
+        address = _strip_building_and_floor(
+            _normalize_address(formatted), result.get("addressComponents")
+        )
         if not address:
             continue
-        building_name = _building_name(result.get("addressComponents"))
-        if building_name is None:
-            building_name = _building_name_within(results[index + 1 :], point)
-        if building_name is not None and address.endswith(building_name):
-            address = address[: -len(building_name)].rstrip()
-            if not address:
-                continue
+        building_name = _building_name_within(results, point)
         return ProviderAddress(
             address=address[:_ADDRESS_MAX_CHARS],
             building_name=building_name[:_ADDRESS_MAX_CHARS] if building_name else None,
         )
+    return None
+
+
+def _strip_building_and_floor(address: str, components: object) -> str:
+    """住所のうち、その結果の建物名・階（`subpremise`）が始まる位置から後ろを外す。"""
+    markers = [
+        marker
+        for marker in (_building_name(components), _subpremise(components))
+        if marker is not None and marker in address
+    ]
+    if not markers:
+        return address
+    # 建物名・階は番地の後ろに付くので、後ろから探す（町名などに同じ文字列があっても切らない）。
+    return address[: min(address.rindex(marker) for marker in markers)].rstrip()
+
+
+def _subpremise(components: object) -> str | None:
+    """番地ではない `subpremise`（例: `5階`）。"""
+    if not isinstance(components, list):
+        return None
+    for component in components:
+        if not isinstance(component, dict):
+            continue
+        types = component.get("types")
+        name = component.get("longText")
+        if isinstance(types, list) and "subpremise" in types and isinstance(name, str):
+            # 部屋番号のような数字だけの値は番地の一部なので切らない（「5階」のような値だけ）。
+            normalized = _normalize_text(name)
+            if normalized and not _NUMBER_ONLY.match(normalized):
+                return normalized
     return None
 
 
@@ -623,7 +654,7 @@ def _building_name(components: object) -> str | None:
     return None
 
 
-def _building_name_within(results: list[object], point: ProviderPoint) -> str | None:
+def _building_name_within(results: list[Any], point: ProviderPoint) -> str | None:
     """範囲（`bounds`）にピンの位置が入る結果から、最初に見つかった建物名を返す。
 
     範囲を持たない結果は使わない（その建物の上にピンがあるか確かめられないため）。

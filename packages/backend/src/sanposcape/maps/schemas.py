@@ -174,7 +174,7 @@ class ReverseGeocodeResponse(BaseModel):
         max_length=256,
         description=(
             "Building name at the location when the provider supplies one (best-effort). "
-            "Taken from a less specific result only when that result's bounds contain the "
-            "location. Not included in address. Null when unavailable or when address is null."
+            "Taken only from a provider result whose bounds contain the location. "
+            "Not included in address. Null when unavailable or when address is null."
         ),
     )

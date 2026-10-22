@@ -2169,9 +2169,9 @@ components:
           - type: 'null'
           title: Building Name
           description: Building name at the location when the provider supplies one
-            (best-effort). Taken from a less specific result only when that result's
-            bounds contain the location. Not included in address. Null when unavailable
-            or when address is null.
+            (best-effort). Taken only from a provider result whose bounds contain
+            the location. Not included in address. Null when unavailable or when address
+            is null.
       type: object
       required:
       - address
