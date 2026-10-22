@@ -98,12 +98,17 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
     複数の利用者で使わないことを条件に認めている（"Cached data must be logically isolated to the specific End User it is associated
     with and must not be used across multiple End Users."）。ピンは共有地図で他のメンバーにも見えるので、保存した住所を他の利用者に
     見せることがこの条件に当たらないとは言い切れない。そのため保存は見送り、表示のたびに引く。
+    出典: https://cloud.google.com/maps-platform/terms/maps-service-terms （2026-10-23 に取得。"Last modified October 15, 2026"）。
+    同じ条項は 2025-05-01 版（アーカイブ）には無く、それ以降に足された。Terms of Service 3.2.3(b) は Service Specific Terms で
+    明示的に許したもの以外のキャッシュを禁じている。
   - **キャッシュは利用者ごとに分ける**: backend のメモリの TTL キャッシュのキーに利用者 ID を含める（`geocode:{利用者 ID}:{緯度}:{経度}`）。
     SS-138 では座標だけのキーで全利用者が共有しており、上の条件に合わない。mobile の TanStack Query のキャッシュも、サインアウトで消える
     ので利用者をまたがない（[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) SS-212 追補）。
   - **建物名を後ろの結果からも拾う**: 先頭の結果が入居者の結果だと建物名（番地でない `premise`）が入らない（丸ビルでは2・4番目の結果に
-    だけあった）。住所の結果に建物名が無ければ、後ろの結果のうち範囲（`bounds`）にピンの位置が入るものから最初の建物名を使う。
-    範囲を持たない結果・範囲の外の結果は使わない（近くの別の建物を拾わないため）。
+    だけあった。SS-212 の課題本文にある、課題の作成時に実キーで確かめた観察）。住所の結果に建物名が無ければ、後ろの結果のうち範囲（`bounds`）に
+    ピンの位置が入るものから最初の建物名を使う。範囲を持たない結果・範囲の外の結果は使わない（近くの別の建物を拾わないため）。
+    住所の結果（先頭の詳しい結果）自身の建物名は、範囲で絞らずにそのまま使う（SS-138 から変えない。ピンの位置の住所の結果なので）。
+    v4 の `GeocodeResult` は `bounds` を持つが、premise の結果に実際に付くかは実キーで未確認（移行・対応事項）。
 
 ## 検討した選択肢
 
