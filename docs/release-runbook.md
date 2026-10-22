@@ -284,15 +284,25 @@ OTA で届けてよい利用者向けの変更は次のいずれかに限る。
 入力は `message`（OTA の内容。EAS の update 一覧に出る）だけ。
 
 1. **prepare job が承認の前に検査する。** 失敗したら配信できない状態なので、理由を直してから起動し直す。
+   - Expo の `production` channel が protected でなければ失敗する。Owner が手元で `pnpm exec eas channel:protect production` を実行してから起動し直す
+     （project を別のアカウントへ移すと保護が外れる）
+   - EAS の production 環境に、`eas.json` の `build.production.env` と同じ名前の変数があれば失敗する。
+     `eas update` では EAS 側の値が勝ち、OTA の JS だけがその値で作られるため。EAS 側の変数を消すか、`eas.json` と揃える
    - `app.json` の `version`（= runtimeVersion）の本番ビルド（production channel・ストア向け・完了済みの最新）をプラットフォームごとに探す。
      本番ビルドが無いプラットフォームには配信しない（届く端末が無い）。どちらにも無ければ失敗する
    - そのビルドと今のコミットの**ネイティブの fingerprint を比べ、違えば失敗する**。
-     ネイティブの変更を含んでいるので OTA では配れない。`version` を上げてストアで配布する（§4）
+     ネイティブの変更を含んでいるので OTA では配れない。`version` を上げてストアで配布する（§4）。
+     lockfile の変更（依存の配置の変化）・`.gitignore`・app config の変更だけでも fingerprint は変わることがあり、その場合もストアで配布する
    - ビルドのコミットが今のコミットの祖先でなければ失敗する（ビルドに入った変更を巻き戻すことになるため）
 2. **prepare の Job Summary を読んでから、publish job を承認する**（`production` Environment の承認）。
-   Summary には配信先のビルド（BUILD_ID・buildNumber・コミット）と、そのビルドのコミットから今までの
-   `packages/mobile` のコミット一覧が出る。**一覧の中身が「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけ**であることを確かめる。
-   承認するとすぐに配信が始まる。
+   Summary には次が出る。
+   - 配信先のビルド（BUILD_ID・buildNumber・コミット）
+   - そのビルドのコミットから今までの、OTA の JS に入りうるコミットの一覧（`packages/mobile` に加えて `packages/backend/openapi.yaml`・`pnpm-lock.yaml` など）。
+     **一覧の中身が「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけ**であることを確かめる
+   - OTA の JS に入る EAS の production 環境の変数の名前。見覚えの無い変数があれば承認しない
+
+   比べる相手は「最新の本番ビルド」で、利用者に公開したビルドとは限らない。公開したビルドより後に同じ version で作ったビルドがあると、
+   一覧の起点もそちらになり、公開ビルドとの間のコミットは一覧に出ない。承認するとすぐに配信が始まる。
 3. publish job が `eas update --channel production --environment production` を実行する。
    Job Summary に update group の ID が出る（ロールバックで使う。§8.4）。
    端末に届くのは、アプリが次に起動して新しい update を取得した後になる。
@@ -315,9 +325,11 @@ fingerprint の比較で失敗したとき:
   pnpm exec eas fingerprint:compare --build-id <BUILD_ID> --environment production
   ```
 
+- Summary の「違う項目」が取得できなかった旨だけになっている場合は、ビルドの fingerprint の source（EAS 側の保存は期限付き）が期限切れの可能性がある。
+  判定（ハッシュの比較）はこの影響を受けない。
 - **1.0.0 の本番ビルド（BUILD_ID `b293641d…`、2026-10-18）は、OTA を配信できない。**
-  その後に変わった `owner`（Organization への移管。ADR-006 の SS-103 追補）と、eas-cli の追加による依存の配置の差で、
-  fingerprint が一致しないため。どちらもアプリの動きには影響しないが、確かめようがないので、次の本番ビルド（§4.1）から配信できるようにする。
+  その後に変わった `owner`（Organization への移管。ADR-006 の SS-103 追補）・eas-cli の追加による依存の配置・`packages/mobile/.gitignore` の差で、
+  fingerprint が一致しないため。どれもアプリの動きには影響しないが、確かめようがないので、次の本番ビルド（§4.1）から配信できるようにする。
 
 ## 7. API の expand / contract
 

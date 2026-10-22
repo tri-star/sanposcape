@@ -39,9 +39,10 @@
 - **OTA で届けてよいのは「公開済み機能の不具合修正」と「フラグ OFF で入る新機能」だけで、channel の付け替えでリリースを制御しない**。
   `version` を上げる PR と配布ビルドはセットで計画する。（本文: 決定8）
 - **OTA の本番配信は `mobile-production-update.yml`（main のみ）で、承認の前の検査（prepare）と `production` Environment の承認の後の配信（publish）の2 job に分ける**。
-  prepare は配信先の本番ビルド（production channel・同じ version・ストア向けの最新）を引き、ネイティブの fingerprint が違えば失敗し、
-  ビルドのコミットからのコミット一覧を Summary に出す。OTA の JS と fingerprint の比較には `eas.json` の `build.production.env` を与える。
-  ロールバックは Expo の Owner が手元で行う。（本文: SS-103 追補 D35〜D37、D39）
+  prepare は production channel が protected であることを確かめ、配信先の本番ビルド（production channel・同じ version・ストア向けの最新）を引き、
+  ネイティブの fingerprint（ビルドの記録と `fingerprint:generate --build-profile production`）が違えば失敗し、OTA の JS に入りうるコミットの一覧を Summary に出す。
+  OTA の JS には `eas.json` の `build.production.env` を与え、EAS の production 環境に同じ名前の変数があれば失敗する（`eas update` では EAS の値が勝つため）。
+  Release Manager のトークンは `eas update` の step にだけ渡す。ロールバックは Expo の Owner が手元で行う。（本文: SS-103 追補 D34〜D37、D39）
 - **`EXPO_TOKEN` は Expo の権限で2つに分ける**。`production` channel は protected で、Release Manager の robot user のトークンを
   `production` Environment の Secret に、Developer の robot user のトークンをリポジトリ Secret に、同じ名前で置く。
   job に `environment: production` を付けると Release Manager に切り替わる。TestFlight 配信（D28）は承認なしのまま。
@@ -1229,6 +1230,8 @@ D23 は「SS-101 で必要になったときに、同じワークフローへの
 - Developer のトークンはリポジトリ Secret のままでよい。どのブランチから届いても本番の利用者に OTA は出せないため。
   そのため **D28（TestFlight 配信は承認なし）は変えない**。SS-213 追補の未解決「Environment Secret に移すとき TestFlight 配信にも Environment を付ける」は不要になった。
   Release 作成の resolve job に Environment を付けない設計（D24）もそのまま。
+- この分け方は **production channel が protected であること**に懸かっている（外れると Developer のトークンで承認なしに本番へ出せる）。
+  Expo は project を別のアカウントへ移すと保護を外すので、OTA の prepare は毎回 `eas channel:view production` で保護を確かめ、外れていれば失敗する。
 - 採らなかった案: 全 job を `production` に寄せる（E2E の定期実行と作業ブランチからの E2E が止まる）、トークンを1つのまま Environment を分ける（承認が形だけ）、
   Developer 用の Environment を新設する（Developer のトークンの置き場を動かしても守れるものが増えない）。
 
@@ -1241,11 +1244,16 @@ D24 の Release 作成と同じ理由で分ける（Environment の承認は job
   本番ビルドの無いプラットフォームには配信しない（届く端末が無い。2026-10 時点で Android の本番ビルドは無い）。どちらにも無ければ失敗する。
 - `publish`（`production` Environment・Release Manager のトークン）: 同じコミットで `eas update --channel production --environment production` を実行する。
 - main の先頭からだけ配信する（`production` Environment のブランチ制限と同じ。前のコミットから出し直す用途には使わない。D39）。
-- Summary には、配信先のビルドのコミットから今までの `packages/mobile` のコミット一覧を出す。
+- Summary には、配信先のビルドのコミットから今までの、OTA の JS に入りうるコミットの一覧を出す。範囲は `packages/mobile` に加えて
+  `packages/backend/openapi.yaml`（orval の入力）・`pnpm-lock.yaml`・`pnpm-workspace.yaml`・ルートの `package.json`（mobile-ci.yml の paths と同じ考え方）。
   承認者はその中身が決定8 の範囲（公開済み機能の不具合修正・フラグ OFF の新機能）に収まることを確かめてから承認する。
 - ビルドのコミットが今のコミットの祖先でなければ失敗する（ビルドに入った変更を OTA で巻き戻すことになるため）。
-- publish は `eas update` のバンドル（Metro）のために依存のコードを動かす。Release Manager のトークンと依存のコードが同じ job に乗るのは避けられないので、
-  依存は lockfile で固定する（D38）。D24 の「依存のコードを書き込み権限の job で動かさない」とは別の妥協として記録する。
+- publish は `eas update` のバンドル（Metro）のために依存のコードを動かす。Release Manager のトークンと依存のコードが同じ環境に乗るのは避けられないので、
+  依存は lockfile で固定する（D38）。D24 の「依存のコードを書き込み権限の job で動かさない」とは別の妥協として記録する。そのうえで次の2つで範囲を狭める。
+  - トークンは job 全体ではなく `eas update` の step にだけ渡す（`pnpm install`・orval の step には渡さない）。
+  - publish では pnpm のストアのキャッシュ（`setup-node` の `cache: pnpm`）を使わない。キーは lockfile のハッシュで、トークンを持たない他の job と共有しているため。
+- 採らなかった案: バンドルを prepare で作り `eas update --skip-bundler --input-dir` で publish に渡す（トークンのある job で動く依存のコードを eas-cli と app config の評価に絞れるが、
+  成果物の受け渡しと、承認の後に検査を置き直す手間が増える。トークンの漏れの影響を減らしたくなったときの候補）。
 
 ### D36: OTA の JS は、本番バイナリと同じ `eas.json` の `build.production.env` で作る
 
@@ -1255,21 +1263,35 @@ D24 の Release 作成と同じ理由で分ける（Environment の承認は job
 `http://localhost:8000` に落ち、本番アプリが backend に届かなくなる）。
 
 ワークフローは `eas.json` の `build.production.env` を読んで `GITHUB_ENV` に書いてから eas を実行する。値の正本は `eas.json` のままにし、
-ワークフローに値を写さない。D37 の fingerprint の比較も同じ env で行う（`APP_VARIANT` が app config を変え、fingerprint に入るため）。
+ワークフローに値を写さない。
+
+**ただし env の優先順位は本番ビルドと逆になる。** `eas build` は EAS の変数の上に build profile の `env` を重ねる（`eas.json` が勝つ）が、
+`eas update --environment` は `process.env` の上に EAS の変数を重ねる（EAS が勝つ）（eas-cli 25.2.0 の `evaluateConfigWithEnvVarsAsync` と `update` の実装）。
+EAS の production 環境に `eas.json` と同じ名前の変数（例 `EXPO_PUBLIC_BACKEND_API_URL`）があると、OTA の JS だけがその値で作られ、
+接続先が https なら app config も変わらないので fingerprint にも現れない。そこで prepare は EAS の production 環境（project / account）の変数名を取り、
+`build.production.env` と名前が重なれば失敗する。変数名の一覧は承認者の Summary にも出す（値は読まない・出さない）。
+2026-10-22 時点の EAS の production 環境の変数は `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`・`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`・`GOOGLE_MAPS_ANDROID_SDK_KEY` で、重なりは無い。
 
 ### D37: 承認の前に、配信先の本番ビルドとネイティブの fingerprint を比べる
 
 決定8 は「ネイティブを変えたら `version` を上げる」を人の規則としていた（ADR-006 の未解決「`runtimeVersion` を上げるべき変更の見分け方」）。
 `runtimeVersion.policy: "appVersion"` では EAS は互換を確かめないので、規則を破った OTA は既存の端末へ互換の無い JS として届き、起動直後に落ちうる（§8.4 の手段でも戻せない場合がある）。
-そこで prepare が `eas fingerprint:compare --build-id <配信先のビルド> --environment production` を実行し、ハッシュが違えば失敗させる。
+そこで prepare が、配信先のビルドの fingerprint と今のコミットの fingerprint を比べ、ハッシュが違えば失敗させる。
 
-- EAS がビルドの時に記録した fingerprint と、同じ eas-cli・同じ env で今のコミットから計算したものを比べる（自前の計算と EAS の記録を混ぜない）。
+- ビルドの側は、EAS がビルドの時に記録した `build:list` の `fingerprint.hash` を使う。今のコミットの側は
+  `eas fingerprint:generate --platform <p> --build-profile production` で計算する。`--build-profile` は `eas build` と同じ関数で env を組み立てるので、
+  本番ビルドと同じ優先順位（`eas.json` が勝つ）で計算できる（自前の計算と EAS の記録を混ぜない）。
+- `eas fingerprint:compare --json` は判定に使わない。ビルドの fingerprint の source（EAS 側の保存は期限付き）が取れないと、ハッシュが同じでも失敗するため。
+  一致しないときに違う項目を見せるためだけに、JSON なしの compare を best-effort で使う。
 - 比べるのは配信先の最新のビルドだけ。同じ `version` の古いビルドとネイティブが違う状態は、それ自体が規則の違反で、ここでは検出しない。
+  最新のビルドが利用者に公開したビルドより新しい（未公開の）場合は、比較の相手もコミット一覧の起点もそちらになり、一覧から公開ビルドとの間のコミットが抜ける。
 - 差分の中身（app config の行）はログに出さず、違う項目の見出しとパスだけを出す。Android の本番ビルドでは Maps SDK キーが app config に入るため（public リポジトリ）。
-  中身は手元で同じコマンドを実行して見る（runbook §6.1）。
-- 実測（2026-10-21、手元）: 10/18 の 1.0.0 の本番ビルド（`ce18a29`）と比べると、違いは `owner`（Organization への移管）と、
-  eas-cli の追加で app config の評価が読む `bplist-parser` の置き場所が変わったこと（版は同じ）だけだった。
-  どちらもアプリの動きには影響しないが、**このビルドへは OTA を配信できない**。次の本番ビルドから配信できる。
+  中身は手元で `eas fingerprint:compare` を実行して見る（runbook §6.1）。
+- fingerprint はネイティブの互換に関わらない変更でも変わることがある。lockfile の変更で依存の配置（hoisting）が動いたとき、`.gitignore` を変えたとき、
+  `owner` などの app config を変えたとき。どれも安全側（OTA を出さない）に倒れ、ストアで配布し直すことになる。
+- 実測（2026-10-22、手元）: 10/18 の 1.0.0 の本番ビルド（`ce18a29`）と比べると、違いは `owner`（Organization への移管）・
+  eas-cli の追加で app config の評価が読む `bplist-parser` の置き場所（版は同じ）・`packages/mobile/.gitignore`（`credentials.json` の追加）だけだった。
+  どれもアプリの動きには影響しないが、**このビルドへは OTA を配信できない**。次の本番ビルドから配信できる。
 - 採らなかった案: `fingerprint.config.js` で `owner` などを除く（記録済みのビルドの fingerprint は変わらず、今回の不一致は解消しない。owner の変更は一度きり）。
 
 ### D38: eas-cli は `packages/mobile` の devDependency に固定版で入れ、CI は `pnpm exec eas` で使う
@@ -1279,7 +1301,8 @@ SS-213 追補の未解決（`npx eas-cli` の版を固定していない）の�
 
 - `eas-cli@25.2.0` を exact で入れ、5本のワークフロー（E2E・配布ビルド・本番 TestFlight 配信・Release 作成・OTA）は `pnpm install --frozen-lockfile` の後に `pnpm exec eas` を使う。版の更新は Dependabot の PR で行う。
 - hoisted linker のため、eas-cli の依存に押されてトップレベルの 8 パッケージが入れ替わる（宣言している側には入れ子で元の版が入る）。
-  追加の前後で、`@expo/*` と `expo-updates` の版、本番の env での `expo export --no-bytecode` の iOS バンドルが同一であることを確かめた。native の fingerprint は一度だけ変わる（D37 の実測）。
+  追加の前後で、`@expo/*` と `expo-updates` の版、本番の env での `expo export --no-bytecode` の iOS バンドルが同一であることを確かめた
+  （CI と同じ `pnpm install --frozen-lockfile` の配置でも同一）。native の fingerprint は変わる（D37 の実測）。今後の eas-cli の更新でも配置が動けば変わりうる。
 - 採らなかった案: `npx eas-cli@<版>`（lockfile の検証と Dependabot の更新が効かない）、別ディレクトリの npm の lockfile（ツールチェーンが2つになる）。
 
 ### D39: OTA のロールバックは、Expo の Owner が手元で行う
@@ -1292,7 +1315,17 @@ Release Manager のトークンは人に渡さず CI の `production` Environmen
 
 - **OTA の本番配信は未実行。** Release Manager のトークンでの `eas update` と、`eas update --json` の応答（update group の取り出し）は初回の実行まで未確認。
   1.0.0 の本番ビルドへは D37 の不一致で配信できないので、初回は次の本番ビルドの後になる。
-- prepare の検査は手元のログイン（Owner）で各ステップを実行して確かめた。Developer のトークンでの `build:list`・`fingerprint:compare` は、マージ後の初回の実行まで未確認。
+- prepare の検査は手元のログイン（Owner）で各ステップを実行して確かめた。Developer のトークンでの `channel:view`・`env:list`・`build:list`・`fingerprint:generate` は、
+  マージ後の初回の実行まで未確認。Developer のトークンでの build・submit・E2E も、トークンを替えてからまだ実行していない。
+- **Developer ロールが EAS の環境変数を作成・編集できるかは未確認**（Expo のドキュメントに記載が無く、protected の対象は今は channel だけ）。
+  できる場合、D36 の名前の重なりの検査は新しい変数の追加を止めるが、既存の変数（`EXPO_PUBLIC_GOOGLE_*`）の値の書き換えは、承認者には見えないまま次の OTA に入る
+  （本番ビルドにも入る）。Developer の robot user で `eas env:create` が拒否されるかを確かめる。
+- Developer のトークンでも `production` profile・`production` channel のビルドを作れ、ビルドの `gitCommitHash` はクライアントが申告する値なので、
+  D37 が比べる「最新の本番ビルド」をすり替えられうる。影響は互換の検査が誤ることで、承認の迂回ではない。
+- Android の本番ビルドを作る段で、`GOOGLE_MAPS_ANDROID_SDK_KEY` を EAS に `secret` で置くと CLI から読めず、`fingerprint:generate` の app config にキーが入らないため、
+  ビルドの fingerprint と毎回一致しない可能性がある。その段で、置き方と fingerprint に入る項目を確かめる。
+- `expo-updates` のコード署名（`updates.codeSigningCertificate`）は設定していない。Release Manager のトークンか Expo の Owner のアカウントが乗っ取られると、
+  任意の JS が本番の利用者へ届く（今回の差分の前からある前提）。
 - 以前の `EXPO_TOKEN`（個人アカウントのトークン）の無効化は、Developer のトークンでの実行を確かめた後に行う（人の作業）。
 - `ci-e2e` Environment はブランチ制限を指定する設定だが規則が0件で、作業ブランチからも実行できる（本追補の範囲外。`mobile-e2e.yml` のコメントは「ブランチ制限で到達経路を絞る」としている）。
 
