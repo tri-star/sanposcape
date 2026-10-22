@@ -206,9 +206,13 @@ jobs:
             echo "platform=${platform}"
           } >> "$GITHUB_OUTPUT"
 
-      # fingerprint は EAS がビルドの時に記録したものと、同じ方法（同じ eas-cli・--environment production・上の env）で今のコミットから計算したものを比べる。
+      # ビルドの時に EAS が記録した fingerprint（build:list の fingerprint.hash）と、今のコミットから
+      # `eas fingerprint:generate --build-profile production` で計算したものを比べる。generate の --build-profile は eas build と同じ関数で
+      # env を組み立てる（EAS の変数に eas.json の build profile の env を重ねる）ので、本番ビルドと同じ条件で計算できる。
+      # `fingerprint:compare --json` は使わない: ビルドの fingerprint の source（EAS 側の保存は期限付き）が取れないと、ハッシュが同じでも失敗する。
+      # 一致しなかったときだけ、違う項目を見せるために compare（JSON なし）を best-effort で使う。
       # 差分の中身（app config の行）はログに出さない: Android の本番ビルドでは Maps SDK キーが app config に入るため（public リポジトリ）。
-      # どの項目が違うかだけを出し、中身は手元で `eas fingerprint:compare --build-id <BUILD_ID> --environment production` で見る。
+      # どの項目が違うかだけを出し、中身は手元で `eas fingerprint:compare --build-id <BUILD_ID> --environment production` で見る（runbook §6.1）。
       - name: Compare fingerprints with the store builds
         working-directory: packages/mobile
         run: |
@@ -217,22 +221,26 @@ jobs:
           for p in ios android; do
             [ -s "$RUNNER_TEMP/build-$p.json" ] || continue
             id=$(jq -r '.id' "$RUNNER_TEMP/build-$p.json")
+            build_hash=$(jq -r '.fingerprint.hash // empty' "$RUNNER_TEMP/build-$p.json")
+            if [ -z "$build_hash" ]; then
+              echo "::error::${p} の本番ビルド ${id} に fingerprint が記録されていません。ネイティブの互換を確かめられないため配信しません"
+              exit 1
+            fi
             set +e
-            pnpm exec eas fingerprint:compare --build-id "$id" --environment production --json --non-interactive \
+            pnpm exec eas fingerprint:generate --platform "$p" --build-profile production --json --non-interactive \
               > "$RUNNER_TEMP/fp-$p.out" 2> "$RUNNER_TEMP/fp-$p.stderr.log"
             STATUS=$?
             set -e
             if [ "$STATUS" -ne 0 ]; then
-              echo "::error::fingerprint の比較（${p}）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+              echo "::error::fingerprint の計算（${p}）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
               sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/fp-$p.stderr.log"
               exit "$STATUS"
             fi
-            # 違っても終了コードは 0。JSON の前に環境変数の案内の行が出るので、最初の { 以降を読む。
-            sed -n '/^{/,$p' "$RUNNER_TEMP/fp-$p.out" > "$RUNNER_TEMP/fp-$p.json"
-            build_hash=$(jq -r '.fingerprint1.hash // empty' "$RUNNER_TEMP/fp-$p.json")
-            local_hash=$(jq -r '.fingerprint2.hash // empty' "$RUNNER_TEMP/fp-$p.json")
-            if [ -z "$build_hash" ] || [ -z "$local_hash" ]; then
-              echo "::error::fingerprint の比較（${p}）の応答からハッシュを取得できませんでした"
+            # JSON の前に案内の行が出ることがあるので、最初の { 以降を読む。source（app config の中身を含む）は読まずにハッシュだけ取る。
+            local_hash=$(sed -n '/^{/,$p' "$RUNNER_TEMP/fp-$p.out" | jq -r '.hash // empty')
+            rm -f "$RUNNER_TEMP/fp-$p.out"
+            if [ -z "$local_hash" ]; then
+              echo "::error::fingerprint の計算（${p}）の応答からハッシュを取得できませんでした"
               exit 1
             fi
             if [ "$build_hash" = "$local_hash" ]; then
@@ -258,7 +266,8 @@ jobs:
                 echo '```'
               done
               echo
-              echo "差分の中身は手元で \`eas fingerprint:compare --build-id <BUILD_ID> --environment production\` を実行して確かめてください（APP_VARIANT などは eas.json の build.production.env を与える。docs/release-runbook.md §6）。"
+              echo "依存の更新（pnpm-lock.yaml の変更）だけでも、依存の配置が変わって fingerprint が変わることがあります。いずれの場合も OTA は配れないので、ストアで配布してください。"
+              echo "差分の中身は手元で \`eas fingerprint:compare --build-id <BUILD_ID> --environment production\` を実行して確かめてください（APP_VARIANT などは eas.json の build.production.env を与える。docs/release-runbook.md §6.1）。"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
