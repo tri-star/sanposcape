@@ -10,7 +10,8 @@ metadata:
 `react-native-maps` 1.29.8 の Android 実装では、画面を離れて戻る（タブ切り替え・スタックへの push）と `MapView.onDetachedFromWindow` が線などを退避し、
 `onAttachedToWindow` → `onMapReady` の後に `addToMap(getPolylineOptions())` で作り直す。`MapPolyline` の `PolylineOptions` は
 **最初に地図へ足した時点で1回だけ作ってキャッシュ**され、後からの `setCoordinates` は反映されない。1.29.11・2.0.0-beta.15 でも同じ。
-`MapPolygon` など他の図形も同じ作りの可能性がある（未確認）。
+`MapPolygon` も同じ（`getPolygonOptions` が同じくキャッシュする）。`MapMarker` は `getMarkerOptions` が毎回座標を詰め直すので影響しない。
+散歩中の地図の向きの扇形（`Polygon`）はフォーカスが外れると描かなくなり、戻ると新しく足されるので当たらない。
 
 - 症状: 座標が後から変わる線（散歩中の軌跡）が、戻った直後に描き始めの数点に戻る。次に座標の props が変わるまで直らない。JS の状態は消えていない。
 - 対処: `onMapReady`（付き直すたびに呼ばれる）の回数を state に持ち、その線の `key` に含める（`WalkRouteMapView`）。
