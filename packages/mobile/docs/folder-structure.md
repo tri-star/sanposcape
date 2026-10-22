@@ -3,6 +3,8 @@
 ReactNative(Expo) アプリのフォルダ構造の方針をまとめる。
 背景・選定理由は [ADR-M-001](../adr/ADR-M-001-folder-structure.md) を参照。
 
+この文書は大まかな構造と配置のルールだけを持つ。個々のファイルの役割はファイル冒頭の JSDoc を、設計の経緯は ADR を正とする。
+
 ## 前提
 
 - ルーティング: **Expo Router**（ファイルベースルーティング）
@@ -20,67 +22,49 @@ packages/mobile/
 │   │   └── index.tsx          #   画面は薄く保ち、src/features を呼ぶだけにする
 │   └── +not-found.tsx
 │
-├── index.ts                   # エントリ。`expo-router/entry` より前に位置記録のタスク定義と起動時の後始末を import する
-│                              #   （順序が不変条件。SS-156 / ADR-M-018。`backgroundLocationTaskEntry.test.ts` で固定）
+├── index.ts                   # エントリ。`expo-router/entry` より前に位置記録のタスク定義と起動時の後始末を import する（ADR-M-018）
 │
 ├── src/
 │   ├── components/            # 横断的に再利用するUI（機能に依存しない）
-│   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...
-│   │   ├── layout/            #   横断的な複合UI（必要に応じカテゴリを追加）
-│   │   ├── app-config/        #   /app-config 関連（配線コンポーネントとUI付きコンポーネントが同居。SS-100）
-│   │   ├── location/          #   位置情報まわりの横断UI（LocationPermissionNotice と文言の純粋関数 locationNoticeMessage。SS-124 / SS-160。地図の子として現在地の向きを描く CurrentHeadingBeam。SS-169）
-│   │   └── legal/             #   法的文書への導線（LegalDocumentLink と、その薄いラッパー PrivacyPolicyLink / TermsLink、認証画面の同意文言 LegalConsentNotice。settings と auth から使う。SS-158 / SS-187）
+│   │   ├── ui/                #   Primitive: Button, Text, Card, Input ...（地図オーバーレイも含む）
+│   │   ├── layout/            #   横断的な複合UI
+│   │   └── <category>/        #   用途ごとのカテゴリ（例: location/, legal/, app-config/）
 │   │
-│   ├── features/             # 機能固有のまとまり（凝集の単位）
-│   │   └── <feature>/         #   例: walk, history
+│   ├── features/              # 機能固有のまとまり（凝集の単位）
+│   │   └── <feature>/         #   例: walk, history, pin
 │   │       ├── components/    #     その機能でしか使わないUI
-│   │       ├── hooks/         #     RN依存の副作用・状態（useState/useEffect等。Vitest対象外）
-│   │       ├── lib/           #     判定・整形などの純粋関数（react-native非依存＝Vitestでテスト）
-│   │       ├── data/          #     静的データ（ダミーデータ・定数）
+│   │       ├── hooks/         #     RN依存の副作用・状態（Vitest対象外）
+│   │       ├── lib/           #     判定・整形などの純粋関数（Vitestでテスト）
+│   │       ├── data/          #     静的データ（定数・選択肢一覧など）
 │   │       ├── api/           #     その機能のAPI呼び出しラッパ
-│   │       ├── store/         #     その機能に閉じたZustandストア（横断化したらsrc/store/へ昇格）
+│   │       ├── store/         #     その機能に閉じたZustandストア
 │   │       └── types.ts
 │   │
-│   ├── services/            # スタブ差し替えの層（認証・実機依存機能）
+│   ├── services/              # スタブ差し替えの層（認証・実機依存機能）
 │   │   └── <service>/
-│   │       ├── index.ts       #   環境変数（例: EXPO_PUBLIC_AUTH_MODE /
-│   │       │                   #   EXPO_PUBLIC_LOCATION_MODE）で real/dev/mock を
-│   │       │                   #   選択して export（既定 real）
+│   │       ├── index.ts       #   環境変数で real/dev/mock を選択して export（既定 real）
 │   │       ├── types.ts       #   インターフェース定義
 │   │       ├── xxx.real.ts    #   本番実装
-│   │       ├── xxx.dev.ts     #   実装は本物に近いが実機/外部IdPに依存しない実装
-│   │       │                   #   （例: backend の dev 専用エンドポイントを使う）
-│   │       └── xxx.mock.ts    #   テスト用の最小スタブ（メモリ上のダミー実装等）
-│   │       # 複雑なサービスは上記に加え、トークン生存管理・エラー分類などの補助ファイルを
-│   │       # 持つことがある（例: services/auth の tokenStore.ts / authError.ts）。
+│   │       ├── xxx.dev.ts     #   本物に近いが実機/外部IdPに依存しない実装
+│   │       └── xxx.mock.ts    #   テスト用の最小スタブ
 │   │
-│   ├── api/                  # Orval生成物 & 共通APIクライアント設定
-│   │   ├── generated/         #   自動生成物（手編集禁止）
-│   │   ├── client.ts          #   customFetch（HTTP出口の1つ）
-│   │   ├── authHeaders.ts     #   X-App-Authorization 付与の純粋関数
-│   │   ├── contentHash.ts     #   x-amz-content-sha256 付与の純粋関数（expo-crypto を使用）
-│   │   ├── apiError.ts        #   ApiError
-│   │   ├── retryPolicy.ts     #   401→refresh のリトライ判定
-│   │   ├── transientRetry.ts  #   一時障害（429/502/503/504/通信断）のGET/HEAD限定再送（SS-79）
-│   │   ├── authTokenProvider.ts #   services/auth と client.ts を疎結合にするレジストリ
-│   │   ├── queryClient.ts     #   TanStack Query の QueryClient 設定
-│   │   ├── appConfigQueryKey.ts #   /app-config の queryKey 定数（SS-100）
-│   │   └── appConfigApi.ts    #   /app-config の素の fetcher ラッパ（SS-100）
+│   ├── api/                   # Orval生成物 & 共通APIクライアント（customFetch・エラー・リトライ・QueryClient）
+│   │   └── generated/         #   自動生成物（手編集禁止）
 │   │
-│   ├── hooks/                # 横断的な汎用hook（機能非依存）
-│   ├── lib/                  # 汎用ユーティリティ（純粋関数中心＝テスト容易）
-│   ├── config/              # 環境変数の読み取り・定数
-│   ├── store/               # Zustand ストア（横断的なクライアント状態）
-│   ├── theme/               # デザイントークン・テーマ定義（StyleSheet + Context）
-│   └── types/               # 横断的な型定義
+│   ├── hooks/                 # 横断的な汎用hook（機能非依存）
+│   ├── lib/                   # 汎用ユーティリティ（純粋関数中心）・後始末レジストリ
+│   ├── config/                # 環境変数の読み取り・定数
+│   ├── store/                 # Zustand ストア（横断的なクライアント状態）
+│   ├── theme/                 # デザイントークン・テーマ定義（StyleSheet + Context）
+│   └── types/                 # 横断的な型定義
 │
-├── assets/                   # 画像・フォント等の静的アセット
-├── .maestro/                 # E2Eテストフロー（Maestro）
+├── assets/                    # 画像・フォント等の静的アセット
+├── .maestro/                  # E2Eテストフロー（Maestro）
 │   └── subflows/              #   `runFlow` からのみ呼ばれる共通手順（単体では実行されない）
-├── docs/                     # 設計ドキュメント
-├── adr/                      # ADR（設計判断の記録）
-├── app.json / app.config.ts  # Expo設定
-├── tsconfig.json             # パスエイリアス @/ → src/
+├── docs/                      # 設計ドキュメント
+├── adr/                       # ADR（設計判断の記録）
+├── app.json / app.config.ts   # Expo設定
+├── tsconfig.json              # パスエイリアス @/ → src/
 ├── vitest.config.ts
 └── package.json
 ```
@@ -95,101 +79,40 @@ packages/mobile/
 - 予約ファイル: `_layout.tsx`（レイアウト）、`+not-found.tsx`、`(group)/`（URLに出ないグループ）、`[param].tsx`（動的ルート）。
 
 ### `src/components/` — 機能に依存しない再利用UI
-- `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。
-  - **地図オーバーレイ**も `ui/` の1カテゴリとして扱う（例: `ui/map-pin/MapPin.tsx`、
-    `ui/route-polyline/RoutePolyline.tsx`、現在地の向きの扇形 `ui/heading-beam/HeadingBeam.tsx`。SS-169）。`RoutePolyline` は `MapView` の子としてしか描画できず
-    ギャラリーに載せられない。`MapPin` は SVG の View でギャラリーに載せられるが、基準点は地図画面でしか
-    確認できない（[pages-components-guideline](./pages-components-guideline.md) 参照）。
-    `ui/map-pin/mapPinGeometry.ts`（形・基準点を求める純粋関数）は `mapPinGeometry.test.ts` を併置する。
+- `ui/`: Primitive（Button, Input, Card など）。どの機能にも依存しない最小単位。地図オーバーレイ（`MapPin`・`RoutePolyline` など）も `ui/` の1カテゴリとして扱う。
 - `layout/` など: 横断的な複合UI。**最初から細分化せず、増えてきたらカテゴリ（サブフォルダ）を追加**する。
-- **UI を持たない横断的な配線コンポーネント**も、ここのカテゴリに置く
-  （例: `app-config/AppConfigBootstrap.tsx`。hook を `QueryClientProvider` の内側で1回だけ実行する
-  ためのもの。SS-100。`AuthGate` のように機能固有の配線は `features/<feature>/components/` に置く）。
-- **`app-config/` は「UI を持たない配線コンポーネント」と「UI 付きコンポーネント」が同居する例外的な
-  カテゴリ**である。`AppConfigBootstrap.tsx`（配線・UI無し）に加えて `FeatureGate.tsx`（フラグで
-  子要素の描画を出し分ける、UI を持つコンポーネント）も同じフォルダに置く（SS-100）。理由は
-  「`/app-config` に関するコンポーネント」という凝集軸がドメイン別カテゴリ（`ui/`/`layout/` の
-  用途別軸とは異なる）を優先したため。**性質の異なる2つが同居してよい**唯一のカテゴリという扱いで、
-  次に3つ目のファイルを置く場合もこの軸（`/app-config` 関連かどうか）で判断すること。
+- **UI を持たない横断的な配線コンポーネント**も、ここのカテゴリに置く（例: `app-config/`）。
+  機能固有の配線（`AuthGate` など）は `features/<feature>/components/` に置く。
 
 ### `src/features/<feature>/` — 機能固有のまとまり
 - 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `store` / `types` をこの配下に凝集させる。
-- **`hooks/` は RN 依存の副作用・状態**（`useState`/`useEffect`/`setInterval` など）を持つ層。
-  Vitest は `react-native` を最小スタブに差し替えた node 環境のためコンポーネント同様に
-  レンダリング/フックのテストはできない（詳細は [pages-components-guideline](./pages-components-guideline.md)）。
+- **`hooks/` は RN 依存の副作用・状態**（`useState`/`useEffect` など）を持つ層。Vitest ではレンダリング/フックのテストはできない
+  （詳細は [pages-components-guideline](./pages-components-guideline.md)）。
 - **判定・整形ロジックは `lib/` の純粋関数に切り出す**（`react-native` を値 import しない）。
   こちらが Vitest でのテスト対象になる（`.test.ts` を併置）。
-- **`data/`** には静的データ・定数（ダミーデータ、選択肢一覧など）を置く。用途は2種類ある。
-  - サーバー由来データを代用する**暫定スタブ**: 将来 `api/`（Orval + TanStack Query）へ差し替わったら削除する
-    （SS-29 でこの用途のファイルは解消済み。新たに追加する場合も同様に一時的なものとして扱う）。
-  - **恒久的に残る静的データ**: API の enum に対する表示メタ・選択肢一覧（例:
-    `features/walk/data/categories.ts`）、開発確認用の代表値（例: `features/walk/data/defaults.ts`）、
-    対応する backend API がまだ存在しない設定値（例: `features/history/data/stepGoal.ts`）など、
-    API 化される種類のデータではないもの。これらは差し替え対象ではないので残置理由を JSDoc に書く。
-  - 画面の主データ（一覧・詳細など、将来 API 化される可能性が高いもの）は、`hooks/` 経由でのみ参照させ、
-    View から `data/` を直接 import しない。差し替え時の影響範囲を hook に閉じるため。
-  - router params 欠落時のフォールバック定数や、画面カタログ等の開発用途で使う代表値のように、
-    実データ化の見込みが薄い値は View からの直接 import を許容する。
+- **`data/`** には静的データ・定数を置く。
+  - サーバー由来データを代用する**暫定スタブ**は、API へ差し替わったら削除する一時的なものとして扱う。
+  - **恒久的に残る静的データ**（API の enum の表示メタ・選択肢一覧・開発確認用の代表値・対応する API がまだ無い設定値など）は、残置理由を JSDoc に書く。
+  - 画面の主データ（将来 API 化される可能性が高いもの）は `hooks/` 経由でのみ参照させ、View から `data/` を直接 import しない。
+    フォールバック定数や開発用途の代表値のように実データ化の見込みが薄い値は、View からの直接 import を許容する。
 - **`store/`** はその機能に閉じたクライアント状態（Zustand）。**サーバー由来のデータは置かない**
-  （TanStack Query が保持する。二重管理を避けるため）。
-  2つ以上の機能から参照されるようになったら `src/store/` へ昇格させる（コンポーネントの昇格ルールと同じ判断基準）。
-  - 実例1: `features/walk/store/useActiveWalkStore.ts`（進行中の散歩 `ActiveWalk`。「今どの散歩をしているか」の識別情報だけを持ち、ルート本体は持たない）。
-  - 実例2: `features/walk/store/useFinishedWalkStore.ts`（終了したが保存が確定していない散歩 `FinishedWalk` と保存状態）。
-    散歩中画面 → サマリ画面をまたいで保存対象を渡すために、`useActiveWalkStore` とは責務を分けて別ファイルにしている。
-  - **いずれも永続化しない**（AsyncStorage / SecureStore を使わない）。保存前にアプリを落とすと記録は失われる。
-    ローカル永続化（起動時の再送・散歩の復帰）は SS-19 のスコープ外でフォローアップ課題に送っており、
-    着手時は ADR-M-008 の再追補が必要。
-  - **「サーバー由来のデータを置かない」の例外は `useFinishedWalkStore.savedWalkId` の1つだけ**。
-    サーバーが採番した識別子（保存成功時の walk id。履歴詳細への遷移に使う）に限って許容し、
-    散歩の内容そのもの（`WalkRead`）は入れない。例外を増やす場合は ADR で判断を残すこと。
-  - 判断の背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) を参照。
-  - 実例3: `features/pin/store/usePinMapFilterStore.ts`（地図に描く登録済みピンの絞り込み。ピンタブと散歩中の地図で共有する。
-    散歩中の地図へは `app/` のルートが `PinMapFilterControl` を合成するので、store を参照するのは features/pin だけ。
-    これも永続化しない（アプリの再起動で既定に戻る）。判断の背景は [ADR-M-021](../adr/ADR-M-021-pin-visit-status-and-archive.md) D9。SS-174）。
-  - **feature をまたぐイベントで他 feature の store をクリアしたくなったら、直接 import せず
-    `src/lib/` に後始末レジストリを置き、クリアされる側（store）が自分の後始末を登録する**
-    （ストアのファイル末尾で1回）。呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに
-    実行関数を1つ呼ぶだけにする。こうすることで、クリア対象の store が増えるたびに呼び出し側を
-    編集せずに済み、かつ「その機能の外から import されるものは置かない」（下記）を破らずに済む。
-    現在2種類ある:
-    - **サインアウト時**: `src/lib/sessionCleanup.ts` の `registerSessionCleanup()` / `runSessionCleanup()`。
-      実行側は `src/store/useAuthSessionStore.ts` の `setSession()`（認証状態が `authenticated → guest` に
-      落ちる時点。SS-13 追補）。
-    - **散歩の削除時**: `src/lib/walkDeletionCleanup.ts` の `registerWalkDeletionCleanup()` /
-      `runWalkDeletionCleanup(walkId)`（SS-60）。実行側は `features/history/hooks/useWalkDelete.ts` の
-      `onSuccess`。サインアウト用と違い**引数（削除された walk id）を取り**、登録側は
-      `savedWalkId` が一致するときだけクリアする（保存前の別ドラフトを巻き添えにしないため）。
-    - 共通の性質（**store については**）: 1つの後始末が例外を投げても他は止めない。登録はモジュール
-      読み込み時に走るため、対象 store が未ロードなら後始末も走らないが、いずれの store も非永続
-      （メモリのみ）のため「未ロード = クリアすべきデータも無い」が成立する。
-    - **例外（store 以外・SS-118）: 画像キャッシュ（expo-image）のサインアウト時消去**は
-      `src/lib/imageCacheCleanup.ts` に登録する。写真は本人（地図の member）しか見られないため、
-      共有端末で前のユーザーの写真がディスクに残らないようにする。対象が expo-image の
-      **ネイティブキャッシュ（ディスクに永続）** であり store のように「未ロード = クリアすべき
-      データも無い」が成立しない（過去の起動で読み込んだ写真がディスクに残る）ため、
-      登録元をその写真を表示するコンポーネント（`PinPhotoImage.tsx`）にはせず、**起動時に必ず
-      評価される `app/_layout.tsx` から副作用 import する専用モジュール**に置く
-      （SS-118 ローカルレビュー SEC-M1。以前はコンポーネント側で登録しており、そのコンポーネントが
-      一度も読み込まれないまま出たサインアウトでは後始末が走らなかった）。
-    - **例外（store 以外・SS-156）: 散歩の位置記録のバッファ（端末のファイル）と OS のロケーションタスク**は
-      `src/lib/backgroundLocationCleanup.ts` に登録する。対象が端末のファイル・OS が再起動後も復元するタスクで、
-      「未ロード = クリアすべきデータも無い」が成立しないため、起動時にも停止・削除する
-      （進行中の散歩は永続化しないので、起動時に続けるべき記録は無い）。登録元は **`index.ts` からの副作用 import**
-      （`app/_layout.tsx` ではなく、`expo-router/entry` より前。理由は上記 `lib/` の記述を参照）。
+  （TanStack Query が保持する。二重管理を避けるため）。2つ以上の機能から参照されるようになったら `src/store/` へ昇格させる。
+  - **いずれも永続化しない**（AsyncStorage / SecureStore を使わない）。
+  - 「サーバー由来のデータを置かない」の例外は、サーバーが採番した識別子1つに限った `useFinishedWalkStore.savedWalkId` だけ
+    （散歩の内容そのものは入れない）。例外を増やす場合は ADR で判断を残すこと。背景は [ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md)。
 - **その機能の外から import されるものは置かない**（横断利用が必要になったら昇格させる。下記ルール参照）。
-- **feature をまたいで地図に要素を重ねたいときは、`app/` のルートが render slot で合成する**
-  （`features/walk` が `features/pin` を import しない規約を保つため）。実例:
-  `app/(tabs)/index.tsx` が `WalkActiveView` の `renderMapLayers(visibleRegion)` prop に
-  `RegisteredPinsMapLayer`（`features/pin`）を渡す。`WalkRouteMapView`（`features/walk`）は
-  `mapLayers?: ReactNode` を `MapView` の子としてそのまま描くだけで、中身を知らない（SS-118）。
-  増減するレイヤーは `MapView` の子の**末尾**に置き、重なり順は `zIndex` で決める
-  （既存のルート線・マーカーの位置を動かさないため。ADR-M-012 D16）。
-  地図以外の合成も同じ形にする。実例: `app/(tabs)/index.tsx` が `WalkActiveView` の `idleSection` prop に
-  `RecentWalksSection`（`features/history`）を渡す（散歩していないときのナビタブの「最近の散歩」。
-  `features/walk` と `features/history` は互いに import しない。サインイン中だけ渡す判定もルートが持つ。SS-147）。
-  同じコンポーネントを複数のタブに出すと、タブは一度開くとマウントされたまま残るため testID が衝突しうる。
-  呼び出し側から接頭辞を渡す（`pages-components-guideline.md` のルール 7）。
-  同様に `app/(tabs)/account.tsx` が `HistoryView` の `footer` に `AccountActionBar`（`features/account`）を渡す（SS-148）。
+- **feature をまたいで画面を合成したいときは、`app/` のルートが render slot（props）で合成する**
+  （例: ナビタブのルートが `features/walk` の画面へ `features/pin` の地図レイヤーや `features/history` の一覧を渡す）。
+  feature 同士は互いに import しない。地図に重ねるレイヤーは `MapView` の子の末尾に置き、重なり順は `zIndex` で決める（ADR-M-012）。
+
+### feature をまたぐイベントで他 feature の store をクリアしたくなったら
+- 直接 import せず、`src/lib/` に**後始末レジストリ**を置き、クリアされる側が自分の後始末を登録する（ストアのファイル末尾で1回）。
+  呼び出し側（イベントの発生源）は「何をクリアすべきか」を知らずに実行関数を1つ呼ぶだけにする。
+  1つの後始末が例外を投げても他は止めない。
+- 現在のレジストリは、サインアウト時（`sessionCleanup.ts`）と散歩の削除時（`walkDeletionCleanup.ts`）の2つ
+  （[ADR-M-008](../adr/ADR-M-008-active-walk-state-and-route-cache.md) 決定6・決定8）。
+- store 以外（端末に永続するキャッシュ・ファイル・OS のタスクなど）の後始末は、「未ロード = クリアすべきデータも無い」が成立しないため、
+  表示するコンポーネントからではなく**起動時に必ず評価されるモジュール**（`app/_layout.tsx` か `index.ts`）から副作用 import する専用モジュールで登録する。
 
 ### コンポーネントの配置判断ルール（肥大化対策）
 > **「2つ以上の機能から使うか？」**
@@ -199,172 +122,69 @@ packages/mobile/
 > 迷ったら **まず `features/` に置く**。再利用が実際に発生した時点で `components/` へ昇格させる。
 > `components/` 直下にファイルを並べて肥大化させない。カテゴリのサブフォルダに分ける。
 
-- 実際の昇格例: `LocationPermissionNotice`（`features/walk/components/` → `src/components/location/`。
-  `features/pin` の地点選択画面からも使うことになったため。SS-124。SS-147 で地点選択画面 `/pins/pick-location` は削除した。現在の利用元は `WalkStartView` / `WalkActiveView` / `PinTabView`）。
-- 実際の昇格例: `TabActionBar`（`features/pin/components/PinTabActionBar.tsx` → `src/components/layout/TabActionBar.tsx`。
-  アカウントタブの下部の帯でも使うため。SS-148）。
-- 昇格の手順（`components/` / `src/lib/` / `src/store/` 共通）: 移動先に同じ実装のファイルを作り（JSDoc に昇格の理由と元の場所を書く）→
+- 昇格の手順（`components/` / `src/lib/` / `src/hooks/` / `src/store/` 共通）: 移動先に同じ実装のファイルを作り（JSDoc に昇格の理由と元の場所を書く）→
   古いパスの import を `src/` と `app/` からすべて置き換え → `typecheck` と `test` が通ってから古いファイル（とその `.test.ts`）を消す。
-  昇格は機能追加とは別のコミットにする（例: `refactor(mobile): xxx を src/lib へ昇格する`。差分を機械的に読めるようにするため。SS-20）。
+  昇格は機能追加とは別のコミットにする（例: `refactor(mobile): xxx を src/lib へ昇格する`。差分を機械的に読めるようにするため）。
 
 ### `src/services/` — スタブ差し替えの層
 - 認証(OAuth/OIDC)や実機依存機能（カメラ・位置情報など）を抽象化する層。
 - 呼び出し側は `index.ts` が公開する**インターフェースのみ**を参照し、real/dev/mock の実体を知らない。
 - 実装の選択は環境変数で切り替える（例: `EXPO_PUBLIC_AUTH_MODE`。`real` | `dev` | `mock`、既定 `real`）。
-- `real` / `dev` / `mock` の3モードが基本形。`dev` は「本物に近いが実機/外部IdPに依存しない」実装
-  （例: `services/auth` の `auth.dev.ts` は backend の `/auth/dev-session` を使い Google / Apple には触れない）、
-  `mock` はユニットテスト向けの最小スタブ（メモリ上のダミー実装等）という役割分担にする。
-- ただし**必要なモードだけ用意してよい**。例: `services/location` は real/mock の2モードのみ
-  （Android エミュレータ / 実機の位置設定・`adb emu geo fix` で real のまま再現できるため、
-  「本物に近いが実機依存しない中間実装」= `dev` に相当するものが無い。
-  詳細は [ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)）。
+- `real` / `dev` / `mock` の3モードが基本形。`dev` は「本物に近いが実機/外部IdPに依存しない」実装、
+  `mock` はユニットテスト向けの最小スタブという役割分担にする。
+- ただし**必要なモードだけ用意してよい**（例: `services/location` は real/mock の2モード。[ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)）。
 - テスト方針との対応:
   - **ユニットテスト**: `mock`（または個別モジュールへの直接フェイク注入）を利用する。
-    ただし `index.ts`（バレル）はネイティブ依存に到達しうるため、バレルを import せず
-    個別モジュール／ファクトリ関数を直接 import するのが安全な場合がある
-    （具体例は [architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
-  - **E2Eテスト(Maestro)**: 実機に近い動作を優先。**Maestroで再現可能な機能は real のまま**利用し、
-    再現できない機能は `dev` または `mock` にフォールバックする。
-- 実例: `src/services/auth`（real/dev/mock の3モード）、`src/services/location`（real/mock の2モード）、
-  `src/services/photo`（real/mock の2モード。カメラ/ライブラリ・縮小・JPEG 再圧縮・EXIF からの撮影日時の取り出し（`photoTakenAt.ts`）。
-  アップロード（presigned POST での S3 直送）はネイティブ依存でも実機依存でもないため
-  `services/` には置かず `features/pin/api/` に置く。ADR-M-010）、
-  `src/services/preferences`（端末ローカルのアプリ設定。モード切替なし＝real のみ。ストレージは DI で、
-  単体テストはメモリ実装。SS-86）。
-- 詳細な設計背景は [architecture-guideline](./architecture-guideline.md) を参照。
+    `index.ts`（バレル）はネイティブ依存に到達しうるため、個別モジュールを直接 import するのが安全な場合がある
+    （[architecture-guideline](./architecture-guideline.md)「テストの方針」）。
+  - **E2Eテスト(Maestro)**: **Maestroで再現可能な機能は real のまま**利用し、再現できない機能は `dev` または `mock` にフォールバックする。
 
 ### `src/api/` — バックエンドAPIクライアント
 - `generated/`: Orval による自動生成物。**手編集しない**。
-- `client.ts`: 共通のクライアント設定（ベースURL、インターセプタ等。Orval が使う `customFetch`）。
-- `appConfigQueryKey.ts`: `/app-config` の queryKey 定数（依存ゼロ。`queryClient.ts` から参照するため分離。SS-100）。
-- `appConfigApi.ts`: `/app-config` の素の fetcher ラッパ。**特定の機能に属さないアプリ基盤の取得なので
-  `features/<feature>/api/` ではなくここに置く**（SS-100）。
-  - **肥大化の歯止め**: `src/api/` は元々 `client.ts` / `apiError.ts` のような機能非依存の
-    インフラだけを置く場所だったが、`appConfigApi.ts` で初めてドメイン形状を持つエンドポイント別
-    ラッパを受け入れた。「特定の機能に属さないアプリ基盤の取得」という採用基準はやや主観的で、
-    フラットに積み続けるとこのフォルダも `src/components/` と同じ肥大化リスクを持つ。
-    **2本目の横断的エンドポイントラッパが増えたら `src/api/endpoints/` のようなサブフォルダへ
-    分けること**（`components/` の「カテゴリのサブフォルダに分ける」ルールと同じ考え方）。
-- `authHeaders.ts` / `contentHash.ts`: リクエストへ横断的な送信ヘッダーを付与する純粋関数
-  （`X-App-Authorization` / `x-amz-content-sha256`。SS-70）。**mobile の「backend への」HTTP 出口は
-  `client.ts` の `customFetch` と `src/services/auth/authApi.ts` の `post()` の2箇所**あり、
-  これらは両方の出口から共有される横断モジュールのため `src/api/` に置く（`services/auth/` へは
-  置かない）。新しい横断的な送信ヘッダーを追加する場合も同じ配置ルールに従うこと。
-  これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`）が
-  **S3 / fake storage への3箇所目の HTTP 出口**として存在する。こちらは backend 用の横断ヘッダーを
-  **意図的に付けない**ため、上記2つとは別経路として扱う（SS-88 / ADR-M-010）。
-- `apiError.ts` / `retryPolicy.ts`: `ApiError` と 401→refresh のリトライ判定。
-- `transientRetry.ts`: 一時障害（429 / 502 / 503 / 504 / 通信断）に対する GET / HEAD 限定の
-  指数バックオフ再送（SS-79）。401→refresh のリトライ（`retryPolicy.ts`）とは独立した軸で、
-  `client.ts` の `customFetch` にのみ結線する（`services/auth/authApi.ts` には入れない）。
-- `authTokenProvider.ts`: `client.ts` が `services/auth` を直接 import せずにトークンを
-  取得するためのレジストリ（循環参照回避）。
-- `queryClient.ts`: TanStack Query の `QueryClient` 設定。サインアウト時のクリア対象から
-  `/app-config`（ユーザー非依存）を除く（SS-100。詳細は ADR-M-009 の SS-100 追補）。
+- 直下には、機能に依存しないクライアントの土台（`customFetch`・`ApiError`・リトライ判定・送信ヘッダーの付与・`QueryClient` の設定）を置く。
+  backend への HTTP 出口と横断的な送信ヘッダーの契約は [architecture-guideline](./architecture-guideline.md)「送信側のヘッダー契約」。
+- 特定の機能に属さないアプリ基盤の取得（`/app-config`）のラッパもここに置く。**2本目の横断的エンドポイントラッパが増えたら
+  `src/api/endpoints/` のようなサブフォルダへ分けること**（フラットに積み続けて肥大化させないため）。
 
 ### その他
-- `src/hooks/`: 機能に依存しない汎用hook。例: `useToast.ts`、`useNavigateOnce.ts`（画面から出る遷移の二重発火ラッチ。
-  フォーカスで解除。`BackHandler` を購読しない。`useScreenBack`・ピンタブ・アカウントタブが共有。SS-146、SS-148）、`useSignInNavigation.ts`（ゲスト向けサインイン案内からサインイン画面へ push する遷移。
-  ピンタブ・アカウントタブが共有。`useNavigateOnce` の `runOnce` を渡すとその画面の他の遷移とラッチを共有する。第2引数 `returnTo` を渡すとサインイン後にその呼び出し元へ戻す（アカウントタブだけが渡す）。SS-148、SS-151）、
-  `useScreenBack.ts`（画面の「戻る」導線を一本化する hook。SS-34。判定ロジックは `src/lib/backNavigation.ts` へ切り出し、hook 自体は
-  `react-native` の `BackHandler` に依存するため Vitest 対象外）、`useAppConfig.ts` /
-  `useFeatureFlag.ts` / `useAppConfigBootstrap.ts`（`/app-config` のフラグ受け皿。SS-100）、
-  `useCurrentLocation.ts`（現在地の取得。`refresh` は `isLoading` を立てない静かな取り直し。拒否中は前面復帰で権限の状態だけを確かめて回復する（SS-160）。`features/walk` と `features/pin` から使うため
-  SS-124 で `features/walk/hooks/` から昇格）、`useOpenExternalUrl.ts`（外部の Web ページを開く。アプリ内ブラウザ → OS ブラウザ。SS-158）。
-- `src/lib/`: 純粋関数中心の汎用ユーティリティ（Vitestでテストしやすい形を保つ）。機能に依存しない小さな仕組み
-  （例: サインアウト時の後始末レジストリ `sessionCleanup.ts`、UUID 生成 `uuid.ts`、「戻る」操作の判定を
-  純粋関数に切り出した `backNavigation.ts` の `resolveBackAction`、外部 URL の検証とフォールバックの判定 `externalUrl.ts`（SS-158）、散歩の位置記録の起動時の孤児停止・サインアウト時の後始末を登録する
-  `backgroundLocationCleanup.ts`（`index.ts` から `expo-router/entry` より前に副作用 import する。起動時の停止を、どの散歩の開始よりも先に `serialQueue` へ積むため。SS-156）。SS-34、`/app-config` のフラグ受け皿
-  `appConfigSnapshot.ts` / `featureGate.ts` / `appConfigRefresh.ts`。SS-100、画面をまたぐ1回限りの
-  トースト文言を持つ `flashMessage.ts`（`features/pin` → `features/walk` の直接 import を作らないため
-  `sessionCleanup.ts` と同じ形でモジュールレベルの状態に置く。SS-88）、端末側の診断ログの
-  **唯一の出力口** `diagnosticLog.ts`（SS-88/ADR-M-010 決定10。将来 Sentry 等に差し替えるときは
-  このファイルの中身だけを変える。**呼び出し側で `console.*` を直接使わない**）)もここに置く。
-  - **昇格ルール（コンポーネントの昇格ルールと同じ判断基準）**: `features/<feature>/lib/` にあった
-    純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。1機能でしか
-    使っていないうちは `features/<feature>/lib/` に置いたままにする。
-  - SS-20（`features/history` 追加）で `features/walk/lib/` から実際に昇格した4本:
-    - `numberGuard.ts`（`toNonNegative`）— `features/history` と `src/lib/units.ts` の両方から使うため。
-    - `geoCoordinate.ts`（`isValidCoordinate`）— ルート・軌跡を `react-native-maps` に渡す直前の
-      共通の防波堤。
-    - `units.ts`（`toKilometers`）— 散歩ルート・散歩記録の距離表示で共通に使う。
-    - `mapRegion.ts`（`MapRegion` 型 / `MIN_REGION_DELTA` / `regionForCoordinates`）— 座標集合から
-      地図の表示領域を求める汎用計算。SS-118 で `sanitizeMapRegion`（`react-native-maps` の
-      `onRegionChangeComplete` / `onMapReady` が返す表示範囲を検証する純粋関数）も同ファイルへ
-      追加した — `features/walk`（`WalkRouteMapView`）と `features/pin`（`PinMapCanvas`。SS-146 で `PinMapFullScreen` から切り出し）の
-      両方から使うため。
-  - SS-118（`features/pin` の詳細画面が日付整形を必要とした）でさらに1本昇格した:
-    - `dateLabel.ts`（`features/history/lib/walkDateLabel.ts` から。`formatWalkDate` →
-      `formatDateLabel` のように walk 固有の関数名を汎用名へ変えた。ロジック・文言は変えていない）
-      — `features/history`（一覧・詳細の日時表示）と `features/pin`（ピン詳細の登録日時）の
-      両方から使う。
-  - **汎用計算と機能固有の計算は分けたまま昇格する**: 例えば `mapRegion.ts` は「座標集合から表示領域を
-    求める」汎用部分（`regionForCoordinates`）だけを `src/lib/mapRegion.ts` へ昇格し、「往復時間から
-    到達半径を見積もる」walk 固有の計算（`regionForRoundTrip` / `regionForBounds` /
-    `radiusMetersForRoundTrip`）は `features/walk/lib/mapRegion.ts` に残す。同名ファイルが2箇所に
-    あること自体は問題ではなく、共有側は汎用型（`MapRegion` / `MIN_REGION_DELTA`）だけを import する。
-- `src/config/`: 環境変数の読み取りと定数。ビルド variant の判定（`appVariant.ts` は純粋関数、`devTools.ts` は
-  `expo-constants` / `expo-updates` を読む実行時の入口。SS-148）も含む。フィーチャーフラグのキー定数（`featureFlags.ts`。
-  `/app-config` の `flags` は map で返るためキーの型情報が OpenAPI に無く、mobile 側で自前定義する。
-  SS-100）も含む。法的文書の URL（`legalLinks.ts`。ビルドで切り替えない定数。SS-158）も置く。
+- `src/hooks/`: 機能に依存しない汎用hook。`features/<feature>/hooks/` の hook が2つ以上の機能から使われるようになったら昇格させる。
+- `src/lib/`: 純粋関数中心の汎用ユーティリティと、機能に依存しない小さな仕組み（後始末レジストリ・診断ログの出力口など）。
+  `features/<feature>/lib/` の純粋関数が**2つ以上の機能から使われるようになったら `src/lib/` へ昇格**させる。
+  汎用部分だけを昇格し、機能固有の計算は元の場所に残す（同名ファイルが2箇所にあってよい）。
+  - 端末側の診断ログは `src/lib/diagnosticLog.ts` を唯一の出力口とし、**呼び出し側で `console.*` を直接使わない**。
+- `src/config/`: 環境変数の読み取りと定数（ビルド variant の判定・フィーチャーフラグのキー・法的文書の URL など）。
 - `src/store/`: Zustand による横断的なクライアント状態。**サーバー由来のデータは置かない**（それは TanStack Query が持つ）。UI状態や一時的なアプリ状態のみ。
-  - 実例: `useAuthSessionStore.ts`（認証セッション状態 `loading | authenticated | guest`。SS-13）。
-    参照元が `features/auth`（ゲート・スプラッシュ）・`features/settings`（サインアウト導線 /
-    guest 向けサインイン導線の出し分け。SS-57 / アカウント削除導線の出し分け。SS-62）・
-    `app/_layout.tsx`（アプリ全体のゲート）にまたがるため、最初から `src/store/` に置いた
-    （コンポーネントの昇格ルールと同じ判断基準）。
-  - **「サーバー由来のデータを置かない」の例外は `useAuthSessionStore.user` も対象**。
-    `user` はセッションのライフサイクルと1:1で変わる identity snapshot であり、
-    TanStack Query が管理する一般的なドメインデータとは性質が異なるため許容する
-    （`authenticated ⟺ user !== null` の不変条件を保つための判断。詳細は
-    [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照）。
-  - **例外**: `useAuthSessionStore` だけは `registerSessionCleanup()` に自分自身を登録しない
-    （このストアは「クリアされる側のデータ」ではなく「セッション状態そのもの」であり、
-    `loading` に戻すと `AuthGate` がスプラッシュへ送り返してしまうため）。
-    詳細は [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) を参照。
-- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。`ThemeProvider` がライト/ダークを配り、各コンポーネントは `makeStyles((theme) => ...)` で RN の `StyleSheet` を組み立ててトークンを参照する（[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）。`themeMode.ts`（モードの検証・ネイティブ値への変換。純粋）/ `ThemedStatusBar.tsx`（テーマからステータスバーを決める配線）もここに置く。選択値は `ThemeProvider` が持ち、`app/_layout.tsx` が保存値の注入と永続化コールバックを渡す（SS-86 / [ADR-M-016](../adr/ADR-M-016-theme-mode-preference.md)）。
+  - 認証セッション（`useAuthSessionStore`）の `user` は、セッションと1:1で変わる identity snapshot として例外的に許容する。
+    このストアは自分自身を後始末レジストリに登録しない（[ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md)）。
+- `src/theme/`: デザイントークン（primitive / semantic）とテーマ定義。各コンポーネントは `makeStyles((theme) => ...)` でトークンを参照する
+  （[ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)・[ADR-M-016](../adr/ADR-M-016-theme-mode-preference.md)）。
 - `src/types/`: 複数箇所で共有する横断的な型。
 
 ## 状態管理の使い分け
 
 - **サーバー状態（API由来）= TanStack Query**。取得・キャッシュ・再検証はすべて Query に任せ、`src/store/` に複製しない。
   - ドメインのデータ取得hookは `src/features/<feature>/hooks/`（例: `useWalkHistory`）に置き、内部で Orval生成物 + TanStack Query を使う。
-  - **更新系（mutation）も同じく `hooks/` に置く**（例: `features/walk/hooks/useWalkSave.ts` — `POST /walks`）。
-    `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは
-    「状態（`idle`/`saving`/`saved`/`error`）と再試行関数」だけを見せる
-    （認証など feature が直接見られない値が必要な場合は `app/` のルートから引数で注入する。
-    例: `useWalkSave` は `isSignedIn` を必須引数で受け取る。`architecture-guideline.md`
-    「認証の扱い」参照）。
+  - **更新系（mutation）も同じく `hooks/` に置く**（例: `useWalkSave`）。
+    `useMutation` の発火・再試行方針・成功時の `invalidateQueries` をここに閉じ、View からは状態と再試行関数だけを見せる
+    （認証など feature が直接見られない値は `app/` のルートから引数で注入する。`architecture-guideline.md`「認証の扱い」参照）。
   - **`features/<feature>/api/` には Orval が生成した「素の fetcher」を薄くラップした関数を置き、
-    生成 hook（`useXxx...`）は使わない**（例: `walkApi.ts` の `saveWalk`、`walkRouteApi.ts` の `fetchWalkRoute`）。
-    理由は2つ:
+    生成 hook（`useXxx...`）は使わない**。理由は2つ:
     1. queryKey / `enabled` / `retry` / `staleTime`（mutation なら再試行条件）を hooks 層で自前に制御したいため。
     2. 生成 hook は `react-native` を値 import する経路に乗るが、素の fetcher なら乗らないため
        **node 環境の Vitest でテストできる**（msw でレスポンスを差し替えて検証する）。
-  - この層は `services/auth` を import しない（認証は `customFetch` が `authTokenProvider` 経由で付ける）。
-    `features/walk/**` / `features/history/**` / `features/pin/**` については `.oxlintrc.json` の
-    `no-restricted-imports` override（`@/services/auth` 系・`@/store/useAuthSessionStore` への
-    import を禁止）で機械的に強制される（SS-13 / SS-88 /
-    [ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) 決定8）。
-  - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。`useWalkSave` が成功時に
-    `invalidateQueries({ queryKey: ["walks"] })` を呼ぶため、履歴系の取得 hook が別系統のキーだと
-    保存直後の一覧が更新されない。
-  - **カーソルページネーション（`useInfiniteQuery`）を使う一覧系 hook は、次の規約に従う**
-    （実例: `features/history/hooks/useWalkHistory.ts`、`queryKey: ["walks","list",{limit}]`）:
-    - `getNextPageParam` は backend レスポンスの `next_cursor` をそのまま返す（`null` なら
-      TanStack v5 が「次ページ無し」と解釈する）。
-    - **cursor に `null` を渡すクエリパラメータを直接組み立てない**。Orval 生成の URL ビルダー
-      （`if (value !== undefined) params.append(key, value === null ? 'null' : String(value))`）は
-      `cursor: null` を渡すとリテラル文字列 `"null"` を付けてしまい、backend が 400（Invalid cursor）
-      を返す。`cursor` は「文字列かつ空文字でない」ときだけキーを立てる純粋関数
-      （例: `features/history/lib/walkHistoryParams.ts` の `buildWalkListParams`）を必ず通し、
-      それ以外は `undefined`（＝キーごと作らない）にする。
+  - この層は `services/auth` を import しない（認証は `customFetch` が付ける）。対象の feature では `.oxlintrc.json` の
+    `no-restricted-imports` で機械的に強制される（[ADR-M-009](../adr/ADR-M-009-auth-session-state-and-route-gate.md) 決定8）。
+  - **`queryKey` はドメイン名で始める**（散歩記録なら `["walks", ...]`）。成功時の `invalidateQueries({ queryKey: ["walks"] })` で
+    取得系の hook をまとめて再検証するため、別系統のキーだと保存直後の一覧が更新されない。
+  - **カーソルページネーション（`useInfiniteQuery`）を使う一覧系 hook は、次の規約に従う**（実例: `useWalkHistory`）:
+    - `getNextPageParam` は backend レスポンスの `next_cursor` をそのまま返す（`null` なら「次ページ無し」）。
+    - **cursor に `null` を渡すクエリパラメータを直接組み立てない**。Orval 生成の URL ビルダーは `cursor: null` を
+      リテラル文字列 `"null"` にしてしまい、backend が 400（Invalid cursor）を返す。`cursor` は「文字列かつ空文字でない」ときだけ
+      キーを立てる純粋関数（例: `buildWalkListParams`）を通し、それ以外はキーごと作らない。
     - 先頭ページから読み直したいとき（`invalid_cursor` からの復旧・pull-to-refresh）は
-      `refetch()` ではなく `resetQueries({ queryKey })` を使う。`refetch()` は同じ壊れたカーソルで
-      再取得してしまい復旧できない。
+      `refetch()` ではなく `resetQueries({ queryKey })` を使う。`refetch()` は同じ壊れたカーソルで再取得してしまう。
 - **クライアント状態（UI・一時状態）= Zustand**。横断的なものだけ `src/store/`、機能限定のものは `src/features/<feature>/store/` に置く。
-  - ただし**1画面に閉じる一時状態は store にせず `hooks/` の `useState` に留める**（例: `useWalkPlan` の往復時間・カテゴリ・選択スポット）。
-    画面をまたいで保持する必要が出た時点で store 化する（例: `useActiveWalkStore` — 散歩開始画面と散歩中画面をまたぐため）。
+  - ただし**1画面に閉じる一時状態は store にせず `hooks/` の `useState` に留める**。画面をまたいで保持する必要が出た時点で store 化する。
 - **認証・位置情報などの実機依存**は状態管理ではなく `src/services/` のスタブ差し替え層で扱う。
 
 ## パスエイリアス
