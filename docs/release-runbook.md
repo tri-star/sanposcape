@@ -287,7 +287,8 @@ OTA で届けてよい利用者向けの変更は次のいずれかに限る。
    - Expo の `production` channel が protected でなければ失敗する。Owner が手元で `pnpm exec eas channel:protect production` を実行してから起動し直す
      （project を別のアカウントへ移すと保護が外れる）
    - EAS の production 環境に、`eas.json` の `build.production.env` と同じ名前の変数があれば失敗する。
-     `eas update` では EAS 側の値が勝ち、OTA の JS だけがその値で作られるため。EAS 側の変数を消すか、`eas.json` と揃える
+     `eas update` では EAS 側の値が勝ち、OTA の JS だけがその値で作られるため。EAS 側の変数を消すか、`eas.json` と揃える。
+     承認を待つ間に足された場合に備えて、publish job も配信の直前に同じ検査をする
    - `app.json` の `version`（= runtimeVersion）の本番ビルド（production channel・ストア向け・完了済みの最新）をプラットフォームごとに探す。
      本番ビルドが無いプラットフォームには配信しない（届く端末が無い）。どちらにも無ければ失敗する
    - そのビルドと今のコミットの**ネイティブの fingerprint を比べ、違えば失敗する**。
@@ -299,7 +300,8 @@ OTA で届けてよい利用者向けの変更は次のいずれかに限る。
    - 配信先のビルド（BUILD_ID・buildNumber・コミット）
    - そのビルドのコミットから今までの、OTA の JS に入りうるコミットの一覧（`packages/mobile` に加えて `packages/backend/openapi.yaml`・`pnpm-lock.yaml` など）。
      **一覧の中身が「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけ**であることを確かめる
-   - OTA の JS に入る EAS の production 環境の変数の名前。見覚えの無い変数があれば承認しない
+   - OTA の JS に入る EAS の production 環境の変数の名前と更新日時。見覚えの無い変数や、心当たりの無い最近の更新があれば承認しない
+     （値だけを書き換えられても名前には現れないため、更新日時で見る）
 
    比べる相手は「最新の本番ビルド」で、利用者に公開したビルドとは限らない。公開したビルドより後に同じ version で作ったビルドがあると、
    一覧の起点もそちらになり、公開ビルドとの間のコミットは一覧に出ない。承認するとすぐに配信が始まる。

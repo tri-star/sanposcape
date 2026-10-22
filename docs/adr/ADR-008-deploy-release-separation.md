@@ -1270,8 +1270,12 @@ D24 の Release 作成と同じ理由で分ける（Environment の承認は job
 **ただし env の優先順位は本番ビルドと逆になる。** `eas build` は EAS の変数の上に build profile の `env` を重ねる（`eas.json` が勝つ）が、
 `eas update --environment` は `process.env` の上に EAS の変数を重ねる（EAS が勝つ）（eas-cli 25.2.0 の `evaluateConfigWithEnvVarsAsync` と `update` の実装）。
 EAS の production 環境に `eas.json` と同じ名前の変数（例 `EXPO_PUBLIC_BACKEND_API_URL`）があると、OTA の JS だけがその値で作られ、
-接続先が https なら app config も変わらないので fingerprint にも現れない。そこで prepare は EAS の production 環境（project / account）の変数名を取り、
-`build.production.env` と名前が重なれば失敗する。変数名の一覧は承認者の Summary にも出す（値は読まない・出さない）。
+接続先が https なら app config も変わらないので fingerprint にも現れない。そこで EAS の production 環境（project / account）の変数名を取り、
+`build.production.env` と名前が重なれば失敗する（`.github/scripts/check-eas-env-overlap.sh`）。
+承認を待つ間に変数が足されうるので、prepare に加えて publish の `eas update` の直前でも同じ検査をする。
+変数の名前と更新日時は承認者の Summary にも出す（値は出さない）。名前が同じまま値だけを書き換えられた場合は名前に現れないので、更新日時で気づけるようにする。
+名前は `env:list --format long` の各変数の先頭（ID の行の直後の Name の行）から取り、複数行の値の続きの行を名前と取り違えないようにしている。
+`env:list` の出力の形が eas-cli の更新で変わったとき（見出しの行が無いとき）は失敗する。
 2026-10-22 時点の EAS の production 環境の変数は `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`・`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`・`GOOGLE_MAPS_ANDROID_SDK_KEY` で、重なりは無い。
 
 ### D37: 承認の前に、配信先の本番ビルドとネイティブの fingerprint を比べる
@@ -1320,8 +1324,8 @@ Release Manager のトークンは人に渡さず CI の `production` Environmen
 - prepare の検査は手元のログイン（Owner）で各ステップを実行して確かめた。Developer のトークンでの `channel:view`・`env:list`・`build:list`・`fingerprint:generate` は、
   マージ後の初回の実行まで未確認。Developer のトークンでの build・submit・E2E も、トークンを替えてからまだ実行していない。
 - **Developer ロールが EAS の環境変数を作成・編集できるかは未確認**（Expo のドキュメントに記載が無く、protected の対象は今は channel だけ）。
-  できる場合、D36 の名前の重なりの検査は新しい変数の追加を止めるが、既存の変数（`EXPO_PUBLIC_GOOGLE_*`）の値の書き換えは、承認者には見えないまま次の OTA に入る
-  （本番ビルドにも入る）。Developer の robot user で `eas env:create` が拒否されるかを確かめる。
+  できる場合、D36 の名前の重なりの検査は新しい変数の追加を止めるが、既存の変数（`EXPO_PUBLIC_GOOGLE_*`）の値の書き換えは名前に現れず、次の OTA に入る
+  （本番ビルドにも入る）。承認者が気づける手がかりは Summary の更新日時だけ。Developer の robot user で `eas env:create` が拒否されるかを確かめる。
 - Developer のトークンでも `production` profile・`production` channel のビルドを作れ、ビルドの `gitCommitHash` はクライアントが申告する値なので、
   D37 が比べる「最新の本番ビルド」をすり替えられうる。影響は互換の検査が誤ることで、承認の迂回ではない。
 - Android の本番ビルドを作る段で、`GOOGLE_MAPS_ANDROID_SDK_KEY` を EAS に `secret` で置くと CLI から読めず、`fingerprint:generate` の app config にキーが入らないため、
