@@ -1250,7 +1250,9 @@ D24 の Release 作成と同じ理由で分ける（Environment の承認は job
 - ビルドのコミットが今のコミットの祖先でなければ失敗する（ビルドに入った変更を OTA で巻き戻すことになるため）。
 - publish は `eas update` のバンドル（Metro）のために依存のコードを動かす。Release Manager のトークンと依存のコードが同じ環境に乗るのは避けられないので、
   依存は lockfile で固定する（D38）。D24 の「依存のコードを書き込み権限の job で動かさない」とは別の妥協として記録する。そのうえで次の2つで範囲を狭める。
-  - トークンは job 全体ではなく `eas update` の step にだけ渡す（`pnpm install`・orval の step には渡さない）。
+  - トークンは job 全体ではなく `eas update` の step にだけ渡す（`pnpm install`・orval の step の process env には入らない）。
+    ただし同じ job の前の step で動いた依存のコードは、`node_modules` や `GITHUB_PATH` を書き換えて後の step のコードを差し替えられるので、
+    これで依存のコードからトークンを守れるわけではない。トークンが不要な step で偶然に読まれる・ログに出る範囲を減らすだけの措置である。
   - publish では pnpm のストアのキャッシュ（`setup-node` の `cache: pnpm`）を使わない。キーは lockfile のハッシュで、トークンを持たない他の job と共有しているため。
 - 採らなかった案: バンドルを prepare で作り `eas update --skip-bundler --input-dir` で publish に渡す（トークンのある job で動く依存のコードを eas-cli と app config の評価に絞れるが、
   成果物の受け渡しと、承認の後に検査を置き直す手間が増える。トークンの漏れの影響を減らしたくなったときの候補）。

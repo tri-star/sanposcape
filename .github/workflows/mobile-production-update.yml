@@ -304,7 +304,8 @@ jobs:
     # 承認者（Required reviewers）と main 限定の保護ルールを使う。AWS には触らないので id-token は付けない。
     environment: production
     # EXPO_TOKEN（Release Manager）は job 全体ではなく、eas を動かす「Publish OTA update」の step にだけ渡す。
-    # pnpm install・orval などトークンを使わない step（依存のコードが動く）には渡さない。
+    # pnpm install・orval などトークンを使わない step の process env には入らない。ただし同じ job の前の step で動いた依存のコードは、
+    # node_modules や GITHUB_PATH を書き換えて後の step のコードを差し替えられるので、これで依存のコードからトークンを守れるわけではない（ADR-008 D35）。
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       PLATFORM: ${{ needs.prepare.outputs.platform }}
