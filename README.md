@@ -18,7 +18,7 @@
   - 横断: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - 横断: [ADR-004 シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./docs/adr/ADR-004-secrets-management-and-cicd-aws-credentials.md)
   - 横断: [ADR-005 backend は Lambda Function URL(AWS_IAM) + CloudFront で公開し、SAM で zip デプロイする](./docs/adr/ADR-005-backend-serverless-deployment-lambda-function-url.md)
-  - 横断: [ADR-006 mobile アプリの配信は EAS（Expo ホスト）に委ね、mobile 用 SAM テンプレートを作らない](./docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)
+  - 横断: [ADR-006 mobile アプリの配信は EAS（Expo ホスト）に委ね、mobile 用 SAM テンプレートを作らない。表示用 version はリリース時に上げる（SS-230 追補）](./docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)
   - 横断: [ADR-007 周回ルート（往路と異なる道で戻る）の生成方式](./docs/adr/ADR-007-loop-route-generation.md)
   - 横断: [ADR-008 デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./docs/adr/ADR-008-deploy-release-separation.md)
   - 横断: [ADR-009 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)

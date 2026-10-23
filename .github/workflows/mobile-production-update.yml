@@ -11,7 +11,8 @@ name: mobile production OTA update (EAS Update)
 #   求められるので、1つの job にすると検査が承認の後にしか走らない。承認者は prepare の Job Summary を見てから承認する。
 #   publish は `eas update` のバンドル（Metro）のために依存のコードを動かす。避けられないので、依存は lockfile で固定している（eas-cli も）。
 # ★ ネイティブの互換を承認の前に確かめる（ADR-008 D37）。配信先の本番ビルドと今のコミットの fingerprint を比べ、違えば失敗する。
-#   ネイティブの変更は OTA では届かず、互換の無い JS が既存の端末で落ちる。version を上げてストアで配布する。
+#   ネイティブの変更は OTA では届かず、互換の無い JS が既存の端末で落ちる。次のリリースのバイナリでストアへ配布する
+#   （version を上げるのはその本番 TestFlight ビルドの直前。変更が main に入った時点では上げない。ADR-006 の SS-230 追補）。
 # ★ OTA の JS は本番バイナリと同じ env で作る（ADR-008 D36）。eas update は eas.json の build profile の env を読まないので、
 #   build.production.env（APP_VARIANT・接続先・各 MODE）を GITHUB_ENV に書いてから実行する。値の正本は eas.json。
 #   eas update は EAS の環境変数を GITHUB_ENV の値より優先する（eas build とは逆）ので、同じ名前の変数が EAS 側にあれば prepare で止める。
@@ -227,7 +228,7 @@ jobs:
               continue
             fi
             mismatch=1
-            echo "::error::${p}: 本番ビルド ${id} とネイティブの fingerprint が違います（ビルド ${build_hash} / 今のコミット ${local_hash}）。ネイティブの変更は OTA で配れません。version を上げてストアで配布してください（ADR-008 決定8）"
+            echo "::error::${p}: 本番ビルド ${id} とネイティブの fingerprint が違います（ビルド ${build_hash} / 今のコミット ${local_hash}）。ネイティブの変更は OTA で配れません。次のリリースのバイナリでストアへ配布してください（version は本番 TestFlight ビルドの直前に上げる。docs/release-runbook.md §4、ADR-008 決定8、ADR-006 の SS-230 追補）"
             # 項目の見出しとファイルのパスの行だけを出す（差分の中身の行は出さない。上のコメント参照）。
             # パスの行のラベルは new / removed / modified の file / directory で、幅を揃える空白の後に `:` が付く。色の制御文字は除く。
             pnpm exec eas fingerprint:compare --build-id "$id" --environment production --non-interactive 2>/dev/null \

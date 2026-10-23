@@ -30,6 +30,9 @@
 - `features/walk|history|pin` に認証由来の値が要るとき、`app/` のルートがプリミティブを返す selector で読んで props で注入しているか。store やユーザーオブジェクトごと渡していないか。横断 hook（例 `useSessionDisplayName`）で lint を形式的に通す形は SS-29 で却下済み。同じ selector が `app/` に2箇所以上あるときの `src/hooks/` への切り出しは可。`features/settings` は override の対象外で store を直接読める（意図的）。正本: architecture-guideline.md「認証の扱い」、ADR-M-009 決定8
 - `src/api/` 直下のドメイン形状のラッパは `appConfigApi.ts` だけ。2本目がフラットに置かれたら `src/api/endpoints/` へ分ける（folder-structure.md の `src/api/` 節）。
 - feature をまたいで地図に要素を重ねるとき、`app/` が render slot で合成しているか（地図コンポーネントは `mapLayers?: ReactNode` を描くだけ）。全画面の地図オーバーレイに RN `Modal` を使っていないか（ADR-M-011 D7）。
+- ビルドの種類（`Updates.channel`・`extra.appVariant`・`PRODUCTION_UPDATES_CHANNEL` との比較）で表示や挙動を変える分岐を足していないか。
+  規則は「開発ツールの表示可否だけに使う」（ADR-M-007 SS-148 追補 決定6）で、例外にするなら理由（機能の可否・挙動を変えない、など）を ADR に記録しているか。
+  SS-230 ではバージョンの行のチャネル名の付記が、記録の無いまま規則に反していた。
 - `api/` 層から到達する位置にネイティブ依存を足したら `vitest.config.ts` の `resolve.alias` にモックを足しているか。`lib/` から `@/components/ui/*` を値 import していないか（`import type` だけにする）。どちらも、足した本人のテストではなく推移的に import する別の `*.test.ts` が落ちる形で現れる。正本: architecture-guideline.md「テストの方針」
 
 ## 画面遷移・戻る導線・フラグガード

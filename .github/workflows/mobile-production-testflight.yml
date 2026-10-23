@@ -53,11 +53,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # git-cliff は、version の上げ忘れのときに次の version の候補を出すのと、リリースノートのプレビューに使う。
+      # どちらもビルドに関係しないので、導入に失敗してもジョブを落とさない（候補とプレビューが出ないだけ）。
+      - name: Install git-cliff
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          archive="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/${archive}"
+          echo "${GIT_CLIFF_SHA512}  $RUNNER_TEMP/$archive" | sha512sum -c -
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
+          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
+
       # ビルドを始める前（= EAS の枠を消費する前）に落とせる設定ミスを検査する。
       # - submit.production.ios の ascAppId / appleTeamId が無いと、非対話の eas submit はアプリを特定できず、
       #   ビルドだけ済んで提出で失敗する。
       # - app.json の version が最新の mobile/v* タグの version 以下 = 公開済みの version 以下。App Store Connect は
       #   公開済みの version へのビルド追加を受け付けず、それより低い version も受け付けないので、version の上げ忘れである。
+      #   version はリリース時に上げる運用なので（build-profiles.md「表示用バージョン `version` の運用ルール」）、このときは
+      #   前回の mobile/v* タグ以降のコミットから git-cliff が出す次の version（cliff.toml の [bump]: 破壊的変更 → major、feat → minor、それ以外 → patch）を候補として添える。
+      #   候補は判断の材料で、検査の結果は変えない。
       - name: Check submit config and app version
         id: app
         working-directory: packages/mobile
@@ -74,7 +90,19 @@ jobs:
           # sort -V で並べて version が末尾（最大）に来て、かつ最新の公開済みと等しくないこと。
           if [ -n "$latest" ] && { [ "$version" = "$latest_version" ] \
             || [ "$(printf '%s\n%s\n' "$latest_version" "$version" | sort -V | tail -n 1)" != "$version" ]; }; then
-            echo "::error::app.json の version ${version} は公開済みの ${latest} 以下です。version を上げてから実行してください（docs/release-runbook.md §4）"
+            # cliff.toml と --include-path はリポジトリのルートを基準にするので、ルートで実行する。
+            # --unreleased を必ず付ける（cliff.toml 冒頭コメント参照）。前回のタグ以降に対象のコミットが無いと前回のタグをそのまま返す。
+            hint=""
+            if command -v git-cliff > /dev/null; then
+              bumped=$(cd "$GITHUB_WORKSPACE" && git-cliff --offline --unreleased \
+                --include-path 'packages/mobile/**' \
+                --tag-pattern '^mobile/v[0-9]+\.[0-9]+\.[0-9]+$' \
+                --bumped-version 2> /dev/null || true)
+              if [[ "$bumped" =~ ^mobile/v[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "$bumped" != "$latest" ]; then
+                hint="前回のタグ以降のコミットからの候補は ${bumped#mobile/v} です（破壊的変更があれば major、feat があれば minor、それ以外だけなら patch。cliff.toml の [bump]）。"
+              fi
+            fi
+            echo "::error::app.json の version ${version} は公開済みの ${latest} 以下です。version を上げてから実行してください（docs/release-runbook.md §4）。${hint}"
             exit 1
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
@@ -83,17 +111,6 @@ jobs:
       # 内容は mobile-production-release.yml が Release の本文にするものと同じ規則（前回の mobile/v* タグ以降の packages/mobile/**）。
       # EAS の枠を使わないのでビルドの前に出す（提出だけが失敗して手元でやり直す場合も、この run で下書きが得られる）。
       # ここでの失敗はビルドに関係しないので、ジョブを落とさない。
-      - name: Install git-cliff
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          archive="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
-            "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/${archive}"
-          echo "${GIT_CLIFF_SHA512}  $RUNNER_TEMP/$archive" | sha512sum -c -
-          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$archive"
-          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
-
       - name: Preview release notes
         continue-on-error: true
         run: |
