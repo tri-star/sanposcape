@@ -4,7 +4,7 @@
 > [ADR-008: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./adr/ADR-008-deploy-release-separation.md)
 > を参照。本ドキュメントは「どうやるか」だけを扱う。
 
-## ⚠️ 本ドキュメントの成熟度（2026-10-17 時点）
+## ⚠️ 本ドキュメントの成熟度（2026-10-22 時点）
 
 **ここに書かれた手順には、まだ実運用を経ていないものがある**（下の表）。
 
@@ -14,9 +14,9 @@
 | 3. フラグの操作 | backend の読み取り基盤（SS-98）は**dev・prod で稼働**。切り替えワークフロー（SS-99）は**実行済み**（2026-09-22 に dev で初回、2026-10-17 に production で `pin_registration` を ON）。mobile 側の受け皿（SS-100）は**実装済み**（起動時・フォアグラウンド復帰時に `/app-config` を取得し、取得できない場合は全フラグ OFF で動く） |
 | 4. mobile の配布 | **実績あり**（dev 向けの `staging` 系と、本番の TestFlight 配信（SS-213。2026-10-17））。Release 作成のワークフローは**未実行**（ストア公開が未実施のため） |
 | 5. ストアの設定 | **5.1（App Store）は実際の画面で設定済み**（SS-215。2026-10-19 に「承認後に手動でリリース」を選択）。5.2（Google Play）は**未検証**（公式ドキュメントに基づく記述） |
-| 6. OTA | **未実装**（SS-103 が未着手） |
+| 6. OTA | **実装済み・未実行**（SS-103。`mobile-production-update.yml`）。トークンの分離と production channel の保護は設定済み。Release Manager のトークンでの配信は初回の実行まで未確認 |
 | 7. API の expand/contract | 規約は確定。backend の配信経路（SS-98）とアプリ側のアップデートの案内（SS-101）は実装済み。**最低サポートバージョンを変える経路は未整備**（§7.3） |
-| 8. 引き返す | フラグ・OTA に依存する手順は未実装 |
+| 8. 引き返す | 8.4（OTA を戻す）は手順のみで**未実行**（eas-cli 25.2.0 のコマンドで記述） |
 
 初回の本番リリース時に実際の画面・挙動を確認し、**差異があれば本ドキュメントを訂正すること。**
 
@@ -260,8 +260,7 @@ TestFlight に上げたが公開しなかったビルドには、タグを作ら
 
 ## 6. OTA（EAS Update）
 
-> **未実装**。SS-103（本番配信ワークフローの追加、`EXPO_TOKEN` の Environment Secret 化）の
-> 完了後に、確定した手順でここを書き直すこと。
+> **実装済み・未実行**（SS-103）。初回の実行で挙動が違えば、この節を訂正すること。
 
 **OTA は「配信」の手段であって「リリース」の手段ではない**（ADR-008 決定8）。
 OTA で届けてよい利用者向けの変更は次のいずれかに限る。
@@ -278,6 +277,62 @@ OTA で届けてよい利用者向けの変更は次のいずれかに限る。
   そのまま使い、公開の制御はフラグで行う
 - ネイティブモジュールや config plugin の変更を含む場合は OTA で配れない。
   `version` を上げて互換境界を切り、ネイティブバイナリを配布する
+
+### 6.1 本番へ OTA を配信する
+
+`.github/workflows/mobile-production-update.yml` を main で `workflow_dispatch` する。
+入力は `message`（OTA の内容。EAS の update 一覧に出る）だけ。
+
+1. **prepare job が承認の前に検査する。** 失敗したら配信できない状態なので、理由を直してから起動し直す。
+   - Expo の `production` channel が protected でなければ失敗する。Owner が手元で `pnpm exec eas channel:protect production` を実行してから起動し直す
+     （project を別のアカウントへ移すと保護が外れる）
+   - EAS の production 環境に、`eas.json` の `build.production.env` と同じ名前の変数があれば失敗する。
+     `eas update` では EAS 側の値が勝ち、OTA の JS だけがその値で作られるため。EAS 側の変数を消すか、`eas.json` と揃える。
+     承認を待つ間に足された場合に備えて、publish job も配信の直前に同じ検査をする。
+     さらに、承認者が見た変数の一覧（名前・更新日時）から配信の直前までに変わっていれば、publish job は失敗する（変わった内容を確かめて起動し直す）
+   - `app.json` の `version`（= runtimeVersion）の本番ビルド（production channel・ストア向け・完了済みの最新）をプラットフォームごとに探す。
+     本番ビルドが無いプラットフォームには配信しない（届く端末が無い）。どちらにも無ければ失敗する
+   - そのビルドと今のコミットの**ネイティブの fingerprint を比べ、違えば失敗する**。
+     ネイティブの変更を含んでいるので OTA では配れない。`version` を上げてストアで配布する（§4）。
+     lockfile の変更（依存の配置の変化）・`.gitignore`・app config の変更だけでも fingerprint は変わることがあり、その場合もストアで配布する
+   - ビルドのコミットが今のコミットの祖先でなければ失敗する（ビルドに入った変更を巻き戻すことになるため）
+2. **prepare の Job Summary を読んでから、publish job を承認する**（`production` Environment の承認）。
+   Summary には次が出る。
+   - 配信先のビルド（BUILD_ID・buildNumber・コミット）
+   - そのビルドのコミットから今までの、OTA の JS に入りうるコミットの一覧（`packages/mobile` に加えて `packages/backend/openapi.yaml`・`pnpm-lock.yaml` など）。
+     **一覧の中身が「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけ**であることを確かめる
+   - OTA の JS に入る EAS の production 環境の変数の名前と更新日時。見覚えの無い変数や、心当たりの無い最近の更新があれば承認しない
+     （値だけを書き換えられても名前には現れないため、更新日時で見る）
+
+   比べる相手は「最新の本番ビルド」で、利用者に公開したビルドとは限らない。公開したビルドより後に同じ version で作ったビルドがあると、
+   一覧の起点もそちらになり、公開ビルドとの間のコミットは一覧に出ない。承認するとすぐに配信が始まる。
+3. publish job が `eas update --channel production --environment production` を実行する。
+   Job Summary に update group の ID が出る（ロールバックで使う。§8.4）。
+   端末に届くのは、アプリが次に起動して新しい update を取得した後になる。
+
+トークンと権限（ADR-008 D34）:
+
+- Expo の `production` channel は **protected**。publish・ロールバック・channel の編集ができるのは Release Manager 以上だけで、
+  CI では `production` Environment の Secret の `EXPO_TOKEN`（robot user `github-actions-ota-production`）だけがそれにあたる。
+- リポジトリ Secret の `EXPO_TOKEN`（robot user `github-actions-build`、Developer）はビルド・提出・E2E 用で、本番 channel には出せない。
+- どちらかのトークンが漏れたら、expo.dev の Access tokens で無効化し、同じ robot user で発行し直して Secret を差し替える。
+
+fingerprint の比較で失敗したとき:
+
+- Job Summary には違う項目（app config・ネイティブ依存のパスなど）だけが出る（中身はログに出さない）。
+  中身は手元で次のように確かめる（`APP_VARIANT` などは `eas.json` の `build.production.env` を与える）。
+
+  ```sh
+  cd packages/mobile
+  set -a; eval "$(jq -r '.build.production.env | to_entries[] | "\(.key)=\(.value|@sh)"' eas.json)"; set +a
+  pnpm exec eas fingerprint:compare --build-id <BUILD_ID> --environment production
+  ```
+
+- Summary の「違う項目」が取得できなかった旨だけになっている場合は、ビルドの fingerprint の source（EAS 側の保存は期限付き）が期限切れの可能性がある。
+  判定（ハッシュの比較）はこの影響を受けない。
+- **1.0.0 の本番ビルド（BUILD_ID `b293641d…`、2026-10-18）は、OTA を配信できない。**
+  その後に変わった `owner`（Organization への移管。ADR-006 の SS-103 追補）・eas-cli の追加による依存の配置・`packages/mobile/.gitignore` の差で、
+  fingerprint が一致しないため。どれもアプリの動きには影響しないが、確かめようがないので、次の本番ビルド（§4.1）から配信できるようにする。
 
 ## 7. API の expand / contract
 
@@ -378,11 +433,30 @@ expand と contract は**別のデプロイに分ける**。
 
 ### 8.4 OTA を戻す
 
-> 未実装（SS-103）。
+> 手順のみで未実行（SS-103。eas-cli 25.2.0 のコマンドで記述）。
 
-同一 `runtimeVersion` 内の JS の変更であれば、前の update へ戻す
-（`eas update:rollback`、または前のコミットから再度 `eas update` を出す）。
-端末が次回の起動時に新しい manifest を取得するまでは反映されない。
+`production` channel は protected なので、戻す操作も Release Manager 以上の権限が要る。
+Release Manager のトークンは CI の `production` Environment にしか置いていないため、**Expo の Owner が手元で実行する**
+（ワークフローは用意していない）。端末が次に起動して新しい update を取得するまでは反映されない。
+
+```sh
+cd packages/mobile
+set -a; eval "$(jq -r '.build.production.env | to_entries[] | "\(.key)=\(.value|@sh)"' eas.json)"; set +a
+
+# 戻し先の update group を探す（ひとつ前の group の ID を控える）
+pnpm exec eas update:list --branch production --runtime-version <version>
+
+# ひとつ前の update を、新しい update として出し直す
+pnpm exec eas update:republish --group <ひとつ前の group の ID> --message "rollback: <理由>"
+
+# まだ OTA を一度も当てていない状態（ストアのバイナリに入っている JS）へ戻す場合
+pnpm exec eas update:roll-back-to-embedded --channel production --runtime-version <version> --platform <ios|android> --message "rollback: <理由>"
+```
+
+- 前のコミットから OTA を出し直す方法（§6.1 のワークフロー）は使えない。ワークフローは main の先頭からしか配信しない。
+  コードで直す場合は、main で revert してからワークフローを起動する。
+- ネイティブの互換を壊した update は、端末が起動直後に落ちて次の update を取得できないことがある。
+  その場合は修正したバイナリをストアで配布するしかない（§8.3）。§6.1 の fingerprint の比較はこれを防ぐためにある。
 
 ## 9. リリースのチェックリスト
 
@@ -393,6 +467,7 @@ expand と contract は**別のデプロイに分ける**。
 [ ] スキーマ変更を含む場合、expand と contract を別のデプロイに分けたか
 [ ] backend を prod へデプロイし、マイグレーションを実行したか
 [ ] mobile の version を上げる必要があったか。上げたなら配布ビルドまで行ったか
+[ ] OTA で配る場合、中身が「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけか（§6）
 [ ] backend / mobile の両方が配布済みになっているか
 [ ] フラグを ON にしたか（← ここがリリース）
 [ ] 公開後の様子を確認したか

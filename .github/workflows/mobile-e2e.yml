@@ -43,6 +43,9 @@ jobs:
     # （public repo のため、環境のブランチ制限でこの secret への到達経路を絞る）。
     environment: ci-e2e
     env:
+      # リポジトリ Secret の EXPO_TOKEN は Expo の Developer ロールの robot user のトークン（保護された
+      # production channel には OTA を出せない）。この job に `environment: production` を付けると、
+      # 同名の Environment Secret（Release Manager。OTA の本番配信用）に黙って切り替わる（ADR-008 D34）。
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       # app.config.ts の withAndroidGradleProperties が android/gradle.properties の
       # reactNativeArchitectures をこの値で上書きする（SS-85）。既定の4 ABI
@@ -165,7 +168,7 @@ jobs:
           GOOGLE_MAPS_ANDROID_SDK_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_SDK_KEY }}
         run: |
           mkdir -p e2e-build
-          npx eas-cli build --local --non-interactive \
+          pnpm exec eas build --local --non-interactive \
             --profile preview --platform android \
             --output e2e-build/app-preview.apk
 

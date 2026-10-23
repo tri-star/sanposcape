@@ -1,8 +1,48 @@
 # ADR-004: シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-10-22（SS-103）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- **シークレットの保管先は「誰がその値を消費するか」で決め、GitHub の secret を減らすために Secrets Manager を中継しない**。
+  有効な制御は「到達できる実行文脈を絞る」こと。（本文: 決定1）
+- **`EXPO_TOKEN` は GitHub Secrets に置き、Expo の権限で2つに分ける**。リポジトリ Secret は Developer ロールの robot user（build・submit・E2E）、
+  `production` Environment の Secret は Release Manager ロールの robot user（OTA の本番配信専用）で、名前はどちらも `EXPO_TOKEN`。
+  Expo の `production` channel は protected。詳細は [ADR-008](./ADR-008-deploy-release-separation.md) の SS-103 追補 D34。（本文: 決定2、SS-103 追補）
+- **`GOOGLE_MAPS_ANDROID_SDK_KEY` は GitHub Secrets（`ci-e2e`。E2E の `preview` に注入する）と EAS の環境変数（`preview` / `secret`。クラウドビルド用）に置く**。
+  APK から抽出できるので、防御の本体は GCP のキー制限（パッケージ名 + SHA-1・API 制限・予算アラート）。差し替えるときは両方を更新する。（本文: 決定3、SS-79 追補）
+- **App Store Connect API Key は GitHub に置かず、EAS の credentials に置く**（消費者は `eas submit` を実行する EAS のサーバー）。（本文: SS-79 追補）
+- **Lambda のランタイム秘密は CD パイプラインに通さず、Lambda が実行ロールで Secrets Manager / SSM から読む**。
+  ローテーション不要な値は SSM Parameter Store の SecureString も使う。（本文: 決定4、移行・対応事項）
+- **AWS へのデプロイ認証は OIDC で、長期アクセスキーを GitHub に置かない**。ロール ARN は秘密ではないので Environment Variables（`AWS_SAM_DEPLOY_ROLE_ARN` など）に置き、
+  IAM ロールの trust は `environment:<名前>` の subject で絞る。（本文: 決定5、SS-72 追補）
+- **`development` / `production` の Environment を AWS アカウントと 1:1 に対応させる**。`production` は Required reviewers（tri-star）・
+  `can_admins_bypass=false`・Deployment branches は main のみ。`development` にはブランチ制限を付けない（コラボレーターが増えたら見直す）。（本文: 決定6、SS-72 追補）
+- **`id-token: write` と `environment` はデプロイの job にだけ付け、依存を取得・実行するビルドの job とは分ける**。
+  タグ・Release を作る job（`contents: write`）は AWS のクレデンシャルを持たない。（本文: SS-72 追補）
+- **デプロイは backend CI を `workflow_call` でゲートにし、`pull_request` / `pull_request_target` をトリガーにしない**。（本文: SS-72 追補）
+- **`.github/workflows/` は CODEOWNERS の対象にしているが、Code Owners のレビューは強制していない**（ruleset で有効にしていない）。（本文: 決定7、SS-72 追補）
+
+### 未解決・持ち越し
+
+- **`ci-e2e` Environment の Deployment branches は main 限定になっていない**。2026-10-21 の時点でブランチ制限の設定はあるが規則が0件で、
+  作業ブランチからも実行できる（作業ブランチからの E2E を使っているため、限定するかは要判断）。（本文: 決定7、移行・対応事項。実測は ADR-008 の SS-103 追補の未解決）
+- 本番識別子（`com.sanposcape.app`）用の Maps SDK キーの GCP の登録は、本文の時点（SS-79）で未完了。Android の本番ビルドを始める段の対応事項。（本文: 移行・対応事項）
+- ruleset で Code Owners のレビューを必須にするか（コラボレーターが増える段で判断）。（本文: SS-72 追補の残っている事項）
+
+### 変更・撤回された決定
+
+- 決定3 の「E2E の preview APK にはこのキーを注入しない」→ SS-44 / SS-78 以降は `ci-e2e` の GitHub Secrets から注入する（SS-79 追補の訂正）
+- 決定1 の表の Maps SDK キーの保管先: GitHub Secrets のみ → EAS の環境変数が加わる（SS-79 追補）
+- 決定2 の `EXPO_TOKEN`: 1つのトークン → Expo の権限で分けた2つ（SS-103 追補）
+- コンテキストの「`EXPO_TOKEN` を `ci-e2e` の secret として参照している」は、2026-10-21 の時点では当たっておらず、リポジトリ Secret が使われていた（SS-103 追補）
+
 ## 日付
 
-2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）、2026-09-18 追補（デプロイの手動起動化・release job の権限、SS-72）、2026-10-17 棚卸し追補（prod の稼働状況を反映）
+2026-08-22（初版）、2026-09-13 追補（Mapsキー保管先の拡張・ASC API Keyの扱い、SS-79）、2026-09-15 追補（SAM デプロイの CI 化、SS-72）、2026-09-18 追補（デプロイの手動起動化・release job の権限、SS-72）、2026-10-17 棚卸し追補（prod の稼働状況を反映）、2026-10-22 追補（`EXPO_TOKEN` を Expo の権限で2つに分ける・移行・対応事項の実績の反映、SS-103）
 
 ## ステータス
 
@@ -60,6 +100,14 @@ CI が Secrets Manager から値を読むには結局 CI 側に AWS への認証
 
 実行時に一切登場しない純粋な CI クレデンシャルであり、Expo 側の資産であるため
 AWS アカウント分離とも無関係。AWS に置く理由がない。
+
+（**SS-103 追補**: `EXPO_TOKEN` は Expo の権限で2つに分けた。どちらも GitHub Secrets に置く点は変わらない。
+リポジトリ Secret は Developer ロールの robot user（build・submit・E2E 用）、`production` Environment の Secret は
+Release Manager ロールの robot user（OTA の本番配信専用）で、名前はどちらも `EXPO_TOKEN`。Expo の `production` channel を protected にし、
+Developer のトークンでは本番の利用者へ OTA を出せないようにした。決定1 の「到達できる実行文脈を絞る」を、GitHub の Environment だけでなく
+トークン自体の権限でも行う形。詳細は [ADR-008](./ADR-008-deploy-release-separation.md) の SS-103 追補 D34。
+なお、コンテキストの「`EXPO_TOKEN` を `ci-e2e` の secret として参照している」は、2026-10-21 に確かめた時点では当たっていない。
+`ci-e2e` には `GOOGLE_MAPS_ANDROID_SDK_KEY` しか無く、`EXPO_TOKEN` はリポジトリ Secret（2026-08-08 作成）が使われていた）
 
 ### 3. `GOOGLE_MAPS_ANDROID_SDK_KEY` も GitHub Secrets に置き続ける
 
@@ -210,17 +258,20 @@ public repo であることを踏まえると、長期キー方式に対する�
       **（SS-72 追補）`.github/CODEOWNERS` を設置した**（`/.github/workflows/` と `CODEOWNERS` 自身）。
       ただし main の ruleset で「Require review from Code Owners」を有効にしていないため
       **レビューは強制されない**（コラボレーターが 1 人の現状では意思表示と将来への備え）。
-- [ ] AWS アカウント新設時に、各アカウントへ GitHub OIDC プロバイダを登録し、
+- [x] AWS アカウント新設時に、各アカウントへ GitHub OIDC プロバイダを登録し、
       `development` / `production` Environment に対応する IAM ロールを作成する。
       **（SS-72 追補）dev は完了、prod は未完了のためチェックは付けない。** SAM デプロイ用ロールは
       `sanposcape-infra` の `live/account/sam_deploy.tf` が作る。dev は apply 済み、prod は
       `live/account` の apply 待ち（ロールと SSM `lambda_boundary_arn` がまだ存在しない）。
+      **（SS-103 追補）** prod も完了している（下記「SS-72 追補」の残っている事項と 2026-10-17 棚卸し追補のとおり、prod へのデプロイが成功している）ので、チェックを付けた。
 - [x] `production` Environment に Required reviewers を設定する。
       **（SS-72 追補）2026-09-15 に設定した**（reviewers = tri-star、`can_admins_bypass=false`、
       Deployment branches = `main` のみ）。
-- [ ] SAM の `template.yaml` を作る際、Lambda 実行ロールに対象シークレットへの
+- [x] SAM の `template.yaml` を作る際、Lambda 実行ロールに対象シークレットへの
       `secretsmanager:GetSecretValue` / `ssm:GetParameter` を最小権限で付与し、
       シークレット値を CFn パラメータや環境変数として渡さない構成にする。
+      **（SS-103 追補）** 実装済み。`packages/backend/template.yaml` は Secrets Manager の ARN（値ではない）を
+      SSM の動的参照で環境変数 `APP_SECRET_ARN` に渡し、実行ロールにはその ARN への `secretsmanager:GetSecretValue` だけを付けている。
 
 ## SS-79 追補: Mapsキー保管先の拡張とApp Store Connect API Keyの扱い
 

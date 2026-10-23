@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-18（SS-214: サポートページの置き場の決着）。前回: 2026-10-17（棚卸し追補: 本番の TestFlight 配信の初回実行）、2026-10-17（SS-213）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-22（SS-103: Organization アカウントへの移管と OTA の運用手順）。前回: 2026-10-18（SS-214: サポートページの置き場の決着）、2026-10-17（棚卸し追補: 本番の TestFlight 配信の初回実行）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -33,6 +33,8 @@
   `production`（`com.sanposcape.app`）は本番ビルドを始める段で `--profile production` に対して初期化する。（本文: SS-89 追補「実測で確定したこと」）
 - **ストアの手動リリースと OTA の位置づけ（配信の手段であってリリースの手段ではない）は
   [ADR-008](./ADR-008-deploy-release-separation.md) 決定3・決定8 が決める**。本 ADR の決定は変わらない。（本文: ステータス、関連情報、SS-104 追補）
+- **EAS の project は Organization アカウント `tristar2nds-team` が持つ**（2026-10-20 に個人アカウントから移管。projectId・`updates.url` は不変）。
+  OTA の本番配信（`mobile-production-update.yml`）と `EXPO_TOKEN` の分け方は ADR-008 の SS-103 追補、手順は `release-runbook.md` §6・§8.4。（本文: SS-103 追補）
 
 ### 未解決・持ち越し
 
@@ -41,7 +43,9 @@
 - ~~**サポートページ（`/support/`）は未作成で、App Store Connect の Support URL の扱いは未決**（Plane に該当課題なし）。（本文: 移行・対応事項、SS-158 追補）~~
   → SS-214 で決着。`https://sanposcape.com/support/` を LP に作った
 - **`/support/` を本番 LP にデプロイし、App Store Connect の Support URL に登録する**（手作業。ストア情報の入力は Plane SS-215。手順は ADR-012 の SS-214 追補）。（本文: 移行・対応事項）
-- `eas update` による OTA 配信の実運用手順（channel / branch、`runtimeVersion` を上げるべき変更の見分け方、ロールバック）の文書化。（本文: 移行・対応事項）
+- ~~`eas update` による OTA 配信の実運用手順（channel / branch、`runtimeVersion` を上げるべき変更の見分け方、ロールバック）の文書化。（本文: 移行・対応事項）~~
+  → SS-103 で決着。`release-runbook.md` §6・§8.4。OTA の本番配信そのものは未実行（ADR-008 の SS-103 追補）
+- 移管の後の iOS のクレデンシャルはビルドで確かめていない（次の iOS のビルドで確かめる）。（本文: SS-103 追補）
 - EAS Update の MAU が無料枠（1K MAU）に近づいた際の判断基準（未着手。実利用者が付いてから）。（本文: 移行・対応事項、ネガティブな影響）
 - ~~**本番の TestFlight 配信ワークフローは実行実績が無い**~~ → 人手の準備を済ませ、2026-10-17 に初回を実行した（成功）。（本文: SS-213 追補）
 - **remote 化後の `eas build --local`（`mobile-e2e.yml` の `preview`）は未実証**。失敗時は `build-profiles.md` の「切り戻し（remote → local）」に従う。（本文: SS-89 追補「未検証・未確認として残すもの」）
@@ -57,7 +61,7 @@
 
 ## 日付
 
-2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）、2026-10-17 棚卸し追補（本番の TestFlight 配信の初回実行）、2026-10-18 追補（SS-214: サポートページの置き場の決着）
+2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）、2026-10-17 棚卸し追補（本番の TestFlight 配信の初回実行）、2026-10-18 追補（SS-214: サポートページの置き場の決着）、2026-10-22 追補（SS-103: Organization アカウントへの移管と OTA の運用手順）
 
 ## ステータス
 
@@ -71,6 +75,9 @@
 **SS-214「サポートページ」で追補**した。サポートページも同じ LP に `https://sanposcape.com/support/` として置き、
 App Store Connect の Support URL に登録することで「移行・対応が必要な事項」の静的サイトの項目が決着した
 （決定の詳細は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-214 追補）。追補部分には `（SS-214 追補）` を付けている。
+
+**SS-103「OTA の本番配信ワークフロー」で追補**した。EAS の project を Organization アカウントへ移し、
+「移行・対応が必要な事項」に残っていた OTA の実運用手順の文書化を決着させた。追補部分には `（SS-103 追補）` を付けている。
 
 SS-77「app: Web配信対象を確定し、SS-74向けのSAMデプロイを実装する」の調査結果として本 ADR を作成し、
 SS-77 自体は「作らない」決定に到達した時点で Cancelled とした。実作業は SS-78 / SS-79 が引き継ぐ。
@@ -232,9 +239,10 @@ EAS Update をそのまま使う。
 
 ### 移行・対応が必要な事項
 
-- [ ] `eas update` を使った OTA 配信の実運用手順（channel / branch の運用、`runtimeVersion` を
+- [x] `eas update` を使った OTA 配信の実運用手順（channel / branch の運用、`runtimeVersion` を
       上げるべき変更の見分け方、ロールバック手順）を文書化する。ストア配信を実際に始める
       SS-79 と同時期に必要になる。
+      **（SS-103 追補）** [release-runbook.md](../release-runbook.md) §6・§8.4 に書いた。末尾の「SS-103 追補」を参照。
 - [x] プライバシーポリシー / サポートページの静的サイトをどこに置くかを SS-74 側と確定する。
       TestFlight の外部テストを始める前に必要になる。
       **（SS-158 追補）プライバシーポリシーは決着、サポートページは未作成。**
@@ -366,6 +374,32 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
   [ADR-008](./ADR-008-deploy-release-separation.md) の SS-213 追補（D24〜D28）が決める。
 - 実行実績は無い（**2026-10-17 棚卸し追補**: 人手の準備を済ませ、2026-10-17 に初回を実行した（成功））。初回の前に、本番のアプリレコード・本番識別子のクレデンシャル・`production` のビルド番号の初期化を人手で行う
   （[build-profiles.md](../../packages/mobile/docs/build-profiles.md)「本番の TestFlight 配信」）。
+
+## SS-103 追補: EAS の project を Organization アカウントへ移し、OTA の運用手順を置く（2026-10-22）
+
+### 決定
+
+- **EAS の project（projectId `3c6c2a8d-fd2b-44a4-b2e7-2d13ab777ea7`）を、個人アカウント `tristar2nd` から Organization アカウント
+  `tristar2nds-team` へ移管した**（2026-10-20、PR #189 で `app.json` の `owner` を変更）。
+  OTA の本番配信を承認に限定するために、Expo の protected channel とロールを割り当てた robot user を使う
+  （[ADR-008](./ADR-008-deploy-release-separation.md) の SS-103 追補 D34）。どちらも Organization の project にしか使えない。
+  - 個人アカウントを Organization に変換する方法は採らなかった。変換すると `tristar2nd` にはログインできなくなり、Owner にする別の個人アカウントが要るため。
+    `tristar2nds-team` は既にあり、空の同名 project を消してから移管した。
+  - projectId と `updates.url`（`https://u.expo.dev/<projectId>`）は移管しても変わらない（Expo のドキュメント）。配布済みのアプリが OTA を受け取る経路は変わらない。
+  - eas-cli は projectId の持ち主と `owner` が違うとすべてのコマンドを止めるので、移管の直後に `owner` の変更を main へ入れた。
+  - 移管の直後の E2E（`eas build --local`、run 39516441782）は成功し、EAS の環境変数（`preview`）と開発識別子の既定の keystore
+    （`build-credentials-ci2`）が引き継がれていることを確かめた。
+  - Expo は移管のときに channel の保護を外す。保護は移管の後にかけた。
+- **OTA の実運用手順は [release-runbook.md](../release-runbook.md) §6（配信）・§8.4（ロールバック）に置く**。
+  移行・対応事項に残っていた文書化を、次のとおり決着させた。
+  - channel / branch: `production` profile → `production` channel → branch `production` の既存の割り当てをそのまま使う（ADR-008 決定8）。
+  - `runtimeVersion` を上げるべき変更の見分け方: 人の規則（ネイティブを変えたら `version` を上げる）に加えて、配信の前に本番ビルドと fingerprint を比べる（ADR-008 D37）。
+  - ロールバック: Expo の Owner が手元で `eas update:republish` / `update:roll-back-to-embedded` を行う（ADR-008 D39）。
+
+### 未検証・未確認として残すもの
+
+- 移管の後の iOS のクレデンシャル（配布証明書・provisioning profile・App Store Connect API キー）は、ビルドでは確かめていない（expo.dev の画面で、移管の前の控えと照合した）。
+  次の iOS のビルドで確かめる。
 
 ## 関連情報
 

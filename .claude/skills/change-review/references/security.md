@@ -33,6 +33,15 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
   git-cliff の設定（`cliff.toml`）は `replace_command` でコマンドを実行できるので、取り出したコミットのものではなく main の先頭のものを `--config` で渡す。
 - Environment の承認は job の開始前に求められる。承認者が判断に使う値を出す検査を、承認付きの job の中に置いていないか（前段の job に分けて Job Summary に出す）。
 - public リポジトリで、ビルドや成果物の URL を Job Summary・ログに出していないか。`eas build --json` / `eas build:view --json` の応答は `artifacts`（.ipa / .apk のダウンロード URL）を含み、eas-cli の進行ログは stderr にビルド URL を出す。
+  `eas build:list --json` も同じ。`eas fingerprint:compare` / `fingerprint:generate` の出力は app config の中身を含み、Android の本番では Maps SDK キーが入る（SS-103）。
+- job に `environment:` を足す差分で、その job が `secrets.<名前>` を参照していないか。Environment の Secret は同名のリポジトリ Secret より優先され、
+  `EXPO_TOKEN` は `production` に付けると Developer から Release Manager（本番 channel へ OTA を出せる）に黙って切り替わる（ADR-008 D34）。
+- `eas update` を使うワークフローで、EAS の環境変数が `eas.json` の値を上書きしないことを確かめているか。`eas update --environment` は EAS の値を `process.env` より優先し、
+  `eas build` は逆に `eas.json` の build profile の env を優先する。同名の変数で OTA の JS だけが別の接続先になり、fingerprint にも現れない（ADR-008 D36）。
+- 承認の前の job で確かめた外部の状態（EAS の環境変数など）が、承認を待つ間に変わりうるなら、承認の後の job で特権の操作の直前に確かめ直しているか（一覧のハッシュを outputs で渡して照合するなど）。
+- 強いトークンを持つ job が `setup-node` の `cache: pnpm` を復元していないか。キーは lockfile のハッシュで、トークンを持たない job（mobile-ci・lp-ci など）と共有している。
+  トークンを step の env に絞っても、同じ job の前の step で動いた依存のコードは `node_modules` や `GITHUB_PATH` を書き換えて後の step を差し替えられる（step への限定は守りにならない）。
+- 判定に使う jq で `// empty` などを使うと `false` も代わりの値になる。真偽値を見るなら `if . == null then "" else tostring end` のように書く（SS-103 で保護の状態の表示を取り違えた）。
 
 ## 依存の追加
 - スコープなし・typosquat 疑いのパッケージや `postinstall` の追加がないか。`package.json` / `pyproject.toml` の差分で確かめる。

@@ -1,0 +1,409 @@
+name: mobile production OTA update (EAS Update)
+
+# 本番アプリへ OTA（EAS Update）を production channel で配信する（ADR-008 決定8・SS-103 追補）。
+# ★ OTA はストア審査も手動リリースも経ずに、同じ version（runtimeVersion。policy appVersion）の本番アプリへ即時に届く。
+#   そのため workflow_dispatch のみ・main のみ・production Environment の承認を必須にする。
+#   OTA で届けてよいのは「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけ（ADR-008 決定8、docs/release-runbook.md §6）。
+# ★ トークンを2つに分けている（ADR-008 D34）。Expo の production channel は protected で、publish できるのは Release Manager 以上。
+#   - prepare: リポジトリ Secret の EXPO_TOKEN（Developer）。ビルドの検索と fingerprint の比較だけで、本番 channel には出せない。
+#   - publish: production Environment の Secret の EXPO_TOKEN（Release Manager）。承認の後にだけ渡る。
+# ★ job を2つに分ける（mobile-production-release.yml の resolve / release と同じ考え方）。Environment の承認は job の開始前に
+#   求められるので、1つの job にすると検査が承認の後にしか走らない。承認者は prepare の Job Summary を見てから承認する。
+#   publish は `eas update` のバンドル（Metro）のために依存のコードを動かす。避けられないので、依存は lockfile で固定している（eas-cli も）。
+# ★ ネイティブの互換を承認の前に確かめる（ADR-008 D37）。配信先の本番ビルドと今のコミットの fingerprint を比べ、違えば失敗する。
+#   ネイティブの変更は OTA では届かず、互換の無い JS が既存の端末で落ちる。version を上げてストアで配布する。
+# ★ OTA の JS は本番バイナリと同じ env で作る（ADR-008 D36）。eas update は eas.json の build profile の env を読まないので、
+#   build.production.env（APP_VARIANT・接続先・各 MODE）を GITHUB_ENV に書いてから実行する。値の正本は eas.json。
+#   eas update は EAS の環境変数を GITHUB_ENV の値より優先する（eas build とは逆）ので、同じ名前の変数が EAS 側にあれば prepare で止める。
+# ★ 戻すとき（ロールバック）は、Owner が手元で eas update:republish / eas update:roll-back-to-embedded を行う（docs/release-runbook.md §8.4）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "OTA の内容（eas update --message。EAS の update 一覧に出る。例: ピン詳細の写真が表示されない不具合を直す）"
+        type: string
+        required: true
+
+# OTA の run 同士を直列化する（承認待ちの run を後続の run に置き換えない）。
+concurrency:
+  group: mobile-production-update
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.target.outputs.version }}
+      platform: ${{ steps.target.outputs.platform }}
+      eas_env_hash: ${{ steps.eas_env.outputs.hash }}
+    env:
+      # リポジトリ Secret の EXPO_TOKEN（Developer。保護された production channel には OTA を出せない）。
+      # この job には environment を付けない: `environment: production` を付けると Release Manager のトークンに切り替わる（ADR-008 D34）。
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Validate inputs
+        env:
+          GIT_REF: ${{ github.ref }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          # publish job の Environment（Deployment branches は main 限定）でも弾かれるが、承認待ちに入る前に理由が分かるように落とす。
+          if [ "$GIT_REF" != "refs/heads/main" ]; then
+            echo "::error::main からのみ実行できます（現在: $GIT_REF）"
+            exit 1
+          fi
+          if [ -z "${MESSAGE//[[:space:]]/}" ]; then
+            echo "::error::message に OTA の内容を書いてください"
+            exit 1
+          fi
+
+      # 配信先のビルドのコミットからの差分（承認者が見るコミット一覧）と祖先関係の確認に全履歴が要る。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # eas はプロジェクトを特定するために app.config.ts を評価し、fingerprint の計算は依存の解決を見るので、依存が要る。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 本番バイナリと同じ env で app.config.ts を評価する（APP_VARIANT が識別子を変え、fingerprint にも入る）。publish job と同じ。
+      - name: Load production build env (eas.json)
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          jq -r '.build.production.env | to_entries[] | "\(.key)=\(.value)"' eas.json >> "$GITHUB_ENV"
+          jq -r '.build.production.env | keys | join(", ")' eas.json | sed 's/^/eas.json の build.production.env を適用: /'
+
+      # production channel が protected でなければ止める。保護が外れていると、Developer のトークン（どのブランチの job にも届く）で
+      # 承認なしに本番へ OTA を出せる（ADR-008 D34）。Expo は project を別のアカウントへ移すと保護を外す。
+      - name: Check production channel is protected
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          set +e
+          pnpm exec eas channel:view production --json --non-interactive \
+            > "$RUNNER_TEMP/channel.out" 2> "$RUNNER_TEMP/channel.stderr.log"
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::production channel の取得（eas channel:view）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+            sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/channel.stderr.log"
+            exit "$STATUS"
+          fi
+          protected=$(sed -n '/^{/,$p' "$RUNNER_TEMP/channel.out" | jq -r '.currentPage.isProtected | if . == null then "" else tostring end')
+          if [ "$protected" != "true" ]; then
+            echo "::error::production channel が protected ではありません（isProtected=${protected:-不明}）。Owner が手元で eas channel:protect production を実行してから起動し直してください（docs/release-runbook.md §6.1）"
+            exit 1
+          fi
+          echo "production channel は protected です"
+
+      # eas update は EAS の環境変数を GITHUB_ENV の値より優先する（本番ビルドの eas build は逆に eas.json の値を優先する）。
+      # 同じ名前の変数が EAS の production 環境にあると、OTA の JS だけがそちらの値で作られ、fingerprint にも Summary にも現れない
+      # （ADR-008 D36）。名前が重なれば止め、変数名の一覧を承認者に見せる。値は読まない・出さない。publish の eas update の直前でも同じ検査をする。
+      # 承認者が見る一覧（名前・scope・更新日時）のハッシュを publish に渡し、配信の直前の一覧と一致することを確かめる。
+      - name: Check EAS environment variables do not override eas.json
+        id: eas_env
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
+          echo "hash=$(sha256sum < "$RUNNER_TEMP/eas-env-names.txt" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      # プラットフォームごとに、OTA が届く本番ビルド（production channel・この version・production profile・ストア向け・完了済み）の最新を引く。
+      # 本番ビルドが無いプラットフォームには配信しない（届く端末が無い。2026-10 時点で Android の本番ビルドは未作成）。
+      - name: Resolve target builds
+        id: target
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.expo.version' app.json)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::app.json の version が X.Y.Z の形ではありません: ${version}"
+            exit 1
+          fi
+          if [ "$(jq -r '.expo.runtimeVersion.policy // empty' app.json)" != "appVersion" ]; then
+            echo "::error::app.json の runtimeVersion.policy が appVersion ではありません。このワークフローは version = runtimeVersion を前提にしています"
+            exit 1
+          fi
+          platforms=()
+          for p in ios android; do
+            set +e
+            pnpm exec eas build:list --platform "$p" --build-profile production --channel production \
+              --runtime-version "$version" --distribution store --status finished \
+              --limit 1 --json --non-interactive \
+              > "$RUNNER_TEMP/builds-$p.out" 2> "$RUNNER_TEMP/builds-$p.stderr.log"
+            STATUS=$?
+            set -e
+            if [ "$STATUS" -ne 0 ]; then
+              echo "::error::本番ビルドの検索（eas build:list, ${p}）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+              sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/builds-$p.stderr.log"
+              exit "$STATUS"
+            fi
+            # 応答は成果物の URL を含むのでログに出さず、必要な値だけ取り出す。JSON の前に案内の行が出ることがあるので、最初の [ 以降を読む。
+            sed -n '/^\[/,$p' "$RUNNER_TEMP/builds-$p.out" | jq '.[0] // empty' > "$RUNNER_TEMP/build-$p.json"
+            if [ ! -s "$RUNNER_TEMP/build-$p.json" ]; then
+              echo "${p}: version ${version} の本番ビルドがありません（配信しません）"
+              continue
+            fi
+            id=$(jq -r '.id // empty' "$RUNNER_TEMP/build-$p.json")
+            sha=$(jq -r '.gitCommitHash // empty' "$RUNNER_TEMP/build-$p.json")
+            if ! [[ "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::${p} の本番ビルドの BUILD_ID かコミットを取得できませんでした（id=${id} sha=${sha}）"
+              exit 1
+            fi
+            # ビルドのコミットが今のコミットの祖先でなければ、ビルドに入っている変更を OTA で巻き戻すことになる。
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$sha" HEAD; then
+              echo "::error::${p} の本番ビルド ${id} のコミット ${sha} が、今のコミットの祖先ではありません。ビルドに入っている変更を巻き戻すことになるため配信しません"
+              exit 1
+            fi
+            platforms+=("$p")
+          done
+          case "${platforms[*]}" in
+            "ios android") platform=all ;;
+            ios|android) platform="${platforms[0]}" ;;
+            *)
+              echo "::error::version ${version} の本番ビルドがどのプラットフォームにもありません。OTA の届く端末がありません（version を上げたなら、先にストアへ配布する。ADR-008 決定8）"
+              exit 1
+              ;;
+          esac
+          {
+            echo "version=${version}"
+            echo "platform=${platform}"
+          } >> "$GITHUB_OUTPUT"
+
+      # ビルドの時に EAS が記録した fingerprint（build:list の fingerprint.hash）と、今のコミットから
+      # `eas fingerprint:generate --build-profile production` で計算したものを比べる。generate の --build-profile は eas build と同じ関数で
+      # env を組み立てる（EAS の変数に eas.json の build profile の env を重ねる）ので、本番ビルドと同じ条件で計算できる。
+      # `fingerprint:compare --json` は使わない: ビルドの fingerprint の source（EAS 側の保存は期限付き）が取れないと、ハッシュが同じでも失敗する。
+      # 一致しなかったときだけ、違う項目を見せるために compare（JSON なし）を best-effort で使う。
+      # 差分の中身（app config の行）はログに出さない: Android の本番ビルドでは Maps SDK キーが app config に入るため（public リポジトリ）。
+      # どの項目が違うかだけを出し、中身は手元で `eas fingerprint:compare --build-id <BUILD_ID> --environment production` で見る（runbook §6.1）。
+      - name: Compare fingerprints with the store builds
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          mismatch=0
+          for p in ios android; do
+            [ -s "$RUNNER_TEMP/build-$p.json" ] || continue
+            id=$(jq -r '.id' "$RUNNER_TEMP/build-$p.json")
+            build_hash=$(jq -r '.fingerprint.hash // empty' "$RUNNER_TEMP/build-$p.json")
+            if [ -z "$build_hash" ]; then
+              echo "::error::${p} の本番ビルド ${id} に fingerprint が記録されていません。ネイティブの互換を確かめられないため配信しません"
+              exit 1
+            fi
+            set +e
+            pnpm exec eas fingerprint:generate --platform "$p" --build-profile production --json --non-interactive \
+              > "$RUNNER_TEMP/fp-$p.out" 2> "$RUNNER_TEMP/fp-$p.stderr.log"
+            STATUS=$?
+            set -e
+            if [ "$STATUS" -ne 0 ]; then
+              echo "::error::fingerprint の計算（${p}）が失敗しました（exit ${STATUS}）。ログ（URL は伏せ字）:"
+              sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/fp-$p.stderr.log"
+              exit "$STATUS"
+            fi
+            # JSON の前に案内の行が出ることがあるので、最初の { 以降を読む。source（app config の中身を含む）は読まずにハッシュだけ取る。
+            local_hash=$(sed -n '/^{/,$p' "$RUNNER_TEMP/fp-$p.out" | jq -r '.hash // empty')
+            rm -f "$RUNNER_TEMP/fp-$p.out"
+            if [ -z "$local_hash" ]; then
+              echo "::error::fingerprint の計算（${p}）の応答からハッシュを取得できませんでした"
+              exit 1
+            fi
+            if [ "$build_hash" = "$local_hash" ]; then
+              echo "${p}: 本番ビルド ${id} と fingerprint が一致しました（${local_hash}）"
+              continue
+            fi
+            mismatch=1
+            echo "::error::${p}: 本番ビルド ${id} とネイティブの fingerprint が違います（ビルド ${build_hash} / 今のコミット ${local_hash}）。ネイティブの変更は OTA で配れません。version を上げてストアで配布してください（ADR-008 決定8）"
+            # 項目の見出しとファイルのパスの行だけを出す（差分の中身の行は出さない。上のコメント参照）。
+            # パスの行のラベルは new / removed / modified の file / directory で、幅を揃える空白の後に `:` が付く。色の制御文字は除く。
+            pnpm exec eas fingerprint:compare --build-id "$id" --environment production --non-interactive 2>/dev/null \
+              | sed -E 's/\x1b\[[0-9;]*m//g' \
+              | grep -E '^(📁|📝|[[:space:]]+(new|removed|modified) (file|directory)[[:space:]]*:)' \
+              > "$RUNNER_TEMP/fp-diff-$p.txt" || true
+            if [ -s "$RUNNER_TEMP/fp-diff-$p.txt" ]; then
+              cat "$RUNNER_TEMP/fp-diff-$p.txt"
+            else
+              echo "（違う項目を取得できませんでした。ビルドの fingerprint の source が期限切れの可能性があります）" > "$RUNNER_TEMP/fp-diff-$p.txt"
+            fi
+          done
+          if [ "$mismatch" -ne 0 ]; then
+            {
+              echo "## OTA を配信できません: ネイティブの fingerprint が本番ビルドと違います"
+              echo
+              for p in ios android; do
+                [ -s "$RUNNER_TEMP/fp-diff-$p.txt" ] || continue
+                echo "### ${p}（違う項目）"
+                echo '```'
+                cat "$RUNNER_TEMP/fp-diff-$p.txt"
+                echo '```'
+              done
+              echo
+              echo "依存の更新（pnpm-lock.yaml の変更）だけでも、依存の配置が変わって fingerprint が変わることがあります。いずれの場合も OTA は配れないので、ストアで配布してください。"
+              echo "差分の中身は手元で \`eas fingerprint:compare --build-id <BUILD_ID> --environment production\` を実行して確かめてください（APP_VARIANT などは eas.json の build.production.env を与える。docs/release-runbook.md §6.1）。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Summary for the approver
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+          PLATFORM: ${{ steps.target.outputs.platform }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## 承認の前に確かめること"
+            echo
+            echo "OTA は承認するとすぐに、version ${VERSION} の本番アプリへ届きます。内容が「公開済み機能の不具合修正」か「フラグ OFF の新機能」だけであることを、下のコミット一覧で確かめてから publish job を承認してください（docs/release-runbook.md §6）。"
+            echo
+            echo "- version（runtimeVersion）: ${VERSION}"
+            echo "- 配信するプラットフォーム: ${PLATFORM}"
+            echo "- 配信するコミット: \`${GITHUB_SHA}\`"
+            echo "- message: ${MESSAGE}"
+            echo
+            echo "OTA の JS には、eas.json の build.production.env に加えて、EAS の production 環境の次の変数が入ります（名前と更新日時だけ。値は出しません）。見覚えの無い変数や、心当たりの無い最近の更新があれば承認しないでください（値だけを書き換えられていても名前には現れません）。"
+            echo
+            if [ -s "$RUNNER_TEMP/eas-env-names.txt" ]; then
+              sed 's/^/- /' "$RUNNER_TEMP/eas-env-names.txt"
+            else
+              echo "- （ありません）"
+            fi
+            for p in ios android; do
+              [ -s "$RUNNER_TEMP/build-$p.json" ] || continue
+              id=$(jq -r '.id' "$RUNNER_TEMP/build-$p.json")
+              build_number=$(jq -r '.appBuildVersion // "?"' "$RUNNER_TEMP/build-$p.json")
+              sha=$(jq -r '.gitCommitHash' "$RUNNER_TEMP/build-$p.json")
+              echo
+              echo "### ${p}: 配信先の本番ビルド"
+              echo
+              echo "- EAS BUILD_ID: \`${id}\` / buildNumber: ${build_number} / コミット: \`${sha}\`"
+              echo "- fingerprint: 一致"
+              echo
+              echo "このビルドのコミットから今までの、OTA の JS に入りうるコミット（OTA でこのビルドに届く差分）:"
+              echo
+              # packages/mobile に加えて、API クライアントを生成する openapi.yaml（orval の入力）と、バンドルする依存を決める
+              # lockfile・ワークスペースの設定も含める（mobile-ci.yml の paths と同じ考え方。推移的依存の更新は lockfile だけが変わる）。
+              commits=$(git log --no-merges --format='- `%h` %s' "${sha}..HEAD" -- \
+                packages/mobile packages/backend/openapi.yaml pnpm-lock.yaml pnpm-workspace.yaml package.json)
+              echo "${commits:-（該当するコミットはありません）}"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # 承認者（Required reviewers）と main 限定の保護ルールを使う。AWS には触らないので id-token は付けない。
+    environment: production
+    # EXPO_TOKEN（Release Manager）は job 全体ではなく、eas を動かす「Publish OTA update」の step にだけ渡す。
+    # pnpm install・orval などトークンを使わない step の process env には入らない。ただし同じ job の前の step で動いた依存のコードは、
+    # node_modules や GITHUB_PATH を書き換えて後の step のコードを差し替えられるので、これで依存のコードからトークンを守れるわけではない（ADR-008 D35）。
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      EAS_ENV_HASH: ${{ needs.prepare.outputs.eas_env_hash }}
+    steps:
+      # prepare の出力をもう一度形で確かめてから使う。
+      - name: Validate prepared values
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! [[ "$PLATFORM" =~ ^(ios|android|all)$ ]] \
+            || ! [[ "$EAS_ENV_HASH" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::prepare job の出力が想定外の形です（version=${VERSION} platform=${PLATFORM} eas_env_hash=${EAS_ENV_HASH}）"
+            exit 1
+          fi
+
+      # prepare と同じコミット（github.sha。Environment のポリシーで main に限られる）。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check version
+        working-directory: packages/mobile
+        run: |
+          version=$(jq -r '.expo.version' app.json)
+          if [ "$version" != "$VERSION" ]; then
+            echo "::error::app.json の version（${version}）が prepare で確かめた version（${VERSION}）と違います"
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      # pnpm のストアのキャッシュは使わない。キャッシュのキーは lockfile のハッシュで、トークンを持たない他の job（mobile-ci・lp-ci など）と
+      # 共有している。そこで書き換えられたストアを、Release Manager のトークンを持つこの job が復元しないようにする。
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # JS が import する API クライアント（src/api/generated。gitignore 対象）を作る。
+      - name: Generate API client (Orval)
+        run: pnpm --filter mobile orval
+
+      - name: Load production build env (eas.json)
+        working-directory: packages/mobile
+        run: |
+          set -euo pipefail
+          jq -r '.build.production.env | to_entries[] | "\(.key)=\(.value)"' eas.json >> "$GITHUB_ENV"
+          jq -r '.build.production.env | keys | join(", ")' eas.json | sed 's/^/eas.json の build.production.env を適用: /'
+
+      # --environment production は EAS の production 環境の変数（EXPO_PUBLIC_GOOGLE_* など）を読む。
+      # build profile の env は読まないので、上の手順で与えている（ADR-008 D36）。
+      - name: Publish OTA update
+        working-directory: packages/mobile
+        env:
+          # production Environment の Secret の EXPO_TOKEN（Release Manager）。同名のリポジトリ Secret（Developer）より優先される（ADR-008 D34）。
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          # 承認を待つ間に EAS 側へ同じ名前の変数が足されていないかを、配信の直前にもう一度確かめる（prepare と同じ検査）。
+          ../../.github/scripts/check-eas-env-overlap.sh "$RUNNER_TEMP/eas-env-names.txt"
+          # 承認者が prepare の Summary で見た一覧（名前・scope・更新日時）から変わっていれば止める
+          # （名前の重ならない変数の追加や、値だけの書き換えは上の検査では止まらないため）。
+          if [ "$(sha256sum < "$RUNNER_TEMP/eas-env-names.txt" | cut -d' ' -f1)" != "$EAS_ENV_HASH" ]; then
+            echo "::error::承認を待つ間に EAS の production 環境の変数（名前・更新日時）が変わりました。変わった内容を確かめてから起動し直してください"
+            exit 1
+          fi
+          set +e
+          pnpm exec eas update --channel production --environment production \
+            --platform "$PLATFORM" --message "$MESSAGE" \
+            --non-interactive --json \
+            > "$RUNNER_TEMP/update.out" 2> "$RUNNER_TEMP/update.stderr.log"
+          STATUS=$?
+          set -e
+          sed -E 's#https://[^[:space:]"]*#https://<redacted>#g' "$RUNNER_TEMP/update.stderr.log"
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::OTA の配信（eas update）が失敗しました（exit ${STATUS}）。ログは上（URL は伏せ字）"
+            exit "$STATUS"
+          fi
+          # JSON の前に案内の行が出ることがあるので、最初の [ 以降を読む。取れなくても配信は済んでいるので落とさない。
+          groups=$(sed -n '/^\[/,$p' "$RUNNER_TEMP/update.out" \
+            | jq -r '[.[] | "\(.platform): group `\(.group)` / runtimeVersion \(.runtimeVersion)"] | unique | .[]' 2>/dev/null || true)
+          {
+            echo "## OTA を配信しました"
+            echo
+            echo "- channel: production / version（runtimeVersion）: ${VERSION} / プラットフォーム: ${PLATFORM}"
+            echo "- 配信したコミット: \`${GITHUB_SHA}\`"
+            echo "- message: ${MESSAGE}"
+            echo
+            echo "${groups:-update group の ID を応答から取得できませんでした。expo.dev の production ブランチの update 一覧を確認してください。}"
+            echo
+            echo "戻すときは docs/release-runbook.md §8.4（Owner が手元で eas update:republish / eas update:roll-back-to-embedded）。public リポジトリのため URL は出しません。"
+          } >> "$GITHUB_STEP_SUMMARY"
