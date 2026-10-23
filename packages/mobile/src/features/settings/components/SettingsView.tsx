@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
+import { CURRENT_APP_VERSION } from "@/config/currentAppVersion";
 import { AboutSection } from "@/features/settings/components/AboutSection";
 import { AccountDeleteDialog } from "@/features/settings/components/AccountDeleteDialog";
 import { AppearanceSection } from "@/features/settings/components/AppearanceSection";
@@ -41,6 +42,7 @@ import { useTheme, useThemeMode } from "@/theme/useTheme";
  * 遷移では `SettingsView` が `loading` のままレンダリングされうる（実害の窓は数百ms程度）。
  *
  * SS-158 でプライバシーポリシーへの導線（`AboutSection`）を追加した。認証状態にかかわらず表示する。
+ * SS-228 で同じカードの末尾にアプリのバージョンを追加した（不具合の報告や問い合わせで、どのバージョンかを確かめられるように）。
  *
  * SS-62 でアカウント削除（不可逆）を追加した。ログアウト（可逆）と `variant` / 配置 / 文言で
  * 区別する（誤操作防止）。削除後の遷移は `AuthGate` が担うため、この画面は `router` を触らない
@@ -110,7 +112,7 @@ export function SettingsView() {
 
         {/* 認証に依存しないので、テーマと同じく section の分岐の外に置く（ゲストにも出す。SS-158） */}
         <View style={styles.aboutSection}>
-          <AboutSection testID="settings-about-section" />
+          <AboutSection appVersion={CURRENT_APP_VERSION} testID="settings-about-section" />
         </View>
 
         {section === "loading" ? (

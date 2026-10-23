@@ -1,8 +1,8 @@
-import Constants from "expo-constants";
 import { useSegments } from "expo-router";
 import { useState } from "react";
 import { Platform } from "react-native";
 
+import { CURRENT_APP_VERSION } from "@/config/currentAppVersion";
 import {
   isOnWalkSummary,
   shouldDeferForWalk,
@@ -12,16 +12,6 @@ import {
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import { useAppConfig } from "@/hooks/useAppConfig";
-
-/**
- * 実行中のアプリのバージョン。起動中に変わらないので、モジュール評価時に1回だけ読む。
- *
- * `Constants.expoConfig.version` は OTA の update で起動すると update の manifest の値になるが、
- * `runtimeVersion.policy` が `appVersion`（app.json）なので、update は同じ `version` のバイナリにしか届かない。
- * そのためバイナリの `version` と一致する。`expo-application` の `nativeApplicationVersion` は
- * ネイティブ依存の追加（development build の作り直し）になるので使わない（ADR-008 の SS-101 追補）。
- */
-const CURRENT_APP_VERSION: string | null = Constants.expoConfig?.version ?? null;
 
 const STORE_PLATFORM = toStorePlatform(Platform.OS);
 
