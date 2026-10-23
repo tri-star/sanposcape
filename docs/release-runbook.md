@@ -188,7 +188,7 @@ Lambda の環境変数である。操作手順は
    先に上げると公開中の版へ OTA を出せなくなる（ADR-006 の SS-230 追補）。それまでの staging のビルドは公開済みの version のまま配り、
    設定画面のバージョンの行（ビルド番号・チャネル）で見分ける
 2. 上げる場合は、`app.json` の `version` だけを変更する PR を出してマージする。前回の `mobile/v*` タグ以降の `packages/mobile` のコミットに
-   `feat` があれば minor、それ以外だけなら patch を上げる
+   破壊的変更（`feat!:` や `BREAKING CHANGE:`）があれば major、`feat` があれば minor、それ以外だけなら patch を上げる（cliff.toml の `[bump]` と同じ規則）
 3. `.github/workflows/mobile-release-build.yml` を `workflow_dispatch` で起動する
 4. ビルド番号（iOS の `buildNumber` / Android の `versionCode`）は **EAS サーバーが自動で採番する**。
    手で上げる PR は不要（ADR-006 の SS-89 追補）

@@ -612,8 +612,8 @@ EAS サーバー側の保持値は local へ戻しても消えない。後で再
     互換境界は、その変更を含むバイナリをストアに出すとき（上のタイミングでの `version` の上げ）に切れる。
     途中で上げると、上の「先に上げない理由」と同じく公開中の版へ OTA を出せなくなる。
     （SS-103 の fingerprint の比較が入る前は「ネイティブ変更では `version` を上げて互換境界を切る」としていた。）
-- **番号の意味づけ**: patch = 不具合修正リリース / minor = 機能追加リリース。前回の `mobile/v*` タグ以降の
-  `packages/mobile` のコミットに `feat` があれば minor、それ以外だけなら patch にする。上げ忘れて
+- **番号の意味づけ**: patch = 不具合修正リリース / minor = 機能追加リリース / major = 破壊的変更を含むリリース。前回の `mobile/v*` タグ以降の
+  `packages/mobile` のコミットに破壊的変更（`feat!:` や `BREAKING CHANGE:`）があれば major、`feat` があれば minor、それ以外だけなら patch にする（cliff.toml の `[bump]` と同じ規則）。上げ忘れて
   `mobile-production-testflight.yml` が止まったときは、エラーにこの規則での候補（git-cliff の `--bumped-version`）が出る。
   ストア公開（まず iOS）に合わせて `0.1.0` から `1.0.0` に上げた。0.x の端末（TestFlight の
   内部テスターなど）は runtimeVersion が異なるため、`1.0.0` のビルドを入れ直すまで OTA を受け取らない。

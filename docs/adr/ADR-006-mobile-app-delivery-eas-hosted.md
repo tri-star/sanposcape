@@ -31,7 +31,7 @@
   上げるタイミングのルールは `packages/mobile/docs/build-profiles.md`。（本文: SS-89 追補）
 - **`version` は公開済みの次の本番 TestFlight ビルドの直前に上げ、リリース直後に先に上げない**。OTA の本番配信は main の `version` の本番ビルドへ配るため、
   先に上げると公開中の版へ OTA を出せなくなる。ネイティブの変更が main に入っても途中では上げない（OTA は fingerprint の比較で止まる）。
-  patch / minor は前回の `mobile/v*` タグ以降のコミット（`feat` の有無）で決め、staging のビルド同士は設定画面のビルド番号・チャネルで見分ける。
+  major / minor / patch は前回の `mobile/v*` タグ以降のコミット（破壊的変更・`feat` の有無）で決め、staging のビルド同士は設定画面のビルド番号・チャネルで見分ける。
   移る条件は「main の未公開の変更を含めずにネイティブの修正を出す必要が出たとき」。（本文: SS-230 追補）
 - **リモートのビルド番号はアプリ識別子ごとに保持される**。開発識別子は `staging` に対する1回の初期化で足り、
   `production`（`com.sanposcape.app`）は本番ビルドを始める段で `--profile production` に対して初期化する。（本文: SS-89 追補「実測で確定したこと」）
@@ -423,7 +423,7 @@ SS-89 追補は `expo.version` を「リリース単位で手動で上げる」�
 - **ネイティブモジュールや config plugin の変更が main に入っても、その時点では `version` を上げない。** その後の OTA は
   fingerprint の比較（ADR-008 D37）で止まり、互換境界は、その変更を含むバイナリをストアに出すとき（上の `version` の上げ）に切れる。
   SS-89 追補の頃の「ネイティブ変更では `version` を上げて互換境界を切る」は、この意味に読み替える。
-- **patch / minor は、前回の `mobile/v*` タグ以降の `packages/mobile` のコミットで決める**（`feat` があれば minor、それ以外だけなら patch）。
+- **major / minor / patch は、前回の `mobile/v*` タグ以降の `packages/mobile` のコミットで決める**（破壊的変更があれば major、`feat` があれば minor、それ以外だけなら patch。cliff.toml の `[bump]` と同じ規則）。
   上げ忘れて `mobile-production-testflight.yml` がビルドの前に止まったとき、エラーにこの規則での候補（git-cliff の `--bumped-version`）を添える。
   候補は判断の材料で、検査の結果は変えない。
 - **同じ version を名乗る staging のビルド同士は、設定画面のバージョンの行（ビルド番号・チャネル・OTA の update ID）で見分ける**
