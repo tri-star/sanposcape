@@ -182,10 +182,13 @@ Lambda の環境変数である。操作手順は
 [packages/mobile/docs/build-profiles.md](../packages/mobile/docs/build-profiles.md)
 「配布手順」にある。
 
-1. **`version` を上げるかを判断する。** リリース単位でのみ上げる。
-   `runtimeVersion.policy: "appVersion"` のため、`version` は OTA の互換境界そのものである
-   （上げると既存端末は新 version 向けの OTA を受け取らなくなる）
-2. 上げる場合は、`app.json` の `version` だけを変更する PR を出してマージする
+1. **`version` を上げるかを判断する。** リリース単位でのみ上げ、上げるのは公開済みの version の次の本番 TestFlight ビルド（§4.1）の直前に限る。
+   リリースの直後に次の版へ先に上げない。`runtimeVersion.policy: "appVersion"` のため、`version` は OTA の互換境界そのものであり
+   （上げると既存端末は新 version 向けの OTA を受け取らなくなる）、§6.1 の OTA は main の `version` の本番ビルドへ配るので、
+   先に上げると公開中の版へ OTA を出せなくなる（ADR-006 の SS-230 追補）。それまでの staging のビルドは公開済みの version のまま配り、
+   設定画面のバージョンの行（ビルド番号・チャネル）で見分ける
+2. 上げる場合は、`app.json` の `version` だけを変更する PR を出してマージする。前回の `mobile/v*` タグ以降の `packages/mobile` のコミットに
+   `feat` があれば minor、それ以外だけなら patch を上げる
 3. `.github/workflows/mobile-release-build.yml` を `workflow_dispatch` で起動する
 4. ビルド番号（iOS の `buildNumber` / Android の `versionCode`）は **EAS サーバーが自動で採番する**。
    手で上げる PR は不要（ADR-006 の SS-89 追補）
@@ -199,7 +202,8 @@ dev 向けの配布（上の 3.）とは別のワークフローを使う。初�
 [build-profiles.md](../packages/mobile/docs/build-profiles.md)「本番の TestFlight 配信」にある。
 
 1. `app.json` の `version` が公開済みの version（`mobile/v*` タグがあるもの）より大きいことを確かめる。
-   同じか低ければ上の 1.〜2. で上げる（公開済みの最新の version 以下ではワークフローがビルド前に失敗する）
+   同じか低ければ上の 1.〜2. で上げる（公開済みの最新の version 以下ではワークフローがビルド前に失敗し、
+   エラーに上の 2. の規則での次の version の候補が出る）
 2. `.github/workflows/mobile-production-testflight.yml` を main で `workflow_dispatch` する
    → ビルドと TestFlight への提出まで進む。**タグ・Release はまだ作らない**。
    dev 向けの `mobile-release-build.yml` の iOS ビルドの実行中は起動しない（EAS の同時実行は1で、順番待ちの時間も
@@ -275,8 +279,9 @@ OTA で届けてよい利用者向けの変更は次のいずれかに限る。
   production Environment の承認に限定する
 - **channel の付け替えでリリースを制御しない。** channel は `eas.json` の既存の割り当てを
   そのまま使い、公開の制御はフラグで行う
-- ネイティブモジュールや config plugin の変更を含む場合は OTA で配れない。
-  `version` を上げて互換境界を切り、ネイティブバイナリを配布する
+- ネイティブモジュールや config plugin の変更を含む場合は OTA で配れない（§6.1 の fingerprint の比較で止まる）。
+  次のリリースで `version` を上げ（§4 の 1.〜2.）、ネイティブバイナリをストアで配布する。
+  変更が main に入った時点では `version` を上げない（上げると公開中の版へ OTA を出せなくなる。ADR-006 の SS-230 追補）
 
 ### 6.1 本番へ OTA を配信する
 

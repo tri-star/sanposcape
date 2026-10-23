@@ -592,16 +592,29 @@ EAS サーバー側の保持値は local へ戻しても消えない。後で再
 
 - **上げる単位はリリース単位。** 「ユーザーに見せる版」を切り替えるときだけ、`version` だけを
   変更する PR を出す。ビルド番号は EAS が自動で進めるので、配布のたびに触る必要はない。
+- **上げるタイミングは、公開済みの version の次の本番 TestFlight ビルドの直前（SS-230）。** リリースの直後に
+  次の版へ先に上げることはしない。それまでの間は、main も staging のビルドも公開済みの version を名乗る。
+  - 先に上げない理由: OTA の本番配信のワークフロー（`mobile-production-update.yml`）は main からだけ起動でき、
+    main の `version` と同じ version の本番ビルドへ配る。先に上げると、公開中の版へ OTA の修正を出せなくなる。
+    互換の無い JS が届く事故は、同じワークフローの fingerprint の比較が止める（version で防ぐ必要はない）。
+    公開済みの version のまま本番の TestFlight に出す失敗は、`mobile-production-testflight.yml` がビルドの前に止める。
+    判断の記録は [ADR-006](../../../docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md) の SS-230 追補。
+  - 同じ version を名乗る staging のビルド同士は、設定画面の「このアプリについて」のバージョンの行で見分ける
+    （`1.0.0 (57) · staging` のようにビルド番号とチャネルが付く。OTA で起動していれば `· OTA <update ID の先頭8文字>` も付く）。
 - **`runtimeVersion.policy: "appVersion"` により、`version` は OTA の互換境界そのものである。**
   - `runtimeVersion` = `version` なので、`1.0.0` → `1.1.0` にした瞬間、**既存端末
     （runtimeVersion `1.0.0`）はその後の `1.1.0` 向け `eas update` を一切受け取らなくなる**。
   - したがって **`version` を上げたら、その version のネイティブバイナリを配布するまで
     OTA の配信先が存在しない**。「version を上げる PR」と「配布ビルド」はセットで計画すること。
   - 既存 `1.0.0` 端末に修正を届けたいだけなら、`version` は据え置いて `eas update` を出す。
-  - 逆に、**ネイティブモジュールの追加・削除や config plugin の変更を伴う変更では `version` を
-    上げて互換境界を切るべき**。古い JS バンドルが新しいネイティブ API を呼ぶ（またはその逆の）
-    組み合わせを防げる。
-- **番号の意味づけ**: patch = 不具合修正リリース / minor = 機能追加リリース。
+  - **ネイティブモジュールの追加・削除や config plugin の変更が main に入っても、その時点では `version` を上げない。**
+    その後の OTA は fingerprint の比較で止まり（[release-runbook.md](../../../docs/release-runbook.md) §6.1）、
+    互換境界は、その変更を含むバイナリをストアに出すとき（上のタイミングでの `version` の上げ）に切れる。
+    途中で上げると、上の「先に上げない理由」と同じく公開中の版へ OTA を出せなくなる。
+    （SS-103 の fingerprint の比較が入る前は「ネイティブ変更では `version` を上げて互換境界を切る」としていた。）
+- **番号の意味づけ**: patch = 不具合修正リリース / minor = 機能追加リリース。前回の `mobile/v*` タグ以降の
+  `packages/mobile` のコミットに `feat` があれば minor、それ以外だけなら patch にする。上げ忘れて
+  `mobile-production-testflight.yml` が止まったときは、エラーにこの規則での候補（git-cliff の `--bumped-version`）が出る。
   ストア公開（まず iOS）に合わせて `0.1.0` から `1.0.0` に上げた。0.x の端末（TestFlight の
   内部テスターなど）は runtimeVersion が異なるため、`1.0.0` のビルドを入れ直すまで OTA を受け取らない。
 - **`version` を上げてもビルド番号はリセットしない。** EAS の remote 採番は単調増加で、
