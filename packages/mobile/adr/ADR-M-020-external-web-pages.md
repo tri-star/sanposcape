@@ -139,3 +139,4 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 - 却下: **`AboutSection` に3つの値を別々の props で渡す**。表示の規則は `formatAppVersion` に閉じ、`AboutSection` は `AppVersionInfo` を1つ受け取って表示だけを担う。
 - 長くなった値は、狭い画面でラベルを押し出さずに右寄せで折り返す（`flexShrink: 1`）。
 - E2E: 変えない（行の存在だけを assert していて、値は assert しない）。
+- 未確認として残すもの: 実機での値（staging の配布ビルド・OTA の update で起動した端末・埋め込みの JS へのフォールバック）は型とソースからの推論にとどまる（新しいネイティブ依存のため PR の時点では development build で確かめていない）。Android では `expo-application` が依存する install referrer のライブラリがマニフェストのマージで `BIND_GET_INSTALL_REFERRER_SERVICE` 権限を足す見込みで（通常の権限。アプリは呼ばないので送信はない）、Android の本番提出を整えるときにマージ後の権限の一覧と Google Play のデータ セーフティで確かめる。
