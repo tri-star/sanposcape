@@ -194,7 +194,7 @@ pnpm --filter mobile orval          # API クライアント再生成
   一時的に自前の IME へ切り替えて入力し、元のキーボードに戻ったときに再表示されないことがある。Android の
   `hideKeyboard` は BACK キーを送るだけなので、キーボードが出ていないと画面の「戻る」になり、ピン登録画面では
   破棄ダイアログが開いてしまう（run 36887167514 の pin-register。SS-152）。
-- 既に文字が入っている入力欄（住所の初期値が入るピン登録の名前欄、編集画面の名前欄など）に入れ直すときは、
+- 既に文字が入っている入力欄（編集画面の名前欄など）に入れ直すときは、
   `tapOn` → `eraseText` ではなく `runFlow: subflows/replace-text.yaml`（env の `FIELD_ID` と `TEXT`）を使う。
   クリアボタンがある検索欄は、クリアボタン（`*-search-input-clear`）で消す。Android の `eraseText` はカーソルより前しか
   消さず、`tapOn` は欄の中央を押すので、長い文字の後ろ半分が残ったまま入力が足される
@@ -208,7 +208,7 @@ pnpm --filter mobile orval          # API クライアント再生成
 - 実行には Android エミュレータ/実機 + preview APK が必要。
 - フローには tag を付けて実行対象を絞り込める（`--include-tags` / `--exclude-tags`）。
   **CI は絞り込まず全フローを実行する**（SS-54）ため、タグはローカルでの部分実行用:
-  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー（`app-tabs.yaml` はタブ構成とナビタブ idle の構成を見る。SS-145 / SS-147。`account-tab.yaml` はアカウントタブの記録・設定・画面カタログへの遷移を見る。SS-148。`account-tab-sign-in.yaml` はゲストがアカウントタブの案内からサインインするとアカウントタブへ戻ることを見る。SS-151。`theme-setting.yaml` はゲストのまま `/settings` でダークを選び、再起動後も選択が残ることを見る（配色は assert しない）。SS-86）。
+  - `smoke`: 外部データ（`/explore/*`）に依存しない到達性フロー（`app-tabs.yaml` はタブ構成とナビタブ idle の構成を見る。SS-145 / SS-147。`account-tab.yaml` はアカウントタブの記録・設定・画面カタログへの遷移を見る。SS-148。`account-tab-sign-in.yaml` はゲストがアカウントタブの案内からサインインするとアカウントタブへ戻ることを見る。SS-151。`theme-setting.yaml` はゲストのまま `/settings` でダークを選び、再起動後も選択が残ることを見る（配色は assert しない）。SS-86。あわせて「このアプリについて」のバージョンの行の表示を見る（値は assert しない）。SS-228）。
   - `mvp`: MVP 主要フロー（`mvp-walk-flow.yaml`）。
   - `pin`: ピン登録・閲覧関連フロー（`pin-register.yaml`（SS-88）/ `pin-register-anywhere.yaml`
     （ピンタブの地図の長押し → 登録・位置調整 → 保存 → ピンタブへ戻る。SS-124 / SS-146）/

@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { resolvePinName } from "@/features/pin/lib/pinDefaultName";
 import { resolveInitialVisited } from "@/features/pin/lib/pinStatus";
 import { buildPinCreateRequest } from "@/features/pin/lib/pinCreateRequest";
 import type { PinDraftFieldErrors, SaveAvailability } from "@/features/pin/lib/pinDraftValidation";
@@ -17,8 +16,6 @@ import {
 import { addTag, addTagErrorMessage, removeTag as removeTagFrom } from "@/features/pin/lib/pinTags";
 import { resolveSanpoMapChoices } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
-import { usePinDefaultName } from "@/features/pin/hooks/usePinDefaultName";
-import type { PinDefaultNameStatus } from "@/features/pin/hooks/usePinDefaultName";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { usePinTagSuggestions } from "@/features/pin/hooks/usePinTagSuggestions";
 import { usePinPhotos } from "@/features/pin/hooks/usePinPhotos";
@@ -31,8 +28,6 @@ import type { GeoCoordinates } from "@/services/location/types";
 
 export type UsePinRegisterOptions = {
   location: GeoCoordinates;
-  /** 位置が有効か（無効なら住所を引かない。画面は描画しない）。 */
-  locationValid: boolean;
   clientWalkId: string | null;
   isSignedIn: boolean;
   onSaved: (pin: SavedPin) => void;
@@ -41,10 +36,6 @@ export type UsePinRegisterOptions = {
 
 export type UsePinRegisterResult = {
   draft: PinDraft;
-  /** 名前の初期値（位置の住所）の状態。名前を一度でも編集した後は使わない。SS-138。 */
-  defaultNameStatus: PinDefaultNameStatus;
-  /** 名前欄に初期値（住所）が入っている（未編集）。 */
-  isNameDefault: boolean;
   setName: (v: string) => void;
   setMemo: (v: string) => void;
   setVisited: (v: boolean) => void;
@@ -76,10 +67,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   // 画面を開いた時点で1回だけ採番する（保存の冪等キー）。
   const clientPinIdRef = useRef<string>(randomUuidV4());
 
-  // null = 名前欄をまだ編集していない。その間は位置の住所（初期値）を名前として表示・保存する（SS-138）。
-  // effect で初期値を書き込まず表示時に導くので、取得が遅れて届いても入力中の名前を上書きしない。
-  // 位置を調整したら新しい位置の住所に追随する。
-  const [nameInput, setNameInput] = useState<string | null>(null);
+  const [name, setNameState] = useState("");
   const [memo, setMemoState] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInputState] = useState("");
@@ -94,12 +82,6 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     resolveInitialVisited({ clientWalkId: options.clientWalkId }),
   );
   const [visited, setVisitedState] = useState(initialVisited);
-
-  const defaultName = usePinDefaultName({
-    location: options.locationValid ? options.location : null,
-    enabled: options.isSignedIn,
-  });
-  const { name, isNameDefault } = resolvePinName({ nameInput, defaultName: defaultName.name });
 
   const draft: PinDraft = { name, memo, tags, sanpoMapSelection, visited };
   // 保存中に入力が変わっても作成内容が揺れないよう、保存開始時点（submit() 呼び出し時）の
@@ -177,7 +159,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   // React Compiler（app.json の experiments.reactCompiler）がビルド時に自動メモ化するため、
   // 手動の useCallback は付けない（依存配列の陳腐化・compiler との不整合警告を避ける）。
   const setName = (v: string) => {
-    setNameInput(v);
+    setNameState(v);
     save.resetError();
   };
 
@@ -250,8 +232,6 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
 
   return {
     draft,
-    defaultNameStatus: defaultName.status,
-    isNameDefault,
     setName,
     setMemo,
     setVisited,
@@ -269,9 +249,6 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     saveAvailability,
     save,
     submit,
-    hasUnsavedInput: hasUnsavedInput(draft, photos.summary.total, {
-      initialVisited,
-      defaultName: defaultName.name,
-    }),
+    hasUnsavedInput: hasUnsavedInput(draft, photos.summary.total, { initialVisited }),
   };
 }

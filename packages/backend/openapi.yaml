@@ -257,12 +257,12 @@ paths:
       tags:
       - explore
       summary: Reverse Geocode
-      description: 'SS-138: ピンの位置の住所（ピン名の初期値）。ピン登録と同じくサインインが要る。
+      description: 'ピンの位置の住所（SS-138。SS-212 からはピン詳細に表示する）。サインインが要る。
 
 
-        座標を Google へ送るのはサーバーからだけで、DB・ログには残さない（メモリのキャッシュのみ）。
+        座標を Google へ送るのはサーバーからだけで、DB・ログには残さない（メモリのキャッシュのみ。
 
-        住所が無い場所では 200 + `address=null`。'
+        キャッシュは利用者ごとに分ける）。住所が無い場所では 200 + `address=null`。'
       operationId: reverse_geocode_explore
       requestBody:
         content:
@@ -2150,7 +2150,7 @@ components:
       required:
       - location
       title: ReverseGeocodeRequest
-      description: 'SS-138: ピンの位置の住所を引く（ピン名の初期値に使う）。'
+      description: ピンの位置の住所を引く（SS-138。SS-212 からはピン詳細の表示に使う）。
     ReverseGeocodeResponse:
       properties:
         address:
@@ -2169,8 +2169,9 @@ components:
           - type: 'null'
           title: Building Name
           description: Building name at the location when the provider supplies one
-            (best-effort). Not included in address. Null when unavailable or when
-            address is null.
+            (best-effort). Taken only from a provider result whose bounds contain
+            the location. Not included in address. Null when unavailable or when address
+            is null.
       type: object
       required:
       - address

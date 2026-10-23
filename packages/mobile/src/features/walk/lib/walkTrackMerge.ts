@@ -28,6 +28,7 @@ export const INITIAL_WALK_TRACK_SYNC: WalkTrackSync = {
  *    同じバッチ内の同一時刻も、先に来た1点だけを採る
  * 3. 残りを時刻の昇順に並べる（Android はまとめて届くことがある。元の配列は変えない）
  * 4. 順に: latestPosition を更新し、paused でなければ appendWalkTrackPoint で軌跡に足す
+ *    （測位時刻も渡す。GPS の飛びを距離に加算しない判定に使う）
  *    （一時停止中もカーソルは進める＝停止中の移動は後から取り込み直さない）
  * 5. 新しいサンプルが無ければ state を同じ参照で返す（無駄な再レンダーを避ける）
  * 軌跡に入れる点は { latitude, longitude } だけに詰め直す（FinishedWalk.track は GeoCoordinates[]）。
@@ -58,7 +59,7 @@ export function mergeWalkTrackSamples(
     const point: GeoCoordinates = { latitude: sample.latitude, longitude: sample.longitude };
     latestPosition = point;
     lastSampleAtMs = sample.timestampMs;
-    if (!options.paused) track = appendWalkTrackPoint(track, point);
+    if (!options.paused) track = appendWalkTrackPoint(track, point, sample.timestampMs);
   }
   return { track, lastSampleAtMs, latestPosition };
 }

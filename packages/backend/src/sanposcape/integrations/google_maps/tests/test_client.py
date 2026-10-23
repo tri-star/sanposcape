@@ -15,7 +15,7 @@ from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsUnavailableError,
 )
 from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
-from sanposcape.integrations.google_maps.provider import ProviderPoint
+from sanposcape.integrations.google_maps.provider import ProviderAddress, ProviderPoint
 
 
 def _provider(handler):
@@ -562,7 +562,7 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
         assert request.headers["x-goog-api-key"] == "server-key"
         assert (
             request.headers["x-goog-fieldmask"]
-            == "results.formattedAddress,results.addressComponents,results.types"
+            == "results.formattedAddress,results.addressComponents,results.types,results.bounds"
         )
         return _geocode_response(
             [
@@ -576,6 +576,7 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
                         {"longText": "１", "types": ["premise"]},
                         {"longText": "４", "types": ["political", "sublocality_level_4"]},
                     ],
+                    "bounds": _bounds(35.6805, 139.7665, 35.6820, 139.7680),
                 },
                 {"types": ["locality"], "formattedAddress": "日本、東京都千代田区"},
             ]
@@ -584,8 +585,8 @@ def test_reverse_geocode_normalizes_address_and_extracts_building_name() -> None
     provider = _provider(handler)
     point = ProviderPoint(35.681236, 139.767125)
 
-    first = provider.reverse_geocode(point, timeout_seconds=8)
-    second = provider.reverse_geocode(point, timeout_seconds=8)
+    first = provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
+    second = provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
 
     assert first is not None
     assert first.address == "東京都千代田区丸の内2丁目4-1"
@@ -607,7 +608,9 @@ def test_reverse_geocode_ignores_number_only_premise_and_plus_code_results() -> 
             ]
         )
 
-    result = _provider(handler).reverse_geocode(ProviderPoint(35.6, 139.7), timeout_seconds=8)
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.6, 139.7), cache_scope="user-a", timeout_seconds=8
+    )
 
     assert result is not None
     assert result.address == "東京都渋谷区渋谷2丁目21-1"
@@ -642,8 +645,8 @@ def test_reverse_geocode_returns_none_without_an_address_and_caches_it(body) -> 
     provider = _provider(handler)
     point = ProviderPoint(0, -140)
 
-    assert provider.reverse_geocode(point, timeout_seconds=8) is None
-    assert provider.reverse_geocode(point, timeout_seconds=8) is None
+    assert provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8) is None
+    assert provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8) is None
     assert calls == 1
 
 
@@ -670,7 +673,9 @@ def test_reverse_geocode_maps_http_errors(status_code, expected, caplog) -> None
         )
 
     with pytest.raises(expected) as exc_info:
-        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+        _provider(handler).reverse_geocode(
+            ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )
 
     assert "/v4/geocode/location" in caplog.text
     # キー・座標はログに出さない（エラー文言のキーは伏せ、URL はクエリを落とす）。
@@ -685,9 +690,282 @@ def test_reverse_geocode_rejects_malformed_results() -> None:
         return httpx.Response(200, json={"results": "broken"})
 
     with pytest.raises(GoogleMapsUnavailableError):
-        _provider(handler).reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+        _provider(handler).reverse_geocode(
+            ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )
+
+
+def _bounds(south: float, west: float, north: float, east: float) -> dict:
+    return {
+        "low": {"latitude": south, "longitude": west},
+        "high": {"latitude": north, "longitude": east},
+    }
+
+
+def test_reverse_geocode_takes_building_name_from_a_later_result_containing_the_point() -> None:
+    """住所の結果に建物名が無いとき、ピンの位置を範囲に含む後ろの結果の建物名を使う（SS-212）。
+
+    範囲の外の結果（近くの別の建物）と、範囲を持たない結果の建物名は使わない。
+    """
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒100-0005 東京都千代田区丸の内２丁目４−１",
+                    "addressComponents": [{"longText": "１", "types": ["premise"]}],
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都千代田区丸の内２丁目４ 隣のビル",
+                    "addressComponents": [{"longText": "隣のビル", "types": ["premise"]}],
+                    "bounds": _bounds(35.6815, 139.7640, 35.6820, 139.7645),
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都千代田区丸の内２丁目 範囲なしビル",
+                    "addressComponents": [{"longText": "範囲なしビル", "types": ["premise"]}],
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都千代田区丸の内２丁目４−１ 丸の内ビルディング",
+                    "addressComponents": [{"longText": "丸の内ビルディング", "types": ["premise"]}],
+                    "bounds": _bounds(35.6805, 139.7660, 35.6815, 139.7680),
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.681, 139.767), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result == ProviderAddress(
+        address="東京都千代田区丸の内2丁目4-1", building_name="丸の内ビルディング"
+    )
+
+
+def test_reverse_geocode_drops_a_neighbor_building_from_the_address() -> None:
+    """住所の結果が範囲の外の建物（隣のビル）なら、住所から建物名を外し、建物名も出さない（SS-212）。
+
+    実キーで横浜市中区の歩道付近を引いたときの並び（駅の施設 → 隣のビル → 番地）を写したもの。
+    """
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["establishment", "point_of_interest", "transit_station"],
+                    "formattedAddress": "日本、〒231-0015 神奈川県横浜市中区尾上町１丁目 港町",
+                },
+                {
+                    "types": ["premise", "street_address"],
+                    "formattedAddress": (
+                        "日本、〒231-0015 神奈川県横浜市中区尾上町１丁目８ 関内新井ビル"
+                    ),
+                    "addressComponents": [
+                        {"longText": "関内新井ビル", "types": ["premise"]},
+                        {"longText": "８", "types": ["premise"]},
+                    ],
+                    "bounds": _bounds(35.4440, 139.6370, 35.4442, 139.6375),
+                },
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒231-0015 神奈川県横浜市中区尾上町１丁目５",
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.4443, 139.638), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result == ProviderAddress(address="神奈川県横浜市中区尾上町1丁目8", building_name=None)
+
+
+def test_reverse_geocode_drops_tenant_floor_from_the_address() -> None:
+    """先頭が入居者の施設の結果なら、住所から建物名・階（「5階」）を外す（SS-212）。
+
+    実キーで丸ビル付近を引いたときの並び（施設 → 番地 → 建物）を写したもの。施設の結果は
+    「丸の内ビルディング 5階」を住所に含み、範囲を持たない。建物名は範囲にピンの位置が入る
+    建物の結果から取る。
+    """
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["establishment", "point_of_interest"],
+                    "formattedAddress": (
+                        "日本、〒100-0005 東京都千代田区丸の内２丁目４−１ 丸の内ビルディング 5階"
+                    ),
+                    "addressComponents": [
+                        {"longText": "5階", "types": ["subpremise"]},
+                        {"longText": "丸の内ビルディング", "types": ["premise"]},
+                        {"longText": "１", "types": ["premise"]},
+                    ],
+                },
+                {
+                    "types": ["street_address", "subpremise"],
+                    "formattedAddress": "日本、〒100-0005 東京都千代田区丸の内２丁目４−１",
+                    "addressComponents": [{"longText": "１", "types": ["premise"]}],
+                    "bounds": _bounds(35.6810, 139.7630, 35.6815, 139.7640),
+                },
+                {
+                    "types": ["premise", "street_address"],
+                    "formattedAddress": (
+                        "日本、〒100-0005 東京都千代田区丸の内２丁目４−１ 丸の内ビルディング"
+                    ),
+                    "addressComponents": [
+                        {"longText": "丸の内ビルディング", "types": ["premise"]},
+                        {"longText": "１", "types": ["premise"]},
+                    ],
+                    "bounds": _bounds(35.6805, 139.7630, 35.6820, 139.7645),
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.68128, 139.763681), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result == ProviderAddress(
+        address="東京都千代田区丸の内2丁目4-1", building_name="丸の内ビルディング"
+    )
+
+
+def test_reverse_geocode_uses_a_poi_result_when_it_is_the_only_address() -> None:
+    """施設の結果しか住所を持たなければ、施設の結果を使い、建物名から後ろ（階）を外す（SS-212）。
+
+    範囲を持たない結果の建物名なので、建物名は出さない。
+    """
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["establishment", "point_of_interest"],
+                    "formattedAddress": (
+                        "日本、東京都千代田区丸の内２丁目４−１ 丸の内ビルディング 5階"
+                    ),
+                    "addressComponents": [{"longText": "丸の内ビルディング", "types": ["premise"]}],
+                },
+                {"types": ["plus_code"], "formattedAddress": "MQJ7+GF 日本、東京都千代田区"},
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.68128, 139.763681), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result == ProviderAddress(address="東京都千代田区丸の内2丁目4-1", building_name=None)
+
+
+def test_reverse_geocode_uses_the_nearest_poi_result_and_skips_transit_stops() -> None:
+    """先頭の施設の結果の番地を住所に使い、駅・停留所の結果は使わない（SS-212）。
+
+    実キーで都庁付近を引いたときの並びを写したもの。先頭の施設（都庁）の番地 8-1 が正しく、
+    後ろの番地の結果 8-4 は隣の建物。駅の結果は住所の後ろに停留所の名前が付く。
+    """
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["establishment", "point_of_interest", "transit_station"],
+                    "formattedAddress": "日本、東京都新宿区西新宿２丁目８ 都庁第一本庁舎",
+                },
+                {
+                    "types": ["establishment", "point_of_interest"],
+                    "formattedAddress": "日本、〒160-0023 東京都新宿区西新宿２丁目８−１",
+                    "addressComponents": [{"longText": "１", "types": ["premise"]}],
+                },
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒160-0023 東京都新宿区西新宿２丁目８−４",
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.6896, 139.6917), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result == ProviderAddress(address="東京都新宿区西新宿2丁目8-1", building_name=None)
+
+
+def test_reverse_geocode_keeps_a_number_only_subpremise_in_the_address() -> None:
+    """数字だけの `subpremise`（部屋番号など）は番地の一部として残す（SS-212）。"""
+
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒162-0825 東京都新宿区神楽坂３丁目１−１０１",
+                    "addressComponents": [
+                        {"longText": "１０１", "types": ["subpremise"]},
+                        {"longText": "１", "types": ["premise"]},
+                    ],
+                }
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.702, 139.741), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result == ProviderAddress(address="東京都新宿区神楽坂3丁目1-101", building_name=None)
+
+
+def test_reverse_geocode_has_no_building_name_when_no_result_contains_the_point() -> None:
+    def handler(request):
+        return _geocode_response(
+            [
+                {
+                    "types": ["street_address"],
+                    "formattedAddress": "日本、〒150-0002 東京都渋谷区渋谷２丁目２１−１",
+                },
+                {
+                    "types": ["premise"],
+                    "formattedAddress": "日本、東京都渋谷区渋谷２丁目 隣のビル",
+                    "addressComponents": [{"longText": "隣のビル", "types": ["premise"]}],
+                    "bounds": _bounds(35.0, 139.0, 35.1, 139.1),
+                },
+            ]
+        )
+
+    result = _provider(handler).reverse_geocode(
+        ProviderPoint(35.6, 139.7), cache_scope="user-a", timeout_seconds=8
+    )
+
+    assert result is not None
+    assert result.building_name is None
+
+
+def test_reverse_geocode_does_not_share_the_cache_between_users() -> None:
+    """住所のキャッシュは利用者ごと。同じ位置でも別の利用者には使い回さない（SS-212。利用規約）。"""
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        return _geocode_response(
+            [{"types": ["street_address"], "formattedAddress": "日本、東京都渋谷区渋谷２丁目"}]
+        )
+
+    provider = _provider(handler)
+    point = ProviderPoint(35.6, 139.7)
+
+    provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
+    provider.reverse_geocode(point, cache_scope="user-a", timeout_seconds=8)
+    provider.reverse_geocode(point, cache_scope="user-b", timeout_seconds=8)
+
+    assert calls == 2
 
 
 def test_unconfigured_provider_reverse_geocode_is_unavailable() -> None:
     with pytest.raises(GoogleMapsUnavailableError):
-        UnconfiguredGoogleMapsProvider().reverse_geocode(ProviderPoint(35, 139), timeout_seconds=8)
+        UnconfiguredGoogleMapsProvider().reverse_geocode(
+            ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )

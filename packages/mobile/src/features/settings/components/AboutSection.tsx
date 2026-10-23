@@ -1,11 +1,16 @@
-import { Text } from "react-native";
+import { Text, View } from "react-native";
 
 import { PrivacyPolicyLink } from "@/components/legal/PrivacyPolicyLink";
 import { TermsLink } from "@/components/legal/TermsLink";
 import { Card } from "@/components/ui/card/Card";
+import { APP_VERSION_LABEL, formatAppVersion } from "@/features/settings/lib/appVersionLabel";
 import { makeStyles } from "@/theme/makeStyles";
 
-export type AboutSectionProps = { testID?: string };
+export type AboutSectionProps = {
+  /** 実行中のアプリのバージョン。読めなければ null（「不明」と出す）。読むのは呼び出し側（SS-228）。 */
+  appVersion: string | null;
+  testID?: string;
+};
 
 const ABOUT_SECTION_TITLE = "このアプリについて";
 // 本文の中身（保存期間・第三者提供など）に踏み込む約束は書かない。正本は LP のポリシー本文（SS-158）。
@@ -13,7 +18,7 @@ const ABOUT_SECTION_DESCRIPTION =
   "アプリの利用条件と、位置情報など、アプリが扱う情報の取り扱いを説明しています。";
 
 /** 設定画面の「このアプリについて」カード。表示だけを担い、状態は持たない。 */
-export function AboutSection({ testID }: AboutSectionProps) {
+export function AboutSection({ appVersion, testID }: AboutSectionProps) {
   const styles = useStyles();
 
   return (
@@ -24,6 +29,12 @@ export function AboutSection({ testID }: AboutSectionProps) {
       <Text style={styles.description}>{ABOUT_SECTION_DESCRIPTION}</Text>
       <TermsLink testID="settings-terms-link" />
       <PrivacyPolicyLink testID="settings-privacy-policy-link" />
+      <View style={styles.versionRow} testID="settings-app-version">
+        <Text style={styles.versionLabel}>{APP_VERSION_LABEL}</Text>
+        <Text style={styles.versionValue} selectable>
+          {formatAppVersion(appVersion)}
+        </Text>
+      </View>
     </Card>
   );
 }
@@ -40,5 +51,19 @@ const useStyles = makeStyles((theme) => ({
   description: {
     fontSize: theme.typography.size.sm,
     color: theme.colors.textSecondary,
+  },
+  versionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  versionLabel: {
+    fontSize: theme.typography.size.sm,
+    color: theme.colors.textSecondary,
+  },
+  versionValue: {
+    fontSize: theme.typography.size.sm,
+    color: theme.colors.textPrimary,
   },
 }));

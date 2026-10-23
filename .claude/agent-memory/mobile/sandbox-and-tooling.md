@@ -1,6 +1,6 @@
 ---
 name: sandbox-and-tooling
-description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手
+description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有
 metadata:
   type: feedback
   scope: durable
@@ -63,3 +63,18 @@ worktree 構成などで `git add` / `commit` が `index.lock: Read-only file sy
 `GIT_DIR` の差し替えなどの迂回を繰り返さず、編集・lint・format・test・typecheck まで済ませてから、コミットできなかったことを報告する。
 
 Related: [[ts-rn-pitfalls]], [[native-config]]
+
+## エミュレータと Metro は worktree の間で共有されている
+
+エミュレータ（Windows 側に1台）と Metro の 8081 は、並行している別の worktree のセッションと共有になる。
+`dev-up.sh` は 8081 に Metro が居れば「既に起動済み」として**そのまま使う**ので、別の worktree の Metro なら、
+その worktree のコードを見て「確認できた」と誤認する（SS-212 で ss-211 の Metro が動いていた）。
+
+**How to apply:** 動作確認の前に、Metro の起動元を確かめる（sandbox 外で実行）。
+
+```bash
+for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
+```
+
+自分の worktree でなければ、止めたり `adb reverse` を差し替えたりすると相手の作業を壊すので、自律実行中は動作確認を省略して報告し、
+ユーザーに順番を決めてもらう。

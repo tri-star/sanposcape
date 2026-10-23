@@ -1,6 +1,6 @@
 ---
 name: aws-and-external-calls
-description: 外部呼び出し（boto3・httpx・Apple）と CloudFormation の罠。締め切りは実行中の1回分も予算に入れる、boto3 は total_max_attempts、endpoint_url で presigned URL のリージョンが落ちる、httpx の単一 float timeout、Fn::Sub の変数マップの値は再評価されない
+description: 外部呼び出し（boto3・httpx・Apple）と CloudFormation の罠。締め切りは実行中の1回分も予算に入れる、boto3 は total_max_attempts、endpoint_url で presigned URL のリージョンが落ちる、httpx の単一 float timeout、Fn::Sub の変数マップの値は再評価されない、外部 API の応答の読み取りは実キーの生の応答を見てから決める
 metadata:
   type: feedback
   scope: durable
@@ -68,3 +68,27 @@ Resource: !Sub
 - 常に鍵を返すフェイク JWKS では、JWT でない入力の `DecodeError` の経路を通らない。その経路は `DecodeError` を投げるフェイクでテストする。
 
 関連: [[planning-checklist]]
+
+## 6. 外部 API の応答の読み取りは、実キーの生の応答を見てから決める
+
+SS-212 では、Geocoding API の結果の並びを想像で組んだテスト（MockTransport）が通ったのに、エミュレータで実キーを使うと
+住所が「…4-1 丸の内ビルディング 5階 丸の内ビルディング」と重なった。実際は先頭に入居者の施設・駅の結果が来て、
+番地の結果が隣の建物の名前を付けることもあった（取り方の決定は ADR-001 SS-212 追補）。
+
+**How to apply:**
+- 応答の読み取りを変えるときは、api コンテナの中で実キーの生の応答（必要なフィールドだけ）を数地点ぶん表示して並びを確かめる。
+  キーは `get_settings()` から読み、出力にキー・利用者 ID を出さない。
+  ```bash
+  docker compose -p <project> -f packages/backend/compose.yaml exec -T api uv run python - <<'PY'
+  import httpx
+  from sanposcape.config import get_settings
+  r = httpx.get("https://geocode.googleapis.com/v4/geocode/location",
+      params={"locationQuery": "35.68128,139.763681", "languageCode": "ja", "regionCode": "JP"},
+      headers={"X-Goog-Api-Key": get_settings().google_maps_server_api_key,
+               "X-Goog-FieldMask": "results.formattedAddress,results.addressComponents,results.types,results.bounds"})
+  for res in r.json().get("results", []): print(res.get("types"), res.get("formattedAddress"))
+  PY
+  ```
+- 見た並びをそのままテストのフィクスチャに写し、docstring に「実キーで◯◯付近を引いたときの並び」と書く。
+- 修正後は `HttpGoogleMapsProvider(get_settings()).reverse_geocode(...)` を同じ地点に当てて結果を確かめる。
+  エミュレータでは端末（staleTime 無限）と backend（利用者ごと 300 秒）のキャッシュが残るので、api とアプリを再起動してから見る。

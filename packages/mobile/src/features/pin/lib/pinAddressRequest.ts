@@ -9,8 +9,8 @@ function roundCoordinate(value: number): number {
 }
 
 /**
- * ピンの位置の住所を引く `POST /explore/reverse-geocode` の送信ボディ（SS-138）。
- * 座標は保存するピンと同じ小数6桁（`buildPinCreateRequest`）に揃え、保存する位置より精度の高い値を送らない。
+ * ピンの位置の住所を引く `POST /explore/reverse-geocode` の送信ボディ（SS-138。SS-212 からはピン詳細で使う）。
+ * 座標は保存するピンと同じ小数6桁（`buildPinCreateRequest`）に揃え、保存した位置より精度の高い値を送らない。
  * 座標が不正なら null（送らない）。
  */
 export function buildPinAddressRequest(location: GeoCoordinates): ReverseGeocodeRequest | null {

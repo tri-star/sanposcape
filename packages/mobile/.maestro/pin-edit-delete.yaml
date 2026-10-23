@@ -92,12 +92,6 @@ tags:
     notVisible:
       id: "pin-register-sanpo-map-loading"
     timeout: 15000
-# 名前欄には位置の住所が初期値として入る（SS-138。E2E の backend は MAPS_MODE=fake で固定の住所を返す）。
-# 入力は既存の文字に追記されるので、住所が入るのを待ってから消して入れる（後から届いて混ざらないように）。
-- extendedWaitUntil:
-    visible:
-      text: "この場所の住所を入れました.*"
-    timeout: 15000
 - runFlow:
     file: subflows/replace-text.yaml
     env:
@@ -156,6 +150,12 @@ tags:
 # ピンタブの長押しからの登録は「未訪問」で始まる（登録時の初期値と backend の往復を確かめる。SS-173）。
 - assertVisible:
     id: "pin-detail-status-unvisited"
+# ピンの位置の住所は詳細を開いたときに引く（SS-212。E2E の backend は MAPS_MODE=fake で固定の住所と建物名を返す）。
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-address"
+      text: "テスト県テスト市テスト町1丁目2-3 テストビル"
+    timeout: 15000
 
 # ピン詳細の地図（SS-149）: 「ピンの位置に戻す」が出て、押しても画面がそのまま。
 # パン・ピンチは E2E しない（Maestro は2本指を打てない。地図の描画面は testID で触れない。ADR-M-012 D14）。

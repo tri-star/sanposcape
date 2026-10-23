@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（棚卸し追補: dev・prod へのデプロイと、SS-179・SS-180 のデプロイ後の確認を反映。前回 SS-181）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-21（PR #186 追補: fastapi を 0.142 未満に固定。前回 2026-10-17 の棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -34,6 +34,7 @@
 - **SS-180 のデプロイ後の確認**: 2026-10-17 に作業者が dev・prod で deployment.md §15「デプロイ後の確認」を行った（ログの JSON 化）。項目ごとの結果は記録していないので、2026-10-10 時点で未確認として挙げていた次の項目は、未確認のまま扱う。(1) Lambda のロググループでアプリのログが 1 レコード 1 イベントの JSON になり、Logs Insights が `level` / `trace_id` などをフィールドとして見つけること（ランタイムの root のハンドラーのフォーマッター差し替えが効くこと）。(2) START / END / REPORT がテキストのままで、ダッシュボードの Q5〜Q6b が変わらず描けること。(3) ログ → トレース（`trace_id` で `aws/spans` を引ける、X-Ray の形 `1-<先頭8桁>-<残り24桁>` で開ける）とトレース → ログ（コンソールのトレース詳細の「ログ」欄に相関ログが自動で出るか。出なければ手動のクエリを正式な手順とし、X-Ray 形式の `xray_trace_id` を足すかは別課題）。(4) `trace_sampled` が `true` で、`aws_request_id` が REPORT 行の `@requestId` と一致すること。(5) クエリ付きのリクエストの `secret=abc` がロググループに残らないこと。500 の経路は dev で意図的に起こす手段が無く、自動テストとローカルで代える（本文: 決定3 の SS-180 追補、deployment.md §15）。
 - **退会後も `user_id`（内部 UUID）がログ（prod 400 日）とスパンの `enduser.id`（`aws/spans`、prod 90 日 / dev 30 日）に残る**。プライバシーポリシー上の扱いはユーザー判断で、未確認（本文: 決定6、SS-180/SS-181 追補）。
 - **dev での未確認事項（SS-181）**: dev・prod にはデプロイ済み（2026-10-17 時点）だが、次は確認した記録が無い。(1) `aws/spans` で `attributes.enduser.id` / `attributes.session.id` が引けること。(2) X-Ray のセグメントの `user` に `enduser.id` が写るか（collector-contrib の変換では写るが、ADOT Python の UDP 経路は未確認）。(3) ログイン・refresh のアクセスログに `user_id` が付くこと。(4) CloudFront 経由で `X-App-Session-Id` が届くこと（deployment.md §16「デプロイ後の確認」）。新しい semconv で `enduser.id` が非推奨とされている可能性があり、(2) の結果とあわせて属性名を見直す（属性名は `LogContext` の metadata 1 か所）（本文: 決定6、SS-181 追補）。
+- **fastapi は 0.142 未満に固定している（SS-223）**: 0.142 以降は `opentelemetry-api` を必須依存にして import 時に読み込み、FastAPI 自身がスパン・メトリクス・ログ（例外メッセージ込み）を出すため、zip に入れない方針・手動計装・外へ出さない情報と衝突する。`pyproject.toml` の上限と `.github/dependabot.yml` の ignore（security updates にも効く）を対で外すときに方針を決める（本文: 決定1、PR #186 追補）。
 - **mobile が `X-App-Session-Id` を付ける別課題は未起票**（ユーザー判断）。それまで `app_session_id` / `session.id` は付かない（本文: 決定6、SS-181 追補）。
 - **別課題（SS-180 で見送り、SS-181 でも未対応）**: `ThreadPoolExecutor` のワーカーのログに文脈が付かない件と `ExceptionGroup` の展開（本文: 決定7、SS-180 追補）。SS-181 のレビューで見送った整理: `core/tracing.py` の共有ヘルパー（`warn_once`・`sqlstate_of`・`resolve_route_template`）の切り出しと、`AccessLogMiddleware` の責務（アクセスログ・文脈の初期化とヘッダー解析・スパンへの写し）の分離は、次に機能を足すときに行う（本文: 決定7、SS-181 追補）。
 
@@ -98,7 +99,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - **flush とレイテンシ**: ADOT の Lambda 計装は、呼び出しごとにレスポンスの前で同期的に flush する。送信先は同じ環境内の UDP エンドポイントなので、外部 SaaS へ HTTPS で送るより小さい見込みだが、実測はしていない。UDP のサイズ上限を超えるとバッチごと落ちるという既知の issue（aws-otel-python-instrumentation#915、未確認）もある。flush の時間とスパンの欠落の有無を、SS-178 で dev 実測する。（**SS-178 追補**: 2026-10-04 の dev 実測（PR #134 のブランチを dev にデプロイ）では、ウォーム時の「Lambda の Duration − アプリの計測時間」は計装前 35〜50ms、計装後 39〜47ms で、flush の上乗せはほぼ無かった（数 ms 以内）。テストで送った 10 件ほどのリクエストのスパンは、欠けずに `aws/spans` に入った。）
 - アプリのコードが依存してよいのは、OpenTelemetry の API と計装ライブラリまで。ADOT 固有の API には依存しない（ECS などへ移っても、計装コードをそのまま使えるようにするため）。
 - **zip とレイヤーのパッケージ衝突に注意する。** Lambda の `sys.path` では、zip（`/var/task`）がレイヤー（`/opt/python`）より前に来る。zip に同梱した `opentelemetry-*` が、レイヤーの SDK やディストロを上書きしてバージョンが食い違う恐れがある。どのパッケージをどちらに持たせるかは SS-178 で決め、依存が重複していないかと展開後のサイズ（レイヤー込みで上限 250MB）を確認する。
-  - （**SS-178 追補**: **OpenTelemetry は zip に入れない。** `pyproject.toml` の dev グループ（boto3 と同じ扱い。版はレイヤーの同梱版に `==` で固定）に置き、`uv export --no-dev` で除く。Makefile の `build-Api` は成果物に `opentelemetry*`（dist-info を含む）があれば失敗する。dependabot は `opentelemetry-*` を ignore し、レイヤーを上げるときに手動で揃える。`sqlalchemy[asyncio]`（greenlet）だけは runtime 依存にした: SQLAlchemy の計装が `instrument()` の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1 は greenlet を既定で含まないため、無いと `get_engine()` が落ちる。重なるパッケージ（typing-extensions・pyyaml は同じ版、certifi・idna は版違いの見込み）と展開後のサイズは、dev で実測して追記する。）
+  - （**SS-178 追補**: **OpenTelemetry は zip に入れない。** `pyproject.toml` の dev グループ（boto3 と同じ扱い。版はレイヤーの同梱版に `==` で固定）に置き、`uv export --no-dev` で除く。Makefile の `build-Api` は成果物に `opentelemetry*`（dist-info を含む）があれば失敗する。dependabot は `opentelemetry-*` を ignore し、レイヤーを上げるときに手動で揃える。`sqlalchemy[asyncio]`（greenlet）だけは runtime 依存にした: SQLAlchemy の計装が `instrument()` の中で `sqlalchemy.ext.asyncio` を import し、SQLAlchemy 2.1 は greenlet を既定で含まないため、無いと `get_engine()` が落ちる。重なるパッケージ（typing-extensions・pyyaml は同じ版、certifi・idna は版違いの見込み）と展開後のサイズは、dev で実測して追記する。）（**PR #186 追補**: fastapi 0.142.0 以降は `opentelemetry-api>=1.44.0` を必須依存にし、`import fastapi` の時点で opentelemetry を読み込み、既定で FastAPI 自身がスパン・メトリクス・ログ（例外メッセージ・スタックトレース込み）を出す。このまま上げると `uv export --no-dev` に `opentelemetry-api` が入って `build-Api` の検査で失敗し、手動の FastAPI 計装と二重になり、決定6 にも反する。そのため `pyproject.toml` で `fastapi>=0.141.1,<0.142` に固定し、dependabot は fastapi `>=0.142` を ignore した。ignore は security updates にも効く。対応方針（runtime 依存化とレイヤーの版の関係、`FastAPI(telemetry=...)` での無効化、テストの前提）は SS-223 で決める。）
 - X-Ray SDK と、Powertools for AWS Lambda の Tracer（X-Ray SDK ベース）は使わない。
 
 ### 決定2: 閲覧先は CloudWatch。トレースは Transaction Search、ルート単位のメトリクスは Application Signals
