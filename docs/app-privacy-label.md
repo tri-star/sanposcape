@@ -69,7 +69,7 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 | 名前 | Google から受け取る表示名、または Apple のサインイン時に端末から受け取る氏名（`users.display_name`） | `auth/providers/google.py`、`auth/providers/apple.py`、`auth/schemas.py`、`users/service.py`、`users/models.py` | 1-2 |
 | メールアドレス | Google / Apple から受け取るメールアドレス（`users.email`。Apple は非公開リレーのアドレスの場合がある）。重要なお知らせの連絡にも使うが、マーケティングには使わない | 同上 | 1-2、2 |
 | フィットネス | 散歩の記録の歩いた時間・距離（`walks.duration_seconds` / `distance_meters`）。Motion & Fitness API・HealthKit は使っていないが、運動の記録にあたるため申告する | `walks/models.py` | 1-1 |
-| 正確な位置情報 | 散歩の軌跡（小数 6 桁）、目的地の座標、ピンの座標。ピン地図の表示範囲（小数 4 桁）は `GET /pins` のクエリに載るため、CloudFront のアクセスログに残りうる。Apple の定義では小数 3 桁以上は「正確」。なお、スポット・ルート検索の現在地（小数 4 桁 ≒ 11m）と、ピン詳細に出す住所を引くためのピンの座標（SS-138・SS-212。Google Geocoding API へ送る）は POST のボディで送り、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、DB にもログにも残らない | `walks/models.py`、`sanpo_maps/models.py`、mobile の `walkTrackPayload.ts` / `pinFetchBounds.ts` / `placeSearchRequest.ts`、backend の `config.py`（キャッシュの TTL） | 1-1、1-5 |
+| 正確な位置情報 | 散歩の軌跡（小数 6 桁）、目的地の座標、ピンの座標。ピン地図の表示範囲（小数 4 桁）は `GET /pins` のクエリに載るため、CloudFront のアクセスログに残りうる。Apple の定義では小数 3 桁以上は「正確」。なお、スポット・ルート検索の現在地（小数 4 桁 ≒ 11m）と、住所を引くためのピンの座標（ピン詳細に出す住所。1.0.0 のビルドではピン名の初期値に使う住所。SS-138・SS-212。Google Geocoding API へ送る）は POST のボディで送り、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、DB にもログにも残らない | `walks/models.py`、`sanpo_maps/models.py`、mobile の `walkTrackPayload.ts` / `pinFetchBounds.ts` / `placeSearchRequest.ts`、backend の `config.py`（キャッシュの TTL） | 1-1、1-5 |
 | 写真またはビデオ | ピンに添付する写真（S3）と、写真に付随する撮影日時（`pin_photos.taken_at`。SS-163）。Google のプロフィール画像の URL（`users.photo_url`）もここに含める | `sanpo_maps/photos/`、`users/models.py` | 1-2、1-3 |
 | その他のユーザコンテンツ | ピンの名称・メモ・タグ、地図（sanpo map）の名称 | `sanpo_maps/models.py`、`pins/schemas.py` | 1-3 |
 | ユーザ ID | Google / Apple アカウントの ID（`users.provider_subject` = sub）、アカウントの内部 ID（`users.id`） | `users/models.py` | 1-2、1-5 |
@@ -123,6 +123,8 @@ Apple の定義では、アプリに組み込んだ SDK が収集するデータ
 
 次のいずれかを変えたら、[データ取扱い台帳](./privacy/data-inventory.md)を直したうえで、この文書と App Store Connect の回答、[プライバシーポリシー](../packages/lp/src/pages/privacy.astro)の 3 つを揃えて更新する。
 どの変更が対象になるか（対象パス）は台帳の「1. 対象パス」にある。
+App Privacy の回答はアプリのバージョンごとではなくアプリに 1 つなので、台帳と同じく、サポート中のすべてのアプリ（配布済みのバイナリとフラグの裏の機能）の挙動の和集合で書く。
+古いアプリにだけ残る挙動の記述は、最低サポートバージョンを上げてから消す（台帳の「2.1」と「6. 古いアプリのための記述（contract 待ち）」）。
 
 - 新しく保存・送信するデータを増やす（例: ピンの検索 UI を付けて検索語を送る → 検索履歴を申告する）
 - SDK を足す（クラッシュ解析・アクセス解析・広告など）。SDK が収集するデータも申告対象になる
