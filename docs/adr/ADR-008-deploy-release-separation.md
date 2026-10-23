@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-22（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離を追補。前回は SS-101 の mobile のアップデートの案内）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-24（SS-231: 最低サポートバージョンの持ち越しに、ポリシー・申告の contract 待ちへの導線を足した）。前回: 2026-10-22（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -79,6 +79,8 @@
 - **最低サポートバージョン（`client_requirements` の属性）を変える経路が無い**。ワークフローは現在値を引き継ぐだけで、決定6 によりコンソールからも
   操作しない。SS-101 でも足さず、最初の contract を計画するときに入力を足す。値が `null` の間はアップデートの案内は出ない。
   （本文: SS-99 追補 D23、SS-101 追補 D33）
+  （**SS-231 追補**: API・DB スキーマのほかに、プライバシーポリシー・App Privacy の申告にも、古いアプリのために残している記述（contract 待ち）がある。
+  最低サポートバージョンを上げたら [データ取扱い台帳](../privacy/data-inventory.md) の 6 を見る。決定は [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-231 追補）
 - ~~**production ではフラグ切り替えワークフローをまだ実行できない**~~ → prod の `live/platform` は apply 済みで、`production` Environment に
   `AWS_FEATURE_FLAGS_ROLE_ARN` が設定され、2026-10-17 に production で実行した。（本文: SS-99 追補 D21）
 - ~~**OTA の本番配信ワークフロー・`EXPO_TOKEN` の Environment Secret への移動（SS-103）が未着手**。~~
@@ -122,7 +124,8 @@
 lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）、
 2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）、2026-10-17 棚卸し追補（prod の稼働とフラグ切り替えの実行を反映）、
 2026-10-17 追補（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内）、
-2026-10-22 追補（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離）
+2026-10-22 追補（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離）、
+2026-10-24 追補（SS-231: ポリシー・申告の contract 待ちへの導線のみ。決定は ADR-012）
 
 ## ステータス
 
@@ -1350,6 +1353,8 @@ Release Manager のトークンは人に渡さず CI の `production` Environmen
 - [ADR-007: 周回ルート（往路と異なる道で戻る）の生成方式](./ADR-007-loop-route-generation.md)
   —— 現行の唯一のフラグ `GOOGLE_MAPS_LOOP_ROUTE_ENABLED` の由来
 - [docs/release-runbook.md](../release-runbook.md) —— 本 ADR に基づく実際のリリース手順
+- [ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-231 追補、[データ取扱い台帳](../privacy/data-inventory.md) の 2.1・6
+  —— 決定7 の expand / contract を、プライバシーポリシーと App Privacy の申告にも当てはめたもの（**SS-231 追補**）
 - [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md)
   —— backend のデプロイ手順、タグと GitHub Release、現行の kill switch の運用
 - [packages/mobile/docs/build-profiles.md](../../packages/mobile/docs/build-profiles.md)
