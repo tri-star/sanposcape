@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-22（SS-103: Organization アカウントへの移管と OTA の運用手順）。前回: 2026-10-18（SS-214: サポートページの置き場の決着）、2026-10-17（棚卸し追補: 本番の TestFlight 配信の初回実行）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-24（SS-230: `version` を上げるタイミング）。前回: 2026-10-22（SS-103: Organization アカウントへの移管と OTA の運用手順）、2026-10-18（SS-214: サポートページの置き場の決着）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -29,6 +29,10 @@
   `staging-apk` / `staging-ios` も `staging` の `true` を継承し、`app.json` にはビルド番号を置かない。（本文: SS-89 追補）
 - **`expo.version` はリポジトリで手動管理する**。`runtimeVersion.policy: "appVersion"` により OTA の互換境界そのものであるため。
   上げるタイミングのルールは `packages/mobile/docs/build-profiles.md`。（本文: SS-89 追補）
+- **`version` は公開済みの次の本番 TestFlight ビルドの直前に上げ、リリース直後に先に上げない**。OTA の本番配信は main の `version` の本番ビルドへ配るため、
+  先に上げると公開中の版へ OTA を出せなくなる。ネイティブの変更が main に入っても途中では上げない（OTA は fingerprint の比較で止まる）。
+  patch / minor は前回の `mobile/v*` タグ以降のコミット（`feat` の有無）で決め、staging のビルド同士は設定画面のビルド番号・チャネルで見分ける。
+  移る条件は「main の未公開の変更を含めずにネイティブの修正を出す必要が出たとき」。（本文: SS-230 追補）
 - **リモートのビルド番号はアプリ識別子ごとに保持される**。開発識別子は `staging` に対する1回の初期化で足り、
   `production`（`com.sanposcape.app`）は本番ビルドを始める段で `--profile production` に対して初期化する。（本文: SS-89 追補「実測で確定したこと」）
 - **ストアの手動リリースと OTA の位置づけ（配信の手段であってリリースの手段ではない）は
@@ -58,10 +62,11 @@
 - プライバシーポリシーの提案ホスト名 `https://sanposcape.com/privacy`（未確定）→ `https://sanposcape.com/privacy/` で確定（SS-158 追補）
 - サポートページの提案ホスト名 `https://sanposcape.com/support`（未確定）→ `https://sanposcape.com/support/` で確定（SS-214 追補）
 - SS-79 追補の「外部テストの前提の配信面（SS-74）がまだ存在しない」は SS-79 時点の状態で、配信面は ADR-012 の LP として存在する（SS-158 追補）
+- ネイティブ変更では `version` を上げて互換境界を切る（SS-89 追補の頃の文書の記述）→ 途中では上げず、次のリリースで上げてストアで配る。それまで OTA は fingerprint の比較で止まる（SS-230 追補）
 
 ## 日付
 
-2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）、2026-10-17 棚卸し追補（本番の TestFlight 配信の初回実行）、2026-10-18 追補（SS-214: サポートページの置き場の決着）、2026-10-22 追補（SS-103: Organization アカウントへの移管と OTA の運用手順）
+2026-09-07（初版）、2026-09-13 追補（Android/iOSの配布経路確定、SS-79）、2026-09-19 追補（ビルド番号の EAS remote 採番への移行、SS-89）、2026-09-20 追補（SS-104: OTA と `version` の位置づけの転記先）、2026-10-03 追補（SS-158: プライバシーポリシーの置き場の決着）、2026-10-17 追補（SS-213: 本番アプリの TestFlight 配信ワークフロー）、2026-10-17 棚卸し追補（本番の TestFlight 配信の初回実行）、2026-10-18 追補（SS-214: サポートページの置き場の決着）、2026-10-22 追補（SS-103: Organization アカウントへの移管と OTA の運用手順）、2026-10-24 追補（SS-230: `version` を上げるタイミング）
 
 ## ステータス
 
@@ -78,6 +83,9 @@ App Store Connect の Support URL に登録することで「移行・対応が�
 
 **SS-103「OTA の本番配信ワークフロー」で追補**した。EAS の project を Organization アカウントへ移し、
 「移行・対応が必要な事項」に残っていた OTA の実運用手順の文書化を決着させた。追補部分には `（SS-103 追補）` を付けている。
+
+**SS-230「version の運用の明文化とバージョン表示」で追補**した。SS-89 追補で決めていなかった `version` を上げるタイミングを、
+公開済みの次の本番 TestFlight ビルドの直前と決め、リリース直後に先に上げる案を退けた。追補部分には `（SS-230 追補）` を付けている。
 
 SS-77「app: Web配信対象を確定し、SS-74向けのSAMデプロイを実装する」の調査結果として本 ADR を作成し、
 SS-77 自体は「作らない」決定に到達した時点で Cancelled とした。実作業は SS-78 / SS-79 が引き継ぐ。
@@ -394,12 +402,50 @@ SS-79 追補で決めた配布経路（`mobile-release-build.yml` からの `wor
   移行・対応事項に残っていた文書化を、次のとおり決着させた。
   - channel / branch: `production` profile → `production` channel → branch `production` の既存の割り当てをそのまま使う（ADR-008 決定8）。
   - `runtimeVersion` を上げるべき変更の見分け方: 人の規則（ネイティブを変えたら `version` を上げる）に加えて、配信の前に本番ビルドと fingerprint を比べる（ADR-008 D37）。
+    （**SS-230 追補**: 人の規則は「ネイティブを変えたら、次のリリースで `version` を上げてストアで配る」と読む。変更が main に入った時点で上げると、
+    公開中の版へ OTA を出せなくなる。下の SS-230 追補）
   - ロールバック: Expo の Owner が手元で `eas update:republish` / `update:roll-back-to-embedded` を行う（ADR-008 D39）。
 
 ### 未検証・未確認として残すもの
 
 - 移管の後の iOS のクレデンシャル（配布証明書・provisioning profile・App Store Connect API キー）は、ビルドでは確かめていない（expo.dev の画面で、移管の前の控えと照合した）。
   次の iOS のビルドで確かめる。
+
+## SS-230 追補: 表示用の `version` は先に上げず、公開済みの次の本番 TestFlight ビルドの直前に上げる（2026-10-24）
+
+SS-89 追補は `expo.version` を「リリース単位で手動で上げる」としたが、いつ上げるかは決めていなかった。
+リリースの直後に次の版へ先に上げ、開発中のビルドを次の版として配る案（以下、先上げ）を検討し、採らなかった。
+
+### 決定
+
+- **`version` は、公開済みの version の次の本番 TestFlight ビルド（`mobile-production-testflight.yml`）の直前に上げる。**
+  リリースの直後には上げない。次のリリースまで、main と staging のビルドは公開済みの version を名乗る。
+- **ネイティブモジュールや config plugin の変更が main に入っても、その時点では `version` を上げない。** その後の OTA は
+  fingerprint の比較（ADR-008 D37）で止まり、互換境界は、その変更を含むバイナリをストアに出すとき（上の `version` の上げ）に切れる。
+  SS-89 追補の頃の「ネイティブ変更では `version` を上げて互換境界を切る」は、この意味に読み替える。
+- **patch / minor は、前回の `mobile/v*` タグ以降の `packages/mobile` のコミットで決める**（`feat` があれば minor、それ以外だけなら patch）。
+  上げ忘れて `mobile-production-testflight.yml` がビルドの前に止まったとき、エラーにこの規則での候補（git-cliff の `--bumped-version`）を添える。
+  候補は判断の材料で、検査の結果は変えない。
+- **同じ version を名乗る staging のビルド同士は、設定画面のバージョンの行（ビルド番号・チャネル・OTA の update ID）で見分ける**
+  （[ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md) の SS-230 追補）。
+
+### 先上げを採らなかった理由
+
+- **公開中の版へ OTA を出せなくなる。** OTA の本番配信（`mobile-production-update.yml`。ADR-008 の SS-103 追補）は main からだけ起動でき、
+  main の `version` と同じ version の本番ビルドへ配る。main を次の版にすると、公開中の版の本番ビルドが配信先にならない。
+  成り立たせるには、`mobile/v*` タグから切ったブランチから OTA・TestFlight 配信・Release 作成を出せるようにする必要があり、
+  production Environment の Deployment branches（main 限定）と ADR-008 の D25（タグを付けるコミットは main 上）・D28（TestFlight 配信は main のみ）を変えることになる。
+- **先上げで防ぎたかった事故は、別の仕組みで防がれている。** 互換の無い JS が公開版に届く事故は fingerprint の比較が止め、
+  main の未公開の JS が混ざることは ADR-008 決定8（OTA はフラグ OFF の新機能と不具合修正に限る）と承認者のコミット一覧の確認が抑える。
+  公開済みの version のまま本番の TestFlight に出す失敗（App Store Connect は公開済みの version へのビルドを受け付けない）は、
+  `mobile-production-testflight.yml` がビルドの前に止める（ADR-008 D26）。
+- **先上げに残る利点は、表示で補える。** 先上げの利点は、開発中のビルドが「次の版」と分かることだった。ビルド番号とチャネルを表示すれば、
+  同じ version のビルド同士も見分けられる。
+
+### 見直す条件
+
+- main の未公開の変更を含めずに、公開中の版へ修正（ネイティブの変更を含むもの）を出す必要が出てきたとき。
+  そのときは、`mobile/v*` タグから切ったブランチから上の3つのワークフローを出せるようにし、先上げに移ることを検討する。
 
 ## 関連情報
 

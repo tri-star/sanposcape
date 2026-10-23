@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-22（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離を追補。前回は SS-101 の mobile のアップデートの案内）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-24（SS-230: 決定8 の `version` の規則の読み方と D32 の `expo-application` を注記。決定は ADR-006・ADR-M-020 の SS-230 追補）。前回: 2026-10-22（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -99,6 +99,10 @@
 - SS-103 の「`EXPO_TOKEN` を Environment Secret に移す」→ OTA 用（Release Manager）だけを Environment Secret に置き、ビルド用（Developer）はリポジトリ Secret に残す。
   SS-213 追補の「TestFlight 配信にも Environment を付ける（D28 の見直し）」は不要になった（本文: SS-103 追補 D34）
 - 決定8「ネイティブを変えたら `version` を上げる」は人の規則のまま、OTA の配信の前に fingerprint の比較で機械的にも確かめるようになった（本文: SS-103 追補 D37）
+  → 「次のリリースで `version` を上げてストアで配る」と読む。変更が main に入った時点では上げない（上げると公開中の版へ OTA を出せなくなる）。
+  `version` を上げるのは公開済みの次の本番 TestFlight ビルドの直前（本文: 決定8 の SS-230 注記。決定は [ADR-006](./ADR-006-mobile-app-delivery-eas-hosted.md) の SS-230 追補）
+- D32 の「`expo-application` は使わない」→ ビルド番号を表示するために入れた。`version` の取得元は `Constants.expoConfig.version` のまま
+  （本文: D32 の SS-230 注記。決定は [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md) の SS-230 追補）
 - 本文の「ポジティブな影響」にある「`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` もこの基盤へ移せば…」は初版時点の見込みで、現在は環境変数のまま残す（本文: SS-98 追補 D8）
 - `minimum_supported_versions` の扱い: mobile は保持のみ（SS-100 追補 D17）→ 下回るとアップデートの案内を出す（本文: SS-101 追補 D29〜D32）
 - 最低サポートバージョンの変更入力: 「SS-101 で必要になったら足す」（SS-99 追補 D23）→ SS-101 でも足さず、最初の contract の計画時に足す（本文: SS-101 追補 D33）
@@ -122,7 +126,8 @@
 lifespan が呼び出しごとに走っていた事実の訂正）、2026-10-04 追補（SS-171: 決定7 に列追加の隙間と応答側のフィールド追加の扱い）、
 2026-10-17 追補（SS-213: mobile（iOS）の本番の TestFlight 配信と公開後のタグ・Release の作成）、2026-10-17 棚卸し追補（prod の稼働とフラグ切り替えの実行を反映）、
 2026-10-17 追補（SS-101: mobile の最低サポートバージョンを下回るアプリへのアップデートの案内）、
-2026-10-22 追補（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離）
+2026-10-22 追補（SS-103: OTA の本番配信と `EXPO_TOKEN` の分離）、
+2026-10-24 注記（SS-230: 決定8 の `version` の規則の読み方、D32 の `expo-application`）
 
 ## ステータス
 
@@ -373,6 +378,8 @@ OTA で届ける利用者向けの変更は、次のいずれかに限る。
   （[build-profiles.md](../../packages/mobile/docs/build-profiles.md)
   「表示用バージョン `version` の運用ルール」）。
 - ネイティブモジュールや config plugin の変更を伴う場合は、`version` を上げて互換境界を切る。
+  （**SS-230 注記**: 上げるのは、その変更を含むバイナリを出す次のリリースのとき。変更が main に入った時点では上げない。
+  [ADR-006](./ADR-006-mobile-app-delivery-eas-hosted.md) の SS-230 追補）
 
 ### 9. フラグの取得に失敗した場合は全フラグ OFF で動く（フェイルセーフ）
 
@@ -1182,6 +1189,8 @@ contract は最低バージョンを上げてから古いクライアントが�
   `runtimeVersion.policy` が `appVersion` なので update は同じ `version` のバイナリにしか届かず、バイナリの `version` と一致する
   （`runtimeVersion` の方針を変えるときはこの前提も見直す）。`expo-application` の `nativeApplicationVersion` は、ネイティブ依存の追加
   （development build の作り直し・`minimumReleaseAge` の待機）に見合わないので使わない。`expo-constants` 57 に `nativeAppVersion` は無い。
+  （**SS-230 注記**: `expo-application` はビルド番号を表示するために入れた。`version` は判定と表示で同じ値を1か所で読むため、取得元を替えない。
+  [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md) の SS-230 追補）
 - ストアは本番の掲載ページに固定する（iOS: `https://apps.apple.com/app/id<submit.production.ios.ascAppId>`、
   Android: `https://play.google.com/store/apps/details?id=com.sanposcape.app`）。[ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)
   の法的文書の URL と同じく、ビルドの種類でプロダクトの挙動を分けない（ADR-M-007 の SS-148 追補）。staging・開発ビルドで開くと本番の

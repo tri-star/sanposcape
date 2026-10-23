@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-23（SS-228: 設定の「このアプリについて」にアプリのバージョンの行を追加。前回は SS-187）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-24（SS-230: バージョンの行にビルド番号・チャネル・OTA の update ID を併記。前回は SS-228）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -18,19 +18,21 @@
 - **リンクは汎用の `LegalDocumentLink` に集約し、`PrivacyPolicyLink` / `TermsLink` はその薄いラッパー**。（本文: SS-187 追補）
 - **サインイン・サインアップ画面には `LegalConsentNotice`（同意の文言 + 利用規約・プライバシーポリシーの2リンク）を出し、チェックボックスは付けない**。
   設定の「このアプリについて」にも両方のリンクを出す。認証画面は高さが足りないときだけスクロールする。（本文: SS-187 追補）
-- **設定の「このアプリについて」の末尾にアプリのバージョン（app.json の `version`、例 `1.0.0`）の行を出す**。ビルド番号・OTA の update ID は出さず、
-  読めなければ「不明」と出す。値の読み取りは `src/config/currentAppVersion.ts`（取得元の理由は ADR-008 D32）。（本文: SS-228 追補）
+- **設定の「このアプリについて」の末尾にアプリのバージョンの行を出す**。表記は `<version> (<ビルド番号>)` に、本番以外のときはチャネル、
+  OTA の update で起動しているときは update ID の先頭8文字を続ける（例 `1.0.0 (57)` / `1.0.0 (57) · OTA a1b2c3d4` / `1.0.0 (57) · staging`。本番の利用者にも出す）。
+  `version` が読めなければ「不明」と出す。ビルド番号は `expo-application` の `nativeBuildVersion`、チャネルと update ID は `expo-updates` から
+  `src/config/currentAppVersion.ts` で読み、文言は `formatAppVersion`（純粋関数）で組み立てる。`version` の取得元は ADR-008 D32 のまま。（本文: SS-228 追補、SS-230 追補）
 - **E2E は導線の存在だけを assert し、押さない**。testID は `sign-in-` / `sign-up-` / `settings-` + `terms-link` / `privacy-policy-link`。（本文: 決定6、SS-187 追補）
 - **LP の `/privacy/`・`/terms/` は恒久 URL として扱い、本番は LP を先にデプロイしてから mobile を配布する**。
   URL を変えるにはアプリの更新が要り、LP より先に配布するとリンク先が 404 になる。（本文: 影響、SS-187 追補。LP 側は [ADR-012](../../../docs/adr/ADR-012-lp-static-site-astro-s3-cloudfront.md)）
 
 ## 日付
 
-2026-10-03（初版、SS-158）、2026-10-13 追補（SS-187）、2026-10-18 追補（SS-221）、2026-10-23 追補（SS-228）
+2026-10-03（初版、SS-158）、2026-10-13 追補（SS-187）、2026-10-18 追補（SS-221）、2026-10-23 追補（SS-228）、2026-10-24 追補（SS-230）
 
 ## ステータス
 
-採用（SS-158）。SS-187 で利用規約を同じ方式で追加した（追補）。SS-228 で「このアプリについて」にアプリのバージョンの行を足した（追補）。
+採用（SS-158）。SS-187 で利用規約を同じ方式で追加した（追補）。SS-228 で「このアプリについて」にアプリのバージョンの行を足した（追補）。SS-230 でその行にビルド番号・チャネル・OTA の update ID を併記した（追補。SS-228 の却下を覆す）。
 
 ## コンテキスト
 
@@ -104,5 +106,32 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 - 表記: app.json の `version` をそのまま出す（`1.0.0`。接頭辞 `v` は付けない）。読めない・空のときも行は残して「不明」と出す（行を消すと「どこを見ればよいか」を案内できない）。
 - 値の読み取りは `src/config/currentAppVersion.ts` の `CURRENT_APP_VERSION`（`Constants.expoConfig.version`）。最低サポートバージョンの判定（ADR-008 D32）と同じ値を1か所で読む。
 - 却下: **ビルド番号の併記**。`eas.json` の `appVersionSource: remote` でビルド番号は app config に無く、ネイティブの値を読むには `expo-application`（新しいネイティブ依存 = development build の作り直し）が要る。ADR-008 D32 と同じ理由で採らない。
+  （**SS-230 追補**: 併記することにした。下の SS-230 追補）
 - 却下（スコープ外）: **OTA の update ID・チャネルの併記**。`runtimeVersion.policy: appVersion` なので、同じ `1.0.0` のまま OTA update や再ビルドを出しても表示は変わらず、JS のリビジョンは見分けられない。サポートで必要になったら `Updates.updateId` の併記を別課題で検討する。
+  （**SS-230 追補**: ビルド番号と合わせて併記することにした）
 - E2E: `theme-setting.yaml` が行（testID `settings-app-version`）の存在だけを assert する。値は版上げで変わるので assert しない。
+
+## SS-230 追補: バージョンの行にビルド番号・チャネル・OTA の update ID を併記する（2026-10-24）
+
+表示用の `version` はリリース時に上げ、リリースの直後に先に上げない（[ADR-006](../../../docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md) の SS-230 追補）。
+そのため次のリリースまで、staging のビルドはすべて公開済みの version を名乗る。ビルド同士と OTA の有無を見分けられるよう、SS-228 で却下した併記を入れる。
+
+- 表記: `<version> (<ビルド番号>)` に、本番以外のときは ` · <チャネル>`、OTA の update で起動しているときは ` · OTA <update ID の先頭8文字>` を続ける。
+  例: `1.0.0 (57)`（本番のストアのバイナリ）/ `1.0.0 (57) · OTA a1b2c3d4` / `1.0.0 (57) · staging`。**本番の利用者にも出す**（問い合わせで、どのビルド・どの OTA かを確かめられる）。
+  - チャネルは本番（`PRODUCTION_UPDATES_CHANNEL`）のときは出さない。利用者には情報にならず、本番と staging を見分けるには本番以外に付けば足りる。
+  - `version` が読めないときも、行は「不明」で残し、付記は続けて出す（`不明 (57)`）。値が空・空白だけの付記は出さない。
+  - 文言の組み立ては `src/features/settings/lib/appVersionLabel.ts` の `formatAppVersion`（純粋関数。Vitest）。
+- 値の読み取りは `src/config/currentAppVersion.ts` に集める。
+  - ビルド番号: **`expo-application` を新しく入れ**、`Application.nativeBuildVersion`（iOS の `CFBundleVersion` / Android の `versionCode`）を読む。
+    EAS が採番してビルド時にネイティブへ書く値で、app config には無い（`appVersionSource: remote`）。
+    SS-228 で退けた理由（development build の作り直し・`minimumReleaseAge` の待機）は変わらないが、ビルド番号は version が同じビルド同士を見分ける唯一の手がかりで、
+    1.0.0 の本番ビルドはすでに fingerprint の不一致で OTA を受け取れず（[release-runbook.md](../../../docs/release-runbook.md) §6.1）、次の本番バイナリはどのみち要るので、今入れても失うものがない。
+  - チャネル: `Updates.channel`（ネイティブ設定なので OTA では変わらない）。development build では null。
+  - OTA の update ID: `Updates.updateId`。ストアのバイナリに入っている JS で起動したときも値を持つので、`Updates.isEmbeddedLaunch` のときは出さない。
+  - `version` は `expo-application` の `nativeApplicationVersion` に替えず、これまでどおり `Constants.expoConfig.version` で読む。
+    最低サポートバージョンの判定（ADR-008 D32）と表示で同じ値を1か所で読むため。D32 が `expo-application` を使わない理由に挙げた依存の追加は済んだが、取得元を替える理由にはならない。
+- 却下: **ビルド時のコミットハッシュを app config の `extra` に入れて出す**。ネイティブ依存は増えないが、app config がコミットごとに変わると
+  ネイティブの fingerprint も毎回変わり、OTA の本番配信（fingerprint の比較）が常に止まる。
+- 却下: **`AboutSection` に3つの値を別々の props で渡す**。表示の規則は `formatAppVersion` に閉じ、`AboutSection` は `AppVersionInfo` を1つ受け取って表示だけを担う。
+- 長くなった値は、狭い画面でラベルを押し出さずに右寄せで折り返す（`flexShrink: 1`）。
+- E2E: 変えない（行の存在だけを assert していて、値は assert しない）。

@@ -16,6 +16,8 @@
   画像表示は expo-image。アップロードは presigned POST で S3 直送（`src/features/pin/api/`）。
   詳細は [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
 - 外部の Web ページ: expo-web-browser（アプリ内ブラウザ。開けないときは RN の Linking.openURL）。プライバシーポリシーへの導線で使用（SS-158 / [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)）
+- アプリのビルド情報: expo-application（ネイティブのビルド番号 `nativeBuildVersion`。設定画面のバージョンの行に出す。SS-230 / [ADR-M-020](../adr/ADR-M-020-external-web-pages.md)）。
+  `version` は expo-constants の `Constants.expoConfig.version`、チャネルと OTA の update ID は expo-updates から読む（読み取りは `src/config/currentAppVersion.ts` に集める）
 - スライダー: @react-native-community/slider（往復時間の指定UI）
 - ジェスチャー・アニメーション: react-native-gesture-handler + react-native-reanimated（アプリのルート `app/_layout.tsx` を
   `GestureHandlerRootView` で包んでいる。React Compiler が有効なので shared value は `.get()` / `.set()` で読み書きする。
