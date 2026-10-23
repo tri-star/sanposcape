@@ -3,12 +3,16 @@ import { Text, View } from "react-native";
 import { PrivacyPolicyLink } from "@/components/legal/PrivacyPolicyLink";
 import { TermsLink } from "@/components/legal/TermsLink";
 import { Card } from "@/components/ui/card/Card";
-import { APP_VERSION_LABEL, formatAppVersion } from "@/features/settings/lib/appVersionLabel";
+import {
+  APP_VERSION_LABEL,
+  type AppVersionInfo,
+  formatAppVersion,
+} from "@/features/settings/lib/appVersionLabel";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type AboutSectionProps = {
-  /** 実行中のアプリのバージョン。読めなければ null（「不明」と出す）。読むのは呼び出し側（SS-228）。 */
-  appVersion: string | null;
+  /** 実行中のアプリのバージョンとビルドの情報。読むのは呼び出し側（SS-228、SS-230）。 */
+  appVersion: AppVersionInfo;
   testID?: string;
 };
 
@@ -63,6 +67,9 @@ const useStyles = makeStyles((theme) => ({
     color: theme.colors.textSecondary,
   },
   versionValue: {
+    // ビルド番号やチャネルを付けると長くなるので、狭い画面ではラベルを押し出さずに折り返す（SS-230）。
+    flexShrink: 1,
+    textAlign: "right",
     fontSize: theme.typography.size.sm,
     color: theme.colors.textPrimary,
   },
