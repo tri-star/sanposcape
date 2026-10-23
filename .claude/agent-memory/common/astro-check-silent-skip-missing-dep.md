@@ -15,6 +15,9 @@ metadata:
   stdin が開いたままのバックグラウンド実行では、確認待ちで止まり続ける。
 - SS-220 では `pnpm install --frozen-lockfile --filter lp...` で入れた worktree で起きた。続けて素の `pnpm install --frozen-lockfile` をしても
   「最新」と判断されて直らず、`--force` を付けて入れ直したら入った。メインのチェックアウトにも同じ欠けがあった（lockfile には載っている）。
+- SS-231 では、`node_modules` が無い新しい worktree で素の `pnpm install --frozen-lockfile` を最初に実行しても同じ欠けが起き、`--force` で直った。
+  新しい worktree で lp を検証するときは、最初から `--force` で入れておく。`node_modules` が無いままの `pnpm --filter lp format` は
+  `spawn ENOENT` で何もせずに終わるので、出力を捨てると整形できたように見える。
 
 **Why:** 型検査が走っていないのに「check 成功」と報告してしまう（SS-220 の初回の検証がそうだった）。
 
