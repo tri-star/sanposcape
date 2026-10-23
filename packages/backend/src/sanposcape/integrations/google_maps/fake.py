@@ -19,7 +19,7 @@ Maestro E2E と Google Maps API キーを持たないローカル開発者専用
 生成し、fake はそれを直線で結ぶだけ。往路は既存の `get_walking_route` を再利用し、
 復路は destination → via → origin を直線で結ぶ。ここでも乱数・時刻は使わない。
 
-**逆ジオコーディングは座標によらない固定の住所を返す**（SS-138）。ピン名の初期値の導線
+**逆ジオコーディングは座標によらない固定の住所を返す**（SS-138）。ピン詳細の住所の表示（SS-212）の導線
 （E2E・キーを持たない開発者の動作確認）を通すためのもので、住所の形の再現ではない。
 """
 
@@ -142,11 +142,11 @@ class FakeGoogleMapsProvider:
         return ProviderLoopRoute(outbound=outbound, inbound=inbound)
 
     def reverse_geocode(
-        self, point: ProviderPoint, *, timeout_seconds: float
+        self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
     ) -> ProviderAddress | None:
         """座標によらず固定の住所（建物名つき）を返す。
 
-        `point`・`timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
+        `point`・`cache_scope`・`timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
         """
         return _FAKE_ADDRESS
 

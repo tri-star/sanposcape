@@ -1,4 +1,6 @@
+import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -412,8 +414,11 @@ def test_openapi_declares_non_empty_japanese_preferred_place_names() -> None:
 _GEOCODE_PAYLOAD = {"location": {"latitude": 35.681236, "longitude": 139.767125}}
 
 
+_GEOCODE_USER = SimpleNamespace(id=uuid.UUID("00000000-0000-4000-8000-000000000001"))
+
+
 def _override_signed_in_with_fake_provider() -> None:
-    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user] = lambda: _GEOCODE_USER
     app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: MapsService(
         FakeGoogleMapsProvider(), 20, 20, 10, 8

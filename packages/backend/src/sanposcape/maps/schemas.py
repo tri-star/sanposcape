@@ -154,7 +154,7 @@ class LoopWalkingRouteResponse(BaseModel):
 
 
 class ReverseGeocodeRequest(BaseModel):
-    """SS-138: ピンの位置の住所を引く（ピン名の初期値に使う）。"""
+    """ピンの位置の住所を引く（SS-138。SS-212 からはピン詳細の表示に使う）。"""
 
     location: GeoPoint
 
@@ -174,6 +174,7 @@ class ReverseGeocodeResponse(BaseModel):
         max_length=256,
         description=(
             "Building name at the location when the provider supplies one (best-effort). "
+            "Taken only from a provider result whose bounds contain the location. "
             "Not included in address. Null when unavailable or when address is null."
         ),
     )

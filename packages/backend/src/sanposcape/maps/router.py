@@ -82,13 +82,13 @@ def get_loop_walking_route(
 )
 def reverse_geocode(
     payload: ReverseGeocodeRequest,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     service: MapsService = Depends(get_maps_service),
     _rate_limit: None = Depends(enforce_explore_rate_limit),
 ) -> ReverseGeocodeResponse:
-    """SS-138: ピンの位置の住所（ピン名の初期値）。ピン登録と同じくサインインが要る。
+    """ピンの位置の住所（SS-138。SS-212 からはピン詳細に表示する）。サインインが要る。
 
-    座標を Google へ送るのはサーバーからだけで、DB・ログには残さない（メモリのキャッシュのみ）。
-    住所が無い場所では 200 + `address=null`。
+    座標を Google へ送るのはサーバーからだけで、DB・ログには残さない（メモリのキャッシュのみ。
+    キャッシュは利用者ごとに分ける）。住所が無い場所では 200 + `address=null`。
     """
-    return service.reverse_geocode(payload)
+    return service.reverse_geocode(payload, user_id=current_user.id)

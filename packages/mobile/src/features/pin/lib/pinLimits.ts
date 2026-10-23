@@ -28,6 +28,5 @@ export const PIN_PHOTO_PREUPLOAD_MAX = 20;
  * 十分に大きい値にする。
  */
 export const PIN_PHOTO_MAX_BYTES_HARD_CAP = 50 * 1024 * 1024;
-export const UNTITLED_PIN_LABEL = "無題のピン";
 /** backend の FIRST_SANPO_MAP_NAME と一致させる。 */
 export const FIRST_SANPO_MAP_NAME = "最初の地図";

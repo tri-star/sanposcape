@@ -246,8 +246,12 @@ def test_shortest_requested_duration_keeps_at_least_one_candidate() -> None:
 def test_reverse_geocode_returns_a_fixed_address_regardless_of_location() -> None:
     provider = FakeGoogleMapsProvider()
 
-    first = provider.reverse_geocode(ProviderPoint(35.0, 139.0), timeout_seconds=8)
-    second = provider.reverse_geocode(ProviderPoint(-33.9, 151.2), timeout_seconds=8)
+    first = provider.reverse_geocode(
+        ProviderPoint(35.0, 139.0), cache_scope="user-a", timeout_seconds=8
+    )
+    second = provider.reverse_geocode(
+        ProviderPoint(-33.9, 151.2), cache_scope="user-b", timeout_seconds=8
+    )
 
     assert first is not None
     assert first == second
