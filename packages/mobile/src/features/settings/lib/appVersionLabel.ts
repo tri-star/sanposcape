@@ -35,6 +35,7 @@ function nonBlank(value: string | null): string | null {
  * 表示するバージョン文字列。例: `1.0.0 (57)` / `1.0.0 (57) · OTA a1b2c3d4` / `1.0.0 (57) · staging`。
  * - `version` はそのまま出す（接頭辞 `v` は付けない）。`null`・空白だけのときは「不明」とし、付記は続けて出す（問い合わせの手がかりになる）。
  * - チャネルは本番以外のときだけ出す。次のリリースまで staging のビルドは公開版と同じ `version` を名乗るので、見分けるために要る。
+ *   ビルドの種類での分岐は開発ツールの表示可否だけに使う規則（ADR-M-007 の SS-148 追補）の例外で、表示だけを変える（ADR-M-020 の SS-230 追補）。
  */
 export function formatAppVersion(info: AppVersionInfo): string {
   let label = nonBlank(info.version) ?? APP_VERSION_UNKNOWN;

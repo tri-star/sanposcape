@@ -44,6 +44,7 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 
 - `expo-web-browser` は `package.json` の dependencies に既にあり、autolinking で既存のネイティブビルドに含まれる。config plugin は不要（Android の `experimentalLauncherActivity` を有効にするときだけ manifest を変える）。
 - ビルドの種類（development / preview / staging / production）での分岐は開発ツールの表示可否だけに使う（`docs/build-profiles.md`）。
+  （**SS-230 追補**: 例外として、「このアプリについて」のバージョンの行は本番以外のときだけチャネル名を付記する。下の SS-230 追補）
 - `eas update` は `eas.json` の `env` を読まないため、`EXPO_PUBLIC_*` / `extra` で持った値は OTA で抜けうる。
 - フィーチャーフラグは `/app-config` の取得失敗時に全 OFF になる（ADR-008 決定9）。
 
@@ -119,6 +120,9 @@ App Store Review Guideline 5.1.1(i) は、プライバシーポリシーへの�
 - 表記: `<version> (<ビルド番号>)` に、本番以外のときは ` · <チャネル>`、OTA の update で起動しているときは ` · OTA <update ID の先頭8文字>` を続ける。
   例: `1.0.0 (57)`（本番のストアのバイナリ）/ `1.0.0 (57) · OTA a1b2c3d4` / `1.0.0 (57) · staging`。**本番の利用者にも出す**（問い合わせで、どのビルド・どの OTA かを確かめられる）。
   - チャネルは本番（`PRODUCTION_UPDATES_CHANNEL`）のときは出さない。利用者には情報にならず、本番と staging を見分けるには本番以外に付けば足りる。
+    これはビルドの種類での分岐で、「開発ツールの表示可否以外に使わない」（[ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-148 追補 決定6）の例外とする。
+    規則が防ぎたいのは本番と staging で機能の挙動が違うことで、ここはビルドの種類を見分けることそのものが表示の目的であり、機能の可否・挙動は変えない。
+    常にチャネル名を出せば分岐は要らないが、本番の利用者に `production` と出しても情報にならないので採らなかった。
   - `version` が読めないときも、行は「不明」で残し、付記は続けて出す（`不明 (57)`）。値が空・空白だけの付記は出さない。
   - 文言の組み立ては `src/features/settings/lib/appVersionLabel.ts` の `formatAppVersion`（純粋関数。Vitest）。
 - 値の読み取りは `src/config/currentAppVersion.ts` に集める。

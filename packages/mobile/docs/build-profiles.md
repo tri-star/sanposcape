@@ -713,6 +713,8 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
   （[ADR-008](../../../docs/adr/ADR-008-deploy-release-separation.md) の SS-103 追補 D36、手順は [release-runbook.md](../../../docs/release-runbook.md) §6）。
   手元で `eas update` を実行するときも同じ env を与える。
 - ビルドの種類での分岐は開発ツールの表示可否だけに使う。プロダクトの挙動の分岐には使わない。
+  例外は、設定画面のバージョンの行で本番以外のときだけチャネル名を付記すること（表示だけで、機能の可否・挙動は変えない。
+  [ADR-M-020](../adr/ADR-M-020-external-web-pages.md) の SS-230 追補）。
 
 ## 切り替え後の検証
 
