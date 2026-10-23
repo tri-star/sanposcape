@@ -598,6 +598,8 @@ EAS サーバー側の保持値は local へ戻しても消えない。後で再
     main の `version` と同じ version の本番ビルドへ配る。先に上げると、公開中の版へ OTA の修正を出せなくなる。
     互換の無い JS が届く事故は、同じワークフローの fingerprint の比較が止める（version で防ぐ必要はない）。
     公開済みの version のまま本番の TestFlight に出す失敗は、`mobile-production-testflight.yml` がビルドの前に止める。
+    なお、上げてからストアで公開するまで（TestFlight での確認と審査の間）は、直前に上げても公開中の版へ OTA を出せない。
+    直前に上げるのはこの期間を最短にするためで、公開中の版へ出したい OTA の修正があれば、上げる前に出しておく。
     判断の記録は [ADR-006](../../../docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md) の SS-230 追補。
   - 同じ version を名乗る staging のビルド同士は、設定画面の「このアプリについて」のバージョンの行で見分ける
     （`1.0.0 (57) · staging` のようにビルド番号とチャネルが付く。OTA で起動していれば `· OTA <update ID の先頭8文字>` も付く）。
