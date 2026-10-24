@@ -555,6 +555,30 @@ def test_nearest_station_returns_null_without_taggable_station(
     assert response.json() == {"station": None}
 
 
+def test_nearest_station_logs_never_include_coordinates(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """駅が見つかる要求でも見つからない要求でも、送った座標がログ（アクセスログを含む）に出ないこと。
+    台帳 3.1 とポリシー 1-1 で「送信した位置は記録に保存しない」と書いているため。"""
+    stations = (Station("東京", ProviderPoint(35.6813, 139.7671)),)
+    payloads = [
+        _STATION_PAYLOAD,
+        {"location": {"latitude": 30.123456, "longitude": 145.654321}},
+    ]
+    _override_signed_in_with_stations(stations)
+    try:
+        with caplog.at_level("DEBUG"):
+            for payload in payloads:
+                assert client.post("/explore/nearest-station", json=payload).status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+    assert "/explore/nearest-station" in caplog.text
+    for payload in payloads:
+        assert str(payload["location"]["latitude"]) not in caplog.text
+        assert str(payload["location"]["longitude"]) not in caplog.text
+
+
 def test_nearest_station_does_not_consume_explore_rate_limit() -> None:
     """Google を呼ばないので探索のレート制限の枠を使わず、上限1回でも続けて 200 になり、
     その後の探索も 429 にならないこと。"""
