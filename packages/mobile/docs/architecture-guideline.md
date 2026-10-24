@@ -215,8 +215,10 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   根拠は ADR-008 の SS-101 追補 D29〜D33。ローカルでは上の `FEATURE_FLAG_STUB_DOCUMENT` に
   `"client_requirements":{"enabled":true,"android_minimum_version":"99.0.0","ios_minimum_version":"99.0.0"}` を足すと出る。
   見た目だけなら画面カタログの「アップデートの案内」で閉じられるプレビューを開ける。
-- フラグを削除するときは backend の登録簿・`src/config/featureFlags.ts`・分岐・テストを
-  同じ PR で消す（ADR-008 決定6）。
+- フラグを削除するときは、`src/config/featureFlags.ts` の定数・分岐・テストを消す。ただし本番で ON にしたフラグでは、
+  backend は登録簿からキーを消さず、固定値（本番の値）を返すキーに移す（ADR-008 SS-233 追補 D40）。配布済みのアプリは
+  未知のキーを OFF として扱うので、キーが返らなくなると公開済みの機能が消えるため。固定値は、最低サポートバージョンが
+  分岐を消した版以上になってから消す（[互換性台帳](../../../docs/compat-ledger.md)、[リリース運用手順](../../../docs/release-runbook.md) §3）。
 
 ### 画面ガードレシピ
 

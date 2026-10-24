@@ -19,6 +19,11 @@
 
 - 利用者のデータの取得・送信・保存・削除を変える変更は、[データ取扱い台帳](./docs/privacy/data-inventory.md)（プライバシーポリシーと App Privacy の申告の正本）の対象パスと手順に従う。
 
+# 公開済みのアプリとの互換
+
+- mobile・backend とも任意のタイミングで本番にデプロイしてよいが、公開済みのアプリ（配布済みの mobile のビルド）と稼働中の backend に影響を出さないよう、フィーチャーフラグ（AWS AppConfig）か互換の維持で吸収する（[ADR-008](./docs/adr/ADR-008-deploy-release-separation.md) 決定1・7）。
+- API・DB スキーマ・フラグを変える変更は、[リリース運用手順](./docs/release-runbook.md) §3（フラグの削除）・§7（expand / contract）に従い、互換のために残すものは [互換性台帳](./docs/compat-ledger.md) に、いつ片付けるかとともに載せる。
+
 # 知識の置き場所
 
 - [知識の置き場所ガイドライン](./docs/knowledge-management.md)
