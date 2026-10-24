@@ -263,6 +263,8 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     if (!saveAvailability.canSave) return;
     // このタイミングの draft を同期的にスナップショット固定する（PR #93 T12）。
     draftRef.current = draft;
+    // 保存を始めたら最寄り駅のタグ（SS-225）は足さない。保存中に駅が返ると、送らないタグが画面にだけ出るため。
+    setStationTagSettled(true);
     save.save();
   };
 
