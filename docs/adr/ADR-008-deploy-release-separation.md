@@ -25,7 +25,7 @@
 - **フラグは「追加 → ON → 削除」の3段階で、削除まで終えて1つの機能追加とみなす**。
   **mobile が見るフラグ（`audience: "client"`）の削除は2段階**で、まず backend の分岐・定義ファイルのキーと mobile の分岐を消し、
   `/app-config` は登録簿の固定値（`true`）を AppConfig の取得の状態に関わらず返し続ける。固定値は、最低サポートバージョンが分岐を消したコードを
-  ストアのバイナリに埋め込んだ最初の version 以上になってから消す（OTA で届けた版は数えない）。AppConfig の値は段階2 まで `prune` しない（段階1 より前の backend へ戻しても機能が消えないように）。
+  ストアのバイナリに埋め込んだ最初の version 以上になってから消す（OTA で届けた版は数えない）。固定値のキーがある間は、どのフラグの切り替えでも `prune` しない（`prune` は定義ファイルに無いキーをまとめて消すため。段階1 より前の backend へ戻しても機能が消えないように）。
   本番で現在 OFF のフラグと、backend だけが見るフラグは1つの PR で消す。固定値の仕組みは未実装。（本文: SS-233 追補 D40）
   定義はリポジトリ内のファイルで管理し、切り替えは GitHub Actions の `workflow_dispatch`（prod は承認あり）が hosted configuration version を作って `StartDeployment` する形でだけ行う。
   認証には sam-deploy とは別の OIDC ロール `sanposcape-<env>-feature-flags` を使う。（本文: 決定6）
@@ -1396,7 +1396,8 @@ SS-98 追補 D1 の「古いビルドは未知キーを読めなくなるだけ�
   ただし機能ごと廃止する場合は、その機能が使う API の扱いを別に決定7 で考える。
 - **backend だけが見るフラグ（`audience: "backend"`）は従来どおり1つの PR で消す。** 配布済みのアプリはそのキーを見ていない。
 - 固定値の置き場所は **backend のコード（登録簿、`core/feature_flags.py`）** とする。段階1 で定義ファイルからはキーを消すが、
-  **AppConfig の値は段階2 まで `prune` しない**。段階1 より前の backend へ戻した（runbook §8.2）とき、戻した backend は AppConfig の値を読むので、
+  **AppConfig の値は段階2 まで `prune` しない**。`prune` はキーを指定できず、定義ファイルに無いキーをまとめて消すので、固定値のキーがある間は
+  **どのフラグの切り替えでも** `prune` を付けない（`from_defaults` で組み立てた版にも引き継がれない）。段階1 より前の backend へ戻した（runbook §8.2）とき、戻した backend は AppConfig の値を読むので、
   `prune` 済みだと `false` になり、配布済みのアプリから機能が消える。しかも prod の切り替えは main からしか起動できず、main の定義ファイルにはキーが無いので、
   ワークフローで ON に戻せない（`validate` で落ちる）。定義ファイルに無いキーはワークフローから切り替えられないので、残しておいても下の「AppConfig に ON のまま残す」案の欠点には当たらない。
 - 採らなかった案:
