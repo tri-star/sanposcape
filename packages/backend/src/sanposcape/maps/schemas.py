@@ -23,6 +23,9 @@ __all__ = [
     "LoopWalkingRouteResponse",
     "ReverseGeocodeRequest",
     "ReverseGeocodeResponse",
+    "NearestStationRequest",
+    "NearestStationRead",
+    "NearestStationResponse",
 ]
 
 
@@ -178,3 +181,30 @@ class ReverseGeocodeResponse(BaseModel):
             "Not included in address. Null when unavailable or when address is null."
         ),
     )
+
+
+class NearestStationRequest(BaseModel):
+    """ピンの位置の最寄り駅を引く（SS-225。ピンの登録画面でタグを最初から入れておくのに使う）。"""
+
+    location: GeoPoint
+
+
+class NearestStationRead(BaseModel):
+    name: str = Field(
+        max_length=64,
+        description="Station name as in the bundled dataset (e.g. '新宿'), without '駅'.",
+    )
+    tag_label: str = Field(
+        max_length=20,
+        description=(
+            "Pin tag label for the station: the name without a trailing parenthetical, "
+            "suffixed with '駅' unless it already ends with it (e.g. '新宿駅')."
+        ),
+    )
+    distance_meters: int = Field(ge=0, description="Straight-line distance from the location.")
+
+
+class NearestStationResponse(BaseModel):
+    """SS-225: 3km 以内に駅が無い、またはタグにできない駅名のときは 200 で `station=null`。"""
+
+    station: NearestStationRead | None

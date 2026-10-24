@@ -17,6 +17,7 @@ from sanposcape.integrations.google_maps.provider import (
 from sanposcape.main import app, create_app
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
+from sanposcape.maps.nearest_station import Station
 from sanposcape.maps.service import MapsService
 
 
@@ -485,4 +486,109 @@ def test_reverse_geocode_is_documented_as_an_authenticated_endpoint() -> None:
     ]
 
     assert operation["operationId"] == "reverse_geocode_explore"
+    assert operation["security"] == [{"HTTPBearer": []}]
+
+
+# --- /explore/nearest-station（SS-225） ----------------------------------------
+
+_STATION_PAYLOAD = {"location": {"latitude": 35.681236, "longitude": 139.767125}}
+
+
+def _override_signed_in_with_stations(stations) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _GEOCODE_USER
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeGoogleMapsProvider(), 20, 20, 10, 8, stations=lambda: stations
+    )
+
+
+def test_nearest_station_requires_authentication(client: TestClient) -> None:
+    """サインインしていないと 401 になること。"""
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeGoogleMapsProvider(), 20, 20, 10, 8
+    )
+    try:
+        response = client.post("/explore/nearest-station", json=_STATION_PAYLOAD)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 401
+
+
+def test_nearest_station_returns_station_and_tag_label(client: TestClient) -> None:
+    """3km 以内に駅があると、駅名・タグの表記・距離（メートルの整数）を返すこと。"""
+    stations = (Station("広島港（宇品）", ProviderPoint(35.6830, 139.7671)),)
+    _override_signed_in_with_stations(stations)
+    try:
+        response = client.post("/explore/nearest-station", json=_STATION_PAYLOAD)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["station"]["name"] == "広島港（宇品）"
+    assert body["station"]["tag_label"] == "広島港駅"
+    assert isinstance(body["station"]["distance_meters"], int)
+    assert 150 < body["station"]["distance_meters"] < 250
+
+
+@pytest.mark.parametrize(
+    "stations",
+    [
+        (),
+        (Station("遠い", ProviderPoint(35.75, 139.767125)),),
+        (Station("あ" * 20, ProviderPoint(35.6813, 139.7671)),),
+    ],
+    ids=["no-stations", "beyond-range", "label-too-long"],
+)
+def test_nearest_station_returns_null_without_taggable_station(
+    client: TestClient, stations
+) -> None:
+    """駅が無い・3km より遠い・タグにできない名前のときは、エラーにせず
+    200 で station=null を返すこと。"""
+    _override_signed_in_with_stations(stations)
+    try:
+        response = client.post("/explore/nearest-station", json=_STATION_PAYLOAD)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"station": None}
+
+
+def test_nearest_station_does_not_consume_explore_rate_limit() -> None:
+    """Google を呼ばないので探索のレート制限の枠を使わず、上限1回でも続けて 200 になり、
+    その後の探索も 429 にならないこと。"""
+    settings = Settings(
+        env="test",
+        google_maps_rate_limit_requests=1,
+        google_maps_anonymous_rate_limit_requests=1,
+    )
+    rate_limited_app = create_app(settings)
+    rate_limited_app.dependency_overrides[get_current_user] = lambda: _GEOCODE_USER
+    rate_limited_app.dependency_overrides[get_current_user_optional] = lambda: _GEOCODE_USER
+    rate_limited_app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeProvider(), 20, 20, 10, 8, stations=lambda: ()
+    )
+    try:
+        with TestClient(rate_limited_app) as rate_limited_client:
+            stations = [
+                rate_limited_client.post("/explore/nearest-station", json=_STATION_PAYLOAD)
+                for _ in range(3)
+            ]
+            loop = rate_limited_client.post("/explore/routes/loop", json=_payload())
+    finally:
+        rate_limited_app.dependency_overrides.clear()
+
+    assert [response.status_code for response in stations] == [200, 200, 200]
+    assert loop.status_code == 200
+
+
+def test_nearest_station_is_documented_as_an_authenticated_endpoint() -> None:
+    """OpenAPI に認証付きのエンドポイントとして載り、operationId が固定されていること
+    （Orval の関数名）。"""
+    operation = create_app(Settings(env="test")).openapi()["paths"]["/explore/nearest-station"][
+        "post"
+    ]
+
+    assert operation["operationId"] == "find_nearest_station_explore"
     assert operation["security"] == [{"HTTPBearer": []}]

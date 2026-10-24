@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
 
@@ -21,10 +22,19 @@ from sanposcape.maps.loop_route import (
     loop_waypoint_candidates,
     select_loop,
 )
+from sanposcape.maps.nearest_station import (
+    Station,
+    default_stations,
+    find_nearest_station,
+    station_tag_label,
+)
 from sanposcape.maps.schemas import (
     GeoPoint,
     LoopWalkingRouteResponse,
     MapBounds,
+    NearestStationRead,
+    NearestStationRequest,
+    NearestStationResponse,
     PlaceCandidate,
     PlaceSearchRequest,
     PlaceSearchResponse,
@@ -57,6 +67,7 @@ class MapsService:
         loop_route_enabled: bool = True,
         route_deadline_seconds: float = 12.0,
         geocode_timeout_seconds: float = 8.0,
+        stations: Callable[[], Sequence[Station]] = default_stations,
     ) -> None:
         self._provider = provider
         self._max_place_candidates = max_place_candidates
@@ -66,6 +77,7 @@ class MapsService:
         self._loop_route_enabled = loop_route_enabled
         self._route_deadline_seconds = route_deadline_seconds
         self._geocode_timeout_seconds = geocode_timeout_seconds
+        self._stations = stations
 
     def search_places(self, request: PlaceSearchRequest) -> PlaceSearchResponse:
         origin = self._provider_point(request.origin)
@@ -133,6 +145,22 @@ class MapsService:
         if address is None:
             return ReverseGeocodeResponse(address=None, building_name=None)
         return ReverseGeocodeResponse(address=address.address, building_name=address.building_name)
+
+    def find_nearest_station(self, request: NearestStationRequest) -> NearestStationResponse:
+        """SS-225: 同梱の駅のデータから引く（Google は呼ばない）。"""
+        nearest = find_nearest_station(self._stations(), self._provider_point(request.location))
+        if nearest is None:
+            return NearestStationResponse(station=None)
+        tag_label = station_tag_label(nearest.station.name)
+        if tag_label is None:
+            return NearestStationResponse(station=None)
+        return NearestStationResponse(
+            station=NearestStationRead(
+                name=nearest.station.name,
+                tag_label=tag_label,
+                distance_meters=round(nearest.distance_meters),
+            )
+        )
 
     def get_walking_route(self, request: WalkingRouteRequest) -> WalkingRouteResponse:
         origin = self._provider_point(request.origin)
