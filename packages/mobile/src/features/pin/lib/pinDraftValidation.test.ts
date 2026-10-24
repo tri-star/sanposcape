@@ -144,6 +144,15 @@ describe("hasUnsavedInput", () => {
     expect(hasUnsavedInput({ ...BASE_DRAFT, name: "   ", memo: "  " }, 0, INITIAL)).toBe(false);
   });
 
+  it("自動で入れたタグ（最寄り駅）だけなら false、それ以外のタグがあれば true", () => {
+    const options = { initialVisited: false, autoTags: ["新宿駅"] };
+    expect(hasUnsavedInput({ ...BASE_DRAFT, tags: ["新宿駅"] }, 0, options)).toBe(false);
+    expect(hasUnsavedInput({ ...BASE_DRAFT, tags: ["新宿駅", "カフェ"] }, 0, options)).toBe(true);
+    expect(hasUnsavedInput({ ...BASE_DRAFT, tags: ["カフェ"] }, 0, options)).toBe(true);
+    // 駅のタグを外して空になったときも、入力は無い
+    expect(hasUnsavedInput({ ...BASE_DRAFT, tags: [] }, 0, options)).toBe(false);
+  });
+
   it("訪問済みスイッチは初期値と違うときだけ true（初期値 false・true の両方）", () => {
     expect(hasUnsavedInput({ ...BASE_DRAFT, visited: false }, 0, { initialVisited: false })).toBe(
       false,

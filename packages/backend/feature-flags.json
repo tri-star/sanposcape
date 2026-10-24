@@ -18,10 +18,15 @@
     "pin_registration": {
       "name": "pin registration",
       "description": "ピン登録（SS-88）。mobile の『この場所にピンを追加』と登録画面を出し分ける"
+    },
+    "pin_station_tag": {
+      "name": "pin station tag",
+      "description": "ピンの登録画面で、最寄り駅の名前のタグを最初から入れておく（SS-225）"
     }
   },
   "values": {
     "client_requirements": { "enabled": true },
-    "pin_registration": { "enabled": false }
+    "pin_registration": { "enabled": false },
+    "pin_station_tag": { "enabled": false }
   }
 }

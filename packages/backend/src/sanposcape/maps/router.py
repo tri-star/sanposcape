@@ -4,6 +4,8 @@ from sanposcape.dependencies import get_current_user
 from sanposcape.maps.dependencies import enforce_explore_rate_limit, get_maps_service
 from sanposcape.maps.schemas import (
     LoopWalkingRouteResponse,
+    NearestStationRequest,
+    NearestStationResponse,
     PlaceSearchRequest,
     PlaceSearchResponse,
     ReverseGeocodeRequest,
@@ -92,3 +94,22 @@ def reverse_geocode(
     キャッシュは利用者ごとに分ける）。住所が無い場所では 200 + `address=null`。
     """
     return service.reverse_geocode(payload, user_id=current_user.id)
+
+
+@router.post(
+    "/nearest-station",
+    response_model=NearestStationResponse,
+    operation_id="find_nearest_station_explore",
+    responses={401: _ERROR_RESPONSES[401], 413: _ERROR_RESPONSES[413]},
+)
+def find_nearest_station(
+    payload: NearestStationRequest,
+    _current_user: User = Depends(get_current_user),
+    service: MapsService = Depends(get_maps_service),
+) -> NearestStationResponse:
+    """ピンの位置の最寄り駅（SS-225）。ピンの登録画面で、駅名のタグを最初から入れておくのに使う。
+
+    サインインが要る。同梱の駅のデータ（国土数値情報）から引き、Google は呼ばないので探索のレート
+    制限は掛けない。座標は DB・ログに残さない。3km 以内に駅が無ければ 200 + `station=null`。
+    """
+    return service.find_nearest_station(payload)

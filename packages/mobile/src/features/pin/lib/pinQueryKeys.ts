@@ -65,3 +65,11 @@ export function sanpoMapPinsQueryKey(sanpoMapId: string) {
 export function pinAddressQueryKey(latitude: number, longitude: number) {
   return ["pin-address", latitude, longitude] as const;
 }
+
+/**
+ * ピンの位置の最寄り駅（登録画面でタグを最初から入れておく。SS-225）。送る座標（小数6桁に丸めた値）で作る。
+ * 駅のデータはピンの保存で変わらないので `["pins"]` 配下に置かない（保存成功時の invalidate の対象外）。
+ */
+export function pinNearestStationQueryKey(latitude: number, longitude: number) {
+  return ["pin-nearest-station", latitude, longitude] as const;
+}

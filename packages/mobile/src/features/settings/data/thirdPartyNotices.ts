@@ -2,6 +2,8 @@
  * アプリに同梱した第三者の素材と、そのライセンスの本文（設定の「ライセンス」画面に表示する。SS-191）。
  *
  * 本文は `assets/<素材>/LICENSE-*.txt` と同じ（`thirdPartyNotices.test.ts` が一致を検査する）。
+ * アプリに同梱しない素材（backend が使うデータ）で、ライセンスが本文の代わりに URL での参照を認めるもの
+ * （CC BY 4.0）は、本文の代わりにライセンスの URL を載せる。
  * 素材を足したら、ここにも1件足す。
  */
 
@@ -40,6 +42,22 @@ export const THIRD_PARTY_NOTICES: readonly ThirdPartyNotice[] = [
     licenses: [
       { name: "Apache License 2.0", text: APACHE_LICENSE_2_0 },
       { name: "SIL Open Font License 1.1", text: SIL_OPEN_FONT_LICENSE_1_1 },
+    ],
+  },
+  {
+    // backend に同梱した駅のデータ（`packages/backend/src/sanposcape/maps/nearest_station.py`）。
+    // アプリには入っていないが、得た駅名をタグとして利用者に見せるので、CC BY 4.0 の出典の表示をここに置く。
+    // backend のデータの版を上げたら、copyright の版の表記も合わせる。
+    name: "国土数値情報（鉄道データ）",
+    usage: "ピンを登録するときの最寄り駅のタグ（駅名と位置を加工して使用）",
+    copyright:
+      "出典：国土数値情報（鉄道データ）（国土交通省）を加工して作成（2024年12月31日時点のデータ）",
+    source: "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2024.html",
+    licenses: [
+      {
+        name: "クリエイティブ・コモンズ 表示 4.0 国際（CC BY 4.0）",
+        text: "https://creativecommons.org/licenses/by/4.0/legalcode.ja",
+      },
     ],
   },
 ];

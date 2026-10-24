@@ -72,16 +72,18 @@ function isDefaultSelection(selection: SanpoMapSelection): boolean {
 /**
  * 破棄確認ダイアログを出すべきか（何か1つでも「消えると困る」入力があるか）。
  * 訪問済みスイッチは初期値（入口で変わる）と違うときだけ入力とみなす（SS-173）。
+ * タグは、自動で入れたタグ（`autoTags`。最寄り駅のタグ。SS-225）以外があるときだけ入力とみなす。
  */
 export function hasUnsavedInput(
   draft: PinDraft,
   photoCount: number,
-  options: { initialVisited: boolean },
+  options: { initialVisited: boolean; autoTags?: readonly string[] },
 ): boolean {
+  const autoTags = options.autoTags ?? [];
   return (
     draft.name.trim().length > 0 ||
     draft.memo.trim().length > 0 ||
-    draft.tags.length > 0 ||
+    draft.tags.some((tag) => !autoTags.includes(tag)) ||
     photoCount > 0 ||
     !isDefaultSelection(draft.sanpoMapSelection) ||
     draft.visited !== options.initialVisited
