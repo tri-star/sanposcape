@@ -131,7 +131,7 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
   [ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md) SS-225 追補）。
   - **データ**: 国土数値情報「鉄道データ」N02-24（国土交通省。2024年12月31日時点。2020年度以降の版は CC BY 4.0）の駅を、
     グループコード（`N02_005g`。300m 以内の同じ名前の駅のまとまり）ごとに1件にまとめ、構成する線の座標の平均を位置にした CSV
-    （`maps/data/stations.csv`、9,048 駅・260KB）。作り方は `scripts/build_station_data.py`、更新の手順は backend の `docs/local-development.md`。
+    （`packages/backend/src/sanposcape/maps/data/stations.csv`、9,048 駅・260KB）。作り方は `packages/backend/scripts/build_station_data.py`、更新の手順は `packages/backend/docs/local-development.md`。
     CC BY 4.0 の出典は mobile のライセンス画面に載せる（データはアプリに入っていないが、得た駅名を利用者に見せるため）。
   - **API**: `POST /explore/nearest-station`（サインイン必須）。ボディは `{location: GeoPoint}`、応答は `{station: {name, tag_label, distance_meters} | null}`。
     半径 3km（課題の例）以内で直線距離が最も近い駅を返し、無ければ `station=null`（タグを付けない）。座標は DB・ログに残さない。
@@ -256,7 +256,7 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - 地理検索の要件が育った段階で PostGIS 等への移行を検討する。
 - （SS-212 追補）実キーでの住所・建物名の取り方の確認は、ローカルで6地点を引いて済ませた（上の SS-212 追補）。
 - （SS-225 追補）駅のデータを、国土数値情報の新しい版の公開（毎年6月ごろ）に合わせて手で更新する。
-  手順と、合わせて直す箇所（`STATION_DATA_SOURCE`・ライセンス画面の出典・使用許諾条件の確認）は backend の `docs/local-development.md`。
+  手順と、合わせて直す箇所（`STATION_DATA_SOURCE`・ライセンス画面の出典・使用許諾条件の確認）は `packages/backend/docs/local-development.md`。
 - （SS-138 追補）server key に Geocoding API を許可し、API を有効化する（dev / prod とも。未対応だと Google が HTTP 403（`SERVICE_DISABLED` / `API_KEY_SERVICE_BLOCKED`）を返して 503 になり、名前欄が空のままになる）。実キーで建物名の返り方を確かめ、必要なら住所からの建物名の外し方を見直す。
 
 ## 関連情報
