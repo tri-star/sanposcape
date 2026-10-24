@@ -15,7 +15,7 @@
 | いつ | やること |
 |---|---|
 | 計画（`task-workflow` のプランの「配布済みアプリとの互換」） | 互換のために何かを残すなら、この台帳に行を足すことを影響範囲に含める |
-| フラグを ON にした後 | mobile が見るフラグなら行を足す（削除の段階で固定値が要る。2.1） |
+| フラグを本番で ON にした後 | mobile が見るフラグなら行を足す（この時点から削除に2段階が要る。2.1） |
 | 最低サポートバージョンを上げるとき（runbook §7.3） | 「最低サポートバージョン」が条件の行を見て、満たした行を片付ける。データ取扱い台帳 6 も見る |
 | backend を全環境にデプロイ・migrate したとき | 「全環境の backend」が条件の行を見る |
 | 片付けたとき | 行をこの表から外す（経緯は課題・PR に残す） |
@@ -35,16 +35,18 @@
 mobile は `/app-config` の未知のキーを OFF として扱うため、backend がキーを返さなくなると、配布済みのアプリではそのキーで出し分けている機能が消える。
 そのため2段階で消す（ADR-008 SS-233 追補 D40。手順は runbook §3「フラグを追加する / 削除する」）。
 
-1. **フラグの削除**: backend の分岐と `feature-flags.json` のキーを消し、登録簿ではキーを固定値（本番の値）を返すキーに移す。
-   mobile の分岐・キー定数・テストも消してよい。この台帳の行の「状態」を「固定値で返している」にし、条件のバージョンを書く。
-2. **固定値の削除**: 最低サポートバージョンが、分岐を消した mobile の最初の公開版以上になったら、固定値を消して行を外す。
+1. **フラグの削除**: backend の分岐と `feature-flags.json` のキーを消し、登録簿ではキーを固定値 `true` を返すキーに移す（AppConfig の取得の状態に関わらず返す）。
+   mobile の分岐・キー定数・テストも消してよい。この台帳の行の「状態」を「固定値で返している」にし、条件のバージョンが決まったら書く。
+   AppConfig の値はまだ `prune` しない（段階1 より前の backend へ戻したときに機能が消えないように）。
+2. **固定値の削除**: 最低サポートバージョンが、分岐を消したコードを**ストアのバイナリに埋め込んだ**最初の version 以上になったら、固定値を消し、AppConfig の値を `prune` し、行を外す。
+   OTA で分岐の無い JS を届けた version は数えない（OTA を当てていない端末や、埋め込みの JS へ戻した端末に分岐が残るため）。
 
-固定値が `false` でよいフラグ（一度も ON にしなかった・OFF に戻して廃止する）と、backend だけが見るフラグは1段階で消す。
+本番で現在 OFF のフラグ（一度も ON にしなかった・OFF に戻して廃止する）と、backend だけが見るフラグは1段階で消す。
 
 ## 3. 台帳
 
 | 種類 | 対象 | 残している理由 | 状態 | 片付けてよい条件 | 片付けの作業 | 関連 |
 |---|---|---|---|---|---|---|
-| mobile が見るフラグ | `pin_registration`（ピン登録。散歩中画面の「この場所にピンを追加」、地図の長押し、ピンタブ、`/pins/new`・`/pins/[pinId]`・`/sanpo-maps` を出し分ける） | 1.0.0（`ce18a29`。2026-10-24 時点で審査中）がこのキーで出し分けている。キーが消えるとピン機能が消える | 本番で ON（2026-10-17）。削除の段階1は未着手 | 段階1: いつでも（固定値 `true` を返す仕組みを実装してから。ADR-008 SS-233 追補 D40）。段階2: 最低サポートバージョン ≥ 分岐を消した mobile の最初の公開版 | 段階1: backend の分岐・`feature-flags.json`・`FEATURE_FLAGS` の通常の定義を消して固定値 `true` に移し、mobile の `FEATURE_FLAG_KEYS.pinRegistration`・分岐・テストを消す。段階2: 固定値を消す | ADR-009（ピンのデータモデル）、ADR-008 SS-98 追補 D7 |
-| 非推奨のエンドポイント | `POST /explore/routes/walking`（`deprecated=True`。`maps/router.py`） | SS-33 で `POST /explore/routes/loop` に置き換えた。「配布済みビルドの互換のため」に残している | 残している。mobile は 2026-09-15（SS-33）から `/explore/routes/loop` を使い、1.0.0 も呼ばない（`ce18a29` で確認） | **満たしている**（ストアで公開した版で呼ぶものは無い。呼ぶのは SS-33 より前の社内配布のビルドだけ） | router のエンドポイント・`WalkingRouteResponse`・`MapsService.get_walking_route`・テストを消し、`openapi.yaml` を出し直す（`WalkingRouteRequest` と Google Maps の provider の `get_walking_route` は周回ルートも使うので残す） | ADR-007、ADR-008 決定7 |
+| mobile が見るフラグ | `pin_registration`（ピン登録。散歩中画面の「この場所にピンを追加」と長押し、ピンタブ、ナビタブの地図の登録済みピンと絞り込み、`/pins/new`・`/pins/[pinId]`（編集を含む）・`/sanpo-maps` を出し分ける） | 1.0.0（`ce18a29`。2026-10-24 時点で審査中）がこのキーで出し分けている。キーが消えるとピン機能が消える | 本番で ON（2026-10-17）。削除の段階1は未着手 | 段階1: いつでも（固定値 `true` を返す仕組みを実装してから。ADR-008 SS-233 追補 D40）。段階2: 最低サポートバージョン ≥ 分岐を消したコードを埋め込んだ最初のストアのバイナリの version（OTA で届けた版は数えない） | 段階1: backend の分岐・`feature-flags.json`・`FEATURE_FLAGS` の通常の定義を消して固定値 `true` に移し、mobile の `FEATURE_FLAG_KEYS.pinRegistration`・分岐（`usePinRegistrationGate` など）・テストを消す。段階2: 固定値を消し、AppConfig の値を `prune` する | ADR-009 決定10（backend の API はこのフラグでガードしない）、ADR-008 SS-233 追補 D40 |
+| 非推奨のエンドポイント | `POST /explore/routes/walking`（`deprecated=True`。`maps/router.py`） | SS-33 で `POST /explore/routes/loop` に置き換えた。「配布済みビルドの互換のため」に残している | 残している。mobile は 2026-09-15（SS-33）から `/explore/routes/loop` を使い、1.0.0 も呼ばない（`ce18a29` で確認） | **満たしている**（ストアで公開した版で呼ぶものは無い。呼ぶのは SS-33 より前の社内配布のビルドだけ）。削除の判断は SS-130 で行う（ADR-007） | router のエンドポイント・`WalkingRouteResponse`・`MapsService.get_walking_route`・テストを消し、`openapi.yaml` を出し直す（`WalkingRouteRequest` と Google Maps の provider の `get_walking_route` は周回ルートも使うので残す）。レート制限（`maps/tests/test_rate_limit.py`）と Lambda のハンドラ（`aws_lambda/tests/test_asgi_handler.py`）のテストは walking の経路を使っているので、消さずに `/explore/routes/loop` へ付け替える | ADR-007、ADR-008 決定7 |
 | ポリシー・申告の記述 | [データ取扱い台帳 6](./privacy/data-inventory.md#6-古いアプリのための記述contract-待ち) の各行 | 古いアプリの挙動をポリシーに併記している | データ取扱い台帳 6 を見る | 同左 | 同左 | ADR-012 SS-231 追補 |

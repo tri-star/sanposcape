@@ -31,7 +31,7 @@
   - 応答への required のフィールドの追加は壊さない（古いアプリは無視する。ADR-008 決定7 の SS-171 追補）
 - 既存のエンドポイントを置き換えるなら、古い方を `deprecated=True` で意味・スキーマを変えずに残し、[互換性台帳](../../../../docs/compat-ledger.md)に行があるか。
   本来は必須にしたい項目を互換のために任意にした場合、後で NOT NULL にする列を残した場合も同じ。
-- `core/feature_flags.py` の `FEATURE_FLAGS` から `audience="client"` のキーを消す差分では、本番で ON にしたフラグなら固定値に移しているか（消すと配布済みのアプリから機能が消える。ADR-008 SS-233 追補 D40）。
+- `core/feature_flags.py` の `FEATURE_FLAGS` から `audience="client"` のキーを消す差分では、本番で現在 ON のフラグなら固定値 `true` に移しているか（消すと配布済みのアプリから機能が消える。ADR-008 SS-233 追補 D40）。AppConfig の値を段階2 より前に `prune` する手順になっていないか（段階1 より前の backend へ戻すと機能が消え、prod では戻せない）。
 - 台帳の行を片付ける差分（非推奨の API の削除・必須化・固定値の削除）では、台帳の条件（最低サポートバージョン・全環境のデプロイ）を満たしているか、行を外しているか。
 - クエリパラメータで日時を受けるときも `AwareDatetime` か（ボディだけ `AwareDatetime` にしがち）。naive な値は `timestamptz` 列との比較で DB セッションのタイムゾーン次第で境界がずれる（SS-18 の `GET /walks`。修正済み）。列が `timezone=True` かとセットで見る。
 - 一覧のカーソルは `core/pagination.py` の型別ユーティリティ（`(datetime, uuid)` 用・`(int, uuid)` 用）に足しているか。ドメインごとに自前で組み立てていないか。

@@ -166,19 +166,26 @@ sanposcape-infra の `live/platform/README.md`「dev での動作確認」の手
 
 - **追加**: 登録簿（`FEATURE_FLAGS`）と `feature-flags.json` の両方にキーを足す PR を出す
   （既定値は必ず `enabled: false`）。マージ・デプロイ後にワークフローで ON にする。
-- **削除**: 登録簿の公開範囲（`audience`）で手順が分かれる（ADR-008 SS-233 追補 D40）。
-  - **backend だけが見るフラグ（`audience: "backend"`）**、または**固定値が `false` でよいフラグ**（一度も ON にしなかった・
+- **mobile が見るフラグ（`audience: "client"`）を本番で ON にしたら**、[互換性台帳](./compat-ledger.md)に行を足す。
+  この時点から、削除に2段階が要る（下）。
+- **削除**: 登録簿の公開範囲（`audience`）と本番の現在値で手順が分かれる（ADR-008 SS-233 追補 D40）。
+  - **backend だけが見るフラグ（`audience: "backend"`）**、または**本番で現在 OFF のフラグ**（一度も ON にしなかった・
     OFF に戻して機能ごと廃止する）: 分岐・登録簿・`feature-flags.json` からキーを消す PR を1つ出す。
-  - **mobile が見るフラグ（`audience: "client"`）で、本番で ON にしたもの**: 2段階で消す。mobile は `/app-config` の未知のキーを OFF として扱うため、
+  - **mobile が見るフラグ（`audience: "client"`）で、本番で現在 ON のもの**: 2段階で消す。mobile は `/app-config` の未知のキーを OFF として扱うため、
     backend がキーを返さなくなると、配布済みのアプリから公開済みの機能が消える。
-    1. backend の分岐と `feature-flags.json` のキーを消し、登録簿ではそのキーを固定値（本番の値）を返すキーに移す。mobile の分岐・
-       キー定数（`src/config/featureFlags.ts`）・テストも同じ PR で消してよい。[互換性台帳](./compat-ledger.md)の行を「固定値で返している」にする。
-    2. 最低サポートバージョン（iOS・Android とも）が、分岐を消した mobile の最初の公開版以上になったら（§7.3）、固定値を消して台帳の行を外す。
+    1. backend の分岐と `feature-flags.json` のキーを消し、登録簿ではそのキーを固定値 `true` を返すキーに移す（AppConfig の取得の状態に関わらず返す）。
+       mobile の分岐・キー定数（`src/config/featureFlags.ts`）・テストも同じ PR で消してよい（後の PR でもよい）。
+       台帳の行を「固定値で返している」に更新する。**AppConfig の値はまだ `prune` しない**（下）。
+    2. 最低サポートバージョン（iOS・Android とも）が、分岐を消したコードを**ストアのバイナリに埋め込んだ**最初の version 以上になったら（§7.3）、
+       固定値を消して台帳の行を外し、AppConfig の値も `prune` で消す。OTA で分岐の無い JS を届けた version は数えない
+       （OTA を当てていない端末や、埋め込みの JS へ戻した端末（§8.4）に分岐が残るため）。
 
     > 固定値を返す仕組みはまだ実装していない。最初に mobile が見るフラグを消す課題（`pin_registration`）で実装する。
-- AppConfig の値は、**削除の PR（2段階なら段階1）を当該環境の backend にデプロイした後で** `prune` を付けて何かを切り替えたときに消える。
+- AppConfig の値は、**削除の PR を当該環境の backend にデプロイした後で** `prune` を付けて何かを切り替えたときに消える。
   `prune` を付けない切り替えでは値を維持する（main が稼働中の backend より先行していても、古い
   backend が読んでいる ON のフラグを消さないため）。残っていても新しい backend は未知キーとして無視する。
+  - **2段階で消すフラグは、段階2 まで `prune` しない。** 段階1 より前の backend へ戻した（§8.2）とき、戻した backend は AppConfig の値を読む。
+    `prune` 済みだと `false` になって配布済みのアプリから機能が消え、prod の切り替えは main の定義ファイル（キーが無い）からしか起動できないので、ワークフローで戻せない。
 
 ### 現行の kill switch（AppConfig 移行前）
 
@@ -466,6 +473,8 @@ expand と contract は**別のデプロイに分ける**。contract を後に�
   コードだけ戻しても動かない。これが expand → contract を守る理由である（§7.4）
 - 過去のコミットへ戻すデプロイでは、`release` job はタグを作らずにスキップする
   （最新タグがその SHA の祖先でないため。番号の衝突を避ける仕様）
+- mobile が見るフラグを固定値に移した（§3 の削除の段階1）コミットより前へ戻すと、戻した backend は AppConfig の値でそのフラグを返す。
+  段階2 まで `prune` しない規則を守っていれば値は残っている。戻す前に、[互換性台帳](./compat-ledger.md)の「固定値で返している」行の値が AppConfig に残っているかを確かめる
 
 ### 8.3 ストアの公開を止める
 
@@ -519,9 +528,9 @@ pnpm exec eas update:roll-back-to-embedded --channel production --runtime-versio
 [ ] mobile の version を上げる必要があったか。上げたなら配布ビルドまで行ったか
 [ ] OTA で配る場合、中身が「公開済み機能の不具合修正」と「フラグ OFF の新機能」だけか（§6）
 [ ] backend / mobile の両方が配布済みになっているか
-[ ] フラグを ON にしたか（← ここがリリース）
+[ ] フラグを ON にしたか（← ここがリリース。mobile が見るフラグなら互換性台帳に行を足したか。§3）
 [ ] 公開後の様子を確認したか
-[ ] フラグを削除する PR を出したか（← ここまでで完了。mobile が見るフラグは固定値に移し、互換性台帳に行を足したか。§3）
+[ ] フラグを削除する PR を出したか（← ここまでで完了。本番で ON の mobile が見るフラグは固定値に移し、互換性台帳の行を更新したか。§3）
 [ ] 最低サポートバージョンを上げたなら、互換性台帳とデータ取扱い台帳の「contract 待ち」を片付けたか（§7.3）
 ```
 
