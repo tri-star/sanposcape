@@ -88,6 +88,15 @@ FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
         ),
         audience="client",
     ),
+    FeatureFlagSpec(
+        key="pin_station_tag",
+        description=(
+            "ピンの登録画面で、最寄り駅（3km 以内）の名前のタグを最初から入れておく（SS-225）。"
+            "ON にする前に、ポリシーの改定（ピンの座標を送る場面の追加）を本番の LP に出す。"
+            "backend の `POST /explore/nearest-station` 自体はこのフラグでガードしない。"
+        ),
+        audience="client",
+    ),
 )
 
 

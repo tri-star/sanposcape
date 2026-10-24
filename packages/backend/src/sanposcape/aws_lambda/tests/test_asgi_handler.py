@@ -222,7 +222,7 @@ def test_appconfig_session_is_opened_once_across_invocations(
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert body["config_source"] == "appconfig"
-        assert body["flags"] == {"pin_registration": True}
+        assert body["flags"] == {"pin_registration": True, "pin_station_tag": False}
 
     assert client.start_calls == 1
     assert client.get_latest_calls == 1
@@ -241,8 +241,8 @@ def test_appconfig_known_good_survives_fetch_failure_across_invocations(
     first = json.loads(handler(make_event("GET", "/app-config"), None)["body"])
     second = json.loads(handler(make_event("GET", "/app-config"), None)["body"])
 
-    assert first["flags"] == {"pin_registration": True}
-    assert second["flags"] == {"pin_registration": True}
+    assert first["flags"] == {"pin_registration": True, "pin_station_tag": False}
+    assert second["flags"] == {"pin_registration": True, "pin_station_tag": False}
     assert second["config_source"] == "appconfig"
     assert client.get_latest_calls == 2
 
