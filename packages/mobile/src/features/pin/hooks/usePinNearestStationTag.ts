@@ -12,7 +12,7 @@ const STATION_GC_TIME_MS = 60 * 60_000;
 
 export type UsePinNearestStationTagOptions = {
   location: GeoCoordinates;
-  /** サインイン済みで、フラグ `pin_station_tag` が ON で、まだ駅のタグを足していないときだけ引く。 */
+  /** サインイン済みで、フラグ `pin_station_tag` が ON で、駅のタグを足す機会がまだ閉じていないときだけ引く。 */
   enabled: boolean;
 };
 

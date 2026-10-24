@@ -82,8 +82,8 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInputState] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
-  // 最寄り駅のタグ（SS-225）を足す機会を使ったか（足せなかったときも true にし、2回目は無い）と、
-  // 足したタグ（破棄確認で入力とみなさない）。
+  // 最寄り駅のタグ（SS-225）を足す機会が閉じたか（最初に駅が取れたとき（足せなかったときも）・利用者がタグを
+  // 外したとき・保存を始めたときに閉じ、2回目は無い）と、足したタグ（破棄確認で入力とみなさない）。
   const [stationTagSettled, setStationTagSettled] = useState(false);
   const [autoTags, setAutoTags] = useState<readonly string[]>([]);
   const [sanpoMapSelection, setSanpoMapSelection] = useState<SanpoMapSelection>({
