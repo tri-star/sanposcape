@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 
-import { Icon } from "@/components/ui/icon/Icon";
+import { mapPinArtSurfaceColor } from "@/components/ui/map-pin/MapPin";
+import { SanpoMapIconArt } from "@/features/pin/components/SanpoMapIconArt";
 import { SANPO_MAP_ICON_META, SANPO_MAP_ICON_ORDER } from "@/features/pin/lib/sanpoMapIcon";
 import type { SanpoMapIconKey } from "@/features/pin/types";
 import { hitSlopFor } from "@/lib/hitSlop";
@@ -17,6 +18,9 @@ export type SanpoMapIconPickerProps = {
 };
 
 const CELL_SIZE = 40;
+const ART_SIZE = 24;
+/** 押せない間は画像を薄くする（カラーの画像は色を差し替えられない）。 */
+const DISABLED_ART_OPACITY = 0.4;
 /**
  * セル間の横の隙間。1行6個のとき（13個は6+6+1で、最後の行は左寄せ） 40×6 + 6×5 = 270 で、Dialog の内側の幅（width 320 − 左右 padding 24×2 = 272）に収まる。
  * 余りは 2dp しかないので、隙間（や CELL_SIZE）を広げると6個目が折り返す。
@@ -25,6 +29,7 @@ const CELL_GAP = 6;
 
 /**
  * SanpoMapIconPicker — 地図のアイコンを13種類から選ぶグリッド（作成・変更ダイアログで共有。SS-171）。
+ * 各セルはカラーの画像（SS-191）。選択中はピンの頭と同じ淡い系統色の面 + フォーカス色の枠で示す。
  * 選択値は親が持つ（ロジックは無い）。
  */
 export function SanpoMapIconPicker({
@@ -46,17 +51,11 @@ export function SanpoMapIconPicker({
         {SANPO_MAP_ICON_ORDER.map((key) => {
           const meta = SANPO_MAP_ICON_META[key];
           const selected = key === value;
-          const toneColor = theme.map[meta.tone];
           const backgroundColor = disabled
             ? theme.colors.disabledSurface
             : selected
-              ? toneColor
+              ? mapPinArtSurfaceColor(theme, theme.map[meta.tone])
               : theme.colors.surfaceSunken;
-          const glyphColor = disabled
-            ? theme.colors.textDisabled
-            : selected
-              ? theme.colors.onColor
-              : toneColor;
 
           return (
             <Pressable
@@ -78,7 +77,9 @@ export function SanpoMapIconPicker({
               ]}
               testID={`${testIDPrefix}-icon-${key}`}
             >
-              <Icon name={meta.glyph} size={20} color={glyphColor} />
+              <View style={disabled ? styles.disabledArt : null}>
+                <SanpoMapIconArt icon={key} size={ART_SIZE} />
+              </View>
             </Pressable>
           );
         })}
@@ -111,5 +112,8 @@ const useStyles = makeStyles((theme) => ({
   },
   pressed: {
     transform: [{ scale: 0.97 }],
+  },
+  disabledArt: {
+    opacity: DISABLED_ART_OPACITY,
   },
 }));

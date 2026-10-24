@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-23（SS-212、SS-174、SS-149、SS-163、SS-173、SS-172、SS-153、SS-119、SS-148、SS-147、SS-121）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-24（SS-191、SS-212、SS-174、SS-149、SS-163、SS-173、SS-172、SS-153、SS-119、SS-148、SS-147、SS-121）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -57,7 +57,7 @@
   地図詳細のピン一覧から確かめる。写真の拡大（ピンチ）は E2E しない。地図のパン・ピンチも E2E しない（SS-149 追補）。（本文: D14、SS-146 追補、SS-147 追補、SS-121 追補、SS-153 追補）
 - **`react-native-maps` は 1.29.8。増減するレイヤーは `MapView` の子の末尾に置き、重なり順は `zIndex` で決め、
   `moveOnMarkerPress={false}`、`onMapReady` での表示範囲の報告は初回だけ**。（本文: D16）
-- **登録済みピンは、そのピンが属する地図のアイコン（グリフと色）で描く**。`useRegisteredPins` が地図一覧のキャッシュから付け、`tracksViewChanges={false}` のマーカーは key にアイコンを含めて作り直す。（本文: SS-172 追補。本体は [ADR-M-019](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）
+- **登録済みピンは、そのピンが属する地図のアイコン（カラーの画像と系統色。SS-191 で画像に。ADR-M-019 D8・D9）で描く**。`useRegisteredPins` が地図一覧のキャッシュから付け、`tracksViewChanges={false}` のマーカーは key にアイコンを含めて作り直す。（本文: SS-172 追補。本体は [ADR-M-019](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）
 - **ピンの Marker は `mapPinMarkerPlacement` で基準点を渡す**（Android は `anchor`、iOS の Apple Maps は `centerOffset`）。（本文: SS-172 追補）
 - **ピン詳細の位置の地図は本文幅の正方形で、初期表示は約 330m 四方。ドラッグとピンチで操作でき、右上の「ピンの位置に戻す」で初期表示に戻る。ScrollView との干渉はライブラリ・OS の既定の挙動で防ぎ、登録フォームのプレビューは変えない**。（本文: SS-149 追補）
 - **ピン詳細の作成日・地図名の下に、ピンの位置の住所（＋取れれば建物名）を1行で出す。住所は DB に保存せず、詳細を開いたときに
@@ -404,7 +404,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 詳細は [ADR-M-019](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) に記録した。本 ADR への影響は次のとおり。
 
 - 登録済みピン（ピンタブ・散歩中のナビタブ）は、固定の `MapPin category="park" icon="map-pin"` ではなく、ピンが属する地図のアイコンで描く
-  （`RegisteredPinMarkers` が `sanpoMapPinAppearance` を使う）。アイコンは `GET /sanpo-maps` のキャッシュから `sanpo_map_id` で引く
+  （`RegisteredPinMarkers` が `sanpoMapPinAppearance` を使う。SS-191 追補: `sanpoMapPinAppearance` は廃止し、`SanpoMapPin` で描く。ADR-M-019 D9）。アイコンは `GET /sanpo-maps` のキャッシュから `sanpo_map_id` で引く
   （D4 のとおり地図一覧は元々全件取得済み。ピンの API は変えない）。地図のアイコンを変えると一覧キャッシュが更新され、`useRegisteredPins` が付け直す。
 - `Marker` は `tracksViewChanges={false}` のままなので、key を `${pin.id}:${pin.sanpoMapIcon}` にしてアイコンの変化で作り直す。
   作り直しは `mapLayers`（MapView の子の末尾）の中で起きるので、D16 の前提で安全。

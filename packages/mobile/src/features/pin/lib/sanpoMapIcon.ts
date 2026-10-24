@@ -1,4 +1,3 @@
-import type { IconName } from "@/components/ui/icon/iconRegistry";
 import type { MapPinCategory } from "@/components/ui/map-pin/MapPin";
 import type { PinSummary, RegisteredPin, SanpoMap, SanpoMapIconKey } from "@/features/pin/types";
 
@@ -8,28 +7,29 @@ import type { PinSummary, RegisteredPin, SanpoMap, SanpoMapIconKey } from "@/fea
  */
 
 export type SanpoMapIconTone = Exclude<MapPinCategory, "goal" | "current">;
-export type SanpoMapIconMeta = { glyph: IconName; tone: SanpoMapIconTone; label: string };
+export type SanpoMapIconMeta = { tone: SanpoMapIconTone; label: string };
 
 export const DEFAULT_SANPO_MAP_ICON: SanpoMapIconKey = "pin";
 
 /**
  * Record のキーを生成型にすることで、backend が値を足したのに mobile の対応表が無い状態を
  * typecheck で検出する（Orval の再生成で気づける）。色は MapPin のカテゴリ色（park/cafe/culture/station と、地図アイコン用に足した sky/brown）から選ぶ。
+ * 絵（カラーの画像）は `features/pin/data/sanpoMapIconArt.ts` が同じキーで持つ（SS-191）。
  */
 export const SANPO_MAP_ICON_META: Record<SanpoMapIconKey, SanpoMapIconMeta> = {
-  pin: { glyph: "map-pin", tone: "park", label: "ピン" },
-  tree: { glyph: "tree-pine", tone: "park", label: "公園・緑" },
-  flower: { glyph: "flower-2", tone: "station", label: "花" },
-  leaf: { glyph: "leaf", tone: "station", label: "紅葉" },
-  sun: { glyph: "sun", tone: "cafe", label: "太陽" },
-  rain: { glyph: "cloud-rain", tone: "sky", label: "雨" },
-  retreat: { glyph: "mountain", tone: "sky", label: "避暑地" },
-  landmark: { glyph: "landmark", tone: "culture", label: "名所・史跡" },
-  coffee: { glyph: "coffee", tone: "cafe", label: "カフェ" },
-  food: { glyph: "utensils", tone: "cafe", label: "ごはん" },
-  bakery: { glyph: "croissant", tone: "cafe", label: "パン" },
-  shopping: { glyph: "shopping-bag", tone: "station", label: "買い物" },
-  cat: { glyph: "cat", tone: "brown", label: "猫" },
+  pin: { tone: "park", label: "ピン" },
+  tree: { tone: "park", label: "公園・緑" },
+  flower: { tone: "station", label: "花" },
+  leaf: { tone: "station", label: "紅葉" },
+  sun: { tone: "cafe", label: "太陽" },
+  rain: { tone: "sky", label: "雨" },
+  retreat: { tone: "sky", label: "避暑地" },
+  landmark: { tone: "culture", label: "名所・史跡" },
+  coffee: { tone: "cafe", label: "カフェ" },
+  food: { tone: "cafe", label: "ごはん" },
+  bakery: { tone: "cafe", label: "パン" },
+  shopping: { tone: "station", label: "買い物" },
+  cat: { tone: "brown", label: "猫" },
 };
 
 /** ピッカーの表示順（6列 × 3行。1行目: 自然・季節・天気、2行目: 場所・食・買い物、3行目: 猫）。 */
@@ -56,15 +56,6 @@ export function isSanpoMapIconKey(value: unknown): value is SanpoMapIconKey {
 /** API の値を検証して返す。undefined（古い backend）・null・未知の値（新しい backend）は既定の pin。 */
 export function toSanpoMapIconKey(value: unknown): SanpoMapIconKey {
   return isSanpoMapIconKey(value) ? value : DEFAULT_SANPO_MAP_ICON;
-}
-
-/** MapPin に spread する見た目。 */
-export function sanpoMapPinAppearance(key: SanpoMapIconKey): {
-  category: MapPinCategory;
-  icon: IconName;
-} {
-  const meta = SANPO_MAP_ICON_META[key];
-  return { category: meta.tone, icon: meta.glyph };
 }
 
 /** 地図一覧から地図のアイコンを引く。一覧に無い（未取得・削除済み）なら既定の pin。 */

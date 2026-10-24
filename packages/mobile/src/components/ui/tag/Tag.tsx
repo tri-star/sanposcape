@@ -15,6 +15,8 @@ const TAG_HEIGHT = 36;
 export type TagProps = {
   children: ReactNode;
   icon?: IconName;
+  /** `icon` の代わりに先頭に置く要素（カラーの画像など。14px 前後の大きさにする）。`icon` より優先する。 */
+  leading?: ReactNode;
   category?: TagCategory;
   selected?: boolean;
   /**
@@ -41,6 +43,7 @@ export type TagProps = {
 export function Tag({
   children,
   icon,
+  leading,
   category = "neutral",
   selected = false,
   onPress,
@@ -61,7 +64,12 @@ export function Tag({
 
   const content = (
     <>
-      {icon ? <Icon name={icon} size={14} color={selected ? foreground : categoryColor} /> : null}
+      {/* `??` だと明示の null が icon に負ける（leading を渡したら icon は描かない）。 */}
+      {leading !== undefined ? (
+        leading
+      ) : icon ? (
+        <Icon name={icon} size={14} color={selected ? foreground : categoryColor} />
+      ) : null}
       <Text style={[styles.label, { color: foreground }]}>{children}</Text>
     </>
   );

@@ -16,3 +16,4 @@
 - [sandbox とツールの落とし穴](sandbox-and-tooling.md) — expo の HOME・EAS は sandbox 外・format:check のスコープ・git 書き込み不可・古い .expo の型・eslint-disable の位置・main の node_modules と lockfile の版差・依存追加直後の配置は CI と違う・eas --json の前置き行・actionlint の入手・Metro とエミュレータは worktree 間で共有（dev-up は他 worktree の Metro を再利用する）
 - [位置情報の権限と審査の落とし穴](location-permission-review.md) — Androidの拒否はundeterminedに写る・前面復帰でrequestPermissionを呼ぶと繰り返し出る・精度APIはあるが一時要求は無い・pre-promptの審査実例
 - [画面ヘッダーの重複は SS-40 で追跡中](screen-header-duplication-ss40.md) — task-local。レビューで新規指摘にせず SS-40 に言及する
+- [エミュレータ確認用のデータを API で作る](emulator-seed-data.md) — POST /auth/dev-session でトークン→地図・ピンを作る。MAPS_MODE=fake の .env はユーザーに `!` で書いてもらう

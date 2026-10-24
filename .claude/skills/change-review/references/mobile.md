@@ -23,6 +23,11 @@
   - mock の軌跡: 約 38m を 1 秒ごとに進む。
   - あわせて、`app-startup-guide.md` の `geo fix` を使う手動確認の期待値が新しい規則と合っているかも見る（SS-91。ADR-M-018 決定16）。
 
+- 第三者の素材（画像・SVG・フォント・データ）を同梱する差分では、次を見る（SS-191 の Noto Emoji）。
+  - 著作権表示とライセンスの本文を `features/settings/data/thirdPartyNotices.ts`（設定の「ライセンス」画面）に足しているか。
+  - 取得元のコミット・版を固定して記録しているか（`assets/<素材>/README.md`）。
+  - 配布元の README と LICENSE ファイルが食い違っていないか、実物を読んで確かめているか。
+
 ## 層の境界と依存の向き
 
 - `app/` は薄く、判定は `lib/` の純粋関数、サーバー状態は TanStack Query、`features/<feature>/api/` は素の fetcher のラップ、services は `index.ts` の interface 経由。正本: folder-structure.md「各ディレクトリの役割と配置ルール」「状態管理の使い分け」
@@ -37,6 +42,7 @@
 
 ## 画面遷移・戻る導線・フラグガード
 
+- 新しく足した `router.push` が `useNavigateOnce` の `runOnce`（または `useScreenBack` の `runOnce`）を通っているか。戻る導線の規約が未適用の画面（`SettingsView`・タブ画面）から足す push も同じで、expo-router の `push` は同じルートでも毎回積むので、連打で画面が2枚になる（SS-191 の設定 → ライセンス）。
 - 画面ごとフラグで隠すルートが「画面ガードレシピ」どおりか。`pending` で `<Redirect>` しない（フラグ ON でも起動直後に必ず弾かれる）、ナビタブ経由でしか到達しない画面の戻り先は `"/(tabs)"`、タブは `AppTabBar` の項目から外す（`href: null` は効かない）。フラグ値を Zustand に複製していないか。正本: architecture-guideline.md「フィーチャーフラグ」「画面ガードレシピ」、ADR-008
 - 戻る操作と、その画面から出る他の遷移が同じ `runOnce` を共有しているか（共有しないと連打で push が二重に積まれる）。正本: pages-components-guideline.md「画面の『戻る』導線の規約」
 - `useNavigateOnce` のラッチはフォーカスでしか解除されない。`replace`/`back` が blur を起こさない異常系（ガードのリダイレクト失敗など）で、その画面の離脱操作が永久に無反応にならないか。

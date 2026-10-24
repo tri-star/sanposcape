@@ -62,7 +62,7 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-016](./adr/ADR-M-016-theme-mode-preference.md) | テーマ（外観）設定の端末保存とネイティブ外観の上書き |
 | [ADR-M-017](./adr/ADR-M-017-pin-edit-and-delete.md) | ピンの編集・削除（編集画面の構成・保存の順序と冪等性・権限による出し分け・削除後のキャッシュ）。訪問状況・アーカイブの編集（SS-173 追補。本体は ADR-M-021）。地図の変更（SS-175 追補） |
 | [ADR-M-018](./adr/ADR-M-018-background-walk-location-tracking.md) | 散歩中の位置記録はバックグラウンドのロケーションタスクで行う（使用中のみ権限・iOS background mode・Android フォアグラウンドサービス・端末バッファと統合）。権限の利用目的文言と FGS 通知の文言（SS-157 追補）。大まかな位置でも点を捨てない（SS-160 追補。本体は ADR-M-022）。GPS の飛びを距離に加算しない（SS-91 追補） |
-| [ADR-M-019](./adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) | 地図のアイコン（13種類・色はアイコンから決まる・作成時と地図詳細で選ぶ）、登録済みピンの地図アイコンでの描画、`MapPin` の SVG シルエットとマーカーの基準点（`anchor` + `centerOffset`） |
+| [ADR-M-019](./adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) | 地図のアイコン（13種類・色はアイコンから決まる・作成時と地図詳細で選ぶ）、登録済みピンの地図アイコンでの描画、`MapPin` の SVG シルエットとマーカーの基準点（`anchor` + `centerOffset`）。絵を Noto Emoji のカラー SVG に（系統色のピン + 淡い円 + 画像・38px・同梱ライセンスの画面。SS-191 追補） |
 | [ADR-M-020](./adr/ADR-M-020-external-web-pages.md) | アプリから外部の Web ページ（プライバシーポリシー・利用規約。SS-187 追補）を開く方式（アプリ内ブラウザ + OS ブラウザへのフォールバック）と、法的文書の URL をビルドで切り替えないこと。「このアプリについて」のアプリのバージョンの行（SS-228 追補）。ビルド番号（expo-application）・本番以外のチャネル・OTA の update ID の併記（SS-230 追補） |
 | [ADR-M-021](./adr/ADR-M-021-pin-visit-status-and-archive.md) | ピンの訪問状況・アーカイブ（詳細はバッジ・編集はスイッチ + 既存の保存・地図表示からアーカイブ済みを常に除外し地図詳細の一覧には出す・権限の出し分け・登録時の初期値（散歩中=訪問済み））。地図表示の絞り込み（アーカイブ済み・訪問状況。共有・保存しない・アーカイブ済みは半透明。SS-174 追補） |
 | [ADR-M-022](./adr/ADR-M-022-location-permission-flow-and-approximate-location.md) | 位置情報の権限の求め方（事前説明画面を置かない）と、拒否・大まかな位置のときの挙動（文脈ごとの中立な案内・前面復帰での回復・大まかな位置の案内） |
