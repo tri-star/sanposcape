@@ -101,6 +101,7 @@ SELECT する列に含まれる）を同時にデプロイすると、デプロ�
   [`packages/backend/feature-flags.json`](../packages/backend/feature-flags.json) で管理する。
   キー集合は backend の登録簿（`core/feature_flags.py` の `FEATURE_FLAGS`）+ 予約キー
   `client_requirements` と一致していなければならない（pytest で検査している）。
+  ただし、削除の段階1 で固定値に移したキー（下の「フラグを追加する / 削除する」）は定義ファイルに無いので、検査から除く（仕組みは未実装。ADR-008 SS-233 追補 D40）。
 - **フラグの現在値の正本は AppConfig**（直近に配信を完了した hosted configuration version）。
   ワークフローは現在値を引き継ぎ、指定した1本だけを書き換えた版を作って `StartDeployment` する。
   定義ファイルに足したキーは既定値（OFF）で入る。定義ファイルから消えたキーは、`prune` を付けて
