@@ -55,7 +55,7 @@
   `production` Environment の Secret に、Developer の robot user のトークンをリポジトリ Secret に、同じ名前で置く。
   job に `environment: production` を付けると Release Manager に切り替わる。TestFlight 配信（D28）は承認なしのまま。
   eas-cli は `packages/mobile` の devDependency に固定版で入れ、CI は `pnpm exec eas` を使う。（本文: SS-103 追補 D34、D38）
-- **backend はフラグを一度も取得できていないときだけ全フラグ OFF に倒す**。空の応答（変化なし）では直前の値を、取得失敗では一度取得できた値（known-good）を維持する。値とセッションは Lambda の実行環境ごとに保持する。（本文: 決定2、決定9、決定9-1、SS-183 追補）
+- **backend はフラグを一度も取得できていないときだけ全フラグ OFF に倒す**（D40 の固定値のキーは除く。仕組みは未実装）。空の応答（変化なし）では直前の値を、取得失敗では一度取得できた値（known-good）を維持する。値とセッションは Lambda の実行環境ごとに保持する。（本文: 決定2、決定9、決定9-1、SS-183 追補）
 - **公開済み機能の緊急停止（kill switch、安全側 ON）は AppConfig ではなく環境変数で持つ**。`GOOGLE_MAPS_LOOP_ROUTE_ENABLED` は環境変数のまま残す。
   （本文: SS-98 追補 D8）
 - **`GET /app-config` は認証不要で DB を触らず、`Cache-Control: no-store` を返す**（このヘッダーは OpenAPI には出ない）。
@@ -104,6 +104,7 @@
 ### 変更・撤回された決定
 
 - 決定6 の削除の段階: 「フラグの分岐とフラグ定義を1つの PR で消す」→ mobile が見るフラグは、backend が固定値を返す期間を挟んだ2段階（本文: SS-233 追補 D40）
+- 決定9 の「一度も取得できていないときは全フラグ OFF」→ D40 の固定値のキーは、取得の状態に関わらず固定値を返す（本文: SS-233 追補 D40）
 - SS-98 追補 D1 の「フラグを削除しても古いビルドは未知キーを読めなくなるだけで壊れない」→ スキーマは壊れないが、そのキーで出し分けている機能は配布済みのアプリから消える（本文: SS-233 追補 D40）
 - 本文の決定2「実行環境ごとにセッションを 1 回開く」、決定9-1 の known-good の維持、SS-98 追補 D3 の「`_lifespan`（コールドスタート時に1回実行される）」は、SS-183 まで Lambda では成り立っていなかった（Mangum が呼び出しごとに lifespan を回し、フラグの取得元を毎回作り直していた）。決定の変更ではなく、挙動を記述に合わせた（本文: SS-183 追補、[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) SS-183 追補）
 - 取得失敗時の挙動: 「未配信・取得失敗・空の応答のいずれも全フラグ OFF」→ 一度も取得できていないときだけ全 OFF、それ以外は直前の値・known-good を維持（本文: 決定9-1、SS-98 / PR #88）
