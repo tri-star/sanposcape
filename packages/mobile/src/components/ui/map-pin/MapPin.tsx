@@ -142,8 +142,8 @@ const ART_SURFACE_TINT = 0.16;
 
 /**
  * カラーの画像（地図のアイコン）の下に敷く面の色。カテゴリ色を白に薄く混ぜる（SS-191。ADR-M-019）。
- * 白そのものだと、白が主体の絵（おにぎりなど）の輪郭が消える。テーマによらず同じ明るい面にする
- * （絵文字は明るい背景を前提に描かれているため）。ピン以外（ピッカー・バッジ）でも同じ色を使う。
+ * 白そのものだと、白が主体の絵（おにぎりなど）の輪郭が消える。ダークテーマでも暗い面にはせず明るい面にする
+ * （絵文字は明るい背景を前提に描かれているため。混ぜる元のカテゴリ色はテーマの値なので、色味はわずかに変わる）。ピン以外（ピッカー・バッジ）でも同じ色を使う。
  */
 export function mapPinArtSurfaceColor(theme: Theme, categoryColor: string): string {
   return mixHex(categoryColor, theme.palette.white, ART_SURFACE_TINT);
