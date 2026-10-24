@@ -142,8 +142,8 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
       candidates: tagSuggestionsQuery.candidates,
     });
     if (next !== null) {
-      setTags(next);
-      setAutoTags(next.slice(-1));
+      setTags(next.tags);
+      setAutoTags([next.added]);
     }
   }
 
