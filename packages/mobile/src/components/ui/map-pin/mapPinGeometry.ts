@@ -9,6 +9,10 @@ export const MAP_PIN_OUTLINE_WIDTH = 2.5;
 export const MAP_PIN_HEIGHT_RATIO = 1.45;
 /** グリフの一辺 ÷ 頭の直径。 */
 export const MAP_PIN_GLYPH_RATIO = 0.46;
+/** カラーの画像（地図のアイコン）を載せるときの淡い円の直径 ÷ 頭の直径（SS-191）。 */
+export const MAP_PIN_ART_DISC_RATIO = 0.76;
+/** カラーの画像の一辺 ÷ 頭の直径（SS-191）。淡い円の内側に収まる大きさ。 */
+export const MAP_PIN_ART_RATIO = 0.56;
 export const DEFAULT_MAP_PIN_SIZE = 40;
 /** これより小さい・数値でない size は DEFAULT_MAP_PIN_SIZE として扱う。 */
 export const MIN_MAP_PIN_SIZE = 12;
@@ -27,6 +31,10 @@ export type MapPinGeometry = {
   tip: { x: number; y: number };
   /** グリフの一辺と左上の位置（頭の円の中心に置く）。 */
   glyph: { size: number; left: number; top: number };
+  /** カラーの画像の下に敷く淡い円の直径と左上の位置（頭の円の中心に置く）。 */
+  artDisc: { size: number; left: number; top: number };
+  /** カラーの画像の一辺と左上の位置（頭の円の中心に置く）。 */
+  art: { size: number; left: number; top: number };
 };
 
 /** 小数2桁に丸め、末尾の 0 を落とした文字列にする。 */
@@ -61,6 +69,8 @@ export function computeMapPinGeometry(size: number): MapPinGeometry {
   ].join(" ");
 
   const g = Math.round(s * MAP_PIN_GLYPH_RATIO);
+  const disc = Math.round(s * MAP_PIN_ART_DISC_RATIO);
+  const art = Math.round(s * MAP_PIN_ART_RATIO);
 
   return {
     width,
@@ -70,6 +80,8 @@ export function computeMapPinGeometry(size: number): MapPinGeometry {
     head: { cx, cy, r },
     tip: { x: cx, y: tipY },
     glyph: { size: g, left: cx - g / 2, top: cy - g / 2 },
+    artDisc: { size: disc, left: cx - disc / 2, top: cy - disc / 2 },
+    art: { size: art, left: cx - art / 2, top: cy - art / 2 },
   };
 }
 

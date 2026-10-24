@@ -3,15 +3,15 @@ import { View } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
 import { IconButton } from "@/components/ui/icon-button/IconButton";
-import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
+import { SanpoMapPin } from "@/features/pin/components/SanpoMapPin";
 import {
   pinLocationMapKey,
   pinLocationPreviewRegion,
   resolvePinLocationPreviewConfig,
   type PinLocationPreviewVariant,
 } from "@/features/pin/lib/pinLocationPreview";
-import { DEFAULT_SANPO_MAP_ICON, sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
+import { DEFAULT_SANPO_MAP_ICON } from "@/features/pin/lib/sanpoMapIcon";
 import type { SanpoMapIconKey } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import type { GeoCoordinates } from "@/services/location/types";
@@ -99,7 +99,7 @@ export function PinLocationPreview({
               tracksViewChanges={false}
               {...mapPinMarkerPlacement(PREVIEW_PIN_SIZE)}
             >
-              <MapPin {...sanpoMapPinAppearance(markerIcon)} size={PREVIEW_PIN_SIZE} />
+              <SanpoMapPin icon={markerIcon} size={PREVIEW_PIN_SIZE} />
             </Marker>
           </MapView>
         )}

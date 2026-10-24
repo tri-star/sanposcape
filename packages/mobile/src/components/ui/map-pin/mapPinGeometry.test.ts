@@ -48,6 +48,20 @@ describe("computeMapPinGeometry", () => {
     expect(g.glyph.top + g.glyph.size / 2).toBe(g.head.cy);
   });
 
+  it.each([24, 30, 38, 42])(
+    "size %i: 淡い円と画像が頭の中心にあり、画像 < 円 < 頭の縁取りの内側",
+    (size) => {
+      const g = computeMapPinGeometry(size);
+      for (const box of [g.artDisc, g.art]) {
+        expect(box.left + box.size / 2).toBe(g.head.cx);
+        expect(box.top + box.size / 2).toBe(g.head.cy);
+      }
+      expect(g.art.size).toBeLessThan(g.artDisc.size);
+      // 円が縁取りの内側（線の内側の縁 = r - outlineWidth/2）に収まる
+      expect(g.artDisc.size / 2).toBeLessThanOrEqual(g.head.r - g.outlineWidth / 2);
+    },
+  );
+
   it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 11])(
     "不正な size %s は既定サイズ扱い",
     (size) => {

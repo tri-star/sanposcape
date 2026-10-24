@@ -11,7 +11,8 @@ import MapView, {
 import { CurrentHeadingBeam } from "@/components/location/CurrentHeadingBeam";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
-import { DEFAULT_SANPO_MAP_ICON, sanpoMapPinAppearance } from "@/features/pin/lib/sanpoMapIcon";
+import { SanpoMapPin } from "@/features/pin/components/SanpoMapPin";
+import { DEFAULT_SANPO_MAP_ICON } from "@/features/pin/lib/sanpoMapIcon";
 import type { SanpoMapIconKey } from "@/features/pin/types";
 import {
   regionAroundPoint,
@@ -171,7 +172,7 @@ export function PinMapCanvas({
             zIndex={SELECTED_MARKER_Z_INDEX}
             testID={`${p}-marker`}
           >
-            <MapPin {...sanpoMapPinAppearance(selectedMarkerIcon)} size={SELECTED_PIN_SIZE} />
+            <SanpoMapPin icon={selectedMarkerIcon} size={SELECTED_PIN_SIZE} />
           </Marker>
         ) : null}
         {currentLocation !== null ? (

@@ -8,7 +8,6 @@ import {
   sanpoMapIconSignature,
   isSanpoMapIconKey,
   sanpoMapIconFor,
-  sanpoMapPinAppearance,
   SANPO_MAP_ICON_META,
   SANPO_MAP_ICON_ORDER,
   toSanpoMapIconKey,
@@ -34,8 +33,8 @@ describe("対応表", () => {
     expect(SANPO_MAP_ICON_ORDER[0]).toBe("pin");
   });
 
-  it("pin は従来の登録済みピンと同じ見た目。tone と label が妥当", () => {
-    expect(SANPO_MAP_ICON_META.pin).toMatchObject({ glyph: "map-pin", tone: "park" });
+  it("pin は従来の登録済みピンと同じ色。tone と label が妥当", () => {
+    expect(SANPO_MAP_ICON_META.pin).toMatchObject({ tone: "park" });
     for (const meta of Object.values(SANPO_MAP_ICON_META)) {
       expect(["park", "cafe", "culture", "station", "sky", "brown"]).toContain(meta.tone);
       expect(meta.label.length).toBeGreaterThan(0);
@@ -54,12 +53,6 @@ describe("toSanpoMapIconKey / isSanpoMapIconKey", () => {
 
   it("プロトタイプのキーは false", () => {
     expect(isSanpoMapIconKey("toString")).toBe(false);
-  });
-});
-
-describe("sanpoMapPinAppearance", () => {
-  it("coffee は cafe 色のコーヒーカップ", () => {
-    expect(sanpoMapPinAppearance("coffee")).toEqual({ category: "cafe", icon: "coffee" });
   });
 });
 
@@ -140,8 +133,8 @@ describe("sanpoMapIconChangeLabel", () => {
 
 describe("新しい色（sky / brown）", () => {
   it("雨・避暑地は sky、猫は brown", () => {
-    expect(sanpoMapPinAppearance("rain")).toEqual({ category: "sky", icon: "cloud-rain" });
-    expect(sanpoMapPinAppearance("retreat").category).toBe("sky");
-    expect(sanpoMapPinAppearance("cat")).toEqual({ category: "brown", icon: "cat" });
+    expect(SANPO_MAP_ICON_META.rain.tone).toBe("sky");
+    expect(SANPO_MAP_ICON_META.retreat.tone).toBe("sky");
+    expect(SANPO_MAP_ICON_META.cat.tone).toBe("brown");
   });
 });

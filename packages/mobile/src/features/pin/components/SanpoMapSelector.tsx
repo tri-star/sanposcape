@@ -3,7 +3,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { Button } from "@/components/ui/button/Button";
 import { Icon } from "@/components/ui/icon/Icon";
 import { Tag } from "@/components/ui/tag/Tag";
-import { SANPO_MAP_ICON_META } from "@/features/pin/lib/sanpoMapIcon";
+import { SanpoMapIconArt } from "@/features/pin/components/SanpoMapIconArt";
 import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMapSelection } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -55,7 +55,10 @@ export function SanpoMapSelector({
           {state.choices.map((choice) => (
             <Tag
               key={choice.key}
-              icon={choice.isDraft ? "plus" : SANPO_MAP_ICON_META[choice.icon].glyph}
+              icon={choice.isDraft ? "plus" : undefined}
+              leading={
+                choice.isDraft ? undefined : <SanpoMapIconArt icon={choice.icon} size={16} />
+              }
               selected={choice.selected}
               // disabled 中は onPress を渡さない＝押せないタグとして描画する（Tag 自身の契約）。
               onPress={disabled ? undefined : () => onSelect(choice.selection)}
