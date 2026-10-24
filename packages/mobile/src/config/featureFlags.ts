@@ -23,7 +23,7 @@
 export const FEATURE_FLAG_KEYS = {
   /**
    * ピン登録（SS-88）。散歩中画面の「この場所にピンを追加」と地図の長押し、
-   * ピンタブ（SS-145/SS-146）、`/pins/new`・`/pins/[pinId]`・`/sanpo-maps` を出し分ける。
+   * ピンタブ（SS-145/SS-146）、ナビタブの地図の登録済みピンと絞り込み、`/pins/new`・`/pins/[pinId]`・`/sanpo-maps` を出し分ける。
    * OFF の間は従来どおり「準備中」トースト。dev は backend BK-1（template.yaml への S3 結線）後、
    * prod は BK-2（アカウント削除時の写真削除。SS-109 で実装済み）が prod で動き始めてから
    * （infra の prod apply と backend の prod デプロイの後。backend の docs/deployment.md §17）ON にする。
