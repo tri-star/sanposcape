@@ -15,14 +15,8 @@ import {
   resolveTagLabelForAdd,
   resolveTagSuggestionSanpoMapId,
 } from "@/features/pin/lib/pinTagSuggestions";
-import { addTag, addTagErrorMessage } from "@/features/pin/lib/pinTags";
-import {
-  INITIAL_STATION_TAG_STATE,
-  mergeStationTag,
-  removeTagWithStation,
-  resolveStationTag,
-} from "@/features/pin/lib/pinStationTag";
-import type { StationTagState } from "@/features/pin/lib/pinStationTag";
+import { addTag, addTagErrorMessage, removeTag as removeTagFrom } from "@/features/pin/lib/pinTags";
+import { addStationTag } from "@/features/pin/lib/pinStationTag";
 import { resolveSanpoMapChoices } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
@@ -85,12 +79,13 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
 
   const [name, setNameState] = useState("");
   const [memo, setMemoState] = useState("");
-  // 利用者が入れたタグ。最寄り駅のタグ（SS-225）は含めず、下で合成する。
-  const [userTags, setUserTags] = useState<string[]>([]);
-  const [stationTagState, setStationTagState] =
-    useState<StationTagState>(INITIAL_STATION_TAG_STATE);
+  const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInputState] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
+  // 最寄り駅のタグ（SS-225）を足す機会を使ったか（足せなかったときも true にし、2回目は無い）と、
+  // 足したタグ（破棄確認で入力とみなさない）。
+  const [stationTagSettled, setStationTagSettled] = useState(false);
+  const [autoTags, setAutoTags] = useState<readonly string[]>([]);
   const [sanpoMapSelection, setSanpoMapSelection] = useState<SanpoMapSelection>({
     kind: "default",
   });
@@ -102,30 +97,6 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   );
   const [visited, setVisitedState] = useState(initialVisited);
 
-  const sanpoMapsQuery = useSanpoMaps({ enabled: options.isSignedIn });
-  const tagSuggestionsQuery = usePinTagSuggestions({
-    sanpoMapId: resolveTagSuggestionSanpoMapId({
-      status: sanpoMapsQuery.status,
-      maps: sanpoMapsQuery.maps,
-      selection: sanpoMapSelection,
-    }),
-    enabled: options.isSignedIn,
-  });
-
-  // 最寄り駅のタグ（SS-225）。位置を調整したら引き直し、取れる前に保存したら付かない（保存を待たせない）。
-  const stationTagEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinStationTag);
-  const stationTagLabel = usePinNearestStationTag({
-    location: options.location,
-    enabled: options.isSignedIn && options.hasLocation && stationTagEnabled,
-  });
-  const stationTag = resolveStationTag({
-    label: stationTagLabel,
-    state: stationTagState,
-    userTags,
-    candidates: tagSuggestionsQuery.candidates,
-  });
-  const tags = mergeStationTag(userTags, stationTag);
-
   const draft: PinDraft = { name, memo, tags, sanpoMapSelection, visited };
   // 保存中に入力が変わっても作成内容が揺れないよう、保存開始時点（submit() 呼び出し時）の
   // draft を ref で固定する（PR #93 T12）。以前は毎レンダーで `draftRef.current = draft` を
@@ -135,6 +106,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   // を読む）でも同じ値を使い続ける。
   const draftRef = useRef(draft);
 
+  const sanpoMapsQuery = useSanpoMaps({ enabled: options.isSignedIn });
   const sanpoMapsState = useMemo(
     () =>
       resolveSanpoMapChoices({
@@ -144,6 +116,36 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
       }),
     [sanpoMapsQuery.status, sanpoMapsQuery.maps, sanpoMapSelection],
   );
+
+  const tagSuggestionsQuery = usePinTagSuggestions({
+    sanpoMapId: resolveTagSuggestionSanpoMapId({
+      status: sanpoMapsQuery.status,
+      maps: sanpoMapsQuery.maps,
+      selection: sanpoMapSelection,
+    }),
+    enabled: options.isSignedIn,
+  });
+  // 最寄り駅のタグ（SS-225）。最初に駅が取れたときに1回だけ、普通のタグとして足す。足した後は
+  // 外しても位置を調整しても入れ直さない（引くのもやめる）。取れる前に保存したら付かない（保存を待たせない）。
+  // この hook は I/O を待たず、`useQuery` の state（取得した表記）から導くだけなので、effect ではなく
+  // レンダー中に1回だけ確定させる（architecture-guideline.md「1回だけの状態確定」）。
+  const stationTagEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinStationTag);
+  const stationTagLabel = usePinNearestStationTag({
+    location: options.location,
+    enabled: options.isSignedIn && options.hasLocation && stationTagEnabled && !stationTagSettled,
+  });
+  if (!stationTagSettled && stationTagLabel !== null) {
+    setStationTagSettled(true);
+    const next = addStationTag({
+      tags,
+      label: stationTagLabel,
+      candidates: tagSuggestionsQuery.candidates,
+    });
+    if (next !== null) {
+      setTags(next);
+      setAutoTags(next.slice(-1));
+    }
+  }
 
   // 配列走査のみで軽いので useMemo しない（`fieldErrors` と同じ扱い）。
   const tagSuggestions = filterTagSuggestions({
@@ -219,9 +221,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
       setTagError(addTagErrorMessage(result.reason));
       return;
     }
-    // 重複・上限の判定は駅のタグを含めて行い、保持するのは利用者のタグだけ（末尾が今回の追加分）。
-    const added = result.tags[result.tags.length - 1];
-    if (added !== undefined) setUserTags((prev) => [...prev, added]);
+    setTags(result.tags);
     setTagInputState("");
     setTagError(null);
     save.resetError();
@@ -234,9 +234,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   const addTagFromSuggestion = (label: string) => applyAddTag(label);
 
   const removeTag = (label: string) => {
-    const next = removeTagWithStation({ label, stationTag, userTags, state: stationTagState });
-    setUserTags(next.userTags);
-    setStationTagState(next.state);
+    setTags((prev) => removeTagFrom(prev, label));
     save.resetError();
   };
 
@@ -287,9 +285,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
     saveAvailability,
     save,
     submit,
-    // 最寄り駅のタグは自動で入れたものなので、それだけなら破棄確認の「未保存の入力」に数えない（SS-225）。
-    hasUnsavedInput: hasUnsavedInput({ ...draft, tags: userTags }, photos.summary.total, {
-      initialVisited,
-    }),
+    // 自動で入れた最寄り駅のタグだけなら、破棄確認の「未保存の入力」に数えない（SS-225）。
+    hasUnsavedInput: hasUnsavedInput(draft, photos.summary.total, { initialVisited, autoTags }),
   };
 }

@@ -7,17 +7,17 @@ import type { GeoCoordinates } from "@/services/location/types";
 
 /** 駅のデータは backend の版を上げるまで変わらないので、同じ位置では取り直さない。 */
 const STATION_STALE_TIME_MS = Number.POSITIVE_INFINITY;
-/** 位置を調整して戻したときに引き直さない程度に持つ（無限にすると開いた位置の数だけ溜まる）。 */
+/** 同じ位置で登録画面を開き直したときに引き直さない程度に持つ（無限にすると開いた位置の数だけ溜まる）。 */
 const STATION_GC_TIME_MS = 60 * 60_000;
 
 export type UsePinNearestStationTagOptions = {
   location: GeoCoordinates;
-  /** サインイン済みで、フラグ `pin_station_tag` が ON のときだけ引く。 */
+  /** サインイン済みで、フラグ `pin_station_tag` が ON で、まだ駅のタグを足していないときだけ引く。 */
   enabled: boolean;
 };
 
 /**
- * ピンの登録画面でタグ欄に最初から入れておく、最寄り駅のタグの表記（SS-225）。
+ * ピンの登録画面で最初に1回だけ足す、最寄り駅のタグの表記（SS-225）。
  * 取得中・失敗・駅なしはすべて null（補助の機能なので、エラーは出さず保存も待たせない）。
  * 読み取りだけの冪等な POST なので、住所（`usePinAddress`）と同じく1回だけ再試行する。
  */
