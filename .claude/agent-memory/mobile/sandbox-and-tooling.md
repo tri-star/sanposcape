@@ -78,3 +78,9 @@ for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
 
 自分の worktree でなければ、止めたり `adb reverse` を差し替えたりすると相手の作業を壊すので、自律実行中は動作確認を省略して報告し、
 ユーザーに順番を決めてもらう。
+
+起動元が**削除済みの worktree**（`readlink` の結果に `(deleted)` が付き、`git worktree list` にも無い）のこともある（SS-225 で ss-191 の Metro が残っていた）。
+誰も使っていない Metro でも、auto mode では別プロセスの `kill` が「Interfere With Workloads」として拒否される。
+その場合も省略して報告し、PR の申し送りに「Metro（PID・起動元）を止めてから確認する」と書く。止めるのはユーザーに任せる。
+フラグを ON にした backend で確かめたいときは、`.env` を変えずに上書き用の env ファイル（`FEATURE_FLAG_STUB_DOCUMENT` に対象のフラグを足したもの）を
+`docker compose --env-file packages/backend/.env --env-file <上書き用> ...` で渡す（backend の local-env-and-sandbox §1）。確認の後はプレフィックス無しで `up -d` し直す。
