@@ -64,10 +64,12 @@ export function Tag({
 
   const content = (
     <>
-      {leading ??
-        (icon ? (
-          <Icon name={icon} size={14} color={selected ? foreground : categoryColor} />
-        ) : null)}
+      {/* `??` だと明示の null が icon に負ける（leading を渡したら icon は描かない）。 */}
+      {leading !== undefined ? (
+        leading
+      ) : icon ? (
+        <Icon name={icon} size={14} color={selected ? foreground : categoryColor} />
+      ) : null}
       <Text style={[styles.label, { color: foreground }]}>{children}</Text>
     </>
   );
