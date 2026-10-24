@@ -176,7 +176,6 @@ docker compose exec api uv run python -m sanposcape.aws_lambda.photo_purge
 
 `STORAGE_MODE=fake` なら `DEV_STORAGE_DIR` 配下の `objects/{staging,original,thumb}/pins/<user_id>/` が消える（空のディレクトリは残る）。
 
-
 ## 最寄り駅のデータを更新する（SS-225）
 
 `POST /explore/nearest-station` は、国土数値情報「鉄道データ」（N02。国土交通省。2020年度以降の版は CC BY 4.0）を加工した

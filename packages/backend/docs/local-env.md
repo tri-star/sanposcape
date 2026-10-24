@@ -195,7 +195,7 @@ docker compose up -d --build
 ## Google Maps Platform（探索・徒歩経路）
 
 - `MAPS_MODE`: `real`（既定・fail-safe） | `fake`。`ENV=local` / `test` 限定で、それ以外（`staging` / `production`）で `fake` を指定すると `AUTH_MODE` と同じ許可リスト方式の検証で起動に失敗する。
-  - `real`: `GOOGLE_MAPS_SERVER_API_KEY` の有無に応じて `HttpGoogleMapsProvider`（キー有）/ `UnconfiguredGoogleMapsProvider`（キー無・`/explore/*` は 503）を使う。
+  - `real`: `GOOGLE_MAPS_SERVER_API_KEY` の有無に応じて `HttpGoogleMapsProvider`（キー有）/ `UnconfiguredGoogleMapsProvider`（キー無・Google を呼ぶ `/explore/*` は 503。同梱の駅のデータから引く `/explore/nearest-station`（SS-225）はキーが無くても動く）を使う。
   - `fake`: `FakeGoogleMapsProvider`（`integrations/google_maps/fake.py`）を使う。Places / Routes への外部リクエストを一切行わないため課金は発生しない。origin から北東方向へ等間隔に並ぶ決定的な候補を返す。用途は Maestro E2E（`/explore/places` が常に候補を返す必要がある）と、Google Maps API キーを持たない開発者のローカル動作確認。
     - **`fake` の判定は `GOOGLE_MAPS_SERVER_API_KEY` の有無より優先される**。キーを設定していても `MAPS_MODE=fake` なら実 API は呼ばれない（E2E で意図せず課金が走らないようにするための安全側の設計）。実 API の疎通を確認したいときは `MAPS_MODE` を外すこと。
     - 候補は既定で 5 件（リクエストの `limit` が 5 未満ならその件数）。`category` はリクエストの `categories` を先頭から循環割り当てし、`name` は category に対応する「テストコンビニ1」のような固定名 + 連番になる。
@@ -205,8 +205,8 @@ docker compose up -d --build
 - `GOOGLE_MAPS_SERVER_API_KEY`: Places API (New)・Routes API・Geocoding API（ピン詳細の住所。SS-138・SS-212）のみを許可した**server-side 用** API key。`staging` / `production` では必須であり、mobile の `EXPO_PUBLIC_*`、OpenAPI、ソースコードへは決して入れない。
 - `GOOGLE_MAPS_CACHE_TTL_SECONDS` / `GOOGLE_MAPS_CACHE_MAX_ENTRIES`: 正規化済みの成功応答だけを保持するプロセス内キャッシュの TTL と上限（いずれも正の値）。座標・カテゴリ・経路は provider 内でキャッシュされ、key や Google の生レスポンスを API に返さない。
 - `GOOGLE_MAPS_SEARCH_DEADLINE_SECONDS`: `/explore/places` の Places 検索から徒歩経路による候補絞り込みまでの合計時間上限。期限までに評価できなかった候補は返さない。Nearby Search の上限に合わせ、1探索で評価する候補・Routes 呼び出しは最大20件である。
-- `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: 認証済みの `/explore` リクエストに、ユーザーと接続元IPの両方へ適用する process-local の上限（既定 30 リクエスト/60 秒）。
-- `GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS`: アクセストークンを伴わない `/explore` リクエストに、接続元IPだけへ適用する上限（既定 10 リクエスト/60 秒）。無効・期限切れのトークンは匿名として扱わず 401 を返す。トークンは `X-App-Authorization` → `Authorization` の優先順で読む（`src/sanposcape/auth/headers.py`）。mobile は SS-70 以降 `X-App-Authorization` のみを送るため、`Authorization` の有無だけで匿名判定をしているわけではない点に注意。
+- `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: Google を呼ぶ `/explore` の API（`/places`・`/routes/*`・`/reverse-geocode`。Google を呼ばない `/nearest-station` は対象外）への認証済みのリクエストに、ユーザーと接続元IPの両方へ適用する process-local の上限（既定 30 リクエスト/60 秒）。
+- `GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS`: 上と同じ `/explore` の API への、アクセストークンを伴わないリクエストに、接続元IPだけへ適用する上限（既定 10 リクエスト/60 秒）。無効・期限切れのトークンは匿名として扱わず 401 を返す。トークンは `X-App-Authorization` → `Authorization` の優先順で読む（`src/sanposcape/auth/headers.py`）。mobile は SS-70 以降 `X-App-Authorization` のみを送るため、`Authorization` の有無だけで匿名判定をしているわけではない点に注意。
 - cache miss は同じ正規化 key ごとに single-flight 化され、同時の同一 Places/Routes 呼び出しを1件へまとめる。
 - これらは**単一インスタンス限定**の緩和策である。水平スケールを開始する前に、Redis 等の共有 limiter と edge/proxy の request-size / IP rate-limit を必ず導入すること。共有 limiter は運用・識別子方針の別設計が必要なため、このタスクでは導入しない。
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`: 上流への接続／読取 timeout（既定 3 秒／8 秒）。超過時は API に 503 を返す。**`/explore/routes/loop`（周回）はこの限りではない**: 片方の候補だけがタイムアウトしても、もう片方が成功していれば 200 を返す（同じ道フォールバックの単発取得のみ、この timeout がそのまま 503 に直結する）。周回のログの読み方は下記「`/explore/places` が 503 を返すときの切り分け」の直後を参照。
