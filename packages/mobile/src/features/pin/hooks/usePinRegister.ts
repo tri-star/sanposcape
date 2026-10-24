@@ -235,6 +235,9 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
 
   const removeTag = (label: string) => {
     setTags((prev) => removeTagFrom(prev, label));
+    // 利用者がタグを外したら、最寄り駅のタグ（SS-225）はもう足さない。駅の応答より先に同じ名前のタグを
+    // 入れて外したとき、外したばかりのタグが駅のタグとして現れないようにする。
+    setStationTagSettled(true);
     save.resetError();
   };
 
