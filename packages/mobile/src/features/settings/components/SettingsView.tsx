@@ -23,6 +23,7 @@ import {
 } from "@/features/settings/lib/accountDeleteCopy";
 import type { AppVersionInfo } from "@/features/settings/lib/appVersionLabel";
 import { canDeleteAccount, resolveSettingsSection } from "@/features/settings/lib/settingsSection";
+import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { authService } from "@/services/auth";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { makeStyles } from "@/theme/makeStyles";
@@ -76,6 +77,8 @@ export function SettingsView() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false);
   const deletion = useAccountDeletion();
+  // 「ライセンス」を素早く2回押して画面が2枚積まれないようにする（フォーカスが戻ると解除）。
+  const { runOnce } = useNavigateOnce();
 
   const closeLogoutDialog = () => setLogoutDialogOpen(false);
 
@@ -130,7 +133,7 @@ export function SettingsView() {
         <View style={styles.aboutSection}>
           <AboutSection
             appVersion={APP_VERSION_INFO}
-            onOpenLicenses={() => router.push("/licenses")}
+            onOpenLicenses={() => runOnce(() => router.push("/licenses"))}
             testID="settings-about-section"
           />
         </View>
