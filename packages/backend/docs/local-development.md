@@ -176,3 +176,23 @@ docker compose exec api uv run python -m sanposcape.aws_lambda.photo_purge
 
 `STORAGE_MODE=fake` なら `DEV_STORAGE_DIR` 配下の `objects/{staging,original,thumb}/pins/<user_id>/` が消える（空のディレクトリは残る）。
 
+
+## 最寄り駅のデータを更新する（SS-225）
+
+`POST /explore/nearest-station` は、国土数値情報「鉄道データ」（N02。国土交通省。2020年度以降の版は CC BY 4.0）を加工した
+`src/sanposcape/maps/data/stations.csv` から引く。データは毎年（6月ごろ）新しい版が公開されるので、駅の新設・改称を取り込むときに手で更新する。
+標準ライブラリだけのスクリプトなので、コンテナでなくホストの `python3` で流せる。
+
+```bash
+# packages/backend で実行。N02-XX の XX は版（2024年度版は N02-24）。ダウンロードのページ:
+# https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2024.html（新しい版のページへ読み替える）
+curl -sSLO https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-24/N02-24_GML.zip
+unzip N02-24_GML.zip -d "$TMPDIR/n02"
+python3 scripts/build_station_data.py "$TMPDIR/n02/UTF-8/N02-24_Station.geojson"
+```
+
+版を上げたら、次も同じ PR で合わせる。
+
+- `src/sanposcape/maps/nearest_station.py` の `STATION_DATA_SOURCE`（出典と版）
+- mobile のライセンス画面の出典の表記（`packages/mobile/src/features/settings/data/thirdPartyNotices.ts` の「国土数値情報（鉄道データ）」。時点・ダウンロードのページの URL）
+- 使用許諾条件が CC BY 4.0 のままかを、ダウンロードのページの「このデータの使用許諾条件」で確かめる
