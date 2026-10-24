@@ -346,7 +346,7 @@ jobs:
             fi
             if [ -n "$KEPT" ]; then
               echo
-              echo "定義ファイルに無いが値を維持したキー: $KEPT（削除 PR をこの環境にデプロイ済みなら prune を付けて再実行する。docs/compat-ledger.md で固定値で返しているキーがある間は prune しない）"
+              echo "定義ファイルに無いが値を維持したキー: $KEPT（削除 PR をこの環境にデプロイ済みなら prune を付けて再実行する。docs/compat-tracker.md で固定値で返しているキーがある間は prune しない）"
             fi
             if [ -n "$ADDED" ]; then
               echo

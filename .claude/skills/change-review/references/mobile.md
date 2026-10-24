@@ -38,7 +38,7 @@
 ## 配布済みアプリ・稼働中の backend との互換
 
 mobile の新しい版は、ストアの審査と利用者の更新を待つ間、古い版と並んで動く。backend も main より古い版が本番で動いていることがある。
-正本: `docs/release-runbook.md` §1・§3・§7、ADR-008 決定1・6・7 と SS-233 追補、`docs/compat-ledger.md`。
+正本: `docs/release-runbook.md` §1・§3・§7、ADR-008 決定1・6・7 と SS-233 追補、`docs/compat-tracker.md`。
 守る範囲は、最低サポートバージョン以上（上げてから1日の間は、上げる前の値以上）の version で、ストアの審査に提出したビルド（審査中から守る。その version に配った OTA も含む。TestFlight だけのビルドは含めない。ADR-008 SS-233 追補 D43）。
 
 - 新しいエンドポイント・フィールドを使う機能が、フラグで包まれているか。包まないなら、backend の prod へのデプロイの後に配布する順序がプラン・PR に書かれているか
