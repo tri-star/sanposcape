@@ -15,8 +15,13 @@ import {
   resolveTagLabelForAdd,
   resolveTagSuggestionSanpoMapId,
 } from "@/features/pin/lib/pinTagSuggestions";
-import { addTag, addTagErrorMessage, removeTag as removeTagFrom } from "@/features/pin/lib/pinTags";
-import { mergeStationTag, resolveStationTag } from "@/features/pin/lib/pinStationTag";
+import { addTag, addTagErrorMessage } from "@/features/pin/lib/pinTags";
+import {
+  INITIAL_STATION_TAG_STATE,
+  mergeStationTag,
+  removeTagWithStation,
+  resolveStationTag,
+} from "@/features/pin/lib/pinStationTag";
 import type { StationTagState } from "@/features/pin/lib/pinStationTag";
 import { resolveSanpoMapChoices } from "@/features/pin/lib/sanpoMapChoices";
 import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
@@ -77,7 +82,8 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   const [memo, setMemoState] = useState("");
   // 利用者が入れたタグ。最寄り駅のタグ（SS-225）は含めず、下で合成する。
   const [userTags, setUserTags] = useState<string[]>([]);
-  const [stationTagState, setStationTagState] = useState<StationTagState>("auto");
+  const [stationTagState, setStationTagState] =
+    useState<StationTagState>(INITIAL_STATION_TAG_STATE);
   const [tagInput, setTagInputState] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
   const [sanpoMapSelection, setSanpoMapSelection] = useState<SanpoMapSelection>({
@@ -223,11 +229,9 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   const addTagFromSuggestion = (label: string) => applyAddTag(label);
 
   const removeTag = (label: string) => {
-    if (stationTag !== null && label === stationTag) {
-      setStationTagState("dismissed");
-    } else {
-      setUserTags((prev) => removeTagFrom(prev, label));
-    }
+    const next = removeTagWithStation({ label, stationTag, userTags, state: stationTagState });
+    setUserTags(next.userTags);
+    setStationTagState(next.state);
     save.resetError();
   };
 
