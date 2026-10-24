@@ -293,6 +293,43 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /explore/nearest-station:
+    post:
+      tags:
+      - explore
+      summary: Find Nearest Station
+      description: 'ピンの位置の最寄り駅（SS-225）。ピンの登録画面で、駅名のタグを最初から入れておくのに使う。
+
+
+        サインインが要る。同梱の駅のデータ（国土数値情報）から引き、Google は呼ばないので探索のレート
+
+        制限は掛けない。座標は DB・ログに残さない。3km 以内に駅が無ければ 200 + `station=null`。'
+      operationId: find_nearest_station_explore
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NearestStationRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NearestStationResponse'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Explore request body too large
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /walks:
     post:
       tags:
@@ -1487,6 +1524,52 @@ components:
         `null` は「最低バージョンの指定なし = 強制アップデートしない」を意味する
 
         （AppConfig を読めない場合の安全側フォールバックも同じ値になる。ADR-008 追補 D1）。'
+    NearestStationRead:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          title: Name
+          description: Station name as in the bundled dataset (e.g. '新宿'), without
+            '駅'.
+        tag_label:
+          type: string
+          maxLength: 20
+          title: Tag Label
+          description: 'Pin tag label for the station: the name without a trailing
+            parenthetical, suffixed with ''駅'' unless it already ends with it (e.g.
+            ''新宿駅'').'
+        distance_meters:
+          type: integer
+          minimum: 0.0
+          title: Distance Meters
+          description: Straight-line distance from the location.
+      type: object
+      required:
+      - name
+      - tag_label
+      - distance_meters
+      title: NearestStationRead
+    NearestStationRequest:
+      properties:
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+      type: object
+      required:
+      - location
+      title: NearestStationRequest
+      description: ピンの位置の最寄り駅を引く（SS-225。ピンの登録画面でタグを最初から入れておくのに使う）。
+    NearestStationResponse:
+      properties:
+        station:
+          anyOf:
+          - $ref: '#/components/schemas/NearestStationRead'
+          - type: 'null'
+      type: object
+      required:
+      - station
+      title: NearestStationResponse
+      description: 'SS-225: 3km 以内に駅が無い、またはタグにできない駅名のときは 200 で `station=null`。'
     PinConflictErrorRead:
       properties:
         detail:

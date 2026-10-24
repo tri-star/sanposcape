@@ -79,7 +79,7 @@ def test_get_app_config_response_shape(stub_client: TestClient) -> None:
     response = stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {"pin_registration": True},
+        "flags": {"pin_registration": True, "pin_station_tag": False},
         "minimum_supported_versions": {"ios": "1.2.3", "android": "1.2.4"},
         "config_source": "stub",
     }
@@ -99,7 +99,7 @@ def test_get_app_config_reflects_changes_to_stub_document() -> None:
     app = create_app(settings)
     with TestClient(app) as client:
         response = client.get("/app-config")
-    assert response.json()["flags"] == {"pin_registration": False}
+    assert response.json()["flags"] == {"pin_registration": False, "pin_station_tag": False}
 
 
 def test_get_app_config_with_empty_stub_document_returns_all_off(
@@ -108,7 +108,7 @@ def test_get_app_config_with_empty_stub_document_returns_all_off(
     response = empty_stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {"pin_registration": False},
+        "flags": {"pin_registration": False, "pin_station_tag": False},
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "stub",
     }
@@ -123,7 +123,7 @@ def test_get_app_config_falls_back_to_default_when_appconfig_unconfigured(
     response = unconfigured_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {"pin_registration": False},
+        "flags": {"pin_registration": False, "pin_station_tag": False},
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "default",
     }

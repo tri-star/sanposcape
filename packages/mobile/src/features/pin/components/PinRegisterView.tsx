@@ -64,6 +64,7 @@ export function PinRegisterView({
   const register = usePinRegister({
     // location が null のときは register hook を無害な既定値で走らせる（下の early return で描画しない）。
     location: pinLocation.location ?? { latitude: 0, longitude: 0 },
+    hasLocation: pinLocation.location !== null,
     clientWalkId,
     isSignedIn,
     onSaved: () => {
