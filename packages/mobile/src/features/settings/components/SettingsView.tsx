@@ -58,6 +58,7 @@ const APP_VERSION_INFO: AppVersionInfo = {
  * SS-158 でプライバシーポリシーへの導線（`AboutSection`）を追加した。認証状態にかかわらず表示する。
  * SS-228 で同じカードの末尾にアプリのバージョンを追加した（不具合の報告や問い合わせで、どのバージョンかを確かめられるように）。
  * SS-230 でビルド番号・本番以外のチャネル・OTA の update ID を併記した（staging のビルド同士と OTA の有無を見分けるため）。
+ * SS-191 で同じカードに「ライセンス」（同梱した第三者の素材のライセンス本文。`/licenses`）を追加した。
  *
  * SS-62 でアカウント削除（不可逆）を追加した。ログアウト（可逆）と `variant` / 配置 / 文言で
  * 区別する（誤操作防止）。削除後の遷移は `AuthGate` が担うため、この画面は `router` を触らない
@@ -127,7 +128,11 @@ export function SettingsView() {
 
         {/* 認証に依存しないので、テーマと同じく section の分岐の外に置く（ゲストにも出す。SS-158） */}
         <View style={styles.aboutSection}>
-          <AboutSection appVersion={APP_VERSION_INFO} testID="settings-about-section" />
+          <AboutSection
+            appVersion={APP_VERSION_INFO}
+            onOpenLicenses={() => router.push("/licenses")}
+            testID="settings-about-section"
+          />
         </View>
 
         {section === "loading" ? (

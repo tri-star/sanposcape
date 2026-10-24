@@ -127,7 +127,7 @@ export function ScreenCatalog() {
       key: "settings",
       label: "設定",
       description:
-        "テーマ（ライト/ダーク/端末の設定。端末に保存）/ ログアウト / アカウント削除（取り消し不能・実サーバーへ DELETE /users/me）（サインイン後）/ サインイン導線（guest。SS-57）",
+        "テーマ（ライト/ダーク/端末の設定。端末に保存）/ ログアウト / アカウント削除（取り消し不能・実サーバーへ DELETE /users/me）（サインイン後）/ サインイン導線（guest。SS-57）/ 「このアプリについて」の「ライセンス」から同梱素材のライセンス本文（SS-191）",
       icon: "settings-2",
       onPress: () => router.push("/settings"),
     },
