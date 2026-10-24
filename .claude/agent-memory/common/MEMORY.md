@@ -11,3 +11,4 @@
 - [文書の節名はコードのコメントから引かれている](doc-section-quoted-by-code-comments.md) — CI は節名・文言の引用を検査しない。文書を削る・見出しを変える前に文書名で grep し、削る規則に一次記録があるか確かめる
 - [Orca の管理外の worktree が消えた](worktree-outside-orca-gets-removed.md) — worktree は orca-ide で作り、既存ブランチは改名して base にする。区切りごとにすぐコミット。メインの外は sandbox から書けない
 - [長い規約ページは curl で読む](fetch-long-legal-pages-with-curl.md) — WebFetch は本文を切り捨てる。curl + HTML 除去 + スライスで条項を抜き、「Last modified」とアーカイブで版を確かめる
+- [画面イメージを sandbox で撮る](render-mockups-in-sandbox.md) — MCP ブラウザは file:// 不可・sandbox の localhost に届かない、chrome-headless-shell で撮る、PIL は uv で入れる
