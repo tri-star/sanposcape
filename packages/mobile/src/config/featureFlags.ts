@@ -31,6 +31,12 @@ export const FEATURE_FLAG_KEYS = {
    * 最初の実フラグとして `app_config_probe`（疎通確認用）を置き換えた。
    */
   pinRegistration: "pin_registration",
+  /**
+   * ピンの登録画面で、最寄り駅（3km 以内）の名前のタグを最初から入れておく（SS-225）。
+   * OFF の間は `POST /explore/nearest-station` を呼ばない。ポリシーの改定（ピンの座標を送る場面の追加）を
+   * 本番の LP に出してから ON にする。
+   */
+  pinStationTag: "pin_station_tag",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
