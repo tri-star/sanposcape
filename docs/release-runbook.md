@@ -180,7 +180,7 @@ sanposcape-infra の `live/platform/README.md`「dev での動作確認」の手
        mobile の分岐・キー定数（`src/config/featureFlags.ts`）・テストも同じ PR で消してよい（後の PR でもよい）。
        台帳の行を「固定値で返している」に更新する。**AppConfig の値はまだ `prune` しない**（下）。
     2. 最低サポートバージョン（iOS・Android とも）が、分岐を消したコードを**ストアのバイナリに埋め込んだ**最初の version 以上になったら（§7.3）、
-       固定値を消して台帳の行を外し、AppConfig の値も `prune` で消す。OTA で分岐の無い JS を届けた version は数えない
+       固定値を消して台帳の行を外す。台帳に他の「固定値で返している」行が残っていなければ、AppConfig の値も `prune` で消す。OTA で分岐の無い JS を届けた version は数えない
        （OTA を当てていない端末や、埋め込みの JS へ戻した端末（§8.4）に分岐が残るため）。
 
     > 固定値を返す仕組みはまだ実装していない。最初に mobile が見るフラグを消す課題（`pin_registration`）で実装する。
@@ -191,7 +191,7 @@ sanposcape-infra の `live/platform/README.md`「dev での動作確認」の手
     `prune` はキーを指定できず、定義ファイルに無いキーをまとめて消すので、別のフラグを消すための `prune` でも固定値のキーの値が消える。
     段階1 より前の backend へ戻した（§8.2）とき、戻した backend は AppConfig の値を読む。値が消えていると `false` になって配布済みのアプリから機能が消え、
     prod の切り替えは main の定義ファイル（キーが無い）からしか起動できないので、ワークフローで戻せない。
-    その間に消した backend だけのフラグの値は AppConfig に残るが、新しい backend は未知キーとして無視するので害は無い。段階2 の後にまとめて `prune` する。
+    その間に消した backend だけのフラグの値は AppConfig に残るが、新しい backend は未知キーとして無視するので害は無い。台帳の固定値の行が無くなってから、まとめて `prune` する。
 
 ### 現行の kill switch（AppConfig 移行前）
 
@@ -482,7 +482,7 @@ expand と contract は**別のデプロイに分ける**。contract を後に�
 - 過去のコミットへ戻すデプロイでは、`release` job はタグを作らずにスキップする
   （最新タグがその SHA の祖先でないため。番号の衝突を避ける仕様）
 - mobile が見るフラグを固定値に移した（§3 の削除の段階1）コミットより前へ戻すと、戻した backend は AppConfig の値でそのフラグを返す。
-  段階2 まで `prune` しない規則を守っていれば値は残っている。戻す前に、[互換性台帳](./compat-ledger.md)の「固定値で返している」行の値が AppConfig に残っているかを確かめる
+  台帳に固定値の行がある間は `prune` しない規則（§3）を守っていれば値は残っている。戻す前に、[互換性台帳](./compat-ledger.md)の「固定値で返している」行の値が AppConfig に残っているかを確かめる
 
 ### 8.3 ストアの公開を止める
 
