@@ -39,6 +39,11 @@ import type { GeoCoordinates } from "@/services/location/types";
 
 export type UsePinRegisterOptions = {
   location: GeoCoordinates;
+  /**
+   * `location` が実際のピンの位置か。false なら位置を取れなかった画面で、`location` は描画しないための
+   * 既定値なので、最寄り駅を引くために送らない（SS-225）。
+   */
+  hasLocation: boolean;
   clientWalkId: string | null;
   isSignedIn: boolean;
   onSaved: (pin: SavedPin) => void;
@@ -111,7 +116,7 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   const stationTagEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinStationTag);
   const stationTagLabel = usePinNearestStationTag({
     location: options.location,
-    enabled: options.isSignedIn && stationTagEnabled,
+    enabled: options.isSignedIn && options.hasLocation && stationTagEnabled,
   });
   const stationTag = resolveStationTag({
     label: stationTagLabel,
