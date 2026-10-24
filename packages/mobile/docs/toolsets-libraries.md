@@ -5,7 +5,7 @@
 - フレームワーク: ReactNative(expo)
 - ルーティング: Expo Router（ファイルベース）
 - スタイル: React Native 標準の `StyleSheet` + テーマ Context（`src/theme`。トークンは Claude Design から取り込み、ライト/ダークを切り替える。詳細は [ADR-M-005](../adr/ADR-M-005-styling-without-unistyles.md)）
-- アイコン: lucide-react-native（描画に react-native-svg を利用）。`MapPin` のシルエットは react-native-svg の `Svg`/`Path` を直接使って描く（[ADR-M-019](../adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）
+- アイコン: lucide-react-native（描画に react-native-svg を利用）。`MapPin` のシルエットは react-native-svg の `Svg`/`Path` を直接使って描く（[ADR-M-019](../adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）。地図のアイコンの絵は Noto Emoji のカラー SVG を react-native-svg の `parse` + `SvgAst` で描く（SS-191。素材と再生成は `assets/sanpo-map-icons/README.md`）
 - 状態管理:
   - サーバー状態: TanStack Query（Orval生成物と組み合わせる）
   - クライアント状態: Zustand（少量のグローバル状態）

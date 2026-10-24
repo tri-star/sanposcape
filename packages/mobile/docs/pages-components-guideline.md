@@ -209,6 +209,10 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 5. **アイコンは必ず `Icon` コンポーネント経由**。`lucide-react-native` を直接 import しない
    （バンドルサイズを1箇所で棚卸しするため）。名前はデザインと同じ kebab-case（例: `chevron-right`）で、
    使いたいアイコンが無ければ `src/components/ui/icon/iconRegistry.ts` に1行追加する。**絵文字は使わない**。
+   - **例外**: 地図のアイコン（地図ごとに選ぶ13種類）は、Noto Emoji のカラー SVG を画像として描く
+     （`features/pin/components/SanpoMapIconArt.tsx`。文字としての絵文字ではない。SS-191 /
+     [ADR-M-019](../adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) D8）。それ以外の UI のアイコンは従来どおり `Icon` を使う。
+     同梱した素材のライセンス本文は設定の「ライセンス」画面（`features/settings/data/thirdPartyNotices.ts`）に載せる。
 6. **`accessibilityRole` / `accessibilityLabel` / `accessibilityState` を必ず設定する**。
    - **例外**: 地図オーバーレイ（`MapPin` / `RoutePolyline`）は `react-native-maps` の
      `Marker`/`Polyline` の子として描画される装飾要素で、単体のスクリーンリーダー操作対象にならない
