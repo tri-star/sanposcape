@@ -22,7 +22,7 @@
 # 公開済みのアプリとの互換
 
 - mobile・backend とも任意のタイミングで本番にデプロイしてよいが、公開済みのアプリ（配布済みの mobile のビルド）と稼働中の backend に影響を出さないよう、フィーチャーフラグ（AWS AppConfig）か互換の維持で吸収する（[ADR-008](./docs/adr/ADR-008-deploy-release-separation.md) 決定1・7）。
-- 守るのは、最低サポートバージョン以上の version で、ストアの審査に提出したビルド（審査中を含む。その version に配った OTA も含む）。TestFlight だけのビルドは守らない。
+- 守るのは、最低サポートバージョン以上（上げてから1日の間は、上げる前の値以上）の version で、ストアの審査に提出したビルド（審査中を含む。その version に配った OTA も含む）。TestFlight だけのビルドは守らない。
   contract（古いものの削除）は、本番の最低サポートバージョンを上げてから1日経った後に行う（ADR-008 SS-233 追補 D43）。
 - API・DB スキーマ・フラグを変える変更は、[リリース運用手順](./docs/release-runbook.md) §3（フラグの削除）・§7（expand / contract）に従い、互換のために残すものは [互換性台帳](./docs/compat-ledger.md) に、いつ片付けるかとともに載せる。
 
