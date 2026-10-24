@@ -74,6 +74,10 @@ class FeatureFlagSpec:
 # キーを足す / 消すときは packages/backend/feature-flags.json（切り替えワークフローが使う
 # 定義ファイル）も合わせて変更する。キー集合の一致は core/tests/test_feature_flags_document.py
 # で検査している（SS-99, ADR-008 追補 D19）。
+# 本番で現在 ON の `audience="client"` のフラグを消すときは、ここから消さずに
+# 固定値を返すキーへ移す。配布済みの mobile は未知キーを OFF に倒すため、キーが
+# 返らなくなると公開済みの機能が消える（ADR-008 SS-233 追補 D40。固定値を返す
+# 仕組みは、最初にそうしたフラグを消すときに実装する）。
 FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
     FeatureFlagSpec(
         key="pin_registration",

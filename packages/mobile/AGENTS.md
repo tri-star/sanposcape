@@ -23,6 +23,8 @@
   API に触る計画・実装の前に `pnpm --filter mobile orval` で作り直し、現物の型を確かめる。
   backend の API 変更と同じブランチで進めるときは、`packages/backend/openapi.yaml` を更新した後に作り直す
   （`orval.config.ts` の入力は `../backend/openapi.yaml`）。
+- 新しい API・フィールドを使う変更は、フラグで包むか、backend を prod にデプロイしてから配布する計画にする。
+  本番で現在 ON のフラグを消すときは backend の固定値の期間を挟む（[リリース運用手順](../../docs/release-runbook.md) §3・§7、[互換性台帳](../../docs/compat-tracker.md)）。
 - 変更後は `pnpm --filter mobile typecheck` / `lint` / `format:check` / `test` を通す。
   - ルートを追加・削除したとき、ブランチを切り替えたときは、`typecheck` の前に
     `pnpm --filter mobile exec expo customize tsconfig.json` で `.expo/types/router.d.ts` を作り直す

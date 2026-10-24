@@ -18,6 +18,22 @@
 
 - router・schemas の変更に合わせて `openapi.yaml` を再出力しているか。CI は `openapi.yaml` とコードの食い違いを検査しない。古いままだと mobile の Orval が古い契約で生成される。
 - mobile を壊しやすい変更（クエリの無い GET へのクエリ追加で Orval の関数シグネチャが変わる、応答への required フィールド追加で mobile の型付きフィクスチャが落ちる）なら、同じ PR に mobile の最小修正があるか。正本: local-env.md「OpenAPI 定義」、`packages/backend/AGENTS.md`
+  - ただし同じ PR の mobile の修正で救えるのは、型・関数の形が変わるだけの変更に限る。下の「配布済みアプリとの互換」に当たる変更は、mobile を直して CI が通っても配布済みのアプリが壊れる。mobile の修正が入っていることを、互換の根拠にしない。
+
+## 配布済みアプリとの互換
+
+ストアの審査に提出した mobile は更新されないまま backend を叩き続ける（1.0.0 以降。審査中の版も、承認されればそのまま公開される）。
+守る範囲は最低サポートバージョン以上（上げてから1日の間は、上げる前の値以上）の版で、`/app-config` のエンドポイントと、案内の判定に使う部分（応答の形・`minimum_supported_versions`）は版に関わらず互換を保つ（フラグのキーの削除は D40 に従う）（ADR-008 SS-233 追補 D43）。正本: `docs/release-runbook.md` §3・§7、ADR-008 決定6・7 と SS-233 追補、`docs/compat-tracker.md`。
+
+- `openapi.yaml` の差分を、古いアプリの側から読む。壊れるのは次の変更。
+  - リクエスト: 任意の項目を必須にする、受け付ける値を狭める（`max_length`・範囲・列挙値）、項目名を変える、既定値の意味を変える
+  - 応答: フィールドを消す、null 許容にする、型・単位・意味を変える、列挙値を足す（古いアプリが未知の値で落ちないか、mobile 側の扱いを確かめる）
+  - エラー: ステータスコードや `code` を変える（mobile は `code` で分岐している。例: `photo_upload_not_ready`）。認証の要否を変える
+  - 応答への required のフィールドの追加は壊さない（古いアプリは無視する。ADR-008 決定7 の SS-171 追補）
+- 既存のエンドポイントを置き換えるなら、古い方を `deprecated=True` で意味・スキーマを変えずに残し、[互換性台帳](../../../../docs/compat-tracker.md)に行があるか。
+  本来は必須にしたい項目を互換のために任意にした場合、後で NOT NULL にする列を残した場合も同じ。
+- `core/feature_flags.py` の `FEATURE_FLAGS` から `audience="client"` のキーを消す差分では、本番で現在 ON のフラグなら固定値 `true` に移しているか（消すと配布済みのアプリから機能が消える。ADR-008 SS-233 追補 D40）。互換性台帳に固定値の行が残っている間に `prune` する手順になっていないか（`prune` はキーを指定できず、定義ファイルに無いキーをまとめて消す。段階1 より前の backend へ戻すと機能が消え、prod では戻せない。SS-233 のレビューで、規則をフラグ単位で書いて `packages/backend/scripts/feature_flags_document.py` の粒度と食い違った）。
+- 台帳の行を片付ける差分（非推奨の API の削除・必須化・固定値の削除）では、台帳の条件（本番の最低サポートバージョンを上げてから1日経ったか・全環境のデプロイ）を満たしているか、行を外しているか。
 - クエリパラメータで日時を受けるときも `AwareDatetime` か（ボディだけ `AwareDatetime` にしがち）。naive な値は `timestamptz` 列との比較で DB セッションのタイムゾーン次第で境界がずれる（SS-18 の `GET /walks`。修正済み）。列が `timezone=True` かとセットで見る。
 - 一覧のカーソルは `core/pagination.py` の型別ユーティリティ（`(datetime, uuid)` 用・`(int, uuid)` 用）に足しているか。ドメインごとに自前で組み立てていないか。
 

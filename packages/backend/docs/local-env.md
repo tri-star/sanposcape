@@ -160,6 +160,7 @@ docker compose up -d --build
 - `openapi.yaml` が変わると、backend だけの PR でも mobile CI（Orval の再生成 → typecheck → test）が走る（`.github/workflows/mobile-ci.yml` の `paths`）。壊れやすいのは次の2つ。
   - クエリパラメータが1つも無い GET にクエリを足す: Orval の関数が `fn(options?)` から `fn(params?, options?)` に変わり、`fn({ signal })` の呼び出しが型エラーになる（実行時は `signal` がクエリ扱いになる）。
   - 応答のスキーマに required のフィールドを足す: mobile の型付きテストフィクスチャ（`const RESPONSE: XxxRead = {...}`）が落ちる。
+  - この2つは mobile のコードの型が変わるだけで、配布済みのアプリは壊さない（クエリは任意のとき。必須のクエリを足すと古いアプリは 422 になる）。配布済みのアプリを壊す変更（リクエストの任意の項目を必須にする・応答のフィールドを消すなど）は、mobile を直して CI が通っても防げないので、expand / contract に分ける（[リリース運用手順](../../../docs/release-runbook.md) §7.1）。
 
 ## データベース
 

@@ -82,8 +82,8 @@ export function isOnWalkSummary(rootSegment: string | undefined): boolean {
  *   通信断でアプリを使えなくしないため。成功値があれば再取得の失敗中も `ready` のまま判定する。
  * - `deferForWalk`（`shouldDeferForWalk`。散歩中・保存できる間の未保存の散歩）の間は出さない。
  *   散歩を終えて保存するか、サマリ画面を離れれば出る。
- *   contract（API の削除）は最低バージョンを上げてから古いクライアントが減るのを待って行うので、
- *   散歩の終了まで遅らせても互換の問題にはならない（ADR-008 決定7）。
+ *   contract（API の削除）は最低バージョンを上げてから1日経った後に行うので、
+ *   散歩の終了まで遅らせても互換の問題にはならない（ADR-008 決定7、SS-233 追補 D43）。
  */
 export function shouldShowUpdateRequired(input: {
   snapshot: Pick<AppConfigSnapshot, "status" | "minimumSupportedVersions">;

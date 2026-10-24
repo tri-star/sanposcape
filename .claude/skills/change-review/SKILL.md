@@ -17,7 +17,7 @@ argument-hint: "[比較対象(option): PR番号 / ブランチ / コミット範
 
 | レビュアー | 起動する条件 | 見るもの |
 | --- | --- | --- |
-| `change-reviewer` | 毎回 | 変更全体・プラン・関連する ADR。要求との一致、層をまたぐ契約、設計と責務、正しさ、テスト、ADR との整合 |
+| `change-reviewer` | 毎回 | 変更全体・プラン・関連する ADR。要求との一致、層をまたぐ契約、配布済みアプリとの互換、設計と責務、正しさ、テスト、ADR との整合 |
 | `doc-maintainer` | 毎回（`change-reviewer` と並列） | ADR 以外の文書（AGENTS.md・docs・README・skill / agent の定義）が、変更後の動作を正しく説明しているか |
 | `security-reviewer` | 差分が下の「security の条件」に当たるとき | 変更全体を security の観点で見る |
 
