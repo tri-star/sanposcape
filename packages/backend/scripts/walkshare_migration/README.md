@@ -113,7 +113,7 @@ dev の地図（DB + S3）──────────────────
   写真は1枚ずつ メタデータ除去 → サムネイル → S3（`photo_keys.original_key` / `thumbnail_key`。`staging/` は通さない）→ `pin_photos`。
 - `--dry-run` は書かずに、入る件数・飛ばす件数・容量を出す。
 - 対応表（元の ID → 新しい ID）をバンドルの横に書き出す（戻すときと照合に使う）。
-- **未決（SS-237 で確かめる）**: `pin_photo_uploads` の行を作るか（作らない予定。掃除の処理・アカウント削除が `pin_photos` と S3 の `pins/<user_id>/` だけで足りるかを確かめる）。
+- **未決（SS-237 で確かめる）**: `pin_photo_uploads` の行を作るか（作らない予定。掃除の処理・アカウント削除が `pin_photos` と S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` だけで足りるかを確かめる）。
 
 ## walkshare の書き出し（SS-238）
 
