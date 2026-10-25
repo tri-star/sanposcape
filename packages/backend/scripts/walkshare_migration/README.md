@@ -133,6 +133,9 @@ dev の地図（DB + S3）──────────────────
   - バンドルのパスがリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
   - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。
     写真の大きさはバンドルの申告ではなく、メタデータを除いた後の実際のバイト数で数える（`pin_photos.byte_size` にもその値を入れる）
+- トランザクションの単位（**SS-237 で決める**）: `acquire_user_lock` は `pg_advisory_xact_lock` で commit すると外れる。全体を1つのトランザクションにすると、
+  約 2,000 枚の S3 の書き込みの間ロックを持ち続け、同じユーザーのアプリでの写真の枠の発行・確定が待たされて Lambda の時間切れになる。
+  案: 容量の確認はロックの中で行い、書き込みはピンごとに commit する。移行の間は、そのユーザーでアプリから写真を上げない。Neon のトランザクションの時間の上限も確かめる。
 - 書くもの: `pins`（`created_by_user_id` は指定したユーザー、`client_walk_id` は null）、`pin_tags`（`created_at` はバンドルの値）、
   写真は1枚ずつ メタデータ除去 → サムネイル → S3（`photo_keys.original_key` / `thumbnail_key`。`staging/` は通さない）→ `pin_photos`。
 - `--dry-run` は書かずに、入る件数・飛ばす件数・容量を出す。
