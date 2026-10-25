@@ -58,7 +58,9 @@ dev の地図（DB + S3）──────────────────
       "archived": false,
       "created_at": "...Z",
       "updated_at": "...Z",
-      "tags": ["正規化・重複除去済みのラベル（10件まで、各20文字まで）"],
+      "tags": [
+        {"label": "正規化・重複除去済みのラベル（10件まで、各20文字まで）", "created_at": "...Z"}
+      ],
       "photos": [
         {
           "source_id": "書き出し元の写真の ID",
@@ -78,6 +80,7 @@ dev の地図（DB + S3）──────────────────
 ```
 
 - `position` はピンの中で 0 からの連番（元の並び順）。
+- タグは `ORDER BY created_at, id` で返り、mobile はその順に並べる。タグの `created_at` が同じだと並びが uuid5 の `id` で決まり、元の順にならないので、タグごとに `created_at` を持たせる。
 - 作成者・アップロード者は入れない（環境ごとにユーザーの ID が違う）。読み込み時に指定したユーザーにする。
 - 散歩との紐付け（`client_walk_id`）は入れない（散歩は移さない。読み込みでは null）。
 - サムネイルは入れない。読み込みが `sanpo_maps/photos/thumbnails.py` で作る（作り方を1か所にする）。
@@ -129,7 +132,7 @@ dev の地図（DB + S3）──────────────────
   - バンドルのパスがリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
   - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。
     写真の大きさはバンドルの申告ではなく、メタデータを除いた後の実際のバイト数で数える（`pin_photos.byte_size` にもその値を入れる）
-- 書くもの: `pins`（`created_by_user_id` は指定したユーザー、`client_walk_id` は null）、`pin_tags`（`created_at` はピンの `created_at`）、
+- 書くもの: `pins`（`created_by_user_id` は指定したユーザー、`client_walk_id` は null）、`pin_tags`（`created_at` はバンドルの値）、
   写真は1枚ずつ メタデータ除去 → サムネイル → S3（`photo_keys.original_key` / `thumbnail_key`。`staging/` は通さない）→ `pin_photos`。
 - `--dry-run` は書かずに、入る件数・飛ばす件数・容量を出す。
 - 対応表（元の ID → 新しい ID・S3 のキー）をバンドルの横に書き出す（戻すときと照合に使う）。ディレクトリは 0700・ファイルは 0600 でスクリプトが作る。
@@ -159,7 +162,7 @@ dev の地図（DB + S3）──────────────────
 | `updated_at` | max(`created_at`, `spot.last_visited`, 写真の `created_at`) | `last_visited < date` が 6件あるため max を取る |
 | `visited` | 常に true | walkshare のスポットは訪れた場所の記録で、`last_visited` が全件ある |
 | `archived` | 常に false | |
-| `tags` | 写真の `name` → `names.name` | ピンの写真の順に集め、`tag_labels` で正規化・重複除去。最大 5 文字・1ピン最大 4 件 |
+| `tags` | 写真の `name` → `names.name` | ピンの写真の順に集め、`tag_labels` で正規化・重複除去。最大 5 文字・1ピン最大 4 件。`created_at` はピンの `created_at` + i マイクロ秒（i は 0 からの順番。この順に並ぶ） |
 | 写真の並び | `spot.photos` の順 | `position` は 0 からの連番 |
 | 写真の `taken_at` | `photo.date` | null が 57 枚 |
 | 写真の `created_at` | max(ピンの `created_at`, `taken_at`) | `taken_at` が null ならピンの `created_at`。1,979 枚のうち 1,326 枚はスポットの作成より後に撮られている（再訪で足した写真） |
@@ -187,8 +190,8 @@ dev の地図（DB + S3）──────────────────
 ## sanposcape の地図の書き出し（SS-239）
 
 - 入力は環境（dev）と地図の ID。DB と S3 は読み取りだけ。
-- 写すもの: ピン（`name`・`memo`・位置・`visited`・`archived`・`created_at`・`updated_at`）、タグ（ラベル）、写真（`position`・`taken_at`・`created_at`。原本は S3 の `original/` をそのまま。再圧縮しない）。
-- 写さないもの: 作成者・アップロード者、散歩との紐付け、タグの作成日時（読み込みでピンの `created_at` になる）、サムネイル（読み込みで作り直す）。
+- 写すもの: ピン（`name`・`memo`・位置・`visited`・`archived`・`created_at`・`updated_at`）、タグ（ラベル・`created_at`）、写真（`position`・`taken_at`・`created_at`。原本は S3 の `original/` をそのまま。再圧縮しない）。
+- 写さないもの: 作成者・アップロード者、散歩との紐付け、サムネイル（読み込みで作り直す）。
 - 地図に複数のユーザーのピンがあっても、すべて書き出し、読み込みで指定したユーザーのものにする。書き出しは作成者ごとの件数を出し、2人以上なら警告する（`--created-by` で絞れるようにする）。
 - 往復の確かめ: local で書き出し → 別の地図に読み込み、元の地図と同じに見えることを確かめる。
 
