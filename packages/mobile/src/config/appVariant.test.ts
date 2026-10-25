@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import type { ConfigContext } from "expo/config";
@@ -242,6 +242,38 @@ describe("ビルド設定との契約", () => {
     it("未知の APP_VARIANT は例外", () => {
       vi.stubEnv("APP_VARIANT", "prod");
       expect(evaluate).toThrow(/Unknown APP_VARIANT/);
+    });
+
+    it.each(resolved)("%s のビルドは対応するアイコン一式を使う", (name, profile) => {
+      vi.stubEnv("APP_VARIANT", profile.env?.APP_VARIANT ?? "");
+      const result = evaluate();
+      const directory = name === "production" ? "" : "development/";
+      const adaptiveDirectory = name === "production" ? "android/" : "development/";
+      expect(result.icon).toBe(`./assets/app-icons/${directory}sanposcape-icon-1024.png`);
+      expect(result.ios?.icon).toBe(result.icon);
+      expect(result.android?.adaptiveIcon).toEqual({
+        backgroundColor: "#208AEF",
+        backgroundImage: "./assets/app-icons/android/adaptive-background.png",
+        foregroundImage: `./assets/app-icons/${adaptiveDirectory}adaptive-foreground.png`,
+        monochromeImage: `./assets/app-icons/${adaptiveDirectory}adaptive-monochrome.png`,
+      });
+      for (const asset of [
+        result.icon,
+        result.android?.adaptiveIcon?.backgroundImage,
+        result.android?.adaptiveIcon?.foregroundImage,
+        result.android?.adaptiveIcon?.monochromeImage,
+      ]) {
+        expect(existsSync(path.resolve(__dirname, "../..", asset!)), `${name}: ${asset}`).toBe(
+          true,
+        );
+      }
+      // アイコン切り替えで権限・位置記録の通知アイコン・OTA配信先を変えない。
+      expect(result.android?.permissions).toEqual(appJson.expo.android?.permissions);
+      expect(result.ios?.infoPlist).toEqual(appJson.expo.ios?.infoPlist);
+      expect(result.updates).toEqual(appJson.expo.updates);
+      const locationPlugin = (plugins: ConfigContext["config"]["plugins"]) =>
+        plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === "expo-location");
+      expect(locationPlugin(result.plugins)).toEqual(locationPlugin(appJson.expo.plugins));
     });
   });
 });

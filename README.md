@@ -40,7 +40,7 @@
     - [ADR-M-012 登録済みピンの地図表示とピン詳細（ピン詳細の住所。SS-212 追補）](./packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md)
     - [ADR-M-013 ピンのタグ入力の候補](./packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)
     - [ADR-M-014 地図一覧と地図詳細](./packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md)
-    - [ADR-M-015 アプリアイコンのアセットとAndroid Adaptive Icon](./packages/mobile/adr/ADR-M-015-app-icon-assets.md)
+    - [ADR-M-015 アプリアイコンのアセットとAndroid Adaptive Icon、開発用DEV帯](./packages/mobile/adr/ADR-M-015-app-icon-assets.md)
     - [ADR-M-016 テーマ（外観）設定の端末保存](./packages/mobile/adr/ADR-M-016-theme-mode-preference.md)
     - [ADR-M-017 ピンの編集・削除](./packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)
     - [ADR-M-018 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./packages/mobile/adr/ADR-M-018-background-walk-location-tracking.md)

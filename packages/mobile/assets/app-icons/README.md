@@ -16,13 +16,13 @@
 
 ## アプリへの適用
 
-`app.json` の共通 `icon` と `ios.icon` に1024pxマスターを指定済み。iOSはサンプルのIcon Composer設定からPNG入力へ変更した。
+`app.json` の共通 `icon` と `ios.icon` に開発用の1024px画像を指定し、`APP_VARIANT=production` のとき `app.config.ts` が本番用マスターに切り替える。iOSはExpoのPNG入力を使う。
 Android の `adaptiveIcon` に専用の前景・背景・単色レイヤーを指定済み。通常アイコンは共通マスターを使う。
 前景は画像生成ツールで人物を透明背景に切り出し、背景は人物を除去した景色を再構成した。
 原素材は `../icon-concepts/adaptive-walker-source.png` と `adaptive-scenery-source.png`。
-単色レイヤーは前景と同じアルファ形状。人物を中央に置き、中央66/108の安全円内に収める。
+本番用の単色レイヤーは前景と同じアルファ形状。人物を中央に置き、中央66/108の安全円内に収める。
 設計理由は [ADR-M-015](../../adr/ADR-M-015-app-icon-assets.md) を参照。
-開発・本番とも同じアイコンを使う。スプラッシュとWeb faviconは既存設定のまま。
+開発用はオレンジの「DEV」帯で区別する（SS-227）。スプラッシュとWeb faviconは既存設定のまま。
 端末への反映にはネイティブアプリの再ビルド・再インストールが必要。Fast RefreshやOTAではホーム画面のアイコンは更新されない。
 このフォルダのiOSカタログは手動組込み用で、Expoはマスターからビルド時に必要な画像を生成する。
 
@@ -35,6 +35,32 @@ uv run --no-project --with Pillow==11.3.0 python packages/mobile/assets/app-icon
 ```
 
 ZIPには原画像を含めないため、ZIP内のスクリプト単独では再生成できない。再生成はリポジトリの採用原画像と分離した原素材を使用する。
+
+## 開発用アイコン（SS-227）
+
+`development/` の3枚は本番用PNGから機械的に作る生成物。直接編集しない。
+背景は本番用の `android/adaptive-background.png` を共用し、前景に帯を重ねる。
+単色画像は帯の文字を透明に抜くので、Androidのテーマアイコンでも区別できる。
+Androidの帯は中央66/108の安全円内に収める。位置記録の通知アイコンは本番用の人物シルエットを引き続き使う。
+
+| 用途 | 生成先（1024 × 1024px） | 生成元 |
+| --- | --- | --- |
+| 共通・iOS | `development/sanposcape-icon-1024.png`（RGB） | `sanposcape-icon-1024.png` |
+| Android前景 | `development/adaptive-foreground.png`（RGBA） | `android/adaptive-foreground.png` |
+| Android単色 | `development/adaptive-monochrome.png`（RGBA） | `android/adaptive-monochrome.png` |
+
+本番用素材を更新した後、リポジトリルートから次を実行し、生成した3枚もコミットする。
+Pillow同梱フォントを使い、OSに入っているフォントや画像生成サービスには依存しない。
+このコマンドは本番用素材を書き換えない。
+
+```bash
+uv run --no-project --with Pillow==11.3.0 python packages/mobile/assets/app-icons/generate-development.py
+```
+
+採用原画像・分離素材を更新した場合は、先に上の `generate.py` を実行して本番用PNGを更新してから実行する。
+既存の `manifest.json` とZIPは本番用の書き出し一覧で、開発用の3枚は含まない。
+生成後は小サイズ、Androidの円形・角丸マスク・単色表示を確認し、両OSを再ビルド・再インストールしてホーム画面を確認する。
+EASプロファイルごとの切り替えは [ビルドプロファイル](../../docs/build-profiles.md) を参照。
 
 ## 参照
 
