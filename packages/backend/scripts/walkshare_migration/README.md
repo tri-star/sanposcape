@@ -124,12 +124,16 @@ dev の地図（DB + S3）──────────────────
 - 書く前に確かめて、1つでも外れたら何も書かずに止める:
   - `format_version`、`pins.json` と各写真の sha256
   - 移行先の地図があり、指定したユーザーがその owner であること
-  - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは `tag_labels.dedupe_tags` を通して 10 件・20 文字まで、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/` の直下を指すこと）
-  - 容量: 指定したユーザーの使用量（`photos/repository.py` の集計）+ まだ入っていない写真の `byte_size` の合計 ≤ `pin_photo_user_quota_bytes`
+  - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは `tag_labels.dedupe_tags` を通して 10 件・20 文字まで、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/{source_id}.jpg` と完全に一致し、symlink でないこと）
+  - バンドルのパスがリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
+  - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。
+    写真の大きさはバンドルの申告ではなく、メタデータを除いた後の実際のバイト数で数える（`pin_photos.byte_size` にもその値を入れる）
 - 書くもの: `pins`（`created_by_user_id` は指定したユーザー、`client_walk_id` は null）、`pin_tags`（`created_at` はピンの `created_at`）、
   写真は1枚ずつ メタデータ除去 → サムネイル → S3（`photo_keys.original_key` / `thumbnail_key`。`staging/` は通さない）→ `pin_photos`。
 - `--dry-run` は書かずに、入る件数・飛ばす件数・容量を出す。
-- 対応表（元の ID → 新しい ID）をバンドルの横に書き出す（戻すときと照合に使う）。
+- 対応表（元の ID → 新しい ID・S3 のキー）をバンドルの横に書き出す（戻すときと照合に使う）。ディレクトリは 0700・ファイルは 0600 でスクリプトが作る。
+- S3 に置いた後で DB に書く前に止まると、どの行からも参照されない原本が残る（`staging/` を通さないのでライフサイクルでも消えず、地図の削除でも消えない）。
+  再実行すれば同じキーに上書きして行も入る。やめる場合は、対応表のキーで消す。
 - **未決（SS-237 で確かめる）**: `pin_photo_uploads` の行を作るか（作らない予定。掃除の処理・アカウント削除が `pin_photos` と S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` だけで足りるかを確かめる）。
 
 ## walkshare の書き出し（SS-238）
@@ -190,6 +194,9 @@ dev の地図（DB + S3）──────────────────
 ## 個人のデータの扱い
 
 - ダンプ・バンドル・対応表はリポジトリの `tmp/walkshare-migration/` の中にだけ置く（git の外。ディレクトリ 0700・ファイル 0600）。SS-242 で消す。
+- local の予行（SS-240）で、本物のデータが local の DB（docker の volume）と fake storage（`packages/backend/storages/dev-storage`）にも入る。
+  これも SS-242 で消す（移行先にした local の地図を消し、fake storage に残ったキーがないことを確かめる）。
+- SS-242 では、対応表の S3 のキーと dev の S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` を突き合わせ、途中で止まった分の原本が残っていないことを確かめる。
 - 移したデータは通常のピン・写真と同じテーブル・同じ S3 のキーに入り、地図の削除・アカウントの削除で同じように消える。
   アプリが扱うデータの種類・保存先・保存期間は変わらないので、データ取扱い台帳（`docs/privacy/data-inventory.md`）は変えない。
 - dev に入れた walkshare の地図は、prod での確認（SS-241）の後に SS-242 で消す（本物の写真の複製を減らすため）。
