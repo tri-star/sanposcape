@@ -80,7 +80,10 @@ dev の地図（DB + S3）──────────────────
 ```
 
 - `position` はピンの中で 0 からの連番（元の並び順）。
-- タグは `ORDER BY created_at, id` で返り、mobile はその順に並べる。タグの `created_at` が同じだと並びが uuid5 の `id` で決まり、元の順にならないので、タグごとに `created_at` を持たせる。
+- タグは `ORDER BY created_at, id` で返り、mobile はその順に並べる。`created_at` が同じタグ（アプリで1回の保存で付けたタグはふつう同じになる）は
+  `id` の順になるので、`created_at` を写すだけでは移行先で元の順にならない。そのため:
+  - **`tags` の配列の順を正とする。** 書き出しは表示と同じ `(created_at, id)` の順に並べる。
+  - 読み込みは、前のタグ以下の `created_at` を「前のタグの `created_at` + 1 マイクロ秒」に繰り上げ、配列の順に単調に増やしてから書く。
 - 作成者・アップロード者は入れない（環境ごとにユーザーの ID が違う）。読み込み時に指定したユーザーにする。
 - 散歩との紐付け（`client_walk_id`）は入れない（散歩は移さない。読み込みでは null）。
 - サムネイルは入れない。読み込みが `sanpo_maps/photos/thumbnails.py` で作る（作り方を1か所にする）。
@@ -139,7 +142,7 @@ dev の地図（DB + S3）──────────────────
 - 書く前に確かめて、1つでも外れたら何も書かずに止める:
   - `format_version`、`pins.json` と各写真の sha256
   - 移行先の地図があり、指定したユーザーがその owner であること
-  - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは `tag_labels.dedupe_tags` を通して 10 件・20 文字まで、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/{source_id}.jpg` と完全に一致し、symlink でないこと）
+  - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは 10 件までで、ラベルの列を `tag_labels.dedupe_tags` に通した結果が元の列と完全に一致すること（正規化済み・重複なし・20 文字まで。黙って落とすと `created_at` との対応がずれるので、違えば止める）、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/{source_id}.jpg` と完全に一致し、symlink でないこと）
   - バンドルのパスが、`Path.resolve()` した後でリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
   - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。
     写真の大きさはバンドルの申告ではなく、メタデータを除いた後の実際のバイト数で数える（`pin_photos.byte_size` にもその値を入れる）
@@ -176,7 +179,7 @@ dev の地図（DB + S3）──────────────────
 | `updated_at` | max(`created_at`, `spot.last_visited`) | `last_visited < date` が 6件あるため max を取る。写真の `created_at` は入れない（ADR-009 決定23: 写真の追加では `updated_at` を変えない） |
 | `visited` | 常に true | walkshare のスポットは訪れた場所の記録で、`last_visited` が全件ある |
 | `archived` | 常に false | |
-| `tags` | 写真の `name` → `names.name` | ピンの写真の順に集め、`tag_labels` で正規化・重複除去。最大 5 文字・1ピン最大 4 件。`created_at` はピンの `created_at` + i マイクロ秒（i は 0 からの順番。この順に並ぶ） |
+| `tags` | 写真の `name` → `names.name` | ピンの写真の順に集め、`tag_labels` で正規化・重複除去。最大 5 文字・1ピン最大 4 件。`created_at` はすべてピンの `created_at`（並びは読み込みの繰り上げで配列の順になる） |
 | 写真の並び | `spot.photos` の順 | `position` は 0 からの連番 |
 | 写真の `taken_at` | `photo.date` | null が 57 枚 |
 | 写真の `created_at` | max(ピンの `created_at`, `taken_at`) | `taken_at` が null ならピンの `created_at`。1,979 枚のうち 1,326 枚はスポットの作成より後に撮られている（再訪で足した写真） |
