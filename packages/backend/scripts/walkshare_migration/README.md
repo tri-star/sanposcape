@@ -107,8 +107,9 @@ dev の地図（DB + S3）──────────────────
 `ENV=local` なので本番向けの設定の検証も走らない。
 
 - `--target local|dev|prod` を必須の引数にする。
-- local 以外では `.env` を読まない（`Settings(_env_file=None)`）。`ENV` を `staging`（dev）/ `production`（prod）にして、既存の検証（`_validate_environment_settings`）を通す。
-  あわせて `storage_mode == "real"` と、バケット名が設定されていることを確かめる。
+- local 以外では `.env` を読まない（`Settings(_env_file=None)`）。スクリプト用の検証で、`storage_mode == "real"`・バケット名・バケットのリージョン・`database_dsn` が設定されていることを確かめる。
+  既存の `_validate_environment_settings` は使わない（`ENV=production` にすると `AUTH_JWT_SECRET`・`GOOGLE_MAPS_SERVER_API_KEY` など移行に要らない本番の秘密情報まで必須になり、
+  エージェントが動かすプロセスに渡すことになる）。`Settings` の必須項目で移行に要らないものは、既知のダミーの値で埋める。
 - 書く前に、接続先の DB のホスト名とバケット名を表示し、確認の入力を求める。
 - 書き出し（SS-239）は読み取り専用で接続する（`default_transaction_read_only=on`、または読み取り専用のロール）。
 
