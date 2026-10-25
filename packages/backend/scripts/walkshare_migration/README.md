@@ -100,9 +100,26 @@ dev の地図（DB + S3）──────────────────
 - `client_pin_id` を `pins.id` と同じ値にするので、`(created_by_user_id, client_pin_id)` の一意制約が二重登録の歯止めになる。
 - walkshare → dev → prod と2回移すと、prod の ID は dev の ID から作られる（walkshare の ID から直接は作られない）。
 
+## 接続先の取り違えを防ぐ（読み込み・書き出しの共通）
+
+`Settings` は `.env` を読むので、prod の DSN だけを環境変数で渡すと、ローカルの `.env` の `ENV=local`・`STORAGE_MODE=fake` が混ざる。
+そのまま走ると、prod の DB に行を書きながら写真を手元の fake storage に書き（prod の写真が壊れ、本物の写真が手元の別の場所に残る）、
+`ENV=local` なので本番向けの設定の検証も走らない。
+
+- `--target local|dev|prod` を必須の引数にする。
+- local 以外では `.env` を読まない（`Settings(_env_file=None)`）。`ENV` を `staging`（dev）/ `production`（prod）にして、既存の検証（`_validate_environment_settings`）を通す。
+  あわせて `storage_mode == "real"` と、バケット名が設定されていることを確かめる。
+- 書く前に、接続先の DB のホスト名とバケット名を表示し、確認の入力を求める。
+- 書き出し（SS-239）は読み取り専用で接続する（`default_transaction_read_only=on`、または読み取り専用のロール）。
+
+## スクリプトの出力
+
+後続ではエージェントがスクリプトを実行し、出力が会話の記録に残る。出力（ログ・エラーの文言・`--dry-run` の結果）は
+件数・容量と、新しい ID（uuid5）またはバンドルの中の連番だけにする。ピンの名前・メモ・座標・タグ・旧アプリの ID・ユーザーの ID は出さない。
+
 ## 読み込み（SS-237）
 
-- 引数: バンドルのパス、移行先の地図 ID、作成者にするユーザー ID、`--dry-run`。接続先は環境の設定（`.env`・環境変数）から読む。
+- 引数: `--target`、バンドルのパス、移行先の地図 ID、作成者にするユーザー ID、`--dry-run`。
 - 移行先の地図は、アプリで新しく作ってから ID を渡す（読み込みは地図を作らない）。戻すときはアプリで地図ごと消せる。
 - 書く前に確かめて、1つでも外れたら何も書かずに止める:
   - `format_version`、`pins.json` と各写真の sha256
