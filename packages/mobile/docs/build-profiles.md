@@ -41,6 +41,16 @@
 | `staging-ios` | `staging` と同じ中身の **iOS Ad Hoc ビルド**（UDID 登録済み端末への直接配布用） | internal | `preview`（継承） | ―（iOS 専用） | 同上 |
 | `production` | 本番のストア配信 | store | `production` | app-bundle | `https://app-api.sanposcape.com` |
 
+### アプリアイコン（SS-227）
+
+`production` は従来の本番用アイコンを使う。それ以外の5プロファイルはオレンジの「DEV」帯を付けた開発用アイコンを使う。
+`APP_VARIANT` 未設定なら `app.json` の開発用画像、`APP_VARIANT=production` なら `app.config.ts` が本番用画像を選ぶ。
+`staging-apk` / `staging-ios` も `staging` と同じ開発用アイコンになる。
+Androidは通常表示の前景とテーマ表示の単色画像を切り替え、背景は共用する。
+
+素材を更新したら [アイコンの再生成手順](../assets/app-icons/README.md) に従い開発用画像も再生成し、生成物をコミットする。
+反映には両OSでネイティブアプリの再ビルド・再インストールが必要。Fast Refresh・OTAではホーム画面のアイコンは変わらない。
+
 ### `environment` は必ず明示する
 
 `environment` は **EAS サーバー側に登録した環境変数（`eas env:create`）のどのセットを読むか**を

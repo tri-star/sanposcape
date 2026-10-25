@@ -4,13 +4,13 @@
     "slug": "sanposcape",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app-icons/sanposcape-icon-1024.png",
+    "icon": "./assets/app-icons/development/sanposcape-icon-1024.png",
     "scheme": "sanposcape-dev",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.sanposcape.app.dev",
       "usesAppleSignIn": true,
-      "icon": "./assets/app-icons/sanposcape-icon-1024.png",
+      "icon": "./assets/app-icons/development/sanposcape-icon-1024.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -18,9 +18,9 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#208AEF",
-        "foregroundImage": "./assets/app-icons/android/adaptive-foreground.png",
+        "foregroundImage": "./assets/app-icons/development/adaptive-foreground.png",
         "backgroundImage": "./assets/app-icons/android/adaptive-background.png",
-        "monochromeImage": "./assets/app-icons/android/adaptive-monochrome.png"
+        "monochromeImage": "./assets/app-icons/development/adaptive-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.sanposcape.app.dev",

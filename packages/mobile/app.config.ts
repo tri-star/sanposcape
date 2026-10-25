@@ -23,7 +23,7 @@ const PRODUCTION_VARIANT = {
 const GOOGLE_SIGNIN_PLUGIN = "react-native-nitro-google-signin";
 
 /**
- * APP_VARIANT が "production" のときだけ本番の識別子・scheme・アプリ名と、
+ * APP_VARIANT が "production" のときだけ本番の識別子・scheme・アプリ名・アイコンと、
  * Google サインインの `iosUrlScheme`（plugins 配列内）で上書きする。
  * 未設定なら開発用（app.json の値）のまま。
  * それ以外の値は例外にする: typo（"prod" 等）で本番ビルドが黙って開発識別子になると、
@@ -37,8 +37,6 @@ const GOOGLE_SIGNIN_PLUGIN = "react-native-nitro-google-signin";
  * （ADR-M-007 の SS-148 追補）。
  *
  * 意図的にやらないこと:
- * - アイコンは分けない。開発・本番とも SS-87 の採用画像を使う
- *   （ADR-M-015）。iOS は PNG、Android は Adaptive Icon のレイヤーを静的設定で指定する。
  * - `slug` / `extra.eas.projectId` / `updates.url` / `runtimeVersion` は上書きしない
  *   （同一 EAS プロジェクトで variant を持つ）。
  */
@@ -53,8 +51,22 @@ function applyAppVariant(
     ...config,
     name: PRODUCTION_VARIANT.name,
     scheme: PRODUCTION_VARIANT.scheme,
-    ios: { ...config.ios, bundleIdentifier: PRODUCTION_VARIANT.bundleIdentifier },
-    android: { ...config.android, package: PRODUCTION_VARIANT.androidPackage },
+    // app.json は開発用。SS-227: 本番では DEV 帯のない採用素材を指定する（ADR-M-015）。
+    icon: "./assets/app-icons/sanposcape-icon-1024.png",
+    ios: {
+      ...config.ios,
+      bundleIdentifier: PRODUCTION_VARIANT.bundleIdentifier,
+      icon: "./assets/app-icons/sanposcape-icon-1024.png",
+    },
+    android: {
+      ...config.android,
+      package: PRODUCTION_VARIANT.androidPackage,
+      adaptiveIcon: {
+        ...config.android?.adaptiveIcon,
+        foregroundImage: "./assets/app-icons/android/adaptive-foreground.png",
+        monochromeImage: "./assets/app-icons/android/adaptive-monochrome.png",
+      },
+    },
     plugins: withProductionGoogleSignInPlugin(config.plugins),
   };
 }
