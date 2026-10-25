@@ -1,6 +1,6 @@
 ---
 name: maps
-description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）
+description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
 metadata:
   type: feedback
   scope: durable
@@ -31,6 +31,14 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
   付け直した線がいちばん上に来るので、位置が届くたびに座標が変わる線（散歩中の軌跡）は、毎回ほかの線より上に戻る。マウント順や再マウントで順序を作っても、次の更新で崩れる。
 - **How to apply:** 線どうしの重なり順に頼る見た目（下に太く敷いて縁取りにする等）を iOS で成り立たせようとしない。動く線は上に来る前提でデザインする（SS-168 の軌跡は「ルート線の上に細く重ねる」にした。ADR-M-008 決定10）。
   `zIndex` を足すレビューでは iOS を見落としやすい（SS-168 は Copilot のレビューで発覚）。
+
+## iOS（Apple Maps）は破線の線を太く描く（SS-232）
+
+- `lineDashPattern` を付けた `Polyline` は、iOS で**太さと破線パターンの両方が拡大**されて描かれる（スクリーンショット1枚の実測で、太さ 5 の破線が約 12.5〜13.4pt・破線の周期が約 2.2 倍。同じ太さの実線は 5pt）。一様な拡大とは完全には合わず、仕組みは仮説の段階。
+  react-native-maps は値をそのまま `MKPolylineRenderer` に渡しており、拡大は MapKit 側。Android（Google Maps）は起きない。
+- Android は `lineCap="round"` のとき破線の長さを捨てて丸い点（直径 = 太さ）にし、間隔は端末の px で渡す。両 OS で同じ見た目にはならない。
+- **How to apply:** 破線の線の見た目は OS ごとの値にする（`walkReturnLineStyle`。ADR-M-008 決定9 の SS-232 追補）。倍率 2.5 はスクリーンショット1枚から測った値の間を採ったもので、ズーム・画面の倍率・iOS の版での変化は未確認。
+  iOS の見え方の報告は、スクリーンショットを画素で測ると原因の当たりが付けやすい（往路の実線を物差しにする）。
 
 ## 画面を離れて戻ると、座標が後から変わった線が古い座標に戻る（Android。SS-211）
 
