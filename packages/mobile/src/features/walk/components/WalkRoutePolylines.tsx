@@ -10,7 +10,7 @@ export type WalkRoutePolylinesProps = { walkRoute: WalkRoute };
 
 /**
  * 復路の線の太さと破線パターン。OS で値が違う（iOS は MapKit が破線の線を拡大して描くため。SS-232）。
- * `lineCap="round"` と組み合わさり、両 OS とも「丸い点の点線」に見える。凡例の破線見本（短い線）と少し違うが、
+ * `lineCap="round"` と組み合わさり「丸い点の点線」に見える（iOS は実機で未確認。ADR-M-008 決定9 の SS-232 追補）。凡例の破線見本（短い線）と少し違うが、
  * 許容して据え置いている（ADR-M-008 決定9）。
  */
 const RETURN_LINE_STYLE = walkReturnLineStyle(Platform.OS);
