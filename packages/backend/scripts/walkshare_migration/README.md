@@ -114,14 +114,23 @@ dev の地図（DB + S3）──────────────────
 - `--target local|dev|prod` を必須の引数にする。
 - local 以外では `.env` を読まない（`Settings(_env_file=None)`）。スクリプト用の検証で、`storage_mode == "real"`・バケット名・バケットのリージョン・`database_dsn` が設定されていることを確かめる。
   既存の `_validate_environment_settings` は使わない（`ENV=production` にすると `AUTH_JWT_SECRET`・`GOOGLE_MAPS_SERVER_API_KEY` など移行に要らない本番の秘密情報まで必須になり、
-  エージェントが動かすプロセスに渡すことになる）。`Settings` の必須項目で移行に要らないものは、既知のダミーの値で埋める。
-- 書く前に、接続先の DB のホスト名とバケット名を表示し、確認の入力を求める。
+  エージェントが動かすプロセスに渡すことになる）。
+- 値の有無だけでなく、`--target` と実際の接続先が合うことを確かめる（シェルに前の作業の環境変数が残りうるため）:
+  バケット名が `--target` の環境の SSM（`/sanposcape/<env>/platform/pin_photos/bucket_name`。backend の `template.yaml` と同じ）の値と一致すること、
+  STS の `get-caller-identity` のアカウントが `--target` の環境のアカウントであること。
+- 書く前に、接続先の DB のホスト名とバケット名と件数を表示して止まる。ユーザーが表示を見てから、`--yes` を付けて実行し直す（エージェントが自分で確認に答えない）。
 - 書き出し（SS-239）は読み取り専用で接続する（`default_transaction_read_only=on`、または読み取り専用のロール）。
 
 ## スクリプトの出力
 
 後続ではエージェントがスクリプトを実行し、出力が会話の記録に残る。出力（ログ・エラーの文言・`--dry-run` の結果）は
 件数・容量と、新しい ID（uuid5）またはバンドルの中の連番だけにする。ピンの名前・メモ・座標・タグ・旧アプリの ID・ユーザーの ID は出さない。
+
+- 例外の文言にも値が入る（制約違反の DETAIL の `Key (...)=(...)`・`Failing row contains (...)` には、ユーザーの ID・タグ・名前・メモ・座標が入る。
+  `hide_parameters` が隠すのは `[parameters: ...]` だけ）。例外はスクリプトの入口で捕まえ、型・SQLSTATE・制約の名前（`e.diag.constraint_name`）と
+  バンドルの中の連番だけを出す。`str(e)` とトレースバックは出さない。
+- DB には `settings.sqlalchemy_engine_kwargs` を通して接続し、`hide_parameters` を効かせる。アプリのロギングを使うなら `include_exception_messages` を False にする
+  （`.env` を読まないと `ENV` が既定の `local` になり、例外の文言を出す設定になるため）。
 
 ## 読み込み（SS-237）
 
@@ -131,7 +140,7 @@ dev の地図（DB + S3）──────────────────
   - `format_version`、`pins.json` と各写真の sha256
   - 移行先の地図があり、指定したユーザーがその owner であること
   - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは `tag_labels.dedupe_tags` を通して 10 件・20 文字まで、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/{source_id}.jpg` と完全に一致し、symlink でないこと）
-  - バンドルのパスがリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
+  - バンドルのパスが、`Path.resolve()` した後でリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
   - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。
     写真の大きさはバンドルの申告ではなく、メタデータを除いた後の実際のバイト数で数える（`pin_photos.byte_size` にもその値を入れる）
 - トランザクションの単位（**SS-237 で決める**）: `acquire_user_lock` は `pg_advisory_xact_lock` で commit すると外れる。全体を1つのトランザクションにすると、
@@ -214,7 +223,8 @@ dev の地図（DB + S3）──────────────────
 - ダンプ・バンドル・対応表はリポジトリの `tmp/walkshare-migration/` の中にだけ置く（git の外。ディレクトリ 0700・ファイル 0600）。SS-242 で消す。
 - local の予行（SS-240）で、本物のデータが local の DB（docker の volume）と fake storage（`packages/backend/storages/dev-storage`）にも入る。
   これも SS-242 で消す（移行先にした local の地図を消し、fake storage に残ったキーがないことを確かめる）。
-- SS-242 では、対応表の S3 のキーと dev の S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` を突き合わせ、途中で止まった分の原本が残っていないことを確かめる。
+- 対応表の S3 のキーと S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` を突き合わせ、途中で止まった分の原本が残っていないことを確かめる
+  （prod は SS-241 の完了の前に、dev は SS-242 で）。
 - 移したデータは通常のピン・写真と同じテーブル・同じ S3 のキーに入り、地図の削除・アカウントの削除で同じように消える。
   アプリが扱うデータの種類・保存先・保存期間は変わらないので、データ取扱い台帳（`docs/privacy/data-inventory.md`）は変えない。
 - dev に入れた walkshare の地図は、prod での確認（SS-241）の後に SS-242 で消す（本物の写真の複製を減らすため）。
