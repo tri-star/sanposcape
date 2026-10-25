@@ -163,7 +163,7 @@ dev の地図（DB + S3）──────────────────
 | `memo` | `spot.comment` | 空なら null（539件が該当） |
 | `latitude`・`longitude` | `spot.point` | |
 | `created_at` | `spot.date` | 全件ある |
-| `updated_at` | max(`created_at`, `spot.last_visited`, 写真の `created_at`) | `last_visited < date` が 6件あるため max を取る |
+| `updated_at` | max(`created_at`, `spot.last_visited`) | `last_visited < date` が 6件あるため max を取る。写真の `created_at` は入れない（ADR-009 決定23: 写真の追加では `updated_at` を変えない） |
 | `visited` | 常に true | walkshare のスポットは訪れた場所の記録で、`last_visited` が全件ある |
 | `archived` | 常に false | |
 | `tags` | 写真の `name` → `names.name` | ピンの写真の順に集め、`tag_labels` で正規化・重複除去。最大 5 文字・1ピン最大 4 件。`created_at` はピンの `created_at` + i マイクロ秒（i は 0 からの順番。この順に並ぶ） |
