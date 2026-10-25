@@ -160,7 +160,7 @@ dev の地図（DB + S3）──────────────────
 | sanposcape | walkshare | 備考 |
 | --- | --- | --- |
 | `name` | `spot.title` | 前後の空白を除く（4件が該当）。空なら null。最大 33 文字 |
-| `memo` | `spot.comment` | 空なら null（539件が該当） |
+| `memo` | `spot.comment` | 前後の空白を除く（1件が該当。API の `PinCreate` と同じ）。空なら null（539件が該当） |
 | `latitude`・`longitude` | `spot.point` | |
 | `created_at` | `spot.date` | 全件ある |
 | `updated_at` | max(`created_at`, `spot.last_visited`) | `last_visited < date` が 6件あるため max を取る。写真の `created_at` は入れない（ADR-009 決定23: 写真の追加では `updated_at` を変えない） |
