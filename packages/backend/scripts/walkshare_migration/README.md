@@ -141,7 +141,7 @@ walkshare の書き出しは、加えて写真の ICC プロファイルの説�
 ## 読み込み（SS-237）
 
 - 引数: `--target`、`--bundle`（バンドルのパス）、`--map-id`（移行先の地図 ID）、`--user-id`（作成者にするユーザー ID）、`--dry-run`、`--yes`、
-  `--aws-account-id`（dev・prod で資格情報のアカウントと照合する）。
+  `--aws-account-id`・`--db-host`（dev・prod で、資格情報のアカウントと `DATABASE_DSN` のホスト名と照合する）。
 - 移行先の地図は、アプリで新しく作ってから ID を渡す（読み込みは地図を作らない）。戻すときはアプリで地図ごと消せる。
 - 書く前に確かめて、1つでも外れたら何も書かずに止める:
   - `format_version`、`pins.json` と各写真の sha256
@@ -153,7 +153,7 @@ walkshare の書き出しは、加えて写真の ICC プロファイルの説�
 - トランザクションの単位（SS-237 で決定）: **ピンごとに1つ**。`acquire_user_lock` は `pg_advisory_xact_lock` で commit すると外れる。全体を1つのトランザクションにすると、
   約 2,000 枚の S3 の書き込みの間ロックを持ち続け、同じユーザーのアプリでの写真の枠の発行・確定が待たされて Lambda の時間切れになる。
   - 書く前に1回、ロックの中で全体の容量を確かめる（外れたら何も書かない）。
-  - 書くときはピンごとに、ロック → このピンの写真の分で容量を確かめ直す → ピン・タグ・写真 → commit。ロックを持つのは1ピン分（最大 45 枚）の S3 の書き込みの間だけで、
+  - 書くときはピンごとに、ロック → このピンの写真の分で容量を確かめ直す → ピン・タグ・写真 → commit。ロックを持つのは1ピン分（walkshare の実データで最大 45 枚）の S3 の書き込みの間だけで、
     途中でアプリから写真を上げられても上限は超えない。それでも移行の間は、そのユーザーでアプリから写真を上げない（上げると、途中で容量の上限で止まりうる）。
   - 既にあるピン（ID は uuid5）は、タグ・写真ごと DB も S3 も書かずに飛ばす。ピンとその写真は同じトランザクションなので、ピンがあれば写真も入っている。
   - Neon のトランザクションの時間: 1ピン分は数秒〜十数秒。dev・prod で流す前に、`--dry-run` の後で1ピン目の時間を見て確かめる（SS-240・241）。
@@ -181,7 +181,9 @@ uv run --no-project --python 3.12 --with-editable . --with boto3 python scripts/
 - local: `.env` を読む。`.env` は compose 用で `DB_HOST` を持たないので、DB は `localhost`（`.env` の `DB_PORT`）に繋ぐ。`STORAGE_MODE=fake` と `DEV_STORAGE_DIR` が要り、
   写真は `packages/backend/storages/dev-storage/` に書く（API のコンテナと同じ場所）。sandbox の中からは localhost に届かないので、エージェントは sandbox の外で動かす。
   移行先の地図は、アプリか `POST /auth/dev-session`・`POST /sanpo-maps` で作る。
-- dev・prod: `.env` を読まない。`DATABASE_DSN`・`STORAGE_MODE=real`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION` と AWS の資格情報を環境変数で渡し、`--aws-account-id` を付ける。
+- dev・prod: `.env` を読まない。`DATABASE_DSN`・`STORAGE_MODE=real`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION` と AWS の資格情報を環境変数で渡し、
+  `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。DSN の値は表示しない（共有のシークレットの `neon_dsn` にある。
+  取り出すときは同じコマンドの中で環境変数に入れ、`get-secret-value` の結果を表示しない。表示すると、同じ JSON の他の秘密ごと会話の記録に残る）。
 - まず `--dry-run`、次に引数そのままで実行して接続先の表示を確かめ、最後に `--yes` を付けて書く。
 - 対応表は `<バンドル>.import-<target>-<地図 ID>.json`（バンドルの横）。
 

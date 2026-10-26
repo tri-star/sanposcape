@@ -600,27 +600,33 @@ class FakeSts:
         return {"Account": self.account}
 
 
-def test_verify_aws_target_checks_bucket_and_account() -> None:
-    """バケット名は --target の SSM の値と、資格情報のアカウントは --aws-account-id と
-    一致しなければ止まること。
+def test_verify_remote_target_checks_db_host_bucket_and_account() -> None:
+    """DB のホスト名は --db-host と、バケット名は --target の SSM の値と、資格情報のアカウントは
+    --aws-account-id と一致しなければ止まること。
     """
-    settings = settings_for_test(pin_photo_bucket_name="bucket-dev")
+    settings = settings_for_test(
+        pin_photo_bucket_name="bucket-dev", database_dsn="postgresql://u:pw@db-dev.example/app"
+    )
     ssm = FakeSsm("bucket-dev")
 
-    ib.verify_aws_target("dev", settings, expected_account_id="111", ssm=ssm, sts=FakeSts("111"))
+    def verify(**overrides: Any) -> None:
+        kwargs: dict[str, Any] = {
+            "expected_account_id": "111",
+            "expected_db_host": "db-dev.example",
+            "ssm": ssm,
+            "sts": FakeSts("111"),
+            **overrides,
+        }
+        ib.verify_remote_target(kwargs.pop("target", "dev"), settings, **kwargs)
+
+    verify()
     assert ssm.names == ["/sanposcape/dev/platform/pin_photos/bucket_name"]
+    with pytest.raises(ib.ImportBundleError, match="--db-host"):
+        verify(expected_db_host="db-prod.example")
     with pytest.raises(ib.ImportBundleError, match="PIN_PHOTO_BUCKET_NAME"):
-        ib.verify_aws_target(
-            "prod",
-            settings,
-            expected_account_id="111",
-            ssm=FakeSsm("bucket-prod"),
-            sts=FakeSts("111"),
-        )
+        verify(target="prod", ssm=FakeSsm("bucket-prod"))
     with pytest.raises(ib.ImportBundleError, match="アカウント"):
-        ib.verify_aws_target(
-            "dev", settings, expected_account_id="222", ssm=ssm, sts=FakeSts("111")
-        )
+        verify(expected_account_id="222")
 
 
 def test_build_settings_for_remote_target_ignores_dotenv(

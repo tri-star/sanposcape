@@ -584,13 +584,24 @@ def build_settings(target: str, environ: dict[str, str] | None = None) -> Settin
     return settings
 
 
-def verify_aws_target(
-    target: str, settings: Settings, *, expected_account_id: str, ssm: Any, sts: Any
+def verify_remote_target(
+    target: str,
+    settings: Settings,
+    *,
+    expected_account_id: str,
+    expected_db_host: str,
+    ssm: Any,
+    sts: Any,
 ) -> None:
-    """バケット名が `--target` の SSM の値と、資格情報のアカウントが指定と一致することを確かめる。
+    """バケット名が `--target` の SSM の値と、資格情報のアカウント・DB のホスト名が指定と
+    一致することを確かめる。
 
-    シェルに前の作業の環境変数が残っていても、別の環境に書かないため。
+    シェルに前の作業の環境変数が残っていても、別の環境に書かないため。DSN は値があるかだけで
+    なくホスト名を照合する（dev の DSN が残ったまま prod のバケットに写真を書くと、prod の
+    どの利用者の prefix にも入らず、地図・アカウントの削除でも消えない写真が残る）。
     """
+    if make_url(settings.database_url).host != expected_db_host:
+        raise ImportBundleError("DATABASE_DSN のホスト名が --db-host と違います")
     name = f"/sanposcape/{target}/platform/pin_photos/bucket_name"
     if ssm.get_parameter(Name=name)["Parameter"]["Value"] != settings.pin_photo_bucket_name:
         raise ImportBundleError(f"PIN_PHOTO_BUCKET_NAME が {name} の値と違います")
@@ -688,6 +699,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--yes", action="store_true", help="接続先と件数を見た後で、書く")
     parser.add_argument("--aws-account-id", help="dev・prod で、資格情報のアカウントと照合する")
+    parser.add_argument("--db-host", help="dev・prod で、DATABASE_DSN のホスト名と照合する")
     args = parser.parse_args(argv)
     # sanposcape のロガーの WARNING には S3 のキー（ユーザー ID が入る）などが出うる。
     logging.getLogger("sanposcape").setLevel(logging.ERROR)
@@ -697,15 +709,18 @@ def main(argv: list[str] | None = None) -> int:
         bundle_dir = bundle.require_inside_work_dir(args.bundle)
         settings = build_settings(args.target)
         if args.target != "local":
-            if not args.aws_account_id:
-                raise ImportBundleError(f"--target {args.target} では --aws-account-id が要ります")
+            if not args.aws_account_id or not args.db_host:
+                raise ImportBundleError(
+                    f"--target {args.target} では --aws-account-id と --db-host が要ります"
+                )
             import boto3
 
             region = settings.pin_photo_bucket_region
-            verify_aws_target(
+            verify_remote_target(
                 args.target,
                 settings,
                 expected_account_id=args.aws_account_id,
+                expected_db_host=args.db_host,
                 ssm=boto3.client("ssm", region_name=region),
                 sts=boto3.client("sts", region_name=region),
             )
