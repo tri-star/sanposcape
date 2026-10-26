@@ -622,7 +622,12 @@ def verify_remote_target(
     なくホスト名を照合する（dev の DSN が残ったまま prod のバケットに写真を書くと、prod の
     どの利用者の prefix にも入らず、地図・アカウントの削除でも消えない写真が残る）。
     """
-    if make_url(settings.database_url).host != expected_db_host:
+    url = make_url(settings.database_url)
+    # psycopg はクエリの host・hostaddr を netloc より優先するので、照合したホストと違う所に
+    # 繋ぎうる。
+    if {"host", "hostaddr"} & set(url.query):
+        raise ImportBundleError("DATABASE_DSN のクエリに host・hostaddr があります")
+    if url.host != expected_db_host:
         raise ImportBundleError("DATABASE_DSN のホスト名が --db-host と違います")
     name = f"/sanposcape/{target}/platform/pin_photos/bucket_name"
     if ssm.get_parameter(Name=name)["Parameter"]["Value"] != settings.pin_photo_bucket_name:
@@ -737,6 +742,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             import boto3
 
+            # ~/.aws/config のプロファイルの endpoint_url（S3 だけの指定も）で、SSM・STS の照合は
+            # AWS に向いたまま S3 だけ別の宛先に書くことがないよう、設定された宛先を使わない。
+            os.environ["AWS_IGNORE_CONFIGURED_ENDPOINT_URLS"] = "true"
             region = settings.pin_photo_bucket_region
             verify_remote_target(
                 args.target,

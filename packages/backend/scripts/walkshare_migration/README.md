@@ -185,8 +185,13 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
   写真は `packages/backend/storages/dev-storage/` に書く（API のコンテナと同じ場所）。sandbox の中からは localhost に届かないので、エージェントは sandbox の外で動かす。
   移行先の地図は、アプリか `POST /auth/dev-session`・`POST /sanpo-maps` で作る。
 - dev・prod: `.env` を読まない。`DATABASE_DSN`・`STORAGE_MODE=real`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION` と AWS の資格情報を環境変数で渡し、
-  `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。DSN の値は表示しない（共有のシークレットの `neon_dsn` にある。
-  取り出すときは同じコマンドの中で環境変数に入れ、`get-secret-value` の結果を表示しない。表示すると、同じ JSON の他の秘密ごと会話の記録に残る）。
+  `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。
+  - DSN は、照合に使うのと同じ `--target` の環境の資格情報で、同じコマンドの中で取り出す（SSM `/sanposcape/<target>/platform/secrets/shared/arn` →
+    そのシークレットの `neon_dsn`）。別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
+    `get-secret-value` の結果は表示しない（同じ JSON の他の秘密ごと会話の記録に残る）。
+  - `--db-host` は DSN から作らず、Neon のコンソール（プロジェクトのエンドポイント）で確かめて控えた値を使う（DSN から作ると照合にならない。
+    前の作業のコマンドを写すときも打ち直す）。pooled の DSN なら `-pooler` の付いたホスト名。
+  - `~/.aws/config` のプロファイルの `endpoint_url` は使わない（スクリプトが `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true` にする）。
 - まず `--dry-run`、次に引数そのままで実行して接続先の表示を確かめ、最後に `--yes` を付けて書く。
 - 容量の上限は `PIN_PHOTO_USER_QUOTA_BYTES`（無ければコードの既定値）で数える。その環境の Lambda と同じ値を渡す（SS-236 で上限を変えたら、その値）。
 - 1ピンのトランザクションは、ピンの行を送った後、写真のサムネイル作成と S3 の書き込みの間 idle in transaction になる（最大 45 枚分）。

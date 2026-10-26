@@ -709,6 +709,19 @@ def test_verify_remote_target_checks_db_host_bucket_and_account() -> None:
     assert ssm.names == ["/sanposcape/dev/platform/pin_photos/bucket_name"]
     with pytest.raises(ib.ImportBundleError, match="--db-host"):
         verify(expected_db_host="db-prod.example")
+    sneaky = settings_for_test(
+        pin_photo_bucket_name="bucket-dev",
+        database_dsn="postgresql://u:pw@db-dev.example/app?host=db-prod.example",
+    )
+    with pytest.raises(ib.ImportBundleError, match="host・hostaddr"):
+        ib.verify_remote_target(
+            "dev",
+            sneaky,
+            expected_account_id="111",
+            expected_db_host="db-dev.example",
+            ssm=ssm,
+            sts=FakeSts("111"),
+        )
     with pytest.raises(ib.ImportBundleError, match="PIN_PHOTO_BUCKET_NAME"):
         verify(target="prod", ssm=FakeSsm("bucket-prod"))
     with pytest.raises(ib.ImportBundleError, match="アカウント"):
