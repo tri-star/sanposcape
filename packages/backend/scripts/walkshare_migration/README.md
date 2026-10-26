@@ -145,7 +145,7 @@ walkshare の書き出しは、加えて写真の ICC プロファイルの説�
 - 移行先の地図は、アプリで新しく作ってから ID を渡す（読み込みは地図を作らない）。戻すときはアプリで地図ごと消せる。
 - 書く前に確かめて、1つでも外れたら何も書かずに止める:
   - `format_version`、`pins.json` と各写真の sha256
-  - 移行先の地図があり、指定したユーザーがその owner であること
+  - 移行先の地図があり、指定したユーザーがその owner で、ほかのメンバーがいないこと（共有中の地図だと、移したピン・写真がほかの人に見える。SS-237）
   - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは 10 件までで、ラベルの列を `tag_labels.dedupe_tags` に通した結果が元の列と完全に一致すること（正規化済み・重複なし・20 文字まで。黙って落とすと `created_at` との対応がずれるので、違えば止める）、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/{source_id}.jpg` と完全に一致し、symlink でないこと）
   - バンドルのパスが、`Path.resolve()` した後でリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
   - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。

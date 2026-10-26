@@ -29,7 +29,7 @@ from typing import Any
 import bundle
 from PIL import Image
 from PIL import UnidentifiedImageError as PillowUnidentifiedImageError
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
@@ -38,7 +38,7 @@ import sanposcape.all_models  # noqa: F401 - リレーションの解決に全�
 from sanposcape.config import Settings
 from sanposcape.integrations.aws.s3 import FakeObjectStorage, ObjectStorage, build_object_storage
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap
+from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap, SanpoMapMember
 from sanposcape.sanpo_maps.photos.jpeg_metadata import strip_jpeg_metadata
 from sanposcape.sanpo_maps.photos.photo_keys import original_key, thumbnail_key
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
@@ -385,6 +385,18 @@ class BundleImporter:
                 raise ImportBundleError("移行先の地図がありません")
             if sanpo_map.owner_user_id != self._user_id:
                 raise ImportBundleError("指定したユーザーは移行先の地図の owner ではありません")
+            # 共有中の地図に入れると、移したピン・写真がほかのメンバーに見える。
+            # 移行先は新しく作った地図にする（README「読み込み」）。
+            others = db.scalar(
+                select(func.count())
+                .select_from(SanpoMapMember)
+                .where(
+                    SanpoMapMember.sanpo_map_id == self.sanpo_map_id,
+                    SanpoMapMember.user_id != self._user_id,
+                )
+            )
+            if others:
+                raise ImportBundleError("移行先の地図に owner 以外のメンバーがいます")
             existing = self._existing_pin_ids(db)
             new_pins = [pin for pin in self._loaded.pins if self._pin_id(pin) not in existing]
             new_bytes = sum(photo.cleaned_byte_size for pin in new_pins for photo in pin.photos)

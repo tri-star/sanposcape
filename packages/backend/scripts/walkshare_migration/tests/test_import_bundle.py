@@ -23,7 +23,7 @@ from sanposcape.all_models import Base
 from sanposcape.config import Settings, get_settings
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap
+from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap, SanpoMapMember
 from sanposcape.sanpo_maps.photos.jpeg_metadata import strip_jpeg_metadata
 from sanposcape.users.models import User
 
@@ -523,6 +523,28 @@ def test_not_owner_or_missing_map_stops(
         run_import(as_user=other_user)
     with pytest.raises(ib.ImportBundleError, match="地図がありません"):
         run_import(sanpo_map_id=uuid.uuid4())
+
+    assert count_rows(session_factory) == (0, 0, 0)
+
+
+def test_shared_map_stops(
+    tmp_path: Path,
+    session_factory: sessionmaker[Session],
+    owner: tuple[uuid.UUID, uuid.UUID],
+    run_import: Runner,
+) -> None:
+    """owner 以外のメンバーがいる地図には、移したピン・写真がほかの人に見えるので、
+    書かずに止まること。
+    """
+    _, map_id = owner
+    sample_bundle(tmp_path / "bundle")
+    with session_factory() as db:
+        member = make_user(db, "member")
+        db.add(SanpoMapMember(sanpo_map_id=map_id, user_id=member, role="editor"))
+        db.commit()
+
+    with pytest.raises(ib.ImportBundleError, match="メンバー"):
+        run_import()
 
     assert count_rows(session_factory) == (0, 0, 0)
 
