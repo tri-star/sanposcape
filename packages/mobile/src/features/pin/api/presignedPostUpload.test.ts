@@ -1,4 +1,4 @@
-import { HttpResponse, http } from "msw";
+import { HttpResponse, delay, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { isS3UploadError } from "@/features/pin/lib/photoUploadError";
@@ -193,9 +193,12 @@ describe("診断ログ（SS-88）", () => {
   });
 
   it("意図的な中断（AbortError）はログしない", async () => {
-    server.use(http.post(S3_TICKET.url, () => new HttpResponse(null, { status: 204 })));
+    // 中断済みの signal で fetch を始めると、msw v3 の傍受層が FormData の body ストリームを
+    // 中断後に読もうとして Unhandled Rejection（ReadableStream is already closed）を起こす。
+    // リクエストが handler に届いて応答待ちになってから中断する。
+    server.use(http.post(S3_TICKET.url, () => delay("infinite")));
     const controller = new AbortController();
-    controller.abort();
+    setTimeout(() => controller.abort(), 20);
 
     await expect(
       uploadToPresignedPost(S3_TICKET, FILE, {
