@@ -156,7 +156,8 @@ walkshare の書き出しは、加えて写真の ICC プロファイルの説�
   - 書くときはピンごとに、ロック → このピンの写真の分で容量を確かめ直す → ピン・タグ・写真 → commit。ロックを持つのは1ピン分（walkshare の実データで最大 45 枚）の S3 の書き込みの間だけで、
     途中でアプリから写真を上げられても上限は超えない。それでも移行の間は、そのユーザーでアプリから写真を上げない（上げると、途中で容量の上限で止まりうる）。
   - 既にあるピン（ID は uuid5）は、タグ・写真ごと DB も S3 も書かずに飛ばす。ピンとその写真は同じトランザクションなので、ピンがあれば写真も入っている。
-  - Neon のトランザクションの時間: 1ピン分は数秒〜十数秒。dev・prod で流す前に、`--dry-run` の後で1ピン目の時間を見て確かめる（SS-240・241）。
+  - Neon のトランザクションの時間: dev（SS-240）では 647 ピン・1,979 枚で 23 分（1ピン平均約 2 秒）で、時間切れは起きなかった。
+    スクリプトはピンごとの経過を出さないので、1ピン目の時間は測れない。1ピン分が時間切れになればそのピンで止まり、それまでに書いたピンは残る（再実行で続きから入る）。
 - 移行先の地図の `updated_at` は、ピンを入れたら最後に1回更新する（アプリでピンを足したときの `mark_used` と同じ。地図の一覧の並びに効く）。
 - 書くもの: `pins`（`created_by_user_id` は指定したユーザー、`client_walk_id` は null）、`pin_tags`（`created_at` はバンドルの値）、
   写真は1枚ずつ メタデータ除去 → サムネイル → S3（`photo_keys.original_key` / `thumbnail_key`。`staging/` は通さない）→ `pin_photos`。
@@ -187,15 +188,44 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
 - dev・prod: `.env` を読まない。`DATABASE_DSN`・`STORAGE_MODE=real`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION` と AWS の資格情報を環境変数で渡し、
   `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。
   - DSN は、照合に使うのと同じ `--target` の環境の資格情報で、同じコマンドの中で取り出す（SSM `/sanposcape/<target>/platform/secrets/shared/arn` →
-    そのシークレットの `neon_dsn`）。別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
+    そのシークレットの `neon_dsn_unpooled`）。別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
     `get-secret-value` の結果は表示しない（同じ JSON の他の秘密ごと会話の記録に残る）。
-  - `--db-host` は DSN から作らず、Neon のコンソール（プロジェクトのエンドポイント）で確かめて控えた値を使う（DSN から作ると照合にならない。
-    前の作業のコマンドを写すときも打ち直す）。pooled の DSN なら `-pooler` の付いたホスト名。
+  - direct（非 pooled）の DSN を使う（SS-240）。1ピンのトランザクションが写真の処理の間開いたままになるので、PgBouncer（transaction mode）を挟まない
+    （Neon も長い処理には direct を勧めている）。
+  - `--db-host` は DSN から作らず、Neon のコンソールの Connect（Connection pooling をオフ）で確かめて控えた値を使う（DSN から作ると照合にならない。
+    前の作業のコマンドを写すときも打ち直す）。direct なので `-pooler` の付かないホスト名。ホスト名だけを控える（接続文字列にはパスワードが入る）。
+  - `--user-id` は、移行先の地図の `sanpo_maps.owner_user_id` を同じ DSN で読み取り専用（`default_transaction_read_only=on`）で読んで渡す（表示しない）。
+    地図がその人のものかは、ユーザーが地図 ID を渡すことで決まる。スクリプトは、ほかのメンバーがいないことを確かめる。
   - `~/.aws/config` のプロファイルの `endpoint_url` は使わない（スクリプトが `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true` にする）。
+  - dev で流した形（SS-240。`<...>` はユーザーから受け取る。packages/backend で、上の `uv export` の後に、1つのシェルの中で）:
+
+    ```bash
+    export AWS_PROFILE=sanposcape-<target>; REGION=ap-southeast-1
+    arn=$(aws ssm get-parameter --name /sanposcape/<target>/platform/secrets/shared/arn --region $REGION --query Parameter.Value --output text)
+    export DATABASE_DSN=$(aws secretsmanager get-secret-value --secret-id "$arn" --region $REGION --query SecretString --output text \
+      | python3 -c 'import sys,json; print(json.load(sys.stdin)["neon_dsn_unpooled"])')
+    export PIN_PHOTO_BUCKET_NAME=$(aws ssm get-parameter --name /sanposcape/<target>/platform/pin_photos/bucket_name --region $REGION --query Parameter.Value --output text)
+    export PIN_PHOTO_BUCKET_REGION=$REGION STORAGE_MODE=real
+    OWNER=$(uv run ... python - <<'EOF'   # 上と同じ環境。地図の owner を読み取り専用で読む（表示しない）
+    import os, psycopg
+    with psycopg.connect(os.environ["DATABASE_DSN"], options="-c default_transaction_read_only=on") as c:
+        print(c.execute("select owner_user_id from sanpo_maps where id = %s", ("<地図 ID>",)).fetchone()[0])
+    EOF
+    )
+    uv run ... python scripts/walkshare_migration/import_bundle.py --target <target> --bundle <バンドル> \
+      --map-id <地図 ID> --user-id "$OWNER" --aws-account-id <アカウント ID> --db-host <ホスト名> --dry-run
+    ```
 - まず `--dry-run`、次に引数そのままで実行して接続先の表示を確かめ、最後に `--yes` を付けて書く。
 - 容量の上限は `PIN_PHOTO_USER_QUOTA_BYTES`（無ければコードの既定値）で数える。その環境の Lambda と同じ値を渡す（SS-236 で上限を変えたら、その値）。
+  dev の Lambda はこの環境変数を持たず、既定値（10GiB）で動いていた（2026-10-27。`get-function-configuration` の `keys(Environment.Variables)` で名前だけを見た）。
+  その場合は渡さない（シェルに残っていれば `unset` する）。
 - 1ピンのトランザクションは、ピンの行を送った後、写真のサムネイル作成と S3 の書き込みの間 idle in transaction になる（最大 45 枚分）。
-  dev・prod では、Neon（PgBouncer）の idle in transaction の時間切れの設定と、1ピン目にかかった時間を確かめてから全体を流す（SS-240・241）。
+  流す前に、同じ DSN で `SHOW idle_in_transaction_session_timeout`（ほかに `statement_timeout`・`transaction_timeout`）を確かめる。dev は 5 分で、ほかは 0（無し）だった。
+- 書いた後に確かめる（dev で行ったもの。件数だけを出す）:
+  - DB: 地図のピン・写真・タグの件数と写真の `byte_size` の合計がバンドルと一致すること、ピンの ID の集合が対応表と一致すること、サムネイルの無い写真が 0 件、作成者がすべて指定したユーザーであること
+  - S3: 対応表のキー（原本とサムネイル）がすべてあること、そのユーザーの `original/pins/<user_id>/`・`thumb/pins/<user_id>/` に、どの `pin_photos` からも参照されないキーが無いこと
+  - `--dry-run` をもう一度流し、入る件数が 0 になること
+  - アプリで地図を開いて見え方を確かめる（ユーザー。下の「アプリでの見え方」）
 - 戻すときにアプリで地図ごと消すと、写真のキーが約 4,000 あるので、S3 の削除が締め切りで打ち切られ、残りはどの行からも参照されないまま残りうる（ADR-009 決定28）。
   その場合は対応表のキーで消す。
 - 対応表は `<バンドル>.import-<target>-<地図 ID>.json`（バンドルの横）。
