@@ -96,3 +96,19 @@ def test_build_dump_stops_when_photo_key_differs_from_id() -> None:
                 "names": [],
             },
         )
+
+
+def test_write_dump_removes_old_manifest_before_overwriting(tmp_path, monkeypatch) -> None:
+    """上書きで書き直しの途中に止まると manifest が無い状態になり、古い manifest が残らないこと。"""
+    out_dir = tmp_path / "dump"
+    dump = {"map": {}, "spots": [], "photos": [], "names": []}
+    dw.write_dump(out_dir, dump, {"format_version": 1})
+
+    def fail(path, data):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(dw.bundle, "write_private_bytes", fail)
+    with pytest.raises(OSError):
+        dw.write_dump(out_dir, dump, {"format_version": 1})
+
+    assert not (out_dir / "manifest.json").exists()

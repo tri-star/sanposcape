@@ -106,9 +106,11 @@ def build_dump(
 
 def write_dump(out_dir: Path, dump: Mapping[str, Any], manifest: Mapping[str, Any]) -> None:
     bundle.make_private_dir(out_dir)
+    # manifest は最後に書く（あれば全部書き終えている）。上書きの途中で止まったときに、
+    # 古い manifest が新旧の混ざったダンプを完成したものに見せないよう、先に消す。
+    (out_dir / "manifest.json").unlink(missing_ok=True)
     for name in ("map", *SUBCOLLECTIONS):
         bundle.write_private_bytes(out_dir / f"{name}.json", bundle.encode_json(dump[name]))
-    # manifest は最後に書く（あれば全部書き終えている）。
     bundle.write_private_bytes(out_dir / "manifest.json", bundle.encode_json(manifest))
 
 
