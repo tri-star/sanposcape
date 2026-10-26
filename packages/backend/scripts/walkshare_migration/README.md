@@ -171,10 +171,13 @@ walkshare の書き出しは、加えて写真の ICC プロファイルの説�
 ### 読み込みの手順
 
 ホストで動かす（バンドルはリポジトリの `tmp/`、AWS の資格情報もホストにある。コンテナには `packages/backend` しかマウントされない）。
-backend の依存は `--with-editable .` で一時の環境に入れる（プロジェクトの `.venv` はコンテナ用なので作らない）。packages/backend で:
+backend の依存は、`uv.lock` の版（コンテナ・Lambda で確かめた版）に固定して一時の環境に入れる（プロジェクトの `.venv` はコンテナ用なので作らない。
+`--with-editable .` だけだと pyproject の下限を満たす最新の版が入り、サムネイルの作り方や DB の書き方がアプリと違いうる）。packages/backend で:
 
 ```bash
-uv run --no-project --python 3.12 --with-editable . --with boto3 python scripts/walkshare_migration/import_bundle.py \
+uv export --frozen --no-emit-project --quiet -o "$TMPDIR/migration-requirements.txt"   # boto3 も dev の依存として入る
+uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-requirements.txt" --with-editable . \
+  python scripts/walkshare_migration/import_bundle.py \
   --target local --bundle ../../tmp/walkshare-migration/bundle-walkshare --map-id <地図 ID> --user-id <ユーザー ID> --dry-run
 ```
 
@@ -185,6 +188,11 @@ uv run --no-project --python 3.12 --with-editable . --with boto3 python scripts/
   `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。DSN の値は表示しない（共有のシークレットの `neon_dsn` にある。
   取り出すときは同じコマンドの中で環境変数に入れ、`get-secret-value` の結果を表示しない。表示すると、同じ JSON の他の秘密ごと会話の記録に残る）。
 - まず `--dry-run`、次に引数そのままで実行して接続先の表示を確かめ、最後に `--yes` を付けて書く。
+- 容量の上限は `PIN_PHOTO_USER_QUOTA_BYTES`（無ければコードの既定値）で数える。その環境の Lambda と同じ値を渡す（SS-236 で上限を変えたら、その値）。
+- 1ピンのトランザクションは、ピンの行を送った後、写真のサムネイル作成と S3 の書き込みの間 idle in transaction になる（最大 45 枚分）。
+  dev・prod では、Neon（PgBouncer）の idle in transaction の時間切れの設定と、1ピン目にかかった時間を確かめてから全体を流す（SS-240・241）。
+- 戻すときにアプリで地図ごと消すと、写真のキーが約 4,000 あるので、S3 の削除が締め切りで打ち切られ、残りはどの行からも参照されないまま残りうる（ADR-009 決定28）。
+  その場合は対応表のキーで消す。
 - 対応表は `<バンドル>.import-<target>-<地図 ID>.json`（バンドルの横）。
 
 ## walkshare の書き出し（SS-238）
