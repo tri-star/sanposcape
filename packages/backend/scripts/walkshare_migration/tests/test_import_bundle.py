@@ -702,3 +702,70 @@ def test_build_settings_for_local_requires_fake_storage_and_local_db(
     monkeypatch.setenv("DATABASE_DSN", "postgresql://user:pw@neon.example/db")
     with pytest.raises(ib.ImportBundleError, match="DATABASE_DSN"):
         ib.build_settings("local")
+
+
+# ---------------------------------------------------------------------------
+# 入口（出力）
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def main_args(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: sessionmaker[Session],
+    owner: tuple[uuid.UUID, uuid.UUID],
+) -> list[str]:
+    """作業ディレクトリ・接続先をテスト用に差し替えて main() に渡す引数（local・--yes）。"""
+    user_id, map_id = owner
+    work_dir = tmp_path / "walkshare-migration"
+    sample_bundle(work_dir / "bundle")
+    monkeypatch.setattr(bundle, "WORK_DIR", work_dir)
+    test_db = settings_for_test(db_name=get_settings().test_db_name)
+    monkeypatch.setattr(ib, "build_settings", lambda target: test_db)
+    monkeypatch.setattr(ib, "build_storage", lambda target, settings: (CountingStorage(), "fake"))
+    return [
+        "--target",
+        "local",
+        "--bundle",
+        str(work_dir / "bundle"),
+        "--map-id",
+        str(map_id),
+        "--user-id",
+        str(user_id),
+        "--yes",
+    ]
+
+
+def test_main_prints_counts_without_personal_data(
+    main_args: list[str],
+    owner: tuple[uuid.UUID, uuid.UUID],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """標準出力は件数・容量と接続先だけで、ユーザー ID・地図 ID・名前・メモ・タグ・
+    旧アプリの ID を出さないこと。
+    """
+    assert ib.main(main_args) == 0
+
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["inserted"]["pins"] == 2
+    user_id, map_id = owner
+    for value in (str(user_id), str(map_id), "name-s1", "メモ", "ミケ", "s1", "p1", "old-map"):
+        assert value not in captured.out + captured.err
+
+
+def test_main_prints_only_exception_type_and_position(
+    main_args: list[str], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """想定外の例外は、文言（値が入りうる）を出さずに、型とどこで止まったかだけを標準エラーに出すこと。"""
+
+    def failing_put(self: CountingStorage, key: str, data: bytes, *, content_type: str) -> None:
+        raise ValueError(f"秘密のタグ {key}")
+
+    monkeypatch.setattr(CountingStorage, "put_bytes", failing_put)
+
+    assert ib.main(main_args) == 1
+
+    captured = capsys.readouterr()
+    assert captured.err == "error（ピン 0 の写真 0）: ValueError\n"
+    assert "秘密" not in captured.out
