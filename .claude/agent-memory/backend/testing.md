@@ -57,9 +57,12 @@ service 側が import 済みの名前を見ているので `monkeypatch.setattr(
 
 conftest は置いたディレクトリより下にしか効かないので、`testpaths` に `scripts/...` を足しても、`src/sanposcape/conftest.py` の
 DB の fixture（`db_session`・テーブルの空にし方）と `_isolate_settings_from_ambient_env`（環境変数・`.env` の遮断）は効かない。
-SS-237 では、`scripts/walkshare_migration` のテストが単体では通るのに、全体の実行では src のテストの後で `OperationalError` になった。
-src のテストが環境変数に残した値で、`Settings(...)` の接続先が変わったため。
+SS-237 では、`scripts/walkshare_migration` のテストが CI でだけ `failed to resolve host 'db'` で全て落ちた。
+src のテストは環境変数を消した状態で `get_settings()` を呼ぶことがあり、そのあとの `get_settings()` のキャッシュは既定値（`db_host="db"`）になる。
+src の後に走るテストがそれを読んでいた。コンテナでは `db` で繋がるので、手元の全体の実行でも気づけない。
 
-**How to apply:** `src/` の外のテストは、DB の fixture を自分で持つ。`Base.metadata.create_all`、テストの前の DELETE（`SET LOCAL lock_timeout` 付き）、
-`get_settings().test_database_url` を使う。`Settings(...)` を組み立てるときは、接続先（`database_dsn=""`・`db_*`）を明示する。
-確かめるときは、そのディレクトリだけでなく、必ず全体の `pytest` も流す。
+**How to apply:** `src/` の外のテストは、DB の fixture を自分で持つ。`Base.metadata.create_all`、テストの前の DELETE（`SET LOCAL lock_timeout` 付き）。
+接続先は、テストの中の `get_settings()` ではなく、モジュールの import（collection）の時点で作った `Settings()` から取る（`src/sanposcape/conftest.py` と同じ）。
+`Settings(...)` を組み立てるときは、接続先（`database_dsn=""`・`db_*`）を明示する。
+CI と同じ条件で確かめるには、host から `DB_HOST=localhost DB_PORT=<db の公開ポート>` で全体の `pytest` を流す
+（コンテナの `.venv` は root の持ち物なので、`UV_PROJECT_ENVIRONMENT` で別の場所を指す）。
