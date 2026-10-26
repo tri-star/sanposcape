@@ -191,8 +191,8 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
     人のシェルで流したら、終わった後に `DATABASE_DSN`・`PIN_PHOTO_BUCKET_*`・`STORAGE_MODE`・`AWS_PROFILE` を `unset` する（SSM `/sanposcape/<target>/platform/secrets/shared/arn` →
     そのシークレットの `neon_dsn_unpooled`）。別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
     `get-secret-value` の結果は表示しない（同じ JSON の他の秘密ごと会話の記録に残る）。
-  - direct（非 pooled）の DSN を使う（SS-240）。1ピンのトランザクションが写真の処理の間開いたままになるので、PgBouncer（transaction mode）を挟まない
-    （Neon も長い処理には direct を勧めている）。
+  - direct（非 pooled）の DSN を使う（SS-240）。1ピンのトランザクションが写真の処理の間開いたままになるので、transaction mode の PgBouncer を挟まず、
+    時間切れを Postgres の `idle_in_transaction_session_timeout` だけで考えればよいようにする（Neon の PgBouncer の設定は利用者から変えられない）。
   - `--db-host` は DSN から作らず、Neon のコンソールの Connect（Connection pooling をオフ）で確かめて控えた値を使う（DSN から作ると照合にならない。
     前の作業のコマンドを写すときも打ち直す）。direct なので `-pooler` の付かないホスト名。ホスト名だけを控える（接続文字列にはパスワードが入る）。
   - `--user-id` は、移行先の地図の `sanpo_maps.owner_user_id` を同じ DSN で読み取り専用（`default_transaction_read_only=on`）で読んで渡す（表示しない）。
