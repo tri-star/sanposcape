@@ -1,8 +1,19 @@
-import type { ReactNode } from "react";
-import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  type LayoutChangeEvent,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { makeStyles } from "@/theme/makeStyles";
+import { useTheme } from "@/theme/useTheme";
 
 export type BottomSheetProps = {
   open: boolean;
@@ -13,53 +24,115 @@ export type BottomSheetProps = {
 };
 
 /**
+ * DS の `--ease-out`。DS はシートの入りに `--ease-spring` を指定しているが、行き過ぎで下端から持ち上がり、
+ * パネルの下にスクリムの隙間が見えるため使わない。
+ */
+const EASE_OUT = Easing.bezier(0.22, 0.61, 0.36, 1);
+
+/**
  * BottomSheet — 画面下からせり上がるパネル（表示スポットの絞り込み、ピン登録など）。
  * デザイン: Sanpo Design System / components/overlays/BottomSheet
+ *
+ * スクリムは fade、パネルだけが slide する。`Modal` の `animationType="slide"` はスクリムごと動かし、
+ * スクリムの上辺が境界線として上下するので、`Modal` は動かさずに中身を `Animated` で動かす。
+ * 閉じるときは動き終えてから `Modal` を消す。
  */
 export function BottomSheet({ open, title, children, onClose, testID }: BottomSheetProps) {
+  const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const progress = useRef(new Animated.Value(0)).current;
+  // 閉じるアニメーションの間も Modal を出しておくため、`open` とは別に持つ。
+  const [mounted, setMounted] = useState(open);
+  // パネルを画面外へ送る移動量。測る前は画面の高さで画面外に置く。
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+
+  // 開くときは描画中に Modal を出し、中身が付いた後の effect でアニメーションを始める。
+  if (open && !mounted) setMounted(true);
+
+  useEffect(() => {
+    const animation = Animated.timing(progress, {
+      toValue: open ? 1 : 0,
+      duration: theme.motion.slow,
+      easing: EASE_OUT,
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      // 閉じている途中に開き直したときは finished=false で来るので、Modal を消さない。
+      if (finished && !open) setMounted(false);
+    });
+    return () => animation.stop();
+  }, [open, progress, theme.motion.slow]);
+
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [panelHeight ?? windowHeight, 0],
+  });
+
+  const handlePanelLayout = (event: LayoutChangeEvent) => {
+    setPanelHeight(event.nativeEvent.layout.height);
+  };
 
   return (
     <Modal
-      visible={open}
+      visible={mounted}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="閉じる"
-        style={styles.scrim}
-        onPress={onClose}
-      />
-      <View testID={testID} style={[styles.panel, { paddingBottom: insets.bottom + 24 }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="閉じる"
-          onPress={onClose}
-          style={styles.handleHitArea}
+      <View style={styles.root}>
+        <Animated.View style={[styles.scrim, { opacity: progress }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="閉じる"
+            style={styles.scrimPressable}
+            onPress={onClose}
+          />
+        </Animated.View>
+        <Animated.View
+          testID={testID}
+          onLayout={handlePanelLayout}
+          style={[styles.panel, { paddingBottom: insets.bottom + 24, transform: [{ translateY }] }]}
         >
-          <View style={styles.handle} />
-        </Pressable>
-        {title ? <Text style={styles.title}>{title}</Text> : null}
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-          bounces={false}
-        >
-          {children}
-        </ScrollView>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="閉じる"
+            onPress={onClose}
+            style={styles.handleHitArea}
+          >
+            <View style={styles.handle} />
+          </Pressable>
+          {title ? <Text style={styles.title}>{title}</Text> : null}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}
+            bounces={false}
+          >
+            {children}
+          </ScrollView>
+        </Animated.View>
       </View>
     </Modal>
   );
 }
 
 const useStyles = makeStyles((theme) => ({
-  scrim: {
+  root: {
     flex: 1,
+    justifyContent: "flex-end",
+  },
+  scrim: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: theme.colors.scrim,
+  },
+  scrimPressable: {
+    flex: 1,
   },
   panel: {
     maxHeight: "85%",
