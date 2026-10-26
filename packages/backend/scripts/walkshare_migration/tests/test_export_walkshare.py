@@ -655,3 +655,29 @@ def test_write_private_bytes_does_not_follow_symlink(tmp_path: Path) -> None:
         bundle.write_private_bytes(tmp_path / "out.json", b"new")
 
     assert victim.read_bytes() == b"original"
+
+
+def test_export_does_not_follow_symlinked_progress_file(tmp_path: Path) -> None:
+    """再開の記録が symlink なら、その先に追記せずに止まること。"""
+    plans, storage = _sample()
+    out_dir = tmp_path / "bundle"
+    out_dir.mkdir()
+    victim = tmp_path / "victim"
+    victim.write_text("")
+    (out_dir / ".progress.jsonl").symlink_to(victim)
+
+    with pytest.raises(OSError):
+        export(plans, out_dir, storage)
+
+    assert victim.read_text() == ""
+
+
+def test_write_private_bytes_makes_leftover_partial_0600(tmp_path: Path) -> None:
+    """0644 の書きかけが残っていても、書き上げたファイルは 0600 になること。"""
+    partial = tmp_path / ".out.json.partial"
+    partial.write_bytes(b"old")
+    partial.chmod(0o644)
+
+    bundle.write_private_bytes(tmp_path / "out.json", b"new")
+
+    assert stat.S_IMODE((tmp_path / "out.json").stat().st_mode) == 0o600

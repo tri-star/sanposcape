@@ -301,7 +301,8 @@ def export_bundle(
     progress = _load_progress(progress_path)
     stats = ExportStats()
     pins: list[dict[str, Any]] = []
-    fd = os.open(progress_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
+    fd = os.open(progress_path, flags, 0o600)
     with os.fdopen(fd, "a", encoding="utf-8") as progress_log:
         if _ends_without_newline(progress_path):
             # 前回が行の途中で止まった。続けて書くと次の行まで読めなくなるので、行を閉じる。

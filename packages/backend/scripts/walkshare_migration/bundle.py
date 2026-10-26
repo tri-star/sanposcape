@@ -78,8 +78,9 @@ def sha256_hex(data: bytes) -> str:
 def make_private_dir(path: Path) -> None:
     """ディレクトリを 0700 で作る（既にあれば権限だけ直す）。足りない親も 0700 で作る。
 
-    `mkdir(parents=True)` は親を既定の権限で作るので、1つずつ作る。symlink は辿らずに拒む
-    （chmod が symlink の先を変えるため）。
+    `mkdir(parents=True)` は親を既定の権限で作るので、1つずつ作る。`path` 自身が symlink なら
+    辿らずに拒む（chmod が symlink の先を変えるため）。途中の symlink は見ないので、
+    呼び出し元が `require_inside_work_dir`（resolve 済み）を通したパスを渡す。
     """
     missing = []
     current = path
@@ -100,6 +101,8 @@ def write_private_bytes(path: Path, data: bytes) -> None:
     partial = path.with_name(f".{path.name}.partial")
     # 書きかけの名前に symlink が置かれていても、その先を書き換えない。
     fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    # 既にあった書きかけ（O_CREAT の mode は効かない）も 0600 にする。
+    os.fchmod(fd, 0o600)
     with os.fdopen(fd, "wb") as f:
         f.write(data)
     partial.replace(path)
