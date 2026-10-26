@@ -54,7 +54,7 @@ def spot(
     spot_id: str,
     *,
     uid: str | None = f"users/{OWNER}",
-    date: str = "2022-03-09T01:00:00.000000Z",
+    date: str | None = "2022-03-09T01:00:00.000000Z",
     photos: list[str] | None = None,
     **fields: Any,
 ) -> dict[str, Any]:
@@ -261,6 +261,15 @@ def test_invalid_spot_stops_without_personal_data(
     assert message.startswith("ピン 1")
     for value in ("秘密", "秘", "secret-spot", "p1", "missing", "maps/"):
         assert value not in message
+
+
+@pytest.mark.parametrize("date", [None, "2022-03-09T01:00:00", "not-a-date"])
+def test_spot_without_valid_date_stops_with_position(date: str | None) -> None:
+    """作成日時が無い・タイムゾーンが無い・読めないスポットは、並べる前にダンプの中の連番を付けて止まること。"""
+    dump = make_dump([spot("s0"), spot("s1", date=date)], [])
+
+    with pytest.raises(ex.ExportError, match=r"^範囲のスポット 1（ダンプの順）"):
+        ex.plan_pins(dump, OWNER)
 
 
 def test_photo_shared_by_two_pins_stops() -> None:

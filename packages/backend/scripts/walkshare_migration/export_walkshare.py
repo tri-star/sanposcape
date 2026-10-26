@@ -94,8 +94,14 @@ def plan_pins(dump: Mapping[str, Any], owner_uid: str) -> list[PinPlan]:
     photos_by_path = {photo["path"]: photo for photo in dump["photos"]}
     names_by_path = {name["path"]: name for name in dump["names"]}
 
-    spots = [spot for spot in dump["spots"] if is_in_scope(spot, owner_uid)]
-    spots.sort(key=lambda spot: (_required_timestamp(spot["data"], "date"), spot["id"]))
+    keyed = []
+    for index, spot in enumerate(s for s in dump["spots"] if is_in_scope(s, owner_uid)):
+        # 並べる前なので、バンドルの連番の代わりにダンプの中の順（ID 順）の連番を出す。
+        try:
+            keyed.append(((_required_timestamp(spot["data"], "date"), spot["id"]), spot))
+        except (ExportError, ValueError) as exc:
+            raise ExportError(f"範囲のスポット {index}（ダンプの順）: {type(exc).__name__}") from None
+    spots = [spot for _, spot in sorted(keyed, key=lambda item: item[0])]
 
     plans: list[PinPlan] = []
     seen_photos: set[str] = set()
