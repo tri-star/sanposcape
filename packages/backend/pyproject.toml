@@ -82,6 +82,7 @@ ignore = ["B008"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
-testpaths = ["src"]
+# walkshare_migration は一回限りの移行のスクリプト（README）。スクリプトと一緒に SS-242 で外す。
+testpaths = ["src", "scripts/walkshare_migration"]
 python_files = ["test_*.py"]
 pythonpath = ["src"]
