@@ -341,7 +341,8 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 - local の予行（SS-237 の PR で行い、SS-240 ではやり直していない。worktree `ss-238` の DB と fake storage）で、本物のデータが local の DB（docker の volume）と fake storage（`packages/backend/storages/dev-storage`）にも入った。
   これも SS-242 で消す（移行先にした local の地図を消し、fake storage に残ったキーがないことを確かめる）。
 - 対応表の S3 のキーと S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` を突き合わせ、途中で止まった分の原本が残っていないことを確かめる
-  （prod は SS-241 の完了の前に、dev は SS-242 で）。
+  （prod は SS-241 の完了の前に。dev は SS-240 で書いた直後に確かめ、参照されないキーは 0 件だった。SS-242 では dev の地図を消した後に、キーが残っていないことを確かめる）。
+  prod では、そのユーザーの前からの写真の削除の後片付けを待つキーが prefix に残っていると、移行と関係なく数に入りうる。0 件でなければ、対応表のキーとの重なりで切り分ける。
 - 移したデータは通常のピン・写真と同じテーブル・同じ S3 のキーに入り、地図の削除・アカウントの削除で同じように消える。
   アプリが扱うデータの種類・保存先・保存期間は変わらないので、データ取扱い台帳（`docs/privacy/data-inventory.md`）は変えない。
 - dev に入れた walkshare の地図は、prod での確認（SS-241）の後に SS-242 で消す（本物の写真の複製を減らすため）。
