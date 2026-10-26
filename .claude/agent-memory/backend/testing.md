@@ -1,6 +1,6 @@
 ---
 name: testing
-description: backend の pytest の罠。AUTH_MODE に依存するテストは ambient な main.app を使わない、認証付き差し替え fixture は walks_client の上に組む、import 順序の検証（別名 fresh import・sys.modules 退避）、モジュール再 import 後は親パッケージ属性も戻す、モジュール定数は import 先を monkeypatch
+description: backend の pytest の罠。AUTH_MODE に依存するテストは ambient な main.app を使わない、認証付き差し替え fixture は walks_client の上に組む、import 順序の検証（別名 fresh import・sys.modules 退避）、モジュール再 import 後は親パッケージ属性も戻す、モジュール定数は import 先を monkeypatch、src の外のテストには src の conftest の fixture・環境の隔離が効かない
 metadata:
   type: feedback
   scope: durable
@@ -52,3 +52,14 @@ service 側が import 済みの名前を見ているので `monkeypatch.setattr(
 再エクスポートのファサード経由でも同じ（[[module-relocation]]）。
 
 関連: [[sqlalchemy-and-db]] [[observability]]
+
+## 6. `src/` の外（`scripts/` など）のテストには、src の conftest の fixture も環境の隔離も効かない
+
+conftest は置いたディレクトリより下にしか効かないので、`testpaths` に `scripts/...` を足しても、`src/sanposcape/conftest.py` の
+DB の fixture（`db_session`・テーブルの空にし方）と `_isolate_settings_from_ambient_env`（環境変数・`.env` の遮断）は効かない。
+SS-237 では、`scripts/walkshare_migration` のテストが単体では通るのに、全体の実行では src のテストの後で `OperationalError` になった。
+src のテストが環境変数に残した値で、`Settings(...)` の接続先が変わったため。
+
+**How to apply:** `src/` の外のテストは、DB の fixture を自分で持つ。`Base.metadata.create_all`、テストの前の DELETE（`SET LOCAL lock_timeout` 付き）、
+`get_settings().test_database_url` を使う。`Settings(...)` を組み立てるときは、接続先（`database_dsn=""`・`db_*`）を明示する。
+確かめるときは、そのディレクトリだけでなく、必ず全体の `pytest` も流す。
