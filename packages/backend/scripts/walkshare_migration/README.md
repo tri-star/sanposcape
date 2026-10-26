@@ -7,7 +7,7 @@ ADR・docs・agent-memory からこの README にリンクしない。
 - この README は git の履歴に残る。**個人のデータ（ニックネーム・ユーザー ID・タイトルやメモの本文・旧アプリの ID）を書かない。**
   件数は「本人のアカウント」の分として書く。テストのデータも手で作ったものだけを使う。
 - 課題: SS-235（この設計）、SS-236（写真の容量の上限を 10GiB に）、SS-237（読み込み）、SS-238（walkshare の書き出し）、
-  SS-239（sanposcape の地図の書き出し）、SS-240（local での予行・dev への投入）、SS-241（dev → prod）、SS-242（後片付け）。
+  SS-239（sanposcape の地図の書き出し）、SS-240（local での予行・dev への投入。local の予行は SS-237 で済ませた）、SS-241（dev → prod）、SS-242（後片付け）。
 
 ## 全体の流れ
 
@@ -336,7 +336,7 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 ## 個人のデータの扱い
 
 - ダンプ・バンドル・対応表はリポジトリの `tmp/walkshare-migration/` の中にだけ置く（git の外。ディレクトリ 0700・ファイル 0600）。SS-242 で消す。
-- local の予行（SS-240）で、本物のデータが local の DB（docker の volume）と fake storage（`packages/backend/storages/dev-storage`）にも入る。
+- local の予行（SS-237 の PR で行い、SS-240 ではやり直していない。worktree `ss-238` の DB と fake storage）で、本物のデータが local の DB（docker の volume）と fake storage（`packages/backend/storages/dev-storage`）にも入った。
   これも SS-242 で消す（移行先にした local の地図を消し、fake storage に残ったキーがないことを確かめる）。
 - 対応表の S3 のキーと S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` を突き合わせ、途中で止まった分の原本が残っていないことを確かめる
   （prod は SS-241 の完了の前に、dev は SS-242 で）。
