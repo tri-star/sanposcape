@@ -45,13 +45,18 @@ export function BottomSheet({ open, title, children, onClose, testID }: BottomSh
   const progress = useRef(new Animated.Value(0)).current;
   // 閉じるアニメーションの間も Modal を出しておくため、`open` とは別に持つ。
   const [mounted, setMounted] = useState(open);
-  // パネルを画面外へ送る移動量。測る前は画面の高さで画面外に置く。
+  // パネルを画面外へ送る移動量。開くたびに測り直し、測る前は画面の高さで画面外に置く。
   const [panelHeight, setPanelHeight] = useState<number | null>(null);
 
   // 開くときは描画中に Modal を出し、中身が付いた後の effect でアニメーションを始める。
   if (open && !mounted) setMounted(true);
 
+  // 開くアニメーションは高さを測ってから始める。測る前に始めると、測った時点で移動量が変わりパネルが跳ねる
+  // （Modal は visible になるまで中身を描かないので、開くたびに測る前の期間がある）。
+  const waitingForLayout = open && panelHeight === null;
+
   useEffect(() => {
+    if (waitingForLayout) return;
     const animation = Animated.timing(progress, {
       toValue: open ? 1 : 0,
       duration: theme.motion.slow,
@@ -60,10 +65,13 @@ export function BottomSheet({ open, title, children, onClose, testID }: BottomSh
     });
     animation.start(({ finished }) => {
       // 閉じている途中に開き直したときは finished=false で来るので、Modal を消さない。
-      if (finished && !open) setMounted(false);
+      if (finished && !open) {
+        setMounted(false);
+        setPanelHeight(null);
+      }
     });
     return () => animation.stop();
-  }, [open, progress, theme.motion.slow]);
+  }, [open, waitingForLayout, progress, theme.motion.slow]);
 
   const translateY = progress.interpolate({
     inputRange: [0, 1],
