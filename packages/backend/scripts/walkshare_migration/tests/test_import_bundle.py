@@ -518,6 +518,7 @@ def test_quota_is_rechecked_per_pin_with_pending_uploads(
         "symlink",
         "position",
         "untrimmed-name",
+        "colon-in-pin-id",
     ],
 )
 def test_invalid_bundle_stops_without_writing(
@@ -547,6 +548,8 @@ def test_invalid_bundle_stops_without_writing(
         pins[1]["photos"][0]["position"] = 1
     if tamper == "untrimmed-name":
         pins[1]["name"] = " 秘密の場所 "
+    if tamper == "colon-in-pin-id":
+        pins[1]["source_id"] = "s1:tag"
     write_bundle(bundle_dir, pins, images)
     if tamper == "photo-bytes":
         (bundle_dir / "photos" / "p1.jpg").write_bytes(make_jpeg((65, 48)))

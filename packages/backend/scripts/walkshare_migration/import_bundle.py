@@ -155,7 +155,12 @@ def _load_pin(
     raw: dict[str, Any], bundle_dir: Path, *, max_bytes: int, max_pixels: int
 ) -> PinEntry:
     source_id = raw["source_id"]
-    if not isinstance(source_id, str) or not 0 < len(source_id) <= _SOURCE_ID_MAX_LENGTH:
+    # uuid5 の名前は `:` でつなぐので、`:` を含むとほかのピンのタグの名前とぶつかりうる。
+    if (
+        not isinstance(source_id, str)
+        or not 0 < len(source_id) <= _SOURCE_ID_MAX_LENGTH
+        or ":" in source_id
+    ):
         raise ImportBundleError("source_id が想定の形ではありません")
     latitude, longitude = _coordinate(raw["latitude"]), _coordinate(raw["longitude"])
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
