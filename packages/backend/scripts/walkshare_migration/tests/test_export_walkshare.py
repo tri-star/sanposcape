@@ -280,6 +280,18 @@ def test_photo_shared_by_two_pins_stops() -> None:
         ex.plan_pins(dump, OWNER)
 
 
+def test_limits_match_api_contract() -> None:
+    """移行の上限が API の契約（pins/schemas.py）と同じであること。
+
+    書き出しはホストで動かすので schemas を import せず、値を写している。
+    """
+    from sanposcape.sanpo_maps.pins import schemas
+
+    assert ex.PIN_NAME_MAX_LENGTH == schemas.PIN_NAME_MAX_LENGTH
+    assert ex.PIN_MEMO_MAX_LENGTH == schemas.PIN_MEMO_MAX_LENGTH
+    assert ex.PIN_TAG_MAX_COUNT == schemas.PIN_TAGS_MAX_COUNT
+
+
 # ---------------------------------------------------------------------------
 # 写真の再圧縮
 # ---------------------------------------------------------------------------
@@ -448,7 +460,9 @@ def test_rerun_skips_photos_whose_sha256_matches(tmp_path: Path) -> None:
 
 
 def test_rerun_after_truncated_progress_line_keeps_later_records(tmp_path: Path) -> None:
-    """記録の最後の行が途中で切れていても、次の実行の記録は読める行として残り、3回目は GCS から取らないこと。"""
+    """記録の最後の行が途中で切れていても、次の実行の記録は読める行として残り、
+    3回目は GCS から取らないこと。
+    """
     plans, storage = _sample()
     out_dir = tmp_path / "bundle"
     export(plans, out_dir, storage)

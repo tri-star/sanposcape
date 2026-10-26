@@ -39,7 +39,8 @@ PROGRESS_FILE = ".progress.jsonl"
 MAX_EDGE_PX = 2048
 JPEG_QUALITY = 70
 
-# API の契約（pins/schemas.py）。超えたら切り詰めずに止める。
+# API の契約（pins/schemas.py）。超えたら切り詰めずに止める。schemas は pydantic などを引き込み、
+# ホストで --no-project で動かすこのスクリプトからは import しないので、値はテストで照合する。
 PIN_NAME_MAX_LENGTH = 50
 PIN_MEMO_MAX_LENGTH = 1000
 PIN_TAG_MAX_COUNT = 10
@@ -100,7 +101,9 @@ def plan_pins(dump: Mapping[str, Any], owner_uid: str) -> list[PinPlan]:
         try:
             keyed.append(((_required_timestamp(spot["data"], "date"), spot["id"]), spot))
         except (ExportError, ValueError) as exc:
-            raise ExportError(f"範囲のスポット {index}（ダンプの順）: {type(exc).__name__}") from None
+            raise ExportError(
+                f"範囲のスポット {index}（ダンプの順）: {type(exc).__name__}"
+            ) from None
     spots = [spot for _, spot in sorted(keyed, key=lambda item: item[0])]
 
     plans: list[PinPlan] = []
