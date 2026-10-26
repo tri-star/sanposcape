@@ -396,11 +396,11 @@ def _export_photo(
 # ---------------------------------------------------------------------------
 
 
-def gcs_fetcher(bucket_name: str) -> FetchPhoto:
+def gcs_fetcher(project: str, bucket_name: str) -> FetchPhoto:
     """GCS から原本をメモリに取る（ここだけが実際の GCS に繋ぐ。ADC で認証する）。"""
     from google.cloud import storage
 
-    bucket = storage.Client().bucket(bucket_name)
+    bucket = storage.Client(project=project).bucket(bucket_name)
     return lambda path: bucket.blob(path).download_as_bytes()
 
 
@@ -413,7 +413,7 @@ def run(config_path: Path, dump_dir: Path, out: Path) -> dict[str, Any]:
         plans,
         out_dir=out_dir,
         source={"kind": "walkshare", "map_id": dump["manifest"]["map_id"]},
-        fetch_photo=gcs_fetcher(config["bucket"]),
+        fetch_photo=gcs_fetcher(config["firebase_project"], config["bucket"]),
         exported_at=datetime.now(UTC),
     )
     return {
