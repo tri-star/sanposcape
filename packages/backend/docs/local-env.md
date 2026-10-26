@@ -300,7 +300,7 @@ docker compose up -d --build
   404 になるので、DB も作り直すときに合わせて消すのがよい）。空にするとプロセス内メモリになり、
   再起動（`--reload` 含む）で消える。
 - `PIN_PHOTO_MAX_BYTES` / `PIN_PHOTO_USER_QUOTA_BYTES`: 1枚あたりの上限（既定 10 MiB）と
-  ユーザー合計の上限（既定 1 GiB）。他の上限値（保有枠数・TTL・サムネイルサイズ・確定処理の
+  ユーザー合計の上限（既定 10 GiB。SS-236 で 1 GiB から上げた）。他の上限値（保有枠数・TTL・サムネイルサイズ・確定処理の
   時間予算/並列度など）は妥当な既定値があり、通常は変更不要（`config.py` の `Settings` 参照）。
 - `MAPS_MODE` と同様、`docker compose restart` では反映されない。`.env` の値を変えたら
   `docker compose up -d` でコンテナを作り直すこと。
