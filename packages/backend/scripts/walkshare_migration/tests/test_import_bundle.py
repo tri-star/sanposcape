@@ -15,7 +15,7 @@ import bundle
 import import_bundle as ib
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -23,7 +23,14 @@ from sanposcape.all_models import Base
 from sanposcape.config import Settings, get_settings
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.models import (
+    Pin,
+    PinPhoto,
+    PinPhotoUpload,
+    PinTag,
+    SanpoMap,
+    SanpoMapMember,
+)
 from sanposcape.sanpo_maps.photos.jpeg_metadata import strip_jpeg_metadata
 from sanposcape.users.models import User
 
@@ -49,6 +56,9 @@ def engine() -> Generator[Engine, None, None]:
 @pytest.fixture
 def session_factory(engine: Engine) -> sessionmaker[Session]:
     with engine.begin() as conn:
+        # src/sanposcape/conftest.py の _delete_all と同じく、閉じ忘れたセッションで無言に
+        # 止まらないようにする（ADR-B-001 決定4）。
+        conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
     return sessionmaker(bind=engine, autoflush=False)
@@ -441,6 +451,57 @@ def test_quota_exceeded_stops_without_writing(
     with pytest.raises(ib.ImportBundleError, match="容量の上限"):
         run_import(storage=storage, settings=settings_for_test(pin_photo_user_quota_bytes=1000))
 
+    assert count_rows(session_factory) == (0, 0, 0)
+    assert storage.puts == []
+
+
+def test_quota_is_rechecked_per_pin_with_pending_uploads(
+    tmp_path: Path,
+    session_factory: sessionmaker[Session],
+    owner: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """書く前の確認の後にアプリで写真の枠（pending）が増えて上限を超えるなら、そのピンを書く前に
+    止まり、そのピンの行も S3 のオブジェクトも残さないこと（ピンごとにロックの中で確かめ直す）。
+    """
+    user_id, map_id = owner
+    sample_bundle(tmp_path / "bundle")
+    storage = CountingStorage()
+    probe = ib.prepare_importer(
+        bundle_dir=tmp_path / "bundle",
+        sanpo_map_id=map_id,
+        user_id=user_id,
+        settings=settings_for_test(),
+        session_factory=session_factory,
+        storage=storage,
+    )
+    needed = probe.plan().bytes_to_add
+    importer = ib.prepare_importer(
+        bundle_dir=tmp_path / "bundle",
+        sanpo_map_id=map_id,
+        user_id=user_id,
+        settings=settings_for_test(pin_photo_user_quota_bytes=needed + 100),
+        session_factory=session_factory,
+        storage=storage,
+    )
+    importer.plan()
+    with session_factory() as db:
+        upload_id = uuid.uuid4()
+        db.add(
+            PinPhotoUpload(
+                id=upload_id,
+                user_id=user_id,
+                s3_key=f"staging/pins/{user_id}/{upload_id}.jpg",
+                content_type="image/jpeg",
+                declared_byte_size=1000,
+                expires_at=datetime.now(UTC) + timedelta(hours=1),
+            )
+        )
+        db.commit()
+
+    with pytest.raises(ib.ImportBundleError, match="書いている途中"):
+        importer.write()
+
+    assert importer.position == "ピン 0"
     assert count_rows(session_factory) == (0, 0, 0)
     assert storage.puts == []
 
