@@ -616,3 +616,42 @@ def test_bundle_must_be_inside_work_dir(tmp_path: Path) -> None:
     for path in [tmp_path / "elsewhere", work_dir, work_dir / ".." / "b"]:
         with pytest.raises(bundle.BundleError):
             bundle.require_inside_work_dir(path, work_dir=work_dir)
+
+
+def test_make_private_dir_creates_missing_parents_as_0700(tmp_path: Path) -> None:
+    """足りない親ディレクトリも 0700 で作ること。
+
+    mkdir(parents=True) で作る親は既定の権限になるため。
+    """
+    target = tmp_path / "a" / "b" / "c"
+
+    bundle.make_private_dir(target)
+
+    for directory in [tmp_path / "a", tmp_path / "a" / "b", target]:
+        assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+
+
+def test_make_private_dir_refuses_symlink(tmp_path: Path) -> None:
+    """置き場所が symlink なら、その先の権限を変えずに止まること。"""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir(mode=0o755)
+    elsewhere.chmod(0o755)
+    link = tmp_path / "link"
+    link.symlink_to(elsewhere)
+
+    with pytest.raises(bundle.BundleError):
+        bundle.make_private_dir(link)
+
+    assert stat.S_IMODE(elsewhere.stat().st_mode) == 0o755
+
+
+def test_write_private_bytes_does_not_follow_symlink(tmp_path: Path) -> None:
+    """書きかけの名前に symlink が置かれていても、その先のファイルを書き換えないこと。"""
+    victim = tmp_path / "victim"
+    victim.write_bytes(b"original")
+    (tmp_path / ".out.json.partial").symlink_to(victim)
+
+    with pytest.raises(OSError):
+        bundle.write_private_bytes(tmp_path / "out.json", b"new")
+
+    assert victim.read_bytes() == b"original"

@@ -76,8 +76,20 @@ def sha256_hex(data: bytes) -> str:
 
 
 def make_private_dir(path: Path) -> None:
-    """ディレクトリを 0700 で作る（既にあれば権限だけ直す）。"""
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    """ディレクトリを 0700 で作る（既にあれば権限だけ直す）。足りない親も 0700 で作る。
+
+    `mkdir(parents=True)` は親を既定の権限で作るので、1つずつ作る。symlink は辿らずに拒む
+    （chmod が symlink の先を変えるため）。
+    """
+    missing = []
+    current = path
+    while not current.exists() and not current.is_symlink():
+        missing.append(current)
+        current = current.parent
+    for directory in reversed(missing):
+        directory.mkdir(mode=0o700)
+    if path.is_symlink() or not path.is_dir():
+        raise BundleError("置き場所がディレクトリではありません（symlink は使えません）")
     path.chmod(0o700)
 
 
@@ -86,7 +98,8 @@ def write_private_bytes(path: Path, data: bytes) -> None:
     別名に書いて置き換える。
     """
     partial = path.with_name(f".{path.name}.partial")
-    fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # 書きかけの名前に symlink が置かれていても、その先を書き換えない。
+    fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "wb") as f:
         f.write(data)
     partial.replace(path)
