@@ -90,7 +90,8 @@ export function BottomSheet({ open, title, children, onClose, testID }: BottomSh
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={styles.root}>
+      {/* 閉じている途中はパネルの操作を受けない（閉じた後に親の状態を変えない）。 */}
+      <View style={styles.root} pointerEvents={open ? "auto" : "none"}>
         <Animated.View style={[styles.scrim, { opacity: progress }]}>
           <Pressable
             accessibilityRole="button"
