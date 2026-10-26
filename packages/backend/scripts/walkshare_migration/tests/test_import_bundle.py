@@ -799,7 +799,17 @@ def main_args(
     work_dir = tmp_path / "walkshare-migration"
     sample_bundle(work_dir / "bundle")
     monkeypatch.setattr(bundle, "WORK_DIR", work_dir)
-    test_db = settings_for_test(db_name=get_settings().test_db_name)
+    # engine の fixture と同じテスト用 DB に繋ぐ。src のテストが環境変数に残す値（DATABASE_DSN
+    # など）に左右されないよう、接続先はすべて明示する。
+    ambient = get_settings()
+    test_db = settings_for_test(
+        database_dsn="",
+        db_host=ambient.db_host,
+        db_port=ambient.db_port,
+        db_user=ambient.db_user,
+        db_password=ambient.db_password,
+        db_name=ambient.test_db_name,
+    )
     monkeypatch.setattr(ib, "build_settings", lambda target: test_db)
     monkeypatch.setattr(ib, "build_storage", lambda target, settings: (CountingStorage(), "fake"))
     # main() は sanposcape のロガーを ERROR に上げるので、ほかのテストのログに響かないよう戻す。
