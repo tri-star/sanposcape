@@ -31,6 +31,7 @@ dev の地図（DB + S3）──────────────────
 ```
 
 日時はすべて UTC の ISO 8601（`2022-03-09T01:23:45.000000Z`）。
+書き出しが途中経過に使う `.` で始まるファイル（`.progress.jsonl`）は形に含めず、読み込みは見ない。
 
 ### manifest.json
 
@@ -128,6 +129,7 @@ dev の地図（DB + S3）──────────────────
 
 後続ではエージェントがスクリプトを実行し、出力が会話の記録に残る。出力（ログ・エラーの文言・`--dry-run` の結果）は
 件数・容量と、新しい ID（uuid5）またはバンドルの中の連番だけにする。ピンの名前・メモ・座標・タグ・旧アプリの ID・ユーザーの ID は出さない。
+walkshare の書き出しは、加えて写真の ICC プロファイルの説明（`Display P3` などの色空間の名前）ごとの枚数を出す（画像に埋め込まれた文字列だが、個人のデータではない）。
 
 - 例外の文言にも値が入る（制約違反の DETAIL の `Key (...)=(...)`・`Failing row contains (...)` には、ユーザーの ID・タグ・名前・メモ・座標が入る。
   `hide_parameters` が隠すのは `[parameters: ...]` だけ）。例外はスクリプトの入口で捕まえ、型・SQLSTATE・制約の名前（`e.diag.constraint_name`）と
@@ -164,7 +166,7 @@ dev の地図（DB + S3）──────────────────
 ### 移す範囲（2026-10-25 ユーザー決定）
 
 - 本人のアカウントが作ったスポットと、作成者の記録が無いスポット（walkshare が作成者を記録し始める前のもの）を移す。もう1つのアカウントが作ったスポットは移さない。
-  本人のアカウントの uid は書き出しの引数で渡す（ここには書かない）。
+  本人のアカウントの uid は `tmp/walkshare-migration/config.json` に書く（ここには書かない。下の「手順」）。
 - 移すスポットに付いた写真は、アップロードしたアカウントに関わらずすべて移す。どのスポットからも参照されない写真は移さない。
 - 件数: ピン 647（写真なし 89）・写真 1,979・タグの付くピン 48（1ピン最大 4）。
 
@@ -190,7 +192,8 @@ dev の地図（DB + S3）──────────────────
 
 - GCS から1枚ずつメモリに取り、EXIF の向きを画素に反映 → 長辺 2048px に縮小（LANCZOS）→ JPEG 品質 70 で保存（Exif などのメタデータは付けない）。mobile の再圧縮（長辺 2048px・品質 0.7）に合わせる。
 - ICC プロファイルは色の情報なので引き継ぐ（原本の `image.info["icc_profile"]` を `save(icc_profile=...)` に渡す。`jpeg_metadata.py` も ICC は残す）。
-  原本が RGB 以外（CMYK・グレー）なら、`convert("RGB")` の後の色空間と合わないので付けない。原本が sRGB 以外の ICC を持つかは SS-238 で数枚確かめる。
+  原本が RGB 以外（CMYK・グレー）なら、`convert("RGB")` の後の色空間と合わないので付けない。原本の ICC は、1,979 枚のうち Display P3 が 1,889 枚・カメラの sRGB が 7 枚・無しが 83 枚（SS-238 の実データ）。
+  ほとんどが sRGB 以外なので、ICC を落とすと色がずれる。
   見積もり（下）は ICC を落として測ったが、ICC は数 KiB なので結果は変わらない。
 - 原本は手元に残さない。処理済みの JPEG だけをバンドルに書く。バンドルにあり sha256 が合う写真は飛ばす（途中から再開できる）。
 
@@ -203,10 +206,40 @@ dev の地図（DB + S3）──────────────────
 | 長辺 | 全件 4032px | 2048px |
 | 1枚の大きさ | 中央値 2,460KiB・平均 2,715KiB | 中央値 447KiB・平均 484KiB（210〜967KiB） |
 
-- 1,979 枚で **0.9〜1.0GiB**。再圧縮後の平均 × 枚数で約 935MiB（0.91GiB）、標本の大きさの比（約 18%）× 原本の合計（参照される写真の分で 5.70GiB）で約 1.0GiB。
+- 実際の書き出し（SS-238、2026-10-26）は 1,979 枚で 1,046,174,358 バイト（0.97GiB）、1枚の最大 1.16MiB。長辺 2048px 未満の原本が 8 枚あった（拡大しない）。
+- 見積もりは 1,979 枚で **0.9〜1.0GiB**。再圧縮後の平均 × 枚数で約 935MiB（0.91GiB）、標本の大きさの比（約 18%）× 原本の合計（参照される写真の分で 5.70GiB）で約 1.0GiB。
   標本の原本は全体（1枚の平均 約 3,000KiB）より小さめに偏っているので、上の側に寄りうる。
-- 1枚の最大は 1MiB に届かず、`pin_photo_max_bytes`（10MiB）に十分収まる。
+- 標本の1枚の最大は 1MiB に届かず、実際の書き出しの最大も 1.16MiB で、`pin_photo_max_bytes`（10MiB）に十分収まる。
 - 容量の上限に数えるのは原本の `byte_size` だけで、サムネイルは数えない。1GiB の上限のままだと、walkshare の分だけで上限に届きうる。上限を 10GiB に上げる SS-236 を dev への投入（SS-240）の前に出す（SS-236 で既定値を 10GiB にした。各環境の上限はその backend のデプロイで上がる）。
+
+### walkshare の書き出しの手順
+
+スクリプトは `dump_walkshare.py`（Firestore → ダンプ）・`export_walkshare.py`（ダンプ + GCS → バンドル）・`bundle.py`（バンドルの形。読み込みと共有）。
+ADC と Google への通信はホストにしか無いので、ホストで `uv run --no-project` で動かす（backend の依存に Google のライブラリを入れない。
+コンテナには `packages/backend` しかマウントされず、リポジトリの `tmp/` も無い）。
+
+1. ADC でログインしておく（`gcloud auth application-default login`。ユーザーが実行する）。
+2. `tmp/walkshare-migration/config.json`（0600）を作る。本人の uid はここにだけ書く。
+
+   ```json
+   {"firebase_project": "<Firebase のプロジェクト ID>", "map_id": "<地図のドキュメント ID>", "bucket": "<写真のバケット>", "owner_uid": "<本人の uid>"}
+   ```
+
+3. packages/backend で実行する（どちらも読み取りだけ。出力は件数・容量だけ）。
+
+   ```bash
+   GOOGLE_CLOUD_QUOTA_PROJECT=<プロジェクト ID> uv run --no-project --python 3.12 \
+     --with 'google-cloud-firestore>=2.19,<3' python scripts/walkshare_migration/dump_walkshare.py
+   GOOGLE_CLOUD_QUOTA_PROJECT=<プロジェクト ID> PYTHONPATH=src uv run --no-project --python 3.12 \
+     --with 'google-cloud-storage>=2.18,<4' --with 'pillow>=12.3.0' python scripts/walkshare_migration/export_walkshare.py
+   ```
+
+- 出力: ダンプは `tmp/walkshare-migration/dump/`、バンドルは `tmp/walkshare-migration/bundle-walkshare/`。
+  `tmp/` は worktree ごとにあり、worktree を消すと一緒に消える（SS-235 のダンプはこれで消えた）。別の worktree で読み込むなら、手順をそこで流し直すかコピーする。
+- バンドルには書き出しだけが使う `.progress.jsonl`（書いた写真の sha256・大きさ）が残る。読み込みは見ない。
+  中断しても同じコマンドで続きから流せる。ダンプを取り直した後も、sha256 が記録と合う写真は GCS から取らない。
+- ダンプ・書き出しは想定外のデータ（参照先の無い写真・長すぎる名前・2つのピンにある写真など）では切り詰めずに止まり、ピンと写真の連番だけを出す。
+- テストは `pytest`（コンテナ。`testpaths` に入っている）。
 
 ## sanposcape の地図の書き出し（SS-239）
 
