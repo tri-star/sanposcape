@@ -220,7 +220,8 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
   一致するピンしか数えないので、使っている既存の地図を渡しても気づけない。SS-240 では最初に渡された地図に既存のピンがあり、作り直してもらった）。
 - 容量の上限は `PIN_PHOTO_USER_QUOTA_BYTES`（無ければコードの既定値）で数える。その環境の Lambda と同じ値を渡す（SS-236 で上限を変えたら、その値）。
   dev の Lambda はこの環境変数を持たず、既定値（10GiB）で動いていた（2026-10-27。`get-function-configuration` の `keys(Environment.Variables)` で名前だけを見た）。
-  その場合は渡さない（シェルに残っていれば `unset` する）。
+  その場合は、その環境に SS-236 以降の backend がデプロイ済みであること（`backend deploy (SAM)` の最後の成功した run のコミットが SS-236 のマージ以降か）を
+  確かめたうえで渡さない（シェルに残っていれば `unset` する）。デプロイ前の Lambda の上限は 1GiB のままで、スクリプトだけ 10GiB で数えると、入れた後にアプリで写真を足せなくなる。
 - 1ピンのトランザクションは、ピンの行を送った後、写真のサムネイル作成と S3 の書き込みの間 idle in transaction になる（最大 45 枚分）。
   流す前に、同じ DSN で `SHOW idle_in_transaction_session_timeout`（ほかに `statement_timeout`・`transaction_timeout`）を確かめる。dev は 5 分で、ほかは 0（無し）だった。
 - 書いた後に確かめる（dev で行ったもの。件数だけを出す）。ユーザー ID をコマンドの文字列にも出力にも出さない: 投入と同じシェルの Python で、
