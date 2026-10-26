@@ -45,14 +45,16 @@ export function BottomSheet({ open, title, children, onClose, testID }: BottomSh
   const progress = useRef(new Animated.Value(0)).current;
   // 閉じるアニメーションの間も Modal を出しておくため、`open` とは別に持つ。
   const [mounted, setMounted] = useState(open);
-  // パネルを画面外へ送る移動量。開くたびに測り直し、測る前は画面の高さで画面外に置く。
+  // パネルを画面外へ送る移動量。測る前は画面の高さで画面外に置く。閉じても捨てない
+  // （iOS の Modal は閉じ終えても onDismiss まで中身を残すので、すぐ開き直すと onLayout が来ない）。
+  // 中身の高さが変われば onLayout で追う。
   const [panelHeight, setPanelHeight] = useState<number | null>(null);
 
   // 開くときは描画中に Modal を出し、中身が付いた後の effect でアニメーションを始める。
   if (open && !mounted) setMounted(true);
 
-  // 開くアニメーションは高さを測ってから始める。測る前に始めると、測った時点で移動量が変わりパネルが跳ねる
-  // （Modal は visible になるまで中身を描かないので、開くたびに測る前の期間がある）。
+  // 初めて開くときは高さを測ってから動かし始める。測る前に始めると、測った時点で移動量が変わりパネルが跳ねる
+  // （Modal は visible になるまで中身を描かない）。
   const waitingForLayout = open && panelHeight === null;
 
   useEffect(() => {
@@ -65,10 +67,7 @@ export function BottomSheet({ open, title, children, onClose, testID }: BottomSh
     });
     animation.start(({ finished }) => {
       // 閉じている途中に開き直したときは finished=false で来るので、Modal を消さない。
-      if (finished && !open) {
-        setMounted(false);
-        setPanelHeight(null);
-      }
+      if (finished && !open) setMounted(false);
     });
     return () => animation.stop();
   }, [open, waitingForLayout, progress, theme.motion.slow]);
