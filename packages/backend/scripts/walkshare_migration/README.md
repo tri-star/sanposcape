@@ -123,6 +123,7 @@ dev の地図（DB + S3）──────────────────
   バケット名が `--target` の環境の SSM（`/sanposcape/<env>/platform/pin_photos/bucket_name`。backend の `template.yaml` と同じ）の値と一致すること、
   STS の `get-caller-identity` のアカウントが `--target` の環境のアカウントであること。
 - 書く前に、接続先の DB のホスト名とバケット名と件数を表示して止まる。ユーザーが表示を見てから、`--yes` を付けて実行し直す（エージェントが自分で確認に答えない）。
+  ただし `--target local` は、書き先が手元の DB と fake storage だけなので、エージェントが表示を確かめて `--yes` を付けてよい（SS-237）。
 - 書き出し（SS-239）は読み取り専用で接続する（`default_transaction_read_only=on`、または読み取り専用のロール）。
 
 ## スクリプトの出力
@@ -139,25 +140,65 @@ walkshare の書き出しは、加えて写真の ICC プロファイルの説�
 
 ## 読み込み（SS-237）
 
-- 引数: `--target`、バンドルのパス、移行先の地図 ID、作成者にするユーザー ID、`--dry-run`。
+- 引数: `--target`、`--bundle`（バンドルのパス）、`--map-id`（移行先の地図 ID）、`--user-id`（作成者にするユーザー ID）、`--dry-run`、`--yes`、
+  `--aws-account-id`・`--db-host`（dev・prod で、資格情報のアカウントと `DATABASE_DSN` のホスト名と照合する）。
 - 移行先の地図は、アプリで新しく作ってから ID を渡す（読み込みは地図を作らない）。戻すときはアプリで地図ごと消せる。
 - 書く前に確かめて、1つでも外れたら何も書かずに止める:
   - `format_version`、`pins.json` と各写真の sha256
-  - 移行先の地図があり、指定したユーザーがその owner であること
+  - 移行先の地図があり、指定したユーザーがその owner で、ほかのメンバーがいないこと（共有中の地図だと、移したピン・写真がほかの人に見える。SS-237）
   - 各値が API の契約の範囲に収まること（名前 50 文字、メモ 1000 文字、タグは 10 件までで、ラベルの列を `tag_labels.dedupe_tags` に通した結果が元の列と完全に一致すること（正規化済み・重複なし・20 文字まで。黙って落とすと `created_at` との対応がずれるので、違えば止める）、写真は JPEG で `pin_photo_max_bytes`・`pin_photo_max_pixels` 以内、`file` が `photos/{source_id}.jpg` と完全に一致し、symlink でないこと）
   - バンドルのパスが、`Path.resolve()` した後でリポジトリの `tmp/walkshare-migration/` の中にあること（対応表をバンドルの横に書くため）
   - 容量: `PinPhotoUploadRepository.acquire_user_lock` を取ったうえで、`sum_attached_bytes` + `sum_reserved_bytes`（アプリで先行アップロード中の枠）+ まだ入っていない写真の合計 ≤ `pin_photo_user_quota_bytes`。
     写真の大きさはバンドルの申告ではなく、メタデータを除いた後の実際のバイト数で数える（`pin_photos.byte_size` にもその値を入れる）
-- トランザクションの単位（**SS-237 で決める**）: `acquire_user_lock` は `pg_advisory_xact_lock` で commit すると外れる。全体を1つのトランザクションにすると、
+- トランザクションの単位（SS-237 で決定）: **ピンごとに1つ**。`acquire_user_lock` は `pg_advisory_xact_lock` で commit すると外れる。全体を1つのトランザクションにすると、
   約 2,000 枚の S3 の書き込みの間ロックを持ち続け、同じユーザーのアプリでの写真の枠の発行・確定が待たされて Lambda の時間切れになる。
-  案: 容量の確認はロックの中で行い、書き込みはピンごとに commit する。移行の間は、そのユーザーでアプリから写真を上げない。Neon のトランザクションの時間の上限も確かめる。
+  - 書く前に1回、ロックの中で全体の容量を確かめる（外れたら何も書かない）。
+  - 書くときはピンごとに、ロック → このピンの写真の分で容量を確かめ直す → ピン・タグ・写真 → commit。ロックを持つのは1ピン分（walkshare の実データで最大 45 枚）の S3 の書き込みの間だけで、
+    途中でアプリから写真を上げられても上限は超えない。それでも移行の間は、そのユーザーでアプリから写真を上げない（上げると、途中で容量の上限で止まりうる）。
+  - 既にあるピン（ID は uuid5）は、タグ・写真ごと DB も S3 も書かずに飛ばす。ピンとその写真は同じトランザクションなので、ピンがあれば写真も入っている。
+  - Neon のトランザクションの時間: 1ピン分は数秒〜十数秒。dev・prod で流す前に、`--dry-run` の後で1ピン目の時間を見て確かめる（SS-240・241）。
+- 移行先の地図の `updated_at` は、ピンを入れたら最後に1回更新する（アプリでピンを足したときの `mark_used` と同じ。地図の一覧の並びに効く）。
 - 書くもの: `pins`（`created_by_user_id` は指定したユーザー、`client_walk_id` は null）、`pin_tags`（`created_at` はバンドルの値）、
   写真は1枚ずつ メタデータ除去 → サムネイル → S3（`photo_keys.original_key` / `thumbnail_key`。`staging/` は通さない）→ `pin_photos`。
 - `--dry-run` は書かずに、入る件数・飛ばす件数・容量を出す。
 - 対応表（元の ID → 新しい ID・S3 のキー）をバンドルの横に書き出す（戻すときと照合に使う）。ディレクトリは 0700・ファイルは 0600 でスクリプトが作る。
 - S3 に置いた後で DB に書く前に止まると、どの行からも参照されない原本が残る（`staging/` を通さないのでライフサイクルでも消えず、地図の削除でも消えない）。
   再実行すれば同じキーに上書きして行も入る。やめる場合は、対応表のキーで消す。
-- **未決（SS-237 で確かめる）**: `pin_photo_uploads` の行を作るか（作らない予定。掃除の処理・アカウント削除が `pin_photos` と S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` だけで足りるかを確かめる）。
+- `pin_photo_uploads` の行は作らない（SS-237 で確認）。容量は `pin_photos.uploaded_by_user_id` で数える（`sum_attached_bytes`）。アカウント削除は利用者の prefix
+  （`photo_keys.user_photo_prefixes`）ごと消し、地図・ピン・写真の削除は `pin_photos` のキーで消す。`upload_id` で upload の行を引くのはアプリの確定の経路だけで、
+  S3 と DB を突き合わせる定期の掃除（ADR-009 BK-3）は実装されていない（実装するときは、upload の行の無い `pin_photos` があることを前提にする）。
+
+### 読み込みの手順
+
+ホストで動かす（バンドルはリポジトリの `tmp/`、AWS の資格情報もホストにある。コンテナには `packages/backend` しかマウントされない）。
+backend の依存は、`uv.lock` の版（コンテナ・Lambda で確かめた版）に固定して一時の環境に入れる（プロジェクトの `.venv` はコンテナ用なので作らない。
+`--with-editable .` だけだと pyproject の下限を満たす最新の版が入り、サムネイルの作り方や DB の書き方がアプリと違いうる）。packages/backend で:
+
+```bash
+uv export --frozen --no-emit-project --quiet -o "$TMPDIR/migration-requirements.txt"   # boto3 も dev の依存として入る
+uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-requirements.txt" --with-editable . \
+  python scripts/walkshare_migration/import_bundle.py \
+  --target local --bundle ../../tmp/walkshare-migration/bundle-walkshare --map-id <地図 ID> --user-id <ユーザー ID> --dry-run
+```
+
+- local: `.env` を読む。`.env` は compose 用で `DB_HOST` を持たないので、DB は `localhost`（`.env` の `DB_PORT`）に繋ぐ。`STORAGE_MODE=fake` と `DEV_STORAGE_DIR` が要り、
+  写真は `packages/backend/storages/dev-storage/` に書く（API のコンテナと同じ場所）。sandbox の中からは localhost に届かないので、エージェントは sandbox の外で動かす。
+  移行先の地図は、アプリか `POST /auth/dev-session`・`POST /sanpo-maps` で作る。
+- dev・prod: `.env` を読まない。`DATABASE_DSN`・`STORAGE_MODE=real`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION` と AWS の資格情報を環境変数で渡し、
+  `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。
+  - DSN は、照合に使うのと同じ `--target` の環境の資格情報で、同じコマンドの中で取り出す（SSM `/sanposcape/<target>/platform/secrets/shared/arn` →
+    そのシークレットの `neon_dsn`）。別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
+    `get-secret-value` の結果は表示しない（同じ JSON の他の秘密ごと会話の記録に残る）。
+  - `--db-host` は DSN から作らず、Neon のコンソール（プロジェクトのエンドポイント）で確かめて控えた値を使う（DSN から作ると照合にならない。
+    前の作業のコマンドを写すときも打ち直す）。pooled の DSN なら `-pooler` の付いたホスト名。
+  - `~/.aws/config` のプロファイルの `endpoint_url` は使わない（スクリプトが `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true` にする）。
+- まず `--dry-run`、次に引数そのままで実行して接続先の表示を確かめ、最後に `--yes` を付けて書く。
+- 容量の上限は `PIN_PHOTO_USER_QUOTA_BYTES`（無ければコードの既定値）で数える。その環境の Lambda と同じ値を渡す（SS-236 で上限を変えたら、その値）。
+- 1ピンのトランザクションは、ピンの行を送った後、写真のサムネイル作成と S3 の書き込みの間 idle in transaction になる（最大 45 枚分）。
+  dev・prod では、Neon（PgBouncer）の idle in transaction の時間切れの設定と、1ピン目にかかった時間を確かめてから全体を流す（SS-240・241）。
+- 戻すときにアプリで地図ごと消すと、写真のキーが約 4,000 あるので、S3 の削除が締め切りで打ち切られ、残りはどの行からも参照されないまま残りうる（ADR-009 決定28）。
+  その場合は対応表のキーで消す。
+- 対応表は `<バンドル>.import-<target>-<地図 ID>.json`（バンドルの横）。
 
 ## walkshare の書き出し（SS-238）
 
@@ -265,4 +306,4 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 - 移したデータは通常のピン・写真と同じテーブル・同じ S3 のキーに入り、地図の削除・アカウントの削除で同じように消える。
   アプリが扱うデータの種類・保存先・保存期間は変わらないので、データ取扱い台帳（`docs/privacy/data-inventory.md`）は変えない。
 - dev に入れた walkshare の地図は、prod での確認（SS-241）の後に SS-242 で消す（本物の写真の複製を減らすため）。
-- スクリプトとこの README を消した後も prod のデータに残る事実（作成日時がアプリの公開より前のピンがあること、ID が uuid5 であること、`client_walk_id` が null であること）は SS-242 で既存の ADR に追補する。
+- スクリプトとこの README を消した後も prod のデータに残る事実（作成日時がアプリの公開より前のピンがあること、ID が uuid5 であること、`client_walk_id` が null であること、`pin_photo_uploads` の行の無い `pin_photos` があること）は SS-242 で既存の ADR に追補する。
