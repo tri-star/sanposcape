@@ -195,7 +195,8 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
   - `--db-host` は DSN から作らず、Neon のコンソールの Connect（Connection pooling をオフ）で確かめて控えた値を使う（DSN から作ると照合にならない。
     前の作業のコマンドを写すときも打ち直す）。direct なので `-pooler` の付かないホスト名。ホスト名だけを控える（接続文字列にはパスワードが入る）。
   - `--user-id` は、移行先の地図の `sanpo_maps.owner_user_id` を同じ DSN で読み取り専用（`default_transaction_read_only=on`）で読んで渡す（表示しない）。
-    地図がその人のものかは、ユーザーが地図 ID を渡すことで決まる。スクリプトは、ほかのメンバーがいないことを確かめる。
+    地図がその人のものかは、ユーザーが地図 ID を渡すことで決まる（スクリプトの owner の照合は必ず通る）。スクリプトは、ほかのメンバーがいないことを確かめる。
+    取り違えの歯止めが地図 ID だけになるので、`--yes` の前に、表示の `quota_used_bytes`（owner が今使っている容量）が本人の想定と合うことをユーザーに確かめてもらう。
   - `~/.aws/config` のプロファイルの `endpoint_url` は使わない（スクリプトが `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true` にする）。
   - dev で流した形（SS-240。`<...>` はユーザーから受け取る。packages/backend で、上の `uv export` の後に、1つのシェルの中で）:
 
