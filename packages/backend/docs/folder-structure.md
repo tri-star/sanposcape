@@ -57,7 +57,8 @@ packages/backend/
 │   ├── env.py                 # all_models.py の Base を参照してメタデータを集約
 │   └── versions/              # マイグレーションスクリプト
 │
-├── scripts/                   # 起動・seed・openapi.yaml の再生成・開発者向けの検証スクリプト
+├── scripts/                   # 起動・seed・openapi.yaml の再生成・開発者向けの検証スクリプト、
+│                              # 一回限りの作業のスクリプト（サブディレクトリに README を添え、作業が終われば消す）
 └── docs/                      # 設計ドキュメント（ADR は docs/adr/）
 ```
 
