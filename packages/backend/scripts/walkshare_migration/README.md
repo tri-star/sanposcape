@@ -31,6 +31,7 @@ dev の地図（DB + S3）──────────────────
 ```
 
 日時はすべて UTC の ISO 8601（`2022-03-09T01:23:45.000000Z`）。
+書き出しが途中経過に使う `.` で始まるファイル（`.progress.jsonl`）は形に含めず、読み込みは見ない。
 
 ### manifest.json
 
@@ -164,7 +165,7 @@ dev の地図（DB + S3）──────────────────
 ### 移す範囲（2026-10-25 ユーザー決定）
 
 - 本人のアカウントが作ったスポットと、作成者の記録が無いスポット（walkshare が作成者を記録し始める前のもの）を移す。もう1つのアカウントが作ったスポットは移さない。
-  本人のアカウントの uid は書き出しの引数で渡す（ここには書かない）。
+  本人のアカウントの uid は `tmp/walkshare-migration/config.json` に書く（ここには書かない。下の「手順」）。
 - 移すスポットに付いた写真は、アップロードしたアカウントに関わらずすべて移す。どのスポットからも参照されない写真は移さない。
 - 件数: ピン 647（写真なし 89）・写真 1,979・タグの付くピン 48（1ピン最大 4）。
 
@@ -207,6 +208,35 @@ dev の地図（DB + S3）──────────────────
   標本の原本は全体（1枚の平均 約 3,000KiB）より小さめに偏っているので、上の側に寄りうる。
 - 1枚の最大は 1MiB に届かず、`pin_photo_max_bytes`（10MiB）に十分収まる。
 - 容量の上限に数えるのは原本の `byte_size` だけで、サムネイルは数えない。1GiB の上限のままだと、walkshare の分だけで上限に届きうる。上限を 10GiB に上げる SS-236 を dev への投入（SS-240）の前に出す。
+
+### walkshare の書き出しの手順
+
+スクリプトは `dump_walkshare.py`（Firestore → ダンプ）・`export_walkshare.py`（ダンプ + GCS → バンドル）・`bundle.py`（バンドルの形。読み込みと共有）。
+ADC と Google への通信はホストにしか無いので、ホストで `uv run --no-project` で動かす（backend の依存に Google のライブラリを入れない。
+コンテナには `packages/backend` しかマウントされず、リポジトリの `tmp/` も無い）。
+
+1. ADC でログインしておく（`gcloud auth application-default login`。ユーザーが実行する）。
+2. `tmp/walkshare-migration/config.json`（0600）を作る。本人の uid はここにだけ書く。
+
+   ```json
+   {"firebase_project": "<Firebase のプロジェクト ID>", "map_id": "<地図のドキュメント ID>", "bucket": "<写真のバケット>", "owner_uid": "<本人の uid>"}
+   ```
+
+3. packages/backend で実行する（どちらも読み取りだけ。出力は件数・容量だけ）。
+
+   ```bash
+   GOOGLE_CLOUD_QUOTA_PROJECT=<プロジェクト ID> uv run --no-project --python 3.12 \
+     --with 'google-cloud-firestore>=2.19,<3' python scripts/walkshare_migration/dump_walkshare.py
+   GOOGLE_CLOUD_QUOTA_PROJECT=<プロジェクト ID> PYTHONPATH=src uv run --no-project --python 3.12 \
+     --with 'google-cloud-storage>=2.18,<4' --with 'pillow>=12.3.0' python scripts/walkshare_migration/export_walkshare.py
+   ```
+
+- 出力: ダンプは `tmp/walkshare-migration/dump/`、バンドルは `tmp/walkshare-migration/bundle-walkshare/`。
+  `tmp/` は worktree ごとにあり、worktree を消すと一緒に消える（SS-235 のダンプはこれで消えた）。別の worktree で読み込むなら、手順をそこで流し直すかコピーする。
+- バンドルには書き出しだけが使う `.progress.jsonl`（書いた写真の sha256・大きさ）が残る。読み込みは見ない。
+  中断しても同じコマンドで続きから流せる。ダンプを取り直した後も、sha256 が記録と合う写真は GCS から取らない。
+- ダンプ・書き出しは想定外のデータ（参照先の無い写真・長すぎる名前・2つのピンにある写真など）では切り詰めずに止まり、ピンと写真の連番だけを出す。
+- テストは `pytest`（コンテナ。`testpaths` に入っている）。
 
 ## sanposcape の地図の書き出し（SS-239）
 
