@@ -216,6 +216,8 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
       --map-id <地図 ID> --user-id "$OWNER" --aws-account-id <アカウント ID> --db-host <ホスト名> --dry-run
     ```
 - まず `--dry-run`、次に引数そのままで実行して接続先の表示を確かめ、最後に `--yes` を付けて書く。
+  その前に、owner を読むのと同じ読み取り専用の接続で、移行先の地図のピンが 0 件であることを件数で確かめる（`--dry-run` の `pins_existing` は uuid5 の ID が
+  一致するピンしか数えないので、使っている既存の地図を渡しても気づけない。SS-240 では最初に渡された地図に既存のピンがあり、作り直してもらった）。
 - 容量の上限は `PIN_PHOTO_USER_QUOTA_BYTES`（無ければコードの既定値）で数える。その環境の Lambda と同じ値を渡す（SS-236 で上限を変えたら、その値）。
   dev の Lambda はこの環境変数を持たず、既定値（10GiB）で動いていた（2026-10-27。`get-function-configuration` の `keys(Environment.Variables)` で名前だけを見た）。
   その場合は渡さない（シェルに残っていれば `unset` する）。
