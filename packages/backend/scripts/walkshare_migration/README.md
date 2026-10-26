@@ -189,10 +189,11 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
   移行先の地図は、アプリか `POST /auth/dev-session`・`POST /sanpo-maps` で作る。
 - dev・prod: `.env` を読まない。`DATABASE_DSN`・`STORAGE_MODE=real`・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION` と AWS の資格情報を環境変数で渡し、
   `--aws-account-id` と `--db-host`（その環境の Neon のホスト名）を付ける。
-  - DSN は、照合に使うのと同じ `--target` の環境の資格情報で、スクリプトを動かすのと同じシェル（エージェントは1回の Bash の中）で取り出す。
-    人のシェルで流したら、終わった後に `DATABASE_DSN`・`PIN_PHOTO_BUCKET_*`・`STORAGE_MODE`・`AWS_PROFILE`・`OWNER` を `unset` する（SSM `/sanposcape/<target>/platform/secrets/shared/arn` →
-    そのシークレットの `neon_dsn_unpooled`）。別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
+  - DSN は、照合に使うのと同じ `--target` の環境の資格情報で、スクリプトを動かすのと同じシェル（エージェントは1回の Bash の中）で取り出す
+    （SSM `/sanposcape/<target>/platform/secrets/shared/arn` → そのシークレットの `neon_dsn_unpooled`）。
+    別の環境の資格情報ではそのシークレットを読めないので、DSN も照合したアカウントのものになる。
     `get-secret-value` の結果は表示しない（同じ JSON の他の秘密ごと会話の記録に残る）。
+    人のシェルで流したら、終わった後に `DATABASE_DSN`・`PIN_PHOTO_BUCKET_*`・`STORAGE_MODE`・`AWS_PROFILE`・`OWNER` を `unset` する。
   - direct（非 pooled）の DSN を使う（SS-240）。1ピンのトランザクションが写真の処理の間開いたままになるので、transaction mode の PgBouncer を挟まず、
     時間切れを Postgres の `idle_in_transaction_session_timeout` だけで考えればよいようにする（Neon の PgBouncer の設定は利用者から変えられない）。
   - `--db-host` は DSN から作らず、Neon のコンソールの Connect（Connection pooling をオフ）で確かめて控えた値を使う（DSN から作ると照合にならない。
