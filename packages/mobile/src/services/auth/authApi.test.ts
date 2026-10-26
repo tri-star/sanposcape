@@ -146,7 +146,7 @@ describe("createAuthApi().createSession（apple）", () => {
     let receivedBody: Record<string, unknown> = {};
     server.use(
       getCreateSessionAuthSessionPostMockHandler(async (info) => {
-        receivedBody = (await info.request.json()) as Record<string, unknown>;
+        receivedBody = { ...(await info.request.json()) };
         return SESSION;
       }),
     );
