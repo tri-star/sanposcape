@@ -579,6 +579,11 @@ def build_settings(target: str, environ: dict[str, str] | None = None) -> Settin
                 "--target local では STORAGE_MODE=fake と DEV_STORAGE_DIR が要ります"
             )
         return settings
+    # botocore は AWS_ENDPOINT_URL（_S3 など）を読む。残っていると S3 だけ別の宛先に向く
+    # （SSM・STS の照合は AWS に向いたまま通る）。
+    endpoints = sorted(name for name in environ if name.startswith("AWS_ENDPOINT_URL"))
+    if endpoints:
+        raise ImportBundleError(f"AWS の宛先を変える環境変数があります: {', '.join(endpoints)}")
     settings = Settings(_env_file=None)
     missing = [
         name

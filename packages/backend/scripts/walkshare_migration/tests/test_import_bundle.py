@@ -670,6 +670,11 @@ def test_build_settings_for_remote_target_ignores_dotenv(
     monkeypatch.setenv("STORAGE_MODE", "fake")
     with pytest.raises(ib.ImportBundleError, match="STORAGE_MODE=real"):
         ib.build_settings("prod")
+    monkeypatch.setenv("STORAGE_MODE", "real")
+    assert ib.build_settings("prod").pin_photo_bucket_name == "bucket-prod"
+    monkeypatch.setenv("AWS_ENDPOINT_URL_S3", "http://localhost:4566")
+    with pytest.raises(ib.ImportBundleError, match="AWS_ENDPOINT_URL_S3"):
+        ib.build_settings("prod")
 
 
 def test_build_settings_for_local_requires_fake_storage_and_local_db(
