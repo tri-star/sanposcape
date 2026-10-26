@@ -438,6 +438,25 @@ def test_rerun_skips_photos_whose_sha256_matches(tmp_path: Path) -> None:
     assert second == first
 
 
+def test_rerun_after_truncated_progress_line_keeps_later_records(tmp_path: Path) -> None:
+    """記録の最後の行が途中で切れていても、次の実行の記録は読める行として残り、3回目は GCS から取らないこと。"""
+    plans, storage = _sample()
+    out_dir = tmp_path / "bundle"
+    export(plans, out_dir, storage)
+    progress = out_dir / ".progress.jsonl"
+    lines = progress.read_text().splitlines()
+    # p2 の行が書きかけで止まった状態にする。
+    progress.write_text(lines[0] + "\n" + lines[1][:10])
+    storage.fetched.clear()
+
+    export(plans, out_dir, storage)
+    assert storage.fetched == ["maps/cats/p2.jpg"]
+    storage.fetched.clear()
+    export(plans, out_dir, storage)
+
+    assert storage.fetched == []
+
+
 def test_rerun_removes_photos_no_longer_in_dump(tmp_path: Path) -> None:
     """ダンプから外れた写真と書きかけのファイルは、書き直しで photos/ から消えること。"""
     plans, storage = _sample()

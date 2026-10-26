@@ -294,6 +294,9 @@ def export_bundle(
     pins: list[dict[str, Any]] = []
     fd = os.open(progress_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     with os.fdopen(fd, "a", encoding="utf-8") as progress_log:
+        if _ends_without_newline(progress_path):
+            # 前回が行の途中で止まった。続けて書くと次の行まで読めなくなるので、行を閉じる。
+            progress_log.write("\n")
         for pin_index, plan in enumerate(plans):
             photos = []
             for position, photo in enumerate(plan.photos):
@@ -336,6 +339,14 @@ def export_bundle(
     )
     bundle.write_private_bytes(out_dir / bundle.MANIFEST_FILE, bundle.encode_json(manifest))
     return manifest, stats
+
+
+def _ends_without_newline(path: Path) -> bool:
+    with path.open("rb") as f:
+        if f.seek(0, os.SEEK_END) == 0:
+            return False
+        f.seek(-1, os.SEEK_END)
+        return f.read(1) != b"\n"
 
 
 def _load_progress(path: Path) -> dict[str, dict[str, Any]]:
