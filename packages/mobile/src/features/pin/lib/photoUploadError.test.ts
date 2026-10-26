@@ -113,6 +113,10 @@ describe("photoUploadErrorMessage", () => {
   it.each(codes)("%s に文言がある", (code) => {
     expect(photoUploadErrorMessage(code).length).toBeGreaterThan(0);
   });
+
+  it("容量の文言に上限の値を書かない（上限はサーバーの設定値。SS-236）", () => {
+    expect(photoUploadErrorMessage("quota_exceeded")).not.toMatch(/\d/);
+  });
 });
 
 describe("extractS3ErrorMessage", () => {

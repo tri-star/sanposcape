@@ -149,8 +149,8 @@ const MESSAGES: PinSaveMessages = {
     add_photos: `${ADD_PHOTOS_PREFIX}印の付いた写真を削除してから、もう一度保存してください。`,
   },
   quota_exceeded: {
-    create: "写真の保存容量（1人あたり1GB）の上限に達しました。",
-    add_photos: `${ADD_PHOTOS_PREFIX}写真の保存容量（1人あたり1GB）の上限に達しました。`,
+    create: "写真の保存容量の上限に達しました。",
+    add_photos: `${ADD_PHOTOS_PREFIX}写真の保存容量の上限に達しました。`,
   },
   invalid_request: {
     create: "この内容では保存できませんでした。入力を確認してください。",
