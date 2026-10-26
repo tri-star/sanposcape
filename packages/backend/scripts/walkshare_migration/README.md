@@ -221,7 +221,9 @@ uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-require
   その場合は渡さない（シェルに残っていれば `unset` する）。
 - 1ピンのトランザクションは、ピンの行を送った後、写真のサムネイル作成と S3 の書き込みの間 idle in transaction になる（最大 45 枚分）。
   流す前に、同じ DSN で `SHOW idle_in_transaction_session_timeout`（ほかに `statement_timeout`・`transaction_timeout`）を確かめる。dev は 5 分で、ほかは 0（無し）だった。
-- 書いた後に確かめる（dev で行ったもの。件数だけを出す）:
+- 書いた後に確かめる（dev で行ったもの。件数だけを出す）。ユーザー ID をコマンドの文字列にも出力にも出さない: 投入と同じシェルの Python で、
+  owner を地図から読み（SQL は `created_by_user_id = (select owner_user_id from sanpo_maps where id = %s)` の形）、S3 の prefix も Python の中で組み立てて、
+  キーの集合を対応表・`pin_photos` のキーと突き合わせた件数だけを出す（キーの一覧を出すと、どのキーにもユーザー ID が入っている）:
   - DB: 地図のピン・写真・タグの件数と写真の `byte_size` の合計がバンドルと一致すること、ピンの ID の集合が対応表と一致すること、サムネイルの無い写真が 0 件、作成者がすべて指定したユーザーであること
   - S3: 対応表のキー（原本とサムネイル）がすべてあること、そのユーザーの `original/pins/<user_id>/`・`thumb/pins/<user_id>/` に、どの `pin_photos` からも参照されないキーが無いこと
   - `--dry-run` をもう一度流し、入る件数が 0 になること
