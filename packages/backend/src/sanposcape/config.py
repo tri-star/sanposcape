@@ -233,8 +233,9 @@ class Settings(BaseSettings):
     pin_photo_bucket_region: str = "ap-southeast-1"
     # 1枚あたりの上限（ユーザー決定 B-Y3）。content-length-range・413・確定時の検証・GET に使う。
     pin_photo_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1_048_576, le=20 * 1024 * 1024)
-    # アップロード者ごとの合計上限（ユーザー決定 B-Y5）。原本のみ計上（サムネイルは含めない）。
-    pin_photo_user_quota_bytes: int = Field(default=1024**3, gt=0)
+    # アップロード者ごとの合計上限（ユーザー決定 B-Y5。SS-236 で 1 GiB から 10 GiB に上げた）。
+    # 原本のみ計上（サムネイルは含めない）。
+    pin_photo_user_quota_bytes: int = Field(default=10 * 1024**3, gt=0)
     # decompression bomb 対策（Pillow の Image.MAX_IMAGE_PIXELS に使う）。
     pin_photo_max_pixels: int = Field(default=40_000_000, gt=0)
     # 未紐付けの枠（pending）の同時保有数の上限。超えると 429（連打による容量の先食い防止）。

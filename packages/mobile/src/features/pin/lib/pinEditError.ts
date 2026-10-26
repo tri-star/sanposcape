@@ -132,7 +132,7 @@ const MESSAGES: Record<PinEditErrorCode, StageMessages> = {
   quota_exceeded: {
     update: `${UPDATE_FAILED}もう一度お試しください。`,
     delete_photos: `${PARTIAL_PREFIX_DELETE}${RESUME}`,
-    add_photos: `${PARTIAL_PREFIX_ADD}写真の保存容量（1人あたり1GB）の上限に達しました。`,
+    add_photos: `${PARTIAL_PREFIX_ADD}写真の保存容量の上限に達しました。`,
   },
   photo_rejected: {
     update: `${UPDATE_FAILED}もう一度お試しください。`,

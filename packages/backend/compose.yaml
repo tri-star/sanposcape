@@ -41,7 +41,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       PIN_PHOTO_MAX_BYTES: ${PIN_PHOTO_MAX_BYTES:-10485760}
-      PIN_PHOTO_USER_QUOTA_BYTES: ${PIN_PHOTO_USER_QUOTA_BYTES:-1073741824}
+      PIN_PHOTO_USER_QUOTA_BYTES: ${PIN_PHOTO_USER_QUOTA_BYTES:-10737418240}
       # アカウント削除後の写真の保持期間（日。SS-109）。0 にすると削除したアカウントの写真が次の
       # `python -m sanposcape.aws_lambda.photo_purge` で消える（docs/local-development.md）。
       ACCOUNT_PHOTO_RETENTION_DAYS: ${ACCOUNT_PHOTO_RETENTION_DAYS:-30}

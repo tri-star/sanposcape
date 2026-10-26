@@ -142,6 +142,10 @@ describe("pinSaveErrorMessage", () => {
   it("add_photos 段階はピンが保存済みである旨の前置きを含む", () => {
     expect(pinSaveErrorMessage("network", "add_photos")).toContain("ピンは保存しました");
   });
+
+  it.each(stages)("容量の文言に上限の値を書かない（%s。SS-236）", (stage) => {
+    expect(pinSaveErrorMessage("quota_exceeded", stage)).not.toMatch(/\d/);
+  });
 });
 
 describe("pinSaveProgressLabel", () => {
