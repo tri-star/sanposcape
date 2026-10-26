@@ -5,6 +5,7 @@
 
 import io
 import json
+import logging
 import uuid
 from collections.abc import Callable, Generator
 from datetime import UTC, datetime, timedelta
@@ -792,7 +793,7 @@ def main_args(
     monkeypatch: pytest.MonkeyPatch,
     session_factory: sessionmaker[Session],
     owner: tuple[uuid.UUID, uuid.UUID],
-) -> list[str]:
+) -> Generator[list[str], None, None]:
     """作業ディレクトリ・接続先をテスト用に差し替えて main() に渡す引数（local・--yes）。"""
     user_id, map_id = owner
     work_dir = tmp_path / "walkshare-migration"
@@ -801,7 +802,10 @@ def main_args(
     test_db = settings_for_test(db_name=get_settings().test_db_name)
     monkeypatch.setattr(ib, "build_settings", lambda target: test_db)
     monkeypatch.setattr(ib, "build_storage", lambda target, settings: (CountingStorage(), "fake"))
-    return [
+    # main() は sanposcape のロガーを ERROR に上げるので、ほかのテストのログに響かないよう戻す。
+    app_logger = logging.getLogger("sanposcape")
+    saved_level = app_logger.level
+    yield [
         "--target",
         "local",
         "--bundle",
@@ -812,6 +816,7 @@ def main_args(
         str(user_id),
         "--yes",
     ]
+    app_logger.setLevel(saved_level)
 
 
 def test_main_prints_counts_without_personal_data(
