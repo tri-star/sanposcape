@@ -511,6 +511,96 @@ def test_failed_photo_reports_position_only_and_leaves_no_manifest(tmp_path: Pat
 
 
 # ---------------------------------------------------------------------------
+# 入口（config・置き場所・出力）
+# ---------------------------------------------------------------------------
+
+
+def _prepare_work_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    work_dir = tmp_path / "walkshare-migration"
+    monkeypatch.setattr(bundle, "WORK_DIR", work_dir)
+    dump_dir = work_dir / "dump"
+    dump_dir.mkdir(parents=True)
+    dump = make_dump([spot("s1", photos=["p1"])], [photo("p1")])
+    for key, content in dump.items():
+        (dump_dir / f"{key}.json").write_text(json.dumps(content))
+    (work_dir / "config.json").write_text(
+        json.dumps(
+            {"firebase_project": "proj", "map_id": "m1", "bucket": "bkt", "owner_uid": OWNER}
+        )
+    )
+    return work_dir
+
+
+def _main(work_dir: Path, out: Path | None = None) -> int:
+    return ex.main(
+        [
+            "--config",
+            str(work_dir / "config.json"),
+            "--dump",
+            str(work_dir / "dump"),
+            "--out",
+            str(out or work_dir / "bundle"),
+        ]
+    )
+
+
+def test_main_exports_bundle_from_config_and_prints_counts_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """config のプロジェクト・バケット・uid で書き出し、標準出力には件数・容量だけを出して、
+    ID・名前を出さないこと。
+    """
+    work_dir = _prepare_work_dir(tmp_path, monkeypatch)
+    storage = FakeStorage({"maps/cats/p1.jpg": make_jpeg()})
+    opened: list[tuple[str, str]] = []
+
+    def fake_fetcher(project: str, bucket_name: str) -> ex.FetchPhoto:
+        opened.append((project, bucket_name))
+        return storage
+
+    monkeypatch.setattr(ex, "gcs_fetcher", fake_fetcher)
+
+    assert _main(work_dir) == 0
+
+    assert opened == [("proj", "bkt")]
+    out = capsys.readouterr().out
+    assert json.loads(out)["counts"] == {"pins": 1, "photos": 1, "tags": 0}
+    for value in ("s1", "p1", "title-s1", OWNER, "maps/"):
+        assert value not in out
+    assert (work_dir / "bundle" / "manifest.json").exists()
+
+
+def test_main_prints_only_exception_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """GCS の例外の文言（パス）は出さず、連番と型だけを標準エラーに出して 1 で終わること。"""
+    work_dir = _prepare_work_dir(tmp_path, monkeypatch)
+
+    def failing(path: str) -> bytes:
+        raise RuntimeError(f"404 {path}")
+
+    monkeypatch.setattr(ex, "gcs_fetcher", lambda project, bucket_name: failing)
+
+    assert _main(work_dir) == 1
+
+    captured = capsys.readouterr()
+    assert captured.err == "error: ピン 0 の写真 0: RuntimeError\n"
+    assert captured.out == ""
+
+
+def test_main_refuses_bundle_outside_work_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """作業ディレクトリの外への書き出しは、GCS に繋ぐ前に止まり、何も書かないこと。"""
+    work_dir = _prepare_work_dir(tmp_path, monkeypatch)
+    monkeypatch.setattr(ex, "gcs_fetcher", lambda project, bucket_name: pytest.fail("fetched"))
+
+    assert _main(work_dir, out=tmp_path / "outside") == 1
+
+    assert not (tmp_path / "outside").exists()
+
+
+# ---------------------------------------------------------------------------
 # 置き場所
 # ---------------------------------------------------------------------------
 

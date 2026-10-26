@@ -34,8 +34,11 @@ class BundleError(Exception):
     """バンドルの置き場所・形の誤り。文言には個人のデータを入れない。"""
 
 
-def require_inside_work_dir(path: Path, *, work_dir: Path = WORK_DIR) -> Path:
-    """`path` を解決し、`work_dir` の中（`work_dir` 自身は除く）でなければ `BundleError`。"""
+def require_inside_work_dir(path: Path, *, work_dir: Path | None = None) -> Path:
+    """`path` を解決し、`work_dir`（既定は `WORK_DIR`）の中（自身は除く）でなければ
+    `BundleError`。
+    """
+    work_dir = WORK_DIR if work_dir is None else work_dir
     resolved = path.resolve()
     if work_dir.resolve() not in resolved.parents:
         raise BundleError(f"置き場所は {work_dir} の中にしてください")

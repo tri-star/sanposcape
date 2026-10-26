@@ -2,9 +2,11 @@
 値の型は代わりのクラスで作る）。
 """
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 
+import bundle
 import dump_walkshare as dw
 import pytest
 
@@ -112,3 +114,18 @@ def test_write_dump_removes_old_manifest_before_overwriting(tmp_path, monkeypatc
         dw.write_dump(out_dir, dump, {"format_version": 1})
 
     assert not (out_dir / "manifest.json").exists()
+
+
+def test_main_refuses_to_overwrite_existing_dump(tmp_path, monkeypatch, capsys) -> None:
+    """既存のダンプがあれば --overwrite なしでは Firestore に繋がずに止まること。"""
+    work_dir = tmp_path / "walkshare-migration"
+    (work_dir / "dump").mkdir(parents=True)
+    (work_dir / "dump" / "manifest.json").write_text("{}")
+    config = work_dir / "config.json"
+    config.write_text(json.dumps({"firebase_project": "proj", "map_id": "m1"}))
+    monkeypatch.setattr(bundle, "WORK_DIR", work_dir)
+    monkeypatch.setattr(dw, "fetch_from_firestore", lambda *args: pytest.fail("fetched"))
+
+    assert dw.main(["--config", str(config), "--out", str(work_dir / "dump")]) == 1
+
+    assert "--overwrite" in capsys.readouterr().err
