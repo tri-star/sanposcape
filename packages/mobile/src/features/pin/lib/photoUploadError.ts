@@ -4,7 +4,7 @@ import { isPhotoError } from "@/services/photo/photoError";
 /** 写真1枚のアップロード失敗の分類（端末での加工・枠発行・直送の3段階）。 */
 export type PhotoUploadErrorCode =
   | "too_large" // 加工後に上限超過 / 枠発行 413 / S3 の EntityTooLarge
-  | "quota_exceeded" // 枠発行 409（ユーザー合計 1 GiB 超過）
+  | "quota_exceeded" // 枠発行 409（ユーザー合計の容量の上限を超過）
   | "too_many_pending" // 枠発行 429（未使用枠が上限）。**UI には出さない**: 呼び出し側が「待機に戻す」に変換する
   | "storage_unavailable" // 枠発行 503（ストレージ未構成・障害）
   | "unauthorized" // 枠発行 401
@@ -125,12 +125,13 @@ export function toPhotoUploadErrorCode(error: unknown): PhotoUploadErrorCode {
 
 /**
  * ユーザー向け文言。`too_many_pending` は文言を持たない（429 はエラーとしてユーザーに見せず、
- * 呼び出し側が「待機に戻す」に変換するため）。容量の「1GB」は設定値が変わったら書き換えること
- * （サーバーから上限値を受け取る API は BK-8 で追加予定）。
+ * 呼び出し側が「待機に戻す」に変換するため）。容量の文言には上限の値を書かない（上限はサーバーの
+ * 設定値で、変えると配布済みのアプリと食い違う。SS-236 で 1 GiB → 10 GiB。上限値を受け取る API は
+ * ADR-009 BK-8 で追加予定）。`pinSaveError.ts`・`pinEditError.ts` の容量の文言も同じ。
  */
 const MESSAGES: Record<Exclude<PhotoUploadErrorCode, "too_many_pending">, string> = {
   too_large: "写真のサイズが大きすぎます",
-  quota_exceeded: "写真の保存容量（1人あたり1GB）の上限に達しました",
+  quota_exceeded: "写真の保存容量の上限に達しました",
   storage_unavailable: "写真を保存できない状態です。時間をおいて再試行してください",
   unauthorized: "アップロードに失敗しました",
   expired: "アップロードに失敗しました",

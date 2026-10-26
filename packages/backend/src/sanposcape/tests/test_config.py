@@ -494,6 +494,14 @@ def test_object_storage_delete_call_worst_case_seconds_default() -> None:
     assert settings.object_storage_delete_call_worst_case_seconds == 6.0
 
 
+def test_pin_photo_user_quota_bytes_default_is_10_gib() -> None:
+    """dev・prod は `template.yaml` に `PIN_PHOTO_USER_QUOTA_BYTES` が無く既定値で動くので、
+    既定値がそのまま本番の上限になる（ADR-009 決定7 の SS-236 追補）。環境変数（compose.yaml）に
+    左右されないよう、フィールドの既定値を直接見る。
+    """
+    assert Settings.model_fields["pin_photo_user_quota_bytes"].default == 10 * 1024**3
+
+
 def test_pin_photo_delete_deadline_plus_worst_case_over_budget_fails_to_start() -> None:
     """締め切り + 1回の最悪時間が 25 秒を超えると起動に失敗する（20 + 1 + 5 = 26）。"""
     with pytest.raises(ValidationError, match="PIN_PHOTO_DELETE_DEADLINE_SECONDS"):

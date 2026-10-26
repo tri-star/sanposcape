@@ -143,6 +143,10 @@ describe("pinEditErrorMessage", () => {
   it("tag_limit_exceeded はタグを減らすよう案内する", () => {
     expect(pinEditErrorMessage("tag_limit_exceeded", "update")).toContain("タグを減らして");
   });
+
+  it("容量の文言に上限の値を書かない（上限はサーバーの設定値。SS-236）", () => {
+    expect(pinEditErrorMessage("quota_exceeded", "add_photos")).not.toMatch(/\d/);
+  });
 });
 
 describe("sanpo_map_not_found（SS-175）", () => {
