@@ -840,7 +840,7 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
   無ければメッセージから推定する（iOS は case 名、Android はライブラリが固定で付ける文言: DEVELOPER_ERROR の SHA-1 の案内、
   PLAY_SERVICES_NOT_AVAILABLE、Activity が無いときの IN_PROGRESS）。**推定できなくても `provider_failed` にする**。
   Google の SDK から来たことは確かなので、backend に届く前の失敗だと分かるだけで切り分けが進む。
-  推定したコード（できなければ `UNKNOWN`）と元のメッセージは `AuthError` の `message` に残す。
+  推定したコード（できなければ `UNKNOWN`）と元のメッセージの1行目は `AuthError` の `message` に残す。
 - **Google のキャンセルは、連続2回目から案内のトーストを出す**（1回目は従来どおり無反応）。Credential Manager は、
   ユーザーが閉じたときも、SHA-1 の登録漏れ・パッケージ名の誤り・Web/Android のクライアント ID の取り違えのときも
   `RESULT_CANCELED`（ライブラリでは `type: 'cancelled'` の応答）を返し、JS からは区別できない。連続回数は成功・Google のキャンセル以外の失敗
