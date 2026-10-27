@@ -31,7 +31,7 @@ dev の地図（DB + S3）──────────────────
 ```
 
 日時はすべて UTC の ISO 8601（`2022-03-09T01:23:45.000000Z`）。
-書き出しが途中経過に使う `.` で始まるファイル（`.progress.jsonl`）は形に含めず、読み込みは見ない。
+書き出しが途中経過・印に使う `.` で始まるファイル（`.progress.jsonl`・`.export-source.json`）は形に含めず、読み込みは見ない。
 
 ### manifest.json
 
@@ -333,6 +333,8 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
   違えば止まる（transaction mode の pooler は起動時の `options` を落としうるので、読み込みと同じく direct の DSN を使う）。DSN のクエリに `options` があれば止まる（黙って上書きしない）。
 - 地図のピン・タグ・写真は、1つの REPEATABLE READ のトランザクションで読む（読んでいる間にアプリで編集されても、ピンと写真が食い違わない）。S3 を読む前に閉じる
   （dev の `idle_in_transaction_session_timeout` は 5 分。1GiB の取得の間持ち続けない）。
+- 書き出し先は、空か、同じ地図の前の書き出し（`.export-source.json` の `source` が同じ）でなければ止まる（manifest と photos/ の想定外のファイルを消すので、
+  `--out` の取り違えで別のバンドルやダンプを壊さない）。この印より前（SS-239 の PR の途中）に書き出した置き場所は、消してから書き出し直す。
 - S3 は `get_bytes` だけを呼ぶ。原本は `pin_photos.s3_key` のものをそのまま入れる（再圧縮しない）。取れたバイト数が `pin_photos.byte_size` と違えば止まる。
 - 写すもの: ピン（`name`・`memo`・位置・`visited`・`archived`・`created_at`・`updated_at`。`(created_at, id)` の順）、タグ（ラベル・`created_at`。表示と同じ `(created_at, id)` の順）、
   写真（`taken_at`・`created_at`、`width`・`height` は `pin_photos` の値）。写真を消すと `position` に隙間ができる（追加は最大 + 1）ので、`(position, id)` の順のまま 0 からの連番に振り直す。

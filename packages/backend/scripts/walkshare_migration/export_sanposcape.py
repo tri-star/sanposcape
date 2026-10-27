@@ -35,6 +35,8 @@ from sanposcape.sanpo_maps.pins.tag_labels import dedupe_tags
 
 #: prod からは書き出さない（prod に書くのは「dev の地図 → バンドル → prod の地図」の経路だけ）。
 TARGETS = ("local", "dev")
+#: 書き出し先がこのスクリプトの前の書き出しであることの印（`.` で始まるので読み込みは見ない）。
+SOURCE_MARKER_FILE = ".export-source.json"
 
 
 class ExportError(Exception):
@@ -216,7 +218,7 @@ def export_bundle(
 ) -> tuple[dict[str, Any], ExportStats]:
     """原本を S3 から取ってバンドルを書き、manifest と集計を返す。S3 は `get_bytes` だけを呼ぶ。"""
     photos_dir = out_dir / bundle.PHOTOS_DIR
-    bundle.make_private_dir(out_dir)
+    _claim_out_dir(out_dir, source)
     bundle.make_private_dir(photos_dir)
     # manifest を最後に書くので、書き直しの途中で止まったバンドルを完成したものと取り違えない。
     (out_dir / bundle.MANIFEST_FILE).unlink(missing_ok=True)
@@ -269,6 +271,24 @@ def export_bundle(
     )
     bundle.write_private_bytes(out_dir / bundle.MANIFEST_FILE, bundle.encode_json(manifest))
     return manifest, stats
+
+
+def _claim_out_dir(out_dir: Path, source: dict[str, Any]) -> None:
+    """書き出し先が空か、同じ地図の前の書き出し（印の source が同じ）でなければ止める。
+
+    書き出しは manifest と、photos/ の中の想定外のファイルを消すので、`--out` の取り違えで
+    別のバンドル（取り直せない walkshare のものなど）やダンプを壊さない。
+    """
+    marker = out_dir / SOURCE_MARKER_FILE
+    claimed = (
+        marker.is_file()
+        and not marker.is_symlink()
+        and json.loads(marker.read_text(encoding="utf-8")) == source
+    )
+    if out_dir.exists() and any(out_dir.iterdir()) and not claimed:
+        raise ExportError("書き出し先が空ではなく、同じ地図の前の書き出しでもありません")
+    bundle.make_private_dir(out_dir)
+    bundle.write_private_bytes(marker, bundle.encode_json(source))
 
 
 def run(

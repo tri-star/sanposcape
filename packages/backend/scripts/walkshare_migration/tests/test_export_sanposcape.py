@@ -377,6 +377,34 @@ def test_re_export_removes_photos_no_longer_on_the_map(
     assert len(list((bundle_dir / "photos").iterdir())) == report["counts"]["photos"] == 1
 
 
+def test_out_dir_with_other_contents_is_left_untouched(
+    tmp_path: Path,
+    read_only_factory: sessionmaker[Session],
+    storage: FakeObjectStorage,
+    source_map: tuple[uuid.UUID, uuid.UUID],
+    session_factory: sessionmaker[Session],
+) -> None:
+    """書き出し先が空でなく、同じ地図の前の書き出しでもない（別のバンドル・別の地図の書き出し）
+    ときは、何も消さずに止まること。
+    """
+    user_id, map_id = source_map
+    other = tmp_path / "bundle-walkshare"
+    (other / "photos").mkdir(parents=True)
+    (other / "manifest.json").write_text("{}")
+    (other / "photos" / "keep.jpg").write_bytes(b"x")
+    with session_factory() as db:
+        another_map_id = make_map(db, user_id, "別の地図")
+    export(read_only_factory, storage, another_map_id, tmp_path / "another")
+
+    for out_dir in (other, tmp_path / "another"):
+        with pytest.raises(ex.ExportError, match="空ではなく"):
+            export(read_only_factory, storage, map_id, out_dir)
+
+    assert (other / "manifest.json").exists()
+    assert (other / "photos" / "keep.jpg").exists()
+    assert (tmp_path / "another" / "manifest.json").exists()
+
+
 # ---------------------------------------------------------------------------
 # 読み取りだけ
 # ---------------------------------------------------------------------------
