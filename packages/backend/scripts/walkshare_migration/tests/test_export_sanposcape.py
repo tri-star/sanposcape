@@ -167,6 +167,8 @@ def source_map(
             name="公園",
             memo="ベンチがある",
             visited=True,
+            # 散歩との紐付けは書き出さない（読み込みでは null）。
+            client_walk_id=uuid.uuid4(),
             # アプリで1回の保存で付けたタグは created_at が同じになり、id の順に並ぶ。
             tags=[("ミケ", T0), ("タマ", T0), ("クロ", T0 - timedelta(minutes=1))],
             # 写真を消すと position に隙間ができる。
@@ -222,7 +224,7 @@ def map_view(
 ) -> list[tuple[Any, ...]]:
     """地図の見え方（アプリの並び順のピン・タグ・写真の原本）。
 
-    ID・作成者・タグの created_at は除く。
+    ID・作成者・散歩との紐付け・タグの created_at は除く（紐付けは往復のテストで別に見る）。
     """
     view = []
     with session_factory() as db:
@@ -250,7 +252,6 @@ def map_view(
                     pin.archived,
                     pin.created_at,
                     pin.updated_at,
-                    pin.client_walk_id,
                     list(tags),
                     [
                         (
@@ -281,7 +282,7 @@ def test_round_trip_to_another_map_looks_the_same(
     read_only_factory: sessionmaker[Session],
 ) -> None:
     """local の地図を読み取り専用の接続で書き出し、読み込みで別のユーザーの別の地図に写すと、
-    ピン・タグの並び・写真の並びと原本が元の地図と同じになること。
+    ピン・タグの並び・写真の並びと原本が元の地図と同じになり、散歩との紐付けは null になること。
     """
     _, source_map_id = source_map
     with session_factory() as db:
@@ -314,7 +315,10 @@ def test_round_trip_to_another_map_looks_the_same(
     # 並び・null・アーカイブを確かめられるデータになっていること。
     assert [row[0] for row in source_view] == ["公園", None]
     assert source_view[1][5] is True
-    assert [photo[4] for photo in source_view[0][10]] == [T0 - timedelta(days=3), None]
+    assert [photo[4] for photo in source_view[0][9]] == [T0 - timedelta(days=3), None]
+    with session_factory() as db:
+        walk_ids = db.scalars(select(Pin.client_walk_id).where(Pin.sanpo_map_id == target_map_id))
+        assert set(walk_ids) == {None}
 
 
 def test_bundle_has_readme_shape(
@@ -325,7 +329,8 @@ def test_bundle_has_readme_shape(
     source_map: tuple[uuid.UUID, uuid.UUID],
 ) -> None:
     """manifest の source は sanposcape・環境・元の地図 ID、写真の position は 0 からの連番に
-    振り直し、原本はそのまま（再圧縮しない）、ファイルは 0600 で書くこと。
+    振り直し、原本はそのまま（再圧縮しない）、ファイルは 0600 で書き、ピン・写真・タグは README の
+    形のキーだけで作成者・散歩との紐付けを含まないこと。
     """
     _, map_id = source_map
     bundle_dir = tmp_path / "bundle"
@@ -349,6 +354,14 @@ def test_bundle_has_readme_shape(
         assert (photo["byte_size"], photo["sha256"]) == (len(data), bundle.sha256_hex(data))
         assert (bundle_dir / photo["file"]).stat().st_mode & 0o777 == 0o600
     assert (photos[0]["width"], photos[0]["height"]) == (640, 480)
+    # README の pins.json の形のキーだけで、作成者・散歩との紐付けを含まない。
+    pin_keys = {"source_id", "name", "memo", "latitude", "longitude", "visited", "archived"}
+    pin_keys |= {"created_at", "updated_at", "tags", "photos"}
+    assert all(set(pin) == pin_keys for pin in pins)
+    photo_keys = {"source_id", "file", "position", "taken_at", "created_at", "byte_size"}
+    photo_keys |= {"width", "height", "sha256"}
+    assert all(set(photo) == photo_keys for photo in photos)
+    assert all(set(tag) == {"label", "created_at"} for tag in pins[0]["tags"])
     # タグは表示と同じ (created_at, id) の順（同じ created_at のミケ・タマは id の順）。
     with session_factory() as db:
         shown = db.scalars(select(PinTag.label).order_by(PinTag.created_at, PinTag.id)).all()
