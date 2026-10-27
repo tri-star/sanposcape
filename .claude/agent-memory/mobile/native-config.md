@@ -1,6 +1,6 @@
 ---
 name: native-config
-description: mobile のネイティブ・Expo 設定でソースを読まないと分からない事実 — 位置記録プラグインの既定と FGS アイコン、Appearance.setColorScheme の値、expo-file-system の同期 API、app.config.ts の型と expo config の使い分け
+description: mobile のネイティブ・Expo 設定でソースを読まないと分からない事実 — 位置記録プラグインの既定と FGS アイコン、Appearance.setColorScheme の値、expo-file-system の同期 API、app.config.ts の型と expo config の使い分け、Nitro の例外は code を持たない
 metadata:
   type: feedback
   scope: durable
@@ -17,6 +17,15 @@ metadata:
 
 **How to apply:** 位置・背景実行・権限・Info.plist の計画では、ドキュメントより先に `node_modules/<pkg>/{ios,android,plugin}` を grep する
 （worktree に無ければ main のチェックアウト。版の差は [[sandbox-and-tooling]]）。
+
+## Nitro のモジュールの例外は `code` を持たない（SS-82）
+
+`react-native-nitro-modules` の上のライブラリ（今は `react-native-nitro-google-signin`）は、ネイティブの例外を `message` だけの JS の Error にする。
+ライブラリの文書が `e.code === statusCodes.X` と書いていても、実機では `code` が来ない。Android の message は fbjni の `printStackTrace` の全文
+（1行目が `<クラス名>: <msg>`）、iOS は `String(describing:)`（`oneTapStartFailed("<msg>")` のような enum の表記）。
+
+**How to apply:** Nitro のライブラリの失敗で分岐するなら、`nitrogen/generated/` の reject の箇所と `JSIConverter+Exception.hpp` を読んで JS に届く形を確かめ、
+メッセージから推定する（Google サインインの実例は `services/auth/authError.ts` の `toGoogleSignInError`、決定は ADR-002 SS-82 追補）。
 
 ## 位置記録（expo-location 57）
 

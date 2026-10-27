@@ -83,6 +83,9 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 
 - 複数の後始末を順に実行するメソッドでは、各ステップの try/catch の有無を横並びで比べる。SS-10 の `signOut()` は `tokenStore.clear()` だけ無防備で、reject すると古いユーザーが残った。差があれば「このステップだけ扱いが違う理由」を確認する。
 - 「片方の操作でもう片方の状態を消す」には `src/lib/` の後始末レジストリ（`sessionCleanup`・`walkDeletionCleanup`・`backgroundLocationCleanup`）が既存の答え。使っている実装に「なぜ直接 import しないか」と指摘しない。
+- ネイティブ SDK の例外を `error.code` で分類する実装では、そのブリッジが `code` を JS に渡すかを node_modules の生成コードで確かめる。
+  Nitro（`react-native-nitro-modules`）は例外を `message` だけの Error にするので、`code` は実機では来ない（Android は fbjni の `printStackTrace` の全文、iOS は `String(describing:)`）。
+  テストが `{ code: "..." }` のオブジェクトを渡すだけだと、実機で当たらない分類が通る（SS-82。`react-native-nitro-google-signin` の分類は実機で全部 `unknown` だった。ADR-002 SS-82 追補）。
 - `src/services/*` の mock / dev は常に成功するので、呼び出し側 hook の `.catch` 欠如が開発中に見えない。real（Google サインイン → `POST /auth/session` など）は reject しうる。services を呼ぶ hook に `.catch` かエラー state があるか。
 - 能動的に `AbortController.abort()` する経路（削除・画面離脱）があるなら、分類の前に意図した中断を除いているか（`isAbortError()`）。AbortError が診断ログに「失敗」として紛れる（SS-88）。JSDoc の「呼び出し側で弾く」を鵜呑みにせず catch ブロックを読む。
 - 操作ごとに別の `xxxError.ts` は意図的（ADR-M-001 決定6）なので統合を提案しない。逆に、別の操作の分類を再利用していたら要注意。

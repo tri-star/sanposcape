@@ -861,6 +861,8 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
 - メッセージからの推定はライブラリの版に依存する。ライブラリを上げたら、`authError.ts` の `GOOGLE_CODE_BY_MESSAGE` が
   ネイティブ側（`GoogleSignInController.kt`・`GoogleSignInAuthorizationHelper.kt`・`HybridNitroGoogleSignin.swift`）の文言と合っているかを確かめる。
   外れても `provider_failed` に倒れるだけで、無反応や汎用の文言には戻らない。
+- 案内の文言に問い合わせ先は出さない（アプリに問い合わせの導線が無い）。出すなら別課題。
+- 文言が長くなったので、認証画面のトーストだけ表示時間を 3.5 秒にした（`useToast` の既定は 1.9 秒）。
 - 実機で `ONE_TAP_START_FAILED`・設定不備のキャンセルを再現しての確認はしていない（エミュレータでは Google の OAuth の失敗を作れない）。
   SS-81 の実機の調査で、logcat の `ReactNativeJS` に `[sanposcape] auth.sign-in.failed` が出ることを確かめる。
 
