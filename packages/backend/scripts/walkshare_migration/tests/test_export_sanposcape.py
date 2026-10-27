@@ -541,8 +541,11 @@ def test_missing_or_resized_original_stops_with_position_only(
 def test_missing_map_stops(
     tmp_path: Path, read_only_factory: sessionmaker[Session], storage: FakeObjectStorage
 ) -> None:
+    """地図が無ければ、バンドルを書かずに止まること。"""
     with pytest.raises(ex.ExportError, match="地図がありません"):
         export(read_only_factory, storage, uuid.uuid4(), tmp_path / "bundle")
+
+    assert not (tmp_path / "bundle").exists()
 
 
 # ---------------------------------------------------------------------------
