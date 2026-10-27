@@ -831,8 +831,11 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
 ### 決定
 
 - **`AuthErrorCode` に `provider_failed` を足す**。プロバイダの SDK が端末側で失敗した（backend に届いていない）ことを表す。
-  `ONE_TAP_START_FAILED`（Credential Manager の失敗の既定値）と、サインインの流れでは出ない `SIGN_IN_REQUIRED` /
+  `ONE_TAP_START_FAILED`（Credential Manager の失敗の既定値）、`PLAY_SERVICES_NOT_AVAILABLE`、サインインの流れでは出ない `SIGN_IN_REQUIRED` /
   `SIGN_OUT_FAILED` / `REVOKE_ACCESS_FAILED` を写す。トーストは汎用の失敗と区別できる Google 用の文言にする。
+  `PLAY_SERVICES_NOT_AVAILABLE` は以前の対応表では `configuration` だったが、端末の Play 開発者サービスが無い・古いことで、
+  SDK が更新のダイアログを出した後に投げる。その上に「サインインの設定が未完了です」と出すとアプリの不備に読めるので、`provider_failed` に移した
+  （以前は `code` が JS に来ず、実機ではこの経路に入っていなかった）。
 - **`googleSignIn.ts` が SDK の呼び出しを包み、`toGoogleSignInError`（`authError.ts`。純粋）に通す**。`code` があればそれを使い、
   無ければメッセージから推定する（iOS は case 名、Android はライブラリが固定で付ける文言: DEVELOPER_ERROR の SHA-1 の案内、
   PLAY_SERVICES_NOT_AVAILABLE、Activity が無いときの IN_PROGRESS）。**推定できなくても `provider_failed` にする**。

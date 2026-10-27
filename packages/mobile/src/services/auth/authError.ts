@@ -25,13 +25,16 @@ export function isAuthError(error: unknown): error is AuthError {
 /** Google SDK のキャンセル系エラーコード（`react-native-nitro-google-signin` の status codes）。 */
 const GOOGLE_CANCELLED_CODES = new Set(["SIGN_IN_CANCELLED", "IN_PROGRESS"]);
 /** Google SDK の設定不備系エラーコード。 */
-const GOOGLE_CONFIGURATION_CODES = new Set(["DEVELOPER_ERROR", "PLAY_SERVICES_NOT_AVAILABLE"]);
+const GOOGLE_CONFIGURATION_CODES = new Set(["DEVELOPER_ERROR"]);
 /**
  * Google SDK が端末側で失敗したコード（ユーザーのキャンセルではない）。ONE_TAP_START_FAILED は Credential Manager の
- * 失敗の既定値で、実運用で最も多い。SIGN_IN_REQUIRED 以下はサインインの流れでは出ないが、汎用メッセージに潰さない（SS-82）。
+ * 失敗の既定値で、実運用で最も多い。PLAY_SERVICES_NOT_AVAILABLE は端末の Play 開発者サービスが無い・古いことで、
+ * SDK が更新のダイアログを出した後に投げるので、アプリの設定不備（configuration）の文言にしない。
+ * SIGN_IN_REQUIRED 以下はサインインの流れでは出ないが、汎用メッセージに潰さない（SS-82）。
  */
 const GOOGLE_PROVIDER_FAILED_CODES = new Set([
   "ONE_TAP_START_FAILED",
+  "PLAY_SERVICES_NOT_AVAILABLE",
   "SIGN_IN_REQUIRED",
   "SIGN_OUT_FAILED",
   "REVOKE_ACCESS_FAILED",

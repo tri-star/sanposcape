@@ -58,8 +58,8 @@ describe("toAuthError", () => {
     expect(toAuthError({ code: "DEVELOPER_ERROR" }).code).toBe("configuration");
   });
 
-  it("Google SDK の PLAY_SERVICES_NOT_AVAILABLE は configuration になる", () => {
-    expect(toAuthError({ code: "PLAY_SERVICES_NOT_AVAILABLE" }).code).toBe("configuration");
+  it("Google SDK の PLAY_SERVICES_NOT_AVAILABLE は端末側の失敗（provider_failed）になる", () => {
+    expect(toAuthError({ code: "PLAY_SERVICES_NOT_AVAILABLE" }).code).toBe("provider_failed");
   });
 
   it.each(["ONE_TAP_START_FAILED", "SIGN_IN_REQUIRED", "SIGN_OUT_FAILED", "REVOKE_ACCESS_FAILED"])(
@@ -106,7 +106,7 @@ describe("toGoogleSignInError", () => {
     [
       "PLAY_SERVICES_NOT_AVAILABLE",
       android("Google Play Services are not available (status=2)."),
-      "configuration",
+      "provider_failed",
     ],
     [
       "IN_PROGRESS（Activity が無い）",
@@ -123,7 +123,7 @@ describe("toGoogleSignInError", () => {
   });
 
   it.each([
-    ['playServicesNotAvailable("x")', "configuration"],
+    ['playServicesNotAvailable("x")', "provider_failed"],
     ['oneTapStartFailed("The operation couldn’t be completed.")', "provider_failed"],
     ['signInRequired("No signed-in Google user.")', "provider_failed"],
     ["notConfigured", "cancelled"],
