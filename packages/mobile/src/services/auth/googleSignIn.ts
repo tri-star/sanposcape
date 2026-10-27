@@ -6,7 +6,7 @@ import {
 } from "react-native-nitro-google-signin";
 
 import { getGoogleIosClientId, getGoogleWebClientId } from "@/config/authEnv";
-import { AuthError } from "@/services/auth/authError";
+import { AuthError, toGoogleSignInError } from "@/services/auth/authError";
 
 /**
  * ネイティブ Google SDK に触れる唯一のファイル。
@@ -47,30 +47,46 @@ export function configureGoogleSignIn(): void {
   });
 }
 
-/** Google のサインインフローを実行し ID token を返す。キャンセルは AuthError("cancelled")。 */
+/**
+ * Google のサインインフローを実行し ID token を返す。キャンセルは AuthError("cancelled")。
+ * SDK の例外は `toGoogleSignInError` で分類する（Nitro は `error.code` を JS に渡さないため。SS-82）。
+ */
 export async function signInWithGoogle(): Promise<string> {
   if (configError) {
     throw configError;
   }
 
+  try {
+    return await runGoogleSignInCascade();
+  } catch (error) {
+    throw toGoogleSignInError(error);
+  }
+}
+
+async function runGoogleSignInCascade(): Promise<string> {
   await GoogleOneTapSignIn.checkPlayServices(); // Android のみ意味を持つ
 
+  // どの段で cancelled になったかをログで追えるよう、最後に呼んだ段の名前を AuthError の message に残す
+  // （OAuth の設定不備も cancelled で返るため。SS-82）。
+  let step = "signIn";
   let response = await GoogleOneTapSignIn.signIn(); // 保存済み資格情報でのサイレント/One Tap
 
   if (isNoSavedCredentialFoundResponse(response)) {
+    step = "createAccount";
     response = await GoogleOneTapSignIn.createAccount(); // 新規アカウント選択
   }
   if (isNoSavedCredentialFoundResponse(response)) {
+    step = "presentExplicitSignIn";
     response = await GoogleOneTapSignIn.presentExplicitSignIn(); // 明示的なサインインUI
   }
 
   if (isCancelledResponse(response)) {
-    throw new AuthError("cancelled");
+    throw new AuthError("cancelled", `${step} returned cancelled`);
   }
 
   if (!isSuccessResponse(response)) {
     // カスケードを抜けても success でない場合も cancelled 扱いにする。
-    throw new AuthError("cancelled");
+    throw new AuthError("cancelled", `${step} returned ${response.type}`);
   }
 
   // response.data.user は使わない。表示名などは backend が ID token から取り出して返す値

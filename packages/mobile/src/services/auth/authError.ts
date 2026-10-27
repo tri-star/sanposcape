@@ -26,6 +26,33 @@ export function isAuthError(error: unknown): error is AuthError {
 const GOOGLE_CANCELLED_CODES = new Set(["SIGN_IN_CANCELLED", "IN_PROGRESS"]);
 /** Google SDK の設定不備系エラーコード。 */
 const GOOGLE_CONFIGURATION_CODES = new Set(["DEVELOPER_ERROR", "PLAY_SERVICES_NOT_AVAILABLE"]);
+/**
+ * Google SDK が端末側で失敗したコード（ユーザーのキャンセルではない）。ONE_TAP_START_FAILED は Credential Manager の
+ * 失敗の既定値で、実運用で最も多い。SIGN_IN_REQUIRED 以下はサインインの流れでは出ないが、汎用メッセージに潰さない（SS-82）。
+ */
+const GOOGLE_PROVIDER_FAILED_CODES = new Set([
+  "ONE_TAP_START_FAILED",
+  "SIGN_IN_REQUIRED",
+  "SIGN_OUT_FAILED",
+  "REVOKE_ACCESS_FAILED",
+]);
+
+/**
+ * Nitro はネイティブの例外を `message` だけの JS の Error にするので、`error.code` は実機では来ない（SS-82）。
+ * Android は `<例外のクラス名>: <メッセージ>`、iOS は `oneTapStartFailed("<メッセージ>")` のような enum の表記になる。
+ * ライブラリ（1.3.0）が固定で付ける文言と iOS の case 名から、元のコードを推定する。
+ */
+const GOOGLE_CODE_BY_MESSAGE: readonly (readonly [RegExp, string])[] = [
+  // iOS（GoogleSignInNativeError の case 名。notConfigured / noActivity はライブラリが IN_PROGRESS にしている）
+  [/^playServicesNotAvailable\b/, "PLAY_SERVICES_NOT_AVAILABLE"],
+  [/^oneTapStartFailed\b/, "ONE_TAP_START_FAILED"],
+  [/^signInRequired\b/, "SIGN_IN_REQUIRED"],
+  [/^(notConfigured|noActivity)\b/, "IN_PROGRESS"],
+  // Android（GoogleSignInController / GoogleSignInAuthorizationHelper のメッセージ）
+  [/Check the Android OAuth client package name and SHA-1/, "DEVELOPER_ERROR"],
+  [/Google Play Services are not available/, "PLAY_SERVICES_NOT_AVAILABLE"],
+  [/No Activity available/, "IN_PROGRESS"],
+];
 
 /** expo-apple-authentication のキャンセル（ASAuthorizationError.canceled）。 */
 const APPLE_CANCELLED_CODES = new Set(["ERR_REQUEST_CANCELED"]);
@@ -61,11 +88,9 @@ export function toAuthError(error: unknown): AuthError {
 
   const code = extractErrorCode(error);
   if (code !== null) {
-    if (GOOGLE_CANCELLED_CODES.has(code) || APPLE_CANCELLED_CODES.has(code)) {
-      return new AuthError("cancelled", code, error);
-    }
-    if (GOOGLE_CONFIGURATION_CODES.has(code) || APPLE_CONFIGURATION_CODES.has(code)) {
-      return new AuthError("configuration", code, error);
+    const classified = classifyByCode(code);
+    if (classified !== null) {
+      return new AuthError(classified, code, error);
     }
   }
 
@@ -74,6 +99,49 @@ export function toAuthError(error: unknown): AuthError {
   }
 
   return new AuthError("unknown", error instanceof Error ? error.message : undefined, error);
+}
+
+/**
+ * Google SDK（`react-native-nitro-google-signin`）が投げた例外を AuthError に正規化する（純粋）。
+ * `googleSignIn.ts` が SDK の呼び出しを包んで使う。`.code` が無ければメッセージから推定し（`GOOGLE_CODE_BY_MESSAGE`）、
+ * 推定できなくても Google の SDK から来たことは確かなので `unknown` ではなく `provider_failed` にする
+ * （backend に届く前の失敗と分かるだけで切り分けが進む。SS-82）。message には推定したコードと元のメッセージを残す（ログ用）。
+ */
+export function toGoogleSignInError(error: unknown): AuthError {
+  if (isAuthError(error)) {
+    return error;
+  }
+
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const code = extractErrorCode(error) ?? inferGoogleCodeFromMessage(rawMessage);
+  const classified = code === null ? null : classifyByCode(code);
+  return new AuthError(
+    classified ?? "provider_failed",
+    `${code ?? "UNKNOWN"}: ${rawMessage}`,
+    error,
+  );
+}
+
+function classifyByCode(code: string): AuthErrorCode | null {
+  if (GOOGLE_CANCELLED_CODES.has(code) || APPLE_CANCELLED_CODES.has(code)) {
+    return "cancelled";
+  }
+  if (GOOGLE_CONFIGURATION_CODES.has(code) || APPLE_CONFIGURATION_CODES.has(code)) {
+    return "configuration";
+  }
+  if (GOOGLE_PROVIDER_FAILED_CODES.has(code)) {
+    return "provider_failed";
+  }
+  return null;
+}
+
+function inferGoogleCodeFromMessage(message: string): string | null {
+  for (const [pattern, code] of GOOGLE_CODE_BY_MESSAGE) {
+    if (pattern.test(message)) {
+      return code;
+    }
+  }
+  return null;
 }
 
 function extractErrorCode(error: unknown): string | null {

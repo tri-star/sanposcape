@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/apiError";
-import { AuthError, isAuthError, toAuthError } from "@/services/auth/authError";
+import {
+  AuthError,
+  isAuthError,
+  toAuthError,
+  toGoogleSignInError,
+} from "@/services/auth/authError";
 
 describe("toAuthError", () => {
   it("ApiError 401 は unauthorized になる", () => {
@@ -57,6 +62,13 @@ describe("toAuthError", () => {
     expect(toAuthError({ code: "PLAY_SERVICES_NOT_AVAILABLE" }).code).toBe("configuration");
   });
 
+  it.each(["ONE_TAP_START_FAILED", "SIGN_IN_REQUIRED", "SIGN_OUT_FAILED", "REVOKE_ACCESS_FAILED"])(
+    "Google SDK の %s は provider_failed になる",
+    (code) => {
+      expect(toAuthError({ code }).code).toBe("provider_failed");
+    },
+  );
+
   it("TypeError（fetch の通信失敗）は network になる", () => {
     expect(toAuthError(new TypeError("Failed to fetch")).code).toBe("network");
   });
@@ -75,6 +87,76 @@ describe("toAuthError", () => {
     const original = new Error("boom");
     const result = toAuthError(original);
     expect(result.cause).toBe(original);
+  });
+});
+
+describe("toGoogleSignInError", () => {
+  // Nitro は code を JS に渡さないので、実機の例外は message だけの Error になる（SS-82）。
+  const android = (message: string) =>
+    new Error(`com.nitrogooglesignin.GoogleSignInException: ${message}`);
+
+  it.each([
+    [
+      "DEVELOPER_ERROR（SHA-1 の案内文）",
+      android(
+        "Credential request failed. Check the Android OAuth client package name and SHA-1 fingerprints (debug, release upload key, and Play App Signing certificate). Use the Web client ID in configure({ webClientId }), not the Android client ID.",
+      ),
+      "configuration",
+    ],
+    [
+      "PLAY_SERVICES_NOT_AVAILABLE",
+      android("Google Play Services are not available (status=2)."),
+      "configuration",
+    ],
+    [
+      "IN_PROGRESS（Activity が無い）",
+      android("No Activity available. Retry when the app is in the foreground."),
+      "cancelled",
+    ],
+    [
+      "ONE_TAP_START_FAILED（中断）",
+      android("Credential request was interrupted. Retry the sign-in."),
+      "provider_failed",
+    ],
+  ] as const)("Android の %s を分類する", (_label, error, expected) => {
+    expect(toGoogleSignInError(error).code).toBe(expected);
+  });
+
+  it.each([
+    ['playServicesNotAvailable("x")', "configuration"],
+    ['oneTapStartFailed("The operation couldn’t be completed.")', "provider_failed"],
+    ['signInRequired("No signed-in Google user.")', "provider_failed"],
+    ["notConfigured", "cancelled"],
+    ["noActivity", "cancelled"],
+  ] as const)("iOS の %s を分類する", (message, expected) => {
+    expect(toGoogleSignInError(new Error(message)).code).toBe(expected);
+  });
+
+  it("推定できない例外も unknown ではなく provider_failed にする（backend に届く前の失敗）", () => {
+    expect(toGoogleSignInError(new Error("something else")).code).toBe("provider_failed");
+    expect(toGoogleSignInError("plain string").code).toBe("provider_failed");
+  });
+
+  it("code が付いていればメッセージより優先する", () => {
+    const error = Object.assign(new Error("No Activity available."), { code: "DEVELOPER_ERROR" });
+    expect(toGoogleSignInError(error).code).toBe("configuration");
+  });
+
+  it("message に推定したコードと元のメッセージを残し、cause に元の例外を保持する", () => {
+    const original = new Error('oneTapStartFailed("x")');
+    const result = toGoogleSignInError(original);
+    expect(result.message).toBe(`ONE_TAP_START_FAILED: ${original.message}`);
+    expect(result.cause).toBe(original);
+  });
+
+  it("推定できないとき（Android の ONE_TAP_START_FAILED の大半）は message に UNKNOWN を付ける", () => {
+    const original = android("Credential request was interrupted. Retry the sign-in.");
+    expect(toGoogleSignInError(original).message).toBe(`UNKNOWN: ${original.message}`);
+  });
+
+  it("AuthError はそのまま返す（googleSignIn.ts の cancelled を二重に包まない）", () => {
+    const original = new AuthError("cancelled", "signIn returned cancelled");
+    expect(toGoogleSignInError(original)).toBe(original);
   });
 });
 

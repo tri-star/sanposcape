@@ -118,8 +118,17 @@ export type PendingAppleDisplayNameStore = {
   clear(): Promise<void>;
 };
 
-/** 認証エラーの分類。 */
-export type AuthErrorCode = "cancelled" | "unauthorized" | "network" | "configuration" | "unknown";
+/**
+ * 認証エラーの分類。
+ * `provider_failed` はプロバイダの SDK（Google）が端末側で失敗したこと。backend には届いていない（SS-82）。
+ */
+export type AuthErrorCode =
+  | "cancelled"
+  | "unauthorized"
+  | "network"
+  | "configuration"
+  | "provider_failed"
+  | "unknown";
 
 /**
  * `SessionTokensResponse` が Orval 生成モデル（`SessionRead`）と乖離していないことを型レベルで
