@@ -149,6 +149,21 @@ describe("toGoogleSignInError", () => {
     expect(result.cause).toBe(original);
   });
 
+  it("Android のスタックトレース付きの message でも推定し、message には1行目だけを残す", () => {
+    const original = new Error(
+      [
+        "com.nitrogooglesignin.GoogleSignInException: Credential request failed. Check the Android OAuth client package name and SHA-1 fingerprints.",
+        "\tat com.nitrogooglesignin.GoogleSignInController.mapGetCredentialFailure(GoogleSignInController.kt:412)",
+        "\tat com.nitrogooglesignin.GoogleSignInController.getGoogleCredential(GoogleSignInController.kt:404)",
+      ].join("\n"),
+    );
+    const result = toGoogleSignInError(original);
+    expect(result.code).toBe("configuration");
+    expect(result.message).toBe(
+      "DEVELOPER_ERROR: com.nitrogooglesignin.GoogleSignInException: Credential request failed. Check the Android OAuth client package name and SHA-1 fingerprints.",
+    );
+  });
+
   it("推定できないとき（Android の ONE_TAP_START_FAILED の大半）は message に UNKNOWN を付ける", () => {
     const original = android("Credential request was interrupted. Retry the sign-in.");
     expect(toGoogleSignInError(original).message).toBe(`UNKNOWN: ${original.message}`);

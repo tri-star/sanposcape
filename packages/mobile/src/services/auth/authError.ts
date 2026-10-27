@@ -39,7 +39,8 @@ const GOOGLE_PROVIDER_FAILED_CODES = new Set([
 
 /**
  * Nitro はネイティブの例外を `message` だけの JS の Error にするので、`error.code` は実機では来ない（SS-82）。
- * Android は `<例外のクラス名>: <メッセージ>`、iOS は `oneTapStartFailed("<メッセージ>")` のような enum の表記になる。
+ * Android は fbjni が `printStackTrace` の出力を使うので、1行目が `<例外のクラス名>: <メッセージ>` で、その後に
+ * `\tat …` のフレームが続く（行頭・行末に固定した正規表現を書かない）。iOS は `oneTapStartFailed("<メッセージ>")` のような enum の表記になる。
  * ライブラリ（1.3.0）が固定で付ける文言と iOS の case 名から、元のコードを推定する。
  */
 const GOOGLE_CODE_BY_MESSAGE: readonly (readonly [RegExp, string])[] = [
@@ -115,11 +116,18 @@ export function toGoogleSignInError(error: unknown): AuthError {
   const rawMessage = error instanceof Error ? error.message : String(error);
   const code = extractErrorCode(error) ?? inferGoogleCodeFromMessage(rawMessage);
   const classified = code === null ? null : classifyByCode(code);
+  // 推定には全文を使い、message には1行目だけを残す（Android のスタックトレースはログを長くするだけ）。
   return new AuthError(
     classified ?? "provider_failed",
-    `${code ?? "UNKNOWN"}: ${rawMessage}`,
+    `${code ?? "UNKNOWN"}: ${firstLine(rawMessage)}`,
     error,
   );
+}
+
+/** 複数行のメッセージ（Android のスタックトレース付きの例外）の1行目。 */
+export function firstLine(message: string): string {
+  const index = message.indexOf("\n");
+  return index === -1 ? message : message.slice(0, index);
 }
 
 function classifyByCode(code: string): AuthErrorCode | null {

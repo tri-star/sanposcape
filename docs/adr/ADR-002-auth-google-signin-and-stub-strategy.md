@@ -821,8 +821,9 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
 `react-native-nitro-google-signin`（1.3.0）は Nitro（`react-native-nitro-modules` 0.36）の上にあり、ネイティブの例外は
 **`message` だけの JS の `Error`** になる。ライブラリの文書は `isErrorWithCode(e) && e.code === ...` と書くが、実機では `code` が来ない。
 
-- Android: 生成コードが `jni::JniException(throwable)` を `jsi::JSError(e.what())` にするので、`message` は
-  `com.nitrogooglesignin.GoogleSignInException: <メッセージ>`（`Throwable.toString()`）。
+- Android: 生成コードが `jni::JniException(throwable)` を `jsi::JSError(e.what())` にする。fbjni（0.7.0）の `what()` は
+  `printStackTrace` の出力なので、`message` は1行目が `com.nitrogooglesignin.GoogleSignInException: <メッセージ>`（`Throwable.toString()`）で、
+  その後に `\tat …` のフレームが続く。推定の正規表現は行頭・行末に固定せず、`AuthError` の message には1行目だけを残す。
 - iOS: `Error.toCpp()` が `String(describing: self)` を使うので、`oneTapStartFailed("<メッセージ>")` のような enum の表記。
 
 そのため `error.code` を見ていた分類（`DEVELOPER_ERROR` → `configuration` など）は実機では一度も当たらず、全部 `unknown` になっていた。
