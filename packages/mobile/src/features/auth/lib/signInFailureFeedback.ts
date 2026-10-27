@@ -29,7 +29,8 @@ export type SignInFailureFeedback = {
  * `GoogleSignInController.kt` のコメント）。JS からは2つを区別できない（アカウント選択の画面が出たかも分からない）ため、
  * 連続 `GOOGLE_CANCEL_NOTICE_THRESHOLD` 回目から案内を出す。Apple のキャンセルは数えない（設定ミスは
  * `ERR_REQUEST_UNKNOWN` で来て区別できる。ADR-002 SS-199 追補）。
- * 連続回数は呼び出し側が保持し、成功したとき・キャンセル以外で失敗したときは 0 に戻す。
+ * 連続回数は呼び出し側が保持し、成功したとき・Google のキャンセル以外で失敗したとき（Apple のキャンセルを含む）は 0 に戻す。
+ * 「同じ Google のボタンで続けて進めない」ことだけを数えるため。
  */
 export function getSignInFailureFeedback(input: {
   provider: AuthProvider;

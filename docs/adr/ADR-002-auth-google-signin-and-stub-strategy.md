@@ -843,8 +843,8 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
   推定したコード（できなければ `UNKNOWN`）と元のメッセージは `AuthError` の `message` に残す。
 - **Google のキャンセルは、連続2回目から案内のトーストを出す**（1回目は従来どおり無反応）。Credential Manager は、
   ユーザーが閉じたときも、SHA-1 の登録漏れ・パッケージ名の誤り・Web/Android のクライアント ID の取り違えのときも
-  `RESULT_CANCELED`（ライブラリでは `type: 'cancelled'` の応答）を返し、JS からは区別できない。連続回数は成功・キャンセル以外の失敗で
-  0 に戻す。判定は `features/auth/lib/signInFailureFeedback.ts`。Apple のキャンセルは数えない（設定ミスは `ERR_REQUEST_UNKNOWN` で来て区別できる。「SS-199 追補」節）。
+  `RESULT_CANCELED`（ライブラリでは `type: 'cancelled'` の応答）を返し、JS からは区別できない。連続回数は成功・Google のキャンセル以外の失敗
+  （Apple のキャンセルを含む）で 0 に戻す。判定は `features/auth/lib/signInFailureFeedback.ts`。Apple のキャンセルは数えない（設定ミスは `ERR_REQUEST_UNKNOWN` で来て区別できる。「SS-199 追補」節）。
 - **サインインの失敗は、キャンセルも含めて `logDiagnostic("auth.sign-in.failed", …)` で端末のログに残す**（全ビルド）。
   載せるのは provider・分類したコード・`AuthError` の message（推定したコード、キャンセルならどの段で返ったか）・元の例外の name と message。
   トークン・メールアドレスは載せない。送信はしない（`console.warn` → logcat / Console.app）。
