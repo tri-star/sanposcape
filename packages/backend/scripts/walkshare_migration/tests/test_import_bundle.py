@@ -16,11 +16,9 @@ import bundle
 import import_bundle as ib
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, func, select, text
-from sqlalchemy.engine import Engine
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from sanposcape.all_models import Base
 from sanposcape.config import Settings
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
@@ -38,36 +36,10 @@ from sanposcape.users.models import User
 T0 = "2022-03-09T01:00:00.000000Z"
 _ORIENTATION_TAG = 0x0112
 
-# テスト用 DB の接続先は、src/sanposcape/conftest.py と同じく import（collection）の時点で決める。
-# src のテストは環境変数を消した状態で get_settings() を呼ぶことがあり、そのあとのキャッシュは
-# 既定値（host=db）になる。コンテナでは既定値でも繋がるが、CI（DB_HOST=localhost）では繋がらない。
-_AMBIENT = Settings()
-
 
 # ---------------------------------------------------------------------------
-# DB・利用者・地図
+# 利用者・地図（DB の fixture は tests/conftest.py）
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="module")
-def engine() -> Generator[Engine, None, None]:
-    # src/sanposcape/conftest.py の fixture はこのディレクトリに効かないので、テスト用 DB に
-    # 同じモデル定義のスキーマを用意する（全体の実行では src 側が作ったものをそのまま使う）。
-    engine = create_engine(_AMBIENT.test_database_url, pool_pre_ping=True)
-    Base.metadata.create_all(engine)
-    yield engine
-    engine.dispose()
-
-
-@pytest.fixture
-def session_factory(engine: Engine) -> sessionmaker[Session]:
-    with engine.begin() as conn:
-        # src/sanposcape/conftest.py の _delete_all と同じく、閉じ忘れたセッションで無言に
-        # 止まらないようにする（ADR-B-001 決定4）。
-        conn.execute(text("SET LOCAL lock_timeout = '10s'"))
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
-    return sessionmaker(bind=engine, autoflush=False)
 
 
 def make_user(db: Session, subject: str) -> uuid.UUID:
@@ -798,22 +770,14 @@ def main_args(
     monkeypatch: pytest.MonkeyPatch,
     session_factory: sessionmaker[Session],
     owner: tuple[uuid.UUID, uuid.UUID],
+    test_db_settings: Settings,
 ) -> Generator[list[str], None, None]:
     """作業ディレクトリ・接続先をテスト用に差し替えて main() に渡す引数（local・--yes）。"""
     user_id, map_id = owner
     work_dir = tmp_path / "walkshare-migration"
     sample_bundle(work_dir / "bundle")
     monkeypatch.setattr(bundle, "WORK_DIR", work_dir)
-    # engine の fixture と同じテスト用 DB に繋ぐ。接続先はすべて明示する。
-    test_db = settings_for_test(
-        database_dsn="",
-        db_host=_AMBIENT.db_host,
-        db_port=_AMBIENT.db_port,
-        db_user=_AMBIENT.db_user,
-        db_password=_AMBIENT.db_password,
-        db_name=_AMBIENT.test_db_name,
-    )
-    monkeypatch.setattr(ib, "build_settings", lambda target: test_db)
+    monkeypatch.setattr(ib, "build_settings", lambda target: test_db_settings)
     monkeypatch.setattr(ib, "build_storage", lambda target, settings: (CountingStorage(), "fake"))
     # main() は sanposcape のロガーを ERROR に上げるので、ほかのテストのログに響かないよう戻す。
     app_logger = logging.getLogger("sanposcape")

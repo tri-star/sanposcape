@@ -636,8 +636,34 @@ def verify_remote_target(
         raise ImportBundleError("AWS の資格情報のアカウントが --aws-account-id と違います")
 
 
+def prepare_target(target: str, *, aws_account_id: str | None, db_host: str | None) -> Settings:
+    """`--target` の Settings を作り、dev・prod では接続先が指定と合うことを確かめる
+    （書き出し（SS-239）と共有する）。
+    """
+    settings = build_settings(target)
+    if target == "local":
+        return settings
+    if not aws_account_id or not db_host:
+        raise ImportBundleError(f"--target {target} では --aws-account-id と --db-host が要ります")
+    import boto3
+
+    # ~/.aws/config のプロファイルの endpoint_url（S3 だけの指定も）で、SSM・STS の照合は
+    # AWS に向いたまま S3 だけ別の宛先に書くことがないよう、設定された宛先を使わない。
+    os.environ["AWS_IGNORE_CONFIGURED_ENDPOINT_URLS"] = "true"
+    region = settings.pin_photo_bucket_region
+    verify_remote_target(
+        target,
+        settings,
+        expected_account_id=aws_account_id,
+        expected_db_host=db_host,
+        ssm=boto3.client("ssm", region_name=region),
+        sts=boto3.client("sts", region_name=region),
+    )
+    return settings
+
+
 def build_storage(target: str, settings: Settings) -> tuple[ObjectStorage, str]:
-    """書き込み先のストレージと、書く前に表示する名前を返す。"""
+    """書き込み先（書き出しでは読み取り元）のストレージと、表示する名前を返す。"""
     if target == "local":
         root = Path(settings.dev_storage_dir)
         root = root if root.is_absolute() else BACKEND_ROOT / root
@@ -734,26 +760,9 @@ def main(argv: list[str] | None = None) -> int:
     importer: BundleImporter | None = None
     try:
         bundle_dir = bundle.require_inside_work_dir(args.bundle)
-        settings = build_settings(args.target)
-        if args.target != "local":
-            if not args.aws_account_id or not args.db_host:
-                raise ImportBundleError(
-                    f"--target {args.target} では --aws-account-id と --db-host が要ります"
-                )
-            import boto3
-
-            # ~/.aws/config のプロファイルの endpoint_url（S3 だけの指定も）で、SSM・STS の照合は
-            # AWS に向いたまま S3 だけ別の宛先に書くことがないよう、設定された宛先を使わない。
-            os.environ["AWS_IGNORE_CONFIGURED_ENDPOINT_URLS"] = "true"
-            region = settings.pin_photo_bucket_region
-            verify_remote_target(
-                args.target,
-                settings,
-                expected_account_id=args.aws_account_id,
-                expected_db_host=args.db_host,
-                ssm=boto3.client("ssm", region_name=region),
-                sts=boto3.client("sts", region_name=region),
-            )
+        settings = prepare_target(
+            args.target, aws_account_id=args.aws_account_id, db_host=args.db_host
+        )
         storage, storage_name = build_storage(args.target, settings)
         engine = create_engine(settings.database_url, **settings.sqlalchemy_engine_kwargs)
         importer = prepare_importer(

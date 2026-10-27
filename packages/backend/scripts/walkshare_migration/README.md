@@ -17,7 +17,7 @@ dev の地図（DB + S3）──────────────────
 ```
 
 - 書き出しと読み込みを分け、間を「バンドル」（下の形のディレクトリ）でつなぐ。dev と prod は AWS アカウントも DB の接続先も別なので、
-  書き出しは dev の資格情報（読み取りだけ）、読み込みは prod の資格情報だけで行い、両方を同時に持たない。
+  書き出しは dev の資格情報だけで（読み取りしかしない。資格情報そのものは書ける権限を持つ。下の「書き出しの手順」）、読み込みは prod の資格情報だけで行い、両方を同時に持たない。
 - prod に書くのは「dev の地図 → バンドル → prod の地図」の経路だけ。walkshare のデータも dev に入れて確かめ・手直ししてから、この経路で prod に入れる。
 - 読み込みは1つで、2つの書き出しの両方から使う。DB と S3 に直接書く（公開 API は使わない。旧データの日付を残すため）。
 
@@ -31,7 +31,7 @@ dev の地図（DB + S3）──────────────────
 ```
 
 日時はすべて UTC の ISO 8601（`2022-03-09T01:23:45.000000Z`）。
-書き出しが途中経過に使う `.` で始まるファイル（`.progress.jsonl`）は形に含めず、読み込みは見ない。
+書き出しが途中経過・印に使う `.` で始まるファイル（`.progress.jsonl`・`.export-source.json`）は形に含めず、読み込みは見ない。
 
 ### manifest.json
 
@@ -125,6 +125,7 @@ dev の地図（DB + S3）──────────────────
 - 書く前に、接続先の DB のホスト名とバケット名と件数を表示して止まる。ユーザーが表示を見てから、`--yes` を付けて実行し直す（エージェントが自分で確認に答えない）。
   ただし `--target local` は、書き先が手元の DB と fake storage だけなので、エージェントが表示を確かめて `--yes` を付けてよい（SS-237）。
 - 書き出し（SS-239）は読み取り専用で接続する（`default_transaction_read_only=on`、または読み取り専用のロール）。
+  書き出しの `--target` は `local|dev` だけ（prod からは書き出さない）。DB・S3 に書かないので、`--yes` も確認の停止も持たない（接続先は実行後の出力に出る）。
 
 ## スクリプトの出力
 
@@ -324,11 +325,44 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 
 ## sanposcape の地図の書き出し（SS-239）
 
-- 入力は環境（dev）と地図の ID。DB と S3 は読み取りだけ。
-- 写すもの: ピン（`name`・`memo`・位置・`visited`・`archived`・`created_at`・`updated_at`）、タグ（ラベル・`created_at`）、写真（`position`・`taken_at`・`created_at`。原本は S3 の `original/` をそのまま。再圧縮しない）。
+スクリプトは `export_sanposcape.py`。接続先の決め方・照合・例外の文言は `import_bundle.py` の `prepare_target`・`build_storage`・`describe_error` を使う（読み込みと同じ規則）。
+
+- 引数: `--target local|dev`（prod からは書き出さない）、`--map-id`（書き出す地図）、`--out`（既定は `tmp/walkshare-migration/bundle-<target>-<地図 ID>`。`tmp/walkshare-migration/` の中だけ）、
+  `--created-by`（そのユーザーが作ったピンだけ。地図にその人のピンが無ければ止まる）、`--aws-account-id`・`--db-host`（dev で照合する。読み込みと同じ）。
+- DB は読み取り専用で繋ぐ（接続の `options` に `-c default_transaction_read_only=on`）。読む前に `SHOW transaction_read_only` が `on` であることを確かめ、
+  違えば止まる（transaction mode の pooler は起動時の `options` を落としうるので、読み込みと同じく direct の DSN を使う）。DSN のクエリに `options` があれば止まる（黙って上書きしない）。
+- 地図のピン・タグ・写真は、1つの REPEATABLE READ のトランザクションで読む（読んでいる間にアプリで編集されても、ピンと写真が食い違わない）。S3 を読む前に閉じる
+  （dev の `idle_in_transaction_session_timeout` は 5 分。1GiB の取得の間持ち続けない）。
+- 書き出し先は、空か、同じ地図の前の書き出し（`.export-source.json` の `source` が同じ）でなければ止まる（manifest と photos/ の想定外のファイルを消すので、
+  `--out` の取り違えで別のバンドルやダンプを壊さない）。この印より前（SS-239 の PR の途中）に書き出した置き場所は、消してから書き出し直す。
+- S3 は `get_bytes` だけを呼ぶ。原本は `pin_photos.s3_key` のものをそのまま入れる（再圧縮しない）。取れたバイト数が `pin_photos.byte_size` と違えば止まる。
+- 写すもの: ピン（`name`・`memo`・位置・`visited`・`archived`・`created_at`・`updated_at`。`(created_at, id)` の順）、タグ（ラベル・`created_at`。表示と同じ `(created_at, id)` の順）、
+  写真（`taken_at`・`created_at`、`width`・`height` は `pin_photos` の値）。写真を消すと `position` に隙間ができる（追加は最大 + 1）ので、`(position, id)` の順のまま 0 からの連番に振り直す。
 - 写さないもの: 作成者・アップロード者、散歩との紐付け、サムネイル（読み込みで作り直す）。
-- 地図に複数のユーザーのピンがあっても、すべて書き出し、読み込みで指定したユーザーのものにする。書き出しは作成者ごとの件数を出し、2人以上なら警告する（`--created-by` で絞れるようにする）。
-- 往復の確かめ: local で書き出し → 別の地図に読み込み、元の地図と同じに見えることを確かめる。
+- `name`・`memo` が正規化した形（前後の空白なし・空なら null）でなければ、直さずに止まる（API が正規化して保存するので想定外。直すと元の地図と違って見えうる）。
+  タグのラベルの列が `dedupe_tags` の結果と違っても止まる（読み込みが止まるのを先に知らせる）。
+- 地図に複数のユーザーのピンがあっても、すべて書き出し、読み込みで指定したユーザーのものにする。出力の `creator_pin_counts` は地図全体の作成者ごとのピンの件数（多い順。ID は出さない）で、
+  2人以上で `--created-by` を付けないときに `warning` を出す。`--created-by` で絞ったときも `creator_pin_counts` は地図全体の件数のまま（`warning` は出ない）。
+- `created_at` が同じピンは id の順に並ぶ。読み込みで id が作り直されるので、その間の並びは元と変わりうる（タグと違い繰り上げない。ピンの日時はアプリに出るので、そのまま写す）。
+  アプリでも id は乱数なので、その並びに意味はない。
+
+### 書き出しの手順
+
+読み込みと同じく、ホストで `uv export` した依存で動かす（packages/backend で、「読み込みの手順」の `uv export` で `$TMPDIR/migration-requirements.txt` を作った後に）。
+出力は件数・容量・作成者ごとの件数と接続先だけ。
+
+```bash
+uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-requirements.txt" --with-editable . \
+  python scripts/walkshare_migration/export_sanposcape.py --target local --map-id <地図 ID>
+```
+
+- local: `.env` を読み、写真は `packages/backend/storages/dev-storage/` から読む。sandbox の中からは localhost に届かないので、エージェントは sandbox の外で動かす。
+- dev: 読み込みの「dev で流した形」と同じシェルで、`DATABASE_DSN`（`neon_dsn_unpooled`）・`PIN_PHOTO_BUCKET_NAME`・`PIN_PHOTO_BUCKET_REGION`・`STORAGE_MODE=real` を渡し、
+  `--aws-account-id`・`--db-host` を付ける。dev の資格情報（推奨は SS-240 と同じ `AWS_PROFILE=sanposcape-dev`）は、流す前（SS-241）にユーザーと決める。
+  書き出しが dev に書くことは無いが、使う資格情報は書ける権限を持つので、SS-240 と同じく1回の Bash の中で取り出して使い、終わったら `unset` する。
+- local での往復（SS-239、2026-10-27）: SS-237 で walkshare を入れた local の地図を書き出すと、ピン 647・写真 1,979・タグ 74・1,046,174,358 バイトで walkshare のバンドルと一致し、6 秒だった。
+  それを別のユーザーの新しい地図に読み込み（85 秒）、2つの地図を比べると、ピンの各項目・タグの並び・写真の並びと原本の sha256・寸法・日時がすべて一致し、サムネイルの無い写真は 0 件だった。
+  食い違ったのは `created_at` が同じピン（4 組・27 件）の間の並びだけだった（上）。確かめた地図はアプリの API で消し、fake storage にそのユーザーのキーが残っていないことを確かめた。
 
 ## アプリでの見え方を確かめるとき（SS-240・241）
 
@@ -341,6 +375,7 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 - ダンプ・バンドル・対応表はリポジトリの `tmp/walkshare-migration/` の中にだけ置く（git の外。ディレクトリ 0700・ファイル 0600）。SS-242 で消す。
 - local の予行（SS-237 の PR で行い、SS-240 ではやり直していない。worktree `ss-238` の DB と fake storage）で、本物のデータが local の DB（docker の volume）と fake storage（`packages/backend/storages/dev-storage`）にも入った。
   これも SS-242 で消す（移行先にした local の地図を消し、fake storage に残ったキーがないことを確かめる）。
+  SS-239 の往復で読み込んだ local の地図はその場で消した（書き出したバンドルは `tmp/walkshare-migration/` に残り、ほかのバンドルと一緒に SS-242 で消す）。
 - 対応表の S3 のキーと S3 の `original/pins/<user_id>/`・`thumb/pins/<user_id>/` を突き合わせ、途中で止まった分の原本が残っていないことを確かめる
   （prod は SS-241 の完了の前に。dev は SS-240 で書いた直後に確かめ、参照されないキーは 0 件だった。SS-242 では dev の地図を消した後に、キーが残っていないことを確かめる）。
   prod では、そのユーザーの前からの写真の削除の後片付けを待つキーが prefix に残っていると、移行と関係なく数に入りうる。0 件でなければ、対応表のキーとの重なりで切り分ける。
