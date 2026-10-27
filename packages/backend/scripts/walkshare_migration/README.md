@@ -340,13 +340,14 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 - `name`・`memo` が正規化した形（前後の空白なし・空なら null）でなければ、直さずに止まる（API が正規化して保存するので想定外。直すと元の地図と違って見えうる）。
   タグのラベルの列が `dedupe_tags` の結果と違っても止まる（読み込みが止まるのを先に知らせる）。
 - 地図に複数のユーザーのピンがあっても、すべて書き出し、読み込みで指定したユーザーのものにする。出力の `creator_pin_counts` は地図全体の作成者ごとのピンの件数（多い順。ID は出さない）で、
-  2人以上なら `warning` を出す。`--created-by` で絞ったときも `creator_pin_counts` は地図全体の件数のまま。
+  2人以上で `--created-by` を付けないときに `warning` を出す。`--created-by` で絞ったときも `creator_pin_counts` は地図全体の件数のまま（`warning` は出ない）。
 - `created_at` が同じピンは id の順に並ぶ。読み込みで id が作り直されるので、その間の並びは元と変わりうる（タグと違い繰り上げない。ピンの日時はアプリに出るので、そのまま写す）。
   アプリでも id は乱数なので、その並びに意味はない。
 
 ### 書き出しの手順
 
-読み込みと同じく、ホストで `uv export` した依存で動かす（packages/backend で）。出力は件数・容量・作成者ごとの件数と接続先だけ。
+読み込みと同じく、ホストで `uv export` した依存で動かす（packages/backend で、「読み込みの手順」の `uv export` で `$TMPDIR/migration-requirements.txt` を作った後に）。
+出力は件数・容量・作成者ごとの件数と接続先だけ。
 
 ```bash
 uv run --no-project --python 3.12 --with-requirements "$TMPDIR/migration-requirements.txt" --with-editable . \
