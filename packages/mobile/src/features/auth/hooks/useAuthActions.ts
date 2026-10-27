@@ -6,11 +6,12 @@ import {
   getPostSignInDestination,
 } from "@/features/auth/lib/postSignInDestination";
 import { getSignInFailureFeedback } from "@/features/auth/lib/signInFailureFeedback";
+import { buildSignInFailureLogDetail } from "@/features/auth/lib/signInFailureLog";
 import { parseSignInReturnTo } from "@/features/auth/lib/signInReturnTo";
 import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
 import { useToast } from "@/hooks/useToast";
-import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
+import { logDiagnostic } from "@/lib/diagnosticLog";
 import { authService, isAuthError, type AuthProvider } from "@/services/auth";
 
 export type UseAuthActionsResult = {
@@ -105,14 +106,11 @@ export function useAuthActions(): UseAuthActionsResult {
         })
         .catch((error: unknown) => {
           const authError = isAuthError(error) ? error : null;
-          // トークン・メールアドレスは載せない。AuthError の message は分類の手がかり（推定したコード・段の名前）、
-          // cause は SDK・API の元の例外。
-          logDiagnostic("auth.sign-in.failed", {
-            provider,
-            code: authError?.code ?? null,
-            message: authError?.message ?? null,
-            ...describeError(authError?.cause ?? error),
-          });
+          // 載せる内容（トークン・メールアドレスを載せないこと）は buildSignInFailureLogDetail のテストで固定している。
+          logDiagnostic(
+            "auth.sign-in.failed",
+            buildSignInFailureLogDetail({ provider, authError, error }),
+          );
           const feedback = getSignInFailureFeedback({
             provider,
             code: authError?.code ?? null,

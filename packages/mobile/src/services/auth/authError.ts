@@ -128,7 +128,7 @@ export function toGoogleSignInError(error: unknown): AuthError {
 }
 
 /** 複数行のメッセージ（Android のスタックトレース付きの例外）の1行目。 */
-export function firstLine(message: string): string {
+function firstLine(message: string): string {
   const index = message.indexOf("\n");
   return index === -1 ? message : message.slice(0, index);
 }
