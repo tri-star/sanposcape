@@ -328,7 +328,7 @@ ADC と Google への通信はホストにしか無いので、ホストで `uv 
 スクリプトは `export_sanposcape.py`。接続先の決め方・照合・例外の文言は `import_bundle.py` の `prepare_target`・`build_storage`・`describe_error` を使う（読み込みと同じ規則）。
 
 - 引数: `--target local|dev`（prod からは書き出さない）、`--map-id`（書き出す地図）、`--out`（既定は `tmp/walkshare-migration/bundle-<target>-<地図 ID>`。`tmp/walkshare-migration/` の中だけ）、
-  `--created-by`（そのユーザーが作ったピンだけ）、`--aws-account-id`・`--db-host`（dev で照合する。読み込みと同じ）。
+  `--created-by`（そのユーザーが作ったピンだけ。地図にその人のピンが無ければ止まる）、`--aws-account-id`・`--db-host`（dev で照合する。読み込みと同じ）。
 - DB は読み取り専用で繋ぐ（接続の `options` に `-c default_transaction_read_only=on`）。読む前に `SHOW transaction_read_only` が `on` であることを確かめ、
   違えば止まる（transaction mode の pooler は起動時の `options` を落としうるので、読み込みと同じく direct の DSN を使う）。DSN のクエリに `options` があれば止まる（黙って上書きしない）。
 - 地図のピン・タグ・写真は、1つの REPEATABLE READ のトランザクションで読む（読んでいる間にアプリで編集されても、ピンと写真が食い違わない）。S3 を読む前に閉じる

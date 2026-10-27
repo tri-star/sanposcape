@@ -118,6 +118,9 @@ def read_map(
             pin_filter.append(Pin.created_by_user_id == created_by)
         # 地図の画面と同じ (created_at, id) の順。
         pins = db.scalars(select(Pin).where(*pin_filter).order_by(Pin.created_at, Pin.id)).all()
+        if created_by is not None and not pins:
+            # ID の打ち間違い・別の環境の ID で、空のバンドルを書いて成功で終わらない。
+            raise ExportError("--created-by のユーザーが作ったピンがこの地図にありません")
         tags: dict[uuid.UUID, list[PinTag]] = {}
         for tag in db.scalars(
             select(PinTag)

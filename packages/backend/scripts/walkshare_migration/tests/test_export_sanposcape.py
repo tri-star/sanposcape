@@ -451,7 +451,7 @@ def test_multiple_creators_warn_and_created_by_filters(
     source_map: tuple[uuid.UUID, uuid.UUID],
 ) -> None:
     """地図に2人以上のピンがあれば作成者ごとの件数と警告を出し、--created-by でその人の
-    ピンだけを書き出すこと（件数は地図全体のまま）。
+    ピンだけを書き出すこと（件数は地図全体のまま）。指定したユーザーのピンが無ければ止まること。
     """
     owner_id, map_id = source_map
     with session_factory() as db:
@@ -468,6 +468,8 @@ def test_multiple_creators_warn_and_created_by_filters(
     assert only_owner["counts"]["pins"] == 2
     assert only_owner["filtered_by_creator"] is True
     assert "warning" not in only_owner
+    with pytest.raises(ex.ExportError, match="--created-by"):
+        export(read_only_factory, storage, map_id, tmp_path / "nobody", created_by=uuid.uuid4())
 
 
 @pytest.mark.parametrize("name", [" 公園", ""])
