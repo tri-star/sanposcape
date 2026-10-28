@@ -1,3 +1,4 @@
+import logging
 import uuid
 import warnings
 from datetime import date, datetime
@@ -10,6 +11,8 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from sanposcape.walks.models import Walk
 from sanposcape.walks.stats import DailyWalkTotals
+
+logger = logging.getLogger(__name__)
 
 
 class WalkRepository:
@@ -85,7 +88,8 @@ class WalkRepository:
         `(user_id, client_walk_id)` の UNIQUE 制約により、同じ散歩の再送は
         `IntegrityError` になる。`users/repository.py:create()` と同じ savepoint
         パターン（`db.begin_nested()`）で捕捉し、既存行を再取得して返す
-        （`created=False`）。savepoint を使う理由も同様: 素の `db.rollback()` は
+        （`created=False`）。再取得した行と内容が食い違うときは警告ログを出す。
+        savepoint を使う理由も同様: 素の `db.rollback()` は
         呼び出し元が張っている外側のトランザクション全体を巻き戻してしまうため。
         """
         walk = Walk(
@@ -111,6 +115,28 @@ class WalkRepository:
                 # 一意制約違反なのに再取得できない状況は理論上あり得ないはずだが、
                 # 万一に備えて元の例外を再送出する（サイレントな不整合より500の方が安全）。
                 raise
+            mismatched = [
+                name
+                for name, sent in (
+                    ("started_at", started_at),
+                    ("ended_at", ended_at),
+                    ("duration_seconds", duration_seconds),
+                    ("distance_meters", distance_meters),
+                    ("destination_place_id", destination_place_id),
+                )
+                if getattr(existing, name) != sent
+            ]
+            if mismatched:
+                # 同じ散歩の再送なら内容は一致する。食い違うなら client_walk_id が別の散歩と
+                # 衝突しており、新しい散歩の記録は破棄されている。利用者向けの応答は変えず、
+                # 運用側が気づけるようにログだけ残す（SS-39）。値は載せず、項目名だけにする。
+                logger.warning(
+                    "client_walk_id collision with different content "
+                    "(user_id=%s, walk_id=%s, mismatched=%s)",
+                    user_id,
+                    existing.id,
+                    ",".join(mismatched),
+                )
             return existing, False
         self._db.refresh(walk)
         return walk, True
