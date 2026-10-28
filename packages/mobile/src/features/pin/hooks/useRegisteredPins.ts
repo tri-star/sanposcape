@@ -13,7 +13,7 @@ import {
   sanpoMapIconIndexFromSignature,
   sanpoMapIconSignature,
 } from "@/features/pin/lib/sanpoMapIcon";
-import type { GeoBounds, RegisteredPin } from "@/features/pin/types";
+import type { GeoBounds, PinSummary, RegisteredPin } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 
 /** サーバー状態の鮮度（表示範囲を動かさない限りは取り直さない）。 */
@@ -24,7 +24,10 @@ const UNRESOLVED_BOUNDS: GeoBounds = { south: 0, north: 0, west: 0, east: 0 };
 
 export type UseRegisteredPinsResult = {
   pins: RegisteredPin[];
-  /** "loading": 取得範囲の確定前・地図一覧の取得中・初回取得中（表示できるピンがまだ無い）。 */
+  /**
+   * "loading": 取得範囲の確定前・地図一覧の取得中・取得中。初回は表示できるピンがまだ無い。
+   * 取得範囲の取り直し中は、前の範囲のピンを `pins` に入れたまま "loading" になる（SS-243）。
+   */
   status: "loading" | "ready" | "error";
   errorCode: PinReadErrorCode | null;
   truncated: boolean;
@@ -44,8 +47,12 @@ export type UseRegisteredPinsOptions = {
  * 判定は `lib/pinFetchBounds.ts` / `lib/pinRead.ts` に任せ、この hook は状態の保持と配線だけ
  * （`usePinLocationPicker` と同じ設計方針）。
  *
- * 表示範囲内のピンが上限（`PIN_MAP_FETCH_LIMIT`）を超えてもページングは続けない
- * （ルート ADR-009 の持ち越しの決着。ADR-M-012 D3）。
+ * 表示範囲内のピンは `next_cursor` を辿って地図ごと `PIN_MAP_FETCH_MAX_PAGES` ページまで取り、端末でまとめて描く
+ * （SS-243。ADR-M-012 D3 の SS-243 追補）。上限を超えた分は打ち切り、`truncated` で案内する。
+ *
+ * 取得範囲だけが変わった取り直しの間は、前の範囲のピンを出し続ける（SS-243）。`useQueries` は key が変わると
+ * `keepPreviousData` に前回のデータが渡らず、ピンが一度 0 件になってマーカー（とクラスタ）が全部作り直されるため。
+ * 絞り込みが変わったとき・通信しない状態（`enabled: false`。サインアウトを含む）になったときは引き継がない。
  *
  * 絞り込み（アーカイブ済み・訪問状況）は `GET /pins` のクエリで行い、queryKey にも入れる（SS-174。ADR-M-021）。
  * 条件を変えると新しい key の取得になり、取得が終わるまでピンは出ず `status` が "loading" になる
@@ -103,6 +110,26 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
     setCurrentTruncated(combined.settledTruncated);
   }
 
+  // 前の取得範囲で取り終えたピン（絞り込みの内容と一緒に持つ）。レンダー中の setState は上の fetchBounds と同じパターン。
+  const filterSignature = `${String(filterParams.archived)}:${String(filterParams.visited)}`;
+  const [settled, setSettled] = useState<{ filterSignature: string; pins: PinSummary[] } | null>(
+    null,
+  );
+  if (!options.enabled) {
+    if (settled !== null) setSettled(null);
+  } else if (
+    !combined.anyPending &&
+    combined.firstError === undefined &&
+    fetchBounds !== null &&
+    (settled?.pins !== combined.pins || settled.filterSignature !== filterSignature)
+  ) {
+    setSettled({ filterSignature, pins: combined.pins });
+  }
+  const displayedPins =
+    options.enabled && combined.anyPending && settled?.filterSignature === filterSignature
+      ? settled.pins
+      : combined.pins;
+
   const status: UseRegisteredPinsResult["status"] = !options.enabled
     ? "ready"
     : maps.status === "error"
@@ -132,8 +159,8 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
   const iconSignature = sanpoMapIconSignature(maps.maps);
   const iconIndex = useMemo(() => sanpoMapIconIndexFromSignature(iconSignature), [iconSignature]);
   const pins = useMemo(
-    () => attachSanpoMapIcons(combined.pins, iconIndex),
-    [combined.pins, iconIndex],
+    () => attachSanpoMapIcons(displayedPins, iconIndex),
+    [displayedPins, iconIndex],
   );
 
   const { retry: retryMaps } = maps;
