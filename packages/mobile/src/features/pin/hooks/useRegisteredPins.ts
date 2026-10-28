@@ -6,14 +6,19 @@ import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { resolvePinFetchBounds } from "@/features/pin/lib/pinFetchBounds";
 import { toPinListFilterParams, type PinMapFilter } from "@/features/pin/lib/pinMapFilter";
 import { pinListQueryKey } from "@/features/pin/lib/pinQueryKeys";
-import { combineRegisteredPinListQueries } from "@/features/pin/lib/pinRead";
+import {
+  combineRegisteredPinListQueries,
+  registeredPinsSignature,
+  resolveDisplayedRegisteredPins,
+  type SettledRegisteredPins,
+} from "@/features/pin/lib/pinRead";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 import {
   attachSanpoMapIcons,
   sanpoMapIconIndexFromSignature,
   sanpoMapIconSignature,
 } from "@/features/pin/lib/sanpoMapIcon";
-import type { GeoBounds, PinSummary, RegisteredPin } from "@/features/pin/types";
+import type { GeoBounds, RegisteredPin } from "@/features/pin/types";
 import type { MapRegion } from "@/lib/mapRegion";
 
 /** サーバー状態の鮮度（表示範囲を動かさない限りは取り直さない）。 */
@@ -52,7 +57,7 @@ export type UseRegisteredPinsOptions = {
  *
  * 取得範囲だけが変わった取り直しの間は、前の範囲のピンを出し続ける（SS-243）。`useQueries` は key が変わると
  * `keepPreviousData` に前回のデータが渡らず、ピンが一度 0 件になってマーカー（とクラスタ）が全部作り直されるため。
- * 絞り込みが変わったとき・通信しない状態（`enabled: false`。サインアウトを含む）になったときは引き継がない。
+ * 絞り込み・地図の一覧が変わったとき、通信しない状態（`enabled: false`。サインアウトを含む）になったときは引き継がない。
  *
  * 絞り込み（アーカイブ済み・訪問状況）は `GET /pins` のクエリで行い、queryKey にも入れる（SS-174。ADR-M-021）。
  * 条件を変えると新しい key の取得になり、取得が終わるまでピンは出ず `status` が "loading" になる
@@ -110,25 +115,24 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
     setCurrentTruncated(combined.settledTruncated);
   }
 
-  // 前の取得範囲で取り終えたピン（絞り込みの内容と一緒に持つ）。レンダー中の setState は上の fetchBounds と同じパターン。
-  const filterSignature = `${String(filterParams.archived)}:${String(filterParams.visited)}`;
-  const [settled, setSettled] = useState<{ filterSignature: string; pins: PinSummary[] } | null>(
-    null,
-  );
-  if (!options.enabled) {
-    if (settled !== null) setSettled(null);
-  } else if (
-    !combined.anyPending &&
-    combined.firstError === undefined &&
-    fetchBounds !== null &&
-    (settled?.pins !== combined.pins || settled.filterSignature !== filterSignature)
-  ) {
-    setSettled({ filterSignature, pins: combined.pins });
+  // 前の取得範囲で取り終えたピン（判定は `resolveDisplayedRegisteredPins`）。レンダー中の setState は上の fetchBounds と同じパターン
+  // （変わらなければ同じ参照が返るので、次のレンダーでは setState しない）。
+  const [settled, setSettled] = useState<SettledRegisteredPins | null>(null);
+  const { displayed: displayedPins, nextSettled } = resolveDisplayedRegisteredPins({
+    enabled: options.enabled,
+    anyPending: combined.anyPending,
+    failed: combined.firstError !== undefined,
+    boundsResolved: fetchBounds !== null,
+    signature: registeredPinsSignature(
+      filterParams,
+      maps.maps.map((map) => map.id),
+    ),
+    pins: combined.pins,
+    settled,
+  });
+  if (nextSettled !== settled) {
+    setSettled(nextSettled);
   }
-  const displayedPins =
-    options.enabled && combined.anyPending && settled?.filterSignature === filterSignature
-      ? settled.pins
-      : combined.pins;
 
   const status: UseRegisteredPinsResult["status"] = !options.enabled
     ? "ready"
@@ -142,8 +146,8 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
 
   // `toPinReadErrorCode` の 400→invalid_cursor は本来「写真ページ（`GET /pins/{id}/photos`）」
   // 前提の分類（`pinReadError.ts` 参照）。ここで分類対象になる `firstError` は `GET /pins`
-  // （一覧）の失敗で、mobile はこの一覧取得に `cursor` を送らないため 400 が実際に発生することは
-  // 想定していない。万一 backend 側の事情で 400 が返っても "invalid_cursor" に分類されるが、
+  // （一覧）の失敗で、2ページ目以降は `cursor` を送るが、backend が発行した値（状態を持たない base64）を
+  // そのまま返すだけなので 400 が実際に発生することは想定していない（SS-243）。万一 backend 側の事情で 400 が返っても "invalid_cursor" に分類されるが、
   // 表示文言（「写真の読み込み位置が古くなりました」）はこの文脈には合わない。呼び出し元を
   // 限定するほどの実害は無いと判断し、分類自体は変えていない（SS-118 ローカルレビュー QA-S3）。
   const errorCode: PinReadErrorCode | null =

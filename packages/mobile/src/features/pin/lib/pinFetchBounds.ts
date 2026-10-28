@@ -147,7 +147,7 @@ export function resolvePinFetchBounds(input: ResolvePinFetchBoundsInput): GeoBou
  *
  * 地図表示（ピンタブ・散歩中の地図）の絞り込み（`archived` / `visited`）は `filter` をそのまま入れる
  * （`toPinListFilterParams` の結果。絞らない項目はキーが無い。SS-174。ADR-M-021）。
- * 絞り込みは backend で行う（端末で捨てると上限200件を表示しないピンが食うため）。
+ * 絞り込みは backend で行う（端末で捨てると取得の上限（地図ごと 1,000 件。SS-243）を表示しないピンが食うため）。
  * `filter` は省略させない（省略できると既定の「アーカイブ済みを除く」を付け忘れるため）。
  */
 export function buildListPinsParams(input: {

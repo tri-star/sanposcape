@@ -4,6 +4,8 @@ import type { PinListItemRead, PinPhotoRead, PinRead } from "@/api/generated/mod
 import {
   combineRegisteredPinListQueries,
   mergeRegisteredPinPages,
+  registeredPinsSignature,
+  resolveDisplayedRegisteredPins,
   toPinDetail,
   toPinListEntry,
   toPinPhoto,
@@ -429,5 +431,101 @@ describe("combineRegisteredPinListQueries", () => {
 
     expect(refetchA).toHaveBeenCalledTimes(1);
     expect(refetchB).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveDisplayedRegisteredPins（SS-243）", () => {
+  const summary = (id: string): PinSummary => ({
+    id,
+    sanpoMapId: "map-1",
+    name: null,
+    location: { latitude: 35.68, longitude: 139.76 },
+    archived: false,
+  });
+  const previous = [summary("a"), summary("b")];
+  const current = [summary("c")];
+  const signature = registeredPinsSignature({ archived: false }, ["map-1"]);
+  const base = {
+    enabled: true,
+    anyPending: false,
+    failed: false,
+    boundsResolved: true,
+    signature,
+  };
+
+  /** 前提: 範囲だけ変えて取り直し中（結果はまだ空）。期待: 前の範囲のピンを描き、持っているものは変えない。 */
+  it("範囲だけが変わった取り直しの間は、前の範囲のピンを描く", () => {
+    const settled = { signature, pins: previous };
+    const result = resolveDisplayedRegisteredPins({ ...base, anyPending: true, pins: [], settled });
+    expect(result.displayed).toBe(previous);
+    expect(result.nextSettled).toBe(settled);
+  });
+
+  /** 前提: 取り直しが終わった。期待: 新しい結果を描き、それを持つ。 */
+  it("取り終えたら新しい結果を描いて持つ", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      pins: current,
+      settled: { signature, pins: previous },
+    });
+    expect(result.displayed).toBe(current);
+    expect(result.nextSettled).toEqual({ signature, pins: current });
+  });
+
+  /** 前提: 持っているものと同じ結果。期待: 同じ参照を返す（呼び出し側が setState を飛ばし、レンダーが収束する）。 */
+  it("結果が変わらなければ同じ参照を返す", () => {
+    const settled = { signature, pins: current };
+    expect(resolveDisplayedRegisteredPins({ ...base, pins: current, settled }).nextSettled).toBe(
+      settled,
+    );
+  });
+
+  /** 前提: 絞り込みを変えて取得中。期待: 前の条件のピンを描かない（SS-174 の「前の条件のピンが残らない」）。 */
+  it("絞り込みが変わった取得中は、前の条件のピンを描かない", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      anyPending: true,
+      signature: registeredPinsSignature({}, ["map-1"]),
+      pins: [],
+      settled: { signature, pins: previous },
+    });
+    expect(result.displayed).toEqual([]);
+  });
+
+  /** 前提: 地図の一覧が変わった（共有から外れた・消した）取得中。期待: 外れた地図のピンを描かない。 */
+  it("地図の一覧が変わった取得中は、前のピンを描かない", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      anyPending: true,
+      signature: registeredPinsSignature({ archived: false }, ["map-2"]),
+      pins: [],
+      settled: { signature, pins: previous },
+    });
+    expect(result.displayed).toEqual([]);
+  });
+
+  /** 前提: 通信しない状態（サインアウトを含む）。期待: 何も持たない（次の人に前の人のピンを出さない）。 */
+  it("enabled が false なら持っているものを捨てる", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      enabled: false,
+      anyPending: true,
+      pins: [],
+      settled: { signature, pins: previous },
+    });
+    expect(result.nextSettled).toBeNull();
+    expect(result.displayed).toEqual([]);
+  });
+
+  /** 前提: 取得が失敗した・取得範囲が未確定。期待: その結果（空）を「取り終えた」として持たない。 */
+  it("失敗・取得範囲の未確定では持っているものを変えない", () => {
+    const settled = { signature, pins: previous };
+    expect(
+      resolveDisplayedRegisteredPins({ ...base, failed: true, pins: [], settled }).nextSettled,
+    ).toBe(settled);
+    expect(
+      resolveDisplayedRegisteredPins({ ...base, boundsResolved: false, pins: [], settled })
+        .nextSettled,
+    ).toBe(settled);
   });
 });
