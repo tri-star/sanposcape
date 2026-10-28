@@ -23,7 +23,7 @@ import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore"
 import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
-import type { MapRegion } from "@/lib/mapRegion";
+import type { MapRegion, MapRegionRequest } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -60,6 +60,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
   const toast = useToast();
   const { show } = toast;
   const [visibleRegion, setVisibleRegion] = useState<MapRegion | null>(null);
+  const [regionRequest, setRegionRequest] = useState<MapRegionRequest | null>(null);
   const picker = usePinLocationPicker();
   const pinFilter = usePinMapFilterStore((state) => state.filter);
   const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn, filter: pinFilter });
@@ -108,6 +109,11 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
     [runOnce, router],
   );
 
+  // クラスタのタップ: それが分かれる縮尺へ地図を動かす（SS-243）。`RegisteredPinMarkers` は memo なので参照を安定させる。
+  const handleSelectCluster = useCallback((region: MapRegion) => {
+    setRegionRequest((previous) => ({ region, nonce: (previous?.nonce ?? 0) + 1 }));
+  }, []);
+
   const handleOpenSanpoMapList = () => {
     runOnce(() => router.push("/sanpo-maps"));
   };
@@ -125,13 +131,16 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
           selectedLocation={null}
           currentLocation={picker.currentLocation}
           focusRequest={picker.focusRequest}
+          regionRequest={regionRequest}
           onRegionChangeComplete={setVisibleRegion}
           // 認証が無いときはピンのレイヤーを描かない（`enabled: false` でもキャッシュ済みのピンは返るため）。
           mapLayers={
             isSignedIn ? (
               <RegisteredPinMarkers
                 pins={registered.pins}
+                visibleRegion={visibleRegion}
                 onSelectPin={handleSelectPin}
+                onSelectCluster={handleSelectCluster}
                 testIDPrefix="pin-tab-pin"
               />
             ) : null

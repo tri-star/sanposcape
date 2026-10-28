@@ -21,7 +21,7 @@ import {
   type PinMapPickProps,
 } from "@/features/pin/lib/pinLocationPicker";
 import { useHeadingBeamRadius } from "@/hooks/useHeadingBeamRadius";
-import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
+import { sanitizeMapRegion, type MapRegion, type MapRegionRequest } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -46,6 +46,8 @@ type PinMapCanvasCommonProps = {
   currentLocation: GeoCoordinates | null;
   /** nonce が変わるたびに target へ animateToRegion する（WalkRouteMapView の recenterNonce と同じ考え方）。 */
   focusRequest: PinMapFocusRequest | null;
+  /** nonce が変わるたびに、その表示範囲へ animateToRegion する（ピンのクラスタのタップ。SS-243）。 */
+  regionRequest?: MapRegionRequest | null;
   /**
    * `MapView` の子として描く追加レイヤー。増減するレイヤーなので `MapView` の
    * 子の末尾に置き、重なり順は `zIndex` で選択マーカー・現在地マーカーより下にする（ADR-M-012 D16）。
@@ -86,6 +88,7 @@ export function PinMapCanvas({
   selectedMarkerIcon = DEFAULT_SANPO_MAP_ICON,
   currentLocation,
   focusRequest,
+  regionRequest = null,
   mapLayers,
   onRegionChangeComplete,
 }: PinMapCanvasProps) {
@@ -104,6 +107,14 @@ export function PinMapCanvas({
     lastNonceRef.current = focusRequest.nonce;
     mapRef.current?.animateToRegion(regionAroundPoint(focusRequest.target), FOCUS_ANIMATION_MS);
   }, [focusRequest]);
+
+  const lastRegionNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (regionRequest === null) return;
+    if (lastRegionNonceRef.current === regionRequest.nonce) return;
+    lastRegionNonceRef.current = regionRequest.nonce;
+    mapRef.current?.animateToRegion(regionRequest.region, FOCUS_ANIMATION_MS);
+  }, [regionRequest]);
 
   const handlePick = (e: MapPressEvent | PoiClickEvent | LongPressEvent) => {
     const picked = toPickedCoordinate(e.nativeEvent.coordinate);

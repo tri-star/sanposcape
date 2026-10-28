@@ -5,7 +5,10 @@ import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { RecentWalksSection } from "@/features/history/components/RecentWalksSection";
 import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
 import { RegisteredPinsMapLayer } from "@/features/pin/components/RegisteredPinsMapLayer";
-import { WalkActiveView } from "@/features/walk/components/WalkActiveView";
+import {
+  WalkActiveView,
+  type WalkMapLayerActions,
+} from "@/features/walk/components/WalkActiveView";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import type { MapRegion } from "@/lib/mapRegion";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
@@ -34,11 +37,12 @@ export default function WalkActiveRoute() {
   // 残ってしまう。PR #105 レビュー）。
   const showRegisteredPins = pinFeatureEnabled && isSignedIn;
   const renderMapLayers = useCallback(
-    (visibleRegion: MapRegion | null) =>
+    (visibleRegion: MapRegion | null, actions: WalkMapLayerActions) =>
       showRegisteredPins ? (
         <RegisteredPinsMapLayer
           visibleRegion={visibleRegion}
           onSelectPin={handleSelectPin}
+          onSelectCluster={actions.focusRegion}
           testIDPrefix="walk-active-pin"
         />
       ) : null,
