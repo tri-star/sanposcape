@@ -1314,7 +1314,6 @@ h2 {
 .qr img {
   width: 97px;
   height: 97px;
-  image-rendering: pixelated;
   padding: 5px;
   background: white;
 }
