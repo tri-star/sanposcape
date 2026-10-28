@@ -1,7 +1,7 @@
 import { ApiError } from "@/api/apiError";
 import { getPin, listPinPhotos, listPins } from "@/api/generated/endpoints/pins/pins";
 import type { ListPinPhotosParams } from "@/api/generated/model";
-import { buildListPinsParams } from "@/features/pin/lib/pinFetchBounds";
+import { PIN_MAP_FETCH_MAX_PAGES, buildListPinsParams } from "@/features/pin/lib/pinFetchBounds";
 import type { PinListFilterParams } from "@/features/pin/lib/pinMapFilter";
 import {
   toPinDetail,
@@ -26,30 +26,51 @@ import { isUuid } from "@/lib/uuid";
 export const PIN_PHOTO_PAGE_SIZE = 30;
 
 /**
- * `GET /pins`（1ページ目のみ。ページングは続けない。ルート ADR-009 の持ち越しの決着。
- * ADR-M-012 D3）。`items` は `toPinSummary` して不正座標を除外する。
- * `hasMore` は `next_cursor !== null`（打ち切りの目印。実際のページングはしない）。
+ * `GET /pins`。`next_cursor` を辿り、`maxPages`（既定 `PIN_MAP_FETCH_MAX_PAGES`）ページまで取る
+ * （SS-243。全件を端末でまとめて描くため。ADR-M-012 D3 の SS-243 追補）。`items` は `toPinSummary` して不正座標を除外し、
+ * `id` で重複を除く（ページの間にピンが足されて境界がずれた場合）。
+ * `hasMore` は上限のページまで取ってもまだ `next_cursor` があること（打ち切りの目印）。
  *
  * 素の fetcher（`listPins`）を使う理由: `useRegisteredPins` 側で queryKey / `enabled` /
  * `staleTime` を制御したいのと、`react-native` を値 import しないので node の vitest で
  * テストできるため（`docs/folder-structure.md`）。`signal` は渡す（read 系のため画面離脱で
- * 中断してよい）。
+ * 中断してよい）。途中のページが失敗したら、取れた分も捨てて失敗にする（一部だけを「全件」として描かない）。
  */
 export async function fetchPinsInBounds(
-  input: { sanpoMapId: string; bounds: GeoBounds; filter: PinListFilterParams; limit?: number },
+  input: {
+    sanpoMapId: string;
+    bounds: GeoBounds;
+    filter: PinListFilterParams;
+    limit?: number;
+    maxPages?: number;
+  },
   options: { signal?: AbortSignal },
 ): Promise<{ pins: PinSummary[]; hasMore: boolean }> {
-  const params = buildListPinsParams(input);
-  const response = await listPins(params, { signal: options.signal });
-  if (response.status !== 200) {
-    throw new ApiError(response.status);
-  }
+  const maxPages =
+    input.maxPages !== undefined && Number.isFinite(input.maxPages)
+      ? Math.max(1, Math.trunc(input.maxPages))
+      : PIN_MAP_FETCH_MAX_PAGES;
+
+  const seen = new Set<string>();
   const pins: PinSummary[] = [];
-  for (const item of response.data.items) {
-    const summary = toPinSummary(item);
-    if (summary !== null) pins.push(summary);
+  let cursor: string | null = null;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const params = buildListPinsParams({ ...input, cursor });
+    const response = await listPins(params, { signal: options.signal });
+    if (response.status !== 200) {
+      throw new ApiError(response.status);
+    }
+    for (const item of response.data.items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      const summary = toPinSummary(item);
+      if (summary !== null) pins.push(summary);
+    }
+    cursor = response.data.next_cursor;
+    if (cursor === null) break;
   }
-  return { pins, hasMore: response.data.next_cursor !== null };
+  return { pins, hasMore: cursor !== null };
 }
 
 /**
