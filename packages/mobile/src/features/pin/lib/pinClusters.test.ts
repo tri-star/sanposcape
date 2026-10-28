@@ -109,6 +109,13 @@ describe("resolvePinMapItems", () => {
     expect(items.length).toBeLessThanOrEqual(PIN_MAP_MAX_SINGLE_PINS);
     expect(items.some((item) => item.kind === "cluster")).toBe(true);
     expect(countPins(items)).toBe(pins.length);
+    // 今のズームでまとめるので、まとめる最大のズーム（14）でまとめるより細かい（円の間隔が画面上で同じ）。
+    const coarser = resolvePinMapItems(
+      createPinClusterIndex(pins),
+      regionAt(35.6842, 139.7642, delta * 4),
+      MAP_WIDTH_DP,
+    );
+    expect(items.length).toBeGreaterThan(coarser.length);
   });
 
   /** 前提: 範囲の外（大阪）のピン。期待: 東京を表示しているときは返らない（描く数を抑える）。 */
@@ -158,7 +165,7 @@ describe("clusterExpansionRegion", () => {
    * 前提: 同じ座標の2件（最大ズームでも分かれない）。期待: 最大ズームより先へは拡大しない。
    * 前提: 今がそれより拡大している場合も、今の範囲の半分までは拡大する（押しても何も起きない、を避ける）。
    */
-  it("同じ座標のピンのクラスタは最大ズームで止め、今より縮小はしない", () => {
+  it("同じ座標のピンのクラスタは、まとめる縮尺からはまとめない縮尺で止め、それより先でも今より拡大する", () => {
     const pins = [pin("a", 35.68, 139.76), pin("b", 35.68, 139.76)];
     const index = createPinClusterIndex(pins);
     const current = regionAt(35.68, 139.76, 0.1);
@@ -171,7 +178,7 @@ describe("clusterExpansionRegion", () => {
 
     const closer = regionAt(35.68, 139.76, maxZoomDelta);
     const again = clusterExpansionRegion(index, first, closer, MAP_WIDTH_DP);
-    expect(again.longitudeDelta).toBeCloseTo(maxZoomDelta / 2);
+    expect(again.longitudeDelta).toBeLessThanOrEqual(maxZoomDelta / 2);
   });
 
   /** 前提: index を作り直した後の古い clusterId。期待: 例外を出さず、今より拡大した範囲を返す。 */
