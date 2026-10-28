@@ -129,12 +129,11 @@ class WalkRepository:
             if mismatched:
                 # 同じ散歩の再送なら内容は一致する。食い違うなら client_walk_id が別の散歩と
                 # 衝突しており、新しい散歩の記録は破棄されている。利用者向けの応答は変えず、
-                # 運用側が気づけるようにログだけ残す（SS-39）。値は載せず、項目名だけにする。
+                # 運用側が気づけるようにログだけ残す（SS-39）。値は載せず、項目名だけにする
+                # （散歩 ID も、データ取扱い台帳のログの行に無いので載せない）。
                 logger.warning(
-                    "client_walk_id collision with different content "
-                    "(user_id=%s, walk_id=%s, mismatched=%s)",
+                    "client_walk_id collision with different content (user_id=%s, mismatched=%s)",
                     user_id,
-                    existing.id,
                     ",".join(mismatched),
                 )
             return existing, False
