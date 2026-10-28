@@ -86,7 +86,8 @@ function clampLongitude(value: number): number {
 
 /**
  * 表示範囲に描く要素（単独のピンとクラスタ）を求める。範囲は上下左右に 25% 広げる。
- * まとめない縮尺で1つずつのピンが `PIN_MAP_MAX_SINGLE_PINS` を超えるときは、今のズームでまとめる（円の間隔は画面上で同じ）。
+ * まとめない縮尺で1つずつのピンが `PIN_MAP_MAX_SINGLE_PINS` を超えるときは、今のズームでまとめ、それでも超えるならズームを1つずつ
+ * 下げてまとめ直す（下限はまとめる最大のズーム。そこでも超えればそのまま描く）。
  * 日付変更線をまたぐ範囲は対象外（日本国内前提。`regionForCoordinates` と同じ）。
  */
 export function resolvePinMapItems(
@@ -109,8 +110,14 @@ export function resolvePinMapItems(
     features = cluster.index.getClusters(bbox, zoom);
   } else {
     features = cluster.index.getClusters(bbox, INDEX_MAX_ZOOM + 1);
-    if (features.length > PIN_MAP_MAX_SINGLE_PINS) {
-      features = cluster.index.getClusters(bbox, zoom);
+    // 今のズームから1つずつ下げてまとめ直し、上限以下になったところで止める（ほぼ一様に散らばった地区では、
+    // 今のズームの半径ではまとまり切らないため。下限はまとめる最大のズーム）。
+    for (
+      let clusterZoom = Math.floor(zoom);
+      features.length > PIN_MAP_MAX_SINGLE_PINS && clusterZoom >= PIN_CLUSTER_MAX_ZOOM - 1;
+      clusterZoom -= 1
+    ) {
+      features = cluster.index.getClusters(bbox, clusterZoom);
     }
   }
 

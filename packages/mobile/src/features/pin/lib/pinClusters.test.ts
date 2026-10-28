@@ -118,6 +118,26 @@ describe("resolvePinMapItems", () => {
     expect(items.length).toBeGreaterThan(coarser.length);
   });
 
+  /**
+   * 前提: 約 200m 間隔の格子に 32×32 件（今のズームの半径ではまとまらない、ほぼ一様な配置）。操作: ズーム 15 付近で表示する。
+   * 期待: ズームを下げてまとめ直し、上限以下にする（SS-243 再々レビュー）。
+   */
+  it("一様に散らばっていても、ズームを下げてまとめ直して上限以下にする", () => {
+    const pins: RegisteredPin[] = [];
+    for (let i = 0; i < 32; i += 1) {
+      for (let j = 0; j < 32; j += 1) {
+        pins.push(pin(`u-${i}-${j}`, 35.6 + i * 0.0018, 139.7 + j * 0.0022));
+      }
+    }
+    const delta = (360 * MAP_WIDTH_DP) / (256 * 2 ** 15.04);
+    const items = resolvePinMapItems(
+      createPinClusterIndex(pins),
+      regionAt(35.6 + 16 * 0.0018, 139.7 + 16 * 0.0022, delta),
+      MAP_WIDTH_DP,
+    );
+    expect(items.length).toBeLessThanOrEqual(PIN_MAP_MAX_SINGLE_PINS);
+  });
+
   /** 前提: 範囲の外（大阪）のピン。期待: 東京を表示しているときは返らない（描く数を抑える）。 */
   it("表示範囲（上下左右に 25% 広げた範囲）の外のピンは返さない", () => {
     const pins = [pin("tokyo", 35.68, 139.76), pin("osaka", 34.69, 135.5)];
