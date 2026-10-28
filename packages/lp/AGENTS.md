@@ -75,9 +75,10 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
   見た目を変えるときはデザインの更新として扱い、PC（1440px）とスマホ（390px）の全体スクリーンショットで崩れがないか確認する。
 - 本番公開に向けて原本から意図的に変えた点:
   - 「※このページはデザインプレビューです…」の注記を削除。ダイアログの文言も「公開まで、もうしばらくお待ちください。」に変更。
-  - ダミー QR 画像は出さず、同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
-  - ストアボタンは「準備中」ダイアログを開く（`StoreDialog.astro`）。ストア URL が確定したら、`Download.astro` のボタンをストアへのリンクに、
-    `.qr-placeholder` を QR 画像に差し替える。
+  - ダミー QR 画像は出さず、ストア URL が未確定のストアには同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
+  - ストア URL が未確定のストアのボタンは「準備中」ダイアログを開く（`StoreDialog.astro`）。
+    `Download.astro` の `stores` で、URL が確定したストア（`url` と `qr` を持つ。現在は iPhone の App Store、SS-247）はボタンをストアへのリンク、QR の位置を QR 画像にしている。
+    Android（Google Play）は URL が確定したら `url` と `qr` を足す（足し終えたら `StoreDialog.astro` と `.store-preview`・`.qr-placeholder` は不要になる）。
   - フッターに利用規約（`/terms/`、SS-187）・プライバシーポリシー（`/privacy/`）・サポート（`/support/`、SS-214）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
 - 画像は `src/assets/images/` に置き、`astro:assets` の `<Image>` で WebP に変換・`srcset` を付けて出す。`width` / `height` を必ず指定する（CLS 防止）。
   CSS が `.field-note > img` のように `<img>` を直接指すため、`<picture>` を出す `<Picture>` は使わない。
@@ -86,14 +87,15 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 
 ### 素材の出典
 
-| ファイル                                                             | 出典                                                                          |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `src/assets/images/app-icon.png`                                     | `packages/mobile/assets/app-icons/sanposcape-icon-1024.png` のコピー          |
-| `src/assets/images/screens/*.png`                                    | アプリの画面イメージ（デザイン原本に同梱されていたもの）                      |
-| `src/assets/images/walking-landscape.webp`                           | デザイン原本の作成時に画像生成（imagegen）で新規生成した風景イラスト          |
-| `src/assets/images/route-map.svg`                                    | デザイン原本の作成時にこの LP 用に作った装飾用の模式地図                      |
-| `public/favicon.png`（48px）・`public/apple-touch-icon.png`（180px） | アプリアイコンを sharp で縮小                                                 |
-| `public/ogp.png`（1200x630）                                         | アプリアイコン・ワードマーク（DejaVu Sans Bold）・風景イラストを sharp で合成 |
+| ファイル                                                             | 出典                                                                                                |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/assets/images/app-icon.png`                                     | `packages/mobile/assets/app-icons/sanposcape-icon-1024.png` のコピー                                |
+| `src/assets/images/screens/*.png`                                    | アプリの画面イメージ（デザイン原本に同梱されていたもの）                                            |
+| `src/assets/images/qr-app-store-ios.svg`                             | App Store の公開 URL（`Download.astro` の `url`）から segno（Python）で生成。URL を変えたら作り直す |
+| `src/assets/images/walking-landscape.webp`                           | デザイン原本の作成時に画像生成（imagegen）で新規生成した風景イラスト                                |
+| `src/assets/images/route-map.svg`                                    | デザイン原本の作成時にこの LP 用に作った装飾用の模式地図                                            |
+| `public/favicon.png`（48px）・`public/apple-touch-icon.png`（180px） | アプリアイコンを sharp で縮小                                                                       |
+| `public/ogp.png`（1200x630）                                         | アプリアイコン・ワードマーク（DejaVu Sans Bold）・風景イラストを sharp で合成                       |
 
 「招待機能」セクションの図はコンセプトで、実際のアプリ画面ではない。
 

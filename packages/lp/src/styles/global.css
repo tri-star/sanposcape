@@ -1264,6 +1264,7 @@ h2 {
   border: 0;
   border-radius: 12px;
   color: white;
+  text-decoration: none;
   background: var(--navy-deep);
   padding: 10px 11px;
   gap: 10px;
@@ -1313,7 +1314,6 @@ h2 {
 .qr img {
   width: 97px;
   height: 97px;
-  image-rendering: pixelated;
   padding: 5px;
   background: white;
 }

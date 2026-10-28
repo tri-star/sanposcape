@@ -1,22 +1,27 @@
 ---
 import { Image } from "astro:assets";
 import appIcon from "../assets/images/app-icon.png";
+import appStoreQr from "../assets/images/qr-app-store-ios.svg";
 
-// ストア URL が確定するまでは、ボタンは「準備中」ダイアログ（StoreDialog）を開き、
-// QR の位置には「公開準備中」の枠を置く。公開後はボタンをストアへのリンクに、
-// 枠を実際の QR 画像に差し替える。
+// ストア URL が確定したストアは、ボタンをストアへのリンクに、QR の位置を QR 画像にする。
+// 未確定のストア（url なし）は、ボタンが「準備中」ダイアログ（StoreDialog）を開き、
+// QR の位置には「公開準備中」の枠を置く。確定したら url と qr を足す。
 const stores = [
   {
     platform: "iPhone をお使いの方",
     store: "App Store",
     icon: "#i-apple",
     small: "Download on the",
+    url: "https://apps.apple.com/jp/app/sanposcape/id6823866201",
+    qr: appStoreQr,
   },
   {
     platform: "Android をお使いの方",
     store: "Google Play",
     icon: "#i-play",
     small: "GET IT ON",
+    url: undefined,
+    qr: undefined,
   },
 ];
 ---
@@ -44,33 +49,60 @@ const stores = [
       <p>その一歩が、自分だけの地図のはじまり。</p>
     </div>
     <div class="download-cards">
-      {stores.map(({ platform, store, icon, small }) => (
+      {stores.map(({ platform, store, icon, small, url, qr }) => (
         <div class="download-card">
           <div class="store-content">
             <span class="store-platform">{platform}</span>
-            <button class="store-button" type="button" data-store={store}>
-              <svg class="icon">
-                <use href={icon} />
-              </svg>
-              <span>
-                <small>{small}</small>
-                <strong>{store}</strong>
-              </span>
-              <svg class="icon store-arrow">
-                <use href="#i-arrow" />
-              </svg>
-            </button>
-            <span class="store-preview">ストア公開に向けて準備中</span>
+            {url ? (
+              <a class="store-button" href={url}>
+                <svg class="icon">
+                  <use href={icon} />
+                </svg>
+                <span>
+                  <small>{small}</small>
+                  <strong>{store}</strong>
+                </span>
+                <svg class="icon store-arrow">
+                  <use href="#i-arrow" />
+                </svg>
+              </a>
+            ) : (
+              <>
+                <button class="store-button" type="button" data-store={store}>
+                  <svg class="icon">
+                    <use href={icon} />
+                  </svg>
+                  <span>
+                    <small>{small}</small>
+                    <strong>{store}</strong>
+                  </span>
+                  <svg class="icon store-arrow">
+                    <use href="#i-arrow" />
+                  </svg>
+                </button>
+                <span class="store-preview">ストア公開に向けて準備中</span>
+              </>
+            )}
           </div>
           <figure class="qr">
-            <div class="qr-placeholder" aria-hidden="true">
-              <svg class="icon">
-                <use href="#i-sun" />
-              </svg>
-              <span>公開準備中</span>
-            </div>
+            {qr ? (
+              <Image
+                src={qr}
+                alt={`${store} のダウンロードページを開く QR コード`}
+                width={97}
+                height={97}
+              />
+            ) : (
+              <div class="qr-placeholder" aria-hidden="true">
+                <svg class="icon">
+                  <use href="#i-sun" />
+                </svg>
+                <span>公開準備中</span>
+              </div>
+            )}
             <figcaption>
-              QRコード<span class="sr-only">（公開準備中）</span>
+              QRコード
+              {!qr && <span class="sr-only">（公開準備中）</span>}
             </figcaption>
           </figure>
         </div>
