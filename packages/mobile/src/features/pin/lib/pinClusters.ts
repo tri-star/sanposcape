@@ -18,6 +18,11 @@ export const PIN_CLUSTER_RADIUS_DP = 40;
  * 同じ座標のピンはここを超えても分かれない（重なったまま描く）。
  */
 export const PIN_CLUSTER_MAX_ZOOM = 15;
+/**
+ * まとめない縮尺でも、1つずつ描くピンがこれを超えるならまとめる（密な地区で、まとめないズームに入った途端に数百の Marker を描かないように。
+ * 200 は SS-243 より前の1リクエストの上限で、その数までは描けていた）。
+ */
+export const PIN_MAP_MAX_SINGLE_PINS = 200;
 /** まとめる範囲は表示範囲の上下左右にこの割合ぶん広げる（端のクラスタがパンで急に現れ・消えないように）。 */
 const CLUSTER_BOUNDS_PADDING_RATIO = 0.25;
 
@@ -76,6 +81,7 @@ function clampLongitude(value: number): number {
 
 /**
  * 表示範囲に描く要素（単独のピンとクラスタ）を求める。範囲は上下左右に 25% 広げる。
+ * まとめない縮尺で1つずつのピンが `PIN_MAP_MAX_SINGLE_PINS` を超えるときは、まとめる最大のズームでまとめ直す。
  * 日付変更線をまたぐ範囲は対象外（日本国内前提。`regionForCoordinates` と同じ）。
  */
 export function resolvePinMapItems(
@@ -86,15 +92,17 @@ export function resolvePinMapItems(
   if (cluster.pins.length === 0) return [];
   const halfLat = (region.latitudeDelta / 2) * (1 + 2 * CLUSTER_BOUNDS_PADDING_RATIO);
   const halfLng = (region.longitudeDelta / 2) * (1 + 2 * CLUSTER_BOUNDS_PADDING_RATIO);
-  const features = cluster.index.getClusters(
-    [
-      clampLongitude(region.longitude - halfLng),
-      clampLatitude(region.latitude - halfLat),
-      clampLongitude(region.longitude + halfLng),
-      clampLatitude(region.latitude + halfLat),
-    ],
-    regionToClusterZoom(region, mapWidthDp),
-  );
+  const bbox: [number, number, number, number] = [
+    clampLongitude(region.longitude - halfLng),
+    clampLatitude(region.latitude - halfLat),
+    clampLongitude(region.longitude + halfLng),
+    clampLatitude(region.latitude + halfLat),
+  ];
+  const zoom = regionToClusterZoom(region, mapWidthDp);
+  let features = cluster.index.getClusters(bbox, zoom);
+  if (zoom >= PIN_CLUSTER_MAX_ZOOM && features.length > PIN_MAP_MAX_SINGLE_PINS) {
+    features = cluster.index.getClusters(bbox, PIN_CLUSTER_MAX_ZOOM - 1);
+  }
 
   const items: PinMapItem[] = [];
   for (const feature of features) {
@@ -118,7 +126,7 @@ export function resolvePinMapItems(
 /**
  * クラスタをタップしたときに移る表示範囲。そのクラスタが分かれるズーム（まとめない縮尺を上限）まで、
  * クラスタの位置を中心に拡大する。縦横の比は今の表示範囲のまま（地図の高さを知らなくてよいように）。
- * 今より縮小する結果になる場合は、今の範囲の半分まで拡大する（押しても何も起きない、を避ける）。
+ * 少なくとも今の範囲の半分までは拡大する（まとめない縮尺で密なためにまとめた円や、同じ座標のピンの円を押しても何も起きない、を避ける）。
  */
 export function clusterExpansionRegion(
   cluster: PinClusterIndex,

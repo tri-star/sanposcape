@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PIN_CLUSTER_MAX_ZOOM,
+  PIN_MAP_MAX_SINGLE_PINS,
   clusterExpansionRegion,
   createPinClusterIndex,
   regionToClusterZoom,
@@ -90,6 +91,24 @@ describe("resolvePinMapItems", () => {
     for (const item of items) {
       if (item.kind === "pin") expect(pins).toContain(item.pin);
     }
+  });
+
+  /**
+   * 前提: 約 50m 間隔の 324 件（密な地区）。操作: まとめない縮尺（ズーム 16）で表示する。
+   * 期待: 1つずつ描くと上限を超えるので、まとめる。件数の合計は全件と一致する（数百の Marker を一度に描かない。SS-243 レビュー）。
+   */
+  it("まとめない縮尺でも、1つずつのピンが上限を超えるならまとめる", () => {
+    const pins = gridPins(18);
+    expect(pins.length).toBeGreaterThan(PIN_MAP_MAX_SINGLE_PINS);
+    const delta = (360 * MAP_WIDTH_DP) / (256 * 2 ** 16);
+    const items = resolvePinMapItems(
+      createPinClusterIndex(pins),
+      regionAt(35.6842, 139.7642, delta),
+      MAP_WIDTH_DP,
+    );
+    expect(items.length).toBeLessThanOrEqual(PIN_MAP_MAX_SINGLE_PINS);
+    expect(items.some((item) => item.kind === "cluster")).toBe(true);
+    expect(countPins(items)).toBe(pins.length);
   });
 
   /** 前提: 範囲の外（大阪）のピン。期待: 東京を表示しているときは返らない（描く数を抑える）。 */
