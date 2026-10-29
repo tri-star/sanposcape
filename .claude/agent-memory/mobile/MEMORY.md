@@ -11,7 +11,7 @@
 - [スタックと戻る導線](navigation.md) — replace の連鎖で canGoBack=false・index.tsx と (tabs)/index.tsx・BackHandler は useFocusEffect で購読・Redirect はフォーカス時のみ・useSegments は1コミット遅れる・flash の消費先・戻る処理でストアを触らない
 - [認証セッションと後始末](auth-and-session.md) — store からバレルを import しない・AuthGate の依存と children・bootstrap のラッチ・初期化は遅延 throw・永続化の失敗は catch
 - [Sign in with Apple（mobile）の事実](sign-in-with-apple.md) — SDK57 は ~57.0.2・プラグインは無条件で entitlement・公式ボタンは Android で自ら null・CodedError のコード・422 は code を消費しない
-- [ネイティブ・Expo 設定の事実](native-config.md) — 位置記録プラグインの既定と FGS アイコン・Appearance.setColorScheme の値・expo-file-system の同期 API・app.config.ts の型と expo config
+- [ネイティブ・Expo 設定の事実](native-config.md) — 位置記録プラグインの既定と FGS アイコン・Appearance.setColorScheme の値・expo-file-system の同期 API・app.config.ts の型と expo config・Nitro の例外は code を持たない（message から推定）
 - [ピンと写真の落とし穴](pins-and-photos.md) — 検証失敗は 422 で包む・応答の ID で再開・模型サーバーでテスト・必須フィールド追加で壊れるテスト・EXIF は picker から・隠す状態はサーバーで除外
 - [sandbox とツールの落とし穴](sandbox-and-tooling.md) — expo の HOME・EAS は sandbox 外・format:check のスコープ・git 書き込み不可・古い .expo の型・eslint-disable の位置・main の node_modules と lockfile の版差・依存追加直後の配置は CI と違う・eas --json の前置き行・actionlint の入手・Metro とエミュレータは worktree 間で共有（dev-up は他 worktree の Metro を再利用する）
 - [位置情報の権限と審査の落とし穴](location-permission-review.md) — Androidの拒否はundeterminedに写る・前面復帰でrequestPermissionを呼ぶと繰り返し出る・精度APIはあるが一時要求は無い・pre-promptの審査実例

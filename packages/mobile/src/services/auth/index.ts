@@ -12,7 +12,7 @@ import { createTokenStore } from "@/services/auth/tokenStore";
 import type { AuthService, AuthUser } from "@/services/auth/types";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
-export type { AuthProvider, AuthService, AuthUser } from "@/services/auth/types";
+export type { AuthErrorCode, AuthProvider, AuthService, AuthUser } from "@/services/auth/types";
 export { AuthError, isAuthError } from "@/services/auth/authError";
 
 const mode = getAuthMode();

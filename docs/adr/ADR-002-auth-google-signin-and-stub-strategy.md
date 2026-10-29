@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-17（棚卸し追補: Apple の失効の実機確認の担当を SS-208 に移した。前回 SS-199 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-27（SS-82 追補: Google サインインの失敗の分類とキャンセルの扱い。前回 2026-10-17 棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -56,6 +56,10 @@
   想定外の応答）は削除せず 503**、恒久的な拒否・設定ミス・鍵の未設定・token 無しはログに残して削除を進める。
   client secret（ES256）は呼び出しごとに生成しキャッシュしない。鍵の設定が無くても起動は止めない。
   （本文: 「SS-198 追補」節）
+- **Google の SDK の失敗は `googleSignIn.ts` の境界で `toGoogleSignInError` に通し、分類できなくても `unknown` ではなく
+  `provider_failed`（端末側の失敗。backend に未到達）にする**。Nitro は例外の `code` を JS に渡さないので、コードは
+  メッセージから推定する。Google のキャンセルは連続2回目から案内のトーストを出し（設定不備もキャンセルで返るため）、
+  サインインの失敗はキャンセルも含めて端末のログ（`logDiagnostic`）に残す。（本文: 「SS-82 追補」節）
 - **access token はメモリ、refresh token は SecureStore に保管し、401 を受けたら single-flight で refresh して1回だけリトライする**。
   （本文: 移行・対応が必要な事項）
 - **Google OAuth クライアントは Android が「識別子 + SHA-1」の組ごと、iOS が bundle ID ごとに1つ必要**。
@@ -72,7 +76,8 @@
 ### 未解決・持ち越し
 
 - **Android 実機のサインインが未達**（Credential Manager 段階で失敗し backend に到達していない。iOS は疎通済み）。
-  失敗原因がアプリ側で汎用メッセージになる診断性の問題と合わせて SS-82 で継続。（本文: 決定4-1、移行・対応が必要な事項、SS-81 追補）
+  失敗原因がアプリ側で汎用メッセージになる診断性の問題は SS-82 で対処した（端末のログにコードと SDK のメッセージが出る）。
+  原因の特定は SS-81 で継続。（本文: 決定4-1、移行・対応が必要な事項、SS-81 追補、「SS-82 追補」節）
 - **Secrets Manager のキー名 `google_oauth_client_id` が複数値の実態と食い違い、設定漏れを誘発する**問題は SS-84 で扱う。
   （本文: 決定4-1、SS-81 追補）
 - **本番識別子 `com.sanposcape.app` 用の OAuth 設定は一部未完了**。本番用 iOS クライアントの作成
@@ -112,7 +117,8 @@
 2026-10-11 追補（SS-195: 審査ガイドライン 4.8 と Sign in with Apple）、
 2026-10-11 追補（SS-197: backend の Apple ID token 検証）、
 2026-10-12 追補（SS-198: アカウント削除時の Apple トークン失効）、
-2026-10-12 追補（SS-199: mobile の Sign in with Apple）、2026-10-17 棚卸し追補（Apple の失効の実機確認の担当を SS-208 に移した）
+2026-10-12 追補（SS-199: mobile の Sign in with Apple）、2026-10-17 棚卸し追補（Apple の失効の実機確認の担当を SS-208 に移した）、
+2026-10-27 追補（SS-82: Google サインインの失敗の分類とキャンセルの扱い）
 
 **SS-70「mobile: CloudFront 経由の API 通信に対応する」で追補**した。決定自体は変えていないが、
 アクセストークンを運ぶヘッダーが `Authorization` から `X-App-Authorization` に変わったため、
@@ -804,6 +810,62 @@ Apple が初回しか返さない氏名を失う。再送が失敗したら保�
   アプリは日本語のローカライズを宣言していない（development region は `en`）。英語で出た場合は `ios.infoPlist` の
   `CFBundleLocalizations` に `ja` を入れることを別課題で検討する（推測では設定を足さない）。
 
+## SS-82 追補（2026-10-27）: Google サインインの失敗の分類とキャンセルの扱い
+
+SS-81 で Android 実機の Google サインインが「サインインに失敗しました。もう一度お試しください。」で失敗し、
+backend が一度も呼ばれていないことを CloudWatch Logs で確かめるまで、端末側の失敗だと分からなかった。
+原因が分からない状態になること自体を直す（SS-81 の原因の特定とは別）。
+
+### 事実: Nitro は例外の `code` を JS に渡さない
+
+`react-native-nitro-google-signin`（1.3.0）は Nitro（`react-native-nitro-modules` 0.36）の上にあり、ネイティブの例外は
+**`message` だけの JS の `Error`** になる。ライブラリの文書は `isErrorWithCode(e) && e.code === ...` と書くが、実機では `code` が来ない。
+
+- Android: 生成コードが `jni::JniException(throwable)` を `jsi::JSError(e.what())` にする。fbjni（0.7.0）の `what()` は
+  `printStackTrace` の出力なので、`message` は1行目が `com.nitrogooglesignin.GoogleSignInException: <メッセージ>`（`Throwable.toString()`）で、
+  その後に `\tat …` のフレームが続く。推定の正規表現は行頭・行末に固定せず、`AuthError` の message には1行目だけを残す。
+- iOS: `Error.toCpp()` が `String(describing: self)` を使うので、`oneTapStartFailed("<メッセージ>")` のような enum の表記。
+
+そのため `error.code` を見ていた分類（`DEVELOPER_ERROR` → `configuration` など）は実機では一度も当たらず、全部 `unknown` になっていた。
+
+### 決定
+
+- **`AuthErrorCode` に `provider_failed` を足す**。プロバイダの SDK が端末側で失敗した（backend に届いていない）ことを表す。
+  `ONE_TAP_START_FAILED`（Credential Manager の失敗の既定値）、`PLAY_SERVICES_NOT_AVAILABLE`、サインインの流れでは出ない `SIGN_IN_REQUIRED` /
+  `SIGN_OUT_FAILED` / `REVOKE_ACCESS_FAILED` を写す。トーストは汎用の失敗と区別できる Google 用の文言にする。
+  `PLAY_SERVICES_NOT_AVAILABLE` は以前の対応表では `configuration` だったが、端末の Play 開発者サービスが無い・古いことで、
+  SDK が更新のダイアログを出した後に投げる。その上に「サインインの設定が未完了です」と出すとアプリの不備に読めるので、`provider_failed` に移した
+  （以前は `code` が JS に来ず、実機ではこの経路に入っていなかった）。
+- **`googleSignIn.ts` が SDK の呼び出しを包み、`toGoogleSignInError`（`authError.ts`。純粋）に通す**。`code` があればそれを使い、
+  無ければメッセージから推定する（iOS は case 名、Android はライブラリが固定で付ける文言: DEVELOPER_ERROR の SHA-1 の案内、
+  PLAY_SERVICES_NOT_AVAILABLE、Activity が無いときの IN_PROGRESS）。**推定できなくても `provider_failed` にする**。
+  Google の SDK から来たことは確かなので、backend に届く前の失敗だと分かるだけで切り分けが進む。
+  推定したコード（できなければ `UNKNOWN`）と元のメッセージの1行目は `AuthError` の `message` に残す。
+- **Google のキャンセルは、連続2回目から案内のトーストを出す**（1回目は従来どおり無反応）。Credential Manager は、
+  ユーザーが閉じたときも、SHA-1 の登録漏れ・パッケージ名の誤り・Web/Android のクライアント ID の取り違えのときも
+  `RESULT_CANCELED`（ライブラリでは `type: 'cancelled'` の応答）を返し、JS からは区別できない。連続回数は成功・Google のキャンセル以外の失敗
+  （Apple のキャンセルを含む）で 0 に戻す。判定は `features/auth/lib/signInFailureFeedback.ts`。Apple のキャンセルは数えない（設定ミスは `ERR_REQUEST_UNKNOWN` で来て区別できる。「SS-199 追補」節）。
+- **サインインの失敗は、キャンセルも含めて `logDiagnostic("auth.sign-in.failed", …)` で端末のログに残す**（全ビルド）。
+  載せるのは provider・分類したコード・`AuthError` の message（推定したコード、キャンセルならどの段で返ったか）・元の例外の name と message の1行目。
+  トークン・メールアドレスは載せない（`ApiError` の本文や SDK の応答を渡さない）。組み立ては `features/auth/lib/signInFailureLog.ts` で、載らないことをテストで固定している。送信はしない（`console.warn` → logcat / Console.app）。
+
+### 採らなかった案
+
+- **内部配布ビルドだけキャンセルで診断を出す**: ビルドの種類で分岐してよいのは開発ツールの表示可否だけ（`config/devTools.ts`、ADR-M-007 SS-148 追補）。代わりにログを全ビルドで出す。
+- **アカウント選択の画面が出た後のキャンセルかで分ける**: ライブラリの応答にその情報が無く、JS から判定できない。
+- **キャンセルのたびにトーストを出す**: 本当のキャンセルで毎回出るのは煩わしい。
+- **ライブラリに patch を当てて `code` をメッセージに埋める**: 保守が増える。推定と「不明でも `provider_failed`」で切り分けには足りる。
+
+### 影響・注意
+
+- メッセージからの推定はライブラリの版に依存する。ライブラリを上げたら、`authError.ts` の `GOOGLE_CODE_BY_MESSAGE` が
+  ネイティブ側（`GoogleSignInController.kt`・`GoogleSignInAuthorizationHelper.kt`・`HybridNitroGoogleSignin.swift`）の文言と合っているかを確かめる。
+  外れても `provider_failed` に倒れるだけで、無反応や汎用の文言には戻らない。
+- 案内の文言に問い合わせ先は出さない（アプリに問い合わせの導線が無い）。出すなら別課題。
+- 文言が長くなったので、認証画面のトーストだけ表示時間を 3.5 秒にした（`useToast` の既定は 1.9 秒）。
+- 実機で `ONE_TAP_START_FAILED`・設定不備のキャンセルを再現しての確認はしていない（エミュレータでは Google の OAuth の失敗を作れない）。
+  SS-81 の実機の調査で、logcat の `ReactNativeJS` に `[sanposcape] auth.sign-in.failed` が出ることを確かめる。
+
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
@@ -816,4 +878,4 @@ Apple が初回しか返さない氏名を失う。再送が失敗したら保�
 - [RFC 7636: PKCE](https://datatracker.ietf.org/doc/html/rfc7636)
 - [Expo: Using Google authentication](https://docs.expo.dev/guides/google-authentication/)
 - [Expo: AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/)
-- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-198（「SS-198 追補」節の起点）, SS-199（「SS-199 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）
+- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-198（「SS-198 追補」節の起点）, SS-199（「SS-199 追補」節の起点）, SS-82（「SS-82 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）
