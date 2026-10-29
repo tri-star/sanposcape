@@ -26,7 +26,7 @@ metadata:
 - **flex column の画面で、ヘッダーの後の `FlatList` / `ScrollView` には自身の `style` に `flex: 1` が要る**（`contentContainerStyle` とは別）。無いと潰れて空に見える（SS-20）。
 - **行全体を Pressable にして中に Checkbox / Switch を置くとき**は、行に `onPress`・`accessibilityRole="checkbox"`・`accessibilityState` を持たせ、
   中は `<View pointerEvents="none">` で表示専用にする。`pointerEvents` は a11y ツリーから消さないので、`accessibilityElementsHidden` と
-  `importantForAccessibility="no-hide-descendants"` も付ける（`CategorySheet.tsx`。レビュー側は `review/mobile-a11y.md`）。
+  `importantForAccessibility="no-hide-descendants"` も付ける（`CategorySheet.tsx`。レビュー側は `.claude/skills/change-review/references/mobile.md`）。
 - **状態ごとに中央寄せが変わる画面**は、`renderBody()` が `{ content, centered }` を返す形にして判定を1箇所に閉じる
   （`features/history/components/WalkHistoryListView.tsx`。同じ条件を2箇所に書いていたのを SS-20 で直した）。
 - **`Text` のプリミティブは無い。** RN の `Text` を直接 import してテーマのトークンでスタイルする（手本は `DesignSystemGallery.tsx`）。
