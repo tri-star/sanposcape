@@ -36,3 +36,19 @@ export function pinAddressText(input: {
   const { address, buildingName } = input.address;
   return buildingName !== null ? `${address} ${buildingName}` : address;
 }
+
+/** 住所をクリップボードにコピーしたときのトースト（SS-246）。 */
+export const PIN_ADDRESS_COPIED_MESSAGE = "住所をコピーしました";
+export const PIN_ADDRESS_COPY_FAILED_MESSAGE = "住所をコピーできませんでした";
+
+/**
+ * ピン詳細の「住所をコピー」でクリップボードに入れる文字列（SS-246）。画面の表示（`pinAddressText`）と同じ文字列にする。
+ * 取得中・住所が無いときは null（コピーのボタンを出さない。案内や「-」をコピーさせない）。
+ */
+export function pinAddressCopyText(input: {
+  status: PinAddressStatus;
+  address: PinAddress | null;
+}): string | null {
+  if (input.status !== "ready" || input.address === null) return null;
+  return pinAddressText(input);
+}
