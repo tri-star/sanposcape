@@ -1,7 +1,7 @@
 # backend memory index
 
 backend の計画・実装の落とし穴と手順。規約の正本は `packages/backend/AGENTS.md` と `packages/backend/docs/`、決定は ADR。
-レビュー観点は `../review/`、領域に属さない git・ドキュメント作業の落とし穴は `../common/`。
+レビュー観点は `.claude/skills/change-review/references/`、領域に属さない git・ドキュメント作業の落とし穴は `../common/`。
 
 - [計画時の確認事項](planning-checklist.md) — 既存の受け口と並行チケット（Alembic head・ADR 番号）の衝突 / 列追加のデプロイ順 / Lambda で状態を持つ設計の境界テスト / 長い ADR の該当節の索引
 - [SQLAlchemy と DB の罠](sqlalchemy-and-db.md) — 別セッション削除は TestSessionLocal で確認 / commit 後の expire / 直呼びは明示 rollback / 並行テストは pg_stat_activity で待つ / 親の付け替え×キー収集→CASCADE / collation はバイト順
