@@ -6,7 +6,12 @@ import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { resolvePinFetchBounds } from "@/features/pin/lib/pinFetchBounds";
 import { toPinListFilterParams, type PinMapFilter } from "@/features/pin/lib/pinMapFilter";
 import { pinListQueryKey } from "@/features/pin/lib/pinQueryKeys";
-import { combineRegisteredPinListQueries } from "@/features/pin/lib/pinRead";
+import {
+  combineRegisteredPinListQueries,
+  registeredPinsSignature,
+  resolveDisplayedRegisteredPins,
+  type SettledRegisteredPins,
+} from "@/features/pin/lib/pinRead";
 import { toPinReadErrorCode, type PinReadErrorCode } from "@/features/pin/lib/pinReadError";
 import {
   attachSanpoMapIcons,
@@ -24,7 +29,10 @@ const UNRESOLVED_BOUNDS: GeoBounds = { south: 0, north: 0, west: 0, east: 0 };
 
 export type UseRegisteredPinsResult = {
   pins: RegisteredPin[];
-  /** "loading": 取得範囲の確定前・地図一覧の取得中・初回取得中（表示できるピンがまだ無い）。 */
+  /**
+   * "loading": 取得範囲の確定前・地図一覧の取得中・取得中。初回は表示できるピンがまだ無い。
+   * 取得範囲の取り直し中は、前の範囲のピンを `pins` に入れたまま "loading" になる（SS-243）。
+   */
   status: "loading" | "ready" | "error";
   errorCode: PinReadErrorCode | null;
   truncated: boolean;
@@ -44,8 +52,12 @@ export type UseRegisteredPinsOptions = {
  * 判定は `lib/pinFetchBounds.ts` / `lib/pinRead.ts` に任せ、この hook は状態の保持と配線だけ
  * （`usePinLocationPicker` と同じ設計方針）。
  *
- * 表示範囲内のピンが上限（`PIN_MAP_FETCH_LIMIT`）を超えてもページングは続けない
- * （ルート ADR-009 の持ち越しの決着。ADR-M-012 D3）。
+ * 表示範囲内のピンは `next_cursor` を辿って地図ごと `PIN_MAP_FETCH_MAX_PAGES` ページまで取り、端末でまとめて描く
+ * （SS-243。ADR-M-012 D3 の SS-243 追補）。上限を超えた分は打ち切り、`truncated` で案内する。
+ *
+ * 取得範囲だけが変わった取り直しの間は、前の範囲のピンを出し続ける（SS-243）。`useQueries` は key が変わると
+ * `keepPreviousData` に前回のデータが渡らず、ピンが一度 0 件になってマーカー（とクラスタ）が全部作り直されるため。
+ * 絞り込み・地図の一覧が変わったとき、通信しない状態（`enabled: false`。サインアウトを含む）になったときは引き継がない。
  *
  * 絞り込み（アーカイブ済み・訪問状況）は `GET /pins` のクエリで行い、queryKey にも入れる（SS-174。ADR-M-021）。
  * 条件を変えると新しい key の取得になり、取得が終わるまでピンは出ず `status` が "loading" になる
@@ -103,6 +115,25 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
     setCurrentTruncated(combined.settledTruncated);
   }
 
+  // 前の取得範囲で取り終えたピン（判定は `resolveDisplayedRegisteredPins`）。レンダー中の setState は上の fetchBounds と同じパターン
+  // （変わらなければ同じ参照が返るので、次のレンダーでは setState しない）。
+  const [settled, setSettled] = useState<SettledRegisteredPins | null>(null);
+  const { displayed: displayedPins, nextSettled } = resolveDisplayedRegisteredPins({
+    enabled: options.enabled,
+    anyPending: combined.anyPending,
+    failed: combined.firstError !== undefined,
+    boundsResolved: fetchBounds !== null,
+    signature: registeredPinsSignature(
+      filterParams,
+      maps.maps.map((map) => map.id),
+    ),
+    pins: combined.pins,
+    settled,
+  });
+  if (nextSettled !== settled) {
+    setSettled(nextSettled);
+  }
+
   const status: UseRegisteredPinsResult["status"] = !options.enabled
     ? "ready"
     : maps.status === "error"
@@ -115,8 +146,8 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
 
   // `toPinReadErrorCode` の 400→invalid_cursor は本来「写真ページ（`GET /pins/{id}/photos`）」
   // 前提の分類（`pinReadError.ts` 参照）。ここで分類対象になる `firstError` は `GET /pins`
-  // （一覧）の失敗で、mobile はこの一覧取得に `cursor` を送らないため 400 が実際に発生することは
-  // 想定していない。万一 backend 側の事情で 400 が返っても "invalid_cursor" に分類されるが、
+  // （一覧）の失敗で、2ページ目以降は `cursor` を送るが、backend が発行した値（状態を持たない base64）を
+  // そのまま返すだけなので 400 が実際に発生することは想定していない（SS-243）。万一 backend 側の事情で 400 が返っても "invalid_cursor" に分類されるが、
   // 表示文言（「写真の読み込み位置が古くなりました」）はこの文脈には合わない。呼び出し元を
   // 限定するほどの実害は無いと判断し、分類自体は変えていない（SS-118 ローカルレビュー QA-S3）。
   const errorCode: PinReadErrorCode | null =
@@ -132,8 +163,8 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
   const iconSignature = sanpoMapIconSignature(maps.maps);
   const iconIndex = useMemo(() => sanpoMapIconIndexFromSignature(iconSignature), [iconSignature]);
   const pins = useMemo(
-    () => attachSanpoMapIcons(combined.pins, iconIndex),
-    [combined.pins, iconIndex],
+    () => attachSanpoMapIcons(displayedPins, iconIndex),
+    [displayedPins, iconIndex],
   );
 
   const { retry: retryMaps } = maps;

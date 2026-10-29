@@ -78,6 +78,7 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - React Compiler が有効（`app.json` の `reactCompiler: true`）なので、render 中の `[...path]` のような派生値は入力の参照ごとにメモ化される。「毎レンダー新しい配列になる」と指摘する前に、そのコンポーネントが `"use no memo"` で外されていないか、Compiler が諦める書き方（render 中の ref の読み書きなど）になっていないかを確かめる（SS-168 で `RoutePolyline` の `[...path]` を誤って負荷として挙げた）。
 - render 中の ref への代入（`pausedRef.current = paused`、`useScreenBack` の `interceptRef`）と、render 中の条件付き setState（派生 state）は規約どおり（architecture-guideline.md「1回だけの状態確定」）。前者は依存配列から外す理由が書かれているか、後者は無限ループ・二重発火しないかだけを見る。
 - 地図（`react-native-maps`）に、描いた後で座標が変わる `Polyline` / `Polygon` を足す差分では、画面を離れて戻ったとき（タブ切り替え・スタックへの push）に古い座標に戻らないかを見る。Android は付き直すときに、最初に地図へ足した時点の座標で線を作り直す。`onMapReady` の回数を `key` に含めて作り直しているかを確かめる（SS-211。ADR-M-008 決定10。`WalkRouteMapView` が実例）。フォーカス中だけ描く図形と、座標が変わらない線は当たらない。
+- 地図に描くマーカーの数の上限を外す・変える差分（取得のページング、クラスタ表示など）では、どの縮尺でも描く数に上限が残るかを確かめる。まとめない縮尺・境目のズームで密な地区だと、境目を越えた途端に数百の Marker を描くことがある（SS-243 のレビューで見つかった。合成のデータでズームごとに描く数を数えると早い）。重さの計測が添えてあれば、どの縮尺で測ったか、スワイプの開始点がマーカーの上で地図が動いていない回が混じっていないかも見る（`.claude/agent-memory/mobile/testing-and-e2e.md`）。
 
 ## エラー処理と後始末
 

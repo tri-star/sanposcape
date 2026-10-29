@@ -14,7 +14,7 @@ import { regionForBounds, regionForRoundTrip } from "@/features/walk/lib/mapRegi
 import { walkTrailStyle } from "@/features/walk/lib/walkTrailStyle";
 import type { WalkRoute } from "@/features/walk/types";
 import { useHeadingBeamRadius } from "@/hooks/useHeadingBeamRadius";
-import { sanitizeMapRegion, type MapRegion } from "@/lib/mapRegion";
+import { sanitizeMapRegion, type MapRegion, type MapRegionRequest } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -31,6 +31,8 @@ export type WalkRouteMapViewProps = {
   destinationName: string;
   /** インクリメントされるたびに現在地へ再センタリングする。 */
   recenterNonce: number;
+  /** nonce が変わるたびに、その表示範囲へ動かす（`mapLayers` の中の操作。登録済みピンのクラスタのタップ。SS-243）。 */
+  regionRequest?: MapRegionRequest | null;
   height?: number;
   style?: StyleProp<ViewStyle>;
   /** 地図上に重ねる追加コンテンツ（ツールボタンなど）。 */
@@ -87,6 +89,7 @@ export function WalkRouteMapView({
   trail,
   destinationName,
   recenterNonce,
+  regionRequest = null,
   height = 322,
   style,
   children,
@@ -132,6 +135,14 @@ export function WalkRouteMapView({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- currentPosition は最新値を使うだけで依存に含めない
   }, [recenterNonce]);
+
+  const lastRegionNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (regionRequest === null) return;
+    if (lastRegionNonceRef.current === regionRequest.nonce) return;
+    lastRegionNonceRef.current = regionRequest.nonce;
+    mapRef.current?.animateToRegion(regionRequest.region, RECENTER_ANIMATION_MS);
+  }, [regionRequest]);
 
   if (!initialRegion) {
     return (

@@ -6,6 +6,11 @@ import type { MapRegion } from "@/lib/mapRegion";
 /** `GET /pins` の1リクエストの件数（backend の上限 200）。 */
 export const PIN_MAP_FETCH_LIMIT = 200;
 /**
+ * 地図表示で `next_cursor` を辿るページ数の上限（地図ごと 1,000 件。地図詳細の全件取得
+ * `SANPO_MAP_PIN_MAX_PAGES` と同じ）。これを超える分は打ち切り、案内を出す（SS-243。ADR-M-012 D3 の SS-243 追補）。
+ */
+export const PIN_MAP_FETCH_MAX_PAGES = 5;
+/**
  * 取得範囲は表示範囲の上下左右に、表示範囲の幅・高さのこの割合ぶん余白を足す
  * （小さなパン・ズームのたびに取り直さないため）。
  */
@@ -136,13 +141,13 @@ export function resolvePinFetchBounds(input: ResolvePinFetchBoundsInput): GeoBou
 /**
  * `GET /pins` のクエリパラメータを組み立てる。4つの bbox は必ずそろえて入れる。
  * `limit` は 1〜200 に正規化する（既定 `PIN_MAP_FETCH_LIMIT`）。
- * `cursor` / `q` / `tags` のキーは作らない（`undefined` のまま。Orval の URL ビルダーは
+ * `cursor` は空でない文字列のときだけキーを立てる。`q` / `tags` のキーは作らない（`undefined` のまま。Orval の URL ビルダーは
  * `cursor: null` を渡すとリテラル文字列 `"null"` を送ってしまうため。
  * `@/features/history/lib/walkHistoryParams.ts` の落とし穴と同じ）。
  *
  * 地図表示（ピンタブ・散歩中の地図）の絞り込み（`archived` / `visited`）は `filter` をそのまま入れる
  * （`toPinListFilterParams` の結果。絞らない項目はキーが無い。SS-174。ADR-M-021）。
- * 絞り込みは backend で行う（端末で捨てると上限200件を表示しないピンが食うため）。
+ * 絞り込みは backend で行う（端末で捨てると取得の上限（地図ごと 1,000 件。SS-243）を表示しないピンが食うため）。
  * `filter` は省略させない（省略できると既定の「アーカイブ済みを除く」を付け忘れるため）。
  */
 export function buildListPinsParams(input: {
@@ -150,13 +155,14 @@ export function buildListPinsParams(input: {
   bounds: GeoBounds;
   filter: PinListFilterParams;
   limit?: number;
+  cursor?: string | null;
 }): ListPinsParams {
   const rawLimit = input.limit ?? PIN_MAP_FETCH_LIMIT;
   const limit = Number.isFinite(rawLimit)
     ? Math.min(PIN_MAP_FETCH_LIMIT, Math.max(1, Math.trunc(rawLimit)))
     : PIN_MAP_FETCH_LIMIT;
 
-  return {
+  const params: ListPinsParams = {
     sanpo_map_id: input.sanpoMapId,
     min_latitude: input.bounds.south,
     min_longitude: input.bounds.west,
@@ -165,4 +171,8 @@ export function buildListPinsParams(input: {
     ...input.filter,
     limit,
   };
+  if (typeof input.cursor === "string" && input.cursor.length > 0) {
+    params.cursor = input.cursor;
+  }
+  return params;
 }

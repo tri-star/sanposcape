@@ -134,6 +134,8 @@
 - ~~**地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は
   SS-118 で決める。~~ → **SS-118 で決着**（ページングを続けず上限200件 + 案内。mobile
   [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3。本文: 2026-09-26 追補（SS-118））。
+  （SS-243: mobile が変えた。`next_cursor` を辿って地図ごと 1,000 件まで取り、端末でクラスタにまとめる。backend は変えていない。
+  ADR-M-012 の SS-243 追補）
   ~~**検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る~~ → **SS-136 で実装**
   （決定30。SS-120 はこの API を使える。本文: SS-136 追補）
 - ~~**prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
@@ -1331,6 +1333,8 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
   `/pins/map`（SS-147 で削除。現在はピンタブ）では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
   （詳細・理由は [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
   backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
+  （SS-243: mobile が、`next_cursor` を辿って地図ごと 5 ページ（1,000 件）まで取り、端末でクラスタにまとめる形に変えた。
+  backend は変えていない。ADR-M-012 の SS-243 追補）
 - mobile は地図ごとに `GET /pins` を並列に呼んでマージする（`sanpo_map_id` 必須のまま。
   ADR-M-012 D4）。地図数が増えて往復が問題になったら、本文「一覧の必須パラメータ・並び順・件数
   上限」が予告している `sanpo_map_id` 任意化の expand を検討する（今回は依頼しない）。

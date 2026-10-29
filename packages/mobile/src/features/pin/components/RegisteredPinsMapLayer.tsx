@@ -8,6 +8,8 @@ import type { MapRegion } from "@/lib/mapRegion";
 export type RegisteredPinsMapLayerProps = {
   visibleRegion: MapRegion | null;
   onSelectPin: (pinId: string) => void;
+  /** クラスタのタップで移る表示範囲（地図を動かすのは地図を持つ側。SS-243）。 */
+  onSelectCluster: (region: MapRegion) => void;
   testIDPrefix: string;
 };
 
@@ -30,9 +32,18 @@ export type RegisteredPinsMapLayerProps = {
 export function RegisteredPinsMapLayer({
   visibleRegion,
   onSelectPin,
+  onSelectCluster,
   testIDPrefix,
 }: RegisteredPinsMapLayerProps): ReactNode {
   const filter = usePinMapFilterStore((state) => state.filter);
   const { pins } = useRegisteredPins({ visibleRegion, enabled: true, filter });
-  return <RegisteredPinMarkers pins={pins} onSelectPin={onSelectPin} testIDPrefix={testIDPrefix} />;
+  return (
+    <RegisteredPinMarkers
+      pins={pins}
+      visibleRegion={visibleRegion}
+      onSelectPin={onSelectPin}
+      onSelectCluster={onSelectCluster}
+      testIDPrefix={testIDPrefix}
+    />
+  );
 }

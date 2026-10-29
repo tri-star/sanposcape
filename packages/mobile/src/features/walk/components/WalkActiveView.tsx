@@ -27,17 +27,24 @@ import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
 import { formatClock } from "@/lib/formatClock";
-import type { MapRegion } from "@/lib/mapRegion";
+import type { MapRegion, MapRegionRequest } from "@/lib/mapRegion";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
+
+/** `renderMapLayers` に渡す、地図を操作する関数。 */
+export type WalkMapLayerActions = {
+  focusRegion: (region: MapRegion) => void;
+};
 
 export type WalkActiveViewProps = {
   /**
    * 散歩中の地図に重ねる追加レイヤー（`MapView` の子）を、現在の表示範囲から作る（SS-118）。
    * `features/walk` は `features/pin` を import しないため、ルート（`app/(tabs)/index.tsx`）が
    * 登録済みピンのレイヤーを合成して渡す。省略時は何も重ねない。
+   * `actions.focusRegion` で地図を指定の表示範囲へ動かせる（登録済みピンのクラスタのタップ。SS-243）。
+   * レイヤーの `React.memo` が毎秒の再レンダーで破れないよう、`focusRegion` の参照は変えない。
    */
-  renderMapLayers?: (visibleRegion: MapRegion | null) => ReactNode;
+  renderMapLayers?: (visibleRegion: MapRegion | null, actions: WalkMapLayerActions) => ReactNode;
   /**
    * 散歩中の地図の右上のツール列（現在地ボタンの上）に足すボタン（SS-174）。`renderMapLayers` と同じ理由で、
    * ルートが登録済みピンの絞り込み（`PinMapFilterControl`）を合成して渡す。省略時は現在地ボタンだけ。
@@ -75,6 +82,10 @@ export function WalkActiveView({
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [recenterNonce, setRecenterNonce] = useState(0);
   const [visibleRegion, setVisibleRegion] = useState<MapRegion | null>(null);
+  const [regionRequest, setRegionRequest] = useState<MapRegionRequest | null>(null);
+  const focusRegion = useCallback((region: MapRegion) => {
+    setRegionRequest((previous) => ({ region, nonce: (previous?.nonce ?? 0) + 1 }));
+  }, []);
   const pinRegistrationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinRegistration);
 
   const isDark = theme.name === "dark";
@@ -181,10 +192,11 @@ export function WalkActiveView({
         trail={walk.points}
         destinationName={activeWalk.destination.name}
         recenterNonce={recenterNonce}
+        regionRequest={regionRequest}
         height={322}
         onLongPress={handleMapLongPress}
         onRegionChangeComplete={setVisibleRegion}
-        mapLayers={renderMapLayers?.(visibleRegion)}
+        mapLayers={renderMapLayers?.(visibleRegion, { focusRegion })}
         testID="walk-active-map"
       >
         <View style={styles.mapTools}>

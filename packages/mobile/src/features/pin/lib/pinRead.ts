@@ -4,6 +4,7 @@ import type {
   PinPhotoRead,
   PinRead,
 } from "@/api/generated/model";
+import type { PinListFilterParams } from "@/features/pin/lib/pinMapFilter";
 import { isAllowedUploadUrl } from "@/features/pin/lib/presignedPostForm";
 import type {
   PinDetail,
@@ -212,4 +213,60 @@ export function combineRegisteredPinListQueries(
       }
     },
   };
+}
+
+/** 取得範囲の取り直しの間に出し続ける、前の範囲で取り終えたピン（`useRegisteredPins` が state に持つ。SS-243）。 */
+export type SettledRegisteredPins = { signature: string; pins: PinSummary[] };
+
+/**
+ * 前の範囲のピンを引き継いでよい条件を表す文字列。絞り込みの内容と、取得している地図の ID の並びが同じときだけ引き継ぐ
+ * （絞り込みを変えたら前の条件のピンを残さない。SS-174。共有から外れた・消した地図のピンも残さない）。
+ */
+export function registeredPinsSignature(
+  filter: PinListFilterParams,
+  sanpoMapIds: readonly string[],
+): string {
+  return `${String(filter.archived)}:${String(filter.visited)}:${sanpoMapIds.join(",")}`;
+}
+
+export type ResolveDisplayedRegisteredPinsInput = {
+  /** 通信してよいか（サインイン中 && フラグ ON）。false なら引き継がない（サインアウトで前の人のピンを残さない）。 */
+  enabled: boolean;
+  /** 今の取得範囲の取得が終わっていない地図があるか。 */
+  anyPending: boolean;
+  /** 今の取得範囲の取得が失敗したか。 */
+  failed: boolean;
+  /** 取得範囲が確定しているか（未確定の間の空の結果を「取り終えた」と扱わない）。 */
+  boundsResolved: boolean;
+  signature: string;
+  /** 今の取得範囲の結果（取得中は空か一部）。 */
+  pins: PinSummary[];
+  settled: SettledRegisteredPins | null;
+};
+
+/**
+ * 地図に描くピンと、次に state に持つ「取り終えたピン」を決める純粋関数（SS-243。`useRegisteredPins` が配線する）。
+ *
+ * - 取得中で、前に取り終えたピンの条件（`signature`）が今と同じなら、前のピンを描く（取り直しの間にピンが 0 件になり、
+ *   マーカーが全部作り直されるのを防ぐ。`useQueries` は key が変わると `keepPreviousData` に前回のデータが渡らない）。
+ * - 取り終えたら（失敗でなく、取得範囲が確定していれば）、その結果を持つ。変わらなければ同じ参照を返す（呼び出し側が setState を飛ばせる）。
+ * - `enabled` が false なら何も持たない。
+ */
+export function resolveDisplayedRegisteredPins(input: ResolveDisplayedRegisteredPinsInput): {
+  displayed: PinSummary[];
+  nextSettled: SettledRegisteredPins | null;
+} {
+  const { enabled, anyPending, failed, boundsResolved, signature, pins, settled } = input;
+  if (!enabled) {
+    return { displayed: pins, nextSettled: null };
+  }
+  let nextSettled = settled;
+  if (!anyPending && !failed && boundsResolved) {
+    nextSettled =
+      settled !== null && settled.pins === pins && settled.signature === signature
+        ? settled
+        : { signature, pins };
+  }
+  const displayed = anyPending && settled?.signature === signature ? settled.pins : pins;
+  return { displayed, nextSettled };
 }

@@ -1,6 +1,6 @@
 ---
 name: maps
-description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
+description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
 metadata:
   type: feedback
   scope: durable
@@ -23,6 +23,10 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
 
 - `tracksViewChanges={false}` を付ける（既定 true だと Android でマーカーごとに毎フレーム再描画される）。
 - false にすると子 View（カスタムピン）の見た目の変化がネイティブに反映されない。選択状態で見た目を変えるときは `key` に状態を含めて再マウントする（`key={`${id}:${selected}`}`）。
+
+- **文字（`Text`）を入れた子 View は、最初から `tracksViewChanges={false}` にすると Android で文字と縁が描かれず、塗りだけの姿で固定される**（SS-243 のクラスタの円）。
+  SVG だけで描くピン（`SanpoMapPin`）は最初から false でも描ける。文字を入れるマーカーは、作ってから短い間（500ms）だけ true にしてから false にする（`PinClusterMarker`）。
+  件数などの中身が変わるときは key に入れて作り直す（作り直すと、また短い間だけ追従する）。
 
 ## Polyline の重なり順（iOS は zIndex が効かない）
 

@@ -23,9 +23,9 @@ export type PinReadErrorCode =
  * 位置が古くなりました」で、`GET /pins/{id}/photos`（`usePinDetail.ts` の写真ページング）を
  * 前提にしている。`fetchAllPinsInSanpoMap`（SS-121）は `GET /pins` に cursor を送るので
  * こちらでも 400 が起こりうる。その呼び出し元は文言に `sanpoMapReadErrorMessage`
- * （`sanpoMapError.ts`）を使うこと。`fetchPinsInBounds`（`useRegisteredPins.ts`）は
- * 1ページ目しか読まないので 400 は想定していない。新しい呼び出し元を追加するときは
- * この前提が成り立つかを確認すること。
+ * （`sanpoMapError.ts`）を使うこと。`fetchPinsInBounds`（`useRegisteredPins.ts`）も2ページ目以降で
+ * cursor を送る（SS-243）が、backend が発行した値をそのまま返すだけなので 400 は想定していない。
+ * 新しい呼び出し元を追加するときはこの前提が成り立つかを確認すること。
  */
 export function toPinReadErrorCode(error: unknown): PinReadErrorCode {
   if (isApiError(error)) {

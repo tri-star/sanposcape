@@ -9,6 +9,12 @@ export type MapRegion = {
   longitudeDelta: number;
 };
 
+/**
+ * 地図を指定の表示範囲へ動かす依頼。nonce が変わるたびに `animateToRegion` する
+ * （`PinMapFocusRequest`・`WalkRouteMapView` の recenterNonce と同じ考え方。ピンのクラスタのタップ。SS-243）。
+ */
+export type MapRegionRequest = { region: MapRegion; nonce: number };
+
 /** delta の下限（極端に近い縮尺で地図が壊れないように）。 */
 export const MIN_REGION_DELTA = 0.004;
 

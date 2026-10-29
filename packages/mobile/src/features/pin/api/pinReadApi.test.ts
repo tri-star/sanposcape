@@ -20,6 +20,7 @@ import {
   fetchPinPhotoPage,
   fetchPinsInBounds,
 } from "@/features/pin/api/pinReadApi";
+import { PIN_MAP_FETCH_MAX_PAGES } from "@/features/pin/lib/pinFetchBounds";
 import type { GeoBounds } from "@/features/pin/types";
 import { server } from "@/test/setup";
 
@@ -148,7 +149,7 @@ describe("fetchPinsInBounds", () => {
     expect(searchParams?.get("archived")).toBe("false");
   });
 
-  it("200: items を PinSummary に変換し、不正座標の要素は除外する。next_cursor 非nullなら hasMore true", async () => {
+  it("200: items を PinSummary に変換し、不正座標の要素は除外する。上限のページまで next_cursor が続けば hasMore true", async () => {
     server.use(
       getListPinsMockHandler({
         items: [
@@ -163,6 +164,79 @@ describe("fetchPinsInBounds", () => {
 
     expect(result.pins.map((p) => p.id)).toEqual(["a"]);
     expect(result.hasMore).toBe(true);
+  });
+
+  /**
+   * 前提: 3ページに分かれた結果（2ページ目は前のページと1件重なる）。
+   * 期待: next_cursor を辿って全件を取り、2ページ目以降は同じ bbox・絞り込みに cursor を足して送る。
+   * 重複を除き、最後のページで next_cursor が null なので hasMore は false（全件を端末でまとめる。SS-243）。
+   */
+  it("next_cursor を辿って全ページを取り、重複を除く。最後まで取れたら hasMore false", async () => {
+    const requests: URLSearchParams[] = [];
+    const pages: Record<string, { items: PinListItemRead[]; next_cursor: string | null }> = {
+      "": { items: [listItem({ id: "a" }), listItem({ id: "b" })], next_cursor: "c1" },
+      c1: { items: [listItem({ id: "b" }), listItem({ id: "c" })], next_cursor: "c2" },
+      c2: { items: [listItem({ id: "d" })], next_cursor: null },
+    };
+    server.use(
+      http.get("*/pins", ({ request }) => {
+        const searchParams = new URL(request.url).searchParams;
+        requests.push(searchParams);
+        return HttpResponse.json(pages[searchParams.get("cursor") ?? ""], { status: 200 });
+      }),
+    );
+
+    const result = await fetchPinsInBounds(
+      { sanpoMapId: "map-1", bounds: BOUNDS, filter: { archived: false } },
+      {},
+    );
+
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b", "c", "d"]);
+    expect(result.hasMore).toBe(false);
+    expect(requests.map((r) => r.get("cursor"))).toEqual([null, "c1", "c2"]);
+    for (const r of requests) {
+      expect(r.get("min_latitude")).toBe("35.6");
+      expect(r.get("archived")).toBe("false");
+      expect(r.get("limit")).toBe("200");
+    }
+  });
+
+  /** 前提: next_cursor が止まらない。期待: 既定の上限（5ページ）で止め、hasMore true（打ち切りの案内に使う）。 */
+  it("上限のページ数で止める", async () => {
+    let count = 0;
+    server.use(
+      http.get("*/pins", () => {
+        count += 1;
+        return HttpResponse.json(
+          { items: [listItem({ id: `p${count}` })], next_cursor: `c${count}` },
+          { status: 200 },
+        );
+      }),
+    );
+
+    const result = await fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS, filter: {} }, {});
+
+    expect(count).toBe(PIN_MAP_FETCH_MAX_PAGES);
+    expect(result.pins).toHaveLength(PIN_MAP_FETCH_MAX_PAGES);
+    expect(result.hasMore).toBe(true);
+  });
+
+  /** 前提: 2ページ目が 500。期待: 1ページ目の分も返さず失敗にする（一部だけを全件として描かない）。 */
+  it("途中のページが失敗したら ApiError になる", async () => {
+    server.use(
+      http.get("*/pins", ({ request }) =>
+        new URL(request.url).searchParams.has("cursor")
+          ? new HttpResponse(null, { status: 500 })
+          : HttpResponse.json(
+              { items: [listItem({ id: "a" })], next_cursor: "c1" },
+              { status: 200 },
+            ),
+      ),
+    );
+
+    await expect(
+      fetchPinsInBounds({ sanpoMapId: "map-1", bounds: BOUNDS, filter: {} }, {}),
+    ).rejects.toThrow(ApiError);
   });
 
   it.each([401, 404, 422, 500])("%d は ApiError になる", async (status) => {
