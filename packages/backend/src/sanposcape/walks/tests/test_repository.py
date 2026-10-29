@@ -1,8 +1,10 @@
+import logging
 import threading
 import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
@@ -70,6 +72,54 @@ class TestCreate:
         assert first.id == second.id
         count = db_session.query(type(first)).filter_by(user_id=user.id).count()
         assert count == 1
+
+    def test_identical_resend_does_not_warn(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """内容が同じ再送（通常の冪等な再送）では、衝突の警告ログを出さないこと。"""
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        client_walk_id = uuid.uuid4()
+        started_at = datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC)
+        _create_walk(repo, user_id=user.id, client_walk_id=client_walk_id, started_at=started_at)
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.walks.repository"):
+            _create_walk(
+                repo, user_id=user.id, client_walk_id=client_walk_id, started_at=started_at
+            )
+
+        assert caplog.records == []
+
+    def test_same_client_walk_id_with_different_content_warns_and_returns_existing(
+        self, db_session: Session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """同じ client_walk_id で started_at が違う散歩を送ると、既存行を返したまま
+        不一致の項目名だけを警告ログに出し、行は増えないこと（SS-39）。"""
+        user = _make_user(db_session, subject="u1")
+        repo = WalkRepository(db_session)
+        client_walk_id = uuid.uuid4()
+        first, _ = _create_walk(
+            repo,
+            user_id=user.id,
+            client_walk_id=client_walk_id,
+            started_at=datetime(2026, 8, 1, 9, 0, 0, tzinfo=UTC),
+        )
+
+        with caplog.at_level(logging.WARNING, logger="sanposcape.walks.repository"):
+            second, created = _create_walk(
+                repo,
+                user_id=user.id,
+                client_walk_id=client_walk_id,
+                started_at=datetime(2026, 8, 2, 9, 0, 0, tzinfo=UTC),
+            )
+
+        assert created is False
+        assert second.id == first.id
+        assert db_session.query(type(first)).filter_by(user_id=user.id).count() == 1
+        assert len(caplog.records) == 1
+        message = caplog.records[0].getMessage()
+        assert "mismatched=started_at,ended_at" in message
+        assert str(user.id) in message
 
     def test_different_users_can_reuse_the_same_client_walk_id(self, db_session: Session) -> None:
         user_a = _make_user(db_session, subject="a")
