@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
 
+import { isDevToolsEnabled } from "@/config/devTools";
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { RecentWalksSection } from "@/features/history/components/RecentWalksSection";
 import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
@@ -20,6 +21,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。
  * `features/walk` は `features/history` も import しないため、散歩していないときの
  * 「最近の散歩」（`RecentWalksSection`）もこのルートが合成して `idleSection` に渡す（SS-147）。
+ * 散歩中の地図の開発用の計測値の表示（`showPerfDebug`）も、開発ツールの判定（`isDevToolsEnabled()`。
+ * `src/config/devTools.ts` は `app/` からしか import できない）をこのルートが渡す（SS-229）。
  */
 export default function WalkActiveRoute() {
   const router = useRouter();
@@ -67,6 +70,7 @@ export default function WalkActiveRoute() {
       renderMapLayers={renderMapLayers}
       mapTools={mapTools}
       idleSection={idleSection}
+      showPerfDebug={isDevToolsEnabled()}
     />
   );
 }
