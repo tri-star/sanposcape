@@ -16,10 +16,10 @@ export function useJsFrameRate(): number | null {
   const [fps, setFps] = useState<number | null>(null);
 
   useEffect(() => {
-    let window: FrameRateWindow = createFrameRateWindow(performance.now());
+    let frameWindow: FrameRateWindow = createFrameRateWindow(performance.now());
     let handle = requestAnimationFrame(function onFrame() {
-      const result = tickFrameRateWindow(window, performance.now());
-      window = result.window;
+      const result = tickFrameRateWindow(frameWindow, performance.now());
+      frameWindow = result.window;
       if (result.fps !== null) setFps(result.fps);
       handle = requestAnimationFrame(onFrame);
     });

@@ -41,7 +41,7 @@ describe("tickFrameRateWindow", () => {
   it("フレームが遅れて窓が長くなっても、実際の経過時間で割る", () => {
     // 1フレームが 250ms かかる（JS が詰まっている）と、4フレーム目で窓が閉じて 4fps。
     expect(runFrames(4, 250)).toEqual([4]);
-    // 1フレームで 2 秒止まったら 0.5fps → 丸めて 1（0 にはならないが、遅いことは分かる）。
+    // 1フレームで 2 秒止まったら 0.5fps → 丸めて 1。
     expect(tickFrameRateWindow(createFrameRateWindow(START), START + 2000).fps).toBe(1);
   });
 
