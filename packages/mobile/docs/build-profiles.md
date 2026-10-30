@@ -705,7 +705,7 @@ POST を対象に含めない理由（`/explore/*` 自身のレート制限を�
 
 ## 実行時のビルド variant 判定（SS-148）
 
-開発ツール（`/dev-screens`・`/design-system` と、アカウントタブの「画面カタログ」ボタン）を出してよいビルドかは、
+開発ツール（`/dev-screens`・`/design-system` と、アカウントタブの「画面カタログ」ボタン、散歩中の地図の左上の計測値の表示（SS-229））を出してよいビルドかは、
 実行時に `src/config/devTools.ts` の `isDevToolsEnabled()` が判定する（純粋な判定は `src/config/appVariant.ts`。
 根拠は [ADR-M-007](../adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-148 追補）。
 

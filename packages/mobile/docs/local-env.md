@@ -447,7 +447,7 @@ EAS ダッシュボード（`production` 環境）で以下が別途注入され
   Maps キーのアプリ制限・GCP プロジェクトの用意も 2026-09-13 時点で未完了**（開発用 GCP
   プロジェクトには本番識別子の登録が無い。[build-profiles.md](./build-profiles.md) の
   「アプリ識別子の定義」参照）
-- 開発ツール（`/dev-screens`・`/design-system`・アカウントタブの「画面カタログ」ボタン）が出ないこと（SS-148）。
+- 開発ツール（`/dev-screens`・`/design-system`・アカウントタブの「画面カタログ」ボタン・散歩中の地図の左上の計測値の表示（SS-229））が出ないこと（SS-148）。
   ビルドに焼き込まれた `extra.appVariant` が `"production"` であることを確認する
   （`npx expo config --type public` の `extra.appVariant`、または生成後の `app.json` 相当）。
   `APP_VARIANT=production` が渡っていないと `"development"` になり、`Updates.channel`（`production`）の
