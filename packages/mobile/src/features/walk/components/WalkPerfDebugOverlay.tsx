@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { IconButton } from "@/components/ui/icon-button/IconButton";
@@ -14,7 +15,9 @@ export type WalkPerfDebugOverlayProps = {
 /**
  * WalkPerfDebugOverlay — 散歩中の地図の左上に重ねる、開発用の計測値の表示（SS-229）。
  * 軌跡の点の数と JS スレッドの FPS を出す。最初はボタンだけで、押すと数値のパネルに開き、パネルを押すと閉じる。
- * 開閉の状態は保持しない（画面を作り直すと閉じた状態に戻る）。
+ * 開閉の状態は保持しない（画面を作り直すと閉じた状態に戻る）。タブを離れたら閉じる。タブ画面はフォーカスを失っても
+ * アンマウントされないので、開いたままだと見えない間も FPS の計測（`requestAnimationFrame`）が回り続けるため
+ * （フォーカス中だけ購読する ADR-M-023 と同じ考え方）。
  *
  * 表示してよいビルドかは判定しない。ルート（`app/(tabs)/index.tsx`）が `isDevToolsEnabled()` を
  * `WalkActiveView` の `showPerfDebug` に渡し、false なら `WalkActiveView` がこのコンポーネントを描かない（ADR-M-007 SS-148 追補）。
@@ -22,6 +25,12 @@ export type WalkPerfDebugOverlayProps = {
 export function WalkPerfDebugOverlay({ pointCount, testID }: WalkPerfDebugOverlayProps) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => setExpanded(false);
+    }, []),
+  );
 
   return (
     <View style={styles.root} pointerEvents="box-none">
