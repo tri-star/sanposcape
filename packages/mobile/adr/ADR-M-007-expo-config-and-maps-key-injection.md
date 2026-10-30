@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-24（SS-230: ビルドの種類での分岐の例外。前回は SS-148）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-10-30（SS-229: 散歩中の地図の計測値の表示も開発ツールに含める。前回は SS-230）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -22,6 +22,8 @@
 - `app.config.ts` は `extra.appVariant` を常に公開し、開発ツールの表示可否は `isDevToolsEnabled()`
   （`__DEV__` / `extra.appVariant` / `Updates.channel`）だけで判定する。未知は非表示。（本文: SS-148 追補）
 - 開発ツールのコードは本番バンドルから除外しない。（本文: SS-148 追補）
+- 開発ツールには、散歩中の地図の左上の計測値の表示（軌跡の点の数・JS の FPS）も含む。staging でも出る。
+  ルートが `isDevToolsEnabled()` を `WalkActiveView` の `showPerfDebug` に渡す。既定は閉じた状態で、開いている間だけ FPS を数え、タブを離れたら閉じる。（本文: SS-229 追補）
 - ビルドの種類での分岐は開発ツールの表示可否だけに使う。例外は、設定画面のバージョンの行で本番以外のときだけチャネル名を付記すること
   （表示だけで、機能の可否・挙動は変えない）。（本文: SS-148 追補 決定6、SS-230 追補）
 - `eas.json` の store 配布プロファイルは、許可リスト（`staging`）を除き `APP_VARIANT=production` と production チャネルの両方を持つことを
@@ -42,7 +44,7 @@
 
 2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）、2026-09-11 追補（SS-78）、
 2026-09-13 追補（SS-79）、2026-09-30 追補（本番用 iOS OAuth クライアント）、
-2026-10-01 追補（SS-148。実行時のビルド variant 判定）、2026-10-24 追補（SS-230。ビルドの種類での分岐の例外：バージョンの行のチャネル名）
+2026-10-01 追補（SS-148。実行時のビルド variant 判定）、2026-10-24 追補（SS-230。ビルドの種類での分岐の例外：バージョンの行のチャネル名）、2026-10-30 追補（SS-229。散歩中の地図の計測値の表示）
 
 ## ステータス
 
@@ -66,6 +68,9 @@ EAS 側の供給経路について「**EAS の環境変数管理には載せな�
 **SS-148「mobile: アカウントタブ」で追補**した。画面カタログを staging（TestFlight）でも開けるようにするため、
 `app.config.ts` が `extra.appVariant` を公開し、実行時にビルドの種類を判別して開発ツールの表示可否を決める。
 追補部分には `（SS-148 追補）` を付けている。
+
+**SS-229「散歩中の画面に、軌跡の点の数と JS の描画負荷（FPS）を出すデバッグ表示を追加する」で追補**した。
+散歩中の地図の計測値の表示を開発ツールに含め、SS-148 追補の判定に従わせる。追補部分には `（SS-229 追補）` を付けている。
 
 ## コンテキスト
 
@@ -284,6 +289,7 @@ SS-79 追補にも反映した。
    判定順: `__DEV__` なら許可 → `extra.appVariant === "production"` なら不許可 → `Updates.channel === "production"` なら不許可
    → `extra.appVariant === "development"` なら許可 → それ以外（`extra` 欠落・未知）は不許可（fail-closed）。
 3. `/dev-screens`・`/design-system` のガードと、アカウントタブの「画面カタログ」ボタンは、この判定にそろえる。
+   （**SS-229 追補**: 散歩中の地図の計測値の表示も同じ判定にそろえた。下記「SS-229 追補」）
 4. `Updates.channel` を2つ目のシグナルにする理由: `Constants.expoConfig` は OTA の update で起動したときは update の manifest 由来になる
    （embedded でも remote でも）。SDK 55 以降の `eas update` は EAS サーバーの環境変数だけを使い、`eas.json` のビルドプロファイルの
    `env` を読まない。つまり `production` チャネルへ `eas update` を出すと `APP_VARIANT` が無い状態で `app.config.ts` が評価され、
@@ -338,6 +344,40 @@ SS-79 追補にも反映した。
 - production のビルドで「ボタンが出ない」「ディープリンクで開けない」ことは E2E では確かめられない（E2E は `preview` だけ）。
   Vitest の判定表・`eas.json` / `app.config.ts` との契約テスト（`src/config/appVariant.test.ts`）と、
   `expo config --type public` の手動確認で担保する。
+
+## SS-229 追補: 散歩中の地図の計測値の表示（2026-10-30）
+
+### コンテキスト
+
+散歩中の地図には、記録した点を間引かずに軌跡として渡している（ADR-M-008 SS-168 追補。送信時の間引き `walkTrackPayload` は地図に効かない）。
+長い散歩で点が増えたときに JS 側が重くなっていないかを、開発中に端末の画面で把握したい。
+
+### 決定
+
+1. 散歩中の地図に、軌跡の点の数（`walk.points.length`）と JS スレッドの FPS を出す表示（`features/walk/components/WalkPerfDebugOverlay.tsx`）を置く。
+   これは開発ツールとして扱い、決定2の `isDevToolsEnabled()` で表示可否を決める（development / E2E / staging で出て、production では出ない）。
+   ビルドの種類で分けるのは表示可否だけで、散歩の挙動は変えない（決定6の範囲内）。
+2. `features/walk` は `src/config/devTools.ts` を import できない（決定8）ので、ルート `app/(tabs)/index.tsx` が判定し、`WalkActiveView` の
+   `showPerfDebug`（boolean・既定 false）に渡す。slot（ReactNode）にしなかったのは、点の数が `WalkActiveView` の持つ `walk.points` から取れるため
+   （アカウントタブの `AccountActionBar.showScreenCatalog` と同じ形）。
+3. 置き場所は地図の左上（右上はツール列 `mapTools`、左下は凡例 `WalkRouteLegend`）。最初はボタンだけで、押すと数値のパネルになり、パネルを押すと閉じる。
+   開閉の状態は保持しない。
+4. FPS は `requestAnimationFrame` の回数を 1 秒の窓で数え、経過時間で割る（`features/walk/lib/frameRate.ts`）。表示の更新は窓ごとに 1 回で、毎フレームは再描画しない。
+   計測のフック（`useJsFrameRate`）は開いたパネルの中にだけあり、閉じている間は rAF を回さない。タブ画面はフォーカスを失ってもアンマウントされないため、
+   `useFocusEffect` の後始末でパネルを閉じ、見えない間は計測しない（フォーカス中だけ購読する ADR-M-023 と同じ考え方）。
+5. 対象は JS 側の重さと点の数に絞る。地図のネイティブ描画の重さは測らない。
+
+### 検討した選択肢
+
+- React の `<Profiler onRender>` で軌跡の再描画時間も出す: まず点の数と FPS で足りるかを見る。必要になったら追加する
+- 開閉の状態を端末に保存する: 開発用の表示で、画面を作り直したら閉じた状態に戻れば足りる
+- 常時表示（ON/OFF の切り替えなし）: 地図の操作の邪魔になる
+
+### 影響
+
+- staging（TestFlight）のテスターにも、散歩中の地図の左上にボタンが見える（画面カタログと同じ範囲）。
+- FPS の値はエミュレータや `__DEV__` のバンドルでは実機・リリースより遅く出る。良し悪しは実機で判断する。
+- 開いている間は毎フレーム rAF のコールバックが 1 回走る。地図の重さを `dumpsys gfxinfo` などで測るときは、パネルを閉じておく。
 
 ## 関連情報
 

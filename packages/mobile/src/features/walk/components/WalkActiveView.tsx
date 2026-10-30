@@ -14,6 +14,7 @@ import { LocationPermissionNotice } from "@/components/location/LocationPermissi
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { ApproximateLocationNotice } from "@/features/walk/components/ApproximateLocationNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
+import { WalkPerfDebugOverlay } from "@/features/walk/components/WalkPerfDebugOverlay";
 import { WalkRouteMapView } from "@/features/walk/components/WalkRouteMapView";
 import { WalkRouteNotice } from "@/features/walk/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/components/WalkStatsPanel";
@@ -57,6 +58,12 @@ export type WalkActiveViewProps = {
    * セクション内の取得（`GET /walks`）も走らない）。省略時は何も出さない。
    */
   idleSection?: ReactNode;
+  /**
+   * 散歩中の地図の左上に、軌跡の点の数と JS の FPS を出す開発用の表示（`WalkPerfDebugOverlay`）を置くか（SS-229）。
+   * `features/walk` は開発ツールの判定（`src/config/devTools.ts`。`app/` からしか import できない）を知らないため、
+   * ルートが `isDevToolsEnabled()` を渡す。省略時は出さない。
+   */
+  showPerfDebug?: boolean;
 };
 
 /**
@@ -72,6 +79,7 @@ export function WalkActiveView({
   renderMapLayers,
   mapTools,
   idleSection,
+  showPerfDebug = false,
 }: WalkActiveViewProps = {}) {
   const theme = useTheme();
   const styles = useStyles();
@@ -199,6 +207,9 @@ export function WalkActiveView({
         mapLayers={renderMapLayers?.(visibleRegion, { focusRegion })}
         testID="walk-active-map"
       >
+        {showPerfDebug ? (
+          <WalkPerfDebugOverlay pointCount={walk.points.length} testID="walk-active-perf-debug" />
+        ) : null}
         <View style={styles.mapTools}>
           {mapTools}
           <IconButton
