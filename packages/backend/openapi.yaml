@@ -741,6 +741,103 @@ paths:
           description: Sanpo map not found
         '422':
           description: Validation error
+  /sanpo-maps/{sanpo_map_id}/members:
+    get:
+      tags:
+      - sanpo-maps
+      summary: List Sanpo Map Members
+      description: '地図のメンバーを返す（owner → 参加日時の古い順）。
+
+
+        各要素は利用者の ID・表示名（未設定は null）・役割・参加日時だけで、メールアドレスや
+
+        プロフィール画像は返さない。地図の member（owner・editor）なら呼べる。非メンバー・
+
+        存在しない ID は 404。'
+      operationId: list_sanpo_map_members
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapMemberListRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation error
+  /sanpo-maps/{sanpo_map_id}/members/{user_id}:
+    delete:
+      tags:
+      - sanpo-maps
+      summary: Remove Sanpo Map Member
+      description: 'メンバーを地図から外す。自分の ID を指定すると、自分が地図から抜ける。
+
+
+        owner は他のメンバーを外せる（editor が他人を指定すると 403）。editor は自分だけ抜けられ、
+
+        owner が自分を指定すると 409（`owner_cannot_leave`）。呼んだ人が非メンバー・存在しない地図は
+
+        404（`sanpo_map_not_found`）、owner が指定した相手が member でなければ 404
+
+        （`sanpo_map_member_not_found`）。外した人・抜けた人が追加したピン・写真・タグは地図に残る。
+
+        非冪等（抜けた後の再送は 404）。'
+      operationId: remove_sanpo_map_member
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Permission denied
+        '404':
+          description: Sanpo map not found, or the user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapMemberNotFoundErrorRead'
+        '409':
+          description: Owner cannot leave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapLeaveConflictErrorRead'
+        '422':
+          description: Validation error
   /pins:
     post:
       tags:
@@ -2338,6 +2435,23 @@ components:
       - cat
       title: SanpoMapIcon
       description: 地図のアイコンの種類。
+    SanpoMapLeaveConflictErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          const: owner_cannot_leave
+          title: Code
+      type: object
+      required:
+      - detail
+      - code
+      title: SanpoMapLeaveConflictErrorRead
+      description: '`DELETE /sanpo-maps/{id}/members/{user_id}` の 409 応答本体（owner は抜けられない,
+
+        ADR-009 決定38）。'
     SanpoMapListRead:
       properties:
         items:
@@ -2355,6 +2469,74 @@ components:
       - items
       - next_cursor
       title: SanpoMapListRead
+    SanpoMapMemberListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SanpoMapMemberRead'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: SanpoMapMemberListRead
+    SanpoMapMemberNotFoundErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          enum:
+          - sanpo_map_not_found
+          - sanpo_map_member_not_found
+          title: Code
+      type: object
+      required:
+      - detail
+      - code
+      title: SanpoMapMemberNotFoundErrorRead
+      description: '`DELETE /sanpo-maps/{id}/members/{user_id}` の 404 応答本体（ADR-009
+        決定38）。
+
+
+        `sanpo_map_not_found` は呼んだ人がその地図の member でない（存在しない地図も区別しない）、
+
+        `sanpo_map_member_not_found` は owner が指定した相手が member でない。'
+    SanpoMapMemberRead:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        role:
+          type: string
+          enum:
+          - owner
+          - editor
+          title: Role
+        joined_at:
+          type: string
+          format: date-time
+          title: Joined At
+      type: object
+      required:
+      - user_id
+      - display_name
+      - role
+      - joined_at
+      title: SanpoMapMemberRead
+      description: '地図のメンバー1人（`GET /sanpo-maps/{id}/members`, ADR-009 決定38）。
+
+
+        他のメンバーに見せるのは表示名・役割・参加日時だけ（メールアドレス・プロフィール画像の
+
+        URL は返さない。プライバシーポリシー 1-8）。'
     SanpoMapRead:
       properties:
         id:

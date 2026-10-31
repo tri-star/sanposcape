@@ -8,8 +8,11 @@ from sanposcape.sanpo_maps.permissions import (
     can_delete_pin_photo,
     can_delete_pin_tag,
     can_delete_sanpo_map,
+    can_leave_sanpo_map,
+    can_list_sanpo_map_members,
     can_move_pin_from,
     can_move_pin_to,
+    can_remove_sanpo_map_member,
     can_update_pin,
     can_update_pin_archived,
     can_update_pin_visited,
@@ -193,3 +196,25 @@ class TestCanDeleteSanpoMap:
 
     def test_editor_cannot(self) -> None:
         assert can_delete_sanpo_map("editor") is False
+
+
+class TestSanpoMapMemberPermissions:
+    """メンバーの一覧・外す・抜ける（ADR-009 決定38）。"""
+
+    def test_list_members_any_member(self) -> None:
+        """owner・editor とも一覧を見られ、想定外の role は拒否する。"""
+        assert can_list_sanpo_map_members("owner") is True
+        assert can_list_sanpo_map_members("editor") is True
+        assert can_list_sanpo_map_members("unknown") is False
+
+    def test_remove_member_owner_only(self) -> None:
+        """他のメンバーを外せるのは owner だけ。"""
+        assert can_remove_sanpo_map_member("owner") is True
+        assert can_remove_sanpo_map_member("editor") is False
+        assert can_remove_sanpo_map_member("unknown") is False
+
+    def test_leave_editor_only(self) -> None:
+        """抜けられるのは editor だけで、owner は抜けられない（持ち主が居なくなるため）。"""
+        assert can_leave_sanpo_map("editor") is True
+        assert can_leave_sanpo_map("owner") is False
+        assert can_leave_sanpo_map("unknown") is False

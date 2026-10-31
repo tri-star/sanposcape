@@ -120,3 +120,22 @@ def can_update_sanpo_map(role: SanpoMapRole) -> bool:
 def can_delete_sanpo_map(role: SanpoMapRole) -> bool:
     """地図の削除（`DELETE /sanpo-maps/{id}`, ADR-009 決定26）。owner のみ可。"""
     return role == "owner"
+
+
+def can_list_sanpo_map_members(role: SanpoMapRole) -> bool:
+    """メンバーの一覧（`GET /sanpo-maps/{id}/members`, ADR-009 決定38）。member なら誰でも可。"""
+    return role in _WRITE_ROLES
+
+
+def can_remove_sanpo_map_member(role: SanpoMapRole) -> bool:
+    """他のメンバーを外す（`DELETE /sanpo-maps/{id}/members/{user_id}` で自分以外を指定,
+    ADR-009 決定38）。owner のみ可。
+    """
+    return role == "owner"
+
+
+def can_leave_sanpo_map(role: SanpoMapRole) -> bool:
+    """自分が地図から抜ける（`DELETE /sanpo-maps/{id}/members/{自分}`, ADR-009 決定38）。
+    owner は抜けられない（地図の持ち主が居なくなるため。引き継ぎは持たない）。
+    """
+    return role in _WRITE_ROLES and role != "owner"

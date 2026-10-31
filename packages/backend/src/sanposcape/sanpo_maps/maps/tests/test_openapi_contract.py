@@ -33,6 +33,23 @@ class TestOperationIds:
             document["paths"]["/sanpo-maps/{sanpo_map_id}/tags"]["get"]["operationId"]
             == "list_sanpo_map_tags"
         )
+        members = "/sanpo-maps/{sanpo_map_id}/members"
+        assert document["paths"][members]["get"]["operationId"] == "list_sanpo_map_members"
+        assert (
+            document["paths"][members + "/{user_id}"]["delete"]["operationId"]
+            == "remove_sanpo_map_member"
+        )
+
+
+class TestSanpoMapMemberContract:
+    def test_member_display_name_is_nullable_and_no_contact_fields(self) -> None:
+        """メンバーの要素は表示名だけが null 許容で、メールアドレス・プロフィール画像の項目を
+        持たない（ポリシー 1-8, ADR-009 決定38）。
+        """
+        schema = _load_committed_openapi()["components"]["schemas"]["SanpoMapMemberRead"]
+        assert set(schema["properties"]) == {"user_id", "display_name", "role", "joined_at"}
+        assert set(schema["required"]) == {"user_id", "display_name", "role", "joined_at"}
+        assert {"type": "null"} in schema["properties"]["display_name"]["anyOf"]
 
 
 class TestCreateSanpoMapResponses:

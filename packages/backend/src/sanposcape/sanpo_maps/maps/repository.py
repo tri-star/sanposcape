@@ -3,7 +3,7 @@ import zlib
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, and_, case, func, select, update
+from sqlalchemy import Select, and_, case, delete, func, select, update
 from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from sanposcape.sanpo_maps.models import (
     SanpoMapIcon,
     SanpoMapMember,
 )
+from sanposcape.users.models import User
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`photos/repository.py`
 #: の `_PIN_PHOTO_UPLOAD_LOCK_NAMESPACE` とは別の固定値にする（衝突回避, ADR-009 決定27）。
@@ -27,6 +28,18 @@ _SANPO_MAP_OWNER_LOCK_NAMESPACE = zlib.crc32(b"sanposcape.sanpo_maps.owner") & 0
 
 #: `promote_latest_to_default()` が候補を選び直す回数の上限（無限ループ防止）。
 _PROMOTE_MAX_ATTEMPTS = 10
+
+
+@dataclass(frozen=True)
+class SanpoMapMemberRow:
+    """`list_members()` の1行（ADR-009 決定38）。`display_name` は `users.display_name`
+    （未設定は None）。メールアドレス・`photo_url` は他のメンバーに渡さないので取り出さない。
+    """
+
+    user_id: uuid.UUID
+    display_name: str | None
+    role: str
+    joined_at: datetime
 
 
 @dataclass(frozen=True)
@@ -239,6 +252,59 @@ class SanpoMapRepository:
         """
         sanpo_map.icon = icon.value
         self._db.flush()
+
+    def list_members(self, sanpo_map_id: uuid.UUID) -> list[SanpoMapMemberRow]:
+        """地図のメンバーを owner → 参加日時の古い順 → `user_id` の順で返す（ADR-009 決定38）。
+
+        **認可済みの ID を受け取る**（呼び出し側で member 判定を済ませる）。件数は招待の
+        上限（メンバー 10 人）で抑えられるのでページングしない。
+        """
+        stmt = (
+            select(
+                SanpoMapMember.user_id,
+                User.display_name,
+                SanpoMapMember.role,
+                SanpoMapMember.created_at,
+            )
+            .join(User, User.id == SanpoMapMember.user_id)
+            .where(SanpoMapMember.sanpo_map_id == sanpo_map_id)
+            .order_by(
+                case((SanpoMapMember.role == "owner", 0), else_=1),
+                SanpoMapMember.created_at,
+                SanpoMapMember.user_id,
+            )
+        )
+        return [
+            SanpoMapMemberRow(
+                user_id=row.user_id,
+                display_name=row.display_name,
+                role=row.role,
+                joined_at=row.created_at,
+            )
+            for row in self._db.execute(stmt)
+        ]
+
+    def get_member_role(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> str | None:
+        """指定した利用者のその地図での role（member でなければ None）。
+
+        **認可済みの ID を受け取る**（`DELETE /sanpo-maps/{id}/members/{user_id}` で、呼び出し側が
+        地図の行を `get_membership_for_update()` でロックした後に対象を引く）。
+        """
+        stmt = select(SanpoMapMember.role).where(
+            SanpoMapMember.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id
+        )
+        return self._db.scalars(stmt).first()
+
+    def delete_member(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        """メンバーの行だけを消す（ADR-009 決定38）。その人が追加したピン・写真・タグは
+        作成者の FK が `users` を向いているので消えない（地図に残る）。
+        **認可済みの ID を受け取る**。
+        """
+        self._db.execute(
+            delete(SanpoMapMember).where(
+                SanpoMapMember.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id
+            )
+        )
 
     def delete(self, sanpo_map: SanpoMap) -> None:
         """地図を削除する。子（`sanpo_map_members`/`pins` 等）は DB の `ON DELETE CASCADE`

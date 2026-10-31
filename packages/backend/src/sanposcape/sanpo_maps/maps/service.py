@@ -3,18 +3,31 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError, SanpoMapPermissionDeniedError
+from sanposcape.sanpo_maps.exceptions import (
+    SanpoMapMemberNotFoundError,
+    SanpoMapNotFoundError,
+    SanpoMapOwnerCannotLeaveError,
+    SanpoMapPermissionDeniedError,
+)
 from sanposcape.sanpo_maps.maps.mappers import to_sanpo_map_read
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
 from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapCreate,
     SanpoMapListRead,
+    SanpoMapMemberListRead,
+    SanpoMapMemberRead,
     SanpoMapRead,
     SanpoMapTagListRead,
     SanpoMapTagRead,
     SanpoMapUpdate,
 )
-from sanposcape.sanpo_maps.permissions import can_delete_sanpo_map, can_update_sanpo_map
+from sanposcape.sanpo_maps.permissions import (
+    can_delete_sanpo_map,
+    can_leave_sanpo_map,
+    can_list_sanpo_map_members,
+    can_remove_sanpo_map_member,
+    can_update_sanpo_map,
+)
 from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner, flatten_photo_keys
 from sanposcape.users.models import User
 
@@ -28,8 +41,8 @@ class SanpoMapService:
     集計・写真キー収集は `SanpoMapRepository`、S3 の後始末は `PhotoObjectCleaner` を使う
     （ADR-011）。
 
-    トランザクション境界（commit）: `list_maps`/`list_tags` は読み取り専用なので commit しない。
-    `create_map`/`update_map`/`delete_map` は自分で commit する。
+    トランザクション境界（commit）: `list_maps`/`list_tags`/`list_members` は読み取り専用なので
+    commit しない。`create_map`/`update_map`/`delete_map`/`remove_member` は自分で commit する。
     """
 
     def __init__(
@@ -87,6 +100,72 @@ class SanpoMapService:
         )
         return SanpoMapTagListRead(
             items=[SanpoMapTagRead(label=row.label, pin_count=row.pin_count) for row in rows]
+        )
+
+    def list_members(self, current_user: User, sanpo_map_id: uuid.UUID) -> SanpoMapMemberListRead:
+        """`GET /sanpo-maps/{sanpo_map_id}/members`: 地図のメンバーを返す（ADR-009 決定38）。
+
+        member（owner / editor）なら可。非メンバー・存在しない ID は区別せず 404（決定9・21）。
+        """
+        membership = self._repository.get_membership(
+            user_id=current_user.id, sanpo_map_id=sanpo_map_id
+        )
+        if membership is None:
+            raise SanpoMapNotFoundError()
+        _sanpo_map, role = membership
+        if not can_list_sanpo_map_members(role):
+            raise SanpoMapPermissionDeniedError()
+        rows = self._repository.list_members(sanpo_map_id)
+        return SanpoMapMemberListRead(
+            items=[
+                SanpoMapMemberRead(
+                    user_id=row.user_id,
+                    display_name=row.display_name,
+                    role=row.role,
+                    joined_at=row.joined_at,
+                )
+                for row in rows
+            ]
+        )
+
+    def remove_member(
+        self, current_user: User, sanpo_map_id: uuid.UUID, target_user_id: uuid.UUID
+    ) -> None:
+        """`DELETE /sanpo-maps/{sanpo_map_id}/members/{user_id}`: owner が他のメンバーを外す、
+        または editor が自分で抜ける（ADR-009 決定38）。
+
+        判定順は「member（404）→ 自分か他人か → 権限（403/409）→ 対象（404）」。
+        地図の行を `FOR UPDATE` でロックし、招待の受諾・地図の削除と直列化する。
+        消すのはメンバーの行だけで、その人が追加したピン・写真・タグは地図に残る
+        （写真の容量も本人に計上したまま）。
+        """
+        membership = self._repository.get_membership_for_update(
+            user_id=current_user.id, sanpo_map_id=sanpo_map_id
+        )
+        if membership is None:
+            raise SanpoMapNotFoundError()
+        _sanpo_map, role = membership
+
+        leaving = target_user_id == current_user.id
+        if leaving:
+            if not can_leave_sanpo_map(role):
+                raise SanpoMapOwnerCannotLeaveError()
+        else:
+            if not can_remove_sanpo_map_member(role):
+                raise SanpoMapPermissionDeniedError()
+            if (
+                self._repository.get_member_role(sanpo_map_id=sanpo_map_id, user_id=target_user_id)
+                is None
+            ):
+                raise SanpoMapMemberNotFoundError()
+
+        self._repository.delete_member(sanpo_map_id=sanpo_map_id, user_id=target_user_id)
+        self._db.commit()
+        logger.info(
+            "Sanpo map member removed: sanpo_map_id=%s target_user_id=%s by user_id=%s",
+            sanpo_map_id,
+            target_user_id,
+            current_user.id,
         )
 
     def create_map(self, current_user: User, payload: SanpoMapCreate) -> SanpoMapRead:
