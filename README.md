@@ -37,7 +37,7 @@
     - [ADR-M-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)
     - [ADR-M-010 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送](./packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
     - [ADR-M-011 ピンの位置の選択と調整](./packages/mobile/adr/ADR-M-011-pin-location-picking-and-adjustment.md)
-    - [ADR-M-012 登録済みピンの地図表示とピン詳細（ピン詳細の住所。SS-212 追補。ピンのクラスタ表示。SS-243 追補）](./packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md)
+    - [ADR-M-012 登録済みピンの地図表示とピン詳細（ピン詳細の住所。SS-212 追補。ピンのクラスタ表示。SS-243 追補。ピン詳細の情報カード・住所のコピー・ピンの場所への移動。SS-246 追補）](./packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md)
     - [ADR-M-013 ピンのタグ入力の候補。登録画面に最寄り駅のタグを入れておく（SS-225 追補）](./packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)
     - [ADR-M-014 地図一覧と地図詳細](./packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md)
     - [ADR-M-015 アプリアイコンのアセットとAndroid Adaptive Icon、開発用DEV帯](./packages/mobile/adr/ADR-M-015-app-icon-assets.md)
@@ -161,6 +161,7 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > **SS-10（認証まわりのネイティブ依存を追加）・SS-199（expo-apple-authentication の追加。iOS）・SS-15（expo-location の追加・Maps キー注入）・
 > SS-70（expo-crypto の追加）・SS-88（expo-image-picker / expo-image-manipulator /
 > expo-file-system の追加。ピン登録機能）・SS-156（expo-task-manager の追加と expo-location プラグイン設定の変更。
-> 散歩中の背景位置記録）・SS-157（iOS: 位置情報の利用目的文言。Android: 通知権限 `POST_NOTIFICATIONS` の宣言）適用後は development build の作り直しが必要**
+> 散歩中の背景位置記録）・SS-157（iOS: 位置情報の利用目的文言。Android: 通知権限 `POST_NOTIFICATIONS` の宣言）・
+> SS-246（expo-clipboard の追加。ピン詳細の住所のコピー）適用後は development build の作り直しが必要**
 > （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。

@@ -46,7 +46,7 @@ type PinMapCanvasCommonProps = {
   currentLocation: GeoCoordinates | null;
   /** nonce が変わるたびに target へ animateToRegion する（WalkRouteMapView の recenterNonce と同じ考え方）。 */
   focusRequest: PinMapFocusRequest | null;
-  /** nonce が変わるたびに、その表示範囲へ animateToRegion する（ピンのクラスタのタップ。SS-243）。 */
+  /** nonce が変わるたびに、その表示範囲へ animateToRegion する（ピンのクラスタのタップ（SS-243）・ピン詳細の「ピンの場所に移動」（SS-246））。 */
   regionRequest?: MapRegionRequest | null;
   /**
    * `MapView` の子として描く追加レイヤー。増減するレイヤーなので `MapView` の
@@ -109,10 +109,15 @@ export function PinMapCanvas({
   }, [focusRequest]);
 
   const lastRegionNonceRef = useRef<number | null>(null);
+  // 動き終わる（`onRegionChangeComplete`）前の要求。画面がスタックの下にある間は地図が切り離されていて
+  // `animateToRegion` が捨てられる（Android。ピン詳細の「ピンの場所に移動」で、戻る遷移の途中に要求が届く。SS-246）ので、
+  // その後の `onMapReady`（戻ったときに呼ばれ直す）でもう一度動かす。
+  const pendingRegionRef = useRef<MapRegion | null>(null);
   useEffect(() => {
     if (regionRequest === null) return;
     if (lastRegionNonceRef.current === regionRequest.nonce) return;
     lastRegionNonceRef.current = regionRequest.nonce;
+    pendingRegionRef.current = regionRequest.region;
     mapRef.current?.animateToRegion(regionRequest.region, FOCUS_ANIMATION_MS);
   }, [regionRequest]);
 
@@ -122,6 +127,7 @@ export function PinMapCanvas({
   };
 
   const handleRegionChangeComplete = (region: MapRegion) => {
+    pendingRegionRef.current = null;
     const sanitized = sanitizeMapRegion(region);
     if (sanitized === null) return;
     headingBeam.onMapRegion(sanitized);
@@ -167,6 +173,9 @@ export function PinMapCanvas({
         // マーカーのタップでカメラを動かさない（登録済みピンはタップで詳細へ移るため。SS-118）。
         moveOnMarkerPress={false}
         onMapReady={() => {
+          if (pendingRegionRef.current !== null) {
+            mapRef.current?.animateToRegion(pendingRegionRef.current, FOCUS_ANIMATION_MS);
+          }
           if (hasReportedInitialRegion.current) return;
           hasReportedInitialRegion.current = true;
           handleRegionChangeComplete(initialRegion);
