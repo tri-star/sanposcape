@@ -143,7 +143,7 @@ function withInvitationLinks(
         {
           action: "VIEW",
           autoVerify: true,
-          data: [{ scheme: "https", host, pathPrefix: "/i" }],
+          data: [{ scheme: "https", host, pathPrefix: "/i/" }],
           category: ["BROWSABLE", "DEFAULT"],
         },
       ],

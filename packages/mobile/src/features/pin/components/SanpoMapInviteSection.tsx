@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, Share, Text, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
@@ -30,14 +30,19 @@ export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInvi
   const theme = useTheme();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
+  const resetCreateRef = useRef<() => void>(() => {});
   const invitations = useSanpoMapInvitations(sanpoMapId, {
     enabled: true,
     onCreated: (created) => {
       setOpen(false);
-      void Share.share({ message: invitationShareMessage({ sanpoMapName, url: created.url }) });
+      const message = invitationShareMessage({ sanpoMapName, url: created.url });
+      // 発行の応答（トークン入りの URL）を mutation の状態に残さない（台帳 3.8）。
+      resetCreateRef.current();
+      void Share.share({ message });
     },
   });
   const { resetCreate } = invitations;
+  resetCreateRef.current = resetCreate;
   const close = () => {
     if (invitations.creating) return;
     setOpen(false);
