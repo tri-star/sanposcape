@@ -214,7 +214,7 @@ SS-171 で `icon`（`GET/POST/PATCH /sanpo-maps`）を追加した（ルート A
   - owner は自分以外の行に「外す」、editor は下部に「この地図から抜ける」。どちらも確認ダイアログ（`SanpoMapMemberRemoveDialog`。`PinDeleteDialog` と同じ構成）で、追加したピン・写真・タグが地図に残ることを伝える。
   - 抜けた地図の詳細は 404 になるので、`router.dismissTo("/sanpo-maps")` で地図一覧まで戻し、フラッシュメッセージ「『…』から抜けました」を地図一覧で出す（`SanpoMapListView` も `consumeFlashMessage` を呼ぶようにした）。
   - 404 は成功として扱う（もう抜けている・外されている。`removeSanpoMapMember`）。抜けたときはピンと地図一覧を取り直し、メンバーのキャッシュは消さない（画面が付いている間に消すと取り直して 404 を踏む）。
-  - ルートはピン登録のフラグでガードし、`map_invitation` は画面に渡す。owner がフラグ OFF で直接開いたときは「この機能はまだ使えません」を出す（`Redirect` にしないのは、`useFeatureFlag` が読み込み中を OFF と区別できず、editor の役割も地図一覧を読むまで分からないため）。
+  - ルートはピン登録のフラグでガードし、`map_invitation` は画面に渡す。owner がフラグ OFF で直接開いたときは「この機能はまだ使えません」を出す（`Redirect` にしないのは、フラグ OFF でも editor なら開けるようにしており、editor かどうかは地図一覧を読むまで分からず、ルートでは決められないため）。
 - **アイコンのタップでの変更**: 「アイコンを変更」ボタンをやめ、情報カードのアイコンそのもの（`Pressable`）を押すとダイアログを開く。owner にだけ右下に小さなペンのバッジを出す（editor は押せる形を見せない）。
   メンバーの行を足した分、カードが縦に伸びすぎないようにするため（画面案でユーザーが決めた）。
   - 読み上げのラベル（`sanpoMapIconChangeLabel`。現在のアイコンの表示名を含む）と testID `sanpo-map-detail-change-icon` はボタンと同じにしたので、E2E（`.maestro/sanpo-map-list.yaml`）は変えずに通る。
