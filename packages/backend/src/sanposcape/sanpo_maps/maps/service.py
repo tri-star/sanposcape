@@ -159,13 +159,15 @@ class SanpoMapService:
             ):
                 raise SanpoMapMemberNotFoundError()
 
+        # commit の後に ORM の属性を読むと再 SELECT が走るので、ログに使う値は先に控える。
+        actor_user_id = current_user.id
         self._repository.delete_member(sanpo_map_id=sanpo_map_id, user_id=target_user_id)
         self._db.commit()
         logger.info(
             "Sanpo map member removed: sanpo_map_id=%s target_user_id=%s by user_id=%s",
             sanpo_map_id,
             target_user_id,
-            current_user.id,
+            actor_user_id,
         )
 
     def create_map(self, current_user: User, payload: SanpoMapCreate) -> SanpoMapRead:
