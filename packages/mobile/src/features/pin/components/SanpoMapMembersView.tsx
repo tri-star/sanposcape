@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -68,6 +68,9 @@ export function SanpoMapMembersView({
   const toast = useToast();
   const { show: showToast } = toast;
   const [target, setTarget] = useState<RemoveTarget>(null);
+  // 抜けた後の遷移も「戻る以外の遷移」なので二重発火ラッチ（`useScreenBack` の runOnce）を通す。
+  // `back` は確認ダイアログの状態に依存して下で作るので、ref 経由で呼ぶ。
+  const runOnceRef = useRef<((navigate: () => void) => void) | null>(null);
 
   const removal = useSanpoMapMemberRemove(sanpoMapId, {
     currentUserId,
@@ -77,7 +80,9 @@ export function SanpoMapMembersView({
       if (leaving) {
         // 抜けた地図の詳細には戻れない（404 になる）ので、地図一覧まで戻ってそこで知らせる。
         setFlashMessage(sanpoMapLeftMessage(map?.name ?? ""));
-        router.dismissTo("/sanpo-maps");
+        const navigate = () => router.dismissTo("/sanpo-maps");
+        if (runOnceRef.current) runOnceRef.current(navigate);
+        else navigate();
         return;
       }
       showToast(sanpoMapMemberRemovedMessage(removedName));
@@ -98,6 +103,7 @@ export function SanpoMapMembersView({
       return true;
     },
   });
+  runOnceRef.current = back.runOnce;
 
   const { refresh: refreshMembers } = members;
   const { refresh: refreshMaps } = maps;
