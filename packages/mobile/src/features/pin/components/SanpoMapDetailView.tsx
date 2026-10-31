@@ -138,8 +138,11 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const members = useSanpoMapMembers(sanpoMapId, { enabled: isSignedIn && showMembers });
   const handleOpenMembers = useCallback(() => {
     if (sanpoMapId === null) return;
-    router.push({ pathname: "/sanpo-maps/[sanpoMapId]/members", params: { sanpoMapId } });
-  }, [router, sanpoMapId]);
+    // 戻る以外でこの画面から出る遷移なので二重発火ラッチを通す（ピンのタップと同じ）。
+    back.runOnce(() =>
+      router.push({ pathname: "/sanpo-maps/[sanpoMapId]/members", params: { sanpoMapId } }),
+    );
+  }, [back, router, sanpoMapId]);
 
   const [query, setQuery] = useState("");
   // 最大 1000 件でも入力が引っかからないよう、絞り込みは遅延した値で行う。
