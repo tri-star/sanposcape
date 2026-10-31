@@ -399,3 +399,75 @@ class TestPurgeStale:
         assert deleted == 1
         remaining = {str(row.id) for row in db_session.scalars(select(SanpoMapInvitation))}
         assert remaining == {ids[1], ids[2]}
+
+
+class TestTokenIsNotLogged:
+    def test_create_preview_accept_logs_do_not_contain_token(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+        test_settings: Settings,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """発行・preview・受諾のどのログにもトークンが出ない（ログを読める人が招待を使えないように。
+        台帳 3.8・ADR-009 決定39）。
+        """
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        caplog.set_level("DEBUG")
+        token = create_invitation(sanpo_maps_client, sanpo_map_id, auth_headers)["token"]
+        guest = headers_for(make_user(db_session, subject="guest"), test_settings)
+        sanpo_maps_client.post("/invitations/preview", json={"token": token})
+        sanpo_maps_client.post("/invitations/accept", json={"token": token}, headers=guest)
+
+        assert caplog.records
+        assert token not in caplog.text
+
+
+class TestAuthorizationBoundaries:
+    def test_non_member_cannot_list_or_revoke(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+        test_settings: Settings,
+    ) -> None:
+        """非メンバーは一覧・取り消しとも 404（地図の存在も分からない）。"""
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        created = create_invitation(sanpo_maps_client, sanpo_map_id, auth_headers)
+        stranger = headers_for(make_user(db_session, subject="stranger"), test_settings)
+
+        listed = sanpo_maps_client.get(f"/sanpo-maps/{sanpo_map_id}/invitations", headers=stranger)
+        revoked = sanpo_maps_client.delete(
+            f"/sanpo-maps/{sanpo_map_id}/invitations/{created['id']}", headers=stranger
+        )
+
+        assert [listed.status_code, revoked.status_code] == [404, 404]
+
+    def test_cannot_revoke_other_maps_invitation_through_own_map(
+        self,
+        sanpo_maps_client: TestClient,
+        auth_headers: dict[str, str],
+        authenticated_user: User,
+        db_session: Session,
+        test_settings: Settings,
+    ) -> None:
+        """自分の地図の ID に他人の地図の招待 ID を付けても取り消せない（404。招待は残る）。"""
+        own_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        other = make_user(db_session, subject="other-owner")
+        other_map_id = make_sanpo_map(db_session, owner_user_id=other.id)
+        other_invitation = create_invitation(
+            sanpo_maps_client, other_map_id, headers_for(other, test_settings)
+        )
+
+        response = sanpo_maps_client.delete(
+            f"/sanpo-maps/{own_map_id}/invitations/{other_invitation['id']}", headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        db_session.expire_all()
+        assert (
+            db_session.get(SanpoMapInvitation, uuid.UUID(other_invitation["id"])).revoked_at is None
+        )
