@@ -22,11 +22,16 @@
     "pin_station_tag": {
       "name": "pin station tag",
       "description": "ピンの登録画面で、最寄り駅の名前のタグを最初から入れておく（SS-225）"
+    },
+    "map_invitation": {
+      "name": "map invitation",
+      "description": "地図への招待（SS-90）。地図詳細のメンバーの行・メンバー画面・招待の導線を出し分ける"
     }
   },
   "values": {
     "client_requirements": { "enabled": true },
     "pin_registration": { "enabled": false },
-    "pin_station_tag": { "enabled": false }
+    "pin_station_tag": { "enabled": false },
+    "map_invitation": { "enabled": false }
   }
 }
