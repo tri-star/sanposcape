@@ -618,7 +618,7 @@ main の LP をデプロイするとポリシーが 1.0.0 と食い違うため�
 - **`/i/` は静的なページ（`src/pages/i/index.astro`）。トークンを検証せず、招待の中身も出さない。** 説明・App Store への案内・「アプリで開く」（custom scheme）だけ。トークンは fragment にあるのでサーバーに届かない。noindex で sitemap からも外す。
   - 「アプリで開く」の href は外部の JS（Astro の `<script>`。`_astro/` に出るので CSP に反しない）が fragment から `sanposcape://invite?t=` を組み立てる。base64url 以外の値は載せない。
   - 却下: path 方式（`/i/<token>`）。CloudFront の関数が `/i/<token>` を 301 → 404 にするので infra の変更が要り、トークンがアクセスログに残る。
-- **`.well-known` は `public/` に置かず、ビルド後のスクリプト（`scripts/write-well-known.mjs`）が `PUBLIC_LP_ENV` で出し分ける。** 本番と開発用でアプリ識別子が違うため。assetlinks.json は値のある環境だけ出す。
+- **`.well-known` は `public/` に置かず、ビルド後のスクリプト（`packages/lp/scripts/write-well-known.mjs`）が `PUBLIC_LP_ENV` で出し分ける。** 本番と開発用でアプリ識別子が違うため。assetlinks.json は値のある環境だけ出す。
 - **AASA は拡張子が無く `aws s3 sync` では `binary/octet-stream` になり、CloudFront の `nosniff` で iOS が読めない。** `lp-deploy.yml` で sync（3回とも）から外し、`aws s3 cp --content-type application/json` で上げる。`lp-ci.yml` が dist に JSON として入っていることを確かめる。
 
 ### 影響
