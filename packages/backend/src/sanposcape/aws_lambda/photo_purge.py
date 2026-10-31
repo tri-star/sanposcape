@@ -1,5 +1,9 @@
 """アカウント削除後の写真を S3 から消す Lambda ハンドラ（SS-109 / ADR-009 決定36）。
 
+あわせて、使い終わった地図の招待（参加・取り消し・期限切れから 30 日）の行を消す（SS-250 /
+ADR-009 決定39）。日次の実行を別に作らず相乗りさせ、写真の削除の成否とは独立に行う
+（招待の掃除の失敗はログに出して実行を失敗にするが、写真の削除の結果は先に確定させる）。
+
 EventBridge Scheduler から1日1回呼ばれ、保持期間を過ぎた削除予約（`account_photo_purges`）に
 ついて、利用者の写真の prefix を S3 から消す（`AccountPhotoPurgeService`）。API 本体・migrate と
 同じビルド成果物（同じ CodeUri）の別ハンドラ。`create_app()` を通らないので、シークレットの
@@ -23,6 +27,7 @@ from sanposcape.core.observability import configure_logging
 from sanposcape.core.runtime_config import hydrate_environment_from_secret
 from sanposcape.database import get_session_factory
 from sanposcape.integrations.aws.s3 import build_object_storage
+from sanposcape.sanpo_maps.invitations.purge import purge_stale_invitations
 from sanposcape.sanpo_maps.photos.account_purge import build_account_photo_purge_service
 
 logger = logging.getLogger(__name__)
@@ -52,6 +57,11 @@ def handler(event: dict[str, Any], context: object) -> dict[str, int]:
 
     summary = asdict(result)
     logger.info("Account photo purge finished: %s", summary)
+
+    with get_session_factory()() as db:
+        purged_invitations = purge_stale_invitations(db, url_base=settings.invitation_url_base)
+    logger.info("Stale sanpo map invitations purged: %s", purged_invitations)
+
     if result.failed:
         raise AccountPhotoPurgeIncompleteError(
             f"{result.failed} of {result.due} due accounts could not be purged; "
