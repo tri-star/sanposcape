@@ -79,10 +79,12 @@ const appStoreUrl = "https://apps.apple.com/jp/app/sanposcape/id6823866201";
   const open = document.querySelector<HTMLAnchorElement>("[data-invite-open]");
   if (valid && open && available) {
     const query = `t=${encodeURIComponent(token)}`;
+    // アプリが無いとき、Play ストアのページ（未公開だと「見つかりません」）ではなくこのページ（トークン無し）に戻す。
+    const fallbackUrl = `${window.location.origin}${window.location.pathname}`;
     // Android は intent:// でパッケージを指定し、同じ scheme を名乗る別のアプリにトークンを渡さない。
     // iOS は custom scheme の重複を防げない（受け入れた危険。ADR-M-024 D7）。
     open.href = /Android/i.test(navigator.userAgent)
-      ? `intent://invite?${query}#Intent;scheme=${scheme};package=${androidPackage};end`
+      ? `intent://invite?${query}#Intent;scheme=${scheme};package=${androidPackage};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
       : `${scheme}://invite?${query}`;
     available.hidden = false;
   } else if (missing) {

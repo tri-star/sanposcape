@@ -66,6 +66,8 @@ export function useSanpoMapInvitations(
       creatingRef.current = false;
     },
     retry: false,
+    // 発行の応答（トークン入りの URL）を MutationCache に残さない（台帳 3.8「共有シートに渡したら持たない」）。
+    gcTime: 0,
   });
 
   const revokeMutation = useMutation({
