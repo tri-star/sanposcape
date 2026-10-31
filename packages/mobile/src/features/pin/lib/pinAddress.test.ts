@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   PIN_ADDRESS_LOADING_LABEL,
   PIN_ADDRESS_UNAVAILABLE_LABEL,
+  pinAddressCopyText,
   pinAddressText,
   toPinAddress,
 } from "@/features/pin/lib/pinAddress";
@@ -50,5 +51,24 @@ describe("pinAddressText", () => {
   it("住所が無い・失敗は「-」", () => {
     expect(pinAddressText({ status: "unavailable", address: null })).toBe("-");
     expect(PIN_ADDRESS_UNAVAILABLE_LABEL).toBe("-");
+  });
+});
+
+describe("pinAddressCopyText", () => {
+  it("住所が取れていれば、表示と同じ文字列（建物名付き）", () => {
+    const address = { address: "東京都千代田区丸の内2丁目4-1", buildingName: "丸ビル" };
+    expect(pinAddressCopyText({ status: "ready", address })).toBe(
+      pinAddressText({ status: "ready", address }),
+    );
+    expect(pinAddressCopyText({ status: "ready", address })).toBe(
+      "東京都千代田区丸の内2丁目4-1 丸ビル",
+    );
+  });
+
+  it("取得中・住所が無いときは null（案内や「-」をコピーさせない）", () => {
+    const address = { address: "東京都渋谷区", buildingName: null };
+    expect(pinAddressCopyText({ status: "loading", address })).toBeNull();
+    expect(pinAddressCopyText({ status: "ready", address: null })).toBeNull();
+    expect(pinAddressCopyText({ status: "unavailable", address: null })).toBeNull();
   });
 });

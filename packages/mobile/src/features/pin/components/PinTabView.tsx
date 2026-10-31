@@ -16,9 +16,10 @@ import { PinMapStatusNotice } from "@/features/pin/components/PinMapStatusNotice
 import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
-import { buildPinNewRouteParams } from "@/features/pin/lib/pinLocationPicker";
+import { buildPinNewRouteParams, regionAroundPoint } from "@/features/pin/lib/pinLocationPicker";
 import { isDefaultPinMapFilter } from "@/features/pin/lib/pinMapFilter";
 import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
+import type { PinTabFocus } from "@/features/pin/lib/pinTabFocus";
 import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore";
 import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { useToast } from "@/hooks/useToast";
@@ -32,6 +33,8 @@ export type PinTabViewProps = {
   /** ルート（`app/(tabs)/pins.tsx`）が `useAuthSessionStore` から注入する（features/pin は認証を読まない。ADR-M-009 決定8）。 */
   isSignedIn: boolean;
   onSignIn: () => void;
+  /** ピン詳細の「ピンの場所に移動」から来たときの寄せる要求（SS-246）。ルートがパラメータを検証して渡す。 */
+  focus?: PinTabFocus | null;
 };
 
 const PIN_TAB_HINT =
@@ -51,8 +54,10 @@ const PIN_TAB_HINT =
  * - 表示するピンの絞り込み（SS-174）は地図右上のツール列の `PinMapFilterControl` から。状態は散歩中の地図と共有する
  *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。
  * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
+ * - ピン詳細の「ピンの場所に移動」（`focus`。SS-246）は、地図がまだ無ければ最初の表示範囲にし（現在地の取得を待たない）、
+ *   地図があれば `regionRequest` で動かす。`focus.key` ごとに1回だけ。
  */
-export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
+export function PinTabView({ isSignedIn, onSignIn, focus = null }: PinTabViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -62,6 +67,22 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
   const [visibleRegion, setVisibleRegion] = useState<MapRegion | null>(null);
   const [regionRequest, setRegionRequest] = useState<MapRegionRequest | null>(null);
   const picker = usePinLocationPicker();
+
+  // 地図の最初の表示範囲。ピン詳細から寄せる要求があればそこ、無ければ現在地起点（picker）。
+  // 「一度だけ確定」はレンダー中の state 調整で行う（`usePinLocationPicker` と同じ。effect にすると1フレーム遅れる）。
+  const [mapStartRegion, setMapStartRegion] = useState<MapRegion | null>(null);
+  const [handledFocusKey, setHandledFocusKey] = useState<string | null>(null);
+  if (focus !== null && focus.key !== handledFocusKey) {
+    setHandledFocusKey(focus.key);
+    const region = regionAroundPoint(focus.target);
+    if (mapStartRegion === null) {
+      setMapStartRegion(region);
+    } else {
+      setRegionRequest((previous) => ({ region, nonce: (previous?.nonce ?? 0) + 1 }));
+    }
+  } else if (mapStartRegion === null && picker.startRegion !== null) {
+    setMapStartRegion(picker.startRegion);
+  }
   const pinFilter = usePinMapFilterStore((state) => state.filter);
   const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn, filter: pinFilter });
   const notice = resolvePinMapNotice({
@@ -125,7 +146,7 @@ export function PinTabView({ isSignedIn, onSignIn }: PinTabViewProps) {
           testIDPrefix="pin-tab"
           accessibilityLabel="ピンの地図"
           accessibilityHint={PIN_TAB_HINT}
-          initialRegion={picker.startRegion}
+          initialRegion={mapStartRegion}
           pickGesture="long-press"
           onPick={handlePick}
           selectedLocation={null}
