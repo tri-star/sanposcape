@@ -479,7 +479,9 @@ class TestAuthorizationBoundaries:
 
 class TestRateLimit:
     def test_preview_is_rate_limited(self, sanpo_maps_client: TestClient) -> None:
-        """preview は IP 単位のレート制限を超えると 429（トークンの総当たりとログ・コストの保護）。"""
+        """preview は IP 単位のレート制限を超えると 429
+        （トークンの総当たりとログ・コストの保護）。
+        """
         limiter = ExploreRateLimiter(1, 1, 60)
         app.dependency_overrides[get_invitation_rate_limiter] = lambda: limiter
         try:

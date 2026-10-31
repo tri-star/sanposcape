@@ -9,6 +9,8 @@ hex だけを保存する。作った人の削除で CASCADE、参加した人�
 注意:
 - デプロイは migrate → コードの順（テーブルが無いまま招待の API が動くと UndefinedTable で 500）。
   フラグ `map_invitation` は OFF のままなので、migrate が遅れても利用者には届かない。
+  ただし日次の Lambda（photo_purge）の招待の掃除はフラグでガードしないので、migrate の前に日次の実行（JST 04:00）が
+  来ると UndefinedTable で失敗してアラームが鳴る。migrate はデプロイの直後に行う。
 - downgrade は招待の行を失う（出したリンクが使えなくなる）。
 
 Revision ID: dd97ef20772e
