@@ -9,8 +9,11 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SANPO_MAP_TAG_LIST_DEFAULT_LIMIT,
     SANPO_MAP_TAG_LIST_MAX_LIMIT,
     SanpoMapCreate,
+    SanpoMapLeaveConflictErrorRead,
     SanpoMapListQuery,
     SanpoMapListRead,
+    SanpoMapMemberListRead,
+    SanpoMapMemberNotFoundErrorRead,
     SanpoMapRead,
     SanpoMapTagListRead,
     SanpoMapUpdate,
@@ -148,3 +151,59 @@ def list_sanpo_map_tags(
     地図の member（owner・editor）なら呼べる。非メンバー・存在しない ID は 404。
     """
     return service.list_tags(current_user, sanpo_map_id, limit=limit)
+
+
+@router.get(
+    "/{sanpo_map_id}/members",
+    response_model=SanpoMapMemberListRead,
+    operation_id="list_sanpo_map_members",
+    responses={
+        **_ERROR_RESPONSES,
+        404: {"description": "Sanpo map not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def list_sanpo_map_members(
+    sanpo_map_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: SanpoMapService = Depends(get_sanpo_map_service),
+) -> SanpoMapMemberListRead:
+    """地図のメンバーを返す（owner → 参加日時の古い順）。
+
+    各要素は利用者の ID・表示名（未設定は null）・役割・参加日時だけで、メールアドレスや
+    プロフィール画像は返さない。地図の member（owner・editor）なら呼べる。非メンバー・
+    存在しない ID は 404。
+    """
+    return service.list_members(current_user, sanpo_map_id)
+
+
+@router.delete(
+    "/{sanpo_map_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="remove_sanpo_map_member",
+    responses={
+        **_ERROR_RESPONSES,
+        403: {"description": "Permission denied"},
+        404: {
+            "model": SanpoMapMemberNotFoundErrorRead,
+            "description": "Sanpo map not found, or the user is not a member",
+        },
+        409: {"model": SanpoMapLeaveConflictErrorRead, "description": "Owner cannot leave"},
+        422: {"description": "Validation error"},
+    },
+)
+def remove_sanpo_map_member(
+    sanpo_map_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: SanpoMapService = Depends(get_sanpo_map_service),
+) -> None:
+    """メンバーを地図から外す。自分の ID を指定すると、自分が地図から抜ける。
+
+    owner は他のメンバーを外せる（editor が他人を指定すると 403）。editor は自分だけ抜けられ、
+    owner が自分を指定すると 409（`owner_cannot_leave`）。呼んだ人が非メンバー・存在しない地図は
+    404（`sanpo_map_not_found`）、owner が指定した相手が member でなければ 404
+    （`sanpo_map_member_not_found`）。外した人・抜けた人が追加したピン・写真・タグは地図に残る。
+    非冪等（抜けた後の再送は 404）。
+    """
+    service.remove_member(current_user, sanpo_map_id, user_id)

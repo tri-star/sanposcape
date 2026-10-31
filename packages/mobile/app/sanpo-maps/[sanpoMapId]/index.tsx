@@ -9,6 +9,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 /**
  * 地図詳細（`/sanpo-maps/[sanpoMapId]`。SS-121）。地図一覧の行から push。
  * `index` は静的ルートなので動的ルートと衝突しない。
+ * メンバー画面（`[sanpoMapId]/members.tsx`。SS-249）を同じ階層に置くため、`[sanpoMapId].tsx` から
+ * `[sanpoMapId]/index.tsx` に移した（pathname は変わらない。`app/pins/[pinId]/index.tsx` と同じ）。
  *
  * `sanpoMapId` は UUID 形式を確認してから渡す（`app/pins/[pinId]/index.tsx` と同じ。ディープリンクの
  * 不正値を API のパスへ到達させない。詳細は `isUuid` の JSDoc を参照）。

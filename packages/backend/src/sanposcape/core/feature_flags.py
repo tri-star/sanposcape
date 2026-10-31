@@ -97,6 +97,16 @@ FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
         ),
         audience="client",
     ),
+    FeatureFlagSpec(
+        key="map_invitation",
+        description=(
+            "地図への招待（SS-90）。mobile の地図詳細のメンバーの行・メンバー画面・"
+            "招待の導線を出し分ける。ON にするのはプライバシーポリシーの施行日"
+            "（2026-12-02）の後で、SS-192・SS-222 を済ませてから。"
+            "メンバーの一覧・脱退の API はガードしない（OFF に戻しても抜けられるように）。"
+        ),
+        audience="client",
+    ),
 )
 
 
