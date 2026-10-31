@@ -6,7 +6,6 @@ import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 /** 画面で扱う地図アイコンの値（= backend の enum。対応表は lib/sanpoMapIcon.ts）。 */
 export type SanpoMapIconKey = SanpoMapIcon;
 
-/** 画面で扱う地図（SanpoMapRead を camelCase 化）。 */
 /** 地図のメンバー（`GET /sanpo-maps/{id}/members`。SS-249）。 */
 export type SanpoMapMember = {
   userId: string;
@@ -17,6 +16,7 @@ export type SanpoMapMember = {
   joinedAt: string;
 };
 
+/** 画面で扱う地図（SanpoMapRead を camelCase 化）。 */
 export type SanpoMap = {
   id: string;
   name: string;
