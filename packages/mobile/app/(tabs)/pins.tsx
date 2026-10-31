@@ -1,7 +1,11 @@
-import { Redirect } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 
 import { PinTabView } from "@/features/pin/components/PinTabView";
+import {
+  type PinTabFocusRouteParams,
+  parsePinTabFocusParams,
+} from "@/features/pin/lib/pinTabFocus";
 import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
 import { useSignInNavigation } from "@/hooks/useSignInNavigation";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
@@ -17,6 +21,7 @@ import { useTheme } from "@/theme/useTheme";
  * 取得中（pending）は読み込み表示だけを出す（ON なのに追い出す事故を防ぎつつ、着地直後に
  * タブバーだけの空白画面にしないため）。`/app-config` の取得は失敗しても再試行後に確定する
  * （`appConfigQueryOptions` の retry）ので、読み込み表示が無期限に続くことはない。
+ * ピン詳細の「ピンの場所に移動」は、座標と `focusKey` をパラメータで渡してここへ戻る（SS-246。`parsePinTabFocusParams` で検証する）。
  */
 export default function PinTabRoute() {
   const theme = useTheme();
@@ -24,6 +29,7 @@ export default function PinTabRoute() {
   // セレクタはプリミティブを返す（zustand v5）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
   const handleSignIn = useSignInNavigation();
+  const focus = parsePinTabFocusParams(useLocalSearchParams<PinTabFocusRouteParams>());
   if (decision === "pending") {
     return (
       <View
@@ -40,5 +46,5 @@ export default function PinTabRoute() {
     );
   }
   if (decision === "disabled") return <Redirect href="/(tabs)" />;
-  return <PinTabView isSignedIn={isSignedIn} onSignIn={handleSignIn} />;
+  return <PinTabView isSignedIn={isSignedIn} onSignIn={handleSignIn} focus={focus} />;
 }

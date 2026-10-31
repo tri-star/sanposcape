@@ -39,6 +39,8 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
 - **SS-199（iOS の Sign in with Apple）の適用後は、`expo-apple-authentication` の追加と
   entitlement `com.apple.developer.applesignin` の追加が入るため development build の作り直しが必要**
   （Fast Refresh では反映されない）。iOS 実機・シミュレータで Apple ボタンを確認するときに要る。
+- **SS-246（ピン詳細の住所のコピー）の適用後は、`expo-clipboard` が新規追加されたネイティブ依存のため
+  development build の作り直しが必要**（Fast Refresh では反映されない）。
 
 ## セットアップ
 

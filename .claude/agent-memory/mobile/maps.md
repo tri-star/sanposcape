@@ -1,6 +1,6 @@
 ---
 name: maps
-description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
+description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、スタックの下にある間の animateToRegion は捨てられる（Android。onMapReady でもう一度当てる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
 metadata:
   type: feedback
   scope: durable
@@ -54,6 +54,14 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
   `SpotMapView` の周回ルート（目的地を変えると座標が変わる）は未対応。
 - エミュレータで確かめるときは、歩行の流し込みを終えて**歩数・距離が止まってから**画面を行き来する。バックグラウンドの位置はまとめて遅れて届き、行き来の最中に点が足されると修正が無くても線が直って見える。
 - `ui.sh screenshot` の画像はリポジトリの中（作業用の gitignore 対象のディレクトリ）に置かれ、Metro が拾って「Refreshing...」を出すことがある。Fast Refresh の反映は Metro のログに出ないので、修正の効果を確かめるときは `ui.sh reload` で読み込み直してから操作をやり直す。
+
+## スタックの下にある間の `animateToRegion` は捨てられる（Android。SS-246）
+
+- 上に画面が積まれている間の `MapView` は切り離されていて、そこへ呼んだ `animateToRegion` は何も起きない。戻ると `onMapReady` が呼ばれ直す。
+  ピン詳細から `router.dismissTo` でピンタブへ戻すとき、ルートパラメータの更新（→ `regionRequest` の effect）は**戻る遷移の途中**に届き、`onMapReady` はその約 190ms 後だった（ログで実測）。
+- 症状: パラメータも要求も届いているのに地図が動かない。`dismissTo` でネストしたタブにパラメータが届かないのを疑いやすいが、届いている。
+- **How to apply:** 別の画面からの操作で地図のカメラを動かす要求は、動き終わる（`onRegionChangeComplete`）まで覚えておき、`onMapReady` でもう一度当てる（`PinMapCanvas` の `pendingRegionRef`。ADR-M-012 SS-246 追補）。
+  切り分けは、要求の effect と `onMapReady` に `console.log(Date.now())` を入れて順序を見るのが早い（`ui.sh logs`）。Fast Refresh で地図が作り直されると要求が初回扱いで当たって直ったように見えるので、確かめ直すときは画面を開き直して元の手順でやる。
 
 ## 向き・回転を地図に描く（SS-169）
 

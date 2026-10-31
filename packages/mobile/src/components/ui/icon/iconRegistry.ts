@@ -28,6 +28,7 @@ import XCircle from "lucide-react-native/icons/circle-x";
 import Clock from "lucide-react-native/icons/clock";
 import CloudRain from "lucide-react-native/icons/cloud-rain";
 import Coffee from "lucide-react-native/icons/coffee";
+import Copy from "lucide-react-native/icons/copy";
 import Croissant from "lucide-react-native/icons/croissant";
 import Crosshair from "lucide-react-native/icons/crosshair";
 import ExternalLink from "lucide-react-native/icons/external-link";
@@ -91,6 +92,7 @@ export const ICONS = {
   "chevron-right": ChevronRight,
   clock: Clock,
   coffee: Coffee,
+  copy: Copy,
   croissant: Croissant,
   crosshair: Crosshair,
   "external-link": ExternalLink,

@@ -16,7 +16,7 @@ AndroidエミュレータまたはiPhone実機でdevelopment buildを起動し�
     **Expo Go は不可**（development build 必須）。
     **SS-10（認証まわりのネイティブ依存を追加）、SS-15（expo-location の追加・Maps キー注入）
     SS-70（expo-crypto の追加）、SS-156（expo-task-manager の追加・expo-location プラグイン設定の変更）、
-    SS-199（expo-apple-authentication の追加・iOS の entitlement 追加）
+    SS-199（expo-apple-authentication の追加・iOS の entitlement 追加）、SS-246（expo-clipboard の追加）
     および SS-157（iOS: 位置情報の利用目的文言＝Info.plist の変更。Android: `POST_NOTIFICATIONS` の宣言＝マニフェストの変更）適用後は development build の作り直しが必要**
     （C. 再ビルドの手順を実施すること。Fast Refresh では反映されない）。
 
