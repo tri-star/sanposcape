@@ -28,7 +28,7 @@ export type UseSanpoMapMemberRemoveResult = {
  * （`usePinDelete` と同じ形）。`leaving` は自分が抜けるかどうか（呼び出し側が判定して渡す）。
  *
  * - 外したとき: メンバーの一覧だけを取り直す。
- * - 抜けたとき: その地図にはもう触れないので、メンバー・ピンのキャッシュを捨て、地図一覧を取り直す。
+ * - 抜けたとき: その地図にはもう触れないので、ピンと地図一覧を取り直す（メンバーのキャッシュは残す）。
  */
 export function useSanpoMapMemberRemove(
   sanpoMapId: string | null,
@@ -50,8 +50,9 @@ export function useSanpoMapMemberRemove(
     onSuccess: ({ leaving }) => {
       if (sanpoMapId === null) return;
       if (leaving) {
-        queryClient.removeQueries({ queryKey: sanpoMapMembersQueryKey(sanpoMapId), exact: true });
-        // 抜けた地図のピン（地図詳細・ピンタブの地図）が見えなくなるので取り直す。
+        // メンバーのキャッシュは消さない（画面がまだ付いている間に消すと取り直して 404 を踏む）。
+        // 抜けた地図は地図一覧から消えるので、画面を離れた後は使われず gcTime で消える。
+        // 抜けた地図のピン（ピンタブの地図など）が見えなくなるので取り直す。
         void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
       } else {
         void queryClient.invalidateQueries({ queryKey: sanpoMapMembersQueryKey(sanpoMapId) });
