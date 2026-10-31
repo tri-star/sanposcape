@@ -35,7 +35,8 @@ Expo Router の既定の解釈（path だけを見る）では受け取れない
 - **D4: 招待リンクで参加**（地図一覧のヘッダーのリンクのアイコン。サインイン中・フラグ ON）。届いたリンクを貼り付けて受諾画面へ進む（`InvitationLinkPasteDialog`）。
   Universal Links が効かない環境の逃げ道。読み取れないときは通信しない。
 - **D5: トークンを持つ場所**: ルートパラメータとクエリのキー（メモリ）だけ。端末のストレージ・ログには載せない（台帳 1 の対象パスに native-intent と受諾画面を足した）。
-- **D6: Universal Links / App Links の設定**は `app.config.ts`（ADR-006 の SS-250 追補）。ネイティブの設定なので新しいビルドが要る。
+- **D6: Universal Links / App Links の設定**は `app.config.ts`（ADR-006 の SS-250 追補）。ネイティブの設定なので新しいビルドが要る。intentFilters の `pathPrefix` は `/i/`（AASA の対象と揃える）。
+- **D7: custom scheme の乗っ取り**: LP の「アプリで開く」は、Android では `intent://…#Intent;scheme=…;package=<パッケージ名>;end` でパッケージを指定し、同じ scheme を名乗る別のアプリにトークンを渡さない。iOS は custom scheme の重複を防げないので、**受け入れた危険**とする（端末に悪意あるアプリが入っていることが前提。1リンク1人なので本来の相手は「使えないリンク」になって気付け、owner はメンバー画面で外せる）。本番の Android は App Links の検証が通らない間（assetlinks.json の値が揃うまで）、この経路が主になる。
 
 ## 検討した選択肢
 

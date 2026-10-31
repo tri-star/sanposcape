@@ -62,9 +62,13 @@ const appStoreUrl = "https://apps.apple.com/jp/app/sanposcape/id6823866201";
 <script>
   import { PUBLIC_LP_ENV } from "astro:env/client";
 
-  // アプリの custom scheme（app.config.ts。本番は sanposcape、開発用は sanposcape-dev）。
-  const scheme =
-    PUBLIC_LP_ENV === "production" ? "sanposcape" : "sanposcape-dev";
+  // アプリの custom scheme とパッケージ名（app.config.ts。本番は sanposcape / com.sanposcape.app、
+  // 開発用は sanposcape-dev / com.sanposcape.app.dev）。
+  const production = PUBLIC_LP_ENV === "production";
+  const scheme = production ? "sanposcape" : "sanposcape-dev";
+  const androidPackage = production
+    ? "com.sanposcape.app"
+    : "com.sanposcape.app.dev";
   // backend が発行するトークン（base64url）。それ以外の値はリンクに載せない。
   const token = window.location.hash.slice(1);
   const valid = /^[A-Za-z0-9_-]{16,128}$/.test(token);
@@ -74,7 +78,12 @@ const appStoreUrl = "https://apps.apple.com/jp/app/sanposcape/id6823866201";
   const missing = document.querySelector<HTMLElement>("[data-invite-missing]");
   const open = document.querySelector<HTMLAnchorElement>("[data-invite-open]");
   if (valid && open && available) {
-    open.href = `${scheme}://invite?t=${encodeURIComponent(token)}`;
+    const query = `t=${encodeURIComponent(token)}`;
+    // Android は intent:// でパッケージを指定し、同じ scheme を名乗る別のアプリにトークンを渡さない。
+    // iOS は custom scheme の重複を防げない（受け入れた危険。ADR-M-024 D7）。
+    open.href = /Android/i.test(navigator.userAgent)
+      ? `intent://invite?${query}#Intent;scheme=${scheme};package=${androidPackage};end`
+      : `${scheme}://invite?${query}`;
     available.hidden = false;
   } else if (missing) {
     missing.hidden = false;
