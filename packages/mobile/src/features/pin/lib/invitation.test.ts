@@ -59,6 +59,9 @@ describe("toInvitationErrorCode", () => {
 
   it("使えないリンク・レート制限・通信の失敗を分類する", () => {
     expect(toInvitationErrorCode(new ApiError(404))).toBe("not_found");
+    expect(
+      toInvitationErrorCode(new ApiError(404, undefined, { code: "sanpo_map_not_found" })),
+    ).toBe("map_not_found");
     expect(toInvitationErrorCode(new ApiError(429))).toBe("rate_limited");
     expect(toInvitationErrorCode(new ApiError(503))).toBe("server");
     expect(toInvitationErrorCode(new TypeError("x"))).toBe("network");

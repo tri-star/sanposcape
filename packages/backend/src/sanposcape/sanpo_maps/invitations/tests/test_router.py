@@ -12,9 +12,13 @@ from sqlalchemy.orm import Session
 from sanposcape.auth.tokens import create_access_token
 from sanposcape.config import Settings
 from sanposcape.main import app
+from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.sanpo_maps.conftest import make_sanpo_map, make_user
 from sanposcape.sanpo_maps.exceptions import FeatureDisabledError
-from sanposcape.sanpo_maps.invitations.dependencies import require_map_invitation_enabled
+from sanposcape.sanpo_maps.invitations.dependencies import (
+    get_invitation_rate_limiter,
+    require_map_invitation_enabled,
+)
 from sanposcape.sanpo_maps.invitations.purge import purge_stale_invitations
 from sanposcape.sanpo_maps.invitations.service import (
     SANPO_MAP_ACTIVE_INVITATION_LIMIT,
@@ -471,3 +475,17 @@ class TestAuthorizationBoundaries:
         assert (
             db_session.get(SanpoMapInvitation, uuid.UUID(other_invitation["id"])).revoked_at is None
         )
+
+
+class TestRateLimit:
+    def test_preview_is_rate_limited(self, sanpo_maps_client: TestClient) -> None:
+        """preview は IP 単位のレート制限を超えると 429（トークンの総当たりとログ・コストの保護）。"""
+        limiter = ExploreRateLimiter(1, 1, 60)
+        app.dependency_overrides[get_invitation_rate_limiter] = lambda: limiter
+        try:
+            first = sanpo_maps_client.post("/invitations/preview", json={"token": "x" * 43})
+            second = sanpo_maps_client.post("/invitations/preview", json={"token": "y" * 43})
+        finally:
+            app.dependency_overrides.pop(get_invitation_rate_limiter, None)
+
+        assert [first.status_code, second.status_code] == [404, 429]

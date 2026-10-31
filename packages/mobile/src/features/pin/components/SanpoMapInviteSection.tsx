@@ -23,7 +23,7 @@ export type SanpoMapInviteSectionProps = {
 /**
  * SanpoMapInviteSection — メンバー画面の owner 向けの招待（SS-250）。「メンバーを招待」で招待シート
  * （ダイアログ）を開き、「招待リンクを送る」で発行して OS の共有シート（`Share.share`）に渡す。
- * 下に有効な招待リンク（作った日・期限）と「取り消す」を並べる。出すのはフラグ `map_invitation` が ON の
+ * 下に有効な招待リンク（期限）と「取り消す」を並べる。出すのはフラグ `map_invitation` が ON の
  * owner だけ（呼び出し側で判定する）。発行したリンクの URL は共有シートに渡したら持たない（一覧には出さない）。
  */
 export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInviteSectionProps) {
