@@ -133,6 +133,9 @@ jobs:
         with:
           name: lp-dist
           path: packages/lp/dist
+          # dist/.well-known/（招待リンクの AASA・assetlinks。SS-250）はドット始まりなので、既定（false）では
+          # 成果物から外れ、deploy job の aws s3 cp が失敗する。
+          include-hidden-files: true
           # production は承認待ちの間も成果物が残っている必要がある（承認が翌日以降になっても deploy できるように）。
           retention-days: 7
           if-no-files-found: error
