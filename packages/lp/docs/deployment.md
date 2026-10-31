@@ -71,6 +71,8 @@ curl -sI "$SITE/privacy/"               # 200（アプリ内リンクと App Sto
 curl -sI "$SITE/privacy"                # 301、Location が末尾 / 付きの /privacy/
 curl -sI "$SITE/terms/"                 # 200（アプリ内リンクに登録する恒久 URL。SS-187）
 curl -sI "$SITE/support/"               # 200（App Store Connect の Support URL に登録する恒久 URL。SS-214）
+curl -sI "$SITE/privacy/2026-10-24/"    # 200（改定前のポリシーの版。/privacy/ の案内と改定履歴からリンクする恒久 URL。SS-248）
+curl -s "$SITE/sitemap-0.xml"           # /privacy/2026-10-24/ のような改定前の版が含まれないこと
 ```
 
 production では追加で次を確認する。

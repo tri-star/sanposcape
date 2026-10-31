@@ -31,6 +31,7 @@ packages/lp/
     ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
     ├── pages/             # index.astro / privacy.astro / terms.astro / support.astro / 404.astro / robots.txt.ts
+    │                      # privacy/<YYYY-MM-DD>.astro は改定前のポリシーの版（不利な改定のときに固定する）
     └── styles/            # global.css（LP 全体。デザイン原本の styles.css）/ legal.css（privacy・terms・support 共通）
 ```
 
@@ -54,7 +55,7 @@ packages/lp/
 - **キャッシュ**: `_astro/**`（ハッシュ付き）は immutable の長期キャッシュ、それ以外は `max-age=0, s-maxage=86400` で配信される。
   `public/` のファイルはハッシュが付かないため、**内容を差し替えるときはファイル名を変える**（例: `ogp.png` → `ogp-2.png`）。
   デプロイは `_astro/` の旧ハッシュのファイルを削除しない（開いたままのタブが古い HTML から取りに来るため。ADR-012 決定5）。
-- `/.well-known/` は置いていない。
+- `/.well-known/` は置いていない（招待リンクの Universal Links / App Links 用に Plane SS-250 で足す予定）。
 
 ### 環境変数（ビルド時）
 
@@ -130,7 +131,12 @@ App Store Connect の「プライバシーポリシー URL」に登録するた�
      冒頭に「<施行日> から適用します。<施行日の前日> までは改定前の版（リンク）が適用されます」と書く（施行日の前後どちらでも正しい文にして、施行日に書き換えずに済むようにする）。
   3. 末尾に「改定履歴」の節を設け、改定日・施行日・要点と旧版へのリンクを載せる（最初の不利な改定のときに作る。それより前の改定は git の履歴にある）。
   4. sitemap から旧版を外す（`astro.config.mjs` の sitemap の `filter`）。
-- 施行日の表示・改定履歴の節・旧版のページはまだ作っていない（不利な改定がまだ無いため）。最初の不利な改定のときに上の手順で作り、この節を実装に合わせて直す。
+- 実装（最初の不利な改定 SS-248 で作った。利用規約にはまだ無く、最初の不利な改定のときに同じ形で作る）:
+  - `privacy.astro` の frontmatter の `effectiveOn`（施行日）・`previousVersion`（旧版の URL と適用の終わる日）・`revisionHistory`（改定履歴の行）。
+    `effectiveOn` があるとき、ヘッダーに施行日を出し、冒頭に適用の案内（`.legal-notice`）を出す。施行日を過ぎた後に不利でない改定をするときは `effectiveOn` を `undefined` に戻す（案内が消え、経緯は改定履歴に残る）。
+  - 旧版 `src/pages/privacy/<YYYY-MM-DD>.astro` は frontmatter の `appliesUntil`・`nextEffectiveOn` で冒頭の案内を出す。本文は以後書き換えない（この2つの日付だけは、本番へのデプロイが遅れて新しい版の施行日を動かすときに合わせる）。
+  - sitemap からは `astro.config.mjs` の `filter` が `/privacy/<YYYY-MM-DD>/`・`/terms/<YYYY-MM-DD>/` の形をまとめて外す（版を足すたびに直さなくてよい）。
+  - 次の不利な改定では、その時点の `/privacy/` を手順 1 で新しい日付のファイルに複製し、`revisionHistory` の先頭に行を足す。
 - サポートページ（`/support/`）はポリシーの節へリンクしているだけなので、施行日・旧版の仕組みは要らない。
 
 ## 利用規約（`/terms/`）
