@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/write-well-known.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "format": "prettier --write .",

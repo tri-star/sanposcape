@@ -72,7 +72,10 @@ curl -sI "$SITE/privacy"                # 301、Location が末尾 / 付きの /
 curl -sI "$SITE/terms/"                 # 200（アプリ内リンクに登録する恒久 URL。SS-187）
 curl -sI "$SITE/support/"               # 200（App Store Connect の Support URL に登録する恒久 URL。SS-214）
 curl -sI "$SITE/privacy/2026-10-24/"    # 200（改定前のポリシーの版。/privacy/ の案内と改定履歴からリンクする恒久 URL。SS-248）
-curl -s "$SITE/sitemap-0.xml"           # /privacy/2026-10-24/ のような改定前の版が含まれないこと
+curl -s "$SITE/sitemap-0.xml"           # /privacy/2026-10-24/ のような改定前の版と /i/ が含まれないこと
+curl -sI "$SITE/i/"                     # 200（招待リンクの受け皿。SS-250）
+curl -sI "$SITE/.well-known/apple-app-site-association"  # 200、Content-Type: application/json、リダイレクトなし
+curl -sI "$SITE/.well-known/assetlinks.json"             # dev は 200（application/json）。prod は Android の値を足すまで 404
 ```
 
 production では追加で次を確認する。
