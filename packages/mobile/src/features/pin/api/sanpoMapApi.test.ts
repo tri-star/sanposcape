@@ -2,9 +2,18 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/apiError";
-import { getListSanpoMapsMockHandler } from "@/api/generated/endpoints/sanpo-maps/sanpo-maps.msw";
+import {
+  getListSanpoMapMembersMockHandler,
+  getListSanpoMapsMockHandler,
+} from "@/api/generated/endpoints/sanpo-maps/sanpo-maps.msw";
 import type { SanpoMapListRead, SanpoMapRead } from "@/api/generated/model";
-import { createSanpoMap, fetchSanpoMaps, updateSanpoMapIcon } from "@/features/pin/api/sanpoMapApi";
+import {
+  createSanpoMap,
+  fetchSanpoMapMembers,
+  fetchSanpoMaps,
+  removeSanpoMapMember,
+  updateSanpoMapIcon,
+} from "@/features/pin/api/sanpoMapApi";
 import { server } from "@/test/setup";
 
 const RESPONSE: SanpoMapListRead = {
@@ -252,5 +261,95 @@ describe("updateSanpoMapIcon", () => {
     server.use(http.patch("*/sanpo-maps/:id", () => HttpResponse.error()));
 
     await expect(updateSanpoMapIcon({ sanpoMapId: ID, icon: "cat" })).rejects.toThrow(TypeError);
+  });
+});
+
+const MAP_ID = "11111111-1111-4111-8111-111111111111";
+const USER_ID = "33333333-3333-4333-8333-333333333333";
+
+describe("fetchSanpoMapMembers", () => {
+  it("200 で camelCase の SanpoMapMember[] に変換し、backend の並びを保つ", async () => {
+    server.use(
+      getListSanpoMapMembersMockHandler({
+        items: [
+          {
+            user_id: USER_ID,
+            display_name: "山田",
+            role: "owner",
+            joined_at: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            user_id: "44444444-4444-4444-8444-444444444444",
+            display_name: null,
+            role: "editor",
+            joined_at: "2026-01-02T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const result = await fetchSanpoMapMembers(MAP_ID);
+
+    expect(result).toEqual([
+      { userId: USER_ID, displayName: "山田", role: "owner", joinedAt: "2026-01-01T00:00:00.000Z" },
+      {
+        userId: "44444444-4444-4444-8444-444444444444",
+        displayName: null,
+        role: "editor",
+        joinedAt: "2026-01-02T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("UUID でない id は通信せずに 404 にする", async () => {
+    await expect(fetchSanpoMapMembers("not-a-uuid")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("removeSanpoMapMember", () => {
+  it("204 で解決する", async () => {
+    server.use(
+      http.delete(
+        "*/sanpo-maps/:sanpoMapId/members/:userId",
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    await expect(removeSanpoMapMember({ sanpoMapId: MAP_ID, userId: USER_ID })).resolves.toBe(
+      undefined,
+    );
+  });
+
+  it("404（もう抜けている・外されている）は成功として扱う", async () => {
+    server.use(
+      http.delete("*/sanpo-maps/:sanpoMapId/members/:userId", () =>
+        HttpResponse.json(
+          { detail: "Sanpo map not found", code: "sanpo_map_not_found" },
+          { status: 404 },
+        ),
+      ),
+    );
+    await expect(removeSanpoMapMember({ sanpoMapId: MAP_ID, userId: USER_ID })).resolves.toBe(
+      undefined,
+    );
+  });
+
+  it("409 などはそのまま投げる", async () => {
+    server.use(
+      http.delete("*/sanpo-maps/:sanpoMapId/members/:userId", () =>
+        HttpResponse.json(
+          { detail: "Owner cannot leave the sanpo map", code: "owner_cannot_leave" },
+          { status: 409 },
+        ),
+      ),
+    );
+    await expect(
+      removeSanpoMapMember({ sanpoMapId: MAP_ID, userId: USER_ID }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("UUID でない id は通信せずに 422 にする", async () => {
+    await expect(removeSanpoMapMember({ sanpoMapId: MAP_ID, userId: "x" })).rejects.toMatchObject({
+      status: 422,
+    });
   });
 });

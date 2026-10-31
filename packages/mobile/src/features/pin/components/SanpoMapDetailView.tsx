@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -14,15 +15,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Badge } from "@/components/ui/badge/Badge";
-import { Button } from "@/components/ui/button/Button";
+import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
 import { SanpoMapIconEditDialog } from "@/features/pin/components/SanpoMapIconEditDialog";
+import { SanpoMapMemberSummaryRow } from "@/features/pin/components/SanpoMapMemberSummaryRow";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
+import { useSanpoMapMembers } from "@/features/pin/hooks/useSanpoMapMembers";
 import { useSanpoMapRecheck } from "@/features/pin/hooks/useSanpoMapRecheck";
 import { useSanpoMapPins } from "@/features/pin/hooks/useSanpoMapPins";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
@@ -30,6 +34,7 @@ import { canManageSanpoMap } from "@/features/pin/lib/pinPermissions";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
 import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
 import { sanpoMapIconChangeLabel } from "@/features/pin/lib/sanpoMapIcon";
+import { canShowSanpoMapMembers } from "@/features/pin/lib/sanpoMapMember";
 import {
   SANPO_MAP_PIN_MAX_PAGES,
   SANPO_MAP_PIN_PAGE_SIZE,
@@ -43,6 +48,7 @@ import {
   resolveSanpoMapPinSectionState,
 } from "@/features/pin/lib/sanpoMapScreenState";
 import type { PinListEntry, SanpoMap } from "@/features/pin/types";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -73,6 +79,8 @@ const MAX_PIN_TOTAL = SANPO_MAP_PIN_PAGE_SIZE * SANPO_MAP_PIN_MAX_PAGES;
  * - 地図の情報は地図一覧のキャッシュから id で引く（`GET /sanpo-maps/{id}` は無い。ADR-M-014 D3）。
  * - ピン一覧は全件（上限 1000）を1回の取得で揃え、端末で絞り込む（D1 / D2）。
  * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
+ * - メンバーの行（SS-249）はフラグ `map_invitation` が ON か、自分が editor の地図のときだけ出す。
+ * - アイコンの変更は、アイコンそのもののタップで開く（owner だけ。右下にペンのバッジ。SS-249）。
  */
 export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMapDetailViewProps) {
   const theme = useTheme();
@@ -124,6 +132,14 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
 
   const map =
     sanpoMapId === null ? undefined : maps.maps.find((candidate) => candidate.id === sanpoMapId);
+  const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
+  const showMembers =
+    map !== undefined && canShowSanpoMapMembers({ mapInvitationEnabled, role: map.role });
+  const members = useSanpoMapMembers(sanpoMapId, { enabled: isSignedIn && showMembers });
+  const handleOpenMembers = useCallback(() => {
+    if (sanpoMapId === null) return;
+    router.push({ pathname: "/sanpo-maps/[sanpoMapId]/members", params: { sanpoMapId } });
+  }, [router, sanpoMapId]);
 
   const [query, setQuery] = useState("");
   // 最大 1000 件でも入力が引っかからないよう、絞り込みは遅延した値で行う。
@@ -317,7 +333,31 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         <View style={styles.content} testID="sanpo-map-detail-content">
           <View style={styles.info}>
             <View style={styles.nameRow}>
-              <SanpoMapIconBadge icon={found.icon} size={40} />
+              {canManageSanpoMap(found.role) ? (
+                // 「アイコンを変更」ボタンは置かず、アイコンのタップで開く（SS-249）。editor には押せる形を見せない
+                // （押しても 403 になる操作を見せない）。読み上げと E2E は、現在のアイコンを含むラベルで探す。
+                <Pressable
+                  onPress={handleOpenIconDialog}
+                  accessibilityRole="button"
+                  accessibilityLabel={sanpoMapIconChangeLabel(found.icon)}
+                  testID="sanpo-map-detail-change-icon"
+                  // アイコンは 40px なので、押せる範囲を 44pt 以上に広げる。
+                  hitSlop={8}
+                  style={({ pressed }) => (pressed ? styles.iconPressed : null)}
+                >
+                  <SanpoMapIconBadge icon={found.icon} size={40} />
+                  <View style={styles.iconEditBadge} pointerEvents="none">
+                    <Icon
+                      name="pencil"
+                      size={11}
+                      color={theme.colors.onPrimary}
+                      strokeWidth={2.5}
+                    />
+                  </View>
+                </Pressable>
+              ) : (
+                <SanpoMapIconBadge icon={found.icon} size={40} />
+              )}
               <Text style={styles.name} testID="sanpo-map-detail-name">
                 {found.name}
               </Text>
@@ -331,20 +371,12 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
                 </Text>
               ) : null}
             </View>
-            {canManageSanpoMap(found.role) ? (
-              // editor には出さない（押しても 403 になる操作を見せない）。
-              <Button
-                variant="outline"
-                size="sm"
-                icon="pencil"
-                onPress={handleOpenIconDialog}
-                // 現在のアイコンをスクリーンリーダーと E2E に伝える（バッジは装飾で a11y から隠している）。
-                accessibilityLabel={sanpoMapIconChangeLabel(found.icon)}
-                testID="sanpo-map-detail-change-icon"
-                style={styles.changeIcon}
-              >
-                アイコンを変更
-              </Button>
+            {showMembers ? (
+              <SanpoMapMemberSummaryRow
+                members={members.members}
+                status={members.status}
+                onPress={handleOpenMembers}
+              />
             ) : null}
           </View>
           {showSearch ? (
@@ -559,8 +591,22 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing[3],
   },
-  changeIcon: {
-    alignSelf: "flex-start",
+  iconPressed: {
+    opacity: 0.6,
+  },
+  // owner だけに出す、アイコンを押せることを示す小さなペン。
+  iconEditBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+    borderWidth: 2,
+    borderColor: theme.colors.surfaceApp,
   },
   name: {
     flex: 1,

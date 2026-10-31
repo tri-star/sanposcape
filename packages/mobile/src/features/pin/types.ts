@@ -7,6 +7,16 @@ import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 export type SanpoMapIconKey = SanpoMapIcon;
 
 /** 画面で扱う地図（SanpoMapRead を camelCase 化）。 */
+/** 地図のメンバー（`GET /sanpo-maps/{id}/members`。SS-249）。 */
+export type SanpoMapMember = {
+  userId: string;
+  /** 表示名。未設定は null（表示は `sanpoMapMemberDisplayName` で「メンバー」にする）。 */
+  displayName: string | null;
+  role: "owner" | "editor";
+  /** ISO 8601。メンバーになった日時（owner は地図の作成日時）。 */
+  joinedAt: string;
+};
+
 export type SanpoMap = {
   id: string;
   name: string;

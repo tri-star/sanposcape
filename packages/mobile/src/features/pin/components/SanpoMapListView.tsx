@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -31,6 +31,7 @@ import {
 import type { SanpoMap } from "@/features/pin/types";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
+import { consumeFlashMessage } from "@/lib/flashMessage";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -64,6 +65,14 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
+  const { show: showToast } = toast;
+  // メンバー画面で地図から抜けて戻ってきたときの「『…』から抜けました」（SS-249。`src/lib/flashMessage.ts`）。
+  useFocusEffect(
+    useCallback(() => {
+      const message = consumeFlashMessage();
+      if (message) showToast(message);
+    }, [showToast]),
+  );
   const maps = useSanpoMaps({ enabled: isSignedIn });
   // FAB は IconButton size="lg"（実寸 54 = theme.control.lg）。
   const fabSize = theme.control.lg;

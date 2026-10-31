@@ -53,6 +53,14 @@ export function pinTagSuggestionsQueryKey(sanpoMapId: string | null) {
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })`（`usePinSave`）と SS-119 の編集・削除後の
  * invalidate で取り直されるようにする。
  */
+/**
+ * 地図のメンバー（SS-249）。`SANPO_MAPS_QUERY_KEY`（`["sanpo-maps", "list"]`）とは別の枝にし、
+ * 地図一覧の invalidate でメンバーまで取り直さない。
+ */
+export function sanpoMapMembersQueryKey(sanpoMapId: string) {
+  return ["sanpo-maps", "members", sanpoMapId] as const;
+}
+
 export function sanpoMapPinsQueryKey(sanpoMapId: string) {
   return ["pins", "by-sanpo-map", sanpoMapId] as const;
 }
