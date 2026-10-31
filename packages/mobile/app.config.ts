@@ -115,14 +115,6 @@ function withProductionGoogleSignInPlugin(plugins: ExpoConfig["plugins"]): ExpoC
 }
 
 /**
- * app.json を拡張し、Google Maps の SDK キーを環境変数から注入する。
- * キーはリポジトリにコミットしない（ADR-001: mobile 用 SDK key と backend の server key は分離する）。
- * - Android: Maps SDK for Android のキーが未注入だと、地図が灰色になるのではなく、
- *   Maps SDK の初期化時に RuntimeException が発生してアプリがクラッシュする
- *   （SS-44 で実際に観測。ADR-M-007 の SS-78 追補も参照）。
- * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
- */
-/**
  * 地図の招待リンク（`https://sanposcape.com/i/#<token>`。SS-250）を Universal Links / App Links で
  * アプリに開かせる設定。本番は sanposcape.com、開発用（dev backend を向くビルド）は dev.sanposcape.com。
  * 対応するファイル（AASA・assetlinks.json）は LP がビルド時に出す（packages/lp/scripts/write-well-known.mjs）。
@@ -159,6 +151,14 @@ function withInvitationLinks(
   };
 }
 
+/**
+ * app.json を拡張し、Google Maps の SDK キーを環境変数から注入する。
+ * キーはリポジトリにコミットしない（ADR-001: mobile 用 SDK key と backend の server key は分離する）。
+ * - Android: Maps SDK for Android のキーが未注入だと、地図が灰色になるのではなく、
+ *   Maps SDK の初期化時に RuntimeException が発生してアプリがクラッシュする
+ *   （SS-44 で実際に観測。ADR-M-007 の SS-78 追補も参照）。
+ * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
+ */
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveAppVariant();
   const base = withInvitationLinks(applyAppVariant(config, variant), variant);
