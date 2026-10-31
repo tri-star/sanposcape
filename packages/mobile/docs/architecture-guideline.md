@@ -227,7 +227,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 `app/pins/[pinId]/index.tsx`（SS-118。後者は `isUuid` での params 検証も併せて行う）/
 `app/pins/[pinId]/edit.tsx`（SS-119。同じ形で `currentUserId` も注入する）/
 `app/sanpo-maps/index.tsx`（SS-146。SS-121 で `isSignedIn` / `onSignIn` の注入を追加）/
-`app/sanpo-maps/[sanpoMapId].tsx`（SS-121。`isUuid` での params 検証と認証値の注入を行う）。
+`app/sanpo-maps/[sanpoMapId]/index.tsx`（SS-121。SS-249 で `[sanpoMapId].tsx` から移した。`isUuid` での params 検証と認証値の注入を行う）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
@@ -249,7 +249,7 @@ export default function SomeFeatureRoute() {
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
   `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
-  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`・`[sanpoMapId].tsx`。SS-146 / SS-121）も OFF 時はナビタブへ戻す。
+  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`・`[sanpoMapId]/index.tsx`・`[sanpoMapId]/members.tsx`。SS-146 / SS-121 / SS-249）も OFF 時はナビタブへ戻す。
   ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
   （実例: `app/pins/new.tsx`。SS-88。
   `app/pins/[pinId]/index.tsx`。SS-118。編集画面 `app/pins/[pinId]/edit.tsx`。SS-119）。
