@@ -56,6 +56,19 @@ export function sanpoMapMembersQueryKey(sanpoMapId: string) {
   return ["sanpo-maps", "members", sanpoMapId] as const;
 }
 
+/** 地図の有効な招待リンク（owner。SS-250）。メンバーと同じ `["sanpo-maps", ...]` の枝。 */
+export function sanpoMapInvitationsQueryKey(sanpoMapId: string) {
+  return ["sanpo-maps", "invitations", sanpoMapId] as const;
+}
+
+/**
+ * 招待の中身（SS-250）。トークンはメモリのキャッシュのキーにだけ使い、端末のストレージには残さない。
+ * サインインの前後で応答（`membership`）が変わるので、呼び出し側でサインインの状態もキーに含める。
+ */
+export function invitationPreviewQueryKey(token: string, signedIn: boolean) {
+  return ["invitations", "preview", token, signedIn] as const;
+}
+
 /**
  * 地図詳細のピン一覧（SS-121）。`["pins", ...]` 始まりにして、ピン保存成功時の
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })`（`usePinSave`）と SS-119 の編集・削除後の
