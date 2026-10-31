@@ -83,6 +83,20 @@
   font-size: 15px;
 }
 
+/* 目次の番号付きリストの後ろに置く、番号の無い項目（改定履歴） */
+.legal .legal-toc-extra {
+  margin-top: 6px;
+  padding-left: 1.5em;
+}
+
+/* 改定の施行日・改定前の版の適用期間の案内（不利な改定のときに出す） */
+.legal-notice {
+  padding: 14px 20px;
+  border-left: 4px solid var(--navy);
+  border-radius: 8px;
+  background: var(--sky-light);
+}
+
 .legal-table-wrap {
   overflow-x: auto;
 }
