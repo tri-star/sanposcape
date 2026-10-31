@@ -39,6 +39,7 @@ import ImagePlus from "lucide-react-native/icons/image-plus";
 import Info from "lucide-react-native/icons/info";
 import Landmark from "lucide-react-native/icons/landmark";
 import Leaf from "lucide-react-native/icons/leaf";
+import LinkIcon from "lucide-react-native/icons/link";
 import MapIcon from "lucide-react-native/icons/map";
 import MapPin from "lucide-react-native/icons/map-pin";
 import Maximize2 from "lucide-react-native/icons/maximize-2";
@@ -101,6 +102,7 @@ export const ICONS = {
   "image-plus": ImagePlus,
   info: Info,
   landmark: Landmark,
+  link: LinkIcon,
   map: MapIcon,
   "map-pin": MapPin,
   "maximize-2": Maximize2,

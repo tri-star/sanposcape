@@ -122,9 +122,46 @@ function withProductionGoogleSignInPlugin(plugins: ExpoConfig["plugins"]): ExpoC
  *   （SS-44 で実際に観測。ADR-M-007 の SS-78 追補も参照）。
  * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
  */
+/**
+ * 地図の招待リンク（`https://sanposcape.com/i/#<token>`。SS-250）を Universal Links / App Links で
+ * アプリに開かせる設定。本番は sanposcape.com、開発用（dev backend を向くビルド）は dev.sanposcape.com。
+ * 対応するファイル（AASA・assetlinks.json）は LP がビルド時に出す（packages/lp/scripts/write-well-known.mjs）。
+ * 対象は `/i/` だけ（LP の他のページはブラウザで開く）。ネイティブの設定なので、変えたら新しいビルドが要る
+ * （OTA では届かない）。受け取った URL の書き換えは `app/+native-intent.tsx`。
+ */
+function invitationLinkHost(variant: "production" | "development"): string {
+  return variant === "production" ? "sanposcape.com" : "dev.sanposcape.com";
+}
+
+function withInvitationLinks(
+  config: Partial<ExpoConfig>,
+  variant: "production" | "development",
+): Partial<ExpoConfig> {
+  const host = invitationLinkHost(variant);
+  return {
+    ...config,
+    ios: {
+      ...config.ios,
+      associatedDomains: [...(config.ios?.associatedDomains ?? []), `applinks:${host}`],
+    },
+    android: {
+      ...config.android,
+      intentFilters: [
+        ...(config.android?.intentFilters ?? []),
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [{ scheme: "https", host, pathPrefix: "/i" }],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
+    },
+  };
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveAppVariant();
-  const base = applyAppVariant(config, variant);
+  const base = withInvitationLinks(applyAppVariant(config, variant), variant);
   const androidKey = process.env.GOOGLE_MAPS_ANDROID_SDK_KEY;
   return withCleartextTrafficForHttpBackend(
     withDisableAndroidLintVital(

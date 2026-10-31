@@ -9,6 +9,7 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapMemberAvatar } from "@/features/pin/components/SanpoMapMemberAvatar";
+import { SanpoMapInviteSection } from "@/features/pin/components/SanpoMapInviteSection";
 import { SanpoMapMemberRemoveDialog } from "@/features/pin/components/SanpoMapMemberRemoveDialog";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMapMemberRemove } from "@/features/pin/hooks/useSanpoMapMemberRemove";
@@ -196,6 +197,10 @@ export function SanpoMapMembersView({
           <Text style={styles.mapName} testID="sanpo-map-members-map-name">
             {map.name}
           </Text>
+          {/* 招待できるのはフラグ ON の owner だけ（SS-250）。editor が他人を招くと owner の知らない人が入るため。 */}
+          {map.role === "owner" && mapInvitationEnabled ? (
+            <SanpoMapInviteSection sanpoMapId={map.id} sanpoMapName={map.name} />
+          ) : null}
           <View style={styles.list}>
             {members.members.map((member, index) => {
               const name = sanpoMapMemberDisplayName(member);

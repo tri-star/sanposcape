@@ -7,6 +7,9 @@
  */
 export const SIGN_IN_RETURN_TO_HREFS = {
   account: "/(tabs)/account",
+  // 招待の受諾画面（SS-250）。ゲストが「サインインして参加」を押したとき、スタックに残っている受諾画面へ
+  // dismissTo で戻す（トークンは受諾画面のルートパラメータのまま残るので、別に持たない）。
+  invitation: "/invitations/accept",
 } as const;
 
 export type SignInReturnTo = keyof typeof SIGN_IN_RETURN_TO_HREFS;
