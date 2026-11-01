@@ -1,5 +1,4 @@
-import { useRouter } from "expo-router";
-import { useRef } from "react";
+import { useNavigation, useRouter } from "expo-router";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -14,6 +13,7 @@ import {
   invitationInviterLabel,
   invitationJoinedMessage,
   invitationVisibleNameNote,
+  hasSignInScreenInStack,
   isRetriableInvitationError,
   openJoinedSanpoMap,
 } from "@/features/pin/lib/invitation";
@@ -38,7 +38,7 @@ export type InvitationAcceptViewProps = {
  * InvitationAcceptView — 招待の受諾画面（`/invitations/accept`。SS-250）。招待リンクから開く。
  * 地図の名前・アイコン・招待した人と、参加するとできること・自分の名前の見え方を示し、
  * 「参加する」を押したときだけ参加する（リンクを開いただけでは参加しない。ADR-009 決定39）。
- * 参加したら地図詳細を開き（ゲストで開いたときはピンタブの上に積む。`openJoinedSanpoMap`）、トーストで知らせる。使えないリンクは理由を区別しない文言にする。
+ * 参加したら地図詳細を開き（下にサインイン画面が残っていればピンタブの上に積む。`openJoinedSanpoMap`）、トーストで知らせる。使えないリンクは理由を区別しない文言にする。
  */
 export function InvitationAcceptView({
   token,
@@ -52,12 +52,12 @@ export function InvitationAcceptView({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const back = useScreenBack({ fallbackHref: "/(tabs)" });
-  // ゲストで開いたか（サインイン画面から back で戻っても同じインスタンスなので、最初の値を保つ）。
-  const openedAsGuestRef = useRef(!signedIn);
+  const navigation = useNavigation();
   const openMap = (sanpoMapId: string) =>
     back.runOnce(() =>
       openJoinedSanpoMap(
         {
+          canDismiss: router.canDismiss,
           dismissAll: router.dismissAll,
           replace: router.replace,
           push: router.push,
@@ -65,7 +65,13 @@ export function InvitationAcceptView({
             router.replace({ pathname: "/sanpo-maps/[sanpoMapId]", params: { sanpoMapId: id } }),
         },
         sanpoMapId,
-        { openedAsGuest: openedAsGuestRef.current },
+        {
+          // 押した時点の、受諾画面が載っているスタック（ルートの Stack）を読む。ログアウト後のゲストなら下にサインイン画面がある。
+          // `getRootState()` は expo-router の `__root` を挟むので使わない。
+          signInScreenBelow: hasSignInScreenInStack(
+            (navigation.getState()?.routes ?? []).map((route) => route.name),
+          ),
+        },
       ),
     );
   const invitation = useInvitationAccept(mapInvitationEnabled ? token : null, {

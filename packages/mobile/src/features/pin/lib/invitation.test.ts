@@ -8,6 +8,7 @@ import {
   invitationShareMessage,
   invitationVisibleNameNote,
   isRetriableInvitationError,
+  hasSignInScreenInStack,
   openJoinedSanpoMap,
   parseInvitationLink,
   toInvitationErrorCode,
@@ -96,12 +97,21 @@ describe("文言", () => {
   });
 });
 
+describe("hasSignInScreenInStack", () => {
+  it("ルートのスタックに (auth) があるときだけ true", () => {
+    expect(hasSignInScreenInStack(["(auth)", "invitations/accept"])).toBe(true);
+    expect(hasSignInScreenInStack(["(tabs)", "walk-summary", "invitations/accept"])).toBe(false);
+    expect(hasSignInScreenInStack(["invitations/accept"])).toBe(false);
+  });
+});
+
 describe("openJoinedSanpoMap", () => {
-  const fakeRouter = () => {
+  const fakeRouter = (canDismiss = true) => {
     const calls: string[] = [];
     return {
       calls,
       router: {
+        canDismiss: () => canDismiss,
         dismissAll: vi.fn(() => calls.push("dismissAll")),
         replace: vi.fn((href: string) => calls.push(`replace ${href}`)),
         push: vi.fn((href: { params: { sanpoMapId: string } }) =>
@@ -112,15 +122,21 @@ describe("openJoinedSanpoMap", () => {
     };
   };
 
-  it("サインインして開いたときは受諾画面を地図詳細に置き換えるだけ（下の画面へ戻れる）", () => {
+  it("下にサインイン画面が無いときは受諾画面を地図詳細に置き換えるだけ（タブ・散歩のサマリへ戻れる）", () => {
     const { calls, router } = fakeRouter();
-    openJoinedSanpoMap(router, "map-1", { openedAsGuest: false });
+    openJoinedSanpoMap(router, "map-1", { signInScreenBelow: false });
     expect(calls).toEqual(["replaceWithSanpoMap map-1"]);
   });
 
-  it("ゲストで開いたときはスタックを畳んでピンタブにしてから地図詳細を積む（下にサインイン画面を残さない）", () => {
+  it("下にサインイン画面があるときはスタックを畳んでピンタブにしてから地図詳細を積む", () => {
     const { calls, router } = fakeRouter();
-    openJoinedSanpoMap(router, "map-1", { openedAsGuest: true });
+    openJoinedSanpoMap(router, "map-1", { signInScreenBelow: true });
     expect(calls).toEqual(["dismissAll", "replace /(tabs)/pins", "push map-1"]);
+  });
+
+  it("畳むものが無いとき（canDismiss が false）は dismissAll を呼ばない", () => {
+    const { calls, router } = fakeRouter(false);
+    openJoinedSanpoMap(router, "map-1", { signInScreenBelow: true });
+    expect(calls).toEqual(["replace /(tabs)/pins", "push map-1"]);
   });
 });
