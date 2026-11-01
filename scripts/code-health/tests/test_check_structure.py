@@ -257,6 +257,10 @@ class MainTest(unittest.TestCase):
         self.assertEqual(self.run_main("--baseline"), 0)
         self.assertEqual(self.run_main(), 0)  # 下げた値で通る（issue・reason は引き継ぐ）
 
+    def test_non_ascii_path_is_checked(self) -> None:
+        self.write("packages/a/src/日本語.ts", 900)
+        self.assertEqual(self.run_main(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

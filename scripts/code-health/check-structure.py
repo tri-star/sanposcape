@@ -289,12 +289,13 @@ def repo_root() -> Path:
 
 
 def repo_files(root: Path) -> list[str]:
+    # -z で区切る。無いと、日本語などを含むパスが引用符付きのエスケープで出て、黙って検査から漏れる。
     out = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
         capture_output=True, text=True, check=True, cwd=root,
     )
     # 削除してまだコミットしていないファイルは --cached に残るので、実在するものだけにする。
-    return [f for f in out.stdout.splitlines() if (root / f).is_file()]
+    return [f for f in out.stdout.split("\0") if f and (root / f).is_file()]
 
 
 def annotate(level: str, finding: Finding, message: str) -> None:
