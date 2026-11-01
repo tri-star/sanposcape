@@ -85,7 +85,7 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(cs.first_word("URLParser.ts"), "url")
         self.assertIsNone(cs.first_word("2026-10-24.astro"))
         self.assertEqual(cs.first_word("v2Client.ts"), "v")
-        # 親フォルダの名前と同じ最初の語は飛ばす。1語だけなら残す
+        # 祖先のフォルダ名に含まれる最初の語は飛ばす。1語だけなら残す
         self.assertEqual(cs.first_word("pinEditDraft.ts", "src/features/pin/lib"), "edit")
         self.assertEqual(cs.first_word("usePinEdit.ts", "src/features/pin/hooks"), "edit")
         self.assertEqual(cs.first_word("pin.ts", "src/features/pin/lib"), "pin")
@@ -254,10 +254,12 @@ class MainTest(unittest.TestCase):
         self.assertEqual(self.run_main(), 1)  # 悪化
 
         self.write("packages/a/src/big.ts", 850)
-        self.assertEqual(self.run_main(), 1)  # 下げ忘れ
+        self.assertEqual(self.run_main(), 0)  # 下げ忘れは警告だけ
 
         self.assertEqual(self.run_main("--baseline"), 0)
         self.assertEqual(self.run_main(), 0)  # 下げた値で通る（issue・reason は引き継ぐ）
+        self.write("packages/a/src/big.ts", 851)
+        self.assertEqual(self.run_main(), 1)  # 下げた値を超えたら悪化
 
     def test_non_ascii_path_is_checked(self) -> None:
         self.write("packages/a/src/日本語.ts", 900)
