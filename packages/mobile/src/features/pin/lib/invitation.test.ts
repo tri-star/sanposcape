@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/api/apiError";
 import {
@@ -8,6 +8,7 @@ import {
   invitationShareMessage,
   invitationVisibleNameNote,
   isRetriableInvitationError,
+  openJoinedSanpoMap,
   parseInvitationLink,
   toInvitationErrorCode,
 } from "@/features/pin/lib/invitation";
@@ -92,5 +93,34 @@ describe("文言", () => {
   it("期限を月日で出し、読めない値は空にする", () => {
     expect(formatInvitationExpiry("2026-11-07T03:00:00Z")).toMatch(/^11月7日 まで有効$/);
     expect(formatInvitationExpiry("not-a-date")).toBe("");
+  });
+});
+
+describe("openJoinedSanpoMap", () => {
+  const fakeRouter = () => {
+    const calls: string[] = [];
+    return {
+      calls,
+      router: {
+        dismissAll: vi.fn(() => calls.push("dismissAll")),
+        replace: vi.fn((href: string) => calls.push(`replace ${href}`)),
+        push: vi.fn((href: { params: { sanpoMapId: string } }) =>
+          calls.push(`push ${href.params.sanpoMapId}`),
+        ),
+        replaceWithSanpoMap: vi.fn((id: string) => calls.push(`replaceWithSanpoMap ${id}`)),
+      },
+    };
+  };
+
+  it("サインインして開いたときは受諾画面を地図詳細に置き換えるだけ（下の画面へ戻れる）", () => {
+    const { calls, router } = fakeRouter();
+    openJoinedSanpoMap(router, "map-1", { openedAsGuest: false });
+    expect(calls).toEqual(["replaceWithSanpoMap map-1"]);
+  });
+
+  it("ゲストで開いたときはスタックを畳んでピンタブにしてから地図詳細を積む（下にサインイン画面を残さない）", () => {
+    const { calls, router } = fakeRouter();
+    openJoinedSanpoMap(router, "map-1", { openedAsGuest: true });
+    expect(calls).toEqual(["dismissAll", "replace /(tabs)/pins", "push map-1"]);
   });
 });

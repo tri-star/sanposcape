@@ -165,3 +165,32 @@ export const INVITATION_ACCEPT_POINTS = [
 export function invitationJoinedMessage(sanpoMapName: string): string {
   return `「${sanpoMapName}」に参加しました`;
 }
+
+/** 参加した地図を開く遷移で使う router の操作（テストで差し替えられるよう、必要なものだけ）。 */
+export type JoinedSanpoMapRouter = {
+  dismissAll: () => void;
+  replace: (href: "/(tabs)/pins") => void;
+  push: (href: { pathname: "/sanpo-maps/[sanpoMapId]"; params: { sanpoMapId: string } }) => void;
+  replaceWithSanpoMap: (sanpoMapId: string) => void;
+};
+
+/**
+ * 参加した地図（または、すでにメンバーの地図）の詳細を開く。
+ * - サインインして開いたとき: 受諾画面を地図詳細に置き換える。戻ると受諾画面の下にあった画面（散歩中の画面など）に戻る。
+ * - ゲストで開いたとき: 受諾画面の下にはサインイン画面（ログアウト後・初回起動）やゲストのタブが残っているので、
+ *   スタックを畳んでピンタブ（通常のサインインの着地点。ADR-M-009 SS-145 追補）に置き換え、その上に地図詳細を積む。
+ *   置き換えるだけだと、地図詳細から戻ったとき、サインイン済みなのにサインイン画面が出る。
+ */
+export function openJoinedSanpoMap(
+  router: JoinedSanpoMapRouter,
+  sanpoMapId: string,
+  options: { openedAsGuest: boolean },
+): void {
+  if (!options.openedAsGuest) {
+    router.replaceWithSanpoMap(sanpoMapId);
+    return;
+  }
+  router.dismissAll();
+  router.replace("/(tabs)/pins");
+  router.push({ pathname: "/sanpo-maps/[sanpoMapId]", params: { sanpoMapId } });
+}
