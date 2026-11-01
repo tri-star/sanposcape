@@ -11,10 +11,11 @@
 対象は git の管理下（追跡中と、無視されていない未追跡）の `packages/`・`scripts/` のソース。生成物は除く。
 
 既存の違反はベースライン（structure-baseline.json）に値つきで載せて据え置き、新しい違反と悪化だけを止める（ラチェット方式）。
+減った・解消した項目がベースラインに残っていても失敗にする（下げ忘れると、後で元の値まで戻しても通るため）。
 ベースラインの各項目には、片付ける課題（`issue`）と理由（`reason`）を必ず書く。欠けていれば失敗にする。
 
 使い方:
-    scripts/code-health/check-structure.py              # 検査（新しい違反・悪化・ベースラインの不備があれば exit 1）
+    scripts/code-health/check-structure.py              # 検査（新しい違反・悪化・下げ忘れ・ベースラインの不備があれば exit 1）
     scripts/code-health/check-structure.py --all        # ベースラインに載った違反と警告もすべて表示
     scripts/code-health/check-structure.py --baseline   # ベースラインを今の値で再生成（既存の issue・reason は引き継ぐ）
 """
@@ -337,7 +338,8 @@ def main(argv: list[str]) -> int:
     result = compare(violations, entries)
     problems = validate_baseline(entries)
 
-    failed = bool(result.new or result.worsened or problems)
+    stale = bool(result.lowerable or result.resolved)
+    failed = bool(result.new or result.worsened or problems or stale)
     if result.new:
         print("❌ 新しい構造の違反（ベースラインに無い）:")
         for finding in result.new:
@@ -361,17 +363,18 @@ def main(argv: list[str]) -> int:
         print(f"\n⚠️ 警告 {len(warnings)} 件（失敗にはしない。次に分ける候補）:")
         for finding in warnings:
             print(f"  {finding.describe()}")
-    if result.lowerable or result.resolved:
-        print("\nℹ️ ベースラインを下げられる・外せる項目があります（--baseline で更新できます）:")
+    if stale:
+        # 下げ忘れを残すと、後で元の値まで戻しても通ってしまう。減らした PR で baseline も下げさせる。
+        print("\n❌ ベースラインを下げられる・外せる項目があります。--baseline で更新してください:")
         for finding, recorded in result.lowerable:
             print(f"  {finding.describe()} — ベースラインは {recorded}")
         for entry in result.resolved:
             label = entry.get("path", "") + (f" `{entry['prefix']}`" if entry.get("prefix") else "")
-            print(f"  {entry.get('kind')} {label}: 閾値以下になった")
+            print(f"  {entry.get('kind')} {label}: 閾値以下になった、または無くなった")
 
     if failed:
         return 1
-    print(f"\n✅ 構造に新しい違反・悪化はありません（ベースラインの既知の違反: {len(result.known) + len(result.lowerable)} 件）")
+    print(f"\n✅ 構造に新しい違反・悪化はありません（ベースラインの既知の違反: {len(result.known)} 件）")
     return 0
 
 

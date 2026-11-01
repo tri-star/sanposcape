@@ -6,7 +6,11 @@
 from __future__ import annotations
 
 import importlib.util
+import contextlib
+import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -204,6 +208,54 @@ class RatchetTest(unittest.TestCase):
             entries = json.loads(path.read_text(encoding="utf-8"))["entries"]
         self.assertEqual((entries[0]["value"], entries[0]["issue"], entries[0]["reason"]), (901, "SS-9", ""))
         self.assertEqual(cs.validate_baseline(entries), ["file-lines a.py: reason（今は分けない理由）が無い"])
+
+
+class MainTest(unittest.TestCase):
+    """git のリポジトリを作って main() の終了コードを確かめる。"""
+
+    def setUp(self) -> None:
+        self._dir = tempfile.TemporaryDirectory()
+        self.root = Path(self._dir.name)
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        self._cwd = os.getcwd()
+        os.chdir(self.root)
+
+    def tearDown(self) -> None:
+        os.chdir(self._cwd)
+        self._dir.cleanup()
+
+    def write(self, path: str, lines: int) -> None:
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x\n" * lines, encoding="utf-8")
+
+    def write_baseline(self, entries: list[dict]) -> None:
+        target = self.root / cs.BASELINE
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps({"entries": entries}, ensure_ascii=False), encoding="utf-8")
+
+    def run_main(self, *args: str) -> int:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return cs.main(list(args))
+
+    def test_exit_codes(self) -> None:
+        self.write("packages/a/src/ok.ts", 10)
+        self.assertEqual(self.run_main(), 0)
+
+        self.write("packages/a/src/big.ts", 900)
+        self.assertEqual(self.run_main(), 1)  # 新しい違反
+
+        self.write_baseline([entry("file-lines", "packages/a/src/big.ts", 900)])
+        self.assertEqual(self.run_main(), 0)  # baseline の値どおり
+
+        self.write("packages/a/src/big.ts", 901)
+        self.assertEqual(self.run_main(), 1)  # 悪化
+
+        self.write("packages/a/src/big.ts", 850)
+        self.assertEqual(self.run_main(), 1)  # 下げ忘れ
+
+        self.assertEqual(self.run_main("--baseline"), 0)
+        self.assertEqual(self.run_main(), 0)  # 下げた値で通る（issue・reason は引き継ぐ）
 
 
 if __name__ == "__main__":
