@@ -26,6 +26,11 @@
   contract（古いものの削除）は、本番の最低サポートバージョンを上げてから1日経った後に行う（ADR-008 SS-233 追補 D43）。
 - API・DB スキーマ・フラグを変える変更は、[リリース運用手順](./docs/release-runbook.md) §3（フラグの削除）・§7（expand / contract）に従い、互換のために残すものは [互換性台帳](./docs/compat-tracker.md) に、いつ片付けるかとともに載せる。
 
+# コードの構造
+
+- フォルダ直下のファイル数・同じ接頭辞の集中・ファイルの行数は、CI（`scripts/code-health/check-structure.py`）がラチェット方式で検査する（[ADR-016](./docs/adr/ADR-016-code-structure-ratchet-check.md)）。
+  落ちたら分割する。分けられない理由があるときだけ、`scripts/code-health/structure-baseline.json` に片付ける課題と理由を付けて載せる。
+
 # 知識の置き場所
 
 - [知識の置き場所ガイドライン](./docs/knowledge-management.md)
