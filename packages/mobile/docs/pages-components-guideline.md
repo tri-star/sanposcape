@@ -83,7 +83,8 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124）/
 `PinDetailView`（`pins/[pinId]`。
 testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` ではない画面内オーバーレイ）を
-開いている間は `onIntercept` で閉じる。SS-118。削除確認ダイアログを開いている間も `onIntercept` で閉じる（削除中は閉じない）。SS-119）/
+開いている間は `onIntercept` で閉じる。SS-118。削除確認ダイアログを開いている間も `onIntercept` で閉じる（削除中は閉じない）。SS-119。
+「ピンの場所に移動」（testID `pin-detail-move-to-pin`）は `runOnce` 経由で `router.dismissTo` でピンタブへ移る。SS-246）/
 `PinEditView`（`pins/[pinId]/edit`。testID `pin-edit-back`。未保存の変更があれば破棄確認ダイアログを
 `onIntercept` で挟む。保存中は戻らない。SS-119）/ `SanpoMapListView`（`sanpo-maps`。
 testID `sanpo-map-list-back`。作成ダイアログを開いている間は `onIntercept` で閉じる。SS-146 / SS-121）/

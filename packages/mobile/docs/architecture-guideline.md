@@ -204,8 +204,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   backend の `.env` に `FEATURE_FLAG_MODE=stub` と
   `FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'` を設定して起動する
   （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
-  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値になっており、
-  ピン登録機能はローカル・CI とも追加設定なしで ON になる（SS-88）。
+  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値に加えて
+  `pin_station_tag`・`map_invitation` を ON にしており、ピン登録（SS-88）・最寄り駅のタグ（SS-225）・
+  地図への招待（SS-90）はローカル・CI とも追加設定なしで ON になる。
   最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
 - **最低サポートバージョン**（`AppConfigSnapshot.minimumSupportedVersions`）を下回ると、ルートレイアウトの
   `UpdateRequiredGate`（`src/features/app-update/`）が閉じられない全画面の案内を出してストアへ誘導する（SS-101）。

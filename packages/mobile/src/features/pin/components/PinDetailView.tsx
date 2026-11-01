@@ -1,3 +1,4 @@
+import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useRef, useState } from "react";
@@ -6,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
-import { Icon } from "@/components/ui/icon/Icon";
+import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { Tag } from "@/components/ui/tag/Tag";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
@@ -16,12 +17,18 @@ import { PinPhotoGallery } from "@/features/pin/components/PinPhotoGallery";
 import { PinPhotoViewer } from "@/features/pin/components/PinPhotoViewer";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { PinStatusBadges } from "@/features/pin/components/PinStatusBadges";
+import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
 import { usePinAddress } from "@/features/pin/hooks/usePinAddress";
 import { usePinDelete } from "@/features/pin/hooks/usePinDelete";
 import { usePinDetail } from "@/features/pin/hooks/usePinDetail";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { DEFAULT_SANPO_MAP_ICON, sanpoMapIconFor } from "@/features/pin/lib/sanpoMapIcon";
-import { pinAddressText } from "@/features/pin/lib/pinAddress";
+import {
+  PIN_ADDRESS_COPIED_MESSAGE,
+  PIN_ADDRESS_COPY_FAILED_MESSAGE,
+  pinAddressCopyText,
+  pinAddressText,
+} from "@/features/pin/lib/pinAddress";
 import { PIN_DELETE_DONE_TITLE } from "@/features/pin/lib/pinDeleteError";
 import {
   canShowPinActions,
@@ -33,11 +40,13 @@ import { resolvePinPermissions, resolvePinRole } from "@/features/pin/lib/pinPer
 import { clampViewerIndex } from "@/features/pin/lib/pinPhotoViewer";
 import { PIN_ARCHIVED_NOTICE, resolvePinStatusBadges } from "@/features/pin/lib/pinStatus";
 import { isRetriablePinReadError, pinReadErrorMessage } from "@/features/pin/lib/pinReadError";
+import { buildPinTabFocusParams, canMoveToPinOnPinTab } from "@/features/pin/lib/pinTabFocus";
 import type { UseScreenBackResult } from "@/hooks/useScreenBack";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage, setFlashMessage } from "@/lib/flashMessage";
 import { makeStyles } from "@/theme/makeStyles";
+import { lineHeight } from "@/theme/tokens";
 import { useTheme } from "@/theme/useTheme";
 
 export type PinDetailViewProps = {
@@ -142,6 +151,30 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
   const handleEdit = () => {
     if (pinId === null) return;
     back.runOnce(() => router.push({ pathname: "/pins/[pinId]/edit", params: { pinId } }));
+  };
+
+  // 住所のコピー（SS-246）。画面の表示と同じ文字列を入れ、結果はトーストで知らせる。
+  const addressCopyText = pinAddressCopyText(address);
+  const handleCopyAddress = () => {
+    if (addressCopyText === null) return;
+    Clipboard.setStringAsync(addressCopyText).then(
+      (copied) => showToast(copied ? PIN_ADDRESS_COPIED_MESSAGE : PIN_ADDRESS_COPY_FAILED_MESSAGE),
+      () => showToast(PIN_ADDRESS_COPY_FAILED_MESSAGE),
+    );
+  };
+
+  // ピンの場所に移動（SS-246）: 詳細をスタックから閉じてピンタブへ移り、地図をピンの位置に寄せる。
+  // `dismissTo` は下に `(tabs)` があればそこまで戻り、無ければ（ディープリンクで開いた等）置き換える。
+  // `focusKey` は押すたびに変える（同じピンへもう一度移動しても寄せ直す）。
+  const handleMoveToPin = () => {
+    const location = detail.pin?.location;
+    if (location === undefined) return;
+    back.runOnce(() =>
+      router.dismissTo({
+        pathname: "/(tabs)/pins",
+        params: buildPinTabFocusParams(location, String(Date.now())),
+      }),
+    );
   };
 
   const bodyState = resolvePinDetailBodyState({
@@ -269,48 +302,26 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
               showsVerticalScrollIndicator={false}
               testID="pin-detail-content"
             >
-              <Text style={styles.name} testID="pin-detail-name">
-                {pinDisplayName(pin.name)}
-              </Text>
-
-              <View style={styles.metaRow}>
-                {createdAtLabel !== null ? (
-                  <View style={styles.metaLine}>
-                    <Icon name="calendar" size={14} color={theme.colors.textTertiary} />
-                    <Text style={styles.metaText}>{createdAtLabel}</Text>
-                  </View>
-                ) : null}
-                <Text style={styles.metaText} testID="pin-detail-sanpo-map-name">
-                  {pin.sanpoMapName}
+              <View style={styles.titleBlock}>
+                <Text style={styles.name} testID="pin-detail-name">
+                  {pinDisplayName(pin.name)}
                 </Text>
-                {/* 住所は地図の上の大きな欄にせず、メタ情報の1行にする（地図を押し下げない。SS-212）。 */}
-                <View style={styles.metaLine}>
-                  <Icon name="map-pin" size={14} color={theme.colors.textTertiary} />
-                  <Text style={[styles.metaText, styles.addressText]} testID="pin-detail-address">
-                    {pinAddressText(address)}
+                <View style={styles.sanpoMapRow}>
+                  <SanpoMapIconBadge icon={markerIcon} size={26} />
+                  <Text style={styles.sanpoMapName} testID="pin-detail-sanpo-map-name">
+                    {pin.sanpoMapName}
                   </Text>
                 </View>
+                <PinStatusBadges
+                  badges={resolvePinStatusBadges(pin, "detail")}
+                  testIDPrefix="pin-detail-status"
+                />
+                {pin.archived ? (
+                  <Text style={styles.archivedNotice} testID="pin-detail-archived-notice">
+                    {PIN_ARCHIVED_NOTICE}
+                  </Text>
+                ) : null}
               </View>
-
-              <PinStatusBadges
-                badges={resolvePinStatusBadges(pin, "detail")}
-                testIDPrefix="pin-detail-status"
-              />
-              {pin.archived ? (
-                <Text style={styles.archivedNotice} testID="pin-detail-archived-notice">
-                  {PIN_ARCHIVED_NOTICE}
-                </Text>
-              ) : null}
-
-              {pin.tags.length > 0 ? (
-                <View style={styles.tagsRow}>
-                  {pin.tags.map((tag, i) => (
-                    <Tag key={tag.id} category="neutral" icon="tag" testID={`pin-detail-tag-${i}`}>
-                      {tag.label}
-                    </Tag>
-                  ))}
-                </View>
-              ) : null}
 
               <PinPhotoGallery
                 testID="pin-detail-photos"
@@ -327,6 +338,56 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 onLoadMore={detail.loadMorePhotos}
                 onImageError={detail.handlePhotoLoadError}
               />
+              {detail.photos.length > 0 ? (
+                <Text style={styles.hint}>写真をタップすると拡大表示できます</Text>
+              ) : null}
+
+              {/* 日付・住所・タグを1枚のカードの行にまとめる（SS-246。文字は md、ラベルは xs）。 */}
+              <Card style={styles.infoCard} testID="pin-detail-info">
+                {createdAtLabel !== null ? (
+                  <PinDetailInfoRow icon="calendar" label="登録日時">
+                    <Text style={styles.infoValue} testID="pin-detail-created-at">
+                      {createdAtLabel}
+                    </Text>
+                  </PinDetailInfoRow>
+                ) : null}
+                <PinDetailInfoRow
+                  icon="map-pin"
+                  label="住所"
+                  divider={createdAtLabel !== null}
+                  trailing={
+                    addressCopyText !== null ? (
+                      <IconButton
+                        icon="copy"
+                        label="住所をコピー"
+                        variant="ghost"
+                        onPress={handleCopyAddress}
+                        testID="pin-detail-copy-address"
+                      />
+                    ) : null
+                  }
+                >
+                  <Text style={styles.infoValue} testID="pin-detail-address">
+                    {pinAddressText(address)}
+                  </Text>
+                </PinDetailInfoRow>
+                {pin.tags.length > 0 ? (
+                  <PinDetailInfoRow icon="tag" label="タグ" divider>
+                    <View style={styles.tagsRow}>
+                      {pin.tags.map((tag, i) => (
+                        <Tag
+                          key={tag.id}
+                          category="neutral"
+                          icon="tag"
+                          testID={`pin-detail-tag-${i}`}
+                        >
+                          {tag.label}
+                        </Tag>
+                      ))}
+                    </View>
+                  </PinDetailInfoRow>
+                ) : null}
+              </Card>
 
               {pin.memo !== null && pin.memo.trim().length > 0 ? (
                 <Card testID="pin-detail-memo">
@@ -335,18 +396,31 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 </Card>
               ) : null}
 
-              <PinLocationPreview
-                location={pin.location}
-                accessibilityLabel="ピンの位置の地図"
-                mapHidden={viewerIndex !== null}
-                markerIcon={markerIcon}
-                variant="interactive"
-                testID="pin-detail-map"
-              />
-
-              {detail.photos.length > 0 ? (
-                <Text style={styles.hint}>写真をタップすると拡大表示できます</Text>
-              ) : null}
+              <View style={styles.locationSection}>
+                <View style={styles.sectionHeading}>
+                  <Icon name="map" size={18} color={theme.colors.primary} />
+                  <Text style={styles.sectionHeadingText}>場所</Text>
+                </View>
+                <PinLocationPreview
+                  location={pin.location}
+                  accessibilityLabel="ピンの位置の地図"
+                  mapHidden={viewerIndex !== null}
+                  markerIcon={markerIcon}
+                  variant="interactive"
+                  testID="pin-detail-map"
+                />
+                {canMoveToPinOnPinTab(pin) ? (
+                  <Button
+                    variant="secondary"
+                    icon="navigation"
+                    fullWidth
+                    onPress={handleMoveToPin}
+                    testID="pin-detail-move-to-pin"
+                  >
+                    ピンの場所に移動
+                  </Button>
+                ) : null}
+              </View>
             </ScrollView>
           ),
         };
@@ -437,6 +511,40 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
   );
 }
 
+type PinDetailInfoRowProps = {
+  icon: IconName;
+  label: string;
+  /** 上の行との区切り線を引く（カードの先頭の行では引かない）。 */
+  divider?: boolean;
+  /** 行の右端の操作（住所のコピーなど）。 */
+  trailing?: ReactNode;
+  children: ReactNode;
+};
+
+/** 情報カードの1行（アイコンの丸・ラベル・値）。SS-246。 */
+function PinDetailInfoRow({
+  icon,
+  label,
+  divider = false,
+  trailing,
+  children,
+}: PinDetailInfoRowProps) {
+  const theme = useTheme();
+  const styles = useStyles();
+  return (
+    <View style={[styles.infoRow, divider ? styles.infoRowDivider : null]}>
+      <View style={styles.infoIcon}>
+        <Icon name={icon} size={18} color={theme.colors.primary} />
+      </View>
+      <View style={styles.infoBody}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        {children}
+      </View>
+      {trailing}
+    </View>
+  );
+}
+
 const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
@@ -475,26 +583,61 @@ const useStyles = makeStyles((theme) => ({
     paddingHorizontal: theme.layout.pageGutter,
     gap: theme.spacing[3],
   },
+  titleBlock: {
+    gap: theme.spacing[2],
+  },
   name: {
     fontSize: theme.typography.size["2xl"],
     fontWeight: theme.typography.weight.heavy,
     color: theme.colors.textPrimary,
   },
-  metaRow: {
-    gap: 2,
-  },
-  metaLine: {
+  sanpoMapRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    gap: theme.spacing[2],
   },
-  metaText: {
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textTertiary,
-  },
-  addressText: {
-    // 長い住所は折り返す（アイコンの横の残り幅に収める）。
+  sanpoMapName: {
     flexShrink: 1,
+    fontSize: theme.typography.size.md,
+    color: theme.colors.textSecondary,
+  },
+  infoCard: {
+    // 行が自分で上下の余白を持つので、カードの上下は詰める（左右は Card の既定のまま）。
+    paddingVertical: theme.spacing[1],
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[3],
+    paddingVertical: theme.spacing[3],
+  },
+  infoRowDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.borderSubtle,
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceTint,
+    // タグの行のように値が複数行になっても、アイコンはラベルの高さに揃える。
+    alignSelf: "flex-start",
+  },
+  infoBody: {
+    // 長い住所・多いタグは残り幅で折り返す。
+    flex: 1,
+    gap: 2,
+  },
+  infoLabel: {
+    fontSize: theme.typography.size.xs,
+    color: theme.colors.textSecondary,
+  },
+  infoValue: {
+    fontSize: theme.typography.size.md,
+    lineHeight: lineHeight(theme.typography.size.md, theme.typography.leading.snug),
+    color: theme.colors.textPrimary,
   },
   archivedNotice: {
     fontSize: theme.typography.size.sm,
@@ -504,6 +647,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: theme.spacing[2],
+    marginTop: theme.spacing[1],
   },
   memoHeading: {
     fontSize: theme.typography.size.sm,
@@ -513,6 +657,19 @@ const useStyles = makeStyles((theme) => ({
   },
   memoBody: {
     fontSize: theme.typography.size.md,
+    color: theme.colors.textPrimary,
+  },
+  locationSection: {
+    gap: theme.spacing[2],
+  },
+  sectionHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  sectionHeadingText: {
+    fontSize: theme.typography.size.md,
+    fontWeight: theme.typography.weight.bold,
     color: theme.colors.textPrimary,
   },
   hint: {

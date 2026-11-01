@@ -12,6 +12,7 @@ metadata:
   mobile の `.env` の `EXPO_PUBLIC_DEV_USER_KEY` と同じ値にすると、アプリで「Google でログイン」を押した開発ユーザーと同じ人になる。
   `POST /sanpo-maps`（`{name, icon}`）・`POST /pins`（`client_pin_id`（UUID）・`sanpo_map_id`・`name`・`location`）で作れる。
   python の `urllib` で書くと依存が要らない。backend へは sandbox の外から叩く（`localhost:<BACKEND_API_PORT>`）。
+  ピンには `memo`・`tags`（文字列の配列）も付けられる。アーカイブ済みは作成時に指定できないので、作った後に `PATCH /pins/{id}` に `{"archived": true}` を送る。
 - **`GOOGLE_MAPS_SERVER_API_KEY` が空だと `dev-up.sh` が止まる。** 地図・ピンの確認だけなら `MAPS_MODE=fake` でよいが、
   **`packages/*/.env` への書き込みは権限設定で Edit・シェルの両方が拒否される。** ユーザーに
   `! sed -i 's/^# MAPS_MODE=real$/MAPS_MODE=fake/' packages/backend/.env` を実行してもらう。
