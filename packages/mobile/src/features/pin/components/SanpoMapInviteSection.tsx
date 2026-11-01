@@ -93,16 +93,9 @@ export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInvi
         dismissDisabled={invitations.creating}
         testID="sanpo-map-invite-dialog"
         actions={
-          <>
-            <Button
-              variant="secondary"
-              fullWidth
-              disabled={invitations.creating}
-              onPress={close}
-              testID="sanpo-map-invite-cancel"
-            >
-              キャンセル
-            </Button>
+          // 「招待リンクを送る」は横に2つ並べるとダイアログの幅に収まらず右へはみ出すので、
+          // 受諾画面と同じく主ボタンを上にして縦に積む。
+          <View style={styles.actions}>
             <Button
               variant="primary"
               fullWidth
@@ -112,7 +105,16 @@ export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInvi
             >
               {invitations.creating ? "準備しています…" : INVITATION_SEND_LABEL}
             </Button>
-          </>
+            <Button
+              variant="secondary"
+              fullWidth
+              disabled={invitations.creating}
+              onPress={close}
+              testID="sanpo-map-invite-cancel"
+            >
+              キャンセル
+            </Button>
+          </View>
         }
       >
         {INVITATION_SHEET_POINTS.map((point) => (
@@ -163,6 +165,10 @@ const useStyles = makeStyles((theme) => ({
   rowText: {
     fontSize: theme.typography.size.md,
     color: theme.colors.textPrimary,
+  },
+  actions: {
+    flex: 1,
+    gap: theme.spacing[3] - 2,
   },
   point: {
     fontSize: theme.typography.size.md,
