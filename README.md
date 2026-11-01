@@ -163,6 +163,7 @@ WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合
 > SS-70（expo-crypto の追加）・SS-88（expo-image-picker / expo-image-manipulator /
 > expo-file-system の追加。ピン登録機能）・SS-156（expo-task-manager の追加と expo-location プラグイン設定の変更。
 > 散歩中の背景位置記録）・SS-157（iOS: 位置情報の利用目的文言。Android: 通知権限 `POST_NOTIFICATIONS` の宣言）・
-> SS-246（expo-clipboard の追加。ピン詳細の住所のコピー）適用後は development build の作り直しが必要**
+> SS-246（expo-clipboard の追加。ピン詳細の住所のコピー）・SS-250（招待リンクの Associated Domains と Android の intent filter）
+> 適用後は development build の作り直しが必要**
 > （Fast Refresh では反映されない）。
 > 詳細は [mobile ローカル環境構築手順](./packages/mobile/docs/local-env.md) を参照。
