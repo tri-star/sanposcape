@@ -44,7 +44,7 @@
    - `__init__.py`（構造のためだけのファイル。フォルダの数に入れない）
    - テストの判定: `*.test.*`・`*.spec.*`・`test_*.py`・`*_test.py`・`conftest.py`、`tests/`・`__tests__/`・`test/`（mobile の vitest の setup と mock）・`__mocks__/` の下
 3. **接頭辞は、ファイル名の最初の語で数える**（camelCase・PascalCase・snake_case・kebab-case を語に分ける）。慣習で付く `use`・`test` は飛ばす。
-   最初の語が親フォルダの名前の語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、フォルダで既に分かれている語なので次の語（`edit`）で数える。
+   最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、フォルダで既に分かれている語なので次の語（`edit`）で数える。
    機能名を名前に含める命名規約（`features/walk/components/Walk*.tsx`）のフォルダが、それだけで候補にならないようにするため。
    これで `features/pin` の中の `sanpoMap*` のような、別のまとまりが混ざっている所が候補に出る。
 4. **ラチェット方式にする。** 既存の違反は `scripts/code-health/structure-baseline.json` に、載せたときの値（行数・ファイル数）つきで据え置く。

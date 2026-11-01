@@ -125,7 +125,7 @@ def split_words(name: str) -> list[str]:
 def first_word(filename: str, folder: str = "") -> str | None:
     """ファイル名の最初の語（接頭辞）を返す。
 
-    慣習で付く語（`use` など）は飛ばす。最初の語が親フォルダの名前の語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、
+    慣習で付く語（`use` など）は飛ばす。最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、
     フォルダで既に分かれている語なので次の語（`edit`）で数える。機能名を名前に含める命名規約のフォルダが、それだけで候補にならないようにする。
     """
     words = split_words(filename.split(".", 1)[0])
