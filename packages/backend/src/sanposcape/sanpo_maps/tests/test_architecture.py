@@ -16,13 +16,15 @@ _SANPOSCAPE_DIR = _SANPO_MAPS_DIR.parent
 _KERNEL_MODULE_NAMES = {"models", "exceptions", "permissions", "advisory_locks"}
 
 #: サブパッケージ名（M1）。
-_SUBPACKAGES = {"maps", "pins", "photos"}
+_SUBPACKAGES = {"maps", "pins", "photos", "invitations"}
 
 #: サブパッケージごとに import してよい他のサブパッケージ（自分自身を含む, M1）。
 _ALLOWED_SUBPACKAGE_DEPENDENCIES: dict[str, set[str]] = {
     "photos": {"photos"},
     "maps": {"maps", "photos"},
     "pins": {"pins", "maps", "photos"},
+    # 招待（SS-250。ADR-011 の SS-250 追補）。メンバーの判定・地図の行のロックに maps を使う。
+    "invitations": {"invitations", "maps", "photos"},
 }
 
 #: モジュールの外（`main.py`・`all_models.py`・他ドメイン）から import してよい公開面
@@ -34,6 +36,9 @@ _ALLOWED_PUBLIC_SURFACE = {
     "sanposcape.sanpo_maps.pins.router",
     "sanposcape.sanpo_maps.photos.router",
     "sanposcape.sanpo_maps.photos.dev_storage_router",
+    "sanposcape.sanpo_maps.invitations.router",
+    # 使い終わった招待の掃除（SS-250。ADR-011 の SS-250 追補）。`aws_lambda/photo_purge.py` が使う。
+    "sanposcape.sanpo_maps.invitations.purge",
     # アカウント削除後の写真の削除（SS-109。ADR-011 の SS-109 追補）。`users` の
     # アカウント削除と `aws_lambda/photo_purge.py` が使う。
     "sanposcape.sanpo_maps.photos.account_purge",

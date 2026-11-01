@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-15（SS-109: M7 の公開面に `sanpo_maps.photos.account_purge` を足した）。前回: 2026-10-05（SS-175）、2026-09-29（SS-136）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-01（SS-250: サブパッケージ `invitations` を足し、M7 の公開面に `invitations.router`・`invitations.purge` を足した）。前回: 2026-10-15（SS-109: M7 の公開面に `sanpo_maps.photos.account_purge` を足した）、2026-10-05（SS-175）、2026-09-29（SS-136）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -475,6 +475,15 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
   `photos` が持つ（M6）。`users` は公開面の部品を通してだけ書き込む。
 - 依存の向き: `users.service` → `sanpo_maps.photos.account_purge` → `sanpo_maps.photos.{service,repository}` →
   `sanpo_maps.models` → `users.models`。`users.models` は `users.service` を import しないので循環しない。
+
+## サブパッケージ `invitations` の追補（2026-11-01, SS-250）
+
+地図への招待リンク（ADR-009 決定39）のために、サブパッケージ `sanpo_maps/invitations/`（router・service・repository・schemas・dependencies・purge）を足した。
+
+- **依存の向きは `invitations → maps → photos`**（M1 の許可表に `"invitations": {"invitations", "maps", "photos"}`）。メンバーの判定・地図の行のロック・メンバーの追加は `SanpoMapRepository` を使い、地図の応答は `maps.mappers.to_sanpo_map_read` で作る。maps・pins からは invitations を import しない。
+- **M7 の公開面に `sanposcape.sanpo_maps.invitations.router`（main.py）と `sanposcape.sanpo_maps.invitations.purge`（日次の Lambda `aws_lambda/photo_purge.py`）を足した。**
+- 却下: maps に足す案（SS-249 のメンバーの API は maps に足した）。招待は API 5本・テーブル・掃除を持ち、maps の責務（地図とメンバーの管理）を大きく広げるため分けた。
+- `tests/test_architecture.py` の `_SUBPACKAGES`・許可表・公開面を更新した。
 
 ## 関連情報
 

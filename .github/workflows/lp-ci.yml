@@ -54,6 +54,13 @@ jobs:
       - name: Build
         run: pnpm --filter lp build
 
+      # 地図の招待リンクの Universal Links（SS-250）。ビルド後のスクリプトが書く AASA が、正しい JSON で
+      # dist に入っていることを確かめる（ドット始まりのディレクトリや拡張子の無いファイルは落ちやすい）。
+      - name: Check .well-known
+        run: |
+          set -euo pipefail
+          node -e 'JSON.parse(require("fs").readFileSync("packages/lp/dist/.well-known/apple-app-site-association", "utf8"))'
+
       # CloudFront が付ける CSP（'unsafe-inline' なし）で動くよう、出力 HTML にインラインの
       # <script> 本文・<style>・style 属性・on* イベントハンドラ属性が無いことを確かめる。
       # build.format: "directory" でページは dist/<name>/index.html に出るので、サブディレクトリまで見る。

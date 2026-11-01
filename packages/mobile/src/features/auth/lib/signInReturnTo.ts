@@ -9,10 +9,27 @@ export const SIGN_IN_RETURN_TO_HREFS = {
   account: "/(tabs)/account",
 } as const;
 
-export type SignInReturnTo = keyof typeof SIGN_IN_RETURN_TO_HREFS;
-export type SignInReturnToHref = (typeof SIGN_IN_RETURN_TO_HREFS)[SignInReturnTo];
+/**
+ * サインイン画面だけを閉じて（`router.back()`）、すぐ下にある呼び出し元へ戻す値（SS-250）。
+ * 招待の受諾画面（`/invitations/accept?token=`）は、トークンをルートパラメータに持つ。`dismissTo` は戻る先の
+ * ルートのパラメータを href から作り直して消すので、パラメータを持つ画面はこちらで戻す。
+ */
+export const SIGN_IN_RETURN_TO_BACK = ["invitation"] as const;
+
+export type SignInReturnToHrefKey = keyof typeof SIGN_IN_RETURN_TO_HREFS;
+export type SignInReturnTo = SignInReturnToHrefKey | (typeof SIGN_IN_RETURN_TO_BACK)[number];
+export type SignInReturnToHref = (typeof SIGN_IN_RETURN_TO_HREFS)[SignInReturnToHrefKey];
+
+export function isSignInReturnToBack(
+  value: SignInReturnTo,
+): value is (typeof SIGN_IN_RETURN_TO_BACK)[number] {
+  return (SIGN_IN_RETURN_TO_BACK as readonly string[]).includes(value);
+}
 
 export function parseSignInReturnTo(value: unknown): SignInReturnTo | null {
   if (typeof value !== "string") return null;
-  return Object.hasOwn(SIGN_IN_RETURN_TO_HREFS, value) ? (value as SignInReturnTo) : null;
+  if (Object.hasOwn(SIGN_IN_RETURN_TO_HREFS, value)) return value as SignInReturnTo;
+  return (SIGN_IN_RETURN_TO_BACK as readonly string[]).includes(value)
+    ? (value as SignInReturnTo)
+    : null;
 }

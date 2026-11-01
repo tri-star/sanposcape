@@ -148,6 +148,27 @@ class SanpoMapRepository:
         row = self._db.execute(stmt).first()
         return None if row is None else (row[0], row[1])
 
+    def lock_map_for_update(self, sanpo_map_id: uuid.UUID) -> SanpoMap | None:
+        """地図の行を `FOR UPDATE` でロックして返す（member 判定を伴わない）。
+
+        **招待の受諾専用**（ADR-009 決定39。受諾する人はまだ member ではないので
+        `get_membership_for_update()` を使えない）。
+        呼び出し側は有効な招待のトークンで認可を済ませる。
+        `remove_member()`・地図の削除と同じ行のロックで直列化する。
+        """
+        stmt = select(SanpoMap).where(SanpoMap.id == sanpo_map_id).with_for_update()
+        return self._db.scalars(stmt).first()
+
+    def count_members(self, sanpo_map_id: uuid.UUID) -> int:
+        """地図のメンバー数（owner を含む。招待の上限の判定用。認可済みの ID を受け取る）。"""
+        stmt = select(func.count()).where(SanpoMapMember.sanpo_map_id == sanpo_map_id)
+        return int(self._db.scalar(stmt) or 0)
+
+    def add_member(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, role: str) -> None:
+        """メンバーの行を足す（招待の受諾。認可済みの ID を受け取る）。"""
+        self._db.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role=role))
+        self._db.flush()
+
     def get_default_for_owner(self, *, owner_user_id: uuid.UUID) -> SanpoMap | None:
         stmt = select(SanpoMap).where(SanpoMap.owner_user_id == owner_user_id, SanpoMap.is_default)
         return self._db.scalars(stmt).first()

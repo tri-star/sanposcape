@@ -17,7 +17,10 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
+import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
+import { InvitationLinkPasteDialog } from "@/features/pin/components/InvitationLinkPasteDialog";
 import { SanpoMapCreateDialog } from "@/features/pin/components/SanpoMapCreateDialog";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { SanpoMapListItem } from "@/features/pin/components/SanpoMapListItem";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
@@ -79,6 +82,9 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
 
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  // 「招待リンクで参加」（SS-250。フラグ map_invitation が ON・サインイン中だけ）。
+  const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
+  const [joinOpen, setJoinOpen] = useState(false);
   // 開くたびに +1 してダイアログを作り直す（入力値・作成エラーを空に戻す）。
   const [createDialogKey, setCreateDialogKey] = useState(0);
   // 作成中（ダイアログから通知される）。作成中はバックキーでも閉じない。
@@ -88,6 +94,10 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
   const back = useScreenBack({
     fallbackHref: "/(tabs)/pins",
     onIntercept: () => {
+      if (joinOpen) {
+        setJoinOpen(false);
+        return true;
+      }
       if (!createOpen) return false;
       // 作成中はダイアログを閉じず、バック操作だけ消費する（画面も戻らない）。
       // Android では Modal の onRequestClose（作成中は Dialog が止める）が先に受けるので、
@@ -281,7 +291,17 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
         <Text accessibilityRole="header" style={styles.title}>
           地図一覧
         </Text>
-        <View style={styles.headerSpacer} />
+        {isSignedIn && mapInvitationEnabled ? (
+          <IconButton
+            icon="link"
+            label="招待リンクで参加"
+            variant="ghost"
+            onPress={() => setJoinOpen(true)}
+            testID="sanpo-map-list-join-invitation"
+          />
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
       {showSearch ? (
         <View style={styles.search}>
@@ -327,6 +347,14 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
         message={toast.message}
         visible={toast.visible}
         bottom={fabBottom + fabSize + theme.spacing[2]}
+      />
+      <InvitationLinkPasteDialog
+        open={joinOpen}
+        onClose={() => setJoinOpen(false)}
+        onOpen={(token) => {
+          setJoinOpen(false);
+          back.runOnce(() => router.push({ pathname: "/invitations/accept", params: { token } }));
+        }}
       />
       <SanpoMapCreateDialog
         key={createDialogKey}

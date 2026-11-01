@@ -5,6 +5,7 @@ import { parseSignInReturnTo } from "@/features/auth/lib/signInReturnTo";
 describe("parseSignInReturnTo", () => {
   it("許可リストの値だけを通す", () => {
     expect(parseSignInReturnTo("account")).toBe("account");
+    expect(parseSignInReturnTo("invitation")).toBe("invitation");
   });
 
   it.each([

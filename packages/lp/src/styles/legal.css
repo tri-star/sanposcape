@@ -59,7 +59,8 @@
   color: var(--navy);
 }
 
-.legal a {
+/* 本文のリンク。ボタン（`/i/` の「アプリで開く」の .button-navy）は除く（色が上書きされ、紺の地に紺の文字になるため） */
+.legal a:not(.button) {
   color: var(--navy);
   text-decoration: underline;
   text-underline-offset: 3px;

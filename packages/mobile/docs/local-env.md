@@ -41,6 +41,9 @@ React Native (Expo) アプリのローカル開発手順をまとめる。
   （Fast Refresh では反映されない）。iOS 実機・シミュレータで Apple ボタンを確認するときに要る。
 - **SS-246（ピン詳細の住所のコピー）の適用後は、`expo-clipboard` が新規追加されたネイティブ依存のため
   development build の作り直しが必要**（Fast Refresh では反映されない）。
+- **SS-250（地図への招待リンク）の適用後は、iOS の Associated Domains（`applinks:`）と
+  Android の intent filter（`/i/` の App Links）が加わるため development build の作り直しが必要**
+  （Fast Refresh・OTA では反映されない）。招待リンクからアプリが開くのを確かめるときに要る。
 
 ## セットアップ
 

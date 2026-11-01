@@ -1,0 +1,93 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import "../../styles/legal.css";
+
+// 地図の招待リンク（https://sanposcape.com/i/#<token>。SS-250）の受け皿。アプリが入っていれば
+// Universal Links / App Links でアプリが開くので、このページが出るのはアプリが無いとき・リンクの検証が
+// 効かないとき。トークンは fragment にあり、サーバー（CloudFront・S3）には届かない。
+// このページはトークンを検証せず、招待の中身（地図の名前など）も出さない。
+// 「アプリで開く」の href は外部の JS（下の <script>。Astro が _astro/ に出す）が fragment から組み立てる。
+// URL（/i/）はアプリ（app.config.ts の intentFilters）と .well-known の対象の path なので変えないこと。
+
+// Download.astro の App Store の url と同じ値。変えたら両方を直す。
+const appStoreUrl = "https://apps.apple.com/jp/app/sanposcape/id6823866201";
+---
+
+<BaseLayout
+  title="地図への招待 — Sanposcape"
+  description="散歩アプリ Sanposcape の地図への招待です。アプリで開くと招待の内容を確かめて参加できます。"
+  noindex
+>
+  <article class="legal container" aria-labelledby="invite-title">
+    <header class="legal-header">
+      <p class="eyebrow">INVITATION</p>
+      <h1 id="invite-title">地図に招待されています</h1>
+    </header>
+
+    <p>
+      Sanposcape
+      のアプリで開くと、招待の内容を確かめて、地図に参加できます。リンクを開いただけでは参加しません。
+    </p>
+
+    <p class="invite-actions" data-invite-available hidden>
+      <a class="button button-navy" href="#" data-invite-open>
+        アプリで開く
+      </a>
+    </p>
+    <p class="legal-notice" data-invite-missing hidden>
+      招待のリンクが正しくありません。招待した人から届いたリンクを、もう一度そのまま開いてください。
+    </p>
+
+    <h2>アプリをお持ちでない方</h2>
+    <ul>
+      <li>
+        <strong>iPhone</strong>:
+        <a href={appStoreUrl} rel="noopener noreferrer">
+          App Store
+        </a>
+        からアプリを入れてから、もう一度招待のリンクを開いてください。
+      </li>
+      <li>
+        <strong>Android</strong>: Android 版は公開の準備中です。
+      </li>
+    </ul>
+
+    <h2>リンクからアプリが開かない場合</h2>
+    <p>
+      アプリの「地図」の一覧にある「招待リンクで参加」に、このページのアドレス（URL）を貼り付けてください。
+    </p>
+  </article>
+</BaseLayout>
+
+<script>
+  import { PUBLIC_LP_ENV } from "astro:env/client";
+
+  // アプリの custom scheme とパッケージ名（app.config.ts。本番は sanposcape / com.sanposcape.app、
+  // 開発用は sanposcape-dev / com.sanposcape.app.dev）。
+  const production = PUBLIC_LP_ENV === "production";
+  const scheme = production ? "sanposcape" : "sanposcape-dev";
+  const androidPackage = production
+    ? "com.sanposcape.app"
+    : "com.sanposcape.app.dev";
+  // backend が発行するトークン（base64url）。それ以外の値はリンクに載せない。
+  const token = window.location.hash.slice(1);
+  const valid = /^[A-Za-z0-9_-]{16,128}$/.test(token);
+  const available = document.querySelector<HTMLElement>(
+    "[data-invite-available]",
+  );
+  const missing = document.querySelector<HTMLElement>("[data-invite-missing]");
+  const open = document.querySelector<HTMLAnchorElement>("[data-invite-open]");
+  if (valid && open && available) {
+    const query = `t=${encodeURIComponent(token)}`;
+    // アプリが無いとき、Play ストアのページ（未公開だと「見つかりません」）ではなくこのページ（トークン無し）に戻す。
+    const fallbackUrl = `${window.location.origin}${window.location.pathname}`;
+    // Android は intent:// でパッケージを指定し、同じ scheme を名乗る別のアプリにトークンを渡さない。
+    // iOS は custom scheme の重複を防げない（受け入れた危険。ADR-M-024 D7）。
+    open.href = /Android/i.test(navigator.userAgent)
+      ? `intent://invite?${query}#Intent;scheme=${scheme};package=${androidPackage};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
+      : `${scheme}://invite?${query}`;
+    available.hidden = false;
+  } else if (missing) {
+    missing.hidden = false;
+  }
+</script>

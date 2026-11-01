@@ -202,6 +202,14 @@ class Settings(BaseSettings):
     google_maps_rate_limit_requests: int = Field(default=30, gt=0)
     google_maps_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
     google_maps_rate_limit_window_seconds: int = Field(default=60, gt=0)
+    # 地図の招待リンクの URL の前半（SS-250, ADR-009 決定39）。`<base>#<token>` を応答で返す。
+    # dev / prod は template.yaml の EnvToInvitationUrlBase で渡す。
+    invitation_url_base: str = "https://sanposcape.com/i/"
+    # 招待の preview・accept のレート制限（トークンの総当たり・ログとコストの保護）。
+    # 仕組みは探索 API と同じ（`maps/rate_limit.py`）。
+    invitation_rate_limit_requests: int = Field(default=20, gt=0)
+    invitation_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
+    invitation_rate_limit_window_seconds: int = Field(default=60, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
     # 周回ルート（SS-33, ADR-007）の kill switch。品質劣化時の緊急停止と、mobile の
     # 同じ道フォールバック表示の手動確認に使う（real/fake いずれでも有効）。
