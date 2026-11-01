@@ -89,7 +89,8 @@ testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` �
 `onIntercept` で挟む。保存中は戻らない。SS-119）/ `SanpoMapListView`（`sanpo-maps`。
 testID `sanpo-map-list-back`。作成ダイアログを開いている間は `onIntercept` で閉じる。SS-146 / SS-121）/
 `SanpoMapDetailView`（`sanpo-maps/[sanpoMapId]`。testID `sanpo-map-detail-back`。アイコン変更ダイアログを開いている間は `onIntercept` で閉じる（変更中は閉じない）。SS-121 / SS-171）/
-`LicensesView`（`licenses`。testID `licenses-back`。SS-191）の9画面。
+`SanpoMapMembersView`（`sanpo-maps/[sanpoMapId]/members`。testID `sanpo-map-members-back`。外す・抜けるの確認ダイアログを開いている間は `onIntercept` で閉じる（実行中は閉じない）。SS-249）/
+`LicensesView`（`licenses`。testID `licenses-back`。SS-191）の10画面。
 `SettingsView` と `(tabs)` 配下の各画面は
 未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
 戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
@@ -109,7 +110,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 - 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
   判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
 - 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
-  遷移は1回。適用済み9画面では、戻る以外でその画面から出る遷移（例:
+  遷移は1回。適用済み10画面では、戻る以外でその画面から出る遷移（例:
   `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」、
   `SanpoMapDetailView` のピンタップ → `router.push("/pins/[pinId]", ...)`。SS-121）も
   すべて `runOnce` 経由にする。

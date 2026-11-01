@@ -12,6 +12,16 @@ class SanpoMapPermissionDeniedError(Exception):
     """
 
 
+class SanpoMapMemberNotFoundError(Exception):
+    """`DELETE /sanpo-maps/{id}/members/{user_id}` で、owner が指定した相手がその地図の
+    member でない（存在しない利用者も区別しない, ADR-009 決定38）。404。
+    """
+
+
+class SanpoMapOwnerCannotLeaveError(Exception):
+    """owner が自分を指定して地図から抜けようとした（ADR-009 決定38）。409。"""
+
+
 class PinNotFoundError(Exception):
     """指定された pin_id が存在しない、または現在のユーザーが member でない地図に属する。
 

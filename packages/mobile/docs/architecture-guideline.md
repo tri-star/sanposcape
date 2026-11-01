@@ -204,8 +204,9 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   backend の `.env` に `FEATURE_FLAG_MODE=stub` と
   `FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'` を設定して起動する
   （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
-  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値になっており、
-  ピン登録機能はローカル・CI とも追加設定なしで ON になる（SS-88）。
+  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値に加えて
+  `pin_station_tag`・`map_invitation` を ON にしており、ピン登録（SS-88）・最寄り駅のタグ（SS-225）・
+  地図への招待（SS-90）はローカル・CI とも追加設定なしで ON になる。
   最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
 - **最低サポートバージョン**（`AppConfigSnapshot.minimumSupportedVersions`）を下回ると、ルートレイアウトの
   `UpdateRequiredGate`（`src/features/app-update/`）が閉じられない全画面の案内を出してストアへ誘導する（SS-101）。
@@ -227,7 +228,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 `app/pins/[pinId]/index.tsx`（SS-118。後者は `isUuid` での params 検証も併せて行う）/
 `app/pins/[pinId]/edit.tsx`（SS-119。同じ形で `currentUserId` も注入する）/
 `app/sanpo-maps/index.tsx`（SS-146。SS-121 で `isSignedIn` / `onSignIn` の注入を追加）/
-`app/sanpo-maps/[sanpoMapId].tsx`（SS-121。`isUuid` での params 検証と認証値の注入を行う）。
+`app/sanpo-maps/[sanpoMapId]/index.tsx`（SS-121。SS-249 で `[sanpoMapId].tsx` から移した。`isUuid` での params 検証と認証値の注入を行う）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
@@ -249,7 +250,7 @@ export default function SomeFeatureRoute() {
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
   `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
-  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`・`[sanpoMapId].tsx`。SS-146 / SS-121）も OFF 時はナビタブへ戻す。
+  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`・`[sanpoMapId]/index.tsx`・`[sanpoMapId]/members.tsx`。SS-146 / SS-121 / SS-249）も OFF 時はナビタブへ戻す。
   ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
   （実例: `app/pins/new.tsx`。SS-88。
   `app/pins/[pinId]/index.tsx`。SS-118。編集画面 `app/pins/[pinId]/edit.tsx`。SS-119）。

@@ -37,6 +37,12 @@ export const FEATURE_FLAG_KEYS = {
    * 本番の LP に出してから ON にする。
    */
   pinStationTag: "pin_station_tag",
+  /**
+   * 地図への招待（SS-90）。地図詳細のメンバーの行・メンバー画面（SS-249）と、招待の導線（SS-250）を出し分ける。
+   * OFF でも、自分が editor の地図ではメンバーの行を出す（OFF に戻しても参加している人が抜けられるように）。
+   * プライバシーポリシーの施行日（2026-12-02）の後に ON にする。
+   */
+  mapInvitation: "map_invitation",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];

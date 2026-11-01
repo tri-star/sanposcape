@@ -44,7 +44,9 @@ from sanposcape.sanpo_maps.exceptions import (
     PinPhotoUploadNotFoundError,
     PinPhotoUploadNotReadyError,
     PinTagLimitExceededError,
+    SanpoMapMemberNotFoundError,
     SanpoMapNotFoundError,
+    SanpoMapOwnerCannotLeaveError,
     SanpoMapPermissionDeniedError,
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
@@ -167,6 +169,26 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: SanpoMapPermissionDeniedError
     ) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": "Permission denied"})
+
+    @app.exception_handler(SanpoMapMemberNotFoundError)
+    async def _sanpo_map_member_not_found(
+        request: Request, exc: SanpoMapMemberNotFoundError
+    ) -> JSONResponse:
+        # `DELETE /sanpo-maps/{id}/members/{user_id}` 専用（ADR-009 決定38）。
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Sanpo map member not found", "code": "sanpo_map_member_not_found"},
+        )
+
+    @app.exception_handler(SanpoMapOwnerCannotLeaveError)
+    async def _sanpo_map_owner_cannot_leave(
+        request: Request, exc: SanpoMapOwnerCannotLeaveError
+    ) -> JSONResponse:
+        # `DELETE /sanpo-maps/{id}/members/{user_id}` 専用（ADR-009 決定38）。
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "Owner cannot leave the sanpo map", "code": "owner_cannot_leave"},
+        )
 
     @app.exception_handler(PinNotFoundError)
     async def _pin_not_found(request: Request, exc: PinNotFoundError) -> JSONResponse:

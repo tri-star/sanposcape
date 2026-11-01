@@ -138,3 +138,43 @@ class SanpoMapListQuery(BaseModel):
     expand: list[Literal["pin_count"]] = Field(
         default_factory=list, max_length=SANPO_MAP_LIST_EXPAND_MAX_LENGTH
     )
+
+
+class SanpoMapMemberRead(BaseModel):
+    """地図のメンバー1人（`GET /sanpo-maps/{id}/members`, ADR-009 決定38）。
+
+    他のメンバーに見せるのは表示名・役割・参加日時だけ（メールアドレス・プロフィール画像の
+    URL は返さない。プライバシーポリシー 1-8）。
+    """
+
+    user_id: uuid.UUID
+    # `users.display_name`。未設定なら null（mobile が「メンバー」と表示する）。
+    display_name: str | None
+    role: SanpoMapRole
+    # メンバーになった日時（owner は地図の作成日時）。
+    joined_at: datetime
+
+
+class SanpoMapMemberListRead(BaseModel):
+    # owner → 参加日時の古い順。件数は招待の上限で抑えられるのでページングしない。
+    items: list[SanpoMapMemberRead]
+
+
+class SanpoMapMemberNotFoundErrorRead(BaseModel):
+    """`DELETE /sanpo-maps/{id}/members/{user_id}` の 404 応答本体（ADR-009 決定38）。
+
+    `sanpo_map_not_found` は呼んだ人がその地図の member でない（存在しない地図も区別しない）、
+    `sanpo_map_member_not_found` は owner が指定した相手が member でない。
+    """
+
+    detail: str
+    code: Literal["sanpo_map_not_found", "sanpo_map_member_not_found"]
+
+
+class SanpoMapLeaveConflictErrorRead(BaseModel):
+    """`DELETE /sanpo-maps/{id}/members/{user_id}` の 409 応答本体（owner は抜けられない,
+    ADR-009 決定38）。
+    """
+
+    detail: str
+    code: Literal["owner_cannot_leave"]

@@ -43,7 +43,7 @@ expo-router 57 の `useSegments` は `store.onStateChange` で更新され、そ
 
 ## flash トーストは消費する画面でしか出ない
 
-`setFlashMessage` を消費するのは `WalkActiveView`・`PinTabView`・`PinDetailView`・`SanpoMapDetailView` の `useFocusEffect`（2026-10 時点。`rg consumeFlashMessage` で確かめる）。
+`setFlashMessage` を消費するのは `WalkActiveView`・`PinTabView`・`PinDetailView`・`SanpoMapDetailView`・`SanpoMapListView`（SS-249。メンバー画面で地図から抜けた後の戻り先）の `useFocusEffect`（2026-10 時点。`rg consumeFlashMessage` で確かめる）。
 
 **How to apply:** flash を使う遷移では、戻り先になりうる画面すべてで消費しているか確かめる。足さないと、次にピンタブへフォーカスしたとき遅れて出る。
 

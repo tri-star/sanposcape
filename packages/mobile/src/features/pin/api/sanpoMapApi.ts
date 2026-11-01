@@ -1,12 +1,14 @@
-import { ApiError } from "@/api/apiError";
+import { ApiError, isApiError } from "@/api/apiError";
 import {
   createSanpoMap as createSanpoMapRequest,
+  listSanpoMapMembers as listSanpoMapMembersRequest,
   listSanpoMaps as listSanpoMapsRequest,
+  removeSanpoMapMember as removeSanpoMapMemberRequest,
   updateSanpoMap as updateSanpoMapRequest,
 } from "@/api/generated/endpoints/sanpo-maps/sanpo-maps";
-import type { SanpoMapRead } from "@/api/generated/model";
+import type { SanpoMapMemberRead, SanpoMapRead } from "@/api/generated/model";
 import { toSanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
-import type { SanpoMap, SanpoMapIconKey } from "@/features/pin/types";
+import type { SanpoMap, SanpoMapIconKey, SanpoMapMember } from "@/features/pin/types";
 import { isUuid } from "@/lib/uuid";
 
 /** `icon` は SS-171。生成型では必須でも、古い backend・未知の値に備えて必ず検証を通す。 */
@@ -78,4 +80,50 @@ export async function updateSanpoMapIcon(input: {
     throw new ApiError(response.status);
   }
   return toSanpoMap(response.data);
+}
+
+export function toSanpoMapMember(read: SanpoMapMemberRead): SanpoMapMember {
+  return {
+    userId: read.user_id,
+    displayName: read.display_name,
+    role: read.role,
+    joinedAt: read.joined_at,
+  };
+}
+
+/**
+ * `GET /sanpo-maps/{id}/members`（SS-249）。並びは backend の順（owner → 参加日時の古い順）のまま。
+ * `sanpoMapId` が UUID でなければ通信せず ApiError(404)。
+ */
+export async function fetchSanpoMapMembers(
+  sanpoMapId: string,
+  options?: { signal?: AbortSignal },
+): Promise<SanpoMapMember[]> {
+  if (!isUuid(sanpoMapId)) throw new ApiError(404);
+  const response = await listSanpoMapMembersRequest(sanpoMapId, { signal: options?.signal });
+  if (response.status !== 200) {
+    throw new ApiError(response.status);
+  }
+  return response.data.items.map(toSanpoMapMember);
+}
+
+/**
+ * `DELETE /sanpo-maps/{id}/members/{user_id}`（SS-249）。自分の ID なら「抜ける」、他人なら owner が「外す」。
+ * 404 は成功として扱う（もう抜けている・もう外されている。再試行が 404 になっても安全にするため。
+ * `deletePin()` と同じ考え方）。`signal` は渡さない（書き込みは画面を離れても中断しない）。
+ */
+export async function removeSanpoMapMember(input: {
+  sanpoMapId: string;
+  userId: string;
+}): Promise<void> {
+  if (!isUuid(input.sanpoMapId) || !isUuid(input.userId)) throw new ApiError(422);
+  try {
+    const response = await removeSanpoMapMemberRequest(input.sanpoMapId, input.userId);
+    if (response.status !== 204) {
+      throw new ApiError(response.status);
+    }
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) return;
+    throw error;
+  }
 }
