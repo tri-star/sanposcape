@@ -83,6 +83,8 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(cs.first_word("photo_attacher.py"), "photo")
         self.assertEqual(cs.first_word("usePinEdit.ts"), "pin")
         self.assertEqual(cs.first_word("URLParser.ts"), "url")
+        self.assertIsNone(cs.first_word("2026-10-24.astro"))
+        self.assertEqual(cs.first_word("v2Client.ts"), "v")
         # 親フォルダの名前と同じ最初の語は飛ばす。1語だけなら残す
         self.assertEqual(cs.first_word("pinEditDraft.ts", "src/features/pin/lib"), "edit")
         self.assertEqual(cs.first_word("usePinEdit.ts", "src/features/pin/hooks"), "edit")

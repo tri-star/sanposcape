@@ -128,7 +128,8 @@ def first_word(filename: str, folder: str = "") -> str | None:
     慣習で付く語（`use` など）は飛ばす。最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、
     フォルダで既に分かれている語なので次の語（`edit`）で数える。機能名を名前に含める命名規約のフォルダが、それだけで候補にならないようにする。
     """
-    words = split_words(filename.split(".", 1)[0])
+    # 数字だけの語（`2026-10-24.astro` の日付、`404.astro`）はまとまりを表さないので数えない。
+    words = [w for w in split_words(filename.split(".", 1)[0]) if not w.isdigit()]
     while words and words[0] in CONVENTIONAL_FIRST_WORDS:
         words.pop(0)
     folder_words = {w for part in PurePosixPath(folder).parts for w in split_words(part)}

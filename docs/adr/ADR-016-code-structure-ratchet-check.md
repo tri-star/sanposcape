@@ -43,7 +43,7 @@
    - `packages/backend/alembic/versions`（マイグレーションは増えていくのが性質なので、ファイル数と接頭辞だけ測らない。行数は測る）
    - `__init__.py`（構造のためだけのファイル。フォルダの数に入れない）
    - テストの判定: `*.test.*`・`*.spec.*`・`test_*.py`・`*_test.py`・`conftest.py`、`tests/`・`__tests__/`・`test/`（mobile の vitest の setup と mock）・`__mocks__/` の下
-3. **接頭辞は、ファイル名の最初の語で数える**（camelCase・PascalCase・snake_case・kebab-case を語に分ける）。慣習で付く `use`・`test` は飛ばす。
+3. **接頭辞は、ファイル名の最初の語で数える**（camelCase・PascalCase・snake_case・kebab-case を語に分ける）。慣習で付く `use`・`test` と、数字だけの語（`privacy/2026-10-24.astro` の日付など）は飛ばす。
    最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、フォルダで既に分かれている語なので次の語（`edit`）で数える。
    機能名を名前に含める命名規約（`features/walk/components/Walk*.tsx`）のフォルダが、それだけで候補にならないようにするため。
    これで `features/pin` の中の `sanpoMap*` のような、別のまとまりが混ざっている所が候補に出る。
