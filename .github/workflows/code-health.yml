@@ -25,5 +25,7 @@ jobs:
       - name: Check code structure
         run: python3 scripts/code-health/check-structure.py
 
+      # 検査が落ちても走らせる。検査のスクリプト自体を変える PR で、テストの結果が見えなくなるため。
       - name: Test the structure check
+        if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s scripts/code-health/tests -v
