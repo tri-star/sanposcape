@@ -196,6 +196,15 @@ class RatchetTest(unittest.TestCase):
         self.assertEqual((entries[1]["path"], entries[1]["issue"], entries[1]["reason"]), ("b.py", "", ""))
         self.assertEqual(len(cs.validate_baseline(entries)), 2)  # 新しい項目は埋めるまで落ちる
 
+    def test_regenerated_baseline_clears_reason_when_raised(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "baseline.json"
+            previous = [entry("file-lines", "a.py", 900, issue="SS-9", reason="導入時点からあった")]
+            cs.write_baseline(path, [self.finding("file-lines", "a.py", 901)], previous)
+            entries = json.loads(path.read_text(encoding="utf-8"))["entries"]
+        self.assertEqual((entries[0]["value"], entries[0]["issue"], entries[0]["reason"]), (901, "SS-9", ""))
+        self.assertEqual(cs.validate_baseline(entries), ["file-lines a.py: reason（今は分けない理由）が無い"])
+
 
 if __name__ == "__main__":
     unittest.main()

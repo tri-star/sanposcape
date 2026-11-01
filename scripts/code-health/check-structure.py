@@ -64,7 +64,8 @@ ISSUE_RE = re.compile(r"^SS-\d+$")
 # 失敗したときの案内。分割を判断する skill ができたら、ここに名前を足す（ADR-016）。
 SPLIT_GUIDE = (
     "分け方を決めて分割してください（フォルダはまとまりごとのサブフォルダへ、ファイルは責務ごとに）。\n"
-    "今は分けられない理由があるなら、--baseline で載せ、`issue`（片付ける課題）と `reason` を書いてください（ADR-016）。"
+    "今は分けられない理由があるなら、--baseline で載せ、`issue`（片付ける課題）と `reason` を書いてください。\n"
+    "既にある項目の値を上げたときは reason が空になるので、何のために上げたかを書き直してください（ADR-016）。"
 )
 
 
@@ -261,8 +262,11 @@ def write_baseline(path: Path, violations: list[Finding], previous: list[dict]) 
         if finding.prefix:
             entry["prefix"] = finding.prefix
         entry["value"] = finding.value
-        entry["issue"] = old.get(finding.key, {}).get("issue", "")
-        entry["reason"] = old.get(finding.key, {}).get("reason", "")
+        previous_entry = old.get(finding.key, {})
+        entry["issue"] = previous_entry.get("issue", "")
+        # 値を上げた（悪化を通した）項目は、前の理由が今の値の説明にならないので空にし、書き直させる。
+        raised = isinstance(previous_entry.get("value"), int) and finding.value > previous_entry["value"]
+        entry["reason"] = "" if raised else previous_entry.get("reason", "")
         entries.append(entry)
     data = {
         "description": (
