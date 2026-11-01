@@ -57,6 +57,9 @@ class ClassifyTest(unittest.TestCase):
             "packages/backend/src/a/router_test.py",
             "packages/backend/src/a/conftest.py",
             "packages/mobile/src/__tests__/x.ts",
+            "packages/mobile/src/test/setup.ts",
+            "packages/mobile/src/test/mocks/expo-crypto.ts",
+            "packages/mobile/src/__mocks__/x.ts",
         ]:
             self.assertTrue(cs.is_test(path), path)
         for path in ["packages/mobile/src/lib/units.ts", "packages/backend/src/a/testing_utils.py"]:

@@ -56,6 +56,9 @@ STRUCTURAL_FILES = {"__init__.py"}
 # 接頭辞として数えない、慣習で付く最初の語（`usePinEdit` は `pin` として数える）。
 CONVENTIONAL_FIRST_WORDS = {"use", "test"}
 
+# この名前のフォルダの下はテスト（テストの支え・mock を含む）。
+TEST_DIRS = {"tests", "__tests__", "test", "__mocks__"}
+
 ISSUE_RE = re.compile(r"^SS-\d+$")
 
 # 失敗したときの案内。分割を判断する skill ができたら、ここに名前を足す（ADR-016）。
@@ -88,7 +91,8 @@ class Finding:
 
 def is_test(path: str) -> bool:
     p = PurePosixPath(path)
-    if any(part in {"tests", "__tests__"} for part in p.parts[:-1]):
+    # `test/` は mobile の vitest の setup と mock（`packages/mobile/src/test/`）。
+    if any(part in TEST_DIRS for part in p.parts[:-1]):
         return True
     name = p.name
     if name == "conftest.py" or (name.startswith("test_") and name.endswith(".py")) or name.endswith("_test.py"):
