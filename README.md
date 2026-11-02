@@ -24,6 +24,7 @@
   - 横断: [ADR-009 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
   - 横断: [ADR-010 Astra向けハーネスとClaude定義の差分取り込み](./docs/adr/ADR-010-codex-astra-harness-and-incremental-import.md)
   - 横断: [ADR-014 Claude Code のハーネスは、メインが計画・実装し、レビューは観点で分けたレビュアーに任せる](./docs/adr/ADR-014-claude-harness-main-agent-and-review-structure.md)
+  - 横断: [ADR-017 関数の複雑度・長さ・依存の数・循環 import は ruff・oxlint のルールで止め、既存の違反はファイル単位の除外に課題と理由をつけて据え置く](./docs/adr/ADR-017-function-complexity-lint-rules.md)
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-M-001 フォルダ構造](./packages/mobile/adr/ADR-M-001-folder-structure.md)
