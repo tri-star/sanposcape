@@ -55,7 +55,7 @@ SS-253 の時点の実測（既定の閾値での既存の違反）:
    - `no-restricted-imports` の override は後勝ちで置き換わる。そのため `lib/` の override に devTools の制限を再掲する。
      さらに `features/{walk,history,pin}/lib/**` には、その後ろの override で認証の制限も再掲する。
      順序と再掲は `src/config/oxlintRestrictedImports.test.ts` で検査する
-7. **backend のモジュールの境界（ADR-011）に import-linter は入れない。** `sanpo_maps/tests/test_architecture.py` が M1〜M8 を AST で検査している。
+7. **backend のモジュールの境界（ADR-011）に import-linter は入れない。** `sanpo_maps/tests/test_architecture.py` が、ADR-011 の規則のうち AST で判定できるもの（M1・M2・M4・M7・M8 と、M3 の import・M5 の Protocol の port）を検査している（M6 と M3 のコンストラクタの引数はレビューで見る）。
    その中には、import の向きだけでは書けない規則（commit は `service.py` だけ、Protocol の port を作らない）も含まれる。import-linter を足すと、境界の定義が2か所に分かれる。
 
 ## 検討した選択肢
@@ -115,6 +115,6 @@ SS-253 の時点の実測（既定の閾値での既存の違反）:
 ## 関連情報
 
 - ADR-016（SS-252。コードの構造の検査とラチェットの運用。決定5〜7 がこの ADR の進め方の元）
-- [ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定3（`sanpo_maps` のモジュール内規則 M1〜M8 と AST テスト）
+- [ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定3（`sanpo_maps` のモジュール内規則 M1〜M8 と、その AST テスト）
 - [mobile のフォルダ構造](../../packages/mobile/docs/folder-structure.md)（`lib/` は react-native を値 import しない）
 - Plane: SS-253（この ADR）、SS-252、SS-258、SS-259
