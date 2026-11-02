@@ -91,7 +91,8 @@ packages/mobile/
 - 1つの機能に属する `components` / `hooks` / `lib` / `data` / `api` / `store` / `types` をこの配下に凝集させる。
 - **`hooks/` は RN 依存の副作用・状態**（`useState`/`useEffect` など）を持つ層。Vitest ではレンダリング/フックのテストはできない
   （詳細は [pages-components-guideline](./pages-components-guideline.md)）。
-- **判定・整形ロジックは `lib/` の純粋関数に切り出す**（`react-native` を値 import しない）。
+- **判定・整形ロジックは `lib/` の純粋関数に切り出す**（`react-native` を値 import しない。`src/lib/` とあわせて `.oxlintrc.json` の
+  `no-restricted-imports` で機械的に強制される。型だけの `import type` は可。[ADR-017](../../../docs/adr/ADR-017-function-complexity-lint-rules.md) 決定6）。
   こちらが Vitest でのテスト対象になる（`.test.ts` を併置）。
 - **`data/`** には静的データ・定数を置く。
   - サーバー由来データを代用する**暫定スタブ**は、API へ差し替わったら削除する一時的なものとして扱う。
