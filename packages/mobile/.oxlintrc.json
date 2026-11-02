@@ -26,7 +26,10 @@
     "complexity": ["error", { "max": 20 }],
     "max-depth": ["error", { "max": 4 }],
     // React のコンポーネントは JSX を含めて1関数になるため、行数は空行・コメントを除いて 200 から始める。
-    "max-lines-per-function": ["error", { "max": 200, "skipBlankLines": true, "skipComments": true }],
+    "max-lines-per-function": [
+      "error",
+      { "max": 200, "skipBlankLines": true, "skipComments": true }
+    ],
     "import/no-cycle": "error",
     // 型だけの import は実行時の結合を作らないので数えない。
     "import/max-dependencies": ["error", { "max": 20, "ignoreTypeImports": true }]
@@ -98,7 +101,11 @@
     },
     {
       // 探索・散歩・履歴・ピン登録の lib/ は、直前の lib/ の制限に置き換えられて認証の制限が外れるので、ここで3つとも再掲する（順序に依存する。後勝ち）。
-      "files": ["src/features/walk/lib/**", "src/features/history/lib/**", "src/features/pin/lib/**"],
+      "files": [
+        "src/features/walk/lib/**",
+        "src/features/history/lib/**",
+        "src/features/pin/lib/**"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -144,7 +151,11 @@
         "src/features/pin/components/PinEditView.tsx",
         "src/features/pin/components/PinRegisterView.tsx"
       ],
-      "rules": { "complexity": "off", "max-lines-per-function": "off", "import/max-dependencies": "off" }
+      "rules": {
+        "complexity": "off",
+        "max-lines-per-function": "off",
+        "import/max-dependencies": "off"
+      }
     },
     {
       // SS-259: 散歩マップの一覧・詳細・メンバーの画面が、表示・操作・ダイアログを1つのコンポーネントで扱っている
