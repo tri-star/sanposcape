@@ -168,9 +168,14 @@
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
     },
     {
-      // SS-259: ピンの編集と写真の hook が、取得・下書き・保存の状態を1つの hook で持っている（行数 213・221、複雑度 21）。
-      "files": ["src/features/pin/hooks/usePinEdit.ts", "src/features/pin/hooks/usePinPhotos.ts"],
+      // SS-259: ピンの編集の hook が、取得・下書き・保存の状態を1つの hook で持っている（行数 221・複雑度 21）。
+      "files": ["src/features/pin/hooks/usePinEdit.ts"],
       "rules": { "complexity": "off", "max-lines-per-function": "off" }
+    },
+    {
+      // SS-259: ピンの写真の hook が、写真の状態と転送の処理を1つの hook で持っている（行数 213）。責務ごとに分ける。
+      "files": ["src/features/pin/hooks/usePinPhotos.ts"],
+      "rules": { "max-lines-per-function": "off" }
     },
     {
       // SS-259: 保存の失敗をエラーコードへ読み替える分岐を1関数に並べている（複雑度 23）。表で引く形にできるか見る。
@@ -183,12 +188,14 @@
       "rules": { "complexity": "off" }
     },
     {
-      // SS-259: 開発用のカタログ・散歩の詳細の画面が、並べる部品をすべて直接描いている（行数 204・213、依存 22）。
-      "files": [
-        "src/features/design-system/components/DesignSystemGallery.tsx",
-        "src/features/history/components/WalkDetailView.tsx"
-      ],
+      // SS-259: 開発用のカタログの画面が、並べる部品をすべて直接描いている（行数 213・依存 22）。
+      "files": ["src/features/design-system/components/DesignSystemGallery.tsx"],
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
+    },
+    {
+      // SS-259: 散歩の詳細の画面が、表示の状態ごとの描き分けを1つのコンポーネントで持っている（行数 204）。セクションに分ける。
+      "files": ["src/features/history/components/WalkDetailView.tsx"],
+      "rules": { "max-lines-per-function": "off" }
     },
     {
       // SS-259: ピンのタブ・散歩の開始と散歩中の画面が、地図・シート・ダイアログの部品を直接組み立てている（依存 26・27）。
