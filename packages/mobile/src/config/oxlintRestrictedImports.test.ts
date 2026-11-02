@@ -78,6 +78,8 @@ describe(".oxlintrc.json の no-restricted-imports", () => {
     expect(lib!.files).toContain("src/lib/**");
     const pattern = findPattern(lib!.patterns, REACT_NATIVE_GROUP_KEY);
     expect(pattern?.allowTypeImports).toBe(true);
+    // `react-native/*` は1段の subpath しか止めない（`react-native/Libraries/Utilities/Platform` が通る）。
+    expect(pattern?.group).toContain("react-native/**");
     expect(findPattern(lib!.patterns, DEV_TOOLS_GROUP_KEY)).toBeDefined();
   });
 

@@ -86,7 +86,7 @@
           {
             "patterns": [
               {
-                "group": ["react-native", "react-native/*"],
+                "group": ["react-native", "react-native/**"],
                 "allowTypeImports": true,
                 "message": "lib/ は判定・整形などの純粋関数の層で、Vitest でテストする。react-native を値として import しない（型だけの import type は可）。RN に依存する処理は hooks/ か components/ に置く（folder-structure.md、SS-253）。"
               },
@@ -116,7 +116,7 @@
                 "message": "探索・散歩・履歴・ピン登録のロジックは認証状態に依存させない（SS-13 / SS-88 / ADR-M-009）。認証済みかどうかはルート（app/）が useAuthSessionStore から読み、props で注入する。認証トークンは customFetch が @/api/authTokenProvider 経由で付与する。"
               },
               {
-                "group": ["react-native", "react-native/*"],
+                "group": ["react-native", "react-native/**"],
                 "allowTypeImports": true,
                 "message": "lib/ は判定・整形などの純粋関数の層で、Vitest でテストする。react-native を値として import しない（型だけの import type は可）。RN に依存する処理は hooks/ か components/ に置く（folder-structure.md、SS-253）。"
               },
