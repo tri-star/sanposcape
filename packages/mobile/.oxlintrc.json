@@ -20,7 +20,16 @@
     // レンダー中の ref アクセスとして必ず検出されるうえ、
     // 「最新のコールバックを毎レンダー ref に載せる」手法（useScreenBack / useWalkDelete）も
     // 同様に検出される。このリポジトリでは意図的に使っている手法なので無効化する。
-    "react/refs": "off"
+    "react/refs": "off",
+    // 関数の複雑度・長さ・依存の数・循環 import（SS-253）。緩い値から始め、既存の違反を片付けてから段階的に下げる
+    // （ADR-017。ADR-016 決定6・7 と同じ進め方）。既存の違反は末尾の overrides でファイル単位に据え置く。
+    "complexity": ["error", { "max": 20 }],
+    "max-depth": ["error", { "max": 4 }],
+    // React のコンポーネントは JSX を含めて1関数になるため、行数は空行・コメントを除いて 200 から始める。
+    "max-lines-per-function": ["error", { "max": 200, "skipBlankLines": true, "skipComments": true }],
+    "import/no-cycle": "error",
+    // 型だけの import は実行時の結合を作らないので数えない。
+    "import/max-dependencies": ["error", { "max": 20, "ignoreTypeImports": true }]
   },
   // no-restricted-imports は同じルールの override を「後勝ちで置き換える」（マージしない）。
   // そのため、複数の制限を受ける範囲（features/{walk,history,pin}/**）の override には両方のパターンを持たせる。
@@ -64,6 +73,120 @@
           }
         ]
       }
+    },
+    {
+      // lib/ から react-native を値として import しない（SS-253）。上の src/** の制限を置き換えるので devTools も再掲する。
+      "files": ["src/lib/**", "src/features/*/lib/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["react-native", "react-native/*"],
+                "allowTypeImports": true,
+                "message": "lib/ は判定・整形などの純粋関数の層で、Vitest でテストする。react-native を値として import しない（型だけの import type は可）。RN に依存する処理は hooks/ か components/ に置く（folder-structure.md、SS-253）。"
+              },
+              {
+                "group": ["@/config/devTools", "**/devTools"],
+                "message": "@/config/devTools は expo-constants / expo-updates（ネイティブ依存）を読むため、app/ 以外から import してはいけない（Vitest の対象からも import できない）。開発ツールの可否はルート（app/）が isDevToolsEnabled() で読み、props で注入する（SS-148 / ADR-M-007）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // 探索・散歩・履歴・ピン登録の lib/ は、直前の lib/ の制限に置き換えられて認証の制限が外れるので、ここで3つとも再掲する（順序に依存する。後勝ち）。
+      "files": ["src/features/walk/lib/**", "src/features/history/lib/**", "src/features/pin/lib/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/services/auth", "@/services/auth/*", "@/store/useAuthSessionStore"],
+                "message": "探索・散歩・履歴・ピン登録のロジックは認証状態に依存させない（SS-13 / SS-88 / ADR-M-009）。認証済みかどうかはルート（app/）が useAuthSessionStore から読み、props で注入する。認証トークンは customFetch が @/api/authTokenProvider 経由で付与する。"
+              },
+              {
+                "group": ["react-native", "react-native/*"],
+                "allowTypeImports": true,
+                "message": "lib/ は判定・整形などの純粋関数の層で、Vitest でテストする。react-native を値として import しない（型だけの import type は可）。RN に依存する処理は hooks/ か components/ に置く（folder-structure.md、SS-253）。"
+              },
+              {
+                "group": ["@/config/devTools", "**/devTools"],
+                "message": "@/config/devTools は expo-constants / expo-updates（ネイティブ依存）を読むため、app/ 以外から import してはいけない（Vitest の対象からも import できない）。開発ツールの可否はルート（app/）が isDevToolsEnabled() で読み、props で注入する（SS-148 / ADR-M-007）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    // ---- 既存の違反の据え置き（baseline。SS-253、ADR-017）----
+    // 各 override に片付ける課題と、今は分けない理由を書く。ファイルを足して通すときは、課題と理由を書いたうえでレビューで妥当かを見る。
+    // 片付けたら行を消す（消し忘れても oxlint は教えないので、片付けた PR で必ず消す）。
+    {
+      // 恒久: テストは describe のコールバックが1つの関数になり、ケースを足すほど長くなる。
+      // ファイルの長さは構造の検査（SS-252）が見るので、関数の行数は数えない。
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": { "max-lines-per-function": "off" }
+    },
+    {
+      // 恒久: アイコンの名前と部品を並べる登録簿で、依存の数がそのまま登録したアイコンの数になる。
+      "files": ["src/components/ui/icon/iconRegistry.ts"],
+      "rules": { "import/max-dependencies": "off" }
+    },
+    {
+      // SS-259: ピンの登録・編集・詳細の画面は、入力・写真・地図・保存の状態を1つのコンポーネントで扱っている
+      // （複雑度 21〜30・行数 218〜395・依存 29〜37）。セクションのコンポーネントと hook に分ける。
+      "files": [
+        "src/features/pin/components/PinDetailView.tsx",
+        "src/features/pin/components/PinEditView.tsx",
+        "src/features/pin/components/PinRegisterView.tsx"
+      ],
+      "rules": { "complexity": "off", "max-lines-per-function": "off", "import/max-dependencies": "off" }
+    },
+    {
+      // SS-259: 散歩マップの一覧・詳細・メンバーの画面が、表示・操作・ダイアログを1つのコンポーネントで扱っている
+      // （行数 212〜410・依存 21〜34）。SS-257 の sanpoMap* の切り出しと順序を合わせて分ける。
+      "files": [
+        "src/features/pin/components/SanpoMapDetailView.tsx",
+        "src/features/pin/components/SanpoMapListView.tsx",
+        "src/features/pin/components/SanpoMapMembersView.tsx"
+      ],
+      "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
+    },
+    {
+      // SS-259: ピンの編集と写真の hook が、取得・下書き・保存の状態を1つの hook で持っている（行数 213・221、複雑度 21）。
+      "files": ["src/features/pin/hooks/usePinEdit.ts", "src/features/pin/hooks/usePinPhotos.ts"],
+      "rules": { "complexity": "off", "max-lines-per-function": "off" }
+    },
+    {
+      // SS-259: 保存の失敗をエラーコードへ読み替える分岐を1関数に並べている（複雑度 23）。表で引く形にできるか見る。
+      "files": ["src/features/pin/lib/pinSaveError.ts"],
+      "rules": { "complexity": "off" }
+    },
+    {
+      // SS-259: 入力欄が種類・状態ごとの見た目の分岐を1つのコンポーネントで持っている（複雑度 21）。
+      "files": ["src/components/ui/input/Input.tsx"],
+      "rules": { "complexity": "off" }
+    },
+    {
+      // SS-259: 開発用のカタログ・散歩の詳細の画面が、並べる部品をすべて直接描いている（行数 204・213、依存 22）。
+      "files": [
+        "src/features/design-system/components/DesignSystemGallery.tsx",
+        "src/features/history/components/WalkDetailView.tsx"
+      ],
+      "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
+    },
+    {
+      // SS-259: ピンのタブ・散歩の開始と散歩中の画面が、地図・シート・ダイアログの部品を直接組み立てている（依存 26・27）。
+      "files": [
+        "src/features/pin/components/PinTabView.tsx",
+        "src/features/walk/components/WalkActiveView.tsx",
+        "src/features/walk/components/WalkStartView.tsx"
+      ],
+      "rules": { "import/max-dependencies": "off" }
     }
   ]
 }
