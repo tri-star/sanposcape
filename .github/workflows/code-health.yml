@@ -1,0 +1,31 @@
+name: code health
+
+on:
+  # paths で絞らない。どの package の変更でも構造は悪化しうるし、main への push も別々の PR の組み合わせで壊れうる。
+  # 検査は標準ライブラリだけで、依存のインストールが要らず数秒で終わる（docs-lint.yml と同じ考え方）。
+  push:
+    branches: [main]
+  pull_request:
+
+# 全 PR・main への push で走らせるので、リポジトリの既定に頼らず読み取りだけに絞る（docs-lint.yml と同じ）。
+permissions:
+  contents: read
+
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # フォルダ直下のファイル数・同じ接頭辞の集中・ファイルの行数を検査する（ADR-016）。
+      # ベースラインに載っている既存の違反は対象外で、新しい違反と悪化だけを止める。
+      - name: Check code structure
+        run: python3 scripts/code-health/check-structure.py
+
+      # 検査が落ちても走らせる。検査のスクリプト自体を変える PR で、テストの結果が見えなくなるため。
+      - name: Test the structure check
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s scripts/code-health/tests -v

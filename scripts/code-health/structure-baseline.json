@@ -1,0 +1,78 @@
+{
+  "description": "コードの構造の既知の違反（ADR-016）。value を超えると CI が失敗する。issue は片付ける課題、reason は今は分けない理由で、どちらも必須。再生成: scripts/code-health/check-structure.py --baseline",
+  "entries": [
+    {
+      "kind": "file-lines",
+      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py",
+      "value": 2845,
+      "issue": "SS-256",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
+    },
+    {
+      "kind": "file-lines",
+      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_service.py",
+      "value": 1544,
+      "issue": "SS-256",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
+    },
+    {
+      "kind": "folder-files",
+      "path": "packages/mobile/src/features/pin/components",
+      "value": 47,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "folder-files",
+      "path": "packages/mobile/src/features/pin/hooks",
+      "value": 21,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "folder-files",
+      "path": "packages/mobile/src/features/pin/lib",
+      "value": 48,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "folder-files",
+      "path": "packages/mobile/src/features/walk/lib",
+      "value": 28,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "folder-files",
+      "path": "packages/mobile/src/lib",
+      "value": 24,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "prefix",
+      "path": "packages/mobile/src/features/history/lib",
+      "prefix": "walk",
+      "value": 10,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "prefix",
+      "path": "packages/mobile/src/features/pin/components",
+      "prefix": "sanpo",
+      "value": 15,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    },
+    {
+      "kind": "prefix",
+      "path": "packages/mobile/src/features/pin/lib",
+      "prefix": "sanpo",
+      "value": 9,
+      "issue": "SS-257",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+    }
+  ]
+}

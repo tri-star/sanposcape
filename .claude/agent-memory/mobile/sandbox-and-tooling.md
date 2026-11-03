@@ -1,6 +1,6 @@
 ---
 name: sandbox-and-tooling
-description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有
+description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有
 metadata:
   type: feedback
   scope: durable
@@ -32,6 +32,9 @@ typed routes の生成は飛ばさない（`tsc --noEmit` が `.expo/types/route
   ステージは変更したパスを明示する（`git add -A` しない）。
 - `pnpm format` / `pnpm lint` は直前に編集したファイルを整形し直す。内容の変更ではないので、意図した変更が保たれているかだけ見る。
 - **oxlint の `eslint-disable-next-line react-hooks/exhaustive-deps` は、警告が指す使用箇所ではなく `}, [deps])` の閉じ括弧の行の直前に置く**（SS-88。`WalkRouteMapView.tsx` も同じ配置）。
+- **oxlint の閾値ごとの違反数を測るときは、CLI の `-D <rule>` / `-A all` を使わない**（SS-253）。`-D` は設定ファイルのルールのオプション（`max` など）を既定値で上書きし、`-A all` は設定のルールまで止めるので、どの閾値で測っても同じ件数になる。
+  `-c <一時の設定>` に `"categories": {"correctness": "off"}` と測るルールだけを書いて実行する。一時の設定は package の直下に置く（`ignorePatterns` は設定ファイルの場所から解決され、`$TMPDIR` に置くと `docs/mock/**` などの除外が効かない）。
+- **oxlint（1.89.0）は違反が0件のとき何も出力しない**（`pnpm lint` もスクリプトの見出しだけ）。設定が読めずに黙って通っているのと区別するには、違反を入れた一時ファイルで1回落ちることを確かめる（SS-253）。
 
 ## 古い `.expo` の型
 
