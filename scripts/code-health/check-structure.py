@@ -62,9 +62,11 @@ TEST_DIRS = {"tests", "__tests__", "test", "__mocks__"}
 
 ISSUE_RE = re.compile(r"^SS-\d+$")
 
-# 失敗したときの案内。分割を判断する skill ができたら、ここに名前を足す（ADR-016）。
+# 失敗したときの案内（ADR-016 決定8）。分け方の判断は structure-refactor skill が持つ。
 SPLIT_GUIDE = (
     "分け方を決めて分割してください（フォルダはまとまりごとのサブフォルダへ、ファイルは責務ごとに）。\n"
+    "分け方は structure-refactor skill（.claude/skills/structure-refactor/SKILL.md）で決めます。"
+    "材料は scripts/code-health/survey-structure.py <パス> で集まります。\n"
     "今は分けられない理由があるなら、--baseline で載せ、`issue`（片付ける課題）と `reason` を書いてください。\n"
     "既にある項目の値を上げたときは reason が空になるので、何のために上げたかを書き直してください（ADR-016）。"
 )
