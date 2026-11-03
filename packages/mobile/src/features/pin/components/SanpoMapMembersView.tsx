@@ -9,7 +9,7 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapMemberAvatar } from "@/features/pin/components/SanpoMapMemberAvatar";
-import { SanpoMapInviteSection } from "@/features/pin/components/SanpoMapInviteSection";
+import { SanpoMapInviteSection } from "@/features/pin/components/invitation/SanpoMapInviteSection";
 import { SanpoMapMemberRemoveDialog } from "@/features/pin/components/SanpoMapMemberRemoveDialog";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMapMemberRemove } from "@/features/pin/hooks/useSanpoMapMemberRemove";

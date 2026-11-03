@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 
 import { acceptInvitation, fetchInvitationPreview } from "@/features/pin/api/invitationApi";
-import { toInvitationErrorCode, type InvitationErrorCode } from "@/features/pin/lib/invitation";
+import {
+  toInvitationErrorCode,
+  type InvitationErrorCode,
+} from "@/features/pin/lib/invitation/invitation";
 import {
   PINS_QUERY_ROOT,
   SANPO_MAPS_QUERY_KEY,

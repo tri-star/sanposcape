@@ -6,7 +6,10 @@ import {
   fetchSanpoMapInvitations,
   revokeSanpoMapInvitation,
 } from "@/features/pin/api/invitationApi";
-import { toInvitationErrorCode, type InvitationErrorCode } from "@/features/pin/lib/invitation";
+import {
+  toInvitationErrorCode,
+  type InvitationErrorCode,
+} from "@/features/pin/lib/invitation/invitation";
 import { sanpoMapInvitationsQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { resolveQueryLoadStatus, type QueryLoadStatus } from "@/features/pin/lib/queryLoadStatus";
 import type { SanpoMapInvitation, SanpoMapInvitationCreated } from "@/features/pin/types";

@@ -18,7 +18,7 @@ import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
-import { InvitationLinkPasteDialog } from "@/features/pin/components/InvitationLinkPasteDialog";
+import { InvitationLinkPasteDialog } from "@/features/pin/components/invitation/InvitationLinkPasteDialog";
 import { SanpoMapCreateDialog } from "@/features/pin/components/SanpoMapCreateDialog";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { SanpoMapListItem } from "@/features/pin/components/SanpoMapListItem";

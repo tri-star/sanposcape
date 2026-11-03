@@ -7,7 +7,7 @@ import {
   revokeSanpoMapInvitation as revokeSanpoMapInvitationRequest,
 } from "@/api/generated/endpoints/sanpo-map-invitations/sanpo-map-invitations";
 import { toSanpoMap } from "@/features/pin/api/sanpoMapApi";
-import { isInvitationToken } from "@/features/pin/lib/invitation";
+import { isInvitationToken } from "@/features/pin/lib/invitation/invitation";
 import { toSanpoMapIconKey } from "@/features/pin/lib/sanpoMapIcon";
 import type {
   InvitationPreview,

@@ -4,7 +4,7 @@ import { Text } from "react-native";
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
 import { Input } from "@/components/ui/input/Input";
-import { parseInvitationLink } from "@/features/pin/lib/invitation";
+import { parseInvitationLink } from "@/features/pin/lib/invitation/invitation";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type InvitationLinkPasteDialogProps = {

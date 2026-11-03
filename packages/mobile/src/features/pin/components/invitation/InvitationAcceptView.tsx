@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button/Button";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
-import { useInvitationAccept } from "@/features/pin/hooks/useInvitationAccept";
+import { useInvitationAccept } from "@/features/pin/hooks/invitation/useInvitationAccept";
 import {
   INVITATION_ACCEPT_POINTS,
   invitationErrorMessage,
@@ -16,7 +16,7 @@ import {
   hasSignInScreenInStack,
   isRetriableInvitationError,
   openJoinedSanpoMap,
-} from "@/features/pin/lib/invitation";
+} from "@/features/pin/lib/invitation/invitation";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { setFlashMessage } from "@/lib/flashMessage";
 import { makeStyles } from "@/theme/makeStyles";

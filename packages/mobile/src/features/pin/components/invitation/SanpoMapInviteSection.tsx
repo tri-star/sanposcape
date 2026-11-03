@@ -3,7 +3,7 @@ import { ActivityIndicator, Share, Text, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
-import { useSanpoMapInvitations } from "@/features/pin/hooks/useSanpoMapInvitations";
+import { useSanpoMapInvitations } from "@/features/pin/hooks/invitation/useSanpoMapInvitations";
 import {
   INVITATION_SEND_LABEL,
   INVITATION_SHEET_POINTS,
@@ -11,7 +11,7 @@ import {
   formatInvitationExpiry,
   invitationErrorMessage,
   invitationShareMessage,
-} from "@/features/pin/lib/invitation";
+} from "@/features/pin/lib/invitation/invitation";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 

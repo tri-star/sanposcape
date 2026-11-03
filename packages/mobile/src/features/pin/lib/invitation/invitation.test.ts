@@ -12,7 +12,7 @@ import {
   openJoinedSanpoMap,
   parseInvitationLink,
   toInvitationErrorCode,
-} from "@/features/pin/lib/invitation";
+} from "@/features/pin/lib/invitation/invitation";
 
 const TOKEN = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456";
 

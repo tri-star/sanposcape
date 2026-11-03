@@ -1,8 +1,8 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
-import { InvitationAcceptView } from "@/features/pin/components/InvitationAcceptView";
-import { isInvitationToken } from "@/features/pin/lib/invitation";
+import { InvitationAcceptView } from "@/features/pin/components/invitation/InvitationAcceptView";
+import { isInvitationToken } from "@/features/pin/lib/invitation/invitation";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useSignInNavigation } from "@/hooks/useSignInNavigation";
 import { useAppConfig } from "@/hooks/useAppConfig";
