@@ -224,6 +224,22 @@ class SurveyPythonFileTest(unittest.TestCase):
                     _make_map(None)
 
 
+            class TestVisited:
+                def _patch(self, client, pin_id):
+                    return client.patch(f"/pins/{pin_id}", json={})
+
+                def _patch_twice(self, client):
+                    self._patch(client, 1)
+                    self._patch(client, 2)
+
+                def test_a(self, client):
+                    client.post("/pins", json={})
+                    self._patch_twice(client)
+
+                def test_b(self, client):
+                    self._patch(client, 1)
+
+
             def test_module_level(client):
                 client.delete("/pins/1")
         ''')
@@ -235,6 +251,8 @@ class SurveyPythonFileTest(unittest.TestCase):
         self.assertEqual(defs["TestCreatePin"]["endpoints"], {"POST /pins": 2})
         self.assertEqual(defs["TestCreatePin"]["fixtures"], ["client", "db_session"])
         self.assertEqual(list(defs["TestGetPin"]["endpoints"].items()), [("GET /pins/{}", 2), ("POST /pins", 1)])
+        # クラスの中のヘルパーが叩くものは、呼んだ回数ぶん数える（ヘルパーを通したヘルパーも）
+        self.assertEqual(defs["TestVisited"]["endpoints"], {"PATCH /pins/{}": 3, "POST /pins": 1})
         self.assertEqual(defs["test_module_level"]["tests"], 1)
         self.assertEqual(defs["_make_map"]["tests"], 0)
         self.assertEqual(report["helpers"], {"_make_map": ["TestCreatePin", "TestGetPin"]})

@@ -249,11 +249,8 @@ def survey_folder(root: Path, folder: str, files: list[str], commits: list[list[
 
 # ---- Python のファイル ----
 
-def _endpoints(node: ast.AST) -> dict[str, int]:
-    """`client.post("/pins", ...)` のような呼び出しから「メソッド パス」と呼んだ回数を拾う。f-string の値の部分は `{}` にする。
-
-    準備のために叩くエンドポイント（ピンを作ってから消す、など）も混ざるので、回数の多いものが主に確かめている操作の目安になる。
-    """
+def _direct_endpoints(node: ast.AST) -> Counter:
+    """`client.post("/pins", ...)` のような呼び出しから「メソッド パス」と呼んだ回数を拾う。f-string の値の部分は `{}` にする。"""
     found: Counter = Counter()
     for call in ast.walk(node):
         if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr in _HTTP_METHODS and call.args):
@@ -267,6 +264,47 @@ def _endpoints(node: ast.AST) -> dict[str, int]:
             continue
         if path.startswith("/"):
             found[f"{call.func.attr.upper()} {path.split('?', 1)[0]}"] += 1
+    return found
+
+
+def _self_calls(node: ast.AST) -> Counter:
+    """`self._post(...)` のような、同じクラスのメソッドの呼び出しの回数。"""
+    return Counter(
+        call.func.attr for call in ast.walk(node)
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+        and isinstance(call.func.value, ast.Name) and call.func.value.id == "self"
+    )
+
+
+def _endpoints(node: ast.AST) -> dict[str, int]:
+    """叩くエンドポイントと回数。準備のために叩くもの（ピンを作ってから消す、など）も混ざるので、回数の多いものが主に確かめている操作の目安になる。
+
+    クラスでは、クラスの中のヘルパー（`self._patch(...)`）が叩くエンドポイントを、呼んだ回数ぶん呼び出し元に足す。
+    ヘルパーの中の1回だけを数えると、ヘルパーを通して確かめるクラスの主な操作が読めないため（SS-254 レビュー）。
+    """
+    if not isinstance(node, ast.ClassDef):
+        found = _direct_endpoints(node)
+    else:
+        methods = {m.name: m for m in node.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        memo: dict[str, Counter] = {}
+
+        def expand(name: str, seen: frozenset[str]) -> Counter:
+            if name in memo:
+                return memo[name]
+            total = _direct_endpoints(methods[name])
+            for callee, times in _self_calls(methods[name]).items():
+                if callee in methods and callee not in seen:
+                    for endpoint, n in expand(callee, seen | {callee}).items():
+                        total[endpoint] += n * times
+            memo[name] = total
+            return total
+
+        found = Counter()
+        called = {c for m in methods.values() for c in _self_calls(m)}
+        # テストのメソッドと、どこからも呼ばれないメソッド（fixture など）を起点に数える。ヘルパーは呼ばれた回数ぶん数える。
+        for name in methods:
+            if name.startswith("test_") or name not in called:
+                found.update(expand(name, frozenset({name})))
     return dict(sorted(found.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
