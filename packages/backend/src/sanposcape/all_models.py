@@ -13,6 +13,7 @@ from sanposcape.sanpo_maps.models import (  # noqa: F401
     PinPhotoUpload,
     PinTag,
     SanpoMap,
+    SanpoMapInvitation,
     SanpoMapMember,
 )
 from sanposcape.users.models import AppleAuthorization, User  # noqa: F401

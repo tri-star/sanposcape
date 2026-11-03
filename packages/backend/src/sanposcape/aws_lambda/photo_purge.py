@@ -1,5 +1,10 @@
 """アカウント削除後の写真を S3 から消す Lambda ハンドラ（SS-109 / ADR-009 決定36）。
 
+あわせて、使い終わった地図の招待（参加・取り消し・期限切れから 30 日）の行を消す（SS-250 /
+ADR-009 決定39）。日次の実行を別に作らず相乗りさせる。
+写真の削除（S3 の失敗・例外）に巻き込まれないよう
+招待の掃除を先に別の try で行い、失敗したらログに出して、写真の削除の後に実行を失敗にする。
+
 EventBridge Scheduler から1日1回呼ばれ、保持期間を過ぎた削除予約（`account_photo_purges`）に
 ついて、利用者の写真の prefix を S3 から消す（`AccountPhotoPurgeService`）。API 本体・migrate と
 同じビルド成果物（同じ CodeUri）の別ハンドラ。`create_app()` を通らないので、シークレットの
@@ -23,6 +28,7 @@ from sanposcape.core.observability import configure_logging
 from sanposcape.core.runtime_config import hydrate_environment_from_secret
 from sanposcape.database import get_session_factory
 from sanposcape.integrations.aws.s3 import build_object_storage
+from sanposcape.sanpo_maps.invitations.purge import purge_stale_invitations
 from sanposcape.sanpo_maps.photos.account_purge import build_account_photo_purge_service
 
 logger = logging.getLogger(__name__)
@@ -41,6 +47,15 @@ def handler(event: dict[str, Any], context: object) -> dict[str, int]:
     settings = get_settings()
     configure_logging(settings.log_level)
 
+    invitation_error: Exception | None = None
+    try:
+        with get_session_factory()() as db:
+            purged_invitations = purge_stale_invitations(db, url_base=settings.invitation_url_base)
+        logger.info("Stale sanpo map invitations purged: %s", purged_invitations)
+    except Exception as exc:  # noqa: BLE001 - 写真の削除は続け、最後に失敗として返す
+        logger.exception("Stale sanpo map invitation purge failed")
+        invitation_error = exc
+
     storage = build_object_storage(settings)
     try:
         with get_session_factory()() as db:
@@ -52,11 +67,14 @@ def handler(event: dict[str, Any], context: object) -> dict[str, int]:
 
     summary = asdict(result)
     logger.info("Account photo purge finished: %s", summary)
+
     if result.failed:
         raise AccountPhotoPurgeIncompleteError(
             f"{result.failed} of {result.due} due accounts could not be purged; "
             "they are retried on the next run"
         )
+    if invitation_error is not None:
+        raise invitation_error
     return summary
 
 

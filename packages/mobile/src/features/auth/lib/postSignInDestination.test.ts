@@ -115,6 +115,17 @@ describe("returnTo（呼び出し元へ戻す。SS-151）", () => {
     ).toEqual({ type: "dismissTo", href: "/(tabs)/account" });
   });
 
+  it("招待の受諾画面（returnTo=invitation）へは、パラメータを消さないよう back で戻る（SS-250）", () => {
+    expect(
+      getPostSignInDestination({
+        hasActiveWalk: true,
+        wantsToSaveFinishedWalk: false,
+        canGoBack: true,
+        returnTo: "invitation",
+      }),
+    ).toEqual({ type: "back" });
+  });
+
   it("戻れないときは returnTo を無視して従来の着地点へ replace する", () => {
     expect(
       getPostSignInDestination({
@@ -171,10 +182,12 @@ describe("着地点の回帰防止", () => {
   it("どの入力でも /walk-start を返さない", () => {
     for (const hasActiveWalk of [false, true]) {
       for (const wantsToSaveFinishedWalk of [false, true]) {
-        expect(
-          getPostSignInDestination({ hasActiveWalk, wantsToSaveFinishedWalk, canGoBack: false })
-            .href,
-        ).not.toBe("/walk-start");
+        const destination = getPostSignInDestination({
+          hasActiveWalk,
+          wantsToSaveFinishedWalk,
+          canGoBack: false,
+        });
+        expect("href" in destination ? destination.href : null).not.toBe("/walk-start");
       }
       expect(getGuestEntryDestination({ hasActiveWalk, canGoBack: false }).href).not.toBe(
         "/walk-start",

@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-24（SS-230: `version` を上げるタイミング）。前回: 2026-10-22（SS-103: Organization アカウントへの移管と OTA の運用手順）、2026-10-18（SS-214: サポートページの置き場の決着）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-01（SS-250: 地図の招待リンクで Universal Links / App Links を使い始めた）。前回: 2026-10-24（SS-230: `version` を上げるタイミング）、2026-10-22（SS-103: Organization アカウントへの移管と OTA の運用手順）、2026-10-18（SS-214: サポートページの置き場の決着）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -23,7 +23,7 @@
 - **プライバシーポリシーの URL は `https://sanposcape.com/privacy/`、サポート URL は `https://sanposcape.com/support/`（どちらも末尾スラッシュ付き、恒久）**。
   公開・お問い合わせの扱いは ADR-012 の SS-158 追補・SS-214 追補、アプリからの開き方は [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)
   （サポートページへのアプリ内の導線は作っていない）。（本文: 決定5、移行・対応事項、SS-79 追補、SS-158 追補、SS-214 追補）
-- **URL scheme は開発用 `sanposcape-dev://` / 本番用 `sanposcape://` の2つ**。Universal Links / App Links は未使用で、将来配信する場合も静的ファイルに両 appID を列挙すればよい。
+- **URL scheme は開発用 `sanposcape-dev://` / 本番用 `sanposcape://` の2つ**。**Universal Links / App Links は地図の招待リンク（`/i/`）だけに使う**（SS-250 追補）。
   （本文: 決定5、SS-79 追補）
 - **ビルド番号（iOS `buildNumber` / Android `versionCode`）は EAS サーバーが採番する（`cli.appVersionSource: "remote"`、`staging` / `production` に `autoIncrement: true`）**。
   `staging-apk` / `staging-ios` も `staging` の `true` を継承し、`app.json` にはビルド番号を置かない。（本文: SS-89 追補）
@@ -477,3 +477,13 @@ SS-89 追補は `expo.version` を「リリース単位で手動で上げる」�
   [デプロイパターン](https://docs.expo.dev/eas-update/deployment-patterns/)、
   [料金](https://expo.dev/pricing)
 - 参考実装（採用しなかった選択肢2 のもの）: [expo/custom-expo-updates-server](https://github.com/expo/custom-expo-updates-server)
+
+## SS-250 追補: 地図の招待リンクで Universal Links / App Links を使う（2026-11-01）
+
+地図への招待（ADR-009 決定39）のリンク `https://sanposcape.com/i/#<token>` を、アプリが入っていればアプリで開かせる。
+
+- **対象は `/i/` だけ。** LP の他のページ（ポリシーなど）はブラウザで開く。本番は `sanposcape.com`、開発用（dev backend を向くビルド）は `dev.sanposcape.com` に分ける（両 appID を1つのファイルに列挙する案は、開発用のアプリが本番のリンクを奪うので採らなかった）。
+- **mobile**: `app.config.ts` の `withInvitationLinks` が `ios.associatedDomains`（`applinks:<host>`）と `android.intentFilters`（`autoVerify`・`https`・`pathPrefix: /i`）を変種ごとに足す。ネイティブの設定なので OTA では届かず、新しいビルドが要る。受け取った URL は `app/+native-intent.tsx` が受諾画面へ書き換える（トークンが fragment にあるため）。
+- **配信するファイル**: LP がビルド後に `dist/.well-known/` に書く（`packages/lp/scripts/write-well-known.mjs`。ADR-012 の SS-250 追補）。AASA の appID は Team ID `F946L3T4HH` + bundle ID。assetlinks.json の署名証明書の SHA-256 は、開発用は EAS の開発用 keystore、本番は Android のストアの準備ができてから足す（それまで本番の App Links の検証は通らず、`/i/` の LP と custom scheme で開く）。
+- Team ID・SHA-256 は公開する前提の識別子で、秘密ではない（AASA・APK に載る）。
+- infra の変更は要らない（CloudFront の関数が `/.well-known/` を素通しし、`/i/` を `/i/index.html` に解決する。sanposcape-infra の回答）。

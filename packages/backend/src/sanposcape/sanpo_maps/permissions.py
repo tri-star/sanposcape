@@ -139,3 +139,10 @@ def can_leave_sanpo_map(role: SanpoMapRole) -> bool:
     owner は抜けられない（地図の持ち主が居なくなるため。引き継ぎは持たない）。
     """
     return role in _WRITE_ROLES and role != "owner"
+
+
+def can_manage_sanpo_map_invitations(role: SanpoMapRole) -> bool:
+    """招待リンクの発行・一覧・取り消し（ADR-009 決定39）。owner のみ可（editor が他人を招くと、
+    owner の知らない人が地図に入るため）。
+    """
+    return role == "owner"

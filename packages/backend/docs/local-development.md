@@ -166,7 +166,7 @@ Jaeger は `docker compose --profile observability stop jaeger`（履歴はメ�
 ## アカウント削除後の写真の削除を手で動かす（SS-109）
 
 デプロイ先では EventBridge Scheduler が1日1回起動する処理（`aws_lambda/photo_purge.py`）を、ローカルでは手で1回実行する。
-対象は保持期間（`ACCOUNT_PHOTO_RETENTION_DAYS`、既定 30 日）を過ぎた削除予約（`account_photo_purges`）だけ。
+対象は保持期間（`ACCOUNT_PHOTO_RETENTION_DAYS`、既定 30 日）を過ぎた削除予約（`account_photo_purges`）と、同じ実行で消す使い終わった地図の招待（参加・取り消し・期限切れから 30 日を過ぎた `sanpo_map_invitations` の行。SS-250）。
 すぐ確かめたいときは `.env` を編集せず `ACCOUNT_PHOTO_RETENTION_DAYS=0 docker compose up -d` で起動した backend からアカウントを削除するか、
 予約の `purge_after` を過去に書き換える（[deployment.md](./deployment.md) §17）。
 

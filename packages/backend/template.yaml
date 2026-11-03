@@ -56,6 +56,11 @@ Mappings:
   EnvToAppEnv:
     dev: { AppEnv: staging }
     prod: { AppEnv: production }
+  # 地図の招待リンクの URL の前半（SS-250, ADR-009 決定39）。LP の /i/ ページ（Universal Links /
+  # App Links の対象）を指す。トークンは fragment（#）に載せるので、ここには含めない。
+  EnvToInvitationUrlBase:
+    dev: { Url: "https://dev.sanposcape.com/i/" }
+    prod: { Url: "https://sanposcape.com/i/" }
 
 Globals:
   Function:
@@ -84,6 +89,7 @@ Globals:
     Environment:
       Variables:
         ENV: !FindInMap [EnvToAppEnv, !Ref Env, AppEnv]
+        INVITATION_URL_BASE: !FindInMap [EnvToInvitationUrlBase, !Ref Env, Url]
         AUTH_MODE: real
         MAPS_MODE: real
         FEATURE_FLAG_MODE: real

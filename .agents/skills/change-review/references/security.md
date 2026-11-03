@@ -177,7 +177,7 @@ lp は Astro の静的出力（`output: "static"`）を非公開 S3 + OAC + Clou
 
 ## 公開範囲
 - dev は meta robots と CloudFront の `X-Robots-Tag` の二重で noindex。`robots.txt` で `Disallow` にしていないか（noindex を読めなくなる。ADR-012 決定6）。
-- `public/` に置いたものはそのままの名前で公開される。設計資料・下書き・ソース画像を置いていないか。`/.well-known/` は置いていない（足すなら意図を確かめる）。
+- `public/` に置いたものはそのままの名前で公開される。設計資料・下書き・ソース画像を置いていないか。`/.well-known/` は `public/` に置かず、ビルド後の `packages/lp/scripts/write-well-known.mjs` が出す（AASA と、値のある環境の assetlinks.json。SS-250）。出すのは招待リンクの `/i/` の関連付けだけで、Team ID・アプリ識別子・署名証明書の SHA-256 以外の値を含めていないか。
 - `/privacy/` は恒久 URL（アプリ内リンクと App Store Connect に登録済み）。backend / mobile のデータの扱い（取得する情報・送信先・保存期間）を変える差分は、観点6で台帳・`privacy.astro`・`docs/app-privacy-label.md` の更新が要るかを見る。
 
 ## デプロイ経路（`lp-deploy.yml`）

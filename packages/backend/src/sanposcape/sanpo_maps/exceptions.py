@@ -22,6 +22,30 @@ class SanpoMapOwnerCannotLeaveError(Exception):
     """owner が自分を指定して地図から抜けようとした（ADR-009 決定38）。409。"""
 
 
+class SanpoMapInvitationNotFoundError(Exception):
+    """招待のトークン・ID が使えない（存在しない・使用済み・取り消し済み・期限切れ・
+    他の地図のもの）。
+
+    理由を区別しない 404（ADR-009 決定39）。トークンの状態を探らせないため。
+    """
+
+
+class SanpoMapInvitationLimitError(Exception):
+    """招待の上限に当たった（409）。`code` は `invitation_limit_exceeded`（有効なリンクの数）か
+    `member_limit_reached`（メンバーの数）。
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class FeatureDisabledError(Exception):
+    """機能のフラグが OFF（招待の発行・preview・accept。403 `feature_disabled`。
+    ADR-009 決定39）。
+    """
+
+
 class PinNotFoundError(Exception):
     """指定された pin_id が存在しない、または現在のユーザーが member でない地図に属する。
 
