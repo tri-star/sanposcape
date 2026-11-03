@@ -141,9 +141,10 @@ def py_imports(path: str, text: str, known: set[str]) -> set[str]:
     found: set[str] = set()
     package = _py_package_of(path)
     for node in ast.walk(tree):
-        modules: list[str] = []
+        # 1つの文の名前ごとに、解決を試す候補を並べる（前から試し、最初に解決できたものを採る）。
+        candidates: list[list[str]] = []
         if isinstance(node, ast.Import):
-            modules = [alias.name for alias in node.names]
+            candidates = [[alias.name] for alias in node.names]
         elif isinstance(node, ast.ImportFrom):
             base = node.module or ""
             if node.level:
@@ -152,12 +153,14 @@ def py_imports(path: str, text: str, known: set[str]) -> set[str]:
                 parts = package.split(".")
                 parts = parts[: len(parts) - (node.level - 1)] if node.level > 1 else parts
                 base = ".".join([*parts, base] if base else parts)
-            modules = [f"{base}.{alias.name}" for alias in node.names] + [base]
-        for module in modules:
-            resolved = _py_module_file(module, known)
-            if resolved and resolved != path and not resolved.endswith("__init__.py"):
-                found.add(resolved)
-                break
+            # `from pkg import a, b` の名前はサブモジュールかもしれない。どれもサブモジュールでなければ `pkg` 自身に寄せる。
+            candidates = [[f"{base}.{alias.name}", base] for alias in node.names]
+        for modules in candidates:
+            for module in modules:
+                resolved = _py_module_file(module, known)
+                if resolved and resolved != path and not resolved.endswith("__init__.py"):
+                    found.add(resolved)
+                    break
     return found
 
 

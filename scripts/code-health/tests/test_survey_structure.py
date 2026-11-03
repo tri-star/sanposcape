@@ -96,6 +96,13 @@ class PyImportTest(unittest.TestCase):
         found = ss.py_imports(f"{root}/pins/service.py", text, known)
         self.assertEqual(found, {f"{root}/pins/repository.py", f"{root}/pins/schemas.py", f"{root}/photos/photo_keys.py"})
 
+    def test_resolves_every_name_of_one_statement(self) -> None:
+        root = "packages/backend/src/sanposcape"
+        known = {f"{root}/pins/{n}.py" for n in ("service", "repository", "schemas")} | {f"{root}/core/a.py", f"{root}/core/b.py", f"{root}/x.py"}
+        text = "from sanposcape.pins import repository, schemas\nimport sanposcape.core.a, sanposcape.core.b\n"
+        found = ss.py_imports(f"{root}/x.py", text, known)
+        self.assertEqual(found, {f"{root}/pins/repository.py", f"{root}/pins/schemas.py", f"{root}/core/a.py", f"{root}/core/b.py"})
+
     def test_syntax_error_is_empty(self) -> None:
         self.assertEqual(ss.py_imports("packages/backend/src/a.py", "def (", set()), set())
 
