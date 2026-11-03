@@ -178,7 +178,8 @@
 13. **試した2か所は、計画までにして実行は片付けの課題で行う。** 計画は SS-254 の PR 本文に残し、SS-256・SS-257 の課題から参照する。要点:
     - `pin/lib`（SS-257）: `register/`・`edit/`・`photo/`・`location/`・`detail/`・`map/`・`tags/`・`sanpo-map/` に分け、2つ以上のまとまりから使う9個（上限・権限・queryKey・読み込みの変換と失敗・地図の絞り込みなど）を親に残す。
       `sanpoMap*` を別の feature に出す案は採らない。地図の画面がピンの読み込みの失敗・状態カード・queryKey を使い、ピンの登録・編集が地図の選択・アイコンを使う双方向の依存で、
-      feature 同士は import しない規則（mobile の folder-structure.md）に反するため
+      feature 同士は import しない規則（mobile の folder-structure.md）に反するため。
+      同じ形の前例として、SS-250 で招待のファイルを `pin/components`・`pin/hooks`・`pin/lib` の `invitation/` に分けている
     - `pins/tests/test_router.py`（SS-256）: 主に確かめる操作ごとに `test_<操作>_router.py` に分け、操作をまたぐ権限の表（ADR-009 決定19）は1ファイルにする。
       重複していた地図を作るヘルパーは、共有の `sanpo_maps/conftest.py` の `make_sanpo_map` に寄せる
 14. **Codex 側には、まだ適応していない。** `import-claude-skill` で差分を見て適応する（AGENTS.md）。`AGENTS.md` からは skill のファイルへのリンクで案内する。
