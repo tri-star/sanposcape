@@ -43,6 +43,8 @@ _spec.loader.exec_module(cs)
 # `@/` のエイリアスの先（packages/mobile/tsconfig.json の paths）。
 TS_ALIASES = {"@/": "packages/mobile/src/"}
 TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
+# この名前のフォルダに置いたテストは、1つ上のフォルダの実装のテストとして寄せる（`pins/tests/test_service.py` → `pins/service.py`）。
+TEST_DIRS_OF_SUBJECT = {"tests", "__tests__"}
 # Python の絶対 import の起点（`sanposcape.x` → packages/backend/src/sanposcape/x.py）。
 PY_ROOTS = ("packages/backend/src",)
 
@@ -62,12 +64,18 @@ _HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 # ---- import の解決 ----
 
 def subject_of(path: str) -> str:
-    """テストのファイルを、そのテストの対象の実装のファイルに寄せる（`a.test.ts` → `a.ts`、`test_a.py` → `a.py`）。"""
+    """テストのファイルを、そのテストの対象の実装のファイルに寄せる。
+
+    隣に置くテスト（mobile の `a.test.ts` → `a.ts`）と、`tests/` に置くテスト（backend の `pins/tests/test_service.py` → `pins/service.py`）の両方を扱う。
+    """
     p = PurePosixPath(path)
     name = re.sub(r"\.(test|spec)(\.[A-Za-z]+)$", r"\2", p.name)
     if name.startswith("test_") and name.endswith(".py"):
         name = name[len("test_"):]
-    return str(p.with_name(name))
+    folder = p.parent
+    if folder.name in TEST_DIRS_OF_SUBJECT:
+        folder = folder.parent
+    return str(folder / name)
 
 
 def _resolve_ts_candidate(base: str, known: set[str]) -> str | None:
@@ -196,7 +204,8 @@ def survey_folder(root: Path, folder: str, files: list[str], commits: list[list[
     known = set(files)
     direct = sorted(f for f in files if str(PurePosixPath(f).parent) == folder and cs.is_target(f))
     impl = [f for f in direct if not cs.is_test(f) and PurePosixPath(f).name not in cs.STRUCTURAL_FILES]
-    tests = {subject_of(f) for f in direct if cs.is_test(f)}
+    # 隣のテストと、`tests/` に置いたテスト（backend）の両方を、対象の実装に寄せて数える。
+    tests = {subject_of(f) for f in files if cs.is_test(f) and str(PurePosixPath(subject_of(f)).parent) == folder}
     members = set(impl)
 
     rows = [{"file": PurePosixPath(f).name, "lines": cs.count_lines(root / f), "tested": f in tests} for f in impl]

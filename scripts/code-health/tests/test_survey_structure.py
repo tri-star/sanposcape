@@ -43,7 +43,9 @@ class SubjectTest(unittest.TestCase):
     def test_subject_of(self) -> None:
         self.assertEqual(ss.subject_of(f"{LIB}/pinRead.test.ts"), f"{LIB}/pinRead.ts")
         self.assertEqual(ss.subject_of("a/Button.spec.tsx"), "a/Button.tsx")
-        self.assertEqual(ss.subject_of("a/tests/test_router.py"), "a/tests/router.py")
+        # backend は `tests/` に置く。1つ上のフォルダの実装に寄せる
+        self.assertEqual(ss.subject_of("a/pins/tests/test_service.py"), "a/pins/service.py")
+        self.assertEqual(ss.subject_of("a/__tests__/b.test.ts"), "a/b.ts")
         self.assertEqual(ss.subject_of(f"{LIB}/pinRead.ts"), f"{LIB}/pinRead.ts")
 
 
@@ -143,6 +145,24 @@ class SurveyFolderTest(unittest.TestCase):
         self.assertEqual(report["users"]["pinEditDraft.ts"], {"packages/mobile/src/features/pin/hooks": 1})
         self.assertEqual(report["users"]["pinLimits.ts"], {f"{LIB}/sub": 1})
         self.assertIn("pinEditDraft.ts → pinLimits.ts", ss.render(report))
+
+
+class SurveyBackendFolderTest(unittest.TestCase):
+    def test_tests_folder_counts_as_tested_and_cochanged(self) -> None:
+        repo = Repo()
+        pins = "packages/backend/src/sanposcape/pins"
+        try:
+            repo.add(f"{pins}/service.py", "")
+            repo.add(f"{pins}/router.py", "")
+            repo.add(f"{pins}/tests/test_service.py", "")
+            commits = [[f"{pins}/router.py", f"{pins}/tests/test_service.py"]]
+            report = ss.survey_folder(repo.root, pins, repo.files, commits=commits, max_commit_files=10)
+        finally:
+            repo.close()
+        tested = {r["file"]: r["tested"] for r in report["files"]}
+        self.assertEqual(tested, {"router.py": False, "service.py": True})
+        self.assertEqual(report["cochanges"], [])  # 1回だけなので出さない（2回以上）
+        self.assertEqual(report["changes"], {"router.py": 1, "service.py": 1})
 
 
 class SurveyPythonFileTest(unittest.TestCase):
