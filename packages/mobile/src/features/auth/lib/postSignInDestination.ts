@@ -1,6 +1,7 @@
 import { ACTIVE_WALK_LANDING_HREF, DEFAULT_LANDING_HREF } from "@/features/auth/lib/landingHref";
 import {
   SIGN_IN_RETURN_TO_HREFS,
+  isSignInReturnToBack,
   type SignInReturnTo,
   type SignInReturnToHref,
 } from "@/features/auth/lib/signInReturnTo";
@@ -9,7 +10,9 @@ export type LandingHref = typeof DEFAULT_LANDING_HREF | typeof ACTIVE_WALK_LANDI
 
 export type PostSignInDestination =
   | { type: "replace"; href: LandingHref }
-  | { type: "dismissTo"; href: LandingHref | "/walk-summary" | SignInReturnToHref };
+  | { type: "dismissTo"; href: LandingHref | "/walk-summary" | SignInReturnToHref }
+  // サインイン画面だけを閉じて、パラメータを持つ呼び出し元へ戻す（SS-250。`SIGN_IN_RETURN_TO_BACK`）。
+  | { type: "back" };
 
 export type PostSignInInput = {
   /** 進行中の散歩がある（`useActiveWalkStore.activeWalk !== null`）。 */
@@ -79,6 +82,7 @@ export type GuestEntryDestination = {
  */
 export function getPostSignInDestination(input: PostSignInInput): PostSignInDestination {
   if (input.returnTo && input.canGoBack) {
+    if (isSignInReturnToBack(input.returnTo)) return { type: "back" };
     return { type: "dismissTo", href: SIGN_IN_RETURN_TO_HREFS[input.returnTo] };
   }
   if (input.hasActiveWalk) return landingNavigation(ACTIVE_WALK_LANDING_HREF, input.canGoBack);

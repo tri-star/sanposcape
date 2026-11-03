@@ -98,6 +98,10 @@ export function useAuthActions(): UseAuthActionsResult {
             canGoBack: router.canGoBack(),
             returnTo,
           });
+          if (destination.type === "back") {
+            router.back();
+            return;
+          }
           if (destination.type === "dismissTo") {
             router.dismissTo(destination.href);
             return;

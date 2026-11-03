@@ -838,6 +838,231 @@ paths:
                 $ref: '#/components/schemas/SanpoMapLeaveConflictErrorRead'
         '422':
           description: Validation error
+  /sanpo-maps/{sanpo_map_id}/invitations:
+    post:
+      tags:
+      - sanpo-map-invitations
+      summary: Create Sanpo Map Invitation
+      description: '招待リンクを発行する（地図 owner のみ。editor は 403）。
+
+
+        1つのリンクで参加できるのは1人、有効期限は7日。`token` と `url`（`<招待ページ>#<token>`）は
+
+        この応答でだけ返す（DB にはハッシュだけを保存する）。メンバーが上限（10人）なら 409
+
+        `member_limit_reached`、有効なリンクが上限（10件）なら 409 `invitation_limit_exceeded`。
+
+        フラグ `map_invitation` が OFF なら 403 `feature_disabled`。'
+      operationId: create_sanpo_map_invitation
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapInvitationCreatedRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Permission denied, or map invitation is disabled
+        '404':
+          description: Sanpo map not found
+        '409':
+          description: Invitation or member limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationLimitErrorRead'
+        '422':
+          description: Validation error
+    get:
+      tags:
+      - sanpo-map-invitations
+      summary: List Sanpo Map Invitations
+      description: '有効な招待リンク（未使用・未取り消し・期限内）を新しい順に返す（owner のみ）。
+
+        トークンは返さない。
+
+
+        フラグではガードしない（OFF に戻しても、出したリンクを確かめて取り消せるように）。'
+      operationId: list_sanpo_map_invitations
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapInvitationListRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Permission denied
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation error
+  /sanpo-maps/{sanpo_map_id}/invitations/{invitation_id}:
+    delete:
+      tags:
+      - sanpo-map-invitations
+      summary: Revoke Sanpo Map Invitation
+      description: '招待リンクを取り消す（owner のみ）。有効なリンクでなければ 404（使用済み・期限切れも含む）。
+
+
+        フラグではガードしない。'
+      operationId: revoke_sanpo_map_invitation
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      - name: invitation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Invitation Id
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Permission denied
+        '404':
+          description: Sanpo map or invitation not found
+        '422':
+          description: Validation error
+  /invitations/preview:
+    post:
+      tags:
+      - sanpo-map-invitations
+      summary: Preview Invitation
+      description: '招待の中身（地図の名前・アイコン・招待した人の表示名・期限）を返す。サインインは不要。
+
+
+        トークンはボディで受ける（path・クエリに載せない）。使えないトークン（存在しない・使用済み・
+
+        取り消し済み・期限切れ）は理由を区別せず 404 `invitation_not_found`。サインインしていれば、
+
+        すでにメンバーかどうか（`membership`）も返す。'
+      operationId: preview_invitation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPreviewRead'
+        '403':
+          description: Map invitation is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureDisabledErrorRead'
+        '404':
+          description: Invitation not usable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationNotFoundErrorRead'
+        '413':
+          description: Request body too large
+        '422':
+          description: Validation error
+        '429':
+          description: Rate limit exceeded
+  /invitations/accept:
+    post:
+      tags:
+      - sanpo-map-invitations
+      summary: Accept Invitation
+      description: '招待を受けて地図に参加する（editor になる）。参加した地図を返す。
+
+
+        すでにメンバーなら招待を使わずに 200 で同じ地図を返す（冪等）。使えないトークンは 404、
+
+        メンバーが上限なら 409 `member_limit_reached`。'
+      operationId: accept_invitation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '403':
+          description: Map invitation is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureDisabledErrorRead'
+        '404':
+          description: Invitation not usable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationNotFoundErrorRead'
+        '409':
+          description: Member limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationLimitErrorRead'
+        '422':
+          description: Validation error
+        '429':
+          description: Rate limit exceeded
+      security:
+      - HTTPBearer: []
   /pins:
     post:
       tags:
@@ -1509,6 +1734,21 @@ components:
       - park
       - station
       title: ExploreCategory
+    FeatureDisabledErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          const: feature_disabled
+          title: Code
+      type: object
+      required:
+      - detail
+      - code
+      title: FeatureDisabledErrorRead
+      description: フラグ `map_invitation` が OFF のときの 403。
     GeoPoint:
       properties:
         latitude:
@@ -1544,6 +1784,101 @@ components:
       required:
       - status
       title: HealthStatus
+    InvitationLimitErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          enum:
+          - invitation_limit_exceeded
+          - member_limit_reached
+          title: Code
+      type: object
+      required:
+      - detail
+      - code
+      title: InvitationLimitErrorRead
+      description: 招待の上限の 409（ADR-009 決定39）。
+    InvitationNotFoundErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          const: invitation_not_found
+          title: Code
+      type: object
+      required:
+      - detail
+      - code
+      title: InvitationNotFoundErrorRead
+      description: 使えない招待（理由を区別しない, ADR-009 決定39）の 404。
+    InvitationPreviewRead:
+      properties:
+        sanpo_map:
+          $ref: '#/components/schemas/InvitationSanpoMapPreviewRead'
+        inviter_display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Inviter Display Name
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        membership:
+          type: string
+          enum:
+          - none
+          - member
+          title: Membership
+        sanpo_map_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Sanpo Map Id
+      type: object
+      required:
+      - sanpo_map
+      - inviter_display_name
+      - expires_at
+      - membership
+      - sanpo_map_id
+      title: InvitationPreviewRead
+      description: 招待の中身（サインイン前でも見られる。ポリシー 1-8）。
+    InvitationSanpoMapPreviewRead:
+      properties:
+        name:
+          type: string
+          title: Name
+        icon:
+          $ref: '#/components/schemas/SanpoMapIcon'
+      type: object
+      required:
+      - name
+      - icon
+      title: InvitationSanpoMapPreviewRead
+    InvitationTokenRequest:
+      properties:
+        token:
+          type: string
+          maxLength: 128
+          minLength: 16
+          pattern: ^[A-Za-z0-9_-]+$
+          title: Token
+      additionalProperties: false
+      type: object
+      required:
+      - token
+      title: InvitationTokenRequest
+      description: '`POST /invitations/preview`・`POST /invitations/accept` のボディ。トークンは
+        path・クエリに
+
+        載せない（アクセスログに残さないため。ADR-009 決定13 と同じ考え方）。'
     LoopWalkingRouteResponse:
       properties:
         origin:
@@ -2435,6 +2770,69 @@ components:
       - cat
       title: SanpoMapIcon
       description: 地図のアイコンの種類。
+    SanpoMapInvitationCreatedRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        token:
+          type: string
+          title: Token
+        url:
+          type: string
+          title: Url
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+      type: object
+      required:
+      - id
+      - token
+      - url
+      - created_at
+      - expires_at
+      title: SanpoMapInvitationCreatedRead
+      description: '`POST /sanpo-maps/{id}/invitations` の応答（ADR-009 決定39）。
+
+        `token` と `url` はこの1回だけ返す。'
+    SanpoMapInvitationListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SanpoMapInvitationRead'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: SanpoMapInvitationListRead
+    SanpoMapInvitationRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+      type: object
+      required:
+      - id
+      - created_at
+      - expires_at
+      title: SanpoMapInvitationRead
+      description: 有効な招待リンク1件（一覧用。トークンは返さない）。
     SanpoMapLeaveConflictErrorRead:
       properties:
         detail:

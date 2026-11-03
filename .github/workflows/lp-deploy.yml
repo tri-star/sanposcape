@@ -133,6 +133,9 @@ jobs:
         with:
           name: lp-dist
           path: packages/lp/dist
+          # dist/.well-known/（招待リンクの AASA・assetlinks。SS-250）はドット始まりなので、既定（false）では
+          # 成果物から外れ、deploy job の aws s3 cp が失敗する。
+          include-hidden-files: true
           # production は承認待ちの間も成果物が残っている必要がある（承認が翌日以降になっても deploy できるように）。
           retention-days: 7
           if-no-files-found: error
@@ -214,11 +217,24 @@ jobs:
           aws s3 sync dist/_astro "s3://$BUCKET/_astro" \
             --cache-control "$CACHE_CONTROL_HASHED" --only-show-errors
 
+      # .well-known/apple-app-site-association は拡張子が無く、sync では binary/octet-stream になる
+      # （CloudFront が nosniff を付けるので iOS が読めない）。sync から外し、次の手順で Content-Type を付けて上げる
+      # （SS-250。地図の招待リンクの Universal Links）。3 回の sync の --exclude を揃えること。
       - name: Upload pages and other files
         env:
           BUCKET: ${{ steps.targets.outputs.bucket }}
         run: |
           aws s3 sync dist "s3://$BUCKET" --exclude "_astro/*" \
+            --exclude ".well-known/apple-app-site-association" \
+            --cache-control "$CACHE_CONTROL_DEFAULT" --only-show-errors
+
+      - name: Upload apple-app-site-association
+        env:
+          BUCKET: ${{ steps.targets.outputs.bucket }}
+        run: |
+          aws s3 cp dist/.well-known/apple-app-site-association \
+            "s3://$BUCKET/.well-known/apple-app-site-association" \
+            --content-type application/json \
             --cache-control "$CACHE_CONTROL_DEFAULT" --only-show-errors
 
       - name: Invalidate CloudFront cache
@@ -246,6 +262,7 @@ jobs:
           BUCKET: ${{ steps.targets.outputs.bucket }}
         run: |
           aws s3 sync dist "s3://$BUCKET" --exclude "_astro/*" --delete \
+            --exclude ".well-known/apple-app-site-association" \
             --cache-control "$CACHE_CONTROL_DEFAULT" --only-show-errors
 
       - name: Smoke check

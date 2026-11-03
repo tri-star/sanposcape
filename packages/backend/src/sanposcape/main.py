@@ -37,6 +37,7 @@ from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
 from sanposcape.sanpo_maps.exceptions import (
+    FeatureDisabledError,
     PinNotFoundError,
     PinPhotoNotFoundError,
     PinPhotoTooLargeError,
@@ -44,6 +45,8 @@ from sanposcape.sanpo_maps.exceptions import (
     PinPhotoUploadNotFoundError,
     PinPhotoUploadNotReadyError,
     PinTagLimitExceededError,
+    SanpoMapInvitationLimitError,
+    SanpoMapInvitationNotFoundError,
     SanpoMapMemberNotFoundError,
     SanpoMapNotFoundError,
     SanpoMapOwnerCannotLeaveError,
@@ -51,6 +54,7 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
     TooManyPendingUploadsError,
 )
+from sanposcape.sanpo_maps.invitations.router import router as sanpo_map_invitations_router
 from sanposcape.sanpo_maps.maps.router import router as sanpo_maps_router
 from sanposcape.sanpo_maps.photos.dev_storage_router import router as pins_dev_storage_router
 from sanposcape.sanpo_maps.photos.router import router as pin_photo_uploads_router
@@ -180,6 +184,30 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={"detail": "Sanpo map member not found", "code": "sanpo_map_member_not_found"},
         )
 
+    @app.exception_handler(SanpoMapInvitationNotFoundError)
+    async def _sanpo_map_invitation_not_found(
+        request: Request, exc: SanpoMapInvitationNotFoundError
+    ) -> JSONResponse:
+        # 招待の API 専用（ADR-009 決定39）。理由（使用済み・期限切れ等）を区別しない。
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Invitation not found", "code": "invitation_not_found"},
+        )
+
+    @app.exception_handler(SanpoMapInvitationLimitError)
+    async def _sanpo_map_invitation_limit(
+        request: Request, exc: SanpoMapInvitationLimitError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409, content={"detail": "Invitation limit reached", "code": exc.code}
+        )
+
+    @app.exception_handler(FeatureDisabledError)
+    async def _feature_disabled(request: Request, exc: FeatureDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403, content={"detail": "Feature disabled", "code": "feature_disabled"}
+        )
+
     @app.exception_handler(SanpoMapOwnerCannotLeaveError)
     async def _sanpo_map_owner_cannot_leave(
         request: Request, exc: SanpoMapOwnerCannotLeaveError
@@ -295,6 +323,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings.google_maps_anonymous_rate_limit_requests,
         app.state.settings.google_maps_rate_limit_window_seconds,
     )
+    # 招待の preview・accept 用（探索 API とは別の枠。SS-250, ADR-009 決定39）。
+    app.state.invitation_rate_limiter = ExploreRateLimiter(
+        app.state.settings.invitation_rate_limit_requests,
+        app.state.settings.invitation_anonymous_rate_limit_requests,
+        app.state.settings.invitation_rate_limit_window_seconds,
+    )
     # コールドスタートでは AppConfig を取りに行かない（インスタンスを作るだけ）。
     # 最初にフラグを参照したリクエスト（/app-config 等）が取得する。/app-config 以外の
     # コールドスタートに AppConfig のレイテンシを乗せないため（ADR-008 追補 D3）。
@@ -366,6 +400,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(
         RequestSizeLimitMiddleware,
+        path_prefix="/invitations",
+        max_bytes=settings.pins_request_max_bytes,
+    )
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
         path_prefix="/pins",
         max_bytes=settings.pins_request_max_bytes,
     )
@@ -394,6 +433,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(maps_router)
     app.include_router(walks_router)
     app.include_router(sanpo_maps_router)
+    app.include_router(sanpo_map_invitations_router)
     app.include_router(pins_router)
     app.include_router(pin_photo_uploads_router)
     if settings.auth_mode == "dev":

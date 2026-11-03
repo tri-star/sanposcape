@@ -26,11 +26,12 @@ CI（`.github/workflows/lp-ci.yml`）は `check` → `format:check` → `build` 
 packages/lp/
 ├── astro.config.mjs       # site / trailingSlash / env スキーマ / CSP 向けのビルド設定
 ├── public/                # そのままの名前で配信するファイル（favicon・apple-touch-icon・OGP 画像）
+├── scripts/write-well-known.mjs  # ビルド後に dist/.well-known/ を書く（SS-250）
 └── src/
     ├── assets/images/     # astro:assets の <Image> で最適化する元画像
     ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
-    ├── pages/             # index.astro / privacy.astro / terms.astro / support.astro / 404.astro / robots.txt.ts
+    ├── pages/             # index.astro / privacy.astro / terms.astro / support.astro / i/index.astro（招待リンク）/ 404.astro / robots.txt.ts
     │                      # privacy/<YYYY-MM-DD>.astro は改定前のポリシーの版（不利な改定のときに固定する）
     └── styles/            # global.css（LP 全体。デザイン原本の styles.css）/ legal.css（privacy・terms・support 共通）
 ```
@@ -55,7 +56,13 @@ packages/lp/
 - **キャッシュ**: `_astro/**`（ハッシュ付き）は immutable の長期キャッシュ、それ以外は `max-age=0, s-maxage=86400` で配信される。
   `public/` のファイルはハッシュが付かないため、**内容を差し替えるときはファイル名を変える**（例: `ogp.png` → `ogp-2.png`）。
   デプロイは `_astro/` の旧ハッシュのファイルを削除しない（開いたままのタブが古い HTML から取りに来るため。ADR-012 決定5）。
-- `/.well-known/` は置いていない（招待リンクの Universal Links / App Links 用に Plane SS-250 で足す予定）。
+- **`/.well-known/`**（地図の招待リンクの Universal Links / App Links。SS-250）: `public/` には置かず、`pnpm --filter lp build` の後に
+  `scripts/write-well-known.mjs` が `PUBLIC_LP_ENV` に応じて `dist/.well-known/` に書く（本番と開発用でアプリ識別子が違うため）。
+  - `apple-app-site-association`（拡張子なし）は、`lp-deploy.yml` が sync から外し `aws s3 cp --content-type application/json` で上げる
+    （sync では `binary/octet-stream` になり、CloudFront の `nosniff` で iOS が読めない）。sync の `--exclude` は 3 回とも揃える。
+  - 対象の path は `/i/`（招待リンクの受け皿）だけ。LP の他のページは Universal Link にしない。
+  - `assetlinks.json` は署名証明書の SHA-256 がある環境だけ出す（開発用は EAS の開発用 keystore。本番は Android のストアの準備ができてから足す）。
+  - Team ID・SHA-256 は公開する前提の識別子で、秘密ではない。アプリの識別子を変えたら、このスクリプトも直す。
 
 ### 環境変数（ビルド時）
 
@@ -138,6 +145,16 @@ App Store Connect の「プライバシーポリシー URL」に登録するた�
   - sitemap からは `astro.config.mjs` の `filter` が `/privacy/<YYYY-MM-DD>/`・`/terms/<YYYY-MM-DD>/` の形をまとめて外す（版を足すたびに直さなくてよい）。
   - 次の不利な改定では、その時点の `/privacy/` を手順 1 で新しい日付のファイルに複製し、`revisionHistory` の先頭に行を足す。
 - サポートページ（`/support/`）はポリシーの節へリンクしているだけなので、施行日・旧版の仕組みは要らない。
+
+## 招待リンクの受け皿（`/i/`）
+
+`src/pages/i/index.astro`（SS-250）。招待リンク `https://sanposcape.com/i/#<token>`（dev は `dev.sanposcape.com`）は、アプリが入っていれば
+Universal Links / App Links でアプリが開くので、このページが出るのはアプリが無いとき・リンクの検証が効かないとき。
+
+- トークンは fragment にあり、サーバー（CloudFront・S3）には届かない。ページはトークンを検証せず、招待の中身（地図の名前など）を出さない。
+- 「アプリで開く」の href は外部の JS（Astro が `_astro/` に出す `<script>`）が fragment から `sanposcape://invite?t=<token>`
+  （開発用は `sanposcape-dev://`）に組み立てる。base64url 以外の値は載せない。
+- noindex で、sitemap からも外す。URL（`/i/`）は `.well-known` とアプリの intentFilters の対象なので変えない。
 
 ## 利用規約（`/terms/`）
 

@@ -41,11 +41,13 @@ export default defineConfig({
   },
   integrations: [
     sitemap({
-      // 404 と、改定前のプライバシーポリシー・利用規約（/privacy/2026-10-24/ のような版ごとのページ。noindex）を載せない。
+      // 404、招待リンクの受け皿（/i/。noindex。SS-250）と、改定前のプライバシーポリシー・利用規約
+      // （/privacy/2026-10-24/ のような版ごとのページ。noindex）を載せない。
       filter: (page) => {
         const { pathname } = new URL(page);
         return (
           !pathname.startsWith("/404") &&
+          pathname !== "/i/" &&
           !/^\/(privacy|terms)\/\d{4}-\d{2}-\d{2}\/$/.test(pathname)
         );
       },

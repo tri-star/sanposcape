@@ -129,6 +129,44 @@ class SanpoMapMember(Base):
     )
 
 
+class SanpoMapInvitation(Base):
+    """地図への招待リンク（SS-250, ADR-009 決定39）。1つのリンクで参加できるのは1人。
+
+    トークンそのものは保存せず、SHA-256 の hex（`token_hash`）
+    だけを持つ（発行の応答で1回だけ返す）。
+    有効 = `accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`。
+    参加・取り消し・期限切れから 30 日で行を消す（`purge_stale`）。
+    作った人の削除では CASCADE で消え、
+    参加した人の削除では `accepted_by_user_id` を NULL にして結び付きだけを消す
+    （プライバシーポリシー 6）。
+    """
+
+    __tablename__ = "sanpo_map_invitations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sanpo_map_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sanpo_maps.id", ondelete="CASCADE")
+    )
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    token_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), default=None
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_sanpo_map_invitations_token_hash"),
+        Index("ix_sanpo_map_invitations_sanpo_map_id", "sanpo_map_id"),
+        Index("ix_sanpo_map_invitations_created_by_user_id", "created_by_user_id"),
+        Index("ix_sanpo_map_invitations_accepted_by_user_id", "accepted_by_user_id"),
+    )
+
+
 class Pin(Base):
     """地図（`SanpoMap`）に登録された1件の地点。
 
