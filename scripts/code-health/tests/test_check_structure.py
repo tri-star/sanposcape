@@ -90,6 +90,10 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(cs.first_word("usePinEdit.ts", "src/features/pin/hooks"), "edit")
         self.assertEqual(cs.first_word("pin.ts", "src/features/pin/lib"), "pin")
         self.assertEqual(cs.first_word("sanpo_map_service.py", "src/sanpo_maps"), "map")
+        # 続く語もフォルダ名に含まれるなら続けて飛ばす（まとまりをサブフォルダに分けた後）。最後の1語は残す
+        self.assertEqual(cs.first_word("sanpoMapIcon.ts", "src/features/pin/lib/sanpo-map"), "icon")
+        self.assertEqual(cs.first_word("pinMapFilter.ts", "src/features/pin/lib/map"), "filter")
+        self.assertEqual(cs.first_word("sanpoMap.ts", "src/features/pin/lib/sanpo-map"), "map")
 
 
 class ScanTest(unittest.TestCase):
