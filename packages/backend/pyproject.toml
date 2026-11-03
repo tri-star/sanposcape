@@ -76,9 +76,47 @@ target-version = "py312"
 extend-exclude = ["alembic/versions", ".aws-sam"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+# C901・PLR0912・PLR0913・PLR0915: 関数の複雑度・分岐・引数・文の数（SS-253。閾値は下の mccabe・pylint）
+select = ["E", "F", "I", "UP", "B", "SIM", "C901", "PLR0912", "PLR0913", "PLR0915"]
 # B008: FastAPI の Depends() を引数デフォルトに置くのは公式の慣習のため許可
 ignore = ["B008"]
+
+# 関数の複雑度・長さの閾値（SS-253）。緩い値から始め、既存の違反を片付けてから段階的に下げる
+# （ADR-017。ADR-016 決定6・7 と同じ進め方）。ruff の既定は max-complexity 10・max-branches 12・
+# max-statements 50・max-args 5 で、下げるときの目安にする。
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-branches = 15
+max-statements = 60
+max-args = 8
+
+# 既存の違反の据え置き（baseline。ADR-017）。各行に片付ける課題と、今は分けない理由を書く。
+# ファイルを足して通すときは、課題と理由を書いたうえでレビューで妥当かを見る。
+# 片付けたら行を消す（消し忘れても ruff は教えないので、片付けた PR で必ず消す）。
+[tool.ruff.lint.per-file-ignores]
+# SS-258: 例外の種類ごとのハンドラを1関数で登録している（28）。種類ごとの登録関数に分ける
+"src/sanposcape/main.py" = ["C901"]
+# SS-258: 周回ルートの生成が候補の選定・再試行・距離の判定を1関数で持つ（複雑度 17・分岐 16）。
+# __init__ は設定値を個別に受け取る（9）
+"src/sanposcape/maps/service.py" = ["C901", "PLR0912", "PLR0913"]
+# SS-258: update_pin が項目ごとの更新と写真の確定を1関数で持つ（複雑度 19・分岐 18・文 64）。
+# ADR-011 の持ち越し（写真確定処理の切り出し）と一緒に分ける。__init__ は依存を個別に受け取る（12）
+"src/sanposcape/sanpo_maps/pins/service.py" = ["C901", "PLR0912", "PLR0913", "PLR0915"]
+# SS-258: 以下はキーワード専用引数で、呼び出し側での取り違えは起きにくい（9〜11）。
+# 引数をまとめる型に寄せるかを SS-258 で判断する
+"src/sanposcape/sanpo_maps/photos/service.py" = ["PLR0913"]
+"src/sanposcape/sanpo_maps/pins/mappers.py" = ["PLR0913"]
+"src/sanposcape/sanpo_maps/pins/repository.py" = ["PLR0913"]
+"src/sanposcape/walks/repository.py" = ["PLR0913"]
+# SS-258: テストの部品。ID トークンの各クレームを上書きできるようにキーワード専用で並べている（9・12）
+"src/sanposcape/auth/tests/conftest.py" = ["PLR0913"]
+"src/sanposcape/core/tests/test_access_log.py" = ["PLR0913"]
+# SS-258: 並行実行の手順（スレッドの起動・待ち合わせ・検証）を1つのテストに順に書いている（65）
+"src/sanposcape/sanpo_maps/maps/tests/test_delete_map_concurrency.py" = ["PLR0915"]
+# SS-258: 1つのテストで写真の確定の前後を順に検証している（65）
+"src/sanposcape/sanpo_maps/pins/tests/test_service.py" = ["PLR0915"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"

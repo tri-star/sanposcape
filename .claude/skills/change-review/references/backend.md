@@ -12,6 +12,7 @@
 - 現在時刻を使う service・部品が `now`（経過時間なら `monotonic`）をコンストラクタで受けているか。`datetime.now()` の直書きは日付境界のテストを書けなくする。正本: folder-structure.md「現在時刻の扱い（クロック注入）」
 - `app.state` に外部クライアントを持たせる変更では、`main._lifespan` の finally から `close()` が呼ばれているか（先例: `HttpGoogleMapsProvider`・`AppConfigFlagSource`）。Lambda では shutdown が走らず、lifespan の state も使えない（folder-structure.md の `aws_lambda/` 節。SS-183）。
 - Lambda 固有のコードが `aws_lambda/` の外に出ていないか（ECS 移植性の境界。grep で確かめられる）。
+- 関数の複雑度・分岐・引数・文の数は ruff（C901・PLR0912・PLR0913・PLR0915）が止める（ADR-017）。`pyproject.toml` の `[tool.ruff.lint.per-file-ignores]`（据え置きの除外）にファイルやルールを足していたら、片付ける課題と理由がコメントにあり、分けずに通す判断が妥当かを見る。違反していないルールまで除外に入れていないか、片付けた PR で行を消しているか（ruff は使われなくなった除外を教えない）も見る。mobile の `.oxlintrc.json` の末尾の overrides も同じ。
 - 配置の理由が「循環 import を避けるため」なら、実際の import 方向を grep で確かめてから評価する。SS-98 のプランはこの理由を挙げたが、実際は core → integrations の一方向で循環しなかった（ADR-008 の SS-98 追補 D3 で訂正）。
 
 ## API 契約と OpenAPI
