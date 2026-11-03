@@ -6,12 +6,14 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "survey-structure.py"
 spec = importlib.util.spec_from_file_location("survey_structure", SCRIPT)
@@ -138,7 +140,10 @@ class GitCommitsTest(unittest.TestCase):
             subprocess.run(["git", "init", "-q"], cwd=repo.root, check=True)
             subprocess.run([*git, "add", "."], cwd=repo.root, check=True)
             subprocess.run([*git, "commit", "-q", "-m", "x"], cwd=repo.root, check=True)
-            commits = ss.git_commits(repo.root, "packages/x", "10 years ago")
+            # 開発者の global の設定（core.quotePath=false など）に左右されないよう、global と system の設定を切って読む。
+            env = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+            with mock.patch.dict(os.environ, env):
+                commits = ss.git_commits(repo.root, "packages/x", "10 years ago")
         finally:
             repo.close()
         self.assertEqual(commits, [["packages/x/b.ts", "packages/x/散歩.ts"]])
