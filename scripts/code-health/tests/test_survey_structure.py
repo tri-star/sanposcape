@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -125,6 +126,22 @@ class CoChangeTest(unittest.TestCase):
         changes, pairs = ss.co_changes(commits, members, max_files=3)
         self.assertEqual(sum(pairs.values()), 0)
         self.assertEqual(changes[f"{LIB}/a.ts"], 1)
+
+
+class GitCommitsTest(unittest.TestCase):
+    def test_reads_non_ascii_paths_unquoted(self) -> None:
+        repo = Repo()
+        try:
+            repo.add("packages/x/散歩.ts", "a\n")
+            repo.add("packages/x/b.ts", "b\n")
+            git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "core.quotePath=true"]
+            subprocess.run(["git", "init", "-q"], cwd=repo.root, check=True)
+            subprocess.run([*git, "add", "."], cwd=repo.root, check=True)
+            subprocess.run([*git, "commit", "-q", "-m", "x"], cwd=repo.root, check=True)
+            commits = ss.git_commits(repo.root, "packages/x", "10 years ago")
+        finally:
+            repo.close()
+        self.assertEqual(commits, [["packages/x/b.ts", "packages/x/散歩.ts"]])
 
 
 class SurveyFolderTest(unittest.TestCase):

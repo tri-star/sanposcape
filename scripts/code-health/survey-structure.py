@@ -196,7 +196,8 @@ def co_changes(commits: list[list[str]], members: set[str], max_files: int) -> t
 def git_commits(root: Path, target: str, since: str) -> list[list[str]]:
     """target に触れたコミット（マージを除く）ごとの、target の中で変わったファイルの一覧。"""
     out = subprocess.run(
-        ["git", "log", f"--since={since}", "--no-merges", "--no-renames", "--format=%x00", "--name-only", "--", target],
+        # core.quotePath を切らないと、非 ASCII のパスが引用符つきのエスケープで出て、黙って数えられなくなる（git ls-files の -z と同じ落とし穴）。
+        ["git", "-c", "core.quotePath=false", "log", f"--since={since}", "--no-merges", "--no-renames", "--format=%x00", "--name-only", "--", target],
         cwd=root, check=True, capture_output=True, text=True,
     ).stdout
     return [[line for line in chunk.splitlines() if line.strip()] for chunk in out.split("\0")[1:]]
