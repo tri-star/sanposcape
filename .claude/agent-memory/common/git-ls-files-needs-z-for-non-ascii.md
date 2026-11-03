@@ -1,6 +1,6 @@
 ---
 name: git-ls-files-needs-z-for-non-ascii
-description: スクリプトで git ls-files の出力を行で読むと、日本語などの非 ASCII のパスが "\346\227..." と引用符つきで出て、実在のパスと一致せず黙って落ちる。-z で NUL 区切りにして読む
+description: スクリプトで git ls-files・git log --name-only の出力を行で読むと、日本語などの非 ASCII のパスが "\346\227..." と引用符つきで出て、実在のパスと一致せず黙って落ちる。-z で NUL 区切りにするか -c core.quotePath=false で読み、テストは global の git 設定を切る
 metadata:
   type: feedback
   scope: durable
@@ -19,3 +19,7 @@ SS-252 の時点で `scripts/knowledge/check-doc-references.py`・`check-memory-
 - スクリプトから呼ぶときは `git ls-files -z ...` にして `stdout.split("\0")` で読み、空の要素を捨てる。
 - テストでは一時リポジトリに日本語名のファイルを置いて、対象に入ることを確かめる（`scripts/code-health/tests/test_check_structure.py` の MainTest が例）。
 - `-c core.quotepath=false` でも引用符は外れるが、改行を含むパスまで安全に扱えるのは `-z`。
+- `git log --format=... --name-only` のようにコミットの区切りと一緒に読むときは、`-c core.quotePath=false` を付けて行で読む
+  （SS-254 の `scripts/code-health/survey-structure.py` の `git_commits`。レビューで同じ落とし穴を指摘された）。
+- この回帰テストは、開発者の global の設定（`core.quotePath=false`）でオプションを外しても通ってしまう。
+  テストでは `GIT_CONFIG_GLOBAL=os.devnull`・`GIT_CONFIG_NOSYSTEM=1` を環境変数に入れてから git を呼ぶ（`test_survey_structure.py` の GitCommitsTest）。
