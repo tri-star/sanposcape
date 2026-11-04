@@ -1,6 +1,6 @@
 ---
 name: render-mockups-in-sandbox
-description: アプリに組み込まない画面イメージ（HTML）を sandbox で撮る手順 — Playwright MCP は file:// を拒否し sandbox の localhost にも届かない、google-chrome は落ちるので chrome-headless-shell を使う、PIL は uv で入れる、同梱の ffmpeg は PNG を読めない
+description: アプリに組み込まない画面イメージ（HTML）を sandbox で撮る手順（LP は対象外。scripts/lp-tools/capture-lp.mjs を使う） — Playwright MCP は file:// を拒否し sandbox の localhost にも届かない、google-chrome は落ちるので chrome-headless-shell を使う、PIL は uv で入れる、同梱の ffmpeg は PNG を読めない
 metadata:
   type: feedback
   scope: durable
@@ -25,3 +25,4 @@ metadata:
 - Artifact に載せる HTML は `<!doctype>` 無しで書く（公開時に包まれる）。手元で撮るときは doctype と charset を前に足したコピーを撮る（quirks モードを避ける）。
 
 **How to apply:** 画面イメージを撮るときは最初から chrome-headless-shell + 節ごとのプレビュー HTML で撮る。MCP のブラウザやローカルサーバーを試さない。
+LP（`packages/lp`）のページはこの手順を使わず、`scripts/lp-tools/capture-lp.mjs` を sandbox の外で使う（システムの Chrome を sandbox 付きで使い、配信もスクリプトが行う）。
