@@ -20,6 +20,8 @@ HTML・CSS・JS・画像を `dist/` に書き出し、S3 + CloudFront で配信�
 
 CI（`.github/workflows/lp-ci.yml`）は `check` → `format:check` → `build` → インライン混入の検査を回す（`lp-deploy.yml` からも呼ばれる）。
 
+画面キャプチャは `node scripts/lp-tools/capture-lp.mjs --out <dir>`（`build` の後に、Claude Code の sandbox の外で実行する。`--help` で使い方。下記「デザインと画像」）。
+
 ## 構成
 
 ```
@@ -81,6 +83,13 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 - 見た目の正解は、デザイン原本（Codex で作成した静的 HTML/CSS/JS。リポジトリ外の作業フォルダにあった）を移した現在の実装。
   `src/styles/global.css` は原本の `styles.css` を値を変えずに移したもの（Prettier の整形と、下記「原本から意図的に変えた点」を除く）。
   見た目を変えるときはデザインの更新として扱い、PC（1440px）とスマホ（390px）の全体スクリーンショットで崩れがないか確認する。
+  - **デザインを変えた PR には、両方の幅の画面キャプチャをコメントで添付する**（SS-263）。`lp-pr-verification` skill（task-workflow の PR 作成の後に呼ばれる）が、
+    `scripts/lp-tools/capture-lp.mjs` でページを節（`main > section`）ごとに撮り、横スクロールの有無とともに添付する。
+  - スクリプトはシステムの Google Chrome を Chrome の sandbox を有効にしたまま headless で使う（`--no-sandbox` を付けない）。
+    Claude Code の sandbox の中では Chrome の SUID sandbox が起動できないので、sandbox の外で実行する。撮影時の Chrome の版を出すので、古いままになっていないかも見る。
+    Playwright の chrome-headless-shell は Playwright の版に固定されて古くなり、Linux では sandbox を無効にして動かすため使わない。
+  - 撮るときは viewport の高さを文書の高さまで広げる（遅延読み込みの画像と sticky ヘッダーの重なりのため）。
+    CSS で `vh`（`svh`・`dvh` を含む）を使うと、撮った画像の見た目が実際の画面と変わるので、使うときはスクリプトの撮り方を見直す。
 - 本番公開に向けて原本から意図的に変えた点:
   - 「※このページはデザインプレビューです…」の注記を削除。ダイアログの文言も「公開まで、もうしばらくお待ちください。」に変更。
   - ダミー QR 画像は出さず、ストア URL が未確定のストアには同じ大きさの「公開準備中」枠（`.qr-placeholder`）を置く。
