@@ -1,6 +1,6 @@
 ---
 name: render-mockups-in-sandbox
-description: アプリに組み込まない画面イメージ（HTML）を sandbox で撮る手順 — Playwright MCP は file:// を拒否し sandbox の localhost にも届かない、google-chrome は落ちるので chrome-headless-shell を使う、PIL は uv で入れる、同梱の ffmpeg は PNG を読めない
+description: アプリに組み込まない画面イメージ（HTML）を sandbox で撮る手順（LP は対象外。scripts/lp-tools/capture-lp.mjs を使う） — Playwright MCP は file:// を拒否し sandbox の localhost にも届かない、google-chrome は落ちるので chrome-headless-shell を使う、PIL は uv で入れる、同梱の ffmpeg は PNG を読めない
 metadata:
   type: feedback
   scope: durable
@@ -18,13 +18,11 @@ metadata:
 - **PIL はシステムに無い。** `uv run --no-project --with pillow python -I -` で一時的に入れる（`pypi.org` と `files.pythonhosted.org` が要る）。
   `~/.cache/ms-playwright/ffmpeg-*/ffmpeg-linux` は PNG のデコーダを持たないので切り出しに使えない。部分の拡大は、`overflow:hidden` の div に
   画像をずらして置いた HTML を chrome-headless-shell で撮ると速い。
-- **LP（`packages/lp/dist`）を撮るときは、`dist` をコピーしてパスを相対に書き換える**（SS-261）。出力 HTML は `/_astro/...` の絶対パスで参照するので、
-  `file://` で開くと CSS・画像が読めない。コピーした `index.html` に `sed 's#"/_astro/#"./_astro/#g; s#, /_astro/#, ./_astro/#g'`（`srcset` の2つ目以降も）をかける。
-  全体は `--window-size=1440,6400`（390px 幅なら高さ 11000 程度）で1枚撮り、PIL で 1000〜1600px ごとに切って読む。
-  HOME を `$TMPDIR` に向けた後は `~/.cache/...` が別の場所に展開されるので、chrome-headless-shell は絶対パスで呼ぶ。
-  **画像が枠だけで中身が描かれないことがある**（`loading="lazy"` だけでなく、`decoding="async"` の画像も、ページ全体を1枚で撮ると描画が間に合わない。ファイルは正常）。
-  コピーの HTML で `loading="lazy"` → `eager` にし、` decoding="async"` を消し、`main > *:not(.撮りたい節)` を `display:none` にする `<style>` を `</head>` の前に足した節ごとのプレビューを、
-  高さ 1100（スマホ幅は 2000）程度で撮ると確実（SS-261）。
+- **LP（`packages/lp`）のページは、この手順ではなく `scripts/lp-tools/capture-lp.mjs` で撮る**（SS-263）。`pnpm --filter lp build` の後に sandbox の外で
+  `node scripts/lp-tools/capture-lp.mjs --out <dir>` を実行すると、1440px・390px で節ごとに撮り、横スクロールの有無を出す。
+  `/_astro/` の絶対パス（HTTP で配信する）・遅延読み込みと `decoding="async"` の画像・sticky ヘッダーの重なりは、スクリプトが扱う。
+  システムの `google-chrome` は sandbox の外なら Chrome の sandbox 付きで動く（`--no-sandbox` は付けない）。PR への添付は `lp-pr-verification` skill。
 - Artifact に載せる HTML は `<!doctype>` 無しで書く（公開時に包まれる）。手元で撮るときは doctype と charset を前に足したコピーを撮る（quirks モードを避ける）。
 
 **How to apply:** 画面イメージを撮るときは最初から chrome-headless-shell + 節ごとのプレビュー HTML で撮る。MCP のブラウザやローカルサーバーを試さない。
+LP（`packages/lp`）のページはこの手順を使わず、`scripts/lp-tools/capture-lp.mjs` を sandbox の外で使う（システムの Chrome を sandbox 付きで使い、配信もスクリプトが行う）。

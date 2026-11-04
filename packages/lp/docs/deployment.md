@@ -15,7 +15,7 @@
 
 ```
 prepare（環境と公開 URL を決める。production は main 以外を拒否）
-  → ci（lp-ci.yml: astro check / Prettier / build / インライン混入の検査）
+  → ci（lp-ci.yml: scripts/lp-tools の単体テスト / astro check / Prettier / build / インライン混入の検査）
   → build（LP_SITE_URL・PUBLIC_LP_ENV を渡して astro build。id-token なし）
   → deploy（environment 付き。OIDC で AssumeRole → S3 へアップロード → invalidation → 掃除 → 疎通確認）
   → release（production のみ。lp/vX.Y.Z タグと GitHub Release）
