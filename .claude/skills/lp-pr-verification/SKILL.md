@@ -148,7 +148,8 @@ PR本文は後続の手順（task-workflow の「知識の収穫」の追記な�
    ```
 
    - `--attach` は 1 回 50 ファイルまで（トップページは 1 幅 6 枚で 12 枚）
-   - Claude Code の sandbox が画像のアップロード先（`uploads.github.com`）を拒むと、`gh` はコメントを作る前に失敗する。そのときは同じコマンドを sandbox の外で実行する
+   - Claude Code の sandbox が画像のアップロード先（`uploads.github.com`）を拒むと、`gh` はコメントを作る前に失敗する
+     （`host is on the deny list` と `no comment was posted` が出る。SS-263 で確認）。そのときは同じコマンドを sandbox の外で実行する
    - 投稿後に `gh pr view <PR番号> --comments` で、画像が表の中に並び、末尾に重複した画像が追加されていないことを確かめる。
      末尾に追加されていれば参照パスの不一致なので、原因（どのパスが食い違ったか）を報告に含める（投稿し直して重複させない）
    - `gh` が非ゼロ終了しても、コメントが作成済みの場合がある。そのまま再実行せず、まず `gh pr view <PR番号> --comments` で確かめる。
