@@ -882,8 +882,8 @@ h2 {
 }
 .together-orbit {
   position: absolute;
-  width: 420px;
-  height: 420px;
+  width: min(420px, 100%);
+  aspect-ratio: 1;
   border: 1px solid #b9c9a6;
   border-radius: 50%;
   top: 70px;
@@ -1789,8 +1789,7 @@ dialog .button {
     height: 480px;
   }
   .together-orbit {
-    width: 340px;
-    height: 340px;
+    width: min(340px, 100%);
     top: 70px;
   }
   .together-phone {
