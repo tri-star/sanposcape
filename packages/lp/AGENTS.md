@@ -90,7 +90,8 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
   - フッターに利用規約（`/terms/`、SS-187）・プライバシーポリシー（`/privacy/`）・サポート（`/support/`、SS-214）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
   - 文言（キャッチコピー・機能紹介）を、アプリの2つの動機を軸に書き直した（SS-261）。休日の散歩 = 写真とタグ付きのピンで自分たち（自分と地図のメンバー）だけの地図を作り、
     家族や友人と共有する（Pins「01」・Together「02」）。平日の散歩 = すきま時間で歩けるスポットと散歩コースの提案・歩いたルートの記録（Walks「03」）。
-    背景色の交互（明・紺・明・水色・明・緑）を保つよう、セクションの並びを Pins → Together → Walks → Steps に変えた。CSS とクラスは変えていない。
+    背景色の交互（明・紺・明・水色・明・緑）を保つよう、セクションの並びを Pins → Together → Walks → Steps に変えた。
+    Together の図と Steps の3つの図は、原本の模式図（CSS で描いた地図・付箋など）をやめ、アプリの画面のキャプチャを `.phone` の枠に入れて出している（`.together-phone`・`.step-phone`）。模式図の CSS は消した。
     招待機能は「開発中」の扱い（`.coming-soon`）をやめ、正式な機能として紹介している（`.coming-soon` の CSS は原本の値のまま残している）。
   - 機能紹介の文言は、アプリの実装の事実に合わせる。約束できないことは書かない（例: 周回ルートは同じ道で戻ることがあるため「違う道で戻る」とは書かない。ADR-007）。
     共有の範囲・招待の流れは、プライバシーポリシー（1-8）より強い約束や違う流れを書かない（例: 「招待したメンバーだけ」ではなく「一般には公開されず、地図のメンバーだけが見られる」。
@@ -105,14 +106,23 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 | ファイル                                                             | 出典                                                                                                |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `src/assets/images/app-icon.png`                                     | `packages/mobile/assets/app-icons/sanposcape-icon-1024.png` のコピー                                |
-| `src/assets/images/screens/*.png`                                    | アプリの画面イメージ（デザイン原本に同梱されていたもの）                                            |
+| `src/assets/images/screens/pins-map.png`・`walk-start.png`           | アプリの画面イメージ（デザイン原本に同梱されていたもの）                                            |
+| `src/assets/images/screens/` のその他の `.png`                       | Android エミュレータで撮ったアプリの画面（SS-261）。下記「画面のキャプチャ」                        |
 | `src/assets/images/qr-app-store-ios.svg`                             | App Store の公開 URL（`Download.astro` の `url`）から segno（Python）で生成。URL を変えたら作り直す |
 | `src/assets/images/walking-landscape.webp`                           | デザイン原本の作成時に画像生成（imagegen）で新規生成した風景イラスト                                |
 | `src/assets/images/route-map.svg`                                    | デザイン原本の作成時にこの LP 用に作った装飾用の模式地図                                            |
 | `public/favicon.png`（48px）・`public/apple-touch-icon.png`（180px） | アプリアイコンを sharp で縮小                                                                       |
 | `public/ogp.png`（1200x630）                                         | アプリアイコン・ワードマーク（DejaVu Sans Bold）・風景イラストを sharp で合成                       |
 
-「地図の共有」セクション（`Together.astro`）の図はコンセプト（ダミー）で、実際のアプリ画面ではない（図の右下に「地図の共有のイメージ」と出している）。実際の画面のキャプチャに差し替えたら、この行と `src/assets/images/screens/*.png` の出典を直す。
+#### 画面のキャプチャ（SS-261）
+
+`pin-detail.png`・`shared-map-detail.png`・`pin-new.png`・`pin-detail-showa.png`・`map-members.png` は、ローカルの backend（`AUTH_MODE=dev`・`map_invitation` ON）に
+API で作ったデータを、Android エミュレータ（1440x3120）で撮って 720x1560 に縮小したもの。
+
+- ピンの写真は、Codex の画像生成で作ったイラスト（町中華の外観・料理、夕方の昭和レトロな街並み）。実在の店・写真ではない。
+- メンバー名（ゆうき・みさき・けんた）は、開発用のユーザーの表示名をローカルの DB で書き換えたもの。
+- ピンの詳細には住所（逆ジオコーディングの結果）が出る。架空の店が実在の住宅にあるように見えないよう、町中華のピンは寺と霊園の敷地の座標に置いた。撮り直すときも、住宅の番地が出ない座標を選ぶ。
+- アプリの画面が変わって差が目立つようになったら撮り直す。手順は `.claude/agent-memory/mobile/emulator-seed-data.md`。
 
 ## デプロイ
 
