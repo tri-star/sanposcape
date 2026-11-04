@@ -371,6 +371,27 @@ describe("CdpClient.waitForEvent", () => {
     assert.equal(settled, false);
   });
 
+  test("send の応答を待っている間に接続が切れても、受け手の無い reject を残さない", async () => {
+    const socket = fakeSocket();
+    const cdp = new CdpClient(socket);
+    const unhandled = [];
+    const onUnhandled = (reason) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      // capture-page.mjs の navigate と同じ順序: 待ちを先に作り、send の応答を待つ
+      const loaded = cdp.waitForEvent("Page.loadEventFired", "s1", 60_000);
+      const sent = cdp.send("Page.navigate", { url: "about:blank" }, "s1");
+      socket.dispatchEvent(new Event("close"));
+      await assert.rejects(sent, /CDP の接続が切れました/);
+      loaded.cancel();
+      await sleep(20);
+      assert.deepEqual(unhandled, []);
+      await assert.rejects(loaded, /CDP の接続が切れました/);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   test("接続が切れたら、待ちを timeout を待たずに reject する", async () => {
     const socket = fakeSocket();
     const cdp = new CdpClient(socket);

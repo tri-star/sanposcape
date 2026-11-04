@@ -245,6 +245,9 @@ export class CdpClient {
       });
       this.#listeners.add(listener);
     });
+    // 呼び出し元が await する前（Page.navigate の応答待ちなど）に reject されても、未処理の reject で
+    // Node が終了コード 1 で落ちないようにする。await している呼び出し元には reject がそのまま届く
+    promise.catch(() => {});
     promise.cancel = cancel;
     return promise;
   }
