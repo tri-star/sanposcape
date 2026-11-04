@@ -116,12 +116,16 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 
 #### 画面のキャプチャ（SS-261）
 
-`pin-detail.png`・`shared-map-detail.png`・`pin-new.png`・`pin-detail-showa.png`・`map-members.png` は、ローカルの backend（`AUTH_MODE=dev`・`map_invitation` ON）に
-API で作ったデータを、Android エミュレータ（1440x3120）で撮って 720x1560 に縮小したもの。
+`pin-detail.png`・`shared-map-detail.png`・`pin-new.png`・`pin-detail-showa.png`・`map-members.png` は、ローカルの backend（`AUTH_MODE=dev`。`.env.example` のままなので、フラグは `pin_registration`・`pin_station_tag`・`map_invitation` がすべて ON）に
+API で作ったデータを、Android エミュレータ（1440x3120）で撮って 720x1560 に縮小したもの。Steps の3枚（`pin-new`・`pin-detail-showa`・`map-members`）は、LP で見える上の部分（720x740）だけを切り出している。
 
 - ピンの写真は、Codex の画像生成で作ったイラスト（町中華の外観・料理、夕方の昭和レトロな街並み）。実在の店・写真ではない。
 - メンバー名（ゆうき・みさき・けんた）は、開発用のユーザーの表示名をローカルの DB で書き換えたもの。
-- ピンの詳細には住所（逆ジオコーディングの結果）が出る。架空の店が実在の住宅にあるように見えないよう、町中華のピンは寺と霊園の敷地の座標に置いた。撮り直すときも、住宅の番地が出ない座標を選ぶ。
+- ピンの詳細には住所（逆ジオコーディングの結果）が出る。架空の店が実在の住宅にあるように見えないよう、町中華のピン（`pin-detail.png`）は谷中霊園の敷地の座標に置いた。
+  STEP02 の昭和レトロのピンの住所は実在の区画だが、切り出した範囲の外にあり、配信する画像には含まれない。撮り直すときも、見せる範囲に住宅の番地が出ないようにする。
+- ストアで公開中の版に無い機能を写さない。`pin-new.png` の元の画面には最寄り駅のタグ（`pin_station_tag`。本番は OFF）が入っていたが、切り出した範囲の外にある。
+  撮り直すときは、駅のタグを外すか `pin_station_tag` を OFF にして撮る。共有（メンバー・招待）の画面は `packages/lp/docs/deployment.md` の SS-261 の条件の対象。
+- 写真とメモが「行ったことがある」前提なので、2つのピンは訪問済みにして撮った。
 - アプリの画面が変わって差が目立つようになったら撮り直す。手順は `.claude/agent-memory/mobile/emulator-seed-data.md`。
 
 ## デプロイ
