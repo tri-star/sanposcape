@@ -103,6 +103,14 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
 - **Environment は backend と共用している。** `environment: development` を付けた job は、どのワークフローからでも
   sam-deploy・feature-flags・lp-deploy のロールを AssumeRole できる。分けたくなったら LP 専用の Environment を作り、
   infra 側の tfvar で trust の Environment 名を変える。
+- **（一時的）トップページは、ストアの版でまだ使えない機能を紹介している（SS-261）。** production へのデプロイは、次の両方がそろってから行う。
+  1. 地図の共有（招待。SS-249・SS-250）と「ピンの場所に移動」（SS-246）を含む version が、ストアで公開されている（2026-11-04 時点のストアの版 1.0.0 には無く、1.0.0 には OTA も配れない。[リリース運用手順](../../../docs/release-runbook.md)）。
+  2. フラグ `map_invitation` を本番で ON にしている（ON はプライバシーポリシーの施行日 2026-12-02 の後の予定。`packages/mobile/src/config/featureFlags.ts`）。
+
+  これは「本番の LP はいつでも main からデプロイできる」（リリース運用手順 §7.5）の一時的な例外。そろう前にポリシーの改定などで production に出す必要があるときは、
+  先にトップページの紹介（`Together.astro`・`Steps.astro` の STEP 03・`Pins.astro` の「その場所へ移動」・`Hero.astro` のタグ・`index.astro` の description）をどうするかを決める。
+  両方そろって production に出したら、この項目を消す（Plane SS-262）。
+
 - dev をブランチで確認している最中に `packages/lp/**` を含む main への push があると、dev は main の内容に戻る。
 - dev の自動デプロイは `packages/lp/**` とこのワークフローの変更だけで起動する。ロックファイルだけが変わる依存の更新
   （Dependabot の推移的依存など）は自動では出ないので、必要なら Run workflow で dev に出す。

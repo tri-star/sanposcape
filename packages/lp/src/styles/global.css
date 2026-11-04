@@ -481,11 +481,6 @@ h1 {
   min-height: 115px;
   gap: 24px;
 }
-.strip-label {
-  font-size: 11px;
-  color: var(--moss);
-  font-weight: 700;
-}
 .intro-strip > p {
   font-size: 15px;
   letter-spacing: 0.025em;
@@ -730,79 +725,27 @@ h2 {
   border-radius: 7px;
   overflow: hidden;
 }
-.map-art {
-  background: #e5ebd9;
+.screen-art {
+  background: var(--sky-light);
 }
-.map-block {
+.step-phone {
   position: absolute;
-  background: #cad7af;
-  border-radius: 9px;
+  width: 200px;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
 }
-.block-a {
-  width: 100px;
-  height: 80px;
-  left: 25px;
-  top: 24px;
+.screen-art .step-phone img {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-.block-b {
-  width: 123px;
-  height: 71px;
-  right: 11px;
-  bottom: 26px;
+.step-phone::after {
+  top: 40px;
 }
-.block-c {
-  width: 105px;
-  height: 63px;
-  left: 30px;
-  bottom: 10px;
-}
-.map-road {
-  position: absolute;
-  width: 400px;
-  height: 16px;
-  background: #fbfaf3;
-  top: 110px;
-  left: -25px;
-  transform: rotate(-27deg);
-}
-.map-road::after {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 300px;
-  background: #fbfaf3;
-  left: 140px;
-  top: -100px;
-  transform: rotate(45deg);
-}
-.map-pin {
-  position: absolute;
-  left: 45%;
-  top: 50px;
-  width: 49px;
-  height: 49px;
-  display: grid;
-  place-items: center;
-  background: var(--moss);
-  color: white;
-  border-radius: 50% 50% 50% 3px;
-  transform: rotate(-45deg);
-  box-shadow: 0 5px 12px #33452622;
-}
-.map-pin .icon {
-  transform: rotate(45deg);
-  width: 27px;
-  height: 27px;
-}
-.map-tap {
-  position: absolute;
-  left: calc(45% - 11px);
-  top: 97px;
-  width: 65px;
-  height: 24px;
-  border: 1px solid #75885a;
-  background: #a3b76c44;
-  border-radius: 50%;
+.screen-art .art-label {
+  top: 6px;
+  bottom: auto;
+  z-index: 1;
 }
 .art-label {
   position: absolute;
@@ -816,105 +759,6 @@ h2 {
   background: #fffef8;
   color: var(--navy);
   box-shadow: 0 3px 10px #12346408;
-}
-.journal-art {
-  background: #ece9dc;
-}
-.paper-photo {
-  position: absolute;
-  width: 142px;
-  padding: 7px 7px 24px;
-  background: white;
-  left: 29px;
-  top: 25px;
-  transform: rotate(-11deg);
-  box-shadow: 0 5px 12px #1a334115;
-}
-.paper-photo img {
-  aspect-ratio: 1;
-  object-fit: cover;
-}
-.paper-memo {
-  background: #fbfaf3;
-  position: absolute;
-  right: 30px;
-  top: 45px;
-  width: 128px;
-  height: 134px;
-  padding: 15px;
-  transform: rotate(8deg);
-  box-shadow: 0 5px 12px #1a334115;
-}
-.paper-memo .icon {
-  width: 19px;
-  height: 19px;
-  color: var(--moss);
-}
-.paper-memo span {
-  display: block;
-  font-size: 9px;
-  line-height: 1.9;
-  margin-top: 8px;
-}
-.paper-memo i {
-  display: block;
-  height: 1px;
-  background: #d5dbca;
-  margin-top: 10px;
-}
-.collection-art {
-  background: #e2ebef;
-}
-.collection-paper {
-  position: absolute;
-  width: 190px;
-  height: 110px;
-  background: #f6f5ed;
-  top: 58px;
-  left: 50%;
-  transform: translateX(-50%) rotate(-12deg);
-  border-radius: 4px;
-  box-shadow: 0 3px 8px #1234640c;
-}
-.paper-second {
-  transform: translateX(-50%) rotate(3deg);
-  background: #d3dcc1;
-  top: 43px;
-}
-.paper-third {
-  transform: translateX(-50%) rotate(13deg);
-  background:
-    linear-gradient(
-      30deg,
-      transparent 45%,
-      #f7f6ee 45%,
-      #f7f6ee 52%,
-      transparent 52%
-    ),
-    linear-gradient(100deg, #e8ecd8 40%, #f7f6ee 40%, #f7f6ee 46%, #d6e0c9 46%);
-  top: 28px;
-}
-.collection-art > .icon {
-  position: absolute;
-  color: var(--moss);
-  width: 32px;
-  height: 32px;
-  fill: #f7f6ee;
-}
-.pin-one {
-  top: 49px;
-  left: 110px;
-  transform: rotate(13deg);
-}
-.pin-two {
-  top: 89px;
-  right: 110px;
-  transform: rotate(13deg);
-}
-.pin-three {
-  top: 114px;
-  left: 80px;
-  transform: rotate(13deg);
 }
 .step h3 {
   margin-top: 24px;
@@ -1045,140 +889,41 @@ h2 {
   height: 20px;
 }
 .together-visual {
-  height: 365px;
+  height: 560px;
   position: relative;
 }
-.shared-map {
-  width: 345px;
-  height: 274px;
-  border: 1px solid #dce1d3;
-  border-radius: 9px;
-  padding: 11px;
+.together-orbit {
   position: absolute;
+  width: min(420px, 100%);
+  aspect-ratio: 1;
+  border: 1px solid #b9c9a6;
+  border-radius: 50%;
+  top: 70px;
   left: 50%;
-  top: 33px;
-  transform: translateX(-50%) rotate(-7deg);
-  background: #fffef9;
-  box-shadow: 0 12px 40px #2341290d;
+  transform: translateX(-50%);
 }
-.shared-map-top {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 1px 14px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.shared-map-top > .icon {
-  width: 16px;
-  height: 16px;
-  color: var(--moss);
-}
-.avatar-stack {
-  display: flex;
-  margin-left: auto;
-}
-.avatar-stack i {
-  display: grid;
-  place-items: center;
-  width: 21px;
-  height: 21px;
-  background: #d9ea83;
-  border: 2px solid white;
-  border-radius: 50%;
-  margin-left: -5px;
-  font:
-    8px Arial,
-    sans-serif;
-}
-.avatar-stack i:nth-child(2) {
-  background: #b7ddef;
-}
-.avatar-stack i:nth-child(3) {
-  background: #ebdfcf;
-}
-.shared-map-body {
-  height: 209px;
-  overflow: hidden;
-  position: relative;
-  border-radius: 4px;
-}
-.shared-map-body > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.friend-pin {
+.together-orbit::after {
+  content: "";
   position: absolute;
-  display: grid;
-  place-items: center;
-  width: 35px;
-  height: 35px;
+  inset: 28px;
+  border: 1px dashed #b9c9a6aa;
   border-radius: 50%;
-  color: white;
-  background: var(--moss);
-  border: 2px solid white;
 }
-.friend-pin .icon {
-  width: 19px;
-  height: 19px;
-}
-.friend-a {
-  top: 32px;
-  left: 78px;
-}
-.friend-b {
-  top: 112px;
-  right: 53px;
-  background: #337eac;
-}
-.friend-c {
-  bottom: 22px;
-  left: 41px;
-}
-.friend-message {
+.together-phone {
   position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 13px 17px;
-  background: white;
-  border-radius: 7px;
-  font-size: 11px;
-  box-shadow: 0 5px 24px #1c413315;
+  width: 250px;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) rotate(-5deg);
   z-index: 2;
 }
-.friend-message > i {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--green);
-  font:
-    10px Arial,
-    sans-serif;
-}
-.message-a {
-  right: -2px;
-  top: 5px;
-  transform: rotate(5deg);
-}
-.message-b {
-  bottom: 33px;
-  left: -6px;
-  transform: rotate(3deg);
-}
-.message-b > i {
-  background: #b7ddef;
-}
-.concept-label {
+.together-label {
   position: absolute;
   bottom: 0;
   right: 8px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1px;
-  color: var(--muted);
+  color: var(--moss);
 }
 .download-section {
   background: #e4edbf;
@@ -1509,14 +1254,6 @@ dialog .button {
   .steps {
     gap: 24px;
   }
-  .paper-photo {
-    left: 15px;
-    width: 127px;
-  }
-  .paper-memo {
-    right: 15px;
-    width: 111px;
-  }
   .walk-layout {
     gap: 38px;
   }
@@ -1532,13 +1269,6 @@ dialog .button {
   }
   .together-copy h2 {
     font-size: 29px;
-  }
-  .shared-map {
-    width: 310px;
-  }
-  .friend-message {
-    font-size: 10px;
-    padding: 11px;
   }
 }
 @media (max-width: 800px) {
@@ -1618,10 +1348,6 @@ dialog .button {
     gap: 10px;
     padding-block: 24px;
   }
-  .strip-label {
-    grid-column: 1/-1;
-    font-size: 10px;
-  }
   .intro-strip > p {
     font-size: 12px;
     line-height: 1.9;
@@ -1671,35 +1397,12 @@ dialog .button {
   .step-art {
     height: 170px;
   }
-  .paper-photo {
-    width: 108px;
-    left: 7px;
-    padding: 5px 5px 16px;
+  .step-phone {
+    width: 140px;
+    top: 45px;
   }
-  .paper-memo {
-    width: 94px;
-    right: 7px;
-    top: 48px;
-    padding: 10px;
-    height: 115px;
-  }
-  .paper-memo span {
-    font-size: 8px;
-  }
-  .collection-paper {
-    width: 133px;
-    height: 92px;
-  }
-  .pin-one {
-    left: 58px;
-  }
-  .pin-two {
-    right: 36px;
-    top: 84px;
-  }
-  .pin-three {
-    left: 36px;
-    top: 101px;
+  .screen-art .art-label {
+    top: 5px;
   }
   .art-label {
     font-size: 8px;
@@ -1746,11 +1449,8 @@ dialog .button {
   }
   .together-visual {
     width: min(435px, 100%);
-    height: 355px;
+    height: 560px;
     margin-inline: auto;
-  }
-  .shared-map {
-    width: 330px;
   }
   .download-cards {
     gap: 14px;
@@ -2040,40 +1740,9 @@ dialog .button {
   .step-art {
     height: 207px;
   }
-  .block-a {
-    width: 100px;
-    height: 80px;
-    left: 25px;
-    top: 24px;
-  }
-  .paper-photo {
-    width: 143px;
-    left: 42px;
-    top: 25px;
-    padding: 7px 7px 24px;
-  }
-  .paper-memo {
-    right: 33px;
-    width: 128px;
-    padding: 15px;
-    height: 134px;
-  }
-  .paper-memo span {
-    font-size: 9px;
-  }
-  .collection-paper {
-    width: 190px;
-    height: 110px;
-  }
-  .pin-one {
-    left: 110px;
-  }
-  .pin-two {
-    right: 85px;
-  }
-  .pin-three {
-    left: 80px;
-    top: 114px;
+  .step-phone {
+    width: 200px;
+    top: 28px;
   }
   .art-label {
     font-size: 10px;
@@ -2132,38 +1801,17 @@ dialog .button {
     font-size: 11px;
   }
   .together-visual {
-    height: 315px;
+    height: 480px;
   }
-  .shared-map {
-    width: 285px;
-    height: 239px;
-    top: 35px;
+  .together-orbit {
+    width: min(340px, 100%);
+    top: 70px;
   }
-  .shared-map-body {
-    height: 174px;
+  .together-phone {
+    width: 210px;
   }
-  .shared-map-top {
+  .together-label {
     font-size: 9px;
-  }
-  .friend-message {
-    font-size: 9px;
-    padding: 9px;
-    gap: 7px;
-  }
-  .friend-message > i {
-    width: 24px;
-    height: 24px;
-  }
-  .message-a {
-    right: -3px;
-    top: 9px;
-  }
-  .message-b {
-    left: -3px;
-    bottom: 30px;
-  }
-  .concept-label {
-    font-size: 8px;
   }
   .download-section {
     padding-block: 55px 43px;
@@ -2261,15 +1909,6 @@ dialog .button {
   }
   .detail-phone {
     right: 14px;
-  }
-  .shared-map {
-    width: 264px;
-  }
-  .paper-photo {
-    left: 23px;
-  }
-  .paper-memo {
-    right: 21px;
   }
   .download-card {
     padding: 19px;
