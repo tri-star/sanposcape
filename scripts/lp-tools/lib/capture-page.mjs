@@ -154,9 +154,15 @@ export function sectionName({ labelledBy, id, className, tagName }) {
  */
 export function clipRanges(rects, documentHeight) {
   return rects.map((rect, index) => {
-    const top = index === 0 ? 0 : Math.floor(rect.top);
+    const top = Math.min(
+      index === 0 ? 0 : Math.floor(rect.top),
+      documentHeight - 1,
+    );
+    // viewport（= documentHeight）の外は描かれないので、そこで切る
     const bottom =
-      index === rects.length - 1 ? documentHeight : Math.ceil(rect.bottom);
+      index === rects.length - 1
+        ? documentHeight
+        : Math.min(Math.ceil(rect.bottom), documentHeight);
     return { top, height: Math.max(1, bottom - top) };
   });
 }
@@ -200,10 +206,13 @@ async function expandToDocumentHeight(cdp, sessionId, width) {
   for (let pass = 0; pass < MAX_HEIGHT_PASSES; pass++) {
     await setViewport(cdp, sessionId, width, height);
     const next = await evaluate(cdp, sessionId, documentHeightInPage);
-    if (next === height) break;
+    if (next === height) return { height, viewportDependent };
     viewportDependent = true;
     height = next;
   }
+  // 落ち着かなかった（vh で伸び続けるなど）。最後に測った高さに viewport を合わせ、その高さで切る
+  // （返す高さと viewport の高さを揃え、viewport の外を撮らないようにする）
+  await setViewport(cdp, sessionId, width, height);
   return { height, viewportDependent };
 }
 

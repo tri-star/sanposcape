@@ -156,6 +156,20 @@ test("clipRanges は最初の節をページの上端から、最後の節をペ
   assert.deepEqual(clipRanges([{ top: 64, bottom: 900 }], 1000), [
     { top: 0, height: 1000 },
   ]);
+  // 節が viewport（= 文書の高さ）より下まで伸びていても、viewport の中で切る
+  assert.deepEqual(
+    clipRanges(
+      [
+        { top: 0, bottom: 1200 },
+        { top: 1200, bottom: 1500 },
+      ],
+      1000,
+    ),
+    [
+      { top: 0, height: 1000 },
+      { top: 999, height: 1 },
+    ],
+  );
 });
 
 test("explainLaunchFailure は SUID sandbox の失敗に sandbox の外での実行を案内し、--no-sandbox を勧めない", () => {
