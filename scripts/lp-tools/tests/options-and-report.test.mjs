@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { clipRanges, sectionName } from "../lib/capture-page.mjs";
-import { explainLaunchFailure } from "../lib/chrome.mjs";
+import { chromeArgs, explainLaunchFailure } from "../lib/chrome.mjs";
 import { UsageError, parseOptions } from "../lib/options.mjs";
 import { escapeCell, overflowLine, renderMarkdown } from "../lib/report.mjs";
 
@@ -243,4 +243,18 @@ describe("report", () => {
   test("escapeCell は表と Markdown の記号を逃がす", () => {
     assert.equal(escapeCell("a|b*c<d>"), "a\\|b\\*c\\<d\\>");
   });
+});
+
+test("chromeArgs は Chrome の sandbox を無効にする指定を含まない", () => {
+  const args = chromeArgs("/tmp/profile");
+  for (const forbidden of [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--no-zygote",
+  ]) {
+    assert.ok(!args.some((arg) => arg.startsWith(forbidden)), forbidden);
+  }
+  assert.ok(args.includes("--headless"));
+  assert.ok(args.includes("--user-data-dir=/tmp/profile"));
+  assert.ok(args.includes("--remote-debugging-port=0"));
 });

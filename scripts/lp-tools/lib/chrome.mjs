@@ -70,10 +70,12 @@ export function explainLaunchFailure(stderr) {
   return lines.join("\n");
 }
 
-/** headless の Chrome を起動し、CDP の WebSocket の URL が出るまで待つ。 */
-export async function launchChrome(executable) {
-  const userDataDir = await mkdtemp(join(tmpdir(), "lp-capture-chrome-"));
-  const args = [
+/**
+ * headless の Chrome の起動引数。Chrome の sandbox を無効にする指定（--no-sandbox・--disable-setuid-sandbox）は入れない。
+ * CDP のポートは 0 にして OS に選ばせ、stderr の `DevTools listening on` から URL を得る。
+ */
+export function chromeArgs(userDataDir) {
+  return [
     "--headless",
     "--remote-debugging-port=0",
     `--user-data-dir=${userDataDir}`,
@@ -90,6 +92,12 @@ export async function launchChrome(executable) {
     "--mute-audio",
     "about:blank",
   ];
+}
+
+/** headless の Chrome を起動し、CDP の WebSocket の URL が出るまで待つ。 */
+export async function launchChrome(executable) {
+  const userDataDir = await mkdtemp(join(tmpdir(), "lp-capture-chrome-"));
+  const args = chromeArgs(userDataDir);
   const child = spawn(executable, args, {
     stdio: ["ignore", "ignore", "pipe"],
   });
