@@ -2,7 +2,9 @@
 //
 // viewport の高さを文書の高さまで広げてから撮る。こうすると、遅延読み込み（loading="lazy"）の画像も
 // viewport の中に入り、sticky のヘッダーはページの上端にとどまって節に重ならない。
-// LP の CSS は vh を使っていないので、高さを広げてもレイアウトは変わらない（使うようになったら見直す）。
+// vh などで viewport の高さに合わせて伸びるレイアウトは、広げると実際の画面と違う高さになる。
+// トップページは vh を使っていない。404 は `min-height: 60vh` だが、文書が初期の viewport に収まるので広げない。
+// 広げて高さが変わったときは viewportDependent として知らせる（画像の高さを実際の画面と見比べる）。
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -188,21 +190,26 @@ async function navigate(cdp, sessionId, url) {
   await loaded;
 }
 
-/** viewport の高さを文書の高さに合わせる。広げると高さが変わることがあるので、落ち着くまで繰り返す。 */
+/**
+ * viewport の高さを文書の高さに合わせる。広げて文書の高さが変わったら（vh などに依存するレイアウト）、
+ * 落ち着くまで繰り返し、viewportDependent を立てる。
+ */
 async function expandToDocumentHeight(cdp, sessionId, width) {
   let height = await evaluate(cdp, sessionId, documentHeightInPage);
+  let viewportDependent = false;
   for (let pass = 0; pass < MAX_HEIGHT_PASSES; pass++) {
     await setViewport(cdp, sessionId, width, height);
     const next = await evaluate(cdp, sessionId, documentHeightInPage);
     if (next === height) break;
+    viewportDependent = true;
     height = next;
   }
-  return height;
+  return { height, viewportDependent };
 }
 
 /**
  * 1つの幅で撮る。
- * @returns {{ width, overflow, images, documentHeight, shots: {name, file, width, height}[] }}
+ * @returns {{ width, overflow, images, documentHeight, viewportDependent, shots: {name, file, width, height}[] }}
  */
 export async function capturePage(
   cdp,
@@ -216,7 +223,8 @@ export async function capturePage(
   // 横スクロールは、利用者が見るのと同じ高さの viewport で測る
   const overflow = await evaluate(cdp, sessionId, measureOverflowInPage);
 
-  const documentHeight = await expandToDocumentHeight(cdp, sessionId, width);
+  const { height: documentHeight, viewportDependent } =
+    await expandToDocumentHeight(cdp, sessionId, width);
   const images = await evaluate(
     cdp,
     sessionId,
@@ -259,5 +267,5 @@ export async function capturePage(
       height: Math.round(height * scale),
     });
   }
-  return { width, overflow, images, documentHeight, shots };
+  return { width, overflow, images, documentHeight, viewportDependent, shots };
 }

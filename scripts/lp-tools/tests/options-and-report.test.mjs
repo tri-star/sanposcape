@@ -4,7 +4,12 @@ import { describe, test } from "node:test";
 import { clipRanges, sectionName } from "../lib/capture-page.mjs";
 import { chromeArgs, explainLaunchFailure } from "../lib/chrome.mjs";
 import { UsageError, parseOptions } from "../lib/options.mjs";
-import { escapeCell, overflowLine, renderMarkdown } from "../lib/report.mjs";
+import {
+  escapeCell,
+  overflowLine,
+  renderMarkdown,
+  renderSummary,
+} from "../lib/report.mjs";
 
 const context = { repoRoot: "/repo", env: {} };
 
@@ -238,6 +243,24 @@ describe("report", () => {
       /\| download<br>次の\\\|散歩 \| !\[download 1440px\]\(\/o\/1440\/02-download\.png\) \| （なし） \|/,
     );
     assert.match(markdown, /- 390px: 横スクロールあり/);
+  });
+
+  test("viewport の高さに依存するレイアウトがあれば、要約と表の前に知らせる", () => {
+    const dependent = {
+      ...report,
+      reportFile: "/o/report.json",
+      markdownFile: "/o/screenshots.md",
+      results: [{ ...report.results[1], viewportDependent: true }],
+    };
+    assert.match(
+      renderMarkdown(dependent),
+      /- 390px: viewport の高さで文書の高さが変わる/,
+    );
+    assert.match(
+      renderSummary(dependent),
+      /viewport の高さで文書の高さが変わる/,
+    );
+    assert.doesNotMatch(renderMarkdown(report), /viewport の高さで/);
   });
 
   test("escapeCell は表と Markdown の記号を逃がす", () => {

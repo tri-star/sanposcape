@@ -16,6 +16,9 @@ export function overflowLine({ width, overflow }) {
   return `${width}px: 横スクロールあり（scrollWidth ${scrollWidth} > clientWidth ${clientWidth}）${where ? ` はみ出し: ${where}` : ""}`;
 }
 
+export const VIEWPORT_DEPENDENT_NOTE =
+  "viewport の高さで文書の高さが変わるレイアウト（vh など）があります。画像の高さが実際の画面と違うことがあります";
+
 /** 端末に出す要約。 */
 export function renderSummary(report) {
   const lines = [
@@ -28,6 +31,7 @@ export function renderSummary(report) {
       lines.push(`  読み込めなかった画像: ${result.images.broken.join(", ")}`);
     if (result.images.timedOut)
       lines.push("  画像の読み込みの待ちが時間切れになりました");
+    if (result.viewportDependent) lines.push(`  ${VIEWPORT_DEPENDENT_NOTE}`);
     for (const shot of result.shots)
       lines.push(`  ${shot.file}（${shot.width}x${shot.height}）`);
   }
@@ -54,6 +58,9 @@ export function renderMarkdown(report) {
     `- Chrome: ${report.chrome.product}`,
     `- ページ: \`${report.path}\``,
     ...report.results.map((r) => `- ${overflowLine(r)}`),
+    ...report.results
+      .filter((r) => r.viewportDependent)
+      .map((r) => `- ${r.width}px: ${VIEWPORT_DEPENDENT_NOTE}`),
     "",
     `| 節 | ${widths.map((w) => `${w}px`).join(" | ")} |`,
     `|---|${widths.map(() => "---").join("|")}|`,
