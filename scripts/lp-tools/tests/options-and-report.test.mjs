@@ -349,7 +349,7 @@ describe("CdpClient.waitForEvent", () => {
     assert.equal(settled, false);
   });
 
-  test("close() は待ちの timer を片付ける", async () => {
+  test("close() の後は、待ちの timer を片付けて reject しない", async () => {
     const cdp = new CdpClient(fakeSocket());
     let settled = false;
     cdp.waitForEvent("Page.loadEventFired", "s1", 20).then(
@@ -359,5 +359,13 @@ describe("CdpClient.waitForEvent", () => {
     cdp.close();
     await sleep(60);
     assert.equal(settled, false);
+  });
+
+  test("接続が切れたら、待ちを timeout を待たずに reject する", async () => {
+    const socket = fakeSocket();
+    const cdp = new CdpClient(socket);
+    const waiting = cdp.waitForEvent("Page.loadEventFired", "s1", 60_000);
+    socket.dispatchEvent(new Event("close"));
+    await assert.rejects(waiting, /CDP の接続が切れました/);
   });
 });

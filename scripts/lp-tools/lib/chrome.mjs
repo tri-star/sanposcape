@@ -151,7 +151,8 @@ export class CdpClient {
   #nextId = 1;
   #pending = new Map();
   #listeners = new Set();
-  #waitTimers = new Set();
+  // 待っているイベント（waitForEvent）。値は接続が切れたときに reject する関数
+  #waits = new Map();
 
   static async connect(wsUrl) {
     const ws = new WebSocket(wsUrl);
@@ -177,7 +178,9 @@ export class CdpClient {
         reject(new Error("CDP の接続が切れました"));
       }
       this.#pending.clear();
-      this.#clearWaits();
+      // 待っているイベントは来なくなるので reject する（決着しないまま止まらないように）
+      for (const rejectWait of [...this.#waits.values()])
+        rejectWait(new Error("CDP の接続が切れました"));
     });
   }
 
@@ -233,24 +236,24 @@ export class CdpClient {
       }, timeoutMs);
       cancel = () => {
         this.#listeners.delete(listener);
-        this.#waitTimers.delete(timer);
+        this.#waits.delete(timer);
         clearTimeout(timer);
       };
-      this.#waitTimers.add(timer);
+      this.#waits.set(timer, (error) => {
+        cancel();
+        reject(error);
+      });
       this.#listeners.add(listener);
     });
     promise.cancel = cancel;
     return promise;
   }
 
-  #clearWaits() {
-    for (const timer of this.#waitTimers) clearTimeout(timer);
-    this.#waitTimers.clear();
-    this.#listeners.clear();
-  }
-
+  /** 接続を閉じる。残っている待ちは reject せずに片付ける（呼ぶのは後始末のときで、待っている呼び出し元はいない）。 */
   close() {
-    this.#clearWaits();
+    for (const timer of this.#waits.keys()) clearTimeout(timer);
+    this.#waits.clear();
+    this.#listeners.clear();
     this.#ws.close();
   }
 }
