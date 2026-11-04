@@ -45,8 +45,10 @@ git diff --name-only "origin/${BASE}...HEAD" -- packages/lp/src \
 | 変わったファイル | 撮るページ（`--path`） |
 |---|---|
 | `src/pages/index.astro`・`src/components/**`・`src/layouts/**`・`src/styles/global.css`・`src/assets/**` | `/` |
-| `src/pages/<name>.astro`・`src/pages/<name>/index.astro`（`privacy`・`terms`・`support`・`i`・`404` など） | `/<name>/`（`404.astro` は `/404.html`） |
-| `src/styles/legal.css` | `/privacy/`・`/terms/`・`/support/` |
+| `src/pages/<name>.astro`・`src/pages/<name>/index.astro`（`privacy`・`terms`・`support`・`i`） | `/<name>/` |
+| `src/pages/<name>/<file>.astro`（改定前のポリシーの版 `src/pages/privacy/2026-10-24.astro` など） | `/<name>/<file>/` |
+| `src/pages/404.astro` | `/404.html` |
+| `src/styles/legal.css` | `/privacy/`・`/terms/`・`/support/` と、改定前の版（`src/pages/privacy/` などの日付のファイル） |
 
 - `src/layouts/**`（ヘッダー・フッター）は全ページに効くが、撮るのは `/` だけでよい（最初の節の画像にヘッダー、最後の節の画像にフッターが入る）
 - 文言だけの変更（プライバシーポリシーの本文の書き換えなど、クラスや構造が変わらないもの）は、そのページを撮らずに省いてよい。省いた理由を報告に含める
