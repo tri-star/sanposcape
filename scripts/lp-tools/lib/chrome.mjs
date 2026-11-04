@@ -1,13 +1,10 @@
 // システムの Chrome を headless で起動し、CDP（Chrome DevTools Protocol）で操作する。
 // 依存パッケージは使わず、Node の標準の WebSocket で話す。
 // Chrome の sandbox は有効のまま使う（--no-sandbox を付けない。SS-263）。
-import { spawn, execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { access, constants, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
 
 export const DEFAULT_CHROME_CANDIDATES = [
   "/usr/bin/google-chrome",
@@ -38,18 +35,6 @@ export async function findChrome(explicitPath) {
       "- 別の場所の Chrome を使うときは `--chrome <パス>` か環境変数 LP_CHROME で指定する",
     ].join("\n"),
   );
-}
-
-/** `google-chrome --version` の出力（例: "Google Chrome 157.0.8103.38"）。起動前の案内に使う。 */
-export async function chromeVersionText(executable) {
-  try {
-    const { stdout } = await execFileAsync(executable, ["--version"], {
-      timeout: 10_000,
-    });
-    return stdout.trim();
-  } catch {
-    return "(--version を取得できませんでした)";
-  }
 }
 
 /** Chrome の起動に失敗したときの stderr から、利用者向けの案内を作る。 */

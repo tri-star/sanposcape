@@ -17,6 +17,8 @@ import { renderMarkdown, renderSummary } from "./lib/report.mjs";
 import { resolveRequestPath, startStaticServer } from "./lib/static-server.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+// 終了コード。skill（lp-pr-verification）が省略の判断に使う
+const EXIT = { chrome: 1, usage: 2, capture: 3 };
 // 横スクロールを測るときの viewport の高さ（よくある画面の高さ）
 const INITIAL_HEIGHTS = { desktop: 900, mobile: 844 };
 
@@ -105,7 +107,7 @@ async function main() {
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     console.error(`${error.message}\n\n${USAGE}`);
-    return 2;
+    return EXIT.usage;
   }
   if (options.help) {
     console.log(USAGE);
@@ -115,11 +117,16 @@ async function main() {
     await run(options);
     return 0;
   } catch (error) {
-    if (error instanceof ChromeLaunchError || error instanceof UsageError) {
+    if (error instanceof ChromeLaunchError) {
       console.error(error.message);
-      return 1;
+      return EXIT.chrome;
     }
-    throw error;
+    if (error instanceof UsageError) {
+      console.error(error.message);
+      return EXIT.usage;
+    }
+    console.error(`撮影に失敗しました: ${error.stack ?? error}`);
+    return EXIT.capture;
   }
 }
 

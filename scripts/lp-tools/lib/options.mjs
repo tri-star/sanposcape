@@ -13,7 +13,10 @@ export const USAGE = `使い方: node scripts/lp-tools/capture-lp.mjs --out <出
   --widths <list>     撮る幅（px）をカンマ区切りで（既定: 1440,390）
   --max-width <px>    これより広い幅の画像を、この幅に縮小して保存する（PR に添付するときは 720）
   --chrome <path>     Chrome の実行ファイル（既定: 環境変数 LP_CHROME、無ければ /usr/bin/google-chrome など）
-  -h, --help          この説明を出す`;
+  -h, --help          この説明を出す
+
+  終了コード: 0 = 撮れた（横スクロールがあっても 0）、1 = Chrome が無い・起動できない、
+  2 = 引数の誤り・dist が無い、3 = 撮影の途中で失敗した（ページを開けない・CDP の応答が無いなど）`;
 
 export class UsageError extends Error {}
 
