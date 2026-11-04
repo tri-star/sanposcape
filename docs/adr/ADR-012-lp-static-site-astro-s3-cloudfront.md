@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-11-04（SS-261: トップページの文言を2つの動機で構成し、ストアの版で使えない機能を紹介する間は production に出さない）。前回: 2026-11-01（SS-250: 招待リンクの受け皿 `/i/` と `.well-known`）、2026-10-31（SS-248: 最初の不利な改定（地図の共有）で、施行日の表示・改定履歴・旧版のページを作り、台帳に「実装待ち」の印を設けた）。前回: 2026-10-24（SS-233 注記・SS-231）、2026-10-19（SS-220）、2026-10-18（SS-214）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-05（SS-263: デザインを変えた PR に画面キャプチャを添付し、システムの Chrome を sandbox 付きで使って撮る）。前回: 2026-11-04（SS-261: トップページの文言を2つの動機で構成し、ストアの版で使えない機能を紹介する間は production に出さない）、2026-11-01（SS-250: 招待リンクの受け皿 `/i/` と `.well-known`）、2026-10-31（SS-248: 最初の不利な改定（地図の共有）で、施行日の表示・改定履歴・旧版のページを作り、台帳に「実装待ち」の印を設けた）。前回: 2026-10-24（SS-233 注記・SS-231）、2026-10-19（SS-220）、2026-10-18（SS-214）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -58,6 +58,11 @@
 - **トップページの文言は、アプリの2つの動機（休日の散歩 = 写真とタグ付きの自分たちだけの地図と共有、平日の散歩 = すきま時間の散歩コースの提案と記録）を軸に構成し、デザイン（CSS・クラス）は変えない**。
   紹介は実装の事実に合わせ、共有の範囲・招待の流れはポリシー 1-8 より強い約束をしない。他社の製品名を挙げた比較はしない。（本文: SS-261 追補）
 - **ストアの版で使えない機能をトップページで紹介する間は、production に出さない**（「本番の LP はいつでも main からデプロイできる」の一時的な例外）。条件と解除は `packages/lp/docs/deployment.md` の「注意」に置く。（本文: SS-261 追補）
+- **LP のデザインを変えた PR には、PC（1440px）とスマホ（390px）の画面キャプチャを節（`main > section`）ごとに撮ってコメントで添付する**。
+  撮影は `scripts/lp-tools/capture-lp.mjs`、Claude Code では `lp-pr-verification` skill が task-workflow の PR 作成の後に行う。横スクロールの有無と撮影時の Chrome の版も載せる。（本文: SS-263 追補）
+- **撮影はシステムの Google Chrome を Chrome の sandbox を有効にしたまま headless で使い、CDP を Node の標準の WebSocket で操作する（依存を足さない。`--no-sandbox` を使わない）**。
+  Claude Code の sandbox の中では Chrome の SUID sandbox が起動できないので、sandbox の外で実行する。Playwright の chrome-headless-shell・Playwright MCP・agent-browser・リモートのブラウザ・orca の内蔵ブラウザは使わない。（本文: SS-263 追補）
+- **viewport の高さを文書の高さまで広げてから節ごとに切り取る**（遅延読み込み・`decoding="async"` の画像と sticky ヘッダーの重なりのため）。vh で文書の高さが変わるページは知らせて見比べる。（本文: SS-263 追補）
 
 ### 未解決・持ち越し
 
@@ -98,7 +103,7 @@
 
 ## 日付
 
-2026-10-02（初版、SS-155 / infra 側 SS-74）、2026-10-03 追補（SS-158）、2026-10-10 追補（SS-159）、2026-10-13 追補（SS-184）、2026-10-13 追補（SS-187）、2026-10-15 追補（SS-109）、2026-10-17 追補（SS-210）、2026-10-18 追補（SS-214）、2026-10-19 追補（SS-220）、2026-10-24 追補（SS-231）、2026-10-31 追補（SS-248）、2026-11-01 追補（SS-250）、2026-11-04 追補（SS-261）
+2026-10-02（初版、SS-155 / infra 側 SS-74）、2026-10-03 追補（SS-158）、2026-10-10 追補（SS-159）、2026-10-13 追補（SS-184）、2026-10-13 追補（SS-187）、2026-10-15 追補（SS-109）、2026-10-17 追補（SS-210）、2026-10-18 追補（SS-214）、2026-10-19 追補（SS-220）、2026-10-24 追補（SS-231）、2026-10-31 追補（SS-248）、2026-11-01 追補（SS-250）、2026-11-04 追補（SS-261）、2026-11-05 追補（SS-263）
 
 ## ステータス
 
@@ -127,6 +132,9 @@ SDK の収集に合わせてポリシーを改定した。詳細は末尾の「S
 
 **SS-261「LP の内容の改善」で追補**した。トップページの文言を2つの動機で構成し、ストアの版で使えない機能を紹介する間は production に出さないことにした。
 詳細は末尾の「SS-261 追補: トップページの文言を2つの動機で構成する」。
+
+**SS-263「LP の PR に画面キャプチャを自動で添付する」で追補**した。デザインを変えた PR に PC とスマホの画面キャプチャを添付する規則と、撮影に使うブラウザ・撮り方を決めた。
+詳細は末尾の「SS-263 追補: デザインを変えた PR に画面キャプチャを添付する」。
 
 ## コンテキスト
 
@@ -665,6 +673,36 @@ main の LP をデプロイするとポリシーが 1.0.0 と食い違うため�
 - ~~共有の図を実際の画面のキャプチャに差し替える作業が残る（後続課題は未起票。PR #234 で起票を依頼）。~~ → PR #234 で決着（デザインの指摘で差し替えた）
 - アプリの画面が変わって LP の画面イメージとの差が目立つようになったら撮り直す。
 
+## SS-263 追補: デザインを変えた PR に画面キャプチャを添付する
+
+SS-261 で LP のデザインを変えたとき、画面の確認とスクリーンショットを手作業で撮り、落とし穴（`/_astro/` の絶対パスで `file://` では読めない、
+遅延読み込み・`decoding="async"` の画像がページ全体を1枚で撮ると描かれない）で時間を使った。レビュアーは手元でビルドしないと見た目を確かめられない。
+
+### 決定
+
+- **LP のデザインを変えた PR には、PC（1440px）とスマホ（390px）の画面キャプチャを節（`main > section`）ごとに撮り、横スクロールの有無とともにコメントで添付する。**
+  対象は `packages/lp/src` の `.astro`・`.css`・`assets/` の差分がある PR。手順は `packages/lp/AGENTS.md`「デザインと画像」（スクリプトと `gh pr comment --attach`）で、
+  Claude Code では `lp-pr-verification` skill が task-workflow の PR 作成の後（`mobile-pr-verification` の隣）に行う。PR 本文は後の手順で編集されるので、コメントに添付する。
+- **撮影はシステムの Google Chrome（2026-11-05 時点で 157）を、Chrome の sandbox を有効にしたまま headless で使う。** CDP（`--remote-debugging-port=0`）を Node の標準の `fetch`・`WebSocket` で操作し、依存パッケージは足さない。
+  起動引数に `--no-sandbox`・`--disable-setuid-sandbox` を入れないことを単体テストで固定している。
+  - Claude Code の sandbox の中では Chrome の SUID sandbox が起動できない（FATAL: chrome-sandbox が root 所有・4755 に見えない）。そのため sandbox の外で実行する。外で実行すると、renderer は個別の PID・ネットワークの名前空間と seccomp で隔離される。
+  - 撮影時の Chrome の版をレポートに出す（システムの Chrome は OS の更新で上がるが、止まっていても気づけるように）。
+  - 却下: Playwright が取得した chrome-headless-shell。Playwright の版に固定されて古くなり（手元は 153）、Linux では sandbox を無効にして動かすことになる（Playwright PR #42490）。
+  - 却下: Playwright MCP（常駐で重い）、Vercel の agent-browser（Chrome for Testing を自分で更新し続ける必要がある）、Cloudflare Browser Rendering などのリモートのブラウザ（手元の `dist` を開けない）、orca-ide の内蔵ブラウザ（幅を正確に指定できるか未確認で、対話向き）。
+- **`dist` は 127.0.0.1 の空きポートで配信し、viewport の高さを文書の高さまで広げてから、節ごとに切り取って撮る。** 全画像を eager にして `decode()` まで待つ。
+  最初の節はページの上端から（ヘッダーを含む）、最後の節はページの下端まで（フッターを含む）にする。横スクロールは、広げる前のふつうの高さの viewport で `scrollWidth` と `clientWidth` を測る。
+  - 却下: スクロールしながら viewport ごとに撮る案。sticky ヘッダーが節に重なり、遅延読み込みの待ちも要る。
+  - viewport を広げるので、vh に合わせて伸びる要素があると画像の高さが実際の画面と変わる。トップページは vh を使っていない（404 の `min-height: 60vh` は文書が初期の viewport に収まるので影響しない）。
+    広げて文書の高さが変わったらスクリプトが知らせ、viewport の外に出た節は撮らずに知らせる。LP が vh で伸び続ける CSS を使うようになったら撮り方を見直す。
+- **スクリプトはビルドしない。** ビルドは sandbox の中で依存のコードを動かし、撮影のスクリプトだけを sandbox の外で動かす。
+  skill は sandbox の外で実行する前に `git status --porcelain -- scripts/lp-tools` が空であることを確かめる（ビルドの中で書き換えられたスクリプトを sandbox の外で動かさないため）。
+
+### 影響
+
+- `lp-ci.yml` が `scripts/lp-tools` の単体テストを回し、`scripts/lp-tools/**` の変更でも走る（`lp-deploy.yml` からも呼ばれる）。
+- Claude Code の sandbox は画像のアップロード先（`uploads.github.com`）を拒むので、`gh pr comment --attach` も sandbox の外で実行する。
+- `lp-pr-verification` は Claude 側だけにある。Codex 側に移すかは別に判断する（`packages/lp/AGENTS.md` の手順はスクリプトと `gh` だけで実行できる）。
+
 ## 関連情報
 
 - [ADR-004](./ADR-004-secrets-management-and-cicd-aws-credentials.md)（CI から AWS への認証は OIDC）
@@ -677,6 +715,7 @@ main の LP をデプロイするとポリシーが 1.0.0 と食い違うため�
 - `packages/lp/src/pages/privacy.astro`、`packages/mobile/src/config/legalLinks.ts`（**SS-158 追補**）
 - `packages/lp/src/pages/terms.astro`、`packages/lp/src/styles/legal.css`（**SS-187 追補**）
 - `packages/lp/src/pages/support.astro`（**SS-214 追補**）
+- `scripts/lp-tools/capture-lp.mjs`、`.claude/skills/lp-pr-verification/SKILL.md`（**SS-263 追補**）
 - [`docs/app-privacy-label.md`](../app-privacy-label.md)（App Privacy の申告内容と根拠）（**SS-159 追補**）
 - [`docs/release-runbook.md`](../release-runbook.md) §7.5（ポリシー・申告の expand / contract の順序）（**SS-231 追補**）
 - [`docs/privacy/data-inventory.md`](../privacy/data-inventory.md)（データ取扱い台帳）、[ADR-014](./ADR-014-claude-harness-main-agent-and-review-structure.md) の SS-184 追補（計画とレビューへの組み込み）（**SS-184 追補**）
