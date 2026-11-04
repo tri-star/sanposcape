@@ -103,6 +103,11 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
 - **Environment は backend と共用している。** `environment: development` を付けた job は、どのワークフローからでも
   sam-deploy・feature-flags・lp-deploy のロールを AssumeRole できる。分けたくなったら LP 専用の Environment を作り、
   infra 側の tfvar で trust の Environment 名を変える。
+- **（一時的）トップページは地図の共有（招待）を正式な機能として紹介している（SS-261）。** アプリ側の招待はフラグ `map_invitation` の裏にあり、
+  本番で ON にするのはプライバシーポリシーの施行日（2026-12-02）の後の予定（`packages/mobile/src/config/featureFlags.ts`）。
+  ON にする前に production へ出すと、LP で紹介した機能がアプリに出ていない期間ができるので、production へのデプロイは ON にした後にする。
+  ON にする前にポリシーの改定などで production に出す必要があるときは、トップページの紹介をどうするか（`Together.astro` の文言を戻すなど）を先に決める。
+  `map_invitation` を本番で ON にしたら、この項目を消す。
 - dev をブランチで確認している最中に `packages/lp/**` を含む main への push があると、dev は main の内容に戻る。
 - dev の自動デプロイは `packages/lp/**` とこのワークフローの変更だけで起動する。ロックファイルだけが変わる依存の更新
   （Dependabot の推移的依存など）は自動では出ないので、必要なら Run workflow で dev に出す。
