@@ -29,7 +29,7 @@ packages/lp/
 ├── scripts/write-well-known.mjs  # ビルド後に dist/.well-known/ を書く（SS-250）
 └── src/
     ├── assets/images/     # astro:assets の <Image> で最適化する元画像
-    ├── components/        # セクション単位のコンポーネント（Hero / Pins / Steps / Walks / Together / Download 等）
+    ├── components/        # セクション単位のコンポーネント（ページでの並び順は Hero / Pins / Together / Walks / Steps / Download。他に Header・Footer 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
     ├── pages/             # index.astro / privacy.astro / terms.astro / support.astro / i/index.astro（招待リンク）/ 404.astro / robots.txt.ts
     │                      # privacy/<YYYY-MM-DD>.astro は改定前のポリシーの版（不利な改定のときに固定する）
@@ -88,6 +88,11 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
     `Download.astro` の `stores` で、URL が確定したストア（`url` と `qr` を持つ。現在は iPhone の App Store、SS-247）はボタンをストアへのリンク、QR の位置を QR 画像にしている。
     Android（Google Play）は URL が確定したら `url` と `qr` を足す（足し終えたら `StoreDialog.astro` と `.store-preview`・`.qr-placeholder` は不要になる）。
   - フッターに利用規約（`/terms/`、SS-187）・プライバシーポリシー（`/privacy/`）・サポート（`/support/`、SS-214）へのリンクを足し、コピーライトと右端に縦に並べた（`.footer-meta`、SS-158）。
+  - 文言（キャッチコピー・機能紹介）を、アプリの2つの動機を軸に書き直した（SS-261）。休日の散歩 = 写真とタグ付きのピンで自分たち（自分と招待したメンバー）だけの地図を作り、
+    家族や友人と共有する（Pins「01」・Together「02」）。平日の散歩 = すきま時間で歩けるスポットと散歩コースの提案・歩いたルートの記録（Walks「03」）。
+    背景色の交互（明・紺・明・水色・明・緑）を保つよう、セクションの並びを Pins → Together → Walks → Steps に変えた。CSS とクラスは変えていない。
+    招待機能は「開発中」の扱い（`.coming-soon`）をやめ、正式な機能として紹介している（`.coming-soon` の CSS は原本の値のまま残している）。
+  - 機能紹介の文言は、アプリの実装の事実に合わせる。約束できないことは書かない（例: 周回ルートは同じ道で戻ることがあるため「違う道で戻る」とは書かない。ADR-007）。
 - 画像は `src/assets/images/` に置き、`astro:assets` の `<Image>` で WebP に変換・`srcset` を付けて出す。`width` / `height` を必ず指定する（CLS 防止）。
   CSS が `.field-note > img` のように `<img>` を直接指すため、`<picture>` を出す `<Picture>` は使わない。
   ファーストビューの画像は `loading="eager"`（既定は lazy）。
@@ -105,7 +110,7 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 | `public/favicon.png`（48px）・`public/apple-touch-icon.png`（180px） | アプリアイコンを sharp で縮小                                                                       |
 | `public/ogp.png`（1200x630）                                         | アプリアイコン・ワードマーク（DejaVu Sans Bold）・風景イラストを sharp で合成                       |
 
-「招待機能」セクションの図はコンセプトで、実際のアプリ画面ではない。
+「地図の共有」セクション（`Together.astro`）の図はコンセプト（ダミー）で、実際のアプリ画面ではない（図の右下に「地図の共有のイメージ」と出している）。実際の画面のキャプチャに差し替えたら、この行と `src/assets/images/screens/*.png` の出典を直す。
 
 ## デプロイ
 
