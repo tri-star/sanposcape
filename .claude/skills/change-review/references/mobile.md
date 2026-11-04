@@ -91,6 +91,7 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
   テストが `{ code: "..." }` のオブジェクトを渡すだけだと、実機で当たらない分類が通る（SS-82。`react-native-nitro-google-signin` の分類は実機で全部 `unknown` だった。ADR-002 SS-82 追補）。
 - `src/services/*` の mock / dev は常に成功するので、呼び出し側 hook の `.catch` 欠如が開発中に見えない。real（Google サインイン → `POST /auth/session` など）は reject しうる。services を呼ぶ hook に `.catch` かエラー state があるか。
 - 能動的に `AbortController.abort()` する経路（削除・画面離脱）があるなら、分類の前に意図した中断を除いているか（`isAbortError()`）。AbortError が診断ログに「失敗」として紛れる（SS-88）。JSDoc の「呼び出し側で弾く」を鵜呑みにせず catch ブロックを読む。
+- `Modal`（`Dialog`・`BottomSheet`）を閉じる操作と同じタイミングで、present で出すネイティブの画面（`Share.share` など）を開いていないか。iOS は閉じる途中の Modal の上に出せず、黙って何も表示しない（`Share.share` は reject もしない）。Android とエミュレータでは再現しない。閉じ終えた `onDismiss`（iOS だけ）で開いているかを見る（SS-264。ADR-M-024 D8）。
 - 操作ごとに別の `xxxError.ts` は意図的（ADR-M-001 決定6）なので統合を提案しない。逆に、別の操作の分類を再利用していたら要注意。
 - `${a}:${b}` の連結キーで重複判定していたら、区切り文字が値に含まれて衝突し処理が黙ってスキップされうる。値の生成元（`randomUuidV4()` など）を grep し、今起こりうるかで重大度を決める（起こりえなければ Low）。
 

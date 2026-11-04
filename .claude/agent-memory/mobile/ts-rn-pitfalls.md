@@ -1,6 +1,6 @@
 ---
 name: ts-rn-pitfalls
-description: mobile の TS・RN・UI 実装の落とし穴 — __DEV__ の代入、丸め値からの派生、軌跡の spread、検証の後付けで落ちるフィクスチャ、FlatList の flex:1、入れ子の Pressable、renderBody、ReactNode の ??、Text プリミティブ無し、lucide の版差
+description: mobile の TS・RN・UI 実装の落とし穴 — __DEV__ の代入、丸め値からの派生、軌跡の spread、検証の後付けで落ちるフィクスチャ、FlatList の flex:1、入れ子の Pressable、renderBody、ReactNode の ??、Text プリミティブ無し、iOS の閉じる途中の Modal の上に共有シートを出せない、lucide の版差
 metadata:
   type: feedback
   scope: durable
@@ -30,6 +30,9 @@ metadata:
 - **状態ごとに中央寄せが変わる画面**は、`renderBody()` が `{ content, centered }` を返す形にして判定を1箇所に閉じる
   （`features/history/components/WalkHistoryListView.tsx`。同じ条件を2箇所に書いていたのを SS-20 で直した）。
 - **`Text` のプリミティブは無い。** RN の `Text` を直接 import してテーマのトークンでスタイルする（手本は `DesignSystemGallery.tsx`）。
+- **iOS では、閉じている途中の `Modal`（`Dialog`・`BottomSheet`）の上に、ネイティブの画面（`Share.share` の共有シートなど、present で出すもの）を出せない。**
+  警告をログに出すだけで何も表示せず、`Share.share` は reject も resolve もしない。Android は Intent で開くので再現せず、エミュレータの確認では見つからない（SS-264 で TestFlight の実機で発覚）。
+  `Modal` を閉じた直後に開くときは、`Dialog` の `onDismiss`（iOS だけ発火）で開く。手本は `SanpoMapInviteSection.tsx` と `features/pin/lib/invitation/pendingShare.ts`（ADR-M-024 D8）。
 
 ## アイコン（lucide-react-native の版差）
 

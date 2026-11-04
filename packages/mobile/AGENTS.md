@@ -69,4 +69,4 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-021](./adr/ADR-M-021-pin-visit-status-and-archive.md) | ピンの訪問状況・アーカイブ（詳細はバッジ・編集はスイッチ + 既存の保存・地図表示からアーカイブ済みを常に除外し地図詳細の一覧には出す・権限の出し分け・登録時の初期値（散歩中=訪問済み））。地図表示の絞り込み（アーカイブ済み・訪問状況。共有・保存しない・アーカイブ済みは半透明。SS-174 追補） |
 | [ADR-M-022](./adr/ADR-M-022-location-permission-flow-and-approximate-location.md) | 位置情報の権限の求め方（事前説明画面を置かない）と、拒否・大まかな位置のときの挙動（文脈ごとの中立な案内・前面復帰での回復・大まかな位置の案内） |
 | [ADR-M-023](./adr/ADR-M-023-current-heading-on-map.md) | 地図上の現在地の向きの表示（端末の方位を `watchHeading` で購読・ネイティブの購読を1本にまとめる・`Polygon` の扇形で描く・ズームに合わせた半径・フォーカス中だけ購読） |
-| [ADR-M-024](./adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md) | 地図への招待（メンバー画面の招待シート・受諾画面（モーダル・「参加する」でだけ参加・returnTo=invitation）・招待リンクの受け取り（`+native-intent.tsx` で fragment のトークンを受諾画面へ）・招待リンクで参加（貼り付け）） |
+| [ADR-M-024](./adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md) | 地図への招待（メンバー画面の招待シート・受諾画面（モーダル・「参加する」でだけ参加・returnTo=invitation）・招待リンクの受け取り（`+native-intent.tsx` で fragment のトークンを受諾画面へ）・招待リンクで参加（貼り付け））。iOS で招待シートが閉じ終えてから共有シートを開く（Dialog の onDismiss・予備のタイマー。SS-264 追補） |
