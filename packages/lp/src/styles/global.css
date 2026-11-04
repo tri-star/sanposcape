@@ -731,9 +731,16 @@ h2 {
 .step-phone {
   position: absolute;
   width: 200px;
-  top: 20px;
+  top: 28px;
   left: 50%;
   transform: translateX(-50%);
+}
+.screen-art .step-phone img {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.step-phone::after {
+  top: 40px;
 }
 .screen-art .art-label {
   top: 6px;
@@ -1392,7 +1399,7 @@ dialog .button {
   }
   .step-phone {
     width: 140px;
-    top: 32px;
+    top: 45px;
   }
   .screen-art .art-label {
     top: 5px;
@@ -1735,7 +1742,7 @@ dialog .button {
   }
   .step-phone {
     width: 200px;
-    top: 20px;
+    top: 28px;
   }
   .art-label {
     font-size: 10px;
