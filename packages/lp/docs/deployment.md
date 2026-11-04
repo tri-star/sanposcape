@@ -109,7 +109,7 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
 
   これは「本番の LP はいつでも main からデプロイできる」（リリース運用手順 §7.5）の一時的な例外。そろう前にポリシーの改定などで production に出す必要があるときは、
   先にトップページの紹介（`Together.astro`・`Steps.astro` の STEP 03・`Pins.astro` の「その場所へ移動」・`Hero.astro` のタグ・`index.astro` の description）をどうするかを決める。
-  両方そろって production に出したら、この項目を消す。
+  両方そろって production に出したら、この項目を消す（Plane SS-262）。
 
 - dev をブランチで確認している最中に `packages/lp/**` を含む main への push があると、dev は main の内容に戻る。
 - dev の自動デプロイは `packages/lp/**` とこのワークフローの変更だけで起動する。ロックファイルだけが変わる依存の更新
