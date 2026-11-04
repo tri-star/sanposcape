@@ -25,6 +25,7 @@ CI（`.github/workflows/lp-ci.yml`）は `check` → `format:check` → `build` 
 ```
 packages/lp/
 ├── astro.config.mjs       # site / trailingSlash / env スキーマ / CSP 向けのビルド設定
+├── design-assets/         # 制作用の素材置き場。ビルドに含まれず、S3 にも上がらない（下記「素材の出典」）
 ├── public/                # そのままの名前で配信するファイル（favicon・apple-touch-icon・OGP 画像）
 ├── scripts/write-well-known.mjs  # ビルド後に dist/.well-known/ を書く（SS-250）
 └── src/
@@ -103,23 +104,28 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 
 ### 素材の出典
 
-| ファイル                                                             | 出典                                                                                                |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `src/assets/images/app-icon.png`                                     | `packages/mobile/assets/app-icons/sanposcape-icon-1024.png` のコピー                                |
-| `src/assets/images/screens/pins-map.png`・`walk-start.png`           | アプリの画面イメージ（デザイン原本に同梱されていたもの）                                            |
-| `src/assets/images/screens/` のその他の `.png`                       | Android エミュレータで撮ったアプリの画面（SS-261）。下記「画面のキャプチャ」                        |
-| `src/assets/images/qr-app-store-ios.svg`                             | App Store の公開 URL（`Download.astro` の `url`）から segno（Python）で生成。URL を変えたら作り直す |
-| `src/assets/images/walking-landscape.webp`                           | デザイン原本の作成時に画像生成（imagegen）で新規生成した風景イラスト                                |
-| `src/assets/images/route-map.svg`                                    | デザイン原本の作成時にこの LP 用に作った装飾用の模式地図                                            |
-| `public/favicon.png`（48px）・`public/apple-touch-icon.png`（180px） | アプリアイコンを sharp で縮小                                                                       |
-| `public/ogp.png`（1200x630）                                         | アプリアイコン・ワードマーク（DejaVu Sans Bold）・風景イラストを sharp で合成                       |
+| ファイル                                                             | 出典                                                                                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `src/assets/images/app-icon.png`                                     | `packages/mobile/assets/app-icons/sanposcape-icon-1024.png` のコピー                                   |
+| `src/assets/images/screens/pins-map.png`・`walk-start.png`           | アプリの画面イメージ（デザイン原本に同梱されていたもの）                                               |
+| `src/assets/images/screens/` のその他の `.png`                       | Android エミュレータで撮ったアプリの画面（SS-261）。下記「画面のキャプチャ」                           |
+| `src/assets/images/qr-app-store-ios.svg`                             | App Store の公開 URL（`Download.astro` の `url`）から segno（Python）で生成。URL を変えたら作り直す    |
+| `src/assets/images/walking-landscape.webp`                           | デザイン原本の作成時に画像生成（imagegen）で新規生成した風景イラスト                                   |
+| `src/assets/images/route-map.svg`                                    | デザイン原本の作成時にこの LP 用に作った装飾用の模式地図                                               |
+| `public/favicon.png`（48px）・`public/apple-touch-icon.png`（180px） | アプリアイコンを sharp で縮小                                                                          |
+| `public/ogp.png`（1200x630）                                         | アプリアイコン・ワードマーク（DejaVu Sans Bold）・風景イラストを sharp で合成                          |
+| `design-assets/illustrations/*.jpg`（500x333）                       | 画面のキャプチャのピンの写真に使ったイラスト（Codex の画像生成）。配信しない。下記「画面のキャプチャ」 |
+
+`design-assets/` は、配信しないが次の制作で使い回す素材（画面のキャプチャ用の写真など）の置き場所。デプロイが S3 に上げるのは `dist/` だけで、`dist/` には `src/` と `public/` からの出力しか入らない。
+`src/` から import したり `public/` に移したりすると配信されるので、配信したいときは `src/assets/images/` に別に置く。ファイルを増やすときは大きさを抑える（イラストなら横 500px 程度）。
 
 #### 画面のキャプチャ（SS-261）
 
 `pin-detail.png`・`shared-map-detail.png`・`pin-new.png`・`pin-detail-showa.png`・`map-members.png` は、ローカルの backend（`AUTH_MODE=dev`。`.env.example` のままなので、フラグは `pin_registration`・`pin_station_tag`・`map_invitation` がすべて ON）に
 API で作ったデータを、Android エミュレータ（1440x3120）で撮って 720x1560 に縮小したもの。Steps の3枚（`pin-new`・`pin-detail-showa`・`map-members`）は、LP で見える上の部分（720x740）だけを切り出している。
 
-- ピンの写真は、Codex の画像生成で作ったイラスト（町中華の外観・料理、夕方の昭和レトロな街並み）。実在の店・写真ではない。
+- ピンの写真は、Codex の画像生成（OpenAI の組み込みの画像生成）で作ったイラスト（町中華の外観・料理、夕方の昭和レトロな街並み）。実在の店・写真ではない。
+  撮り直しに使えるよう、横 500px の JPEG に縮小して `design-assets/illustrations/` に置いている（元は 1536x1024 の PNG。API が JPEG だけを受け付けるので、そのまま写真としてアップロードできる）。
 - メンバー名（ゆうき・みさき・けんた）は、開発用のユーザーの表示名をローカルの DB で書き換えたもの。
 - ピンの詳細には住所（逆ジオコーディングの結果）が出る。架空の店が実在の住宅にあるように見えないよう、町中華のピン（`pin-detail.png`）は谷中霊園の敷地の座標に置いた。
   STEP02 の昭和レトロのピンの住所は実在の区画だが、切り出した範囲の外にあり、配信する画像には含まれない。撮り直すときも、見せる範囲に住宅の番地が出ないようにする。
