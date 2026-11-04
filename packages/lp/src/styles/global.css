@@ -481,11 +481,6 @@ h1 {
   min-height: 115px;
   gap: 24px;
 }
-.strip-label {
-  font-size: 11px;
-  color: var(--moss);
-  font-weight: 700;
-}
 .intro-strip > p {
   font-size: 15px;
   letter-spacing: 0.025em;
@@ -1617,10 +1612,6 @@ dialog .button {
     grid-template-columns: 1fr auto;
     gap: 10px;
     padding-block: 24px;
-  }
-  .strip-label {
-    grid-column: 1/-1;
-    font-size: 10px;
   }
   .intro-strip > p {
     font-size: 12px;
