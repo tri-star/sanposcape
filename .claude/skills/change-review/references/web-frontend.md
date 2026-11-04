@@ -4,6 +4,13 @@
 
 change-reviewer が Web フロントエンドの差分で読む確認観点。旧 frontend-architecture-reviewer（設計）と frontend-code-quality-reviewer（実装の品質）の観点を残している。変更箇所に関係しない観点は飛ばしてよい。
 
+# lp の機能紹介の文言（SS-261）
+
+- 紹介する機能が、**ストアで公開中の版**で使えるか。main にあってもストアの版に無い機能（フラグの裏・次の version で入るもの）を紹介すると、production の LP が「いつでも main からデプロイできる」状態でなくなる。
+  ストアの版のコミットは `docs/compat-tracker.md` で確かめ、`git grep <機能> <コミット>` で有無を見る。使えない機能を紹介するなら、`packages/lp/docs/deployment.md` に production に出す条件があるか。
+- 共有の範囲・招待の流れ・保存などデータの扱いを言う文が、プライバシーポリシー（`src/pages/privacy.astro`）より強い約束や違う流れになっていないか（例: 「招待したメンバーだけ」「リンクを送るだけでメンバーに」）。
+- 図・画面イメージ（ダミーを含む）に、アプリに無い機能（メッセージ・通知など）が描かれていないか。
+
 # 設計
 
 ## フォルダ構造・責務分離
