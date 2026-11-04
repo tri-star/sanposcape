@@ -73,7 +73,17 @@ Chrome の有無と起動は手順3のスクリプトが確かめる（無い・
    pnpm --filter lp build
    ```
 
-2. 撮るページごとに、**sandbox の外で**スクリプトを実行する。出力先はページごとに空のディレクトリにする（`/` は `top`、`/privacy/` は `privacy` など）
+2. sandbox の外で実行する前に、スクリプトがコミット済みの内容のままであることを確かめる（ビルドは sandbox の中で依存のコードを動かすので、
+   そこで書き換えられたスクリプトを sandbox の外で動かさないため）。出力があれば撮らずに省略し、変わったファイルを報告する
+
+   ```bash
+   git status --porcelain -- scripts/lp-tools
+   ```
+
+   他人のPR（自分で書いていないブランチ）を撮るよう頼まれたときは、そのPRが `scripts/lp-tools/` を変えていないかも `git diff --name-only "origin/${BASE}...HEAD" -- scripts/lp-tools` で確かめ、
+   変えていれば内容を読んでから実行する
+
+3. 撮るページごとに、**sandbox の外で**スクリプトを実行する。出力先はページごとに空のディレクトリにする（`/` は `top`、`/privacy/` は `privacy` など）
 
    ```bash
    node scripts/lp-tools/capture-lp.mjs --out <task-root の絶対パス>/lp-screenshots/top --max-width 720
