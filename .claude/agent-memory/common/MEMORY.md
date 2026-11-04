@@ -13,3 +13,4 @@
 - [長い規約ページは curl で読む](fetch-long-legal-pages-with-curl.md) — WebFetch は本文を切り捨てる。curl + HTML 除去 + スライスで条項を抜き、「Last modified」とアーカイブで版を確かめる
 - [git ls-files・git log は引用なしで読む](git-ls-files-needs-z-for-non-ascii.md) — 非 ASCII のパスは引用符つきで出て、行で読むと黙って対象から落ちる。-z と split("\0")、git log は -c core.quotePath=false。テストは global の設定を切る。knowledge の検査2本は未対応
 - [画面イメージを sandbox で撮る](render-mockups-in-sandbox.md) — MCP ブラウザは file:// 不可・sandbox の localhost に届かない、chrome-headless-shell で撮る、PIL は uv で入れる。LP は scripts/lp-tools/capture-lp.mjs を sandbox の外で
+- [gh の --attach は sandbox の外で](gh-attach-needs-outside-sandbox.md) — sandbox が uploads.github.com を拒みコメントは作られない。外で1回だけ再実行、画像は --attach と同じ worktree 下の絶対パスで参照
