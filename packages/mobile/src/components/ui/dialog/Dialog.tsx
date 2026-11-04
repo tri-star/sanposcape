@@ -14,6 +14,11 @@ export type DialogProps = {
   testID?: string;
   /** 非同期処理中など、スクリム・閉じるボタン・戻る操作で閉じられないようにする。 */
   dismissDisabled?: boolean;
+  /**
+   * 閉じるアニメーションが終わった（RN の Modal の `onDismiss`）。**iOS でだけ呼ばれる**。
+   * iOS は閉じている途中の Modal の上に別の画面（共有シートなど）を出せないので、出すならここで出す。
+   */
+  onDismiss?: () => void;
 };
 
 /**
@@ -28,6 +33,7 @@ export function Dialog({
   actions,
   testID,
   dismissDisabled = false,
+  onDismiss,
 }: DialogProps) {
   const styles = useStyles();
 
@@ -39,6 +45,7 @@ export function Dialog({
       // Android の戻る操作も送信中にモーダルを閉じないようにする。スクリム/アイコンは disabled
       // として実際に無効化されるため、これは OS 固有の閉じる要求を抑止するためだけのハンドラ。
       onRequestClose={dismissDisabled ? () => {} : onClose}
+      onDismiss={onDismiss}
       statusBarTranslucent
     >
       {/*

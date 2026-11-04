@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { ActivityIndicator, Share, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Platform, Share, Text, View } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
@@ -7,11 +7,13 @@ import { useSanpoMapInvitations } from "@/features/pin/hooks/invitation/useSanpo
 import {
   INVITATION_SEND_LABEL,
   INVITATION_SHEET_POINTS,
+  INVITATION_SHARE_FAILED_MESSAGE,
   INVITATION_SHEET_TITLE,
   formatInvitationExpiry,
   invitationErrorMessage,
   invitationShareMessage,
 } from "@/features/pin/lib/invitation/invitation";
+import { createPendingShare } from "@/features/pin/lib/invitation/pendingShare";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -25,20 +27,35 @@ export type SanpoMapInviteSectionProps = {
  * （ダイアログ）を開き、「招待リンクを送る」で発行して OS の共有シート（`Share.share`）に渡す。
  * 下に有効な招待リンク（期限）と「取り消す」を並べる。出すのはフラグ `map_invitation` が ON の
  * owner だけ（呼び出し側で判定する）。発行したリンクの URL は共有シートに渡したら持たない（一覧には出さない）。
+ * iOS では招待シートが閉じ終えてから共有シートを開く（SS-264。`pendingShare.ts`）。
  */
 export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInviteSectionProps) {
   const theme = useTheme();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
+  const openShareSheet = (message: string) => {
+    Share.share({ message }).catch(() => setShareFailed(true));
+  };
+  // 初回の描画の openShareSheet を握るが、中で使う setShareFailed は描画をまたいで同じなので問題ない。
+  const [pendingShare] = useState(() => createPendingShare(openShareSheet));
+  // 閉じ終える前に画面を離れたら、預けた本文（トークン入りの URL）を開かずに捨てる。
+  useEffect(() => () => pendingShare.discard(), [pendingShare]);
   const resetCreateRef = useRef<() => void>(() => {});
   const invitations = useSanpoMapInvitations(sanpoMapId, {
     enabled: true,
     onCreated: (created) => {
-      setOpen(false);
       const message = invitationShareMessage({ sanpoMapName, url: created.url });
       // 発行の応答（トークン入りの URL）を mutation の状態に残さない（台帳 3.8）。
       resetCreateRef.current();
-      void Share.share({ message });
+      setOpen(false);
+      if (Platform.OS === "ios") {
+        // iOS は閉じている途中の Modal の上に共有シートを出せず、黙って何も表示しない。
+        // 閉じ終えた（Dialog の onDismiss）ところで開く。Android は Intent で開くのですぐでよい。
+        pendingShare.hold(message);
+      } else {
+        openShareSheet(message);
+      }
     },
   });
   const { resetCreate } = invitations;
@@ -55,11 +72,24 @@ export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInvi
         variant="primary"
         icon="user"
         fullWidth
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          setShareFailed(false);
+          setOpen(true);
+        }}
         testID="sanpo-map-members-invite"
       >
         {INVITATION_SHEET_TITLE}
       </Button>
+      {shareFailed ? (
+        <Text
+          style={styles.error}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          testID="sanpo-map-invite-share-error"
+        >
+          {INVITATION_SHARE_FAILED_MESSAGE}
+        </Text>
+      ) : null}
       {invitations.invitations.length > 0 ? (
         <View style={styles.list}>
           <Text style={styles.heading}>有効な招待リンク</Text>
@@ -90,6 +120,7 @@ export function SanpoMapInviteSection({ sanpoMapId, sanpoMapName }: SanpoMapInvi
         open={open}
         title={INVITATION_SHEET_TITLE}
         onClose={close}
+        onDismiss={pendingShare.flush}
         dismissDisabled={invitations.creating}
         testID="sanpo-map-invite-dialog"
         actions={

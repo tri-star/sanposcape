@@ -134,6 +134,9 @@ export const INVITATION_SHEET_POINTS = [
   "リンクを受け取った人なら誰でも使えるので、送る相手に注意してください。使われる前なら、いつでも取り消せます。",
 ] as const;
 export const INVITATION_SEND_LABEL = "招待リンクを送る";
+/** 発行はできたが OS の共有シートを開けなかったとき（SS-264）。発行したリンクは一覧に残るので取り消しを案内する。 */
+export const INVITATION_SHARE_FAILED_MESSAGE =
+  "共有メニューを開けませんでした。もう一度お試しください。使わないリンクは下の一覧から取り消せます。";
 
 /** 有効な招待リンクの行の説明（「11月7日 まで有効」）。 */
 export function formatInvitationExpiry(expiresAt: string): string {
