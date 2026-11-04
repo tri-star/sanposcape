@@ -154,11 +154,9 @@ export function sectionName({ labelledBy, id, className, tagName }) {
  */
 export function clipRanges(rects, documentHeight) {
   return rects.map((rect, index) => {
-    const top = Math.min(
-      index === 0 ? 0 : Math.floor(rect.top),
-      documentHeight - 1,
-    );
-    // viewport（= documentHeight）の外は描かれないので、そこで切る
+    const top = index === 0 ? 0 : Math.floor(rect.top);
+    // viewport（= documentHeight）の外は描かれない。まるごと外にある節は撮らない（null）
+    if (top >= documentHeight) return null;
     const bottom =
       index === rects.length - 1
         ? documentHeight
@@ -223,7 +221,7 @@ async function expandToDocumentHeight(cdp, sessionId, width) {
 
 /**
  * 1つの幅で撮る。
- * @returns {{ width, overflow, images, documentHeight, viewportDependent, shots: {name, file, width, height}[] }}
+ * @returns {{ width, overflow, images, documentHeight, viewportDependent, shots: {name, file, width, height}[], skipped: string[] }}
  */
 export async function capturePage(
   cdp,
@@ -253,11 +251,16 @@ export async function capturePage(
   await mkdir(widthDir, { recursive: true });
   const usedNames = new Map();
   const shots = [];
+  const skipped = [];
   for (const [index, rect] of rects.entries()) {
     let name = sectionName(rect);
     const seen = usedNames.get(name) ?? 0;
     usedNames.set(name, seen + 1);
     if (seen > 0) name = `${name}-${seen + 1}`;
+    if (!ranges[index]) {
+      skipped.push(name);
+      continue;
+    }
     const { top, height } = ranges[index];
     const { data } = await cdp.send(
       "Page.captureScreenshot",
@@ -281,5 +284,13 @@ export async function capturePage(
       height: Math.round(height * scale),
     });
   }
-  return { width, overflow, images, documentHeight, viewportDependent, shots };
+  return {
+    width,
+    overflow,
+    images,
+    documentHeight,
+    viewportDependent,
+    shots,
+    skipped,
+  };
 }

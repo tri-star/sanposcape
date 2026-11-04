@@ -156,7 +156,7 @@ test("clipRanges は最初の節をページの上端から、最後の節をペ
   assert.deepEqual(clipRanges([{ top: 64, bottom: 900 }], 1000), [
     { top: 0, height: 1000 },
   ]);
-  // 節が viewport（= 文書の高さ）より下まで伸びていても、viewport の中で切る
+  // 節が viewport（= 文書の高さ）より下まで伸びていたら viewport の中で切り、まるごと外の節は撮らない（null）
   assert.deepEqual(
     clipRanges(
       [
@@ -165,10 +165,7 @@ test("clipRanges は最初の節をページの上端から、最後の節をペ
       ],
       1000,
     ),
-    [
-      { top: 0, height: 1000 },
-      { top: 999, height: 1 },
-    ],
+    [{ top: 0, height: 1000 }, null],
   );
 });
 

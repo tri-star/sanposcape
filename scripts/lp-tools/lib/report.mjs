@@ -35,6 +35,10 @@ export function renderSummary(report) {
     if (result.images.timedOut)
       lines.push("  画像の読み込みの待ちが時間切れになりました");
     if (result.viewportDependent) lines.push(`  ${VIEWPORT_DEPENDENT_NOTE}`);
+    if (result.skipped?.length > 0)
+      lines.push(
+        `  viewport の外にあり撮らなかった節: ${result.skipped.join(", ")}`,
+      );
     for (const shot of result.shots)
       lines.push(`  ${shot.file}（${shot.width}x${shot.height}）`);
   }
