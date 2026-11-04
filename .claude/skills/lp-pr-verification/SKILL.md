@@ -83,9 +83,11 @@ Chrome の有無と起動は手順3のスクリプトが確かめる（無い・
    他人のPR（自分で書いていないブランチ）を撮るよう頼まれたときは、そのPRが `scripts/lp-tools/` を変えていないかも `git diff --name-only "origin/${BASE}...HEAD" -- scripts/lp-tools` で確かめ、
    変えていれば内容を読んでから実行する
 
-3. 撮るページごとに、**sandbox の外で**スクリプトを実行する。出力先はページごとに空のディレクトリにする（`/` は `top`、`/privacy/` は `privacy` など）
+3. 撮るページごとに、**sandbox の外で**スクリプトを実行する。出力先はページごとのディレクトリにする（`/` は `top`、`/privacy/` は `privacy` など）。
+   前に撮った結果が残っていると手順5で古い画像まで添付するので、先に `<task-root>/lp-screenshots` を消す
 
    ```bash
+   rm -rf <task-root の絶対パス>/lp-screenshots
    node scripts/lp-tools/capture-lp.mjs --out <task-root の絶対パス>/lp-screenshots/top --max-width 720
    node scripts/lp-tools/capture-lp.mjs --path /privacy/ --out <task-root の絶対パス>/lp-screenshots/privacy --max-width 720
    ```
