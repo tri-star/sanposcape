@@ -735,6 +735,11 @@ h2 {
   left: 50%;
   transform: translateX(-50%);
 }
+.screen-art .art-label {
+  top: 6px;
+  bottom: auto;
+  z-index: 1;
+}
 .art-label {
   position: absolute;
   bottom: 18px;
@@ -1387,7 +1392,10 @@ dialog .button {
   }
   .step-phone {
     width: 140px;
-    top: 16px;
+    top: 32px;
+  }
+  .screen-art .art-label {
+    top: 5px;
   }
   .art-label {
     font-size: 8px;
