@@ -68,6 +68,12 @@ export function renderMarkdown(report) {
     ...report.results
       .filter((r) => r.viewportDependent)
       .map((r) => `- ${r.width}px: ${VIEWPORT_DEPENDENT_NOTE}`),
+    ...report.results
+      .filter((r) => r.skipped?.length > 0)
+      .map(
+        (r) =>
+          `- ${r.width}px: viewport の外にあり撮らなかった節: ${r.skipped.join(", ")}`,
+      ),
     "",
     `| 節 | ${widths.map((w) => `${w}px`).join(" | ")} |`,
     `|---|${widths.map(() => "---").join("|")}|`,

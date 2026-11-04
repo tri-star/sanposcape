@@ -261,7 +261,9 @@ describe("report", () => {
       ...report,
       reportFile: "/o/report.json",
       markdownFile: "/o/screenshots.md",
-      results: [{ ...report.results[1], viewportDependent: true }],
+      results: [
+        { ...report.results[1], viewportDependent: true, skipped: ["walk"] },
+      ],
     };
     assert.match(
       renderMarkdown(dependent),
@@ -272,6 +274,14 @@ describe("report", () => {
       /viewport の高さで文書の高さが変わる/,
     );
     assert.doesNotMatch(renderMarkdown(report), /viewport の高さで/);
+    assert.match(
+      renderMarkdown(dependent),
+      /- 390px: viewport の外にあり撮らなかった節: walk/,
+    );
+    assert.match(
+      renderSummary(dependent),
+      /viewport の外にあり撮らなかった節: walk/,
+    );
   });
 
   test("renderMarkdown は、はみ出した要素の名前の Markdown の記号を逃がす", () => {
