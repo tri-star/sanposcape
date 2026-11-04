@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { clipRanges, sectionName } from "../lib/capture-page.mjs";
-import { chromeArgs, explainLaunchFailure } from "../lib/chrome.mjs";
+import { CdpClient, chromeArgs, explainLaunchFailure } from "../lib/chrome.mjs";
 import { UsageError, parseOptions } from "../lib/options.mjs";
 import {
   escapeCell,
@@ -312,4 +312,55 @@ test("chromeArgs は Chrome の sandbox を無効にする指定を含まない"
   assert.ok(args.includes("--headless"));
   assert.ok(args.includes("--user-data-dir=/tmp/profile"));
   assert.ok(args.includes("--remote-debugging-port=0"));
+});
+
+describe("CdpClient.waitForEvent", () => {
+  const fakeSocket = () => {
+    const target = new EventTarget();
+    target.send = () => {};
+    target.close = () => target.dispatchEvent(new Event("close"));
+    return target;
+  };
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  test("イベントが来たら params で解決する", async () => {
+    const socket = fakeSocket();
+    const cdp = new CdpClient(socket);
+    const waiting = cdp.waitForEvent("Page.loadEventFired", "s1", 1_000);
+    socket.dispatchEvent(
+      new MessageEvent("message", {
+        data: JSON.stringify({
+          method: "Page.loadEventFired",
+          sessionId: "s1",
+          params: { timestamp: 1 },
+        }),
+      }),
+    );
+    assert.deepEqual(await waiting, { timestamp: 1 });
+  });
+
+  test("cancel() した待ちは、時間が過ぎても reject しない（受け手の無い reject を残さない）", async () => {
+    const cdp = new CdpClient(fakeSocket());
+    let settled = false;
+    const waiting = cdp.waitForEvent("Page.loadEventFired", "s1", 20);
+    waiting.then(
+      () => (settled = true),
+      () => (settled = true),
+    );
+    waiting.cancel();
+    await sleep(60);
+    assert.equal(settled, false);
+  });
+
+  test("close() は待ちの timer を片付ける", async () => {
+    const cdp = new CdpClient(fakeSocket());
+    let settled = false;
+    cdp.waitForEvent("Page.loadEventFired", "s1", 20).then(
+      () => (settled = true),
+      () => (settled = true),
+    );
+    cdp.close();
+    await sleep(60);
+    assert.equal(settled, false);
+  });
 });

@@ -151,6 +151,7 @@ export class CdpClient {
   #nextId = 1;
   #pending = new Map();
   #listeners = new Set();
+  #waitTimers = new Set();
 
   static async connect(wsUrl) {
     const ws = new WebSocket(wsUrl);
@@ -171,9 +172,12 @@ export class CdpClient {
       this.#onMessage(JSON.parse(event.data)),
     );
     ws.addEventListener("close", () => {
-      for (const { reject } of this.#pending.values())
+      for (const { reject, timer } of this.#pending.values()) {
+        clearTimeout(timer);
         reject(new Error("CDP の接続が切れました"));
+      }
       this.#pending.clear();
+      this.#clearWaits();
     });
   }
 
@@ -207,27 +211,46 @@ export class CdpClient {
     });
   }
 
-  /** 指定のイベントを1回待つ。send より先に呼んで、取りこぼさないようにする。 */
+  /**
+   * 指定のイベントを1回待つ。send より先に呼んで、取りこぼさないようにする。
+   * 待つのをやめるときは、返す promise の cancel() を呼ぶ（timer が残って終了が遅れ、
+   * 受け手の無い reject で終了コードが変わるのを防ぐ）。
+   */
   waitForEvent(method, sessionId, timeoutMs = COMMAND_TIMEOUT_MS) {
-    return new Promise((resolve, reject) => {
+    let cancel;
+    const promise = new Promise((resolve, reject) => {
       const listener = (message) => {
         if (message.method === method && message.sessionId === sessionId) {
-          this.#listeners.delete(listener);
-          clearTimeout(timer);
+          cancel();
           resolve(message.params);
         }
       };
       const timer = setTimeout(() => {
-        this.#listeners.delete(listener);
+        cancel();
         reject(
           new Error(`${method} を ${timeoutMs}ms 待ちましたが来ませんでした`),
         );
       }, timeoutMs);
+      cancel = () => {
+        this.#listeners.delete(listener);
+        this.#waitTimers.delete(timer);
+        clearTimeout(timer);
+      };
+      this.#waitTimers.add(timer);
       this.#listeners.add(listener);
     });
+    promise.cancel = cancel;
+    return promise;
+  }
+
+  #clearWaits() {
+    for (const timer of this.#waitTimers) clearTimeout(timer);
+    this.#waitTimers.clear();
+    this.#listeners.clear();
   }
 
   close() {
+    this.#clearWaits();
     this.#ws.close();
   }
 }

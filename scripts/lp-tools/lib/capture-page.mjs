@@ -191,8 +191,13 @@ async function setViewport(cdp, sessionId, width, height) {
 
 async function navigate(cdp, sessionId, url) {
   const loaded = cdp.waitForEvent("Page.loadEventFired", sessionId);
-  const { errorText } = await cdp.send("Page.navigate", { url }, sessionId);
-  if (errorText) throw new Error(`${url} を開けませんでした: ${errorText}`);
+  try {
+    const { errorText } = await cdp.send("Page.navigate", { url }, sessionId);
+    if (errorText) throw new Error(`${url} を開けませんでした: ${errorText}`);
+  } catch (error) {
+    loaded.cancel();
+    throw error;
+  }
   await loaded;
 }
 
