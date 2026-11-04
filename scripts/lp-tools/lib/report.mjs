@@ -5,13 +5,16 @@ export function escapeCell(text) {
   return text.replace(/[\\|*_`[\]<>]/g, (c) => `\\${c}`);
 }
 
-/** 幅ごとの横スクロールの判定の1行。 */
-export function overflowLine({ width, overflow }) {
+/**
+ * 幅ごとの横スクロールの判定の1行。要素の名前（ページの id・class から作る）は escape を通す
+ * （Markdown に入れるときは escapeCell）。
+ */
+export function overflowLine({ width, overflow }, escape = (text) => text) {
   const { scrollWidth, clientWidth, offenders } = overflow;
   if (scrollWidth <= clientWidth)
     return `${width}px: 横スクロールなし（scrollWidth ${scrollWidth} / clientWidth ${clientWidth}）`;
   const where = offenders
-    .map((o) => `${o.element}（${o.left}〜${o.right}px）`)
+    .map((o) => `${escape(o.element)}（${o.left}〜${o.right}px）`)
     .join("、");
   return `${width}px: 横スクロールあり（scrollWidth ${scrollWidth} > clientWidth ${clientWidth}）${where ? ` はみ出し: ${where}` : ""}`;
 }
@@ -57,7 +60,7 @@ export function renderMarkdown(report) {
   const lines = [
     `- Chrome: ${report.chrome.product}`,
     `- ページ: \`${report.path}\``,
-    ...report.results.map((r) => `- ${overflowLine(r)}`),
+    ...report.results.map((r) => `- ${overflowLine(r, escapeCell)}`),
     ...report.results
       .filter((r) => r.viewportDependent)
       .map((r) => `- ${r.width}px: ${VIEWPORT_DEPENDENT_NOTE}`),

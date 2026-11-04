@@ -263,6 +263,24 @@ describe("report", () => {
     assert.doesNotMatch(renderMarkdown(report), /viewport の高さで/);
   });
 
+  test("renderMarkdown は、はみ出した要素の名前の Markdown の記号を逃がす", () => {
+    const odd = {
+      ...report,
+      results: [
+        {
+          ...report.results[1],
+          overflow: {
+            scrollWidth: 600,
+            clientWidth: 390,
+            offenders: [{ element: "div.a_b_c", left: 0, right: 600 }],
+          },
+        },
+      ],
+    };
+    assert.match(renderMarkdown(odd), /はみ出し: div\.a\\_b\\_c（0〜600px）/);
+    assert.match(overflowLine(odd.results[0]), /はみ出し: div\.a_b_c（/);
+  });
+
   test("escapeCell は表と Markdown の記号を逃がす", () => {
     assert.equal(escapeCell("a|b*c<d>"), "a\\|b\\*c\\<d\\>");
   });
