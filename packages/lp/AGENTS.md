@@ -18,7 +18,7 @@ HTML・CSS・JS・画像を `dist/` に書き出し、S3 + CloudFront で配信�
 | `pnpm --filter lp check`                   | `astro check`（`.astro` / TS の型検査）                    |
 | `pnpm --filter lp format` / `format:check` | Prettier（`prettier-plugin-astro`）で整形 / 整形済みか検査 |
 
-CI（`.github/workflows/lp-ci.yml`）は `check` → `format:check` → `build` → インライン混入の検査を回す（`lp-deploy.yml` からも呼ばれる）。
+CI（`.github/workflows/lp-ci.yml`）は `scripts/lp-tools` の単体テスト（`node --test`）→ `check` → `format:check` → `build` → インライン混入の検査を回す（`lp-deploy.yml` からも呼ばれる。`scripts/lp-tools/**` の変更でも走る）。
 
 画面キャプチャは `node scripts/lp-tools/capture-lp.mjs --out <dir>`（`build` の後に、Claude Code の sandbox の外で実行する。`--help` で使い方。下記「デザインと画像」）。
 
