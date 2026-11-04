@@ -9,11 +9,14 @@ on:
       # ルートのロックファイルだけが変わる。それでも検証が走るようにする。
       - "pnpm-lock.yaml"
       - ".github/workflows/lp-ci.yml"
+      # LP の画面キャプチャのスクリプト（SS-263）
+      - "scripts/lp-tools/**"
   pull_request:
     paths:
       - "packages/lp/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/lp-ci.yml"
+      - "scripts/lp-tools/**"
   # lp-deploy.yml から、デプロイする ref そのものの検査として呼び出す。
   workflow_call:
 
@@ -44,6 +47,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # PR に添付する画面キャプチャのスクリプト（SS-263）の単体テスト。撮影そのもの（Chrome の起動）は CI では行わない。
+      - name: Test lp-tools
+        run: node --test 'scripts/lp-tools/tests/*.test.mjs'
 
       - name: Typecheck (astro check)
         run: pnpm --filter lp check

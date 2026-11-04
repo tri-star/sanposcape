@@ -99,6 +99,9 @@ argument-hint: "[issue-id(option)] [instruction(option)]"
 - PR の作成（またはレビュー指摘対応の push）の後、`mobile-pr-verification` skill を `<PR番号>` `<issue-id>` で呼ぶ。
   mobile の画面変更を含む場合だけ、エミュレータで確認してスクリーンショットを PR にコメントで添付する（判定と省略の条件は同 skill にある）。
   省略された場合も止めず、省略した旨と理由を最終報告に含める。スクリーンショットは `<task-root>` に置くので、手順7（収穫で `<task-root>` が消える）より前に行う。
+- 続けて `lp-pr-verification` skill を `<PR番号>` `<issue-id>` で呼ぶ。
+  LP（`packages/lp/src`）の見た目の変更を含む場合だけ、PC（1440px）とスマホ（390px）の画面キャプチャを PR にコメントで添付する（判定と省略の条件は同 skill にある）。
+  省略の扱い・画像の置き場所・手順7より前に行うことは `mobile-pr-verification` と同じ。
 - `task-status-sync` skill を `<issue-id>` `pr-created` `<PRのURL>` で呼ぶ（レビュー指摘対応でも push 後に呼び、レビュー待ちへ戻す）。
 
 ### 7. 知識を収穫する
