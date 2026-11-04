@@ -134,6 +134,13 @@ export const INVITATION_SHEET_POINTS = [
   "リンクを受け取った人なら誰でも使えるので、送る相手に注意してください。使われる前なら、いつでも取り消せます。",
 ] as const;
 export const INVITATION_SEND_LABEL = "招待リンクを送る";
+/**
+ * 発行はできたが共有に失敗したとき（SS-264。`Share.share` の reject）。発行したリンクは一覧に残るので取り消しを案内する。
+ * reject は共有シートを開いた後に共有先が失敗したときにも来るので「開けなかった」とは書かない。
+ * iOS で共有シートが表示されずに終わる失敗は reject されず、この文言は出ない（検出する手段が無い）。
+ */
+export const INVITATION_SHARE_FAILED_MESSAGE =
+  "共有できませんでした。もう一度お試しください。使わないリンクは下の一覧から取り消せます。";
 
 /** 有効な招待リンクの行の説明（「11月7日 まで有効」）。 */
 export function formatInvitationExpiry(expiresAt: string): string {
