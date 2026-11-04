@@ -18,6 +18,10 @@ metadata:
 - **PIL はシステムに無い。** `uv run --no-project --with pillow python -I -` で一時的に入れる（`pypi.org` と `files.pythonhosted.org` が要る）。
   `~/.cache/ms-playwright/ffmpeg-*/ffmpeg-linux` は PNG のデコーダを持たないので切り出しに使えない。部分の拡大は、`overflow:hidden` の div に
   画像をずらして置いた HTML を chrome-headless-shell で撮ると速い。
+- **LP（`packages/lp/dist`）を撮るときは、`dist` をコピーしてパスを相対に書き換える**（SS-261）。出力 HTML は `/_astro/...` の絶対パスで参照するので、
+  `file://` で開くと CSS・画像が読めない。コピーした `index.html` に `sed 's#"/_astro/#"./_astro/#g; s#, /_astro/#, ./_astro/#g'`（`srcset` の2つ目以降も）をかける。
+  全体は `--window-size=1440,6400`（390px 幅なら高さ 11000 程度）で1枚撮り、PIL で 1000〜1600px ごとに切って読む。
+  HOME を `$TMPDIR` に向けた後は `~/.cache/...` が別の場所に展開されるので、chrome-headless-shell は絶対パスで呼ぶ。
 - Artifact に載せる HTML は `<!doctype>` 無しで書く（公開時に包まれる）。手元で撮るときは doctype と charset を前に足したコピーを撮る（quirks モードを避ける）。
 
 **How to apply:** 画面イメージを撮るときは最初から chrome-headless-shell + 節ごとのプレビュー HTML で撮る。MCP のブラウザやローカルサーバーを試さない。
