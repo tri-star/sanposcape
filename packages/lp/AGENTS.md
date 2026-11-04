@@ -83,8 +83,10 @@ dev 環境は CloudFront も `X-Robots-Tag: noindex` を付け、meta robots と
 - 見た目の正解は、デザイン原本（Codex で作成した静的 HTML/CSS/JS。リポジトリ外の作業フォルダにあった）を移した現在の実装。
   `src/styles/global.css` は原本の `styles.css` を値を変えずに移したもの（Prettier の整形と、下記「原本から意図的に変えた点」を除く）。
   見た目を変えるときはデザインの更新として扱い、PC（1440px）とスマホ（390px）の全体スクリーンショットで崩れがないか確認する。
-  - **デザインを変えた PR には、両方の幅の画面キャプチャをコメントで添付する**（SS-263）。`lp-pr-verification` skill（task-workflow の PR 作成の後に呼ばれる）が、
-    `scripts/lp-tools/capture-lp.mjs` でページを節（`main > section`）ごとに撮り、横スクロールの有無とともに添付する。
+  - **デザインを変えた PR には、両方の幅の画面キャプチャをコメントで添付する**（SS-263）。`pnpm --filter lp build` の後に
+    `node scripts/lp-tools/capture-lp.mjs --out <dir> --max-width 720` でページを節（`main > section`）ごとに撮り、出力の `screenshots.md`（表）を本文にして、
+    `report.json` の `files` の画像を `gh pr comment <PR> --body-file <本文> --attach <画像>...` で添付する。横スクロールがあれば、その旨も書く。
+    Claude Code では `lp-pr-verification` skill（task-workflow の PR 作成の後に呼ばれる）がこの手順を行う。
   - スクリプトはシステムの Google Chrome を Chrome の sandbox を有効にしたまま headless で使う（`--no-sandbox` を付けない）。
     Claude Code の sandbox の中では Chrome の SUID sandbox が起動できないので、sandbox の外で実行する。撮影時の Chrome の版を出すので、古いままになっていないかも見る。
     Playwright の chrome-headless-shell は Playwright の版に固定されて古くなり、Linux では sandbox を無効にして動かすため使わない。
