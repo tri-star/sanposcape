@@ -494,12 +494,12 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 
 - 公開するのは、commit しない部品 `SanpoMapAccountDeletion`（`prepare()` で付け替えとキーの収集、commit の後に
   `delete_photo_objects_best_effort()`）と、組み立て `build_sanpo_map_account_deletion()` だけ。
-- 置き場所は `pins`。書き込むのは `pins`・`pin_tags` の作成者の列なので、そのテーブルを持つ `pins` の `PinRepository` が書く（M6）。
+- 置き場所は `pins`。書き込むのは `pins`・`pin_tags` の作成者の列なので、そのテーブルを持つ `pins` の Repository が書く（M6）。ピンの保存（`PinRepository`）とは変わる理由が違うので、別のファイル `pins/account_deletion_repository.py` の `AccountDeletionRepository` にした。
   `photos/account_purge.py` に足す案は、`photos` が `pins`・`pin_tags` に書くことになり M6 に反するので採らなかった。
 - 写真の後始末は `PhotoObjectCleaner` をそのまま使う（`pins → photos` は M1 の許可表の範囲）。
 - `users/dependencies.py` は、公開面の外の `sanpo_maps.photos.dependencies.get_object_storage` を使わず、同じ app-lifespan の
   `request.app.state.object_storage` を読む。
-- 依存の向き: `users.service` → `sanpo_maps.pins.account_deletion` → `sanpo_maps.pins.repository`・`sanpo_maps.photos.cleanup` →
+- 依存の向き: `users.service` → `sanpo_maps.pins.account_deletion` → `sanpo_maps.pins.account_deletion_repository`・`sanpo_maps.photos.cleanup` →
   `sanpo_maps.models` → `users.models`。循環しない。
 
 ## 関連情報

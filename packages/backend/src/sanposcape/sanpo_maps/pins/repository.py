@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, exists, func, or_, select, tuple_, update
+from sqlalchemy import Select, exists, func, or_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -454,67 +454,3 @@ class PinRepository:
         """
         self._db.delete(pin)
         self._db.flush()
-
-    # --- アカウント削除（SS-251 / ADR-009 決定40）---
-
-    def hand_over_to_map_owners(self, user_id: uuid.UUID) -> tuple[int, int]:
-        """本人が owner でない地図にある、本人が作ったピン・タグの作成者を、その地図の
-        owner に付け替える。付け替えたピンとタグの件数を返す。
-
-        今メンバーかどうかは見ない（抜けた・外された後も本人のピンは地図に残るため。
-        決定38）。`updated_at` は動かさない。Core の一括 UPDATE なので、同じセッションに
-        読み込み済みの `Pin`・`PinTag` は更新されない（アカウント削除では読み込まない）。
-        """
-        pins_stmt = (
-            update(Pin)
-            .where(
-                Pin.sanpo_map_id == SanpoMap.id,
-                Pin.created_by_user_id == user_id,
-                SanpoMap.owner_user_id != user_id,
-            )
-            .values(created_by_user_id=SanpoMap.owner_user_id)
-        )
-        tags_stmt = (
-            update(PinTag)
-            .where(
-                PinTag.pin_id == Pin.id,
-                Pin.sanpo_map_id == SanpoMap.id,
-                PinTag.created_by_user_id == user_id,
-                SanpoMap.owner_user_id != user_id,
-            )
-            .values(created_by_user_id=SanpoMap.owner_user_id)
-        )
-        # 複数テーブルの条件（UPDATE ... FROM）は ORM の同期（evaluate）に向かないので切る。
-        options = {"synchronize_session": False}
-        tags = self._db.execute(tags_stmt, execution_options=options).rowcount
-        pins = self._db.execute(pins_stmt, execution_options=options).rowcount
-        return pins, tags
-
-    def lock_pins_for_owned_maps(self, owner_user_id: uuid.UUID) -> None:
-        """本人が owner の地図に属するピン行を `FOR UPDATE` でロックする（決定33 の
-        地図削除と同じ理由。写真キーの収集の前に呼ぶ）。書き込みではないので M6 の範囲内。
-        """
-        self._db.execute(
-            select(Pin.id)
-            .join(SanpoMap, SanpoMap.id == Pin.sanpo_map_id)
-            .where(SanpoMap.owner_user_id == owner_user_id)
-            .with_for_update(of=Pin)
-        ).all()
-
-    def list_others_photo_keys_in_owned_maps(
-        self, owner_user_id: uuid.UUID
-    ) -> list[tuple[str, str | None]]:
-        """本人が owner の地図にある、本人以外が上げた写真の `(s3_key, thumbnail_s3_key)`。
-
-        本人の写真は含めない（アカウント削除後の保持期間の後に prefix ごと消す。決定36）。
-        """
-        stmt = (
-            select(PinPhoto.s3_key, PinPhoto.thumbnail_s3_key)
-            .join(Pin, Pin.id == PinPhoto.pin_id)
-            .join(SanpoMap, SanpoMap.id == Pin.sanpo_map_id)
-            .where(
-                SanpoMap.owner_user_id == owner_user_id,
-                PinPhoto.uploaded_by_user_id != owner_user_id,
-            )
-        )
-        return [(row[0], row[1]) for row in self._db.execute(stmt).all()]

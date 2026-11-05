@@ -1,7 +1,8 @@
 """アカウント削除のときの地図のデータの扱い（SS-251 / ADR-009 決定40）の、モジュールの外への公開面。
 
 `sanpo_maps` の外（`users` のアカウント削除）は、このモジュールだけを import する（ADR-011 M7 の
-公開面）。書き込みの実体は `pins/repository.py`（pins・pin_tags を持つサブパッケージ。M6）。
+公開面）。書き込みの実体は `pins/account_deletion_repository.py`
+（pins・pin_tags を持つサブパッケージ。M6）。
 """
 
 import logging
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from sanposcape.config import Settings
 from sanposcape.integrations.aws.s3 import ObjectStorage
 from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner, flatten_photo_keys
-from sanposcape.sanpo_maps.pins.repository import PinRepository
+from sanposcape.sanpo_maps.pins.account_deletion_repository import AccountDeletionRepository
 
 __all__ = ["SanpoMapAccountDeletion", "build_sanpo_map_account_deletion"]
 
@@ -35,7 +36,7 @@ class SanpoMapAccountDeletion:
 
     def __init__(
         self,
-        repository: PinRepository,
+        repository: AccountDeletionRepository,
         photo_cleaner: PhotoObjectCleaner,
         *,
         request_time_budget_seconds: float,
@@ -82,7 +83,7 @@ def build_sanpo_map_account_deletion(
 ) -> SanpoMapAccountDeletion:
     call_worst_case = settings.object_storage_delete_call_worst_case_seconds
     return SanpoMapAccountDeletion(
-        PinRepository(db),
+        AccountDeletionRepository(db),
         PhotoObjectCleaner(
             storage,
             deadline_seconds=settings.pin_photo_delete_deadline_seconds,

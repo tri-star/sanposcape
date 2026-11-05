@@ -2062,7 +2062,7 @@ DB の時間はローカルの合成データでの値で、Neon では測って
 
 ### 決定40: editor のピン・タグは owner に付け替えて残し、owner の削除ではほかの利用者の写真も消す
 
-- **本人が owner でない地図にある本人のピン・タグの作成者を、その地図の owner に付け替える**（`PinRepository.hand_over_to_map_owners`。
+- **本人が owner でない地図にある本人のピン・タグの作成者を、その地図の owner に付け替える**（`AccountDeletionRepository.hand_over_to_map_owners`（`sanpo_maps/pins/account_deletion_repository.py`）。
   `UPDATE ... FROM sanpo_maps`）。アカウント削除（`AccountDeletionService.delete_account`）のトランザクションの中で、users の行を消す前に行う。
   - **NULL にしない**。応答の `created_by_user_id` を null 許容にすると配布済みのアプリが壊れる（リリース運用手順 §7。応答のフィールドを null 許容にしない）。
     owner は地図のすべての操作ができるので、付け替えで権限は広がらない。

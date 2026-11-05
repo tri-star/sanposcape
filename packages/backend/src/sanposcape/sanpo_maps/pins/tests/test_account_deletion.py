@@ -25,7 +25,7 @@ from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap
 from sanposcape.sanpo_maps.photos.account_purge import AccountPhotoPurgeScheduler
 from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.pins.account_deletion import SanpoMapAccountDeletion
-from sanposcape.sanpo_maps.pins.repository import PinRepository
+from sanposcape.sanpo_maps.pins.account_deletion_repository import AccountDeletionRepository
 from sanposcape.users.models import User
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 from sanposcape.users.service import AccountDeletionService, UserService
@@ -53,7 +53,7 @@ def _deletion_service(
 ) -> tuple[AccountDeletionService, SpyPhotoCleaner]:
     cleaner = SpyPhotoCleaner(storage)
     sanpo_map_data = SanpoMapAccountDeletion(
-        PinRepository(db_session),
+        AccountDeletionRepository(db_session),
         cleaner,
         request_time_budget_seconds=25,
         call_worst_case_seconds=6,
