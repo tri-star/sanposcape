@@ -36,7 +36,7 @@ ADR-016 決定6 は、baseline の件数と下げられる項目を「定期の�
    - CI では走らせない（テストだけ `code-health.yml` の `unittest discover` に入る）
 2. **ツールの版は固定し、固定の仕方は依存の有無で分ける。**
    - jscpd は `pnpm dlx jscpd@5.4.2` で流す。jscpd 5 は依存の無い単体のバイナリ（プラットフォームごとの optional dependency も同じ版に固定）で、版で中身が決まる
-   - vulture は `uvx --from vulture==2.16 vulture` で流す。Python 3.11 以上では依存が無い
+   - vulture は `uvx --python 3.12 --from vulture==2.16 vulture` で流す。Python 3.11 以上では依存が無い。uvx はプロジェクトの requires-python を見ないので、backend と同じ Python を指定する（古い Python では新しい構文のファイルを解析できずに飛ばす）
    - knip は依存を caret の範囲で持つので、`pnpm dlx` では実行のたびに推移的な依存の版が変わる。mobile の devDependency にして lockfile と dependabot に載せる
      （アプリの JS・ネイティブには入らない。devDependency の追加の前後で `@expo/fingerprint` のハッシュが同じことを確かめた）。
      package.json の `scripts` には足さない。`@expo/fingerprint` は `scripts` をハッシュの材料に入れるので、1つ足すだけで本番のビルドとの fingerprint の比較（OTA の配信の前の確認）が変わる。

@@ -142,6 +142,17 @@ class ToolTest(unittest.TestCase):
         self.assertEqual(result["status"], "skipped")
         self.assertIn("No solution found", result["reason"])
 
+    def test_vulture_reports_files_it_could_not_parse(self) -> None:
+        done = subprocess.CompletedProcess(
+            [], 3, stdout="src/a.py:3: unused function 'f' (60% confidence)\n",
+            stderr='src/b.py:10: invalid syntax at "class X[T]:"\n',
+        )
+        with mock.patch.object(subprocess, "run", return_value=done) as run:
+            result = rh.guarded("vulture", rh.run_vulture, Path("."))
+        self.assertEqual(result["errors"], ['packages/backend/src/b.py:10: invalid syntax at "class X[T]:"'])
+        self.assertEqual(run.call_args.args[0][:3], ["uvx", "--python", "3.12"])
+        self.assertIn("解析できなかったファイル", rh._render_unused({"status": "skipped", "reason": "-"}, result)[-2])
+
     def test_jscpd_failure_does_not_reuse_previous_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out_dir = Path(tmp)

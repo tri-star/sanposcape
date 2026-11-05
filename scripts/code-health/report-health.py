@@ -47,7 +47,9 @@ COUPLING_MIN_COUNT = 3
 # 版は固定する。jscpd 5 は依存の無い単体のバイナリ、vulture は Python 3.11 以上で依存が無いので、版で中身が決まる（ADR-018）。
 # knip は依存があるので mobile の devDependency にして lockfile で固定している。
 JSCPD = ["pnpm", "dlx", "jscpd@5.4.2"]
-VULTURE = ["uvx", "--from", "vulture==2.16", "vulture"]
+# uvx はプロジェクトの requires-python を見ないので、backend と同じ Python を指定する。
+# 古い Python で動かすと、新しい構文（`class X[T]:`）のファイルを解析できずに飛ばす。
+VULTURE = ["uvx", "--python", "3.12", "--from", "vulture==2.16", "vulture"]
 KNIP = ["pnpm", "exec", "knip", "--reporter", "json", "--no-progress"]
 TOOL_TIMEOUT = 600
 
@@ -230,8 +232,10 @@ def run_vulture(root: Path) -> dict:
     # vulture は未使用が無ければ exit 0、あれば 3。1 は入力が不正（解析できないファイル）、取得の失敗（uvx）も 1。
     proc = run_tool(VULTURE, root / "packages/backend", ok_codes=(0, 3))
     items = parse_vulture(proc.stdout, "packages/backend")
+    # 解析できなかったファイルは標準エラーにだけ出て、未使用の一覧から黙って漏れる。レポートに出す。
+    errors = [f"packages/backend/{line.strip()}" for line in proc.stderr.splitlines() if "invalid syntax" in line]
     return {"counts": {"impl": sum(not cs.is_test(i["path"]) for i in items), "test": sum(cs.is_test(i["path"]) for i in items)},
-            "items": items}
+            "items": items, "errors": errors}
 
 
 def guarded(name: str, func, *args) -> dict:
@@ -299,6 +303,7 @@ def _render_unused(knip: dict, vulture: dict) -> list[str]:
     if vulture["status"] != "ok":
         return out + [f"- 省略: {vulture['reason']}"]
     out.append(f"- 件数: 実装 {vulture['counts']['impl']}、テスト {vulture['counts']['test']}")
+    out += [f"- 解析できなかったファイル（このファイルの未使用は見ていない）: {e}" for e in vulture.get("errors", [])]
     out += [f"  - {i['path']}:{i['line']}: {i['message']}（{i['confidence']}%）" for i in vulture["items"]]
     return out
 
