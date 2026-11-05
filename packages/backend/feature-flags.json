@@ -26,12 +26,17 @@
     "map_invitation": {
       "name": "map invitation",
       "description": "地図への招待（SS-90）。地図詳細のメンバーの行・メンバー画面・招待の導線を出し分ける"
+    },
+    "map_pin_visibility": {
+      "name": "map pin visibility",
+      "description": "地図単位のピンの表示・非表示（SS-266）。mobile の『表示するピン』シートの『表示する地図』の節と、非表示にした地図のピンを地図に出さないことを出し分ける"
     }
   },
   "values": {
     "client_requirements": { "enabled": true },
     "pin_registration": { "enabled": false },
     "pin_station_tag": { "enabled": false },
-    "map_invitation": { "enabled": false }
+    "map_invitation": { "enabled": false },
+    "map_pin_visibility": { "enabled": false }
   }
 }

@@ -226,6 +226,7 @@ def test_appconfig_session_is_opened_once_across_invocations(
             "pin_registration": True,
             "pin_station_tag": False,
             "map_invitation": False,
+            "map_pin_visibility": False,
         }
 
     assert client.start_calls == 1
@@ -249,11 +250,13 @@ def test_appconfig_known_good_survives_fetch_failure_across_invocations(
         "pin_registration": True,
         "pin_station_tag": False,
         "map_invitation": False,
+        "map_pin_visibility": False,
     }
     assert second["flags"] == {
         "pin_registration": True,
         "pin_station_tag": False,
         "map_invitation": False,
+        "map_pin_visibility": False,
     }
     assert second["config_source"] == "appconfig"
     assert client.get_latest_calls == 2

@@ -107,6 +107,15 @@ FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
         ),
         audience="client",
     ),
+    FeatureFlagSpec(
+        key="map_pin_visibility",
+        description=(
+            "地図単位のピンの表示・非表示（SS-266）。mobile の「表示するピン」シートの"
+            "「表示する地図」の節と、非表示にした地図のピンを地図に出さないことを出し分ける。"
+            "`PATCH /sanpo-maps/{id}/members/me` と応答の `pins_visible` はガードしない。"
+        ),
+        audience="client",
+    ),
 )
 
 
