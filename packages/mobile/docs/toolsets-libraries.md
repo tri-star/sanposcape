@@ -36,6 +36,7 @@
 - ユニットテスト: Vitest
 - E2Eテスト: Maestro
 - Lint: oxlint
+- 使われていないコードの洗い出し: knip（月次のレポートだけで流し、CI では止めない。設定は `knip.jsonc`。[ADR-018](../../../docs/adr/ADR-018-monthly-code-health-report.md)）
 - Formatter: oxfmt
 
 ## 依存を増やさずに自前実装しているもの

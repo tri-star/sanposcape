@@ -1,6 +1,6 @@
 ---
 name: structure-refactor
-description: "フォルダやファイルの分け方を責務で決め、移動・import の書き換え・文書の更新まで行う。CI の構造の検査（scripts/code-health/check-structure.py）や linter の関数の単位のルール（ADR-017）で落ちたとき、「このフォルダを分割して」「ファイルが長いので分けて」「pin/lib の分け方を考えて」のように頼まれたとき、定期レポートで分割が課題になったときに使う。分け方の案だけを求められたら案を出して止まる。"
+description: "フォルダやファイルの分け方を責務で決め、移動・import の書き換え・文書の更新まで行う。CI の構造の検査（scripts/code-health/check-structure.py）や linter の関数の単位のルール（ADR-017）で落ちたとき、「このフォルダを分割して」「ファイルが長いので分けて」「pin/lib の分け方を考えて」のように頼まれたとき、定期レポート（code-health-review skill）で分割が課題になったときに使う。分け方の案だけを求められたら案を出して止まる。"
 argument-hint: "<対象のパス（フォルダ / ファイル）> [plan]"
 ---
 

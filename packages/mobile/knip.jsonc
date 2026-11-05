@@ -1,0 +1,22 @@
+{
+  // 使われていないファイル・export・依存の洗い出し（SS-255。ADR-018）。
+  // 月次のレポート（scripts/code-health/report-health.py）が流す。CI では止めない。候補を出すだけで、消すかは人が決める。
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "entry": [
+    // vitest.config.ts の resolve.alias から読まれるテスト用の mock。knip の vitest の plugin は alias を辿らない
+    "src/test/mocks/*.ts",
+    // アイコンの画像を作り直すときに手で流すスクリプトと、それが SVGO に渡す設定（assets/sanpo-map-icons/README.md）
+    "assets/sanpo-map-icons/generate.mjs",
+    "assets/sanpo-map-icons/svgo.config.mjs"
+  ],
+  // デザインのモック（アプリのコードではない。check-structure.py も対象にしない）。
+  // Orval の生成物（src/api/generated）は git の管理外で、knip は .gitignore に従って元から見ない
+  "ignore": ["docs/**"],
+  "ignoreDependencies": [
+    // Orval が生成する mock（src/api/generated。git の管理外で knip から見えない）が import する
+    "@faker-js/faker",
+    // CI のワークフローが pnpm exec eas・node -e "require('@expo/fingerprint')" で使う
+    "eas-cli",
+    "@expo/fingerprint"
+  ]
+}
