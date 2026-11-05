@@ -26,6 +26,7 @@
   - 横断: [ADR-014 Claude Code のハーネスは、メインが計画・実装し、レビューは観点で分けたレビュアーに任せる](./docs/adr/ADR-014-claude-harness-main-agent-and-review-structure.md)
   - 横断: [ADR-016 コードの構造（フォルダのファイル数・接頭辞の集中・ファイルの行数）は CI でラチェット方式で止め、既存の違反は課題つきの baseline で据え置く](./docs/adr/ADR-016-code-structure-ratchet-check.md)。分け方を決める structure-refactor skill と、レビューの「構造の悪化」の観点（SS-254 追補）
   - 横断: [ADR-017 関数の複雑度・長さ・依存の数・循環 import は ruff・oxlint のルールで止め、既存の違反はファイル単位の除外に課題と理由をつけて据え置く](./docs/adr/ADR-017-function-complexity-lint-rules.md)
+  - 横断: [ADR-018 変更の集中・一緒に変わる組・重複・未使用のコードは、PR ごとに止めず月次のレポートで見て、課題の候補にする](./docs/adr/ADR-018-monthly-code-health-report.md)。code-health-review skill と report-health.py
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-M-001 フォルダ構造](./packages/mobile/adr/ADR-M-001-folder-structure.md)

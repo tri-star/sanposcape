@@ -9,8 +9,9 @@
     "assets/sanpo-map-icons/generate.mjs",
     "assets/sanpo-map-icons/svgo.config.mjs"
   ],
-  // デザインのモック（アプリのコードではない。check-structure.py も対象にしない）と、Orval の生成物
-  "ignore": ["docs/**", "src/api/generated/**"],
+  // デザインのモック（アプリのコードではない。check-structure.py も対象にしない）。
+  // Orval の生成物（src/api/generated）は git の管理外で、knip は .gitignore に従って元から見ない
+  "ignore": ["docs/**"],
   "ignoreDependencies": [
     // Orval が生成する mock（src/api/generated。git の管理外で knip から見えない）が import する
     "@faker-js/faker",
