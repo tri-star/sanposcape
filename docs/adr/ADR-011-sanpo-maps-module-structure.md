@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-11-01（SS-250: サブパッケージ `invitations` を足し、M7 の公開面に `invitations.router`・`invitations.purge` を足した）。前回: 2026-10-15（SS-109: M7 の公開面に `sanpo_maps.photos.account_purge` を足した）、2026-10-05（SS-175）、2026-09-29（SS-136）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-06（SS-251: M7 の公開面に `sanpo_maps.pins.account_deletion` を足した）。前回: 2026-11-01（SS-250: サブパッケージ `invitations` を足し、M7 の公開面に `invitations.router`・`invitations.purge` を足した）、2026-10-15（SS-109: M7 の公開面に `sanpo_maps.photos.account_purge` を足した）、2026-10-05（SS-175）、2026-09-29（SS-136）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -12,7 +12,9 @@
   サブパッケージを跨いで共有するのは Repository と commit しない部品だけ。commit は `service.py` だけ（本文: 決定3）
 - **M7 の公開面**（モジュールの外から import してよいもの）: `sanpo_maps.models`・`sanpo_maps.exceptions`・
   `sanpo_maps.{maps,pins,photos}.router`・`sanpo_maps.photos.dev_storage_router`・
-  **`sanpo_maps.photos.account_purge`**（SS-109: アカウント削除後の写真の削除の入口）（本文: 決定3、SS-109 追補）
+  **`sanpo_maps.photos.account_purge`**（SS-109: アカウント削除後の写真の削除の入口）・
+  `sanpo_maps.invitations.{router,purge}`（SS-250）・**`sanpo_maps.pins.account_deletion`**（SS-251: アカウント削除のときの
+  共有地図のピン・タグの付け替えと他人の写真の後始末の入口）（本文: 決定3、SS-109・SS-250・SS-251 追補）
 - **ユースケース層（`usecases/`）は M9 の条件に当たるまで作らない**。ピンの地図の移動（SS-175）は既存の
   `PinService` に収まり、条件に当たらない（本文: 決定3'）
 - **Service 循環は commit しない部品（`SanpoMapAccess`・`PhotoAttacher`・`PhotoObjectCleaner`）と Repository の
@@ -25,7 +27,7 @@
 
 ## 日付
 
-2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）、2026-10-05（追補、SS-175）、2026-10-15（追補、SS-109）
+2026-09-28（初版、SS-137）、2026-09-29（追補、SS-136）、2026-10-05（追補、SS-175）、2026-10-15（追補、SS-109）、2026-11-01（追補、SS-250）、2026-11-06（追補、SS-251）
 
 ## ステータス
 
@@ -484,6 +486,21 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 - **M7 の公開面に `sanposcape.sanpo_maps.invitations.router`（main.py）と `sanposcape.sanpo_maps.invitations.purge`（日次の Lambda `aws_lambda/photo_purge.py`）を足した。**
 - 却下: maps に足す案（SS-249 のメンバーの API は maps に足した）。招待は API 5本・テーブル・掃除を持ち、maps の責務（地図とメンバーの管理）を大きく広げるため分けた。
 - `tests/test_architecture.py` の `_SUBPACKAGES`・許可表・公開面を更新した。
+
+## M7 の公開面の追補（2026-11-06, SS-251）
+
+アカウント削除で、共有している地図のデータを扱うようになった（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定40）。
+`users` のアカウント削除が呼ぶので、**公開面に `sanpo_maps.pins.account_deletion` を1つ足した**（`test_architecture.py` の `_ALLOWED_PUBLIC_SURFACE`）。
+
+- 公開するのは、commit しない部品 `SanpoMapAccountDeletion`（`prepare()` で付け替えとキーの収集、commit の後に
+  `delete_photo_objects_best_effort()`）と、組み立て `build_sanpo_map_account_deletion()` だけ。
+- 置き場所は `pins`。書き込むのは `pins`・`pin_tags` の作成者の列なので、そのテーブルを持つ `pins` の `PinRepository` が書く（M6）。
+  `photos/account_purge.py` に足す案は、`photos` が `pins`・`pin_tags` に書くことになり M6 に反するので採らなかった。
+- 写真の後始末は `PhotoObjectCleaner` をそのまま使う（`pins → photos` は M1 の許可表の範囲）。
+- `users/dependencies.py` は、公開面の外の `sanpo_maps.photos.dependencies.get_object_storage` を使わず、同じ app-lifespan の
+  `request.app.state.object_storage` を読む。
+- 依存の向き: `users.service` → `sanpo_maps.pins.account_deletion` → `sanpo_maps.pins.repository`・`sanpo_maps.photos.cleanup` →
+  `sanpo_maps.models` → `users.models`。循環しない。
 
 ## 関連情報
 
