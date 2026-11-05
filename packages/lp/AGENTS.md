@@ -35,7 +35,7 @@ packages/lp/
     ├── components/        # セクション単位のコンポーネント（ページでの並び順は Hero / Pins / Together / Walks / Steps / Download。他に Header・Footer 等）
     ├── layouts/BaseLayout.astro  # <head>（meta・OGP・robots）、アイコン定義、ヘッダー、フッター
     ├── pages/             # index.astro / privacy.astro / terms.astro / support.astro / i/index.astro（招待リンク）/ 404.astro / robots.txt.ts
-    │                      # privacy/<YYYY-MM-DD>.astro は改定前のポリシーの版（不利な改定のときに固定する）
+    │                      # privacy/<YYYY-MM-DD>.astro・terms/<YYYY-MM-DD>.astro は改定前のポリシー・規約の版（不利な改定のときに固定する）
     └── styles/            # global.css（LP 全体。デザイン原本の styles.css）/ legal.css（privacy・terms・support 共通）
 ```
 
