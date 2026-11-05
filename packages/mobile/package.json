@@ -74,7 +74,6 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
-    "knip": "knip",
     "format": "oxfmt src app index.ts app.config.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts",
     "format:check": "oxfmt --check src app index.ts app.config.ts babel.config.js metro.config.js orval.config.ts vitest.config.ts"
   },
