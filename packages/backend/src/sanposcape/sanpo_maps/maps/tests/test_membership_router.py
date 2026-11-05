@@ -54,7 +54,7 @@ class TestPinsVisibleInResponses:
         authenticated_user: User,
         db_session: Session,
     ) -> None:
-        """何も選んでいない地図は、一覧で `pins_visible: true` になること（既存の行も既定は表示）。"""
+        """何も選んでいない地図は、一覧で `pins_visible: true` になること（既定は表示）。"""
         sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         assert listed_pins_visible(sanpo_maps_client, auth_headers, sanpo_map_id) is True
