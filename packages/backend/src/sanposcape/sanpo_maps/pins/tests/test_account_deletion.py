@@ -50,6 +50,7 @@ def _deletion_service(
     storage: FakeObjectStorage,
     *,
     monotonic=None,
+    apple_client: FakeAppleSignInClient | None = None,
 ) -> tuple[AccountDeletionService, SpyPhotoCleaner]:
     cleaner = SpyPhotoCleaner(storage)
     sanpo_map_data = SanpoMapAccountDeletion(
@@ -63,7 +64,7 @@ def _deletion_service(
         db_session,
         UserService(db_session, UserRepository(db_session)),
         AppleAuthorizationRepository(db_session),
-        FakeAppleSignInClient(),
+        apple_client or FakeAppleSignInClient(),
         AccountPhotoPurgeScheduler(db_session, retention_days=30),
         sanpo_map_data,
         **extra,
@@ -201,11 +202,11 @@ class TestOwnerAccountDeletion:
         assert [storage.head(k) for k in editor_keys] == [None, None]
         assert all(storage.head(k) is not None for k in owner_keys)
 
-    def test_photos_on_pins_in_other_users_maps_are_not_deleted(
+    def test_editor_deletion_keeps_owner_photo_objects_and_deletes_nothing_immediately(
         self, db_session: Session, storage: FakeObjectStorage
     ) -> None:
-        """他人の地図にある写真は、本人の写真でも即時には消さない（付け替えたピンに残る
-        owner の写真の実体は当然残る）。"""
+        """editor の削除では S3 を即時には消さない（本人の写真は保持期間の後。付け替えた
+        ピンに owner が付けた写真の実体は残る）。"""
         owner = make_user(db_session, subject="owner")
         editor = make_user(db_session, subject="editor")
         map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
@@ -243,3 +244,42 @@ class TestCleanupDeadline:
         _delete(db_session, service, owner)
 
         assert cleaner.deadlines == [25 - 12 - 6]
+
+    def test_apple_revocation_time_is_subtracted_from_the_cleanup_deadline(
+        self, db_session: Session, storage: FakeObjectStorage
+    ) -> None:
+        """Apple ユーザーは失効（外部 HTTP）にかかった時間だけ締め切りが縮む。経過時間は
+        失効の前から測る。"""
+        owner = User(
+            provider="apple",
+            provider_subject="apple-owner",
+            email=None,
+            display_name=None,
+            photo_url=None,
+        )
+        db_session.add(owner)
+        db_session.commit()
+        AppleAuthorizationRepository(db_session).upsert(
+            owner.id, client_id="com.sanposcape.app.dev", refresh_token="refresh"
+        )
+        editor = make_user(db_session, subject="editor")
+        map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        _add_editor(db_session, sanpo_map_id=map_id, user_id=editor.id)
+        pin_id = create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=editor.id)
+        create_pin_photo_row(
+            db_session, storage, pin_id=pin_id, uploaded_by_user_id=editor.id, position=0
+        )
+        now = [100.0]
+
+        def slow_revoke() -> None:
+            now[0] += 14.0  # 失効に 14 秒かかった
+
+        apple_client = FakeAppleSignInClient(on_revoke=slow_revoke)
+        service, cleaner = _deletion_service(
+            db_session, storage, monotonic=lambda: now[0], apple_client=apple_client
+        )
+
+        _delete(db_session, service, owner)
+
+        assert len(apple_client.revoke_calls) == 1
+        assert cleaner.deadlines == [25 - 14 - 6]
