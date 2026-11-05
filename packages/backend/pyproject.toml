@@ -118,6 +118,22 @@ max-args = 8
 # SS-258: 1つのテストで写真の確定の前後を順に検証している（65）
 "src/sanposcape/sanpo_maps/pins/tests/test_service.py" = ["PLR0915"]
 
+# 使われていないコードの洗い出し（SS-255。月次のレポート scripts/code-health/report-health.py が
+# `uvx --from vulture==<版> vulture` で流す。ADR-018）。CI では止めない。候補を出すだけで、消すかは人が決める。
+# FastAPI のルーター・例外ハンドラ、Pydantic の validator、pytest の fixture は名前で呼ばれないが使われているので除く。
+[tool.vulture]
+paths = ["src", "scripts"]
+min_confidence = 60
+ignore_decorators = [
+    "@router.*",
+    "@app.*",
+    "@inner.*",
+    "@field_validator",
+    "@model_validator",
+    "@pytest.fixture",
+]
+ignore_names = ["model_config"]
+
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 # walkshare_migration は一回限りの移行のスクリプト（README）。スクリプトと一緒に SS-242 で外す。

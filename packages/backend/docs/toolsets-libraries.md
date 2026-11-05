@@ -6,6 +6,7 @@
 - ORM: SQLAlchemy + alembic
 - ユニットテスト: pytest
 - Lint, Formatter: ruff
+- 使われていないコードの洗い出し: vulture（依存には足さず、月次のレポート `scripts/code-health/report-health.py` が `uvx` で版を固定して流す。CI では止めない。設定は `pyproject.toml` の `[tool.vulture]`。[ADR-018](../../../docs/adr/ADR-018-monthly-code-health-report.md)）
 - スキーマ管理: Pydantic
 - 認証: Google Sign-In（モバイルが public client として Google と直接対話）+ Sign in with Apple（iOS のみ。backend は ID token の検証と、アカウント削除時にトークンを失効させるための authorization code の交換・失効（Apple の REST API。`httpx` で呼び、client secret は `pyjwt[crypto]` で ES256 署名）を行う）+ backend 自前セッショントークン。ID token 検証・自前 JWT 発行ともに `pyjwt[crypto]` を使用（詳細は [ADR-002](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)）
 - OpenAPI定義生成: Fast APIの機能を利用

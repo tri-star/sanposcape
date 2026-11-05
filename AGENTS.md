@@ -31,6 +31,7 @@
 - フォルダ直下のファイル数・同じ接頭辞の集中・ファイルの行数は、CI（`scripts/code-health/check-structure.py`）がラチェット方式で検査する（[ADR-016](./docs/adr/ADR-016-code-structure-ratchet-check.md)）。
   落ちたら分割する。分けられない理由があるときだけ、`scripts/code-health/structure-baseline.json` に片付ける課題と理由を付けて載せる。
   分け方は [structure-refactor](./.claude/skills/structure-refactor/SKILL.md) skill の基準で、責務から決める（関数の単位の linter のルール（[ADR-017](./docs/adr/ADR-017-function-complexity-lint-rules.md)）で落ちたときも同じ）。
+- 変更の集中・別々のフォルダで一緒に変わる組・重複・未使用のコードは、PR では止めず、月次に [code-health-review](./.claude/skills/code-health-review/SKILL.md) skill で課題の候補にする（[ADR-018](./docs/adr/ADR-018-monthly-code-health-report.md)）。
 
 # 知識の置き場所
 
