@@ -6,8 +6,8 @@
 
 import uuid
 
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import case, exists, func, select, update
+from sqlalchemy.orm import Session, aliased
 
 from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap
 
@@ -23,7 +23,21 @@ class AccountDeletionRepository:
         今メンバーかどうかは見ない（抜けた・外された後も本人のピンは地図に残るため。
         決定38）。`updated_at` は動かさない。Core の一括 UPDATE なので、同じセッションに
         読み込み済みの `Pin`・`PinTag` は更新されない（アカウント削除では読み込まない）。
+
+        owner が同じ `client_pin_id` のピンを既に持っていると、付け替えで一意制約
+        `(created_by_user_id, client_pin_id)` に当たり、アカウントを消せなくなる（`client_pin_id` は
+        `GET /pins/{id}` で地図のメンバーに見えるので、owner がわざと同じ値でピンを作れる）。
+        その行だけ `client_pin_id` を振り直す。作成者は消えるので、冪等な再送はもう来ない。
         """
+        owner_pin = aliased(Pin)
+        collides = (
+            exists()
+            .where(
+                owner_pin.created_by_user_id == SanpoMap.owner_user_id,
+                owner_pin.client_pin_id == Pin.client_pin_id,
+            )
+            .correlate(Pin, SanpoMap)
+        )
         pins_stmt = (
             update(Pin)
             .where(
@@ -31,7 +45,10 @@ class AccountDeletionRepository:
                 Pin.created_by_user_id == user_id,
                 SanpoMap.owner_user_id != user_id,
             )
-            .values(created_by_user_id=SanpoMap.owner_user_id)
+            .values(
+                created_by_user_id=SanpoMap.owner_user_id,
+                client_pin_id=case((collides, func.gen_random_uuid()), else_=Pin.client_pin_id),
+            )
         )
         tags_stmt = (
             update(PinTag)

@@ -146,6 +146,53 @@ class TestEditorAccountDeletion:
             assert pin is not None
             assert pin.created_by_user_id == owner.id
 
+    def test_owner_pin_with_the_same_client_pin_id_does_not_block_the_deletion(
+        self, db_session: Session, storage: FakeObjectStorage
+    ) -> None:
+        """owner が editor のピンと同じ `client_pin_id` のピンを持っていても（応答で見えるので
+        わざと作れる）、一意制約で削除が失敗し続けない。付け替えたピンの `client_pin_id` だけを
+        振り直し、owner のピンは変えない。"""
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        shared_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        _add_editor(db_session, sanpo_map_id=shared_map_id, user_id=editor.id)
+        editor_pin_id = create_pin_with_tags(
+            db_session, sanpo_map_id=shared_map_id, user_id=editor.id
+        )
+        owner_pin_id = create_pin_with_tags(
+            db_session, sanpo_map_id=shared_map_id, user_id=owner.id
+        )
+        copied = db_session.get(Pin, editor_pin_id).client_pin_id
+        db_session.get(Pin, owner_pin_id).client_pin_id = copied
+        db_session.commit()
+        service, _ = _deletion_service(db_session, storage)
+
+        _delete(db_session, service, editor)
+
+        with TestSessionLocal() as other:
+            assert other.get(User, editor.id) is None
+            handed_over = other.get(Pin, editor_pin_id)
+            assert handed_over.created_by_user_id == owner.id
+            assert handed_over.client_pin_id != copied
+            assert other.get(Pin, owner_pin_id).client_pin_id == copied
+
+    def test_client_pin_id_is_kept_when_it_does_not_collide(
+        self, db_session: Session, storage: FakeObjectStorage
+    ) -> None:
+        """衝突しないピンの `client_pin_id` は変えない。"""
+        owner = make_user(db_session, subject="owner")
+        editor = make_user(db_session, subject="editor")
+        map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        _add_editor(db_session, sanpo_map_id=map_id, user_id=editor.id)
+        pin_id = create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=editor.id)
+        client_pin_id = db_session.get(Pin, pin_id).client_pin_id
+        service, _ = _deletion_service(db_session, storage)
+
+        _delete(db_session, service, editor)
+
+        with TestSessionLocal() as other:
+            assert other.get(Pin, pin_id).client_pin_id == client_pin_id
+
     def test_does_not_touch_other_users_pins_or_updated_at(
         self, db_session: Session, storage: FakeObjectStorage
     ) -> None:

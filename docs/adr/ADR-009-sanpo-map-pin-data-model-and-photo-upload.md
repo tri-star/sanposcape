@@ -2068,7 +2068,9 @@ DB の時間はローカルの合成データでの値で、Neon では測って
     owner は地図のすべての操作ができるので、付け替えで権限は広がらない。
   - **今メンバーかどうかは見ない**（課題の本文は「自分が editor の地図」だったが広げた）。抜けた・外された後も本人のピンは地図に残る（決定38）ので、
     editor に限ると、抜けた後にアカウントを削除したとき CASCADE で owner の写真・タグまで消える。データ取扱い台帳 3.8 の設計とポリシー 7 の文面にも合う。
-  - `updated_at` は動かさない（内容は変わらない）。`client_pin_id` はそのまま（一意制約 `(created_by_user_id, client_pin_id)` は端末が採番する UUID なので衝突しない前提）。
+  - `updated_at` は動かさない（内容は変わらない）。`client_pin_id` は、owner が同じ値のピンを持っているときだけ振り直す（`gen_random_uuid()`）。
+    `client_pin_id` は `GET /pins/{id}` で地図のメンバーに見えるので、owner がわざと同じ値でピンを作ると、付け替えが一意制約 `(created_by_user_id, client_pin_id)` に当たり、
+    editor は再試行してもアカウントを消せなくなる（security のレビューの指摘）。作成者は消えるので冪等な再送はもう来ず、mobile は応答の `client_pin_id` を使わない。
   - **本人の写真は消す**。`pin_photos.uploaded_by_user_id` の CASCADE で行が消え、S3 は本人の prefix の予約（決定36。30 日後）で消える。
 - **本人が owner の地図は、今までどおり CASCADE で地図ごと消える**。ほかの利用者が上げた写真は本人の prefix の外にあり予約では消えないので、
   users の行を消す前に、その地図のピン行を `FOR UPDATE` でロックしてから（決定33 の地図削除と同じ。移動中のピンの写真を消さない）キーを集め、
