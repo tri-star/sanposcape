@@ -63,6 +63,8 @@ JSCPD_IGNORE = ",".join([
 # knip の JSON の種類のうち、ファイルごとに名前を並べるもの（件数が多く、ファイル単位で判断するため）。
 # それ以外の種類（files・dependencies・binaries など、knip の版で増えるものも含む）は1件ずつ並べる。
 KNIP_PER_FILE = {"exports", "types", "enumMembers", "namespaceMembers", "duplicates"}
+# 種類ではない項目（ファイルのパスと、CODEOWNERS があるときに付く所有者）。
+KNIP_NOT_ISSUES = {"file", "owners"}
 _VULTURE_RE = re.compile(r"^(?P<path>[^:]+):(?P<line>\d+): (?P<message>.+) \((?P<confidence>\d+)% confidence\)$")
 
 
@@ -190,7 +192,7 @@ def summarize_knip(report: dict, prefix: str) -> dict:
         path = f"{prefix}/{issue['file']}"
         for category, entries in issue.items():
             names = _knip_names(entries)
-            if category == "file" or not names:
+            if category in KNIP_NOT_ISSUES or not names:
                 continue
             if category in KNIP_PER_FILE:
                 found[category].append({"path": path, "names": names})

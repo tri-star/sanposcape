@@ -102,7 +102,7 @@ class KnipTest(unittest.TestCase):
     def test_keeps_duplicates_and_categories_it_does_not_name(self) -> None:
         report = {"issues": [
             {"file": "src/a.ts", "duplicates": [[{"name": "foo"}, {"name": "default"}]], "catalog": []},
-            {"file": "package.json", "binaries": [{"name": "maestro"}]},
+            {"file": "package.json", "binaries": [{"name": "maestro"}], "owners": [{"name": "@team"}]},
         ]}
         result = rh.summarize_knip(report, "packages/mobile")
         self.assertEqual(result["counts"], {"duplicates": 1, "binaries": 1})
