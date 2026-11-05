@@ -67,9 +67,17 @@ class AccountDeletionRepository:
         return pins, tags
 
     def lock_pins_for_owned_maps(self, owner_user_id: uuid.UUID) -> None:
-        """本人が owner の地図に属するピン行を `FOR UPDATE` でロックする（決定33 の
+        """本人が owner の地図の行と、そこに属するピン行を `FOR UPDATE` でロックする（決定33 の
         地図削除と同じ理由。写真キーの収集の前に呼ぶ）。書き込みではないので M6 の範囲内。
+
+        地図の行を先に取る（`SanpoMapService.delete_map` と同じ順序）。ピンの移動は移動先の
+        地図の行を `FOR KEY SHARE` で取るので、本人の地図へ移ってくる途中のピンは、移動の
+        commit を待ってからピン行のロックとキーの収集の対象に入る（取らないと、移ってきた
+        ピンの写真のキーを集め損ね、CASCADE で行だけが消えて S3 の実体が残る）。
         """
+        self._db.execute(
+            select(SanpoMap.id).where(SanpoMap.owner_user_id == owner_user_id).with_for_update()
+        ).all()
         self._db.execute(
             select(Pin.id)
             .join(SanpoMap, SanpoMap.id == Pin.sanpo_map_id)
