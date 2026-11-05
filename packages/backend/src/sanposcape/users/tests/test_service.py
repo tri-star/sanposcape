@@ -20,8 +20,13 @@ from sanposcape.integrations.apple.exceptions import (
     AppleSignInRejectedError,
     AppleSignInUnavailableError,
 )
+from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.sanpo_maps.models import AccountPhotoPurge
 from sanposcape.sanpo_maps.photos.account_purge import AccountPhotoPurgeScheduler
+from sanposcape.sanpo_maps.pins.account_deletion import (
+    SanpoMapAccountDeletion,
+    build_sanpo_map_account_deletion,
+)
 from sanposcape.users.exceptions import AccountDeletionUnavailableError
 from sanposcape.users.models import AppleAuthorization, User
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
@@ -37,6 +42,16 @@ _FIXED_NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 
 def _make_photo_purges(db_session: Session) -> AccountPhotoPurgeScheduler:
     return AccountPhotoPurgeScheduler(db_session, retention_days=30, now=lambda: _FIXED_NOW)
+
+
+def _make_sanpo_map_data(db_session: Session) -> SanpoMapAccountDeletion:
+    """共有地図のデータの扱い（SS-251）。
+
+    中身のテストは `sanpo_maps/pins/tests/test_account_deletion.py`。
+    """
+    return build_sanpo_map_account_deletion(
+        db_session, FakeObjectStorage(secret="s" * 32), Settings()
+    )
 
 
 def test_get_by_id_returns_existing_user(db_session: Session) -> None:
@@ -296,7 +311,12 @@ class TestAccountDeletionService:
         user_service = _make_service(db_session)
         authorizations = AppleAuthorizationRepository(db_session)
         service = AccountDeletionService(
-            db_session, user_service, authorizations, client, _make_photo_purges(db_session)
+            db_session,
+            user_service,
+            authorizations,
+            client,
+            _make_photo_purges(db_session),
+            _make_sanpo_map_data(db_session),
         )
         return service, user_service, authorizations
 
@@ -467,7 +487,12 @@ class TestAccountDeletionService:
         user_service = _make_service(db_session)
         authorizations = _CountingAppleAuthorizationRepository(db_session)
         service = AccountDeletionService(
-            db_session, user_service, authorizations, client, _make_photo_purges(db_session)
+            db_session,
+            user_service,
+            authorizations,
+            client,
+            _make_photo_purges(db_session),
+            _make_sanpo_map_data(db_session),
         )
         user = user_service.find_or_create(
             provider=provider,
@@ -542,6 +567,7 @@ class TestAccountDeletionSchedulesPhotoPurge:
             AppleAuthorizationRepository(db_session),
             FakeAppleSignInClient(),
             _make_photo_purges(db_session),
+            _make_sanpo_map_data(db_session),
         )
         return service, user_service
 

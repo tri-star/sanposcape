@@ -42,6 +42,9 @@ _ALLOWED_PUBLIC_SURFACE = {
     # アカウント削除後の写真の削除（SS-109。ADR-011 の SS-109 追補）。`users` の
     # アカウント削除と `aws_lambda/photo_purge.py` が使う。
     "sanposcape.sanpo_maps.photos.account_purge",
+    # アカウント削除のときの共有地図のデータ（SS-251。ADR-011 の SS-251 追補）。`users` の
+    # アカウント削除が使う。
+    "sanposcape.sanpo_maps.pins.account_deletion",
 }
 
 

@@ -33,9 +33,13 @@ class PhotoObjectCleaner:
         self._call_worst_case_seconds = call_worst_case_seconds
         self._monotonic = monotonic
 
-    def delete_best_effort(self, keys: list[str]) -> None:
+    def delete_best_effort(self, keys: list[str], *, deadline_seconds: float | None = None) -> None:
         """削除対象の S3 キーをまとめて best-effort で消す（ピン・写真・地図の削除,
         ADR-009 決定22・決定28）。
+
+        `deadline_seconds` を渡すと、締め切りを設定値との小さい方にする（後始末の前に
+        外部 HTTP などで時間を使った呼び出し元が、残りの時間予算に収めるため。アカウント
+        削除の Apple の失効の後, SS-251 / 決定40）。0 以下でも最初のチャンクは試みる。
 
         DB は既に commit 済みのため、ここで打ち切っても整合性は壊れない（残るのは
         「DB から参照されない S3 オブジェクト」だけで、BK-3 の定期掃除で回収できる）。
@@ -64,7 +68,10 @@ class PhotoObjectCleaner:
         """
         if not keys:
             return
-        deadline_at = self._monotonic() + self._deadline_seconds
+        budget = self._deadline_seconds
+        if deadline_seconds is not None:
+            budget = min(budget, deadline_seconds)
+        deadline_at = self._monotonic() + budget
         chunk_size = S3_DELETE_OBJECTS_MAX_KEYS
         for index, start in enumerate(range(0, len(keys), chunk_size)):
             if index > 0:

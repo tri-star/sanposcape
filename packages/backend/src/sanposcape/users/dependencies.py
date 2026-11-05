@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from sanposcape.config import Settings, get_settings
 from sanposcape.database import get_db
 from sanposcape.integrations.apple.client import AppleSignInClient
+from sanposcape.integrations.aws.s3 import ObjectStorage
 from sanposcape.sanpo_maps.photos.account_purge import AccountPhotoPurgeScheduler
+from sanposcape.sanpo_maps.pins.account_deletion import build_sanpo_map_account_deletion
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
 from sanposcape.users.service import AccountDeletionService, UserService
 
@@ -24,14 +26,19 @@ def get_apple_sign_in_client(request: Request) -> AppleSignInClient:
 
 
 def get_account_deletion_service(
+    request: Request,
     db: Session = Depends(get_db),
     apple_sign_in_client: AppleSignInClient = Depends(get_apple_sign_in_client),
     settings: Settings = Depends(get_settings),
 ) -> AccountDeletionService:
+    # `sanpo_maps.photos.dependencies.get_object_storage` は公開面（ADR-011 M7）の外なので、
+    # 同じ app-lifespan singleton を直接読む。
+    storage: ObjectStorage = request.app.state.object_storage
     return AccountDeletionService(
         db,
         UserService(db, UserRepository(db)),
         AppleAuthorizationRepository(db),
         apple_sign_in_client,
         AccountPhotoPurgeScheduler(db, retention_days=settings.account_photo_retention_days),
+        build_sanpo_map_account_deletion(db, storage, settings),
     )

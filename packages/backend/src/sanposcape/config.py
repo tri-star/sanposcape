@@ -326,6 +326,17 @@ class Settings(BaseSettings):
             + self.object_storage_delete_read_timeout_seconds
         )
 
+    @property
+    def request_time_budget_seconds(self) -> float:
+        """1リクエストの時間予算（Lambda の 29 秒から余裕を引いた値）。
+
+        値は `_REQUEST_TIME_BUDGET_SECONDS`。
+
+        後始末の前に外部 HTTP などで時間を使う処理（アカウント削除の Apple の失効の後の
+        S3 の後始末。SS-251 / ADR-009 決定40）が、残りの時間を求めるのに使う。
+        """
+        return _REQUEST_TIME_BUDGET_SECONDS
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _normalize_log_level(cls, v: object) -> object:

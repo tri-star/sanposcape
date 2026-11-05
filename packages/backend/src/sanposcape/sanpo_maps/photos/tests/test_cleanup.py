@@ -121,6 +121,37 @@ class TestPhotoObjectCleanerDeleteBestEffort:
         assert storage.head(keys[2]) is not None
         assert storage.head(keys[3]) is not None
 
+    @pytest.mark.parametrize(
+        ("override", "expected_chunks"),
+        [
+            # 上書き 4 秒: deadline_at=4, remaining=4-4.0=0 < 6 で2つ目を打ち切る。
+            (4.0, 1),
+            # 上書きが設定値（10 秒）より長くても設定値のまま: remaining=6.0 == 6 で始める。
+            (30.0, 2),
+        ],
+    )
+    def test_deadline_override_takes_the_smaller_of_the_two(
+        self, monkeypatch: pytest.MonkeyPatch, override: float, expected_chunks: int
+    ) -> None:
+        """`deadline_seconds` の上書きは設定値との小さい方（SS-251。アカウント削除で Apple の
+        失効にかかった時間だけ縮める）。"""
+        monkeypatch.setattr(sanposcape.sanpo_maps.photos.cleanup, "S3_DELETE_OBJECTS_MAX_KEYS", 2)
+        storage = FakeObjectStorage(secret="s" * 32)
+        keys = ["k0", "k1", "k2", "k3"]
+        _put_objects(storage, keys)
+        chunks = _wrap_delete_many(storage)
+        monotonic_values = iter([0.0, 4.0])
+        cleaner = PhotoObjectCleaner(
+            storage,
+            deadline_seconds=10,
+            call_worst_case_seconds=6,
+            monotonic=lambda: next(monotonic_values),
+        )
+
+        cleaner.delete_best_effort(keys, deadline_seconds=override)
+
+        assert len(chunks) == expected_chunks
+
     def test_empty_keys_does_not_call_storage(self) -> None:
         storage = FakeObjectStorage(secret="s" * 32)
         chunks = _wrap_delete_many(storage)
