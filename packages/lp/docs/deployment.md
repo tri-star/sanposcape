@@ -110,6 +110,10 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
   これは「本番の LP はいつでも main からデプロイできる」（リリース運用手順 §7.5）の一時的な例外。そろう前にポリシーの改定などで production に出す必要があるときは、
   先にトップページの紹介（`Together.astro`・`Steps.astro` の STEP 03・`Pins.astro` の「その場所へ移動」・`Hero.astro` のタグ・`index.astro` の description）をどうするかを決める。
   両方そろって production に出したら、この項目を消す（Plane SS-262）。
+- **（一時的）利用規約の不利な改定（SS-222）の日付は、本番に出す日に合わせて直す。** `terms.astro` の `revisedOn`・`effectiveOn`・`previousVersion.appliesUntil`・`revisionHistory` と、
+  旧版 `src/pages/terms/2026-10-24.astro` の `appliesUntil`・`nextEffectiveOn` は、上の項目の条件がそろう日を 2026-12-03 と見込んで置いた値（公開日 2026年12月3日・施行日 2027年1月2日）。
+  production へのデプロイの前に、公開日をデプロイの日に、施行日を公開から 30 日後（台帳 2.2）に、旧版の適用の終わる日を施行日の前日にして main に入れてからデプロイする。
+  施行日より前の日付のまま出すと、施行日の事前の告知（規約 11）を欠く。施行日を過ぎた後にこの項目を消す。
 
 - dev をブランチで確認している最中に `packages/lp/**` を含む main への push があると、dev は main の内容に戻る。
 - dev の自動デプロイは `packages/lp/**` とこのワークフローの変更だけで起動する。ロックファイルだけが変わる依存の更新
