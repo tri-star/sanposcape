@@ -1,11 +1,13 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 
+import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { PinTabView } from "@/features/pin/components/PinTabView";
 import {
   type PinTabFocusRouteParams,
   parsePinTabFocusParams,
 } from "@/features/pin/lib/pinTabFocus";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
 import { useSignInNavigation } from "@/hooks/useSignInNavigation";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
@@ -21,6 +23,7 @@ import { useTheme } from "@/theme/useTheme";
  * 取得中（pending）は読み込み表示だけを出す（ON なのに追い出す事故を防ぎつつ、着地直後に
  * タブバーだけの空白画面にしないため）。`/app-config` の取得は失敗しても再試行後に確定する
  * （`appConfigQueryOptions` の retry）ので、読み込み表示が無期限に続くことはない。
+ * 地図単位の表示・非表示（SS-266）はフラグ `map_pin_visibility` をここで読んで注入する。
  * ピン詳細の「ピンの場所に移動」は、座標と `focusKey` をパラメータで渡してここへ戻る（SS-246。`parsePinTabFocusParams` で検証する）。
  */
 export default function PinTabRoute() {
@@ -30,6 +33,7 @@ export default function PinTabRoute() {
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
   const handleSignIn = useSignInNavigation();
   const focus = parsePinTabFocusParams(useLocalSearchParams<PinTabFocusRouteParams>());
+  const mapPinVisibility = useFeatureFlag(FEATURE_FLAG_KEYS.mapPinVisibility);
   if (decision === "pending") {
     return (
       <View
@@ -46,5 +50,12 @@ export default function PinTabRoute() {
     );
   }
   if (decision === "disabled") return <Redirect href="/(tabs)" />;
-  return <PinTabView isSignedIn={isSignedIn} onSignIn={handleSignIn} focus={focus} />;
+  return (
+    <PinTabView
+      isSignedIn={isSignedIn}
+      onSignIn={handleSignIn}
+      focus={focus}
+      mapPinVisibility={mapPinVisibility}
+    />
+  );
 }

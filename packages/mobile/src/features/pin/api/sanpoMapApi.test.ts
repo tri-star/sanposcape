@@ -13,6 +13,7 @@ import {
   fetchSanpoMaps,
   removeSanpoMapMember,
   updateSanpoMapIcon,
+  updateSanpoMapPinsVisible,
 } from "@/features/pin/api/sanpoMapApi";
 import { server } from "@/test/setup";
 
@@ -27,6 +28,7 @@ const RESPONSE: SanpoMapListRead = {
       updated_at: "2026-01-01T00:00:00.000Z",
       pin_count: 4,
       icon: "pin",
+      pins_visible: true,
     },
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -36,6 +38,7 @@ const RESPONSE: SanpoMapListRead = {
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-01T00:00:00.000Z",
       icon: "tree",
+      pins_visible: false,
     },
   ],
   next_cursor: null,
@@ -55,6 +58,7 @@ describe("fetchSanpoMaps", () => {
         role: "owner",
         pinCount: 4,
         icon: "pin",
+        pinsVisible: true,
       },
       {
         id: RESPONSE.items[1]!.id,
@@ -63,8 +67,24 @@ describe("fetchSanpoMaps", () => {
         role: "editor",
         pinCount: null,
         icon: "tree",
+        pinsVisible: false,
       },
     ]);
+  });
+
+  it("pins_visible が欠落していれば表示（true）に倒す（古い backend。SS-266）", async () => {
+    const base = RESPONSE.items[1]!;
+    const { pins_visible: _omit, ...withoutPinsVisible } = base;
+    server.use(
+      getListSanpoMapsMockHandler({
+        items: [{ ...withoutPinsVisible, id: "a" } as unknown as SanpoMapRead],
+        next_cursor: null,
+      }),
+    );
+
+    const result = await fetchSanpoMaps();
+
+    expect(result.map((m) => m.pinsVisible)).toEqual([true]);
   });
 
   it("icon が欠落・未知の値なら pin になる", async () => {
@@ -177,6 +197,7 @@ describe("createSanpoMap", () => {
       role: "owner",
       pinCount: 0,
       icon: "coffee",
+      pinsVisible: true,
     });
   });
 
@@ -351,5 +372,61 @@ describe("removeSanpoMapMember", () => {
     await expect(removeSanpoMapMember({ sanpoMapId: MAP_ID, userId: "x" })).rejects.toMatchObject({
       status: 422,
     });
+  });
+});
+
+describe("updateSanpoMapPinsVisible", () => {
+  const ID = "44444444-4444-4444-8444-444444444444";
+  const UPDATED: SanpoMapRead = {
+    id: ID,
+    name: "友達の地図",
+    is_default: false,
+    role: "editor",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    pin_count: null,
+    icon: "leaf",
+    pins_visible: false,
+  };
+
+  it("PATCH /sanpo-maps/{id}/members/me に { pins_visible } だけを送り、200 で SanpoMap を返す", async () => {
+    let body: unknown;
+    let path: string | undefined;
+    server.use(
+      http.patch("*/sanpo-maps/:id/members/me", async ({ request }) => {
+        body = await request.json();
+        path = new URL(request.url).pathname;
+        return HttpResponse.json(UPDATED, { status: 200 });
+      }),
+    );
+
+    const result = await updateSanpoMapPinsVisible({ sanpoMapId: ID, pinsVisible: false });
+
+    expect(path).toContain(`/sanpo-maps/${ID}/members/me`);
+    expect(body).toEqual({ pins_visible: false });
+    expect(result).toMatchObject({ id: ID, pinsVisible: false, role: "editor", pinCount: null });
+  });
+
+  it("UUID でない id は通信せず ApiError(404)", async () => {
+    let called = false;
+    server.use(
+      http.patch("*/sanpo-maps/:id/members/me", () => {
+        called = true;
+        return HttpResponse.json(UPDATED, { status: 200 });
+      }),
+    );
+
+    await expect(
+      updateSanpoMapPinsVisible({ sanpoMapId: "not-uuid", pinsVisible: false }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(called).toBe(false);
+  });
+
+  it.each([404, 422, 500])("%d で ApiError（status 付き）が throw される", async (status) => {
+    server.use(http.patch("*/sanpo-maps/:id/members/me", () => new HttpResponse(null, { status })));
+
+    await expect(
+      updateSanpoMapPinsVisible({ sanpoMapId: ID, pinsVisible: true }),
+    ).rejects.toMatchObject({ status });
   });
 });

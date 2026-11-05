@@ -25,6 +25,7 @@ const MAP_A: SanpoMap = {
   role: "owner",
   pinCount: null,
   icon: "coffee",
+  pinsVisible: true,
 };
 const MAP_B: SanpoMap = {
   id: "map-b",
@@ -33,6 +34,7 @@ const MAP_B: SanpoMap = {
   role: "owner",
   pinCount: null,
   icon: "cat",
+  pinsVisible: true,
 };
 
 describe("resolveEffectivePinEditSanpoMapId", () => {

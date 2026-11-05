@@ -11,6 +11,8 @@ export type RegisteredPinsMapLayerProps = {
   /** クラスタのタップで移る表示範囲（地図を動かすのは地図を持つ側。SS-243）。 */
   onSelectCluster: (region: MapRegion) => void;
   testIDPrefix: string;
+  /** 地図単位の表示・非表示（SS-266）を効かせるか。ルートがフラグ `map_pin_visibility` から注入する。 */
+  mapPinVisibility: boolean;
 };
 
 /**
@@ -28,15 +30,17 @@ export type RegisteredPinsMapLayerProps = {
  *
  * 表示するピンの絞り込みはピンタブと共有する `usePinMapFilterStore` から読む（SS-174）。変えるボタンは
  * ルートが `WalkActiveView` の `mapTools` に `PinMapFilterControl` を合成して置く。
+ * 自分が非表示にした地図（SS-266）のピンも、ピンタブと同じく出さない。
  */
 export function RegisteredPinsMapLayer({
   visibleRegion,
   onSelectPin,
   onSelectCluster,
   testIDPrefix,
+  mapPinVisibility,
 }: RegisteredPinsMapLayerProps): ReactNode {
   const filter = usePinMapFilterStore((state) => state.filter);
-  const { pins } = useRegisteredPins({ visibleRegion, enabled: true, filter });
+  const { pins } = useRegisteredPins({ visibleRegion, enabled: true, filter, mapPinVisibility });
   return (
     <RegisteredPinMarkers
       pins={pins}
