@@ -54,6 +54,9 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - backend の応答の列挙値・`code` で分岐する箇所が、未知の値で落ちたり誤った分岐に入ったりしないか（この版も、次の backend から見れば「古いアプリ」になる）。
 - 「この version から古い挙動は無い」と数えるときに、OTA で届けた JS を数えていないか。OTA を当てていない端末や、埋め込みの JS へ戻した端末（runbook §8.4）は、
   ストアのバイナリに埋め込んだ古い JS のまま動く。最低サポートバージョンの条件はストアのバイナリの version で数える（互換性台帳 2。SS-233 のレビューで見つかった）。
+- `packages/mobile/package.json` の `scripts` を変える差分（開発用の script を1つ足すだけでも）で、`@expo/fingerprint` のハッシュが変わることを意識しているか。
+  fingerprint は既定で `scripts` を材料に入れ（android・ios の script を除く）、本番の OTA の配信の前に本番のビルドと比べて違えば止まる（`mobile-production-update.yml`）。
+  JS だけの devDependency の追加では変わらない。script が要らなければ `pnpm exec` で直接呼ぶ（SS-255 のレビューで見つかった）。
 
 ## 画面遷移・戻る導線・フラグガード
 
