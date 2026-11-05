@@ -112,8 +112,12 @@ def coupling(impl: set[str], commits: list[list[str]], top: int,
 
 # ---- 外部のツール ----
 
-def run_tool(cmd: list[str], cwd: Path, ok_codes: tuple[int, ...] = (0, 1)) -> str:
-    """ツールを流して標準出力を返す。見つかったものがあると exit 1 にするツールが多いので、1 も成功として扱う。"""
+def run_tool(cmd: list[str], cwd: Path, ok_codes: tuple[int, ...] = (0,)) -> subprocess.CompletedProcess:
+    """ツールを流す。成功の終了コードはツールごとに渡す（見つかったものがあると 0 以外にするツールがある）。
+
+    `pnpm dlx`・`uvx` はパッケージを取得できない（ネットワーク・sandbox）と exit 1 で終わる。
+    1 を成功として扱うツール（knip）は、出力が読めないことで失敗を見分ける。
+    """
     try:
         proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TOOL_TIMEOUT)
     except FileNotFoundError as e:
@@ -123,7 +127,7 @@ def run_tool(cmd: list[str], cwd: Path, ok_codes: tuple[int, ...] = (0, 1)) -> s
     if proc.returncode not in ok_codes:
         tail = " / ".join((proc.stderr or proc.stdout).strip().splitlines()[-3:])
         raise ToolUnavailable(f"exit {proc.returncode}: {tail}")
-    return proc.stdout
+    return proc
 
 
 def summarize_clones(report: dict, root: Path, top: int) -> dict:
@@ -164,9 +168,12 @@ def _relative(name: str, root: Path) -> str:
 
 def run_jscpd(root: Path, out_dir: Path, top: int) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
+    report_file = out_dir / "jscpd-report.json"
+    # 前回の出力が残っていると、今回が失敗しても前回の結果を今回のものとして読んでしまう。
+    report_file.unlink(missing_ok=True)
+    # jscpd は重複を見つけても exit 0（--exit-code を付けないとき）。
     run_tool([*JSCPD, *cs.TARGET_ROOTS, "--format", JSCPD_FORMATS, "--ignore", JSCPD_IGNORE,
               "--reporters", "json", "--output", str(out_dir), "--absolute", "--no-colors", "--silent"], root)
-    report_file = out_dir / "jscpd-report.json"
     if not report_file.exists():
         raise ToolUnavailable("jscpd-report.json が出力されなかった")
     return summarize_clones(json.loads(report_file.read_text(encoding="utf-8")), root, top)
@@ -196,7 +203,14 @@ def run_knip(root: Path) -> dict:
     if not (mobile / "src/api/generated").exists():
         # 生成物が無いと、それを import するファイルがすべて unresolved になり、一覧が埋まる。
         raise ToolUnavailable("Orval の生成物が無い（先に `pnpm --filter mobile orval`）")
-    return summarize_knip(json.loads(run_tool(KNIP, mobile) or "{}"), "packages/mobile")
+    # knip は見つけたものがあると exit 1。knip が無い・起動できないときも pnpm exec が exit 1 になるので、JSON が読めるかで見分ける。
+    proc = run_tool(KNIP, mobile, ok_codes=(0, 1))
+    try:
+        report = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        tail = " / ".join((proc.stderr or proc.stdout).strip().splitlines()[-3:])
+        raise ToolUnavailable(f"JSON が読めない（exit {proc.returncode}: {tail}）") from e
+    return summarize_knip(report, "packages/mobile")
 
 
 def parse_vulture(output: str, prefix: str) -> list[dict]:
@@ -213,7 +227,9 @@ def parse_vulture(output: str, prefix: str) -> list[dict]:
 
 def run_vulture(root: Path) -> dict:
     # 対象・閾値・除外するデコレータは packages/backend/pyproject.toml の [tool.vulture]。
-    items = parse_vulture(run_tool(VULTURE, root / "packages/backend", ok_codes=(0, 1, 3)), "packages/backend")
+    # vulture は未使用が無ければ exit 0、あれば 3。1 は入力が不正（解析できないファイル）、取得の失敗（uvx）も 1。
+    proc = run_tool(VULTURE, root / "packages/backend", ok_codes=(0, 3))
+    items = parse_vulture(proc.stdout, "packages/backend")
     return {"counts": {"impl": sum(not cs.is_test(i["path"]) for i in items), "test": sum(cs.is_test(i["path"]) for i in items)},
             "items": items}
 

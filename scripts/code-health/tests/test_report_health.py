@@ -127,10 +127,41 @@ class ToolTest(unittest.TestCase):
         with mock.patch.object(subprocess, "run", return_value=done), self.assertRaisesRegex(rh.ToolUnavailable, "exit 2: boom"):
             rh.run_tool(["x"], Path("."))
 
-    def test_exit_one_means_findings(self) -> None:
+    def test_exit_code_allowed_per_tool(self) -> None:
         done = subprocess.CompletedProcess([], 1, stdout="out", stderr="")
         with mock.patch.object(subprocess, "run", return_value=done):
-            self.assertEqual(rh.run_tool(["x"], Path(".")), "out")
+            self.assertEqual(rh.run_tool(["x"], Path("."), ok_codes=(0, 1)).stdout, "out")
+            with self.assertRaises(rh.ToolUnavailable):
+                rh.run_tool(["x"], Path("."))
+
+    def test_vulture_fetch_failure_is_skipped_not_zero(self) -> None:
+        # uvx がパッケージを取得できないと exit 1。件数 0 として扱わない
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="error: No solution found\n")
+        with mock.patch.object(subprocess, "run", return_value=failed):
+            result = rh.guarded("vulture", rh.run_vulture, Path("."))
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("No solution found", result["reason"])
+
+    def test_jscpd_failure_does_not_reuse_previous_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            (out_dir / "jscpd-report.json").write_text('{"duplicates": [], "statistics": {}}', encoding="utf-8")
+            failed = subprocess.CompletedProcess([], 1, stdout="", stderr="ERR_PNPM_FETCH_404\n")
+            with mock.patch.object(subprocess, "run", return_value=failed):
+                result = rh.guarded("jscpd", rh.run_jscpd, Path(tmp), out_dir, 10)
+            self.assertEqual(result["status"], "skipped")
+            self.assertFalse((out_dir / "jscpd-report.json").exists())
+
+    def test_knip_unreadable_output_is_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "packages/mobile/node_modules").mkdir(parents=True)
+            (root / "packages/mobile/src/api/generated").mkdir(parents=True)
+            failed = subprocess.CompletedProcess([], 1, stdout="", stderr="ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL knip not found\n")
+            with mock.patch.object(subprocess, "run", return_value=failed):
+                result = rh.guarded("knip", rh.run_knip, root)
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("knip not found", result["reason"])
 
 
 class RenderTest(unittest.TestCase):
