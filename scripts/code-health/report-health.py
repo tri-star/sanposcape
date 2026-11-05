@@ -60,7 +60,9 @@ JSCPD_IGNORE = ",".join([
     "**/node_modules/**", "**/.venv/**", "**/dist/**", "**/.astro/**", "**/.expo/**",
     "**/api/generated/**", "packages/*/docs/**", "**/alembic/versions/**", "packages/lp/src/pages/privacy/**",
 ])
-KNIP_CATEGORIES = ("files", "dependencies", "devDependencies", "unlisted", "unresolved", "exports", "types", "enumMembers", "duplicates")
+# knip の JSON の種類のうち、ファイルごとに名前を並べるもの（件数が多く、ファイル単位で判断するため）。
+# それ以外の種類（files・dependencies・binaries など、knip の版で増えるものも含む）は1件ずつ並べる。
+KNIP_PER_FILE = {"exports", "types", "enumMembers", "namespaceMembers", "duplicates"}
 _VULTURE_RE = re.compile(r"^(?P<path>[^:]+):(?P<line>\d+): (?P<message>.+) \((?P<confidence>\d+)% confidence\)$")
 
 
@@ -186,16 +188,29 @@ def summarize_knip(report: dict, prefix: str) -> dict:
     found: dict[str, list] = defaultdict(list)
     for issue in report.get("issues", []):
         path = f"{prefix}/{issue['file']}"
-        for category in KNIP_CATEGORIES:
-            names = [item.get("name", "") for item in issue.get(category, []) or [] if isinstance(item, dict)]
-            if not names:
+        for category, entries in issue.items():
+            names = _knip_names(entries)
+            if category == "file" or not names:
                 continue
-            if category in ("exports", "types", "enumMembers", "duplicates"):
+            if category in KNIP_PER_FILE:
                 found[category].append({"path": path, "names": names})
             else:
                 found[category] += [path if category == "files" else f"{path}: {n}" for n in names]
     return {"counts": {k: sum(len(x["names"]) if isinstance(x, dict) else 1 for x in v) for k, v in found.items()},
             "items": dict(found)}
+
+
+def _knip_names(entries: object) -> list[str]:
+    """種類の値から名前を拾う。`duplicates` は同じものを指す名前の組（dict の配列の配列）なので `a = b` にまとめる。"""
+    if not isinstance(entries, list):
+        return []
+    names = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            names.append(str(entry.get("name", "")))
+        elif isinstance(entry, list):
+            names.append(" = ".join(str(e.get("name", "")) for e in entry if isinstance(e, dict)))
+    return [n for n in names if n]
 
 
 def run_knip(root: Path) -> dict:

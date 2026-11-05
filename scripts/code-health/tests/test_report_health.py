@@ -99,6 +99,16 @@ class KnipTest(unittest.TestCase):
         self.assertEqual(result["items"]["exports"], [{"path": "packages/mobile/src/a.ts", "names": ["X", "Y"]}])
         self.assertEqual(result["items"]["dependencies"], ["packages/mobile/package.json: left-pad"])
 
+    def test_keeps_duplicates_and_categories_it_does_not_name(self) -> None:
+        report = {"issues": [
+            {"file": "src/a.ts", "duplicates": [[{"name": "foo"}, {"name": "default"}]], "catalog": []},
+            {"file": "package.json", "binaries": [{"name": "maestro"}]},
+        ]}
+        result = rh.summarize_knip(report, "packages/mobile")
+        self.assertEqual(result["counts"], {"duplicates": 1, "binaries": 1})
+        self.assertEqual(result["items"]["duplicates"], [{"path": "packages/mobile/src/a.ts", "names": ["foo = default"]}])
+        self.assertEqual(result["items"]["binaries"], ["packages/mobile/package.json: maestro"])
+
     def test_skips_without_generated_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
