@@ -145,7 +145,7 @@
 - SS-256・SS-257 で、SS-252 の時点の baseline を片付ける
 - ~~SS-254 で、`SPLIT_GUIDE` に分割の skill の名前を足し、change-reviewer に「構造の悪化」の観点を足す~~ → SS-254 で決着（SS-254 追補）
 - SS-253 で、決定7のとおり linter のルールを同じ方針で入れる
-- SS-255 の月次レポートで、baseline の件数と下げられる項目を見る
+- ~~SS-255 の月次レポートで、baseline の件数と下げられる項目を見る~~ → SS-255 で決着（`report-health.py` の「構造の検査のベースライン」の節と `code-health-review` skill。[ADR-018](./ADR-018-monthly-code-health-report.md)）
 - `packages/lp/src/pages/privacy.astro`（SS-252 の時点で 686 行。改訂のたびに増える）は、いずれ実装の失敗の閾値 800 を超えうる。超えたら、Astro のコンポーネントに分けるか、法的な文面のページを対象から外すかを決め、この ADR に追補する
 - `code health` の job を必須のチェックにするかは決めていない。main のルールセットには必須のステータスチェックが無く（2026-11-02 時点。docs lint も同じ）、失敗したまま merge できる
 
@@ -191,4 +191,5 @@
 - [知識の置き場所ガイドライン](../knowledge-management.md)「検査」（文書・メモリのベースライン方式の検査。同じ方式の先例）
 - [ADR-014](./ADR-014-claude-harness-main-agent-and-review-structure.md) の SS-254 追補（change-reviewer の観点5）
 - `.claude/skills/structure-refactor/SKILL.md`、`scripts/code-health/survey-structure.py`
-- Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255、SS-256、SS-257
+- [ADR-018](./ADR-018-monthly-code-health-report.md)（SS-255 の月次レポート）
+- Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255（ADR-018）、SS-256、SS-257
