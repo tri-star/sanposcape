@@ -24,6 +24,9 @@ export type UseSanpoMapPinVisibilityUpdateResult = {
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
+/** 切り替え中の地図の ID（アプリ全体で1つ。上の JSDoc を参照）。 */
+const pendingSanpoMapIdsInFlight = new Set<string>();
+
 /**
  * 地図のピンの表示・非表示（`PATCH /sanpo-maps/{id}/members/me`。SS-266）の mutation。
  *
@@ -33,10 +36,13 @@ const EMPTY_IDS: ReadonlySet<string> = new Set();
  * - 失敗したら、その地図の値だけを押す前に戻し、一覧を取り直してサーバーの値に揃える（404 なら一覧から消える）。
  *   スナップショットで丸ごと戻さないのは、同時に切り替えたほかの地図の値まで戻さないため。
  * - 同じ地図の切り替えは、終わるまで受け付けない（送った順と届く順が入れ替わって、最後の操作と違う値が残るのを防ぐ）。
+ *   ラッチはモジュールのスコープに1つだけ持つ。シートはピンタブとナビタブの両方に置かれ、タブを切り替えても
+ *   両方マウントされたままになるため、インスタンスごとに持つと別のタブから同じ地図の要求が同時に出る。
+ *   スイッチの無効表示（`pendingSanpoMapIds`）は、その画面で始めた切り替えだけを映す。
  */
 export function useSanpoMapPinVisibilityUpdate(): UseSanpoMapPinVisibilityUpdateResult {
   const queryClient = useQueryClient();
-  // 同期的に立てるラッチ（連打で同じ地図の要求が2本出ないように）。表示用の state とは別に持つ。
+  // この画面で始めた切り替え（表示用）。要求を止めるラッチは `pendingSanpoMapIdsInFlight`。
   const pendingRef = useRef(new Set<string>());
   const [pendingSanpoMapIds, setPendingSanpoMapIds] = useState<ReadonlySet<string>>(EMPTY_IDS);
   const [errorCode, setErrorCode] = useState<SanpoMapUpdateErrorCode | null>(null);
@@ -68,6 +74,7 @@ export function useSanpoMapPinVisibilityUpdate(): UseSanpoMapPinVisibilityUpdate
       void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
     },
     onSettled: (_data, _error, input) => {
+      pendingSanpoMapIdsInFlight.delete(input.sanpoMapId);
       pendingRef.current.delete(input.sanpoMapId);
       syncPending();
     },
@@ -75,7 +82,8 @@ export function useSanpoMapPinVisibilityUpdate(): UseSanpoMapPinVisibilityUpdate
 
   const update = useCallback(
     (input: PinsVisibleInput) => {
-      if (pendingRef.current.has(input.sanpoMapId)) return;
+      if (pendingSanpoMapIdsInFlight.has(input.sanpoMapId)) return;
+      pendingSanpoMapIdsInFlight.add(input.sanpoMapId);
       pendingRef.current.add(input.sanpoMapId);
       syncPending();
       setErrorCode(null);
