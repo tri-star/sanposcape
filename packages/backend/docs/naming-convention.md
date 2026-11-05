@@ -93,6 +93,7 @@ FastAPI + SQLAlchemy + Pydantic による backend のファイル名・シンボ
 | ファイル | 役割 |
 |---|---|
 | `tag_labels.py` | タグの正規化（trim・連続空白圧縮・先頭記号除去）と重複排除。DB に依存しない純粋関数 |
+| `account_deletion.py` | アカウント削除のときの共有地図のデータ（SS-251, ADR-009 決定40）のモジュールの外への公開面（ADR-011 M7）。commit しない部品 `SanpoMapAccountDeletion`（`prepare()` で本人が owner でない地図のピン・タグの作成者を owner に付け替え、本人が owner の地図のほかの利用者の写真のキーを集める。commit の後に `delete_photo_objects_best_effort()`）と、組み立て `build_sanpo_map_account_deletion()`。書き込みの実体は `repository.py` |
 
 `photos/` サブパッケージ（写真の実体と先行アップロード枠。旧 `pins/` ドメインの一部を SS-137 で分離）:
 
