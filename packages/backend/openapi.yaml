@@ -780,6 +780,51 @@ paths:
           description: Sanpo map not found
         '422':
           description: Validation error
+  /sanpo-maps/{sanpo_map_id}/members/me:
+    patch:
+      tags:
+      - sanpo-maps
+      summary: Update My Sanpo Map Membership
+      description: '自分のメンバーシップの設定を変え、更新後の地図を返す。空のボディ `{}` は何も変えずに 200。
+
+
+        `pins_visible` は、この地図のピンを自分のピンタブ・ナビタブの地図に出すか。自分だけの設定で、
+
+        ほかのメンバーの表示には影響しない。地図の member（owner・editor）なら呼べる。非メンバー・
+
+        存在しない ID は 404。地図の `updated_at` は更新しない。'
+      operationId: update_my_sanpo_map_membership
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sanpo_map_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SanpoMapMembershipUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanpoMapRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Sanpo map not found
+        '422':
+          description: Validation error
   /sanpo-maps/{sanpo_map_id}/members/{user_id}:
     delete:
       tags:
@@ -2935,6 +2980,22 @@ components:
         他のメンバーに見せるのは表示名・役割・参加日時だけ（メールアドレス・プロフィール画像の
 
         URL は返さない。プライバシーポリシー 1-8）。'
+    SanpoMapMembershipUpdate:
+      properties:
+        pins_visible:
+          type: boolean
+          title: Pins Visible
+      additionalProperties: false
+      type: object
+      title: SanpoMapMembershipUpdate
+      description: '`PATCH /sanpo-maps/{sanpo_map_id}/members/me` のリクエスト（SS-266）。自分の
+
+        メンバーシップの設定だけを変える（地図そのものの属性は `SanpoMapUpdate`）。
+
+
+        `extra="forbid"`。`pins_visible` は省略可・null 不可（`SanpoMapUpdate` と同じ流儀）。
+
+        `{}` は 200 で何も変えない。'
     SanpoMapRead:
       properties:
         id:
@@ -2960,6 +3021,9 @@ components:
           - type: integer
           - type: 'null'
           title: Pin Count
+        pins_visible:
+          type: boolean
+          title: Pins Visible
         created_at:
           type: string
           format: date-time
@@ -2975,6 +3039,7 @@ components:
       - icon
       - is_default
       - role
+      - pins_visible
       - created_at
       - updated_at
       title: SanpoMapRead

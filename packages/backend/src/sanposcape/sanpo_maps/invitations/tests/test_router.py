@@ -269,6 +269,7 @@ class TestPreviewAndAccept:
         assert accepted.status_code == 200
         assert accepted.json()["id"] == str(sanpo_map_id)
         assert accepted.json()["role"] == "editor"
+        assert accepted.json()["pins_visible"] is True
 
         reused = sanpo_maps_client.post("/invitations/accept", json={"token": token}, headers=other)
         assert reused.status_code == 404
@@ -285,10 +286,16 @@ class TestPreviewAndAccept:
         test_settings: Settings,
     ) -> None:
         """すでにメンバー（owner 自身を含む）が受諾しても 200 で、リンクは残る。
-        preview は member と地図 ID を返す。
+        preview は member と地図 ID を返す。受諾の応答の `pins_visible` は本人の今の値
+        （SS-266。非表示にしてあれば false のまま）。
         """
         sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         token = create_invitation(sanpo_maps_client, sanpo_map_id, auth_headers)["token"]
+        sanpo_maps_client.patch(
+            f"/sanpo-maps/{sanpo_map_id}/members/me",
+            json={"pins_visible": False},
+            headers=auth_headers,
+        )
 
         preview = sanpo_maps_client.post(
             "/invitations/preview", json={"token": token}, headers=auth_headers
@@ -303,6 +310,7 @@ class TestPreviewAndAccept:
         assert preview.json()["sanpo_map_id"] == str(sanpo_map_id)
         assert accepted.status_code == 200
         assert accepted.json()["role"] == "owner"
+        assert accepted.json()["pins_visible"] is False
         assert later.status_code == 200
 
     def test_expired_and_unknown_tokens_are_indistinguishable(

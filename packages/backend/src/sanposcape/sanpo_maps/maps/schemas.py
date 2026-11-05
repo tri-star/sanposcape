@@ -45,6 +45,9 @@ class SanpoMapRead(BaseModel):
     # `GET /sanpo-maps?expand=pin_count` を指定したときだけ整数で埋まる（ピンが無い
     # 地図は0）。それ以外（未指定・POST/PATCH の応答）は null（ADR-009 決定29）。
     pin_count: int | None = None
+    # この地図のピンを、リクエストユーザーのピンタブ・ナビタブの地図に出すか（SS-266）。
+    # 本人のメンバーシップの値で、ほかのメンバーの選択とは独立。既定は true。
+    pins_visible: bool
     created_at: datetime
     updated_at: datetime
 
@@ -124,6 +127,25 @@ class SanpoMapUpdate(BaseModel):
         for field in ("name", "icon"):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f"{field} must not be null; omit the field for no change")
+        return self
+
+
+class SanpoMapMembershipUpdate(BaseModel):
+    """`PATCH /sanpo-maps/{sanpo_map_id}/members/me` のリクエスト（SS-266）。自分の
+    メンバーシップの設定だけを変える（地図そのものの属性は `SanpoMapUpdate`）。
+
+    `extra="forbid"`。`pins_visible` は省略可・null 不可（`SanpoMapUpdate` と同じ流儀）。
+    `{}` は 200 で何も変えない。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pins_visible: bool | SkipJsonSchema[None] = None
+
+    @model_validator(mode="after")
+    def _fields_must_not_be_explicit_null(self) -> "SanpoMapMembershipUpdate":
+        if "pins_visible" in self.model_fields_set and self.pins_visible is None:
+            raise ValueError("pins_visible must not be null; omit the field for no change")
         return self
 
 

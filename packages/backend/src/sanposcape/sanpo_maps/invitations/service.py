@@ -216,9 +216,15 @@ class SanpoMapInvitationService:
             user_id=actor_user_id, sanpo_map_id=sanpo_map_id
         )
         if membership is not None:
+            pins_visible = self._map_repository.get_pins_visible(
+                sanpo_map_id=sanpo_map_id, user_id=actor_user_id
+            )
             self._db.rollback()
             return to_sanpo_map_read(
-                membership[0], role=membership[1], current_user_id=actor_user_id
+                membership[0],
+                role=membership[1],
+                current_user_id=actor_user_id,
+                pins_visible=pins_visible,
             )
         if self._map_repository.count_members(sanpo_map_id) >= SANPO_MAP_MEMBER_LIMIT:
             raise SanpoMapInvitationLimitError("member_limit_reached")
@@ -228,7 +234,10 @@ class SanpoMapInvitationService:
         )
         invitation.accepted_by_user_id = actor_user_id
         invitation.accepted_at = now
-        read = to_sanpo_map_read(sanpo_map, role="editor", current_user_id=actor_user_id)
+        # 参加したメンバーシップは既定値（表示。SS-266）。
+        read = to_sanpo_map_read(
+            sanpo_map, role="editor", current_user_id=actor_user_id, pins_visible=True
+        )
         self._db.commit()
         logger.info(
             "Sanpo map invitation accepted: sanpo_map_id=%s invitation_id=%s by user_id=%s",
