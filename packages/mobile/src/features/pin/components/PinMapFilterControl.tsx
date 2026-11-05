@@ -4,7 +4,7 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { PinMapFilterSheet } from "@/features/pin/components/PinMapFilterSheet";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import { useSanpoMapPinVisibilityUpdate } from "@/features/pin/hooks/visibility/useSanpoMapPinVisibilityUpdate";
-import { isDefaultPinMapFilter } from "@/features/pin/lib/pinMapFilter";
+import { isPinMapFiltered } from "@/features/pin/lib/pinMapFilter";
 import {
   countHiddenSanpoMaps,
   sanpoMapPinVisibilityErrorMessage,
@@ -40,8 +40,7 @@ export function PinMapFilterControl({ testIDPrefix, mapPinVisibility }: PinMapFi
   const setVisitOption = usePinMapFilterStore((state) => state.setVisitOption);
   const maps = useSanpoMaps({ enabled: mapPinVisibility });
   const visibility = useSanpoMapPinVisibilityUpdate();
-  const filtered =
-    !isDefaultPinMapFilter(filter) || countHiddenSanpoMaps(maps.maps, mapPinVisibility) > 0;
+  const filtered = isPinMapFiltered(filter, countHiddenSanpoMaps(maps.maps, mapPinVisibility));
 
   return (
     <>

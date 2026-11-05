@@ -17,7 +17,7 @@ import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMar
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
 import { buildPinNewRouteParams, regionAroundPoint } from "@/features/pin/lib/pinLocationPicker";
-import { isDefaultPinMapFilter } from "@/features/pin/lib/pinMapFilter";
+import { isPinMapFiltered } from "@/features/pin/lib/pinMapFilter";
 import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
 import type { PinTabFocus } from "@/features/pin/lib/pinTabFocus";
 import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore";
@@ -101,7 +101,7 @@ export function PinTabView({
   const notice = resolvePinMapNotice({
     isSignedIn,
     // 非表示にした地図があるのも絞り込みの一種（0件の案内を「条件に合うピンが無い」にする。SS-266）。
-    filtered: !isDefaultPinMapFilter(pinFilter) || registered.hiddenSanpoMapCount > 0,
+    filtered: isPinMapFiltered(pinFilter, registered.hiddenSanpoMapCount),
     status: registered.status,
     errorCode: registered.errorCode,
     truncated: registered.truncated,
