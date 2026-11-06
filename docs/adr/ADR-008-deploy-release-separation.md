@@ -224,6 +224,7 @@ backend のデプロイが GitHub Actions から実行できるようになり�
 「SS-33: `/explore/routes/loop` に置き換え。**配布済みビルドの互換のため維持する**
 （意味・スキーマは変えない）」と書かれている。これは本 ADR の決定7（expand / contract）を
 既に実践している例であり、本 ADR はこれを暗黙の慣行から明文化された規則に格上げする。
+（SS-130 注記）このエンドポイントは、審査に提出した版で呼ぶものが無いことを確かめて SS-130 で削除した（contract）。経緯は [ADR-007](./ADR-007-loop-route-generation.md) の SS-130 追補。
 
 ### 前提となる制約
 
@@ -360,7 +361,7 @@ dev に何が出ているかは GitHub Actions の実行履歴で確認する。
 | **contract** | 古いフィールド / エンドポイントを削除する |
 
 - 既存エンドポイントを置き換える場合は、まず FastAPI の `deprecated=True` を付けて残す
-  （`/explore/routes/walking` が実例）。**意味とスキーマは変えない。**
+  （`/explore/routes/walking` が実例。SS-130 で contract 済み）。**意味とスキーマは変えない。**
   「残っているが挙動が変わっている」が最も危険な状態である。
 - **contract に進んでよいかの判断材料は「最低サポートバージョン」とする。**
   `/app-config` が返す最低サポートバージョン（SS-98）を下回るアプリには

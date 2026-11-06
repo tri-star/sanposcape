@@ -44,7 +44,6 @@ from sanposcape.maps.schemas import (
     WalkingRouteLeg,
     WalkingRouteLegKind,
     WalkingRouteRequest,
-    WalkingRouteResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,27 +159,6 @@ class MapsService:
                 tag_label=tag_label,
                 distance_meters=round(nearest.distance_meters),
             )
-        )
-
-    def get_walking_route(self, request: WalkingRouteRequest) -> WalkingRouteResponse:
-        origin = self._provider_point(request.origin)
-        destination = self._provider_point(request.destination.location)
-        try:
-            route = self._provider.get_walking_route(
-                origin, destination, timeout_seconds=self._route_timeout_seconds
-            )
-        except GoogleMapsQuotaError as exc:
-            raise MapsQuotaError() from exc
-        except GoogleMapsUnavailableError as exc:
-            raise MapsUnavailableError() from exc
-        path = [self._geo_point(point) for point in route.path]
-        return WalkingRouteResponse(
-            origin=request.origin,
-            destination=self._destination_read(request),
-            duration_seconds=route.duration_seconds,
-            distance_meters=route.distance_meters,
-            path=path,
-            bounds=self._bounds(path),
         )
 
     def get_loop_walking_route(self, request: WalkingRouteRequest) -> LoopWalkingRouteResponse:

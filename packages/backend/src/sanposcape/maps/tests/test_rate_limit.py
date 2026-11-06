@@ -4,7 +4,11 @@ from fastapi.testclient import TestClient
 
 from sanposcape.config import Settings
 from sanposcape.dependencies import get_current_user_optional
-from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
+from sanposcape.integrations.google_maps.provider import (
+    ProviderLoopRoute,
+    ProviderPoint,
+    ProviderRoute,
+)
 from sanposcape.main import create_app
 from sanposcape.maps import rate_limit
 from sanposcape.maps.dependencies import get_maps_service
@@ -62,13 +66,20 @@ def test_rate_limiter_removes_expired_buckets_and_bounds_new_keys(
     assert limiter.allow(user_id=None, client_ip="overflow")
 
 
+def _loop_route() -> ProviderLoopRoute:
+    return ProviderLoopRoute(
+        outbound=ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1))),
+        inbound=ProviderRoute(1, 1, (ProviderPoint(35.1, 139.1), ProviderPoint(35, 139))),
+    )
+
+
 def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
     class Provider:
         def search_places(self, *args, **kwargs):
             return ()
 
-        def get_walking_route(self, *args, **kwargs):
-            return ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
+        def get_walking_loop_route(self, *args, **kwargs):
+            return _loop_route()
 
     app = create_app(
         Settings(
@@ -83,8 +94,8 @@ def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
         "destination": {"place_id": "opaque", "location": {"latitude": 35.1, "longitude": 139.1}},
     }
     with TestClient(app) as client:
-        assert client.post("/explore/routes/walking", json=payload).status_code == 200
-        assert client.post("/explore/routes/walking", json=payload).status_code == 429
+        assert client.post("/explore/routes/loop", json=payload).status_code == 200
+        assert client.post("/explore/routes/loop", json=payload).status_code == 429
 
 
 def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
@@ -92,8 +103,8 @@ def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
         def search_places(self, *args, **kwargs):
             return ()
 
-        def get_walking_route(self, *args, **kwargs):
-            return ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
+        def get_walking_loop_route(self, *args, **kwargs):
+            return _loop_route()
 
     app = create_app(
         Settings(
@@ -109,5 +120,5 @@ def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
         "destination": {"place_id": "opaque", "location": {"latitude": 35.1, "longitude": 139.1}},
     }
     with TestClient(app) as client:
-        assert client.post("/explore/routes/walking", json=payload).status_code == 200
-        assert client.post("/explore/routes/walking", json=payload).status_code == 429
+        assert client.post("/explore/routes/loop", json=payload).status_code == 200
+        assert client.post("/explore/routes/loop", json=payload).status_code == 429

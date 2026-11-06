@@ -34,7 +34,7 @@
   ユーザーは backend が初回サインイン時に JIT 作成する。（本文: 決定5）
 - **ゲストは「トークンを持たない認証状態」として表現し、ゲストのまま保護ルート（探索・散歩・記録タブ・設定）に入れる**。
   詳細は [ADR-M-009](../../packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)。（本文: 決定6、6-1（SS-49 追補））
-- **explore 系 API（`/explore/places`・`/explore/routes/loop`・deprecated の `/explore/routes/walking`）は認証任意**。
+- **explore 系 API（`/explore/places`・`/explore/routes/loop`）は認証任意**（deprecated だった `/explore/routes/walking` は SS-130 で削除した）。
   未認証時は `ExploreRateLimiter` の client_ip バケットで制御し、匿名の上限は認証済み以下
   （既定 10 / 30）。（本文: 決定6-1、SS-49/SS-93 追補、6-1 追補（SS-33））
 - **`POST /walks` は認証必須で、ゲストの記録を後からアカウントへマージする機能は作らない**。（本文: 決定6-1、SS-49 追補）
