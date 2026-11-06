@@ -75,6 +75,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 - repository のメソッドが `user_id` を必須のキーワード引数に取るか（例: `walks/repository.py` の `get_by_id(*, user_id, walk_id)`）。ID だけで引ける取得口は指摘する。地図・ピンは `sanpo_map_members` を JOIN して絞る。
 - 他人のリソースは 403 ではなく 404 か。地図・ピンは「非メンバーは 404、メンバーだが権限が無ければ 403」の順（ADR-009 決定21・26）。
 - 冪等キーは `(user_id, client_*_id)` の一意制約で、`user_id` は JWT の `current_user` から取っているか（本文から取らない）。
+- 行の作成者・所有者を別の利用者に付け替える処理（アカウント削除など）は、`(user_id, client_*_id)` の一意制約に当たらないか。冪等キーが応答で他のメンバーに見えると、付け替え先の人がわざと同じ値の行を作り、付け替えを恒久的に失敗させられる（再試行でも直らない）。SS-251 では owner が editor のピンと同じ `client_pin_id` でピンを作ると editor がアカウントを消せなくなった。衝突する行だけ振り直して直した（ADR-009 決定40）。
 - 既知の例外: `sanpo_maps/maps/repository.py` の `count_pins_for_maps` / `list_photo_keys_for_map` は `user_id` を取らない。呼び出し元がメンバーシップで絞った結果や `FOR UPDATE` で権限確認済みの ID だけを渡すので安全。新しい呼び出し元では、渡す ID が認可済みかを確かめる。
 
 ## カーソル

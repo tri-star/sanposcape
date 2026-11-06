@@ -1806,7 +1806,10 @@ SOURCE 'aws/spans'
 
 ## 17. アカウント削除後の写真の削除（EventBridge Scheduler + Lambda。SS-109 / ADR-009 決定36）
 
-アカウント削除（`DELETE /users/me`）は写真を S3 から消さず、削除予約（DB `account_photo_purges`）を入れる。
+アカウント削除（`DELETE /users/me`）は本人の写真を S3 から消さず、削除予約（DB `account_photo_purges`）を入れる。
+（**SS-251 追補**: 本人が owner の地図にある、ほかの利用者が上げた写真は本人の prefix の外にあり予約では消えないので、
+削除の API が commit の後に best-effort で即時に消す（ADR-009 決定40。消し残しは WARNING のログ `Skipping remaining pin photo object cleanup` /
+`Failed to delete ... pin photo objects` が出て孤立オブジェクトになる）。予約が対象にするのは今までどおり本人の prefix だけ。）
 `PhotoPurge`（`sanposcape-<env>-backend-scheduled-photo-purge`、`aws_lambda/photo_purge.py`）が毎日 JST 04:00 に起動し、
 保持期間（`ACCOUNT_PHOTO_RETENTION_DAYS`、既定 30 日）を過ぎた予約の利用者の
 `staging/pins/<user_id>/`・`original/pins/<user_id>/`・`thumb/pins/<user_id>/` を消して予約を消す。

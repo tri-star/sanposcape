@@ -8,7 +8,9 @@ import {
   ACCOUNT_DELETE_DIALOG_TITLE,
   ACCOUNT_DELETE_SECTION_DESCRIPTION,
   ACCOUNT_DELETE_SECTION_TITLE,
+  ACCOUNT_DELETE_SHARED_MAP_NOTICE,
   accountDeleteConfirmLabel,
+  accountDeleteDialogDescription,
 } from "@/features/settings/lib/accountDeleteCopy";
 
 describe("ACCOUNT_DELETE_DIALOG_DESCRIPTION", () => {
@@ -18,6 +20,26 @@ describe("ACCOUNT_DELETE_DIALOG_DESCRIPTION", () => {
 
   it("再サインインしても以前の記録は復元できないことを伝える", () => {
     expect(ACCOUNT_DELETE_DIALOG_DESCRIPTION).toContain("復元できません");
+  });
+});
+
+describe("accountDeleteDialogDescription", () => {
+  it("フラグ map_invitation が OFF なら共有の扱いを書かない（公開前の利用者に見せない）", () => {
+    expect(accountDeleteDialogDescription({ mapInvitationEnabled: false })).toBe(
+      ACCOUNT_DELETE_DIALOG_DESCRIPTION,
+    );
+  });
+
+  it("ON なら、取り消し不能の文言に続けて共有の扱いを書く", () => {
+    const text = accountDeleteDialogDescription({ mapInvitationEnabled: true });
+    expect(text.startsWith(ACCOUNT_DELETE_DIALOG_DESCRIPTION)).toBe(true);
+    expect(text).toContain(ACCOUNT_DELETE_SHARED_MAP_NOTICE);
+  });
+
+  it("共有の扱いは、メンバーから見えなくなること・ピンとタグが残ること・写真が消えることを伝える", () => {
+    expect(ACCOUNT_DELETE_SHARED_MAP_NOTICE).toContain("メンバーからも見えなくなります");
+    expect(ACCOUNT_DELETE_SHARED_MAP_NOTICE).toContain("ピンとタグはその地図に残り");
+    expect(ACCOUNT_DELETE_SHARED_MAP_NOTICE).toContain("写真は削除されます");
   });
 });
 

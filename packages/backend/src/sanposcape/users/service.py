@@ -1,5 +1,7 @@
 import logging
+import time
 import uuid
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from sanposcape.integrations.apple.exceptions import (
     AppleSignInUnavailableError,
 )
 from sanposcape.sanpo_maps.photos.account_purge import AccountPhotoPurgeScheduler
+from sanposcape.sanpo_maps.pins.account_deletion import SanpoMapAccountDeletion
 from sanposcape.users.exceptions import AccountDeletionUnavailableError
 from sanposcape.users.models import User
 from sanposcape.users.repository import AppleAuthorizationRepository, UserRepository
@@ -112,10 +115,14 @@ class AccountDeletionService:
     2. token があれば `commit()` で読み取りだけのトランザクションを閉じる。外部 HTTP の間に
        DB の接続（Neon の pooled 接続）を握らないため。変更は無いので何も書かれない。
     3. Apple の `/auth/revoke` で失効させる。
-    4. 写真の削除を予約し（`AccountPhotoPurgeScheduler`。S3 の写真は保持期間の後に
-       バックグラウンドで消す。SS-109 / ADR-009 決定36）、`UserService.delete_current_user`
-       で利用者を消す（CASCADE で `apple_authorizations` も消える）。予約と削除は同じ
-       commit に乗る。
+    4. 共有している地図のデータを扱い（`SanpoMapAccountDeletion.prepare`。本人が owner でない
+       地図の本人のピン・タグを owner に付け替え、本人が owner の地図にあるほかの利用者の写真の
+       キーを集める。SS-251 / ADR-009 決定40）、写真の削除を予約し（`AccountPhotoPurgeScheduler`。
+       S3 の写真は保持期間の後にバックグラウンドで消す。SS-109 / ADR-009 決定36）、
+       `UserService.delete_current_user` で利用者を消す（CASCADE で `apple_authorizations` も
+       消える）。付け替え・予約・削除は同じ commit に乗る。
+    5. commit の後に、集めたほかの利用者の写真を S3 から best-effort で消す（例外を出さない。
+       締め切りは Apple の失効にかかった時間だけ縮める）。
 
     失効の結果ごとの扱い:
 
@@ -146,14 +153,19 @@ class AccountDeletionService:
         apple_authorizations: AppleAuthorizationRepository,
         apple_sign_in_client: AppleSignInClient,
         photo_purges: AccountPhotoPurgeScheduler,
+        sanpo_map_data: SanpoMapAccountDeletion,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._db = db
         self._user_service = user_service
         self._apple_authorizations = apple_authorizations
         self._apple_sign_in_client = apple_sign_in_client
         self._photo_purges = photo_purges
+        self._sanpo_map_data = sanpo_map_data
+        self._monotonic = monotonic
 
     def delete_account(self, user: User) -> None:
+        started_at = self._monotonic()
         # commit で属性が期限切れになり再読み込み（= 新しいトランザクション）が走るので、
         # 先に素の値として控える。
         user_id = user.id
@@ -168,8 +180,12 @@ class AccountDeletionService:
             if current is None:
                 return
             user = current
+        photo_keys = self._sanpo_map_data.prepare(user_id)
         self._photo_purges.schedule(user_id)
         self._user_service.delete_current_user(user)
+        self._sanpo_map_data.delete_photo_objects_best_effort(
+            photo_keys, elapsed_seconds=self._monotonic() - started_at
+        )
 
     def _read_revocation_target(self, user: User) -> tuple[str, str] | None:
         if user.provider != "apple":
