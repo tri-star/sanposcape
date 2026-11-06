@@ -18,7 +18,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * 散歩中（ナビタブ）。`features/walk` は `features/pin` を import しない規約を保つため、
  * 登録済みピンのレイヤー（`RegisteredPinsMapLayer`）の合成と認証値・フラグの注入はこのルートが担う
  * （SS-118。`docs/architecture-guideline.md`「認証の扱い」）。表示するピンの絞り込みのボタン（`PinMapFilterControl`）も
- * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。
+ * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。地図単位の表示・非表示のフラグ
+ * （`map_pin_visibility`。SS-266）も、ここで読んでレイヤーとボタンに渡す。
  * `features/walk` は `features/history` も import しないため、散歩していないときの
  * 「最近の散歩」（`RecentWalksSection`）もこのルートが合成して `idleSection` に渡す（SS-147）。
  * 散歩中の地図の開発用の計測値の表示（`showPerfDebug`）も、開発ツールの判定（`isDevToolsEnabled()`。
@@ -27,6 +28,7 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 export default function WalkActiveRoute() {
   const router = useRouter();
   const pinFeatureEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinRegistration);
+  const mapPinVisibility = useFeatureFlag(FEATURE_FLAG_KEYS.mapPinVisibility);
   // セレクタはプリミティブを返す（オブジェクトを返すと zustand v5 で毎レンダー新しい参照になる）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
 
@@ -47,14 +49,18 @@ export default function WalkActiveRoute() {
           onSelectPin={handleSelectPin}
           onSelectCluster={actions.focusRegion}
           testIDPrefix="walk-active-pin"
+          mapPinVisibility={mapPinVisibility}
         />
       ) : null,
-    [showRegisteredPins, handleSelectPin],
+    [showRegisteredPins, handleSelectPin, mapPinVisibility],
   );
 
   // ピンを描かないときは絞り込みのボタンも出さない（効く対象が無いため）。
   const mapTools = showRegisteredPins ? (
-    <PinMapFilterControl testIDPrefix="walk-active-pin-filter" />
+    <PinMapFilterControl
+      testIDPrefix="walk-active-pin-filter"
+      mapPinVisibility={mapPinVisibility}
+    />
   ) : null;
 
   // 散歩していないときの「最近の散歩」（features/history）。features/walk は features/history を import しない

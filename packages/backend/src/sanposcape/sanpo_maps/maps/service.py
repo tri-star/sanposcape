@@ -16,6 +16,7 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapListRead,
     SanpoMapMemberListRead,
     SanpoMapMemberRead,
+    SanpoMapMembershipUpdate,
     SanpoMapRead,
     SanpoMapTagListRead,
     SanpoMapTagRead,
@@ -42,7 +43,8 @@ class SanpoMapService:
     （ADR-011）。
 
     トランザクション境界（commit）: `list_maps`/`list_tags`/`list_members` は読み取り専用なので
-    commit しない。`create_map`/`update_map`/`delete_map`/`remove_member` は自分で commit する。
+    commit しない。`create_map`/`update_map`/`update_membership`/`delete_map`/`remove_member` は
+    自分で commit する。
     """
 
     def __init__(
@@ -66,16 +68,17 @@ class SanpoMapService:
         pin_counts: dict[uuid.UUID, int] = {}
         if include_pin_count:
             pin_counts = self._repository.count_pins_for_maps(
-                [sanpo_map.id for sanpo_map, _role in rows]
+                [sanpo_map.id for sanpo_map, _role, _pins_visible in rows]
             )
         items = [
             to_sanpo_map_read(
                 sanpo_map,
                 role=role,
                 current_user_id=current_user.id,
+                pins_visible=pins_visible,
                 pin_count=pin_counts.get(sanpo_map.id, 0) if include_pin_count else None,
             )
-            for sanpo_map, role in rows
+            for sanpo_map, role, pins_visible in rows
         ]
         return SanpoMapListRead(items=items, next_cursor=None)
 
@@ -192,7 +195,10 @@ class SanpoMapService:
             icon=payload.icon,
         )
         self._db.commit()
-        return to_sanpo_map_read(sanpo_map, role="owner", current_user_id=current_user.id)
+        # 作った地図のメンバーシップは既定値（表示）。
+        return to_sanpo_map_read(
+            sanpo_map, role="owner", current_user_id=current_user.id, pins_visible=True
+        )
 
     def update_map(
         self, current_user: User, sanpo_map_id: uuid.UUID, payload: SanpoMapUpdate
@@ -229,8 +235,51 @@ class SanpoMapService:
             if payload.icon != sanpo_map.icon:
                 self._repository.update_icon(sanpo_map, icon=payload.icon)
 
+        pins_visible = self._repository.get_pins_visible(
+            sanpo_map_id=sanpo_map.id, user_id=current_user.id
+        )
         self._db.commit()
-        return to_sanpo_map_read(sanpo_map, role=role, current_user_id=current_user.id)
+        return to_sanpo_map_read(
+            sanpo_map, role=role, current_user_id=current_user.id, pins_visible=pins_visible
+        )
+
+    def update_membership(
+        self, current_user: User, sanpo_map_id: uuid.UUID, payload: SanpoMapMembershipUpdate
+    ) -> SanpoMapRead:
+        """`PATCH /sanpo-maps/{sanpo_map_id}/members/me`: 自分のメンバーシップの設定を変える
+        （SS-266）。
+
+        変えられるのは `pins_visible`（この地図のピンを自分のピンタブ・ナビタブの地図に出すか）
+        だけ。利用者 × 地図の設定なので、地図の member なら role を問わず変えられ、ほかの
+        メンバーには効かない。非メンバー・存在しない ID は 404。`{}` は何も変えずに 200。
+        地図の `updated_at` は変えない。
+        地図の行は `FOR UPDATE` でロックする（`remove_member` と同じ行のロックで、抜ける・外す・
+        地図の削除と直列化する。後発は行が無いので 404）。
+        """
+        membership = self._repository.get_membership_for_update(
+            user_id=current_user.id, sanpo_map_id=sanpo_map_id
+        )
+        if membership is None:
+            raise SanpoMapNotFoundError()
+        sanpo_map, role = membership
+
+        if "pins_visible" in payload.model_fields_set:
+            if payload.pins_visible is None:
+                # `SanpoMapMembershipUpdate` の model_validator が明示 null を弾いているため
+                # 到達しないはずの不変条件違反。
+                raise AssertionError("payload.pins_visible must not be None when set")
+            self._repository.update_pins_visible(
+                sanpo_map_id=sanpo_map.id,
+                user_id=current_user.id,
+                pins_visible=payload.pins_visible,
+            )
+        pins_visible = self._repository.get_pins_visible(
+            sanpo_map_id=sanpo_map.id, user_id=current_user.id
+        )
+        self._db.commit()
+        return to_sanpo_map_read(
+            sanpo_map, role=role, current_user_id=current_user.id, pins_visible=pins_visible
+        )
 
     def delete_map(self, current_user: User, sanpo_map_id: uuid.UUID) -> None:
         """`DELETE /sanpo-maps/{sanpo_map_id}`: 地図を削除する（ADR-009 決定28）。

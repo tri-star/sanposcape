@@ -1,5 +1,5 @@
 # ピンタブ（SS-146）: サインイン → 地図が出る → 登録済みピンの取得が落ち着く（エラーにならない）
-# → 表示するピンの絞り込み（SS-174）: シートの既定値（アーカイブ off・未訪問/訪問済みとも on）→ 訪問済みを外すと
+# → 表示するピンの絞り込み（SS-174）: 「表示する地図」の節が出る（SS-266）→ シートの既定値（アーカイブ off・未訪問/訪問済みとも on）→ 訪問済みを外すと
 #   未訪問は外せなくなる → アーカイブ済みも表示にして閉じても取得がエラーにならない → 既定に戻す
 # → ボタン配置エリアの「地図一覧」→ 地図一覧（SS-121）→ 戻るとピンタブ。
 # ナビタブの旧導線（/pins/map・/pins/pick-location）は SS-147 でルートごと削除した。
@@ -37,6 +37,10 @@ tags:
     visible:
       id: "pin-tab-pin-filter-sheet"
     timeout: 5000
+# 地図単位の表示・非表示（SS-266。stub で map_pin_visibility ON）の節が出る。切り替えはしない
+# （サインインした利用者の選択が DB に残り、同じ CI ランのほかのフローのピンの表示に効くため）。
+- assertVisible:
+    id: "pin-tab-pin-filter-maps"
 - assertVisible:
     id: "pin-tab-pin-filter-archived-switch"
     checked: false

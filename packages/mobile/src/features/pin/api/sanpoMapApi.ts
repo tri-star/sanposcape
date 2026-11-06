@@ -4,6 +4,7 @@ import {
   listSanpoMapMembers as listSanpoMapMembersRequest,
   listSanpoMaps as listSanpoMapsRequest,
   removeSanpoMapMember as removeSanpoMapMemberRequest,
+  updateMySanpoMapMembership as updateMySanpoMapMembershipRequest,
   updateSanpoMap as updateSanpoMapRequest,
 } from "@/api/generated/endpoints/sanpo-maps/sanpo-maps";
 import type { SanpoMapMemberRead, SanpoMapRead } from "@/api/generated/model";
@@ -21,6 +22,9 @@ export function toSanpoMap(read: SanpoMapRead): SanpoMap {
     // pin_count は OpenAPI 上 optional かつ nullable。undefined も null に揃える。
     pinCount: read.pin_count ?? null,
     icon: toSanpoMapIconKey(read.icon),
+    // SS-266。生成型では必須でも、`pins_visible` を返さない古い backend では欠ける。欠けたら表示に倒す
+    // （false 以外は表示。非表示は利用者が明示的に選んだときだけ）。
+    pinsVisible: read.pins_visible !== false,
   };
 }
 
@@ -76,6 +80,26 @@ export async function updateSanpoMapIcon(input: {
 }): Promise<SanpoMap> {
   if (!isUuid(input.sanpoMapId)) throw new ApiError(404);
   const response = await updateSanpoMapRequest(input.sanpoMapId, { icon: input.icon });
+  if (response.status !== 200) {
+    throw new ApiError(response.status);
+  }
+  return toSanpoMap(response.data);
+}
+
+/**
+ * `PATCH /sanpo-maps/{id}/members/me` で、この地図のピンを自分の地図に出すかを変える（SS-266）。
+ * 自分のメンバーシップの設定で、ほかのメンバーには効かない。body は `{ pins_visible }` のみ。
+ * `sanpoMapId` が UUID でなければ通信せず ApiError(404)。応答の pin_count は null なので、
+ * キャッシュ反映側（`replaceUpdatedSanpoMap`）で既存の件数を残す。`signal` は渡さない（書き込みは画面を離れても中断しない）。
+ */
+export async function updateSanpoMapPinsVisible(input: {
+  sanpoMapId: string;
+  pinsVisible: boolean;
+}): Promise<SanpoMap> {
+  if (!isUuid(input.sanpoMapId)) throw new ApiError(404);
+  const response = await updateMySanpoMapMembershipRequest(input.sanpoMapId, {
+    pins_visible: input.pinsVisible,
+  });
   if (response.status !== 200) {
     throw new ApiError(response.status);
   }

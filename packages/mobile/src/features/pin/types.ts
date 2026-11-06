@@ -54,6 +54,11 @@ export type SanpoMap = {
   pinCount: number | null;
   /** 地図のアイコン（SS-171）。API の値を toSanpoMapIconKey で検証済み。 */
   icon: SanpoMapIconKey;
+  /**
+   * この地図のピンを、自分のピンタブ・ナビタブの地図に出すか（SS-266）。自分のメンバーシップの値で、
+   * ほかのメンバーの選択とは独立。フラグ `map_pin_visibility` が OFF の間は使わない（全地図を出す）。
+   */
+  pinsVisible: boolean;
 };
 
 /** 保存先の選択。"default" は sanpo_map_id を送らない＝自分の既定地図（無ければ「最初の地図」を作る）。 */

@@ -34,8 +34,8 @@ class TestListForMember:
 
         rows = repo.list_for_member(user_id=user.id)
 
-        assert [m.id for m, _role in rows] == [default_map.id, other_map.id]
-        assert all(role == "owner" for _m, role in rows)
+        assert [m.id for m, _role, _pins_visible in rows] == [default_map.id, other_map.id]
+        assert all(role == "owner" for _m, role, _pins_visible in rows)
 
     def test_orders_non_default_maps_by_updated_at_desc(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")
@@ -48,7 +48,7 @@ class TestListForMember:
 
         rows = repo.list_for_member(user_id=user.id)
 
-        assert [m.id for m, _role in rows] == [older.id, newer.id]
+        assert [m.id for m, _role, _pins_visible in rows] == [older.id, newer.id]
 
     def test_other_users_map_is_not_returned(self, db_session: Session) -> None:
         owner = make_user(db_session, subject="owner")
@@ -69,7 +69,7 @@ class TestListForMember:
 
         rows = repo.list_for_member(user_id=editor.id)
 
-        assert rows == [(sanpo_map, "editor")]
+        assert rows == [(sanpo_map, "editor", True)]
 
     def test_no_maps_returns_empty_list(self, db_session: Session) -> None:
         user = make_user(db_session, subject="u1")

@@ -14,6 +14,7 @@ from sanposcape.sanpo_maps.maps.schemas import (
     SanpoMapListRead,
     SanpoMapMemberListRead,
     SanpoMapMemberNotFoundErrorRead,
+    SanpoMapMembershipUpdate,
     SanpoMapRead,
     SanpoMapTagListRead,
     SanpoMapUpdate,
@@ -175,6 +176,31 @@ def list_sanpo_map_members(
     存在しない ID は 404。
     """
     return service.list_members(current_user, sanpo_map_id)
+
+
+@router.patch(
+    "/{sanpo_map_id}/members/me",
+    response_model=SanpoMapRead,
+    operation_id="update_my_sanpo_map_membership",
+    responses={
+        **_ERROR_RESPONSES,
+        404: {"description": "Sanpo map not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def update_my_sanpo_map_membership(
+    sanpo_map_id: uuid.UUID,
+    payload: SanpoMapMembershipUpdate,
+    current_user: User = Depends(get_current_user),
+    service: SanpoMapService = Depends(get_sanpo_map_service),
+) -> SanpoMapRead:
+    """自分のメンバーシップの設定を変え、更新後の地図を返す。空のボディ `{}` は何も変えずに 200。
+
+    `pins_visible` は、この地図のピンを自分のピンタブ・ナビタブの地図に出すか。自分だけの設定で、
+    ほかのメンバーの表示には影響しない。地図の member（owner・editor）なら呼べる。非メンバー・
+    存在しない ID は 404。地図の `updated_at` は更新しない。
+    """
+    return service.update_membership(current_user, sanpo_map_id, payload)
 
 
 @router.delete(

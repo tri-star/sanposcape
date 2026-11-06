@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button/Button";
 import { Checkbox } from "@/components/ui/checkbox/Checkbox";
 import { Switch } from "@/components/ui/switch/Switch";
 import {
+  SanpoMapPinVisibilitySection,
+  type SanpoMapPinVisibilitySectionProps,
+} from "@/features/pin/components/visibility/SanpoMapPinVisibilitySection";
+import {
   canUncheckPinVisitFilterOption,
   isPinVisitFilterOptionChecked,
   type PinMapFilter,
@@ -19,6 +23,11 @@ export type PinMapFilterSheetProps = {
   filter: PinMapFilter;
   onChangeIncludeArchived: (includeArchived: boolean) => void;
   onChangeVisitOption: (option: PinVisitFilterOption, checked: boolean) => void;
+  /**
+   * 「表示する地図」の節（SS-266）。フラグ `map_pin_visibility` が OFF なら null で、節を出さない。
+   * `testIDPrefix` は `${testIDPrefix}-maps` で付ける。
+   */
+  mapVisibility: Omit<SanpoMapPinVisibilitySectionProps, "testIDPrefix"> | null;
   /**
    * 例: "pin-tab-pin-filter"。シートは `${testIDPrefix}-sheet`、スイッチは `${testIDPrefix}-archived-switch`、
    * チェックボックスは `${testIDPrefix}-unvisited` / `${testIDPrefix}-visited`、閉じるは `${testIDPrefix}-done`。
@@ -35,6 +44,7 @@ const VISIT_OPTIONS: readonly { option: PinVisitFilterOption; label: string }[] 
  * PinMapFilterSheet — 地図に描く登録済みピンの絞り込み（SS-174）。操作はその場で地図に効く
  * （下書き + 適用にしない。`CategorySheet` と違い、確定で重い取得が走るわけではないため）。
  * 訪問状況の最後の1つは外せない（チェックボックスを無効にして案内文を出す）。
+ * フラグ `map_pin_visibility` が ON なら、先頭に「表示する地図」の節（地図ごとのスイッチ。SS-266）を出す。
  */
 export function PinMapFilterSheet({
   open,
@@ -42,6 +52,7 @@ export function PinMapFilterSheet({
   filter,
   onChangeIncludeArchived,
   onChangeVisitOption,
+  mapVisibility,
   testIDPrefix,
 }: PinMapFilterSheetProps) {
   const styles = useStyles();
@@ -53,6 +64,9 @@ export function PinMapFilterSheet({
       onClose={onClose}
       testID={`${testIDPrefix}-sheet`}
     >
+      {mapVisibility !== null ? (
+        <SanpoMapPinVisibilitySection {...mapVisibility} testIDPrefix={`${testIDPrefix}-maps`} />
+      ) : null}
       <View style={styles.section}>
         <Switch
           label="アーカイブ済みも表示"

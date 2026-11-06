@@ -52,6 +52,14 @@ export function toPinListFilterParams(filter: PinMapFilter): PinListFilterParams
   return params;
 }
 
+/**
+ * 地図に出すピンを絞り込んでいるか（ボタンの塗りと、0件の案内を「条件に合うピンが無い」にする判定）。
+ * 条件が既定と違うとき、または自分が非表示にした地図が1つでもあるとき（SS-266）。
+ */
+export function isPinMapFiltered(filter: PinMapFilter, hiddenSanpoMapCount: number): boolean {
+  return !isDefaultPinMapFilter(filter) || hiddenSanpoMapCount > 0;
+}
+
 export function isPinVisitFilterOptionChecked(
   filter: PinMapFilter,
   option: PinVisitFilterOption,

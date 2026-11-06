@@ -15,6 +15,7 @@ const OWNED_DEFAULT: SanpoMap = {
   role: "owner",
   pinCount: null,
   icon: "coffee",
+  pinsVisible: true,
 };
 const OWNED_OTHER: SanpoMap = {
   id: "map-other",
@@ -23,6 +24,7 @@ const OWNED_OTHER: SanpoMap = {
   role: "owner",
   pinCount: null,
   icon: "cat",
+  pinsVisible: true,
 };
 const INVITED: SanpoMap = {
   id: "map-invited",
@@ -31,6 +33,7 @@ const INVITED: SanpoMap = {
   role: "editor",
   pinCount: null,
   icon: "leaf",
+  pinsVisible: true,
 };
 
 describe("resolveSanpoMapChoices", () => {

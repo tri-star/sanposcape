@@ -17,7 +17,7 @@ import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMar
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
 import { buildPinNewRouteParams, regionAroundPoint } from "@/features/pin/lib/pinLocationPicker";
-import { isDefaultPinMapFilter } from "@/features/pin/lib/pinMapFilter";
+import { isPinMapFiltered } from "@/features/pin/lib/pinMapFilter";
 import { resolvePinMapNotice } from "@/features/pin/lib/pinMapNotice";
 import type { PinTabFocus } from "@/features/pin/lib/pinTabFocus";
 import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore";
@@ -35,6 +35,8 @@ export type PinTabViewProps = {
   onSignIn: () => void;
   /** ピン詳細の「ピンの場所に移動」から来たときの寄せる要求（SS-246）。ルートがパラメータを検証して渡す。 */
   focus?: PinTabFocus | null;
+  /** 地図単位の表示・非表示（SS-266）。ルートがフラグ `map_pin_visibility` から注入する（features/pin はフラグを読まない）。 */
+  mapPinVisibility: boolean;
 };
 
 const PIN_TAB_HINT =
@@ -52,12 +54,18 @@ const PIN_TAB_HINT =
  *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
  * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
  * - 表示するピンの絞り込み（SS-174）は地図右上のツール列の `PinMapFilterControl` から。状態は散歩中の地図と共有する
- *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。
+ *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。地図単位の表示・非表示（SS-266）も
+ *   同じシートで切り替え、地図一覧の `pinsVisible`（自分のメンバーシップに保存）で散歩中の地図と共有する。
  * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  * - ピン詳細の「ピンの場所に移動」（`focus`。SS-246）は、地図がまだ無ければ最初の表示範囲にし（現在地の取得を待たない）、
  *   地図があれば `regionRequest` で動かす。`focus.key` ごとに1回だけ。
  */
-export function PinTabView({ isSignedIn, onSignIn, focus = null }: PinTabViewProps) {
+export function PinTabView({
+  isSignedIn,
+  onSignIn,
+  focus = null,
+  mapPinVisibility,
+}: PinTabViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -84,10 +92,16 @@ export function PinTabView({ isSignedIn, onSignIn, focus = null }: PinTabViewPro
     setMapStartRegion(picker.startRegion);
   }
   const pinFilter = usePinMapFilterStore((state) => state.filter);
-  const registered = useRegisteredPins({ visibleRegion, enabled: isSignedIn, filter: pinFilter });
+  const registered = useRegisteredPins({
+    visibleRegion,
+    enabled: isSignedIn,
+    filter: pinFilter,
+    mapPinVisibility,
+  });
   const notice = resolvePinMapNotice({
     isSignedIn,
-    filtered: !isDefaultPinMapFilter(pinFilter),
+    // 非表示にした地図があるのも絞り込みの一種（0件の案内を「条件に合うピンが無い」にする。SS-266）。
+    filtered: isPinMapFiltered(pinFilter, registered.hiddenSanpoMapCount),
     status: registered.status,
     errorCode: registered.errorCode,
     truncated: registered.truncated,
@@ -196,7 +210,12 @@ export function PinTabView({ isSignedIn, onSignIn, focus = null }: PinTabViewPro
           ) : null}
           {isSignedIn || picker.currentLocation ? (
             <View pointerEvents="box-none" style={styles.mapTools}>
-              {isSignedIn ? <PinMapFilterControl testIDPrefix="pin-tab-pin-filter" /> : null}
+              {isSignedIn ? (
+                <PinMapFilterControl
+                  testIDPrefix="pin-tab-pin-filter"
+                  mapPinVisibility={mapPinVisibility}
+                />
+              ) : null}
               {picker.currentLocation ? (
                 <IconButton
                   icon="crosshair"

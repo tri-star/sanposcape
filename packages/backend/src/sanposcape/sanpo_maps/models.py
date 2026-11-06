@@ -120,6 +120,11 @@ class SanpoMapMember(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
     role: Mapped[str] = mapped_column(String(16))
+    # この地図のピンを、本人のピンタブ・ナビタブの地図に出すか（SS-266）。利用者 × 地図の
+    # 設定なので、地図（`sanpo_maps`）ではなくメンバーシップに持つ（共有地図でほかの
+    # メンバーの選択に引きずられない）。
+    # 本人にだけ返す（`GET /sanpo-maps/{id}/members` には載せない）。
+    pins_visible: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
