@@ -128,9 +128,6 @@ class _RoutingProvider:
     def search_places(self, *args: Any, **kwargs: Any) -> tuple[()]:
         return ()
 
-    def get_walking_route(self, *args: Any, **kwargs: Any) -> ProviderRoute:
-        return ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
-
     def get_walking_loop_route(self, *args: Any, **kwargs: Any) -> ProviderLoopRoute:
         return ProviderLoopRoute(
             outbound=ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1))),

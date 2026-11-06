@@ -144,7 +144,6 @@ def test_loop_route_validates_payload(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("path", ["/explore/routes/loop", "/explore/routes/loop"])
 @pytest.mark.parametrize(
     "make_error, status, body",
     [
@@ -152,13 +151,13 @@ def test_loop_route_validates_payload(client: TestClient) -> None:
         (MapsUnavailableError, 503, {"detail": "Map provider unavailable"}),
     ],
 )
-def test_route_endpoints_map_upstream_errors_to_safe_status_codes(
-    client: TestClient, path: str, make_error, status: int, body: dict
+def test_loop_route_maps_upstream_errors_to_safe_status_codes(
+    client: TestClient, make_error, status: int, body: dict
 ) -> None:
     app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: (_ for _ in ()).throw(make_error())
     try:
-        response = client.post(path, json=_payload())
+        response = client.post("/explore/routes/loop", json=_payload())
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == status

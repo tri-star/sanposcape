@@ -78,9 +78,6 @@ def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
         def search_places(self, *args, **kwargs):
             return ()
 
-        def get_walking_route(self, *args, **kwargs):
-            return ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
-
         def get_walking_loop_route(self, *args, **kwargs):
             return _loop_route()
 
@@ -105,9 +102,6 @@ def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
     class Provider:
         def search_places(self, *args, **kwargs):
             return ()
-
-        def get_walking_route(self, *args, **kwargs):
-            return ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
 
         def get_walking_loop_route(self, *args, **kwargs):
             return _loop_route()
