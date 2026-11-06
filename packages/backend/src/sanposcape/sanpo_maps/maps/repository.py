@@ -84,9 +84,10 @@ class SanpoMapRepository:
             )
         )
 
-    def list_for_member(self, *, user_id: uuid.UUID) -> list[tuple[SanpoMap, str]]:
+    def list_for_member(self, *, user_id: uuid.UUID) -> list[tuple[SanpoMap, str, bool]]:
         """自分が member である地図を「自分の既定地図」→ `updated_at DESC, id DESC` で返す。
 
+        各要素は（地図, 自分の role, 自分の `pins_visible`。SS-266）。
         「自分の既定地図か」は `is_default AND owner_user_id == user_id`（B-D2）。
         """
         is_default_for_me = case(
@@ -94,12 +95,12 @@ class SanpoMapRepository:
             else_=0,
         )
         stmt = (
-            select(SanpoMap, SanpoMapMember.role)
+            select(SanpoMap, SanpoMapMember.role, SanpoMapMember.pins_visible)
             .join(SanpoMapMember, SanpoMapMember.sanpo_map_id == SanpoMap.id)
             .where(SanpoMapMember.user_id == user_id)
             .order_by(is_default_for_me.desc(), SanpoMap.updated_at.desc(), SanpoMap.id.desc())
         )
-        return [(row[0], row[1]) for row in self._db.execute(stmt).all()]
+        return [(row[0], row[1], row[2]) for row in self._db.execute(stmt).all()]
 
     @staticmethod
     def _membership_stmt(*, user_id: uuid.UUID, sanpo_map_id: uuid.UUID) -> Select:
@@ -315,6 +316,30 @@ class SanpoMapRepository:
             SanpoMapMember.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id
         )
         return self._db.scalars(stmt).first()
+
+    def get_pins_visible(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """その利用者のメンバーシップの `pins_visible`（SS-266）。
+
+        **認可済みの ID を受け取る**（呼び出し側が `get_membership*()` で member であることを
+        確かめた後に引く）。行が無ければ表示（true）として扱う。
+        """
+        stmt = select(SanpoMapMember.pins_visible).where(
+            SanpoMapMember.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id
+        )
+        value = self._db.scalars(stmt).first()
+        return True if value is None else value
+
+    def update_pins_visible(
+        self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, pins_visible: bool
+    ) -> None:
+        """その利用者のメンバーシップの `pins_visible` を書き換える（SS-266）。地図の
+        `updated_at` は触らない（地図そのものの変更ではない）。**認可済みの ID を受け取る**。
+        """
+        self._db.execute(
+            update(SanpoMapMember)
+            .where(SanpoMapMember.sanpo_map_id == sanpo_map_id, SanpoMapMember.user_id == user_id)
+            .values(pins_visible=pins_visible)
+        )
 
     def delete_member(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> None:
         """メンバーの行だけを消す（ADR-009 決定38）。その人が追加したピン・写真・タグは

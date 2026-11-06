@@ -43,6 +43,12 @@ export const FEATURE_FLAG_KEYS = {
    * プライバシーポリシーの施行日（2026-12-02）の後に ON にする。
    */
   mapInvitation: "map_invitation",
+  /**
+   * 地図単位のピンの表示・非表示（SS-266）。ピンタブ・ナビタブの「表示するピン」シートの「表示する地図」の節と、
+   * 非表示にした地図（自分のメンバーシップの `pins_visible`）のピンを地図に出さないことを出し分ける。
+   * OFF の間は `pins_visible` を見ず、すべての地図のピンを出す（従来どおり）。
+   */
+  mapPinVisibility: "map_pin_visibility",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];

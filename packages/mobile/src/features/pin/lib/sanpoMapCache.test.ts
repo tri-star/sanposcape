@@ -4,7 +4,7 @@ import { insertCreatedSanpoMap, replaceUpdatedSanpoMap } from "@/features/pin/li
 import type { SanpoMap } from "@/features/pin/types";
 
 function map(id: string, isDefault = false): SanpoMap {
-  return { id, name: id, isDefault, role: "owner", pinCount: 0, icon: "pin" };
+  return { id, name: id, isDefault, role: "owner", pinCount: 0, icon: "pin", pinsVisible: true };
 }
 
 describe("insertCreatedSanpoMap", () => {

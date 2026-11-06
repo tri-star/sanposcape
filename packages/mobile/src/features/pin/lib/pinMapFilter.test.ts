@@ -4,6 +4,7 @@ import {
   DEFAULT_PIN_MAP_FILTER,
   canUncheckPinVisitFilterOption,
   isDefaultPinMapFilter,
+  isPinMapFiltered,
   setPinVisitFilterOption,
   toPinListFilterParams,
   type PinMapFilter,
@@ -96,5 +97,19 @@ describe("setPinVisitFilterOption", () => {
   it("アーカイブの設定は保つ", () => {
     const filter = { ...DEFAULT_PIN_MAP_FILTER, includeArchived: true };
     expect(setPinVisitFilterOption(filter, "unvisited", false).includeArchived).toBe(true);
+  });
+});
+
+describe("isPinMapFiltered", () => {
+  it("既定の条件で非表示の地図が無ければ絞り込んでいない", () => {
+    expect(isPinMapFiltered(DEFAULT_PIN_MAP_FILTER, 0)).toBe(false);
+  });
+
+  it("条件が既定と違えば絞り込み中", () => {
+    expect(isPinMapFiltered(ONLY_UNVISITED, 0)).toBe(true);
+  });
+
+  it("既定の条件でも、非表示の地図が1つでもあれば絞り込み中（SS-266）", () => {
+    expect(isPinMapFiltered(DEFAULT_PIN_MAP_FILTER, 1)).toBe(true);
   });
 });

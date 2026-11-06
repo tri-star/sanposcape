@@ -68,6 +68,7 @@ describe("resolveTagSuggestionSanpoMapId", () => {
       role: "owner",
       pinCount: null,
       icon: "pin",
+      pinsVisible: true,
     },
     {
       id: "other",
@@ -76,6 +77,7 @@ describe("resolveTagSuggestionSanpoMapId", () => {
       role: "editor",
       pinCount: null,
       icon: "pin",
+      pinsVisible: true,
     },
   ];
   const onlyShared: SanpoMap[] = [maps[1]!];
