@@ -17,7 +17,6 @@ __all__ = [
     "WalkingRouteRequest",
     "RouteDestinationRead",
     "MapBounds",
-    "WalkingRouteResponse",
     "WalkingRouteLegKind",
     "WalkingRouteLeg",
     "LoopWalkingRouteResponse",
@@ -101,15 +100,6 @@ class RouteDestinationRead(RouteDestination):
 class MapBounds(BaseModel):
     north_east: GeoPoint
     south_west: GeoPoint
-
-
-class WalkingRouteResponse(BaseModel):
-    origin: GeoPoint
-    destination: RouteDestinationRead
-    duration_seconds: int = Field(ge=0)
-    distance_meters: int = Field(ge=0)
-    path: list[GeoPoint] = Field(min_length=2)
-    bounds: MapBounds
 
 
 class WalkingRouteLegKind(StrEnum):

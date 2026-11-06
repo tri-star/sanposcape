@@ -20,7 +20,11 @@ from fastapi import FastAPI, Request
 
 from sanposcape.aws_lambda.asgi_handler import AsgiLambdaHandler, build_handler
 from sanposcape.config import Settings
-from sanposcape.integrations.google_maps.provider import ProviderPoint, ProviderRoute
+from sanposcape.integrations.google_maps.provider import (
+    ProviderLoopRoute,
+    ProviderPoint,
+    ProviderRoute,
+)
 from sanposcape.main import create_app
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.service import MapsService
@@ -127,6 +131,12 @@ class _RoutingProvider:
     def get_walking_route(self, *args: Any, **kwargs: Any) -> ProviderRoute:
         return ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1)))
 
+    def get_walking_loop_route(self, *args: Any, **kwargs: Any) -> ProviderLoopRoute:
+        return ProviderLoopRoute(
+            outbound=ProviderRoute(1, 1, (ProviderPoint(35, 139), ProviderPoint(35.1, 139.1))),
+            inbound=ProviderRoute(1, 1, (ProviderPoint(35.1, 139.1), ProviderPoint(35, 139))),
+        )
+
 
 def test_explore_rate_limit_persists_across_invocations(
     make_handler: Callable[[FastAPI], AsgiLambdaHandler],
@@ -150,7 +160,7 @@ def test_explore_rate_limit_persists_across_invocations(
     }
 
     def _post(source_ip: str) -> int:
-        event = make_event("POST", "/explore/routes/walking", body=payload, source_ip=source_ip)
+        event = make_event("POST", "/explore/routes/loop", body=payload, source_ip=source_ip)
         return handler(event, None)["statusCode"]
 
     assert _post("203.0.113.1") == 200

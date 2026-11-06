@@ -72,25 +72,6 @@ def test_search_filters_and_sorts_by_round_trip_then_distance() -> None:
     assert result.candidates[0].round_trip_duration_seconds == 400
 
 
-def test_route_returns_map_ready_path_bounds_and_destination_name() -> None:
-    service = MapsService(FakeProvider(), 20, 20, 10, 8)
-    result = service.get_walking_route(
-        WalkingRouteRequest.model_validate(
-            {
-                "origin": {"latitude": 35, "longitude": 139},
-                "destination": {
-                    "place_id": "near",
-                    "name": "Near",
-                    "location": {"latitude": 35.2, "longitude": 139.2},
-                },
-            }
-        )
-    )
-    assert result.destination.name == "Near"
-    assert len(result.path) == 2
-    assert result.bounds.north_east == result.path[-1]
-
-
 def test_search_stops_route_fan_out_when_end_to_end_deadline_expires(monkeypatch) -> None:
     provider = FakeProvider()
     service = MapsService(provider, 20, 20, 10, 8)

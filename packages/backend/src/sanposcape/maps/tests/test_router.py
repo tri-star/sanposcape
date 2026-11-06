@@ -53,7 +53,7 @@ def _payload() -> dict:
 def test_maps_endpoints_allow_requests_without_authorization_header(client: TestClient) -> None:
     app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
     try:
-        route_response = client.post("/explore/routes/walking", json=_payload())
+        route_response = client.post("/explore/routes/loop", json=_payload())
         places_response = client.post(
             "/explore/places",
             json={
@@ -75,7 +75,7 @@ def test_maps_endpoints_reject_invalid_authorization_header(
     client: TestClient, authorization: str
 ) -> None:
     response = client.post(
-        "/explore/routes/walking",
+        "/explore/routes/loop",
         json=_payload(),
         headers={"Authorization": authorization},
     )
@@ -86,7 +86,7 @@ def test_maps_endpoints_reject_invalid_authorization_header(
 
 def test_explore_body_size_is_limited_before_auth_or_parsing(client: TestClient) -> None:
     response = client.post(
-        "/explore/routes/walking",
+        "/explore/routes/loop",
         json={
             "origin": {"latitude": 35, "longitude": 139},
             "destination": {
@@ -97,18 +97,6 @@ def test_explore_body_size_is_limited_before_auth_or_parsing(client: TestClient)
         },
     )
     assert response.status_code == 413
-
-
-def test_walking_route_uses_normalized_response_contract(client: TestClient) -> None:
-    app.dependency_overrides[get_current_user_optional] = lambda: object()
-    app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
-    try:
-        response = client.post("/explore/routes/walking", json=_payload())
-    finally:
-        app.dependency_overrides.clear()
-    assert response.status_code == 200
-    assert response.json()["destination"]["name"] == "Park"
-    assert len(response.json()["path"]) == 2
 
 
 def test_loop_route_uses_normalized_response_contract(client: TestClient) -> None:
@@ -156,7 +144,7 @@ def test_loop_route_validates_payload(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("path", ["/explore/routes/walking", "/explore/routes/loop"])
+@pytest.mark.parametrize("path", ["/explore/routes/loop", "/explore/routes/loop"])
 @pytest.mark.parametrize(
     "make_error, status, body",
     [
@@ -212,7 +200,7 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
     app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: MapsService(FakeProvider(), 20, 20, 10, 8)
     try:
-        response = client.post("/explore/routes/walking", json={"origin": {}})
+        response = client.post("/explore/routes/loop", json={"origin": {}})
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 422
@@ -236,7 +224,7 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
     app.dependency_overrides[get_current_user_optional] = lambda: object()
     app.dependency_overrides[get_maps_service] = lambda: (_ for _ in ()).throw(MapsQuotaError())
     try:
-        quota = client.post("/explore/routes/walking", json=_payload())
+        quota = client.post("/explore/routes/loop", json=_payload())
     finally:
         app.dependency_overrides.clear()
     assert quota.status_code == 429
@@ -247,7 +235,7 @@ def test_maps_validation_and_safe_upstream_errors(client: TestClient) -> None:
         MapsUnavailableError()
     )
     try:
-        unavailable = client.post("/explore/routes/walking", json=_payload())
+        unavailable = client.post("/explore/routes/loop", json=_payload())
     finally:
         app.dependency_overrides.clear()
     assert unavailable.status_code == 503
@@ -345,14 +333,6 @@ def test_explore_routes_loop_returns_a_distinct_loop_when_maps_mode_is_fake() ->
     )
 
 
-def test_openapi_declares_public_explore_endpoints_and_documented_error_responses() -> None:
-    operation = app.openapi()["paths"]["/explore/routes/walking"]["post"]
-    assert "security" not in operation
-    assert {"401", "413", "422", "429", "503"} <= set(operation["responses"])
-    assert "rate limit" in operation["responses"]["429"]["description"]
-    assert operation.get("deprecated") is True
-
-
 def test_openapi_declares_loop_route_endpoint_and_documented_error_responses() -> None:
     operation = app.openapi()["paths"]["/explore/routes/loop"]["post"]
     assert "security" not in operation
@@ -375,11 +355,6 @@ def test_committed_openapi_keeps_public_explore_contract() -> None:
 
     expected_contract = {
         "/explore/places": ("search_explore_places", "PlaceSearchRequest", "PlaceSearchResponse"),
-        "/explore/routes/walking": (
-            "get_walking_route_explore_routes_walking",
-            "WalkingRouteRequest",
-            "WalkingRouteResponse",
-        ),
         "/explore/routes/loop": (
             "get_loop_walking_route_explore_routes_loop",
             "WalkingRouteRequest",
@@ -397,7 +372,8 @@ def test_committed_openapi_keeps_public_explore_contract() -> None:
             "$ref": f"#/components/schemas/{response_schema}"
         }
 
-    assert document["paths"]["/explore/routes/walking"]["post"].get("deprecated") is True
+    # SS-130: 非推奨だった `/explore/routes/walking` は削除した（contract）。
+    assert "/explore/routes/walking" not in document["paths"]
     assert "deprecated" not in document["paths"]["/explore/routes/loop"]["post"]
 
 
