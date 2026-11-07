@@ -2480,7 +2480,7 @@ class _MoveWorld:
     owner_only_map: uuid.UUID
     editor_a_only_map: uuid.UUID
     editor_b_only_map: uuid.UUID
-    other_owner_map: uuid.UUID  # 別 owner の地図。editor_a が editor
+    other_owner_map: uuid.UUID  # 別 owner の地図。owner・editor_a・editor_b が editor（決定42）
     other_owner: User
     pin_by_editor_a_id: str
 
@@ -2689,7 +2689,7 @@ class TestMovePinRouter:
 
 
 class TestPinMovePermissionMatrix:
-    """ピンの地図の移動の権限（ADR-009 決定33）を router レベルで固定する。"""
+    """ピンの地図の移動の権限（ADR-009 決定33・42）を router レベルで固定する。"""
 
     @pytest.fixture
     def world(
@@ -2709,7 +2709,8 @@ class TestPinMovePermissionMatrix:
         editor_a_only_map = _create_sanpo_map(db_session, owner_user_id=editor_a.id)
         editor_b_only_map = _create_sanpo_map(db_session, owner_user_id=editor_b.id)
         other_owner_map = _create_sanpo_map(db_session, owner_user_id=other_owner.id)
-        _add_editor(db_session, sanpo_map_id=other_owner_map, user_id=editor_a.id)
+        for member in (owner, editor_a, editor_b):  # shared_map の全員がいる移動先（決定42）
+            _add_editor(db_session, sanpo_map_id=other_owner_map, user_id=member.id)
 
         pin = client.post(
             "/pins",
@@ -2751,25 +2752,22 @@ class TestPinMovePermissionMatrix:
             f"/pins/{pin_id or world.pin_by_editor_a_id}", headers=_auth_headers_for(user)
         )
 
-    def test_owner_can_move_editors_pin_to_map_editor_is_not_member_of(
+    def test_owner_cannot_move_editors_pin_to_map_editor_is_not_member_of(
         self, world: _MoveWorld
     ) -> None:
         response = self._patch(world, world.owner, {"sanpo_map_id": str(world.owner_only_map)})
 
-        assert response.status_code == 200
-        assert response.json()["sanpo_map"]["id"] == str(world.owner_only_map)
-        # editor_a は移動先のメンバーでないので、以後ピンは見えない（決定33 の D8）。
-        after = self._get(world, world.editor_a)
-        assert after.status_code == 404
-        assert after.json()["code"] == "pin_not_found"
+        # editor_a・editor_b が移動先にいないので 403（決定42。決定33 では許していた）。
+        assert response.status_code == 403
+        assert response.json()["code"] == "move_target_missing_members"
+        assert self._get(world, world.editor_a).json()["sanpo_map"]["id"] == str(world.shared_map)
 
-    def test_editor_can_move_own_pin_to_own_map(self, world: _MoveWorld) -> None:
+    def test_editor_cannot_move_own_pin_to_own_map(self, world: _MoveWorld) -> None:
         response = self._patch(
             world, world.editor_a, {"sanpo_map_id": str(world.editor_a_only_map)}
         )
-
-        assert response.status_code == 200
-        assert self._get(world, world.owner).status_code == 404
+        assert response.status_code == 403
+        assert response.json()["code"] == "move_target_missing_members"
 
     def test_editor_can_move_own_pin_to_map_where_editor(self, world: _MoveWorld) -> None:
         response = self._patch(world, world.editor_a, {"sanpo_map_id": str(world.other_owner_map)})
@@ -2831,12 +2829,12 @@ class TestPinMovePermissionMatrix:
         moved = self._patch(world, world.editor_a, {"sanpo_map_id": str(world.other_owner_map)})
         assert moved.status_code == 200
 
-        # 元の owner は移動後のピンにアクセスできない。
+        # 元の owner は移動先では editor なので、他人の写真は消せない（決定42 で移動先にいる）。
         old_owner_delete = world.client.delete(
             f"/pins/{world.pin_by_editor_a_id}/photos/{photo.id}",
             headers=_auth_headers_for(world.owner),
         )
-        assert old_owner_delete.status_code == 404
+        assert old_owner_delete.status_code == 403
         # 移動先の owner は他人の写真も削除できる。
         new_owner_delete = world.client.delete(
             f"/pins/{world.pin_by_editor_a_id}/photos/{photo.id}",

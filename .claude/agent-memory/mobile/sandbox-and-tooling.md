@@ -1,6 +1,6 @@
 ---
 name: sandbox-and-tooling
-description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有・pkill -f を他のコマンドと1行に並べると自分のシェルを殺す
+description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有、引き継いだ直後に adb サーバーが固まる、pkill -f を他のコマンドと1行に並べると自分のシェルを殺す
 metadata:
   type: feedback
   scope: durable
@@ -95,3 +95,10 @@ for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
 その場合も省略して報告し、PR の申し送りに「Metro（PID・起動元）を止めてから確認する」と書く。止めるのはユーザーに任せる。
 フラグを ON にした backend で確かめたいときは、`.env` を変えずに上書き用の env ファイル（`FEATURE_FLAG_STUB_DOCUMENT` に対象のフラグを足したもの）を
 `docker compose --env-file packages/backend/.env --env-file <上書き用> ...` で渡す（backend の local-env-and-sandbox §1）。確認の後はプレフィックス無しで `up -d` し直す。
+
+**ほかの worktree からエミュレータを引き継いだ直後に、Windows 側の adb サーバーが固まることがある**（SS-192）。`dev-up.sh` が「1/5 エミュレータ」の「起動中」で
+数分以上止まり、`adb.exe devices`・`adb.exe kill-server` も `localhost:5037` への接続も返らない。エミュレータ本体は動いている
+（`powershell.exe Get-Process emulator*,qemu*`）。`powershell.exe -NoProfile -Command "Get-Process adb | Select Id,StartTime"` で ID を確かめて
+`Stop-Process -Id <id> -Force` で止めると、次の `adb.exe devices` がサーバーを起動し直し、待っていた `dev-up.sh` はそのまま進む。
+adb サーバーはマシンに1つなので、止めるのはエミュレータのロック（並行作業の取り決め）を持っているときだけにする。
+`pkill -f "expo start --dev-client"` を同じコマンドに書くと自分のシェルのコマンド行にも一致して終了コード 144 で落ちる（Metro は止まる）。ロックの解放は別のコマンドで行う。

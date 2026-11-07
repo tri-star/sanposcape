@@ -325,6 +325,41 @@ class TestPinUpdateNotFoundErrorSchema:
             assert "content" not in response_404
 
 
+class TestPinMoveTargetsContract:
+    """SS-192（決定42）: 移動先の候補 API と、PATCH の 403 の `code`。"""
+
+    def test_move_targets_operation(self) -> None:
+        document = _load_committed_openapi()
+        operation = document["paths"]["/pins/{pin_id}/move-targets"]["get"]
+        assert operation["operationId"] == "list_pin_move_targets"
+        assert (
+            operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/PinMoveTargetListRead"
+        )
+
+    def test_move_target_schema_is_required(self) -> None:
+        schemas = _load_committed_openapi()["components"]["schemas"]
+        assert set(schemas["PinMoveTargetRead"]["required"]) == {
+            "sanpo_map_id",
+            "missing_members",
+            "added_members",
+        }
+        assert set(schemas["PinMoveTargetMemberRead"]["required"]) == {"user_id", "display_name"}
+
+    def test_patch_403_declares_optional_code(self) -> None:
+        document = _load_committed_openapi()
+        content = document["paths"]["/pins/{pin_id}"]["patch"]["responses"]["403"]["content"]
+        assert (
+            content["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/PinUpdateForbiddenErrorRead"
+        )
+        schema = document["components"]["schemas"]["PinUpdateForbiddenErrorRead"]
+        # role による 403 は `code` を持たないので required にしない。null も出さない。
+        assert schema["required"] == ["detail"]
+        assert schema["properties"]["code"]["const"] == "move_target_missing_members"
+        assert "anyOf" not in schema["properties"]["code"]
+
+
 class TestNewEndpointsResponses:
     """SS-112 の3エンドポイントは 503 を宣言せず、403・404 を宣言する（ADR-009 決定22）。"""
 

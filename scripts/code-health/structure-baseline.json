@@ -4,7 +4,7 @@
     {
       "kind": "file-lines",
       "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py",
-      "value": 2845,
+      "value": 2843,
       "issue": "SS-256",
       "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
     },

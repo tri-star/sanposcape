@@ -40,6 +40,14 @@ export function pinPhotosQueryKey(pinId: string) {
 }
 
 /**
+ * ピンの移動先の候補（SS-192）。`["pins", ...]` 始まりにして、編集の保存成功時の
+ * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })` で取り直されるようにする。
+ */
+export function pinMoveTargetsQueryKey(pinId: string) {
+  return ["pins", "move-targets", pinId] as const;
+}
+
+/**
  * 地図のタグ候補（SS-136）。`["pins", ...]` 始まりにして、ピン保存成功時の
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })`（`usePinSave`）と、SS-119 の編集・削除後の
  * invalidate で自動的に取り直されるようにする。

@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { ApiError, getApiErrorCode, isApiError } from "@/api/apiError";
 import type { PinRead } from "@/api/generated/model";
-import { deletePin, deletePinPhoto, updatePin } from "@/features/pin/api/pinEditApi";
+import {
+  deletePin,
+  deletePinPhoto,
+  fetchPinMoveTargets,
+  updatePin,
+} from "@/features/pin/api/pinEditApi";
 import { server } from "@/test/setup";
 
 const PIN_ID = "33333333-3333-4333-8333-333333333333";
@@ -244,5 +249,50 @@ describe("deletePinPhoto", () => {
 
     expect((a as ApiError).status).toBe(422);
     expect((b as ApiError).status).toBe(422);
+  });
+});
+
+describe("fetchPinMoveTargets", () => {
+  it("200: 候補の地図ごとの差分を camelCase にして返す（表示名の null も残す）", async () => {
+    let requestedPath: string | null = null;
+    server.use(
+      http.get("*/pins/:id/move-targets", ({ request }) => {
+        requestedPath = new URL(request.url).pathname;
+        return HttpResponse.json({
+          items: [
+            {
+              sanpo_map_id: "map-2",
+              missing_members: [{ user_id: USER_ID, display_name: null }],
+              added_members: [{ user_id: "u-2", display_name: "友だち" }],
+            },
+          ],
+        });
+      }),
+    );
+
+    const targets = await fetchPinMoveTargets(PIN_ID);
+
+    expect(requestedPath).toBe(`/pins/${PIN_ID}/move-targets`);
+    expect(targets).toEqual([
+      {
+        sanpoMapId: "map-2",
+        missingMembers: [{ userId: USER_ID, displayName: null }],
+        addedMembers: [{ userId: "u-2", displayName: "友だち" }],
+      },
+    ]);
+  });
+
+  it("404（古い backend にはルートが無い）は ApiError(404) を throw する", async () => {
+    server.use(http.get("*/pins/:id/move-targets", () => new HttpResponse(null, { status: 404 })));
+
+    const error = await fetchPinMoveTargets(PIN_ID).catch((e: unknown) => e);
+
+    expect(isApiError(error) && error.status).toBe(404);
+  });
+
+  it("非 UUID は通信せず ApiError(404)", async () => {
+    const error = await fetchPinMoveTargets("not-a-uuid").catch((e: unknown) => e);
+
+    expect(isApiError(error) && error.status).toBe(404);
   });
 });

@@ -17,6 +17,17 @@ export type SanpoMapMember = {
 };
 
 /** 有効な招待リンク（`GET /sanpo-maps/{id}/invitations`。SS-250）。トークンは持たない。 */
+/**
+ * ピンの移動先の候補（`GET /pins/{pin_id}/move-targets`。ルート ADR-009 決定42, SS-192）。
+ * - `missingMembers`: 今の地図のメンバーで、この地図に参加していない人。1人でもいれば移せない
+ * - `addedMembers`: この地図にだけいる人（移すと新しくピンが見えるようになる。移動は止めない）
+ */
+export type PinMoveTarget = {
+  sanpoMapId: string;
+  missingMembers: Pick<SanpoMapMember, "userId" | "displayName">[];
+  addedMembers: Pick<SanpoMapMember, "userId" | "displayName">[];
+};
+
 export type SanpoMapInvitation = {
   id: string;
   createdAt: string;

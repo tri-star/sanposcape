@@ -19,7 +19,9 @@ SS-113）を参照。関数の形は3種類ある。
 （`can_update_pin_archived`: 持ち主判定系の形）の変更は ADR-009 決定32（SS-173）。
 
 ピンの地図の移動（`can_move_pin_from`: 持ち主判定系の形・移動元、`can_move_pin_to`: 追加系の形・
-移動先）は ADR-009 決定33（SS-175）。
+移動先）は ADR-009 決定33（SS-175）。role のほかに「移動先に移動元の全メンバーがいる」ことも
+要るが、これは role ではなくメンバーの集合の条件なのでここには置かず、`PinService.update_pin` が
+DB で判定する（決定42, SS-192）。
 
 未知の role（`_WRITE_ROLES` に無い値）は常に False にする（fail-safe）。owner 以外は
 `role in _WRITE_ROLES` を満たさない限り何もできないため、`SanpoMapRole` の想定外の値が
