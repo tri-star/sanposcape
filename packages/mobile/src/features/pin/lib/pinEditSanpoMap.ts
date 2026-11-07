@@ -192,14 +192,18 @@ export function resolvePinEditSanpoMapChoices(input: {
       ),
     );
   }
-  const notes: string[] = [];
+  const notes: { key: string; text: string }[] = [];
   for (const map of input.maps) {
     const choice = toChoice(map.id, map.name, map.icon, map.id === input.selectedSanpoMapId);
     if (blocked.has(map.id)) {
       choice.disabled = true;
-      notes.push(
-        pinEditSanpoMapUnavailableNote(map.name, targetsById.get(map.id)?.missingMembers ?? []),
-      );
+      notes.push({
+        key: map.id,
+        text: pinEditSanpoMapUnavailableNote(
+          map.name,
+          targetsById.get(map.id)?.missingMembers ?? [],
+        ),
+      });
     }
     choices.push(choice);
   }

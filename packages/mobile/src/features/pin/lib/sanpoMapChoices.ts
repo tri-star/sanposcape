@@ -21,8 +21,11 @@ export type SanpoMapChoicesState = {
   status: "loading" | "ready" | "error";
   choices: SanpoMapChoice[];
   helper: string | null;
-  /** 選べない地図ごとの理由（チップの下に1行ずつ出す。編集画面だけ。SS-192）。 */
-  notes?: readonly string[];
+  /**
+   * 選べない地図ごとの理由（チップの下に1行ずつ出す。編集画面だけ。SS-192）。`key` は地図の ID
+   * （地図名は一意でなく、同じ名前の地図で文言が重なりうるため、文言を key にしない）。
+   */
+  notes?: readonly { key: string; text: string }[];
 };
 
 const LOADING_HELPER = "地図を読み込んでいます…";

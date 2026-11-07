@@ -366,8 +366,10 @@ describe("ピンの移動先の候補（SS-192）", () => {
       ["map-b", true],
       ["map-c", false],
     ]);
-    expect(state.notes).toEqual([pinEditSanpoMapUnavailableNote("地図B", [partner])]);
-    expect(state.notes?.[0]).toBe("「地図B」にははなさんが参加していないため、移せません");
+    expect(state.notes).toEqual([
+      { key: "map-b", text: pinEditSanpoMapUnavailableNote("地図B", [partner]) },
+    ]);
+    expect(state.notes?.[0]?.text).toBe("「地図B」にははなさんが参加していないため、移せません");
   });
 
   it("移動先にだけいる人がいれば、移動の案内に「見えるようになる」を添える", () => {

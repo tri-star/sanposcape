@@ -76,8 +76,8 @@ export function SanpoMapSelector({
       {state.status === "ready" && state.notes && state.notes.length > 0 ? (
         <View style={styles.notes} testID={`${testID}-notes`}>
           {state.notes.map((note) => (
-            <Text key={note} style={styles.helper}>
-              {note}
+            <Text key={note.key} style={styles.helper}>
+              {note.text}
             </Text>
           ))}
         </View>
