@@ -116,6 +116,14 @@ FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
         ),
         audience="client",
     ),
+    FeatureFlagSpec(
+        key="display_name_edit",
+        description=(
+            "表示名の変更（SS-268）。mobile の設定画面の「表示名」の節を出し分ける。"
+            "`PATCH /users/me` はガードしない（本人の行しか変えられない）。"
+        ),
+        audience="client",
+    ),
 )
 
 

@@ -143,6 +143,33 @@ paths:
             deleted
       security:
       - HTTPBearer: []
+    patch:
+      tags:
+      - users
+      summary: Update Me
+      description: Bearer token で解決した本人の表示名を変える（SS-268）。変えた表示名は、以降のサインインで Google などの名前に上書きされない。
+      operationId: update_me_users_me_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisplayNameUpdate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /explore/places:
     post:
       tags:
@@ -1769,6 +1796,28 @@ components:
       - display_name
       - photo_url
       title: AuthUserRead
+    DisplayNameUpdate:
+      properties:
+        display_name:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Display Name
+          description: 新しい表示名。前後の空白は除去し、除去後に 1〜50 文字（code point）。制御文字・行区切り・書式制御文字（双方向制御やゼロ幅文字など。ZWJ・ZWNJ
+            は除く）を含むと 422 になる。
+      additionalProperties: false
+      type: object
+      required:
+      - display_name
+      title: DisplayNameUpdate
+      description: '`PATCH /users/me` のリクエスト（SS-268）。本人の表示名を変える。
+
+
+        `display_name` は必須。前後の空白（全角を含む）を除去した後に 1〜50 code point。
+
+        空（空白だけ）は 422（サインインの氏名と違い、利用者の明示の操作なので黙って捨てない）。
+
+        null で消すことはできない。制御文字・行区切り・書式制御文字（ZWJ・ZWNJ は除く）を含むと 422。'
     ExploreCategory:
       type: string
       enum:
@@ -3196,6 +3245,36 @@ components:
       required:
       - refresh_token
       title: SessionRefreshRequest
+    UserRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        photo_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Url
+      type: object
+      required:
+      - id
+      - email
+      - display_name
+      - photo_url
+      title: UserRead
+      description: '`PATCH /users/me` の応答（SS-268）。`GET /auth/me` の `AuthUserRead`
+        と同じ形。'
     ValidationError:
       properties:
         loc:

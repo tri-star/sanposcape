@@ -116,7 +116,10 @@ def test_find_or_create_returns_same_user_on_revisit(db_session: Session) -> Non
     assert first.id == second.id
 
 
-def test_find_or_create_updates_profile_with_latest_values(db_session: Session) -> None:
+def test_find_or_create_updates_email_and_photo_but_keeps_display_name(
+    db_session: Session,
+) -> None:
+    """メール・写真は IdP の最新値で更新し、保存済みの表示名は上書きしない（SS-268）。"""
     service = _make_service(db_session)
 
     first = service.find_or_create(
@@ -136,7 +139,7 @@ def test_find_or_create_updates_profile_with_latest_values(db_session: Session) 
 
     assert updated.id == first.id
     assert updated.email == "new@example.com"
-    assert updated.display_name == "新名前"
+    assert updated.display_name == "旧名前"
     assert updated.photo_url == "https://example.com/new.png"
 
 
@@ -276,9 +279,10 @@ def test_initial_display_name_fills_null_display_name_of_existing_user(
     assert again.display_name == "後から来た名前"
 
 
-def test_idp_display_name_still_overwrites_and_initial_is_ignored_for_existing_user(
+def test_idp_display_name_fills_null_display_name_before_initial_for_existing_user(
     db_session: Session,
 ) -> None:
+    """既存ユーザーの表示名が NULL なら、IdP の名前を端末の名前より優先して埋める。"""
     service = _make_service(db_session)
     _find_or_create(service)
 

@@ -54,6 +54,17 @@ class UserService:
         """Apple の refresh token を保存する（削除時の失効用。SS-198）。commit は呼び出し元。"""
         self._apple_authorizations.upsert(user_id, client_id=client_id, refresh_token=refresh_token)
 
+    def update_display_name(self, current_user: User, display_name: str) -> User:
+        """本人の表示名を変える（SS-268）。検証は入口（`DisplayNameUpdate`）で済んでいる。
+
+        変えた名前は、以降のサインインで IdP の名前に上書きされない（`find_or_create`）。
+        """
+        current_user.display_name = display_name
+        self._db.commit()
+        # commit で属性が期限切れになる。応答を組み立てる前に読み直す。
+        self._db.refresh(current_user)
+        return current_user
+
     def delete_current_user(self, current_user: User) -> None:
         """認証済み本人のアカウントとセッション情報を削除する。"""
         self._repository.delete(current_user)
@@ -72,11 +83,15 @@ class UserService:
         """ユーザーを引き当て、無ければ作成する。
 
         `initial_display_name` は、新規作成時に `display_name`（IdP の ID token の氏名）が
-        無い場合に使う。既存ユーザーでは、保存済みの `display_name` が NULL のときだけ補完し、
-        非 NULL の値は上書きしない。Apple は氏名を初回の認可時にしか端末へ返さず、2 回目以降は
-        端末側に値が無いため、毎回上書きすると消えたり古い値に戻ったりする。一方 NULL の補完は、
-        初回のセッション応答を端末が受け取れなかった場合に再送で回復できる。`display_name` に
-        詰めて渡すと既存ユーザーにも毎回上書きされるので、必ずこの引数で渡すこと。
+        無い場合に使う。
+
+        既存ユーザーの表示名は、`display_name`・`initial_display_name` のどちらでも、保存済みの値が
+        NULL のときだけ補完し、非 NULL の値は上書きしない（SS-268。それまでは IdP の名前で毎回
+        上書きしていた）。利用者が設定画面（`PATCH /users/me`）で変えた名前が、次のサインインで
+        戻らないようにするため。Apple は氏名を初回の認可時にしか端末へ返さないので、もともと
+        上書きしていなかった。
+        NULL の補完は、初回のセッション応答を端末が受け取れなかった場合に再送で回復できる。
+        メールアドレスとプロフィール画像の URL は、従来どおり IdP の最新値で更新する。
 
         INSERT が競合して先勝ちの行を再取得した場合、後から来た側の
         `initial_display_name` は捨てられる（同一端末の二重送信なので実害は無い）。
@@ -91,14 +106,13 @@ class UserService:
                 photo_url=photo_url,
             )
 
-        # 既存ユーザーはプロフィールを最新値で更新する（IdP 側で名前や写真が変わるため）。
+        # 既存ユーザーのメール・写真は最新値で更新する（IdP 側で変わるため）。
         # None は「情報なし」であって「削除」ではないので、既存値を上書きしない。
         if email is not None:
             user.email = email
-        if display_name is not None:
-            user.display_name = display_name
-        elif user.display_name is None and initial_display_name is not None:
-            user.display_name = initial_display_name
+        # 表示名は利用者が変えられる（SS-268）ので、保存済みなら IdP の名前で上書きしない。
+        if user.display_name is None:
+            user.display_name = display_name if display_name is not None else initial_display_name
         if photo_url is not None:
             user.photo_url = photo_url
         self._db.flush()

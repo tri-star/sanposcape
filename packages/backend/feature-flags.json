@@ -30,6 +30,10 @@
     "map_pin_visibility": {
       "name": "map pin visibility",
       "description": "地図単位のピンの表示・非表示（SS-266）。mobile の『表示するピン』シートの『表示する地図』の節と、非表示にした地図のピンを地図に出さないことを出し分ける"
+    },
+    "display_name_edit": {
+      "name": "display name edit",
+      "description": "表示名の変更（SS-268）。mobile の設定画面の『表示名』の節を出し分ける"
     }
   },
   "values": {
@@ -37,6 +41,7 @@
     "pin_registration": { "enabled": false },
     "pin_station_tag": { "enabled": false },
     "map_invitation": { "enabled": false },
-    "map_pin_visibility": { "enabled": false }
+    "map_pin_visibility": { "enabled": false },
+    "display_name_edit": { "enabled": false }
   }
 }
