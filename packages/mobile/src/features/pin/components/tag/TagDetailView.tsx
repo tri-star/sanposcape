@@ -57,7 +57,7 @@ export function TagDetailView({ label, isSignedIn, onSignIn }: TagDetailViewProp
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const source = useAllSanpoMapPins({ enabled: isSignedIn && label !== null });
+  const source = useAllSanpoMapPins({ enabled: isSignedIn && label !== null, refetchOnOpen: true });
   const pull = usePullToRefresh(source.refresh);
   const back = useScreenBack({ fallbackHref: "/(tabs)/pins" });
 
@@ -72,6 +72,7 @@ export function TagDetailView({ label, isSignedIn, onSignIn }: TagDetailViewProp
     isSignedIn,
     status: source.status,
     pinCount: rows.length,
+    fetching: source.isFetching,
   });
 
   const { handlePhotoLoadError } = source;

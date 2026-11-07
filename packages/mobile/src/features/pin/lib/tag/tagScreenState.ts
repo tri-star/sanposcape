@@ -14,6 +14,8 @@ export type SanpoMapPinsQueryResult = {
   error: unknown;
   isPending: boolean;
   isError: boolean;
+  /** 取得中（初回・取り直しを問わない）。 */
+  isFetching?: boolean;
 };
 
 export type CombinedSanpoMapPins = {
@@ -106,18 +108,24 @@ export type TagDetailBodyState =
   | "empty"
   | "ready";
 
-/** タグ詳細の状態。判定順: invalid-label → sign-in-required → error → loading → empty（該当ピン0件）→ ready。 */
+/**
+ * タグ詳細の状態。判定順: invalid-label → sign-in-required → error → loading → empty（該当ピン0件）→ ready。
+ * 該当が0件でも取り直しの最中なら loading にする（開いたときの取り直しの前のキャッシュに、直前に足されたピンが
+ * 無いことがあり、「このタグが付いたピンはありません」を一瞬出さないため）。
+ */
 export function resolveTagDetailBodyState(input: {
   hasLabel: boolean;
   isSignedIn: boolean;
   status: LoadStatus;
   pinCount: number;
+  /** 地図一覧・地図ごとのピンのどれかを取得中。 */
+  fetching: boolean;
 }): TagDetailBodyState {
   if (!input.hasLabel) return "invalid-label";
   if (!input.isSignedIn) return "sign-in-required";
   if (input.status === "error") return "error";
   if (input.status === "loading") return "loading";
-  if (input.pinCount === 0) return "empty";
+  if (input.pinCount === 0) return input.fetching ? "loading" : "empty";
   return "ready";
 }
 

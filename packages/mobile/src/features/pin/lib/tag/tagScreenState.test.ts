@@ -110,7 +110,13 @@ describe("resolveTagListBodyState", () => {
 });
 
 describe("resolveTagDetailBodyState", () => {
-  const base = { hasLabel: true, isSignedIn: true, status: "ready", pinCount: 1 } as const;
+  const base = {
+    hasLabel: true,
+    isSignedIn: true,
+    status: "ready",
+    pinCount: 1,
+    fetching: false,
+  } as const;
 
   it("判定順: invalid-label → sign-in-required → error → loading → empty → ready", () => {
     expect(resolveTagDetailBodyState({ ...base, hasLabel: false, isSignedIn: false })).toBe(
@@ -121,6 +127,11 @@ describe("resolveTagDetailBodyState", () => {
     expect(resolveTagDetailBodyState({ ...base, status: "loading" })).toBe("loading");
     expect(resolveTagDetailBodyState({ ...base, pinCount: 0 })).toBe("empty");
     expect(resolveTagDetailBodyState(base)).toBe("ready");
+  });
+
+  it("0件でも取り直しの最中は loading（キャッシュの古い一覧で空を出さない）。該当があれば取り直し中も ready", () => {
+    expect(resolveTagDetailBodyState({ ...base, pinCount: 0, fetching: true })).toBe("loading");
+    expect(resolveTagDetailBodyState({ ...base, fetching: true })).toBe("ready");
   });
 });
 

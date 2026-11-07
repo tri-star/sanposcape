@@ -28,6 +28,8 @@ function pickSanpoMapPinsQueryResults(
 }
 
 export type UseAllSanpoMapPinsResult = CombinedSanpoMapPins & {
+  /** 地図一覧・地図ごとのピンのどれかを取得中（初回・取り直しを問わない）。 */
+  isFetching: boolean;
   retry: () => void;
   /** pull-to-refresh 用。地図一覧と各地図のピンの取得の完了（失敗を含む）で解決する。 */
   refresh: () => Promise<void>;
@@ -42,7 +44,17 @@ export type UseAllSanpoMapPinsResult = CombinedSanpoMapPins & {
  * 地図ごとのピンの表示・非表示（SS-266）は地図の表示だけの設定なので見ない（地図詳細の一覧と同じく全地図）。
  * `enabled` が false（ゲスト）のときは通信しない（呼び出し側がゲストを先に扱う）。
  */
-export function useAllSanpoMapPins(options: { enabled: boolean }): UseAllSanpoMapPinsResult {
+export type UseAllSanpoMapPinsOptions = {
+  enabled: boolean;
+  /**
+   * 開いたときに鮮度に関わらず地図ごとのピンを取り直す（タグ詳細。SS-245）。ピン詳細は開くたびに取るので、
+   * 別のメンバー（や別の端末）が直前に足したピンの詳細からタグを押すと、キャッシュ（staleTime 60 秒）の一覧に
+   * そのピンが無く「このタグが付いたピンはありません」と食い違う。取り直しの間はキャッシュを出しておく。
+   */
+  refetchOnOpen?: boolean;
+};
+
+export function useAllSanpoMapPins(options: UseAllSanpoMapPinsOptions): UseAllSanpoMapPinsResult {
   const queryClient = useQueryClient();
   const apiBaseUrl = getApiBaseUrl();
   const maps = useSanpoMaps({ enabled: options.enabled });
@@ -53,6 +65,7 @@ export function useAllSanpoMapPins(options: { enabled: boolean }): UseAllSanpoMa
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchAllPinsInSanpoMap({ sanpoMapId: map.id }, { signal, apiBaseUrl }),
       enabled: options.enabled,
+      refetchOnMount: options.refetchOnOpen === true ? ("always" as const) : true,
       staleTime: STALE_TIME_MS,
       gcTime: GC_TIME_MS,
       // GET の一時障害の再送は customFetch の transientRetry が既に行う（useSanpoMapPins と同じ）。
@@ -101,5 +114,7 @@ export function useAllSanpoMapPins(options: { enabled: boolean }): UseAllSanpoMa
     [queryClient],
   );
 
-  return { ...combined, retry, refresh, handlePhotoLoadError };
+  const isFetching = maps.isFetching || results.some((result) => result.isFetching === true);
+
+  return { ...combined, isFetching, retry, refresh, handlePhotoLoadError };
 }
