@@ -56,6 +56,7 @@ const PIN_TAB_HINT =
  * - 表示するピンの絞り込み（SS-174）は地図右上のツール列の `PinMapFilterControl` から。状態は散歩中の地図と共有する
  *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。地図単位の表示・非表示（SS-266）も
  *   同じシートで切り替え、地図一覧の `pinsVisible`（自分のメンバーシップに保存）で散歩中の地図と共有する。
+ * - ボタン配置エリアには「地図一覧」と「タグ一覧」（SS-245）を並べる。
  * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  * - ピン詳細の「ピンの場所に移動」（`focus`。SS-246）は、地図がまだ無ければ最初の表示範囲にし（現在地の取得を待たない）、
  *   地図があれば `regionRequest` で動かす。`focus.key` ごとに1回だけ。
@@ -153,6 +154,10 @@ export function PinTabView({
     runOnce(() => router.push("/sanpo-maps"));
   };
 
+  const handleOpenTagList = () => {
+    runOnce(() => router.push("/tags"));
+  };
+
   return (
     <View testID="pin-tab-screen" style={styles.root}>
       <View style={styles.mapArea}>
@@ -241,6 +246,15 @@ export function PinTabView({
           testID="pin-tab-open-sanpo-map-list"
         >
           地図一覧
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon="tag"
+          onPress={handleOpenTagList}
+          testID="pin-tab-open-tag-list"
+        >
+          タグ一覧
         </Button>
       </TabActionBar>
     </View>

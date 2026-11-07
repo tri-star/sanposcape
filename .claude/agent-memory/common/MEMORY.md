@@ -15,3 +15,4 @@
 - [画面イメージを sandbox で撮る](render-mockups-in-sandbox.md) — MCP ブラウザは file:// 不可・sandbox の localhost に届かない、chrome-headless-shell で撮る、PIL は uv で入れる。LP は scripts/lp-tools/capture-lp.mjs を sandbox の外で
 - [gh の --attach は sandbox の外で](gh-attach-needs-outside-sandbox.md) — sandbox が uploads.github.com を拒みコメントは作られない。外で1回だけ再実行、画像は --attach と同じ worktree 下の絶対パスで参照
 - [push -u の upstream だけが config.lock で失敗する](push-upstream-config-lock.md) — 「could not lock config file」でも push は届いている。ls-remote で確かめ、config.lock は消さない
+- [置き換えのスクリプトは一致を assert する](python-replace-assert-after-formatter.md) — python の replace・sed は当たらなくても黙って進む。整形で行が折り返されると外れる。assert で止め、git diff で確かめる

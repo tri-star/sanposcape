@@ -147,15 +147,18 @@ export function sanpoMapRowAccessibilityLabel(map: {
   return parts.join("、");
 }
 
-/** 地図詳細のピン行の読み上げ。名前・日時・タグ（表示と同じ先頭3件＋残り件数）を合成する。 */
+/** 地図詳細・タグ詳細のピン行の読み上げ。名前・日時・タグ（表示と同じ先頭3件＋残り件数）を合成する。 */
 export function pinRowAccessibilityLabel(input: {
   displayName: string;
   createdAtLabel: string | null;
   tags: readonly { label: string }[];
   /** 状態バッジの読み上げ（訪問済み・アーカイブ済み。SS-173）。名前の直後に並べる。 */
   statusLabels?: readonly string[];
+  /** ピンの地図の名前（複数の地図のピンを並べるタグ詳細だけ。SS-245）。状態の後に「地図「散歩」」と並べる。 */
+  sanpoMapName?: string;
 }): string {
   const parts = [input.displayName, ...(input.statusLabels ?? [])];
+  if (input.sanpoMapName !== undefined) parts.push(`地図「${input.sanpoMapName}」`);
   if (input.createdAtLabel !== null) parts.push(input.createdAtLabel);
   const { visible, hiddenCount } = summarizePinTags(input.tags);
   if (visible.length > 0) {

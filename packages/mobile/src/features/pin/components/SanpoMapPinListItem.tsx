@@ -5,10 +5,11 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { Tag } from "@/components/ui/tag/Tag";
 import { PinPhotoImage } from "@/features/pin/components/PinPhotoImage";
 import { PinStatusBadges } from "@/features/pin/components/PinStatusBadges";
+import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
 import { formatPinCreatedAt, pinDisplayName } from "@/features/pin/lib/pinDetailState";
 import { pinStatusAccessibilityLabels, resolvePinStatusBadges } from "@/features/pin/lib/pinStatus";
 import { pinRowAccessibilityLabel, summarizePinTags } from "@/features/pin/lib/sanpoMapScreenState";
-import type { PinListEntry } from "@/features/pin/types";
+import type { PinListEntry, SanpoMapIconKey } from "@/features/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -17,13 +18,28 @@ export type SanpoMapPinListItemProps = {
   onPress: (pinId: string) => void;
   /** 代表写真の読み込み失敗（URL の失効の可能性）。 */
   onPhotoError: () => void;
+  /**
+   * ピンの地図（アイコン + 名前）を行に出す。複数の地図のピンを並べる画面（タグ詳細。SS-245）だけが渡す。
+   * 地図詳細は1つの地図の中なので渡さない。
+   */
+  sanpoMap?: { name: string; icon: SanpoMapIconKey };
   testID: string;
 };
 
 const THUMB_SIZE = 64;
+const SANPO_MAP_BADGE_SIZE = 18;
 
-/** SanpoMapPinListItem — 地図詳細のピン一覧の1行（SS-121）。サムネイル・名前・日時・タグ。 */
-function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMapPinListItemProps) {
+/**
+ * SanpoMapPinListItem — 地図詳細のピン一覧の1行（SS-121）。サムネイル・名前・日時・タグ。
+ * タグ詳細（SS-245）では `sanpoMap` を渡して、どの地図のピンかも出す。
+ */
+function SanpoMapPinListItemBase({
+  pin,
+  onPress,
+  onPhotoError,
+  sanpoMap,
+  testID,
+}: SanpoMapPinListItemProps) {
   const theme = useTheme();
   const styles = useStyles();
   const displayName = pinDisplayName(pin.name);
@@ -39,6 +55,7 @@ function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMa
         createdAtLabel,
         tags: pin.tags,
         statusLabels: pinStatusAccessibilityLabels(pin, "list"),
+        sanpoMapName: sanpoMap?.name,
       })}
       accessibilityHint="ピンの詳細を開きます"
       onPress={() => onPress(pin.id)}
@@ -68,6 +85,14 @@ function SanpoMapPinListItemBase({ pin, onPress, onPhotoError, testID }: SanpoMa
           {displayName}
         </Text>
         <PinStatusBadges badges={statusBadges} testIDPrefix={`${testID}-status`} />
+        {sanpoMap !== undefined ? (
+          <View style={styles.sanpoMap}>
+            <SanpoMapIconBadge icon={sanpoMap.icon} size={SANPO_MAP_BADGE_SIZE} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {sanpoMap.name}
+            </Text>
+          </View>
+        ) : null}
         {createdAtLabel !== null ? <Text style={styles.metaText}>{createdAtLabel}</Text> : null}
         {tags.visible.length > 0 ? (
           <View style={styles.tags}>
@@ -117,6 +142,11 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.size.md,
     fontWeight: theme.typography.weight.bold,
     color: theme.colors.textPrimary,
+  },
+  sanpoMap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
   },
   metaText: {
     fontSize: theme.typography.size.xs,

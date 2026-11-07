@@ -1,6 +1,6 @@
 ---
 name: sandbox-and-tooling
-description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有
+description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有（`pkill -f` で自分のシェルも消える）
 metadata:
   type: feedback
   scope: durable
@@ -85,5 +85,7 @@ for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
 起動元が**削除済みの worktree**（`readlink` の結果に `(deleted)` が付き、`git worktree list` にも無い）のこともある（SS-225 で ss-191 の Metro が残っていた）。
 誰も使っていない Metro でも、auto mode では別プロセスの `kill` が「Interfere With Workloads」として拒否される。
 その場合も省略して報告し、PR の申し送りに「Metro（PID・起動元）を止めてから確認する」と書く。止めるのはユーザーに任せる。
+自分の Metro を止めるときの `pkill -f "expo start --dev-client"` は、その文字列を含む Bash ツールのシェル自身にも一致して、後続のコマンドごと終了コード 144 で止まる（SS-245）。
+`pkill -f "[e]xpo start --dev-client"` のように1文字を角括弧で囲むと、自分のコマンド行には一致しない。止まったら `pgrep` で Metro が消えたことを確かめ、続きを別のコマンドで実行する。
 フラグを ON にした backend で確かめたいときは、`.env` を変えずに上書き用の env ファイル（`FEATURE_FLAG_STUB_DOCUMENT` に対象のフラグを足したもの）を
 `docker compose --env-file packages/backend/.env --env-file <上書き用> ...` で渡す（backend の local-env-and-sandbox §1）。確認の後はプレフィックス無しで `up -d` し直す。
