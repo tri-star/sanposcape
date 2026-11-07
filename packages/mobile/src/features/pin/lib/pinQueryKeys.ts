@@ -94,3 +94,23 @@ export function pinAddressQueryKey(latitude: number, longitude: number) {
 export function pinNearestStationQueryKey(latitude: number, longitude: number) {
   return ["pin-nearest-station", latitude, longitude] as const;
 }
+
+/**
+ * `["pins", …]` のクエリのうち、指定した地図のピンを取るものか（地図の削除の後に取り直さないため。SS-265）。
+ * 対象は地図ごとの一覧（`pinListQueryKey`）・地図詳細の全件（`sanpoMapPinsQueryKey`）・タグ候補
+ * （`pinTagSuggestionsQueryKey`）。ピン詳細・写真はピン ID のキーなので対象外（消えた地図のピンを開く導線は無い）。
+ */
+export function isPinsQueryOfSanpoMap(queryKey: readonly unknown[], sanpoMapId: string): boolean {
+  if (queryKey[0] !== PINS_QUERY_ROOT[0]) return false;
+  const kind = queryKey[1];
+  const target = queryKey[2];
+  if (kind === "list") {
+    return (
+      typeof target === "object" &&
+      target !== null &&
+      (target as { sanpoMapId?: unknown }).sanpoMapId === sanpoMapId
+    );
+  }
+  if (kind === "by-sanpo-map" || kind === "tag-suggestions") return target === sanpoMapId;
+  return false;
+}

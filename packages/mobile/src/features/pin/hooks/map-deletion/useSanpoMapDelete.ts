@@ -8,7 +8,11 @@ import {
   type SanpoMapDeleteErrorCode,
   type SanpoMapDeleteStatus,
 } from "@/features/pin/lib/map-deletion/sanpoMapDelete";
-import { PINS_QUERY_ROOT, SANPO_MAPS_QUERY_KEY } from "@/features/pin/lib/pinQueryKeys";
+import {
+  PINS_QUERY_ROOT,
+  SANPO_MAPS_QUERY_KEY,
+  isPinsQueryOfSanpoMap,
+} from "@/features/pin/lib/pinQueryKeys";
 
 export type UseSanpoMapDeleteResult = {
   status: SanpoMapDeleteStatus;
@@ -48,13 +52,19 @@ export function useSanpoMapDelete(
     onSuccess: () => {
       setIsDeleted(true);
       // 先に地図一覧を取り直し（地図が消える。既定地図を消したら繰り上がった地図の「既定」も変わる。ADR-009 決定28）、
-      // 終わってから地図のピン（ピンタブ・散歩中の地図のマーカー・タグ候補）を invalidate する。順序が仕様:
-      // ピンタブは地図一覧から取る地図を決めるので、同時に invalidate すると、まだ一覧に残っている消した地図の
-      // ピンを取り直して 404 を踏む（エミュレータで確認）。一覧の取り直しの後なら、消した地図のクエリは
-      // 観測されておらず、invalidate しても取り直されない。地図詳細のピン一覧・メンバーは呼び出し側が取得を止める。
+      // 終わってから地図のピン（ピンタブ・散歩中の地図のマーカー・タグ候補）を invalidate する。
+      // 消した地図のピンのクエリは invalidate の対象から外す: ピンタブは地図一覧から取る地図を決めるので、
+      // 一覧の取り直しが描画に届く前に invalidate すると、消した地図のピンを取り直して 404 を踏む
+      // （エミュレータで確認）。順序だけでは描画のタイミングに頼るので、キーで確実に外す。
+      // 外したクエリは観測されなくなった後に gcTime で消える。地図詳細のピン一覧・メンバーは呼び出し側が取得を止める。
+      const deletedSanpoMapId = sanpoMapId;
       void (async () => {
         await queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
-        await queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
+        await queryClient.invalidateQueries({
+          queryKey: PINS_QUERY_ROOT,
+          predicate: (query) =>
+            deletedSanpoMapId === null || !isPinsQueryOfSanpoMap(query.queryKey, deletedSanpoMapId),
+        });
       })();
       onDeletedRef.current();
     },
