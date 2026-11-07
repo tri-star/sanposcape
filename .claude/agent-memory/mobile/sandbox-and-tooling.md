@@ -87,3 +87,11 @@ for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
 その場合も省略して報告し、PR の申し送りに「Metro（PID・起動元）を止めてから確認する」と書く。止めるのはユーザーに任せる。
 フラグを ON にした backend で確かめたいときは、`.env` を変えずに上書き用の env ファイル（`FEATURE_FLAG_STUB_DOCUMENT` に対象のフラグを足したもの）を
 `docker compose --env-file packages/backend/.env --env-file <上書き用> ...` で渡す（backend の local-env-and-sandbox §1）。確認の後はプレフィックス無しで `up -d` し直す。
+
+**使い終えた自分の Metro を止めるとき**は、`pgrep -f "expo start ..."` の結果を回して `kill` すると、**同じ文字列を含む自分のシェル（そのコマンド自身）**も一致して止まる（SS-268 で exit 144）。
+`readlink /proc/$p/cwd` が自分の worktree のものだけを止め、`$$` と一致する PID は飛ばす（`[ "$p" = "$$" ] && continue`）。`pkill -f` は他の worktree の Metro まで止めるので使わない。
+
+**エミュレータの `adb install` が `PackageManagerInternal.freeStorage ... on a null object reference` で失敗する**ことがある（SS-268）。
+`adb shell service check package` が `not found` なら、システムの package サービスが落ちている。`adb reboot` → `sys.boot_completed=1` と
+`Service package: found` を待ってから入れ直すと通った（再起動で `adb reverse` が消えるので `dev-up.sh` を流し直す）。
+development build が入っていないときは、`/mnt/c/temp/` に過去の APK（`sanposcape-dev*.apk`）が残っていることがある。JS だけの変更なら直近のものを入れれば足りる。

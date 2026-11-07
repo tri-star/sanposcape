@@ -569,4 +569,6 @@ SS-148 でアカウントタブにゲスト向けのサインイン案内を足�
 - API の呼び出しは `features/settings/api/displayNameApi.ts`（`customFetch` 経由。`services/auth` の生 fetch には混ぜない）で、
   成功時に `features/settings/hooks/useDisplayNameUpdate.ts` が `authService.updateCurrentUser()` を呼ぶ。
 - 再起動後は `/auth/refresh` の応答の user（DB の値）で復元されるので、端末に名前を永続化しない。
+- **refresh の応答の user は、要求を送った時点の DB の値**。refresh の最中に `updateCurrentUser` が走っていたら（回数を refresh の開始時に控えて比べる）、
+  同じ人の応答ではトークンだけを更新し、user は差し替えた方を残す。そうしないと、遅れて届いた古い名前で戻り、次の refresh まで古い名前になる（SS-268 のレビュー指摘）。
 - 地図のメンバー一覧のキャッシュ（`features/pin`）は、feature をまたぐ import を作らないため invalidate しない（鮮度切れ・引っ張って更新で取り直す）。

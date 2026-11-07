@@ -3,7 +3,7 @@ name: tool-input-unescapes-unicode
 description: ツールの入力（Write・Edit・Bash のコマンド）に書いた「バックスラッシュ + u + 16進4桁」が、届く前に見えない文字そのものに変わる。書いた後に code point を調べ、chr(92) で組み立ててエスケープに戻す
 metadata:
   type: feedback
-  scope: task-local
+  scope: durable
   source_issue: SS-268
 ---
 
