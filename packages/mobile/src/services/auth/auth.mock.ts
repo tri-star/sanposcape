@@ -48,6 +48,11 @@ export function createMockAuthService(options?: {
     getCurrentUser() {
       return currentUser;
     },
+    updateCurrentUser(next) {
+      if (currentUser === null || currentUser.id !== next.id) return;
+      currentUser = next;
+      onSessionChange?.(next);
+    },
     async getAccessToken() {
       return currentUser === null ? null : accessToken;
     },

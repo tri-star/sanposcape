@@ -15,6 +15,7 @@ import {
 import { AboutSection } from "@/features/settings/components/AboutSection";
 import { AccountDeleteDialog } from "@/features/settings/components/AccountDeleteDialog";
 import { AppearanceSection } from "@/features/settings/components/AppearanceSection";
+import { DisplayNameSetting } from "@/features/settings/components/DisplayNameSetting";
 import { useAccountDeletion } from "@/features/settings/hooks/useAccountDeletion";
 import {
   ACCOUNT_DELETE_BUTTON_LABEL,
@@ -119,6 +120,9 @@ export function SettingsView() {
           <Text style={styles.title}>設定</Text>
           <View style={styles.headerSpacer} />
         </View>
+
+        {/* 表示名はサインイン中だけ（フラグ display_name_edit が OFF なら DisplayNameSetting が何も出さない。SS-268） */}
+        {section === "authenticated" ? <DisplayNameSetting /> : null}
 
         {/* テーマは認証に依存しないため、section の分岐の外に置く（loading / guest / authenticated 共通） */}
         <View style={styles.appearanceSection}>

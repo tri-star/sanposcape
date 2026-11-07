@@ -50,4 +50,19 @@ describe("createMockAuthService", () => {
     await service.signOut();
     expect(onSessionChange).toHaveBeenLastCalledWith(null);
   });
+
+  it("updateCurrentUser はサインイン中の同じユーザーだけを差し替えて通知する（SS-268）", async () => {
+    const onSessionChange = vi.fn();
+    const service = createMockAuthService({ onSessionChange });
+    const user = await service.signIn("google");
+    onSessionChange.mockClear();
+
+    service.updateCurrentUser({ ...user, id: "other-user", displayName: "別人" });
+    expect(onSessionChange).not.toHaveBeenCalled();
+
+    const renamed = { ...user, displayName: "さんぽ太郎" };
+    service.updateCurrentUser(renamed);
+    expect(service.getCurrentUser()).toEqual(renamed);
+    expect(onSessionChange).toHaveBeenCalledWith(renamed);
+  });
 });

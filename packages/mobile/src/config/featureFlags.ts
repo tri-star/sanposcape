@@ -49,6 +49,11 @@ export const FEATURE_FLAG_KEYS = {
    * OFF の間は `pins_visible` を見ず、すべての地図のピンを出す（従来どおり）。
    */
   mapPinVisibility: "map_pin_visibility",
+  /**
+   * 表示名の変更（SS-268）。設定画面の「表示名」の節（今の名前と「変更」ボタン・変更のダイアログ）を出し分ける。
+   * OFF の間は `PATCH /users/me` を呼ばない。backend の prod デプロイの後に ON にする。
+   */
+  displayNameEdit: "display_name_edit",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];

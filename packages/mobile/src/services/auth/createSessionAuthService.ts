@@ -198,5 +198,11 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
     getCurrentUser(): AuthUser | null {
       return currentUser;
     },
+
+    updateCurrentUser(user: AuthUser): void {
+      // サインアウト後・別の人のサインイン後に遅れて届いた応答で、セッションを書き換えない。
+      if (currentUser === null || currentUser.id !== user.id) return;
+      setCurrentUser(user);
+    },
   };
 }
