@@ -29,7 +29,8 @@ class SanpoMapAccess:
     （`get_role_for_pin_move`）、実際に地図が変わったときの `updated_at` 更新（`mark_used`）
     を担う（ADR-009 決定33）。移動の条件（移動先に移動元の全メンバーがいるか）の判定と、
     mobile が移動先を選ぶための候補（自分の各地図のメンバー）の読み取りも、pins から地図の
-    メンバーへ届く窓口としてここに置く（決定42。pins は maps の repository を直接使わない）。
+    メンバーへ届く窓口としてここに置く（決定42。pins は maps の repository のメソッドを
+    直接呼ばない）。
 
     Session を持たず commit しない。呼び出し元 Service のトランザクションに乗る
     （ADR-011 M3・M4）。
