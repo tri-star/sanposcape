@@ -153,6 +153,11 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
     back.runOnce(() => router.push({ pathname: "/pins/[pinId]/edit", params: { pinId } }));
   };
 
+  // タグのタップでタグ詳細（そのタグが付いたピンの一覧。全地図）を開く（SS-245）。push なので戻るとこの詳細に戻る。
+  const handleOpenTag = (label: string) => {
+    back.runOnce(() => router.push({ pathname: "/tags/detail", params: { label } }));
+  };
+
   // 住所のコピー（SS-246）。画面の表示と同じ文字列を入れ、結果はトーストで知らせる。
   const addressCopyText = pinAddressCopyText(address);
   const handleCopyAddress = () => {
@@ -379,6 +384,7 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                           key={tag.id}
                           category="neutral"
                           icon="tag"
+                          onPress={() => handleOpenTag(tag.label)}
                           testID={`pin-detail-tag-${i}`}
                         >
                           {tag.label}

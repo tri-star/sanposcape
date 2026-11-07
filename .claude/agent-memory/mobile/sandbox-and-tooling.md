@@ -100,5 +100,6 @@ for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
 数分以上止まり、`adb.exe devices`・`adb.exe kill-server` も `localhost:5037` への接続も返らない。エミュレータ本体は動いている
 （`powershell.exe Get-Process emulator*,qemu*`）。`powershell.exe -NoProfile -Command "Get-Process adb | Select Id,StartTime"` で ID を確かめて
 `Stop-Process -Id <id> -Force` で止めると、次の `adb.exe devices` がサーバーを起動し直し、待っていた `dev-up.sh` はそのまま進む。
+SS-245 でも引き継いだ直後に同じく固まり（`localhost:5037` に接続はできるが応答が無い）、`cd /mnt/c && cmd.exe /d /c "taskkill /F /IM adb.exe"` で止めても直った。
 adb サーバーはマシンに1つなので、止めるのはエミュレータのロック（並行作業の取り決め）を持っているときだけにする。
 `pkill -f "expo start --dev-client"` を同じコマンドに書くと自分のシェルのコマンド行にも一致して終了コード 144 で落ちる（Metro は止まる）。ロックの解放は別のコマンドで行う。

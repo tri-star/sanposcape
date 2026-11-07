@@ -53,6 +53,7 @@
     - [ADR-M-022 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./packages/mobile/adr/ADR-M-022-location-permission-flow-and-approximate-location.md)
     - [ADR-M-023 地図上に現在地の向き（端末の方位）を扇形で表示する](./packages/mobile/adr/ADR-M-023-current-heading-on-map.md)
     - [ADR-M-024 地図への招待の受諾画面と、招待リンクの受け取り](./packages/mobile/adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md)
+    - [ADR-M-025 タグ一覧とタグ詳細（全地図のピンを端末で集計する）](./packages/mobile/adr/ADR-M-025-tag-list-and-tag-detail.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

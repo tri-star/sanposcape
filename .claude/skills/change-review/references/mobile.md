@@ -71,6 +71,7 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 ## React と TanStack Query の静かな不具合
 
 - `useQueries` の戻り配列は毎レンダー新しい参照。`useMemo(() => derive(queries), [queries])` は毎回再計算され、結果を渡した `React.memo` の子が無効化される（SS-118。ADR-M-012 D15）。`combine` にモジュールレベルの純粋関数を渡しているか（インラインのクロージャは不可）、再試行も `combine` の戻り値から呼んでいるか。`useQuery` 単体の `.data` 依存は問題ない。
+- 開くたびに取る詳細（ピン詳細など）から、鮮度の長いキャッシュを共有する一覧へ移る導線で、他人・別端末が直前に足したデータが一覧に無く、詳細と食い違わないか（SS-245 のタグ詳細は空になった。移った先の observer に `refetchOnMount: "always"`）。`combine` の pick 関数で、hook が使う項目（`isFetching` など）を取り出しているか（型が省略可能だと tsc は通り、常に undefined になる）。
 - `React.memo` のコンポーネントが複数箇所から使われていたら、全呼び出し元でコールバックが安定しているかを横並びで比べる（片方だけ `useCallback` で memo が効かなかった）。`exhaustive-deps` を外して配列を閉じ込めた `useCallback` は、配列の長さが後から変わりうるなら stale closure を疑う。
 - 1件ずつ処理するキュー・ポーリングの hook で、effect の依存配列に自分が dispatch する state があり、その dispatch が `await` より前に同期で呼ばれるなら、自分の cleanup で結果を握りつぶす（SS-88 `usePinPhotos.ts`）。無効化が「本当に不要になった条件」だけで行われているか。
 - `useMutation` の `isPending` は settle と同時に false になる。成功後の遷移が非同期チェーン（`signOut()` → store → `AuthGate` の effect）だと、その間ボタンが押せる見た目に戻る（SS-62 のアカウント削除で2回目が 401 になりうる）。破壊的操作の disabled が成功状態も busy に含めているか。成功時に同期で遷移するなら問題ない。
