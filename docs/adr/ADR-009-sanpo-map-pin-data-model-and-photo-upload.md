@@ -2183,7 +2183,7 @@ mobile の UI は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-d
   `{sanpo_map_id, missing_members, added_members}` の一覧で返す（各メンバーは `{user_id, display_name}`。並びは owner → 参加順）。ピンの member でなければ 404 `pin_not_found`。
   mobile はこれで移せない地図を最初から選べなくし、理由（参加していない人の名前）を出す。
   - 返す名前は、呼んだ人が member である2つの地図のメンバーだけで、`GET /sanpo-maps/{id}/members`（決定38）で既に見える範囲を越えない。移動の権限（`can_move_pin_from`）は見ない。
-  - 置き場所は `sanpo_maps/pins/move_targets.py`（`PinMoveTargetService`。読み取りだけ）。メンバーは `SanpoMapAccess.list_members_of_my_maps` で1回の問い合わせで引く。
+  - 置き場所は `sanpo_maps/pins/move_targets.py`（`PinMoveTargetService`。読み取りだけ）。メンバーは `SanpoMapAccess.list_members_of_my_maps` で、地図の一覧とそのメンバーの2回の問い合わせで引く（地図の数によらず一定）。
   - 却下: mobile が `GET /sanpo-maps/{id}/members` を地図の数だけ呼ぶ（N+1）／`SanpoMapRead` に全メンバーを載せる（一覧が重くなり、関係の無い画面にも名前を配る）／
     `can_move` の真偽値だけを返す（理由の名前を出せない）。
 - **互換**: エンドポイントの追加と、403 の本文に `code` が付くだけ。古いアプリはこの 403 を汎用の権限エラーとして扱う（地図一覧と詳細を取り直して「権限がありません」）。
