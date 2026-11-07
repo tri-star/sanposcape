@@ -1,6 +1,7 @@
 import { ApiError, isApiError } from "@/api/apiError";
 import {
   createSanpoMap as createSanpoMapRequest,
+  deleteSanpoMap as deleteSanpoMapRequest,
   listSanpoMapMembers as listSanpoMapMembersRequest,
   listSanpoMaps as listSanpoMapsRequest,
   removeSanpoMapMember as removeSanpoMapMemberRequest,
@@ -104,6 +105,25 @@ export async function updateSanpoMapPinsVisible(input: {
     throw new ApiError(response.status);
   }
   return toSanpoMap(response.data);
+}
+
+/**
+ * `DELETE /sanpo-maps/{id}`（SS-265。backend は SS-113、ADR-009 決定28）。owner だけが呼べる。
+ * 404 は成功として扱う（もう消えている。通信の失敗の後の再試行は、サーバーが消し終えていれば 404 になる。
+ * backend は非冪等。`deletePin()` と同じ考え方）。`sanpoMapId` が UUID でなければ通信せず ApiError(422)。
+ * `signal` は渡さない（書き込みは画面を離れても中断しない）。
+ */
+export async function deleteSanpoMap(sanpoMapId: string): Promise<void> {
+  if (!isUuid(sanpoMapId)) throw new ApiError(422);
+  try {
+    const response = await deleteSanpoMapRequest(sanpoMapId);
+    if (response.status !== 204) {
+      throw new ApiError(response.status);
+    }
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) return;
+    throw error;
+  }
 }
 
 export function toSanpoMapMember(read: SanpoMapMemberRead): SanpoMapMember {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   PINS_QUERY_ROOT,
+  SANPO_MAPS_QUERY_KEY,
+  isPinsQueryOfSanpoMap,
   pinDetailQueryKey,
   pinListQueryKey,
   pinPhotosQueryKey,
@@ -52,5 +54,24 @@ describe("pinQueryKeys", () => {
     expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(sanpoMapPinsQueryKey("map-2"));
     expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(pinDetailQueryKey("map-1"));
     expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
+  });
+});
+
+describe("isPinsQueryOfSanpoMap", () => {
+  it("その地図の一覧・全件・タグ候補のキーは対象", () => {
+    expect(isPinsQueryOfSanpoMap(pinListQueryKey("map-1", BOUNDS, FILTER), "map-1")).toBe(true);
+    expect(isPinsQueryOfSanpoMap(sanpoMapPinsQueryKey("map-1"), "map-1")).toBe(true);
+    expect(isPinsQueryOfSanpoMap(pinTagSuggestionsQueryKey("map-1"), "map-1")).toBe(true);
+  });
+
+  it("ほかの地図のキーは対象外", () => {
+    expect(isPinsQueryOfSanpoMap(pinListQueryKey("map-2", BOUNDS, FILTER), "map-1")).toBe(false);
+    expect(isPinsQueryOfSanpoMap(sanpoMapPinsQueryKey("map-2"), "map-1")).toBe(false);
+    expect(isPinsQueryOfSanpoMap(pinTagSuggestionsQueryKey(null), "map-1")).toBe(false);
+  });
+
+  it("ピン ID のキー（詳細・写真）と、ピン以外のキーは対象外", () => {
+    expect(isPinsQueryOfSanpoMap(pinDetailQueryKey("map-1"), "map-1")).toBe(false);
+    expect(isPinsQueryOfSanpoMap(SANPO_MAPS_QUERY_KEY, "map-1")).toBe(false);
   });
 });
