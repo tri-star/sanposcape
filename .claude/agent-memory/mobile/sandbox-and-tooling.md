@@ -1,6 +1,6 @@
 ---
 name: sandbox-and-tooling
-description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有
+description: mobile の sandbox とツールの落とし穴 — expo CLI の HOME、EAS クラウドビルドは sandbox 外、format:check のスコープ、git 書き込み不可、古い .expo の型、eslint-disable の位置、oxlint の閾値の測り方と0件時の無出力、main の node_modules と lockfile の版差、依存追加直後の配置は CI と違う、eas --json の前置き行、actionlint の入手、Metro とエミュレータは worktree 間で共有・pkill -f を他のコマンドと1行に並べると自分のシェルを殺す
 metadata:
   type: feedback
   scope: durable
@@ -66,6 +66,14 @@ worktree 構成などで `git add` / `commit` が `index.lock: Read-only file sy
 `GIT_DIR` の差し替えなどの迂回を繰り返さず、編集・lint・format・test・typecheck まで済ませてから、コミットできなかったことを報告する。
 
 Related: [[ts-rn-pitfalls]], [[native-config]]
+
+## `pkill -f "expo start --dev-client"` を他のコマンドと1行にしない
+
+Metro を止める `pkill -f "expo start --dev-client"` を、`git commit … && pkill -f "expo start --dev-client"; rm -rf <ロック>` のように
+同じ Bash の呼び出しに並べると、そのシェル自身のコマンドラインがパターンに一致して殺され（終了コード 144）、後ろのロックの解放が走らない（SS-265）。
+
+**How to apply:** `pkill -f` は単独の呼び出しにするか、パターンを `"[e]xpo start --dev-client"` のように書いて自分に一致させない。
+止めた後は `pgrep -af "expo start"` で Metro が居ないこと、ロック（`/tmp/sanposcape-emulator.lock`）が消えたことを確かめる。
 
 ## エミュレータと Metro は worktree の間で共有されている
 

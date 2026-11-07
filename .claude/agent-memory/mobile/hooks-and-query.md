@@ -1,6 +1,6 @@
 ---
 name: hooks-and-query
-description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、useQueries では keepPreviousData が効かない、Rules of Hooks、手動メモ化の警告
+description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、地図が消える操作の後の ["pins"] の invalidate、useQueries では keepPreviousData が効かない、Rules of Hooks、手動メモ化の警告
 metadata:
   type: feedback
   scope: durable
@@ -45,7 +45,18 @@ hooks はユニットテストの対象外なので、ここに挙げる不具�
 
 **How to apply:** `removeQueries(["walks","detail",id])` も呼び、画面の表示状態を決める純粋関数で「削除済み」をエラーより優先させる。
 
-## useQueries では key が変わると keepPreviousData が効かない
+## 地図が消える操作の後に ["pins"] を invalidate すると、ピンタブが消えた地図のピンを取り直して 404
+
+ピンタブ（`useRegisteredPins`）は地図一覧（`useSanpoMaps`）から取る地図を決め、地図ごとに `pinListQueryKey` を持つ。
+地図の削除・地図から抜ける操作の成功で、地図一覧と `["pins"]` を同時に invalidate すると、一覧の取り直しが描画に届く前に
+消えた地図のクエリがまだ観測されていて取り直され、404 になる（SS-265。エミュレータの backend のログで確認。画面の上には出ないので気づきにくい）。
+「一覧の取り直しを await してから pins」の順序でも、描画のタイミングに頼るだけで保証にならない（レビューの指摘）。
+
+**How to apply:** `isPinsQueryOfSanpoMap`（`lib/pinQueryKeys.ts`）を invalidate の `predicate` に渡し、消えた地図のキーを外す（`useSanpoMapDelete` が模範）。
+地図から抜ける（`useSanpoMapMemberRemove`）は同じ構造のまま（SS-265 の時点で未対応。後続課題の候補）。
+確かめるときは、操作の後に backend のログで消えた地図の id への GET が出ないことを見る（`docker compose -p <project> -f packages/backend/compose.yaml logs api --since 1m | grep <id>`）。
+
+
 
 `@tanstack/query-core` 5.104 の `QueriesObserver` は、各クエリのオブザーバを `queryHash` で対応付ける（`#findMatchingObservers`）。
 key が変わると一致するオブザーバが無いので新しく作り、新しいオブザーバは「最後にデータを持っていたクエリ」を知らない。
