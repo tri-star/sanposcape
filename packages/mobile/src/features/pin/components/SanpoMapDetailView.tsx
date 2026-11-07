@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -26,7 +26,7 @@ import { SanpoMapIconEditDialog } from "@/features/pin/components/SanpoMapIconEd
 import { SanpoMapMemberSummaryRow } from "@/features/pin/components/SanpoMapMemberSummaryRow";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
-import { useSanpoMapDelete } from "@/features/pin/hooks/map-deletion/useSanpoMapDelete";
+import { useSanpoMapDeleteFlow } from "@/features/pin/hooks/map-deletion/useSanpoMapDeleteFlow";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMapMembers } from "@/features/pin/hooks/useSanpoMapMembers";
 import { useSanpoMapRecheck } from "@/features/pin/hooks/useSanpoMapRecheck";
@@ -35,7 +35,6 @@ import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
 import {
   SANPO_MAP_DELETE_BUTTON_LABEL,
   sanpoMapDeleteDescription,
-  sanpoMapDeletedMessage,
 } from "@/features/pin/lib/map-deletion/sanpoMapDelete";
 import { canManageSanpoMap } from "@/features/pin/lib/pinPermissions";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
@@ -58,7 +57,7 @@ import type { PinListEntry, SanpoMap } from "@/features/pin/types";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
-import { consumeFlashMessage, setFlashMessage } from "@/lib/flashMessage";
+import { consumeFlashMessage } from "@/lib/flashMessage";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
@@ -97,50 +96,26 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const maps = useSanpoMaps({ enabled: isSignedIn });
-  // 削除の確認ダイアログ（SS-265）。
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  // 削除の後の遷移も「戻る以外の遷移」なので二重発火ラッチを通す。`back` は削除の状態に依存して下で
-  // 作るので ref 経由で呼ぶ（`SanpoMapMembersView` の抜けたときと同じ）。
-  const runOnceRef = useRef<((navigate: () => void) => void) | null>(null);
-  // 消した地図の名前（一覧のトースト用）。成功の時点では一覧の取り直しで map が消えていることがあるので、開いたときに控える。
-  const deletingMapNameRef = useRef("");
-  const deletion = useSanpoMapDelete(sanpoMapId, {
-    onDeleted: () => {
-      setDeleteDialogOpen(false);
-      // 消した地図の詳細には戻れないので、地図一覧まで戻ってそこで知らせる。
-      setFlashMessage(sanpoMapDeletedMessage(deletingMapNameRef.current));
-      const navigate = () => router.dismissTo("/sanpo-maps");
-      if (runOnceRef.current) runOnceRef.current(navigate);
-      else navigate();
-    },
-  });
-  const deleted = deletion.status === "deleted";
+  // 地図の削除（SS-265）。確認ダイアログ・戻るの横取り・成功後の遷移は hook に分けてある。
+  const deleteFlow = useSanpoMapDeleteFlow(sanpoMapId);
+  const { deleted, deletion } = deleteFlow;
   const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn && !deleted });
   // アイコン変更ダイアログ。開くたびに key を +1 して作り直す（初期選択を現在のアイコンに戻す）。
   const [iconDialogOpen, setIconDialogOpen] = useState(false);
   const [iconDialogKey, setIconDialogKey] = useState(0);
   // 変更中（ダイアログから通知される）。変更中はバックキーでも閉じない。
   const [iconBusy, setIconBusy] = useState(false);
-  const { reset: resetDeletion } = deletion;
-  const closeDeleteDialog = useCallback(() => {
-    setDeleteDialogOpen(false);
-    resetDeletion();
-  }, [resetDeletion]);
   const back = useScreenBack({
     fallbackHref: "/sanpo-maps",
     onIntercept: () => {
-      if (deleteDialogOpen) {
-        // 削除中はダイアログを閉じず、バック操作だけ消費する（画面も戻らない）。
-        if (deletion.status !== "deleting") closeDeleteDialog();
-        return true;
-      }
+      if (deleteFlow.interceptBack()) return true;
       if (!iconDialogOpen) return false;
       // 変更中はダイアログを閉じず、バック操作だけ消費する（画面も戻らない）。
       if (!iconBusy) setIconDialogOpen(false);
       return true;
     },
   });
-  runOnceRef.current = back.runOnce;
+  deleteFlow.bindRunOnce(back.runOnce);
   // ピン詳細で削除して戻ってきたときの「ピンを削除しました」を出す（画面またぎのメッセージ受け渡し。
   // `src/lib/flashMessage.ts`）。消費しないと、文言が残って後でピンタブに遅れて出てしまう（SS-119）。
   const toast = useToast();
@@ -215,13 +190,6 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
     Keyboard.dismiss();
     setIconDialogKey((k) => k + 1);
     setIconDialogOpen(true);
-  };
-
-  const handleOpenDeleteDialog = () => {
-    if (map === undefined) return;
-    Keyboard.dismiss();
-    deletingMapNameRef.current = map.name;
-    setDeleteDialogOpen(true);
   };
 
   const handleIconUpdated = () => {
@@ -572,7 +540,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
             icon="trash-2"
             label={SANPO_MAP_DELETE_BUTTON_LABEL}
             variant="ghost"
-            onPress={handleOpenDeleteDialog}
+            onPress={() => deleteFlow.openDialog(map.name)}
             testID="sanpo-map-detail-delete"
           />
         ) : (
@@ -610,11 +578,11 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         />
       ) : null}
       <SanpoMapDeleteDialog
-        open={deleteDialogOpen}
+        open={deleteFlow.dialogOpen}
         status={deletion.status}
         errorCode={deletion.errorCode}
         description={deleteDescription}
-        onCancel={closeDeleteDialog}
+        onCancel={deleteFlow.closeDialog}
         onConfirm={deletion.deleteMap}
       />
     </View>
