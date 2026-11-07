@@ -79,10 +79,9 @@ export function sanpoMapDeleteConfirmLabel(isDeleting: boolean): string {
  *
  * - `pinCount`: 地図詳細に出している件数（`resolveSanpoMapPinCount`。1000 件で打ち切ったときも一覧の
  *   `pin_count` の正確な件数）。null は不明。
- * - `otherMemberCount`: 自分以外のメンバーの人数。null は不明（メンバーを取っていない・読み込み中）。
- * - `sharingEnabled`: 地図の共有を使える（フラグ `map_invitation` が ON）。ON で人数が不明なら、
- *   メンバーがいる場合の扱いを条件付きで書く。OFF で人数が不明なら書かない（共有していない）。
- *   ON なら招待のリンクが使えなくなることも書く。
+ * - `otherMemberCount`: 自分以外のメンバーの人数。null は不明（読み込み中・失敗）。不明なら、メンバーがいる場合の扱いを
+ *   条件付きで書く（フラグ `map_invitation` を OFF に戻した後もメンバーは残るので、フラグでは省かない）。
+ * - `sharingEnabled`: 地図の共有を使える（フラグ `map_invitation` が ON）。ON なら招待のリンクが使えなくなることも書く。
  */
 export function sanpoMapDeleteDescription(input: {
   pinCount: number | null;
@@ -104,7 +103,7 @@ export function sanpoMapDeleteDescription(input: {
     paragraphs.push(
       `ほかのメンバー${input.otherMemberCount}人もこの地図を見られなくなり、メンバーが追加したピン・写真も削除されます。`,
     );
-  } else if (input.otherMemberCount === null && input.sharingEnabled) {
+  } else if (input.otherMemberCount === null) {
     paragraphs.push(
       "メンバーがいる場合は、メンバーもこの地図を見られなくなり、メンバーが追加したピン・写真も削除されます。",
     );

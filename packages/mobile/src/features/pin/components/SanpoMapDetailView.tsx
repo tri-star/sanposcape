@@ -148,8 +148,10 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
   const showMembers =
     map !== undefined && canShowSanpoMapMembers({ mapInvitationEnabled, role: map.role });
+  // 削除の確認ダイアログを開いている間は、メンバーの行を出さない owner の地図（フラグ OFF）でも取る。
+  // 確認文に、見られなくなるほかのメンバーの人数を書くため（フラグを OFF に戻した後もメンバーは残る。SS-265）。
   const members = useSanpoMapMembers(sanpoMapId, {
-    enabled: isSignedIn && showMembers && !deleted,
+    enabled: isSignedIn && (showMembers || deleteFlow.dialogOpen) && !deleted,
   });
   const handleOpenMembers = useCallback(() => {
     if (sanpoMapId === null) return;
@@ -512,9 +514,11 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
             loadedCount: pins.pins.length,
             truncated: pins.truncated,
           }),
-    // メンバーを取っているとき（共有が使える・editor の地図）だけ人数が分かる。自分を除く。
+    // 自分を除く。取り終えるまでは不明（null）。
     otherMemberCount:
-      showMembers && members.status === "ready" ? Math.max(0, members.members.length - 1) : null,
+      (showMembers || deleteFlow.dialogOpen) && members.status === "ready"
+        ? Math.max(0, members.members.length - 1)
+        : null,
     sharingEnabled: mapInvitationEnabled,
   });
 

@@ -63,7 +63,11 @@ describe("sanpoMapDeleteConfirmLabel", () => {
 });
 
 describe("sanpoMapDeleteDescription", () => {
-  const base = { pinCount: 3, otherMemberCount: null, sharingEnabled: false };
+  const base: Parameters<typeof sanpoMapDeleteDescription>[0] = {
+    pinCount: 3,
+    otherMemberCount: 0,
+    sharingEnabled: false,
+  };
 
   it("ピンの件数と、写真・タグも消えて戻せないことを書く", () => {
     expect(sanpoMapDeleteDescription(base)).toEqual([
@@ -102,13 +106,13 @@ describe("sanpoMapDeleteDescription", () => {
     ]);
   });
 
-  it("共有が使えて人数が不明なら、メンバーがいる場合の扱いを条件付きで書く", () => {
-    expect(sanpoMapDeleteDescription({ ...base, sharingEnabled: true })[1]).toBe(
+  it("人数が不明なら、共有が使えなくてもメンバーがいる場合の扱いを条件付きで書く（フラグを OFF に戻した後もメンバーは残る）", () => {
+    expect(sanpoMapDeleteDescription({ ...base, otherMemberCount: null })[1]).toBe(
       "メンバーがいる場合は、メンバーもこの地図を見られなくなり、メンバーが追加したピン・写真も削除されます。",
     );
   });
 
-  it("共有が使えず人数も不明なら、メンバー・招待の文を書かない", () => {
+  it("共有が使えずメンバーが自分だけなら、ピンの文だけ書く", () => {
     expect(sanpoMapDeleteDescription(base)).toHaveLength(1);
   });
 });
