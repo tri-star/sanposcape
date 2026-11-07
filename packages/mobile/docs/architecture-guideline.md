@@ -205,8 +205,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   `FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'` を設定して起動する
   （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
   `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値に加えて
-  `pin_station_tag`・`map_invitation`・`map_pin_visibility` を ON にしており、ピン登録（SS-88）・最寄り駅のタグ（SS-225）・
-  地図への招待（SS-90）・地図単位のピンの表示・非表示（SS-266）はローカル・CI とも追加設定なしで ON になる。
+  `pin_station_tag`・`map_invitation`・`map_pin_visibility`・`display_name_edit` を ON にしており、ピン登録（SS-88）・最寄り駅のタグ（SS-225）・
+  地図への招待（SS-90）・地図単位のピンの表示・非表示（SS-266）・表示名の変更（SS-268）はローカル・CI とも追加設定なしで ON になる。
   最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
 - **最低サポートバージョン**（`AppConfigSnapshot.minimumSupportedVersions`）を下回ると、ルートレイアウトの
   `UpdateRequiredGate`（`src/features/app-update/`）が閉じられない全画面の案内を出してストアへ誘導する（SS-101）。
