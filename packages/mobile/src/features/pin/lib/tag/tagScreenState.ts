@@ -15,7 +15,7 @@ export type SanpoMapPinsQueryResult = {
   isPending: boolean;
   isError: boolean;
   /** 取得中（初回・取り直しを問わない）。 */
-  isFetching?: boolean;
+  isFetching: boolean;
 };
 
 export type CombinedSanpoMapPins = {

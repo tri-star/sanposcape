@@ -19,11 +19,12 @@ const GC_TIME_MS = 10 * 60_000;
 function pickSanpoMapPinsQueryResults(
   results: readonly SanpoMapPinsQueryResult[],
 ): SanpoMapPinsQueryResult[] {
-  return results.map(({ data, error, isPending, isError }) => ({
+  return results.map(({ data, error, isPending, isError, isFetching }) => ({
     data,
     error,
     isPending,
     isError,
+    isFetching,
   }));
 }
 
@@ -114,7 +115,7 @@ export function useAllSanpoMapPins(options: UseAllSanpoMapPinsOptions): UseAllSa
     [queryClient],
   );
 
-  const isFetching = maps.isFetching || results.some((result) => result.isFetching === true);
+  const isFetching = maps.isFetching || results.some((result) => result.isFetching);
 
   return { ...combined, isFetching, retry, refresh, handlePhotoLoadError };
 }

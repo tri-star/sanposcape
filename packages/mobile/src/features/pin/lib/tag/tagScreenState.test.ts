@@ -28,18 +28,21 @@ const ready = (truncated = false): SanpoMapPinsQueryResult => ({
   error: null,
   isPending: false,
   isError: false,
+  isFetching: false,
 });
 const pending: SanpoMapPinsQueryResult = {
   data: undefined,
   error: null,
   isPending: true,
   isError: false,
+  isFetching: true,
 };
 const failed = (status: number): SanpoMapPinsQueryResult => ({
   data: undefined,
   error: new ApiError(status),
   isPending: false,
   isError: true,
+  isFetching: false,
 });
 
 describe("combineSanpoMapPins", () => {

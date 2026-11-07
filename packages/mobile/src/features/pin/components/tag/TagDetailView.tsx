@@ -72,7 +72,8 @@ export function TagDetailView({ label, isSignedIn, onSignIn }: TagDetailViewProp
     isSignedIn,
     status: source.status,
     pinCount: rows.length,
-    fetching: source.isFetching,
+    // 引っ張って更新の間は空表示のまま（読み込み表示に替えると、引っ張った ScrollView ごと外れる）。
+    fetching: source.isFetching && !pull.refreshing,
   });
 
   const { handlePhotoLoadError } = source;
