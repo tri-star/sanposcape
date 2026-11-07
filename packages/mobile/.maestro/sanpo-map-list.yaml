@@ -2,6 +2,7 @@
 # → 地図詳細（作ったばかりなのでピン0件）→ 作った地図にピンを登録 → 地図詳細にピンが出る
 # → ピン名で検索 → ピン詳細へ遷移 → 戻ると地図詳細。
 # あわせて地図のアイコンの選択・変更（SS-171）: 作成時にアイコンを選び、地図詳細で変更する。
+# 最後に作った地図を削除する（SS-265）: 地図詳細のゴミ箱 → 確認 → 地図一覧へ戻り、一覧から消える。
 # マーカーへの反映は E2E しない（ADR-M-012 D14）。
 #
 # 前提: pin-register-anywhere.yaml と同じ
@@ -238,3 +239,30 @@ tags:
     visible:
       id: "sanpo-map-detail-screen"
     timeout: 10000
+
+# --- 作った地図を削除する（SS-265。ピンが1件ある地図。e2e ユーザーが作ったので owner） ---
+- tapOn:
+    id: "sanpo-map-detail-delete"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-delete-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-delete-confirm"
+# 成功トーストは一時表示なので assert しない（ADR-M-004 SS-152 追補）。地図一覧へ戻り、地図が消えたことで確かめる。
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+# 一覧の検索欄は詳細へ進む前の入力（接尾辞）を残しているので、入れ直さずに地図名が消えることを待つ
+# （トースト「『…』を削除しました」にも地図名が入るので、トーストが消えるまで含めて待つ）。
+- extendedWaitUntil:
+    notVisible:
+      text: ".*${output.mapName}.*"
+    timeout: 15000
+- assertNotVisible:
+    id: "sanpo-map-list-error"
