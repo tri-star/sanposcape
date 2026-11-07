@@ -51,7 +51,7 @@ export function pinEditSanpoMapUnavailableNote(
   mapName: string,
   missingMembers: readonly Pick<SanpoMapMember, "displayName">[],
 ): string {
-  return `「${mapName}」には${formatPinMoveMemberNames(missingMembers)}が参加していないため、移せません`;
+  return `「${mapName}」には、${formatPinMoveMemberNames(missingMembers)}が参加していないため、移せません`;
 }
 
 /**
