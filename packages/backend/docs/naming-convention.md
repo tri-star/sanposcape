@@ -178,7 +178,7 @@ route（画面/URL/`APIRouter`）とも混同しない）。
 
 | 意味 | 語 | 実例 |
 |---|---|---|
-| ①提示される徒歩経路（散歩前に候補として示すルート） | `walking_route` | `maps/schemas.py` の `WalkingRouteRequest` / `WalkingRouteResponse` |
+| ①提示される徒歩経路（散歩前に候補として示すルート） | `walking_route` | `maps/schemas.py` の `WalkingRouteRequest` / `LoopWalkingRouteResponse` |
 | ②実際に歩いた軌跡（散歩の記録として保存する座標列） | `track` | `Walk.track_points`（モデル）/ `WalkDetailRead.track`（スキーマ）/ `track_to_storage` / `track_from_storage`（`walks/mappers.py`） |
 | ③散歩の記録そのもの | `Walk` | モデル `Walk` / テーブル `walks` |
 
@@ -203,7 +203,7 @@ route（画面/URL/`APIRouter`）とも混同しない）。
 
 ### 周回ルート（SS-33, ADR-007）の命名
 
-- API 層（`maps/schemas.py`）: `LoopWalkingRouteResponse`（`WalkingRouteResponse` の周回版）は `legs: list[WalkingRouteLeg]`（`kind: WalkingRouteLegKind`、値は `outbound` / `return`）を持つ。`kind` は Pydantic の enum メンバー値（文字列）であり Python の識別子ではないため `return` を使っても構文上問題ない。
+- API 層（`maps/schemas.py`）: `LoopWalkingRouteResponse`（片道の `WalkingRouteResponse` の周回版。片道は SS-130 で削除した）は `legs: list[WalkingRouteLeg]`（`kind: WalkingRouteLegKind`、値は `outbound` / `return`）を持つ。`kind` は Pydantic の enum メンバー値（文字列）であり Python の識別子ではないため `return` を使っても構文上問題ない。
 - provider 層（`integrations/google_maps/provider.py`）: `ProviderLoopRoute` のフィールド名は `outbound` / `inbound`（`return` ではない）。**`return` は Python の予約語で、dataクラスのフィールド名（＝識別子）には使えない**ため、API 層の `kind="return"` とは異なる語を採用している。この差はレイヤーごとの制約の違いによるもので、表記揺れではない。
 - `maps/loop_route.py` の `LoopCandidate.side` / `LoopEvaluation.side` は `LoopSide = Literal["right", "left"]`。
 

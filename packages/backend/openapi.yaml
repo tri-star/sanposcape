@@ -176,43 +176,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /explore/routes/walking:
-    post:
-      tags:
-      - explore
-      summary: Get Walking Route
-      description: 'SS-33: `/explore/routes/loop` に置き換え。配布済みビルドの互換のため維持する
-
-        （意味・スキーマは変えない。片道の duration_seconds/distance_meters のまま）。'
-      operationId: get_walking_route_explore_routes_walking
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WalkingRouteRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WalkingRouteResponse'
-        '401':
-          description: Not authenticated
-        '413':
-          description: Explore request body too large
-        '429':
-          description: Map provider quota exceeded or explore rate limit reached
-        '503':
-          description: Map provider unavailable
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      deprecated: true
   /explore/routes/loop:
     post:
       tags:
@@ -3564,37 +3527,6 @@ components:
       - origin
       - destination
       title: WalkingRouteRequest
-    WalkingRouteResponse:
-      properties:
-        origin:
-          $ref: '#/components/schemas/GeoPoint'
-        destination:
-          $ref: '#/components/schemas/RouteDestinationRead'
-        duration_seconds:
-          type: integer
-          minimum: 0.0
-          title: Duration Seconds
-        distance_meters:
-          type: integer
-          minimum: 0.0
-          title: Distance Meters
-        path:
-          items:
-            $ref: '#/components/schemas/GeoPoint'
-          type: array
-          minItems: 2
-          title: Path
-        bounds:
-          $ref: '#/components/schemas/MapBounds'
-      type: object
-      required:
-      - origin
-      - destination
-      - duration_seconds
-      - distance_meters
-      - path
-      - bounds
-      title: WalkingRouteResponse
   securitySchemes:
     HTTPBearer:
       type: http
