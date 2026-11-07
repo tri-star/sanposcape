@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   INITIAL_PIN_EDIT_UPDATE_RECORD,
+  filterMovablePinEditSanpoMaps,
+  formatPinMoveMemberNames,
+  pinEditSanpoMapUnavailableNote,
+  resolveBlockedPinMoveTargetIds,
   PIN_EDIT_SANPO_MAP_ERROR_HELPER,
   PIN_EDIT_SANPO_MAP_LOADING_HELPER,
   pinEditSanpoMapLockedHelper,
@@ -16,7 +20,7 @@ import {
   type PinEditUpdateRecord,
 } from "@/features/pin/lib/pinEditSanpoMap";
 import { DEFAULT_SANPO_MAP_ICON } from "@/features/pin/lib/sanpoMapIcon";
-import type { PinDetail, SanpoMap } from "@/features/pin/types";
+import type { PinDetail, PinMoveTarget, SanpoMap } from "@/features/pin/types";
 
 const MAP_A: SanpoMap = {
   id: "map-a",
@@ -304,5 +308,114 @@ describe("pinEditSavedMessage", () => {
 
   it("移動したら移動先の名前を入れる", () => {
     expect(pinEditSavedMessage("地図B")).toBe("ピンを「地図B」に移動しました");
+  });
+});
+
+describe("ピンの移動先の候補（SS-192）", () => {
+  const MAP_C: SanpoMap = { ...MAP_B, id: "map-c", name: "地図C", icon: "coffee" };
+  const partner = { userId: "u-partner", displayName: "はな" };
+  const friend = { userId: "u-friend", displayName: "そら" };
+  const TARGETS: PinMoveTarget[] = [
+    { sanpoMapId: "map-b", missingMembers: [partner], addedMembers: [] },
+    { sanpoMapId: "map-c", missingMembers: [], addedMembers: [friend] },
+  ];
+  const base = {
+    status: "ready" as const,
+    maps: [MAP_A, MAP_B, MAP_C],
+    current: { id: "map-a", name: "地図A" },
+    selectedSanpoMapId: "map-a",
+    canChange: true,
+  };
+
+  describe("formatPinMoveMemberNames", () => {
+    it("名前に「さん」を付けて「・」で並べ、3人を超えた分と名前の無い人は「ほかN人」", () => {
+      expect(formatPinMoveMemberNames([{ displayName: "はな" }])).toBe("はなさん");
+      expect(formatPinMoveMemberNames([{ displayName: "はな" }, { displayName: "そら" }])).toBe(
+        "はなさん・そらさん",
+      );
+      expect(
+        formatPinMoveMemberNames([
+          ...["a", "b", "c", "d"].map((displayName) => ({ displayName })),
+          { displayName: null },
+        ]),
+      ).toBe("aさん・bさん・cさんほか2人");
+    });
+
+    it("全員の名前が無ければ「メンバーN人」（空白だけの名前も無い扱い）", () => {
+      expect(formatPinMoveMemberNames([{ displayName: null }, { displayName: "  " }])).toBe(
+        "メンバー2人",
+      );
+    });
+  });
+
+  it("移せない地図だけを blocked にし、候補が不明（null）なら何も止めない", () => {
+    expect([...resolveBlockedPinMoveTargetIds(TARGETS)]).toEqual(["map-b"]);
+    expect(resolveBlockedPinMoveTargetIds(null).size).toBe(0);
+    expect(
+      filterMovablePinEditSanpoMaps(base.maps, resolveBlockedPinMoveTargetIds(TARGETS)).map(
+        (map) => map.id,
+      ),
+    ).toEqual(["map-a", "map-c"]);
+  });
+
+  it("移せない地図のチップは disabled にし、理由を注記に出す", () => {
+    const state = resolvePinEditSanpoMapChoices({ ...base, moveTargets: TARGETS });
+
+    expect(state.choices.map((c) => [c.key, c.disabled === true])).toEqual([
+      ["map-a", false],
+      ["map-b", true],
+      ["map-c", false],
+    ]);
+    expect(state.notes).toEqual([pinEditSanpoMapUnavailableNote("地図B", [partner])]);
+    expect(state.notes?.[0]).toBe("「地図B」にははなさんが参加していないため、移せません");
+  });
+
+  it("移動先にだけいる人がいれば、移動の案内に「見えるようになる」を添える", () => {
+    const state = resolvePinEditSanpoMapChoices({
+      ...base,
+      selectedSanpoMapId: "map-c",
+      moveTargets: TARGETS,
+    });
+
+    expect(state.helper).toBe(pinEditSanpoMapMoveHelper("地図C", [friend]));
+    expect(state.helper).toBe("保存すると「地図C」に移動します。そらさんにも見えるようになります");
+  });
+
+  it("候補が不明・地図を変える権限が無いときは、どの地図も disabled にせず注記も出さない", () => {
+    const unknown = resolvePinEditSanpoMapChoices({ ...base, moveTargets: null });
+    const locked = resolvePinEditSanpoMapChoices({
+      ...base,
+      canChange: false,
+      moveTargets: TARGETS,
+    });
+
+    for (const state of [unknown, locked]) {
+      expect(state.choices.some((c) => c.disabled === true)).toBe(false);
+      expect(state.notes).toEqual([]);
+    }
+  });
+
+  it("選んでいた地図が移せなくなったら、下書きを今の地図に戻す", () => {
+    const movable = filterMovablePinEditSanpoMaps(
+      base.maps,
+      resolveBlockedPinMoveTargetIds(TARGETS),
+    );
+
+    expect(
+      resolveDraftSanpoMapReset({
+        status: "ready",
+        maps: movable,
+        baselineSanpoMapId: "map-a",
+        draftSanpoMapId: "map-b",
+      }),
+    ).toBe("map-a");
+    expect(
+      resolveEffectivePinEditSanpoMapId({
+        status: "ready",
+        maps: movable,
+        baselineSanpoMapId: "map-a",
+        draftSanpoMapId: "map-b",
+      }),
+    ).toBe("map-a");
   });
 });

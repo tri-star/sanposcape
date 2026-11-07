@@ -1,7 +1,8 @@
 import type { PinUpdate } from "@/api/generated/model";
 import type { SanpoMapChoice, SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
 import { DEFAULT_SANPO_MAP_ICON } from "@/features/pin/lib/sanpoMapIcon";
-import type { PinDetail, SanpoMap } from "@/features/pin/types";
+import { SANPO_MAP_MEMBER_FALLBACK_NAME } from "@/features/pin/lib/sanpoMapMember";
+import type { PinDetail, PinMoveTarget, SanpoMap, SanpoMapMember } from "@/features/pin/types";
 
 /**
  * ピン編集画面の「地図」欄の判定・文言（SS-175）。
@@ -24,9 +25,74 @@ export function pinEditSanpoMapLockedHelper(currentName: string): string {
   return `${PIN_EDIT_SANPO_MAP_LOCKED_HELPER}（現在の地図: 「${currentName}」）`;
 }
 
-/** 移動の案内（選択が今の地図と違うとき）。 */
-export function pinEditSanpoMapMoveHelper(selectedName: string): string {
-  return `保存すると「${selectedName}」に移動します`;
+/** 理由・案内に並べる名前の上限（超えた分は「ほかN人」）。 */
+const MEMBER_NAMES_MAX = 3;
+
+/**
+ * メンバーの名前を「Aさん・Bさん」の形にまとめる（SS-192）。表示名の無い人は名前を出せないので
+ * 人数に数える（「Aさんほか1人」「メンバー2人」）。
+ */
+export function formatPinMoveMemberNames(
+  members: readonly Pick<SanpoMapMember, "displayName">[],
+): string {
+  const named = members
+    .map((member) => member.displayName?.trim() ?? "")
+    .filter((name) => name !== "")
+    .map((name) => `${name}さん`);
+  const unnamedCount = members.length - named.length;
+  if (named.length === 0) return `${SANPO_MAP_MEMBER_FALLBACK_NAME}${unnamedCount}人`;
+  const shown = named.slice(0, MEMBER_NAMES_MAX);
+  const rest = named.length - shown.length + unnamedCount;
+  return rest > 0 ? `${shown.join("・")}ほか${rest}人` : shown.join("・");
+}
+
+/** 移せない地図の理由（今の地図のメンバーが移動先にいない。ルート ADR-009 決定42, SS-192）。 */
+export function pinEditSanpoMapUnavailableNote(
+  mapName: string,
+  missingMembers: readonly Pick<SanpoMapMember, "displayName">[],
+): string {
+  return `「${mapName}」には${formatPinMoveMemberNames(missingMembers)}が参加していないため、移せません`;
+}
+
+/**
+ * 移動の案内（選択が今の地図と違うとき）。移動先にだけいる人がいれば、その人たちにも見えるように
+ * なることを添える（公開範囲が広がる移動は止めず、知らせるだけ。SS-192）。
+ */
+export function pinEditSanpoMapMoveHelper(
+  selectedName: string,
+  addedMembers: readonly Pick<SanpoMapMember, "displayName">[] = [],
+): string {
+  const move = `保存すると「${selectedName}」に移動します`;
+  return addedMembers.length === 0
+    ? move
+    : `${move}。${formatPinMoveMemberNames(addedMembers)}にも見えるようになります`;
+}
+
+/**
+ * 移せない地図の ID（`missingMembers` が1人でもいる候補。SS-192）。候補が取れていない（取得中・
+ * 失敗・古い backend）ときは空にし、今までどおり選ばせる（保存の 403 が守る）。
+ */
+export function resolveBlockedPinMoveTargetIds(
+  moveTargets: readonly PinMoveTarget[] | null,
+): ReadonlySet<string> {
+  if (moveTargets === null) return new Set();
+  return new Set(
+    moveTargets
+      .filter((target) => target.missingMembers.length > 0)
+      .map((target) => target.sanpoMapId),
+  );
+}
+
+/**
+ * 選べる地図だけの一覧（移せない地図を除く。今の地図は残す）。`resolveEffectivePinEditSanpoMapId`・
+ * `resolveDraftSanpoMapReset` に渡し、移せない地図を選んだ下書きを今の地図に戻す（候補を取り直したら
+ * 選んでいた地図が移せなくなった場合も含む。SS-192）。
+ */
+export function filterMovablePinEditSanpoMaps<T extends Pick<SanpoMap, "id">>(
+  maps: readonly T[],
+  blockedIds: ReadonlySet<string>,
+): T[] {
+  return maps.filter((map) => !blockedIds.has(map.id));
 }
 
 /**
@@ -80,6 +146,8 @@ export function resolvePinEditSanpoMapChoices(input: {
   current: { id: string; name: string };
   selectedSanpoMapId: string;
   canChange: boolean;
+  /** 移動先の候補（SS-192）。null は不明（取得中・失敗・権限なしで取らない）で、選べなくしない。 */
+  moveTargets?: readonly PinMoveTarget[] | null;
 }): SanpoMapChoicesState {
   if (input.status === "loading") {
     return { status: "loading", choices: [], helper: PIN_EDIT_SANPO_MAP_LOADING_HELPER };
@@ -107,6 +175,12 @@ export function resolvePinEditSanpoMapChoices(input: {
     };
   }
 
+  const targetsById = new Map(
+    (input.moveTargets ?? []).map((target) => [target.sanpoMapId, target]),
+  );
+  const blocked = input.canChange
+    ? resolveBlockedPinMoveTargetIds(input.moveTargets ?? null)
+    : new Set();
   const choices: SanpoMapChoice[] = [];
   if (!input.maps.some((map) => map.id === input.current.id)) {
     choices.push(
@@ -118,8 +192,16 @@ export function resolvePinEditSanpoMapChoices(input: {
       ),
     );
   }
+  const notes: string[] = [];
   for (const map of input.maps) {
-    choices.push(toChoice(map.id, map.name, map.icon, map.id === input.selectedSanpoMapId));
+    const choice = toChoice(map.id, map.name, map.icon, map.id === input.selectedSanpoMapId);
+    if (blocked.has(map.id)) {
+      choice.disabled = true;
+      notes.push(
+        pinEditSanpoMapUnavailableNote(map.name, targetsById.get(map.id)?.missingMembers ?? []),
+      );
+    }
+    choices.push(choice);
   }
 
   let helper: string | null = null;
@@ -127,10 +209,15 @@ export function resolvePinEditSanpoMapChoices(input: {
     helper = pinEditSanpoMapLockedHelper(input.current.name);
   } else if (input.selectedSanpoMapId !== input.current.id) {
     const selected = choices.find((choice) => choice.selected);
-    if (selected !== undefined) helper = pinEditSanpoMapMoveHelper(selected.label);
+    if (selected !== undefined) {
+      helper = pinEditSanpoMapMoveHelper(
+        selected.label,
+        targetsById.get(selected.key)?.addedMembers ?? [],
+      );
+    }
   }
 
-  return { status: "ready", choices, helper };
+  return { status: "ready", choices, helper, notes };
 }
 
 /**

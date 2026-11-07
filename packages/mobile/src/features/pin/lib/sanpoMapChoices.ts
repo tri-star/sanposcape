@@ -13,12 +13,16 @@ export type SanpoMapChoice = {
   selection: SanpoMapSelection;
   /** 地図のアイコン。draft（未作成の「最初の地図」）は既定アイコン（backend も既定で作る）。 */
   icon: SanpoMapIconKey;
+  /** 選べない（編集画面で、今の地図のメンバーが全員は参加していない地図。SS-192）。 */
+  disabled?: boolean;
 };
 
 export type SanpoMapChoicesState = {
   status: "loading" | "ready" | "error";
   choices: SanpoMapChoice[];
   helper: string | null;
+  /** 選べない地図ごとの理由（チップの下に1行ずつ出す。編集画面だけ。SS-192）。 */
+  notes?: readonly string[];
 };
 
 const LOADING_HELPER = "地図を読み込んでいます…";
