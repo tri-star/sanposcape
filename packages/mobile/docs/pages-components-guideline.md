@@ -98,7 +98,7 @@ testID `sanpo-map-list-back`。作成ダイアログを開いている間は `on
 戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
 `(tabs)` 配下を触るときは、この規約に順次寄せることを検討する。
 ピンタブ（`PinTabView`）とアカウントタブ（`app/(tabs)/account.tsx`。設定・画面カタログ・サインイン）は
-画面から出る遷移（ピンタブは長押しで `/pins/new`・ピンのタップ・『地図一覧』・サインイン）が
+画面から出る遷移（ピンタブは長押しで `/pins/new`・ピンのタップ・『地図一覧』・『タグ一覧』（SS-245）・サインイン）が
 二重に発火しないよう、`BackHandler` を購読しない `src/hooks/useNavigateOnce.ts`
 （フォーカスで解除するラッチ。`useScreenBack` も内部で使う）を使う。`useScreenBack` はタブの
 Android バックの既定（`backBehavior: firstRoute`）を奪うので使わない（SS-146）。
