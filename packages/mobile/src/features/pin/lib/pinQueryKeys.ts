@@ -69,13 +69,16 @@ export function invitationPreviewQueryKey(token: string, signedIn: boolean) {
   return ["invitations", "preview", token, signedIn] as const;
 }
 
+/** 地図詳細のピン一覧（全地図ぶん）の前方一致キー。タグ一覧・タグ詳細（SS-245）がまとめて取り直すときに使う。 */
+export const SANPO_MAP_PINS_QUERY_ROOT = ["pins", "by-sanpo-map"] as const;
+
 /**
  * 地図詳細のピン一覧（SS-121）。`["pins", ...]` 始まりにして、ピン保存成功時の
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })`（`usePinSave`）と SS-119 の編集・削除後の
  * invalidate で取り直されるようにする。
  */
 export function sanpoMapPinsQueryKey(sanpoMapId: string) {
-  return ["pins", "by-sanpo-map", sanpoMapId] as const;
+  return [...SANPO_MAP_PINS_QUERY_ROOT, sanpoMapId] as const;
 }
 
 /**

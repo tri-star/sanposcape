@@ -246,6 +246,18 @@ describe("pinRowAccessibilityLabel", () => {
     ).toBe("カフェ、2026/09/01、タグ a、b、c、ほか1件");
   });
 
+  it("地図の名前は状態ラベルの後・日時の前に並ぶ（タグ詳細。SS-245）", () => {
+    expect(
+      pinRowAccessibilityLabel({
+        displayName: "カフェ",
+        createdAtLabel: "2026/09/01",
+        tags: [],
+        statusLabels: ["訪問済み"],
+        sanpoMapName: "散歩",
+      }),
+    ).toBe("カフェ、訪問済み、地図「散歩」、2026/09/01");
+  });
+
   it("状態ラベルは名前の直後に並ぶ。省略時は従来どおり", () => {
     const tags = [{ label: "a" }];
     expect(
