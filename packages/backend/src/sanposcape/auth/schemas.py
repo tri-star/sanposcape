@@ -1,8 +1,13 @@
-import unicodedata
 import uuid
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from sanposcape.users.display_name import (
+    DISPLAY_NAME_COLUMN_LENGTH,
+    FORBIDDEN_CHARACTERS_MESSAGE,
+    has_forbidden_characters,
+)
 
 # refresh token は `secrets.token_urlsafe(32)` で約43文字。将来のTTL変更等の余地を見て
 # 余裕を持たせつつ、上限を設けて低コストDoS（巨大な文字列を送りつけてパース/デコードに
@@ -18,13 +23,8 @@ _NONCE_MAX_LENGTH = 256
 # Apple の authorization code。形式は公開されておらず、厳しくすると Apple 側の変更でサインイン自体が
 # 422 になるので検証しない。上限は低コスト DoS 対策のみ（実測の code は 100 文字未満）。
 _AUTHORIZATION_CODE_MAX_LENGTH = 512
-# users.display_name の列幅。超えると DB の DataError（500）になるため入口で弾く。
-SESSION_DISPLAY_NAME_MAX_LENGTH = 255
-# 表示名に入れさせない Unicode カテゴリ。Cc（NUL・改行等）、Zl/Zp（行・段落区切り）、
-# Cf（書式制御。bidi 上書きやゼロ幅文字による表示なりすまし）。
-_DISPLAY_NAME_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
-# Cf だが、絵文字の合字（ZWJ）や一部言語の正しい表記（ZWNJ）に必要なので許可する。
-_DISPLAY_NAME_ALLOWED_FORMAT_CHARS = frozenset({"\u200d", "\u200c"})
+# users.display_name の列幅。IdP の名前は列幅まで受ける（設定画面の上限 50 は適用しない）。
+SESSION_DISPLAY_NAME_MAX_LENGTH = DISPLAY_NAME_COLUMN_LENGTH
 
 
 class SessionCreate(BaseModel):
@@ -73,13 +73,8 @@ class SessionCreate(BaseModel):
     @field_validator("display_name", mode="after")
     @classmethod
     def _reject_control_characters(cls, value: str | None) -> str | None:
-        # NUL は PostgreSQL の text に入らず 500 になる。改行・タブ等も氏名としては不正。
-        if value is not None and any(
-            unicodedata.category(ch) in _DISPLAY_NAME_FORBIDDEN_CATEGORIES
-            and ch not in _DISPLAY_NAME_ALLOWED_FORMAT_CHARS
-            for ch in value
-        ):
-            raise ValueError("display_name must not contain control or invisible format characters")
+        if value is not None and has_forbidden_characters(value):
+            raise ValueError(FORBIDDEN_CHARACTERS_MESSAGE)
         return value
 
     @model_validator(mode="after")

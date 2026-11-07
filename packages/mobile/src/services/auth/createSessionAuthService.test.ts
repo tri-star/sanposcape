@@ -567,4 +567,72 @@ describe("createSessionAuthService", () => {
       expect(onSessionChange).toHaveBeenLastCalledWith(null);
     });
   });
+
+  describe("updateCurrentUser（SS-268）", () => {
+    it("サインイン中の同じユーザーなら差し替えて通知し、トークンは変えない", async () => {
+      const { service, issueSession, onSessionChange, tokenStore } = setup();
+      issueSession.mockResolvedValue(rawSession());
+      const user = await service.signIn("google");
+      onSessionChange.mockClear();
+
+      const renamed = { ...user, displayName: "さんぽ太郎" };
+      service.updateCurrentUser(renamed);
+
+      expect(service.getCurrentUser()).toEqual(renamed);
+      expect(onSessionChange).toHaveBeenCalledWith(renamed);
+      expect(tokenStore.getAccessToken()?.value).toBe("access-1");
+      expect(await tokenStore.getRefreshToken()).toBe("refresh-1");
+    });
+
+    it("サインアウト後に遅れて届いた値ではセッションを書き換えない", async () => {
+      const { service, issueSession, onSessionChange } = setup();
+      issueSession.mockResolvedValue(rawSession());
+      const user = await service.signIn("google");
+      await service.signOut();
+      onSessionChange.mockClear();
+
+      service.updateCurrentUser({ ...user, displayName: "遅れた名前" });
+
+      expect(service.getCurrentUser()).toBeNull();
+      expect(onSessionChange).not.toHaveBeenCalled();
+    });
+
+    it("別のユーザーの値では書き換えない", async () => {
+      const { service, issueSession, onSessionChange } = setup();
+      issueSession.mockResolvedValue(rawSession({ userId: "user-2" }));
+      const user = await service.signIn("google");
+      onSessionChange.mockClear();
+
+      service.updateCurrentUser({ ...user, id: "user-1", displayName: "前の人" });
+
+      expect(service.getCurrentUser()).toEqual(user);
+      expect(onSessionChange).not.toHaveBeenCalled();
+    });
+
+    it("差し替えより前に始まった refresh の応答で、古い名前に戻さない", async () => {
+      const { service, issueSession, api, tokenStore, onSessionChange } = setup();
+      issueSession.mockResolvedValue(rawSession());
+      const user = await service.signIn("google");
+      let resolveRefresh: (value: unknown) => void = () => {};
+      api.refresh.mockReturnValue(
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const refreshing = service.refreshAccessToken();
+      // refresh の要求を送った後に、表示名の保存が先に終わる。
+      await vi.waitFor(() => expect(api.refresh).toHaveBeenCalled());
+      const renamed = { ...user, displayName: "さんぽ太郎" };
+      service.updateCurrentUser(renamed);
+      onSessionChange.mockClear();
+      // refresh の応答は、保存より前に読んだ DB の user（古い名前）を持つ。
+      resolveRefresh(rawSession({ accessToken: "access-2", refreshToken: "refresh-2" }));
+
+      expect(await refreshing).toBe("access-2");
+      expect(service.getCurrentUser()).toEqual(renamed);
+      expect(onSessionChange).not.toHaveBeenCalled();
+      expect(tokenStore.getAccessToken()?.value).toBe("access-2");
+    });
+  });
 });

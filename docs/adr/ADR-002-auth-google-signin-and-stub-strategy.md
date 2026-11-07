@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-27（SS-82 追補: Google サインインの失敗の分類とキャンセルの扱い。前回 2026-10-17 棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-07（SS-268 追補: 表示名をサインインで上書きせず、設定画面で変える。前回 2026-10-27 SS-82 追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -44,6 +44,9 @@
   backend の ID token 検証は `provider="apple"` で受け付け済み（`nonce` は端末の raw 値を SHA256 の hex と
   token の `nonce` で比較し apple では必須、氏名は新規作成時と未設定の既存ユーザーにだけ使い、`APPLE_ALLOWED_AUDIENCES` が空なら 400）。
   （本文: 「SS-195 追補」節、「SS-197 追補」節）
+- **表示名はサインインで上書きしない（IdP を問わず、未設定のときだけ埋める）。利用者は設定画面から `PATCH /users/me` で変える**
+  （1〜50 code point・空と null は 422・制御文字などはサインインの氏名と同じ規則。mobile の画面はフラグ `display_name_edit` の裏）。
+  （本文: 「SS-268 追補」節）
 - **mobile は `expo-apple-authentication` で `signIn("apple")` を実装済み**（raw nonce を送り、authorization code は毎回、
   氏名は `/auth/session` の成功まで保持して再送。iOS だけ Apple の公式ボタンを Google の上に置く。フィーチャーフラグでは包まない）。
   保留中の氏名はサインアウト（アカウント削除成功後を含む）で消し、422 の氏名なし再送は成功してから保留を消す。
@@ -866,6 +869,34 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
 - 実機で `ONE_TAP_START_FAILED`・設定不備のキャンセルを再現しての確認はしていない（エミュレータでは Google の OAuth の失敗を作れない）。
   SS-81 の実機の調査で、logcat の `ReactNativeJS` に `[sanposcape] auth.sign-in.failed` が出ることを確かめる。
 
+## SS-268 追補（2026-11-07）: 表示名はサインインで上書きせず、利用者が設定画面で変える
+
+mobile の設定画面から表示名（`users.display_name`）を変えられるようにした。SS-197 追補の「氏名は ID token に氏名が無い場合だけ使い、
+保存済みの値は上書きしない」を、IdP の名前（Google の `name`・dev の `user_key`）にも広げる。
+
+### 決定
+
+- **既存ユーザーの表示名は、IdP の名前でもサインインのたびに上書きしない。保存済みの値が NULL のときだけ埋める**（`UserService.find_or_create`）。
+  新規作成時は従来どおり IdP の名前（無ければ端末の `initial_display_name`）。メールアドレスとプロフィール画像の URL は従来どおり最新値で更新する。
+  上書きを続けると、設定画面で変えた名前が次のサインインで戻るため。SS-197 追補の「Google は token の `name` が優先されるので挙動は変わらない」は、
+  この追補で変わった（Google の改名は既存ユーザーに反映されなくなる。利用者がアプリで直せる）。
+- **本人の表示名を変える `PATCH /users/me`**（ボディ `{display_name}` 必須・`extra="forbid"`、応答は `GET /auth/me` と同じ形の `UserRead`）。
+  前後の空白を除いて 1〜50 code point（地図名・ピン名と同じ。メンバー一覧・招待のプレビューでほかの利用者に見えるので、列幅 255 より狭くする）。
+  空・null は 422（消して未設定に戻すことはできない）。制御文字などの規則は `SessionCreate.display_name` と共通（`users/display_name.py`。
+  表示名は users ドメインのものなので users に置き、`auth/schemas.py` から import する）。IdP から受け取る名前には 50 の上限を当てない（列幅まで受ける）。
+- 応答の型は `auth` の `AuthUserRead` を import せず、users に同じ形の `UserRead` を置く（依存の向き `auth -> users` を保つ）。
+- mobile の画面はフラグ `display_name_edit`（client）の裏に置く。`PATCH /users/me` はフラグで閉じない（本人の行しか変えられない。SS-266 の `PATCH /sanpo-maps/{id}/members/me` と同じ）。
+
+### 採らなかった案
+
+- **「利用者が変えたか」の列を足し、変えていない人だけ Google の名前で更新し続ける**: DB の expand が要り、Google 側の改名を追う価値が小さい（アプリで直せる）。
+
+### 影響
+
+- 応答の形は変えない（`display_name` の値が「最新の Google の名前」でなくなるだけ）。DB スキーマは変えない。
+- dev の `POST /auth/dev-session` も表示名を `user_key` に戻さなくなる（エミュレータの確認で一度変えた名前が残る）。
+- データ取扱い台帳 3.2・ポリシー 1-2 を直した（不利な改定ではない）。
+
 ## 関連情報
 
 - [ADR-001(横断): 地図・POI に Google Maps Platform](./ADR-001-map-poi-google-maps-platform.md)
@@ -878,4 +909,4 @@ backend が一度も呼ばれていないことを CloudWatch Logs で確かめ�
 - [RFC 7636: PKCE](https://datatracker.ietf.org/doc/html/rfc7636)
 - [Expo: Using Google authentication](https://docs.expo.dev/guides/google-authentication/)
 - [Expo: AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/)
-- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-198（「SS-198 追補」節の起点）, SS-199（「SS-199 追補」節の起点）, SS-82（「SS-82 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）
+- 関連 WorkItem: SS-10（本 ADR の起点）, SS-11（認証画面）, SS-12（backend ユーザーモデル・削除API）, SS-13（認証状態と探索ロジックの分離）, SS-49（決定6-1 追補の起点）, SS-56（backend: explore 認証任意化）, SS-57（mobile: ゲスト導線復活）, SS-195（「SS-195 追補」節の起点）, SS-197（「SS-197 追補」節の起点）, SS-198（「SS-198 追補」節の起点）, SS-199（「SS-199 追補」節の起点）, SS-82（「SS-82 追補」節の起点）, SS-268（「SS-268 追補」節の起点）, SS-196〜SS-199（Sign in with Apple の対応）

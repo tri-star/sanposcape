@@ -84,6 +84,7 @@ def test_get_app_config_response_shape(stub_client: TestClient) -> None:
             "pin_station_tag": False,
             "map_invitation": False,
             "map_pin_visibility": False,
+            "display_name_edit": False,
         },
         "minimum_supported_versions": {"ios": "1.2.3", "android": "1.2.4"},
         "config_source": "stub",
@@ -109,6 +110,7 @@ def test_get_app_config_reflects_changes_to_stub_document() -> None:
         "pin_station_tag": False,
         "map_invitation": False,
         "map_pin_visibility": False,
+        "display_name_edit": False,
     }
 
 
@@ -123,6 +125,7 @@ def test_get_app_config_with_empty_stub_document_returns_all_off(
             "pin_station_tag": False,
             "map_invitation": False,
             "map_pin_visibility": False,
+            "display_name_edit": False,
         },
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "stub",
@@ -143,6 +146,7 @@ def test_get_app_config_falls_back_to_default_when_appconfig_unconfigured(
             "pin_station_tag": False,
             "map_invitation": False,
             "map_pin_visibility": False,
+            "display_name_edit": False,
         },
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "default",

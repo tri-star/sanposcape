@@ -51,9 +51,13 @@ class TestSessionEndpoint:
 
         assert first["user"]["id"] == second["user"]["id"]
 
-    def test_profile_change_is_reflected(
+    def test_relogin_does_not_overwrite_saved_display_name_with_google_name(
         self, auth_client: TestClient, make_google_id_token
     ) -> None:
+        """再サインインで、保存済みの表示名を Google の名前で上書きしない。
+
+        設定画面で変えた名前が戻らないようにするため（SS-268）。
+        """
         first = _create_session(
             auth_client, make_google_id_token, sub="google-sub-1", name="旧名前"
         )
@@ -62,7 +66,7 @@ class TestSessionEndpoint:
         )
 
         assert first["user"]["id"] == second["user"]["id"]
-        assert second["user"]["display_name"] == "新名前"
+        assert second["user"]["display_name"] == "旧名前"
 
     def test_invalid_id_token_returns_401(self, auth_client: TestClient) -> None:
         res = auth_client.post(

@@ -33,6 +33,12 @@ export type AuthService = {
    * 同期取得が必要なサービス層内部・デバッグ用途に限る。
    */
   getCurrentUser(): AuthUser | null;
+  /**
+   * サインイン中のユーザーの情報を、backend が返した最新の値で差し替える（表示名の変更など。SS-268）。
+   * サインイン中で、同じ `id` のときだけ差し替えて `onSessionChange` で通知する
+   * （応答を待つ間にサインアウト・別の人でサインインされていたら何もしない）。トークンには触れない。
+   */
+  updateCurrentUser(user: AuthUser): void;
   /** 有効な access token。期限切れなら内部で refresh する。未認証なら null。 */
   getAccessToken(): Promise<string | null>;
   /** 強制 refresh（401 を受けた client から呼ばれる）。single-flight。失敗時 null。 */

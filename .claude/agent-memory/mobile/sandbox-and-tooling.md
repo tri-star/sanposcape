@@ -102,4 +102,12 @@ for p in $(pgrep -f "expo start"); do echo "$p $(readlink /proc/$p/cwd)"; done
 `Stop-Process -Id <id> -Force` で止めると、次の `adb.exe devices` がサーバーを起動し直し、待っていた `dev-up.sh` はそのまま進む。
 SS-245 でも引き継いだ直後に同じく固まり（`localhost:5037` に接続はできるが応答が無い）、`cd /mnt/c && cmd.exe /d /c "taskkill /F /IM adb.exe"` で止めても直った。
 adb サーバーはマシンに1つなので、止めるのはエミュレータのロック（並行作業の取り決め）を持っているときだけにする。
-`pkill -f "expo start --dev-client"` を同じコマンドに書くと自分のシェルのコマンド行にも一致して終了コード 144 で落ちる（Metro は止まる）。ロックの解放は別のコマンドで行う。
+
+**使い終えた自分の Metro を止めるとき**は、`pkill -f "expo start --dev-client"` も `pgrep -f "expo start ..."` の結果を回す `kill` も、
+**同じ文字列を含む自分のシェル（そのコマンド自身）**に一致して終了コード 144 で落ちる（Metro は止まる。SS-192・SS-268）。ロックの解放は別のコマンドで行う。
+`pkill -f` は他の worktree の Metro まで止めるので、`readlink /proc/$p/cwd` が自分の worktree のものだけを止め、`$$` と一致する PID は飛ばす（`[ "$p" = "$$" ] && continue`）。
+
+**エミュレータの `adb install` が `PackageManagerInternal.freeStorage ... on a null object reference` で失敗する**ことがある（SS-268）。
+`adb shell service check package` が `not found` なら、システムの package サービスが落ちている。`adb reboot` → `sys.boot_completed=1` と
+`Service package: found` を待ってから入れ直すと通った（再起動で `adb reverse` が消えるので `dev-up.sh` を流し直す）。
+development build が入っていないときは、`/mnt/c/temp/` に過去の APK（`sanposcape-dev*.apk`）が残っていることがある。JS だけの変更なら直近のものを入れれば足りる。

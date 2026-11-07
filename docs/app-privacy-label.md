@@ -66,7 +66,7 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 
 | データの種類 | 実際のデータ | 根拠（実装） | ポリシー |
 | --- | --- | --- | --- |
-| 名前 | Google から受け取る表示名、または Apple のサインイン時に端末から受け取る氏名（`users.display_name`） | `auth/providers/google.py`、`auth/providers/apple.py`、`auth/schemas.py`、`users/service.py`、`users/models.py` | 1-2 |
+| 名前 | Google から受け取る表示名、Apple のサインイン時に端末から受け取る氏名、または利用者が設定画面で変えた表示名（`users.display_name`。SS-268） | `auth/providers/google.py`、`auth/providers/apple.py`、`auth/schemas.py`、`users/service.py`、`users/models.py`、`users/schemas.py`（`PATCH /users/me`）、mobile `src/features/settings/api/displayNameApi.ts` | 1-2 |
 | メールアドレス | Google / Apple から受け取るメールアドレス（`users.email`。Apple は非公開リレーのアドレスの場合がある）。重要なお知らせの連絡にも使うが、マーケティングには使わない | 同上 | 1-2、2 |
 | フィットネス | 散歩の記録の歩いた時間・距離（`walks.duration_seconds` / `distance_meters`）。Motion & Fitness API・HealthKit は使っていないが、運動の記録にあたるため申告する | `walks/models.py` | 1-1 |
 | 正確な位置情報 | 散歩の軌跡（小数 6 桁）、目的地の座標、ピンの座標。ピン地図の表示範囲（小数 4 桁）は `GET /pins` のクエリに載るため、CloudFront のアクセスログに残りうる。Apple の定義では小数 3 桁以上は「正確」。なお、スポット・ルート検索の現在地（小数 4 桁 ≒ 11m）と、住所を引くためのピンの座標（ピン詳細に出す住所。1.0.0 のビルドではピン名の初期値に使う住所。SS-138・SS-212。Google Geocoding API へ送る）は POST のボディで送り、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、DB にもログにも残らない。最寄り駅を引くためのピンの座標（登録画面のタグの初期値。SS-225。フラグの裏）も POST のボディで送り、サーバーは同梱の駅のデータを引くだけでキャッシュもせず、DB にもログにも残らない | `walks/models.py`、`sanpo_maps/models.py`、mobile の `walkTrackPayload.ts` / `pinFetchBounds.ts` / `placeSearchRequest.ts` / `pinAddressRequest.ts` / `pinNearestStationRequest.ts`、backend の `config.py`（キャッシュの TTL） | 1-1、1-5 |

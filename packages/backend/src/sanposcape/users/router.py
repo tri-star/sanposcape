@@ -1,11 +1,29 @@
 from fastapi import APIRouter, Depends, status
 
 from sanposcape.dependencies import get_current_user
-from sanposcape.users.dependencies import get_account_deletion_service
+from sanposcape.users.dependencies import get_account_deletion_service, get_user_service
 from sanposcape.users.models import User
-from sanposcape.users.service import AccountDeletionService
+from sanposcape.users.schemas import DisplayNameUpdate, UserRead
+from sanposcape.users.service import AccountDeletionService, UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.patch(
+    "/me",
+    response_model=UserRead,
+    description=(
+        "Bearer token で解決した本人の表示名を変える（SS-268）。"
+        "変えた表示名は、以降のサインインで Google などの名前に上書きされない。"
+    ),
+)
+def update_me(
+    payload: DisplayNameUpdate,
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+) -> User:
+    """本人の表示名を変える（OpenAPI の説明は上の `description`）。"""
+    return service.update_display_name(current_user, payload.display_name)
 
 
 @router.delete(
