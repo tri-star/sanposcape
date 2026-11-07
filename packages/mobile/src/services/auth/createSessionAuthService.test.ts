@@ -608,5 +608,31 @@ describe("createSessionAuthService", () => {
       expect(service.getCurrentUser()).toEqual(user);
       expect(onSessionChange).not.toHaveBeenCalled();
     });
+
+    it("差し替えより前に始まった refresh の応答で、古い名前に戻さない", async () => {
+      const { service, issueSession, api, tokenStore, onSessionChange } = setup();
+      issueSession.mockResolvedValue(rawSession());
+      const user = await service.signIn("google");
+      let resolveRefresh: (value: unknown) => void = () => {};
+      api.refresh.mockReturnValue(
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const refreshing = service.refreshAccessToken();
+      // refresh の要求を送った後に、表示名の保存が先に終わる。
+      await vi.waitFor(() => expect(api.refresh).toHaveBeenCalled());
+      const renamed = { ...user, displayName: "さんぽ太郎" };
+      service.updateCurrentUser(renamed);
+      onSessionChange.mockClear();
+      // refresh の応答は、保存より前に読んだ DB の user（古い名前）を持つ。
+      resolveRefresh(rawSession({ accessToken: "access-2", refreshToken: "refresh-2" }));
+
+      expect(await refreshing).toBe("access-2");
+      expect(service.getCurrentUser()).toEqual(renamed);
+      expect(onSessionChange).not.toHaveBeenCalled();
+      expect(tokenStore.getAccessToken()?.value).toBe("access-2");
+    });
   });
 });

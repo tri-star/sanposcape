@@ -32,6 +32,9 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
   const restoreTimeoutMs = deps.restoreTimeoutMs ?? DEFAULT_RESTORE_TIMEOUT_MS;
 
   let currentUser: AuthUser | null = null;
+  // `updateCurrentUser` の回数。refresh の応答は要求を送った時点の DB の user を持つので、その間に
+  // 表示名を保存していたら、遅れて届いた古い user で新しい名前を戻さないために比べる（SS-268）。
+  let userUpdateCount = 0;
 
   function setCurrentUser(user: AuthUser | null): void {
     currentUser = user;
@@ -39,6 +42,7 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
   }
 
   async function doRefresh(signal?: AbortSignal): Promise<string | null> {
+    const updateCountAtStart = userUpdateCount;
     const refreshToken = await tokenStore.getRefreshToken();
     if (refreshToken === null || signal?.aborted) {
       return null;
@@ -60,7 +64,12 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
       if (signal?.aborted) return null;
       // 保存失敗・中断時に、ゲスト状態のままAPIへ認証トークンが渡らないようにする。
       tokenStore.setAccessToken(session.accessToken);
-      setCurrentUser(session.user);
+      // refresh の間に同じ人の user を差し替えていたら、そちらの方が新しい（refresh の user は古い）。
+      const updatedDuringRefresh =
+        userUpdateCount !== updateCountAtStart && currentUser?.id === session.user.id;
+      if (!updatedDuringRefresh) {
+        setCurrentUser(session.user);
+      }
 
       return session.accessToken.value;
     } catch (error) {
@@ -202,6 +211,7 @@ export function createSessionAuthService(deps: SessionAuthDeps): AuthService {
     updateCurrentUser(user: AuthUser): void {
       // サインアウト後・別の人のサインイン後に遅れて届いた応答で、セッションを書き換えない。
       if (currentUser === null || currentUser.id !== user.id) return;
+      userUpdateCount += 1;
       setCurrentUser(user);
     },
   };
