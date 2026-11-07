@@ -385,7 +385,6 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                           category="neutral"
                           icon="tag"
                           onPress={() => handleOpenTag(tag.label)}
-                          accessibilityLabel={`タグ「${tag.label}」のピンの一覧を開く`}
                           testID={`pin-detail-tag-${i}`}
                         >
                           {tag.label}
