@@ -20,16 +20,22 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
+import { SanpoMapDeleteDialog } from "@/features/pin/components/map-deletion/SanpoMapDeleteDialog";
 import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
 import { SanpoMapIconEditDialog } from "@/features/pin/components/SanpoMapIconEditDialog";
 import { SanpoMapMemberSummaryRow } from "@/features/pin/components/SanpoMapMemberSummaryRow";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
 import { SanpoMapPinListItem } from "@/features/pin/components/SanpoMapPinListItem";
+import { useSanpoMapDeleteFlow } from "@/features/pin/hooks/map-deletion/useSanpoMapDeleteFlow";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMapMembers } from "@/features/pin/hooks/useSanpoMapMembers";
 import { useSanpoMapRecheck } from "@/features/pin/hooks/useSanpoMapRecheck";
 import { useSanpoMapPins } from "@/features/pin/hooks/useSanpoMapPins";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
+import {
+  SANPO_MAP_DELETE_BUTTON_LABEL,
+  sanpoMapDeleteDescription,
+} from "@/features/pin/lib/map-deletion/sanpoMapDelete";
 import { canManageSanpoMap } from "@/features/pin/lib/pinPermissions";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
 import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
@@ -81,6 +87,8 @@ const MAX_PIN_TOTAL = SANPO_MAP_PIN_PAGE_SIZE * SANPO_MAP_PIN_MAX_PAGES;
  * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
  * - メンバーの行（SS-249）はフラグ `map_invitation` が ON か、自分が editor の地図のときだけ出す。
  * - アイコンの変更は、アイコンそのもののタップで開く（owner だけ。右下にペンのバッジ。SS-249）。
+ * - 地図の削除はヘッダー右のゴミ箱から確認ダイアログを開く（owner だけ。SS-265）。消したら地図一覧へ戻り、
+ *   一覧で「『…』を削除しました」を出す。消した後は、この地図のピン・メンバーを取り直さない（404 を踏む）。
  */
 export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMapDetailViewProps) {
   const theme = useTheme();
@@ -88,7 +96,10 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const maps = useSanpoMaps({ enabled: isSignedIn });
-  const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn });
+  // 地図の削除（SS-265）。確認ダイアログ・戻るの横取り・成功後の遷移は hook に分けてある。
+  const deleteFlow = useSanpoMapDeleteFlow(sanpoMapId);
+  const { deleted, deletion } = deleteFlow;
+  const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn && !deleted });
   // アイコン変更ダイアログ。開くたびに key を +1 して作り直す（初期選択を現在のアイコンに戻す）。
   const [iconDialogOpen, setIconDialogOpen] = useState(false);
   const [iconDialogKey, setIconDialogKey] = useState(0);
@@ -97,12 +108,14 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const back = useScreenBack({
     fallbackHref: "/sanpo-maps",
     onIntercept: () => {
+      if (deleteFlow.interceptBack()) return true;
       if (!iconDialogOpen) return false;
       // 変更中はダイアログを閉じず、バック操作だけ消費する（画面も戻らない）。
       if (!iconBusy) setIconDialogOpen(false);
       return true;
     },
   });
+  deleteFlow.bindRunOnce(back.runOnce);
   // ピン詳細で削除して戻ってきたときの「ピンを削除しました」を出す（画面またぎのメッセージ受け渡し。
   // `src/lib/flashMessage.ts`）。消費しないと、文言が残って後でピンタブに遅れて出てしまう（SS-119）。
   const toast = useToast();
@@ -135,7 +148,11 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
   const showMembers =
     map !== undefined && canShowSanpoMapMembers({ mapInvitationEnabled, role: map.role });
-  const members = useSanpoMapMembers(sanpoMapId, { enabled: isSignedIn && showMembers });
+  // 削除の確認ダイアログを開いている間は、メンバーの行を出さない owner の地図（フラグ OFF）でも取る。
+  // 確認文に、見られなくなるほかのメンバーの人数を書くため（フラグを OFF に戻した後もメンバーは残る。SS-265）。
+  const members = useSanpoMapMembers(sanpoMapId, {
+    enabled: isSignedIn && (showMembers || deleteFlow.dialogOpen) && !deleted,
+  });
   const handleOpenMembers = useCallback(() => {
     if (sanpoMapId === null) return;
     // 戻る以外でこの画面から出る遷移なので二重発火ラッチを通す（ピンのタップと同じ）。
@@ -155,7 +172,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   // 一覧に id が無いときは、古いキャッシュで not-found を確定する前に一覧を1回取り直す。
   const recheck = useSanpoMapRecheck({
     sanpoMapId,
-    enabled: isSignedIn,
+    enabled: isSignedIn && !deleted,
     mapsReady: maps.status === "ready",
     mapFound: map !== undefined,
     mapsFetching: maps.isFetching,
@@ -403,6 +420,8 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   };
 
   const renderBody = (): SanpoMapDetailBody => {
+    // 消した後は地図一覧へ戻るまでの間、取り直しで地図が消えても not-found を出さない。
+    if (deleted) return loadingBody();
     switch (bodyState) {
       case "invalid-id":
         return {
@@ -485,6 +504,23 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   };
 
   const body = renderBody();
+  const deleteDescription = sanpoMapDeleteDescription({
+    pinCount:
+      map === undefined
+        ? null
+        : resolveSanpoMapPinCount({
+            listPinCount: map.pinCount,
+            pinsStatus: pins.status,
+            loadedCount: pins.pins.length,
+            truncated: pins.truncated,
+          }),
+    // 自分を除く。取り終えるまでは不明（null）。
+    otherMemberCount:
+      (showMembers || deleteFlow.dialogOpen) && members.status === "ready"
+        ? Math.max(0, members.members.length - 1)
+        : null,
+    sharingEnabled: mapInvitationEnabled,
+  });
 
   return (
     <View
@@ -502,8 +538,19 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         <Text accessibilityRole="header" style={styles.title}>
           地図の詳細
         </Text>
-        {/* 名前変更・削除はスコープ外。押せて何も起きないボタンを作らないため空のスペーサー。 */}
-        <View style={styles.headerSpacer} />
+        {map !== undefined && bodyState === "ready" && !deleted && canManageSanpoMap(map.role) ? (
+          // owner だけ（editor には押しても 403 になる操作を見せない）。ピン詳細の削除と同じ置き方（SS-265）。
+          <IconButton
+            icon="trash-2"
+            label={SANPO_MAP_DELETE_BUTTON_LABEL}
+            variant="ghost"
+            onPress={() => deleteFlow.openDialog(map.name)}
+            testID="sanpo-map-detail-delete"
+          />
+        ) : (
+          // 名前の変更はスコープ外。押せて何も起きないボタンを作らないため空のスペーサー。
+          <View style={styles.headerSpacer} />
+        )}
       </View>
       {body.centered ? (
         body.refreshable ? (
@@ -534,6 +581,14 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
           onBusyChange={setIconBusy}
         />
       ) : null}
+      <SanpoMapDeleteDialog
+        open={deleteFlow.dialogOpen}
+        status={deletion.status}
+        errorCode={deletion.errorCode}
+        description={deleteDescription}
+        onCancel={deleteFlow.closeDialog}
+        onConfirm={deletion.deleteMap}
+      />
     </View>
   );
 }

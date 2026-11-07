@@ -17,6 +17,7 @@ import { PhotoSlotsBusyError, PinSaveError } from "@/features/pin/lib/pinSaveErr
 const ALL_CODES: PinEditErrorCode[] = [
   "unauthorized",
   "forbidden",
+  "move_target_missing_members",
   "pin_not_found",
   "sanpo_map_not_found",
   "tag_limit_exceeded",
@@ -82,6 +83,24 @@ describe("toPinEditErrorCode（update / delete_photos 段）", () => {
       "tag_limit_exceeded",
     );
     expect(toPinEditErrorCode(new ApiError(404))).toBe("pin_not_found");
+  });
+
+  it("update 段の 403 は code で区別する（move_target_missing_members 以外は権限が無い。SS-192）", () => {
+    expect(
+      toPinEditErrorCode(new ApiError(403, "x", { code: "move_target_missing_members" })),
+    ).toBe("move_target_missing_members");
+    expect(toPinEditErrorCode(new ApiError(403, "x", { detail: "Permission denied" }))).toBe(
+      "forbidden",
+    );
+    expect(toPinEditErrorCode(new ApiError(403))).toBe("forbidden");
+  });
+
+  it("move_target_missing_members は自動・手動とも再試行しない（地図を選び直す）", () => {
+    expect(isRetriablePinEditError("move_target_missing_members")).toBe(false);
+    expect(canManuallyRetryPinEdit("move_target_missing_members")).toBe(false);
+    expect(pinEditErrorMessage("move_target_missing_members", "update")).toContain(
+      "地図を選び直してください",
+    );
   });
 
   it("update 段の 404 は code で区別する（sanpo_map_not_found 以外はピンが無い）", () => {

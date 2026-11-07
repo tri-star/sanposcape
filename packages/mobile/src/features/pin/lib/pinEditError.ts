@@ -30,6 +30,7 @@ export function isPinEditError(error: unknown): error is PinEditError {
 export type PinEditErrorCode =
   | "unauthorized" // 401
   | "forbidden" // 403
+  | "move_target_missing_members" // 403 + code（PATCH の移動先に今の地図のメンバーが全員はいない。SS-192）
   | "pin_not_found" // 404（PATCH・写真追加）
   | "sanpo_map_not_found" // 404 + code（PATCH の移動先。SS-175）
   | "tag_limit_exceeded" // 409 + code
@@ -66,7 +67,9 @@ export function toPinEditErrorCode(error: unknown): PinEditErrorCode {
       case 401:
         return "unauthorized";
       case 403:
-        return "forbidden";
+        return getApiErrorCode(cause) === "move_target_missing_members"
+          ? "move_target_missing_members"
+          : "forbidden";
       case 404:
         // sanpo_map_not_found 以外の 404（code 無しを含む）はピンが無いと読む（SS-175）。
         return getApiErrorCode(cause) === "sanpo_map_not_found"
@@ -107,6 +110,12 @@ const MESSAGES: Record<PinEditErrorCode, StageMessages> = {
     update: "この変更を保存する権限がありません。",
     delete_photos: `${PARTIAL_PREFIX_DELETE}削除する権限のない写真が含まれています。`,
     add_photos: `${PARTIAL_PREFIX_ADD}このピンを操作する権限がありません。`,
+  },
+  move_target_missing_members: {
+    update:
+      "移動先の地図に、今の地図のメンバーが全員は参加していないため移せません。地図を選び直してください。",
+    delete_photos: `${PARTIAL_PREFIX_DELETE}${RESUME}`, // 到達しない（型の網羅のため）
+    add_photos: `${PARTIAL_PREFIX_ADD}${RESUME}`, // 到達しない（型の網羅のため）
   },
   pin_not_found: {
     update: "このピンは削除されています。",

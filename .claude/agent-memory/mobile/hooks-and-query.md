@@ -1,6 +1,6 @@
 ---
 name: hooks-and-query
-description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、useQueries では keepPreviousData が効かない、Rules of Hooks、手動メモ化の警告
+description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、地図が消える操作の後の ["pins"] の invalidate、useQueries では keepPreviousData が効かない、Rules of Hooks、手動メモ化の警告、毎回取る詳細からキャッシュを共有する一覧へ移ると食い違う、combine で取り出し忘れた項目は黙って undefined
 metadata:
   type: feedback
   scope: durable
@@ -45,7 +45,18 @@ hooks はユニットテストの対象外なので、ここに挙げる不具�
 
 **How to apply:** `removeQueries(["walks","detail",id])` も呼び、画面の表示状態を決める純粋関数で「削除済み」をエラーより優先させる。
 
-## useQueries では key が変わると keepPreviousData が効かない
+## 地図が消える操作の後に ["pins"] を invalidate すると、ピンタブが消えた地図のピンを取り直して 404
+
+ピンタブ（`useRegisteredPins`）は地図一覧（`useSanpoMaps`）から取る地図を決め、地図ごとに `pinListQueryKey` を持つ。
+地図の削除・地図から抜ける操作の成功で、地図一覧と `["pins"]` を同時に invalidate すると、一覧の取り直しが描画に届く前に
+消えた地図のクエリがまだ観測されていて取り直され、404 になる（SS-265。エミュレータの backend のログで確認。画面の上には出ないので気づきにくい）。
+「一覧の取り直しを await してから pins」の順序でも、描画のタイミングに頼るだけで保証にならない（レビューの指摘）。
+
+**How to apply:** `isPinsQueryOfSanpoMap`（`lib/pinQueryKeys.ts`）を invalidate の `predicate` に渡し、消えた地図のキーを外す（`useSanpoMapDelete` が模範）。
+地図から抜ける（`useSanpoMapMemberRemove`）は同じ構造のまま（SS-265 の時点で未対応。後続課題の候補）。
+確かめるときは、操作の後に backend のログで消えた地図の id への GET が出ないことを見る（`docker compose -p <project> -f packages/backend/compose.yaml logs api --since 1m | grep <id>`）。
+
+
 
 `@tanstack/query-core` 5.104 の `QueriesObserver` は、各クエリのオブザーバを `queryHash` で対応付ける（`#findMatchingObservers`）。
 key が変わると一致するオブザーバが無いので新しく作り、新しいオブザーバは「最後にデータを持っていたクエリ」を知らない。
@@ -58,6 +69,24 @@ SS-174 で実測: key を変えた直後の結果は `isPending: true`・`isPlac
 **How to apply:** `useQueries` で key を変えたときの表示を決める・説明するときは、前のデータは残らない前提で考える。
 前のデータを残したいなら、key を変えずに済む構造にするか、前回の結果を自前で持つ。挙動に迷ったら、
 `QueriesObserver` を node の vitest で直接動かして `getCurrentResult()` を見ると数分で確かめられる。
+
+## 開くたびに取る詳細から、キャッシュを共有する一覧へ移ると食い違う
+
+ピン詳細（`usePinDetail`）は開くたびに取るが、地図ごとのピン一覧（`sanpoMapPinsQueryKey`）は鮮度 60 秒のキャッシュを使う。
+ほかのメンバー・API が直前に足したピンの詳細から、そのピンを含むはずの一覧（SS-245 のタグ詳細）へ移ると、キャッシュにそのピンが無く
+「このタグが付いたピンはありません」と出た。自分の保存・編集・削除なら `["pins"]` の invalidate で新しくなるので、他人の変更でしか起きない。
+
+**Why:** 自分の操作だけで確かめると再現しない。エミュレータでは、API でピンを足してから、そのピンの詳細 → 一覧の順で開くと再現する。
+
+**How to apply:** 詳細から一覧へ移る導線では、移った先の observer に `refetchOnMount: "always"` を付ける（observer ごとの設定で、同じ queryKey を使う他の画面の鮮度は変わらない）。
+取り直しの間に0件なら空表示ではなく読み込み中を出し、引っ張って更新の間は除く（読み込み表示に替えると RefreshControl ごと外れる）。ADR-M-025 D3。
+
+## useQueries の combine で取り出していない項目は黙って undefined になる
+
+`combine` にモジュールレベルの pick 関数（必要な項目だけ取り出す）を渡すと、後から hook で使う項目（`isFetching` など）を pick に足し忘れても、
+型の項目が省略可能（`?:`）なら tsc は通り、値は常に `undefined` になる。`combine` の戻り値も変わらないので再描画のきっかけにもならない（SS-245 の再レビューで見つかった）。
+
+**How to apply:** pick 関数の戻り値の型の項目は必須にし、使う項目を増やしたら pick と型の両方に足す（抜けたら型で落ちる）。
 
 ## Rules of Hooks と手動メモ化
 

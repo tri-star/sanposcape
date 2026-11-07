@@ -9,6 +9,7 @@ import {
 import type { SanpoMapListRead, SanpoMapRead } from "@/api/generated/model";
 import {
   createSanpoMap,
+  deleteSanpoMap,
   fetchSanpoMapMembers,
   fetchSanpoMaps,
   removeSanpoMapMember,
@@ -428,5 +429,44 @@ describe("updateSanpoMapPinsVisible", () => {
     await expect(
       updateSanpoMapPinsVisible({ sanpoMapId: ID, pinsVisible: true }),
     ).rejects.toMatchObject({ status });
+  });
+});
+
+describe("deleteSanpoMap", () => {
+  it("DELETE /sanpo-maps/{id} を呼び、204 で解決する", async () => {
+    let path: string | undefined;
+    server.use(
+      http.delete("*/sanpo-maps/:sanpoMapId", ({ request }) => {
+        path = new URL(request.url).pathname;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await expect(deleteSanpoMap(MAP_ID)).resolves.toBe(undefined);
+    expect(path).toMatch(new RegExp(`/sanpo-maps/${MAP_ID}$`));
+  });
+
+  it("404（もう消えている。通信の失敗の後の再試行など）は成功として扱う", async () => {
+    server.use(
+      http.delete("*/sanpo-maps/:sanpoMapId", () =>
+        HttpResponse.json(
+          { detail: "Sanpo map not found", code: "sanpo_map_not_found" },
+          { status: 404 },
+        ),
+      ),
+    );
+    await expect(deleteSanpoMap(MAP_ID)).resolves.toBe(undefined);
+  });
+
+  it("403（owner でなくなった）はそのまま投げる", async () => {
+    server.use(
+      http.delete("*/sanpo-maps/:sanpoMapId", () =>
+        HttpResponse.json({ detail: "Permission denied" }, { status: 403 }),
+      ),
+    );
+    await expect(deleteSanpoMap(MAP_ID)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("UUID でない id は通信せずに 422 にする", async () => {
+    await expect(deleteSanpoMap("not-a-uuid")).rejects.toMatchObject({ status: 422 });
   });
 });

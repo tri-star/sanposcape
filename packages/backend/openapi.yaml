@@ -1513,6 +1513,10 @@ paths:
 
         移せ（作成者でない editor は 403）、移動先はメンバーなら owner/editor のどちらでもよい。
 
+        移動先の地図に今の地図のメンバーが全員は参加していなければ 403
+
+        （`code: "move_target_missing_members"`。候補は `GET /pins/{pin_id}/move-targets`）。
+
         移動先が存在しない・メンバーでない場合は 404（`code: "sanpo_map_not_found"`）。
 
         タグ・写真・訪問状況・アーカイブ状態・作成者はそのまま移る。値が今と同じでも権限は判定する。
@@ -1550,7 +1554,12 @@ paths:
           description: Request body too large
         '403':
           description: Permission denied (including moving the pin out of / into a
-            sanpo map)
+            sanpo map). When the destination sanpo map is missing members of the current
+            sanpo map, code is move_target_missing_members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinUpdateForbiddenErrorRead'
         '404':
           description: 'Pin not found (code: pin_not_found), or the destination sanpo
             map does not exist or the user is not a member (code: sanpo_map_not_found)'
@@ -1611,6 +1620,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /pins/{pin_id}/move-targets:
+    get:
+      tags:
+      - pins
+      summary: List Pin Move Targets
+      description: 'ピンの移動先の候補を返す（ADR-009 決定42）。
+
+
+        自分がメンバーの地図のうち、ピンの今の地図を除いたものを `GET /sanpo-maps` と同じ並びで返す。
+
+        `missing_members`（今の地図のメンバーで、その地図に参加していない人）が1人でもいる地図へは
+
+        移せない（`PATCH /pins/{pin_id}` が 403）。`added_members` は移すと新しくピンが見えるように
+
+        なる人（移動は止めない）。member でないピン・存在しない ID は 404。'
+      operationId: list_pin_move_targets
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: pin_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Pin Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinMoveTargetListRead'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Request body too large
+        '404':
+          description: Pin not found
+        '422':
+          description: Validation error
   /pins/{pin_id}/photos/{photo_id}:
     delete:
       tags:
@@ -2256,6 +2306,71 @@ components:
       - items
       - next_cursor
       title: PinListRead
+    PinMoveTargetListRead:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PinMoveTargetRead'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: PinMoveTargetListRead
+      description: '`GET /pins/{pin_id}/move-targets` の応答（ADR-009 決定42, SS-192）。
+
+
+        リクエストした人が member の地図のうち、ピンの今の地図を除いたもの。並びは
+
+        `GET /sanpo-maps` と同じ（自分の既定地図 → 最近使った順）。'
+    PinMoveTargetMemberRead:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+      type: object
+      required:
+      - user_id
+      - display_name
+      title: PinMoveTargetMemberRead
+      description: 'ピンの移動先の候補で、理由として見せるメンバー（ADR-009 決定42, SS-192）。
+
+
+        `display_name` は `users.display_name`（未設定は null。mobile が「メンバー」と出す）。
+
+        メールアドレス・`photo_url` は返さない（`GET /sanpo-maps/{id}/members` と同じ範囲, 決定38）。'
+    PinMoveTargetRead:
+      properties:
+        sanpo_map_id:
+          type: string
+          format: uuid
+          title: Sanpo Map Id
+        missing_members:
+          items:
+            $ref: '#/components/schemas/PinMoveTargetMemberRead'
+          type: array
+          title: Missing Members
+        added_members:
+          items:
+            $ref: '#/components/schemas/PinMoveTargetMemberRead'
+          type: array
+          title: Added Members
+      type: object
+      required:
+      - sanpo_map_id
+      - missing_members
+      - added_members
+      title: PinMoveTargetRead
+      description: "ピンの移動先の候補の地図1つ（ADR-009 決定42, SS-192）。\n\n- `missing_members`:\
+        \ 今の地図のメンバーで、この地図のメンバーでない人。1人でもいれば\n  この地図へは移せない（`PATCH /pins/{pin_id}` が\
+        \ 403 `move_target_missing_members`）。\n- `added_members`: この地図のメンバーで、今の地図のメンバーでない人（移すと新しくピンが\n\
+        \  見えるようになる人）。移動は止めない。"
     PinPhotoListRead:
       properties:
         items:
@@ -2632,6 +2747,27 @@ components:
         `extra="forbid"` にする理由: `location`/`client_walk_id` 等を送って「変更されたつもり」
 
         になる事故を防ぐため（PATCH は「送ったものだけが変わる」という意味を持つ）。'
+    PinUpdateForbiddenErrorRead:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        code:
+          type: string
+          const: move_target_missing_members
+          title: Code
+      type: object
+      required:
+      - detail
+      title: PinUpdateForbiddenErrorRead
+      description: '`PATCH /pins/{pin_id}` の 403 応答本体（ADR-009 決定42, SS-192）。
+
+
+        `code` は移動先の地図に移動元の全メンバーがいないとき（`move_target_missing_members`）
+
+        だけ付く。role による 403（作成者でない editor など）は `{"detail": "Permission denied"}`
+
+        だけで `code` を持たない（全エンドポイント共通のハンドラ）。'
     PinUpdateNotFoundErrorRead:
       properties:
         detail:

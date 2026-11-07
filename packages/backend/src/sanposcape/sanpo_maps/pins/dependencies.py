@@ -10,6 +10,7 @@ from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.photos.dependencies import get_object_storage, get_photo_object_cleaner
 from sanposcape.sanpo_maps.photos.photo_attacher import PhotoAttacher
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
+from sanposcape.sanpo_maps.pins.move_targets import PinMoveTargetService
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 from sanposcape.sanpo_maps.pins.schemas import PIN_READ_PHOTOS_LIMIT
 from sanposcape.sanpo_maps.pins.service import PinService
@@ -43,3 +44,10 @@ def get_pin_service(
         read_photos_limit=PIN_READ_PHOTOS_LIMIT,
         download_url_ttl_seconds=settings.pin_photo_download_url_ttl_seconds,
     )
+
+
+def get_pin_move_target_service(
+    db: Session = Depends(get_db),
+    sanpo_map_access: SanpoMapAccess = Depends(get_sanpo_map_access),
+) -> PinMoveTargetService:
+    return PinMoveTargetService(PinRepository(db), sanpo_map_access)

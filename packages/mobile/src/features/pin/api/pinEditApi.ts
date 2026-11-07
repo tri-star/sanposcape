@@ -2,11 +2,12 @@ import { ApiError, isApiError } from "@/api/apiError";
 import {
   deletePin as deletePinRequest,
   deletePinPhoto as deletePinPhotoRequest,
+  listPinMoveTargets as listPinMoveTargetsRequest,
   updatePin as updatePinRequest,
 } from "@/api/generated/endpoints/pins/pins";
 import type { PinUpdate } from "@/api/generated/model";
 import { toPinDetail } from "@/features/pin/lib/pinRead";
-import type { PinDetail } from "@/features/pin/types";
+import type { PinDetail, PinMoveTarget } from "@/features/pin/types";
 import { isUuid } from "@/lib/uuid";
 
 export type PinDeleteResult = {
@@ -37,6 +38,31 @@ export async function updatePin(
     throw new ApiError(response.status);
   }
   return toPinDetail(response.data, { apiBaseUrl: options.apiBaseUrl });
+}
+
+/**
+ * `GET /pins/{pin_id}/move-targets`（ルート ADR-009 決定42, SS-192）。ピンの今の地図を除く、自分が
+ * メンバーの地図ごとの「参加していない人」「新しく見えるようになる人」。pinId が UUID でなければ 404
+ * （通信しない）。古い backend ではルートが無く 404 になるので、呼び出し側は失敗を「不明」として扱う。
+ */
+export async function fetchPinMoveTargets(
+  pinId: string,
+  options?: { signal?: AbortSignal },
+): Promise<PinMoveTarget[]> {
+  if (!isUuid(pinId)) throw new ApiError(404, "pinId is not a UUID");
+  const response = await listPinMoveTargetsRequest(pinId, { signal: options?.signal });
+  if (response.status !== 200) {
+    throw new ApiError(response.status);
+  }
+  const toMember = (member: { user_id: string; display_name: string | null }) => ({
+    userId: member.user_id,
+    displayName: member.display_name,
+  });
+  return response.data.items.map((item) => ({
+    sanpoMapId: item.sanpo_map_id,
+    missingMembers: item.missing_members.map(toMember),
+    addedMembers: item.added_members.map(toMember),
+  }));
 }
 
 /** 404 を「既に無い」として成功に読み替えて削除を実行する（ADR-009 決定21・伝達事項）。 */
