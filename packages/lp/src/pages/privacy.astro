@@ -8,7 +8,7 @@ const contactEmail = "support@sanposcape.com";
 // 本文はサポート中のすべてのアプリの挙動の和集合で書き、利用者に不利な改定は施行日を付けて事前に公開する
 // （docs/privacy/data-inventory.md の 2.1・2.2、手順は packages/lp/AGENTS.md の「改定の手順」）。
 const enactedOn = "2026年10月3日";
-const revisedOn: string | undefined = "2026年11月2日";
+const revisedOn: string | undefined = "2026年11月7日";
 // 施行日。利用者に不利な改定のときだけ付ける（公開から 30 日後が目安。台帳の 2.2）。
 // 施行日を過ぎた後に不利でない改定で revisedOn を更新するときは undefined に戻す（冒頭の案内が消える。経緯は改定履歴に残る）。
 const effectiveOn: string | undefined = "2026年12月2日";
@@ -212,7 +212,8 @@ const externalServices = [
           <strong>Google でサインインした場合</strong>: Google
           アカウントを識別するための
           ID、メールアドレス、表示名、プロフィール画像の
-          URL。サインインのたびに最新の内容に更新します。
+          URL。メールアドレスとプロフィール画像の URL
+          はサインインのたびに最新の内容に更新します。表示名は、表示名が未設定の場合にだけ保存します。
         </li>
         <li>
           <strong>Apple でサインインした場合</strong>: Apple
@@ -223,6 +224,11 @@ const externalServices = [
           から受け取る認証情報を保存します（1-4）。
         </li>
       </ul>
+      <p>
+        表示名は、本アプリの設定画面から変更できます。変更した表示名は、Google
+        または Apple
+        から受け取った表示名・氏名に代えて保存し、その後にサインインしても上書きしません。
+      </p>
 
       <h3>1-3. 利用者が登録する情報</h3>
       <ul>
