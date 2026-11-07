@@ -2,12 +2,13 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-11-01（SS-250: `returnTo` の許可リストに招待の受諾画面を足した）。前回: 2026-10-01（SS-148、SS-146）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-07（SS-268: 表示名の変更でセッションの user を差し替える `updateCurrentUser`）。前回: 2026-11-01（SS-250）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
 - **認証状態は `useAuthSessionStore` に集約し、UI はサービスから直接読まない。** 書き込みはサービスの `onSessionChange` と起動時の bootstrap に限定する。（本文: 決定1・決定2）
+- **表示名を変えたら、`AuthService.updateCurrentUser(user)` で同じ `id` のサインイン中のときだけ user を差し替える**（`onSessionChange` を通す。端末に永続化しない）。（本文: 「SS-268 追補」節）
 - **認証ゲートはルートレイアウトに1つ置き、復元中は遷移を妨げない。** bootstrap は StrictMode でも1回だけ実行し、effect cleanup では復元を中断しない。（本文: 決定3・決定4）
 - **起動時復元と API のトークン取得・更新は同じ single-flight を共有する。** 更新の開始から既定10秒で中断し、中断後の応答・401では状態を変更しない。（本文: SS-135 追補）
 - **ゲストも探索・散歩・ピン・アカウント（記録）タブ・設定へ入れる。** 起動時のスプラッシュは認証済みならピンタブ（`/(tabs)/pins`）、ゲストならサインイン画面へ進む。（本文: 決定3・SS-57 追補・SS-145 追補）
@@ -556,3 +557,16 @@ SS-148 でアカウントタブにゲスト向けのサインイン案内を足�
 - 却下: 保留中の招待のストア（トークンをサインインの間だけ持つ）。受諾画面がスタックに残るので要らず、トークンを持つ場所を増やさない。
 - 進行中の散歩があっても受諾画面へ戻す（`returnTo` は散歩より先に見る。SS-151 追補と同じ）。受諾画面はモーダルで、閉じれば散歩の画面に戻る。
 
+## SS-268 追補: 表示名を変えたら `updateCurrentUser` でセッションの user を差し替える（2026-11-07）
+
+設定画面から表示名を変えられるようにした（`PATCH /users/me`。backend 側は ADR-002 の SS-268 追補）。保存した後、アカウントタブの挨拶・設定画面のカードに
+新しい名前を出すため、`useAuthSessionStore` の `user` を差し替える必要がある。
+
+- **`AuthService` に `updateCurrentUser(user)` を足し、ストアへは従来どおり `onSessionChange` で通知する**（決定2の書き込み経路を増やさない）。
+  サインイン中で、同じ `id` のときだけ `currentUser` を差し替える。応答を待つ間にサインアウト・別の人のサインインがあった場合に、遅れた応答で
+  セッションを書き換えない（guest のストアに user が入ると、不変条件 `guest ⟺ user === null` が壊れる）。トークンには触れない。
+  real / dev は `createSessionAuthService`、mock は `auth.mock.ts` に同じ判定を持つ。
+- API の呼び出しは `features/settings/api/displayNameApi.ts`（`customFetch` 経由。`services/auth` の生 fetch には混ぜない）で、
+  成功時に `features/settings/hooks/useDisplayNameUpdate.ts` が `authService.updateCurrentUser()` を呼ぶ。
+- 再起動後は `/auth/refresh` の応答の user（DB の値）で復元されるので、端末に名前を永続化しない。
+- 地図のメンバー一覧のキャッシュ（`features/pin`）は、feature をまたぐ import を作らないため invalidate しない（鮮度切れ・引っ張って更新で取り直す）。
