@@ -17,3 +17,4 @@
 - [位置情報の権限と審査の落とし穴](location-permission-review.md) — Androidの拒否はundeterminedに写る・前面復帰でrequestPermissionを呼ぶと繰り返し出る・精度APIはあるが一時要求は無い・pre-promptの審査実例
 - [画面ヘッダーの重複は SS-40 で追跡中](screen-header-duplication-ss40.md) — task-local。レビューで新規指摘にせず SS-40 に言及する
 - [エミュレータ確認用のデータを API で作る](emulator-seed-data.md) — POST /auth/dev-session でトークン→地図・ピン・写真・招待を作る（アーカイブ・訪問済み・タグは PATCH、位置は作り直し）。表示名は dev-session のたびに戻る。外に出す画面は住所が住宅にならない座標で。MAPS_MODE=fake の .env はユーザーに `!` で書いてもらう
+- [エミュレータを引き継いだ直後に adb サーバーが固まる](adb-server-wedged-after-handover.md) — task-local。dev-up が「起動中」で止まり adb.exe devices も kill-server も返らない→powershell の Stop-Process で adb.exe を止める（ロックを持っているときだけ）
