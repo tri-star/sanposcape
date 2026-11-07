@@ -38,6 +38,7 @@ from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
 from sanposcape.sanpo_maps.exceptions import (
     FeatureDisabledError,
+    PinMoveTargetMissingMembersError,
     PinNotFoundError,
     PinPhotoNotFoundError,
     PinPhotoTooLargeError,
@@ -173,6 +174,20 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: SanpoMapPermissionDeniedError
     ) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": "Permission denied"})
+
+    @app.exception_handler(PinMoveTargetMissingMembersError)
+    async def _pin_move_target_missing_members(
+        request: Request, exc: PinMoveTargetMissingMembersError
+    ) -> JSONResponse:
+        # ADR-009 決定42（SS-192）。汎用の 403（`Permission denied`）と区別できるよう
+        # `code` を付ける。
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "Destination sanpo map is missing members of the current sanpo map",
+                "code": "move_target_missing_members",
+            },
+        )
 
     @app.exception_handler(SanpoMapMemberNotFoundError)
     async def _sanpo_map_member_not_found(

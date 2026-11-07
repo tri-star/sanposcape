@@ -89,7 +89,7 @@ testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` �
 `PinEditView`（`pins/[pinId]/edit`。testID `pin-edit-back`。未保存の変更があれば破棄確認ダイアログを
 `onIntercept` で挟む。保存中は戻らない。SS-119）/ `SanpoMapListView`（`sanpo-maps`。
 testID `sanpo-map-list-back`。作成ダイアログを開いている間は `onIntercept` で閉じる。SS-146 / SS-121）/
-`SanpoMapDetailView`（`sanpo-maps/[sanpoMapId]`。testID `sanpo-map-detail-back`。アイコン変更ダイアログを開いている間は `onIntercept` で閉じる（変更中は閉じない）。SS-121 / SS-171）/
+`SanpoMapDetailView`（`sanpo-maps/[sanpoMapId]`。testID `sanpo-map-detail-back`。アイコン変更ダイアログを開いている間は `onIntercept` で閉じる（変更中は閉じない）。削除の確認ダイアログを開いている間も `onIntercept` で閉じる（削除中は閉じず、戻る操作だけを消費する）。SS-121 / SS-171 / SS-265）/
 `SanpoMapMembersView`（`sanpo-maps/[sanpoMapId]/members`。testID `sanpo-map-members-back`。外す・抜けるの確認ダイアログを開いている間は `onIntercept` で閉じる（実行中は閉じない）。SS-249）/
 `LicensesView`（`licenses`。testID `licenses-back`。SS-191）/
 `TagListView`（`tags`。testID `tag-list-back`。SS-245）/ `TagDetailView`（`tags/detail`。testID `tag-detail-back`。SS-245）の12画面。

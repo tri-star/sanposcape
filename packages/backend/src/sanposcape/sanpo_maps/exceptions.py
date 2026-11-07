@@ -12,6 +12,13 @@ class SanpoMapPermissionDeniedError(Exception):
     """
 
 
+class PinMoveTargetMissingMembersError(Exception):
+    """ピンの移動先の地図に、移動元の地図のメンバーが全員は参加していない（ADR-009 決定42,
+    SS-192）。403 `move_target_missing_members`。移動でメンバーがピンや写真にアクセスできなく
+    なるのを防ぐ。
+    """
+
+
 class SanpoMapMemberNotFoundError(Exception):
     """`DELETE /sanpo-maps/{id}/members/{user_id}` で、owner が指定した相手がその地図の
     member でない（存在しない利用者も区別しない, ADR-009 決定38）。404。

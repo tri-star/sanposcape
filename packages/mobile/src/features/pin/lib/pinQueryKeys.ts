@@ -40,6 +40,14 @@ export function pinPhotosQueryKey(pinId: string) {
 }
 
 /**
+ * ピンの移動先の候補（SS-192）。`["pins", ...]` 始まりにして、編集の保存成功時の
+ * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })` で取り直されるようにする。
+ */
+export function pinMoveTargetsQueryKey(pinId: string) {
+  return ["pins", "move-targets", pinId] as const;
+}
+
+/**
  * 地図のタグ候補（SS-136）。`["pins", ...]` 始まりにして、ピン保存成功時の
  * `invalidateQueries({ queryKey: PINS_QUERY_ROOT })`（`usePinSave`）と、SS-119 の編集・削除後の
  * invalidate で自動的に取り直されるようにする。
@@ -96,4 +104,24 @@ export function pinAddressQueryKey(latitude: number, longitude: number) {
  */
 export function pinNearestStationQueryKey(latitude: number, longitude: number) {
   return ["pin-nearest-station", latitude, longitude] as const;
+}
+
+/**
+ * `["pins", …]` のクエリのうち、指定した地図のピンを取るものか（地図の削除の後に取り直さないため。SS-265）。
+ * 対象は地図ごとの一覧（`pinListQueryKey`）・地図詳細の全件（`sanpoMapPinsQueryKey`）・タグ候補
+ * （`pinTagSuggestionsQueryKey`）。ピン詳細・写真はピン ID のキーなので対象外（消えた地図のピンを開く導線は無い）。
+ */
+export function isPinsQueryOfSanpoMap(queryKey: readonly unknown[], sanpoMapId: string): boolean {
+  if (queryKey[0] !== PINS_QUERY_ROOT[0]) return false;
+  const kind = queryKey[1];
+  const target = queryKey[2];
+  if (kind === "list") {
+    return (
+      typeof target === "object" &&
+      target !== null &&
+      (target as { sanpoMapId?: unknown }).sanpoMapId === sanpoMapId
+    );
+  }
+  if (kind === "by-sanpo-map" || kind === "tag-suggestions") return target === sanpoMapId;
+  return false;
 }

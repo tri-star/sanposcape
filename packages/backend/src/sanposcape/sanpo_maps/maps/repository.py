@@ -2,11 +2,12 @@ import uuid
 import zlib
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Select, and_, case, delete, func, select, update
+from sqlalchemy import Select, and_, case, delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from sanposcape.sanpo_maps.advisory_locks import advisory_lock_key
 from sanposcape.sanpo_maps.models import (
@@ -275,36 +276,83 @@ class SanpoMapRepository:
         sanpo_map.icon = icon.value
         self._db.flush()
 
-    def list_members(self, sanpo_map_id: uuid.UUID) -> list[SanpoMapMemberRow]:
-        """地図のメンバーを owner → 参加日時の古い順 → `user_id` の順で返す（ADR-009 決定38）。
-
-        **認可済みの ID を受け取る**（呼び出し側で member 判定を済ませる）。件数は招待の
-        上限（メンバー 10 人）で抑えられるのでページングしない。
+    @staticmethod
+    def _members_stmt() -> Select:
+        """メンバーの行（表示名つき）を owner → 参加日時の古い順 → `user_id` で並べる SELECT。
+        条件は呼び出し側で足す。
         """
-        stmt = (
+        return (
             select(
+                SanpoMapMember.sanpo_map_id,
                 SanpoMapMember.user_id,
                 User.display_name,
                 SanpoMapMember.role,
                 SanpoMapMember.created_at,
             )
             .join(User, User.id == SanpoMapMember.user_id)
-            .where(SanpoMapMember.sanpo_map_id == sanpo_map_id)
             .order_by(
                 case((SanpoMapMember.role == "owner", 0), else_=1),
                 SanpoMapMember.created_at,
                 SanpoMapMember.user_id,
             )
         )
-        return [
-            SanpoMapMemberRow(
-                user_id=row.user_id,
-                display_name=row.display_name,
-                role=row.role,
-                joined_at=row.created_at,
+
+    @staticmethod
+    def _to_member_row(row: Any) -> SanpoMapMemberRow:
+        return SanpoMapMemberRow(
+            user_id=row.user_id,
+            display_name=row.display_name,
+            role=row.role,
+            joined_at=row.created_at,
+        )
+
+    def list_members(self, sanpo_map_id: uuid.UUID) -> list[SanpoMapMemberRow]:
+        """地図のメンバーを owner → 参加日時の古い順 → `user_id` の順で返す（ADR-009 決定38）。
+
+        **認可済みの ID を受け取る**（呼び出し側で member 判定を済ませる）。件数は招待の
+        上限（メンバー 10 人）で抑えられるのでページングしない。
+        """
+        stmt = self._members_stmt().where(SanpoMapMember.sanpo_map_id == sanpo_map_id)
+        return [self._to_member_row(row) for row in self._db.execute(stmt)]
+
+    def list_members_of_maps_for_member(
+        self, *, user_id: uuid.UUID
+    ) -> dict[uuid.UUID, list[SanpoMapMemberRow]]:
+        """`user_id` が member である全地図のメンバー（本人を含む）を、地図 ID ごとに
+        `list_members()` と同じ並びで返す（ピンの移動先の候補, ADR-009 決定42, SS-192）。
+
+        member 判定は副問い合わせ（本人の membership）で行うので、本人が member でない地図の
+        メンバーは返らない。1地図のメンバーは招待の上限（10 人）で抑えられる。
+        """
+        my_map_ids = select(SanpoMapMember.sanpo_map_id).where(SanpoMapMember.user_id == user_id)
+        stmt = self._members_stmt().where(SanpoMapMember.sanpo_map_id.in_(my_map_ids))
+        result: dict[uuid.UUID, list[SanpoMapMemberRow]] = {}
+        for row in self._db.execute(stmt):
+            result.setdefault(row.sanpo_map_id, []).append(self._to_member_row(row))
+        return result
+
+    def has_members_missing_from(
+        self, *, source_sanpo_map_id: uuid.UUID, target_sanpo_map_id: uuid.UUID
+    ) -> bool:
+        """移動元の地図の member のうち、移動先の地図の member でない人がいるか
+        （ピンの移動の条件, ADR-009 決定42, SS-192）。
+
+        **認可済みの ID を受け取る**（呼び出し側が両方の地図の member 判定を済ませる）。
+        移動先の地図の行を `FOR KEY SHARE` で握った後に呼ぶと、移動先のメンバーの変更
+        （受諾・外す。地図の行の `FOR UPDATE`）が確定した後の状態を読む（READ COMMITTED で
+        文ごとに新しいスナップショットを取るため）。
+        """
+        target = aliased(SanpoMapMember)
+        stmt = select(
+            exists().where(
+                SanpoMapMember.sanpo_map_id == source_sanpo_map_id,
+                ~exists().where(
+                    target.sanpo_map_id == target_sanpo_map_id,
+                    target.user_id == SanpoMapMember.user_id,
+                ),
             )
-            for row in self._db.execute(stmt)
-        ]
+        )
+        return bool(self._db.scalar(stmt))
 
     def get_member_role(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> str | None:
         """指定した利用者のその地図での role（member でなければ None）。

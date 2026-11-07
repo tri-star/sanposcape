@@ -15,6 +15,7 @@ from sanposcape.core.pagination import (
 )
 from sanposcape.integrations.aws.s3 import ObjectStorage
 from sanposcape.sanpo_maps.exceptions import (
+    PinMoveTargetMissingMembersError,
     PinNotFoundError,
     PinPhotoNotFoundError,
     PinPhotoUploadNotReadyError,
@@ -427,7 +428,8 @@ class PinService:
 
         地図の移動（`sanpo_map_id`, 決定33）: 移動元（リクエスト時点の地図）の role は
         `can_move_pin_from`（owner かピン作成者）、移動先の role は `can_move_pin_to`
-        （owner/editor）で判定する。ほかのフィールドの権限も移動元の role で判定する。
+        （owner/editor）で判定し、さらに移動先に移動元の全メンバーがいなければ 403
+        `move_target_missing_members`（決定42）。ほかのフィールドの権限も移動元の role で判定する。
         実際に地図が変わったときは移動先の `mark_used()` を呼ぶ（決定23 の「PATCH は
         `mark_used` を呼ばない」の例外。移動先へのピンの追加とみなす）。
         """
@@ -486,6 +488,17 @@ class PinService:
 
         if wants_tag_add and not can_add_pin_tag(role):
             raise SanpoMapPermissionDeniedError()
+        # 移動先に移動元の全メンバーがいること（決定42）。role の 403 をすべて通った後に見る
+        # （`code` 付きの 403 は「これさえ満たせば移せる」ときだけ返す）。同じ地図なら自明に
+        # 満たすので問い合わせない。移動先の地図行は `_resolve_move_target` で握っている。
+        if (
+            target_sanpo_map_id is not None
+            and target_sanpo_map_id != pin.sanpo_map_id
+            and self._sanpo_map_access.has_members_missing_from(
+                source_sanpo_map_id=pin.sanpo_map_id, target_sanpo_map_id=target_sanpo_map_id
+            )
+        ):
+            raise PinMoveTargetMissingMembersError()
 
         # --- 適用: 削除 → 追加 → 件数チェック（決定20） ---
         name_changed = wants_name_update and payload.name != pin.name
