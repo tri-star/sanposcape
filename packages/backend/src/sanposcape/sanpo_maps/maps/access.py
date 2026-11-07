@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sanposcape.sanpo_maps.exceptions import SanpoMapNotFoundError
-from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
+from sanposcape.sanpo_maps.maps.repository import SanpoMapMemberRow, SanpoMapRepository
 from sanposcape.sanpo_maps.models import SanpoMap
 from sanposcape.sanpo_maps.permissions import SanpoMapRole
 from sanposcape.users.models import User
@@ -86,6 +86,32 @@ class SanpoMapAccess:
             user_id=current_user.id, sanpo_map_id=sanpo_map_id
         )
         return None if membership is None else membership[1]
+
+    def has_members_missing_from(
+        self, *, source_sanpo_map_id: uuid.UUID, target_sanpo_map_id: uuid.UUID
+    ) -> bool:
+        """移動元の member のうち移動先の member でない人がいるか（決定42, SS-192）。
+        `get_role_for_pin_move` で移動先の地図行を握った後に呼ぶ（認可済みの ID を受け取る）。
+        """
+        return self._repository.has_members_missing_from(
+            source_sanpo_map_id=source_sanpo_map_id, target_sanpo_map_id=target_sanpo_map_id
+        )
+
+    def list_members_of_my_maps(
+        self, current_user: User
+    ) -> list[tuple[uuid.UUID, list[SanpoMapMemberRow]]]:
+        """自分が member である全地図の（地図 ID, メンバー）を `GET /sanpo-maps` と同じ並び
+        （自分の既定地図 → 最近使った順）で返す（ピンの移動先の候補。決定42, SS-192）。
+        ロックは取らない（表示用。移動そのものは PATCH が判定し直す）。
+        """
+        map_ids = [
+            sanpo_map.id
+            for sanpo_map, _role, _visible in self._repository.list_for_member(
+                user_id=current_user.id
+            )
+        ]
+        members = self._repository.list_members_of_maps_for_member(user_id=current_user.id)
+        return [(map_id, members.get(map_id, [])) for map_id in map_ids]
 
     def mark_used(self, sanpo_map_id: uuid.UUID) -> None:
         """ピン追加時・ピンの移動先に地図の `updated_at` を更新する（commit しない）。"""

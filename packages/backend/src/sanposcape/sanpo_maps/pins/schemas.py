@@ -82,6 +82,53 @@ class PinUpdateNotFoundErrorRead(BaseModel):
     code: Literal["pin_not_found", "sanpo_map_not_found"]
 
 
+class PinUpdateForbiddenErrorRead(BaseModel):
+    """`PATCH /pins/{pin_id}` の 403 応答本体（ADR-009 決定42, SS-192）。
+
+    `code` は移動先の地図に移動元の全メンバーがいないとき（`move_target_missing_members`）
+    だけ付く。role による 403（作成者でない editor など）は `{"detail": "Permission denied"}`
+    だけで `code` を持たない（全エンドポイント共通のハンドラ）。
+    """
+
+    detail: str
+    code: SkipJsonSchema[None] | Literal["move_target_missing_members"] = None
+
+
+class PinMoveTargetMemberRead(BaseModel):
+    """ピンの移動先の候補で、理由として見せるメンバー（ADR-009 決定42, SS-192）。
+
+    `display_name` は `users.display_name`（未設定は null。mobile が「メンバー」と出す）。
+    メールアドレス・`photo_url` は返さない（`GET /sanpo-maps/{id}/members` と同じ範囲, 決定38）。
+    """
+
+    user_id: uuid.UUID
+    display_name: str | None
+
+
+class PinMoveTargetRead(BaseModel):
+    """ピンの移動先の候補の地図1つ（ADR-009 決定42, SS-192）。
+
+    - `missing_members`: 今の地図のメンバーで、この地図のメンバーでない人。1人でもいれば
+      この地図へは移せない（`PATCH /pins/{pin_id}` が 403 `move_target_missing_members`）。
+    - `added_members`: この地図のメンバーで、今の地図のメンバーでない人（移すと新しくピンが
+      見えるようになる人）。移動は止めない。
+    """
+
+    sanpo_map_id: uuid.UUID
+    missing_members: list[PinMoveTargetMemberRead]
+    added_members: list[PinMoveTargetMemberRead]
+
+
+class PinMoveTargetListRead(BaseModel):
+    """`GET /pins/{pin_id}/move-targets` の応答（ADR-009 決定42, SS-192）。
+
+    リクエストした人が member の地図のうち、ピンの今の地図を除いたもの。並びは
+    `GET /sanpo-maps` と同じ（自分の既定地図 → 最近使った順）。
+    """
+
+    items: list[PinMoveTargetRead]
+
+
 class PinCreate(BaseModel):
     # 冪等キー。`UNIQUE(created_by_user_id, client_pin_id)`。再送は 200 + 既存ピン。
     client_pin_id: uuid.UUID
