@@ -47,11 +47,15 @@ export function useSanpoMapDelete(
     },
     onSuccess: () => {
       setIsDeleted(true);
-      // 地図のピン（ピンタブ・散歩中の地図のマーカー・地図詳細の一覧・タグ候補）と地図一覧（地図が消える。
-      // 既定地図を消したら繰り上がった地図の「既定」も変わる。ADR-009 決定28）。
-      // 消した地図のピン一覧・メンバーは呼び出し側が取得を止めるので取り直されず、画面を離れた後に gcTime で消える。
-      void queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
-      void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
+      // 先に地図一覧を取り直し（地図が消える。既定地図を消したら繰り上がった地図の「既定」も変わる。ADR-009 決定28）、
+      // 終わってから地図のピン（ピンタブ・散歩中の地図のマーカー・タグ候補）を invalidate する。順序が仕様:
+      // ピンタブは地図一覧から取る地図を決めるので、同時に invalidate すると、まだ一覧に残っている消した地図の
+      // ピンを取り直して 404 を踏む（エミュレータで確認）。一覧の取り直しの後なら、消した地図のクエリは
+      // 観測されておらず、invalidate しても取り直されない。地図詳細のピン一覧・メンバーは呼び出し側が取得を止める。
+      void (async () => {
+        await queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
+        await queryClient.invalidateQueries({ queryKey: PINS_QUERY_ROOT });
+      })();
       onDeletedRef.current();
     },
     onError: (error) => {
