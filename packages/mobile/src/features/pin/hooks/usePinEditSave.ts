@@ -23,6 +23,7 @@ import {
   PINS_QUERY_ROOT,
   SANPO_MAPS_QUERY_KEY,
   pinDetailQueryKey,
+  pinMoveTargetsQueryKey,
   pinPhotosQueryKey,
 } from "@/features/pin/lib/pinQueryKeys";
 import { runAttachPhotosToPin } from "@/features/pin/lib/pinSaveRunner";
@@ -180,6 +181,11 @@ export function usePinEditSave(options: {
       if (code === "pin_not_found") {
         // 戻った詳細画面を not-found にする。
         void queryClient.invalidateQueries({ queryKey: pinDetailQueryKey(pinId) });
+      } else if (code === "move_target_missing_members") {
+        // 移動先の候補と地図一覧を取り直し、移せなくなった地図のチップを押せなくする（下書きは
+        // 今の地図に戻る。SS-192）。
+        void queryClient.invalidateQueries({ queryKey: pinMoveTargetsQueryKey(pinId) });
+        void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });
       } else if (code === "sanpo_map_not_found") {
         // 消えた地図を選択肢から外す（有効な選択は今の地図に戻る）。
         void queryClient.invalidateQueries({ queryKey: SANPO_MAPS_QUERY_KEY });

@@ -62,6 +62,8 @@ export function SanpoMapSelector({
               selected={choice.selected}
               // disabled 中は onPress を渡さない＝押せないタグとして描画する（Tag 自身の契約）。
               onPress={disabled ? undefined : () => onSelect(choice.selection)}
+              // 移せない地図（SS-192）は押せるタグのまま「利用不可」で出す（理由は下の注記）。
+              disabled={choice.disabled === true}
               accessibilityLabel={`地図「${choice.label}」を選択`}
               testID={`${testID}-${choice.key}`}
             >
@@ -70,6 +72,16 @@ export function SanpoMapSelector({
           ))}
         </View>
       )}
+
+      {state.status === "ready" && state.notes && state.notes.length > 0 ? (
+        <View style={styles.notes} testID={`${testID}-notes`}>
+          {state.notes.map((note) => (
+            <Text key={note.key} style={styles.helper}>
+              {note.text}
+            </Text>
+          ))}
+        </View>
+      ) : null}
 
       {state.status === "error" ? (
         <View style={styles.errorRow}>
@@ -124,6 +136,9 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing[2],
     flexWrap: "wrap",
+  },
+  notes: {
+    gap: theme.spacing[1],
   },
   helper: {
     fontSize: theme.typography.size.xs,

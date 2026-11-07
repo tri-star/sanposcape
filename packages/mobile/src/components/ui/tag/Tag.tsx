@@ -11,6 +11,8 @@ export type TagCategory = "park" | "cafe" | "culture" | "station" | "neutral";
 
 /** paddingVertical(8*2) + 本文の行高(約17) + borderWidth(1.5*2) の実測に基づく概算。 */
 const TAG_HEIGHT = 36;
+/** 選べないタグの不透明度。色は `Button` の disabled と同じトークンにし、先頭のカラーの絵も薄めるために下げる。 */
+const DISABLED_OPACITY = 0.6;
 
 export type TagProps = {
   children: ReactNode;
@@ -26,6 +28,11 @@ export type TagProps = {
    * disabled（＝今は利用できない）とは別物なので、そちらの表現には使わないこと。
    */
   onPress?: () => void;
+  /**
+   * 今は選べない（押せるタグの一時的な利用不可。薄く描き、押しても何もしない）。`onPress` を
+   * 渡したタグにだけ効く。読み上げは「利用不可」になる。
+   */
+  disabled?: boolean;
   /**
    * 読み上げ文言の上書き。省略時は RN の既定動作（子 `Text` から自動導出）に任せる。
    * 同じ `Tag` を「選択」と「削除」など異なる操作の意味で使う画面（例: `PinTagEditor` の
@@ -47,6 +54,7 @@ export function Tag({
   category = "neutral",
   selected = false,
   onPress,
+  disabled = false,
   accessibilityLabel,
   style,
   testID,
@@ -55,12 +63,18 @@ export function Tag({
   const styles = useStyles();
 
   const categoryColor = category === "neutral" ? theme.colors.textSecondary : theme.map[category];
-  const foreground = selected ? theme.colors.onColor : theme.colors.textPrimary;
+  const foreground = disabled
+    ? theme.colors.textDisabled
+    : selected
+      ? theme.colors.onColor
+      : theme.colors.textPrimary;
 
-  const surface = {
-    backgroundColor: selected ? categoryColor : theme.colors.surfaceCard,
-    borderColor: selected ? "transparent" : theme.colors.borderSubtle,
-  };
+  const surface = disabled
+    ? { backgroundColor: theme.colors.disabledSurface, borderColor: "transparent" }
+    : {
+        backgroundColor: selected ? categoryColor : theme.colors.surfaceCard,
+        borderColor: selected ? "transparent" : theme.colors.borderSubtle,
+      };
 
   const content = (
     <>
@@ -86,12 +100,18 @@ export function Tag({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
+      disabled={disabled}
       testID={testID}
       hitSlop={hitSlopFor(TAG_HEIGHT)}
-      style={({ pressed }) => [styles.base, surface, { opacity: pressed ? 0.85 : 1 }, style]}
+      style={({ pressed }) => [
+        styles.base,
+        surface,
+        { opacity: disabled ? DISABLED_OPACITY : pressed ? 0.85 : 1 },
+        style,
+      ]}
     >
       {content}
     </Pressable>
