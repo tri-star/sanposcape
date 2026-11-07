@@ -4,7 +4,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from sanposcape.dependencies import get_current_user
-from sanposcape.sanpo_maps.pins.dependencies import get_pin_service
+from sanposcape.sanpo_maps.pins.dependencies import (
+    get_pin_move_target_service,
+    get_pin_service,
+)
+from sanposcape.sanpo_maps.pins.move_targets import PinMoveTargetService
 from sanposcape.sanpo_maps.pins.schemas import (
     PIN_PHOTO_PAGE_DEFAULT_LIMIT,
     PIN_PHOTO_PAGE_MAX_LIMIT,
@@ -12,12 +16,14 @@ from sanposcape.sanpo_maps.pins.schemas import (
     PinCreate,
     PinListQuery,
     PinListRead,
+    PinMoveTargetListRead,
     PinPhotoListRead,
     PinPhotoPageRead,
     PinPhotosAdd,
     PinRead,
     PinTagConflictErrorRead,
     PinUpdate,
+    PinUpdateForbiddenErrorRead,
     PinUpdateNotFoundErrorRead,
 )
 from sanposcape.sanpo_maps.pins.service import PinService
@@ -197,6 +203,31 @@ def list_pin_photos(
     )
 
 
+@router.get(
+    "/{pin_id}/move-targets",
+    response_model=PinMoveTargetListRead,
+    operation_id="list_pin_move_targets",
+    responses={
+        **_ERROR_RESPONSES,
+        404: {"description": "Pin not found"},
+        422: {"description": "Validation error"},
+    },
+)
+def list_pin_move_targets(
+    pin_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PinMoveTargetService = Depends(get_pin_move_target_service),
+) -> PinMoveTargetListRead:
+    """ピンの移動先の候補を返す（ADR-009 決定42）。
+
+    自分がメンバーの地図のうち、ピンの今の地図を除いたものを `GET /sanpo-maps` と同じ並びで返す。
+    `missing_members`（今の地図のメンバーで、その地図に参加していない人）が1人でもいる地図へは
+    移せない（`PATCH /pins/{pin_id}` が 403）。`added_members` は移すと新しくピンが見えるように
+    なる人（移動は止めない）。member でないピン・存在しない ID は 404。
+    """
+    return service.list_move_targets(current_user, pin_id)
+
+
 @router.patch(
     "/{pin_id}",
     response_model=PinRead,
@@ -204,9 +235,12 @@ def list_pin_photos(
     responses={
         **_ERROR_RESPONSES,
         403: {
+            "model": PinUpdateForbiddenErrorRead,
             "description": (
-                "Permission denied (including moving the pin out of / into a sanpo map)"
-            )
+                "Permission denied (including moving the pin out of / into a sanpo map). "
+                "When the destination sanpo map is missing members of the current sanpo map, "
+                "code is move_target_missing_members"
+            ),
         },
         404: {
             "model": PinUpdateNotFoundErrorRead,
@@ -241,6 +275,8 @@ def update_pin(
     （作成者でない editor は 403）。
     `sanpo_map_id` を送るとピンを別の地図へ移す。移動元の地図 owner かピンの作成者本人だけが
     移せ（作成者でない editor は 403）、移動先はメンバーなら owner/editor のどちらでもよい。
+    移動先の地図に今の地図のメンバーが全員は参加していなければ 403
+    （`code: "move_target_missing_members"`。候補は `GET /pins/{pin_id}/move-targets`）。
     移動先が存在しない・メンバーでない場合は 404（`code: "sanpo_map_not_found"`）。
     タグ・写真・訪問状況・アーカイブ状態・作成者はそのまま移る。値が今と同じでも権限は判定する。
     非メンバー・存在しないピンは 404（`code: "pin_not_found"`）。

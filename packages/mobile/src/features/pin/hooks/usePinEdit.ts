@@ -1,4 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+
+import { fetchPinMoveTargets } from "@/features/pin/api/pinEditApi";
 
 import { usePinDetail, type UsePinDetailResult } from "@/features/pin/hooks/usePinDetail";
 import { usePinEditSave, type UsePinEditSaveResult } from "@/features/pin/hooks/usePinEditSave";
@@ -18,6 +21,8 @@ import {
   type PinEditSaveAvailability,
 } from "@/features/pin/lib/pinEditDraft";
 import {
+  filterMovablePinEditSanpoMaps,
+  resolveBlockedPinMoveTargetIds,
   resolveDraftSanpoMapReset,
   resolveEffectivePinEditSanpoMapId,
   resolveMovedSanpoMapName,
@@ -42,10 +47,13 @@ import {
   type PinPermissionContext,
   type PinPermissions,
 } from "@/features/pin/lib/pinPermissions";
+import { pinMoveTargetsQueryKey } from "@/features/pin/lib/pinQueryKeys";
 import { filterTagSuggestions, resolveTagLabelForAdd } from "@/features/pin/lib/pinTagSuggestions";
 import { addTag, addTagErrorMessage, removeTag as removeTagFrom } from "@/features/pin/lib/pinTags";
 import type { SanpoMapChoicesState } from "@/features/pin/lib/sanpoMapChoices";
 import type { PinPhoto, SanpoMapSelection, TagSuggestion } from "@/features/pin/types";
+
+const MOVE_TARGETS_STALE_TIME_MS = 60_000;
 
 export type PinEditSavedResult = {
   /** 編集を開いた時点の地図から移したなら移動先の地図名。移していなければ null。 */
@@ -164,13 +172,29 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   };
   const permissions = pin !== null ? resolvePinPermissions(ctx, pin) : null;
 
-  // 実際に送る移動先。一覧から消えた地図・一覧が未取得のときは今の地図に戻す（SS-175）。
+  // 移動先の候補（SS-192）。地図を変えられる人だけが取る。取得中・失敗（古い backend の 404 を含む）は
+  // null（不明）で、今までどおり全地図を選べる（保存の 403 move_target_missing_members が守る）。
+  const canChangeSanpoMap = permissions?.canChangeSanpoMap ?? false;
+  const moveTargetsQuery = useQuery({
+    queryKey: pinMoveTargetsQueryKey(options.pinId ?? ""),
+    queryFn: ({ signal }) => fetchPinMoveTargets(options.pinId as string, { signal }),
+    enabled: options.isSignedIn && options.pinId !== null && canChangeSanpoMap,
+    staleTime: MOVE_TARGETS_STALE_TIME_MS,
+    // GET の一時障害の再送は customFetch の transientRetry が既に行う。
+    retry: false,
+  });
+  const moveTargets = canChangeSanpoMap ? (moveTargetsQuery.data ?? null) : null;
+  // 移せない地図は「一覧に無い地図」と同じ扱いにし、選んでいた下書きを今の地図に戻す（SS-192）。
+  const blockedSanpoMapIds = resolveBlockedPinMoveTargetIds(moveTargets);
+  const movableMaps = filterMovablePinEditSanpoMaps(sanpoMapsQuery.maps, blockedSanpoMapIds);
+
+  // 実際に送る移動先。一覧から消えた地図・移せない地図・一覧が未取得のときは今の地図に戻す（SS-175・SS-192）。
   const effectiveSanpoMapId =
     baseline === null
       ? null
       : resolveEffectivePinEditSanpoMapId({
           status: sanpoMapsQuery.status,
-          maps: sanpoMapsQuery.maps,
+          maps: movableMaps,
           baselineSanpoMapId: baseline.sanpoMapId,
           draftSanpoMapId: draft.sanpoMapId,
         });
@@ -182,7 +206,7 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
       ? null
       : resolveDraftSanpoMapReset({
           status: sanpoMapsQuery.status,
-          maps: sanpoMapsQuery.maps,
+          maps: movableMaps,
           baselineSanpoMapId: baseline.sanpoMapId,
           draftSanpoMapId: draft.sanpoMapId,
         });
@@ -267,12 +291,15 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
           maps: sanpoMapsQuery.maps,
           current: { id: baseline.sanpoMapId, name: baseline.sanpoMapName },
           selectedSanpoMapId: effectiveDraft.sanpoMapId,
-          canChange: permissions?.canChangeSanpoMap ?? false,
+          canChange: canChangeSanpoMap,
+          moveTargets,
         });
 
   const selectSanpoMap = (selection: SanpoMapSelection) => {
     // 編集の選択肢はすべて existing。権限が無ければ多層防御として変えない（UI でも disabled）。
-    if (selection.kind !== "existing" || permissions?.canChangeSanpoMap !== true) return;
+    // 移せない地図も同じく変えない（チップは押せない。SS-192）。
+    if (selection.kind !== "existing" || !canChangeSanpoMap) return;
+    if (blockedSanpoMapIds.has(selection.sanpoMapId)) return;
     updateDraft((prev) => ({ ...prev, sanpoMapId: selection.sanpoMapId }));
   };
 
