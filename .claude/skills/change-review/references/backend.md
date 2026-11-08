@@ -1,7 +1,7 @@
 # backend の確認観点
 
 `packages/backend/` に差分があるときに読む（router・service・repository・モデル・マイグレーション・`integrations/`・`aws_lambda/`・テスト）。
-規約の正本: `packages/backend/AGENTS.md`、`packages/backend/docs/folder-structure.md`・`naming-convention.md`・`local-env.md`（OpenAPI 定義）・`deployment.md`（§5 マイグレーション）、`packages/backend/docs/adr/`（ADR-B-*）、`docs/adr/`（特に ADR-003・ADR-005・ADR-008・ADR-009・ADR-011）
+規約の正本: `packages/backend/AGENTS.md`、`packages/backend/docs/folder-structure.md`・`naming-convention.md`・`local-env.md`（OpenAPI 定義）・`deployment.md`（§5 マイグレーション）、`packages/backend/docs/adr/`（ADR-B-*）、`docs/adr/`（特に ADR-003・ADR-005・ADR-008・ADR-011・ADR-019〜022。ADR-009 は凍結済みで `docs/adr/archived/`）
 
 ここに挙げるのは、ruff・pytest が通っても残り、レビューでしか見つからないもの。正本に書いてある規約は正本を読んで照合する。
 
