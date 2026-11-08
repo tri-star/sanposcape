@@ -78,7 +78,7 @@
   `null`・形式不正・取得前・取得失敗では出さない（強制しない側）。散歩中と、未保存の散歩をサマリ画面などでまだ保存できる間は出さない。実行中のバージョンは
   `Constants.expoConfig.version`（`runtimeVersion` が `appVersion` のため）、ストアの URL は本番の掲載ページに固定する。
   最低バージョンを変える入力はまだ足していない。（本文: SS-101 追補 D29〜D33）
-- **最初の実フラグ `pin_registration`（ピン登録, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）が登録され、疎通確認用の `app_config_probe` は削除済み**。
+- **最初の実フラグ `pin_registration`（ピン登録, [ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）が登録され、疎通確認用の `app_config_probe` は削除済み**。
   backend の API 自体はこのフラグでガードしない（ADR-009 決定10）。（本文: SS-98 追補 D7、2026-09-21 追記 SS-88）
 
 ### 未解決・持ち越し
@@ -371,7 +371,7 @@ dev に何が出ているかは GitHub Actions の実行履歴で確認する。
 - DB スキーマの変更にも同じ原則を適用する。ADR-005 決定9 によりマイグレーションは手動であり、
   デプロイ完了からマイグレーション実行までの間は**新しいコードが古いスキーマで動く**。
   expand（列の追加・NULL 許容）と contract（列の削除・NOT NULL 化）を別のデプロイに分ける。
-- **SS-171 追補（2026-10-04, [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定31）**:
+- **SS-171 追補（2026-10-04, [ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定31）**:
   - 新規フィールドを任意にする規則は**リクエスト側**の話として読む。応答側のフィールド追加は
     古いクライアントが無視するだけなので、required にしてよい（mobile の型付きの都合など）。
   - NOT NULL の列でも、**server default があれば古いコードの INSERT は通る**。expand の目的
@@ -798,7 +798,7 @@ appconfig_read_timeout_seconds: float = 2.0
 （決定6 の「削除まで含めて1つ」に反する常駐フラグにしない。コード上のコメント
 （`core/feature_flags.py`）にも同じ注記がある）。
 
-**（2026-09-21 追記, SS-88）** ピン登録機能（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）の
+**（2026-09-21 追記, SS-88）** ピン登録機能（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）の
 `pin_registration` が最初の実フラグとして登録され、同じ PR で `app_config_probe` を
 `core/feature_flags.py` の `FEATURE_FLAGS` から削除した。`app_config/tests/test_router.py` /
 `core/tests/test_feature_flags.py` のサンプルキーも `pin_registration` に置き換えている。

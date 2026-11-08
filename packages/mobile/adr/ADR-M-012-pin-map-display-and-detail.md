@@ -126,7 +126,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 ユーザー追加要件として、地図上でピンをタップしたら直接ピン詳細画面へ遷移すること
 （モックのポップアップカードは挟まない）が明示された。
 
-ルート ADR-009（`docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md`）の持ち越し事項
+ルート ADR-009（`docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md`）の持ち越し事項
 「地図表示で `limit` を超えたときの見せ方（ページングを続けるか、クラスタ表示にするか）は SS-118 で
 決める」を本 ADR の D3 で決着させる。
 
@@ -640,7 +640,7 @@ D3 の「件数が増えたら再検討」に当たるので、D3 を変えた�
 
 ## 関連情報
 
-- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定15・持ち越し事項の決着）
+- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定15・持ち越し事項の決着）
 - [ADR-M-010: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)（決定8）
 - [ADR-M-011: ピンの位置の選択と調整](./ADR-M-011-pin-location-picking-and-adjustment.md)（D7 のオーバーレイ方式・入口統合の申し送り）
 - [フォルダ構造](../docs/folder-structure.md)（昇格ルール・feature 間の render slot 合成）

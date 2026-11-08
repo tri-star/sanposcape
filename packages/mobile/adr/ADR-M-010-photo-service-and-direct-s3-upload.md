@@ -69,7 +69,7 @@
 ## ステータス
 
 採用（SS-88）。データモデル・サーバー側の確定処理・サムネイル生成はルート
-[ADR-009（backend）](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) を参照。
+[ADR-009（backend）](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) を参照。
 本 ADR は mobile 側（写真の取得・加工・アップロード）の判断を記録する。
 
 ## コンテキスト
@@ -365,7 +365,7 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
 ## 追補（2026-10-26, SS-236 容量の上限を 10 GiB に）
 
 - 課題: Plane SS-236。backend の上限（`PIN_PHOTO_USER_QUOTA_BYTES`）の既定を 1 GiB から 10 GiB に上げた
-  （[ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定37）。API の契約（409 `storage_quota_exceeded`）は変わらない。
+  （[ADR-009](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定37）。API の契約（409 `storage_quota_exceeded`）は変わらない。
 
 ### 決定15（追補）: 容量超過の文言に上限の値を書かない
 
@@ -381,7 +381,7 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
 ## 関連情報
 
 - [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
-- [ADR-009（横断・backend）: ピンの写真ストレージとサムネイル](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- [ADR-009（横断・backend）: ピンの写真ストレージとサムネイル](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
 - [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（SS-163 追補: 写真ビューアの撮影日時の表示）
 - [アーキテクチャガイドライン](../docs/architecture-guideline.md)
 - [フォルダ構造](../docs/folder-structure.md)

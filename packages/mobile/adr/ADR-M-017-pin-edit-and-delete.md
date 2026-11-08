@@ -239,7 +239,7 @@ backend が「移動先の地図に、移動元の地図の全メンバーが参
 
 ## 関連情報
 
-- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定19〜24・mobile（SS-119）への伝達事項。決定33: ピンの地図の移動・SS-175。決定42: 移動先に移動元の全メンバーがいる場合に限る・SS-192）
+- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定19〜24・mobile（SS-119）への伝達事項。決定33: ピンの地図の移動・SS-175。決定42: 移動先に移動元の全メンバーがいる場合に限る・SS-192）
 - [ADR-M-010: 写真サービスと presigned POST での S3 直送](./ADR-M-010-photo-service-and-direct-s3-upload.md)
 - [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（D11・SS-119 追補）
 - [ADR-M-013: ピンのタグ入力の候補](./ADR-M-013-pin-tag-suggestions.md)

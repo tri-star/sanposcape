@@ -365,7 +365,7 @@ SS-145 でピンタブがログイン直後の着地点になり、SS-146 でピ
 ## 関連情報
 
 - [ADR-M-022: 位置情報の権限の求め方と、拒否・大まかな位置のときの挙動](./ADR-M-022-location-permission-flow-and-approximate-location.md)（SS-160 追補）
-- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
 - [ADR-008（ルート）: デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](../../../docs/adr/ADR-008-deploy-release-separation.md)（D3 で流用した `pin_registration` フラグの仕組み）
 - [ADR-M-001: フォルダ構造と命名規則](./ADR-M-001-folder-structure.md)（D12 の昇格ルール）
 - [ADR-M-006: 位置情報サービスは real/mock の2モード](./ADR-M-006-location-service-real-mock.md)
