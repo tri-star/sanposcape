@@ -27,6 +27,7 @@ API の時間予算（Lambda 29 秒、アプリの予算 25 秒）の中で、DB
 - S3 を先に消して commit に失敗すると、DB が消えた写真を指す。DB を先に消せば、S3 の失敗で残るのは孤立だけ（容量は commit と同時に空く）。
 - **ストレージが未構成・障害でも削除 API は 503 にしない**（写真以外のデータの操作をストレージの状態で止めない。OpenAPI にも 503 を宣言しない）。
 - 複数のキーは `ObjectStorage.delete_many(keys) -> list[str]`（失敗したキーを返す）で消す。S3 の実装は `DeleteObjects`（1回 1000 キー、`Quiet=True`）。
+  `ClientError`/`BotoCoreError` はそのチャンク全体を失敗扱いにしてログを出し、次のチャンクへ進む（例外を投げるのは Unconfigured のときだけで、呼び出し側が捕まえてログを出す）。
   IAM のアクションは `s3:DeleteObject` のままでよい。写真1枚の削除も同じ経路。
 - ピン削除・写真削除・地図削除・アカウント削除（owner の地図）は、同じ部品 `PhotoObjectCleaner.delete_best_effort()`（`sanpo_maps/photos/cleanup.py`。commit しない）を使う
   （[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4）。

@@ -68,6 +68,8 @@ ADR-009 に 2026-09-21 から 19 回の追補で積み上げてきた。2,200 �
 - **既定地図も削除できる。** 消したら同じトランザクションで、残りの自分の地図のうち `updated_at DESC, id DESC` の先頭を既定に繰り上げる
   （`promote_latest_to_default()`。候補が消えていたら選び直す。上限 `_PROMOTE_MAX_ATTEMPTS` 回）。残りが無ければ既定なしになり、次の `POST /pins` が「最初の地図」を作る。
 - **`create_map` と `delete_map` は owner 単位の advisory lock（`SanpoMapRepository.lock_owner()`）で直列化する。**
+  `create_map` が「最初の地図」の自動作成と競合して一意違反になったら、savepoint で捕まえて `is_default=false` で作り直す（このとき作った地図は既定にならない）。
+  繰り上げが同時作成と競合して一意違反になったら諦める（誰かが既定を作ったので不変条件は満たされる）。
   `resolve_map_for_new_pin` はこのロックを取らない。この経路は既定を足すだけで消さないので、一意インデックスと savepoint で足りる。
 - `GET /sanpo-maps` の `is_default` は「リクエストした人にとっての既定地図か」（`is_default AND owner_user_id = 自分`）。他人の既定地図に招待された editor には false。
 - 却下: 既定地図の削除を 409 で禁止する（地図が1つの人が消せない）／削除しても繰り上げない（消した名前の地図が再び作られたように見える）。
@@ -81,6 +83,7 @@ ADR-009 に 2026-09-21 から 19 回の追補で積み上げてきた。2,200 �
 - **`PATCH /sanpo-maps/{id}`**: `SanpoMapUpdate`（`extra="forbid"`。`name`・`icon` は省略可・null 不可）。`{}` は 200 で何も変えない。200 + 更新後の `SanpoMapRead`。
 - **`DELETE /sanpo-maps/{id}`**: 204。非冪等（2回目は 404）。503 は宣言しない。手順は [ADR-022](./ADR-022-deletion-and-photo-object-cleanup.md) 決定3。
 - **名前**: `str.strip()`（全角空白・NBSP を含む Unicode の空白）の後に 1〜50 文字。空白だけは 422。重複は許す。
+- `/sanpo-maps` にも `RequestSizeLimitMiddleware`（`pins_request_max_bytes` を流用）を付けているので、`GET /sanpo-maps` を含めて OpenAPI に 413 がある。
 - **`sanpo_maps.updated_at` は「最近ピンを追加した地図」を先頭にする並び専用の列**。名前・アイコンの変更、表示の切り替えでは動かさない。
   動かすのはピンの追加・写真の追加・ピンの移動先（`mark_used()`）。
 - `SanpoMapRead` は `role`・`is_default`・`icon`・`pins_visible`（本人の値。[ADR-020](./ADR-020-sanpo-map-sharing-permissions-and-invitations.md) 決定7）・`pin_count` を持つ。
