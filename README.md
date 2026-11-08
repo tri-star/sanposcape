@@ -21,12 +21,16 @@
   - 横断: [ADR-006 mobile アプリの配信は EAS（Expo ホスト）に委ね、mobile 用 SAM テンプレートを作らない。表示用 version はリリース時に上げる（SS-230 追補）](./docs/adr/ADR-006-mobile-app-delivery-eas-hosted.md)
   - 横断: [ADR-007 周回ルート（往路と異なる道で戻る）の生成方式](./docs/adr/ADR-007-loop-route-generation.md)
   - 横断: [ADR-008 デプロイとリリースを分離し、公開はフィーチャーフラグとストアの手動リリースで制御する](./docs/adr/ADR-008-deploy-release-separation.md)
-  - 横断: [ADR-009 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+  - 横断: ADR-009 地図とピンのデータモデル・写真のアップロード（**凍結**。ADR-019〜022 に分割。経緯と旧 決定番号の対応表は [archived/ADR-009](./docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)）
   - 横断: [ADR-010 Astra向けハーネスとClaude定義の差分取り込み](./docs/adr/ADR-010-codex-astra-harness-and-incremental-import.md)
   - 横断: [ADR-014 Claude Code のハーネスは、メインが計画・実装し、レビューは観点で分けたレビュアーに任せる](./docs/adr/ADR-014-claude-harness-main-agent-and-review-structure.md)
   - 横断: [ADR-016 コードの構造（フォルダのファイル数・接頭辞の集中・ファイルの行数）は CI でラチェット方式で止め、既存の違反は課題つきの baseline で据え置く](./docs/adr/ADR-016-code-structure-ratchet-check.md)。分け方を決める structure-refactor skill と、レビューの「構造の悪化」の観点（SS-254 追補）
   - 横断: [ADR-017 関数の複雑度・長さ・依存の数・循環 import は ruff・oxlint のルールで止め、既存の違反はファイル単位の除外に課題と理由をつけて据え置く](./docs/adr/ADR-017-function-complexity-lint-rules.md)
   - 横断: [ADR-018 変更の集中・一緒に変わる組・重複・未使用のコードは、PR ごとに止めず月次のレポートで見て、課題の候補にする](./docs/adr/ADR-018-monthly-code-health-report.md)。code-health-review skill と report-health.py
+  - 横断: [ADR-019 地図（SanpoMap）とピン（Pin）のデータモデルと API](./docs/adr/ADR-019-sanpo-map-and-pin-data-model-and-api.md)
+  - 横断: [ADR-020 地図の共有 — 権限・メンバー・招待](./docs/adr/ADR-020-sanpo-map-sharing-permissions-and-invitations.md)
+  - 横断: [ADR-021 ピンの写真 — アップロード・保存・配信・容量](./docs/adr/ADR-021-pin-photo-upload-storage-and-delivery.md)
+  - 横断: [ADR-022 ピン・写真・地図・アカウントの削除と S3 の後始末](./docs/adr/ADR-022-deletion-and-photo-object-cleanup.md)
   - [リリース運用手順](./docs/release-runbook.md) — ADR-008 に基づく実際のリリース手順
   - mobile:
     - [ADR-M-001 フォルダ構造](./packages/mobile/adr/ADR-M-001-folder-structure.md)

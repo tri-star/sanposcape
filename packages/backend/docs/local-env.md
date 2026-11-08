@@ -258,9 +258,9 @@ docker compose up -d --build
 - `MAPS_MODE` と同様、`docker compose restart` では反映されない。`.env` の値を変えたら
   `docker compose up -d` でコンテナを作り直すこと。
 
-## 写真ストレージ（`STORAGE_MODE` と関連 env、SS-88/ADR-009）
+## 写真ストレージ（`STORAGE_MODE` と関連 env、SS-88/ADR-021）
 
-設計の詳細は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+設計の詳細は [ADR-021](../../../docs/adr/ADR-021-pin-photo-upload-storage-and-delivery.md)
 を参照。
 
 - `STORAGE_MODE`: `real`（既定・fail-safe） | `fake`。`ENV=local` / `test` 限定で、
