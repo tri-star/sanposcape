@@ -207,6 +207,7 @@ docker compose up -d --build
 - `GOOGLE_MAPS_SEARCH_DEADLINE_SECONDS`: `/explore/places` の Places 検索から徒歩経路による候補絞り込みまでの合計時間上限。期限までに評価できなかった候補は返さない。Nearby Search の上限に合わせ、1探索で評価する候補・Routes 呼び出しは最大20件である。
 - `GOOGLE_MAPS_RATE_LIMIT_REQUESTS` / `GOOGLE_MAPS_RATE_LIMIT_WINDOW_SECONDS`: Google を呼ぶ `/explore` の API（`/places`・`/routes/*`・`/reverse-geocode`。Google を呼ばない `/nearest-station` は対象外）への認証済みのリクエストに、ユーザーと接続元IPの両方へ適用する process-local の上限（既定 30 リクエスト/60 秒）。
 - `GOOGLE_MAPS_ANONYMOUS_RATE_LIMIT_REQUESTS`: 上と同じ `/explore` の API への、アクセストークンを伴わないリクエストに、接続元IPだけへ適用する上限（既定 10 リクエスト/60 秒）。無効・期限切れのトークンは匿名として扱わず 401 を返す。トークンは `X-App-Authorization` → `Authorization` の優先順で読む（`src/sanposcape/auth/headers.py`）。mobile は SS-70 以降 `X-App-Authorization` のみを送るため、`Authorization` の有無だけで匿名判定をしているわけではない点に注意。
+- `WALK_CREATE_RATE_LIMIT_REQUESTS` / `WALK_CREATE_RATE_LIMIT_WINDOW_SECONDS`: 散歩の保存（`POST /walks`）に、ユーザー単位だけで適用する process-local の上限（既定 10 リクエスト/300 秒。SS-38）。探索・招待とは別の枠で、接続元IPの枠は使わない（CloudFront 経由の IP を共有する利用者に誤った 429 を出さないため）。一覧・詳細・集計・削除には掛けない。未認証のリクエストは 401 が先に返り、枠を消費しない。
 - cache miss は同じ正規化 key ごとに single-flight 化され、同時の同一 Places/Routes 呼び出しを1件へまとめる。
 - これらは**単一インスタンス限定**の緩和策である。水平スケールを開始する前に、Redis 等の共有 limiter と edge/proxy の request-size / IP rate-limit を必ず導入すること。共有 limiter は運用・識別子方針の別設計が必要なため、このタスクでは導入しない。
 - `GOOGLE_MAPS_CONNECT_TIMEOUT_SECONDS` / `GOOGLE_MAPS_READ_TIMEOUT_SECONDS`: 上流への接続／読取 timeout（既定 3 秒／8 秒）。超過時は API に 503 を返す。**`/explore/routes/loop`（周回）はこの限りではない**: 片方の候補だけがタイムアウトしても、もう片方が成功していれば 200 を返す（同じ道フォールバックの単発取得のみ、この timeout がそのまま 503 に直結する）。周回のログの読み方は下記「`/explore/places` が 503 を返すときの切り分け」の直後を参照。
@@ -394,6 +395,7 @@ print(r.status_code); print(r.text[:800])"
 - `GOOGLE_MAPS_MAX_PLACE_CANDIDATES` / `GOOGLE_MAPS_MAX_ROUTE_REQUESTS_PER_SEARCH`
 - `GOOGLE_MAPS_ROUTE_DEADLINE_SECONDS`
 - `WALKS_REQUEST_MAX_BYTES`
+- `WALK_CREATE_RATE_LIMIT_REQUESTS` / `WALK_CREATE_RATE_LIMIT_WINDOW_SECONDS`
 - `PINS_REQUEST_MAX_BYTES`
 - `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`
 - `APPCONFIG_POLL_INTERVAL_SECONDS` / `APPCONFIG_ERROR_BACKOFF_SECONDS`
