@@ -196,8 +196,8 @@ ADR-009 に 2026-09-21 から 19 回の追補で積み上げてきた。2,200 �
 
 `pin_registration`（`audience="client"`）は mobile がピン登録の UI を出し分けるためだけに使う。backend の API はガードしない
 （認証必須で本人のデータしか作れない・フラグを消すときの分岐が増える・ストレージ未構成は 503 で安全側に倒れる）。
-production では 2026-10-17 に ON にした。これ以降に足した地図・ピンの API も、原則としてフラグでガードしない
-（例外は招待。[ADR-020](./ADR-020-sanpo-map-sharing-permissions-and-invitations.md) 決定5）。
+production では 2026-10-17 に ON にした。後から足した地図・ピンの API（タグ一覧・アイコン・訪問とアーカイブ・移動・表示の切り替えなど）も、
+それぞれの課題で同じ理由からフラグでガードしないと判断してきた（例外は招待。[ADR-020](./ADR-020-sanpo-map-sharing-permissions-and-invitations.md) 決定5）。
 
 ### 決定15: 既存テーブルへの列追加はマイグレーションだけの PR を先に出す（旧 決定31・決定32・決定34・決定41 の「デプロイ」項）
 
@@ -205,7 +205,7 @@ production では 2026-10-17 に ON にした。これ以降に足した地図�
 列を読むコードを先にデプロイすると、migrate までの間その表を読む API が `UndefinedColumn` で 500 になる。
 **prod の稼働（2026-10-01）後は、マイグレーションだけの PR を先にマージ・デプロイ・migrate してから、列を読むコードの PR を出す**
 （初例は `sanpo_map_members.pins_visible` の PR #241 → #242。[リリース運用手順](../release-runbook.md) §2・§7.4）。
-列は既定値つきの NOT NULL（PG11+ では表を書き換えない）にして、古いコードの INSERT を通す。
+列は NULL 許容か、既定値つきの NOT NULL（PG11+ では表を書き換えない）にして、古いコードの INSERT を通す（ADR-008 決定7 の expand）。
 
 ## 検討した選択肢
 
