@@ -505,8 +505,8 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 ## 関連情報
 
 - [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
-  —— 決定29（SS-113 追補）が本 ADR で置き換わる port 構成。地図・ピンのデータモデル・API 契約は
-  引き続き ADR-009 が一次記録
+  —— 決定29（SS-113 追補）が本 ADR で置き換わる port 構成。ADR-009 は 2026-11-08 に凍結し、地図・ピンのデータモデル・API 契約の
+  現在の正本は [ADR-019](./ADR-019-sanpo-map-and-pin-data-model-and-api.md)〜[ADR-022](./ADR-022-deletion-and-photo-object-cleanup.md)（経緯は凍結した ADR-009）
 - [packages/backend/docs/folder-structure.md](../../packages/backend/docs/folder-structure.md)
   「複数エンティティを持つドメイン（`sanpo_maps/`）」節
 - [packages/backend/docs/naming-convention.md](../../packages/backend/docs/naming-convention.md)
