@@ -228,6 +228,19 @@ class TestCreateWalkRateLimit:
 
         assert [unauthenticated.status_code, authenticated.status_code] == [401, 201]
 
+    def test_lifespan_limiter_uses_default_quota_per_user_only(
+        self, walks_client: TestClient
+    ) -> None:
+        """lifespan が作る散歩の保存用の limiter は、既定の 10 回で同じユーザーを止め、
+        同じ IP の別ユーザーは止めない（設定値と `limit_authenticated_ip=False` の配線の確認）。
+        """
+        limiter = walks_client.app.state.walk_create_rate_limiter
+
+        for _ in range(10):
+            assert limiter.allow(user_id="user-1", client_ip="203.0.113.1")
+        assert not limiter.allow(user_id="user-1", client_ip="203.0.113.1")
+        assert limiter.allow(user_id="user-2", client_ip="203.0.113.1")
+
     def test_read_endpoints_are_not_limited(
         self, walks_client: TestClient, auth_headers: dict[str, str]
     ) -> None:
