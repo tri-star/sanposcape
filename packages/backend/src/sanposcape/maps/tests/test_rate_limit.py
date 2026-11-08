@@ -35,6 +35,21 @@ def test_anonymous_requests_use_only_their_lower_ip_bucket() -> None:
     assert limiter.allow(user_id="user-1", client_ip="127.0.0.1")
 
 
+def test_user_only_limiter_ignores_authenticated_ip_bucket() -> None:
+    """`limit_authenticated_ip=False` では、同じ IP の別ユーザーはそれぞれの枠で数える
+    （散歩の保存。CloudFront の IP を共有する利用者に誤った 429 を出さない。SS-38）。
+    同じユーザーは IP を変えても枠を共有する。
+    """
+    limiter = ExploreRateLimiter(
+        max_requests=1, anonymous_max_requests=1, window_seconds=60, limit_authenticated_ip=False
+    )
+
+    assert limiter.allow(user_id="user-1", client_ip="127.0.0.1")
+    assert limiter.allow(user_id="user-2", client_ip="127.0.0.1")
+    assert not limiter.allow(user_id="user-1", client_ip="127.0.0.2")
+    assert "authenticated-ip:127.0.0.1" not in limiter._buckets
+
+
 def test_rate_limiter_removes_expired_buckets_and_bounds_new_keys(
     monkeypatch,
 ) -> None:

@@ -344,6 +344,14 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings.invitation_anonymous_rate_limit_requests,
         app.state.settings.invitation_rate_limit_window_seconds,
     )
+    # 散歩の保存用（ユーザー単位だけ。探索・招待とは別の枠。SS-38）。`POST /walks` は認証必須で
+    # 匿名の枠は使われないので、匿名の上限には同じ値を渡しておく。
+    app.state.walk_create_rate_limiter = ExploreRateLimiter(
+        app.state.settings.walk_create_rate_limit_requests,
+        app.state.settings.walk_create_rate_limit_requests,
+        app.state.settings.walk_create_rate_limit_window_seconds,
+        limit_authenticated_ip=False,
+    )
     # コールドスタートでは AppConfig を取りに行かない（インスタンスを作るだけ）。
     # 最初にフラグを参照したリクエスト（/app-config 等）が取得する。/app-config 以外の
     # コールドスタートに AppConfig のレイテンシを乗せないため（ADR-008 追補 D3）。

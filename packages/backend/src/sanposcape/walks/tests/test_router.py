@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from sanposcape.auth.tokens import create_access_token
 from sanposcape.config import Settings
 from sanposcape.main import app
+from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.users.models import User
+from sanposcape.walks.dependencies import get_walk_create_rate_limiter
 from sanposcape.walks.schemas import MAX_TRACK_POINTS
 from sanposcape.walks.tests.conftest import STATS_ANCHOR_JST, make_user, seed_walk
 
@@ -163,6 +165,79 @@ class TestCreateWalk:
         )
 
         assert response.status_code == 413
+
+
+class TestCreateWalkRateLimit:
+    """`POST /walks` のユーザー単位のレート制限（SS-38）。limiter は上限 1 のものに差し替える。"""
+
+    @staticmethod
+    def _use_limiter(max_requests: int) -> ExploreRateLimiter:
+        limiter = ExploreRateLimiter(max_requests, max_requests, 300, limit_authenticated_ip=False)
+        app.dependency_overrides[get_walk_create_rate_limiter] = lambda: limiter
+        return limiter
+
+    def teardown_method(self) -> None:
+        app.dependency_overrides.pop(get_walk_create_rate_limiter, None)
+
+    def test_same_user_over_limit_returns_429(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """上限 1 で同じユーザーが2回保存すると、2回目は 429 で保存されない
+        （窃取トークン・改造クライアントによる連続保存のコストを抑える）。
+        """
+        self._use_limiter(1)
+
+        first = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        second = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+
+        assert [first.status_code, second.status_code] == [201, 429]
+        listed = walks_client.get("/walks", headers=auth_headers)
+        assert len(listed.json()["items"]) == 1
+
+    def test_other_user_on_same_ip_is_not_limited(
+        self,
+        walks_client: TestClient,
+        auth_headers: dict[str, str],
+        test_settings: Settings,
+        db_session: Session,
+    ) -> None:
+        """あるユーザーが上限に達しても、同じ接続元 IP の別のユーザーは保存できる
+        （IP の枠は使わない。CloudFront 経由の IP を共有する利用者に誤った 429 を出さないため）。
+        """
+        self._use_limiter(1)
+        other_user = make_user(db_session, subject="rate-limit-other-user")
+        other_token, _ = create_access_token(user_id=other_user.id, settings=test_settings)
+
+        walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        limited = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        other = walks_client.post(
+            "/walks", json=_payload(), headers={"Authorization": f"Bearer {other_token}"}
+        )
+
+        assert limited.status_code == 429
+        assert other.status_code == 201
+
+    def test_unauthenticated_request_does_not_consume_quota(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """未認証の保存は 401 で、レート制限の枠を消費しない（認証の後に数える）。"""
+        self._use_limiter(1)
+
+        unauthenticated = walks_client.post("/walks", json=_payload())
+        authenticated = walks_client.post("/walks", json=_payload(), headers=auth_headers)
+
+        assert [unauthenticated.status_code, authenticated.status_code] == [401, 201]
+
+    def test_read_endpoints_are_not_limited(
+        self, walks_client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """保存が上限に達していても、一覧・集計の取得は 200 のまま（制限は保存だけに掛ける）。"""
+        self._use_limiter(1)
+        walks_client.post("/walks", json=_payload(), headers=auth_headers)
+        assert walks_client.post("/walks", json=_payload(), headers=auth_headers).status_code == 429
+
+        assert walks_client.get("/walks", headers=auth_headers).status_code == 200
+        assert walks_client.get("/walks/stats", headers=auth_headers).status_code == 200
 
 
 class TestListWalks:

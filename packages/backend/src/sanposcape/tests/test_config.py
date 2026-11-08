@@ -88,6 +88,15 @@ def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, 
         Settings(**{field: value})
 
 
+@pytest.mark.parametrize(
+    "field", ["walk_create_rate_limit_requests", "walk_create_rate_limit_window_seconds"]
+)
+def test_walk_create_rate_limit_must_be_positive(field: str) -> None:
+    """散歩の保存のレート制限（SS-38）の上限・窓は 0 を受け付けない。"""
+    with pytest.raises(ValidationError):
+        Settings(**{field: 0})
+
+
 def test_anonymous_maps_rate_limit_must_not_exceed_authenticated_limit() -> None:
     with pytest.raises(ValidationError):
         Settings(
