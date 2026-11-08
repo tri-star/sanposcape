@@ -19,7 +19,7 @@
 
 ## 決定
 
-### 決定1: 権限は role と作成者の列で判定し、関数は3つの形に収める（旧 決定19・決定26）
+### 決定1: 権限は role と作成者の列で判定し、ピン・地図の関数は3つの形に収める（旧 決定19・決定26）
 
 - 行為者は「リクエストした人とピン（または地図）の関係」で分類する。ピンが属する地図の `sanpo_map_members` の行（role）と、対象ごとの作成者の列で判定する。
 - **「対象の作成者」は操作ごとに違う**: ピンは `pins.created_by_user_id`、タグは `pin_tags.created_by_user_id`（ピンの作成者ではない）、写真は `pin_photos.uploaded_by_user_id`。
@@ -29,7 +29,7 @@
   - **持ち主の判定系**（`role == "owner" or (role in {"owner", "editor"} and is_creator)`）: `can_update_pin`・`can_delete_pin`・`can_delete_pin_tag`・`can_delete_pin_photo`（`is_uploader`）・`can_update_pin_archived`・`can_move_pin_from`
   - **地図の管理系**（`role == "owner"`）: `can_update_sanpo_map`・`can_delete_sanpo_map`・`can_manage_sanpo_map_invitations`・`can_remove_sanpo_map_member`
 - 式が同じでも、表の1行に1関数を対応させて流用しない（片方だけ変えるときに呼び出し側を直さずに済む）。2つの role を取る4つ目の形は作らない。
-  メンバーの一覧・抜けるは `can_list_sanpo_map_members`・`can_leave_sanpo_map`。
+  メンバーの関数はこの3つの形の外にある: `can_list_sanpo_map_members`（追加系と同じ式）、`can_leave_sanpo_map`（`role in {"owner", "editor"} and role != "owner"`。owner は抜けられない）。
 
 ### 決定2: 権限の表（旧 決定19・決定26・決定32・決定33・決定38・決定39・決定41）
 
@@ -78,6 +78,7 @@
 - S3 のキーはクライアントから受け取らない（[ADR-021](./ADR-021-pin-photo-upload-storage-and-delivery.md) 決定1）。presigned GET は DB で認可した写真にしか発行しない。
 - 削除済みの ID への `DELETE` の再送は 404（冪等にしない）。mobile は 404 を成功と同じに扱ってよい。
 - 判定の順は「認証（401）→ ボディの検証（422）→ member（404）→ 対象の存在（404）→ 権限（403）→ 件数などの競合（409）」。
+  例外はメンバーを外す操作で、editor には対象の存在を見る前に 403 を返す（他人の membership を探らせない。決定4）。
 
 ### 決定4: メンバーの一覧・外す・抜ける。何も消さない（旧 決定38）
 
