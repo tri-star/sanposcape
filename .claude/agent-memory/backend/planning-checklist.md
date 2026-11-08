@@ -65,7 +65,7 @@ IP の出所を infra に確認する項目を入れる。
 - ログの形式・例外ログ・ログの文脈 → ADR-013 決定3 の SS-180/SS-181 追補（Lambda の LogFormat は Text のまま・同期依存での ContextVar）。
 - 認証ヘッダー・Function URL → ADR-005 決定4（OAC が `Authorization` を上書きするので `X-App-Authorization`）。
 - Sign in with Apple → ADR-002 の SS-195/197/198 追補（nonce・氏名は初回だけ・code 交換は再試行しない・revoke は冪等）。
-- 写真のアップロード枠に値を足す → ADR-009 決定34（attached の枠は写真削除後もアカウント削除まで残る）。
+- 写真のアップロード枠に値を足す → ADR-021 決定5（attached の枠は写真削除後もアカウント削除まで残る）。
 - テスト DB の初期化を変える → ADR-B-001（CI はテスト DB を alembic 後の DB と共有している）。
 - 監視・IAM を template.yaml に足す → deployment.md §2・§3 Phase 0・§10、ADR-013 決定2 の SS-179 追補（infra への依頼事項になるもの）。
 
