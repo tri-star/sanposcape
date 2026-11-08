@@ -114,7 +114,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 - `conftest.py` / `config.py` の DB まわりの差分では、`Settings.test_database_url` が `database_dsn`（本番 / staging のシークレット由来）を参照していないか。参照していなければ、テストの drop/delete が本番に届く経路は構造的に無い（ローカルの誤設定の防止はスコープ外。ADR-B-001 決定7）。
 
 ## 受容済み（再指摘しない）
-- レート制限は `/explore/*`（`maps/rate_limit.py::ExploreRateLimiter`）だけ。`/auth/session`・`/auth/refresh`（総当たりできない）、`POST /walks` の件数上限なし、`POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos`・`/sanpo-maps` の書き込み、周回ルートの Google Routes 2〜3回呼び出しと距離上限なし（ADR-007 の SEC-L1/L2）。認証系にレート制限を足す差分では `ExploreRateLimiter` と同じ器を使うかを見る。
+- レート制限は `/explore/*`・招待の preview / accept（SS-250）・`POST /walks`（SS-38。ユーザー単位だけで IP の枠を使わない `limit_authenticated_ip=False`）だけで、いずれも `maps/rate_limit.py::ExploreRateLimiter` の別インスタンス。上限の無いもの: `/auth/session`・`/auth/refresh`（総当たりできない）、`POST /walks` 以外の `/walks`、`POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos`・`/sanpo-maps` の書き込み、周回ルートの Google Routes 2〜3回呼び出しと距離上限なし（ADR-007 の SEC-L1/L2）。認証系にレート制限を足す差分では `ExploreRateLimiter` と同じ器を使うかを見る。
 - staging に dev 迂回が漏れる穴（許可リスト方式で解消済み）。`env` の `Literal` に `dev` / `prod` を安易に足さない（ADR-005 決定6）。`MAPS_MODE=fake` は API キーより先に判定する。許可リストが `("local", "test")` なので実デプロイを `ENV=test` で起動すると fake/dev が通る点は既知（そういうデプロイ定義が現れたら指摘する）。
 - `X-App-Session-Id` のログ出力（小文字の UUID v4 だけ受け、不正値は捨てる。認可には使わない）。
 - `POST /dev-storage/uploads` が `max_bytes` の確認前にファイル全体をメモリに読む（dev/test 専用）。
