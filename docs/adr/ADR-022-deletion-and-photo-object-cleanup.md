@@ -6,7 +6,7 @@
 
 ## ステータス
 
-採用（backend 実装済み。アカウント削除後の写真の削除は dev・prod で日次に動いている）
+採用（backend 実装済み・dev / prod にデプロイ済み。アカウント削除後の写真の削除の定期実行は、実地の確認が未記録。[deployment.md](../../packages/backend/docs/deployment.md) 冒頭の表）
 
 ## コンテキスト
 
@@ -86,7 +86,7 @@ API の時間予算（Lambda 29 秒、アプリの予算 25 秒）の中で、DB
   - prefix は UUID の利用者 ID からしか組み立てない（空だと全員の写真を消しうる）。
   - 1回で 12万〜24万キーを消せる見込みで、上限まで使った利用者も1回でおおむね終わる。
 - **起動**: Lambda `sanposcape-<env>-backend-scheduled-photo-purge`（`aws_lambda/photo_purge.py`。API と同じ成果物の別ハンドラ、Timeout 300 秒）を EventBridge Scheduler で毎日 JST 04:00 に起動する。
-  消し切れなかった利用者がいれば実行を失敗にする（Errors のアラーム）。`Invocations` が2日続けて 0 のアラームも置く。予約同時実行数は dev・prod とも 1。
+  消し切れなかった利用者がいれば実行を失敗にする（Errors のアラーム）。`Invocations` が2日続けて 0 のアラームも置く。予約同時実行数は dev・prod とも 1（prod は SS-217 のデプロイ以降。ADR-005 の SS-217 追補）。
   **使い終わった招待の削除（30 日後）も同じ Lambda に相乗りする**（ADR-020 決定5。Scheduler のロール・アラームを増やさない）。
 - **権限と責務の境界**（infra との合意。[deployment.md](../../packages/backend/docs/deployment.md) §17）:
   - スケジュールとスケジュールグループ `sanposcape-<env>-backend` は SAM、Scheduler が使うロールは Terraform（live/account）。デプロイ順は infra の apply → SAM。
@@ -131,6 +131,7 @@ API の時間予算（Lambda 29 秒、アプリの予算 25 秒）の中で、DB
 
 - **Plane SS-244**: 消し残したキーの回収（キーを DB に書いて日次で消す、または孤立の掃除）。
 - **Plane SS-218（BK-3）**: 期限切れの枠・`attached` の枠の行、参照されない S3 オブジェクトの掃除（ADR-021 の持ち越し）。
+- デプロイしたスケジュールからの実際の起動は、確かめた記録が無い。
 - 保持期間と Neon の PITR の期間の整合は未確認。PITR より長く写真を残しても持ち主の行に戻せない。
 - 実環境の写真バケットのバージョニング・ライフサイクルは、infra のコード上は無効だが実環境では未確認。
 - owner と editor のアカウント削除が同時に走ると、付け替えが FK の検査で失敗しうる（500。再試行で直る）。ロックの順が逆になる組み合わせ（同じ owner の地図の削除とアカウント削除など）も、
