@@ -30,7 +30,7 @@
 | 決定10 フラグ `pin_registration` | ADR-019 決定14 |
 | 決定11 枠の取り消し | ADR-021 決定7 |
 | 決定12 409 の `code` | ADR-021 決定8・ADR-019 決定13 |
-| 決定13 アクセスログ | [ADR-013](../ADR-013-observability-adot-application-signals.md)（直送の調査の部分は ADR-021 決定11） |
+| 決定13 アクセスログ | [ADR-013](../ADR-013-observability-adot-application-signals.md) 決定3（ミドルウェアの形・登録順は 2026-11-08 追補。直送の調査の部分は ADR-021 決定11） |
 | 決定14・15・17 閲覧 API（bbox・代表写真・写真のページング） | ADR-019 決定7 |
 | 決定16・18 原本の URL・ストレージ障害時の閲覧 | ADR-021 決定9 |
 | 決定19 権限の表 | ADR-020 決定1・決定2 |
