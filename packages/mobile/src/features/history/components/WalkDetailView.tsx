@@ -182,7 +182,7 @@ export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewPr
 
       case "error": {
         // "not-found" 以外の非 null errorCode。detail.errorCode は resolveWalkDetailBodyState の
-        // 判定順3・4により、ここでは非 null（かつ not_found 以外）であることが保証されている。
+        // 判定順5・6により、ここでは非 null（かつ not_found 以外）であることが保証されている。
         const errorCode = detail.errorCode;
         if (errorCode === null) {
           // 型注釈のための in-place ガード。実質到達しない分岐。
@@ -222,7 +222,7 @@ export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewPr
         };
 
       case "ready": {
-        // resolveWalkDetailBodyState の判定順5により、"ready" は detail.walk !== null を含意する
+        // resolveWalkDetailBodyState の判定順7により、"ready" は detail.walk !== null を含意する
         // （型注釈のための in-place ガード。実質到達しない分岐）。
         const walk = detail.walk;
         if (walk === null) {
