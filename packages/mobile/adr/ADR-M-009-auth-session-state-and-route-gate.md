@@ -581,7 +581,7 @@ SS-21 のセキュリティレビューで「未サインインのままディ�
 - **ゲートでは弾かない**: SS-57 追補で guest も保護ルートに入れるようにしたので、未サインインで画面に到達すること自体は仕様。ルート単位で guest を締め出す案は SS-57 で不採用にした理由（タブとの体験の食い違い）がそのまま当たる。代わりに、各画面がゲスト・復元中を画面の中で扱っているかを棚卸しした（2026-11-09 時点）。
   - 公開ルート: `(auth)`・`dev-screens`・`design-system`・`_sitemap`・`/`
   - ゲストでそのまま使える: ナビタブ・`walk-start`（`/explore/*` は任意認証）・`licenses`（静的）
-  - ルートが認証の値を注入し、ゲストにはサインイン案内を出して通信しない: ピンタブ・`pins/*`・`sanpo-maps/*`・`tags/*`（`isSignedIn`）、アカウントタブ（`authState`。SS-148）、`invitations/accept`（`signedIn`・`returnTo=invitation`）、`walk-summary`（保存のサインイン CTA。SS-37）
+  - ルートが認証の値を注入し、ゲストにはサインイン案内を出して通信しない: ピンタブ・`pins/*`・`sanpo-maps/*`・`tags/*`（`isSignedIn`。メンバー画面 `sanpo-maps/[sanpoMapId]/members` は `currentUserId` の有無で判定）、アカウントタブ（`authState`。SS-148）、`invitations/accept`（`signedIn`・`returnTo=invitation`）、`walk-summary`（保存のサインイン CTA。SS-37）
   - 画面がストアを直接読んで出し分ける: `settings`（SS-57・SS-62）
   - **残っていた穴: `walk-history`（一覧）・`walk-history/[walkId]`（詳細）**。認証を見ずに `/walks` を取得するので、ゲストは 401 の「サインインし直すと…」（再試行もサインインの導線も無い行き止まり）になり、復元中（コールドスタートのディープリンク）はトークン無しで取得して、サインイン済みの人にもエラーが出うる。
 - **履歴の一覧・詳細をアカウントタブ（SS-148 の注記）と同じ形に揃えた**: ルート（`app/walk-history/index.tsx`・`[walkId].tsx`）が `status` を3値（`signed-in` / `guest` / `restoring`）に写した `authState` と `onSignIn`（`useSignInNavigation`）を `WalkHistoryListView` / `WalkDetailView` へ注入する（決定8は維持）。サインイン中だけ取得し（`useWalkHistory` / `useWalkDetail` の `enabled`）、ゲストにはサインイン案内（`walk-history-sign-in-required`・`walk-detail-sign-in-required`）、復元中は読み込み表示を出す。判定は `resolveHistoryListBodyState`（新規）と `resolveWalkDetailBodyState`（`authState` を追加。不正な `walkId` は認証より先に確定させる）。
