@@ -106,6 +106,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 アカウントタブは設定・画面カタログと同じ `runOnce` を渡してラッチを共有する。ピンタブはルートでは自前のラッチ、
 `PinTabView` 内では他の遷移と共有するラッチを通す（SS-148）。
 アカウントタブだけが第2引数 `returnTo: "account"` を渡し、サインイン後にアカウントタブへ戻す（SS-151。ADR-M-009 SS-151 追補）。
+履歴の一覧・詳細のルート（`app/walk-history/*`）も、ゲスト向けサインイン案内のボタンにこの hook を使う（`returnTo` は渡さない。SS-45）。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。
@@ -160,7 +161,8 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 散歩開始・履歴・設定などの保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を
 解禁したため**未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`canEnterProtectedRoutes`
 が `guest` も許可する。`/walks` 系 API だけは 401 になり各画面のエラーカードで degrade する。ただしアカウントタブは
-ゲストでは通信せず、サインイン案内を出す（SS-148）。
+ゲストでは通信せず、サインイン案内を出す（SS-148）。履歴の一覧・詳細（`/walk-history`・`/walk-history/[walkId]`）も
+ディープリンクで直に開けるので同じく通信せずサインイン案内を出し、復元中は読み込み表示にする（SS-45）。
 将来「ゲストは入れないルート」（例: アカウント設定の一部）を追加する場合は、
 `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` / `resolveAuthGateDecision` に
 判定を足す（保護ルートに誰が入れるかの判断を1箇所に閉じる器はそのまま残っている）。

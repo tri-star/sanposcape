@@ -54,6 +54,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
   （実例1: `app/(tabs)/account.tsx`（SS-145 で `history.tsx` から改名）が `state.user?.displayName ?? null` を読み `HistoryView` →
   `useHistorySummary` へ渡す。SS-29。SS-148 で `authState`（`signed-in` / `guest` / `restoring`）/ `onSignIn` の注入も加えた（ゲストにはサインイン案内を出し、集計・最近の散歩を通信しない。復元中は通信せず読み込み表示）。
+  履歴の一覧・詳細（`app/walk-history/index.tsx`・`[walkId].tsx`）も同じ `authState` / `onSignIn` を `WalkHistoryListView` / `WalkDetailView` へ注入する（ディープリンクで未サインインのまま開けるため。SS-45）。
   実例2: `app/walk-summary.tsx` が `state.status === "authenticated"` を読み、`WalkSummaryView` →
   `useWalkSummary` → `useWalkSave` へ渡す。401 のときのサインイン CTA のハンドラも同じくルートが
   注入する。SS-37）。セレクタは必ずプリミティブを返すこと
