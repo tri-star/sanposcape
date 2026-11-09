@@ -160,9 +160,9 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 `/dev-screens` 自体と `/design-system` は未認証でも開ける公開ルートで、そこから開く先の
 散歩開始・履歴・設定などの保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を
 解禁したため**未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`canEnterProtectedRoutes`
-が `guest` も許可する。`/walks` 系 API だけは 401 になり各画面のエラーカードで degrade する。ただしアカウントタブは
-ゲストでは通信せず、サインイン案内を出す（SS-148）。履歴の一覧・詳細（`/walk-history`・`/walk-history/[walkId]`）も
-ディープリンクで直に開けるので同じく通信せずサインイン案内を出し、復元中は読み込み表示にする（SS-45）。
+が `guest` も許可する）。`/walks` 系 API は認証必須で、ゲストのアカウントタブ（SS-148）と履歴の一覧・詳細
+（`/walk-history`・`/walk-history/[walkId]`。ディープリンクで直に開ける。SS-45）は通信せずサインイン案内を出し、
+復元中は読み込み表示にする。ゲストの保存だけは 401 になり、サマリでサインイン CTA を出す（SS-37）。
 将来「ゲストは入れないルート」（例: アカウント設定の一部）を追加する場合は、
 `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` / `resolveAuthGateDecision` に
 判定を足す（保護ルートに誰が入れるかの判断を1箇所に閉じる器はそのまま残っている）。
