@@ -7,6 +7,11 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { HistoryStateCard } from "@/features/history/components/HistoryStateCard";
 import { WalkHistoryCard } from "@/features/history/components/WalkHistoryCard";
 import { useWalkHistory } from "@/features/history/hooks/useWalkHistory";
+import { resolveHistoryListBodyState } from "@/features/history/lib/historyListBodyState";
+import {
+  HISTORY_SIGN_IN_TITLE,
+  type HistoryAuthState,
+} from "@/features/history/lib/historyStatsState";
 import {
   WALK_HISTORY_EMPTY_DESCRIPTION,
   WALK_HISTORY_EMPTY_TITLE,
@@ -27,62 +32,99 @@ import { useTheme } from "@/theme/useTheme";
  */
 type HistoryBody = { content: ReactNode; centered: boolean };
 
-/** WalkHistoryListView — `/walk-history` の実体。全履歴を無限スクロールで表示する。 */
-export function WalkHistoryListView() {
+export type WalkHistoryListViewProps = {
+  /**
+   * 認証状態（サインイン中 / ゲスト / セッション復元中）。ルート（app/walk-history/index.tsx）が注入する
+   * （features/history は認証を読まない。ADR-M-009 決定8）。サインイン中だけ取得する（SS-45）。
+   */
+  authState: HistoryAuthState;
+  /** ゲスト向けサインイン案内のボタン。 */
+  onSignIn: () => void;
+};
+
+/**
+ * WalkHistoryListView — `/walk-history` の実体。全履歴を無限スクロールで表示する。
+ * ディープリンクで未サインインのまま開かれたときは、通信せずサインイン案内を出す（SS-45）。
+ */
+export function WalkHistoryListView({ authState, onSignIn }: WalkHistoryListViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const history = useWalkHistory();
+  const history = useWalkHistory({ enabled: authState === "signed-in" });
   const back = useScreenBack({ fallbackHref: "/(tabs)/account" });
 
+  const bodyState = resolveHistoryListBodyState({
+    authState,
+    errorCode: history.errorCode,
+    isLoading: history.isLoading,
+    itemCount: history.items.length,
+  });
+
   const renderBody = (): HistoryBody => {
-    if (history.errorCode !== null) {
-      return {
-        centered: true,
-        content: (
-          <HistoryStateCard
-            testID="walk-history-error"
-            icon="alert-circle"
-            tone="danger"
-            title={walkHistoryErrorMessage(history.errorCode)}
-            action={
-              isRetriableWalkHistoryError(history.errorCode)
-                ? { label: "再試行", onPress: history.reload, testID: "walk-history-retry" }
-                : undefined
-            }
-          />
-        ),
-      };
-    }
+    switch (bodyState.kind) {
+      case "sign-in-required":
+        return {
+          centered: true,
+          content: (
+            <HistoryStateCard
+              testID="walk-history-sign-in-required"
+              icon="user"
+              title={HISTORY_SIGN_IN_TITLE}
+              action={{ label: "サインイン", onPress: onSignIn, testID: "walk-history-sign-in" }}
+            />
+          ),
+        };
 
-    if (history.isLoading) {
-      return {
-        centered: true,
-        content: (
-          <View style={styles.centerState} testID="walk-history-loading">
-            <ActivityIndicator color={theme.colors.primary} />
-          </View>
-        ),
-      };
-    }
+      case "error":
+        return {
+          centered: true,
+          content: (
+            <HistoryStateCard
+              testID="walk-history-error"
+              icon="alert-circle"
+              tone="danger"
+              title={walkHistoryErrorMessage(bodyState.errorCode)}
+              action={
+                isRetriableWalkHistoryError(bodyState.errorCode)
+                  ? { label: "再試行", onPress: history.reload, testID: "walk-history-retry" }
+                  : undefined
+              }
+            />
+          ),
+        };
 
-    if (history.items.length === 0) {
-      return {
-        centered: true,
-        content: (
-          <HistoryStateCard
-            testID="walk-history-empty"
-            icon="footprints"
-            title={WALK_HISTORY_EMPTY_TITLE}
-            description={WALK_HISTORY_EMPTY_DESCRIPTION}
-            action={{
-              label: "散歩を始める",
-              onPress: () => back.runOnce(() => router.push("/walk-start")),
-            }}
-          />
-        ),
-      };
+      // 復元中は読み込み中と同じ見た目（サインイン済みのユーザーにサインイン案内を一瞬でも見せない）。
+      case "restoring":
+      case "loading":
+        return {
+          centered: true,
+          content: (
+            <View style={styles.centerState} testID="walk-history-loading">
+              <ActivityIndicator color={theme.colors.primary} />
+            </View>
+          ),
+        };
+
+      case "empty":
+        return {
+          centered: true,
+          content: (
+            <HistoryStateCard
+              testID="walk-history-empty"
+              icon="footprints"
+              title={WALK_HISTORY_EMPTY_TITLE}
+              description={WALK_HISTORY_EMPTY_DESCRIPTION}
+              action={{
+                label: "散歩を始める",
+                onPress: () => back.runOnce(() => router.push("/walk-start")),
+              }}
+            />
+          ),
+        };
+
+      case "ready":
+        break;
     }
 
     return {

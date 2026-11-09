@@ -12,6 +12,10 @@ import { WalkDeleteDialog } from "@/features/history/components/WalkDeleteDialog
 import { WalkTrackMapView } from "@/features/history/components/WalkTrackMapView";
 import { useWalkDelete } from "@/features/history/hooks/useWalkDelete";
 import { useWalkDetail } from "@/features/history/hooks/useWalkDetail";
+import {
+  HISTORY_SIGN_IN_TITLE,
+  type HistoryAuthState,
+} from "@/features/history/lib/historyStatsState";
 import { WALK_DELETE_DONE_TITLE } from "@/features/history/lib/walkDeleteCopy";
 import {
   canDeleteWalk,
@@ -29,6 +33,13 @@ import { useTheme } from "@/theme/useTheme";
 export type WalkDetailViewProps = {
   /** ルートから渡される walk id。取得できなければ null。 */
   walkId: string | null;
+  /**
+   * 認証状態（サインイン中 / ゲスト / セッション復元中）。ルート（app/walk-history/[walkId].tsx）が注入する
+   * （features/history は認証を読まない。ADR-M-009 決定8）。サインイン中だけ取得する（SS-45）。
+   */
+  authState: HistoryAuthState;
+  /** ゲスト向けサインイン案内のボタン。 */
+  onSignIn: () => void;
 };
 
 /**
@@ -39,13 +50,16 @@ export type WalkDetailViewProps = {
  */
 type WalkDetailBody = { content: ReactNode; centered: boolean };
 
-/** WalkDetailView — `/walk-history/<walkId>` の実体。散歩1件の詳細（軌跡付き）を表示する。 */
-export function WalkDetailView({ walkId }: WalkDetailViewProps) {
+/**
+ * WalkDetailView — `/walk-history/<walkId>` の実体。散歩1件の詳細（軌跡付き）を表示する。
+ * ディープリンクで未サインインのまま開かれたときは、通信せずサインイン案内を出す（SS-45）。
+ */
+export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const detail = useWalkDetail(walkId);
+  const detail = useWalkDetail(walkId, { enabled: authState === "signed-in" });
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -95,6 +109,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
   backRef.current = back;
 
   const bodyState = resolveWalkDetailBodyState({
+    authState,
     hasWalkId: walkId !== null,
     deleteStatus: deletion.status,
     errorCode: detail.errorCode,
@@ -130,6 +145,19 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
                 onPress: () => back.runOnce(() => router.replace("/walk-history")),
                 testID: "walk-detail-back-to-list",
               }}
+            />
+          ),
+        };
+
+      case "sign-in-required":
+        return {
+          centered: true,
+          content: (
+            <HistoryStateCard
+              testID="walk-detail-sign-in-required"
+              icon="user"
+              title={HISTORY_SIGN_IN_TITLE}
+              action={{ label: "サインイン", onPress: onSignIn, testID: "walk-detail-sign-in" }}
             />
           ),
         };

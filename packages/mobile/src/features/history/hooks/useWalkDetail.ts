@@ -23,16 +23,21 @@ export type UseWalkDetailResult = {
 /**
  * 散歩履歴1件の詳細（軌跡付き）を提供する hook。
  *
+ * `enabled: false`（ゲスト・セッション復元中。ルートが注入する認証状態から決める。SS-45）のときは取得しない。
+ *
  * `queryKey`（`["walks","detail",walkId]`）は `useWalkDelete.ts` の
  * `removeQueries({ queryKey: ["walks","detail",walkId], exact: true })` と必ず一致させること
  * （片方だけ変えると削除成功後にこのキャッシュが消えず、消したはずの内容が一瞬出る）。
  */
-export function useWalkDetail(walkId: string | null): UseWalkDetailResult {
-  const enabled = walkId !== null && walkId.length > 0;
+export function useWalkDetail(
+  walkId: string | null,
+  options?: { enabled?: boolean },
+): UseWalkDetailResult {
+  const enabled = (options?.enabled ?? true) && walkId !== null && walkId.length > 0;
 
   const query = useQuery({
     queryKey: ["walks", "detail", walkId],
-    // `enabled` が false のとき（walkId が null または空文字）は TanStack Query が queryFn を
+    // `enabled` が false のとき（walkId が null または空文字・ゲスト・復元中）は TanStack Query が queryFn を
     // 呼ばないため、この時点で walkId は非 null・非空であることが保証されている。
     queryFn: ({ signal }) => fetchWalkDetail(walkId as string, { signal }),
     enabled,

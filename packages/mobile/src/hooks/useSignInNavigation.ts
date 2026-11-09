@@ -5,7 +5,7 @@ import type { SignInReturnTo } from "@/features/auth/lib/signInReturnTo";
 import { useNavigateOnce, type UseNavigateOnceResult } from "@/hooks/useNavigateOnce";
 
 /**
- * ゲスト向けサインイン案内（ピンタブ・アカウントタブ）から、サインイン画面を開く遷移。
+ * ゲスト向けサインイン案内（ピンタブ・アカウントタブ・履歴の一覧と詳細）から、サインイン画面を開く遷移。
  * push にするのは、replace だと `(tabs)` ごと置き換わってタブバーが消え、サインイン後の
  * `dismissTo` で戻れなくなるため（`getPostSignInDestination`）。二重に発火しないよう `runOnce` に通す。
  *
