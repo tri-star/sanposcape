@@ -107,6 +107,7 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 `PinTabView` 内では他の遷移と共有するラッチを通す（SS-148）。
 アカウントタブだけが第2引数 `returnTo: "account"` を渡し、サインイン後にアカウントタブへ戻す（SS-151。ADR-M-009 SS-151 追補）。
 履歴の一覧・詳細のルート（`app/walk-history/*`）も、ゲスト向けサインイン案内のボタンにこの hook を使う（`returnTo` は渡さない。SS-45）。
+View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタンと同じラッチ（`useScreenBack` の `runOnce`）に通す。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。
