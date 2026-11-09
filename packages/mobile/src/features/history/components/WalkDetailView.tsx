@@ -157,7 +157,12 @@ export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewPr
               testID="walk-detail-sign-in-required"
               icon="user"
               title={HISTORY_SIGN_IN_TITLE}
-              action={{ label: "サインイン", onPress: onSignIn, testID: "walk-detail-sign-in" }}
+              action={{
+                label: "サインイン",
+                // 戻るボタンと同じラッチに通す（サインインと戻るがほぼ同時に押されても片方だけ通す）。
+                onPress: () => back.runOnce(onSignIn),
+                testID: "walk-detail-sign-in",
+              }}
             />
           ),
         };

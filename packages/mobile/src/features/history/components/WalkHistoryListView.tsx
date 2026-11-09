@@ -71,7 +71,12 @@ export function WalkHistoryListView({ authState, onSignIn }: WalkHistoryListView
               testID="walk-history-sign-in-required"
               icon="user"
               title={HISTORY_SIGN_IN_TITLE}
-              action={{ label: "サインイン", onPress: onSignIn, testID: "walk-history-sign-in" }}
+              action={{
+                label: "サインイン",
+                // 戻るボタンと同じラッチに通す（サインインと戻るがほぼ同時に押されても片方だけ通す）。
+                onPress: () => back.runOnce(onSignIn),
+                testID: "walk-history-sign-in",
+              }}
             />
           ),
         };
