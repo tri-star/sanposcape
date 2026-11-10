@@ -80,8 +80,8 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
     // ダイアログを開いている間は、画面ごと戻らずダイアログだけを閉じる。
     //
     // 注意: Android のハードウェアバックは、Modal 表示中は Modal 側の `onRequestClose`
-    // （`Dialog` が `dismissDisabled` を見て処理する）が先に消費するため、この `onIntercept` は
-    // その経路では呼ばれない可能性が高い（RN の既知の挙動）。実機での確認は未実施。
+    // （`Dialog` が `dismissDisabled` を見て処理する）だけに届くため、この `onIntercept` は
+    // その経路では呼ばれない（RN 0.86 の `ReactModalHostView` で確認。`Dialog` の JSDoc 参照。SS-46）。
     // それでもここに同じ規律を書いておくのは、`goBack()` がプログラム的に呼ばれる経路
     // （画面上の戻るボタン等）でも「削除中は閉じない・削除中でなければダイアログだけ閉じる」に
     // 揃えるため。どちらの経路を通っても最終的な挙動は一致する。
