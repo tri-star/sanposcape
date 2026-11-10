@@ -21,7 +21,11 @@ export type SettingsDialogBackInput = {
  * 画面の `BackHandler` には届かない（`Dialog` の JSDoc 参照）。ここが効くのは、ダイアログの表示中に
  * 画面上の戻るボタンなどから `goBack()` が呼ばれた経路で、その場合もシステムバックと同じ結果に揃える。
  *
- * 2つのダイアログが同時に開くことは無いが、開いているものを1つずつ見る。
+ * 対象はログアウトとアカウント削除のダイアログ。同時に開くことは無いが、開いているものを1つずつ見る。
+ * 表示名の変更のダイアログ（`DisplayNameSetting` が状態を持つ）は入れない。表示中は画面上の戻るボタンが
+ * `Modal` に覆われて押せず、システムバックは `Modal` の `onRequestClose` に届くので、表示中に `goBack()` が呼ばれる経路が無い。
+ * ダイアログの中から `goBack()` を呼ぶ操作を足すときは、状態を `SettingsView` に上げてここに足す。
+ *
  * `.tsx` に条件を書かずここに置くのは、この repo の Vitest ではコンポーネントのレンダリングテストが書けないため。
  */
 export function resolveSettingsDialogBack({

@@ -66,8 +66,8 @@ const APP_VERSION_INFO: AppVersionInfo = {
  * 区別する（誤操作防止）。削除後の遷移は `AuthGate` が担うため、この画面は `router` を触らない
  * （ログアウトと同じ方針）。
  *
- * SS-46 で戻る導線を `useScreenBack` に寄せた（それまでは素の `router.back()`）。ディープリンクで開いて
- * スタックに戻り先が無いときはアカウントタブ（設定の入口）へ戻る。ダイアログの表示中の Android の
+ * SS-46 で戻る導線を `useScreenBack` に寄せた（それまでは素の `router.back()`）。スタックに戻り先が無い
+ * とき（例: コールドスタートのディープリンクで開いた）はアカウントタブ（設定の入口）へ戻る。ダイアログの表示中の Android の
  * システムバックは、ダイアログ（RN の `Modal`）の `onRequestClose` が受けてダイアログだけを閉じる
  * （ログアウト中・削除中は閉じない）。画面の `onIntercept` も同じ判定（`useSettingsBack`）にする。
  */

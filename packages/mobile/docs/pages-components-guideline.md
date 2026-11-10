@@ -93,8 +93,9 @@ testID `sanpo-map-list-back`。作成ダイアログを開いている間は `on
 `SanpoMapMembersView`（`sanpo-maps/[sanpoMapId]/members`。testID `sanpo-map-members-back`。外す・抜けるの確認ダイアログを開いている間は `onIntercept` で閉じる（実行中は閉じない）。SS-249）/
 `LicensesView`（`licenses`。testID `licenses-back`。SS-191）/
 `TagListView`（`tags`。testID `tag-list-back`。SS-245）/ `TagDetailView`（`tags/detail`。testID `tag-detail-back`。SS-245）/
-`SettingsView`（`settings`。testID `settings-back`。戻り先が無い（ディープリンクで開いた）ときはアカウントタブへ。
+`SettingsView`（`settings`。testID `settings-back`。戻り先が無い（例: コールドスタートのディープリンクで開いた）ときはアカウントタブへ。
 ログアウト・アカウント削除のダイアログを開いている間は `onIntercept` で閉じる（ログアウト中・削除中は閉じない）。
+表示名の変更のダイアログ（`DisplayNameSetting` が状態を持つ）は、表示中に `goBack()` が呼ばれる経路が無いので `onIntercept` に入れない。
 `features/settings/hooks/useSettingsBack.ts`。SS-46）の13画面。
 `(tabs)` 配下の各画面は未適用（下記の理由で `useScreenBack` を使わない）。新しい画面を追加するときは、この規約に寄せる。
 ピンタブ（`PinTabView`）とアカウントタブ（`app/(tabs)/account.tsx`。設定・画面カタログ・サインイン）は
