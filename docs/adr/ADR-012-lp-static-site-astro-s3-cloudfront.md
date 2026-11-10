@@ -325,7 +325,7 @@ Disallow するとクローラーがページを取得できず noindex を読�
   窓口は `support@sanposcape.com`。データの保管先は AWS（ap-southeast-1）・Neon ともシンガポールと記載する。英語版は作らない（アプリ・LP とも日本語のみのため）。
   ストアの配信国は日本に限定し、本文にも日本国内での利用が前提と書く（GDPR・UK GDPR の対象にしないため）。13 歳未満は利用不可とする。
 - **アカウント削除時の写真は、現状の実装どおりに書く（ユーザー判断）。** 当初は「アカウントを削除すると写真も削除する」と書き、
-  SS-109（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2）の完了まで本番で `pin_registration` を ON にしない運用で整合させる案だった。
+  SS-109（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2）の完了まで本番で `pin_registration` を ON にしない運用で整合させる案だった。
   利用者目線・運営者目線のレビューで実装との食い違いを指摘され、「画像ファイルは保存領域に残る。表示に必要な情報は消えるためアプリからは見えない。
   消したい場合はアカウント削除の前にピン・写真を削除する」と書き直した（画像ファイルのキーは `user_id` を含むが、アカウント削除後は利用者と `user_id` を
   対応づける情報が残らないため、削除後の依頼で消すことは約束しない）。削除の仕様（論理削除と猶予期間後の物理削除などを検討中）を変えたら本文を直す。
@@ -443,7 +443,7 @@ SS-158 の照合で、書いた直後のポリシーにも実装との食い違�
 ## SS-109 追補: アカウント削除時の写真の記述を改める
 
 アカウント削除後の写真を、保持期間（既定 30 日）の後にバックグラウンドで S3 から消すようにした
-（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36）。ポリシー 7 の「アカウントを削除しても画像ファイルは残る。
+（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36）。ポリシー 7 の「アカウントを削除しても画像ファイルは残る。
 消したい場合は削除の前にピン・写真を消す」を、次のように改めた（`revisedOn` 2026-10-15）。
 
 - 表示に必要な情報はすぐに削除され、アプリから写真は見えなくなる。
@@ -472,7 +472,7 @@ SS-184 の台帳で「未反映」とした食い違い（Sign in with Apple（S
   - 却下: 「Google / Apple のメールアドレスから送信」とする案。非公開リレーの利用者に成り立たない。
 - **写真のアップロード枠（`pin_photo_uploads`）が残ることは、掃除を入れずにポリシーに書く。** 写真・ピンを消しても、保存場所の名前・大きさ・写真を選んだ日時やピンに添付した日時などは
   アカウント削除まで残り、登録を取りやめた枠には撮影日時も残る（ポリシー 6・7）。
-  - 却下: 期限切れの枠の掃除（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-3）を入れる案。backend の変更で、ポリシー改定の課題の範囲を超える。掃除を入れたらポリシー 7 を見直す。
+  - 却下: 期限切れの枠の掃除（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-3）を入れる案。backend の変更で、ポリシー改定の課題の範囲を超える。掃除を入れたらポリシー 7 を見直す。
     BK-3 だけでは、写真・ピンを削除した後の `attached` の枠は残るため、削除時に枠の行も消す変更とあわせて Plane SS-218 に起票した。
 - **Apple の連携を解除するためのトークンは「元の値で保存する」と書き、アカウント削除時の解除は「依頼する」と書く。** 1-4・9 の「サーバーにはハッシュ値だけ」は、
   セッションのトークンに限った記述に改めた（平文で保存する理由は ADR-002 の SS-198 追補）。削除時は、一時障害なら削除せずにエラーを出し、
@@ -767,7 +767,7 @@ SS-268（表示名の変更・サインインで表示名を上書きしない�
 - [ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md)（backend のデプロイを手動起動にした理由）
 - [ADR-006](./ADR-006-mobile-app-delivery-eas-hosted.md) 決定5（静的サイトの配信面は Terraform 側の S3 + CloudFront）
 - [ADR-008](./ADR-008-deploy-release-separation.md) 決定4（アプリ別のタグと Release）
-- [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2（アカウント削除時の写真削除。本番でピン機能を ON にする前提条件）（**SS-158 追補**）。SS-109 で決着（決定36）
+- [ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の BK-2（アカウント削除時の写真削除。本番でピン機能を ON にする前提条件）（**SS-158 追補**）。SS-109 で決着（決定36）
 - [ADR-M-020](../../packages/mobile/adr/ADR-M-020-external-web-pages.md)（アプリからプライバシーポリシーを開く方法と、URL をビルドで切り替えないこと）（**SS-158 追補**）
 - `packages/lp/AGENTS.md`、`packages/lp/docs/deployment.md`、`.github/workflows/lp-ci.yml`、`.github/workflows/lp-deploy.yml`
 - `packages/lp/src/pages/privacy.astro`、`packages/mobile/src/config/legalLinks.ts`（**SS-158 追補**）

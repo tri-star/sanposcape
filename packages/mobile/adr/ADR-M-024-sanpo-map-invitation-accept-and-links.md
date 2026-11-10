@@ -24,7 +24,7 @@
 
 ## コンテキスト
 
-地図への招待はリンク方式（[ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定39）。owner がメンバー画面（ADR-M-014 SS-249 追補）から招待リンクを作って送り、
+地図への招待はリンク方式（[ADR-009](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定39）。owner がメンバー画面（ADR-M-014 SS-249 追補）から招待リンクを作って送り、
 受け取った人がアプリで内容を確かめて参加する。リンク `https://sanposcape.com/i/#<token>` はトークンを fragment に載せるので、
 Expo Router の既定の解釈（path だけを見る）では受け取れない。Universal Links / App Links が効かない環境（開発ビルド・
 検証に失敗した Android・アプリ内ブラウザ）もある。

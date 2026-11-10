@@ -7,7 +7,7 @@ metadata:
   verify_by: 2027-03-31
 ---
 
-ピン・地図・写真の前提は ADR が正本: 用語と `PinRead` に role が無いことは ADR-009、S3 直送・先行アップロード・幽霊枠は ADR-M-010、
+ピン・地図・写真の前提は ADR が正本: 用語と `PinRead` に role が無いことは ADR-019 決定1・決定12、S3 直送・先行アップロード・幽霊枠は ADR-M-010、
 位置の選択と `client_pin_id` の冪等再送は ADR-M-011、表示・閲覧 URL の失効は ADR-M-012、地図一覧・詳細は ADR-M-014、編集・削除は ADR-M-017、アーカイブは ADR-M-021。
 
 ## 保存処理（`pinSaveRunner`）

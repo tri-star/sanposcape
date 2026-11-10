@@ -1,182 +1,63 @@
 # ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成
 
-## 現在有効な決定（要約）
+## 凍結（2026-11-08）
 
-> 最終更新: 2026-11-07（SS-192: ピンの移動を「移動先に移動元の全メンバーがいる」場合に限る。決定42）。前回: 2026-11-06（SS-266: 地図ごとのピンの表示・非表示を本人のメンバーシップに持つ。決定41）、2026-11-06（SS-251: アカウント削除のときの共有地図のデータ。BK-7 の決着。決定40）、2026-11-01（SS-250: 招待リンクの発行・取り消し・受諾。決定39）、2026-10-31（SS-249: 地図のメンバーの一覧・外す・抜ける API。BK-7 の一部。決定38）、2026-10-26（SS-236: 写真の容量の上限を 1 GiB から 10 GiB に上げ、削除系の時間の見積もりを見直した。決定37）、2026-10-18（SS-210: BK-3 の後続課題 SS-218 を参照に足した。決定は変更なし）、2026-10-17（棚卸し追補: prod の結線とピン登録の公開を反映）、2026-10-15（SS-109: アカウント削除後の写真を、保持期間の後にバックグラウンドで S3 から消すようにした。BK-2 の決着。決定36）、2026-10-15（SS-116: 原本の EXIF などのメタデータを確定時に無劣化で除去する。BK-10 完了。決定35）、2026-10-10（SS-163: 写真に撮影日時 `taken_at` を持たせた。決定34）、2026-10-05（SS-175: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せるようにした。決定33）、2026-10-04（SS-173: ピンの訪問状況 `visited`・アーカイブ状態 `archived` を追加。決定32）、2026-10-04（SS-171: 地図のアイコン `icon` を追加。決定31）、2026-10-02（SS-119: mobile 実装の参照のみ追補。決定は変更なし）、2026-09-29（SS-136: 地図のタグ一覧 API を追加。決定30）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
-> 本文と食い違う場合は本節の誤りとして本節を直す。
+> **この ADR は凍結した。以後は追補しない。** 現在有効な決定は次の4本にある。本文は 2026-09-21〜2026-11-07 の意思決定の経緯の記録として残す
+> （本文は凍結の時点のまま。変えたのは、フォルダの移動に伴う相対リンクの書き換えと、`## ステータス` の先頭への凍結の1行の追加だけ）。
+>
+> - [ADR-019: 地図とピンのデータモデルと API](../ADR-019-sanpo-map-and-pin-data-model-and-api.md)
+> - [ADR-020: 地図の共有 — 権限・メンバー・招待](../ADR-020-sanpo-map-sharing-permissions-and-invitations.md)
+> - [ADR-021: ピンの写真 — アップロード・保存・配信・容量](../ADR-021-pin-photo-upload-storage-and-delivery.md)
+> - [ADR-022: ピン・写真・地図・アカウントの削除と S3 の後始末](../ADR-022-deletion-and-photo-object-cleanup.md)
+>
+> 凍結の前に冒頭にあった「現在有効な決定（要約）」は、上の4本に置き換えたので削った（要約は本文から作った派生物で、一次記録ではない）。
 
-### 決定
+### 旧 決定番号の対応表
 
-- **用語はピン（Pin）/ 地図（SanpoMap）/ スポット（`SpotCandidate` に限定）**（本文: 決定1）
-- **地図とピンは N:1、権限は `sanpo_map_members` の role で判定する**（本文: 決定2）
-- **`sanpo_map_id` 省略時は「最初の地図」を同一トランザクションで作る**（本文: 決定3）
-- **写真は presigned POST で先行アップロードし、ピン作成 API が確定を兼ねる**。確定は S3 →
-  DB の順で行い、DB が存在しない S3 オブジェクトを指す状態は作らない（本文: 決定4）
-- **写真の枚数はピン全体で無制限、1リクエストの確定は10枚まで**。未使用（未紐付け）枠の同時保有は
-  既定30で、超過は 429（本文: 決定5、決定7）
-- **サムネイルは確定時に Pillow で同期生成する**（長辺 512px）（本文: 決定6）
-- **容量はアップロード者に計上し、原本のみを数える**（既定 10 GiB。SS-236 で 1 GiB から上げた）（本文: 決定7、決定37）
-- **上限 10 GiB でも削除の DB 処理は時間予算に収まる**（写真7万枚で1秒未満）。**ただし S3 の後始末は、写真が
-  2.5千〜7千枚を超える地図・ピンを消すと、残りを消し残す**（消し残しは容量に数えず、回収はアカウント削除後の
-  prefix 削除だけ。上限まで使って消すのを繰り返すと S3 に積み上がる）。この PR では対処せず、回収は後続の課題（Plane SS-244）で行う
-  （ユーザー判断。データ取扱い台帳 §4 の既知の差分）（本文: 決定37）
-- **ストレージは `STORAGE_MODE=real|fake` + `Unconfigured` で切り替える**。`PIN_PHOTO_BUCKET_NAME`
-  が空なら写真を確定・発行する書き込み系 API は 503。閲覧 API は 503 にしない（本文: 決定8、決定18）
-- **`STORAGE_MODE=fake` の保存先はディスク**（`DEV_STORAGE_DIR`）。空ならプロセス内メモリ
-  （テストの既定）（本文: 2026-09-23 追補）
-- **他人の地図・ピン・アップロード枠は 404/409 で存在を漏らさない**（IDOR 対策）（本文: 決定9）
-- **フラグ `pin_registration` は API をガードしない**（本文: 決定10）
-- **`DELETE /pin-photo-uploads/{upload_id}` で未使用の枠を取り消せる**（本文: 決定11、PR #93 追補）
-- **409 応答は機械可読な `code` を持つ**（`storage_quota_exceeded` / `photo_upload_not_ready`）
-  （本文: 決定12、PR #93 追補）
-- **backend はアクセスログを1リクエスト1行で出す**（`core/access_log.py`。`create_app()` で
-  最後に登録して最外層に置く。クエリ文字列・ボディは出さない。ヘッダーも出さない（例外: 検証済みの
-  `X-App-Session-Id` を `app_session_id` として出す。ADR-013 の SS-181 追補））（本文: 決定13、SS-88 追補）
-- **直送の失敗は原理的にサーバー側から見えない**ので、可観測性は端末側に持たせる。サーバー側から
-  見る必要がある場合は S3 サーバーアクセスログが唯一の手段（本文: SS-88 追補）
-- **閲覧 API（`GET /pins`・`GET /pins/{pin_id}`・`GET /pins/{pin_id}/photos`）を追加した**
-  （BK-4 完了）。bbox・`q`・`tags` によるキーワード検索、keyset ページング、原本の presigned
-  GET（`PinPhotoRead.original_url`）を持つ。ストレージ未構成・障害時も 200 を返し URL を
-  null にする（本文: SS-111 追補）
-- **`GET /pins` は `sanpo_map_id` 必須、並びは `created_at DESC, id DESC`、limit 既定50・最大200**。
-  bbox を指定しても作成日時順のままなので、範囲内のピンが limit を超えると古いピンが次ページに回る
-  （本文: SS-111 追補「一覧の必須パラメータ・並び順・件数上限」）
-- **編集・削除 API（`PATCH /pins/{id}`・`DELETE /pins/{id}`・`DELETE /pins/{id}/photos/{id}`）を
-  追加した**（BK-5 完了）。権限マトリクスは「地図 owner」「対象の作成者本人（editor）」
-  「作成者ではない editor」「非メンバー」の4区分で確定し、非メンバーは404、権限が無ければ403
-  （本文: SS-112 追補）
-- **PATCH はフィールド単位の部分更新とタグの差分（`add_tags`/`remove_tag_ids`）**。全置換は
-  採らない（共同編集での lost update・タグごとの権限判定の分かりやすさのため）。タグが10件を
-  超えると409（`code: "tag_limit_exceeded"`）（本文: SS-112 追補）
-- **削除時の S3 実体は「DB commit → best-effort の即時削除」**。ストレージ障害・未構成でも
-  削除 API は503にしない。`ObjectStorage.delete_many()`（S3 の DeleteObjects）で複数キーを
-  まとめて削除する（本文: SS-112 追補）。**削除用の S3 client は再試行なし・短い timeout で、
-  2つ目以降のチャンクは残り時間が1回の最悪時間以上のときだけ始める（締め切り + 1回の
-  最悪時間 ≤ 25 秒を起動時に検証）**（本文: 決定22 追補, 2026-09-26 追補）
-- **地図の作成・更新・削除 API（`POST /sanpo-maps`・`PATCH /sanpo-maps/{sanpo_map_id}`・
-  `DELETE /sanpo-maps/{sanpo_map_id}`）を追加した**（BK-6 完了）。地図そのものの操作は
-  owner のみ可（editor は 403、非メンバーは 404）。作成時に自分の既定地図が無ければ既定化し、
-  既定地図を削除すると `updated_at DESC, id DESC` の先頭へ繰り上げる。**既定地図の不変条件は
-  owner 単位の advisory lock（`SanpoMapRepository.lock_owner()`）で `create_map`/
-  `delete_map` を直列化して守る**（2026-09-27 追補, PR #103 レビュー対応。当初の
-  best-effort 記述から変更）
-  （本文: SS-113 追補 決定25〜27）
-- **地図はアイコン（`icon`）を持つ**。13種類の enum `SanpoMapIcon`（既定 `pin`・必須・null なし）。
-  `PATCH /sanpo-maps/{id}` で owner だけが変えられ、`updated_at` は動かさない。ピンの見た目は
-  属する地図のアイコンで決まり、ピンの API は変えない。DB は `VARCHAR(16)` + CHECK
-  （本文: SS-171 追補 決定31）
-- **ピンは訪問状況 `visited` とアーカイブ状態 `archived` を持つ**（ともに真偽値・必須・既定 false。
-  日時は持たない。訪問状況はピン単位でメンバーで共有）。`PATCH /pins/{id}` で `visited` はメンバー
-  全員、`archived` は地図 owner かピン作成者だけが変えられる。`GET /pins?archived=&visited=` は
-  省略すると絞り込まず、指定は `limit` の前に AND で適用する。DB は `BOOLEAN NOT NULL DEFAULT false`
-  の2列。既存ピンは `client_walk_id` がある（散歩中に登録した）ものだけ訪問済みに埋め戻した
-  （本文: SS-173 追補 決定32）
-- **`PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移せる**（省略可・null 不可）。移動元は
-  owner かピン作成者（`can_move_pin_from`）、移動先はメンバーなら owner/editor（`can_move_pin_to`）。
-  判定順は ピン404 → 移動先404 → 403 → 409。404 の本文には `code`（`pin_not_found` /
-  `sanpo_map_not_found`）が全エンドポイントで付く（OpenAPI の宣言は PATCH だけ）。地図が実際に変わった
-  ときだけ `updated_at` を進め、移動先の `mark_used()` を呼ぶ。S3 は触らない。**地図削除は写真キーの
-  収集前に地図のピン行を `FOR UPDATE` でロックするようになった**（移動と重なっても生き残るピンの
-  写真を S3 から消さない）（本文: SS-175 追補 決定33）
-- **ピンの移動は、移動先の地図に移動元の地図の全メンバーが参加しているときだけ許す**（移動先のメンバー ⊇ 移動元のメンバー）。
-  満たさなければ 403 `{"code": "move_target_missing_members"}`（role の 403 をすべて通った後に判定。同じ地図の ID なら判定しない）。
-  移動先にだけいる人がいても止めない。招待中（未承諾）の人は数えない。候補は `GET /pins/{pin_id}/move-targets`
-  （自分がメンバーの地図ごとの `missing_members`・`added_members`）。決定33 の「owner は editor のいない地図へ移せる」を改めた（本文: SS-192 追補 決定42）
-- **写真は撮影日時 `taken_at` を持つ**。端末が EXIF から読んだ申告値を `POST /pin-photo-uploads`
-  （任意・null 可・オフセット必須。naive と範囲外は 422、範囲は瞬間で `[1900-01-01Z, 2100-01-01Z)`）
-  で受け取り、紐付け時に枠から `pin_photos` へ写して、枠の側は NULL に戻す。`PinPhotoRead.taken_at`
-  は必須キー・null 可で、全ての写真の応答に載る（UTC 換算の瞬間。元のオフセットは保持しない）。
-  backend は EXIF を読まず、GPS も受け取らない（**SS-116 追補**: 撮影日時の取得の話。原本からメタデータを
-  除去するとき、向きを残すために Orientation だけは読む。決定35）。既存の写真は遡及せず null。ログには出さない。
-  DB は `timestamptz NULL` の2列（本文: SS-163 追補 決定34）
-- **原本は確定時に EXIF などのメタデータを無劣化で除去してから `original/` に置く**（BK-10）。
-  JPEG のマーカーを走査し、APP1（Exif・XMP）、JFIF/ICC/Adobe 以外の APPn（IPTC・MPF など）、COM、
-  EOI 以降の付加データ（MPO の副画像）を落とす。画像データは再エンコードせずバイト列のまま。
-  向きは Orientation だけの最小の Exif で残す。サムネイルは除去後のバイト列から作る。原本は staging から
-  Copy せず、検証・除去したバイト列を常に Put する（検証後の staging の上書きを原本に入れない）。
-  `byte_size`（容量の計上）は保存した原本のサイズ。構造を辿れない JPEG（Pillow が読めても EOI が無い・
-  途中に SOI がある・予約のマーカーがあるなど）・セグメントが1024を超えるものは 409。MPO は副画像を落として通る。既存の原本は
-  遡及しない（`sanpo_maps/photos/jpeg_metadata.py`）（本文: SS-116 追補 決定35）
-- **地図削除は決定22 の手順（DB commit → best-effort の S3 削除）をそのまま地図単位に広げた**。
-  新しい削除部品・設定値は作っていない（`PinService` の既存メソッドを port 経由で再利用）
-  （本文: SS-113 追補 決定28）（**SS-137 追補**: port 経由の再利用は撤去し、
-  `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner`（ピン削除・写真削除・地図削除で共有する
-  commit しない部品）に置き換えた。時間予算の判定・ログ文言は変えていない。詳細は
-  [ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4）
-- **`GET /sanpo-maps?expand=pin_count`** で地図ごとのピン件数（`int | null`、未指定は null）を
-  1クエリで返せるようにした。`sanpo_maps` が `pins` を import しない依存方向は、
-  `sanpo_maps/contents.py` の port（`PinService` が実装、配線はアプリ直下 `dependencies.py`）
-  で維持した（本文: SS-113 追補 決定29）（**SS-137 追補**: `pins` を `sanpo_maps` 配下へ
-  統合し、port（`SanpoMapContents`）は撤去した。ピン件数の集計は
-  `SanpoMapRepository.count_pins_for_maps()` に置き換わった。依存方向の規則・AST 検査は
-  [ADR-011](./ADR-011-sanpo-maps-module-structure.md) M1〜M9・`test_architecture.py` に移った）
-- **`GET /sanpo-maps/{sanpo_map_id}/tags` で地図内のタグを `label_key` 単位に集計して返す**
-  （`label` は同キーで最後に付けられた表記、`pin_count DESC` → 最終使用 DESC → `label_key ASC`、
-  `limit` 既定100・最大200、member のみ・非メンバーは404）。置き場所は `sanpo_maps/maps/`
-  （本文: SS-136 追補 決定30）
+コードのコメントや他の文書にある「ADR-009 決定N」は、次の表で現在の決定を引く。
 
-- **アカウント削除後の写真は、保持期間（既定 30 日）の後にバックグラウンドで S3 から消す**（BK-2 の決着）。
-  アカウント削除と同じトランザクションで削除予約 `account_photo_purges`（利用者 ID・期限。`users` への FK なし）を
-  入れ、EventBridge Scheduler が1日1回起動する Lambda `sanposcape-<env>-backend-scheduled-photo-purge` が、期限を過ぎた
-  利用者の `staging/`・`original/`・`thumb/` の `pins/<user_id>/` を列挙→`DeleteObjects` で消して予約を消す。
-  冪等で、S3 の失敗・時間切れは予約を残して翌日に続きから消す。保持中に予約を消せば写真は残る（ただし DB の行は
-  削除時点で消えているので、戻すには DB の復元が要る）。構成は単一 Lambda（案A）で、SQS のファンアウト（案B）は
-  詰まり始めたら移る。スケジュールとグループは SAM、Scheduler 用ロールは infra 所有で、ロールが起動できるのは
-  `sanposcape-<env>-backend-scheduled-*` の関数だけ（本文: SS-109 追補 決定36）
-
-- **地図のメンバーは `GET /sanpo-maps/{id}/members` で一覧し、`DELETE /sanpo-maps/{id}/members/{user_id}` で owner が外す・editor が抜ける**（owner は抜けられない 409）。
-  他のメンバーに返すのは表示名（未設定は null）・役割・参加日時だけ。外す・抜けるではメンバーの行だけを消し、その人が追加したピン・写真・タグは地図に残る（容量も本人に計上したまま）。
-  地図の行を `FOR UPDATE` でロックする。置き場所は `sanpo_maps/maps/`。この2つの API はフラグ `map_invitation` でガードしない（本文: SS-249 追補 決定38）
-- **招待はリンク方式**（メールは送らない）。owner が `POST /sanpo-maps/{id}/invitations` で発行し、URL `https://sanposcape.com/i/#<token>` を OS の共有シートで送る。トークンは 256 bit の乱数で DB には SHA-256 だけ。1リンク1人・期限7日・上限はメンバー10人と有効なリンク10件。受諾は `POST /invitations/accept`（トークンはボディ）で、地図の行 → 招待の行の順にロックする。使えないトークンは理由を区別しない 404。発行・preview・受諾はフラグ `map_invitation` でガードし（403 `feature_disabled`）、preview・受諾にレート制限。使い終わった招待は 30 日後に日次の Lambda で消す（本文: SS-250 追補 決定39）
-- **アカウント削除では、本人が owner でない地図にある本人のピン・タグの作成者を、その地図の owner に付け替えて残す**（NULL にしない。今メンバーかどうかは見ない。
-  本人の写真は CASCADE で行が消え、S3 は決定36 の 30 日後の削除）。**本人が owner の地図**は今までどおり CASCADE で地図ごと消え、ほかの利用者が上げた写真の S3 実体も
-  commit の後に best-effort で消す（`PhotoObjectCleaner`。締め切りは Apple の失効にかかった時間だけ縮める。消し残しは SS-244）。FK の CASCADE は残し、migration は無い。
-  owner が同じ `client_pin_id` のピンを持つときは付け替える行の `client_pin_id` を振り直す。mobile はフラグ `map_invitation` が ON のとき削除の確認ダイアログにこの扱いを書く。
-  入口は `sanpo_maps.pins.account_deletion`（本文: SS-251 追補 決定40）
-- **地図ごとのピンの表示・非表示は、本人のメンバーシップの `sanpo_map_members.pins_visible`（BOOLEAN NOT NULL DEFAULT true）に持つ。** 地図の属性にしない（共有地図で1人の選択が全員に効くため）。
-  `SanpoMapRead.pins_visible` で本人の値だけを返し（メンバー一覧には載せない）、`PATCH /sanpo-maps/{id}/members/me`（`{pins_visible?: bool}`・null 不可）で本人の行だけを変える。member なら role を問わず可、地図の `updated_at` は変えない。
-  API はフラグ `map_pin_visibility` でガードしない。列の追加はマイグレーションだけの PR を先に出す（本文: SS-266 追補 決定41）
-
-### 未解決・持ち越し
-
-- ~~**BK-2**: アカウント削除時の写真削除。**prod でフラグ ON にする前提条件**（本文: 移行・対応事項）~~
-  → **SS-109 で決着**（決定36）。prod で動かすには infra の live/account（Scheduler 用ロールとデプロイロールの許可）の
-  apply → backend のデプロイが要る
-- **保持期間と DB の復元期間（Neon の PITR）の整合**は未確認。PITR より長く写真を残しても持ち主の行に
-  戻せない（本文: SS-109 追補 決定36）
-- **BK-3, BK-7〜BK-9**: 期限切れ枠の掃除、招待（**SS-249 追補**: メンバーの一覧・外す・抜けると、抜けた人の写真の容量の扱いは決定38 で決着。**SS-250 追補**: 招待リンクは決定39 で決着。**SS-251 追補**: 退会時のデータは決定40 で決着し、BK-7 は完了）、使用量 API、サムネイルの非同期化
-  （本文: 移行・対応事項。BK-10「原本の EXIF 除去」は SS-116 で完了した。BK-4「閲覧 API」は SS-111、BK-5「編集・削除 API」は SS-112、
-  BK-6「地図の作成・管理 API」は SS-113 で完了した）。BK-3 は、写真・ピンの削除後に残る `attached` の枠の行の削除とあわせて
-  Plane SS-218 で扱う（本文: 移行・対応事項の SS-210 追補）
-- ~~**地図表示で limit を超えたときの見せ方**（ページングを続けるか、クラスタ表示にするか）は
-  SS-118 で決める。~~ → **SS-118 で決着**（ページングを続けず上限200件 + 案内。mobile
-  [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3。本文: 2026-09-26 追補（SS-118））。
-  （SS-243: mobile が変えた。`next_cursor` を辿って地図ごと 1,000 件まで取り、端末でクラスタにまとめる。backend は変えていない。
-  ADR-M-012 の SS-243 追補）
-  ~~**検索タブのタグ候補 API** は未実装で、必要なら SS-120 で別途切る~~ → **SS-136 で実装**
-  （決定30。SS-120 はこの API を使える。本文: SS-136 追補）
-- ~~**prod への結線**: infra 側（`deployments/prod/account` / `deployments/prod/platform`）の
-  apply 待ちで、backend の prod デプロイ自体がまだできない~~ → apply 済みで、prod は 2026-10-01 から稼働し、
-  2026-10-17 に production で `pin_registration` を ON にした（本文: 決定8 の SS-108 追補、2026-10-17 棚卸し追補）
-- ~~**Lambda 実行ロールでの直送**は未再現。2026-09-24 の dev 疎通確認はローカルの管理者権限で
-  署名しており、IAM の付与・境界は静的確認で代替している~~ → 2026-10-17 に作業者が dev でデプロイ済み Lambda 経由の
-  写真付きのピン登録を確認した（本文: SS-88 追補、2026-10-17 棚卸し追補）
-- ~~**写真バケットの S3 バージョニング**が有効かは未確認（infra 側の管理）。有効なら、削除した写真の
-  実データがいつ消えるかは infra のライフサイクル設定次第になる（本文: SS-113 追補 決定28）~~
-  → **SS-109 で確認**: infra のコード上は dev / prod とも無効で、削除は即時の完全削除（実環境の確認は
-  SSO 切れで未実施。本文: SS-109 追補）
-
-### 変更・撤回された決定
-
-- `STORAGE_MODE=fake` の保存先: プロセス内メモリ → **ディスク**（`DEV_STORAGE_DIR`）
-  （2026-09-23 追補）
-- `template.yaml` への S3 結線（BK-1）: 「本 PR に含めない」→ **SS-108 で実施し、dev の疎通確認も
-  完了**（SS-108 / SS-88 追補）
-- `sanpo_maps/contents.py` の port（`SanpoMapContents`, Protocol + メソッド引数注入で依存方向を
-  守る構成）→ **ADR-011（SS-137）で撤去**。`pins` を `sanpo_maps` 配下へ統合し、依存の向きに
-  沿った `Repository` のクエリ（`count_pins_for_maps`・`list_photo_keys_for_map`）と
-  commit しない部品（`SanpoMapAccess`・`PhotoObjectCleaner`）で解決する構成に置き換えた
-  （SS-137 追補）
+| ADR-009 | 現在の決定 |
+| --- | --- |
+| 決定1 用語 | ADR-019 決定1 |
+| 決定2 地図とピンは N:1・role で判定 | ADR-019 決定2（権限の表は ADR-020 決定2） |
+| 決定3 「最初の地図」 | ADR-019 決定3・決定6 |
+| 決定4 presigned POST で先行アップロード | ADR-021 決定1 |
+| 決定5 写真の枚数 | ADR-021 決定2（`PinRead.photos` は ADR-019 決定7） |
+| 決定6 サムネイル | ADR-021 決定3 |
+| 決定7 容量 | ADR-021 決定6 |
+| 決定8 ストレージの切り替え | ADR-021 決定10 |
+| 決定9 IDOR 対策 | ADR-020 決定3 |
+| 決定10 フラグ `pin_registration` | ADR-019 決定14 |
+| 決定11 枠の取り消し | ADR-021 決定7 |
+| 決定12 409 の `code` | ADR-021 決定8・ADR-019 決定13 |
+| 決定13 アクセスログ | [ADR-013](../ADR-013-observability-adot-application-signals.md) 決定3（ミドルウェアの形・登録順は 2026-11-08 追補。直送の調査の部分は ADR-021 決定11） |
+| 決定14・15・17 閲覧 API（bbox・代表写真・写真のページング） | ADR-019 決定7 |
+| 決定16・18 原本の URL・ストレージ障害時の閲覧 | ADR-021 決定9 |
+| 決定19 権限の表 | ADR-020 決定1・決定2 |
+| 決定20 PATCH の部分更新とタグの差分 | ADR-019 決定8 |
+| 決定21 404 と 403 | ADR-020 決定3 |
+| 決定22 削除の S3（DB commit → best-effort）・時間予算 | ADR-022 決定1・決定2 |
+| 決定23 `updated_at` | ADR-019 決定8 |
+| 決定24 応答に role を含めない | ADR-019 決定12 |
+| 決定25 地図の API | ADR-019 決定4 |
+| 決定26 地図そのものの権限 | ADR-020 決定2 |
+| 決定27 既定地図の不変条件 | ADR-019 決定3 |
+| 決定28 地図の削除 | ADR-022 決定3 |
+| 決定29 `pin_count` の expand | ADR-019 決定4 |
+| 決定30 地図のタグ一覧 | ADR-019 決定11 |
+| 決定31 地図のアイコン | ADR-019 決定5（「デプロイ」項は決定15） |
+| 決定32 訪問状況・アーカイブ | ADR-019 決定9 |
+| 決定33 ピンの地図の移動 | ADR-019 決定10（地図削除のロックは ADR-022 決定3、移動の条件は ADR-020 決定6） |
+| 決定34 撮影日時 | ADR-021 決定5 |
+| 決定35 原本のメタデータの除去 | ADR-021 決定4 |
+| 決定36 アカウント削除後の写真の削除 | ADR-022 決定5 |
+| 決定37 容量の上限 10 GiB・削除の消し残し | ADR-021 決定6・ADR-022 決定4 |
+| 決定38 メンバーの一覧・外す・抜ける | ADR-020 決定4 |
+| 決定39 招待リンク | ADR-020 決定5（使い終わった招待の削除は ADR-022 決定5） |
+| 決定40 アカウント削除のときの共有地図のデータ | ADR-022 決定6 |
+| 決定41 ピンの表示・非表示 | ADR-020 決定7 |
+| 決定42 ピンの移動の条件 | ADR-020 決定6 |
+| BK-3（期限切れの枠・孤立の掃除） | ADR-021・ADR-022 の持ち越し（Plane SS-218） |
 
 ## 日付
 
@@ -194,7 +75,7 @@ backend 側変更は無い）、
 advisory lock で直列化）、
 2026-09-28 追補（SS-137: `pins` を `sanpo_maps` 配下へ統合し、`sanpo_maps/contents.py` の
 port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の一次記録は
-[ADR-011](./ADR-011-sanpo-maps-module-structure.md) に移した）、
+[ADR-011](../ADR-011-sanpo-maps-module-structure.md) に移した）、
 2026-09-29 追補（SS-136: 地図のタグ一覧 API `GET /sanpo-maps/{sanpo_map_id}/tags`。決定30）、
 2026-10-02 追補（SS-119: mobile のピン編集・削除の実装を参照。backend・決定の変更は無い）、
 2026-10-04 追補（SS-171: 地図のアイコン `icon`。決定31）、
@@ -205,6 +86,8 @@ port（`SanpoMapContents`）を撤去。モジュール構成・依存規則の�
 2026-10-15 追補（SS-109: アカウント削除後の写真の保持期間付きバックグラウンド削除。BK-2 の決着。決定36）、2026-10-17 棚卸し追補（prod の結線とピン登録の公開を反映）、2026-10-18 追補（SS-217: 決定36 の写真の削除の予約同時実行数に注記）、2026-10-26 追補（SS-236: 写真の容量の上限を 10 GiB に。決定37）、2026-10-31 追補（SS-249: 地図のメンバーの一覧・外す・抜ける。決定38）、2026-11-01 追補（SS-250: 招待リンク。決定39）、2026-11-06 追補（SS-251: アカウント削除のときの共有地図のデータ。決定40）、2026-11-06 追補（SS-266: 地図ごとのピンの表示・非表示。決定41）、2026-11-07 追補（SS-192: ピンの移動を移動先に移動元の全メンバーがいる場合に限る。決定42）
 
 ## ステータス
+
+**凍結**（2026-11-08。現在の決定は ADR-019〜022）。以下は凍結の時点のステータス。
 
 採用（backend・mobile 実装済み）。`template.yaml` への S3 結線（BK-1）は SS-108 で実施済みで、
 **dev での疎通確認も完了**（2026-09-24。下の「追補（2026-09-24）」）。prod は infra 側の
@@ -223,7 +106,7 @@ live/account（Scheduler 用ロールとデプロイロールの許可）の app
 1. **登録地点の入れ物（地図）とアクセス権限のデータモデル**。将来、地図を他人と共有する
    （招待・共同編集）ことを見込みつつ、MVP では自分の地図に自分で登録する範囲に留める。
 2. **写真のアップロード方式**。CloudFront + Lambda Function URL 構成
-   （[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md)）は
+   （[ADR-005](../ADR-005-backend-serverless-deployment-lambda-function-url.md)）は
    ボディを持つ POST/PUT に `x-amz-content-sha256` の計算をクライアントへ要求するうえ、
    Lambda の同期呼び出しペイロード上限（6 MB）もあるため、写真本体を API 経由で送るのは
    現実的でない。
@@ -233,16 +116,16 @@ live/account（Scheduler 用ロールとデプロイロールの許可）の app
 
 ### 前提となる決定（既存 ADR・確定事項）
 
-- [ADR-002](./ADR-002-auth-google-signin-and-stub-strategy.md) 決定4: `get_current_user`
+- [ADR-002](../ADR-002-auth-google-signin-and-stub-strategy.md) 決定4: `get_current_user`
   が認証の choke point。モード切替（`AUTH_MODE` 等）は許可リスト方式の fail-safe
   （`ENV=local`/`test` 以外で non-real を選ぶと起動失敗）。
-- [ADR-003](./ADR-003-walk-record-persistence-and-history-api.md) 決定3・決定6・決定7:
+- [ADR-003](../ADR-003-walk-record-persistence-and-history-api.md) 決定3・決定6・決定7:
   `client_*_id` による冪等作成（新規 201・再送 200）、他人のリソースは 404（存在を漏らさない）、
   `User` に `relationship()` を張らず `ON DELETE CASCADE` に委ねる。
-- [ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定9:
+- [ADR-005](../ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定9:
   マイグレーションは手動・デプロイ後に実行する（expand → contract の間、新コードが旧スキーマで
   動く前提を置く）。
-- [ADR-008](./ADR-008-deploy-release-separation.md): フィーチャーフラグ基盤（AWS AppConfig）。
+- [ADR-008](../ADR-008-deploy-release-separation.md): フィーチャーフラグ基盤（AWS AppConfig）。
   未公開機能はフラグ OFF のまま本番へデプロイしてよい。フラグの登録簿はコード
   （`core/feature_flags.py`）が所有し、値は AppConfig が持つ。
 - infra 側（`sanposcape-infra`）が SS-106（写真用 S3 バケット, `live/platform`）と
@@ -337,7 +220,7 @@ ADR-008 決定7（expand → contract）の例外として直接削除してい�
   要求すれば返す」に置き換わった）。**（**SS-137 追補**: 「`pins → sanpo_maps` の
   一方向依存」「port で維持」は当時の構成。`pins` は `sanpo_maps` 配下へ統合され、
   依存方向は port ではなく AST テストで固定する構成に置き換わった。詳細は決定29 の
-  SS-137 追補・[ADR-011](./ADR-011-sanpo-maps-module-structure.md)）
+  SS-137 追補・[ADR-011](../ADR-011-sanpo-maps-module-structure.md)）
 
 ### 決定4: 写真は presigned POST で先行アップロードし、ピン作成 API が確定を兼ねる
 
@@ -448,11 +331,11 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
 - **`template.yaml` への S3 結線（BK-1）は本 PR に含めない**。infra（SS-106/107）の
   dev apply 前に `{{resolve:ssm:}}` で存在しない SSM パラメータを参照すると
   `sam deploy` 自体が失敗し、無関係な修正を含め backend のデプロイ全体が止まるため
-  （[ADR-005](./ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定9・
-  [deployment.md](../../packages/backend/docs/deployment.md) Phase 0 と同じ理由）。
+  （[ADR-005](../ADR-005-backend-serverless-deployment-lambda-function-url.md) 決定9・
+  [deployment.md](../../../packages/backend/docs/deployment.md) Phase 0 と同じ理由）。
   結線までは dev/staging/production で写真 API が 503 になるだけで、フラグ
   `pin_registration` が OFF の間は mobile から呼ばれないため利用者影響は無い
-  （詳細は [deployment.md](../../packages/backend/docs/deployment.md) §12）。
+  （詳細は [deployment.md](../../../packages/backend/docs/deployment.md) §12）。
 - **（SS-108 追補）結線は infra の dev apply 後に SS-108 で行った**。Api にだけ
   `PIN_PHOTO_BUCKET_NAME`（SSM `pin_photos/bucket_name`）を渡し、実行ロールには
   `pin_photos/bucket_arn` で絞ったインライン Statement（`staging/*`・`original/*`・`thumb/*` に
@@ -460,7 +343,7 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
   `template.yaml` は dev/prod 共通で環境による条件分岐は入れない。prod のデプロイは写真と
   関係なく既に AppConfig（SS-98）の SSM を前提にしており、その apply（`deployments/prod/platform`）で
   `pin_photos/*` も同時に作られるため、結線によって prod の前提は増えない
-  （prod の適用順序は [deployment.md](../../packages/backend/docs/deployment.md) §12）。
+  （prod の適用順序は [deployment.md](../../../packages/backend/docs/deployment.md) §12）。
 - **（2026-09-23 追補）fake の保存先をディスクにした**。プロセス内メモリだと
   `uvicorn --reload`（コード変更のたび）やコンテナ再起動で写真だけが消え、DB 上のピン・写真の
   行は残るため表示が 404（`NoSuchKey`）になり、ローカルでの確認が続けにくかった。
@@ -479,7 +362,7 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
 
 ### 決定9: 他人の地図・ピン・アップロード枠は 404/409 で存在を漏らさない（IDOR 対策）
 
-[ADR-003](./ADR-003-walk-record-persistence-and-history-api.md) 決定6 と同じ構造的な
+[ADR-003](../ADR-003-walk-record-persistence-and-history-api.md) 決定6 と同じ構造的な
 担保を、地図・ピン・アップロード枠のすべてに適用する。
 
 - 地図: `SanpoMapRepository` の読み取りは全て `user_id` を必須引数に取り、
@@ -506,7 +389,7 @@ prefix に入れるのは、アカウント削除時に prefix 単位で一括�
   しか作れず、UI が無ければ実害が無い、(2) フラグ削除時に backend の分岐とテストの
   状態数まで増える、(3) ストレージ未構成は Unconfigured → 503 で既に安全側に倒れている。
 - **`app_config_probe`（疎通確認用フラグ）は同じ PR で削除する**
-  （[ADR-008](./ADR-008-deploy-release-separation.md) SS-98 追補 D7 の規定どおり、
+  （[ADR-008](../ADR-008-deploy-release-separation.md) SS-98 追補 D7 の規定どおり、
   最初の実フラグが入った時点で削除する）。`/app-config` の `flags` は map なので、
   古い mobile ビルドは未知キーが減っても壊れない。
 
@@ -691,7 +574,7 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
       2026-09-24 に完了**——動的参照 + prefix 連結は完全な ARN に解決されており、写真付きピン登録で
       `original/` と `thumb/` にオブジェクトが作られ `staging/` が削除されることまで確認した。
       prod は infra 側の apply 待ちで未実施（**2026-10-17 棚卸し追補**: prod も apply 済みで稼働している）。detail は
-      [deployment.md](../../packages/backend/docs/deployment.md) §12）
+      [deployment.md](../../../packages/backend/docs/deployment.md) §12）
 - [x] **BK-2**: アカウント削除（`DELETE /users/me`）時に本人の写真（original/thumb/staging）
       を S3 から削除する。**prod でフラグ ON にする前提条件**（DB は CASCADE で消えるが
       S3 のオブジェクトは残るため）。決定22 の `ObjectStorage.delete_many()` と
@@ -738,7 +621,7 @@ IDOR 対策（決定9）の実装も複雑になる。task 要件を満たすの
 
 TestFlight のビルド5を iPhone 実機で試したところ、写真の直送が必ず失敗した。**原因は mobile 側**
 （Expo の `fetch` が RN 形式の multipart ファイルパートを受け付けない。詳細は
-[ADR-M-010 の追補（2026-09-24）](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）
+[ADR-M-010 の追補（2026-09-24）](../../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）
 で、backend・infra には問題が無かった。ただし**切り分けに時間がかかった理由**は backend 側にも
 あったため、その対処をここに記録する。
 
@@ -752,7 +635,7 @@ TestFlight のビルド5を iPhone 実機で試したところ、写真の直送
 ローカル（uvicorn）は uvicorn 自身がアクセスログを出すため気付きにくいが、**Lambda（Mangum）には
 uvicorn が居ないので、アプリ側で出さない限り何も残らない**。`core/observability.py` に
 `AccessLogMiddleware` を追加し、`method path -> status (N.Nms)` を INFO で出す。
-（**SS-180 追補**: ログは JSON 構造化し、未処理例外は `AccessLogMiddleware` が握って 500 を返すようになった。詳細は [ADR-013](./ADR-013-observability-adot-application-signals.md) 決定3・決定6 の SS-180 追補。）
+（**SS-180 追補**: ログは JSON 構造化し、未処理例外は `AccessLogMiddleware` が握って 500 を返すようになった。詳細は [ADR-013](../ADR-013-observability-adot-application-signals.md) 決定3・決定6 の SS-180 追補。）
 （**SS-181 追補**: 検証済みの `X-App-Session-Id` を `app_session_id` としてログに付けるようになり（実体は `core/access_log.py`）、詳細は ADR-013 の SS-181 追補。）
 
 - `RequestSizeLimitMiddleware` と同じく**素の ASGI ミドルウェア**として書く
@@ -1128,7 +1011,7 @@ SS-111 追補）が決めていなかった点について、SS-112 の実装で
 
 （SS-119 の実際: mobile は `GET /sanpo-maps` の role と、`PinRead` の作成者 ID・セッションの user id から
 操作の出し分けを判定する。role が引けないときは editor（メンバーの最小権限）とみなし、安全性は
-backend の 403 に任せる。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) D5。決定24 は変わらない）
+backend の 403 に任せる。[ADR-M-017](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) D5。決定24 は変わらない）
 
 ### mobile（SS-119）への伝達事項
 
@@ -1146,7 +1029,7 @@ backend の 403 に任せる。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-p
 - （**SS-175 追補**: PATCH の 404 は本文の `code` で `pin_not_found`（ピンが無い → 一覧から取り除く）
   と `sanpo_map_not_found`（移動先が無い・メンバーでない → ピンは元の地図に残る）を区別できる。
   決定33）
-- （SS-119 で mobile 実装済み。role は `GET /sanpo-maps` から引く。詳細は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
+- （SS-119 で mobile 実装済み。role は `GET /sanpo-maps` から引く。詳細は [ADR-M-017](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）
 
 ## 追補（2026-09-26, SS-113 地図の作成・管理 API）
 
@@ -1266,7 +1149,7 @@ editor が 403 でも情報は漏れない（editor は既に `GET /sanpo-maps` 
    （**SS-137 追補**: `PinService._delete_photo_keys_best_effort()` は
    `sanpo_maps/photos/cleanup.py` の `PhotoObjectCleaner.delete_best_effort()` へ切り出した。
    ピン削除・写真削除・地図削除の3箇所が同じ部品をコンストラクタ注入で共有する形になったが、
-   時間予算の判定・チャンク・ログ文言は本文のまま変えていない。[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4）
+   時間予算の判定・チャンク・ログ文言は本文のまま変えていない。[ADR-011](../ADR-011-sanpo-maps-module-structure.md) 決定4）
 3. **staging（未使用の枠）は触らない**（地図と紐付いていない。SS-117 の「写真を先に
    アップロード → 地図を作成 → 保存」でも使える必要がある）。
 4. **容量は commit と同時に空く**（`pin_photos` が CASCADE で消えるため）。S3 の残骸は容量に
@@ -1340,7 +1223,7 @@ list_photo_keys_for_map()`（キー収集）と `photos/cleanup.py` の `PhotoOb
 `Repository` のクエリと commit しない部品で守る（`sanpo_maps/tests/test_architecture.py`
 が AST で検査）。クエリ・応答仕様（`?expand=pin_count`・`SanpoMapRead.pin_count` の型・
 集計クエリの内容）自体は変わっていない。詳細は
-[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定3'（M9）・決定4を参照。
+[ADR-011](../ADR-011-sanpo-maps-module-structure.md) 決定3'（M9）・決定4を参照。
 
 ## 追補（2026-09-26, SS-118: 地図表示で limit を超えたときの見せ方の決着）
 
@@ -1349,7 +1232,7 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 
 - **決定: ページングを続けず、1リクエスト（`limit=200`。地図ごと）で打ち切り、mobile の
   `/pins/map`（SS-147 で削除。現在はピンタブ）では「一部だけ表示。拡大すると他も出る」と案内する。クラスタ表示は採らない**
-  （詳細・理由は [ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
+  （詳細・理由は [ADR-M-012](../../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3）。
   backend 側の変更は無い（本追補は「決まった」ことの記録のみ）。
   （SS-243: mobile が、`next_cursor` を辿って地図ごと 5 ページ（1,000 件）まで取り、端末でクラスタにまとめる形に変えた。
   backend は変えていない。ADR-M-012 の SS-243 追補）
@@ -1363,7 +1246,7 @@ SS-118 で決める」（本文「一覧の必須パラメータ・並び順・�
 API を追加した。SS-111 追補が「後で切る」としていたものにあたる。DB スキーマは変えない
 （マイグレーションなし）。フィーチャーフラグは使わない（決定10）。mobile 側の判断（端末での
 絞り込み・既存表記への統一・見せ方）は mobile の
-[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md) に記録する。
+[ADR-M-013](../../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md) に記録する。
 
 ### 決定30: `GET /sanpo-maps/{sanpo_map_id}/tags`（地図のタグ一覧）の契約
 
@@ -1397,7 +1280,7 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
   （1地図数百ピン × 最大10タグ）の GROUP BY は十分速い。
 - **置き場所**: `sanpo_maps/maps/`（router / `SanpoMapService.list_tags()` /
   `SanpoMapRepository.list_tag_summaries()` / schemas）。「地図 ID で集計する読み取りクエリは
-  地図の Repository に置ける」（[ADR-011](./ADR-011-sanpo-maps-module-structure.md) 決定4。
+  地図の Repository に置ける」（[ADR-011](../ADR-011-sanpo-maps-module-structure.md) 決定4。
   `count_pins_for_maps`・`list_photo_keys_for_map` の前例）で、他サブパッケージのテーブル
   （`pin_tags`・`pins`）の読み取り JOIN は M6 に収まる。`pins/` に置くと `/sanpo-maps/...` 用の
   2つ目の router・`main.py` の include・公開面（M7）の変更が要るだけで得るものが無い。
@@ -1417,7 +1300,7 @@ API を追加した。SS-111 追補が「後で切る」としていたものに
 
 地図ごとにアイコンを選べるようにする（SS-171）。ピンに地図のアイコンを描く処理（SS-172）は
 mobile 側で行う。既存テーブルへの列追加（マイグレーションあり）。フィーチャーフラグは使わない
-（決定10）。表示（グリフ・色）への対応と画面の判断は mobile 側の ADR（[ADR-M-019](../../packages/mobile/adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)。地図のアイコンとマップ
+（決定10）。表示（グリフ・色）への対応と画面の判断は mobile 側の ADR（[ADR-M-019](../../../packages/mobile/adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)。地図のアイコンとマップ
 ピンの形）に記録する。
 
 ### 決定31: 地図はアイコン属性 `icon` を持つ
@@ -1572,7 +1455,7 @@ mobile 側で行う。既存テーブルへの列追加（マイグレーショ�
 対象外（地図間の移動は権限の意味が変わるため別途設計が要る）」としていた。その設計を本決定で行い、
 `PATCH /pins/{pin_id}` の `PinUpdate` に `sanpo_map_id` を足す。DB スキーマは変えない
 （`pins.sanpo_map_id` は既にある）。マイグレーションは無い。フィーチャーフラグは使わない（決定10）。
-mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）に記録する。
+mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）に記録する。
 
 ### 決定33: `PATCH /pins/{id}` の `sanpo_map_id` でピンを別の地図へ移す
 
@@ -1705,8 +1588,8 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
 ピンの写真ビューアに撮影日時を出すため、写真に撮影日時 `taken_at` を持たせる（SS-163）。
 既存テーブル2つへの列追加（マイグレーションあり）と、リクエスト・レスポンスへの任意フィールドの
 追加。フィーチャーフラグは使わない（決定10）。mobile 固有の判断（EXIF の取り出し規則・
-タイムゾーンの補い方・表示）は mobile の ADR（[ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・
-[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）に記録する。
+タイムゾーンの補い方・表示）は mobile の ADR（[ADR-M-010](../../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・
+[ADR-M-012](../../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）に記録する。
 
 ### 決定34: 写真は撮影日時 `taken_at` を持つ。端末が EXIF から読み、枠の発行で受け取る
 
@@ -1774,7 +1657,7 @@ mobile 固有の判断は mobile の ADR（[ADR-M-017 SS-175 追補](../../packa
 ## 追補（2026-10-15, SS-116 原本のメタデータの無劣化除去）
 
 招待機能（BK-7, SS-90）で原本を他のメンバーに配り始める前に、原本から撮影位置（GPS）などが漏れないよう
-にする（BK-10）。正規のアプリは端末で縮小・再エンコードして EXIF を落とす（[ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
+にする（BK-10）。正規のアプリは端末で縮小・再エンコードして EXIF を落とす（[ADR-M-010](../../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
 決定3）が、サーバー側では担保していなかった（presigned POST の条件は Content-Type とサイズだけ）。
 API・DB・OpenAPI・フラグ（決定10）は変えない。
 
@@ -1864,7 +1747,7 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
   S3 の失敗で消し切れなかった利用者がいれば、結果をログに出して実行を失敗にする（Errors のアラーム）。
   起動されなかったこと（Scheduler 側の不備）は Errors では分からないので、`Invocations` が2日続けて 0 の
   アラームも置く。予約同時実行数は dev・prod とも 1（**SS-217 追補**: それまで prod はクォータの都合で未予約だった。prod は SS-217 のデプロイ以降。ADR-005 の SS-217 追補）。
-- **権限と責務の境界**（infra との合意。詳細は [deployment.md](../../packages/backend/docs/deployment.md) §17）:
+- **権限と責務の境界**（infra との合意。詳細は [deployment.md](../../../packages/backend/docs/deployment.md) §17）:
   - スケジュール本体（cron 式）とスケジュールグループ `sanposcape-<env>-backend`（`AWS::Scheduler::ScheduleGroup`。
     デプロイロールが作れるのはこの名前だけ）は SAM。Scheduler が起動に使うロール（SSM
     `/sanposcape/<env>/account/backend_scheduler_role_arn`）は Terraform（live/account）。デプロイ順は infra の apply → SAM。
@@ -1884,7 +1767,7 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
 - **モジュール構成**: 予約のテーブルと処理は写真のキーの構成を知っている `sanpo_maps/photos` が持つ。`users` と
   `aws_lambda` からは新しい公開面 `sanpo_maps.photos.account_purge`（commit しない部品
   `AccountPhotoPurgeScheduler` と、処理の組み立て `build_account_photo_purge_service`）だけを使う
-  （[ADR-011](./ADR-011-sanpo-maps-module-structure.md) の SS-109 追補）。
+  （[ADR-011](../ADR-011-sanpo-maps-module-structure.md) の SS-109 追補）。
 
 #### 検討した選択肢
 
@@ -1915,7 +1798,7 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
 #### 影響・残る事項
 
 - **プライバシー**: ポリシー 7 の「アカウントを削除しても画像ファイルは残る」を「削除から 30 日間保存したのち
-  削除する」に改めた（[ADR-012](./ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-109 追補、データ取扱い台帳）。
+  削除する」に改めた（[ADR-012](../ADR-012-lp-static-site-astro-s3-cloudfront.md) の SS-109 追補、データ取扱い台帳）。
   削除予約の行（削除したアカウントの内部 ID と日時）が、写真を消し終えるまで DB に残る。
 - **地図の招待（BK-8）との関係**: 写真のキーはアップロード者の prefix の下にあるので、この方式で消えるのは本人が
   アップロードした写真。招待が入ると、地図の owner のアカウント削除で、他の利用者がその地図に載せた写真の行が
@@ -1933,7 +1816,7 @@ API・DB・OpenAPI・フラグ（決定10）は変えない。
 - 課題: Plane SS-236。walkshare からのデータ移行（SS-240・SS-241）の前提。
 - 変更: `PIN_PHOTO_USER_QUOTA_BYTES` の既定値（`config.py`）を `1024**3` から `10 * 1024**3` にした。dev・prod は
   `template.yaml` に設定が無く既定値で動くので、backend のデプロイで上がる（既定値をテストで固定した）。
-  API・DB スキーマ・フラグは変わらない。mobile の文言の変更は [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md) の SS-236 追補。
+  API・DB スキーマ・フラグは変わらない。mobile の文言の変更は [ADR-M-010](../../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md) の SS-236 追補。
 
 ### 決定37: 写真の容量の上限を 1人 10 GiB にする。削除系は今の時間予算のまま
 
@@ -2122,7 +2005,7 @@ DB の時間はローカルの合成データでの値で、Neon では測って
 
 ## 追補（2026-11-06, SS-266 地図ごとのピンの表示・非表示）
 
-ピンタブ・ナビタブの地図で、地図ごとにピンを出すかを利用者が選べるようにした（mobile の UI は [ADR-M-021](../../packages/mobile/adr/ADR-M-021-pin-visit-status-and-archive.md) の SS-266 追補）。
+ピンタブ・ナビタブの地図で、地図ごとにピンを出すかを利用者が選べるようにした（mobile の UI は [ADR-M-021](../../../packages/mobile/adr/ADR-M-021-pin-visit-status-and-archive.md) の SS-266 追補）。
 選択は端末ではなく DB に保存する（課題の指定）。決定番号の 40 は、並行して進んでいる SS-251（アカウント削除時の共有地図のデータ）が使うので空けている。
 
 ### 決定41: 表示・非表示は本人のメンバーシップの `pins_visible` に持つ
@@ -2154,7 +2037,7 @@ DB の時間はローカルの合成データでの値で、Neon では測って
 ## 追補（2026-11-07, SS-192 ピンの移動を「移動先に移動元の全メンバーがいる」場合に限る）
 
 招待（SS-90 = BK-7）で editor が入ったので、決定33 で許していた「メンバーが自分のピンや写真にアクセスできなくなる移動」を止める。
-mobile の UI は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) の SS-192 追補。
+mobile の UI は [ADR-M-017](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) の SS-192 追補。
 
 ### 決定42: 移動先の地図に、移動元の地図の全メンバーが参加している場合だけ移せる
 
@@ -2197,28 +2080,28 @@ mobile の UI は [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-d
 
 ## 関連情報
 
-- [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](./ADR-002-auth-google-signin-and-stub-strategy.md)
+- [ADR-002: 認証は Google Sign-In + backend 自前セッショントークン](../ADR-002-auth-google-signin-and-stub-strategy.md)
   —— `get_current_user` の choke point、モード切替の fail-safe 方針
-- [ADR-003: 散歩記録の永続化と履歴 API](./ADR-003-walk-record-persistence-and-history-api.md)
+- [ADR-003: 散歩記録の永続化と履歴 API](../ADR-003-walk-record-persistence-and-history-api.md)
   —— `client_*_id` 冪等作成、他人のリソースは404、`relationship()` を張らない方針
-- [ADR-005: backend は Lambda Function URL + CloudFront](./ADR-005-backend-serverless-deployment-lambda-function-url.md)
+- [ADR-005: backend は Lambda Function URL + CloudFront](../ADR-005-backend-serverless-deployment-lambda-function-url.md)
   —— マイグレーションのデプロイ順序、ペイロード上限、SigV4 ヘッダーの制約
-- [ADR-008: デプロイとリリースの分離](./ADR-008-deploy-release-separation.md)
+- [ADR-008: デプロイとリリースの分離](../ADR-008-deploy-release-separation.md)
   —— フィーチャーフラグの登録簿・削除ルール（`app_config_probe` の扱い）
-- [packages/backend/docs/deployment.md](../../packages/backend/docs/deployment.md) §12
+- [packages/backend/docs/deployment.md](../../../packages/backend/docs/deployment.md) §12
   —— `template.yaml` への S3 結線（BK-1）の確定事項・トラブルシュート
 - Plane: SS-88（本 ADR）、SS-106/SS-107（infra, S3 バケット・境界）、SS-111（閲覧 API, BK-4）、
-  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
-  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）、
-  SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
+  SS-112（編集・削除 API, BK-5）、SS-113（地図の作成・管理 API, BK-6）、SS-118（mobile: 地図表示・詳細画面。[ADR-M-012](../../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) D3・D4）、
+  SS-136（地図のタグ一覧 API。mobile: ピン登録のタグ入力サジェスト。[ADR-M-013](../../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md)）、
+  SS-119（mobile: ピンの編集・削除。[ADR-M-017](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
   SS-171（地図のアイコン。決定31）、
   SS-173（ピンの訪問状況・アーカイブ状態。決定32）、
-  SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
+  SS-175（ピンの地図の移動。決定33。mobile: [ADR-M-017 追補](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md)）、
   SS-116（原本のメタデータの無劣化除去。BK-10。決定35）、
-  SS-163（写真の撮影日時。決定34。mobile: [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・[ADR-M-012](../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）、
+  SS-163（写真の撮影日時。決定34。mobile: [ADR-M-010](../../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)・[ADR-M-012](../../../packages/mobile/adr/ADR-M-012-pin-map-display-and-detail.md) の SS-163 追補）、
   SS-109（アカウント削除後の写真の削除。決定36。infra: sanposcape-infra の live/account/backend_scheduler.tf）、
-  SS-236（写真の容量の上限を 10 GiB に。決定37。消し残しの回収は SS-244。mobile: [ADR-M-010](../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md) の SS-236 追補）、
-  SS-90・SS-249（地図への招待・メンバーの一覧と外す・抜ける。決定38。mobile: [ADR-M-014](../../packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md) の SS-249 追補）、
+  SS-236（写真の容量の上限を 10 GiB に。決定37。消し残しの回収は SS-244。mobile: [ADR-M-010](../../../packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md) の SS-236 追補）、
+  SS-90・SS-249（地図への招待・メンバーの一覧と外す・抜ける。決定38。mobile: [ADR-M-014](../../../packages/mobile/adr/ADR-M-014-sanpo-map-list-and-detail.md) の SS-249 追補）、
   SS-251（アカウント削除のときの共有地図のデータ。決定40）、
-  SS-266（地図ごとのピンの表示・非表示。決定41。mobile: [ADR-M-021](../../packages/mobile/adr/ADR-M-021-pin-visit-status-and-archive.md) の SS-266 追補）、
-  SS-192（ピンの移動を移動先に移動元の全メンバーがいる場合に限る。決定42。mobile: [ADR-M-017](../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) の SS-192 追補）
+  SS-266（地図ごとのピンの表示・非表示。決定41。mobile: [ADR-M-021](../../../packages/mobile/adr/ADR-M-021-pin-visit-status-and-archive.md) の SS-266 追補）、
+  SS-192（ピンの移動を移動先に移動元の全メンバーがいる場合に限る。決定42。mobile: [ADR-M-017](../../../packages/mobile/adr/ADR-M-017-pin-edit-and-delete.md) の SS-192 追補）

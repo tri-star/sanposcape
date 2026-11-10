@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-21（PR #186 追補: fastapi を 0.142 未満に固定。前回 2026-10-17 の棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-08（ADR-009 の分割に伴い、アクセスログのミドルウェアの形を ADR-009 決定13 から移した）。前回: 2026-10-21（PR #186 追補: fastapi を 0.142 未満に固定）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -20,6 +20,7 @@
 - **mobile との相関は `traceparent` ではなく独自ヘッダー `X-App-Session-Id`**（起動ごとの小文字 UUID v4。36 バイト・形式を検証し、重複や不正値は捨てて出さない。拒否しない。認可に使わない。OpenAPI に載せない）。`OTEL_PROPAGATORS=xray` を維持する（本文: 決定6、SS-181 追補）。エラーから操作経路を辿る手順の正本は deployment.md §16。
 - **ログの例外は `exception_type` / `exception_stacktrace`（型名とフレームだけ）/ `exception_sqlstate`。`exception_message` は ENV が local / test のときだけ出す**（staging / production では出さない）。抑止の対象は `exc_info` で、**一律に掛かるのは Lambda だけ**（uvicorn / ECS では `sanposcape.*` のみ。ECS 化時に見直す）。**例外を `message` に `%s` で展開しない（`exc_info` を使う）**（本文: 決定3・決定6、SS-180 追補）。
 - **未処理例外は `AccessLogMiddleware` が 1 回だけ ERROR にして 500 を自分で返し、再送出しない**。ERROR が全ロガーで 1 件になり、OTel の `ExceptionHandlerMiddleware` に届かないため、スパンに例外メッセージも載らない。応答の開始後の例外だけは握れず、専用の例外を送出する（Mangum / uvicorn がもう 1 件出す）（本文: 決定6、SS-180 追補）。
+- **アクセスログは素の ASGI ミドルウェアで、`create_app()` で最後に登録して最外層に置く**（`RequestSizeLimitMiddleware` の 413 も記録する）。`/health` は除く（本文: 決定3、2026-11-08 追補。元は ADR-009 決定13）
 - **外へ出さない情報**: クエリ・ヘッダー・ボディ・位置情報・秘密・SQL のバインド値。`net.peer.ip` / `net.peer.port` / `http.user_agent` は空に上書きする。SQLAlchemy のエラー status は「例外の型名 + SQLSTATE」だけで、例外メッセージは載せない。5xx に変換した例外は型名だけをスパンに残す。ログの `user_id` とスパンの `enduser.id` は内部 UUID のみ。ヘッダーの例外は検証済みの `X-App-Session-Id` だけ（本文: 決定6、SS-178/SS-180/SS-181 追補）。
 - **コードは `core/tracing.py`（最下層。計装・フック・共有ヘルパー）・`core/logs.py`（`LogContext`・フォーマッター・`configure_logging`・`bind_user_id`）・`core/access_log.py`（`AccessLogMiddleware`）に分け、`core/observability.py` は公開名を再エクスポートするだけのファサード**。依存は `access_log → logs → tracing` の一方向で、3 モジュールはファサードを import しない。ロガー名は 3 つとも `sanposcape.core.observability` に固定。private 名は再エクスポートせず、テストは定義元のモジュールを monkeypatch する。request id の束ねとランタイムのハンドラーの差し替えは `aws_lambda/`。文脈は format の時点で読むので、ログのハンドラーは同期のものに限る（本文: 決定7、SS-180/SS-181 追補）。
 - **TracerProvider は起動ラッパー（Lambda はレイヤー、ローカルは `opentelemetry-instrument`）が作り、アプリは作らない**。有効化は `TRACING_ENABLED`（既定 false）。lifespan に計装を置かない（本文: 決定7、SS-178 追補）。
@@ -51,7 +52,7 @@
 
 ## 日付
 
-2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）、2026-10-05 追補（SS-179）、2026-10-10 追補（SS-180）、2026-10-11 追補（SS-181）、2026-10-17 棚卸し追補（dev・prod へのデプロイと、SS-179・SS-180 のデプロイ後の確認を反映）
+2026-10-04（初版、SS-177）、2026-10-04 追補（SS-178）、2026-10-05 追補（SS-179）、2026-10-10 追補（SS-180）、2026-10-11 追補（SS-181）、2026-10-17 棚卸し追補（dev・prod へのデプロイと、SS-179・SS-180 のデプロイ後の確認を反映）、2026-11-08 追補（ADR-009 の分割。アクセスログのミドルウェアの形を ADR-009 決定13 から移した）
 
 ## ステータス
 
@@ -61,6 +62,7 @@
 （SS-179 追補: ダッシュボードとアラームの置き場を決定2 に追記し、`template.yaml` に実装した。スパンのフィールド名・型と Application Signals の次元は 2026-10-05 に dev の読み取りで確認済み。infra の `ManageBackendMonitoring`（sanposcape-infra PR #53）の dev apply 待ちで、ダッシュボードの描画などは未確認。確認後に決定2 の SS-179 追補へ追記する。）
 （SS-180 追補: ログの JSON 化とトレースとの紐付けを実装した。決定3・決定6・決定7 に追補。dev へのデプロイは未実施で、dev での確認事項は「未解決・持ち越し」に残している。）
 （SS-181 追補: `core/observability.py` を 3 分割し、ユーザー ID をログとスパンに付け、`X-App-Session-Id` の受け口と、エラーから操作経路を辿る手順（deployment.md §16）を実装した。決定3・決定6・決定7 に追補。dev へのデプロイは未実施で、確認事項は「未解決・持ち越し」に残している。）
+（2026-11-08 追補: ADR-009 の分割に伴い、アクセスログのミドルウェアの形（ADR-009 決定13）を決定3 に移した。実装の変更は無い）
 
 ## コンテキスト
 
@@ -144,6 +146,7 @@ backend の可観測性を強化したい（エピック SS-176）。やりた�
 - （**SS-180 追補**: **制約**。文脈（ContextVar・current span）は format の時点で読むので、ログのハンドラーは emit と同じスレッド・同じ context で format する同期のものに限る（`QueueHandler` などを入れるときは、`LogRecord` に文脈を載せる方式へ見直す）。`ThreadPoolExecutor` のワーカー（`maps/service.py`、`photo_attacher.py`）の中のログには `aws_request_id` / `http_*` / `user_id` が付かない（OTel の threading 計装は OTel の context だけを運ぶので、`trace_id` / `span_id` は付く）。**Migrate 関数**も `api.py` と同じくランタイムのハンドラーを JSON にする（`migrate.py` の import 時に `use_json_format_for_runtime_handlers()`。`create_app()` を通らないので例外メッセージは既定のまま出さず、トレース・文脈の項目も付かない。`get_settings()` の検証失敗などで Lambda ランタイム自身が出す `errorMessage` は対象外）。ランタイムのハンドラーが無いときは WARNING を 1 回出し、JSON 化済みのハンドラーは再設定しない。`api.py` の `Settings` 検証失敗は、入力値を含みうる `ValidationError` を引き継がず、メッセージ固定の `RuntimeError` を except 節の外で送出する（ランタイムの `errorMessage` から漏らさないため）。1 行あたりのサイズは 50 バイト程度から 300〜600 バイト程度に増える（1,000 リクエスト/日で月 20MB 前後）。）
 - （**SS-181 追補**: **ユーザー ID の範囲と入口**。入口は `core/logs.py` の `bind_user_id(uuid.UUID)` 1 つにし、`uuid.UUID` 以外が渡されたら無視する（「内部 ID のみ」を型で守り、メールアドレスなどが紛れ込む経路を塞ぐ）。呼び出し元は認証の依存（`_authenticate_access_token`）と `AuthService`。`AuthService` では、ログイン（`/auth/session`・`/auth/dev-session`）はユーザーが確定した後、refresh / logout は refresh token の行が見つかった直後に bind する。refresh の失敗（再利用の検知・期限切れ）の 401 にも付けるため router ではなく service に置いた（router では成功時しか付かない。辿りたいのはむしろ失敗の経路）。logout は課題本文に無いが、同じ性質の経路で数行なので含めた。**refresh / logout の `user_id` は「提示された refresh token の持ち主」で、認証の主体ではない**: 盗まれたトークンの再利用では攻撃者のリクエストに被害者の ID が付く。調査では「どのユーザーのトークンファミリーが失効したか」として読む（deployment.md §16 の読み方の注意）。未知のトークン・不正な認証ヘッダーの 401 には付かないので、トークンを持たない者が任意の ID をログに付ける経路は無い。bind はレスポンス・ステータス・分岐に影響しない。）
 - （**SS-181 追補**: **項目の導出と `extra=` の手順**。`LogContext` のキーは dataclass の `fields()` と各フィールドの metadata（`emit`: ログに出すか、`span_attribute`: スパンに写す属性名）から導き、定義順を出力順とする。項目を足すときは `LogContext` にフィールドを 1 つ足せばログ（JSON / console）とスパンの両方に反映される。`extra=` の許可リスト `_EXTRA_KEYS` は tuple のまま、未知のキーを黙って捨てる挙動も変えない。代わりに、本番コードのログ呼び出しの `extra=` のキーが `_EXTRA_KEYS` に含まれること（AST。`extra=` は dict リテラルで渡す制約）と、`_EXTRA_KEYS`・文脈のキー・基本キーが重ならないことをテストで検査する。手順（決定6 に当たらないことの確認 → `_EXTRA_KEYS` → deployment.md §15 の表 → テストの期待値）は deployment.md §15。新しい項目 `app_session_id`（決定6 の SS-181 追補）を足した。）
+- （**2026-11-08 追補（ADR-009 の分割）**: **アクセスログ（`AccessLogMiddleware`）の形**。決定は ADR-009 決定13（SS-88。Lambda には uvicorn が居ないので、アプリが出さない限りリクエストの記録が残らない）で、ADR-009 の凍結に伴いここへ移した。`RequestSizeLimitMiddleware` と同じく**素の ASGI ミドルウェア**で書く（`BaseHTTPMiddleware` を使わない。ストリーミング応答・バックグラウンドタスクの挙動を変えない）。`create_app()` で**最後に登録して最外層に置く**（Starlette の `add_middleware` は先頭に挿入するので、最後に登録したものが最も外側になる。内側の `RequestSizeLimitMiddleware` が自前で返す 413 も記録するため）。`/health` は既定で除く（compose のヘルスチェックが5秒ごとに叩くため）。）
 
 ### 決定4: サンプリングは「全件」を目標にする
 

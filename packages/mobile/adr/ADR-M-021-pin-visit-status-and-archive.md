@@ -41,7 +41,7 @@
 
 SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加する」で、ピンに「訪問済みか（`visited`）」と「アーカイブ済みか（`archived`）」を持たせた。
 目的は2つある。閉店した店などを、場所・写真を残したまま地図から隠したい（アーカイブ）。「まだ行っていない場所」を区別したい（訪問状況）。
-データモデル・権限・API 契約はルート [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の SS-173 追補（決定32）に記録した。
+データモデル・権限・API 契約はルート [ADR-009](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) の SS-173 追補（決定32）に記録した。
 本 ADR は mobile 側の判断（どこに出すか・誰が変えられるか・地図からどう除外するか・登録時の初期値）を記録する。
 
 後続の SS-174（地図上のフィルター UI）はこの2つのデータを前提にする。境界は次のとおり。
@@ -183,7 +183,7 @@ SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加す�
 
 ## 関連情報
 
-- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（SS-173 追補 決定32、SS-266 追補 決定41）
+- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（SS-173 追補 決定32、SS-266 追補 決定41）
 - [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（SS-173 追補）
 - [ADR-M-014: 地図一覧と地図詳細](./ADR-M-014-sanpo-map-list-and-detail.md)（SS-173 追補）
 - [ADR-M-017: ピンの編集・削除](./ADR-M-017-pin-edit-and-delete.md)（SS-173 追補）

@@ -13,7 +13,7 @@ backend・mobile・Web フロントエンドの層で区切らず、変更全体
 
 - `.claude/skills/change-review/references/security.md`（確認観点。必ず読む）
 - `docs/privacy/data-inventory.md`（データ取扱い台帳。観点6で使う。必ず読む）
-- 差分の領域の `AGENTS.md` と、認証・公開範囲に関係する ADR（例: ADR-002 認証、ADR-005 配信、ADR-009 写真のアップロード）
+- 差分の領域の `AGENTS.md` と、認証・公開範囲に関係する ADR（例: ADR-002 認証、ADR-005 配信、ADR-020 地図の共有と権限、ADR-021 写真のアップロード）
 - 渡されたプラン（`plan.md`）と申し送り（`handover-notes.md`）
 
 ## 観点
