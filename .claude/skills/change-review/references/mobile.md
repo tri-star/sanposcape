@@ -62,7 +62,7 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 
 ## 画面遷移・戻る導線・フラグガード
 
-- 新しく足した `router.push` が `useNavigateOnce` の `runOnce`（または `useScreenBack` の `runOnce`）を通っているか。戻る導線の規約が未適用の画面（`SettingsView`・タブ画面）から足す push も同じで、expo-router の `push` は同じルートでも毎回積むので、連打で画面が2枚になる（SS-191 の設定 → ライセンス）。
+- 新しく足した `router.push` が `useNavigateOnce` の `runOnce`（または `useScreenBack` の `runOnce`）を通っているか。戻る導線の規約が未適用の画面（タブ画面）から足す push も同じで、expo-router の `push` は同じルートでも毎回積むので、連打で画面が2枚になる（SS-191 の設定 → ライセンス）。
 - 画面ごとフラグで隠すルートが「画面ガードレシピ」どおりか。`pending` で `<Redirect>` しない（フラグ ON でも起動直後に必ず弾かれる）、ナビタブ経由でしか到達しない画面の戻り先は `"/(tabs)"`、タブは `AppTabBar` の項目から外す（`href: null` は効かない）。フラグ値を Zustand に複製していないか。正本: architecture-guideline.md「フィーチャーフラグ」「画面ガードレシピ」、ADR-008
 - 戻る操作と、その画面から出る他の遷移が同じ `runOnce` を共有しているか（共有しないと連打で push が二重に積まれる）。正本: pages-components-guideline.md「画面の『戻る』導線の規約」
 - `useNavigateOnce` のラッチはフォーカスでしか解除されない。`replace`/`back` が blur を起こさない異常系（ガードのリダイレクト失敗など）で、その画面の離脱操作が永久に無反応にならないか。
