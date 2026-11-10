@@ -17,6 +17,7 @@ import { AccountDeleteDialog } from "@/features/settings/components/AccountDelet
 import { AppearanceSection } from "@/features/settings/components/AppearanceSection";
 import { DisplayNameSetting } from "@/features/settings/components/DisplayNameSetting";
 import { useAccountDeletion } from "@/features/settings/hooks/useAccountDeletion";
+import { useSettingsBack } from "@/features/settings/hooks/useSettingsBack";
 import {
   ACCOUNT_DELETE_BUTTON_LABEL,
   ACCOUNT_DELETE_SECTION_DESCRIPTION,
@@ -24,7 +25,6 @@ import {
 } from "@/features/settings/lib/accountDeleteCopy";
 import type { AppVersionInfo } from "@/features/settings/lib/appVersionLabel";
 import { canDeleteAccount, resolveSettingsSection } from "@/features/settings/lib/settingsSection";
-import { useNavigateOnce } from "@/hooks/useNavigateOnce";
 import { authService } from "@/services/auth";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 import { makeStyles } from "@/theme/makeStyles";
@@ -65,6 +65,11 @@ const APP_VERSION_INFO: AppVersionInfo = {
  * SS-62 でアカウント削除（不可逆）を追加した。ログアウト（可逆）と `variant` / 配置 / 文言で
  * 区別する（誤操作防止）。削除後の遷移は `AuthGate` が担うため、この画面は `router` を触らない
  * （ログアウトと同じ方針）。
+ *
+ * SS-46 で戻る導線を `useScreenBack` に寄せた（それまでは素の `router.back()`）。ディープリンクで開いて
+ * スタックに戻り先が無いときはアカウントタブ（設定の入口）へ戻る。ダイアログの表示中の Android の
+ * システムバックは、ダイアログ（RN の `Modal`）の `onRequestClose` が受けてダイアログだけを閉じる
+ * （ログアウト中・削除中は閉じない）。画面の `onIntercept` も同じ判定（`useSettingsBack`）にする。
  */
 export function SettingsView() {
   const router = useRouter();
@@ -78,8 +83,6 @@ export function SettingsView() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false);
   const deletion = useAccountDeletion();
-  // 「ライセンス」を素早く2回押して画面が2枚積まれないようにする（フォーカスが戻ると解除）。
-  const { runOnce } = useNavigateOnce();
 
   const closeLogoutDialog = () => setLogoutDialogOpen(false);
 
@@ -89,6 +92,16 @@ export function SettingsView() {
     // （WalkDetailView.closeDeleteDialog と同じ）。
     deletion.reset();
   };
+
+  // 「ライセンス」を素早く2回押して画面が2枚積まれないようにする（戻る操作と同じラッチ。フォーカスが戻ると解除）。
+  const back = useSettingsBack({
+    logoutDialogOpen,
+    isSigningOut,
+    accountDeleteDialogOpen,
+    accountDeleteStatus: deletion.status,
+    closeLogoutDialog,
+    closeAccountDeleteDialog,
+  });
 
   const handleConfirmLogout = () => {
     if (isSigningOut) return;
@@ -115,7 +128,8 @@ export function SettingsView() {
             icon="chevron-left"
             label="戻る"
             variant="ghost"
-            onPress={() => router.back()}
+            onPress={back.goBack}
+            testID="settings-back"
           />
           <Text style={styles.title}>設定</Text>
           <View style={styles.headerSpacer} />
@@ -137,7 +151,7 @@ export function SettingsView() {
         <View style={styles.aboutSection}>
           <AboutSection
             appVersion={APP_VERSION_INFO}
-            onOpenLicenses={() => runOnce(() => router.push("/licenses"))}
+            onOpenLicenses={() => back.runOnce(() => router.push("/licenses"))}
             testID="settings-about-section"
           />
         </View>

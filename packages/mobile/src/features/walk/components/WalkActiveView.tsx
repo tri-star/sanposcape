@@ -251,6 +251,11 @@ export function WalkActiveView({
         />
       </View>
 
+      {/*
+        表示中の Android のシステムバックは `Dialog`（RN の `Modal`）の `onRequestClose` → `onClose` だけに届き、
+        ダイアログを閉じるだけになる（「続ける」と同じ。散歩は終わらず、タブの戻る・アプリの終了も起きない。SS-46）。
+        タブのルートなので `useScreenBack` は使わない（タブの `backBehavior` を奪うため）。
+      */}
       <Dialog
         open={endDialogOpen}
         title="散歩を終了しますか？"

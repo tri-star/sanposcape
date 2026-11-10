@@ -14,6 +14,19 @@ tags:
 - openLink: "sanposcape-dev://settings"
 - assertVisible:
     id: "settings-screen"
+
+# ダイアログの表示中の Android のシステムバックは、ダイアログだけを閉じて設定画面に残る（SS-46）
+- tapOn:
+    id: "settings-open-logout-dialog"
+- assertVisible:
+    id: "logout-dialog"
+- back
+- assertNotVisible:
+    id: "logout-dialog"
+- assertVisible:
+    id: "settings-screen"
+# アカウント削除のダイアログは開かない（e2e-user-1 は全フローで共有される固定アカウント。account-tab.yaml と同じ方針）。
+# どちらも同じ Dialog（RN の Modal の onRequestClose）の経路なので、ログアウトのダイアログで代表させる。
 - tapOn:
     id: "settings-open-logout-dialog"
 - assertVisible:
