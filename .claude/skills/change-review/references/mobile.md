@@ -65,6 +65,8 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - 新しく足した `router.push` が `useNavigateOnce` の `runOnce`（または `useScreenBack` の `runOnce`）を通っているか。戻る導線の規約が未適用の画面（タブ画面）から足す push も同じで、expo-router の `push` は同じルートでも毎回積むので、連打で画面が2枚になる（SS-191 の設定 → ライセンス）。
 - 画面ごとフラグで隠すルートが「画面ガードレシピ」どおりか。`pending` で `<Redirect>` しない（フラグ ON でも起動直後に必ず弾かれる）、ナビタブ経由でしか到達しない画面の戻り先は `"/(tabs)"`、タブは `AppTabBar` の項目から外す（`href: null` は効かない）。フラグ値を Zustand に複製していないか。正本: architecture-guideline.md「フィーチャーフラグ」「画面ガードレシピ」、ADR-008
 - 戻る操作と、その画面から出る他の遷移が同じ `runOnce` を共有しているか（共有しないと連打で push が二重に積まれる）。正本: pages-components-guideline.md「画面の『戻る』導線の規約」
+- `useScreenBack` を使う画面に `Dialog` を足したら、その画面の `onIntercept` の判定に入っているか、入れない理由が書かれているか。子コンポーネントが状態を持つダイアログ（SS-268 の表示名の変更）は判定から漏れやすい（SS-46 のレビューで判明）。
+  表示中の Android のシステムバックは `Modal` の `onRequestClose`（`Dialog` の `onClose`）にしか届かないので、`onClose` が閉じるだけで、遷移や進行中の処理の取り消しをしていないかも見る。正本: pages-components-guideline.md 同節
 - `useNavigateOnce` のラッチはフォーカスでしか解除されない。`replace`/`back` が blur を起こさない異常系（ガードのリダイレクト失敗など）で、その画面の離脱操作が永久に無反応にならないか。
 - サインイン画面へ push で入る導線は `canGoBack()` の前提を崩しうる（SS-57 で `SettingsView` の push が `/walk-start` の前提を崩した。ゲスト向けサインイン案内は今も push）。認証まわりでは「push と replace のどちらで入ったか」と成功後の遷移を突き合わせ、新しい導線には `replace` か `canDismiss()` → `dismissAll()` を提案する。
 - `useSegments()`（今いる画面）とストアの状態の組で表示を決めていないか。セグメントはナビゲーションの状態より1コミット遅れて更新されるので、同じイベントでストアを変えて push すると、古い画面と新しいストアの組で1回コミットされる（SS-101 で全画面の案内の `Modal` が一瞬開いた）。
