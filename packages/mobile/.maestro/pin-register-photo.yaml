@@ -1,6 +1,6 @@
 # 写真付きのピン登録（SS-123）: サインイン → 地図を作成 → ピンタブの長押しで登録画面
 # →「撮影する」「写真を選ぶ」で写真を2枚 → 保存 → 地図詳細からピン詳細 → 写真2枚と撮影日時
-# → ピンを削除（後片付け）。
+# → ピンと地図を削除（後片付け）。
 #
 # 前提: pin-edit-delete.yaml と同じ
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
@@ -16,8 +16,9 @@
 # 登録画面のタイルの状態（送信中・送信済みは一時表示。SS-152）、トースト、件数、ほかの地図・ピン。
 # このフローが作る地図とピンにだけ依存する（実行ごとに一意な名前）。
 #
-# 共有ユーザーへの影響: このフローが作ったピンだけを削除する（写真もピンと一緒に消える）。
-# 地図は残る（pin-edit-delete.yaml と同じ扱い）。
+# 共有ユーザーへの影響: このフローが作ったピンと地図だけを削除する（写真もピンと一緒に消える）。
+# 地図も消すのは、手元で繰り返し実行したときに登録画面の地図の選択欄が伸び続けないようにするため
+# （削除の手順は sanpo-map-list.yaml と同じ。SS-265）。
 #
 # 注意:
 #   - 入力はすべて ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が
@@ -198,7 +199,7 @@ tags:
 - assertVisible:
     id: "pin-detail-screen"
 
-# --- 削除 → 地図詳細が0件（後片付け。削除はヘッダー右端のゴミ箱） ---
+# --- ピンの削除 → 地図詳細が0件（後片付け。削除はヘッダー右端のゴミ箱） ---
 - tapOn:
     id: "pin-detail-delete"
 - extendedWaitUntil:
@@ -218,3 +219,30 @@ tags:
     visible:
       id: "sanpo-map-detail-pins-empty"
     timeout: 15000
+
+# --- 作った地図を削除する（SS-265。e2e ユーザーが作ったので owner） ---
+- tapOn:
+    id: "sanpo-map-detail-delete"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-delete-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-delete-confirm"
+# 成功トーストは一時表示なので assert しない（ADR-M-004 SS-152 追補）。地図一覧へ戻り、地図が消えたことで確かめる。
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+# 一覧の検索欄は詳細へ進む前の入力（接尾辞）を残しているので、入れ直さずに地図名が消えることを待つ
+# （トースト「『…』を削除しました」にも地図名が入るので、トーストが消えるまで含めて待つ）。
+- extendedWaitUntil:
+    notVisible:
+      text: ".*${output.mapName}.*"
+    timeout: 15000
+- assertNotVisible:
+    id: "sanpo-map-list-error"
