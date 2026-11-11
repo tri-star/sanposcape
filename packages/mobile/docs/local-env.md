@@ -358,9 +358,11 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
   （`src/config/photoMode.ts`）。位置情報と同じく `dev` モードは無い（詳細は
   [ADR-M-010](../adr/ADR-M-010-photo-service-and-direct-s3-upload.md)）。
   - `real` = `expo-image-picker`（カメラ/写真ライブラリ）+ `expo-image-manipulator`（縮小・再圧縮）。
-  - `mock` = 固定のダミー写真（`src/services/photo/photo.mock.ts`。vitest や、システムのカメラ/
+  - `mock` = 固定の写真（`src/services/photo/photo.mock.ts`。vitest や、システムのカメラ/
     写真ピッカーを安定操作できない E2E（Maestro）で使う。`eas.json` の `preview` プロファイルは
-    既定でこれ。ダミーは実ファイルではないためアップロードは失敗する＝写真付き E2E は別チケット）。
+    既定でこれ。中身はソースに埋め込んだ本物の小さな JPEG（`src/services/photo/mockJpeg.ts`）で、
+    `STORAGE_MODE=fake` の backend へのアップロードまで通る。写真付き E2E は `.maestro/pin-register-photo.yaml`。
+    ADR-M-010 決定16）。
 - 権限文言は `app.json` の `expo-image-picker` プラグイン（`photosPermission` /
   `cameraPermission`）で設定済み。
 - ピンの写真アップロード（presigned POST）を backend 経由で確認するには、backend を
