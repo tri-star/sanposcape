@@ -175,7 +175,9 @@ tags:
 - assertNotVisible:
     id: "pin-detail-photos-empty"
 
-# --- 写真ビューア: 開くと枚数と撮影日時（mock の takenAt が枠 → 写真へ運ばれた）が出る → 閉じる ---
+# --- 写真ビューア: 開くと枚数と撮影日時が出る → 閉じる ---
+# 日付の行は撮影日時が無いとアップロード日時（「アップロード …」）を同じ testID で出すので、
+# 「撮影」で始まる文言まで見る（mock の takenAt が枠 → 写真へ運ばれたことの確認。SS-163）。
 - tapOn:
     id: "pin-detail-photos-0"
 - extendedWaitUntil:
@@ -186,6 +188,7 @@ tags:
     id: "pin-photo-viewer-counter"
 - assertVisible:
     id: "pin-photo-viewer-date"
+    text: "撮影.*"
 - tapOn:
     id: "pin-photo-viewer-close"
 - extendedWaitUntil:
