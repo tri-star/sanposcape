@@ -23,21 +23,34 @@ export const MOCK_PICKED_PHOTO: PickedPhoto = {
  */
 export const MOCK_PREPARED_URI = `data:image/jpeg;base64,${MOCK_JPEG_BASE64}`;
 
-/** base64 を JPEG のバイト列に戻す（`atob` は Hermes と Node のどちらにもある）。 */
-function decodeMockJpeg(): Uint8Array {
-  const binary = atob(MOCK_JPEG_BASE64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+let mockJpegBytesCache: Uint8Array | null = null;
+
+/**
+ * 埋め込みの JPEG の実バイト列（新しい配列）。backend の確定処理（デコード・サムネイル生成）を通る（SS-123）。
+ * 復号は初めて呼ばれたときに行う: `@/services/photo` は real のビルドでもこのファイルを読み込むので、
+ * 読み込み時に復号すると mock を使わない本番でも起動時に走る。`atob` は Hermes と Node のどちらにもある。
+ */
+export function mockJpegBytes(): Uint8Array {
+  if (mockJpegBytesCache === null) {
+    const binary = atob(MOCK_JPEG_BASE64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    mockJpegBytesCache = bytes;
   }
-  return bytes;
+  // 呼び出し側（送信）が書き換えても埋め込みの値が壊れないよう、毎回複製して返す。
+  return mockJpegBytesCache.slice();
 }
 
-/** 埋め込みの JPEG の実バイト列。backend の確定処理（デコード・サムネイル生成）を通る（SS-123）。 */
-export const MOCK_JPEG_BYTES: Uint8Array = decodeMockJpeg();
+/** base64 の長さから復号後のバイト数を求める（復号せずに済ませる。末尾の `=` は1つで1バイト減る）。 */
+function base64ByteLength(base64: string): number {
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return (base64.length / 4) * 3 - padding;
+}
 
 /** prepareForUpload が返す既定のバイト数。枠の申請（`byte_size`）と送る実体の長さを一致させる。 */
-export const MOCK_PREPARED_BYTE_SIZE = MOCK_JPEG_BYTES.length;
+export const MOCK_PREPARED_BYTE_SIZE = base64ByteLength(MOCK_JPEG_BASE64);
 
 /**
  * `computeResizeTarget` の結果（片方の辺だけ）からアスペクト比を保った最終寸法を計算する。
@@ -129,7 +142,7 @@ export function createMockPhotoService(options?: MockPhotoServiceOptions): Photo
         file: {
           name: "mock-photo.jpg",
           type: "image/jpeg",
-          bytes: async () => MOCK_JPEG_BYTES.slice(),
+          bytes: async () => mockJpegBytes(),
         },
       };
     },

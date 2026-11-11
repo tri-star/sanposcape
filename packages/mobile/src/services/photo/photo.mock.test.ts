@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { isPhotoError } from "@/services/photo/photoError";
 import {
-  MOCK_JPEG_BYTES,
   MOCK_PICKED_PHOTO,
   MOCK_PREPARED_BYTE_SIZE,
   MOCK_PREPARED_URI,
   MOCK_TAKEN_AT,
   createMockPhotoService,
+  mockJpegBytes,
 } from "@/services/photo/photo.mock";
 import type { UploadFileBody } from "@/services/photo/types";
 
@@ -96,7 +96,7 @@ describe("createMockPhotoService.prepareForUpload", () => {
     expect([bytes[bytes.length - 2], bytes[bytes.length - 1]]).toEqual([0xff, 0xd9]);
     // 表示用の data URI と同じ中身
     expect(MOCK_PREPARED_URI.startsWith("data:image/jpeg;base64,")).toBe(true);
-    expect(bytes).toEqual(MOCK_JPEG_BYTES);
+    expect(bytes).toEqual(mockJpegBytes());
   });
 
   it("bytes() を呼ぶたびに別の配列を返す（送信側が書き換えても埋め込みの値が壊れない）", async () => {

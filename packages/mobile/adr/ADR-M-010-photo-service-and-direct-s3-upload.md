@@ -395,7 +395,9 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
   - `file` は `{ name, type, bytes() }`（Expo の FormData/fetch が受け付ける形。決定9の `UploadFileBody`）。
     `Blob` にしない: RN の `Blob` は `Uint8Array` から作れず、実機で throw する（`BlobManager.createFromParts`）。
     初版の mock の `new Blob([new Uint8Array(8)])` も実機では使えなかった（E2E で写真を添付しないので表に出なかった）。
-  - `byteSize` の既定は JPEG の実バイト数（枠の申請と送る実体を一致させる）。`preparedByteSize` での上書きは残す（上限超過の UI 確認用）。
+  - 復号（`atob`）は初めて `bytes()` が呼ばれたときに行う。`@/services/photo` は real のビルドでも mock のファイルを読み込むので、
+    読み込み時に復号すると mock を使わない本番でも起動時に走るため。
+  - `byteSize` の既定は JPEG の実バイト数（枠の申請と送る実体を一致させる。base64 の長さから求め、復号しない）。`preparedByteSize` での上書きは残す（上限超過の UI 確認用）。
   - `uri` は `data:image/jpeg;base64,...`（登録画面のタイルに実際の画像が出る）。`pickPhotos` の `uri` は今までどおり
     `mock://photo/<n>.jpg`（元画像は加工前で表示に使わない。一意であることをテストで見ている）。
   - 返す幅・高さ（4032x3024 を縮小した 2048x1536）は実体の 240x180 と一致しない。mobile の値は送信に使われず、
