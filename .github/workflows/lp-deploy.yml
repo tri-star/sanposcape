@@ -22,6 +22,9 @@ name: lp deploy (S3 + CloudFront)
 # ★ public リポジトリのため Actions のログは誰でも読める。バケット名と distribution ID は取得直後に
 #   add-mask し、`aws s3 sync` には --only-show-errors を付ける。ただしアカウント ID は秘匿対象ではない
 #   （ロール ARN がステップの env / with として表示される。backend-deploy.yml と同じ）。マスクは多層防御。
+# ★ `_astro/` の旧ハッシュは、Environment Variables `LP_RETIRE_STALE_ASSETS` が `true` のときだけ、
+#   引退のタグ（lp-retired=true）を付けて infra の S3 Lifecycle に消させる（SS-166。ADR-012 の SS-166 追補）。
+#   ロールの権限と Lifecycle ルールが infra 側で入るまでは設定しない（未設定なら旧ハッシュを残し続ける）。
 
 on:
   push:
@@ -158,6 +161,8 @@ jobs:
       # エッジは最大1日保持する（invalidation に失敗しても1日で入れ替わる保険）。
       CACHE_CONTROL_HASHED: "public, max-age=31536000, immutable"
       CACHE_CONTROL_DEFAULT: "public, max-age=0, s-maxage=86400"
+      # `_astro/` の旧ハッシュの引退（SS-166）を行うか。Environment Variables で環境ごとに有効にする。
+      RETIRE_STALE_ASSETS: ${{ vars.LP_RETIRE_STALE_ASSETS == 'true' }}
     steps:
       - name: Check deploy role is configured
         env:
@@ -172,6 +177,21 @@ jobs:
         with:
           name: lp-dist
           path: dist
+
+      # 引退・復帰のスクリプト（依存なし）だけを取り出す。dist と混ざらないよう別の場所に置く。
+      - name: Checkout lp-tools
+        if: env.RETIRE_STALE_ASSETS == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: lp-tools-src
+          sparse-checkout: scripts/lp-tools
+          persist-credentials: false
+
+      - name: Setup Node
+        if: env.RETIRE_STALE_ASSETS == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -207,15 +227,25 @@ jobs:
 
       # 「上げる → キャッシュ削除 → 掃除（--delete）」の順にする（エッジに古い HTML が残っている間に、
       # 参照先のページを消さないため）。
-      # _astro/ の旧ハッシュは消さずに残す。デプロイ前から開いたままのタブは旧 HTML のまま、遅延読み込みの画像などを
+      # _astro/ の旧ハッシュはここでは消さない。デプロイ前から開いたままのタブは旧 HTML のまま、遅延読み込みの画像などを
       # 後から取りに来るため（invalidation はブラウザが既に持っている HTML には効かない）。
-      # 1 回のビルドで最大 1.6MB 程度と小さく、過去のコミットへのロールバックでも旧アセットがそのまま使える。
+      # LP_RETIRE_STALE_ASSETS が true なら、最後の「Retire stale hashed assets」で引退のタグを付け、
+      # infra の S3 Lifecycle が猶予期間の後に消す。未設定なら残し続ける（1 回のビルドで最大 1.6MB 程度）。
       - name: Upload hashed assets
         env:
           BUCKET: ${{ steps.targets.outputs.bucket }}
         run: |
           aws s3 sync dist/_astro "s3://$BUCKET/_astro" \
             --cache-control "$CACHE_CONTROL_HASHED" --only-show-errors
+
+      # ロールバックなどで再び参照されたアセットから、引退のタグを外す（外さないと Lifecycle が使用中のまま消す）。
+      # aws s3 sync はサイズが同じで S3 の方が新しいファイルを上げ直さないので、上げ直しでタグが外れることには頼らない。
+      # 失敗したら HTML を上げずに止める（タグが残ったまま新しい HTML がそのアセットを参照するのを避ける）。
+      - name: Restore re-referenced hashed assets
+        if: env.RETIRE_STALE_ASSETS == 'true'
+        env:
+          BUCKET: ${{ steps.targets.outputs.bucket }}
+        run: node lp-tools-src/scripts/lp-tools/retire-stale-assets.mjs restore --bucket "$BUCKET" --dist dist
 
       # .well-known/apple-app-site-association は拡張子が無く、sync では binary/octet-stream になる
       # （CloudFront が nosniff を付けるので iOS が読めない）。sync から外し、次の手順で Content-Type を付けて上げる
@@ -279,6 +309,19 @@ jobs:
             echo "- 公開 URL: $SITE_URL/"
             echo "- コミット: \`$GITHUB_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # 今回のビルドに無い _astro/ に引退のタグを付ける（作成日時を更新するため同じキーへコピーし直す）。
+      # 新しい HTML が配信されてから行う（失敗した途中のデプロイで、まだ配信中の HTML のアセットを引退させない）。
+      # 消すのは infra の S3 Lifecycle（prefix _astro/ かつタグ lp-retired=true → 猶予期間の後に expire）。
+      # 公開は済んでいて使用中のアセットには影響しないので、失敗しても警告にとどめる（次のデプロイで残りを引退させる）。
+      - name: Retire stale hashed assets
+        if: env.RETIRE_STALE_ASSETS == 'true'
+        env:
+          BUCKET: ${{ steps.targets.outputs.bucket }}
+        run: |
+          if ! node lp-tools-src/scripts/lp-tools/retire-stale-assets.mjs retire --bucket "$BUCKET" --dist dist; then
+            echo "::warning::_astro/ の旧ハッシュの引退に失敗しました。公開は完了しています（次のデプロイで再試行されます）"
+          fi
 
   # production へのデプロイ成功後に、デプロイした SHA へ lp/vX.Y.Z タグと GitHub Release を作る。
   # 規則は backend-deploy.yml の release job と同じ（接頭辞とパスだけが違う）。
