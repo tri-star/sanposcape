@@ -238,7 +238,8 @@ jobs:
             --cache-control "$CACHE_CONTROL_HASHED" --only-show-errors
 
       # ロールバックなどで再び参照されたアセットから、引退のタグを外す（外さないと Lifecycle が使用中のまま消す）。
-      # aws s3 sync はサイズが同じで S3 の方が新しいファイルを上げ直さないので、上げ直しでタグが外れることには頼らない。
+      # aws s3 sync はサイズが同じなら更新日時で上げ直すかを決め、成果物の展開で更新日時がどうなるかに左右されるので、
+      # 上げ直しでタグが外れることには頼らない。
       # 失敗したら HTML を上げずに止める（タグが残ったまま新しい HTML がそのアセットを参照するのを避ける）。
       - name: Restore re-referenced hashed assets
         if: vars.LP_RETIRE_STALE_ASSETS == 'true'
