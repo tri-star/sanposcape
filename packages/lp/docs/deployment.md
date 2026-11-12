@@ -17,7 +17,7 @@
 prepare（環境と公開 URL を決める。production は main 以外を拒否）
   → ci（lp-ci.yml: scripts/lp-tools の単体テスト / astro check / Prettier / build / インライン混入の検査）
   → build（LP_SITE_URL・PUBLIC_LP_ENV を渡して astro build。id-token なし）
-  → deploy（environment 付き。OIDC で AssumeRole → S3 へアップロード → invalidation → 掃除 → 疎通確認）
+  → deploy（environment 付き。OIDC で AssumeRole → S3 へアップロード → invalidation → 掃除 → 疎通確認 → 旧ハッシュの引退（有効な環境のみ））
   → release（production のみ。lp/vX.Y.Z タグと GitHub Release）
 ```
 
@@ -32,7 +32,7 @@ prepare（環境と公開 URL を決める。production は main 以外を拒否
 4. `/*` を invalidation し、完了を待つ。
 5. 3 と同じ範囲（`_astro/` 以外）を `--delete` 付きで同期し、消えたページなどの古いファイルを削除する。
 6. 公開 URL が 200 を返すことを確認する。
-7. 旧ハッシュの削除を有効にしている環境では、今回のビルドに無い `_astro/` に引退のタグを付ける（失敗しても警告だけで、デプロイは成功扱い）。
+7. 旧ハッシュの削除を有効にしている環境では、今回のビルドに無い `_astro/` に引退のタグを付ける（失敗しても、10 分で打ち切られても警告だけで、デプロイは成功扱い。続きは次のデプロイで行う）。
 
 「上げる → キャッシュ削除 → 掃除」の順にしているのは、エッジに古い HTML が残っている間に、そこから参照されるファイルを消さないため。
 消しすぎた場合は、バケットのバージョニング（旧バージョンは 30 日保持）から戻せる。
@@ -44,7 +44,7 @@ prepare（環境と公開 URL を決める。production は main 以外を拒否
 増える量はビルド 1 回で最大 1.6MB 程度（画像を変えなければ CSS / JS の数十 KB）で、費用はほぼかからない。
 
 Environment Variables `LP_RETIRE_STALE_ASSETS` を `true` にした環境では、猶予期間を置いてから削除する（SS-166。ADR-012 の SS-166 追補）。
-未設定（または `true` 以外）なら残し続ける。
+未設定なら残し続ける。
 
 - デプロイが、今回のビルドに無い `_astro/` のオブジェクトを同じキーへコピーし直し（作成日時を引退の日にする。Content-Type・Cache-Control は保つ）、
   タグ `lp-retired=true` を付ける。既にタグが付いているものはコピーし直さない（作成日時が延びて期限が来なくなるため）。
@@ -83,9 +83,11 @@ HTML は最大 1 日でエッジから入れ替わる。
 2. GitHub の Environment に Variables `LP_RETIRE_STALE_ASSETS` = `true` を設定する。
 3. Run workflow でデプロイし、「Retire stale hashed assets」のログの件数と、警告が出ていないことを確かめる。
    1 回目はそれまでに溜まった旧ハッシュをすべて引退させるので、件数が多く時間がかかる。
-4. 引退させたオブジェクトのタグ・Content-Type・Cache-Control を確かめる。
+4. Lifecycle ルールの filter が prefix とタグの両方（AND）になっていること、引退させたオブジェクトのタグ・Content-Type・Cache-Control を確かめる。
+   filter が prefix だけだと使用中のアセットも年齢で消え、タグだけだと `_astro/` 以外も対象になる。
 
 ```bash
+aws s3api get-bucket-lifecycle-configuration --bucket "$BUCKET"   # Filter.And が Prefix "_astro/" と Tags [lp-retired=true]
 aws s3api list-objects-v2 --bucket "$BUCKET" --prefix _astro/ --query 'Contents[].[Key,LastModified]' --output text
 aws s3api get-object-tagging --bucket "$BUCKET" --key "_astro/<今回のビルドに無いファイル>"   # lp-retired=true
 aws s3api head-object --bucket "$BUCKET" --key "_astro/<今回のビルドに無いファイル>"          # ContentType・CacheControl が元のまま
