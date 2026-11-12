@@ -27,18 +27,31 @@ prepare（環境と公開 URL を決める。production は main 以外を拒否
    - `/sanposcape/<env>/services/lp/bucket_name`
    - `/sanposcape/<env>/services/lp/distribution_id`
 2. `_astro/`（ハッシュ付き）を `Cache-Control: public, max-age=31536000, immutable` でアップロードする。
+   旧ハッシュの削除を有効にしている環境では、続けて今回のビルドにあるのに引退のタグが付いているもの（ロールバックで再び参照されたもの）からタグを外す（下の「`_astro/` の旧ハッシュ」）。
 3. それ以外（HTML・`404.html`・`public/` の素材・`robots.txt`・sitemap）を `Cache-Control: public, max-age=0, s-maxage=86400` でアップロードする。
 4. `/*` を invalidation し、完了を待つ。
 5. 3 と同じ範囲（`_astro/` 以外）を `--delete` 付きで同期し、消えたページなどの古いファイルを削除する。
 6. 公開 URL が 200 を返すことを確認する。
+7. 旧ハッシュの削除を有効にしている環境では、今回のビルドに無い `_astro/` に引退のタグを付ける（失敗しても警告だけで、デプロイは成功扱い）。
 
 「上げる → キャッシュ削除 → 掃除」の順にしているのは、エッジに古い HTML が残っている間に、そこから参照されるファイルを消さないため。
 消しすぎた場合は、バケットのバージョニング（旧バージョンは 30 日保持）から戻せる。
 
-`_astro/` の旧ハッシュのファイルは削除せず、残し続ける。デプロイ前から開いたままのタブは古い HTML を表示しているので、
+### `_astro/` の旧ハッシュ
+
+`_astro/` の旧ハッシュのファイルは、デプロイの掃除（`--delete`）では削除しない。デプロイ前から開いたままのタブは古い HTML を表示しているので、
 遅延読み込みの画像などを後から旧ハッシュの名前で取りに来るため（invalidation はブラウザが既に持っている HTML には効かない）。
 増える量はビルド 1 回で最大 1.6MB 程度（画像を変えなければ CSS / JS の数十 KB）で、費用はほぼかからない。
-過去のコミットへロールバックしたときも、旧アセットがそのまま使える。
+
+Environment Variables `LP_RETIRE_STALE_ASSETS` を `true` にした環境では、猶予期間を置いてから削除する（SS-166。ADR-012 の SS-166 追補）。
+未設定（または `true` 以外）なら残し続ける。
+
+- デプロイが、今回のビルドに無い `_astro/` のオブジェクトを同じキーへコピーし直し（作成日時を引退の日にする。Content-Type・Cache-Control は保つ）、
+  タグ `lp-retired=true` を付ける。既にタグが付いているものはコピーし直さない（作成日時が延びて期限が来なくなるため）。
+- infra の S3 Lifecycle ルール（prefix `_astro/` かつタグ `lp-retired=true`）が、タグを付けてから猶予期間の後に削除する。
+  バケットはバージョニングが有効なので、削除の後も旧バージョンから 30 日間は戻せる。
+- ロールバックなどで再び参照されたアセットは、`_astro/` を上げた直後にタグを外す（タグが外れれば Lifecycle の対象から外れる）。
+- 処理は `scripts/lp-tools/retire-stale-assets.mjs`（`restore` / `retire`）。単体テストは lp-ci が回す。
 
 `/*` の invalidation は 1 パスとして数えられ、月 1,000 パスまで無料。invalidation に失敗しても、`s-maxage=86400` により
 HTML は最大 1 日でエッジから入れ替わる。
@@ -58,6 +71,29 @@ HTML は最大 1 日でエッジから入れ替わる。
 6. main から production を指定して実行し、承認する。
 
 ロール ARN 以外の値（バケット名・distribution ID）はリポジトリにも GitHub にも置かない。
+
+### `_astro/` の旧ハッシュの削除を有効にする（SS-166）
+
+環境ごとに、次の順で行う（dev で確かめてから prod）。
+
+1. sanposcape-infra の `live/services/lp` に次を入れて apply する。
+   - Lifecycle ルール: filter が prefix `_astro/` かつタグ `lp-retired=true`、Expiration が猶予期間の日数（推奨 30 日）。
+   - デプロイ用ロール `sanposcape-<env>-lp-deploy` に、`arn:aws:s3:::<bucket>/_astro/*` への `s3:GetObject`（head-object とコピー元の読み取り）・
+     `s3:GetObjectTagging`・`s3:PutObjectTagging`・`s3:DeleteObjectTagging`（バケットの既定の暗号化が SSE-KMS なら、その鍵の `kms:Decrypt`・`kms:GenerateDataKey` も）。
+2. GitHub の Environment に Variables `LP_RETIRE_STALE_ASSETS` = `true` を設定する。
+3. Run workflow でデプロイし、「Retire stale hashed assets」のログの件数と、警告が出ていないことを確かめる。
+   1 回目はそれまでに溜まった旧ハッシュをすべて引退させるので、件数が多く時間がかかる。
+4. 引退させたオブジェクトのタグ・Content-Type・Cache-Control を確かめる。
+
+```bash
+aws s3api list-objects-v2 --bucket "$BUCKET" --prefix _astro/ --query 'Contents[].[Key,LastModified]' --output text
+aws s3api get-object-tagging --bucket "$BUCKET" --key "_astro/<今回のビルドに無いファイル>"   # lp-retired=true
+aws s3api head-object --bucket "$BUCKET" --key "_astro/<今回のビルドに無いファイル>"          # ContentType・CacheControl が元のまま
+aws s3api get-object-tagging --bucket "$BUCKET" --key "_astro/<今回のビルドのファイル>"       # lp-retired が無い
+```
+
+止めるときは、先に Lifecycle ルールを外してから `LP_RETIRE_STALE_ASSETS` を消す。逆の順にすると、デプロイがタグを外さなくなり、
+ロールバックで再び参照されたアセットが引退のタグを付けたまま期限で消える。
 
 ## 確認項目
 
