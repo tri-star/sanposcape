@@ -314,8 +314,12 @@ jobs:
       # 新しい HTML が配信されてから行う（失敗した途中のデプロイで、まだ配信中の HTML のアセットを引退させない）。
       # 消すのは infra の S3 Lifecycle（prefix _astro/ かつタグ lp-retired=true → 猶予期間の後に expire）。
       # 公開は済んでいて使用中のアセットには影響しないので、失敗しても警告にとどめる（次のデプロイで残りを引退させる）。
+      # 長引いたとき（有効にした最初の大量の引退・aws CLI の再試行）も、job の timeout でデプロイ全体（と production の
+      # release job）を失敗にしないよう、このステップだけで打ち切り、打ち切っても job は成功のままにする。
       - name: Retire stale hashed assets
         if: env.RETIRE_STALE_ASSETS == 'true'
+        timeout-minutes: 10
+        continue-on-error: true
         env:
           BUCKET: ${{ steps.targets.outputs.bucket }}
         run: |
