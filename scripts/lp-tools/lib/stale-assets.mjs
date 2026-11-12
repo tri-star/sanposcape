@@ -54,11 +54,13 @@ export function staleKeys(remoteKeys, buildKeys) {
  * `--metadata-directive REPLACE` にしないと「自分自身へのコピー」として拒まれるので、
  * head-object で読んだ Content-Type・Cache-Control などを付け直して、配信の挙動を変えない。
  * `--copy-source-if-match` で、head-object の後に上書きされたもの（同じキーの別の内容）は引退させない。
+ * `--copy-source` のキーはエンコードせずに渡す（aws CLI（botocore）がヘッダーに載せるときにエンコードするので、
+ * ここでもエンコードすると二重になり、空白や日本語を含むキーが NoSuchKey になる）。
  *
  * @param {{ bucket: string, key: string, head: Record<string, any>, tagSet: Tag[] }} params
  */
 export function copyInPlaceArgs({ bucket, key, head, tagSet }) {
-  const source = `${bucket}/${key.split("/").map(encodeURIComponent).join("/")}`;
+  const source = `${bucket}/${key}`;
   const args = [
     "copy-object",
     "--bucket",

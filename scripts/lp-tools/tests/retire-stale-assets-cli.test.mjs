@@ -1,6 +1,6 @@
 // retire-stale-assets.mjs を、PATH の先頭に置いた偽の `aws` で動かす。
-// 偽の aws は state.json（キー → { tags, head }）を読み書きし、呼ばれた引数を calls.jsonl に残す。
-// 書き換える操作が並行しないデータにする（偽の aws はファイルを排他しない）。
+// 偽の aws は state.json（キー → { tags, head }。読むだけ）を読み、タグの変更はキーごとのファイル（tags/）に書き、
+// 呼ばれた引数を calls.jsonl に残す。スクリプトは並行して呼ぶので、1 つのファイルを書き戻すと他の呼び出しの変更を消しうる。
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import {
@@ -28,6 +28,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const dir = path.dirname(process.argv[1]);
 const statePath = path.join(dir, "state.json");
+const tagsPath = (k) => path.join(dir, "tags", encodeURIComponent(k) + ".json");
 const args = process.argv.slice(2);
 fs.appendFileSync(path.join(dir, "calls.jsonl"), JSON.stringify(args) + "\\n");
 const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
@@ -35,6 +36,9 @@ const opt = (name) => args[args.indexOf(name) + 1];
 const [, op] = args;
 const out = (value) => process.stdout.write(JSON.stringify(value));
 const key = opt("--key");
+const tagsOf = (k) =>
+  fs.existsSync(tagsPath(k)) ? JSON.parse(fs.readFileSync(tagsPath(k), "utf8")) : state[k].tags;
+const setTags = (k, tags) => fs.writeFileSync(tagsPath(k), JSON.stringify(tags));
 switch (op) {
   case "list-objects-v2": {
     const keys = Object.keys(state).filter((k) => k.startsWith(opt("--prefix")));
@@ -42,35 +46,39 @@ switch (op) {
     break;
   }
   case "get-object-tagging":
-    out({ TagSet: state[key].tags });
+    out({ TagSet: tagsOf(key) });
     break;
   case "head-object":
     out(state[key].head);
     break;
   case "put-object-tagging":
-    state[key].tags = JSON.parse(opt("--tagging")).TagSet;
+    setTags(key, JSON.parse(opt("--tagging")).TagSet);
     break;
   case "delete-object-tagging":
-    state[key].tags = [];
+    setTags(key, []);
     break;
   case "copy-object":
+    // 自分自身へのコピーで、コピー元はエンコードしない形（aws CLI がエンコードする）
+    if (opt("--copy-source") !== opt("--bucket") + "/" + key) {
+      process.stderr.write("NoSuchKey " + opt("--copy-source"));
+      process.exit(254);
+    }
     if (opt("--copy-source-if-match") !== state[key].head.ETag) {
       process.stderr.write("PreconditionFailed");
       process.exit(254);
     }
-    state[key].tags = opt("--tagging").split("&").map((pair) => {
-      const [Key, Value] = pair.split("=").map(decodeURIComponent);
-      return { Key, Value };
-    });
+    setTags(
+      key,
+      opt("--tagging").split("&").map((pair) => {
+        const [Key, Value] = pair.split("=").map(decodeURIComponent);
+        return { Key, Value };
+      }),
+    );
     out({ CopyObjectResult: {} });
     break;
   default:
     process.stderr.write("unknown " + op);
     process.exit(2);
-}
-// 読むだけの操作では書き戻さない（スクリプトは並行して呼ぶので、書き戻すと他の呼び出しの変更を消しうる）
-if (["put-object-tagging", "delete-object-tagging", "copy-object"].includes(op)) {
-  fs.writeFileSync(statePath, JSON.stringify(state));
 }
 `;
 
@@ -86,6 +94,8 @@ describe("retire-stale-assets.mjs", () => {
 
   async function run(mode, state, distDir = dist) {
     await writeFile(join(binDir, "state.json"), JSON.stringify(state));
+    await rm(join(binDir, "tags"), { recursive: true, force: true });
+    await mkdir(join(binDir, "tags"));
     await writeFile(join(binDir, "calls.jsonl"), "");
     const { stdout } = await execFileAsync(
       process.execPath,
@@ -102,9 +112,12 @@ describe("retire-stale-assets.mjs", () => {
       .split("\n")
       .filter(Boolean)
       .map((line) => JSON.parse(line));
-    const after = JSON.parse(
-      await readFile(join(binDir, "state.json"), "utf8"),
-    );
+    const after = structuredClone(state);
+    for (const key of Object.keys(after)) {
+      const file = join(binDir, "tags", `${encodeURIComponent(key)}.json`);
+      const changed = await readFile(file, "utf8").catch(() => null);
+      if (changed !== null) after[key].tags = JSON.parse(changed);
+    }
     return { stdout, calls, after };
   }
 
@@ -130,13 +143,17 @@ describe("retire-stale-assets.mjs", () => {
       "_astro/new.css": object(),
       "_astro/img/new.webp": object(),
       "_astro/old.css": object(),
+      "_astro/古い 画像+1.webp": object(),
       "_astro/gone.js": object([{ Key: "lp-retired", Value: "true" }]),
     });
     assert.match(
       stdout,
-      /今回のビルドに無いもの: 2 件（新たに引退: 1 件、引退済み: 1 件）/,
+      /今回のビルドに無いもの: 3 件（新たに引退: 2 件、引退済み: 1 件）/,
     );
     assert.deepEqual(after["_astro/old.css"].tags, [
+      { Key: "lp-retired", Value: "true" },
+    ]);
+    assert.deepEqual(after["_astro/古い 画像+1.webp"].tags, [
       { Key: "lp-retired", Value: "true" },
     ]);
     assert.deepEqual(after["_astro/new.css"].tags, []);

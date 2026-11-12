@@ -121,7 +121,7 @@ describe("copyInPlaceArgs", () => {
     ]);
   });
 
-  test("ユーザー定義のメタデータと KMS の鍵を引き継ぎ、コピー元のキーはエンコードする", () => {
+  test("ユーザー定義のメタデータと KMS の鍵を引き継ぎ、コピー元のキーはエンコードしない（aws CLI がエンコードする）", () => {
     const args = copyInPlaceArgs({
       bucket: "bucket",
       key: "_astro/a b+c.js",
@@ -135,7 +135,7 @@ describe("copyInPlaceArgs", () => {
     });
     assert.equal(
       args[args.indexOf("--copy-source") + 1],
-      "bucket/_astro/a%20b%2Bc.js",
+      "bucket/_astro/a b+c.js",
     );
     assert.equal(args[args.indexOf("--tagging") + 1], "lp-retired=true");
     assert.equal(args[args.indexOf("--metadata") + 1], '{"origin":"build"}');
