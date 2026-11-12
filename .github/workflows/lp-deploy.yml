@@ -191,6 +191,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+          # id-token: write を持つ job なので、依存のキャッシュを復元しない（スクリプトは依存なし）。
+          # 今も作業ディレクトリ直下に package.json が無く自動のキャッシュは働かないが、明示しておく。
+          package-manager-cache: false
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
