@@ -256,6 +256,24 @@ describe("forEachConcurrently", () => {
     );
   });
 
+  test("失敗が多いときは先頭の 10 件だけを出す", async () => {
+    const items = Array.from({ length: 12 }, (_, i) => `k${i}`);
+    await assert.rejects(
+      forEachConcurrently(items, 4, async () => {
+        throw new Error("AccessDenied");
+      }),
+      (error) => {
+        assert.match(error.message, /^12 件の処理に失敗しました\n/);
+        assert.equal(
+          error.message.match(/^- k\d+: AccessDenied$/gm).length,
+          10,
+        );
+        assert.match(error.message, /（ほか 2 件）$/);
+        return true;
+      },
+    );
+  });
+
   test("空なら何もしない", async () => {
     await forEachConcurrently([], 4, async () => {
       throw new Error("呼ばれない");

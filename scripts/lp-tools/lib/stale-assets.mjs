@@ -12,6 +12,7 @@
 
 export const HASHED_PREFIX = "_astro/";
 export const RETIRED_TAG = Object.freeze({ Key: "lp-retired", Value: "true" });
+const MAX_REPORTED_FAILURES = 10;
 
 /** @typedef {{ Key: string, Value: string }} Tag */
 
@@ -126,10 +127,18 @@ export async function forEachConcurrently(items, limit, fn) {
     Array.from({ length: Math.min(limit, items.length) }, worker),
   );
   if (failures.length > 0) {
-    const detail = failures
+    // 権限の不足などで全件が失敗するとログが数千行になるので、先頭の数件だけを出す。
+    const shown = failures.slice(0, MAX_REPORTED_FAILURES);
+    const detail = shown
       .map(({ item, error }) => `- ${item}: ${error.message}`)
       .join("\n");
-    throw new Error(`${failures.length} 件の処理に失敗しました\n${detail}`);
+    const rest =
+      failures.length > shown.length
+        ? `\n（ほか ${failures.length - shown.length} 件）`
+        : "";
+    throw new Error(
+      `${failures.length} 件の処理に失敗しました\n${detail}${rest}`,
+    );
   }
 }
 

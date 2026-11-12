@@ -7,7 +7,8 @@
 //   node scripts/lp-tools/retire-stale-assets.mjs retire --bucket <名前> --dist <dist>
 //     今回のビルドに無い `_astro/` のうち、まだ引退していないものに引退のタグを付ける（新しい HTML を配信した後に呼ぶ）
 //
-// public リポジトリの Actions のログに出るので、キーの一覧は出さず件数だけを出す（キー自体は公開しているファイル名）。
+// public リポジトリの Actions のログに出るので、成功したときはキーの一覧を出さず件数だけを出す。
+// 失敗したときは先頭の数件のキーと aws CLI のエラー（バケット名は前のステップで add-mask 済み）を出す。キー自体は公開しているファイル名。
 import { execFile } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
