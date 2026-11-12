@@ -32,7 +32,7 @@ prepare（環境と公開 URL を決める。production は main 以外を拒否
 4. `/*` を invalidation し、完了を待つ。
 5. 3 と同じ範囲（`_astro/` 以外）を `--delete` 付きで同期し、消えたページなどの古いファイルを削除する。
 6. 公開 URL が 200 を返すことを確認する。
-7. 旧ハッシュの削除を有効にしている環境では、今回のビルドに無い `_astro/` に引退のタグを付ける（失敗しても、10 分で打ち切られても警告だけで、デプロイは成功扱い。続きは次のデプロイで行う）。
+7. 旧ハッシュの削除を有効にしている環境では、今回のビルドに無い `_astro/` に引退のタグを付ける（失敗したら警告を出し、10 分で打ち切られたらステップが失敗の印とエラーの注記になるが、どちらもデプロイは成功扱い。続きは次のデプロイで行う）。
 
 「上げる → キャッシュ削除 → 掃除」の順にしているのは、エッジに古い HTML が残っている間に、そこから参照されるファイルを消さないため。
 消しすぎた場合は、バケットのバージョニング（旧バージョンは 30 日保持）から戻せる。
@@ -81,7 +81,7 @@ HTML は最大 1 日でエッジから入れ替わる。
    - デプロイ用ロール `sanposcape-<env>-lp-deploy` に、`arn:aws:s3:::<bucket>/_astro/*` への `s3:GetObject`（head-object とコピー元の読み取り）・
      `s3:GetObjectTagging`・`s3:PutObjectTagging`・`s3:DeleteObjectTagging`（バケットの既定の暗号化が SSE-KMS なら、その鍵の `kms:Decrypt`・`kms:GenerateDataKey` も）。
 2. GitHub の Environment に Variables `LP_RETIRE_STALE_ASSETS` = `true` を設定する。
-3. Run workflow でデプロイし、「Retire stale hashed assets」のログの件数と、警告が出ていないことを確かめる。
+3. Run workflow でデプロイし、「Restore re-referenced hashed assets」と「Retire stale hashed assets」が skip されずに実行されたこと、Retire のログの件数、警告が出ておらずステップが失敗の印（打ち切り）になっていないことを確かめる。
    1 回目はそれまでに溜まった旧ハッシュをすべて引退させるので、件数が多く時間がかかる。
 4. Lifecycle ルールの filter が prefix とタグの両方（AND）になっていること、引退させたオブジェクトのタグ・Content-Type・Cache-Control を確かめる。
    filter が prefix だけだと使用中のアセットも年齢で消え、タグだけだと `_astro/` 以外も対象になる。
