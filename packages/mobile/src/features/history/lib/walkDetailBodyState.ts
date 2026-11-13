@@ -1,4 +1,7 @@
-import type { HistoryAuthState } from "@/features/history/lib/historyStatsState";
+import {
+  HISTORY_AUTH_STATE,
+  type HistoryAuthState,
+} from "@/features/history/lib/historyStatsState";
 import type { WalkHistoryErrorCode } from "@/features/history/lib/walkHistoryError";
 
 export type WalkDeleteStatus = "idle" | "deleting" | "deleted" | "error";
@@ -57,10 +60,10 @@ export function resolveWalkDetailBodyState(
   if (!input.hasWalkId) {
     return "invalid-id";
   }
-  if (input.authState === "restoring") {
+  if (input.authState === HISTORY_AUTH_STATE.restoring) {
     return "loading";
   }
-  if (input.authState === "guest") {
+  if (input.authState === HISTORY_AUTH_STATE.guest) {
     return "sign-in-required";
   }
   if (input.errorCode === "not_found") {

@@ -12,6 +12,7 @@ import {
   HISTORY_SIGN_IN_DESCRIPTION,
   HISTORY_SIGN_IN_TITLE,
   resolveHistoryStatsState,
+  HISTORY_AUTH_STATE,
   type HistoryAuthState,
 } from "@/features/history/lib/historyStatsState";
 import {
@@ -53,7 +54,7 @@ export function HistoryView({ displayName, authState, onSignIn, footer }: Histor
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const isSignedIn = authState === "signed-in";
+  const isSignedIn = authState === HISTORY_AUTH_STATE.signedIn;
   const {
     greeting,
     period,

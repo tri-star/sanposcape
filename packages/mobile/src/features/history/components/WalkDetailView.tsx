@@ -14,6 +14,7 @@ import { useWalkDelete } from "@/features/history/hooks/useWalkDelete";
 import { useWalkDetail } from "@/features/history/hooks/useWalkDetail";
 import {
   HISTORY_SIGN_IN_TITLE,
+  HISTORY_AUTH_STATE,
   type HistoryAuthState,
 } from "@/features/history/lib/historyStatsState";
 import { WALK_DELETE_DONE_TITLE } from "@/features/history/lib/walkDeleteCopy";
@@ -59,7 +60,7 @@ export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewPr
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const detail = useWalkDetail(walkId, { enabled: authState === "signed-in" });
+  const detail = useWalkDetail(walkId, { enabled: authState === HISTORY_AUTH_STATE.signedIn });
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 

@@ -10,6 +10,7 @@ import { useWalkHistory } from "@/features/history/hooks/useWalkHistory";
 import { resolveHistoryListBodyState } from "@/features/history/lib/historyListBodyState";
 import {
   HISTORY_SIGN_IN_TITLE,
+  HISTORY_AUTH_STATE,
   type HistoryAuthState,
 } from "@/features/history/lib/historyStatsState";
 import {
@@ -51,7 +52,7 @@ export function WalkHistoryListView({ authState, onSignIn }: WalkHistoryListView
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const history = useWalkHistory({ enabled: authState === "signed-in" });
+  const history = useWalkHistory({ enabled: authState === HISTORY_AUTH_STATE.signedIn });
   const back = useScreenBack({ fallbackHref: "/(tabs)/account" });
 
   const bodyState = resolveHistoryListBodyState({
