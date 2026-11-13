@@ -790,6 +790,7 @@ SS-268（表示名の変更・サインインで表示名を上書きしない�
   タグが外れれば Lifecycle の対象から外れ、次に引退するときにコピーし直して作成日時が新しくなる。
 - **順序**: 復帰は `_astro/` を上げた直後に行い、失敗したら HTML を上げずに止める（タグが残ったまま新しい HTML が参照すると、使用中のまま消える）。
   引退は掃除と疎通確認の後（新しい HTML の配信の後）に行い、失敗しても警告にとどめてデプロイは成功扱いにする（公開は済んでいて、使用中のアセットに影響しない。次のデプロイで残りを引退させる）。
+  引退のステップは 10 分で打ち切り、打ち切っても job は成功のままにする（長引いて job の 45 分を超えると、production では release job が skip されてタグと Release が作られないため。invalidation の待ちが最大 30 分あるので残りは短い）。
 - **Environment Variables `LP_RETIRE_STALE_ASSETS` が `true` の環境だけで動かす**。infra のロールの権限と Lifecycle ルールが入る前に動かすと、権限の不足でデプロイが失敗する
   （または、タグを付けても消えないまま残る）ため。止めるときは Lifecycle ルールを先に外す（逆だと、復帰が行われないまま期限で消える）。
 - **デプロイ用ロールの権限を広げる**: `arn:aws:s3:::<bucket>/_astro/*` に限って `s3:GetObject`（head-object とコピー元の読み取り）・`s3:GetObjectTagging`・`s3:PutObjectTagging`・`s3:DeleteObjectTagging`。
