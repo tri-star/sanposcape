@@ -210,6 +210,12 @@ class Settings(BaseSettings):
     invitation_rate_limit_requests: int = Field(default=20, gt=0)
     invitation_anonymous_rate_limit_requests: int = Field(default=10, gt=0)
     invitation_rate_limit_window_seconds: int = Field(default=60, gt=0)
+    # 散歩の保存（`POST /walks`）のレート制限（SS-38）。窃取トークン・改造クライアントが上限近い
+    # 本文を送り続けてストレージ／DB のコストを増やすのを抑える。ユーザー単位だけで数え、IP の枠は
+    # 使わない（`walks/dependencies.py`）。正規の利用は散歩の終了ごとに最大3回（初回 + mobile の
+    # 自動リトライ2回）なので、手動の再試行を含めても当たりにくい値にしている。
+    walk_create_rate_limit_requests: int = Field(default=10, gt=0)
+    walk_create_rate_limit_window_seconds: int = Field(default=300, gt=0)
     google_maps_explore_request_max_bytes: int = Field(default=32_768, gt=0, le=1_048_576)
     # 周回ルート（SS-33, ADR-007）の kill switch。品質劣化時の緊急停止と、mobile の
     # 同じ道フォールバック表示の手動確認に使う（real/fake いずれでも有効）。

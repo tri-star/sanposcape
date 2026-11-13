@@ -54,6 +54,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 ## データ取扱い台帳（観点6）
 - 台帳（`docs/privacy/data-inventory.md`）の行を足す・直す差分では、その行の取得箇所が §1 の対象パスに含まれているか。含まれないと、そのファイルの変更が観点6の確認から漏れる。前例: SS-184 の初版で `auth/apple_authorization.py`・レート制限・画像キャッシュ・地図のコンポーネントが漏れていた。
 - 保存期間・削除の記述は、主な経路だけでなく途中で止まった経路まで追う。前例: 写真の撮影日時は紐付けた写真の側だけ書かれ、登録を破棄した枠（`pin_photo_uploads`）に残ることが抜けていた。Apple の失効も「失効できなくても削除する」と書かれていたが、一時障害では削除をやめて 503 を返す。
+- メモリに一時的に持つもの（レート制限のキーなど）の保持期間は、窓や TTL の秒数ではなく、実際に消す時期で書かれているか。`ExploreRateLimiter` は期限切れのキーを次の `allow()` の呼び出しでしか消さないので、呼び出しが無い間は実行環境が終わるまで残りうる（SS-38 で台帳の「メモリに 60 秒」を直した）。
 - 地図・ピンの削除で「何が消えて何が残るか」を書く差分・指摘では、外部キーを `models.py` で確かめる。`pin_photos`・`pin_tags` はピン経由で地図の CASCADE で消えるが、写真のアップロード枠（`pin_photo_uploads`。保存場所の名前・大きさ・日時）は `users` にだけ紐づき、アカウント削除まで残る（ADR-021 決定5）。前例: SS-265 のレビューで「地図を消すと写真の管理情報も消える」と指摘し、ポリシーを一度誤って書き換えた。
 - infra（sanposcape-infra）側の値（ログ・トレースの保持期間など）は、出どころ（確認したコミット・ファイル）が書かれているか。このリポジトリからは確かめられない。
 - infra の仕組み（メールの受信など）を台帳・ポリシーに書く差分は、主な経路（受信 → 保存）だけでなく、同じ仕組みが副次的に残すもの（SES の抑制リスト、SNS の通知メール、ログ）と、送り返す経路（返信）まで追ったか。主な経路の保存期間だけを書くと、ポリシーの「保存期間」が実際より狭くなる（SS-220 で見つかった）。
@@ -114,7 +115,7 @@ security-reviewer が読む確認観点。差分が触れる節だけ読めば�
 - `conftest.py` / `config.py` の DB まわりの差分では、`Settings.test_database_url` が `database_dsn`（本番 / staging のシークレット由来）を参照していないか。参照していなければ、テストの drop/delete が本番に届く経路は構造的に無い（ローカルの誤設定の防止はスコープ外。ADR-B-001 決定7）。
 
 ## 受容済み（再指摘しない）
-- レート制限は `/explore/*`（`maps/rate_limit.py::ExploreRateLimiter`）だけ。`/auth/session`・`/auth/refresh`（総当たりできない）、`POST /walks` の件数上限なし、`POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos`・`/sanpo-maps` の書き込み、周回ルートの Google Routes 2〜3回呼び出しと距離上限なし（ADR-007 の SEC-L1/L2）。認証系にレート制限を足す差分では `ExploreRateLimiter` と同じ器を使うかを見る。
+- レート制限は `/explore/*`・招待の preview / accept（SS-250）・`POST /walks`（SS-38。ユーザー単位だけで IP の枠を使わない `limit_authenticated_ip=False`）だけで、いずれも `maps/rate_limit.py::ExploreRateLimiter` の別インスタンス。上限の無いもの: `/auth/session`・`/auth/refresh`（総当たりできない）、`POST /walks` 以外の `/walks`、`POST /pin-photo-uploads`・`POST /pins`・`POST /pins/{pin_id}/photos`・`/sanpo-maps` の書き込み、周回ルートの Google Routes 2〜3回呼び出しと距離上限なし（ADR-007 の SEC-L1/L2）。認証系にレート制限を足す差分では `ExploreRateLimiter` と同じ器を使うかを見る。
 - staging に dev 迂回が漏れる穴（許可リスト方式で解消済み）。`env` の `Literal` に `dev` / `prod` を安易に足さない（ADR-005 決定6）。`MAPS_MODE=fake` は API キーより先に判定する。許可リストが `("local", "test")` なので実デプロイを `ENV=test` で起動すると fake/dev が通る点は既知（そういうデプロイ定義が現れたら指摘する）。
 - `X-App-Session-Id` のログ出力（小文字の UUID v4 だけ受け、不正値は捨てる。認可には使わない）。
 - `POST /dev-storage/uploads` が `max_bytes` の確認前にファイル全体をメモリに読む（dev/test 専用）。

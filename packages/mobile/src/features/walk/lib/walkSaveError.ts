@@ -2,8 +2,10 @@ import { isApiError } from "@/api/apiError";
 
 /**
  * 保存失敗の分類。`exploreError.ts` は再利用しない
- * — `/walks` は 429/503 を返さず、逆に 500 系・413 の意味が違うため
+ * — `/walks` は 500 系・413 の意味が違うため
  * （`walkRouteError.ts` が文言だけ差し替えたのと異なり、コード体系ごと分ける）。
+ * `POST /walks` は SS-38 からユーザー単位のレート制限で 429 を返しうる。専用の分類は持たず
+ * `unknown`（再試行可）に落ちる。記録は端末に残り、窓（既定 300 秒）が過ぎれば再試行で保存できる。
  */
 export type WalkSaveErrorCode =
   | "unauthorized" // 401（customFetch の refresh 後もダメだった）
