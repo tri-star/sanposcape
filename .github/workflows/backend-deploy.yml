@@ -138,7 +138,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.13.4"
 
@@ -148,7 +148,7 @@ jobs:
         run: make lambda-requirements
 
       - name: Setup SAM CLI
-        uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        uses: aws-actions/setup-sam@341eee193f458fa5aae5d52c94b0c5cf3a1c5a52 # v3
         with:
           version: "1.165.0"
           use-installer: true
@@ -213,7 +213,7 @@ jobs:
           tar -C .aws-sam -xzf "$RUNNER_TEMP/sam-build.tgz"
 
       - name: Setup SAM CLI
-        uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        uses: aws-actions/setup-sam@341eee193f458fa5aae5d52c94b0c5cf3a1c5a52 # v3
         with:
           version: "1.165.0"
           use-installer: true

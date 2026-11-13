@@ -1,7 +1,7 @@
 # backend の確認観点
 
 `packages/backend/` に差分があるときに読む（router・service・repository・モデル・マイグレーション・`integrations/`・`aws_lambda/`・テスト）。
-規約の正本: `packages/backend/AGENTS.md`、`packages/backend/docs/folder-structure.md`・`naming-convention.md`・`local-env.md`（OpenAPI 定義）・`deployment.md`（§5 マイグレーション）、`packages/backend/docs/adr/`（ADR-B-*）、`docs/adr/`（特に ADR-003・ADR-005・ADR-008・ADR-009・ADR-011）
+規約の正本: `packages/backend/AGENTS.md`、`packages/backend/docs/folder-structure.md`・`naming-convention.md`・`local-env.md`（OpenAPI 定義）・`deployment.md`（§5 マイグレーション）、`packages/backend/docs/adr/`（ADR-B-*）、`docs/adr/`（特に ADR-003・ADR-005・ADR-008・ADR-011・ADR-019〜022。ADR-009 は凍結済みで `docs/adr/archived/`）
 
 ここに挙げるのは、ruff・pytest が通っても残り、レビューでしか見つからないもの。正本に書いてある規約は正本を読んで照合する。
 
@@ -50,7 +50,7 @@
 - 「ちょうど1つ」の不変条件（`is_default` など）は、増える方向と0になる方向を分けて見る。部分一意インデックスは「2つになる」しか防げない。0になる方向に直列化（advisory lock・`FOR UPDATE`）があり、判定の SELECT から commit までがロックの内側か。SS-113 で既定地図が `create_map`/`delete_map` の同時実行で崩れた（PR #103 の外部レビューで発覚。ADR-009 決定27 の追補）。
 - `UPDATE`/`DELETE` の rowcount を見ずに成功扱いしていないか（同じく SS-113 の `promote_latest_to_default()`）。
 - 冪等 INSERT（savepoint + `IntegrityError`）を新しいドメインで使うとき、再送ペイロードが既存行と食い違っても既存行を返すだけでよいか（users / walks はこの前提）。型そのものの正本: folder-structure.md「例外と冪等な INSERT」
-- 閲覧系の service メソッドが commit していないか（commit 境界は書き込み系だけ。SS-111、ADR-009 決定14〜18）。
+- 閲覧系の service メソッドが commit していないか（commit 境界は書き込み系だけ。SS-111、ADR-019 決定7）。
 - DB・S3 を直接操作する手順書（移行・後片付け）の「戻す手順」は、アプリの同じ操作と同じ順・同じロックか（`FOR UPDATE` → キーを集める → DB を消して commit → S3）、キーを対応表だけでなく今の行から集めているか（移行の後にアプリで足した写真が漏れる）、ID で絞るときに所属（地図など）でも絞っているか（別の地図へ移したピンは ID が同じまま）。戻した後の確認が、消した行（地図の owner など）を前提にしていないか。DB の復元（Neon のブランチ・PITR）は稼働中の環境の全利用者の変更を巻き戻すので、範囲と失われるものが書かれているか（SS-241）。
 - 新しく行ロック（`FOR UPDATE` など）を取る処理は、同じ行を取る既存の経路をすべて挙げ、ロックの順序が揃っているかを突き合わせる。地図・ピンでは、写真の追加（ピン行 → 地図の行の `UPDATE`）・ピンの移動（ピン行 → 移動先の地図の行 `FOR KEY SHARE`）・地図の削除（地図の行 → ピン行）。1つの経路の問題を直すためにロックを足すと、別の経路と逆順になることがある。SS-251 ではアカウント削除で地図の行を先に取ったところ写真の追加とデッドロックしうる形になり、ピン行 → 地図の行 → ピン行に直した（ADR-009 決定40。security の再レビューで発覚）。
 

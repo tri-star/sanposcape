@@ -38,7 +38,7 @@
 
 ### 解こうとしている問題
 
-[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定29（SS-113 追補）で、
+[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定29（SS-113 追補）で、
 `GET /sanpo-maps?expand=pin_count` を実装する際に「`sanpo_maps` は `pins` を import しない」
 という依存方向を守るため、`sanpo_maps/contents.py` に `SanpoMapContents` という
 `Protocol`（依存性逆転の port）を導入し、実体は `pins/service.py` の `PinService` に持たせて
@@ -63,7 +63,7 @@
 
 ### 前提となる決定（既存 ADR・確定事項）
 
-- [ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定2: 地図とピンは N:1、
+- [ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定2: 地図とピンは N:1、
   権限は `sanpo_map_members` の role で判定する。地図名の衝突を避けるため `SanpoMap`/`sanpo_maps`
   という語を採用している。
 - ADR-009 決定22・28: 削除は「DB commit → best-effort な S3 削除」で、ピン削除・写真削除・
@@ -461,7 +461,7 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 
 ## M7 の公開面の追補（2026-10-15, SS-109）
 
-アカウント削除後の写真の削除（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36）で、
+アカウント削除後の写真の削除（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36）で、
 `users` のアカウント削除が削除予約を入れ、`aws_lambda/photo_purge.py` が期限を過ぎた予約を処理する。
 どちらも `sanpo_maps` の外なので、**公開面に `sanpo_maps.photos.account_purge` を1つ足した**
 （`test_architecture.py` の `_ALLOWED_PUBLIC_SURFACE`）。
@@ -489,7 +489,7 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 
 ## M7 の公開面の追補（2026-11-06, SS-251）
 
-アカウント削除で、共有している地図のデータを扱うようになった（[ADR-009](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定40）。
+アカウント削除で、共有している地図のデータを扱うようになった（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定40）。
 `users` のアカウント削除が呼ぶので、**公開面に `sanpo_maps.pins.account_deletion` を1つ足した**（`test_architecture.py` の `_ALLOWED_PUBLIC_SURFACE`）。
 
 - 公開するのは、commit しない部品 `SanpoMapAccountDeletion`（`prepare()` で付け替えとキーの収集、commit の後に
@@ -504,9 +504,9 @@ port（Protocol + メソッド引数注入）よりも、依存の向きに沿�
 
 ## 関連情報
 
-- [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
-  —— 決定29（SS-113 追補）が本 ADR で置き換わる port 構成。地図・ピンのデータモデル・API 契約は
-  引き続き ADR-009 が一次記録
+- [ADR-009: 地図（SanpoMap）とピン（Pin）のデータモデル、写真の先行アップロードとサムネイル生成](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+  —— 決定29（SS-113 追補）が本 ADR で置き換わる port 構成。ADR-009 は 2026-11-08 に凍結し、地図・ピンのデータモデル・API 契約の
+  現在の正本は [ADR-019](./ADR-019-sanpo-map-and-pin-data-model-and-api.md)〜[ADR-022](./ADR-022-deletion-and-photo-object-cleanup.md)（経緯は凍結した ADR-009）
 - [packages/backend/docs/folder-structure.md](../../packages/backend/docs/folder-structure.md)
   「複数エンティティを持つドメイン（`sanpo_maps/`）」節
 - [packages/backend/docs/naming-convention.md](../../packages/backend/docs/naming-convention.md)

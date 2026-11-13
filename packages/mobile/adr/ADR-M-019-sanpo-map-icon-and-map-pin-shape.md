@@ -43,7 +43,7 @@
 ## コンテキスト
 
 SS-171「地図毎にアイコンを選択できるようにする」と SS-172「マップ上のピンに地図のアイコンを反映する」を同じブランチで実装した。
-地図（`SanpoMap`）に `icon` 属性を持たせ（ドメインの決定はルート [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定31）、
+地図（`SanpoMap`）に `icon` 属性を持たせ（ドメインの決定はルート [ADR-009](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定31）、
 作成ダイアログと地図詳細で選べるようにし、登録済みピンをその地図のアイコンで描く。
 
 背景:
@@ -261,7 +261,7 @@ Fluent Emoji Flat）を、実装と同じ形のピンに載せた画面イメー
 
 ## 関連情報
 
-- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・決定31）
+- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・決定31）
 - [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（SS-172 追補）
 - [ADR-M-014: 地図一覧と地図詳細](./ADR-M-014-sanpo-map-list-and-detail.md)（SS-171 追補）
 - [ページ・コンポーネントガイドライン](../docs/pages-components-guideline.md)

@@ -19,6 +19,9 @@ tags:
     timeout: 20000
 - assertNotVisible:
     id: "walk-history-error"
+# サインイン済みなのにゲスト向けのサインイン案内が出る退行（ルートの認証状態の写し間違い。SS-45）を捕まえる。
+- assertNotVisible:
+    id: "walk-history-sign-in-required"
 - tapOn:
     id: "walk-history-back"
 # ディープリンクはピンタブの上に push されるので、戻るとピンタブ（SS-145）

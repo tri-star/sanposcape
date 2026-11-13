@@ -33,10 +33,16 @@ export type UseWalkHistoryResult = {
 
 /**
  * 履歴一覧のサーバー状態（カーソルページネーション）を提供する hook。
+ * `enabled: false`（ゲスト・セッション復元中。ルートが注入する認証状態から決める。SS-45）のときは取得しない。
+ * 無効化した query はデータが無いと `isLoading`（`isPending`）が true のまま残るので、呼び出し側は認証状態を先に判定する
+ * （`resolveHistoryListBodyState`）。
  * `queryKey` は `["walks", ...]` 始まりにする（ADR-M-008 の申し送り。`useWalkSave` の
  * `invalidateQueries({ queryKey: ["walks"] })` に載せて、保存直後に一覧を更新するため）。
  */
-export function useWalkHistory(options?: { limit?: number }): UseWalkHistoryResult {
+export function useWalkHistory(options?: {
+  limit?: number;
+  enabled?: boolean;
+}): UseWalkHistoryResult {
   const limit = normalizeWalkHistoryLimit(options?.limit);
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["walks", "list", { limit }] as const, [limit]);
@@ -50,6 +56,7 @@ export function useWalkHistory(options?: { limit?: number }): UseWalkHistoryResu
     staleTime: STALE_TIME_MS,
     gcTime: GC_TIME_MS,
     retry: false,
+    enabled: options?.enabled ?? true,
   });
 
   const items = useMemo(() => {

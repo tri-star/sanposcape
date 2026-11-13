@@ -205,7 +205,7 @@ SS-171 で `icon`（`GET/POST/PATCH /sanpo-maps`）を追加した（ルート A
 
 ## SS-249 追補: 地図のメンバーの行・メンバー画面と、アイコンのタップでの変更（2026-10-31）
 
-地図への招待（Plane SS-90）の土台として、地図のメンバーを見る・外す・抜ける画面を足した。backend の API は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定38。
+地図への招待（Plane SS-90）の土台として、地図のメンバーを見る・外す・抜ける画面を足した。backend の API は [ADR-009](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定38。
 
 - **ルート**: メンバー画面 `app/sanpo-maps/[sanpoMapId]/members.tsx` を同じ階層に置くため、地図詳細を `[sanpoMapId].tsx` から `[sanpoMapId]/index.tsx` に移した（pathname は変わらない。ADR-M-012 SS-119 追補の `[pinId]/index.tsx` と同じ）。
 - **地図詳細のメンバーの行**（`SanpoMapMemberSummaryRow`）: 情報カードのバッジの下に、表示名の頭文字のアバター（最大4つ + 「+N」）と「メンバー N人」。押すとメンバー画面（`runOnce` を通す）。
@@ -224,7 +224,7 @@ SS-171 で `icon`（`GET/POST/PATCH /sanpo-maps`）を追加した（ルート A
 
 ## SS-265 追補: 地図の削除（2026-11-07）
 
-地図詳細から地図を削除できるようにした。backend の `DELETE /sanpo-maps/{id}` は SS-113 で実装済み（owner のみ・204・ピン/写真/タグ/メンバー/招待は CASCADE・S3 の写真はベストエフォート・既定地図の繰り上げ・非冪等。[ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定28）で、backend は変えていない。
+地図詳細から地図を削除できるようにした。backend の `DELETE /sanpo-maps/{id}` は SS-113 で実装済み（owner のみ・204・ピン/写真/タグ/メンバー/招待は CASCADE・S3 の写真はベストエフォート・既定地図の繰り上げ・非冪等。[ADR-009](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定28）で、backend は変えていない。
 
 - **ボタンの置き場所**: 地図詳細のヘッダー右（これまで空のスペーサー）にゴミ箱の `IconButton`（読み上げ「この地図を削除」、testID `sanpo-map-detail-delete`）。owner だけに出し、editor・読み込み中・not-found はスペーサーのまま（押しても 403 になる操作を見せない）。ピン詳細の削除（ADR-M-017）と同じ置き方。
   - 却下: 画面の下にボタンを置く案。本文はピン一覧（最大 1000 件）の `FlatList` で、末尾に置くと見つからない。
@@ -246,7 +246,7 @@ SS-171 で `icon`（`GET/POST/PATCH /sanpo-maps`）を追加した（ルート A
 - [ADR-M-009: 認証セッション状態の集約と認証ゲート](./ADR-M-009-auth-session-state-and-route-gate.md)
 - [ADR-M-012: 登録済みピンの地図表示とピン詳細](./ADR-M-012-pin-map-display-and-detail.md)（D7・D9・SS-146 追補）
 - [ADR-M-013: ピンのタグ入力の候補](./ADR-M-013-pin-tag-suggestions.md)（端末での絞り込み・照合規則）
-- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・SS-111 追補）
+- [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定25・SS-111 追補）
 - [ADR-M-019: 地図のアイコンと、マップピンの形・マーカーの基準点](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)（SS-171 追補）
 - [ADR-M-021: ピンの訪問状況とアーカイブ](./ADR-M-021-pin-visit-status-and-archive.md)（SS-173 追補）
 - [ADR-M-017: ピンの編集・削除](./ADR-M-017-pin-edit-and-delete.md)（削除ダイアログの構成・ヘッダーの削除ボタン。SS-265 追補）

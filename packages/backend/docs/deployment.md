@@ -1074,9 +1074,9 @@ transform と組み込み関数の評価が終わった**後**の独立したス
 解決が崩れれば ARN として無効な文字列が残り `AccessDeniedException` になるのであって、
 ワイルドカードや過剰権限の方向には倒れない。
 
-## 12. 写真ストレージ（S3, SS-88/ADR-009。SS-108 で結線）
+## 12. 写真ストレージ（S3, SS-88/ADR-021。SS-108 で結線）
 
-設計の詳細は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)
+設計の詳細は [ADR-021](../../../docs/adr/ADR-021-pin-photo-upload-storage-and-delivery.md)（削除は [ADR-022](../../../docs/adr/ADR-022-deletion-and-photo-object-cleanup.md)）
 を参照。`template.yaml` への結線は SS-108（旧称 BK-1）で行った。
 
 ### 結線の内容
@@ -1813,7 +1813,7 @@ SOURCE 'aws/spans'
 `PhotoPurge`（`sanposcape-<env>-backend-scheduled-photo-purge`、`aws_lambda/photo_purge.py`）が毎日 JST 04:00 に起動し、
 保持期間（`ACCOUNT_PHOTO_RETENTION_DAYS`、既定 30 日）を過ぎた予約の利用者の
 `staging/pins/<user_id>/`・`original/pins/<user_id>/`・`thumb/pins/<user_id>/` を消して予約を消す。
-設計と、採らなかった構成（SQS のファンアウトなど）は [ADR-009](../../../docs/adr/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) 決定36。
+設計と、採らなかった構成（SQS のファンアウトなど）は [ADR-022](../../../docs/adr/ADR-022-deletion-and-photo-object-cleanup.md) 決定5。
 同じ実行で、使い終わった地図の招待（参加・取り消し・期限切れから 30 日を過ぎた `sanpo_map_invitations` の行。SS-250、ADR-009 決定39）も消す（ログは `Stale sanpo map invitations purged`）。
 招待の掃除は写真の削除より先に別に行い（写真の削除の失敗に巻き込まれないため）、失敗したらログに出して、写真の削除の後に実行を失敗にする（Errors のアラームが鳴る）。
 migrate がコードのデプロイより遅れて、テーブル `sanpo_map_invitations` が無いまま日次の実行が来ると、招待の掃除が UndefinedTable で失敗してアラームが鳴る（写真の削除は冪等なので、Scheduler の再試行で繰り返されても実害は無い）。migrate はデプロイの直後に行う。アラームの原因はログで、写真の削除（`Account photo purge`）か招待の掃除かを見分ける。

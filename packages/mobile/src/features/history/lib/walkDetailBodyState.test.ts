@@ -7,6 +7,7 @@ import {
 } from "@/features/history/lib/walkDetailBodyState";
 
 const BASE: ResolveWalkDetailBodyStateInput = {
+  authState: "signed-in",
   hasWalkId: true,
   deleteStatus: "idle",
   errorCode: null,
@@ -15,6 +16,36 @@ const BASE: ResolveWalkDetailBodyStateInput = {
 };
 
 describe("resolveWalkDetailBodyState", () => {
+  it.each([
+    { errorCode: null, isLoading: true, hasWalk: false },
+    { errorCode: "unauthorized" as const, isLoading: false, hasWalk: false },
+  ])("ゲスト → sign-in-required（無効化した query の isPending より先。%o）", (input) => {
+    expect(resolveWalkDetailBodyState({ ...BASE, ...input, authState: "guest" })).toBe(
+      "sign-in-required",
+    );
+  });
+
+  it("復元中 → loading（サインイン案内もエラーも出さない）", () => {
+    expect(
+      resolveWalkDetailBodyState({
+        ...BASE,
+        authState: "restoring",
+        errorCode: "unauthorized",
+        hasWalk: false,
+      }),
+    ).toBe("loading");
+  });
+
+  it("ゲストでも walkId が無ければ invalid-id（認証に関係なく確定する）", () => {
+    expect(resolveWalkDetailBodyState({ ...BASE, authState: "guest", hasWalkId: false })).toBe(
+      "invalid-id",
+    );
+  });
+
+  it("ゲストの sign-in-required では削除ボタンを出さない", () => {
+    expect(canDeleteWalk("sign-in-required")).toBe(false);
+  });
+
   it("hasWalkId:false かつ deleteStatus:idle → invalid-id", () => {
     expect(resolveWalkDetailBodyState({ ...BASE, hasWalkId: false })).toBe("invalid-id");
   });
