@@ -1,11 +1,19 @@
 import type { WalkStatsErrorCode } from "@/features/history/lib/walkStatsError";
 
 /**
- * 記録画面から見た認証状態。ルート（`app/(tabs)/account.tsx`）が認証セッションの `status` から作って注入する
+ * 記録画面から見た認証状態の値。文字列はここにだけ書き、比較・代入はこの定数を通す。
+ * ルート（`app/(tabs)/account.tsx`・`app/walk-history/index.tsx`・`[walkId].tsx`。後の2つは SS-45）が
+ * `useHistoryAuthState`（`src/hooks/`）で認証セッションの `status` から作って注入する
  * （features/history は認証を読まない。ADR-M-009 決定8）。`restoring` はセッション復元中（`status === "loading"`）で、
  * ゲストとは区別する（サインイン済みのユーザーにサインイン案内を見せないため）。
  */
-export type HistoryAuthState = "signed-in" | "guest" | "restoring";
+export const HISTORY_AUTH_STATE = {
+  signedIn: "signed-in",
+  guest: "guest",
+  restoring: "restoring",
+} as const;
+
+export type HistoryAuthState = (typeof HISTORY_AUTH_STATE)[keyof typeof HISTORY_AUTH_STATE];
 
 export type HistoryStatsState =
   | { kind: "restoring" }
@@ -27,8 +35,8 @@ export function resolveHistoryStatsState(input: {
   errorCode: WalkStatsErrorCode | null;
   isLoading: boolean;
 }): HistoryStatsState {
-  if (input.authState === "restoring") return { kind: "restoring" };
-  if (input.authState === "guest") return { kind: "sign-in-required" };
+  if (input.authState === HISTORY_AUTH_STATE.restoring) return { kind: "restoring" };
+  if (input.authState === HISTORY_AUTH_STATE.guest) return { kind: "sign-in-required" };
   if (input.errorCode !== null) return { kind: "error", errorCode: input.errorCode };
   if (input.isLoading) return { kind: "loading" };
   return { kind: "ready" };

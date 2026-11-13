@@ -12,6 +12,11 @@ import { WalkDeleteDialog } from "@/features/history/components/WalkDeleteDialog
 import { WalkTrackMapView } from "@/features/history/components/WalkTrackMapView";
 import { useWalkDelete } from "@/features/history/hooks/useWalkDelete";
 import { useWalkDetail } from "@/features/history/hooks/useWalkDetail";
+import {
+  HISTORY_SIGN_IN_TITLE,
+  HISTORY_AUTH_STATE,
+  type HistoryAuthState,
+} from "@/features/history/lib/historyStatsState";
 import { WALK_DELETE_DONE_TITLE } from "@/features/history/lib/walkDeleteCopy";
 import {
   canDeleteWalk,
@@ -29,6 +34,13 @@ import { useTheme } from "@/theme/useTheme";
 export type WalkDetailViewProps = {
   /** ルートから渡される walk id。取得できなければ null。 */
   walkId: string | null;
+  /**
+   * 認証状態（サインイン中 / ゲスト / セッション復元中）。ルート（app/walk-history/[walkId].tsx）が注入する
+   * （features/history は認証を読まない。ADR-M-009 決定8）。サインイン中だけ取得する（SS-45）。
+   */
+  authState: HistoryAuthState;
+  /** ゲスト向けサインイン案内のボタン。 */
+  onSignIn: () => void;
 };
 
 /**
@@ -39,13 +51,16 @@ export type WalkDetailViewProps = {
  */
 type WalkDetailBody = { content: ReactNode; centered: boolean };
 
-/** WalkDetailView — `/walk-history/<walkId>` の実体。散歩1件の詳細（軌跡付き）を表示する。 */
-export function WalkDetailView({ walkId }: WalkDetailViewProps) {
+/**
+ * WalkDetailView — `/walk-history/<walkId>` の実体。散歩1件の詳細（軌跡付き）を表示する。
+ * ディープリンクで未サインインのまま開かれたときは、通信せずサインイン案内を出す（SS-45）。
+ */
+export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const detail = useWalkDetail(walkId);
+  const detail = useWalkDetail(walkId, { enabled: authState === HISTORY_AUTH_STATE.signedIn });
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -95,6 +110,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
   backRef.current = back;
 
   const bodyState = resolveWalkDetailBodyState({
+    authState,
     hasWalkId: walkId !== null,
     deleteStatus: deletion.status,
     errorCode: detail.errorCode,
@@ -134,6 +150,24 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
           ),
         };
 
+      case "sign-in-required":
+        return {
+          centered: true,
+          content: (
+            <HistoryStateCard
+              testID="walk-detail-sign-in-required"
+              icon="user"
+              title={HISTORY_SIGN_IN_TITLE}
+              action={{
+                label: "サインイン",
+                // 戻るボタンと同じラッチに通す（サインインと戻るがほぼ同時に押されても片方だけ通す）。
+                onPress: () => back.runOnce(onSignIn),
+                testID: "walk-detail-sign-in",
+              }}
+            />
+          ),
+        };
+
       case "not-found":
         return {
           centered: true,
@@ -154,7 +188,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
 
       case "error": {
         // "not-found" 以外の非 null errorCode。detail.errorCode は resolveWalkDetailBodyState の
-        // 判定順3・4により、ここでは非 null（かつ not_found 以外）であることが保証されている。
+        // 判定順5・6により、ここでは非 null（かつ not_found 以外）であることが保証されている。
         const errorCode = detail.errorCode;
         if (errorCode === null) {
           // 型注釈のための in-place ガード。実質到達しない分岐。
@@ -194,7 +228,7 @@ export function WalkDetailView({ walkId }: WalkDetailViewProps) {
         };
 
       case "ready": {
-        // resolveWalkDetailBodyState の判定順5により、"ready" は detail.walk !== null を含意する
+        // resolveWalkDetailBodyState の判定順7により、"ready" は detail.walk !== null を含意する
         // （型注釈のための in-place ガード。実質到達しない分岐）。
         const walk = detail.walk;
         if (walk === null) {

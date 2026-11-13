@@ -48,12 +48,13 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - 実装方針は [ADR-002(横断): 認証は Google 直結 + 自前セッショントークン + 3モードスタブ](../../../docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md) で確定済み。
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
-- 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、未認証は 401 になり各 feature のエラー分類で degrade する（保存だけはサインイン CTA を出し、サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
+- 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、ゲストの保存は 401 になりサインイン CTA を出す（サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。履歴・統計（アカウントタブ・履歴の一覧と詳細）はゲストでは通信せずサインイン案内を出す（SS-148・SS-45。下記の注入）。サインイン中に 401 になったときは各 feature のエラー分類で degrade する。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
 - `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピンの登録/閲覧のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/[pinId]/index.tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118。ピン詳細・編集（`app/pins/[pinId]/*`）は `currentUserId`（`state.user?.id ?? null`。プリミティブを返すセレクタで読む）も注入する。権限による導線の出し分けに使う。SS-119。地図一覧・地図詳細（`app/sanpo-maps/*`）も同様。SS-121。タグ一覧・タグ詳細（`app/tags/*`）も同様。SS-245。ピンタブ `app/(tabs)/pins.tsx` も同様。SS-146）。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
   （実例1: `app/(tabs)/account.tsx`（SS-145 で `history.tsx` から改名）が `state.user?.displayName ?? null` を読み `HistoryView` →
   `useHistorySummary` へ渡す。SS-29。SS-148 で `authState`（`signed-in` / `guest` / `restoring`）/ `onSignIn` の注入も加えた（ゲストにはサインイン案内を出し、集計・最近の散歩を通信しない。復元中は通信せず読み込み表示）。
+  履歴の一覧・詳細（`app/walk-history/index.tsx`・`[walkId].tsx`）も同じ `authState` / `onSignIn` を `WalkHistoryListView` / `WalkDetailView` へ注入する（ディープリンクで未サインインのまま開けるため。SS-45）。
   実例2: `app/walk-summary.tsx` が `state.status === "authenticated"` を読み、`WalkSummaryView` →
   `useWalkSummary` → `useWalkSave` へ渡す。401 のときのサインイン CTA のハンドラも同じくルートが
   注入する。SS-37）。セレクタは必ずプリミティブを返すこと
