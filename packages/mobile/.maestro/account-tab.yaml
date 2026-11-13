@@ -39,8 +39,11 @@ tags:
 - assertVisible:
     id: "settings-open-logout-dialog"
 # 導線の有無だけ見る。押さない（e2e-user-1 は全フローで共有される固定アカウント）
-- assertVisible:
-    id: "settings-open-account-delete-dialog"
+# 設定の最下部にあり、SS-268 で上に表示名の項目が加わってから pixel_6 の画面でも
+# 初期表示の外になる（run 42955922775）。設定画面には地図が無いのでスクロールしてよい。
+- scrollUntilVisible:
+    element:
+      id: "settings-open-account-delete-dialog"
 - back
 - extendedWaitUntil:
     visible:
