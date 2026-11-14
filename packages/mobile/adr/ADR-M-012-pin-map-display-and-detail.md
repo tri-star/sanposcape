@@ -457,6 +457,8 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   （SS-153 と同じ。`docs/release-runbook.md` の例外に当たる）。
 - E2E は更新しない。E2E の写真サービスは mock で、mock の写真はアップロードに失敗する（ADR-M-010 決定6）ため、写真付きのピンを
   E2E で作れない。表示は `resolveViewerPhotoDate` の単体テストと実機で確かめる。
+  （**SS-123 追補**: mock が本物の JPEG を返すようになり、`.maestro/pin-register-photo.yaml` で写真付きのピンを作って
+  ビューアの撮影日時の行が出ることまで確かめる。表示の文言は今も単体テストで見る。ADR-M-010 決定16）
 - 撮影日時を端末が EXIF から読む仕組みは [ADR-M-010](./ADR-M-010-photo-service-and-direct-s3-upload.md) の SS-163 追補（決定11〜14）。
 
 ## SS-149 追補: ピン詳細の地図（正方形・パンとピンチ・ピンの位置に戻す）（2026-10-11）
