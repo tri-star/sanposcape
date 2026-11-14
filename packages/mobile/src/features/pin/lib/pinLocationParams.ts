@@ -20,7 +20,7 @@ function toSingleValue(value: string | string[] | undefined): string | null {
  *
  * `features/walk/lib/addPinAction.ts` の `resolveAddPinAction`（散歩中「この場所にピンを追加」）と
  * `features/pin/lib/pinLocationPicker.ts` の `buildPinNewRouteParams`（ピンタブ `PinTabView` の
- * 長押し）が組み立てる形（`String(latitude)` / `String(longitude)`、キー名
+ * 長押しと、検索結果のカードの「この場所にピンを登録」。SS-272）が組み立てる形（`String(latitude)` / `String(longitude)`、キー名
  * `latitude`/`longitude`）をそのまま parse できる（feature 間の暗黙の契約）。
  */
 export function parsePinLocationParams(params: PinRouteParams): GeoCoordinates | null {

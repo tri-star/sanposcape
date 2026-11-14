@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Keyboard } from "react-native";
 
 import {
@@ -35,6 +35,11 @@ export type UseLocationSearchResult = {
   select: (id: string) => void;
   /** 結果のカードを閉じる（ピンは残す）。 */
   deselect: () => void;
+  /**
+   * その結果のピンを地図から外し、カードも閉じる（SS-272。カードからピンの登録画面を開いたとき、
+   * 戻ったときに新しいピンの上に検索結果のピンが重ならないようにする）。次の検索・クリアで戻す。
+   */
+  dismiss: (id: string) => void;
   isSearching: boolean;
   /** 検索欄の下に出す案内（0件・広げて探した・失敗）。無ければ null。 */
   message: string | null;
@@ -59,6 +64,7 @@ export function useLocationSearch({
 }: UseLocationSearchOptions): UseLocationSearchResult {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const mutation = useMutation<LocationSearchResponse, unknown, SearchVariables>({
     mutationFn: ({ query: rawQuery, visibleRegion }) => {
       const request = buildLocationSearchRequest(rawQuery, visibleRegion);
@@ -74,6 +80,7 @@ export function useLocationSearch({
       if (visibleRegion === null || normalizeLocationSearchQuery(query) === null) return;
       Keyboard.dismiss();
       setSelectedId(null);
+      setDismissedIds(new Set());
       mutate(
         { query, visibleRegion },
         {
@@ -90,10 +97,21 @@ export function useLocationSearch({
   const clear = useCallback(() => {
     setQuery("");
     setSelectedId(null);
+    setDismissedIds(new Set());
     reset();
   }, [reset]);
 
-  const results = mutation.isSuccess ? mutation.data.results : [];
+  const dismiss = useCallback((id: string) => {
+    setSelectedId(null);
+    setDismissedIds((previous) => new Set(previous).add(id));
+  }, []);
+
+  // `LocationSearchMarkers` に渡すので、応答と外した結果が変わらない間は同じ配列を返す。
+  const data = mutation.isSuccess ? mutation.data : null;
+  const results = useMemo(
+    () => (data === null ? [] : data.results.filter((result) => !dismissedIds.has(result.id))),
+    [data, dismissedIds],
+  );
   const selected = results.find((result) => result.id === selectedId) ?? null;
   let message: string | null = null;
   if (mutation.isError) {
@@ -113,6 +131,7 @@ export function useLocationSearch({
     selected,
     select: setSelectedId,
     deselect: () => setSelectedId(null),
+    dismiss,
     isSearching: mutation.isPending,
     message,
     isError: mutation.isError,

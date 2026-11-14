@@ -332,7 +332,8 @@ function PinTabSearchOrHint({
 
 /**
  * 地図の下の、選んだ検索結果のカード（SS-267）。「この場所にピンを登録」（SS-272）は長押しと同じ `onPick` で、
- * 検索結果の座標を初期位置にして登録画面を開く。カードは閉じる（保存して戻ったときに残さない）。検索結果のピンは残す。
+ * 検索結果の座標を初期位置にして登録画面を開く。その結果のピンとカードは外す（保存して戻ったとき、新しいピンの上に重ねない）。
+ * ほかの結果のピンは残す。
  */
 function PinTabSearchResultOverlay({
   locationSearch,
@@ -342,7 +343,7 @@ function PinTabSearchResultOverlay({
   onPick: (location: GeoCoordinates) => void;
 }) {
   const styles = useStyles();
-  const { selected, deselect } = locationSearch;
+  const { selected, deselect, dismiss } = locationSearch;
   if (selected === null) return null;
   return (
     <View pointerEvents="box-none" style={styles.bottomOverlay}>
@@ -350,7 +351,7 @@ function PinTabSearchResultOverlay({
         result={selected}
         onClose={deselect}
         onRegisterPin={(result) => {
-          deselect();
+          dismiss(result.id);
           onPick(result.location);
         }}
         testID="pin-tab-search-result-card"
