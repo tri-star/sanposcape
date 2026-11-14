@@ -101,7 +101,7 @@ SELECT する列に含まれる）を同時にデプロイすると、デプロ�
   [`packages/backend/feature-flags.json`](../packages/backend/feature-flags.json) で管理する。
   キー集合は backend の登録簿（`core/feature_flags.py` の `FEATURE_FLAGS`）+ 予約キー
   `client_requirements` と一致していなければならない（pytest で検査している）。
-  ただし、削除の段階1 で固定値に移したキー（下の「フラグを追加する / 削除する」）は定義ファイルに無いので、検査から除く（仕組みは未実装。ADR-008 SS-233 追補 D40）。
+  ただし、削除の段階1 で固定値に移したキー（下の「フラグを追加する / 削除する」。登録簿の `FIXED_CLIENT_FLAGS`）は定義ファイルに無いので、検査から除く（ADR-008 SS-233 追補 D40、SS-271 追補 D45）。
 - **フラグの現在値の正本は AppConfig**（直近に配信を完了した hosted configuration version）。
   ワークフローは現在値を引き継ぎ、指定した1本だけを書き換えた版を作って `StartDeployment` する。
   定義ファイルに足したキーは既定値（OFF）で入る。定義ファイルから消えたキーは、`prune` を付けて
@@ -113,7 +113,7 @@ SELECT する列に含まれる）を同時にデプロイすると、デプロ�
   **キャンセルされて実行されない**（GitHub の concurrency の仕様）。prod で前の run が承認待ちのまま
   だと待機が長引くので、起動したら必ず run が成功（または「変更なし」）で終わったことを確認する。
 - 一度もフラグを取得できていない場合に限り、backend は**全フラグ OFF** で動く（ADR-008 決定9）。
-  ただし削除の段階1 で固定値に移したキーは、取得の状態に関わらず固定値を返す（ADR-008 SS-233 追補 D40。仕組みは未実装）。
+  ただし削除の段階1 で固定値に移したキーは、取得の状態に関わらず固定値を返す（ADR-008 SS-233 追補 D40、SS-271 追補 D45）。
   一度取得できた後に取得が失敗したときは、直前の値を保つ（決定9-1）。
   「フラグを ON にしたのに反映されない」ときは、まずベイク時間とポーリング間隔（既定60秒）を
   待ったうえで、CloudWatch Logs の AppConfig 取得失敗の ERROR ログを確認する
@@ -176,14 +176,14 @@ sanposcape-infra の `live/platform/README.md`「dev での動作確認」の手
     OFF に戻して機能ごと廃止する）: 分岐・登録簿・`feature-flags.json` からキーを消す PR を1つ出す。
   - **mobile が見るフラグ（`audience: "client"`）で、本番で現在 ON のもの**: 2段階で消す。mobile は `/app-config` の未知のキーを OFF として扱うため、
     backend がキーを返さなくなると、配布済みのアプリから公開済みの機能が消える。
-    1. backend の分岐と `feature-flags.json` のキーを消し、登録簿ではそのキーを固定値 `true` を返すキーに移す（AppConfig の取得の状態に関わらず返す）。
+    1. backend の分岐と `feature-flags.json` のキーを消し、登録簿ではそのキーを `FEATURE_FLAGS` から `FIXED_CLIENT_FLAGS`（固定値 `true` を返すキー）に移す（AppConfig の取得の状態に関わらず返す）。
        mobile の分岐・キー定数（`src/config/featureFlags.ts`）・テストも同じ PR で消してよい（後の PR でもよい）。
        台帳の行を「固定値で返している」に更新する。**AppConfig の値はまだ `prune` しない**（下）。
     2. 最低サポートバージョン（iOS・Android とも）が、分岐を消したコードを**ストアのバイナリに埋め込んだ**最初の version 以上になり、上げてから1日経ったら（§7.3）、
        固定値を消して台帳の行を外す。台帳に他の「固定値で返している」行が残っていなければ、AppConfig の値も `prune` で消す。OTA で分岐の無い JS を届けた version は数えない
        （OTA を当てていない端末や、埋め込みの JS へ戻した端末（§8.4）に分岐が残るため）。
 
-    > 固定値を返す仕組みはまだ実装していない。最初に mobile が見るフラグを消す課題（`pin_registration`）で実装する。
+    > 固定値を返す仕組みは SS-271 で実装し、`pin_registration` など5本を移した（[互換性台帳](./compat-tracker.md)）。
 - AppConfig の値は、**削除の PR を当該環境の backend にデプロイした後で** `prune` を付けて何かを切り替えたときに消える。
   `prune` を付けない切り替えでは値を維持する（main が稼働中の backend より先行していても、古い
   backend が読んでいる ON のフラグを消さないため）。残っていても新しい backend は未知キーとして無視する。
@@ -405,8 +405,21 @@ API の変更は常に 2 段階に分ける（ADR-008 決定7）。
 
 > 判断材料となる最低サポートバージョンの**backend の配信経路（`/app-config` の
 > `minimum_supported_versions`）は実装済み（SS-98）**、**アプリ側のアップデートの案内も実装済み
-> （SS-101）**。ただし**最低サポートバージョンを変える経路（フラグ切り替えワークフローの入力）が
-> まだ無い**（ADR-008 SS-101 追補 D33）。最初の contract の前に整える。AWS コンソールから直接変えない。
+> （SS-101）**、**変える経路（フラグ切り替えワークフローの入力）も実装済み（SS-271。ADR-008 SS-271 追補 D44）**。
+> AWS コンソールから直接変えない。
+
+**最低サポートバージョンを変える**:
+
+1. その version 以上のビルドが、上げる OS のストアで公開済みであることを確かめる（下の注意）
+2. GitHub の Actions →「feature flags (AppConfig)」→ **Run workflow**。`flag` は空にし、`ios_minimum_version` / `android_minimum_version` に
+   `X.Y.Z` を入れる（変えない OS は空。`none` で指定なし（`null`）に戻す）。
+   CLI なら `gh workflow run feature-flags.yml --ref main -f environment=production -f ios_minimum_version=1.1.0 -f android_minimum_version=1.1.0`
+3. production は承認する。run が成功で終わったことと、Job Summary の OS ごとの「変更前 → 変更後」を確かめる
+4. `/app-config` の `minimum_supported_versions` で反映を確かめる。配信を終えた時刻が、下の「1日経った後」の起点になる
+5. 下の「最低サポートバージョンを上げたら」の2つの台帳を見る
+
+- 1回の run ではフラグ1本か最低サポートバージョンのどちらか一方だけを変える（両方を指定すると prepare で落ちる）
+- `packages/mobile/app.json` の `version` を超える値は prepare で落ちる（打ち間違いの防止。公開済みかの確認にはならない）
 
 - `/app-config` が返す**最低サポートバージョン**を下回るアプリには、閉じられない全画面の案内が出て
   ストアへ誘導される（SS-101）。ただし散歩中と、保存されていない散歩をまだ保存できる間（サマリ画面・

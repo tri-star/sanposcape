@@ -2,11 +2,11 @@
 
 ## 日付
 
-2026-11-08（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) から分割。決定の初出は 2026-09-21〜2026-11-07）
+2026-11-08（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) から分割。決定の初出は 2026-09-21〜2026-11-07）、2026-11-14 注記（SS-271: フラグ map_invitation・map_pin_visibility の削除）
 
 ## ステータス
 
-採用（backend・mobile 実装済み。招待の発行・受諾はフラグ `map_invitation` の後ろにあり、production では OFF）
+採用（backend・mobile 実装済み。招待の発行・受諾はフラグ `map_invitation` の後ろにあり、production では OFF）（**SS-271 追補**: フラグ `map_invitation` は削除し、常に ON の挙動になった。招待の発行・preview・受諾のフラグのガード（403 `feature_disabled`）も外した。ADR-008 SS-271 追補 D45）
 
 ## コンテキスト
 
@@ -91,7 +91,7 @@
   共有の地図の中身が、人が抜けるたびに欠けないようにするため。本人のアカウントは残るので、消したいものは抜ける前に自分で消せる（確認ダイアログでそう伝える）。
   アクセスを失った人の写真は、その人の容量に計上したまま（本人は消せない。消したいときはアカウント削除で消える）。
 - 地図の行を `get_membership_for_update`（`FOR UPDATE`）でロックし、招待の受諾・地図の削除と直列化する。
-- **この2つの API はフラグ `map_invitation` でガードしない**（フラグを OFF に戻しても抜けられるように）。置き場所は `sanpo_maps/maps/`。
+- **この2つの API はフラグ `map_invitation` でガードしない**（フラグを OFF に戻しても抜けられるように）。（**SS-271 追補**: フラグ `map_invitation` は削除した。ADR-008 SS-271 追補 D45）置き場所は `sanpo_maps/maps/`。
 - `DELETE` のパスに外す相手の内部 ID が載り、アクセスログに残る（[データ取扱い台帳](../privacy/data-inventory.md) 3.8）。ボディに移す案は、DELETE のボディの扱いがクライアントで揺れるので採らない。
 
 ### 決定5: 招待はリンク方式。1リンク1人・7日・受諾の明示（旧 決定39）
@@ -106,7 +106,7 @@
 - 受諾は「地図の行 → 招待の行」の順にロックする（`lock_map_for_update` → `get_active_for_update`）。すでに member なら招待を消費せずに 200 で同じ地図を返す（冪等）。
 - **使えないトークン（存在しない・使用済み・取り消し済み・期限切れ）は理由を区別しない 404 `invitation_not_found`。**
 - **preview（`POST /invitations/preview`）はサインイン不要**。地図の名前・アイコン・招待した人の表示名・期限と、サインインしていれば `membership` を返す。
-- **発行・preview・受諾はフラグ `map_invitation` でガードする（403 `feature_disabled`）**。施行日より前に本番で招待を使えないようにするため。一覧・取り消しはガードしない。
+- **発行・preview・受諾はフラグ `map_invitation` でガードする（403 `feature_disabled`）**。施行日より前に本番で招待を使えないようにするため。一覧・取り消しはガードしない。（**SS-271 追補**: フラグ `map_invitation` は削除し、常に ON の挙動になった。発行・preview・受諾のガードも外し、403 `feature_disabled` は返さない（`FeatureDisabledError` も削除）。ADR-008 SS-271 追補 D45）
   **ON にする条件に「ピンの移動の制限（決定6）を本番にデプロイしてから」を含む**（`core/feature_flags.py` の説明）。
 - preview・受諾に IP・ユーザー単位のレート制限（既定 60 秒に 20 回・ゲストは 10 回。`ExploreRateLimiter` と同じ仕組み）。
 - 使い終わった招待は 30 日後に消す（日次の写真の削除の Lambda に相乗り。[ADR-022](./ADR-022-deletion-and-photo-object-cleanup.md) 決定5）。作った人のアカウント削除では CASCADE、参加した人の削除では `accepted_by_user_id` を SET NULL。
@@ -138,8 +138,8 @@
 - **変えるのは `PATCH /sanpo-maps/{id}/members/me`**（`SanpoMapMembershipUpdate {pins_visible?: bool}`。`extra="forbid"`・null は 422・`{}` は 200）。応答は `SanpoMapRead`。
   member なら role を問わず可。地図の行を `FOR UPDATE` でロックする。地図の `updated_at` は変えない。
 - 抜けて入り直すと行が作り直されて表示に戻る（許容）。
-- **API はフラグでガードしない。** mobile の UI と、非表示の地図のピンを出さない挙動はフラグ `map_pin_visibility` で包む。`GET /pins` は非表示の地図のピンも返す（表示は mobile が取りに行かないことで決める）。
-- **未完了の作業**: フラグ `map_pin_visibility` を本番で ON にした時点で、[互換性台帳](../compat-tracker.md) にその行を足す（[リリース運用手順](../release-runbook.md) §3）。
+- **API はフラグでガードしない。** mobile の UI と、非表示の地図のピンを出さない挙動はフラグ `map_pin_visibility` で包む。`GET /pins` は非表示の地図のピンも返す（表示は mobile が取りに行かないことで決める）。（**SS-271 追補**: フラグ `map_pin_visibility` は削除し、常に ON の挙動になった。ADR-008 SS-271 追補 D45）
+- **未完了の作業**: フラグ `map_pin_visibility` を本番で ON にした時点で、[互換性台帳](../compat-tracker.md) にその行を足す（[リリース運用手順](../release-runbook.md) §3）。（**SS-271 追補**: フラグ `map_pin_visibility` は削除し、常に ON の挙動になった。ADR-008 SS-271 追補 D45）
 
 ## 検討した選択肢
 

@@ -988,11 +988,15 @@ curl -s https://app-api.<env>.sanposcape.com/app-config | jq
 
 ```json
 {
-  "flags": { "pin_registration": false },
+  "flags": { "pin_registration": true, "pin_station_tag": true, "...": true },
   "minimum_supported_versions": { "ios": null, "android": null },
   "config_source": "default"
 }
 ```
+
+`flags` には、登録簿の client 向けのフラグ（AppConfig に値が無ければ `false`）と、削除の段階1 で固定値に移したキー
+（`core/feature_flags.py` の `FIXED_CLIENT_FLAGS`。取得の状態に関わらず `true`。SS-271、[互換性台帳](../../../docs/compat-tracker.md)）が入る。
+最低サポートバージョンはフラグ切り替えワークフローの入力で変える（[リリース運用手順](../../../docs/release-runbook.md) §7.3）。
 
 `config_source` の読み方（クライアントはこの値で分岐してはいけない。診断専用）:
 
@@ -1185,6 +1189,7 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
 1. マイグレーション（§5.2）で SS-88 のテーブルが入っていること（`{"head": ...}` が最新）
 2. フラグ `pin_registration` を当該環境で ON にする（ADR-008 のフラグ切り替えワークフロー, SS-99）。
    `GET /app-config` の `flags.pin_registration` が `true` になるのを確認する。
+   （**SS-271 追補**: `pin_registration` は固定値 `true` に移したので、この手順は不要になった。新しい環境でも `true` で返る）
    **このワークフローは PR #94（SS-99）のマージが前提**（`workflow_dispatch` は default branch に
    ワークフロー定義が無いと起動できない。ADR-008 はフラグの切り替えをこのワークフローに限っている）。
    #94 のマージ前は、上の確認 1)〜3) と CloudWatch Logs の確認までを先に済ませ、

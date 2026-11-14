@@ -423,7 +423,7 @@ print(r.status_code); print(r.text[:800])"
 `environment:` に追加した**（mobile が `mobile-e2e.yml` から `.env.example` の値をそのまま
 使えるようにするため。以前は「妥当な既定値を持つため省略」としていたが、E2E で
 `pin_registration` を確実に ON にする・写真の上限値を CI から上書きできるようにする目的で
-明示列挙に変更した）。
+明示列挙に変更した。SS-271 で `pin_registration` は固定値に移し、`.env.example` の値は `{}` になった）。
 **（SS-109 追補）`ACCOUNT_PHOTO_RETENTION_DAYS`（アカウント削除後の写真の保持期間、既定 30）も
 `compose.yaml` の `environment:` に追加した。** `.env` を編集せず
 `ACCOUNT_PHOTO_RETENTION_DAYS=0 docker compose up -d` で、削除したアカウントの写真をすぐ消して確かめられるようにするため
