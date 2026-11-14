@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
+import { MAP_PROVIDER } from "@/config/mapProvider";
 import { CurrentHeadingBeam } from "@/components/location/CurrentHeadingBeam";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
@@ -69,8 +70,9 @@ const GOAL_MARKER_Z_INDEX = 1;
 const CURRENT_MARKER_Z_INDEX = 2;
 /**
  * 歩いた軌跡の線の重なり順。周回ルートの線（復路 1・往路 2。`WalkRoutePolylines`）より上に重ねる（SS-168）。
- * `zIndex` が効くのは Android（Google Maps）だけ。iOS（Apple Maps）は効かず、後から足した線・座標が変わった線が上に来る。
- * 軌跡は位置が届くたびに座標が変わるので iOS でも上に来る。描く順序も軌跡を後ろに置き、両方で同じ重なりにする。
+ * `zIndex` が効くのは Google Maps（Android と、キーを入れた iOS のビルド。SS-267）だけ。Apple Maps は効かず、
+ * 後から足した線・座標が変わった線が上に来る。軌跡は位置が届くたびに座標が変わるので Apple Maps でも上に来る。
+ * 描く順序も軌跡を後ろに置き、両方で同じ重なりにする。
  */
 const TRAIL_Z_INDEX = 3;
 /** 現在地の向きの扇形（SS-169）。半透明の面なので、ルート線・軌跡より下に敷く（Google Maps のみ有効）。 */
@@ -158,6 +160,8 @@ export function WalkRouteMapView({
   return (
     <View style={[{ height }, style]} onLayout={headingBeam.onMapLayout}>
       <MapView
+        // iOS もキーを入れたビルドでは Google Maps（SS-267。`src/config/mapProvider.ts`）。
+        provider={MAP_PROVIDER}
         ref={mapRef}
         testID={testID}
         style={styles.map}
@@ -220,7 +224,7 @@ export function WalkRouteMapView({
         ) : null}
         {mapLayers}
         {/* 向きが取れない・フォーカスが無い間は描かない（増減する）ので、末尾に置く（ADR-M-012 D16）。
-            重なり順は zIndex で決める（iOS は効かない。ADR-M-023）。 */}
+            重なり順は zIndex で決める（Apple Maps では効かない。ADR-M-023）。 */}
         <CurrentHeadingBeam
           center={currentPosition}
           radiusMeters={headingBeam.radiusMeters}

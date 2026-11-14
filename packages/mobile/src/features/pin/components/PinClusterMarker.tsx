@@ -5,7 +5,7 @@ import { PinClusterBubble } from "@/features/pin/components/PinClusterBubble";
 import { pinClusterAccessibilityLabel } from "@/features/pin/lib/pinClusters";
 import type { GeoCoordinates } from "@/services/location/types";
 
-/** クラスタの円は中心を座標に合わせる（Android の `anchor`。iOS の Apple Maps は既定で中心）。 */
+/** クラスタの円は中心を座標に合わせる（Google Maps の `anchor`。Apple Maps は既定で中心）。 */
 const CLUSTER_ANCHOR = { x: 0.5, y: 0.5 };
 /**
  * 描き始めてから `tracksViewChanges` を止めるまでの時間（ms）。Android は止めた時点の姿を画像にして使うので、

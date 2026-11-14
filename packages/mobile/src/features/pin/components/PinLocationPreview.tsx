@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { View } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
+import { MAP_PROVIDER } from "@/config/mapProvider";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { SanpoMapPin } from "@/features/pin/components/SanpoMapPin";
@@ -78,6 +79,8 @@ export function PinLocationPreview({
       >
         {mapHidden ? null : (
           <MapView
+            // iOS もキーを入れたビルドでは Google Maps（SS-267。`src/config/mapProvider.ts`）。
+            provider={MAP_PROVIDER}
             key={isInitialMode ? pinLocationMapKey(location) : undefined}
             ref={mapRef}
             testID={testID}

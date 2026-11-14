@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { ActivityIndicator, type StyleProp, View, type ViewStyle } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
+import { MAP_PROVIDER } from "@/config/mapProvider";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
 import { WalkRouteLegend } from "@/features/walk/components/WalkRouteLegend";
@@ -80,6 +81,8 @@ export function SpotMapView({
   return (
     <View style={[{ height }, style]}>
       <MapView
+        // iOS もキーを入れたビルドでは Google Maps（SS-267。`src/config/mapProvider.ts`）。
+        provider={MAP_PROVIDER}
         ref={mapRef}
         testID={testID}
         style={styles.map}
