@@ -558,7 +558,13 @@ class TextSearchProvider(FakeProvider):
 
     def search_text(self, query, *, restriction, bias, limit, timeout_seconds):
         self.text_calls.append(
-            {"query": query, "restriction": restriction, "bias": bias, "limit": limit}
+            {
+                "query": query,
+                "restriction": restriction,
+                "bias": bias,
+                "limit": limit,
+                "timeout_seconds": timeout_seconds,
+            }
         )
         if self.error is not None:
             raise self.error
@@ -638,3 +644,18 @@ def test_text_search_maps_provider_failures(error, expected) -> None:
 
     with pytest.raises(expected):
         MapsService(provider, 20, 20, 10, 8).search_places_by_text(_text_request())
+
+
+def test_text_search_gives_each_provider_call_its_own_timeout(monkeypatch) -> None:
+    """1回目が時間を使っても、2回目にも同じ打ち切りの時間を渡すこと（期限を2回で分けると、1回目が遅いとき
+    2回目が始まる前に時間切れになり、見つからないだけなのに 503 になる。SS-267 レビュー対応）。"""
+    clock = iter([0.0, 9.5, 9.5, 9.5, 9.5])
+    monkeypatch.setattr("sanposcape.maps.service.monotonic", lambda: next(clock, 9.5))
+    provider = TextSearchProvider(inside=(), around=(_text_place("far"),))
+
+    response = MapsService(
+        provider, 20, 20, 10, 8, text_search_timeout_seconds=8
+    ).search_places_by_text(_text_request())
+
+    assert response.scope == "expanded"
+    assert [call["timeout_seconds"] for call in provider.text_calls] == [8, 8]

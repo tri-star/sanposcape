@@ -78,6 +78,7 @@ class MapsService:
         loop_route_enabled: bool = True,
         route_deadline_seconds: float = 12.0,
         geocode_timeout_seconds: float = 8.0,
+        text_search_timeout_seconds: float = 8.0,
         stations: Callable[[], Sequence[Station]] = default_stations,
     ) -> None:
         self._provider = provider
@@ -88,6 +89,7 @@ class MapsService:
         self._loop_route_enabled = loop_route_enabled
         self._route_deadline_seconds = route_deadline_seconds
         self._geocode_timeout_seconds = geocode_timeout_seconds
+        self._text_search_timeout_seconds = text_search_timeout_seconds
         self._stations = stations
 
     def search_places(self, request: PlaceSearchRequest) -> PlaceSearchResponse:
@@ -144,6 +146,11 @@ class MapsService:
         """SS-267: 表示範囲の中だけを探し、0 件なら範囲の中心の付近で1回だけ広げて探す（2回まで）。
 
         結果の並びは provider のまま（Google の検索結果を並べ替えない。ADR-001 SS-267 追補）。
+
+        Google への呼び出しはそれぞれ `text_search_timeout_seconds` で打ち切る
+        （2回で1つの期限を分けると、1回目が遅いと2回目が始まる前に時間切れになり、
+        「見つからない」ではなく 503 になるため）。
+        最悪でも2回分（既定 8 秒 × 2 と接続の時間）で、Lambda の上限（29 秒）に収まる。
         """
         south_west = self._provider_point(request.bounds.south_west)
         north_east = self._provider_point(request.bounds.north_east)
@@ -151,7 +158,6 @@ class MapsService:
             latitude=(south_west.latitude + north_east.latitude) / 2,
             longitude=(south_west.longitude + north_east.longitude) / 2,
         )
-        deadline = monotonic() + self._search_deadline_seconds
         scope = PlaceTextSearchScope.VISIBLE_AREA
         try:
             places = self._provider.search_text(
@@ -159,7 +165,7 @@ class MapsService:
                 restriction=ProviderRectangle(south_west=south_west, north_east=north_east),
                 bias=None,
                 limit=_TEXT_SEARCH_LIMIT,
-                timeout_seconds=self._remaining_seconds(deadline),
+                timeout_seconds=self._text_search_timeout_seconds,
             )
             if not places:
                 scope = PlaceTextSearchScope.EXPANDED
@@ -170,7 +176,7 @@ class MapsService:
                         center=center, radius_meters=_EXPANDED_TEXT_SEARCH_RADIUS_METERS
                     ),
                     limit=_TEXT_SEARCH_LIMIT,
-                    timeout_seconds=self._remaining_seconds(deadline),
+                    timeout_seconds=self._text_search_timeout_seconds,
                 )
         except GoogleMapsQuotaError as exc:
             raise MapsQuotaError() from exc
