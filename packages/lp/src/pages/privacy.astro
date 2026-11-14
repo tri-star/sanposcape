@@ -8,7 +8,7 @@ const contactEmail = "support@sanposcape.com";
 // 本文はサポート中のすべてのアプリの挙動の和集合で書き、利用者に不利な改定は施行日を付けて事前に公開する
 // （docs/privacy/data-inventory.md の 2.1・2.2、手順は packages/lp/AGENTS.md の「改定の手順」）。
 const enactedOn = "2026年10月3日";
-const revisedOn: string | undefined = "2026年11月14日";
+const revisedOn: string | undefined = "2026年11月7日";
 // 施行日。利用者に不利な改定のときだけ付ける（公開から 30 日後が目安。台帳の 2.2）。
 // 施行日を過ぎた後に不利でない改定で revisedOn を更新するときは undefined に戻す（冒頭の案内が消える。経緯は改定履歴に残る）。
 const effectiveOn: string | undefined = "2026年12月2日";
@@ -48,7 +48,7 @@ const externalServices = [
     provider:
       "Google LLC（米国）: Google Maps Platform の Places API・Routes API・Geocoding API",
     purpose:
-      "スポットの検索、徒歩ルートの計算、ピンの位置の住所の取得（ピンの詳細での表示）",
+      "スポットの検索、徒歩ルートの計算、ピンの位置の住所の取得（ピンを登録するときの名前の候補、ピンの詳細での表示）",
     data: "丸めた現在地、目的地や経由地の位置、ピンの位置。運営者のサーバーから送信し、利用者を識別する情報は送りません",
   },
   {
