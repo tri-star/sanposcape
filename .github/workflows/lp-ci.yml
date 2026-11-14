@@ -9,7 +9,7 @@ on:
       # ルートのロックファイルだけが変わる。それでも検証が走るようにする。
       - "pnpm-lock.yaml"
       - ".github/workflows/lp-ci.yml"
-      # LP の画面キャプチャのスクリプト（SS-263）
+      # LP の画面キャプチャ（SS-263）と、デプロイの旧アセットの引退（SS-166）のスクリプト
       - "scripts/lp-tools/**"
   pull_request:
     paths:
@@ -48,7 +48,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # PR に添付する画面キャプチャのスクリプト（SS-263）の単体テスト。撮影そのもの（Chrome の起動）は CI では行わない。
+      # PR に添付する画面キャプチャのスクリプト（SS-263）と、デプロイの旧アセットの引退のスクリプト（SS-166）の単体テスト。
+      # 撮影そのもの（Chrome の起動）と S3 への操作は CI では行わない（S3 は偽の aws で確かめる）。
       - name: Test lp-tools
         run: node --test 'scripts/lp-tools/tests/*.test.mjs'
 
