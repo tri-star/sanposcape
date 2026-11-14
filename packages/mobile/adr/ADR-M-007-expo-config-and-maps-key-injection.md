@@ -2,14 +2,18 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-30（SS-229: 散歩中の地図の計測値の表示も開発ツールに含める。前回は SS-230）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-14（SS-267: iOS の地図を Google Maps にするキーの注入。前回は SS-229）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
 - 静的な設定は `app.json`、動的な部分だけを `app.config.ts` で拡張する。（本文: 決定）
 - Maps SDK キーは `GOOGLE_MAPS_ANDROID_SDK_KEY` から `android.config.googleMaps.apiKey` へ注入する。`EXPO_PUBLIC_` は付けず、
-  未設定なら `android.config` を付けない。iOS は Apple Maps でキー不要。`react-native-maps` の config plugin は併用しない。（本文: 決定）
+  未設定なら `android.config` を付けない。（本文: 決定）
+- **iOS は `GOOGLE_MAPS_IOS_SDK_KEY` があるときだけ Google Maps にする**。そのときだけ `react-native-maps` の config plugin を付け
+  （Android のキーも渡す。plugin は無いと Android の API_KEY を消す）、`extra.iosGoogleMaps=true` を JS に渡す。
+  `src/config/mapProvider.ts` が Android は常に Google、iOS は `extra.iosGoogleMaps` のときだけ Google と決め、全 `MapView` に `provider` を渡す。
+  キーの無いビルドは Apple Maps のままで、Places の内容（ピンタブの検索）を出さない。iOS のキーは EAS の各環境に `secret`。（本文: SS-267 追補。初版の「iOS は Apple Maps でキー不要・plugin は併用しない」を変更）
 - キーの供給元は経路ごとに1つにする。クラウドビルドは EAS の `preview` 環境に `secret`、`--local`（E2E）は GitHub Secrets（`ci-e2e`）。
   `plaintext` / `sensitive` に戻さない。（本文: 決定、SS-79 追補）
 - キーが APK に無いと Maps SDK の初期化でクラッシュする（E2E に必須）。SHA-1 / package の不一致では地図が出ないだけ。
@@ -31,7 +35,8 @@
 
 ### 未解決・持ち越し
 
-- iOS で Google Maps を使う場合のキー注入。（本文: 移行・対応事項）
+- ~~iOS で Google Maps を使う場合のキー注入。（本文: 移行・対応事項）~~ → SS-267 で決着
+- iOS の実機での Google Maps の描画の確認（破線・マーカーの基準点・クラスタ・向きの扇形）と、EAS への iOS のキーの登録。（本文: SS-267 追補）
 - OTA の update 時の環境変数の供給（SS-103）。（本文: SS-148 追補）
 
 ### 変更・撤回された決定
@@ -39,12 +44,13 @@
 - 「EAS の環境変数管理には載せない」→「preview に secret」（SS-79）
 - 「キー未注入は地図が灰色」→「クラッシュ」（SS-78）
 - 「SHA-1 不一致でクラッシュ」→「表示されないだけ」（SS-79）
+- 「iOS は Apple Maps でキー不要・react-native-maps の plugin は併用しない」→「iOS はキーがあれば Google Maps、そのときだけ plugin を付ける」（SS-267）
 
 ## 日付
 
 2026-07-30（初版 / SS-15）、2026-08-05 追補（SS-34）、2026-09-11 追補（SS-78）、
 2026-09-13 追補（SS-79）、2026-09-30 追補（本番用 iOS OAuth クライアント）、
-2026-10-01 追補（SS-148。実行時のビルド variant 判定）、2026-10-24 追補（SS-230。ビルドの種類での分岐の例外：バージョンの行のチャネル名）、2026-10-30 追補（SS-229。散歩中の地図の計測値の表示）
+2026-10-01 追補（SS-148。実行時のビルド variant 判定）、2026-10-24 追補（SS-230。ビルドの種類での分岐の例外：バージョンの行のチャネル名）、2026-10-30 追補（SS-229。散歩中の地図の計測値の表示）、2026-11-14 追補（SS-267。iOS の地図を Google Maps にするキーの注入）
 
 ## ステータス
 
@@ -196,6 +202,7 @@ EAS 側へ寄せる判断をする場合は、**先にシェル環境変数と E
   必要な鍵の種類は Google サインインと同じ4種（[local-env](../docs/local-env.md) の表を参照）。
 - iOS で Google Maps を使いたくなった場合（`provider={PROVIDER_GOOGLE}`）は、
   iOS 用の Maps キーと `ios.config.googleMapsApiKey` の注入をこの `app.config.ts` に追加する。
+  （**SS-267 追補**: 実施した。`ios.config.googleMapsApiKey` ではなく `react-native-maps` の config plugin で入れた。下記「SS-267 追補」。）
 
 ## SS-79 追補: EAS 環境変数へ載せる決定に更新する
 
@@ -378,6 +385,53 @@ SS-79 追補にも反映した。
 - staging（TestFlight）のテスターにも、散歩中の地図の左上にボタンが見える（画面カタログと同じ範囲）。
 - FPS の値はエミュレータや `__DEV__` のバンドルでは実機・リリースより遅く出る。良し悪しは実機で判断する。
 - 開いている間は毎フレーム rAF のコールバックが 1 回走る。地図の重さを `dumpsys gfxinfo` などで測るときは、パネルを閉じておく。
+
+## SS-267 追補: iOS の地図を Google Maps にする（2026-11-14）
+
+### コンテキスト
+
+ピンタブの検索（SS-267。[ADR-M-026](./ADR-M-026-pin-tab-location-search.md)）は Google Places の結果を地図に打つ。Google Maps Platform の
+利用規約 3.2.3(e)（2026-08-26 版）は「Places の内容を Google 以外の地図に表示・利用しない」と定めており、iOS の Apple Maps には出せない。
+既存の探索の候補（`SpotMapView`）も iOS の Apple Maps に Places の内容を出していた。実質 iOS 版だけを公開しているので、
+iOS の地図を Google Maps にする（ユーザー判断。規約の引用と経緯は [ADR-001](../../../docs/adr/ADR-001-map-poi-google-maps-platform.md) の SS-267 追補）。
+
+### 決定
+
+1. **キーは `GOOGLE_MAPS_IOS_SDK_KEY`**（Maps SDK for iOS 用。`EXPO_PUBLIC_` は付けない）。Android のキー・backend の server key とは別にし、
+   本番・開発の bundle ID でアプリ制限する。EAS の `production`・`preview`・`development` 環境に `secret` で登録し、ローカルは `.env`。
+2. **注入は `react-native-maps` の config plugin**（`iosGoogleMapsApiKey`）。plugin が Google Maps SDK の pod（`react-native-maps/Google`）、
+   Info.plist の `GMSApiKey`、AppDelegate の `GMSServices.provideAPIKey` を入れる。Expo の `ios.config.googleMapsApiKey` は Info.plist にキーを書くだけで、
+   pod と初期化は入らないので使わない。
+3. **plugin は iOS のキーがあるときだけ付け、Android のキーも渡す**。plugin の Android 側は `androidGoogleMapsApiKey` が無いと AndroidManifest の
+   `com.google.android.geo.API_KEY` を消す（初版が plugin を使わなかった理由）。同じ値を渡すので、Expo の `android.config.googleMaps` と結果は同じ
+   （prebuild で meta-data が1つになることを確かめた）。
+4. **provider は実行時に `extra.iosGoogleMaps` で決める**（`src/config/mapRenderer.ts` の純粋関数 + `src/config/mapProvider.ts`）。Android は常に Google、
+   iOS は `extra.iosGoogleMaps === true` のときだけ Google、それ以外は Apple Maps。全 `MapView` に `MAP_PROVIDER` を渡す。
+   pod の無いビルドで `provider="google"` を渡すと地図が出ない（react-native-maps が「AirGoogleMaps dir must be added」を出して何も描かない）ので、
+   キーの有無と同じ条件にする。
+5. **Places の内容を出す画面は Google の地図に限る**（`currentMapRenderer() === "google"`）。ピンタブの検索欄は Apple Maps のビルドでは出さない。
+   既存の探索の候補は散歩の中核なので条件にしない（iOS のキーを入れた本番ビルドで解消する。キーを入れる前の iOS のバイナリには残る）。
+6. **Apple Maps 向けの回避策は、OS ではなく地図の SDK で分ける**。復路の破線の補正（ADR-M-008 決定9 の SS-232 追補）は `walkReturnLineStyle(mapRenderer)` にした。
+
+### 検討した選択肢
+
+- **`ios.config.googleMapsApiKey`**: Expo の標準の設定だが、Info.plist にキーを書くだけで、react-native-maps の Google の pod と初期化が入らない。採らない。
+- **iOS も常に Google（キーが無ければビルドを失敗させる）**: ローカルの iOS の dev build と、キーをまだ登録していない環境でビルドできなくなる。
+  キーの無いビルドは Apple Maps で動き、Places の内容だけを出さない方が安全。
+- **OTA でも安全かを JS で確かめる（Google のネイティブ部品の有無を見る）**: Fabric では `UIManager.hasViewManagerConfig` が当てにならない。
+  `extra` は OTA では update を作ったときの値になるが、pod の追加はネイティブの変更で fingerprint が変わるので、pod の無いバイナリへは
+  OTA が配られない（runbook §6.1）。逆に、キーの無い環境で作った update が Google のバイナリに届くと Apple Maps で描かれ、検索欄が隠れるだけ（安全側）。
+
+### 影響
+
+- iOS の配布ビルドは、EAS に iOS のキーを登録してからでないと Apple Maps のままになる（ビルドは失敗しない）。
+- ネイティブの変更なので OTA では届かない。`version` を上げたストアのビルドで配る（runbook §4）。
+- iOS の地図の見た目が Apple Maps から Google Maps に変わる。`zIndex`・マーカーの `anchor`・`Marker` の `rotation` が iOS でも効くようになる。
+  復路の破線は、Google の iOS では長さがメートル（`GMSStyleSpans` の `kGMSLengthRhumb`）で、Android の px と単位が違う（ADR-M-008 決定9 の SS-267 追補）。
+- 端末から Google へ地図データの要求が直接送られる（iOS）。Google Maps SDK for iOS のプライバシーマニフェストの申告を App Privacy に取り込む
+  （`docs/app-privacy-label.md`、データ取扱い台帳 3.6）。
+- iOS の実機での確認はまだ（この PR の環境は WSL で iOS を動かせない）。TestFlight のビルドで、全画面の地図・破線・マーカーの基準点・
+  クラスタ・向きの扇形を確かめる。
 
 ## 関連情報
 

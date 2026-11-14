@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-24（SS-225、SS-212、SS-138）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-14（SS-267、SS-225、SS-212）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -25,25 +25,32 @@
   `POST /explore/nearest-station`（サインイン必須）が 3km 以内の最寄り駅の駅名とタグの表記（`新宿` → `新宿駅`）を返す。
   Google を呼ばないので探索のレート制限の枠は使わない。登録画面でタグを最初から入れておくのに使う（[ADR-M-013](../../packages/mobile/adr/ADR-M-013-pin-tag-suggestions.md) SS-225 追補）。
   （本文: SS-225 追補）
+- **ピンタブの検索（住所・駅・施設の種類）は、backend の `POST /explore/places/text-search`（サインイン必須）が Places の Text Search (New) で引く**。
+  表示範囲の矩形で制限して探し、0件なら範囲の中心から半径 50km を優先して1回だけ広げる（`scope` で区別）。検索語は本文で送り、DB・ログに残さない。
+  結果の並びは変えない。mobile の画面は [ADR-M-026](../../packages/mobile/adr/ADR-M-026-pin-tab-location-search.md)。（本文: SS-267 追補）
+- **Places の内容は Google の地図にだけ出す（規約 3.2.3(e)）**。そのため iOS の地図も Google Maps にする（キーを入れたビルド。
+  [ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補）。（本文: SS-267 追補）
 - **位置データは緯度経度の列 + 単純検索**。PostGIS 等への移行余地を残す。（本文: 決定）
 
 ### 未解決・持ち越し
 
 - server key への Geocoding API の許可（本文: 移行・対応事項、SS-138 追補）
-- 住所での検索。住所の保存が前提で、規約の「利用者をまたいで使わない」と共有地図との関係が明確でないため見送った（本文: SS-212 追補）
+- 登録済みのピンを住所で検索すること（ピンタブの検索（SS-267）は Google の場所を探すもので、登録済みのピンの住所は探さない）。住所の保存が前提で、規約の「利用者をまたいで使わない」と共有地図との関係が明確でないため見送った（本文: SS-212 追補）
 - 地理検索の要件が育った段階での PostGIS 等への移行（本文: 移行・対応事項）
 - 駅のデータの更新（国土数値情報の年1回の公開に合わせた手作業）（本文: 移行・対応事項、SS-225 追補）
+- キーを入れる前に配布した iOS のバイナリは、探索の候補（Places の内容）を Apple Maps に出したまま。最低サポートバージョンを上げるまで残る（本文: SS-267 追補）
 
 ### 変更・撤回された決定
 
 - 基盤は Maps / Places / Routes → Geocoding API を追加（SS-138 追補）
 - ピン名の初期値はピンの位置の住所（SS-138 追補）→ 空（「名前のないピン」）に戻し、住所はピン詳細に表示する（SS-212 追補）
 - Geocoding の住所のキャッシュは座標だけのキーで全利用者が共有 → 利用者ごとに分ける（SS-212 追補）
+- 地図の描画は「Android=Google / iOS=Apple Maps」→ iOS もキーを入れたビルドは Google Maps（SS-267 追補）
 
 
 ## 日付
 
-2026-07-19（初版）、2026-08-09 追補（SS-43）、2026-09-15 追補（SS-33）、2026-10-14 追補（SS-138）、2026-10-23 追補（SS-212）、2026-10-24 追補（SS-225）
+2026-07-19（初版）、2026-08-09 追補（SS-43）、2026-09-15 追補（SS-33）、2026-10-14 追補（SS-138）、2026-10-23 追補（SS-212）、2026-10-24 追補（SS-225）、2026-11-14 追補（SS-267）
 
 ## コンテキスト
 
@@ -143,6 +150,28 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
   - 駅のデータは初回の利用時に1回読み（約 20ms）、Lambda の実行環境の間は持ち続ける。DB の表にはしない（PostGIS を入れておらず、
     データは版ごとに丸ごと差し替えるだけなので、コードと一緒に配る方が単純）。
 
+- （SS-267 追補）**ピンタブの検索は Places の Text Search (New) を backend 経由で使う**。ピンタブの上部の入力欄に住所・駅・施設の種類
+  （「コンビニ」など）を入れ、合う場所を地図に打つ（mobile の画面は [ADR-M-026](../../packages/mobile/adr/ADR-M-026-pin-tab-location-search.md)）。
+  - **API**: `POST /explore/places/text-search`（サインイン必須。`/explore` のボディ上限・レート制限・例外の変換を共有）。ボディは
+    `{query, bounds}`（検索語は前後の空白を除き 1〜100 文字。`bounds` は今の地図の表示範囲）、応答は `{results: [{id, name, address, location}], scope}`。
+    見つからなければ 200 + 空の `results`。
+  - **範囲**: まず `locationRestriction` を表示範囲の矩形にして探し、0件なら `locationBias` を表示範囲の中心から半径 50km（円の上限）にして
+    1回だけ広げる（課題の「画面内で検索、無ければ範囲を拡大して1段階で止める」）。`scope` は `visible_area` / `expanded`。1回の検索で Google を最大2回呼ぶ。
+  - **項目**: `places.id,places.displayName,places.formattedAddress,places.location`（Text Search Pro の SKU）。`languageCode=ja`・`regionCode=JP`・`pageSize=20`。
+    住所は逆ジオコーディングと同じ規則で国名・郵便番号を落として半角に揃える（`integrations/google_maps/address.py`）。
+  - **検索語の扱い**: 住所を含みうるので POST の本文で送り（URL・アクセスログ・トレースに載せない）、DB・ログに残さない。backend のメモリの TTL キャッシュ
+    （他の Places と同じ既定 300 秒）のキーにだけ入る。
+  - **結果の並びは変えない**: 規約 3.2.3(g) "Customer will not modify any of the Google Maps Core Services' search results."
+    mobile も距離で並べ替えず、先頭（関連度の順）を「最も合う場所」として扱う。
+  - **Places の内容は Google の地図にだけ出す**: Google Maps Platform Terms of Service 3.2.3(e) "No Use With Non-Google Maps. ... Customer will not use
+    the Google Maps Core Services with or near a non-Google Map in a Customer Application. For example, Customer will not (i) display or use Places
+    content on a non-Google Map, ..."（https://cloud.google.com/maps-platform/terms 、2026-11-14 に取得。"Last modified August 26, 2026"）。
+    iOS は Apple Maps で、検索結果を出せないうえ、既存の探索の候補（`/explore/places` の結果を散歩開始の地図に出す）もこれに当たっていた。
+    実質 iOS 版だけを公開しているので、同じ課題で iOS の地図を Google Maps にした（ユーザー判断。注入と provider の決め方は
+    [ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補）。キーを入れていない iOS のビルドでは、ピンタブの検索を出さない。
+  - **検索結果からピンを登録する導線は作らない**: Places の座標をピンの位置として無期限に保存することになる。Service Specific Terms が保存を認めるのは
+    place_id などの ID（"Customer may cache the Google ID values ... (a) place_id from Places API"）で、座標は含まれない。
+
 ## 検討した選択肢
 
 ### 選択肢1: Google Maps Platform（採用）
@@ -215,6 +244,19 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - なお SS-212 追補では「住所をタグとして自動で付ける」を採らなかった。駅のタグは、Google の内容ではないので保存の規約に当たらず、
   保存前に外せる形で入れるので、その理由（保存になる・上限の圧迫）には当たらない。地図の既存のタグとの表記の統一は ADR-M-013 D4 で行う。
 
+### SS-267追補: ピンタブの検索の検索元
+
+- **Places の Text Search (New) を backend 経由で使う（採用）**: 1つの API で施設の種類・住所・駅名を扱え、日本語の名前・住所が得られる。
+  Text Search Pro の SKU（無料枠の後は従量）で、レート制限（1ユーザー 30 回/分）の枠を使う。
+- **OS ごとに検索元を分ける（Android は Places、iOS は Apple の MKLocalSearch / Apple Maps Server API）**: 両 OS で規約に合うが、実装が2系統になり、
+  iOS はネイティブのモジュールか新しい資格情報が要る。採らない（iOS の地図を Google にすれば1系統で済む）。
+- **規約に触れない範囲だけにする（住所は端末のジオコーダ、駅は同梱の駅のデータ）**: 費用・規約の心配が無いが、「コンビニ」のような種類で探せず、
+  課題の要件を満たさない。採らない。
+- **Places の結果を iOS の Apple Maps にもそのまま出す**: 実装は最小だが、規約 3.2.3(e) の違反を広げる。採らない。
+- **範囲の広げ方を mobile が持つ（2回送る）**: レート制限を2回ぶん使い、規則が mobile と backend に分かれる。backend に寄せた。
+- **広げるときも矩形で制限する（表示範囲を数倍にする）**: 住所・駅が遠いと2回目でも見つからない。課題の住所・駅の例（画面の外ならそこへ動かす）に
+  合わないので、2回目は制限せずに付近を優先する（`locationBias`）。
+
 ## 決定理由
 
 - 本アプリの中核である「往復範囲のスポット提示＋徒歩ルート」を**最短で成立**させられるのは、POI とルーティングが揃う Google Maps Platform だった。
@@ -242,6 +284,9 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - （SS-225 追補）駅の新設・改称は、同梱した駅のデータの版を上げるまで反映されない。路面電車の停留場も「◯◯駅」のタグになる。
   最寄りの1駅だけを見るので、その駅名がタグにできない長さなら、3km 以内に別の駅があってもタグは付かない。
 
+- （SS-267 追補）ピンタブの検索で Text Search の利用量が増える（1回の検索で最大2回）。同じ検索語・同じ範囲は backend のキャッシュで抑える。
+  iOS の地図が Google Maps SDK for iOS になり、端末から Google へ地図データの要求が直接送られる（データ取扱い台帳 3.6・App Privacy）。
+
 - 従量課金のため、利用量監視とキャッシュ設計が継続的に必要。
 - 特定ベンダーへの依存が生じる（抽象化で緩和はするが完全には消えない）。
 - 日本語名が provider に存在しない場合は別言語名になるため、すべての候補が日本語になる保証はない。
@@ -258,6 +303,10 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 - （SS-225 追補）駅のデータを、国土数値情報の新しい版の公開（毎年6月ごろ）に合わせて手で更新する。
   手順と、合わせて直す箇所（`STATION_DATA_SOURCE`・ライセンス画面の出典・使用許諾条件の確認）は `packages/backend/docs/local-development.md`。
 - （SS-138 追補）server key に Geocoding API を許可し、API を有効化する（dev / prod とも。未対応だと Google が HTTP 403（`SERVICE_DISABLED` / `API_KEY_SERVICE_BLOCKED`）を返して 503 になり、名前欄が空のままになる）。実キーで建物名の返り方を確かめ、必要なら住所からの建物名の外し方を見直す。
+
+- （SS-267 追補）server key で Places API (New) の Text Search を使えることを本番で確かめる（Places API (New) は SS-15 から許可済み）。
+- （SS-267 追補）iOS の Maps SDK のキーを作り、EAS に登録する（[ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補）。
+  キーを入れる前に配布した iOS のバイナリは探索の候補を Apple Maps に出したままなので、新しいバイナリを配った後に最低サポートバージョンを上げる。
 
 ## 関連情報
 

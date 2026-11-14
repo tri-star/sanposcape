@@ -284,7 +284,7 @@ maestro test packages/mobile/.maestro/mvp-walk-flow.yaml
 
 ## Google Maps（react-native-maps）
 
-- Android で地図を表示するには Google Maps API キーが必要（iOS は既定の Apple Maps を使うためキー不要）。
+- Android で地図を表示するには Google Maps API キーが必要。iOS は `GOOGLE_MAPS_IOS_SDK_KEY` を入れたときだけ Google Maps になり、入れなければ Apple Maps で動く（ピンタブの検索は出ない。SS-267）。
 - キーはリポジトリにコミットしないため `app.json` に直書きせず、`app.config.ts` が
   環境変数 `GOOGLE_MAPS_ANDROID_SDK_KEY`（`EXPO_PUBLIC_` ではない＝JSバンドルに焼き込まない）を読んで
   `android.config.googleMaps.apiKey` に注入する。
