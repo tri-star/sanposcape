@@ -5,6 +5,9 @@ import "../../styles/legal.css";
 // 改定前の版（2026年10月24日改定）。2026年12月2日施行の改定（SS-248）の前日まで適用する。
 // 改定履歴として残すため、以後は書き換えない（packages/lp/AGENTS.md の「改定の手順」）。
 // 適用の終わる日（appliesUntil）と新しい版の施行日（nextEffectiveOn）だけは、新しい版の施行日に合わせる。
+// 次の版（2026年12月2日施行）の施行を待つ間に、さらに次の不利な改定（SS-267。2026年12月14日施行）をしたので、
+// 次の版は /privacy/ ではなく固定した /privacy/2026-11-07/ にある（nextHref。版が連なるときだけ、日付と同じくリンク先も直す）。
+const nextHref = "/privacy/2026-11-07/";
 const appliesUntil = "2026年12月1日";
 const nextEffectiveOn = "2026年12月2日";
 
@@ -83,7 +86,8 @@ const externalServices = [
 
     <p class="legal-notice">
       この版は {appliesUntil} まで適用されます。{nextEffectiveOn}
-      から適用する版は <a href="/privacy/">プライバシーポリシー</a>{" "}
+      から適用する版は{" "}
+      <a href={nextHref}>プライバシーポリシー（2026年11月7日改定版）</a>{" "}
       をご覧ください。
     </p>
 

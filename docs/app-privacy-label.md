@@ -6,6 +6,7 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 実装の事実（何をどこへ送り、どこに保存するか）の正本は[データ取扱い台帳](./privacy/data-inventory.md)で、この文書は台帳から書く。
 
 > ⚠️ **成熟度（2026-10-19 時点）**: App Store Connect に入力済み（SS-215）。
+> **SS-267 の更新（2026-11-14）は未入力**: 検索履歴・製品の操作の追加と、ユーザ ID・デバイス ID・クラッシュデータ・パフォーマンスデータの出どころ（Google Maps SDK for iOS）。iOS のキーを入れたビルドを公開する前に入力する（PR の申し送り）。
 > 入力時に画面の項目名・選択肢がこの文書と違った記録は無い。次に更新するときに違いに気づけば、この文書を訂正すること。
 
 ## 1. 前提: Apple の定義の要点
@@ -47,11 +48,13 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 | 位置情報 | おおよその位置情報 | はい | いいえ | 機能 | Google SDK |
 | ユーザコンテンツ | 写真またはビデオ | はい | いいえ | 機能 | 運営者 |
 | ユーザコンテンツ | その他のユーザコンテンツ | はい | いいえ | 機能、分析 | 運営者 |
-| ID | ユーザ ID | はい | いいえ | 機能、分析 | 運営者（機能）、Google SDK（機能・分析） |
-| ID | デバイス ID | はい | いいえ | 機能、分析 | Expo（機能・紐づかない）、Google SDK（分析・紐づく） |
+| ID | ユーザ ID | はい | いいえ | 機能、分析 | 運営者（機能）、Google SDK（機能・分析）、Google Maps SDK（分析・紐づく。SS-267） |
+| ID | デバイス ID | はい | いいえ | 機能、分析 | Expo（機能・紐づかない）、Google SDK（分析・紐づく）、Google Maps SDK（機能・分析・紐づかない。SS-267） |
+| 検索履歴 | 検索履歴 | いいえ | いいえ | 機能 | 運営者（ピンタブの検索の検索語。SS-267） |
+| 使用状況データ | 製品の操作 | いいえ | いいえ | 分析 | Google Maps SDK（SS-267） |
 | 使用状況データ | その他の使用状況データ | はい | いいえ | 分析 | Google SDK |
-| 診断 | クラッシュデータ | いいえ | いいえ | 機能 | Expo |
-| 診断 | パフォーマンスデータ | はい | いいえ | 機能、分析 | 運営者 |
+| 診断 | クラッシュデータ | いいえ | いいえ | 機能、分析 | Expo（機能）、Google Maps SDK（分析。SS-267） |
+| 診断 | パフォーマンスデータ | はい | いいえ | 機能、分析 | 運営者、Google Maps SDK（分析・紐づかない。SS-267） |
 | 診断 | その他の診断データ | はい | いいえ | 機能、分析 | 運営者 |
 | その他のデータ | その他のデータタイプ | はい | いいえ | 機能、分析 | Google SDK |
 
@@ -70,6 +73,7 @@ App Store Connect の「App のプライバシー」に入力する内容と、�
 | メールアドレス | Google / Apple から受け取るメールアドレス（`users.email`。Apple は非公開リレーのアドレスの場合がある）。重要なお知らせの連絡にも使うが、マーケティングには使わない | 同上 | 1-2、2 |
 | フィットネス | 散歩の記録の歩いた時間・距離（`walks.duration_seconds` / `distance_meters`）。Motion & Fitness API・HealthKit は使っていないが、運動の記録にあたるため申告する | `walks/models.py` | 1-1 |
 | 正確な位置情報 | 散歩の軌跡（小数 6 桁）、目的地の座標、ピンの座標。ピン地図の表示範囲（小数 4 桁）は `GET /pins` のクエリに載るため、CloudFront のアクセスログに残りうる。Apple の定義では小数 3 桁以上は「正確」。なお、スポット・ルート検索の現在地（小数 4 桁 ≒ 11m）と、住所を引くためのピンの座標（ピン詳細に出す住所。1.0.0 のビルドではピン名の初期値に使う住所。SS-138・SS-212。Google Geocoding API へ送る）は POST のボディで送り、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、DB にもログにも残らない。最寄り駅を引くためのピンの座標（登録画面のタグの初期値。SS-225。フラグの裏）も POST のボディで送り、サーバーは同梱の駅のデータを引くだけでキャッシュもせず、DB にもログにも残らない | `walks/models.py`、`sanpo_maps/models.py`、mobile の `walkTrackPayload.ts` / `pinFetchBounds.ts` / `placeSearchRequest.ts` / `pinAddressRequest.ts` / `pinNearestStationRequest.ts`、backend の `config.py`（キャッシュの TTL） | 1-1、1-5 |
+| 検索履歴 | ピンタブの検索（SS-267）で入力した語句（住所を含みうる）と地図の表示範囲（小数 4 桁）。POST のボディで backend へ送り、backend が Google Places API（Text Search）へ送る。DB にもログにも残さず、サーバーのメモリに数分（既定 300 秒）キャッシュするだけで、キャッシュのキーに利用者の識別子を入れない（紐づかない）。リアルタイムの応答に要る以上は保持しないとも読めるが、検索語を第三者（Google）へ送るので申告する（5. の「検索語を送る → 検索履歴を申告する」） | mobile の `features/pin/lib/location-search/locationSearch.ts`、backend の `maps/router.py`（`/explore/places/text-search`）・`integrations/google_maps/client.py` | 1-1、3、6 |
 | 写真またはビデオ | ピンに添付する写真（S3）と、写真に付随する撮影日時（`pin_photos.taken_at`。SS-163）。Google のプロフィール画像の URL（`users.photo_url`）もここに含める | `sanpo_maps/photos/`、`users/models.py` | 1-2、1-3 |
 | その他のユーザコンテンツ | ピンの名称・メモ・タグ、地図（sanpo map）の名称 | `sanpo_maps/models.py`、`pins/schemas.py` | 1-3 |
 | ユーザ ID | Google / Apple アカウントの ID（`users.provider_subject` = sub）、アカウントの内部 ID（`users.id`） | `users/models.py` | 1-2、1-5 |
@@ -87,16 +91,15 @@ Apple の定義では、アプリに組み込んだ SDK が収集するデータ
 | --- | --- | --- | --- |
 | Google Sign-In for iOS（`GoogleSignIn` ~> 9.0。`react-native-nitro-google-signin` の podspec が依存する） | マニフェストの申告どおり、すべて「紐づく」「トラッキングしない」: 名前（機能）、メールアドレス（機能）、電話番号（機能）、その他のデータタイプ（機能・分析）、おおよその位置情報（機能）、ユーザ ID（機能・分析）、デバイス ID（分析）、その他の使用状況データ（分析） | [GoogleSignIn-iOS の PrivacyInfo.xcprivacy](https://github.com/google/GoogleSignIn-iOS/blob/9.0.0/GoogleSignIn/Sources/Resources/PrivacyInfo.xcprivacy)（2026-10-10 に 9.0.0 と main が同一であることを確認） | 1-7、3（Google でサインインの行） |
 | expo-updates（`app.json` の `updates.url` で本番ビルドでも有効） | 更新を確認するリクエストのヘッダー: インストールごとのランダムな ID（`EAS-Client-ID`）→ デバイス ID（機能・紐づかない）。前回の起動時の致命的なエラーのメッセージ（`Expo-Fatal-Error`、最大 1024 文字）→ クラッシュデータ（機能・紐づかない）。Expo がこれらを保持するかは公開情報で確認できないため、保守的に申告する | `expo-updates` の `FileDownloader.swift` / `FileDownloader.kt`、[Expo: Privacy explained](https://expo.dev/privacy-explained) | 1-7、3（Expo の行） |
-| react-native-maps（iOS は Apple MapKit） | マニフェストで正確な位置情報（紐づかない）を申告している。運営者の「正確な位置情報（紐づく）」に含まれる。MapKit 自体が収集するデータは Apple のため申告不要 | `react-native-maps` の `PrivacyInfo.xcprivacy` | 3（Apple Inc.: マップの行） |
+| react-native-maps（iOS は Apple MapKit） | マニフェストで正確な位置情報（紐づかない）を申告している。運営者の「正確な位置情報（紐づく）」に含まれる。MapKit 自体が収集するデータは Apple のため申告不要。**contract 待ち**: MapKit で描くのは SS-267 より前の iOS のバイナリ（とキーを入れていないビルド）だけ（データ取扱い台帳 6） | `react-native-maps` の `PrivacyInfo.xcprivacy` | 3（Apple Inc.: マップの行） |
+| Google Maps SDK for iOS（`react-native-maps/Google` の pod。`GOOGLE_MAPS_IOS_SDK_KEY` を入れたビルド。SS-267） | マニフェストの申告どおり、すべて「トラッキングしない」: クラッシュデータ（分析・紐づかない）、デバイス ID（機能・分析・紐づかない）、パフォーマンスデータ（分析・紐づかない）、製品の操作（分析・紐づかない）、ユーザ ID（分析・紐づく）。地図データの要求は Google（台帳 3.6） | `react-native-maps` の `ios/AirGoogleMaps/Resources/GoogleMapsPrivacy.bundle/PrivacyInfo.xcprivacy`（1.29.8）。Xcode のプライバシーレポートで、ビルドに入った GoogleMaps の pod のマニフェストと食い違わないか確かめる | 3（Google Maps SDK for Android・Google Maps SDK for iOS の行）、1-7 |
 | expo-apple-authentication（iOS の AuthenticationServices。SS-199） | プライバシーマニフェストを持たない。認可のシートは Apple のフレームワークで、Apple が収集するデータは申告不要（1. の前提）。アプリが受け取る氏名・メールアドレス・ユーザ ID は運営者の収集として上の表に含めている | expo-apple-authentication のパッケージ（PrivacyInfo.xcprivacy が無い） | 1-2、3（Apple Inc.: Apple でサインインの行） |
 
 ### 3.2 申告しないもの
 
 | データの種類 | 申告しない理由 |
 | --- | --- |
-| 検索履歴 | アプリから検索語を送っていない。`GET /pins` の `q` / `tags` は API にあるが、mobile で `GET /pins` を呼ぶ `pinFetchBounds.ts` と `sanpoMapPinList.ts` のどちらも送らない。スポット探索の条件は POST のボディで送り、DB にもログにも残さない（メモリに数分キャッシュするだけで、利用者の識別子と結び付けない） |
 | 認証トークン | セッションのトークンは、サーバーには照合用のハッシュだけを保存し、読める形で保持しない。Apple でサインインした場合の Apple の refresh token は平文で保存する（アカウント削除時に Apple で失効させるため。ADR-002 の SS-198 追補）が、利用者についての情報ではなく Apple の定義のデータの種類に当たらない。ポリシーには 1-4・9 に書いている |
-| 製品の操作（Product Interaction） | アクセス解析のツールを組み込んでいない。backend のアクセスログはリクエスト単位の記録で、診断データとして申告している（Google SDK の利用状況は「その他の使用状況データ」として申告している） |
 | 広告データ・購入履歴・財務情報・連絡先・健康・機密情報・音声・閲覧履歴など | 該当する機能が無い（マイクの権限も要求しない）。組み込んだ SDK のマニフェストにも無い |
 
 ### 3.3 判断が分かれたもの
