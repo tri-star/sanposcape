@@ -192,6 +192,9 @@ class Settings(BaseSettings):
     # --- Google Maps Platform (server-side only) ---
     google_maps_server_api_key: str = ""
     google_maps_connect_timeout_seconds: float = Field(default=3.0, gt=0)
+    # ピンタブの検索（`/explore/places/text-search`。SS-267）は Google を最大2回呼び、
+    # それぞれをこの値で打ち切る。
+    # 2 ×（connect + read）が `_REQUEST_TIME_BUDGET_SECONDS` を超えないようにする（既定で 22 秒）。
     google_maps_read_timeout_seconds: float = Field(default=8.0, gt=0)
     google_maps_search_deadline_seconds: float = Field(default=10.0, gt=0)
     google_maps_cache_ttl_seconds: int = Field(default=300, gt=0)

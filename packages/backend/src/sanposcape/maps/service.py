@@ -150,7 +150,9 @@ class MapsService:
         Google への呼び出しはそれぞれ `text_search_timeout_seconds` で打ち切る
         （2回で1つの期限を分けると、1回目が遅いと2回目が始まる前に時間切れになり、
         「見つからない」ではなく 503 になるため）。
-        最悪でも2回分（既定 8 秒 × 2 と接続の時間）で、Lambda の上限（29 秒）に収まる。
+        既定値（接続 3 秒・読み取り 8 秒）なら最悪 2 ×（3 + 8）= 22 秒で、時間予算（`config.py` の
+        `_REQUEST_TIME_BUDGET_SECONDS` = 25 秒）に収まる。
+        読み取りの上限を上げるときは、この2回分も予算に入れる。
         """
         south_west = self._provider_point(request.bounds.south_west)
         north_east = self._provider_point(request.bounds.north_east)
