@@ -37,7 +37,6 @@ from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.router import router as maps_router
 from sanposcape.sanpo_maps.exceptions import (
-    FeatureDisabledError,
     PinMoveTargetMissingMembersError,
     PinNotFoundError,
     PinPhotoNotFoundError,
@@ -215,12 +214,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return JSONResponse(
             status_code=409, content={"detail": "Invitation limit reached", "code": exc.code}
-        )
-
-    @app.exception_handler(FeatureDisabledError)
-    async def _feature_disabled(request: Request, exc: FeatureDisabledError) -> JSONResponse:
-        return JSONResponse(
-            status_code=403, content={"detail": "Feature disabled", "code": "feature_disabled"}
         )
 
     @app.exception_handler(SanpoMapOwnerCannotLeaveError)

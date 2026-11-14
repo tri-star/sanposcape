@@ -6,9 +6,12 @@ from fastapi.testclient import TestClient
 
 from sanposcape.app_config.dependencies import get_feature_flags
 from sanposcape.config import Settings
-from sanposcape.core.feature_flags import FeatureFlags
+from sanposcape.core.feature_flags import FIXED_CLIENT_FLAGS, FeatureFlags
 from sanposcape.integrations.aws.appconfig import FlagDocument
 from sanposcape.main import create_app
+
+# 登録簿に通常のフラグが無い間、`flags` は固定値のキーだけになる（ADR-008 SS-233 追補 D40）。
+FIXED_FLAGS = dict.fromkeys(FIXED_CLIENT_FLAGS, True)
 
 
 class _CountingFlagDocumentSource:
@@ -79,13 +82,7 @@ def test_get_app_config_response_shape(stub_client: TestClient) -> None:
     response = stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {
-            "pin_registration": True,
-            "pin_station_tag": False,
-            "map_invitation": False,
-            "map_pin_visibility": False,
-            "display_name_edit": False,
-        },
+        "flags": FIXED_FLAGS,
         "minimum_supported_versions": {"ios": "1.2.3", "android": "1.2.4"},
         "config_source": "stub",
     }
@@ -96,7 +93,10 @@ def test_get_app_config_sets_cache_control_no_store(stub_client: TestClient) -> 
     assert response.headers["Cache-Control"] == "no-store"
 
 
-def test_get_app_config_reflects_changes_to_stub_document() -> None:
+def test_get_app_config_keeps_fixed_flags_true_even_if_the_document_turns_them_off() -> None:
+    """固定値に移したフラグ（ADR-008 SS-233 追補 D40）は、AppConfig に残った値が OFF でも True。
+    配布済みのアプリ（1.0.0・1.1.0）がこのキーで機能を出し分けているため。
+    """
     settings = Settings(
         env="test",
         feature_flag_mode="stub",
@@ -105,28 +105,16 @@ def test_get_app_config_reflects_changes_to_stub_document() -> None:
     app = create_app(settings)
     with TestClient(app) as client:
         response = client.get("/app-config")
-    assert response.json()["flags"] == {
-        "pin_registration": False,
-        "pin_station_tag": False,
-        "map_invitation": False,
-        "map_pin_visibility": False,
-        "display_name_edit": False,
-    }
+    assert response.json()["flags"] == FIXED_FLAGS
 
 
-def test_get_app_config_with_empty_stub_document_returns_all_off(
+def test_get_app_config_with_empty_stub_document_returns_only_fixed_flags(
     empty_stub_client: TestClient,
 ) -> None:
     response = empty_stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {
-            "pin_registration": False,
-            "pin_station_tag": False,
-            "map_invitation": False,
-            "map_pin_visibility": False,
-            "display_name_edit": False,
-        },
+        "flags": FIXED_FLAGS,
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "stub",
     }
@@ -141,13 +129,7 @@ def test_get_app_config_falls_back_to_default_when_appconfig_unconfigured(
     response = unconfigured_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": {
-            "pin_registration": False,
-            "pin_station_tag": False,
-            "map_invitation": False,
-            "map_pin_visibility": False,
-            "display_name_edit": False,
-        },
+        "flags": FIXED_FLAGS,
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "default",
     }

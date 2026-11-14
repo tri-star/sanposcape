@@ -3,14 +3,27 @@ from typing import Any
 
 import pytest
 
+from sanposcape.core import feature_flags as feature_flags_module
 from sanposcape.core.feature_flags import (
     FEATURE_FLAGS,
+    FIXED_CLIENT_FLAGS,
     FLAG_KEY_PATTERN,
     RESERVED_FLAG_KEYS,
     FeatureFlags,
+    FeatureFlagSpec,
     MinimumSupportedVersions,
 )
 from sanposcape.integrations.aws.appconfig import FlagDocument
+
+SAMPLE_FLAG = "sample_flag"
+
+
+@pytest.fixture(autouse=True)
+def sample_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """通常のフラグの挙動は、テスト用のフラグ1本の登録簿で確かめる（本物の登録簿は空のことがある）。"""
+    spec = FeatureFlagSpec(key=SAMPLE_FLAG, description="test", audience="client")
+    monkeypatch.setattr(feature_flags_module, "FEATURE_FLAGS", (spec,))
+    monkeypatch.setattr(feature_flags_module, "_FLAGS_BY_KEY", {SAMPLE_FLAG: spec})
 
 
 class _FakeFlagDocumentSource:
@@ -46,27 +59,49 @@ def test_all_flag_audiences_are_valid() -> None:
         assert spec.audience in ("client", "backend")
 
 
+def test_fixed_flag_keys_match_the_key_pattern_and_collide_with_nothing() -> None:
+    """固定値のキー（ADR-008 D40）は、登録簿・予約キーと重ならない（値の出どころが2つになる）。"""
+    for key in FIXED_CLIENT_FLAGS:
+        assert FLAG_KEY_PATTERN.match(key), key
+    assert FIXED_CLIENT_FLAGS.isdisjoint({spec.key for spec in FEATURE_FLAGS})
+    assert FIXED_CLIENT_FLAGS.isdisjoint(RESERVED_FLAG_KEYS)
+
+
+def test_fixed_flags_include_the_flags_retired_in_ss_271() -> None:
+    """1.0.0・1.1.0 がこのキーで機能を出し分けている。
+
+    段階2 の前に消すと、配布済みのアプリから機能が消える。
+    """
+    assert {
+        "pin_registration",
+        "pin_station_tag",
+        "map_invitation",
+        "map_pin_visibility",
+        "display_name_edit",
+    } <= FIXED_CLIENT_FLAGS
+
+
 # --- client_flags() ---
 
 
 def test_client_flags_includes_registered_client_flags_missing_from_appconfig() -> None:
     flags = FeatureFlags(_FakeFlagDocumentSource({}))
     result = flags.client_flags()
-    assert result == {spec.key: False for spec in FEATURE_FLAGS if spec.audience == "client"}
+    assert result == {SAMPLE_FLAG: False, **dict.fromkeys(FIXED_CLIENT_FLAGS, True)}
 
 
 def test_client_flags_reflects_appconfig_value() -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": {"enabled": True}}))
-    assert flags.client_flags()["pin_registration"] is True
+    flags = FeatureFlags(_FakeFlagDocumentSource({SAMPLE_FLAG: {"enabled": True}}))
+    assert flags.client_flags()[SAMPLE_FLAG] is True
 
 
 def test_client_flags_excludes_backend_only_flags(monkeypatch: pytest.MonkeyPatch) -> None:
-    from sanposcape.core import feature_flags as feature_flags_module
-
-    backend_only = feature_flags_module.FeatureFlagSpec(
-        key="backend_only_flag", description="test", audience="backend"
+    backend_only = FeatureFlagSpec(key="backend_only_flag", description="test", audience="backend")
+    monkeypatch.setattr(
+        feature_flags_module,
+        "FEATURE_FLAGS",
+        (*feature_flags_module.FEATURE_FLAGS, backend_only),
     )
-    monkeypatch.setattr(feature_flags_module, "FEATURE_FLAGS", (*FEATURE_FLAGS, backend_only))
     flags = FeatureFlags(_FakeFlagDocumentSource({"backend_only_flag": {"enabled": True}}))
     assert "backend_only_flag" not in flags.client_flags()
 
@@ -75,7 +110,7 @@ def test_client_flags_ignores_unknown_appconfig_keys() -> None:
     flags = FeatureFlags(
         _FakeFlagDocumentSource(
             {
-                "pin_registration": {"enabled": False},
+                SAMPLE_FLAG: {"enabled": False},
                 "some_future_flag_not_yet_deployed": {"enabled": True},
             }
         )
@@ -83,23 +118,42 @@ def test_client_flags_ignores_unknown_appconfig_keys() -> None:
     assert "some_future_flag_not_yet_deployed" not in flags.client_flags()
 
 
+@pytest.mark.parametrize("kind", ["appconfig", "default", "stub"])
+def test_client_flags_returns_fixed_flags_as_true_whatever_appconfig_says(kind: str) -> None:
+    """固定値は AppConfig の値・取得の状態（一度も取得できていない `default`）に関わらず True
+    （ADR-008 SS-233 追補 D40。決定9 の全 OFF より優先する）。
+    """
+    key = sorted(FIXED_CLIENT_FLAGS)[0]
+    flags = FeatureFlags(_FakeFlagDocumentSource({key: {"enabled": False}}, kind=kind))
+
+    result = flags.client_flags()
+
+    assert all(result[fixed] is True for fixed in FIXED_CLIENT_FLAGS)
+
+
+def test_is_enabled_returns_true_for_fixed_flags() -> None:
+    key = sorted(FIXED_CLIENT_FLAGS)[0]
+    flags = FeatureFlags(_FakeFlagDocumentSource({}, kind="default"))
+    assert flags.is_enabled(key) is True
+
+
 def test_client_flags_treats_non_bool_string_enabled_value_as_off(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": {"enabled": "true"}}))
+    flags = FeatureFlags(_FakeFlagDocumentSource({SAMPLE_FLAG: {"enabled": "true"}}))
     with caplog.at_level(logging.WARNING, logger="sanposcape.core.feature_flags"):
         result = flags.client_flags()
-    assert result["pin_registration"] is False
+    assert result[SAMPLE_FLAG] is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
 def test_client_flags_treats_non_dict_flag_value_as_off(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": True}))
+    flags = FeatureFlags(_FakeFlagDocumentSource({SAMPLE_FLAG: True}))
     with caplog.at_level(logging.WARNING, logger="sanposcape.core.feature_flags"):
         result = flags.client_flags()
-    assert result["pin_registration"] is False
+    assert result[SAMPLE_FLAG] is False
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
@@ -179,8 +233,8 @@ def test_is_enabled_returns_false_for_unregistered_key(caplog: pytest.LogCapture
 
 
 def test_is_enabled_returns_registered_flag_value() -> None:
-    flags = FeatureFlags(_FakeFlagDocumentSource({"pin_registration": {"enabled": True}}))
-    assert flags.is_enabled("pin_registration") is True
+    flags = FeatureFlags(_FakeFlagDocumentSource({SAMPLE_FLAG: {"enabled": True}}))
+    assert flags.is_enabled(SAMPLE_FLAG) is True
 
 
 # --- source_kind() ---
@@ -196,11 +250,9 @@ def test_source_kind_reflects_document_kind(kind: str) -> None:
 
 
 def test_get_document_delegates_to_source() -> None:
-    source = _FakeFlagDocumentSource({"pin_registration": {"enabled": True}})
+    source = _FakeFlagDocumentSource({SAMPLE_FLAG: {"enabled": True}})
     flags = FeatureFlags(source)
-    assert flags.get_document() == FlagDocument(
-        {"pin_registration": {"enabled": True}}, kind="appconfig"
-    )
+    assert flags.get_document() == FlagDocument({SAMPLE_FLAG: {"enabled": True}}, kind="appconfig")
     assert source.call_count == 1
 
 
@@ -211,7 +263,7 @@ def test_client_flags_minimum_supported_versions_and_source_kind_accept_a_shared
     """
     source = _FakeFlagDocumentSource(
         {
-            "pin_registration": {"enabled": True},
+            SAMPLE_FLAG: {"enabled": True},
             "client_requirements": {
                 "enabled": True,
                 "ios_minimum_version": "1.2.3",
@@ -227,6 +279,6 @@ def test_client_flags_minimum_supported_versions_and_source_kind_accept_a_shared
     flags.client_flags(document)
     flags.minimum_supported_versions(document)
     flags.source_kind(document)
-    flags.is_enabled("pin_registration", document)
+    flags.is_enabled(SAMPLE_FLAG, document)
 
     assert source.call_count == 1

@@ -6,10 +6,8 @@ from sanposcape.dependencies import get_current_user, get_current_user_optional
 from sanposcape.sanpo_maps.invitations.dependencies import (
     enforce_invitation_rate_limit,
     get_sanpo_map_invitation_service,
-    require_map_invitation_enabled,
 )
 from sanposcape.sanpo_maps.invitations.schemas import (
-    FeatureDisabledErrorRead,
     InvitationLimitErrorRead,
     InvitationNotFoundErrorRead,
     InvitationPreviewRead,
@@ -30,9 +28,6 @@ _ERROR_RESPONSES = {
     401: {"description": "Not authenticated"},
     413: {"description": "Request body too large"},
 }
-_FEATURE_DISABLED = {
-    403: {"model": FeatureDisabledErrorRead, "description": "Map invitation is disabled"},
-}
 _NOT_FOUND = {
     404: {"model": InvitationNotFoundErrorRead, "description": "Invitation not usable"},
 }
@@ -43,10 +38,9 @@ _NOT_FOUND = {
     response_model=SanpoMapInvitationCreatedRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="create_sanpo_map_invitation",
-    dependencies=[Depends(require_map_invitation_enabled)],
     responses={
         **_ERROR_RESPONSES,
-        403: {"description": "Permission denied, or map invitation is disabled"},
+        403: {"description": "Permission denied"},
         404: {"description": "Sanpo map not found"},
         409: {"model": InvitationLimitErrorRead, "description": "Invitation or member limit"},
         422: {"description": "Validation error"},
@@ -62,7 +56,6 @@ def create_sanpo_map_invitation(
     1つのリンクで参加できるのは1人、有効期限は7日。`token` と `url`（`<招待ページ>#<token>`）は
     この応答でだけ返す（DB にはハッシュだけを保存する）。メンバーが上限（10人）なら 409
     `member_limit_reached`、有効なリンクが上限（10件）なら 409 `invitation_limit_exceeded`。
-    フラグ `map_invitation` が OFF なら 403 `feature_disabled`。
     """
     return service.create_invitation(current_user, sanpo_map_id)
 
@@ -119,9 +112,8 @@ def revoke_sanpo_map_invitation(
     "/invitations/preview",
     response_model=InvitationPreviewRead,
     operation_id="preview_invitation",
-    dependencies=[Depends(require_map_invitation_enabled), Depends(enforce_invitation_rate_limit)],
+    dependencies=[Depends(enforce_invitation_rate_limit)],
     responses={
-        **_FEATURE_DISABLED,
         **_NOT_FOUND,
         413: {"description": "Request body too large"},
         422: {"description": "Validation error"},
@@ -146,10 +138,9 @@ def preview_invitation(
     "/invitations/accept",
     response_model=SanpoMapRead,
     operation_id="accept_invitation",
-    dependencies=[Depends(require_map_invitation_enabled), Depends(enforce_invitation_rate_limit)],
+    dependencies=[Depends(enforce_invitation_rate_limit)],
     responses={
         **_ERROR_RESPONSES,
-        **_FEATURE_DISABLED,
         **_NOT_FOUND,
         409: {"model": InvitationLimitErrorRead, "description": "Member limit reached"},
         422: {"description": "Validation error"},

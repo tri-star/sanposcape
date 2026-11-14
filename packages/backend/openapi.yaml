@@ -926,9 +926,7 @@ paths:
 
         この応答でだけ返す（DB にはハッシュだけを保存する）。メンバーが上限（10人）なら 409
 
-        `member_limit_reached`、有効なリンクが上限（10件）なら 409 `invitation_limit_exceeded`。
-
-        フラグ `map_invitation` が OFF なら 403 `feature_disabled`。'
+        `member_limit_reached`、有効なリンクが上限（10件）なら 409 `invitation_limit_exceeded`。'
       operationId: create_sanpo_map_invitation
       security:
       - HTTPBearer: []
@@ -952,7 +950,7 @@ paths:
         '413':
           description: Request body too large
         '403':
-          description: Permission denied, or map invitation is disabled
+          description: Permission denied
         '404':
           description: Sanpo map not found
         '409':
@@ -1068,12 +1066,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvitationPreviewRead'
-        '403':
-          description: Map invitation is disabled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FeatureDisabledErrorRead'
         '404':
           description: Invitation not usable
           content:
@@ -1115,12 +1107,6 @@ paths:
           description: Not authenticated
         '413':
           description: Request body too large
-        '403':
-          description: Map invitation is disabled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FeatureDisabledErrorRead'
         '404':
           description: Invitation not usable
           content:
@@ -1882,21 +1868,6 @@ components:
       - park
       - station
       title: ExploreCategory
-    FeatureDisabledErrorRead:
-      properties:
-        detail:
-          type: string
-          title: Detail
-        code:
-          type: string
-          const: feature_disabled
-          title: Code
-      type: object
-      required:
-      - detail
-      - code
-      title: FeatureDisabledErrorRead
-      description: フラグ `map_invitation` が OFF のときの 403。
     GeoPoint:
       properties:
         latitude:

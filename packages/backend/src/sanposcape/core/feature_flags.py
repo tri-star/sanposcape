@@ -35,6 +35,7 @@ from sanposcape.integrations.aws.appconfig import (
 # 書かれていたのを1箇所に寄せた）。
 __all__ = [
     "FEATURE_FLAGS",
+    "FIXED_CLIENT_FLAGS",
     "FLAG_KEY_PATTERN",
     "RESERVED_FLAG_KEYS",
     "FeatureFlagSpec",
@@ -74,57 +75,32 @@ class FeatureFlagSpec:
 # キーを足す / 消すときは packages/backend/feature-flags.json（切り替えワークフローが使う
 # 定義ファイル）も合わせて変更する。キー集合の一致は core/tests/test_feature_flags_document.py
 # で検査している（SS-99, ADR-008 追補 D19）。
-# 本番で現在 ON の `audience="client"` のフラグを消すときは、ここから消さずに
-# 固定値を返すキーへ移す。配布済みの mobile は未知キーを OFF に倒すため、キーが
-# 返らなくなると公開済みの機能が消える（ADR-008 SS-233 追補 D40。固定値を返す
-# 仕組みは、最初にそうしたフラグを消すときに実装する）。
-FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
-    FeatureFlagSpec(
-        key="pin_registration",
-        description=(
-            "ピン登録（SS-88）。mobile の『この場所にピンを追加』と登録画面を出し分ける。"
-            "infra SS-106/107 と template.yaml の結線（BK-1）が揃ってから ON にする。"
-            "backend の API 自体はこのフラグでガードしない（B-U4）。"
-        ),
-        audience="client",
-    ),
-    FeatureFlagSpec(
-        key="pin_station_tag",
-        description=(
-            "ピンの登録画面で、最寄り駅（3km 以内）の名前のタグを最初から入れておく（SS-225）。"
-            "ON にする前に、ポリシーの改定（ピンの座標を送る場面の追加）を本番の LP に出す。"
-            "backend の `POST /explore/nearest-station` 自体はこのフラグでガードしない。"
-        ),
-        audience="client",
-    ),
-    FeatureFlagSpec(
-        key="map_invitation",
-        description=(
-            "地図への招待（SS-90）。mobile の地図詳細のメンバーの行・メンバー画面・"
-            "招待の導線を出し分ける。ON にするのはプライバシーポリシーの施行日"
-            "（2026-12-02）の後で、SS-222 を済ませ、SS-192（ピンの移動を移動先に移動元の"
-            "全メンバーがいる場合に限る）を本番にデプロイしてから。"
-            "メンバーの一覧・脱退の API はガードしない（OFF に戻しても抜けられるように）。"
-        ),
-        audience="client",
-    ),
-    FeatureFlagSpec(
-        key="map_pin_visibility",
-        description=(
-            "地図単位のピンの表示・非表示（SS-266）。mobile の「表示するピン」シートの"
-            "「表示する地図」の節と、非表示にした地図のピンを地図に出さないことを出し分ける。"
-            "`PATCH /sanpo-maps/{id}/members/me` と応答の `pins_visible` はガードしない。"
-        ),
-        audience="client",
-    ),
-    FeatureFlagSpec(
-        key="display_name_edit",
-        description=(
-            "表示名の変更（SS-268）。mobile の設定画面の「表示名」の節を出し分ける。"
-            "`PATCH /users/me` はガードしない（本人の行しか変えられない）。"
-        ),
-        audience="client",
-    ),
+# 本番で現在 ON の `audience="client"` のフラグを消すときは、ここから消して
+# `FIXED_CLIENT_FLAGS` へ移す。配布済みの mobile は未知キーを OFF に倒すため、キーが
+# 返らなくなると公開済みの機能が消える（ADR-008 SS-233 追補 D40）。
+FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = ()
+
+# 削除の段階1 で固定値 `true` に移した、mobile が見るフラグ（ADR-008 SS-233 追補 D40）。
+# `/app-config` は AppConfig の取得の状態に関わらず `true` を返す（一度も取得できていない間の
+# 全 OFF（決定9）より優先する）。定義ファイル（feature-flags.json）には置かないので、
+# ワークフローからは切り替えられない。分岐を消したコードを埋め込んだ最初のストアのバイナリの
+# version 以上に最低サポートバージョンを上げてから、ここから消す（段階2。docs/compat-tracker.md）。
+# 消すまでは、どのフラグの切り替えでも `prune` を付けない（段階1 より前の backend へ戻したときに
+# AppConfig の値が要るため）。
+FIXED_CLIENT_FLAGS: frozenset[str] = frozenset(
+    {
+        # ピン登録（SS-88）。1.0.0・1.1.0 がピンタブ・ピン登録・地図一覧などを出し分けている。
+        # SS-271 で固定。
+        "pin_registration",
+        # ピンの登録画面の最寄り駅のタグ（SS-225）。1.1.0 が出し分けている。SS-271 で固定。
+        "pin_station_tag",
+        # 地図への招待（SS-90）。1.1.0 が出し分けている。SS-271 で固定。
+        "map_invitation",
+        # 地図単位のピンの表示・非表示（SS-266）。1.1.0 が出し分けている。SS-271 で固定。
+        "map_pin_visibility",
+        # 表示名の変更（SS-268）。1.1.0 が出し分けている。SS-271 で固定。
+        "display_name_edit",
+    }
 )
 
 
@@ -140,6 +116,11 @@ def _validate_registry() -> None:
         if spec.audience not in ("client", "backend"):
             raise ValueError(f"Invalid feature flag audience: {spec.audience!r}")
         seen.add(spec.key)
+    for key in FIXED_CLIENT_FLAGS:
+        if not FLAG_KEY_PATTERN.match(key):
+            raise ValueError(f"Invalid fixed feature flag key: {key!r}")
+        if key in RESERVED_FLAG_KEYS or key in seen:
+            raise ValueError(f"Fixed feature flag key collides with another key: {key!r}")
 
 
 _validate_registry()
@@ -183,6 +164,8 @@ class FeatureFlags:
         """将来 `*, context=...`（ダークローンチ用）を足せる形にしておく
         （ADR-008 追補 D2。既存呼び出しはキーワード引数を渡していないため無変更で済む）。
         """
+        if key in FIXED_CLIENT_FLAGS:
+            return True
         if key not in _FLAGS_BY_KEY:
             logger.warning("is_enabled() called with an unregistered flag key: %s", key)
             return False
@@ -191,8 +174,10 @@ class FeatureFlags:
     def client_flags(self, document: FlagDocument | None = None) -> dict[str, bool]:
         """登録簿にある client 公開フラグを必ず全部返す（AppConfig 側に無ければ False）。
 
-        AppConfig 側にある未知キー（登録簿にも予約キーにも無いもの）は無視する。
-        これにより応答のキー集合が「デプロイされている backend のバージョン」だけで決まる。
+        `FIXED_CLIENT_FLAGS` は AppConfig の値を見ずに常に True を返す（ADR-008 SS-233 追補 D40）。
+        AppConfig 側にある未知キー（登録簿にも予約キーにも無いもの。固定値のキーの残った値を
+        含む）は無視する。これにより応答のキー集合が「デプロイされている backend のバージョン」
+        だけで決まる。
         """
         if document is None:
             document = self.get_document()
@@ -200,11 +185,13 @@ class FeatureFlags:
         unknown_keys = set(document.values) - known_keys
         if unknown_keys:
             logger.debug("Ignoring unknown AppConfig flag keys: %s", sorted(unknown_keys))
-        return {
+        flags = {
             spec.key: self._flag_enabled(document, spec.key)
             for spec in FEATURE_FLAGS
             if spec.audience == "client"
         }
+        flags.update(dict.fromkeys(sorted(FIXED_CLIENT_FLAGS), True))
+        return flags
 
     def minimum_supported_versions(
         self, document: FlagDocument | None = None
