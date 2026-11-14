@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-11-14（SS-267、SS-225、SS-212）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-15（SS-272、SS-267、SS-225、SS-212）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -30,6 +30,8 @@
   結果の並びは変えない。mobile の画面は [ADR-M-026](../../packages/mobile/adr/ADR-M-026-pin-tab-location-search.md)。（本文: SS-267 追補）
 - **Places の内容は Google の地図にだけ出す（規約 3.2.3(e)）**。そのため iOS の地図も Google Maps にする（キーを入れたビルド。
   [ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補）。（本文: SS-267 追補）
+- **検索結果の座標を初期位置にしてピンを登録できる（名前は渡さない）**。Places の緯度経度は 30 日までの一時キャッシュしか認められておらず
+  （Service Specific Terms 14.3）、ピンとして無期限に残すのは規約に反するリスクがある。ユーザーが承知のうえで操作の短さを優先した。（本文: SS-272 追補）
 - **位置データは緯度経度の列 + 単純検索**。PostGIS 等への移行余地を残す。（本文: 決定）
 
 ### 未解決・持ち越し
@@ -46,11 +48,12 @@
 - ピン名の初期値はピンの位置の住所（SS-138 追補）→ 空（「名前のないピン」）に戻し、住所はピン詳細に表示する（SS-212 追補）
 - Geocoding の住所のキャッシュは座標だけのキーで全利用者が共有 → 利用者ごとに分ける（SS-212 追補）
 - 地図の描画は「Android=Google / iOS=Apple Maps」→ iOS もキーを入れたビルドは Google Maps（SS-267 追補）
+- 検索結果からピンを登録する導線は作らない（SS-267 追補）→ 検索結果の座標を初期位置にして登録画面を開く（SS-272 追補。規約に反するリスクを承知のうえのユーザー判断）
 
 
 ## 日付
 
-2026-07-19（初版）、2026-08-09 追補（SS-43）、2026-09-15 追補（SS-33）、2026-10-14 追補（SS-138）、2026-10-23 追補（SS-212）、2026-10-24 追補（SS-225）、2026-11-14 追補（SS-267）
+2026-07-19（初版）、2026-08-09 追補（SS-43）、2026-09-15 追補（SS-33）、2026-10-14 追補（SS-138）、2026-10-23 追補（SS-212）、2026-10-24 追補（SS-225）、2026-11-14 追補（SS-267）、2026-11-15 追補（SS-272）
 
 ## コンテキスト
 
@@ -174,6 +177,17 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
     [ADR-M-007](../../packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補）。キーを入れていない iOS のビルドでは、ピンタブの検索を出さない。
   - **検索結果からピンを登録する導線は作らない**: Places の座標をピンの位置として無期限に保存することになる。Service Specific Terms が保存を認めるのは
     place_id などの ID（"Customer may cache the Google ID values ... (a) place_id from Places API"）で、座標は含まれない。
+    （**SS-272 追補**: この決定は変えた。下の SS-272 追補）
+- （SS-272 追補）**ピンタブの検索結果のカードから、検索結果の座標を初期位置にしてピンの登録画面を開く**（名前は渡さない。mobile の画面は
+  [ADR-M-026](../../packages/mobile/adr/ADR-M-026-pin-tab-location-search.md) の SS-272 追補）。
+  - 規約の確認: Service Specific Terms（https://cloud.google.com/maps-platform/terms/maps-service-terms 、2026-11-15 に取得。"Previous versions (Last modified October 28, 2026)"）の
+    14.3 "Customer may temporarily cache latitude and longitude values from the Places API for up to 30 consecutive calendar days, after which Customer must
+    delete the cached latitude and longitude values."。名前・住所の保存を認める条項は無い。Address Validation API（1.3.2）には「利用者の確認・訂正で
+    置き換えれば残してよい」（"replace it with End User data provided through End User confirmation or correction"）があるが、Places API には無い。
+    そのため、登録画面で位置を確かめて保存しても、検索結果の座標をピンとして無期限に残すことは規約に反するリスクがある。
+  - ユーザー判断: 規約に沿う案（登録画面を位置未定で開いて利用者がタップで決める・ピンタブで寄せて長押しを案内する）と比べたうえで、
+    操作の短さを優先して、検索結果の座標で開く案を選んだ（2026-11-15）。
+  - 名前の初期値に検索結果の名前は入れない（座標と違い、一時キャッシュの許可も無い）。登録画面のピンの名前は利用者が入力する。
 
 ## 検討した選択肢
 
@@ -289,6 +303,10 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
 
 - （SS-267 追補）ピンタブの検索で Text Search の利用量が増える（1回の検索で最大2回）。同じ検索語・同じ範囲は backend のキャッシュで抑える。
   iOS の地図が Google Maps SDK for iOS になり、端末から Google へ地図データの要求が直接送られる（データ取扱い台帳 3.6・App Privacy）。
+
+- （SS-272 追補）検索結果から登録したピンは、Places の座標（利用者が位置を調整しなければそのまま）を DB に無期限に残す。
+  Service Specific Terms 14.3（30 日までの一時キャッシュ）に反するリスクを負う。Google の指摘・規約の改定があれば、導線を外すか、
+  位置を利用者が選ぶ形（登録画面を位置未定で開く）に変える。
 
 - 従量課金のため、利用量監視とキャッシュ設計が継続的に必要。
 - 特定ベンダーへの依存が生じる（抽象化で緩和はするが完全には消えない）。
