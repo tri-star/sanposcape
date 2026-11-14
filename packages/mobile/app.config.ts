@@ -193,7 +193,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
  *   （`react-native-maps/Google`）・Info.plist の `GMSApiKey`・AppDelegate の `GMSServices.provideAPIKey` を入れる。
  * - plugin は `androidGoogleMapsApiKey` が無いと AndroidManifest の API_KEY を消すので、Android のキーも同じ値を渡す
  *   （ADR-M-007 が plugin を使わなかった理由。キーが無いときは `android.config` も付けないので結果は同じ）。
- * - `extra.iosGoogleMaps` を JS へ渡し、`src/lib/mapProvider.ts` が `provider` を決める。pod の無いビルドで
+ * - `extra.iosGoogleMaps` を JS へ渡し、`src/config/mapProvider.ts` が `provider` を決める。pod の無いビルドで
  *   `provider="google"` を指定すると地図が出ないため、キーの有無と同じ条件にする。
  *   `extra` は OTA では update を作ったときの値になるが、ネイティブの変更なので fingerprint の比較（runbook §6.1）で
  *   pod の無いバイナリへは配られない。

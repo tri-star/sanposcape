@@ -44,7 +44,7 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
 - `lineDashPattern` を付けた `Polyline` は、iOS で**太さと破線パターンの両方が拡大**されて描かれる（スクリーンショット1枚の実測で、太さ 5 の破線が約 12.5〜13.4pt・破線の周期が約 2.2 倍。同じ太さの実線は 5pt）。一様な拡大とは完全には合わず、仕組みは仮説の段階。
   react-native-maps は値をそのまま `MKPolylineRenderer` に渡しており、拡大は MapKit 側。Android（Google Maps）は起きない。
 - Android は `lineCap="round"` のとき破線の長さを捨てて丸い点（直径 = 太さ）にし、間隔は端末の px で渡す。両 OS で同じ見た目にはならない。
-- **How to apply:** 破線の線の見た目は OS ごとの値にする（`walkReturnLineStyle`。ADR-M-008 決定9 の SS-232 追補）。倍率 2.5 はスクリーンショット1枚から測った値の間を採ったもので、ズーム・画面の倍率・iOS の版での変化は未確認。
+- **How to apply:** 破線の線の見た目は地図の SDK（Google / Apple）ごとの値にする（`walkReturnLineStyle(mapRenderer)`。ADR-M-008 決定9 の SS-232・SS-267 追補。キーを入れた iOS のビルドは Google で Android と同じ値）。倍率 2.5 はスクリーンショット1枚から測った値の間を採ったもので、ズーム・画面の倍率・iOS の版での変化は未確認。
   iOS の見え方の報告は、スクリーンショットを画素で測ると原因の当たりが付けやすい（往路の実線を物差しにする）。
 
 ## 画面を離れて戻ると、座標が後から変わった線が古い座標に戻る（Android。SS-211）

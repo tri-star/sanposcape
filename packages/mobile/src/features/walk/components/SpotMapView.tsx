@@ -34,8 +34,8 @@ const SPOT_PIN_SIZE = 30;
 const SELECTED_PIN_SIZE = 42;
 
 /**
- * SpotMapView — react-native-maps のラッパ。実地図（Android=Google Maps / iOS=Apple Maps）を表示する。
- * `provider` は指定しない（iOS のキーが不要になるため。§5.20）。
+ * SpotMapView — react-native-maps のラッパ。実地図（Android=Google Maps / iOS=キーを入れたビルドは Google Maps、それ以外は Apple Maps）を表示する。
+ * `provider` は `MAP_PROVIDER`（`src/config/mapProvider.ts`。SS-267）。候補は Google Places の内容なので、Google の地図に出すのが規約上の前提（ADR-001 の SS-267 追補）。
  */
 export function SpotMapView({
   origin,
