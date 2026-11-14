@@ -616,3 +616,146 @@ def test_nearest_station_is_documented_as_an_authenticated_endpoint() -> None:
 
     assert operation["operationId"] == "find_nearest_station_explore"
     assert operation["security"] == [{"HTTPBearer": []}]
+
+
+# --- /explore/places/text-search（SS-267） -------------------------------------
+
+_TEXT_SEARCH_BOUNDS = {
+    "south_west": {"latitude": 35.68, "longitude": 139.76},
+    "north_east": {"latitude": 35.69, "longitude": 139.77},
+}
+
+
+def _text_search_payload(query: str) -> dict:
+    return {"query": query, "bounds": _TEXT_SEARCH_BOUNDS}
+
+
+def test_text_search_requires_authentication(client: TestClient) -> None:
+    """サインインしていない要求は 401 になり、Google（provider）を呼ばないこと。"""
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(
+        FakeGoogleMapsProvider(), 20, 20, 10, 8
+    )
+    try:
+        response = client.post("/explore/places/text-search", json=_text_search_payload("駅"))
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 401
+
+
+def test_text_search_returns_results_inside_the_visible_area(client: TestClient) -> None:
+    """表示範囲の中で見つかると、
+    結果を `scope=visible_area` で返すこと（fake は範囲の中心の付近に3件）。"""
+    _override_signed_in_with_fake_provider()
+    try:
+        response = client.post(
+            "/explore/places/text-search", json=_text_search_payload("  コンビニ  ")
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scope"] == "visible_area"
+    assert [result["name"] for result in body["results"]] == ["コンビニ1", "コンビニ2", "コンビニ3"]
+    assert body["results"][0]["address"] == "テスト県テスト市テスト町1丁目2-3"
+
+
+def test_text_search_expands_once_when_nothing_is_inside_the_visible_area(
+    client: TestClient,
+) -> None:
+    """表示範囲の中で0件なら、範囲の外も含めて1回だけ広げて探し、`scope=expanded` で返すこと。"""
+    _override_signed_in_with_fake_provider()
+    try:
+        response = client.post("/explore/places/text-search", json=_text_search_payload("far"))
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scope"] == "expanded"
+    assert [result["id"] for result in body["results"]] == ["fake-text-place-far"]
+
+
+def test_text_search_returns_empty_results_when_nothing_is_found(client: TestClient) -> None:
+    """広げても見つからなければ 200 + 空の結果になること（エラーにしない）。"""
+    _override_signed_in_with_fake_provider()
+    try:
+        response = client.post("/explore/places/text-search", json=_text_search_payload("none"))
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"results": [], "scope": "expanded"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _text_search_payload("   "),
+        _text_search_payload("あ" * 101),
+        {"query": "駅"},
+        {
+            "query": "駅",
+            "bounds": {
+                "south_west": _TEXT_SEARCH_BOUNDS["north_east"],
+                "north_east": _TEXT_SEARCH_BOUNDS["south_west"],
+            },
+        },
+    ],
+)
+def test_text_search_validates_payload(client: TestClient, payload: dict) -> None:
+    """空白だけ・101 文字の検索語、範囲の欠け、南西と北東が逆の範囲は 422 になること。"""
+    _override_signed_in_with_fake_provider()
+    try:
+        response = client.post("/explore/places/text-search", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "make_error, status",
+    [(MapsQuotaError, 429), (MapsUnavailableError, 503)],
+)
+def test_text_search_maps_upstream_errors(client: TestClient, make_error, status) -> None:
+    """provider の上限・障害は、他の探索と同じく 429・503 になること。"""
+    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
+    app.dependency_overrides[get_maps_service] = lambda: (_ for _ in ()).throw(make_error())
+    try:
+        response = client.post("/explore/places/text-search", json=_text_search_payload("駅"))
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == status
+
+
+def test_text_search_logs_never_include_query(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """検索語（住所を含みうる）がログ（アクセスログを含む）に出ないこと。
+    台帳 3.1 とポリシーで「検索語は記録に保存しない」と書いているため。"""
+    query = "東京都千代田区丸の内9-9-9"
+    _override_signed_in_with_fake_provider()
+    try:
+        with caplog.at_level("DEBUG"):
+            response = client.post("/explore/places/text-search", json=_text_search_payload(query))
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "/explore/places/text-search" in caplog.text
+    assert query not in caplog.text
+    assert "丸の内" not in caplog.text
+
+
+def test_text_search_is_documented_as_an_authenticated_endpoint() -> None:
+    """OpenAPI で認証付きのエンドポイントとして出ていること（Orval の生成の名前も固定する）。"""
+    operation = create_app(Settings(env="test")).openapi()["paths"]["/explore/places/text-search"][
+        "post"
+    ]
+
+    assert operation["operationId"] == "search_explore_places_by_text"
+    assert operation["security"] == [{"HTTPBearer": []}]

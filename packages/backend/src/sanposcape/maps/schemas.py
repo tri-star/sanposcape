@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # GeoPoint は core/geo.py へ昇格済み。既存 import (`from sanposcape.maps.schemas import
 # GeoPoint`) を壊さないよう、ここでは再エクスポートのみ行う（クラス名は不変なので
@@ -26,7 +26,14 @@ __all__ = [
     "NearestStationRequest",
     "NearestStationRead",
     "NearestStationResponse",
+    "PlaceTextSearchRequest",
+    "PlaceTextSearchScope",
+    "PlaceTextSearchResult",
+    "PlaceTextSearchResponse",
 ]
+
+# 検索語の上限（code point。前後の空白を除いた後）。住所・施設名の入力には十分な長さ。
+PLACE_TEXT_QUERY_MAX_LENGTH = 100
 
 
 class ExploreCategory(StrEnum):
@@ -208,3 +215,74 @@ class NearestStationResponse(BaseModel):
     """SS-225: 3km 以内に駅が無い、またはタグにできない駅名のときは 200 で `station=null`。"""
 
     station: NearestStationRead | None
+
+
+class PlaceTextSearchRequest(BaseModel):
+    """ピンタブの検索（SS-267）。地名・住所・駅・施設の種類（「コンビニ」など）を文字列で探す。"""
+
+    query: str = Field(
+        min_length=1,
+        max_length=PLACE_TEXT_QUERY_MAX_LENGTH,
+        description=(
+            "Free-text query such as an address, a station name or a kind of place. "
+            "Leading and trailing whitespace is removed; must be 1-100 characters after that."
+        ),
+    )
+    bounds: MapBounds = Field(
+        description=(
+            "The map area currently shown. The server first searches only inside it, and "
+            "searches once more around its center when nothing is found."
+        )
+    )
+
+    @field_validator("query", mode="before")
+    @classmethod
+    def _strip_query(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @model_validator(mode="after")
+    def _bounds_must_be_ordered(self) -> "PlaceTextSearchRequest":
+        # 日付変更線をまたぐ範囲（west > east）は扱わない（日本の地図では起きない）。
+        north_east, south_west = self.bounds.north_east, self.bounds.south_west
+        if south_west.latitude > north_east.latitude or south_west.longitude > north_east.longitude:
+            raise ValueError("bounds.south_west must be south-west of bounds.north_east")
+        return self
+
+
+class PlaceTextSearchScope(StrEnum):
+    VISIBLE_AREA = "visible_area"
+    EXPANDED = "expanded"
+
+
+class PlaceTextSearchResult(BaseModel):
+    id: str = Field(description="Provider place ID.")
+    name: str = Field(
+        min_length=1,
+        max_length=256,
+        description="Japanese-preferred display name supplied by the provider.",
+    )
+    address: str | None = Field(
+        max_length=256,
+        description=(
+            "Address without the country name and postal code, with full-width digits and "
+            "symbols normalized to half-width. Null when the provider has none."
+        ),
+    )
+    location: GeoPoint
+
+
+class PlaceTextSearchResponse(BaseModel):
+    """SS-267: 見つからなければ 200 で `results=[]`（`scope` は広げて探した `expanded`）。"""
+
+    results: list[PlaceTextSearchResult] = Field(
+        max_length=20, description="In the provider's relevance order (not re-sorted)."
+    )
+    scope: PlaceTextSearchScope = Field(
+        description=(
+            "visible_area: found inside the requested bounds. expanded: nothing was found "
+            "inside the bounds, so the server searched around their center without restricting "
+            "to the bounds (results may lie outside them)."
+        )
+    )

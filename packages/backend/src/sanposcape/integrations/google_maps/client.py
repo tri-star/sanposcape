@@ -17,10 +17,13 @@ from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     GoogleMapsProvider,
     ProviderAddress,
+    ProviderCircle,
     ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
+    ProviderRectangle,
     ProviderRoute,
+    ProviderTextPlace,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,6 +45,9 @@ _LOOP_ROUTE_FIELD_MASK = (
 # ヘッダーで送る。
 # 座標はクエリ（`locationQuery`）で送る（パスの形 `/location/{lat},{lng}` にすると、クエリを落とす
 # `_endpoint()` と `core/tracing.py` でも座標が残るため）。
+# 文字列での場所の検索（Text Search (New)。SS-267）。
+# 名前・住所・位置を取るので Text Search Pro の SKU。
+_TEXT_SEARCH_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.location"
 _GEOCODING_URL = "https://geocode.googleapis.com/v4/geocode/location"
 _GEOCODING_FIELD_MASK = (
     "results.formattedAddress,results.addressComponents,results.types,results.bounds"
@@ -90,6 +96,17 @@ class UnconfiguredGoogleMapsProvider:
     ) -> ProviderLoopRoute:
         raise GoogleMapsUnavailableError()
 
+    def search_text(
+        self,
+        query: str,
+        *,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        raise GoogleMapsUnavailableError()
+
     def reverse_geocode(
         self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
     ) -> ProviderAddress | None:
@@ -122,7 +139,12 @@ class HttpGoogleMapsProvider:
         self._geocode_cache: TtlCache[tuple[ProviderAddress, ...]] = TtlCache(
             settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
         )
+        # 検索語はメモリのキャッシュのキーにだけ入る（DB・ログには残さない。SS-267）。
+        self._text_cache: TtlCache[tuple[ProviderTextPlace, ...]] = TtlCache(
+            settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
+        )
         self._places_flight: SingleFlight[tuple[ProviderPlace, ...]] = SingleFlight()
+        self._text_flight: SingleFlight[tuple[ProviderTextPlace, ...]] = SingleFlight()
         self._routes_flight: SingleFlight[ProviderRoute] = SingleFlight()
         self._loop_flight: SingleFlight[ProviderLoopRoute] = SingleFlight()
         self._geocode_flight: SingleFlight[tuple[ProviderAddress, ...]] = SingleFlight()
@@ -281,6 +303,71 @@ class HttpGoogleMapsProvider:
             inbound=self._parse_loop_leg(legs[1]),
         )
         self._loop_cache.put(key, result)
+        return result
+
+    def search_text(
+        self,
+        query: str,
+        *,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        key = self._text_key(query, restriction, bias, limit)
+        cached = self._text_cache.get(key)
+        if cached is not None:
+            return cached
+        return self._text_flight.do(
+            key,
+            lambda: self._load_text(key, query, restriction, bias, limit, timeout_seconds),
+        )
+
+    def _load_text(
+        self,
+        key: str,
+        query: str,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        cached = self._text_cache.get(key)
+        if cached is not None:
+            return cached
+        payload: dict[str, Any] = {
+            "textQuery": query,
+            "languageCode": "ja",
+            "regionCode": "JP",
+            "pageSize": limit,
+        }
+        if restriction is not None:
+            payload["locationRestriction"] = {
+                "rectangle": {
+                    "low": self._lat_lng(restriction.south_west),
+                    "high": self._lat_lng(restriction.north_east),
+                }
+            }
+        if bias is not None:
+            payload["locationBias"] = {
+                "circle": {"center": self._lat_lng(bias.center), "radius": bias.radius_meters}
+            }
+        # 検索語は POST の本文で送る（URL・ログ・トレースに載せない）。
+        response = self._request(
+            "POST",
+            f"{_PLACES_BASE_URL}/places:searchText",
+            json=payload,
+            headers={"X-Goog-FieldMask": _TEXT_SEARCH_FIELD_MASK},
+            timeout_seconds=timeout_seconds,
+        )
+        raw_places = response.get("places", [])
+        if not isinstance(raw_places, list):
+            raise GoogleMapsUnavailableError()
+        places = [
+            parsed for place in raw_places if (parsed := _parse_text_place(place)) is not None
+        ]
+        result = tuple(places[:limit])
+        self._text_cache.put(key, result)
         return result
 
     def reverse_geocode(
@@ -507,6 +594,25 @@ class HttpGoogleMapsProvider:
         )
 
     @staticmethod
+    def _text_key(
+        query: str,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+    ) -> str:
+        area = "none"
+        if restriction is not None:
+            sw, ne = restriction.south_west, restriction.north_east
+            area = f"rect:{sw.latitude:.4f}:{sw.longitude:.4f}:{ne.latitude:.4f}:{ne.longitude:.4f}"
+        elif bias is not None:
+            area = (
+                f"bias:{bias.center.latitude:.4f}:{bias.center.longitude:.4f}:"
+                f"{bias.radius_meters:.0f}"
+            )
+        # 検索語は区切り文字を含みうるので最後に置く。
+        return f"text:{area}:{limit}:{query}"
+
+    @staticmethod
     def _geocode_key(cache_scope: str, point: ProviderPoint) -> str:
         # 住所のキャッシュは利用者ごとに分け、他の利用者に使い回さない（Geocoding API の
         # 利用規約。SS-212 / ADR-001）。
@@ -556,6 +662,42 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
         status if isinstance(status, str) else None,
         reasons,
         message[:_MAX_LOGGED_MESSAGE_CHARS] if isinstance(message, str) else None,
+    )
+
+
+def _parse_text_place(place: object) -> ProviderTextPlace | None:
+    """Text Search の1件を読む。位置・ID が壊れていれば応答全体を失敗にし（Nearby Search と同じ）、
+    表示名が空なら読み飛ばす。住所は取れないときだけ None。
+    """
+    if not isinstance(place, dict):
+        raise GoogleMapsUnavailableError()
+    location = place.get("location")
+    if not isinstance(location, dict):
+        raise GoogleMapsUnavailableError()
+    try:
+        place_id = str(place["id"])
+        latitude = float(location["latitude"])
+        longitude = float(location["longitude"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise GoogleMapsUnavailableError() from exc
+    if (
+        not math.isfinite(latitude)
+        or not math.isfinite(longitude)
+        or not -90 <= latitude <= 90
+        or not -180 <= longitude <= 180
+    ):
+        raise GoogleMapsUnavailableError()
+    display_name = place.get("displayName")
+    name = display_name.get("text") if isinstance(display_name, dict) else None
+    if not isinstance(name, str) or not name.strip():
+        return None
+    formatted = place.get("formattedAddress")
+    address = _normalize_address(formatted) if isinstance(formatted, str) else ""
+    return ProviderTextPlace(
+        id=place_id,
+        name=name.strip()[:_ADDRESS_MAX_CHARS],
+        address=address[:_ADDRESS_MAX_CHARS] or None,
+        location=ProviderPoint(latitude, longitude),
     )
 
 

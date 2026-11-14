@@ -4,7 +4,11 @@ from sanposcape.integrations.google_maps.fake import (
     _clamp,
     _distance_meters,
 )
-from sanposcape.integrations.google_maps.provider import ProviderPoint
+from sanposcape.integrations.google_maps.provider import (
+    ProviderCircle,
+    ProviderPoint,
+    ProviderRectangle,
+)
 from sanposcape.maps.schemas import PlaceSearchRequest, WalkingRouteRequest
 from sanposcape.maps.service import MapsService
 
@@ -257,3 +261,41 @@ def test_reverse_geocode_returns_a_fixed_address_regardless_of_location() -> Non
     assert first == second
     assert first.address == "テスト県テスト市テスト町1丁目2-3"
     assert first.building_name == "テストビル"
+
+
+def test_search_text_is_deterministic_and_inside_the_restriction() -> None:
+    """範囲の中だけを探すと、範囲の中心の付近に検索語を名前にした3件を毎回同じに返すこと（SS-267）。"""
+    rectangle = ProviderRectangle(ProviderPoint(35.68, 139.76), ProviderPoint(35.69, 139.77))
+    provider = FakeGoogleMapsProvider()
+
+    first = provider.search_text(
+        "駅", restriction=rectangle, bias=None, limit=20, timeout_seconds=1
+    )
+    second = provider.search_text(
+        "駅", restriction=rectangle, bias=None, limit=20, timeout_seconds=1
+    )
+
+    assert first == second
+    assert [place.name for place in first] == ["駅1", "駅2", "駅3"]
+    for place in first:
+        assert 35.68 <= place.location.latitude <= 35.69
+        assert 139.76 <= place.location.longitude <= 139.77
+
+
+def test_search_text_far_and_none_queries_drive_the_expand_paths() -> None:
+    """`far` は範囲の中で0件・広げると1件、
+    `none` はどちらも0件になること（E2E で広げる経路を通すため）。"""
+    rectangle = ProviderRectangle(ProviderPoint(35.68, 139.76), ProviderPoint(35.69, 139.77))
+    circle = ProviderCircle(ProviderPoint(35.685, 139.765), 50_000.0)
+    provider = FakeGoogleMapsProvider()
+
+    assert (
+        provider.search_text("far", restriction=rectangle, bias=None, limit=20, timeout_seconds=1)
+        == ()
+    )
+    far = provider.search_text("far", restriction=None, bias=circle, limit=20, timeout_seconds=1)
+    assert [place.id for place in far] == ["fake-text-place-far"]
+    assert (
+        provider.search_text("none", restriction=None, bias=circle, limit=20, timeout_seconds=1)
+        == ()
+    )

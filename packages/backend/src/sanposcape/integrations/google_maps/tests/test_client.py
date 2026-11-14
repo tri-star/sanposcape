@@ -15,7 +15,13 @@ from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsUnavailableError,
 )
 from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
-from sanposcape.integrations.google_maps.provider import ProviderAddress, ProviderPoint
+from sanposcape.integrations.google_maps.provider import (
+    ProviderAddress,
+    ProviderCircle,
+    ProviderPoint,
+    ProviderRectangle,
+    ProviderTextPlace,
+)
 
 
 def _provider(handler):
@@ -968,4 +974,171 @@ def test_unconfigured_provider_reverse_geocode_is_unavailable() -> None:
     with pytest.raises(GoogleMapsUnavailableError):
         UnconfiguredGoogleMapsProvider().reverse_geocode(
             ProviderPoint(35, 139), cache_scope="user-a", timeout_seconds=8
+        )
+
+
+# --- Text Search（SS-267） -----------------------------------------------------
+
+_TEXT_RECTANGLE = ProviderRectangle(
+    south_west=ProviderPoint(35.68, 139.76), north_east=ProviderPoint(35.69, 139.77)
+)
+
+
+def _text_place(**overrides) -> dict:
+    place = {
+        "id": "opaque-text",
+        "displayName": {"text": " 東京駅 "},
+        "formattedAddress": "日本、〒100-0005 東京都千代田区丸の内１丁目９−１",
+        "location": {"latitude": 35.6812, "longitude": 139.7671},
+    }
+    place.update(overrides)
+    return place
+
+
+def test_search_text_sends_query_in_body_with_restriction_and_caches() -> None:
+    """表示範囲の矩形で制限した Text Search を本文で送り、住所を正規化して返し、
+    同じ要求はキャッシュから返すこと。
+    検索語を URL に載せない（ログ・トレースに残さない）ことも確かめる。"""
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        assert str(request.url) == "https://places.googleapis.com/v1/places:searchText"
+        assert request.headers["x-goog-api-key"] == "server-key"
+        assert (
+            request.headers["x-goog-fieldmask"]
+            == "places.id,places.displayName,places.formattedAddress,places.location"
+        )
+        assert json.loads(request.content) == {
+            "textQuery": "東京駅",
+            "languageCode": "ja",
+            "regionCode": "JP",
+            "pageSize": 20,
+            "locationRestriction": {
+                "rectangle": {
+                    "low": {"latitude": 35.68, "longitude": 139.76},
+                    "high": {"latitude": 35.69, "longitude": 139.77},
+                }
+            },
+        }
+        return httpx.Response(200, json={"places": [_text_place()]})
+
+    provider = _provider(handler)
+    first = provider.search_text(
+        "東京駅", restriction=_TEXT_RECTANGLE, bias=None, limit=20, timeout_seconds=5
+    )
+    second = provider.search_text(
+        "東京駅", restriction=_TEXT_RECTANGLE, bias=None, limit=20, timeout_seconds=5
+    )
+
+    assert (
+        first
+        == second
+        == (
+            ProviderTextPlace(
+                id="opaque-text",
+                name="東京駅",
+                address="東京都千代田区丸の内1丁目9-1",
+                location=ProviderPoint(35.6812, 139.7671),
+            ),
+        )
+    )
+    assert calls == 1
+
+
+def test_search_text_sends_bias_circle_without_restriction() -> None:
+    """付近を優先して探す要求は locationBias の円だけを送り、制限は付けないこと。"""
+
+    def handler(request):
+        body = json.loads(request.content)
+        assert "locationRestriction" not in body
+        assert body["locationBias"] == {
+            "circle": {"center": {"latitude": 35.685, "longitude": 139.765}, "radius": 50000.0}
+        }
+        return httpx.Response(200, json={})
+
+    provider = _provider(handler)
+    result = provider.search_text(
+        "東京駅",
+        restriction=None,
+        bias=ProviderCircle(center=ProviderPoint(35.685, 139.765), radius_meters=50000.0),
+        limit=20,
+        timeout_seconds=5,
+    )
+
+    assert result == ()
+
+
+def test_search_text_skips_nameless_places_and_keeps_missing_address_as_none() -> None:
+    """表示名が空の結果は読み飛ばし、住所の無い結果は address=None で返すこと（並びは変えない）。"""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "places": [
+                    _text_place(id="a", displayName={"text": "  "}),
+                    _text_place(id="b", formattedAddress=None),
+                    _text_place(id="c"),
+                ]
+            },
+        )
+
+    provider = _provider(handler)
+    result = provider.search_text(
+        "q", restriction=_TEXT_RECTANGLE, bias=None, limit=20, timeout_seconds=5
+    )
+
+    assert [place.id for place in result] == ["b", "c"]
+    assert result[0].address is None
+
+
+@pytest.mark.parametrize(
+    "places",
+    [
+        [_text_place(location={"latitude": 91, "longitude": 139})],
+        [_text_place(location=None)],
+        ["not-a-place"],
+        "not-a-list",
+    ],
+)
+def test_search_text_rejects_malformed_places(places) -> None:
+    """位置・形が壊れた応答は GoogleMapsUnavailableError にし、キャッシュしないこと。"""
+
+    def handler(request):
+        return httpx.Response(200, json={"places": places})
+
+    provider = _provider(handler)
+    with pytest.raises(GoogleMapsUnavailableError):
+        provider.search_text(
+            "q", restriction=_TEXT_RECTANGLE, bias=None, limit=20, timeout_seconds=5
+        )
+
+
+@pytest.mark.parametrize(
+    "status_code, expected", [(429, GoogleMapsQuotaError), (400, GoogleMapsUnavailableError)]
+)
+def test_search_text_maps_http_errors_without_logging_query(status_code, expected, caplog) -> None:
+    """429 は GoogleMapsQuotaError、400 は GoogleMapsUnavailableError になり、
+    エラーのログに検索語が出ないこと。"""
+
+    def handler(request):
+        return httpx.Response(status_code, json={"error": {"status": "INVALID_ARGUMENT"}})
+
+    provider = _provider(handler)
+    with caplog.at_level("DEBUG"), pytest.raises(expected):
+        provider.search_text(
+            "秘密の住所1-2-3", restriction=_TEXT_RECTANGLE, bias=None, limit=20, timeout_seconds=5
+        )
+
+    assert "places:searchText" in caplog.text
+    assert "秘密の住所" not in caplog.text
+
+
+def test_unconfigured_provider_refuses_text_search() -> None:
+    """キーが無いときは外へ送らず GoogleMapsUnavailableError にすること。"""
+    with pytest.raises(GoogleMapsUnavailableError):
+        UnconfiguredGoogleMapsProvider().search_text(
+            "q", restriction=_TEXT_RECTANGLE, bias=None, limit=20, timeout_seconds=5
         )

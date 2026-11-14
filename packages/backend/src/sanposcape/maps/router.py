@@ -8,6 +8,8 @@ from sanposcape.maps.schemas import (
     NearestStationResponse,
     PlaceSearchRequest,
     PlaceSearchResponse,
+    PlaceTextSearchRequest,
+    PlaceTextSearchResponse,
     ReverseGeocodeRequest,
     ReverseGeocodeResponse,
     WalkingRouteRequest,
@@ -38,6 +40,28 @@ def search_places(
     _rate_limit: None = Depends(enforce_explore_rate_limit),
 ) -> PlaceSearchResponse:
     return service.search_places(payload)
+
+
+@router.post(
+    "/places/text-search",
+    response_model=PlaceTextSearchResponse,
+    operation_id="search_explore_places_by_text",
+    responses=_ERROR_RESPONSES,
+)
+def search_places_by_text(
+    payload: PlaceTextSearchRequest,
+    _current_user: User = Depends(get_current_user),
+    service: MapsService = Depends(get_maps_service),
+    _rate_limit: None = Depends(enforce_explore_rate_limit),
+) -> PlaceTextSearchResponse:
+    """ピンタブの検索（SS-267）。住所・駅・施設の種類などを文字列で探す。サインインが要る。
+
+    まず表示範囲（`bounds`）の中だけを探し、見つからなければ範囲の中心の付近で1回だけ広げて探す
+    （`scope=expanded`）。検索語と範囲は Google へ送るが、
+    DB・ログには残さない（メモリのキャッシュのみ）。
+    見つからなければ 200 + `results=[]`。
+    """
+    return service.search_places_by_text(payload)
 
 
 @router.post(
