@@ -5,7 +5,7 @@ from pydantic import AwareDatetime
 
 from sanposcape.dependencies import get_current_user
 from sanposcape.users.models import User
-from sanposcape.walks.dependencies import get_walk_service
+from sanposcape.walks.dependencies import enforce_walk_create_rate_limit, get_walk_service
 from sanposcape.walks.schemas import (
     WalkCreate,
     WalkDetailRead,
@@ -31,6 +31,7 @@ _ERROR_RESPONSES = {
     "",
     response_model=WalkRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_walk_create_rate_limit)],
     responses={
         **_ERROR_RESPONSES,
         200: {
@@ -38,6 +39,7 @@ _ERROR_RESPONSES = {
             "description": "Idempotent replay: an existing walk with the same client_walk_id",
         },
         422: {"description": "Validation error"},
+        429: {"description": "Walk create rate limit reached"},
     },
 )
 def create_walk(
@@ -50,6 +52,7 @@ def create_walk(
 
     `client_walk_id` の再送は同じ散歩として扱い、新規作成のみ 201、
     冪等な再送は 200 を返す（軌跡はエコーバックしない: モバイルは送信済みの値を持つ）。
+    ユーザー単位のレート制限を超えると 429（冪等な再送も数える。拒否したリクエストは数えない）。
     """
     walk, created = service.record_walk(current_user, payload)
     if not created:

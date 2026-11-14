@@ -7,22 +7,21 @@ const contactEmail = "support@sanposcape.com";
 // 制定日は変えない。本文を改定したら revisedOn を更新する（改定の告知は「11. 本規約の変更」）。
 // 利用者に不利な改定は施行日を付けて事前に公開する（docs/privacy/data-inventory.md の 2.2、手順は packages/lp/AGENTS.md の「改定の手順」）。
 const enactedOn = "2026年10月13日";
-// revisedOn・effectiveOn と旧版の日付は、本番の LP に公開する日に合わせて直す（packages/lp/docs/deployment.md の「注意」）。
-const revisedOn: string | undefined = "2026年12月3日";
+const revisedOn: string | undefined = "2026年11月14日";
 // 施行日。利用者に不利な改定のときだけ付ける（公開から 30 日後が目安。台帳の 2.2）。
 // 施行日を過ぎた後に不利でない改定で revisedOn を更新するときは undefined に戻す（冒頭の案内が消える。経緯は改定履歴に残る）。
-const effectiveOn: string | undefined = "2027年1月2日";
+const effectiveOn: string | undefined = "2026年11月14日";
 // 施行日の前日まで適用する改定前の版。effectiveOn と組で、src/pages/terms/<YYYY-MM-DD>.astro に固定してある。
 const previousVersion = {
   href: "/terms/2026-10-24/",
-  appliesUntil: "2027年1月1日",
+  appliesUntil: "2026年11月13日",
 };
 
 // 末尾の「改定履歴」。不利な改定（施行日を付けた改定）を新しい順に載せる。それより前の改定は git の履歴にある。
 const revisionHistory = [
   {
-    revisedOn: "2026年12月3日",
-    effectiveOn: "2027年1月2日",
+    revisedOn: "2026年11月14日",
+    effectiveOn: "2026年11月14日",
     summary:
       "特定の人物の監視・つきまといや、犯罪のための場所の共有などを禁止事項として明記し（5）、地図の共有に関する措置と通報の受け付けを追加し（6）、運営者がコンテンツを確認する場合を具体的にしました（4）。",
     previousHref: "/terms/2026-10-24/",

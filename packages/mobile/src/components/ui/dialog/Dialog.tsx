@@ -24,6 +24,11 @@ export type DialogProps = {
 /**
  * Dialog — 中央に出るモーダル。確認（例:「散歩を終了しますか？」）のほか、入力欄を載せる用途（地図の作成など）にも使う。
  * デザイン: Sanpo Design System / components/overlays/Dialog
+ *
+ * **Android のシステムバック（SS-46）**: 表示中のバック（キー・ジェスチャ）は RN の `Modal` のウィンドウが受け、
+ * `onRequestClose` だけが呼ばれる（RN 0.86 の `ReactModalHostView`）。画面の `BackHandler`（`useScreenBack`）・
+ * タブの `backBehavior`・アプリの終了には届かない。よって表示中のバックは `onClose`（`dismissDisabled` なら何もしない）
+ * だけになる。`onClose` ではダイアログを閉じるだけにし、遷移や進行中の処理の取り消しを書かない。
  */
 export function Dialog({
   open,

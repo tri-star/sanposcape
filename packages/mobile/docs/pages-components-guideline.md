@@ -92,11 +92,12 @@ testID `sanpo-map-list-back`。作成ダイアログを開いている間は `on
 `SanpoMapDetailView`（`sanpo-maps/[sanpoMapId]`。testID `sanpo-map-detail-back`。アイコン変更ダイアログを開いている間は `onIntercept` で閉じる（変更中は閉じない）。削除の確認ダイアログを開いている間も `onIntercept` で閉じる（削除中は閉じず、戻る操作だけを消費する）。SS-121 / SS-171 / SS-265）/
 `SanpoMapMembersView`（`sanpo-maps/[sanpoMapId]/members`。testID `sanpo-map-members-back`。外す・抜けるの確認ダイアログを開いている間は `onIntercept` で閉じる（実行中は閉じない）。SS-249）/
 `LicensesView`（`licenses`。testID `licenses-back`。SS-191）/
-`TagListView`（`tags`。testID `tag-list-back`。SS-245）/ `TagDetailView`（`tags/detail`。testID `tag-detail-back`。SS-245）の12画面。
-`SettingsView` と `(tabs)` 配下の各画面は
-未適用で、素の `router.back()` のまま（`SettingsView` は常に push で開かれるためスタックの
-戻り先が保証されており、実害は無い）。新しい画面を追加するとき、および `SettingsView` /
-`(tabs)` 配下を触るときは、この規約に順次寄せることを検討する。
+`TagListView`（`tags`。testID `tag-list-back`。SS-245）/ `TagDetailView`（`tags/detail`。testID `tag-detail-back`。SS-245）/
+`SettingsView`（`settings`。testID `settings-back`。戻り先が無い（例: コールドスタートのディープリンクで開いた）ときはアカウントタブへ。
+ログアウト・アカウント削除のダイアログを開いている間は `onIntercept` で閉じる（ログアウト中・削除中は閉じない）。
+表示名の変更のダイアログ（`DisplayNameSetting` が状態を持つ）は、表示中に `goBack()` が呼ばれる経路が無いので `onIntercept` に入れない。
+`features/settings/hooks/useSettingsBack.ts`。SS-46）の13画面。
+`(tabs)` 配下の各画面は未適用（下記の理由で `useScreenBack` を使わない）。新しい画面を追加するときは、この規約に寄せる。
 ピンタブ（`PinTabView`）とアカウントタブ（`app/(tabs)/account.tsx`。設定・画面カタログ・サインイン）は
 画面から出る遷移（ピンタブは長押しで `/pins/new`・ピンのタップ・『地図一覧』・『タグ一覧』（SS-245）・サインイン）が
 二重に発火しないよう、`BackHandler` を購読しない `src/hooks/useNavigateOnce.ts`
@@ -106,17 +107,26 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 アカウントタブは設定・画面カタログと同じ `runOnce` を渡してラッチを共有する。ピンタブはルートでは自前のラッチ、
 `PinTabView` 内では他の遷移と共有するラッチを通す（SS-148）。
 アカウントタブだけが第2引数 `returnTo: "account"` を渡し、サインイン後にアカウントタブへ戻す（SS-151。ADR-M-009 SS-151 追補）。
+履歴の一覧・詳細のルート（`app/walk-history/*`）も、ゲスト向けサインイン案内のボタンにこの hook を使う（`returnTo` は渡さない。SS-45）。
+View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタンと同じラッチ（`useScreenBack` の `runOnce`）に通す。
 
 - 画面上の戻る/キャンセルと Android のシステムバックは **`src/hooks/useScreenBack.ts` に一本化**する。
   画面ごとに `BackHandler` を直接触らない。
 - 戻り先は `router.canGoBack()` なら1段戻り、無ければ画面ごとの `fallbackHref` へ `replace` する。
   判定は `src/lib/backNavigation.ts` の `resolveBackAction`（純粋関数・テスト対象）。
 - 戻る操作と「その画面から出る他の遷移」は同じラッチを共有する（`runOnce`）。連打・同時押しでも
-  遷移は1回。適用済み12画面では、戻る以外でその画面から出る遷移（例:
+  遷移は1回。適用済み13画面では、戻る以外でその画面から出る遷移（例:
   `WalkHistoryListView` 空状態の「散歩を始める」、`WalkDetailView` エラー状態の「一覧へ戻る」、
   `SanpoMapDetailView` のピンタップ → `router.push("/pins/[pinId]", ...)`。SS-121）も
   すべて `runOnce` 経由にする。
 - BottomSheet / Dialog を開いている画面は `onIntercept` でオーバーレイを閉じる側に倒す。
+  - Android のシステムバックは、RN の `Modal`（`Dialog`・`BottomSheet`）の表示中は `Modal` の `onRequestClose` だけに届き、
+    `useScreenBack` の `BackHandler`・タブの `backBehavior` には届かない（RN 0.86 の `ReactModalHostView`）。
+    よって表示中のバックで何が起きるかは `Dialog` の `onClose`（`dismissDisabled` なら何もしない）で決まる。
+    `onClose` はダイアログを閉じるだけにし、遷移や進行中の処理の取り消しを書かない。`onIntercept` は、表示中に
+    画面上の戻るボタンなどから `goBack()` が呼ばれた経路を同じ結果に揃えるためのもの。
+  - タブのルート（例: ナビタブの `WalkActiveView` の散歩の終了ダイアログ）も同じで、表示中のバックは
+    ダイアログを閉じるだけになる。タブでは `useScreenBack` を使わない（SS-46）。
 - 前提: `app.json` の `expo.android.predictiveBackGestureEnabled: false`。true に変える場合は
   この規約と `useScreenBack` を見直す（[ADR-M-007](../adr/ADR-M-007-expo-config-and-maps-key-injection.md)
   の SS-34 追補も参照）。
@@ -159,8 +169,9 @@ Android バックの既定（`backBehavior: firstRoute`）を奪うので使わ�
 `/dev-screens` 自体と `/design-system` は未認証でも開ける公開ルートで、そこから開く先の
 散歩開始・履歴・設定などの保護画面も認証ゲート（`AuthGate`）の対象ではあるが、SS-57 でゲスト散歩を
 解禁したため**未認証（guest）のままでもサインイン画面へ弾かれずに開ける**（`canEnterProtectedRoutes`
-が `guest` も許可する。`/walks` 系 API だけは 401 になり各画面のエラーカードで degrade する。ただしアカウントタブは
-ゲストでは通信せず、サインイン案内を出す（SS-148）。
+が `guest` も許可する）。`/walks` 系 API は認証必須で、ゲストのアカウントタブ（SS-148）と履歴の一覧・詳細
+（`/walk-history`・`/walk-history/[walkId]`。ディープリンクで直に開ける。SS-45）は通信せずサインイン案内を出し、
+復元中は読み込み表示にする。ゲストの保存だけは 401 になり、サマリでサインイン CTA を出す（SS-37）。
 将来「ゲストは入れないルート」（例: アカウント設定の一部）を追加する場合は、
 `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes` / `resolveAuthGateDecision` に
 判定を足す（保護ルートに誰が入れるかの判断を1箇所に閉じる器はそのまま残っている）。

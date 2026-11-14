@@ -54,6 +54,20 @@ tags:
           id: "walk-active-end"
       - assertVisible:
           id: "walk-end-dialog"
+# ダイアログの表示中の Android のシステムバックは、ダイアログだけを閉じる。散歩は終わらず、
+# 散歩中画面に残る（タブの戻る・アプリの終了も起きない。SS-46）
+- back
+- assertNotVisible:
+    id: "walk-end-dialog"
+- assertVisible:
+    id: "walk-active-end"
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "walk-active-end"
+      - assertVisible:
+          id: "walk-end-dialog"
 - tapOn:
     id: "walk-end-confirm"
 

@@ -367,7 +367,9 @@ paths:
 
         `client_walk_id` の再送は同じ散歩として扱い、新規作成のみ 201、
 
-        冪等な再送は 200 を返す（軌跡はエコーバックしない: モバイルは送信済みの値を持つ）。'
+        冪等な再送は 200 を返す（軌跡はエコーバックしない: モバイルは送信済みの値を持つ）。
+
+        ユーザー単位のレート制限を超えると 429（冪等な再送も数える。拒否したリクエストは数えない）。'
       operationId: create_walk_walks_post
       security:
       - HTTPBearer: []
@@ -396,6 +398,8 @@ paths:
                 $ref: '#/components/schemas/WalkRead'
         '422':
           description: Validation error
+        '429':
+          description: Walk create rate limit reached
     get:
       tags:
       - walks
