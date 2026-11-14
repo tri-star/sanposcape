@@ -143,7 +143,7 @@ curl -s https://sanposcape.com/robots.txt  # Allow と Sitemap の行
   sam-deploy・feature-flags・lp-deploy のロールを AssumeRole できる。分けたくなったら LP 専用の Environment を作り、
   infra 側の tfvar で trust の Environment 名を変える。
 - ~~**（一時的）トップページは、ストアの版でまだ使えない機能を紹介している（SS-261）。** production へのデプロイは、次の両方がそろってから行う。~~
-  → **2026-11-14（SS-271）に両方そろった**（1.1.0 がストアで公開され、`map_invitation` は本番で ON のまま固定値 `true` に移した）。以下は経緯として残す。
+  → **2026-11-14（SS-271）の時点で両方そろっている**（iOS の 1.1.0 がストアで公開され、`map_invitation` は本番で ON。SS-271 の PR で固定値 `true` に移し、backend の production へのデプロイから固定値になる）。以下は経緯として残す。
   1. 地図の共有（招待。SS-249・SS-250）と「ピンの場所に移動」（SS-246）を含む version が、ストアで公開されている（2026-11-04 時点のストアの版 1.0.0 には無く、1.0.0 には OTA も配れない。[リリース運用手順](../../../docs/release-runbook.md)）。
   2. フラグ `map_invitation` を本番で ON にしている（ON はプライバシーポリシーの施行日 2026-12-02 の後の予定。`packages/mobile/src/config/featureFlags.ts`）。（**SS-271 追補**: 本番で ON。SS-271 でフラグを固定値 `true` に移した）
 
