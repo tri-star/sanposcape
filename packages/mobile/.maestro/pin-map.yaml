@@ -4,7 +4,7 @@
 # → ボタン配置エリアの「地図一覧」→ 地図一覧（SS-121）→ 戻るとピンタブ。
 # ナビタブの旧導線（/pins/map・/pins/pick-location）は SS-147 でルートごと削除した。
 #
-# 前提: pin-register-anywhere.yaml と同じ（preview ビルド・FEATURE_FLAG_MODE=stub で pin_registration ON）。
+# 前提: pin-register-anywhere.yaml と同じ（preview ビルド）。
 # assert しないもの: ピンの件数・マーカー・地図タイル（同一 CI ランで他フローの登録が残る。ADR-M-004 / ADR-M-012 D14）。
 # 絞り込みの結果（どのピンが出るか）も同じ理由で見ない。送信条件は pinMapFilter.test.ts / pinReadApi.test.ts が担う。
 # マーカーのタップ → ピン詳細は E2E しない（Google Maps の描画面で testID が安定して取れないため。
@@ -37,7 +37,7 @@ tags:
     visible:
       id: "pin-tab-pin-filter-sheet"
     timeout: 5000
-# 地図単位の表示・非表示（SS-266。stub で map_pin_visibility ON）の節が出る。切り替えはしない
+# 地図単位の表示・非表示（SS-266）の節が出る。切り替えはしない
 # （サインインした利用者の選択が DB に残り、同じ CI ランのほかのフローのピンの表示に効くため）。
 - assertVisible:
     id: "pin-tab-pin-filter-maps"

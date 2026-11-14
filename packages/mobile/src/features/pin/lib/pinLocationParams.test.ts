@@ -32,7 +32,6 @@ describe("parsePinLocationParams", () => {
 
   it("walk 側 resolveAddPinAction が組み立てる形をそのまま parse できる", () => {
     const action = resolveAddPinAction({
-      featureEnabled: true,
       currentPosition: { latitude: 35.681236, longitude: 139.767125 },
       clientWalkId: VALID_UUID,
     });

@@ -54,7 +54,7 @@ type TagListBody = {
  * 自分がメンバーの全地図のピンのタグを正規化キーでまとめて並べ（`buildTagSummaries`）、表記で即時に絞り込み
  * （端末で行う。地図一覧と同じ `NameSearchField`）、行のタップでタグ詳細（`/tags/detail?label=`）へ進む。
  *
- * - 認証は props で受ける（features/pin は認証を読まない）。フラグ（pin_registration）はルートがガードする。
+ * - 認証は props で受ける（features/pin は認証を読まない）。
  * - ゲストは開けるが通信せずサインイン案内を出し、検索欄は出さない（地図一覧と同じ。ADR-M-014 D6）。
  */
 export function TagListView({ isSignedIn, onSignIn }: TagListViewProps) {

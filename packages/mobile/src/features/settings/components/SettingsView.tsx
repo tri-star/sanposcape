@@ -135,7 +135,7 @@ export function SettingsView() {
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* 表示名はサインイン中だけ（フラグ display_name_edit が OFF なら DisplayNameSetting が何も出さない。SS-268） */}
+        {/* 表示名はサインイン中だけ（SS-268） */}
         {section === "authenticated" ? <DisplayNameSetting /> : null}
 
         {/* テーマは認証に依存しないため、section の分岐の外に置く（loading / guest / authenticated 共通） */}

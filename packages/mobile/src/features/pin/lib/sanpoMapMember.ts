@@ -40,17 +40,6 @@ export function splitSanpoMapMemberAvatars<T>(members: readonly T[]): {
   };
 }
 
-/**
- * 地図詳細にメンバーの行を出すか・メンバー画面を開けるか。フラグ `map_invitation` が ON のときと、
- * 自分が editor の地図のとき（フラグを OFF に戻しても、参加している人が抜けられるように）。
- */
-export function canShowSanpoMapMembers(input: {
-  mapInvitationEnabled: boolean;
-  role: SanpoMapMember["role"];
-}): boolean {
-  return input.mapInvitationEnabled || input.role === "editor";
-}
-
 /** メンバーの画面で、この行に「外す」を出すか（owner が見ていて、自分以外の行）。 */
 export function canRemoveSanpoMapMember(input: {
   viewerRole: SanpoMapMember["role"];

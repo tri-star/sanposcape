@@ -5,7 +5,8 @@ import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 const KEY_PATTERN = /^[a-z][a-zA-Z\d_-]{0,63}$/;
 
 describe("FEATURE_FLAG_KEYS", () => {
-  const values = Object.values(FEATURE_FLAG_KEYS);
+  // 出し分けているフラグが無い間は空（型は never になるので string として読む）。
+  const values: string[] = Object.values(FEATURE_FLAG_KEYS);
 
   it("値がADR-008追補D7の命名規約（snake_case、^[a-z][a-zA-Z\\d_-]{0,63}$）に一致する", () => {
     for (const value of values) {

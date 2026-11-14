@@ -11,7 +11,6 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { ApproximateLocationNotice } from "@/features/walk/components/ApproximateLocationNotice";
 import { WalkIdleNotice } from "@/features/walk/components/WalkIdleNotice";
 import { WalkPerfDebugOverlay } from "@/features/walk/components/WalkPerfDebugOverlay";
@@ -24,7 +23,6 @@ import {
   resolveMapLongPressPinAction,
 } from "@/features/walk/lib/addPinAction";
 import { shouldShowApproximateLocationNotice } from "@/features/walk/lib/locationPrecisionNotice";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
 import { formatClock } from "@/lib/formatClock";
@@ -94,7 +92,6 @@ export function WalkActiveView({
   const focusRegion = useCallback((region: MapRegion) => {
     setRegionRequest((previous) => ({ region, nonce: (previous?.nonce ?? 0) + 1 }));
   }, []);
-  const pinRegistrationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinRegistration);
 
   const isDark = theme.name === "dark";
 
@@ -107,10 +104,9 @@ export function WalkActiveView({
   };
 
   // 散歩中の地図の長押し → その地点で登録画面へ（散歩に紐付ける）。戻ると散歩中画面に戻るよう push する
-  // （「この場所にピンを追加」と同じ）。フラグ OFF・座標不正なら何もしない。
+  // （「この場所にピンを追加」と同じ）。座標不正なら何もしない。
   const handleMapLongPress = (coordinate: { latitude: number; longitude: number }) => {
     const action = resolveMapLongPressPinAction({
-      featureEnabled: pinRegistrationEnabled,
       pressedPosition: coordinate,
       clientWalkId: walk.activeWalk?.clientWalkId ?? null,
     });
@@ -120,7 +116,6 @@ export function WalkActiveView({
 
   const handleAddPin = () => {
     const action = resolveAddPinAction({
-      featureEnabled: pinRegistrationEnabled,
       currentPosition: walk.currentPosition,
       clientWalkId: walk.activeWalk?.clientWalkId ?? null,
     });

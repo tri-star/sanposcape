@@ -19,7 +19,6 @@ import {
   SANPO_MAP_LEAVE_LABEL,
   SANPO_MAP_MEMBERS_LOAD_ERROR,
   canRemoveSanpoMapMember,
-  canShowSanpoMapMembers,
   sanpoMapLeftMessage,
   sanpoMapMemberDisplayName,
   sanpoMapMemberRemovedMessage,
@@ -37,8 +36,6 @@ export type SanpoMapMembersViewProps = {
   sanpoMapId: string | null;
   /** サインイン中の利用者の ID（features/pin は認証を読まないのでルートから渡す）。ゲストは null。 */
   currentUserId: string | null;
-  /** フラグ `map_invitation`（ルートが読む）。 */
-  mapInvitationEnabled: boolean;
 };
 
 /** 確認ダイアログの対象。null なら閉じている。 */
@@ -50,11 +47,7 @@ type RemoveTarget = { mode: "leave" | "remove"; member: SanpoMapMember } | null;
  * 外した人・抜けた人が追加したピン・写真・タグは地図に残る（確認ダイアログで伝える。ADR-009 決定38）。
  * 地図の名前と自分の役割は地図一覧のキャッシュから引く（地図詳細と同じ。ADR-M-014 D3）。
  */
-export function SanpoMapMembersView({
-  sanpoMapId,
-  currentUserId,
-  mapInvitationEnabled,
-}: SanpoMapMembersViewProps) {
+export function SanpoMapMembersView({ sanpoMapId, currentUserId }: SanpoMapMembersViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -63,9 +56,7 @@ export function SanpoMapMembersView({
   const maps = useSanpoMaps({ enabled: signedIn });
   const map =
     sanpoMapId === null ? undefined : maps.maps.find((candidate) => candidate.id === sanpoMapId);
-  const visible =
-    map !== undefined && canShowSanpoMapMembers({ mapInvitationEnabled, role: map.role });
-  const members = useSanpoMapMembers(sanpoMapId, { enabled: signedIn && visible });
+  const members = useSanpoMapMembers(sanpoMapId, { enabled: signedIn && map !== undefined });
   const toast = useToast();
   const { show: showToast } = toast;
   const [target, setTarget] = useState<RemoveTarget>(null);
@@ -137,16 +128,6 @@ export function SanpoMapMembersView({
         />
       );
     }
-    if (!visible) {
-      return (
-        <PinStateCard
-          testID="sanpo-map-members-unavailable"
-          icon="alert-circle"
-          title="この機能はまだ使えません"
-          action={{ label: "戻る", onPress: back.goBack }}
-        />
-      );
-    }
     if (members.status === "loading") return <ActivityIndicator color={theme.colors.primary} />;
     if (members.status === "error") {
       return (
@@ -197,8 +178,8 @@ export function SanpoMapMembersView({
           <Text style={styles.mapName} testID="sanpo-map-members-map-name">
             {map.name}
           </Text>
-          {/* 招待できるのはフラグ ON の owner だけ（SS-250）。editor が他人を招くと owner の知らない人が入るため。 */}
-          {map.role === "owner" && mapInvitationEnabled ? (
+          {/* 招待できるのは owner だけ（SS-250）。editor が他人を招くと owner の知らない人が入るため。 */}
+          {map.role === "owner" ? (
             <SanpoMapInviteSection sanpoMapId={map.id} sanpoMapName={map.name} />
           ) : null}
           <View style={styles.list}>

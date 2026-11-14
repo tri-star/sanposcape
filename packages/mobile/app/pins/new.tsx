@@ -1,4 +1,4 @@
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
 import { PinRegisterView } from "@/features/pin/components/PinRegisterView";
@@ -7,26 +7,18 @@ import {
   parsePinLocationParams,
 } from "@/features/pin/lib/pinLocationParams";
 import type { PinRouteParams } from "@/features/pin/lib/pinLocationParams";
-import { usePinRegistrationGate } from "@/hooks/usePinRegistrationGate";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
  * ピン登録画面。散歩中画面の「この場所にピンを追加」または地図の長押しから push（`clientWalkId` つき）、
  * またはピンタブの地図の長押しから push（`clientWalkId` なし。SS-146）で来る。
- *
- * `docs/architecture-guideline.md`「画面ガードレシピ」の実例。どの入口もタブ画面（ナビタブ・ピンタブ）から来るので、
- * `Redirect` 先は `/` ではなく `/(tabs)`（`/` はスプラッシュ経由になる）。
  */
 export default function PinNewRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<PinRouteParams>();
-  const decision = usePinRegistrationGate();
   // セレクタはプリミティブを返す（オブジェクトを返すと zustand v5 で毎レンダー新しい参照になる）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
   const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
-
-  if (decision === "pending") return null;
-  if (decision === "disabled") return <Redirect href="/(tabs)" />;
 
   return (
     <PinRegisterView

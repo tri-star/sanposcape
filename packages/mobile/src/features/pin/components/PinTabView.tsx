@@ -35,8 +35,6 @@ export type PinTabViewProps = {
   onSignIn: () => void;
   /** ピン詳細の「ピンの場所に移動」から来たときの寄せる要求（SS-246）。ルートがパラメータを検証して渡す。 */
   focus?: PinTabFocus | null;
-  /** 地図単位の表示・非表示（SS-266）。ルートがフラグ `map_pin_visibility` から注入する（features/pin はフラグを読まない）。 */
-  mapPinVisibility: boolean;
 };
 
 const PIN_TAB_HINT =
@@ -52,7 +50,7 @@ const PIN_TAB_HINT =
  *   （読み込み・エラー・再試行・打ち切りの状態表示が要るため）。
  * - 長押しは `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
  *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
- * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
+ * - 認証は props で受ける。
  * - 表示するピンの絞り込み（SS-174）は地図右上のツール列の `PinMapFilterControl` から。状態は散歩中の地図と共有する
  *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。地図単位の表示・非表示（SS-266）も
  *   同じシートで切り替え、地図一覧の `pinsVisible`（自分のメンバーシップに保存）で散歩中の地図と共有する。
@@ -61,12 +59,7 @@ const PIN_TAB_HINT =
  * - ピン詳細の「ピンの場所に移動」（`focus`。SS-246）は、地図がまだ無ければ最初の表示範囲にし（現在地の取得を待たない）、
  *   地図があれば `regionRequest` で動かす。`focus.key` ごとに1回だけ。
  */
-export function PinTabView({
-  isSignedIn,
-  onSignIn,
-  focus = null,
-  mapPinVisibility,
-}: PinTabViewProps) {
+export function PinTabView({ isSignedIn, onSignIn, focus = null }: PinTabViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -97,7 +90,6 @@ export function PinTabView({
     visibleRegion,
     enabled: isSignedIn,
     filter: pinFilter,
-    mapPinVisibility,
   });
   const notice = resolvePinMapNotice({
     isSignedIn,
@@ -215,12 +207,7 @@ export function PinTabView({
           ) : null}
           {isSignedIn || picker.currentLocation ? (
             <View pointerEvents="box-none" style={styles.mapTools}>
-              {isSignedIn ? (
-                <PinMapFilterControl
-                  testIDPrefix="pin-tab-pin-filter"
-                  mapPinVisibility={mapPinVisibility}
-                />
-              ) : null}
+              {isSignedIn ? <PinMapFilterControl testIDPrefix="pin-tab-pin-filter" /> : null}
               {picker.currentLocation ? (
                 <IconButton
                   icon="crosshair"

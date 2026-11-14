@@ -14,11 +14,6 @@ import { usePinMapFilterStore } from "@/features/pin/store/usePinMapFilterStore"
 export type PinMapFilterControlProps = {
   /** 例: "pin-tab-pin-filter"。ボタンはこの testID、シート内は `PinMapFilterSheet` の規則で付く。 */
   testIDPrefix: string;
-  /**
-   * 地図単位の表示・非表示（SS-266）を出すか。ルートがフラグ `map_pin_visibility` から注入する
-   * （features/pin はフラグを読まない）。false なら「表示する地図」の節を出さず、地図一覧も取らない。
-   */
-  mapPinVisibility: boolean;
 };
 
 /**
@@ -29,18 +24,18 @@ export type PinMapFilterControlProps = {
  * 地図ごとの表示・非表示（SS-266）は地図一覧のキャッシュ（`pinsVisible`）が持ち、切り替えは
  * `useSanpoMapPinVisibilityUpdate` が楽観的に書き換える。`useRegisteredPins` も同じ一覧を読むので、地図にその場で効く。
  *
- * ピンを描かない状態（未サインイン・フラグ OFF）では、呼び出し元がこのコンポーネント自体を描かない。
+ * ピンを描かない状態（未サインイン）では、呼び出し元がこのコンポーネント自体を描かない。
  * 散歩中の地図へはルート（`app/(tabs)/index.tsx`）が `WalkActiveView` の `mapTools` に合成する
  * （features/walk は features/pin を import しない）。
  */
-export function PinMapFilterControl({ testIDPrefix, mapPinVisibility }: PinMapFilterControlProps) {
+export function PinMapFilterControl({ testIDPrefix }: PinMapFilterControlProps) {
   const [open, setOpen] = useState(false);
   const filter = usePinMapFilterStore((state) => state.filter);
   const setIncludeArchived = usePinMapFilterStore((state) => state.setIncludeArchived);
   const setVisitOption = usePinMapFilterStore((state) => state.setVisitOption);
-  const maps = useSanpoMaps({ enabled: mapPinVisibility });
+  const maps = useSanpoMaps({ enabled: true });
   const visibility = useSanpoMapPinVisibilityUpdate();
-  const filtered = isPinMapFiltered(filter, countHiddenSanpoMaps(maps.maps, mapPinVisibility));
+  const filtered = isPinMapFiltered(filter, countHiddenSanpoMaps(maps.maps));
 
   return (
     <>
@@ -59,22 +54,17 @@ export function PinMapFilterControl({ testIDPrefix, mapPinVisibility }: PinMapFi
         filter={filter}
         onChangeIncludeArchived={setIncludeArchived}
         onChangeVisitOption={setVisitOption}
-        mapVisibility={
-          mapPinVisibility
-            ? {
-                maps: maps.maps,
-                status: maps.status,
-                onRetry: maps.retry,
-                pendingSanpoMapIds: visibility.pendingSanpoMapIds,
-                errorMessage:
-                  visibility.errorCode !== null
-                    ? sanpoMapPinVisibilityErrorMessage(visibility.errorCode)
-                    : null,
-                onChange: (sanpoMapId, pinsVisible) =>
-                  visibility.update({ sanpoMapId, pinsVisible }),
-              }
-            : null
-        }
+        mapVisibility={{
+          maps: maps.maps,
+          status: maps.status,
+          onRetry: maps.retry,
+          pendingSanpoMapIds: visibility.pendingSanpoMapIds,
+          errorMessage:
+            visibility.errorCode !== null
+              ? sanpoMapPinVisibilityErrorMessage(visibility.errorCode)
+              : null,
+          onChange: (sanpoMapId, pinsVisible) => visibility.update({ sanpoMapId, pinsVisible }),
+        }}
         testIDPrefix={testIDPrefix}
       />
     </>

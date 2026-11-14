@@ -1,7 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
-
 import { resolveInitialVisited } from "@/features/pin/lib/pinStatus";
 import { buildPinCreateRequest } from "@/features/pin/lib/pinCreateRequest";
 import type { PinDraftFieldErrors, SaveAvailability } from "@/features/pin/lib/pinDraftValidation";
@@ -27,7 +25,6 @@ import type { UsePinPhotosResult } from "@/features/pin/hooks/usePinPhotos";
 import { usePinSave } from "@/features/pin/hooks/usePinSave";
 import type { UsePinSaveResult } from "@/features/pin/hooks/usePinSave";
 import type { PinDraft, SanpoMapSelection, SavedPin, TagSuggestion } from "@/features/pin/types";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { randomUuidV4 } from "@/lib/uuid";
 import type { GeoCoordinates } from "@/services/location/types";
 
@@ -129,10 +126,9 @@ export function usePinRegister(options: UsePinRegisterOptions): UsePinRegisterRe
   // 外しても位置を調整しても入れ直さない（引くのもやめる）。取れる前に保存したら付かない（保存を待たせない）。
   // この hook は I/O を待たず、`useQuery` の state（取得した表記）から導くだけなので、effect ではなく
   // レンダー中に1回だけ確定させる（architecture-guideline.md「1回だけの状態確定」）。
-  const stationTagEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinStationTag);
   const stationTagLabel = usePinNearestStationTag({
     location: options.location,
-    enabled: options.isSignedIn && options.hasLocation && stationTagEnabled && !stationTagSettled,
+    enabled: options.isSignedIn && options.hasLocation && !stationTagSettled,
   });
   if (!stationTagSettled && stationTagLabel !== null) {
     setStationTagSettled(true);

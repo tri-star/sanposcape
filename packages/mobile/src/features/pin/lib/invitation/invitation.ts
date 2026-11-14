@@ -57,7 +57,6 @@ export type InvitationErrorCode =
   | "map_not_found" // 404 sanpo_map_not_found（発行・一覧で地図が無い・メンバーでなくなった）
   | "member_limit" // 409 member_limit_reached
   | "invitation_limit" // 409 invitation_limit_exceeded（発行）
-  | "disabled" // 403 feature_disabled
   | "forbidden" // 403（owner でない。通常は導線を出さない）
   | "unauthorized" // 401
   | "rate_limited" // 429
@@ -82,7 +81,7 @@ export function toInvitationErrorCode(error: unknown): InvitationErrorCode {
       case 401:
         return "unauthorized";
       case 403:
-        return code === "feature_disabled" ? "disabled" : "forbidden";
+        return "forbidden";
       case 404:
         return code === "sanpo_map_not_found" ? "map_not_found" : "not_found";
       case 409:
@@ -103,7 +102,6 @@ const ERROR_MESSAGES: Record<InvitationErrorCode, string> = {
   member_limit: "この地図のメンバーは上限（10人）に達しています。",
   invitation_limit:
     "有効な招待リンクが上限（10件）に達しています。使わないリンクを取り消してください。",
-  disabled: "この機能はまだ使えません。",
   forbidden: "この操作をする権限がありません。",
   unauthorized: "サインインし直してから、もう一度お試しください。",
   rate_limited: "しばらく時間をおいてから、もう一度お試しください。",

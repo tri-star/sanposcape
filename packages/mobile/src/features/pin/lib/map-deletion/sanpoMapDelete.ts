@@ -80,13 +80,12 @@ export function sanpoMapDeleteConfirmLabel(isDeleting: boolean): string {
  * - `pinCount`: 地図詳細に出している件数（`resolveSanpoMapPinCount`。1000 件で打ち切ったときも一覧の
  *   `pin_count` の正確な件数）。null は不明。
  * - `otherMemberCount`: 自分以外のメンバーの人数。null は不明（読み込み中・失敗）。不明なら、メンバーがいる場合の扱いを
- *   条件付きで書く（フラグ `map_invitation` を OFF に戻した後もメンバーは残るので、フラグでは省かない）。
- * - `sharingEnabled`: 地図の共有を使える（フラグ `map_invitation` が ON）。ON なら招待のリンクが使えなくなることも書く。
+ *   条件付きで書く。
+ * 招待のリンクが使えなくなることも書く。
  */
 export function sanpoMapDeleteDescription(input: {
   pinCount: number | null;
   otherMemberCount: number | null;
-  sharingEnabled: boolean;
 }): string[] {
   const paragraphs: string[] = [];
   if (input.pinCount === null) {
@@ -109,9 +108,7 @@ export function sanpoMapDeleteDescription(input: {
     );
   }
   // 招待はメンバーがまだいなくても残っていることがある（地図の削除で消える。ADR-009 決定39）。
-  if (input.sharingEnabled) {
-    paragraphs.push("この地図の招待のリンクも使えなくなります。");
-  }
+  paragraphs.push("この地図の招待のリンクも使えなくなります。");
   return paragraphs;
 }
 

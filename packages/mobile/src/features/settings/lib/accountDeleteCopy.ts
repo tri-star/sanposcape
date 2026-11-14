@@ -22,23 +22,15 @@ export const ACCOUNT_DELETE_DIALOG_DESCRIPTION =
   "アカウントと、これまでの散歩の記録（時間・距離・軌跡）をすべて削除します。削除すると元に戻せません。同じアカウントでサインインし直しても、以前の記録は復元できません。";
 
 /**
- * 地図の共有（フラグ `map_invitation`）が ON のときだけ確認ダイアログに足す文言（SS-251）。
+ * 確認ダイアログに足す、地図の共有の扱いの文言（SS-251）。
  * backend の扱い（ADR-009 決定40）とプライバシーポリシー 7 に合わせる: 自分が持ち主の地図は
  * メンバーからも見えなくなる。ほかの人の地図に追加したピン・タグは残り、写真は削除される。
  */
 export const ACCOUNT_DELETE_SHARED_MAP_NOTICE =
   "自分が持ち主の地図は、ほかのメンバーが追加したピン・写真も含めて削除され、メンバーからも見えなくなります。ほかの人の地図に追加したピンとタグはその地図に残り（地図の持ち主が追加したものになります）、写真は削除されます。";
 
-/** 確認ダイアログ本文。フラグ `map_invitation` が ON なら地図の共有の扱いを足す。 */
-export function accountDeleteDialogDescription({
-  mapInvitationEnabled,
-}: {
-  mapInvitationEnabled: boolean;
-}): string {
-  return mapInvitationEnabled
-    ? `${ACCOUNT_DELETE_DIALOG_DESCRIPTION}\n\n${ACCOUNT_DELETE_SHARED_MAP_NOTICE}`
-    : ACCOUNT_DELETE_DIALOG_DESCRIPTION;
-}
+/** 確認ダイアログ本文。取り消し不能の文言に続けて地図の共有の扱いを書く。 */
+export const ACCOUNT_DELETE_DIALOG_BODY = `${ACCOUNT_DELETE_DIALOG_DESCRIPTION}\n\n${ACCOUNT_DELETE_SHARED_MAP_NOTICE}`;
 
 export const ACCOUNT_DELETE_CANCEL_LABEL = "キャンセル";
 

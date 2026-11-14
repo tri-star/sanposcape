@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge/Badge";
 import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { SanpoMapDeleteDialog } from "@/features/pin/components/map-deletion/SanpoMapDeleteDialog";
 import { SanpoMapIconBadge } from "@/features/pin/components/SanpoMapIconBadge";
@@ -40,7 +39,6 @@ import { canManageSanpoMap } from "@/features/pin/lib/pinPermissions";
 import { isRetriablePinReadError } from "@/features/pin/lib/pinReadError";
 import { sanpoMapReadErrorMessage } from "@/features/pin/lib/sanpoMapError";
 import { sanpoMapIconChangeLabel } from "@/features/pin/lib/sanpoMapIcon";
-import { canShowSanpoMapMembers } from "@/features/pin/lib/sanpoMapMember";
 import {
   SANPO_MAP_PIN_MAX_PAGES,
   SANPO_MAP_PIN_PAGE_SIZE,
@@ -54,7 +52,6 @@ import {
   resolveSanpoMapPinSectionState,
 } from "@/features/pin/lib/sanpoMapScreenState";
 import type { PinListEntry, SanpoMap } from "@/features/pin/types";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -84,8 +81,8 @@ const MAX_PIN_TOTAL = SANPO_MAP_PIN_PAGE_SIZE * SANPO_MAP_PIN_MAX_PAGES;
  *
  * - 地図の情報は地図一覧のキャッシュから id で引く（`GET /sanpo-maps/{id}` は無い。ADR-M-014 D3）。
  * - ピン一覧は全件（上限 1000）を1回の取得で揃え、端末で絞り込む（D1 / D2）。
- * - 認証は props で受ける（features/pin は認証を読まない）。フラグはルートがガードする。
- * - メンバーの行（SS-249）はフラグ `map_invitation` が ON か、自分が editor の地図のときだけ出す。
+ * - 認証は props で受ける（features/pin は認証を読まない）。
+ * - メンバーの行（SS-249）を出す。
  * - アイコンの変更は、アイコンそのもののタップで開く（owner だけ。右下にペンのバッジ。SS-249）。
  * - 地図の削除はヘッダー右のゴミ箱から確認ダイアログを開く（owner だけ。SS-265）。消したら地図一覧へ戻り、
  *   一覧で「『…』を削除しました」を出す。消した後は、この地図のピン・メンバーを取り直さない（404 を踏む）。
@@ -145,13 +142,9 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
 
   const map =
     sanpoMapId === null ? undefined : maps.maps.find((candidate) => candidate.id === sanpoMapId);
-  const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
-  const showMembers =
-    map !== undefined && canShowSanpoMapMembers({ mapInvitationEnabled, role: map.role });
-  // 削除の確認ダイアログを開いている間は、メンバーの行を出さない owner の地図（フラグ OFF）でも取る。
-  // 確認文に、見られなくなるほかのメンバーの人数を書くため（フラグを OFF に戻した後もメンバーは残る。SS-265）。
+  const showMembers = map !== undefined;
   const members = useSanpoMapMembers(sanpoMapId, {
-    enabled: isSignedIn && (showMembers || deleteFlow.dialogOpen) && !deleted,
+    enabled: isSignedIn && showMembers && !deleted,
   });
   const handleOpenMembers = useCallback(() => {
     if (sanpoMapId === null) return;
@@ -516,10 +509,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
           }),
     // 自分を除く。取り終えるまでは不明（null）。
     otherMemberCount:
-      (showMembers || deleteFlow.dialogOpen) && members.status === "ready"
-        ? Math.max(0, members.members.length - 1)
-        : null,
-    sharingEnabled: mapInvitationEnabled,
+      showMembers && members.status === "ready" ? Math.max(0, members.members.length - 1) : null,
   });
 
   return (

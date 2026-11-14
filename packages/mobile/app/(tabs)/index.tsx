@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useCallback } from "react";
 
 import { isDevToolsEnabled } from "@/config/devTools";
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { RecentWalksSection } from "@/features/history/components/RecentWalksSection";
 import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
 import { RegisteredPinsMapLayer } from "@/features/pin/components/RegisteredPinsMapLayer";
@@ -10,16 +9,14 @@ import {
   WalkActiveView,
   type WalkMapLayerActions,
 } from "@/features/walk/components/WalkActiveView";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import type { MapRegion } from "@/lib/mapRegion";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
  * 散歩中（ナビタブ）。`features/walk` は `features/pin` を import しない規約を保つため、
- * 登録済みピンのレイヤー（`RegisteredPinsMapLayer`）の合成と認証値・フラグの注入はこのルートが担う
+ * 登録済みピンのレイヤー（`RegisteredPinsMapLayer`）の合成と認証値の注入はこのルートが担う
  * （SS-118。`docs/architecture-guideline.md`「認証の扱い」）。表示するピンの絞り込みのボタン（`PinMapFilterControl`）も
- * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。地図単位の表示・非表示のフラグ
- * （`map_pin_visibility`。SS-266）も、ここで読んでレイヤーとボタンに渡す。
+ * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。
  * `features/walk` は `features/history` も import しないため、散歩していないときの
  * 「最近の散歩」（`RecentWalksSection`）もこのルートが合成して `idleSection` に渡す（SS-147）。
  * 散歩中の地図の開発用の計測値の表示（`showPerfDebug`）も、開発ツールの判定（`isDevToolsEnabled()`。
@@ -27,8 +24,6 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  */
 export default function WalkActiveRoute() {
   const router = useRouter();
-  const pinFeatureEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinRegistration);
-  const mapPinVisibility = useFeatureFlag(FEATURE_FLAG_KEYS.mapPinVisibility);
   // セレクタはプリミティブを返す（オブジェクトを返すと zustand v5 で毎レンダー新しい参照になる）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
 
@@ -37,10 +32,9 @@ export default function WalkActiveRoute() {
     [router],
   );
 
-  // フラグ OFF・未サインインのときはレイヤー自体を描かない。`enabled: false` の query は通信を
-  // 止めるだけで、キャッシュ済みのピンは返し続けるため（実行中にフラグが OFF になってもマーカーが
-  // 残ってしまう。PR #105 レビュー）。
-  const showRegisteredPins = pinFeatureEnabled && isSignedIn;
+  // 未サインインのときはレイヤー自体を描かない。`enabled: false` の query は通信を
+  // 止めるだけで、キャッシュ済みのピンは返し続けるため（サインアウトしてもマーカーが残ってしまう）。
+  const showRegisteredPins = isSignedIn;
   const renderMapLayers = useCallback(
     (visibleRegion: MapRegion | null, actions: WalkMapLayerActions) =>
       showRegisteredPins ? (
@@ -49,18 +43,14 @@ export default function WalkActiveRoute() {
           onSelectPin={handleSelectPin}
           onSelectCluster={actions.focusRegion}
           testIDPrefix="walk-active-pin"
-          mapPinVisibility={mapPinVisibility}
         />
       ) : null,
-    [showRegisteredPins, handleSelectPin, mapPinVisibility],
+    [showRegisteredPins, handleSelectPin],
   );
 
   // ピンを描かないときは絞り込みのボタンも出さない（効く対象が無いため）。
   const mapTools = showRegisteredPins ? (
-    <PinMapFilterControl
-      testIDPrefix="walk-active-pin-filter"
-      mapPinVisibility={mapPinVisibility}
-    />
+    <PinMapFilterControl testIDPrefix="walk-active-pin-filter" />
   ) : null;
 
   // 散歩していないときの「最近の散歩」（features/history）。features/walk は features/history を import しない

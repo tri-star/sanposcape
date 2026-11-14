@@ -66,19 +66,20 @@ describe("sanpoMapDeleteDescription", () => {
   const base: Parameters<typeof sanpoMapDeleteDescription>[0] = {
     pinCount: 3,
     otherMemberCount: 0,
-    sharingEnabled: false,
   };
+  const INVITATION = "この地図の招待のリンクも使えなくなります。";
 
-  it("ピンの件数と、写真・タグも消えて戻せないことを書く", () => {
+  it("ピンの件数と、写真・タグも消えて戻せないことを書く（メンバーが自分だけならメンバーの文は書かない）", () => {
     expect(sanpoMapDeleteDescription(base)).toEqual([
       "この地図のピン3件と、その写真・タグもすべて削除され、元に戻せません。",
+      INVITATION,
     ]);
   });
 
   it("ピンが無ければ件数を書かない", () => {
-    expect(sanpoMapDeleteDescription({ ...base, pinCount: 0 })).toEqual([
+    expect(sanpoMapDeleteDescription({ ...base, pinCount: 0 })[0]).toBe(
       "この操作は元に戻せません。",
-    ]);
+    );
   });
 
   it("件数が不明なら件数を書かずにピンも消えることを書く", () => {
@@ -88,32 +89,17 @@ describe("sanpoMapDeleteDescription", () => {
   });
 
   it("ほかのメンバーがいれば人数と、見られなくなることを書く", () => {
-    expect(
-      sanpoMapDeleteDescription({ ...base, otherMemberCount: 2, sharingEnabled: true }),
-    ).toEqual([
+    expect(sanpoMapDeleteDescription({ ...base, otherMemberCount: 2 })).toEqual([
       "この地図のピン3件と、その写真・タグもすべて削除され、元に戻せません。",
       "ほかのメンバー2人もこの地図を見られなくなり、メンバーが追加したピン・写真も削除されます。",
-      "この地図の招待のリンクも使えなくなります。",
+      INVITATION,
     ]);
   });
 
-  it("共有が使えてメンバーが自分だけなら、メンバーの文は書かず招待の文だけ書く", () => {
-    expect(
-      sanpoMapDeleteDescription({ ...base, otherMemberCount: 0, sharingEnabled: true }),
-    ).toEqual([
-      "この地図のピン3件と、その写真・タグもすべて削除され、元に戻せません。",
-      "この地図の招待のリンクも使えなくなります。",
-    ]);
-  });
-
-  it("人数が不明なら、共有が使えなくてもメンバーがいる場合の扱いを条件付きで書く（フラグを OFF に戻した後もメンバーは残る）", () => {
+  it("人数が不明なら、メンバーがいる場合の扱いを条件付きで書く", () => {
     expect(sanpoMapDeleteDescription({ ...base, otherMemberCount: null })[1]).toBe(
       "メンバーがいる場合は、メンバーもこの地図を見られなくなり、メンバーが追加したピン・写真も削除されます。",
     );
-  });
-
-  it("共有が使えずメンバーが自分だけなら、ピンの文だけ書く", () => {
-    expect(sanpoMapDeleteDescription(base)).toHaveLength(1);
   });
 });
 

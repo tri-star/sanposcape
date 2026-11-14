@@ -17,10 +17,8 @@ import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { NameSearchField } from "@/features/pin/components/NameSearchField";
 import { PinStateCard } from "@/features/pin/components/PinStateCard";
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { InvitationLinkPasteDialog } from "@/features/pin/components/invitation/InvitationLinkPasteDialog";
 import { SanpoMapCreateDialog } from "@/features/pin/components/SanpoMapCreateDialog";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { SanpoMapListItem } from "@/features/pin/components/SanpoMapListItem";
 import { usePullToRefresh } from "@/features/pin/hooks/usePullToRefresh";
 import { useSanpoMaps } from "@/features/pin/hooks/useSanpoMaps";
@@ -82,8 +80,7 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
 
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  // 「招待リンクで参加」（SS-250。フラグ map_invitation が ON・サインイン中だけ）。
-  const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
+  // 「招待リンクで参加」（SS-250。サインイン中だけ）。
   const [joinOpen, setJoinOpen] = useState(false);
   // 開くたびに +1 してダイアログを作り直す（入力値・作成エラーを空に戻す）。
   const [createDialogKey, setCreateDialogKey] = useState(0);
@@ -291,7 +288,7 @@ export function SanpoMapListView({ isSignedIn, onSignIn }: SanpoMapListViewProps
         <Text accessibilityRole="header" style={styles.title}>
           地図一覧
         </Text>
-        {isSignedIn && mapInvitationEnabled ? (
+        {isSignedIn ? (
           <IconButton
             icon="link"
             label="招待リンクで参加"

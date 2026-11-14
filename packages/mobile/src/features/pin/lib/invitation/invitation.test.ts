@@ -46,10 +46,7 @@ describe("invitationAcceptPath", () => {
 });
 
 describe("toInvitationErrorCode", () => {
-  it("本文の code で 403・409 を分ける", () => {
-    expect(toInvitationErrorCode(new ApiError(403, undefined, { code: "feature_disabled" }))).toBe(
-      "disabled",
-    );
+  it("403 は forbidden、409 は本文の code で分ける", () => {
     expect(toInvitationErrorCode(new ApiError(403))).toBe("forbidden");
     expect(
       toInvitationErrorCode(new ApiError(409, undefined, { code: "invitation_limit_exceeded" })),

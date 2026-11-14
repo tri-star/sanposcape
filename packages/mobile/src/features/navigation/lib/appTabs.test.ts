@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  APP_TAB_ITEMS,
-  resolveActiveAppTab,
-  resolveVisibleAppTabs,
-} from "@/features/navigation/lib/appTabs";
+import { APP_TAB_ITEMS, resolveActiveAppTab } from "@/features/navigation/lib/appTabs";
 
 const values = (items: readonly { value: string }[]) => items.map((item) => item.value);
 
@@ -26,28 +22,6 @@ describe("APP_TAB_ITEMS", () => {
     const list = values(APP_TAB_ITEMS);
     expect(list).not.toContain("search");
     expect(list).not.toContain("history");
-  });
-});
-
-describe("resolveVisibleAppTabs", () => {
-  it("enabled では3タブ", () => {
-    expect(values(resolveVisibleAppTabs({ pinTabGate: "enabled" }))).toEqual([
-      "index",
-      "pins",
-      "account",
-    ]);
-  });
-
-  it("pending（取得中）では隠さず3タブ", () => {
-    expect(values(resolveVisibleAppTabs({ pinTabGate: "pending" }))).toEqual([
-      "index",
-      "pins",
-      "account",
-    ]);
-  });
-
-  it("disabled（OFF 確定）ではピンタブを除く", () => {
-    expect(values(resolveVisibleAppTabs({ pinTabGate: "disabled" }))).toEqual(["index", "account"]);
   });
 });
 

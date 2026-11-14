@@ -5,22 +5,16 @@ import type { SanpoMap } from "@/features/pin/types";
  * 地図単位のピンの表示・非表示（SS-266）の純粋関数。
  *
  * 選択は自分のメンバーシップの `pinsVisible`（backend の `sanpo_map_members.pins_visible`）に保存され、
- * ピンタブと散歩中のナビタブの地図の両方に効く。フラグ `map_pin_visibility` が OFF の間は
- * `pinsVisible` を見ず、すべての地図のピンを出す（`enabled: false`）。
+ * ピンタブと散歩中のナビタブの地図の両方に効く。
  */
 
 /** ピンを取りに行く地図。非表示の地図は `GET /pins` 自体を呼ばない（上限の件数を表示する地図に使う）。 */
-export function selectPinsVisibleSanpoMaps(
-  maps: readonly SanpoMap[],
-  enabled: boolean,
-): readonly SanpoMap[] {
-  if (!enabled) return maps;
+export function selectPinsVisibleSanpoMaps(maps: readonly SanpoMap[]): readonly SanpoMap[] {
   return maps.some((map) => !map.pinsVisible) ? maps.filter((map) => map.pinsVisible) : maps;
 }
 
-/** 非表示にしている地図の数（「絞り込み中」の判定に使う）。`enabled: false` なら常に 0。 */
-export function countHiddenSanpoMaps(maps: readonly SanpoMap[], enabled: boolean): number {
-  if (!enabled) return 0;
+/** 非表示にしている地図の数（「絞り込み中」の判定に使う）。 */
+export function countHiddenSanpoMaps(maps: readonly SanpoMap[]): number {
   return maps.reduce((count, map) => (map.pinsVisible ? count : count + 1), 0);
 }
 
