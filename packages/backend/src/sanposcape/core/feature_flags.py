@@ -53,7 +53,7 @@ FLAG_KEY_PATTERN = re.compile(r"^[a-z][a-zA-Z\d_-]{0,63}$")
 # 配る予約キー（ADR-008 追補 D7）。`FEATURE_FLAGS` には登録しない。
 RESERVED_FLAG_KEYS = frozenset({"client_requirements"})
 
-_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+_VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 FlagAudience = Literal["client", "backend"]
 

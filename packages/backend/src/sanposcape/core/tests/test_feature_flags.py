@@ -200,7 +200,11 @@ def test_minimum_supported_versions_is_none_when_client_requirements_disabled() 
     assert flags.minimum_supported_versions() == MinimumSupportedVersions(ios=None, android=None)
 
 
-@pytest.mark.parametrize("invalid_version", ["1.0", "abc", "1.0.0.0", "", None])
+# 最後はアラビア・インド数字の 1.1.0（ASCII 以外の数字は形式不正にする。SS-271）
+@pytest.mark.parametrize(
+    "invalid_version",
+    ["1.0", "abc", "1.0.0.0", "", None, "".join(map(chr, [0x661, 0x2E, 0x661, 0x2E, 0x660]))],
+)
 def test_minimum_supported_versions_is_none_for_malformed_version(
     invalid_version: str | None, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -43,7 +43,7 @@ MINIMUM_VERSION_ATTRIBUTES = {
     "ios": "ios_minimum_version",
     "android": "android_minimum_version",
 }
-VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 # 「指定なし（null）に戻す」を表す入力。空の入力は「現在値のまま」。
 CLEAR_VERSION = "none"
 

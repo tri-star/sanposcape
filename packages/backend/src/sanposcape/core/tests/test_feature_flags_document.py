@@ -269,6 +269,8 @@ def test_does_not_mutate_the_definitions(definitions: dict[str, Any]) -> None:
 
 # --- 最低サポートバージョン（SS-271） ---
 
+ARABIC_INDIC_1_1_0 = "".join(map(chr, [0x661, 0x2E, 0x661, 0x2E, 0x660]))
+
 
 def test_sets_minimum_versions_and_keeps_the_flags(definitions: dict[str, Any]) -> None:
     current, _ = script.build_document(definitions, None, "walk_sharing", True)
@@ -354,6 +356,8 @@ def test_minimum_versions_keep_keys_missing_from_the_definitions(
         ({"ios": "1.10.0"}, "超えています"),
         ({"ios": "2.0.0"}, "超えています"),
         ({"windows": "1.0.0"}, "未知の OS"),
+        # ASCII 以外の数字（アラビア・インド数字の 1.1.0）。mobile が解析できない値になる
+        ({"ios": ARABIC_INDIC_1_1_0}, "X.Y.Z"),
     ],
 )
 def test_rejects_invalid_minimum_versions(
