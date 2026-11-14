@@ -204,6 +204,13 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/{%BACKEND_API_PORT%}/8000/; s/{%DB_PORT%}/5432/' .env
+          # コンテナの app_user をランナーのユーザーと同じ UID/GID にする。compose.yaml は
+          # packages/backend をそのまま /app にマウントするので、.env.example の 1000 のままだと
+          # チェックアウトの持ち主（ランナーのユーザー）と食い違い、STORAGE_MODE=fake の保存先
+          # （DEV_STORAGE_DIR=storages/dev-storage）に書けず写真の直送が 500 になる
+          # （pin-register-photo.yaml。run 42955922775）。
+          sed -i "s/^APP_UID=.*/APP_UID=$(id -u)/; s/^APP_GID=.*/APP_GID=$(id -g)/" .env
+          grep -E '^APP_(UID|GID)=' .env
           # MAPS_MODE=fake は compose.yaml の environment: 経由でコンテナに届き（SS-21）、
           # backend の Settings.maps_mode で実際に解釈される（SS-44）。ENV=test なので
           # 許可リスト検証も通り、/explore/places は FakeGoogleMapsProvider の決定的な候補を返す。
@@ -393,6 +400,13 @@ jobs:
           if-no-files-found: ignore
           # Public リポジトリのため既定の保持期間（90日）に任せず明示的に短くする。
           retention-days: 7
+
+      # アプリの画面に出るのは HTTP の status だけなので、backend の例外の中身はここで残す
+      # （run 42955922775 では写真の直送の 500 の原因をログから確かめられなかった）。
+      - name: Dump backend logs
+        if: failure()
+        working-directory: packages/backend
+        run: docker compose logs --no-color --tail 500 api || true
 
       # ランナーが生きたままジョブが失敗したときに、カーネルの OOM killer が動いたかを残す
       # （エミュレータや Maestro が kill されても、フローの失敗としか見えないため）。

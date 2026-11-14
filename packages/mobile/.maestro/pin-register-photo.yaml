@@ -1,0 +1,248 @@
+# 写真付きのピン登録（SS-123）: サインイン → 地図を作成 → ピンタブの長押しで登録画面
+# →「撮影する」「写真を選ぶ」で写真を2枚 → 保存 → 地図詳細からピン詳細 → 写真2枚と撮影日時
+# → ピンと地図を削除（後片付け）。
+#
+# 前提: pin-edit-delete.yaml と同じ
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
+#   - backend が packages/backend/.env.example どおり（FEATURE_FLAG_MODE=stub で pin_registration ON、STORAGE_MODE=fake）
+#   - 地図の長押しは Maps SDK が初期化されている必要がある（CI はキー注入済み。ADR-M-007）。
+# /explore/places に依存しないので maps-required は付けない（散歩を始めない）。
+#
+# mock の写真サービスは、ソースに埋め込んだ本物の JPEG（240x180。src/services/photo/mockJpeg.ts）を返す。
+# 枠の発行 → fake storage への直送（presigned POST）→ ピンの作成で紐付け → backend の確定処理
+# （メタデータの除去・デコード・サムネイル生成）までを通す。OS のカメラ・写真ピッカーは開かない。
+#
+# assert しないもの: 写真の絵そのもの（expo-image の描画は testID で見えない。読み込み失敗でもタイルは残る）、
+# 登録画面のタイルの状態（送信中・送信済みは一時表示。SS-152）、トースト、件数、ほかの地図・ピン。
+# このフローが作る地図とピンにだけ依存する（実行ごとに一意な名前）。
+#
+# 共有ユーザーへの影響: このフローが作ったピンと地図だけを削除する（写真もピンと一緒に消える）。
+# 地図も消すのは、手元で繰り返し実行したときに登録画面の地図の選択欄が伸び続けないようにするため
+# （削除の手順は sanpo-map-list.yaml と同じ。SS-265）。
+#
+# 注意:
+#   - 入力はすべて ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が
+#     画面の「戻る」に化けることがある。SS-152）。
+#   - 詳細画面では scrollUntilVisible を使わない（画面中央からのスワイプが地図に当たる。pin-edit-delete.yaml）。
+#     写真は詳細の上部（名前の下）にあり、スクロールせずに見える。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-map"
+    timeout: 15000
+# 実行ごとに一意な値（同じ CI ランの他フロー・前回の実行の地図と区別する）
+- evalScript: ${output.suffix = String(Date.now())}
+- evalScript: ${output.mapName = 'E2E-photo-map-' + output.suffix}
+- evalScript: ${output.pinName = 'E2E-photo-pin-' + output.suffix}
+
+# --- 地図一覧 → 作成 → ピンタブへ戻る ---
+- tapOn:
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-list-create-fab"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-create-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-create-name-input"
+- inputText: ${output.mapName}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-create-submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-create-dialog"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      text: ${output.mapName}
+    timeout: 10000
+- tapOn:
+    id: "sanpo-map-list-back"
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-screen"
+    timeout: 10000
+
+# --- 作った地図に写真付きのピンを登録する（pin-edit-delete.yaml と同じ長押しの地点） ---
+- longPressOn:
+    point: "50%,62%"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-sanpo-map-loading"
+    timeout: 15000
+- runFlow:
+    file: subflows/replace-text.yaml
+    env:
+      FIELD_ID: "pin-register-name-input"
+      TEXT: ${output.pinName}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: ${output.mapName}
+- tapOn:
+    text: ${output.mapName}
+# 写真: 撮影（camera）と選択（library）を1枚ずつ。mock は権限を求めず、すぐに1枚を返す。
+# 選んだ直後に端末で加工し、先行アップロード（枠の発行 → 直送）が始まる（ADR-M-010 決定5）。
+- scrollUntilVisible:
+    element:
+      id: "pin-register-photo-camera"
+- tapOn:
+    id: "pin-register-photo-camera"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-photo-0"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "pin-register-photo-library"
+- tapOn:
+    id: "pin-register-photo-library"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-photo-1"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "pin-register-save"
+- tapOn:
+    id: "pin-register-save"
+# 保存は先行アップロードの完了を待ってから紐付ける。写真の失敗で保存が止まると登録画面に残る。
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-screen"
+    timeout: 30000
+- assertVisible:
+    id: "pin-tab-screen"
+
+# --- 地図詳細 → ピン詳細 ---
+- tapOn:
+    id: "pin-tab-open-sanpo-map-list"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-list-search-input"
+- inputText: ${output.suffix}
+- hideKeyboard
+- tapOn:
+    id: "sanpo-map-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-screen"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pin-0"
+    timeout: 15000
+- tapOn:
+    id: "sanpo-map-detail-pin-0"
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-name"
+    timeout: 15000
+
+# --- 写真: 2枚が紐付いている（backend がデコード・サムネイル生成まで終えた） ---
+- extendedWaitUntil:
+    visible:
+      id: "pin-detail-photos-1"
+    timeout: 15000
+- assertVisible:
+    id: "pin-detail-photos-0"
+- assertNotVisible:
+    id: "pin-detail-photos-2"
+- assertNotVisible:
+    id: "pin-detail-photos-empty"
+
+# --- 写真ビューア: 開くと枚数と撮影日時が出る → 閉じる ---
+# 日付の行は撮影日時が無いとアップロード日時（「アップロード …」）を同じ testID で出すので、
+# 「撮影」で始まる文言まで見る（mock の takenAt が枠 → 写真へ運ばれたことの確認。SS-163）。
+- tapOn:
+    id: "pin-detail-photos-0"
+- extendedWaitUntil:
+    visible:
+      id: "pin-photo-viewer"
+    timeout: 10000
+- assertVisible:
+    id: "pin-photo-viewer-counter"
+- assertVisible:
+    id: "pin-photo-viewer-date"
+    text: "撮影.*"
+- tapOn:
+    id: "pin-photo-viewer-close"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-photo-viewer"
+    timeout: 5000
+- assertVisible:
+    id: "pin-detail-screen"
+
+# --- ピンの削除 → 地図詳細が0件（後片付け。削除はヘッダー右端のゴミ箱） ---
+- tapOn:
+    id: "pin-detail-delete"
+- extendedWaitUntil:
+    visible:
+      id: "pin-delete-dialog"
+    timeout: 5000
+- tapOn:
+    id: "pin-delete-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-detail-screen"
+    timeout: 20000
+- assertVisible:
+    id: "sanpo-map-detail-screen"
+# このフローが作った地図なので、削除後は必ず0件になる。
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-detail-pins-empty"
+    timeout: 15000
+
+# --- 作った地図を削除する（SS-265。e2e ユーザーが作ったので owner） ---
+- tapOn:
+    id: "sanpo-map-detail-delete"
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-delete-dialog"
+    timeout: 5000
+- tapOn:
+    id: "sanpo-map-delete-confirm"
+# 成功トーストは一時表示なので assert しない（ADR-M-004 SS-152 追補）。地図一覧へ戻り、地図が消えたことで確かめる。
+- extendedWaitUntil:
+    visible:
+      id: "sanpo-map-list-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "sanpo-map-list-loading"
+    timeout: 15000
+# 一覧の検索欄は詳細へ進む前の入力（接尾辞）を残しているので、入れ直さずに地図名が消えることを待つ
+# （トースト「『…』を削除しました」にも地図名が入るので、トーストが消えるまで含めて待つ）。
+- extendedWaitUntil:
+    notVisible:
+      text: ".*${output.mapName}.*"
+    timeout: 15000
+- assertNotVisible:
+    id: "sanpo-map-list-error"
