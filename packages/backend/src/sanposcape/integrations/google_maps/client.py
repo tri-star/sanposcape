@@ -1,13 +1,16 @@
 import json
 import logging
 import math
-import re
-import unicodedata
 from typing import Any
 
 import httpx
 
 from sanposcape.config import Settings
+from sanposcape.integrations.google_maps.address import (
+    ADDRESS_MAX_CHARS,
+    normalize_address,
+    parse_geocode_results,
+)
 from sanposcape.integrations.google_maps.cache import SingleFlight, TtlCache
 from sanposcape.integrations.google_maps.exceptions import (
     GoogleMapsQuotaError,
@@ -17,10 +20,13 @@ from sanposcape.integrations.google_maps.fake import FakeGoogleMapsProvider
 from sanposcape.integrations.google_maps.provider import (
     GoogleMapsProvider,
     ProviderAddress,
+    ProviderCircle,
     ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
+    ProviderRectangle,
     ProviderRoute,
+    ProviderTextPlace,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,24 +48,13 @@ _LOOP_ROUTE_FIELD_MASK = (
 # ヘッダーで送る。
 # 座標はクエリ（`locationQuery`）で送る（パスの形 `/location/{lat},{lng}` にすると、クエリを落とす
 # `_endpoint()` と `core/tracing.py` でも座標が残るため）。
+# 文字列での場所の検索（Text Search (New)。SS-267）。
+# 名前・住所・位置を取るので Text Search Pro の SKU。
+_TEXT_SEARCH_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.location"
 _GEOCODING_URL = "https://geocode.googleapis.com/v4/geocode/location"
 _GEOCODING_FIELD_MASK = (
     "results.formattedAddress,results.addressComponents,results.types,results.bounds"
 )
-# 住所・建物名の上限（Unicode code point）。応答の契約（`maps/schemas.py`）と揃える。
-_ADDRESS_MAX_CHARS = 256
-# 「日本、〒100-0005 」のような国名と郵便番号の接頭辞（NFKC で半角に揃えた後に当てる）。
-_JAPAN_PREFIX = re.compile(r"^日本、\s*")
-_POSTAL_CODE_PREFIX = re.compile(r"^〒?\d{3}-\d{4}\s*")
-# 番地だけの `premise`（例: `9-1`）。建物名として扱わない。
-_NUMBER_ONLY = re.compile(r"^[\d\-]+$")
-# NFKC で `-` にならないハイフン・マイナスの類（Google は丁目以下の区切りに U+2212 を使う）。
-_DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2212", "-"))
-# 住所として粗すぎる結果の種類。これだけで構成される結果（海上の「日本」、「日本 〒400-0241」、
-# Plus Code）はピン名に使えないので読み飛ばす。
-_COARSE_RESULT_TYPES = frozenset({"plus_code", "country", "postal_code", "political"})
-# 駅・停留所の結果。住所の後ろに停留所の名前が付くので、住所に使わない（SS-212）。
-_TRANSIT_RESULT_TYPE = "transit_station"
 
 
 class UnconfiguredGoogleMapsProvider:
@@ -88,6 +83,17 @@ class UnconfiguredGoogleMapsProvider:
         *,
         timeout_seconds: float,
     ) -> ProviderLoopRoute:
+        raise GoogleMapsUnavailableError()
+
+    def search_text(
+        self,
+        query: str,
+        *,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
         raise GoogleMapsUnavailableError()
 
     def reverse_geocode(
@@ -122,7 +128,12 @@ class HttpGoogleMapsProvider:
         self._geocode_cache: TtlCache[tuple[ProviderAddress, ...]] = TtlCache(
             settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
         )
+        # 検索語はメモリのキャッシュのキーにだけ入る（DB・ログには残さない。SS-267）。
+        self._text_cache: TtlCache[tuple[ProviderTextPlace, ...]] = TtlCache(
+            settings.google_maps_cache_ttl_seconds, settings.google_maps_cache_max_entries
+        )
         self._places_flight: SingleFlight[tuple[ProviderPlace, ...]] = SingleFlight()
+        self._text_flight: SingleFlight[tuple[ProviderTextPlace, ...]] = SingleFlight()
         self._routes_flight: SingleFlight[ProviderRoute] = SingleFlight()
         self._loop_flight: SingleFlight[ProviderLoopRoute] = SingleFlight()
         self._geocode_flight: SingleFlight[tuple[ProviderAddress, ...]] = SingleFlight()
@@ -283,6 +294,71 @@ class HttpGoogleMapsProvider:
         self._loop_cache.put(key, result)
         return result
 
+    def search_text(
+        self,
+        query: str,
+        *,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        key = self._text_key(query, restriction, bias, limit)
+        cached = self._text_cache.get(key)
+        if cached is not None:
+            return cached
+        return self._text_flight.do(
+            key,
+            lambda: self._load_text(key, query, restriction, bias, limit, timeout_seconds),
+        )
+
+    def _load_text(
+        self,
+        key: str,
+        query: str,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        cached = self._text_cache.get(key)
+        if cached is not None:
+            return cached
+        payload: dict[str, Any] = {
+            "textQuery": query,
+            "languageCode": "ja",
+            "regionCode": "JP",
+            "pageSize": limit,
+        }
+        if restriction is not None:
+            payload["locationRestriction"] = {
+                "rectangle": {
+                    "low": self._lat_lng(restriction.south_west),
+                    "high": self._lat_lng(restriction.north_east),
+                }
+            }
+        if bias is not None:
+            payload["locationBias"] = {
+                "circle": {"center": self._lat_lng(bias.center), "radius": bias.radius_meters}
+            }
+        # 検索語は POST の本文で送る（URL・ログ・トレースに載せない）。
+        response = self._request(
+            "POST",
+            f"{_PLACES_BASE_URL}/places:searchText",
+            json=payload,
+            headers={"X-Goog-FieldMask": _TEXT_SEARCH_FIELD_MASK},
+            timeout_seconds=timeout_seconds,
+        )
+        raw_places = response.get("places", [])
+        if not isinstance(raw_places, list):
+            raise GoogleMapsUnavailableError()
+        places = [
+            parsed for place in raw_places if (parsed := _parse_text_place(place)) is not None
+        ]
+        result = tuple(places[:limit])
+        self._text_cache.put(key, result)
+        return result
+
     def reverse_geocode(
         self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
     ) -> ProviderAddress | None:
@@ -313,7 +389,7 @@ class HttpGoogleMapsProvider:
             headers={"X-Goog-FieldMask": _GEOCODING_FIELD_MASK},
             timeout_seconds=timeout_seconds,
         )
-        address = _parse_geocode_results(response.get("results", []), point)
+        address = parse_geocode_results(response.get("results", []), point)
         result: tuple[ProviderAddress, ...] = () if address is None else (address,)
         self._geocode_cache.put(key, result)
         return result
@@ -507,6 +583,25 @@ class HttpGoogleMapsProvider:
         )
 
     @staticmethod
+    def _text_key(
+        query: str,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+    ) -> str:
+        area = "none"
+        if restriction is not None:
+            sw, ne = restriction.south_west, restriction.north_east
+            area = f"rect:{sw.latitude:.4f}:{sw.longitude:.4f}:{ne.latitude:.4f}:{ne.longitude:.4f}"
+        elif bias is not None:
+            area = (
+                f"bias:{bias.center.latitude:.4f}:{bias.center.longitude:.4f}:"
+                f"{bias.radius_meters:.0f}"
+            )
+        # 検索語は区切り文字を含みうるので最後に置く。
+        return f"text:{area}:{limit}:{query}"
+
+    @staticmethod
     def _geocode_key(cache_scope: str, point: ProviderPoint) -> str:
         # 住所のキャッシュは利用者ごとに分け、他の利用者に使い回さない（Geocoding API の
         # 利用規約。SS-212 / ADR-001）。
@@ -559,131 +654,40 @@ def _parse_google_error(response: httpx.Response) -> tuple[str | None, list[str]
     )
 
 
-def _parse_geocode_results(results: object, point: ProviderPoint) -> ProviderAddress | None:
-    """Geocoding API v4 の `results` から、ピンの位置の住所と建物名を取り出す。
-
-    `results` は近い順に並ぶ。Plus Code・国・郵便番号だけの粗い結果（住所の無い場所）と、
-    駅・停留所の結果（住所の後ろに「東京駅南口」のような停留所の名前が付く）は読み飛ばし、
-    最初の結果を住所にする。住所に建物名・階（`subpremise`）が付いていれば、そこから後ろを
-    外す（入居者の施設の結果は「丸の内ビルディング 5階」のように階まで付き、番地の結果は隣の
-    建物の名前を付けることがあるため）。
-    建物名は `premise` のうち番地ではないもので、範囲（`bounds`）にピンの位置が入る結果から
-    最初に見つかったものだけを使う（best-effort。近くの別の建物を拾わないため）。
-    いずれも SS-212 で実キーの応答（丸ビル・都庁・横浜市中区の付近など）を見て決めた。
+def _parse_text_place(place: object) -> ProviderTextPlace | None:
+    """Text Search の1件を読む。位置・ID が壊れていれば応答全体を失敗にし（Nearby Search と同じ）、
+    表示名が空なら読み飛ばす。住所は取れないときだけ None。
     """
-    if not isinstance(results, list):
+    if not isinstance(place, dict):
         raise GoogleMapsUnavailableError()
-    for result in results:
-        if not isinstance(result, dict):
-            raise GoogleMapsUnavailableError()
-        types = result.get("types")
-        if isinstance(types, list) and (
-            set(types) <= _COARSE_RESULT_TYPES or _TRANSIT_RESULT_TYPE in types
-        ):
-            continue
-        formatted = result.get("formattedAddress")
-        if not isinstance(formatted, str):
-            continue
-        address = _strip_building_and_floor(
-            _normalize_address(formatted), result.get("addressComponents")
-        )
-        if not address:
-            continue
-        building_name = _building_name_within(results, point)
-        return ProviderAddress(
-            address=address[:_ADDRESS_MAX_CHARS],
-            building_name=building_name[:_ADDRESS_MAX_CHARS] if building_name else None,
-        )
-    return None
-
-
-def _strip_building_and_floor(address: str, components: object) -> str:
-    """住所のうち、その結果の建物名・階（`subpremise`）が始まる位置から後ろを外す。"""
-    markers = [
-        marker
-        for marker in (_building_name(components), _subpremise(components))
-        if marker is not None and marker in address
-    ]
-    if not markers:
-        return address
-    # 建物名・階は番地の後ろに付くので、後ろから探す（町名などに同じ文字列があっても切らない）。
-    return address[: min(address.rindex(marker) for marker in markers)].rstrip()
-
-
-def _subpremise(components: object) -> str | None:
-    """番地ではない `subpremise`（例: `5階`）。"""
-    if not isinstance(components, list):
-        return None
-    for component in components:
-        if not isinstance(component, dict):
-            continue
-        types = component.get("types")
-        name = component.get("longText")
-        if isinstance(types, list) and "subpremise" in types and isinstance(name, str):
-            # 部屋番号のような数字だけの値は番地の一部なので切らない（「5階」のような値だけ）。
-            normalized = _normalize_text(name)
-            if normalized and not _NUMBER_ONLY.match(normalized):
-                return normalized
-    return None
-
-
-def _normalize_text(text: str) -> str:
-    return " ".join(unicodedata.normalize("NFKC", text).translate(_DASHES).split())
-
-
-def _normalize_address(formatted: str) -> str:
-    """国名・郵便番号の接頭辞を落とし、全角の数字・記号を半角に揃える。"""
-    text = _normalize_text(formatted)
-    text = _JAPAN_PREFIX.sub("", text)
-    return _POSTAL_CODE_PREFIX.sub("", text).strip()
-
-
-def _building_name(components: object) -> str | None:
-    if not isinstance(components, list):
-        return None
-    for component in components:
-        if not isinstance(component, dict):
-            continue
-        types = component.get("types")
-        name = component.get("longText")
-        if not isinstance(types, list) or "premise" not in types or not isinstance(name, str):
-            continue
-        normalized = _normalize_text(name)
-        if normalized and not _NUMBER_ONLY.match(normalized):
-            return normalized
-    return None
-
-
-def _building_name_within(results: list[Any], point: ProviderPoint) -> str | None:
-    """範囲（`bounds`）にピンの位置が入る結果から、最初に見つかった建物名を返す。
-
-    範囲を持たない結果は使わない（その建物の上にピンがあるか確かめられないため）。
-    """
-    for result in results:
-        if not isinstance(result, dict) or not _bounds_contains(result.get("bounds"), point):
-            continue
-        building_name = _building_name(result.get("addressComponents"))
-        if building_name is not None:
-            return building_name
-    return None
-
-
-def _bounds_contains(bounds: object, point: ProviderPoint) -> bool:
-    if not isinstance(bounds, dict):
-        return False
-    low = bounds.get("low")
-    high = bounds.get("high")
-    if not isinstance(low, dict) or not isinstance(high, dict):
-        return False
+    location = place.get("location")
+    if not isinstance(location, dict):
+        raise GoogleMapsUnavailableError()
     try:
-        south = float(low["latitude"])
-        west = float(low["longitude"])
-        north = float(high["latitude"])
-        east = float(high["longitude"])
-    except (KeyError, TypeError, ValueError):
-        return False
-    # 日付変更線をまたぐ範囲（west > east）は考えない（日本の建物の範囲では起きない）。
-    return south <= point.latitude <= north and west <= point.longitude <= east
+        place_id = str(place["id"])
+        latitude = float(location["latitude"])
+        longitude = float(location["longitude"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise GoogleMapsUnavailableError() from exc
+    if (
+        not math.isfinite(latitude)
+        or not math.isfinite(longitude)
+        or not -90 <= latitude <= 90
+        or not -180 <= longitude <= 180
+    ):
+        raise GoogleMapsUnavailableError()
+    display_name = place.get("displayName")
+    name = display_name.get("text") if isinstance(display_name, dict) else None
+    if not isinstance(name, str) or not name.strip():
+        return None
+    formatted = place.get("formattedAddress")
+    address = normalize_address(formatted) if isinstance(formatted, str) else ""
+    return ProviderTextPlace(
+        id=place_id,
+        name=name.strip()[:ADDRESS_MAX_CHARS],
+        address=address[:ADDRESS_MAX_CHARS] or None,
+        location=ProviderPoint(latitude, longitude),
+    )
 
 
 def build_google_maps_provider(settings: Settings) -> GoogleMapsProvider:

@@ -146,7 +146,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 - **関係者へ広く配るなら TestFlight（`staging`）を使う。** UDID 管理が要らず、
   外部テスターにも配れる（ただしプライバシーポリシー URL が必要。SS-79。URL は `https://sanposcape.com/privacy/`（SS-158）で、本番 LP のデプロイ後に App Store Connect へ登録する）。
 - `autoIncrement` は書かない（`staging` の `true` を継承して番号が進む）。理由は `staging-apk` と同じ。
-- iOS は既定で Apple Maps を使うため **Maps SDK キーの注入は不要**（ADR-M-007）。
+- iOS は `GOOGLE_MAPS_IOS_SDK_KEY` を入れたときだけ Google Maps になる。入れなければ Apple Maps で動くが、ピンタブの検索が出ない（SS-267。ADR-M-007 の SS-267 追補）。
 
 ### `preview`（E2E 専用。CloudFront へ向けないこと）
 
@@ -225,6 +225,7 @@ UDID を持つ端末にだけインストールでき、**App Store Connect の�
 | 変数 | 必要なプロファイル | 供給元 | 未設定時の症状 |
 |---|---|---|---|
 | `GOOGLE_MAPS_ANDROID_SDK_KEY` | Android のビルド全般（**E2E の `preview` を含む**） | **クラウドビルド = EAS 環境変数（`preview` / secret）/ `--local`・ローカル = GitHub Secrets・`.env`**（SS-79。経路ごとに供給元は1つ）。実測: `development` 環境にも登録されている（2026-09-16 確認。`development` 節を参照） | ADR-M-007 は「地図が灰色のまま」と書いているが、**実際には Maps SDK 初期化時に RuntimeException でアプリがクラッシュする**（`mobile-e2e.yml` の SS-44 追補。google_apis イメージへの切り替えで判明） |
+| `GOOGLE_MAPS_IOS_SDK_KEY` | iOS の配布ビルド（`staging` / `staging-ios` / `production`。iOS の `development` も推奨）（SS-267） | EAS 環境変数（`production`・`preview`・`development` に `secret` で登録する。ローカルは `.env`）。キーは Maps SDK for iOS を許可し、本番・開発の bundle ID でアプリ制限する（Android・backend のキーとは別。ADR-001） | ビルドは通り、iOS の地図は Apple Maps になる。ピンタブの検索欄が出ず、従来のヒントが出る（Google Places の結果を Google 以外の地図に出さないため。ADR-M-007 の SS-267 追補）。本番のビルドで未設定だと、既存の探索の候補が Apple Maps に出たままになる |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `AUTH_MODE=real` のビルド（`staging` / `staging-apk` / `staging-ios` / `production`） | EAS 環境変数 | サインイン時に `AuthError("configuration")` |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS の `AUTH_MODE=real` のビルド（`staging` / `staging-ios` / `production`） | EAS 環境変数 | 同上 |
 

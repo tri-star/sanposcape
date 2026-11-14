@@ -1,12 +1,31 @@
 # ADR-M-002: モバイルの技術スタック（スタイル・状態管理・地図・APIクライアント）
 
+## 現在有効な決定（要約）
+
+> 最終更新: 2026-11-14（SS-267）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 本文と食い違う場合は本節の誤りとして本節を直す。
+
+### 決定
+
+- スタイルは React Native の `StyleSheet` + テーマ Context（[ADR-M-005](./ADR-M-005-styling-without-unistyles.md)）。（本文: 決定）
+- サーバー状態は TanStack Query、クライアント状態は Zustand。（本文: 決定）
+- 地図の描画は react-native-maps。Android は Google Maps、iOS は `GOOGLE_MAPS_IOS_SDK_KEY` を入れたビルドだけ Google Maps（入れていないビルドは Apple Maps）。
+  Places の内容は Google の地図にだけ出す。（本文: 決定、SS-267 追補。詳細は [ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補）
+- API クライアントは Orval。パッケージ管理は pnpm（`minimumReleaseAge` 2日）。（本文: 決定）
+
+### 変更・撤回された決定
+
+- スタイルの react-native-unistyles → StyleSheet + テーマ Context（ADR-M-005）
+- 地図は「Android=Google Maps / iOS=Apple Maps」→ iOS もキーを入れたビルドは Google Maps（SS-267）
+
 ## 日付
 
-2026-07-19
+2026-07-19（初版）、2026-11-14 追補（SS-267。iOS の地図を Google Maps に）
 
 ## ステータス
 
 一部を置き換え済み。**スタイルの決定（react-native-unistyles）は [ADR-M-005](./ADR-M-005-styling-without-unistyles.md) で撤回**した。状態管理・地図・API クライアントの決定は有効。
+**SS-267 で追補**した（iOS の地図を、キーを入れたビルドでは Google Maps にする）。
 
 ## コンテキスト
 
@@ -30,6 +49,9 @@
   - サーバー状態 = **TanStack Query**（Orval 生成物と組み合わせる）。`src/store` には複製しない。
   - クライアント状態（UI・一時状態）= **Zustand**（`src/store`）。
 - **地図描画: react-native-maps**（Android=Google Maps / iOS=Apple Maps）。
+  （**SS-267 追補**: iOS も `GOOGLE_MAPS_IOS_SDK_KEY` を入れたビルドは Google Maps にする。Google Maps Platform の規約 3.2.3(e) が Places の内容を
+  Google 以外の地図に出すことを禁じており、探索の候補・ピンタブの検索結果を Apple Maps に出せないため。キーの無いビルドは Apple Maps のまま。
+  注入と provider の決め方は [ADR-M-007](./ADR-M-007-expo-config-and-maps-key-injection.md) の SS-267 追補。）
 - **API クライアント: Orval**。backend の `openapi.yaml` から TanStack Query 用フックと MSW モックを生成（`src/api/generated/`、httpClient=fetch、mutator=`src/api/client.ts`）。
 - パッケージ管理は pnpm、`minimumReleaseAge=2880`（2日）でサプライチェーン対策。
 

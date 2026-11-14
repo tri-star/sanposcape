@@ -1,0 +1,59 @@
+# ピンタブの検索（SS-267。ADR-M-026）: サインイン → ピンタブの上部に検索欄が出る（ヒントの行の代わり）
+# → 表示範囲の中で見つからない語（far）で探す → 範囲を広げて探した案内が出る → × で入力・案内が消える
+# → 見つからない語（none）で探す → 「見つかりませんでした」の案内が出る → × で消える。
+#
+# 前提:
+#   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock）。Android は常に Google Maps なので検索欄が出る
+#   - backend が MAPS_MODE=fake（fake の provider は検索語の far で範囲の中を0件・広げると1件、none でどちらも0件を返す）
+#     → /explore/* に依存するので maps-required を付ける
+# assert しないもの: 検索結果のピン（マーカー）とカード（Google Maps の描画面で testID が安定して取れない。ADR-M-012 D14）、
+# 地図が動いたか。結果の扱い・動かす条件は locationSearch.test.ts が担う。
+# 入力は ASCII にする（日本語は IME 経由になり、hideKeyboard の BACK が「戻る」に化けることがある。SS-152）。
+appId: com.sanposcape.app.dev
+tags:
+  - pin
+  - maps-required
+---
+- runFlow: subflows/sign-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-map"
+    timeout: 15000
+- assertVisible:
+    id: "pin-tab-search"
+- assertNotVisible:
+    id: "pin-tab-hint"
+
+# --- 表示範囲の中に無い → 広げて見つける ---
+- tapOn:
+    id: "pin-tab-search"
+- inputText: "far"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      id: "pin-tab-search-message"
+    timeout: 15000
+- assertVisible:
+    text: ".*付近から探しました.*"
+- tapOn:
+    id: "pin-tab-search-clear"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-tab-search-message"
+    timeout: 5000
+
+# --- どこにも無い ---
+- tapOn:
+    id: "pin-tab-search"
+- inputText: "none"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*見つかりませんでした.*"
+    timeout: 15000
+- tapOn:
+    id: "pin-tab-search-clear"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-tab-search-message"
+    timeout: 5000

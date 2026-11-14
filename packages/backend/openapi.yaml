@@ -203,6 +203,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /explore/places/text-search:
+    post:
+      tags:
+      - explore
+      summary: Search Places By Text
+      description: 'ピンタブの検索（SS-267）。住所・駅・施設の種類などを文字列で探す。サインインが要る。
+
+
+        まず表示範囲（`bounds`）の中だけを探し、見つからなければ範囲の中心の付近で1回だけ広げて探す
+
+        （`scope=expanded`）。検索語と範囲は Google へ送るが、
+
+        DB・ログには残さない（メモリのキャッシュのみ）。
+
+        見つからなければ 200 + `results=[]`。'
+      operationId: search_explore_places_by_text
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceTextSearchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceTextSearchResponse'
+        '401':
+          description: Not authenticated
+        '413':
+          description: Explore request body too large
+        '429':
+          description: Map provider quota exceeded or explore rate limit reached
+        '503':
+          description: Map provider unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /explore/routes/walking:
     post:
       tags:
@@ -2875,6 +2920,82 @@ components:
       - round_trip_duration_minutes
       - candidates
       title: PlaceSearchResponse
+    PlaceTextSearchRequest:
+      properties:
+        query:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Query
+          description: Free-text query such as an address, a station name or a kind
+            of place. Leading and trailing whitespace is removed; must be 1-100 characters
+            after that.
+        bounds:
+          $ref: '#/components/schemas/MapBounds'
+          description: The map area currently shown. The server first searches only
+            inside it, and searches once more around its center when nothing is found.
+      type: object
+      required:
+      - query
+      - bounds
+      title: PlaceTextSearchRequest
+      description: ピンタブの検索（SS-267）。地名・住所・駅・施設の種類（「コンビニ」など）を文字列で探す。
+    PlaceTextSearchResponse:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/PlaceTextSearchResult'
+          type: array
+          maxItems: 20
+          title: Results
+          description: In the provider's relevance order (not re-sorted).
+        scope:
+          $ref: '#/components/schemas/PlaceTextSearchScope'
+          description: 'visible_area: found inside the requested bounds. expanded:
+            nothing was found inside the bounds, so the server searched around their
+            center without restricting to the bounds (results may lie outside them).'
+      type: object
+      required:
+      - results
+      - scope
+      title: PlaceTextSearchResponse
+      description: 'SS-267: 見つからなければ 200 で `results=[]`（`scope` は広げて探した `expanded`）。'
+    PlaceTextSearchResult:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: Provider place ID.
+        name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Name
+          description: Japanese-preferred display name supplied by the provider.
+        address:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Address
+          description: Address without the country name and postal code, with full-width
+            digits and symbols normalized to half-width. Null when the provider has
+            none.
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+      type: object
+      required:
+      - id
+      - name
+      - address
+      - location
+      title: PlaceTextSearchResult
+    PlaceTextSearchScope:
+      type: string
+      enum:
+      - visible_area
+      - expanded
+      title: PlaceTextSearchScope
     PresignedUploadRead:
       properties:
         url:

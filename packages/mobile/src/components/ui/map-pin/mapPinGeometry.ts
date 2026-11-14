@@ -86,8 +86,8 @@ export function computeMapPinGeometry(size: number): MapPinGeometry {
 }
 
 /**
- * `Marker` に spread する基準点。Android（Google Maps）は `anchor`、iOS（Apple Maps / MapKit）は
- * `centerOffset` しか見ないので両方返す（それぞれ他方では無視される）。
+ * `Marker` に spread する基準点。Google Maps（Android と、キーを入れた iOS のビルド。SS-267）は `anchor`、
+ * Apple Maps（MapKit）は `centerOffset` しか見ないので両方返す（それぞれ他方では無視される）。
  */
 export function mapPinMarkerPlacement(size: number): {
   anchor: { x: number; y: number };

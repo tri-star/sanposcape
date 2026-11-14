@@ -47,6 +47,33 @@ class ProviderAddress:
     building_name: str | None
 
 
+@dataclass(frozen=True)
+class ProviderRectangle:
+    """緯度経度の矩形（地図の表示範囲。SS-267）。日付変更線をまたぐ範囲は扱わない。"""
+
+    south_west: ProviderPoint
+    north_east: ProviderPoint
+
+
+@dataclass(frozen=True)
+class ProviderCircle:
+    center: ProviderPoint
+    radius_meters: float
+
+
+@dataclass(frozen=True)
+class ProviderTextPlace:
+    """文字列での場所の検索の結果（SS-267。ピンタブの検索）。
+
+    `address` は郵便番号と国名を落とし半角に揃えた住所。取れないときは None。
+    """
+
+    id: str
+    name: str
+    address: str | None
+    location: ProviderPoint
+
+
 class GoogleMapsProvider(Protocol):
     def search_places(
         self,
@@ -69,6 +96,21 @@ class GoogleMapsProvider(Protocol):
         *,
         timeout_seconds: float,
     ) -> ProviderLoopRoute: ...
+
+    def search_text(
+        self,
+        query: str,
+        *,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        """`restriction`（その範囲の中だけ）か `bias`（その付近を優先し、
+        範囲外も返す）のどちらか一方を渡す。
+        結果の並びは provider の関連度の順のまま返す（SS-267）。
+        """
+        ...
 
     def reverse_geocode(
         self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float

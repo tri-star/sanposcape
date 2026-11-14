@@ -110,8 +110,9 @@ curl -sI "$SITE/privacy"                # 301、Location が末尾 / 付きの /
 curl -sI "$SITE/terms/"                 # 200（アプリ内リンクに登録する恒久 URL。SS-187）
 curl -sI "$SITE/support/"               # 200（App Store Connect の Support URL に登録する恒久 URL。SS-214）
 curl -sI "$SITE/privacy/2026-10-24/"    # 200（改定前のポリシーの版。/privacy/ の案内と改定履歴からリンクする恒久 URL。SS-248）
+curl -sI "$SITE/privacy/2026-11-07/"    # 200（施行待ちの間に適用するポリシーの版（2026-12-02〜12-13）。/privacy/ と 2026-10-24 の版の案内からリンクする恒久 URL。SS-267）
 curl -sI "$SITE/terms/2026-10-24/"      # 200（改定前の規約の版。/terms/ の案内と改定履歴からリンクする恒久 URL。SS-222）
-curl -s "$SITE/sitemap-0.xml"           # /privacy/2026-10-24/・/terms/2026-10-24/ のような改定前の版と /i/ が含まれないこと
+curl -s "$SITE/sitemap-0.xml"           # /privacy/2026-10-24/・/privacy/2026-11-07/・/terms/2026-10-24/ のような改定前の版と /i/ が含まれないこと
 curl -sI "$SITE/i/"                     # 200（招待リンクの受け皿。SS-250）
 curl -sI "$SITE/.well-known/apple-app-site-association"  # 200、Content-Type: application/json、リダイレクトなし
 curl -sI "$SITE/.well-known/assetlinks.json"             # dev は 200（application/json）。prod は Android の値を足すまで 404

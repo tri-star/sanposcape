@@ -157,28 +157,69 @@ function withInvitationLinks(
  * - Android: Maps SDK for Android のキーが未注入だと、地図が灰色になるのではなく、
  *   Maps SDK の初期化時に RuntimeException が発生してアプリがクラッシュする
  *   （SS-44 で実際に観測。ADR-M-007 の SS-78 追補も参照）。
- * - iOS: 既定の Apple Maps を使うためキー不要（PROVIDER_GOOGLE を使う場合のみ必要）。
+ * - iOS（SS-267）: `GOOGLE_MAPS_IOS_SDK_KEY` があるときだけ Google Maps を使う（`withIosGoogleMaps`）。
+ *   無ければ従来どおり Apple Maps（キー不要）。
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveAppVariant();
   const base = withInvitationLinks(applyAppVariant(config, variant), variant);
   const androidKey = process.env.GOOGLE_MAPS_ANDROID_SDK_KEY;
-  return withCleartextTrafficForHttpBackend(
-    withDisableAndroidLintVital(
-      withAndroidGradleProperties({
-        ...base,
-        name: base.name ?? "sanposcape",
-        slug: base.slug ?? "sanposcape",
-        android: {
-          ...base.android,
-          ...(androidKey ? { config: { googleMaps: { apiKey: androidKey } } } : {}),
-        },
-        // 実行時に JS から読む（src/config/devTools.ts）。app.json の extra.router / extra.eas を消さないよう spread する。
-        extra: { ...base.extra, appVariant: variant },
-      }),
+  const iosKey = process.env.GOOGLE_MAPS_IOS_SDK_KEY;
+  return withIosGoogleMaps(
+    withCleartextTrafficForHttpBackend(
+      withDisableAndroidLintVital(
+        withAndroidGradleProperties({
+          ...base,
+          name: base.name ?? "sanposcape",
+          slug: base.slug ?? "sanposcape",
+          android: {
+            ...base.android,
+            ...(androidKey ? { config: { googleMaps: { apiKey: androidKey } } } : {}),
+          },
+          // 実行時に JS から読む（src/config/devTools.ts）。app.json の extra.router / extra.eas を消さないよう spread する。
+          extra: { ...base.extra, appVariant: variant },
+        }),
+      ),
     ),
+    { iosKey, androidKey },
   );
 };
+
+/**
+ * iOS の地図を Google Maps にする（SS-267。ADR-M-007 の SS-267 追補）。Google Maps Platform の規約 3.2.3(e) は
+ * Places の内容を Google 以外の地図に出すことを禁じており、iOS の Apple Maps のままでは探索の候補・ピンタブの検索結果を出せない。
+ *
+ * - `GOOGLE_MAPS_IOS_SDK_KEY` があるときだけ `react-native-maps` の config plugin を付ける。plugin が Google Maps SDK の pod
+ *   （`react-native-maps/Google`）・Info.plist の `GMSApiKey`・AppDelegate の `GMSServices.provideAPIKey` を入れる。
+ * - plugin は `androidGoogleMapsApiKey` が無いと AndroidManifest の API_KEY を消すので、Android のキーも同じ値を渡す
+ *   （ADR-M-007 が plugin を使わなかった理由。キーが無いときは `android.config` も付けないので結果は同じ）。
+ * - `extra.iosGoogleMaps` を JS へ渡し、`src/config/mapProvider.ts` が `provider` を決める。pod の無いビルドで
+ *   `provider="google"` を指定すると地図が出ないため、キーの有無と同じ条件にする。
+ *   `extra` は OTA では update を作ったときの値になるが、ネイティブの変更なので fingerprint の比較（runbook §6.1）で
+ *   pod の無いバイナリへは配られない。
+ */
+function withIosGoogleMaps(
+  config: ExpoConfig,
+  { iosKey, androidKey }: { iosKey: string | undefined; androidKey: string | undefined },
+): ExpoConfig {
+  if (!iosKey) {
+    return { ...config, extra: { ...config.extra, iosGoogleMaps: false } };
+  }
+  return {
+    ...config,
+    plugins: [
+      ...(config.plugins ?? []),
+      [
+        "react-native-maps",
+        {
+          iosGoogleMapsApiKey: iosKey,
+          ...(androidKey ? { androidGoogleMapsApiKey: androidKey } : {}),
+        },
+      ],
+    ],
+    extra: { ...config.extra, iosGoogleMaps: true },
+  };
+}
 
 /**
  * バックエンドURLが http:// の場合のみ usesCleartextTraffic を有効化する。
