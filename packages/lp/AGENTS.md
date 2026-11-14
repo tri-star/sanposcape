@@ -58,7 +58,8 @@ packages/lp/
   出力は `build.format: "directory"`（`/privacy/` → `privacy/index.html`）。
 - **キャッシュ**: `_astro/**`（ハッシュ付き）は immutable の長期キャッシュ、それ以外は `max-age=0, s-maxage=86400` で配信される。
   `public/` のファイルはハッシュが付かないため、**内容を差し替えるときはファイル名を変える**（例: `ogp.png` → `ogp-2.png`）。
-  デプロイは `_astro/` の旧ハッシュのファイルを削除しない（開いたままのタブが古い HTML から取りに来るため。ADR-012 決定5）。
+  デプロイは `_astro/` の旧ハッシュのファイルをすぐには削除しない（開いたままのタブが古い HTML から取りに来るため。ADR-012 決定5）。
+  Environment Variables `LP_RETIRE_STALE_ASSETS` を `true` にした環境では、引退のタグを付けて S3 Lifecycle に猶予期間の後で消させる（SS-166。[デプロイ手順](./docs/deployment.md)）。
 - **`/.well-known/`**（地図の招待リンクの Universal Links / App Links。SS-250）: `public/` には置かず、`pnpm --filter lp build` の後に
   `scripts/write-well-known.mjs` が `PUBLIC_LP_ENV` に応じて `dist/.well-known/` に書く（本番と開発用でアプリ識別子が違うため）。
   - `apple-app-site-association`（拡張子なし）は、`lp-deploy.yml` が sync から外し `aws s3 cp --content-type application/json` で上げる
