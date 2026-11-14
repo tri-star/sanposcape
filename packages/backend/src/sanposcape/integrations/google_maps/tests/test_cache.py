@@ -37,3 +37,36 @@ def test_single_flight_coalesces_concurrent_misses() -> None:
         release.set()
         assert first.result() == second.result() == "normalized-result"
     assert calls == 1
+
+
+def test_ttl_cache_purges_expired_entries_of_other_keys(monkeypatch) -> None:
+    """期限を過ぎた項目は、別のキーの get / put でも消えること（同じキーで引かれるまで残すと、
+    キーに入る検索語・座標が TTL を過ぎてもメモリに残る。
+    SS-267 のレビュー対応・データ取扱い台帳 3.1）。"""
+    now = [0.0]
+    monkeypatch.setattr("sanposcape.integrations.google_maps.cache.monotonic", lambda: now[0])
+    cache: TtlCache[int] = TtlCache(ttl_seconds=300, max_entries=16)
+    cache.put("text:area:20:東京都千代田区丸の内9-9-9", 1)
+
+    now[0] = 301.0
+    assert cache.get("other") is None
+    assert "text:area:20:東京都千代田区丸の内9-9-9" not in cache._entries
+
+    cache.put("first", 1)
+    now[0] = 700.0
+    cache.put("second", 2)
+    assert list(cache._entries) == ["second"]
+
+
+def test_ttl_cache_keeps_live_entries_and_lru_order(monkeypatch) -> None:
+    """期限内の項目は消さず、使った順（LRU）の押し出しも変わらないこと。"""
+    now = [0.0]
+    monkeypatch.setattr("sanposcape.integrations.google_maps.cache.monotonic", lambda: now[0])
+    cache: TtlCache[int] = TtlCache(ttl_seconds=300, max_entries=2)
+    cache.put("a", 1)
+    cache.put("b", 2)
+    now[0] = 100.0
+    assert cache.get("a") == 1
+    cache.put("c", 3)
+
+    assert list(cache._entries) == ["a", "c"]
