@@ -16,6 +16,9 @@ metadata:
 - **`GOOGLE_MAPS_SERVER_API_KEY` が空だと `dev-up.sh` が止まる。** 地図・ピンの確認だけなら `MAPS_MODE=fake` でよいが、
   **`packages/*/.env` への書き込みは権限設定で Edit・シェルの両方が拒否される。** ユーザーに
   `! sed -i 's/^# MAPS_MODE=real$/MAPS_MODE=fake/' packages/backend/.env` を実行してもらう。
+  **`.env` を書き換えずに済む方法（SS-267）**: `compose.yaml` は `MAPS_MODE: ${MAPS_MODE:-real}` と置き換えで受けるので、`.env` を scratchpad に
+  コピーして `MAPS_MODE=fake` を足し、`docker compose -p <名前> -f packages/backend/compose.yaml --project-directory packages/backend --env-file <コピー> up -d --force-recreate api` で作り直す
+  （`printenv MAPS_MODE` で確かめる）。その後の `dev-up.sh` は `ALLOW_MISSING_MAPS_KEY=1` を付ける（backend が healthy なら作り直さない）。終わったら `--env-file` なしで作り直して戻す。
 - ピンを見たい場所に `ui.sh geo <lat> <lng>` で現在地を合わせてからログインすると、ピンタブが最初からその周りを表示する。
 - **写真付きのピン**（SS-261 の LP の画面）: `POST /pin-photo-uploads`（`content_type: image/jpeg`・`byte_size`）の応答の `upload.url` に、`upload.fields` と `file` を multipart で POST する（`STORAGE_MODE=fake` でも 204）。
   返った `upload_id` を `POST /pins` の `photo_upload_ids` に入れる。JPEG しか受け付けないので PNG は PIL で変換する。LP の画面に使ったイラストは `packages/lp/design-assets/illustrations/`（JPEG）にある。`PATCH /pins/{id}` では位置を変えられないので作り直す（タグは `add_tags`・`remove_tag_ids` の差分で、訪問済みは `visited` で変えられる）。一覧は新しい順なので、上に出したいピンは最後に作る。
