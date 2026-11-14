@@ -1,8 +1,13 @@
+import type { MapRenderer } from "@/config/mapRenderer";
+
 /** 往路と同じ線の太さ（`RoutePolyline` の既定）。 */
 const ROUTE_STROKE_WIDTH = 5;
 
 /**
- * Android の復路の破線パターン（線の長さ, 間隔。px）。
+ * Google Maps の復路の破線パターン（線の長さ, 間隔）。Android は px（下記）。
+ * iOS の Google Maps（SS-267）は react-native-maps が `GMSStyleSpans(..., kGMSLengthRhumb)` に渡すので、線に沿ったメートルになり、
+ * ズームで見た目が変わる（散歩の縮尺では数 pt の破線）。iOS の実機では未確認（ADR-M-008 決定9 の SS-267 追補）。
+ * Android:
  * `RoutePolyline` の `lineCap="round"` のとき、react-native-maps は線の長さを捨てて丸い点（直径 = 線の太さ）にし、
  * 間隔は端末の px のまま渡す。そのため「丸い点の細かな点線」に見える（2026-09-16 の実機確認。ADR-M-008 決定9）。
  */
@@ -30,11 +35,11 @@ export type WalkReturnLineStyle = {
 
 /**
  * 周回ルートの復路（帰り）の線の太さと破線パターン（SS-33 / SS-232）。
- * iOS は MapKit が破線の線を拡大して描くため、見せたい値を倍率で割って渡し、往路と同じ太さの細かな点線に見せる。
- * Android はそのままの値で同じ見た目になる。
+ * Apple Maps（iOS で Google Maps のキーを入れていないビルド）は MapKit が破線の線を拡大して描くため、見せたい値を倍率で割って渡し、
+ * 往路と同じ太さの細かな点線に見せる。Google Maps（Android と、SS-267 以降の iOS）はそのままの値を渡す。
  */
-export function walkReturnLineStyle(platformOs: string): WalkReturnLineStyle {
-  if (platformOs === "ios") {
+export function walkReturnLineStyle(mapRenderer: MapRenderer): WalkReturnLineStyle {
+  if (mapRenderer === "apple") {
     return {
       strokeWidth: ROUTE_STROKE_WIDTH / IOS_DASHED_LINE_SCALE,
       dashPattern: IOS_VISUAL_DASH_PATTERN.map((value) => value / IOS_DASHED_LINE_SCALE),

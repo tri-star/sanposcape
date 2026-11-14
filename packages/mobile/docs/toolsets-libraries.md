@@ -9,7 +9,7 @@
 - 状態管理:
   - サーバー状態: TanStack Query（Orval生成物と組み合わせる）
   - クライアント状態: Zustand（少量のグローバル状態）
-- 地図: react-native-maps（Android=Google Maps / iOS=Apple Maps）
+- 地図: react-native-maps（Android=Google Maps / iOS=`GOOGLE_MAPS_IOS_SDK_KEY` を入れたビルドは Google Maps、入れていないビルドは Apple Maps。SS-267・ADR-M-007）
   - ピンのクラスタ表示: supercluster（純粋な JS。`features/pin/lib/pinClusters.ts` だけが import する。ADR-M-012 SS-243 追補）
 - 位置情報: expo-location（現在地取得・散歩中の記録）+ expo-task-manager（背景記録のタスク。SS-156 / [ADR-M-018](../adr/ADR-M-018-background-walk-location-tracking.md)）。`src/services/location` で real/mock を切り替える。詳細は [ADR-M-006](../adr/ADR-M-006-location-service-real-mock.md)
 - 写真: expo-image-picker（カメラ/ライブラリ） + expo-image-manipulator（縮小・JPEG 再圧縮） +

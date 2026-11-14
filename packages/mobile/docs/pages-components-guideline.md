@@ -45,7 +45,7 @@ const useStyles = makeStyles((theme) => ({
   （周回ルートの復路。破線と併用して描き分ける、SS-33）がある。
   散歩中に歩いた軌跡は `theme.colors.accent` を半透明にした細い実線で、ルート線の上に重ねる
   （`features/walk/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
-  `Polyline` の `zIndex` は iOS の Apple Maps では効かず、座標が変わった線が一番上に来るため、
+  `Polyline` の `zIndex` は Apple Maps（iOS でキーを入れていないビルド）では効かず、座標が変わった線が一番上に来るため、
   重なり順に頼る見た目（下に太く敷いて縁取りに見せる等）にしない。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
   `lineHeight()` / `letterSpacing()` で px に換算して指定する。
@@ -72,7 +72,7 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
     （散歩開始・散歩中・履歴詳細の各地図）や `/dev-screens` で見た目を確認する。
     `MapPin` は SVG の View なのでギャラリーで形・色・グリフを確認できるが、基準点（先端が地点を指すか）は
     地図画面（`Marker` の子）でしか確認できない。`MapPin` を `Marker` の子に置くときは `mapPinMarkerPlacement(size)`（`@/components/ui/map-pin/mapPinGeometry`）を `Marker` に
-    spread する（iOS の Apple Maps は `anchor` を無視し View の中心を座標に置くため `centerOffset` が要る。ADR-M-019）。
+    spread する（Apple Maps は `anchor` を無視し View の中心を座標に置くため `centerOffset` が要る。ADR-M-019）。
 
 ### 画面の「戻る」導線の規約
 

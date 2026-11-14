@@ -13,7 +13,13 @@ class _CacheEntry[T]:
 
 
 class TtlCache[T]:
-    """Small process-local cache. Only normalized successful values are stored."""
+    """Small process-local cache. Only normalized successful values are stored.
+
+    期限切れの項目は、`get` / `put` のたびにまとめて消す（SS-267）。同じキーで引かれるまで残すと、
+    キーに入る検索語・座標が TTL を過ぎてもメモリに残り続けるため
+    （データ取扱い台帳 3.1 の保持の書き方）。
+    呼び出しが無い間は、実行環境が終わるまで残りうる。
+    """
 
     def __init__(self, ttl_seconds: int, max_entries: int) -> None:
         self._ttl_seconds = ttl_seconds
@@ -23,11 +29,9 @@ class TtlCache[T]:
 
     def get(self, key: str) -> T | None:
         with self._lock:
+            self._purge_expired(monotonic())
             entry = self._entries.get(key)
             if entry is None:
-                return None
-            if entry.expires_at <= monotonic():
-                del self._entries[key]
                 return None
             self._entries.move_to_end(key)
             return entry.value
@@ -36,10 +40,18 @@ class TtlCache[T]:
         if self._max_entries <= 0 or self._ttl_seconds <= 0:
             return
         with self._lock:
-            self._entries[key] = _CacheEntry(monotonic() + self._ttl_seconds, value)
+            now = monotonic()
+            self._purge_expired(now)
+            self._entries[key] = _CacheEntry(now + self._ttl_seconds, value)
             self._entries.move_to_end(key)
             while len(self._entries) > self._max_entries:
                 self._entries.popitem(last=False)
+
+    def _purge_expired(self, now: float) -> None:
+        # 並びは使った順（LRU）で期限の順ではないので全件を見る（max_entries は既定 256）。
+        expired = [key for key, entry in self._entries.items() if entry.expires_at <= now]
+        for key in expired:
+            del self._entries[key]
 
 
 class SingleFlight[T]:

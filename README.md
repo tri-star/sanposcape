@@ -13,7 +13,7 @@
 - [Gitコミットガイドライン](./docs/git-commit-guideline.md)
 - [データ取扱い台帳](./docs/privacy/data-inventory.md) — 利用者のデータの取得・送信・保存・削除の正本。プライバシーポリシーと [App Privacy の申告](./docs/app-privacy-label.md) はここから書く
 - ADR（アーキテクチャ決定記録）
-  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）。ピンの住所（Geocoding API。SS-138 追補・ピン詳細に表示し DB に保存しない SS-212 追補）。ピンの最寄り駅は国土数値情報を同梱して引く（SS-225 追補）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
+  - 横断: [ADR-001 地図・POI に Google Maps Platform を採用（backend経由）。ピンの住所（Geocoding API。SS-138 追補・ピン詳細に表示し DB に保存しない SS-212 追補）。ピンの最寄り駅は国土数値情報を同梱して引く（SS-225 追補）。ピンタブの検索は Places の Text Search で、Places の内容は Google の地図にだけ出す（iOS も Google Maps に。SS-267 追補）](./docs/adr/ADR-001-map-poi-google-maps-platform.md)
   - 横断: [ADR-002 認証は Google 直結 + モバイル public client + backend 自前セッショントークン、スタブは3モードで切り替える](./docs/adr/ADR-002-auth-google-signin-and-stub-strategy.md)
   - 横断: [ADR-003 散歩記録は「終了時に1回保存する完了済みの散歩」として永続化し、履歴は keyset ページネーションで返す](./docs/adr/ADR-003-walk-record-persistence-and-history-api.md)
   - 横断: [ADR-004 シークレットの保管先は「消費者」で決め、CI から AWS への認証は OIDC を使う](./docs/adr/ADR-004-secrets-management-and-cicd-aws-credentials.md)
@@ -39,7 +39,7 @@
     - [ADR-M-004 E2E ビルド・CI 戦略](./packages/mobile/adr/ADR-M-004-e2e-build-ci-strategy.md)
     - [ADR-M-005 スタイルは Unistyles をやめる](./packages/mobile/adr/ADR-M-005-styling-without-unistyles.md)
     - [ADR-M-006 位置情報サービスは real/mock の2モード](./packages/mobile/adr/ADR-M-006-location-service-real-mock.md)
-    - [ADR-M-007 Expo 設定と Maps SDK キーの注入](./packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)
+    - [ADR-M-007 Expo 設定と Maps SDK キーの注入（iOS の Google Maps のキー。SS-267 追補）](./packages/mobile/adr/ADR-M-007-expo-config-and-maps-key-injection.md)
     - [ADR-M-008 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有](./packages/mobile/adr/ADR-M-008-active-walk-state-and-route-cache.md)
     - [ADR-M-009 認証セッション状態の集約と認証ゲート](./packages/mobile/adr/ADR-M-009-auth-session-state-and-route-gate.md)
     - [ADR-M-010 写真サービスは real/mock の2モード、アップロードは presigned POST で S3 直送](./packages/mobile/adr/ADR-M-010-photo-service-and-direct-s3-upload.md)
@@ -58,6 +58,7 @@
     - [ADR-M-023 地図上に現在地の向き（端末の方位）を扇形で表示する](./packages/mobile/adr/ADR-M-023-current-heading-on-map.md)
     - [ADR-M-024 地図への招待の受諾画面と、招待リンクの受け取り](./packages/mobile/adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md)
     - [ADR-M-025 タグ一覧とタグ詳細（全地図のピンを端末で集計する）](./packages/mobile/adr/ADR-M-025-tag-list-and-tag-detail.md)
+    - [ADR-M-026 ピンタブの検索（住所・駅・施設名で探して地図に打つ）](./packages/mobile/adr/ADR-M-026-pin-tab-location-search.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

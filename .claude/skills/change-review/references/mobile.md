@@ -59,6 +59,8 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - `packages/mobile/package.json` の `scripts` を変える差分（開発用の script を1つ足すだけでも）で、`@expo/fingerprint` のハッシュが変わることを意識しているか。
   fingerprint は既定で `scripts` を材料に入れ（android・ios の script を除く）、本番の OTA の配信の前に本番のビルドと比べて違えば止まる（`mobile-production-update.yml`）。
   JS だけの devDependency の追加では変わらない。script が要らなければ `pnpm exec` で直接呼ぶ（SS-255 のレビューで見つかった）。
+- config plugin・ネイティブの依存を足す差分（`app.config.ts` の `plugins` など）は、main にマージした時点で公開中の version への OTA が fingerprint の比較で止まる（runbook §6.1）。version を上げる PR と配布ビルドの順序が PR の申し送りにあるか（SS-267）
+- Google Places の内容（探索の候補・ピンタブの検索結果）を地図に出す画面が、Google の地図のとき（`currentMapRenderer() === "google"`）に限っているか。規約 3.2.3(e) は Google 以外の地図（Apple Maps）に出すことを禁じている。iOS でキーを入れていないビルドは Apple Maps（ADR-M-007 の SS-267 追補）
 
 ## 画面遷移・戻る導線・フラグガード
 
