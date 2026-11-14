@@ -58,7 +58,7 @@ const PIN_TAB_HINT =
  *   （戻るボタン必須・下部が `insets.bottom` 前提）ので使わない。
  * - `RegisteredPinsMapLayer` は使わず `useRegisteredPins` + `RegisteredPinMarkers` を直接使う
  *   （読み込み・エラー・再試行・打ち切りの状態表示が要るため）。
- * - 長押しは `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
+ * - 長押しと、検索結果のカードの「この場所にピンを登録」（SS-272）は `/pins/new` へ push（replace は `(tabs)` ごと置き換えてしまう）。保存後は
  *   `PinRegisterView` の `back()` でここへ戻り、下の `useFocusEffect` が保存完了トーストを出す。
  * - フラグ（pin_registration）は見ない（ルートのガード）。認証は props で受ける。
  * - 表示するピンの絞り込み（SS-174）は地図右上のツール列の `PinMapFilterControl` から。状態は散歩中の地図と共有する
@@ -262,14 +262,8 @@ export function PinTabView({
             </View>
           ) : null}
         </View>
-        {canSearchLocations && locationSearch.selected !== null ? (
-          <View pointerEvents="box-none" style={styles.bottomOverlay}>
-            <LocationSearchResultCard
-              result={locationSearch.selected}
-              onClose={locationSearch.deselect}
-              testID="pin-tab-search-result-card"
-            />
-          </View>
+        {canSearchLocations ? (
+          <PinTabSearchResultOverlay locationSearch={locationSearch} onPick={handlePick} />
         ) : null}
         {/* 地図エリアの下端はボタン配置エリアの上。タブ画面なので insets.bottom は足さない。 */}
         <ToastOverlay message={toast.message} visible={toast.visible} bottom={theme.spacing[4]} />
@@ -333,6 +327,35 @@ function PinTabSearchOrHint({
       isError={locationSearch.isError}
       testID="pin-tab-search"
     />
+  );
+}
+
+/**
+ * 地図の下の、選んだ検索結果のカード（SS-267）。「この場所にピンを登録」（SS-272）は長押しと同じ `onPick` で、
+ * 検索結果の座標を初期位置にして登録画面を開く。カードは閉じる（保存して戻ったときに残さない）。検索結果のピンは残す。
+ */
+function PinTabSearchResultOverlay({
+  locationSearch,
+  onPick,
+}: {
+  locationSearch: UseLocationSearchResult;
+  onPick: (location: GeoCoordinates) => void;
+}) {
+  const styles = useStyles();
+  const { selected, deselect } = locationSearch;
+  if (selected === null) return null;
+  return (
+    <View pointerEvents="box-none" style={styles.bottomOverlay}>
+      <LocationSearchResultCard
+        result={selected}
+        onClose={deselect}
+        onRegisterPin={(result) => {
+          deselect();
+          onPick(result.location);
+        }}
+        testID="pin-tab-search-result-card"
+      />
+    </View>
   );
 }
 
