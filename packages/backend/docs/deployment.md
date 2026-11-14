@@ -1201,7 +1201,7 @@ CloudFront 経由の POST はボディの `x-amz-content-sha256` が要るため
      （`staging/` の分は確定時に削除される）
    - CloudWatch Logs（`/aws/lambda/sanposcape-<env>-backend-api`）に `S3 operation failed` や
      `PIN_PHOTO_BUCKET_NAME is not configured` が出ていない
-5. 失敗した場合は下のトラブルシュートで切り分ける。dev で確認できるまで prod の `pin_registration` は ON にしない
+5. 失敗した場合は下のトラブルシュートで切り分ける。dev で確認できるまで prod の `pin_registration` は ON にしない（**SS-271 追補**: prod は 2026-10-17 に ON にし、SS-271 で固定値に移した）
 
 ### トラブルシュート
 
