@@ -1,7 +1,9 @@
 name: feature flags (AppConfig)
 
 # フィーチャーフラグを1本切り替える（= リリース / 引き返し）。SS-99 / ADR-008 決定6。
-# 手順は docs/release-runbook.md §3「フラグの操作」を参照。
+# 最低サポートバージョン（client_requirements の属性）を変えるのもこのワークフロー（SS-271）。
+# 1回の run ではフラグ1本か最低サポートバージョンのどちらか一方だけを変える。
+# 手順は docs/release-runbook.md §3「フラグの操作」・§7.3「contract」を参照。
 #
 # ★ フラグの切り替えはこのワークフローからのみ行う。AWS コンソールから直接操作しない。
 #   Actions の実行履歴を「いつ・誰が・何をリリースしたか」の記録にするため。
@@ -29,11 +31,12 @@ on:
         default: development
         required: true
       flag:
-        description: "フラグのキー（packages/backend/feature-flags.json に定義済みのもの。例: pin_registration）"
+        description: "フラグのキー（packages/backend/feature-flags.json に定義済みのもの）。最低サポートバージョンを変えるときは空にする"
         type: string
-        required: true
+        required: false
+        default: ""
       state:
-        description: "切り替え後の値"
+        description: "切り替え後の値（flag を指定したときだけ使う）"
         type: choice
         options: ["off", "on"]
         default: "off"
@@ -46,6 +49,16 @@ on:
         description: "配信中の版が削除されていて読めない場合に限り、定義ファイルの既定値（全フラグ OFF）から組み立てる"
         type: boolean
         default: false
+      ios_minimum_version:
+        description: "iOS の最低サポートバージョン（X.Y.Z、none で指定なしに戻す、空なら変えない）。flag は空にする。上げる前に両方のストアで公開済みか確かめる"
+        type: string
+        required: false
+        default: ""
+      android_minimum_version:
+        description: "Android の最低サポートバージョン（X.Y.Z、none で指定なしに戻す、空なら変えない）。flag は空にする"
+        type: string
+        required: false
+        default: ""
 
 # 環境ごとに直列化する。AppConfig は同じ環境で配信中（ベイク中を含む）の間は次の
 # StartDeployment を ConflictException で弾くため、run 側で待たせる。各 run は配信の
@@ -69,6 +82,7 @@ jobs:
     outputs:
       environment: ${{ steps.resolve.outputs.environment }}
       config-env: ${{ steps.resolve.outputs.config_env }}
+      mode: ${{ steps.validate.outputs.mode }}
     steps:
       - name: Resolve target environment
         id: resolve
@@ -101,10 +115,30 @@ jobs:
           persist-credentials: false
 
       - name: Validate flag definitions and input
+        id: validate
         working-directory: packages/backend
         env:
           FLAG: ${{ inputs.flag }}
-        run: python3 scripts/feature_flags_document.py validate --flag "$FLAG"
+          IOS_MINIMUM_VERSION: ${{ inputs.ios_minimum_version }}
+          ANDROID_MINIMUM_VERSION: ${{ inputs.android_minimum_version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${IOS_MINIMUM_VERSION// /}${ANDROID_MINIMUM_VERSION// /}" ]; then
+            if [ -n "${FLAG// /}" ]; then
+              echo "::error::フラグの切り替えと最低サポートバージョンの変更は別の run で行ってください（flag を空にするか、最低サポートバージョンを空にする）"
+              exit 1
+            fi
+            python3 scripts/feature_flags_document.py validate-versions \
+              --ios "$IOS_MINIMUM_VERSION" --android "$ANDROID_MINIMUM_VERSION"
+            echo "mode=versions" >> "$GITHUB_OUTPUT"
+          else
+            if [ -z "${FLAG// /}" ]; then
+              echo "::error::flag か、最低サポートバージョン（ios_minimum_version / android_minimum_version）のどちらかを指定してください"
+              exit 1
+            fi
+            python3 scripts/feature_flags_document.py validate --flag "$FLAG"
+            echo "mode=flag" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy:
     needs: prepare
@@ -121,8 +155,11 @@ jobs:
       AWS_REGION: ap-southeast-1
       CONFIG_ENV: ${{ needs.prepare.outputs.config-env }}
       TARGET_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+      MODE: ${{ needs.prepare.outputs.mode }}
       FLAG: ${{ inputs.flag }}
       STATE: ${{ inputs.state }}
+      IOS_MINIMUM_VERSION: ${{ inputs.ios_minimum_version }}
+      ANDROID_MINIMUM_VERSION: ${{ inputs.android_minimum_version }}
       PRUNE: ${{ inputs.prune }}
       FROM_DEFAULTS: ${{ inputs.from_defaults }}
     steps:
@@ -230,13 +267,26 @@ jobs:
           if [ "$PRUNE" = "true" ]; then
             extra_args+=(--prune)
           fi
-          summary="$(python3 scripts/feature_flags_document.py build \
-            --flag "$FLAG" --state "$STATE" "${extra_args[@]}" \
-            --output "$RUNNER_TEMP/next.json")"
+          if [ "$MODE" = "versions" ]; then
+            summary="$(python3 scripts/feature_flags_document.py build-versions \
+              --ios "$IOS_MINIMUM_VERSION" --android "$ANDROID_MINIMUM_VERSION" "${extra_args[@]}" \
+              --output "$RUNNER_TEMP/next.json")"
+            change="minimum_versions ios=$(jq -r '.minimum_versions.ios.next // "null"' <<< "$summary") android=$(jq -r '.minimum_versions.android.next // "null"' <<< "$summary")"
+          else
+            summary="$(python3 scripts/feature_flags_document.py build \
+              --flag "$FLAG" --state "$STATE" "${extra_args[@]}" \
+              --output "$RUNNER_TEMP/next.json")"
+            change="$FLAG=$STATE"
+          fi
           echo "$summary" | jq .
           {
+            echo "change=$change"
             echo "changed=$(jq -r .changed <<< "$summary")"
             echo "previous=$(jq -r '.previous // "未設定"' <<< "$summary")"
+            echo "ios_previous=$(jq -r '.minimum_versions.ios.previous // "null"' <<< "$summary")"
+            echo "ios_next=$(jq -r '.minimum_versions.ios.next // "null"' <<< "$summary")"
+            echo "android_previous=$(jq -r '.minimum_versions.android.previous // "null"' <<< "$summary")"
+            echo "android_next=$(jq -r '.minimum_versions.android.next // "null"' <<< "$summary")"
             echo "dropped=$(jq -r '.dropped_keys | join(", ")' <<< "$summary")"
             echo "kept=$(jq -r '.kept_undefined_keys | join(", ")' <<< "$summary")"
             echo "added=$(jq -r '.added_keys | join(", ")' <<< "$summary")"
@@ -246,11 +296,12 @@ jobs:
         if: steps.build.outputs.changed != 'true'
         env:
           CURRENT_VERSION: ${{ steps.current.outputs.version }}
+          CHANGE: ${{ steps.build.outputs.change }}
         run: |
           {
             echo "## 変更なし（$TARGET_ENVIRONMENT）"
             echo
-            echo "\`$FLAG\` は既に \`$STATE\` で、配信中の版（#$CURRENT_VERSION）と内容が同じため配信しませんでした。"
+            echo "\`$CHANGE\` は既に配信中の版（#$CURRENT_VERSION）と内容が同じため配信しませんでした。"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create hosted configuration version
@@ -259,7 +310,7 @@ jobs:
         env:
           APP_ID: ${{ steps.ids.outputs.application_id }}
           PROFILE_ID: ${{ steps.ids.outputs.configuration_profile_id }}
-          DESCRIPTION: "${{ inputs.flag }}=${{ inputs.state }} by ${{ github.actor }} (run ${{ github.run_id }}, ${{ github.sha }})"
+          DESCRIPTION: "${{ steps.build.outputs.change }} by ${{ github.actor }} (run ${{ github.run_id }}, ${{ github.sha }})"
         run: |
           set -euo pipefail
           number="$(aws appconfig create-hosted-configuration-version \
@@ -278,7 +329,7 @@ jobs:
           PROFILE_ID: ${{ steps.ids.outputs.configuration_profile_id }}
           STRATEGY_ID: ${{ steps.ids.outputs.deployment_strategy_id }}
           VERSION: ${{ steps.version.outputs.number }}
-          DESCRIPTION: "${{ inputs.flag }}=${{ inputs.state }} by ${{ github.actor }} (run ${{ github.run_id }})"
+          DESCRIPTION: "${{ steps.build.outputs.change }} by ${{ github.actor }} (run ${{ github.run_id }})"
         run: |
           set -euo pipefail
           number="$(aws appconfig start-deployment \
@@ -323,6 +374,10 @@ jobs:
         if: steps.build.outputs.changed == 'true'
         env:
           PREVIOUS: ${{ steps.build.outputs.previous }}
+          IOS_PREVIOUS: ${{ steps.build.outputs.ios_previous }}
+          IOS_NEXT: ${{ steps.build.outputs.ios_next }}
+          ANDROID_PREVIOUS: ${{ steps.build.outputs.android_previous }}
+          ANDROID_NEXT: ${{ steps.build.outputs.android_next }}
           DROPPED: ${{ steps.build.outputs.dropped }}
           KEPT: ${{ steps.build.outputs.kept }}
           MISSING_VERSION: ${{ steps.current.outputs.missing_version }}
@@ -331,11 +386,23 @@ jobs:
           DEPLOYMENT: ${{ steps.deployment.outputs.number }}
         run: |
           {
-            echo "## フラグを切り替えました（$TARGET_ENVIRONMENT）"
-            echo
-            echo "| フラグ | 変更前 | 変更後 | 版 | 配信 |"
-            echo "|---|---|---|---|---|"
-            echo "| \`$FLAG\` | $PREVIOUS | $STATE | #$VERSION | #$DEPLOYMENT |"
+            if [ "$MODE" = "versions" ]; then
+              echo "## 最低サポートバージョンを変えました（$TARGET_ENVIRONMENT）"
+              echo
+              echo "| OS | 変更前 | 変更後 | 版 | 配信 |"
+              echo "|---|---|---|---|---|"
+              echo "| iOS | $IOS_PREVIOUS | $IOS_NEXT | #$VERSION | #$DEPLOYMENT |"
+              echo "| Android | $ANDROID_PREVIOUS | $ANDROID_NEXT | #$VERSION | #$DEPLOYMENT |"
+              echo
+              echo "未満の版には閉じられない案内が出ます（散歩中・未保存の散歩を保存できる間を除く）。"
+              echo "上げたら docs/compat-tracker.md と docs/privacy/data-inventory.md の 6 を見て、条件を満たした行を本番の配信から1日経ってから片付けます（docs/release-runbook.md §7.3）。"
+            else
+              echo "## フラグを切り替えました（$TARGET_ENVIRONMENT）"
+              echo
+              echo "| フラグ | 変更前 | 変更後 | 版 | 配信 |"
+              echo "|---|---|---|---|---|"
+              echo "| \`$FLAG\` | $PREVIOUS | $STATE | #$VERSION | #$DEPLOYMENT |"
+            fi
             if [ -n "$MISSING_VERSION" ]; then
               echo
               echo "⚠️ 配信中だった版 #$MISSING_VERSION は削除されていたため、他のフラグは定義ファイルの既定値（OFF）で配信しました（from_defaults）。"

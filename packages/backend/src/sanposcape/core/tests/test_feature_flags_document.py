@@ -267,23 +267,243 @@ def test_does_not_mutate_the_definitions(definitions: dict[str, Any]) -> None:
     assert definitions == before
 
 
+# --- 最低サポートバージョン（SS-271） ---
+
+
+def test_sets_minimum_versions_and_keeps_the_flags(definitions: dict[str, Any]) -> None:
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+
+    document, summary = script.build_minimum_versions_document(
+        definitions, current, {"ios": "1.1.0", "android": "1.1.0"}, "1.1.0"
+    )
+
+    assert document["values"]["client_requirements"] == {
+        "enabled": True,
+        "ios_minimum_version": "1.1.0",
+        "android_minimum_version": "1.1.0",
+    }
+    assert document["values"]["walk_sharing"] == {"enabled": True}
+    assert summary["changed"] is True
+    assert summary["minimum_versions"] == {
+        "ios": {"previous": None, "next": "1.1.0"},
+        "android": {"previous": None, "next": "1.1.0"},
+    }
+
+
+def test_keeps_the_os_that_is_not_specified(definitions: dict[str, Any]) -> None:
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current["values"]["client_requirements"]["android_minimum_version"] = "1.0.0"
+
+    document, summary = script.build_minimum_versions_document(
+        definitions, current, {"ios": "1.1.0"}, "1.1.0"
+    )
+
+    assert document["values"]["client_requirements"]["android_minimum_version"] == "1.0.0"
+    assert summary["minimum_versions"]["android"] == {"previous": "1.0.0", "next": "1.0.0"}
+
+
+def test_none_clears_the_minimum_version(definitions: dict[str, Any]) -> None:
+    """引き返すときは null（案内を出さない）に戻せる。"""
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current["values"]["client_requirements"]["ios_minimum_version"] = "1.1.0"
+
+    document, summary = script.build_minimum_versions_document(
+        definitions, current, {"ios": None}, "1.1.0"
+    )
+
+    assert "ios_minimum_version" not in document["values"]["client_requirements"]
+    assert summary["minimum_versions"]["ios"] == {"previous": "1.1.0", "next": None}
+
+
+def test_reports_no_change_when_the_minimum_version_is_already_set(
+    definitions: dict[str, Any],
+) -> None:
+    current, _ = script.build_minimum_versions_document(
+        definitions, None, {"ios": "1.1.0"}, "1.1.0"
+    )
+
+    _, summary = script.build_minimum_versions_document(
+        definitions, copy.deepcopy(current), {"ios": "1.1.0"}, "1.1.0"
+    )
+
+    assert summary["changed"] is False
+
+
+def test_minimum_versions_keep_keys_missing_from_the_definitions(
+    definitions: dict[str, Any],
+) -> None:
+    """固定値に移したフラグの値（D40）を、最低サポートバージョンの変更でも消さない。"""
+    current, _ = script.build_document(definitions, None, "walk_sharing", True)
+    current["flags"]["old_flag"] = {"name": "old flag"}
+    current["values"]["old_flag"] = {"enabled": True}
+
+    document, summary = script.build_minimum_versions_document(
+        definitions, current, {"ios": "1.1.0"}, "1.1.0"
+    )
+
+    assert document["values"]["old_flag"] == {"enabled": True}
+    assert summary["kept_undefined_keys"] == ["old_flag"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({}, "どちらか"),
+        ({"ios": "1.1"}, "X.Y.Z"),
+        ({"android": "v1.1.0"}, "X.Y.Z"),
+        ({"ios": "1.10.0"}, "超えています"),
+        ({"ios": "2.0.0"}, "超えています"),
+        ({"windows": "1.0.0"}, "未知の OS"),
+    ],
+)
+def test_rejects_invalid_minimum_versions(
+    definitions: dict[str, Any], changes: dict[str, str | None], message: str
+) -> None:
+    with pytest.raises(script.DocumentError, match=message):
+        script.build_minimum_versions_document(definitions, None, changes, "1.2.0")
+
+
+def test_allows_lowering_the_minimum_version(definitions: dict[str, Any]) -> None:
+    """下げる（引き返す）のは制限しない。数値で比べる（文字列なら 1.10.0 < 1.9.0 になる）。"""
+    document, _ = script.build_minimum_versions_document(
+        definitions, None, {"ios": "1.9.0", "android": "0.1.0"}, "1.10.0"
+    )
+
+    assert document["values"]["client_requirements"]["ios_minimum_version"] == "1.9.0"
+
+
 # --- CLI ---
 
 
+@pytest.fixture
+def definitions_path(tmp_path: Path, definitions: dict[str, Any]) -> Path:
+    path = tmp_path / "feature-flags.json"
+    path.write_text(json.dumps(definitions), encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def app_json_path(tmp_path: Path) -> Path:
+    path = tmp_path / "app.json"
+    path.write_text(json.dumps({"expo": {"version": "1.1.0"}}), encoding="utf-8")
+    return path
+
+
 def test_cli_build_writes_the_document_and_prints_a_summary(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, definitions_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     output = tmp_path / "next.json"
 
     exit_code = script.main(
-        ["build", "--flag", "pin_registration", "--state", "on", "--output", str(output)]
+        [
+            "build",
+            "--definitions",
+            str(definitions_path),
+            "--flag",
+            "walk_sharing",
+            "--state",
+            "on",
+            "--output",
+            str(output),
+        ]
     )
 
     assert exit_code == 0
-    assert json.loads(output.read_text())["values"]["pin_registration"] == {"enabled": True}
+    assert json.loads(output.read_text())["values"]["walk_sharing"] == {"enabled": True}
     assert json.loads(capsys.readouterr().out)["changed"] is True
 
 
 def test_cli_validate_fails_for_an_unknown_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert script.main(["validate", "--flag", "no_such_flag"]) == 1
     assert "::error::" in capsys.readouterr().err
+
+
+def test_cli_build_versions_treats_empty_as_unchanged_and_none_as_null(
+    tmp_path: Path,
+    definitions_path: Path,
+    app_json_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ワークフローは未入力の OS を空文字で渡す。"""
+    current = tmp_path / "current.json"
+    current.write_text(
+        json.dumps(
+            {
+                "version": "1",
+                "flags": {},
+                "values": {
+                    "client_requirements": {
+                        "enabled": True,
+                        "ios_minimum_version": "1.0.0",
+                        "android_minimum_version": "1.0.0",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "next.json"
+
+    exit_code = script.main(
+        [
+            "build-versions",
+            "--definitions",
+            str(definitions_path),
+            "--app-json",
+            str(app_json_path),
+            "--ios",
+            "",
+            "--android",
+            "none",
+            "--current",
+            str(current),
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert exit_code == 0
+    assert json.loads(output.read_text())["values"]["client_requirements"] == {
+        "enabled": True,
+        "ios_minimum_version": "1.0.0",
+    }
+    assert json.loads(capsys.readouterr().out)["minimum_versions"]["android"] == {
+        "previous": "1.0.0",
+        "next": None,
+    }
+
+
+def test_cli_validate_versions_fails_without_any_version(
+    definitions_path: Path, app_json_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = script.main(
+        [
+            "validate-versions",
+            "--definitions",
+            str(definitions_path),
+            "--app-json",
+            str(app_json_path),
+            "--ios",
+            " ",
+            "--android",
+            "",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "::error::" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(
+    not script.DEFAULT_APP_JSON_PATH.exists(),
+    reason="ローカルのコンテナは packages/backend だけをマウントする（CI はリポジトリ全体で動く）",
+)
+def test_cli_reads_the_mobile_app_json_by_default() -> None:
+    """既定の上限は packages/mobile/app.json の version（リポジトリの配置が変わったら落とす）。"""
+    assert script.VERSION_PATTERN.match(script.load_app_version(script.DEFAULT_APP_JSON_PATH))
+
+
+def test_script_version_pattern_matches_the_registry_module() -> None:
+    from sanposcape.core import feature_flags
+
+    assert script.VERSION_PATTERN.pattern == feature_flags._VERSION_PATTERN.pattern
