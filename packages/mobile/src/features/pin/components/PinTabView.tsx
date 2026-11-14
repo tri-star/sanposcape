@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -10,10 +10,18 @@ import { Card } from "@/components/ui/card/Card";
 import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { currentMapRenderer } from "@/config/mapProvider";
+import { LocationSearchField } from "@/features/pin/components/location-search/LocationSearchField";
+import { LocationSearchMarkers } from "@/features/pin/components/location-search/LocationSearchMarkers";
+import { LocationSearchResultCard } from "@/features/pin/components/location-search/LocationSearchResultCard";
 import { PinMapCanvas } from "@/features/pin/components/PinMapCanvas";
 import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
 import { PinMapStatusNotice } from "@/features/pin/components/PinMapStatusNotice";
 import { RegisteredPinMarkers } from "@/features/pin/components/RegisteredPinMarkers";
+import {
+  useLocationSearch,
+  type UseLocationSearchResult,
+} from "@/features/pin/hooks/location-search/useLocationSearch";
 import { usePinLocationPicker } from "@/features/pin/hooks/usePinLocationPicker";
 import { useRegisteredPins } from "@/features/pin/hooks/useRegisteredPins";
 import { buildPinNewRouteParams, regionAroundPoint } from "@/features/pin/lib/pinLocationPicker";
@@ -57,6 +65,9 @@ const PIN_TAB_HINT =
  *   （`usePinMapFilterStore`）。サインインしていなければピンを描かないので出さない。地図単位の表示・非表示（SS-266）も
  *   同じシートで切り替え、地図一覧の `pinsVisible`（自分のメンバーシップに保存）で散歩中の地図と共有する。
  * - ボタン配置エリアには「地図一覧」と「タグ一覧」（SS-245）を並べる。
+ * - 上部の情報カードのヒントの行は、サインインしていて地図が Google Maps のとき、住所・駅・施設名の検索欄に置き換える（SS-267。ADR-M-026）。
+ *   検索結果は Google Places の内容なので、Apple Maps のビルド（iOS でキーを入れていない）では出さず、従来のヒントを出す
+ *   （Google Maps Platform 規約 3.2.3(e)）。長押しの登録の説明は地図の accessibilityHint に残す。
  * - 常駐するタブなので、フォーカスが戻るたびに現在地を静かに取り直す（初回除く。isLoading を立てない）。
  * - ピン詳細の「ピンの場所に移動」（`focus`。SS-246）は、地図がまだ無ければ最初の表示範囲にし（現在地の取得を待たない）、
  *   地図があれば `regionRequest` で動かす。`focus.key` ごとに1回だけ。
@@ -150,6 +161,15 @@ export function PinTabView({
     setRegionRequest((previous) => ({ region, nonce: (previous?.nonce ?? 0) + 1 }));
   }, []);
 
+  // 検索（SS-267）。表示範囲の外まで広げて見つけたときは、クラスタのタップと同じ経路で地図を動かす。
+  const canSearchLocations = isSignedIn && currentMapRenderer() === "google";
+  const locationSearch = useLocationSearch({ onFocusRegion: handleSelectCluster });
+  const { clear: clearLocationSearch } = locationSearch;
+  // サインアウトで検索欄を外したら、結果も捨てる（次にサインインした人に前の検索を見せない）。
+  useEffect(() => {
+    if (!canSearchLocations) clearLocationSearch();
+  }, [canSearchLocations, clearLocationSearch]);
+
   const handleOpenSanpoMapList = () => {
     runOnce(() => router.push("/sanpo-maps"));
   };
@@ -176,13 +196,23 @@ export function PinTabView({
           // 認証が無いときはピンのレイヤーを描かない（`enabled: false` でもキャッシュ済みのピンは返るため）。
           mapLayers={
             isSignedIn ? (
-              <RegisteredPinMarkers
-                pins={registered.pins}
-                visibleRegion={visibleRegion}
-                onSelectPin={handleSelectPin}
-                onSelectCluster={handleSelectCluster}
-                testIDPrefix="pin-tab-pin"
-              />
+              <>
+                <RegisteredPinMarkers
+                  pins={registered.pins}
+                  visibleRegion={visibleRegion}
+                  onSelectPin={handleSelectPin}
+                  onSelectCluster={handleSelectCluster}
+                  testIDPrefix="pin-tab-pin"
+                />
+                {canSearchLocations ? (
+                  <LocationSearchMarkers
+                    results={locationSearch.results}
+                    selectedId={locationSearch.selected?.id ?? null}
+                    onSelect={locationSearch.select}
+                    testIDPrefix="pin-tab-search-result"
+                  />
+                ) : null}
+              </>
             ) : null
           }
         />
@@ -192,12 +222,10 @@ export function PinTabView({
           style={[styles.topOverlay, { top: insets.top + theme.spacing[2] }]}
         >
           <Card style={styles.infoCard} testID="pin-tab-info">
-            <View style={styles.hintRow}>
-              <Icon name="info" size={18} color={theme.colors.textTertiary} />
-              <Text style={styles.hintText} testID="pin-tab-hint">
-                {PIN_TAB_HINT}
-              </Text>
-            </View>
+            <PinTabSearchOrHint
+              locationSearch={canSearchLocations ? locationSearch : null}
+              visibleRegion={visibleRegion}
+            />
             <PinMapStatusNotice
               notice={notice}
               onSignIn={handleSignIn}
@@ -234,6 +262,15 @@ export function PinTabView({
             </View>
           ) : null}
         </View>
+        {canSearchLocations && locationSearch.selected !== null ? (
+          <View pointerEvents="box-none" style={styles.bottomOverlay}>
+            <LocationSearchResultCard
+              result={locationSearch.selected}
+              onClose={locationSearch.deselect}
+              testID="pin-tab-search-result-card"
+            />
+          </View>
+        ) : null}
         {/* 地図エリアの下端はボタン配置エリアの上。タブ画面なので insets.bottom は足さない。 */}
         <ToastOverlay message={toast.message} visible={toast.visible} bottom={theme.spacing[4]} />
       </View>
@@ -258,6 +295,44 @@ export function PinTabView({
         </Button>
       </TabActionBar>
     </View>
+  );
+}
+
+/**
+ * 情報カードの1行目。検索できるとき（`locationSearch` が null でない）は検索欄、それ以外は長押しの登録のヒント（SS-267）。
+ * testID `pin-tab-hint` は E2E が見るので、ヒントを出すときは変えない。
+ */
+function PinTabSearchOrHint({
+  locationSearch,
+  visibleRegion,
+}: {
+  locationSearch: UseLocationSearchResult | null;
+  visibleRegion: MapRegion | null;
+}) {
+  const theme = useTheme();
+  const styles = useStyles();
+  if (locationSearch === null) {
+    return (
+      <View style={styles.hintRow}>
+        <Icon name="info" size={18} color={theme.colors.textTertiary} />
+        <Text style={styles.hintText} testID="pin-tab-hint">
+          {PIN_TAB_HINT}
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <LocationSearchField
+      value={locationSearch.query}
+      onChangeText={locationSearch.setQuery}
+      onSubmit={() => locationSearch.submit(visibleRegion)}
+      onClear={locationSearch.clear}
+      hasResults={locationSearch.results.length > 0}
+      isSearching={locationSearch.isSearching}
+      message={locationSearch.message}
+      isError={locationSearch.isError}
+      testID="pin-tab-search"
+    />
   );
 }
 
@@ -288,6 +363,12 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
     fontSize: theme.typography.size.sm,
     color: theme.colors.textSecondary,
+  },
+  bottomOverlay: {
+    position: "absolute",
+    left: theme.layout.pageGutter,
+    right: theme.layout.pageGutter,
+    bottom: theme.spacing[2],
   },
   mapTools: {
     alignSelf: "flex-end",
