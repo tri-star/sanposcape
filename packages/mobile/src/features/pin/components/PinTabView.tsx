@@ -143,9 +143,13 @@ export function PinTabView({
     }, [show, refreshLocation]),
   );
 
-  const handlePick = (location: GeoCoordinates) => {
+  // `beforePush` は遷移するときだけ（ラッチが掛かっていないとき）に呼ぶ（検索結果のピンを外す。SS-272）。
+  const handlePick = (location: GeoCoordinates, beforePush?: () => void) => {
     // push であって replace ではない（ADR-M-011 SS-146 追補）。clientWalkId は付けない。
-    runOnce(() => router.push({ pathname: "/pins/new", params: buildPinNewRouteParams(location) }));
+    runOnce(() => {
+      beforePush?.();
+      router.push({ pathname: "/pins/new", params: buildPinNewRouteParams(location) });
+    });
   };
 
   // `RegisteredPinMarkers` は `React.memo` なので参照を安定させる。
@@ -340,7 +344,7 @@ function PinTabSearchResultOverlay({
   onPick,
 }: {
   locationSearch: UseLocationSearchResult;
-  onPick: (location: GeoCoordinates) => void;
+  onPick: (location: GeoCoordinates, beforePush: () => void) => void;
 }) {
   const styles = useStyles();
   const { selected, deselect, dismiss } = locationSearch;
@@ -350,10 +354,7 @@ function PinTabSearchResultOverlay({
       <LocationSearchResultCard
         result={selected}
         onClose={deselect}
-        onRegisterPin={(result) => {
-          dismiss(result.id);
-          onPick(result.location);
-        }}
+        onRegisterPin={(result) => onPick(result.location, () => dismiss(result.id))}
         testID="pin-tab-search-result-card"
       />
     </View>
