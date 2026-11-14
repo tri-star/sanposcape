@@ -157,10 +157,13 @@ SS-43 では、Google Places 由来のスポット名が英語等のまま表示
     見つからなければ 200 + 空の `results`。
   - **範囲**: まず `locationRestriction` を表示範囲の矩形にして探し、0件なら `locationBias` を表示範囲の中心から半径 50km（円の上限）にして
     1回だけ広げる（課題の「画面内で検索、無ければ範囲を拡大して1段階で止める」）。`scope` は `visible_area` / `expanded`。1回の検索で Google を最大2回呼ぶ。
+    2回の呼び出しは、それぞれ読み取りの上限（`google_maps_read_timeout_seconds`。既定 8 秒）で打ち切る。1つの期限を2回で分けると、1回目が遅いとき2回目が始まる前に時間切れになり、
+    「見つからない」ではなく 503 になるため（レビューで指摘）。既定値では最悪 2 ×（接続 3 + 読み取り 8）= 22 秒で、時間予算 25 秒（Lambda の 29 秒から余裕を引いた値）に収まる。
   - **項目**: `places.id,places.displayName,places.formattedAddress,places.location`（Text Search Pro の SKU）。`languageCode=ja`・`regionCode=JP`・`pageSize=20`。
     住所は逆ジオコーディングと同じ規則で国名・郵便番号を落として半角に揃える（`integrations/google_maps/address.py`）。
   - **検索語の扱い**: 住所を含みうるので POST の本文で送り（URL・アクセスログ・トレースに載せない）、DB・ログに残さない。backend のメモリの TTL キャッシュ
-    （他の Places と同じ既定 300 秒）のキーにだけ入る。
+    （他の Places と同じ既定 300 秒）のキーにだけ入る。期限を過ぎた項目は、キャッシュの次の読み書きでまとめて消す（`TtlCache`。全キャッシュに効く）。
+    それまでは同じキーで引かれるまで残り、検索語・座標が台帳・ポリシーの「数分」より長くメモリに残りえた（レビューで指摘）。
   - **結果の並びは変えない**: 規約 3.2.3(g) "Customer will not modify any of the Google Maps Core Services' search results."
     mobile も距離で並べ替えず、先頭（関連度の順）を「最も合う場所」として扱う。
   - **Places の内容は Google の地図にだけ出す**: Google Maps Platform Terms of Service 3.2.3(e) "No Use With Non-Google Maps. ... Customer will not use
