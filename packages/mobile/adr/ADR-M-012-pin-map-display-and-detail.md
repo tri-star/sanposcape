@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-30（SS-246、SS-243、SS-191、SS-212、SS-174、SS-149、SS-163、SS-173、SS-172、SS-153、SS-119、SS-148、SS-147、SS-121）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-15（SS-274、SS-246、SS-243、SS-191、SS-212、SS-174、SS-149、SS-163、SS-173、SS-172、SS-153、SS-119、SS-148、SS-147、SS-121）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -57,8 +57,8 @@
   名前が無いピンは「名前のないピン」と表示する。日付整形は `src/lib/dateLabel.ts` に置く**。（本文: D11、D12、D13、SS-119 追補）
 - **E2E はピンタブのみで、マーカーのタップ → 詳細への遷移は E2E しない**。ピン詳細への遷移は `sanpo-map-list.yaml` が
   地図詳細のピン一覧から確かめる。写真の拡大（ピンチ）は E2E しない。地図のパン・ピンチも E2E しない（SS-149 追補）。（本文: D14、SS-146 追補、SS-147 追補、SS-121 追補、SS-153 追補）
-- **`react-native-maps` は 1.29.8。増減するレイヤーは `MapView` の子の末尾に置き、重なり順は `zIndex` で決め、
-  `moveOnMarkerPress={false}`、`onMapReady` での表示範囲の報告は初回だけ**。（本文: D16）
+- **`react-native-maps` は 1.29.11（SS-274 で 1.29.8 から上げた。iOS の Google Maps でマーカーが描かれないため）。増減するレイヤーは `MapView` の子の末尾に置き、重なり順は `zIndex` で決め、
+  `moveOnMarkerPress={false}`、`onMapReady` での表示範囲の報告は初回だけ**。（本文: D16、SS-274 追補）
 - **登録済みピンは、そのピンが属する地図のアイコン（カラーの画像と系統色。SS-191 で画像に。ADR-M-019 D8・D9）で描く**。`useRegisteredPins` が地図一覧のキャッシュから付け、`tracksViewChanges={false}` のマーカーは key にアイコンを含めて作り直す。（本文: SS-172 追補。本体は [ADR-M-019](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)）
 - **ピンの Marker は `mapPinMarkerPlacement` で基準点を渡す**（Android は `anchor`、iOS の Apple Maps は `centerOffset`）。（本文: SS-172 追補）
 - **ピン詳細の位置の地図は本文幅の正方形で、初期表示は約 330m 四方。ドラッグとピンチで操作でき、右上の「ピンの位置に戻す」で初期表示に戻る。ScrollView との干渉はライブラリ・OS の既定の挙動で防ぎ、登録フォームのプレビューは変えない**。（本文: SS-149 追補）
@@ -640,6 +640,41 @@ D3 の「件数が増えたら再検討」に当たるので、D3 を変えた�
   寄せる要求の組み立てと検証・コピーする文字列は単体テスト（`pinTabFocus.test.ts`・`pinAddress.test.ts`）で確かめる。
 - 移行・対応が必要な事項: `expo-clipboard` の追加で development build の作り直しが要る（`docs/local-env.md`）。backend・OpenAPI・フラグの変更は無い。
 
+## SS-274 追補: `react-native-maps` を 1.29.11 へ上げる（iOS の Google Maps でマーカーが描かれない）（2026-11-15）
+
+D16 の版を変える。D16 のほかの決定（レイヤーの置き場所・`zIndex`・`moveOnMarkerPress`・`onMapReady`）は変えない。
+
+### 決定・理由
+
+- **`react-native-maps` を 1.29.8 から 1.29.11 へ上げる。アプリのコードは変えない。**
+  - 背景: SS-267 で iOS の地図を Google Maps にした（ADR-M-007 の SS-267 追補）。キーを入れた iOS のビルド（TestFlight の dev 版）で、
+    地図は出るのに地図上のマーカーが一つも描かれなかった（API とピンの詳細・ピンの場所への移動は動く）。
+  - 原因: 1.29.8 の iOS の Google 版のマーカー（New Architecture の `RNMapsGoogleMarkerView`）は、内部の `AIRGoogleMapMarker` を
+    View の階層に入れずに使う。`iconView` の大きさを決める処理（`layoutSubviews`・`didUpdateReactSubviews`）が動かず、
+    GMSMarker に 0×0 の `iconView` が渡って何も描かれない（upstream #5964）。このアプリのマーカーはすべて子の View で描く
+    （登録済みのピン・選択位置・現在地・クラスタ・検索結果・散歩と履歴の地図）ので、すべて消える。
+    Android と、iOS の Apple Maps（キーの無いビルド）は影響を受けない。
+  - 1.29.9 で、`updateLayoutMetrics`（Fabric のレイアウトの結果）から `iconView` の大きさを決めて描き直す修正が入った。
+    1.29.10 は Android の `MapView` が外したマーカーの入れ物（attacherGroup）を `onMapReady` と追加時に付け直す修正、
+    1.29.11 は iOS の Google で地図に入れ直したマーカーの `icon` を保つ修正で、どちらも同じ系列の不具合の修正なので最新まで上げる。
+    npm の公開物の差分はこの3つのネイティブのファイルだけで、JS・型・Google Maps SDK のプライバシーマニフェストは変わらない。
+  - 採らなかった案: #5964 の差分だけを patch-package で当てる（公式の版で直っており、patch の保守が増える）。
+    マーカーを `image` で描く（1.29.x の iOS で `image` も読めない報告があり（#6047）、見た目の作り直しも大きい）。
+
+### 影響
+
+- ネイティブの変更なので、OTA では直らない。iOS・Android のビルドを作り直す。fingerprint が変わるので、既存のバイナリへの OTA は配られない（runbook §6.1）。
+- 実機（iOS の Google Maps）での描画はこの PR では確かめていない。TestFlight で次を確かめる（SS-273 の確認項目）。
+  - ピンタブのピン・クラスタ・現在地・選択位置・検索結果、散歩・履歴の地図のマーカーが出る。
+  - 地図を大きくパン・ズームした後も、ピン・クラスタが消えない。クラスタとピンが切り替わる縮尺を往復しても消えない
+    （upstream #5953「パンでマーカーが区画ごとに消える」は 1.29.0 からの回帰で、1.29.11 でも open）。
+- 既存の利用者への影響はない。キーを入れた iOS のビルドはまだストアの審査に出していない（SS-273 の手順5の前）ので、
+  この不具合はストア版には出ていない。キーを入れた iOS のビルドを審査に出すのは、この修正を入れたバイナリで上の確認を済ませてからにする。
+- Android は 1.29.10 の付け直しの修正で、マーカーの子が window に付くタイミングが変わる。マーカーの子は View と SVG だけで画像を使わないので、見た目は変わらない見込み。
+  CI の E2E（Android）はマーカーを assert しない（D14）ので、見た目の根拠にはならない。ピン・クラスタ（件数の文字と縁）・現在地・散歩中の地図のマーカーを、
+  Android のエミュレータか実機で 1.29.8 のときと目で比べる。
+- 1.29.11 でも描かれなければ、RN 0.86 で Google のマーカーが出ないという報告（upstream #5973）の残りを疑い、patch を当てることを検討する。
+
 ## 関連情報
 
 - [ADR-009（ルート）: 散歩マップ・ピンのデータモデルと写真アップロード](../../../docs/adr/archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md)（決定15・持ち越し事項の決着）
@@ -653,4 +688,4 @@ D3 の「件数が増えたら再検討」に当たるので、D3 を変えた�
 - [ADR-M-019: 地図のアイコンと、マップピンの形・マーカーの基準点](./ADR-M-019-sanpo-map-icon-and-map-pin-shape.md)（SS-172 追補）
 - [ADR-M-021: ピンの訪問状況とアーカイブ](./ADR-M-021-pin-visit-status-and-archive.md)（SS-173 追補）
 - [ADR-M-010 の SS-163 追補](./ADR-M-010-photo-service-and-direct-s3-upload.md)（撮影日時を EXIF から読む）
-- 元チケット: SS-118・SS-149・SS-153・SS-163・SS-243 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）・SS-121・SS-119・SS-173・SS-164
+- 元チケット: SS-118・SS-149・SS-153・SS-163・SS-243・SS-274 / 関連: SS-88（PR #93）・SS-111・SS-124（PR #102）・SS-146（PR #114）・SS-147（PR #115）・SS-121・SS-119・SS-173・SS-164

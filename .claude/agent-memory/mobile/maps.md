@@ -1,13 +1,13 @@
 ---
 name: maps
-description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、スタックの下にある間の animateToRegion は捨てられる（Android。onMapReady でもう一度当てる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
+description: react-native-maps の実装メモ — iOS の Google Maps でマーカーが 0×0 で描かれない（1.29.8 まで）、Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、スタックの下にある間の animateToRegion は捨てられる（Android。onMapReady でもう一度当てる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
 metadata:
   type: feedback
   scope: durable
   verify_by: 2027-03-31
 ---
 
-`react-native-maps` は 1.29.8（2026-10 時点）。キー注入の経路は ADR-M-007、Marker の基準点は ADR-M-019 と `pages-components-guideline.md`、
+`react-native-maps` は 1.29.11（2026-11 時点。SS-274 で 1.29.8 から上げた）。キー注入の経路は ADR-M-007、Marker の基準点は ADR-M-019 と `pages-components-guideline.md`、
 ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオーバーレイと Modal の問題は ADR-M-011 D7 が正本。
 
 ## MapView
@@ -30,6 +30,13 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
 - **文字（`Text`）を入れた子 View は、最初から `tracksViewChanges={false}` にすると Android で文字と縁が描かれず、塗りだけの姿で固定される**（SS-243 のクラスタの円）。
   SVG だけで描くピン（`SanpoMapPin`）は最初から false でも描ける。文字を入れるマーカーは、作ってから短い間（500ms）だけ true にしてから false にする（`PinClusterMarker`）。
   件数などの中身が変わるときは key に入れて作り直す（作り直すと、また短い間だけ追従する）。
+
+## iOS の Google Maps で子の View のマーカーが描かれない（1.29.8 まで。SS-274）
+
+- 1.29.8 以前の iOS の Google 版（New Architecture）は、マーカーの `iconView` が 0×0 のまま GMSMarker に渡り、子の View で描くマーカーが**一つも出ない**（upstream #5964。1.29.9 で修正）。
+  地図・線・API は動くので、データや座標を疑って時間を溶かしやすい。Android と Apple Maps では起きないので、エミュレータでは再現しない。
+- **How to apply:** iOS の Google Maps でマーカーだけが出ないと言われたら、まず `react-native-maps` の版と upstream の `[iOS][Google Maps][Fabric]` の issue を見る。
+  ネイティブ実装は `ios/AirGoogleMaps/RNMapsGoogleMarkerView.mm`（Fabric）→ `AIRGoogleMapMarker.m`（中身）。版を上げる前に `npm pack` で両方の版を落として `diff -r` すると、Android・JS への影響を一度に確かめられる。
 
 ## Polyline の重なり順（iOS は zIndex が効かない）
 
