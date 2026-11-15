@@ -35,6 +35,9 @@
 - `app/` は薄く、判定は `lib/` の純粋関数、サーバー状態は TanStack Query、`features/<feature>/api/` は素の fetcher のラップ、services は `index.ts` の interface 経由。正本: folder-structure.md「各ディレクトリの役割と配置ルール」「状態管理の使い分け」
 - feature 間の直接 import（walk ⇔ sanpo-map ⇔ history など）は禁止だが lint は見ていない（`.oxlintrc.json` の `no-restricted-imports` の override は認証系・`@/config/devTools`・`lib/` からの `react-native` の値 import だけ）。
   同じ feature の直下の領域同士（`sanpo-map/map` ⇔ `sanpo-map/pin` など）の import は許される。`shared/` が領域のフォルダを import していないか、`shared/` に持ち主の決まるものを置いていないかを見る。正本: folder-structure.md「feature の中を領域で分ける」、ADR-M-001 決定2 の SS-260 追補
+- フォルダを移す・深くする差分（SS-260）では、パスの glob を使う設定と文書が新しい深さに当たるかを見る。`.oxlintrc.json` の `files`（1段の `*` は深い lib/ に当たらず制限が黙って外れる）、
+  データ取扱い台帳の対象パス、同期検査のテストの定数。旧パスはフルパスに加えて、解いたサブフォルダの名前だけの相対の書き方（`lib/map-deletion/`・「pin 側」）でも grep する。
+  旧 `types.ts` を `shared/types.ts` にそのまま移していないか（1つの領域だけが使う型はその領域の `types.ts` へ）も見る。
 - 関数の複雑度・行数・1ファイルの依存の数・循環 import は oxlint が止める（ADR-017）。`.oxlintrc.json` の末尾の overrides（据え置きの除外）にファイルを足していたら、片付ける課題と理由がコメントにあり、分けずに通す判断が妥当かを見る。backend の `pyproject.toml` の `per-file-ignores` も同じ。
 - `features/walk|history|sanpo-map` に認証由来の値が要るとき、`app/` のルートがプリミティブを返す selector で読んで props で注入しているか。store やユーザーオブジェクトごと渡していないか。横断 hook（例 `useSessionDisplayName`）で lint を形式的に通す形は SS-29 で却下済み。同じ selector が `app/` に2箇所以上あるときの `src/hooks/` への切り出しは可。`features/settings` は override の対象外で store を直接読める（意図的）。正本: architecture-guideline.md「認証の扱い」、ADR-M-009 決定8
 - `src/api/` 直下のドメイン形状のラッパは `appConfigApi.ts` だけ。2本目がフラットに置かれたら `src/api/endpoints/` へ分ける（folder-structure.md の `src/api/` 節）。
