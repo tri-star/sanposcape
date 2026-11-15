@@ -1,12 +1,12 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { PinRegisterView } from "@/features/pin/components/PinRegisterView";
+import { PinRegisterView } from "@/features/sanpo-map/pin/components/PinRegisterView";
 import {
   parseClientWalkIdParam,
   parsePinLocationParams,
-} from "@/features/pin/lib/pinLocationParams";
-import type { PinRouteParams } from "@/features/pin/lib/pinLocationParams";
+} from "@/features/sanpo-map/pin/lib/pinLocationParams";
+import type { PinRouteParams } from "@/features/sanpo-map/pin/lib/pinLocationParams";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**

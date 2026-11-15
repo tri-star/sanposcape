@@ -34,7 +34,13 @@ const AUTH_GROUP_KEY = "@/store/useAuthSessionStore";
 const DEV_TOOLS_GROUP_KEY = "@/config/devTools";
 const REACT_NATIVE_GROUP_KEY = "react-native";
 const LIB_FILES = "src/features/*/lib/**";
-const AUTH_RESTRICTED_FEATURES = ["walk", "history", "pin"];
+const AUTH_RESTRICTED_FEATURES = ["walk", "history", "sanpo-map"];
+/** feature ごとの lib/ の glob。sanpo-map は領域（map / pin / invitation …）の下に lib/ がある。 */
+const FEATURE_LIB_FILES: Record<string, string> = {
+  walk: "src/features/walk/lib/**",
+  history: "src/features/history/lib/**",
+  "sanpo-map": "src/features/sanpo-map/*/lib/**",
+};
 const findPattern = (patterns: Pattern[], key: string) =>
   patterns.find((pattern) => pattern.group.includes(key));
 
@@ -89,7 +95,7 @@ describe(".oxlintrc.json の no-restricted-imports", () => {
       const libIndex = restricted.findIndex(({ files }) => files.includes(LIB_FILES));
       const lastForFeatureLib = restricted
         .map((override, index) => ({ ...override, index }))
-        .filter(({ files }) => files.includes(`src/features/${feature}/lib/**`))
+        .filter(({ files }) => files.includes(FEATURE_LIB_FILES[feature]!))
         .at(-1);
       expect(lastForFeatureLib).toBeDefined();
       expect(lastForFeatureLib!.index).toBeGreaterThan(libIndex);

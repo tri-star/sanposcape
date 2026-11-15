@@ -59,7 +59,7 @@ export type PickPhotosOptions = {
 
 /**
  * 写真サービスのインターフェース。
- * 呼び出し側（features/pin）はこれのみを参照し、real/mock の実体を知らない。
+ * 呼び出し側（features/sanpo-map）はこれのみを参照し、real/mock の実体を知らない。
  */
 export type PhotoService = {
   /**

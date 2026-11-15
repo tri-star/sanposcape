@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { InvitationAcceptView } from "@/features/pin/components/invitation/InvitationAcceptView";
-import { isInvitationToken } from "@/features/pin/lib/invitation/invitation";
+import { InvitationAcceptView } from "@/features/sanpo-map/invitation/components/InvitationAcceptView";
+import { isInvitationToken } from "@/features/sanpo-map/invitation/lib/invitation";
 import { useSignInNavigation } from "@/hooks/useSignInNavigation";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
