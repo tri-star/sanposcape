@@ -8,6 +8,7 @@ import MapView, {
   type PoiClickEvent,
 } from "react-native-maps";
 
+import { MAP_PROVIDER } from "@/config/mapProvider";
 import { CurrentHeadingBeam } from "@/components/location/CurrentHeadingBeam";
 import { MapPin } from "@/components/ui/map-pin/MapPin";
 import { mapPinMarkerPlacement } from "@/components/ui/map-pin/mapPinGeometry";
@@ -161,6 +162,8 @@ export function PinMapCanvas({
       onLayout={headingBeam.onMapLayout}
     >
       <MapView
+        // iOS もキーを入れたビルドでは Google Maps（SS-267。`src/config/mapProvider.ts`）。
+        provider={MAP_PROVIDER}
         ref={mapRef}
         style={styles.map}
         initialRegion={initialRegion}

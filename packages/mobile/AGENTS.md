@@ -47,16 +47,16 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | ADR | 主題 |
 |---|---|
 | [ADR-M-001](./adr/ADR-M-001-folder-structure.md) | フォルダ構造と命名規則 |
-| [ADR-M-002](./adr/ADR-M-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント） |
+| [ADR-M-002](./adr/ADR-M-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント）。iOS の地図もキーを入れたビルドは Google Maps（SS-267 追補） |
 | [ADR-M-003](./adr/ADR-M-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
 | [ADR-M-004](./adr/ADR-M-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補）。フローの書き方の注意（clearState の分離・一時表示を assert しない・ASCII 入力。SS-152 追補）。入力欄の入れ直しに `eraseText` を使わない・ビルド後の Gradle デーモンの停止とランナーのメモリの記録・Maestro の版の固定（2026-10-17 追補） |
 | [ADR-M-005](./adr/ADR-M-005-styling-without-unistyles.md) | スタイルは RN の StyleSheet + テーマ Context。ThemeProvider の初期モード注入・永続化・ネイティブ外観の上書き（SS-86 追補。ADR-M-016）。デザイントークンの SSoT は Claude Design で同期は一方向（SS-202 追補） |
 | [ADR-M-006](./adr/ADR-M-006-location-service-real-mock.md) | 位置情報サービスは real/mock の2モード。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。精度の許可 `getPrecision`（SS-160 追補。本体は ADR-M-022）。端末の向き `watchHeading`（SS-169 追補。本体は ADR-M-023） |
-| [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補）。散歩中の地図の計測値の表示（軌跡の点の数・JS の FPS）も開発ツールに含める（SS-229 追補） |
-| [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。散歩中の地図への歩いた軌跡の表示（SS-168 追補）。画面を行き来したときの軌跡の線の作り直し（SS-211 追補）。iOS で帰りの線が太く描かれるのを補正（SS-232 追補） |
+| [ADR-M-007](./adr/ADR-M-007-expo-config-and-maps-key-injection.md) | Expo 設定と Maps SDK キーの注入。`APP_VARIANT` による本番識別子への上書き分岐（SS-79 追補）。開発ツール（画面カタログ）の表示可否の実行時判定（SS-148 追補）。散歩中の地図の計測値の表示（軌跡の点の数・JS の FPS）も開発ツールに含める（SS-229 追補）。iOS の地図を Google Maps にするキー `GOOGLE_MAPS_IOS_SDK_KEY` の注入（react-native-maps の plugin）と、実行時の provider の決め方（SS-267 追補） |
+| [ADR-M-008](./adr/ADR-M-008-active-walk-state-and-route-cache.md) | 進行中/保存待ちの散歩の状態管理とルートのキャッシュ共有。バックグラウンド記録（SS-156 追補。本体は ADR-M-018）。散歩中の地図への歩いた軌跡の表示（SS-168 追補）。画面を行き来したときの軌跡の線の作り直し（SS-211 追補）。iOS で帰りの線が太く描かれるのを補正（SS-232 追補。SS-267 から Apple Maps のときだけ） |
 | [ADR-M-009](./adr/ADR-M-009-auth-session-state-and-route-gate.md) | 認証セッション状態の集約と認証ゲート。サインイン後の戻り先（`returnTo`・許可リスト。SS-151 追補。招待の受諾画面を足した SS-250 追補）。表示名の変更でセッションの user を差し替える `updateCurrentUser`（SS-268 追補）。ディープリンクで直に開ける保護ルートの棚卸しと履歴の一覧・詳細のゲスト表示（SS-45 追補） |
-| [ADR-M-010](./adr/ADR-M-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送。撮影日時を EXIF から読み、位置情報は捨てる（SS-163 追補）。容量超過の文言に上限の値を書かない（SS-236 追補） |
-| [ADR-M-011](./adr/ADR-M-011-pin-location-picking-and-adjustment.md) | ピンの位置の選択と調整（任意地点からの登録は長押し、登録画面での調整はタップ・画面内オーバーレイ）。ピンタブへの統合（SS-146 追補）。ナビタブの FAB と地点選択画面の削除（SS-147 追補） |
+| [ADR-M-010](./adr/ADR-M-010-photo-service-and-direct-s3-upload.md) | 写真の取得・加工は services/photo（real/mock）、アップロードは presigned POST で S3 直送。撮影日時を EXIF から読み、位置情報は捨てる（SS-163 追補）。容量超過の文言に上限の値を書かない（SS-236 追補）。mock は埋め込みの本物の JPEG を返し、写真付きのピン登録を E2E で通す（SS-123 追補） |
+| [ADR-M-011](./adr/ADR-M-011-pin-location-picking-and-adjustment.md) | ピンの位置の選択と調整（任意地点からの登録は長押し、登録画面での調整はタップ・画面内オーバーレイ）。ピンタブへの統合（SS-146 追補）。ナビタブの FAB と地点選択画面の削除（SS-147 追補）。検索結果のカードからの登録（SS-272 追補） |
 | [ADR-M-012](./adr/ADR-M-012-pin-map-display-and-detail.md) | 登録済みピンの地図表示（取得範囲・上限の見せ方・散歩中の地図への合成）とピン詳細（写真のページング・画像キャッシュ）。ピンタブでの表示（SS-146 追補）。`/pins/map` の削除とナビタブ idle への「最近の散歩」の合成（SS-147 追補）。アカウントタブのゲスト表示（SS-148 追補）。ピン詳細への編集・削除ボタンの追加と詳細ルートの `[pinId]/index.tsx` への移動（SS-119 追補。本体は ADR-M-017）。写真ビューアのピンチでの拡大（SS-153 追補）。登録済みピンを地図のアイコンで描く・マーカーの基準点（SS-172 追補。本体は ADR-M-019）。アーカイブ済みのピンを地図表示から除外（SS-173 追補。本体は ADR-M-021）・地図表示の絞り込み（SS-174 追補。本体は ADR-M-021）。写真ビューアの撮影日時の表示（SS-163 追補）。ピン詳細の地図を正方形にしてパン・ピンチで操作可能に（SS-149 追補）。ピン詳細の住所（表示のたびに引き DB に保存しない・座標ごとのキャッシュ。SS-212 追補）。ピンのクラスタ表示（地図ごと 1,000 件まで取り端末でまとめる・円のタップで拡大。D3 の変更。SS-243 追補）。ピン詳細の情報カード・住所のコピー・ピンタブへの移動（SS-246 追補） |
 | [ADR-M-013](./adr/ADR-M-013-pin-tag-suggestions.md) | ピンのタグ入力の候補（地図単位の既存タグ・端末での絞り込み・既存表記への統一）。登録画面に最寄り駅のタグを最初から入れておく（SS-225 追補） |
 | [ADR-M-014](./adr/ADR-M-014-sanpo-map-list-and-detail.md) | 地図一覧と地図詳細（端末での絞り込み・ピンの全件取得の上限・地図作成ダイアログ）。地図のアイコンの選択・変更（SS-171 追補。本体は ADR-M-019）。ピン一覧のアーカイブ済みの扱い（SS-173 追補。本体は ADR-M-021）。メンバーの行・メンバー画面（外す・抜ける）とアイコンのタップでの変更（SS-249 追補）。地図の削除（ヘッダーのゴミ箱・確認ダイアログ・削除後は一覧へ戻り消した地図を取り直さない。SS-265 追補） |
@@ -71,3 +71,4 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-023](./adr/ADR-M-023-current-heading-on-map.md) | 地図上の現在地の向きの表示（端末の方位を `watchHeading` で購読・ネイティブの購読を1本にまとめる・`Polygon` の扇形で描く・ズームに合わせた半径・フォーカス中だけ購読） |
 | [ADR-M-024](./adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md) | 地図への招待（メンバー画面の招待シート・受諾画面（モーダル・「参加する」でだけ参加・returnTo=invitation）・招待リンクの受け取り（`+native-intent.tsx` で fragment のトークンを受諾画面へ）・招待リンクで参加（貼り付け））。iOS で招待シートが閉じ終えてから共有シートを開く（Dialog の onDismiss・予備のタイマー。SS-264 追補） |
 | [ADR-M-025](./adr/ADR-M-025-tag-list-and-tag-detail.md) | タグ一覧とタグ詳細（範囲は全地図・新しい API を作らず地図ごとのピンの全件取得を端末で集計・タグ詳細は開くたびに取り直す・アーカイブ済みと非表示の地図も含める・クエリ `label` で受ける） |
+| [ADR-M-026](./adr/ADR-M-026-pin-tab-location-search.md) | ピンタブの検索（ヒントの行を検索欄に・backend が画面内→1段階の拡大・広げたときだけ先頭へ動かす・検索結果のピンとカード・結果はメモリだけ・Google の地図のときだけ）。カードから検索結果の座標で登録画面を開く（SS-272 追補。規約 14.3 に反するリスクを承知のうえのユーザー判断） |

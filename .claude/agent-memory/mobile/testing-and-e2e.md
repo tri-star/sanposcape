@@ -1,6 +1,6 @@
 ---
 name: testing-and-e2e
-description: Vitest と Maestro で踏む点 — エミュレータで地図の重さを測る手順（開始点をマーカーの外に・縮尺は定数で・p90/p99 で比べる）、エミュレータで画面幅・文字サイズを変える手順、副作用登録のテストで reset しない、disabled を押しても Maestro は失敗しない、config.yaml を書かない、地図の中心はピンに当たる、既存 testID のリネーム禁止、appId のハードコード、全画面の案内（最低サポートバージョン）の確かめ方、dev client の歯車の消し方・止めた状態からのディープリンクはランチャーに着く・クリップボードの中身の確かめ方
+description: Vitest と Maestro で踏む点 — エミュレータで地図の重さを測る手順（開始点をマーカーの外に・縮尺は定数で・p90/p99 で比べる）、エミュレータで画面幅・文字サイズを変える手順、副作用登録のテストで reset しない、disabled を押しても Maestro は失敗しない、config.yaml を書かない、地図の中心はピンに当たる、既存 testID のリネーム禁止、appId のハードコード、全画面の案内（最低サポートバージョン）の確かめ方、dev client の歯車の消し方・止めた状態からのディープリンクはランチャーに着く・クリップボードの中身の確かめ方・日本語の入力（Windows のクリップボード + KEYCODE_PASTE）
 metadata:
   type: feedback
   scope: durable
@@ -66,6 +66,10 @@ metadata:
 - dev client の丸い歯車（Tools button）はスクリーンショットに重なる。歯車 → 開発メニューを下へスクロール → 「Tools button」をオフにすると消える（端末に残る）。
 - **アプリを止めた状態からのディープリンク（`ui.sh open pins/<id>`）は、dev client のランチャーに着いてアプリが開かない。** 起動中なら届く（現在の画面の上に push される）。
   起動直後は必ずピンタブに着地するので、「ピンタブがまだマウントされていない」状態はエミュレータでは作りにくい。
+- **エミュレータに日本語を入力する**（SS-267）: `adb shell input text` は ASCII だけで、日本語は例外になる。エミュレータは Windows のクリップボードを共有するので、
+  `printf '%s' "Set-Clipboard -Value '六義園'" | iconv -f UTF-8 -t UTF-16LE | base64 -w0` を `powershell.exe -NoProfile -EncodedCommand <それ>` に渡して（引数の文字化けを避けるため。`cd /mnt/c` から sandbox の外で）
+  Windows のクリップボードに置き、入力欄を `ui.sh tap` してから `adb shell "input keyevent 279"`（KEYCODE_PASTE）で貼る。続けて `ui.sh key 66` で送信できる。
+  ADBKeyBoard などの APK を入れる方法は、自動実行の権限の判定で止められた。
 - クリップボードへのコピーは、別の入力欄を長押しするか、キーボードの候補の行に出るクリップボードの候補をタップして貼ると中身を確かめられる（`adb` で読む手段は無い）。保存しない画面（編集の入力欄など）で試し、戻るで捨てる。
 - 地図の入った画面をスクロールするときは、地図の外から `swipe` を始める。地図の上から始めると地図だけが動き、後で地図の中心がピンからずれて見える。
 

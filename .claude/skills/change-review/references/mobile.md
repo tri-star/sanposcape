@@ -59,6 +59,8 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - `packages/mobile/package.json` の `scripts` を変える差分（開発用の script を1つ足すだけでも）で、`@expo/fingerprint` のハッシュが変わることを意識しているか。
   fingerprint は既定で `scripts` を材料に入れ（android・ios の script を除く）、本番の OTA の配信の前に本番のビルドと比べて違えば止まる（`mobile-production-update.yml`）。
   JS だけの devDependency の追加では変わらない。script が要らなければ `pnpm exec` で直接呼ぶ（SS-255 のレビューで見つかった）。
+- config plugin・ネイティブの依存を足す差分（`app.config.ts` の `plugins` など）は、main にマージした時点で公開中の version への OTA が fingerprint の比較で止まる（runbook §6.1）。version を上げる PR と配布ビルドの順序が PR の申し送りにあるか（SS-267）
+- Google Places の内容（探索の候補・ピンタブの検索結果）を地図に出す画面が、Google の地図のとき（`currentMapRenderer() === "google"`）に限っているか。規約 3.2.3(e) は Google 以外の地図（Apple Maps）に出すことを禁じている。iOS でキーを入れていないビルドは Apple Maps（ADR-M-007 の SS-267 追補）
 
 ## 画面遷移・戻る導線・フラグガード
 
@@ -95,6 +97,8 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - 一覧の `key` に表示文言（地図名・人の名前から組み立てた文）を使っていないか。地図名などは一意でないので、同じ文言が2行できると key が重複し、更新で行が落ちたり重なったりする。ID を key にする（SS-192 の地図欄の注記。`{key, text}` の形で渡す）。
 - 地図（`react-native-maps`）に、描いた後で座標が変わる `Polyline` / `Polygon` を足す差分では、画面を離れて戻ったとき（タブ切り替え・スタックへの push）に古い座標に戻らないかを見る。Android は付き直すときに、最初に地図へ足した時点の座標で線を作り直す。`onMapReady` の回数を `key` に含めて作り直しているかを確かめる（SS-211。ADR-M-008 決定10。`WalkRouteMapView` が実例）。フォーカス中だけ描く図形と、座標が変わらない線は当たらない。
 - 別の画面からの操作（ルートパラメータ・ストアなど）で地図のカメラを動かす差分では、地図の画面がスタックの下にある間に要求が届かないかを見る。Android はそこへ呼んだ `animateToRegion` を捨て、戻ってから `onMapReady` を呼び直す。動き終わるまで要求を覚えて `onMapReady` でもう一度当てているかを確かめる（SS-246。ADR-M-012 SS-246 追補。`PinMapCanvas` の `pendingRegionRef` が実例。`dismissTo` で戻る途中にパラメータが届いて地図が動かなかった）。
+- `react-native-maps` など、地図のネイティブの依存の版を上げる差分では、npm の公開物の両版を `diff -r` して、変わったネイティブのファイルごとに確かめ方（iOS の Google・Apple Maps・Android）が書いてあるかを見る。CI の E2E はマーカー・地図タイルを assert しない（`pin-map.yaml`・ADR-M-012 D14）ので、マーカーの見た目が変わらないことの根拠にしない。iOS の Google のマーカーは、起動して出るだけでなく、パン・ズームの後と、クラスタとピンが切り替わる縮尺の往復まで確かめる計画か（SS-274。upstream #5953）。
+- マーカーの子に画像（写真の presigned GET の URL など）を入れる差分では、Android（react-native-maps 1.29.10 から）でも子の画像が読み込まれ、端末から取得が起きる。データ取扱い台帳 3.3（写真）と合っているかを見る（SS-274 の security レビューの気づき）。
 - 地図に描くマーカーの数の上限を外す・変える差分（取得のページング、クラスタ表示など）では、どの縮尺でも描く数に上限が残るかを確かめる。まとめない縮尺・境目のズームで密な地区だと、境目を越えた途端に数百の Marker を描くことがある（SS-243 のレビューで見つかった。合成のデータでズームごとに描く数を数えると早い）。重さの計測が添えてあれば、どの縮尺で測ったか、スワイプの開始点がマーカーの上で地図が動いていない回が混じっていないかも見る（`.claude/agent-memory/mobile/testing-and-e2e.md`）。
 
 ## エラー処理と後始末

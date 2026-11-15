@@ -11,7 +11,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
  * ピン登録画面。散歩中画面の「この場所にピンを追加」または地図の長押しから push（`clientWalkId` つき）、
- * またはピンタブの地図の長押しから push（`clientWalkId` なし。SS-146）で来る。
+ * ピンタブの地図の長押しから push（`clientWalkId` なし。SS-146）、またはピンタブの検索結果のカードの
+ * 「この場所にピンを登録」から push（検索結果の座標。`clientWalkId` なし。SS-272）で来る。
  */
 export default function PinNewRoute() {
   const router = useRouter();

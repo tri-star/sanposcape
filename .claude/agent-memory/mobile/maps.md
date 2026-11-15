@@ -1,18 +1,21 @@
 ---
 name: maps
-description: react-native-maps の実装メモ — Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、スタックの下にある間の animateToRegion は捨てられる（Android。onMapReady でもう一度当てる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
+description: react-native-maps の実装メモ — iOS の Google Maps でマーカーが 0×0 で描かれない（1.29.8 まで）、Marker の rotation/flat は iOS で効かず向きは Polygon で描く、エミュレータで方位を与える adb emu sensor の手順、MapView は ref と animateToRegion、Marker の tracksViewChanges と key の再マウント、onPress は Marker/POI で発火しない（onPoiClick）、文字入りの子 View は最初から tracksViewChanges=false だと Android で文字が出ない、自前の MapRegion 型、キー注入の確認方法、Polyline の zIndex は iOS（Apple Maps）で効かず更新のたびに最上位へ付け直される、Android で画面を離れて戻ると座標が後から変わった線が古い座標に戻る（onMapReady の回数を key に入れる）、スタックの下にある間の animateToRegion は捨てられる（Android。onMapReady でもう一度当てる）、iOS は破線の線の太さと破線パターンを 2〜3 倍に拡大して描く（OS ごとの値にする）
 metadata:
   type: feedback
   scope: durable
   verify_by: 2027-03-31
 ---
 
-`react-native-maps` は 1.29.8（2026-10 時点）。キー注入の経路は ADR-M-007、Marker の基準点は ADR-M-019 と `pages-components-guideline.md`、
+`react-native-maps` は 1.29.11（2026-11 時点。SS-274 で 1.29.8 から上げた）。キー注入の経路は ADR-M-007、Marker の基準点は ADR-M-019 と `pages-components-guideline.md`、
 ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオーバーレイと Modal の問題は ADR-M-011 D7 が正本。
 
 ## MapView
 
-- `provider` は指定しない（Android = Google Maps / iOS = Apple Maps。iOS のキーが不要）。
+- `provider` は `src/config/mapProvider.ts` の `MAP_PROVIDER` を全 `MapView` に渡す（SS-267）。Android は常に Google、iOS は
+  `GOOGLE_MAPS_IOS_SDK_KEY` を入れたビルドだけ Google で、入れていないビルド（ローカルの dev build など）は Apple Maps のまま。
+  下の「Apple Maps では」の落とし穴は、iOS のキーの無いビルドと、キーを入れる前の配布済みの iOS のバイナリに残る。
+  Places の内容（探索の候補・ピンタブの検索結果）を出す画面は Google の地図に限る（規約 3.2.3(e)。`currentMapRenderer()`）。
 - `MapView` はクラスコンポーネント。`useRef<MapView>(null)` で持ち、`animateToRegion(region, ms)` で動かす。`initialRegion` はマウント時の1回しか読まれない。
   範囲へのフィットは `fitToCoordinates` / `fitToElements`。
 - **`MapView.onPress` は Marker と POI のタップでは発火しない。** POI は `onPoiClick`（Google のみ）。「タップした地点を選ぶ」UI は `onPoiClick` も同じハンドラにつなぐ。
@@ -28,9 +31,16 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
   SVG だけで描くピン（`SanpoMapPin`）は最初から false でも描ける。文字を入れるマーカーは、作ってから短い間（500ms）だけ true にしてから false にする（`PinClusterMarker`）。
   件数などの中身が変わるときは key に入れて作り直す（作り直すと、また短い間だけ追従する）。
 
+## iOS の Google Maps で子の View のマーカーが描かれない（1.29.8 まで。SS-274）
+
+- 1.29.8 以前の iOS の Google 版（New Architecture）は、マーカーの `iconView` が 0×0 のまま GMSMarker に渡り、子の View で描くマーカーが**一つも出ない**（upstream #5964。1.29.9 で修正）。
+  地図・線・API は動くので、データや座標を疑って時間を溶かしやすい。Android と Apple Maps では起きないので、エミュレータでは再現しない。
+- **How to apply:** iOS の Google Maps でマーカーだけが出ないと言われたら、まず `react-native-maps` の版と upstream の `[iOS][Google Maps][Fabric]` の issue を見る。
+  ネイティブ実装は `ios/AirGoogleMaps/RNMapsGoogleMarkerView.mm`（Fabric）→ `AIRGoogleMapMarker.m`（中身）。版を上げる前に `npm pack` で両方の版を落として `diff -r` すると、Android・JS への影響を一度に確かめられる。
+
 ## Polyline の重なり順（iOS は zIndex が効かない）
 
-- **`Polyline` の `zIndex` は Google Maps でしか効かない**（型の注釈 `@platform iOS: Google Maps only`）。`provider` を指定しないので iOS は Apple Maps になり、効かない。
+- **`Polyline` の `zIndex` は Google Maps でしか効かない**（型の注釈 `@platform iOS: Google Maps only`）。Apple Maps（iOS でキーの無いビルド）では効かない。
 - **Apple Maps の `Polyline` は、座標・色・太さが変わるたびに overlay を外して付け直す**（`ios/AirMaps/AIRMapPolyline.m` の `update` が `removeOverlay` → `addOverlay`）。
   付け直した線がいちばん上に来るので、位置が届くたびに座標が変わる線（散歩中の軌跡）は、毎回ほかの線より上に戻る。マウント順や再マウントで順序を作っても、次の更新で崩れる。
 - **How to apply:** 線どうしの重なり順に頼る見た目（下に太く敷いて縁取りにする等）を iOS で成り立たせようとしない。動く線は上に来る前提でデザインする（SS-168 の軌跡は「ルート線の上に細く重ねる」にした。ADR-M-008 決定10）。
@@ -41,7 +51,7 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
 - `lineDashPattern` を付けた `Polyline` は、iOS で**太さと破線パターンの両方が拡大**されて描かれる（スクリーンショット1枚の実測で、太さ 5 の破線が約 12.5〜13.4pt・破線の周期が約 2.2 倍。同じ太さの実線は 5pt）。一様な拡大とは完全には合わず、仕組みは仮説の段階。
   react-native-maps は値をそのまま `MKPolylineRenderer` に渡しており、拡大は MapKit 側。Android（Google Maps）は起きない。
 - Android は `lineCap="round"` のとき破線の長さを捨てて丸い点（直径 = 太さ）にし、間隔は端末の px で渡す。両 OS で同じ見た目にはならない。
-- **How to apply:** 破線の線の見た目は OS ごとの値にする（`walkReturnLineStyle`。ADR-M-008 決定9 の SS-232 追補）。倍率 2.5 はスクリーンショット1枚から測った値の間を採ったもので、ズーム・画面の倍率・iOS の版での変化は未確認。
+- **How to apply:** 破線の線の見た目は地図の SDK（Google / Apple）ごとの値にする（`walkReturnLineStyle(mapRenderer)`。ADR-M-008 決定9 の SS-232・SS-267 追補。キーを入れた iOS のビルドは Google で Android と同じ値）。倍率 2.5 はスクリーンショット1枚から測った値の間を採ったもので、ズーム・画面の倍率・iOS の版での変化は未確認。
   iOS の見え方の報告は、スクリーンショットを画素で測ると原因の当たりが付けやすい（往路の実線を物差しにする）。
 
 ## 画面を離れて戻ると、座標が後から変わった線が古い座標に戻る（Android。SS-211）
@@ -65,7 +75,7 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
 
 ## 向き・回転を地図に描く（SS-169）
 
-- **`Marker` の `rotation` / `flat` は Google Maps でしか効かない**（型の注釈 `@platform iOS: Google Maps only`）。`provider` を指定しない iOS（Apple Maps）では回らない。
+- **`Marker` の `rotation` / `flat` は Google Maps でしか効かない**（型の注釈 `@platform iOS: Google Maps only`）。Apple Maps では回らない。
   地図に対する向きを両 OS で描くなら、`Polygon` などの図形で座標から描く（ADR-M-023）。
 - 大きな `Marker` は Android で真上のタップ・長押しを `MapView` に渡さない（上の「MapView」節）。現在地のまわりに重ねる飾りは図形にすると地点選択を塞がない。
 - 図形は距離（m）で描くので、画面上の大きさを保つには `latitudeDelta` と地図の高さ（`onLayout`）から換算し直す（`useHeadingBeamRadius`）。

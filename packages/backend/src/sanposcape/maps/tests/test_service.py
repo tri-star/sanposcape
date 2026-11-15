@@ -14,12 +14,14 @@ from sanposcape.integrations.google_maps.provider import (
     ProviderPlace,
     ProviderPoint,
     ProviderRoute,
+    ProviderTextPlace,
 )
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.geometry import haversine_meters
 from sanposcape.maps.loop_route import loop_waypoint_candidates
 from sanposcape.maps.schemas import (
     PlaceSearchRequest,
+    PlaceTextSearchRequest,
     ReverseGeocodeRequest,
     WalkingRouteRequest,
 )
@@ -539,3 +541,121 @@ def test_reverse_geocode_maps_provider_failures(error, expected) -> None:
             ReverseGeocodeRequest(location={"latitude": 35, "longitude": 139}),
             user_id=_GEOCODE_USER_ID,
         )
+
+
+# --- 文字列での場所の検索（SS-267） ---------------------------------------------
+
+
+class TextSearchProvider(FakeProvider):
+    """`search_text` の呼び出しを記録し、範囲の渡し方ごとに決めた結果を返すスタブ。"""
+
+    def __init__(self, inside: tuple = (), around: tuple = (), error: Exception | None = None):
+        super().__init__()
+        self.inside = inside
+        self.around = around
+        self.error = error
+        self.text_calls: list[dict] = []
+
+    def search_text(self, query, *, restriction, bias, limit, timeout_seconds):
+        self.text_calls.append(
+            {
+                "query": query,
+                "restriction": restriction,
+                "bias": bias,
+                "limit": limit,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        if self.error is not None:
+            raise self.error
+        return self.inside if restriction is not None else self.around
+
+
+def _text_request(query: str = "コンビニ"):
+    return PlaceTextSearchRequest.model_validate(
+        {
+            "query": query,
+            "bounds": {
+                "south_west": {"latitude": 35.0, "longitude": 139.0},
+                "north_east": {"latitude": 35.2, "longitude": 139.4},
+            },
+        }
+    )
+
+
+def _text_place(place_id: str):
+    return ProviderTextPlace(place_id, f"名前{place_id}", None, ProviderPoint(35.1, 139.2))
+
+
+def test_text_search_uses_only_the_visible_area_when_it_finds_results() -> None:
+    """表示範囲の中で見つかれば、範囲を矩形の制限で1回だけ探し、並びを変えずに返すこと。"""
+    provider = TextSearchProvider(inside=(_text_place("b"), _text_place("a")))
+
+    response = MapsService(provider, 20, 20, 10, 8).search_places_by_text(_text_request())
+
+    assert response.scope == "visible_area"
+    assert [result.id for result in response.results] == ["b", "a"]
+    assert len(provider.text_calls) == 1
+    call = provider.text_calls[0]
+    assert call["bias"] is None
+    assert call["restriction"].south_west == ProviderPoint(35.0, 139.0)
+    assert call["restriction"].north_east == ProviderPoint(35.2, 139.4)
+    assert call["limit"] == 20
+
+
+def test_text_search_expands_once_around_the_center_when_the_visible_area_is_empty() -> None:
+    """表示範囲で0件なら、
+    範囲の中心から半径 50km を優先する検索を1回だけして `expanded` で返すこと。"""
+    provider = TextSearchProvider(inside=(), around=(_text_place("far"),))
+
+    response = MapsService(provider, 20, 20, 10, 8).search_places_by_text(_text_request())
+
+    assert response.scope == "expanded"
+    assert [result.id for result in response.results] == ["far"]
+    assert len(provider.text_calls) == 2
+    second = provider.text_calls[1]
+    assert second["restriction"] is None
+    assert second["bias"].center.latitude == pytest.approx(35.1)
+    assert second["bias"].center.longitude == pytest.approx(139.2)
+    assert second["bias"].radius_meters == 50_000.0
+
+
+def test_text_search_returns_empty_expanded_when_neither_search_finds_anything() -> None:
+    """広げても0件なら、3回目は探さずに空の結果を返すこと（課題の「1段階で止める」）。"""
+    provider = TextSearchProvider()
+
+    response = MapsService(provider, 20, 20, 10, 8).search_places_by_text(_text_request())
+
+    assert response.results == []
+    assert response.scope == "expanded"
+    assert len(provider.text_calls) == 2
+
+
+@pytest.mark.parametrize(
+    "error, expected",
+    [
+        (GoogleMapsQuotaError(), MapsQuotaError),
+        (GoogleMapsUnavailableError(), MapsUnavailableError),
+    ],
+)
+def test_text_search_maps_provider_failures(error, expected) -> None:
+    """provider の上限・障害は、探索の他の API と同じ例外に変換すること。"""
+    provider = TextSearchProvider(error=error)
+
+    with pytest.raises(expected):
+        MapsService(provider, 20, 20, 10, 8).search_places_by_text(_text_request())
+
+
+def test_text_search_gives_each_provider_call_its_own_timeout(monkeypatch) -> None:
+    """1回目が時間を使っても、2回目にも同じ打ち切りの時間を渡すこと（期限を2回で分けると、1回目が遅いとき
+    2回目が始まる前に時間切れになり、見つからないだけなのに 503 になる。SS-267 レビュー対応）。"""
+    clock = iter([0.0, 9.5, 9.5, 9.5, 9.5])
+    monkeypatch.setattr("sanposcape.maps.service.monotonic", lambda: next(clock, 9.5))
+    provider = TextSearchProvider(inside=(), around=(_text_place("far"),))
+
+    response = MapsService(
+        provider, 20, 20, 10, 8, text_search_timeout_seconds=8
+    ).search_places_by_text(_text_request())
+
+    assert response.scope == "expanded"
+    assert [call["timeout_seconds"] for call in provider.text_calls] == [8, 8]

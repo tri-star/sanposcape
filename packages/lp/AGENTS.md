@@ -185,6 +185,10 @@ App Store Connect の「プライバシーポリシー URL」に登録するた�
   - 旧版 `src/pages/privacy/<YYYY-MM-DD>.astro` は frontmatter の `appliesUntil`・`nextEffectiveOn` で冒頭の案内を出す。本文は以後書き換えない（この2つの日付だけは、本番へのデプロイが遅れて新しい版の施行日を動かすときに合わせる）。
   - sitemap からは `astro.config.mjs` の `filter` が `/privacy/<YYYY-MM-DD>/`・`/terms/<YYYY-MM-DD>/` の形をまとめて外す（版を足すたびに直さなくてよい）。
   - 次の不利な改定では、その時点の `/privacy/` を手順 1 で新しい日付のファイルに複製し、`revisionHistory` の先頭に行を足す。
+  - **施行を待つ不利な改定がある間に、次の不利な改定をするとき**（SS-267）: 施行待ちの `/privacy/` を手順 1 で複製した旧版は、
+    前の施行日から次の施行日の前日まで適用する版になる。その旧版には `appliesFrom` と、それより前に適用する版（`earlierVersion`）を持たせて冒頭に両方の期間を書く。
+    さらに前の旧版の「次に適用する版」のリンク（`nextHref`）を `/privacy/` から複製した旧版へ付け替える（固定した旧版で日付以外を直すのはこの場合だけ）。
+    前例: `src/pages/privacy/2026-11-07.astro`（2026-12-02〜12-13）と `2026-10-24.astro`。
 - サポートページ（`/support/`）はポリシー・規約の節へリンクしているだけなので、施行日・旧版の仕組みは要らない。
 
 ## 招待リンクの受け皿（`/i/`）

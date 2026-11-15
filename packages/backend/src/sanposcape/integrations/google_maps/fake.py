@@ -21,16 +21,25 @@ Maestro E2E と Google Maps API キーを持たないローカル開発者専用
 
 **逆ジオコーディングは座標によらない固定の住所を返す**（SS-138）。ピン詳細の住所の表示（SS-212）の導線
 （E2E・キーを持たない開発者の動作確認）を通すためのもので、住所の形の再現ではない。
+
+**文字列での場所の検索は検索語で分岐する**（SS-267）。範囲の中だけを探す（`restriction`）ときは、範囲の中心の付近に
+`_TEXT_PLACE_COUNT` 件を返す。
+検索語に `far` を含むときは範囲の中では見つからない扱い（0 件）にして、範囲を広げる経路を通す。
+付近を優先して探す（`bias`）ときは、中心から北東へ約 3km の1件を返す。
+検索語に `none` を含むときはどちらも 0 件。
 """
 
 from math import cos, degrees, hypot, radians
 
 from sanposcape.integrations.google_maps.provider import (
     ProviderAddress,
+    ProviderCircle,
     ProviderLoopRoute,
     ProviderPlace,
     ProviderPoint,
+    ProviderRectangle,
     ProviderRoute,
+    ProviderTextPlace,
 )
 
 _EARTH_RADIUS_METERS = 6_371_008.8
@@ -51,6 +60,9 @@ _CATEGORY_LABELS = {
     "station": "テスト駅",
 }
 _DEFAULT_CATEGORY_LABEL = "テストスポット"
+_TEXT_PLACE_COUNT = 3
+_TEXT_PLACE_OFFSET_STEP_METERS = 150.0
+_TEXT_FAR_OFFSET_METERS = 3000.0 / _SQRT_2
 _FAKE_ADDRESS = ProviderAddress(
     address="テスト県テスト市テスト町1丁目2-3", building_name="テストビル"
 )
@@ -140,6 +152,50 @@ class FakeGoogleMapsProvider:
             path=inbound_path,
         )
         return ProviderLoopRoute(outbound=outbound, inbound=inbound)
+
+    def search_text(
+        self,
+        query: str,
+        *,
+        restriction: ProviderRectangle | None,
+        bias: ProviderCircle | None,
+        limit: int,
+        timeout_seconds: float,
+    ) -> tuple[ProviderTextPlace, ...]:
+        """検索語と範囲の渡し方で決まる固定の結果を返す（モジュールの docstring）。
+
+        `timeout_seconds` はプロトコル適合のためだけに受け取り、使わない。
+        """
+        lowered = query.lower()
+        if "none" in lowered:
+            return ()
+        if restriction is not None:
+            if "far" in lowered:
+                return ()
+            center = _interpolate(restriction.south_west, restriction.north_east, 0.5)
+            return tuple(
+                ProviderTextPlace(
+                    id=f"fake-text-place-{index + 1}",
+                    name=f"{query}{index + 1}",
+                    address=_FAKE_ADDRESS.address,
+                    location=_offset(
+                        center,
+                        _TEXT_PLACE_OFFSET_STEP_METERS * index,
+                        _TEXT_PLACE_OFFSET_STEP_METERS,
+                    ),
+                )
+                for index in range(min(limit, _TEXT_PLACE_COUNT))
+            )
+        if bias is not None and limit > 0:
+            return (
+                ProviderTextPlace(
+                    id="fake-text-place-far",
+                    name=f"{query}（遠く）",
+                    address=_FAKE_ADDRESS.address,
+                    location=_offset(bias.center, _TEXT_FAR_OFFSET_METERS, _TEXT_FAR_OFFSET_METERS),
+                ),
+            )
+        return ()
 
     def reverse_geocode(
         self, point: ProviderPoint, *, cache_scope: str, timeout_seconds: float
