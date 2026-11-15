@@ -40,7 +40,7 @@ packages/mobile/
 │   │   │   ├── store/         #     その機能に閉じたZustandストア
 │   │   │   └── types.ts
 │   │   └── <feature>/         #   大きくなった feature は、層より先に領域で分ける（例: sanpo-map。下記）
-│   │       ├── <domain>/      #     例: map, pin, invitation。下に components/ hooks/ lib/ data/ api/ store/
+│   │       ├── <domain>/      #     例: map, pin, invitation。下に components/ hooks/ lib/ data/ api/ store/ と types.ts
 │   │       └── shared/        #     2つ以上の領域から使い、持ち主の領域を1つに決められないもの（types.ts も）
 │   │
 │   ├── services/              # スタブ差し替えの層（認証・実機依存機能）
@@ -116,11 +116,13 @@ packages/mobile/
 - feature の層のフォルダ（`components/` `hooks/` `lib/` …）が構造の検査（`scripts/code-health/check-structure.py`。[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md)）の閾値を超え、
   中に別の名前で言えるまとまり（画面の群・API・backend のモジュールに対応する領域）があるときは、**層より先に領域で分ける**
   （`features/<feature>/<domain>/{components,hooks,lib,data,api,store}/`。[ADR-M-001](../adr/ADR-M-001-folder-structure.md) 決定2 の SS-260 追補）。
-  層の下に領域のサブフォルダ（`lib/sanpo-map/` のような形）は切らない。領域の中がさらに大きくなったら、同じ考え方でその領域を分ける。
+  層の下に領域のサブフォルダ（`lib/sanpo-map/` のような形）は切らない。領域の層のフォルダがさらに閾値を超えたら、同じ考え方でその領域を分ける
+  （`pin/lib/edit/` ではなく `pin/edit/lib/`。下位の領域同士は相互に import しない。[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md) 決定15）。
+  `sanpo-map/pin/` の層の下に残る `tag/`・`location-search/`・`visibility/` は、この形になる前のもので、SS-257 で直す（手本にしない）。
 - 領域で分けた feature の直下には、領域のフォルダと `shared/` だけを置く。上の層ごとの規則（lib/ は純粋関数・data/・store/ の扱い）は、各領域と `shared/` の層にそのまま当てはまる。
 - **同じ feature の領域同士は互いに import してよい。** feature 同士は import しない規則は変わらない。
   他の領域から使われても、持ち主の領域が1つに決まるもの（地図のアイコン・ピンの状態バッジなど）は持ち主の領域に置く。
-- **`shared/` に置いてよいのは、2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ**: 領域をまたぐ API の型（`types.ts`）、
+- **`shared/` に置いてよいのは、2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ**: 領域をまたぐ API の型（`shared/types.ts`。1つの領域だけが使う型はその領域の `types.ts`）、
   領域をまたいで無効化する queryKey の階層、どの領域の語も持たない画面の部品・判定（状態カード・検索欄・pull-to-refresh・読み込み状態など）。
   `shared/` は領域のフォルダを import しない（型だけの import も）。1つの領域だけが使うようになったら、その領域へ戻す。
 - 今ある例は `features/sanpo-map`（`map/`: 地図の一覧・詳細・作成・メンバー・アイコン・削除、`invitation/`: 地図への招待、`pin/`: ピン本体、`shared/`）。

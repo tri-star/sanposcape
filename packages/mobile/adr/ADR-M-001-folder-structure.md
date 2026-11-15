@@ -11,6 +11,7 @@
 - **横断的な土台（`src/components/` `src/hooks/` `src/lib/` 等）と機能単位の `src/features/<feature>/` を併用するハイブリッド構成**。（本文: 決定2）
 - **feature が大きくなったら、層（`components/` `hooks/` `lib/` …）より先に領域で分ける**。feature の直下に領域のフォルダを置き、その下に層を置く（層の下に領域のサブフォルダを切らない）。
   同じ feature の領域同士は互いに import してよい。領域をまたぐ共通物は `shared/` に置き、置いてよいのは持ち主の領域を1つに決められないものだけで、`shared/` は領域を import しない。
+  領域の層のフォルダがさらに大きくなったら、同じ考え方で下位の領域に分ける（下位の領域同士は相互 import にしない）。1つの領域だけが使う型はその領域の `types.ts` に置く。
   mobile 全体の方針で、最初の例は `features/sanpo-map`（`map/`・`pin/`・`invitation/`・`shared/`）。（本文: 決定2 の SS-260 追補）
 - **コンポーネントは「2つ以上の機能から使うか」で `src/components/`（Primitive は `ui/`）か `src/features/<feature>/components/` に置く**。
   迷ったら `features/` に置き、再利用が発生したら昇格させる。（本文: 決定3）
@@ -52,14 +53,17 @@
 1. **ルーティング: Expo Router（ファイルベース）** を採用し、画面は `app/` に、実装の実体は `src/` に物理分離する。
 2. **アーキテクチャ: ハイブリッド構成**。横断的な土台（`src/components/`, `src/hooks/`, `src/lib/` 等）と、機能単位で凝集する `src/features/<feature>/` を併用する。
    - **（SS-260 追補）feature が大きくなったら、層より先に領域で分ける。** feature の層のフォルダ（`components/` `hooks/` `lib/` …）が構造の検査（[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md)）の閾値を超え、
-     中に別の名前で言えるまとまり（画面の群・API・backend のモジュールに対応する領域）があるときは、`features/<feature>/<domain>/{api,components,hooks,lib,data,store}/` の形にする。
+     中に別の名前で言えるまとまり（画面の群・API・backend のモジュールに対応する領域）があるときは、`features/<feature>/<domain>/{api,components,hooks,lib,data,store}/` と `<domain>/types.ts` の形にする。
      層の下に領域のサブフォルダ（`lib/sanpo-map/`・`components/invitation/`）は切らない。1つの領域が層ごとに散らばり、領域を足す・消すときに層の数だけフォルダを触るため（SS-250 の招待がそうなっていた）。
-     領域の中がさらに大きくなったら、同じ考え方でその領域を分ける。walk / history など他の feature にも同じ形で当てはめる。
+     領域の層のフォルダがさらに閾値を超えたら、同じ考え方でその領域を分ける（`pin/lib/edit/` ではなく `pin/edit/lib/` の形。領域の直下には下位の領域と `shared/` を置く）。
+     下位の領域同士の import は、[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md) 決定9 のとおり相互にしない（相互 import を許すのは feature の直下の領域だけ。ADR-016 決定15）。
+     walk / history など他の feature にも同じ形で当てはめる。
+     SS-260 の時点で `sanpo-map/pin/` の層の下に残るサブフォルダ（`{components,hooks,lib}/{tag,location-search,visibility}/`）は、この形になる前のもので、SS-257 で直す（手本にしない）。
      - **feature の直下には、領域のフォルダと `shared/` だけを置く。** 層のフォルダと領域のフォルダを同じ階層に混ぜない。
      - **同じ feature の領域同士は互いに import してよい（双方向も）。** 双方向の依存があるから別の feature に分けず、1つの feature の中で分けている。feature 同士は import しない規約（[フォルダ構造](../docs/folder-structure.md)）は変えない。
        ファイルの単位の循環は `import/no-cycle` が止める。他の領域から使われても、持ち主が1つに決まるもの（地図のアイコン・地図の一覧の取得・ピンの状態バッジ・ピンの取得）は持ち主の領域に置き、使う側がそこから import する。
      - **`shared/` に置いてよいのは、2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ。** 何でも置く場所にしないため、次の3種類に限る。
-       1. 領域をまたぐ API の型（`shared/types.ts`）
+       1. 領域をまたぐ API の型（`shared/types.ts`。その型が参照する型も含む）。1つの領域だけが使う型は、その領域の `types.ts`（`pin/types.ts`・`invitation/types.ts`）に置く
        2. 領域をまたいで無効化する queryKey の階層（`shared/lib/pinQueryKeys.ts`。ピンの保存で地図詳細のピン一覧も無効化されるよう、地図単位のピン一覧の key を意図して `["pins", ...]` の下に置いている）
        3. どの領域の語も持たない画面の部品・判定（状態カード・名前の検索欄・pull-to-refresh・TanStack Query の読み込み状態）
        `shared/` は領域のフォルダを import しない（型だけの import も。親 → 子 → 親の行き来を作らない）。1つの領域からしか使われなくなったら、その領域へ戻す。2つ以上の feature から使うなら `src/` の横断の層へ昇格する（決定3）。
@@ -69,7 +73,7 @@
 3. **コンポーネント配置の判断基準**: 「2つ以上の機能から使うか？」で `src/components/`（Primitiveは `ui/`）か `src/features/<feature>/components/` かを決める。迷ったらまず `features/` に置き、再利用発生時に昇格させる。
 4. **スタブ差し替え層: `src/services/<service>/`**。`index.ts` がインターフェースを公開し、環境変数で real/stub を選択する。E2Eでは Maestro で再現可能なものは real、不可能なもののみ stub にフォールバックする。（**棚卸し追補**: 現在のモードは real/stub の2値ではなく `real` / `dev` / `mock` が基本形。詳細は [フォルダ構造](../docs/folder-structure.md)）
 5. **命名規則**: フォルダは常に kebab-case、Reactコンポーネントは PascalCase、hook/util/型は camelCase、`app/` のルートは kebab-case・小文字。import は case まで完全一致。
-6. **API 失敗の分類は操作ごとに分ける（棚卸し追補）**: `features/*/lib/` の `xxxError.ts` は API 操作ごとに別ファイルにする
+6. **API 失敗の分類は操作ごとに分ける（棚卸し追補）**: `features/**/lib/` の `xxxError.ts` は API 操作ごとに別ファイルにする
    （例: `walkHistoryError.ts`＝GET 一覧・詳細、`walkSaveError.ts`＝POST、`walkDeleteError.ts`＝DELETE、`walkStatsError.ts`＝集計 GET）。
    中身はどれも「`isApiError()` で status を見て、コード・文言・再試行の可否を返す」同じ形だが、DRY 違反として統合しない。
    - **理由**: 同じ HTTP ステータスでも操作によって意味が違う。404 は GET 詳細では「見つからない＝エラー」だが、

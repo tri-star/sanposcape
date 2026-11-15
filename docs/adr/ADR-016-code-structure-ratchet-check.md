@@ -13,11 +13,12 @@
 - **閾値は緩い値から段階的に下げる**。linter の関数の単位のルールも同じ方針（ADR-017）。（本文: 決定6・7）
 - **分け方は `structure-refactor` skill が責務で決める**。材料は `scripts/code-health/survey-structure.py` が集め、分け方は決めない。失敗したときの案内（`SPLIT_GUIDE`）は skill とスクリプトを指す。（本文: 決定8、SS-254 追補 決定9・10）
 - **`change-reviewer` は観点5「構造の悪化」で、閾値の内側の悪化と、baseline・linter の除外を足して通す差分の理由を見る**。（本文: SS-254 追補 決定12）
-- **mobile の feature は、層より先に領域で分ける**（`features/sanpo-map/map/lib/` の形。層の下に領域を切らない）。feature の直下の領域のフォルダ同士は互いに import してよく、分けた先同士の相互 import を採らない規則（決定9）の外にする。共有の `shared/` は領域を import しない。（本文: SS-260 追補 決定15。正本は ADR-M-001 決定2）
+- **mobile の feature は、層より先に領域で分ける**（`features/sanpo-map/map/lib/` の形。層の下に領域を切らない）。feature の直下の領域のフォルダ同士は互いに import してよく、分けた先同士の相互 import を採らない規則（決定9）の外にする。共有の `shared/` は領域を import しない。領域の中も下位の領域を先に切り（`pin/edit/lib/`）、下位の領域同士は相互 import にしない。決定13 の `pin/lib` の計画は全体を置き換えた。（本文: SS-260 追補 決定15。正本は ADR-M-001 決定2）
 
 ### 変更・撤回された決定
 
-- SS-254 追補 決定13 の `pin/lib` の計画の「`pin/lib/sanpo-map/` に分ける」（層の下に領域）→ `features/sanpo-map/{map,pin,invitation,shared}/` の下に層を置く形（SS-260 追補 決定15）
+- SS-254 追補 決定13 の `pin/lib` の計画（`pin/lib` の下に `register/`・`edit/`・…・`sanpo-map/` を切る。層の下にまとまり）→ 計画全体を置き換えた。
+  地図・招待は `features/sanpo-map/{map,invitation}/` の下に層を置く形で切り出し（SS-260）、残るピン本体は `sanpo-map/pin/` の中を下位の領域で分ける（`pin/edit/lib/` の形。SS-257）（SS-260 追補 決定15）
 
 ## 日付
 
@@ -212,9 +213,14 @@ SS-250 の招待（`pin/components/invitation/`・`pin/hooks/invitation/`・`pin
     SS-260 で `features/pin` を `features/sanpo-map` に改め、`map/`（地図）・`invitation/`（招待）・`pin/`（ピン本体）・`shared/` に分けた。`sanpoMap*` を別の feature に出さない判断（決定13）と理由は変えない。
     - 決定9 の「分けた先同士の相互 import になる案は採らない」は、**feature の直下の領域のフォルダ同士には当てない**。双方向の依存があるから1つの feature にまとめた領域で、
       mobile は画面が領域をまたいで組み立てる（地図詳細がピンの一覧と状態を出し、ピンの登録画面が地図を選ぶ）ため。ファイルの単位の循環は `import/no-cycle` が止める。
-      領域の中をさらにまとまりのサブフォルダに分けるとき（SS-257 の `pin/` の中）は、決定9 のとおり相互 import にしない。
+      領域の中をさらに分けるとき（SS-257 の `pin/` の中）も、層の下ではなく下位の領域を先に切る（`pin/lib/edit/` ではなく `pin/edit/lib/`）。
+      下位の領域同士は決定9 のとおり相互 import にしない（共有するものは、その領域の直下の `shared/` に置く）。
+    - 決定13 の `pin/lib` の計画は、この決定で全体を置き換える。計画で挙げたまとまり（登録・編集・写真・位置・詳細・地図表示・タグ）は、SS-257 で下位の領域の候補として使える。
     - 共有の `shared/` は、決定9 の「親に残す共有のファイル」と同じく領域のフォルダを import しない。置いてよいのは持ち主の領域を1つに決められないものだけ（ADR-M-001）。
     - lib/ の lint の制限（ADR-017 決定6）の glob は、深さに依存しない `src/features/**/lib/**` に直した。1段の `*` は `sanpo-map/pin/lib/` に当たらず、制限が黙って外れるため。
+    - 接頭辞の数え方（決定11）では、feature 名の語（`sanpo`・`map`）も祖先のフォルダ名として飛ばされる。`sanpo-map/pin/components` では `PinMap*` が `pin` と `map` を飛ばして次の語で数えられ、
+      `features/pin/components` のときに接頭辞 `map` として数えていた5個は、ひとまとまりとしては出なくなった（閾値の内側なので失敗には関係しない）。
+      地図表示のまとまりの集中は、SS-257 で分け方を決めるときに `survey-structure.py` の材料と中身で見る。数え方を直すか（飛ばす語を feature より下のフォルダに限るなど）は SS-257 で判断する。
     - baseline: `features/pin` の5項目のうち、`hooks`（21 → 13）と接頭辞 `sanpo` の2項目は外れた。`components`（47 → 32）と `lib`（48 → 39）は `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。
     - 却下: 地図・招待を別の feature に出す案（決定13 と同じ理由）。層の下に領域を切る案（決定13 の計画。領域が散らばる）。
       feature の直下の領域同士にも一方向の規則を課す案（どちらの向きを禁じても使われる側を `shared/` に移すことになり、何でも置く場所になる。ADR-M-001 の選択肢4）
