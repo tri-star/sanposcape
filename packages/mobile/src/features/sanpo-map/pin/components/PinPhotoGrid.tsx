@@ -10,8 +10,7 @@ import {
   photoUploadErrorMessage,
 } from "@/features/sanpo-map/pin/lib/photoUploadError";
 import { photoGridCaption } from "@/features/sanpo-map/pin/lib/photoDraft";
-import type { PhotoDraftSummary } from "@/features/sanpo-map/pin/lib/photoDraft";
-import type { PhotoDraftItem } from "@/features/sanpo-map/shared/types";
+import type { PhotoDraftItem, PhotoDraftSummary } from "@/features/sanpo-map/pin/lib/photoDraft";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 import type { PhotoSource } from "@/services/photo/types";

@@ -1,6 +1,34 @@
 import type { PhotoUploadErrorCode } from "@/features/sanpo-map/pin/lib/photoUploadError";
-import type { PhotoDraftItem, PhotoDraftStatus } from "@/features/sanpo-map/shared/types";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
+
+/**
+ * 写真1枚の状態。
+ * - processing: 端末で縮小・再圧縮中（まだ prepared が無い）
+ * - waiting: 加工済み。枠が空くのを待っている（先行アップロードの上限超過・429 を受けた・保存フローの順番待ち）
+ * - uploading: 枠発行 → 直送の最中
+ * - uploaded: S3 にあり、まだピンに紐付いていない（backend の「未使用枠」を1つ占有している）
+ * - attached: ピンに紐付いた（枠は解放された）
+ * - failed: 送れない（ユーザーが再試行 or 削除する）
+ */
+export type PhotoDraftStatus =
+  | "processing"
+  | "waiting"
+  | "uploading"
+  | "uploaded"
+  | "attached"
+  | "failed";
+
+/** 写真1枚の状態。localId は画面内だけの識別子（randomUuidV4）。 */
+export type PhotoDraftItem = {
+  localId: string;
+  previewUri: string;
+  picked: PickedPhoto;
+  prepared: PreparedPhoto | null;
+  status: PhotoDraftStatus;
+  /** アップロード枠 ID（uploaded / attached のとき非 null）。 */
+  uploadId: string | null;
+  errorCode: PhotoUploadErrorCode | null;
+};
 
 export type PhotoDraftAction =
   | { type: "added"; items: Array<{ localId: string; picked: PickedPhoto }> } // processing

@@ -12,7 +12,8 @@ import {
   type PinEditBaseline,
   type PinEditDraft,
 } from "@/features/sanpo-map/pin/lib/pinEditDraft";
-import type { PhotoDraftStatus, PinDetail, PinTagView } from "@/features/sanpo-map/shared/types";
+import type { PhotoDraftStatus } from "@/features/sanpo-map/pin/lib/photoDraft";
+import type { PinDetail, PinTagView } from "@/features/sanpo-map/shared/types";
 
 const TAG_A: PinTagView = { id: "tag-a", label: "Cafe", createdByUserId: "me" };
 const TAG_B: PinTagView = { id: "tag-b", label: "桜", createdByUserId: "other" };

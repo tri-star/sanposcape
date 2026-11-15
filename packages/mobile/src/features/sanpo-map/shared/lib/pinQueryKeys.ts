@@ -1,5 +1,4 @@
-import type { PinListFilterParams } from "@/features/sanpo-map/pin/lib/pinMapFilter";
-import type { GeoBounds } from "@/features/sanpo-map/shared/types";
+import type { GeoBounds, PinListFilterParams } from "@/features/sanpo-map/shared/types";
 
 /**
  * ピン閲覧系の TanStack Query の queryKey を1か所に集める（SS-118）。

@@ -5,7 +5,6 @@ import {
   PIN_MAP_FETCH_MAX_PAGES,
   buildListPinsParams,
 } from "@/features/sanpo-map/pin/lib/pinFetchBounds";
-import type { PinListFilterParams } from "@/features/sanpo-map/pin/lib/pinMapFilter";
 import {
   toPinDetail,
   toPinListEntry,
@@ -20,6 +19,7 @@ import type {
   GeoBounds,
   PinDetail,
   PinListEntry,
+  PinListFilterParams,
   PinPhotoPage,
   PinSummary,
 } from "@/features/sanpo-map/shared/types";

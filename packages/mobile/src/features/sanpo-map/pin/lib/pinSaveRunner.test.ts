@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/apiError";
 import type { PinCreate } from "@/api/generated/model";
 import { photoDraftReducer } from "@/features/sanpo-map/pin/lib/photoDraft";
-import type { PhotoDraftAction } from "@/features/sanpo-map/pin/lib/photoDraft";
+import type {
+  PhotoDraftAction,
+  PhotoDraftItem,
+  PhotoDraftStatus,
+} from "@/features/sanpo-map/pin/lib/photoDraft";
 import {
   BACKEND_PENDING_UPLOADS_MAX,
   PIN_PHOTOS_PER_REQUEST_MAX,
@@ -11,12 +15,7 @@ import {
 import { isPinSaveError, isPhotoSlotsBusyError } from "@/features/sanpo-map/pin/lib/pinSaveError";
 import { runAttachPhotosToPin, runPinSave } from "@/features/sanpo-map/pin/lib/pinSaveRunner";
 import type { PinSaveRunnerDeps } from "@/features/sanpo-map/pin/lib/pinSaveRunner";
-import type {
-  PhotoDraftItem,
-  PhotoDraftStatus,
-  PinSaveProgress,
-  SavedPin,
-} from "@/features/sanpo-map/shared/types";
+import type { PinSaveProgress, SavedPin } from "@/features/sanpo-map/shared/types";
 
 function makeItem(
   localId: string,

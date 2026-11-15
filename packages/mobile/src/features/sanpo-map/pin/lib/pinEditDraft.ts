@@ -5,7 +5,8 @@ import {
 } from "@/features/sanpo-map/pin/lib/pinDraftValidation";
 import type { PinPermissions } from "@/features/sanpo-map/pin/lib/pinPermissions";
 import { tagKey } from "@/features/sanpo-map/pin/lib/pinTags";
-import type { PhotoDraftItem, PinDetail, PinTagView } from "@/features/sanpo-map/shared/types";
+import type { PhotoDraftItem } from "@/features/sanpo-map/pin/lib/photoDraft";
+import type { PinDetail, PinTagView } from "@/features/sanpo-map/shared/types";
 
 /** 編集開始時点のピン（差分の基準）。画面を開いて最初に詳細が取れた時点で1回だけ作る。 */
 export type PinEditBaseline = {

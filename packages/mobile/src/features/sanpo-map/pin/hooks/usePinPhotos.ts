@@ -8,7 +8,7 @@ import {
   photoDraftReducer,
   photoDraftSummary,
 } from "@/features/sanpo-map/pin/lib/photoDraft";
-import type { PhotoDraftAction } from "@/features/sanpo-map/pin/lib/photoDraft";
+import type { PhotoDraftAction, PhotoDraftItem } from "@/features/sanpo-map/pin/lib/photoDraft";
 import {
   PIN_PHOTO_MAX_BYTES_HARD_CAP,
   PIN_PHOTO_PREUPLOAD_MAX,
@@ -18,7 +18,6 @@ import {
   isWaitablePhotoUploadError,
   toPhotoUploadErrorCode,
 } from "@/features/sanpo-map/pin/lib/photoUploadError";
-import type { PhotoDraftItem } from "@/features/sanpo-map/shared/types";
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 import { randomUuidV4 } from "@/lib/uuid";
 import { photoService } from "@/services/photo";

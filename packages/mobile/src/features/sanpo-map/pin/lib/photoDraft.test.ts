@@ -13,7 +13,7 @@ import {
   photoDraftSummary,
   photoGridCaption,
 } from "@/features/sanpo-map/pin/lib/photoDraft";
-import type { PhotoDraftItem } from "@/features/sanpo-map/shared/types";
+import type { PhotoDraftItem } from "@/features/sanpo-map/pin/lib/photoDraft";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 
 const PICKED: PickedPhoto = {

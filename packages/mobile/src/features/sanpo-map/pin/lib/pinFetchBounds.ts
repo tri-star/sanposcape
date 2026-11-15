@@ -1,6 +1,5 @@
 import type { ListPinsParams } from "@/api/generated/model";
-import type { PinListFilterParams } from "@/features/sanpo-map/pin/lib/pinMapFilter";
-import type { GeoBounds } from "@/features/sanpo-map/shared/types";
+import type { GeoBounds, PinListFilterParams } from "@/features/sanpo-map/shared/types";
 import type { MapRegion } from "@/lib/mapRegion";
 
 /** `GET /pins` の1リクエストの件数（backend の上限 200）。 */

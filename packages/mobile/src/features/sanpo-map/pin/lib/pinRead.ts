@@ -4,11 +4,11 @@ import type {
   PinPhotoRead,
   PinRead,
 } from "@/api/generated/model";
-import type { PinListFilterParams } from "@/features/sanpo-map/pin/lib/pinMapFilter";
 import { isAllowedUploadUrl } from "@/features/sanpo-map/pin/lib/presignedPostForm";
 import type {
   PinDetail,
   PinListEntry,
+  PinListFilterParams,
   PinPhoto,
   PinPhotoPage,
   PinSummary,

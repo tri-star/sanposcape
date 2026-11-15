@@ -1,3 +1,5 @@
+import type { PinListFilterParams } from "@/features/sanpo-map/shared/types";
+
 /**
  * 地図に描く登録済みピンの絞り込み（SS-174。ADR-M-021 の SS-174 追補）。
  * ピンタブと散歩中のナビタブの地図で共有する（状態は `usePinMapFilterStore`）。
@@ -19,12 +21,6 @@ export const DEFAULT_PIN_MAP_FILTER: PinMapFilter = {
   includeArchived: false,
   showUnvisited: true,
   showVisited: true,
-};
-
-/** `GET /pins` に送る絞り込みの条件。キーが無いものは「両方」（backend は絞らない）。 */
-export type PinListFilterParams = {
-  archived?: false;
-  visited?: boolean;
 };
 
 export function isDefaultPinMapFilter(filter: PinMapFilter): boolean {
