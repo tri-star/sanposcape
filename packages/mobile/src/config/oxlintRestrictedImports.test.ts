@@ -99,6 +99,19 @@ describe(".oxlintrc.json の no-restricted-imports", () => {
     },
   );
 
+  // feature の名前を変えたとき（SS-260 で pin → sanpo-map）、lib/ 以外の範囲の override の files を直し忘れると、
+  // hooks/・components/ の認証の制限だけが黙って外れる。
+  it.each(AUTH_RESTRICTED_FEATURES)(
+    "features/%s/** 全体に認証と devTools の制限がある",
+    (feature) => {
+      const whole = restricted.find(({ files }) => files.includes(`src/features/${feature}/**`));
+      expect(whole).toBeDefined();
+      for (const key of [AUTH_GROUP_KEY, DEV_TOOLS_GROUP_KEY]) {
+        expect(findPattern(whole!.patterns, key), key).toBeDefined();
+      }
+    },
+  );
+
   // `src/features/*/lib/**` の1段の `*` は、feature の中を領域で分けた `sanpo-map/pin/lib/**` に当たらず、
   // 制限が黙って外れる（SS-260）。features の下の lib/ の glob は `**/lib/**` で書く。
   it("features の下の lib/ の glob は深さに依存しない（`**/lib/**`）", () => {
