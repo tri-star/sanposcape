@@ -127,9 +127,9 @@ def split_words(name: str) -> list[str]:
 def first_word(filename: str, folder: str = "") -> str | None:
     """ファイル名の最初の語（接頭辞）を返す。
 
-    慣習で付く語（`use` など）は飛ばす。最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、
+    慣習で付く語（`use` など）は飛ばす。最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/sanpo-map/pin/lib/pinEditDraft.ts` の `pin`）は、
     フォルダで既に分かれている語なので次の語（`edit`）で数える。機能名を名前に含める命名規約のフォルダが、それだけで候補にならないようにする。
-    続く語もフォルダ名に含まれるなら続けて飛ばす（`pin/lib/sanpo-map/sanpoMapIcon.ts` は `sanpo`・`map` を飛ばして `icon`）。
+    続く語もフォルダ名に含まれるなら続けて飛ばす（`sanpo-map/map/lib/sanpoMapIcon.ts` は `sanpo`・`map` を飛ばして `icon`）。
     まとまりをサブフォルダに分けた後も、名前の頭が揃っているだけで候補に出ないようにする（SS-254）。最後の1語は飛ばさない。
     """
     # 数字だけの語（`2026-10-24.astro` の日付、`404.astro`）はまとまりを表さないので数えない。

@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-11-03（SS-254: 分け方を決める skill・材料集めのスクリプト・レビューの観点を足し、接頭辞の数え方を直した）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-15（SS-260: mobile の feature の中は層より先に領域で分け、feature 直下の領域同士の import は相互 import の規則の外にする）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -13,17 +13,23 @@
 - **閾値は緩い値から段階的に下げる**。linter の関数の単位のルールも同じ方針（ADR-017）。（本文: 決定6・7）
 - **分け方は `structure-refactor` skill が責務で決める**。材料は `scripts/code-health/survey-structure.py` が集め、分け方は決めない。失敗したときの案内（`SPLIT_GUIDE`）は skill とスクリプトを指す。（本文: 決定8、SS-254 追補 決定9・10）
 - **`change-reviewer` は観点5「構造の悪化」で、閾値の内側の悪化と、baseline・linter の除外を足して通す差分の理由を見る**。（本文: SS-254 追補 決定12）
+- **mobile の feature は、層より先に領域で分ける**（`features/sanpo-map/map/lib/` の形。層の下に領域を切らない）。feature の直下の領域のフォルダ同士は互いに import してよく、分けた先同士の相互 import を採らない規則（決定9）の外にする。共有の `shared/` は領域を import しない。（本文: SS-260 追補 決定15。正本は ADR-M-001 決定2）
+
+### 変更・撤回された決定
+
+- SS-254 追補 決定13 の `pin/lib` の計画の「`pin/lib/sanpo-map/` に分ける」（層の下に領域）→ `features/sanpo-map/{map,pin,invitation,shared}/` の下に層を置く形（SS-260 追補 決定15）
 
 ## 日付
 
-2026-11-02（SS-252）、2026-11-03 追補（SS-254）
+2026-11-02（SS-252）、2026-11-03 追補（SS-254）、2026-11-15 追補（SS-260）
 
 ## コンテキスト
 
 フォルダ内のファイル過多や長いファイルなど、可読性が落ちている兆候が出ている。SS-252 の時点の実測:
 
-- `packages/mobile/src/features/pin/lib` に実装 48・テスト 47 のファイルがあり、`features/pin/components` は実装 47。`walk/lib`・`src/lib` も 20 を超える
+- `packages/mobile/src/features/pin/lib` に実装 48・テスト 47 のファイルがあり、`features/pin/components` は実装 47。`walk/lib`・`src/lib` も 20 を超える <!-- doc-ref-ok: SS-252 の時点の実測。SS-260 で features/sanpo-map に改めた -->
 - `features/pin` の中に散歩マップ（`sanpoMap*`・`SanpoMap*`）のまとまりが混ざっている（`pin/components` に 15、`pin/lib` に 9）
+  （SS-260 で `features/sanpo-map` に改め、地図・招待を領域のフォルダに分けた。SS-260 追補）
 - `packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` が 2,845 行、`pins/service.py` が 773 行
 
 これまでは、分けるかどうかはレビューの目に任されていた。1回の変更では少しずつしか増えないので、レビューでは止まりにくい。
@@ -59,7 +65,7 @@
    - `__init__.py`（構造のためだけのファイル。フォルダの数に入れない）
    - テストの判定: `*.test.*`・`*.spec.*`・`test_*.py`・`*_test.py`・`conftest.py`、`tests/`・`__tests__/`・`test/`（mobile の vitest の setup と mock）・`__mocks__/` の下
 3. **接頭辞は、ファイル名の最初の語で数える**（camelCase・PascalCase・snake_case・kebab-case を語に分ける）。慣習で付く `use`・`test` と、数字だけの語（`privacy/2026-10-24.astro` の日付など）は飛ばす。
-   最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/pin/lib/pinEditDraft.ts` の `pin`）は、フォルダで既に分かれている語なので次の語（`edit`）で数える。
+   最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/sanpo-map/pin/lib/pinEditDraft.ts` の `pin`）は、フォルダで既に分かれている語なので次の語（`edit`）で数える。
    機能名を名前に含める命名規約（`features/walk/components/Walk*.tsx`）のフォルダが、それだけで候補にならないようにするため。
    （**SS-254 追補**: 続く語もフォルダ名に含まれる間は続けて飛ばす。決定11）
    これで `features/pin` の中の `sanpoMap*` のような、別のまとまりが混ざっている所が候補に出る。
@@ -142,7 +148,7 @@
 
 ### 移行・対応が必要な事項
 
-- SS-256・SS-257 で、SS-252 の時点の baseline を片付ける
+- SS-256・SS-257 で、SS-252 の時点の baseline を片付ける（mobile の `features/pin` の5項目は、SS-260 で3項目が外れ、残る2項目を `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。SS-260 追補）
 - ~~SS-254 で、`SPLIT_GUIDE` に分割の skill の名前を足し、change-reviewer に「構造の悪化」の観点を足す~~ → SS-254 で決着（SS-254 追補）
 - SS-253 で、決定7のとおり linter のルールを同じ方針で入れる
 - ~~SS-255 の月次レポートで、baseline の件数と下げられる項目を見る~~ → SS-255 で決着（`report-health.py` の「構造の検査のベースライン」の節と `code-health-review` skill。[ADR-018](./ADR-018-monthly-code-health-report.md)）
@@ -151,7 +157,7 @@
 
 ## SS-254 追補: 分け方を決める skill・材料集めのスクリプト・レビューの「構造の悪化」の観点
 
-検査は閾値を超えたことを止めるだけで、どこで切るかは判断が要る（決定8）。SS-254 で、その判断を skill にし、`packages/mobile/src/features/pin/lib` と
+検査は閾値を超えたことを止めるだけで、どこで切るかは判断が要る（決定8）。SS-254 で、その判断を skill にし、`packages/mobile/src/features/pin/lib` と <!-- doc-ref-ok: SS-254 で試した時点のパス。SS-260 で features/sanpo-map に改めた -->
 `packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` で試して基準を詰めた。
 
 ### 決定
@@ -180,6 +186,7 @@
       `sanpoMap*` を別の feature に出す案は採らない。地図の画面がピンの読み込みの失敗・状態カード・queryKey を使い、ピンの登録・編集が地図の選択・アイコンを使う双方向の依存で、
       feature 同士は import しない規則（mobile の folder-structure.md）に反するため。
       同じ形の前例として、SS-250 で招待のファイルを `pin/components`・`pin/hooks`・`pin/lib` の `invitation/` に分けている
+      （**SS-260 追補**: 層の下に領域を切る形は採らなくなった。`sanpoMap*` は `features/sanpo-map/map/` に、招待は `features/sanpo-map/invitation/` に移した。決定15）
     - `pins/tests/test_router.py`（SS-256）: 主に確かめる操作ごとに `test_<操作>_router.py` に分け、操作をまたぐ規則（権限の表（ADR-009 決定19）、訪問状況・アーカイブの契約（ADR-009 決定32））はその規則の名前で1ファイルにする。
       重複していた地図を作るヘルパーは、共有の `sanpo_maps/conftest.py` の `make_sanpo_map` に寄せる
 14. **Codex 側には、まだ適応していない。** `import-claude-skill` で差分を見て適応する（AGENTS.md）。`AGENTS.md` からは skill のファイルへのリンクで案内する。
@@ -193,3 +200,22 @@
 - `.claude/skills/structure-refactor/SKILL.md`、`scripts/code-health/survey-structure.py`
 - [ADR-018](./ADR-018-monthly-code-health-report.md)（SS-255 の月次レポート）
 - Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255（ADR-018）、SS-256、SS-257
+
+## SS-260 追補: mobile の feature の中は層より先に領域で分ける
+
+SS-257 で `features/pin` を分ける前に、分け方の前提を決めた。決定13 の計画は `pin/lib` の下に `sanpo-map/` を切る（層の下に領域を置く）形で、
+SS-250 の招待（`pin/components/invitation/`・`pin/hooks/invitation/`・`pin/lib/invitation/`）と同じく1つの領域が層ごとに散らばる。
+
+### 決定
+
+15. **mobile の feature が大きくなったら、層（`components/` `hooks/` `lib/` …）より先に領域で分ける**（正本は [ADR-M-001](../../packages/mobile/adr/ADR-M-001-folder-structure.md) 決定2 の SS-260 追補）。
+    SS-260 で `features/pin` を `features/sanpo-map` に改め、`map/`（地図）・`invitation/`（招待）・`pin/`（ピン本体）・`shared/` に分けた。`sanpoMap*` を別の feature に出さない判断（決定13）と理由は変えない。
+    - 決定9 の「分けた先同士の相互 import になる案は採らない」は、**feature の直下の領域のフォルダ同士には当てない**。双方向の依存があるから1つの feature にまとめた領域で、
+      mobile は画面が領域をまたいで組み立てる（地図詳細がピンの一覧と状態を出し、ピンの登録画面が地図を選ぶ）ため。ファイルの単位の循環は `import/no-cycle` が止める。
+      領域の中をさらにまとまりのサブフォルダに分けるとき（SS-257 の `pin/` の中）は、決定9 のとおり相互 import にしない。
+    - 共有の `shared/` は、決定9 の「親に残す共有のファイル」と同じく領域のフォルダを import しない。置いてよいのは持ち主の領域を1つに決められないものだけ（ADR-M-001）。
+    - lib/ の lint の制限（ADR-017 決定6）の glob は、深さに依存しない `src/features/**/lib/**` に直した。1段の `*` は `sanpo-map/pin/lib/` に当たらず、制限が黙って外れるため。
+    - baseline: `features/pin` の5項目のうち、`hooks`（21 → 13）と接頭辞 `sanpo` の2項目は外れた。`components`（47 → 32）と `lib`（48 → 39）は `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。
+    - 却下: 地図・招待を別の feature に出す案（決定13 と同じ理由）。層の下に領域を切る案（決定13 の計画。領域が散らばる）。
+      feature の直下の領域同士にも一方向の規則を課す案（どちらの向きを禁じても使われる側を `shared/` に移すことになり、何でも置く場所になる。ADR-M-001 の選択肢4）
+

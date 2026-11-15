@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-11-02（SS-253）
+2026-11-02（SS-253）、2026-11-15 追補（SS-260: 決定6 の glob を深さに依存しない形に）
 
 ## コンテキスト
 
@@ -56,6 +56,9 @@ SS-253 の時点の実測（既定の閾値での既存の違反）:
    - `no-restricted-imports` の override は後勝ちで置き換わる。そのため `lib/` の override に devTools の制限を再掲する。
      さらに `features/{walk,history,pin}/lib/**` には、その後ろの override で認証の制限も再掲する。
      順序と再掲は `src/config/oxlintRestrictedImports.test.ts` で検査する
+   - （**SS-260 追補**: feature の中を領域で分ける方針（ADR-M-001 決定2）で lib/ が `features/sanpo-map/pin/lib/` のように深くなり、1段の `*` の glob では制限が黙って外れる。
+     glob を深さに依存しない `src/features/**/lib/**`・`src/features/{walk,history,sanpo-map}/**/lib/**` に直し、同期検査のテストで `**/lib/**` の形を確かめる。
+     認証の制限の対象は `features/pin` から改めた `features/sanpo-map/**` になった）
 7. **backend のモジュールの境界（ADR-011）に import-linter は入れない。** `sanpo_maps/tests/test_architecture.py` が、ADR-011 の規則のうち AST で判定できるもの（M1・M2・M4・M7・M8 と、M3 の import・M5 の Protocol の port）を検査している（M6 と M3 のコンストラクタの引数はレビューで見る）。
    その中には、import の向きだけでは書けない規則（commit は `service.py` だけ、Protocol の port を作らない）も含まれる。import-linter を足すと、境界の定義が2か所に分かれる。
 
