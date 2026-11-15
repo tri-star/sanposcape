@@ -62,8 +62,8 @@ SS-171「地図毎にアイコンを選択できるようにする」と SS-172�
 
 - **D1: 地図のアイコンは地図の属性として backend が保持する。** API の値はドメインの語の enum（`pin` / `tree` / …）。
   Lucide のアイコン名ではない（Lucide のリネームに API を引きずられないため）。mobile は対応表
-  （`features/pin/lib/sanpoMapIcon.ts` の `SANPO_MAP_ICON_META`）でグリフと色に変換する
-  （SS-191 追補: 絵は `features/pin/data/sanpoMapIconArt.ts` の `SANPO_MAP_ICON_ART` が同じキーで持ち、
+  （`features/sanpo-map/map/lib/sanpoMapIcon.ts` の `SANPO_MAP_ICON_META`）でグリフと色に変換する
+  （SS-191 追補: 絵は `features/sanpo-map/map/data/sanpoMapIconArt.ts` の `SANPO_MAP_ICON_ART` が同じキーで持ち、
   `SANPO_MAP_ICON_META` は色と表示名だけを持つ。D8）。表のキーを生成型の enum にして
   `Record` で網羅するので、backend が値を足したのに mobile の対応表が無い状態は typecheck で検出できる。
   API の `icon` が欠落・`null`・未知の値のとき（古い backend・新しい backend）は `pin` で扱う（`toSanpoMapIconKey`）。
@@ -117,7 +117,7 @@ SS-171「地図毎にアイコンを選択できるようにする」と SS-172�
   実機で見て調整してよく、テストは比率ではなく不変条件で書く）。`react-native-svg` は既存依存なので development build の作り直しは不要。
 - **D6: マーカーの基準点は `mapPinMarkerPlacement(size)` を `Marker` に spread する。** Android（Google Maps）は `anchor`、
   iOS（Apple Maps）は `centerOffset`（`y = -高さ/2`）を見るので両方返す。`MapPin` を載せる全マーカー
-  （散歩の候補・目的地・現在地、履歴詳細、ピンの地図）に適用した。walk / history は `features/pin` を import しない
+  （散歩の候補・目的地・現在地、履歴詳細、ピンの地図）に適用した。walk / history は `features/sanpo-map` を import しない
   （`mapPinGeometry` は `components/ui` にある）。
 - **D7: フィーチャーフラグは追加しない。** 地図アイコンの UI はすべて既存の `pin_registration` でガードされたルートの中にある
   （[ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md) D8）。`MapPin` の形状・基準点の修正は不具合修正と見た目の改善として包まない。
@@ -152,14 +152,14 @@ Fluent Emoji Flat）を、実装と同じ形のピンに載せた画面イメー
   （`mapPinGeometry` の `artDisc` / `art`）。円の色はカテゴリ色を白に 16% 混ぜた不透明色（`mapPinArtSurfaceColor`。
   `theme/mixHex`）。白い円だと、白が主体の絵（おにぎりなど）の輪郭が消える。絵文字は明るい背景を前提に描かれているので、
   ダークテーマでも暗い面にはせず明るい面にする（混ぜる元のカテゴリ色はテーマの値なので、色味はわずかに変わる）。ピッカーの選択中のセル・地図一覧と地図詳細のバッジも同じ色の面にする。
-  `MapPin`（`components/ui`）は `art`（任意の要素）を受けるだけで、地図のアイコンを知らない（`features/pin` の `SanpoMapPin` が渡す）。
+  `MapPin`（`components/ui`）は `art`（任意の要素）を受けるだけで、地図のアイコンを知らない（`features/sanpo-map` の `SanpoMapPin` が渡す）。
 - **D10: 登録済みピンを 30 → 38px にする（SS-191 追補）。** 画像は 38px で約 21px になる。ユーザーが使い勝手を見るため、
   まず 38px で出す（見直す可能性がある）。位置調整の選択ピンは元から 38px、登録・詳細のプレビューは 34px のまま。
 - **D11: 画像は react-native-svg の `parse` + `SvgAst` で描く（SS-191 追補）。** 解析結果（不変の React 要素）はアイコンごとに
   モジュールでキャッシュし、ピンが何本あっても解析は1回（`SanpoMapIconArt`）。同期的に描くので、`tracksViewChanges={false}` の
   `Marker` でも空にならない（読み込み完了まで `tracksViewChanges` を true にする対処は要らなかった）。新しい依存は無く、
   development build の作り直しも要らない。原本は noto-emoji の固定コミットの `2D/svg/` を `assets/sanpo-map-icons/source/` に無加工で置き、
-  `assets/sanpo-map-icons/generate.mjs` が SVGO（`pnpm dlx` で版を固定）で軽くして `features/pin/data/sanpoMapIconArt.ts` を生成する。
+  `assets/sanpo-map-icons/generate.mjs` が SVGO（`pnpm dlx` で版を固定）で軽くして `features/sanpo-map/map/data/sanpoMapIconArt.ts` を生成する。
   Illustrator の書き出しのメタデータで最大 60KB あった SVG が約 5KB になり、13種類で約 38KB。react-native-svg の `parse` が
   解釈しにくい `style` 属性は表示の属性に直す。
 - **D12: ライセンスの本文をアプリ内の画面に載せる（SS-191 追補）。** Noto Emoji は Copyright 2013 Google LLC。配布元の README は

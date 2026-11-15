@@ -90,10 +90,10 @@ SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加す�
   条件を変えると新しい key の取得になり、取得が終わるまでピンは出ず読み込み中になる（`useQueries` は key が変わるとオブザーバを
   作り直すので、`placeholderData: keepPreviousData` に前回のデータが渡らない。前の条件のピンは残らない）。
   未サインイン・フラグ OFF のときはピンを描かないので、ボタンも出さない。
-- **D9: 状態は Zustand（`features/pin/store/usePinMapFilterStore`）で2つの地図に共有し、端末には保存しない（SS-174 追補）。**
+- **D9: 状態は Zustand（`features/sanpo-map/pin/store/usePinMapFilterStore`）で2つの地図に共有し、端末には保存しない（SS-174 追補）。**
   画面ごとに持つと、どちらの地図で何を選んだか分かりにくいため。保存しないのは、課題が既定値を指定しているだけで保存を求めておらず、
   端末の設定（ADR-M-016 の `services/preferences`）の保存形式を広げるほどの理由が無いため（アプリの再起動で既定に戻る）。
-  ユーザーのデータではないのでサインアウトでも消さない。散歩中の地図へのボタンは、features/walk が features/pin を import しないため、
+  ユーザーのデータではないのでサインアウトでも消さない。散歩中の地図へのボタンは、features/walk が features/sanpo-map を import しないため、
   ルート（`app/(tabs)/index.tsx`）が `WalkActiveView` の `mapTools` に合成する（`renderMapLayers` と同じ形）。
 - **D10: 操作はその場で地図に効かせ、訪問状況は最後の1つを外せない（SS-174 追補）。** スイッチ1つとチェック2つで、
   確定で重い処理が走るわけでもないため、下書き + 適用ボタン（`CategorySheet` の形）にしない。訪問状況を両方外すと何も出ない地図になり、
@@ -122,7 +122,7 @@ SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加す�
   - 古い backend が `pins_visible` を返さないときは表示に倒す（`toSanpoMap` の `pins_visible !== false`）。
 - **D14: フラグ `map_pin_visibility` で包む（SS-266 追補）。** D7 の `pin_registration` に相乗りしない。本番で ON の `pin_registration` に乗せると、
   新しい API・フィールドを使う mobile がそのまま出て、backend の prod デプロイとの順序の縛りが付くため（release-runbook §1・§7.1）。
-  features/pin はフラグを読まない規約なので、ルート（`app/(tabs)/pins.tsx`・`index.tsx`）が読んで `PinTabView`・`RegisteredPinsMapLayer`・`PinMapFilterControl` に
+  features/sanpo-map はフラグを読まない規約なので、ルート（`app/(tabs)/pins.tsx`・`index.tsx`）が読んで `PinTabView`・`RegisteredPinsMapLayer`・`PinMapFilterControl` に
   `mapPinVisibility` として渡す。OFF の間は `pinsVisible` を見ず、すべての地図のピンを出し、シートに節を出さない。
 
 ## 検討した選択肢
@@ -148,12 +148,12 @@ SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加す�
 
 ## 影響
 
-- 追加: `features/pin/lib/pinStatus.ts`（バッジ・文言・初期値の純粋関数）、`PinStatusBadges`・`PinStatusFields` コンポーネント。
+- 追加: `features/sanpo-map/pin/lib/pinStatus.ts`（バッジ・文言・初期値の純粋関数）、`PinStatusBadges`・`PinStatusFields` コンポーネント。
 - 編集画面の項目順は「名前 → メモ → 状態 → タグ → 既存の写真 → 追加する写真」（ADR-M-017 D1 の「入力欄を先にまとめる」に沿い、短い状態欄をメモの後に置く）。SS-175 で状態とタグの間に地図を追加した（[ADR-M-017 SS-175 追補](./ADR-M-017-pin-edit-and-delete.md)）。
 - ADR 番号: 020 は並行して進んでいた SS-158（外部 Web ページ。ADR-M-020）が使ったため、本 ADR は 021 にした。
 - SS-174 への申し送り: 「アーカイブ済みも表示」を ON にすると、`PinSummary` に `archived` が無いため地図上でアーカイブ済みを見分けられない。見分ける必要があれば `PinSummary` に足す。（**SS-174 追補**: 足して半透明で描いた。D11）
-- **SS-174 追補**: 追加 `features/pin/lib/pinMapFilter.ts`（既定値・送る条件への変換・チェックの切り替え規則の純粋関数）、
-  `features/pin/store/usePinMapFilterStore.ts`、`PinMapFilterControl`・`PinMapFilterSheet`。`WalkActiveView` に `mapTools` の slot を足した。
+- **SS-174 追補**: 追加 `features/sanpo-map/pin/lib/pinMapFilter.ts`（既定値・送る条件への変換・チェックの切り替え規則の純粋関数）、
+  `features/sanpo-map/pin/store/usePinMapFilterStore.ts`、`PinMapFilterControl`・`PinMapFilterSheet`。`WalkActiveView` に `mapTools` の slot を足した。
   E2E は `.maestro/pin-map.yaml` でシートの既定値・最後の1つを外せないこと・条件を変えても取得がエラーにならないことを見る
   （どのピンが出るかは共有ユーザーのデータに左右されるので見ない。送信条件は単体テストで担保）。backend の変更は無い。
 - **SS-174 追補（対象の画面）**: 課題の「散歩中画面・ピン登録画面など」は、登録済みピンを描く2つの地図（散歩中のナビタブ・ピンタブ）と解釈した。
@@ -173,7 +173,7 @@ SS-173「ピンに訪問状況（未/済）・アーカイブ状態を追加す�
 - **移行・対応が必要な事項**: backend を先にデプロイしてから mobile をリリースする。dev では列追加のため「デプロイ → migrate」の間、
   ピン系 API が数分 500 になりうる（既存のエラー表示と再試行で回復する）。dev で E2E・手動確認をするときは migrate の後に行う。
 - `src/api/generated/` は Orval の生成物（gitignore 済み）。mobile CI は `openapi.yaml` の変更でも起動し、再生成して typecheck する。
-- **SS-266 追補**: 追加 `features/pin/lib/visibility/sanpoMapPinVisibility.ts`（取りに行く地図の選択・非表示の数・キャッシュの1件の書き換え・失敗の案内）、
+- **SS-266 追補**: 追加 `features/sanpo-map/pin/lib/visibility/sanpoMapPinVisibility.ts`（取りに行く地図の選択・非表示の数・キャッシュの1件の書き換え・失敗の案内）、
   `hooks/visibility/useSanpoMapPinVisibilityUpdate.ts`、`components/visibility/SanpoMapPinVisibilitySection.tsx`。`pin/` の hooks・lib・components は
   構造の検査（ADR-016）の上限を超えているので、`invitation/` と同じくサブフォルダに置いた。`lib/pinMapFilter.ts` に `isPinMapFiltered` を足した。
   E2E は `.maestro/pin-map.yaml` で節が出ることだけを見る（切り替えると利用者の選択が DB に残り、同じ CI ランのほかのフローのピンの表示に効くため）。

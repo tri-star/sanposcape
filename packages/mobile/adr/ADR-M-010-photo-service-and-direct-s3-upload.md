@@ -109,7 +109,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
    （招待機能で他ユーザーに原本が見えるようになるため）。サーバーの1枚上限 10 MiB は安全弁で、
    **正は枠発行応答の `max_byte_size`**（設定値が変わってもアプリの更新が要らない）。
 4. アップロードは backend が発行する presigned POST で **S3 に直送**し、`customFetch` を
-   **意図的に使わない**（`src/features/pin/api/presignedPostUpload.ts`）。理由:
+   **意図的に使わない**（`src/features/sanpo-map/pin/api/presignedPostUpload.ts`）。理由:
    （**SS-88 追補**: 初版の実装はファイルパートに RN 形式の `{ uri, name, type }` を渡していたが、
    Expo の `fetch` はこれを受け付けず実機・エミュレータで必ず失敗していた。現在は Blob 実装を
    渡す。下の「追補（2026-09-24）」の決定9を参照）
@@ -118,7 +118,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
    - backend 用のベース URL・401→refresh・`transientRetry` はこの経路に当てはまらない。
    - API の一般的なボディサイズ上限（`RequestSizeLimitMiddleware`）を経由せずに済む。
 
-   送信先の許可規則（`src/features/pin/lib/presignedPostForm.ts` の `isAllowedUploadUrl`）:
+   送信先の許可規則（`src/features/sanpo-map/pin/lib/presignedPostForm.ts` の `isAllowedUploadUrl`）:
    - `https:` は常に許可（実 S3。バケットは DenyInsecureTransport）。
    - `http:` は **backend 自身も http のときに限り、backend と同じ origin（scheme/host/port）の
      http だけ**を許可する（backend の `STORAGE_MODE=fake` は `http://<リクエストされたホスト>/dev-storage/uploads`
@@ -129,7 +129,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
    `PIN_PHOTO_PREUPLOAD_MAX`（20枚。backend の未使用枠上限30より10少ない値）までを
    先行アップロードする。残りは「待機」として端末に保持し、保存時に
    「最大10枚を揃える（待機写真は枠発行・直送）→ 紐付けて枠を空ける」を全枚数まで繰り返す
-   （`src/features/pin/lib/pinSaveRunner.ts`）。**429 はユーザー向けエラーにせず「待機に戻す」
+   （`src/features/sanpo-map/pin/lib/pinSaveRunner.ts`）。**429 はユーザー向けエラーにせず「待機に戻す」
    合図として扱う**。保存の再試行は「紐付け済み（attached）の記録から再開」する
    （`createPin`/`addPinPhotos` の応答に含まれる `upload_id` で実際に紐付いた分を判定し、
    送った ID を信用しない。`client_pin_id` の冪等再送は内容を無視して既存ピンを返すため）。
@@ -167,7 +167,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
 
 - services 層の役割は「実機/ネイティブ依存を1箇所に閉じ、ユニットテストで差し替え可能にする」こと。
   写真の取得・加工はこの条件に当てはまるが、**アップロード（HTTP）は当てはまらない**
-  （msw で十分テストできる）ため、`services/photo` には入れず `features/pin/api/` に置いた。
+  （msw で十分テストできる）ため、`services/photo` には入れず `features/sanpo-map/pin/api/` に置いた。
 - 未使用枠の上限を mobile 側で吸収する設計にすることで、backend の設定値（30）を変えずに
   「写真無制限」というプロダクト要件を満たせる。ユーザーに待たせる操作を増やさない。
 
@@ -175,7 +175,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
 
 ### ポジティブな影響
 
-- `features/pin` の判定ロジック（枠の上限管理・エラー分類・URL 許可）がすべて `lib/` の純粋関数で
+- `features/sanpo-map` の判定ロジック（枠の上限管理・エラー分類・URL 許可）がすべて `lib/` の純粋関数で
   vitest からテストできる（`pinSaveRunner.test.ts` は模型サーバーで 35〜100 枚のシナリオを検証）。
 - S3 直送により backend のボディサイズ制限・処理時間予算を圧迫しない。
 - 端末側の縮小・EXIF 除去により、招待機能（将来）で原本を共有しても撮影位置が漏れない。
@@ -195,7 +195,7 @@ SS-88 でピン登録機能を実装するにあたり、ユーザーが撮影/�
   build の作り直しが必要（[ADR-M-003](./ADR-M-003-development-build-and-dev-loop.md)）。
 - `app.json` に `expo-image-picker` の config plugin（写真/カメラ権限文言）を追加。
 - backend の `PIN_PHOTO_MAX_PENDING_UPLOADS` を 20 以下に下げる場合、mobile の
-  `PIN_PHOTO_PREUPLOAD_MAX` / `BACKEND_PENDING_UPLOADS_MAX`（`src/features/pin/lib/pinLimits.ts`）
+  `PIN_PHOTO_PREUPLOAD_MAX` / `BACKEND_PENDING_UPLOADS_MAX`（`src/features/sanpo-map/pin/lib/pinLimits.ts`）
   の見直しが必要（下げても 429 経由で動作はするが、保存時の往復が増える）。
 
 ## 追補（2026-09-21, PR #93 レビュー対応）
@@ -257,7 +257,7 @@ TestFlight のビルド5（2026-09-22 配信）を iPhone 実機で試したと�
 そこで **`PreparedPhoto` に `file`（`UploadFileBody`）を持たせ、`services/photo` が組み立てた
 実体をそのまま直送に渡す**ことにした。`photo.real.ts` はサイズ計測のために既に
 `new File(saved.uri)`（`expo-file-system`。`implements Blob` で `bytes()`/`name`/`type` を持つ）を
-作っていたので、それを捨てずに返すだけで済む。`features/pin` 側で `uri` から組み立て直せないよう
+作っていたので、それを捨てずに返すだけで済む。`features/sanpo-map` 側で `uri` から組み立て直せないよう
 **型（`UploadFileBody`）で塞ぎ**、理由を JSDoc に残した。
 
 - `expo-file-system` の `File.upload()`（ネイティブの multipart）は**採らなかった**。
@@ -375,7 +375,7 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
 ### 決定15（追補）: 容量超過の文言に上限の値を書かない
 
 - 「写真の保存容量（1人あたり1GB）の上限に達しました」を「写真の保存容量の上限に達しました」にした
-  （`src/features/pin/lib/photoUploadError.ts`・`pinSaveError.ts`・`pinEditError.ts`）。数字を含まないことをテストで固定した。
+  （`src/features/sanpo-map/pin/lib/photoUploadError.ts`・`pinSaveError.ts`・`pinEditError.ts`）。数字を含まないことをテストで固定した。
 - 理由: 上限はサーバーの設定値で、文言に書くと変えるたびにアプリの更新が要り、配布済みのアプリと食い違う。
   上限値を受け取る API（ADR-009 BK-8 の使用量 API）ができたら、その値で表示する。
 - 採らなかった案: 「10GB」に書き換える（次に変えたときに同じ問題が起きる）。

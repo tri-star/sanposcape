@@ -162,7 +162,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   すると SS-117 以降で別の地図に保存したピンがまた「表示されない」ことになる。backend への変更
   依頼はしない（`sanpo_map_id` 任意化は ADR-009 が予告済みの expand。地図数が増えたら依頼）。
 - **D5（SS-147 追補: 地図以外にも一般化）: feature 間の合成は `app/` のルートの render slot（`WalkActiveView.renderMapLayers`）。**
-  `features/walk` は `features/pin` を import しない規約（`docs/architecture-guideline.md`）を
+  `features/walk` は `features/sanpo-map` を import しない規約（`docs/architecture-guideline.md`）を
   保つため、`WalkActiveView` に `renderMapLayers(visibleRegion)` の slot を足し、
   `app/(tabs)/index.tsx` が `RegisteredPinsMapLayer` を合成する。認証値（`isSignedIn`）とフラグも
   ルートが読んで注入する（既存の「ルートが注入する」方針の延長）。
@@ -195,7 +195,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
   SS-119 がそこにボタンを足す。→ SS-119 で決着（SS-119 追補、[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)）。
 - **D12: 名前が無いピンの表示名は「名前のないピン」。**
 - **D13: 日付整形（`features/history/lib/walkDateLabel.ts`）を `src/lib/dateLabel.ts` へ昇格し、
-  walk 固有の関数名を汎用名へ変える。** `features/pin`（詳細画面の登録日時）でも使うため2機能
+  walk 固有の関数名を汎用名へ変える。** `features/sanpo-map`（詳細画面の登録日時）でも使うため2機能
   ルールに従う（`docs/folder-structure.md`）。SS-120（検索タブ）の日付表示でも再利用できる。
 - **D14: E2E は `/pins/map` の表示と取得完了（エラーにならない）までとし、マーカーのタップ →
   詳細への遷移は E2E しない。**（SS-147 追補: /pins/map は削除） Google Maps の描画面上の `Marker` は testID で安定して触れず、
@@ -281,7 +281,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 
 ## 決定理由
 
-- 既存の feature 境界（`features/walk` は `features/pin` を import しない、`features/pin` は
+- 既存の feature 境界（`features/walk` は `features/sanpo-map` を import しない、`features/sanpo-map` は
   認証状態を読まない。ADR-M-009 / ADR-M-011 と同じ規約）を保ったまま実装できる形を優先した。
 - ユーザーの明示要件（タップで直接詳細へ）を最優先し、モックとの差分は ADR に明記して透明にした。
 - ルート ADR-009 の持ち越し事項（上限の見せ方）は、依存追加を伴わない選択肢（打ち切り + 案内）を
@@ -323,7 +323,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 状態表示: `/pins/map` と同じ `resolvePinMapNotice`・案内（`PinMapStatusNotice` に切り出し）をピンタブ上部の情報カードで出す（D3 の打ち切り案内もピンタブで出す）。`RegisteredPinsMapLayer`（状態を出さない包み）は使わず、`useRegisteredPins` + `RegisteredPinMarkers` を直接使う。
 - D9 の追補: ゲストは地図を見られるが通信せず、サインイン案内を出す。サインイン成功後は既存の `(tabs)` へ `dismissTo` で戻り（進行中の散歩があればナビタブ、無ければピンタブ。ADR-M-009 SS-146 追補）、ピンタブでは「元の画面へ戻らない」限界が当たらない。
 - ボタン配置エリア（`PinTabActionBar`。SS-148 追補: `TabActionBar` に昇格・改名）を地図の下・タブバーの上に通常フローで置く（地図に重ねない）。最初のボタン「地図一覧」は `/sanpo-maps`（SS-121 まで暫定画面。SS-121 で本実装）。
-  - 構造は children スロット（横並び・右寄せ・折り返し）。並べるボタンの種類・出し分け条件が未確定なので、配列＋判定関数のデータ駆動より、呼び出し側が並べる方が変更に強いと判断した。使うのはピンタブだけなので `features/pin` に置く。→ SS-148 で決着（アカウントタブでも使うことになり `src/components/layout/TabActionBar` に昇格した。下記 SS-148 追補）。
+  - 構造は children スロット（横並び・右寄せ・折り返し）。並べるボタンの種類・出し分け条件が未確定なので、配列＋判定関数のデータ駆動より、呼び出し側が並べる方が変更に強いと判断した。使うのはピンタブだけなので `features/sanpo-map` に置く。→ SS-148 で決着（アカウントタブでも使うことになり `src/components/layout/TabActionBar` に昇格した。下記 SS-148 追補）。
   - 「地図一覧」は SS-121 が未完了でも常に表示し、遷移先に「準備中」の暫定画面（`SanpoMapListView`）を置く。却下案「SS-121 完了までボタンを出し分ける（非表示）」は、受け入れ条件「地図一覧ボタンが右寄せで表示される」を満たせないため採らなかった。v0.2 のストアリリース前に SS-121 が同じルート・testID（`sanpo-map-list-screen` / `sanpo-map-list-back`）のまま本実装に差し替える前提。→ SS-121 で決着（そのとおり差し替えた）。
   - ~~`/sanpo-maps` は現状フラグ（`pin_registration`）だけでガードする（静的表示なので露出する情報が無い）。SS-121 で実データを出すときは、認証ガード（または未サインイン案内）と API 側の認可を必ず入れる。~~ → SS-121 で決着（未サインイン案内。API は member のみ。下記 SS-121 追補）。
 - `/pins/map` はナビタブの導線が残る間は残し、別課題で削除する。D14 の E2E はピンタブへ移し、`/pins/map` は表示確認だけ残す。（SS-147 追補: `/pins/map` は SS-147 で削除した）
@@ -395,7 +395,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 写真の表示領域は上下のバーで切り抜き、拡大中も「閉じる」・前後ボタンが見えて押せる。ジェスチャーは写真の領域だけで受ける。
 - 原本が無いとき（サムネイル＋「元の写真を表示できません」）は拡大しない。
 - 二重タップでの拡大・リセットとスワイプでの前後移動は入れない（受け入れ条件外。二重タップは1本指で拡大できる代替手段として価値があるため、要望が出たら別課題で検討する）。
-- 実装: `react-native-gesture-handler`（`Gesture.Pinch` + `Gesture.Pan` を `Simultaneous`）＋ `react-native-reanimated`（shared value と `useAnimatedStyle`。React Compiler が有効なので `.get()` / `.set()`）。どちらも導入済みで、使うのは初めて。倍率・移動量の計算は `features/pin/lib/photoZoom.ts` の worklet の純粋関数に置き、Vitest で検証する。
+- 実装: `react-native-gesture-handler`（`Gesture.Pinch` + `Gesture.Pan` を `Simultaneous`）＋ `react-native-reanimated`（shared value と `useAnimatedStyle`。React Compiler が有効なので `.get()` / `.set()`）。どちらも導入済みで、使うのは初めて。倍率・移動量の計算は `features/sanpo-map/pin/lib/photoZoom.ts` の worklet の純粋関数に置き、Vitest で検証する。
 - アプリ全体（`app/_layout.tsx` の最外周）を `GestureHandlerRootView` で包む。RNGH の要求（ジェスチャーはこの内側でしか認識されない）で、ライブラリの推奨どおりアプリのルートに置く。ビューアは RN `Modal` を使わない画面内オーバーレイ（D8）なので、ルートの1つで足りる。
 - 新しいフィーチャーフラグは作らない。ピン詳細は既存の `pin_registration` でガード済みで、画面内の操作を足すだけのため（`docs/release-runbook.md` の例外に当たる）。
 
@@ -452,7 +452,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 表示は端末のタイムゾーン。backend の応答は UTC で、送ったときのオフセットは戻らない（ADR-009 決定34）。海外で撮った写真を
   日本で見ると日本時刻で出るが許容する。
 - 原本が無い写真（「元の写真を表示できません」）でも日時は出す。拡大中も上部バーは切り抜きの外にあるので隠れない（SS-153）。
-- 判定・整形は `features/pin/lib/pinPhotoViewer.ts` の `resolveViewerPhotoDate`（純粋関数）に置き、`PinPhotoViewer.tsx` は呼ぶだけ。
+- 判定・整形は `features/sanpo-map/pin/lib/pinPhotoViewer.ts` の `resolveViewerPhotoDate`（純粋関数）に置き、`PinPhotoViewer.tsx` は呼ぶだけ。
 - 新しいフィーチャーフラグは作らない。ピン詳細は既存の `pin_registration` でガード済みで、足すのは任意フィールドとビューアの1行だけ
   （SS-153 と同じ。`docs/release-runbook.md` の例外に当たる）。
 - E2E は更新しない。E2E の写真サービスは mock で、mock の写真はアップロードに失敗する（ADR-M-010 決定6）ため、写真付きのピンを
@@ -498,7 +498,7 @@ SS-88（PR #93）・SS-124（PR #102）でピンを登録できるようにな�
 - 登録フォームのプレビューは変えない（高さ 140・操作不可・delta 0.004）。
   - 位置の調整は全画面のオーバーレイで行う（ADR-M-011 D7）。プレビューを動かせると「動かしたのにピンの位置が変わらない」と誤解させる。
   - 入力欄の多いフォームで大きな地図が入力欄を押し下げ、地図の上でスクロールできない範囲も増える。
-  - 切り分けは `PinLocationPreview` の `variant`（`compact` / `interactive`）で行い、設定は `features/pin/lib/pinLocationPreview.ts` の
+  - 切り分けは `PinLocationPreview` の `variant`（`compact` / `interactive`）で行い、設定は `features/sanpo-map/pin/lib/pinLocationPreview.ts` の
     純粋関数に集めてテストする。
 - 新しいフィーチャーフラグは作らない。ピン詳細は既存の `pin_registration` でガード済みで、画面内の地図の大きさと操作を変えるだけのため
   （SS-153・SS-163 と同じ。`docs/release-runbook.md` の例外の扱い）。
@@ -566,7 +566,7 @@ D3 の「件数が増えたら再検討」に当たるので、D3 を変えた�
 - **タップ: 円をタップすると、それが分かれるズーム（`getClusterExpansionZoom`。まとめないズームを上限）まで、円の位置を中心に拡大する**（縦横比は今の表示範囲のまま）。
   少なくとも今の範囲の半分までは拡大する（まとめないズームで密なためにまとめた円・同じ座標のピンの円を押しても何も起きない、を避ける）。1つのピンのタップで詳細へ進む D1' は変えない。地図を動かすのは地図の ref を持つ側で、
   ピンタブは `PinMapCanvas` の `regionRequest`、散歩中のナビタブは `WalkActiveView.renderMapLayers` の2つ目の引数 `actions.focusRegion`（`WalkRouteMapView` の `regionRequest`）に渡す
-  （`features/walk` が `features/pin` を import しない D5 を保つ）。
+  （`features/walk` が `features/sanpo-map` を import しない D5 を保つ）。
 - **散歩中のナビタブの地図も同じ表示にする**（`RegisteredPinsMapLayer`）。同じ `useRegisteredPins` で全件を取るので、まとめないと散歩中の地図が最大 1,000 件を描くことになる。
 - **依存の追加**: `supercluster` は純粋な JS（ISC。依存は `kdbush`・`@types/geojson`。型を同梱。install のスクリプトなし。通信しない）。ネイティブのコードを含まないので
   development build の作り直しは要らず、OTA でも配れる。`minimumReleaseAge`（2 日）より前に公開された版（2026-09-03）。

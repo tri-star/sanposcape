@@ -322,7 +322,7 @@ SS-79 追補にも反映した。
    （`appVariant.ts` は Vitest の対象）・`src/components/**`・feature の `components/`・`hooks/` が漏れ、相対 import も
    パターンをすり抜けたため、`src/**` 全体に広げた。判定は `app/` のルートで呼び、結果を props で渡す。
    oxlint は同じルールの override を後勝ちで置き換える（マージしない）ので、認証制限も受ける
-   `src/features/{walk,history,pin}/**` の override には devTools のパターンを再掲する。再掲のずれ（group・message の不一致、
+   `src/features/{walk,history,sanpo-map}/**`（SS-260 で `pin` を改めた）の override には devTools のパターンを再掲する。再掲のずれ（group・message の不一致、
    再掲漏れ）は `src/config/oxlintRestrictedImports.test.ts` が検出する。
 
 `src/services/auth/index.ts` の `!__DEV__`（mock モードの起動時ガード）は変えない。テスト専用の認証バイパスを
