@@ -17,24 +17,17 @@
     },
     {
       "kind": "folder-files",
-      "path": "packages/mobile/src/features/pin/components",
-      "value": 47,
+      "path": "packages/mobile/src/features/sanpo-map/pin/components",
+      "value": 32,
       "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+      "reason": "SS-252 の時点で features/pin/components に 47 個あった。SS-260 で地図・招待・共有を切り出して 32 個になった。ピン本体の中の分割（編集・位置・写真・地図表示など）は SS-257 で行う"
     },
     {
       "kind": "folder-files",
-      "path": "packages/mobile/src/features/pin/hooks",
-      "value": 21,
+      "path": "packages/mobile/src/features/sanpo-map/pin/lib",
+      "value": 39,
       "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "folder-files",
-      "path": "packages/mobile/src/features/pin/lib",
-      "value": 48,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+      "reason": "SS-252 の時点で features/pin/lib に 48 個あった。SS-260 で地図・招待・共有を切り出して 39 個になった。ピン本体の中の分割（編集・位置・写真・地図表示など）は SS-257 で行う"
     },
     {
       "kind": "folder-files",
@@ -55,22 +48,6 @@
       "path": "packages/mobile/src/features/history/lib",
       "prefix": "walk",
       "value": 10,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "prefix",
-      "path": "packages/mobile/src/features/pin/components",
-      "prefix": "sanpo",
-      "value": 15,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "prefix",
-      "path": "packages/mobile/src/features/pin/lib",
-      "prefix": "sanpo",
-      "value": 9,
       "issue": "SS-257",
       "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
     }
