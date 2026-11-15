@@ -25,7 +25,7 @@ export type UseSanpoMapDeleteResult = {
 
 /**
  * `DELETE /sanpo-maps/{id}`（SS-265）の mutation と、成功時のキャッシュ更新の配線（`usePinDelete` と同じ形）。
- * 判定・整形は書かない（`lib/map-deletion/` に出す。hooks は Vitest 対象外）。
+ * 判定・整形は書かない（`map/lib/sanpoMapDelete.ts` に出す。hooks は Vitest 対象外）。
  *
  * 成功したら status は同期的に "deleted" になる。呼び出し側（地図詳細）はこれを見て、消した地図の
  * ピン一覧・メンバーの取得を止め（enabled=false）、本文を差し替える。止めないと、下の invalidate で

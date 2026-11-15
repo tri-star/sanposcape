@@ -19,7 +19,8 @@ export type PinStateCardProps = {
 /**
  * PinStateCard — ピンの地図・詳細で共通化する空・エラー状態の表示（SS-118）。
  * `features/history/components/HistoryStateCard.tsx` と同じ Props・見た目だが、feature 間
- * import を避けるため pin 側に独立して持つ（`docs/architecture-guideline.md`）。
+ * import を避けるため sanpo-map 側に独立して持つ（`docs/architecture-guideline.md`）。地図・ピン・招待の画面で使い、
+ * どの領域の語も持たないので `shared/` に置く（ADR-M-001 決定2 の SS-260 追補）。
  * 2機能で使うことになったら `src/components/` への昇格を検討する（今は「同じ見た目の別物」
  * として扱う）。
  */

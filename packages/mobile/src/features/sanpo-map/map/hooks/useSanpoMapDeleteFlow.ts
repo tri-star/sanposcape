@@ -29,7 +29,7 @@ export type UseSanpoMapDeleteFlowResult = {
 
 /**
  * 地図詳細での地図の削除の画面側の配線（SS-265）。確認ダイアログの開閉・戻るの横取り・成功後の遷移を
- * 地図詳細の本体から分ける。通信とキャッシュは `useSanpoMapDelete`、判定と文言は `lib/map-deletion/`。
+ * 地図詳細の本体から分ける。通信とキャッシュは `useSanpoMapDelete`、判定と文言は `map/lib/sanpoMapDelete.ts`。
  *
  * 成功したら地図一覧まで戻り（消した地図の詳細には戻れない）、一覧で「『…』を削除しました」を出す
  * （SS-249 で地図から抜けたときと同じ）。
