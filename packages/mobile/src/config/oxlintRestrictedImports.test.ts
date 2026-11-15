@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -104,6 +104,8 @@ describe(".oxlintrc.json の no-restricted-imports", () => {
   it.each(AUTH_RESTRICTED_FEATURES)(
     "features/%s/** 全体に認証と devTools の制限がある",
     (feature) => {
+      // 定数と .oxlintrc.json の両方を直し忘れても通らないよう、feature のフォルダが実在することも確かめる。
+      expect(existsSync(path.resolve(__dirname, `../features/${feature}`)), feature).toBe(true);
       const whole = restricted.find(({ files }) => files.includes(`src/features/${feature}/**`));
       expect(whole).toBeDefined();
       for (const key of [AUTH_GROUP_KEY, DEV_TOOLS_GROUP_KEY]) {
