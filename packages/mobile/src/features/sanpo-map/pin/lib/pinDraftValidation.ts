@@ -1,6 +1,6 @@
 import { PIN_MEMO_MAX_LENGTH, PIN_NAME_MAX_LENGTH } from "@/features/sanpo-map/pin/lib/pinLimits";
 import type { PhotoDraftItem } from "@/features/sanpo-map/pin/lib/photoDraft";
-import type { PinDraft, SanpoMapSelection } from "@/features/sanpo-map/shared/types";
+import type { PinDraft, SanpoMapSelection } from "@/features/sanpo-map/pin/types";
 
 export type PinDraftFieldErrors = { name: string | null; memo: string | null };
 

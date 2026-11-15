@@ -1,6 +1,6 @@
 import { resolveTagLabelForAdd } from "@/features/sanpo-map/pin/lib/pinTagSuggestions";
 import { addTag } from "@/features/sanpo-map/pin/lib/pinTags";
-import type { TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
 
 /**
  * 登録画面で最初に最寄り駅が取れたとき、駅のタグを1回だけ足した結果（SS-225）。足さないなら null。

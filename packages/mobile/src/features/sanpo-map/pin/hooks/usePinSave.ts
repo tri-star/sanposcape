@@ -15,7 +15,7 @@ import {
 } from "@/features/sanpo-map/pin/lib/pinSaveError";
 import type { PinSaveErrorCode, PinSaveStage } from "@/features/sanpo-map/pin/lib/pinSaveError";
 import { runPinSave } from "@/features/sanpo-map/pin/lib/pinSaveRunner";
-import type { PinSaveProgress, PinSaveStatus, SavedPin } from "@/features/sanpo-map/shared/types";
+import type { PinSaveProgress, PinSaveStatus, SavedPin } from "@/features/sanpo-map/pin/types";
 
 /** 自動再試行の最大回数（初回 + この回数まで）。`useWalkSave` と同じ値。 */
 const MAX_RETRY_COUNT = 2;

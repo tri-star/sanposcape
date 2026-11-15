@@ -7,7 +7,7 @@ import {
 } from "@/api/generated/endpoints/pins/pins";
 import type { PinUpdate } from "@/api/generated/model";
 import { toPinDetail } from "@/features/sanpo-map/pin/lib/pinRead";
-import type { PinDetail, PinMoveTarget } from "@/features/sanpo-map/shared/types";
+import type { PinDetail, PinMoveTarget } from "@/features/sanpo-map/pin/types";
 import { isUuid } from "@/lib/uuid";
 
 export type PinDeleteResult = {

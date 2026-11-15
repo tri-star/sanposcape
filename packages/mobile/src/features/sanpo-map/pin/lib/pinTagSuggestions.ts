@@ -7,7 +7,8 @@ import {
   tagKey,
 } from "@/features/sanpo-map/pin/lib/pinTags";
 import { resolveEffectiveSanpoMapSelection } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
-import type { SanpoMap, SanpoMapSelection, TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { SanpoMapSelection, TagSuggestion } from "@/features/sanpo-map/pin/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 /** 1回の取得件数（backend の最大 200 以下。地図1枚のタグの種類はこれで足りる想定）。 */
 export const PIN_TAG_SUGGESTIONS_FETCH_LIMIT = 100;

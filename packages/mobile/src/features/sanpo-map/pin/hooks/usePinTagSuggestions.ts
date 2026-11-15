@@ -2,7 +2,7 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 
 import { fetchPinTagSuggestions } from "@/features/sanpo-map/pin/api/pinTagSuggestionApi";
 import { pinTagSuggestionsQueryKey } from "@/features/sanpo-map/shared/lib/pinQueryKeys";
-import type { TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
 
 /** 登録画面を開いている間はほぼ変わらない（`useSanpoMaps` と同じ値）。 */
 const STALE_TIME_MS = 5 * 60_000;

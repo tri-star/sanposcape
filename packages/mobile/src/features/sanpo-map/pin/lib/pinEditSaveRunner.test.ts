@@ -9,7 +9,7 @@ import {
   type PinEditSaveProgress,
 } from "@/features/sanpo-map/pin/lib/pinEditSaveRunner";
 import { PinSaveError } from "@/features/sanpo-map/pin/lib/pinSaveError";
-import type { PinDetail } from "@/features/sanpo-map/shared/types";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
 
 const UPDATED_PIN: PinDetail = {
   id: "pin-1",

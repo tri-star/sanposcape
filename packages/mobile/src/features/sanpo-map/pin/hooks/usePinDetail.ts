@@ -13,7 +13,8 @@ import {
   toPinReadErrorCode,
   type PinReadErrorCode,
 } from "@/features/sanpo-map/pin/lib/pinReadError";
-import type { PinDetail, PinPhoto } from "@/features/sanpo-map/shared/types";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto } from "@/features/sanpo-map/shared/types";
 
 /**
  * 保存済みのピンは（このセッション内では）ほぼ不変。presigned URL の TTL（3600秒）より

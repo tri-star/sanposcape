@@ -1,5 +1,5 @@
 import { isValidCoordinate } from "@/lib/geoCoordinate";
-import type { PinSaveStatus } from "@/features/sanpo-map/shared/types";
+import type { PinSaveStatus } from "@/features/sanpo-map/pin/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** 座標を送信時の丸め精度（1e-6 度）に丸める。`buildPinCreateRequest` と同じ精度。 */

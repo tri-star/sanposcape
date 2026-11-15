@@ -1,6 +1,6 @@
 import { getApiErrorCode, isApiError } from "@/api/apiError";
 import { toPhotoUploadErrorCode } from "@/features/sanpo-map/pin/lib/photoUploadError";
-import type { PinSaveProgress } from "@/features/sanpo-map/shared/types";
+import type { PinSaveProgress } from "@/features/sanpo-map/pin/types";
 
 /**
  * 保存失敗の分類。409 は応答本体の機械可読な `code`（PR #93 T15。backend の

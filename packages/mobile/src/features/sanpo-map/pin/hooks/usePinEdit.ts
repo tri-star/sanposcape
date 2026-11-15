@@ -61,7 +61,8 @@ import {
   removeTag as removeTagFrom,
 } from "@/features/sanpo-map/pin/lib/pinTags";
 import type { SanpoMapChoicesState } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
-import type { PinPhoto, SanpoMapSelection, TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { SanpoMapSelection, TagSuggestion } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto } from "@/features/sanpo-map/shared/types";
 
 const MOVE_TARGETS_STALE_TIME_MS = 60_000;
 

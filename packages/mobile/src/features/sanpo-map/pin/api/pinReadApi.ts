@@ -15,12 +15,11 @@ import {
   SANPO_MAP_PIN_MAX_PAGES,
   buildSanpoMapPinListParams,
 } from "@/features/sanpo-map/pin/lib/sanpoMapPinList";
+import type { PinDetail, PinPhotoPage } from "@/features/sanpo-map/pin/types";
 import type {
   GeoBounds,
-  PinDetail,
   PinListEntry,
   PinListFilterParams,
-  PinPhotoPage,
   PinSummary,
 } from "@/features/sanpo-map/shared/types";
 import { isUuid } from "@/lib/uuid";

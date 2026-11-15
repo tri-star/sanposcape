@@ -10,7 +10,8 @@ import {
   resolvePinDetailPhotos,
   shouldRefreshPhotoUrls,
 } from "@/features/sanpo-map/pin/lib/pinDetailState";
-import type { PinPhoto, PinPhotoPage } from "@/features/sanpo-map/shared/types";
+import type { PinPhotoPage } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto } from "@/features/sanpo-map/shared/types";
 
 describe("resolvePinDetailBodyState", () => {
   const READY_INPUT = {

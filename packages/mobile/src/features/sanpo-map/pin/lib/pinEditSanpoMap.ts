@@ -5,12 +5,8 @@ import type {
 } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
 import { DEFAULT_SANPO_MAP_ICON } from "@/features/sanpo-map/map/lib/sanpoMapIcon";
 import { SANPO_MAP_MEMBER_FALLBACK_NAME } from "@/features/sanpo-map/map/lib/sanpoMapMember";
-import type {
-  PinDetail,
-  PinMoveTarget,
-  SanpoMap,
-  SanpoMapMember,
-} from "@/features/sanpo-map/shared/types";
+import type { PinDetail, PinMoveTarget } from "@/features/sanpo-map/pin/types";
+import type { SanpoMap, SanpoMapMember } from "@/features/sanpo-map/shared/types";
 
 /**
  * ピン編集画面の「地図」欄の判定・文言（SS-175）。

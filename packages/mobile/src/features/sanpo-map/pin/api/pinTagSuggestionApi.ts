@@ -5,7 +5,7 @@ import {
   PIN_TAG_SUGGESTIONS_FETCH_LIMIT,
   toTagSuggestions,
 } from "@/features/sanpo-map/pin/lib/pinTagSuggestions";
-import type { TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
 import { isUuid } from "@/lib/uuid";
 
 /**

@@ -14,7 +14,8 @@ import {
   SANPO_MAPS_QUERY_KEY,
   invitationPreviewQueryKey,
 } from "@/features/sanpo-map/shared/lib/pinQueryKeys";
-import type { InvitationPreview, SanpoMap } from "@/features/sanpo-map/shared/types";
+import type { InvitationPreview } from "@/features/sanpo-map/invitation/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 export type UseInvitationAcceptResult = {
   preview: InvitationPreview | null;

@@ -1,7 +1,8 @@
 import type { PinEditBaseline, PinEditDraft } from "@/features/sanpo-map/pin/lib/pinEditDraft";
 import { createPinEditBaseline } from "@/features/sanpo-map/pin/lib/pinEditDraft";
 import type { PinReadErrorCode } from "@/features/sanpo-map/pin/lib/pinReadError";
-import type { PinDetail, PinPhoto } from "@/features/sanpo-map/shared/types";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto } from "@/features/sanpo-map/shared/types";
 
 /**
  * 保存が途中まで進んだとき（部分保存）に、編集画面の「基準値」と「下書き」を、サーバーに

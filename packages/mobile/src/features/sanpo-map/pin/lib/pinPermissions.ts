@@ -1,10 +1,5 @@
-import type {
-  PinDetail,
-  PinMemberRole,
-  PinPhoto,
-  PinTagView,
-  SanpoMap,
-} from "@/features/sanpo-map/shared/types";
+import type { PinDetail, PinMemberRole } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto, PinTagView, SanpoMap } from "@/features/sanpo-map/shared/types";
 
 /**
  * ピンの編集・削除の権限判定（UI の出し分け用）。ルート ADR-009 決定19 の権限マトリクスを写す。

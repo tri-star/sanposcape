@@ -36,7 +36,7 @@ import type {
   SanpoMapSelection,
   SavedPin,
   TagSuggestion,
-} from "@/features/sanpo-map/shared/types";
+} from "@/features/sanpo-map/pin/types";
 import { randomUuidV4 } from "@/lib/uuid";
 import type { GeoCoordinates } from "@/services/location/types";
 

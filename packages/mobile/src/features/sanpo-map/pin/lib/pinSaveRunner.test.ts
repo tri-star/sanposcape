@@ -15,7 +15,7 @@ import {
 import { isPinSaveError, isPhotoSlotsBusyError } from "@/features/sanpo-map/pin/lib/pinSaveError";
 import { runAttachPhotosToPin, runPinSave } from "@/features/sanpo-map/pin/lib/pinSaveRunner";
 import type { PinSaveRunnerDeps } from "@/features/sanpo-map/pin/lib/pinSaveRunner";
-import type { PinSaveProgress, SavedPin } from "@/features/sanpo-map/shared/types";
+import type { PinSaveProgress, SavedPin } from "@/features/sanpo-map/pin/types";
 
 function makeItem(
   localId: string,

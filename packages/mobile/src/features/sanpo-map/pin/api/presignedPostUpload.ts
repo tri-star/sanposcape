@@ -9,7 +9,7 @@ import {
   buildPresignedPostFormEntries,
   isAllowedUploadUrl,
 } from "@/features/sanpo-map/pin/lib/presignedPostForm";
-import type { PinPhotoUploadTicket } from "@/features/sanpo-map/shared/types";
+import type { PinPhotoUploadTicket } from "@/features/sanpo-map/pin/types";
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 
 /**

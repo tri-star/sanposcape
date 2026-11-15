@@ -4,7 +4,7 @@ import {
   deletePinPhotoUpload as deletePinPhotoUploadRequest,
 } from "@/api/generated/endpoints/pins/pins";
 import type { PinPhotoUploadRead } from "@/api/generated/model";
-import type { PinPhotoUploadTicket } from "@/features/sanpo-map/shared/types";
+import type { PinPhotoUploadTicket } from "@/features/sanpo-map/pin/types";
 import type { PreparedPhoto } from "@/services/photo/types";
 
 /**

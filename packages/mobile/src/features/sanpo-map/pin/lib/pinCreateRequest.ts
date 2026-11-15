@@ -1,7 +1,7 @@
 import type { PinCreate } from "@/api/generated/model";
 import { PIN_PHOTOS_PER_REQUEST_MAX } from "@/features/sanpo-map/pin/lib/pinLimits";
 import { validatePinDraftFields } from "@/features/sanpo-map/pin/lib/pinDraftValidation";
-import type { PinDraft } from "@/features/sanpo-map/shared/types";
+import type { PinDraft } from "@/features/sanpo-map/pin/types";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import { isUuid } from "@/lib/uuid";
 import type { GeoCoordinates } from "@/services/location/types";

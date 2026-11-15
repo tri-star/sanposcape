@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/icon/Icon";
 import { Tag } from "@/components/ui/tag/Tag";
 import { SanpoMapIconArt } from "@/features/sanpo-map/map/components/SanpoMapIconArt";
 import type { SanpoMapChoicesState } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
-import type { SanpoMapSelection } from "@/features/sanpo-map/shared/types";
+import type { SanpoMapSelection } from "@/features/sanpo-map/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 

@@ -5,12 +5,11 @@ import type {
   PinRead,
 } from "@/api/generated/model";
 import { isAllowedUploadUrl } from "@/features/sanpo-map/pin/lib/presignedPostForm";
+import type { PinDetail, PinPhotoPage } from "@/features/sanpo-map/pin/types";
 import type {
-  PinDetail,
   PinListEntry,
   PinListFilterParams,
   PinPhoto,
-  PinPhotoPage,
   PinSummary,
 } from "@/features/sanpo-map/shared/types";
 import { isValidCoordinate } from "@/lib/geoCoordinate";

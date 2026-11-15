@@ -11,7 +11,7 @@ import {
   resolveTagSubmitBehavior,
   tagSuggestionHeading,
 } from "@/features/sanpo-map/pin/lib/pinTagSuggestions";
-import type { TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type PinTagEditorProps = {

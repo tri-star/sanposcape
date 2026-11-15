@@ -21,7 +21,8 @@ import {
   rebaseDraftAfterPhotoDeleted,
   resolvePinEditBodyError,
 } from "@/features/sanpo-map/pin/lib/pinEditSync";
-import type { PinDetail, PinPhoto, PinTagView } from "@/features/sanpo-map/shared/types";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto, PinTagView } from "@/features/sanpo-map/shared/types";
 
 const TAG_X: PinTagView = { id: "tag-x", label: "X", createdByUserId: "me" };
 

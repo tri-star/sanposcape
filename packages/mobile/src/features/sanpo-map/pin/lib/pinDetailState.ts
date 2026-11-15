@@ -1,4 +1,5 @@
-import type { PinPhoto, PinPhotoPage } from "@/features/sanpo-map/shared/types";
+import type { PinPhotoPage } from "@/features/sanpo-map/pin/types";
+import type { PinPhoto } from "@/features/sanpo-map/shared/types";
 import type { PinReadErrorCode } from "@/features/sanpo-map/pin/lib/pinReadError";
 import { formatDateLabel, formatTimeLabel, parseIsoDate } from "@/lib/dateLabel";
 

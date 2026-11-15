@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { isS3UploadError } from "@/features/sanpo-map/pin/lib/photoUploadError";
 import type { UploadFilePart } from "@/features/sanpo-map/pin/lib/presignedPostForm";
 import { uploadToPresignedPost } from "@/features/sanpo-map/pin/api/presignedPostUpload";
-import type { PinPhotoUploadTicket } from "@/features/sanpo-map/shared/types";
+import type { PinPhotoUploadTicket } from "@/features/sanpo-map/pin/types";
 import { logDiagnostic } from "@/lib/diagnosticLog";
 import { server } from "@/test/setup";
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PIN_TAGS_MAX_COUNT } from "@/features/sanpo-map/pin/lib/pinLimits";
 import { addStationTag } from "@/features/sanpo-map/pin/lib/pinStationTag";
-import type { TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
 
 describe("addStationTag", () => {
   it("タグが空なら駅のタグを足す", () => {

@@ -1,7 +1,7 @@
 import type { PinUpdate } from "@/api/generated/model";
 import { isEmptyPinUpdate } from "@/features/sanpo-map/pin/lib/pinEditDraft";
 import { PinEditError } from "@/features/sanpo-map/pin/lib/pinEditError";
-import type { PinDetail } from "@/features/sanpo-map/shared/types";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
 
 export type PinEditSaveProgress =
   | { step: "updating" }

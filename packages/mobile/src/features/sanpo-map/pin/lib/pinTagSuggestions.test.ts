@@ -13,7 +13,8 @@ import {
   toTagSuggestions,
 } from "@/features/sanpo-map/pin/lib/pinTagSuggestions";
 import { PIN_TAGS_MAX_COUNT } from "@/features/sanpo-map/pin/lib/pinLimits";
-import type { SanpoMap, TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 const s = (label: string, pinCount = 1): TagSuggestion => ({ label, pinCount });
 const labels = (list: TagSuggestion[]) => list.map((c) => c.label);

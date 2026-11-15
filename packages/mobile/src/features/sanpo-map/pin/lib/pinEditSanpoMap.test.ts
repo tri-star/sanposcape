@@ -20,7 +20,8 @@ import {
   type PinEditUpdateRecord,
 } from "@/features/sanpo-map/pin/lib/pinEditSanpoMap";
 import { DEFAULT_SANPO_MAP_ICON } from "@/features/sanpo-map/map/lib/sanpoMapIcon";
-import type { PinDetail, PinMoveTarget, SanpoMap } from "@/features/sanpo-map/shared/types";
+import type { PinDetail, PinMoveTarget } from "@/features/sanpo-map/pin/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 const MAP_A: SanpoMap = {
   id: "map-a",

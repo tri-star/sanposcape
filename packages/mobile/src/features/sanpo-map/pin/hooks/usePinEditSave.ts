@@ -30,7 +30,7 @@ import {
   pinPhotosQueryKey,
 } from "@/features/sanpo-map/shared/lib/pinQueryKeys";
 import { runAttachPhotosToPin } from "@/features/sanpo-map/pin/lib/pinSaveRunner";
-import type { PinDetail } from "@/features/sanpo-map/shared/types";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
 
 /** 自動再試行の最大回数（初回 + この回数まで）。`usePinSave` と同じ値。 */
 const MAX_RETRY_COUNT = 2;

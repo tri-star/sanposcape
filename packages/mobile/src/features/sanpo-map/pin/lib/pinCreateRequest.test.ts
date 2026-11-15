@@ -5,7 +5,7 @@ import {
   PIN_NAME_MAX_LENGTH,
   PIN_PHOTOS_PER_REQUEST_MAX,
 } from "@/features/sanpo-map/pin/lib/pinLimits";
-import type { PinDraft } from "@/features/sanpo-map/shared/types";
+import type { PinDraft } from "@/features/sanpo-map/pin/types";
 
 const CLIENT_PIN_ID = "11111111-1111-4111-8111-111111111111";
 const CLIENT_WALK_ID = "22222222-2222-4222-8222-222222222222";

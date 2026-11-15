@@ -4,7 +4,7 @@ import {
   createPin as createPinRequest,
 } from "@/api/generated/endpoints/pins/pins";
 import type { PinCreate, PinPhotosAdd, PinRead } from "@/api/generated/model";
-import type { SavedPin } from "@/features/sanpo-map/shared/types";
+import type { SavedPin } from "@/features/sanpo-map/pin/types";
 import { isUuid } from "@/lib/uuid";
 
 export function toSavedPin(read: PinRead): SavedPin {

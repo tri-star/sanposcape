@@ -1,7 +1,7 @@
 import { Text, View } from "react-native";
 
 import { Tag } from "@/components/ui/tag/Tag";
-import type { TagSuggestion } from "@/features/sanpo-map/shared/types";
+import type { TagSuggestion } from "@/features/sanpo-map/pin/types";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type PinTagSuggestionsProps = {

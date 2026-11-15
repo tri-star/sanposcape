@@ -18,7 +18,7 @@ import {
 import type {
   SanpoMapInvitation,
   SanpoMapInvitationCreated,
-} from "@/features/sanpo-map/shared/types";
+} from "@/features/sanpo-map/invitation/types";
 
 const EMPTY: SanpoMapInvitation[] = [];
 

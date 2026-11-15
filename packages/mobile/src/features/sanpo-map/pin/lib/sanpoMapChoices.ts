@@ -1,7 +1,8 @@
 import { FIRST_SANPO_MAP_NAME } from "@/features/sanpo-map/pin/lib/pinLimits";
 import { DEFAULT_SANPO_MAP_ICON } from "@/features/sanpo-map/map/lib/sanpoMapIcon";
 import type { SanpoMapIconKey } from "@/features/sanpo-map/shared/types";
-import type { SanpoMap, SanpoMapSelection } from "@/features/sanpo-map/shared/types";
+import type { SanpoMapSelection } from "@/features/sanpo-map/pin/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 export type SanpoMapChoice = {
   /** testID 接尾辞。既存は id、未作成の既定地図は "default"。 */

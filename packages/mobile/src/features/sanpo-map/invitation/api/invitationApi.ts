@@ -11,10 +11,10 @@ import { isInvitationToken } from "@/features/sanpo-map/invitation/lib/invitatio
 import { toSanpoMapIconKey } from "@/features/sanpo-map/map/lib/sanpoMapIcon";
 import type {
   InvitationPreview,
-  SanpoMap,
   SanpoMapInvitation,
   SanpoMapInvitationCreated,
-} from "@/features/sanpo-map/shared/types";
+} from "@/features/sanpo-map/invitation/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 import { isUuid } from "@/lib/uuid";
 
 /**

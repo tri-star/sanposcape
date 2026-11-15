@@ -10,7 +10,7 @@ import { nextAttachChunk } from "@/features/sanpo-map/pin/lib/photoDraft";
 import type { PhotoDraftAction, PhotoDraftItem } from "@/features/sanpo-map/pin/lib/photoDraft";
 import { PhotoSlotsBusyError, PinSaveError } from "@/features/sanpo-map/pin/lib/pinSaveError";
 import type { PinSaveStage } from "@/features/sanpo-map/pin/lib/pinSaveError";
-import type { PinSaveProgress, SavedPin } from "@/features/sanpo-map/shared/types";
+import type { PinSaveProgress, SavedPin } from "@/features/sanpo-map/pin/types";
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
 
 export type PinSaveRunnerDeps = {
