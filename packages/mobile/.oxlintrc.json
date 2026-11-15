@@ -35,7 +35,7 @@
     "import/max-dependencies": ["error", { "max": 20, "ignoreTypeImports": true }]
   },
   // no-restricted-imports は同じルールの override を「後勝ちで置き換える」（マージしない）。
-  // そのため、複数の制限を受ける範囲（features/{walk,history,pin}/**）の override には両方のパターンを持たせる。
+  // そのため、複数の制限を受ける範囲（features/{walk,history,sanpo-map}/**）の override には両方のパターンを持たせる。
   // パターンと message の同期は src/config/oxlintRestrictedImports.test.ts が機械的に検査する。
   "overrides": [
     {
@@ -79,7 +79,8 @@
     },
     {
       // lib/ から react-native を値として import しない（SS-253）。上の src/** の制限を置き換えるので devTools も再掲する。
-      "files": ["src/lib/**", "src/features/*/lib/**"],
+      // feature の中を領域で分けると lib/ が深くなる（sanpo-map/pin/lib/ など。SS-260）ので、glob は `**/lib/**` で深さに依存させない。
+      "files": ["src/lib/**", "src/features/**/lib/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -102,9 +103,9 @@
     {
       // 探索・散歩・履歴・ピン登録の lib/ は、直前の lib/ の制限に置き換えられて認証の制限が外れるので、ここで3つとも再掲する（順序に依存する。後勝ち）。
       "files": [
-        "src/features/walk/lib/**",
-        "src/features/history/lib/**",
-        "src/features/sanpo-map/*/lib/**"
+        "src/features/walk/**/lib/**",
+        "src/features/history/**/lib/**",
+        "src/features/sanpo-map/**/lib/**"
       ],
       "rules": {
         "no-restricted-imports": [
