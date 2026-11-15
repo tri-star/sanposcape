@@ -24,33 +24,23 @@ describe("selectPinsVisibleSanpoMaps", () => {
   it("有効なら非表示の地図を除き、並び順は保つ", () => {
     const maps = [map("a", true), map("b", false), map("c", true)];
 
-    expect(selectPinsVisibleSanpoMaps(maps, true).map((m) => m.id)).toEqual(["a", "c"]);
+    expect(selectPinsVisibleSanpoMaps(maps).map((m) => m.id)).toEqual(["a", "c"]);
   });
 
   it("非表示の地図が無ければ同じ参照を返す（取得の配線を作り直さない）", () => {
     const maps = [map("a", true), map("b", true)];
 
-    expect(selectPinsVisibleSanpoMaps(maps, true)).toBe(maps);
-  });
-
-  it("フラグ OFF（enabled: false）なら非表示の地図も含めてそのまま返す", () => {
-    const maps = [map("a", false)];
-
-    expect(selectPinsVisibleSanpoMaps(maps, false)).toBe(maps);
+    expect(selectPinsVisibleSanpoMaps(maps)).toBe(maps);
   });
 
   it("すべて非表示なら空になる", () => {
-    expect(selectPinsVisibleSanpoMaps([map("a", false)], true)).toEqual([]);
+    expect(selectPinsVisibleSanpoMaps([map("a", false)])).toEqual([]);
   });
 });
 
 describe("countHiddenSanpoMaps", () => {
   it("非表示の地図の数を数える", () => {
-    expect(countHiddenSanpoMaps([map("a", false), map("b", true), map("c", false)], true)).toBe(2);
-  });
-
-  it("フラグ OFF なら 0", () => {
-    expect(countHiddenSanpoMaps([map("a", false)], false)).toBe(0);
+    expect(countHiddenSanpoMaps([map("a", false), map("b", true), map("c", false)])).toBe(2);
   });
 });
 

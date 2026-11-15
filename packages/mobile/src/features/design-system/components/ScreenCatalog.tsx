@@ -84,7 +84,7 @@ export function ScreenCatalog() {
       key: "pin-tab",
       label: "ピンタブ",
       description:
-        "ログイン直後の着地点。登録済みピンの地図・長押しでピン登録・地図一覧ボタン（フラグ pin_registration が OFF だとナビへ戻される。位置情報の権限を求める。副作用なし）",
+        "ログイン直後の着地点。登録済みピンの地図・長押しでピン登録・地図一覧ボタン（位置情報の権限を求める。副作用なし）",
       icon: "map-pin",
       onPress: () => router.push("/(tabs)/pins"),
     },
@@ -106,8 +106,7 @@ export function ScreenCatalog() {
     {
       key: "pin-register",
       label: "ピン登録",
-      description:
-        "東京駅の座標で開く（フラグ pin_registration が OFF だとナビへ戻される。保存・写真追加で backend に書き込む）",
+      description: "東京駅の座標で開く（保存・写真追加で backend に書き込む）",
       icon: "map-pin",
       onPress: () =>
         router.push({
@@ -119,7 +118,7 @@ export function ScreenCatalog() {
       key: "sanpo-map-list",
       label: "地図一覧",
       description:
-        "自分の地図の一覧・名前で絞り込み・右下の＋で地図を作成（作成すると POST /sanpo-maps で backend に書き込む）。タップで地図詳細とピン一覧（フラグ pin_registration が OFF だとナビへ戻される）。地図詳細のピン → ピン詳細から編集・削除できる（保存で PATCH/DELETE が backend に書き込まれる）",
+        "自分の地図の一覧・名前で絞り込み・右下の＋で地図を作成（作成すると POST /sanpo-maps で backend に書き込む）。タップで地図詳細とピン一覧。地図詳細のピン → ピン詳細から編集・削除できる（保存で PATCH/DELETE が backend に書き込まれる）",
       icon: "map",
       onPress: () => router.push("/sanpo-maps"),
     },

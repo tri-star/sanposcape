@@ -47,12 +47,6 @@ class SanpoMapInvitationLimitError(Exception):
         self.code = code
 
 
-class FeatureDisabledError(Exception):
-    """機能のフラグが OFF（招待の発行・preview・accept。403 `feature_disabled`。
-    ADR-009 決定39）。
-    """
-
-
 class PinNotFoundError(Exception):
     """指定された pin_id が存在しない、または現在のユーザーが member でない地図に属する。
 

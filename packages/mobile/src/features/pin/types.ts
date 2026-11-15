@@ -67,7 +67,7 @@ export type SanpoMap = {
   icon: SanpoMapIconKey;
   /**
    * この地図のピンを、自分のピンタブ・ナビタブの地図に出すか（SS-266）。自分のメンバーシップの値で、
-   * ほかのメンバーの選択とは独立。フラグ `map_pin_visibility` が OFF の間は使わない（全地図を出す）。
+   * ほかのメンバーの選択とは独立。
    */
   pinsVisible: boolean;
 };

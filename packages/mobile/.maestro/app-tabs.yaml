@@ -1,5 +1,5 @@
 # 下部タブの構成とログイン直後の着地点（SS-145）。
-# 前提: preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev）・backend の pin_registration が ON（.env.example の既定）。
+# 前提: preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev）。
 # /explore/* に依存しないので maps-required は付けない。
 appId: com.sanposcape.app.dev
 tags:

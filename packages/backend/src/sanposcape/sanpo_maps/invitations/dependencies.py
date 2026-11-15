@@ -1,19 +1,13 @@
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from sanposcape.app_config.dependencies import get_feature_flags
 from sanposcape.config import Settings, get_settings
-from sanposcape.core.feature_flags import FeatureFlags
 from sanposcape.database import get_db
 from sanposcape.dependencies import get_current_user_optional
 from sanposcape.maps.rate_limit import ExploreRateLimiter
-from sanposcape.sanpo_maps.exceptions import FeatureDisabledError
 from sanposcape.sanpo_maps.invitations.repository import SanpoMapInvitationRepository
 from sanposcape.sanpo_maps.invitations.service import SanpoMapInvitationService
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-
-#: 招待の発行・preview・accept をガードするフラグ（ADR-009 決定39）。
-MAP_INVITATION_FLAG = "map_invitation"
 
 
 def get_sanpo_map_invitation_service(
@@ -27,14 +21,6 @@ def get_sanpo_map_invitation_service(
         SanpoMapRepository(db),
         url_base=settings.invitation_url_base,
     )
-
-
-def require_map_invitation_enabled(flags: FeatureFlags = Depends(get_feature_flags)) -> None:
-    """フラグ `map_invitation` が OFF なら 403 `feature_disabled`。ポリシーの施行日より前に本番で
-    招待を使えてしまわないよう、mobile の出し分けに加えて API もガードする（ADR-009 決定39）。
-    """
-    if not flags.is_enabled(MAP_INVITATION_FLAG):
-        raise FeatureDisabledError()
 
 
 def get_invitation_rate_limiter(request: Request) -> ExploreRateLimiter:

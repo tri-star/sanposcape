@@ -40,22 +40,17 @@ export type UseRegisteredPinsResult = {
   status: "loading" | "ready" | "error";
   errorCode: PinReadErrorCode | null;
   truncated: boolean;
-  /** 自分が非表示にしている地図の数（SS-266。`mapPinVisibility` が false なら 0）。「絞り込み中」の判定に使う。 */
+  /** 自分が非表示にしている地図の数（SS-266）。「絞り込み中」の判定に使う。 */
   hiddenSanpoMapCount: number;
   retry: () => void;
 };
 
 export type UseRegisteredPinsOptions = {
   visibleRegion: MapRegion | null;
-  /** ルートから注入（サインイン済み && pin_registration ON）。false なら一切通信しない。 */
+  /** ルートから注入（サインイン済み）。false なら一切通信しない。 */
   enabled: boolean;
   /** 表示するピンの絞り込み（SS-174。呼び出し元が `usePinMapFilterStore` から渡す）。 */
   filter: PinMapFilter;
-  /**
-   * 地図単位の表示・非表示（SS-266）を効かせるか。ルートがフラグ `map_pin_visibility` から注入する。
-   * true なら `pinsVisible` が false の地図のピンを取りに行かない。false なら全地図（従来どおり）。
-   */
-  mapPinVisibility: boolean;
 };
 
 /**
@@ -75,7 +70,7 @@ export type UseRegisteredPinsOptions = {
  * （`useQueries` は key が変わるとオブザーバを作り直すため、`keepPreviousData` に前回のデータが渡らない。
  * 前の条件のピン（例: 非表示に戻したアーカイブ済み）が残ることはない）。
  *
- * 地図単位の表示・非表示（SS-266）: `mapPinVisibility` が true なら、自分が非表示にした地図（`pinsVisible: false`）は
+ * 地図単位の表示・非表示（SS-266）: 自分が非表示にした地図（`pinsVisible: false`）は
  * 取得の対象から外す（端末で捨てない。通信を減らし、上限の件数を表示する地図に使う）。
  *
  * 各ピンに地図のアイコンを付ける（SS-172）。地図のアイコンを変えると一覧キャッシュが更新され、ここで付け直される。
@@ -107,7 +102,7 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
   const filterParams = toPinListFilterParams(options.filter);
   // 非表示にした地図は取りに行かない（SS-266）。地図 ID の並びは下の signature に入るので、
   // 切り替えたときに前の組み合わせのピンを引き継がない。
-  const visibleMaps = selectPinsVisibleSanpoMaps(maps.maps, options.mapPinVisibility);
+  const visibleMaps = selectPinsVisibleSanpoMaps(maps.maps);
   const combined = useQueries({
     queries: visibleMaps.map((map) => ({
       queryKey: pinListQueryKey(map.id, fetchBounds ?? UNRESOLVED_BOUNDS, filterParams),
@@ -196,7 +191,7 @@ export function useRegisteredPins(options: UseRegisteredPinsOptions): UseRegiste
     status,
     errorCode,
     truncated: combined.truncated,
-    hiddenSanpoMapCount: countHiddenSanpoMaps(maps.maps, options.mapPinVisibility),
+    hiddenSanpoMapCount: countHiddenSanpoMaps(maps.maps),
     retry,
   };
 }

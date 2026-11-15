@@ -5,7 +5,6 @@ import {
   SANPO_MAP_MEMBER_AVATAR_MAX,
   canRemoveSanpoMapMember,
   canRetrySanpoMapMemberRemove,
-  canShowSanpoMapMembers,
   formatSanpoMapMemberCount,
   sanpoMapMemberDisplayName,
   sanpoMapMemberInitial,
@@ -47,17 +46,6 @@ describe("splitSanpoMapMemberAvatars", () => {
       overflow: 2,
     });
     expect(splitSanpoMapMemberAvatars([1, 2])).toEqual({ shown: [1, 2], overflow: 0 });
-  });
-});
-
-describe("canShowSanpoMapMembers", () => {
-  it("フラグが ON なら役割に関係なく出す", () => {
-    expect(canShowSanpoMapMembers({ mapInvitationEnabled: true, role: "owner" })).toBe(true);
-  });
-
-  it("フラグが OFF でも、自分が editor の地図なら抜けられるように出す", () => {
-    expect(canShowSanpoMapMembers({ mapInvitationEnabled: false, role: "editor" })).toBe(true);
-    expect(canShowSanpoMapMembers({ mapInvitationEnabled: false, role: "owner" })).toBe(false);
   });
 });
 

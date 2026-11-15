@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACCOUNT_DELETE_BUTTON_LABEL,
   ACCOUNT_DELETE_CANCEL_LABEL,
+  ACCOUNT_DELETE_DIALOG_BODY,
   ACCOUNT_DELETE_CLOSE_LABEL,
   ACCOUNT_DELETE_DIALOG_DESCRIPTION,
   ACCOUNT_DELETE_DIALOG_TITLE,
@@ -10,7 +11,6 @@ import {
   ACCOUNT_DELETE_SECTION_TITLE,
   ACCOUNT_DELETE_SHARED_MAP_NOTICE,
   accountDeleteConfirmLabel,
-  accountDeleteDialogDescription,
 } from "@/features/settings/lib/accountDeleteCopy";
 
 describe("ACCOUNT_DELETE_DIALOG_DESCRIPTION", () => {
@@ -23,17 +23,10 @@ describe("ACCOUNT_DELETE_DIALOG_DESCRIPTION", () => {
   });
 });
 
-describe("accountDeleteDialogDescription", () => {
-  it("フラグ map_invitation が OFF なら共有の扱いを書かない（公開前の利用者に見せない）", () => {
-    expect(accountDeleteDialogDescription({ mapInvitationEnabled: false })).toBe(
-      ACCOUNT_DELETE_DIALOG_DESCRIPTION,
-    );
-  });
-
-  it("ON なら、取り消し不能の文言に続けて共有の扱いを書く", () => {
-    const text = accountDeleteDialogDescription({ mapInvitationEnabled: true });
-    expect(text.startsWith(ACCOUNT_DELETE_DIALOG_DESCRIPTION)).toBe(true);
-    expect(text).toContain(ACCOUNT_DELETE_SHARED_MAP_NOTICE);
+describe("ACCOUNT_DELETE_DIALOG_BODY", () => {
+  it("取り消し不能の文言に続けて共有の扱いを書く", () => {
+    expect(ACCOUNT_DELETE_DIALOG_BODY.startsWith(ACCOUNT_DELETE_DIALOG_DESCRIPTION)).toBe(true);
+    expect(ACCOUNT_DELETE_DIALOG_BODY).toContain(ACCOUNT_DELETE_SHARED_MAP_NOTICE);
   });
 
   it("共有の扱いは、メンバーから見えなくなること・ピンとタグが残ること・写真が消えることを伝える", () => {

@@ -1,11 +1,8 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { InvitationAcceptView } from "@/features/pin/components/invitation/InvitationAcceptView";
 import { isInvitationToken } from "@/features/pin/lib/invitation/invitation";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useSignInNavigation } from "@/hooks/useSignInNavigation";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
@@ -17,8 +14,6 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  */
 export default function InvitationAcceptRoute() {
   const { token } = useLocalSearchParams<{ token?: string }>();
-  const appConfig = useAppConfig();
-  const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
   const signedIn = useAuthSessionStore((state) => state.status === "authenticated");
   const myDisplayName = useAuthSessionStore((state) => state.user?.displayName ?? null);
   const signIn = useSignInNavigation(undefined, "invitation");
@@ -26,15 +21,12 @@ export default function InvitationAcceptRoute() {
   return (
     <>
       <Stack.Screen options={{ presentation: "modal" }} />
-      {appConfig.status === "loading" ? null : (
-        <InvitationAcceptView
-          token={isInvitationToken(token) ? token : null}
-          signedIn={signedIn}
-          myDisplayName={myDisplayName}
-          mapInvitationEnabled={mapInvitationEnabled}
-          onSignIn={signIn}
-        />
-      )}
+      <InvitationAcceptView
+        token={isInvitationToken(token) ? token : null}
+        signedIn={signedIn}
+        myDisplayName={myDisplayName}
+        onSignIn={signIn}
+      />
     </>
   );
 }

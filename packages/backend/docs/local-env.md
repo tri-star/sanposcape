@@ -235,7 +235,8 @@ docker compose up -d --build
   同じ許可リスト方式の検証で起動に失敗する。
   - `real`: AWS AppConfig（boto3 `appconfigdata`）を実際に呼ぶ。`APPCONFIG_*` を1本でも
     未設定にすると `UnconfiguredFlagSource`（AWS を一切呼ばない安全な既定。`/app-config` は
-    全フラグ `false` を返す）にフォールバックする。**ローカルではこれで十分動く**が、
+    全フラグ `false` を返す。固定値に移したフラグ（`core/feature_flags.py` の `FIXED_CLIENT_FLAGS`）だけは
+    `true`）にフォールバックする。**ローカルではこれで十分動く**が、
     起動時に `APPCONFIG_* is not configured; all feature flags are OFF.` の WARNING ログが
     出る（`ENV=local` / `test` では WARNING、`staging` / `production` では設定漏れの
     検知性を保つため ERROR になる）。
@@ -246,7 +247,8 @@ docker compose up -d --build
 - `FEATURE_FLAG_STUB_DOCUMENT`: `stub` モードで返す文書。`GetLatestConfiguration` が返す
   簡略 JSON と同じ形の文字列（本番と同じパーサ（`integrations/aws/appconfig.py`）を通すため）。
   不正な JSON や JSON オブジェクトでない値を渡しても起動は落ちず、WARNING ログ + 空の
-  ドキュメント（= 登録簿の全フラグ `false`）にフォールバックする。
+  ドキュメント（= 登録簿の全フラグ `false`。固定値のフラグは `true`）にフォールバックする。
+  `.env.example` は `{}`（固定値のフラグだけが `true`）にしている。開発中のフラグを試すときに足す。
 - `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`:
   ローカルでは通常未設定でよい。`real` で dev の AppConfig への実疎通を試したい場合のみ、
   3本とも dev の ID に設定する（1本でも空だと `UnconfiguredFlagSource` になる）。
@@ -421,7 +423,7 @@ print(r.status_code); print(r.text[:800])"
 `environment:` に追加した**（mobile が `mobile-e2e.yml` から `.env.example` の値をそのまま
 使えるようにするため。以前は「妥当な既定値を持つため省略」としていたが、E2E で
 `pin_registration` を確実に ON にする・写真の上限値を CI から上書きできるようにする目的で
-明示列挙に変更した）。
+明示列挙に変更した。SS-271 で `pin_registration` は固定値に移し、`.env.example` の値は `{}` になった）。
 **（SS-109 追補）`ACCOUNT_PHOTO_RETENTION_DAYS`（アカウント削除後の写真の保持期間、既定 30）も
 `compose.yaml` の `environment:` に追加した。** `.env` を編集せず
 `ACCOUNT_PHOTO_RETENTION_DAYS=0 docker compose up -d` で、削除したアカウントの写真をすぐ消して確かめられるようにするため

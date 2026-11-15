@@ -203,11 +203,10 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   ユニットテストは Orval 生成の msw ハンドラ、E2E は実 backend で足りる）。
 - **ローカルでフラグを ON にして試す手順**（AWS 不要）:
   backend の `.env` に `FEATURE_FLAG_MODE=stub` と
-  `FEATURE_FLAG_STUB_DOCUMENT='{"pin_registration":{"enabled":true}}'` を設定して起動する
+  `FEATURE_FLAG_STUB_DOCUMENT='{"<キー>":{"enabled":true}}'` を設定して起動する
   （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
-  `.env.example` から生成した `.env`（`cp .env.example .env`）は既定でこの値に加えて
-  `pin_station_tag`・`map_invitation`・`map_pin_visibility`・`display_name_edit` を ON にしており、ピン登録（SS-88）・最寄り駅のタグ（SS-225）・
-  地図への招待（SS-90）・地図単位のピンの表示・非表示（SS-266）・表示名の変更（SS-268）はローカル・CI とも追加設定なしで ON になる。
+  `.env.example` から生成した `.env` は `{}`（開発中のフラグが無い）にしている。固定値に移したフラグ（`pin_registration` など5本。
+  backend の `FIXED_CLIENT_FLAGS`。SS-271）は、この文書に関わらずローカル・CI とも `true` で返る。
   最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
 - **最低サポートバージョン**（`AppConfigSnapshot.minimumSupportedVersions`）を下回ると、ルートレイアウトの
   `UpdateRequiredGate`（`src/features/app-update/`）が閉じられない全画面の案内を出してストアへ誘導する（SS-101）。
@@ -225,12 +224,8 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 ### 画面ガードレシピ
 
 `<FeatureGate>` は導線・要素の出し分けに使う。**画面（`app/` のルート）ごと隠す**場合はこちらを使う。
-実例: `app/pins/new.tsx`（SS-88）/
-`app/pins/[pinId]/index.tsx`（SS-118。後者は `isUuid` での params 検証も併せて行う）/
-`app/pins/[pinId]/edit.tsx`（SS-119。同じ形で `currentUserId` も注入する）/
-`app/sanpo-maps/index.tsx`（SS-146。SS-121 で `isSignedIn` / `onSignIn` の注入を追加）/
-`app/sanpo-maps/[sanpoMapId]/index.tsx`（SS-121。SS-249 で `[sanpoMapId].tsx` から移した。`isUuid` での params 検証と認証値の注入を行う）/
-`app/tags/index.tsx`・`app/tags/detail.tsx`（SS-245。後者はタグの表記をクエリ `label` で受け、`parseTagLabelParam` で検証する）。
+今は実例が無い（ピン系の画面を `pin_registration` で隠していたガード（`usePinRegistrationGate`）は、SS-271 でフラグとともに消した。
+`git log -S usePinRegistrationGate` で当時の形を見られる）。
 
 **単一ルート**（`app/` のルートファイルは薄いまま）:
 
@@ -251,19 +246,15 @@ export default function SomeFeatureRoute() {
   起動直後は必ず弾かれる」不具合になる（上記「取得失敗・ロード中は全 OFF」の例外に当たる。
   画面ガードは `pending` を独立に扱えることが `useAppConfig().status` を使う理由そのもの）。
 - **`disabled`（OFF が確定）のときだけ `<Redirect href="/" />` する**。ただし戻り先はサンプルの
-  `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**
-  （ピンタブから開く `/pins/*` と `/sanpo-maps`（`app/sanpo-maps/index.tsx`・`[sanpoMapId]/index.tsx`・`[sanpoMapId]/members.tsx`。SS-146 / SS-121 / SS-249）、`/tags`（`app/tags/index.tsx`・`detail.tsx`。SS-245）も OFF 時はナビタブへ戻す。
-  ピンタブ自体も OFF ではナビタブへリダイレクトするため。SS-145）
-  （実例: `app/pins/new.tsx`。SS-88。
-  `app/pins/[pinId]/index.tsx`。SS-118。編集画面 `app/pins/[pinId]/edit.tsx`。SS-119）。
+  `"/"`（スプラッシュ経由）が既定で、**ナビタブ経由でしか到達しない画面は `"/(tabs)"` に戻す**（`/` へ戻すとスプラッシュ経由になる）。
 
 **タブごと隠す**: このアプリのタブバーは独自の `AppTabBar`（`features/navigation`）で、`Tabs.Screen` の
 `href: null` は効かない（expo-router は `href: null` を標準タブバー用の `tabBarButton` /
-`tabBarItemStyle` に変換するだけのため）。表示するタブは `features/navigation/lib/appTabs.ts` の
-`resolveVisibleAppTabs` で決め、`app/(tabs)/_layout.tsx` がフラグの判定（`resolveFeatureGateDecision`
-の結果）を `AppTabBar` に渡す。**`pending` では隠さず、`disabled` で隠す**。タブのルート自体は残るので、
+`tabBarItemStyle` に変換するだけのため）。タブを隠すときは、`features/navigation/lib/appTabs.ts` の
+`APP_TAB_ITEMS` を判定で絞って `AppTabBar` に渡し、`app/(tabs)/_layout.tsx` がフラグの判定（`resolveFeatureGateDecision`
+の結果）を渡す。**`pending` では隠さず、`disabled` で隠す**。タブのルート自体は残るので、
 ディープリンク・フォーカス中の OFF 化に備えて上の単一ルートのガードと併用する
-（実例: ピンタブ `app/(tabs)/pins.tsx`。SS-145）。
+（ピンタブを `pin_registration` で隠していた実装（SS-145）は SS-271 で消した）。
 
 **いずれの場合も** `app/` にロジックを書かない。判定は `resolveFeatureGateDecision`
 （`src/lib/featureGate.ts`）を呼ぶだけに保つ。

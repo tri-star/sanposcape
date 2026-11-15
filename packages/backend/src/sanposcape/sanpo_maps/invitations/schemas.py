@@ -82,10 +82,3 @@ class InvitationLimitErrorRead(BaseModel):
 
     detail: str
     code: Literal["invitation_limit_exceeded", "member_limit_reached"]
-
-
-class FeatureDisabledErrorRead(BaseModel):
-    """フラグ `map_invitation` が OFF のときの 403。"""
-
-    detail: str
-    code: Literal["feature_disabled"]

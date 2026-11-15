@@ -1,7 +1,6 @@
 """地図への招待リンク（SS-250, ADR-009 決定39）の API。"""
 
 import uuid
-from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -14,11 +13,7 @@ from sanposcape.config import Settings
 from sanposcape.main import app
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.sanpo_maps.conftest import make_sanpo_map, make_user
-from sanposcape.sanpo_maps.exceptions import FeatureDisabledError
-from sanposcape.sanpo_maps.invitations.dependencies import (
-    get_invitation_rate_limiter,
-    require_map_invitation_enabled,
-)
+from sanposcape.sanpo_maps.invitations.dependencies import get_invitation_rate_limiter
 from sanposcape.sanpo_maps.invitations.purge import purge_stale_invitations
 from sanposcape.sanpo_maps.invitations.service import (
     SANPO_MAP_ACTIVE_INVITATION_LIMIT,
@@ -27,21 +22,6 @@ from sanposcape.sanpo_maps.invitations.service import (
 )
 from sanposcape.sanpo_maps.models import SanpoMapInvitation, SanpoMapMember
 from sanposcape.users.models import User
-
-
-@pytest.fixture(autouse=True)
-def map_invitation_enabled() -> Generator[None, None, None]:
-    """既定はフラグ ON。OFF の振る舞いは `disable_map_invitation` で確かめる。"""
-    app.dependency_overrides[require_map_invitation_enabled] = lambda: None
-    yield
-    app.dependency_overrides.pop(require_map_invitation_enabled, None)
-
-
-def disable_map_invitation() -> None:
-    def _raise() -> None:
-        raise FeatureDisabledError()
-
-    app.dependency_overrides[require_map_invitation_enabled] = _raise
 
 
 def headers_for(user: User, settings: Settings) -> dict[str, str]:
@@ -155,28 +135,6 @@ class TestCreateInvitation:
 
         assert response.status_code == 409
         assert response.json()["code"] == "member_limit_reached"
-
-    def test_disabled_flag_returns_403(
-        self,
-        sanpo_maps_client: TestClient,
-        auth_headers: dict[str, str],
-        authenticated_user: User,
-        db_session: Session,
-    ) -> None:
-        """フラグが OFF なら発行は 403 feature_disabled（一覧・取り消しはガードしない）。"""
-        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
-        disable_map_invitation()
-
-        created = sanpo_maps_client.post(
-            f"/sanpo-maps/{sanpo_map_id}/invitations", headers=auth_headers
-        )
-        listed = sanpo_maps_client.get(
-            f"/sanpo-maps/{sanpo_map_id}/invitations", headers=auth_headers
-        )
-
-        assert created.status_code == 403
-        assert created.json()["code"] == "feature_disabled"
-        assert listed.status_code == 200
 
 
 class TestListAndRevoke:
@@ -367,19 +325,6 @@ class TestPreviewAndAccept:
         assert full.json()["code"] == "member_limit_reached"
         db_session.expire_all()
         assert db_session.scalars(select(SanpoMapInvitation)).one().accepted_at is None
-
-    def test_disabled_flag_blocks_preview_and_accept(
-        self, sanpo_maps_client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
-        """フラグが OFF なら preview・accept とも 403 feature_disabled
-        （トークンを見る前に返す）。
-        """
-        disable_map_invitation()
-        preview = sanpo_maps_client.post("/invitations/preview", json={"token": "x" * 43})
-        accept = sanpo_maps_client.post(
-            "/invitations/accept", json={"token": "x" * 43}, headers=auth_headers
-        )
-        assert [preview.status_code, accept.status_code] == [403, 403]
 
     def test_token_must_be_base64url(self, sanpo_maps_client: TestClient) -> None:
         """トークンは base64url の文字だけ（それ以外・短すぎるものは 422）。"""

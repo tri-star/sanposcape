@@ -22,38 +22,8 @@
  * `_enabled` のような接尾辞は付けない（値が bool なので冗長）。
  */
 export const FEATURE_FLAG_KEYS = {
-  /**
-   * ピン登録（SS-88）。散歩中画面の「この場所にピンを追加」と地図の長押し、
-   * ピンタブ（SS-145/SS-146）、ナビタブの地図の登録済みピンと絞り込み、`/pins/new`・`/pins/[pinId]`・`/sanpo-maps` を出し分ける。
-   * OFF の間は従来どおり「準備中」トースト。dev は backend BK-1（template.yaml への S3 結線）後、
-   * prod は BK-2（アカウント削除時の写真削除。SS-109 で実装済み）が prod で動き始めてから
-   * （infra の prod apply と backend の prod デプロイの後。backend の docs/deployment.md §17）ON にする。
-   * 最初の実フラグとして `app_config_probe`（疎通確認用）を置き換えた。
-   */
-  pinRegistration: "pin_registration",
-  /**
-   * ピンの登録画面で、最寄り駅（3km 以内）の名前のタグを最初から入れておく（SS-225）。
-   * OFF の間は `POST /explore/nearest-station` を呼ばない。ポリシーの改定（ピンの座標を送る場面の追加）を
-   * 本番の LP に出してから ON にする。
-   */
-  pinStationTag: "pin_station_tag",
-  /**
-   * 地図への招待（SS-90）。地図詳細のメンバーの行・メンバー画面（SS-249）と、招待の導線（SS-250）を出し分ける。
-   * OFF でも、自分が editor の地図ではメンバーの行を出す（OFF に戻しても参加している人が抜けられるように）。
-   * プライバシーポリシーの施行日（2026-12-02）の後に ON にする。
-   */
-  mapInvitation: "map_invitation",
-  /**
-   * 地図単位のピンの表示・非表示（SS-266）。ピンタブ・ナビタブの「表示するピン」シートの「表示する地図」の節と、
-   * 非表示にした地図（自分のメンバーシップの `pins_visible`）のピンを地図に出さないことを出し分ける。
-   * OFF の間は `pins_visible` を見ず、すべての地図のピンを出す（従来どおり）。
-   */
-  mapPinVisibility: "map_pin_visibility",
-  /**
-   * 表示名の変更（SS-268）。設定画面の「表示名」の節（今の名前と「変更」ボタン・変更のダイアログ）を出し分ける。
-   * OFF の間は `PATCH /users/me` を呼ばない。backend の prod デプロイの後に ON にする。
-   */
-  displayNameEdit: "display_name_edit",
+  // 今は出し分けているフラグが無い。SS-271 で pin_registration・pin_station_tag・map_invitation・
+  // map_pin_visibility・display_name_edit を消した（backend は固定値 true を返し続ける。docs/compat-tracker.md）。
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];

@@ -28,8 +28,6 @@ export type InvitationAcceptViewProps = {
   signedIn: boolean;
   /** 自分の表示名（参加したときメンバーにどう見えるかを先に示す）。ゲストは null。 */
   myDisplayName: string | null;
-  /** フラグ `map_invitation`（ルートが読む）。 */
-  mapInvitationEnabled: boolean;
   /** サインイン画面を開く（サインイン後はこの画面へ戻る。`returnTo: "invitation"`。二重発火のラッチは呼び出し側が持つ）。 */
   onSignIn: () => void;
 };
@@ -44,7 +42,6 @@ export function InvitationAcceptView({
   token,
   signedIn,
   myDisplayName,
-  mapInvitationEnabled,
   onSignIn,
 }: InvitationAcceptViewProps) {
   const theme = useTheme();
@@ -74,7 +71,7 @@ export function InvitationAcceptView({
         },
       ),
     );
-  const invitation = useInvitationAccept(mapInvitationEnabled ? token : null, {
+  const invitation = useInvitationAccept(token, {
     signedIn,
     onAccepted: (sanpoMap) => {
       setFlashMessage(invitationJoinedMessage(sanpoMap.name));
@@ -83,16 +80,6 @@ export function InvitationAcceptView({
   });
 
   const renderBody = () => {
-    if (!mapInvitationEnabled) {
-      return (
-        <PinStateCard
-          testID="invitation-accept-disabled"
-          icon="alert-circle"
-          title={invitationErrorMessage("disabled")}
-          action={{ label: "閉じる", onPress: back.goBack }}
-        />
-      );
-    }
     if (invitation.previewStatus === "loading") {
       return <ActivityIndicator color={theme.colors.primary} />;
     }

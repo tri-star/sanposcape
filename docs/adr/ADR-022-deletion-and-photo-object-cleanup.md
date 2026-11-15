@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-11-08（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) から分割。決定の初出は 2026-09-25〜2026-11-06）
+2026-11-08（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) から分割。決定の初出は 2026-09-25〜2026-11-06）、2026-11-14 注記（SS-271: フラグ map_invitation の削除）
 
 ## ステータス
 
@@ -110,7 +110,7 @@ API の時間予算（Lambda 29 秒、アプリの予算 25 秒）の中で、DB
   - **締め切りは、それまでにかかった時間だけ縮める**: `min(PIN_PHOTO_DELETE_DEADLINE_SECONDS, 25 − 経過時間 − 1回の最悪時間)`（Apple の失効が先に最悪 11〜19 秒かかるため）。
   - 消し残しは、その写真を上げた人のアカウント削除か SS-244 の回収まで残る（家族・友人での共有で 2.5千〜7千枚を超えるのはまれと見る）。
 - FK の CASCADE は残す（migration は無い）。置き場所は `sanpo_maps/pins`。`users` からは公開面 `sanpo_maps.pins.account_deletion` だけを使う。ログは件数だけ（ID・キーは出さない）。
-- mobile はフラグ `map_invitation` が ON のとき、削除の確認ダイアログにこの扱いを書く。
+- mobile はフラグ `map_invitation` が ON のとき、削除の確認ダイアログにこの扱いを書く。（**SS-271 追補**: フラグ `map_invitation` は削除し、常に ON の挙動になった。確認ダイアログには常にこの扱いを書く。ADR-008 SS-271 追補 D45）
 - 却下: 作成者を NULL にする・FK を `SET NULL` にする／「退会したユーザー」の行に付け替える（実在しない利用者で例外が増える）／本人のピンも消す（地図が欠ける）。
 
 ## 検討した選択肢

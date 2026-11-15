@@ -2,13 +2,12 @@ import { Text } from "react-native";
 
 import { Button } from "@/components/ui/button/Button";
 import { Dialog } from "@/components/ui/dialog/Dialog";
-import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import {
   ACCOUNT_DELETE_CANCEL_LABEL,
   ACCOUNT_DELETE_CLOSE_LABEL,
   ACCOUNT_DELETE_DIALOG_TITLE,
   accountDeleteConfirmLabel,
-  accountDeleteDialogDescription,
+  ACCOUNT_DELETE_DIALOG_BODY,
 } from "@/features/settings/lib/accountDeleteCopy";
 import type { AccountDeleteErrorCode } from "@/features/settings/lib/accountDeleteError";
 import {
@@ -16,7 +15,6 @@ import {
   canRetryAccountDelete,
 } from "@/features/settings/lib/accountDeleteError";
 import { isAccountDeleteBusy, type AccountDeleteStatus } from "@/features/settings/types";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { makeStyles } from "@/theme/makeStyles";
 
 export type AccountDeleteDialogProps = {
@@ -54,8 +52,6 @@ export function AccountDeleteDialog({
   testID,
 }: AccountDeleteDialogProps) {
   const styles = useStyles();
-  // 地図の共有の扱いを本文に書くのは、共有を公開してから（フラグ `map_invitation`。SS-251）。
-  const mapInvitationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.mapInvitation);
   const isBusy = isAccountDeleteBusy(status);
   const canRetry = canRetryAccountDelete(errorCode);
 
@@ -91,7 +87,7 @@ export function AccountDeleteDialog({
         </>
       }
     >
-      <Text style={styles.body}>{accountDeleteDialogDescription({ mapInvitationEnabled })}</Text>
+      <Text style={styles.body}>{ACCOUNT_DELETE_DIALOG_BODY}</Text>
       {errorCode !== null ? (
         // 失敗は mutation 完了後に動的に出るため、スクリーンリーダーへ通知する（PR #81 Copilot
         // レビュー指摘）。iOS は accessibilityRole="alert"、Android は accessibilityLiveRegion で拾う。
