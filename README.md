@@ -157,6 +157,28 @@ pnpm --filter mobile orval
 #    詳細: packages/mobile/docs/local-env.md の「Google Maps（react-native-maps）」
 ```
 
+### 本番 AWS を参照する MCP（`aws-mcp-prod`）の登録
+
+Claude Code から本番の AWS を読み取り専用で調べる `aws-mcp-prod` は、リポジトリの設定（`.mcp.json`）には含まれていない。**利用する人が各自、手動でコマンドを実行して登録する必要がある**（`.env` 生成や `pnpm install` では登録されない）。
+
+前提: AWS CLI に本番の読み取り専用プロファイル `sanposcape-prod-ro`（ロール `sanposcape-viewer`）が設定済みで、SSO ログインしていること。
+
+```bash
+# 1. SSO ログイン（セッションが切れていたら再実行）
+aws sso login --profile sanposcape-prod-ro
+aws sts get-caller-identity --profile sanposcape-prod-ro   # Account が本番であることを確認
+
+# 2. Claude Code に登録（初回のみ）
+claude mcp add aws-mcp-prod \
+  -e AWS_MCP_PROXY_PROFILES=sanposcape-prod-ro \
+  -- uvx mcp-proxy-for-aws-cli@latest https://aws-mcp.us-east-1.api.aws/mcp
+```
+
+- Claude Code で `/mcp` を開き、`aws-mcp-prod` が接続済みであることを確認する。
+- プロファイルを環境変数（`AWS_MCP_PROXY_PROFILES`）で渡さないと、`No AWS credentials available`（`-32603`）で接続に失敗する。`--skip-auth` は付けない。
+- プロファイルはプロキシの起動時に一度だけ読み込まれる。SSO ログインし直した後や、`~/.aws/config` を変更した後は、Claude Code を再起動するか `/mcp` から再接続する。
+- 参考: [Multi-profile support（AWS Agent Toolkit）](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/multi-account-access.html)
+
 WSL2 で backend の bind mount とコンテナの UID/GID を合わせる場合は、[backend ローカル環境構築手順](./packages/backend/docs/local-env.md#wsl2-の-uidgid-を合わせる) を参照。
 
 > **⚠️ mobile は Expo Go ではなく development build が必要**
