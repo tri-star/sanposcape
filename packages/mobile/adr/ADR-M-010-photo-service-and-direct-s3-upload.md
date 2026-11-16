@@ -24,9 +24,9 @@
   「幽霊枠」として紐付け期限まで数え続ける（本文: PR #93 追補 T11）
 - **409 は機械可読な `code` で `quota_exceeded` と `photo_not_ready` を区別する**
   （本文: PR #93 追補 T15）
-- **紐付け期限の近い先行アップロードの枠は、保存時に捨てて送り直す**。`uploaded` になってから
-  `PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS`（5 時間。backend の既定 6 時間に 1 時間の余裕）を過ぎた枠は使わず、
-  古い枠は `DELETE` で解放する。それでも紐付けが 409 `photo_upload_not_ready` なら、以前からの枠だけを送り直して
+- **紐付け期限の近い先行アップロードの枠は、保存時に捨てて送り直す**。ピンの作成後（写真の追加・2つ目以降のチャンク）は、
+  `uploaded` になってから `PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS`（5 時間。backend の既定 6 時間に 1 時間の余裕）を過ぎた枠は使わず、
+  古い枠は `DELETE` で解放する。作成前と、それでも紐付けが 409 `photo_upload_not_ready` になったときは、以前からの枠だけを送り直して
   **1回だけ**やり直す（本文: 追補（2026-11-16）決定17、SS-126）
 - **容量超過の文言に上限の値を書かない**（「写真の保存容量の上限に達しました」）。上限はサーバーの設定値で、
   上限値を受け取る API（ADR-009 BK-8）ができるまでは数字を出さない（本文: 追補（2026-10-26）決定15、SS-236）
@@ -428,10 +428,14 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
 
 ### 決定17（追補）: 期限の近い枠は保存時に捨てて送り直し、409 では以前からの枠を1回だけ送り直す
 
-- **先回り**: `PhotoDraftItem.uploadedAt`（`uploaded` になった端末の時刻）を持つ。保存フロー（`pinSaveRunner.ts` の `runPinSave`）は
-  `uploaded` の枠を紐付けに使う前に `isUploadNearAttachDeadline`（`photoDraft.ts`）で確かめ、`PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS`（5 時間）以上たっていれば
+- **先回り（ピンの作成後だけ）**: `PhotoDraftItem.uploadedAt`（`uploaded` になった端末の時刻）を持つ。保存フロー（`pinSaveRunner.ts` の `runPinSave`）は、
+  ピンの作成後（`savedPinId` がある。写真の追加・2つ目以降のチャンク・編集画面）に `uploaded` の枠を紐付けに使う前に `isUploadNearAttachDeadline`（`photoDraft.ts`）で確かめ、`PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS`（5 時間）以上たっていれば
   `uploadDiscarded`（uploaded → waiting。`uploadId`・`uploadedAt` を捨てる）にして、その場で新しい枠で送り直す。
   古い枠は `discardUpload`（`usePinPhotos` の `releaseUpload`。T11 の削除と同じ best-effort の `DELETE` と幽霊枠の数え方）で解放する。
+  - 作成前（`savedPinId === null`）は先回りしない（SS-126 のレビュー指摘）: createPin の応答が失われた後の再実行では、サーバーで紐付いた枠が
+    端末では `uploaded` のまま残る。それを送り直すと、冪等な createPin が `client_pin_id` で既存のピン（古い枠の写真）を返した後、
+    新しい枠が `addPinPhotos` で付いて同じ写真が二重になる。作成前の期限切れは下の後追いで直す（createPin の 409 ではピンが作られていないので、
+    送り直しても二重にならない）。期限切れのときに作成の 409 の往復が1回増えるだけで済む。
   - 余裕を 1 時間にした理由: backend は枠の発行時刻から数え、端末は送信完了の時刻を記録する（差は最大 60 秒のタイムアウト）。
     これに端末の時計のずれと保存中の処理時間を見込む。外れても下の後追いで回復するので、厳密には詰めない。
 - **後追い（1回の保存で1回だけ）**: 紐付けが 409 `photo_upload_not_ready`（`toPinSaveErrorCode` が `photo_not_ready`）になり、
@@ -442,9 +446,9 @@ backend 側の契約（受け取り・保存・応答は UTC・範囲は瞬間�
   - `createPin` の 409 ではピンは作られていないので、やり直しの `createPin` も `client_pin_id` のまま送れる。
 - 編集画面の写真の追加（`runAttachPhotosToPin`）も同じ `runPinSave` を通るので同じ扱いになる。
 - 既知の制約: 写真の追加（`addPinPhotos`）の応答が失われると、サーバーでは紐付いた枠が端末では `uploaded` のまま残る。
-  その枠を送り直すと（応答の喪失のあと 5 時間以上たってから保存し直した、または同じチャンクの別の写真が 409 になった）、同じ写真が二重に付く
+  その枠を送り直すと（応答の喪失の後に 5 時間の境界を越えてから保存し直した、または同じチャンクの別の写真が 409 になった）、同じ写真が二重に付く
   （古い枠の `DELETE` は紐付け済みの 409 で何もしない）。応答の喪失と重なるときだけなので、`DELETE` の結果を見て送り直しを止める作りにはしなかった。
-  作成（`createPin`）は `client_pin_id` で既存のピンを返すので起きない。
+  作成（`createPin`）の応答の喪失では起きない（作成前は先回りせず、後追いは 409 のとき＝ピンが作られていないときだけ）。
 - 送り直しのたびに `logDiagnostic("pin-photo.upload.reissued", { localId, uploadId, reason })`（`reason` は `near_deadline` か `not_ready`）を残す。
 - 採らなかった案:
   - backend の応答に紐付け期限を出す: API の expand と mobile の配布順序が要る。後追いで期限の値に依存せず回復できるので、mobile だけで閉じた。

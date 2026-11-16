@@ -498,7 +498,7 @@ describe("runPinSave", () => {
 describe("runPinSave: 紐付け期限の近い枠の取り直し（SS-126）", () => {
   const STALE_AT = NOW - PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS;
 
-  it("先回り: 期限の近い枠だけを捨てて送り直し、古い枠は解放する。409 を踏まない", async () => {
+  it("先回り（作成済み）: 期限の近い枠だけを捨てて送り直し、古い枠は解放する。409 を踏まない", async () => {
     const items = [
       makeItem("fresh", "uploaded", "up-fresh", NOW - HOUR_MS),
       makeItem("old0", "uploaded", "up-old0", STALE_AT),
@@ -509,22 +509,56 @@ describe("runPinSave: 紐付け期限の近い枠の取り直し（SS-126）", (
     const server = createFakeServer({
       conflict: { isNotReady: (id) => ["up-old0", "up-old1"].includes(id) },
     });
-    const deps = buildDeps(harness, server);
+    const deps = buildDeps(harness, server, { savedPinIdInit: "pin-1" });
 
     await runPinSave(deps);
 
-    expect(server.createPinCallCount).toBe(1);
+    expect(server.addPinPhotosCallCount).toBe(1);
     expect(vi.mocked(server.transferPhoto).mock.calls.map(([item]) => item.localId)).toEqual([
       "old0",
       "old1",
     ]);
     expect(server.deleteUpload.mock.calls.map(([id]) => id)).toEqual(["up-old0", "up-old1"]);
-    const sent = vi.mocked(server.createPin).mock.calls[0]?.[0].photo_upload_ids ?? [];
+    const sent = vi.mocked(server.addPinPhotos).mock.calls[0]?.[1] ?? [];
     expect(sent[0]).toBe("up-fresh");
     expect(sent).not.toContain("up-old0");
     expect(harness.current.every((item) => item.status === "attached")).toBe(true);
     // 送り直した写真には新しい時刻が入る。
     expect(harness.current.find((item) => item.localId === "old0")?.uploadedAt).toBe(NOW);
+  });
+
+  it("作成前は先回りしない: 期限切れの枠は createPin の 409 を受けてから送り直す", async () => {
+    const harness = createStateHarness([makeItem("old0", "uploaded", "up-old0", STALE_AT)]);
+    const server = createFakeServer({ conflict: { isNotReady: (id) => id === "up-old0" } });
+    const deps = buildDeps(harness, server);
+
+    const result = await runPinSave(deps);
+
+    expect(server.createPinCallCount).toBe(2);
+    expect(server.deleteUpload.mock.calls.map(([id]) => id)).toEqual(["up-old0"]);
+    expect(result.photoCount).toBe(1);
+  });
+
+  it("createPin の応答喪失のあとに期限の境界をまたいで再実行しても、写真は二重に付かない", async () => {
+    // 送った時点では期限の手前。サーバーでは作成と紐付けが成立したが応答が失われる。
+    const harness = createStateHarness([
+      makeItem("a", "uploaded", "up-a", NOW - PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS + 10 * 60 * 1000),
+    ]);
+    const server = createFakeServer({
+      hooks: { onCreatePin: (i) => (i === 0 ? "throw_lost" : undefined) },
+    });
+    const deps = buildDeps(harness, server);
+
+    await expect(runPinSave(deps)).rejects.toSatisfy(isPinSaveError);
+
+    // 15 分後（境界を越えた）に再実行する。
+    deps.now = () => NOW + 15 * 60 * 1000;
+    const result = await runPinSave(deps);
+
+    expect(result.photoCount).toBe(1);
+    expect(server.transferPhoto).not.toHaveBeenCalled();
+    expect(server.addPinPhotosCallCount).toBe(0);
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
   });
 
   it("後追い: 先回りの判定を外れた枠で 409 を受けたら、以前からの枠を送り直して1回だけやり直す", async () => {

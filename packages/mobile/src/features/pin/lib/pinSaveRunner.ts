@@ -110,7 +110,12 @@ async function transferChunkItem(
 
 /**
  * チャンクの写真を先頭から順に揃える。`waiting`/`failed` は転送を試み、`uploaded` はそのまま
- * 数える。ただし `uploaded` でも紐付け期限が近い枠は捨てて送り直す（SS-126）。成功した uploadId を
+ * 数える。ただしピンの作成後は、`uploaded` でも紐付け期限が近い枠を捨てて送り直す（SS-126）。
+ * 作成前（`savedPinId === null`）はしない: createPin の応答が失われた後の再実行では、サーバーで
+ * 既に紐付いた枠が端末では `uploaded` のまま残っており、送り直すと冪等な createPin が既存のピンを
+ * 返した後に新しい枠が addPinPhotos で付き、同じ写真が二重になる。作成前の期限切れは createPin の
+ * 409 を受けてからのやり直し（`shouldReissueAfterNotReady`。409 ならピンは作られていない）に任せる。
+ * 成功した uploadId を
  * **表示順の連続した先頭から**集める（失敗/待機に当たった時点で打ち切るため、結果は自然に「先頭から連続」になる）。
  *
  * 戻り値の `uploadIds` が空のとき、呼び出し側（作成済み）は「空けられる枠が無い」と判断する。
@@ -129,7 +134,7 @@ async function assembleReadyUploadIds(
       if (item.uploadId === null) {
         continue; // 起きない（uploaded は必ず uploadId を伴う）。型の防波堤
       }
-      if (!isUploadNearAttachDeadline(item, deps.now())) {
+      if (savedPinId === null || !isUploadNearAttachDeadline(item, deps.now())) {
         uploadIds.push(item.uploadId);
         reusedLocalIds.push(item.localId);
         continue;
