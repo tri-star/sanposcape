@@ -1,4 +1,4 @@
-import { ApiError } from "@/api/apiError";
+import { ApiError, isApiError } from "@/api/apiError";
 import type { PinCreate } from "@/api/generated/model";
 import { PIN_PHOTOS_PER_REQUEST_MAX } from "@/features/pin/lib/pinLimits";
 import {
@@ -6,9 +6,14 @@ import {
   isWaitablePhotoUploadError,
   toPhotoUploadErrorCode,
 } from "@/features/pin/lib/photoUploadError";
-import { nextAttachChunk } from "@/features/pin/lib/photoDraft";
+import { isUploadNearAttachDeadline, nextAttachChunk } from "@/features/pin/lib/photoDraft";
 import type { PhotoDraftAction } from "@/features/pin/lib/photoDraft";
-import { PhotoSlotsBusyError, PinSaveError } from "@/features/pin/lib/pinSaveError";
+import {
+  PhotoSlotsBusyError,
+  PinSaveError,
+  isPinSaveError,
+  toPinSaveErrorCode,
+} from "@/features/pin/lib/pinSaveError";
 import type { PinSaveStage } from "@/features/pin/lib/pinSaveError";
 import type { PhotoDraftItem, PinSaveProgress, SavedPin } from "@/features/pin/types";
 import { describeError, logDiagnostic } from "@/lib/diagnosticLog";
@@ -29,76 +34,190 @@ export type PinSaveRunnerDeps = {
   ) => Promise<{ photoCount: number; attachedUploadIds: string[] }>;
   /** 1枚分の枠発行 → 直送（api/pinPhotoTransfer.ts）。成功で uploadId。 */
   transferPhoto: (item: PhotoDraftItem) => Promise<string>;
+  /**
+   * 使わなくなった未紐付けの枠を backend から解放する（`DELETE /pin-photo-uploads/{id}` を best-effort で。
+   * 失敗しても投げない）。期限の近い枠を取り直すときに古い枠を手放すのに使う（SS-126）。
+   */
+  discardUpload: (uploadId: string) => void;
+  /** 現在時刻（epoch ms）。`uploaded` の時刻の記録と、紐付け期限が近いかの判定に使う。 */
+  now: () => number;
   /** 先行アップロードの進行中タスクが終わるのを待つ（保存中は先行アップロードを止め、実行を1本化する）。 */
   awaitBackgroundIdle: () => Promise<void>;
   onProgress: (progress: PinSaveProgress) => void;
 };
 
+/** チャンクを揃えた結果。`reusedLocalIds` はこの実行より前から持っていた枠（先行アップロード・前回の実行の分）。 */
+type AssembledChunk = { uploadIds: string[]; reusedLocalIds: string[] };
+
+/**
+ * `uploaded` の写真の枠を捨てて `waiting` に戻し、古い枠を backend から解放する（SS-126）。
+ * 写真は次に揃えるときに新しい枠で送り直される。
+ */
+function discardUploadedPhoto(
+  item: PhotoDraftItem,
+  uploadId: string,
+  deps: Pick<PinSaveRunnerDeps, "dispatch" | "discardUpload">,
+  reason: "near_deadline" | "not_ready",
+): void {
+  logDiagnostic("pin-photo.upload.reissued", { localId: item.localId, uploadId, reason });
+  deps.dispatch({ type: "uploadDiscarded", localId: item.localId });
+  deps.discardUpload(uploadId);
+}
+
+/**
+ * 1枚を送る。成功で uploadId、429 で待機に戻したときは null（呼び出し側はチャンクを打ち切る）。
+ * それ以外の失敗は `PinSaveError` で投げる。
+ */
+async function transferChunkItem(
+  item: PhotoDraftItem,
+  deps: Pick<PinSaveRunnerDeps, "dispatch" | "transferPhoto" | "now">,
+  stage: PinSaveStage,
+  savedPinId: string | null,
+): Promise<string | null> {
+  deps.dispatch({ type: "uploadStarted", localId: item.localId });
+  try {
+    const uploadId = await deps.transferPhoto(item);
+    deps.dispatch({ type: "uploaded", localId: item.localId, uploadId, uploadedAt: deps.now() });
+    return uploadId;
+  } catch (error) {
+    const code = toPhotoUploadErrorCode(error);
+    // 先行アップロード（usePinPhotos）と同じ理由で、分類結果と生の例外を対応付けて残す。
+    // あちらと違い `isAbortError` のガードは要らない。保存フローの `transferPhoto`
+    // （`usePinPhotos.ts` の `transferPhotoForSave`）は自前の AbortController しか持たず、
+    // それを abort するのは `withTimeout` のタイムアウトだけで、そのとき呼び出し側に届くのは
+    // `TypeError("Pin photo transfer timed out")`（`Promise.race` の勝者）だから。
+    // 将来 `transferPhoto` に外部から signal を渡せるようにしたら、ここにもガードが要る。
+    logDiagnostic("pin-photo.upload.failed", {
+      localId: item.localId,
+      stage,
+      code,
+      ...describeError(error),
+    });
+    if (isWaitablePhotoUploadError(code)) {
+      // 429: エラーにしない。待機に戻し、ここまでに揃った分を紐付けて枠を空けるのを優先する。
+      deps.dispatch({ type: "waited", localId: item.localId });
+      return null;
+    }
+    if (isTransientPhotoUploadError(code)) {
+      deps.dispatch({ type: "waited", localId: item.localId });
+      throw new PinSaveError(stage, error, savedPinId);
+    }
+    // 再試行しても同じ失敗になるもの（too_large 等）。ユーザーが削除するか判断する。
+    deps.dispatch({ type: "failed", localId: item.localId, errorCode: code });
+    throw new PinSaveError(stage, error, savedPinId);
+  }
+}
+
 /**
  * チャンクの写真を先頭から順に揃える。`waiting`/`failed` は転送を試み、`uploaded` はそのまま
- * 数える。成功した uploadId を**表示順の連続した先頭から**集める（失敗/待機に当たった時点で
- * 打ち切るため、結果は自然に「先頭から連続」になる）。
+ * 数える。ただし `uploaded` でも紐付け期限が近い枠は捨てて送り直す（SS-126）。成功した uploadId を
+ * **表示順の連続した先頭から**集める（失敗/待機に当たった時点で打ち切るため、結果は自然に「先頭から連続」になる）。
  *
- * 戻り値の `readyUploadIds` が空、かつ `stopReason` が `"slots_busy"` のときだけ、
- * 呼び出し側は「空けられる枠が無い」と判断する。
+ * 戻り値の `uploadIds` が空のとき、呼び出し側（作成済み）は「空けられる枠が無い」と判断する。
  */
 async function assembleReadyUploadIds(
   chunk: readonly PhotoDraftItem[],
-  deps: Pick<PinSaveRunnerDeps, "dispatch" | "transferPhoto">,
+  deps: Pick<PinSaveRunnerDeps, "dispatch" | "transferPhoto" | "discardUpload" | "now">,
   stage: PinSaveStage,
   savedPinId: string | null,
-): Promise<string[]> {
-  const readyUploadIds: string[] = [];
+): Promise<AssembledChunk> {
+  const uploadIds: string[] = [];
+  const reusedLocalIds: string[] = [];
 
   for (const item of chunk) {
     if (item.status === "uploaded") {
-      if (item.uploadId !== null) {
-        readyUploadIds.push(item.uploadId);
+      if (item.uploadId === null) {
+        continue; // 起きない（uploaded は必ず uploadId を伴う）。型の防波堤
       }
-      continue;
-    }
-
-    if (item.status !== "waiting" && item.status !== "failed") {
+      if (!isUploadNearAttachDeadline(item, deps.now())) {
+        uploadIds.push(item.uploadId);
+        reusedLocalIds.push(item.localId);
+        continue;
+      }
+      discardUploadedPhoto(item, item.uploadId, deps, "near_deadline");
+    } else if (item.status !== "waiting" && item.status !== "failed") {
       // processing / uploading 等、転送対象でない状態が紛れていたら安全側で打ち切る
       // （通常は起きない。保存前に awaitBackgroundIdle 済みで、UI も processing 中は保存不可にする）。
       break;
     }
 
-    deps.dispatch({ type: "uploadStarted", localId: item.localId });
-    try {
-      const uploadId = await deps.transferPhoto(item);
-      deps.dispatch({ type: "uploaded", localId: item.localId, uploadId });
-      readyUploadIds.push(uploadId);
-    } catch (error) {
-      const code = toPhotoUploadErrorCode(error);
-      // 先行アップロード（usePinPhotos）と同じ理由で、分類結果と生の例外を対応付けて残す。
-      // あちらと違い `isAbortError` のガードは要らない。保存フローの `transferPhoto`
-      // （`usePinPhotos.ts` の `transferPhotoForSave`）は自前の AbortController しか持たず、
-      // それを abort するのは `withTimeout` のタイムアウトだけで、そのとき呼び出し側に届くのは
-      // `TypeError("Pin photo transfer timed out")`（`Promise.race` の勝者）だから。
-      // 将来 `transferPhoto` に外部から signal を渡せるようにしたら、ここにもガードが要る。
-      logDiagnostic("pin-photo.upload.failed", {
-        localId: item.localId,
-        stage,
-        code,
-        ...describeError(error),
-      });
-      if (isWaitablePhotoUploadError(code)) {
-        // 429: エラーにしない。待機に戻し、ここまでに揃った分を紐付けて枠を空けるのを優先する。
-        deps.dispatch({ type: "waited", localId: item.localId });
-        break;
-      }
-      if (isTransientPhotoUploadError(code)) {
-        deps.dispatch({ type: "waited", localId: item.localId });
-        throw new PinSaveError(stage, error, savedPinId);
-      }
-      // 再試行しても同じ失敗になるもの（too_large 等）。ユーザーが削除するか判断する。
-      deps.dispatch({ type: "failed", localId: item.localId, errorCode: code });
-      throw new PinSaveError(stage, error, savedPinId);
+    const uploadId = await transferChunkItem(item, deps, stage, savedPinId);
+    if (uploadId === null) {
+      break;
     }
+    uploadIds.push(uploadId);
   }
 
-  return readyUploadIds;
+  return { uploadIds, reusedLocalIds };
+}
+
+/**
+ * 揃えた枠を紐付ける（未作成なら createPin、作成済みなら addPinPhotos）。API の例外はそのまま投げ、
+ * 呼び出し側が 409 のやり直しの判断と `PinSaveError` への包みを行う。
+ */
+async function attachChunk(
+  deps: PinSaveRunnerDeps,
+  pinId: string | null,
+  uploadIds: readonly string[],
+  pin: SavedPin | null,
+): Promise<SavedPin> {
+  if (pinId === null) {
+    deps.onProgress({ step: "creating" });
+    const request = deps.buildCreateRequest(uploadIds);
+    if (request === null) {
+      // 呼び出し前に画面側でバリデーション済みのはずだが、万一に備えて invalid_request
+      // （再試行不可）として分類させる。"unknown" は自動再試行の対象なので使わない。
+      throw new PinSaveError("create", new ApiError(422), null);
+    }
+    // 応答が失われても、応答喪失後の再実行で `pinId` はまだ null のままなので
+    // createPin を再度呼べば回復する（backend は client_pin_id で冪等）。
+    const result = await deps.createPin(request);
+    deps.setSavedPinId(result.pin.id);
+    deps.dispatch({ type: "attached", uploadIds: result.attachedUploadIds });
+    return result.pin;
+  }
+
+  if (uploadIds.length === 0) {
+    // このチャンクの先頭で 429 を受け、手元に紐付けて空けられる枠も無い。
+    // 枠を占有しているのは別の登録画面・別端末が残した未使用枠なので、この画面では空けられない。
+    throw new PinSaveError("add_photos", new PhotoSlotsBusyError(), pinId);
+  }
+
+  const result = await deps.addPinPhotos(pinId, uploadIds);
+  deps.dispatch({ type: "attached", uploadIds: result.attachedUploadIds });
+  if (pin === null) {
+    return { id: pinId, sanpoMapId: "", sanpoMapName: "", photoCount: result.photoCount };
+  }
+  return { ...pin, photoCount: result.photoCount };
+}
+
+/**
+ * 紐付けの失敗が「以前からの枠が期限切れだったかもしれない」409 で、まだやり直していないか（SS-126）。
+ * 409 `photo_upload_not_ready` は期限切れ・未完了・デコード不可を区別しない（ADR-021）ため、
+ * 以前からの枠が含まれるときだけ、それらを送り直して1回だけやり直す。容量超過の 409 は対象外。
+ */
+function shouldReissueAfterNotReady(
+  error: unknown,
+  reusedLocalIds: readonly string[],
+  alreadyReissued: boolean,
+): boolean {
+  return (
+    !alreadyReissued &&
+    reusedLocalIds.length > 0 &&
+    !isPinSaveError(error) &&
+    isApiError(error) &&
+    error.status === 409 &&
+    toPinSaveErrorCode(error) === "photo_not_ready"
+  );
+}
+
+function discardReusedPhotos(reusedLocalIds: readonly string[], deps: PinSaveRunnerDeps): void {
+  const reused = new Set(reusedLocalIds);
+  for (const item of deps.getItems()) {
+    if (reused.has(item.localId) && item.status === "uploaded" && item.uploadId !== null) {
+      discardUploadedPhoto(item, item.uploadId, deps, "not_ready");
+    }
+  }
 }
 
 /**
@@ -116,6 +235,8 @@ export async function runPinSave(deps: PinSaveRunnerDeps): Promise<SavedPin> {
   // 一度も createPin を呼ばない実行では sanpoMapId/sanpoMapName が空文字のままになりうる
   // （登録画面はこの値を表示に使わないため実害はない）。
   let pin: SavedPin | null = null;
+  // 409 `photo_upload_not_ready` を受けて以前からの枠を送り直したか（1回の実行で1回だけ。SS-126）。
+  let reissuedAfterNotReady = false;
 
   for (;;) {
     const items = deps.getItems();
@@ -127,47 +248,19 @@ export async function runPinSave(deps: PinSaveRunnerDeps): Promise<SavedPin> {
       break;
     }
 
-    const ready = await assembleReadyUploadIds(chunk, deps, stage, pinId);
+    const assembled = await assembleReadyUploadIds(chunk, deps, stage, pinId);
 
-    if (pinId === null) {
-      deps.onProgress({ step: "creating" });
-      const request = deps.buildCreateRequest(ready);
-      if (request === null) {
-        // 呼び出し前に画面側でバリデーション済みのはずだが、万一に備えて invalid_request
-        // （再試行不可）として分類させる。"unknown" は自動再試行の対象なので使わない。
-        throw new PinSaveError("create", new ApiError(422), null);
+    try {
+      pin = await attachChunk(deps, pinId, assembled.uploadIds, pin);
+    } catch (error) {
+      if (shouldReissueAfterNotReady(error, assembled.reusedLocalIds, reissuedAfterNotReady)) {
+        // 以前からの枠が紐付け期限を過ぎていた可能性がある（端末の時計のずれ・期限の設定の変更で
+        // 先回りの判定を外れた場合）。それらを捨てて、同じチャンクを新しい枠で揃え直す。
+        reissuedAfterNotReady = true;
+        discardReusedPhotos(assembled.reusedLocalIds, deps);
+        continue;
       }
-      try {
-        const result = await deps.createPin(request);
-        deps.setSavedPinId(result.pin.id);
-        deps.dispatch({ type: "attached", uploadIds: result.attachedUploadIds });
-        pin = result.pin;
-      } catch (error) {
-        // 応答が失われても、応答喪失後の再実行で `pinId` はまだ null のままなので
-        // createPin を再度呼べば回復する（backend は client_pin_id で冪等）。
-        throw new PinSaveError("create", error, null);
-      }
-    } else if (ready.length > 0) {
-      try {
-        const result = await deps.addPinPhotos(pinId, ready);
-        deps.dispatch({ type: "attached", uploadIds: result.attachedUploadIds });
-        if (pin === null) {
-          pin = { id: pinId, sanpoMapId: "", sanpoMapName: "", photoCount: result.photoCount };
-        } else {
-          pin = {
-            id: pin.id,
-            sanpoMapId: pin.sanpoMapId,
-            sanpoMapName: pin.sanpoMapName,
-            photoCount: result.photoCount,
-          };
-        }
-      } catch (error) {
-        throw new PinSaveError("add_photos", error, pinId);
-      }
-    } else {
-      // このチャンクの先頭で 429 を受け、手元に紐付けて空けられる枠も無い。
-      // 枠を占有しているのは別の登録画面・別端末が残した未使用枠なので、この画面では空けられない。
-      throw new PinSaveError("add_photos", new PhotoSlotsBusyError(), pinId);
+      throw isPinSaveError(error) ? error : new PinSaveError(stage, error, pinId);
     }
 
     const attachedCount = deps.getItems().filter((item) => item.status === "attached").length;

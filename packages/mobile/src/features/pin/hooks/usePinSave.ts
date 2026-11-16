@@ -63,6 +63,8 @@ export function usePinSave(options: {
         createPin,
         addPinPhotos,
         transferPhoto: options.photos.transferPhoto,
+        discardUpload: options.photos.discardUpload,
+        now: Date.now,
         awaitBackgroundIdle: options.photos.pauseAndAwaitIdle,
         onProgress: setProgress,
       });

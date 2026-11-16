@@ -146,6 +146,8 @@ export function usePinEditSave(options: {
             },
             addPinPhotos,
             transferPhoto: photos.transferPhoto,
+            discardUpload: photos.discardUpload,
+            now: Date.now,
             awaitBackgroundIdle: photos.pauseAndAwaitIdle,
             onProgress: (p) => {
               if (p.step === "sending_photos") onProgress(p);

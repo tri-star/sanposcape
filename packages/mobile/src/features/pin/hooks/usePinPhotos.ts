@@ -39,6 +39,8 @@ export type UsePinPhotosResult = {
     getItems: () => readonly PhotoDraftItem[];
     dispatch: (action: PhotoDraftAction) => void;
     transferPhoto: (item: PhotoDraftItem) => Promise<string>;
+    /** 使わなくなった未紐付けの枠を best-effort で解放する（期限の近い枠の取り直し。SS-126）。 */
+    discardUpload: (uploadId: string) => void;
     /** 先行アップロードを止め、進行中の1件が終わるまで待つ。 */
     pauseAndAwaitIdle: () => Promise<void>;
     /** 保存フローが終わった（成功・失敗とも）ら先行アップロードを再開してよい。 */
@@ -237,7 +239,7 @@ export function usePinPhotos(options: {
         controller,
         TRANSFER_TIMEOUT_MS,
       );
-      dispatch({ type: "uploaded", localId: work.item.localId, uploadId });
+      dispatch({ type: "uploaded", localId: work.item.localId, uploadId, uploadedAt: Date.now() });
     } catch (error) {
       // 意図的な中断（MR5 の削除・アンマウント）はユーザーの通常操作なので、失敗として扱わない。
       // 対象の localId は既に itemsRef から消えており reducer も no-op になるため、ここで
@@ -324,6 +326,29 @@ export function usePinPhotos(options: {
     [dispatch, options],
   );
 
+  /**
+   * PR #93 T11: 未紐付けの枠を backend から best-effort で解放する。呼んでおかないと backend 側は
+   * 紐付け期限（6時間）まで枠を占有し続け、追加・削除を繰り返すと実際にはどれも使っていないのに
+   * 未使用枠の上限（429）に達してしまう（ADR-M-010 の「PR #93 追補 T11」参照）。
+   * `uploaded` の写真の削除と、保存時に期限の近い枠を取り直すとき（SS-126）に使う。
+   */
+  const releaseUpload = useCallback((uploadId: string) => {
+    heldGhostSlotsRef.current += 1;
+    deletePinPhotoUpload(uploadId)
+      .then(() => {
+        // 解放できた分は幽霊枠から外し、先行アップロードのキューに再確認させる
+        // （直前まで上限で止まっていた場合、これで次の1件が動き出せる）。
+        heldGhostSlotsRef.current = Math.max(0, heldGhostSlotsRef.current - 1);
+        kick();
+      })
+      .catch(() => {
+        // 失敗時は諦めて幽霊枠のまま数え続ける（backend の紐付け期限＝6時間が
+        // 実質的な上限。この hook のライフサイクル中は楽観的に解放しない＝安全側）。
+      });
+    // kick は ref だけを参照する安定した関数（上の dispatch と同じ理由）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const removePhoto = useCallback(
     (localId: string) => {
       const removedItem = itemsRef.current.find((item) => item.localId === localId);
@@ -334,29 +359,11 @@ export function usePinPhotos(options: {
       if (activeTransferRef.current?.localId === localId) {
         activeTransferRef.current.controller.abort();
       }
-      // PR #93 T11: `uploaded`（未紐付け）の写真を削除したら backend の枠も best-effort で
-      // 解放する。呼んでおかないと backend 側は紐付け期限（6時間）まで枠を占有し続け、
-      // 追加・削除を繰り返すと実際にはどれも使っていないのに未使用枠の上限（429）に
-      // 達してしまう（ADR-M-010 の「PR #93 追補 T11」参照）。
       if (removedItem?.status === "uploaded" && removedItem.uploadId !== null) {
-        const uploadId = removedItem.uploadId;
-        heldGhostSlotsRef.current += 1;
-        deletePinPhotoUpload(uploadId)
-          .then(() => {
-            // 解放できた分は幽霊枠から外し、先行アップロードのキューに再確認させる
-            // （直前まで上限で止まっていた場合、これで次の1件が動き出せる）。
-            heldGhostSlotsRef.current = Math.max(0, heldGhostSlotsRef.current - 1);
-            kick();
-          })
-          .catch(() => {
-            // 失敗時は諦めて幽霊枠のまま数え続ける（backend の紐付け期限＝6時間が
-            // 実質的な上限。この hook のライフサイクル中は楽観的に解放しない＝安全側）。
-          });
+        releaseUpload(removedItem.uploadId);
       }
     },
-    // kick は ref だけを参照する安定した関数（上の dispatch と同じ理由）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dispatch],
+    [dispatch, releaseUpload],
   );
 
   const retryPhoto = useCallback(
@@ -392,6 +399,7 @@ export function usePinPhotos(options: {
       getItems,
       dispatch,
       transferPhoto: transferPhotoForSave,
+      discardUpload: releaseUpload,
       pauseAndAwaitIdle,
       resume,
     },

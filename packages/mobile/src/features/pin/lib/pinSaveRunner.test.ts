@@ -7,8 +7,13 @@ import type { PhotoDraftAction } from "@/features/pin/lib/photoDraft";
 import {
   BACKEND_PENDING_UPLOADS_MAX,
   PIN_PHOTOS_PER_REQUEST_MAX,
+  PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS,
 } from "@/features/pin/lib/pinLimits";
-import { isPinSaveError, isPhotoSlotsBusyError } from "@/features/pin/lib/pinSaveError";
+import {
+  isPinSaveError,
+  isPhotoSlotsBusyError,
+  toPinSaveErrorCode,
+} from "@/features/pin/lib/pinSaveError";
 import { runAttachPhotosToPin, runPinSave } from "@/features/pin/lib/pinSaveRunner";
 import type { PinSaveRunnerDeps } from "@/features/pin/lib/pinSaveRunner";
 import type {
@@ -18,10 +23,15 @@ import type {
   SavedPin,
 } from "@/features/pin/types";
 
+/** テストの「今」（epoch ms）。`buildDeps` の `now` の既定値。 */
+const NOW = 1_800_000_000_000;
+const HOUR_MS = 60 * 60 * 1000;
+
 function makeItem(
   localId: string,
   status: PhotoDraftStatus,
   uploadId: string | null = null,
+  uploadedAt: number | null = status === "uploaded" || status === "attached" ? NOW - HOUR_MS : null,
 ): PhotoDraftItem {
   return {
     localId,
@@ -46,6 +56,7 @@ function makeItem(
           },
     status,
     uploadId,
+    uploadedAt,
     errorCode: null,
   };
 }
@@ -74,8 +85,28 @@ type FakeServerHooks = {
   ) => "throw_network" | "throw_413" | undefined;
 };
 
+/**
+ * 紐付けの 409 の模型（SS-126）。`isNotReady` が true を返す枠を含む紐付けは、何も紐付けずに
+ * 409（本文の `code` は既定で `photo_upload_not_ready`）を返す。期限切れの枠を模す。
+ */
+type FakeConflict = {
+  isNotReady: (uploadId: string) => boolean;
+  code?: "photo_upload_not_ready" | "storage_quota_exceeded";
+};
+
 /** backend の未使用枠上限（30）を再現する模型サーバー。 */
-function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeServerHooks } = {}) {
+function createFakeServer(
+  options: { otherPendingSlots?: number; hooks?: FakeServerHooks; conflict?: FakeConflict } = {},
+) {
+  const throwIfNotReady = (uploadIds: readonly string[]) => {
+    const conflict = options.conflict;
+    if (conflict !== undefined && uploadIds.some((id) => conflict.isNotReady(id))) {
+      throw new ApiError(409, undefined, {
+        detail: "Photo upload not ready",
+        code: conflict.code ?? "photo_upload_not_ready",
+      });
+    }
+  };
   // 他所（別画面・別端末）の未使用枠。deleteUpload の対象にはならない（この模型サーバーが
   // 発行した ID ではないため）。
   const otherPending = options.otherPendingSlots ?? 0;
@@ -114,6 +145,7 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
   const createPin: PinSaveRunnerDeps["createPin"] = vi.fn(async (request: PinCreate) => {
     const action = options.hooks?.onCreatePin?.(createPinCallCount);
     createPinCallCount += 1;
+    throwIfNotReady(request.photo_upload_ids ?? []);
     if (!pinCreated) {
       pinCreated = true;
       for (const id of request.photo_upload_ids ?? []) {
@@ -135,6 +167,13 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
 
   const addPinPhotos: PinSaveRunnerDeps["addPinPhotos"] = vi.fn(async (_pinId, ids) => {
     const action = options.hooks?.onAddPinPhotos?.(addPinPhotosCallCount);
+    if (
+      options.conflict !== undefined &&
+      ids.some((id: string) => options.conflict?.isNotReady(id))
+    ) {
+      addPinPhotosCallCount += 1;
+      throwIfNotReady(ids);
+    }
     const newlyAttached: string[] = [];
     for (const id of ids) {
       if (!attachedByPin.has(id)) {
@@ -183,7 +222,7 @@ function createFakeServer(options: { otherPendingSlots?: number; hooks?: FakeSer
 function buildDeps(
   harness: ReturnType<typeof createStateHarness>,
   server: ReturnType<typeof createFakeServer>,
-  extra?: { savedPinIdInit?: string | null; progressSink?: PinSaveProgress[] },
+  extra?: { savedPinIdInit?: string | null; progressSink?: PinSaveProgress[]; now?: number },
 ): PinSaveRunnerDeps {
   let savedPinId: string | null = extra?.savedPinIdInit ?? null;
   return {
@@ -202,6 +241,8 @@ function buildDeps(
     createPin: server.createPin,
     addPinPhotos: server.addPinPhotos,
     transferPhoto: server.transferPhoto,
+    discardUpload: server.deleteUpload,
+    now: () => extra?.now ?? NOW,
     awaitBackgroundIdle: async () => {},
     onProgress: (progress) => extra?.progressSink?.push(progress),
   };
@@ -454,6 +495,107 @@ describe("runPinSave", () => {
   });
 });
 
+describe("runPinSave: 紐付け期限の近い枠の取り直し（SS-126）", () => {
+  const STALE_AT = NOW - PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS;
+
+  it("先回り: 期限の近い枠だけを捨てて送り直し、古い枠は解放する。409 を踏まない", async () => {
+    const items = [
+      makeItem("fresh", "uploaded", "up-fresh", NOW - HOUR_MS),
+      makeItem("old0", "uploaded", "up-old0", STALE_AT),
+      makeItem("old1", "uploaded", "up-old1", STALE_AT - HOUR_MS),
+    ];
+    const harness = createStateHarness(items);
+    // 古い枠は backend 側で期限切れ（使えば 409）。
+    const server = createFakeServer({
+      conflict: { isNotReady: (id) => ["up-old0", "up-old1"].includes(id) },
+    });
+    const deps = buildDeps(harness, server);
+
+    await runPinSave(deps);
+
+    expect(server.createPinCallCount).toBe(1);
+    expect(vi.mocked(server.transferPhoto).mock.calls.map(([item]) => item.localId)).toEqual([
+      "old0",
+      "old1",
+    ]);
+    expect(server.deleteUpload.mock.calls.map(([id]) => id)).toEqual(["up-old0", "up-old1"]);
+    const sent = vi.mocked(server.createPin).mock.calls[0]?.[0].photo_upload_ids ?? [];
+    expect(sent[0]).toBe("up-fresh");
+    expect(sent).not.toContain("up-old0");
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
+    // 送り直した写真には新しい時刻が入る。
+    expect(harness.current.find((item) => item.localId === "old0")?.uploadedAt).toBe(NOW);
+  });
+
+  it("後追い: 先回りの判定を外れた枠で 409 を受けたら、以前からの枠を送り直して1回だけやり直す", async () => {
+    const items = [
+      makeItem("pre0", "uploaded", "up-pre0"),
+      makeItem("pre1", "uploaded", "up-pre1"),
+      makeItem("w0", "waiting"),
+    ];
+    const harness = createStateHarness(items);
+    // 端末の判定では新しいが、backend では期限切れ（時計のずれ・期限の設定の変更）。
+    const server = createFakeServer({
+      conflict: { isNotReady: (id) => ["up-pre0", "up-pre1"].includes(id) },
+    });
+    const deps = buildDeps(harness, server);
+
+    const result = await runPinSave(deps);
+
+    expect(server.createPinCallCount).toBe(2);
+    expect(server.deleteUpload.mock.calls.map(([id]) => id)).toEqual(["up-pre0", "up-pre1"]);
+    // w0 はこの実行で送った枠なので送り直さない（転送は w0・pre0・pre1 の3回）。
+    expect(vi.mocked(server.transferPhoto).mock.calls.map(([item]) => item.localId)).toEqual([
+      "w0",
+      "pre0",
+      "pre1",
+    ]);
+    expect(result.photoCount).toBe(3);
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
+  });
+
+  it("後追いのやり直しでも 409 なら photo_not_ready（2回目はやり直さない）", async () => {
+    const harness = createStateHarness([makeItem("pre0", "uploaded", "up-pre0")]);
+    const server = createFakeServer({ conflict: { isNotReady: () => true } });
+    const deps = buildDeps(harness, server);
+
+    const error = await runPinSave(deps).catch((e: unknown) => e);
+
+    expect(toPinSaveErrorCode(error)).toBe("photo_not_ready");
+    expect(isPinSaveError(error) && error.stage).toBe("create");
+    expect(server.createPinCallCount).toBe(2);
+    expect(server.transferPhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it("以前からの枠が無ければ（全部この実行で送った）やり直さない", async () => {
+    const harness = createStateHarness([makeItem("w0", "waiting"), makeItem("w1", "waiting")]);
+    const server = createFakeServer({ conflict: { isNotReady: () => true } });
+    const deps = buildDeps(harness, server);
+
+    const error = await runPinSave(deps).catch((e: unknown) => e);
+
+    expect(toPinSaveErrorCode(error)).toBe("photo_not_ready");
+    expect(server.createPinCallCount).toBe(1);
+    expect(server.transferPhoto).toHaveBeenCalledTimes(2);
+    expect(server.deleteUpload).not.toHaveBeenCalled();
+  });
+
+  it("容量超過の 409 ではやり直さない", async () => {
+    const harness = createStateHarness([makeItem("pre0", "uploaded", "up-pre0")]);
+    const server = createFakeServer({
+      conflict: { isNotReady: () => true, code: "storage_quota_exceeded" },
+    });
+    const deps = buildDeps(harness, server);
+
+    const error = await runPinSave(deps).catch((e: unknown) => e);
+
+    expect(toPinSaveErrorCode(error)).toBe("quota_exceeded");
+    expect(server.createPinCallCount).toBe(1);
+    expect(server.transferPhoto).not.toHaveBeenCalled();
+    expect(server.deleteUpload).not.toHaveBeenCalled();
+  });
+});
+
 describe("runAttachPhotosToPin", () => {
   function attachDeps(
     harness: ReturnType<typeof createStateHarness>,
@@ -516,6 +658,24 @@ describe("runAttachPhotosToPin", () => {
     expect(harness.current.every((item) => item.status === "attached")).toBe(true);
     // 3回目の呼び出しは残りの2枚だけ（10枚を再送しない）。
     expect(vi.mocked(server.addPinPhotos).mock.calls[2]?.[1]).toHaveLength(2);
+  });
+
+  it("写真の追加でも、409 を受けたら以前からの枠を送り直して1回だけやり直す（SS-126）", async () => {
+    const items = [
+      makeItem("pre0", "uploaded", "up-pre0"),
+      makeItem("pre1", "uploaded", "up-pre1"),
+    ];
+    const harness = createStateHarness(items);
+    const server = createFakeServer({
+      conflict: { isNotReady: (id) => ["up-pre0", "up-pre1"].includes(id) },
+    });
+
+    const result = await runAttachPhotosToPin(attachDeps(harness, server));
+
+    expect(server.addPinPhotosCallCount).toBe(2);
+    expect(server.deleteUpload.mock.calls.map(([id]) => id)).toEqual(["up-pre0", "up-pre1"]);
+    expect(result.photoCount).toBe(2);
+    expect(harness.current.every((item) => item.status === "attached")).toBe(true);
   });
 
   it("他所の未使用枠で 429 を挟んでも、待機に戻して最終的に全件 attached", async () => {
