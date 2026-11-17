@@ -22,7 +22,7 @@
   RN の `Modal` も別ルートも使わない。Android ではオーバーレイを開いている間、プレビューの `MapView` を外して枠だけ残す
   （`PinLocationPreview` の `mapHidden`）。（本文: D7）
 - **全画面地図の枠は `PinMapFullScreen`（(a) 位置調整が使う）、地図の設定・ジェスチャーは `PinMapCanvas` にまとめ、
-  `PinMapFullScreen` とピンタブが共有する**。どちらも `features/pin` の中に置く。（本文: D8、SS-146 追補、SS-147 追補）
+  `PinMapFullScreen` とピンタブが共有する**。どちらも `features/sanpo-map` の中に置く。（本文: D8、SS-146 追補、SS-147 追補）
 - **位置の調整は、保存中・保存済み・ピンの作成後（`savedPinId !== null`）には無効にする**。
   作成前の失敗の後は調整を許す。`client_pin_id` の冪等な再送が内容を無視して既存のピンを返すため。（本文: D9）
 - **フラグは既存の `pin_registration` を流用し、新しいフラグは作らない**。（**SS-271 追補**: フラグ `pin_registration` は削除し、常に ON の挙動になった。ADR-008 SS-271 追補 D45）（本文: D3）
@@ -120,7 +120,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   長押しした座標と `clientWalkId` を付けて `/pins/new` へ **push** する（戻ると散歩中画面に戻る。
   「この場所にピンを追加」と同じ）。長押しは地図を触っているうちに意図せず起きうるため、
   フラグ OFF・座標不正のときはトーストも出さずに何もしない（`features/walk/lib/addPinAction.ts` の
-  `resolveMapLongPressPinAction`。`features/walk` は `features/pin` を import しない規約のまま）。
+  `resolveMapLongPressPinAction`。`features/walk` は `features/sanpo-map` を import しない規約のまま）。
 - **D-ユーザー決定: (b) の入口は SS-118（登録済みピンの地図表示）とは別画面として作る。** 入口の
   統合は SS-118 の後で検討する。
 - **D1（SS-147 追補: 撤去）: FAB は散歩していないとき（`WalkIdleNotice` を表示している間）だけ出す。散歩中は出さない。**
@@ -146,7 +146,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   での登録」という目的は果たせる。現在地の初回取得中（`isLoading`）は地図を出さず、読み込み表示
   にする。
 - **D6（SS-147 追補: `/pins/pick-location` は削除）: (b) の地点選択画面は新しいルート `app/pins/pick-location.tsx`。長押しで `router.replace`
-  して `/pins/new` へ進む。** `features/walk` は `features/pin` を import できないので、ナビタブ
+  して `/pins/new` へ進む。** `features/walk` は `features/sanpo-map` を import できないので、ナビタブ
   から開くにはルートの文字列で遷移するしかない。`push` にすると、スタックが
   `(tabs) → 地点選択 → 登録` になる。登録画面の保存後の `router.back()` が地点選択画面に戻って
   しまい、ナビタブの「ピンを保存しました」トースト（`useFocusEffect` の `consumeFlashMessage`）も
@@ -167,7 +167,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 - **D8: 全画面地図の枠（ヘッダー・地図・現在地マーカー・選択マーカー・ヒントとアクションの
   カード・再センタリング）を `PinMapFullScreen` にまとめる。** (a)(b) の違い（タップか長押しか・
   確定ボタンの有無・現在地の取得）は呼び出し側の props に出す。見た目と地図の設定
-  （`showsUserLocation={false}` など）を1か所に揃えるため。`features/pin` の中だけで使うので
+  （`showsUserLocation={false}` など）を1か所に揃えるため。`features/sanpo-map` の中だけで使うので
   `src/components/` には置かない（2機能ルール）。
 - **D9: 位置を調整できる条件は、次の3条件のいずれかに当てはまるときは無効にする:
   保存中（`saveStatus === "saving"`）・保存済み（`saveStatus === "saved"`）・
@@ -186,7 +186,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
   長押しを覚えたユーザーが (a) で長押ししても動くようにする（害は無い）。
 - **D12: `useCurrentLocation` / `LocationPermissionNotice` は `features/walk` から
   `src/hooks/useCurrentLocation.ts` / `src/components/location/LocationPermissionNotice.tsx` へ
-  昇格する。** `features/pin` から使うため、2機能ルールに従う（`folder-structure.md`、
+  昇格する。** `features/sanpo-map` から使うため、2機能ルールに従う（`folder-structure.md`、
   ADR-M-001 決定3）。`LocationPermissionNotice` は `services/location` の文言と「設定を開く」を
   含む完成品で、pin 側で作り直すと重複する。
 
@@ -260,8 +260,8 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 
 ## 決定理由
 
-- (a)(b) とも、既存の feature 境界（`features/walk` は `features/pin` を import しない、
-  `features/pin` は認証状態を読まない）を保ったまま実装できる形を優先した。
+- (a)(b) とも、既存の feature 境界（`features/walk` は `features/sanpo-map` を import しない、
+  `features/sanpo-map` は認証状態を読まない）を保ったまま実装できる形を優先した。
 - SS-117 と同時に `PinRegisterView.tsx` を触るため、変更点を「位置状態の保持とオーバーレイの
   配線」に絞れる設計（D7 の全画面オーバーレイ、D9 の `usePinRegister` 非変更）を選んだ。
 - `POST /pins` の冪等性（`client_pin_id` の再送は内容を無視して既存のピンを返す）という既存の

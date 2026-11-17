@@ -38,7 +38,7 @@ export type WalkMapLayerActions = {
 export type WalkActiveViewProps = {
   /**
    * 散歩中の地図に重ねる追加レイヤー（`MapView` の子）を、現在の表示範囲から作る（SS-118）。
-   * `features/walk` は `features/pin` を import しないため、ルート（`app/(tabs)/index.tsx`）が
+   * `features/walk` は `features/sanpo-map` を import しないため、ルート（`app/(tabs)/index.tsx`）が
    * 登録済みピンのレイヤーを合成して渡す。省略時は何も重ねない。
    * `actions.focusRegion` で地図を指定の表示範囲へ動かせる（登録済みピンのクラスタのタップ。SS-243）。
    * レイヤーの `React.memo` が毎秒の再レンダーで破れないよう、`focusRegion` の参照は変えない。

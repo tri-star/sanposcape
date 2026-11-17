@@ -35,11 +35,11 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   ```
 
   条件を満たさなくなったら setState を呼ばない（無限ループにならない）ことを必ず確認する。
-  実例1: `src/features/pin/hooks/usePinLocationPicker.ts`（初期表示範囲の一度だけの確定、
+  実例1: `src/features/sanpo-map/pin/hooks/usePinLocationPicker.ts`（初期表示範囲の一度だけの確定、
   fallback → current への一度だけの移動。SS-124）。同じ hook 内で `recenter()`
   （イベントハンドラ内の通常の setState）と競合しないことも実装時に確認済み
   （`usePinLocationPicker.ts` のコメント参照）。
-  実例2: `src/features/pin/hooks/useRegisteredPins.ts`（表示範囲から取得範囲 `fetchBounds` を
+  実例2: `src/features/sanpo-map/pin/hooks/useRegisteredPins.ts`（表示範囲から取得範囲 `fetchBounds` を
   導出する `resolvePinFetchBounds` の戻り値が変わったときだけ setState、`useQueries` の結果から
   求めた `settledTruncated` が変わったときだけ `currentTruncated` を更新。いずれも次のレンダーで
   同じ入力に対しては同じ結果になるため無限ループにならない。SS-118）。
@@ -49,7 +49,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - `EXPO_PUBLIC_AUTH_MODE`（`real` | `dev` | `mock`。既定 `real`）で real/dev/mock を切り替える（`src/config/authMode.ts`）。
 - 認証状態の参照は `@/store/useAuthSessionStore` に一本化する（`authService.getCurrentUser()` を UI から呼ばない）。
 - 保護ルートへの到達可否を判定するゲートは `app/_layout.tsx` の `AuthGate` の1箇所。判定条件は `features/auth/lib/authGate.ts` の `canEnterProtectedRoutes`。SS-57 でゲスト散歩を解禁したため `guest`（未認証）も保護ルートに入れる（`redirect` を返す経路は現状無い）。`/walks`（保存・履歴・統計）は認証必須のままで、ゲストの保存は 401 になりサインイン CTA を出す（サマリ画面の CTA から来たサインインに限り自動再送する。SS-37）。履歴・統計（アカウントタブ・履歴の一覧と詳細）はゲストでは通信せずサインイン案内を出す（SS-148・SS-45。下記の注入）。サインイン中に 401 になったときは各 feature のエラー分類で degrade する。**`DELETE /users/me`（アカウント削除）は同じ「認証必須 API」でも degrade 方式を採らない**。401 になっても代替表示は出さず、そもそも導線（削除ボタン）自体をゲスト・`loading` に出さない（`canDeleteAccount`、SS-62）。押しても必ず失敗する破壊的操作を一瞬でも見せないための判断で、`/walks` 系とは意図的に異なる。
-- `src/features/walk/` / `src/features/history/` / `src/features/pin/`（探索・散歩・履歴・ピンの登録/閲覧のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/pin` は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/[pinId]/index.tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118。ピン詳細・編集（`app/pins/[pinId]/*`）は `currentUserId`（`state.user?.id ?? null`。プリミティブを返すセレクタで読む）も注入する。権限による導線の出し分けに使う。SS-119。地図一覧・地図詳細（`app/sanpo-maps/*`）も同様。SS-121。タグ一覧・タグ詳細（`app/tags/*`）も同様。SS-245。ピンタブ `app/(tabs)/pins.tsx` も同様。SS-146）。
+- `src/features/walk/` / `src/features/history/` / `src/features/sanpo-map/`（探索・散歩・履歴・地図とピンと招待のロジック）は認証状態に依存させない。`@/services/auth` 系・`@/store/useAuthSessionStore` への import は `.oxlintrc.json` の `no-restricted-imports` override でエラーになる（`features/sanpo-map`（当時の `features/pin`）は SS-88 ローカルレビュー MR4 で追加。`app/pins/new.tsx` が `useAuthSessionStore` を読み `isSignedIn`/`onSignIn` を props で注入する。ピンの閲覧系（`app/pins/[pinId]/index.tsx`）も同じ形で `isSignedIn`/`onSignIn` を注入する。SS-118。ピン詳細・編集（`app/pins/[pinId]/*`）は `currentUserId`（`state.user?.id ?? null`。プリミティブを返すセレクタで読む）も注入する。権限による導線の出し分けに使う。SS-119。地図一覧・地図詳細（`app/sanpo-maps/*`）も同様。SS-121。タグ一覧・タグ詳細（`app/tags/*`）も同様。SS-245。ピンタブ `app/(tabs)/pins.tsx` も同様。SS-146）。
 - これら restricted な feature が認証由来の値（例: 表示名）を必要とする場合は、横断 hook を新設せず
   **`app/` 配下のルートが `useAuthSessionStore` を読み、props として feature の View/hook へ注入する**
   （実例1: `app/(tabs)/account.tsx`（SS-145 で `history.tsx` から改名）が `state.user?.displayName ?? null` を読み `HistoryView` →
@@ -73,7 +73,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   （`authApi.ts` は 401 → refresh の再帰を避けるため `customFetch` を意図的に使わない）。
   片方だけへの適用漏れは CloudFront 経由でのみ 403/401 を引き起こし、backend に直結する
   ローカル環境では発覚しない。
-- これとは別に、写真の presigned POST 直送（`src/features/pin/api/presignedPostUpload.ts`。
+- これとは別に、写真の presigned POST 直送（`src/features/sanpo-map/pin/api/presignedPostUpload.ts`。
   下記「写真の扱い」参照）が **S3 / fake storage への3箇所目の HTTP 出口**として存在する。
   こちらは**意図的に** `customFetch` を通さない（認証ヘッダー・`x-amz-content-sha256` を
   backend 以外のオリジンへ送らないため）。横断的な送信ヘッダーを追加するときは、
@@ -83,7 +83,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
 - 実装方針は [ADR-M-006: 位置情報サービスは real/mock の2モード](../adr/ADR-M-006-location-service-real-mock.md) で確定済み。
 - `EXPO_PUBLIC_LOCATION_MODE`（`real` | `mock`。既定 `real`）で切り替える（`src/config/locationMode.ts`）。
   認証と異なり `dev` モードは持たない（エミュレータ/実機の位置設定で real のまま再現できるため）。
-- 呼び出し側（`features/walk` / `features/pin`）は `src/services/location` のインターフェースのみを
+- 呼び出し側（`features/walk` / `features/sanpo-map`）は `src/services/location` のインターフェースのみを
   参照し、`expo-location` / `react-native-maps` の型には依存しない（自前の `GeoCoordinates` を使う）。
 - **散歩中の記録はバックグラウンドでも続く**（SS-156 / [ADR-M-018](../adr/ADR-M-018-background-walk-location-tracking.md)）。
   - 記録は `startBackgroundTracking`（`expo-location` のロケーションタスク）で行う。`watchPosition` は開始に失敗したときの fallback だけ。
@@ -125,17 +125,17 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   EXIF のオブジェクト（GPS を含みうる）を `services/photo` の外へ出さない（`photo.real.ts` が `photoTakenAt.ts` の純粋関数で日時に変換し、その場で捨てる）・保存しない・ログに出さない。
   詳細は ADR-M-010 の SS-163 追補（決定11〜14）。
 - 写真の**アップロード**（presigned POST での S3 直送）は実機依存でもネイティブ依存でもないため
-  `services/photo` には入れず `src/features/pin/api/` に置く（msw でテストできるため）。
+  `services/photo` には入れず `src/features/sanpo-map/pin/api/` に置く（msw でテストできるため）。
 - **（SS-88）`services/photo` は「直送にそのまま載せられる実体」（`PreparedPhoto.file`、
-  型は `UploadFileBody`）まで返す契約**。`features/pin` 側で `uri` から
+  型は `UploadFileBody`）まで返す契約**。`features/sanpo-map` 側で `uri` から
   `{ uri, name, type }` を組み立て直してはいけない。Expo SDK 54+ の `fetch`（WinterCG）は
   React Native 独自のこの形式を受け付けず、`Unsupported FormDataPart implementation` で
   **送信前に**落ちる（実機・エミュレータで再現済み。ADR-M-010 決定9）。型で塞いであるが、
   別経路を足すときも同じ契約を守ること。
 - 未使用アップロード枠の上限管理・保存の分割送信・冪等な再開は
-  `src/features/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
-- **（SS-118）閲覧（表示）側の写真は `features/pin/components/PinPhotoImage.tsx`（expo-image）
-  だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/pin/lib/pinPhotoCache`）
+  `src/features/sanpo-map/pin/lib/pinSaveRunner.ts`（React 非依存。診断ログの副作用のみ持つ）に閉じる。
+- **（SS-118）閲覧（表示）側の写真は `features/sanpo-map/pin/components/PinPhotoImage.tsx`（expo-image）
+  だけで表示する。** キャッシュキーは `pinPhotoCacheKey(photo.id, variant)`（`@/features/sanpo-map/pin/lib/pinPhotoCache`）
   で、presigned URL を使わない（URL は応答ごとに変わるため。ADR-M-010 決定8 / ADR-M-012 D7）。
   閲覧の presigned GET（サムネイル・原本の URL）にも直送用の `isAllowedUploadUrl` を適用する
   （`pinRead.ts` の `toPinPhoto`）。読み込み失敗は `usePinDetail.handlePhotoLoadError`（地図詳細の `useSanpoMapPins.handlePhotoLoadError` も同じ規則）が
@@ -317,7 +317,7 @@ export default function SomeFeatureRoute() {
         環境非依存な計算（暗号ハッシュ等）は例外として許容する**（`src/api/contentHash.ts` が
         `expo-crypto` を使う実例。SS-70）。`api/` 層から到達する位置にこの種のネイティブ依存を
         足したら、必ず `vitest.config.ts` の `resolve.alias` にモック（`src/test/mocks/`）を
-        追加すること。追加を怠ると `client.ts` を推移的に import する `features/*/api/*.test.ts`
+        追加すること。追加を怠ると `client.ts` を推移的に import する `features/**/api/*.test.ts`
         が軒並み失敗する（現在のエイリアス対象: `react-native` / `expo-secure-store` /
         `expo-location` / `expo-crypto` / `expo-task-manager` / `expo-file-system`）。
       - Orval の faker モック（引数なしの `get...ResponseMock()`）は enum や map のキーも乱数で作る
@@ -355,7 +355,7 @@ export default function SomeFeatureRoute() {
     `vi.mock` で差し替えて直接 import してテストする（`location.real.test.ts`。バレルは経由しない）。
   - 写真: `services/photo` も同じ規律。バレル（`index.ts`）を単体テストから import せず、
     `createMockPhotoService()`（`src/services/photo/photo.mock.ts`）を直接 import する
-    （`photo.mock.test.ts` を参照）。`features/pin/api/*` からのアップロード（presigned POST）は
+    （`photo.mock.test.ts` を参照）。`features/sanpo-map/pin/api/*` からのアップロード（presigned POST）は
     実機依存でもネイティブ依存でもないため msw でテストする（`presignedPostUpload.test.ts`）。
   - 設定の保存: `services/preferences` のバレル（`index.ts`）は `expo-file-system` に到達する（`preferenceStorage.file.ts` が
     `expo-file-system` を import する）ので import しない。

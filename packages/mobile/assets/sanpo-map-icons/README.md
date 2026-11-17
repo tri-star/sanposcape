@@ -1,7 +1,7 @@
 # 地図のアイコンの画像（Noto Emoji）
 
 地図ごとのアイコン（API の値 `pin` / `cat` など。ルート ADR-009 決定31）を描くカラーの画像の原本。
-アプリが読むのは、ここから生成した `src/features/pin/data/sanpoMapIconArt.ts`（SVGO で軽くした SVG の文字列）。
+アプリが読むのは、ここから生成した `src/features/sanpo-map/map/data/sanpoMapIconArt.ts`（SVGO で軽くした SVG の文字列）。
 設計理由は [ADR-M-019](../../adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) の SS-191 追補を参照。
 
 ## 取得元

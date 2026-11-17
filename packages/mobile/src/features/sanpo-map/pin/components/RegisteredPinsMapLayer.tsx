@@ -1,0 +1,50 @@
+import type { ReactNode } from "react";
+
+import { RegisteredPinMarkers } from "@/features/sanpo-map/pin/components/RegisteredPinMarkers";
+import { useRegisteredPins } from "@/features/sanpo-map/pin/hooks/useRegisteredPins";
+import { usePinMapFilterStore } from "@/features/sanpo-map/pin/store/usePinMapFilterStore";
+import type { MapRegion } from "@/lib/mapRegion";
+
+export type RegisteredPinsMapLayerProps = {
+  visibleRegion: MapRegion | null;
+  onSelectPin: (pinId: string) => void;
+  /** クラスタのタップで移る表示範囲（地図を動かすのは地図を持つ側。SS-243）。 */
+  onSelectCluster: (region: MapRegion) => void;
+  testIDPrefix: string;
+};
+
+/**
+ * RegisteredPinsMapLayer — 散歩中の地図（`features/walk`）へ `app/` のルートから合成するための
+ * 「hook + Markers」（SS-118）。`features/walk` は `features/sanpo-map` を import しない規約
+ * （`docs/architecture-guideline.md`）を保つため、合成自体はルート
+ * （`app/(tabs)/index.tsx`）が `WalkActiveView.renderMapLayers` 経由で行う。
+ *
+ * 未サインインのときは、ルートがこのコンポーネント自体を描かない（`enabled: false` の
+ * query でもキャッシュ済みのピンは返るため、`enabled` を渡して隠す方式にはしない）。
+ *
+ * 取得失敗・打ち切りは表示しない（散歩中の画面は下部カードで埋まっており、ピンは付加情報の
+ * ため静かに劣化させる。案内が要る画面はピンタブ（`PinTabView`）で出す。
+ * ピンタブはこの包みではなく `useRegisteredPins` + `RegisteredPinMarkers` を直接使う）。
+ *
+ * 表示するピンの絞り込みはピンタブと共有する `usePinMapFilterStore` から読む（SS-174）。変えるボタンは
+ * ルートが `WalkActiveView` の `mapTools` に `PinMapFilterControl` を合成して置く。
+ * 自分が非表示にした地図（SS-266）のピンも、ピンタブと同じく出さない。
+ */
+export function RegisteredPinsMapLayer({
+  visibleRegion,
+  onSelectPin,
+  onSelectCluster,
+  testIDPrefix,
+}: RegisteredPinsMapLayerProps): ReactNode {
+  const filter = usePinMapFilterStore((state) => state.filter);
+  const { pins } = useRegisteredPins({ visibleRegion, enabled: true, filter });
+  return (
+    <RegisteredPinMarkers
+      pins={pins}
+      visibleRegion={visibleRegion}
+      onSelectPin={onSelectPin}
+      onSelectCluster={onSelectCluster}
+      testIDPrefix={testIDPrefix}
+    />
+  );
+}

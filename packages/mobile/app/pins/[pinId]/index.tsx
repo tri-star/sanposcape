@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { PinDetailView } from "@/features/pin/components/PinDetailView";
+import { PinDetailView } from "@/features/sanpo-map/pin/components/PinDetailView";
 import { isUuid } from "@/lib/uuid";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
@@ -19,7 +19,7 @@ export default function PinDetailRoute() {
   const { pinId } = useLocalSearchParams<{ pinId: string }>();
   // セレクタはプリミティブを返す（オブジェクトを返すと zustand v5 で毎レンダー新しい参照になる）。
   const isSignedIn = useAuthSessionStore((state) => state.status === "authenticated");
-  // 権限による導線の出し分け用。features/pin は認証ストアを import できないので、ここで読んで注入する。
+  // 権限による導線の出し分け用。features/sanpo-map は認証ストアを import できないので、ここで読んで注入する。
   const currentUserId = useAuthSessionStore((state) => state.user?.id ?? null);
   const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
 

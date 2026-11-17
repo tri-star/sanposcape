@@ -64,7 +64,7 @@ SS-119 では、ピンの名前・メモの更新、タグの追加・削除、�
   - role は `useSanpoMaps` のキャッシュを `pin.sanpo_map.id` で引く。`PinRead.sanpo_map` に role が無く、ルート ADR-009
     決定24 は `PinRead` に role や `can_edit` を足さない方針のため、backend には依頼しない。
   - user id はルートが `useAuthSessionStore` の `user.id` を読み、`currentUserId` として props で注入する
-    （`features/pin` は認証ストアを import できない）。
+    （`features/sanpo-map` は認証ストアを import できない）。
   - SS-175 追補: 編集画面の role は詳細キャッシュの地図ではなく**基準値の地図**で引く（部分保存後に詳細キャッシュが移動前のままになるため。追補参照）。
   - **role が分からないとき（一覧が未取得・失敗・地図が一覧に無い）は editor とみなす。** `GET /pins/{id}` が成功していれば
     メンバーで、メンバーの最小権限は editor だから。UI の出し分けは UX のためのもので、安全性は backend の 403 が担保する。
@@ -223,7 +223,7 @@ backend が「移動先の地図に、移動元の地図の全メンバーが参
 - **候補は `GET /pins/{pin_id}/move-targets` で取る**（`fetchPinMoveTargets`。`pinMoveTargetsQueryKey` は `["pins", ...]` 配下なので、保存成功時の
   `PINS_QUERY_ROOT` の invalidate で取り直される）。地図を変える権限（`canChangeSanpoMap`）があるときだけ取る。地図ごとに `missingMembers`
   （今の地図のメンバーで、その地図に参加していない人）と `addedMembers`（その地図にだけいる人）が返る。hook を新しいファイルにせず `usePinEdit` の中で
-  `useQuery` する（`features/pin/hooks` はフォルダのファイル数の上限にかかっている。SS-257）。
+  `useQuery` する（当時の `features/pin/hooks` はフォルダのファイル数の上限にかかっていた。SS-257。SS-260 で地図の hook を `features/sanpo-map/map/hooks` に分けて上限の内側になった）。
 - **`missingMembers` が1人でもいる地図のチップは押せなくし（`Tag` に `disabled` を足した）、チップの下に地図ごとの理由を出す**:
   「「{地図名}」には、{名前}さんが参加していないため、移せません」（`pinEditSanpoMapUnavailableNote`）。名前は「・」で3人まで並べ、超えた分と表示名の無い人は
   「ほかN人」にする。全員が表示名なしなら「メンバーN人」（`formatPinMoveMemberNames`）。移動する人は両方の地図のメンバーなので名前を見せても漏れない（決定42）。

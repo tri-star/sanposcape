@@ -2,20 +2,24 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-10-04（棚卸し追補）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-15（SS-260 追補: feature の中は層より先に領域で分ける）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
 
 - **ルーティングは Expo Router（ファイルベース）で、画面は `app/`、実装の実体は `src/` に物理分離する**。（本文: 決定1）
 - **横断的な土台（`src/components/` `src/hooks/` `src/lib/` 等）と機能単位の `src/features/<feature>/` を併用するハイブリッド構成**。（本文: 決定2）
+- **feature が大きくなったら、層（`components/` `hooks/` `lib/` …）より先に領域で分ける**。feature の直下に領域のフォルダを置き、その下に層を置く（層の下に領域のサブフォルダを切らない）。
+  同じ feature の領域同士は互いに import してよい。領域をまたぐ共通物は `shared/` に置き、置いてよいのは持ち主の領域を1つに決められないものだけで、`shared/` は領域を import しない。
+  領域の層のフォルダがさらに大きくなったら、同じ考え方で下位の領域に分ける（下位の領域同士は相互 import にしない）。1つの領域だけが使う型はその領域の `types.ts` に置く。
+  mobile 全体の方針で、最初の例は `features/sanpo-map`（`map/`・`pin/`・`invitation/`・`shared/`）。（本文: 決定2 の SS-260 追補）
 - **コンポーネントは「2つ以上の機能から使うか」で `src/components/`（Primitive は `ui/`）か `src/features/<feature>/components/` に置く**。
   迷ったら `features/` に置き、再利用が発生したら昇格させる。（本文: 決定3）
 - **実機依存・認証の差し替え層は `src/services/<service>/` で、`index.ts` がインターフェースを公開し、環境変数でモードを選ぶ**。
   モードは `real` / `dev` / `mock` が基本形（既定 `real`）で、必要なモードだけ用意してよい（例: location・photo は real/mock）。
   詳細は [フォルダ構造](../docs/folder-structure.md)。（本文: 決定4、棚卸し追補）
 - **命名はフォルダが常に kebab-case、React コンポーネントが PascalCase、hook/util/型が camelCase、`app/` のルートは kebab-case・小文字**。（本文: 決定5）
-- **API 失敗の分類（`features/*/lib/xxxError.ts`）は API 操作ごとに別ファイルにし、共通化しない**。
+- **API 失敗の分類（`features/**/lib/xxxError.ts`）は API 操作ごとに別ファイルにし、共通化しない**。
   同じ HTTP ステータスでも操作によって意味が違うため。（本文: 決定6、棚卸し追補）
 
 ### 変更・撤回された決定
@@ -28,7 +32,7 @@
 
 ## 日付
 
-2026-07-18（初版）、2026-10-04 追補（棚卸し: 決定6 の追加、決定4 の現状注記）
+2026-07-18（初版）、2026-10-04 追補（棚卸し: 決定6 の追加、決定4 の現状注記）、2026-11-15 追補（SS-260: 決定2 に「feature の中は層より先に領域で分ける」を挿入し、`features/pin` を `features/sanpo-map` に改めた）
 
 ## コンテキスト
 
@@ -48,10 +52,28 @@
 
 1. **ルーティング: Expo Router（ファイルベース）** を採用し、画面は `app/` に、実装の実体は `src/` に物理分離する。
 2. **アーキテクチャ: ハイブリッド構成**。横断的な土台（`src/components/`, `src/hooks/`, `src/lib/` 等）と、機能単位で凝集する `src/features/<feature>/` を併用する。
+   - **（SS-260 追補）feature が大きくなったら、層より先に領域で分ける。** feature の層のフォルダ（`components/` `hooks/` `lib/` …）が構造の検査（[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md)）の閾値を超え、
+     中に別の名前で言えるまとまり（画面の群・API・backend のモジュールに対応する領域）があるときは、`features/<feature>/<domain>/{api,components,hooks,lib,data,store}/` と `<domain>/types.ts` の形にする。
+     層の下に領域のサブフォルダ（`lib/sanpo-map/`・`components/invitation/`）は切らない。1つの領域が層ごとに散らばり、領域を足す・消すときに層の数だけフォルダを触るため（SS-250 の招待がそうなっていた）。
+     領域の層のフォルダがさらに閾値を超えたら、同じ考え方でその領域を分ける（`pin/lib/edit/` ではなく `pin/edit/lib/` の形。領域の直下には下位の領域と `shared/` を置く）。
+     下位の領域同士の import は、[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md) 決定9 のとおり相互にしない（相互 import を許すのは feature の直下の領域だけ。ADR-016 決定15）。
+     walk / history など他の feature にも同じ形で当てはめる。
+     SS-260 の時点で `sanpo-map/pin/` の層の下に残るサブフォルダ（`{components,hooks,lib}/{tag,location-search,visibility}/`）は、この形になる前のもので、SS-257 で直す（手本にしない）。
+     - **feature の直下には、領域のフォルダと `shared/` だけを置く。** 層のフォルダと領域のフォルダを同じ階層に混ぜない。
+     - **同じ feature の領域同士は互いに import してよい（双方向も）。** 双方向の依存があるから別の feature に分けず、1つの feature の中で分けている。feature 同士は import しない規約（[フォルダ構造](../docs/folder-structure.md)）は変えない。
+       ファイルの単位の循環は `import/no-cycle` が止める。他の領域から使われても、持ち主が1つに決まるもの（地図のアイコン・地図の一覧の取得・ピンの状態バッジ・ピンの取得）は持ち主の領域に置き、使う側がそこから import する。
+     - **`shared/` に置いてよいのは、2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ。** 何でも置く場所にしないため、次の3種類に限る。
+       1. 領域をまたぐ API の型（`shared/types.ts`。その型が参照する型も含む）。1つの領域だけが使う型は、その領域の `types.ts`（`pin/types.ts`・`invitation/types.ts`）に置く
+       2. 領域をまたいで無効化する queryKey の階層（`shared/lib/pinQueryKeys.ts`。ピンの保存で地図詳細のピン一覧も無効化されるよう、地図単位のピン一覧の key を意図して `["pins", ...]` の下に置いている）
+       3. どの領域の語も持たない画面の部品・判定（状態カード・名前の検索欄・pull-to-refresh・TanStack Query の読み込み状態）
+       `shared/` は領域のフォルダを import しない（型だけの import も。親 → 子 → 親の行き来を作らない）。1つの領域からしか使われなくなったら、その領域へ戻す。2つ以上の feature から使うなら `src/` の横断の層へ昇格する（決定3）。
+     - lib/ の制限（`.oxlintrc.json` の `no-restricted-imports`）の glob は、深さに依存しない `src/features/**/lib/**` で書く。1段の `*` は領域の下の lib/ に当たらず、制限が黙って外れる。
+     - 最初の例は `features/pin` を改めた `features/sanpo-map`（`map/`: 地図の一覧・詳細・作成・メンバー・アイコン・削除、`invitation/`: 地図への招待、`pin/`: ピン本体、`shared/`）。
+       backend の `sanpo_maps/{maps, pins, invitations, photos}` と同じく、地図の下にピンと招待がある。`pin/` の中の分割は SS-257。
 3. **コンポーネント配置の判断基準**: 「2つ以上の機能から使うか？」で `src/components/`（Primitiveは `ui/`）か `src/features/<feature>/components/` かを決める。迷ったらまず `features/` に置き、再利用発生時に昇格させる。
 4. **スタブ差し替え層: `src/services/<service>/`**。`index.ts` がインターフェースを公開し、環境変数で real/stub を選択する。E2Eでは Maestro で再現可能なものは real、不可能なもののみ stub にフォールバックする。（**棚卸し追補**: 現在のモードは real/stub の2値ではなく `real` / `dev` / `mock` が基本形。詳細は [フォルダ構造](../docs/folder-structure.md)）
 5. **命名規則**: フォルダは常に kebab-case、Reactコンポーネントは PascalCase、hook/util/型は camelCase、`app/` のルートは kebab-case・小文字。import は case まで完全一致。
-6. **API 失敗の分類は操作ごとに分ける（棚卸し追補）**: `features/*/lib/` の `xxxError.ts` は API 操作ごとに別ファイルにする
+6. **API 失敗の分類は操作ごとに分ける（棚卸し追補）**: `features/**/lib/` の `xxxError.ts` は API 操作ごとに別ファイルにする
    （例: `walkHistoryError.ts`＝GET 一覧・詳細、`walkSaveError.ts`＝POST、`walkDeleteError.ts`＝DELETE、`walkStatsError.ts`＝集計 GET）。
    中身はどれも「`isApiError()` で status を見て、コード・文言・再試行の可否を返す」同じ形だが、DRY 違反として統合しない。
    - **理由**: 同じ HTTP ステータスでも操作によって意味が違う。404 は GET 詳細では「見つからない＝エラー」だが、
@@ -112,6 +134,31 @@
 - **メリット**: 名前が視覚的に一致。
 - **デメリット**: 「フォルダ命名」に例外が生まれ、規則が増える。
 
+### feature の中の分け方（SS-260 追補）
+
+`features/pin` に地図（`sanpoMap*`）と招待が集まり、`components`（47）・`lib`（48）・`hooks`（21）がフォルダ直下のファイル数の閾値 20 を超えていた。
+地図とピンは双方向に依存する（地図の画面がピンの取得・状態の表示・queryKey を使い、ピンの登録・編集が地図の選択・アイコンを使う）。
+
+#### 選択肢1: 地図・招待を別の feature に出す
+
+- **デメリット**: 双方向の依存が feature の間の import になり、feature 同士は import しない規約に反する（SS-254 でも同じ理由で採らなかった）。
+
+#### 選択肢2: 層の下に領域のサブフォルダを切る（`pin/lib/sanpo-map/`・`pin/components/invitation/`）
+
+- **メリット**: 層ごとの規約（lib/ は純粋関数など）の glob がそのまま当たる。
+- **デメリット**: 1つの領域が層の数だけのフォルダに散らばる。SS-250 の招待、SS-254 の skill の実例がこの形だった。
+
+#### 選択肢3: 1つの feature のまま、層より先に領域で分ける（採用）
+
+- **メリット**: 1つの領域が1つのフォルダに収まり、backend のモジュール（`sanpo_maps/{maps, pins, invitations}`）と対応が取れる。双方向の依存は feature の中に閉じる。
+- **デメリット**: パスが1段深くなる。層の glob を深さに依存しない形に直す必要がある。
+
+#### 選択肢4: 3 に加えて、領域同士の import を禁止する（backend の ADR-011 のような一方向の規則）
+
+- **デメリット**: SS-260 の時点で地図からピンへの import が14本、ピンから地図へが27本あり、どちらの向きを禁じても、使われる側（ピンの取得・状態の表示・読み込みの失敗、または地図の一覧・アイコン）を
+  `shared/` に移すことになって `shared/` が何でも置く場所になる。backend の `sanpo_maps` は向きを一方向（pins → maps）に決めているが、
+  mobile は画面が領域をまたいで組み立てる（地図詳細がピンの一覧と状態を出し、ピンの登録画面が地図を選ぶ）ため、向きを1つに決められない。
+
 ## 決定理由
 
 - チームの経験が浅いため、**規約が明確で例外の少ない**構成（Expo Router + フォルダは常に kebab）を優先した。
@@ -151,3 +198,5 @@
 - [ページ・コンポーネント実装ガイドライン](../docs/pages-components-guideline.md)
 - [ツール・ライブラリ](../docs/toolsets-libraries.md)
 - [ADR-M-016](./ADR-M-016-theme-mode-preference.md): `services/preferences` は決定4 の例外（real/mock の環境変数を持たない）
+- [ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md): 構造の検査（決定2 の SS-260 追補で、feature を分けるきっかけになる閾値）
+- [structure-refactor skill](../../../.claude/skills/structure-refactor/SKILL.md): 分け方を決める手順（決定2 の SS-260 追補の形で分ける）

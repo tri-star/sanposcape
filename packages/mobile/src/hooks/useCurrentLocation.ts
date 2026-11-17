@@ -59,7 +59,7 @@ type LocationRequest = {
  * （許可しに行った直後なので自然な動きとして維持する）。端末全体の位置情報サービスのオフ
  * （`services_disabled`）は権限 API で検知できないので対象外で、再試行ボタンが担う。
  *
- * 配置について: `features/walk`（散歩開始画面の `useWalkPlan`）と `features/pin`（ピンタブの
+ * 配置について: `features/walk`（散歩開始画面の `useWalkPlan`）と `features/sanpo-map`（ピンタブの
  * `usePinLocationPicker`。SS-124）から使うため `src/hooks/` に置く（`docs/folder-structure.md` の
  * 昇格ルール）。
  */

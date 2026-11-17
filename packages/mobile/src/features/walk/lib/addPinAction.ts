@@ -8,9 +8,9 @@ export type AddPinAction =
 /**
  * 散歩中画面の「この場所にピンを追加」の遷移先を決める（純粋関数）。
  *
- * `features/walk` は `features/pin` を import しない（feature 間の相互依存を作らないため）。
+ * `features/walk` は `features/sanpo-map` を import しない（feature 間の相互依存を作らないため）。
  * ここで組み立てる `params`（キー名 `latitude`/`longitude`/`clientWalkId`、値は `String(n)`）は
- * `features/pin/lib/pinLocationParams.ts` の `parsePinLocationParams` /
+ * `features/sanpo-map/pin/lib/pinLocationParams.ts` の `parsePinLocationParams` /
  * `parseClientWalkIdParam` がそのまま読める形を暗黙の契約として維持する
  * （`pinLocationParams.test.ts` 側で互換を固定する）。座標は丸めない。
  */
