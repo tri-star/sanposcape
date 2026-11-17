@@ -4,9 +4,9 @@
     {
       "kind": "file-lines",
       "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py",
-      "value": 2843,
+      "value": 2844,
       "issue": "SS-256",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。SS-140（mypy の導入）で型の注釈のための typing の import が1行増えた。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
     },
     {
       "kind": "file-lines",
