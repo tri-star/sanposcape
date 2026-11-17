@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import parse_qs
 
 import httpx
@@ -161,7 +162,8 @@ class TestRevokeRefreshToken:
             seen.append(request)
             return httpx.Response(200)
 
-        result = _client(handler, ec_private_key).revoke_refresh_token(
+        # 戻り値が None であること自体を確かめる
+        result = _client(handler, ec_private_key).revoke_refresh_token(  # type: ignore[func-returns-value]
             REFRESH_TOKEN, client_id=CLIENT_ID
         )
 
@@ -463,7 +465,8 @@ class TestSettings:
     @pytest.mark.parametrize("value", [0, -1, 11])
     def test_timeouts_are_bounded(self, field: str, value: float) -> None:
         with pytest.raises(ValueError):  # noqa: PT011
-            Settings(**{field: value})
+            overrides: dict[str, Any] = {field: value}
+            Settings(**overrides)
 
     def test_worst_case_total_stays_within_lambda_timeout(self) -> None:
         """実効の最悪時間 connect * 3 + read が、上限値でも 29 秒（API Gateway）に収まる。"""

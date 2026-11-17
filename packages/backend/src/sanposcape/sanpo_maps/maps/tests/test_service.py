@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Callable
+from typing import cast
 
 import pytest
 from sqlalchemy.orm import Session
@@ -19,6 +20,7 @@ from sanposcape.sanpo_maps.maps.schemas import (
 )
 from sanposcape.sanpo_maps.maps.service import SanpoMapService
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapIcon, SanpoMapMember
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 
 
@@ -40,9 +42,9 @@ class SpyPhotoCleaner:
 def make_service(
     db_session: Session, photo_cleaner: SpyPhotoCleaner | None = None
 ) -> SanpoMapService:
-    return SanpoMapService(
-        db_session, SanpoMapRepository(db_session), photo_cleaner or SpyPhotoCleaner()
-    )
+    # スパイは SanpoMapService が使う delete_best_effort だけを持つ（Cleaner は具象クラス）
+    cleaner = cast(PhotoObjectCleaner, photo_cleaner or SpyPhotoCleaner())
+    return SanpoMapService(db_session, SanpoMapRepository(db_session), cleaner)
 
 
 def _create_pin(db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> None:
@@ -624,7 +626,7 @@ class TestListTags:
         db_session.commit()
         calls: list[dict] = []
 
-        def spy(**kwargs):  # type: ignore[no-untyped-def]
+        def spy(**kwargs):
             calls.append(kwargs)
             return []
 
@@ -693,7 +695,7 @@ class TestListTags:
         db_session.commit()
         calls: list[dict] = []
 
-        def spy(**kwargs):  # type: ignore[no-untyped-def]
+        def spy(**kwargs):
             calls.append(kwargs)
             return []
 

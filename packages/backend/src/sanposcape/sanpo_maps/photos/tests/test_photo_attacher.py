@@ -2,6 +2,7 @@ import io
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from PIL import ExifTags, Image
@@ -19,8 +20,8 @@ from sanposcape.sanpo_maps.photos.photo_keys import original_key, staging_key, t
 USER_ID = uuid.uuid4()
 
 
-def make_attacher(storage: FakeObjectStorage, **overrides) -> PhotoAttacher:
-    kwargs = {
+def make_attacher(storage: FakeObjectStorage, **overrides: Any) -> PhotoAttacher:
+    kwargs: dict[str, Any] = {
         "max_bytes": 10 * 1024 * 1024,
         "max_pixels": 1_000_000,
         "thumbnail_max_edge": 50,
@@ -152,16 +153,16 @@ class TestPrepare:
     def test_storage_unavailable_takes_priority_over_invalid_photo(self) -> None:
         """503（再送で回復しうる）を409より優先して報告する。"""
 
-        class FlakyStorage:
+        class FlakyStorage(FakeObjectStorage):
             def __init__(self, ok_upload_id: uuid.UUID) -> None:
+                super().__init__(secret="s" * 32)
                 self._ok_upload_id = ok_upload_id
-                self._inner = FakeObjectStorage(secret="s" * 32)
-                seed(self._inner, ok_upload_id)
+                seed(self, ok_upload_id)
 
             def get_bytes(self, key: str, *, max_bytes: int) -> bytes:
                 if self._ok_upload_id.hex not in key:
                     raise ObjectStorageUnavailableError("boom")
-                return self._inner.get_bytes(key, max_bytes=max_bytes)
+                return super().get_bytes(key, max_bytes=max_bytes)
 
         ok_id = uuid.uuid4()
         bad_id = uuid.uuid4()
@@ -433,7 +434,9 @@ class TestMetadataStripping:
         assert b"GPS-SECRET" not in stored
         assert item.byte_size == len(stored) < len(data)
         assert storage.copied == []
-        assert storage.head(item.original_key).content_type == "image/jpeg"
+        stored_info = storage.head(item.original_key)
+        assert stored_info is not None
+        assert stored_info.content_type == "image/jpeg"
 
     def test_puts_original_unchanged_when_no_metadata(self) -> None:
         storage = self.RecordingStorage(secret="s" * 32)

@@ -26,9 +26,10 @@ from sanposcape.maps.schemas import (
     WalkingRouteRequest,
 )
 from sanposcape.maps.service import MapsService
+from sanposcape.maps.tests.provider_stub import GoogleMapsProviderStub
 
 
-class FakeProvider:
+class FakeProvider(GoogleMapsProviderStub):
     """`GoogleMapsProvider` のローカルテストダブル。
 
     `integrations/google_maps/fake.py` の `FakeGoogleMapsProvider`（幾何計算で決定的な
@@ -144,7 +145,7 @@ _LOOP_DESTINATION = ProviderPoint(35.003, 139.0)  # ~333m north、周回の余�
 _LOOP_RIGHT, _LOOP_LEFT = loop_waypoint_candidates(_LOOP_ORIGIN, _LOOP_DESTINATION)
 
 
-class LoopFakeProvider:
+class LoopFakeProvider(GoogleMapsProviderStub):
     """`get_loop_walking_route` の並列取得・フォールバック分岐を検証するためのスタブ。
 
     候補は経由点（via、小数5桁）で見分ける（ADR-007 決定1・決定2）。

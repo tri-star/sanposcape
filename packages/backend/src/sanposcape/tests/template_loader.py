@@ -25,6 +25,7 @@ def _construct_tag(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) ->
         return loader.construct_scalar(node)
     if isinstance(node, yaml.SequenceNode):
         return loader.construct_sequence(node, deep=True)
+    assert isinstance(node, yaml.MappingNode)
     return loader.construct_mapping(node, deep=True)
 
 

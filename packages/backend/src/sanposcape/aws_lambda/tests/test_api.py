@@ -105,7 +105,7 @@ def test_settings_validation_failure_is_reraised_without_the_input_values(
         number: int
 
     try:
-        _Model(number="super-secret-input")  # type: ignore[arg-type]
+        _Model(number="super-secret-input")
     except ValidationError as caught:
         validation_error = caught
 
