@@ -128,6 +128,7 @@ max-args = 8
 # パッケージの基点を src に固定して同名のテストモジュール（test_service.py など）を区別する。
 [tool.mypy]
 python_version = "3.12"
+# scripts/（一回限りの移行のスクリプトなど）と alembic/ は対象外
 files = ["src"]
 mypy_path = "src"
 explicit_package_bases = true
