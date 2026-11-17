@@ -5,8 +5,10 @@
 """
 
 import uuid
+from typing import Any, cast
 
 from sqlalchemy import case, exists, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session, aliased
 
 from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap
@@ -62,9 +64,10 @@ class AccountDeletionRepository:
         )
         # 複数テーブルの条件（UPDATE ... FROM）は ORM の同期（evaluate）に向かないので切る。
         options = {"synchronize_session": False}
-        tags = self._db.execute(tags_stmt, execution_options=options).rowcount
-        pins = self._db.execute(pins_stmt, execution_options=options).rowcount
-        return pins, tags
+        # DML の結果は CursorResult（rowcount を持つ）。Session.execute() の型は Result
+        tags = cast(CursorResult[Any], self._db.execute(tags_stmt, execution_options=options))
+        pins = cast(CursorResult[Any], self._db.execute(pins_stmt, execution_options=options))
+        return pins.rowcount, tags.rowcount
 
     def lock_pins_for_owned_maps(self, owner_user_id: uuid.UUID) -> None:
         """本人が owner の地図の行と、そこに属するピン行を `FOR UPDATE` でロックする（決定33 の

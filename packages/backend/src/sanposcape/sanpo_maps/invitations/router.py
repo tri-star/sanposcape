@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 
@@ -24,11 +25,11 @@ router = APIRouter(tags=["sanpo-map-invitations"])
 # `/sanpo-maps` 配下は `RequestSizeLimitMiddleware` の対象
 # （maps/router.py と同じ理由で 413 を宣言）。
 # `/invitations` 配下も main.py で同じ上限を掛ける。
-_ERROR_RESPONSES = {
+_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Not authenticated"},
     413: {"description": "Request body too large"},
 }
-_NOT_FOUND = {
+_NOT_FOUND: dict[int | str, dict[str, Any]] = {
     404: {"model": InvitationNotFoundErrorRead, "description": "Invitation not usable"},
 }
 

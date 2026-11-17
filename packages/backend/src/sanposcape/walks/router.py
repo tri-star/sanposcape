@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -17,7 +18,7 @@ from sanposcape.walks.service import WalkService
 
 router = APIRouter(prefix="/walks", tags=["walks"])
 
-_ERROR_RESPONSES = {
+_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Not authenticated"},
     # `RequestSizeLimitMiddleware`（core/middleware.py）は `/walks` 配下の全 HTTP
     # メソッドの Content-Length をチェックするため、GET / DELETE のようにボディを
