@@ -58,7 +58,7 @@ Expo Router の既定の解釈（path だけを見る）では受け取れない
 - **D7: custom scheme の乗っ取り**: LP の「アプリで開く」は、Android では `intent://…#Intent;scheme=…;package=<パッケージ名>;end` でパッケージを指定し、同じ scheme を名乗る別のアプリにトークンを渡さない。iOS は custom scheme の重複を防げないので、**受け入れた危険**とする（端末に悪意あるアプリが入っていることが前提。1リンク1人なので本来の相手は「使えないリンク」になって気付け、owner はメンバー画面で外せる）。本番の Android は App Links の検証が通らない間（assetlinks.json の値が揃うまで）、この経路が主になる。
 - **D8: 共有シートを開く時機（SS-264 追補）**: iOS は、閉じている途中の Modal の上に共有シート（`UIActivityViewController`）を出そうとすると、ログに警告を出すだけで何も表示しない。
   招待シートを閉じ始めた直後に `Share.share` を呼んでいたため、TestFlight のビルドで「招待リンクを送る」を押してもリンクが発行されるだけで共有シートが開かなかった（Android は Intent で開くので起きない）。
-  - iOS は本文を預けて招待シートを閉じ、`Dialog` の `onDismiss`（RN の Modal の `onDismiss`。RN 0.86 では iOS でだけ、閉じるアニメーションの完了で発火する）で開く（`features/pin/lib/invitation/pendingShare.ts`）。
+  - iOS は本文を預けて招待シートを閉じ、`Dialog` の `onDismiss`（RN の Modal の `onDismiss`。RN 0.86 では iOS でだけ、閉じるアニメーションの完了で発火する）で開く（`features/sanpo-map/invitation/lib/pendingShare.ts`）。
   - `onDismiss` が来ない場合に備え、1 秒（`PENDING_SHARE_FALLBACK_MS`。fade の約 300ms に余裕を足した値）の予備のタイマーでも開く。開くのは先に来た方の1回だけ。予備のタイマーの時点で閉じ終えていなければ、元の不具合と同じく黙って開かない。
   - 預けた後に画面を離れたら、開かずに捨てる。発行の応答を待つ間に離れた場合は、応答の後で預けて開く（変更前と同じ挙動。マウント状態でのガードは StrictMode の二重 effect と絡んで複雑になるので入れない）。
   - Android は従来どおり、閉じると同時に開く。

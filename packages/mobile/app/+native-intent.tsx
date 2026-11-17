@@ -1,7 +1,7 @@
 import {
   invitationAcceptPath,
   parseInvitationLink,
-} from "@/features/pin/lib/invitation/invitation";
+} from "@/features/sanpo-map/invitation/lib/invitation";
 
 /**
  * OS から渡された URL を Expo Router のパスに書き換える（SS-250）。

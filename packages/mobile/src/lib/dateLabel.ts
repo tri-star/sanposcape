@@ -1,5 +1,5 @@
 /**
- * SS-118 で `features/history/lib/walkDateLabel.ts` から昇格（`features/pin` の詳細画面
+ * SS-118 で `features/history/lib/walkDateLabel.ts` から昇格（`features/sanpo-map` の詳細画面
  * （登録日時）でも使うため2機能ルールに従う。`features/history` 由来の関数名は
  * 汎用名（`formatDateLabel` / `formatTimeLabel` / `formatTimeRangeLabel`）へ変更した。
  */

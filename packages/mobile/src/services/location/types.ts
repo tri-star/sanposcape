@@ -77,7 +77,7 @@ export type WatchPositionOptions = {
 
 /**
  * 位置情報サービスのインターフェース。
- * 呼び出し側（features/walk / features/pin）はこれのみを参照し、real/mock の実体を知らない。
+ * 呼び出し側（features/walk / features/sanpo-map）はこれのみを参照し、real/mock の実体を知らない。
  */
 export type LocationService = {
   /** 現在の権限状態を返す（ダイアログを出さない）。 */

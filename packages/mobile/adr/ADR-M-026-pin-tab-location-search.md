@@ -86,7 +86,7 @@ iOS の地図も Google Maps にした（[ADR-M-007](./ADR-M-007-expo-config-and
   - ユーザー判断（2026-11-15）: 規約に沿う2案（下の「検討した選択肢」の SS-272 追補）と比べたうえで、操作の短さを優先してこの案を選んだ。
   - カードの表示は `PinTabView` の関数の行数の上限（ADR-017）のため、同じファイルの補助コンポーネント `PinTabSearchResultOverlay` に分けた。
 - **D8: コード上の名前は `locationSearch`。** walk の探索に `placeSearch*`（`/explore/places`）があるので分ける。置き場所は
-  `features/pin/{components,hooks,lib}/location-search/` と `features/pin/api/locationSearchApi.ts`。
+  `features/sanpo-map/pin/{components,hooks,lib}/location-search/` と `features/sanpo-map/pin/api/locationSearchApi.ts`。
 
 ## 検討した選択肢
 

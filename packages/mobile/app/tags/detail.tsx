@@ -1,8 +1,8 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { TagDetailView } from "@/features/pin/components/tag/TagDetailView";
-import { parseTagLabelParam } from "@/features/pin/lib/tag/pinTagIndex";
+import { TagDetailView } from "@/features/sanpo-map/pin/components/tag/TagDetailView";
+import { parseTagLabelParam } from "@/features/sanpo-map/pin/lib/tag/pinTagIndex";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**

@@ -20,7 +20,7 @@ Orval（`client: "react-query"` + `httpClient: "fetch"`）の生成関数は `cu
 
 `customFetch` は非2xx の本文を JSON パースして（失敗時 `undefined`）`new ApiError(status, undefined, body)` に載せる。
 
-**How to apply:** 新しい原因分岐が要るときは backend に機械可読な `code` を足してもらい、分類関数（例: `features/pin/lib/pinSaveError.ts`）で
+**How to apply:** 新しい原因分岐が要るときは backend に機械可読な `code` を足してもらい、分類関数（例: `features/sanpo-map/pin/lib/pinSaveError.ts`）で
 `getApiErrorCode(cause)` を見る。`code` が無い・未知なら安全側の既定に倒す。`authApi.ts`（出口2）はこの仕組みの対象外。
 
 ## Orval: 本文スキーマが無いレスポンスは `data: void` になる

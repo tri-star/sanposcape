@@ -32,7 +32,7 @@ metadata:
 - **`Text` のプリミティブは無い。** RN の `Text` を直接 import してテーマのトークンでスタイルする（手本は `DesignSystemGallery.tsx`）。
 - **iOS では、閉じている途中の `Modal`（`Dialog`・`BottomSheet`）の上に、ネイティブの画面（`Share.share` の共有シートなど、present で出すもの）を出せない。**
   警告をログに出すだけで何も表示せず、`Share.share` は reject も resolve もしない。Android は Intent で開くので再現せず、エミュレータの確認では見つからない（SS-264 で TestFlight の実機で発覚）。
-  `Modal` を閉じた直後に開くときは、`Dialog` の `onDismiss`（iOS だけ発火）で開く。手本は `SanpoMapInviteSection.tsx` と `features/pin/lib/invitation/pendingShare.ts`（ADR-M-024 D8）。
+  `Modal` を閉じた直後に開くときは、`Dialog` の `onDismiss`（iOS だけ発火）で開く。手本は `SanpoMapInviteSection.tsx` と `features/sanpo-map/invitation/lib/pendingShare.ts`（ADR-M-024 D8）。
 
 ## アイコン（lucide-react-native の版差）
 

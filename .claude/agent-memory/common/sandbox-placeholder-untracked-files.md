@@ -18,4 +18,7 @@ sandbox の外からは見えない。読もうとすると Permission denied �
 - `git add -A` / `git add .` は使わず、変更したパスを名指しして add する。
 - 見慣れない追跡外ファイルは、まず `ls -la` で文字デバイス（1, 3）かを確かめる。そうなら無視してよい。
 - `git status` を sandbox の外で見るために sandbox を外すことはしない（commit まで外に出すと、リポジトリのフックが sandbox なしで動く）。
+- 作業ディレクトリを repo の下のフォルダに移した（`cd`）後、そこに空の `.claude/.cc-writes/`（中身なし・追跡外）ができることがある（SS-260）。
+  `git mv` でフォルダを空にしたときは、旧フォルダに残ったこれが空ディレクトリの削除を邪魔するので、`find <旧フォルダ> -depth -type d -empty -delete` で消す。
+  移動先のフォルダにできた分も、作業の最後に消す。
 - 隠したい場合の候補は `.git/info/exclude`（コミットされず、全 worktree に効く）。`.claude/` の下まで隠すと、そこに置いた新しいファイルも `git status` に出なくなる。

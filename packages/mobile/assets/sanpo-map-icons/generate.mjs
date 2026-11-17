@@ -1,4 +1,4 @@
-// source/ の Noto Emoji の SVG を SVGO で軽くし、src/features/pin/data/sanpoMapIconArt.ts を作り直す。
+// source/ の Noto Emoji の SVG を SVGO で軽くし、src/features/sanpo-map/map/data/sanpoMapIconArt.ts を作り直す。
 // 使い方は README.md の「再生成」を参照。
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -26,7 +26,7 @@ const ICONS = [
 ];
 
 const here = dirname(fileURLToPath(import.meta.url));
-const out = join(here, "../../src/features/pin/data/sanpoMapIconArt.ts");
+const out = join(here, "../../src/features/sanpo-map/map/data/sanpoMapIconArt.ts");
 const work = mkdtempSync(join(tmpdir(), "sanpo-map-icons-"));
 
 try {
@@ -60,7 +60,7 @@ try {
  * 生成物なので手で編集しない。\`assets/sanpo-map-icons/generate.mjs\` で作り直す（同じフォルダの README を参照）。
  * Copyright 2013 Google LLC。Apache License 2.0 / SIL Open Font License 1.1（設定のライセンスの画面に全文を載せる）。
  */
-import type { SanpoMapIconKey } from "@/features/pin/types";
+import type { SanpoMapIconKey } from "@/features/sanpo-map/shared/types";
 
 export const SANPO_MAP_ICON_ART: Record<SanpoMapIconKey, string> = {
 ${entries.join("\n")}

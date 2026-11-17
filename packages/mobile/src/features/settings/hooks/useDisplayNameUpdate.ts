@@ -23,7 +23,7 @@ export type UseDisplayNameUpdateResult = {
  *
  * 成功したら `authService.updateCurrentUser()` で `useAuthSessionStore` の `user` を差し替える。
  * ストアへ直接書かず、サービスの `onSessionChange` を通す（ADR-M-009 の書き込み経路を増やさない）。
- * アカウントタブの挨拶はストアを読むのですぐ変わる。地図のメンバー一覧のキャッシュ（features/pin）は
+ * アカウントタブの挨拶はストアを読むのですぐ変わる。地図のメンバー一覧のキャッシュ（features/sanpo-map）は
  * feature をまたぐ import を作らないため触らず、鮮度切れ・引っ張って更新で取り直す。
  * 自動再試行はしない（失敗はダイアログで見せる）。
  */

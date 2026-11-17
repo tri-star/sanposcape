@@ -226,7 +226,7 @@ View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタン
    （バンドルサイズを1箇所で棚卸しするため）。名前はデザインと同じ kebab-case（例: `chevron-right`）で、
    使いたいアイコンが無ければ `src/components/ui/icon/iconRegistry.ts` に1行追加する。**絵文字は使わない**。
    - **例外**: 地図のアイコン（地図ごとに選ぶ13種類）は、Noto Emoji のカラー SVG を画像として描く
-     （`features/pin/components/SanpoMapIconArt.tsx`。文字としての絵文字ではない。SS-191 /
+     （`features/sanpo-map/map/components/SanpoMapIconArt.tsx`。文字としての絵文字ではない。SS-191 /
      [ADR-M-019](../adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) D8）。それ以外の UI のアイコンは従来どおり `Icon` を使う。
      同梱した素材のライセンス本文は設定の「ライセンス」画面（`features/settings/data/thirdPartyNotices.ts`）に載せる。
 6. **`accessibilityRole` / `accessibilityLabel` / `accessibilityState` を必ず設定する**。
@@ -277,7 +277,7 @@ View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタン
 
 **`src/api/client.ts` から到達する位置にネイティブ依存を新たに足したら、`vitest.config.ts` の
 `resolve.alias` にモックを追加すること**。さもないと `client.ts` を推移的に import する
-`features/*/api/*.test.ts` が全滅する（許容条件・実例は
+`features/**/api/*.test.ts` が全滅する（許容条件・実例は
 [architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
 
 代わりに、**判定ロジックを `react-native` を値として import しない純粋関数に切り出して `.test.ts` でテストする**

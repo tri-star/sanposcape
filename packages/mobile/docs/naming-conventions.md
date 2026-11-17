@@ -42,7 +42,7 @@ components/ui/button/
   - `app/user-profile.tsx` → `/user-profile`（URL慣習の小文字・ハイフンに一致）
   - `app/UserProfile.tsx` にすると URL が `/UserProfile` になってしまい不適切。
 - 画面の中身は `src/features/<feature>/components/WalkHistoryList.tsx`（PascalCase）に実装し、
-  `app/` からはそれを import して薄く配置する。
+  `app/` からはそれを import して薄く配置する（領域で分けた feature では `src/features/<feature>/<domain>/components/`。例: `src/features/sanpo-map/map/components/SanpoMapListView.tsx`。[フォルダ構造](./folder-structure.md)）。
 
 ## Zustand ストア
 

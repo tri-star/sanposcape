@@ -10,7 +10,7 @@
 - **絞り込みは地図・ピンとも端末で行い、API の `q` は使わない**。（本文: D1）
 - **ピン一覧は 200 件 × 最大 5 ページ（1000 件）を1つの取得関数で取り、`useQuery` 1本で持つ**。超過分は案内を出す。（本文: D2）
 - **`fetchSanpoMaps` は常に `expand=pin_count` を付け、queryKey を各画面で共有する**。地図詳細の地図情報は一覧のキャッシュから引く。（本文: D3）
-- **ルートは `/sanpo-maps`・`/sanpo-maps/[sanpoMapId]`（`[sanpoMapId]/index.tsx`）・`/sanpo-maps/[sanpoMapId]/members`。実体は `features/pin`**。（本文: D4、SS-249 追補）
+- **ルートは `/sanpo-maps`・`/sanpo-maps/[sanpoMapId]`（`[sanpoMapId]/index.tsx`）・`/sanpo-maps/[sanpoMapId]/members`。実体は `features/sanpo-map`**。（本文: D4、SS-249 追補）
 - **地図の作成 UI は画面内のダイアログ**。二重送信は同期ラッチで防ぎ、作成中は閉じる操作を止める。アイコンを選べる（既定 `pin`）。（本文: D5、SS-171 追補）
 - **地図詳細に地図のアイコンを表示し、owner だけアイコンのタップで開くダイアログから変えられる**（`PATCH` は `{ icon }` のみ。右下にペンのバッジ）。
   ダイアログを開いている間は `useScreenBack` の `onIntercept` で閉じ、変更中は閉じない。（本文: SS-171 追補、SS-249 追補でボタンからタップに）
@@ -68,7 +68,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
   常に1ページ目から。
 - **D3: `fetchSanpoMaps` は常に `expand=pin_count` を付け、queryKey（`["sanpo-maps","list"]`）を
   ピン登録画面・ピンタブ・地図一覧・ピン詳細（SS-119）・ピン編集画面（SS-175）で共有する。** 地図詳細の地図情報は、この一覧のキャッシュから id で引く。
-- **D4: ルートは `/sanpo-maps`（既存）と `/sanpo-maps/[sanpoMapId]`（新設）。実体は `features/pin` に置く**
+- **D4: ルートは `/sanpo-maps`（既存）と `/sanpo-maps/[sanpoMapId]`（新設）。実体は `features/sanpo-map` に置く**
   （新しい feature は作らない）。
 - **D5: 地図の作成 UI は画面内のダイアログ（`SanpoMapCreateDialog` + `useSanpoMapCreate`）にする。**
   ルートにしない。`Dialog` の中身を `KeyboardAvoidingView` で包む。作成は自動再送しない（冪等キーが無い）。
@@ -142,7 +142,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 - 端末で絞り込むには対象が手元に揃っている必要がある。MVP の規模（1ユーザー数百件程度。ルート ADR-009
   SS-111 追補「将来の課題」）なら、ほとんどの地図は1リクエストで終わり、反応が最も速い。
 - 既存の `useSanpoMaps`・`sanpoMapApi`・`pinReadApi`・`PinStateCard`・`PinPhotoImage` がすべて
-  `features/pin` にあり、別 feature にすると feature 間 import の禁止（`docs/folder-structure.md`）に当たる。
+  `features/sanpo-map` にあり、別 feature にすると feature 間 import の禁止（`docs/folder-structure.md`）に当たる。
 - ゲストの扱い・フラグ・戻る導線（`useScreenBack`）・画面ガードは ADR-M-009・ADR-M-012 の既存方針に揃えた。
 
 ## 影響
@@ -168,7 +168,7 @@ keyset ページング。`limit` 最大 200）。`GET /sanpo-maps/{id}` は存�
 
 ### 移行・対応が必要な事項
 
-- ~~SS-119（ピンの編集・削除）: ピンを消したら `SANPO_MAPS_QUERY_KEY`（`features/pin/lib/pinQueryKeys.ts`）も invalidate すること（地図一覧の
+- ~~SS-119（ピンの編集・削除）: ピンを消したら `SANPO_MAPS_QUERY_KEY`（`features/sanpo-map/shared/lib/pinQueryKeys.ts`）も invalidate すること（地図一覧の
   ピン件数が古くなる。`PINS_QUERY_ROOT` の invalidate だけでは更新されない）。地図詳細のピン一覧は
   `["pins", ...]` 始まりなので `PINS_QUERY_ROOT` の invalidate で取り直される。~~
   → SS-119 で決着（`usePinDelete` が invalidate する。[ADR-M-017](./ADR-M-017-pin-edit-and-delete.md)）。
@@ -236,7 +236,7 @@ SS-171 で `icon`（`GET/POST/PATCH /sanpo-maps`）を追加した（ルート A
   - `deleteSanpoMap()` は 404 を成功に読み替える（backend は非冪等で、通信の失敗の後の再試行がサーバーで消し終えていれば 404 になる。`deletePin()` と同じ）。
   - `useSanpoMapDelete` は成功で、**先に地図一覧を取り直し、終わってから `["pins"]` を invalidate する**（ピンタブ・散歩中の地図のマーカー・タグ候補・既定の繰り上げ）。ピンタブ（`useRegisteredPins`）は地図一覧から取る地図を決めるので、同時に invalidate すると、まだ一覧に残っている消した地図のピンを取り直して 404 を踏む（エミュレータで確認）。順序だけでは描画のタイミングに頼るので、**消した地図のピンのクエリ（一覧・全件・タグ候補）は `isPinsQueryOfSanpoMap` で invalidate の対象から外す**（観測されなくなった後に gcTime で消える）。画面側の配線（ダイアログの開閉・戻るの横取り・遷移）は `useSanpoMapDeleteFlow` に分けた。成功の状態は同期的に `deleted` にし、地図詳細はそれを見て**消した地図のピン一覧・メンバー・一覧の再確認（`useSanpoMapRecheck`）の取得を止め**、本文をスピナーに差し替える。止めないと invalidate で消した地図を取り直して 404 を踏み、画面を離れるまでの間にエラーや not-found が一瞬出る。
   - 403 は役割が変わった可能性があるので地図一覧を取り直す（owner でなくなればボタンが消える）。
-- **ファイルの置き場所**: 構造のラチェット（ADR-016）で `features/pin/components`・`hooks`・`lib` の直下を増やせないため、`map-deletion/` のサブフォルダに置いた（`invitation/`・`visibility/` と同じ。直下の分割は SS-257）。API の関数は既存の `api/sanpoMapApi.ts` に足した。
+- **ファイルの置き場所**: 構造のラチェット（ADR-016）で `features/pin/components`・`hooks`・`lib` の直下を増やせないため、`map-deletion/` のサブフォルダに置いた（`invitation/`・`visibility/` と同じ。直下の分割は SS-257）。SS-260 で feature を `features/sanpo-map` に改めて地図を領域のフォルダ（`map/`）に分けたとき、`map-deletion/` は解いて `map/` の層の直下に移した（ADR-M-001 決定2 の SS-260 追補）。API の関数は既存の `api/sanpoMapApi.ts` に足した。
 - **フラグ**: 新設しない。使う API は本番に SS-113 からあり、新しい API・フィールドを使わない（ADR-008 決定7）。D8 の `pin_registration` のガードのまま。
 - **E2E**: `.maestro/sanpo-map-list.yaml` の末尾で、フローが作った地図（ピン1件）を削除し、地図一覧から名前が消えることを待つ。一覧の検索欄は詳細へ進む前の入力を残しているので入れ直さない。トーストにも地図名が入るので、トーストが消えるまで含めて待つ。
 - **ポリシー**: 7 の削除の手段に「地図」を足した（手段を増やす不利でない改定。データ取扱い台帳 2.2）。

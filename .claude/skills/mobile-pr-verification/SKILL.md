@@ -47,7 +47,7 @@ git diff --name-only "origin/${BASE}...HEAD" -- packages/mobile \
 | 対象 | 理由 |
 |---|---|
 | `packages/mobile/app/**` | Expo Router の画面・レイアウト |
-| `packages/mobile/src/**/*.tsx` | 画面を構成するコンポーネント（`features/*/components`、`components/ui` など） |
+| `packages/mobile/src/**/*.tsx` | 画面を構成するコンポーネント（`features/**/components`、`components/ui` など） |
 | `packages/mobile/src/theme/**`、`packages/mobile/design/tokens/**` | 全画面の見た目に影響するテーマ・デザイントークン |
 | `packages/mobile/assets/**` | 画面に表示される画像・アイコン |
 

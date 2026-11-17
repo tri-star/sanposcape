@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { SanpoMapListView } from "@/features/pin/components/SanpoMapListView";
+import { SanpoMapListView } from "@/features/sanpo-map/map/components/SanpoMapListView";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**

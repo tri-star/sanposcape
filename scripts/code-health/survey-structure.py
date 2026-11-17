@@ -16,7 +16,7 @@ Python のファイルを渡したとき（テストのファイルを分ける�
 - helpers   : モジュールの関数・クラスを、どのトップレベルの定義が使っているか
 
 使い方:
-    scripts/code-health/survey-structure.py packages/mobile/src/features/pin/lib
+    scripts/code-health/survey-structure.py packages/mobile/src/features/sanpo-map/pin/lib
     scripts/code-health/survey-structure.py packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py
     scripts/code-health/survey-structure.py <path> --since "12 months ago" --json
 """

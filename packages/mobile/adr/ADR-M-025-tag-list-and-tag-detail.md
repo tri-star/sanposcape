@@ -100,4 +100,4 @@
 - [ADR-M-013](./ADR-M-013-pin-tag-suggestions.md)（タグの正規化と候補）
 - [ADR-M-014](./ADR-M-014-sanpo-map-list-and-detail.md)（地図一覧・地図詳細。端末での絞り込み・全件取得の上限・ゲストの扱い）
 - [ADR-M-021](./ADR-M-021-pin-visit-status-and-archive.md)（アーカイブ・地図ごとのピンの表示・非表示）
-- 実装: `src/features/pin/{components,hooks,lib}/tag/`、`app/tags/`
+- 実装: `src/features/sanpo-map/pin/{components,hooks,lib}/tag/`、`app/tags/`

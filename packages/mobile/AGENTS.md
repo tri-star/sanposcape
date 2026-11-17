@@ -46,7 +46,7 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 
 | ADR | 主題 |
 |---|---|
-| [ADR-M-001](./adr/ADR-M-001-folder-structure.md) | フォルダ構造と命名規則 |
+| [ADR-M-001](./adr/ADR-M-001-folder-structure.md) | フォルダ構造と命名規則。feature が大きくなったら層より先に領域で分ける（`features/sanpo-map` の `map/`・`pin/`・`invitation/`・`shared/`。SS-260 追補） |
 | [ADR-M-002](./adr/ADR-M-002-mobile-tech-stack.md) | 技術スタック（スタイル・状態管理・地図・APIクライアント）。iOS の地図もキーを入れたビルドは Google Maps（SS-267 追補） |
 | [ADR-M-003](./adr/ADR-M-003-development-build-and-dev-loop.md) | development build 前提の開発ループ、アプリ識別子の本番/開発分割（SS-79 追補） |
 | [ADR-M-004](./adr/ADR-M-004-e2e-build-ci-strategy.md) | E2E(Maestro) のビルド方式と CI コスト戦略（依存追加が APK キャッシュに効く）・CIエミュレータの安定化。配布ビルド（EAS クラウドビルド）との使い分け（SS-79 追補）。フローの書き方の注意（clearState の分離・一時表示を assert しない・ASCII 入力。SS-152 追補）。入力欄の入れ直しに `eraseText` を使わない・ビルド後の Gradle デーモンの停止とランナーのメモリの記録・Maestro の版の固定（2026-10-17 追補） |
