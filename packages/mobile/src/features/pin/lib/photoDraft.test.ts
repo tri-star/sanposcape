@@ -4,9 +4,11 @@ import {
   BACKEND_PENDING_UPLOADS_MAX,
   PIN_PHOTOS_PER_REQUEST_MAX,
   PIN_PHOTO_PREUPLOAD_MAX,
+  PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS,
 } from "@/features/pin/lib/pinLimits";
 import {
   heldUploadSlots,
+  isUploadNearAttachDeadline,
   nextAttachChunk,
   nextPreuploadWork,
   photoDraftReducer,
@@ -39,6 +41,7 @@ function item(overrides: Partial<PhotoDraftItem> & { localId: string }): PhotoDr
     prepared: null,
     status: "processing",
     uploadId: null,
+    uploadedAt: null,
     errorCode: null,
     ...overrides,
   };
@@ -65,6 +68,7 @@ describe("photoDraftReducer", () => {
         prepared: null,
         status: "processing",
         uploadId: null,
+        uploadedAt: null,
         errorCode: null,
       },
     ]);
@@ -79,11 +83,51 @@ describe("photoDraftReducer", () => {
     state = photoDraftReducer(state, { type: "uploadStarted", localId: "a" });
     expect(state[0]?.status).toBe("uploading");
 
-    state = photoDraftReducer(state, { type: "uploaded", localId: "a", uploadId: "up-1" });
-    expect(state[0]).toMatchObject({ status: "uploaded", uploadId: "up-1" });
+    state = photoDraftReducer(state, {
+      type: "uploaded",
+      localId: "a",
+      uploadId: "up-1",
+      uploadedAt: 1_000,
+    });
+    expect(state[0]).toMatchObject({ status: "uploaded", uploadId: "up-1", uploadedAt: 1_000 });
 
     state = photoDraftReducer(state, { type: "attached", uploadIds: ["up-1"] });
     expect(state[0]?.status).toBe("attached");
+  });
+
+  it("uploadDiscarded: uploaded の枠を捨てて waiting に戻す（SS-126）", () => {
+    const state = photoDraftReducer(
+      [
+        item({
+          localId: "a",
+          status: "uploaded",
+          prepared: PREPARED,
+          uploadId: "up-1",
+          uploadedAt: 1_000,
+        }),
+      ],
+      { type: "uploadDiscarded", localId: "a" },
+    );
+    expect(state[0]).toMatchObject({
+      status: "waiting",
+      uploadId: null,
+      uploadedAt: null,
+      prepared: PREPARED,
+    });
+  });
+
+  it("uploadDiscarded: attached・waiting は変えない", () => {
+    const attached = item({
+      localId: "a",
+      status: "attached",
+      prepared: PREPARED,
+      uploadId: "up-1",
+      uploadedAt: 1_000,
+    });
+    const waiting = item({ localId: "b", status: "waiting", prepared: PREPARED });
+    let state = photoDraftReducer([attached, waiting], { type: "uploadDiscarded", localId: "a" });
+    state = photoDraftReducer(state, { type: "uploadDiscarded", localId: "b" });
+    expect(state).toEqual([attached, waiting]);
   });
 
   it("uploading -> waited で waiting に戻る", () => {
@@ -291,5 +335,39 @@ describe("photoDraftSummary / photoGridCaption", () => {
       item({ localId: `up-${i}`, status: "uploading" }),
     );
     expect(photoGridCaption(photoDraftSummary(state))).toBe("3 枚をアップロード中");
+  });
+});
+
+describe("isUploadNearAttachDeadline（SS-126）", () => {
+  const uploadedAt = 10_000;
+  const uploaded = item({
+    localId: "a",
+    status: "uploaded",
+    prepared: PREPARED,
+    uploadId: "up-1",
+    uploadedAt,
+  });
+
+  it("uploaded から上限ちょうどで true、その 1ms 前は false", () => {
+    expect(
+      isUploadNearAttachDeadline(uploaded, uploadedAt + PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS),
+    ).toBe(true);
+    expect(
+      isUploadNearAttachDeadline(uploaded, uploadedAt + PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS - 1),
+    ).toBe(false);
+  });
+
+  it("端末の時計が戻って経過が負なら false", () => {
+    expect(isUploadNearAttachDeadline(uploaded, uploadedAt - 60_000)).toBe(false);
+  });
+
+  it("uploaded 以外（attached など）・時刻の無いものは false", () => {
+    const late = uploadedAt + PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS * 2;
+    expect(isUploadNearAttachDeadline({ ...uploaded, status: "attached" }, late)).toBe(false);
+    expect(isUploadNearAttachDeadline({ ...uploaded, uploadedAt: null }, late)).toBe(false);
+  });
+
+  it("上限は backend の紐付け期限の既定（6 時間）より短い", () => {
+    expect(PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS).toBeLessThan(6 * 60 * 60 * 1000);
   });
 });

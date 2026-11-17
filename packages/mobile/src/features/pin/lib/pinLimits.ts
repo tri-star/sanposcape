@@ -28,5 +28,13 @@ export const PIN_PHOTO_PREUPLOAD_MAX = 20;
  * 十分に大きい値にする。
  */
 export const PIN_PHOTO_MAX_BYTES_HARD_CAP = 50 * 1024 * 1024;
+/**
+ * 先行アップロード済み（`uploaded`）の枠を、保存時にそのまま紐付けに使ってよい経過時間の上限（SS-126）。
+ * backend の紐付け期限（`PIN_PHOTO_UPLOAD_ATTACH_TTL_SECONDS`、既定 6 時間。応答には出ない）より 1 時間短くし、
+ * 枠の発行から送信完了までの差（最大 60 秒）・端末の時計のずれ・保存中の処理時間を見込む。
+ * 超えた枠は捨てて新しい枠で送り直す。期限の設定が変わってこの値を外れても、紐付けの 409 を受けたら
+ * 以前からの枠を送り直して1回だけやり直すので回復する（`pinSaveRunner.ts`）。
+ */
+export const PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS = 5 * 60 * 60 * 1000;
 /** backend の FIRST_SANPO_MAP_NAME と一致させる。 */
 export const FIRST_SANPO_MAP_NAME = "最初の地図";

@@ -111,6 +111,11 @@ export type PhotoDraftItem = {
   status: PhotoDraftStatus;
   /** アップロード枠 ID（uploaded / attached のとき非 null）。 */
   uploadId: string | null;
+  /**
+   * `uploaded` になった時刻（端末の時計の epoch ms。uploaded / attached のとき非 null）。保存時に、紐付け期限
+   * （backend 既定 6 時間）が近い枠を使わずに取り直すかの判定に使う（`isUploadNearAttachDeadline`。SS-126）。
+   */
+  uploadedAt: number | null;
   errorCode: PhotoUploadErrorCode | null;
 };
 
