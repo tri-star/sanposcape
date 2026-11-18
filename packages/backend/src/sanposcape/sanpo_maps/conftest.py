@@ -203,7 +203,7 @@ def seed_staging_photo(
 ) -> bytes:
     """`FakeObjectStorage` の staging/ に直接 JPEG を置く（presigned POST の HTTP 往復を
     経由しない、router/service テスト用の近道）。HTTP 経由の往復自体は
-    `test_dev_storage_router.py` / `pins/tests/test_photos_router.py` で
+    `photos/tests/test_dev_storage_router.py` で
     別途検証する。
     """
     data = make_jpeg_bytes(size)
