@@ -82,7 +82,7 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
 
 1. **移動は機能の変更と別のコミットにする**（`refactor(<domain>): ...`）。`git mv` で動かし、中身の変更（import の書き換え以外）を同じコミットに混ぜない。差分を機械的に読めるようにするため。
 2. **import を書き換える。** 文字列で書かれたパスも漏らさない（mobile の `vi.mock("...")`、backend の `mock.patch("...")`・`monkeypatch.setattr("...")`、JSDoc・コメントの中のパス）。
-   移動前のパスで grep して 0 件になったことを確かめる。フルパスに加えて、解いた・動かしたサブフォルダの名前だけの相対の書き方（`lib/map-deletion/`・`pin 側` など）も grep する（SS-260 で漏れた）。量が多く意図が明確なら、[委譲のテンプレート](../task-workflow/references/delegation.md) に従ってサブエージェントに任せてよい。
+   移動前のパスで grep して 0 件になったことを確かめる。フルパスに加えて、解いた・動かしたサブフォルダの名前だけの相対の書き方（`lib/map-deletion/`・`pin 側` など）も grep する（SS-260 で漏れた）。分けたファイルは、ファイル名だけの書き方（docstring の「`test_router.py` の `TestX`」など）も grep する。`check-doc-references.py` はパスの形でない参照を見ない（SS-256 で漏れた）。量が多く意図が明確なら、[委譲のテンプレート](../task-workflow/references/delegation.md) に従ってサブエージェントに任せてよい。
 3. **検証する。** 各 package の `AGENTS.md` の完了前の確認（mobile は typecheck・lint・format:check・test、backend はコンテナ内の ruff・pytest）と、
    `python3 scripts/code-health/check-structure.py`。
 4. **baseline と除外を下げる。** 片付けた項目は `check-structure.py --baseline` で下げる（下げ忘れは警告だけで CI は通るので、必ず流す。ADR-016 決定4）。
