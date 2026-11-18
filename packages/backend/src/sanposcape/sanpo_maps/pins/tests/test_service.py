@@ -15,9 +15,11 @@ from sanposcape.integrations.aws.s3 import (
 )
 from sanposcape.sanpo_maps.conftest import (
     BASE_URL,
+    add_map_member,
     create_pin_photo_row,
     create_upload_row,
     make_pin_service,
+    make_sanpo_map,
     make_user,
     seed_staging_photo,
 )
@@ -31,7 +33,7 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
 )
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import PinPhotoUpload, SanpoMapMember
+from sanposcape.sanpo_maps.models import PinPhotoUpload
 from sanposcape.sanpo_maps.photos.photo_attacher import PreparedPhoto
 from sanposcape.sanpo_maps.photos.repository import PinPhotoUploadRepository
 from sanposcape.sanpo_maps.pins.repository import PinRepository
@@ -786,21 +788,6 @@ class TestPinServiceListPinPhotos:
             service.list_pin_photos(stranger, pin_read.id, limit=30, cursor=None, base_url=BASE_URL)
 
 
-def add_member(
-    db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, role: str
-) -> None:
-    db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role=role))
-    db_session.commit()
-
-
-def make_shared_map(db_session: Session, *, owner: User) -> uuid.UUID:
-    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
-        owner_user_id=owner.id, name="共有地図", is_default=True
-    )
-    db_session.commit()
-    return sanpo_map.id
-
-
 class TestPinServiceUpdatePin:
     def _make_pin(
         self,
@@ -828,7 +815,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
 
         result = service.update_pin(
@@ -842,7 +829,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
 
         result = service.update_pin(owner, pin_id, PinUpdate(name="新しい名前"), base_url=BASE_URL)
@@ -854,7 +841,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
 
         result = service.update_pin(
@@ -868,7 +855,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         before = service.get_pin(owner, pin_id, base_url=BASE_URL)
 
@@ -883,7 +870,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage, now=lambda: fixed_now[0])
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         created = service.get_pin(owner, pin_id, base_url=BASE_URL)
 
@@ -899,7 +886,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         service.update_pin(owner, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL)
 
@@ -915,7 +902,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_a = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         pin_b = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         tag_on_b = service.update_pin(
@@ -939,8 +926,8 @@ class TestPinServiceUpdatePin:
         editor = make_user(db_session, subject="editor")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         original_tag = service.update_pin(
             editor, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL
@@ -962,7 +949,7 @@ class TestPinServiceUpdatePin:
         owner = make_user(db_session, subject="owner")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
         service.update_pin(
             owner, pin_id, PinUpdate(add_tags=[f"tag{i}" for i in range(10)]), base_url=BASE_URL
@@ -986,9 +973,9 @@ class TestPinServiceUpdatePin:
         editor_b = make_user(db_session, subject="editor-b")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
         pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
 
         with pytest.raises(SanpoMapPermissionDeniedError):
@@ -1003,9 +990,9 @@ class TestPinServiceUpdatePin:
         editor_b = make_user(db_session, subject="editor-b")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
         pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
 
         result = service.update_pin(editor_b, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL)
@@ -1018,9 +1005,9 @@ class TestPinServiceUpdatePin:
         editor_b = make_user(db_session, subject="editor-b")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
         pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
         tag = service.update_pin(
             editor_a, pin_id, PinUpdate(add_tags=["桜"]), base_url=BASE_URL
@@ -1040,9 +1027,9 @@ class TestPinServiceUpdatePin:
         editor_b = make_user(db_session, subject="editor-b")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
         pin_id = self._make_pin(service, editor_a, sanpo_map_id=sanpo_map_id)
 
         with pytest.raises(SanpoMapPermissionDeniedError):
@@ -1059,7 +1046,7 @@ class TestPinServiceUpdatePin:
         stranger = make_user(db_session, subject="stranger")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin_id = self._make_pin(service, owner, sanpo_map_id=sanpo_map_id)
 
         with pytest.raises(PinNotFoundError):
@@ -1111,8 +1098,8 @@ class TestPinServiceDeletePin:
         editor = make_user(db_session, subject="editor")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
         pin_read, _ = service.create_pin(
             editor,
             PinCreate(
@@ -1134,9 +1121,9 @@ class TestPinServiceDeletePin:
         editor_b = make_user(db_session, subject="editor-b")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
         pin_read, _ = service.create_pin(
             editor_a,
             PinCreate(
@@ -1361,8 +1348,8 @@ class TestPinServiceDeletePhoto:
         editor = make_user(db_session, subject="editor")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
         pin_read, _ = service.create_pin(
             owner,
             PinCreate(
@@ -1386,8 +1373,8 @@ class TestPinServiceDeletePhoto:
         editor = make_user(db_session, subject="editor")
         storage = FakeObjectStorage(secret="s" * 32)
         service = make_pin_service(db_session, storage)
-        sanpo_map_id = make_shared_map(db_session, owner=owner)
-        add_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor")
         pin_read, _ = service.create_pin(
             editor,
             PinCreate(
@@ -1427,7 +1414,7 @@ class TestPinServiceMovePin:
 
     @staticmethod
     def _maps(db_session: Session, owner: User) -> tuple[uuid.UUID, uuid.UUID]:
-        map_a = make_shared_map(db_session, owner=owner)
+        map_a = make_sanpo_map(db_session, owner_user_id=owner.id)
         map_b, _ = SanpoMapRepository(db_session).create_with_owner(
             owner_user_id=owner.id, name="移動先", is_default=False
         )
@@ -1522,7 +1509,7 @@ class TestPinServiceMovePin:
         editor = make_user(db_session, subject="editor")
         service = make_pin_service(db_session, FakeObjectStorage(secret="s" * 32))
         map_a, _map_b = self._maps(db_session, owner)
-        add_member(db_session, sanpo_map_id=map_a, user_id=editor.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=map_a, user_id=editor.id, role="editor")
         pin_id = self._make_pin(service, owner, map_a)
 
         with pytest.raises(SanpoMapPermissionDeniedError):

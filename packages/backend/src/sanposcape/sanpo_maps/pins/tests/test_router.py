@@ -11,9 +11,12 @@ from sanposcape.auth.tokens import create_access_token
 from sanposcape.config import Settings
 from sanposcape.integrations.aws.s3 import FakeObjectStorage
 from sanposcape.sanpo_maps.conftest import (
+    add_map_member,
     create_pin_photo_row,
     create_upload_row,
+    make_extra_sanpo_map,
     make_jpeg_bytes,
+    make_sanpo_map,
     make_user,
     seed_staging_photo,
 )
@@ -453,14 +456,6 @@ class TestAddPinPhotos:
         assert response.status_code == 422
 
 
-def _create_sanpo_map(db_session: Session, *, owner_user_id: uuid.UUID) -> uuid.UUID:
-    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
-        owner_user_id=owner_user_id, name="テスト地図", is_default=True
-    )
-    db_session.commit()
-    return sanpo_map.id
-
-
 class TestPhotoTakenAtEndToEnd:
     """撮影日時（`taken_at`）が枠の発行から全ての写真の応答まで通る（ADR-009 決定34）。
 
@@ -641,7 +636,7 @@ class TestListPins:
     ) -> None:
         client, _storage = fake_storage_client
         stranger = make_user(db_session, subject="stranger")
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=stranger.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=stranger.id)
 
         response = client.get(
             "/pins", headers=auth_headers, params={"sanpo_map_id": str(sanpo_map_id)}
@@ -667,7 +662,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         response = client.get(
             "/pins",
@@ -690,7 +685,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         response = client.get(
             "/pins",
@@ -713,7 +708,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         response = client.get(
             "/pins",
@@ -736,7 +731,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         response = client.get(
             "/pins",
@@ -753,7 +748,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         response = client.get(
             "/pins",
@@ -770,7 +765,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         too_small = client.get(
             "/pins",
@@ -793,7 +788,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
 
         response = client.get(
             "/pins",
@@ -904,7 +899,7 @@ class TestListPins:
         両条件が独立に効くことを確認する。
         """
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         matching = self._create_pin(
             client, auth_headers, sanpo_map_id=sanpo_map_id, name="桜のトンネル", tags=["絶景"]
         )
@@ -935,7 +930,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         inside = self._create_pin(
             client, auth_headers, sanpo_map_id=sanpo_map_id, latitude=1, longitude=1
         )
@@ -969,7 +964,7 @@ class TestListPins:
         client, _storage = fake_storage_client
         owner = make_user(db_session, subject="owner-for-editor-list")
         editor = make_user(db_session, subject="editor-for-list")
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=owner.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=editor.id, role="editor"))
         db_session.commit()
         owner_settings = Settings(
@@ -1000,7 +995,7 @@ class TestListPins:
         db_session: Session,
     ) -> None:
         client = unconfigured_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         pin, _ = PinRepository(db_session).create(
             sanpo_map_id=sanpo_map_id,
             created_by_user_id=authenticated_user.id,
@@ -1048,7 +1043,7 @@ class TestGetPin:
     ) -> None:
         client, _storage = fake_storage_client
         owner = make_user(db_session, subject="owner-get")
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=owner.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin, _ = PinRepository(db_session).create(
             sanpo_map_id=sanpo_map_id,
             created_by_user_id=owner.id,
@@ -1122,7 +1117,7 @@ class TestGetPin:
         db_session: Session,
     ) -> None:
         client = unconfigured_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         pin, _ = PinRepository(db_session).create(
             sanpo_map_id=sanpo_map_id,
             created_by_user_id=authenticated_user.id,
@@ -1162,7 +1157,7 @@ class TestListPinPhotos:
     ) -> None:
         client, _storage = fake_storage_client
         owner = make_user(db_session, subject="owner-photos")
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=owner.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         pin, _ = PinRepository(db_session).create(
             sanpo_map_id=sanpo_map_id,
             created_by_user_id=owner.id,
@@ -1275,7 +1270,7 @@ class TestListPinPhotos:
         db_session: Session,
     ) -> None:
         client = unconfigured_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         pin, _ = PinRepository(db_session).create(
             sanpo_map_id=sanpo_map_id,
             created_by_user_id=authenticated_user.id,
@@ -1327,7 +1322,7 @@ class TestPinEditPermissionMatrix:
         editor_a = make_user(db_session, subject="perm-editor-a")
         editor_b = make_user(db_session, subject="perm-editor-b")
         outsider = make_user(db_session, subject="perm-outsider")
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=owner.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         db_session.add(
             SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=editor_a.id, role="editor")
         )
@@ -1335,7 +1330,7 @@ class TestPinEditPermissionMatrix:
             SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=editor_b.id, role="editor")
         )
         db_session.commit()
-        _create_sanpo_map(db_session, owner_user_id=outsider.id)  # outsider の別地図
+        make_sanpo_map(db_session, owner_user_id=outsider.id)  # outsider の別地図
 
         owner_headers = _auth_headers_for(owner)
         editor_a_headers = _auth_headers_for(editor_a)
@@ -2232,7 +2227,7 @@ class TestPinVisitedAndArchived:
     ) -> dict[str, object]:
         """visited × archived の4通りを1件ずつ（作成順 = 古い順）。"""
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         ids: dict[str, str] = {}
         for key, visited, archived in [
             ("unvisited_active", False, False),
@@ -2301,7 +2296,7 @@ class TestPinVisitedAndArchived:
         db_session: Session,
     ) -> None:
         client, _storage = fake_storage_client
-        sanpo_map_id = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        sanpo_map_id = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         base = {"sanpo_map_id": str(sanpo_map_id)}
         hit = self._post(client, auth_headers, **base, tags=["桜"])
         archived_hit = self._post(client, auth_headers, **base, tags=["桜"])
@@ -2441,22 +2436,6 @@ class TestPinVisitedAndArchived:
         assert unchanged["archived"] is False
 
 
-def _create_extra_map(
-    db_session: Session, *, owner_user_id: uuid.UUID, name: str = "移動先の地図"
-) -> uuid.UUID:
-    """既定でない地図を1件作る（同じ owner の2つ目以降。既定地図は owner ごとに1つ）。"""
-    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
-        owner_user_id=owner_user_id, name=name, is_default=False
-    )
-    db_session.commit()
-    return sanpo_map.id
-
-
-def _add_editor(db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID) -> None:
-    db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role="editor"))
-    db_session.commit()
-
-
 @dataclass
 class _MoveEnv:
     client: TestClient
@@ -2497,8 +2476,8 @@ class TestMovePinRouter:
         auth_headers: dict[str, str],
     ) -> _MoveEnv:
         client, storage = fake_storage_client
-        map_a = _create_sanpo_map(db_session, owner_user_id=authenticated_user.id)
-        map_b = _create_extra_map(db_session, owner_user_id=authenticated_user.id)
+        map_a = make_sanpo_map(db_session, owner_user_id=authenticated_user.id)
+        map_b = make_extra_sanpo_map(db_session, owner_user_id=authenticated_user.id)
         return _MoveEnv(
             client=client,
             storage=storage,
@@ -2670,7 +2649,7 @@ class TestMovePinRouter:
 
     def test_moves_destination_map_to_the_front_of_recent_maps(self, env: _MoveEnv) -> None:
         # 既定地図は先頭固定なので、既定でない2つの地図で並びを確認する。
-        map_c = _create_extra_map(env.db, owner_user_id=env.user.id, name="C")
+        map_c = make_extra_sanpo_map(env.db, owner_user_id=env.user.id, name="C")
         pin_id = self._create_pin(env)
         order_before = [
             m["id"] for m in env.client.get("/sanpo-maps", headers=env.headers).json()["items"]
@@ -2702,15 +2681,17 @@ class TestPinMovePermissionMatrix:
         outsider = make_user(db_session, subject="mv-outsider")
         other_owner = make_user(db_session, subject="mv-other-owner")
 
-        shared_map = _create_sanpo_map(db_session, owner_user_id=owner.id)
-        _add_editor(db_session, sanpo_map_id=shared_map, user_id=editor_a.id)
-        _add_editor(db_session, sanpo_map_id=shared_map, user_id=editor_b.id)
-        owner_only_map = _create_extra_map(db_session, owner_user_id=owner.id, name="O")
-        editor_a_only_map = _create_sanpo_map(db_session, owner_user_id=editor_a.id)
-        editor_b_only_map = _create_sanpo_map(db_session, owner_user_id=editor_b.id)
-        other_owner_map = _create_sanpo_map(db_session, owner_user_id=other_owner.id)
+        shared_map = make_sanpo_map(db_session, owner_user_id=owner.id)
+        add_map_member(db_session, sanpo_map_id=shared_map, user_id=editor_a.id, role="editor")
+        add_map_member(db_session, sanpo_map_id=shared_map, user_id=editor_b.id, role="editor")
+        owner_only_map = make_extra_sanpo_map(db_session, owner_user_id=owner.id, name="O")
+        editor_a_only_map = make_sanpo_map(db_session, owner_user_id=editor_a.id)
+        editor_b_only_map = make_sanpo_map(db_session, owner_user_id=editor_b.id)
+        other_owner_map = make_sanpo_map(db_session, owner_user_id=other_owner.id)
         for member in (owner, editor_a, editor_b):  # shared_map の全員がいる移動先（決定42）
-            _add_editor(db_session, sanpo_map_id=other_owner_map, user_id=member.id)
+            add_map_member(
+                db_session, sanpo_map_id=other_owner_map, user_id=member.id, role="editor"
+            )
 
         pin = client.post(
             "/pins",
