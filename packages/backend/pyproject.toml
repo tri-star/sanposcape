@@ -116,7 +116,7 @@ max-args = 8
 # SS-258: 並行実行の手順（スレッドの起動・待ち合わせ・検証）を1つのテストに順に書いている（65）
 "src/sanposcape/sanpo_maps/maps/tests/test_delete_map_concurrency.py" = ["PLR0915"]
 # SS-258: 1つのテストで写真の確定の前後を順に検証している（65）
-"src/sanposcape/sanpo_maps/pins/tests/test_service.py" = ["PLR0915"]
+"src/sanposcape/sanpo_maps/pins/tests/test_create_service.py" = ["PLR0915"]
 
 # 使われていないコードの洗い出し（SS-255。月次のレポート scripts/code-health/report-health.py が
 # `uvx --from vulture==<版> vulture` で流す。ADR-018）。CI では止めない。候補を出すだけで、消すかは人が決める。
