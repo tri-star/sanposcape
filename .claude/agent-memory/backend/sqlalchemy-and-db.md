@@ -32,7 +32,7 @@ delete していない persistent オブジェクト（`current_user`、写真�
 
 HTTP 経由なら `get_db()` の `finally: db.close()` が未コミット分を暗黙に破棄するが、サービス直呼びでは通らない。`flush()` 済み・未 commit の
 変更は同一トランザクション内で見え続けるので、`pytest.raises(...)` の後に `db_session.rollback()` してから検証する
-（例: `sanpo_maps/pins/tests/test_service.py` の `TestPinServiceObjectStorageFailure`）。
+（例: `sanpo_maps/pins/tests/test_create_service.py` の `TestPinServiceObjectStorageFailure`）。
 
 ## 4. 真に同時なリクエストの行ロック競合を再現する（threading + 別 Session）
 

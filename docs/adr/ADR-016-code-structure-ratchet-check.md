@@ -31,7 +31,7 @@
 - `packages/mobile/src/features/pin/lib` に実装 48・テスト 47 のファイルがあり、`features/pin/components` は実装 47。`walk/lib`・`src/lib` も 20 を超える <!-- doc-ref-ok: SS-252 の時点の実測。SS-260 で features/sanpo-map に改めた -->
 - `features/pin` の中に散歩マップ（`sanpoMap*`・`SanpoMap*`）のまとまりが混ざっている（`pin/components` に 15、`pin/lib` に 9）
   （SS-260 で `features/sanpo-map` に改め、地図・招待を領域のフォルダに分けた。SS-260 追補）
-- `packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` が 2,845 行、`pins/service.py` が 773 行
+- `packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` が 2,845 行、`pins/service.py` が 773 行 <!-- doc-ref-ok: SS-252・SS-254 の時点のパス。SS-256 で確かめる操作ごとのファイル（test_<操作>_router.py）に分けた -->
 
 これまでは、分けるかどうかはレビューの目に任されていた。1回の変更では少しずつしか増えないので、レビューでは止まりにくい。
 一方で、いま閾値を超えているものを全部直してから検査を入れるのは、課題として大きすぎる。
@@ -159,7 +159,7 @@
 ## SS-254 追補: 分け方を決める skill・材料集めのスクリプト・レビューの「構造の悪化」の観点
 
 検査は閾値を超えたことを止めるだけで、どこで切るかは判断が要る（決定8）。SS-254 で、その判断を skill にし、`packages/mobile/src/features/pin/lib` と <!-- doc-ref-ok: SS-254 で試した時点のパス。SS-260 で features/sanpo-map に改めた -->
-`packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` で試して基準を詰めた。
+`packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` で試して基準を詰めた。 <!-- doc-ref-ok: SS-252・SS-254 の時点のパス。SS-256 で確かめる操作ごとのファイル（test_<操作>_router.py）に分けた -->
 
 ### 決定
 
