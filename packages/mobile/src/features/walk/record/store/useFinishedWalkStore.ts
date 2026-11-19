@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { FinishedWalk } from "@/features/walk/shared/types";
+import type { FinishedWalk } from "@/features/walk/record/types";
 import { registerSessionCleanup } from "@/lib/sessionCleanup";
 import { registerWalkDeletionCleanup } from "@/lib/walkDeletionCleanup";
 

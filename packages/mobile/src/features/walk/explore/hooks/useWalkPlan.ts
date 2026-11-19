@@ -7,7 +7,9 @@ import { useSpotCandidates } from "@/features/walk/explore/hooks/useSpotCandidat
 import { useWalkRoute } from "@/features/walk/route/hooks/useWalkRoute";
 import type { ExploreErrorCode } from "@/features/walk/explore/lib/exploreError";
 import { clampRoundTripMinutes } from "@/features/walk/explore/lib/placeSearchRequest";
-import type { SpotCandidate, WalkDestination, WalkRoute } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
+import type { WalkDestination } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import { useLocationPrecision } from "@/features/walk/shared/hooks/useLocationPrecision";
 import { useCurrentLocation } from "@/hooks/useCurrentLocation";
 import type {

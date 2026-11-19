@@ -1,5 +1,5 @@
 import type { LoopWalkingRouteResponse, WalkingRouteLeg } from "@/api/generated/model";
-import type { WalkRoute, WalkRouteBounds, WalkRouteLeg } from "@/features/walk/shared/types";
+import type { WalkRoute, WalkRouteBounds, WalkRouteLeg } from "@/features/walk/route/types";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import { toNonNegative } from "@/lib/numberGuard";
 import type { GeoCoordinates } from "@/services/location/types";

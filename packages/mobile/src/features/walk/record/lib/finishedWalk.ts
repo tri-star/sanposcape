@@ -1,5 +1,6 @@
 import { estimateStepsFromMeters } from "@/features/walk/explore/lib/walkStats";
-import type { ActiveWalk, FinishedWalk, WalkSummaryStats } from "@/features/walk/shared/types";
+import type { ActiveWalk } from "@/features/walk/active/types";
+import type { FinishedWalk, WalkSummaryStats } from "@/features/walk/record/types";
 import { toNonNegative } from "@/lib/numberGuard";
 import { toKilometers } from "@/lib/units";
 import type { GeoCoordinates } from "@/services/location/types";

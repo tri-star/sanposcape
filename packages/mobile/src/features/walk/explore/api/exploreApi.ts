@@ -2,7 +2,7 @@ import { ApiError } from "@/api/apiError";
 import { searchExplorePlaces } from "@/api/generated/endpoints/explore/explore";
 import type { PlaceSearchRequest } from "@/api/generated/model";
 import { toSpotCandidates } from "@/features/walk/explore/lib/spotCandidate";
-import type { SpotCandidate } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
 
 /**
  * /explore/places を叩いてスポット候補を取得する。

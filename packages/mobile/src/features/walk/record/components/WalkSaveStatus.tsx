@@ -7,7 +7,7 @@ import {
   walkSaveErrorAction,
   walkSaveErrorMessage,
 } from "@/features/walk/record/lib/walkSaveError";
-import type { WalkSaveStatus as WalkSaveStatusValue } from "@/features/walk/shared/types";
+import type { WalkSaveStatus as WalkSaveStatusValue } from "@/features/walk/record/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 

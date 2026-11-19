@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { ActiveWalk } from "@/features/walk/shared/types";
+import type { ActiveWalk } from "@/features/walk/active/types";
 import { registerSessionCleanup } from "@/lib/sessionCleanup";
 
 type ActiveWalkState = {

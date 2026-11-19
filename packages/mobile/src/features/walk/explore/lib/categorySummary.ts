@@ -1,4 +1,4 @@
-import type { ExploreCategory } from "@/features/walk/shared/types";
+import type { ExploreCategory } from "@/features/walk/explore/types";
 
 /**
  * 選択中のカテゴリを要約文言にする純粋関数（mock の `catsSummary`）。

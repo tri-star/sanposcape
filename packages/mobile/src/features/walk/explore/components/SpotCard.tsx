@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon/Icon";
-import type { CategoryMeta, SpotCandidate } from "@/features/walk/shared/types";
+import type { CategoryMeta, SpotCandidate } from "@/features/walk/explore/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 import { withAlpha } from "@/theme/withAlpha";

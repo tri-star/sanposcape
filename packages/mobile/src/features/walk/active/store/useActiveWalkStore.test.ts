@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
-import type { ActiveWalk } from "@/features/walk/shared/types";
+import type { ActiveWalk } from "@/features/walk/active/types";
 
 const WALK: ActiveWalk = {
   clientWalkId: "11111111-1111-4111-8111-111111111111",

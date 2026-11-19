@@ -7,7 +7,8 @@ import type { ExploreErrorCode } from "@/features/walk/explore/lib/exploreError"
 import { toRouteMinutes } from "@/features/walk/route/lib/walkRoute";
 import { walkRouteErrorMessage } from "@/features/walk/route/lib/walkRouteError";
 import { walkRouteLoopNote } from "@/features/walk/route/lib/walkRouteLegs";
-import type { SpotCandidate, WalkRoute } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import { toKilometers } from "@/lib/units";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";

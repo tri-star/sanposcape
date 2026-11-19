@@ -2,7 +2,7 @@ import { RoutePolyline } from "@/components/ui/route-polyline/RoutePolyline";
 import { currentMapRenderer } from "@/config/mapProvider";
 import { walkReturnLineStyle } from "@/features/walk/route/lib/walkReturnLineStyle";
 import { walkRoutePolylineSegments } from "@/features/walk/route/lib/walkRouteLegs";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import { useTheme } from "@/theme/useTheme";
 
 export type WalkRoutePolylinesProps = { walkRoute: WalkRoute };

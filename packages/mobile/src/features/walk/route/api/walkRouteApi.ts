@@ -2,7 +2,7 @@ import { ApiError } from "@/api/apiError";
 import { getLoopWalkingRouteExploreRoutesLoop } from "@/api/generated/endpoints/explore/explore";
 import type { WalkingRouteRequest } from "@/api/generated/model";
 import { toWalkRoute } from "@/features/walk/route/lib/walkRoute";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 
 /**
  * /explore/routes/loop を叩いて WalkRoute（周回ルート）を返す fetcher。

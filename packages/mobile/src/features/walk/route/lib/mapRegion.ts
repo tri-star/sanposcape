@@ -1,4 +1,4 @@
-import type { WalkRouteBounds } from "@/features/walk/shared/types";
+import type { WalkRouteBounds } from "@/features/walk/route/types";
 import { isValidCoordinate } from "@/lib/geoCoordinate";
 import { MIN_REGION_DELTA, type MapRegion } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";

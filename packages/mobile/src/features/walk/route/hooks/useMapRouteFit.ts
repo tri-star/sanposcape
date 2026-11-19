@@ -4,7 +4,7 @@ import type MapView from "react-native-maps";
 
 import { regionForBounds } from "@/features/walk/route/lib/mapRegion";
 import { walkRouteFitKey } from "@/features/walk/route/lib/walkRoute";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 
 /**
  * ルート（walkRoute）の bounds が変わったら地図をそこにフィットさせる共通 hook。

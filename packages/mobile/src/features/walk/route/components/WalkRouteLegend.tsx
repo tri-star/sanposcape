@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 
 import { walkMapLegendItems } from "@/features/walk/route/lib/walkRouteLegs";
 import { walkTrailStyle } from "@/features/walk/route/lib/walkTrailStyle";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";

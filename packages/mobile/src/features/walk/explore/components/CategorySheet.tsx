@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button/Button";
 import { Checkbox } from "@/components/ui/checkbox/Checkbox";
 import { Icon } from "@/components/ui/icon/Icon";
 import { CATEGORY_META, CATEGORY_ORDER } from "@/features/walk/explore/data/categories";
-import type { ExploreCategory } from "@/features/walk/shared/types";
+import type { ExploreCategory } from "@/features/walk/explore/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 import { withAlpha } from "@/theme/withAlpha";

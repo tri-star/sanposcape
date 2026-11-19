@@ -10,7 +10,8 @@ import { WalkRoutePolylines } from "@/features/walk/route/components/WalkRoutePo
 import { CATEGORY_META } from "@/features/walk/explore/data/categories";
 import { useMapRouteFit } from "@/features/walk/route/hooks/useMapRouteFit";
 import { regionForRoundTrip } from "@/features/walk/route/lib/mapRegion";
-import type { SpotCandidate, WalkRoute } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";

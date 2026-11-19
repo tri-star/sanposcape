@@ -7,7 +7,7 @@ import {
   walkRouteLoopNote,
   walkRoutePolylineSegments,
 } from "@/features/walk/route/lib/walkRouteLegs";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 
 const OUTBOUND_PATH = [
   { latitude: 35.6812, longitude: 139.7671 },

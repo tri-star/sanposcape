@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildFinishedWalk, toWalkSummaryStats } from "@/features/walk/record/lib/finishedWalk";
 import { estimateStepsFromMeters } from "@/features/walk/explore/lib/walkStats";
-import type { ActiveWalk } from "@/features/walk/shared/types";
+import type { ActiveWalk } from "@/features/walk/active/types";
 
 const ACTIVE_WALK: ActiveWalk = {
   clientWalkId: "11111111-1111-4111-8111-111111111111",

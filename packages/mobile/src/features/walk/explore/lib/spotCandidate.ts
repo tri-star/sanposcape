@@ -1,5 +1,5 @@
 import type { PlaceCandidate } from "@/api/generated/model";
-import type { SpotCandidate } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
 import { toNonNegative } from "@/lib/numberGuard";
 import {
   DESTINATION_NAME_MAX_LENGTH,

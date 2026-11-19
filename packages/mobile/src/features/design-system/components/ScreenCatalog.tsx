@@ -7,11 +7,8 @@ import { Card } from "@/components/ui/card/Card";
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import { UpdateRequiredPreview } from "@/features/app-update/components/UpdateRequiredPreview";
 import { AppConfigDebugCard } from "@/features/design-system/components/AppConfigDebugCard";
-import {
-  DEFAULT_ACTIVE_WALK,
-  DEFAULT_WALK_GOAL,
-  buildSampleFinishedWalk,
-} from "@/features/walk/record/data/defaults";
+import { DEFAULT_ACTIVE_WALK, DEFAULT_WALK_GOAL } from "@/features/walk/active/data/defaults";
+import { buildSampleFinishedWalk } from "@/features/walk/record/data/defaults";
 import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
 import { randomUuidV4 } from "@/lib/uuid";

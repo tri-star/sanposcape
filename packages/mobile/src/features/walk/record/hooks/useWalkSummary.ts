@@ -3,7 +3,7 @@ import { useWalkSave } from "@/features/walk/record/hooks/useWalkSave";
 import { toWalkSummaryStats } from "@/features/walk/record/lib/finishedWalk";
 import type { WalkSaveErrorCode } from "@/features/walk/record/lib/walkSaveError";
 import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
-import type { WalkSaveStatus, WalkSummaryStats } from "@/features/walk/shared/types";
+import type { WalkSaveStatus, WalkSummaryStats } from "@/features/walk/record/types";
 
 export type UseWalkSummaryOptions = {
   /** 認証済みか。`app/walk-summary.tsx` が `useAuthSessionStore` から注入する（ADR-M-009 決定8）。 */

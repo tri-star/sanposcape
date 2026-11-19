@@ -13,7 +13,7 @@ import { WalkRoutePolylines } from "@/features/walk/route/components/WalkRoutePo
 import { useMapRouteFit } from "@/features/walk/route/hooks/useMapRouteFit";
 import { regionForBounds, regionForRoundTrip } from "@/features/walk/route/lib/mapRegion";
 import { walkTrailStyle } from "@/features/walk/route/lib/walkTrailStyle";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import { useHeadingBeamRadius } from "@/hooks/useHeadingBeamRadius";
 import { sanitizeMapRegion, type MapRegion, type MapRegionRequest } from "@/lib/mapRegion";
 import type { GeoCoordinates } from "@/services/location/types";

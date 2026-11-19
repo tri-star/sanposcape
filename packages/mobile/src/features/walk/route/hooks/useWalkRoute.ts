@@ -5,7 +5,8 @@ import { fetchWalkRoute } from "@/features/walk/route/api/walkRouteApi";
 import type { ExploreErrorCode } from "@/features/walk/explore/lib/exploreError";
 import { toExploreErrorCode } from "@/features/walk/explore/lib/exploreError";
 import { buildWalkingRouteRequest } from "@/features/walk/route/lib/walkRouteRequest";
-import type { WalkDestination, WalkRoute } from "@/features/walk/shared/types";
+import type { WalkDestination } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** 固定2点間の周回ルートは実質不変。散歩中に再取得させないため1時間。 */

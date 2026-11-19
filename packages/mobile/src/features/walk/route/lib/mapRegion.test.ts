@@ -5,7 +5,7 @@ import {
   regionForBounds,
   regionForRoundTrip,
 } from "@/features/walk/route/lib/mapRegion";
-import type { WalkRouteBounds } from "@/features/walk/shared/types";
+import type { WalkRouteBounds } from "@/features/walk/route/types";
 
 /** mapRegion.ts の内部下限（MIN_DELTA）と同じ値。公開APIではないため直値で持つ。 */
 const MIN_DELTA = 0.004;

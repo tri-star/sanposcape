@@ -9,7 +9,7 @@ import {
 import { buildWalkingRouteRequest } from "@/features/walk/route/lib/walkRouteRequest";
 import { resolveSpotDisplayName } from "@/features/walk/explore/lib/spotCandidate";
 import { toTrackPayload } from "@/features/walk/record/lib/walkTrackPayload";
-import type { FinishedWalk } from "@/features/walk/shared/types";
+import type { FinishedWalk } from "@/features/walk/record/types";
 
 const STARTED_AT_MS = 1_700_000_000_000;
 

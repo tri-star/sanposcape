@@ -1,4 +1,4 @@
-import type { WalkRoute, WalkRouteLegKind } from "@/features/walk/shared/types";
+import type { WalkRoute, WalkRouteLegKind } from "@/features/walk/route/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** 地図に描く線1本。style は RoutePolyline の見た目の種類。 */

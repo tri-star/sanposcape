@@ -6,7 +6,7 @@ import { fetchSpotCandidates } from "@/features/walk/explore/api/exploreApi";
 import { toExploreErrorCode } from "@/features/walk/explore/lib/exploreError";
 import type { ExploreErrorCode } from "@/features/walk/explore/lib/exploreError";
 import { buildPlaceSearchRequest } from "@/features/walk/explore/lib/placeSearchRequest";
-import type { SpotCandidate } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
 import type { GeoCoordinates } from "@/services/location/types";
 
 /** backend の provider キャッシュ TTL（300秒）と揃える。 */

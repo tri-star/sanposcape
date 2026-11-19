@@ -10,7 +10,8 @@ import { estimateStepsFromMeters } from "@/features/walk/explore/lib/walkStats";
 import type { WalkTrackingStatus } from "@/features/walk/active/lib/walkTrackingStatus";
 import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
 import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
-import type { ActiveWalk, WalkRoute } from "@/features/walk/shared/types";
+import type { ActiveWalk } from "@/features/walk/active/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 import type {
   GeoCoordinates,
   LocationErrorCode,

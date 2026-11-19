@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
-import type { FinishedWalk } from "@/features/walk/shared/types";
+import type { FinishedWalk } from "@/features/walk/record/types";
 import { runWalkDeletionCleanup } from "@/lib/walkDeletionCleanup";
 
 const FINISHED_WALK: FinishedWalk = {

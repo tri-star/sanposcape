@@ -4,7 +4,7 @@ import {
   DESTINATION_NAME_MAX_LENGTH,
   truncateUnicodeCodePoints,
 } from "@/features/walk/shared/lib/unicodeText";
-import type { FinishedWalk } from "@/features/walk/shared/types";
+import type { FinishedWalk } from "@/features/walk/record/types";
 
 /** backend の定数と同値（schemas.py）。 */
 export const MAX_WALK_DURATION_SECONDS = 86_400;

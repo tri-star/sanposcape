@@ -11,7 +11,7 @@ import {
 import type { WalkSaveErrorCode } from "@/features/walk/record/lib/walkSaveError";
 import { nextWalkSaveFireKey } from "@/features/walk/record/lib/walkSaveTrigger";
 import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
-import type { FinishedWalk, WalkSaveStatus } from "@/features/walk/shared/types";
+import type { FinishedWalk, WalkSaveStatus } from "@/features/walk/record/types";
 
 export type UseWalkSaveOptions = {
   /**

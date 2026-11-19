@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LoopWalkingRouteResponse } from "@/api/generated/model";
 import { toRouteMinutes, toWalkRoute, walkRouteFitKey } from "@/features/walk/route/lib/walkRoute";
-import type { WalkRoute } from "@/features/walk/shared/types";
+import type { WalkRoute } from "@/features/walk/route/types";
 
 const RESPONSE: LoopWalkingRouteResponse = {
   origin: { latitude: 35.6812, longitude: 139.7671 },

@@ -10,7 +10,7 @@ import {
   exploreErrorMessage,
   isRetriableExploreError,
 } from "@/features/walk/explore/lib/exploreError";
-import type { SpotCandidate } from "@/features/walk/shared/types";
+import type { SpotCandidate } from "@/features/walk/explore/types";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 

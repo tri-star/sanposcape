@@ -1,4 +1,4 @@
-import type { CategoryMeta, ExploreCategory } from "@/features/walk/shared/types";
+import type { CategoryMeta, ExploreCategory } from "@/features/walk/explore/types";
 
 /**
  * カテゴリごとの表示メタ情報。旧 mock（`konbini` 等）のメタ情報を ExploreCategory キーへ付け替えて移設。
