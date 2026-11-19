@@ -8,8 +8,8 @@ import {
 import { getSignInFailureFeedback } from "@/features/auth/lib/signInFailureFeedback";
 import { buildSignInFailureLogDetail } from "@/features/auth/lib/signInFailureLog";
 import { parseSignInReturnTo } from "@/features/auth/lib/signInReturnTo";
-import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
-import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
+import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
+import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
 import { useToast } from "@/hooks/useToast";
 import { logDiagnostic } from "@/lib/diagnosticLog";
 import { authService, isAuthError, type AuthProvider } from "@/services/auth";

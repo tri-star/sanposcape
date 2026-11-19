@@ -108,7 +108,7 @@
   `mvp-walk-flow.yaml` は散歩中画面で凡例（testID `walk-active-route-legend`）が
   **存在すること**だけを待つ。線の形・区間数・`returnIsSamePath`（同じ道フォールバックかどうか）・
   凡例の文言は assert しない（地図タイル・外部データを assert しない既存方針の延長）。これらの分岐は
-  `src/features/walk/lib/walkRouteLegs.ts` の純粋関数として Vitest（`walkRouteLegs.test.ts`）が
+  `src/features/walk/route/lib/walkRouteLegs.ts` の純粋関数として Vitest（`walkRouteLegs.test.ts`）が
   網羅する責務とし、E2E とテスト範囲を重複させない。散歩開始画面側の凡例
   （`SpotMapView` の testID `walk-start-route-legend`）は既存の共有 subflow
   （`subflows/start-walk-from-spot.yaml`）には足していない（他フローへの影響を避けるため）。

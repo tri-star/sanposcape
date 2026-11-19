@@ -46,7 +46,7 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
 ## 段階2: 分け方の案を出す
 
 1. **まとまりに名前を付ける。** 名前で中身を言えるまとまりだけを作る。どのまとまりにも入らないもの、2つ以上のまとまりから使われるものは親（元の場所）に残す。
-   - **mobile の feature または領域の層のフォルダ（`components/`・`hooks/`・`lib/` …。`features/walk/lib`・`features/sanpo-map/pin/lib` など）が閾値を超えたときは、層の下にサブフォルダを切らず、層より先に領域で分ける**
+   - **mobile の feature または領域の層のフォルダ（`components/`・`hooks/`・`lib/` …。`features/history/lib`・`features/sanpo-map/pin/lib` など）が閾値を超えたときは、層の下にサブフォルダを切らず、層より先に領域で分ける**
      （`features/<feature>/<domain>/{components,hooks,lib,…}/`、領域の中なら `<domain>/<下位の領域>/lib/`。正本は ADR-M-001 決定2 と folder-structure.md）。まとまりは層ごとではなく、領域（画面の群・API・backend のモジュールに対応するもの）で探す。
      このときの「親」は feature の直下の `shared/` で、置いてよいのは 2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ。
      他の領域から使われても持ち主が1つに決まるもの（地図のアイコン・ピンの状態の表示など）は持ち主の領域に置く（`shared/` を何でも置く場所にしない）。

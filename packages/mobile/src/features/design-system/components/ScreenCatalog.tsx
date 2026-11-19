@@ -11,9 +11,9 @@ import {
   DEFAULT_ACTIVE_WALK,
   DEFAULT_WALK_GOAL,
   buildSampleFinishedWalk,
-} from "@/features/walk/data/defaults";
-import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
-import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
+} from "@/features/walk/record/data/defaults";
+import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
+import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
 import { randomUuidV4 } from "@/lib/uuid";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";

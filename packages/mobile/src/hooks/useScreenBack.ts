@@ -49,7 +49,7 @@ export function useScreenBack({
   const router = useRouter();
   // 遷移の二重発火ラッチ（フォーカスで解除）は BackHandler を購読しない `useNavigateOnce` に任せる。
   const { runOnce, isNavigating } = useNavigateOnce();
-  // レンダー中の ref 代入は既存 `features/walk/hooks/useWalkTracking.ts`（pausedRef）と同じ手法。
+  // レンダー中の ref 代入は既存 `features/walk/active/hooks/useWalkTracking.ts`（pausedRef）と同じ手法。
   // BackHandler の購読を毎レンダー貼り直さずに最新の値を読むため。
   const interceptRef = useRef(onIntercept);
   interceptRef.current = onIntercept;

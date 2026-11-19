@@ -93,7 +93,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   - Android 13 以上の通知権限（`POST_NOTIFICATIONS`。FGS の通知を通知シェードに出すため）は `app.json` で宣言し、
     `location.real.ts` の `startBackgroundTracking` の中（`notificationPermission.ts`）で1起動につき最大1回求める。
     拒否されても記録は始める。LocationService の interface には出さない（SS-157 / ADR-M-018 決定15）。
-  - 呼び出し側は `features/walk/hooks/useWalkTracking.ts` に加えて、起動時・サインアウト時の停止を行う
+  - 呼び出し側は `features/walk/active/hooks/useWalkTracking.ts` に加えて、起動時・サインアウト時の停止を行う
     `src/lib/backgroundLocationCleanup.ts` がある（`src/lib` が services のバレルを import する**唯一の例外**。
     起動時に必ず評価される副作用モジュールで、単体テストからは import しない）。
   - 開始に失敗して前面だけの記録（fallback）になった散歩は、アプリが前面に戻るたびに背景記録の開始を再試行する。
@@ -104,7 +104,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   - 独自の事前説明画面は置かない。
   - 拒否時の文言は `LocationPermissionNotice` の `context` で画面ごとに決める（`src/components/location/locationNoticeMessage.ts`）。
   - 拒否中は前面に戻るたびに状態だけを確かめて回復する（`useCurrentLocation`。`requestPermission` は呼ばない）。
-  - 精度は `locationService.getPrecision()`（`features/walk/hooks/useLocationPrecision.ts`）で見て、大まかなら案内を出す。点は捨てない。
+  - 精度は `locationService.getPrecision()`（`features/walk/shared/hooks/useLocationPrecision.ts`）で見て、大まかなら案内を出す。点は捨てない。
 - **地図上の現在地の向き**（SS-169 / [ADR-M-023](../adr/ADR-M-023-current-heading-on-map.md)）:
   - 端末の方位は `locationService.watchHeading()` で購読する。ネイティブの購読はサービスの中で1本にまとめる（Android は1本しか持てない）。
   - 地図には `src/components/location/CurrentHeadingBeam.tsx`（`MapView` の子）を置く。扇形は `Polygon` で描き、半径は `useHeadingBeamRadius` で地図の高さと表示範囲から換算する。
@@ -350,7 +350,7 @@ export default function SomeFeatureRoute() {
     （ネイティブ依存）に到達しうるため）。単体テストでは `createMockLocationService()`
     （`src/services/location/location.mock.ts`）を直接 import してフェイクを注入する
     （`location.mock.test.ts` を参照）。背景記録の振る舞いは `createBackgroundSampleHub` +
-    `createMemorySampleBufferStorage`、統合は `features/walk/lib/walkTrackMerge.ts` でテストする
+    `createMemorySampleBufferStorage`、統合は `features/walk/active/lib/walkTrackMerge.ts` でテストする
     （どれも `expo-*` を値 import しない）。`location.real.ts` の開始・停止の分岐は、`expo-location` を
     `vi.mock` で差し替えて直接 import してテストする（`location.real.test.ts`。バレルは経由しない）。
   - 写真: `services/photo` も同じ規律。バレル（`index.ts`）を単体テストから import せず、

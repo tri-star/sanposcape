@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { WalkSummaryView } from "@/features/walk/components/WalkSummaryView";
-import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
+import { WalkSummaryView } from "@/features/walk/record/components/WalkSummaryView";
+import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
