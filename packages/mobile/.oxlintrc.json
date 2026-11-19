@@ -160,7 +160,7 @@
     },
     {
       // SS-259: 散歩マップの一覧・詳細・メンバーの画面が、表示・操作・ダイアログを1つのコンポーネントで扱っている
-      // （行数 212〜410・依存 21〜34）。SS-257 の sanpoMap* の切り出しと順序を合わせて分ける。
+      // （行数 212〜410・依存 21〜34）。SS-275（SS-257 から分けたピン本体の中の分割）と順序を合わせて分ける。
       "files": [
         "src/features/sanpo-map/map/components/SanpoMapDetailView.tsx",
         "src/features/sanpo-map/map/components/SanpoMapListView.tsx",

@@ -201,7 +201,7 @@
 - [ADR-014](./ADR-014-claude-harness-main-agent-and-review-structure.md) の SS-254 追補（change-reviewer の観点5）
 - `.claude/skills/structure-refactor/SKILL.md`、`scripts/code-health/survey-structure.py`
 - [ADR-018](./ADR-018-monthly-code-health-report.md)（SS-255 の月次レポート）
-- Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255（ADR-018）、SS-256、SS-257
+- Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255（ADR-018）、SS-256、SS-257、SS-275・SS-276・SS-277（SS-257 から分けた）
 
 ## SS-260 追補: mobile の feature の中は層より先に領域で分ける
 

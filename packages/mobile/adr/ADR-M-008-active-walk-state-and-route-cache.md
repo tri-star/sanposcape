@@ -228,7 +228,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
   - 登録側が**条件付きでクリアする**。`savedWalkId === walkId` のときだけ `clearFinishedWalk()` を呼び、一致しない場合・保存前（`savedWalkId === null`）の場合は何もしない（別の散歩のドラフトを巻き添えにしないため）。
 - 共通の性質: 1つの後始末が例外を投げても他は止めない。登録はモジュール読み込み時に走るため、対象ストアが未ロードなら後始末も走らないが、ストアは非永続（メモリのみ）なので「未ロード = ドラフトも存在しない」が成立する。
 
-**なぜ直接 import にしなかったか**: `features/history` から `features/walk/record/store/useFinishedWalkStore` を直接 import するのは [folder-structure](../docs/folder-structure.md) の「その機能の外から import されるものは置かない」に反する。`useFinishedWalkStore` を `src/store/` へ昇格させる案は決定4（`features/walk/store/` に置く理由を明記している）を覆すことになり、差分も本タスクの範囲を超える。決定6 が既に同じ問題（クリア対象が増えるたびに呼び出し側を編集しない）をレジストリで解いているため、その適用にとどめた。
+**なぜ直接 import にしなかったか**: `features/history` から `features/walk/record/store/useFinishedWalkStore` を直接 import するのは [folder-structure](../docs/folder-structure.md) の「その機能の外から import されるものは置かない」に反する。`useFinishedWalkStore` を `src/store/` へ昇格させる案は決定4（`features/walk/record/store/` に置く理由を明記している）を覆すことになり、差分も本タスクの範囲を超える。決定6 が既に同じ問題（クリア対象が増えるたびに呼び出し側を編集しない）をレジストリで解いているため、その適用にとどめた。
 
 ### 9. 往路/復路の判定はしない。描き分け＋凡例だけで表現する（SS-33 追補）
 
