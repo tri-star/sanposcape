@@ -18,3 +18,4 @@
 - [置き換えのスクリプトは一致を assert する](python-replace-assert-after-formatter.md) — python の replace・sed は当たらなくても黙って進む。整形で行が折り返されると外れる。assert で止め、git diff で確かめる
 - [ツールの入力で \u エスケープが文字に変わる](tool-input-unescapes-unicode.md) — Write・Bash に書いた「\u + 16進」が見えない文字で保存される。書いた後に code point を調べ、chr(92) で組み立てて戻す
 - [aws CLI の --copy-source は自前でエンコードしない](aws-cli-copy-source-no-preencode.md) — botocore がエンコードするので二重になり、空白・日本語のキーが NoSuchKey。--debug と偽のエンドポイントでヘッダーを確かめる
+- [.claude/skills はシェルから書けない](claude-skills-readonly-in-sandbox.md) — sandbox で Read-only。一括の置き換えは OSError を飛ばして列挙し、Edit ツールで直す
