@@ -12,7 +12,7 @@
 - **feature が大きくなったら、層（`components/` `hooks/` `lib/` …）より先に領域で分ける**。feature の直下に領域のフォルダを置き、その下に層を置く（層の下に領域のサブフォルダを切らない）。
   同じ feature の領域同士は互いに import してよい。領域をまたぐ共通物は `shared/` に置き、置いてよいのは持ち主の領域を1つに決められないものだけで、`shared/` は領域を import しない。
   領域の層のフォルダがさらに大きくなったら、同じ考え方で下位の領域に分ける（下位の領域同士は相互 import にしない）。1つの領域だけが使う型はその領域の `types.ts` に置く。
-  mobile 全体の方針で、最初の例は `features/sanpo-map`（`map/`・`pin/`・`invitation/`・`shared/`）。（本文: 決定2 の SS-260 追補）
+  mobile 全体の方針で、最初の例は `features/sanpo-map`（`map/`・`pin/`・`invitation/`・`shared/`）。`features/walk` も同じ形にした（`explore/`・`route/`・`active/`・`record/`・`shared/`）。（本文: 決定2 の SS-260 追補・SS-257 追補）
 - **コンポーネントは「2つ以上の機能から使うか」で `src/components/`（Primitive は `ui/`）か `src/features/<feature>/components/` に置く**。
   迷ったら `features/` に置き、再利用が発生したら昇格させる。（本文: 決定3）
 - **実機依存・認証の差し替え層は `src/services/<service>/` で、`index.ts` がインターフェースを公開し、環境変数でモードを選ぶ**。
@@ -32,7 +32,7 @@
 
 ## 日付
 
-2026-07-18（初版）、2026-10-04 追補（棚卸し: 決定6 の追加、決定4 の現状注記）、2026-11-15 追補（SS-260: 決定2 に「feature の中は層より先に領域で分ける」を挿入し、`features/pin` を `features/sanpo-map` に改めた）
+2026-07-18（初版）、2026-10-04 追補（棚卸し: 決定6 の追加、決定4 の現状注記）、2026-11-15 追補（SS-260: 決定2 に「feature の中は層より先に領域で分ける」を挿入し、`features/pin` を `features/sanpo-map` に改めた）、2026-11-19 追補（SS-257: 決定2 に `features/walk` の分け方を足した）
 
 ## コンテキスト
 
@@ -58,7 +58,7 @@
      領域の層のフォルダがさらに閾値を超えたら、同じ考え方でその領域を分ける（`pin/lib/edit/` ではなく `pin/edit/lib/` の形。領域の直下には下位の領域と `shared/` を置く）。
      下位の領域同士の import は、[ADR-016](../../../docs/adr/ADR-016-code-structure-ratchet-check.md) 決定9 のとおり相互にしない（相互 import を許すのは feature の直下の領域だけ。ADR-016 決定15）。
      walk / history など他の feature にも同じ形で当てはめる。
-     SS-260 の時点で `sanpo-map/pin/` の層の下に残るサブフォルダ（`{components,hooks,lib}/{tag,location-search,visibility}/`）は、この形になる前のもので、SS-257 で直す（手本にしない）。
+     SS-260 の時点で `sanpo-map/pin/` の層の下に残るサブフォルダ（`{components,hooks,lib}/{tag,location-search,visibility}/`）は、この形になる前のもので、SS-275 で直す（手本にしない。SS-257 から分けた課題）。
      - **feature の直下には、領域のフォルダと `shared/` だけを置く。** 層のフォルダと領域のフォルダを同じ階層に混ぜない。
      - **同じ feature の領域同士は互いに import してよい（双方向も）。** 双方向の依存があるから別の feature に分けず、1つの feature の中で分けている。feature 同士は import しない規約（[フォルダ構造](../docs/folder-structure.md)）は変えない。
        ファイルの単位の循環は `import/no-cycle` が止める。他の領域から使われても、持ち主が1つに決まるもの（地図のアイコン・地図の一覧の取得・ピンの状態バッジ・ピンの取得）は持ち主の領域に置き、使う側がそこから import する。
@@ -69,7 +69,13 @@
        `shared/` は領域のフォルダを import しない（型だけの import も。親 → 子 → 親の行き来を作らない）。1つの領域からしか使われなくなったら、その領域へ戻す。2つ以上の feature から使うなら `src/` の横断の層へ昇格する（決定3）。
      - lib/ の制限（`.oxlintrc.json` の `no-restricted-imports`）の glob は、深さに依存しない `src/features/**/lib/**` で書く。1段の `*` は領域の下の lib/ に当たらず、制限が黙って外れる。
      - 最初の例は `features/pin` を改めた `features/sanpo-map`（`map/`: 地図の一覧・詳細・作成・メンバー・アイコン・削除、`invitation/`: 地図への招待、`pin/`: ピン本体、`shared/`）。
-       backend の `sanpo_maps/{maps, pins, invitations, photos}` と同じく、地図の下にピンと招待がある。`pin/` の中の分割は SS-257。
+       backend の `sanpo_maps/{maps, pins, invitations, photos}` と同じく、地図の下にピンと招待がある。`pin/` の中の分割は SS-275（SS-257 から分けた）。
+     - **（SS-257 追補）2つ目の例は `features/walk`。** `walk/lib` が閾値を超えた（28）ので、feature 全体を領域で分けた: `explore/`（散歩の開始画面・`/explore/places` の候補・時間とカテゴリ）、
+       `route/`（`/explore/routes/loop` の周回ルートの取得・整形・線と凡例・地図の表示範囲）、`active/`（散歩中の位置の記録・経過時間・散歩中の画面と地図）、
+       `record/`（終了時のドラフト・`POST /walks`・サマリ画面）、`shared/`。領域は API（`/explore/places`・`/explore/routes/loop`・`/walks`）と画面（開始・散歩中・サマリ）の対応で決めた。
+       - 2つ以上の領域が使うものは、まず持ち主を探した。`placeSearchRequest`（座標の丸め。ルートと記録も使う）・`walkStats`（距離の目安）は探索、`mapRegion`（表示範囲）・`walkTrailStyle`（歩いた軌跡の線。凡例も描く）はルートに置いた。
+         持ち主を決められなかったのは、位置の精度の案内（開始と散歩中の両方の画面）・`unicodeText`（探索・ルート・記録の文字数の切り詰め）・`WalkStatGrid`（散歩中とサマリの数値の並び）・型の `WalkDestination`（ルート・散歩中・記録が持つ目的地）だけで、これを `shared/` に置いた。
+       - 画面カタログの代表値（`data/defaults.ts`）は、散歩中の画面の値（`active/data/`）とサマリの値（`record/data/`。散歩中の値から組み立てる）に分けた。1つのファイルのまま `shared/` に置くと、`shared/` の3種類のどれにも当たらないため。
 3. **コンポーネント配置の判断基準**: 「2つ以上の機能から使うか？」で `src/components/`（Primitiveは `ui/`）か `src/features/<feature>/components/` かを決める。迷ったらまず `features/` に置き、再利用発生時に昇格させる。
 4. **スタブ差し替え層: `src/services/<service>/`**。`index.ts` がインターフェースを公開し、環境変数で real/stub を選択する。E2Eでは Maestro で再現可能なものは real、不可能なもののみ stub にフォールバックする。（**棚卸し追補**: 現在のモードは real/stub の2値ではなく `real` / `dev` / `mock` が基本形。詳細は [フォルダ構造](../docs/folder-structure.md)）
 5. **命名規則**: フォルダは常に kebab-case、Reactコンポーネントは PascalCase、hook/util/型は camelCase、`app/` のルートは kebab-case・小文字。import は case まで完全一致。

@@ -18,11 +18,11 @@
 ### 変更・撤回された決定
 
 - SS-254 追補 決定13 の `pin/lib` の計画（`pin/lib` の下に `register/`・`edit/`・…・`sanpo-map/` を切る。層の下にまとまり）→ 計画全体を置き換えた。
-  地図・招待は `features/sanpo-map/{map,invitation}/` の下に層を置く形で切り出し（SS-260）、残るピン本体は `sanpo-map/pin/` の中を下位の領域で分ける（`pin/edit/lib/` の形。SS-257）（SS-260 追補 決定15）
+  地図・招待は `features/sanpo-map/{map,invitation}/` の下に層を置く形で切り出し（SS-260）、残るピン本体は `sanpo-map/pin/` の中を下位の領域で分ける（`pin/edit/lib/` の形。SS-275。SS-257 から分けた）（SS-260 追補 決定15）
 
 ## 日付
 
-2026-11-02（SS-252）、2026-11-03 追補（SS-254）、2026-11-15 追補（SS-260）
+2026-11-02（SS-252）、2026-11-03 追補（SS-254）、2026-11-15 追補（SS-260）、2026-11-19（SS-257: 移行の項の更新と、課題の付け替え）
 
 ## コンテキスト
 
@@ -150,6 +150,7 @@
 ### 移行・対応が必要な事項
 
 - SS-256・SS-257 で、SS-252 の時点の baseline を片付ける（mobile の `features/pin` の5項目は、SS-260 で3項目が外れ、残る2項目を `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。SS-260 追補）
+  - SS-257 では `features/walk/lib` を外した（feature 全体を領域で分けた。ADR-M-001 決定2 の SS-257 追補）。残る mobile の4項目は課題を分け、baseline の課題を付け替えた: `sanpo-map/pin` の2項目は SS-275、`src/lib` は SS-277、`history/lib` の接頭辞 `walk` は SS-276
 - ~~SS-254 で、`SPLIT_GUIDE` に分割の skill の名前を足し、change-reviewer に「構造の悪化」の観点を足す~~ → SS-254 で決着（SS-254 追補）
 - SS-253 で、決定7のとおり linter のルールを同じ方針で入れる
 - ~~SS-255 の月次レポートで、baseline の件数と下げられる項目を見る~~ → SS-255 で決着（`report-health.py` の「構造の検査のベースライン」の節と `code-health-review` skill。[ADR-018](./ADR-018-monthly-code-health-report.md)）
@@ -220,7 +221,7 @@ SS-250 の招待（`pin/components/invitation/`・`pin/hooks/invitation/`・`pin
     - lib/ の lint の制限（ADR-017 決定6）の glob は、深さに依存しない `src/features/**/lib/**` に直した。1段の `*` は `sanpo-map/pin/lib/` に当たらず、制限が黙って外れるため。
     - 接頭辞の数え方（決定11）では、feature 名の語（`sanpo`・`map`）も祖先のフォルダ名として飛ばされる。`sanpo-map/pin/components` では `PinMap*` が `pin` と `map` を飛ばして次の語で数えられ、
       `features/pin/components` のときに接頭辞 `map` として数えていた5個は、ひとまとまりとしては出なくなった（閾値の内側なので失敗には関係しない）。
-      地図表示のまとまりの集中は、SS-257 で分け方を決めるときに `survey-structure.py` の材料と中身で見る。数え方を直すか（飛ばす語を feature より下のフォルダに限るなど）は SS-257 で判断する。
+      地図表示のまとまりの集中は、SS-275 で分け方を決めるときに `survey-structure.py` の材料と中身で見る。数え方を直すか（飛ばす語を feature より下のフォルダに限るなど）は SS-275 で判断する（SS-257 から分けた）。
     - baseline: `features/pin` の5項目のうち、`hooks`（21 → 13）と接頭辞 `sanpo` の2項目は外れた。`components`（47 → 32）と `lib`（48 → 39）は `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。
     - 却下: 地図・招待を別の feature に出す案（決定13 と同じ理由）。層の下に領域を切る案（決定13 の計画。領域が散らばる）。
       feature の直下の領域同士にも一方向の規則を課す案（どちらの向きを禁じても使われる側を `shared/` に移すことになり、何でも置く場所になる。ADR-M-001 の選択肢4）
