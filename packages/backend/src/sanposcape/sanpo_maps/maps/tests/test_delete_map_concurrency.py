@@ -1,7 +1,8 @@
 """地図削除とピンの移動の並行実行（ADR-009 決定33, SS-175）。
 
 `threading.Thread` + 別 `Session`（= 別コネクション）で実 DB 上の真の競合を再現する
-（`pins/tests/test_service.py::TestCreatePinTrueConcurrentIdempotentResend` と同じ手法）。
+（`pins/tests/test_concurrent_idempotent_resend.py` の
+`TestCreatePinTrueConcurrentIdempotentResend` と同じ手法）。
 固定するのは次の3点。デッドロックしないことの網羅はテストせず、ADR-009 決定33 の分析で担保する
 （3点目は分析で見つかった具体的なデッドロックの回帰テスト）。
 
