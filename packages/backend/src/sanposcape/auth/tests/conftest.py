@@ -92,7 +92,9 @@ def make_google_id_token(rsa_keypair):
     """テスト用の Google ID token を任意のクレームで生成するファクトリ。"""
     private_key, _ = rsa_keypair
 
-    def _make(
+    # 引数の数（PLR0913）: テストの部品。ID トークンの各クレームを上書きできるようキーワード専用で並
+    # べる。ADR-017 の SS-258 追補。
+    def _make(  # noqa: PLR0913
         *,
         sub: str = "google-sub-1",
         aud: str = "test-audience",
@@ -132,7 +134,9 @@ def make_apple_id_token(rsa_keypair):
     """テスト用の Apple ID token を任意のクレームで生成するファクトリ。"""
     private_key, _ = rsa_keypair
 
-    def _make(
+    # 引数の数（PLR0913）: テストの部品。ID トークンの各クレームを上書きできるようキーワード専用で並
+    # べる。ADR-017 の SS-258 追補。
+    def _make(  # noqa: PLR0913
         *,
         sub: str = APPLE_DEFAULT_SUB,
         aud: str = APPLE_AUDIENCE,

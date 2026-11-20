@@ -444,6 +444,45 @@ class TestPhotoTakenAtCarryOver:
         assert [p.taken_at for p in resent_add.items] == [_TAKEN_AT]
 
 
+def _commit_first_request(
+    session: Session,
+    *,
+    user_id: uuid.UUID,
+    sanpo_map_id: uuid.UUID,
+    client_pin_id: uuid.UUID,
+    upload_id: uuid.UUID,
+) -> uuid.UUID:
+    """1回目のリクエストが検証・サムネイル生成・Copy を終えて、DB に書き込んで commit する
+    ところを模す。
+
+    S3 側の中身はこのテストの検証対象ではないため実際には書き込まない。作ったピンの ID を返す。
+    """
+    pin_repo = PinRepository(session)
+    pin, created = pin_repo.create(
+        sanpo_map_id=sanpo_map_id,
+        created_by_user_id=user_id,
+        client_pin_id=client_pin_id,
+        name="A",
+        memo=None,
+        latitude=0,
+        longitude=0,
+        client_walk_id=None,
+    )
+    if not created:
+        raise AssertionError("holder should be the first to create the pin")
+    pin_repo.add_photos(
+        pin_id=pin.id,
+        uploaded_by_user_id=user_id,
+        prepared=[_make_prepared_photo(user_id=user_id, upload_id=upload_id)],
+        start_position=0,
+    )
+    PinPhotoUploadRepository(session).mark_attached(
+        upload_ids=[upload_id], attached_at=datetime.now(UTC)
+    )
+    session.commit()
+    return pin.id
+
+
 class TestCreatePinTrueConcurrentIdempotentResend:
     """R1 の回帰テスト（Critical）。
 
@@ -482,35 +521,18 @@ class TestCreatePinTrueConcurrentIdempotentResend:
             session = TestSessionLocal()
             try:
                 upload_repo = PinPhotoUploadRepository(session)
-                pin_repo = PinRepository(session)
                 # 実際の1回目のリクエストが `_prepare_photos` の `lock_for_attach` で
                 # 行ロックを取得した状態を再現する（未コミット。行ロックを保持したまま待機）。
                 upload_repo.lock_for_attach(user_id=user_id, upload_ids=[upload_id])
                 holder_locked.set()
                 holder_may_commit.wait(timeout=_LOCK_WAIT_TIMEOUT)
-                # 検証・サムネイル生成・Copy を終えて DB 書き込み・commit する直前の状態を
-                # 模す（S3 側の中身はこのテストの検証対象ではないため実際には書き込まない）。
-                pin, created = pin_repo.create(
+                results["holder_pin_id"] = _commit_first_request(
+                    session,
+                    user_id=user_id,
                     sanpo_map_id=sanpo_map_id,
-                    created_by_user_id=user_id,
                     client_pin_id=client_pin_id,
-                    name="A",
-                    memo=None,
-                    latitude=0,
-                    longitude=0,
-                    client_walk_id=None,
+                    upload_id=upload_id,
                 )
-                if not created:
-                    raise AssertionError("holder should be the first to create the pin")
-                pin_repo.add_photos(
-                    pin_id=pin.id,
-                    uploaded_by_user_id=user_id,
-                    prepared=[_make_prepared_photo(user_id=user_id, upload_id=upload_id)],
-                    start_position=0,
-                )
-                upload_repo.mark_attached(upload_ids=[upload_id], attached_at=datetime.now(UTC))
-                session.commit()
-                results["holder_pin_id"] = pin.id
             except BaseException as exc:  # noqa: BLE001 - スレッド内例外をテスト本体に伝える
                 errors.append(exc)
                 holder_locked.set()

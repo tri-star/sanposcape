@@ -68,7 +68,9 @@ class WalkRepository:
 
         return list(self._db.scalars(stmt).all())
 
-    def create(
+    # 引数の数（PLR0913, 11）: 列をキーワード専用で受け取る（まとめる型は列を写すだけになる）。
+    # ADR-017 の SS-258 追補。
+    def create(  # noqa: PLR0913
         self,
         *,
         user_id: uuid.UUID,
