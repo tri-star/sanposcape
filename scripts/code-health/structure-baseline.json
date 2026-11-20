@@ -9,13 +9,6 @@
       "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
     },
     {
-      "kind": "file-lines",
-      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_service.py",
-      "value": 1544,
-      "issue": "SS-256",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
-    },
-    {
       "kind": "folder-files",
       "path": "packages/mobile/src/features/sanpo-map/pin/components",
       "value": 32,
