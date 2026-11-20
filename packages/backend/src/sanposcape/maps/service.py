@@ -18,6 +18,7 @@ from sanposcape.integrations.google_maps.provider import (
 )
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.loop_route import (
+    LoopCandidate,
     LoopEvaluation,
     LoopSide,
     evaluate_loop,
@@ -67,7 +68,9 @@ _LoopOutcome = ProviderLoopRoute | GoogleMapsQuotaError | GoogleMapsUnavailableE
 
 
 class MapsService:
-    def __init__(
+    # 引数の数（PLR0913, 10）: 設定値を個別に受け取る。本番の生成は maps/dependencies.py の1か所で、
+    # すべてキーワードで渡している。まとめる型に寄せるかは ADR-017 の SS-258 追補を参照。
+    def __init__(  # noqa: PLR0913
         self,
         provider: GoogleMapsProvider,
         max_place_candidates: int,
@@ -271,70 +274,10 @@ class MapsService:
             return self._same_path_response(request, origin, destination, destination_read)
 
         deadline = monotonic() + self._route_deadline_seconds
-        per_candidate_timeout = min(self._route_timeout_seconds, self._route_deadline_seconds)
-
-        outcomes: dict[LoopSide, _LoopOutcome] = {}
-        with ThreadPoolExecutor(max_workers=_LOOP_CANDIDATE_WORKERS) as executor:
-            future_to_candidate = {
-                executor.submit(
-                    self._provider.get_walking_loop_route,
-                    origin,
-                    destination,
-                    candidate.via,
-                    timeout_seconds=per_candidate_timeout,
-                ): candidate
-                for candidate in candidates
-            }
-            for future, candidate in future_to_candidate.items():
-                try:
-                    outcomes[candidate.side] = future.result()
-                except GoogleMapsQuotaError as exc:
-                    outcomes[candidate.side] = exc
-                    # 他方が成功しても、この側のクォータ超過は最終ログに埋もれず必ず1行残す
-                    # （決定5: 片方成功時にクォータの予兆が運用ログから見えなくなるのを防ぐ）。
-                    logger.warning("Loop route candidate quota exceeded: side=%s", candidate.side)
-                except GoogleMapsUnavailableError as exc:
-                    outcomes[candidate.side] = exc
-                    logger.info("Loop route candidate unavailable: side=%s", candidate.side)
-
-        evaluations: list[LoopEvaluation] = []
-        first_success: ProviderLoopRoute | None = None
-        any_quota = False
-        for candidate in candidates:  # right → left の順を維持する（同点タイブレークのため）
-            outcome = outcomes.get(candidate.side)
-            if isinstance(outcome, GoogleMapsQuotaError):
-                any_quota = True
-                continue
-            if isinstance(outcome, GoogleMapsUnavailableError):
-                continue
-            if outcome is None:
-                continue
-            if first_success is None:
-                first_success = outcome
-            verdict = evaluate_loop(
-                outcome.outbound, outcome.inbound, candidate.via, origin, destination
-            )
-            evaluations.append(
-                LoopEvaluation(
-                    side=candidate.side,
-                    via=candidate.via,
-                    outbound=outcome.outbound,
-                    inbound=outcome.inbound,
-                    verdict=verdict,
-                )
-            )
-            logger.info(
-                "Loop route candidate evaluated: side=%s accepted=%s reason=%s detour_ratio=%.3f "
-                "return_overlap_ratio=%.3f return_backtrack_ratio=%.3f "
-                "via_snap_distance_meters=%.1f",
-                candidate.side,
-                verdict.accepted,
-                verdict.reason,
-                verdict.detour_ratio,
-                verdict.return_overlap_ratio,
-                verdict.return_backtrack_ratio,
-                verdict.via_snap_distance_meters,
-            )
+        outcomes = self._fetch_loop_candidates(origin, destination, candidates)
+        evaluations, first_success, any_quota = self._evaluate_loop_candidates(
+            origin, destination, candidates, outcomes
+        )
 
         selected = select_loop(tuple(evaluations))
         if selected is not None:
@@ -379,6 +322,93 @@ class MapsService:
         return self._loop_response(
             request, destination_read, route, self._mirror(route), return_is_same_path=True
         )
+
+    def _fetch_loop_candidates(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        candidates: tuple[LoopCandidate, ...],
+    ) -> dict[LoopSide, _LoopOutcome]:
+        """`get_loop_walking_route` の候補（右・左）のルートを並列に取る。
+
+        失敗も例外を投げずに結果として返す（片方の失敗で他方の結果を捨てないため。ADR-007 決定5）。
+        """
+        per_candidate_timeout = min(self._route_timeout_seconds, self._route_deadline_seconds)
+        outcomes: dict[LoopSide, _LoopOutcome] = {}
+        with ThreadPoolExecutor(max_workers=_LOOP_CANDIDATE_WORKERS) as executor:
+            future_to_candidate = {
+                executor.submit(
+                    self._provider.get_walking_loop_route,
+                    origin,
+                    destination,
+                    candidate.via,
+                    timeout_seconds=per_candidate_timeout,
+                ): candidate
+                for candidate in candidates
+            }
+            for future, candidate in future_to_candidate.items():
+                try:
+                    outcomes[candidate.side] = future.result()
+                except GoogleMapsQuotaError as exc:
+                    outcomes[candidate.side] = exc
+                    # 他方が成功しても、この側のクォータ超過は最終ログに埋もれず必ず1行残す
+                    # （決定5: 片方成功時にクォータの予兆が運用ログから見えなくなるのを防ぐ）。
+                    logger.warning("Loop route candidate quota exceeded: side=%s", candidate.side)
+                except GoogleMapsUnavailableError as exc:
+                    outcomes[candidate.side] = exc
+                    logger.info("Loop route candidate unavailable: side=%s", candidate.side)
+        return outcomes
+
+    def _evaluate_loop_candidates(
+        self,
+        origin: ProviderPoint,
+        destination: ProviderPoint,
+        candidates: tuple[LoopCandidate, ...],
+        outcomes: dict[LoopSide, _LoopOutcome],
+    ) -> tuple[list[LoopEvaluation], ProviderLoopRoute | None, bool]:
+        """取れた候補を判定する。
+
+        戻り値は `(判定の一覧, 最初に取れた候補, クォータ超過があったか)`。
+        """
+        evaluations: list[LoopEvaluation] = []
+        first_success: ProviderLoopRoute | None = None
+        any_quota = False
+        for candidate in candidates:  # right → left の順を維持する（同点タイブレークのため）
+            outcome = outcomes.get(candidate.side)
+            if isinstance(outcome, GoogleMapsQuotaError):
+                any_quota = True
+                continue
+            if isinstance(outcome, GoogleMapsUnavailableError):
+                continue
+            if outcome is None:
+                continue
+            if first_success is None:
+                first_success = outcome
+            verdict = evaluate_loop(
+                outcome.outbound, outcome.inbound, candidate.via, origin, destination
+            )
+            evaluations.append(
+                LoopEvaluation(
+                    side=candidate.side,
+                    via=candidate.via,
+                    outbound=outcome.outbound,
+                    inbound=outcome.inbound,
+                    verdict=verdict,
+                )
+            )
+            logger.info(
+                "Loop route candidate evaluated: side=%s accepted=%s reason=%s detour_ratio=%.3f "
+                "return_overlap_ratio=%.3f return_backtrack_ratio=%.3f "
+                "via_snap_distance_meters=%.1f",
+                candidate.side,
+                verdict.accepted,
+                verdict.reason,
+                verdict.detour_ratio,
+                verdict.return_overlap_ratio,
+                verdict.return_backtrack_ratio,
+                verdict.via_snap_distance_meters,
+            )
+        return evaluations, first_success, any_quota
 
     def _same_path_response(
         self,
