@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 import pytest
 
@@ -24,7 +25,7 @@ _FULL_SECRET = {
 
 
 @pytest.fixture(autouse=True)
-def _isolate_secret_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_secret_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """このモジュールが読み書きする環境変数を確実にテストごとへ隔離する。"""
     monkeypatch.delenv("APP_SECRET_ARN", raising=False)
     for env_name in SECRET_KEY_TO_ENV.values():

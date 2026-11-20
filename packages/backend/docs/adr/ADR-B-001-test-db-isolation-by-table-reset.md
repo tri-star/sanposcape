@@ -113,7 +113,7 @@ fixture の **setup 時**（テスト本体の実行前）に全テーブルの�
   `test_cleanup_is_called_after_commit`（別セッションから見えるか）
 - `auth/tests/test_repository.py::test_get_by_hash_for_update_blocks_concurrent_transaction`
   （スレッド2本での `FOR UPDATE` の直列化）
-- `sanpo_maps/pins/tests/test_service.py`（スレッドを使った競合検証）
+- `sanpo_maps/pins/tests/test_create_service.py`（スレッドを使った競合検証。SS-256 で旧 test_service.py から分けた）
 - `walks/tests/test_repository.py::TestDeleteConcurrentRace`（`StaleDataError` の競合）
 - `users/tests/test_repository.py`（insert → 一意制約違反 → on conflict 的な再取得の冪等パターン）
 

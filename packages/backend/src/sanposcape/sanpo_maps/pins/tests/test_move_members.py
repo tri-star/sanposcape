@@ -2,7 +2,7 @@
 
 `PATCH /pins/{pin_id}` の 403 `move_target_missing_members` と、移動先の候補
 `GET /pins/{pin_id}/move-targets`、その下の repository の判定を固定する。役割（role）による
-移動の権限は `test_router.py` の `TestPinMovePermissionMatrix`（決定33）。
+移動の権限は `test_permissions_router.py` の `TestPinMovePermissionMatrix`（決定33）。
 """
 
 import uuid

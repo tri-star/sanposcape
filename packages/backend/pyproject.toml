@@ -53,6 +53,11 @@ dev = [
     "opentelemetry-instrumentation-botocore==0.65b0",
     "opentelemetry-instrumentation-urllib==0.65b0",
     "opentelemetry-instrumentation-threading==0.65b0",
+    # 型チェック（SS-140）。Protocol を満たさない実装・Fake を CI で検出する。設定は下の [tool.mypy]
+    "mypy>=2.4.1",
+    # pyyaml（テストが template.yaml・openapi.yaml を読む）の型。boto3 / botocore はスタブを入れず、
+    # [[tool.mypy.overrides]] で Any として扱う
+    "types-pyyaml>=6.0",
 ]
 
 [tool.uv]
@@ -116,7 +121,34 @@ max-args = 8
 # SS-258: 並行実行の手順（スレッドの起動・待ち合わせ・検証）を1つのテストに順に書いている（65）
 "src/sanposcape/sanpo_maps/maps/tests/test_delete_map_concurrency.py" = ["PLR0915"]
 # SS-258: 1つのテストで写真の確定の前後を順に検証している（65）
-"src/sanposcape/sanpo_maps/pins/tests/test_service.py" = ["PLR0915"]
+"src/sanposcape/sanpo_maps/pins/tests/test_create_service.py" = ["PLR0915"]
+
+# 型チェック（SS-140）。テストも含めて src 全体を検査する（テストの Fake が Protocol を満たさない
+# 食い違いを、実際の DI を通る結合テストより前に見つけるため）。tests 配下に __init__.py が無いので、
+# パッケージの基点を src に固定して同名のテストモジュール（test_service.py など）を区別する。
+[tool.mypy]
+python_version = "3.12"
+# scripts/（一回限りの移行のスクリプトなど）と alembic/ は対象外
+files = ["src"]
+mypy_path = "src"
+explicit_package_bases = true
+# 注釈の無い関数（多くのテスト関数・fixture）の本体も検査する
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Pydantic のモデルの __init__ をフィールドの型で検査し、Settings の検証も型に合わせる。
+# init_typed は既定（False）のまま：テストが dict や不正な値を渡して検証を確かめるため
+plugins = ["pydantic.mypy"]
+
+# boto3 / botocore は型情報を同梱しない。スタブ（types-boto3）はサービスごとに分かれて大きいので入れず、
+# 境界（integrations/aws/）で戻り値を自前の型に詰め替える
+[[tool.mypy.overrides]]
+module = ["boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
 
 # 使われていないコードの洗い出し（SS-255。月次のレポート scripts/code-health/report-health.py が
 # `uvx --from vulture==<版> vulture` で流す。ADR-018）。CI では止めない。候補を出すだけで、消すかは人が決める。

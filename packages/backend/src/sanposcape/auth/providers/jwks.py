@@ -1,13 +1,20 @@
 """IdP 共通の JWKS クライアント（プロセス内キャッシュ）。"""
 
 from functools import lru_cache
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from jwt import PyJWKClient
 
+if TYPE_CHECKING:
+    # pyjwt[crypto] のときだけ公開鍵の型の union になる（crypto が無いと Never）
+    from jwt.algorithms import AllowedPublicKeys
+
 
 class SigningKey(Protocol):
-    key: object
+    # `jwt.decode()` に渡せる鍵の型。読み取り専用（property）にして、`PyJWK.key` のような
+    # より狭い型の属性を持つ実装も満たせるようにする（可変の属性は Protocol で不変になる）
+    @property
+    def key(self) -> "AllowedPublicKeys | str | bytes": ...
 
 
 class JWKSClientProtocol(Protocol):

@@ -24,6 +24,7 @@ from sanposcape.integrations.google_maps.provider import ProviderPoint, Provider
 from sanposcape.main import create_app
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.service import MapsService
+from sanposcape.maps.tests.provider_stub import GoogleMapsProviderStub
 
 _STATE_NAMES = (
     "google_maps_provider",
@@ -120,7 +121,7 @@ def test_resources_are_built_once_and_never_closed_across_invocations(
     assert counting_builders.closed == {"provider": 0, "flag_source": 0, "storage": 0}
 
 
-class _RoutingProvider:
+class _RoutingProvider(GoogleMapsProviderStub):
     def search_places(self, *args: Any, **kwargs: Any) -> tuple[()]:
         return ()
 
