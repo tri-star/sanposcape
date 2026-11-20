@@ -8,7 +8,7 @@ import { RegisteredPinsMapLayer } from "@/features/sanpo-map/pin/components/Regi
 import {
   WalkActiveView,
   type WalkMapLayerActions,
-} from "@/features/walk/components/WalkActiveView";
+} from "@/features/walk/active/components/WalkActiveView";
 import type { MapRegion } from "@/lib/mapRegion";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 

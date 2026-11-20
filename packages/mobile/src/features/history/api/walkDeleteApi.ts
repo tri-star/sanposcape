@@ -19,7 +19,7 @@ export type WalkDeleteResult = {
  * 踏襲する: `react-native` を値 import しないので node の vitest でテストできる。
  * `services/auth` は import しない（トークンは customFetch が authTokenProvider 経由で付ける）。
  *
- * `signal` は受け取らない／渡さない。`saveWalk`（`features/walk/api/walkApi.ts`）と同じ理由で、
+ * `signal` は受け取らない／渡さない。`saveWalk`（`features/walk/record/api/walkApi.ts`）と同じ理由で、
  * 画面離脱で削除リクエストを中断させないため（GET 系とは意図的に扱いを変える）。
  */
 export async function deleteWalk(walkId: string): Promise<WalkDeleteResult> {

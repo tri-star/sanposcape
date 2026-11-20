@@ -46,7 +46,7 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
 ## 段階2: 分け方の案を出す
 
 1. **まとまりに名前を付ける。** 名前で中身を言えるまとまりだけを作る。どのまとまりにも入らないもの、2つ以上のまとまりから使われるものは親（元の場所）に残す。
-   - **mobile の feature または領域の層のフォルダ（`components/`・`hooks/`・`lib/` …。`features/walk/lib`・`features/sanpo-map/pin/lib` など）が閾値を超えたときは、層の下にサブフォルダを切らず、層より先に領域で分ける**
+   - **mobile の feature または領域の層のフォルダ（`components/`・`hooks/`・`lib/` …。`features/history/lib`・`features/sanpo-map/pin/lib` など）が閾値を超えたときは、層の下にサブフォルダを切らず、層より先に領域で分ける**
      （`features/<feature>/<domain>/{components,hooks,lib,…}/`、領域の中なら `<domain>/<下位の領域>/lib/`。正本は ADR-M-001 決定2 と folder-structure.md）。まとまりは層ごとではなく、領域（画面の群・API・backend のモジュールに対応するもの）で探す。
      このときの「親」は feature の直下の `shared/` で、置いてよいのは 2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ。
      他の領域から使われても持ち主が1つに決まるもの（地図のアイコン・ピンの状態の表示など）は持ち主の領域に置く（`shared/` を何でも置く場所にしない）。
@@ -91,7 +91,7 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
    なぜその分け方にしたかを残す価値があれば ADR に追補する（`adr-writing` skill）。移動前のパスを文書から引いているところは
    `python3 scripts/knowledge/check-doc-references.py` が見つける。
 
-## 試して分かったこと（SS-254・SS-260）
+## 試して分かったこと（SS-254・SS-260・SS-257）
 
 - 旧 `features/pin/lib` <!-- doc-ref-ok: SS-260 で features/sanpo-map に改めた -->: `sanpoMap*` を別の feature に出す案は採らなかった。地図の画面がピンの読み込みの失敗・状態の表示・queryKey を使い、
   ピンの登録・編集が地図の選択・アイコンを使う双方向の依存で、feature 同士は import しない規則（folder-structure.md）に反するため。
@@ -110,3 +110,7 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
 - 同じ試行で、サブフォルダに分けても名前の頭（`sanpoMap`）が揃っているだけで接頭辞の検査が落ちる穴が見つかり、祖先のフォルダ名に含まれる語を続けて飛ばすように直した。
 - `pins/tests/test_router.py`: クラスごとの「叩くエンドポイントの回数」で、主に確かめる操作が分かれる。同じ地図を作るヘルパーが共有の `sanpo_maps/conftest.py` の `make_sanpo_map` と重複していた。
   訪問状況・アーカイブのクラス（作成・一覧・更新にまたがる1つの契約）を、最初は回数だけを見て更新のファイルに入れてしまい、レビューで規則の名前の1ファイルに直した。
+- SS-257（`features/walk`）: 層の1つ（`lib/`）だけが閾値を超えていても、feature の直下を領域と `shared/` だけにするため、`components/`・`hooks/`・`api/`・`data/`・`store/`・`types.ts` も含めて全体を動かした（約100ファイル）。
+  領域は API と画面の対応（`/explore/places` と開始画面・`/explore/routes/loop`・散歩中・`POST /walks` とサマリ）で決め、2つ以上の領域が使うファイルはまず持ち主を探して、決められないものだけを `shared/` に置いた。
+  import が `@/` の別名だけで書かれていたので、移動の対応表（旧 → 新）から `git mv` と文字列の置き換えを1つのスクリプトで行えた。文書・コメントの中のパスは、同じ対応表でフルパス（`features/walk/lib/<名前>`）だけを置き換え、
+  フォルダだけを指す書き方（`features/walk/store/`）は別に grep して手で直した。1つのファイルが2つの領域の値を持つとき（画面カタログの代表値）は、`shared/` に逃がさず領域ごとのファイルに分けた（移動とは別のコミット）。

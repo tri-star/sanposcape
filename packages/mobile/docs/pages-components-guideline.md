@@ -44,7 +44,7 @@ const useStyles = makeStyles((theme) => ({
   ルート線には `theme.map.route`（往路・既定の1本道ルート）と `theme.map.routeReturn`
   （周回ルートの復路。破線と併用して描き分ける、SS-33）がある。
   散歩中に歩いた軌跡は `theme.colors.accent` を半透明にした細い実線で、ルート線の上に重ねる
-  （`features/walk/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
+  （`features/walk/route/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
   `Polyline` の `zIndex` は Apple Maps（iOS でキーを入れていないビルド）では効かず、座標が変わった線が一番上に来るため、
   重なり順に頼る見た目（下に太く敷いて縁取りに見せる等）にしない。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
@@ -286,7 +286,7 @@ View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタン
 `docs/architecture-guideline.md` の「UIとロジックの分離」方針と同じ考え方。
 
 また、`features/<feature>/data/` の静的スタブは「壊れていないこと」を `.test.ts` で守る。
-例: キーの網羅と表示メタ情報との整合（`data/categories.test.ts`）、
-代表値が計算ロジックと矛盾しないこと（`data/defaults.test.ts`）。
+例: キーの網羅と表示メタ情報との整合（`walk/explore/data/categories.test.ts`）、
+代表値が計算ロジックと矛盾しないこと（`walk/record/data/defaults.test.ts`）。
 スタブを手で書き換えたときの取りこぼしを CI で検知できるようにする（SS-9）。
 表示そのものの確認は上記の開発確認用ルート（`/dev-screens`）での目視に委ねる。

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveAddPinAction } from "@/features/walk/lib/addPinAction";
+import { resolveAddPinAction } from "@/features/walk/active/lib/addPinAction";
 import {
   parseClientWalkIdParam,
   parsePinLocationParams,

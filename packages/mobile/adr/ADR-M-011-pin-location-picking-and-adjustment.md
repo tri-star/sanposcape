@@ -119,7 +119,7 @@ backend は散歩の存在を検証しない（`packages/backend/openapi.yaml` /
 - **D-ユーザー決定（同上）: 散歩中も、散歩中画面の地図を長押しした地点でピン登録へ進める。**
   長押しした座標と `clientWalkId` を付けて `/pins/new` へ **push** する（戻ると散歩中画面に戻る。
   「この場所にピンを追加」と同じ）。長押しは地図を触っているうちに意図せず起きうるため、
-  フラグ OFF・座標不正のときはトーストも出さずに何もしない（`features/walk/lib/addPinAction.ts` の
+  フラグ OFF・座標不正のときはトーストも出さずに何もしない（`features/walk/active/lib/addPinAction.ts` の
   `resolveMapLongPressPinAction`。`features/walk` は `features/sanpo-map` を import しない規約のまま）。
 - **D-ユーザー決定: (b) の入口は SS-118（登録済みピンの地図表示）とは別画面として作る。** 入口の
   統合は SS-118 の後で検討する。

@@ -7,7 +7,7 @@
 
 ### 決定
 
-- **進行中の散歩は `features/walk/store/useActiveWalkStore.ts`（Zustand）に識別情報だけを持つ**。持つのは `ActiveWalk` = `{ clientWalkId, origin, destination, loopMinutes, loopKm, startedAtMs }`。ルート本体などサーバー由来のデータは入れず、画面間の受け渡しに Expo Router の params は使わない（本文: 決定1、SS-19/SS-33 追補）
+- **進行中の散歩は `features/walk/active/store/useActiveWalkStore.ts`（Zustand）に識別情報だけを持つ**。持つのは `ActiveWalk` = `{ clientWalkId, origin, destination, loopMinutes, loopKm, startedAtMs }`。ルート本体などサーバー由来のデータは入れず、画面間の受け渡しに Expo Router の params は使わない（本文: 決定1、SS-19/SS-33 追補）
 - **`clientWalkId` は散歩の開始時に端末で採番し、終了・再送でも変えない**。保存の冪等キーとして使う（本文: 決定1、SS-19 追補。ADR-003 決定3）
 - **ルート本体（周回ルート `legs: [outbound, return]`）は、2つの画面が同じ入力で `useWalkRoute` を呼び、TanStack Query のキャッシュを共有する**。queryKey は `["explore", "routeLoop", request]`。`staleTime` 1時間 / `gcTime` 2時間 / `retry: false`。`origin` は散歩の起点で固定し、小数4桁に丸める（例外なし）。散歩中にルート API は呼ばない（本文: 決定2、SS-33 追補）
 - **経過時間は `startedAtMs` からの実時刻差で算出し、一時停止は累計 ms を差し引く**（本文: 決定3）
@@ -99,12 +99,12 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 
 ## 決定
 
-### 1. 進行中の散歩は `features/walk/store/useActiveWalkStore.ts`（Zustand）で保持する
+### 1. 進行中の散歩は `features/walk/active/store/useActiveWalkStore.ts`（Zustand）で保持する
 
 - 保持するのは `ActiveWalk` = `{ clientWalkId, origin, destination, loopMinutes, loopKm, startedAtMs }`（**SS-33 追補**: 元は `roundTripMinutes`/`roundTripKm`。詳細は決定1 末尾の SS-33 追補を参照）の**識別情報だけ**。
   - `clientWalkId` は**SS-19 追補**。保存の冪等キー（`client_walk_id`）を**散歩開始時**に `randomUuidV4()`（`src/lib/uuid.ts`）で採番し、終了・再送でも変えない（ADR-003 の決定3）。サーバーから受け取った値ではなく端末が採番したクライアント状態なので、「サーバー由来データを入れない」規律には抵触しない。
 - **サーバー由来のデータ（ルート本体）はストアに入れない。**
-- 置き場所は `src/store/` ではなく **`src/features/walk/store/`**（`walk` 機能に閉じるため）。
+- 置き場所は `src/store/` ではなく **`src/features/walk/active/store/`**（`walk` 機能に閉じるため。SS-257 で feature の中を領域に分け、散歩中の領域 `active/` に置いた）。
 - **永続化しない**（AsyncStorage / SecureStore を使わない）。アプリを落としたら散歩は終わる。
 - Expo Router の params による受け渡しは**全廃**する。
 
@@ -138,7 +138,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 
 ### 4. 「終了したが保存が確定していない散歩」は第3の状態として別ストアに持つ（SS-19 追補）
 
-散歩の状態を「進行中」「保存済み（サーバー）」の2つでは表せなくなったため、**`features/walk/store/useFinishedWalkStore.ts`** を追加し、`walk` feature のストアを2つにする。
+散歩の状態を「進行中」「保存済み（サーバー）」の2つでは表せなくなったため、**`features/walk/record/store/useFinishedWalkStore.ts`** を追加し、`walk` feature のストアを2つにする。
 
 - 保持するのは `FinishedWalk`（`clientWalkId` / `startedAtMs` / `endedAtMs` / `elapsedSec` / `distanceMeters` / `destination` / `track`）と、保存状態の `saved` / `savedWalkId`。
 - 状態遷移: 散歩中画面で終了を確定 → `useActiveWalkStore.endWalk()` と同時に `finishWalk(draft)` でドラフトを積む → サマリ画面で `useWalkSave` が `POST /walks` を1回だけ発火 → 成功で `markSaved(walk.id)`。
@@ -150,7 +150,7 @@ SS-19 で `POST /walks` への保存が mobile に入り、初版の前提のう
 決定4 の「サマリ画面で `useWalkSave` が `POST /walks` を**1回だけ**発火する」を、**「同じドラフト × 同じ認証状態につき1回だけ」に緩める**。
 
 - **理由**: SS-57 でゲスト散歩を解禁した結果、「ゲストのまま `POST /walks` を叩いて 401 → サインイン → 再送」が正規の導線になった。ゲストは refresh token を持たないため `customFetch` の refresh 再送も走らず、`toWalkSaveErrorCode` は確実に `unauthorized` に分類される（`isRetriableWalkSaveError` は false のまま自動リトライしない）。以前は `firedClientWalkIdRef` が `clientWalkId` だけを見ていたため、サインイン後にサマリ画面へ戻っても再発火せず、ユーザーは「サインインしたのにもう一度ボタンを押す」必要があった。
-- **実装**: 判定を `src/features/walk/lib/walkSaveTrigger.ts` の純粋関数 `nextWalkSaveFireKey` に切り出す。発火済みキーを `${clientWalkId}:${isSignedIn ? "signed-in" : "guest"}` の形で `useRef`（`firedKeyRef`）に持ち、キーが変わったときだけ再発火する。vitest（`walkSaveTrigger.test.ts`）で「guest → signed-in で再発火する」「同一状態では二重発火しない」「saved なら発火しない」を固定している。**SS-37 ローカルレビュー対応でこの判定に条件が1つ加わった。下記「SS-37 ローカルレビュー追補」を参照。**
+- **実装**: 判定を `src/features/walk/record/lib/walkSaveTrigger.ts` の純粋関数 `nextWalkSaveFireKey` に切り出す。発火済みキーを `${clientWalkId}:${isSignedIn ? "signed-in" : "guest"}` の形で `useRef`（`firedKeyRef`）に持ち、キーが変わったときだけ再発火する。vitest（`walkSaveTrigger.test.ts`）で「guest → signed-in で再発火する」「同一状態では二重発火しない」「saved なら発火しない」を固定している。**SS-37 ローカルレビュー対応でこの判定に条件が1つ加わった。下記「SS-37 ローカルレビュー追補」を参照。**
 - **二重送信の安全性**: `client_walk_id` による冪等性（決定4 の前提）は変わらない。逆向き（signed-in → guest）の遷移でキーが変わっても、**SS-37 ローカルレビュー追補で加えた意思表示ゲート（`signInForSaveRequested`）により再発火しない**（実際にはこの遷移は下記の理由でそもそも到達しない）。規則を「認証状態が変われば1回だけ再発火する」の1本にまとめることを、例外を作るより優先した。
 - **決定6（サインアウト時の sessionCleanup）は変更しない**。ゲスト散歩の保存待ちドラフトは `authenticated → guest` 遷移を経ないため `runSessionCleanup()` の対象にならず消えない。共有端末で前ユーザーの軌跡が次ユーザーのトークンで送信される事故の防止（決定6 の意図）は、この追補後も従来どおり成立する。
 - **決定5（永続化しない）との関係**: `authenticated → guest`（セッション失効）でドラフトが消える問題は本追補では解かない。これは決定5 のフォローアップ課題（ローカル永続化）でのみ解ける。SS-37 が対応するのはゲストのまま保存に失敗するケース（**状態遷移**が起きないためドラフトが無傷で残る）に限る。
@@ -228,7 +228,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
   - 登録側が**条件付きでクリアする**。`savedWalkId === walkId` のときだけ `clearFinishedWalk()` を呼び、一致しない場合・保存前（`savedWalkId === null`）の場合は何もしない（別の散歩のドラフトを巻き添えにしないため）。
 - 共通の性質: 1つの後始末が例外を投げても他は止めない。登録はモジュール読み込み時に走るため、対象ストアが未ロードなら後始末も走らないが、ストアは非永続（メモリのみ）なので「未ロード = ドラフトも存在しない」が成立する。
 
-**なぜ直接 import にしなかったか**: `features/history` から `features/walk/store/useFinishedWalkStore` を直接 import するのは [folder-structure](../docs/folder-structure.md) の「その機能の外から import されるものは置かない」に反する。`useFinishedWalkStore` を `src/store/` へ昇格させる案は決定4（`features/walk/store/` に置く理由を明記している）を覆すことになり、差分も本タスクの範囲を超える。決定6 が既に同じ問題（クリア対象が増えるたびに呼び出し側を編集しない）をレジストリで解いているため、その適用にとどめた。
+**なぜ直接 import にしなかったか**: `features/history` から `features/walk/record/store/useFinishedWalkStore` を直接 import するのは [folder-structure](../docs/folder-structure.md) の「その機能の外から import されるものは置かない」に反する。`useFinishedWalkStore` を `src/store/` へ昇格させる案は決定4（`features/walk/record/store/` に置く理由を明記している）を覆すことになり、差分も本タスクの範囲を超える。決定6 が既に同じ問題（クリア対象が増えるたびに呼び出し側を編集しない）をレジストリで解いているため、その適用にとどめた。
 
 ### 9. 往路/復路の判定はしない。描き分け＋凡例だけで表現する（SS-33 追補）
 
@@ -237,7 +237,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - **やること**: `WalkRoute.legs`（`[outbound, return]`）を `lib/walkRouteLegs.ts` の純粋関数（`walkRoutePolylineSegments`/`walkRouteLegendItems`/`walkRouteLoopNote`）で描画用に整形し、往路=実線（`theme.map.route`）・復路=破線＋明度違い（`theme.map.routeReturn`）で描き分け、地図に凡例「行き / 帰り」（`WalkRouteLegend`）を重ねる。現在地ピンと2本の線の位置関係を見て、ユーザー自身が判断できる状態にする。
 - **やらないこと**: 折り返し地点（目的地）への到着判定、現在地がどちらの leg に近いかの推定、進行区間のハイライト。理由はユーザー指示（「折り返し地点に着いたかの判定は不要」）に加え、前回試行（PR #62）で「往路/復路判定（ラッチ＋投影距離）」が再計算との組み合わせで不具合源になったため（決定7 の撤回理由と同じ）。
 - （SS-168 追補）往路を復路の上に描く重なり順（`WalkRoutePolylines` の `zIndex`）は Android でしか効かない。iOS の Apple Maps では `zIndex` が効かず、描く順序（`walkRoutePolylineSegments` の [復路, 往路]）で往路が上になっている。ルートの線は散歩中に座標が変わらないので、この順序は保たれる。
-- （SS-232 追補）**帰りの線の太さと破線パターンは OS で値を変える**（`features/walk/lib/walkReturnLineStyle.ts`）。
+- （SS-232 追補）**帰りの線の太さと破線パターンは OS で値を変える**（`features/walk/route/lib/walkReturnLineStyle.ts`）。
   - **原因**: iPhone で帰りの線が往路より太く見えると報告された。添付のスクリーンショット（393pt 幅の端末）を画素で測ると、太さ 5 の実線の往路は約 5pt、同じ太さ 5 で `lineDashPattern` [12, 8] の復路は約 12.5〜13.4pt の太さ（約 2.5〜2.7 倍）で描かれ、破線の周期は約 44pt（約 2.2 倍）、隙間も丸い線端で潰れずに約 10pt あった。太さと破線パターンの両方が拡大されているが、一様な拡大と丸い線端の見立てとは完全には合わない（スクリーンショット1枚からの推定）。
     `react-native-maps` 1.29.8 の iOS（Apple Maps）は、`strokeColors` が無ければ素の `MKPolylineRenderer` に `lineWidth` と `lineDashPattern` をそのまま渡しており（`AIRMapPolyline.m`）、往路と復路で経路は同じ。拡大は MapKit 側で起きている（公開情報に確かな説明は見つからなかった。MapKit JS で破線の線がズームで太る報告はある）。
   - **対処**: iOS では、見せたい値（太さ 5pt・点の長さ 1・間隔 9。丸い線端で直径 5 の点が 4pt の隙間で並ぶ）を倍率 2.5（実測の幅の間の値）で割って渡す。実測に合わせた別の見立て（太さ 2.66 倍・破線 2.2 倍）でも、およそ太さ 5.3pt・点 4pt・隙間 5pt 前後になり、狙いの範囲に収まる。Android は太さ 5・[12, 8] のまま（`lineCap` が round のとき、react-native-maps は線の長さを捨てて丸い点にし、間隔は端末の px で渡す。既に細かな点線に見えている）。
@@ -264,7 +264,7 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 課題本文の「散歩中に、自分が歩いてきた軌跡を地図上に表示する（細かな点線、または半透明の線）」を、次の形で満たす。
 
 - **データ**: 保存用に既に持っている `useActiveWalk().points`（`useWalkTracking` の軌跡）をそのまま描く。新しい状態・API・依存は増やさない。一時停止中は軌跡に点を足さない（既存の仕様）ため、一時停止の前後は直線で結ばれる。保存される軌跡も同じ形。
-- **見た目**（`features/walk/lib/walkTrailStyle.ts`）: `theme.colors.accent` を不透明度 0.7 にした実線、太さ 4px（ルート線は 5px）。ルート線の**上**に重ねる。ルートどおりに歩くと、ルート線の両端が見えたまま中央に軌跡が載る。線は既存の `RoutePolyline` で描く。
+- **見た目**（`features/walk/route/lib/walkTrailStyle.ts`）: `theme.colors.accent` を不透明度 0.7 にした実線、太さ 4px（ルート線は 5px）。ルート線の**上**に重ねる。ルートどおりに歩くと、ルート線の両端が見えたまま中央に軌跡が載る。線は既存の `RoutePolyline` で描く。
 - **重なり順**: `react-native-maps` 1.29.8 の `Polyline` の `zIndex` は Google Maps でしか効かない（型の注釈は `@platform iOS: Google Maps only`）。iOS は `provider` を指定しないので Apple Maps になり、`zIndex` が効かない。しかも Apple Maps の `Polyline` は、座標・色・太さが変わるたびに overlay を外して付け直す（`AIRMapPolyline.m` の `update`）ので、位置が届くたびに軌跡がいちばん上へ戻る。そのため、軌跡が上に来る前提の見た目にした。Android は `zIndex` 3（往路 2 より上）で、描く順序も軌跡を後ろに置き、両方の環境で同じ重なりにする。iOS では、軌跡より後にルートが届いた直後だけはルートが上になるが、次の位置の更新で軌跡が上に戻る。
 - **凡例**（`walkMapLegendItems`）: 周回ルートの項目の後ろに「歩いた道」を足す。軌跡が2点以上（`isDrawableTrail`。`RoutePolyline` が描ける条件と同じ）のときだけ出す。周回ルートが未取得でも軌跡があれば凡例を出す。散歩開始画面（`SpotMapView`）は軌跡を渡さないので変わらない。
 - **E2E**: 凡例は軌跡だけでも出るため、`mvp-walk-flow.yaml` は周回ルートの描画を凡例全体ではなく「行き」の項目（`walk-active-route-legend-outbound`）で確かめる。
@@ -401,13 +401,13 @@ SS-60 で「履歴詳細から散歩を削除する」導線が入り、削除�
 - [ADR-M-009: 認証セッション状態を1箇所に集約し、認証ゲートで未認証を弾く](./ADR-M-009-auth-session-state-and-route-gate.md) — 決定6 の実行側を `useAuthSessionStore` へ移した経緯（SS-13 追補）
 - [ADR-M-018: 散歩中の位置記録はバックグラウンドのロケーションタスクで行う](./ADR-M-018-background-walk-location-tracking.md) — 決定5・決定6 の SS-156 追補の本体
 - [folder-structure](../docs/folder-structure.md) — `features/<feature>/store/` の配置ルールと状態管理の使い分け
-- 実装: `src/features/walk/store/`、`src/features/walk/lib/finishedWalk.ts`、`src/features/walk/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
+- 実装: `src/features/walk/active/store/`・`src/features/walk/record/store/`、`src/features/walk/record/lib/finishedWalk.ts`、`src/features/walk/record/hooks/useWalkSave.ts`、`src/lib/sessionCleanup.ts`、`src/lib/uuid.ts`、`src/store/useAuthSessionStore.ts`
 - **（SS-60 追補）** 実装: `src/lib/walkDeletionCleanup.ts`（決定8 のレジストリ）、`src/features/history/hooks/useWalkDelete.ts`（実行側）
-- ~~（SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/components/WalkRouteNotice.tsx`~~ → **SS-33 で削除**（決定7 の撤回。`WalkRouteNotice.tsx` はファイルごと削除はせず縮小して残した）
-- （SS-37 追補）実装: `src/features/walk/lib/walkSaveTrigger.ts`、`src/features/walk/lib/walkSaveError.ts`（`walkSaveErrorAction`）、`src/features/auth/lib/postSignInDestination.ts`
-- （SS-37 ローカルレビュー対応）実装: `src/features/walk/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
-- （SS-33 追補）実装: `src/features/walk/lib/walkRouteLegs.ts`（描き分け・凡例・注記の純粋関数）、`src/features/walk/components/WalkRoutePolylines.tsx`、`src/features/walk/components/WalkRouteLegend.tsx`、`src/features/walk/lib/walkRoute.ts`（`toWalkRoute` の legs 整形・`toRouteMinutes`）、`src/features/walk/api/walkRouteApi.ts`（`/explore/routes/loop`）、`src/features/walk/components/WalkRouteNotice.tsx`（縮小版）、`src/theme/tokens.ts`（`ThemeMapColors.routeReturn` 追加）、`src/components/ui/route-polyline/RoutePolyline.tsx`（`color`/`dashPattern`/`strokeWidth`/`zIndex` の任意 props 追加）
-- （SS-168 追補）実装: `src/features/walk/lib/walkTrailStyle.ts`（軌跡の線の見た目）、`src/features/walk/lib/walkRouteLegs.ts`（`isDrawableTrail` / `walkMapLegendItems`）、`src/features/walk/components/WalkRouteMapView.tsx`（`trail` props）、`src/features/walk/components/WalkRouteLegend.tsx`、`.maestro/mvp-walk-flow.yaml`
-- （SS-211 追補）実装: `src/features/walk/components/WalkRouteMapView.tsx`（`onMapReady` の回数を軌跡の `key` に含める）
+- ~~（SS-35 追補）実装: `src/features/walk/lib/routeDeviation.ts`、`src/features/walk/lib/routeRecalculation.ts`、`src/features/walk/hooks/useWalkRouteRecalculation.ts`、`src/features/walk/lib/walkRouteNotice.ts`、`src/features/walk/route/components/WalkRouteNotice.tsx`~~ → **SS-33 で削除**（決定7 の撤回。`WalkRouteNotice.tsx` はファイルごと削除はせず縮小して残した）
+- （SS-37 追補）実装: `src/features/walk/record/lib/walkSaveTrigger.ts`、`src/features/walk/record/lib/walkSaveError.ts`（`walkSaveErrorAction`）、`src/features/auth/lib/postSignInDestination.ts`
+- （SS-37 ローカルレビュー対応）実装: `src/features/walk/record/store/useFinishedWalkStore.ts`（`signInForSaveRequested` / `requestSignInForSave`）、`app/walk-summary.tsx`、`src/features/walk/record/hooks/useWalkSave.ts`、`src/features/auth/hooks/useAuthActions.ts`
+- （SS-33 追補）実装: `src/features/walk/route/lib/walkRouteLegs.ts`（描き分け・凡例・注記の純粋関数）、`src/features/walk/route/components/WalkRoutePolylines.tsx`、`src/features/walk/route/components/WalkRouteLegend.tsx`、`src/features/walk/route/lib/walkRoute.ts`（`toWalkRoute` の legs 整形・`toRouteMinutes`）、`src/features/walk/route/api/walkRouteApi.ts`（`/explore/routes/loop`）、`src/features/walk/route/components/WalkRouteNotice.tsx`（縮小版）、`src/theme/tokens.ts`（`ThemeMapColors.routeReturn` 追加）、`src/components/ui/route-polyline/RoutePolyline.tsx`（`color`/`dashPattern`/`strokeWidth`/`zIndex` の任意 props 追加）
+- （SS-168 追補）実装: `src/features/walk/route/lib/walkTrailStyle.ts`（軌跡の線の見た目）、`src/features/walk/route/lib/walkRouteLegs.ts`（`isDrawableTrail` / `walkMapLegendItems`）、`src/features/walk/active/components/WalkRouteMapView.tsx`（`trail` props）、`src/features/walk/route/components/WalkRouteLegend.tsx`、`.maestro/mvp-walk-flow.yaml`
+- （SS-211 追補）実装: `src/features/walk/active/components/WalkRouteMapView.tsx`（`onMapReady` の回数を軌跡の `key` に含める）
 - [ADR-007: 周回ルート生成](../../../docs/adr/ADR-007-loop-route-generation.md) — backend 側の周回ルート生成方式（SS-33 の発生元）
 - Plane: SS-16（本 ADR の発生元）、SS-19（本追補の発生元）、SS-20（本追補の発生元）、SS-18〜SS-20（M5 散歩記録・履歴）、SS-13（本追補の発生元）、SS-35（本追補の発生元。決定7 は SS-33 で撤回）、SS-50（本追補の発生元）、SS-37（本追補の発生元）、SS-33（本追補の発生元。決定1/2 更新、決定7 撤回、決定9 新設）、SS-168（本追補の発生元。決定10 新設）、SS-211（本追補の発生元。決定10 に軌跡の作り直しを追記）

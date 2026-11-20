@@ -9,8 +9,8 @@ import {
   shouldShowUpdateRequired,
   toStorePlatform,
 } from "@/features/app-update/lib/updateRequired";
-import { useActiveWalkStore } from "@/features/walk/store/useActiveWalkStore";
-import { useFinishedWalkStore } from "@/features/walk/store/useFinishedWalkStore";
+import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
+import { useFinishedWalkStore } from "@/features/walk/record/store/useFinishedWalkStore";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
 const STORE_PLATFORM = toStorePlatform(Platform.OS);
