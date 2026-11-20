@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from sanposcape.conftest import TestSessionLocal
+from sanposcape.integrations.aws.s3 import UnconfiguredObjectStorage
 from sanposcape.sanpo_maps.conftest import (
     create_pin_photo_row,
     create_pin_with_tags,
@@ -19,19 +20,25 @@ from sanposcape.sanpo_maps.maps.schemas import (
 )
 from sanposcape.sanpo_maps.maps.service import SanpoMapService
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapIcon, SanpoMapMember
+from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.pins.repository import PinRepository
 
 
-class SpyPhotoCleaner:
-    """`PhotoObjectCleaner` を duck typing で満たす spy（`delete_best_effort(keys)` の
-    呼び出しを記録するだけ、ADR-011）。継承せず構造的部分型に頼る。
+class SpyPhotoCleaner(PhotoObjectCleaner):
+    """`delete_best_effort(keys)` の呼び出しを記録するだけの spy（ADR-011。実際の削除はしない）。
+
+    `PhotoObjectCleaner` を継承し、`delete_best_effort` のシグネチャの食い違いを mypy で
+    見つけられるようにする（SS-140。`pins/tests/test_account_deletion.py` の spy と同じ形）。
     """
 
     def __init__(self) -> None:
+        super().__init__(
+            UnconfiguredObjectStorage(), deadline_seconds=10, call_worst_case_seconds=6
+        )
         self.calls: list[list[str]] = []
         self.on_delete: Callable[[list[str]], None] | None = None
 
-    def delete_best_effort(self, keys: list[str]) -> None:
+    def delete_best_effort(self, keys: list[str], *, deadline_seconds: float | None = None) -> None:
         self.calls.append(list(keys))
         if self.on_delete is not None:
             self.on_delete(keys)
@@ -624,7 +631,7 @@ class TestListTags:
         db_session.commit()
         calls: list[dict] = []
 
-        def spy(**kwargs):  # type: ignore[no-untyped-def]
+        def spy(**kwargs):
             calls.append(kwargs)
             return []
 
@@ -693,7 +700,7 @@ class TestListTags:
         db_session.commit()
         calls: list[dict] = []
 
-        def spy(**kwargs):  # type: ignore[no-untyped-def]
+        def spy(**kwargs):
             calls.append(kwargs)
             return []
 

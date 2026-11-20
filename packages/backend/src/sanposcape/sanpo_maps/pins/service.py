@@ -446,8 +446,11 @@ class PinService:
         # `PinUpdate` が明示的な null を弾いているので、送られた値は UUID（静的には
         # `UUID | None` のままなので、None でないことを条件に含めて絞り込む）。
         target_sanpo_map_id = payload.sanpo_map_id if "sanpo_map_id" in fields_set else None
-        wants_tag_add = bool(payload.add_tags)
-        wants_tag_remove = bool(payload.remove_tag_ids)
+        # 省略（None）と空のリストはどちらも「変更なし」。以降はリストとして扱う
+        add_tags = payload.add_tags or []
+        remove_tag_ids = payload.remove_tag_ids or []
+        wants_tag_add = bool(add_tags)
+        wants_tag_remove = bool(remove_tag_ids)
 
         # 移動先の member 確認（404）は権限（403）より前に確定させる（決定21・33）。
         # `target_role` は移動を求められたときだけ入る（None = 移動なし）。
@@ -477,9 +480,7 @@ class PinService:
         tags_to_remove: list[PinTag] = []
         if wants_tag_remove:
             # `pin_id` で絞るため、このピンに無い ID は黙って無視される（決定21）。
-            tags_to_remove = self._repository.get_tags_by_ids(
-                pin_id=pin.id, tag_ids=payload.remove_tag_ids
-            )
+            tags_to_remove = self._repository.get_tags_by_ids(pin_id=pin.id, tag_ids=remove_tag_ids)
             for tag in tags_to_remove:
                 if not can_delete_pin_tag(
                     role, is_creator=tag.created_by_user_id == current_user.id
@@ -526,9 +527,7 @@ class PinService:
             # 削除の後の最新状態で重複判定する（削除・追加に同じラベルを含めた場合は
             # 付け替わる。既存の label_key はスキップして冪等にする）。
             existing_keys = {tag.label_key for tag in self._repository.list_tags(pin.id)}
-            labels_to_add = [
-                label for label in payload.add_tags if tag_key(label) not in existing_keys
-            ]
+            labels_to_add = [label for label in add_tags if tag_key(label) not in existing_keys]
             if labels_to_add:
                 added_tags = self._repository.add_tags(
                     pin_id=pin.id, created_by_user_id=current_user.id, labels=labels_to_add
@@ -552,8 +551,13 @@ class PinService:
                 pin,
                 name=payload.name if wants_name_update else NOT_PROVIDED,
                 memo=payload.memo if wants_memo_update else NOT_PROVIDED,
-                visited=new_visited if visited_changed else NOT_PROVIDED,
-                archived=new_archived if archived_changed else NOT_PROVIDED,
+                # `*_changed` は None でないことを含むが、型を絞るために条件にも書く
+                visited=(
+                    new_visited if visited_changed and new_visited is not None else NOT_PROVIDED
+                ),
+                archived=(
+                    new_archived if archived_changed and new_archived is not None else NOT_PROVIDED
+                ),
                 sanpo_map_id=(
                     moved_to_sanpo_map_id if moved_to_sanpo_map_id is not None else NOT_PROVIDED
                 ),

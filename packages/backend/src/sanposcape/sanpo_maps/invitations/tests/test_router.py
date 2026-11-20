@@ -425,9 +425,9 @@ class TestAuthorizationBoundaries:
 
         assert response.status_code == 404
         db_session.expire_all()
-        assert (
-            db_session.get(SanpoMapInvitation, uuid.UUID(other_invitation["id"])).revoked_at is None
-        )
+        other_row = db_session.get(SanpoMapInvitation, uuid.UUID(other_invitation["id"]))
+        assert other_row is not None
+        assert other_row.revoked_at is None
 
 
 class TestRateLimit:

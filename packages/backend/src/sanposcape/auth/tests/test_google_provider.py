@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from typing import NoReturn
 
 import pytest
 from jwt.algorithms import RSAAlgorithm
@@ -16,7 +17,7 @@ class _RaisingJWKSClient:
     def __init__(self, exc: Exception) -> None:
         self._exc = exc
 
-    def get_signing_key_from_jwt(self, token: str) -> None:
+    def get_signing_key_from_jwt(self, token: str) -> NoReturn:
         raise self._exc
 
 

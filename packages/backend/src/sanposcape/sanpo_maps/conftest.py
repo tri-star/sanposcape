@@ -2,6 +2,7 @@ import io
 import uuid
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +13,7 @@ from sanposcape.auth.tokens import create_access_token
 from sanposcape.config import Settings, get_settings
 from sanposcape.conftest import override_get_db
 from sanposcape.database import get_db
-from sanposcape.integrations.aws.s3 import FakeObjectStorage
+from sanposcape.integrations.aws.s3 import FakeObjectStorage, ObjectStorage
 from sanposcape.main import app, create_app
 from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
@@ -325,7 +326,7 @@ def add_pin_tag(
     db_session.flush()
 
 
-def make_pin_service(db_session: Session, storage: FakeObjectStorage, **overrides) -> PinService:
+def make_pin_service(db_session: Session, storage: ObjectStorage, **overrides: Any) -> PinService:
     """`**overrides` のうち `photo_delete_deadline_seconds`・
     `photo_delete_call_worst_case_seconds`・`monotonic` は `PhotoObjectCleaner`
     （`PinService` ではなく削除の後始末を担う部品, ADR-011）側の引数に振り分ける。
@@ -333,7 +334,7 @@ def make_pin_service(db_session: Session, storage: FakeObjectStorage, **override
     """
     photo_cleaner = overrides.pop("photo_cleaner", None)
     if photo_cleaner is None:
-        cleaner_kwargs = {
+        cleaner_kwargs: dict[str, Any] = {
             "deadline_seconds": overrides.pop("photo_delete_deadline_seconds", 10),
             "call_worst_case_seconds": overrides.pop("photo_delete_call_worst_case_seconds", 6),
         }
@@ -345,7 +346,7 @@ def make_pin_service(db_session: Session, storage: FakeObjectStorage, **override
         overrides.pop("photo_delete_call_worst_case_seconds", None)
         overrides.pop("monotonic", None)
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "user_quota_bytes": 1024**3,
         "confirm_deadline_seconds": 20,
         "read_photos_limit": 10,

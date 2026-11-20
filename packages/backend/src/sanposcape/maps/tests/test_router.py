@@ -19,9 +19,10 @@ from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.exceptions import MapsQuotaError, MapsUnavailableError
 from sanposcape.maps.nearest_station import Station
 from sanposcape.maps.service import MapsService
+from sanposcape.maps.tests.provider_stub import GoogleMapsProviderStub
 
 
-class FakeProvider:
+class FakeProvider(GoogleMapsProviderStub):
     def search_places(self, origin, categories, limit, **kwargs):
         return ()
 

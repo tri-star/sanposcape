@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -234,6 +235,7 @@ class TestCreateWalkRateLimit:
         """lifespan が作る散歩の保存用の limiter は、既定の 10 回で同じユーザーを止め、
         同じ IP の別ユーザーは止めない（設定値と `limit_authenticated_ip=False` の配線の確認）。
         """
+        assert isinstance(walks_client.app, FastAPI)
         limiter = walks_client.app.state.walk_create_rate_limiter
 
         for _ in range(10):

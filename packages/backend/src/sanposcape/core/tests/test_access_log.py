@@ -71,9 +71,9 @@ class TestAccessLogMiddleware:
             _run_middleware("/walks", status=200)
 
         record = caplog.records[0]
-        assert record.log_type == "access"
-        assert record.http_status_code == 200
-        assert record.duration_ms >= 0
+        assert record.__dict__["log_type"] == "access"
+        assert record.__dict__["http_status_code"] == 200
+        assert record.__dict__["duration_ms"] >= 0
 
     def test_unhandled_exception_is_logged_once_as_error_and_answered_with_500(
         self, caplog: pytest.LogCaptureFixture
@@ -88,7 +88,7 @@ class TestAccessLogMiddleware:
         assert record.levelno == logging.ERROR
         assert "POST /pins -> 500" in record.getMessage()
         assert record.exc_info is not None
-        assert record.http_status_code == 500
+        assert record.__dict__["http_status_code"] == 500
         assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [500]
         assert b"".join(m.get("body", b"") for m in sent) == b"Internal Server Error"
 
@@ -180,7 +180,10 @@ class TestAccessLogMiddleware:
         async def inner_app(scope, receive, send) -> None:
             raise asyncio.CancelledError
 
-        async def noop(*args: object, **kwargs: object) -> None:
+        async def receive() -> Message:
+            raise AssertionError("receive is not expected to be called")
+
+        async def send(message: Message) -> None:
             return None
 
         scope = {"type": "http", "path": "/pins", "method": "GET", "headers": []}
@@ -188,7 +191,7 @@ class TestAccessLogMiddleware:
             caplog.at_level(logging.INFO, logger="sanposcape.core.observability"),
             pytest.raises(asyncio.CancelledError),
         ):
-            asyncio.run(AccessLogMiddleware(inner_app)(scope, noop, noop))
+            asyncio.run(AccessLogMiddleware(inner_app)(scope, receive, send))
 
         assert caplog.records == []
 
@@ -212,10 +215,13 @@ class TestAccessLogMiddleware:
         async def inner_app(scope, receive, send) -> None:
             received.append(scope["type"])
 
-        async def noop(*args: object, **kwargs: object) -> None:
+        async def receive() -> Message:
+            raise AssertionError("receive is not expected to be called")
+
+        async def send(message: Message) -> None:
             return None
 
-        asyncio.run(AccessLogMiddleware(inner_app)({"type": "lifespan"}, noop, noop))
+        asyncio.run(AccessLogMiddleware(inner_app)({"type": "lifespan"}, receive, send))
 
         assert received == ["lifespan"]
 
@@ -230,11 +236,14 @@ class TestAccessLogMiddleware:
             logging.getLogger("sanposcape.probe").info("inside")
             await send({"type": "http.response.start", "status": 200, "headers": []})
 
-        async def noop(*args: object, **kwargs: object) -> None:
+        async def receive() -> Message:
+            raise AssertionError("receive is not expected to be called")
+
+        async def send(message: Message) -> None:
             return None
 
         scope = {"type": "http", "path": "/pins/abc", "method": "DELETE", "headers": []}
-        asyncio.run(AccessLogMiddleware(inner_app)(scope, noop, noop))
+        asyncio.run(AccessLogMiddleware(inner_app)(scope, receive, send))
 
         inside, access = json_logs
         assert inside["http_method"] == "DELETE"

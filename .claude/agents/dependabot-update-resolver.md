@@ -46,6 +46,7 @@ ecosystem判定結果に応じて、以下のコマンドを実行して確認�
 **backend の場合**（`packages/backend` ディレクトリで実行）:
 
 ```bash
+uv run mypy
 uv run ruff check .
 uv run ruff format . --check
 uv run pytest

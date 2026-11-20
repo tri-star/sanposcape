@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ BASE_URL = "http://testserver/"
 def make_upload_service(
     db_session: Session, storage: FakeObjectStorage, **overrides
 ) -> PinPhotoUploadService:
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "max_byte_size": 10 * 1024 * 1024,
         "user_quota_bytes": 1024**3,
         "max_pending_uploads": 30,
