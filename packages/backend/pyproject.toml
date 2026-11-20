@@ -96,9 +96,6 @@ max-args = 8
 # ファイルを足して通すときは、課題と理由を書いたうえでレビューで妥当かを見る。
 # 片付けたら行を消す（消し忘れても ruff は教えないので、片付けた PR で必ず消す）。
 [tool.ruff.lint.per-file-ignores]
-# SS-258: update_pin が項目ごとの更新と写真の確定を1関数で持つ（複雑度 19・分岐 18・文 64）。
-# ADR-011 の持ち越し（写真確定処理の切り出し）と一緒に分ける。__init__ は依存を個別に受け取る（12）
-"src/sanposcape/sanpo_maps/pins/service.py" = ["C901", "PLR0912", "PLR0913", "PLR0915"]
 # SS-258: 以下はキーワード専用引数で、呼び出し側での取り違えは起きにくい（9〜11）。
 # 引数をまとめる型に寄せるかを SS-258 で判断する
 "src/sanposcape/sanpo_maps/photos/service.py" = ["PLR0913"]
