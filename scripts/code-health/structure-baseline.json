@@ -2,20 +2,6 @@
   "description": "コードの構造の既知の違反（ADR-016）。value を超えると CI が失敗する。issue は片付ける課題、reason は今は分けない理由で、どちらも必須。再生成: scripts/code-health/check-structure.py --baseline",
   "entries": [
     {
-      "kind": "file-lines",
-      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py",
-      "value": 2844,
-      "issue": "SS-256",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。SS-140（mypy の導入）で、型の注釈（dict[str, Any]）のための typing の import が1行必要になった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 の範囲で、型の導入と混ぜると差分が読めなくなるので、ここでは分けない"
-    },
-    {
-      "kind": "file-lines",
-      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_service.py",
-      "value": 1544,
-      "issue": "SS-256",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
-    },
-    {
       "kind": "folder-files",
       "path": "packages/mobile/src/features/sanpo-map/pin/components",
       "value": 32,

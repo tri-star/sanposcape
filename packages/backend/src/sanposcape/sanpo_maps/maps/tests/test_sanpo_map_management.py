@@ -39,7 +39,7 @@ _FAKE_STORAGE_SETTINGS = Settings(
 
 def _auth_headers_for(user: User) -> dict[str, str]:
     """`fake_storage_client` の JWT シークレットと揃えた設定でトークンを発行する
-    （`pins/tests/test_router.py::_auth_headers_for` と同じ流儀）。
+    （`pins/tests/test_permissions_router.py::_auth_headers_for` と同じ流儀）。
     """
     token, _ = create_access_token(user_id=user.id, settings=_FAKE_STORAGE_SETTINGS)
     return {"Authorization": f"Bearer {token}"}

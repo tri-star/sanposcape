@@ -17,7 +17,7 @@ Python のファイルを渡したとき（テストのファイルを分ける�
 
 使い方:
     scripts/code-health/survey-structure.py packages/mobile/src/features/sanpo-map/pin/lib
-    scripts/code-health/survey-structure.py packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py
+    scripts/code-health/survey-structure.py packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_repository.py
     scripts/code-health/survey-structure.py <path> --since "12 months ago" --json
 """
 
@@ -43,7 +43,7 @@ _spec.loader.exec_module(cs)
 # `@/` のエイリアスの先（packages/mobile/tsconfig.json の paths）。
 TS_ALIASES = {"@/": "packages/mobile/src/"}
 TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
-# この名前のフォルダに置いたテストは、1つ上のフォルダの実装のテストとして寄せる（`pins/tests/test_service.py` → `pins/service.py`）。
+# この名前のフォルダに置いたテストは、1つ上のフォルダの実装のテストとして寄せる（`pins/tests/test_repository.py` → `pins/repository.py`）。
 TEST_DIRS_OF_SUBJECT = {"tests", "__tests__"}
 # Python の絶対 import の起点（`sanposcape.x` → packages/backend/src/sanposcape/x.py）。
 PY_ROOTS = ("packages/backend/src",)
@@ -66,7 +66,7 @@ _HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 def subject_of(path: str) -> str:
     """テストのファイルを、そのテストの対象の実装のファイルに寄せる。
 
-    隣に置くテスト（mobile の `a.test.ts` → `a.ts`）と、`tests/` に置くテスト（backend の `pins/tests/test_service.py` → `pins/service.py`）の両方を扱う。
+    隣に置くテスト（mobile の `a.test.ts` → `a.ts`）と、`tests/` に置くテスト（backend の `pins/tests/test_repository.py` → `pins/repository.py`）の両方を扱う。
     """
     p = PurePosixPath(path)
     name = re.sub(r"\.(test|spec)(\.[A-Za-z]+)$", r"\2", p.name)

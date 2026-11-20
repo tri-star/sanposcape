@@ -17,7 +17,7 @@ from sanposcape.integrations.aws.s3 import FakeObjectStorage, ObjectStorage
 from sanposcape.main import app, create_app
 from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
 from sanposcape.sanpo_maps.maps.repository import SanpoMapRepository
-from sanposcape.sanpo_maps.models import PinPhoto, PinPhotoUpload, PinTag
+from sanposcape.sanpo_maps.models import PinPhoto, PinPhotoUpload, PinTag, SanpoMapMember
 from sanposcape.sanpo_maps.photos.cleanup import PhotoObjectCleaner
 from sanposcape.sanpo_maps.photos.photo_attacher import PhotoAttacher
 from sanposcape.sanpo_maps.photos.photo_keys import original_key, staging_key, thumbnail_key
@@ -53,6 +53,25 @@ def make_sanpo_map(db_session: Session, *, owner_user_id: uuid.UUID) -> uuid.UUI
     )
     db_session.commit()
     return sanpo_map.id
+
+
+def make_extra_sanpo_map(
+    db_session: Session, *, owner_user_id: uuid.UUID, name: str = "移動先の地図"
+) -> uuid.UUID:
+    """既定でない地図を1件作る（同じ owner の2つ目以降。既定地図は owner ごとに1つ）。"""
+    sanpo_map, _ = SanpoMapRepository(db_session).create_with_owner(
+        owner_user_id=owner_user_id, name=name, is_default=False
+    )
+    db_session.commit()
+    return sanpo_map.id
+
+
+def add_map_member(
+    db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, role: str
+) -> None:
+    """地図にメンバーを1人足す（招待の受諾を経由しない近道）。"""
+    db_session.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role=role))
+    db_session.commit()
 
 
 @pytest.fixture
@@ -185,7 +204,7 @@ def seed_staging_photo(
 ) -> bytes:
     """`FakeObjectStorage` の staging/ に直接 JPEG を置く（presigned POST の HTTP 往復を
     経由しない、router/service テスト用の近道）。HTTP 経由の往復自体は
-    `test_dev_storage_router.py` / `test_router.py`（旧 `test_upload_router.py`）で
+    `photos/tests/test_dev_storage_router.py` で
     別途検証する。
     """
     data = make_jpeg_bytes(size)

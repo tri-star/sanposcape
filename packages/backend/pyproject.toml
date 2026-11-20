@@ -121,7 +121,7 @@ max-args = 8
 # SS-258: 並行実行の手順（スレッドの起動・待ち合わせ・検証）を1つのテストに順に書いている（65）
 "src/sanposcape/sanpo_maps/maps/tests/test_delete_map_concurrency.py" = ["PLR0915"]
 # SS-258: 1つのテストで写真の確定の前後を順に検証している（65）
-"src/sanposcape/sanpo_maps/pins/tests/test_service.py" = ["PLR0915"]
+"src/sanposcape/sanpo_maps/pins/tests/test_create_service.py" = ["PLR0915"]
 
 # 型チェック（SS-140）。テストも含めて src 全体を検査する（テストの Fake が Protocol を満たさない
 # 食い違いを、実際の DI を通る結合テストより前に見つけるため）。tests 配下に __init__.py が無いので、
