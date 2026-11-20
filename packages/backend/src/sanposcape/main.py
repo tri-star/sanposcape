@@ -81,23 +81,44 @@ def _tracing_enabled(request: Request) -> bool:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """auth ドメインの例外を HTTP レスポンスへ変換する。
+    """ドメインの例外を HTTP レスポンスへ変換する。
 
     router には try/except を書かず、ここに一元化する（folder-structure.md の方針）。
+    登録はドメインごとの関数に分けている（ハンドラの数だけ複雑度が積み上がるため。SS-258）。
+    Starlette は例外の MRO で最も具体的なハンドラを選ぶので、登録の順序は結果に影響しない。
     `RequestBodyTooLargeError` / `RequestSizeLimitMiddleware` の実体は
     `core/middleware.py` にある（413を返す経路の定義とハンドラ登録がファイルを
     跨ぐため、両者を見比べたい場合は必ず両方を確認すること）。
     """
+    _register_request_handlers(app)
+    _register_auth_handlers(app)
+    _register_maps_and_walks_handlers(app)
+    _register_sanpo_map_handlers(app)
+    _register_pin_handlers(app)
+    _register_photo_handlers(app)
+    _register_account_and_storage_handlers(app)
 
-    @app.exception_handler(InvalidIdTokenError)
-    async def _invalid_id_token(request: Request, exc: InvalidIdTokenError) -> JSONResponse:
-        return _unauthorized_response("Invalid ID token")
+
+def _register_request_handlers(app: FastAPI) -> None:
+    """リクエストそのものの不備（大きすぎる本文・壊れたカーソル）。"""
 
     @app.exception_handler(RequestBodyTooLargeError)
     async def _request_body_too_large(
         request: Request, exc: RequestBodyTooLargeError
     ) -> JSONResponse:
         return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+
+    @app.exception_handler(InvalidCursorError)
+    async def _invalid_cursor(request: Request, exc: InvalidCursorError) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": "Invalid cursor"})
+
+
+def _register_auth_handlers(app: FastAPI) -> None:
+    """auth ドメイン。認証の失敗は必ず 401（ID プロバイダの障害は 503）。"""
+
+    @app.exception_handler(InvalidIdTokenError)
+    async def _invalid_id_token(request: Request, exc: InvalidIdTokenError) -> JSONResponse:
+        return _unauthorized_response("Invalid ID token")
 
     @app.exception_handler(InvalidAccessTokenError)
     async def _invalid_access_token(request: Request, exc: InvalidAccessTokenError) -> JSONResponse:
@@ -142,6 +163,10 @@ def register_exception_handlers(app: FastAPI) -> None:
         """
         return _unauthorized_response("Authentication failed")
 
+
+def _register_maps_and_walks_handlers(app: FastAPI) -> None:
+    """地図の提供元（Google Maps）と散歩の記録。"""
+
     @app.exception_handler(MapsQuotaError)
     async def _maps_quota(request: Request, exc: MapsQuotaError) -> JSONResponse:
         return JSONResponse(status_code=429, content={"detail": "Map provider quota exceeded"})
@@ -155,9 +180,9 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _walk_not_found(request: Request, exc: WalkNotFoundError) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": "Walk not found"})
 
-    @app.exception_handler(InvalidCursorError)
-    async def _invalid_cursor(request: Request, exc: InvalidCursorError) -> JSONResponse:
-        return JSONResponse(status_code=400, content={"detail": "Invalid cursor"})
+
+def _register_sanpo_map_handlers(app: FastAPI) -> None:
+    """散歩の地図・メンバー・招待。"""
 
     @app.exception_handler(SanpoMapNotFoundError)
     async def _sanpo_map_not_found(request: Request, exc: SanpoMapNotFoundError) -> JSONResponse:
@@ -226,12 +251,20 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={"detail": "Owner cannot leave the sanpo map", "code": "owner_cannot_leave"},
         )
 
+
+def _register_pin_handlers(app: FastAPI) -> None:
+    """ピンとタグ（写真の枠・写真以外）。"""
+
     @app.exception_handler(PinNotFoundError)
     async def _pin_not_found(request: Request, exc: PinNotFoundError) -> JSONResponse:
         # `code` の扱いは `_sanpo_map_not_found` と同じ（決定33）。
         return JSONResponse(
             status_code=404, content={"detail": "Pin not found", "code": "pin_not_found"}
         )
+
+
+def _register_photo_handlers(app: FastAPI) -> None:
+    """写真のアップロード枠・写真・容量。"""
 
     @app.exception_handler(PinPhotoUploadNotReadyError)
     async def _pin_photo_upload_not_ready(
@@ -293,6 +326,10 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=409, content={"detail": "Too many tags", "code": "tag_limit_exceeded"}
         )
+
+
+def _register_account_and_storage_handlers(app: FastAPI) -> None:
+    """アカウントの削除と、写真のストレージ（S3）の障害。どちらも一時的な 503。"""
 
     @app.exception_handler(AccountDeletionUnavailableError)
     async def _account_deletion_unavailable(
