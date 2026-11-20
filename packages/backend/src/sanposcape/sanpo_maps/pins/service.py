@@ -461,14 +461,14 @@ class PinService:
 
         # --- 適用: 削除 → 追加 → 件数チェック（決定20） ---
         changes = plan_field_changes(pin, payload, requested)
-        tags_changed = self._apply_tag_changes(current_user, pin, payload, tags_to_remove)
+        tags_changed = self._apply_tag_changes(current_user, pin, requested, tags_to_remove)
         if changes.any_changed or tags_changed:
             self._repository.update_fields(
                 pin,
                 name=payload.name if requested.name else NOT_PROVIDED,
                 memo=payload.memo if requested.memo else NOT_PROVIDED,
-                visited=changes.new_visited if changes.visited_changed else NOT_PROVIDED,
-                archived=changes.new_archived if changes.archived_changed else NOT_PROVIDED,
+                visited=changes.visited if changes.visited is not None else NOT_PROVIDED,
+                archived=changes.archived if changes.archived is not None else NOT_PROVIDED,
                 sanpo_map_id=(
                     changes.moved_to_sanpo_map_id
                     if changes.moved_to_sanpo_map_id is not None
@@ -517,10 +517,10 @@ class PinService:
             raise SanpoMapPermissionDeniedError()
 
         tags_to_remove: list[PinTag] = []
-        if requested.tag_remove:
+        if requested.remove_tag_ids:
             # `pin_id` で絞るため、このピンに無い ID は黙って無視される（決定21）。
             tags_to_remove = self._repository.get_tags_by_ids(
-                pin_id=pin.id, tag_ids=payload.remove_tag_ids
+                pin_id=pin.id, tag_ids=requested.remove_tag_ids
             )
             for tag in tags_to_remove:
                 if not can_delete_pin_tag(
@@ -528,7 +528,7 @@ class PinService:
                 ):
                     raise SanpoMapPermissionDeniedError()
 
-        if requested.tag_add and not can_add_pin_tag(role):
+        if requested.add_tags and not can_add_pin_tag(role):
             raise SanpoMapPermissionDeniedError()
         # 移動先に移動元の全メンバーがいること（決定42）。role の 403 をすべて通った後に見る
         # （`code` 付きの 403 は「これさえ満たせば移せる」ときだけ返す）。同じ地図なら自明に
@@ -545,26 +545,30 @@ class PinService:
         return tags_to_remove
 
     def _apply_tag_changes(
-        self, current_user: User, pin: Pin, payload: PinUpdate, tags_to_remove: list[PinTag]
+        self,
+        current_user: User,
+        pin: Pin,
+        requested: RequestedPinUpdate,
+        tags_to_remove: list[PinTag],
     ) -> bool:
         """タグを削除してから追加し、件数の上限を確かめる（決定20）。タグが変わったかを返す。"""
         if tags_to_remove:
             self._repository.delete_tags(tags_to_remove)
 
         added_tags: list[PinTag] = []
-        if payload.add_tags:
+        if requested.add_tags:
             # 削除の後の最新状態で重複判定する（削除・追加に同じラベルを含めた場合は
             # 付け替わる。既存の label_key はスキップして冪等にする）。
             existing_keys = {tag.label_key for tag in self._repository.list_tags(pin.id)}
             labels_to_add = [
-                label for label in payload.add_tags if tag_key(label) not in existing_keys
+                label for label in requested.add_tags if tag_key(label) not in existing_keys
             ]
             if labels_to_add:
                 added_tags = self._repository.add_tags(
                     pin_id=pin.id, created_by_user_id=current_user.id, labels=labels_to_add
                 )
 
-        if (payload.add_tags or tags_to_remove) and self._repository.count_tags(
+        if (requested.add_tags or tags_to_remove) and self._repository.count_tags(
             pin.id
         ) > PIN_TAGS_MAX_COUNT:
             raise PinTagLimitExceededError()
@@ -783,6 +787,6 @@ def _log_pin_field_changes(pin_id: uuid.UUID, user_id: uuid.UUID, changes: PinFi
             "Pin status changed: pin_id=%s by user_id=%s visited=%s archived=%s",
             pin_id,
             user_id,
-            changes.new_visited if changes.visited_changed else None,
-            changes.new_archived if changes.archived_changed else None,
+            changes.visited,
+            changes.archived,
         )

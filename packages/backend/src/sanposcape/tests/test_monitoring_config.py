@@ -12,7 +12,9 @@
 
 import json
 import re
+from collections.abc import Mapping
 from functools import cache
+from typing import Any
 
 import pytest
 
@@ -36,7 +38,7 @@ _ALARM_LOGICAL_IDS = [
 _SUB_VARIABLE = re.compile(r"\$\{(!)?([^}]+)\}")
 
 
-def _resolve_if(value: object, env: str) -> object:
+def _resolve_if(value: object, env: str) -> Any:
     """`!If [IsProd, 本番, dev]` は env に応じた側を選ぶ。`!If` でなければそのまま返す。"""
     if isinstance(value, list) and len(value) == 3 and value[0] == _IS_PROD:
         _condition, if_prod, if_not_prod = value
@@ -44,7 +46,7 @@ def _resolve_if(value: object, env: str) -> object:
     return value
 
 
-def _substitute(template: str, values: dict[str, object]) -> str:
+def _substitute(template: str, values: Mapping[str, object]) -> str:
     """`${名前}` を values で置き換える。未知の変数は KeyError、`${!X}` は `${X}` として残す。"""
 
     def replace(match: re.Match[str]) -> str:
@@ -85,7 +87,7 @@ def _service_name() -> str:
     return variables["OTEL_SERVICE_NAME"]
 
 
-def _dashboard_body() -> object:
+def _dashboard_body() -> Any:
     return load_resources()["ApiDashboard"]["Properties"]["DashboardBody"]
 
 

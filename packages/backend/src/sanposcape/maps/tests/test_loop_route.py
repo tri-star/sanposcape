@@ -12,6 +12,7 @@ from sanposcape.maps.loop_route import (
     MAX_VIA_SNAP_DISTANCE_METERS,
     MIN_WAYPOINT_OFFSET_METERS,
     LoopEvaluation,
+    LoopSide,
     LoopVerdict,
     evaluate_loop,
     loop_waypoint_candidates,
@@ -231,7 +232,7 @@ def test_evaluate_loop_detour_ratio_boundary() -> None:
 # --- select_loop ---
 
 
-def _evaluation(side: str, longitude_offset: float, verdict: LoopVerdict) -> LoopEvaluation:
+def _evaluation(side: LoopSide, longitude_offset: float, verdict: LoopVerdict) -> LoopEvaluation:
     via = ProviderPoint(0.0, longitude_offset)
     route = ProviderRoute(100, 100, (ProviderPoint(0.0, 0.0), ProviderPoint(0.0, 0.001)))
     return LoopEvaluation(side=side, via=via, outbound=route, inbound=route, verdict=verdict)

@@ -3,6 +3,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import jwt
 import pytest
@@ -15,6 +16,9 @@ from sanposcape.config import Settings, get_settings
 from sanposcape.integrations.apple.client import AppleTokenGrant
 from sanposcape.main import app
 from sanposcape.users.dependencies import get_apple_sign_in_client
+
+if TYPE_CHECKING:
+    from jwt.algorithms import AllowedPrivateKeys
 
 # 端末が生成する raw nonce（16 文字以上）。
 # Apple には sha256 の hex を渡し、backend には raw を送る。
@@ -103,7 +107,7 @@ def make_google_id_token(rsa_keypair):
         email: str | None = "user@example.com",
         name: str | None = "テストユーザー",
         picture: str | None = "https://example.com/p.png",
-        key: object | None = None,
+        key: "AllowedPrivateKeys | None" = None,
         include_sub: bool = True,
     ) -> str:
         now = datetime.now(UTC)
@@ -149,7 +153,7 @@ def make_apple_id_token(rsa_keypair):
         email: str | None = "user@example.com",
         email_verified: object = "true",
         is_private_email: object = "false",
-        key: object | None = None,
+        key: "AllowedPrivateKeys | None" = None,
     ) -> str:
         now = datetime.now(UTC)
         claims: dict[str, object] = {

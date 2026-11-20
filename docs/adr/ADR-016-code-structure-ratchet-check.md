@@ -14,15 +14,16 @@
 - **分け方は `structure-refactor` skill が責務で決める**。材料は `scripts/code-health/survey-structure.py` が集め、分け方は決めない。失敗したときの案内（`SPLIT_GUIDE`）は skill とスクリプトを指す。（本文: 決定8、SS-254 追補 決定9・10）
 - **`change-reviewer` は観点5「構造の悪化」で、閾値の内側の悪化と、baseline・linter の除外を足して通す差分の理由を見る**。（本文: SS-254 追補 決定12）
 - **mobile の feature は、層より先に領域で分ける**（`features/sanpo-map/map/lib/` の形。層の下に領域を切らない）。feature の直下の領域のフォルダ同士は互いに import してよく、分けた先同士の相互 import を採らない規則（決定9）の外にする。共有の `shared/` は領域を import しない。領域の中も下位の領域を先に切り（`pin/edit/lib/`）、下位の領域同士は相互 import にしない。決定13 の `pin/lib` の計画は全体を置き換えた。（本文: SS-260 追補 決定15。正本は ADR-M-001 決定2）
+- **backend のテストは、主に確かめる操作ごとの `test_<操作>_{router,service}.py` に分け、router と service で同じ単位に揃える**。操作をまたぐ規則は規則の名前で1ファイル。分けた先の複数から使うヘルパーは `sanpo_maps/conftest.py` などの共有の置き場所に寄せ、分割のコミットより前に済ませる。（本文: SS-256 追補 決定16）
 
 ### 変更・撤回された決定
 
 - SS-254 追補 決定13 の `pin/lib` の計画（`pin/lib` の下に `register/`・`edit/`・…・`sanpo-map/` を切る。層の下にまとまり）→ 計画全体を置き換えた。
-  地図・招待は `features/sanpo-map/{map,invitation}/` の下に層を置く形で切り出し（SS-260）、残るピン本体は `sanpo-map/pin/` の中を下位の領域で分ける（`pin/edit/lib/` の形。SS-257）（SS-260 追補 決定15）
+  地図・招待は `features/sanpo-map/{map,invitation}/` の下に層を置く形で切り出し（SS-260）、残るピン本体は `sanpo-map/pin/` の中を下位の領域で分ける（`pin/edit/lib/` の形。SS-275。SS-257 から分けた）（SS-260 追補 決定15）
 
 ## 日付
 
-2026-11-02（SS-252）、2026-11-03 追補（SS-254）、2026-11-15 追補（SS-260）
+2026-11-02（SS-252）、2026-11-03 追補（SS-254）、2026-11-15 追補（SS-260）、2026-11-18 追補（SS-256）、2026-11-19（SS-257: 移行の項の更新と、課題の付け替え）
 
 ## コンテキスト
 
@@ -31,7 +32,7 @@
 - `packages/mobile/src/features/pin/lib` に実装 48・テスト 47 のファイルがあり、`features/pin/components` は実装 47。`walk/lib`・`src/lib` も 20 を超える <!-- doc-ref-ok: SS-252 の時点の実測。SS-260 で features/sanpo-map に改めた -->
 - `features/pin` の中に散歩マップ（`sanpoMap*`・`SanpoMap*`）のまとまりが混ざっている（`pin/components` に 15、`pin/lib` に 9）
   （SS-260 で `features/sanpo-map` に改め、地図・招待を領域のフォルダに分けた。SS-260 追補）
-- `packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` が 2,845 行、`pins/service.py` が 773 行
+- `packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` が 2,845 行、`pins/service.py` が 773 行 <!-- doc-ref-ok: SS-252・SS-254 の時点のパス。SS-256 で確かめる操作ごとのファイル（test_<操作>_router.py）に分けた -->
 
 これまでは、分けるかどうかはレビューの目に任されていた。1回の変更では少しずつしか増えないので、レビューでは止まりにくい。
 一方で、いま閾値を超えているものを全部直してから検査を入れるのは、課題として大きすぎる。
@@ -67,7 +68,7 @@
    - テストの判定: `*.test.*`・`*.spec.*`・`test_*.py`・`*_test.py`・`conftest.py`、`tests/`・`__tests__/`・`test/`（mobile の vitest の setup と mock）・`__mocks__/` の下
 3. **接頭辞は、ファイル名の最初の語で数える**（camelCase・PascalCase・snake_case・kebab-case を語に分ける）。慣習で付く `use`・`test` と、数字だけの語（`privacy/2026-10-24.astro` の日付など）は飛ばす。
    最初の語が、そのファイルのパスのフォルダ名（祖先のどれか）に含まれる語と同じとき（`features/sanpo-map/pin/lib/pinEditDraft.ts` の `pin`）は、フォルダで既に分かれている語なので次の語（`edit`）で数える。
-   機能名を名前に含める命名規約（`features/walk/components/Walk*.tsx`）のフォルダが、それだけで候補にならないようにするため。
+   機能名を名前に含める命名規約（`features/walk/active/components/Walk*.tsx`）のフォルダが、それだけで候補にならないようにするため。
    （**SS-254 追補**: 続く語もフォルダ名に含まれる間は続けて飛ばす。決定11）
    これで `features/pin` の中の `sanpoMap*` のような、別のまとまりが混ざっている所が候補に出る。
 4. **ラチェット方式にする。** 既存の違反は `scripts/code-health/structure-baseline.json` に、載せたときの値（行数・ファイル数）つきで据え置く。
@@ -150,6 +151,7 @@
 ### 移行・対応が必要な事項
 
 - SS-256・SS-257 で、SS-252 の時点の baseline を片付ける（mobile の `features/pin` の5項目は、SS-260 で3項目が外れ、残る2項目を `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。SS-260 追補）
+  - SS-257 では `features/walk/lib` を外した（feature 全体を領域で分けた。ADR-M-001 決定2 の SS-257 追補）。残る mobile の4項目は課題を分け、baseline の課題を付け替えた: `sanpo-map/pin` の2項目は SS-275、`src/lib` は SS-277、`history/lib` の接頭辞 `walk` は SS-276
 - ~~SS-254 で、`SPLIT_GUIDE` に分割の skill の名前を足し、change-reviewer に「構造の悪化」の観点を足す~~ → SS-254 で決着（SS-254 追補）
 - SS-253 で、決定7のとおり linter のルールを同じ方針で入れる
 - ~~SS-255 の月次レポートで、baseline の件数と下げられる項目を見る~~ → SS-255 で決着（`report-health.py` の「構造の検査のベースライン」の節と `code-health-review` skill。[ADR-018](./ADR-018-monthly-code-health-report.md)）
@@ -159,7 +161,7 @@
 ## SS-254 追補: 分け方を決める skill・材料集めのスクリプト・レビューの「構造の悪化」の観点
 
 検査は閾値を超えたことを止めるだけで、どこで切るかは判断が要る（決定8）。SS-254 で、その判断を skill にし、`packages/mobile/src/features/pin/lib` と <!-- doc-ref-ok: SS-254 で試した時点のパス。SS-260 で features/sanpo-map に改めた -->
-`packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` で試して基準を詰めた。
+`packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py` で試して基準を詰めた。 <!-- doc-ref-ok: SS-252・SS-254 の時点のパス。SS-256 で確かめる操作ごとのファイル（test_<操作>_router.py）に分けた -->
 
 ### 決定
 
@@ -200,7 +202,7 @@
 - [ADR-014](./ADR-014-claude-harness-main-agent-and-review-structure.md) の SS-254 追補（change-reviewer の観点5）
 - `.claude/skills/structure-refactor/SKILL.md`、`scripts/code-health/survey-structure.py`
 - [ADR-018](./ADR-018-monthly-code-health-report.md)（SS-255 の月次レポート）
-- Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255（ADR-018）、SS-256、SS-257
+- Plane: SS-252（この ADR）、SS-253、SS-254（SS-254 追補）、SS-255（ADR-018）、SS-256、SS-257、SS-275・SS-276・SS-277（SS-257 から分けた）
 
 ## SS-260 追補: mobile の feature の中は層より先に領域で分ける
 
@@ -220,8 +222,25 @@ SS-250 の招待（`pin/components/invitation/`・`pin/hooks/invitation/`・`pin
     - lib/ の lint の制限（ADR-017 決定6）の glob は、深さに依存しない `src/features/**/lib/**` に直した。1段の `*` は `sanpo-map/pin/lib/` に当たらず、制限が黙って外れるため。
     - 接頭辞の数え方（決定11）では、feature 名の語（`sanpo`・`map`）も祖先のフォルダ名として飛ばされる。`sanpo-map/pin/components` では `PinMap*` が `pin` と `map` を飛ばして次の語で数えられ、
       `features/pin/components` のときに接頭辞 `map` として数えていた5個は、ひとまとまりとしては出なくなった（閾値の内側なので失敗には関係しない）。
-      地図表示のまとまりの集中は、SS-257 で分け方を決めるときに `survey-structure.py` の材料と中身で見る。数え方を直すか（飛ばす語を feature より下のフォルダに限るなど）は SS-257 で判断する。
+      地図表示のまとまりの集中は、SS-275 で分け方を決めるときに `survey-structure.py` の材料と中身で見る。数え方を直すか（飛ばす語を feature より下のフォルダに限るなど）は SS-275 で判断する（SS-257 から分けた）。
     - baseline: `features/pin` の5項目のうち、`hooks`（21 → 13）と接頭辞 `sanpo` の2項目は外れた。`components`（47 → 32）と `lib`（48 → 39）は `features/sanpo-map/pin/` のパスで SS-257 に載せ直した。
     - 却下: 地図・招待を別の feature に出す案（決定13 と同じ理由）。層の下に領域を切る案（決定13 の計画。領域が散らばる）。
       feature の直下の領域同士にも一方向の規則を課す案（どちらの向きを禁じても使われる側を `shared/` に移すことになり、何でも置く場所になる。ADR-M-001 の選択肢4）
 
+## SS-256 追補: backend の pins のテストを決定13 の計画で分けた結果
+
+決定13 の計画で `pins/tests/test_router.py`（2,843 行）と `test_service.py`（1,544 行）を分け、baseline から外した。計画から変えたところと、分け方の基準として残すものを書く。
+
+### 決定
+
+16. **backend のテストは、主に確かめる操作ごとの `test_<操作>_router.py`・`test_<操作>_service.py` に分け、router と service で同じ単位に揃える。**
+    router は create・photos・read・update・move・delete と、規則の名前の visited_archived（ADR-009 決定32）・permissions（決定19）の8ファイル、
+    service は create・read・update・move・delete の5ファイルにした（最大 664 行）。
+    - 計画では service の地図の移動（`TestPinServiceMovePin`）を update に残していたが、router で move（ADR-009 決定33）を分けたのと揃えて `test_move_service.py` に分けた。
+      移動は項目の更新とは別の規則で変わる。片側だけ分けると、移動の規則を変えたときに見るファイルが router と service で食い違う
+    - 撮影日時が枠の発行から応答まで通るテスト（`TestPhotoTakenAtEndToEnd`、ADR-009 決定34）は、作成・読み取りのエンドポイントも叩くが photos に置いた。
+      撮影日時は写真の属性で、主に確かめているのは写真の追加・一覧の応答だから。規則の名前のファイルにするのは、操作の側から見ても主な対象が決まらないとき（訪問状況・権限の表）に限る
+    - 分けた先の複数のファイルから使うヘルパーは、分割の前に元のファイルの上で共有の `sanpo_maps/conftest.py` に寄せた（`make_extra_sanpo_map`・`add_map_member`）。
+      中身が同じで地図の名前だけ違うヘルパー（`make_shared_map`）は、名前を確かめるテストが無いので既存の `make_sanpo_map` に置き換えた。
+      分割のコミットをクラスの移動だけにして、前後で集めるテストの ID が同じことで確かめられるようにするため（216 件で一致）
+    - 却下: エンドポイントの URL の単位で分ける案（決定13 と同じ理由。`PATCH /pins/{}` に内容の更新・地図の移動・権限の表が戻る）

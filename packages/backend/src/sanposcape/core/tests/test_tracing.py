@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import AsyncIterator, Generator
+from collections.abc import AsyncIterator, Generator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
@@ -32,8 +32,9 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
-from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace import Event, ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanContext
 from sqlalchemy import Engine, create_engine, event, insert, text
 from sqlalchemy.exc import IntegrityError
 
@@ -52,6 +53,21 @@ from sanposcape.main import create_app
 from sanposcape.users.models import User
 
 pytestmark = pytest.mark.usefixtures("clean_instrumentors")
+
+
+def _attrs(span: ReadableSpan | Event) -> Mapping[str, Any]:
+    assert span.attributes is not None
+    return span.attributes
+
+
+def _ctx(span: ReadableSpan) -> SpanContext:
+    assert span.context is not None
+    return span.context
+
+
+def _parent(span: ReadableSpan) -> SpanContext:
+    assert span.parent is not None
+    return span.parent
 
 
 def _new_test_engine() -> Engine:
@@ -226,7 +242,7 @@ class TestFastApiSpans:
 
         (span,) = exporter.get_finished_spans()
         assert span.name == "GET /pins/{pin_id}"
-        assert span.attributes["http.route"] == "/pins/{pin_id}"
+        assert _attrs(span)["http.route"] == "/pins/{pin_id}"
 
     def test_query_string_never_appears_in_any_attribute(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -242,10 +258,8 @@ class TestFastApiSpans:
         for forbidden in ("secret=abc", "35.1", "139.7", "?"):
             assert not [v for v in values if forbidden in v], forbidden
         for span in spans:
-            assert (
-                span.attributes["http.url"] == f"http://testserver{span.attributes['http.target']}"
-            )
-            assert "?" not in span.attributes["http.target"]
+            assert _attrs(span)["http.url"] == f"http://testserver{_attrs(span)['http.target']}"
+            assert "?" not in _attrs(span)["http.target"]
 
     def test_unmatched_route_does_not_put_raw_path_in_span_name(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -257,7 +271,7 @@ class TestFastApiSpans:
         assert response.status_code == 404
         (span,) = exporter.get_finished_spans()
         assert span.name == "GET"
-        assert "http.route" not in span.attributes
+        assert "http.route" not in _attrs(span)
 
     def test_health_is_excluded(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -303,7 +317,7 @@ class TestFastApiSpans:
         (event,) = span.events
         assert event.attributes == {"exception.type": "RuntimeError"}
         assert "boom" not in (span.status.description or "")
-        assert not [k for k in span.attributes if k.startswith("exception.")]
+        assert not [k for k in _attrs(span) if k.startswith("exception.")]
 
     def test_access_log_carries_the_trace_and_span_ids_of_the_fastapi_span(
         self,
@@ -331,7 +345,7 @@ class TestFastApiSpans:
 
         (span,) = exporter.get_finished_spans()
         for key in ("net.peer.ip", "net.peer.port", "http.user_agent"):
-            assert span.attributes[key] == ""
+            assert _attrs(span)[key] == ""
         assert not [v for v in _all_attribute_values((span,)) if "secret-agent" in v]
 
     def test_instrumenting_twice_is_idempotent(
@@ -357,7 +371,7 @@ class TestEndUserIdOnServerSpan:
         assert client.get("/probe/bound").status_code == 200
 
         (span,) = exporter.get_finished_spans()
-        assert span.attributes["enduser.id"] == str(_PROBE_USER_ID)
+        assert _attrs(span)["enduser.id"] == str(_PROBE_USER_ID)
 
     def test_span_has_no_enduser_id_when_nobody_bound_a_user(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -367,7 +381,7 @@ class TestEndUserIdOnServerSpan:
         client.get("/probe/unbound")
 
         (span,) = exporter.get_finished_spans()
-        assert "enduser.id" not in span.attributes
+        assert "enduser.id" not in _attrs(span)
 
     def test_enduser_id_is_set_on_the_500_path_too(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -377,7 +391,7 @@ class TestEndUserIdOnServerSpan:
         assert client.get("/probe/bound-boom").status_code == 500
 
         (span,) = exporter.get_finished_spans()
-        assert span.attributes["enduser.id"] == str(_PROBE_USER_ID)
+        assert _attrs(span)["enduser.id"] == str(_PROBE_USER_ID)
 
     def test_enduser_id_reaches_the_server_span_when_the_response_is_sent_in_a_child_span(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -390,8 +404,8 @@ class TestEndUserIdOnServerSpan:
         spans = exporter.get_finished_spans()
         server = next(s for s in spans if s.name == "GET /probe/stream-in-child-span")
         child = next(s for s in spans if s.name == "child")
-        assert server.attributes["enduser.id"] == str(_PROBE_USER_ID)
-        assert "enduser.id" not in child.attributes
+        assert _attrs(server)["enduser.id"] == str(_PROBE_USER_ID)
+        assert "enduser.id" not in _attrs(child)
 
     def test_enduser_id_bound_after_the_response_started_reaches_the_server_span(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -406,7 +420,7 @@ class TestEndUserIdOnServerSpan:
             for s in exporter.get_finished_spans()
             if s.name == "GET /probe/bind-after-response-start"
         )
-        assert server.attributes["enduser.id"] == str(_PROBE_USER_ID)
+        assert _attrs(server)["enduser.id"] == str(_PROBE_USER_ID)
 
     def test_nothing_is_written_when_the_captured_span_is_not_recording(
         self, caplog: pytest.LogCaptureFixture
@@ -459,7 +473,7 @@ class TestEndUserIdOnServerSpan:
 
         assert response.status_code == 200
         (span,) = exporter.get_finished_spans()
-        assert "enduser.id" not in span.attributes
+        assert "enduser.id" not in _attrs(span)
 
     def test_valid_app_session_id_header_is_set_as_session_id(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -470,7 +484,7 @@ class TestEndUserIdOnServerSpan:
         client.get("/probe/unbound")
 
         (span,) = exporter.get_finished_spans()
-        assert span.attributes["session.id"] == session_id
+        assert _attrs(span)["session.id"] == session_id
 
     def test_invalid_app_session_id_header_never_reaches_the_span(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -480,7 +494,7 @@ class TestEndUserIdOnServerSpan:
         assert client.get("/probe/unbound").status_code == 200
 
         (span,) = exporter.get_finished_spans()
-        assert "session.id" not in span.attributes
+        assert "session.id" not in _attrs(span)
         assert not [v for v in _all_attribute_values((span,)) if "not-a-uuid" in v]
 
     def test_set_span_attributes_swallows_failures(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -503,7 +517,7 @@ class TestEndUserIdOnServerSpan:
             tracing.annotate_span(span, {})
 
         (finished,) = exporter.get_finished_spans()
-        assert "enduser.id" not in finished.attributes
+        assert "enduser.id" not in _attrs(finished)
 
     def test_capture_current_span_returns_none_when_disabled(
         self, provider: TracerProvider
@@ -521,8 +535,8 @@ class TestEndUserIdOnServerSpan:
                 tracing.annotate_span(captured, {"enduser.id": "x"})
 
         spans = {s.name: s for s in exporter.get_finished_spans()}
-        assert spans["outer"].attributes["enduser.id"] == "x"
-        assert "enduser.id" not in spans["inner"].attributes
+        assert _attrs(spans["outer"])["enduser.id"] == "x"
+        assert "enduser.id" not in _attrs(spans["inner"])
 
     def test_annotate_span_does_not_write_to_a_finished_span(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -533,7 +547,7 @@ class TestEndUserIdOnServerSpan:
         tracing.annotate_span(captured, {"enduser.id": "late"})
 
         (finished,) = exporter.get_finished_spans()
-        assert "enduser.id" not in finished.attributes
+        assert "enduser.id" not in _attrs(finished)
 
     def test_capture_current_span_does_not_import_opentelemetry_when_disabled(self) -> None:
         code = (
@@ -573,7 +587,7 @@ class TestRecordExceptionOnCurrentSpan:
         (event,) = span.events
         assert event.name == "exception"
         # 型名だけ。メッセージ・スタックトレース（__cause__ の連鎖）は載せない（決定6）。
-        assert dict(event.attributes) == {"exception.type": "RuntimeError"}
+        assert dict(_attrs(event)) == {"exception.type": "RuntimeError"}
 
     def test_does_not_record_message_or_cause(
         self, provider: TracerProvider, exporter: InMemorySpanExporter
@@ -590,7 +604,7 @@ class TestRecordExceptionOnCurrentSpan:
 
         (span,) = exporter.get_finished_spans()
         assert "SECRET" not in repr(
-            [(e.name, dict(e.attributes)) for e in span.events] + [span.status.description]
+            [(e.name, dict(_attrs(e))) for e in span.events] + [span.status.description]
         )
 
     def test_noop_without_recording_span(self) -> None:
@@ -667,7 +681,7 @@ class TestUrllib:
 
         spans = [s for s in exporter.get_finished_spans() if s.name == "GET"]
         assert len(spans) == 1
-        assert spans[0].attributes["http.url"] == "http://jwks.example.test/certs"
+        assert _attrs(spans[0])["http.url"] == "http://jwks.example.test/certs"
         assert not [v for v in _all_attribute_values(tuple(spans)) if "SECRET" in v or "35.1" in v]
 
     def test_hook_failure_blanks_http_url(
@@ -683,7 +697,7 @@ class TestUrllib:
             tracing._scrub_query_from_urllib_span(span, object())  # full_url が無い
 
         (finished,) = exporter.get_finished_spans()
-        assert finished.attributes["http.url"] == ""
+        assert _attrs(finished)["http.url"] == ""
 
 
 class TestThreadingAndHttpx:
@@ -708,7 +722,7 @@ class TestThreadingAndHttpx:
 
         children = [s for s in exporter.get_finished_spans() if s.name == "child"]
         assert len(children) == 2
-        assert {s.parent.span_id for s in children} == {parent.get_span_context().span_id}
+        assert {_parent(s).span_id for s in children} == {parent.get_span_context().span_id}
         assert {s.context.trace_id for s in children} == {parent.get_span_context().trace_id}
 
     def test_httpx_span_in_worker_thread_joins_the_trace_and_drops_query(
@@ -725,7 +739,7 @@ class TestThreadingAndHttpx:
         # ではスパンが出ない。実 Transport を使い、その下の httpcore の接続プールだけ差し替える。
         client = httpx.Client(trust_env=False)
         monkeypatch.setattr(
-            client._transport._pool,
+            client._transport._pool,  # type: ignore[attr-defined]  # httpx の内部の接続プール
             "handle_request",
             lambda request: httpcore.Response(200, content=b"{}"),
         )
@@ -740,8 +754,8 @@ class TestThreadingAndHttpx:
         http_spans = [s for s in exporter.get_finished_spans() if s.name != "parent"]
         assert len(http_spans) == 1
         (http_span,) = http_spans
-        assert http_span.parent.span_id == parent.get_span_context().span_id
-        assert http_span.attributes["http.url"] == "https://routes.example.test/v2:compute"
+        assert _parent(http_span).span_id == parent.get_span_context().span_id
+        assert _attrs(http_span)["http.url"] == "https://routes.example.test/v2:compute"
         values = _all_attribute_values((http_span,))
         assert not [v for v in values if "SECRET" in v or "35.1" in v]
 
@@ -761,7 +775,7 @@ class TestPartialInstrumentation:
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
             instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
 
-        assert app._is_instrumented_by_opentelemetry is True
+        assert app._is_instrumented_by_opentelemetry is True  # type: ignore[attr-defined]
         assert ThreadingInstrumentor().is_instrumented_by_opentelemetry
         assert len(_observability_records(caplog)) == 1
 
@@ -780,7 +794,7 @@ class TestPartialInstrumentation:
         with caplog.at_level(logging.WARNING, logger="sanposcape.core.observability"):
             instrument_fastapi_app(app, _tracing_on(), tracer_provider=provider)
 
-        assert app._is_instrumented_by_opentelemetry is True
+        assert app._is_instrumented_by_opentelemetry is True  # type: ignore[attr-defined]
         assert HTTPXClientInstrumentor().is_instrumented_by_opentelemetry
         assert any("threading" in r.getMessage() for r in _observability_records(caplog))
 
@@ -814,9 +828,9 @@ class TestScrubHooksFailSafe:
                 with tracer.start_as_current_span(
                     "s", attributes={"http.url": "http://h/p?secret=abc"}
                 ) as span:
-                    tracing._scrub_query_from_server_span(span, None)  # scope 不正
+                    tracing._scrub_query_from_server_span(span, None)  # type: ignore[arg-type]  # scope 不正
 
-        assert [s.attributes["http.url"] for s in exporter.get_finished_spans()] == ["", ""]
+        assert [_attrs(s)["http.url"] for s in exporter.get_finished_spans()] == ["", ""]
         assert len(_observability_records(caplog)) == 1
 
     def test_client_hook_failure_blanks_http_url(
@@ -834,7 +848,7 @@ class TestScrubHooksFailSafe:
             tracing._scrub_query_from_client_span(span, object())  # url が無い
 
         (finished,) = exporter.get_finished_spans()
-        assert finished.attributes["http.url"] == ""
+        assert _attrs(finished)["http.url"] == ""
 
 
 class TestHandleErrorListenerIsSafe:
@@ -941,10 +955,10 @@ class TestSqlAlchemy:
 
         spans = exporter.get_finished_spans()
         server = next(s for s in spans if s.name == "GET /db-probe")
-        db_spans = [s for s in spans if s.attributes.get("db.statement")]
+        db_spans = [s for s in spans if _attrs(s).get("db.statement")]
         assert db_spans
-        assert all(s.parent.span_id == server.context.span_id for s in db_spans)
-        statements = [str(s.attributes["db.statement"]) for s in db_spans]
+        assert all(_parent(s).span_id == _ctx(server).span_id for s in db_spans)
+        statements = [str(_attrs(s)["db.statement"]) for s in db_spans]
         assert any("SELECT" in st for st in statements)
         assert not [v for v in _all_attribute_values(spans) if "bind-value-xyz" in v]
 
@@ -1030,7 +1044,7 @@ class TestResolveRouteTemplate:
         captured: dict[str, str | None] = {}
 
         @app.middleware("http")
-        async def capture(request, call_next):  # type: ignore[no-untyped-def]
+        async def capture(request, call_next):
             response = await call_next(request)
             captured["route"] = resolve_route_template(request.scope)
             return response

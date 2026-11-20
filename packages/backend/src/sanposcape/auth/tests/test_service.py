@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from unittest import mock
@@ -57,6 +58,10 @@ class _FakeAppleProvider:
         )
 
 
+def _fixed_clock(value: datetime) -> Callable[[], datetime]:
+    return lambda: value
+
+
 def _make_service(
     db_session: Session,
     *,
@@ -82,7 +87,7 @@ def _make_service(
             **({"apple": _FakeAppleProvider()} if include_apple else {}),
         },
         settings,
-        now=(now and (lambda: now)) or (lambda: datetime.now(UTC)),
+        now=_fixed_clock(now) if now is not None else (lambda: datetime.now(UTC)),
         apple_sign_in_client=apple_sign_in_client,
     )
 

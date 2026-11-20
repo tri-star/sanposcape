@@ -9,16 +9,20 @@ import copy
 import json
 import sys
 import uuid
+from collections.abc import Mapping, MutableMapping
 from functools import partial
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
 from mangum import Mangum
+from mangum.types import ASGI
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanContext
 
 from sanposcape.aws_lambda.tracing import _LambdaRootSpanMiddleware, wrap_app_for_lambda_tracing
 from sanposcape.config import Settings
@@ -28,6 +32,27 @@ from sanposcape.main import create_app
 _EVENTS_DIR = Path(__file__).resolve().parents[4] / "events"
 _PIN_ID = "0b5b3c3e-0000-4000-8000-000000000000"
 _USER_ID = uuid.UUID("11111111-2222-4333-8444-555555555555")
+
+
+def _mangum(app: object) -> Mangum:
+    # starlette の ASGIApp と Mangum の ASGI は型の表し方が違うだけなので cast する
+    return Mangum(cast(ASGI, app), lifespan="off")
+
+
+def _attrs(span: ReadableSpan) -> Mapping[str, Any]:
+    assert span.attributes is not None
+    return span.attributes
+
+
+def _ctx(span: ReadableSpan) -> SpanContext:
+    assert span.context is not None
+    return span.context
+
+
+def _parent(span: ReadableSpan) -> SpanContext:
+    assert span.parent is not None
+    return span.parent
+
 
 pytestmark = pytest.mark.usefixtures("clean_instrumentors")
 
@@ -61,7 +86,7 @@ def _probe_app(provider: TracerProvider, *, enabled: bool = True) -> FastAPI:
     return app
 
 
-def _event(path: str, query: str = "") -> dict:
+def _event(path: str, query: str = "") -> dict[str, Any]:
     event = json.loads((_EVENTS_DIR / "health-get.json").read_text())
     event = copy.deepcopy(event)
     event["rawPath"] = path
@@ -72,14 +97,14 @@ def _event(path: str, query: str = "") -> dict:
 
 def _invoke(provider: TracerProvider, app: FastAPI, path: str, query: str = "") -> dict:
     """Lambda 計装のスパンと同じ形のスパンの中で、Mangum 経由でリクエストを処理する。"""
-    handler = Mangum(wrap_app_for_lambda_tracing(app), lifespan="off")
+    handler = _mangum(wrap_app_for_lambda_tracing(app))
     target = f"{path}?{query}" if query else path
     with provider.get_tracer("lambda-root").start_as_current_span(
         "sanposcape.aws_lambda.api.handler",
         kind=trace.SpanKind.SERVER,
         attributes={"http.target": target, "http.route": path},
     ):
-        return handler(_event(path, query), None)
+        return handler(_event(path, query), None)  # type: ignore[arg-type]  # Lambda の context は不要
 
 
 def _root(exporter: InMemorySpanExporter) -> ReadableSpan:
@@ -98,10 +123,10 @@ def test_root_span_loses_query_and_is_renamed_by_route_template(
     assert response["statusCode"] == 401
     root = _root(exporter)
     assert root.name == "GET /pins/{pin_id}"
-    assert root.attributes["http.route"] == "/pins/{pin_id}"
-    assert root.attributes["http.target"] == f"/pins/{_PIN_ID}"
-    assert "aws.local.operation" not in root.attributes
-    values = [str(v) for v in root.attributes.values()]
+    assert _attrs(root)["http.route"] == "/pins/{pin_id}"
+    assert _attrs(root)["http.target"] == f"/pins/{_PIN_ID}"
+    assert "aws.local.operation" not in _attrs(root)
+    values = [str(v) for v in _attrs(root).values()]
     assert not [v for v in values if "secret=abc" in v or "35.1" in v or "?" in v]
 
 
@@ -113,9 +138,9 @@ def test_fastapi_span_is_internal_child_of_the_lambda_root_span(
     root, child = _root(exporter), _child(exporter)
     assert root.kind == trace.SpanKind.SERVER
     assert child.kind == trace.SpanKind.INTERNAL
-    assert child.parent.span_id == root.context.span_id
+    assert _parent(child).span_id == _ctx(root).span_id
     assert child.name == "GET /pins/{pin_id}"
-    assert "aws.local.operation" not in child.attributes
+    assert "aws.local.operation" not in _attrs(child)
 
 
 def test_client_error_does_not_mark_internal_fastapi_span_as_error(
@@ -136,8 +161,8 @@ def test_unmatched_route_does_not_leak_raw_path_into_name_or_route(
     assert response["statusCode"] == 404
     root = _root(exporter)
     assert root.name == "GET"
-    assert root.attributes["http.route"] == ""
-    assert root.attributes["http.target"] == "/wp-admin/setup-config.php"
+    assert _attrs(root)["http.route"] == ""
+    assert _attrs(root)["http.target"] == "/wp-admin/setup-config.php"
 
 
 def test_health_check_still_returns_200_through_the_wrapper(
@@ -168,14 +193,14 @@ def test_returns_app_unchanged_when_opentelemetry_is_unavailable(
 def test_lifespan_scope_passes_through() -> None:
     """http 以外のスコープ（lifespan）は素通しする。Mangum(lifespan="auto") が使う。"""
     app = create_app(Settings(env="test", tracing_enabled=True))
-    wrapped = wrap_app_for_lambda_tracing(app)
+    wrapped = cast(ASGI, wrap_app_for_lambda_tracing(app))
     received: list[str] = []
     messages = iter([{"type": "lifespan.startup"}, {"type": "lifespan.shutdown"}])
 
     async def receive() -> dict:
         return next(messages)
 
-    async def send(message: dict) -> None:
+    async def send(message: MutableMapping[str, Any]) -> None:
         received.append(message["type"])
 
     asyncio.run(wrapped({"type": "lifespan", "app": app}, receive, send))
@@ -189,15 +214,15 @@ def test_lifespan_scope_passes_through() -> None:
 def test_user_agent_is_blanked_on_the_root_span(
     provider: TracerProvider, exporter: InMemorySpanExporter
 ) -> None:
-    handler = Mangum(wrap_app_for_lambda_tracing(_app(provider)), lifespan="off")
+    handler = _mangum(wrap_app_for_lambda_tracing(_app(provider)))
     with provider.get_tracer("lambda-root").start_as_current_span(
         "handler",
         kind=trace.SpanKind.SERVER,
         attributes={"http.user_agent": "secret-agent/1.0"},
     ):
-        handler(_event("/health"), None)
+        handler(_event("/health"), None)  # type: ignore[arg-type]  # Lambda の context は不要
 
-    assert _root(exporter).attributes["http.user_agent"] == ""
+    assert _attrs(_root(exporter))["http.user_agent"] == ""
 
 
 def test_scrub_failure_blanks_http_target_instead_of_leaving_the_query(
@@ -218,7 +243,7 @@ def test_scrub_failure_blanks_http_target_instead_of_leaving_the_query(
             ) as span:
                 _LambdaRootSpanMiddleware._scrub_target(span, {"type": "http"})  # path が無い
 
-    assert [s.attributes["http.target"] for s in exporter.get_finished_spans()] == ["", ""]
+    assert [_attrs(s)["http.target"] for s in exporter.get_finished_spans()] == ["", ""]
     assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
 
 
@@ -255,13 +280,13 @@ def _invoke_like_lambda_instrumentation(
     provider: TracerProvider, app: FastAPI, path: str, query: str = ""
 ) -> dict:
     """SERVER スパン開始 → Mangum（補正済み）→ ハンドラーの後に 0.61b0 の属性設定、の順に実行。"""
-    handler = Mangum(wrap_app_for_lambda_tracing(app), lifespan="off")
+    handler = _mangum(wrap_app_for_lambda_tracing(app))
     event = _event(path, query)
     event["requestContext"]["http"]["userAgent"] = "ss178-verify/1.0"
     with provider.get_tracer("lambda-root").start_as_current_span(
         "sanposcape.aws_lambda.api.handler", kind=trace.SpanKind.SERVER
     ) as span:
-        response = handler(event, None)
+        response = handler(event, None)  # type: ignore[arg-type]  # Lambda の context は不要
         _lambda_instrumentation_0_61_sets_v2_attributes(event, span)
     return response
 
@@ -275,10 +300,10 @@ def test_attributes_set_by_the_instrumentation_after_the_handler_are_clean(
 
     assert response["statusCode"] == 401
     root = _root(exporter)
-    assert root.attributes["http.target"] == "/pins/{pin_id}"
-    assert root.attributes["http.route"] == "/pins/{pin_id}"
-    assert root.attributes.get("http.user_agent", "") == ""
-    values = [str(v) for v in root.attributes.values()]
+    assert _attrs(root)["http.target"] == "/pins/{pin_id}"
+    assert _attrs(root)["http.route"] == "/pins/{pin_id}"
+    assert _attrs(root).get("http.user_agent", "") == ""
+    values = [str(v) for v in _attrs(root).values()]
     assert not [v for v in values if "abc123" in v or "35.1" in v or "?" in v or _PIN_ID in v]
     assert not [v for v in values if "ss178-verify" in v]
 
@@ -292,9 +317,9 @@ def test_unmatched_route_leaves_empty_route_and_target_after_the_instrumentation
 
     assert response["statusCode"] == 404
     root = _root(exporter)
-    assert root.attributes["http.route"] == ""
-    assert root.attributes["http.target"] == ""
-    assert root.attributes.get("http.user_agent", "") == ""
+    assert _attrs(root)["http.route"] == ""
+    assert _attrs(root)["http.target"] == ""
+    assert _attrs(root).get("http.user_agent", "") == ""
 
 
 def test_response_is_unchanged_by_event_sanitization(
@@ -307,7 +332,11 @@ def test_response_is_unchanged_by_event_sanitization(
 
 
 def test_v1_events_are_not_touched() -> None:
-    event = {"version": "1.0", "rawQueryString": "a=b", "requestContext": {"http": {"path": "/x"}}}
+    event: dict[str, Any] = {
+        "version": "1.0",
+        "rawQueryString": "a=b",
+        "requestContext": {"http": {"path": "/x"}},
+    }
 
     _LambdaRootSpanMiddleware._sanitize_event({"aws.event": event})
 
@@ -345,8 +374,8 @@ def test_bound_user_id_is_set_on_the_lambda_root_span_and_the_fastapi_span(
     response = _invoke(provider, _probe_app(provider), "/probe/bound")
 
     assert response["statusCode"] == 200
-    assert _root(exporter).attributes["enduser.id"] == str(_USER_ID)
-    assert _child(exporter).attributes["enduser.id"] == str(_USER_ID)
+    assert _attrs(_root(exporter))["enduser.id"] == str(_USER_ID)
+    assert _attrs(_child(exporter))["enduser.id"] == str(_USER_ID)
 
 
 def test_spans_have_no_enduser_id_when_nobody_bound_a_user(
@@ -354,8 +383,8 @@ def test_spans_have_no_enduser_id_when_nobody_bound_a_user(
 ) -> None:
     _invoke(provider, _probe_app(provider), "/probe/unbound")
 
-    assert "enduser.id" not in _root(exporter).attributes
-    assert "enduser.id" not in _child(exporter).attributes
+    assert "enduser.id" not in _attrs(_root(exporter))
+    assert "enduser.id" not in _attrs(_child(exporter))
 
 
 def test_user_id_does_not_leak_into_the_next_invocation(
@@ -367,7 +396,7 @@ def test_user_id_does_not_leak_into_the_next_invocation(
 
     _invoke(provider, app, "/probe/unbound")
 
-    assert "enduser.id" not in _root(exporter).attributes
+    assert "enduser.id" not in _attrs(_root(exporter))
 
 
 def test_wrapper_does_nothing_for_users_when_tracing_is_disabled(provider: TracerProvider) -> None:
@@ -418,4 +447,4 @@ def test_event_is_sanitized_even_when_copying_the_user_id_to_the_span_fails(
     assert event["rawQueryString"] == ""
     assert "userAgent" not in event["requestContext"]["http"]
     assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
-    assert "enduser.id" not in _root(exporter).attributes
+    assert "enduser.id" not in _attrs(_root(exporter))

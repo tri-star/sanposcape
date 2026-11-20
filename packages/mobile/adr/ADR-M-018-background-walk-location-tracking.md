@@ -114,7 +114,7 @@
     - 検討して採らなかった案: `expo-notifications` の追加（依存とネイティブ設定が増える。要るのは権限の要求だけ）。LocationService に `requestNotificationPermission()` を足して hook から呼ぶ（上記の理由）。
 16. （SS-91 追補）GPS の飛びは距離に加算しない（点は捨てない）
     - 背景: エミュレータの `adb emu geo fix` で数 km 先へ一気に移すと、その分がそのまま歩行距離・歩数に足されていた。実機の GPS の飛びでも起こりうる。
-    - 判定（`features/walk/lib/walkTrack.ts` の `appendWalkTrackPoint`）: 直前の採用点から `JUMP_MIN_METERS`（50m）以上、かつ速さが `MAX_PLAUSIBLE_SPEED_MPS`（10 m/s = 36 km/h）を超える移動を飛びとみなす。速さは採用点どうしの測位時刻（`LocationSample.timestampMs`）の差で求めるため、`WalkTrackState` に採用点の時刻 `lastPointAtMs` を持つ。時刻が同じ・戻っているときは距離の条件だけで判定する。
+    - 判定（`features/walk/active/lib/walkTrack.ts` の `appendWalkTrackPoint`）: 直前の採用点から `JUMP_MIN_METERS`（50m）以上、かつ速さが `MAX_PLAUSIBLE_SPEED_MPS`（10 m/s = 36 km/h）を超える移動を飛びとみなす。速さは採用点どうしの測位時刻（`LocationSample.timestampMs`）の差で求めるため、`WalkTrackState` に採用点の時刻 `lastPointAtMs` を持つ。時刻が同じ・戻っているときは距離の条件だけで判定する。
       - 10 m/s: 走っても超えない速さ（徒歩は約 1.4 m/s、ジョギングは 3〜5 m/s）。2点の GPS 誤差（20m 程度）を見込んでも余裕がある。
       - 50m: 決定3の通知間隔（10m・3秒）の数倍で、普通の歩行の1区間では届かない。時刻の近い2点を速さだけで飛びと判定しないための条件。mock の軌跡（約 38m/1秒）も飛びにならない（テストで固定）。
     - 扱い: 飛びの点は距離に加算しないが、軌跡には足して次の基準点にする（一時停止からの再開直後の1点と同じ）。外れて戻る飛び（A → 遠く → A の近く）は行きも戻りも加算されない。本当に遠くへ移った場合は、その1区間だけ加算せず続きを数える。

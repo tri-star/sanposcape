@@ -2,6 +2,7 @@ import contextlib
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest import mock
 from urllib.parse import parse_qs
 
@@ -230,7 +231,7 @@ def test_delete_current_user_does_not_commit_when_delete_fails(db_session: Sessi
 
 
 def _find_or_create(service: UserService, **overrides):
-    params = {
+    params: dict[str, Any] = {
         "provider": "apple",
         "subject": "apple-sub-1",
         "email": None,

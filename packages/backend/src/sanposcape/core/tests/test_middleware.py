@@ -1,11 +1,13 @@
 import asyncio
 
+from starlette.types import Message
+
 from sanposcape.core.middleware import RequestSizeLimitMiddleware
 
 
-def _run_middleware(path: str, *, path_prefix: str = "/walks", max_bytes: int = 4) -> list[dict]:
+def _run_middleware(path: str, *, path_prefix: str = "/walks", max_bytes: int = 4) -> list[Message]:
     """`scope["path"]` が `path` のリクエストをミドルウェアへ通し、送信されたメッセージを返す。"""
-    sent: list[dict] = []
+    sent: list[Message] = []
 
     async def inner_app(scope, receive, send) -> None:
         await receive()  # 実際の ASGI app と同様にボディを読み取ってから応答する
@@ -15,7 +17,7 @@ def _run_middleware(path: str, *, path_prefix: str = "/walks", max_bytes: int = 
     async def receive() -> dict:
         return {"type": "http.request", "body": b"12345", "more_body": False}
 
-    async def send(message: dict) -> None:
+    async def send(message: Message) -> None:
         sent.append(message)
 
     scope = {"type": "http", "path": path, "headers": []}

@@ -5,10 +5,10 @@ const cleanups = new Set<WalkDeletionCleanup>();
 /**
  * 散歩がサーバー（backend）から削除されたときに走らせるべき後始末を登録する。
  * 各 store のモジュール末尾で読み込み時に1回だけ呼ぶ想定（例:
- * `features/walk/store/useFinishedWalkStore.ts`）。
+ * `features/walk/record/store/useFinishedWalkStore.ts`）。
  *
  * 目的: `docs/folder-structure.md` の「その機能の外から import されるものは置かない」により、
- * `features/history` から `features/walk/store/useFinishedWalkStore` を直接 import できない。
+ * `features/history` から `features/walk/record/store/useFinishedWalkStore` を直接 import できない。
  * `src/lib/sessionCleanup.ts`（サインアウト時の後始末レジストリ）と同じ形の仕組みをここでも
  * 使うことで、クリアされる側（store）が自分の後始末を登録する向きに揃え、
  * `features/history` を `features/walk` の実装に結合させない。

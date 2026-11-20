@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/pins", tags=["pins"])
 # `RequestSizeLimitMiddleware`（core/middleware.py）は `/pins` 配下の全 HTTP メソッドの
 # Content-Length をチェックするため、全エンドポイントで一律にこのレスポンスセットを使う
 # （walks/router.py と同じ理由）。
-_ERROR_RESPONSES = {
+_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Not authenticated"},
     413: {"description": "Request body too large"},
 }

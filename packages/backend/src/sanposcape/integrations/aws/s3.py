@@ -28,9 +28,10 @@ S3 側の制約（infra-notes.md / infra-progress.md で確認済み）:
 import logging
 import os
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import boto3
 from botocore.config import Config
@@ -58,7 +59,7 @@ _DELETE_TOTAL_MAX_ATTEMPTS = 1
 
 def _build_s3_client(
     *, region: str, connect_timeout: float, read_timeout: float, total_max_attempts: int
-) -> object:
+) -> Any:
     """S3 client を1つ組み立てる（通常用・削除用で共通の設定をここに集約する）。
 
     `region_name` のみを渡す（`endpoint_url` を明示すると、virtual-hosted-style の
@@ -170,8 +171,9 @@ class S3ObjectStorage:
         read_timeout: float,
         delete_connect_timeout: float,
         delete_read_timeout: float,
-        client: object | None = None,
-        delete_client: object | None = None,
+        # boto3 の client は型情報を持たない（スタブを入れていない。pyproject.toml の [tool.mypy]）
+        client: Any | None = None,
+        delete_client: Any | None = None,
     ) -> None:
         self._bucket = bucket
         self._region = region
@@ -504,6 +506,7 @@ class FakeObjectStorage:
     def list_keys(self, prefix: str, *, max_keys: int) -> list[str]:
         """S3 と同じくキーの昇順で、先頭から `max_keys` 件を返す。"""
         with self._lock:
+            keys: Iterator[str]
             if self._root_dir is not None:
                 objects_dir = self._root_dir / "objects"
                 keys = (

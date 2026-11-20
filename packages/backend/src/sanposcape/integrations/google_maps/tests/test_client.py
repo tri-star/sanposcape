@@ -541,7 +541,8 @@ def test_build_provider_returns_http_when_real_mode_with_key() -> None:
     try:
         assert isinstance(provider, HttpGoogleMapsProvider)
     finally:
-        provider.close()
+        if isinstance(provider, HttpGoogleMapsProvider):
+            provider.close()
 
 
 # --- reverse_geocode（SS-138。Geocoding API v4） ------------------------------

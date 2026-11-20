@@ -14,10 +14,11 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI
 from mangum import Mangum
+from mangum.types import ASGI
 from starlette.types import ASGIApp
 
 from sanposcape.core.observability import log_context
@@ -61,7 +62,9 @@ class AsgiLambdaHandler:
         asgi_app: ASGIApp = asgi_wrapper(app) if asgi_wrapper is not None else app
         # Mangum がイベントループを用意（必要なら set）してから、同じループを掴む。
         # この順序なら「現在のループが無い」という DeprecationWarning を自分では増やさない。
-        self._mangum = Mangum(asgi_app, lifespan="off")
+        # starlette の ASGIApp は Awaitable を返す型、Mangum の ASGI は Coroutine を返す型で、
+        # 中身（async def の app）は同じ。型の表し方の違いだけなので cast する
+        self._mangum = Mangum(cast(ASGI, asgi_app), lifespan="off")
         self._loop = asyncio.get_event_loop()
         self._lifespan = app.router.lifespan_context(app)
         self._closed = False

@@ -22,8 +22,9 @@ class RequestedPinUpdate:
     # 移動先の地図。送られていなければ None（`PinUpdate` が明示的な null を弾いているので、
     # 送られた値は UUID）。
     target_sanpo_map_id: uuid.UUID | None
-    tag_add: bool
-    tag_remove: bool
+    # 足すタグ・消すタグ。省略（None）と空のリストはどちらも「変更なし」なので空のリストにそろえる。
+    add_tags: list[str]
+    remove_tag_ids: list[uuid.UUID]
 
     @classmethod
     def from_payload(cls, payload: PinUpdate) -> "RequestedPinUpdate":
@@ -34,8 +35,8 @@ class RequestedPinUpdate:
             visited="visited" in fields_set,
             archived="archived" in fields_set,
             target_sanpo_map_id=payload.sanpo_map_id if "sanpo_map_id" in fields_set else None,
-            tag_add=bool(payload.add_tags),
-            tag_remove=bool(payload.remove_tag_ids),
+            add_tags=payload.add_tags or [],
+            remove_tag_ids=payload.remove_tag_ids or [],
         )
 
 
@@ -48,16 +49,22 @@ class PinFieldChanges:
 
     name_changed: bool
     memo_changed: bool
-    # 新しい値。送られていなければ None（`PinUpdate` が明示的な null を弾いているので、
-    # 送られた値は bool）。
-    new_visited: bool | None
-    new_archived: bool | None
-    visited_changed: bool
-    archived_changed: bool
+    # 訪問状況・アーカイブの新しい値。今と変わるときだけ入り、送られていない・同じ値なら None
+    # （`PinUpdate` が明示的な null を弾いているので、送られた値は bool）。
+    visited: bool | None
+    archived: bool | None
     # 更新の前の地図（commit 前に控える。R2）。
     from_sanpo_map_id: uuid.UUID
     # 実際に地図が変わるときだけ移動先の ID が入る（同じ地図への PATCH は変更なし）。
     moved_to_sanpo_map_id: uuid.UUID | None
+
+    @property
+    def visited_changed(self) -> bool:
+        return self.visited is not None
+
+    @property
+    def archived_changed(self) -> bool:
+        return self.archived is not None
 
     @property
     def map_changed(self) -> bool:
@@ -83,10 +90,10 @@ def plan_field_changes(
     return PinFieldChanges(
         name_changed=requested.name and payload.name != pin.name,
         memo_changed=requested.memo and payload.memo != pin.memo,
-        new_visited=new_visited,
-        new_archived=new_archived,
-        visited_changed=new_visited is not None and new_visited != pin.visited,
-        archived_changed=new_archived is not None and new_archived != pin.archived,
+        visited=new_visited if new_visited is not None and new_visited != pin.visited else None,
+        archived=(
+            new_archived if new_archived is not None and new_archived != pin.archived else None
+        ),
         from_sanpo_map_id=pin.sanpo_map_id,
         moved_to_sanpo_map_id=(
             target if target is not None and target != pin.sanpo_map_id else None

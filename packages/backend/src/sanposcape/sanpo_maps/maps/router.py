@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/sanpo-maps", tags=["sanpo-maps"])
 # `RequestSizeLimitMiddleware`（core/middleware.py）は `/sanpo-maps` 配下の全 HTTP メソッドの
 # Content-Length をチェックするため、全エンドポイントで一律にこのレスポンスセットを使う
 # （`pins/router.py` と同じ理由）。
-_ERROR_RESPONSES = {
+_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Not authenticated"},
     413: {"description": "Request body too large"},
 }

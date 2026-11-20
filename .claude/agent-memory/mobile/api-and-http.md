@@ -14,7 +14,7 @@ HTTP 出口が3つあること（`customFetch` / `authApi.ts` / S3 直送）と�
 Orval（`client: "react-query"` + `httpClient: "fetch"`）の生成関数は `customFetch` の戻り値をそのまま返すだけなので、
 **mutator 側がこの形を返す責務を持つ**（SS-15 で生の本文を返していたバグがあった）。2xx だけが到達し、非2xx は `ApiError` を throw する。
 
-**How to apply:** 生成関数を呼ぶコードは `response.status` で絞り込んでから `response.data` を使う。参照実装: `features/walk/api/exploreApi.ts`。
+**How to apply:** 生成関数を呼ぶコードは `response.status` で絞り込んでから `response.data` を使う。参照実装: `features/walk/explore/api/exploreApi.ts`。
 
 ## 同じステータスの原因分岐は `ApiError.body` → `getApiErrorCode()`
 
