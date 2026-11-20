@@ -13,6 +13,8 @@
 - `app.state` に外部クライアントを持たせる変更では、`main._lifespan` の finally から `close()` が呼ばれているか（先例: `HttpGoogleMapsProvider`・`AppConfigFlagSource`）。Lambda では shutdown が走らず、lifespan の state も使えない（folder-structure.md の `aws_lambda/` 節。SS-183）。
 - Lambda 固有のコードが `aws_lambda/` の外に出ていないか（ECS 移植性の境界。grep で確かめられる）。
 - 関数の複雑度・分岐・引数・文の数は ruff（C901・PLR0912・PLR0913・PLR0915）が止める（ADR-017）。分けない関数は定義の行の `# noqa: <ルール>` にし、直前のコメントに理由を書く（ファイル単位の `per-file-ignores` は使わない。ADR-017 SS-258 追補 決定8）。noqa を足していたら、理由がその場で分けられない事情を説明しているか、分けずに通す判断が妥当かを見る。`per-file-ignores` を復活させていたら指摘にする。関数を分けて片付けた PR で、その関数の noqa を消しているかも見る（RUF100 を入れていないので、使われなくなった noqa は ruff が教えない）。mobile の `.oxlintrc.json` の末尾の overrides（据え置きの除外）は mobile の観点を見る。
+  - 関数を分けて lint を通す差分は、分けた先が同じファイルだとファイルの行数が増える。`check-structure.py --all` を base と比べ、警告（500 行）・失敗（800 行）・ベースラインの値に新しく近づいたり超えたりしていないかを見る（SS-258 で `main.py` が警告に入り、テストのファイルがベースラインを超えた）。超えたら、責務の違う部分を別のモジュールへ出しているかを見る
+  - テストのクラスを別のファイルへ移した差分は、旧パス付きのクラス名（`test_x.py::TestY`）や「〜のテスト（`x/tests/test_y.py`）」の引用が conftest・他のテストの docstring に残っていないかを grep で見る
 - 配置の理由が「循環 import を避けるため」なら、実際の import 方向を grep で確かめてから評価する。SS-98 のプランはこの理由を挙げたが、実際は core → integrations の一方向で循環しなかった（ADR-008 の SS-98 追補 D3 で訂正）。
 
 ## API 契約と OpenAPI
