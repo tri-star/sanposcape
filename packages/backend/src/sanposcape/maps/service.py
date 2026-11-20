@@ -68,7 +68,7 @@ _LoopOutcome = ProviderLoopRoute | GoogleMapsQuotaError | GoogleMapsUnavailableE
 
 
 class MapsService:
-    # 引数の数（PLR0913, 10）: 設定値を個別に受け取る。本番の生成は maps/dependencies.py の1か所で、
+    # 引数の数（PLR0913）: 設定値を個別に受け取る。本番の生成は maps/dependencies.py の1か所で、
     # すべてキーワードで渡している。まとめる型に寄せるかは ADR-017 の SS-258 追補を参照。
     def __init__(  # noqa: PLR0913
         self,

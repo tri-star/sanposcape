@@ -85,7 +85,7 @@ logger = logging.getLogger(__name__)
 class PinService:
     """ピン(Pin)に関するユースケース。トランザクション境界（commit）はここが持つ。"""
 
-    # 引数の数（PLR0913, 12）: 依存（repository・ストレージ等）と設定値を個別に受け取る。設定値は
+    # 引数の数（PLR0913）: 依存（repository・ストレージ等）と設定値を個別に受け取る。設定値は
     # キーワード専用。生成は pins/dependencies.py とテストの部品だけ。ADR-017 の SS-258 追補を参照。
     def __init__(  # noqa: PLR0913
         self,

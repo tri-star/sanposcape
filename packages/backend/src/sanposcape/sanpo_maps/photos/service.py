@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 class PinPhotoUploadService:
     """写真アップロード枠の発行（`POST /pin-photo-uploads`）。"""
 
-    # 引数の数（PLR0913, 9）: 依存と設定値を個別に受け取る。設定値はキーワード専用で、
+    # 引数の数（PLR0913）: 依存と設定値を個別に受け取る。設定値はキーワード専用で、
     # 生成は photos/dependencies.py とテストの部品だけ。ADR-017 の SS-258 追補。
     def __init__(  # noqa: PLR0913
         self,
