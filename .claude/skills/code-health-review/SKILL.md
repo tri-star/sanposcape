@@ -53,7 +53,7 @@ knip・vulture の誤検知を設定で除く（`packages/mobile/knip.jsonc`・`
 
 ## 手順3: 既存の課題と突き合わせる
 
-- ベースライン（`scripts/code-health/structure-baseline.json` の `issue`）、ruff の `per-file-ignores`・`.oxlintrc.json` の除外のコメントの課題
+- ベースライン（`scripts/code-health/structure-baseline.json` の `issue`）、backend の関数の定義の行の `# noqa`（C901・PLR09xx）の直前のコメント・`.oxlintrc.json` の除外のコメントの課題
 - Plane の未完了の課題（`plane-project-manager` エージェントで、候補のファイル名・機能名で検索する）
 
 重なるものは「既存の課題 SS-xxx に含まれる」と書き、新しい候補にしない。既存の課題に新しい事実（重複が増えた、など）があれば、その課題へのコメントを候補にする。

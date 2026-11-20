@@ -111,6 +111,32 @@ def _pin_map_id(pin_id: uuid.UUID) -> uuid.UUID | None:
         session.close()
 
 
+def _photo_count(pin_id: uuid.UUID) -> int:
+    session = TestSessionLocal()
+    try:
+        return PinRepository(session).count_photos(pin_id)
+    finally:
+        session.close()
+
+
+def _delete_map_as_owner(
+    owner_id: uuid.UUID, sanpo_map_id: uuid.UUID, storage: FakeObjectStorage
+) -> None:
+    """別セッションで地図を削除する（スレッドから呼ぶ。削除の後始末で写真の実体も消しに行く）。"""
+    session = TestSessionLocal()
+    try:
+        owner = session.get(User, owner_id)
+        assert owner is not None
+        service = SanpoMapService(
+            session,
+            SanpoMapRepository(session),
+            PhotoObjectCleaner(storage, deadline_seconds=10, call_worst_case_seconds=6),
+        )
+        service.delete_map(owner, sanpo_map_id)
+    finally:
+        session.close()
+
+
 class TestDeleteSourceMapWhilePinIsBeingMoved:
     """移動元の地図の削除 × ピンの移動（修正前は生き残るピンの写真の実体が消えていた）。"""
 
@@ -145,21 +171,12 @@ class TestDeleteSourceMapWhilePinIsBeingMoved:
                 session.close()
 
         def _waiter() -> None:
-            session = TestSessionLocal()
             try:
-                owner = session.get(User, owner_id)
-                assert owner is not None
-                service = SanpoMapService(
-                    session,
-                    SanpoMapRepository(session),
-                    PhotoObjectCleaner(storage, deadline_seconds=10, call_worst_case_seconds=6),
-                )
-                service.delete_map(owner, map_a)
+                _delete_map_as_owner(owner_id, map_a, storage)
             except BaseException as exc:  # noqa: BLE001
                 errors.append(exc)
             finally:
                 waiter_done.set()
-                session.close()
 
         holder_thread = threading.Thread(target=_holder)
         waiter_thread = threading.Thread(target=_waiter)
@@ -180,11 +197,7 @@ class TestDeleteSourceMapWhilePinIsBeingMoved:
         assert _map_exists(map_a) is False
         assert _map_exists(map_b) is True
         assert _pin_map_id(pin_id) == map_b
-        session = TestSessionLocal()
-        try:
-            assert PinRepository(session).count_photos(pin_id) == 1
-        finally:
-            session.close()
+        assert _photo_count(pin_id) == 1
         assert storage.head(original_key) is not None
         assert thumb_key is not None
         assert storage.head(thumb_key) is not None

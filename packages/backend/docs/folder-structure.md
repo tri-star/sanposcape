@@ -33,6 +33,7 @@ packages/backend/
 ├── src/
 │   └── sanposcape/            # アプリ本体パッケージ
 │       ├── main.py            # FastAPI app 生成・router 登録・例外ハンドラ配線
+│       ├── exception_handlers.py # ドメイン例外 → HTTP 応答のハンドラ（main.py が登録を呼ぶ）
 │       ├── config.py          # 環境変数の読み取り（pydantic-settings）
 │       ├── database.py        # エンジン・セッション・Base
 │       ├── dependencies.py    # 横断的な依存（DBセッション, 認証済みユーザー取得 等）
@@ -79,7 +80,7 @@ packages/backend/
 ## 各ディレクトリの役割と配置ルール
 
 ### `src/sanposcape/` 直下（アプリの土台）
-- `main.py`: FastAPI アプリの生成と各ドメイン router の登録、例外ハンドラの配線のみ。ロジックは書かない。
+- `main.py`: FastAPI アプリの生成と各ドメイン router の登録、例外ハンドラの配線のみ。ロジックは書かない。ハンドラの中身（例外ごとの状態コード・本文）は `exception_handlers.py` に置く（SS-258）。
 - `config.py`: `pydantic-settings` で `.env` を型安全に読む。設定値はここ経由で参照する。
 - `database.py`: エンジンとセッションファクトリは遅延生成する（import 時に `create_engine` を呼ばない。
   Lambda ではシークレットを環境変数へ移してから設定を確定させるため）。
@@ -141,7 +142,7 @@ packages/backend/
 > 迷ったらまず `service.py` に書き、DBアクセスが増えたら `repository.py` に切り出す。
 
 ### 例外と冪等な INSERT
-- router に `try/except` を書かない。ドメイン例外は各ドメインの `exceptions.py` に定義し、`main.py` の `register_exception_handlers()` で HTTP 応答に変換する。
+- router に `try/except` を書かない。ドメイン例外は各ドメインの `exceptions.py` に定義し、`exception_handlers.py` の `register_exception_handlers()` で HTTP 応答に変換する（`main.py` の `create_app()` が呼ぶ）。
 - 一意制約による冪等な INSERT は、`with self._db.begin_nested():` の中で `add()`＋`flush()` し、`IntegrityError` を捕まえて既存行を取り直す（`users/repository.py`・`walks/repository.py`）。素の `rollback()` は呼び出し元の外側のトランザクションまで壊すので使わない。
 
 ### 現在時刻の扱い（クロック注入）

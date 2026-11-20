@@ -38,7 +38,7 @@
 - フォルダを移す・深くする差分（SS-260）では、パスの glob を使う設定と文書が新しい深さに当たるかを見る。`.oxlintrc.json` の `files`（1段の `*` は深い lib/ に当たらず制限が黙って外れる）、
   データ取扱い台帳の対象パス、同期検査のテストの定数。旧パスはフルパスに加えて、解いたサブフォルダの名前だけの相対の書き方（`lib/map-deletion/`・「pin 側」）でも grep する。
   旧 `types.ts` を `shared/types.ts` にそのまま移していないか（1つの領域だけが使う型はその領域の `types.ts` へ）も見る。
-- 関数の複雑度・行数・1ファイルの依存の数・循環 import は oxlint が止める（ADR-017）。`.oxlintrc.json` の末尾の overrides（据え置きの除外）にファイルを足していたら、片付ける課題と理由がコメントにあり、分けずに通す判断が妥当かを見る。backend の `pyproject.toml` の `per-file-ignores` も同じ。
+- 関数の複雑度・行数・1ファイルの依存の数・循環 import は oxlint が止める（ADR-017）。`.oxlintrc.json` の末尾の overrides（据え置きの除外）にファイルを足していたら、片付ける課題と理由がコメントにあり、分けずに通す判断が妥当かを見る。backend は行単位の noqa にしている（backend の観点を見る。ADR-017 SS-258 追補 決定8）。
 - `features/walk|history|sanpo-map` に認証由来の値が要るとき、`app/` のルートがプリミティブを返す selector で読んで props で注入しているか。store やユーザーオブジェクトごと渡していないか。横断 hook（例 `useSessionDisplayName`）で lint を形式的に通す形は SS-29 で却下済み。同じ selector が `app/` に2箇所以上あるときの `src/hooks/` への切り出しは可。`features/settings` は override の対象外で store を直接読める（意図的）。正本: architecture-guideline.md「認証の扱い」、ADR-M-009 決定8
 - `src/api/` 直下のドメイン形状のラッパは `appConfigApi.ts` だけ。2本目がフラットに置かれたら `src/api/endpoints/` へ分ける（folder-structure.md の `src/api/` 節）。
 - feature をまたいで地図に要素を重ねるとき、`app/` が render slot で合成しているか（地図コンポーネントは `mapLayers?: ReactNode` を描くだけ）。全画面の地図オーバーレイに RN `Modal` を使っていないか（ADR-M-011 D7）。

@@ -5,9 +5,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 class RequestBodyTooLargeError(Exception):
     """Raised before an oversized chunked body can be fully buffered.
 
-    413 への変換は `sanposcape.main.register_exception_handlers()` 側で
+    413 への変換は `sanposcape.exception_handlers.register_exception_handlers()` 側で
     行っている（アプリ全体の例外→HTTPレスポンス変換を一元化する方針のため）。
-    このモジュール単体を読んでいる場合は、必ず `main.py` の
+    このモジュール単体を読んでいる場合は、必ず `exception_handlers.py` の
     `register_exception_handlers` も合わせて確認すること。
     """
 

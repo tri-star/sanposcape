@@ -2,7 +2,7 @@
 
 ## 日付
 
-2026-11-08（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) から分割。決定の初出は 2026-09-21〜2026-11-07）、2026-11-14 注記（SS-271: フラグ pin_registration の削除）
+2026-11-08（[ADR-009](./archived/ADR-009-sanpo-map-pin-data-model-and-photo-upload.md) から分割。決定の初出は 2026-09-21〜2026-11-07）、2026-11-14 注記（SS-271: フラグ pin_registration の削除）、2026-11-20 注記（SS-258: 例外ハンドラの登録を `exception_handlers.py` に移した）
 
 ## ステータス
 
@@ -182,7 +182,7 @@ ADR-009 に 2026-09-21 から 19 回の追補で積み上げてきた。2,200 �
 
 ### 決定13: エラー応答の `code`（旧 決定12・決定20・決定33・決定42）
 
-`detail` の固定文言は変えず、機械で区別する必要があるものだけ `code` を足す。付与は `main.py` の例外ハンドラ（`register_exception_handlers()`）に閉じるので、
+`detail` の固定文言は変えず、機械で区別する必要があるものだけ `code` を足す。付与は `main.py` の例外ハンドラ（`register_exception_handlers()`。**SS-258 注記**: 登録は `exception_handlers.py` に移した。`main.py` の `create_app()` が呼ぶ）に閉じるので、
 同じ例外を投げる全エンドポイントの本文に付く。
 
 | HTTP | `code` | 主な発生元 | OpenAPI のスキーマ |

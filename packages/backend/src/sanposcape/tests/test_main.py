@@ -9,7 +9,7 @@ from starlette.types import Message
 
 from sanposcape.auth.exceptions import AuthenticationError
 from sanposcape.core.middleware import RequestSizeLimitMiddleware
-from sanposcape.main import register_exception_handlers
+from sanposcape.exception_handlers import register_exception_handlers
 
 
 def test_users_router_registers_delete_me_operation() -> None:

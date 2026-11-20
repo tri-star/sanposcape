@@ -10,7 +10,9 @@ from sanposcape.core import access_log, logs, tracing
 from sanposcape.core.access_log import AccessLogMiddleware, UnhandledErrorAfterResponseStart
 
 
-def _run_middleware(
+# 引数の数（PLR0913）: テストの部品。ミドルウェアの入力をケースごとに変えられるようキーワード専用で
+# 並べる。ADR-017 の SS-258 追補。
+def _run_middleware(  # noqa: PLR0913
     path: str,
     *,
     method: str = "GET",

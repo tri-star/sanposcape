@@ -64,7 +64,9 @@ class PinRepository:
         )
         return self._db.scalars(stmt).first()
 
-    def create(
+    # 引数の数（PLR0913）: 列をキーワード専用で受け取る（まとめる型は列を写すだけになる）。
+    # ADR-017 の SS-258 追補。
+    def create(  # noqa: PLR0913
         self,
         *,
         sanpo_map_id: uuid.UUID,
@@ -142,7 +144,9 @@ class PinRepository:
         row = self._db.execute(self._member_pin_stmt(user_id=user_id, pin_id=pin_id)).first()
         return None if row is None else (row[0], row[1])
 
-    def list_for_member(
+    # 引数の数（PLR0913）: 一覧の絞り込みの条件をキーワード専用で受け取る。
+    # ADR-017 の SS-258 追補。
+    def list_for_member(  # noqa: PLR0913
         self,
         *,
         user_id: uuid.UUID,
