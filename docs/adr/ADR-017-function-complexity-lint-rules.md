@@ -183,7 +183,12 @@ SS-253 で `per-file-ignores` に据え置いた 12 ファイルを片付けた�
 - `per-file-ignores` が無くなり、除外は関数の定義の行の noqa とコメントだけになった。一覧は `grep -rn "noqa: PLR09\|noqa: C901" src` で引ける
 - 使われなくなった noqa は ruff の `RUF100` で検出できるが、今は足していない。既存の noqa に、有効にしていないルールのコード（`BLE001` など約 30 件）があり、それも検出されるため。
   足すなら、それらの noqa を消すか `lint.external` に載せる作業と一緒に行う
-- `sanpo_maps/pins/service.py` は 788 行で、構造の検査の失敗（800 行。ADR-016）の手前にある。ADR-011 の持ち越し（写真確定処理の切り出し）の条件「約800行を超えたら」にも近い
+- `sanpo_maps/pins/service.py` は 788 行で、構造の検査の失敗（800 行。ADR-016）の手前にある。ADR-011 の持ち越し（写真確定処理の切り出し）の条件「約800行を超えたら」にも近い。
+  このファイルに次に機能を足す課題では、先に写真確定処理（`_prepare_photos`・`_commit_photos`）を `photos/` の部品へ切り出す
+- `maps/service.py` は分けたことで 484 → 514 行になり、構造の検査の警告（500 行）に入った。警告だけなので据え置いた。
+  次に足すときは、候補の並列取得（`_fetch_loop_candidates`）を provider を引数で受ける別モジュールに出す
+  （判定だけの純粋な `maps/loop_route.py` には入れない）。そのとき、候補ごとの警告ログのロガー名（`sanposcape.maps.service`）が変わらないよう名前を固定するかを決める
+- `main.py` は登録の分割で 478 → 515 行になったので、例外ハンドラを `exception_handlers.py` に移した（`main.py` 200 行）
 
 ## 関連情報
 
