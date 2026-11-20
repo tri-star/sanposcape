@@ -1,6 +1,7 @@
 from collections.abc import Generator
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sanposcape.auth.dependencies import get_identity_providers
@@ -30,6 +31,7 @@ def real_client(test_settings: Settings) -> Generator[TestClient, None, None]:
 def _install_fake_google_provider(client: TestClient, rsa_keypair, settings: Settings) -> None:
     _, public_key = rsa_keypair
     providers = {"google": GoogleIdentityProvider(settings, jwks_client=FakeJWKSClient(public_key))}
+    assert isinstance(client.app, FastAPI)
     client.app.dependency_overrides[get_identity_providers] = lambda: providers
 
 

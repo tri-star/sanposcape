@@ -63,13 +63,12 @@ class SingleFlight[T]:
 
     def do(self, key: str, loader: Callable[[], T]) -> T:
         with self._lock:
-            future = self._in_flight.get(key)
-            leader = future is None
-            if leader:
+            existing = self._in_flight.get(key)
+            if existing is None:
                 future = Future[T]()
                 self._in_flight[key] = future
-        if not leader:
-            return future.result()
+        if existing is not None:
+            return existing.result()
         try:
             value = loader()
         except BaseException as exc:

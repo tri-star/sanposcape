@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -348,7 +349,7 @@ class TestListPinPhotos:
         collected_ids: list[str] = []
         cursor: str | None = None
         for _ in range(10):
-            params = {"limit": 2}
+            params: dict[str, Any] = {"limit": 2}
             if cursor is not None:
                 params["cursor"] = cursor
             page = client.get(f"/pins/{pin_id}/photos", headers=auth_headers, params=params)

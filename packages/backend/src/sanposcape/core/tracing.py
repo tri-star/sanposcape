@@ -30,6 +30,7 @@ from starlette.types import Scope
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+    from opentelemetry.trace import TracerProvider
     from sqlalchemy.engine import Engine
 
     from sanposcape.config import Settings
@@ -143,7 +144,7 @@ def annotate_span(span: Any | None, attributes: dict[str, str]) -> None:
     set_span_attributes(span, attributes)
 
 
-def _provider_is_unconfigured(tracer_provider: object | None) -> bool:
+def _provider_is_unconfigured(tracer_provider: TracerProvider | None) -> bool:
     """TracerProvider を誰も構成していない（= no-op のまま）か。"""
     if tracer_provider is not None:
         return False
@@ -236,7 +237,7 @@ def resolve_route_template(scope: Scope) -> str | None:
 
 
 def instrument_fastapi_app(
-    app: FastAPI, settings: Settings, *, tracer_provider: object | None = None
+    app: FastAPI, settings: Settings, *, tracer_provider: TracerProvider | None = None
 ) -> None:
     """FastAPI アプリと、リクエスト経路のグローバルな計装（httpx・threading）を有効にする。
 
@@ -322,7 +323,7 @@ def instrument_fastapi_app(
 
 
 def instrument_sqlalchemy_engine(
-    engine: Engine, settings: Settings, *, tracer_provider: object | None = None
+    engine: Engine, settings: Settings, *, tracer_provider: TracerProvider | None = None
 ) -> None:
     """engine の DB 呼び出しをスパンにする。`get_engine()` が生成直後に呼ぶ。
 

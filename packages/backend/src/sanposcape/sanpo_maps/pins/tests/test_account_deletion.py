@@ -79,8 +79,16 @@ def _add_editor(db_session: Session, *, sanpo_map_id: uuid.UUID, user_id: uuid.U
     db_session.commit()
 
 
+def _get_pin(session: Session, pin_id: uuid.UUID) -> Pin:
+    pin = session.get(Pin, pin_id)
+    assert pin is not None
+    return pin
+
+
 def _delete(db_session: Session, service: AccountDeletionService, user: User) -> None:
-    service.delete_account(db_session.get(User, user.id))
+    persisted = db_session.get(User, user.id)
+    assert persisted is not None
+    service.delete_account(persisted)
 
 
 @pytest.fixture
@@ -162,8 +170,8 @@ class TestEditorAccountDeletion:
         owner_pin_id = create_pin_with_tags(
             db_session, sanpo_map_id=shared_map_id, user_id=owner.id
         )
-        copied = db_session.get(Pin, editor_pin_id).client_pin_id
-        db_session.get(Pin, owner_pin_id).client_pin_id = copied
+        copied = _get_pin(db_session, editor_pin_id).client_pin_id
+        _get_pin(db_session, owner_pin_id).client_pin_id = copied
         db_session.commit()
         service, _ = _deletion_service(db_session, storage)
 
@@ -171,10 +179,10 @@ class TestEditorAccountDeletion:
 
         with TestSessionLocal() as other:
             assert other.get(User, editor.id) is None
-            handed_over = other.get(Pin, editor_pin_id)
+            handed_over = _get_pin(other, editor_pin_id)
             assert handed_over.created_by_user_id == owner.id
             assert handed_over.client_pin_id != copied
-            assert other.get(Pin, owner_pin_id).client_pin_id == copied
+            assert _get_pin(other, owner_pin_id).client_pin_id == copied
 
     def test_client_pin_id_is_kept_when_it_does_not_collide(
         self, db_session: Session, storage: FakeObjectStorage
@@ -185,13 +193,13 @@ class TestEditorAccountDeletion:
         map_id = make_sanpo_map(db_session, owner_user_id=owner.id)
         _add_editor(db_session, sanpo_map_id=map_id, user_id=editor.id)
         pin_id = create_pin_with_tags(db_session, sanpo_map_id=map_id, user_id=editor.id)
-        client_pin_id = db_session.get(Pin, pin_id).client_pin_id
+        client_pin_id = _get_pin(db_session, pin_id).client_pin_id
         service, _ = _deletion_service(db_session, storage)
 
         _delete(db_session, service, editor)
 
         with TestSessionLocal() as other:
-            assert other.get(Pin, pin_id).client_pin_id == client_pin_id
+            assert _get_pin(other, pin_id).client_pin_id == client_pin_id
 
     def test_does_not_touch_other_users_pins_or_updated_at(
         self, db_session: Session, storage: FakeObjectStorage
@@ -207,14 +215,14 @@ class TestEditorAccountDeletion:
         bystander_pin_id = create_pin_with_tags(
             db_session, sanpo_map_id=map_id, user_id=bystander.id, tags=[("他人のタグ", 0)]
         )
-        updated_at_before = db_session.get(Pin, editor_pin_id).updated_at
+        updated_at_before = _get_pin(db_session, editor_pin_id).updated_at
         service, _ = _deletion_service(db_session, storage)
 
         _delete(db_session, service, editor)
 
         with TestSessionLocal() as other:
-            assert other.get(Pin, editor_pin_id).updated_at == updated_at_before
-            assert other.get(Pin, bystander_pin_id).created_by_user_id == bystander.id
+            assert _get_pin(other, editor_pin_id).updated_at == updated_at_before
+            assert _get_pin(other, bystander_pin_id).created_by_user_id == bystander.id
             tag = other.scalars(select(PinTag).where(PinTag.pin_id == bystander_pin_id)).one()
             assert tag.created_by_user_id == bystander.id
 
@@ -236,6 +244,8 @@ class TestOwnerAccountDeletion:
         owner_photo = create_pin_photo_row(
             db_session, storage, pin_id=pin_id, uploaded_by_user_id=owner.id, position=1
         )
+        assert editor_photo.thumbnail_s3_key is not None
+        assert owner_photo.thumbnail_s3_key is not None
         editor_keys = [editor_photo.s3_key, editor_photo.thumbnail_s3_key]
         owner_keys = [owner_photo.s3_key, owner_photo.thumbnail_s3_key]
         service, _ = _deletion_service(db_session, storage)

@@ -100,6 +100,9 @@ docker compose exec api uv run pytest
 docker compose exec api uv run ruff check
 docker compose exec api uv run ruff format
 
+# 型チェック（設定は pyproject.toml の [tool.mypy]）
+docker compose exec api uv run mypy
+
 # OpenAPI 定義の出力（mobile の Orval が消費する openapi.yaml を更新）
 docker compose exec api uv run python scripts/export_openapi.py
 ```

@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,7 +41,7 @@ class TestPinVisitedAndArchived:
 
     def _list(
         self, client: TestClient, headers: dict[str, str], sanpo_map_id: object, **params: object
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         response = client.get(
             "/pins", headers=headers, params={"sanpo_map_id": str(sanpo_map_id), **params}
         )
@@ -130,8 +131,8 @@ class TestPinVisitedAndArchived:
 
         items = self._list(client, auth_headers, sanpo_map_id)["items"]
 
-        assert items[0]["visited"] is True  # type: ignore[index]
-        assert items[0]["archived"] is False  # type: ignore[index]
+        assert items[0]["visited"] is True
+        assert items[0]["archived"] is False
 
     @pytest.fixture
     def four_pins(
@@ -178,7 +179,7 @@ class TestPinVisitedAndArchived:
     ) -> None:
         ids: dict[str, str] = four_pins["ids"]  # type: ignore[assignment]
         body = self._list(four_pins["client"], auth_headers, four_pins["map_id"], **params)  # type: ignore[arg-type]
-        assert {item["id"] for item in body["items"]} == {ids[key] for key in expected}  # type: ignore[index]
+        assert {item["id"] for item in body["items"]} == {ids[key] for key in expected}
 
     def test_list_filter_is_applied_before_limit(
         self,
@@ -190,7 +191,7 @@ class TestPinVisitedAndArchived:
         client: TestClient = four_pins["client"]  # type: ignore[assignment]
         # 最新（visited_archived）が先頭に来るので、絞り込み前に limit が掛かれば空になる。
         body = self._list(client, auth_headers, four_pins["map_id"], archived="false", limit=1)
-        assert [item["id"] for item in body["items"]] == [ids["visited_active"]]  # type: ignore[index]
+        assert [item["id"] for item in body["items"]] == [ids["visited_active"]]
         assert body["next_cursor"] is not None
 
         second = self._list(
@@ -201,7 +202,7 @@ class TestPinVisitedAndArchived:
             limit=1,
             cursor=body["next_cursor"],
         )
-        assert [item["id"] for item in second["items"]] == [ids["unvisited_active"]]  # type: ignore[index]
+        assert [item["id"] for item in second["items"]] == [ids["unvisited_active"]]
         assert second["next_cursor"] is None
 
     def test_list_filter_combines_with_bbox_and_tags(
@@ -233,7 +234,7 @@ class TestPinVisitedAndArchived:
             max_longitude=1,
         )
 
-        ids = {item["id"] for item in body["items"]}  # type: ignore[index]
+        ids = {item["id"] for item in body["items"]}
         assert ids == {hit["id"]}
         assert far["id"] not in ids
 
@@ -328,7 +329,7 @@ class TestPinVisitedAndArchived:
         )
 
         assert patched["name"] == "新"
-        assert [tag["label"] for tag in patched["tags"]] == ["a"]  # type: ignore[index]
+        assert [tag["label"] for tag in patched["tags"]] == ["a"]  # type: ignore[attr-defined]
         assert patched["visited"] is True
         assert patched["archived"] is True
 

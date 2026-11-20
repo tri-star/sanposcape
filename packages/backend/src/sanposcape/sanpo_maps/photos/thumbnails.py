@@ -43,7 +43,8 @@ def make_thumbnail(data: bytes, *, max_edge: int, quality: int, max_pixels: int)
     - 出力 JPEG に EXIF は含めない（`save()` に `exif=` を渡さない）。
     """
     try:
-        image = Image.open(io.BytesIO(data))
+        # exif_transpose()・convert() は ImageFile ではなく Image を返し、同じ変数に入れ直すため
+        image: Image.Image = Image.open(io.BytesIO(data))
         image_format = image.format
     except (OSError, PillowUnidentifiedImageError, ValueError, Image.DecompressionBombError) as exc:
         # `Image.open()` はヘッダーだけから寸法を読み取り、`Image.MAX_IMAGE_PIXELS` の
@@ -69,7 +70,7 @@ def make_thumbnail(data: bytes, *, max_edge: int, quality: int, max_pixels: int)
         image = ImageOps.exif_transpose(image)
         if image.mode != "RGB":
             image = image.convert("RGB")
-        image.thumbnail((max_edge, max_edge), Image.LANCZOS)
+        image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG", quality=quality, optimize=True)
     except (OSError, ValueError, Image.DecompressionBombError) as exc:

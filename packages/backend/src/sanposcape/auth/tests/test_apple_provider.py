@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import NoReturn
 
 import jwt
 import pytest
@@ -15,7 +16,7 @@ class _RaisingJWKSClient:
     def __init__(self, exc: Exception) -> None:
         self._exc = exc
 
-    def get_signing_key_from_jwt(self, token: str) -> None:
+    def get_signing_key_from_jwt(self, token: str) -> NoReturn:
         raise self._exc
 
 
@@ -132,7 +133,8 @@ class TestRejectsInvalidClaims:
 
     def test_rejects_alg_none_token(self, provider, make_apple_id_token) -> None:
         signed = jwt.decode(make_apple_id_token(), options={"verify_signature": False})
-        token = jwt.encode(signed, None, algorithm="none", headers={"kid": "test-key-1"})
+        # alg=none は鍵を取らない（None を渡すのが正しい使い方だが、型は鍵を必須にしている）
+        token = jwt.encode(signed, None, algorithm="none", headers={"kid": "test-key-1"})  # type: ignore[arg-type]
 
         with pytest.raises(InvalidIdTokenError):
             provider.verify(token, nonce=RAW_NONCE)
@@ -148,7 +150,7 @@ class TestRejectsInvalidClaims:
 
     @pytest.mark.parametrize("sub", ["", 12345, None])
     def test_rejects_empty_or_non_string_sub(self, provider, make_apple_id_token, sub) -> None:
-        token = make_apple_id_token(sub=sub)  # type: ignore[arg-type]
+        token = make_apple_id_token(sub=sub)
 
         with pytest.raises(InvalidIdTokenError):
             provider.verify(token, nonce=RAW_NONCE)
@@ -224,7 +226,7 @@ class TestNonce:
             provider.verify(token, nonce=RAW_NONCE)
 
     def test_rejects_non_string_nonce_claim(self, provider, make_apple_id_token) -> None:
-        token = make_apple_id_token(nonce=123)  # type: ignore[arg-type]
+        token = make_apple_id_token(nonce=123)
 
         with pytest.raises(InvalidIdTokenError):
             provider.verify(token, nonce=RAW_NONCE)

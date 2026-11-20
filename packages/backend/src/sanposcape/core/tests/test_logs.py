@@ -515,7 +515,7 @@ class TestLogKeys:
         """`_BASE_KEYS`（手書き）が古くならないよう、出力のキーが 3 グループに収まるか見る。"""
         monkeypatch.setattr(logs, "_MAX_MESSAGE_CHARS", 5)
         logs._LOG_OPTIONS.include_exception_messages = True
-        extra = dict.fromkeys(logs._EXTRA_KEYS, 1)
+        extra: dict[str, Any] = dict.fromkeys(logs._EXTRA_KEYS, 1)
         with log_context(
             aws_request_id="r", http_method="GET", app_session_id="s", scope={"type": "http"}
         ):

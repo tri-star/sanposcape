@@ -10,6 +10,7 @@ from sanposcape.maps import rate_limit
 from sanposcape.maps.dependencies import get_maps_service
 from sanposcape.maps.rate_limit import ExploreRateLimiter
 from sanposcape.maps.service import MapsService
+from sanposcape.maps.tests.provider_stub import GoogleMapsProviderStub
 
 
 def test_authenticated_rate_limit_rejects_same_user_across_ips() -> None:
@@ -78,7 +79,7 @@ def test_rate_limiter_removes_expired_buckets_and_bounds_new_keys(
 
 
 def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
-    class Provider:
+    class Provider(GoogleMapsProviderStub):
         def search_places(self, *args, **kwargs):
             return ()
 
@@ -103,7 +104,7 @@ def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
 
 
 def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
-    class Provider:
+    class Provider(GoogleMapsProviderStub):
         def search_places(self, *args, **kwargs):
             return ()
 

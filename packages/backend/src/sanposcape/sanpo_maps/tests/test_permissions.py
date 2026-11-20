@@ -1,6 +1,7 @@
 import pytest
 
 from sanposcape.sanpo_maps.permissions import (
+    SanpoMapRole,
     can_add_pin,
     can_add_pin_photo,
     can_add_pin_tag,
@@ -28,7 +29,7 @@ class TestCanAddPin:
         assert can_add_pin("editor") is True
 
     def test_unknown_role_is_fail_safe(self) -> None:
-        assert can_add_pin("unknown") is False
+        assert can_add_pin("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
 
 class TestCanAddPinPhoto:
@@ -36,7 +37,7 @@ class TestCanAddPinPhoto:
         assert can_add_pin_photo("owner") is True
 
     def test_unknown_role_is_fail_safe(self) -> None:
-        assert can_add_pin_photo("unknown") is False
+        assert can_add_pin_photo("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_editor_can(self) -> None:
         # 招待ユーザーが owner のピンに写真を足す要件をそのまま満たす。
@@ -53,17 +54,17 @@ class TestCanUpdatePin:
             ("editor", False, False),
         ],
     )
-    def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, is_creator: bool, expected: bool) -> None:
         assert can_update_pin(role, is_creator=is_creator) is expected
 
 
 class TestCanUpdatePinVisited:
     @pytest.mark.parametrize(("role", "expected"), [("owner", True), ("editor", True)])
-    def test_members_can(self, role: str, expected: bool) -> None:
+    def test_members_can(self, role: SanpoMapRole, expected: bool) -> None:
         assert can_update_pin_visited(role) is expected
 
     def test_unknown_role_is_fail_safe(self) -> None:
-        assert can_update_pin_visited("unknown") is False
+        assert can_update_pin_visited("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
 
 class TestCanUpdatePinArchived:
@@ -78,7 +79,7 @@ class TestCanUpdatePinArchived:
             ("unknown", False, False),
         ],
     )
-    def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, is_creator: bool, expected: bool) -> None:
         assert can_update_pin_archived(role, is_creator=is_creator) is expected
 
 
@@ -92,7 +93,7 @@ class TestCanDeletePin:
             ("editor", False, False),
         ],
     )
-    def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, is_creator: bool, expected: bool) -> None:
         assert can_delete_pin(role, is_creator=is_creator) is expected
 
 
@@ -108,7 +109,7 @@ class TestCanMovePinFrom:
             ("unknown", False, False),
         ],
     )
-    def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, is_creator: bool, expected: bool) -> None:
         assert can_move_pin_from(role, is_creator=is_creator) is expected
 
 
@@ -117,7 +118,7 @@ class TestCanMovePinTo:
         ("role", "expected"),
         [("owner", True), ("editor", True), ("unknown", False)],
     )
-    def test_matrix(self, role: str, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, expected: bool) -> None:
         assert can_move_pin_to(role) is expected
 
 
@@ -139,7 +140,7 @@ class TestCanDeletePinTag:
             ("editor", False, False),
         ],
     )
-    def test_matrix(self, role: str, is_creator: bool, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, is_creator: bool, expected: bool) -> None:
         assert can_delete_pin_tag(role, is_creator=is_creator) is expected
 
 
@@ -153,7 +154,7 @@ class TestCanDeletePinPhoto:
             ("editor", False, False),
         ],
     )
-    def test_matrix(self, role: str, is_uploader: bool, expected: bool) -> None:
+    def test_matrix(self, role: SanpoMapRole, is_uploader: bool, expected: bool) -> None:
         assert can_delete_pin_photo(role, is_uploader=is_uploader) is expected
 
 
@@ -161,25 +162,25 @@ class TestUnknownRoleIsFailSafe:
     """未知の role は常に False（fail-safe）。"""
 
     def test_can_update_pin(self) -> None:
-        assert can_update_pin("unknown", is_creator=True) is False
+        assert can_update_pin("unknown", is_creator=True) is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_can_delete_pin(self) -> None:
-        assert can_delete_pin("unknown", is_creator=True) is False
+        assert can_delete_pin("unknown", is_creator=True) is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_can_add_pin_tag(self) -> None:
-        assert can_add_pin_tag("unknown") is False
+        assert can_add_pin_tag("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_can_delete_pin_tag(self) -> None:
-        assert can_delete_pin_tag("unknown", is_creator=True) is False
+        assert can_delete_pin_tag("unknown", is_creator=True) is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_can_delete_pin_photo(self) -> None:
-        assert can_delete_pin_photo("unknown", is_uploader=True) is False
+        assert can_delete_pin_photo("unknown", is_uploader=True) is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_can_update_sanpo_map(self) -> None:
-        assert can_update_sanpo_map("unknown") is False
+        assert can_update_sanpo_map("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_can_delete_sanpo_map(self) -> None:
-        assert can_delete_sanpo_map("unknown") is False
+        assert can_delete_sanpo_map("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
 
 class TestCanUpdateSanpoMap:
@@ -205,16 +206,16 @@ class TestSanpoMapMemberPermissions:
         """owner・editor とも一覧を見られ、想定外の role は拒否する。"""
         assert can_list_sanpo_map_members("owner") is True
         assert can_list_sanpo_map_members("editor") is True
-        assert can_list_sanpo_map_members("unknown") is False
+        assert can_list_sanpo_map_members("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_remove_member_owner_only(self) -> None:
         """他のメンバーを外せるのは owner だけ。"""
         assert can_remove_sanpo_map_member("owner") is True
         assert can_remove_sanpo_map_member("editor") is False
-        assert can_remove_sanpo_map_member("unknown") is False
+        assert can_remove_sanpo_map_member("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる
 
     def test_leave_editor_only(self) -> None:
         """抜けられるのは editor だけで、owner は抜けられない（持ち主が居なくなるため）。"""
         assert can_leave_sanpo_map("editor") is True
         assert can_leave_sanpo_map("owner") is False
-        assert can_leave_sanpo_map("unknown") is False
+        assert can_leave_sanpo_map("unknown") is False  # type: ignore[arg-type]  # 想定外の role で fail-safe を確かめる

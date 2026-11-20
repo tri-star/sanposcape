@@ -86,7 +86,7 @@ class TestPinPhotoUploadRepository:
                 thumbnail_width=5,
                 thumbnail_height=5,
                 taken_at=None,
-                original_bytes=None,
+                original_bytes=b"",  # 確定の Put はこのテストの対象外
             )
         ]
         PinRepository(db_session).add_photos(
@@ -194,7 +194,7 @@ class TestPinPhotoUploadRepository:
                 thumbnail_width=5,
                 thumbnail_height=5,
                 taken_at=None,
-                original_bytes=None,
+                original_bytes=b"",  # 確定の Put はこのテストの対象外
             )
         ]
         PinRepository(db_session).add_photos(
@@ -258,7 +258,7 @@ class TestPinPhotoUploadRepository:
                 thumbnail_width=5,
                 thumbnail_height=5,
                 taken_at=None,
-                original_bytes=None,
+                original_bytes=b"",  # 確定の Put はこのテストの対象外
             )
         ]
         PinRepository(db_session).add_photos(

@@ -34,6 +34,9 @@ jobs:
         run: uv run ruff check
       - name: Ruff format check
         run: uv run ruff format --check
+      # 型チェック（SS-140）。対象・設定は pyproject.toml の [tool.mypy]（テストを含む src 全体）
+      - name: Type check (mypy)
+        run: uv run mypy
 
   test:
     runs-on: ubuntu-latest
