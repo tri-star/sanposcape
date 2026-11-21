@@ -79,22 +79,6 @@ export function SanpoMapSelector({
         </View>
       )}
 
-      {state.status === "ready" && onCreate ? (
-        // 選択肢（チップ）と区別するため、チップ群には混ぜずボタンで置く（draft の「最初の地図」も + のチップ）。
-        <View style={styles.createRow}>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="plus"
-            disabled={disabled}
-            onPress={onCreate}
-            testID={`${testID}-create`}
-          >
-            新しい地図を作る
-          </Button>
-        </View>
-      ) : null}
-
       {state.status === "ready" && state.notes && state.notes.length > 0 ? (
         <View style={styles.notes} testID={`${testID}-notes`}>
           {state.notes.map((note) => (
@@ -123,6 +107,23 @@ export function SanpoMapSelector({
         <Text style={styles.helper} accessibilityLiveRegion="polite">
           {state.helper}
         </Text>
+      ) : null}
+
+      {state.status === "ready" && onCreate ? (
+        // 選択肢（チップ）と区別するため、チップ群には混ぜずボタンで置く（draft の「最初の地図」も + のチップ）。
+        // チップの注記・案内（「最初の地図」が作られます 等）より下に置き、チップと案内を離さない。
+        <View style={styles.createRow}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="plus"
+            disabled={disabled}
+            onPress={onCreate}
+            testID={`${testID}-create`}
+          >
+            新しい地図を作る
+          </Button>
+        </View>
       ) : null}
     </View>
   );
