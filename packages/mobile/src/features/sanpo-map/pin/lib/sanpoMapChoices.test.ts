@@ -5,7 +5,9 @@ import {
   resolveEffectiveSanpoMapSelection,
   resolveSanpoMapChoices,
   resolveSelectedSanpoMapIcon,
+  toSanpoMapSelection,
 } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
+import { insertCreatedSanpoMap } from "@/features/sanpo-map/map/lib/sanpoMapCache";
 import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 const OWNED_DEFAULT: SanpoMap = {
@@ -124,6 +126,45 @@ describe("resolveSanpoMapChoices", () => {
       selection: { kind: "existing", sanpoMapId: "deleted-map" },
     });
     expect(result.choices.find((c) => c.key === OWNED_DEFAULT.id)?.selected).toBe(true);
+  });
+});
+
+describe("toSanpoMapSelection", () => {
+  it("既定地図は default", () => {
+    expect(toSanpoMapSelection(OWNED_DEFAULT)).toEqual({ kind: "default" });
+  });
+
+  it("既定でない地図は existing", () => {
+    expect(toSanpoMapSelection(OWNED_OTHER)).toEqual({
+      kind: "existing",
+      sanpoMapId: "map-other",
+    });
+  });
+});
+
+// 登録画面で地図を作ったとき（SS-117）: 一覧キャッシュへの挿入と選択の切り替えを合わせた結果。
+describe("登録画面で作った地図を選ぶ", () => {
+  it("既定地図が無いユーザー: 作った地図（既定）が selected になり、draft の「最初の地図」は消える", () => {
+    const created: SanpoMap = { ...OWNED_OTHER, id: "map-created", isDefault: true };
+    const state = resolveSanpoMapChoices({
+      status: "ready",
+      maps: insertCreatedSanpoMap([INVITED], created),
+      selection: toSanpoMapSelection(created),
+    });
+    expect(state.choices.map((c) => c.key)).toEqual(["map-created", "map-invited"]);
+    expect(state.choices.find((c) => c.selected)?.key).toBe("map-created");
+    expect(state.helper).toBeNull();
+  });
+
+  it("既定地図があるユーザー: 作った地図（既定でない）が selected になる", () => {
+    const created: SanpoMap = { ...OWNED_OTHER, id: "map-created" };
+    const state = resolveSanpoMapChoices({
+      status: "ready",
+      maps: insertCreatedSanpoMap([OWNED_DEFAULT, OWNED_OTHER], created),
+      selection: toSanpoMapSelection(created),
+    });
+    expect(state.choices.find((c) => c.selected)?.key).toBe("map-created");
+    expect(state.choices.filter((c) => c.selected)).toHaveLength(1);
   });
 });
 

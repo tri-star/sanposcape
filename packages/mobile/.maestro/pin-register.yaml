@@ -1,11 +1,13 @@
-# ピン登録: サインイン → 散歩開始 → 「この場所にピンを追加」→ 名前・タグ・メモ → 保存 → 散歩中画面へ戻る。
+# ピン登録: サインイン → 散歩開始 → 「この場所にピンを追加」→ 地図を新規作成して保存先に選ぶ（SS-117）
+# → 名前・タグ・メモ → 保存 → 散歩中画面へ戻る。
 #
 # 前提:
 #   - preview ビルド（EXPO_PUBLIC_AUTH_MODE=dev / EXPO_PUBLIC_LOCATION_MODE=mock / EXPO_PUBLIC_PHOTO_MODE=mock）
 #   - backend が packages/backend/.env.example どおり（STORAGE_MODE=fake）
 # 写真は添付しない（写真付きの登録は pin-register-photo.yaml。SS-123）。
 # タグは追加ボタンと送信キーの両方で1件ずつ追加する。候補の表示は件数が実行順に依存するので見ない。
-# assert しないもの: 地図の名前・件数（同一 CI ランで他フローの登録が残る）、トースト、地図タイル。
+# assert しないもの: 地図の件数（同一 CI ランで他フローの登録が残る）、トースト、地図タイル。
+# 地図はこのフローが作った一意な名前のものだけを見る。CI のランごとに地図が1つ増えるが、sanpo-map-list.yaml と同じ扱い。
 appId: com.sanposcape.app.dev
 tags:
   - pin
@@ -26,6 +28,38 @@ tags:
     timeout: 15000
 - assertNotVisible:
     id: "pin-register-sanpo-map-retry"
+# --- 登録画面で地図を作る（SS-117）。作った地図が保存先の選択肢に出る（選択は単体テストで担保）---
+- evalScript: ${output.mapName = 'E2E-reg-map-' + String(Date.now())}
+- scrollUntilVisible:
+    element:
+      id: "pin-register-sanpo-map-create"
+- tapOn:
+    id: "pin-register-sanpo-map-create"
+- extendedWaitUntil:
+    visible:
+      id: "pin-register-sanpo-map-create-dialog"
+    timeout: 5000
+- tapOn:
+    id: "pin-register-sanpo-map-create-name-input"
+- inputText: ${output.mapName}
+- hideKeyboard
+- tapOn:
+    id: "pin-register-sanpo-map-create-submit"
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-register-sanpo-map-create-dialog"
+    timeout: 15000
+- assertNotVisible:
+    id: "pin-register-sanpo-map-create-error"
+- extendedWaitUntil:
+    visible:
+      text: ${output.mapName}
+    timeout: 10000
+# 地図の欄まで下へ送ったので、名前欄を画面内へ戻す（隠れた要素の座標をそのままタップしないように）。
+- scrollUntilVisible:
+    element:
+      id: "pin-register-name-input"
+    direction: UP
 # 入力は ASCII にする（日本語は Maestro の IME 経由になり、直後の hideKeyboard の BACK が画面の「戻る」に化けることがある。docs/local-env.md の E2E 節。SS-152）。
 - runFlow:
     file: subflows/replace-text.yaml
