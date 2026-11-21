@@ -28,7 +28,7 @@ tags:
     timeout: 15000
 - assertNotVisible:
     id: "pin-register-sanpo-map-retry"
-# --- 登録画面で地図を作る（SS-117）。作った地図が保存先の選択肢に出る（選択は単体テストで担保）---
+# --- 登録画面で地図を作る（SS-117）。作った地図が保存先の選択肢に出て、選ばれた状態になる ---
 - evalScript: ${output.mapName = 'E2E-reg-map-' + String(Date.now())}
 - scrollUntilVisible:
     element:
@@ -55,6 +55,10 @@ tags:
     visible:
       text: ${output.mapName}
     timeout: 10000
+# チップの testID は地図の id でフローからは分からないので、読み上げのラベル（Tag の accessibilityLabel）と選択状態で見る。
+- assertVisible:
+    text: "地図「${output.mapName}」を選択"
+    selected: true
 # 地図の欄まで下へ送ったので、名前欄を画面内へ戻す（隠れた要素の座標をそのままタップしないように）。
 - scrollUntilVisible:
     element:
