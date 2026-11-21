@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button/Button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input/Input";
 import { ProgressBar } from "@/components/ui/progress-bar/ProgressBar";
 import { Switch } from "@/components/ui/switch/Switch";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
+import { SanpoMapCreateDialog } from "@/features/sanpo-map/map/components/SanpoMapCreateDialog";
 import { PinDiscardDialog } from "@/features/sanpo-map/pin/components/PinDiscardDialog";
 import { PinLocationAdjustOverlay } from "@/features/sanpo-map/pin/components/PinLocationAdjustOverlay";
 import { PinLocationField } from "@/features/sanpo-map/pin/components/PinLocationField";
@@ -25,7 +26,10 @@ import {
   pinSaveErrorMessage,
   pinSaveProgressLabel,
 } from "@/features/sanpo-map/pin/lib/pinSaveError";
-import { resolveSelectedSanpoMapIcon } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
+import {
+  resolveSelectedSanpoMapIcon,
+  toSanpoMapSelection,
+} from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
 import { saveUnavailableMessage } from "@/features/sanpo-map/pin/lib/pinDraftValidation";
 import {
   PIN_REGISTER_VISITED_HELPER,
@@ -36,6 +40,7 @@ import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { makeStyles } from "@/theme/makeStyles";
 import type { GeoCoordinates } from "@/services/location/types";
+import type { SanpoMap } from "@/features/sanpo-map/shared/types";
 
 export type PinRegisterViewProps = {
   /** ルートで検証済み。不正なら null。 */
@@ -59,6 +64,11 @@ export function PinRegisterView({
   const toast = useToast();
   const [discardOpen, setDiscardOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  // 地図の新規作成ダイアログ（SS-117。地図一覧と同じ SanpoMapCreateDialog）。開くたびに key を変えて
+  // 入力・作成エラーを空に戻す。作成中（ダイアログから通知される）はバックキーでも閉じない。
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDialogKey, setCreateDialogKey] = useState(0);
+  const [createBusy, setCreateBusy] = useState(false);
   const pinLocation = usePinLocationDraft(location);
 
   const register = usePinRegister({
@@ -93,6 +103,11 @@ export function PinRegisterView({
         return true;
       }
       if (register.save.status === "saving") return true;
+      // 作成中は閉じず、バック操作だけ消費する（地図一覧と同じ。ADR-M-014 の SS-117 追補）。
+      if (createOpen) {
+        if (!createBusy) setCreateOpen(false);
+        return true;
+      }
       if (discardOpen) {
         setDiscardOpen(false);
         return true;
@@ -107,6 +122,19 @@ export function PinRegisterView({
       return false;
     },
   });
+
+  const handleOpenCreate = () => {
+    Keyboard.dismiss();
+    setCreateDialogKey((k) => k + 1);
+    setCreateOpen(true);
+  };
+
+  // 作った地図はキャッシュに入っているので、そのまま保存先に選べる（既定になった地図は default 選択）。
+  const handleCreated = (map: SanpoMap) => {
+    setCreateOpen(false);
+    register.selectSanpoMap(toSanpoMapSelection(map));
+    toast.show(`地図「${map.name}」を作成しました`);
+  };
 
   const handleDiscardConfirm = () => {
     setDiscardOpen(false);
@@ -225,6 +253,9 @@ export function PinRegisterView({
                 state={register.sanpoMaps}
                 onSelect={register.selectSanpoMap}
                 onRetry={register.sanpoMaps.retry}
+                // ピンだけ作れて写真の紐付けを再試行する状態（savedPinId あり）では、再試行は写真だけを送り
+                // 地図を選び直しても反映されない。作っても空の地図が増えるだけなので出さない。
+                onCreate={register.save.savedPinId === null ? handleOpenCreate : undefined}
                 disabled={isSaving}
                 testID="pin-register-sanpo-map"
               />
@@ -329,6 +360,15 @@ export function PinRegisterView({
           }}
         />
       ) : null}
+
+      <SanpoMapCreateDialog
+        key={createDialogKey}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreated}
+        onBusyChange={setCreateBusy}
+        testIDPrefix="pin-register-sanpo-map-create"
+      />
 
       <PinDiscardDialog
         open={discardOpen}

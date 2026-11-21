@@ -22,6 +22,11 @@ export type SanpoMapSelectorProps = {
   retryDisabled?: boolean;
   /** 見出し。登録画面は既定（保存先の地図）、編集画面は「地図」を渡す（SS-175）。 */
   title?: string;
+  /**
+   * 「新しい地図を作る」を押したとき（登録画面だけが渡す。SS-117）。省略すればボタンを出さない。
+   * 一覧が ready のときだけ出し、`disabled` 中は押せない。
+   */
+  onCreate?: () => void;
   testID: string;
 };
 
@@ -33,6 +38,7 @@ export function SanpoMapSelector({
   disabled = false,
   retryDisabled = disabled,
   title = "保存先の地図",
+  onCreate,
   testID,
 }: SanpoMapSelectorProps) {
   const theme = useTheme();
@@ -102,6 +108,23 @@ export function SanpoMapSelector({
           {state.helper}
         </Text>
       ) : null}
+
+      {state.status === "ready" && onCreate ? (
+        // 選択肢（チップ）と区別するため、チップ群には混ぜずボタンで置く（draft の「最初の地図」も + のチップ）。
+        // チップの注記・案内（「最初の地図」が作られます 等）より下に置き、チップと案内を離さない。
+        <View style={styles.createRow}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="plus"
+            disabled={disabled}
+            onPress={onCreate}
+            testID={`${testID}-create`}
+          >
+            新しい地図を作る
+          </Button>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -136,6 +159,9 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing[2],
     flexWrap: "wrap",
+  },
+  createRow: {
+    flexDirection: "row",
   },
   notes: {
     gap: theme.spacing[1],

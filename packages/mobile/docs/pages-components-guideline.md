@@ -80,7 +80,8 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 `WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）（SS-34）/
 `PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
 ダイアログを `onIntercept` で挟む。位置調整オーバーレイ（`PinLocationAdjustOverlay`。RN `Modal`
-ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124）/
+ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124。地図の作成ダイアログ
+（`SanpoMapCreateDialog`）を開いている間も `onIntercept` で閉じる（作成中は閉じずに消費する）。SS-117）/
 `PinDetailView`（`pins/[pinId]`。
 testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` ではない画面内オーバーレイ）を
 開いている間は `onIntercept` で閉じる。SS-118。削除確認ダイアログを開いている間も `onIntercept` で閉じる（削除中は閉じない）。SS-119。
