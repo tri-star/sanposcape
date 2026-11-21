@@ -1,6 +1,6 @@
 ---
 name: emulator-seed-data
-description: エミュレータ確認用のデータを API で作る手順 — POST /auth/dev-session（AUTH_MODE=dev）でトークンを取り、地図・ピンを curl/urllib で作る。サーバーの Maps キーが無いときは MAPS_MODE=fake だが、.env はエージェントから書けないのでユーザーに `!` で書いてもらう
+description: エミュレータ確認用のデータを API で作る手順 — POST /auth/dev-session（AUTH_MODE=dev）でトークンを取り、地図・ピンを curl/urllib で作る。サーバーの Maps キーが無いときは MAPS_MODE=fake だが、.env はエージェントから書けないのでユーザーに `!` で書いてもらう。クエリ2つ以上のディープリンクは `&` で切れる
 metadata:
   type: feedback
   scope: durable
@@ -19,6 +19,8 @@ metadata:
   **`.env` を書き換えずに済む方法（SS-267）**: `compose.yaml` は `MAPS_MODE: ${MAPS_MODE:-real}` と置き換えで受けるので、`.env` を scratchpad に
   コピーして `MAPS_MODE=fake` を足し、`docker compose -p <名前> -f packages/backend/compose.yaml --project-directory packages/backend --env-file <コピー> up -d --force-recreate api` で作り直す
   （`printenv MAPS_MODE` で確かめる）。その後の `dev-up.sh` は `ALLOW_MISSING_MAPS_KEY=1` を付ける（backend が healthy なら作り直さない）。終わったら `--env-file` なしで作り直して戻す。
+  - **自律実行では、`.env` を scratchpad へコピーする操作そのものが auto mode の判定で拒否されることがある**（SS-117）。そのときは回避を探さない。
+    地図・ピン・地図の作成など `/explore` を使わない画面なら、`MAPS_MODE` を変えずに `ALLOW_MISSING_MAPS_KEY=1 bash scripts/mobile-tools/dev-up.sh` だけで確かめられる（散歩導線は 503 になる）。
 - ピンを見たい場所に `ui.sh geo <lat> <lng>` で現在地を合わせてからログインすると、ピンタブが最初からその周りを表示する。
 - **写真付きのピン**（SS-261 の LP の画面）: `POST /pin-photo-uploads`（`content_type: image/jpeg`・`byte_size`）の応答の `upload.url` に、`upload.fields` と `file` を multipart で POST する（`STORAGE_MODE=fake` でも 204）。
   返った `upload_id` を `POST /pins` の `photo_upload_ids` に入れる。JPEG しか受け付けないので PNG は PIL で変換する。LP の画面に使ったイラストは `packages/lp/design-assets/illustrations/`（JPEG）にある。`PATCH /pins/{id}` では位置を変えられないので作り直す（タグは `add_tags`・`remove_tag_ids` の差分で、訪問済みは `visited` で変えられる）。一覧は新しい順なので、上に出したいピンは最後に作る。
@@ -28,5 +30,7 @@ metadata:
 - **招待で2人目以降を参加させる**: 作った人のトークンで `POST /sanpo-maps/{id}/invitations` → 応答の `token` を、別の user_key のトークンで `POST /invitations/accept` に送る。
 - **ピンの詳細には逆ジオコーディングの住所が番地まで出る。** 外に出す画面（LP など）では、架空のお店が実在の住宅にあるように見えないよう、`POST /explore/reverse-geocode` で先に住所を確かめ、寺・公園などの敷地の座標にする。
 - 画面へは `ui.sh open pins/<id>`・`ui.sh open sanpo-maps/<id>/members` のようにディープリンクで直接飛べる。地図の長押しは `ui.sh swipe X Y X Y 1200`。
+  - **クエリが2つ以上あるルートは `ui.sh open` で開けない。** `adb shell am start -d` の URL の `&` を端末のシェルが区切りとして扱い、2つ目以降のパラメータが落ちる
+    （`pins/new?latitude=..&longitude=..` は経度が落ちて「位置情報を取得できませんでした」になった。SS-117）。登録画面はピンタブの地図の長押しで開く。
 
 **How to apply:** 見た目の確認でデータが要るときは、最初に dev-session + API でまとめて作る。`.env` を変える必要があれば、先にユーザーへ `!` のコマンドを渡す。
