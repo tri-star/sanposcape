@@ -253,7 +253,9 @@ export function PinRegisterView({
                 state={register.sanpoMaps}
                 onSelect={register.selectSanpoMap}
                 onRetry={register.sanpoMaps.retry}
-                onCreate={handleOpenCreate}
+                // ピンだけ作れて写真の紐付けを再試行する状態（savedPinId あり）では、再試行は写真だけを送り
+                // 地図を選び直しても反映されない。作っても空の地図が増えるだけなので出さない。
+                onCreate={register.save.savedPinId === null ? handleOpenCreate : undefined}
                 disabled={isSaving}
                 testID="pin-register-sanpo-map"
               />
