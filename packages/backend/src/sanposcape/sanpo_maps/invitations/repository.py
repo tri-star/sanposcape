@@ -1,8 +1,10 @@
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any, cast
 
 from sqlalchemy import and_, delete, func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.models import SanpoMap, SanpoMapInvitation
@@ -123,5 +125,9 @@ class SanpoMapInvitationRepository:
             SanpoMapInvitation.revoked_at,
             SanpoMapInvitation.expires_at,
         )
-        result = self._db.execute(delete(SanpoMapInvitation).where(ended_at < now - retention))
+        # DML の結果は CursorResult（rowcount を持つ）。Session.execute() の型は Result
+        result = cast(
+            CursorResult[Any],
+            self._db.execute(delete(SanpoMapInvitation).where(ended_at < now - retention)),
+        )
         return int(result.rowcount or 0)

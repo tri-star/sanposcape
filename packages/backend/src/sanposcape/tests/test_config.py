@@ -1,3 +1,5 @@
+from typing import Any, Literal, cast
+
 import pytest
 from pydantic import ValidationError
 
@@ -85,7 +87,8 @@ def test_production_without_google_maps_server_key_fails_to_start() -> None:
 )
 def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, value: int) -> None:
     with pytest.raises(ValidationError):
-        Settings(**{field: value})
+        overrides: dict[str, Any] = {field: value}
+        Settings(**overrides)
 
 
 @pytest.mark.parametrize(
@@ -94,7 +97,8 @@ def test_google_maps_resource_limits_must_be_positive_and_supported(field: str, 
 def test_walk_create_rate_limit_must_be_positive(field: str) -> None:
     """散歩の保存のレート制限（SS-38）の上限・窓は 0 を受け付けない。"""
     with pytest.raises(ValidationError):
-        Settings(**{field: 0})
+        overrides: dict[str, Any] = {field: 0}
+        Settings(**overrides)
 
 
 def test_anonymous_maps_rate_limit_must_not_exceed_authenticated_limit() -> None:
@@ -372,7 +376,7 @@ def test_sqlalchemy_engine_kwargs_defaults_do_not_disable_prepared_statements() 
     assert kwargs["max_overflow"] == 10
     assert kwargs["pool_recycle"] == 280
     assert kwargs["pool_pre_ping"] is True
-    assert "prepare_threshold" not in kwargs["connect_args"]
+    assert "prepare_threshold" not in cast(dict[str, Any], kwargs["connect_args"])
 
 
 def test_sqlalchemy_engine_kwargs_can_disable_prepared_statements() -> None:
@@ -382,7 +386,7 @@ def test_sqlalchemy_engine_kwargs_can_disable_prepared_statements() -> None:
     これは無効化ではない（意味が逆）。この設定名がその混同を避けるためにあることの回帰テスト。
     """
     settings = Settings(db_disable_prepared_statements=True)
-    connect_args = settings.sqlalchemy_engine_kwargs["connect_args"]
+    connect_args = cast(dict[str, Any], settings.sqlalchemy_engine_kwargs["connect_args"])
     assert connect_args["prepare_threshold"] is None
 
 
@@ -488,7 +492,9 @@ def test_console_log_format_fails_to_start_outside_local_and_test(env: str) -> N
     ("env", "expected"),
     [("local", True), ("test", True), ("staging", False), ("production", False)],
 )
-def test_log_exception_messages_is_allowed_only_in_local_and_test(env: str, expected: bool) -> None:
+def test_log_exception_messages_is_allowed_only_in_local_and_test(
+    env: Literal["local", "test", "staging", "production"], expected: bool
+) -> None:
     """許可リスト方式: 例外メッセージ経由の漏れを staging / production では塞ぐ（決定6）。"""
     settings = Settings.model_construct(env=env)
     assert settings.log_exception_messages is expected

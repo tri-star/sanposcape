@@ -20,6 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from sanposcape.database import Base
+from sanposcape.sanpo_maps.permissions import SanpoMapRole
 
 #: `SanpoMapMember.role` に許容する値。owner も member 行を持つ（招待機能への備え。
 #: `sanpo_maps/permissions.py` 参照）。
@@ -119,7 +120,7 @@ class SanpoMapMember(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
-    role: Mapped[str] = mapped_column(String(16))
+    role: Mapped[SanpoMapRole] = mapped_column(String(16))
     # この地図のピンを、本人のピンタブ・ナビタブの地図に出すか（SS-266）。利用者 × 地図の
     # 設定なので、地図（`sanpo_maps`）ではなくメンバーシップに持つ（共有地図でほかの
     # メンバーの選択に引きずられない）。

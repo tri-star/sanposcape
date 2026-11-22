@@ -3,6 +3,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import jwt
 import pytest
@@ -15,6 +16,9 @@ from sanposcape.config import Settings, get_settings
 from sanposcape.integrations.apple.client import AppleTokenGrant
 from sanposcape.main import app
 from sanposcape.users.dependencies import get_apple_sign_in_client
+
+if TYPE_CHECKING:
+    from jwt.algorithms import AllowedPrivateKeys
 
 # 端末が生成する raw nonce（16 文字以上）。
 # Apple には sha256 の hex を渡し、backend には raw を送る。
@@ -92,7 +96,9 @@ def make_google_id_token(rsa_keypair):
     """テスト用の Google ID token を任意のクレームで生成するファクトリ。"""
     private_key, _ = rsa_keypair
 
-    def _make(
+    # 引数の数（PLR0913）: テストの部品。ID トークンの各クレームを上書きできるよう
+    # キーワード専用で並べる。ADR-017 の SS-258 追補。
+    def _make(  # noqa: PLR0913
         *,
         sub: str = "google-sub-1",
         aud: str = "test-audience",
@@ -101,7 +107,7 @@ def make_google_id_token(rsa_keypair):
         email: str | None = "user@example.com",
         name: str | None = "テストユーザー",
         picture: str | None = "https://example.com/p.png",
-        key: object | None = None,
+        key: "AllowedPrivateKeys | None" = None,
         include_sub: bool = True,
     ) -> str:
         now = datetime.now(UTC)
@@ -132,7 +138,9 @@ def make_apple_id_token(rsa_keypair):
     """テスト用の Apple ID token を任意のクレームで生成するファクトリ。"""
     private_key, _ = rsa_keypair
 
-    def _make(
+    # 引数の数（PLR0913）: テストの部品。ID トークンの各クレームを上書きできるよう
+    # キーワード専用で並べる。ADR-017 の SS-258 追補。
+    def _make(  # noqa: PLR0913
         *,
         sub: str = APPLE_DEFAULT_SUB,
         aud: str = APPLE_AUDIENCE,
@@ -145,7 +153,7 @@ def make_apple_id_token(rsa_keypair):
         email: str | None = "user@example.com",
         email_verified: object = "true",
         is_private_email: object = "false",
-        key: object | None = None,
+        key: "AllowedPrivateKeys | None" = None,
     ) -> str:
         now = datetime.now(UTC)
         claims: dict[str, object] = {

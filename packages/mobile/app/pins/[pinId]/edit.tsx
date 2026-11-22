@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
-import { PinEditView } from "@/features/pin/components/PinEditView";
+import { PinEditView } from "@/features/sanpo-map/pin/components/PinEditView";
 import { isUuid } from "@/lib/uuid";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 

@@ -14,13 +14,13 @@ HTTP 出口が3つあること（`customFetch` / `authApi.ts` / S3 直送）と�
 Orval（`client: "react-query"` + `httpClient: "fetch"`）の生成関数は `customFetch` の戻り値をそのまま返すだけなので、
 **mutator 側がこの形を返す責務を持つ**（SS-15 で生の本文を返していたバグがあった）。2xx だけが到達し、非2xx は `ApiError` を throw する。
 
-**How to apply:** 生成関数を呼ぶコードは `response.status` で絞り込んでから `response.data` を使う。参照実装: `features/walk/api/exploreApi.ts`。
+**How to apply:** 生成関数を呼ぶコードは `response.status` で絞り込んでから `response.data` を使う。参照実装: `features/walk/explore/api/exploreApi.ts`。
 
 ## 同じステータスの原因分岐は `ApiError.body` → `getApiErrorCode()`
 
 `customFetch` は非2xx の本文を JSON パースして（失敗時 `undefined`）`new ApiError(status, undefined, body)` に載せる。
 
-**How to apply:** 新しい原因分岐が要るときは backend に機械可読な `code` を足してもらい、分類関数（例: `features/pin/lib/pinSaveError.ts`）で
+**How to apply:** 新しい原因分岐が要るときは backend に機械可読な `code` を足してもらい、分類関数（例: `features/sanpo-map/pin/lib/pinSaveError.ts`）で
 `getApiErrorCode(cause)` を見る。`code` が無い・未知なら安全側の既定に倒す。`authApi.ts`（出口2）はこの仕組みの対象外。
 
 ## Orval: 本文スキーマが無いレスポンスは `data: void` になる

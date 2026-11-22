@@ -18,7 +18,7 @@
 - ネイティブのセンサー・購読（expo-location の方位など）の値を読む実装では、「取れない」の印を負の値で一律に判定していないか。
   Android の真北は `(磁北 + 偏角) % 360` で求められ、Kotlin の `%` が符号を残すので正当な負の値になる（印はちょうど -1。SS-169）。
   また、ネイティブがプロセスで1本しか購読を持てないか（Android の方位は後勝ち）、解除と再購読がほぼ同時に起きる経路（タブの切り替え）でネイティブへの到着順が入れ替わらないかを、node_modules のネイティブ実装で確かめる（ADR-M-023）。
-- 位置のサンプルから距離・軌跡を作る規則（間引き・飛びの除外など。`features/walk/lib/walkTrack.ts`）を変える差分では、次の入力を当てたかを見る。
+- 位置のサンプルから距離・軌跡を作る規則（間引き・飛びの除外など。`features/walk/active/lib/walkTrack.ts`）を変える差分では、次の入力を当てたかを見る。
   - 静止中: OS の 10m の間引きで点が届かず、経過時間だけが伸びる。
   - 大まかな位置: km 単位で位置が動く（ADR-M-022）。
   - fallback 中の背面の欠け: A→B の直線になる。
@@ -33,9 +33,13 @@
 ## 層の境界と依存の向き
 
 - `app/` は薄く、判定は `lib/` の純粋関数、サーバー状態は TanStack Query、`features/<feature>/api/` は素の fetcher のラップ、services は `index.ts` の interface 経由。正本: folder-structure.md「各ディレクトリの役割と配置ルール」「状態管理の使い分け」
-- feature 間の直接 import（walk ⇔ pin ⇔ history など）は禁止だが lint は見ていない（`.oxlintrc.json` の `no-restricted-imports` の override は認証系・`@/config/devTools`・`lib/` からの `react-native` の値 import だけ）。
-- 関数の複雑度・行数・1ファイルの依存の数・循環 import は oxlint が止める（ADR-017）。`.oxlintrc.json` の末尾の overrides（据え置きの除外）にファイルを足していたら、片付ける課題と理由がコメントにあり、分けずに通す判断が妥当かを見る。backend の `pyproject.toml` の `per-file-ignores` も同じ。
-- `features/walk|history|pin` に認証由来の値が要るとき、`app/` のルートがプリミティブを返す selector で読んで props で注入しているか。store やユーザーオブジェクトごと渡していないか。横断 hook（例 `useSessionDisplayName`）で lint を形式的に通す形は SS-29 で却下済み。同じ selector が `app/` に2箇所以上あるときの `src/hooks/` への切り出しは可。`features/settings` は override の対象外で store を直接読める（意図的）。正本: architecture-guideline.md「認証の扱い」、ADR-M-009 決定8
+- feature 間の直接 import（walk ⇔ sanpo-map ⇔ history など）は禁止だが lint は見ていない（`.oxlintrc.json` の `no-restricted-imports` の override は認証系・`@/config/devTools`・`lib/` からの `react-native` の値 import だけ）。
+  同じ feature の直下の領域同士（`sanpo-map/map` ⇔ `sanpo-map/pin` など）の import は許される。`shared/` が領域のフォルダを import していないか、`shared/` に持ち主の決まるものを置いていないかを見る。正本: folder-structure.md「feature の中を領域で分ける」、ADR-M-001 決定2 の SS-260 追補
+- フォルダを移す・深くする差分（SS-260）では、パスの glob を使う設定と文書が新しい深さに当たるかを見る。`.oxlintrc.json` の `files`（1段の `*` は深い lib/ に当たらず制限が黙って外れる）、
+  データ取扱い台帳の対象パス、同期検査のテストの定数。旧パスはフルパスに加えて、解いたサブフォルダの名前だけの相対の書き方（`lib/map-deletion/`・「pin 側」）でも grep する。
+  旧 `types.ts` を `shared/types.ts` にそのまま移していないか（1つの領域だけが使う型はその領域の `types.ts` へ）も見る。
+- 関数の複雑度・行数・1ファイルの依存の数・循環 import は oxlint が止める（ADR-017）。`.oxlintrc.json` の末尾の overrides（据え置きの除外）にファイルを足していたら、片付ける課題と理由がコメントにあり、分けずに通す判断が妥当かを見る。backend は行単位の noqa にしている（backend の観点を見る。ADR-017 SS-258 追補 決定8）。
+- `features/walk|history|sanpo-map` に認証由来の値が要るとき、`app/` のルートがプリミティブを返す selector で読んで props で注入しているか。store やユーザーオブジェクトごと渡していないか。横断 hook（例 `useSessionDisplayName`）で lint を形式的に通す形は SS-29 で却下済み。同じ selector が `app/` に2箇所以上あるときの `src/hooks/` への切り出しは可。`features/settings` は override の対象外で store を直接読める（意図的）。正本: architecture-guideline.md「認証の扱い」、ADR-M-009 決定8
 - `src/api/` 直下のドメイン形状のラッパは `appConfigApi.ts` だけ。2本目がフラットに置かれたら `src/api/endpoints/` へ分ける（folder-structure.md の `src/api/` 節）。
 - feature をまたいで地図に要素を重ねるとき、`app/` が render slot で合成しているか（地図コンポーネントは `mapLayers?: ReactNode` を描くだけ）。全画面の地図オーバーレイに RN `Modal` を使っていないか（ADR-M-011 D7）。
 - ビルドの種類（`Updates.channel`・`extra.appVariant`・`PRODUCTION_UPDATES_CHANNEL` との比較）で表示や挙動を変える分岐を足していないか。
@@ -114,6 +118,8 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - 冪等なキー（`client_pin_id` など）で再送する保存フローに、送る ID を作り直す処理（期限の近い写真の枠の取り直しなど）を足す差分では、応答が失われた後の再実行を追う。サーバーでは古い ID で成立済みなのに端末が新しい ID を送ると、冪等な応答（既存のピンと古い ID）と食い違い、新しい ID が後段（`addPinPhotos`）で付いて二重になる（SS-126 のレビュー指摘。作成前は先回りしないことで直した。ADR-M-010 決定17）。模型サーバーの `throw_lost` と、作り直しの条件をまたぐ時刻で再実行するテストがあるかを見る。
 - 操作ごとに別の `xxxError.ts` は意図的（ADR-M-001 決定6）なので統合を提案しない。逆に、別の操作の分類を再利用していたら要注意。
 - `${a}:${b}` の連結キーで重複判定していたら、区切り文字が値に含まれて衝突し処理が黙ってスキップされうる。値の生成元（`randomUuidV4()` など）を grep し、今起こりうるかで重大度を決める（起こりえなければ Low）。
+- ピン登録画面に入力・操作を足す差分では、「ピンだけ作れて写真の紐付けを再試行する状態」（`savedPinId !== null`。保存ボタンが「もう一度保存する」）で、その操作が意味を持つかを見る。
+  再試行（`runPinSave`）は写真の紐付けだけを送り、`client_pin_id` の再送は内容を無視するので、ここで変えた入力は保存されない。サーバーに何かを作る操作（地図の作成など）なら、この状態では出さないか止める（SS-117。既存の地図のチップ・名前の入力は止めていない既知の問題）。
 
 ## 画面の高さと幅
 

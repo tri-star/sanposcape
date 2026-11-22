@@ -2,77 +2,33 @@
   "description": "コードの構造の既知の違反（ADR-016）。value を超えると CI が失敗する。issue は片付ける課題、reason は今は分けない理由で、どちらも必須。再生成: scripts/code-health/check-structure.py --baseline",
   "entries": [
     {
-      "kind": "file-lines",
-      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_router.py",
-      "value": 2843,
-      "issue": "SS-256",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
-    },
-    {
-      "kind": "file-lines",
-      "path": "packages/backend/src/sanposcape/sanpo_maps/pins/tests/test_service.py",
-      "value": 1544,
-      "issue": "SS-256",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。エンドポイント・操作ごとのテストファイルへの分割は SS-256 で行う"
+      "kind": "folder-files",
+      "path": "packages/mobile/src/features/sanpo-map/pin/components",
+      "value": 32,
+      "issue": "SS-275",
+      "reason": "SS-252 の時点で features/pin/components に 47 個あった。SS-260 で地図・招待・共有を切り出して 32 個になった。ピン本体の中の分割（編集・位置・写真・地図表示など）は SS-275 で行う（SS-257 から分けた）"
     },
     {
       "kind": "folder-files",
-      "path": "packages/mobile/src/features/pin/components",
-      "value": 47,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "folder-files",
-      "path": "packages/mobile/src/features/pin/hooks",
-      "value": 21,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "folder-files",
-      "path": "packages/mobile/src/features/pin/lib",
-      "value": 48,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "folder-files",
-      "path": "packages/mobile/src/features/walk/lib",
-      "value": 28,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+      "path": "packages/mobile/src/features/sanpo-map/pin/lib",
+      "value": 39,
+      "issue": "SS-275",
+      "reason": "SS-252 の時点で features/pin/lib に 48 個あった。SS-260 で地図・招待・共有を切り出して 39 個になった。ピン本体の中の分割（編集・位置・写真・地図表示など）は SS-275 で行う（SS-257 から分けた）"
     },
     {
       "kind": "folder-files",
       "path": "packages/mobile/src/lib",
       "value": 24,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+      "issue": "SS-277",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。用途のカテゴリへの分割は SS-277 で行う（SS-257 から分けた）"
     },
     {
       "kind": "prefix",
       "path": "packages/mobile/src/features/history/lib",
       "prefix": "walk",
       "value": 10,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "prefix",
-      "path": "packages/mobile/src/features/pin/components",
-      "prefix": "sanpo",
-      "value": 15,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
-    },
-    {
-      "kind": "prefix",
-      "path": "packages/mobile/src/features/pin/lib",
-      "prefix": "sanpo",
-      "value": 9,
-      "issue": "SS-257",
-      "reason": "構造の検査を入れた時点（SS-252）で既にあった。まとまりごとのサブフォルダへの分割は SS-257 で行う"
+      "issue": "SS-276",
+      "reason": "構造の検査を入れた時点（SS-252）で既にあった。history を領域で分けるのは SS-276 で行う（SS-257 から分けた）"
     }
   ]
 }

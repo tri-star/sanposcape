@@ -36,6 +36,7 @@ class ExploreRateLimiter:
 
     def allow(self, *, user_id: str | None, client_ip: str) -> bool:
         now = monotonic()
+        bucket_limits: tuple[tuple[str, int], ...]
         if user_id is None:
             bucket_limits = ((f"anonymous-ip:{client_ip}", self._anonymous_max_requests),)
         elif self._limit_authenticated_ip:

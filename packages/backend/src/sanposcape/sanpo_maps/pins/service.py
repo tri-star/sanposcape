@@ -25,7 +25,7 @@ from sanposcape.sanpo_maps.exceptions import (
     StorageQuotaExceededError,
 )
 from sanposcape.sanpo_maps.maps.access import SanpoMapAccess
-from sanposcape.sanpo_maps.models import PinPhotoUpload, PinTag
+from sanposcape.sanpo_maps.models import Pin, PinPhotoUpload, PinTag
 from sanposcape.sanpo_maps.permissions import (
     SanpoMapRole,
     can_add_pin,
@@ -72,6 +72,11 @@ from sanposcape.sanpo_maps.pins.schemas import (
     PinUpdate,
 )
 from sanposcape.sanpo_maps.pins.tag_labels import tag_key
+from sanposcape.sanpo_maps.pins.update_plan import (
+    PinFieldChanges,
+    RequestedPinUpdate,
+    plan_field_changes,
+)
 from sanposcape.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -80,7 +85,9 @@ logger = logging.getLogger(__name__)
 class PinService:
     """ピン(Pin)に関するユースケース。トランザクション境界（commit）はここが持つ。"""
 
-    def __init__(
+    # 引数の数（PLR0913）: 依存（repository・ストレージ等）と設定値を個別に受け取る。設定値は
+    # キーワード専用。生成は pins/dependencies.py とテストの部品だけ。ADR-017 の SS-258 追補を参照。
+    def __init__(  # noqa: PLR0913
         self,
         db: Session,
         repository: PinRepository,
@@ -437,17 +444,7 @@ class PinService:
         if result is None:
             raise PinNotFoundError()
         pin, role = result
-
-        fields_set = payload.model_fields_set
-        wants_name_update = "name" in fields_set
-        wants_memo_update = "memo" in fields_set
-        wants_visited_update = "visited" in fields_set
-        wants_archived_update = "archived" in fields_set
-        # `PinUpdate` が明示的な null を弾いているので、送られた値は UUID（静的には
-        # `UUID | None` のままなので、None でないことを条件に含めて絞り込む）。
-        target_sanpo_map_id = payload.sanpo_map_id if "sanpo_map_id" in fields_set else None
-        wants_tag_add = bool(payload.add_tags)
-        wants_tag_remove = bool(payload.remove_tag_ids)
+        requested = RequestedPinUpdate.from_payload(payload)
 
         # 移動先の member 確認（404）は権限（403）より前に確定させる（決定21・33）。
         # `target_role` は移動を求められたときだけ入る（None = 移動なし）。
@@ -455,30 +452,75 @@ class PinService:
             current_user,
             pin_sanpo_map_id=pin.sanpo_map_id,
             role=role,
-            target_sanpo_map_id=target_sanpo_map_id,
+            target_sanpo_map_id=requested.target_sanpo_map_id,
         )
-        wants_move = target_role is not None
+        # 権限の確認（この時点ではまだ何も変更しない。1つでも NG なら全体を 403）。
+        tags_to_remove = self._authorize_pin_update(
+            current_user, pin, payload, requested, role=role, target_role=target_role
+        )
 
-        # --- 権限チェック（この時点ではまだ何も変更しない。1つでも NG なら全体を 403） ---
+        # --- 適用: 削除 → 追加 → 件数チェック（決定20） ---
+        changes = plan_field_changes(pin, payload, requested)
+        tags_changed = self._apply_tag_changes(current_user, pin, requested, tags_to_remove)
+        if changes.any_changed or tags_changed:
+            self._repository.update_fields(
+                pin,
+                name=payload.name if requested.name else NOT_PROVIDED,
+                memo=payload.memo if requested.memo else NOT_PROVIDED,
+                visited=changes.visited if changes.visited is not None else NOT_PROVIDED,
+                archived=changes.archived if changes.archived is not None else NOT_PROVIDED,
+                sanpo_map_id=(
+                    changes.moved_to_sanpo_map_id
+                    if changes.moved_to_sanpo_map_id is not None
+                    else NOT_PROVIDED
+                ),
+                updated_at=self._now(),
+            )
+        if changes.moved_to_sanpo_map_id is not None:
+            # ピン行 → 地図行の順でロックする（`add_photos` と同じ。決定33）。
+            self._sanpo_map_access.mark_used(changes.moved_to_sanpo_map_id)
+
+        # commit 前に控える（R2: commit 後は ORM 属性に触れない）。
+        user_id = current_user.id
+        self._db.commit()
+        _log_pin_field_changes(pin_id, user_id, changes)
+
+        # `pin_id` は引数（commit の影響を受けない）をそのまま使う（R2）。
+        read_model = self._require_read_model(pin_id)
+        return self._to_pin_read(read_model, current_user, base_url)
+
+    def _authorize_pin_update(
+        self,
+        current_user: User,
+        pin: Pin,
+        payload: PinUpdate,
+        requested: RequestedPinUpdate,
+        *,
+        role: SanpoMapRole,
+        target_role: SanpoMapRole | None,
+    ) -> list[PinTag]:
+        """`update_pin` の権限を、送られたフィールドごとに確かめる（決定20・21・33・42）。
+
+        何も変更しない。1つでも権限が無ければ 403。戻り値は削除するタグ（権限の判定に要るので
+        ここで引く）。
+        """
         is_creator = pin.created_by_user_id == current_user.id
-        if (wants_name_update or wants_memo_update) and not can_update_pin(
-            role, is_creator=is_creator
+        if (requested.name or requested.memo) and not can_update_pin(role, is_creator=is_creator):
+            raise SanpoMapPermissionDeniedError()
+        if requested.visited and not can_update_pin_visited(role):
+            raise SanpoMapPermissionDeniedError()
+        if requested.archived and not can_update_pin_archived(role, is_creator=is_creator):
+            raise SanpoMapPermissionDeniedError()
+        if target_role is not None and not (
+            can_move_pin_from(role, is_creator=is_creator) and can_move_pin_to(target_role)
         ):
-            raise SanpoMapPermissionDeniedError()
-        if wants_visited_update and not can_update_pin_visited(role):
-            raise SanpoMapPermissionDeniedError()
-        if wants_archived_update and not can_update_pin_archived(role, is_creator=is_creator):
-            raise SanpoMapPermissionDeniedError()
-        if wants_move and not can_move_pin_from(role, is_creator=is_creator):
-            raise SanpoMapPermissionDeniedError()
-        if target_role is not None and not can_move_pin_to(target_role):
             raise SanpoMapPermissionDeniedError()
 
         tags_to_remove: list[PinTag] = []
-        if wants_tag_remove:
+        if requested.remove_tag_ids:
             # `pin_id` で絞るため、このピンに無い ID は黙って無視される（決定21）。
             tags_to_remove = self._repository.get_tags_by_ids(
-                pin_id=pin.id, tag_ids=payload.remove_tag_ids
+                pin_id=pin.id, tag_ids=requested.remove_tag_ids
             )
             for tag in tags_to_remove:
                 if not can_delete_pin_tag(
@@ -486,11 +528,12 @@ class PinService:
                 ):
                     raise SanpoMapPermissionDeniedError()
 
-        if wants_tag_add and not can_add_pin_tag(role):
+        if requested.add_tags and not can_add_pin_tag(role):
             raise SanpoMapPermissionDeniedError()
         # 移動先に移動元の全メンバーがいること（決定42）。role の 403 をすべて通った後に見る
         # （`code` 付きの 403 は「これさえ満たせば移せる」ときだけ返す）。同じ地図なら自明に
         # 満たすので問い合わせない。移動先の地図行は `_resolve_move_target` で握っている。
+        target_sanpo_map_id = requested.target_sanpo_map_id
         if (
             target_sanpo_map_id is not None
             and target_sanpo_map_id != pin.sanpo_map_id
@@ -499,94 +542,37 @@ class PinService:
             )
         ):
             raise PinMoveTargetMissingMembersError()
+        return tags_to_remove
 
-        # --- 適用: 削除 → 追加 → 件数チェック（決定20） ---
-        name_changed = wants_name_update and payload.name != pin.name
-        memo_changed = wants_memo_update and payload.memo != pin.memo
-        # `PinUpdate` が明示的な null を弾いているので、送られた値は bool（静的には
-        # `bool | None` のままなので、None でないことを条件に含めて絞り込む）。
-        new_visited = payload.visited if wants_visited_update else None
-        new_archived = payload.archived if wants_archived_update else None
-        visited_changed = new_visited is not None and new_visited != pin.visited
-        archived_changed = new_archived is not None and new_archived != pin.archived
-        from_sanpo_map_id = pin.sanpo_map_id  # commit 前に控える（R2）
-        # 実際に地図が変わるときだけ移動先の ID が入る（同じ地図への PATCH は変更なし）。
-        moved_to_sanpo_map_id = (
-            target_sanpo_map_id
-            if target_sanpo_map_id is not None and target_sanpo_map_id != from_sanpo_map_id
-            else None
-        )
-        map_changed = moved_to_sanpo_map_id is not None
-
+    def _apply_tag_changes(
+        self,
+        current_user: User,
+        pin: Pin,
+        requested: RequestedPinUpdate,
+        tags_to_remove: list[PinTag],
+    ) -> bool:
+        """タグを削除してから追加し、件数の上限を確かめる（決定20）。タグが変わったかを返す。"""
         if tags_to_remove:
             self._repository.delete_tags(tags_to_remove)
 
         added_tags: list[PinTag] = []
-        if wants_tag_add:
+        if requested.add_tags:
             # 削除の後の最新状態で重複判定する（削除・追加に同じラベルを含めた場合は
             # 付け替わる。既存の label_key はスキップして冪等にする）。
             existing_keys = {tag.label_key for tag in self._repository.list_tags(pin.id)}
             labels_to_add = [
-                label for label in payload.add_tags if tag_key(label) not in existing_keys
+                label for label in requested.add_tags if tag_key(label) not in existing_keys
             ]
             if labels_to_add:
                 added_tags = self._repository.add_tags(
                     pin_id=pin.id, created_by_user_id=current_user.id, labels=labels_to_add
                 )
 
-        if (wants_tag_add or tags_to_remove) and self._repository.count_tags(
+        if (requested.add_tags or tags_to_remove) and self._repository.count_tags(
             pin.id
         ) > PIN_TAGS_MAX_COUNT:
             raise PinTagLimitExceededError()
-
-        tags_changed = bool(added_tags) or bool(tags_to_remove)
-        if (
-            name_changed
-            or memo_changed
-            or visited_changed
-            or archived_changed
-            or map_changed
-            or tags_changed
-        ):
-            self._repository.update_fields(
-                pin,
-                name=payload.name if wants_name_update else NOT_PROVIDED,
-                memo=payload.memo if wants_memo_update else NOT_PROVIDED,
-                visited=new_visited if visited_changed else NOT_PROVIDED,
-                archived=new_archived if archived_changed else NOT_PROVIDED,
-                sanpo_map_id=(
-                    moved_to_sanpo_map_id if moved_to_sanpo_map_id is not None else NOT_PROVIDED
-                ),
-                updated_at=self._now(),
-            )
-        if moved_to_sanpo_map_id is not None:
-            # ピン行 → 地図行の順でロックする（`add_photos` と同じ。決定33）。
-            self._sanpo_map_access.mark_used(moved_to_sanpo_map_id)
-
-        # commit 前に控える（R2: commit 後は ORM 属性に触れない）。
-        user_id = current_user.id
-        self._db.commit()
-
-        if map_changed:
-            logger.info(
-                "Pin moved: pin_id=%s from_sanpo_map_id=%s to_sanpo_map_id=%s by user_id=%s",
-                pin_id,
-                from_sanpo_map_id,
-                moved_to_sanpo_map_id,
-                user_id,
-            )
-        if visited_changed or archived_changed:
-            logger.info(
-                "Pin status changed: pin_id=%s by user_id=%s visited=%s archived=%s",
-                pin_id,
-                user_id,
-                new_visited if visited_changed else None,
-                new_archived if archived_changed else None,
-            )
-
-        # `pin_id` は引数（commit の影響を受けない）をそのまま使う（R2）。
-        read_model = self._require_read_model(pin_id)
-        return self._to_pin_read(read_model, current_user, base_url)
+        return bool(added_tags) or bool(tags_to_remove)
 
     def _resolve_move_target(
         self,
@@ -783,4 +769,24 @@ class PinService:
             download_url_ttl_seconds=self._download_url_ttl_seconds,
             photos_limit=self._read_photos_limit,
             now=self._now(),
+        )
+
+
+def _log_pin_field_changes(pin_id: uuid.UUID, user_id: uuid.UUID, changes: PinFieldChanges) -> None:
+    """`update_pin` の commit 後の運用ログ（地図の移動と、訪問状況・アーカイブの変化）。"""
+    if changes.map_changed:
+        logger.info(
+            "Pin moved: pin_id=%s from_sanpo_map_id=%s to_sanpo_map_id=%s by user_id=%s",
+            pin_id,
+            changes.from_sanpo_map_id,
+            changes.moved_to_sanpo_map_id,
+            user_id,
+        )
+    if changes.visited_changed or changes.archived_changed:
+        logger.info(
+            "Pin status changed: pin_id=%s by user_id=%s visited=%s archived=%s",
+            pin_id,
+            user_id,
+            changes.visited,
+            changes.archived,
         )

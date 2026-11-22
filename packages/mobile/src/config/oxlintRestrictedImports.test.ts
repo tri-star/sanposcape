@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -33,8 +33,8 @@ const restricted = overrides.flatMap((override) => {
 const AUTH_GROUP_KEY = "@/store/useAuthSessionStore";
 const DEV_TOOLS_GROUP_KEY = "@/config/devTools";
 const REACT_NATIVE_GROUP_KEY = "react-native";
-const LIB_FILES = "src/features/*/lib/**";
-const AUTH_RESTRICTED_FEATURES = ["walk", "history", "pin"];
+const LIB_FILES = "src/features/**/lib/**";
+const AUTH_RESTRICTED_FEATURES = ["walk", "history", "sanpo-map"];
 const findPattern = (patterns: Pattern[], key: string) =>
   patterns.find((pattern) => pattern.group.includes(key));
 
@@ -89,7 +89,7 @@ describe(".oxlintrc.json の no-restricted-imports", () => {
       const libIndex = restricted.findIndex(({ files }) => files.includes(LIB_FILES));
       const lastForFeatureLib = restricted
         .map((override, index) => ({ ...override, index }))
-        .filter(({ files }) => files.includes(`src/features/${feature}/lib/**`))
+        .filter(({ files }) => files.includes(`src/features/${feature}/**/lib/**`))
         .at(-1);
       expect(lastForFeatureLib).toBeDefined();
       expect(lastForFeatureLib!.index).toBeGreaterThan(libIndex);
@@ -98,4 +98,30 @@ describe(".oxlintrc.json の no-restricted-imports", () => {
       }
     },
   );
+
+  // feature の名前を変えたとき（SS-260 で pin → sanpo-map）、lib/ 以外の範囲の override の files を直し忘れると、
+  // hooks/・components/ の認証の制限だけが黙って外れる。
+  it.each(AUTH_RESTRICTED_FEATURES)(
+    "features/%s/** 全体に認証と devTools の制限がある",
+    (feature) => {
+      // 定数と .oxlintrc.json の両方を直し忘れても通らないよう、feature のフォルダが実在することも確かめる。
+      expect(existsSync(path.resolve(__dirname, `../features/${feature}`)), feature).toBe(true);
+      const whole = restricted.find(({ files }) => files.includes(`src/features/${feature}/**`));
+      expect(whole).toBeDefined();
+      for (const key of [AUTH_GROUP_KEY, DEV_TOOLS_GROUP_KEY]) {
+        expect(findPattern(whole!.patterns, key), key).toBeDefined();
+      }
+    },
+  );
+
+  // `src/features/*/lib/**` の1段の `*` は、feature の中を領域で分けた `sanpo-map/pin/lib/**` に当たらず、
+  // 制限が黙って外れる（SS-260）。features の下の lib/ の glob は `**/lib/**` で書く。
+  it("features の下の lib/ の glob は深さに依存しない（`**/lib/**`）", () => {
+    const libGlobs = restricted
+      .filter(({ patterns }) => findPattern(patterns, REACT_NATIVE_GROUP_KEY) !== undefined)
+      .flatMap(({ files }) => files)
+      .filter((file) => file.startsWith("src/features/"));
+    expect(libGlobs.length).toBeGreaterThan(0);
+    for (const glob of libGlobs) expect(glob).toMatch(/\/\*\*\/lib\/\*\*$/);
+  });
 });

@@ -1,0 +1,77 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  PINS_QUERY_ROOT,
+  SANPO_MAPS_QUERY_KEY,
+  isPinsQueryOfSanpoMap,
+  pinDetailQueryKey,
+  pinListQueryKey,
+  pinPhotosQueryKey,
+  pinTagSuggestionsQueryKey,
+  sanpoMapPinsQueryKey,
+} from "@/features/sanpo-map/shared/lib/pinQueryKeys";
+import type { GeoBounds } from "@/features/sanpo-map/shared/types";
+
+const BOUNDS: GeoBounds = { south: 35.6, west: 139.7, north: 35.7, east: 139.8 };
+const FILTER = { archived: false } as const;
+
+describe("pinQueryKeys", () => {
+  it("すべて PINS_QUERY_ROOT[0] で始まる", () => {
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(pinDetailQueryKey("pin-1")[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(pinPhotosQueryKey("pin-1")[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(pinTagSuggestionsQueryKey("map-1")[0]).toBe(PINS_QUERY_ROOT[0]);
+  });
+
+  it("同じ引数なら同じ構造のキーになる", () => {
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)).toEqual(
+      pinListQueryKey("map-1", { ...BOUNDS }, { archived: false }),
+    );
+    expect(pinDetailQueryKey("pin-1")).toEqual(pinDetailQueryKey("pin-1"));
+    expect(pinPhotosQueryKey("pin-1")).toEqual(pinPhotosQueryKey("pin-1"));
+    expect(pinTagSuggestionsQueryKey("map-1")).toEqual(pinTagSuggestionsQueryKey("map-1"));
+  });
+
+  it("引数が異なれば異なる構造のキーになる", () => {
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)).not.toEqual(
+      pinListQueryKey("map-2", BOUNDS, FILTER),
+    );
+    // 絞り込みが違えば別のキャッシュ（SS-174）。
+    expect(pinListQueryKey("map-1", BOUNDS, FILTER)).not.toEqual(
+      pinListQueryKey("map-1", BOUNDS, {}),
+    );
+    expect(pinListQueryKey("map-1", BOUNDS, { visited: true })).not.toEqual(
+      pinListQueryKey("map-1", BOUNDS, { visited: false }),
+    );
+    expect(pinDetailQueryKey("pin-1")).not.toEqual(pinDetailQueryKey("pin-2"));
+    expect(pinTagSuggestionsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-2"));
+    expect(pinTagSuggestionsQueryKey(null)).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
+  });
+
+  it("sanpoMapPinsQueryKey は PINS_QUERY_ROOT で始まり、地図ごとに異なり、他のキーと衝突しない", () => {
+    expect(sanpoMapPinsQueryKey("map-1")[0]).toBe(PINS_QUERY_ROOT[0]);
+    expect(sanpoMapPinsQueryKey("map-1")).toEqual(sanpoMapPinsQueryKey("map-1"));
+    expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(sanpoMapPinsQueryKey("map-2"));
+    expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(pinDetailQueryKey("map-1"));
+    expect(sanpoMapPinsQueryKey("map-1")).not.toEqual(pinTagSuggestionsQueryKey("map-1"));
+  });
+});
+
+describe("isPinsQueryOfSanpoMap", () => {
+  it("その地図の一覧・全件・タグ候補のキーは対象", () => {
+    expect(isPinsQueryOfSanpoMap(pinListQueryKey("map-1", BOUNDS, FILTER), "map-1")).toBe(true);
+    expect(isPinsQueryOfSanpoMap(sanpoMapPinsQueryKey("map-1"), "map-1")).toBe(true);
+    expect(isPinsQueryOfSanpoMap(pinTagSuggestionsQueryKey("map-1"), "map-1")).toBe(true);
+  });
+
+  it("ほかの地図のキーは対象外", () => {
+    expect(isPinsQueryOfSanpoMap(pinListQueryKey("map-2", BOUNDS, FILTER), "map-1")).toBe(false);
+    expect(isPinsQueryOfSanpoMap(sanpoMapPinsQueryKey("map-2"), "map-1")).toBe(false);
+    expect(isPinsQueryOfSanpoMap(pinTagSuggestionsQueryKey(null), "map-1")).toBe(false);
+  });
+
+  it("ピン ID のキー（詳細・写真）と、ピン以外のキーは対象外", () => {
+    expect(isPinsQueryOfSanpoMap(pinDetailQueryKey("map-1"), "map-1")).toBe(false);
+    expect(isPinsQueryOfSanpoMap(SANPO_MAPS_QUERY_KEY, "map-1")).toBe(false);
+  });
+});

@@ -3,17 +3,17 @@ import { useCallback } from "react";
 
 import { isDevToolsEnabled } from "@/config/devTools";
 import { RecentWalksSection } from "@/features/history/components/RecentWalksSection";
-import { PinMapFilterControl } from "@/features/pin/components/PinMapFilterControl";
-import { RegisteredPinsMapLayer } from "@/features/pin/components/RegisteredPinsMapLayer";
+import { PinMapFilterControl } from "@/features/sanpo-map/pin/components/PinMapFilterControl";
+import { RegisteredPinsMapLayer } from "@/features/sanpo-map/pin/components/RegisteredPinsMapLayer";
 import {
   WalkActiveView,
   type WalkMapLayerActions,
-} from "@/features/walk/components/WalkActiveView";
+} from "@/features/walk/active/components/WalkActiveView";
 import type { MapRegion } from "@/lib/mapRegion";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
 /**
- * 散歩中（ナビタブ）。`features/walk` は `features/pin` を import しない規約を保つため、
+ * 散歩中（ナビタブ）。`features/walk` は `features/sanpo-map` を import しない規約を保つため、
  * 登録済みピンのレイヤー（`RegisteredPinsMapLayer`）の合成と認証値の注入はこのルートが担う
  * （SS-118。`docs/architecture-guideline.md`「認証の扱い」）。表示するピンの絞り込みのボタン（`PinMapFilterControl`）も
  * 同じ条件で地図のツール列（`mapTools`）に合成する（SS-174）。

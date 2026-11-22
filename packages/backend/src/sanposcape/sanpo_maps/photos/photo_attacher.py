@@ -178,9 +178,9 @@ class PhotoAttacher:
 
         if errors:
             # 503（ストレージ不調・時間切れ）を優先する。再送で回復しうるため。
-            for exc in errors:
-                if isinstance(exc, ObjectStorageUnavailableError):
-                    raise exc
+            for error in errors:
+                if isinstance(error, ObjectStorageUnavailableError):
+                    raise error
             raise errors[0]
 
         return [results[item.upload_id] for item in uploads]
@@ -234,9 +234,9 @@ class PhotoAttacher:
 
         if errors:
             # 503（ストレージ不調・時間切れ）を優先する。再送で回復しうるため。
-            for exc in errors:
-                if isinstance(exc, ObjectStorageUnavailableError):
-                    raise exc
+            for error in errors:
+                if isinstance(error, ObjectStorageUnavailableError):
+                    raise error
             raise errors[0]
 
     def cleanup_staging(self, prepared: list[PreparedPhoto], *, deadline_at: float) -> None:

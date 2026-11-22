@@ -2,10 +2,11 @@ import uuid
 import zlib
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import Select, and_, case, delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
@@ -19,6 +20,7 @@ from sanposcape.sanpo_maps.models import (
     SanpoMapIcon,
     SanpoMapMember,
 )
+from sanposcape.sanpo_maps.permissions import SanpoMapRole
 from sanposcape.users.models import User
 
 #: `pg_advisory_xact_lock(key1 int, key2 int)` の namespace（key1）。`photos/repository.py`
@@ -39,7 +41,7 @@ class SanpoMapMemberRow:
 
     user_id: uuid.UUID
     display_name: str | None
-    role: str
+    role: SanpoMapRole
     joined_at: datetime
 
 
@@ -85,7 +87,7 @@ class SanpoMapRepository:
             )
         )
 
-    def list_for_member(self, *, user_id: uuid.UUID) -> list[tuple[SanpoMap, str, bool]]:
+    def list_for_member(self, *, user_id: uuid.UUID) -> list[tuple[SanpoMap, SanpoMapRole, bool]]:
         """自分が member である地図を「自分の既定地図」→ `updated_at DESC, id DESC` で返す。
 
         各要素は（地図, 自分の role, 自分の `pins_visible`。SS-266）。
@@ -113,7 +115,7 @@ class SanpoMapRepository:
 
     def get_membership(
         self, *, user_id: uuid.UUID, sanpo_map_id: uuid.UUID
-    ) -> tuple[SanpoMap, str] | None:
+    ) -> tuple[SanpoMap, SanpoMapRole] | None:
         row = self._db.execute(
             self._membership_stmt(user_id=user_id, sanpo_map_id=sanpo_map_id)
         ).first()
@@ -121,7 +123,7 @@ class SanpoMapRepository:
 
     def get_membership_for_update(
         self, *, user_id: uuid.UUID, sanpo_map_id: uuid.UUID
-    ) -> tuple[SanpoMap, str] | None:
+    ) -> tuple[SanpoMap, SanpoMapRole] | None:
         """member 判定込みで地図を取得し、`sanpo_maps` 行を `FOR UPDATE` でロックする
         （`PATCH`/`DELETE /sanpo-maps/{sanpo_map_id}` 用, ADR-009 決定26）。
 
@@ -137,7 +139,7 @@ class SanpoMapRepository:
 
     def get_membership_for_key_share(
         self, *, user_id: uuid.UUID, sanpo_map_id: uuid.UUID
-    ) -> tuple[SanpoMap, str] | None:
+    ) -> tuple[SanpoMap, SanpoMapRole] | None:
         """ピンの移動先用（ADR-009 決定33）。member 判定込みで地図を取得し、`sanpo_maps` 行を
         `FOR KEY SHARE` でロックする。
 
@@ -166,7 +168,9 @@ class SanpoMapRepository:
         stmt = select(func.count()).where(SanpoMapMember.sanpo_map_id == sanpo_map_id)
         return int(self._db.scalar(stmt) or 0)
 
-    def add_member(self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, role: str) -> None:
+    def add_member(
+        self, *, sanpo_map_id: uuid.UUID, user_id: uuid.UUID, role: SanpoMapRole
+    ) -> None:
         """メンバーの行を足す（招待の受諾。認可済みの ID を受け取る）。"""
         self._db.add(SanpoMapMember(sanpo_map_id=sanpo_map_id, user_id=user_id, role=role))
         self._db.flush()
@@ -439,8 +443,14 @@ class SanpoMapRepository:
                 return None
             try:
                 with self._db.begin_nested():
-                    result = self._db.execute(
-                        update(SanpoMap).where(SanpoMap.id == candidate_id).values(is_default=True)
+                    # DML の結果は CursorResult（rowcount を持つ）。execute() の型は Result
+                    result = cast(
+                        CursorResult[Any],
+                        self._db.execute(
+                            update(SanpoMap)
+                            .where(SanpoMap.id == candidate_id)
+                            .values(is_default=True)
+                        ),
                     )
             except IntegrityError:
                 return None

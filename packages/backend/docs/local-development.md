@@ -26,6 +26,9 @@ docker compose exec api uv run ruff check
 # Format チェック
 docker compose exec api uv run ruff format --check
 
+# 型チェック（対象・設定は pyproject.toml の [tool.mypy]）
+docker compose exec api uv run mypy
+
 # テスト実行
 docker compose exec api uv run pytest
 ```

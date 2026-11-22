@@ -20,7 +20,7 @@ metadata:
 
 ## テストの手法: 模型サーバー
 
-hooks はテストできないので、判定は `lib/` に寄せ、`features/pin/lib/pinSaveRunner.test.ts` のように JS のクロージャで backend の枠の上限を再現した模型サーバーで検証する。
+hooks はテストできないので、判定は `lib/` に寄せ、`features/sanpo-map/pin/lib/pinSaveRunner.test.ts` のように JS のクロージャで backend の枠の上限を再現した模型サーバーで検証する。
 - 35枚・100枚・「他所の未使用枠で埋まっている」を固定する。「サーバーは成立・クライアントは例外」をフックで注入し、冪等な再開を固定する。
 - 削除が best-effort で失敗しうる資源（幽霊枠・予約・ロックなど）は、カウンタ + 判定関数への加算パラメータ（`nextPreuploadWork` の `extraHeldSlots`）+ 模型サーバーの `deleteUpload()` で検証する。
 

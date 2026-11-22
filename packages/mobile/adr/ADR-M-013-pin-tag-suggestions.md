@@ -90,7 +90,7 @@ backend の新しい API `GET /sanpo-maps/{sanpo_map_id}/tags` を使う（API �
   追加ボタンは残す（送信キーに気づかない人・スクリーンリーダー利用者の導線）。
 - **D10: 入力が変わったら前回のタグ追加エラーを消す。** 打ち直している間に
   「同じタグがすでにあります」が残らないようにする。
-- **D11: 配置は `features/pin/`（`PinTagEditor` + 新規 `PinTagSuggestions`）。** `components/ui`
+- **D11: 配置は `features/sanpo-map/pin/`（`PinTagEditor` + 新規 `PinTagSuggestions`）。** `components/ui`
   には上げない（使うのはピン機能だけ）。`Input` プリミティブには送信キー関連の optional props
   だけを足す。フィーチャーフラグは新設しない（登録画面ごと `pin_registration` で守られている）。
   （**SS-225 追補**: 最寄り駅のタグは新しい API を使うので `pin_station_tag` で包む。D16。）

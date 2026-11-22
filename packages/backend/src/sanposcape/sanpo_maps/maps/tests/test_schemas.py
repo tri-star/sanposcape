@@ -33,7 +33,7 @@ class TestSanpoMapCreate:
 
     @pytest.mark.parametrize("icon", EXPECTED_ICONS)
     def test_accepts_every_icon(self, icon: str) -> None:
-        assert SanpoMapCreate(name="地図", icon=icon).icon == SanpoMapIcon(icon)  # type: ignore[arg-type]
+        assert SanpoMapCreate(name="地図", icon=icon).icon == SanpoMapIcon(icon)
 
     @pytest.mark.parametrize("icon", [None, "unknown", "PIN", 1])
     def test_invalid_icon_is_rejected(self, icon: object) -> None:

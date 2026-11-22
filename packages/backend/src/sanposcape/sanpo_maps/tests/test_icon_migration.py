@@ -7,6 +7,9 @@
 
 import re
 from pathlib import Path
+from typing import cast
+
+from sqlalchemy import CheckConstraint, Table
 
 from sanposcape.sanpo_maps.models import SANPO_MAP_ICONS, SanpoMap
 
@@ -22,9 +25,14 @@ def _icons_in(check_sql: str) -> list[str]:
 
 
 def _model_check_sql() -> str:
-    constraints = [c for c in SanpoMap.__table__.constraints if c.name == "ck_sanpo_maps_icon"]
+    table = cast(Table, SanpoMap.__table__)
+    constraints = [
+        c
+        for c in table.constraints
+        if isinstance(c, CheckConstraint) and c.name == "ck_sanpo_maps_icon"
+    ]
     assert len(constraints) == 1
-    return str(constraints[0].sqltext)  # type: ignore[attr-defined]
+    return str(constraints[0].sqltext)
 
 
 def test_model_check_lists_every_icon_as_a_quoted_literal() -> None:

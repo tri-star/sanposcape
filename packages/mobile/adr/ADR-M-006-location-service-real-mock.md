@@ -11,7 +11,7 @@
 - **座標は自前の `GeoCoordinates` で表し、`expo-location` / `react-native-maps` の型に依存しない**。地図の表示領域も自前の `MapRegion` で扱う（本文: 決定）
 - **モードは `real` と `mock` の2つだけで、`dev` は作らない**。切り替えは `EXPO_PUBLIC_LOCATION_MODE` で、判定は `getLocationMode()` の1箇所に集約する。`"mock"` に完全一致したときだけ mock、それ以外は `real` にフォールバックする（本文: 決定）
 - **ネイティブモジュールを import するファイルを限定する**。`expo-location` は `location.real.ts` だけ、`expo-task-manager` は `backgroundLocationTask.ts` だけが import する（本文: 決定、SS-156 追補）
-- **初期化関数は持たない**。権限リクエストは、必要になった時点で画面側の hook（`src/hooks/useCurrentLocation.ts`）が行う。呼び出し側は `features/walk` / `features/pin`（本文: 決定、SS-124 追補）
+- **初期化関数は持たない**。権限リクエストは、必要になった時点で画面側の hook（`src/hooks/useCurrentLocation.ts`）が行う。呼び出し側は `features/walk` / `features/sanpo-map`（本文: 決定、SS-124 追補）
 - **エラーは `LocationError` / `LocationErrorCode` に正規化する**。分類は `instanceof` ではなく型ガードで行う。UI 文言は services 層の汎用の写像（`locationErrorMessage`）を残したうえで、拒否時だけ画面の文脈ごとに `src/components/location/locationNoticeMessage.ts` で決める（本文: 決定、SS-160 追補。[ADR-M-022](./ADR-M-022-location-permission-flow-and-approximate-location.md)）
 - **単体テストではバレルを import しない**。`createMockLocationService()` を直接注入する。mock の背景記録も real と同じ `createBackgroundSampleHub` を通す（本文: 決定、SS-156 追補）
 - **E2E（`preview`）は `EXPO_PUBLIC_LOCATION_MODE=mock` を焼き込む**。production に mock を入れないことは、リリース前チェックで確認する（本文: 決定、ネガティブな影響）
@@ -50,7 +50,7 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   設定しても反映タイミングがフレークになりやすい**。
 - 呼び出し側（`features/walk`）は地図表示にも座標を使うため、`expo-location` と
   `react-native-maps` のどちらの型に依存させるかという選択もある。
-  （SS-124 追補）呼び出し側は `features/pin`（ピンの地点選択画面）にも広がった。
+  （SS-124 追補）呼び出し側は `features/sanpo-map`（ピンの地点選択画面）にも広がった。
 
 ## 決定
 
@@ -70,8 +70,8 @@ M4「探索・散歩開始」で、散歩開始画面に現在地取得を結線
   （SS-156 追補）同様に `expo-task-manager` を import してよいのは `backgroundLocationTask.ts` のみ。
 - `initXxx()` のような初期化関数は持たない（`services/auth` との差分）。権限リクエストは画面側の
   hook（`features/walk/hooks/useCurrentLocation.ts`）が必要になった時点で行う。
-  （SS-124 追補）`useCurrentLocation` は `features/pin`（ピンの地点選択画面）からも使うため
-  `src/hooks/useCurrentLocation.ts` へ昇格した。呼び出し側は `features/walk` / `features/pin`。
+  （SS-124 追補）`useCurrentLocation` は `features/sanpo-map`（ピンの地点選択画面）からも使うため
+  `src/hooks/useCurrentLocation.ts` へ昇格した。呼び出し側は `features/walk` / `features/sanpo-map`。
 - エラーは `LocationError` / `LocationErrorCode`（`permission_denied` / `services_disabled` /
   `timeout` / `unavailable` / `unknown`）に正規化し、UI 文言へのマッピングを services 層に閉じる。
   分類は `instanceof` ではなく型ガード関数で行う（Hermes・トランスパイル環境で `instanceof` が

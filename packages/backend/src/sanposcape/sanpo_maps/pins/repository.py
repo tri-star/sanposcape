@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from sanposcape.sanpo_maps.models import Pin, PinPhoto, PinTag, SanpoMap, SanpoMapMember
+from sanposcape.sanpo_maps.permissions import SanpoMapRole
 from sanposcape.sanpo_maps.photos.photo_attacher import PreparedPhoto
 from sanposcape.sanpo_maps.pins.tag_labels import tag_key
 
@@ -63,7 +64,9 @@ class PinRepository:
         )
         return self._db.scalars(stmt).first()
 
-    def create(
+    # 引数の数（PLR0913）: 列をキーワード専用で受け取る（まとめる型は列を写すだけになる）。
+    # ADR-017 の SS-258 追補。
+    def create(  # noqa: PLR0913
         self,
         *,
         sanpo_map_id: uuid.UUID,
@@ -118,7 +121,7 @@ class PinRepository:
 
     def get_for_member_for_update(
         self, *, user_id: uuid.UUID, pin_id: uuid.UUID
-    ) -> tuple[Pin, str] | None:
+    ) -> tuple[Pin, SanpoMapRole] | None:
         """member 判定込みでピンを取得し、`pins` 行を `FOR UPDATE` でロックする。
 
         写真追加時の position 割り当ての同時実行競合を防ぐ（backend-plan.md 5.3 (5)）。
@@ -131,7 +134,9 @@ class PinRepository:
         row = self._db.execute(stmt).first()
         return None if row is None else (row[0], row[1])
 
-    def get_for_member(self, *, user_id: uuid.UUID, pin_id: uuid.UUID) -> tuple[Pin, str] | None:
+    def get_for_member(
+        self, *, user_id: uuid.UUID, pin_id: uuid.UUID
+    ) -> tuple[Pin, SanpoMapRole] | None:
         """member 判定込みでピンを取得する（ロックなし。閲覧 API・SS-112 の権限判定用）。
 
         `get_for_member_for_update()` と同じ JOIN で、`with_for_update` を付けない。
@@ -139,7 +144,9 @@ class PinRepository:
         row = self._db.execute(self._member_pin_stmt(user_id=user_id, pin_id=pin_id)).first()
         return None if row is None else (row[0], row[1])
 
-    def list_for_member(
+    # 引数の数（PLR0913）: 一覧の絞り込みの条件をキーワード専用で受け取る。
+    # ADR-017 の SS-258 追補。
+    def list_for_member(  # noqa: PLR0913
         self,
         *,
         user_id: uuid.UUID,

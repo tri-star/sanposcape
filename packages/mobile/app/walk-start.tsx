@@ -1,4 +1,4 @@
-import { WalkStartView } from "@/features/walk/components/WalkStartView";
+import { WalkStartView } from "@/features/walk/explore/components/WalkStartView";
 
 /**
  * 散歩開始画面（タブ外の全画面）。

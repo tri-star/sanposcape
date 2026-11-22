@@ -44,7 +44,7 @@ const useStyles = makeStyles((theme) => ({
   ルート線には `theme.map.route`（往路・既定の1本道ルート）と `theme.map.routeReturn`
   （周回ルートの復路。破線と併用して描き分ける、SS-33）がある。
   散歩中に歩いた軌跡は `theme.colors.accent` を半透明にした細い実線で、ルート線の上に重ねる
-  （`features/walk/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
+  （`features/walk/route/lib/walkTrailStyle.ts`。地図用のトークンは足していない、SS-168）。
   `Polyline` の `zIndex` は Apple Maps（iOS でキーを入れていないビルド）では効かず、座標が変わった線が一番上に来るため、
   重なり順に頼る見た目（下に太く敷いて縁取りに見せる等）にしない。
 - `lineHeight` / `letterSpacing` は `theme.typography.leading` / `tracking`（倍率・em）を
@@ -80,7 +80,8 @@ StatBlock / ProgressBar / Dialog / BottomSheet / Toast / MapPin / RoutePolyline 
 `WalkHistoryListView`（`walk-history`）/ `WalkDetailView`（`walk-history/[walkId]`）（SS-34）/
 `PinRegisterView`（`pins/new`。testID `pin-register-back`。入力ありの状態で戻ると破棄確認
 ダイアログを `onIntercept` で挟む。位置調整オーバーレイ（`PinLocationAdjustOverlay`。RN `Modal`
-ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124）/
+ではない画面内の View）を開いている間は、`onIntercept` で閉じる。SS-88 / SS-124。地図の作成ダイアログ
+（`SanpoMapCreateDialog`）を開いている間も `onIntercept` で閉じる（作成中は閉じずに消費する）。SS-117）/
 `PinDetailView`（`pins/[pinId]`。
 testID `pin-detail-back`。写真ビューア（`PinPhotoViewer`。RN `Modal` ではない画面内オーバーレイ）を
 開いている間は `onIntercept` で閉じる。SS-118。削除確認ダイアログを開いている間も `onIntercept` で閉じる（削除中は閉じない）。SS-119。
@@ -226,7 +227,7 @@ View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタン
    （バンドルサイズを1箇所で棚卸しするため）。名前はデザインと同じ kebab-case（例: `chevron-right`）で、
    使いたいアイコンが無ければ `src/components/ui/icon/iconRegistry.ts` に1行追加する。**絵文字は使わない**。
    - **例外**: 地図のアイコン（地図ごとに選ぶ13種類）は、Noto Emoji のカラー SVG を画像として描く
-     （`features/pin/components/SanpoMapIconArt.tsx`。文字としての絵文字ではない。SS-191 /
+     （`features/sanpo-map/map/components/SanpoMapIconArt.tsx`。文字としての絵文字ではない。SS-191 /
      [ADR-M-019](../adr/ADR-M-019-sanpo-map-icon-and-map-pin-shape.md) D8）。それ以外の UI のアイコンは従来どおり `Icon` を使う。
      同梱した素材のライセンス本文は設定の「ライセンス」画面（`features/settings/data/thirdPartyNotices.ts`）に載せる。
 6. **`accessibilityRole` / `accessibilityLabel` / `accessibilityState` を必ず設定する**。
@@ -277,7 +278,7 @@ View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタン
 
 **`src/api/client.ts` から到達する位置にネイティブ依存を新たに足したら、`vitest.config.ts` の
 `resolve.alias` にモックを追加すること**。さもないと `client.ts` を推移的に import する
-`features/*/api/*.test.ts` が全滅する（許容条件・実例は
+`features/**/api/*.test.ts` が全滅する（許容条件・実例は
 [architecture-guideline](./architecture-guideline.md) の単体テスト節を参照）。
 
 代わりに、**判定ロジックを `react-native` を値として import しない純粋関数に切り出して `.test.ts` でテストする**
@@ -286,7 +287,7 @@ View（`WalkHistoryListView` / `WalkDetailView`）の中では、戻るボタン
 `docs/architecture-guideline.md` の「UIとロジックの分離」方針と同じ考え方。
 
 また、`features/<feature>/data/` の静的スタブは「壊れていないこと」を `.test.ts` で守る。
-例: キーの網羅と表示メタ情報との整合（`data/categories.test.ts`）、
-代表値が計算ロジックと矛盾しないこと（`data/defaults.test.ts`）。
+例: キーの網羅と表示メタ情報との整合（`walk/explore/data/categories.test.ts`）、
+代表値が計算ロジックと矛盾しないこと（`walk/record/data/defaults.test.ts`）。
 スタブを手で書き換えたときの取りこぼしを CI で検知できるようにする（SS-9）。
 表示そのものの確認は上記の開発確認用ルート（`/dev-screens`）での目視に委ねる。

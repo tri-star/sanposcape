@@ -5,10 +5,11 @@ import logging
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.types import Message
 
 from sanposcape.auth.exceptions import AuthenticationError
 from sanposcape.core.middleware import RequestSizeLimitMiddleware
-from sanposcape.main import register_exception_handlers
+from sanposcape.exception_handlers import register_exception_handlers
 
 
 def test_users_router_registers_delete_me_operation() -> None:
@@ -178,7 +179,7 @@ def test_lifespan_logs_startup_and_shutdown_once_each(
 
 def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
     received_by_app: list[bytes] = []
-    sent: list[dict] = []
+    sent: list[Message] = []
     chunks = iter(
         [
             {"type": "http.request", "body": b"1234", "more_body": True},
@@ -196,7 +197,7 @@ def test_explore_size_limit_stops_chunked_body_without_content_length() -> None:
     async def receive() -> dict:
         return next(chunks)
 
-    async def send(message: dict) -> None:
+    async def send(message: Message) -> None:
         sent.append(message)
 
     scope = {"type": "http", "path": "/explore/places", "headers": []}

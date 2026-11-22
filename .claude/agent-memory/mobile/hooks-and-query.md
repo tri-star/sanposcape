@@ -92,7 +92,7 @@ SS-174 で実測: key を変えた直後の結果は `isPending: true`・`isPlac
 
 - 早期 return（例: 閉じるアニメーション後に `if (!mounted) return null;`）を持つコンポーネントでは、すべての hook を return より前に置く。oxlint は検出しなかった。
 - React Compiler が有効なので、oxlint の `react(preserve-manual-memoization)` 警告（exit code は 0）が出たら、軽い計算の `useMemo` / `useCallback` は外す。
-  残すのは `queryKey`・Query のオプション、`useEffect` の依存に渡すオブジェクト、本当に重い計算。参照実装: `features/pin/hooks/usePinRegister.ts`。
+  残すのは `queryKey`・Query のオプション、`useEffect` の依存に渡すオブジェクト、本当に重い計算。参照実装: `features/sanpo-map/pin/hooks/usePinRegister.ts`。
 - 派生 state の setState を effect に入れない件は `architecture-guideline.md`「hook 内での『1回だけの状態確定』パターン」が正本。
 
 Related: [[api-and-http]], [[pins-and-photos]], [[ts-rn-pitfalls]]

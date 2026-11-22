@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from sanposcape.dependencies import get_current_user
@@ -20,7 +22,7 @@ from sanposcape.users.models import User
 
 router = APIRouter(prefix="/explore", tags=["explore"])
 
-_ERROR_RESPONSES = {
+_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Not authenticated"},
     413: {"description": "Explore request body too large"},
     429: {"description": "Map provider quota exceeded or explore rate limit reached"},

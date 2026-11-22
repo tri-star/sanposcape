@@ -1,0 +1,531 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { PinListItemRead, PinPhotoRead, PinRead } from "@/api/generated/model";
+import {
+  combineRegisteredPinListQueries,
+  mergeRegisteredPinPages,
+  registeredPinsSignature,
+  resolveDisplayedRegisteredPins,
+  toPinDetail,
+  toPinListEntry,
+  toPinPhoto,
+  toPinSummary,
+  type PinListQueryOutcome,
+} from "@/features/sanpo-map/pin/lib/pinRead";
+import type { PinSummary } from "@/features/sanpo-map/shared/types";
+
+const API_BASE_URL_HTTPS = "https://api.sanposcape.example.com";
+const API_BASE_URL_HTTP = "http://10.0.2.2:8000";
+
+function photo(overrides: Partial<PinPhotoRead> = {}): PinPhotoRead {
+  return {
+    id: "photo-1",
+    upload_id: "up-1",
+    position: 0,
+    width: 2048,
+    height: 1536,
+    byte_size: 500_000,
+    content_type: "image/jpeg",
+    thumbnail: { url: "https://cdn.example.com/thumb.jpg", width: 256, height: 192 },
+    original_url: "https://cdn.example.com/original.jpg",
+    urls_expire_at: "2026-01-01T01:00:00.000Z",
+    uploaded_by_user_id: "user-1",
+    taken_at: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("toPinPhoto", () => {
+  it("https の thumbnail/original はそのまま通す", () => {
+    const result = toPinPhoto(photo(), { apiBaseUrl: API_BASE_URL_HTTPS });
+    expect(result.thumbnailUrl).toBe("https://cdn.example.com/thumb.jpg");
+    expect(result.originalUrl).toBe("https://cdn.example.com/original.jpg");
+  });
+
+  it("thumbnail が null なら thumbnailUrl は null", () => {
+    const result = toPinPhoto(photo({ thumbnail: null }), { apiBaseUrl: API_BASE_URL_HTTPS });
+    expect(result.thumbnailUrl).toBeNull();
+  });
+
+  it("original_url が null なら originalUrl は null", () => {
+    const result = toPinPhoto(photo({ original_url: null }), { apiBaseUrl: API_BASE_URL_HTTPS });
+    expect(result.originalUrl).toBeNull();
+  });
+
+  it("apiBaseUrl が http のとき同一 origin の http URL は通す", () => {
+    const result = toPinPhoto(
+      photo({
+        thumbnail: { url: "http://10.0.2.2:8000/dev-storage/thumb.jpg", width: 1, height: 1 },
+        original_url: "http://10.0.2.2:8000/dev-storage/original.jpg",
+      }),
+      { apiBaseUrl: API_BASE_URL_HTTP },
+    );
+    expect(result.thumbnailUrl).toBe("http://10.0.2.2:8000/dev-storage/thumb.jpg");
+    expect(result.originalUrl).toBe("http://10.0.2.2:8000/dev-storage/original.jpg");
+  });
+
+  it("apiBaseUrl が http のとき別ホストの http URL は null", () => {
+    const result = toPinPhoto(photo({ original_url: "http://evil.example.com/original.jpg" }), {
+      apiBaseUrl: API_BASE_URL_HTTP,
+    });
+    expect(result.originalUrl).toBeNull();
+  });
+
+  it("apiBaseUrl が https のとき http URL は null", () => {
+    const result = toPinPhoto(photo({ original_url: "http://cdn.example.com/original.jpg" }), {
+      apiBaseUrl: API_BASE_URL_HTTPS,
+    });
+    expect(result.originalUrl).toBeNull();
+  });
+
+  it("不正な URL 文字列は null", () => {
+    const result = toPinPhoto(photo({ original_url: "not a url" }), {
+      apiBaseUrl: API_BASE_URL_HTTPS,
+    });
+    expect(result.originalUrl).toBeNull();
+  });
+
+  it("width/height/position/id をそのまま保持する", () => {
+    const result = toPinPhoto(photo({ id: "photo-9", position: 3, width: 100, height: 200 }), {
+      apiBaseUrl: API_BASE_URL_HTTPS,
+    });
+    expect(result).toMatchObject({ id: "photo-9", position: 3, width: 100, height: 200 });
+  });
+
+  it("taken_at を takenAt に、created_at を uploadedAt に写す", () => {
+    const result = toPinPhoto(
+      photo({ taken_at: "2026-07-02T00:14:05Z", created_at: "2026-07-03T01:00:00Z" }),
+      { apiBaseUrl: API_BASE_URL_HTTPS },
+    );
+    expect(result.takenAt).toBe("2026-07-02T00:14:05Z");
+    expect(result.uploadedAt).toBe("2026-07-03T01:00:00Z");
+  });
+
+  it("taken_at が null なら takenAt は null", () => {
+    expect(
+      toPinPhoto(photo({ taken_at: null }), { apiBaseUrl: API_BASE_URL_HTTPS }).takenAt,
+    ).toBeNull();
+  });
+
+  it("taken_at のキーが無い（古い backend）なら takenAt は null", () => {
+    const legacy = { ...photo(), taken_at: undefined } as unknown as PinPhotoRead;
+    expect(toPinPhoto(legacy, { apiBaseUrl: API_BASE_URL_HTTPS }).takenAt).toBeNull();
+  });
+});
+
+describe("toPinSummary", () => {
+  const READ: PinListItemRead = {
+    id: "pin-1",
+    sanpo_map_id: "map-1",
+    name: "桜の木",
+    location: { latitude: 35.681236, longitude: 139.767125 },
+    tags: [],
+    cover_photo: null,
+    photo_count: 0,
+    created_by_user_id: "user-1",
+    visited: false,
+    archived: false,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("正常な座標なら変換する", () => {
+    expect(toPinSummary(READ)).toEqual({
+      id: "pin-1",
+      sanpoMapId: "map-1",
+      name: "桜の木",
+      location: { latitude: 35.681236, longitude: 139.767125 },
+      archived: false,
+    });
+  });
+
+  it("archived を写す。フィールドが無い古い backend の応答でも false になる（SS-174）", () => {
+    expect(toPinSummary({ ...READ, archived: true })?.archived).toBe(true);
+    const legacy: Partial<PinListItemRead> = { ...READ };
+    delete legacy.archived;
+    expect(toPinSummary(legacy as PinListItemRead)?.archived).toBe(false);
+  });
+
+  it("緯度91（不正座標）は null", () => {
+    expect(toPinSummary({ ...READ, location: { latitude: 91, longitude: 139.767125 } })).toBeNull();
+  });
+
+  it("name が null（名前なし）でも変換する", () => {
+    expect(toPinSummary({ ...READ, name: null })?.name).toBeNull();
+  });
+});
+
+describe("toPinListEntry", () => {
+  const READ: PinListItemRead = {
+    id: "pin-1",
+    sanpo_map_id: "map-1",
+    name: "桜の木",
+    location: { latitude: 35.681236, longitude: 139.767125 },
+    tags: [{ id: "tag-1", label: "桜", created_by_user_id: "user-1" }],
+    cover_photo: photo({ id: "cover-1" }),
+    photo_count: 3,
+    created_by_user_id: "user-1",
+    visited: false,
+    archived: false,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-02T00:00:00.000Z",
+  };
+
+  it("各項目を対応させて変換する", () => {
+    expect(toPinListEntry(READ, { apiBaseUrl: API_BASE_URL_HTTPS })).toEqual({
+      id: "pin-1",
+      name: "桜の木",
+      tags: [{ id: "tag-1", label: "桜", createdByUserId: "user-1" }],
+      coverPhoto: toPinPhoto(photo({ id: "cover-1" }), { apiBaseUrl: API_BASE_URL_HTTPS }),
+      photoCount: 3,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      visited: false,
+      archived: false,
+    });
+  });
+
+  it("visited / archived を写す。フィールドが無い古い backend の応答でも false になる", () => {
+    const options = { apiBaseUrl: API_BASE_URL_HTTPS };
+    const both = toPinListEntry({ ...READ, visited: true, archived: true }, options);
+    expect([both.visited, both.archived]).toEqual([true, true]);
+
+    // 古い backend（フィールド無し）を型を外して模す。
+    const legacy = { ...READ } as Partial<PinListItemRead>;
+    delete legacy.visited;
+    delete legacy.archived;
+    const entry = toPinListEntry(legacy as PinListItemRead, options);
+    expect([entry.visited, entry.archived]).toEqual([false, false]);
+  });
+
+  it("cover_photo が null なら coverPhoto は null", () => {
+    expect(
+      toPinListEntry({ ...READ, cover_photo: null }, { apiBaseUrl: API_BASE_URL_HTTPS }).coverPhoto,
+    ).toBeNull();
+  });
+
+  it("name が null でも変換する", () => {
+    expect(
+      toPinListEntry({ ...READ, name: null }, { apiBaseUrl: API_BASE_URL_HTTPS }).name,
+    ).toBeNull();
+  });
+
+  it("座標が不正でも落とさない", () => {
+    const entry = toPinListEntry(
+      { ...READ, location: { latitude: 91, longitude: 0 } },
+      { apiBaseUrl: API_BASE_URL_HTTPS },
+    );
+    expect(entry.id).toBe("pin-1");
+  });
+});
+
+describe("toPinDetail", () => {
+  const READ: PinRead = {
+    id: "pin-1",
+    client_pin_id: "client-1",
+    sanpo_map: { id: "map-1", name: "最初の地図", is_default: true },
+    name: null,
+    memo: null,
+    location: { latitude: 35.681236, longitude: 139.767125 },
+    tags: [{ id: "tag-1", label: "桜", created_by_user_id: "user-1" }],
+    photos: [photo()],
+    photo_count: 1,
+    created_by_user_id: "user-1",
+    client_walk_id: null,
+    visited: false,
+    archived: false,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("visited / archived を写す。フィールドが無い古い backend の応答でも false になる", () => {
+    const options = { apiBaseUrl: API_BASE_URL_HTTPS };
+    const both = toPinDetail({ ...READ, visited: true, archived: true }, options);
+    expect([both.visited, both.archived]).toEqual([true, true]);
+
+    const legacy = { ...READ } as Partial<PinRead>;
+    delete legacy.visited;
+    delete legacy.archived;
+    const detail = toPinDetail(legacy as PinRead, options);
+    expect([detail.visited, detail.archived]).toEqual([false, false]);
+  });
+
+  it("name / memo が null でも保持する", () => {
+    const detail = toPinDetail(READ, { apiBaseUrl: API_BASE_URL_HTTPS });
+    expect(detail.name).toBeNull();
+    expect(detail.memo).toBeNull();
+  });
+
+  it("tags を { id, label, createdByUserId } に変換する", () => {
+    const detail = toPinDetail(READ, { apiBaseUrl: API_BASE_URL_HTTPS });
+    expect(detail.tags).toEqual([{ id: "tag-1", label: "桜", createdByUserId: "user-1" }]);
+  });
+
+  it("作成者・アップロード者・地図 id を camelCase で写す（権限判定用）", () => {
+    const detail = toPinDetail(
+      {
+        ...READ,
+        created_by_user_id: "creator",
+        sanpo_map: { id: "map-9", name: "別の地図", is_default: false },
+        photos: [photo({ uploaded_by_user_id: "uploader" })],
+        tags: [{ id: "tag-2", label: "梅", created_by_user_id: "tagger" }],
+      },
+      { apiBaseUrl: API_BASE_URL_HTTPS },
+    );
+    expect(detail.createdByUserId).toBe("creator");
+    expect(detail.sanpoMapId).toBe("map-9");
+    expect(detail.photos[0]?.uploadedByUserId).toBe("uploader");
+    expect(detail.tags[0]?.createdByUserId).toBe("tagger");
+  });
+
+  it("sanpoMapName / photoCount / createdAt を保持する", () => {
+    const detail = toPinDetail(READ, { apiBaseUrl: API_BASE_URL_HTTPS });
+    expect(detail.sanpoMapName).toBe("最初の地図");
+    expect(detail.photoCount).toBe(1);
+    expect(detail.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(detail.photos).toHaveLength(1);
+  });
+});
+
+describe("mergeRegisteredPinPages", () => {
+  function pin(id: string): PinSummary {
+    return {
+      id,
+      sanpoMapId: "map-1",
+      name: null,
+      location: { latitude: 0, longitude: 0 },
+      archived: false,
+    };
+  }
+
+  it("複数地図の結合", () => {
+    const result = mergeRegisteredPinPages([
+      { pins: [pin("a")], hasMore: false },
+      { pins: [pin("b")], hasMore: false },
+    ]);
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("重複 id は最初に出たものだけ残す", () => {
+    const result = mergeRegisteredPinPages([
+      { pins: [pin("a")], hasMore: false },
+      { pins: [pin("a"), pin("b")], hasMore: false },
+    ]);
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b"]);
+  });
+
+  it("1つでも hasMore が true なら truncated true", () => {
+    const result = mergeRegisteredPinPages([
+      { pins: [pin("a")], hasMore: true },
+      { pins: [pin("b")], hasMore: false },
+    ]);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("undefined を含む配列は無視して結合する", () => {
+    const result = mergeRegisteredPinPages([undefined, { pins: [pin("a")], hasMore: false }]);
+    expect(result.pins.map((p) => p.id)).toEqual(["a"]);
+    expect(result.truncated).toBe(false);
+  });
+});
+
+describe("combineRegisteredPinListQueries", () => {
+  function pin(id: string): PinSummary {
+    return {
+      id,
+      sanpoMapId: "map-1",
+      name: null,
+      location: { latitude: 0, longitude: 0 },
+      archived: false,
+    };
+  }
+
+  function outcome(overrides: Partial<PinListQueryOutcome> = {}): PinListQueryOutcome {
+    return {
+      data: undefined,
+      isPlaceholderData: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: () => Promise.resolve(),
+      ...overrides,
+    };
+  }
+
+  it("pins・truncated は mergeRegisteredPinPages と同じ結果になる", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ data: { pins: [pin("a")], hasMore: true } }),
+      outcome({ data: { pins: [pin("b")], hasMore: false } }),
+    ]);
+    expect(result.pins.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("マージ結果の pin 要素は元の参照をそのまま返す（構造共有で参照を再利用できるように。ARCH-W1）", () => {
+    const pinA = pin("a");
+    const pinB = pin("b");
+    const outcomes = [
+      outcome({ data: { pins: [pinA], hasMore: false } }),
+      outcome({ data: { pins: [pinB], hasMore: false } }),
+    ];
+
+    const first = combineRegisteredPinListQueries(outcomes);
+    // 呼び出しごとに新しい配列（`useQueries` が毎レンダー生成する形を模す）を渡しても、
+    // 要素（pin オブジェクト自体）が変わっていなければ同じ参照が返ってくる。
+    const second = combineRegisteredPinListQueries(outcomes.map((o) => ({ ...o })));
+
+    expect(second.pins).not.toBe(first.pins);
+    expect(second.pins[0]).toBe(first.pins[0]);
+    expect(second.pins[1]).toBe(first.pins[1]);
+  });
+
+  it("プレースホルダの hasMore は settledTruncated に含めない", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ data: { pins: [pin("a")], hasMore: true }, isPlaceholderData: true }),
+    ]);
+    expect(result.truncated).toBe(true);
+    expect(result.settledTruncated).toBe(false);
+  });
+
+  it("プレースホルダでない hasMore は settledTruncated に含める", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ data: { pins: [pin("a")], hasMore: true }, isPlaceholderData: false }),
+    ]);
+    expect(result.settledTruncated).toBe(true);
+  });
+
+  it("いずれかが isPending なら anyPending は true", () => {
+    const result = combineRegisteredPinListQueries([
+      outcome({ isPending: true }),
+      outcome({ isPending: false }),
+    ]);
+    expect(result.anyPending).toBe(true);
+  });
+
+  it("最初に isError の地図の error を firstError にする", () => {
+    const error1 = new Error("boom-1");
+    const error2 = new Error("boom-2");
+    const result = combineRegisteredPinListQueries([
+      outcome({ isError: false }),
+      outcome({ isError: true, error: error1 }),
+      outcome({ isError: true, error: error2 }),
+    ]);
+    expect(result.firstError).toBe(error1);
+  });
+
+  it("isError が無ければ firstError は undefined", () => {
+    const result = combineRegisteredPinListQueries([outcome(), outcome()]);
+    expect(result.firstError).toBeUndefined();
+  });
+
+  it("refetchAll はすべての地図の refetch を呼ぶ", () => {
+    const refetchA = vi.fn().mockResolvedValue(undefined);
+    const refetchB = vi.fn().mockResolvedValue(undefined);
+    const result = combineRegisteredPinListQueries([
+      outcome({ refetch: refetchA }),
+      outcome({ refetch: refetchB }),
+    ]);
+
+    result.refetchAll();
+
+    expect(refetchA).toHaveBeenCalledTimes(1);
+    expect(refetchB).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveDisplayedRegisteredPins（SS-243）", () => {
+  const summary = (id: string): PinSummary => ({
+    id,
+    sanpoMapId: "map-1",
+    name: null,
+    location: { latitude: 35.68, longitude: 139.76 },
+    archived: false,
+  });
+  const previous = [summary("a"), summary("b")];
+  const current = [summary("c")];
+  const signature = registeredPinsSignature({ archived: false }, ["map-1"]);
+  const base = {
+    enabled: true,
+    anyPending: false,
+    failed: false,
+    boundsResolved: true,
+    signature,
+  };
+
+  /** 前提: 範囲だけ変えて取り直し中（結果はまだ空）。期待: 前の範囲のピンを描き、持っているものは変えない。 */
+  it("範囲だけが変わった取り直しの間は、前の範囲のピンを描く", () => {
+    const settled = { signature, pins: previous };
+    const result = resolveDisplayedRegisteredPins({ ...base, anyPending: true, pins: [], settled });
+    expect(result.displayed).toBe(previous);
+    expect(result.nextSettled).toBe(settled);
+  });
+
+  /** 前提: 取り直しが終わった。期待: 新しい結果を描き、それを持つ。 */
+  it("取り終えたら新しい結果を描いて持つ", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      pins: current,
+      settled: { signature, pins: previous },
+    });
+    expect(result.displayed).toBe(current);
+    expect(result.nextSettled).toEqual({ signature, pins: current });
+  });
+
+  /** 前提: 持っているものと同じ結果。期待: 同じ参照を返す（呼び出し側が setState を飛ばし、レンダーが収束する）。 */
+  it("結果が変わらなければ同じ参照を返す", () => {
+    const settled = { signature, pins: current };
+    expect(resolveDisplayedRegisteredPins({ ...base, pins: current, settled }).nextSettled).toBe(
+      settled,
+    );
+  });
+
+  /** 前提: 絞り込みを変えて取得中。期待: 前の条件のピンを描かない（SS-174 の「前の条件のピンが残らない」）。 */
+  it("絞り込みが変わった取得中は、前の条件のピンを描かない", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      anyPending: true,
+      signature: registeredPinsSignature({}, ["map-1"]),
+      pins: [],
+      settled: { signature, pins: previous },
+    });
+    expect(result.displayed).toEqual([]);
+  });
+
+  /** 前提: 地図の一覧が変わった（共有から外れた・消した）取得中。期待: 外れた地図のピンを描かない。 */
+  it("地図の一覧が変わった取得中は、前のピンを描かない", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      anyPending: true,
+      signature: registeredPinsSignature({ archived: false }, ["map-2"]),
+      pins: [],
+      settled: { signature, pins: previous },
+    });
+    expect(result.displayed).toEqual([]);
+  });
+
+  /** 前提: 通信しない状態（サインアウトを含む）。期待: 何も持たない（次の人に前の人のピンを出さない）。 */
+  it("enabled が false なら持っているものを捨てる", () => {
+    const result = resolveDisplayedRegisteredPins({
+      ...base,
+      enabled: false,
+      anyPending: true,
+      pins: [],
+      settled: { signature, pins: previous },
+    });
+    expect(result.nextSettled).toBeNull();
+    expect(result.displayed).toEqual([]);
+  });
+
+  /** 前提: 取得が失敗した・取得範囲が未確定。期待: その結果（空）を「取り終えた」として持たない。 */
+  it("失敗・取得範囲の未確定では持っているものを変えない", () => {
+    const settled = { signature, pins: previous };
+    expect(
+      resolveDisplayedRegisteredPins({ ...base, failed: true, pins: [], settled }).nextSettled,
+    ).toBe(settled);
+    expect(
+      resolveDisplayedRegisteredPins({ ...base, boundsResolved: false, pins: [], settled })
+        .nextSettled,
+    ).toBe(settled);
+  });
+});

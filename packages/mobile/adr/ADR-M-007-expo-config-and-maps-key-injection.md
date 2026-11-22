@@ -322,7 +322,7 @@ SS-79 追補にも反映した。
    （`appVariant.ts` は Vitest の対象）・`src/components/**`・feature の `components/`・`hooks/` が漏れ、相対 import も
    パターンをすり抜けたため、`src/**` 全体に広げた。判定は `app/` のルートで呼び、結果を props で渡す。
    oxlint は同じルールの override を後勝ちで置き換える（マージしない）ので、認証制限も受ける
-   `src/features/{walk,history,pin}/**` の override には devTools のパターンを再掲する。再掲のずれ（group・message の不一致、
+   `src/features/{walk,history,sanpo-map}/**`（SS-260 で `pin` を改めた）の override には devTools のパターンを再掲する。再掲のずれ（group・message の不一致、
    再掲漏れ）は `src/config/oxlintRestrictedImports.test.ts` が検出する。
 
 `src/services/auth/index.ts` の `!__DEV__`（mock モードの起動時ガード）は変えない。テスト専用の認証バイパスを
@@ -361,7 +361,7 @@ SS-79 追補にも反映した。
 
 ### 決定
 
-1. 散歩中の地図に、軌跡の点の数（`walk.points.length`）と JS スレッドの FPS を出す表示（`features/walk/components/WalkPerfDebugOverlay.tsx`）を置く。
+1. 散歩中の地図に、軌跡の点の数（`walk.points.length`）と JS スレッドの FPS を出す表示（`features/walk/active/components/WalkPerfDebugOverlay.tsx`）を置く。
    これは開発ツールとして扱い、決定2の `isDevToolsEnabled()` で表示可否を決める（development / E2E / staging で出て、production では出ない）。
    ビルドの種類で分けるのは表示可否だけで、散歩の挙動は変えない（決定6の範囲内）。
 2. `features/walk` は `src/config/devTools.ts` を import できない（決定8）ので、ルート `app/(tabs)/index.tsx` が判定し、`WalkActiveView` の
@@ -369,7 +369,7 @@ SS-79 追補にも反映した。
    （アカウントタブの `AccountActionBar.showScreenCatalog` と同じ形）。
 3. 置き場所は地図の左上（右上はツール列 `mapTools`、左下は凡例 `WalkRouteLegend`）。最初はボタンだけで、押すと数値のパネルになり、パネルを押すと閉じる。
    開閉の状態は保持しない。
-4. FPS は `requestAnimationFrame` の回数を 1 秒の窓で数え、経過時間で割る（`features/walk/lib/frameRate.ts`）。表示の更新は窓ごとに 1 回で、毎フレームは再描画しない。
+4. FPS は `requestAnimationFrame` の回数を 1 秒の窓で数え、経過時間で割る（`features/walk/active/lib/frameRate.ts`）。表示の更新は窓ごとに 1 回で、毎フレームは再描画しない。
    計測のフック（`useJsFrameRate`）は開いたパネルの中にだけあり、閉じている間は rAF を回さない。タブ画面はフォーカスを失ってもアンマウントされないため、
    `useFocusEffect` の後始末でパネルを閉じ、見えない間は計測しない（フォーカス中だけ購読する ADR-M-023 と同じ考え方）。
 5. 対象は JS 側の重さと点の数に絞る。地図のネイティブ描画の重さは測らない。

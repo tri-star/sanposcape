@@ -11,7 +11,7 @@ argument-hint: "<対象のパス（フォルダ / ファイル）> [plan]"
 - **行数を減らすためだけの分割はしない。** 次のどれかに当たる案は採らない。
   - 行数で機械的に半分にする（`part1`・`part2`、`a`〜`c`）
   - まとまりの名前が `common`・`misc`・`utils`・`helpers` のような、中身を言わない名前になる
-  - 分けた先同士が互いに import し合う（まとまりになっていない）
+  - 分けた先同士が互いに import し合う（まとまりになっていない）。ただし mobile の feature の直下の領域のフォルダ同士は除く（双方向の依存があるから1つの feature にまとめた領域。ADR-016 決定15）
   責務で分けられないなら、分けずに baseline（linter なら除外）に課題と理由を付けて載せるほうが正しい（ADR-016 決定5・ADR-017 決定3）。
 - **配置の規約は正本を読む。** この skill には書き写さない（ADR-014 決定2）。
   - mobile: `packages/mobile/docs/folder-structure.md`・`naming-conventions.md`（フォルダは kebab-case）、ADR-M-001
@@ -46,9 +46,15 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
 ## 段階2: 分け方の案を出す
 
 1. **まとまりに名前を付ける。** 名前で中身を言えるまとまりだけを作る。どのまとまりにも入らないもの、2つ以上のまとまりから使われるものは親（元の場所）に残す。
+   - **mobile の feature または領域の層のフォルダ（`components/`・`hooks/`・`lib/` …。`features/history/lib`・`features/sanpo-map/pin/lib` など）が閾値を超えたときは、層の下にサブフォルダを切らず、層より先に領域で分ける**
+     （`features/<feature>/<domain>/{components,hooks,lib,…}/`、領域の中なら `<domain>/<下位の領域>/lib/`。正本は ADR-M-001 決定2 と folder-structure.md）。まとまりは層ごとではなく、領域（画面の群・API・backend のモジュールに対応するもの）で探す。
+     このときの「親」は feature の直下の `shared/` で、置いてよいのは 2つ以上の領域から使い、持ち主の領域を1つに決められないものだけ。
+     他の領域から使われても持ち主が1つに決まるもの（地図のアイコン・ピンの状態の表示など）は持ち主の領域に置く（`shared/` を何でも置く場所にしない）。
 2. **依存の向きを確かめる。** サブフォルダ同士が循環しないようにする（mobile は `import/no-cycle` がファイルの単位で止めるが、フォルダの単位の循環は止めない）。
    親に残す共有のファイルは、サブフォルダを import しない。import するなら、使われる側も共有として親に残す（親 → 子 → 親の行き来が起きないようにする）。
-   別の単位に出す案は、依存が双方向なら採らない。中でサブフォルダに分けるか、共有する部分を先に昇格する（昇格の手順は正本にある）。
+   mobile の `shared/` も同じで、領域のフォルダを型だけでも import しない。
+   例外は mobile の feature の直下の領域のフォルダ同士で、互いに import してよい（ADR-016 決定15）。領域の中をさらにまとまりに分けるときは、この項のとおり循環させない。
+   別の単位（feature・モジュール）に出す案は、依存が双方向なら採らない。同じ単位の中で領域のフォルダに分けるか（mobile の feature）、共有する部分を先に昇格する（昇格の手順は正本にある）。
 3. **分けた後も検査が通るかを確かめる。** 各まとまりが閾値の内側か（フォルダのファイル数・接頭辞・行数）。接頭辞は、祖先のフォルダ名に含まれる語を、先頭から続く間だけ飛ばして数える（ADR-016 決定3・11）。
 4. **テストのファイルは、確かめる対象の単位で分ける。** エンドポイント・service の操作ごとに `test_<対象>.py`（例: `maps/tests/test_members_router.py`）。
    権限の表のように、操作をまたいで1つの規則を確かめるテストは、その規則の名前で1ファイルにする。
@@ -76,8 +82,8 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
 
 1. **移動は機能の変更と別のコミットにする**（`refactor(<domain>): ...`）。`git mv` で動かし、中身の変更（import の書き換え以外）を同じコミットに混ぜない。差分を機械的に読めるようにするため。
 2. **import を書き換える。** 文字列で書かれたパスも漏らさない（mobile の `vi.mock("...")`、backend の `mock.patch("...")`・`monkeypatch.setattr("...")`、JSDoc・コメントの中のパス）。
-   移動前のパスで grep して 0 件になったことを確かめる。量が多く意図が明確なら、[委譲のテンプレート](../task-workflow/references/delegation.md) に従ってサブエージェントに任せてよい。
-3. **検証する。** 各 package の `AGENTS.md` の完了前の確認（mobile は typecheck・lint・format:check・test、backend はコンテナ内の ruff・pytest）と、
+   移動前のパスで grep して 0 件になったことを確かめる。フルパスに加えて、解いた・動かしたサブフォルダの名前だけの相対の書き方（`lib/map-deletion/`・`pin 側` など）も grep する（SS-260 で漏れた）。分けたファイルは、ファイル名だけの書き方（docstring の「`test_router.py` の `TestX`」など）も grep する。`check-doc-references.py` はパスの形でない参照を見ない（SS-256 で漏れた）。量が多く意図が明確なら、[委譲のテンプレート](../task-workflow/references/delegation.md) に従ってサブエージェントに任せてよい。
+3. **検証する。** 各 package の `AGENTS.md` の完了前の確認（mobile は typecheck・lint・format:check・test、backend はコンテナ内の mypy・ruff・pytest）と、
    `python3 scripts/code-health/check-structure.py`。
 4. **baseline と除外を下げる。** 片付けた項目は `check-structure.py --baseline` で下げる（下げ忘れは警告だけで CI は通るので、必ず流す。ADR-016 決定4）。
    linter の除外を片付けたら、除外の行を消す（ruff・oxlint は使われなくなった除外を教えない。ADR-017 決定3）。
@@ -85,11 +91,26 @@ python3 scripts/code-health/check-structure.py --all              # 閾値と、
    なぜその分け方にしたかを残す価値があれば ADR に追補する（`adr-writing` skill）。移動前のパスを文書から引いているところは
    `python3 scripts/knowledge/check-doc-references.py` が見つける。
 
-## 試して分かったこと（SS-254）
+## 試して分かったこと（SS-254・SS-260・SS-257）
 
-- `packages/mobile/src/features/pin/lib`: `sanpoMap*` を別の feature に出す案は採らなかった。地図の画面がピンの読み込みの失敗・状態の表示・queryKey を使い、
-  ピンの登録・編集が地図の選択・アイコンを使う双方向の依存で、feature 同士は import しない規則（folder-structure.md）に反するため。`pin/lib/sanpo-map/` に分ける。
-  ピンタブと散歩中の地図で共有する絞り込み（`pinMapFilter`）は、名前は地図表示のまとまりに見えるが、親に残す queryKey・読み込みの変換から使われるので親に残した。
+- 旧 `features/pin/lib` <!-- doc-ref-ok: SS-260 で features/sanpo-map に改めた -->: `sanpoMap*` を別の feature に出す案は採らなかった。地図の画面がピンの読み込みの失敗・状態の表示・queryKey を使い、
+  ピンの登録・編集が地図の選択・アイコンを使う双方向の依存で、feature 同士は import しない規則（folder-structure.md）に反するため。
+  SS-254 の計画は `pin/lib/sanpo-map/`（層の下に領域）だったが、SS-260 で層より先に領域で分ける形に改め、feature を `features/sanpo-map` にして
+  `map/`（地図）・`invitation/`（招待）・`pin/`（ピン本体）・`shared/` の下に層を置いた（`features/sanpo-map/map/lib/` など）。
+  ピンタブと散歩中の地図で共有する絞り込み（`pinMapFilter`）は、名前は地図表示のまとまりに見えるが、queryKey・読み込みの変換から使われるのでピンの側に置いた。
+- SS-260: 地図・ピン・招待の割り振りは、ファイル名の頭（`sanpoMap*`）ではなく利用元で決めた。`SanpoMapSelector`・`sanpoMapChoices`（登録・編集で地図を選ぶ）・`SanpoMapPin`（マーカー）・
+  地図ごとのピンの表示・非表示（ピンタブの絞り込みのシートだけが使う）は、名前は地図でも使うのはピンなのでピンに置いた。
+  `shared/` に移すと、`shared/` のファイルが領域の型を import していた（`types.ts` → 写真の下書きの失敗、queryKey → 地図の絞り込みの条件）。型の置き場所を持ち主の領域・`shared/types.ts` に直して外した（移動とは別のコミット）。
+- SS-260: lint の lib/ の制限が `src/features/*/lib/**` の1段の `*` で書かれていて、領域の下の lib/ に当たらず黙って外れた。
+  フォルダを深くする分割では、`.oxlintrc.json` などパスの glob を使う設定を grep し、違反を入れて検出されることを確かめる。
+- SS-260: 旧 `types.ts` を `shared/types.ts` にそのまま移すと、1つの領域だけが使う型が残り、`shared/` の基準の最初の実例が基準を守らなくなった（レビューで指摘）。
+  型ごとに利用元の領域を数え、1つの領域だけの型はその領域の `types.ts` に分ける。
+- SS-260: 接頭辞の検査は feature 名の語も飛ばすので、`sanpo-map/pin/components` では `PinMap*` が `map` として数えられなくなった（ADR-016 決定15）。
+  feature 名に一般的な語を含むときは、検査に出ない集中があるものとして、材料（`survey-structure.py` の接頭辞・import）と中身で見る。
 - 同じ試行で、サブフォルダに分けても名前の頭（`sanpoMap`）が揃っているだけで接頭辞の検査が落ちる穴が見つかり、祖先のフォルダ名に含まれる語を続けて飛ばすように直した。
 - `pins/tests/test_router.py`: クラスごとの「叩くエンドポイントの回数」で、主に確かめる操作が分かれる。同じ地図を作るヘルパーが共有の `sanpo_maps/conftest.py` の `make_sanpo_map` と重複していた。
   訪問状況・アーカイブのクラス（作成・一覧・更新にまたがる1つの契約）を、最初は回数だけを見て更新のファイルに入れてしまい、レビューで規則の名前の1ファイルに直した。
+- SS-257（`features/walk`）: 層の1つ（`lib/`）だけが閾値を超えていても、feature の直下を領域と `shared/` だけにするため、`components/`・`hooks/`・`api/`・`data/`・`store/`・`types.ts` も含めて全体を動かした（約100ファイル）。
+  領域は API と画面の対応（`/explore/places` と開始画面・`/explore/routes/loop`・散歩中・`POST /walks` とサマリ）で決め、2つ以上の領域が使うファイルはまず持ち主を探して、決められないものだけを `shared/` に置いた。
+  import が `@/` の別名だけで書かれていたので、移動の対応表（旧 → 新）から `git mv` と文字列の置き換えを1つのスクリプトで行えた。文書・コメントの中のパスは、同じ対応表でフルパス（`features/walk/lib/<名前>`）だけを置き換え、
+  フォルダだけを指す書き方（`features/walk/store/`）は別に grep して手で直した。1つのファイルが2つの領域の値を持つとき（画面カタログの代表値）は、`shared/` に逃がさず領域ごとのファイルに分けた（移動とは別のコミット）。
