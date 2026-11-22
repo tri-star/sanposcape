@@ -38,6 +38,14 @@ function isSameSelection(a: SanpoMapSelection, b: SanpoMapSelection): boolean {
 }
 
 /**
+ * 地図を「保存先の選択」に写す。既定地図は default 選択として表す（何も触らずに保存したとき
+ * 送信内容とハイライトが一致するようにするため）。登録画面で作った地図を選ぶときも使う（SS-117）。
+ */
+export function toSanpoMapSelection(map: Pick<SanpoMap, "id" | "isDefault">): SanpoMapSelection {
+  return map.isDefault ? { kind: "default" } : { kind: "existing", sanpoMapId: map.id };
+}
+
+/**
  * 現在の選択を一覧に照らして解決する。既存地図を指していてその id が一覧に無い
  * （削除された）ときは default に戻す。選択肢の強調表示と候補の取得先の両方がこれを使う。
  */
@@ -56,8 +64,7 @@ export function resolveEffectiveSanpoMapSelection(input: {
  *
  * - `isDefault` の地図が無ければ（0件、または招待された地図だけ）、先頭に draft
  *   （未作成の「最初の地図」）を追加する。
- * - 各地図の `selection` は「既定地図は default 選択として表す」（何も触らずに保存したとき
- *   送信内容とハイライトが一致するようにするため）。
+ * - 各地図の `selection` は `toSanpoMapSelection`（既定地図は default 選択）。
  * - `selection`（呼び出し側が保持する現在の選択）が既存地図を指していて、その id が一覧に
  *   無い（削除された）場合は default 扱いに戻す。
  */
@@ -91,9 +98,7 @@ export function resolveSanpoMapChoices(input: {
   }
 
   for (const map of input.maps) {
-    const selection: SanpoMapSelection = map.isDefault
-      ? { kind: "default" }
-      : { kind: "existing", sanpoMapId: map.id };
+    const selection = toSanpoMapSelection(map);
     choices.push({
       key: map.id,
       label: map.name,
