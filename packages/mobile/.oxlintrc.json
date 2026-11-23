@@ -169,11 +169,6 @@
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
     },
     {
-      // SS-259: 開発用のカタログの画面が、並べる部品をすべて直接描いている（行数 213・依存 22）。
-      "files": ["src/features/design-system/components/DesignSystemGallery.tsx"],
-      "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
-    },
-    {
       // SS-259: 散歩の詳細の画面が、表示の状態ごとの描き分けを1つのコンポーネントで持っている（行数 204）。セクションに分ける。
       "files": ["src/features/history/components/WalkDetailView.tsx"],
       "rules": { "max-lines-per-function": "off" }
