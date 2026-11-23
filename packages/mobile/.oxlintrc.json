@@ -159,16 +159,6 @@
       }
     },
     {
-      // SS-259: 散歩マップの一覧・詳細・メンバーの画面が、表示・操作・ダイアログを1つのコンポーネントで扱っている
-      // （行数 212〜410・依存 21〜34）。SS-275（SS-257 から分けたピン本体の中の分割）と順序を合わせて分ける。
-      "files": [
-        "src/features/sanpo-map/map/components/SanpoMapDetailView.tsx",
-        "src/features/sanpo-map/map/components/SanpoMapListView.tsx",
-        "src/features/sanpo-map/map/components/SanpoMapMembersView.tsx"
-      ],
-      "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
-    },
-    {
       // SS-259: ピンのタブ・散歩の開始と散歩中の画面が、地図・シート・ダイアログの部品を直接組み立てている（依存 26・27）。
       "files": ["src/features/sanpo-map/pin/components/PinTabView.tsx"],
       "rules": { "import/max-dependencies": "off" }
