@@ -2,6 +2,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
 import { PinDetailView } from "@/features/sanpo-map/pin/components/PinDetailView";
+import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
+import { buildPinWalkStartParams } from "@/features/walk/explore/lib/pinWalkDestination";
 import { isUuid } from "@/lib/uuid";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
@@ -13,6 +15,9 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * Expo Router は静的ルート（`new`）を動的ルートより優先するため衝突しない。
  * 編集画面（`./edit.tsx`）と同じディレクトリに置くため、SS-119 で `[pinId].tsx` から移した
  * （pathname `/pins/[pinId]` は変わらない）。
+ *
+ * 「このピンまで散歩する」（SS-170）の遷移もここで作って注入する（features/sanpo-map は features/walk に依存しない）。
+ * 進行中の散歩があるときは注入しない（散歩中の地図からも詳細を開けるので、開始で上書きしないよう導線を出さない）。
  */
 export default function PinDetailRoute() {
   const router = useRouter();
@@ -22,6 +27,12 @@ export default function PinDetailRoute() {
   // 権限による導線の出し分け用。features/sanpo-map は認証ストアを import できないので、ここで読んで注入する。
   const currentUserId = useAuthSessionStore((state) => state.user?.id ?? null);
   const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
+  const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
+  const handleWalkToPin = useCallback(
+    (pin: Parameters<typeof buildPinWalkStartParams>[0]) =>
+      router.push({ pathname: "/walk-start", params: buildPinWalkStartParams(pin) }),
+    [router],
+  );
 
   return (
     <PinDetailView
@@ -29,6 +40,7 @@ export default function PinDetailRoute() {
       isSignedIn={isSignedIn}
       currentUserId={currentUserId}
       onSignIn={handleSignIn}
+      onWalkToPin={hasActiveWalk ? undefined : handleWalkToPin}
     />
   );
 }

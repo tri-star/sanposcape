@@ -7,15 +7,19 @@ import type { ExploreErrorCode } from "@/features/walk/explore/lib/exploreError"
 import { toRouteMinutes } from "@/features/walk/route/lib/walkRoute";
 import { walkRouteErrorMessage } from "@/features/walk/route/lib/walkRouteError";
 import { walkRouteLoopNote } from "@/features/walk/route/lib/walkRouteLegs";
-import type { SpotCandidate } from "@/features/walk/explore/types";
 import type { WalkRoute } from "@/features/walk/route/types";
 import { toKilometers } from "@/lib/units";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
 
 export type WalkRouteSummaryProps = {
-  /** 呼び出し側で null チェック済みのものを渡す。 */
-  spot: SpotCandidate;
+  /** 目的地の表示名（スポットの名前、またはピンの名前）。 */
+  destinationName: string;
+  /**
+   * ルートが届く前に出す往復の目安（分。`/explore/places` のスナップショット）。
+   * ピンを目的地にしたとき（SS-170）は探索をしないので無い（null）。
+   */
+  roundTripMinutes: number | null;
   walkRoute: WalkRoute | null;
   isLoading: boolean;
   errorCode: ExploreErrorCode | null;
@@ -29,7 +33,8 @@ export type WalkRouteSummaryProps = {
  * ready 状態でのみ `${testID}-ready` が存在する（E2E が「散歩を始める」を押せる状態を待つために使う）。
  */
 export function WalkRouteSummary({
-  spot,
+  destinationName,
+  roundTripMinutes,
   walkRoute,
   isLoading,
   errorCode,
@@ -68,7 +73,7 @@ export function WalkRouteSummary({
         <Icon name="flag" size={18} color={theme.colors.primary} />
         <View style={styles.text}>
           <Text style={styles.label}>目的地</Text>
-          <Text style={styles.name}>{spot.name}</Text>
+          <Text style={styles.name}>{destinationName}</Text>
         </View>
         <View style={styles.timeColumn} testID={`${testID}-ready`}>
           <Text style={styles.time}>
@@ -88,15 +93,17 @@ export function WalkRouteSummary({
   }
 
   // walkRoute がまだ無い（未取得・エラー前の初期状態）ときは、探索結果由来の
-  // `spot.roundTripMinutes`（/explore/places のスナップショット）を暫定表示する。
+  // `roundTripMinutes`（/explore/places のスナップショット）を暫定表示する（無ければ名前だけ）。
   return (
     <View style={styles.root} testID={testID}>
       <Icon name="flag" size={18} color={theme.colors.primary} />
       <View style={styles.text}>
         <Text style={styles.label}>目的地</Text>
-        <Text style={styles.name}>{spot.name}</Text>
+        <Text style={styles.name}>{destinationName}</Text>
       </View>
-      <Text style={styles.time}>往復の目安 {spot.roundTripMinutes}分</Text>
+      {roundTripMinutes !== null ? (
+        <Text style={styles.time}>往復の目安 {roundTripMinutes}分</Text>
+      ) : null}
     </View>
   );
 }

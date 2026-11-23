@@ -33,8 +33,10 @@ export function useSpotCandidates(input: {
   origin: GeoCoordinates | null;
   durationMin: number;
   categories: readonly ExploreCategory[];
+  /** false なら探索しない（ピンを目的地にして開いた散歩開始画面。SS-170）。既定は true。 */
+  enabled?: boolean;
 }): UseSpotCandidatesResult {
-  const request = buildPlaceSearchRequest(input);
+  const request = input.enabled === false ? null : buildPlaceSearchRequest(input);
 
   const query = useQuery({
     queryKey: ["explore", "places", request],
