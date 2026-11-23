@@ -92,7 +92,7 @@ export function WalkStartView({ pinDestination = null }: WalkStartViewProps) {
         // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
         clientWalkId: randomUuidV4(),
         origin,
-        // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
+        // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot、またはピン由来）を公開してもらったものをそのまま使う
         // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
         destination,
         loopMinutes: toRouteMinutes(walkRoute.durationSeconds),
