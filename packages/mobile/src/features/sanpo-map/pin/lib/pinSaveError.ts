@@ -1,5 +1,8 @@
-import { getApiErrorCode, isApiError } from "@/api/apiError";
-import { toPhotoUploadErrorCode } from "@/features/sanpo-map/pin/lib/photoUploadError";
+import { type ApiError, getApiErrorCode, isApiError } from "@/api/apiError";
+import {
+  type PhotoUploadErrorCode,
+  toPhotoUploadErrorCode,
+} from "@/features/sanpo-map/pin/lib/photoUploadError";
 import type { PinSaveProgress } from "@/features/sanpo-map/pin/types";
 
 /**
@@ -76,56 +79,52 @@ export function toPinSaveErrorCode(error: unknown): PinSaveErrorCode {
   if (isPhotoSlotsBusyError(cause)) {
     return "photo_slots_busy";
   }
-
   if (isApiError(cause)) {
-    if (cause.status >= 500) {
-      return cause.status === 503 ? "storage_unavailable" : "server";
-    }
-    switch (cause.status) {
-      case 401:
-        return "unauthorized";
-      case 403:
-        return "forbidden";
-      case 404:
-        return "sanpo_map_not_found";
-      case 409:
-        return getApiErrorCode(cause) === "storage_quota_exceeded"
-          ? "quota_exceeded"
-          : "photo_not_ready";
-      case 413:
-      case 422:
-        return "invalid_request";
-      default:
-        return "unknown";
-    }
+    return apiErrorToPinSaveErrorCode(cause);
   }
-
   if (cause instanceof TypeError) {
     return "network";
   }
-
   // 写真送信由来の例外（S3UploadError / PhotoError 等）は写真アップロードの分類器に委ねる。
-  const photoCode = toPhotoUploadErrorCode(cause);
-  switch (photoCode) {
-    case "too_large":
-    case "processing_failed":
-    case "invalid_upload_url":
-      return "photo_rejected";
-    case "server":
-    case "storage_unavailable":
-      return photoCode;
-    case "expired":
-    case "network":
-      // 期限切れ（署名の有効期限切れ）は新しい枠を取り直せば回復するため network と同様に扱う。
-      return "network";
-    case "unauthorized":
-      return "unauthorized";
-    case "quota_exceeded":
-      return "quota_exceeded";
-    default:
-      return "unknown";
-  }
+  return PHOTO_UPLOAD_TO_PIN_SAVE[toPhotoUploadErrorCode(cause)] ?? "unknown";
 }
+
+/** API の応答の失敗を分類する。5xx は 503 だけ保存先の一時的な停止として分ける。 */
+function apiErrorToPinSaveErrorCode(cause: ApiError): PinSaveErrorCode {
+  if (cause.status >= 500) {
+    return cause.status === 503 ? "storage_unavailable" : "server";
+  }
+  if (cause.status === 409) {
+    return getApiErrorCode(cause) === "storage_quota_exceeded"
+      ? "quota_exceeded"
+      : "photo_not_ready";
+  }
+  return API_STATUS_TO_PIN_SAVE[cause.status] ?? "unknown";
+}
+
+const API_STATUS_TO_PIN_SAVE: Partial<Record<number, PinSaveErrorCode>> = {
+  401: "unauthorized",
+  403: "forbidden",
+  404: "sanpo_map_not_found",
+  413: "invalid_request",
+  422: "invalid_request",
+};
+
+/**
+ * 写真送信の分類から保存の分類への写し。再試行しても同じもの → `photo_rejected`。
+ * 期限切れ（署名の有効期限切れ）は新しい枠を取り直せば回復するため network と同様に扱う。
+ */
+const PHOTO_UPLOAD_TO_PIN_SAVE: Partial<Record<PhotoUploadErrorCode, PinSaveErrorCode>> = {
+  too_large: "photo_rejected",
+  processing_failed: "photo_rejected",
+  invalid_upload_url: "photo_rejected",
+  server: "server",
+  storage_unavailable: "storage_unavailable",
+  expired: "network",
+  network: "network",
+  unauthorized: "unauthorized",
+  quota_exceeded: "quota_exceeded",
+};
 
 type PinSaveMessages = Record<PinSaveErrorCode, { create: string; add_photos: string }>;
 

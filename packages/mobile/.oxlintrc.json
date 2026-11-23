@@ -179,16 +179,6 @@
       "rules": { "max-lines-per-function": "off" }
     },
     {
-      // SS-259: 保存の失敗をエラーコードへ読み替える分岐を1関数に並べている（複雑度 23）。表で引く形にできるか見る。
-      "files": ["src/features/sanpo-map/pin/lib/pinSaveError.ts"],
-      "rules": { "complexity": "off" }
-    },
-    {
-      // SS-259: 入力欄が種類・状態ごとの見た目の分岐を1つのコンポーネントで持っている（複雑度 21）。
-      "files": ["src/components/ui/input/Input.tsx"],
-      "rules": { "complexity": "off" }
-    },
-    {
       // SS-259: 開発用のカタログの画面が、並べる部品をすべて直接描いている（行数 213・依存 22）。
       "files": ["src/features/design-system/components/DesignSystemGallery.tsx"],
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
