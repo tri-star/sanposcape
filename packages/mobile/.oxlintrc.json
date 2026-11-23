@@ -144,68 +144,48 @@
       "files": ["src/components/ui/icon/iconRegistry.ts"],
       "rules": { "import/max-dependencies": "off" }
     },
+    // SS-282（SS-259 の残り）: ピンの画面は、入力・写真・地図・保存の状態を1つのコンポーネントで扱っている。
+    // pin/components は構造の検査の baseline（32）ちょうどで、部品のファイルを足すと落ちるため、
+    // SS-275 で pin を下位の領域に分けた後に分ける。据え置きの間に悪化しないよう、"off" ではなく
+    // SS-259 の時点の実測値を上限にする（ADR-017 SS-259 追補。片付けたら行を消し、値は上げない）。
     {
-      // SS-259: ピンの登録・編集・詳細の画面は、入力・写真・地図・保存の状態を1つのコンポーネントで扱っている
-      // （複雑度 21〜30・行数 218〜395・依存 29〜37）。セクションのコンポーネントと hook に分ける。
-      "files": [
-        "src/features/sanpo-map/pin/components/PinDetailView.tsx",
-        "src/features/sanpo-map/pin/components/PinEditView.tsx",
-        "src/features/sanpo-map/pin/components/PinRegisterView.tsx"
-      ],
+      "files": ["src/features/sanpo-map/pin/components/PinDetailView.tsx"],
       "rules": {
-        "complexity": "off",
-        "max-lines-per-function": "off",
-        "import/max-dependencies": "off"
+        "complexity": ["error", { "max": 21 }],
+        "max-lines-per-function": [
+          "error",
+          { "max": 399, "skipBlankLines": true, "skipComments": true }
+        ],
+        "import/max-dependencies": ["error", { "max": 37, "ignoreTypeImports": true }]
       }
     },
     {
-      // SS-259: 散歩マップの一覧・詳細・メンバーの画面が、表示・操作・ダイアログを1つのコンポーネントで扱っている
-      // （行数 212〜410・依存 21〜34）。SS-275（SS-257 から分けたピン本体の中の分割）と順序を合わせて分ける。
-      "files": [
-        "src/features/sanpo-map/map/components/SanpoMapDetailView.tsx",
-        "src/features/sanpo-map/map/components/SanpoMapListView.tsx",
-        "src/features/sanpo-map/map/components/SanpoMapMembersView.tsx"
-      ],
-      "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
+      "files": ["src/features/sanpo-map/pin/components/PinEditView.tsx"],
+      "rules": {
+        "complexity": ["error", { "max": 22 }],
+        "max-lines-per-function": [
+          "error",
+          { "max": 340, "skipBlankLines": true, "skipComments": true }
+        ],
+        "import/max-dependencies": ["error", { "max": 29, "ignoreTypeImports": true }]
+      }
     },
     {
-      // SS-259: ピンの編集の hook が、取得・下書き・保存の状態を1つの hook で持っている（行数 221・複雑度 21）。
-      "files": ["src/features/sanpo-map/pin/hooks/usePinEdit.ts"],
-      "rules": { "complexity": "off", "max-lines-per-function": "off" }
+      "files": ["src/features/sanpo-map/pin/components/PinRegisterView.tsx"],
+      "rules": {
+        "complexity": ["error", { "max": 31 }],
+        "max-lines-per-function": [
+          "error",
+          { "max": 288, "skipBlankLines": true, "skipComments": true }
+        ],
+        "import/max-dependencies": ["error", { "max": 30, "ignoreTypeImports": true }]
+      }
     },
     {
-      // SS-259: ピンの写真の hook が、写真の状態と転送の処理を1つの hook で持っている（行数 213）。責務ごとに分ける。
-      "files": ["src/features/sanpo-map/pin/hooks/usePinPhotos.ts"],
-      "rules": { "max-lines-per-function": "off" }
-    },
-    {
-      // SS-259: 保存の失敗をエラーコードへ読み替える分岐を1関数に並べている（複雑度 23）。表で引く形にできるか見る。
-      "files": ["src/features/sanpo-map/pin/lib/pinSaveError.ts"],
-      "rules": { "complexity": "off" }
-    },
-    {
-      // SS-259: 入力欄が種類・状態ごとの見た目の分岐を1つのコンポーネントで持っている（複雑度 21）。
-      "files": ["src/components/ui/input/Input.tsx"],
-      "rules": { "complexity": "off" }
-    },
-    {
-      // SS-259: 開発用のカタログの画面が、並べる部品をすべて直接描いている（行数 213・依存 22）。
-      "files": ["src/features/design-system/components/DesignSystemGallery.tsx"],
-      "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
-    },
-    {
-      // SS-259: 散歩の詳細の画面が、表示の状態ごとの描き分けを1つのコンポーネントで持っている（行数 204）。セクションに分ける。
-      "files": ["src/features/history/components/WalkDetailView.tsx"],
-      "rules": { "max-lines-per-function": "off" }
-    },
-    {
-      // SS-259: ピンのタブ・散歩の開始と散歩中の画面が、地図・シート・ダイアログの部品を直接組み立てている（依存 26・27）。
-      "files": [
-        "src/features/sanpo-map/pin/components/PinTabView.tsx",
-        "src/features/walk/active/components/WalkActiveView.tsx",
-        "src/features/walk/explore/components/WalkStartView.tsx"
-      ],
-      "rules": { "import/max-dependencies": "off" }
+      "files": ["src/features/sanpo-map/pin/components/PinTabView.tsx"],
+      "rules": {
+        "import/max-dependencies": ["error", { "max": 31, "ignoreTypeImports": true }]
+      }
     }
   ]
 }
