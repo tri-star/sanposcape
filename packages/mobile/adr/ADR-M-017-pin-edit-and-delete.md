@@ -223,7 +223,7 @@ backend が「移動先の地図に、移動元の地図の全メンバーが参
 - **候補は `GET /pins/{pin_id}/move-targets` で取る**（`fetchPinMoveTargets`。`pinMoveTargetsQueryKey` は `["pins", ...]` 配下なので、保存成功時の
   `PINS_QUERY_ROOT` の invalidate で取り直される）。地図を変える権限（`canChangeSanpoMap`）があるときだけ取る。地図ごとに `missingMembers`
   （今の地図のメンバーで、その地図に参加していない人）と `addedMembers`（その地図にだけいる人）が返る。hook を新しいファイルにせず `usePinEdit` の中で
-  `useQuery` する（当時の `features/pin/hooks` はフォルダのファイル数の上限にかかっていた。SS-257。SS-260 で地図の hook を `features/sanpo-map/map/hooks` に分けて上限の内側になった）。**SS-259 注記**: oxlint の関数の複雑度・長さ（ADR-017）を満たすため、「地図」欄の状態（この取得・移せない地図・選択肢）は `usePinEditSanpoMap` に、タグ欄は `usePinEditTags` に分けた。`usePinEdit` から呼ぶ）。
+  `useQuery` する（当時の `features/pin/hooks` はフォルダのファイル数の上限にかかっていた。SS-257。SS-260 で地図の hook を `features/sanpo-map/map/hooks` に分けて上限の内側になった）。**SS-259 注記**: oxlint の関数の複雑度・長さ（ADR-017）を満たすため、「地図」欄の状態（この取得・移せない地図・選択肢）は `usePinEditSanpoMap` に、タグ欄は `usePinEditTags` に分けた。`usePinEdit` から呼ぶ。
 - **`missingMembers` が1人でもいる地図のチップは押せなくし（`Tag` に `disabled` を足した）、チップの下に地図ごとの理由を出す**:
   「「{地図名}」には、{名前}さんが参加していないため、移せません」（`pinEditSanpoMapUnavailableNote`）。名前は「・」で3人まで並べ、超えた分と表示名の無い人は
   「ほかN人」にする。全員が表示名なしなら「メンバーN人」（`formatPinMoveMemberNames`）。移動する人は両方の地図のメンバーなので名前を見せても漏れない（決定42）。
