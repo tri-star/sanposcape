@@ -1,24 +1,27 @@
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Badge } from "@/components/ui/badge/Badge";
 import { BottomSheet } from "@/components/ui/bottom-sheet/BottomSheet";
 import { Button } from "@/components/ui/button/Button";
 import { Card } from "@/components/ui/card/Card";
 import { Checkbox } from "@/components/ui/checkbox/Checkbox";
 import { Dialog } from "@/components/ui/dialog/Dialog";
-import { Icon } from "@/components/ui/icon/Icon";
-import { IconButton } from "@/components/ui/icon-button/IconButton";
-import { Input } from "@/components/ui/input/Input";
-import { MapPin } from "@/components/ui/map-pin/MapPin";
-import { ProgressBar } from "@/components/ui/progress-bar/ProgressBar";
-import { StatBlock } from "@/components/ui/stat-block/StatBlock";
 import { Switch } from "@/components/ui/switch/Switch";
 import { TabBar } from "@/components/ui/tab-bar/TabBar";
 import { Tabs } from "@/components/ui/tabs/Tabs";
-import { Tag } from "@/components/ui/tag/Tag";
 import { Toast } from "@/components/ui/toast/Toast";
+import {
+  BadgeTagSection,
+  ButtonSection,
+  FormSection,
+  IconButtonSection,
+  IconSection,
+  MapPinSection,
+  Row,
+  Section,
+  StatSection,
+} from "@/features/design-system/components/DesignSystemGallerySections";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme, useThemeMode } from "@/theme/useTheme";
 
@@ -33,20 +36,7 @@ const PERIOD_ITEMS = [
   { label: "1ヶ月", value: "month" },
 ] as const;
 
-const TAG_ITEMS = [
-  { label: "公園", category: "park", icon: "trees" },
-  { label: "カフェ", category: "cafe", icon: "coffee" },
-  { label: "施設", category: "culture", icon: "landmark" },
-  { label: "駅", category: "station", icon: "train-front" },
-] as const;
-
 const SPOT_FILTERS = ["コンビニ", "スーパー", "公園", "駅"] as const;
-
-/**
- * 見た目の確認だけが目的で、押しても何も起きないのが正しいコントロール用。
- * プロダクトのコードでは使わないこと（ハンドラを必須にしている意味が無くなる）。
- */
-const noop = () => {};
 
 /**
  * デザインシステムの一覧。取り込んだトークンとUIプリミティブを実機で確認するための画面。
@@ -60,15 +50,11 @@ export function DesignSystemGallery() {
 
   const [tab, setTab] = useState<(typeof TAB_ITEMS)[number]["value"]>("nav");
   const [period, setPeriod] = useState<(typeof PERIOD_ITEMS)[number]["value"]>("week");
-  const [checked, setChecked] = useState(true);
-  const [stationChecked, setStationChecked] = useState(false);
-  const [selectedTag, setSelectedTag] = useState<string>("公園");
   const [visibleSpots, setVisibleSpots] = useState<readonly string[]>([
     "コンビニ",
     "スーパー",
     "公園",
   ]);
-  const [name, setName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -95,126 +81,22 @@ export function DesignSystemGallery() {
           />
         </Card>
 
-        <Section title="Button">
-          <Row>
-            <Button onPress={() => {}}>散歩を始める</Button>
-            <Button variant="secondary" onPress={() => {}}>
-              一時停止
-            </Button>
-          </Row>
-          <Row>
-            <Button variant="outline" icon="map-pin" onPress={() => {}}>
-              ピン追加
-            </Button>
-            <Button variant="ghost" onPress={() => {}}>
-              あとで
-            </Button>
-          </Row>
-          <Row>
-            <Button variant="danger" icon="trash-2" onPress={() => {}}>
-              削除
-            </Button>
-            <Button disabled onPress={() => {}}>
-              目的地を選ぶ
-            </Button>
-          </Row>
-          <Button variant="primary" icon="footprints" fullWidth size="lg" onPress={() => {}}>
-            散歩を始める
-          </Button>
-        </Section>
+        <ButtonSection />
 
-        <Section title="IconButton">
-          <Row>
-            <IconButton icon="crosshair" label="現在地" onPress={noop} />
-            <IconButton icon="settings-2" label="設定" variant="tinted" onPress={noop} />
-            <IconButton icon="footprints" label="ナビ" variant="filled" onPress={noop} />
-            <IconButton icon="x" label="閉じる" variant="ghost" onPress={noop} />
-            <IconButton icon="crosshair" label="現在地(小)" size="sm" onPress={noop} />
-            <IconButton icon="plus" label="追加(無効)" disabled onPress={noop} />
-          </Row>
-        </Section>
+        <IconButtonSection />
 
-        <Section title="Badge / Tag">
-          <Row>
-            <Badge dot>ナビゲーション中</Badge>
-            <Badge tone="success">GPS良好</Badge>
-            <Badge tone="warning">一時停止中</Badge>
-            <Badge tone="danger">圏外</Badge>
-            <Badge tone="neutral">下書き</Badge>
-          </Row>
-          <Row>
-            {TAG_ITEMS.map((item) => (
-              <Tag
-                key={item.label}
-                category={item.category}
-                icon={item.icon}
-                selected={selectedTag === item.label}
-                onPress={() => setSelectedTag(item.label)}
-              >
-                {item.label}
-              </Tag>
-            ))}
-          </Row>
-          {/* onPress を渡さない静的なタグ（Pressable を使わず role も付かない） */}
-          <Row>
-            <Tag category="park" icon="trees">
-              静的タグ
-            </Tag>
-          </Row>
-        </Section>
+        <BadgeTagSection />
 
-        <Section title="StatBlock / ProgressBar">
-          <Card>
-            <View style={styles.statRow}>
-              <StatBlock size="sm" value="00:28:34" label="経過時間" />
-              <StatBlock size="sm" value="2.1" unit="km" label="歩行距離" />
-              <StatBlock size="sm" value="3,240" unit="歩" label="歩数" />
-            </View>
-          </Card>
-          <Card>
-            <StatBlock value="12" unit="日連続" label="継続日数" align="start" />
-          </Card>
-          <Card>
-            <ProgressBar value={6240} max={8000} label="今日の目標歩数" />
-          </Card>
-        </Section>
+        <StatSection />
 
         <Section title="Tabs / TabBar">
           <Tabs items={PERIOD_ITEMS} value={period} onChange={setPeriod} />
           <TabBar items={TAB_ITEMS} value={tab} onChange={setTab} />
         </Section>
 
-        <Section title="Form">
-          <Input
-            label="名前"
-            placeholder="例：桜のトンネル"
-            value={name}
-            onChangeText={setName}
-            helper="あとから変更できます"
-          />
-          <Input label="メモ" placeholder="この場所のメモ" multiline />
-          <Input label="タグ" placeholder="タグを追加" icon="tag" error="同じタグがあります" />
-          <Row>
-            <Checkbox label="公園" checked={checked} onChange={setChecked} />
-            <Checkbox label="駅" checked={stationChecked} onChange={setStationChecked} />
-            <Checkbox label="施設" checked disabled onChange={noop} />
-          </Row>
-        </Section>
+        <FormSection />
 
-        <Section title="MapPin">
-          <Row>
-            <MapPin category="park" />
-            <MapPin category="cafe" />
-            <MapPin category="culture" />
-            <MapPin category="station" />
-            {/* 地図のアイコン用に足した色（雨・避暑地の水色、猫の茶色）。 */}
-            <MapPin category="sky" icon="cloud-rain" />
-            <MapPin category="brown" icon="cat" />
-            <MapPin category="goal" size={44} label="川辺駅" />
-            {/* 登録済みピンの既定の見た目（地図のアイコン pin）。 */}
-            <MapPin category="park" icon="map-pin" size={30} />
-          </Row>
-        </Section>
+        <MapPinSection />
 
         <Section title="Overlay / Toast">
           <Row>
@@ -230,16 +112,7 @@ export function DesignSystemGallery() {
           <Toast message="保存に失敗しました" tone="danger" />
         </Section>
 
-        <Section title="Icon">
-          <Row>
-            <Icon name="footprints" />
-            <Icon name="search" />
-            <Icon name="bar-chart-2" />
-            <Icon name="map-pin" color={theme.colors.primary} />
-            <Icon name="flag" color={theme.map.station} />
-            <Icon name="trees" color={theme.map.park} />
-          </Row>
-        </Section>
+        <IconSection />
       </ScrollView>
 
       <Dialog
@@ -281,21 +154,6 @@ export function DesignSystemGallery() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  const styles = useStyles();
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Row({ children }: { children: ReactNode }) {
-  const styles = useStyles();
-  return <View style={styles.row}>{children}</View>;
-}
-
 const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
@@ -314,24 +172,6 @@ const useStyles = makeStyles((theme) => ({
     marginTop: theme.spacing[1],
     fontSize: theme.typography.size.sm,
     color: theme.colors.textSecondary,
-  },
-  section: {
-    gap: theme.spacing[3],
-  },
-  sectionTitle: {
-    fontSize: theme.typography.size.xs,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textTertiary,
-  },
-  row: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
   },
   dialogBody: {
     fontSize: theme.typography.size.md,

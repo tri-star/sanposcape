@@ -1,57 +1,18 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Keyboard,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-  type ListRenderItemInfo,
-} from "react-native";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Keyboard, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Badge } from "@/components/ui/badge/Badge";
-import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
-import { NameSearchField } from "@/features/sanpo-map/shared/components/NameSearchField";
 import { SanpoMapDeleteDialog } from "@/features/sanpo-map/map/components/SanpoMapDeleteDialog";
-import { SanpoMapIconBadge } from "@/features/sanpo-map/map/components/SanpoMapIconBadge";
+import { SanpoMapDetailContent } from "@/features/sanpo-map/map/components/SanpoMapDetailContent";
+import { SanpoMapDetailStateCard } from "@/features/sanpo-map/map/components/SanpoMapDetailStateCard";
 import { SanpoMapIconEditDialog } from "@/features/sanpo-map/map/components/SanpoMapIconEditDialog";
-import { SanpoMapMemberSummaryRow } from "@/features/sanpo-map/map/components/SanpoMapMemberSummaryRow";
-import { PinStateCard } from "@/features/sanpo-map/shared/components/PinStateCard";
-import { SanpoMapPinListItem } from "@/features/sanpo-map/map/components/SanpoMapPinListItem";
-import { useSanpoMapDeleteFlow } from "@/features/sanpo-map/map/hooks/useSanpoMapDeleteFlow";
-import { usePullToRefresh } from "@/features/sanpo-map/shared/hooks/usePullToRefresh";
-import { useSanpoMapMembers } from "@/features/sanpo-map/map/hooks/useSanpoMapMembers";
-import { useSanpoMapRecheck } from "@/features/sanpo-map/map/hooks/useSanpoMapRecheck";
-import { useSanpoMapPins } from "@/features/sanpo-map/map/hooks/useSanpoMapPins";
-import { useSanpoMaps } from "@/features/sanpo-map/map/hooks/useSanpoMaps";
-import {
-  SANPO_MAP_DELETE_BUTTON_LABEL,
-  sanpoMapDeleteDescription,
-} from "@/features/sanpo-map/map/lib/sanpoMapDelete";
+import { useSanpoMapDetail } from "@/features/sanpo-map/map/hooks/useSanpoMapDetail";
+import { SANPO_MAP_DELETE_BUTTON_LABEL } from "@/features/sanpo-map/map/lib/sanpoMapDelete";
 import { canManageSanpoMap } from "@/features/sanpo-map/pin/lib/pinPermissions";
-import { isRetriablePinReadError } from "@/features/sanpo-map/pin/lib/pinReadError";
-import { sanpoMapReadErrorMessage } from "@/features/sanpo-map/map/lib/sanpoMapError";
-import { sanpoMapIconChangeLabel } from "@/features/sanpo-map/map/lib/sanpoMapIcon";
-import {
-  SANPO_MAP_PIN_MAX_PAGES,
-  SANPO_MAP_PIN_PAGE_SIZE,
-} from "@/features/sanpo-map/pin/lib/sanpoMapPinList";
-import { filterPinsByName } from "@/features/sanpo-map/map/lib/sanpoMapSearch";
-import {
-  formatPinResultHeading,
-  formatSanpoMapPinCount,
-  resolveSanpoMapDetailBodyState,
-  resolveSanpoMapPinCount,
-  resolveSanpoMapPinSectionState,
-} from "@/features/sanpo-map/map/lib/sanpoMapScreenState";
-import type { PinListEntry, SanpoMap } from "@/features/sanpo-map/shared/types";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
@@ -73,8 +34,6 @@ type SanpoMapDetailBody = {
   refreshable?: boolean;
 };
 
-const MAX_PIN_TOTAL = SANPO_MAP_PIN_PAGE_SIZE * SANPO_MAP_PIN_MAX_PAGES;
-
 /**
  * SanpoMapDetailView — 地図詳細（`/sanpo-maps/[sanpoMapId]`）の実体（SS-121）。
  * 地図の情報と、その地図のピン一覧（新しい順。ピン名で即時に絞り込み、タップでピン詳細へ）。
@@ -92,11 +51,9 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const maps = useSanpoMaps({ enabled: isSignedIn });
-  // 地図の削除（SS-265）。確認ダイアログ・戻るの横取り・成功後の遷移は hook に分けてある。
-  const deleteFlow = useSanpoMapDeleteFlow(sanpoMapId);
+  const detail = useSanpoMapDetail(sanpoMapId, { isSignedIn });
+  const { map, pins, members, deleteFlow, bodyState } = detail;
   const { deleted, deletion } = deleteFlow;
-  const pins = useSanpoMapPins(sanpoMapId, { enabled: isSignedIn && !deleted });
   // アイコン変更ダイアログ。開くたびに key を +1 して作り直す（初期選択を現在のアイコンに戻す）。
   const [iconDialogOpen, setIconDialogOpen] = useState(false);
   const [iconDialogKey, setIconDialogKey] = useState(0);
@@ -123,29 +80,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
       if (message) showToast(message);
     }, [showToast]),
   );
-  // 引っ張って更新・再試行は、ピン一覧と地図一覧（地図の名前・件数・存在）の両方を取り直す。
-  // 別端末での名前変更の反映と、削除された地図の not-found 化のため（ADR-M-014 D7）。
-  const { refresh: refreshPins, retry: retryPins } = pins;
-  const { refresh: refreshMaps, retry: retryMaps } = maps;
-  const refreshAll = useCallback(async () => {
-    await Promise.all([refreshPins(), refreshMaps()]);
-  }, [refreshPins, refreshMaps]);
-  const retryAll = useCallback(() => {
-    retryPins();
-    retryMaps();
-  }, [retryPins, retryMaps]);
-  const pull = usePullToRefresh(refreshAll);
-  const listContentStyle = useMemo(
-    () => ({ paddingBottom: insets.bottom + theme.spacing[6] }),
-    [insets.bottom, theme.spacing],
-  );
 
-  const map =
-    sanpoMapId === null ? undefined : maps.maps.find((candidate) => candidate.id === sanpoMapId);
-  const showMembers = map !== undefined;
-  const members = useSanpoMapMembers(sanpoMapId, {
-    enabled: isSignedIn && showMembers && !deleted,
-  });
   const handleOpenMembers = useCallback(() => {
     if (sanpoMapId === null) return;
     // 戻る以外でこの画面から出る遷移なので二重発火ラッチを通す（ピンのタップと同じ）。
@@ -154,32 +89,8 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
     );
   }, [back, router, sanpoMapId]);
 
+  // ピンの名前の絞り込み。本文（SanpoMapDetailContent）が作り直されても消えないよう画面で持つ。
   const [query, setQuery] = useState("");
-  // 最大 1000 件でも入力が引っかからないよう、絞り込みは遅延した値で行う。
-  const deferredQuery = useDeferredValue(query);
-  const matched = useMemo(
-    () => filterPinsByName(pins.pins, deferredQuery),
-    [pins.pins, deferredQuery],
-  );
-
-  // 一覧に id が無いときは、古いキャッシュで not-found を確定する前に一覧を1回取り直す。
-  const recheck = useSanpoMapRecheck({
-    sanpoMapId,
-    enabled: isSignedIn && !deleted,
-    mapsReady: maps.status === "ready",
-    mapFound: map !== undefined,
-    mapsFetching: maps.isFetching,
-    refreshMaps,
-  });
-
-  const bodyState = resolveSanpoMapDetailBodyState({
-    hasSanpoMapId: sanpoMapId !== null,
-    isSignedIn,
-    mapsStatus: maps.status,
-    mapFound: map !== undefined,
-    mapsFetching: maps.isFetching || recheck.pending,
-    pinsErrorCode: pins.errorCode,
-  });
 
   const handleOpenIconDialog = () => {
     Keyboard.dismiss();
@@ -200,22 +111,10 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
     [back, router],
   );
 
-  const renderItem = useCallback(
-    ({ item, index }: ListRenderItemInfo<PinListEntry>) => (
-      <SanpoMapPinListItem
-        pin={item}
-        onPress={handleOpenPin}
-        onPhotoError={pins.handlePhotoLoadError}
-        testID={`sanpo-map-detail-pin-${index}`}
-      />
-    ),
-    [handleOpenPin, pins.handlePhotoLoadError],
-  );
-
   const refreshControl = (
     <RefreshControl
-      refreshing={pull.refreshing}
-      onRefresh={pull.onRefresh}
+      refreshing={detail.pull.refreshing}
+      onRefresh={detail.pull.onRefresh}
       tintColor={theme.colors.primary}
     />
   );
@@ -229,288 +128,51 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
     ),
   });
 
-  const goBackAction = {
-    label: "地図一覧へ戻る",
-    onPress: back.goBack,
-    testID: "sanpo-map-detail-go-back",
-  };
-
-  const renderPinSection = (): ReactNode => {
-    const sectionState = resolveSanpoMapPinSectionState({
-      status: pins.status,
-      pinCount: pins.pins.length,
-      matchedCount: matched.length,
-    });
-
-    // 中央寄せではなくカード1枚の状態。FlatList が無いので ScrollView で包んで引っ張って更新できるようにする。
-    const refreshableCard = (card: ReactNode) => (
-      <ScrollView
-        style={styles.pinSectionScroll}
-        contentContainerStyle={styles.pinSectionScrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        refreshControl={refreshControl}
-        showsVerticalScrollIndicator={false}
-      >
-        {card}
-      </ScrollView>
-    );
-
-    switch (sectionState) {
-      case "loading":
-        return (
-          <View style={styles.sectionCenter} testID="sanpo-map-detail-pins-loading">
-            <ActivityIndicator color={theme.colors.primary} />
-          </View>
-        );
-
-      case "error": {
-        const errorCode = pins.errorCode;
-        return refreshableCard(
-          <PinStateCard
-            testID="sanpo-map-detail-pins-error"
-            icon="alert-circle"
-            tone="danger"
-            title={sanpoMapReadErrorMessage(errorCode ?? "unknown", "pins")}
-            action={
-              errorCode === null || isRetriablePinReadError(errorCode)
-                ? { label: "再試行", onPress: retryAll, testID: "sanpo-map-detail-pins-retry" }
-                : undefined
-            }
-          />,
-        );
-      }
-
-      case "empty":
-        return refreshableCard(
-          <PinStateCard
-            testID="sanpo-map-detail-pins-empty"
-            icon="map-pin"
-            title="この地図にはまだピンがありません"
-            description="ピンタブで地図を長押しすると、ピンを登録できます"
-          />,
-        );
-
-      case "no-match":
-        return refreshableCard(
-          <PinStateCard
-            testID="sanpo-map-detail-pins-no-match"
-            icon="search-x"
-            title="一致するピンがありません"
-          />,
-        );
-
-      case "ready":
-        return (
-          <>
-            <Text style={styles.heading} testID="sanpo-map-detail-pins-heading">
-              {formatPinResultHeading({ matchedCount: matched.length, query: deferredQuery })}
-            </Text>
-            <FlatList
-              testID="sanpo-map-detail-pins"
-              data={matched}
-              keyExtractor={(pin) => pin.id}
-              renderItem={renderItem}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              refreshControl={refreshControl}
-              contentContainerStyle={listContentStyle}
-              showsVerticalScrollIndicator={false}
-            />
-          </>
-        );
-
-      default: {
-        const exhaustiveCheck: never = sectionState;
-        return exhaustiveCheck;
-      }
+  const renderBody = (): SanpoMapDetailBody => {
+    // 消した後は地図一覧へ戻るまでの間、取り直しで地図が消えても not-found を出さない。
+    if (deleted || bodyState === "loading") return loadingBody();
+    if (bodyState === "ready") {
+      if (map === undefined) return loadingBody();
+      return {
+        centered: false,
+        content: (
+          <SanpoMapDetailContent
+            map={map}
+            pins={pins}
+            members={members}
+            pinCount={detail.pinCount}
+            query={query}
+            onChangeQuery={setQuery}
+            refreshControl={refreshControl}
+            onRetry={detail.retryAll}
+            onOpenIconDialog={handleOpenIconDialog}
+            onOpenMembers={handleOpenMembers}
+            onOpenPin={handleOpenPin}
+            listPaddingBottom={insets.bottom + theme.spacing[6]}
+          />
+        ),
+      };
     }
-  };
-
-  const renderReady = (found: SanpoMap): SanpoMapDetailBody => {
-    const pinCountLabel = formatSanpoMapPinCount(
-      resolveSanpoMapPinCount({
-        listPinCount: found.pinCount,
-        pinsStatus: pins.status,
-        loadedCount: pins.pins.length,
-        truncated: pins.truncated,
-      }),
-    );
-    // 検索欄は「ピンが1件以上ある」ときだけ。絞り込み前の件数で判定する。
-    const showSearch = pins.status === "ready" && pins.pins.length > 0;
-    const pinSection = renderPinSection();
-
+    const errorCode = detail.maps.errorCode;
+    if (bodyState === "error" && errorCode === null) return loadingBody();
     return {
-      centered: false,
+      centered: true,
+      // 地図一覧の取得の失敗だけ、引っ張って取り直せる。
+      refreshable: bodyState === "error",
       content: (
-        <View style={styles.content} testID="sanpo-map-detail-content">
-          <View style={styles.info}>
-            <View style={styles.nameRow}>
-              {canManageSanpoMap(found.role) ? (
-                // 「アイコンを変更」ボタンは置かず、アイコンのタップで開く（SS-249）。editor には押せる形を見せない
-                // （押しても 403 になる操作を見せない）。読み上げと E2E は、現在のアイコンを含むラベルで探す。
-                <Pressable
-                  onPress={handleOpenIconDialog}
-                  accessibilityRole="button"
-                  accessibilityLabel={sanpoMapIconChangeLabel(found.icon)}
-                  testID="sanpo-map-detail-change-icon"
-                  // アイコンは 40px なので、押せる範囲を 44pt 以上に広げる。
-                  hitSlop={8}
-                  style={({ pressed }) => (pressed ? styles.iconPressed : null)}
-                >
-                  <SanpoMapIconBadge icon={found.icon} size={40} />
-                  <View style={styles.iconEditBadge} pointerEvents="none">
-                    <Icon
-                      name="pencil"
-                      size={11}
-                      color={theme.colors.onPrimary}
-                      strokeWidth={2.5}
-                    />
-                  </View>
-                </Pressable>
-              ) : (
-                <SanpoMapIconBadge icon={found.icon} size={40} />
-              )}
-              <Text style={styles.name} testID="sanpo-map-detail-name">
-                {found.name}
-              </Text>
-            </View>
-            <View style={styles.infoMeta}>
-              {found.isDefault ? <Badge tone="info">既定の地図</Badge> : null}
-              {found.role === "editor" ? <Badge tone="neutral">招待された地図</Badge> : null}
-              {pinCountLabel !== null ? (
-                <Text style={styles.metaText} testID="sanpo-map-detail-pin-count">
-                  {pinCountLabel}
-                </Text>
-              ) : null}
-            </View>
-            {showMembers ? (
-              <SanpoMapMemberSummaryRow
-                members={members.members}
-                status={members.status}
-                onPress={handleOpenMembers}
-              />
-            ) : null}
-          </View>
-          {showSearch ? (
-            <NameSearchField
-              value={query}
-              onChangeText={setQuery}
-              placeholder="ピンの名前で検索"
-              accessibilityLabel="ピンの名前で検索"
-              testID="sanpo-map-detail-search-input"
-            />
-          ) : null}
-          {pins.truncated ? (
-            <Text style={styles.metaText} testID="sanpo-map-detail-pins-truncated">
-              {`ピンが多いため、新しい順に${MAX_PIN_TOTAL}件までを表示・検索しています`}
-            </Text>
-          ) : null}
-          <View style={styles.pinSection}>{pinSection}</View>
-        </View>
+        <SanpoMapDetailStateCard
+          state={bodyState}
+          // "error" 以外では使われない。
+          errorCode={errorCode ?? "unknown"}
+          onGoBack={back.goBack}
+          onSignIn={() => back.runOnce(onSignIn)}
+          onRetry={detail.retryAll}
+        />
       ),
     };
   };
 
-  const renderBody = (): SanpoMapDetailBody => {
-    // 消した後は地図一覧へ戻るまでの間、取り直しで地図が消えても not-found を出さない。
-    if (deleted) return loadingBody();
-    switch (bodyState) {
-      case "invalid-id":
-        return {
-          centered: true,
-          content: (
-            <PinStateCard
-              testID="sanpo-map-detail-error"
-              icon="alert-circle"
-              tone="danger"
-              title="地図を特定できませんでした"
-              action={goBackAction}
-            />
-          ),
-        };
-
-      case "sign-in-required":
-        return {
-          centered: true,
-          content: (
-            <PinStateCard
-              testID="sanpo-map-detail-sign-in-required"
-              icon="user"
-              title="地図の表示にはサインインが必要です"
-              action={{
-                label: "サインイン",
-                onPress: () => back.runOnce(onSignIn),
-                testID: "sanpo-map-detail-sign-in",
-              }}
-            />
-          ),
-        };
-
-      case "not-found":
-        return {
-          centered: true,
-          content: (
-            <PinStateCard
-              testID="sanpo-map-detail-error"
-              icon="alert-circle"
-              tone="danger"
-              title="この地図は見つかりませんでした。削除された可能性があります。"
-              action={goBackAction}
-            />
-          ),
-        };
-
-      case "error": {
-        const errorCode = maps.errorCode;
-        if (errorCode === null) return loadingBody();
-        return {
-          centered: true,
-          refreshable: true,
-          content: (
-            <PinStateCard
-              testID="sanpo-map-detail-error"
-              icon="alert-circle"
-              tone="danger"
-              title={sanpoMapReadErrorMessage(errorCode, "maps")}
-              action={
-                isRetriablePinReadError(errorCode)
-                  ? { label: "再試行", onPress: retryAll, testID: "sanpo-map-detail-retry" }
-                  : undefined
-              }
-            />
-          ),
-        };
-      }
-
-      case "loading":
-        return loadingBody();
-
-      case "ready":
-        return map === undefined ? loadingBody() : renderReady(map);
-
-      default: {
-        const exhaustiveCheck: never = bodyState;
-        return exhaustiveCheck;
-      }
-    }
-  };
-
   const body = renderBody();
-  const deleteDescription = sanpoMapDeleteDescription({
-    pinCount:
-      map === undefined
-        ? null
-        : resolveSanpoMapPinCount({
-            listPinCount: map.pinCount,
-            pinsStatus: pins.status,
-            loadedCount: pins.pins.length,
-            truncated: pins.truncated,
-          }),
-    // 自分を除く。取り終えるまでは不明（null）。
-    otherMemberCount:
-      showMembers && members.status === "ready" ? Math.max(0, members.members.length - 1) : null,
-  });
 
   return (
     <View
@@ -575,7 +237,7 @@ export function SanpoMapDetailView({ sanpoMapId, isSignedIn, onSignIn }: SanpoMa
         open={deleteFlow.dialogOpen}
         status={deletion.status}
         errorCode={deletion.errorCode}
-        description={deleteDescription}
+        description={detail.deleteDescription}
         onCancel={deleteFlow.closeDialog}
         onConfirm={deletion.deleteMap}
       />
@@ -616,73 +278,7 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     paddingHorizontal: theme.layout.pageGutter,
   },
-  pinSectionScroll: {
-    flex: 1,
-  },
-  pinSectionScrollContent: {
-    flexGrow: 1,
-    paddingBottom: theme.spacing[6],
-  },
   centerState: {
     alignItems: "center",
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.layout.pageGutter,
-    gap: theme.spacing[3],
-  },
-  info: {
-    gap: theme.spacing[2],
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[3],
-  },
-  iconPressed: {
-    opacity: 0.6,
-  },
-  // owner だけに出す、アイコンを押せることを示す小さなペン。
-  iconEditBadge: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.primary,
-    borderWidth: 2,
-    borderColor: theme.colors.surfaceApp,
-  },
-  name: {
-    flex: 1,
-    fontSize: theme.typography.size["2xl"],
-    fontWeight: theme.typography.weight.heavy,
-    color: theme.colors.textPrimary,
-  },
-  infoMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: theme.spacing[2],
-  },
-  metaText: {
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textSecondary,
-  },
-  pinSection: {
-    flex: 1,
-  },
-  sectionCenter: {
-    alignItems: "center",
-    paddingTop: theme.spacing[6],
-  },
-  heading: {
-    fontSize: theme.typography.size.sm,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textSecondary,
-    paddingBottom: theme.spacing[2],
   },
 }));

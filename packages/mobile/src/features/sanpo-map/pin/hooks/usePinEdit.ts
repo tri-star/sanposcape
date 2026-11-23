@@ -1,36 +1,29 @@
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
-import { fetchPinMoveTargets } from "@/features/sanpo-map/pin/api/pinEditApi";
 
 import { usePinDetail, type UsePinDetailResult } from "@/features/sanpo-map/pin/hooks/usePinDetail";
 import {
   usePinEditSave,
   type UsePinEditSaveResult,
 } from "@/features/sanpo-map/pin/hooks/usePinEditSave";
+import { usePinEditSanpoMap } from "@/features/sanpo-map/pin/hooks/usePinEditSanpoMap";
+import {
+  usePinEditTags,
+  type UsePinEditTagsResult,
+} from "@/features/sanpo-map/pin/hooks/usePinEditTags";
 import { usePinPhotos, type UsePinPhotosResult } from "@/features/sanpo-map/pin/hooks/usePinPhotos";
-import { usePinTagSuggestions } from "@/features/sanpo-map/pin/hooks/usePinTagSuggestions";
 import { useSanpoMaps } from "@/features/sanpo-map/map/hooks/useSanpoMaps";
 import {
   buildPinUpdateRequest,
   createPinEditBaseline,
   hasUnsavedPinEdit,
   initialPinEditDraft,
-  isDraftTagRemovable,
   resolvePinEditSaveAvailability,
   togglePhotoDeletion as toggleDeletionMark,
   type PinEditBaseline,
   type PinEditDraft,
   type PinEditSaveAvailability,
 } from "@/features/sanpo-map/pin/lib/pinEditDraft";
-import {
-  filterMovablePinEditSanpoMaps,
-  resolveBlockedPinMoveTargetIds,
-  resolveDraftSanpoMapReset,
-  resolveEffectivePinEditSanpoMapId,
-  resolveMovedSanpoMapName,
-  resolvePinEditSanpoMapChoices,
-} from "@/features/sanpo-map/pin/lib/pinEditSanpoMap";
+import { resolveMovedSanpoMapName } from "@/features/sanpo-map/pin/lib/pinEditSanpoMap";
 import {
   addDeletedPhotoId,
   canConfirmPinEditBaseline,
@@ -50,21 +43,9 @@ import {
   type PinPermissionContext,
   type PinPermissions,
 } from "@/features/sanpo-map/pin/lib/pinPermissions";
-import { pinMoveTargetsQueryKey } from "@/features/sanpo-map/shared/lib/pinQueryKeys";
-import {
-  filterTagSuggestions,
-  resolveTagLabelForAdd,
-} from "@/features/sanpo-map/pin/lib/pinTagSuggestions";
-import {
-  addTag,
-  addTagErrorMessage,
-  removeTag as removeTagFrom,
-} from "@/features/sanpo-map/pin/lib/pinTags";
 import type { SanpoMapChoicesState } from "@/features/sanpo-map/pin/lib/sanpoMapChoices";
-import type { SanpoMapSelection, TagSuggestion } from "@/features/sanpo-map/pin/types";
+import type { SanpoMapSelection } from "@/features/sanpo-map/pin/types";
 import type { PinPhoto } from "@/features/sanpo-map/shared/types";
-
-const MOVE_TARGETS_STALE_TIME_MS = 60_000;
 
 export type PinEditSavedResult = {
   /** 編集を開いた時点の地図から移したなら移動先の地図名。移していなければ null。 */
@@ -88,7 +69,7 @@ export type PinEditExistingPhoto = {
   deletable: boolean;
 };
 
-export type UsePinEditResult = {
+export type UsePinEditResult = UsePinEditTagsResult & {
   /** 本文の状態判定と既存写真のページングに使う。 */
   detail: UsePinDetailResult;
   /** null = まだ詳細が取れていない。 */
@@ -106,14 +87,6 @@ export type UsePinEditResult = {
    */
   sanpoMaps: SanpoMapChoicesState & { retry: () => void };
   selectSanpoMap: (selection: SanpoMapSelection) => void;
-  tagInput: string;
-  setTagInput: (v: string) => void;
-  tagError: string | null;
-  tagSuggestions: TagSuggestion[];
-  addTagFromInput: () => void;
-  addTagFromSuggestion: (label: string) => void;
-  removeTag: (label: string) => void;
-  canRemoveTag: (label: string) => boolean;
   existingPhotos: PinEditExistingPhoto[];
   togglePhotoDeletion: (photoId: string) => void;
   newPhotos: UsePinPhotosResult;
@@ -143,34 +116,9 @@ const EMPTY_DRAFT: PinEditDraft = {
 export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   const detail = usePinDetail(options.pinId, { enabled: options.isSignedIn });
   const pin = detail.pin;
-
-  // 基準値と下書きは、詳細が「新しく」取れた時点で1回だけレンダー中に確定する
-  // （docs/architecture-guideline.md「1回だけの状態確定」）。詳細を取り直しても入力を消さない。
-  // invalidate 済みの古いキャッシュで確定しないよう、再取得が終わるまで待つ（A-2）。
-  // 部分保存の後は、PATCH の成功応答で基準値を作り直す（A-1。`onPinUpdated`）。
-  const [baseline, setBaseline] = useState<PinEditBaseline | null>(null);
-  const [draft, setDraft] = useState<PinEditDraft>(EMPTY_DRAFT);
-  // 編集を開いた時点の地図（移動のトースト判定用。基準値は部分保存で作り直されるので別に持つ。SS-175）。
-  const [originalSanpoMapId, setOriginalSanpoMapId] = useState<string | null>(null);
+  const { baseline, setBaseline, draft, setDraft, originalSanpoMapId } = usePinEditBaseline(detail);
   // この画面で DELETE に成功した写真（既存写真の表示から外す。A-1）。
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<readonly string[]>([]);
-  if (
-    baseline === null &&
-    pin !== null &&
-    canConfirmPinEditBaseline({
-      hasPin: true,
-      isFetching: detail.isFetching,
-      hasError: detail.errorCode !== null,
-    })
-  ) {
-    const created = createPinEditBaseline(pin);
-    setBaseline(created);
-    setDraft(initialPinEditDraft(created));
-    setOriginalSanpoMapId(created.sanpoMapId);
-  }
-
-  const [tagInput, setTagInputState] = useState("");
-  const [tagError, setTagError] = useState<string | null>(null);
 
   // 権限: 地図の role は GET /sanpo-maps のキャッシュから引く（不明は editor 扱い。ADR-M-017）。
   const sanpoMapsQuery = useSanpoMaps({ enabled: options.isSignedIn });
@@ -182,61 +130,18 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     currentUserId: options.currentUserId,
   };
   const permissions = pin !== null ? resolvePinPermissions(ctx, pin) : null;
-
-  // 移動先の候補（SS-192）。地図を変えられる人だけが取る。取得中・失敗（古い backend の 404 を含む）は
-  // null（不明）で、今までどおり全地図を選べる（保存の 403 move_target_missing_members が守る）。
   const canChangeSanpoMap = permissions?.canChangeSanpoMap ?? false;
-  const moveTargetsQuery = useQuery({
-    queryKey: pinMoveTargetsQueryKey(options.pinId ?? ""),
-    queryFn: ({ signal }) => fetchPinMoveTargets(options.pinId as string, { signal }),
-    enabled: options.isSignedIn && options.pinId !== null && canChangeSanpoMap,
-    staleTime: MOVE_TARGETS_STALE_TIME_MS,
-    // GET の一時障害の再送は customFetch の transientRetry が既に行う。
-    retry: false,
-  });
-  const moveTargets = canChangeSanpoMap ? (moveTargetsQuery.data ?? null) : null;
-  // 移せない地図は「一覧に無い地図」と同じ扱いにし、選んでいた下書きを今の地図に戻す（SS-192）。
-  const blockedSanpoMapIds = resolveBlockedPinMoveTargetIds(moveTargets);
-  const movableMaps = filterMovablePinEditSanpoMaps(sanpoMapsQuery.maps, blockedSanpoMapIds);
 
-  // 実際に送る移動先。一覧から消えた地図・移せない地図・一覧が未取得のときは今の地図に戻す（SS-175・SS-192）。
-  const effectiveSanpoMapId =
-    baseline === null
-      ? null
-      : resolveEffectivePinEditSanpoMapId({
-          status: sanpoMapsQuery.status,
-          maps: movableMaps,
-          baselineSanpoMapId: baseline.sanpoMapId,
-          draftSanpoMapId: draft.sanpoMapId,
-        });
-  // 下書きの地図が一覧から消えていたら（sanpo_map_not_found で取り直した結果など）基準値へ戻す。
-  // 戻さないと、他項目を変えた保存で地図の差分が黙って落ちる（M2）。エラー行は消さない
-  // （resetError を通さない）ので「地図を選び直してください」の案内が残る。
-  const draftSanpoMapReset =
-    baseline === null
-      ? null
-      : resolveDraftSanpoMapReset({
-          status: sanpoMapsQuery.status,
-          maps: movableMaps,
-          baselineSanpoMapId: baseline.sanpoMapId,
-          draftSanpoMapId: draft.sanpoMapId,
-        });
-  if (draftSanpoMapReset !== null) {
-    setDraft({ ...draft, sanpoMapId: draftSanpoMapReset });
-  }
-  const effectiveDraft: PinEditDraft =
-    effectiveSanpoMapId === null ? draft : { ...draft, sanpoMapId: effectiveSanpoMapId };
-
-  // タグ候補は選んでいる地図から取る（移動先の表記に揃う）。
-  const tagSuggestionsQuery = usePinTagSuggestions({
-    sanpoMapId: effectiveSanpoMapId ?? pin?.sanpoMapId ?? null,
-    enabled: options.isSignedIn,
+  const sanpoMap = usePinEditSanpoMap({
+    pinId: options.pinId,
+    isSignedIn: options.isSignedIn,
+    sanpoMapsQuery,
+    canChangeSanpoMap,
+    baseline,
+    draft,
+    setDraft,
   });
-  const tagSuggestions = filterTagSuggestions({
-    candidates: tagSuggestionsQuery.candidates,
-    query: tagInput,
-    attached: draft.tags,
-  });
+  const { effectiveDraft } = sanpoMap;
 
   const photosBase = usePinPhotos({
     enabled: options.isSignedIn,
@@ -282,69 +187,28 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     save.resetError();
   };
 
+  // タグ候補は選んでいる地図から取る（移動先の表記に揃う）。
+  const tags = usePinEditTags({
+    isSignedIn: options.isSignedIn,
+    sanpoMapId: sanpoMap.effectiveSanpoMapId ?? pin?.sanpoMapId ?? null,
+    baseline,
+    draft,
+    updateDraft,
+    canRemoveTagEntry,
+  });
+
   const setName = (v: string) => updateDraft((prev) => ({ ...prev, name: v }));
   const setMemo = (v: string) => updateDraft((prev) => ({ ...prev, memo: v }));
   // 権限の無い変更は UI で disabled にするうえ、buildPinUpdateRequest が差分から除く（多層防御）ので弾かない。
   const setVisited = (v: boolean) => updateDraft((prev) => ({ ...prev, visited: v }));
   const setArchived = (v: boolean) => updateDraft((prev) => ({ ...prev, archived: v }));
 
-  const sanpoMapChoices =
-    baseline === null
-      ? resolvePinEditSanpoMapChoices({
-          status: "loading",
-          maps: [],
-          current: { id: "", name: "" },
-          selectedSanpoMapId: "",
-          canChange: false,
-        })
-      : resolvePinEditSanpoMapChoices({
-          status: sanpoMapsQuery.status,
-          maps: sanpoMapsQuery.maps,
-          current: { id: baseline.sanpoMapId, name: baseline.sanpoMapName },
-          selectedSanpoMapId: effectiveDraft.sanpoMapId,
-          canChange: canChangeSanpoMap,
-          moveTargets,
-        });
-
   const selectSanpoMap = (selection: SanpoMapSelection) => {
     // 編集の選択肢はすべて existing。権限が無ければ多層防御として変えない（UI でも disabled）。
     // 移せない地図も同じく変えない（チップは押せない。SS-192）。
     if (selection.kind !== "existing" || !canChangeSanpoMap) return;
-    if (blockedSanpoMapIds.has(selection.sanpoMapId)) return;
+    if (sanpoMap.blockedSanpoMapIds.has(selection.sanpoMapId)) return;
     updateDraft((prev) => ({ ...prev, sanpoMapId: selection.sanpoMapId }));
-  };
-
-  const setTagInput = (v: string) => {
-    setTagInputState(v);
-    setTagError(null);
-  };
-
-  const applyAddTag = (label: string) => {
-    const result = addTag(draft.tags, label);
-    if (!result.ok) {
-      setTagError(addTagErrorMessage(result.reason));
-      return;
-    }
-    // 上限・重複の判定結果（error）は現在の下書きで見て、反映は updater で最新の tags に対して行う。
-    updateDraft((prev) => {
-      const latest = addTag(prev.tags, label);
-      return latest.ok ? { ...prev, tags: latest.tags } : prev;
-    });
-    setTagInputState("");
-    setTagError(null);
-  };
-
-  const addTagFromInput = () =>
-    applyAddTag(resolveTagLabelForAdd(tagInput, tagSuggestionsQuery.candidates));
-  const addTagFromSuggestion = (label: string) => applyAddTag(label);
-
-  const canRemoveTag = (label: string) =>
-    baseline === null ? true : isDraftTagRemovable(label, baseline, canRemoveTagEntry);
-
-  const removeTag = (label: string) => {
-    // UI でも出さないが、多層防御として権限の無いタグは外さない。
-    if (!canRemoveTag(label)) return;
-    updateDraft((prev) => ({ ...prev, tags: removeTagFrom(prev.tags, label) }));
   };
 
   // DELETE 済みの写真は表示から外す（サーバーに既に無いので、印を外すと通常の写真に見えてしまう）。
@@ -369,21 +233,7 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     }));
   };
 
-  const newPhotos: UsePinPhotosResult = {
-    ...photosBase,
-    addPhotos: async (source) => {
-      await photosBase.addPhotos(source);
-      save.resetError();
-    },
-    removePhoto: (localId) => {
-      photosBase.removePhoto(localId);
-      save.resetError();
-    },
-    retryPhoto: (localId) => {
-      photosBase.retryPhoto(localId);
-      save.resetError();
-    },
-  };
+  const newPhotos = withSaveErrorReset(photosBase, save.resetError);
 
   const submit = () => {
     if (baseline === null || permissions === null || !saveAvailability.canSave) return;
@@ -400,6 +250,7 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
   };
 
   return {
+    ...tags,
     detail: { ...detail, photoCount: visiblePhotos.photoCount },
     baseline,
     draft,
@@ -408,16 +259,8 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     setMemo,
     setVisited,
     setArchived,
-    sanpoMaps: { ...sanpoMapChoices, retry: sanpoMapsQuery.retry },
+    sanpoMaps: { ...sanpoMap.choices, retry: sanpoMapsQuery.retry },
     selectSanpoMap,
-    tagInput,
-    setTagInput,
-    tagError,
-    tagSuggestions,
-    addTagFromInput,
-    addTagFromSuggestion,
-    removeTag,
-    canRemoveTag,
     existingPhotos,
     togglePhotoDeletion,
     newPhotos,
@@ -426,5 +269,55 @@ export function usePinEdit(options: UsePinEditOptions): UsePinEditResult {
     save,
     submit,
     hasUnsavedChanges,
+  };
+}
+
+/**
+ * 基準値と下書き。詳細が「新しく」取れた時点で1回だけレンダー中に確定する
+ * （docs/architecture-guideline.md「1回だけの状態確定」）。詳細を取り直しても入力を消さない。
+ * invalidate 済みの古いキャッシュで確定しないよう、再取得が終わるまで待つ（A-2）。
+ * 部分保存の後は、PATCH の成功応答で基準値を作り直す（A-1。`onPinUpdated`）。
+ */
+function usePinEditBaseline(detail: UsePinDetailResult) {
+  const [baseline, setBaseline] = useState<PinEditBaseline | null>(null);
+  const [draft, setDraft] = useState<PinEditDraft>(EMPTY_DRAFT);
+  // 編集を開いた時点の地図（移動のトースト判定用。基準値は部分保存で作り直されるので別に持つ。SS-175）。
+  const [originalSanpoMapId, setOriginalSanpoMapId] = useState<string | null>(null);
+  if (
+    baseline === null &&
+    detail.pin !== null &&
+    canConfirmPinEditBaseline({
+      hasPin: true,
+      isFetching: detail.isFetching,
+      hasError: detail.errorCode !== null,
+    })
+  ) {
+    const created = createPinEditBaseline(detail.pin);
+    setBaseline(created);
+    setDraft(initialPinEditDraft(created));
+    setOriginalSanpoMapId(created.sanpoMapId);
+  }
+  return { baseline, setBaseline, draft, setDraft, originalSanpoMapId };
+}
+
+/** 新しい写真の操作（追加・削除・再試行）でも保存エラー状態を解除する（入力の入口と同じ扱い）。 */
+function withSaveErrorReset(
+  photos: UsePinPhotosResult,
+  resetError: () => void,
+): UsePinPhotosResult {
+  return {
+    ...photos,
+    addPhotos: async (source) => {
+      await photos.addPhotos(source);
+      resetError();
+    },
+    removePhoto: (localId) => {
+      photos.removePhoto(localId);
+      resetError();
+    },
+    retryPhoto: (localId) => {
+      photos.retryPhoto(localId);
+      resetError();
+    },
   };
 }

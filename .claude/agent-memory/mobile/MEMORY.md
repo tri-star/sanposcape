@@ -2,7 +2,7 @@
 
 規約の正本は `packages/mobile/AGENTS.md` から辿る docs・ADR。ここには正本に無い落とし穴と手順だけを置く。
 
-- [計画時の確認事項](planning-pitfalls.md) — 「別課題で削除」の予告を拾う・新しいドメイン語の衝突・未使用の既存 Expo 依存は安い・サーバー制約をユーザー操作で回避させない・リリース順序
+- [計画時の確認事項](planning-pitfalls.md) — 「別課題で削除」の予告を拾う・新しいドメイン語の衝突・未使用の既存 Expo 依存は安い・サーバー制約をユーザー操作で回避させない・リリース順序・画面を部品に分ける前に置き場のフォルダのファイル数を見る（構造の検査の上限）
 - [テストと E2E で踏む点](testing-and-e2e.md) — エミュレータで地図の重さを測る（開始点をマーカーの外に）・360dp・font_scale を試す手順・副作用登録のテストで reset しない・disabled を押しても Maestro は失敗しない・config.yaml を書かない・地図の中心はピンに当たる・既存 testID のリネーム禁止・appId のハードコード・全画面の案内の確かめ方・dev client の歯車を消す・止めた状態のディープリンクはランチャーへ・クリップボードの確かめ方・日本語の入力（Windows のクリップボード + KEYCODE_PASTE）
 - [API 層と HTTP 出口](api-and-http.md) — customFetch の {status,data,headers} 契約・ApiError.body で原因分岐・Orval の void・redirect は RN で効かない・CloudFront 起因の症状の切り分け・404 読み替え関数で 422
 - [hook と TanStack Query の落とし穴](hooks-and-query.md) — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）・間隔制御は errorUpdatedAt も見る・useMutation の雛形・削除直後の 404・地図が消える操作の後にピンタブが消えた地図を取り直す（predicate で外す）・useQueries では keepPreviousData が効かない（useQuery では enabled: false でも前のデータが残る）・Rules of Hooks・手動メモ化・毎回取る詳細からキャッシュを共有する一覧へ移ると食い違う（refetchOnMount: "always"）・combine の pick の取り出し忘れ
