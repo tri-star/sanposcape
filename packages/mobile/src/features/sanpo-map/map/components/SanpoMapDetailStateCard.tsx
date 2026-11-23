@@ -7,7 +7,7 @@ import {
 import { PinStateCard } from "@/features/sanpo-map/shared/components/PinStateCard";
 
 /** 地図を出さない状態（取得中と地図の表示を除く）。 */
-export type SanpoMapDetailCardState = Exclude<SanpoMapDetailBodyState, "loading" | "ready">;
+type SanpoMapDetailCardState = Exclude<SanpoMapDetailBodyState, "loading" | "ready">;
 
 export type SanpoMapDetailStateCardProps = {
   state: SanpoMapDetailCardState;

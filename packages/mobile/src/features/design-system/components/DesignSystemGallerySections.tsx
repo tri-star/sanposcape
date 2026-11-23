@@ -31,7 +31,7 @@ const TAG_ITEMS = [
  * 見た目の確認だけが目的で、押しても何も起きないのが正しいコントロール用。
  * プロダクトのコードでは使わないこと（ハンドラを必須にしている意味が無くなる）。
  */
-export const noop = () => {};
+const noop = () => {};
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   const styles = useStyles();

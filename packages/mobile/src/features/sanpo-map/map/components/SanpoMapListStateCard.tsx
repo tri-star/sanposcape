@@ -10,7 +10,7 @@ import {
 } from "@/features/sanpo-map/pin/lib/pinReadError";
 
 /** 一覧を出さない状態（取得中と一覧の表示を除く）。 */
-export type SanpoMapListCardState = Exclude<SanpoMapListBodyState, "loading" | "ready">;
+type SanpoMapListCardState = Exclude<SanpoMapListBodyState, "loading" | "ready">;
 
 export type SanpoMapListStateCardProps = {
   state: SanpoMapListCardState;
