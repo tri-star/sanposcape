@@ -9,7 +9,7 @@ import { WalkRouteLegend } from "@/features/walk/route/components/WalkRouteLegen
 import { WalkRoutePolylines } from "@/features/walk/route/components/WalkRoutePolylines";
 import { CATEGORY_META } from "@/features/walk/explore/data/categories";
 import { useMapRouteFit } from "@/features/walk/route/hooks/useMapRouteFit";
-import { regionForRoundTrip } from "@/features/walk/route/lib/mapRegion";
+import { regionForBounds, regionForRoundTrip } from "@/features/walk/route/lib/mapRegion";
 import type { SpotCandidate } from "@/features/walk/explore/types";
 import type { WalkDestination } from "@/features/walk/shared/types";
 import type { WalkRoute } from "@/features/walk/route/types";
@@ -62,7 +62,13 @@ export function SpotMapView({
 
   // `MapView` の `initialRegion` はマウント時の1回しか読まれないため、
   // 以後の再センタリングは下の useEffect（`animateToRegion`）が担う。
-  const initialRegion = origin ? regionForRoundTrip(origin, durationMin) : null;
+  // マウントの時点でルートがあれば（ピンを目的地にして開き、ルートがキャッシュから即座に届いたとき。SS-170）、
+  // 最初からルートの範囲にする。マウント直後の `useMapRouteFit` の `animateToRegion` は地図の準備前で捨てられるため。
+  const initialRegion = origin
+    ? walkRoute
+      ? regionForBounds(walkRoute.bounds)
+      : regionForRoundTrip(origin, durationMin)
+    : null;
 
   useEffect(() => {
     // ルート表示中は往復半径での再センタリングをしない（線が画面外に出るのを防ぐ）。

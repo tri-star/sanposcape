@@ -34,6 +34,11 @@ import { useTheme } from "@/theme/useTheme";
 
 /** 戻り先/開始後の遷移先の既定ホーム（ナビタブ）。2箇所で直書きしないよう定数化する。 */
 const HOME_HREF = "/(tabs)";
+/**
+ * ピンを目的地にしたときの地図の高さ（SS-170）。候補一覧・往復時間・カテゴリを出さないぶん空く縦を地図に回す
+ * （通常は `SpotMapView` の既定の 296）。
+ */
+const PIN_DESTINATION_MAP_HEIGHT = 420;
 
 export type WalkStartViewProps = {
   /**
@@ -163,6 +168,7 @@ export function WalkStartView({ pinDestination = null }: WalkStartViewProps) {
               onSelectSpot={plan.selectSpot}
               walkRoute={plan.walkRoute}
               fixedDestination={pinDestination}
+              height={isPinDestination ? PIN_DESTINATION_MAP_HEIGHT : undefined}
               testID="walk-start-map"
               style={styles.map}
             />
