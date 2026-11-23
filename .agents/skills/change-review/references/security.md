@@ -134,6 +134,7 @@ focus=securityで読む確認観点。差分が触れる節だけ読めばよい
 ## 動的ルートとパラメータ
 - `[param].tsx` の ID を route 側と API fetcher 側の2層で `isUuid()` に通しているか。Orval の URL ビルダーはエスケープしないので、未検証だとディープリンクの `../` でトークン付きリクエストを別エンドポイントへ送らせうる（SS-20 で解消済み。再指摘しない）。
 - 座標は送る側（`toPickedCoordinate`）と受ける側（`parsePinLocationParams` / `isValidCoordinate`）の両方で検証しているか。生の座標・`place_id` を router params に載せていないか（散歩は store 経由）。
+  例外: ピン詳細から `/walk-start` へはピンの ID・座標・名前を params で渡す（SS-170。ADR-M-027）。受ける側の `parsePinWalkStartParams` が UUID・座標を検証し、`place_id`（`pin:<pinId>`）は受けた側で組み立てる。
 
 ## 写真の直送と閲覧
 - backend 以外への直送経路が増えたら、認証ヘッダーや `x-amz-content-sha256` を付けていないか（`customFetch` を通さない）。送信先は `isAllowedUploadUrl` のホワイトリスト（https は許可、http は backend と同一 origin のみ。origin は protocol/hostname/port を個別比較）か。
