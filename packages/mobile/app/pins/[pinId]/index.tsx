@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 
+import { FEATURE_FLAG_KEYS } from "@/config/featureFlags";
 import { PinDetailView } from "@/features/sanpo-map/pin/components/PinDetailView";
 import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
 import { buildPinWalkStartParams } from "@/features/walk/explore/lib/pinWalkDestination";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { isUuid } from "@/lib/uuid";
 import { useAuthSessionStore } from "@/store/useAuthSessionStore";
 
@@ -17,7 +19,8 @@ import { useAuthSessionStore } from "@/store/useAuthSessionStore";
  * （pathname `/pins/[pinId]` は変わらない）。
  *
  * 「このピンまで散歩する」（SS-170）の遷移もここで作って注入する（features/sanpo-map は features/walk に依存しない）。
- * 進行中の散歩があるときは注入しない（散歩中の地図からも詳細を開けるので、開始で上書きしないよう導線を出さない）。
+ * 進行中の散歩があるとき・フラグ `pin_walk_destination` が OFF のときは注入しない（散歩中の地図からも詳細を開けるので、
+ * 開始で上書きしないよう導線を出さない）。
  */
 export default function PinDetailRoute() {
   const router = useRouter();
@@ -28,6 +31,7 @@ export default function PinDetailRoute() {
   const currentUserId = useAuthSessionStore((state) => state.user?.id ?? null);
   const handleSignIn = useCallback(() => router.push("/(auth)/sign-in"), [router]);
   const hasActiveWalk = useActiveWalkStore((state) => state.activeWalk !== null);
+  const pinWalkDestinationEnabled = useFeatureFlag(FEATURE_FLAG_KEYS.pinWalkDestination);
   const handleWalkToPin = useCallback(
     (pin: Parameters<typeof buildPinWalkStartParams>[0]) =>
       router.push({ pathname: "/walk-start", params: buildPinWalkStartParams(pin) }),
@@ -40,7 +44,7 @@ export default function PinDetailRoute() {
       isSignedIn={isSignedIn}
       currentUserId={currentUserId}
       onSignIn={handleSignIn}
-      onWalkToPin={hasActiveWalk ? undefined : handleWalkToPin}
+      onWalkToPin={pinWalkDestinationEnabled && !hasActiveWalk ? handleWalkToPin : undefined}
     />
   );
 }
