@@ -169,11 +169,6 @@
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
     },
     {
-      // SS-259: 散歩の詳細の画面が、表示の状態ごとの描き分けを1つのコンポーネントで持っている（行数 204）。セクションに分ける。
-      "files": ["src/features/history/components/WalkDetailView.tsx"],
-      "rules": { "max-lines-per-function": "off" }
-    },
-    {
       // SS-259: ピンのタブ・散歩の開始と散歩中の画面が、地図・シート・ダイアログの部品を直接組み立てている（依存 26・27）。
       "files": [
         "src/features/sanpo-map/pin/components/PinTabView.tsx",
