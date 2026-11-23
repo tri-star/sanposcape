@@ -104,6 +104,14 @@ export function SpotMapView({
         showsUserLocation
         showsMyLocationButton={false}
         toolbarEnabled={false}
+        // 地図の準備前に届いたルートへの fit（`useMapRouteFit` の `animateToRegion`）は捨てられるので、
+        // 準備ができたときにもう一度当てる（ピンを目的地にすると、現在地が取れた瞬間に地図のマウントと
+        // ルートの要求が同時に始まる。SS-170）。ルートが無ければ何もしない（往復半径の範囲のまま）。
+        onMapReady={() => {
+          if (walkRoute) {
+            mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), 0);
+          }
+        }}
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
         {fixedDestination ? (
