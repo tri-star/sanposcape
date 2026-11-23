@@ -109,11 +109,17 @@ export function WalkStartView({ pinDestination = null }: WalkStartViewProps) {
     });
   };
 
+  // ピンを目的地にしたときは目的地が最初から決まっているので、現在地が取れるまでの間も文言で示す
+  // （ルートの要求は現在地が無いと始まらず、「散歩を始める」のまま押せない状態に見えるため）。
   const startLabel = !plan.destination
     ? "目的地を選んでください"
-    : plan.isLoadingWalkRoute
-      ? "ルートを確認しています…"
-      : "散歩を始める";
+    : plan.origin === null
+      ? plan.locationErrorCode !== null
+        ? "現在地を取得できません"
+        : "現在地を確認しています…"
+      : plan.isLoadingWalkRoute
+        ? "ルートを確認しています…"
+        : "散歩を始める";
 
   return (
     <View testID="walk-start-screen" style={styles.root}>
