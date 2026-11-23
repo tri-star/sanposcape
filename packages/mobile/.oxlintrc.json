@@ -170,11 +170,7 @@
     },
     {
       // SS-259: ピンのタブ・散歩の開始と散歩中の画面が、地図・シート・ダイアログの部品を直接組み立てている（依存 26・27）。
-      "files": [
-        "src/features/sanpo-map/pin/components/PinTabView.tsx",
-        "src/features/walk/active/components/WalkActiveView.tsx",
-        "src/features/walk/explore/components/WalkStartView.tsx"
-      ],
+      "files": ["src/features/sanpo-map/pin/components/PinTabView.tsx"],
       "rules": { "import/max-dependencies": "off" }
     }
   ]

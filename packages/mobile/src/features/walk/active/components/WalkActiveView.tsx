@@ -1,21 +1,17 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
-import { Image, ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import walkerImage from "@/assets/images/walker.png";
-import { Button } from "@/components/ui/button/Button";
-import { Dialog } from "@/components/ui/dialog/Dialog";
-import { Icon } from "@/components/ui/icon/Icon";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
-import { LocationPermissionNotice } from "@/components/location/LocationPermissionNotice";
-import { ApproximateLocationNotice } from "@/features/walk/shared/components/ApproximateLocationNotice";
+import { WalkActiveHeader } from "@/features/walk/active/components/WalkActiveHeader";
+import { WalkActiveNotices } from "@/features/walk/active/components/WalkActiveNotices";
+import { WalkEndDialog } from "@/features/walk/active/components/WalkEndDialog";
 import { WalkIdleNotice } from "@/features/walk/active/components/WalkIdleNotice";
 import { WalkPerfDebugOverlay } from "@/features/walk/active/components/WalkPerfDebugOverlay";
 import { WalkRouteMapView } from "@/features/walk/active/components/WalkRouteMapView";
-import { WalkRouteNotice } from "@/features/walk/route/components/WalkRouteNotice";
 import { WalkStatsPanel } from "@/features/walk/active/components/WalkStatsPanel";
 import { useActiveWalk } from "@/features/walk/active/hooks/useActiveWalk";
 import {
@@ -25,7 +21,6 @@ import {
 import { shouldShowApproximateLocationNotice } from "@/features/walk/shared/lib/locationPrecisionNotice";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage } from "@/lib/flashMessage";
-import { formatClock } from "@/lib/formatClock";
 import type { MapRegion, MapRegionRequest } from "@/lib/mapRegion";
 import { makeStyles } from "@/theme/makeStyles";
 import { useTheme } from "@/theme/useTheme";
@@ -92,8 +87,6 @@ export function WalkActiveView({
   const focusRegion = useCallback((region: MapRegion) => {
     setRegionRequest((previous) => ({ region, nonce: (previous?.nonce ?? 0) + 1 }));
   }, []);
-
-  const isDark = theme.name === "dark";
 
   const handleConfirmEnd = () => {
     setEndDialogOpen(false);
@@ -162,32 +155,13 @@ export function WalkActiveView({
 
   return (
     <View testID="walk-active-screen" style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {isDark ? (
-          <View style={styles.illustrationTint}>
-            <Icon name="footprints" size={24} color={theme.colors.primary} />
-          </View>
-        ) : (
-          <Image source={walkerImage} resizeMode="cover" style={styles.illustration} />
-        )}
-        <View style={styles.headerText}>
-          {/*
-            値は散歩開始時点の周回ルート実値（WalkStartView が積む）。散歩中は取り直さない（SS-33）。
-          */}
-          <Text style={styles.eyebrow}>周回の目安</Text>
-          <View style={styles.headerValueRow}>
-            <Text style={styles.headerValue}>{activeWalk.loopMinutes}</Text>
-            <Text style={styles.headerUnit}>分（約{activeWalk.loopKm.toFixed(1)}km）</Text>
-          </View>
-          <Text style={styles.goalName}>ゴール：{activeWalk.destination.name}</Text>
-        </View>
-        <IconButton
-          icon="settings-2"
-          label="設定"
-          variant="tinted"
-          onPress={() => router.push("/settings")}
-        />
-      </View>
+      <WalkActiveHeader
+        loopMinutes={activeWalk.loopMinutes}
+        loopKm={activeWalk.loopKm}
+        destinationName={activeWalk.destination.name}
+        paddingTop={insets.top + 8}
+        onOpenSettings={() => router.push("/settings")}
+      />
 
       <WalkRouteMapView
         walkRoute={walk.walkRoute}
@@ -218,19 +192,13 @@ export function WalkActiveView({
         </View>
       </WalkRouteMapView>
 
-      <WalkRouteNotice errorCode={walk.walkRouteErrorCode} onRetry={walk.retryWalkRoute} />
-
-      {walk.trackingErrorCode !== null ? (
-        <LocationPermissionNotice
-          errorCode={walk.trackingErrorCode}
-          context="tracking"
-          onRetry={walk.retryTracking}
-          testID="walk-active-location-notice"
-        />
-      ) : null}
-      {walk.trackingErrorCode === null && approximateLocation ? (
-        <ApproximateLocationNotice context="tracking" testID="walk-active-approximate-notice" />
-      ) : null}
+      <WalkActiveNotices
+        walkRouteErrorCode={walk.walkRouteErrorCode}
+        onRetryWalkRoute={walk.retryWalkRoute}
+        trackingErrorCode={walk.trackingErrorCode}
+        onRetryTracking={walk.retryTracking}
+        approximateLocation={approximateLocation}
+      />
 
       <View style={styles.statsWrap}>
         <WalkStatsPanel
@@ -246,37 +214,13 @@ export function WalkActiveView({
         />
       </View>
 
-      {/*
-        表示中の Android のシステムバックは `Dialog`（RN の `Modal`）の `onRequestClose` → `onClose` だけに届き、
-        ダイアログを閉じるだけになる（「続ける」と同じ。散歩は終わらず、タブの戻る・アプリの終了も起きない。SS-46）。
-        タブのルートなので `useScreenBack` は使わない（タブの `backBehavior` を奪うため）。
-      */}
-      <Dialog
+      <WalkEndDialog
         open={endDialogOpen}
-        title="散歩を終了しますか？"
+        elapsedSec={walk.elapsedSec}
+        distanceMeters={walk.distanceMeters}
         onClose={() => setEndDialogOpen(false)}
-        testID="walk-end-dialog"
-        actions={
-          <>
-            <Button variant="secondary" fullWidth onPress={() => setEndDialogOpen(false)}>
-              続ける
-            </Button>
-            <Button
-              variant="primary"
-              fullWidth
-              onPress={handleConfirmEnd}
-              testID="walk-end-confirm"
-            >
-              終了して記録
-            </Button>
-          </>
-        }
-      >
-        <Text style={styles.dialogBody}>
-          経過時間 {formatClock(walk.elapsedSec)}・約{(walk.distanceMeters / 1000).toFixed(1)}
-          km を今日の記録に保存します。
-        </Text>
-      </Dialog>
+        onConfirm={handleConfirmEnd}
+      />
 
       <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 96} />
     </View>
@@ -287,53 +231,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     flex: 1,
     backgroundColor: theme.colors.surfaceApp,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[3],
-    paddingHorizontal: theme.layout.pageGutter,
-    paddingBottom: theme.spacing[2] + 2,
-  },
-  illustration: {
-    width: 88,
-    height: 48,
-    borderRadius: theme.radius.md,
-  },
-  illustrationTint: {
-    width: 88,
-    height: 48,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surfaceTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerText: {
-    flex: 1,
-  },
-  eyebrow: {
-    fontSize: theme.typography.size["2xs"],
-    color: theme.colors.textTertiary,
-  },
-  headerValueRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
-  },
-  headerValue: {
-    fontSize: theme.typography.size["2xl"] + 2,
-    fontWeight: theme.typography.weight.heavy,
-    color: theme.colors.primary,
-  },
-  headerUnit: {
-    fontSize: theme.typography.size.xs,
-    color: theme.colors.textSecondary,
-  },
-  goalName: {
-    marginTop: 1,
-    fontSize: theme.typography.size.md,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textPrimary,
   },
   mapTools: {
     position: "absolute",
@@ -349,10 +246,5 @@ const useStyles = makeStyles((theme) => ({
   },
   statsWrap: {
     margin: theme.spacing[3],
-  },
-  dialogBody: {
-    fontSize: theme.typography.size.md,
-    color: theme.colors.textSecondary,
-    lineHeight: 24,
   },
 }));
