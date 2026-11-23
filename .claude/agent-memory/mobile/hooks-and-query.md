@@ -1,6 +1,6 @@
 ---
 name: hooks-and-query
-description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、地図が消える操作の後の ["pins"] の invalidate、useQueries では keepPreviousData が効かない、Rules of Hooks、手動メモ化の警告、毎回取る詳細からキャッシュを共有する一覧へ移ると食い違う、combine で取り出し忘れた項目は黙って undefined
+description: mobile の hook と TanStack Query の落とし穴 — 自分の dispatch でキャンセルされるキュー（kick 駆動へ）、間隔制御は errorUpdatedAt も見る、useMutation の雛形、削除直後の 404、地図が消える操作の後の ["pins"] の invalidate、useQueries では keepPreviousData が効かない（useQuery では enabled: false でも前のデータが残る）、Rules of Hooks、手動メモ化の警告、毎回取る詳細からキャッシュを共有する一覧へ移ると食い違う、combine で取り出し忘れた項目は黙って undefined
 metadata:
   type: feedback
   scope: durable
@@ -69,6 +69,10 @@ SS-174 で実測: key を変えた直後の結果は `isPending: true`・`isPlac
 **How to apply:** `useQueries` で key を変えたときの表示を決める・説明するときは、前のデータは残らない前提で考える。
 前のデータを残したいなら、key を変えずに済む構造にするか、前回の結果を自前で持つ。挙動に迷ったら、
 `QueriesObserver` を node の vitest で直接動かして `getCurrentResult()` を見ると数分で確かめられる。
+
+逆に `useQuery` の `keepPreviousData` は、**`enabled: false` にした query にも前のデータを当てる**（`queryObserver.js` の placeholder の分岐。SS-170 のレビューで確認）。
+同じマウントのまま探索を止める（入力を null にする・`enabled` を落とす）と、止める前の結果が `data` に残って画面に出続ける。
+**How to apply:** 止めている間は空にしたい hook では、`enabled` が false のときに戻り値を自分で空にする（`useSpotCandidates` の `candidates`）。
 
 ## 開くたびに取る詳細から、キャッシュを共有する一覧へ移ると食い違う
 
