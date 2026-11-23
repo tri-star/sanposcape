@@ -183,108 +183,17 @@ export function usePinPhotos(options: {
     item: PhotoDraftItem;
   }): Promise<void> {
     if (work.kind === "prepare") {
-      // NOTE: expo-image-manipulator は現状キャンセルをサポートしないため、prepare には
-      // AbortSignal を渡さない（意図的な非対称性。アンマウント後の dispatch は itemsRef から
-      // 消えた localId に対して no-op になるので実害は無い）。
-      try {
-        const prepared = await photoService.prepareForUpload(work.item.picked);
-        // PR #93 T9: 「上限の正は枠発行応答の max_byte_size」という設計（ADR-M-010 決定3）に
-        // 反して、ここで固定 10 MiB 判定をしていたため、backend の上限を引き上げても枠発行前に
-        // 失敗していた。ここでは極端な値だけを足切りし、通常の上限判定は枠発行後
-        // （`pinPhotoTransfer.ts`）に委ねる。
-        if (prepared.byteSize > PIN_PHOTO_MAX_BYTES_HARD_CAP) {
-          dispatch({ type: "failed", localId: work.item.localId, errorCode: "too_large" });
-        } else {
-          dispatch({ type: "prepared", localId: work.item.localId, prepared });
-        }
-      } catch (error) {
-        // ★ `errorMessage` は出さない。`expo-image-manipulator` は失敗時の例外に読み書き先の
-        //   URI をそのまま埋める（Android は `/data/user/0/<pkg>/cache/...`、iOS は
-        //   `file:///var/mobile/Containers/Data/Application/<UUID>/...`）。`pin-photo.upload.start`
-        //   で URI のスキームしか出していない方針と揃える（SS-88 のレビュー指摘）。
-        logDiagnostic("pin-photo.prepare.failed", {
-          localId: work.item.localId,
-          errorName: describeError(error).errorName,
-        });
-        dispatch({ type: "failed", localId: work.item.localId, errorCode: "processing_failed" });
-      }
+      await prepareQueuedPhoto(work.item, dispatch);
       return;
     }
-
-    // transfer
-    const preparedPhoto = work.item.prepared;
-    if (preparedPhoto === null) {
-      // 起こらないはず（waiting は必ず prepared を伴う）。型の防波堤。
-      dispatch({ type: "failed", localId: work.item.localId, errorCode: "processing_failed" });
-      return;
-    }
-
-    dispatch({ type: "uploadStarted", localId: work.item.localId });
-    const controller = new AbortController();
-    activeTransferRef.current = { localId: work.item.localId, controller };
-    try {
-      const uploadId = await withTimeout(
-        (signal) =>
-          transferPinPhoto(
-            {
-              localId: work.item.localId,
-              prepared: preparedPhoto,
-              takenAt: work.item.picked.takenAt,
-            },
-            { signal, apiBaseUrl: getApiBaseUrl() },
-          ),
-        controller,
-        TRANSFER_TIMEOUT_MS,
-      );
-      dispatch({ type: "uploaded", localId: work.item.localId, uploadId });
-    } catch (error) {
-      // 意図的な中断（MR5 の削除・アンマウント）はユーザーの通常操作なので、失敗として扱わない。
-      // 対象の localId は既に itemsRef から消えており reducer も no-op になるため、ここで
-      // 打ち切って構わない（`isAbortError` の JSDoc 参照）。
-      if (isAbortError(error)) {
-        return;
-      }
-      const code = toPhotoUploadErrorCode(error);
-      // 分類結果（UI の文言はここから決まる）と生の例外を1行で対応付ける。`withTimeout` の
-      // タイムアウトと RN の通信失敗はどちらも "network" になるため、`errorMessage`
-      // （"Pin photo transfer timed out" か否か）が唯一の見分け方になる。
-      logDiagnostic("pin-photo.upload.failed", {
-        localId: work.item.localId,
-        code,
-        ...describeError(error),
-      });
-      if (isWaitablePhotoUploadError(code)) {
-        // 429: この画面では以後、先行アップロードの枠発行をしない（放棄された未使用枠が
-        // 他所に残っている可能性が高く、粘っても空かない）。残りは保存フローが送る。
-        dispatch({ type: "waited", localId: work.item.localId });
-        pausedRef.current = true;
-      } else {
-        // 意図的な abort（MR5 の削除・アンマウント）も含めここに来るが、対象の localId は
-        // 既に itemsRef から消えているため reducer が no-op にする（実害は無い）。
-        dispatch({ type: "failed", localId: work.item.localId, errorCode: code });
-      }
-    } finally {
-      if (activeTransferRef.current?.localId === work.item.localId) {
-        activeTransferRef.current = null;
-      }
-    }
+    await transferQueuedPhoto(work.item, { dispatch, activeTransferRef, pausedRef });
   }
 
   const transferPhotoForSave = useCallback(async (item: PhotoDraftItem): Promise<string> => {
     if (item.prepared === null) {
       throw new TypeError("Pin photo is not prepared yet");
     }
-    const prepared = item.prepared;
-    const controller = new AbortController();
-    return withTimeout(
-      (signal) =>
-        transferPinPhoto(
-          { localId: item.localId, prepared, takenAt: item.picked.takenAt },
-          { signal, apiBaseUrl: getApiBaseUrl() },
-        ),
-      controller,
-      TRANSFER_TIMEOUT_MS,
-    );
+    return transferWithTimeout(item, item.prepared, new AbortController());
   }, []);
 
   // enabled が false → true になったとき（通常は起きないが念のため）にもキューを起こす。
@@ -395,4 +304,114 @@ export function usePinPhotos(options: {
       resume,
     },
   };
+}
+
+type Dispatch = (action: PhotoDraftAction) => void;
+
+/** 先行アップロードのキューの「加工」の1件。結果は dispatch で返す（例外を投げない）。 */
+async function prepareQueuedPhoto(item: PhotoDraftItem, dispatch: Dispatch): Promise<void> {
+  // NOTE: expo-image-manipulator は現状キャンセルをサポートしないため、prepare には
+  // AbortSignal を渡さない（意図的な非対称性。アンマウント後の dispatch は itemsRef から
+  // 消えた localId に対して no-op になるので実害は無い）。
+  try {
+    const prepared = await photoService.prepareForUpload(item.picked);
+    // PR #93 T9: 「上限の正は枠発行応答の max_byte_size」という設計（ADR-M-010 決定3）に
+    // 反して、ここで固定 10 MiB 判定をしていたため、backend の上限を引き上げても枠発行前に
+    // 失敗していた。ここでは極端な値だけを足切りし、通常の上限判定は枠発行後
+    // （`pinPhotoTransfer.ts`）に委ねる。
+    if (prepared.byteSize > PIN_PHOTO_MAX_BYTES_HARD_CAP) {
+      dispatch({ type: "failed", localId: item.localId, errorCode: "too_large" });
+    } else {
+      dispatch({ type: "prepared", localId: item.localId, prepared });
+    }
+  } catch (error) {
+    // ★ `errorMessage` は出さない。`expo-image-manipulator` は失敗時の例外に読み書き先の
+    //   URI をそのまま埋める（Android は `/data/user/0/<pkg>/cache/...`、iOS は
+    //   `file:///var/mobile/Containers/Data/Application/<UUID>/...`）。`pin-photo.upload.start`
+    //   で URI のスキームしか出していない方針と揃える（SS-88 のレビュー指摘）。
+    logDiagnostic("pin-photo.prepare.failed", {
+      localId: item.localId,
+      errorName: describeError(error).errorName,
+    });
+    dispatch({ type: "failed", localId: item.localId, errorCode: "processing_failed" });
+  }
+}
+
+/**
+ * 先行アップロードのキューの「転送」の1件。転送中のアイテムを `activeTransferRef` に置き（削除時の abort 用。MR5）、
+ * 429 なら `pausedRef` を立てて以後の枠発行を止める。結果は dispatch で返す（例外を投げない）。
+ */
+async function transferQueuedPhoto(
+  item: PhotoDraftItem,
+  {
+    dispatch,
+    activeTransferRef,
+    pausedRef,
+  }: {
+    dispatch: Dispatch;
+    activeTransferRef: { current: { localId: string; controller: AbortController } | null };
+    pausedRef: { current: boolean };
+  },
+): Promise<void> {
+  const preparedPhoto = item.prepared;
+  if (preparedPhoto === null) {
+    // 起こらないはず（waiting は必ず prepared を伴う）。型の防波堤。
+    dispatch({ type: "failed", localId: item.localId, errorCode: "processing_failed" });
+    return;
+  }
+
+  dispatch({ type: "uploadStarted", localId: item.localId });
+  const controller = new AbortController();
+  activeTransferRef.current = { localId: item.localId, controller };
+  try {
+    const uploadId = await transferWithTimeout(item, preparedPhoto, controller);
+    dispatch({ type: "uploaded", localId: item.localId, uploadId });
+  } catch (error) {
+    // 意図的な中断（MR5 の削除・アンマウント）はユーザーの通常操作なので、失敗として扱わない。
+    // 対象の localId は既に itemsRef から消えており reducer も no-op になるため、ここで
+    // 打ち切って構わない（`isAbortError` の JSDoc 参照）。
+    if (isAbortError(error)) {
+      return;
+    }
+    const code = toPhotoUploadErrorCode(error);
+    // 分類結果（UI の文言はここから決まる）と生の例外を1行で対応付ける。`withTimeout` の
+    // タイムアウトと RN の通信失敗はどちらも "network" になるため、`errorMessage`
+    // （"Pin photo transfer timed out" か否か）が唯一の見分け方になる。
+    logDiagnostic("pin-photo.upload.failed", {
+      localId: item.localId,
+      code,
+      ...describeError(error),
+    });
+    if (isWaitablePhotoUploadError(code)) {
+      // 429: この画面では以後、先行アップロードの枠発行をしない（放棄された未使用枠が
+      // 他所に残っている可能性が高く、粘っても空かない）。残りは保存フローが送る。
+      dispatch({ type: "waited", localId: item.localId });
+      pausedRef.current = true;
+    } else {
+      // 意図的な abort（MR5 の削除・アンマウント）も含めここに来るが、対象の localId は
+      // 既に itemsRef から消えているため reducer が no-op にする（実害は無い）。
+      dispatch({ type: "failed", localId: item.localId, errorCode: code });
+    }
+  } finally {
+    if (activeTransferRef.current?.localId === item.localId) {
+      activeTransferRef.current = null;
+    }
+  }
+}
+
+/** 1件の転送（枠発行 → 直送）をタイムアウト付きで行い、upload ID を返す。 */
+function transferWithTimeout(
+  item: PhotoDraftItem,
+  prepared: NonNullable<PhotoDraftItem["prepared"]>,
+  controller: AbortController,
+): Promise<string> {
+  return withTimeout(
+    (signal) =>
+      transferPinPhoto(
+        { localId: item.localId, prepared, takenAt: item.picked.takenAt },
+        { signal, apiBaseUrl: getApiBaseUrl() },
+      ),
+    controller,
+    TRANSFER_TIMEOUT_MS,
+  );
 }

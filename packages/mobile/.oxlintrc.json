@@ -169,16 +169,6 @@
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
     },
     {
-      // SS-259: ピンの編集の hook が、取得・下書き・保存の状態を1つの hook で持っている（行数 221・複雑度 21）。
-      "files": ["src/features/sanpo-map/pin/hooks/usePinEdit.ts"],
-      "rules": { "complexity": "off", "max-lines-per-function": "off" }
-    },
-    {
-      // SS-259: ピンの写真の hook が、写真の状態と転送の処理を1つの hook で持っている（行数 213）。責務ごとに分ける。
-      "files": ["src/features/sanpo-map/pin/hooks/usePinPhotos.ts"],
-      "rules": { "max-lines-per-function": "off" }
-    },
-    {
       // SS-259: 開発用のカタログの画面が、並べる部品をすべて直接描いている（行数 213・依存 22）。
       "files": ["src/features/design-system/components/DesignSystemGallery.tsx"],
       "rules": { "max-lines-per-function": "off", "import/max-dependencies": "off" }
