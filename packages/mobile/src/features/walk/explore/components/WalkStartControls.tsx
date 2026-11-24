@@ -17,6 +17,8 @@ import { useTheme } from "@/theme/useTheme";
 
 export type WalkStartControlsProps = {
   plan: UseWalkPlanResult;
+  /** ピンを目的地にして開いたとき（SS-170）。往復時間・カテゴリ（候補の探索の条件）を出さない。 */
+  isPinDestination?: boolean;
   /** 下端の余白（セーフエリアを含む）。 */
   paddingBottom: number;
   /** 「散歩を始める」。 */
@@ -24,47 +26,64 @@ export type WalkStartControlsProps = {
 };
 
 /** 散歩開始画面（`WalkStartView`）の下の操作の面（時間・表示するスポット・ルートの要約・開始のボタン）。 */
-export function WalkStartControls({ plan, paddingBottom, onStartWalk }: WalkStartControlsProps) {
+export function WalkStartControls({
+  plan,
+  isPinDestination = false,
+  paddingBottom,
+  onStartWalk,
+}: WalkStartControlsProps) {
   const theme = useTheme();
   const styles = useStyles();
   const catsSummary = categorySummary(plan.activeCategories, CATEGORY_ORDER.length);
 
-  const startLabel = !plan.selectedSpot
+  // ピンを目的地にしたときは目的地が最初から決まっているので、現在地が取れるまでの間も文言で示す
+  // （ルートの要求は現在地が無いと始まらず、「散歩を始める」のまま押せない状態に見えるため）。
+  const startLabel = !plan.destination
     ? "目的地を選んでください"
-    : plan.isLoadingWalkRoute
-      ? "ルートを確認しています…"
-      : "散歩を始める";
+    : plan.origin === null
+      ? plan.locationErrorCode !== null
+        ? "現在地を取得できません"
+        : "現在地を確認しています…"
+      : plan.isLoadingWalkRoute
+        ? "ルートを確認しています…"
+        : "散歩を始める";
 
   return (
     <View style={[styles.controls, { paddingBottom }]}>
-      <DurationSlider
-        value={plan.durationMin}
-        min={DURATION_MIN}
-        max={DURATION_MAX}
-        step={DURATION_STEP}
-        onChange={plan.setDurationMin}
-        onCommit={plan.commitDurationMin}
-        testID="walk-start-duration-slider"
-      />
+      {/* 往復時間・カテゴリは候補の探索の条件なので、目的地がピンに決まっているときは出さない。 */}
+      {isPinDestination ? null : (
+        <>
+          <DurationSlider
+            value={plan.durationMin}
+            min={DURATION_MIN}
+            max={DURATION_MAX}
+            step={DURATION_STEP}
+            onChange={plan.setDurationMin}
+            onCommit={plan.commitDurationMin}
+            testID="walk-start-duration-slider"
+          />
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={plan.openCatSheet}
-        testID="walk-start-open-category-sheet"
-        style={({ pressed }) => [
-          styles.categoryRow,
-          { transform: [{ scale: pressed ? 0.98 : 1 }] },
-        ]}
-      >
-        <Icon name="sliders-horizontal" size={17} color={theme.colors.primary} />
-        <Text style={styles.categoryRowLabel}>表示するスポット</Text>
-        <Text style={styles.catsSummaryText}>{catsSummary}</Text>
-        <Icon name="chevron-right" size={16} color={theme.colors.textTertiary} />
-      </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={plan.openCatSheet}
+            testID="walk-start-open-category-sheet"
+            style={({ pressed }) => [
+              styles.categoryRow,
+              { transform: [{ scale: pressed ? 0.98 : 1 }] },
+            ]}
+          >
+            <Icon name="sliders-horizontal" size={17} color={theme.colors.primary} />
+            <Text style={styles.categoryRowLabel}>表示するスポット</Text>
+            <Text style={styles.catsSummaryText}>{catsSummary}</Text>
+            <Icon name="chevron-right" size={16} color={theme.colors.textTertiary} />
+          </Pressable>
+        </>
+      )}
 
-      {plan.selectedSpot ? (
+      {plan.destination ? (
         <WalkRouteSummary
-          spot={plan.selectedSpot}
+          destinationName={plan.destination.name}
+          roundTripMinutes={plan.selectedSpot?.roundTripMinutes ?? null}
           walkRoute={plan.walkRoute}
           isLoading={plan.isLoadingWalkRoute}
           errorCode={plan.walkRouteErrorCode}

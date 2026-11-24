@@ -251,7 +251,7 @@ docker compose up -d --build
   簡略 JSON と同じ形の文字列（本番と同じパーサ（`integrations/aws/appconfig.py`）を通すため）。
   不正な JSON や JSON オブジェクトでない値を渡しても起動は落ちず、WARNING ログ + 空の
   ドキュメント（= 登録簿の全フラグ `false`。固定値のフラグは `true`）にフォールバックする。
-  `.env.example` は `{}`（固定値のフラグだけが `true`）にしている。開発中のフラグを試すときに足す。
+  `.env.example` は開発中のフラグ `pin_walk_destination`（SS-170）を `true` にしている（固定値のフラグは常に `true`）。ほかの開発中のフラグを試すときに足す。
 - `APPCONFIG_APPLICATION_ID` / `APPCONFIG_ENVIRONMENT_ID` / `APPCONFIG_CONFIGURATION_PROFILE_ID`:
   ローカルでは通常未設定でよい。`real` で dev の AppConfig への実疎通を試したい場合のみ、
   3本とも dev の ID に設定する（1本でも空だと `UnconfiguredFlagSource` になる）。

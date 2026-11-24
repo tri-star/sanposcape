@@ -53,7 +53,10 @@ export type UseWalkPlanResult = {
   selectedSpotId: string | null;
   selectSpot: (id: string) => void;
   selectedSpot: SpotCandidate | null;
-  /** `selectedSpot` から組み立てた `WalkDestination`（`useWalkRoute` にもこの値を渡す）。散歩開始時の引き渡し用。 */
+  /**
+   * 目的地。ピンを目的地にして開いたときはそのピン（`pinDestination`）、それ以外は `selectedSpot` から組み立てたもの
+   * （`useWalkRoute` にもこの値を渡す）。散歩開始時の引き渡し用。
+   */
   destination: WalkDestination | null;
 
   walkRoute: WalkRoute | null;
@@ -71,8 +74,14 @@ export type UseWalkPlanResult = {
  *
  * API 呼び出しを抑えるため、再探索が走るのは「スライダーを離した」「カテゴリを確定した」
  * 「現在地を取り直した」「手動リトライ」の4つだけにする（§6.3）。
+ *
+ * `pinDestination` を渡すと（ピン詳細の「このピンまで散歩する」。SS-170）、目的地をそのピンに固定し、
+ * スポットの候補は探索しない（`/explore/places` を呼ばない）。
  */
-export function useWalkPlan(): UseWalkPlanResult {
+export function useWalkPlan(
+  options: { pinDestination?: WalkDestination | null } = {},
+): UseWalkPlanResult {
+  const pinDestination = options.pinDestination ?? null;
   const [durationMin, setDurationMin] = useState(DEFAULT_DURATION_MIN);
   const [searchDurationMin, setSearchDurationMin] = useState(DEFAULT_DURATION_MIN);
 
@@ -125,6 +134,7 @@ export function useWalkPlan(): UseWalkPlanResult {
     origin,
     durationMin: searchDurationMin,
     categories: activeCategories,
+    enabled: pinDestination === null,
   });
 
   const selectSpot = useCallback((id: string) => {
@@ -136,16 +146,15 @@ export function useWalkPlan(): UseWalkPlanResult {
     [explore.candidates, selectedSpotId],
   );
 
-  const destination = useMemo<WalkDestination | null>(
-    () =>
-      selectedSpot === null
-        ? null
-        : { placeId: selectedSpot.id, name: selectedSpot.name, location: selectedSpot.location },
-    [selectedSpot],
-  );
+  const destination = useMemo<WalkDestination | null>(() => {
+    if (pinDestination !== null) return pinDestination;
+    return selectedSpot === null
+      ? null
+      : { placeId: selectedSpot.id, name: selectedSpot.name, location: selectedSpot.location };
+  }, [pinDestination, selectedSpot]);
 
   const route = useWalkRoute({ origin, destination });
-  const canStartWalk = selectedSpot !== null && route.walkRoute !== null;
+  const canStartWalk = destination !== null && route.walkRoute !== null;
 
   const retryLocation = useCallback(() => {
     setSelectedSpotId(null);

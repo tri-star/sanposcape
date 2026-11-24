@@ -14,9 +14,14 @@
           "constraints": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
         }
       }
+    },
+    "pin_walk_destination": {
+      "name": "pin walk destination",
+      "description": "ピンを散歩の目的地にする（SS-170）。mobile のピン詳細の『このピンまで散歩する』と、散歩開始画面がピンのパラメータを受け付けることを出し分ける。プライバシーポリシーの施行日（2026-12-23）の後に ON にする"
     }
   },
   "values": {
-    "client_requirements": { "enabled": true }
+    "client_requirements": { "enabled": true },
+    "pin_walk_destination": { "enabled": false }
   }
 }

@@ -205,7 +205,7 @@ hook に書くとき、2つの慣用句が共存する。**どちらを使うか
   backend の `.env` に `FEATURE_FLAG_MODE=stub` と
   `FEATURE_FLAG_STUB_DOCUMENT='{"<キー>":{"enabled":true}}'` を設定して起動する
   （`ENV=local` / `test` 以外では起動時に弾かれる。ADR-008 追補 D5）。
-  `.env.example` から生成した `.env` は `{}`（開発中のフラグが無い）にしている。固定値に移したフラグ（`pin_registration` など5本。
+  `.env.example` から生成した `.env` は開発中のフラグ `pin_walk_destination`（ピンを散歩の目的地にする。SS-170）を ON にしており、ローカル・CI とも追加設定なしで ON になる。固定値に移したフラグ（`pin_registration` など5本。
   backend の `FIXED_CLIENT_FLAGS`。SS-271）は、この文書に関わらずローカル・CI とも `true` で返る。
   最低サポートバージョンも同じ JSON の `client_requirements` で与えられる。
 - **最低サポートバージョン**（`AppConfigSnapshot.minimumSupportedVersions`）を下回ると、ルートレイアウトの

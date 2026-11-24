@@ -22,8 +22,15 @@
  * `_enabled` のような接尾辞は付けない（値が bool なので冗長）。
  */
 export const FEATURE_FLAG_KEYS = {
-  // 今は出し分けているフラグが無い。SS-271 で pin_registration・pin_station_tag・map_invitation・
-  // map_pin_visibility・display_name_edit を消した（backend は固定値 true を返し続ける。docs/compat-tracker.md）。
+  // SS-271 で pin_registration・pin_station_tag・map_invitation・map_pin_visibility・display_name_edit を消した
+  // （backend は固定値 true を返し続ける。docs/compat-tracker.md）。
+  /**
+   * ピンを散歩の目的地にする（SS-170。ADR-M-027）。ピン詳細の「このピンまで散歩する」と、散歩開始画面が
+   * ピンのパラメータ（`/walk-start?pinId=...`）を受け付けることを出し分ける。OFF の間はボタンを出さず、
+   * パラメータ付きで開いても通常の散歩開始画面にする。ほかのメンバーのピンの名前・位置が散歩の記録に残るので、
+   * プライバシーポリシーの不利な改定の施行日（2026-12-23）の後に ON にする。
+   */
+  pinWalkDestination: "pin_walk_destination",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];

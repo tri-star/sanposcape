@@ -72,6 +72,9 @@ ScrollView 内の地図は ADR-M-012 の SS-149 追補、位置調整のオー�
 - 症状: パラメータも要求も届いているのに地図が動かない。`dismissTo` でネストしたタブにパラメータが届かないのを疑いやすいが、届いている。
 - **How to apply:** 別の画面からの操作で地図のカメラを動かす要求は、動き終わる（`onRegionChangeComplete`）まで覚えておき、`onMapReady` でもう一度当てる（`PinMapCanvas` の `pendingRegionRef`。ADR-M-012 SS-246 追補）。
   切り分けは、要求の effect と `onMapReady` に `console.log(Date.now())` を入れて順序を見るのが早い（`ui.sh logs`）。Fast Refresh で地図が作り直されると要求が初回扱いで当たって直ったように見えるので、確かめ直すときは画面を開き直して元の手順でやる。
+- **マウント直後（地図の準備前）の `animateToRegion` も同じく捨てられる**（SS-170）。散歩開始画面をピンの目的地で開き直すと、周回ルートが Query のキャッシュから即座に届き、
+  `useMapRouteFit` の effect がマウントと同じコミットで走って何も起きず、`initialRegion`（往復半径の広域）のままになった。初回はルートが後から届くので再現しない。
+  **How to apply:** マウントの時点で寄せたい範囲が分かっているなら `initialRegion` をその範囲にする（`SpotMapView`）。キャッシュの有無で結果が変わるので、確かめるときは同じ条件で2回開く。
 
 ## 向き・回転を地図に描く（SS-169）
 

@@ -9,6 +9,7 @@ import { WalkStartControls } from "@/features/walk/explore/components/WalkStartC
 import { WalkStartSpots } from "@/features/walk/explore/components/WalkStartSpots";
 import { useWalkPlan } from "@/features/walk/explore/hooks/useWalkPlan";
 import { toRouteMinutes } from "@/features/walk/route/lib/walkRoute";
+import type { WalkDestination } from "@/features/walk/shared/types";
 import { useActiveWalkStore } from "@/features/walk/active/store/useActiveWalkStore";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
@@ -19,17 +20,27 @@ import { makeStyles } from "@/theme/makeStyles";
 /** 戻り先/開始後の遷移先の既定ホーム（ナビタブ）。2箇所で直書きしないよう定数化する。 */
 const HOME_HREF = "/(tabs)";
 
+export type WalkStartViewProps = {
+  /**
+   * ピンを目的地にして開いたとき（ピン詳細の「このピンまで散歩する」。SS-170）のピン。ルートがパラメータから作って渡す。
+   * 渡すと候補の探索・一覧・往復時間・カテゴリを出さず、このピンまでの周回ルートだけを出す。
+   */
+  pinDestination?: WalkDestination | null;
+};
+
 /**
  * 散歩開始画面。実地図（`SpotMapView`）+ 現在地 + `/explore/places` 由来の候補を表示する。
  * スポットを選択すると `/explore/routes/loop` で周回ルートを取得して地図に重ね、
  * 「散歩を始める」を押すと `useActiveWalkStore` に開始情報を積んで散歩中（ナビタブ）へ遷移する。
+ * `pinDestination` があれば、目的地はそのピンに決まった状態で開く（ADR-M-027）。
  */
-export function WalkStartView() {
+export function WalkStartView({ pinDestination = null }: WalkStartViewProps) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
-  const plan = useWalkPlan();
+  const plan = useWalkPlan({ pinDestination });
+  const isPinDestination = pinDestination !== null;
   const startWalk = useActiveWalkStore((state) => state.startWalk);
 
   // 戻り先は (tabs)。`/(tabs)` は `(tabs)/index`＝ナビタブに解決される。`/walk-start` にはナビタブの
@@ -51,21 +62,27 @@ export function WalkStartView() {
   // 押せない（シートがコンテンツを覆う）ため、シートを閉じる分岐と衝突する実害が無い。
   // runOnce のラッチだけを goBack と共有し、戻る連打・戻る＋開始の同時押しでも遷移は1回にする。
   const handleStartWalk = () => {
-    const { selectedSpot, origin, destination, walkRoute } = plan;
-    if (!selectedSpot || !origin || !destination || !walkRoute) return;
+    const { origin, destination, walkRoute } = plan;
+    if (!origin || !destination || !walkRoute) return;
     back.runOnce(() => {
       startWalk({
         // 保存の冪等キー。散歩開始時に採番する（ADR-003 D3）。
         clientWalkId: randomUuidV4(),
         origin,
-        // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot 由来）を公開してもらったものをそのまま使う
+        // `useWalkPlan` 内部の useMemo と同じ値（selectedSpot、またはピン由来）を公開してもらったものをそのまま使う
         // （ここで再構築すると、フィールド追加時に片方だけ更新し忘れるリスクがあるため）。
         destination,
         loopMinutes: toRouteMinutes(walkRoute.durationSeconds),
         loopKm: toKilometers(walkRoute.distanceMeters),
         startedAtMs: Date.now(),
       });
-      router.replace(HOME_HREF);
+      if (isPinDestination) {
+        // ピン詳細から push で来たので、下に積まれた (tabs) まで閉じてナビタブ（散歩中）へ戻す。
+        // 下に無ければ（ディープリンクで開いた等）置き換える。ピン詳細の「ピンの場所に移動」と同じ。
+        router.dismissTo(HOME_HREF);
+      } else {
+        router.replace(HOME_HREF);
+      }
     });
   };
 
@@ -86,7 +103,7 @@ export function WalkStartView() {
           />
           <View style={styles.headerText}>
             <Text style={styles.eyebrow}>コースを決める</Text>
-            <Text style={styles.title}>どこまで歩く？</Text>
+            <Text style={styles.title}>{isPinDestination ? "ピンまで歩く" : "どこまで歩く？"}</Text>
           </View>
           <IconButton
             icon="crosshair"
@@ -97,10 +114,11 @@ export function WalkStartView() {
           />
         </View>
 
-        <WalkStartSpots plan={plan} />
+        <WalkStartSpots plan={plan} pinDestination={pinDestination} />
 
         <WalkStartControls
           plan={plan}
+          isPinDestination={isPinDestination}
           paddingBottom={insets.bottom + 26}
           onStartWalk={handleStartWalk}
         />
