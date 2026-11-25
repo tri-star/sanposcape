@@ -3,12 +3,10 @@ import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Badge } from "@/components/ui/badge/Badge";
-import { Button } from "@/components/ui/button/Button";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
 import { ToastOverlay } from "@/components/ui/toast/ToastOverlay";
 import { PinStateCard } from "@/features/sanpo-map/shared/components/PinStateCard";
-import { SanpoMapMemberAvatar } from "@/features/sanpo-map/map/components/SanpoMapMemberAvatar";
+import { SanpoMapMemberList } from "@/features/sanpo-map/map/components/SanpoMapMemberList";
 import { SanpoMapInviteSection } from "@/features/sanpo-map/invitation/components/SanpoMapInviteSection";
 import { SanpoMapMemberRemoveDialog } from "@/features/sanpo-map/map/components/SanpoMapMemberRemoveDialog";
 import { usePullToRefresh } from "@/features/sanpo-map/shared/hooks/usePullToRefresh";
@@ -16,13 +14,10 @@ import { useSanpoMapMemberRemove } from "@/features/sanpo-map/map/hooks/useSanpo
 import { useSanpoMapMembers } from "@/features/sanpo-map/map/hooks/useSanpoMapMembers";
 import { useSanpoMaps } from "@/features/sanpo-map/map/hooks/useSanpoMaps";
 import {
-  SANPO_MAP_LEAVE_LABEL,
   SANPO_MAP_MEMBERS_LOAD_ERROR,
-  canRemoveSanpoMapMember,
   sanpoMapLeftMessage,
   sanpoMapMemberDisplayName,
   sanpoMapMemberRemovedMessage,
-  sanpoMapMemberRoleLabel,
 } from "@/features/sanpo-map/map/lib/sanpoMapMember";
 import type { SanpoMapMember } from "@/features/sanpo-map/shared/types";
 import { useScreenBack } from "@/hooks/useScreenBack";
@@ -182,62 +177,13 @@ export function SanpoMapMembersView({ sanpoMapId, currentUserId }: SanpoMapMembe
           {map.role === "owner" ? (
             <SanpoMapInviteSection sanpoMapId={map.id} sanpoMapName={map.name} />
           ) : null}
-          <View style={styles.list}>
-            {members.members.map((member, index) => {
-              const name = sanpoMapMemberDisplayName(member);
-              const isMe = member.userId === currentUserId;
-              const removable = canRemoveSanpoMapMember({
-                viewerRole: map.role,
-                viewerUserId: currentUserId,
-                member,
-              });
-              return (
-                <View
-                  key={member.userId}
-                  style={[styles.row, index === 0 ? null : styles.rowDivider]}
-                  testID={`sanpo-map-member-${index}`}
-                >
-                  <SanpoMapMemberAvatar member={member} size={36} />
-                  <View style={styles.rowText}>
-                    <Text style={styles.memberName} numberOfLines={1}>
-                      {name}
-                      {isMe ? <Text style={styles.me}>（あなた）</Text> : null}
-                    </Text>
-                    <View style={styles.badges}>
-                      <Badge tone={member.role === "owner" ? "info" : "neutral"}>
-                        {sanpoMapMemberRoleLabel(member.role)}
-                      </Badge>
-                    </View>
-                  </View>
-                  {removable ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onPress={() => setTarget({ mode: "remove", member })}
-                      accessibilityLabel={`${name}さんを外す`}
-                      testID={`sanpo-map-member-remove-${index}`}
-                    >
-                      外す
-                    </Button>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-          {map.role === "editor" && currentUserId !== null ? (
-            <Button
-              variant="danger"
-              fullWidth
-              onPress={() => {
-                const me = members.members.find((member) => member.userId === currentUserId);
-                if (me !== undefined) setTarget({ mode: "leave", member: me });
-              }}
-              testID="sanpo-map-members-leave"
-              style={styles.leave}
-            >
-              {SANPO_MAP_LEAVE_LABEL}
-            </Button>
-          ) : null}
+          <SanpoMapMemberList
+            members={members.members}
+            viewerRole={map.role}
+            currentUserId={currentUserId}
+            onRemove={(member) => setTarget({ mode: "remove", member })}
+            onLeave={(me) => setTarget({ mode: "leave", member: me })}
+          />
         </ScrollView>
       )}
       <ToastOverlay message={toast.message} visible={toast.visible} bottom={insets.bottom + 24} />
@@ -290,40 +236,5 @@ const useStyles = makeStyles((theme) => ({
   mapName: {
     fontSize: theme.typography.size.md,
     color: theme.colors.textSecondary,
-  },
-  list: {
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surfaceCard,
-    paddingHorizontal: theme.spacing[3],
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[3],
-    minHeight: 56,
-    paddingVertical: theme.spacing[2],
-  },
-  rowDivider: {
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
-  },
-  rowText: {
-    flex: 1,
-    gap: theme.spacing[1],
-  },
-  memberName: {
-    fontSize: theme.typography.size.md,
-    fontWeight: theme.typography.weight.bold,
-    color: theme.colors.textPrimary,
-  },
-  me: {
-    fontWeight: theme.typography.weight.regular,
-    color: theme.colors.textSecondary,
-  },
-  badges: {
-    flexDirection: "row",
-  },
-  leave: {
-    marginTop: theme.spacing[3],
   },
 }));

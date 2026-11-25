@@ -59,6 +59,7 @@
     - [ADR-M-024 地図への招待の受諾画面と、招待リンクの受け取り](./packages/mobile/adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md)
     - [ADR-M-025 タグ一覧とタグ詳細（全地図のピンを端末で集計する）](./packages/mobile/adr/ADR-M-025-tag-list-and-tag-detail.md)
     - [ADR-M-026 ピンタブの検索（住所・駅・施設名で探して地図に打つ）](./packages/mobile/adr/ADR-M-026-pin-tab-location-search.md)
+    - [ADR-M-027 ピンを散歩の目的地にする（ピン詳細から散歩開始画面を開く）](./packages/mobile/adr/ADR-M-027-pin-as-walk-destination.md)
   - backend:
     - [ADR-B-001 backend テスト用DBの分離を「テーブルの中身を空にする」方式に変える](./packages/backend/docs/adr/ADR-B-001-test-db-isolation-by-table-reset.md)
 - backend

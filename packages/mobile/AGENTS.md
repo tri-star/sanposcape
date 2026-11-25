@@ -72,3 +72,4 @@ ADR を新しく作ったら、下の表とルートの `README.md` の ADR 一�
 | [ADR-M-024](./adr/ADR-M-024-sanpo-map-invitation-accept-and-links.md) | 地図への招待（メンバー画面の招待シート・受諾画面（モーダル・「参加する」でだけ参加・returnTo=invitation）・招待リンクの受け取り（`+native-intent.tsx` で fragment のトークンを受諾画面へ）・招待リンクで参加（貼り付け））。iOS で招待シートが閉じ終えてから共有シートを開く（Dialog の onDismiss・予備のタイマー。SS-264 追補） |
 | [ADR-M-025](./adr/ADR-M-025-tag-list-and-tag-detail.md) | タグ一覧とタグ詳細（範囲は全地図・新しい API を作らず地図ごとのピンの全件取得を端末で集計・タグ詳細は開くたびに取り直す・アーカイブ済みと非表示の地図も含める・クエリ `label` で受ける） |
 | [ADR-M-026](./adr/ADR-M-026-pin-tab-location-search.md) | ピンタブの検索（ヒントの行を検索欄に・backend が画面内→1段階の拡大・広げたときだけ先頭へ動かす・検索結果のピンとカード・結果はメモリだけ・Google の地図のときだけ）。カードから検索結果の座標で登録画面を開く（SS-272 追補。規約 14.3 に反するリスクを承知のうえのユーザー判断） |
+| [ADR-M-027](./adr/ADR-M-027-pin-as-walk-destination.md) | ピンを散歩の目的地にする（入口はピン詳細の「このピンまで散歩する」・進行中の散歩があれば出さない・座標と名前はルートパラメータで渡し検証・開始画面は候補を探索しない・`place_id` に `pin:<pinId>` を入れ API は変えない・フラグ `pin_walk_destination` でポリシーの施行日の後に ON） |

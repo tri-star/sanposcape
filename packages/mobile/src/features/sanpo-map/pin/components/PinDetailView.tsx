@@ -51,6 +51,9 @@ import {
   canMoveToPinOnPinTab,
 } from "@/features/sanpo-map/pin/lib/pinTabFocus";
 import type { UseScreenBackResult } from "@/hooks/useScreenBack";
+import type { PinDetail } from "@/features/sanpo-map/pin/types";
+import type { SanpoMapIconKey } from "@/features/sanpo-map/shared/types";
+import type { GeoCoordinates } from "@/services/location/types";
 import { useScreenBack } from "@/hooks/useScreenBack";
 import { useToast } from "@/hooks/useToast";
 import { consumeFlashMessage, setFlashMessage } from "@/lib/flashMessage";
@@ -65,13 +68,24 @@ export type PinDetailViewProps = {
   /** ルートが認証ストアから読んで注入する（権限による導線の出し分けに使う。SS-119）。 */
   currentUserId: string | null;
   onSignIn: () => void;
+  /**
+   * 「このピンまで散歩する」（SS-170）。ルートが散歩開始画面への遷移を作って注入する（features/sanpo-map は
+   * features/walk に依存しない）。無ければボタンを出さない（進行中の散歩があるとき）。遷移は `back.runOnce` に通す。
+   */
+  onWalkToPin?: (pin: { id: string; name: string; location: GeoCoordinates }) => void;
 };
 
 /** `renderBody()` の戻り値。中央寄せするかどうかの判断をここ1箇所に閉じる（`WalkDetailView` と同じ形）。 */
 type PinDetailBody = { content: ReactNode; centered: boolean };
 
 /** PinDetailView — `/pins/[pinId]`（ピン詳細）の実体（SS-118。モックの `isDetail`）。 */
-export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: PinDetailViewProps) {
+export function PinDetailView({
+  pinId,
+  isSignedIn,
+  currentUserId,
+  onSignIn,
+  onWalkToPin,
+}: PinDetailViewProps) {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
@@ -411,31 +425,14 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
                 </Card>
               ) : null}
 
-              <View style={styles.locationSection}>
-                <View style={styles.sectionHeading}>
-                  <Icon name="map" size={18} color={theme.colors.primary} />
-                  <Text style={styles.sectionHeadingText}>場所</Text>
-                </View>
-                <PinLocationPreview
-                  location={pin.location}
-                  accessibilityLabel="ピンの位置の地図"
-                  mapHidden={viewerIndex !== null}
-                  markerIcon={markerIcon}
-                  variant="interactive"
-                  testID="pin-detail-map"
-                />
-                {canMoveToPinOnPinTab(pin) ? (
-                  <Button
-                    variant="secondary"
-                    icon="navigation"
-                    fullWidth
-                    onPress={handleMoveToPin}
-                    testID="pin-detail-move-to-pin"
-                  >
-                    ピンの場所に移動
-                  </Button>
-                ) : null}
-              </View>
+              <PinDetailLocationSection
+                pin={pin}
+                markerIcon={markerIcon}
+                mapHidden={viewerIndex !== null}
+                onMoveToPin={handleMoveToPin}
+                onWalkToPin={onWalkToPin}
+                runOnce={back.runOnce}
+              />
             </ScrollView>
           ),
         };
@@ -522,6 +519,76 @@ export function PinDetailView({ pinId, isSignedIn, currentUserId, onSignIn }: Pi
         // 下部の編集ボタンと重ならないよう、その分だけ上げる。
         bottom={insets.bottom + 24 + (showEditFooter ? theme.control.md + theme.spacing[3] * 2 : 0)}
       />
+    </View>
+  );
+}
+
+type PinDetailLocationSectionProps = {
+  pin: PinDetail;
+  markerIcon: SanpoMapIconKey;
+  /** 写真のビューアを開いている間は地図を隠す（`PinLocationPreview` の `mapHidden`）。 */
+  mapHidden: boolean;
+  onMoveToPin: () => void;
+  /** 無ければ「このピンまで散歩する」を出さない（`PinDetailViewProps.onWalkToPin`）。 */
+  onWalkToPin: PinDetailViewProps["onWalkToPin"];
+  /** 画面の遷移のラッチ（`useScreenBack` の `runOnce`）。 */
+  runOnce: UseScreenBackResult["runOnce"];
+};
+
+/**
+ * 「場所」の節（ピンの位置の地図・ピンの場所に移動・このピンまで散歩する）。SS-170 で `PinDetailView` から分けた
+ * （ファイルごとの oxlint の閾値。ADR-017 の SS-259 追補。pin/components はファイルを増やせないので同じファイルに置く）。
+ */
+function PinDetailLocationSection({
+  pin,
+  markerIcon,
+  mapHidden,
+  onMoveToPin,
+  onWalkToPin,
+  runOnce,
+}: PinDetailLocationSectionProps) {
+  const theme = useTheme();
+  const styles = useStyles();
+  return (
+    <View style={styles.locationSection}>
+      <View style={styles.sectionHeading}>
+        <Icon name="map" size={18} color={theme.colors.primary} />
+        <Text style={styles.sectionHeadingText}>場所</Text>
+      </View>
+      <PinLocationPreview
+        location={pin.location}
+        accessibilityLabel="ピンの位置の地図"
+        mapHidden={mapHidden}
+        markerIcon={markerIcon}
+        variant="interactive"
+        testID="pin-detail-map"
+      />
+      {canMoveToPinOnPinTab(pin) ? (
+        <Button
+          variant="secondary"
+          icon="navigation"
+          fullWidth
+          onPress={onMoveToPin}
+          testID="pin-detail-move-to-pin"
+        >
+          ピンの場所に移動
+        </Button>
+      ) : null}
+      {onWalkToPin !== undefined ? (
+        <Button
+          variant="secondary"
+          icon="footprints"
+          fullWidth
+          onPress={() =>
+            runOnce(() =>
+              onWalkToPin({ id: pin.id, name: pinDisplayName(pin.name), location: pin.location }),
+            )
+          }
+          testID="pin-detail-walk-to-pin"
+        >
+          このピンまで散歩する
+        </Button>
+      ) : null}
     </View>
   );
 }

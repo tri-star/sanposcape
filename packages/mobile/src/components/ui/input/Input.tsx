@@ -10,7 +10,7 @@ import {
 
 import { Icon, type IconName } from "@/components/ui/icon/Icon";
 import { makeStyles } from "@/theme/makeStyles";
-import { lineHeight } from "@/theme/tokens";
+import { lineHeight, type Theme } from "@/theme/tokens";
 import { useTheme } from "@/theme/useTheme";
 
 export type InputProps = {
@@ -74,25 +74,13 @@ export function Input({
   const styles = useStyles();
   const [focused, setFocused] = useState(false);
 
-  const borderColor = error
-    ? theme.colors.danger
-    : focused
-      ? theme.colors.borderFocus
-      : theme.colors.borderSubtle;
-
   return (
     <View style={[styles.root, style]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <View
         style={[
           styles.field,
-          {
-            borderColor,
-            backgroundColor: disabled ? theme.colors.trackSubtle : theme.colors.surfaceCard,
-          },
-          multiline
-            ? { minHeight, alignItems: "flex-start", paddingVertical: theme.spacing[3] }
-            : { height: size === "sm" ? theme.control.sm : theme.control.md },
+          fieldStateStyle(theme, { error, focused, disabled, multiline, minHeight, size }),
         ]}
       >
         {icon ? <Icon name={icon} size={18} color={theme.colors.textTertiary} /> : null}
@@ -127,6 +115,37 @@ export function Input({
       ) : null}
     </View>
   );
+}
+
+/** 入力欄の枠の、状態（エラー・フォーカス・無効）と種類（1行・複数行）で変わる部分。 */
+function fieldStateStyle(
+  theme: Theme,
+  {
+    error,
+    focused,
+    disabled,
+    multiline,
+    minHeight,
+    size,
+  }: {
+    error: string | undefined;
+    focused: boolean;
+    disabled: boolean;
+    multiline: boolean;
+    minHeight: number;
+    size: "sm" | "md";
+  },
+): ViewStyle {
+  const borderColor = error
+    ? theme.colors.danger
+    : focused
+      ? theme.colors.borderFocus
+      : theme.colors.borderSubtle;
+  const backgroundColor = disabled ? theme.colors.trackSubtle : theme.colors.surfaceCard;
+  const shape: ViewStyle = multiline
+    ? { minHeight, alignItems: "flex-start", paddingVertical: theme.spacing[3] }
+    : { height: size === "sm" ? theme.control.sm : theme.control.md };
+  return { borderColor, backgroundColor, ...shape };
 }
 
 const useStyles = makeStyles((theme) => ({

@@ -1,6 +1,6 @@
 ---
 name: planning-pitfalls
-description: mobile の計画時に効く確認事項 — 「別課題で削除」の予告を拾う、新しいドメイン語の衝突、未使用の既存 Expo 依存は安い、サーバーの制約をユーザー操作で回避させない、リリース順序
+description: mobile の計画時に効く確認事項 — 「別課題で削除」の予告を拾う、新しいドメイン語の衝突、未使用の既存 Expo 依存は安い、サーバーの制約をユーザー操作で回避させない、リリース順序、画面を分ける前にフォルダのファイル数を見る
 metadata:
   type: feedback
   scope: durable
@@ -47,3 +47,14 @@ SS-88 の初版プランは「コードは Spot / UI はピン」としたが、
 **How to apply:** mobile・LP・backend にまたがる変更では、デプロイの順序をプランと handover に書く。
 
 Related: [[testing-and-e2e]], [[pins-and-photos]]
+
+## 画面を部品に分ける前に、置き場のフォルダのファイル数を見る
+
+oxlint の関数の長さ・依存の数（ADR-017）で画面を分けると、同じ `components/` に部品のファイルが増える。
+フォルダが構造の検査（ADR-016）の上限（20）や baseline の値ちょうどだと、分けた PR が CI で落ちる（SS-259 では `pin/components` が baseline 32 ちょうどで、ピンの4画面を分けられなかった）。
+
+**Why:** lint を通すための分割が、別の検査（フォルダのファイル数・接頭辞の集中）を悪化させる。計画の後で気づくと、分ける範囲を組み直すことになる。
+
+**How to apply:** 計画の時点で `python3 scripts/code-health/check-structure.py` と `structure-baseline.json` で、置き場のフォルダの今の数を確かめる。
+上限の手前なら、同じファイルの中の関数・コンポーネントに分ける（ファイル数を増やさない）か、先にフォルダを領域で分ける課題を待つ。
+依存の数は、同じファイルの中に分けても減らない（ファイルの単位で数える）ので、別ファイルが要る。

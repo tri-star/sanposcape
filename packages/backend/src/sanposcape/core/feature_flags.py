@@ -78,7 +78,19 @@ class FeatureFlagSpec:
 # 本番で現在 ON の `audience="client"` のフラグを消すときは、ここから消して
 # `FIXED_CLIENT_FLAGS` へ移す。配布済みの mobile は未知キーを OFF に倒すため、キーが
 # 返らなくなると公開済みの機能が消える（ADR-008 SS-233 追補 D40）。
-FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = ()
+FEATURE_FLAGS: tuple[FeatureFlagSpec, ...] = (
+    FeatureFlagSpec(
+        key="pin_walk_destination",
+        description=(
+            "ピンを散歩の目的地にする（SS-170）。mobile のピン詳細の「このピンまで散歩する」と、"
+            "散歩開始画面がピンのパラメータを受け付けることを出し分ける。"
+            "ほかのメンバーのピンの名前・位置が散歩の記録に残るので、"
+            "プライバシーポリシーの不利な改定（2026年12月23日施行）の後に ON にする。"
+            "backend の API（`/explore/routes/loop`・`POST /walks`）はガードしない。"
+        ),
+        audience="client",
+    ),
+)
 
 # 削除の段階1 で固定値 `true` に移した、mobile が見るフラグ（ADR-008 SS-233 追補 D40）。
 # `/app-config` は AppConfig の取得の状態に関わらず `true` を返す（一度も取得できていない間の

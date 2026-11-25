@@ -1,15 +1,13 @@
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card } from "@/components/ui/card/Card";
 import { IconButton } from "@/components/ui/icon-button/IconButton";
-import { StatBlock } from "@/components/ui/stat-block/StatBlock";
 import { HistoryStateCard } from "@/features/history/components/HistoryStateCard";
 import { WalkDeleteDialog } from "@/features/history/components/WalkDeleteDialog";
-import { WalkTrackMapView } from "@/features/history/components/WalkTrackMapView";
+import { WalkDetailContent } from "@/features/history/components/WalkDetailContent";
 import { useWalkDelete } from "@/features/history/hooks/useWalkDelete";
 import { useWalkDetail } from "@/features/history/hooks/useWalkDetail";
 import {
@@ -238,42 +236,7 @@ export function WalkDetailView({ walkId, authState, onSignIn }: WalkDetailViewPr
         return {
           centered: false,
           content: (
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={[
-                styles.content,
-                { paddingBottom: insets.bottom + theme.spacing[6] },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              <WalkTrackMapView
-                testID="walk-detail-map"
-                track={walk.track}
-                destination={walk.destination}
-                destinationName={walk.destinationName}
-                height={260}
-                style={styles.map}
-              />
-              <Card>
-                <Text style={styles.destinationName}>{walk.destinationName}</Text>
-                <Text style={styles.dateTime}>{`${walk.dateLabel} ${walk.timeRangeLabel}`}</Text>
-              </Card>
-              <Card style={styles.statsRow}>
-                <StatBlock value={walk.elapsedLabel} label="経過時間" size="sm" />
-                <StatBlock
-                  value={walk.distanceKm.toFixed(1)}
-                  unit="km"
-                  label="歩行距離"
-                  size="sm"
-                />
-                <StatBlock
-                  value={walk.averageSpeedKmh === null ? "—" : walk.averageSpeedKmh.toFixed(1)}
-                  unit={walk.averageSpeedKmh === null ? undefined : "km/h"}
-                  label="平均時速"
-                  size="sm"
-                />
-              </Card>
-            </ScrollView>
+            <WalkDetailContent walk={walk} paddingBottom={insets.bottom + theme.spacing[6]} />
           ),
         };
       }
@@ -355,30 +318,5 @@ const useStyles = makeStyles((theme) => ({
   },
   centerState: {
     alignItems: "center",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: theme.layout.pageGutter,
-    gap: theme.spacing[3],
-  },
-  map: {
-    borderRadius: theme.radius.lg,
-    overflow: "hidden",
-  },
-  destinationName: {
-    fontSize: theme.typography.size.xl,
-    fontWeight: theme.typography.weight.heavy,
-    color: theme.colors.textPrimary,
-  },
-  dateTime: {
-    marginTop: 2,
-    fontSize: theme.typography.size.sm,
-    color: theme.colors.textSecondary,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
   },
 }));

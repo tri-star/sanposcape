@@ -37,7 +37,7 @@ export function buildWalkingRouteRequest(input: {
     },
     destination: {
       place_id: placeId,
-      // destination.location は /explore/places のレスポンス由来で既に安定しているため丸めない。
+      // destination.location は /explore/places のレスポンス、またはピンの座標（SS-170）由来で既に安定しているため丸めない。
       location: {
         latitude: destination.location.latitude,
         longitude: destination.location.longitude,

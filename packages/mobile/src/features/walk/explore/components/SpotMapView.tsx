@@ -9,8 +9,9 @@ import { WalkRouteLegend } from "@/features/walk/route/components/WalkRouteLegen
 import { WalkRoutePolylines } from "@/features/walk/route/components/WalkRoutePolylines";
 import { CATEGORY_META } from "@/features/walk/explore/data/categories";
 import { useMapRouteFit } from "@/features/walk/route/hooks/useMapRouteFit";
-import { regionForRoundTrip } from "@/features/walk/route/lib/mapRegion";
+import { regionForBounds, regionForRoundTrip } from "@/features/walk/route/lib/mapRegion";
 import type { SpotCandidate } from "@/features/walk/explore/types";
+import type { WalkDestination } from "@/features/walk/shared/types";
 import type { WalkRoute } from "@/features/walk/route/types";
 import type { GeoCoordinates } from "@/services/location/types";
 import { makeStyles } from "@/theme/makeStyles";
@@ -24,6 +25,11 @@ export type SpotMapViewProps = {
   onSelectSpot: (id: string) => void;
   /** 選択中スポットへの徒歩ルート。null ならルートを描かない。 */
   walkRoute?: WalkRoute | null;
+  /**
+   * 候補から選ぶのではなく固定の目的地（ピンを目的地にして開いたとき。SS-170）。
+   * 渡すとゴールのピンで描く（`candidates` は空で渡す）。
+   */
+  fixedDestination?: WalkDestination | null;
   style?: StyleProp<ViewStyle>;
   height?: number;
   testID?: string;
@@ -45,6 +51,7 @@ export function SpotMapView({
   selectedSpotId,
   onSelectSpot,
   walkRoute = null,
+  fixedDestination = null,
   style,
   height = 296,
   testID,
@@ -55,7 +62,13 @@ export function SpotMapView({
 
   // `MapView` の `initialRegion` はマウント時の1回しか読まれないため、
   // 以後の再センタリングは下の useEffect（`animateToRegion`）が担う。
-  const initialRegion = origin ? regionForRoundTrip(origin, durationMin) : null;
+  // マウントの時点でルートがあれば（ピンを目的地にして開き、ルートがキャッシュから即座に届いたとき。SS-170）、
+  // 最初からルートの範囲にする。マウント直後の `useMapRouteFit` の `animateToRegion` は地図の準備前で捨てられるため。
+  const initialRegion = origin
+    ? walkRoute
+      ? regionForBounds(walkRoute.bounds)
+      : regionForRoundTrip(origin, durationMin)
+    : null;
 
   useEffect(() => {
     // ルート表示中は往復半径での再センタリングをしない（線が画面外に出るのを防ぐ）。
@@ -91,8 +104,30 @@ export function SpotMapView({
         showsUserLocation
         showsMyLocationButton={false}
         toolbarEnabled={false}
+        // 地図の準備前に届いたルートへの fit（`useMapRouteFit` の `animateToRegion`）は捨てられるので、
+        // 準備ができたときにもう一度当てる（ピンを目的地にすると、現在地が取れた瞬間に地図のマウントと
+        // ルートの要求が同時に始まる。SS-170）。ルートが無ければ何もしない（往復半径の範囲のまま）。
+        onMapReady={() => {
+          if (walkRoute) {
+            mapRef.current?.animateToRegion(regionForBounds(walkRoute.bounds), 0);
+          }
+        }}
       >
         {walkRoute ? <WalkRoutePolylines walkRoute={walkRoute} /> : null}
+        {fixedDestination ? (
+          <Marker
+            key={fixedDestination.placeId}
+            identifier={fixedDestination.placeId}
+            coordinate={fixedDestination.location}
+            title={fixedDestination.name}
+            accessibilityLabel={fixedDestination.name}
+            tracksViewChanges={false}
+            {...mapPinMarkerPlacement(SELECTED_PIN_SIZE)}
+            testID="walk-start-destination-marker"
+          >
+            <MapPin category="goal" size={SELECTED_PIN_SIZE} />
+          </Marker>
+        ) : null}
         {candidates.map((spot, index) => {
           const selected = spot.id === selectedSpotId;
           const meta = CATEGORY_META[spot.category];

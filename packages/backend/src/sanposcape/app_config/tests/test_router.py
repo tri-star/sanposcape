@@ -6,12 +6,17 @@ from fastapi.testclient import TestClient
 
 from sanposcape.app_config.dependencies import get_feature_flags
 from sanposcape.config import Settings
-from sanposcape.core.feature_flags import FIXED_CLIENT_FLAGS, FeatureFlags
+from sanposcape.core.feature_flags import FEATURE_FLAGS, FIXED_CLIENT_FLAGS, FeatureFlags
 from sanposcape.integrations.aws.appconfig import FlagDocument
 from sanposcape.main import create_app
 
-# 登録簿に通常のフラグが無い間、`flags` は固定値のキーだけになる（ADR-008 SS-233 追補 D40）。
+# 固定値のキーは常に True（ADR-008 SS-233 追補 D40）、登録簿のフラグは値が無ければ OFF（決定9）。
+# 下のスタブの文書は登録簿のフラグを ON にしないので、`flags` はこの形になる。
 FIXED_FLAGS = dict.fromkeys(FIXED_CLIENT_FLAGS, True)
+DEFAULT_FLAGS = {
+    **{spec.key: False for spec in FEATURE_FLAGS if spec.audience == "client"},
+    **FIXED_FLAGS,
+}
 
 
 class _CountingFlagDocumentSource:
@@ -82,7 +87,7 @@ def test_get_app_config_response_shape(stub_client: TestClient) -> None:
     response = stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": FIXED_FLAGS,
+        "flags": DEFAULT_FLAGS,
         "minimum_supported_versions": {"ios": "1.2.3", "android": "1.2.4"},
         "config_source": "stub",
     }
@@ -105,16 +110,16 @@ def test_get_app_config_keeps_fixed_flags_true_even_if_the_document_turns_them_o
     app = create_app(settings)
     with TestClient(app) as client:
         response = client.get("/app-config")
-    assert response.json()["flags"] == FIXED_FLAGS
+    assert response.json()["flags"] == DEFAULT_FLAGS
 
 
-def test_get_app_config_with_empty_stub_document_returns_only_fixed_flags(
+def test_get_app_config_with_empty_stub_document_returns_fixed_flags_and_others_off(
     empty_stub_client: TestClient,
 ) -> None:
     response = empty_stub_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": FIXED_FLAGS,
+        "flags": DEFAULT_FLAGS,
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "stub",
     }
@@ -129,7 +134,7 @@ def test_get_app_config_falls_back_to_default_when_appconfig_unconfigured(
     response = unconfigured_client.get("/app-config")
     body = response.json()
     assert body == {
-        "flags": FIXED_FLAGS,
+        "flags": DEFAULT_FLAGS,
         "minimum_supported_versions": {"ios": None, "android": None},
         "config_source": "default",
     }

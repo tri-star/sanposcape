@@ -14,6 +14,7 @@ metadata:
 
 - **主要導線は `replace` の連鎖**: `/`（スプラッシュ）→ `replace` `/(auth)/sign-in` → `replace` ピンタブ `/(tabs)/pins`（着地点は ADR-M-009 の SS-145 追補）。
   着地した時点で `router.canGoBack() === false`。`/walk-start` ⇄ `(tabs)` も互いに `replace` なので、往復してもスタックは伸びない。
+  例外は、ピン詳細の「このピンまで散歩する」（SS-170。ADR-M-027）。`/walk-start` へ `push` するので `canGoBack()` は true、戻るとピン詳細、開始後は `dismissTo("/(tabs)")` で閉じる。
 - **`app/index.tsx`（スプラッシュ）と `app/(tabs)/index.tsx`（ナビタブ）は共存できる**（Expo Router の認証ガイドにある正式な形。型には別の href として載る）。
   タブへは `"/(tabs)"` で遷移し、裸の `"/"` は使わない。
 - `Tabs`（`expo-router`）は `@deprecated` だが動く。`BottomTabBarProps` はトップレベルから re-export されていないので、

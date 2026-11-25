@@ -33,8 +33,10 @@ export function useSpotCandidates(input: {
   origin: GeoCoordinates | null;
   durationMin: number;
   categories: readonly ExploreCategory[];
+  /** false なら探索しない（ピンを目的地にして開いた散歩開始画面。SS-170）。既定は true。 */
+  enabled?: boolean;
 }): UseSpotCandidatesResult {
-  const request = buildPlaceSearchRequest(input);
+  const request = input.enabled === false ? null : buildPlaceSearchRequest(input);
 
   const query = useQuery({
     queryKey: ["explore", "places", request],
@@ -52,7 +54,9 @@ export function useSpotCandidates(input: {
   }, [queryRefetch]);
 
   return {
-    candidates: query.data ?? [],
+    // 止めている間は前の候補を返さない。`keepPreviousData` は `enabled: false` の query にも前のデータを当てるので、
+    // 同じマウントのまま止めると（散歩開始画面がピンの目的地に変わったとき。SS-170）前の候補が地図に残る。
+    candidates: input.enabled === false ? [] : (query.data ?? []),
     isLoading: query.isPending && request !== null,
     isRefetching: query.isFetching && !query.isPending,
     errorCode: query.error ? toExploreErrorCode(query.error) : null,
