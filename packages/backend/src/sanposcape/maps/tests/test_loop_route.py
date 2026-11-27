@@ -184,8 +184,9 @@ def test_evaluate_loop_overlap_ratio_is_zero_when_route_too_short_for_eligible_c
 
 
 def test_evaluate_loop_scales_resample_step_for_unusually_long_routes(monkeypatch) -> None:
-    """SEC-L1 対策: O-D の直線距離は 10km 未満に制限した（SS-286）が、道のりは直線より長くなりうるので、
-    万一 Google が極端に長い経路を返しても resample() の点数が無限に増えないことを固定する。"""
+    """SEC-L1 対策: O-D の直線距離は 10km 未満に制限した（SS-286）が、道のりは直線より
+    長くなりうるので、万一 Google が極端に長い経路を返しても resample() の点数が無限に
+    増えないことを固定する。"""
     import sanposcape.maps.geometry as geometry_module
 
     calls: list[float] = []
