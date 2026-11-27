@@ -43,9 +43,9 @@ _EXCLUSION_RADIUS_RATIO = 0.2
 _EXCLUSION_RADIUS_MIN_METERS = 30.0
 _EXCLUSION_RADIUS_MAX_METERS = 100.0
 
-# origin/destination の距離には上限を設けていない（`GeoPoint`/`WalkingRouteRequest` も同様、
-# 既存の `/explore/routes/walking` を踏襲）。そのため、万一 Google が極端に長い経路を返した
-# 場合でも resample() の点数が無限に増えないよう、1 leg あたりの点数に上限を設ける
+# origin/destination の直線距離は `WalkingRouteRequest` が 10km 未満に制限する（SS-286。
+# ADR-007 決定9）。ただし道のりは直線より長く、Google が極端に長い経路を返すこともありうるので、
+# resample() の点数が無限に増えないよう、1 leg あたりの点数に上限を設ける
 # （security review SEC-L1: 再標本化コストの増幅対策）。
 _MAX_RESAMPLE_POINTS_PER_LEG = 2000  # 既定ステップ(10m)なら20kmまでは従来どおりの解像度
 
