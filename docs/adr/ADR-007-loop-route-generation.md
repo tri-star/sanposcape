@@ -2,7 +2,7 @@
 
 ## 現在有効な決定（要約）
 
-> 最終更新: 2026-09-23（SS-129）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
+> 最終更新: 2026-11-28（SS-286）。本節は本文（追補を含む）を要約したもので、一次記録は本文。
 > 本文と食い違う場合は本節の誤りとして本節を直す。
 
 ### 決定
@@ -20,6 +20,7 @@
 - **`/explore/places` の往復値は片道×2のままで、補正係数は入れない**（本文: 決定7）
 - **fake provider は経由点を直線で結ぶだけで、fake-place-1〜5 のすべてで周回が合格することをテストで固定する**。しきい値を変えたら必ずこのテストを確認する（本文: 決定8）
 - **並列取得のスレッドプールはリクエストごとに生成する**。Lambda 前提で妥当とし、常駐プロセスに移るときに見直す（本文: ネガティブな影響・トレードオフ、SS-129 追補）
+- **origin と destination の直線距離が 10km 以上の要求は 422 で拒否する**（`/explore/routes/loop` と `/explore/routes/walking` が共有する `WalkingRouteRequest` の validator。`maps/schemas.py` の `MAX_ROUTE_STRAIGHT_DISTANCE_METERS`）。mobile の散歩開始画面も同じ値で判定し、要求しない（本文: 決定9、SS-286 追補）
 
 ### 未解決・持ち越し
 
@@ -27,15 +28,16 @@
 - 1提示あたりの待ち時間、Cloud Billing 上の SKU、採用ルートの目視確認は未計測（本文: 実 API 検証の結果）
 - 条件付き・将来案: 段階2（α を0.4に拡大して再試行）、`/explore/places` の補正係数の再評価、経由点の POI スナップ（本文: 移行・対応事項）
 - `/explore/routes/walking` の削除判断は SS-130 で行う（本文: 移行・対応事項、SS-129 追補）
-- origin/destination の距離上限は設けていない（resample 点数の上限で緩和済み）。コストの増幅は Cloud Billing のアラートで監視することを推奨する（本文: 移行・対応事項 SEC-L1/SEC-L2）
+- コストの増幅は Cloud Billing のアラートで監視することを推奨する（本文: 移行・対応事項 SEC-L2）
 
 ### 変更・撤回された決定
 
 - 本文の「実 API 検証は本 ADR 執筆時点で未実施」は初版時点の状態で、2026-09-16 に実施済み（2026-09-16/17 追補）
+- 「origin/destination の距離上限は設けていない」（移行・対応事項 SEC-L1）は、10km の上限を入れた（決定9、SS-286 追補）
 
 ## 日付
 
-2026-09-15（初版。実 API 検証（下記「移行・対応が必要な事項」参照）は未実施）、2026-09-16 追補（エミュレータ上の実 API での動作確認）、2026-09-17 追補（実 API 検証の結果を記録。合格目標は未達で、生成品質の改善は別課題 SS-92 に切り出した）、2026-09-23 追補（SS-129: SS-33 のプラン・レビューで決めていながら本 ADR に転記していなかった根拠3件を、決定4・決定5・「ネガティブな影響・トレードオフ」に追記。決定5のエラー応答とログレベルの記述を実装に合わせて注記。`/explore/routes/walking` の削除判断を SS-130 として起票）
+2026-09-15（初版。実 API 検証（下記「移行・対応が必要な事項」参照）は未実施）、2026-09-16 追補（エミュレータ上の実 API での動作確認）、2026-09-17 追補（実 API 検証の結果を記録。合格目標は未達で、生成品質の改善は別課題 SS-92 に切り出した）、2026-09-23 追補（SS-129: SS-33 のプラン・レビューで決めていながら本 ADR に転記していなかった根拠3件を、決定4・決定5・「ネガティブな影響・トレードオフ」に追記。決定5のエラー応答とログレベルの記述を実装に合わせて注記。`/explore/routes/walking` の削除判断を SS-130 として起票）、2026-11-28 追補（SS-286: origin と destination の直線距離の上限 10km を決定9として追加。SEC-L1 の「上限を設けていない」に注記）
 
 ## コンテキスト
 
@@ -138,6 +140,20 @@ leg の path を10m間隔に補間し、20mグリッドのセルに割り当て�
 
 同じ道フォールバックを手動で再現する方法は `GOOGLE_MAPS_LOOP_ROUTE_ENABLED=false`（real/fake いずれでも有効）。
 
+### 決定9: origin と destination の直線距離の上限（10km）（SS-286 追補）
+
+ピンを目的地にできるようになり（ADR-M-027）、別の都市など遠い目的地の周回を要求できるようになった。スポット（`/explore/places`）は origin から 2km の円に絞られるので
+これまでは当たらなかったが、ピンは任意の場所にある。遠い2点の周回は Routes の応答が重く（resample・判定の処理、mobile の描画）、コストも増幅する。
+
+- `WalkingRouteRequest` に model validator を置き、origin と `destination.location` の直線距離（`maps/geometry.py` の `haversine_meters`）が
+  `MAX_ROUTE_STRAIGHT_DISTANCE_METERS`（10,000m）以上なら 422 にする。Routes は呼ばない。`/explore/routes/loop` と、同じモデルを使う `/explore/routes/walking` の両方に効く。
+- 値は課題の要件（現在地からピンまで 10km 以上なら開始できない）に合わせた。mobile の散歩開始画面も同じ値（`MAX_DESTINATION_DISTANCE_METERS`）で判定し、
+  範囲外なら要求せずに理由を出す（ADR-M-027 の SS-286 追補）。backend の判定は、mobile を迂回した要求と古いビルドへの防御。
+- mobile は判定に、要求に送る値（小数4桁に丸めた origin）を使い、境界を backend と揃える（地球の半径の定数の違いは 10km で約 1.4cm）。
+- validator は JSON Schema に出ないので、`openapi.yaml`・Orval の生成物は変わらない。
+- 配布済みのアプリとの互換: 配布済みのアプリが要求するのはスポット（2km の円の中）だけで、ピンを目的地にする経路はフラグ `pin_walk_destination`（本番 OFF）の裏にある。
+  SS-170 を含み SS-286 を含まないビルドがフラグ ON の後に遠いピンを開くと、422 が「探索の条件を確認してください。」（再試行なし）として出て開始できない。
+
 ## 検討した選択肢
 
 ### 周回生成方式
@@ -230,7 +246,7 @@ leg の path を10m間隔に補間し、20mグリッドのセルに割り当て�
 - `/explore/places` の補正係数（決定7）は、本番ログに出る `detour_ratio` の分布を見て再評価する。
 - 経由点を実在する POI にスナップする案（検討した選択肢のE）は、Places 呼び出しのコストとキャッシュ命中率の観点から見送った。将来、川沿い・私有地の問題が実運用で顕著になった場合に再検討する。
 - `/explore/routes/walking` の削除判断は、配布状況を見て別課題で行う（今回は `deprecated=True` の付与のみ）。（SS-129 追補）別課題として SS-130 を起票した。
-- （security review SEC-L1）`origin`/`destination` の距離には上限を設けていない（`GeoPoint`/既存 `/explore/routes/walking` と同様）。`evaluate_loop` の `resample()` 処理コストが距離に比例して増える点は、`maps/loop_route.py` の `_resample_step_meters()` で1 leg あたりの再標本化点数に上限（既定2000点）を設けて緩和した。原点・目的地そのものの距離バリデーションは入れていない（既存 walking との一貫性を優先）。
+- （security review SEC-L1）`origin`/`destination` の距離には上限を設けていない（`GeoPoint`/既存 `/explore/routes/walking` と同様）（**SS-286 追補**: 直線距離 10km 以上を 422 で拒否する上限を入れた。決定9）。`evaluate_loop` の `resample()` 処理コストが距離に比例して増える点は、`maps/loop_route.py` の `_resample_step_meters()` で1 leg あたりの再標本化点数に上限（既定2000点）を設けて緩和した。原点・目的地そのものの距離バリデーションは入れていない（既存 walking との一貫性を優先）（SS-286 追補: 決定9 で入れた。walking も同じモデルなので一貫性は保たれる）。
 - （security review SEC-L2）周回1回あたりの外部呼び出しは常に2〜3回で、受信側のレート制限は `/explore/places`（最大21倍の増幅）と共有のままにしている（意図的な設計判断）。本番運用開始後は Google Cloud Billing のクォータ・アラートで実際のコスト増幅を監視することを推奨する。
 
 ## 関連情報
