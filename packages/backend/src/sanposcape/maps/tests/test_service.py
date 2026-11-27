@@ -80,7 +80,8 @@ def test_route_returns_map_ready_path_bounds_and_destination_name() -> None:
     result = service.get_walking_route(
         WalkingRouteRequest.model_validate(
             {
-                "origin": {"latitude": 35, "longitude": 139},
+                # 直線距離の上限（SS-286。10km）の内側に置く。スタブの経路は destination で引く。
+                "origin": {"latitude": 35.19, "longitude": 139.19},
                 "destination": {
                     "place_id": "near",
                     "name": "Near",
