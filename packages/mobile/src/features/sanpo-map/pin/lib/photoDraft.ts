@@ -1,3 +1,4 @@
+import { PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS } from "@/features/sanpo-map/pin/lib/pinLimits";
 import type { PhotoUploadErrorCode } from "@/features/sanpo-map/pin/lib/photoUploadError";
 import type { PickedPhoto, PreparedPhoto } from "@/services/photo/types";
 
@@ -27,6 +28,11 @@ export type PhotoDraftItem = {
   status: PhotoDraftStatus;
   /** アップロード枠 ID（uploaded / attached のとき非 null）。 */
   uploadId: string | null;
+  /**
+   * `uploaded` になった時刻（端末の時計の epoch ms。uploaded / attached のとき非 null）。保存時に、紐付け期限
+   * （backend 既定 6 時間）が近い枠を使わずに取り直すかの判定に使う（`isUploadNearAttachDeadline`。SS-126）。
+   */
+  uploadedAt: number | null;
   errorCode: PhotoUploadErrorCode | null;
 };
 
@@ -34,7 +40,8 @@ export type PhotoDraftAction =
   | { type: "added"; items: Array<{ localId: string; picked: PickedPhoto }> } // processing
   | { type: "prepared"; localId: string; prepared: PreparedPhoto } // previewUri 差し替え、waiting
   | { type: "uploadStarted"; localId: string } // waiting → uploading
-  | { type: "uploaded"; localId: string; uploadId: string } // uploading → uploaded
+  | { type: "uploaded"; localId: string; uploadId: string; uploadedAt: number } // uploading → uploaded
+  | { type: "uploadDiscarded"; localId: string } // uploaded → waiting（期限の近い枠を捨てて送り直す。SS-126）
   | { type: "waited"; localId: string } // uploading/failed → waiting（429・一時失敗）
   | { type: "attached"; uploadIds: readonly string[] } // uploadId 一致の uploaded → attached
   | { type: "failed"; localId: string; errorCode: PhotoUploadErrorCode }
@@ -59,6 +66,7 @@ export function photoDraftReducer(
         prepared: null,
         status: "processing",
         uploadId: null,
+        uploadedAt: null,
         errorCode: null,
       }));
       return [...state, ...added];
@@ -80,8 +88,17 @@ export function photoDraftReducer(
         ...item,
         status: "uploaded",
         uploadId: action.uploadId,
+        uploadedAt: action.uploadedAt,
         errorCode: null,
       }));
+
+    case "uploadDiscarded":
+      // 紐付け前の枠だけを捨てる（attached はサーバーに紐付いた事実を取り消せないので無変化）。
+      return updateItem(state, action.localId, (item) =>
+        item.status === "uploaded"
+          ? { ...item, status: "waiting", uploadId: null, uploadedAt: null, errorCode: null }
+          : item,
+      );
 
     case "waited":
       return updateItem(state, action.localId, (item) =>
@@ -125,6 +142,19 @@ function updateItem(
   update: (item: PhotoDraftItem) => PhotoDraftItem,
 ): PhotoDraftItem[] {
   return state.map((item) => (item.localId === localId ? update(item) : item));
+}
+
+/**
+ * 先行アップロード済みの枠が、紐付けに使うには古すぎるか（SS-126）。`uploaded` になってから
+ * `PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS` 以上たっていれば true（backend の紐付け期限が近い・過ぎた）。
+ * 端末の時計が戻って経過が負になった場合は false（紐付けの 409 を受けてからのやり直しに任せる）。
+ */
+export function isUploadNearAttachDeadline(item: PhotoDraftItem, now: number): boolean {
+  return (
+    item.status === "uploaded" &&
+    item.uploadedAt !== null &&
+    now - item.uploadedAt >= PIN_PHOTO_UPLOAD_REUSE_MAX_AGE_MS
+  );
 }
 
 /** 未紐付けの枠をこの画面が占有している数（uploading + uploaded）。 */

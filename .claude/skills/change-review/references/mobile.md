@@ -95,7 +95,7 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
   「一覧を await してから」の順序だけでは描画のタイミングに頼る。画面側で消えた地図の詳細・メンバーの取得を止めているか（`enabled`）も見る。
 - `queryKey` のドメイン接頭辞・カーソルに `null` を渡さない・復旧は `resetQueries`。正本: folder-structure.md「状態管理の使い分け」
 - `useQueries` は key が変わるとオブザーバを作り直すので、`placeholderData: keepPreviousData` は効かない（`useQuery` とは違う）。「条件を変えても前のデータが出続ける／読み込み中にならない」という記述や指摘は、`useQuery` か `useQueries` かを確かめてから書く（SS-174 で実装の JSDoc・ADR とレビューの指摘が同じ誤解をした。確かめ方は agent-memory の hooks-and-query）。
-- `pinSaveRunner` の DI テストは `dispatch()` のたびに `items` を同期で書き換えるが、`usePinPhotos.ts` は `useReducer` + render 時に同期する `itemsRef`。`await` を挟まない連続 dispatch の直後は古い配列を見うる（未確認の既知ギャップ。冪等なので実害は追加リクエスト程度）。両ファイルを触る差分で確かめる。
+- `pinSaveRunner` の DI テストは `dispatch()` のたびに `items` を同期で書き換える。`usePinPhotos.ts` の `dispatch` も `itemsRef.current` を `photoDraftReducer` で同期で進めてから `useReducer` の dispatch を呼ぶ（MR2）ので、連続 dispatch の直後の `getItems()` は最新を返す（SS-126 で確かめた）。`itemsRef` を render 時に `items` から代入し直す形に戻す差分があれば、このずれが戻るので見る。
 - React Compiler が有効（`app.json` の `reactCompiler: true`）なので、render 中の `[...path]` のような派生値は入力の参照ごとにメモ化される。「毎レンダー新しい配列になる」と指摘する前に、そのコンポーネントが `"use no memo"` で外されていないか、Compiler が諦める書き方（render 中の ref の読み書きなど）になっていないかを確かめる（SS-168 で `RoutePolyline` の `[...path]` を誤って負荷として挙げた）。
 - render 中の ref への代入（`pausedRef.current = paused`、`useScreenBack` の `interceptRef`）と、render 中の条件付き setState（派生 state）は規約どおり（architecture-guideline.md「1回だけの状態確定」）。前者は依存配列から外す理由が書かれているか、後者は無限ループ・二重発火しないかだけを見る。
 - 一覧の `key` に表示文言（地図名・人の名前から組み立てた文）を使っていないか。地図名などは一意でないので、同じ文言が2行できると key が重複し、更新で行が落ちたり重なったりする。ID を key にする（SS-192 の地図欄の注記。`{key, text}` の形で渡す）。
@@ -115,6 +115,7 @@ mobile の新しい版は、ストアの審査と利用者の更新を待つ間�
 - `src/services/*` の mock / dev は常に成功するので、呼び出し側 hook の `.catch` 欠如が開発中に見えない。real（Google サインイン → `POST /auth/session` など）は reject しうる。services を呼ぶ hook に `.catch` かエラー state があるか。
 - 能動的に `AbortController.abort()` する経路（削除・画面離脱）があるなら、分類の前に意図した中断を除いているか（`isAbortError()`）。AbortError が診断ログに「失敗」として紛れる（SS-88）。JSDoc の「呼び出し側で弾く」を鵜呑みにせず catch ブロックを読む。
 - `Modal`（`Dialog`・`BottomSheet`）を閉じる操作と同じタイミングで、present で出すネイティブの画面（`Share.share` など）を開いていないか。iOS は閉じる途中の Modal の上に出せず、黙って何も表示しない（`Share.share` は reject もしない）。Android とエミュレータでは再現しない。閉じ終えた `onDismiss`（iOS だけ）で開いているかを見る（SS-264。ADR-M-024 D8）。
+- 冪等なキー（`client_pin_id` など）で再送する保存フローに、送る ID を作り直す処理（期限の近い写真の枠の取り直しなど）を足す差分では、応答が失われた後の再実行を追う。サーバーでは古い ID で成立済みなのに端末が新しい ID を送ると、冪等な応答（既存のピンと古い ID）と食い違い、新しい ID が後段（`addPinPhotos`）で付いて二重になる（SS-126 のレビュー指摘。作成前は先回りしないことで直した。ADR-M-010 決定17）。模型サーバーの `throw_lost` と、作り直しの条件をまたぐ時刻で再実行するテストがあるかを見る。
 - 操作ごとに別の `xxxError.ts` は意図的（ADR-M-001 決定6）なので統合を提案しない。逆に、別の操作の分類を再利用していたら要注意。
 - `${a}:${b}` の連結キーで重複判定していたら、区切り文字が値に含まれて衝突し処理が黙ってスキップされうる。値の生成元（`randomUuidV4()` など）を grep し、今起こりうるかで重大度を決める（起こりえなければ Low）。
 - ピン登録画面に入力・操作を足す差分では、「ピンだけ作れて写真の紐付けを再試行する状態」（`savedPinId !== null`。保存ボタンが「もう一度保存する」）で、その操作が意味を持つかを見る。
