@@ -24,6 +24,11 @@ export type WalkRouteSummaryProps = {
   isLoading: boolean;
   errorCode: ExploreErrorCode | null;
   onRetry: () => void;
+  /**
+   * 目的地が現在地から遠すぎて周回ルートを要求していない（SS-286）。目的地の名前と、散歩を始められない理由を出す。
+   * 上限の値は文言に合わせて `MAX_DESTINATION_DISTANCE_METERS`（10km）。
+   */
+  isOutOfRange?: boolean;
   testID?: string;
 };
 
@@ -39,10 +44,25 @@ export function WalkRouteSummary({
   isLoading,
   errorCode,
   onRetry,
+  isOutOfRange = false,
   testID = "walk-start-route-summary",
 }: WalkRouteSummaryProps) {
   const theme = useTheme();
   const styles = useStyles();
+
+  if (isOutOfRange) {
+    return (
+      <View style={styles.root} testID={testID}>
+        <Icon name="alert-circle" size={18} color={theme.colors.danger} />
+        <View style={styles.text}>
+          <Text style={styles.name}>{destinationName}</Text>
+          <Text style={styles.outOfRangeText} testID={`${testID}-out-of-range`}>
+            現在地から10km以上離れているため、ここまでの散歩は始められません。
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   if (errorCode !== null) {
     return (
@@ -141,6 +161,11 @@ const useStyles = makeStyles((theme) => ({
     marginTop: 2,
     fontSize: theme.typography.size["2xs"],
     color: theme.colors.textTertiary,
+  },
+  outOfRangeText: {
+    marginTop: 2,
+    fontSize: theme.typography.size.sm,
+    color: theme.colors.textSecondary,
   },
   loadingText: {
     flex: 1,

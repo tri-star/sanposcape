@@ -46,7 +46,7 @@ def _payload() -> dict:
         "destination": {
             "place_id": "opaque-id",
             "name": "Park",
-            "location": {"latitude": 35.1, "longitude": 139.1},
+            "location": {"latitude": 35.01, "longitude": 139.01},
         },
     }
 
@@ -155,6 +155,39 @@ def test_loop_route_validates_payload(client: TestClient) -> None:
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/explore/routes/walking", "/explore/routes/loop"])
+@pytest.mark.parametrize(
+    "destination_latitude, expected_status",
+    [
+        # 北へ 0.0899 度 ≈ 9,996m（上限未満）、0.09 度 ≈ 10,008m（上限以上）。
+        (35.0899, 200),
+        (35.09, 422),
+        # 別の都市（東京 → 大阪の緯度。経度は同じ）。
+        (34.7, 422),
+    ],
+)
+def test_route_endpoints_reject_destination_at_or_beyond_straight_distance_limit(
+    client: TestClient, path: str, destination_latitude: float, expected_status: int
+) -> None:
+    """SS-286: origin と destination の直線距離が 10km 以上の経路は、Routes の前に 422 で拒否する。
+
+    mobile を迂回した要求や遠い2点の周回で、Routes の応答・処理・コストが増幅するのを防ぐ。
+    10km 未満は今までどおり経路を返す（配布済みのアプリが送るスポットは 2km の円の中）。
+    """
+    provider = FakeProvider()
+    app.dependency_overrides[get_current_user_optional] = lambda: object()
+    app.dependency_overrides[get_maps_service] = lambda: MapsService(provider, 20, 20, 10, 8)
+    payload = _payload()
+    payload["destination"]["location"] = {"latitude": destination_latitude, "longitude": 139}
+    try:
+        response = client.post(path, json=payload)
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == expected_status
+    if expected_status == 422:
+        assert "10000 meters" in response.text
 
 
 @pytest.mark.parametrize("path", ["/explore/routes/walking", "/explore/routes/loop"])

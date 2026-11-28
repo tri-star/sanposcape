@@ -96,7 +96,7 @@ def test_anonymous_explore_endpoint_returns_429_after_ip_limit() -> None:
     app.dependency_overrides[get_maps_service] = lambda: MapsService(Provider(), 20, 20, 10, 8)
     payload = {
         "origin": {"latitude": 35, "longitude": 139},
-        "destination": {"place_id": "opaque", "location": {"latitude": 35.1, "longitude": 139.1}},
+        "destination": {"place_id": "opaque", "location": {"latitude": 35.01, "longitude": 139.01}},
     }
     with TestClient(app) as client:
         assert client.post("/explore/routes/walking", json=payload).status_code == 200
@@ -122,7 +122,7 @@ def test_authenticated_explore_endpoint_keeps_user_and_ip_limit() -> None:
     app.dependency_overrides[get_maps_service] = lambda: MapsService(Provider(), 20, 20, 10, 8)
     payload = {
         "origin": {"latitude": 35, "longitude": 139},
-        "destination": {"place_id": "opaque", "location": {"latitude": 35.1, "longitude": 139.1}},
+        "destination": {"place_id": "opaque", "location": {"latitude": 35.01, "longitude": 139.01}},
     }
     with TestClient(app) as client:
         assert client.post("/explore/routes/walking", json=payload).status_code == 200

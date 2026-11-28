@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # GeoPoint`) を壊さないよう、ここでは再エクスポートのみ行う（クラス名は不変なので
 # OpenAPI のコンポーネント名 `GeoPoint` にも変化はない）。
 from sanposcape.core.geo import GeoPoint
+from sanposcape.integrations.google_maps.provider import ProviderPoint
+from sanposcape.maps.geometry import haversine_meters
 
 __all__ = [
     "GeoPoint",
@@ -34,6 +36,14 @@ __all__ = [
 
 # 検索語の上限（code point。前後の空白を除いた後）。住所・施設名の入力には十分な長さ。
 PLACE_TEXT_QUERY_MAX_LENGTH = 100
+
+# 経路の origin と destination の直線距離の上限（メートル。SS-286。ADR-007 の SS-286 追補）。
+# これ以上離れた2点の経路は 422 で拒否する
+# （別の都市などの周回で Routes の応答・処理・コストが増幅するのを防ぐ）。
+# mobile の `MAX_DESTINATION_DISTANCE_METERS`
+# （features/walk/explore/lib/destinationRange.ts）と同じ値。
+# 配布済みのアプリが送るスポットは `/explore/places` が origin から 2km の円に絞るので当たらない。
+MAX_ROUTE_STRAIGHT_DISTANCE_METERS = 10_000.0
 
 
 class ExploreCategory(StrEnum):
@@ -97,8 +107,26 @@ class RouteDestination(BaseModel):
 
 
 class WalkingRouteRequest(BaseModel):
+    # クラスの docstring は OpenAPI の description に出るので、説明はコメントに書く。
+    # `/explore/routes/loop` と旧 `/explore/routes/walking` が共有する。
     origin: GeoPoint
     destination: RouteDestination
+
+    @model_validator(mode="after")
+    def _destination_must_be_within_range(self) -> "WalkingRouteRequest":
+        distance = haversine_meters(
+            ProviderPoint(latitude=self.origin.latitude, longitude=self.origin.longitude),
+            ProviderPoint(
+                latitude=self.destination.location.latitude,
+                longitude=self.destination.location.longitude,
+            ),
+        )
+        if distance >= MAX_ROUTE_STRAIGHT_DISTANCE_METERS:
+            raise ValueError(
+                f"destination must be less than {MAX_ROUTE_STRAIGHT_DISTANCE_METERS:.0f} meters "
+                "from origin"
+            )
+        return self
 
 
 class RouteDestinationRead(RouteDestination):

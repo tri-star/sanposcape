@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ExploreCategory } from "@/api/generated/model";
 import { DEFAULT_CATEGORIES, DEFAULT_DURATION_MIN } from "@/features/walk/explore/data/categories";
 import { isCandidateListLoading } from "@/features/walk/explore/lib/candidateListState";
+import { isDestinationOutOfRange } from "@/features/walk/explore/lib/destinationRange";
 import { useSpotCandidates } from "@/features/walk/explore/hooks/useSpotCandidates";
 import { useWalkRoute } from "@/features/walk/route/hooks/useWalkRoute";
 import type { ExploreErrorCode } from "@/features/walk/explore/lib/exploreError";
@@ -58,6 +59,11 @@ export type UseWalkPlanResult = {
    * （`useWalkRoute` にもこの値を渡す）。散歩開始時の引き渡し用。
    */
   destination: WalkDestination | null;
+  /**
+   * 目的地が現在地から 10km 以上離れている（SS-286）。周回ルートを要求せず、散歩を始められない。
+   * 現在地が取れるまでは false。
+   */
+  isDestinationOutOfRange: boolean;
 
   walkRoute: WalkRoute | null;
   isLoadingWalkRoute: boolean;
@@ -77,6 +83,8 @@ export type UseWalkPlanResult = {
  *
  * `pinDestination` を渡すと（ピン詳細の「このピンまで散歩する」。SS-170）、目的地をそのピンに固定し、
  * スポットの候補は探索しない（`/explore/places` を呼ばない）。
+ *
+ * 目的地が現在地から 10km 以上離れていれば（SS-286。ディープリンクや遠いピン）、周回ルートを要求しない。
  */
 export function useWalkPlan(
   options: { pinDestination?: WalkDestination | null } = {},
@@ -153,8 +161,13 @@ export function useWalkPlan(
       : { placeId: selectedSpot.id, name: selectedSpot.name, location: selectedSpot.location };
   }, [pinDestination, selectedSpot]);
 
-  const route = useWalkRoute({ origin, destination });
-  const canStartWalk = destination !== null && route.walkRoute !== null;
+  const destinationOutOfRange =
+    origin !== null &&
+    destination !== null &&
+    isDestinationOutOfRange(origin, destination.location);
+  // 範囲外なら目的地を渡さない（`/explore/routes/loop` を呼ばない。backend も 422 で拒否する）。
+  const route = useWalkRoute({ origin, destination: destinationOutOfRange ? null : destination });
+  const canStartWalk = destination !== null && !destinationOutOfRange && route.walkRoute !== null;
 
   const retryLocation = useCallback(() => {
     setSelectedSpotId(null);
@@ -197,6 +210,7 @@ export function useWalkPlan(
     selectSpot,
     selectedSpot,
     destination,
+    isDestinationOutOfRange: destinationOutOfRange,
 
     walkRoute: route.walkRoute,
     isLoadingWalkRoute: route.isLoading,

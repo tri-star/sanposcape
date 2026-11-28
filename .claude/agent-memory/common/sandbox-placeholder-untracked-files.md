@@ -16,6 +16,8 @@ sandbox の外からは見えない。読もうとすると Permission denied �
 
 **How to apply:**
 - `git add -A` / `git add .` は使わず、変更したパスを名指しして add する。
+- repo 直下の `.env` も被せ物なので、sandbox 内の `ls .env` が通っても `.env` があるとは限らない（SS-286 で `docker compose --env-file .env` が外で「couldn't find env file」）。
+  セットアップ済みかは `packages/backend/.env`・`packages/mobile/.env` で確かめ、無ければ `local-env-setup` skill を使う。
 - 見慣れない追跡外ファイルは、まず `ls -la` で文字デバイス（1, 3）かを確かめる。そうなら無視してよい。
 - `git status` を sandbox の外で見るために sandbox を外すことはしない（commit まで外に出すと、リポジトリのフックが sandbox なしで動く）。
 - 作業ディレクトリを repo の下のフォルダに移した（`cd`）後、そこに空の `.claude/.cc-writes/`（中身なし・追跡外）ができることがある（SS-260）。

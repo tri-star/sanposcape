@@ -44,9 +44,11 @@ export function WalkStartControls({
       ? plan.locationErrorCode !== null
         ? "現在地を取得できません"
         : "現在地を確認しています…"
-      : plan.isLoadingWalkRoute
-        ? "ルートを確認しています…"
-        : "散歩を始める";
+      : plan.isDestinationOutOfRange
+        ? "目的地が遠すぎます"
+        : plan.isLoadingWalkRoute
+          ? "ルートを確認しています…"
+          : "散歩を始める";
 
   return (
     <View style={[styles.controls, { paddingBottom }]}>
@@ -88,6 +90,7 @@ export function WalkStartControls({
           isLoading={plan.isLoadingWalkRoute}
           errorCode={plan.walkRouteErrorCode}
           onRetry={plan.retryWalkRoute}
+          isOutOfRange={plan.isDestinationOutOfRange}
         />
       ) : null}
 

@@ -147,7 +147,7 @@ def test_explore_rate_limit_persists_across_invocations(
     handler = make_handler(app)
     payload = {
         "origin": {"latitude": 35, "longitude": 139},
-        "destination": {"place_id": "opaque", "location": {"latitude": 35.1, "longitude": 139.1}},
+        "destination": {"place_id": "opaque", "location": {"latitude": 35.01, "longitude": 139.01}},
     }
 
     def _post(source_ip: str) -> int:
